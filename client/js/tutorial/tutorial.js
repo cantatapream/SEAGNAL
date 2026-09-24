@@ -69,6 +69,7 @@
     var EDGE     = 12;   // 화면 가장자리에서 띄울 여백(px)
     var TAG_H    = 30;   // 위쪽 "시험 모드" 딱지 줄이 차지하는 높이(px)
     var _insets  = { top: 0, bottom: 0 };   // 상태표시줄·제스처 바가 차지하는 만큼
+    var _zoneModalSaved = null;   // 해구 기상전망 창을 줄이기 전 모습
     var _trackId = 0;    // 대상 자리를 지켜보는 rAF 번호
     var _trackKey = '';  // 마지막으로 그린 대상 자리
     var CARD_MAX = 420;  // 설명 카드 최대 너비(px)
@@ -661,6 +662,34 @@
         return id;
     }
 
+    function _fitZoneModal(on) {
+        var modal = document.getElementById('sea-zone-modal');
+        var content = modal && modal.querySelector('.modal-content');
+        if (!content) return;
+        if (on) {
+            // 창은 원래 화면 한가운데에 세로 90% 까지 차지한다. 튜토리얼은 아래쪽을
+            //   설명 카드가 쓰므로 그대로 두면 창 아래가 잘린다(사용자 지적 2026-09-24).
+            //   **튜토리얼이 열려 있는 동안만** 위로 붙이고 남는 높이에 맞춘다.
+            //   안쪽(#zone-modal-body)이 overflow:auto 라 줄여도 표는 밀어서 다 볼 수 있다.
+            if (!_zoneModalSaved) {
+                _zoneModalSaved = { align: modal.style.alignItems,
+                                    padTop: modal.style.paddingTop,
+                                    maxH: content.style.maxHeight };
+            }
+            var topLimit    = EDGE + _insets.top + TAG_H;
+            var bottomLimit = window.innerHeight - EDGE - _insets.bottom;
+            var avail = bottomLimit - topLimit - GAP - CARD_MIN;
+            modal.style.alignItems = 'flex-start';
+            modal.style.paddingTop = Math.round(topLimit) + 'px';
+            content.style.maxHeight = Math.max(200, Math.round(avail)) + 'px';
+        } else if (_zoneModalSaved) {
+            modal.style.alignItems  = _zoneModalSaved.align;
+            modal.style.paddingTop  = _zoneModalSaved.padTop;
+            content.style.maxHeight = _zoneModalSaved.maxH;
+            _zoneModalSaved = null;
+        }
+    }
+
     function _setZoneGrid(on) {
         var modal = document.getElementById('sea-zone-modal');
         if (on && !modal) {
@@ -668,6 +697,7 @@
             var id = _zoneIdAtCenter();
             if (id) window.getMarineZoneData(id);
         } else if (!on && modal) {
+            _fitZoneModal(false);   // 우리가 줄여 둔 것을 되돌린 뒤에 닫는다
             if (typeof window.closeSeaZoneModal === 'function') window.closeSeaZoneModal();
             else modal.remove();
         }
@@ -1082,7 +1112,8 @@
             },
             drill: 'status:zonegrid',
             target: function () {
-                var el = document.getElementById('sea-zone-modal');
+                // 덮개 전체가 아니라 창만 밝힌다
+                var el = document.querySelector('#sea-zone-modal .modal-content');
                 return el ? [el] : null;
             },
             want: { forecast: false, alert: false, status: true }
@@ -1278,7 +1309,8 @@
             skip: function () { return !_cardBtn('해구기상'); },
             drill: 'zonegrid',
             target: function () {
-                var el = document.getElementById('sea-zone-modal');
+                // 덮개 전체가 아니라 창만 밝힌다
+                var el = document.querySelector('#sea-zone-modal .modal-content');
                 return el ? [el] : null;
             },
             want: { forecast: false, alert: true, status: false }
@@ -1543,6 +1575,9 @@
     function _paint(doFit) {
         if (!_root) return;
         var step = STEPS[_stepIdx];
+        // 해구 기상전망 창은 이 단계에서만 화면에 맞춰 줄인다(그래야 구멍도 줄어든 창을 감싼다)
+        var _d = step.drill;
+        _fitZoneModal((_d && _d.indexOf(':') > 0 ? _d.split(':')[1] : _d) === 'zonegrid');
         // 단계를 새로 그릴 때만 화면 밖으로 넘쳤는지 보고 맞춘다. 더 일찍 맞추면 그 뒤에
         //   내용이 더 펼쳐져(부이 관측값 등) 다시 어긋나고, 반대로 **매번** 맞추면
         //   사람이 화면을 움직일 때마다 되돌려 버린다(실측 2026-09-23).
@@ -1818,6 +1853,7 @@
         // 튜토리얼이 띄운 팝업·펼친 카드·누른 부이부터 되돌린다
         _setForecast(false);
         _setWindy(false);
+        _fitZoneModal(false);
         _setZoneGrid(false);
         _setBuoy(false, 'alert');
         _setBuoy(false, 'status');
