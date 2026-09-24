@@ -93,6 +93,7 @@
     };
     var _src = 'kma';          // 지금 보고 있는 출처
     var _foreignData = null;   // 해외 출처 응답 캐시
+    var _errorCone = null;     // 해외 출처의 오차 원뿔(GeoJSON) — 있으면 70%확률반경 자리에 그린다
     var _year = null;          // 선택 연도
     var _typhoonList = [];     // 선택 연도의 태풍 목록 [{seq,name}]
     var _selSeq = null;        // 선택 태풍 seq
@@ -498,13 +499,38 @@
         var s = (1 - Math.cos(Math.PI * angDiff(brngDeg, edDeg) / 180)) / 2;   // 0..1 S-커브
         return rShort + (rLong - rShort) * s;
     }
+    // 사분면 중심 방위 — JTWC 는 북동·남동·남서·북서 네 방향 거리를 준다.
+    var QUAD_CEN = [{ d: 45, k: 'ne' }, { d: 135, k: 'se' }, { d: 225, k: 'sw' }, { d: 315, k: 'nw' }];
+    /**
+     * 네 방향 거리에서 임의 방위의 반경을 낸다 — 이웃한 두 사분면 값을 S-커브로 잇는다.
+     * 예: quadRadAt({ne:102, se:0, sw:0, nw:93}, 0) → 97.5 (북쪽 = 북서와 북동 사이)
+     * [왜] 장반경·단반경 두 값으로 눌러 담으면 네 값 중 둘이 사라진다.
+     *   수리개처럼 "북동 102 · 북서 93 · 남동 0 · 남서 0" 인 경우 모양이 아예 달라진다.
+     * @param {Object} q - {ne, se, sw, nw} 거리(km)
+     * @param {number} brngDeg - 방위(도)
+     * @returns {number} 그 방위의 반경(km)
+     */
+    function quadRadAt(q, brngDeg) {
+        var b = ((brngDeg % 360) + 360) % 360;
+        var i = Math.floor((((b - 45) % 360) + 360) % 360 / 90);   // 어느 두 사분면 사이인가
+        var a = QUAD_CEN[i], c = QUAD_CEN[(i + 1) % 4];
+        var t = ((((b - a.d) % 360) + 360) % 360) / 90;            // 0..1
+        var sc = (1 - Math.cos(Math.PI * t)) / 2;                  // radAt 과 같은 코사인 S-커브
+        var ra = q[a.k] || 0, rc = q[c.k] || 0;
+        return ra + (rc - ra) * sc;
+    }
+    // 방위별 반경 — 네 방향 값이 있으면 그걸 쓰고, 없으면 기존 장·단반경 방식.
+    function radPick(quad, rLong, rShort, edDeg, brngDeg) {
+        return quad ? quadRadAt(quad, brngDeg) : radAt(rLong, rShort, edDeg, brngDeg);
+    }
+
     // 비대칭 달걀형 원 링 — bearing 별 반경 적용(edDeg/rShort 없으면 균일 원).
-    function asymRing(lon, lat, rLong, rShort, edDeg, n) {
+    function asymRing(lon, lat, rLong, rShort, edDeg, quad, n) {
         n = n || 72;
         var ring = [];
         for (var i = 0; i <= n; i++) {
             var deg = 360 * i / n;
-            ring.push(ol.proj.fromLonLat(destPoint(lon, lat, deg * Math.PI / 180, radAt(rLong, rShort, edDeg, deg))));
+            ring.push(ol.proj.fromLonLat(destPoint(lon, lat, deg * Math.PI / 180, radPick(quad, rLong, rShort, edDeg, deg))));
         }
         return ring;
     }
@@ -512,22 +538,23 @@
     // 진로를 따라 반경만큼 좌우로 벌린 회랑(corridor) + 시점별 (비대칭)원 캡 → 단일 MultiPolygon.
     //   cfg = { long, short, dir } — long=장반경(필수), short=단반경, dir=단반경 방위(가항측). short/dir 없으면 균일 원.
     function swathCorridorGeom(pts, cfg) {
-        var lk = cfg.long, sk = cfg.short, dk = cfg.dir;
+        var lk = cfg.long, sk = cfg.short, dk = cfg.dir, qk = cfg.quad;
         var P = [];
         pts.forEach(function (p) { if (p && p.lon != null && p[lk] != null && p[lk] > 0) P.push(p); });
         if (P.length === 0) return null;
         function rL(p) { return p[lk]; }
         function rS(p) { return sk ? p[sk] : null; }
         function eD(p) { return dk ? dirToDeg(p[dk]) : null; }
-        if (P.length === 1) return new ol.geom.MultiPolygon([[orientCW(asymRing(P[0].lon, P[0].lat, rL(P[0]), rS(P[0]), eD(P[0])))]]);
+        function qD(p) { return qk ? (p[qk] || null) : null; }   // 네 방향 값(JTWC). 기상청 프레임엔 없다 → null
+        if (P.length === 1) return new ol.geom.MultiPolygon([[orientCW(asymRing(P[0].lon, P[0].lat, rL(P[0]), rS(P[0]), eD(P[0]), qD(P[0])))]]);
         var left = [], right = [];
         for (var i = 0; i < P.length; i++) {
             var a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
             var brg = bearingRad(a.lon, a.lat, b.lon, b.lat);
             var brgDeg = brg * 180 / Math.PI;
             // 좌/우 수직 방향 각각의 (비대칭) 반경 — 가항측이면 단반경으로 회랑이 좁아짐.
-            var rl = radAt(rL(P[i]), rS(P[i]), eD(P[i]), ((brgDeg - 90) % 360 + 360) % 360);
-            var rr = radAt(rL(P[i]), rS(P[i]), eD(P[i]), ((brgDeg + 90) % 360 + 360) % 360);
+            var rl = radPick(qD(P[i]), rL(P[i]), rS(P[i]), eD(P[i]), ((brgDeg - 90) % 360 + 360) % 360);
+            var rr = radPick(qD(P[i]), rL(P[i]), rS(P[i]), eD(P[i]), ((brgDeg + 90) % 360 + 360) % 360);
             left.push(ol.proj.fromLonLat(destPoint(P[i].lon, P[i].lat, brg - Math.PI / 2, rl)));
             right.push(ol.proj.fromLonLat(destPoint(P[i].lon, P[i].lat, brg + Math.PI / 2, rr)));
         }
@@ -535,7 +562,7 @@
         ring.push(ring[0]);
         // 각 시점 (비대칭)원도 합쳐(둥근 캡 + 굴곡부 빈틈 메움). 모든 링 winding 통일(CW) → nonzero 단일 채움.
         var polys = [[orientCW(ring)]];
-        for (var k = 0; k < P.length; k++) polys.push([orientCW(asymRing(P[k].lon, P[k].lat, rL(P[k]), rS(P[k]), eD(P[k])))]);
+        for (var k = 0; k < P.length; k++) polys.push([orientCW(asymRing(P[k].lon, P[k].lat, rL(P[k]), rS(P[k]), eD(P[k]), qD(P[k])))]);
         return new ol.geom.MultiPolygon(polys);
     }
     // 링 부호면적(>0=CCW). 모든 링을 CW(음의 면적)로 통일해 swath 합집합 채움을 깔끔하게.
@@ -545,6 +572,29 @@
         return a / 2;
     }
     function orientCW(r) { return ringSignedArea(r) > 0 ? r.slice().reverse() : r; }
+
+    /**
+     * 오차 원뿔(GeoJSON) → 지도 도형. 경위도를 지도 좌표로 옮기기만 한다.
+     * 예: {type:'Polygon', coordinates:[[[136.2,17.2],…]]} → ol.geom.MultiPolygon
+     * [왜] JTWC 는 "경로가 빗나갈 수 있는 범위"를 기상청의 70% 확률반경(원) 대신
+     *   원뿔 도형으로 준다. 원으로 바꿔 그리면 그 기관이 말한 모양이 아니게 된다.
+     * [연계] ← renderStatic / renderHead · 서버 routes/typhoon_foreign.js 의 errorCone
+     * @param {Object} gj - GeoJSON Polygon 또는 MultiPolygon
+     * @returns {Object|null} ol.geom.MultiPolygon, 못 읽으면 null
+     */
+    function coneGeom(gj) {
+        if (!gj || !gj.coordinates) return null;
+        function ring(r) {
+            return (r || []).map(function (c) { return ol.proj.fromLonLat([c[0], c[1]]); });
+        }
+        try {
+            if (gj.type === 'Polygon') return new ol.geom.MultiPolygon([gj.coordinates.map(ring)]);
+            if (gj.type === 'MultiPolygon') {
+                return new ol.geom.MultiPolygon(gj.coordinates.map(function (poly) { return poly.map(ring); }));
+            }
+        } catch (e) { return null; }
+        return null;
+    }
 
     function pointAt(lon, lat) { return new ol.geom.Point(ol.proj.fromLonLat([lon, lat])); }
 
@@ -601,11 +651,12 @@
         if (!_frames.length) return;
 
         // 전체 진로 영역(매끈한 회랑) — 70%(아래)·강풍(중)·폭풍(위)은 레이어 zIndex 로 순서 보장
-        var probG = swathCorridorGeom(_frames, { long: 'radProb' });
+        // 경로 오차 범위: 기상청은 70% 확률반경(원), JTWC 는 오차 원뿔(도형). 같은 자리에 그린다.
+        var probG = _errorCone ? coneGeom(_errorCone) : swathCorridorGeom(_frames, { long: 'radProb' });
         if (probG) _probSrc.addFeature(new ol.Feature(probG));
-        var strongG = swathCorridorGeom(_frames, { long: 'radStrong', short: 'radStrongS', dir: 'radStrongD' });
+        var strongG = swathCorridorGeom(_frames, { long: 'radStrong', short: 'radStrongS', dir: 'radStrongD', quad: 'radQuad34' });
         if (strongG) _strongSrc.addFeature(new ol.Feature(strongG));
-        var stormG = swathCorridorGeom(_frames, { long: 'radStorm', short: 'radStormS', dir: 'radStormD' });
+        var stormG = swathCorridorGeom(_frames, { long: 'radStorm', short: 'radStormS', dir: 'radStormD', quad: 'radQuad50' });
         if (stormG) _stormSrc.addFeature(new ol.Feature(stormG));
 
         // ② 예측경로: 진로선 + 시점별 위치 점(강도색) + 라벨, ① 실제위치(현재) 강조
@@ -858,9 +909,13 @@
             _frames.forEach(function (fr) { if (fr._t <= f._rtMs) passedPts.push(fr); });
             passedPts.push(f); // 현재(보간) 시점 — 회랑 끝이 점점 커지며 진행
             _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear();
-            if (_layerOn.prob) { var gp = swathCorridorGeom(passedPts, { long: 'radProb' }); if (gp) _probSrc.addFeature(new ol.Feature(gp)); }
-            if (_layerOn.strong) { var gw = swathCorridorGeom(passedPts, { long: 'radStrong', short: 'radStrongS', dir: 'radStrongD' }); if (gw) _strongSrc.addFeature(new ol.Feature(gw)); }
-            if (_layerOn.storm) { var gs = swathCorridorGeom(passedPts, { long: 'radStorm', short: 'radStormS', dir: 'radStormD' }); if (gs) _stormSrc.addFeature(new ol.Feature(gs)); }
+            // 원뿔은 발표 시점의 전체 범위라 시간에 따라 자라지 않는다 — 통째로 그린다.
+            if (_layerOn.prob) {
+                var gp = _errorCone ? coneGeom(_errorCone) : swathCorridorGeom(passedPts, { long: 'radProb' });
+                if (gp) _probSrc.addFeature(new ol.Feature(gp));
+            }
+            if (_layerOn.strong) { var gw = swathCorridorGeom(passedPts, { long: 'radStrong', short: 'radStrongS', dir: 'radStrongD', quad: 'radQuad34' }); if (gw) _strongSrc.addFeature(new ol.Feature(gw)); }
+            if (_layerOn.storm) { var gs = swathCorridorGeom(passedPts, { long: 'radStorm', short: 'radStormS', dir: 'radStormD', quad: 'radQuad50' }); if (gs) _stormSrc.addFeature(new ol.Feature(gs)); }
         }
 
         // 진행 자취 중심선: 지나온 경로 + 현재 위치 (굵은 실선, 강도색).
@@ -1139,6 +1194,30 @@
      * [연계] ← 출처 드롭다운(#tphn-source) change · installControls (같은 파일)
      *          → loadForeign / loadYear (같은 파일)
      */
+    /**
+     * "경로 오차 범위" 체크박스의 이름·잠금을 지금 자료에 맞춘다.
+     * 예: 기상청 → "70%반경" / JTWC(원뿔 있음) → "오차원뿔" / 원뿔도 없으면 잠금
+     * [왜] 기관마다 이 값을 주는 방식이 다르다. 이름을 그대로 두면 원뿔을 "70%반경"이라
+     *   부르게 되고, 무조건 잠그면 JTWC 가 실제로 주는 원뿔을 못 켠다.
+     * [연계] ← setSource / renderBulletin (같은 파일) · index2.html #tphn-ly-prob
+     */
+    function applyProbControl() {
+        var chk = document.getElementById('tphn-ly-prob');
+        if (!chk) return;
+        var kma = (_src === 'kma');
+        var on = kma || !!_errorCone;        // 기상청은 항상, 해외는 원뿔을 받았을 때만
+        chk.disabled = !on;
+        var lab = chk.parentNode;
+        if (!lab) return;
+        lab.style.opacity = on ? '' : 0.45;
+        lab.title = on ? '' : '이 기관은 경로 오차 범위를 제공하지 않습니다';
+        // 라벨 글자만 바꾼다(체크박스 요소는 그대로 둔다).
+        var txt = kma ? ' 70%반경' : (_errorCone ? ' 오차원뿔' : ' 경로오차');
+        for (var i = 0; i < lab.childNodes.length; i++) {
+            if (lab.childNodes[i].nodeType === 3) { lab.childNodes[i].nodeValue = txt; break; }
+        }
+    }
+
     function setSource(src) {
         if (!SOURCES[src]) src = 'kma';
         _src = src;
@@ -1147,13 +1226,7 @@
         // 기상청에만 있는 조작은 해외 출처에서 잠근다(연도 이동·70%확률반경).
         var ySel = document.getElementById('tphn-year');
         if (ySel) ySel.disabled = (src !== 'kma');
-        var probChk = document.getElementById('tphn-ly-prob');
-        if (probChk) {
-            probChk.disabled = (src !== 'kma');
-            var lab = probChk.parentNode;
-            if (lab) lab.style.opacity = (src !== 'kma') ? 0.45 : '';
-            if (lab) lab.title = (src !== 'kma') ? '이 기관은 70% 확률반경을 제공하지 않습니다' : '';
-        }
+        applyProbControl();
         renderSourceNote();
         if (src === 'kma') { loadYear(_year, null, null); return; }
         loadForeign(src);
@@ -1190,7 +1263,11 @@
                 return;
             }
             renderSourceNote();
-            selectForeignTyphoon(_typhoonList[0].seq);
+            // 기상청 경로와 같은 규칙으로 고른다 — 제주에서 가장 가까운 태풍.
+            //   JTWC 는 전 세계 태풍을 한꺼번에 주므로(대서양·동태평양·인도양까지),
+            //   받은 순서의 첫 번째를 집으면 우리와 무관한 태풍이 기본이 된다.
+            var d0 = pickDefaultTyphoon(_foreignData.typhoons) || _foreignData.typhoons[0];
+            selectForeignTyphoon(d0.seq);
         }).catch(function (e) {
             console.warn('[OceanTyphoon] loadForeign 실패:', e.message);
             renderSourceNote('자료를 받지 못했습니다');
@@ -1212,6 +1289,30 @@
         _selCode = b0.code;
         setSelValue('tphn-bulletin', b0.code);
         renderBulletin(b0);
+    }
+
+    /**
+     * 해외 출처를 조용히 다시 받아온다 — 사용자가 고른 태풍은 그대로 둔다.
+     * 예: JTWC 를 켜 둔 채 5분이 지나면, 새 자문이 나왔을 때만 화면을 다시 그린다.
+     * [왜] 상류(JTWC)는 6시간마다 갱신되는데, 지금까지는 출처를 바꿀 때만 받아와서
+     *   패널을 켜 둔 채로는 자료가 멈춰 있었다(기상청 쪽에만 주기 갱신이 있었다).
+     * [연계] ← bindUI 의 5분 setInterval · → fetchJSON('/api/typhoon/foreign')
+     */
+    function refreshForeign() {
+        return fetchJSON('/api/typhoon/foreign?src=' + encodeURIComponent(_src)).then(function (j) {
+            if (!j || !j.success || !(j.typhoons || []).length) return;   // 실패하면 보던 화면을 유지
+            _foreignData = j;
+            _typhoonList = j.typhoons.map(function (t) {
+                return { seq: t.seq, name: t.name, ended: false };
+            });
+            populateNames();
+            var t = foreignTyphoon(_selSeq);
+            if (!t) return;                       // 보던 태풍이 목록에서 빠졌으면 화면을 건드리지 않는다
+            setSelValue('tphn-name', _selSeq);
+            var b0 = (t.bulletins || [])[0];
+            if (!b0 || b0.code === _selCode) return;   // 새 자문이 없으면 다시 그리지 않는다(재생 위치 보존)
+            selectForeignTyphoon(_selSeq);
+        }).catch(function () { /* ignore */ });
     }
 
     /** 해외 응답 캐시에서 태풍 하나 찾기. 없으면 null. */
@@ -1250,6 +1351,8 @@
 
     function renderBulletin(b) {
         _curBulletin = b;         // i버튼(안내)·이미지 팝업에서 rem/other/code 참조
+        _errorCone = b.errorCone || null;   // 해외 출처만 있다(기상청 통보문엔 없는 칸)
+        applyProbControl();       // 원뿔이 있으면 "경로오차" 체크박스를 열어 준다
         _playbackMode = false;    // 새 통보문 선택 → 기본(포인트별 말풍선 + 사전 범위) 모드
         _frames = buildFrames(b);
         _pNow = computeNowP();    // 발표시각이 아니라 "현재 시각" 기준 위치에서 시작
@@ -1278,6 +1381,7 @@
     }
     function clearTrack() {
         _frames = [];
+        _errorCone = null;
         [_trackSrc, _probSrc, _strongSrc, _stormSrc, _trailSrc, _headSrc, _pointSrc].forEach(function (s) { if (s) s.clear(); });
         _pointBubbles.forEach(function (ov) { ov.setPosition(undefined); });
         if (_moveBubble) _moveBubble.setPosition(undefined);
@@ -1665,7 +1769,11 @@
                 bindUI();
                 load();
                 // 5분마다 데이터 갱신(통보문 신규 반영) — 보이는 동안에만
-                setInterval(function () { if (_visible) refreshActive(); }, 5 * 60 * 1000);
+                setInterval(function () {
+                    if (!_visible) return;
+                    refreshActive();                        // 버튼 활성 상태는 출처와 무관하게 계속 본다
+                    if (_src !== 'kma') refreshForeign();   // 해외 출처도 같이 갱신
+                }, 5 * 60 * 1000);
                 return;
             }
             setTimeout(tryInit, 300);
