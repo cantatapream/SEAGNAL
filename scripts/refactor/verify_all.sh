@@ -406,6 +406,15 @@ node local_server/knowledge/legal/_dashboard/loop/annex_rowcount_gate.js --gate 
 echo; echo "── V5-41 「실측」 칸 ──"
 node local_server/knowledge/legal/_dashboard/loop/meta_measured_gate.js --gate || fail "V5-41 「실측」 칸"
 
+# ── V5-42 별표를 짚은 줄에 임자가 다 있나 (2026-09-24 신설, G-9) ──────────────
+#   [왜] V5-8 은 별표를 짚은 줄을 「조문 칸이 아님」으로 넘긴다. 넘긴 자리는 V5-11(고시)과
+#   V5-32(계층)가 나눠 받는데, **둘 다 아닌 줄이 있으면 아무도 안 본다**(뿌리 사슬 ③).
+#   G-9 는 *"605줄을 아무도 안 본다"* 로 열렸고 V5-32 가 그 자리를 받았지만
+#   **「이제 빠짐이 없다」는 아무도 증명하지 않았다** — 세는 자가 셋이라 숫자로는 알 수 없다(⑥).
+#   [무엇을 잠그나] `임자없음` **0**. 줄을 지워서 초록을 만들지 않는다(G-34).
+echo; echo "── V5-42 별표 줄의 임자 ──"
+node local_server/knowledge/legal/_dashboard/loop/annex_row_coverage.js --gate || fail "V5-42 별표 줄의 임자"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
