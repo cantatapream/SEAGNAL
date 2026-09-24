@@ -426,6 +426,16 @@ echo; echo "── V5-43 인용 없는 EXACT 주장 ──"
 python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py --gate > /tmp/_v543.log 2>&1 \
   && tail -6 /tmp/_v543.log || { tail -8 /tmp/_v543.log; fail "V5-43 인용 없는 EXACT 주장"; }
 
+# ── V5-44 진행판에 적힌 숫자가 실측과 같은가 (2026-09-24 신설) ────────────────
+#   사장님 지적: *"갱신하는 걸 계속 까먹고 있는 것 같다. 전체 중에 어느 정도 왔는가를
+#   파악할 수 있도록 해야 될 것 같다."* — 까닭은 **진행판 숫자가 손으로 적은 값**이었다는 것이다.
+#   손으로 적은 값은 ①일이 끝나도 안 바뀌고 ②아무도 다시 세지 않는다(뿌리 사슬 ③).
+#   그래서 세는 자리를 `loop/worklist_progress.py` 하나로 옮기고, 게이트가 그것을 지킨다.
+#   빨간불이면 고치는 법은 하나다 — `python3 …/worklist_progress.py --update`.
+echo; echo "── V5-44 진행판 = 실측 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/worklist_progress.py --gate \
+  || fail "V5-44 진행판에 적힌 숫자가 실측과 다르다"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
