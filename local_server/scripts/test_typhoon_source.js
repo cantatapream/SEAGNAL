@@ -322,6 +322,19 @@ ok('해외 출처에서는 연도 이동을 잠근다', /ySel\.disabled = \(src 
 //   실제로 주는지로 판단한다 — JTWC 는 원뿔을 주므로 잠그면 안 된다.
 ok('경로오차 체크박스는 자료가 있을 때만 열린다(기상청 항상 · 해외는 원뿔 있을 때)',
     /chk\.disabled = !on;/.test(TYPHOON_SRC) && /var on = kma \|\| !!_errorCone;/.test(TYPHOON_SRC));
+// 통보문 이미지 버튼은 기상청 통보문 파일명 규칙(RTKO63_…)으로만 동작한다.
+//   해외 코드('2026-WP-25_4')를 넣으면 빈 문자열이 나와 팝업이 조용히 안 열렸다 —
+//   눌러도 아무 일이 없는 버튼은 "자료가 없는 것"과 구별이 안 된다.
+ok('★해외 출처에서는 통보문 이미지 버튼을 감춘다',
+    /imgBtn\.style\.display = \(src === 'kma'\) \? '' : 'none';/.test(TYPHOON_SRC));
+
+const BIN_SRC = (TYPHOON_SRC.match(/function bulletinImageName[\s\S]*?\n    \}/) || [''])[0];
+const bulletinImageName = new Function(BIN_SRC + '; return bulletinImageName;')();
+ok('기상청 코드는 이미지 파일명이 나온다',
+    bulletinImageName('1_202609241000_26_3') === 'RTKO63_202609241000]26_ko.png');
+ok('해외 코드로는 파일명이 안 나온다(그래서 버튼을 감춘 것이다)',
+    bulletinImageName('2026-WP-25_4') === '');
+
 ok('경로 오차 범위를 안 주는 기관에서는 왜 잠겼는지 알려 준다',
     /이 기관은 경로 오차 범위를 제공하지 않습니다/.test(TYPHOON_SRC));
 ok('어느 기관 자료인지 화면에 적는다(renderSourceNote)',

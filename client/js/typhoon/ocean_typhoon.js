@@ -1226,6 +1226,10 @@
         // 기상청에만 있는 조작은 해외 출처에서 잠근다(연도 이동·70%확률반경).
         var ySel = document.getElementById('tphn-year');
         if (ySel) ySel.disabled = (src !== 'kma');
+        // 통보문 이미지 버튼은 기상청에만 있다 — dmdw 가 그리는 그림을 파일명으로 불러오는 방식이라
+        //   해외 출처에는 대응하는 그림이 없다. 눌러도 아무 일이 안 일어나는 버튼을 남기지 않는다.
+        var imgBtn = document.getElementById('tphn-img-btn');
+        if (imgBtn) imgBtn.style.display = (src === 'kma') ? '' : 'none';
         applyProbControl();
         renderSourceNote();
         if (src === 'kma') { loadYear(_year, null, null); return; }
