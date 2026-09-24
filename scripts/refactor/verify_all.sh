@@ -397,6 +397,15 @@ node local_server/knowledge/legal/_dashboard/loop/byl_body_census.js --gate || f
 echo; echo "── V5-40 별표 항목수 대조 ──"
 node local_server/knowledge/legal/_dashboard/loop/annex_rowcount_gate.js --gate || fail "V5-40 별표 항목수 대조"
 
+# ── V5-41 「실측」 칸이 지금도 사실인가 (2026-09-24 신설, 3-56) ─────────────
+#   [왜] `_meta.json` 409개의 `실측_YYYY-MM-DD` 칸은 스스로 *"판단은 이 칸을 근거로 한다"* 고
+#   적어 놓고 **아무도 다시 재지 않았다**(뿌리 사슬 ③·⑤). 첫 측정에서 적힌 파일 695개 중
+#   조문수가 다른 것 303 · 바이트가 다른 것 72 였다.
+#   [★섞어 세지 않는다] 그중 262 는 **파일이 바뀐 게 아니라 세는 자가 좋아져서** 달라진 것이다
+#   (조약 조문꼴 꼴④ 추가 등). 고치는 도구가 그 까닭을 칸에 같이 적는다.
+echo; echo "── V5-41 「실측」 칸 ──"
+node local_server/knowledge/legal/_dashboard/loop/meta_measured_gate.js --gate || fail "V5-41 「실측」 칸"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서

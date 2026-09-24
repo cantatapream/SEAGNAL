@@ -1,0 +1,8 @@
+{
+ "script": "meta_mst_align.py",
+ "stamp": "20260924-072118-104",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/전자정부법/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/전자정부법/법률_발췌.txt"
+ ]
+}
