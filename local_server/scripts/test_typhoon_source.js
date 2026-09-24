@@ -34,6 +34,8 @@ const route = require(path.join(ROOT, 'local_server', 'routes', 'typhoon_foreign
 const TYPHOON_SRC = fs.readFileSync(
     path.join(ROOT, 'client', 'js', 'typhoon', 'ocean_typhoon.js'), 'utf8');
 const HTML_SRC = fs.readFileSync(path.join(ROOT, 'client', 'index2.html'), 'utf8');
+const ROUTE_SRC = fs.readFileSync(
+    path.join(ROOT, 'local_server', 'routes', 'typhoon_foreign.js'), 'utf8');
 const SERVER_SRC = fs.readFileSync(path.join(ROOT, 'local_server', 'server.js'), 'utf8');
 const VERIFY_SRC = fs.readFileSync(path.join(ROOT, 'scripts', 'refactor', 'verify_all.sh'), 'utf8');
 
@@ -233,6 +235,11 @@ ok('갱신에 실패하면 보던 화면을 유지한다',
 
 // ③ 오차 원뿔 — 서버가 싣고, 화면이 70%확률반경 자리에 그린다.
 const CONE = { type: 'Polygon', coordinates: [[[136.2, 17.2], [137, 18], [136, 18.5], [136.2, 17.2]]] };
+// filter=geo 가 없으면 상류가 errorCone 칸 자체를 안 준다(2026-09-24 실제 응답으로 확인).
+//   붙여도 position·forecast·track 은 그대로 다 온다 — 빠지는 것이 없다.
+ok('★상류를 부를 때 filter=geo 를 붙인다 — 없으면 오차 원뿔이 안 온다',
+    /&limit=10&filter=geo/.test(ROUTE_SRC));
+
 ok('★오차 원뿔을 태풍 객체 뿌리에서 찾는다',
     route._pickErrorCone({ errorCone: CONE }) === CONE);
 ok('position 칸에 있어도 찾는다',
@@ -244,8 +251,38 @@ ok('★없으면 null — 원을 지어내지 않는다',
 ok('도형이 아닌 값은 받지 않는다',
     route._pickErrorCone({ errorCone: 'polygon' }) === null &&
     route._pickErrorCone({ errorCone: {} }) === null);
-ok('통보문에 errorCone 칸을 실어 보낸다', /errorCone: pickErrorCone\(st\)/.test(
-    fs.readFileSync(path.join(ROOT, 'local_server', 'routes', 'typhoon_foreign.js'), 'utf8')));
+ok('통보문에 errorCone 칸을 실어 보낸다', /errorCone: pickErrorCone\(st\)/.test(ROUTE_SRC));
+
+// 2026-09-24 상류 응답(Nolo, 2026-EP-15)에서 그대로 떼어 온 원뿔의 앞뒤 점.
+//   실제 도형이 우리 코드를 통과하는지 붙박이로 고정한다.
+const REAL_CONE = {
+    type: 'Polygon',
+    coordinates: [[[-155.726, 14.28876], [-155.67561, 14.28392], [-155.61649, 14.28322],
+                   [-155.76904, 14.29964], [-155.726, 14.28876]]]
+};
+ok('★실제 상류 원뿔(Polygon)을 그대로 꺼낸다',
+    route._pickErrorCone({ id: '2026-EP-15', errorCone: REAL_CONE }) === REAL_CONE);
+
+// coneGeom 도 바깥 의존이 ol 뿐이라, 가짜 ol 을 끼워 실제로 돌려 본다(브라우저 없이).
+const CONE_SRC = (TYPHOON_SRC.match(/function coneGeom[\s\S]*?\n        return null;\n    \}/) || [''])[0];
+let coneMade = null;
+const fakeOl = {
+    proj: { fromLonLat: function (c) { return [c[0] * 100, c[1] * 100]; } },
+    geom: { MultiPolygon: function (p) { coneMade = p; } }
+};
+const coneGeom = new Function('ol', CONE_SRC + '; return coneGeom;')(fakeOl);
+
+coneGeom(REAL_CONE);
+ok('★실제 원뿔이 지도 도형으로 옮겨진다 (도형 1 · 링 1 · 점 5)',
+    coneMade.length === 1 && coneMade[0].length === 1 && coneMade[0][0].length === 5,
+    JSON.stringify([coneMade.length, coneMade[0].length, coneMade[0][0].length]));
+ok('경위도를 지도 좌표로 옮긴다(순서도 유지)',
+    JSON.stringify(coneMade[0][0][0]) === JSON.stringify([-15572.6, 1428.876]),
+    JSON.stringify(coneMade[0][0][0]));
+coneGeom({ type: 'MultiPolygon', coordinates: [REAL_CONE.coordinates, REAL_CONE.coordinates] });
+ok('여러 덩어리(MultiPolygon)도 받는다', coneMade.length === 2);
+ok('★도형이 아니면 null — 엉뚱한 그림을 그리지 않는다',
+    coneGeom(null) === null && coneGeom({ type: 'Point', coordinates: [1, 2] }) === null);
 
 ok('★화면은 원뿔이 있으면 원뿔을, 없으면 기존 70% 회랑을 그린다',
     /_errorCone \? coneGeom\(_errorCone\) : swathCorridorGeom\(_frames, \{ long: 'radProb' \}\)/.test(TYPHOON_SRC));
