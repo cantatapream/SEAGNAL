@@ -1230,6 +1230,27 @@
         }
     }
 
+    /**
+     * 통보문 이미지 버튼을 띄울지 정한다 — 그림이 실제로 있는 때만 띄운다.
+     * 예: 기상청 → 항상 / JTWC 수리개(북서태평양) → 띄움 / JTWC Polo(동태평양) → 감춤
+     * [왜 태풍마다 다른가] JTWC 는 북서태평양·인도양·남반구만 경보를 낸다.
+     *   대서양·동태평양은 미국 국립허리케인센터(NHC) 담당이라 JTWC 그래픽이 없다.
+     *   서버가 태풍마다 imageName 을 채워 주고(없으면 빈 값), 여기서는 그것만 본다.
+     * [연계] ← setSource / selectForeignTyphoon (같은 파일) · 서버 응답의 imageName
+     */
+    function applyImageBtn() {
+        var btn = document.getElementById('tphn-img-btn');
+        if (!btn) return;
+        var on;
+        if (_src === 'kma') {
+            on = true;
+        } else {
+            var t = foreignTyphoon(_selSeq);
+            on = !!(t && t.imageName);
+        }
+        btn.style.display = on ? '' : 'none';
+    }
+
     function setSource(src) {
         if (!SOURCES[src]) src = 'kma';
         _src = src;
@@ -1238,10 +1259,7 @@
         // 기상청에만 있는 조작은 해외 출처에서 잠근다(연도 이동·70%확률반경).
         var ySel = document.getElementById('tphn-year');
         if (ySel) ySel.disabled = (src !== 'kma');
-        // 통보문 이미지 버튼 — 기상청은 dmdw 통보문 그림, JTWC 는 경고 그래픽(gif).
-        //   그림을 가진 출처에서만 띄운다(나머지는 눌러도 아무 일이 없어 고장처럼 보인다).
-        var imgBtn = document.getElementById('tphn-img-btn');
-        if (imgBtn) imgBtn.style.display = (src === 'kma' || src === 'jtwc') ? '' : 'none';
+        applyImageBtn();
         applyProbControl();
         renderSourceNote();
         if (src === 'kma') { loadYear(_year, null, null); return; }
@@ -1304,6 +1322,7 @@
         if (!b0) { clearTrack(); return; }
         _selCode = b0.code;
         setSelValue('tphn-bulletin', b0.code);
+        applyImageBtn();   // 태풍마다 그림 유무가 다르다(해역이 다르면 JTWC 그래픽이 없다)
         renderBulletin(b0);
     }
 
