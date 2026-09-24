@@ -941,3 +941,285 @@ module.exports.TIER_BODY_FILES = TIER_BODY_FILES;
 module.exports.HEAD_SKIP_DIRS = HEAD_SKIP_DIRS;
 module.exports.ARTICLE_HEAD_SCOPES = ARTICLE_HEAD_SCOPES;
 module.exports.countArticleHeadMissing = countArticleHeadMissing;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 2-6b ⑥ ★**「인용 정확도」** — G-2 의 마지막 한 자리 (2026-09-24 신설)
+//
+// [왜 여기까지 남아 있었나] G-2 는 세 가지를 들었다 — 「인용 정확도」·「catch」·「재발률」.
+//   뒤의 둘은 2026-09-23(2-6b)에 닫혔는데, **「인용 정확도」만 뜻이 안 정해진 채 남았다.**
+//   등록부 G-2 칸이 계속 🟡였던 까닭이 이것이다.
+//
+// [★다섯 벌이 낸 다섯 값 — 그런데 이번엔 정의가 적혀 있었다] `13_ROUND2_SYNTHESIS §1`:
+//     F  854 (자기 법 완결문만)          91.1%
+//     G  2,579 (절 한정 + 조문꼴 어미)    78.3%
+//     D  1,672                          76.9%
+//     나 1,654                          78.4%
+//     E  1,801 (인용 뒤 40자에 조문표기)  61.5%
+//   ★**데이터가 흔들린 게 아니라 자가 다섯 벌이다.** 갈리는 자리는 딱 둘이었다:
+//     ① 무엇을 「인용」으로 볼 것인가 (따옴표만? 완결문만? 조문표기가 붙은 것만?)
+//     ② 무엇까지 씻고 볼 것인가 — `(이하 "…"라 한다)` 는? 한자 `(吃水)` 는? `<개정 …>` 는?
+//   `_SCHEMA §0-E 규칙 3` 은 *"정규화 없이 비교하지 않는다"* 고만 적고 **무엇을 씻으라고는
+//   안 적었다.** 그래서 다섯이 각자 정했다. 여기서 그 둘을 **이름 있는 축**으로 못박는다.
+//
+// [세는 법 — 뜻(무엇을 인용으로 보나) × 씻기(무엇을 지우고 보나) × 범위]
+const CITE_SENSES = {
+  따옴표:   '큰따옴표 안 8자 이상. 가장 넓다 — 우리 편집어까지 들어온다',
+  우리말뺌: '따옴표 중 **우리가 쓴 말**(대조·확인·미인덱스·[제N조] 등)을 뺀 것. 기본값',
+  조문꼴:   '우리말뺌 + **조문 어미로 끝나는 완결문**만(…한다/하여야 한다/할 수 있다/없다)',
+  조문표기: '우리말뺌 + 인용 **뒤 40자 안에 「제N조」** 가 붙은 것만',
+};
+const CITE_WASH = {
+  공백만:   '공백·줄바꿈만 지운다. 원문은 줄을 접어 두는 자리가 많다',
+  괄호까지: '공백 + **( ) 안**을 통째로 지운다 — 어긋남의 2/3 가 괄호·단서 생략이다',
+};
+// [★이 자가 답하는 물음] "위키가 큰따옴표로 인용한 법 문장이, 그 법의 raw 안에 **글자 그대로
+//   있는가**". ⚠**「위키가 틀렸다」는 뜻이 아니다** — 못 찾은 것 중엔 표로 쪼개진 원문,
+//   타법 인용, 우리 작문이 섞여 있다(2라운드 갈래표 참조). 그래서 이 값은 **후보의 크기**다.
+//   갈래를 가르는 일은 3-41 이 한다.
+const CITE_ART_END = /(한다|하여야\s*한다|해야\s*한다|할\s*수\s*있다|할\s*수\s*없다|하지\s*아니한다|본다|말한다|된다|아니한다)[.。]?\s*$/;
+const CITE_OURS    = /(감사|H-\d|raw\/|대조|확인|미인덱스|승격|승급|불가\b|\[제\d+조\]|wiki|판단할 수 없다|권장|검수|아니다|없다$|이다$|미반영|본 위키|이 쪽)/;
+const CITE_BOX     = '─│┌┐└┘├┤┬┴┼━┃┏┓┗┛┣┫┳┻╋';
+
+function citeWash(s, wash) {
+  let t = String(s == null ? '' : s).normalize('NFC');
+  t = t.replace(/\*\*|~~|`|<[^>]{0,40}>/g, '');
+  if (wash === '괄호까지') t = t.replace(/[(（][^)）]{0,80}[)）]/g, '');
+  t = [...t].filter((ch) => !CITE_BOX.includes(ch) && !'“”"\''.includes(ch)).join('');
+  return t.replace(/\s+/g, '');
+}
+
+/** 한 쪽이 인용한 것들 → [{글, 조문표기붙음}] (뜻 거르기 전) */
+function citeQuotes(body) {
+  const out = [];
+  for (const re of [/“([^“”]{8,})”/g, /"([^"]{8,})"/g]) {
+    let m;
+    while ((m = re.exec(body))) {
+      const tail = body.slice(m.index + m[0].length, m.index + m[0].length + 40);
+      out.push({ 글: m[1], 조문표기붙음: /제\s*\d+\s*조/.test(tail) });
+    }
+  }
+  return out;
+}
+
+function citeKeep(q, sense) {
+  if (sense === '따옴표') return true;
+  if (CITE_OURS.test(q.글)) return false;
+  if (sense === '우리말뺌') return true;
+  if (sense === '조문표기') return q.조문표기붙음;
+  if (sense === '조문꼴') return CITE_ART_END.test(q.글.trim());
+  throw new Error(`알 수 없는 뜻: ${sense} (쓸 수 있는 것: ${Object.keys(CITE_SENSES).join('·')})`);
+}
+
+/** 그 쪽이 말하는 법의 raw 본문들 (씻어서 캐시한다) */
+function citeRawBodies(page, wash, cache) {
+  const slug = path.basename(page).split('__')[0];
+  const key = `${slug}|${wash}`;
+  if (cache.has(key)) return cache.get(key);
+  const map = cache.get('_map') || (() => {
+    let m = {};
+    try { m = JSON.parse(fs.readFileSync(path.resolve(WIKI, '..', '_dashboard', 'law_raw_paths.json'), 'utf8')); } catch (_e) { /* 지도가 없으면 잴 수 없음으로 떨어진다 */ }
+    cache.set('_map', m); return m;
+  })();
+  const rel = map[slug];
+  let out = [];
+  if (rel) {
+    const REPO_ROOT = path.resolve(WIKI, '..', '..', '..', '..');
+    let base = path.resolve(REPO_ROOT, rel);
+    if (!fs.existsSync(base)) base = '';
+    else if (!fs.statSync(base).isDirectory()) base = path.dirname(base);
+    if (base) {
+      (function walk(d) {
+        for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+          const fp = path.join(d, e.name);
+          if (e.isDirectory()) walk(fp);
+          else if (e.name.endsWith('.txt')) {
+            try { out.push(citeWash(fs.readFileSync(fp, 'utf8'), wash)); } catch (_e) { /* 못 읽는 파일은 없는 셈 친다 */ }
+          }
+        }
+      })(base);
+    }
+  }
+  cache.set(key, out);
+  return out;
+}
+
+/**
+ * ★「인용 정확도」 — 뜻 × 씻기 × 범위를 **반드시 함께** 말한다.
+ * @param {{sense?:string, wash?:string, scope?:string, wikiDir?:string}} [opt]
+ * @returns {{뜻, 씻기, 범위, 잰것, 찾음, 못찾음, 잴수없음, 정확도, 못찾은것:Array}}
+ */
+function citeAccuracy(opt) {
+  const o = opt || {};
+  const sense = o.sense || '조문꼴';
+  const wash = o.wash || '공백만';
+  const scope = o.scope || 'all';
+  const pool = o.pool || '제법만';
+  const match = o.match || '통째로';
+  if (!CITE_SENSES[sense]) throw new Error(`알 수 없는 뜻: ${sense} (쓸 수 있는 것: ${Object.keys(CITE_SENSES).join('·')})`);
+  if (!CITE_WASH[wash]) throw new Error(`알 수 없는 씻기: ${wash} (쓸 수 있는 것: ${Object.keys(CITE_WASH).join('·')})`);
+  if (!CITE_POOL[pool]) throw new Error(`알 수 없는 본 곳: ${pool} (쓸 수 있는 것: ${Object.keys(CITE_POOL).join('·')})`);
+  if (!CITE_MATCH[match]) throw new Error(`알 수 없는 맞춤법: ${match} (쓸 수 있는 것: ${Object.keys(CITE_MATCH).join('·')})`);
+  const cache = new Map();
+  let 찾음 = 0, 못찾음 = 0, 잴수없음 = 0;
+  const 못찾은것 = [];
+  for (const f of wikiFiles(scope, o.wikiDir)) {
+    const body = stripFrontmatter(fs.readFileSync(f, 'utf8'));
+    const qs = citeQuotes(body).filter((q) => citeKeep(q, sense));
+    if (!qs.length) continue;
+    const own = citeRawBodies(f, wash, cache);
+    const bodies = pool === '모든raw' ? own.concat(citeWideBodies(wash)) : own;
+    if (!bodies.length) { 잴수없음 += qs.length; continue; }
+    for (const q of qs) {
+      const parts = String(q.글).split(/…+|\.{3,}/).map((x) => citeWash(x, wash)).filter(Boolean);
+      if (!parts.length) { 잴수없음 += 1; continue; }
+      let hit = bodies.some((b) => parts.every((pt) => b.includes(pt)));
+      if (!hit && match === '창9할') hit = Math.min(...parts.map((pt) => citeWinRatio(pt, bodies))) >= 0.9;
+      if (hit) 찾음 += 1;
+      else { 못찾음 += 1; if (못찾은것.length < 40) 못찾은것.push({ 쪽: path.relative(WIKI, f), 글: q.글.slice(0, 90) }); }
+    }
+  }
+  const 잰것 = 찾음 + 못찾음;
+  return { 뜻: sense, 씻기: wash, 범위: scope, 본곳: pool, 맞춤법: match, 잰것, 찾음, 못찾음, 잴수없음,
+           정확도: 잰것 ? +(100 * 찾음 / 잰것).toFixed(1) : 0, 못찾은것 };
+}
+
+module.exports.CITE_SENSES = CITE_SENSES;
+module.exports.CITE_WASH = CITE_WASH;
+module.exports.citeQuotes = citeQuotes;
+module.exports.citeKeep = citeKeep;
+module.exports.citeWash = citeWash;
+module.exports.citeAccuracy = citeAccuracy;
+
+/**
+ * ★뜻 × 씻기 × 범위 표를 **한 번 훑어서** 낸다 (칸마다 다시 훑으면 20분이 걸린다).
+ * @returns {{[뜻]: {[씻기]: {[범위]: {잰것, 찾음, 정확도}}}}}
+ */
+function citeAccuracyGrid(opt) {
+  const o = opt || {};
+  const senses = o.senses || Object.keys(CITE_SENSES);
+  const washes = o.washes || Object.keys(CITE_WASH);
+  const scopes = o.scopes || ['concepts', 'indexed', 'all'];
+  const inScope = { concepts: ['concepts'], indexed: ['concepts', 'statutes', 'annexes', 'comparisons'], all: null };
+  const cache = new Map();
+  const cell = {};
+  for (const s of senses) { cell[s] = {}; for (const w of washes) { cell[s][w] = {}; for (const sc of scopes) cell[s][w][sc] = { 잰것: 0, 찾음: 0 }; } }
+  for (const f of wikiFiles('all', o.wikiDir)) {
+    const top = path.relative(o.wikiDir || WIKI, f).split(path.sep)[0];
+    const mine = scopes.filter((sc) => inScope[sc] === null || inScope[sc].includes(top));
+    if (!mine.length) continue;
+    const qs = citeQuotes(stripFrontmatter(fs.readFileSync(f, 'utf8')));
+    if (!qs.length) continue;
+    const bodies = {};
+    for (const w of washes) bodies[w] = citeRawBodies(f, w, cache);
+    for (const q of qs) {
+      const keeps = senses.filter((s) => citeKeep(q, s));
+      if (!keeps.length) continue;
+      for (const w of washes) {
+        if (!bodies[w].length) continue;
+        const parts = String(q.글).split(/…+|\.{3,}/).map((x) => citeWash(x, w)).filter(Boolean);
+        if (!parts.length) continue;
+        const hit = bodies[w].some((b) => parts.every((pt) => b.includes(pt)));
+        for (const s of keeps) for (const sc of mine) { cell[s][w][sc].잰것 += 1; if (hit) cell[s][w][sc].찾음 += 1; }
+      }
+    }
+  }
+  for (const s of senses) for (const w of washes) for (const sc of scopes) {
+    const c = cell[s][w][sc];
+    c.정확도 = c.잰것 ? +(100 * c.찾음 / c.잰것).toFixed(1) : 0;
+  }
+  return cell;
+}
+module.exports.citeAccuracyGrid = citeAccuracyGrid;
+
+// [★세 번째 축 — 「무엇을 맞았다고 볼 것인가」] 뜻·씻기를 못박아도 값이 또 갈린다.
+//   원문이 표로 쪼개져 있거나 `<개정>` 이 끼면 **통째로는 절대 안 맞는다**.
+//   그래서 생산 도구(`exact_claim_recheck.win_ratio`)가 쓰는 창(窓) 방식을 같은 이름으로 둔다.
+const CITE_MATCH = {
+  통째로: '씻은 인용이 raw 안에 **그대로** 들어 있어야 맞음',
+  창9할:  '인용을 8자 창으로 잘라 4자씩 밀며 본다. 창의 **9할 이상**이 raw 에 있으면 맞음',
+};
+function citeWinRatio(q, bodies, w = 8, step = 4) {
+  if (q.length <= w) return bodies.some((b) => b.includes(q)) ? 1 : 0;
+  let hit = 0, n = 0;
+  for (let i = 0; i + w <= q.length; i += step) {
+    n += 1;
+    const seg = q.slice(i, i + w);
+    if (bodies.some((b) => b.includes(seg))) hit += 1;
+  }
+  return n ? hit / n : 0;
+}
+module.exports.CITE_MATCH = CITE_MATCH;
+module.exports.citeWinRatio = citeWinRatio;
+
+// [★네 번째 축 — 「어디를 뒤질 것인가」] 개념 쪽은 **다른 법을 인용**하는 일이 잦다.
+//   제 법에서 안 나왔다고 「원문에 없다」고 적으면 그건 **내 자가 좁은 것**이다
+//   (`exact_claim_recheck.wide_pool` 이 같은 까닭으로 있다).
+const CITE_POOL = {
+  제법만:  '쪽 이름이 가리키는 법 폴더의 .txt 만. 기본값',
+  모든raw: 'raw/ 아래 .txt 전부 — 타법 인용을 「없다」로 세지 않는다',
+};
+let _WIDE = null;
+function citeWideBodies(wash) {
+  if (_WIDE && _WIDE.wash === wash) return _WIDE.bodies;
+  const RAW = path.resolve(WIKI, '..', 'raw');
+  const bodies = []; let cur = [];
+  (function walk(d) {
+    if (!fs.existsSync(d)) return;
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const fp = path.join(d, e.name);
+      if (e.isDirectory()) walk(fp);
+      else if (e.name.endsWith('.txt')) {
+        try { cur.push(citeWash(fs.readFileSync(fp, 'utf8'), wash)); } catch (_e) { /* 못 읽는 파일은 없는 셈 */ }
+        if (cur.length >= 200) { bodies.push(cur.join('\u0000')); cur = []; }
+      }
+    }
+  })(RAW);
+  if (cur.length) bodies.push(cur.join('\u0000'));
+  _WIDE = { wash, bodies };
+  return bodies;
+}
+module.exports.CITE_POOL = CITE_POOL;
+module.exports.citeWideBodies = citeWideBodies;
+
+// ════════════════════════════════════════════════════════════════════════════
+// ★「인용 정확도」 2026-09-24 실측 — **축 넷을 밝히면 8배 차이가 설명된다**
+//
+//   뜻 × 씻기 (범위 all · 제법만 · 통째로)
+//     따옴표    공백만   6.6% (3,988/60,148)   괄호까지  7.3%
+//     우리말뺌  공백만  11.8% (3,920/33,117)   괄호까지 13.1%
+//     조문꼴    공백만  64.9% (1,107/1,705)    괄호까지 60.4%
+//     조문표기  공백만  19.5% (1,481/7,596)    괄호까지 20.1%
+//
+//   본 곳 × 맞춤법 (뜻=조문꼴 · 씻기=공백만 · 범위=all)   ★가장 크게 움직이는 축은 「본 곳」이다
+//     제법만 · 통째로   65.0% (1,108/1,705)
+//     제법만 · 창9할    67.9% (1,157/1,705)
+//     모든raw · 통째로  74.5% (1,271/1,705)   ← +9.5%p. 2라운드가 말한 「타법 인용 7~13%」가 이것이다
+//     모든raw · 창9할   79.9% (1,363/1,705)
+//
+// [★다섯 벌과 견주기 — 정직하게]
+//   · **세 벌이 모인 자리(D 76.9 · G 78.3 · 나 78.4, 인용 1,654~1,672건)** 는
+//     `조문꼴 · 공백만 · 모든raw · 창9할` = **79.9% (1,705건)** 과 **같은 모퉁이**다.
+//     건수도 1,705 ↔ 1,654~1,672 로 가깝다. ⚠그래도 **「재현했다」고 쓰지 않는다** —
+//     값이 정확히 같지 않고, 그 벌들이 무엇을 더 걸렀는지는 저장소에 없다.
+//   · **F 91.1% (854건)** — "자기 법 완결문만". 같은 뜻으로 재면 1,705건이다. **절반을 더 걸렀다**
+//     는 뜻인데 그 거름이 적혀 있지 않다. 재현 불가.
+//   · **E 61.5% (1,801건)** — "인용 뒤 40자에 조문표기". 같은 뜻(`조문표기`)으로 재면 **7,596건**.
+//     네 배 넘게 차이 난다. 그 벌의 거름이 저장소에 없다. 재현 불가.
+//   ⚠**추측으로 맞추지 않는다**(2-6b 와 같은 원칙). 못 맞춘 둘은 **못 맞췄다고 적는다.**
+//
+// [★이 값을 무엇이라 부를 것인가 — 기본 이름]
+//   `인용 정확도[조문꼴·공백만·제법만·통째로·all] = 65.0%` 를 **기본값**으로 둔다.
+//   가장 좁고 가장 엄한 자다. 느슨하게 재고 싶으면 **축을 바꿔 적어** 말한다.
+//   ⚠**이 값은 「위키가 35% 틀렸다」는 뜻이 아니다.** 못 찾은 597건 안에는
+//   타법 인용(모든raw 로 바꾸면 163건이 살아난다)·표로 쪼개진 원문(창9할 49건)·
+//   우리 작문이 섞여 있다. **후보의 크기**이지 오류의 수가 아니다 — 가르는 일은 3-41 이 한다.
+const CITE_MEASURED = {
+  잰날: '2026-09-24',
+  기본: { 뜻: '조문꼴', 씻기: '공백만', 본곳: '제법만', 맞춤법: '통째로', 범위: 'all',
+          잰것: 1705, 찾음: 1108, 정확도: 65.0 },
+  축이바꾸는폭: { 본곳: '+9.5%p', 맞춤법: '+2.9%p', 씻기: '-4.6%p', 뜻: '6.6%~64.9%' },
+  재현: { '세 벌(76.9·78.3·78.4)': '같은 모퉁이(79.9%)까지 간다 — 같다고는 쓰지 않는다',
+          'F 91.1%': '재현 불가 — 거름이 적혀 있지 않다',
+          'E 61.5%': '재현 불가 — 같은 뜻으로 재면 건수가 4배다' },
+};
+module.exports.CITE_MEASURED = CITE_MEASURED;

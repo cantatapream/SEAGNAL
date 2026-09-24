@@ -187,5 +187,54 @@ console.log('\n── ⑨ 「조 머리줄을 가져야 하는 파일」 — 범
     Object.values(C.ARTICLE_HEAD_SCOPES).every((v) => v.뜻));
 }
 
+// ── 「인용 정확도」 — 축 넷에 이름을 붙였다 (2026-09-24, G-2 의 마지막 한 자리) ──
+//   ★숫자를 고정하지 않는다. 위키는 매일 편집되므로 **개수를 박으면 시험이 거짓말을 한다**
+//   (오늘만 세 번 그렇게 만들었다가 고쳤다). 고정하는 것은 **성질**이다.
+console.log('\n── ⑩ 「인용 정확도」 — 뜻 × 씻기 × 본 곳 × 맞춤법 (G-2) ──');
+{
+  ok('축 넷이 전부 이름과 뜻풀이를 갖고 있다',
+    [C.CITE_SENSES, C.CITE_WASH, C.CITE_POOL, C.CITE_MATCH]
+      .every((ax) => Object.keys(ax).length >= 2 && Object.values(ax).every((v) => typeof v === 'string' && v.length > 5)),
+    '        축 하나라도 뜻풀이가 없으면 그 축이 다시 ⑥을 낳는다');
+  for (const [axis, bad] of [['sense', '없는뜻'], ['wash', '없는씻기'], ['pool', '없는곳'], ['match', '없는법']]) {
+    ok(`★모르는 ${axis} 는 **던진다** (조용히 기본값으로 떨어지면 아무도 못 알아챈다)`,
+      (() => { try { C.citeAccuracy({ [axis]: bad, scope: 'comparisons' }); return false; } catch (_) { return true; } })());
+  }
+  // 뜻이 좁아질수록 잰 것이 줄어든다 — 이것은 정의상 반드시 참이라 숫자와 무관하다
+  const 넓 = C.citeQuotes('"해양수산부장관은 기본계획을 수립하여야 한다." 제3조에 따른다. "확인 대조 완료"');
+  ok('따옴표 ⊇ 우리말뺌 ⊇ 조문꼴 (뜻이 좁아지면 남는 인용이 준다)',
+    넓.filter((q) => C.citeKeep(q, '따옴표')).length >= 넓.filter((q) => C.citeKeep(q, '우리말뺌')).length
+    && 넓.filter((q) => C.citeKeep(q, '우리말뺌')).length >= 넓.filter((q) => C.citeKeep(q, '조문꼴')).length,
+    `        따옴표 ${넓.filter((q) => C.citeKeep(q, '따옴표')).length} · 우리말뺌 ${넓.filter((q) => C.citeKeep(q, '우리말뺌')).length} · 조문꼴 ${넓.filter((q) => C.citeKeep(q, '조문꼴')).length}`);
+  ok('★우리가 쓴 말("확인 대조 완료")은 **원문 인용으로 세지 않는다**',
+    넓.filter((q) => C.citeKeep(q, '우리말뺌')).every((q) => !/대조|확인/.test(q.글)));
+  ok('인용 뒤 40자에 「제N조」가 있으면 조문표기로 잡는다',
+    C.citeQuotes('"해양수산부장관은 기본계획을 수립하여야 한다." 제3조에 따른다.')[0].조문표기붙음 === true);
+  ok('씻기 「괄호까지」는 ( ) 안을 지운다 — 어긋남의 2/3 가 괄호 생략이다',
+    C.citeWash('갯벌관리구역(이하 "관리구역"이라 한다)으로 지정할 수 있다', '괄호까지')
+      === C.citeWash('갯벌관리구역으로 지정할 수 있다', '괄호까지'),
+    '        원문에만 있는 괄호를 양쪽에서 같이 지워야 「생략」과 「오기」가 갈린다');
+  ok('씻기 「공백만」은 괄호를 남긴다 (두 씻기가 같으면 축이 아니다)',
+    C.citeWash('갯벌관리구역(이하 "관리구역"이라 한다)으로', '공백만')
+      !== C.citeWash('갯벌관리구역으로', '공백만'));
+  {
+    // ★한 번 틀렸다 — 짧은 글에 한 군데만 끼어도 창의 절반이 깨진다(20자면 창이 4개뿐).
+    //   그래서 「끼어들면 언제나 9할 이상」은 **참이 아니다.** 고정할 성질은 그게 아니라
+    //   「통째로 맞으면 창도 반드시 맞다」와 「부분만 있으면 0과 1 사이」다.
+    const 글 = '해양수산부장관은해양수산발전기본계획을5년마다수립하여야한다';
+    ok('★통째로 맞으면 창9할도 반드시 맞다 (느슨한 자가 엄한 자를 뒤집으면 축이 아니다)',
+      C.citeWinRatio(글, [`앞말${글}뒷말`]) === 1);
+    const 일부 = C.citeWinRatio(글, ['해양수산부장관은해양수산발전기본계획을']);
+    ok('부분만 있으면 0과 1 사이의 눈금이 나온다', 일부 > 0 && 일부 < 1,
+      `        ${(100 * 일부).toFixed(0)}%`);
+    ok('아무 데도 없으면 0 이다', C.citeWinRatio(글, ['전혀다른글자열']) === 0);
+  }
+  ok('실측 기록이 **잰 날과 함께** 적혀 있다',
+    /^\d{4}-\d{2}-\d{2}$/.test(C.CITE_MEASURED.잰날) && C.CITE_MEASURED.기본.잰것 > 0);
+  ok('★재현 못 한 벌은 **못 했다고 적혀 있다** (추측으로 맞추지 않는다)',
+    Object.values(C.CITE_MEASURED.재현).some((v) => /재현 불가/.test(v)),
+    '        전부 재현됐다고 적혀 있으면 그것이 오히려 의심스럽다');
+}
+
 console.log(`\n  ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

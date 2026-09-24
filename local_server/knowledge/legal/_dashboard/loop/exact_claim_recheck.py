@@ -151,7 +151,98 @@ def wide_pool():
     return _WIDE
 
 
+SCOPE_DIRS = {
+    'concepts': ('concepts',),
+    'indexed':  ('concepts', 'statutes', 'annexes', 'comparisons'),
+    'all':      None,                      # wiki/ 전체
+}
+
+def page_scope(page):
+    """쪽이 어느 범위에 드는가 — 이름은 §0-F 의 범위 이름과 같게 쓴다."""
+    rel = os.path.relpath(page, WIKI).replace(os.sep, '/')
+    top = rel.split('/')[0]
+    return {s for s, dirs in SCOPE_DIRS.items() if dirs is None or top in dirs}
+
+def scan():
+    """주장 한 줄마다 판정 하나. 세는 법을 여기 한 곳에서만 정한다.
+
+    돌려주는 것: {쪽, 줄, 범위, 판정, 인용:[(글, 판정)]}
+      판정 = 확인됨 | 확인됨(표로 쪼개짐) | 확인됨(제 법이 아닌 다른 raw)
+           | 못 찾음 | 잴 수 없음(인용 없음) | 잴 수 없음(raw 못 찾음)
+    """
+    lmap, cache = law_map(), {}
+    for page, ln, text in claims():
+        rec = {'쪽': page, '줄': ln, '범위': page_scope(page), '인용': []}
+        quotes = [q for q in (a or b for a, b in QUOTE.findall(text)) if len(q) >= 8]
+        quotes = [q for q in quotes if not OURS.search(q)]
+        if not quotes:
+            rec['판정'] = '잴 수 없음(인용 없음)'; yield rec; continue
+        pool = raw_pool(page, text, lmap, cache)
+        if not pool:
+            rec['판정'] = '잴 수 없음(raw 못 찾음)'; yield rec; continue
+        bad, part, widehit = [], [], []
+        for q in quotes:
+            parts = [flat(x) for x in re.split(r'…+|\.\.\.+', q) if flat(x)]
+            if not parts:
+                continue
+            if any(all(pt in b for pt in parts) for _ap, b in pool):
+                rec['인용'].append((q, '확인됨')); continue
+            wide = wide_pool()
+            if all(any(pt in b for _a, b in wide) for pt in parts):
+                widehit.append(q); rec['인용'].append((q, '확인됨(제 법이 아닌 다른 raw)')); continue
+            r = min(win_ratio(x, pool) for x in parts)
+            if r >= 0.9:
+                part.append((q, r)); rec['인용'].append((q, '확인됨(표로 쪼개짐)'))
+            else:
+                bad.append((q, r)); rec['인용'].append((q, '못 찾음'))
+        rec['못찾은인용'] = bad
+        rec['본raw'] = [os.path.relpath(a, LEGAL) for a, _ in pool][:3]
+        rec['판정'] = ('못 찾음' if bad else
+                       '확인됨(표로 쪼개짐)' if part else
+                       '확인됨(제 법이 아닌 다른 raw)' if widehit else '확인됨')
+        yield rec
+
+OK = ('확인됨', '확인됨(표로 쪼개짐)', '확인됨(제 법이 아닌 다른 raw)')
+
+def grid():
+    """★「인용 정확도」의 뜻 × 범위 표 (G-2 · 뿌리 사슬 ⑥).
+
+    같은 저장소를 네 벌이 재고 61.5 / 78.3 / 78.4 / 91.1% 가 나왔다.
+    **뜻을 안 밝히면 어느 것도 틀렸다고 말할 수 없다.** 그래서 뜻을 넷으로 가른다:
+
+      줄_잰것  주장 한 줄 단위 · 분모는 **잴 수 있었던 줄**       (인용을 안 적은 줄은 뺀다)
+      줄_전체  주장 한 줄 단위 · 분모는 **주장 전부**             (인용 없는 줄은 「확인 못 함」으로 센다)
+      인용     인용 하나하나 단위 · 분모는 **찾아본 인용 전부**
+      쪽       쪽 단위 · 한 쪽에 못 찾은 인용이 하나라도 있으면 그 쪽은 틀림
+    """
+    recs = list(scan())
+    print('%-9s %8s %8s %8s' % ('뜻 \\ 범위', 'concepts', 'indexed', 'all'))
+    for sense in ('줄_잰것', '줄_전체', '인용', '쪽'):
+        row = []
+        for sc in ('concepts', 'indexed', 'all'):
+            R = [r for r in recs if sc in r['범위']]
+            if sense == '줄_잰것':
+                d = [r for r in R if not r['판정'].startswith('잴 수 없음')]
+                n, m = sum(1 for r in d if r['판정'] in OK), len(d)
+            elif sense == '줄_전체':
+                n, m = sum(1 for r in R if r['판정'] in OK), len(R)
+            elif sense == '인용':
+                q = [v for r in R for _g, v in r['인용']]
+                n, m = sum(1 for v in q if v in OK), len(q)
+            else:
+                pages = {}
+                for r in R:
+                    if r['판정'].startswith('잴 수 없음'):
+                        continue
+                    pages[r['쪽']] = pages.get(r['쪽'], True) and (r['판정'] in OK)
+                n, m = sum(1 for v in pages.values() if v), len(pages)
+            row.append('%5.1f%% (%d/%d)' % (100.0 * n / m if m else 0, n, m))
+        print('%-9s %s' % (sense, '  '.join(row)))
+    print('\n★한 숫자를 말할 때는 **뜻과 범위를 함께** 말한다 — `인용 정확도[줄_잰것·all]` 처럼.')
+
 def main():
+    if '--grid' in sys.argv:
+        return grid()
     lmap, cache = law_map(), {}
     tally = {'확인됨': 0, '확인됨(표로 쪼개짐)': 0, '확인됨(제 법이 아닌 다른 raw)': 0, '못 찾음': 0, '잴 수 없음(인용 없음)': 0, '잴 수 없음(raw 못 찾음)': 0}
     misses = []
