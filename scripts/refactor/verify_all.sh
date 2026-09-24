@@ -457,6 +457,15 @@ python3 local_server/knowledge/legal/_dashboard/loop/worklist_progress.py --gate
 echo; echo "── V5-20 표가 열 단위로 펼쳐진 자리 ──"
 node local_server/knowledge/legal/_dashboard/loop/col_split_scan.js --gate || fail "V5-20 표가 열 단위로 펼쳐진 자리"
 
+# ── V5-21b 법률계열 별표 도달성(줄 단위) (2026-09-24 신설, 2-10 → G-8·G-9) ─────
+#   V5-11 은 **고시** 별표를 짚은 줄을, V5-21a 는 별표 **파일**을 본다.
+#   비어 있던 칸이 「법률·시행령·시행규칙 별표를 짚은 **줄**」이었다 — 그 칸을 이 자가 맡는다.
+#   ★세우자마자 33줄이 안 열리는 까닭을 찾아냈다(`제38조 → 시행규칙 별표2` 가 안 갈렸다).
+echo; echo "── V5-21b 법률계열 별표 도달성(줄) ──"
+node local_server/knowledge/legal/_dashboard/loop/byl_line_ready.js --gate \
+  --base local_server/knowledge/legal/_dashboard/loop/baseline/byl_line_ready.json \
+  || fail "V5-21b 법률계열 별표 도달성(줄)"
+
 echo; echo "── V5-21a 계층 무접두 별표 파일 도달성 ──"
 node local_server/knowledge/legal/_dashboard/loop/byl_bare_ready.js --gate || fail "V5-21a 계층 무접두 별표 파일 도달성"
 

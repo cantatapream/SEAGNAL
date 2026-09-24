@@ -714,8 +714,16 @@ function extractCitationChain(body) {
       //   꼬리에 조문이 있나 — 낱개(`제3조`·`제18조의2`)는 정규식으로, 묶음·범위
       //   (`제74·75조`·`제59~67조`)는 생산 함수 articleEnumTokens 로 본다. 둘 다 봐야 한다:
       //   articleEnumTokens 는 **묶음만** 풀고 낱개엔 []를 돌려준다.
+      // ★2026-09-24 (2-10 · 새 게이트 V5-21b 가 드러냈다) — 꼬리가 **별표·별지**일 때도 가른다.
+      //   종전에는 꼬리에 `제N조` 가 있어야 갈랐다. 그런데 `제38조 → 시행규칙 별표2` 처럼
+      //   **꼬리가 별표뿐인 줄**은 안 갈려 `tier` 가 모법(law)인 채 남았고, 그러면
+      //   `article_text.resolveRefs` ③ 이 `별표/법률_별표2.txt` 를 찾는다 — **그 별표는 시행규칙 것**이라
+      //   영영 못 연다. 실측 **33줄 · 22쪽**이고, 그중엔 낚시법 시행규칙 별표2(행정처분 기준)처럼
+      //   사용자가 바로 묻는 표가 들어 있다.
+      const arrowByl = !!(arrow && /(별표|별지|서식)\s*제?\s*\d/.test(arrow[2]));
       const arrowSplit = !!(arrow && (/제\s*\d+\s*조/.test(arrow[2])
-        || articleEnumTokens(arrow[2]).some(t => /^제\d+조/.test(t))));
+        || articleEnumTokens(arrow[2]).some(t => /^제\d+조/.test(t))
+        || arrowByl));
       out.push({
         law,
         article: arrowSplit ? article.slice(0, arrow.index).trim().replace(/[·,\s]+$/, '') : article,

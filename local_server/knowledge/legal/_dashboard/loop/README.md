@@ -26,7 +26,7 @@
 <!-- 자목록:자동 -->
 ### 자 목록 — 누가 부르나 (기계가 씀 · `loop_tool_census.js --index`)
 
-자 **251자루** · 게이트 **57** · 코드 **82** · 글만 **112** · 없음 **0**
+자 **252자루** · 게이트 **58** · 코드 **84** · 글만 **110** · 없음 **0**
 
 | 자 | 누가 부르나 | 무엇을 하는 자인가 |
 |---|---|---|
@@ -79,7 +79,7 @@
 | `build_port_entry_flow.py` | 글만 | 출입항 신고 · 위치보고" 절차 플로우 빌더 겸 검증기 (H-32 확장). |
 | `build_qualification_tree.py` | 글만 | 자격·면허 등급 계층 트리 빌더 겸 검증기 (H-32 확장 · H-36 두 번째 트리). |
 | `build_review_html.py` | 코드 | 그림 속 표를 **눈으로 대조**하는 HTML 검토장을 만든다. (3-28) |
-| `build_rowcount_html.js` | 글만 | §6-F 항목수 대조의 **사람 몫**을 눌러서 확정하는 쪽을 만든다. (2026-09-24) |
+| `build_rowcount_html.js` | 코드 | §6-F 항목수 대조의 **사람 몫**을 눌러서 확정하는 쪽을 만든다. (2026-09-24) |
 | `build_scope_html.py` | 글만 | 3-6 (결심 ②ⓐ) — **고시 11쪽의 「적용범위」를 사람이 눌러서 확정하는 HTML 을 만든다. |
 | `build_tonnage_facet.py` | 글만 | 톤수·길이 기준값 사전(facet dictionary) 빌더 겸 검증기 (H-32 확장 · candidates E절). |
 | `build_training_table.py` | 글만 | 교육·훈련 의무" 표 빌더 겸 검증기 (H-32 확장 — 트리 아님, 표). |
@@ -191,7 +191,7 @@
 | `repeat_probe.js` | 코드 | **같은 질문을 여러 번** 던져 응답이 어디서 갈리는지 본다(비결정성 진단). |
 | `reverify_admrul_id.py` | 글만 | 73법의 _admrul.json에 저장된 ID(lsDelegated 출처)가 최신 버전인지, |
 | `review_gen.js` | 글만 | ①절충: 민감 draft의 "AI 제안값 + 출처"를 리뷰큐에 미리 채우는 앞단 생성기. |
-| `review_mark_census.py` | 글만 | 3-28 / G-24 — **`(⚠REVIEW)` 표시 1,067개가 무엇을 가리키는지 갈라 센다. |
+| `review_mark_census.py` | 코드 | 3-28 / G-24 — **`(⚠REVIEW)` 표시 1,067개가 무엇을 가리키는지 갈라 센다. |
 | `review_resolve.js` | 글만 | ③ 리뷰큐 자동 트리아지: 미승인 엔트리를 재검증해 resolved/needs_collect/human 판정. |
 | `scope_scan.py` | 글만 | `_CHATBOT.md` §5-2(판례·법리·다툼 = 스코프 밖) 처리 후보를 골라 센다. |
 | `scope.py` | 코드 | (머리말 없음 — 무엇을 하는 자인지 안 적혀 있다) |

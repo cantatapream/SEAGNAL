@@ -2347,6 +2347,8 @@ async function loadArticle(q) {
 
 module.exports = {
   attHyphenKind,
+  TIER_BYL_PREFIX,   // ★게이트(V5-21b)가 **같은 접두**를 쓰도록 내보낸다 — 규칙을 다시 적지 않는다(L-136)
+  splitRefKey,
   loadArticle, parseArticleRef, splitHo, splitParagraphs, extractArticleBlock, pickNoticeFile,
   // pickNoticeGlobal 도 게이트가 같은 순서로 고시를 고르게 하려고 내보낸다(L-136).
   pickNoticeGlobal,
