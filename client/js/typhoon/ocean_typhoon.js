@@ -47,14 +47,6 @@
     var _tapCount = 0;
     var _tapTimer = null;
 
-    // [히든] 자료 출처 드롭다운 열기 — 태풍 버튼 5회 연속 탭. 세션 한정(영속 X).
-    //   평소에는 일반 사용자에게 안 보이게 숨겨 두고(관리자 모드 기기에서만 노출),
-    //   테스트할 때만 이 탭으로 꺼내 쓴다.
-    var SRC_TAP_THRESHOLD = 5;
-    var _srcTapCount = 0;
-    var _srcTapTimer = null;
-    var _srcRevealed = false;
-
     // 줌 자동조정 기준: 태풍 + "우리나라(제주~본토)"가 한 화면에 함께 보이도록 fit
     var KOREA_W = 124.5, KOREA_E = 131.0, KOREA_S = 33.0, KOREA_N = 38.6;
     var FIT_MAX_ZOOM = 7;
@@ -1538,29 +1530,6 @@
         }
     }
 
-    /**
-     * 태풍 버튼 탭을 세어, 5회 연속이면 숨겨 둔 자료 출처 드롭다운(#tphn-source)을 꺼낸다.
-     * 예: 태풍 버튼을 3초 안에 다섯 번 누르면 "한국(기상청)/미국(JTWC)" 드롭다운이 나타난다.
-     * [왜] 해외(JTWC) 자료는 아직 검증 중이라 일반 사용자에게는 숨겨 두었는데,
-     *   관리자 모드를 켜지 않고도 실제 앱에서 시험해 볼 길이 필요하다.
-     * [수명] 세션 한정 — 앱을 다시 켜면 도로 숨겨진다(저장하지 않는다).
-     * [연계] → bindUI 의 태풍 버튼 click · index2.html #tphn-source
-     * @returns {boolean} 이번 탭으로 막 꺼냈으면 true(호출부가 토글을 건너뛴다)
-     */
-    function handleSourceTap() {
-        if (_srcRevealed) return false;
-        _srcTapCount++;
-        clearTimeout(_srcTapTimer);
-        _srcTapTimer = setTimeout(function () { _srcTapCount = 0; }, TAP_RESET_MS);
-        if (_srcTapCount < SRC_TAP_THRESHOLD) return false;
-        _srcTapCount = 0;
-        _srcRevealed = true;
-        var sel = document.getElementById('tphn-source');
-        if (sel) sel.style.display = '';
-        setVisible(true);   // 패널을 열어 준다 — 꺼낸 것이 눈에 보여야 확인이 된다
-        return true;
-    }
-
     // 비활성 버튼 탭 처리 — 10회 누적 시 잠금 해제 + 태풍 현황 표출.
     function handleGateTap() {
         _tapCount++;
@@ -1683,8 +1652,6 @@
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (btn) {
             btn.addEventListener('click', function () {
-                // [히든] 출처 드롭다운 5회 탭 — 아래 갈래와 무관하게 항상 먼저 센다.
-                if (handleSourceTap()) return;
                 var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
                 // 활성 태풍 있거나 잠금해제(10탭) 상태면 토글, 아니면 탭 카운트.
                 if (!has && !_unlocked) { handleGateTap(); return; }
@@ -1697,15 +1664,12 @@
             if (_src !== 'kma') return;              // 해외 출처는 연도 이동이 없다(활성 태풍만 제공)
             loadYear(parseInt(this.value, 10));
         });
-        // 관리자 모드 기기인가 — 아래 출처 드롭다운과 디버그 줄이 함께 쓴다.
+        // 관리자 모드 기기인가 — 아래 디버그 줄(tphn-dbg-row)이 쓴다.
         var isAdmin = false;
         try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { }
 
-        // [출처 전환] 관리자 모드 기기에서만 노출. 일반 사용자에게는 기상청 자료만 보인다.
-        //   숨겨도 _src 는 'kma' 그대로라 화면 동작은 지금까지와 똑같다.
-        //   [연계] 위 디버그 줄(tphn-dbg-row)과 같은 방식 — localStorage seagnal_admin_mode
+        // [출처 전환] 모든 사용자에게 보인다. 기본값은 한국(기상청) 그대로다.
         var srcSel = document.getElementById('tphn-source');
-        if (srcSel && !isAdmin) srcSel.style.display = 'none';
         if (srcSel) srcSel.addEventListener('change', function () { setSource(this.value); });
         var nSel = document.getElementById('tphn-name');
         if (nSel) nSel.addEventListener('change', function () {
