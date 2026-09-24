@@ -111,7 +111,10 @@ function bylKeys(article) {
 
 function check() {
     const BASE_LAW = buildBaseLawMap();
-    const r = { rows: 0, ok: 0, deleted: 0, no_file: 0, decl_mismatch: 0, no_base: 0 };
+    const r = { rows: 0, ok: 0, linkOnly: 0, deleted: 0, no_file: 0, decl_mismatch: 0, no_base: 0 };
+    // ★`linkOnly` 를 2026-09-24 에 갈라 세기 시작했다 — 그 전에는 `ok`(원문이 있다)로 섞여 있었다.
+    //   「글이 있다」와 「내려받기 주소만 있다」는 **다른 말**이고, 한 통에 넣으면
+    //   주소만 있는 자리가 보고에서 사라진다(뿌리 사슬 ⑥).
     const ex = { no_file: [], decl_mismatch: [], no_base: [] };
     for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities']) {
         const D = path.join(WIKI, dir);
@@ -144,7 +147,9 @@ function check() {
                     const owned = path.join(bd, `${prefix2}_${key}.txt`);
                     if (fs.existsSync(owned)) {
                         const t = fs.readFileSync(owned, 'utf8');
-                        if (A.hasBylBody(t)) { r.ok++; continue; }
+                        const k = A.bylBodyKind(t);
+                        if (k === 'text') { r.ok++; continue; }
+                        if (k === 'linkOnly') { r.linkOnly++; continue; }
                         r.deleted++; continue;               // `[별표 7] 삭제` — 원문이 있는 게 아니다
                     }
                     // ② 계층 없는 파일 — **선언줄이 계층도 번호도 같을 때만**
@@ -154,7 +159,9 @@ function check() {
                     if (fs.existsSync(bare)) {
                         const t = fs.readFileSync(bare, 'utf8');
                         if (A.bylDeclMatches(t, prefix2, { type, num })) {
-                            if (A.hasBylBody(t)) { r.ok++; continue; }
+                            const k = A.bylBodyKind(t);
+                            if (k === 'text') { r.ok++; continue; }
+                            if (k === 'linkOnly') { r.linkOnly++; continue; }
                             r.deleted++; continue;
                         }
                         r.decl_mismatch++;
@@ -175,6 +182,10 @@ function main() {
     console.log(`  법령 계층 별표를 짚은 근거 줄 ${r.rows}개  (고시 별표는 V5-11 소관)`);
     console.log(`    ✅ 눌러서 열린다         ${String(r.ok).padStart(5)}  (${r.rows ? (r.ok * 100 / r.rows).toFixed(1) : 0}%)`);
     console.log(`    ·  폐지(「삭제」 한 줄)   ${String(r.deleted).padStart(5)}  원문이 있는 게 아니다 — 결손 아님`);
+    if (r.linkOnly) {
+        console.log(`    ·  첨부 주소만 있다      ${String(r.linkOnly).padStart(5)}`
+                  + '  글은 없고 내려받기 주소만 — 사용자는 원문을 볼 수 있다');
+    }
     console.log(`    ❌ 그 별표 파일이 없다    ${String(r.no_file).padStart(5)}`);
     console.log(`    ❌ 선언줄이 어긋난다      ${String(r.decl_mismatch).padStart(5)}  계층 없는 파일인데 임자·번호가 안 맞는다`);
     console.log(`    ⚠ 원문 폴더를 못 찾음    ${String(r.no_base).padStart(5)}`);
@@ -185,7 +196,8 @@ function main() {
             ex[k].forEach((x) => console.log('     · ' + x));
         }
     }
-    const watch = { 없다: r.no_file, 어긋남: r.decl_mismatch, 폴더없음: r.no_base };
+    // ★「첨부만」도 기준선에 넣는다 — 늘어나면 「글을 안 받고 주소만 채우는」 쪽으로 흐른 것이다.
+    const watch = { 없다: r.no_file, 어긋남: r.decl_mismatch, 폴더없음: r.no_base, 첨부만: r.linkOnly };
     if (argv.includes('--update')) {
         fs.writeFileSync(BASE, JSON.stringify(watch, null, 2) + '\n');
         console.log('  기준선을 다시 구웠다:', JSON.stringify(watch));

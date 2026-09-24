@@ -1194,13 +1194,46 @@ function bylBody(text) {
  * @returns {boolean}
  * [연계] ← resolveRefs() ③.
  */
-function hasBylBody(text) {
+/**
+ * 별표 파일 **머리의 메타 줄**들. 원문 글이 아니라 「어디서 받았나·어디서 내려받나」다.
+ * ⚠2026-09-24 — 이 줄들을 본문으로 세고 있었다. 그래서 **내려받기 주소만 있는 파일이
+ *   「원문이 있다」로 통과**했다(3-49 가 만들려던 파일이 바로 그 꼴이다 — 세는 법을 먼저 고친다).
+ *   3-53 이 522개 별표에 `별표서식파일링크:` 를 넣은 뒤로는 이 구분이 더 중요해졌다.
+ */
+// ⚠이름 뒤에 **숫자 꼬리**가 붙는 줄이 있다(`주의2:`) — 안 받아 주면 그 줄이 본문으로 세어져
+//   「주소만 있는 파일」이 「글이 있다」로 통과한다(실측 2026-09-24, 3-49 자리에서 잡혔다).
+const BYL_META_RE = /^\s*(?:출처|고시명|법령명|ID|위임근거|수집일|수집방식|별표서식파일링크|별표서식PDF파일링크|별표PDF파일명|첨부파일|첨부|비고|주의|참고|안내|⚠[^\n]*)\s*\d*\s*[::]/;
+/** 첨부 주소 줄만 있는 파일을 가리기 위한 자 — 내려받기 주소가 하나라도 있나. */
+const BYL_LINK_RE = /flDownload\.do|https?:\/\//;
+
+/**
+ * 별표 파일의 **속이 무엇인가** — 세 갈래로 가른다(2026-09-24 신설).
+ *   `'text'`     원문 글(표·조문)이 있다
+ *   `'linkOnly'` 글은 없고 **내려받기 주소만** 있다 — 사용자는 원문을 볼 수 있지만 우리는 글이 없다
+ *   `'none'`     선언줄뿐이다(`[별표 7] 삭제` 같은 것) 또는 아무것도 없다
+ * ★`'linkOnly'` 를 `'text'` 와 **따로** 세는 것이 요점이다. 한 통에 넣으면
+ *   「주소만 있는 자리」가 보고에서 사라진다(뿌리 사슬 ⑥ — 세는 법을 안 정하면 같은 것이 다르게 잰다).
+ * @param {string} text - 별표 파일 전체
+ * @returns {'text'|'linkOnly'|'none'}
+ */
+function bylBodyKind(text) {
   const decl = bylDeclLine(text);
-  const rest = String(text || '').split('\n')
+  const lines = String(text || '').split('\n')
     .slice(1)                                        // 첫 줄은 제목
-    .filter(l => l.trim() !== decl)                  // 선언줄(■ 꼴이든 맨몸 괄호든) 제거
-    .join('\n');
-  return !!rest.replace(/^■[^\n]*/gm, '').trim();
+    .filter((l) => l.trim() !== decl)                // 선언줄(■ 꼴이든 맨몸 괄호든) 제거
+    .filter((l) => !/^■/.test(l.trim()));            // ■ 로 시작하는 선언 잔재
+  const meat = lines.filter((l) => l.trim() && !BYL_META_RE.test(l));
+  if (meat.length) return 'text';
+  return lines.some((l) => BYL_LINK_RE.test(l)) ? 'linkOnly' : 'none';
+}
+
+/**
+ * 그 별표 파일이 **원문 글을 담고 있는지**. `■ 도선법 시행규칙 [별표 7] 삭제` 선언 한 줄뿐인
+ * 파일이나 **내려받기 주소만 있는 파일**을 `kind='text'` 로 확정하면 눌러도 빈 팝업이 뜨고
+ * 다음 단계(④ 다운로드 링크)까지 건너뛴다 — **원문이 있는 척하지 않는다.**
+ */
+function hasBylBody(text) {
+  return bylBodyKind(text) === 'text';
 }
 
 /** 별표 링크가 `/LSW/flDownload.do?flSeq=…` 상대경로로 적힌 파일이 있어 절대 URL로 만든다. http(s)만 통과. */
@@ -2156,7 +2189,7 @@ module.exports = {
   loadArticle, parseArticleRef, splitHo, splitParagraphs, extractArticleBlock, pickNoticeFile,
   // pickNoticeGlobal 도 게이트가 같은 순서로 고시를 고르게 하려고 내보낸다(L-136).
   pickNoticeGlobal,
-  cleanBody, collectRefs, extractAttachments, parseBylFile, listArticleNumbers, buildArticles, resolveRefs,
+  cleanBody, collectRefs, extractAttachments, parseBylFile, bylBodyKind, listArticleNumbers, buildArticles, resolveRefs,
   // resolveBase 는 순수 함수다(네트워크 없음). 위키 검사 도구(_dashboard/loop/link_ready.js)가
   // "이 근거 줄을 누르면 어느 원문 파일을 여는가"를 **생산과 똑같이** 계산하려고 쓴다 —
   // 따로 구현하면 검사와 코드가 어긋난다(L-136).
