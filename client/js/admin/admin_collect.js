@@ -1796,7 +1796,7 @@ async function renderUnifiedApiContent(container) {
                             // 개별 파일 진행률 (하단): "do_korea_20260404_09.png 다운로드 중 57%"
                             if (fileEl) fileEl.textContent = data.fileDetail || '';
                         }
-                    } catch (e) { }
+                    } catch (e) { /* 진행률 표시용 파싱이다 — 서버가 보낸 한 토막이 깨져도 다음 토막이 오면 다시 그린다. 여기서 던지면 SSE 수신이 통째로 끊긴다 */ }
                 };
                 es.onerror = () => { es.close(); reject(new Error('SSE 연결 실패')); };
             });
@@ -3910,9 +3910,9 @@ function _usageAnimateExplode(chart, which, from, to, done) {
         var t = Math.min(1, (ts - start) / dur);
         var e = 1 - Math.pow(1 - t, 3);   // easeOutCubic
         setF(from + (to - from) * e);
-        try { chart.draw(); } catch (err) {}
+        try { chart.draw(); } catch (err) { /* 차트가 아직 붙기 전이거나 캔버스가 사라진 뒤면 던진다 — 그리기 실패가 이 화면을 막으면 안 된다 */ }
         if (t < 1) { requestAnimationFrame(step); }
-        else { setF(to); try { chart.draw(); } catch (err) {} if (done) done(); }
+        else { setF(to); try { chart.draw(); } catch (err) { /* 차트가 아직 붙기 전이거나 캔버스가 사라진 뒤면 던진다 — 그리기 실패가 이 화면을 막으면 안 된다 */ } if (done) done(); }
     }
     requestAnimationFrame(step);
 }
@@ -4484,7 +4484,7 @@ function _usageCaptureReady() {
             try {
                 // 진행 중 차트 애니메이션을 완료 상태로 강제(스냅) → 완성 프레임 캡처.
                 [usageTrendChart, usageAffChart, usageFeatureChart].forEach(function (c) {
-                    if (c) { try { c.update('none'); } catch (e) {} }
+                    if (c) { try { c.update('none'); } catch (e) { /* 차트가 이미 없어졌을 수 있다 — 다시 그리기는 부가 동작 */ } }
                 });
             } catch (e) {}
             // 폰트/차트 반영 후 한 프레임 더 기다렸다 캡처.
@@ -4512,12 +4512,12 @@ function _usageCaptureWide(el, charts, T, filename, wide) {
     if (wide) {
         el.style.width = WIDE + 'px';
         el.style.maxWidth = 'none';
-        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) { /* 위와 같다 — 크기 재조정 실패가 나머지 차트를 막지 않게 하나씩 감싼다 */ } } });
     }
     var restore = function () {
         if (!wide) return;
         el.style.width = prevW; el.style.maxWidth = prevMax;
-        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) { /* 위와 같다 — 크기 재조정 실패가 나머지 차트를 막지 않게 하나씩 감싼다 */ } } });
     };
     var raf = window.requestAnimationFrame || function (cb) { setTimeout(cb, 32); };
     raf(function () { raf(function () {  // 폭 변경 + 차트 리사이즈 반영을 위해 2프레임 대기
@@ -4658,7 +4658,7 @@ function _usageTriggerDownload(href, filename, revoke) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    if (revoke) { setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) {} }, 1500); }
+    if (revoke) { setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) { /* 이미 풀린 주소면 던진다 — 메모리 정리라 실패해도 사용자에겐 아무 일도 없다 */ } }, 1500); }
 }
 
 // 앱(네이티브)에서 PNG 저장: 서버에 잠깐 업로드(토큰) → 시스템 브라우저로 GET 열어 다운로드(CSV 원리).
@@ -4704,9 +4704,9 @@ function _usageUpdateLandscapeBtn() {
 }
 function _usageExitLandscape() {
     var p = _usageOrientationPlugin();
-    if (p) { try { if (p.unlock) p.unlock(); else p.lock({ orientation: 'portrait' }); } catch (e) {} }
+    if (p) { try { if (p.unlock) p.unlock(); else p.lock({ orientation: 'portrait' }); } catch (e) { /* 화면 회전 잠금은 브라우저·기기마다 되고 안 되고가 갈린다 — 안 되면 그냥 안 잠글 뿐이다 */ } }
     _usageLandscapeOn = false;
-    if (_usageLeaveObserver) { try { _usageLeaveObserver.disconnect(); } catch (e) {} _usageLeaveObserver = null; }
+    if (_usageLeaveObserver) { try { _usageLeaveObserver.disconnect(); } catch (e) { /* 이미 끊겼을 수 있다 — 어차피 바로 아래에서 null 로 버린다 */ } _usageLeaveObserver = null; }
     _usageUpdateLandscapeBtn();
 }
 window.toggleUsageLandscape = function () {
@@ -5117,7 +5117,7 @@ window.forceUpdateApi = async function (type) {
                         pctEl.textContent = pct + '%';
                         barEl.style.width = pct + '%';
                     }
-                } catch (e) { }
+                } catch (e) { /* 위와 같다 — 진행률 한 토막의 파싱 실패로 수신 자체를 끊지 않는다 */ }
             };
             es.onerror = () => {
                 es.close();

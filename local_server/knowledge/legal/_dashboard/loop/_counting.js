@@ -273,7 +273,10 @@ function catchStats(src) {
   // ★2026-09-23 (3-44) — **자리를 같이 돌려준다.** 세기만 하면 고치러 갈 수가 없다.
   //   숫자와 자리를 **같은 자**가 내게 해서, 「241」과 「고칠 목록」이 갈리지 않게 한다(⑥).
   const lineOf = (pos) => src.slice(0, pos).split('\n').length;
-  const r = { all: 0, silent: 0, empty: 0, bare: 0, io: 0, ioSites: [] };
+  // ★`bareSites` 를 2026-09-24 에 더했다 — **세기만 하면 고치러 갈 수가 없다.**
+  //   `ioSites` 는 그 까닭으로 이미 있었는데(3-44) `bare` 는 숫자뿐이라,
+  //   「110」을 줄이려는 사람이 **어디를 열어야 할지 알 수 없었다**(뿌리 사슬 ③ 의 작은 꼴).
+  const r = { all: 0, silent: 0, empty: 0, bare: 0, io: 0, ioSites: [], bareSites: [] };
   walk.simple(ast, {
     // `io` 는 try 덩이를 봐야 하므로 TryStatement 에서 따로 센다.
     TryStatement(node) {
@@ -321,7 +324,22 @@ function catchStats(src) {
       const text = src.slice(node.body.start, node.body.end);
       if (body.length === 0) {
         r.empty++; r.silent++;
-        if (!/\/\/|\/\*/.test(text)) r.bare++;    // 주석조차 없다 = 왜 삼키는지 아무 설명이 없다
+        if (!/\/\/|\/\*/.test(text)) {
+          r.bare++;    // 주석조차 없다 = 왜 삼키는지 아무 설명이 없다
+          const before = src.slice(Math.max(0, node.start - 260), node.start);
+          r.bareSites.push({
+            줄: lineOf(node.start),
+            // ★까닭이 **손잡이 밖**에 적혀 있을 수 있다 — `try` 바로 위나 함수 머리말이
+            //   이 저장소의 버릇이다(ioSites 가 먼저 배운 것, L-347 의 덫).
+            앞주석: /\/\/|\/\*|\*\s/.test(before),
+            // 무엇을 감싸고 있었나 — 고치러 갈 때 제일 먼저 보는 것
+            감싼것: (() => {
+              const t = src.slice(0, node.start);
+              const i = t.lastIndexOf('try');
+              return i < 0 ? '' : t.slice(i, node.start).replace(/\s+/g, ' ').slice(0, 72);
+            })(),
+          });
+        }
         return;
       }
       let logs = false, rethrows = false;
@@ -374,16 +392,21 @@ function countSilentCatches(opt) {
   }
   const files = _jsFiles(CATCH_SCOPES[scope]);
   const counts = { all: 0, silent: 0, empty: 0, bare: 0, io: 0 };
+  // ★자리도 같이 모은다 (2026-09-24) — 숫자만 주면 **고치러 갈 곳을 알 수 없다.**
+  //   `ioSites` 는 3-44 에서 그 까닭으로 붙었는데 `bare` 에는 없어, 「110」을 줄이려는 사람이
+  //   파일을 하나하나 열어 봐야 했다.
+  const bareSites = [];
   let unparsed = 0;
   for (const f of files) {
     const r = catchStats(fs.readFileSync(f, 'utf8'));
     if (!r) { unparsed++; continue; }
     for (const k of Object.keys(counts)) counts[k] += r[k];
+    for (const b of (r.bareSites || [])) bareSites.push({ 파일: path.relative(REPO, f), ...b });
   }
   const SENSE_LABEL = { bare: '몸통도 주석도 없는 catch', empty: '문장이 없는 catch(주석만 포함)',
     silent: '로그도 없고 다시 던지지도 않는 catch', all: 'catch 전부',
     io: '★**기다리는 일(await)을 조용히 삼키는** catch — 망·파일이 실패해도 화면은 옛 값으로 그려진다' };
-  return { available: true, sense, scope, files: files.length, unparsed, counts, rows: counts[sense],
+  return { available: true, sense, scope, files: files.length, unparsed, counts, rows: counts[sense], bareSites,
     label: `catch ${counts[sense]} (뜻: ${SENSE_LABEL[sense]} · 범위: ${scope} · 파일 ${files.length}${unparsed ? ` · 못 읽은 파일 ${unparsed}` : ''})` };
 }
 
