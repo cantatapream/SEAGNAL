@@ -320,9 +320,18 @@
     function openImgModal() {
         var m = document.getElementById('tphn-img-modal'), img = document.getElementById('tphn-img-el'), msg = document.getElementById('tphn-img-msg');
         if (!m || !img) return;
-        var fileName = bulletinImageName(_selCode || (_curBulletin && _curBulletin.code));
-        if (!fileName) return;
-        var url = '/api/typhoon/image?fileName=' + encodeURIComponent(fileName);
+        // 기상청은 통보문 파일명으로, 해외는 태풍 번호(seq)로 그림을 부른다.
+        var fileName, url;
+        if (_src === 'kma') {
+            fileName = bulletinImageName(_selCode || (_curBulletin && _curBulletin.code));
+            if (!fileName) return;
+            url = '/api/typhoon/image?fileName=' + encodeURIComponent(fileName);
+        } else {
+            if (!_selSeq) return;
+            fileName = _selSeq;
+            url = '/api/typhoon/foreign/image?src=' + encodeURIComponent(_src)
+                + '&seq=' + encodeURIComponent(_selSeq);
+        }
         img.style.display = 'none'; if (msg) { msg.style.display = ''; msg.textContent = '불러오는 중…'; }
         img.onload = function () { img.style.display = ''; if (msg) msg.style.display = 'none'; };
         img.onerror = function () { img.style.display = 'none'; if (msg) { msg.style.display = ''; msg.textContent = '이미지를 불러올 수 없습니다.'; } };
@@ -340,7 +349,10 @@
     function downloadImg() {
         var img = document.getElementById('tphn-img-el'), fileName = img && img.getAttribute('data-fn');
         if (!fileName) return;
-        var rel = '/api/typhoon/image?download=1&fileName=' + encodeURIComponent(fileName);
+        var rel = (_src === 'kma')
+            ? '/api/typhoon/image?download=1&fileName=' + encodeURIComponent(fileName)
+            : '/api/typhoon/foreign/image?download=1&src=' + encodeURIComponent(_src)
+              + '&seq=' + encodeURIComponent(fileName);
         function anchor() {
             var a = document.createElement('a');
             a.href = rel; a.download = fileName.replace(/[\]]/g, '_'); a.target = '_blank';
@@ -1226,10 +1238,10 @@
         // 기상청에만 있는 조작은 해외 출처에서 잠근다(연도 이동·70%확률반경).
         var ySel = document.getElementById('tphn-year');
         if (ySel) ySel.disabled = (src !== 'kma');
-        // 통보문 이미지 버튼은 기상청에만 있다 — dmdw 가 그리는 그림을 파일명으로 불러오는 방식이라
-        //   해외 출처에는 대응하는 그림이 없다. 눌러도 아무 일이 안 일어나는 버튼을 남기지 않는다.
+        // 통보문 이미지 버튼 — 기상청은 dmdw 통보문 그림, JTWC 는 경고 그래픽(gif).
+        //   그림을 가진 출처에서만 띄운다(나머지는 눌러도 아무 일이 없어 고장처럼 보인다).
         var imgBtn = document.getElementById('tphn-img-btn');
-        if (imgBtn) imgBtn.style.display = (src === 'kma') ? '' : 'none';
+        if (imgBtn) imgBtn.style.display = (src === 'kma' || src === 'jtwc') ? '' : 'none';
         applyProbControl();
         renderSourceNote();
         if (src === 'kma') { loadYear(_year, null, null); return; }

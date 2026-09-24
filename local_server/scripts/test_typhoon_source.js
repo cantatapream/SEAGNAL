@@ -325,8 +325,23 @@ ok('경로오차 체크박스는 자료가 있을 때만 열린다(기상청 항
 // 통보문 이미지 버튼은 기상청 통보문 파일명 규칙(RTKO63_…)으로만 동작한다.
 //   해외 코드('2026-WP-25_4')를 넣으면 빈 문자열이 나와 팝업이 조용히 안 열렸다 —
 //   눌러도 아무 일이 없는 버튼은 "자료가 없는 것"과 구별이 안 된다.
-ok('★해외 출처에서는 통보문 이미지 버튼을 감춘다',
-    /imgBtn\.style\.display = \(src === 'kma'\) \? '' : 'none';/.test(TYPHOON_SRC));
+// [2026-09-24] 사용자가 JTWC 경고 그래픽 주소를 확인해 줘서 버튼을 되살렸다.
+//   그 전에는 해외 코드로 파일명이 안 나와 눌러도 아무 일이 없었다(아래 두 줄이 그 근거).
+ok('★그림이 있는 출처에서만 이미지 버튼을 띄운다 (기상청·JTWC)',
+    /imgBtn\.style\.display = \(src === 'kma' \|\| src === 'jtwc'\) \? '' : 'none';/.test(TYPHOON_SRC));
+ok('해외에서는 해외 전용 주소를 부른다',
+    /'\/api\/typhoon\/foreign\/image\?src=' \+ encodeURIComponent\(_src\)/.test(TYPHOON_SRC));
+ok('다운로드도 같은 갈래를 탄다',
+    /\/api\/typhoon\/foreign\/image\?download=1&src=/.test(TYPHOON_SRC));
+
+// seq → JTWC 파일명. 주소 형식: https://www.metoc.navy.mil/jtwc/products/<해역><번호2><연도2>.gif
+ok('★seq 를 JTWC 그래픽 파일명으로 바꾼다 (2026-WP-25 → wp2526.gif)',
+    route._jtwcImageName('2026-WP-25') === 'wp2526.gif', route._jtwcImageName('2026-WP-25'));
+ok('태풍 번호를 두 자리로 채운다', route._jtwcImageName('2026-EP-6') === 'ep0626.gif');
+ok('★형식이 안 맞으면 빈 값 — 경로조작을 막는다',
+    route._jtwcImageName('../../etc/passwd') === '' && route._jtwcImageName('') === '' &&
+    route._jtwcImageName('2026-WP-25/x') === '');
+ok('중계 경로가 등록돼 있다', /\/api\/typhoon\/foreign\/image/.test(ROUTE_SRC));
 
 const BIN_SRC = (TYPHOON_SRC.match(/function bulletinImageName[\s\S]*?\n    \}/) || [''])[0];
 const bulletinImageName = new Function(BIN_SRC + '; return bulletinImageName;')();

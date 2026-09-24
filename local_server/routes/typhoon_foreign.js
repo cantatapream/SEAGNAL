@@ -48,6 +48,7 @@ const router = express.Router();
 const CLIENT_ID = process.env.XWEATHER_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.XWEATHER_CLIENT_SECRET || '';
 const BASE = 'https://data.api.xweather.com/tropicalcyclones';
+const JTWC_IMG_BASE = 'https://www.metoc.navy.mil/jtwc/products/';   // 경고 그래픽(gif)
 const HTTP_TIMEOUT_MS = 10000;
 const TTL_MS = 30 * 60 * 1000;          // 상류가 6시간마다 갱신 — 30분이면 충분
 const KST_OFFSET_MS = 9 * 3600 * 1000;
@@ -346,5 +347,49 @@ router._gradeOfStormType = gradeOfStormType;
 router._gradeOfWind = gradeOfWind;
 router._toKstStamp = toKstStamp;
 router._pickErrorCone = pickErrorCone;
+
+/**
+ * seq → JTWC 경고 그래픽 파일명.
+ * 예: '2026-WP-25' → 'wp2526.gif'  (해역 wp · 태풍번호 25 · 연도 뒤 두 자리 26)
+ * [출처] https://www.metoc.navy.mil/jtwc/products/<파일명> — 사용자가 확인해 준 주소 형식.
+ * @param {string} seq - 우리 응답의 seq (상류 id)
+ * @returns {string} 파일명, 형식이 안 맞으면 ''
+ */
+function jtwcImageName(seq) {
+    const m = /^(\d{4})-([A-Za-z]{2})-(\d{1,2})$/.exec(String(seq || ''));
+    if (!m) return '';
+    return m[2].toLowerCase() + String(m[3]).padStart(2, '0') + m[1].slice(2) + '.gif';
+}
+
+/**
+ * GET /api/typhoon/foreign/image?src=jtwc&seq=2026-WP-25[&download=1]
+ * JTWC 경고 그래픽(gif)을 중계한다 — 기상청 통보문 이미지 버튼과 같은 자리에 쓴다.
+ * [왜 중계하나] 앱에서 바깥 주소를 직접 물면 CORS·혼합콘텐츠에 걸린다. 기상청 이미지도
+ *   같은 이유로 /api/typhoon/image 가 중계하고 있다 — 그 방식을 그대로 따른다.
+ * 실패: 400(형식 오류) · 404(그림 없음·상류 실패)
+ */
+router.get('/api/typhoon/foreign/image', async (req, res) => {
+    if (String(req.query.src || 'jtwc').toLowerCase() !== 'jtwc') return res.status(400).end();
+    const name = jtwcImageName(req.query.seq);
+    if (!name) return res.status(400).end();
+    try {
+        const up = await fetch(JTWC_IMG_BASE + name, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
+        const type = up.headers.get('content-type') || '';
+        if (!up.ok || type.indexOf('image') === -1) {
+            console.log(`[typhoon-foreign] 그래픽 ${name} 실패 ${up.status} ${type}`);
+            return res.status(404).end();
+        }
+        const buf = Buffer.from(await up.arrayBuffer());
+        res.set('Content-Type', type || 'image/gif');
+        res.set('Cache-Control', 'public, max-age=600');   // 상류가 6시간마다 갱신
+        if (req.query.download) res.set('Content-Disposition', 'attachment; filename="' + name + '"');
+        res.send(buf);
+    } catch (e) {
+        console.log(`[typhoon-foreign] 그래픽 호출 실패: ${e.message}`);
+        res.status(404).end();
+    }
+});
+
+router._jtwcImageName = jtwcImageName;
 
 module.exports = router;
