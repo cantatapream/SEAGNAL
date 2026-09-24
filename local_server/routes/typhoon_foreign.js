@@ -130,9 +130,8 @@ function gradeOfWind(ms) {
 /**
  * 태풍 하나에서 오차 원뿔(GeoJSON)을 꺼낸다.
  * 예: { type:'Polygon', coordinates:[[[136.2,17.2], …]] }
- * [왜 여러 자리를 보나] 상류가 이 값을 어느 칸에 담는지 문서로 확인하지 못했다
- *   (이 컨테이너에서 xweather.com 이 막혀 있다). 그래서 있을 법한 칸을 모두 본다.
- *   찾지 못하면 null — 지어내지 않는다.
+ * [어느 칸인가] 태풍 객체 뿌리(response[].errorCone)다 — 2026-09-24 실제 응답으로 확인했다.
+ *   나머지 자리는 상류가 칸을 옮길 때를 대비한 보험이다. 찾지 못하면 null — 지어내지 않는다.
  * @param {Object} st - 상류 태풍 객체
  * @returns {Object|null} GeoJSON 도형, 없으면 null
  */
@@ -241,8 +240,10 @@ function toFrame(node, isCurrent) {
 /** 상류 호출 + 30분 캐시. 실패하면 null. */
 async function fetchActive() {
     if (cache && (Date.now() - cache.at) < TTL_MS) return cache.data;
+    // filter=geo 가 있어야 오차 원뿔(errorCone)이 따라온다 — 없으면 그 칸 자체가 안 온다.
+    //   2026-09-24 실제 응답으로 확인: 붙여도 position·forecast·track 은 그대로 다 온다(빠지는 것 없음).
     const url = `${BASE}/?client_id=${encodeURIComponent(CLIENT_ID)}`
-              + `&client_secret=${encodeURIComponent(CLIENT_SECRET)}&limit=10`;
+              + `&client_secret=${encodeURIComponent(CLIENT_SECRET)}&limit=10&filter=geo`;
     let json = null;
     try {
         const res = await fetch(url, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
