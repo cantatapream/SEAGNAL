@@ -246,8 +246,35 @@ paint();
 </script></body></html>'''
 
 
+def wiki_cited_admrul():
+    """위키가 실제로 짚는 행정규칙 raw 경로. **사용자에게 닿는 파일을 먼저 하기 위한 자다.**
+    ★2026-09-24 실측(3-28 / G-24) — `(⚠REVIEW)` 가 붙은 파일 **78개 중 위키가 인용하는 것은 39개(50%)**.
+      표시 837개 중 **인용 파일 안에 있는 것은 315개**이고, 그 **73%(230개)가 파일 셋**에 몰려 있다
+      (어선설비기준 132 · 선박소방설비기준 57 · 선박설비기준 41 — 셋 다 이미 검토장이 있다).
+      ⇒ 남은 것은 **85개 · 36파일**. 인용 안 하는 파일의 표시는 **사용자에게 닿지 않는다** — 뒤로 민다.
+    """
+    import os as _os
+    wiki = _os.path.join(LEGAL, 'wiki')
+    pat = re.compile(r'raw/[^\s`"“”,)]+\.txt')
+    out = set()
+    for root, dirs, fs in _os.walk(wiki):
+        for f in fs:
+            if not f.endswith('.md'):
+                continue
+            try:
+                t = open(_os.path.join(root, f), encoding='utf-8', errors='replace').read()
+            except Exception:
+                continue
+            for m in pat.findall(t):
+                if '/행정규칙/' in m:
+                    out.add(m)
+    return out
+
+
 def main():
     top = 8
+    cited_only = '--cited' in sys.argv          # 위키가 인용하는 파일만
+    skip_made = '--skip-made' in sys.argv       # 이미 만든 검토장은 건너뛴다
     for i, a in enumerate(sys.argv):
         if a == '--top' and i + 1 < len(sys.argv):
             top = int(sys.argv[i + 1])
@@ -255,7 +282,23 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     fw = files_with_review()
     print(f'(⚠REVIEW) 가 있는 파일 {len(fw)}개 · 값 {sum(n for n, _ in fw)}개')
-    targets = fw if allf else fw[:top]
+    if cited_only:
+        cited = wiki_cited_admrul()
+        before = len(fw)
+        fw = [(n, p) for n, p in fw
+              if os.path.relpath(p, os.path.dirname(RAW)).replace(os.sep, '/') in cited]
+        print(f'  ★위키가 인용하는 것만 남긴다: {before} → {len(fw)}개 · 값 {sum(n for n, _ in fw)}개')
+    if skip_made:
+        keep = []
+        for n, p in fw:
+            name = os.path.splitext(os.path.basename(p))[0]
+            out = os.path.join(OUT, re.sub(r'[^0-9A-Za-z가-힣]', '_', name) + '.html')
+            if os.path.exists(out):
+                print(f'  ⏭️  이미 검토장이 있다: {name[:44]} (값 {n})')
+            else:
+                keep.append((n, p))
+        fw = keep
+    targets = fw if (allf or cited_only) else fw[:top]
     print(f'검토장을 만들 대상: {len(targets)}개 · 값 {sum(n for n, _ in targets)}개'
           f' ({sum(n for n, _ in targets) * 100 // max(1, sum(n for n, _ in fw))}%)')
     made = []

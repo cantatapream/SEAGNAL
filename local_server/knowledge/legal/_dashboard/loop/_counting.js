@@ -648,7 +648,15 @@ const REVIEW_SENSES = {
   head5:    '머리 5줄 안에 ⚠REVIEW 가 있다',
   first:    '첫 줄에 ⚠REVIEW 가 있다',
   phrase:   '「원문 대조 필요」 라는 문구가 있다',
+  // ★2026-09-24 (3-28 / G-24) 에 더한 뜻 — **`anywhere` 가 더는 내려갈 수 없게 됐기 때문**이다.
+  //   대조를 마치면 표시를 **지우지 않고** 「대조 기록」으로 바꿔 적고 옛 표시를 괄호 안에 남긴다
+  //   (`✅원문 대조 완료(…) (옛 표시는 지우지 않는다 — ⚠REVIEW: …)`). 규약이 그렇다(옛 서술 보존).
+  //   그러면 `anywhere` 는 **확인을 끝낸 파일에서도 계속 1로 센다** — 줄어드는 것을 볼 수 없다.
+  //   ⇒ **확인이 남았는지**를 따로 센다: 그 파일에 대조 기록(✅·🟡·⚠)이 **하나도 없을 때만** 센다.
+  남음:     '⚠REVIEW 가 있는데 **대조 기록이 하나도 없다**(확인이 남았다)',
 };
+/** 대조를 해 본 흔적 — 이 셋 중 하나가 있으면 「기계가 이미 들여다본 파일」이다. */
+const REVIEW_DONE_RE = /(✅원문 대조 완료|🟡기계 대조 \d+%|⚠이 길로는 대조 불가)/;
 
 /** 행정규칙 본문 파일 목록 — ADMRUL_SCOPE 의 뜻 그대로. */
 function admrulFiles() {
@@ -683,6 +691,7 @@ function countAdmrulReview(sense) {
     const ok = sense === 'anywhere' ? t.includes(REVIEW_MARK)
              : sense === 'head5'    ? lines.slice(0, 5).join('\n').includes(REVIEW_MARK)
              : sense === 'first'    ? (lines[0] || '').includes(REVIEW_MARK)
+             : sense === '남음'      ? (t.includes(REVIEW_MARK) && !REVIEW_DONE_RE.test(t))
              :                        t.includes('원문 대조 필요');
     if (ok) hit.push(p);
   }

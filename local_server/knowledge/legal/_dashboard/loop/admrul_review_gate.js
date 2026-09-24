@@ -22,7 +22,7 @@ const path = require('path');
 const C = require('./_counting.js');
 
 const BASE = path.join(__dirname, 'baseline', 'admrul_review.json');
-const WATCH = ['anywhere', 'head5', 'first', 'phrase'];
+const WATCH = ['anywhere', 'head5', 'first', 'phrase', '남음'];
 
 function measure() {
     const out = { 전체: 0 };

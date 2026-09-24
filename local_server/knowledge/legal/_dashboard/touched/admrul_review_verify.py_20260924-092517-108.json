@@ -1,0 +1,30 @@
+{
+ "script": "admrul_review_verify.py",
+ "stamp": "20260924-092517-108",
+ "files": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/항만관리법인의지정기준및업무범위등에관한고시.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/항만시설물안전점검지침.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/매장문화재보존조치유적해제고시.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/부산진구전포동공동주택신축공사부지내지질문화재보존조치지정고시.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/독도등도서지역의생태계보전에관한특별법/행정규칙/특정도서_고시.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법/행정규칙/수산업협동조합여유자금운용대상중유가증권의범위.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법/행정규칙/수산종자의수입적격성심사에관한규정.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법/행정규칙/친어등등록기관및친어등의검정기관의지정.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법/행정규칙/어선위치추적장치의설비및운영방법등에관한고시.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법/행정규칙/선박전자증서발급에관한고시.txt",
+  "local_server/knowledge/legal/raw/09_레저관광/수중레저활동의안전및활성화등에관한법률/행정규칙/수중레저안전관리규정.txt",
+  "local_server/knowledge/legal/raw/09_레저관광/수중레저활동의안전및활성화등에관한법률/행정규칙/수중레저활동금지구역지정고시.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/수산물검정기관지정세부절차및운영등에관한요령.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/해양배출 검사기관 지정에 관한 고시.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/해양배출 폐기물의 정밀평가에 관한 고시.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/해양오염퇴적물정화업 대체인력 관련학과 및 직무분야 고시.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박직원법/행정규칙/지정교육기관기준.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/위성항법보정시스템운영규정.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/특수신호표지설치대상해역지정고시.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/항로표지시설관리지침.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/항로표지장비·용품검사수수료.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박법/행정규칙/선박전자증서발급에관한고시.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박법/행정규칙/선박톤수측정등의대행수수료.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박법/행정규칙/선박톤수측정요령.txt"
+ ]
+}

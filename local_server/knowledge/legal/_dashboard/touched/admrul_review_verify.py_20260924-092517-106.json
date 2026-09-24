@@ -1,0 +1,23 @@
+{
+ "script": "admrul_review_verify.py",
+ "stamp": "20260924-092517-106",
+ "files": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/비관리청항만개발사업시행허가등에관한업무처리요령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/국가귀속유산의관리등에관한규정.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/국립해양유산연구소수중유산조사현장안전관리규정.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/매장유산조사용역대가의기준.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/매장유산지표조사의방법및절차등에관한규정.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/발견·발굴유산의국가귀속절차등에관한규정.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/발견신고된국가유산의보상금지급기준등에관한규정.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/행정규칙/발굴조사의방법및절차등에관한규정.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법/행정규칙/국립수산과학원종자분쟁조정협의회운영에관한규정.txt",
+  "local_server/knowledge/legal/raw/09_레저관광/낚시관리및육성법/행정규칙/낚시명예감시원위촉등에관한고시.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산물유통의관리및지원에관한법률/행정규칙/수산물이력추적관리세부실시요령.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산물유통의관리및지원에관한법률/행정규칙/수산업관측전담기관의운영에관한요령.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/행정규칙/선내의약품등의비치기준.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/행정규칙/해양오염퇴적물 조사 및 정화 범위 등에 관한 규정.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/항로표지장비·용품검사기준.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/항로표지장비·용품등의기능및규격기준.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박안전법/행정규칙/컨테이너안전점검기준.txt"
+ ]
+}

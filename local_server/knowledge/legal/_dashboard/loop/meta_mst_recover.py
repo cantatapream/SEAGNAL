@@ -126,16 +126,34 @@ def search(name):
     return '', ''
 
 
+def _flat_strings(v, out):
+    """어떤 모양이든 **문자열을 다 긁는다** — 문자열·목록·목록의 목록."""
+    if isinstance(v, str):
+        out.append(v)
+    elif isinstance(v, list):
+        for x in v:
+            _flat_strings(x, out)
+    elif isinstance(v, dict):
+        for x in v.values():
+            _flat_strings(x, out)
+    return out
+
+
 def _all_text(node, out):
-    """★그 조에 딸린 **모든 글**을 긁는다 — 조문내용·항내용뿐 아니라 **호내용·목내용**까지.
-    ⚠2026-09-24 — 처음에 `조문내용 + 항내용` 만 모았다. 그런데 우리 발췌본에는
-      `1. 신문 및 인터넷신문의 명칭` 같은 **호 줄**이 그대로 들어 있어서,
-      호를 안 모은 현행 글과 견주면 **멀쩡한 발췌가 「0~43%만 같다」로 떨어졌다.**
-      (`호`·`목` 은 API 가 따로 배열로 준다.) 이름이 `…내용` 인 값을 **다 긁는다.**"""
+    """그 조에 딸린 **모든 글**을 긁는다 — 조문내용·항내용뿐 아니라 **호내용·목내용**까지.
+    ⚠2026-09-24 ① 처음에 `조문내용 + 항내용` 만 모았다. 우리 발췌본에는 `1. 신문 및 인터넷신문의 명칭`
+      같은 **호 줄**이 그대로 있어서, 호를 안 모은 현행 글과 견주면 멀쩡한 발췌가 떨어졌다.
+    ⚠2026-09-24 ② **`…내용` 키 아래가 목록이면 통째로 버리고 있었다.**
+      `target=admrul` 은 본문을 `"조문내용": [[ "…", "…" ]]` 처럼 **목록의 목록**으로 준다.
+      그래서 행정규칙 원문이 **한 글자도 안 잡혀** 「1%만 일치」가 나왔다(3-28 에서 잡았다).
+      ⇒ 문자열만 받지 말고 **목록 속 문자열까지 펴서** 받는다.
+      ★이 고침으로 **글이 늘기만 한다** — 덮임 비율은 오르기만 하고 내려가지 않는다.
+        그래서 앞서 `meta_mst_recover` 가 「맞다」고 한 것은 그대로 맞고,
+        「낡았다」로 보류한 27건은 **다시 재 보면 줄 수 있다**(3-37 남은 일)."""
     if isinstance(node, dict):
         for k, v in node.items():
-            if isinstance(v, str) and str(k).endswith('내용'):
-                out.append(v)
+            if str(k).endswith('내용'):
+                _flat_strings(v, out)
             else:
                 _all_text(v, out)
     elif isinstance(node, list):

@@ -24,7 +24,16 @@ ok('범위의 뜻이 사전에 글로 적혀 있다', typeof C.ADMRUL_SCOPE.뜻 
 // ── ② 뜻마다 값이 다르다 — 그것이 정상이고, 뜻을 안 적는 것이 병이다 ────────
 const v = {};
 for (const s of Object.keys(C.REVIEW_SENSES)) v[s] = C.countAdmrulReview(s).걸린파일;
-ok('뜻이 넷 다 이름을 갖고 있다', Object.keys(C.REVIEW_SENSES).length === 4);
+// ★숫자를 박지 않는다 (2026-09-24) — `4` 라 적어 뒀다가 뜻 하나(`남음`)를 더하자 빨간불이 났다.
+//   시험이 지킬 것은 **개수가 아니라 성질**이다: *뜻마다 이름과 설명이 있다.*
+ok('뜻마다 이름과 설명이 있다 (숫자를 박지 않는다)',
+    Object.keys(C.REVIEW_SENSES).length >= 4
+    && Object.values(C.REVIEW_SENSES).every((d) => typeof d === 'string' && d.length > 5),
+    `        지금 뜻 ${Object.keys(C.REVIEW_SENSES).length}가지: ${Object.keys(C.REVIEW_SENSES).join(' · ')}`);
+// ★새 뜻 `남음` — 대조 기록이 하나도 없는 파일만 센다.
+//   `anywhere` 는 옛 표시를 괄호로 남기는 규약 때문에 **더는 내려갈 수 없다.** 그래서 이 뜻을 더했다.
+ok('`남음` 은 `anywhere` 보다 크지 않다 (확인을 끝낸 파일만큼 작다)',
+    v['남음'] <= v.anywhere, `        anywhere ${v.anywhere} · 남음 ${v['남음']}`);
 ok('좁은 뜻일수록 값이 작거나 같다 (anywhere ⊇ head5 ⊇ first)',
     v.anywhere >= v.head5 && v.head5 >= v.first,
     `        anywhere ${v.anywhere} · head5 ${v.head5} · first ${v.first}\n` +
