@@ -174,46 +174,24 @@ ok('아직 자료원이 없는 세 곳(일본·유럽·중국)은 잠겨 있다'
 ok('드롭다운이 ⓘ 버튼 왼쪽에 있다',
     /id="tphn-source"[\s\S]{0,700}id="tphn-info-btn"/.test(HTML_SRC));
 
-// 출처 전환은 아직 일반 사용자에게 열지 않는다 — 관리자 모드 기기에서만 보인다.
-ok('★일반 사용자에게는 출처 드롭다운을 숨긴다',
-    /getElementById\('tphn-source'\);\s*\n\s*if \(srcSel && !isAdmin\) srcSel\.style\.display = 'none';/.test(TYPHOON_SRC));
+// [2026-09-24] 자료가 원본과 일치하는 것을 확인한 뒤 모든 사용자에게 열었다.
+//   그 전에는 관리자 모드 기기에서만 보이고, 태풍 버튼 5회 탭으로 임시로 꺼내 썼다.
+//   이제 그 두 장치가 모두 없어야 한다 — 남아 있으면 죽은 코드가 화면을 다시 숨길 수 있다.
+ok('★출처 드롭다운을 모든 사용자에게 보여 준다(숨기는 코드가 없다)',
+    !/srcSel && !isAdmin/.test(TYPHOON_SRC) &&
+    !/tphn-source'\);[\s\S]{0,120}display = 'none'/.test(TYPHOON_SRC));
 
-// var 는 함수 꼭대기로 끌어올려지므로, 선언이 사용처보다 아래에 있으면 값이 undefined 라
-// 관리자에게도 숨겨진다. 그래서 읽는 자리가 쓰는 자리보다 앞인지 함께 고정한다.
-ok('★관리자 여부를 읽는 자리가 드롭다운을 숨기는 자리보다 앞이다',
-    TYPHOON_SRC.indexOf("isAdmin = localStorage.getItem('seagnal_admin_mode')")
-        < TYPHOON_SRC.indexOf("if (srcSel && !isAdmin)"),
-    '읽는 자리 ' + TYPHOON_SRC.indexOf("isAdmin = localStorage.getItem('seagnal_admin_mode')")
-        + ' / 쓰는 자리 ' + TYPHOON_SRC.indexOf("if (srcSel && !isAdmin)"));
+ok('★임시 장치였던 5회 탭이 남아 있지 않다',
+    !/SRC_TAP_THRESHOLD|_srcTapCount|_srcRevealed|handleSourceTap/.test(TYPHOON_SRC));
 
-ok('디버그 줄도 같은 isAdmin 을 쓴다(선언이 하나만 남아 있다)',
+ok('기본 출처는 여전히 한국(기상청)이다',
+    /var _src = 'kma'/.test(TYPHOON_SRC) || /_src = 'kma';/.test(TYPHOON_SRC));
+
+// 관리자 판정은 디버그 줄(tphn-dbg-row)이 아직 쓴다 — 같이 지워지지 않았는지 본다.
+ok('관리자용 디버그 줄은 그대로 남아 있다',
+    /if \(dbgRow && !isAdmin\) dbgRow\.style\.display = 'none';/.test(TYPHOON_SRC));
+ok('isAdmin 선언이 하나만 남아 있다',
     (TYPHOON_SRC.match(/var isAdmin = false;/g) || []).length === 1);
-
-// [히든] 숨긴 드롭다운을 태풍 버튼 5회 탭으로 꺼낸다 — 관리자 모드를 켜지 않고 시험하려는 것.
-ok('★5회 탭이면 꺼낸다 (문턱값 5)',
-    /SRC_TAP_THRESHOLD = 5;/.test(TYPHOON_SRC) &&
-    /_srcTapCount < SRC_TAP_THRESHOLD\) return false;/.test(TYPHOON_SRC));
-
-ok('★꺼낼 때 드롭다운의 숨김을 실제로 푼다',
-    /getElementById\('tphn-source'\);\s*\n\s*if \(sel\) sel\.style\.display = '';/.test(TYPHOON_SRC));
-
-// 버튼은 갈래가 둘(활성 태풍 있으면 토글 / 없으면 10탭 게이트)이라, 세는 자리가
-// 갈래보다 뒤면 한쪽에서는 영영 안 세어진다. 그래서 순서를 고정한다.
-ok('★탭 세는 자리가 두 갈래보다 앞이다',
-    TYPHOON_SRC.indexOf('if (handleSourceTap()) return;')
-        < TYPHOON_SRC.indexOf('if (!has && !_unlocked) { handleGateTap(); return; }'));
-
-// 꺼낸 그 클릭이 그대로 토글까지 가면 패널이 도로 닫혀 꺼낸 것이 안 보인다.
-ok('★꺼낸 클릭은 토글로 이어지지 않는다(true 를 돌려 호출부가 멈춘다)',
-    /_srcRevealed = true;[\s\S]{0,200}setVisible\(true\);\s*\/\/[^\n]*\n\s*return true;/.test(TYPHOON_SRC));
-
-ok('한 번 꺼내면 더는 세지 않는다', /if \(_srcRevealed\) return false;/.test(TYPHOON_SRC));
-
-ok('탭 간격이 벌어지면 0으로 되돌린다(기존 게이트와 같은 3초)',
-    /_srcTapTimer = setTimeout\(function \(\) \{ _srcTapCount = 0; \}, TAP_RESET_MS\);/.test(TYPHOON_SRC));
-
-ok('세션 한정 — 꺼낸 상태를 저장하지 않는다',
-    !/seagnal_[a-z_]*src[a-z_]*/i.test(TYPHOON_SRC));
 
 // ── [1b] 세 가지 실제 결함 (2026-09-24 사용자 지적) ──────────────────────────
 console.log('\n[1b] 엉뚱한 태풍 · 갱신 누락 · 오차원뿔');
