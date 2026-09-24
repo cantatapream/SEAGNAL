@@ -129,7 +129,8 @@ def main():
         if apply_:
             os.makedirs(folder, exist_ok=True)
             open(full, 'w', encoding='utf-8').write(body)
-            touched.add(os.path.relpath(full, os.path.dirname(os.path.dirname(os.path.dirname(LEGAL)))))
+            # ⚠`Touched.add()` 는 cwd 기준으로 abspath 한다 — **절대경로를 넘긴다**(위 주석 참고)
+            touched.add(full)
     print('=== 만들 것 ===')
     for rel, k, label, url in made:
         print(f'  ✅ {rel:72s} ← {k} ({label})')

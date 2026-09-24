@@ -76,7 +76,11 @@ def main():
     if apply_:
         for _rel, _f, _c, src, dst in plan:
             subprocess.run(['git', 'mv', src, dst], cwd=REPO, check=True)
-            touched.add(os.path.relpath(dst, REPO))
+            # ⚠`Touched.add()` 는 **cwd 기준**으로 abspath 한다 — 저장소 기준 경로를 넘기면
+            #   `…legal/local_server/knowledge/legal/raw/…` 로 **두 번 겹쳐** 기록이 무효가 된다
+            #   (실측 2026-09-24: 그 때문에 raw_touch_guard 가 58→220 으로 빨간불을 냈다).
+            #   **절대경로를 넘긴다.**
+            touched.add(dst)
         touched.save()
         print(f'\n  → git mv {len(plan)}개 (내용은 한 글자도 안 건드렸다)')
     return 0
