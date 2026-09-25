@@ -445,6 +445,34 @@ function resolvePage(byFile, raw) {
   return null;
 }
 
+/**
+ * 점수용 본문 — 「## 변경 이력」 절을 잘라 낸다. (2026-09-25, 결심 4-5ⓐ)
+ *
+ * 무엇을 자르나: `## 변경 이력` 머리부터 **다음 `##`(또는 더 높은) 머리 앞까지**. 머리가 없으면 끝까지.
+ *   실측(2026-09-25): 그 절이 있는 쪽 **1,289개**(`## 변경 이력` 1,289 · `## 변경 이력(추가)` 1),
+ *   없는 쪽 2개. 그래서 **한 꼴만 보면 된다**.
+ * ⚠**`body` 는 안 건드린다** — 이 값은 `scoreOne`·`termWeights` 만 쓴다(readPage 주석 참조).
+ * ⚠그 절 안에 든 낱말이 **다른 데 없으면** 그 쪽은 그 낱말로 안 찾힌다. 그것이 이 결심의 뜻이다 —
+ *   *"위키가 그 말을 설명하는 것"* 과 *"고친 기록에 그 말이 한 번 나온 것"* 은 다르다.
+ * @param {string} body - readPage 가 만든 본문(frontmatter 제거 뒤)
+ * @returns {string} 「변경 이력」 절을 뺀 본문
+ * [연계] → readPage(entry.scoreBody) → scoreOne·termWeights. 근거: 등록부 `4-5` · L-385.
+ */
+const HISTORY_HEAD = /^##\s*변경\s*이력[^\n]*$/m;
+function stripHistory(body) {
+  // ★한 쪽에 그 절이 **두 번** 있는 쪽이 24개다(`## 변경 이력` 이 두 번, 또는 `## 변경 이력 (추가)`).
+  //   첫 것만 자르면 둘째가 남아 반만 고치는 것이 된다 — 없어질 때까지 돈다(2026-09-25 실측으로 찾았다).
+  let out = body;
+  for (let i = 0; i < 8; i++) {
+    const m = HISTORY_HEAD.exec(out);
+    if (!m) break;
+    const rest = out.slice(m.index + m[0].length);
+    const next = rest.search(/^#{1,2}\s\S/m);
+    out = next === -1 ? out.slice(0, m.index) : out.slice(0, m.index) + rest.slice(next);
+  }
+  return out;
+}
+
 // ── 페이지 본문 캐시(mtime 감지): frontmatter + body 분리 ──
 const _bodyCache = new Map(); // key: fp → { mtime, today, frontmatter, body }
 function readPage(kind, file) {
@@ -482,7 +510,16 @@ function readPage(kind, file) {
     const blocked = effectiveDate.unapprovedStageDates(String(file || '').split('__')[0]);
     body = effectiveDate.applyStageMarkers(body, today, blocked);
   }
-  const entry = { mtime: mt, today: staged ? today : null, appr, frontmatter, body };
+  // ★2026-09-25 (결심 4-5ⓐ) — **점수용 본문을 따로 둔다.** `body` 는 하나도 건드리지 않는다.
+  //   까닭: `scoreOne()` 과 `termWeights()` 가 **본문 전체**로 점수와 낱말 가중치(IDF)를 만드는데,
+  //   그 본문에 「## 변경 이력」이 들어 있어 **과거 서술이 지금 답을 고르는 데 끼어들었다.**
+  //   실측으로 드러난 경위(L-385): 승급 1차 기록을 canonical 987쪽 변경이력에 한 줄씩 넣자
+  //   골든 279문항의 `chain` 이 266 → 265 로 떨어졌다(어선법 SOLAS 문항이 chain → search).
+  //   ⇒ 「변경 이력」은 **무엇을 언제 고쳤나**를 적는 자리이고, 사용자가 묻는 것이 아니다.
+  //   ⚠**점수에서만 뺀다.** 인용(`citableBody`)·모델에 싣는 컨텍스트·되묻기 판정은 `body` 를 그대로 쓴다 —
+  //     거기서 빼면 「그 쪽에 무엇이 적혀 있나」가 바뀌어 답이 달라진다. 이 결심은 **검색 점수**만이다.
+  const entry = { mtime: mt, today: staged ? today : null, appr, frontmatter, body,
+                  scoreBody: stripHistory(body) };
   _bodyCache.set(fp, entry);
   return entry;
 }
@@ -893,7 +930,8 @@ function scoreOne(p, terms, weights) {
     const title = p.topic || p.law || '';
     for (const t of terms) {
       if (title.includes(t)) s += 3 * w(t);
-      else if (page.body.includes(t)) s += 2 * w(t);
+      // ★`scoreBody` — 「변경 이력」을 뺀 본문(결심 4-5ⓐ). 인용은 `body` 를 그대로 쓴다.
+      else if (page.scoreBody.includes(t)) s += 2 * w(t);
     }
   }
   return s;
@@ -926,7 +964,9 @@ function termWeights(pages, terms) {
   for (const p of pages) {
     const hay = (p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' ');
     const page = readPage(p.kind, p.file);
-    const body = page ? page.body : '';
+    // ★`scoreBody` — 「변경 이력」을 뺀 본문(결심 4-5ⓐ). **여기가 회귀의 진짜 자리였다**:
+    //   987쪽 변경이력에 같은 글을 넣자 그 낱말의 `df` 가 987 늘어 무게가 주저앉았다(L-385).
+    const body = page ? page.scoreBody : '';
     for (const t of terms) if (hay.includes(t) || body.includes(t)) df.set(t, df.get(t) + 1);
   }
   const N = pages.length || 1;
@@ -5361,7 +5401,10 @@ function withAssumedNotice(answer, assumed) {
 // 검사와 코드가 어긋나 엉뚱한 결론이 난다(L-136·L-153).
 module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
   // readPage 는 시행일 마커 접기(effective_date)가 본문 입구에서 도는지 회귀 테스트(test_pending_law)가 보려고 내보낸다.
-  readPage, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+  readPage,
+  // 2026-09-25 결심 4-5ⓐ: 「변경 이력」을 점수에서 빼는 자. 검사(test_score_body)가 **생산 함수를**
+  // 그대로 불러 고정한다(L-136 — 검사가 제 사본을 만들면 둘이 갈린다).
+  stripHistory, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   // 2026-09-22 P-19: 합계 상한. 검사 도구가 **생산과 같은 값**을 보고 재려고 내보낸다(L-136).
   CONTEXT_MAX_CHARS, MIN_BODY_CHARS, MAX_BODY_CHARS, MID_BODY_CHARS, TAIL_BODY_CHARS,
