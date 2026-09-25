@@ -86,12 +86,32 @@ def fetch_law_meta(mst):
     #   baseline 이 되고, `detect_law_changes.py` 는 그것을 `lawSearch`(eflaw)의 **현행 행**과
     #   견준다. 즉 **미시행 판이 baseline 에 박히면 없는 개정을 보고하거나 있는 개정을 놓친다.**
     #   이제 현행 시행일자를 조회해 `efYd` 로 못 박고, 못 정하면 None 을 준다(law_api_guard).
+    return fetch_law_meta_why(mst)[0]
+
+
+def fetch_law_meta_why(mst):
+    """`fetch_law_meta` 와 같은 일을 하되 **못 받은 까닭까지** 준다 → `(info|None, 까닭)`.
+
+    ★왜 나눴나 (2026-09-25, 일감 P-20)
+      종전에는 **서로 다른 세 가지**가 전부 `None` 하나로 돌아왔고, 호출부는 그 전부를
+      *"API 응답에 법령ID 없음(조회 실패 또는 폐지/비법령 MST)"* 이라고 적었다.
+      그래서 개정탐지 기준선이 **13층을 승계**한 까닭을 다음 사람이 「폐지된 MST 겠지」로 읽는다.
+      **실측으로 아니었다** — 「배타적 경제수역 및 대륙붕에 관한 법률」(MST 192412)을 직접 두들겨 보니
+      첫 시도는 `Connection reset by peer`, **두 번째에 법령ID `001437` 이 왔다.**
+      즉 그 13층은 **망이 끊긴 것**이고, 사유가 거짓이라 아무도 다시 받지 않았다.
+      ⇒ 갈래를 셋으로 가른다. 값은 그대로다(R0) — 까닭만 함께 준다.
+    """
+    last = "망오류 — 3번 다 실패했다"
     for _ in range(3):
         try:
             d = law_api_guard.fetch_law_body(api, OC, mst)
-            info = ((d or {}).get("법령") or {}).get("기본정보") or {}
+            if not d:
+                # 몸을 아예 못 받았다 = 판을 못 정했다(law_api_guard 가 현행 시행일을 확정 못 함).
+                # 종전 코드도 여기서 재시도하지 않고 None 을 줬다 — 그대로 둔다.
+                return None, "판을 못 정했다 — law_api_guard 가 현행 시행일(efYd)을 확정하지 못했다"
+            info = (d.get("법령") or {}).get("기본정보") or {}
             if not info.get("법령ID"):
-                return None
+                return None, "응답은 왔는데 법령ID 칸이 비었다 — 폐지·비법령 MST 일 수 있다"
             소관 = info.get("소관부처") or {}
             return {
                 "MST": str(mst),
@@ -102,10 +122,11 @@ def fetch_law_meta(mst):
                 "시행일자": str(info.get("시행일자", "")),
                 "소관부처명": 소관.get("content", "") if isinstance(소관, dict) else str(소관),
                 "소관부처코드": 소관.get("소관부처코드", "") if isinstance(소관, dict) else "",
-            }
-        except Exception:
+            }, ""
+        except Exception as e:
+            last = f"망오류 — {type(e).__name__}: {str(e)[:80]}"
             time.sleep(1.5)
-    return None
+    return None, last
 
 
 def family_items(fams):
@@ -160,11 +181,11 @@ def run():
             continue
         dirty = False
         for label, sub in family_items(meta.get("families")):
-            info = fetch_law_meta(sub["MST"])
+            info, why = fetch_law_meta_why(sub["MST"])   # ★까닭까지 받는다(P-20)
             time.sleep(SLEEP)
             if not info:
                 failures.append({"law": law["slug"], "layer": label, "MST": sub["MST"],
-                                 "reason": "API 응답에 법령ID 없음(조회 실패 또는 폐지/비법령 MST)"})
+                                 "reason": why or "까닭을 못 적었다"})
                 continue
             snapshot[f"{law['slug']}::{label}"] = info
             if sub.get("법령ID") != info["법령ID"]:

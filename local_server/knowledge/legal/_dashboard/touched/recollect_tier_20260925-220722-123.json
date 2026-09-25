@@ -1,0 +1,9 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20260925-220722-123",
+ "files": [
+  "local_server/knowledge/legal/_legacy/수상에서의수색ㆍ구조등에관한법률/20251221/법률.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/법률.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/_meta.json"
+ ]
+}
