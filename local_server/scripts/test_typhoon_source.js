@@ -176,30 +176,34 @@ ok('모르는 종류는 null — 0(열대저압부)으로 떨어뜨리지 않는
     P._gradeOfStormType('???') === null && P._gradeOfStormType(null) === null);
 
 // ── [5] 활동 중인 태풍 목록 ────────────────────────────────────────────────
-console.log('\n[5] 목록 — JTWC 화면에서 지금 경보 중인 태풍 뽑기');
+console.log('\n[5] 목록 — 해역 기상정보에서 지금 활동 중인 태풍 뽑기');
 
-// 2026-09-25 JTWC 화면에 실제로 올라 있던 문구를 HTML 로 감싼 것.
-const LIST_HTML =
-    '<h1>JOINT TYPHOON WARNING CENTER</h1><b>JTWC Tropical Warnings</b>' +
-    '<u>Current Northwest Pacific/North Indian Ocean* Tropical Systems</u>' +
-    '<p><b>Tropical Storm 25W (Surigae) Warning&nbsp;#08</b><br>Issued at 25/0300Z</p>' +
-    '<ul><li><a href="products/wp2526web.txt">TC Warning Text</a></li></ul>' +
-    '<u>Current Central/Eastern Pacific Tropical Systems</u>' +
-    '<p><b>Hurricane 17E (Polo) Warning #17</b><br>Issued at 24/2200Z</p>' +
-    '<p><b>Hurricane 16E (Odalys) Warning #19</b></p>' +
-    '<p><b>Tropical <i>Storm</i> 15E (Nolo) Warning #17</b></p>' +
-    '<u>Current Southern Hemisphere Tropical Systems</u>' +
-    '<span>No Current Tropical Cyclone Warnings.</span>';
+// [왜 이 글인가 — 2026-09-25 운영 실측]
+//   jtwc.html = 403 · products/ 폴더 목록 = 403 · products/ 안의 파일 = 200
+//   그래서 활동 중인 태풍을 나열해 주는 '해역 기상정보' 파일을 읽는다.
+const ABPW = fs.readFileSync(path.join(__dirname, 'fixtures', 'jtwc_abpwweb.txt'), 'utf8');
+const ABIO = fs.readFileSync(path.join(__dirname, 'fixtures', 'jtwc_abioweb.txt'), 'utf8');
 
-const LIST = P.parseStormList(LIST_HTML);
-ok('활동 중인 태풍 4개를 뽑는다', LIST.length === 4, String(LIST.length));
-ok('번호·이름·자문 회차를 읽는다', LIST[0].code === '25W' && LIST[0].name === 'Surigae' &&
-    LIST[0].advisory === '8');
-ok('★글자 사이에 태그가 끼어도 읽는다 (Tropical <i>Storm</i> 15E)',
-    LIST[3].code === '15E' && LIST[3].name === 'Nolo');
-ok('"No Current Tropical Cyclone Warnings" 를 태풍으로 세지 않는다',
-    LIST.every(function (s) { return /^\d{1,2}[A-Z]$/.test(s.code); }));
-ok('제목의 "JOINT TYPHOON WARNING CENTER" 를 태풍으로 세지 않는다', LIST.length === 4);
+const WP_LIST = P.parseAdvisory(ABPW);
+ok('★서태평양 기상정보에서 활동 중인 태풍을 뽑는다 (수리개 1개)',
+    WP_LIST.length === 1 && WP_LIST[0].code === '25W' && WP_LIST[0].name === 'SURIGAE',
+    JSON.stringify(WP_LIST));
+ok('종류도 함께 읽는다', WP_LIST[0].stormType === 'TROPICAL STORM');
+
+ok('★"NO OTHER TROPICAL CYCLONES" 를 태풍으로 세지 않는다', WP_LIST.length === 1);
+
+const IO_LIST = P.parseAdvisory(ABIO);
+ok('★태풍이 없는 해역은 빈 목록 (인도양 "SUMMARY: NONE.")',
+    IO_LIST.length === 0, JSON.stringify(IO_LIST));
+ok('끝난 태풍 안내문(REMOVED 01B INFORMATION)을 활동 중으로 세지 않는다',
+    IO_LIST.length === 0);
+
+ok('이름 없는 열대저압부도 번호로 읽는다',
+    JSON.stringify(P.parseAdvisory('TROPICAL DEPRESSION 26W WAS LOCATED NEAR')) ===
+    '[{"stormType":"TROPICAL DEPRESSION","code":"26W","name":"26W"}]');
+ok('같은 태풍이 두 번 나와도 하나로 센다',
+    P.parseAdvisory('TYPHOON 25W (SURIGAE) ... TYPHOON 25W (SURIGAE)').length === 1);
+ok('빈 글이면 빈 목록', P.parseAdvisory('').length === 0 && P.parseAdvisory(null).length === 0);
 
 // 해역 글자 → 파일 이름. W=북서태평양 E=동태평양 C=중태평양 A/B=인도양 S/P=남반구
 ok('★해역별 파일 이름 (25W→wp2526 · 17E→ep1726 · 01B→io0126)',
@@ -287,24 +291,16 @@ ok('출처 안내(other)에 공공저작물임을 적는다', /미국 정부 공
 
 // [2026-09-25] 배포 직후 목록 받기가 실패했는데 응답이 'upstream' 한 마디뿐이라
 //   원인을 알 수 없었다. 실패는 이유와 함께 드러나야 한다(L-291).
-// [2026-09-25 운영 확인] jtwc.html 은 우리 서버에 http_403 을 준다.
-//   같은 호스트라도 /products/ 안(그림)은 200 으로 받아진다 — 목록을 그쪽에서 읽는다.
-ok('★막히지 않는 /products/ 폴더를 목록의 첫 출처로 쓴다',
-    /const DIR_URL = JTWC_BASE \+ 'products\/'/.test(ROUTE_SRC) &&
-    ROUTE_SRC.indexOf('fetchText(DIR_URL)') < ROUTE_SRC.indexOf('fetchText(LIST_URL)'));
-ok('폴더가 안 되면 안내 화면으로 물러선다', /if \(!bases\.length\) \{\s*\n\s*html = await fetchText\(LIST_URL\)/.test(ROUTE_SRC));
+// [2026-09-25 운영 실측] 막힌 곳과 열린 곳
+//   jtwc.html = 403 · products/ = 403 · products/<파일> = 200
+ok('★활동 중인 태풍을 해역 기상정보 파일에서 읽는다 (막히지 않는 경로)',
+    /products\/abpwweb\.txt/.test(ROUTE_SRC) && /products\/abioweb\.txt/.test(ROUTE_SRC));
+ok('막혀서 못 쓰는 경로(jtwc.html · 폴더 목록)를 더는 부르지 않는다',
+    !/fetchText\(LIST_URL\)|fetchText\(DIR_URL\)/.test(ROUTE_SRC) &&
+    !/const (LIST|DIR)_URL/.test(ROUTE_SRC));
 ok('어느 주소가 몇 번으로 답했는지 알려 준다', /probe: where/.test(ROUTE_SRC));
+ok('둘 다 못 받으면 지어내지 않는다', /texts\.every\(t => t === null\)\) return null/.test(ROUTE_SRC));
 
-// 폴더 목록에는 올해 끝난 태풍 통보문도 남아 있다 — 두 겹으로 거른다.
-ok('★올해 것만 읽는다 (지난해 wp2525 는 제외)',
-    JSON.stringify(P.parseProductDir(
-        '<a href="wp2526web.txt">x</a><a href="wp2525web.txt">y</a><a href="ep1726web.txt">z</a>', 2026))
-        === '["ep1726","wp2526"]');
-ok('통보문이 아닌 파일은 세지 않는다 (wp2526.gif)',
-    P.parseProductDir('<a href="wp2526.gif">x</a>', 2026).length === 0);
-ok('★해역마다 번호가 큰 것부터 몇 개만 받는다 (요청 폭주·죽은 태풍 방지)',
-    JSON.stringify(route._topPerBasin(['wp0126', 'wp2426', 'wp2526', 'ep1726', 'ep0126'], 2))
-        === '["wp2526","wp2426","ep1726","ep0126"]');
 ok('★발표 시각이 오래되면 끝난 태풍으로 본다 (18시간)',
     /FRESH_MS = 18 \* 3600 \* 1000/.test(ROUTE_SRC) &&
     /Date\.now\(\) - ms\) > FRESH_MS/.test(ROUTE_SRC));
@@ -314,7 +310,7 @@ ok('한국시각 문자열을 시각으로 되돌린다 (9/25 09시 KST = 9/25 0
 ok('★상류 실패 시 이유(detail)를 함께 내려 준다',
     /reason: 'upstream', detail: lastError/.test(ROUTE_SRC));
 ok('★목록이 비었을 때 "태풍 없음"과 "못 읽음"을 가를 단서를 남긴다',
-    /listChars:/.test(ROUTE_SRC) && /후보 \$\{bases\.length\}개/.test(ROUTE_SRC));
+    /listChars: chars/.test(ROUTE_SRC) && /활동 중 \$\{bases\.length\}개/.test(ROUTE_SRC));
 ok('그림이 아니라 목록만 막히던 차이를 메우려 브라우저 표식을 보낸다',
     /'User-Agent': UA/.test(ROUTE_SRC) && /headers: REQ_HEADERS/.test(ROUTE_SRC));
 ok('server.js 가 해외 태풍 라우터를 등록한다', /typhoon_foreign/.test(SERVER_SRC));

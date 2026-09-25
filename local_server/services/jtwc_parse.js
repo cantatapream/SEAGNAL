@@ -33,8 +33,9 @@
  *   우리 형식은 km · m/s · 한국시각 문자열이라 여기서 전부 바꾼다.
  *
  * [주요 함수]
- *   parseWarning(text, nowMs)   통보문 한 장 → { seq, name, advisory, current, forecast, … }
- *   parseStormList(html)        JTWC 목록 화면 → 활동 중인 태풍 목록
+ *   parseWarning(text)          통보문 한 장 → { seq, name, advisory, current, forecast, … }
+ *   parseAdvisory(text)         해역 기상정보(ABPW10·ABIO10) → 활동 중인 태풍 번호·이름
+ *   fileBase(code, year)        '25W' + 2026 → 'wp2526' (제품 파일 이름)
  *
  * [연계]
  *   → local_server/routes/typhoon_foreign.js 가 이 모듈로 해독한다
@@ -319,70 +320,35 @@ function fileBase(code, year) {
 }
 
 /**
- * JTWC 목록 화면(jtwc.html)에서 지금 경보가 나가는 태풍을 뽑는다.
- * 예: '… Tropical Storm 25W (Surigae) Warning #08 Issued at 25/0300Z …'
- *       → [{ code:'25W', name:'Surigae', stormType:'Tropical Storm', advisory:'08' }]
- * [왜 필요한가] 통보문 파일 이름에 태풍 번호가 들어가는데, 지금 어떤 번호가 살아
- *   있는지는 이 목록에만 있다. 번호를 짐작해 훑으면 없는 파일을 계속 두드리게 된다.
- * @param {string} html - jtwc.html 원문
- * @returns {Array} 활동 중인 태풍 목록(없으면 빈 배열)
+ * 해역 기상정보(ABPW10 / ABIO10)에서 지금 활동 중인 태풍을 뽑는다.
+ * 예: '(1) AT 24SEP26 0000Z, TROPICAL STORM 25W (SURIGAE) WAS LOCATED NEAR …'
+ *       → [{ code:'25W', name:'SURIGAE', stormType:'TROPICAL STORM' }]
+ * [왜 이 글인가] 2026-09-25 확인: 우리 서버에서 jtwc.html 과 products/ 폴더 목록은
+ *   둘 다 403 이다. 반면 products/ 안의 **파일**은 받아진다. 이 글도 그 폴더의
+ *   파일이라 받아지고, 활동 중인 태풍을 이름·번호와 함께 나열한다.
+ *   그래서 번호를 하나씩 두드려 보지 않아도 된다.
+ * [없을 때] 'TROPICAL CYCLONE SUMMARY: NONE.' 이면 아무것도 안 나온다 — 빈 배열.
+ * @param {string} text - abpwweb.txt 또는 abioweb.txt 원문
+ * @returns {Array} [{ code, name, stormType }] — 중복 없이
  */
-function parseStormList(html) {
-    // 태그를 지우고 글자만 남긴 뒤 찾는다 — 화면 구조가 바뀌어도 문구는 잘 안 바뀐다.
-    const text = String(html || '')
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/\s+/g, ' ');
+function parseAdvisory(text) {
+    const src = String(text || '').replace(/\s+/g, ' ');
     const out = [];
     const seen = {};
-    const re = /(Super Typhoon|Typhoon|Hurricane|Tropical Storm|Tropical Depression|Tropical Cyclone)\s+(\d{1,2}[A-Z])\s*\(([^)]+)\)\s*Warning\s*#?\s*(\d+)/gi;
+    const re = /(SUPER TYPHOON|TYPHOON|TROPICAL STORM|TROPICAL DEPRESSION|SUBTROPICAL STORM|HURRICANE)\s+(\d{2}[A-Z])\b\s*(?:\(([^)]*)\))?/g;
     let m;
-    while ((m = re.exec(text)) !== null) {
+    while ((m = re.exec(src)) !== null) {
         const code = m[2].toUpperCase();
         if (seen[code]) continue;
         seen[code] = true;
-        out.push({
-            stormType: m[1].trim(),
-            code: code,
-            name: m[3].trim(),
-            advisory: String(+m[4])
-        });
+        out.push({ stormType: m[1].trim(), code: code, name: (m[3] || '').trim() || code });
     }
-    return out;
-}
-
-/**
- * JTWC 제품 폴더 목록에서 올해 통보문 파일의 앞부분을 뽑는다.
- * 예: '... <a href="wp2526web.txt">wp2526web.txt</a> ...' → ['wp2526']
- * [왜 필요한가] 안내 화면(jtwc.html)은 우리 서버에 403 을 준다(2026-09-25 확인).
- *   같은 호스트라도 /products/ 안은 받아지므로, 거기 목록에서 번호를 읽는다.
- * [올해 것만] 파일 이름 끝 두 자리가 연도다. 지난 해 것이 남아 있어도 걸러 낸다.
- * @param {string} html - 폴더 목록 원문
- * @param {number} year - 올해(4자리)
- * @returns {Array<string>} ['wp2526', 'ep1726', …] — 중복 없이, 번호 순
- */
-function parseProductDir(html, year) {
-    const yy = String(year).slice(2);
-    const re = new RegExp('\\b((?:wp|ep|cp|io|sh)\\d{2}' + yy + ')web\\.txt', 'gi');
-    const seen = {};
-    const out = [];
-    let m;
-    while ((m = re.exec(String(html || ''))) !== null) {
-        const b = m[1].toLowerCase();
-        if (seen[b]) continue;
-        seen[b] = true;
-        out.push(b);
-    }
-    out.sort();
     return out;
 }
 
 module.exports = {
     parseWarning,
-    parseStormList,
-    parseProductDir,
+    parseAdvisory,
     fileBase,
     // 아래는 시험에서 규칙을 하나씩 고정하려고 연다.
     _nmToKm: nmToKm,

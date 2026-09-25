@@ -19,7 +19,7 @@
  *   그래서 중계를 빼고 JTWC 가 공개하는 원본을 직접 읽는다. 키도 필요 없어졌다.
  *
  * [어디서 무엇을 받나]
- *   목록  https://www.metoc.navy.mil/jtwc/jtwc.html          지금 경보 중인 태풍 번호
+ *   목록  .../jtwc/products/abpwweb.txt · abioweb.txt    지금 활동 중인 태풍 번호·이름
  *   본문  https://www.metoc.navy.mil/jtwc/products/wp2526web.txt   위치·풍속·반경·예보
  *   그림  https://www.metoc.navy.mil/jtwc/products/wp2526.gif      경고 그래픽
  *   seq 는 그 파일 이름의 앞부분('wp2526')을 그대로 쓴다 — 번호를 따로 만들지 않는다.
@@ -51,8 +51,16 @@ const router = express.Router();
 const jtwc = require('../services/jtwc_parse');
 
 const JTWC_BASE = 'https://www.metoc.navy.mil/jtwc/';
-const LIST_URL = JTWC_BASE + 'jtwc.html';
-const DIR_URL = JTWC_BASE + 'products/';      // 제품 폴더 목록 — /products/ 는 막히지 않는다
+// [어디서 목록을 얻나 — 2026-09-25 실측]
+//   jtwc.html        → 403   안내 화면은 막혀 있다
+//   products/        → 403   폴더 목록 보기도 막혀 있다
+//   products/<파일>  → 200   폴더 안의 '파일'은 받아진다
+//   그래서 활동 중인 태풍을 나열해 주는 '해역 기상정보' 파일 두 개를 읽는다.
+//   ABPW10 = 서태평양·남태평양(우리 앞바다 포함) · ABIO10 = 인도양.
+const ADVISORY_URLS = [
+    JTWC_BASE + 'products/abpwweb.txt',
+    JTWC_BASE + 'products/abioweb.txt'
+];
 const PRODUCT_BASE = JTWC_BASE + 'products/';
 const HTTP_TIMEOUT_MS = 20000;
 // [왜 표식을 보내나] .mil 사이트는 브라우저 표식이 없는 요청을 막는 경우가 있다.
@@ -61,37 +69,12 @@ const UA = 'Mozilla/5.0 (compatible; SEAGNAL/1.0; +https://seagnal-server.fly.de
 const REQ_HEADERS = { 'User-Agent': UA, 'Accept': 'text/html,text/plain,*/*' };
 const TTL_MS = 30 * 60 * 1000;          // 상류가 6시간마다 갱신 — 30분이면 충분
 const KST_OFFSET_MS = 9 * 3600 * 1000;
-const PER_BASIN = 4;                    // 해역마다 최신 번호 몇 개까지 볼지
 const FRESH_MS = 18 * 3600 * 1000;      // 이 시간보다 오래된 통보문은 끝난 태풍으로 본다
-// [왜 이렇게 고르나] 제품 폴더에는 올해 끝난 태풍의 통보문도 그대로 남아 있다.
-//   전부 받으면 요청이 수십 건이 되고 화면에도 죽은 태풍이 뜬다.
-//   활동 중인 태풍은 언제나 그 해역에서 번호가 가장 큰 축이므로, 해역별 최신 몇 개만
-//   받아 보고 발표 시각이 최근인 것만 남긴다. JTWC 는 활동 중이면 6시간마다 낸다.
+// [왜 한 번 더 거르나] 해역 기상정보는 하루 단위로 나온다(ABPW10 은 24시간 유효).
+//   그 사이 경보가 끝난 태풍이 글에 남아 있을 수 있어, 통보문 발표 시각으로 한 번 더 본다.
+//   JTWC 는 활동 중이면 6시간마다 통보문을 낸다.
 
 let cache = null;   // { at: ms, data: 응답객체 }
-
-/**
- * 후보 파일 이름들 중 해역마다 번호가 큰 것부터 n 개만 남긴다.
- * 예: topPerBasin(['wp0126','wp2426','wp2526','ep1726'], 2) → ['wp2526','wp2426','ep1726']
- * @param {Array<string>} bases - ['wp2526', …]
- * @param {number} n - 해역당 개수
- * @returns {Array<string>}
- */
-function topPerBasin(bases, n) {
-    const byBasin = {};
-    bases.forEach((b) => {
-        const basin = b.slice(0, 2);
-        (byBasin[basin] = byBasin[basin] || []).push(b);
-    });
-    const out = [];
-    Object.keys(byBasin).forEach((basin) => {
-        byBasin[basin]
-            .sort((a, b) => parseInt(b.slice(2, 4), 10) - parseInt(a.slice(2, 4), 10))
-            .slice(0, n)
-            .forEach(x => out.push(x));
-    });
-    return out;
-}
 
 /** 한국시각 문자열("YYYYMMDDHHmm") → epoch ms. 못 읽으면 null. */
 function kstStampToMs(stamp) {
@@ -147,23 +130,26 @@ async function fetchActive() {
     Object.keys(probe).forEach(k => delete probe[k]);
     const year = new Date(Date.now() + KST_OFFSET_MS).getUTCFullYear();
 
-    // [왜 두 곳을 보나] 2026-09-25 확인: /jtwc/jtwc.html 은 우리 서버에 403 을 준다.
-    //   반면 같은 호스트의 /jtwc/products/ 안 파일(그림)은 200 으로 받아진다.
-    //   그래서 제품 폴더 목록을 먼저 보고, 안 되면 안내 화면을 본다.
-    const dir = await fetchText(DIR_URL);
-    let bases = dir ? jtwc.parseProductDir(dir, year) : [];
-    let html = null;
-    if (!bases.length) {
-        html = await fetchText(LIST_URL);
-        if (html) bases = jtwc.parseStormList(html)
-            .map(s => jtwc.fileBase(s.code, year)).filter(Boolean);
-    }
-    bases = topPerBasin(bases, PER_BASIN);
+    // 해역 기상정보 두 개를 읽어 활동 중인 태풍 번호를 모은다.
+    const texts = await Promise.all(ADVISORY_URLS.map(fetchText));
+    if (texts.every(t => t === null)) return null;      // 둘 다 못 받으면 지어내지 않는다
+
+    let chars = 0;
+    const bases = [];
+    const seen = {};
+    texts.forEach((t) => {
+        if (!t) return;
+        chars += t.length;
+        jtwc.parseAdvisory(t).forEach((st) => {
+            const base = jtwc.fileBase(st.code, year);
+            if (!base || seen[base]) return;
+            seen[base] = true;
+            bases.push(base);
+        });
+    });
     // [왜 남기나] 화면이 비었을 때 "정말 태풍이 없다"와 "목록을 못 읽었다"가 구별돼야 한다.
-    //   (L-291 — 실패가 무결처럼 보이면 안 된다.)
-    console.log(`[typhoon-foreign] 폴더 ${dir ? dir.length : 'X'}자 · 화면 ${html ? html.length : 'X'}자`
-              + ` → 후보 ${bases.length}개`);
-    if (!bases.length) { lastError = lastError || 'no_storm_found'; return null; }
+    //   (L-291 — 실패가 무결처럼 보이면 안 된다.) 글은 받았는데 0개면 정말 없는 것이다.
+    console.log(`[typhoon-foreign] 해역정보 ${chars}자 → 활동 중 ${bases.length}개`);
 
     const warnings = await Promise.all(bases.map(async (base) => {
         const txt = await fetchText(PRODUCT_BASE + base + 'web.txt');
@@ -219,7 +205,7 @@ async function fetchActive() {
         year: year,
         hasActive: typhoons.length > 0,
         // 목록을 읽은 흔적 — 0개일 때 "태풍이 없다"인지 "못 읽었다"인지 가르는 단서.
-        listChars: (dir ? dir.length : 0) + (html ? html.length : 0),
+        listChars: chars,
         typhoons: typhoons
     };
     cache = { at: Date.now(), data: data };
@@ -283,7 +269,6 @@ router.get('/api/typhoon/foreign/image', async (req, res) => {
 // [연계] → local_server/scripts/test_typhoon_source.js (verify_all.sh SUITES 등록)
 router._clearCache = function () { cache = null; };
 router._stampToLabel = stampToLabel;
-router._topPerBasin = topPerBasin;
 router._kstStampToMs = kstStampToMs;
 
 module.exports = router;
