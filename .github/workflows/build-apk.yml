@@ -43,7 +43,12 @@ jobs:
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install JS dependencies (adds new Capacitor plugins)
-        run: npm install --legacy-peer-deps
+        # ★2026-09-25 `--legacy-peer-deps` 를 뺐다(2-17) — 그 peer 충돌이 지금은 없다.
+        #   빈 폴더 실측(node 22.22.2 · npm 10.9.7): 이 명령 그대로 ERESOLVE 없이 설치된다.
+        #   적혀 있던 까닭(`@capacitor/core@8.5.2`)은 이 저장소 범위(`^7.0.0`)에서 나올 수
+        #   없는 판이었다 — 오진. 다시 나면 **판을 정렬해서** 고친다, 플래그로 덮지 않는다.
+        #   근거: 등록부 `2-17` · `.github/workflows/verify-all-gate.yml` 같은 자리 주석.
+        run: npm install
 
       - name: Prepare placeholder web assets (app loads remote server.url at runtime)
         run: |
