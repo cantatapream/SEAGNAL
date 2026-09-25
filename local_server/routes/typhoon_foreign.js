@@ -2,11 +2,12 @@
  * ============================================================================
  * 파일명: routes/typhoon_foreign.js
  * 역할: 해외 기관 태풍 자료를 우리 태풍 탭이 쓰는 형식으로 바꿔 내주는 API.
- *       지금은 미국 JTWC(합동태풍경보센터) 하나 — JTWC 공개 통보문을 직접 읽는다.
+ *       미국 JTWC(합동태풍경보센터)와 일본 기상청(JMA) 두 곳 — 둘 다 공개 자료를 직접 읽는다.
  * ============================================================================
  *
- * - GET /api/typhoon/foreign?src=jtwc        → 활성 태풍 + 통보(자문) + 예보 프레임
+ * - GET /api/typhoon/foreign?src=jtwc|jma   → 활성 태풍 + 통보(자문) + 예보 프레임
  * - GET /api/typhoon/foreign/image?src=jtwc&seq=wp2526  → JTWC 경고 그래픽(gif) 중계
+ *   (일본은 예보도 그림 파일이 없어 이 주소를 쓰지 않는다)
  *
  * [왜 중계 업체를 거치지 않나 — 2026-09-25 전환]
  *   처음에는 Xweather 라는 중계 업체를 거쳐 받았다. 그런데 그 이용약관
@@ -41,10 +42,19 @@
  *
  * [호출수] 목록 1회 + 태풍 수만큼. 상류가 6시간마다 갱신되므로 30분 캐시면 충분하다.
  *
+ * [일본(JMA)은 무엇이 다른가 — 2026-09-25 추가]
+ *   일본 기상청은 우리 기상청과 **같은 방식**으로 발표한다(둘 다 세계기상기구 방식).
+ *   그래서 미국에 없던 70% 확률반경과 예상 시점 중심기압이 그대로 들어 있고,
+ *   풍속도 10분 평균이라 환산이 필요 없다. 자세한 것은 services/jma_parse.js 참조.
+ *   [출처표기] 일본 기상청 홈페이지 자료는 「공공데이터 이용규약(제1.0판)」 적용이라
+ *     출처를 적고, 가공했으면 가공했다고 밝혀야 한다 — 화면 안내문에 그렇게 적는다.
+ *     (https://www.jma.go.jp/jma/kishou/info/coment.html)
+ *
  * [연계 파일]
  * - server.js → app.use() 로 등록
  * - services/jtwc_parse.js → 통보문·목록 해독
  * - services/jtwc_kmz.js → 구글어스 파일(.kmz)에서 위험구역·지나온 경로 해독
+ * - services/jma_parse.js → 일본 기상청 태풍 JSON 해독
  * - client/js/typhoon/ocean_typhoon.js → 출처 드롭다운에서 "미국(JTWC)" 선택 시 호출
  * ============================================================================
  */
@@ -55,6 +65,7 @@ const express = require('express');
 const router = express.Router();
 const jtwc = require('../services/jtwc_parse');
 const jtwcKmz = require('../services/jtwc_kmz');
+const jma = require('../services/jma_parse');
 
 const JTWC_BASE = 'https://www.metoc.navy.mil/jtwc/';
 // [어디서 목록을 얻나 — 2026-09-25 실측]
@@ -73,14 +84,19 @@ const HTTP_TIMEOUT_MS = 20000;
 //   그림(products/*.gif)은 표식 없이도 받아지는데 목록 화면만 실패했다 — 그 차이를 메운다.
 const UA = 'Mozilla/5.0 (compatible; SEAGNAL/1.0; +https://seagnal-server.fly.dev)';
 const REQ_HEADERS = { 'User-Agent': UA, 'Accept': 'text/html,text/plain,*/*' };
+const JMA_BASE = 'https://www.jma.go.jp/bosai/typhoon/data/';
+const SOURCES = ['jtwc', 'jma'];
 const TTL_MS = 30 * 60 * 1000;          // 상류가 6시간마다 갱신 — 30분이면 충분
+// [왜 15분인가] 2026-09-25 21:47 KST 에 나란히 받아 보니 일본은 21:00 기준, 미국은 15:00 기준이었다.
+//   일본의 정확한 발표 주기는 확인하지 않았다 — 새 발표를 늦게 보이지 않도록 미국(30분)보다 짧게 둔다.
+const JMA_TTL_MS = 15 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 3600 * 1000;
 const FRESH_MS = 18 * 3600 * 1000;      // 이 시간보다 오래된 통보문은 끝난 태풍으로 본다
 // [왜 한 번 더 거르나] 해역 기상정보는 하루 단위로 나온다(ABPW10 은 24시간 유효).
 //   그 사이 경보가 끝난 태풍이 글에 남아 있을 수 있어, 통보문 발표 시각으로 한 번 더 본다.
 //   JTWC 는 활동 중이면 6시간마다 통보문을 낸다.
 
-let cache = null;   // { at: ms, data: 응답객체 }
+const cache = {};   // 출처별 { at: ms, data: 응답객체 } — 출처마다 따로 담는다
 
 /** 한국시각 문자열("YYYYMMDDHHmm") → epoch ms. 못 읽으면 null. */
 function kstStampToMs(stamp) {
@@ -177,8 +193,8 @@ function stampToLabel(stamp) {
  * JTWC 목록 + 통보문을 받아 우리 응답 형식으로 만든다. 30분 캐시.
  * @returns {Promise<Object|null>} 실패하면 null
  */
-async function fetchActive() {
-    if (cache && (Date.now() - cache.at) < TTL_MS) return cache.data;
+async function fetchJtwc() {
+    if (cache.jtwc && (Date.now() - cache.jtwc.at) < TTL_MS) return cache.jtwc.data;
 
     lastError = '';
     Object.keys(probe).forEach(k => delete probe[k]);
@@ -272,12 +288,109 @@ async function fetchActive() {
         listChars: chars,
         typhoons: typhoons
     };
-    cache = { at: Date.now(), data: data };
+    cache.jtwc = { at: Date.now(), data: data };
     return data;
 }
 
+/** JSON 자료를 받아온다. 실패하면 null(예외를 위로 던지지 않는다). */
+async function fetchJson(url) {
+    const txt = await fetchText(url);
+    if (txt === null) return null;
+    try {
+        return JSON.parse(txt);
+    } catch (e) {
+        lastError = 'json:' + String(e.message || '').slice(0, 60);
+        console.log(`[typhoon-foreign] ${url} 해독 실패: ${e.message}`);
+        return null;
+    }
+}
+
 /**
- * GET /api/typhoon/foreign?src=jtwc
+ * 일본 기상청 자료를 받아 우리 응답 형식으로 만든다. 15분 캐시.
+ * [어떻게 받나] 목록(targetTc.json) → 태풍마다 본문(specifications.json)과
+ *   경로(forecast.json). 셋 다 그냥 JSON 이라 미국 통보문보다 해독이 간단하다.
+ * [못 받으면] 목록을 못 받으면 null — 지어내지 않는다. 태풍 하나의 본문만 못 받으면
+ *   그 태풍만 빼고 나머지는 보여 준다.
+ * @returns {Promise<Object|null>}
+ */
+async function fetchJma() {
+    if (cache.jma && (Date.now() - cache.jma.at) < JMA_TTL_MS) return cache.jma.data;
+
+    lastError = '';
+    Object.keys(probe).forEach(k => delete probe[k]);
+
+    const list = await fetchJson(JMA_BASE + 'targetTc.json');
+    if (list === null) return null;              // 못 읽은 것과 '태풍 없음'은 다르다
+    const targets = jma.parseTargetList(list);
+    console.log(`[typhoon-foreign] JMA 목록 ${Array.isArray(list) ? list.length : 0}건 → 읽은 태풍 ${targets.length}개`);
+
+    const typhoons = [];
+    for (const t of targets) {
+        const spec = await fetchJson(JMA_BASE + t.id + '/specifications.json');
+        const parsed = spec ? jma.parseSpecifications(spec) : null;
+        if (!parsed) { console.log(`[typhoon-foreign] JMA ${t.id} 본문 해독 실패 — 제외`); continue; }
+
+        const fc = await fetchJson(JMA_BASE + t.id + '/forecast.json');
+        const past = fc ? jma.parseTrack(fc) : [];
+
+        const current = parsed.frames.find(f => f.isCurrent) || null;
+        const forecast = parsed.frames.filter(f => !f.isCurrent);
+        const label = '[ JMA ] 제' + parsed.number.slice(2) + '호 태풍'
+                    + (current ? ' / ' + stampToLabel(current.time) + ' 기준(KST)' : '');
+        console.log(`[typhoon-foreign] JMA ${t.id} ${parsed.name} 프레임 ${parsed.frames.length}개 · 지나온 경로 ${past.length}점`);
+
+        typhoons.push({
+            seq: t.id,                       // 'TC2632' — 일본이 쓰는 식별자 그대로
+            name: parsed.name,
+            nameEn: parsed.name,
+            latestTmFc: current ? current.time : parsed.issuedKst,
+            // 일본은 예보도 그림 파일이 없다 → 지도 그림 버튼을 띄우지 않는다.
+            past: past.length ? past : null,
+            // 미국의 '34노트 위험구역' 같은 도형은 일본에 없다.
+            swath: null,
+            bulletins: [{
+                code: t.id + '_' + (parsed.issuedKst || ''),
+                label: label,
+                kind: 'TYP',
+                isLatest: true,
+                current: current,
+                forecast: forecast,
+                rem: '일본 기상청(JMA)이 공개한 태풍정보를 우리 화면 형식으로 옮긴 자료입니다.'
+                   + '|풍속은 10분 평균이라 우리 기상청과 같은 기준입니다.'
+                   + '|강풍반경은 초속 15m, 폭풍반경은 초속 25m 이상이 부는 범위로'
+                   + ' 우리 기상청과 기준이 같습니다.'
+                   + '|70% 확률반경(예보원)과 예상 시점의 중심기압도 함께 발표됩니다.'
+                   + '|강풍반경은 현재 시점에, 폭풍반경은 예상 시점에 발표됩니다 —'
+                   + ' 일본 기상청이 그렇게 발표하는 것이라 없는 시점은 그리지 않습니다.',
+                other: '출처: 일본 기상청 홈페이지(https://www.jma.go.jp/bosai/typhoon/)'
+                     + ' — 우리 화면 형식으로 가공해 작성'
+            }]
+        });
+    }
+
+    const data = {
+        success: true,
+        src: 'jma',
+        label: '일본(JMA/RSMC)',
+        updatedAt: new Date().toISOString(),
+        year: new Date(Date.now() + KST_OFFSET_MS).getUTCFullYear(),
+        hasActive: typhoons.length > 0,
+        listChars: JSON.stringify(list).length,
+        typhoons: typhoons
+    };
+    cache.jma = { at: Date.now(), data: data };
+    return data;
+}
+
+/** 출처 이름에 맞는 자료를 준다. 모르는 출처면 null. */
+function fetchActive(src) {
+    if (src === 'jtwc') return fetchJtwc();
+    if (src === 'jma') return fetchJma();
+    return Promise.resolve(null);
+}
+
+/**
+ * GET /api/typhoon/foreign?src=jtwc|jma
  * 성공: { success:true, src, label, updatedAt, year, hasActive, typhoons:[…] }
  *   — 기상청 응답과 같은 모양이라 화면(ocean_typhoon.js)이 그대로 그린다.
  * 실패: { success:false, reason:'bad_src'|'upstream' }
@@ -285,8 +398,8 @@ async function fetchActive() {
 router.get('/api/typhoon/foreign', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=600');
     const src = String(req.query.src || 'jtwc').toLowerCase();
-    if (src !== 'jtwc') return res.json({ success: false, reason: 'bad_src' });
-    const data = await fetchActive();
+    if (SOURCES.indexOf(src) < 0) return res.json({ success: false, reason: 'bad_src' });
+    const data = await fetchActive(src);
     if (!data) {
         // 어느 주소가 몇 번으로 답했는지 함께 알린다 — 막힌 곳을 바로 짚을 수 있게.
         const where = Object.keys(probe).map(u => u.replace(JTWC_BASE, '') + '=' + probe[u]).join(' ');
@@ -301,7 +414,8 @@ router.get('/api/typhoon/foreign', async (req, res) => {
  * [왜 중계하나] 앱에서 바깥 주소를 직접 물면 CORS·혼합콘텐츠에 걸린다. 기상청 이미지도
  *   같은 이유로 /api/typhoon/image 가 중계하고 있다 — 그 방식을 그대로 따른다.
  * [형식 검사] seq 는 'wp2526' 처럼 영문 두 자 + 숫자 네 자만 받는다(경로조작 차단).
- * 실패: 400(형식 오류) · 404(그림 없음·상류 실패)
+ * [일본은 없다] JMA 는 예보도 그림 파일을 공개하지 않아 이 주소를 쓰지 않는다(400).
+ * 실패: 400(형식 오류·그림 없는 출처) · 404(그림 없음·상류 실패)
  */
 router.get('/api/typhoon/foreign/image', async (req, res) => {
     if (String(req.query.src || 'jtwc').toLowerCase() !== 'jtwc') return res.status(400).end();
@@ -331,7 +445,7 @@ router.get('/api/typhoon/foreign/image', async (req, res) => {
 
 // 시험에서 쓰는 내부 접근구 — 규칙을 화면 없이도 고정해 둔다.
 // [연계] → local_server/scripts/test_typhoon_source.js (verify_all.sh SUITES 등록)
-router._clearCache = function () { cache = null; };
+router._clearCache = function () { Object.keys(cache).forEach(k => delete cache[k]); };
 router._stampToLabel = stampToLabel;
 router._kstStampToMs = kstStampToMs;
 
