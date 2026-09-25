@@ -32,6 +32,10 @@ A-1(신선도 점검)이 그 파일을 **구조적으로 못 따라간다**"* �
   ③ `MST:<숫자>`            한 건(수산관계법령 위반행위 행정처분 규칙)
   ④ 같은 폴더 `_admrul.json` 의 그 제목 항목의 `ID`
      (제목은 낱말·기호를 지우고 견준다 — 파일이름은 공백을 `_` 로 바꿔 적었다)
+  ⑤ 곁 파일 `_dashboard/admrul_id_recovered.json` — 위 넷에 없어서 **제목 조회로 되찾은 것**
+     (`admrul_id_recover.py`). ★raw 도 `_admrul.json` 도 고치지 않으려고 따로 둔다:
+     raw 를 고치면 `_touched`·`V5-41` 이 따라붙고, `_admrul.json` 은 `build_delegation_graph`
+     등이 함께 쓰는 입력이다. 결심 ⑪ⓓ 에서 같은 까닭으로 곁 파일을 쓴 선례가 있다.
 
 쓰는 법(파이썬):
     from _admrul_id import find_id
@@ -105,7 +109,67 @@ def find_id(path, head=None):
                     rid = (v or {}).get('ID') if isinstance(v, dict) else None
                     if rid:
                         return str(rid), '_admrul.json'
+    # ⑤ 곁 파일 — 제목 조회로 되찾아 둔 것
+    rec = _recovered()
+    key = os.path.relpath(os.path.abspath(path), RAW).replace(os.sep, '/')
+    hit = rec.get(key)
+    if isinstance(hit, dict) and hit.get('ID'):
+        return str(hit['ID']), 'admrul_id_recovered.json'
     return None, '어디에도 없다'
+
+
+_REC = None
+
+
+def _recovered():
+    """곁 파일을 한 번만 읽어 둔다. 없으면 빈 것으로 본다(있어야 하는 파일이 아니다)."""
+    global _REC
+    if _REC is None:
+        p = os.path.join(LEGAL, '_dashboard', 'admrul_id_recovered.json')
+        try:
+            _REC = json.load(io.open(p, encoding='utf-8')).get('되찾음', {}) or {}
+        except Exception:
+            _REC = {}
+    return _REC
+
+
+TITLE_RE = re.compile(r'^\[[^\]]*\]\s*(.+?)\s*$')
+
+
+def find_title(path, head=None):
+    """그 행정규칙의 **제목**. → `(제목|None, 어디서)`
+
+    [왜 이것도 여기 있나 — 2026-09-25 실측]
+    번호를 되찾아도 **A-1 은 그 파일을 여전히 못 따라갔다.** A-1 은 `[…] 제목` 줄에서 제목을
+    읽어 그 이름으로 API 를 조회하는데, 번호가 없던 파일 15개는 **그 머리줄 자체가 없었다**
+    (`「생태계교란 생물 지정 고시」 (기후에너지환경부고시 …)` 처럼 낫표로 바로 시작한다).
+    ⇒ 번호와 제목은 **같이 없었다.** 그래서 찾는 법도 같이 둔다.
+
+    찾는 순서:
+      ① `[…] 제목` 머리줄 (지금까지 보던 자리)
+      ② 곁 파일의 `공식명` — 제목 조회로 확인된 law.go.kr 공식 이름이라 **더 정확하다**
+      ③ 맨 앞 낫표 `「…」` 안의 글
+    """
+    if head is None:
+        try:
+            with io.open(path, encoding='utf-8', errors='replace') as f:
+                head = ''.join([next(f, '') for _ in range(HEAD_LINES)])
+        except OSError:
+            return None, '파일을 못 읽었다'
+    for ln in head.split('\n'):
+        ln = ln.strip()
+        if ln.startswith('['):
+            m = TITLE_RE.match(ln)
+            if m and m.group(1):
+                return m.group(1), '머리줄'
+    key = os.path.relpath(os.path.abspath(path), RAW).replace(os.sep, '/')
+    hit = _recovered().get(key)
+    if isinstance(hit, dict) and hit.get('공식명'):
+        return str(hit['공식명']), 'admrul_id_recovered.json'
+    m = re.search(r'[「『]([^」』]{4,80})[」』]', head)
+    if m:
+        return m.group(1), '맨 앞 낫표'
+    return None, '제목을 못 찾았다'
 
 
 def walk_admrul():
