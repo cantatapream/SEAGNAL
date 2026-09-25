@@ -17,7 +17,7 @@
 
 [쓰는 법] python3 _dashboard/loop/backfill_retry.py [--rounds 2]
 [연계] ← backfill_lawid.fetch_law_meta(같은 함수를 그대로 쓴다 — 판 고정 포함)
-       → _dashboard/lawid_backfill.json (제자리 갱신, 원자적 쓰기)
+       → _dashboard/lawid_backfill.json (제자리 갱신, 원자적 쓰기 · **건마다** 저장 — 3-66)
 """
 import json, os, sys, time
 
@@ -27,6 +27,16 @@ from backfill_lawid import fetch_law_meta, OUT  # noqa: E402
 
 argv = sys.argv[1:]
 ROUNDS = int(argv[argv.index('--rounds') + 1]) if '--rounds' in argv else 1
+
+
+def save(d):
+    """스냅샷을 **원자적으로** 쓴다(tmp → fsync → replace). 반쯤 쓰인 파일이 남지 않게."""
+    tmp = OUT + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as fp:
+        json.dump(d, fp, ensure_ascii=False, indent=1)
+        fp.flush()
+        os.fsync(fp.fileno())
+    os.replace(tmp, OUT)
 
 
 def main():
@@ -50,15 +60,18 @@ def main():
                 still.append(f)
                 print('  ✗[%d/%d] %s %s (MST %s)'
                       % (i, len(fails), f['law'][:22], f['layer'], f['MST']), flush=True)
+            # ★**건마다** 저장한다 (2026-09-25, 일감 3-66).
+            #   [무슨 일이 있었나] 여기 주석은 *"중간에 죽어도 받은 것은 남는다"* 고 적어 두었는데,
+            #   저장은 **회차 끝**에서 한 번만 했다. 그래서 55층을 도는 도중에 끊기면
+            #   **그 회차에 받은 것이 통째로 날아갔다** — 적어 둔 약속이 회차 안에서는 안 지켜졌다.
+            #   2026-09-21 HANDOFF 가 「건마다로 고칠 것」이라 적었고 나흘 동안 그대로였다(D-7 재실측).
+            #   ★`failures` 에는 **아직 안 해 본 것까지** 함께 남긴다 — 그래야 여기서 죽어도
+            #   파일이 «받은 것 + 아직 못 한 것»이라는 **참인 상태**가 된다. 안 그러면 이미 성공한
+            #   층이 실패로 남거나(다시 받으면 되니 덜 나쁘다), 반대로 **안 해 본 층이 조용히 사라진다.**
+            d['failures'] = still + fails[i:]
+            save(d)
             time.sleep(0.25)
-        d['failures'] = still
-        # 한 회차마다 저장한다 — 중간에 죽어도 받은 것은 남는다(A-1 에서 배운 것).
-        tmp = OUT + '.tmp'
-        with open(tmp, 'w', encoding='utf-8') as fp:
-            json.dump(d, fp, ensure_ascii=False, indent=1)
-            fp.flush(); os.fsync(fp.fileno())
-        os.replace(tmp, OUT)
-        print('  → %d개 받았다 · 남은 실패 %d개 (저장함)' % (got, len(still)), flush=True)
+        print('  → %d개 받았다 · 남은 실패 %d개 (건마다 저장했다)' % (got, len(still)), flush=True)
         if not still:
             break
     print('\n=== 끝: 스냅샷 %d층 · 남은 실패 %d개 ==='

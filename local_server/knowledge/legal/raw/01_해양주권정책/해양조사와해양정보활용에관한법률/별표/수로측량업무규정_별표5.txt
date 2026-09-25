@@ -1,0 +1,288 @@
+[수로측량 업무규정] 별표5 — 천부지층탐사 음향상 분류표
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000274442 (수집 2026-09-25 · 옛 기록은 도구에 박힌 날짜 때문에 2026-08-31 로 적혀 있었다)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=162379369
+
+■ 수로측량 업무규정 [별표 5]
+천부지층탐사 음향상 분류표
+┏━━┯━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃기호│음향상│설명                                                          ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃1-1 │      │해저면은 대체로 평탄하고, 표면반사파가 뚜렷하며 하부반사파    ┃
+┃    │      │가 발달하지 않음.                                             ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Flat, distinct bottom echoes lacking distinct subbottom       ┃
+┃    │      │reflectors.                                                   ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃1-2 │      │해저면은 대체로 평탄하고 표면반사파가 뚜렷하며, 하부반사파    ┃
+┃    │      │는 희미한 층리를 보이거나 분산되었고, 부분적으로 변형되었     ┃
+┃    │      │거나 경사져 있음.                                             ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Flat, distinct bottom echoes with diffused, prolonged, or     ┃
+┃    │      │deformed subbottom echoes.                                    ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃1-3 │      │해저면은 대체로 평탄하고, 해저면 바로 아래에 판상의 투명한    ┃
+┃    │      │층이 넓게 분포함.                                             ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Flat, distinct bottom echoes underlain directly by a          ┃
+┃    │      │transparent layer.                                            ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃1-4 │      │해저면은 대체로 평탄하고, 해저면 바로 아래에 쐐기형태의 투    ┃
+┃    │      │명한 층이 분포함. 황해 중부에서 음향상 1-3을 덮고 있음.       ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Extensively flat, distinct bottom echoes underlain            ┃
+┃    │      │directly by a transparent unit that comprises two layers.     ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃1-5 │      │해저면은 대체로 평탄하고 표면반사파는 뚜렷하거나 분산되었으   ┃
+┃    │      │며, 그와 평행한 하부반사파들이 변형되었거나 약간 기울어져     ┃
+┃    │      │있음.                                                         ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Flat, distinct bottom echoes with parallel subbottom          ┃
+┃    │      │reflectors. Internal reflectors are often deformed or         ┃
+┃    │      │slightly inclined.                                            ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃1-6 │      │해저면은 평탄하거나 약간 볼록하며, 표면반사파 하부에 경사진 층┃
+┃    │      │리가 잘 발달함. 침식면 위에 아래 걸침하며 상부는 부분적으로   ┃
+┃    │      │잘려 있음.                                                    ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Distinct bottom echoes with several continuous, inclined,     ┃
+┃    │      │parallel subbottom reflectors. Internal reflectors are        ┃
+┃    │      │shingled. The inclined subbottom reflectors are truncated     ┃
+┃    │      │at the surface.                                               ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃1-7 │      │해저면은 대체로 평탄하며, V 자 혹은 U 자 형의 골에 오목한     ┃
+┃    │      │형태의 하부반사파들로 채워져 있음.                            ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Flat, distinct bottom echoes with trough-shaped internal      ┃
+┃    │      │structures.                                                   ┃
+┣━━┽───┼───────────────────────────────┨
+┃1-8 │      │해저면은 대체로 평탄하며, 하부에 음향혼탁층이 나타남.         ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Flat, distinct bottom echoes underlain directly by acoustic   ┃
+┃    │      │turbidity layer.                                              ┃
+┗━━┷━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+┏━━┯━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃기호│음향상│설명                                                          ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃1-9 │      │해저면은 경사지고, 뚜렷한 표면반사파 아래에 평행한 하부반사파 ┃
+┃    │      │가 발달함.                                                    ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Distributed inclined sea bed, with distinct surface           ┃
+┃    │      │reflectors underlain accumulated parallel reflectors.         ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃2   │      │해저면에 큰 기복이 없고 대체로 평탄하며, 연흔형태의 층면구    ┃
+┃    │      │조가 규칙적으로 발달해 있음.                                  ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Flat sea bottom covered by regularly spaced ripple-shape      ┃
+┃    │      │structures either with or without subbottom echoes.           ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃2-1 │      │표면반사파는 매우 분산되었으며, 하부반사파가 발달되지 않았거  ┃
+┃    │      │나 매우 분산되어 나타남.                                      ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Very-prolonged bottom echoes with either no subbottom         ┃
+┃    │      │reflectors or very prolonged and diffuse reflectors.          ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃2-2 │      │표면반사파는 분산되었으며, 다수의 불연속적인 하부반사파가     ┃
+┃    │      │발달함.                                                       ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Semi-prolonged bottom echoes with several intermittent        ┃
+┃    │      │subbottom reflectors.                                         ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃2-3 │      │해저면은 불규칙하며, 그와 평행한 하부반사파가 발달함.         ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Regular, single or slightly overlapping hyperbolae with       ┃
+┃    │      │conformable subbottom reflectors.                             ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃2-4 │      │해저면은 불규칙하며, 그와 평행하거나, 수렴과 발산이 반복      ┃
+┃    │      │되는 하부반사파가 발달함.                                     ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Broad, low amplitude hyperbolae or wavy bottom echoes         ┃
+┃    │      │with conformable, migrating subbottom reflectors.             ┃
+┣━━┿━━━┽───────────────────────────────┨
+┃2-5 │      │표면반사파는 규칙적이고 중첩된 포물선 형태를 보이며, 하       ┃
+┃    │      │부반사파는 매우 분산되고 불연속적으로 발달함.                 ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Regular, overlapping hyperbolae with prolonged,               ┃
+┃    │      │discontinuous subbottom reflectors.                           ┃
+┣━━┿━━━┽───────────────────────────────┨
+┃2-6 │      │표면반사파는 크기가 다양한 포물선이 규칙적으로 중첩된 형태    ┃
+┃    │      │를 보이며, 하부반사파는 지역적으로 불연속적이고 분산되어 발   ┃
+┃    │      │달함.                                                         ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Regular, overlapping hyperbolae with slightly varying         ┃
+┃    │      │vertex elevations. Locally discontinuous, prolonged           ┃
+┃    │      │subbottom reflectors.                                         ┃
+┗━━┷━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+┏━━┯━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃기호│음향상│설명                                                          ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃3   │      │해저면은 완만한 구릉형태를 보이며, 표면반사파가 매끈함. 구    ┃
+┃    │      │릉의 주변부에서 하부반사파들이 일부 관찰됨.                   ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Gently mounded, smooth surface with either no subbottom       ┃
+┃    │      │reflectors or weakly stratified internal reflectors on the    ┃
+┃    │      │mound flanks.                                                 ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃3-1 │      │해저면은 완만한 구릉형태를 보이며, 표면반사파가 뚜렷함.       ┃
+┃    │      │하부반사파가 간헐적으로 나타나며 일부 음향혼탁층도 존재       ┃
+┃    │      │함.                                                           ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Gently mounded, varying asymmetry or symmetry appearance,     ┃
+┃    │      │showing occasional internal reflectors, and acoustic          ┃
+┃    │      │turbidity.                                                    ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃3-2 │      │해저면은 대칭형 또는 비대칭형의 구릉형태를 보이며, 표면반사파 ┃
+┃    │      │는 불규칙한 포물선 형태임. 하부반사파는 발달하지 않음.        ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Irregular parabolic structures on the sea bed, showing        ┃
+┃    │      │mounded appearance, no internal reflectors.                   ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃3-3 │      │해저면에 작은 규모의 불규칙한 등성이들이 나타나며, 하부반사파 ┃
+┃    │      │는 발달하지 않음.                                             ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Small ridges showed width of several tens meter and           ┃
+┃    │      │height of several meter, no internal reflectors.              ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃3-4 │      │표면 반사파는 분산되어 있고, 해저면은 등성이 형태로 급경사    ┃
+┃    │      │면은 외해쪽, 완경사면은 내륙쪽에 발달한 비대칭 형태를 보인    ┃
+┃    │      │다. 하부 반사파는 간헐적으로 나타나거나 거의 나타나지 않      ┃
+┃    │      │는다.                                                         ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Gently mounded, Seaward side slope of the asymmetrical        ┃
+┃    │      │mound is steep and landward side is gentle. Prolonged         ┃
+┃    │      │bottom echoes and occasional internal reflectors or no        ┃
+┃    │      │internal reflectors.                                          ┃
+┣━━┿━━━┽───────────────────────────────┨
+┃4   │      │해저면은 완만한 구릉형태를 보이며, 규칙적이고 비슷한 규모     ┃
+┃    │      │의 연흔형 층면구조가 표면에 발달함.                           ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Gently mounded sea floor covered by small-scale incision.     ┃
+┣━━┿━━━┽───────────────────────────────┨
+┃4-1 │      │해저면은 평탄하거나 완만한 구릉형태를 보이며, 규칙적이고 비슷 ┃
+┃    │      │한 규모의 연흔형 층면구조가 발달함. 하부반사파는 투명하거나   ┃
+┃    │      │평행하게 나타남.                                              ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Gently mounded seabed covered by regularly spaced             ┃
+┃    │      │ripple-shpae structures. The parallel subbottom reflectors    ┃
+┃    │      │are truncated at the surface.                                 ┃
+┣━━┿━━━┽───────────────────────────────┨
+┃4-2 │      │해저면은 상부가 평탄한 구릉형태를 보이며, 연흔형 층면구조     ┃
+┃    │      │가 나타나기도 함. 하부반사파들은 해저면에 평행하거나 기울     ┃
+┃    │      │어져 발달함.                                                  ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Gently mounded, Flat shape top of mound, parallel or          ┃
+┃    │      │inclined subbottom reflectors.                                ┃
+┗━━┷━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+┏━━┯━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃기호│음향상│설명                                                        ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃4-3 │      │해저면은 불규칙하고 표면반사파가 뚜렷하며, 하부반사파는 발  ┃
+┃    │      │달하지 않음.                                                ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Distinct bottom reflectors with varying vertex              ┃
+┃    │      │elevations, very prolonged subbottom or no subbottom        ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃5   │      │해저면은 구릉형태를 보이며, 횡적으로 규모를 달리하는 다양   ┃
+┃    │      │한 층면구조가 배열되어 있음. 일부 쐐기 형태의 단위가 구릉   ┃
+┃    │      │에 걸쳐있기도 함                                            ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Gently mounded sea floor on which occur regularly spaced    ┃
+┃    │      │ripple-shape structures, closely overlapped hyperbolic      ┃
+┃    │      │echoes, and wedges of transparent echoes                    ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃6   │      │해저면은 전반적으로 큰 기복이 없이 평탄하지만 작은 규모의   ┃
+┃    │      │골이 널리 발달함.                                           ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Regionally flat sea floor with small-scale troughs.         ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃7   │      │해저면은 불규칙하고 기복이 심하며, 하부반사파는 발달하지 않 ┃
+┃    │      │음.                                                         ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Erosional sea floor with a great topographic relief,        ┃
+┃    │      │almost no subbottom reflectors.                             ┃
+┣━━┿━━━┽──────────────────────────────┨
+┃8   │      │해저면은 평탄하고 하부에는 수 m에서 수십 m 두께의 뱅크를    ┃
+┃    │      │형성함. 하부반사파는 기울어져서 발달함.                     ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Irregular sea floor with banks of various geometry that     ┃
+┃    │      │are remarkably well stratified with oblique internal        ┃
+┃    │      │reflectors.                                                 ┃
+┣━━┿━━━┽──────────────────────────────┨
+┃8-1 │      │표면반사파는 뚜렷하며, 하부에는 내부가 투명한 등성이 형태   ┃
+┃    │      │의 구조를 보임.                                             ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Distinct surface reflectors, underlain ridge forms, no      ┃
+┃    │      │internal reflectors.                                        ┃
+┣━━┿━━━┽──────────────────────────────┨
+┃8-2 │      │표면반사파는 뚜렷하며, 하부에는 불규칙하고 희미한 반사파    ┃
+┃    │      │로 구분되는 등성이 형태의 구조를 보임.                      ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Distinct surface reflectors, underlain irregular ridge form ┃
+┃    │      │structures.                                                 ┃
+┣━━┿━━━┽──────────────────────────────┨
+┃8-3 │      │표면반사파는 뚜렷하며, 하부에는 불규칙한 등성이 형태의 구   ┃
+┃    │      │조를 보임.                                                  ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Distinct surface reflectors, showing parallel internal      ┃
+┃    │      │reflectors indistinct underlain acoustic turbidity and      ┃
+┃    │      │channel-fill shape.                                         ┃
+┗━━┷━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+┏━━┯━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃기호│음향상│설명                                                          ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃8-4 │      │해저면은 불규칙하고, 하부반사파가 해저면에 종결되는 양상을 보 ┃
+┃    │      │임.                                                           ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Irregular sea floor with parallel subbottom reflectors are    ┃
+┃    │      │truncated at the surface.                                     ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃8-5 │      │표면반사파는 뚜렷하고 연속적이며, 그와 평행하게 하부반사파    ┃
+┃    │      │가 발달함.                                                    ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Sharp and continuous bottom echoes with continuous and        ┃
+┃    │      │parallel subbottom reflectors.                                ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃9-1 │      │표면반사파는 불규칙한 포물선 형태를 보이며, 하부반사파가 거   ┃
+┃    │      │의 나타나지 않음.                                             ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Large irregular hyperbolic echoes with varying vertex         ┃
+┃    │      │elevations with almost no subbottom reflectors.               ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃9-2 │      │표면반사파는 작은 포물선이 규칙적으로 중첩된 형태를 보이      ┃
+┃    │      │며, 하부반사파는 거의 나타나지 않음.                          ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Small, regular hyperbolic echoes with almost no               ┃
+┃    │      │subbottom reflectors.                                         ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃9-3 │      │해저면은 급경사지고 사태에 의한 침식 구조가 발달함. 표        ┃
+┃    │      │면반사파는 뚜렷하고 매끈하며, 그와 평행한 하부반사파가 나     ┃
+┃    │      │타남.                                                         ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Distinct, smooth, steeply dipping bottom echoes with          ┃
+┃    │      │parallel subbottom reflectors, draping irregular              ┃
+┃    │      │subsurface topography, incision by slide scar.                ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃9-4 │      │해저면은 급경사지고 사태에 의한 침식 구조가 발달함. 사태      ┃
+┃    │      │에 의해 강한 하부반사파가 나타나고 상부는 불규칙적인 포물선   ┃
+┃    │      │형태의 투명한 음향 특성을 보임.                               ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Steeply dipping bottom echoes with irregular blocky,          ┃
+┃    │      │lumpy or hyperbolic masses bounded upslope by scars,          ┃
+┃    │      │various amount of internal deformation, scars marked by       ┃
+┃    │      │sharp glide planes or irregular drapes of thin                ┃
+┃    │      │acoustically transparent masses, step-like geometry of        ┃
+┃    │      │failed masses, concave-upward shear planes.                   ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃9-5 │      │상부 퇴적층에 렌즈나 쐐기 형태의 투명한 구조가 나타남.        ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Diffuse, prolonged bottom echoes with acoustically            ┃
+┃    │      │transparent subbottom reflectors lens-shaped or lobate        ┃
+┃    │      │external form.                                                ┃
+┣━━┿━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃9-6 │      │표면 반사파는 매우 분산되어 있고 해저면은 불규칙하게 나타난   ┃
+┃    │      │다. 하부반사파는 나타나지 않거나 기울어져 있으며 해저면 까    ┃
+┃    │      │지 연장되어 종결되는 특징을 보인다.                           ┃
+┃    │      ┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃    │      │Irregular sea floor with Very-prolonged bottom echoes. No     ┃
+┃    │      │internal reflectors or inclined internal reflectors are       ┃
+┃    │      │truncated at the surface.                                     ┃
+┗━━┷━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

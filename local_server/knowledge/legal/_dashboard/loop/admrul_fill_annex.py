@@ -24,7 +24,9 @@
   - 호출: https://www.law.go.kr/DRF/lawService.do (OC=hyoo1431, target=admrul)
   - 씀:   raw/<도메인>/<법>/별표/<고시명>_별표N.txt (새 파일만) ·
           _dashboard/admrul_annex/report_<시각>.json · _dashboard/touched/…
-사용법: python3 admrul_fill_annex.py [--dry] [--limit N] [--skip <경로조각>]
+사용법: python3 admrul_fill_annex.py [--dry] [--limit N] [--skip <경로조각>] [--relink]
+  --relink : 이미 쓴 파일이 **제목·출처뿐**이면 빠진 `별표서식파일링크:` 한 줄만 덧붙인다(지우지 않는다).
+  --refix  : 이미 쓴 파일이 **글자 하나씩 쪼개진 꼴**이면 본문만 다시 쓴다(우리 API 수집본만 · 사람 전사본은 안 건드린다).
 """
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
@@ -96,15 +98,105 @@ def safe(s):
     return re.sub(r'[\\/:*?"<>|\s]', '', s)
 
 
+# ★`별표내용` 은 **문자열일 때도 있다** — 그러면 글자 하나하나가 한 줄이 된다 (2026-09-25 실측).
+#   [무슨 일이 있었나] 종전 코드는 `for r in (u.get('별표내용') or []): rows0.extend(...)` 였다.
+#   값이 리스트인 줄 알았는데 **문자열**인 응답이 있다 — 파이썬에서 문자열을 돌리면 **글자**가 나온다.
+#   그래서 「항만시설장비검사기준 별표9」(`별표내용` = `" [별표 9] 삭 제(2021.9.29)"` · 22자)가
+#   **18줄, 한 줄에 한 글자**로 저장됐다. 게이트 **V5-20**(표가 열 단위로 펼쳐진 자리)이
+#   줄 2201 → 2226 으로 늘어 빨간불을 세웠고, 그 셋이 전부 오늘 새로 받은 파일이었다.
+#   ★오늘 쓴 745개 중 **12개**가 이 꼴이었다.
+#   [뿌리] L-382 — **값이 어떤 꼴인지 안 보고 이름으로 짐작한다.** 이번에도 「내용이니 리스트겠지」였다.
+#   ⚠리스트 안에 리스트가 오는 꼴(행마다 칸 배열)은 그대로 둔다 — 그건 실제 표다.
+def body_rows(u):
+    c = u.get('별표내용')
+    if c is None:
+        return []
+    if isinstance(c, str):
+        return c.split('\n')          # 글자로 쪼개지 않는다
+    out = []
+    for r in c:
+        if isinstance(r, list):
+            out.extend(r)
+        elif isinstance(r, str):
+            out.extend(r.split('\n'))
+        else:
+            out.append(r)
+    return out
+
+
+TODAY = time.strftime('%Y-%m-%d')
+
+# ★API 의 링크 칸 이름은 `별표서식파일링크` 다 — `PDF` 가 끼지 않는다 (2026-09-25 실측).
+#   [무슨 일이 있었나] 이 도구는 `u.get('별표서식PDF파일링크')` 를 봤다. **그런 칸은 없다.**
+#   그래서 링크를 한 번도 적지 못했고, 글이 안 오는 별표(서식·도안은 HWP·이미지뿐이다)는
+#   제목·출처만 든 **빈 파일**로 남았다 — 게이트 V5-39 가 「까닭도 없이 빈 것 46개」로 잡아냈다.
+#   실측(ID=2100000079889): 칸 이름은 `별표제목·별표번호·별표키·별표내용·별표구분·별표서식파일링크·별표가지번호`
+#   이고 `별표내용` 은 `""`, `별표서식파일링크` 는 `/LSW/flDownload.do?flSeq=29267130` 이었다.
+#   ★P-17 에서 배운 것과 같은 병이다 — **갈래는 값이 아니라 칸 이름에 있다.**
+#   옛 이름도 함께 본다(응답이 바뀌어도 안 잃게).
+def link_of(u):
+    for k in ('별표서식파일링크', '별표서식PDF파일링크'):
+        v = (u.get(k) or '').strip()
+        if v:
+            return v
+    return ''
+
+
+# 이미 쓴 파일이 **글자 하나씩 쪼개진 꼴**인가 — `--refix` 대상을 고르는 자.
+#   ⚠사람이 전사한 것을 절대 덮지 않으려고 **두 조건을 함께** 본다:
+#     ① 머리의 `출처:` 줄이 **우리 API 수집**이라고 말한다(사람 전사본에는 이 줄이 없다)
+#     ② 본문 줄의 **60% 이상이 한 글자**이고 줄이 5개 이상이다
+#   이 둘이 다 맞을 때만 다시 쓴다. 실제 표가 열 단위로 펼쳐진 것(P-13·3-25)은 글자가 아니라
+#   **낱말·칸**이므로 ②에 안 걸린다 — 그건 원문이 그런 것이라 손대지 않는다.
+def is_char_split(path):
+    try:
+        lines = open(path, encoding='utf-8').read().split('\n')
+    except OSError:
+        return False
+    if not any(l.startswith('출처:') and 'API' in l for l in lines[:4]):
+        return False
+    body = [l for l in lines[2:] if l.strip() and not l.startswith(_META_HEAD)]
+    if len(body) < 5:
+        return False
+    one = sum(1 for l in body if len(l.strip()) == 1)
+    return one / len(body) > 0.6
+
+
+# 별표 파일이 **제목·출처뿐인가**(글도 주소도 없다). 읽는 쪽 `article_text.bylBodyKind` 의
+# `'none'` 과 같은 것을 보되, 여기서는 `--relink` 대상을 고르는 데만 쓴다.
+_META_HEAD = ('출처', '고시명', '법령명', 'ID', '위임근거', '수집일', '수집방식',
+              '별표서식파일링크', '별표서식PDF파일링크')
+
+
+def is_bare(path):
+    try:
+        lines = open(path, encoding='utf-8').read().split('\n')
+    except OSError:
+        return False
+    if any('flDownload.do' in l or 'http' in l for l in lines):
+        return False
+    for l in lines[1:]:
+        t = l.strip()
+        if not t:
+            continue
+        if any(t.startswith(h + ':') for h in _META_HEAD):
+            continue
+        return False        # 본문 글이 있다
+    return True
+
+
 def main():
     dry = '--dry' in sys.argv
     limit = int(sys.argv[sys.argv.index('--limit') + 1]) if '--limit' in sys.argv else None
     skip = sys.argv[sys.argv.index('--skip') + 1] if '--skip' in sys.argv else None
+    relink = '--relink' in sys.argv
+    refix = '--refix' in sys.argv
 
     sv = json.load(open(SURVEY, encoding='utf-8'))
     names = [r['파일'] for r in sv.get('빠짐', [])] + [r['파일'] for r in sv.get('수가모자람', [])]
     touched = Touched('admrul_fill_annex')
-    rep = {'쓴파일': [], '이미있어건너뜀': [], '고시못찾음': [], 'ID없음': [], '실패': [], '별표없음': []}
+    rep = {'쓴파일': [], '다시썼다': [], '다시쓸것이없다': [], '주소붙였다': [], '주소도없다': [], '이미있어건너뜀': [],
+           '고시못찾음': [], 'ID없음': [], '실패': [], '별표없음': []}
     done = 0
     fail_run = 0          # 연속 실패 수 — 사이트가 죽었을 때 일찍 멈추려고 센다
     FAIL_RUN_MAX = 8
@@ -159,9 +251,7 @@ def main():
         byldir = os.path.join(lawdir, '별표')
         gosi = title_of(p)
         for u in units:
-            rows0 = []
-            for r in (u.get('별표내용') or []):
-                rows0.extend(r if isinstance(r, list) else [r])
+            rows0 = body_rows(u)
             # ★가지번호(9의2·9의3)를 잃지 않는다 (2026-08-31 실측).
             #   API 의 `별표번호` 는 **가지번호를 안 준다** — 「위험물 선박운송 기준」은 별표9·별표9의2·
             #   별표9의3 이 셋 다 `별표번호: 0009` 로 온다. 그대로 쓰면 파일 이름이 겹쳐 뒤의 둘이
@@ -182,14 +272,59 @@ def main():
             fn = f"{safe(gosi)}_{key}.txt"
             out = os.path.join(byldir, fn)
             if os.path.exists(out):
+                # ★`--relink` — **이미 쓴 파일에 빠진 내려받기 주소만 붙인다** (2026-09-25 신설).
+                #   위 `link_of` 버그로 주소를 못 적은 파일이 46개 생겼다. 그 파일을 **지우지 않는다**
+                #   (지워서 초록을 만들면 위키가 짚던 자리가 사라진다 — G-34). 한 줄을 덧붙여
+                #   `linkOnly` 로 만든다. 글이 있는 파일은 건드리지 않는다.
+                # ★`--refix` — **글자 하나씩 쪼개져 저장된 파일만** 다시 쓴다 (2026-09-25 신설).
+                #   `별표내용` 이 문자열인 응답을 리스트로 착각해 745개 중 12개가 그 꼴이 됐다.
+                #   게이트 V5-20 이 잡았다(줄 2201 → 2226). 기준선을 다시 굽지 않고 **수집을 고친다**(G-49).
+                if refix and is_char_split(out):
+                    rows_new = body_rows(u)
+                    if not rows_new:
+                        rep['다시쓸것이없다'].append(fn)
+                        continue
+                    if not dry:
+                        txt = open(out, encoding='utf-8').read().split('\n')
+                        head_keep = []
+                        for l in txt:
+                            if l.strip() and (l.startswith('[') or l.startswith(_META_HEAD)):
+                                head_keep.append(l)
+                            elif head_keep:
+                                break
+                        open(out, 'w', encoding='utf-8').write(
+                            '\n'.join(head_keep) + '\n\n' + '\n'.join(rows_new) + '\n')
+                        touched.add(out)
+                    rep['다시썼다'].append(fn)
+                    continue
+                if relink and is_bare(out):
+                    lk = link_of(u)
+                    if not lk:
+                        rep['주소도없다'].append(fn)
+                        continue
+                    if not dry:
+                        txt = open(out, encoding='utf-8').read().split('\n')
+                        at = 1
+                        for i, l in enumerate(txt):
+                            if l.startswith('출처:'):
+                                at = i + 1
+                                break
+                        txt.insert(at, f'별표서식파일링크: {lk}')
+                        open(out, 'w', encoding='utf-8').write('\n'.join(txt))
+                        touched.add(out)
+                    rep['주소붙였다'].append(fn)
+                    continue
                 rep['이미있어건너뜀'].append(fn)
                 continue
             rows = rows0
             head = (f"[{gosi}] {key} — {(u.get('별표제목') or '').strip()}\n"
-                    f"출처: 국가법령정보센터 행정규칙 API target=admrul ID={aid} (수집 2026-08-31)\n")
-            link = u.get('별표서식PDF파일링크')
+                    # ★날짜를 박아 두지 않는다 (2026-09-25 고침).
+                    #   전에는 `(수집 2026-08-31)` 이 **글자 그대로** 박여 있어서, 오늘 새로 받은
+                    #   725개 파일이 전부 「8월 31일에 받았다」고 적었다 — 출처에 거짓 날짜가 남는다.
+                    f"출처: 국가법령정보센터 행정규칙 API target=admrul ID={aid} (수집 {TODAY})\n")
+            link = link_of(u)
             if link:
-                head += f"별표서식PDF파일링크: {link}\n"
+                head += f"별표서식파일링크: {link}\n"
             if not dry:
                 os.makedirs(byldir, exist_ok=True)
                 open(out, 'w', encoding='utf-8').write(head + '\n' + '\n'.join(rows) + '\n')

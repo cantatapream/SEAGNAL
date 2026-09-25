@@ -1,0 +1,50 @@
+[대외무역관리규정] 별지2 — 무역업고유번호신청사항 변경통보서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000237604 (수집 2026-09-25 · 옛 기록은 도구에 박힌 날짜 때문에 2026-08-31 로 적혀 있었다)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=138751721
+
+[별지 제2호 서식]
+무역업고유번호신청사항 변경통보서
+NOTIFICATION OF AMENDMENTS TO TRADE BUSINESS CODE
+                                                        ┏━━━━━━━━━━━━┓
+                                                        ┃처리기간(Handling Time) ┃
+                                                        ┠────────────┨
+                                                        ┃즉    시(Immediately)   ┃
+┏━━━━━━━━━┯━━━┯━━━━━━━━━━━━━╃────────────┨
+┃①상     호       │      │② 무역업고유번호         │                        ┃
+┃ (Name of Company)│      │ (Trade Business Code)    │                        ┃
+┠─────────┼───┴─────────────┴────────────┨
+┃③ 주    소       │                                                            ┃
+┃  (Address)       │                                                            ┃
+┠─┬───────┼───┬─────────────┬────────────┨
+┃④│전 화 번 호   │      │ ⑤ 전자우편주소          │                        ┃
+┃  │(Phone Number)│      │  (E-mail Address)        │                        ┃
+┃  ├───────┼───┼─────────────┼────────────┨
+┃  │팩 스 번 호   │      │ ⑥ 사업자등록번호        │                        ┃
+┃  │(Fax Number)  │      │(Business Registry Number)│                        ┃
+┠─┴───────┼───┴─────────────┴────────────┨
+┃ ⑦ 대표자성명    │                                                            ┃
+┃   (Name of Rep.) │                                                            ┃
+┣━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃변경내용(Contents of Amendment)                                                 ┃
+┠─────────────┬──────────────────────────┨
+┃변경 전(Before Amendment) │변경 후(After Amendment)                            ┃
+┠─────────────┼──────────────────────────┨
+┃                          │                                                    ┃
+┣━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃   대외무역관리규정 제24조에 따라 무역업고유번호 신청사항의                     ┃
+┃변경내용을 위와 같이 통보합니다.                                                ┃
+┃  I hereby notify the above－mentioned amendment(s) to the                      ┃
+┃trade business code in accordance with Article 24 of the Foreign                ┃
+┃Trade Management Regulation.                                                    ┃
+┃                                                                                ┃
+┃신청일 :            년     월     일                                            ┃
+┃  Date of Application      Year  Month   Day                                    ┃
+┃                                                                                ┃
+┃신청인 :                       (서명)                                           ┃
+┃                Applicant                      Signature                        ┃
+┃                                                                                ┃
+┃사단법인 한국무역협회 회장                                                      ┃
+┃Chairman of Korea International Trade Association                               ┃
+┠────────────────────────────────────────┨
+┃ ※ 첨부서류 : 변경사항 증빙서류                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

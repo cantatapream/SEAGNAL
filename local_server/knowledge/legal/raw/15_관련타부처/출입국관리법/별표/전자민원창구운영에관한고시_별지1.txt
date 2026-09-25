@@ -1,0 +1,53 @@
+[전자민원창구 운영에 관한 고시] 별지1 — 전자민원 접수증
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000257762 (수집 2026-09-25 · 옛 기록은 도구에 박힌 날짜 때문에 2026-08-31 로 적혀 있었다)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=151064249
+
+【별지 서식 1호】전자민원 접수증
+┌─────────────────────────────────────────────────────────┐
+│                                                                                                                  │
+│  법무부                    Korea Immigration Service                                                             │
+│  출입국·외국인정책본부    Ministry of Justice                                                                   │
+│────────────────────────────                                                          │
+│                                                                                                                  │
+│┌───────────────┐                                                                                │
+││전자민원 접수증               │                                                                                │
+││(E-certificate of Application)│                                                                                │
+│└───────────────┘                                                                                │
+│                                                                                                                  │
+│ □ 민원인 정보(Applicant Information)                                                                            │
+│   ? 국적(Nationality)                                                                                           │
+│   ? 성명(Full name)                                                                                             │
+│   ? 성별(Sex)                                                                                                   │
+│   ? 생년월일(Date of Birth)                                                                                     │
+│   ? 외국인등록번호(Alien Registration No.)                                                                      │
+│                                                                                                                  │
+│ □ 신청민원 종류(Type of e-Application)                                                                          │
+│    :                                                                                                             │
+│                                                                                                                  │
+│ □ 접수일자(Date of Application)                                                                                 │
+│    :                                                                                                             │
+│신청 민원이 상기와 같이 접수되었음을 확인합니다.                                                                  │
+│(We hereby certify that your application has been received as above.)                                             │
+│처리결과는 본인이 회원가입 시 등록한 E-mail 주소로 발송됩니다.                                                    │
+│(The outcome of application will be notified to your  email address provided at the time of                       │
+│lodgement.)                                                                                                       │
+│                                                                                                                  │
+│Chief, OO Immigration Office                                                                                      │
+│OO출입국·외국인청(사무소·출장소)장                                                                              │
+│┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓│
+│┃□ 공지사항(Note)                                                                                             ┃│
+│┃? 심사 중 체류기간이 만료되어도 심사가 완료될 때까지는 기존 체류자격으로 체류할 수 있습니다.                 ┃│
+│┃(You are qualified to stay in Korea with your existing status without regard to its expiration date until     ┃│
+│┃your application is concluded.)                                                                               ┃│
+│┃? 심사가 완료되기 전에 담당자에게 연락 없이 출국하는 경우 허가여부 결정 없이 심사가 종결될                   ┃│
+│┃수 있으니 유의하시기 바랍니다.                                                                                ┃│
+│┃(Please Note that if you depart without notifying the officer in charge of your application, your             ┃│
+│┃application may be terminated without permission.)                                                            ┃│
+│┃? 접수증은 온라인 민원접수에 대한 사실만을 증명합니다. 체류기간 연장 등 허가를 받은 후                       ┃│
+│┃출입국할 시에는 반드시 ‘전자민원 허가확인서’를 출력하여 심사관에게 제시하셔야 합니다.                       ┃│
+│┃(e-Certificate of application verifies on-line application recode only. You must print out a "Certificate of  ┃│
+│┃permission/Acceptance for e-Application" and present it to relevant officer when crossing Korea’s border     ┃│
+│┃after receiving any permission such as extension of stay)                                                     ┃│
+│┃※ 하이코리아 웹주소:www.hikorea.go.kr  외국인종합안내센터(Foreigner Complex Counseling Center)☎1345         ┃│
+│┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│
+└─────────────────────────────────────────────────────────┘

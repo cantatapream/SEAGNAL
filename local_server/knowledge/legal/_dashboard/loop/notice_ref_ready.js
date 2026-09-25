@@ -48,6 +48,7 @@ const RAW = path.join(LEGAL, 'raw');
 // ★`article_text.js` 가 쓰는 저장소 기준 접두 — resolveRefs 가 `ctx.docDir` 을 이 꼴로 기대한다.
 const RAW_PREFIX = 'local_server/knowledge/legal/raw/';
 const argv = process.argv.slice(2);
+// 사용: [--examples] [--save <경로>] [--bysurvey]  ★--bysurvey 는 남은 수를 조사 갈래별로 묶는다(3-65)
 const arg = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : ''; };
 
 /** 행정규칙 원문 파일을 전부 모은다. 옛 판·대기·이미지·원본첨부는 뺀다(다른 게이트와 같은 범위). */
@@ -157,6 +158,52 @@ async function main() {
       console.log(`    ${String(v).padStart(5)}  ${k}`);
     }
     console.log('    ⚠「이 고시 제 별표인데 없다」만이 **받아 오면 되는 것**이다. 나머지는 가리키는 자리가 딴 데다.');
+  }
+
+  // ★`--bysurvey` — 남은 「제 별표인데 없다」를 **조사 갈래별로** 묶는다 (2026-09-25 신설, 3-65).
+  //   [왜] 2026-09-25 에 별표 725개를 받아 이 수가 394 → 325 로 줄었다. 그런데 **0 이 아니다.**
+  //   「아직 남았다」로만 적으면 *받으면 되는 것* 과 *받을 곳이 없는 것* 이 한 통에 섞인다 —
+  //   `admrul_annex_survey.py` 는 이미 고시마다 갈래를 매겨 두었다(빠짐·수가모자람·**API에별표없음**·
+  //   **ID없음**·실패). 그 갈래를 여기 남은 수에 붙여 **무엇이 더 받아 올 수 있는 것인지** 드러낸다.
+  //   ⚠수를 빼지 않는다 — 까닭만 나눈다(이 파일의 다른 갈래 나누기와 같은 규칙).
+  //   ⚠**갈래 이름을 「받을 수 있다」로 적지 않는다** — 처음에 그렇게 적었는데, 이 표는 **채운 뒤에도 남은 것**을
+  //     세는 자리다. 이미 채운 고시가 여기 남았다는 것은 「아직 안 받았다」가 아니라
+  //     **본문이 가리키는 그 번호가 API 에 없었다**는 뜻이다. 이름이 틀리면 다음 사람이 또 받으러 간다.
+  if (argv.includes('--bysurvey')) {
+    const SV = path.join(LEGAL, '_dashboard', 'admrul_annex_survey.json');
+    let sv = null;
+    try { sv = JSON.parse(fs.readFileSync(SV, 'utf8')); } catch (e) {
+      console.log(`\n  ⚠--bysurvey: 조사 결과를 못 읽었다(${SV}) — 갈래를 못 붙인다.`);
+    }
+    if (sv) {
+      const cat = new Map();
+      const put = (rows, name) => {
+        for (const r of (rows || [])) cat.set(typeof r === 'string' ? r : r.파일, name);
+      };
+      // ★`이미있음` 을 빼먹으면 그 고시가 「조사 목록에 없다」로 새어 나간다 — 처음에 그렇게 재서
+      //   197종이 엉뚱한 갈래에 쌓였다(2026-09-25, 내 자를 고쳤다).
+      //   이 갈래가 뜻하는 것이 중요하다: **수는 맞는데 그 번호가 없다**(예: 본문은 「별표 3의2」를
+      //   가리키는데 우리에겐 「별표 3」만 있다). 받아 올 수 있는 것이 아니라 **번호를 맞춰야 하는 것**이다.
+      put(sv['이미있음'], '이미있음 — 수는 맞는데 그 번호가 없다(번호를 맞춰야 한다)');
+      put(sv['빠짐'], '빠짐이었고 채웠는데도 남았다 — 본문이 가리키는 그 번호가 API 에 없었다');
+      put(sv['수가모자람'], '수가모자람이었고 채웠는데도 남았다 — 같은 까닭');
+      put(sv['API에별표없음'], 'API 에 별표가 없다(받을 곳이 없다)');
+      put(sv['ID없음'], 'ID 없음(판번호를 못 찾는다 — P-19b)');
+      put(sv['실패'], '조사 실패(다시 재야 한다)');
+      const own = miss.filter((m) => m.까닭 === '이 고시 제 별표인데 없다');
+      const byCat = {}, byGosi = new Map();
+      for (const m of own) {
+        const base = String(m.고시).split('/').pop();
+        const c = cat.get(base) || '조사 목록에 없다';
+        byCat[c] = (byCat[c] || 0) + 1;
+        byGosi.set(base, c);
+      }
+      console.log(`\n  ❌「이 고시 제 별표인데 없다」 ${own.length}종을 **조사 갈래별로** 묶었다`);
+      for (const [k, v] of Object.entries(byCat).sort((a, b) => b[1] - a[1])) {
+        console.log(`    ${String(v).padStart(5)}  ${k}`);
+      }
+      console.log(`    (고시 ${byGosi.size}개)`);
+    }
   }
 
   if (argv.includes('--examples') && miss.length) {
