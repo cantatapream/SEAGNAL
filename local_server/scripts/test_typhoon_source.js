@@ -284,6 +284,15 @@ ok('태풍마다 예보도 파일 이름을 채워 보낸다', /imageName: w\.se
 ok('★그림 중계는 seq 형식을 검사한다 — 경로조작 차단',
     /\^\[a-z\]\{2\}\\d\{4\}\$/.test(ROUTE_SRC));
 ok('출처 안내(other)에 공공저작물임을 적는다', /미국 정부 공공저작물/.test(ROUTE_SRC));
+
+// [2026-09-25] 배포 직후 목록 받기가 실패했는데 응답이 'upstream' 한 마디뿐이라
+//   원인을 알 수 없었다. 실패는 이유와 함께 드러나야 한다(L-291).
+ok('★상류 실패 시 이유(detail)를 함께 내려 준다',
+    /reason: 'upstream', detail: lastError/.test(ROUTE_SRC));
+ok('★목록이 비었을 때 "태풍 없음"과 "못 읽음"을 가를 단서를 남긴다',
+    /listChars: html\.length/.test(ROUTE_SRC) && /목록 \$\{html\.length\}자/.test(ROUTE_SRC));
+ok('그림이 아니라 목록만 막히던 차이를 메우려 브라우저 표식을 보낸다',
+    /'User-Agent': UA/.test(ROUTE_SRC) && /headers: REQ_HEADERS/.test(ROUTE_SRC));
 ok('server.js 가 해외 태풍 라우터를 등록한다', /typhoon_foreign/.test(SERVER_SRC));
 
 ok('통보문 라벨 시각 표기 (202609250900 → "09.25. 09:00")',

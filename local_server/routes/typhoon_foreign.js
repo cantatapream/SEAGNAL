@@ -53,7 +53,11 @@ const jtwc = require('../services/jtwc_parse');
 const JTWC_BASE = 'https://www.metoc.navy.mil/jtwc/';
 const LIST_URL = JTWC_BASE + 'jtwc.html';
 const PRODUCT_BASE = JTWC_BASE + 'products/';
-const HTTP_TIMEOUT_MS = 12000;
+const HTTP_TIMEOUT_MS = 20000;
+// [왜 표식을 보내나] .mil 사이트는 브라우저 표식이 없는 요청을 막는 경우가 있다.
+//   그림(products/*.gif)은 표식 없이도 받아지는데 목록 화면만 실패했다 — 그 차이를 메운다.
+const UA = 'Mozilla/5.0 (compatible; SEAGNAL/1.0; +https://seagnal-server.fly.dev)';
+const REQ_HEADERS = { 'User-Agent': UA, 'Accept': 'text/html,text/plain,*/*' };
 const TTL_MS = 30 * 60 * 1000;          // 상류가 6시간마다 갱신 — 30분이면 충분
 const KST_OFFSET_MS = 9 * 3600 * 1000;
 const MAX_STORMS = 12;                  // 목록이 비정상적으로 길어도 여기까지만 받는다
@@ -61,12 +65,23 @@ const MAX_STORMS = 12;                  // 목록이 비정상적으로 길어�
 let cache = null;   // { at: ms, data: 응답객체 }
 
 /** 상류에서 글자 자료를 받아온다. 실패하면 null(예외를 위로 던지지 않는다). */
+let lastError = '';   // 마지막 상류 실패 사유 — 응답의 detail 로 내보낸다(원인 없이 실패하지 않게)
+
 async function fetchText(url) {
     try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
-        if (!res.ok) { console.log(`[typhoon-foreign] ${url} 응답 ${res.status}`); return null; }
+        const res = await fetch(url, {
+            headers: REQ_HEADERS,
+            redirect: 'follow',
+            signal: AbortSignal.timeout(HTTP_TIMEOUT_MS)
+        });
+        if (!res.ok) {
+            lastError = 'http_' + res.status;
+            console.log(`[typhoon-foreign] ${url} 응답 ${res.status}`);
+            return null;
+        }
         return await res.text();
     } catch (e) {
+        lastError = String(e.name || 'error') + ':' + String(e.message || '').slice(0, 80);
         console.log(`[typhoon-foreign] ${url} 호출 실패: ${e.message}`);
         return null;
     }
@@ -90,11 +105,15 @@ function stampToLabel(stamp) {
 async function fetchActive() {
     if (cache && (Date.now() - cache.at) < TTL_MS) return cache.data;
 
+    lastError = '';
     const html = await fetchText(LIST_URL);
     if (html === null) return null;              // 목록을 못 받으면 아무 말도 지어내지 않는다
 
     const year = new Date(Date.now() + KST_OFFSET_MS).getUTCFullYear();
     const list = jtwc.parseStormList(html).slice(0, MAX_STORMS);
+    // [왜 남기나] 화면이 비었을 때 "정말 태풍이 없다"와 "목록을 못 읽었다"가 구별돼야 한다.
+    //   받은 글자 수와 뽑힌 개수를 함께 남겨 둔다(L-291 — 실패가 무결처럼 보이면 안 된다).
+    console.log(`[typhoon-foreign] 목록 ${html.length}자 → 태풍 ${list.length}개`);
 
     const warnings = await Promise.all(list.map(async (s) => {
         const base = jtwc.fileBase(s.code, year);
@@ -145,6 +164,8 @@ async function fetchActive() {
         updatedAt: new Date().toISOString(),
         year: year,
         hasActive: typhoons.length > 0,
+        // 목록을 읽은 흔적 — 0개일 때 "태풍이 없다"인지 "못 읽었다"인지 가르는 단서.
+        listChars: html.length,
         typhoons: typhoons
     };
     cache = { at: Date.now(), data: data };
@@ -162,7 +183,7 @@ router.get('/api/typhoon/foreign', async (req, res) => {
     const src = String(req.query.src || 'jtwc').toLowerCase();
     if (src !== 'jtwc') return res.json({ success: false, reason: 'bad_src' });
     const data = await fetchActive();
-    if (!data) return res.json({ success: false, reason: 'upstream' });
+    if (!data) return res.json({ success: false, reason: 'upstream', detail: lastError });
     res.json(data);
 });
 
@@ -180,7 +201,10 @@ router.get('/api/typhoon/foreign/image', async (req, res) => {
     if (!/^[a-z]{2}\d{4}$/.test(seq)) return res.status(400).end();
     const name = seq + '.gif';
     try {
-        const up = await fetch(PRODUCT_BASE + name, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
+        const up = await fetch(PRODUCT_BASE + name, {
+            headers: REQ_HEADERS,
+            signal: AbortSignal.timeout(HTTP_TIMEOUT_MS)
+        });
         const type = up.headers.get('content-type') || '';
         if (!up.ok || type.indexOf('image') === -1) {
             console.log(`[typhoon-foreign] 그래픽 ${name} 실패 ${up.status} ${type}`);
