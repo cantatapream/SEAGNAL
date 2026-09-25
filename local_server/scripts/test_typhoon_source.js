@@ -287,10 +287,34 @@ ok('출처 안내(other)에 공공저작물임을 적는다', /미국 정부 공
 
 // [2026-09-25] 배포 직후 목록 받기가 실패했는데 응답이 'upstream' 한 마디뿐이라
 //   원인을 알 수 없었다. 실패는 이유와 함께 드러나야 한다(L-291).
+// [2026-09-25 운영 확인] jtwc.html 은 우리 서버에 http_403 을 준다.
+//   같은 호스트라도 /products/ 안(그림)은 200 으로 받아진다 — 목록을 그쪽에서 읽는다.
+ok('★막히지 않는 /products/ 폴더를 목록의 첫 출처로 쓴다',
+    /const DIR_URL = JTWC_BASE \+ 'products\/'/.test(ROUTE_SRC) &&
+    ROUTE_SRC.indexOf('fetchText(DIR_URL)') < ROUTE_SRC.indexOf('fetchText(LIST_URL)'));
+ok('폴더가 안 되면 안내 화면으로 물러선다', /if \(!bases\.length\) \{\s*\n\s*html = await fetchText\(LIST_URL\)/.test(ROUTE_SRC));
+ok('어느 주소가 몇 번으로 답했는지 알려 준다', /probe: where/.test(ROUTE_SRC));
+
+// 폴더 목록에는 올해 끝난 태풍 통보문도 남아 있다 — 두 겹으로 거른다.
+ok('★올해 것만 읽는다 (지난해 wp2525 는 제외)',
+    JSON.stringify(P.parseProductDir(
+        '<a href="wp2526web.txt">x</a><a href="wp2525web.txt">y</a><a href="ep1726web.txt">z</a>', 2026))
+        === '["ep1726","wp2526"]');
+ok('통보문이 아닌 파일은 세지 않는다 (wp2526.gif)',
+    P.parseProductDir('<a href="wp2526.gif">x</a>', 2026).length === 0);
+ok('★해역마다 번호가 큰 것부터 몇 개만 받는다 (요청 폭주·죽은 태풍 방지)',
+    JSON.stringify(route._topPerBasin(['wp0126', 'wp2426', 'wp2526', 'ep1726', 'ep0126'], 2))
+        === '["wp2526","wp2426","ep1726","ep0126"]');
+ok('★발표 시각이 오래되면 끝난 태풍으로 본다 (18시간)',
+    /FRESH_MS = 18 \* 3600 \* 1000/.test(ROUTE_SRC) &&
+    /Date\.now\(\) - ms\) > FRESH_MS/.test(ROUTE_SRC));
+ok('한국시각 문자열을 시각으로 되돌린다 (9/25 09시 KST = 9/25 00Z)',
+    route._kstStampToMs('202609250900') === Date.parse('2026-09-25T00:00:00Z'));
+
 ok('★상류 실패 시 이유(detail)를 함께 내려 준다',
     /reason: 'upstream', detail: lastError/.test(ROUTE_SRC));
 ok('★목록이 비었을 때 "태풍 없음"과 "못 읽음"을 가를 단서를 남긴다',
-    /listChars: html\.length/.test(ROUTE_SRC) && /목록 \$\{html\.length\}자/.test(ROUTE_SRC));
+    /listChars:/.test(ROUTE_SRC) && /후보 \$\{bases\.length\}개/.test(ROUTE_SRC));
 ok('그림이 아니라 목록만 막히던 차이를 메우려 브라우저 표식을 보낸다',
     /'User-Agent': UA/.test(ROUTE_SRC) && /headers: REQ_HEADERS/.test(ROUTE_SRC));
 ok('server.js 가 해외 태풍 라우터를 등록한다', /typhoon_foreign/.test(SERVER_SRC));
