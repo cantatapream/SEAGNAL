@@ -127,6 +127,7 @@
     var _steps    = null;   // 지금 진행 중인 단계 목록(특보정보용 STEPS 또는 지도용 STEPS_OCEAN)
     var _mode     = 'alert';// 'alert' = 특보정보 탭 튜토리얼, 'ocean' = 해양종합정보 탭 튜토리얼
     var _oceanArmed = false;// 공지사항 5연타로 켜진다 — 해양종합정보 탭에 들어가면 지도 튜토리얼 시작
+    var _sheetPt  = null;   // 바텀시트를 띄운 바다 지점 [위도, 경도] — 한 번 고르면 그대로 쓴다
 
     // ========================================================================
     // [작은 도구들]
@@ -1530,10 +1531,26 @@
         if (which !== 'zone' && typeof window.closeSeaZoneModal === 'function') {
             if (document.getElementById('sea-zone-modal')) window.closeSeaZoneModal();
         }
+        if (which !== 'sheet') {
+            var sheet = document.getElementById('ocean-bottom-sheet');
+            var x = document.getElementById('ocean-sheet-close');
+            if (sheet && x && sheet.classList.contains('open')) x.click();
+        }
         if (!which) return;
 
         // 자료가 실제로 올라온 뒤에 연다(시간이 아니라 조건으로 기다린다)
-        if (which === 'buoy') {
+        if (which === 'sheet') {
+            var sh = document.getElementById('ocean-bottom-sheet');
+            if (sh && sh.classList.contains('open')) return;
+            _when(function () { return !!_seaPointNear(); }, function () {
+                var el = document.getElementById('ocean-bottom-sheet');
+                if (el && el.classList.contains('open')) return;
+                var pt = _seaPointNear();
+                if (pt && typeof window.showOceanBottomSheet === 'function') {
+                    window.showOceanBottomSheet(pt[0], pt[1]);
+                }
+            });
+        } else if (which === 'buoy') {
             if (document.getElementById('buoy-info-modal')) return;
             _when(function () { return !!_centerBuoy(); }, function () {
                 if (document.getElementById('buoy-info-modal')) return;
@@ -1553,6 +1570,39 @@
                 });
             });
         }
+    }
+
+    /**
+     * 화면 한가운데에서 가까운 **바다** 지점 하나를 고른다.
+     *
+     * 왜 필요한가?
+     *   "지도를 누르면 그 지점 정보가 나온다"를 보여주려면 누를 자리가 바다여야 한다.
+     *   화면 가운데는 내륙일 때가 많다(우리나라 지도라 그렇다).
+     *   그래서 가운데에서 바깥으로 돌아가며 처음 만나는 바다를 고른다.
+     *
+     * @returns {Array<number>|null} [위도, 경도] 또는 아직 판정할 수 없으면 null
+     * [연계] ocean_overlay.js 의 window.isOceanLand(lat, lon) —
+     *        육지면 true, 바다면 false, 육지 자료가 아직이면 null.
+     */
+    function _seaPointNear() {
+        // [한 번 고르면 그대로 쓴다] 뒤 단계에서 지도가 움직이면(태풍 단계가 지도를 옮긴다)
+        //   [이전] 로 돌아왔을 때 **다른 지점**의 정보가 떠 화면이 달라졌다(실측 2026-09-25).
+        if (_sheetPt) return _sheetPt;
+        var map = window.getOceanMap && window.getOceanMap();
+        if (!map || typeof window.isOceanLand !== 'function' || typeof ol === 'undefined') return null;
+        var c;
+        try { c = ol.proj.toLonLat(map.getView().getCenter()); } catch (e) { return null; }
+        if (!c) return null;
+        for (var rad = 0; rad <= 3; rad += 0.25) {
+            for (var a = 0; a < 16; a++) {
+                var th = a * Math.PI / 8;
+                var lon = c[0] + rad * Math.cos(th);
+                var lat = c[1] + rad * Math.sin(th);
+                if (window.isOceanLand(lat, lon) === false) { _sheetPt = [lat, lon]; return _sheetPt; }
+                if (rad === 0) break;   // 한가운데는 한 번만 본다
+            }
+        }
+        return null;
     }
 
     /**
@@ -1717,6 +1767,19 @@
                 + '지금부터 버튼을 하나씩 실제로 눌러 가며 보여드립니다.',
             target: function () { var m = _oceanMapEl(); return m ? [m] : null; },
             btns: []
+        },
+        {
+            title: '지도를 누르면 — 그 지점의 종합 정보',
+            // [짧게 쓴 이유] 바텀시트가 화면 아래 60%를 차지해 카드 자리가 좁다.
+            //   길게 쓰면 마지막 줄이 잘린다(실측 2026-09-25).
+            body: '바다 위 아무 곳이나 누르면 그 지점의 정보가 한 번에 열립니다 — '
+                + '파고 · 바람 · 물살 · 수온 · 수심 · 시정에 일출몰 · 물때 · 기압까지. '
+                + '지금은 가까운 바다 지점을 대신 눌렀습니다.',
+            target: function () {
+                var sh = document.getElementById('ocean-bottom-sheet');
+                return (sh && sh.getBoundingClientRect().height > 1) ? [sh] : null;
+            },
+            btns: [], open: 'sheet'
         },
         {
             title: '위치 검색',
@@ -2179,7 +2242,11 @@
         //   카드가 들어갈 자리가 없어질 수 있다. 위아래 어느 쪽에도 CARD_MIN 만큼
         //   남지 않으면, 구멍의 아래쪽을 그만큼 잘라 카드 자리를 만든다
         //   (내용의 윗부분은 그대로 밝게 보이므로 "무엇이 열렸는지"는 전달된다).
-        var above = (hy - GAP) - topLimit;
+        // [딱지 줄을 비운다] 카드가 화면 위쪽에 붙을 때는 「시험 모드」 딱지와 단계 번호가
+        //   있는 줄 아래에서 시작해야 한다. 그러지 않으면 카드가 그 둘을 덮는다
+        //   (실측 2026-09-25 — 바텀시트 단계에서 드러났다).
+        var topCard = topLimit + TAG_H;
+        var above = (hy - GAP) - topCard;
         if (bottomLimit - (hy + hh + GAP) < CARD_MIN && above < CARD_MIN) {
             hh = Math.max(40, bottomLimit - CARD_MIN - GAP - hy);
         }
@@ -2198,14 +2265,13 @@
         //   카드가 납작해진다. 그럴 때는 화면 위쪽 절반까지 쓰게 한다.
         // 위에 못박는 단계는 「시험 모드」 딱지 줄 아래에서 시작하고(그러지 않으면 딱지와
         //   단계 번호를 덮는다), 화면의 절반 남짓만 쓴다 — 나머지로 지도를 봐야 한다.
-        var topFixed = topLimit + TAG_H;
         var space = useBelow ? below
-                             : (step.cardTop ? Math.max(above, (bottomLimit - topFixed) * 0.45) : above);
+                             : (step.cardTop ? Math.max(above, (bottomLimit - topCard) * 0.45) : above);
         _card.style.maxHeight = Math.max(CARD_MIN, Math.round(space)) + 'px';
         var ch = _card.offsetHeight;
         _card.style.top = Math.round(useBelow ? (hy + hh + GAP)
-                                   : (step.cardTop ? topFixed
-                                                   : Math.max(topLimit, hy - GAP - ch))) + 'px';
+                                   : (step.cardTop ? topCard
+                                                   : Math.max(topCard, hy - GAP - ch))) + 'px';
     }
 
     /**
@@ -2489,6 +2555,7 @@
         _shot = null;
         _card = null;
         _stepIdx = 0;
+        _sheetPt = null;
         _restore();
     }
 
