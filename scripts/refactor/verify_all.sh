@@ -458,6 +458,17 @@ echo; echo "── V5-44 진행판 = 실측 ──"
 python3 local_server/knowledge/legal/_dashboard/loop/worklist_progress.py --gate \
   || fail "V5-44 진행판에 적힌 숫자가 실측과 다르다"
 
+# ── V5-47 규칙집의 검사 목록이 낡지 않았나 (2026-09-25 신설, 2-4) ─────────────
+#   `_RULES.md` 는 규칙마다 **그것을 지키는 검사 이름**을 옆에 달아 둔 짧은 규칙집이다.
+#   그 검사 목록을 **손으로 적으면 반드시 낡는다** — 그것이 이 문서가 막으려는 병 그 자체다
+#   (뿌리 사슬 ①②③). 그래서 목록은 `gen_rulebook.py` 가 `verify_all.sh` 를 읽어 찍고,
+#   이 검사는 **지금 찍은 것과 문서에 적힌 것이 같은지**만 본다. 게이트를 하나 늘리거나
+#   스위트를 하나 더하면 여기서 빨간불이 나고, `python3 scripts/refactor/gen_rulebook.py`
+#   한 줄로 고친다.
+echo; echo "── V5-47 규칙집 검사 목록 최신성 ──"
+python3 scripts/refactor/gen_rulebook.py --check \
+  || fail "V5-47 규칙집(_RULES.md)의 검사 목록이 낡았다 — gen_rulebook.py 로 다시 쓴다"
+
 # ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
 #   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
 #   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
