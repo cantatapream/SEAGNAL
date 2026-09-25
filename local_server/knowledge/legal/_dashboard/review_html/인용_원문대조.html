@@ -4,9 +4,11 @@
 :root{--bg:#fff;--fg:#15181c;--line:#dfe3e8;--mut:#5b6672;--card:#f7f9fb;
       --ok:#0b6b3a;--ours:#8a5a00;--skip:#4a5560}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
   --bg:#14171a;--fg:#e8ebee;--line:#2c3237;--mut:#9aa4ae;--card:#1b1f23;
   --ok:#5fd39b;--ours:#e0ad4d;--skip:#9aa4ae}}
-:root[data-theme="dark"]{--bg:#14171a;--fg:#e8ebee;--line:#2c3237;--mut:#9aa4ae;
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#14171a;--fg:#e8ebee;--line:#2c3237;--mut:#9aa4ae;
   --card:#1b1f23;--ok:#5fd39b;--ours:#e0ad4d;--skip:#9aa4ae}
 *{box-sizing:border-box}
 body{margin:0;padding:20px 16px 80px;background:var(--bg);color:var(--fg);
@@ -35,8 +37,15 @@ button.on[data-k="우리정리"]{border-color:var(--ours);color:var(--ours);font
 button.on[data-k="그대로"]{border-color:var(--skip);color:var(--skip);font-weight:700}
 textarea{width:100%;min-height:52px;font:inherit;padding:8px 10px;border-radius:7px;
   border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.outbox{border:1px solid var(--line);border-radius:10px;padding:14px;margin:0 0 18px;
+  background:var(--card)}
+.outbox textarea{width:100%;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+  padding:10px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.outrow{display:flex;gap:10px;align-items:center;margin-top:8px}
 .bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:12px;align-items:center;
-  padding:10px 16px;background:var(--card);border-top:1px solid var(--line)}
+  padding:10px 16px;background:var(--card);border-top:1px solid var(--line);
+  /* 폰에서 홈바에 가리지 않게 — 아래 여백을 바 스스로 더한다 */
+  padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px))}
 .bar .big{padding:9px 16px;font-weight:700}
 .cnt{color:var(--mut);font-size:13px}
 @media (max-width:640px){body{padding:16px 16px 92px}}
@@ -256,7 +265,8 @@ textarea{width:100%;min-height:52px;font:inherit;padding:8px 10px;border-radius:
 <div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
 <div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
 </div>
-</div><div class="bar"><button class="big" onclick="save()">내보내기 (JSON)</button><span class="cnt" id="cnt"></span></div>
+<div id="outbox" class="outbox" hidden><p class="lb">고르신 것 — 이 글을 <b>복사해 대화창에 붙여</b> 주시면 제가 위키에 반영합니다.</p><textarea id="outjson" readonly rows="10"></textarea><div class="outrow"><button onclick="copyOut()">복사</button><span class="cnt" id="copymsg"></span></div></div>
+</div><div class="bar"><button class="big" onclick="save()">내보내기</button><span class="cnt" id="cnt"></span></div>
 <script>const TOTAL=15;
 const KEY='exact_claim_review_v1';
 let S={};try{S=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){S={}}
@@ -272,16 +282,37 @@ function draw(){
 function put(id,k){S[id]=Object.assign({},S[id],{고른것:k});store();draw()}
 function memo(id,v){S[id]=Object.assign({},S[id],{메모:v});store()}
 function store(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-function save(){
+function collect(){
   const out={만든날:new Date().toISOString().slice(0,10),자:'build_exact_claim_html.py',고른것:[]};
   document.querySelectorAll('.item').forEach(el=>{
     const id=el.dataset.id,s=S[id]||{};
     out.고른것.push({번호:+id,쪽:el.dataset.pg,줄:+el.dataset.ln,
       고른것:s.고른것||'',메모:s.메모||'',원문:el.dataset.got||''});
   });
-  const b=new Blob([JSON.stringify(out,null,1)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(b);
-  a.download='인용_원문대조_확정.json';a.click();
+  return JSON.stringify(out,null,1);
+}
+// ★내보내기는 **두 길**을 다 준다 (2026-09-25).
+//   까닭: 이 쪽을 아티팩트로 올려 폰에서 누르실 수 있게 했는데, 아티팩트 안에서는
+//   **파일 내려받기가 막혀 있다**(a[download] 가 아무 일도 안 한다). 그래서 내려받기만 두면
+//   사장님이 눌러도 **아무 일도 안 일어나고, 화면은 그것을 알려 주지도 않는다.**
+//   ⇒ 글을 화면에 띄우고 **복사**를 준다(복사는 된다). 내려받기는 되는 데서만 덧붙는다.
+function save(){
+  const txt=collect();
+  const box=document.getElementById('outbox'), ta=document.getElementById('outjson');
+  ta.value=txt; box.hidden=false; ta.focus(); ta.select();
+  try{
+    const b=new Blob([txt],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);
+    a.download='인용_원문대조_확정.json';a.click();
+  }catch(e){}
+  box.scrollIntoView({block:'center'});
+}
+function copyOut(){
+  const ta=document.getElementById('outjson'), msg=document.getElementById('copymsg');
+  const done=()=>{msg.textContent='복사했습니다 — 대화창에 붙여 주십시오.';};
+  try{
+    navigator.clipboard.writeText(ta.value).then(done,()=>{ta.select();msg.textContent='아래 글을 직접 복사해 주십시오.';});
+  }catch(e){ta.select();msg.textContent='아래 글을 직접 복사해 주십시오.';}
 }
 document.addEventListener('click',e=>{const b=e.target.closest('button[data-k]');
   if(b)put(b.closest('.item').dataset.id,b.dataset.k)});
