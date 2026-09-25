@@ -512,6 +512,22 @@ console.log('\n[8-2] 응답 한 판 — 실제 파일을 상류인 척 물려 �
     };
     const realFetch = global.fetch;
     const realLog = console.log;
+    // ★시계를 붙박이에 맞춰 세운다 (2026-09-25 신설) ─────────────────────────────
+    // [무슨 일이 있었나] 이 묶음이 2026-09-25 18:00 UTC 부터 **영원히** 4건 실패로 돌아섰다.
+    //   main 에서도 똑같이 났다(워크트리로 확인). 내가 뭘 깨뜨린 것이 아니다.
+    // [까닭 — 실측] 라우트는 통보문이 `FRESH_MS = 18시간` 보다 오래되면 **끝난 태풍으로 보고 제외**한다
+    //   (`routes/typhoon_foreign.js:231`). 이 붙박이의 발표시각은 `202609250900`(KST) = 00:00 UTC 이므로
+    //   18:00 UTC 를 넘기면 나이가 18시간을 넘는다. 그 순간부터 수리개가 응답에서 사라지고
+    //   이름·위험구역·경로·그림 이름 **4건이 함께** 실패한다(「성공으로 나온다」는 통과한다 — 태풍 0개여도 성공이다).
+    //   확인: 2026-09-25 19:55 UTC 에 나이 **19.93시간** / 문턱 18시간.
+    // [무엇을 고치나] **라우트도, 문턱도, 시험 항목도 건드리지 않는다.** 이미 `global.fetch` 를 붙박이로
+    //   바꿔 끼우는 이 자리에서 **시계도 같이 붙박이에 맞춘다** — 상류를 고정해 놓고 시각만 흐르게 두면
+    //   그것은 붙박이가 아니다. 문턱(18시간)을 검사하는 항목은 위 [7]에 그대로 남아 있다.
+    // [왜 이 값인가] 숫자를 손으로 적지 않고 **생산 파서**(`route._kstStampToMs`, L-136)로 발표시각을 구해
+    //   거기에 1시간을 더한다. 붙박이를 새 통보문으로 갈아도 이 셈은 그대로 맞는다.
+    const FROZEN_NOW = route._kstStampToMs('202609250900') + 3600 * 1000;
+    const realNow = Date.now;
+    Date.now = function () { return FROZEN_NOW; };
     global.fetch = async function (url) {
         const b = FILES[String(url).split('/').pop()];
         if (!b) return { ok: false, status: 404, headers: new Map() };
@@ -529,6 +545,7 @@ console.log('\n[8-2] 응답 한 판 — 실제 파일을 상류인 척 물려 �
         setTimeout(function () {
             global.fetch = realFetch;
             console.log = realLog;
+            Date.now = realNow;                 // 시계를 되돌린다 — 뒤 검사에 새지 않게
             route._clearCache();
             const t = out && out.typhoons && out.typhoons[0];
             ok('★응답이 성공으로 나온다', !!(out && out.success));

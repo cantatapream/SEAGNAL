@@ -38,7 +38,7 @@
  * 등록하면 기준선 없는 검사가 하나 더 느는 것뿐이다(G-15 — 191개 중 23개만 불린다).
  *
  * [쓰는 법] node local_server/knowledge/legal/_dashboard/loop/live_probe.js [문항수]
- * [연계] 결과 `_dashboard/live_probe_2026-09-22.json` ·
+ * [연계] 결과 `_dashboard/live_probe_<돌린날>.json`(회차마다 따로 남는다) ·
  *        문항 `_dashboard/loop/pinned/golden_questions.json` ·
  *        배경 `_dashboard/d_standard_2026-09-22/00_WORKLIST.md` L단계
  * ============================================================================
@@ -50,7 +50,17 @@ const R = require('../../../../services/legal_retriever.js');
 
 const HERE = __dirname;
 const QFILE = path.join(HERE, 'pinned', 'golden_questions.json');
-const OUT = path.join(HERE, '..', 'live_probe_2026-09-22.json');
+// ★파일 이름은 **돌린 날짜**로 짓는다 (2026-09-25 고침)
+//   [무슨 일이 있었나] 여기에 `live_probe_2026-09-22.json` 이 박여 있어서, 오늘 다시 돌리자
+//   **9/22 측정 기록이 그 자리에서 덮였다.** 깃에 그 판이 있어 되살렸지만(`git show HEAD:…`),
+//   기록을 재는 도구가 기록을 지우는 꼴이었다. 앞으로는 회차마다 따로 남는다.
+//   `--out <경로>` 로 자리를 지정할 수도 있다.
+// 날짜는 **UTC 기준**으로 적는다 — 이 저장소의 선례가 그렇다(`live_probe_2026-09-22.json` 의
+// 생성 시각이 `2026-09-22T15:42Z`(KST 로는 9/23 00:42)인데 파일 이름은 9-22 다).
+const RUN_DAY = new Date().toISOString().slice(0, 10);
+const OUT = process.argv.includes('--out')
+    ? process.argv[process.argv.indexOf('--out') + 1]
+    : path.join(HERE, '..', `live_probe_${RUN_DAY}.json`);
 
 // P-1·P-2 로 확정한 오기가 든 쪽 — 실제로 근거로 뽑히는지 본다(L-6).
 // ⚠쪽 식별자는 `p.file` 이고 **폴더 접두사가 없다**(`수산업협동조합법__합병_…`).

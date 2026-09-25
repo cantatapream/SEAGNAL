@@ -5404,7 +5404,11 @@ module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
   readPage,
   // 2026-09-25 결심 4-5ⓐ: 「변경 이력」을 점수에서 빼는 자. 검사(test_score_body)가 **생산 함수를**
   // 그대로 불러 고정한다(L-136 — 검사가 제 사본을 만들면 둘이 갈린다).
-  stripHistory, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+  stripHistory, loadGlossary, glossaryExpand,
+  // 2026-09-25 일감 L-2: 사전의 `statutes/…` 꼴을 {kind,file} 로 바꾸는 **생산 규칙**.
+  //   탐침(`glossary_route_probe.js`)이 제 사본을 만들면 자와 실물이 갈린다(L-136) —
+  //   실제로 처음에 사본을 써서 「가리키는 쪽이 색인에 없다 10건」이라는 **허수**를 냈다.
+  normalizeSlug, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   // 2026-09-22 P-19: 합계 상한. 검사 도구가 **생산과 같은 값**을 보고 재려고 내보낸다(L-136).
   CONTEXT_MAX_CHARS, MIN_BODY_CHARS, MAX_BODY_CHARS, MID_BODY_CHARS, TAIL_BODY_CHARS,

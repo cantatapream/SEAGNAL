@@ -1,0 +1,10422 @@
+{
+ "생성": "2026-09-25T20:12:28.639Z",
+ "사전 줄": 399,
+ "별칭(질문) 수": 944,
+ "갈래": {
+  "①✅②✅": 944,
+  "①✅②❌": 0,
+  "①❌②✅": 0,
+  "①❌②❌": 0,
+  "가리키는 쪽이 색인에 없다": 0
+ },
+ "②에서 적중 순위 중앙값": 1,
+ "rows": [
+  {
+   "term": "해루질",
+   "want": [
+    "activity_해루질"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "해루",
+   "want": [
+    "activity_해루질"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "갯벌체험",
+   "want": [
+    "activity_해루질"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "맨손어업",
+   "want": [
+    "activity_해루질"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "폐각",
+   "want": [
+    "폐기물관리법__수산부산물조개껍데기투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "조개껍데기",
+   "want": [
+    "폐기물관리법__수산부산물조개껍데기투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "전복껍데기",
+   "want": [
+    "폐기물관리법__수산부산물조개껍데기투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "굴껍데기",
+   "want": [
+    "폐기물관리법__수산부산물조개껍데기투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "폐그물",
+   "want": [
+    "폐기물관리법__수산부산물조개껍데기투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "바다에 쓰레기",
+   "want": [
+    "폐기물관리법__수산부산물조개껍데기투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "기름통 버림",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지",
+    "해양환경관리법__오염물질배출신고와방제조치",
+    "유류오염손해배상보장법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "폐유 버림",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지",
+    "해양환경관리법__오염물질배출신고와방제조치",
+    "유류오염손해배상보장법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "배에서 기름 새는 것 신고",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지",
+    "해양환경관리법__오염물질배출신고와방제조치",
+    "유류오염손해배상보장법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "기름 유출 신고",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지",
+    "해양환경관리법__오염물질배출신고와방제조치",
+    "유류오염손해배상보장법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "유조선 사고",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지",
+    "해양환경관리법__오염물질배출신고와방제조치",
+    "유류오염손해배상보장법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "배 기름유출 배상",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지",
+    "해양환경관리법__오염물질배출신고와방제조치",
+    "유류오염손해배상보장법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "물양장",
+   "want": [
+    "어촌ㆍ어항법__어항시설사용점용허가",
+    "공유수면관리및매립에관한법률__점용사용허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "물양장 접안",
+   "want": [
+    "어촌ㆍ어항법__어항시설사용점용허가",
+    "공유수면관리및매립에관한법률__점용사용허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "소형선 부두",
+   "want": [
+    "어촌ㆍ어항법__어항시설사용점용허가",
+    "공유수면관리및매립에관한법률__점용사용허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "안벽에 배 대기",
+   "want": [
+    "어촌ㆍ어항법__어항시설사용점용허가",
+    "공유수면관리및매립에관한법률__점용사용허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배낚시",
+   "want": [
+    "낚시관리및육성법__낚시어선업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "낚시배",
+   "want": [
+    "낚시관리및육성법__낚시어선업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선상낚시",
+   "want": [
+    "낚시관리및육성법__낚시어선업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "낚싯배",
+   "want": [
+    "낚시관리및육성법__낚시어선업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "음주운항",
+   "want": [
+    "해상교통안전법__음주운항조타"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "술먹고 배운전",
+   "want": [
+    "해상교통안전법__음주운항조타"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "뱃술",
+   "want": [
+    "해상교통안전법__음주운항조타"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해상음주운전",
+   "want": [
+    "해상교통안전법__음주운항조타"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "뱃길",
+   "want": [
+    "해상교통안전법__해상항법충돌예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "항로위반",
+   "want": [
+    "해상교통안전법__해상항법충돌예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "뱃길양보",
+   "want": [
+    "해상교통안전법__해상항법충돌예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "우측통항",
+   "want": [
+    "해상교통안전법__해상항법충돌예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "피항",
+   "want": [
+    "해상교통안전법__해상항법충돌예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "마주보고 지나가기",
+   "want": [
+    "해상교통안전법__해상항법충돌예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "출항통제",
+   "want": [
+    "해상교통안전법__선박출항통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "풍랑주의보 배못뜸",
+   "want": [
+    "해상교통안전법__선박출항통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "기상특보 출항금지",
+   "want": [
+    "해상교통안전법__선박출항통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "파도 세서 못나감",
+   "want": [
+    "해상교통안전법__선박출항통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "스쿠버금지구역",
+   "want": [
+    "해상교통안전법__해상교통장애수중레저"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "다이빙금지",
+   "want": [
+    "해상교통안전법__해상교통장애수중레저"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 스킨스쿠버",
+   "want": [
+    "해상교통안전법__해상교통장애수중레저"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 7,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "윈드서핑 금지",
+   "want": [
+    "해상교통안전법__해상교통장애수중레저"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "항로에 그물",
+   "want": [
+    "해상교통안전법__해상교통장애수중레저"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "뱃길 어구투기",
+   "want": [
+    "해상교통안전법__해상교통장애수중레저"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "항로 선박방치",
+   "want": [
+    "해상교통안전법__해상교통장애수중레저"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "정선명령",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__외국어선벌칙몰수담보금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "담보금",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__외국어선벌칙몰수담보금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "특정금지구역",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__특정금지구역과무허가어업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "입어료",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__입어료와허가어업규모"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 용도지역",
+   "want": [
+    "해양공간계획및관리에관한법률__해양용도구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 지도",
+   "want": [
+    "해양공간계획및관리에관한법률__해양용도구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "내 어장 용도구역 조회",
+   "want": [
+    "해양공간계획및관리에관한법률__해양용도구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "어업활동보호구역",
+   "want": [
+    "해양공간계획및관리에관한법률__어업활동보호구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "내 어장 보호구역인지",
+   "want": [
+    "해양공간계획및관리에관한법률__어업활동보호구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "해양관광구역",
+   "want": [
+    "해양공간계획및관리에관한법률__해양관광구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "낚시공원 구역",
+   "want": [
+    "해양공간계획및관리에관한법률__해양관광구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 레저구역",
+   "want": [
+    "해양공간계획및관리에관한법률__해양관광구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 개발 협의",
+   "want": [
+    "해양공간계획및관리에관한법률__해양공간적합성협의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해상풍력 입지 협의",
+   "want": [
+    "해양공간계획및관리에관한법률__해양공간적합성협의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "해양공간적합성협의",
+   "want": [
+    "해양공간계획및관리에관한법률__해양공간적합성협의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "해양공간정보",
+   "want": [
+    "해양공간계획및관리에관한법률__해양공간정보체계와정보공개"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 정보 공개",
+   "want": [
+    "해양공간계획및관리에관한법률__해양공간정보체계와정보공개"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "해양공간 지도 조회",
+   "want": [
+    "해양공간계획및관리에관한법률__해양공간정보체계와정보공개"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 탐사",
+   "want": [
+    "해양과학조사법__핵심정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 36,
+   "targetMissing": false
+  },
+  {
+   "term": "해양조사선",
+   "want": [
+    "해양과학조사법__핵심정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "외국 조사선박 목격",
+   "want": [
+    "해양과학조사법__핵심정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "해저 탐사",
+   "want": [
+    "해양과학조사법__핵심정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "외국 조사선 허가",
+   "want": [
+    "해양과학조사법__외국인해양과학조사허가동의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "해양조사 허가·동의 신청",
+   "want": [
+    "해양과학조사법__외국인해양과학조사허가동의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "EEZ 조사 동의",
+   "want": [
+    "해양과학조사법__외국인해양과학조사허가동의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "조사선 무단 기항",
+   "want": [
+    "해양과학조사법__조사계획서및기항계획서작성제출"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "외국 조사선 입항 허가",
+   "want": [
+    "해양과학조사법__조사계획서및기항계획서작성제출"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "무허가 해양조사 단속",
+   "want": [
+    "해양과학조사법__불법조사단속"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "조사선 나포",
+   "want": [
+    "해양과학조사법__불법조사단속"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "카페리 보안검색",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__국제항해여객선보안검색"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "국제여객선 몸수색",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__국제항해여객선보안검색"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "부관훼리 검색",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__국제항해여객선보안검색"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 드론 촬영",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만시설이용자의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "부두 무단출입",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만시설이용자의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 사진 찍으면 안됨",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만시설이용자의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "위해물품 반입금지",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만시설이용자의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "ISPS 증서",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__국제선박보안증서"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "국제선박보안증서",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__국제선박보안증서"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "항만시설적합확인서",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__국제선박보안증서"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 출입증",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만시설출입증및출입절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "부두 출입증",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만시설출입증및출입절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 상시출입증 발급",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만시설출입증및출입절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "항만시설보안료",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만시설보안료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "부두 이용료에 보안료",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만시설보안료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 CCTV",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__폐쇄회로텔레비전설치운영"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "부두 폐쇄회로 텔레비전",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__폐쇄회로텔레비전설치운영"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "보안등급 3단계",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__보안등급체계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 보안경계 상향",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__보안등급체계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "이동식 해상구조물",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__정의와적용범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "이동식 해양구조물 (동의어 — 법 제3조①1호다목=\"해상\", 시행규칙 별표7=\"해양\", 같은 대상)",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__정의와적용범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 36,
+   "targetMissing": false
+  },
+  {
+   "term": "이동식 해양구조물",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__정의와적용범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "외국배 항만국통제",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만국통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "외국적선 출항정지·입항거부",
+   "want": [
+    "국제항해선박및항만시설의보안에관한법률__항만국통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "강제도선",
+   "want": [
+    "도선법__강제도선"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "강제도선 면제",
+   "want": [
+    "도선법__강제도선"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "파일럿",
+   "want": [
+    "도선법__도선사면허등급과자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "PILOT",
+   "want": [
+    "도선법__도선사면허등급과자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "도선사",
+   "want": [
+    "도선법__도선사면허등급과자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "도선료",
+   "want": [
+    "도선법__도선료와도선선료및도선약관"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "뱃삯(도선)",
+   "want": [
+    "도선법__도선료와도선선료및도선약관"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "파일럿비",
+   "want": [
+    "도선법__도선료와도선선료및도선약관"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "안내료",
+   "want": [
+    "도선법__도선료와도선선료및도선약관"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "뱃삯",
+   "want": [
+    "도선법__도선료와도선선료및도선약관"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "도선구",
+   "want": [
+    "도선법__도선구와도선구간"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "파일럿존",
+   "want": [
+    "도선법__도선구와도선구간"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "도선구역",
+   "want": [
+    "도선법__도선구와도선구간"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "도선사 되는 법",
+   "want": [
+    "도선법__도선수습생전형시험과도선사시험"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "도선사 시험",
+   "want": [
+    "도선법__도선수습생전형시험과도선사시험"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "도선수습생",
+   "want": [
+    "도선법__도선수습생전형시험과도선사시험"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "과적",
+   "want": [
+    "선박안전법__만재흘수선복원성"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "과승",
+   "want": [
+    "선박안전법__만재흘수선복원성"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "흘수선",
+   "want": [
+    "선박안전법__만재흘수선복원성"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "만재선",
+   "want": [
+    "선박안전법__만재흘수선복원성"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "배 검사",
+   "want": [
+    "선박안전법__선박검사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선박검사증서",
+   "want": [
+    "선박안전법__선박검사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "내 배도 검사 받아야 하나",
+   "want": [
+    "선박안전법__선박검사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "안전투자 공시제",
+   "want": [
+    "해사안전기본법__안전투자공시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "해운사 안전투자 공개",
+   "want": [
+    "해사안전기본법__안전투자공시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "선사 안전지출 공시",
+   "want": [
+    "해사안전기본법__안전투자공시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "선박안전등급 공개",
+   "want": [
+    "해사안전기본법__선박안전도정보공표"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "사고선박 명단",
+   "want": [
+    "해사안전기본법__선박안전도정보공표"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "사고많은 배 조회",
+   "want": [
+    "해사안전기본법__선박안전도정보공표"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "위험한 배 명단",
+   "want": [
+    "해사안전기본법__선박안전도정보공표"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "해양안전의 날",
+   "want": [
+    "해사안전기본법__해양안전교육문화진흥"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "국가 해사안전 기본계획",
+   "want": [
+    "해사안전기본법__국가해사안전기본계획"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "해양안전 5개년 계획",
+   "want": [
+    "해사안전기본법__국가해사안전기본계획"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "뱃사람 자격증",
+   "want": [
+    "선박직원법__해기사면허",
+    "선박직원법__소형선박조종사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "배 몰 자격",
+   "want": [
+    "선박직원법__해기사면허",
+    "선박직원법__소형선박조종사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선장 자격증",
+   "want": [
+    "선박직원법__해기사면허",
+    "선박직원법__소형선박조종사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배 운전면허",
+   "want": [
+    "선박직원법__해기사면허",
+    "선박직원법__소형선박조종사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "선박 면허",
+   "want": [
+    "선박직원법__해기사면허",
+    "선박직원법__소형선박조종사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해기사 면허",
+   "want": [
+    "선박직원법__해기사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "소형선박 조종사",
+   "want": [
+    "선박직원법__해기사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "면허증 빌려줌",
+   "want": [
+    "선박직원법__해기사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "5톤 미만 면허",
+   "want": [
+    "선박직원법__해기사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해기사법",
+   "want": [
+    "선박직원법__해기사면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배에 선장 몇 급",
+   "want": [
+    "선박직원법__승무기준"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "승무기준",
+   "want": [
+    "선박직원법__승무기준"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "해기사 음주 면허취소",
+   "want": [
+    "선박직원법__해기사음주행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "밸러스트수",
+   "want": [
+    "선박평형수(船舶平衡水)관리법__선박평형수배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 4,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "평형수",
+   "want": [
+    "선박평형수(船舶平衡水)관리법__선박평형수배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "BWMS",
+   "want": [
+    "선박평형수(船舶平衡水)관리법__형식승인및검정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "밸러스트 처리장치",
+   "want": [
+    "선박평형수(船舶平衡水)관리법__형식승인및검정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 6,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "갯바위채취",
+   "want": [
+    "수산자원관리법__비어업인포획채취제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "스쿠버 채취",
+   "want": [
+    "수산자원관리법__비어업인포획채취제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "금어기",
+   "want": [
+    "수산자원관리법__금어기금지체장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "금지체장",
+   "want": [
+    "수산자원관리법__금어기금지체장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "TAC",
+   "want": [
+    "수산자원관리법__총허용어획량"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "바다생물 유전자원",
+   "want": [
+    "해양수산생명자원의확보ㆍ관리및이용등에관한법률__정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "나고야 의정서",
+   "want": [
+    "해양수산생명자원의확보ㆍ관리및이용등에관한법률__국외반출승인"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 4,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "해양 ABS",
+   "want": [
+    "해양수산생명자원의확보ㆍ관리및이용등에관한법률__국외반출승인"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "생물탐사",
+   "want": [
+    "해양수산생명자원의확보ㆍ관리및이용등에관한법률__외국인등획득허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "상괭이",
+   "want": [
+    "해양생태계의보전및관리에관한법률__해양보호생물포획금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "바다거북",
+   "want": [
+    "해양생태계의보전및관리에관한법률__해양보호생물포획금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "잘피",
+   "want": [
+    "해양생태계의보전및관리에관한법률__해양보호생물포획금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "거머리말",
+   "want": [
+    "해양생태계의보전및관리에관한법률__해양보호생물포획금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 4,
+   "targetMissing": false
+  },
+  {
+   "term": "그물에 걸린 거북/고래",
+   "want": [
+    "해양생태계의보전및관리에관한법률__해양보호생물포획금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "돌고래 투어",
+   "want": [
+    "해양생태계의보전및관리에관한법률__해양보호생물관찰관광제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "돌고래 관광",
+   "want": [
+    "해양생태계의보전및관리에관한법률__해양보호생물관찰관광제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "독도 출입",
+   "want": [
+    "독도의지속가능한이용에관한법률__독도주변해역사전협의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "독도 상륙",
+   "want": [
+    "독도의지속가능한이용에관한법률__독도주변해역사전협의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "독도 조업",
+   "want": [
+    "독도의지속가능한이용에관한법률__독도주변해역사전협의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "독도 낚시",
+   "want": [
+    "독도의지속가능한이용에관한법률__독도주변해역사전협의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "독도의용수비대",
+   "want": [
+    "독도의지속가능한이용에관한법률__독도의용수비대지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 3,
+   "targetMissing": false
+  },
+  {
+   "term": "어업인",
+   "want": [
+    "수산업ㆍ어촌발전기본법__수산업수산인어업인정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "수산인",
+   "want": [
+    "수산업ㆍ어촌발전기본법__수산업수산인어업인정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "수산인의 날",
+   "want": [
+    "수산업ㆍ어촌발전기본법__수산업수산인어업인정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "어촌뉴딜 대상지",
+   "want": [
+    "수산업ㆍ어촌발전기본법__어촌의정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "기름배 보험",
+   "want": [
+    "유류오염손해배상보장법__강제보험가입"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "P&I 보험",
+   "want": [
+    "유류오염손해배상보장법__강제보험가입"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "IOPC 기금",
+   "want": [
+    "유류오염손해배상보장법__국제기금분담금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "시타델",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__선원대피처"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "해적 보안요원",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__해상특수경비업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "소말리아 해역 통과",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__위험해역통항"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 4,
+   "targetMissing": false
+  },
+  {
+   "term": "무장 경비 배치",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__해상특수경비업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "배 위에 총 반입",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__무기관리반입반출및사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "무기 갖고 승선",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__무기관리반입반출및사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "해적 보안요원 자격",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__해상특수경비원자격및결격사유"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "경호원 자격증",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__해상특수경비원자격및결격사유"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "외국 용역경비업체 이용",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__외국해상특수경비업자영업승인및이용특례"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "외국 시큐리티 고용",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__외국해상특수경비업자영업승인및이용특례"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "해적 신고",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__해적행위피해신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "해적 목격 신고",
+   "want": [
+    "국제항해선박등에대한해적행위피해예방에관한법률__해적행위피해신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "어촌계",
+   "want": [
+    "수산업협동조합법__어촌계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "조합장 선거",
+   "want": [
+    "수산업협동조합법__조합장선거_기부행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 탈퇴",
+   "want": [
+    "수산업협동조합법__조합탈퇴_제명_지분환급"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "조합원 탈퇴",
+   "want": [
+    "수산업협동조합법__조합탈퇴_제명_지분환급"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "조합 제명",
+   "want": [
+    "수산업협동조합법__조합탈퇴_제명_지분환급"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "지분 환급",
+   "want": [
+    "수산업협동조합법__조합탈퇴_제명_지분환급"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "출자금 돌려받기",
+   "want": [
+    "수산업협동조합법__조합탈퇴_제명_지분환급"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 대출",
+   "want": [
+    "수산업협동조합법__조합사업_신용경제공제사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 예금",
+   "want": [
+    "수산업협동조합법__조합사업_신용경제공제사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 신용사업",
+   "want": [
+    "수산업협동조합법__조합사업_신용경제공제사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 경제사업",
+   "want": [
+    "수산업협동조합법__조합사업_신용경제공제사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "위탁판매",
+   "want": [
+    "수산업협동조합법__조합사업_신용경제공제사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "준조합원",
+   "want": [
+    "수산업협동조합법__비조합원_준조합원_사업이용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "비조합원 수협 이용",
+   "want": [
+    "수산업협동조합법__비조합원_준조합원_사업이용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 공제",
+   "want": [
+    "수산업협동조합법__공제사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "어선공제",
+   "want": [
+    "수산업협동조합법__공제사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "양식수산물재해공제",
+   "want": [
+    "수산업협동조합법__공제사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "공제 보험",
+   "want": [
+    "수산업협동조합법__공제사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "조합장 결격사유",
+   "want": [
+    "수산업협동조합법__임원결격사유_해임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "임원 자격정지",
+   "want": [
+    "수산업협동조합법__임원결격사유_해임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "임원 해임",
+   "want": [
+    "수산업협동조합법__임원결격사유_해임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 업무정지",
+   "want": [
+    "수산업협동조합법__감독_경영지도_설립인가취소"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 경영지도",
+   "want": [
+    "수산업협동조합법__감독_경영지도_설립인가취소"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "조합 인가취소",
+   "want": [
+    "수산업협동조합법__감독_경영지도_설립인가취소"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "조합장 배임",
+   "want": [
+    "수산업협동조합법__벌칙_배임횡령_과태료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "조합 횡령",
+   "want": [
+    "수산업협동조합법__벌칙_배임횡령_과태료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 등기부정",
+   "want": [
+    "수산업협동조합법__벌칙_배임횡령_과태료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "조합공동사업법인",
+   "want": [
+    "수산업협동조합법__조합공동사업법인"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "수산물 유통법인",
+   "want": [
+    "수산업협동조합법__조합공동사업법인"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 16,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "수협은행",
+   "want": [
+    "수산업협동조합법__수협은행"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "Sh수협은행",
+   "want": [
+    "수산업협동조합법__수협은행"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "업종별수협",
+   "want": [
+    "수산업협동조합법__업종별수협_수산물가공수협"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "원양수협",
+   "want": [
+    "수산업협동조합법__업종별수협_수산물가공수협"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "수산물가공수협",
+   "want": [
+    "수산업협동조합법__업종별수협_수산물가공수협"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "우선출자",
+   "want": [
+    "수산업협동조합법__우선출자_수산금융채권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "수산금융채권",
+   "want": [
+    "수산업협동조합법__우선출자_수산금융채권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "조합 합병",
+   "want": [
+    "수산업협동조합법__합병_분할_해산_청산"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "조합 해산",
+   "want": [
+    "수산업협동조합법__합병_분할_해산_청산"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 청산",
+   "want": [
+    "수산업협동조합법__합병_분할_해산_청산"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "종묘",
+   "want": [
+    "수산종자산업육성법__정의허브"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "씨앗고기",
+   "want": [
+    "수산종자산업육성법__정의허브"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "종패",
+   "want": [
+    "수산종자산업육성법__정의허브"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "치어",
+   "want": [
+    "수산종자산업육성법__정의허브"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "치패",
+   "want": [
+    "수산종자산업육성법__정의허브"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "가두리 종묘장",
+   "want": [
+    "수산종자산업육성법__수산종자생산업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "서해 5도",
+   "want": [
+    "서해5도지원특별법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "연평도 포격 지원",
+   "want": [
+    "서해5도지원특별법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "정주생활지원금",
+   "want": [
+    "서해5도지원특별법__정주생활지원금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "서해5도 거주지원금",
+   "want": [
+    "서해5도지원특별법__정주생활지원금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "원양어업",
+   "want": [
+    "원양산업발전법__원양어업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "참치배",
+   "want": [
+    "원양산업발전법__원양어업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "원양선",
+   "want": [
+    "원양산업발전법__원양어업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "IUU",
+   "want": [
+    "원양산업발전법__IUU중대위반"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "전재",
+   "want": [
+    "원양산업발전법__IUU중대위반"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "옵서버",
+   "want": [
+    "원양산업발전법__IUU중대위반"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "조업구역",
+   "want": [
+    "원양산업발전법__허가제한및조업구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "태평양·대서양·인도양 조업",
+   "want": [
+    "원양산업발전법__허가제한및조업구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "원양어업 정지",
+   "want": [
+    "원양산업발전법__허가제한및조업구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해외현지법인 원양어업",
+   "want": [
+    "원양산업발전법__해외합작및관련사업신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "참치 가공사업 신고",
+   "want": [
+    "원양산업발전법__해외합작및관련사업신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "원양수산물 유통사업 신고",
+   "want": [
+    "원양산업발전법__해외합작및관련사업신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 5,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "참치배 입항신고",
+   "want": [
+    "원양산업발전법__항만국검색및입항신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "어획증명서",
+   "want": [
+    "원양산업발전법__항만국검색및입항신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "항만국 검색",
+   "want": [
+    "원양산업발전법__항만국검색및입항신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "VMS",
+   "want": [
+    "원양산업발전법__어선위치추적장치"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "위치추적기",
+   "want": [
+    "원양산업발전법__어선위치추적장치"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "조업위치 보고장치",
+   "want": [
+    "원양산업발전법__어선위치추적장치"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "양륙량 보고",
+   "want": [
+    "원양산업발전법__조업실적양륙전재보고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "전재 허가",
+   "want": [
+    "원양산업발전법__조업실적양륙전재보고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "조업일지 보고",
+   "want": [
+    "원양산업발전법__조업실적양륙전재보고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "어획할당량",
+   "want": [
+    "원양산업발전법__어획할당량배분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "쿼터 배분",
+   "want": [
+    "원양산업발전법__어획할당량배분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 5,
+   "targetMissing": false
+  },
+  {
+   "term": "블랙리스트 선박",
+   "want": [
+    "원양산업발전법__고위험군선박특별관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "IUU 등재선박",
+   "want": [
+    "원양산업발전법__고위험군선박특별관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "시험조업",
+   "want": [
+    "원양산업발전법__시험연구교습어업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "새 어장 개발 조업",
+   "want": [
+    "원양산업발전법__시험연구교습어업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "원양어업 과징금",
+   "want": [
+    "원양산업발전법__과징금처분절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "원양어선 대체건조 지원",
+   "want": [
+    "원양산업발전법__원양산업육성지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "원양 보조금·융자",
+   "want": [
+    "원양산업발전법__원양산업육성지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "원양 세금감면",
+   "want": [
+    "원양산업발전법__원양산업육성지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "원양산업협회",
+   "want": [
+    "원양산업발전법__원양산업협회"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "원양어업 신고처",
+   "want": [
+    "원양산업발전법__소관기관및신고처"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "동해어업관리단",
+   "want": [
+    "원양산업발전법__소관기관및신고처"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "유료낚시터",
+   "want": [
+    "낚시관리및육성법__낚시터업허가등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 1,
+   "targetMissing": false
+  },
+  {
+   "term": "두족류",
+   "want": [
+    "낚시관리및육성법__수면금지행위와포획물판매"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "낚시로 잡은 물고기 판매",
+   "want": [
+    "낚시관리및육성법__수면금지행위와포획물판매"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "선착장 자리세",
+   "want": [
+    "어촌ㆍ어항법__어항시설사용점용허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "배 대는 허가",
+   "want": [
+    "어촌ㆍ어항법__어항시설사용점용허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "해도",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "바다지도",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "전자해도",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "항해지도",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "조석표",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "물때표",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "물때자료",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "등대표",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "항로지",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "관측부이 훼손",
+   "want": [
+    "해양조사와해양정보활용에관한법률__국가해양기준점관측망보호"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "기준점 말뚝 뽑음",
+   "want": [
+    "해양조사와해양정보활용에관한법률__국가해양기준점관측망보호"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "측량 표지 파손",
+   "want": [
+    "해양조사와해양정보활용에관한법률__국가해양기준점관측망보호"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "바다이름 짓기",
+   "want": [
+    "해양조사와해양정보활용에관한법률__해양지명제정과변경"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "해저지형 이름 신청",
+   "want": [
+    "해양조사와해양정보활용에관한법률__해양지명제정과변경"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "해도 불법복제",
+   "want": [
+    "해양조사와해양정보활용에관한법률__해양정보간행물복제승인"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "해도 무단판매",
+   "want": [
+    "해양조사와해양정보활용에관한법률__해양정보간행물복제승인"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "방파제 낚시 자리 차지",
+   "want": [
+    "어촌ㆍ어항법__어항구역금지행위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "어항에 폐그물 버림",
+   "want": [
+    "어촌ㆍ어항법__어항구역금지행위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "국가어항",
+   "want": [
+    "어촌ㆍ어항법__어항의정의와종류"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "지방어항",
+   "want": [
+    "어촌ㆍ어항법__어항의정의와종류"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "바다해설사",
+   "want": [
+    "어촌ㆍ어항법__어촌관광활성화와바다해설사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "어촌 관광 해설",
+   "want": [
+    "어촌ㆍ어항법__어촌관광활성화와바다해설사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "한국어촌어항공단",
+   "want": [
+    "어촌ㆍ어항법__한국어촌어항공단"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "어항공단",
+   "want": [
+    "어촌ㆍ어항법__한국어촌어항공단"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "어촌·어항재생사업",
+   "want": [
+    "어촌ㆍ어항법__어촌어항재생사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "어촌뉴딜300 후속사업",
+   "want": [
+    "어촌ㆍ어항법__어촌어항재생사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "방파제 낚시(항만)",
+   "want": [
+    "항만법__금지행위및출입통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 쓰레기 투기",
+   "want": [
+    "항만법__금지행위및출입통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "방파제 낚시",
+   "want": [
+    "항만법__금지행위및출입통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "부두 사용",
+   "want": [
+    "항만법__항만시설사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "갑문",
+   "want": [
+    "항만법__시설장비검사및행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "하역장비",
+   "want": [
+    "항만법__시설장비검사및행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "굴껍데기",
+   "want": [
+    "수산부산물재활용촉진에관한법률__수산부산물정의적용대상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "조개껍데기",
+   "want": [
+    "수산부산물재활용촉진에관한법률__수산부산물정의적용대상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "전복껍데기",
+   "want": [
+    "수산부산물재활용촉진에관한법률__수산부산물정의적용대상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "패각",
+   "want": [
+    "수산부산물재활용촉진에관한법률__수산부산물정의적용대상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "굴패각 처리업체",
+   "want": [
+    "수산부산물재활용촉진에관한법률__수산부산물처리업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "원산지 표시",
+   "want": [
+    "농수산물의원산지표시등에관한법률__원산지거짓표시위장판매"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "원산지 속임",
+   "want": [
+    "농수산물의원산지표시등에관한법률__원산지거짓표시위장판매"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "국산 둔갑",
+   "want": [
+    "농수산물의원산지표시등에관한법률__원산지거짓표시위장판매"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "횟집 원산지",
+   "want": [
+    "농수산물의원산지표시등에관한법률__음식점원산지표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "활어 원산지",
+   "want": [
+    "농수산물의원산지표시등에관한법률__음식점원산지표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "광어",
+   "want": [
+    "농수산물의원산지표시등에관한법률__수산물원산지표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "광어회 원산지 (표준명: 넙치)",
+   "want": [
+    "농수산물의원산지표시등에관한법률__수산물원산지표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "광어회 원산지",
+   "want": [
+    "농수산물의원산지표시등에관한법률__수산물원산지표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "우럭",
+   "want": [
+    "농수산물의원산지표시등에관한법률__수산물원산지표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "우럭회 원산지 (표준명: 조피볼락)",
+   "want": [
+    "농수산물의원산지표시등에관한법률__수산물원산지표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "우럭회 원산지",
+   "want": [
+    "농수산물의원산지표시등에관한법률__수산물원산지표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "원산지 신고 포상금",
+   "want": [
+    "농수산물의원산지표시등에관한법률__원산지표시보칙(심의회_명예감시원_포상금_정보제공)"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "원산지 위반 신고하면 얼마",
+   "want": [
+    "농수산물의원산지표시등에관한법률__원산지표시보칙(심의회_명예감시원_포상금_정보제공)"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "외국인 선원",
+   "want": [
+    "출입국관리법__외국인승무원상륙과선박운수업자책임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 상륙증",
+   "want": [
+    "출입국관리법__외국인승무원상륙과선박운수업자책임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "밀입국 배 대줌",
+   "want": [
+    "출입국관리법__외국인승무원상륙과선박운수업자책임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "외국인 어선원 계절근로",
+   "want": [
+    "출입국관리법__외국인승무원상륙과선박운수업자책임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "갯벌체험",
+   "want": [
+    "연안사고예방에관한법률__연안출입통제구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 7,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "갯바위낚시(연안)",
+   "want": [
+    "연안사고예방에관한법률__연안출입통제구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "너울성 파도",
+   "want": [
+    "연안사고예방에관한법률__연안출입통제구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "테트라포드 출입금지",
+   "want": [
+    "연안사고예방에관한법률__연안출입통제구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "갯바위낚시",
+   "want": [
+    "연안사고예방에관한법률__연안출입통제구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "스노클링",
+   "want": [
+    "연안사고예방에관한법률__연안체험활동신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "스킨스쿠버 체험",
+   "want": [
+    "연안사고예방에관한법률__연안체험활동신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 7,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "갯벌체험 신고",
+   "want": [
+    "연안사고예방에관한법률__연안체험활동신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "연안체험 프로그램 사업자",
+   "want": [
+    "연안사고예방에관한법률__연안체험활동안전관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "체험활동 안전관리요원",
+   "want": [
+    "연안사고예방에관한법률__연안체험활동안전관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "연안체험 안전교육",
+   "want": [
+    "연안사고예방에관한법률__안전교육위탁기관지정및처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "위탁기관 안전교육 수료증",
+   "want": [
+    "연안사고예방에관한법률__안전교육위탁기관지정및처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "체험활동 보험 가입",
+   "want": [
+    "연안사고예방에관한법률__보험등가입의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "배상책임보험(연안체험)",
+   "want": [
+    "연안사고예방에관한법률__보험등가입의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배상책임보험",
+   "want": [
+    "연안사고예방에관한법률__보험등가입의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "위험표지판",
+   "want": [
+    "연안사고예방에관한법률__연안사고안전관리규정과위험구역관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "위험알림판",
+   "want": [
+    "연안사고예방에관한법률__연안사고안전관리규정과위험구역관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 3,
+   "targetMissing": false
+  },
+  {
+   "term": "관심·주의보·경보(연안)",
+   "want": [
+    "연안사고예방에관한법률__연안사고안전관리규정과위험구역관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "인명구조함",
+   "want": [
+    "연안사고예방에관한법률__연안사고안전관리규정과위험구역관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "관심·주의보·경보",
+   "want": [
+    "연안사고예방에관한법률__연안사고안전관리규정과위험구역관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "무인도 안전관리체계",
+   "want": [
+    "연안사고예방에관한법률__무인도서안전관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "긴급신고망(무인도)",
+   "want": [
+    "연안사고예방에관한법률__무인도서안전관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "긴급신고망",
+   "want": [
+    "연안사고예방에관한법률__무인도서안전관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "도서개발 촉진법",
+   "want": [
+    "섬발전촉진법__개발대상섬지정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "지정섬",
+   "want": [
+    "섬발전촉진법__개발대상섬지정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "섬진흥법",
+   "want": [
+    "statutes/섬발전촉진법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 5,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "섬발전법",
+   "want": [
+    "statutes/섬발전촉진법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 8,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "섬의 날",
+   "want": [
+    "statutes/섬발전촉진법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 7,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "여객선 안 다니는 섬 배편",
+   "want": [
+    "섬발전촉진법__교통편의증진지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "지자체 배 타기",
+   "want": [
+    "섬발전촉진법__교통편의증진지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "섬 대체운송",
+   "want": [
+    "섬발전촉진법__교통편의증진지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "바다속 경관지구",
+   "want": [
+    "해양수산발전기본법__해중경관지구"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "해수부 기본법",
+   "want": [
+    "해양수산발전기본법__해양수산발전기본계획"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해양수산 기본계획",
+   "want": [
+    "해양수산발전기본법__해양수산발전기본계획"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배 등록",
+   "want": [
+    "선박법__선박등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "선박국적증서",
+   "want": [
+    "선박법__선박등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "소형선박",
+   "want": [
+    "선박법__선박등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "톤수 재는 곳",
+   "want": [
+    "선박법__선박톤수측정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "수상호텔",
+   "want": [
+    "선박법__적용제외선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "수상식당",
+   "want": [
+    "선박법__적용제외선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "국기 안 달면",
+   "want": [
+    "선박법__국기게양과선박표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "배에 태극기 표시",
+   "want": [
+    "선박법__국기게양과선박표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "불개항장 기항",
+   "want": [
+    "선박법__불개항장기항과국내운항금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "미개항 항구",
+   "want": [
+    "선박법__불개항장기항과국내운항금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "외국배 국내운송(카보타지)",
+   "want": [
+    "선박법__불개항장기항과국내운항금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 1,
+   "targetMissing": false
+  },
+  {
+   "term": "외국배 국내운송",
+   "want": [
+    "선박법__불개항장기항과국내운항금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "임시선박국적증서",
+   "want": [
+    "선박법__임시선박국적증서"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "선적항 아직 없는 배",
+   "want": [
+    "선박법__임시선박국적증서"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "외국서 산 배",
+   "want": [
+    "선박법__임시선박국적증서"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "톤수 측정비",
+   "want": [
+    "선박법__수수료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배 등록비용",
+   "want": [
+    "선박법__수수료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "선박국적증서 발급 수수료",
+   "want": [
+    "선박법__수수료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 36,
+   "targetMissing": false
+  },
+  {
+   "term": "갑선박",
+   "want": [
+    "선박법__수수료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "을선박",
+   "want": [
+    "선박법__수수료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "개인 레저보트도 상법 적용",
+   "want": [
+    "선박법__상법준용과공무원의제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배 팔았는데 뇌물",
+   "want": [
+    "선박법__상법준용과공무원의제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "조선지",
+   "want": [
+    "선박법__선박등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "배 건조한 곳",
+   "want": [
+    "선박법__선박등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "선박원부 조선지·조선자",
+   "want": [
+    "선박법__선박등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "어선원보험",
+   "want": [
+    "어선원및어선재해보상보험법__어선원보험가입과신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "선원보험",
+   "want": [
+    "어선원및어선재해보상보험법__어선원보험가입과신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "수협 어선원보험",
+   "want": [
+    "어선원및어선재해보상보험법__어선원보험가입과신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "배 등록하면 자동가입",
+   "want": [
+    "어선원및어선재해보상보험법__어선원보험가입과신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "어선보험",
+   "want": [
+    "어선원및어선재해보상보험법__어선보험선체재해"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "선체보험",
+   "want": [
+    "어선원및어선재해보상보험법__어선보험선체재해"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "배 침몰 보험",
+   "want": [
+    "어선원및어선재해보상보험법__어선보험선체재해"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "배 사고 보험금",
+   "want": [
+    "어선원및어선재해보상보험법__어선보험선체재해"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "조업 중 다치면 얼마 받나",
+   "want": [
+    "어선원및어선재해보상보험법__어선원재해보험급여"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "어선원 요양급여",
+   "want": [
+    "어선원및어선재해보상보험법__어선원재해보험급여"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "유족급여",
+   "want": [
+    "어선원및어선재해보상보험법__어선원재해보험급여"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "행방불명급여",
+   "want": [
+    "어선원및어선재해보상보험법__어선원재해보험급여"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "소지품 잃어버림 보상",
+   "want": [
+    "어선원및어선재해보상보험법__어선원재해보험급여"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "어선 보험료 얼마",
+   "want": [
+    "어선원및어선재해보상보험법__보험료율결정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "어선원보험료율",
+   "want": [
+    "어선원및어선재해보상보험법__보험료율결정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "어선 보험료 안내면",
+   "want": [
+    "어선원및어선재해보상보험법__보험료신고납부와체납징수"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "어선원보험료 체납",
+   "want": [
+    "어선원및어선재해보상보험법__보험료신고납부와체납징수"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "보험료 연체금",
+   "want": [
+    "어선원및어선재해보상보험법__보험료신고납부와체납징수"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "배 폐업했는데 임금 산정",
+   "want": [
+    "어선원및어선재해보상보험법__기준임금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "기준임금",
+   "want": [
+    "어선원및어선재해보상보험법__기준임금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "무보수 가족어선원 임금",
+   "want": [
+    "어선원및어선재해보상보험법__기준임금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "산재 인정되나(어선)",
+   "want": [
+    "어선원및어선재해보상보험법__재해인정기준과직무상직무외구분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "직무상 재해 판단",
+   "want": [
+    "어선원및어선재해보상보험법__재해인정기준과직무상직무외구분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "산재 인정되나",
+   "want": [
+    "어선원및어선재해보상보험법__재해인정기준과직무상직무외구분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "요양 병원 옮기고 싶다(어선)",
+   "want": [
+    "어선원및어선재해보상보험법__요양급여신청과전원재요양"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "재요양 신청",
+   "want": [
+    "어선원및어선재해보상보험법__요양급여신청과전원재요양"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "요양 병원 옮기고 싶다",
+   "want": [
+    "어선원및어선재해보상보험법__요양급여신청과전원재요양"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "어선 보험금 결정 불복",
+   "want": [
+    "어선원및어선재해보상보험법__심사청구와재심사청구"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "재해보상보험 심사청구",
+   "want": [
+    "어선원및어선재해보상보험법__심사청구와재심사청구"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "가해자한테 배상받았는데 어선원보험도",
+   "want": [
+    "어선원및어선재해보상보험법__손해배상과보험급여조정및대위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "어선원보험 부정수급",
+   "want": [
+    "어선원및어선재해보상보험법__손해배상과보험급여조정및대위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "뱃사람 임금",
+   "want": [
+    "선원법__어선원임금과재해보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "보합",
+   "want": [
+    "선원법__어선원임금과재해보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "비율급",
+   "want": [
+    "선원법__어선원임금과재해보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "선장 배 안 지키면",
+   "want": [
+    "선원법__선장의직무와구조의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "배 월급 안 줌",
+   "want": [
+    "선원법__임금지급원칙과체불보호"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 임금 체불",
+   "want": [
+    "선원법__임금지급원칙과체불보호"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "배삯 밀림",
+   "want": [
+    "선원법__임금지급원칙과체불보호"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 최저시급",
+   "want": [
+    "선원법__최저임금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 36,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 월급 최저선",
+   "want": [
+    "선원법__최저임금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "선원수첩",
+   "want": [
+    "선원법__선원수첩과신분증명서"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "배 탈 때 신분증",
+   "want": [
+    "선원법__선원수첩과신분증명서"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "선원증",
+   "want": [
+    "선원법__선원수첩과신분증명서"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "배에서 왕따",
+   "want": [
+    "선원법__선내질서와괴롭힘금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "선내 괴롭힘",
+   "want": [
+    "선원법__선내질서와괴롭힘금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "배 안 갑질",
+   "want": [
+    "선원법__선내질서와괴롭힘금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "배에서 부당해고",
+   "want": [
+    "선원법__선원근로계약과해지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "배 계약 갑자기 해지",
+   "want": [
+    "선원법__선원근로계약과해지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "외국항에 선원 버려짐",
+   "want": [
+    "선원법__퇴직금_실업수당_송환수당"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "배 선원 유기",
+   "want": [
+    "선원법__퇴직금_실업수당_송환수당"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "송환 안 해줌",
+   "want": [
+    "선원법__퇴직금_실업수당_송환수당"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "배에서 다치면 보상",
+   "want": [
+    "선원법__재해보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 산재",
+   "want": [
+    "선원법__재해보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 요양비",
+   "want": [
+    "선원법__재해보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 소개소",
+   "want": [
+    "선원법__직업안정과선원관리사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "배 취업 알선비",
+   "want": [
+    "선원법__직업안정과선원관리사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "배 안전교육",
+   "want": [
+    "선원법__선내안전보건과사고예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선내 안전점검",
+   "want": [
+    "선원법__선내안전보건과사고예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 건강진단",
+   "want": [
+    "선원법__선내안전보건과사고예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "배에 몇 명 태워야 하나",
+   "want": [
+    "선원법__승무정원과승무자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 정원",
+   "want": [
+    "선원법__승무정원과승무자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "항해당직 자격",
+   "want": [
+    "선원법__승무정원과승무자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 휴가",
+   "want": [
+    "선원법__유급휴가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "배 타는 사람 유급휴가",
+   "want": [
+    "선원법__유급휴가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "배에서 밥",
+   "want": [
+    "선원법__선내급식"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "선내 급식",
+   "want": [
+    "선원법__선내급식"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "선박조리사",
+   "want": [
+    "선원법__선내급식"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 근무시간",
+   "want": [
+    "선원법__근로시간과휴식시간"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배 타는 사람 근로시간",
+   "want": [
+    "선원법__근로시간과휴식시간"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "배 취업규칙",
+   "want": [
+    "선원법__취업규칙"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "선박회사 사규",
+   "want": [
+    "선원법__취업규칙"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 근로감독",
+   "want": [
+    "선원법__감독과행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 신고",
+   "want": [
+    "선원법__감독과행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배 갑질 신고",
+   "want": [
+    "선원법__감독과행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "국제선박 인증서",
+   "want": [
+    "선원법__해사노동적합증서와외국선박점검"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "MLC 인증",
+   "want": [
+    "선원법__해사노동적합증서와외국선박점검"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "해사노동인증",
+   "want": [
+    "선원법__해사노동적합증서와외국선박점검"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 5,
+   "targetMissing": false
+  },
+  {
+   "term": "선원법 처벌",
+   "want": [
+    "선원법__벌칙과과태료총람"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "선주 처벌",
+   "want": [
+    "선원법__벌칙과과태료총람"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선박회사 벌금",
+   "want": [
+    "선원법__벌칙과과태료총람"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "선원복지센터",
+   "want": [
+    "선원법__한국선원복지고용센터"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 취업 알선기관",
+   "want": [
+    "선원법__한국선원복지고용센터"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "선원고용센터",
+   "want": [
+    "선원법__한국선원복지고용센터"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "회사 망하면 밀린 월급",
+   "want": [
+    "선원법__임금채권보호와서류관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "임금 압류",
+   "want": [
+    "선원법__임금채권보호와서류관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "밀린 임금 시효",
+   "want": [
+    "선원법__임금채권보호와서류관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "체불임금 몇 년",
+   "want": [
+    "선원법__임금채권보호와서류관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "바닷가",
+   "want": [
+    "연안관리법__연안의정의와범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "연안 500미터",
+   "want": [
+    "연안관리법__연안의정의와범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "침식관리구역",
+   "want": [
+    "연안관리법__연안침식관리구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "침식위험구역",
+   "want": [
+    "연안관리법__연안침식관리구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "바다모래 채취",
+   "want": [
+    "연안관리법__연안침식관리구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "바다에 쓰레기 버림",
+   "want": [
+    "해양폐기물및해양오염퇴적물관리법__폐기물해양배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "준설토 바다투기",
+   "want": [
+    "해양폐기물및해양오염퇴적물관리법__폐기물해양배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "폐그물·폐어구 바다에 남김",
+   "want": [
+    "해양폐기물및해양오염퇴적물관리법__해양폐기물수거명령"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "바다청소 사업",
+   "want": [
+    "해양폐기물및해양오염퇴적물관리법__해양폐기물관리업행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해양폐기물 수거업체",
+   "want": [
+    "해양폐기물및해양오염퇴적물관리법__해양폐기물관리업행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "기름 유출",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선저폐수",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "빌지",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "배 안 쓰레기 바다투기",
+   "want": [
+    "해양환경관리법__오염물질해양배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "기름때 청소",
+   "want": [
+    "해양환경관리법__해양환경관리업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "유창청소",
+   "want": [
+    "해양환경관리법__해양환경관리업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "기름 새면 어디 신고",
+   "want": [
+    "해양환경관리법__오염물질배출신고와방제조치"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "마리나",
+   "want": [
+    "statutes/마리나항만의조성및관리등에관한법률"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "요트장",
+   "want": [
+    "마리나항만의조성및관리등에관한법률__마리나업등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "보트 계류장",
+   "want": [
+    "마리나항만의조성및관리등에관한법률__마리나업등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "요트 대여",
+   "want": [
+    "마리나항만의조성및관리등에관한법률__마리나선박대여업안전의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "보트 렌트",
+   "want": [
+    "마리나항만의조성및관리등에관한법률__마리나선박대여업안전의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "보트 정비소",
+   "want": [
+    "마리나항만의조성및관리등에관한법률__마리나선박정비사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "신항만",
+   "want": [
+    "신항만건설촉진법__정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "뉴포트",
+   "want": [
+    "신항만건설촉진법__정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "새 항만",
+   "want": [
+    "신항만건설촉진법__정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "예정지역",
+   "want": [
+    "신항만건설촉진법__예정지역행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "준공 전 사용신고",
+   "want": [
+    "신항만건설촉진법__예정지역행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 5,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "신항만 어장 수용",
+   "want": [
+    "신항만건설촉진법__토지수용및손실보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "신항만 보상",
+   "want": [
+    "신항만건설촉진법__토지수용및손실보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "매립 어장 보상",
+   "want": [
+    "신항만건설촉진법__토지수용및손실보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "신항만 선수금",
+   "want": [
+    "신항만건설촉진법__선수금및토지상환채권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "토지상환채권",
+   "want": [
+    "신항만건설촉진법__선수금및토지상환채권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "조성토지 선분양",
+   "want": [
+    "신항만건설촉진법__선수금및토지상환채권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "신항만 심의위원회",
+   "want": [
+    "신항만건설촉진법__신항만건설심의위원회"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "건축위원회 심의 어디서",
+   "want": [
+    "신항만건설촉진법__신항만건설심의위원회"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 5,
+   "targetMissing": false
+  },
+  {
+   "term": "수상오토바이",
+   "want": [
+    "수상레저안전법__조종면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "제트스키",
+   "want": [
+    "수상레저안전법__조종면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 11,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "모터보트 음주",
+   "want": [
+    "수상레저안전법__주취중조종"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 5,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "카약 음주",
+   "want": [
+    "수상레저안전법__주취중조종"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "SUP",
+   "want": [
+    "수상레저안전법__안전준수의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "패들보드",
+   "want": [
+    "수상레저안전법__안전준수의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "래프팅",
+   "want": [
+    "수상레저안전법__안전준수의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "바나나보트",
+   "want": [
+    "수상레저안전법__수상레저사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 4,
+   "targetMissing": false
+  },
+  {
+   "term": "제트보트 대여업",
+   "want": [
+    "수상레저안전법__수상레저사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "검수",
+   "want": [
+    "항만운송사업법__검수사등자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "검량",
+   "want": [
+    "항만운송사업법__검수사등자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "부두 임대",
+   "want": [
+    "항만운송사업법__부두운영회사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "선박 급유",
+   "want": [
+    "항만운송사업법__항만운송관련사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "배에 물 대기",
+   "want": [
+    "항만운송사업법__항만운송관련사업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "TOC",
+   "want": [
+    "항만운송사업법__부두운영회사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "부두운영계약",
+   "want": [
+    "항만운송사업법__부두운영회사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "화물유치계획 위약금",
+   "want": [
+    "항만운송사업법__부두운영회사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "항만종합서비스업 등록",
+   "want": [
+    "항만운송사업법__항만종합서비스업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 안전교육",
+   "want": [
+    "항만운송사업법__교육훈련"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "하역 안전교육",
+   "want": [
+    "항만운송사업법__교육훈련"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "사업 상속",
+   "want": [
+    "항만운송사업법__권리의무승계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "항만사업 양도·합병",
+   "want": [
+    "항만운송사업법__권리의무승계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "KOMSA",
+   "want": [
+    "한국해양교통안전공단법__설립과조직운영"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "선박검사공단",
+   "want": [
+    "한국해양교통안전공단법__설립과조직운영"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "선박안전기술공단",
+   "want": [
+    "한국해양교통안전공단법__설립과조직운영"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "KIMFT",
+   "want": [
+    "한국해양수산연수원법__설립과조직운영"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 5,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "해양수산연수원",
+   "want": [
+    "한국해양수산연수원법__설립과조직운영"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 36,
+   "targetMissing": false
+  },
+  {
+   "term": "해기사 시험",
+   "want": [
+    "한국해양수산연수원법__해기사시험위탁관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "해양심판",
+   "want": [
+    "해양사고의조사및심판에관한법률__해양사고심판절차와불복"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "아차사고",
+   "want": [
+    "해양사고의조사및심판에관한법률__해양사고와준해양사고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "면허정지(해기)",
+   "want": [
+    "해양사고의조사및심판에관한법률__해기사도선사징계재결"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "면허정지",
+   "want": [
+    "해양사고의조사및심판에관한법률__해기사도선사징계재결"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "블랙박스",
+   "want": [
+    "해양사고의조사및심판에관한법률__증거보전과조사협조"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "항해기록",
+   "want": [
+    "해양사고의조사및심판에관한법률__증거보전과조사협조"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "12해리",
+   "want": [
+    "영해및접속수역법__기선영해접속수역정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "영해선",
+   "want": [
+    "영해및접속수역법__기선영해접속수역정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "영해 경계",
+   "want": [
+    "영해및접속수역법__기선영해접속수역정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "직선기선",
+   "want": [
+    "영해및접속수역법__기선영해접속수역정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "저조선",
+   "want": [
+    "영해및접속수역법__기선영해접속수역정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "썰물선",
+   "want": [
+    "영해및접속수역법__기선영해접속수역정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "무해통항",
+   "want": [
+    "영해및접속수역법__외국선박무해통항저해행위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "24해리",
+   "want": [
+    "영해및접속수역법__기선영해접속수역정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해도",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "조석표",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "등대표",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "항로지",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "항행통보",
+   "want": [
+    "해양조사와해양정보활용에관한법률__항해용간행물과항행통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "관측 부이",
+   "want": [
+    "해양조사와해양정보활용에관한법률__국가해양기준점관측망보호"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "수로측량업체",
+   "want": [
+    "해양조사와해양정보활용에관한법률__해양조사정보업등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "수상구조법",
+   "want": [
+    "수상에서의수색ㆍ구조등에관한법률__조난신고구조의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "조난신고 118",
+   "want": [
+    "수상에서의수색ㆍ구조등에관한법률__조난신고구조의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "뺑소니 배",
+   "want": [
+    "수상에서의수색ㆍ구조등에관한법률__조난신고구조의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "사고 낸 배 도주",
+   "want": [
+    "수상에서의수색ㆍ구조등에관한법률__조난신고구조의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "배 인양",
+   "want": [
+    "수상에서의수색ㆍ구조등에관한법률__구난작업신고보험"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "침몰선 건지기",
+   "want": [
+    "수상에서의수색ㆍ구조등에관한법률__구난작업신고보험"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "인명구조자격",
+   "want": [
+    "수상에서의수색ㆍ구조등에관한법률__수상구조사자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "라이프가드 자격",
+   "want": [
+    "수상에서의수색ㆍ구조등에관한법률__수상구조사자격"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "해경",
+   "want": [
+    "해양경찰법__해양경찰의직무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "해양경찰",
+   "want": [
+    "해양경찰법__해양경찰의직무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "해경 신고",
+   "want": [
+    "해양경찰법__해양경찰의직무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "해경위원회",
+   "want": [
+    "해양경찰법__해양경찰위원회"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "해양경찰위원회",
+   "want": [
+    "해양경찰법__해양경찰위원회"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "해경청장",
+   "want": [
+    "해양경찰법__해양경찰청장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "해양경찰청장 임기·임명",
+   "want": [
+    "해양경찰법__해양경찰청장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "해경 계급",
+   "want": [
+    "해양경찰법__소속공무원구성"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "순경·경사·총경",
+   "want": [
+    "해양경찰법__소속공무원구성"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "해양경찰의 날",
+   "want": [
+    "해양경찰법__목적과책무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "9월 10일",
+   "want": [
+    "해양경찰법__목적과책무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "해경 안전교육",
+   "want": [
+    "해양경찰법__해양안전확보노력"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "해경 훈련체계",
+   "want": [
+    "해양경찰법__해양안전확보노력"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "VTS",
+   "want": [
+    "선박교통관제에관한법률__관제대상선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "관제센터",
+   "want": [
+    "선박교통관제에관한법률__관제대상선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 9,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "관제 콜",
+   "want": [
+    "선박교통관제에관한법률__관제대상선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "교신",
+   "want": [
+    "선박교통관제에관한법률__관제대상선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해상교통관제센터",
+   "want": [
+    "선박교통관제에관한법률__관제대상선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 11,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "VHF",
+   "want": [
+    "선박교통관제에관한법률__선장신고관제통신의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "관제채널",
+   "want": [
+    "선박교통관제에관한법률__선장신고관제통신의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "관제주파수",
+   "want": [
+    "선박교통관제에관한법률__선장신고관제통신의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "관제사 지시 위반",
+   "want": [
+    "선박교통관제에관한법률__관제사지시위반"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "VTS 지시 불이행",
+   "want": [
+    "선박교통관제에관한법률__관제사지시위반"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "내 배가 VTS 대상인가",
+   "want": [
+    "선박교통관제에관한법률__관제대상선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "관제대상선박",
+   "want": [
+    "선박교통관제에관한법률__관제대상선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "관제구역",
+   "want": [
+    "선박교통관제에관한법률__선박교통관제구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "VTS 구역",
+   "want": [
+    "선박교통관제에관한법률__선박교통관제구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "관제구역 지도",
+   "want": [
+    "선박교통관제에관한법률__선박교통관제구역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "풍랑주의보 VTS 대피명령",
+   "want": [
+    "선박교통관제에관한법률__선박운항통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "관제센터 출항통제",
+   "want": [
+    "선박교통관제에관한법률__선박운항통제"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "마을어장",
+   "want": [
+    "수산업법__면허어업과어업권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "어촌계 조업",
+   "want": [
+    "수산업법__면허어업과어업권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "입어권",
+   "want": [
+    "수산업법__면허어업과어업권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "어업허가",
+   "want": [
+    "수산업법__허가어업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "근해/연안/구획",
+   "want": [
+    "수산업법__허가어업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "조업허가",
+   "want": [
+    "수산업법__허가어업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 10,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "나잠",
+   "want": [
+    "수산업법__유어와무허가어업금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "해녀",
+   "want": [
+    "수산업법__유어와무허가어업금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "물질",
+   "want": [
+    "수산업법__유어와무허가어업금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "호미 채취",
+   "want": [
+    "수산업법__유어와무허가어업금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "어선안전조업법",
+   "want": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__출입항신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "브이패스",
+   "want": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__출입항신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "출어신고",
+   "want": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__출입항신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "출항신고",
+   "want": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__출입항신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "입출항신고",
+   "want": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__출입항신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "출입항신고",
+   "want": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__출입항신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "조업한계선",
+   "want": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__조업구역제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "NLL 어장",
+   "want": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__조업구역제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "어선 중대재해",
+   "want": [
+    "어선안전조업및어선원의안전ㆍ보건증진등에관한법률__어선원안전보건재해예방"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "갯벌법",
+   "want": [
+    "갯벌및그주변지역의지속가능한관리와복원에관한법률__갯벌생태관광인증"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "갯벌 생태관광",
+   "want": [
+    "갯벌및그주변지역의지속가능한관리와복원에관한법률__갯벌생태관광인증"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "갯벌 출입금지구역",
+   "want": [
+    "갯벌및그주변지역의지속가능한관리와복원에관한법률__갯벌관리구역행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "청정갯벌 마크",
+   "want": [
+    "갯벌및그주변지역의지속가능한관리와복원에관한법률__청정갯벌"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "갯벌(간석지)",
+   "want": [
+    "공유수면관리및매립에관한법률"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "갯벌",
+   "want": [
+    "공유수면관리및매립에관한법률"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 10,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "바닷가(공유수면)",
+   "want": [
+    "공유수면관리및매립에관한법률__매립면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "간척",
+   "want": [
+    "공유수면관리및매립에관한법률__매립면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "바닷가",
+   "want": [
+    "공유수면관리및매립에관한법률__매립면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "바다에 폐타이어·스티로폼 버림",
+   "want": [
+    "공유수면관리및매립에관한법률__금지행위및방치선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "버려진 배",
+   "want": [
+    "공유수면관리및매립에관한법률__금지행위및방치선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "폐선 방치",
+   "want": [
+    "공유수면관리및매립에관한법률__금지행위및방치선박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "나룻배",
+   "want": [
+    "statutes/유선및도선사업법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "유람선(소규모)",
+   "want": [
+    "statutes/유선및도선사업법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 6,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "유람선",
+   "want": [
+    "statutes/유선및도선사업법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 16,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "바다목",
+   "want": [
+    "statutes/유선및도선사업법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "항만재개발",
+   "want": [
+    "항만재개발및주변지역발전에관한법률__기본계획및사업구역지정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 재개발 구역",
+   "want": [
+    "항만재개발및주변지역발전에관한법률__기본계획및사업구역지정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "원형지",
+   "want": [
+    "항만재개발및주변지역발전에관한법률__원형지공급"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "항운노조 생계지원금",
+   "want": [
+    "항만재개발및주변지역발전에관한법률__항운노조생계지원금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 4,
+   "targetMissing": false
+  },
+  {
+   "term": "해양레저",
+   "want": [
+    "해양레저관광진흥법__해양레저관광정의범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "해양관광",
+   "want": [
+    "해양레저관광진흥법__해양레저관광정의범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "바다에서 노는 것 관련 법",
+   "want": [
+    "해양레저관광진흥법__해양레저관광정의범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "해양레저관광협회",
+   "want": [
+    "해양레저관광진흥법__해양레저관광협회"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "해양레저관광 협회 인가",
+   "want": [
+    "해양레저관광진흥법__해양레저관광협회"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "해양레저관광산업 지원금",
+   "want": [
+    "해양레저관광진흥법__해양레저관광산업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "낚시체험카페 산업분류",
+   "want": [
+    "해양레저관광진흥법__해양레저관광산업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 3,
+   "targetMissing": false
+  },
+  {
+   "term": "해양레저관광 종합계획",
+   "want": [
+    "해양레저관광진흥법__종합계획수립과실태조사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "해양레저관광 실태조사",
+   "want": [
+    "해양레저관광진흥법__종합계획수립과실태조사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "제트스키(등록)",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__동력수상레저기구등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 7,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "보트 번호판",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__동력수상레저기구등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "보트 등록",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__동력수상레저기구등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "제트스키",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__동력수상레저기구등록"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 8,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "요트 검사",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__안전검사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "임시운항증",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__시험운항허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 5,
+   "targetMissing": false
+  },
+  {
+   "term": "임시번호판",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__시험운항허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "시운전 허가(보트)",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__시험운항허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "신조보트 시험운항",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__시험운항허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "시운전 허가",
+   "want": [
+    "수상레저기구의등록및검사에관한법률__시험운항허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "완도전복·보성벌교꼬막 지역표시",
+   "want": [
+    "농수산물품질관리법__수산물지리적표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 2,
+   "targetMissing": false
+  },
+  {
+   "term": "수산물 GAP",
+   "want": [
+    "농수산물품질관리법__수산물품질인증"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "품질마크",
+   "want": [
+    "농수산물품질관리법__수산물품질인증"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "HACCP",
+   "want": [
+    "농수산물품질관리법__지정해역위생관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "위생등록시설",
+   "want": [
+    "농수산물품질관리법__지정해역위생관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "지정해역 오물 버리기",
+   "want": [
+    "농수산물품질관리법__지정해역위생관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "200해리 수역",
+   "want": [
+    "배타적경제수역및대륙붕에관한법률__EEZ대륙붕범위와기선중간선정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "우리 바다 경계",
+   "want": [
+    "배타적경제수역및대륙붕에관한법률__EEZ대륙붕범위와기선중간선정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "정선",
+   "want": [
+    "해양경비법__해상검문검색"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "멈춰라 검문",
+   "want": [
+    "해양경비법__해상검문검색"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "해경이 배 붙잡음",
+   "want": [
+    "해양경비법__해상항행보호조치"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 4,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "발전소·항만 앞 시위",
+   "want": [
+    "해양경비법__해상항행보호조치"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "영해 12해리·접속수역 24해리(경비)",
+   "want": [
+    "해양경비법__경비수역구분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "영해 12해리·접속수역 24해리",
+   "want": [
+    "해양경비법__경비수역구분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "해경이 쫓아옴",
+   "want": [
+    "해양경비법__추적나포"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 4,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "도망가다 잡힘",
+   "want": [
+    "해양경비법__추적나포"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "나포",
+   "want": [
+    "해양경비법__추적나포"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "발전소 앞 낚시·항만 근처 조업",
+   "want": [
+    "해양경비법__임해중요시설"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "1km 이내 시위",
+   "want": [
+    "해양경비법__임해중요시설"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "해경이 총 쏘다",
+   "want": [
+    "해양경비법__무기사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "실탄사격",
+   "want": [
+    "해양경비법__무기사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "페인트볼 맞음",
+   "want": [
+    "해양경비법__경찰장비장구사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "줄쏘는 총(투색총)",
+   "want": [
+    "해양경비법__경찰장비장구사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "물대포(소화포)",
+   "want": [
+    "해양경비법__경찰장비장구사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "줄쏘는 총",
+   "want": [
+    "해양경비법__경찰장비장구사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "물대포",
+   "want": [
+    "해양경비법__경찰장비장구사용"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "어업면허·공유수면 점용허가 해경 통보",
+   "want": [
+    "해양경비법__점용사용허가등통보"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "내 배 위치·입출항 정보 수집",
+   "want": [
+    "해양경비법__해양경비정보수집"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "해양경비기본계획",
+   "want": [
+    "해양경비법__해양경비기본계획"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 4,
+   "targetMissing": false
+  },
+  {
+   "term": "5년 경비계획",
+   "want": [
+    "해양경비법__해양경비기본계획"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "해경 함정 해외파견",
+   "want": [
+    "해양경비법__국제협력함정양여"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "함정 개도국 공여·양여",
+   "want": [
+    "해양경비법__국제협력함정양여"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "해양경비 협의체",
+   "want": [
+    "해양경비법__협의체"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해양경비 교육훈련",
+   "want": [
+    "해양경비법__교육훈련"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "경비인력 훈련",
+   "want": [
+    "해양경비법__교육훈련"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "해양 대테러 계획",
+   "want": [
+    "해양경비법__해양대테러계획"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "불법 외국선박 나포 포상금",
+   "want": [
+    "해양경비법__포상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해경 지원요청·협조요청",
+   "want": [
+    "해양경비법__지원요청및협조요청"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "항내 어로 금지",
+   "want": [
+    "선박의입항및출항등에관한법률__무역항어로제한폐기물투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "항구 낚시",
+   "want": [
+    "선박의입항및출항등에관한법률__무역항어로제한폐기물투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "폐어구 투기",
+   "want": [
+    "선박의입항및출항등에관한법률__무역항어로제한폐기물투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "우선피항선",
+   "want": [
+    "선박의입항및출항등에관한법률__무역항항법정박"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "무역항 출입신고 면제",
+   "want": [
+    "선박의입항및출항등에관한법률__무역항출입신고"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "예선",
+   "want": [
+    "선박의입항및출항등에관한법률__예선업등록및사용의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "터그보트",
+   "want": [
+    "선박의입항및출항등에관한법률__예선업등록및사용의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "배 밀어주는 배",
+   "want": [
+    "선박의입항및출항등에관한법률__예선업등록및사용의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "접안 도우미 배",
+   "want": [
+    "선박의입항및출항등에관한법률__예선업등록및사용의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "위험물 반입신고",
+   "want": [
+    "선박의입항및출항등에관한법률__위험물반입및하역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "위험물 하역 승인",
+   "want": [
+    "선박의입항및출항등에관한법률__위험물반입및하역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "유조선 항내 정박",
+   "want": [
+    "선박의입항및출항등에관한법률__위험물반입및하역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 36,
+   "targetMissing": false
+  },
+  {
+   "term": "위험물 안전관리자",
+   "want": [
+    "선박의입항및출항등에관한법률__위험물안전관리자와안전장비"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "항내 위험물 취급자 자격",
+   "want": [
+    "선박의입항및출항등에관한법률__위험물안전관리자와안전장비"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "항내 용접수리 허가",
+   "want": [
+    "선박의입항및출항등에관한법률__선박수리허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 4,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "배 수리 신고",
+   "want": [
+    "선박의입항및출항등에관한법률__선박수리허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "항내 수중공사 허가",
+   "want": [
+    "선박의입항및출항등에관한법률__공사작업및부유물허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "항만 매립·시설공사 허가",
+   "want": [
+    "선박의입항및출항등에관한법률__공사작업및부유물허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "요트경기 허가",
+   "want": [
+    "선박의입항및출항등에관한법률__선박경기등행사허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "무역항 해양정화행사",
+   "want": [
+    "선박의입항및출항등에관한법률__선박경기등행사허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해상 불꽃놀이 허가",
+   "want": [
+    "선박의입항및출항등에관한법률__선박경기등행사허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "항내 강한 라이트 금지",
+   "want": [
+    "선박의입항및출항등에관한법률__불빛기적신호제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "뱃고동·경적 제한",
+   "want": [
+    "선박의입항및출항등에관한법률__불빛기적신호제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "항내 침몰선·방치물 제거",
+   "want": [
+    "선박의입항및출항등에관한법률__장애물제거"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "항로 유실물 처리",
+   "want": [
+    "선박의입항및출항등에관한법률__장애물제거"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "출항정지 처분",
+   "want": [
+    "선박의입항및출항등에관한법률__해양사고조치및단속절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "무역항 단속 검사",
+   "want": [
+    "선박의입항및출항등에관한법률__해양사고조치및단속절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "V-PASS",
+   "want": [
+    "어선법__어선위치발신장치"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "브이패스",
+   "want": [
+    "어선법__어선위치발신장치"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "어선번호판",
+   "want": [
+    "어선법__어선등록총톤수"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 18,
+   "targetMissing": false
+  },
+  {
+   "term": "등록필증",
+   "want": [
+    "어선법__어선등록총톤수"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "계선",
+   "want": [
+    "어선법__어선검사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "등대",
+   "want": [
+    "항로표지법__항로표지보호행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "부표",
+   "want": [
+    "항로표지법__항로표지보호행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "등부표",
+   "want": [
+    "항로표지법__항로표지보호행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "침몰선 표시",
+   "want": [
+    "항로표지법__침선표지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "등대지기",
+   "want": [
+    "항로표지법__사설항로표지위탁관리업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "풍력발전단지 항로표지",
+   "want": [
+    "항로표지법__사설항로표지위탁관리업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 4,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "여객선 면허",
+   "want": [
+    "해운법__해상여객운송사업면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "카페리",
+   "want": [
+    "해운법__해상여객운송사업면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "크루즈",
+   "want": [
+    "해운법__해상여객운송사업면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "유람선",
+   "want": [
+    "해운법__해상여객운송사업면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "승선권",
+   "want": [
+    "해운법__여객선안전운항승선권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "운항관리자",
+   "want": [
+    "해운법__여객선안전운항승선권"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "유류세 보조금",
+   "want": [
+    "해운법__내항화물운송사업과유류세보조금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "어획물 운반",
+   "want": [
+    "해운법__내항화물운송사업과유류세보조금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "선박관리회사",
+   "want": [
+    "해운법__해운중개업해운대리점업선박대여업선박관리업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "배 대여업",
+   "want": [
+    "해운법__해운중개업해운대리점업선박대여업선박관리업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "용대선",
+   "want": [
+    "해운법__해운중개업해운대리점업선박대여업선박관리업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "선원 송출업체",
+   "want": [
+    "해운법__해운중개업해운대리점업선박대여업선박관리업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "운임 담합",
+   "want": [
+    "해운법__외항화물운송시장질서_운임공표협약및금지행위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "해운 카르텔",
+   "want": [
+    "해운법__외항화물운송시장질서_운임공표협약및금지행위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "운임 후려치기",
+   "want": [
+    "해운법__외항화물운송시장질서_운임공표협약및금지행위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "화물운임 후려치기",
+   "want": [
+    "해운법__외항화물운송시장질서_운임공표협약및금지행위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "여객선 결항 신고",
+   "want": [
+    "해운법__여객운송사업계획변경및운항의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "배편 시간표 변경",
+   "want": [
+    "해운법__여객운송사업계획변경및운항의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "여객선 휴업 신고",
+   "want": [
+    "해운법__여객운송사업계획변경및운항의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "적자항로",
+   "want": [
+    "해운법__보조항로지정및도서민해상교통지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 3,
+   "targetMissing": false
+  },
+  {
+   "term": "섬 배편 보조",
+   "want": [
+    "해운법__보조항로지정및도서민해상교통지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "도서민 배삯 지원",
+   "want": [
+    "해운법__보조항로지정및도서민해상교통지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "공영 여객선",
+   "want": [
+    "해운법__보조항로지정및도서민해상교통지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "외국배 용선",
+   "want": [
+    "해운법__선박매매및용대선제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "외국적선 빌려쓰기",
+   "want": [
+    "해운법__선박매매및용대선제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "국적선 의무 운항",
+   "want": [
+    "해운법__선박매매및용대선제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "선화주 상생 인증",
+   "want": [
+    "해운법__우수선화주기업인증"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 6,
+   "targetMissing": false
+  },
+  {
+   "term": "우수 화주 인증마크",
+   "want": [
+    "해운법__우수선화주기업인증"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "민물낚시",
+   "want": [
+    "내수면어업법__유어행위낚시제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 4,
+   "targetMissing": false
+  },
+  {
+   "term": "내수면 금어기",
+   "want": [
+    "내수면어업법__포획채취금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "쏘가리 금어기",
+   "want": [
+    "내수면어업법__포획채취금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "다슬기 채취",
+   "want": [
+    "내수면어업법__포획채취금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "전기충격기 낚시",
+   "want": [
+    "내수면어업법__유해어법금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "배터리 어로",
+   "want": [
+    "내수면어업법__유해어법금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "하천 어업",
+   "want": [
+    "내수면어업법__면허허가신고체계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "저수지 어업",
+   "want": [
+    "내수면어업법__면허허가신고체계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "댐 어업",
+   "want": [
+    "내수면어업법__면허허가신고체계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "민물어업 면허·허가",
+   "want": [
+    "내수면어업법__면허허가신고체계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "공공용수면",
+   "want": [
+    "내수면어업법__정의와적용범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "사유수면",
+   "want": [
+    "내수면어업법__정의와적용범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "우리 땅 저수지에서 낚시해도 되나",
+   "want": [
+    "내수면어업법__정의와적용범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "내수면어업계",
+   "want": [
+    "내수면어업법__내수면어업계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "저수지 어업계",
+   "want": [
+    "내수면어업법__내수면어업계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "민물 어업계(어촌계 아님)",
+   "want": [
+    "내수면어업법__내수면어업계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "민물 어업계",
+   "want": [
+    "내수면어업법__내수면어업계"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "어업면허 우선순위",
+   "want": [
+    "내수면어업법__어업면허허가우선순위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "허가 순번",
+   "want": [
+    "내수면어업법__어업면허허가우선순위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "어업면허 취소",
+   "want": [
+    "내수면어업법__공익어업제한취소"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "어업정지",
+   "want": [
+    "내수면어업법__공익어업제한취소"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "면허취소 청문",
+   "want": [
+    "내수면어업법__공익어업제한취소"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "어업 손실보상",
+   "want": [
+    "내수면어업법__손실보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "면허취소 보상금",
+   "want": [
+    "내수면어업법__손실보상"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "어도",
+   "want": [
+    "내수면어업법__어도설치관리의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "물고기 길",
+   "want": [
+    "내수면어업법__어도설치관리의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "댐에 물고기 통로",
+   "want": [
+    "내수면어업법__어도설치관리의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "보(洑) 어도설치",
+   "want": [
+    "내수면어업법__어도설치관리의무"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "내수면 보호수면",
+   "want": [
+    "내수면어업법__보호수면등포획금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "수산자원보호구역 낚시금지",
+   "want": [
+    "내수면어업법__보호수면등포획금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "내수면어업 지원사업",
+   "want": [
+    "내수면어업법__기본계획과보조"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "내수면 보조금",
+   "want": [
+    "내수면어업법__기본계획과보조"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "담수어 가공 지원",
+   "want": [
+    "내수면어업법__기본계획과보조"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 3,
+   "targetMissing": false
+  },
+  {
+   "term": "내수면어업 진흥계획",
+   "want": [
+    "내수면어업법__기본계획과보조"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "무인도",
+   "want": [
+    "무인도서의보전및관리에관한법률__정의와적용범위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "섬에서 야영",
+   "want": [
+    "무인도서의보전및관리에관한법률__관리유형과행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "캠핑(무인도)",
+   "want": [
+    "무인도서의보전및관리에관한법률__관리유형과행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "캠핑",
+   "want": [
+    "무인도서의보전및관리에관한법률__관리유형과행위제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "무인도 낚시",
+   "want": [
+    "무인도서의보전및관리에관한법률__이용가능무인도서낚시등행위"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "무인도 상륙",
+   "want": [
+    "무인도서의보전및관리에관한법률__출입제한과과태료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "입도",
+   "want": [
+    "무인도서의보전및관리에관한법률__출입제한과과태료"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "영해기점섬",
+   "want": [
+    "무인도서의보전및관리에관한법률__종합관리계획과영해기점특별관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "가두리 양식",
+   "want": [
+    "양식산업발전법__양식업면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "바다목장",
+   "want": [
+    "양식산업발전법__양식업면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "굴·미역 양식",
+   "want": [
+    "양식산업발전법__양식업면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "육상수조 양식",
+   "want": [
+    "양식산업발전법__양식업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "수조식 양식",
+   "want": [
+    "양식산업발전법__양식업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 임대",
+   "want": [
+    "양식산업발전법__양식업위반처벌"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "양식권 매매",
+   "want": [
+    "양식산업발전법__양식업위반처벌"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 무단 휴업",
+   "want": [
+    "양식산업발전법__양식업위반처벌"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 휴업",
+   "want": [
+    "양식산업발전법__양식업위반처벌"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "양식업 무단 휴업",
+   "want": [
+    "양식산업발전법__양식업위반처벌"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "양식업 휴업",
+   "want": [
+    "양식산업발전법__양식업위반처벌"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 체험낚시",
+   "want": [
+    "양식산업발전법__유어장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "관광어장",
+   "want": [
+    "양식산업발전법__유어장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "바다낚시체험",
+   "want": [
+    "양식산업발전법__유어장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 관리선",
+   "want": [
+    "양식산업발전법__관리선사용과제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 배(어선)",
+   "want": [
+    "양식산업발전법__관리선사용과제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 37,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 배",
+   "want": [
+    "양식산업발전법__관리선사용과제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 팔기",
+   "want": [
+    "양식산업발전법__양식업권처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "양식권 담보대출",
+   "want": [
+    "양식산업발전법__양식업권처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 상속",
+   "want": [
+    "양식산업발전법__양식업권처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 38,
+   "targetMissing": false
+  },
+  {
+   "term": "어촌계 양식장 행사료",
+   "want": [
+    "양식산업발전법__양식장관리규약과권리행사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 순번",
+   "want": [
+    "양식산업발전법__양식장관리규약과권리행사"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "외국인 양식장 투자",
+   "want": [
+    "양식산업발전법__외국인양식업면허"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "폐업한 양식장 시설 철거",
+   "want": [
+    "양식산업발전법__양식시설물철거및정비"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 방치 시설물",
+   "want": [
+    "양식산업발전법__양식시설물철거및정비"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "무면허로 키운 굴 판매",
+   "want": [
+    "양식산업발전법__불법양식수산물유통금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "불법 양식 수산물",
+   "want": [
+    "양식산업발전법__불법양식수산물유통금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 창고 화장실",
+   "want": [
+    "양식산업발전법__양식장부대시설위생관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 관리사",
+   "want": [
+    "양식산업발전법__양식장부대시설위생관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "굴양식장 수질등급",
+   "want": [
+    "양식산업발전법__패류등생산해역위생관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "지정해역/조건부해역 패류",
+   "want": [
+    "양식산업발전법__패류등생산해역위생관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 면허 갱신",
+   "want": [
+    "양식산업발전법__면허심사평가와어장환경개선"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "어장평가",
+   "want": [
+    "양식산업발전법__면허심사평가와어장환경개선"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "대학·연구소 시험양식",
+   "want": [
+    "양식산업발전법__시험연구교습양식업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 명의대여",
+   "want": [
+    "양식산업발전법__경영지배금지와명의대여"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 12,
+   "targetMissing": false
+  },
+  {
+   "term": "바지사장 양식업",
+   "want": [
+    "양식산업발전법__경영지배금지와명의대여"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 단속 나온 공무원",
+   "want": [
+    "양식산업발전법__출입검사와어업감독공무원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "어업감독관 검사",
+   "want": [
+    "양식산업발전법__출입검사와어업감독공무원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "양식장 신규 신청",
+   "want": [
+    "양식산업발전법__개발계획과면허신청절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "양식업 개발계획",
+   "want": [
+    "양식산업발전법__개발계획과면허신청절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "겨울철 전복 옮기기",
+   "want": [
+    "양식산업발전법__월동월하구역지정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "월동장",
+   "want": [
+    "양식산업발전법__월동월하구역지정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 3,
+   "targetMissing": false
+  },
+  {
+   "term": "스쿠버다이빙",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__수중레저활동자준수의무와제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "스킨다이빙",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__수중레저활동자준수의무와제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "다이빙 강습소",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__수중레저사업등록및행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "다이빙샵",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__수중레저사업등록및행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "임대업(공식 서식 명칭, 별지 제2·3호서식)=대여업(위키 통칭)",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__수중레저사업등록및행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 35,
+   "targetMissing": false
+  },
+  {
+   "term": "임대업(공식 서식 명칭, 별지 제2·3호서식)=대여업",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__수중레저사업등록및행정처분"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "다이빙 보트",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__수중레저활동구역과선박항해금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "다이버 깃발",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__수중레저활동구역과선박항해금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "물속에 있다 표시",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__수중레저활동구역과선박항해금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "다이빙하다 쓰레기·기름·오물 버림",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__사업자금지행위와위험물폐기물투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "위험물(폭발물·인화물질) 반입",
+   "want": [
+    "수중레저활동의안전및활성화등에관한법률__사업자금지행위와위험물폐기물투기"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "물놀이구역",
+   "want": [
+    "해수욕장의이용및관리에관한법률__물놀이구역수상레저기구금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "해변 취사",
+   "want": [
+    "해수욕장의이용및관리에관한법률__해수욕장이용준수사항"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "야영",
+   "want": [
+    "해수욕장의이용및관리에관한법률__해수욕장이용준수사항"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "바베큐",
+   "want": [
+    "해수욕장의이용및관리에관한법률__해수욕장이용준수사항"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "흡연",
+   "want": [
+    "해수욕장의이용및관리에관한법률__해수욕장이용준수사항"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "백사장 모래·조개 채취",
+   "want": [
+    "해수욕장의이용및관리에관한법률__해수욕장이용준수사항"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "해양치유",
+   "want": [
+    "해양치유자원의관리및활용에관한법률__해양치유정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "해수온천",
+   "want": [
+    "해양치유자원의관리및활용에관한법률__해양치유정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "탈라소테라피",
+   "want": [
+    "해양치유자원의관리및활용에관한법률__해양치유정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "해양치유센터",
+   "want": [
+    "해양치유자원의관리및활용에관한법률__해양치유정의"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "위판장",
+   "want": [
+    "수산물유통의관리및지원에관한법률__수산물산지위판장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "경매사",
+   "want": [
+    "수산물유통의관리및지원에관한법률__수산물산지위판장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "중도매",
+   "want": [
+    "수산물유통의관리및지원에관한법률__수산물산지위판장"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "수산물 이력",
+   "want": [
+    "수산물유통의관리및지원에관한법률__수산물이력추적관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "IUU 수산물",
+   "want": [
+    "수산물유통의관리및지원에관한법률__불법수산물유통금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "수산물 정부 수매·비축",
+   "want": [
+    "수산물유통의관리및지원에관한법률__수산물수급관리지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "과잉생산 사주나",
+   "want": [
+    "수산물유통의관리및지원에관한법률__수산물수급관리지원"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 5,
+   "targetMissing": false
+  },
+  {
+   "term": "수산물 직거래장터",
+   "want": [
+    "수산물유통의관리및지원에관한법률__수산물유통기반조성"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "산지거점유통센터",
+   "want": [
+    "수산물유통의관리및지원에관한법률__수산물유통기반조성"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 4,
+   "targetMissing": false
+  },
+  {
+   "term": "유통협회",
+   "want": [
+    "수산물유통의관리및지원에관한법률__수산물유통기반조성"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 세차",
+   "want": [
+    "물환경보전법__공공수역배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "폐수",
+   "want": [
+    "물환경보전법__공공수역배출금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 오염시키면 누가 책임지나",
+   "want": [
+    "해양환경보전및활용에관한법률__오염원인자책임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "오염원인자",
+   "want": [
+    "해양환경보전및활용에관한법률__오염원인자책임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "우리 바다 관할 관청",
+   "want": [
+    "해양환경보전및활용에관한법률__해역관리청"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "해역관리청",
+   "want": [
+    "해양환경보전및활용에관한법률__해역관리청"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경법(기본법·집행법 구분)",
+   "want": [
+    "해양환경보전및활용법_vs_해양환경관리법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경법",
+   "want": [
+    "해양환경보전및활용법_vs_해양환경관리법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 36,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경관리해역",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경관리해역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "우리 바다 특별관리해역(제16조 vs 환경관리해역 혼동주의)",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경관리해역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 33,
+   "targetMissing": false
+  },
+  {
+   "term": "우리 바다 특별관리해역",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경관리해역"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 24,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경종합계획",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경종합계획"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "국가 바다 계획 몇 년마다",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경종합계획"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경기준",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경기준"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 34,
+   "targetMissing": false
+  },
+  {
+   "term": "우리 바다 수질등급",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경기준"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 31,
+   "targetMissing": false
+  },
+  {
+   "term": "해양건강성평가",
+   "want": [
+    "해양환경보전및활용에관한법률__해양건강성평가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 건강성 점수",
+   "want": [
+    "해양환경보전및활용에관한법률__해양건강성평가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "해양이용영향평가",
+   "want": [
+    "해양환경보전및활용에관한법률__해양이용영향평가위임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "해양이용협의",
+   "want": [
+    "해양환경보전및활용에관한법률__해양이용영향평가위임"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경보전협회",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경보전협회"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경통합정보망",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경정보통합관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 10,
+   "targetMissing": false
+  },
+  {
+   "term": "정도관리",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경정보통합관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 15,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경종합조사",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경종합조사및질평가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 22,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경질평가",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경종합조사및질평가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "해양생태계 보전 국가책무",
+   "want": [
+    "해양환경보전및활용에관한법률__해양생태계보전관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해양생물다양성 보전",
+   "want": [
+    "해양환경보전및활용에관한법률__해양생태계보전관리"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "해양기후변화 대응",
+   "want": [
+    "해양환경보전및활용에관한법률__해양기후변화대응"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 3,
+   "targetMissing": false
+  },
+  {
+   "term": "바다 탄소흡수원",
+   "want": [
+    "해양환경보전및활용에관한법률__해양기후변화대응"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 3,
+   "targetMissing": false
+  },
+  {
+   "term": "해양 온실가스 저감",
+   "want": [
+    "해양환경보전및활용에관한법률__해양기후변화대응"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경 기술개발",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경과학기술개발"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "선박에너지효율 개선 연구",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경과학기술개발"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경교육 진흥계획",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경교육진흥"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 9,
+   "targetMissing": false
+  },
+  {
+   "term": "바다환경 교육 이수증",
+   "want": [
+    "해양환경보전및활용에관한법률__해양환경교육진흥"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 7,
+   "targetMissing": false
+  },
+  {
+   "term": "장관 권한 위임",
+   "want": [
+    "해양환경보전및활용에관한법률__위임및위탁_총괄"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 29,
+   "targetMissing": false
+  },
+  {
+   "term": "해양환경공단 업무위탁",
+   "want": [
+    "해양환경보전및활용에관한법률__위임및위탁_총괄"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해사안전법(기본법·교통안전법 구분)",
+   "want": [
+    "statutes/해사안전기본법",
+    "statutes/해상교통안전법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "해사안전법",
+   "want": [
+    "statutes/해사안전기본법",
+    "statutes/해상교통안전법"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 36,
+   "targetMissing": false
+  },
+  {
+   "term": "수산발전기금",
+   "want": [
+    "수산업ㆍ어촌발전기본법__수산발전기금"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "기름유출 배상",
+   "want": [
+    "유류오염손해배상보장법__선박소유자책임제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 27,
+   "targetMissing": false
+  },
+  {
+   "term": "유조선",
+   "want": [
+    "유류오염손해배상보장법__선박소유자책임제한"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "중국어선 불법조업",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__특정금지구역과무허가어업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 7,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "외국어선 EEZ 침범",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__특정금지구역과무허가어업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "쌍끌이 저인망 단속",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__특정금지구역과무허가어업"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 40,
+   "targetMissing": false
+  },
+  {
+   "term": "외국어선 허가번호판",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__허가증표지번호판및표지깃발"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 26,
+   "targetMissing": false
+  },
+  {
+   "term": "어선 표지판",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__허가증표지번호판및표지깃발"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "정선깃발",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__허가증표지번호판및표지깃발"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 3,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "외국어선 환적",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__어획물등의환적및직접양륙금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "모선에 옮겨싣기",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__어획물등의환적및직접양륙금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 11,
+   "targetMissing": false
+  },
+  {
+   "term": "해상 환적",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__어획물등의환적및직접양륙금지"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 8,
+   "targetMissing": false
+  },
+  {
+   "term": "외국어선 나포",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__정선명령나포검색및사법절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "정선 신호",
+   "want": [
+    "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__정선명령나포검색및사법절차"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "치어장",
+   "want": [
+    "수산종자산업육성법__수산종자생산업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "종묘장",
+   "want": [
+    "수산종자산업육성법__수산종자생산업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 28,
+   "targetMissing": false
+  },
+  {
+   "term": "치어 생산장",
+   "want": [
+    "수산종자산업육성법__수산종자생산업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 32,
+   "targetMissing": false
+  },
+  {
+   "term": "종자생산업 허가",
+   "want": [
+    "수산종자산업육성법__수산종자생산업허가"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "불량 치어",
+   "want": [
+    "수산종자산업육성법__분쟁조정및보상청구"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 17,
+   "targetMissing": false
+  },
+  {
+   "term": "불량 종자",
+   "want": [
+    "수산종자산업육성법__분쟁조정및보상청구"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 16,
+   "targetMissing": false
+  },
+  {
+   "term": "종자 하자 보상",
+   "want": [
+    "수산종자산업육성법__분쟁조정및보상청구"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 19,
+   "targetMissing": false
+  },
+  {
+   "term": "치어 죽음 보상",
+   "want": [
+    "수산종자산업육성법__분쟁조정및보상청구"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 20,
+   "targetMissing": false
+  },
+  {
+   "term": "무허가 종자 판매",
+   "want": [
+    "수산종자산업육성법__수산종자유통품질표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "미신고 종자",
+   "want": [
+    "수산종자산업육성법__수산종자유통품질표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 30,
+   "targetMissing": false
+  },
+  {
+   "term": "밀수입 치어",
+   "want": [
+    "수산종자산업육성법__수산종자유통품질표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 25,
+   "targetMissing": false
+  },
+  {
+   "term": "종자 품질표시",
+   "want": [
+    "수산종자산업육성법__수산종자유통품질표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 21,
+   "targetMissing": false
+  },
+  {
+   "term": "치어 라벨",
+   "want": [
+    "수산종자산업육성법__수산종자유통품질표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 23,
+   "targetMissing": false
+  },
+  {
+   "term": "종자 원산지 표시",
+   "want": [
+    "수산종자산업육성법__수산종자유통품질표시"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 39,
+   "targetMissing": false
+  },
+  {
+   "term": "친어",
+   "want": [
+    "수산종자산업육성법__친어등록검정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 13,
+   "targetMissing": false
+  },
+  {
+   "term": "모패",
+   "want": [
+    "수산종자산업육성법__친어등록검정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 1,
+   "pages": 14,
+   "targetMissing": false
+  },
+  {
+   "term": "우량 어미고기",
+   "want": [
+    "수산종자산업육성법__친어등록검정"
+   ],
+   "glossary": true,
+   "searchHit": true,
+   "rank": 2,
+   "pages": 15,
+   "targetMissing": false
+  }
+ ]
+}
