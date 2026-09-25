@@ -21,17 +21,21 @@
  * [어디서 무엇을 받나]
  *   목록  .../jtwc/products/abpwweb.txt · abioweb.txt    지금 활동 중인 태풍 번호·이름
  *   본문  https://www.metoc.navy.mil/jtwc/products/wp2526web.txt   위치·풍속·반경·예보
+ *   도형  https://www.metoc.navy.mil/jtwc/products/wp2526.kmz      위험구역·지나온 경로
  *   그림  https://www.metoc.navy.mil/jtwc/products/wp2526.gif      경고 그래픽
  *   seq 는 그 파일 이름의 앞부분('wp2526')을 그대로 쓴다 — 번호를 따로 만들지 않는다.
  *
  * [기상청과 다른 점 — 그대로 옮길 수 없는 것들]
  *   1. 중심기압: 현재 시점만 준다(통보문 REMARKS). 예보 시점은 발표하지 않는다 → null.
- *   2. 70% 확률반경: 없다. 경로 오차 범위도 글자 통보문에는 없다 → radProb 는 null,
- *      경로 오차를 담는 칸 자체를 만들지 않는다.
- *      (원뿔은 경고 그래픽 그림 안에 그려져 있다 — 지도 버튼으로 볼 수 있다.)
+ *   2. 70% 확률반경: 없다 → radProb 는 null.
+ *      대신 구글어스 파일(.kmz)의 '34노트 위험구역'을 그대로 싣는다(swath). 이 도형은
+ *      바람 반경을 이어 붙인 것이 아니라 예보 오차가 이미 들어 있다(services/jtwc_kmz.js).
+ *      .kmz 를 못 받거나 자문 회차가 통보문과 다르면 싣지 않는다 — 지어내지 않는다.
  *   3. 풍속반경: 북동·남동·남서·북서 네 방향 거리를 34/50/64노트별로 준다.
  *      네 방향 값을 그대로 싣고(radQuad34/50/64), 장·단반경도 함께 채운다.
  *   4. 풍속 평균 시간: JTWC 1분 · 기상청 10분 → 강도는 0.88 을 곱해 환산 후 판정.
+ *   5. 지나온 경로: 글자 통보문에는 없고 .kmz 에만 있다(past). 기상청 경로에는 이 칸이
+ *      없으므로 화면은 있을 때만 그린다.
  *
  * [시각] 통보문은 UTC("일일시시분분Z")다. 여기서 한국시각 문자열로 바꿔 보낸다.
  *
@@ -40,6 +44,7 @@
  * [연계 파일]
  * - server.js → app.use() 로 등록
  * - services/jtwc_parse.js → 통보문·목록 해독
+ * - services/jtwc_kmz.js → 구글어스 파일(.kmz)에서 위험구역·지나온 경로 해독
  * - client/js/typhoon/ocean_typhoon.js → 출처 드롭다운에서 "미국(JTWC)" 선택 시 호출
  * ============================================================================
  */
@@ -49,6 +54,7 @@
 const express = require('express');
 const router = express.Router();
 const jtwc = require('../services/jtwc_parse');
+const jtwcKmz = require('../services/jtwc_kmz');
 
 const JTWC_BASE = 'https://www.metoc.navy.mil/jtwc/';
 // [어디서 목록을 얻나 — 2026-09-25 실측]
@@ -109,6 +115,54 @@ async function fetchText(url) {
 }
 
 /**
+ * 상류에서 덩어리 자료(.kmz)를 받아온다. 실패하면 null.
+ * [왜 따로 두나] fetchText 는 글자로 바꿔 버려서 압축 파일이 깨진다.
+ * @param {string} url
+ * @returns {Promise<Buffer|null>}
+ */
+async function fetchBuffer(url) {
+    try {
+        const res = await fetch(url, {
+            headers: REQ_HEADERS,
+            redirect: 'follow',
+            signal: AbortSignal.timeout(HTTP_TIMEOUT_MS)
+        });
+        probe[url] = res.status;
+        if (!res.ok) {
+            console.log(`[typhoon-foreign] ${url} 응답 ${res.status}`);
+            return null;
+        }
+        return Buffer.from(await res.arrayBuffer());
+    } catch (e) {
+        console.log(`[typhoon-foreign] ${url} 호출 실패: ${e.message}`);
+        return null;
+    }
+}
+
+/**
+ * 태풍 하나의 구글어스 파일(.kmz)을 받아 위험구역·지나온 경로를 꺼낸다.
+ * 예: fetchShapes('wp2526', 8) → { swath:[[135.84,34.09], …], past:[…] }
+ * [왜 회차를 맞춰 보나] .kmz 가 통보문보다 한 회차 늦게 올라오는 때가 있다. 그러면
+ *   지난 예보의 위험구역을 새 예보 위에 그리게 된다 — 다르면 아예 싣지 않는다.
+ * [실패해도 전체는 살린다] 도형이 없다고 태풍 자체를 못 보여 줄 이유는 없다.
+ * @param {string} base - 'wp2526'
+ * @param {string} advisory - 통보문에서 읽은 자문 회차('8')
+ * @returns {Promise<{swath:Array|null, past:Array}|null>}
+ */
+async function fetchShapes(base, advisory) {
+    const buf = await fetchBuffer(PRODUCT_BASE + base + '.kmz');
+    if (!buf) return null;
+    const k = jtwcKmz.parseKmz(buf);
+    if (!k) { console.log(`[typhoon-foreign] ${base}.kmz 해독 실패(${buf.length}바이트)`); return null; }
+    if (k.advisory !== null && String(k.advisory) !== String(advisory)) {
+        console.log(`[typhoon-foreign] ${base}.kmz 자문 ${k.advisory}호 ≠ 통보문 ${advisory}호 — 도형 제외`);
+        return null;
+    }
+    console.log(`[typhoon-foreign] ${base}.kmz 위험구역 ${k.swath ? k.swath.length : 0}점 · 지나온 경로 ${k.past.length}개`);
+    return k;
+}
+
+/**
  * 한국시각 문자열("YYYYMMDDHHmm") → 통보문 라벨에 쓰는 "09.25. 09:00" 꼴.
  * @param {string} stamp
  * @returns {string}
@@ -165,9 +219,15 @@ async function fetchActive() {
         return w;
     }));
 
+    // 도형(.kmz)은 통보문을 읽은 태풍에 대해서만 받는다 — 헛걸음을 만들지 않는다.
+    const shapes = await Promise.all(warnings.map(
+        (w) => (w ? fetchShapes(w.seq, w.advisory) : Promise.resolve(null))
+    ));
+
     const typhoons = [];
-    warnings.forEach((w) => {
+    warnings.forEach((w, i) => {
         if (!w) return;
+        const sh = shapes[i];
         const label = '[ JTWC ] 제' + w.advisory + '호 자문'
                     + (w.issuedKst ? ' / ' + stampToLabel(w.issuedKst) + ' 기준(KST)' : '');
         typhoons.push({
@@ -177,6 +237,9 @@ async function fetchActive() {
             // 경고 그래픽은 목록에 오른 태풍이면 모두 있다(해역과 무관).
             imageName: w.seq + '.gif',
             latestTmFc: w.issuedKst,
+            // .kmz 에서 온 것들 — 못 받았으면 아예 없다(빈 껍데기를 만들지 않는다).
+            swath: (sh && sh.swath) || null,
+            past: (sh && sh.past && sh.past.length) ? sh.past : null,
             bulletins: [{
                 code: w.seq + '_' + w.advisory,
                 label: label,
@@ -189,8 +252,9 @@ async function fetchActive() {
                    + '|풍속은 1분 평균이라 기상청(10분 평균)보다 높게 나옵니다.'
                    + '|강도(약~초강력)는 그 풍속을 10분 평균으로 환산해 기상청 기준에 맞춘 값입니다.'
                    + '|중심기압은 지금 위치만 발표됩니다. 예상 위치의 기압은 제공되지 않습니다.'
-                   + '|70% 확률반경은 발표되지 않습니다. 경로 오차 범위는 지도 그림 버튼의'
-                   + ' 예보도에서 보실 수 있습니다.'
+                   + '|70% 확률반경은 발표되지 않습니다. 대신 JTWC 가 발표하는'
+                   + ' \'34노트 위험구역\'을 그립니다 — 예보가 빗나갈 가능성까지 넣어,'
+                   + ' 태풍이 그대로 가지 않더라도 초속 17m 이상 바람이 닿을 수 있는 범위입니다.'
                    + '|강풍·폭풍반경은 북동·남동·남서·북서 네 방향 거리를 그대로 그립니다.',
                 other: '미국 합동태풍경보센터(JTWC) 공개 통보문 · 미국 정부 공공저작물 · 6시간마다 갱신'
             }]

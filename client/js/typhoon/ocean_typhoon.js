@@ -22,6 +22,13 @@
  *                 dir, speedKmh, radStrong(강풍반경), radStorm(폭풍반경),
  *                 radProb(70%확률반경), grade(0~5), size }
  *
+ * [해외 출처(JTWC)만 오는 것 — 2026-09-25 추가]
+ *   - swath: 34노트 위험구역 도형 [[경도,위도], …]. JTWC 가 발표한 그대로 그린다.
+ *            예보가 빗나갈 가능성이 이미 들어 있어, 기상청의 70%확률반경 자리를 대신한다.
+ *   - past : 지나온 실제 경로 [{ time, lat, lon, windMs, grade }, …]
+ *   둘 다 서버가 JTWC 구글어스 파일(.kmz)에서 꺼내 준다(services/jtwc_kmz.js).
+ *   못 받으면 아예 없다 — 없으면 안 그린다(지어내지 않는다).
+ *
  * [표출]
  *   1) 기본 ON: 스크린샷처럼 전체 진로 — 진로선 + 시점별 위치(강도색) +
  *      70%확률반경 원(예보 cone) + 라벨.
@@ -57,9 +64,11 @@
     // dmdw 상세정보 레이어 대응: 예측경로(track) / 70%확률반경(prob) / 강풍반경(strong) / 폭풍반경(storm)
     var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _trailLayer = null, _headLayer = null, _pointLayer = null;
     var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _trailSrc = null, _headSrc = null, _pointSrc = null;
+    // 34노트 위험구역(JTWC 전용) — 기관이 발표한 도형을 그대로 그린다. 우리가 계산하지 않는다.
+    var _swathLayer = null, _swathSrc = null;
     var _prevBasemap = null;  // 태풍 ON 직전 베이스맵(끄면 복원)
     var LAYER_KEY = 'seagnal_typhoon_layers';
-    var _layerOn = { track: true, prob: true, strong: false, storm: false };
+    var _layerOn = { track: true, prob: true, strong: false, storm: false, swath: true };
     var RELAX_MIN_ZOOM = 3;   // 태풍 ON 시 minZoom 완화(더 넓게 축소 가능; 기본 6 → 3)
     var _origMinZoom = null;  // 원래 minZoom 백업(끄면 복원)
     var _moveBubble = null, _moveEl = null;  // 재생 중 이동 말풍선(ol.Overlay)
@@ -83,7 +92,7 @@
         jtwc: { label: '미국(JTWC)',
                 // [출처표기] JTWC 자료는 미국 정부 공공저작물이다. 중계 업체를 거치지 않고
                 //   metoc.navy.mil 의 공개 통보문을 직접 읽으므로 그 사실을 그대로 적는다.
-                note: '자료: 미국 합동태풍경보센터(JTWC) 공개 통보문 · 미국 정부 공공저작물 · 6시간마다 갱신 · 풍속은 1분 평균(기상청은 10분 평균)' }
+                note: '자료: 미국 합동태풍경보센터(JTWC) 공개 통보문·구글어스 파일 · 미국 정부 공공저작물 · 6시간마다 갱신 · 풍속은 1분 평균(기상청은 10분 평균)' }
     };
     var _src = 'kma';          // 지금 보고 있는 출처
     var _foreignData = null;   // 해외 출처 응답 캐시
@@ -119,6 +128,7 @@
     var STRONG_C = [232, 160, 0];   // 강풍반경 — 황색
     var STORM_C = [43, 108, 214];   // 폭풍반경 — 청색
     var PROB_C = [60, 165, 110];    // 70% 확률반경 — 녹색
+    var SWATH_C = [0, 150, 160];    // 34노트 위험구역(JTWC) — 청록색(JTWC 예보도 그림과 같은 계열)
     function cssRgb(c) { return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
 
     // 기상청 강도별 예상 피해(현상) 척도
@@ -504,25 +514,48 @@
         var s = (1 - Math.cos(Math.PI * angDiff(brngDeg, edDeg) / 180)) / 2;   // 0..1 S-커브
         return rShort + (rLong - rShort) * s;
     }
-    // 사분면 중심 방위 — JTWC 는 북동·남동·남서·북서 네 방향 거리를 준다.
-    var QUAD_CEN = [{ d: 45, k: 'ne' }, { d: 135, k: 'se' }, { d: 225, k: 'sw' }, { d: 315, k: 'nw' }];
+    // 사분면 — JTWC 는 북동·남동·남서·북서 네 방향 거리를 준다. 경계는 정북·정동·정남·정서.
+    var QUADS = [{ a: 0, b: 90, k: 'ne' }, { a: 90, b: 180, k: 'se' },
+                 { a: 180, b: 270, k: 'sw' }, { a: 270, b: 360, k: 'nw' }];
     /**
-     * 네 방향 거리에서 임의 방위의 반경을 낸다 — 이웃한 두 사분면 값을 S-커브로 잇는다.
-     * 예: quadRadAt({ne:102, se:0, sw:0, nw:93}, 0) → 97.5 (북쪽 = 북서와 북동 사이)
-     * [왜] 장반경·단반경 두 값으로 눌러 담으면 네 값 중 둘이 사라진다.
-     *   수리개처럼 "북동 102 · 북서 93 · 남동 0 · 남서 0" 인 경우 모양이 아예 달라진다.
+     * 네 방향 거리에서 임의 방위의 반경을 낸다 — 사분면 안에서는 그 값 그대로(계단).
+     * 예: quadRadAt({ne:111, se:0, sw:0, nw:130}, 10) → 111  ·  (…, 350) → 130
+     * [왜 계단인가 — 2026-09-25 실측] 처음에는 이웃 사분면을 S-커브로 이었는데, JTWC 가
+     *   공개하는 구글어스 파일(.kmz)의 반경 도형을 재어 보니 **사분면마다 90°짜리 일정한
+     *   호**였다(25/12Z 34노트 = 북동 130 · 남동 56 · 남서 74 · 북서 130 km, 사분면 안에서
+     *   거리 변화 2km 미만). 즉 JTWC 가 그리는 모양 자체가 계단이다. 매끈하게 이으면
+     *   우리가 없는 값을 지어내는 셈이고, 0인 사분면 쪽에서는 최대 130km 까지 벌어졌다.
      * @param {Object} q - {ne, se, sw, nw} 거리(km)
      * @param {number} brngDeg - 방위(도)
      * @returns {number} 그 방위의 반경(km)
      */
     function quadRadAt(q, brngDeg) {
         var b = ((brngDeg % 360) + 360) % 360;
-        var i = Math.floor((((b - 45) % 360) + 360) % 360 / 90);   // 어느 두 사분면 사이인가
-        var a = QUAD_CEN[i], c = QUAD_CEN[(i + 1) % 4];
-        var t = ((((b - a.d) % 360) + 360) % 360) / 90;            // 0..1
-        var sc = (1 - Math.cos(Math.PI * t)) / 2;                  // radAt 과 같은 코사인 S-커브
-        var ra = q[a.k] || 0, rc = q[c.k] || 0;
-        return ra + (rc - ra) * sc;
+        var k = b < 90 ? 'ne' : b < 180 ? 'se' : b < 270 ? 'sw' : 'nw';
+        return q[k] || 0;
+    }
+    /**
+     * 네 방향 거리로 만드는 링 — 사분면마다 90°짜리 호를 따로 그린다.
+     * [왜 따로 두나] 일정 간격으로 방위를 훑으면 90°·180°·270° 의 '턱'이 잘려 모양이 뭉개진다.
+     *   사분면 경계를 점으로 정확히 찍어야 JTWC 도형과 같아진다. 거리가 0인 사분면은
+     *   중심으로 접힌다 — JTWC 도형도 그렇게 그려져 있다.
+     * @param {number} lon @param {number} lat
+     * @param {Object} q - {ne, se, sw, nw} 거리(km)
+     * @param {number} [n] - 사분면당 나눔 수(기본 18 = 5°)
+     * @returns {Array} 지도 좌표 링
+     */
+    function quadRing(lon, lat, q, n) {
+        n = n || 18;
+        var ring = [];
+        QUADS.forEach(function (s) {
+            var r = q[s.k] || 0;
+            for (var i = 0; i <= n; i++) {
+                var deg = s.a + (s.b - s.a) * i / n;
+                ring.push(ol.proj.fromLonLat(destPoint(lon, lat, deg * Math.PI / 180, r)));
+            }
+        });
+        ring.push(ring[0]);
+        return ring;
     }
     // 방위별 반경 — 네 방향 값이 있으면 그걸 쓰고, 없으면 기존 장·단반경 방식.
     function radPick(quad, rLong, rShort, edDeg, brngDeg) {
@@ -530,7 +563,9 @@
     }
 
     // 비대칭 달걀형 원 링 — bearing 별 반경 적용(edDeg/rShort 없으면 균일 원).
+    //   네 방향 값(JTWC)이 있으면 사분면 계단 링으로 그린다 — quadRing 주석 참조.
     function asymRing(lon, lat, rLong, rShort, edDeg, quad, n) {
+        if (quad) return quadRing(lon, lat, quad);
         n = n || 72;
         var ring = [];
         for (var i = 0; i <= n; i++) {
@@ -626,11 +661,69 @@
         };
     }
 
+    /**
+     * 지금 고른 태풍의 '도형 자료'(위험구역·지나온 경로)를 준다. 기상청이면 없다.
+     * [왜 따로 계산하나] 이 둘은 통보문이 아니라 태풍 단위로 온다(서버가 .kmz 에서 꺼낸다).
+     *   따로 변수에 담아 두면 출처·태풍을 바꿀 때 지우는 것을 잊기 쉬워, 그때그때 찾는다.
+     * @returns {Object|null} { swath, past } 를 가진 태풍 객체
+     * [연계] ← renderStatic (같은 파일) · 서버 /api/typhoon/foreign 응답의 swath·past
+     */
+    function currentShapes() {
+        if (_src === 'kma') return null;
+        return foreignTyphoon(_selSeq);
+    }
+
+    /**
+     * 지나온 실제 경로를 그린다 — 실선 + 시점별 작은 점(강도색).
+     * [왜 예보와 다르게 그리나] 예보 경로는 점선·큰 점이다. 같은 모양이면 "이미 지나간 곳"과
+     *   "앞으로 갈 곳"이 구분되지 않는다.
+     * [현재 위치와 잇기] 마지막 과거 지점과 현재 위치 사이가 끊겨 보이지 않도록 현재 위치를 잇는다.
+     * @param {Array} past - [{ lat, lon, grade }, …] 시각 오름차순
+     * [연계] ← renderStatic (같은 파일) · _trackSrc(예측경로 레이어와 같은 자리 — 같은 체크박스로 켜고 끈다)
+     */
+    function renderPastTrack(past) {
+        var pts = past.filter(function (q) { return q && q.lat != null && q.lon != null; });
+        if (!pts.length) return;
+        var coords = pts.map(function (q) { return ol.proj.fromLonLat([q.lon, q.lat]); });
+        var cur = _frames[0];
+        if (cur && cur.lon != null) coords.push(ol.proj.fromLonLat([cur.lon, cur.lat]));
+        if (coords.length >= 2) {
+            var ln = new ol.Feature(new ol.geom.LineString(coords));
+            ln.setStyle(new ol.style.Style({
+                stroke: new ol.style.Stroke({ color: 'rgba(70,70,70,0.8)', width: 2 })
+            }));
+            _trackSrc.addFeature(ln);
+        }
+        pts.forEach(function (q) {
+            var pt = new ol.Feature(pointAt(q.lon, q.lat));
+            pt.setStyle(new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 4,
+                    fill: new ol.style.Fill({ color: rgba(gradeColor(q.grade), 0.9) }),
+                    stroke: new ol.style.Stroke({ color: '#fff', width: 1 })
+                })
+            }));
+            _trackSrc.addFeature(pt);
+        });
+    }
+
     // ── 정적 진로 렌더 ────────────────────────────────────────────────────────
     function renderStatic() {
         if (!_trackSrc) return;
         _trackSrc.clear(); _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear(); _pointSrc.clear();
+        _swathSrc.clear();
         if (!_frames.length) return;
+
+        // ⓪ 34노트 위험구역 — JTWC 가 발표한 도형 그대로(우리가 계산하지 않는다).
+        //    기상청에는 이 자료가 없어 그려지지 않는다.
+        var shp = currentShapes();
+        if (shp && shp.swath && shp.swath.length >= 4) {
+            _swathSrc.addFeature(new ol.Feature(new ol.geom.Polygon([
+                shp.swath.map(function (c) { return ol.proj.fromLonLat(c); })
+            ])));
+        }
+        // ⓪-2 지나온 실제 경로 — 예보(점선)와 구분되게 실선 + 작은 점으로.
+        if (shp && shp.past && shp.past.length) renderPastTrack(shp.past);
 
         // 전체 진로 영역(매끈한 회랑) — 70%(아래)·강풍(중)·폭풍(위)은 레이어 zIndex 로 순서 보장
         // 경로 오차 범위 — 기상청의 70% 확률반경. JTWC 는 이 값을 발표하지 않는다.
@@ -1173,21 +1266,31 @@
      *          → loadForeign / loadYear (같은 파일)
      */
     /**
-     * "70%반경" 체크박스의 잠금을 지금 출처에 맞춘다.
-     * 예: 기상청 → 켤 수 있음 / JTWC → 잠김(그 값을 발표하지 않는다)
-     * [왜] JTWC 통보문에는 경로 오차 범위가 글자로 들어 있지 않다. 경로 오차는
-     *   JTWC 예보도 그림(지도 버튼) 안에 그려져 있어 그쪽에서 볼 수 있다.
-     * [연계] ← setSource (같은 파일) · index2.html #tphn-ly-prob
+     * "70%반경"·"위험구역" 체크박스의 잠금을 지금 출처에 맞춘다.
+     * 예: 기상청 → 70%반경만 켤 수 있음 / JTWC → 위험구역만 켤 수 있음
+     * [왜] 두 기관이 경로 오차를 서로 다른 방식으로 발표한다.
+     *   기상청은 '70% 확률반경'(태풍 중심이 들어올 범위)을 숫자로 준다.
+     *   JTWC 는 그 숫자 대신 '34노트 위험구역' 도형(.kmz)을 준다 — 예보 오차까지 넣어
+     *   초속 17m 이상 바람이 닿을 수 있는 범위다. 서로 바꿔 쓸 수 없으므로, 그 기관이
+     *   실제로 발표하는 쪽만 켜지게 한다(없는 칸을 켤 수 있게 두면 빈 화면이 된다).
+     * [연계] ← setSource (같은 파일) · index2.html #tphn-ly-prob · #tphn-ly-swath
      */
     function applyProbControl() {
-        var chk = document.getElementById('tphn-ly-prob');
+        lockLayerChk('tphn-ly-prob', _src === 'kma',
+            '이 기관은 70% 확률반경을 발표하지 않습니다 (대신 "위험구역"을 보세요)');
+        lockLayerChk('tphn-ly-swath', _src === 'jtwc',
+            '이 기관은 34노트 위험구역 도형을 발표하지 않습니다 (대신 "70%반경"을 보세요)');
+    }
+
+    /** 레이어 체크박스 하나를 켤 수 있게/없게 한다. 잠그면 흐려지고 why 가 설명으로 붙는다. */
+    function lockLayerChk(id, on, why) {
+        var chk = document.getElementById(id);
         if (!chk) return;
-        var on = (_src === 'kma');
         chk.disabled = !on;
         var lab = chk.parentNode;
         if (!lab) return;
         lab.style.opacity = on ? '' : 0.45;
-        lab.title = on ? '' : '이 기관은 70% 확률반경을 발표하지 않습니다 (경로 오차는 예보도 그림 참고)';
+        lab.title = on ? '' : why;
     }
 
     /**
@@ -1373,7 +1476,7 @@
     }
     function clearTrack() {
         _frames = [];
-        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _trailSrc, _headSrc, _pointSrc].forEach(function (s) { if (s) s.clear(); });
+        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _trailSrc, _headSrc, _pointSrc, _swathSrc].forEach(function (s) { if (s) s.clear(); });
         _pointBubbles.forEach(function (ov) { ov.setPosition(undefined); });
         if (_moveBubble) _moveBubble.setPosition(undefined);
     }
@@ -1559,6 +1662,7 @@
     // ── 초기화 ──────────────────────────────────────────────────────────────
     function ensureLayers(map) {
         if (_trackLayer) return;
+        _swathSrc = new ol.source.Vector();
         _probSrc = new ol.source.Vector();
         _strongSrc = new ol.source.Vector();
         _stormSrc = new ol.source.Vector();
@@ -1570,6 +1674,8 @@
         // updateWhileInteracting/Animating: 재생 중 지도 드래그·애니메이션 동안에도 벡터를
         //   계속 재렌더(드래그 중 태풍·반경이 멈췄다 순간이동하던 문제 방지).
         var uw = { updateWhileInteracting: true, updateWhileAnimating: true };
+        // 위험구역이 가장 넓으므로 맨 아래(114) — 그 위에 70%(116)·강풍(118)·폭풍(120)이 얹힌다.
+        _swathLayer = new ol.layer.Vector(Object.assign({ source: _swathSrc, zIndex: 114, style: swathStyle(rgba(SWATH_C, 0.95), rgba(SWATH_C, 0.20)) }, uw));
         _probLayer = new ol.layer.Vector(Object.assign({ source: _probSrc, zIndex: 116, style: swathStyle(rgba(PROB_C, 0.95), rgba(PROB_C, 0.30)) }, uw));
         _strongLayer = new ol.layer.Vector(Object.assign({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) }, uw));
         _stormLayer = new ol.layer.Vector(Object.assign({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) }, uw));
@@ -1579,6 +1685,7 @@
         _pointLayer = new ol.layer.Vector(Object.assign({ source: _pointSrc, zIndex: 140 }, uw)); // 강도숫자 포인트
         // 이동 태풍(🌀) 헤드만 포인트(140)보다 위 → 재생 중 포인트 숫자에 가려지지 않음.
         _headLayer = new ol.layer.Vector(Object.assign({ source: _headSrc, zIndex: 150 }, uw));
+        map.addLayer(_swathLayer);
         map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
         map.addLayer(_trackLayer); map.addLayer(_trailLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
         _moveBubble = makeBubbleOverlay(); map.addOverlay(_moveBubble); _moveEl = _moveBubble.getElement();
@@ -1600,6 +1707,8 @@
         // 기본(정지): 포인트별 말풍선 + 사전 범위 표출 / 재생: 사전 범위·포인트 말풍선 숨기고 이동 헤드만.
         var pb = _playbackMode;
         // swath(회랑)는 정지=전체 / 재생=시작~현재까지 자라나는 항적. 두 경우 모두 토글대로 표시.
+        // 위험구역은 기관이 발표한 도형 한 장이라 재생 중에도 그대로 둔다(자라나지 않는다).
+        if (_swathLayer) _swathLayer.setVisible(_visible && _layerOn.swath);
         if (_probLayer) _probLayer.setVisible(_visible && _layerOn.prob);
         if (_strongLayer) _strongLayer.setVisible(_visible && _layerOn.strong);
         if (_stormLayer) _stormLayer.setVisible(_visible && _layerOn.storm);
@@ -1708,7 +1817,7 @@
         });
 
         // 레이어 토글 체크박스 (dmdw 상세정보 레이어 대응)
-        [['tphn-ly-track', 'track'], ['tphn-ly-prob', 'prob'], ['tphn-ly-strong', 'strong'], ['tphn-ly-storm', 'storm']]
+        [['tphn-ly-track', 'track'], ['tphn-ly-prob', 'prob'], ['tphn-ly-swath', 'swath'], ['tphn-ly-strong', 'strong'], ['tphn-ly-storm', 'storm']]
             .forEach(function (pair) {
                 var el = document.getElementById(pair[0]);
                 if (!el) return;
