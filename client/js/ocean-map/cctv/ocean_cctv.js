@@ -173,6 +173,11 @@
              + '현재 날씨(관측 기반) · 3시간 간격 5일 예보' }
     ];
 
+    // [바깥에서 쓰라고 내놓는다] 온보딩 튜토리얼(js/tutorial/tutorial.js)이 지도 버튼을
+    //   설명할 때 이 글을 그대로 가져다 쓴다 — 같은 기능을 두 곳에서 다르게 설명하면
+    //   나중에 한쪽만 고쳐져 어긋나기 때문이다. 읽기 전용으로만 쓴다.
+    window.oceanInfoTabItems = INFO_TAB_ITEMS;
+
     /** 탭바 + 패널 HTML 문자열 생성 */
     function _buildInfoHtml() {
         var tabsHtml = '<div class="ocean-info-tabs">';

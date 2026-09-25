@@ -236,7 +236,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 47 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 48 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -272,6 +272,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_add_other_law_refresh` | `add_other_law_article.js --refresh` 가 **raw 원문을 안전하게 갈아 끼우는지** |
 | `test_pressure_card` | 바텀시트 "기압" 카드가 조용히 깨지지 않게 고정한다. |
 | `test_typhoon_source` | 태풍 탭 "자료 출처" 전환이 조용히 깨지지 않게 고정한다. |
+| `test_typhoon_jma` | 태풍 탭의 "일본(JMA)" 출처가 조용히 깨지지 않게 고정한다. |
 | `test_byl_decl` | 별표 파일 **선언줄** 판독(`bylDeclLine`·`parseBylDecl`·`hasBylBody`). |
 | `test_treaty_caselaw_meta` | §5-6 국제협약 · §5-7 판례변동 메타를 **읽는지** 고정한다. |
 | `test_context_budget` | 모델에게 넘기는 [근거자료]의 **합계 상한**(P-19)을 고정한다. |
