@@ -26,6 +26,9 @@
           _dashboard/admrul_annex/report_<시각>.json · _dashboard/touched/…
 사용법: python3 admrul_fill_annex.py [--dry] [--limit N] [--skip <경로조각>]
 """
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from _admrul_id import find_id   # ★판번호를 찾는 단 한 곳(P-19b)
 import glob, json, os, re, sys, time, urllib.request
 from _touched import Touched
 
@@ -50,6 +53,12 @@ def api(url, tries=4):
 
 def id_of(path):
     """머리글 8줄에서 `ID:`, 없으면 옆 `_admrul.json` 의 행정규칙일련번호."""
+    # ★판번호를 찾는 법은 `_admrul_id.find_id()` 한 곳에 있다(P-19b · L-386, 2026-09-25).
+    #   이 자도 `^ID:` 와 `_admrul.json` 을 **제 손으로** 다시 구현하고 있었다. 한 곳으로 모으면
+    #   라벨이 `행정규칙일련번호:`·`MST` 인 것과 곁 파일에 되찾아 둔 것까지 함께 읽는다.
+    rid, _w = find_id(path)
+    if rid:
+        return rid
     text = open(path, encoding='utf-8').read()
     m = re.search(r'^ID:(\d+)', '\n'.join(text.split('\n')[:8]), re.M)
     if m:

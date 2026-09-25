@@ -111,14 +111,35 @@ def find_id(path, head=None):
                         return str(rid), '_admrul.json'
     # ⑤ 곁 파일 — 제목 조회로 되찾아 둔 것
     rec = _recovered()
-    key = os.path.relpath(os.path.abspath(path), RAW).replace(os.sep, '/')
-    hit = rec.get(key)
+    hit = rec.get(_relkey(path))
+    if not isinstance(hit, dict):
+        # 열쇠가 안 맞을 때의 두 번째 길 — **뒤 세 마디**로 찾는다(법/행정규칙/파일이름).
+        hit = _recovered_tail().get('/'.join(_relkey(path).split('/')[-3:]))
     if isinstance(hit, dict) and hit.get('ID'):
         return str(hit['ID']), 'admrul_id_recovered.json'
     return None, '어디에도 없다'
 
 
+def _relkey(path):
+    """곁 파일의 열쇠(= raw 기준 상대경로)를 **경로 표기에 흔들리지 않게** 만든다.
+
+    ⚠실측으로 당했다(2026-09-25): 부르는 쪽이 `…/SEAGNAL/…`(대문자)로 경로를 만들고
+      이 모듈의 `RAW` 가 `…/seagnal/…`(심볼릭 링크를 따라간 이름)이면
+      (⚠경로 앞머리를 `…` 로 적는다 — 이 글은 **docstring** 이라 `V2-b`(절대경로 검사)가
+       주석과 달리 **센다**. 2026-09-25 에 그것으로 빨간불이 났다.)
+      `relpath` 가 `../../..` 꼴이 되어 **열쇠가 하나도 안 맞는다.** 그 탓에 같은 자에게 물어도
+      못 찾음이 **28 ↔ 43** 으로 갈렸다 — 되찾아 둔 15건이 통째로 안 보인 것이다.
+    ⇒ 양쪽을 `realpath` 로 펴서 견주고, 그래도 안 되면 **뒤 세 마디**(법/행정규칙/파일)로 찾는다.
+    """
+    try:
+        rel = os.path.relpath(os.path.realpath(path), os.path.realpath(RAW))
+    except Exception:
+        rel = os.path.relpath(os.path.abspath(path), RAW)
+    return rel.replace(os.sep, '/')
+
+
 _REC = None
+_REC_TAIL = None
 
 
 def _recovered():
@@ -131,6 +152,16 @@ def _recovered():
         except Exception:
             _REC = {}
     return _REC
+
+
+def _recovered_tail():
+    """곁 파일을 **뒤 세 마디**로도 찾을 수 있게 색인해 둔다(경로 표기가 달라도 맞는다)."""
+    global _REC_TAIL
+    if _REC_TAIL is None:
+        _REC_TAIL = {}
+        for k, v in _recovered().items():
+            _REC_TAIL['/'.join(str(k).split('/')[-3:])] = v
+    return _REC_TAIL
 
 
 TITLE_RE = re.compile(r'^\[[^\]]*\]\s*(.+?)\s*$')
