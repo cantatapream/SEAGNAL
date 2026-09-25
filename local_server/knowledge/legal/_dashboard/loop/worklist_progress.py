@@ -153,6 +153,46 @@ def stale_locks(rows, lines):
             out.append((m.group(1), d, rows[d]['st']))
     return out
 
+# 다른 칸이 「내가 이 일을 한다」고 제 손으로 적은 자리 — `**P-11 · G-14**` 꼴의 연결 칸.
+CLAIM_RE = re.compile(r'(?<![0-9A-Za-z])([0-9A-Z]+-[0-9]+[a-z]?)(?![0-9A-Za-z])')
+
+def done_but_open(rows, lines):
+    """★「이미 끝났는데 칸 머리만 안 바뀐 것」을 찾는다 (2026-09-25 신설).
+
+    까닭: 세 번 겪었다 — `2-19`(V5-24 가 이미 있었다) · `3-30`(G-26 이 답을 냈다) ·
+      `P-11`(2-11 이 고쳤고 그 주석이 P-11 을 적고 있었다). **세 번 다 딴 일을 하다 우연히 걸렸다.**
+      하나씩 걸려서 찾는 것은 낭비고, 그 사이 진행판은 **할 수 있는 일을 못 하는 일로** 센다.
+    어떻게 짚나: 끝난 칸(✅·❌)의 줄에 **다른 칸 번호가 적혀 있고** 그 칸이 아직 안 끝났으면,
+      「그 끝난 칸이 이 칸을 했다고 말하는 것일 수 있다」고 가리킨다.
+    ⚠**기계가 닫지 않는다**(G-34). 글에 번호가 같이 적힌 것이 곧 「했다」는 아니다 —
+      **선행 관계**일 수도 있다(`2-5` 는 `2-4` 를 적지만 아직 할 일이 남았다).
+      그래서 후보만 내고, 사람이 **그 코드·주석을 직접 열어** 확인한다(P-11 은 그렇게 확인했다).
+    ⚠줄이 긴 칸은 완료 기록에 남의 번호가 잔뜩 섞인다 — 그래서 **앞쪽 세 칸**만 본다
+      (제목·연결·대상 칸. 완료 글은 뒤에 붙는다).
+    """
+    out = []
+    for l in lines:
+        m = ID_RE.match(l)
+        if not m:
+            continue
+        me = m.group(1)
+        if rows.get(me, {}).get('st') not in DONE:
+            continue
+        head = '|'.join(l.split('|')[1:4])          # 제목·연결·대상까지만
+        for other in set(CLAIM_RE.findall(head)):
+            if other == me:
+                continue
+            r = rows.get(other)
+            if r and r['st'] not in DONE:
+                out.append((other, r['st'], me))
+    # 같은 후보가 여러 번 나오면 한 번만
+    seen, uniq = set(), []
+    for a, st, b in out:
+        if (a, b) in seen:
+            continue
+        seen.add((a, b)); uniq.append((a, st, b))
+    return sorted(uniq)
+
 def bar(done, n, w=10):
     f = 0 if not n else round(done * w / n)
     return '▓' * f + '░' * (w - f)
@@ -263,7 +303,15 @@ def main():
         WL.write_text(txt, encoding='utf-8')
         print('✅ 진행판을 실측으로 다시 썼다')
 
-    stale = stale_locks(rows, WL.read_text(encoding='utf-8').split('\n'))
+    lines_all = WL.read_text(encoding='utf-8').split('\n')
+    dbo = done_but_open(rows, lines_all)
+    if dbo:
+        print('\n⚠끝난 칸이 「내가 이 일을 한다」고 적어 둔 **안 끝난 칸** %d개 — '
+              '그 코드·주석을 직접 열어 확인한다(기계가 닫지 않는다):' % len(dbo))
+        for a, st, b in dbo:
+            print('   %-7s %s  ← %s 가 제 줄에 적고 있다' % (a, st, b))
+
+    stale = stale_locks(rows, lines_all)
     if stale:
         print('\n⚠앞 일이 끝났는데 아직 🔒 인 칸 %d개 — 풀든지 다른 까닭을 적든지 사람이 정한다:' % len(stale))
         for a, b, st in stale:
