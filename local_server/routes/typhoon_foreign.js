@@ -2,40 +2,44 @@
  * ============================================================================
  * 파일명: routes/typhoon_foreign.js
  * 역할: 해외 기관 태풍 자료를 우리 태풍 탭이 쓰는 형식으로 바꿔 내주는 API.
- *       지금은 미국 JTWC(합동태풍경보센터) 하나 — Xweather 를 거쳐 받는다.
+ *       지금은 미국 JTWC(합동태풍경보센터) 하나 — JTWC 공개 통보문을 직접 읽는다.
  * ============================================================================
  *
- * - GET /api/typhoon/foreign?src=jtwc → 활성 태풍 + 통보(자문) 1건 + 예보 프레임
+ * - GET /api/typhoon/foreign?src=jtwc        → 활성 태풍 + 통보(자문) + 예보 프레임
+ * - GET /api/typhoon/foreign/image?src=jtwc&seq=wp2526  → JTWC 경고 그래픽(gif) 중계
  *
- * [왜 서버에서 바꾸나]
- * 화면(ocean_typhoon.js)은 기상청 통보문 형식(프레임 배열)에 맞춰 이미 다 짜여 있다.
- * 해외 자료를 그 형식으로 **서버에서** 맞춰 내주면 화면 코드를 거의 안 고쳐도 된다.
+ * [왜 중계 업체를 거치지 않나 — 2026-09-25 전환]
+ *   처음에는 Xweather 라는 중계 업체를 거쳐 받았다. 그런데 그 이용약관
+ *   (Vaisala General Conditions of Subscription Services)이
+ *     §2.2 받은 자료를 "for your internal business purposes" 로만 쓰도록 제한하고,
+ *     §2.3(ii) "distribute, publish ... or otherwise make available ... to third
+ *              parties" 를 명시적으로 금지한다.
+ *   우리 앱은 일반에 공개돼 있으므로 그 경로로는 쓸 수 없다.
+ *   JTWC 자료 자체는 미국 정부 저작물이라 저작권이 없고 누구나 쓸 수 있다.
+ *   그래서 중계를 빼고 JTWC 가 공개하는 원본을 직접 읽는다. 키도 필요 없어졌다.
+ *
+ * [어디서 무엇을 받나]
+ *   목록  .../jtwc/products/abpwweb.txt · abioweb.txt    지금 활동 중인 태풍 번호·이름
+ *   본문  https://www.metoc.navy.mil/jtwc/products/wp2526web.txt   위치·풍속·반경·예보
+ *   그림  https://www.metoc.navy.mil/jtwc/products/wp2526.gif      경고 그래픽
+ *   seq 는 그 파일 이름의 앞부분('wp2526')을 그대로 쓴다 — 번호를 따로 만들지 않는다.
  *
  * [기상청과 다른 점 — 그대로 옮길 수 없는 것들]
- *   1. 중심기압: JTWC 는 시점별 기압을 주지 않는다(태풍 전체의 생애 최저만).
- *      → pressure 는 null 로 둔다. 없는 값을 지어내지 않는다.
- *   2. 70% 확률반경: 없다. 대신 **오차 원뿔(errorCone)** 을 GeoJSON 으로 주므로 그대로 실어 보낸다.
- *      → radProb 는 null(원 하나로는 표현이 안 된다). 화면은 원뿔 도형을 그대로 그린다.
- *        둘은 같은 것을 다르게 그린 것이다 — "경로가 빗나갈 수 있는 범위".
- *   3. 풍속반경: 기상청은 "장반경 + 단반경 + 단반경 방위" 세 값인데,
- *      JTWC 는 **북동·남동·남서·북서 네 방향 거리**를 준다.
- *      → 가장 먼 쪽을 장반경, 가장 가까운 쪽을 단반경과 그 방위로 옮긴다(근사).
- *        네 값 중 최대·최소는 그대로 살아나고 그 사이는 화면의 기존 S-커브로 이어진다.
- *        원본 네 값은 radQuad34 / radQuad50 로 함께 실어 보낸다(나중에 정확히 그릴 때 쓴다).
- *   4. 풍속 평균 시간: JTWC 1분 · 기상청 10분. 같은 태풍도 숫자가 다르다.
- *      → 강도(grade)는 풍속을 **10분 평균으로 환산(×0.88)한 뒤** 기상청 임계값에 넣는다.
- *        폭풍 종류(stormType)는 풍속이 아예 없을 때만 쓴다 — 종류 코드만으로는
- *        기상청 6단계로 못 나눈다(JTWC 의 TS 한 칸이 기상청 '약'과 '중'에 걸쳐 있다).
+ *   1. 중심기압: 현재 시점만 준다(통보문 REMARKS). 예보 시점은 발표하지 않는다 → null.
+ *   2. 70% 확률반경: 없다. 경로 오차 범위도 글자 통보문에는 없다 → radProb 는 null,
+ *      경로 오차를 담는 칸 자체를 만들지 않는다.
+ *      (원뿔은 경고 그래픽 그림 안에 그려져 있다 — 지도 버튼으로 볼 수 있다.)
+ *   3. 풍속반경: 북동·남동·남서·북서 네 방향 거리를 34/50/64노트별로 준다.
+ *      네 방향 값을 그대로 싣고(radQuad34/50/64), 장·단반경도 함께 채운다.
+ *   4. 풍속 평균 시간: JTWC 1분 · 기상청 10분 → 강도는 0.88 을 곱해 환산 후 판정.
  *
- * [시각] Xweather 는 UTC+10 기준 문자열로 준다. 여기서 한국시각(KST) 문자열로 바꿔 보낸다.
+ * [시각] 통보문은 UTC("일일시시분분Z")다. 여기서 한국시각 문자열로 바꿔 보낸다.
  *
- * [인증키] process.env.XWEATHER_CLIENT_ID / XWEATHER_CLIENT_SECRET (Fly secrets).
- *   미설정 시 success:false + reason:'no_key' → 화면이 "준비 중"으로 처리한다.
- *
- * [호출수] 무료 등급 월 15,000회. 상류가 6시간마다 갱신되므로 30분 캐시면 충분하다.
+ * [호출수] 목록 1회 + 태풍 수만큼. 상류가 6시간마다 갱신되므로 30분 캐시면 충분하다.
  *
  * [연계 파일]
  * - server.js → app.use() 로 등록
+ * - services/jtwc_parse.js → 통보문·목록 해독
  * - client/js/typhoon/ocean_typhoon.js → 출처 드롭다운에서 "미국(JTWC)" 선택 시 호출
  * ============================================================================
  */
@@ -44,354 +48,207 @@
 
 const express = require('express');
 const router = express.Router();
+const jtwc = require('../services/jtwc_parse');
 
-const CLIENT_ID = process.env.XWEATHER_CLIENT_ID || '';
-const CLIENT_SECRET = process.env.XWEATHER_CLIENT_SECRET || '';
-const BASE = 'https://data.api.xweather.com/tropicalcyclones';
-const JTWC_IMG_BASE = 'https://www.metoc.navy.mil/jtwc/products/';   // 경고 그래픽(gif)
-const HTTP_TIMEOUT_MS = 10000;
+const JTWC_BASE = 'https://www.metoc.navy.mil/jtwc/';
+// [어디서 목록을 얻나 — 2026-09-25 실측]
+//   jtwc.html        → 403   안내 화면은 막혀 있다
+//   products/        → 403   폴더 목록 보기도 막혀 있다
+//   products/<파일>  → 200   폴더 안의 '파일'은 받아진다
+//   그래서 활동 중인 태풍을 나열해 주는 '해역 기상정보' 파일 두 개를 읽는다.
+//   ABPW10 = 서태평양·남태평양(우리 앞바다 포함) · ABIO10 = 인도양.
+const ADVISORY_URLS = [
+    JTWC_BASE + 'products/abpwweb.txt',
+    JTWC_BASE + 'products/abioweb.txt'
+];
+const PRODUCT_BASE = JTWC_BASE + 'products/';
+const HTTP_TIMEOUT_MS = 20000;
+// [왜 표식을 보내나] .mil 사이트는 브라우저 표식이 없는 요청을 막는 경우가 있다.
+//   그림(products/*.gif)은 표식 없이도 받아지는데 목록 화면만 실패했다 — 그 차이를 메운다.
+const UA = 'Mozilla/5.0 (compatible; SEAGNAL/1.0; +https://seagnal-server.fly.dev)';
+const REQ_HEADERS = { 'User-Agent': UA, 'Accept': 'text/html,text/plain,*/*' };
 const TTL_MS = 30 * 60 * 1000;          // 상류가 6시간마다 갱신 — 30분이면 충분
 const KST_OFFSET_MS = 9 * 3600 * 1000;
-
-if (!CLIENT_ID || !CLIENT_SECRET) {
-    console.log('[typhoon-foreign] XWEATHER 키 미설정 — 해외 태풍 출처 비활성 (앱은 정상).');
-}
+const FRESH_MS = 18 * 3600 * 1000;      // 이 시간보다 오래된 통보문은 끝난 태풍으로 본다
+// [왜 한 번 더 거르나] 해역 기상정보는 하루 단위로 나온다(ABPW10 은 24시간 유효).
+//   그 사이 경보가 끝난 태풍이 글에 남아 있을 수 있어, 통보문 발표 시각으로 한 번 더 본다.
+//   JTWC 는 활동 중이면 6시간마다 통보문을 낸다.
 
 let cache = null;   // { at: ms, data: 응답객체 }
 
-/** epoch ms → 우리 프레임의 시각 문자열 "YYYYMMDDHHmm" (한국시각 기준). */
-function toKstStamp(ms) {
-    const d = new Date(ms + KST_OFFSET_MS);
-    const p = n => String(n).padStart(2, '0');
-    return String(d.getUTCFullYear()) + p(d.getUTCMonth() + 1) + p(d.getUTCDate())
-         + p(d.getUTCHours()) + p(d.getUTCMinutes());
+/** 한국시각 문자열("YYYYMMDDHHmm") → epoch ms. 못 읽으면 null. */
+function kstStampToMs(stamp) {
+    const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(String(stamp || ''));
+    if (!m) return null;
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - KST_OFFSET_MS;
 }
 
-/**
- * Xweather 가 준 시각 조각에서 epoch ms 를 꺼낸다.
- * 예: { timestamp: 1790100000 } → 1790100000000
- * @param {Object} o - timestamp(초) 또는 dateTimeISO 를 가진 객체
- * @returns {number|null}
- */
-function pickMs(o) {
-    if (!o) return null;
-    if (typeof o.timestamp === 'number') return o.timestamp * 1000;
-    if (o.dateTimeISO) {
-        const t = Date.parse(o.dateTimeISO);
-        if (!isNaN(t)) return t;
-    }
-    return null;
-}
+/** 상류에서 글자 자료를 받아온다. 실패하면 null(예외를 위로 던지지 않는다). */
+let lastError = '';   // 마지막 상류 실패 사유 — 응답의 detail 로 내보낸다(원인 없이 실패하지 않게)
+const probe = {};     // 어느 주소가 몇 번으로 답했는지 — 막힌 곳을 찾을 때 쓴다
 
-/**
- * JTWC 폭풍 종류 → 우리 강도(0~5). 풍속이 없을 때만 쓰는 보조 수단.
- * 예: 'TY' → 3
- * [한계] 종류 코드는 기상청 6단계보다 칸이 굵다 — JTWC 의 'TS'(34~63노트) 하나가
- *   기상청 '약'과 '중'에 걸쳐 있다. 그래서 풍속이 있으면 gradeOfWind 를 먼저 쓴다.
- * [모르는 코드] null 을 돌려준다. 0(열대저압부)으로 떨어뜨리면 센 태풍이
- *   가장 약한 등급으로 보인다 — 실제로 허리케인 Polo(920hPa)가 그렇게 나왔다.
- * @param {string} t - stormType (TD/TS/STS/TY/STY/HU 등)
- * @returns {number|null} 0(열대저압부) ~ 5(초강력), 모르는 코드면 null
- */
-function gradeOfStormType(t) {
-    switch (String(t || '').toUpperCase()) {
-        case 'TD': return 0;    // 열대저압부
-        case 'TS': return 1;    // 열대폭풍
-        case 'STS': return 2;   // 강한 열대폭풍
-        case 'TY': return 3;    // 태풍
-        case 'STY': return 5;   // 슈퍼 태풍
-        case 'H': return 3;     // 허리케인 — 실제로 오는 코드(2026-09-22 운영 응답에서 확인)
-        case 'HU': return 3;    // 허리케인(다른 해역 표기)
-        default: return null;
-    }
-}
-
-/** 1분 평균 → 10분 평균 환산계수(WMO 전통값). [출처] WMO 1993 · Harper et al. 2010 */
-const MIN1_TO_MIN10 = 0.88;
-
-/**
- * JTWC 풍속(1분 평균 m/s) → 기상청 강도(0~5).
- * 예: gradeOfWind(74) → 5 (74×0.88=65.1 m/s → 초강력)
- * [왜 환산하나] 기상청 임계값 17/25/33/44/54 m/s 는 **10분 평균** 기준이다.
- *   JTWC 의 1분 평균을 그대로 넣으면 한 단계 높게 나온다.
- * @param {number} ms - 1분 평균 최대풍속(m/s)
- * @returns {number|null} 0~5, 숫자가 아니면 null
- */
-function gradeOfWind(ms) {
-    if (typeof ms !== 'number' || !isFinite(ms)) return null;
-    const w = ms * MIN1_TO_MIN10;
-    if (w >= 54) return 5;
-    if (w >= 44) return 4;
-    if (w >= 33) return 3;
-    if (w >= 25) return 2;
-    if (w >= 17) return 1;
-    return 0;
-}
-
-/**
- * 태풍 하나에서 오차 원뿔(GeoJSON)을 꺼낸다.
- * 예: { type:'Polygon', coordinates:[[[136.2,17.2], …]] }
- * [어느 칸인가] 태풍 객체 뿌리(response[].errorCone)다 — 2026-09-24 실제 응답으로 확인했다.
- *   나머지 자리는 상류가 칸을 옮길 때를 대비한 보험이다. 찾지 못하면 null — 지어내지 않는다.
- * @param {Object} st - 상류 태풍 객체
- * @returns {Object|null} GeoJSON 도형, 없으면 null
- */
-function pickErrorCone(st) {
-    if (!st) return null;
-    var spots = [st.errorCone, st.position && st.position.errorCone,
-                 st.profile && st.profile.errorCone, st.geoPoly, st.cone];
-    for (var i = 0; i < spots.length; i++) {
-        var c = spots[i];
-        if (c && typeof c === 'object' && (c.type || c.coordinates)) return c;
-    }
-    return null;
-}
-
-/** 네 방향 중심 방위(도) — 사분면 대표 방향. */
-const QUAD_DIR = { ne: 'NE', se: 'SE', sw: 'SW', nw: 'NW' };
-
-/**
- * 풍속반경 배열에서 원하는 등급(노트)의 사분면 거리(km)를 꺼낸다.
- * 예: pickQuad(windRadii, 34) → { ne: 166.68, se: 351.88, sw: 370.4, nw: 240.76 }
- * @param {Array} radii - details.windRadii
- * @param {number} kts - 34 또는 50
- * @returns {Object|null} 네 방향 거리(km), 없으면 null
- */
-function pickQuad(radii, kts) {
-    if (!Array.isArray(radii)) return null;
-    const hit = radii.find(r => r && r.windSpeedKTS === kts);
-    if (!hit || !hit.quadrants) return null;
-    const out = {};
-    let any = false;
-    ['ne', 'se', 'sw', 'nw'].forEach(k => {
-        const v = hit.quadrants[k] && hit.quadrants[k].distanceKM;
-        out[k] = (typeof v === 'number' && isFinite(v)) ? Math.round(v) : 0;
-        if (out[k] > 0) any = true;
-    });
-    return any ? out : null;
-}
-
-/**
- * 네 방향 거리 → 우리 형식의 (장반경, 단반경, 단반경 방위).
- * 예: {ne:167, se:352, sw:370, nw:241} → { long:370, short:167, dir:'NE' }
- * 가장 먼 쪽·가장 가까운 쪽은 그대로 살아나고, 그 사이는 화면이 S-커브로 잇는다(근사).
- * @param {Object|null} q - pickQuad 결과
- * @returns {{long:number, short:number, dir:string}|null}
- */
-function quadToAsym(q) {
-    if (!q) return null;
-    const keys = ['ne', 'se', 'sw', 'nw'];
-    let maxK = keys[0], minK = keys[0];
-    keys.forEach(k => {
-        if (q[k] > q[maxK]) maxK = k;
-        if (q[k] < q[minK]) minK = k;
-    });
-    if (!(q[maxK] > 0)) return null;
-    return { long: q[maxK], short: q[minK], dir: QUAD_DIR[minK] };
-}
-
-/**
- * Xweather 의 한 시점(현재 또는 예보) → 우리 프레임 한 칸.
- * @param {Object} node - position 또는 forecast[i]
- * @param {boolean} isCurrent - 관측 현재 위치인가
- * @returns {Object|null} 우리 프레임(lat/lon 없으면 null)
- */
-function toFrame(node, isCurrent) {
-    if (!node) return null;
-    const d = node.details || {};
-    const loc = node.loc || (node.location && Array.isArray(node.location.coordinates)
-        ? { long: node.location.coordinates[0], lat: node.location.coordinates[1] } : null);
-    if (!loc || typeof loc.lat !== 'number' || typeof loc.long !== 'number') return null;
-
-    const q34 = pickQuad(d.windRadii, 34);
-    const q50 = pickQuad(d.windRadii, 50);
-    const a34 = quadToAsym(q34);
-    const a50 = quadToAsym(q50);
-    const mv = d.movement || {};
-    const ms = pickMs(node);
-    const windMs = (typeof d.windSpeedMPS === 'number') ? d.windSpeedMPS : null;
-
-    return {
-        time: ms ? toKstStamp(ms) : null,
-        lat: loc.lat,
-        lon: loc.long,
-        pressure: (typeof d.pressureMB === 'number') ? d.pressureMB : null,   // 보통 null 로 온다
-        windMs: windMs,
-        windKmh: (typeof d.windSpeedKPH === 'number') ? d.windSpeedKPH : null,
-        gustMs: (typeof d.gustSpeedMPS === 'number') ? d.gustSpeedMPS : null,
-        dir: mv.direction || '',
-        speedKmh: (typeof mv.speedKPH === 'number') ? mv.speedKPH : null,
-        radStrong: a34 ? a34.long : null,
-        radStrongS: a34 ? a34.short : null,
-        radStrongD: a34 ? a34.dir : '',
-        radStorm: a50 ? a50.long : null,
-        radStormS: a50 ? a50.short : null,
-        radStormD: a50 ? a50.dir : '',
-        radQuad34: q34,          // 원본 네 방향 값(정확히 그릴 때 쓰려고 함께 보낸다)
-        radQuad50: q50,
-        radProb: null,           // JTWC 는 70% 확률반경을 주지 않는다
-        // 풍속이 있으면 풍속으로, 없으면 폭풍 종류로. 둘 다 없으면 null(화면이 0으로 그린다).
-        grade: (gradeOfWind(windMs) != null) ? gradeOfWind(windMs) : gradeOfStormType(d.stormType),
-        stormType: d.stormType || '',   // 원본 코드 — 등급이 이상할 때 무엇을 받았는지 보이게 둔다
-        size: '',
-        isCurrent: !!isCurrent
-    };
-}
-
-/** 상류 호출 + 30분 캐시. 실패하면 null. */
-async function fetchActive() {
-    if (cache && (Date.now() - cache.at) < TTL_MS) return cache.data;
-    // filter=geo 가 있어야 오차 원뿔(errorCone)이 따라온다 — 없으면 그 칸 자체가 안 온다.
-    //   2026-09-24 실제 응답으로 확인: 붙여도 position·forecast·track 은 그대로 다 온다(빠지는 것 없음).
-    const url = `${BASE}/?client_id=${encodeURIComponent(CLIENT_ID)}`
-              + `&client_secret=${encodeURIComponent(CLIENT_SECRET)}&limit=10&filter=geo`;
-    let json = null;
+async function fetchText(url) {
     try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
-        if (!res.ok) { console.log(`[typhoon-foreign] 상류 응답 ${res.status}`); return null; }
-        json = await res.json();
-    } catch (e) {
-        console.log(`[typhoon-foreign] 호출 실패: ${e.message}`);
-        return null;
-    }
-    if (!json || json.success !== true) {
-        const code = json && json.error && json.error.code;
-        // 활성 태풍이 없을 때도 success:false(warn_no_data)로 오므로 실패로 보지 않는다.
-        if (code && String(code).indexOf('warn_no_data') < 0) {
-            console.log(`[typhoon-foreign] 상류 오류: ${code}`);
+        const res = await fetch(url, {
+            headers: REQ_HEADERS,
+            redirect: 'follow',
+            signal: AbortSignal.timeout(HTTP_TIMEOUT_MS)
+        });
+        probe[url] = res.status;
+        if (!res.ok) {
+            lastError = 'http_' + res.status;
+            console.log(`[typhoon-foreign] ${url} 응답 ${res.status}`);
             return null;
         }
-        json = { response: [] };
+        return await res.text();
+    } catch (e) {
+        lastError = String(e.name || 'error') + ':' + String(e.message || '').slice(0, 80);
+        console.log(`[typhoon-foreign] ${url} 호출 실패: ${e.message}`);
+        return null;
     }
-    cache = { at: Date.now(), data: json };
-    return json;
 }
 
 /**
- * GET /api/typhoon/foreign?src=jtwc
- * 성공: { success:true, src:'jtwc', label:'미국(JTWC)', updatedAt, year, hasActive, typhoons:[…] }
- *   typhoons[i] = { seq, name, nameEn, latestTmFc, bulletins:[{ code,label,isLatest,current,forecast[] }] }
- *   — 기상청 응답과 같은 모양이라 화면(ocean_typhoon.js)이 그대로 그린다.
- * 실패: { success:false, reason:'no_key'|'bad_src'|'upstream' }
+ * 한국시각 문자열("YYYYMMDDHHmm") → 통보문 라벨에 쓰는 "09.25. 09:00" 꼴.
+ * @param {string} stamp
+ * @returns {string}
  */
-router.get('/api/typhoon/foreign', async (req, res) => {
-    res.set('Cache-Control', 'public, max-age=600');
+function stampToLabel(stamp) {
+    const s = String(stamp || '');
+    if (s.length < 12) return '';
+    return s.slice(4, 6) + '.' + s.slice(6, 8) + '. ' + s.slice(8, 10) + ':' + s.slice(10, 12);
+}
 
-    const src = String(req.query.src || 'jtwc').toLowerCase();
-    if (src !== 'jtwc') return res.json({ success: false, reason: 'bad_src' });
-    if (!CLIENT_ID || !CLIENT_SECRET) return res.json({ success: false, reason: 'no_key' });
+/**
+ * JTWC 목록 + 통보문을 받아 우리 응답 형식으로 만든다. 30분 캐시.
+ * @returns {Promise<Object|null>} 실패하면 null
+ */
+async function fetchActive() {
+    if (cache && (Date.now() - cache.at) < TTL_MS) return cache.data;
 
-    const raw = await fetchActive();
-    if (!raw) return res.json({ success: false, reason: 'upstream' });
+    lastError = '';
+    Object.keys(probe).forEach(k => delete probe[k]);
+    const year = new Date(Date.now() + KST_OFFSET_MS).getUTCFullYear();
 
-    const list = Array.isArray(raw.response) ? raw.response : [];
+    // 해역 기상정보 두 개를 읽어 활동 중인 태풍 번호를 모은다.
+    const texts = await Promise.all(ADVISORY_URLS.map(fetchText));
+    if (texts.every(t => t === null)) return null;      // 둘 다 못 받으면 지어내지 않는다
+
+    let chars = 0;
+    const bases = [];
+    const seen = {};
+    texts.forEach((t) => {
+        if (!t) return;
+        chars += t.length;
+        jtwc.parseAdvisory(t).forEach((st) => {
+            const base = jtwc.fileBase(st.code, year);
+            if (!base || seen[base]) return;
+            seen[base] = true;
+            bases.push(base);
+        });
+    });
+    // [왜 남기나] 화면이 비었을 때 "정말 태풍이 없다"와 "목록을 못 읽었다"가 구별돼야 한다.
+    //   (L-291 — 실패가 무결처럼 보이면 안 된다.) 글은 받았는데 0개면 정말 없는 것이다.
+    console.log(`[typhoon-foreign] 해역정보 ${chars}자 → 활동 중 ${bases.length}개`);
+
+    const warnings = await Promise.all(bases.map(async (base) => {
+        const txt = await fetchText(PRODUCT_BASE + base + 'web.txt');
+        if (txt === null) return null;
+        const w = jtwc.parseWarning(txt);
+        if (!w) { console.log(`[typhoon-foreign] ${base} 통보문 해독 실패`); return null; }
+        // 끝난 태풍 거르기 — 통보문이 남아 있어도 발표가 끊기면 더는 활동 중이 아니다.
+        const ms = kstStampToMs(w.issuedKst);
+        if (ms !== null && (Date.now() - ms) > FRESH_MS) {
+            console.log(`[typhoon-foreign] ${base} 오래된 통보문(${w.issuedKst}) — 제외`);
+            return null;
+        }
+        return w;
+    }));
+
     const typhoons = [];
-
-    list.forEach(st => {
-        const prof = st.profile || {};
-        const pos = st.position || {};
-        const cur = toFrame(pos, true);
-        const forecast = (Array.isArray(st.forecast) ? st.forecast : [])
-            .map(f => toFrame(f, false))
-            .filter(Boolean);
-        if (!cur && !forecast.length) return;
-
-        const det = (pos.details) || {};
-        const adv = det.advisoryNumber || '';
-        const stamp = (cur && cur.time) || (forecast[0] && forecast[0].time) || '';
-        const label = '[ JTWC ] ' + (adv ? '제' + adv + '호 자문' : '최신 자문')
-                    + (stamp ? ' / ' + stamp.slice(4, 6) + '.' + stamp.slice(6, 8) + '. '
-                             + stamp.slice(8, 10) + ':' + stamp.slice(10, 12) + ' 기준(KST)' : '');
-
-        const seq = String(st.id || prof.name || '');
+    warnings.forEach((w) => {
+        if (!w) return;
+        const label = '[ JTWC ] 제' + w.advisory + '호 자문'
+                    + (w.issuedKst ? ' / ' + stampToLabel(w.issuedKst) + ' 기준(KST)' : '');
         typhoons.push({
-            seq: seq,
-            // 이 태풍의 경고 그래픽이 있나(없으면 화면이 이미지 버튼을 감춘다).
-            //   해역은 상류가 말하는 '현재 해역'을 먼저 본다 — id 의 해역은 낡을 수 있다.
-            imageName: jtwcImageName(seq, prof.basinCurrent || prof.basinOrigin),
-            name: prof.name || '(이름 없음)',
-            nameEn: prof.name || '',
-            latestTmFc: stamp,
+            seq: w.seq,                       // 'wp2526' — 제품 파일 이름과 같다
+            name: w.name,
+            nameEn: w.name,
+            // 경고 그래픽은 목록에 오른 태풍이면 모두 있다(해역과 무관).
+            imageName: w.seq + '.gif',
+            latestTmFc: w.issuedKst,
             bulletins: [{
-                code: String(st.id || '') + '_' + (adv || '0'),
+                code: w.seq + '_' + w.advisory,
                 label: label,
                 kind: 'TYP',
                 isLatest: true,
-                current: cur,
-                forecast: forecast,
-                errorCone: pickErrorCone(st),   // 경로가 빗나갈 수 있는 범위(70% 확률반경에 해당)
+                current: w.current,
+                forecast: w.forecast,
                 // 화면 안내(i 버튼)가 그대로 쓰는 자리 — 기관 차이를 여기서 알린다.
-                rem: 'JTWC(미국 합동태풍경보센터) 자료입니다. 풍속은 1분 평균이라 기상청(10분 평균)보다 높게 나옵니다.'
+                rem: 'JTWC(미국 합동태풍경보센터)가 공개한 통보문을 그대로 읽은 자료입니다.'
+                   + '|풍속은 1분 평균이라 기상청(10분 평균)보다 높게 나옵니다.'
                    + '|강도(약~초강력)는 그 풍속을 10분 평균으로 환산해 기상청 기준에 맞춘 값입니다.'
-                   + '|중심기압은 제공되지 않습니다. 70% 확률반경 대신 오차 원뿔로 그립니다.'
-                   + '|강풍·폭풍반경은 네 방향 값 중 가장 먼 쪽·가까운 쪽으로 옮겨 그린 근사입니다.'
-                   + '|JTWC 는 북서태평양·인도양·남반구만 경보를 냅니다. 대서양·동태평양 태풍은'
-                   + ' 미국 국립허리케인센터(NHC) 담당이라 통보문 그림이 제공되지 않습니다.',
-                other: 'Xweather 를 통해 받은 JTWC 자료 · 6시간마다 갱신'
+                   + '|중심기압은 지금 위치만 발표됩니다. 예상 위치의 기압은 제공되지 않습니다.'
+                   + '|70% 확률반경은 발표되지 않습니다. 경로 오차 범위는 지도 그림 버튼의'
+                   + ' 예보도에서 보실 수 있습니다.'
+                   + '|강풍·폭풍반경은 북동·남동·남서·북서 네 방향 거리를 그대로 그립니다.',
+                other: '미국 합동태풍경보센터(JTWC) 공개 통보문 · 미국 정부 공공저작물 · 6시간마다 갱신'
             }]
         });
     });
 
-    res.json({
+    const data = {
         success: true,
         src: 'jtwc',
         label: '미국(JTWC)',
         updatedAt: new Date().toISOString(),
-        year: new Date(Date.now() + KST_OFFSET_MS).getUTCFullYear(),
+        year: year,
         hasActive: typhoons.length > 0,
+        // 목록을 읽은 흔적 — 0개일 때 "태풍이 없다"인지 "못 읽었다"인지 가르는 단서.
+        listChars: chars,
         typhoons: typhoons
-    });
-});
-
-// 변환 규칙은 화면 없이도 고정해 둔다.
-// [연계] → local_server/scripts/test_typhoon_source.js (verify_all.sh SUITES 등록)
-router._toFrame = toFrame;
-router._clearCache = function () { cache = null; };   // 시험에서 30분 캐시를 비울 때만 쓴다
-router._quadToAsym = quadToAsym;
-router._pickQuad = pickQuad;
-router._gradeOfStormType = gradeOfStormType;
-router._gradeOfWind = gradeOfWind;
-router._toKstStamp = toKstStamp;
-router._pickErrorCone = pickErrorCone;
-
-// JTWC 가 경보를 내는 해역 — 북서태평양·인도양·남반구.
-//   대서양(AL)과 동/중태평양(EP·CP)은 미국 국립허리케인센터(NHC)·중부태평양허리케인센터(CPHC)
-//   담당이라 JTWC 그래픽이 아예 없다. 이걸 안 거르면 없는 그림을 부르는 버튼이 생긴다.
-const JTWC_BASINS = ['WP', 'IO', 'SH'];
-
-/**
- * seq → JTWC 경고 그래픽 파일명. JTWC 담당 해역이 아니면 ''.
- * 예: '2026-WP-25' → 'wp2526.gif'  (해역 wp · 태풍번호 25 · 연도 뒤 두 자리 26)
- *     '2026-EP-17' → ''            (동태평양은 NHC 담당)
- * [출처] https://www.metoc.navy.mil/jtwc/products/<파일명> — 사용자가 확인해 준 주소 형식.
- * [확인 범위] wp 는 실물로 확인했다(wp2526.gif = 수리개). io·sh 는 같은 ATCF 이름규칙을
- *   따른다고 보고 넣었을 뿐 실물로 확인하지 못했다 — 없으면 중계가 404 를 준다.
- * @param {string} seq - 우리 응답의 seq (상류 id)
- * @param {string} [basin] - 상류가 말하는 현재 해역. 있으면 이쪽을 우선한다
- *   (태풍이 해역을 넘어가면 id 의 해역은 낡는다 — Nolo 는 id 가 EP 인데 지금 CP 에 있다).
- * @returns {string} 파일명, 해당 없으면 ''
- */
-function jtwcImageName(seq, basin) {
-    const m = /^(\d{4})-([A-Za-z]{2})-(\d{1,2})$/.exec(String(seq || ''));
-    if (!m) return '';
-    const b = String(basin || m[2]).toUpperCase();
-    if (JTWC_BASINS.indexOf(b) === -1) return '';
-    return b.toLowerCase() + String(m[3]).padStart(2, '0') + m[1].slice(2) + '.gif';
+    };
+    cache = { at: Date.now(), data: data };
+    return data;
 }
 
 /**
- * GET /api/typhoon/foreign/image?src=jtwc&seq=2026-WP-25[&download=1]
+ * GET /api/typhoon/foreign?src=jtwc
+ * 성공: { success:true, src, label, updatedAt, year, hasActive, typhoons:[…] }
+ *   — 기상청 응답과 같은 모양이라 화면(ocean_typhoon.js)이 그대로 그린다.
+ * 실패: { success:false, reason:'bad_src'|'upstream' }
+ */
+router.get('/api/typhoon/foreign', async (req, res) => {
+    res.set('Cache-Control', 'public, max-age=600');
+    const src = String(req.query.src || 'jtwc').toLowerCase();
+    if (src !== 'jtwc') return res.json({ success: false, reason: 'bad_src' });
+    const data = await fetchActive();
+    if (!data) {
+        // 어느 주소가 몇 번으로 답했는지 함께 알린다 — 막힌 곳을 바로 짚을 수 있게.
+        const where = Object.keys(probe).map(u => u.replace(JTWC_BASE, '') + '=' + probe[u]).join(' ');
+        return res.json({ success: false, reason: 'upstream', detail: lastError, probe: where });
+    }
+    res.json(data);
+});
+
+/**
+ * GET /api/typhoon/foreign/image?src=jtwc&seq=wp2526[&download=1]
  * JTWC 경고 그래픽(gif)을 중계한다 — 기상청 통보문 이미지 버튼과 같은 자리에 쓴다.
  * [왜 중계하나] 앱에서 바깥 주소를 직접 물면 CORS·혼합콘텐츠에 걸린다. 기상청 이미지도
  *   같은 이유로 /api/typhoon/image 가 중계하고 있다 — 그 방식을 그대로 따른다.
+ * [형식 검사] seq 는 'wp2526' 처럼 영문 두 자 + 숫자 네 자만 받는다(경로조작 차단).
  * 실패: 400(형식 오류) · 404(그림 없음·상류 실패)
  */
 router.get('/api/typhoon/foreign/image', async (req, res) => {
     if (String(req.query.src || 'jtwc').toLowerCase() !== 'jtwc') return res.status(400).end();
-    const name = jtwcImageName(req.query.seq, req.query.basin);
-    if (!name) return res.status(400).end();
+    const seq = String(req.query.seq || '').toLowerCase();
+    if (!/^[a-z]{2}\d{4}$/.test(seq)) return res.status(400).end();
+    const name = seq + '.gif';
     try {
-        const up = await fetch(JTWC_IMG_BASE + name, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
+        const up = await fetch(PRODUCT_BASE + name, {
+            headers: REQ_HEADERS,
+            signal: AbortSignal.timeout(HTTP_TIMEOUT_MS)
+        });
         const type = up.headers.get('content-type') || '';
         if (!up.ok || type.indexOf('image') === -1) {
             console.log(`[typhoon-foreign] 그래픽 ${name} 실패 ${up.status} ${type}`);
@@ -408,6 +265,10 @@ router.get('/api/typhoon/foreign/image', async (req, res) => {
     }
 });
 
-router._jtwcImageName = jtwcImageName;
+// 시험에서 쓰는 내부 접근구 — 규칙을 화면 없이도 고정해 둔다.
+// [연계] → local_server/scripts/test_typhoon_source.js (verify_all.sh SUITES 등록)
+router._clearCache = function () { cache = null; };
+router._stampToLabel = stampToLabel;
+router._kstStampToMs = kstStampToMs;
 
 module.exports = router;

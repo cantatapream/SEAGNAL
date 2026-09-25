@@ -81,11 +81,12 @@
     var SOURCES = {
         kma:  { label: '한국(기상청)', note: '자료: 기상청 방재기상플랫폼 통보문 · 10분마다 수집' },
         jtwc: { label: '미국(JTWC)',
-                note: '자료: JTWC(미국 합동태풍경보센터) · Xweather 제공 · 6시간마다 갱신 · 풍속은 1분 평균(기상청은 10분 평균)' }
+                // [출처표기] JTWC 자료는 미국 정부 공공저작물이다. 중계 업체를 거치지 않고
+                //   metoc.navy.mil 의 공개 통보문을 직접 읽으므로 그 사실을 그대로 적는다.
+                note: '자료: 미국 합동태풍경보센터(JTWC) 공개 통보문 · 미국 정부 공공저작물 · 6시간마다 갱신 · 풍속은 1분 평균(기상청은 10분 평균)' }
     };
     var _src = 'kma';          // 지금 보고 있는 출처
     var _foreignData = null;   // 해외 출처 응답 캐시
-    var _errorCone = null;     // 해외 출처의 오차 원뿔(GeoJSON) — 있으면 70%확률반경 자리에 그린다
     var _year = null;          // 선택 연도
     var _typhoonList = [];     // 선택 연도의 태풍 목록 [{seq,name}]
     var _selSeq = null;        // 선택 태풍 seq
@@ -577,29 +578,6 @@
     }
     function orientCW(r) { return ringSignedArea(r) > 0 ? r.slice().reverse() : r; }
 
-    /**
-     * 오차 원뿔(GeoJSON) → 지도 도형. 경위도를 지도 좌표로 옮기기만 한다.
-     * 예: {type:'Polygon', coordinates:[[[136.2,17.2],…]]} → ol.geom.MultiPolygon
-     * [왜] JTWC 는 "경로가 빗나갈 수 있는 범위"를 기상청의 70% 확률반경(원) 대신
-     *   원뿔 도형으로 준다. 원으로 바꿔 그리면 그 기관이 말한 모양이 아니게 된다.
-     * [연계] ← renderStatic / renderHead · 서버 routes/typhoon_foreign.js 의 errorCone
-     * @param {Object} gj - GeoJSON Polygon 또는 MultiPolygon
-     * @returns {Object|null} ol.geom.MultiPolygon, 못 읽으면 null
-     */
-    function coneGeom(gj) {
-        if (!gj || !gj.coordinates) return null;
-        function ring(r) {
-            return (r || []).map(function (c) { return ol.proj.fromLonLat([c[0], c[1]]); });
-        }
-        try {
-            if (gj.type === 'Polygon') return new ol.geom.MultiPolygon([gj.coordinates.map(ring)]);
-            if (gj.type === 'MultiPolygon') {
-                return new ol.geom.MultiPolygon(gj.coordinates.map(function (poly) { return poly.map(ring); }));
-            }
-        } catch (e) { return null; }
-        return null;
-    }
-
     function pointAt(lon, lat) { return new ol.geom.Point(ol.proj.fromLonLat([lon, lat])); }
 
     // ── 프레임 구성 ──────────────────────────────────────────────────────────
@@ -655,8 +633,8 @@
         if (!_frames.length) return;
 
         // 전체 진로 영역(매끈한 회랑) — 70%(아래)·강풍(중)·폭풍(위)은 레이어 zIndex 로 순서 보장
-        // 경로 오차 범위: 기상청은 70% 확률반경(원), JTWC 는 오차 원뿔(도형). 같은 자리에 그린다.
-        var probG = _errorCone ? coneGeom(_errorCone) : swathCorridorGeom(_frames, { long: 'radProb' });
+        // 경로 오차 범위 — 기상청의 70% 확률반경. JTWC 는 이 값을 발표하지 않는다.
+        var probG = swathCorridorGeom(_frames, { long: 'radProb' });
         if (probG) _probSrc.addFeature(new ol.Feature(probG));
         var strongG = swathCorridorGeom(_frames, { long: 'radStrong', short: 'radStrongS', dir: 'radStrongD', quad: 'radQuad34' });
         if (strongG) _strongSrc.addFeature(new ol.Feature(strongG));
@@ -913,11 +891,7 @@
             _frames.forEach(function (fr) { if (fr._t <= f._rtMs) passedPts.push(fr); });
             passedPts.push(f); // 현재(보간) 시점 — 회랑 끝이 점점 커지며 진행
             _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear();
-            // 원뿔은 발표 시점의 전체 범위라 시간에 따라 자라지 않는다 — 통째로 그린다.
-            if (_layerOn.prob) {
-                var gp = _errorCone ? coneGeom(_errorCone) : swathCorridorGeom(passedPts, { long: 'radProb' });
-                if (gp) _probSrc.addFeature(new ol.Feature(gp));
-            }
+            if (_layerOn.prob) { var gp = swathCorridorGeom(passedPts, { long: 'radProb' }); if (gp) _probSrc.addFeature(new ol.Feature(gp)); }
             if (_layerOn.strong) { var gw = swathCorridorGeom(passedPts, { long: 'radStrong', short: 'radStrongS', dir: 'radStrongD', quad: 'radQuad34' }); if (gw) _strongSrc.addFeature(new ol.Feature(gw)); }
             if (_layerOn.storm) { var gs = swathCorridorGeom(passedPts, { long: 'radStorm', short: 'radStormS', dir: 'radStormD', quad: 'radQuad50' }); if (gs) _stormSrc.addFeature(new ol.Feature(gs)); }
         }
@@ -1199,34 +1173,27 @@
      *          → loadForeign / loadYear (같은 파일)
      */
     /**
-     * "경로 오차 범위" 체크박스의 이름·잠금을 지금 자료에 맞춘다.
-     * 예: 기상청 → "70%반경" / JTWC(원뿔 있음) → "오차원뿔" / 원뿔도 없으면 잠금
-     * [왜] 기관마다 이 값을 주는 방식이 다르다. 이름을 그대로 두면 원뿔을 "70%반경"이라
-     *   부르게 되고, 무조건 잠그면 JTWC 가 실제로 주는 원뿔을 못 켠다.
-     * [연계] ← setSource / renderBulletin (같은 파일) · index2.html #tphn-ly-prob
+     * "70%반경" 체크박스의 잠금을 지금 출처에 맞춘다.
+     * 예: 기상청 → 켤 수 있음 / JTWC → 잠김(그 값을 발표하지 않는다)
+     * [왜] JTWC 통보문에는 경로 오차 범위가 글자로 들어 있지 않다. 경로 오차는
+     *   JTWC 예보도 그림(지도 버튼) 안에 그려져 있어 그쪽에서 볼 수 있다.
+     * [연계] ← setSource (같은 파일) · index2.html #tphn-ly-prob
      */
     function applyProbControl() {
         var chk = document.getElementById('tphn-ly-prob');
         if (!chk) return;
-        var kma = (_src === 'kma');
-        var on = kma || !!_errorCone;        // 기상청은 항상, 해외는 원뿔을 받았을 때만
+        var on = (_src === 'kma');
         chk.disabled = !on;
         var lab = chk.parentNode;
         if (!lab) return;
         lab.style.opacity = on ? '' : 0.45;
-        lab.title = on ? '' : '이 기관은 경로 오차 범위를 제공하지 않습니다';
-        // 라벨 글자만 바꾼다(체크박스 요소는 그대로 둔다).
-        var txt = kma ? ' 70%반경' : (_errorCone ? ' 오차원뿔' : ' 경로오차');
-        for (var i = 0; i < lab.childNodes.length; i++) {
-            if (lab.childNodes[i].nodeType === 3) { lab.childNodes[i].nodeValue = txt; break; }
-        }
+        lab.title = on ? '' : '이 기관은 70% 확률반경을 발표하지 않습니다 (경로 오차는 예보도 그림 참고)';
     }
 
     /**
      * 통보문 이미지 버튼을 띄울지 정한다 — 그림이 실제로 있는 때만 띄운다.
-     * 예: 기상청 → 항상 / JTWC 수리개(북서태평양) → 띄움 / JTWC Polo(동태평양) → 감춤
-     * [왜 태풍마다 다른가] JTWC 는 북서태평양·인도양·남반구만 경보를 낸다.
-     *   대서양·동태평양은 미국 국립허리케인센터(NHC) 담당이라 JTWC 그래픽이 없다.
+     * 예: 기상청 → 항상 / JTWC 태풍 → 그 태풍의 예보도가 있으면 띄움
+     * [왜 태풍마다 보나] 목록에 올랐어도 그림이 없는 태풍이 있을 수 있다.
      *   서버가 태풍마다 imageName 을 채워 주고(없으면 빈 값), 여기서는 그것만 본다.
      * [연계] ← setSource / selectForeignTyphoon (같은 파일) · 서버 응답의 imageName
      */
@@ -1314,7 +1281,7 @@
         if (!b0) { clearTrack(); return; }
         _selCode = b0.code;
         setSelValue('tphn-bulletin', b0.code);
-        applyImageBtn();   // 태풍마다 그림 유무가 다르다(해역이 다르면 JTWC 그래픽이 없다)
+        applyImageBtn();   // 태풍마다 예보도 유무가 다를 수 있다
         renderBulletin(b0);
     }
 
@@ -1378,8 +1345,6 @@
 
     function renderBulletin(b) {
         _curBulletin = b;         // i버튼(안내)·이미지 팝업에서 rem/other/code 참조
-        _errorCone = b.errorCone || null;   // 해외 출처만 있다(기상청 통보문엔 없는 칸)
-        applyProbControl();       // 원뿔이 있으면 "경로오차" 체크박스를 열어 준다
         _playbackMode = false;    // 새 통보문 선택 → 기본(포인트별 말풍선 + 사전 범위) 모드
         _frames = buildFrames(b);
         _pNow = computeNowP();    // 발표시각이 아니라 "현재 시각" 기준 위치에서 시작
@@ -1408,7 +1373,6 @@
     }
     function clearTrack() {
         _frames = [];
-        _errorCone = null;
         [_trackSrc, _probSrc, _strongSrc, _stormSrc, _trailSrc, _headSrc, _pointSrc].forEach(function (s) { if (s) s.clear(); });
         _pointBubbles.forEach(function (ov) { ov.setPosition(undefined); });
         if (_moveBubble) _moveBubble.setPosition(undefined);
