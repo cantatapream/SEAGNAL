@@ -46,17 +46,62 @@ def row_status(line):
     m = ANY_RE.search(line)
     return m.group(1) if m else '?'
 
-def read_rows(text=None):
-    lines = (text if text is not None else WL.read_text(encoding='utf-8')).split('\n')
-    start = next((i for i, l in enumerate(lines) if l.startswith('# §A')), 0)
-    rows, sec = collections.OrderedDict(), '(머리)'
-    for l in lines[start:]:
+TITLE_CUT = re.compile(r'<br>|✅|❌|🟡|⬜|🔒|🔍|🔴|~~')
+LEAD = '★⚠️ '
+
+def row_title(line):
+    """그 칸이 **무엇을 하는 일인지** 한 줄로. (2026-09-25 — 사장님이 「리스트별로」 보시게)
+
+    두 번째 칸이 제목이다. 그 안에 완료 기록이 딸려 붙는 일이 많아 **첫 마디만** 남긴다 —
+    마커·`<br>`·`★` 같은 표시가 나오면 거기서 끊는다. ⚠줄여 적는 것이므로 **판정에는 쓰지 않는다.**
+    """
+    # ★칸 차례가 표마다 다르다 — 어떤 표는 두 번째 칸이 곧 상태다(그러면 제목이 빈다).
+    #   그래서 **앞에서부터 「마커로 시작하지 않고 글자가 남는」 첫 칸**을 제목으로 본다.
+    for c in line.split('|')[2:]:
+        t = c.strip()
+        if MARK_RE.match(t.lstrip('*~⚠️ ')):
+            continue
+        t = TITLE_CUT.split(t)[0]
+        t = re.sub(r'\*\*|`|\[자\]', '', t).lstrip(LEAD).strip(' —·:')
+        t = re.sub(r'\s+', ' ', t)
+        if len(t) >= 3:
+            return t[:92]
+    return ''
+
+NEWSEC = re.compile(r'새로 생긴 일\s*\(등록\)')
+
+def _walk(lines, rows):
+    sec = '(머리)'
+    for l in lines:
         if l.startswith('#'):
             sec = l.strip('# ').strip()
         m = ID_RE.match(l)
         if m and m.group(1) not in rows:
-            rows[m.group(1)] = {'id': m.group(1), 'sec': sec, 'st': row_status(l)}
+            rows[m.group(1)] = {'id': m.group(1), 'sec': sec, 'st': row_status(l),
+                                '무엇': row_title(l)}
     return rows
+
+def read_rows(text=None):
+    """§A 를 먼저 훑고, 그 **앞쪽의 「새로 생긴 일 (등록)」 절**도 함께 훑는다.
+
+    ⚠★**2026-09-25 에 고쳤다 — 여태 §A 부터만 훑어서 「새로 생긴 일」 절이 안 세어졌다.**
+      그 절은 파일 **위쪽**에 있는데(갱신 목록 옆) 새 일감을 거기 등재하는 것이 관례다.
+      그래서 `3-55`~`3-63`·`4-4` **10칸이 진행판에 없었다** — 일을 등재해도 숫자가 안 움직였다.
+      ★진행판을 만든 까닭과 **똑같은 병**이 세는 자 안에 또 있었던 것이다.
+    ⚠**§A 를 먼저 훑는 순서를 지킨다** — 같은 칸이 갱신 목록에도 되풀이 적히므로,
+      먼저 넣은 것이 이긴다(`§A` 가 임자다). 갱신 목록 표는 **훑지 않는다**(과거 서술이다).
+    """
+    lines = (text if text is not None else WL.read_text(encoding='utf-8')).split('\n')
+    a = next((i for i, l in enumerate(lines) if l.startswith('# §A')), 0)
+    rows = _walk(lines[a:], collections.OrderedDict())
+    # §A 앞쪽 — 「새로 생긴 일 (등록)」 절만 골라 본다
+    keep, on = [], False
+    for l in lines[:a]:
+        if l.startswith('#'):
+            on = bool(NEWSEC.search(l))
+        if on:
+            keep.append(l)
+    return _walk(keep, rows)
 
 def assign(rows, rules):
     ex = {i: g for g, ids in rules['explicit'].items() for i in ids}
@@ -156,6 +201,34 @@ def render(per, total, today):
              '`python3 _dashboard/loop/worklist_progress.py --update` 가 다시 쓴다.' % today)
     return '\n'.join(L)
 
+def full(rows, per, total, today):
+    """★등록부 **전부**를 군별로 한 줄씩 찍는다 (`--full`).
+
+    까닭 (2026-09-25 사장님): *"전체의 작업 목록을 리스트별로 완료·진행 등 현황을 표기해 달라."*
+      진행판은 **수**만 말한다. 어느 칸이 무엇이고 지금 어디인지는 이 목록이 말한다.
+    ⚠제목은 `row_title()` 이 줄여 적은 것이다 — 자세한 것은 등록부 그 칸을 본다.
+    """
+    L = ['# 📋 등록부 전체 %d항목 — 리스트별 현황 (센 날 %s)' % (total['행'], today), '',
+         '> 이 목록은 `worklist_progress.py --full` 이 등록부에서 **직접 읽어** 찍는다. 손으로 적지 않는다.',
+         '> 상태는 **칸 머리의 마커**다: ' + ' · '.join('%s %s' % (k, TITLE[k]) for k in ORDER if k != '?'),
+         '']
+    for g, v in per.items():
+        ids = [r for r in rows.values() if r['g'] == g]
+        if not ids:
+            continue
+        if g in ('결정', '사장님몫'):
+            L.append('## %s — %s (%d행 · 일감으로 세지 않는다)' % (g, RULES['이름'].get(g, g), len(ids)))
+        else:
+            L.append('## %s — %s · **%d/%d 끝**' % (g, RULES['이름'][g], v['done'], v['n']))
+        L.append('')
+        L.append('| 상태 | # | 무엇 |')
+        L.append('|---|---|---|')
+        for r in sorted(ids, key=lambda x: (x['st'] not in DONE, x['id'])):
+            L.append('| %s | `%s` | %s |' % (r['st'], r['id'], r['무엇'] or '—'))
+        L.append('')
+    return '\n'.join(L)
+
+
 BEG, END = '<!-- 진행판:자동 -->', '<!-- /진행판 -->'
 
 def main():
@@ -165,6 +238,9 @@ def main():
     per, total = tally(rows, RULES)
     today = datetime.date.today().isoformat()
     block = render(per, total, today)
+
+    if '--full' in sys.argv:
+        print(full(rows, per, total, today))
 
     if '--list' in sys.argv:
         for r in list(rows.values())[:20]:

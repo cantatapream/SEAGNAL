@@ -36,9 +36,31 @@
     **과교정은 미교정보다 나쁘다** — 없는 것을 없다고 하려다 있는 것까지 안 보이게 된다.
   · 그래서 이 자가 내는 「없다」는 **반드시 하나씩 열어 봐야 한다.** 게이트로 삼지 않는다.
 
-쓰는 법: python3 byl_ref_gap.py [--list] [--all]   (--all 은 15_관련타부처도 함께 본다)
+★★**결심 ⑫ — 사장님 확정 (2026-09-25): 타부처 별표는 결함이 아니다**
+  물음은 *"`15_관련타부처` 를 어디까지 받을 것인가"* 였고, 확정은 **ⓒ 발췌로 둔다** 다.
+  까닭: 타부처 법은 우리 소관이 아니고, 152건을 다 받으면 **판 관리(MST·신선도 점검) 부담이
+  152건 더 붙는다.** 기준법(01~14)은 이미 사실상 0 이다.
+  ⇒ 이 자가 내는 타부처 숫자는 **「받을 일감」이 아니라 「알고 두는 상태」**다.
+    다시 결함으로 등재하지 말 것 — 그 왕복을 막으려고 여기 적는다.
+
+  ⚠★**「정직문구를 붙인다」는 붙일 자리가 없었다 — 재서 알았다 (2026-09-25)**
+    처음 추천은 *"그 자리에 「여기는 발췌다 · 전문은 law.go.kr」 을 적는다(3-7 정직문구 B 꼴)"* 였다.
+    두 가지가 틀렸다:
+      ① **B 문구를 쓰면 안 된다** — `honest_phrases.json` 의 B 가 스스로 못박고 있다:
+         *"★이것은 「우리가 안 받았다」와 다른 말이다. 안 받은 것이면 이 문구를 쓰면 안 된다."*
+      ② **붙일 자리가 없다** — 없는 별표 **153건 중 위키가 입에 올리는 것은 8건**(쪽 9개)이고,
+         그 8건을 한 줄씩 열어 보니 **전부 남의 법 별표를 가리키는 평범한 상호참조**였다
+         (`「국가기술자격법 시행규칙」 별표2 비파괴검사분야 자격보유자` 꼴). 그중 2건은 **변경이력 줄**,
+         1건은 내 패턴이 잘못 잡은 것이었다. **원문에 없는 내용을 실어 놓은 자리는 0 이다.**
+    ⇒ 표시를 145자리에 붙이는 것은 **아무도 안 읽는 칸을 채우는 일**이다(L-375). 붙이지 않았다.
+      대신 **수를 기준선으로 잠가** 늘면 사람이 한 번 보게 한다(아래 `--gate`).
+
+쓰는 법: python3 byl_ref_gap.py [--list] [--all] [--gate]
+  --gate  기준선(`baseline/byl_ref_gap.json`)보다 **늘면** 1 로 죽는다. 0 을 요구하지 않는다 —
+          타부처는 결심 ⑫ⓒ 로 「두는 것」이고, 기준법 1 은 이 자가 아직 못 가리는 꼴이다
+          (`영 제21조의2 및 별표 5의2` — 위 [한계] 참조).
 """
-import os, re, sys, collections
+import os, re, sys, json, collections
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.dirname(os.path.dirname(HERE))
@@ -131,6 +153,39 @@ def main():
             by[r['법']].append(f"{r['계층']} 별표{r['번호']}")
         for law, v in sorted(by.items(), key=lambda x: -len(x[1])):
             print(f'  {len(v):3d}  {law}  — {", ".join(v[:6])}')
+    if '--gate' in sys.argv:
+        return gate(rows)
+    return 0
+
+
+BASE = os.path.join(HERE, 'baseline', 'byl_ref_gap.json')
+
+
+def gate(rows):
+    """결심 ⑫ⓒ — 0 을 요구하지 않고 **늘지 않는 것**만 지킨다.
+
+    까닭: 타부처 별표는 「받을 일감」이 아니라 「알고 두는 상태」다(결심 ⑫ⓒ).
+      그러나 **아무도 안 세면 늘어도 모른다** — 그래서 수만 잠근다.
+    ⚠이 자의 「없다」는 하나씩 열어 봐야 한다([한계] 참조). 그래서 **줄어도 통과**시킨다 —
+      줄어든 것이 수리인지 자가 달라진 것인지 여기서는 못 가린다(L-383).
+    """
+    now = {g: sum(1 for r in rows if r['군'] == g and not r['있다'])
+           for g in ('기준법', '타부처', '그밖')}
+    if not os.path.exists(BASE):
+        os.makedirs(os.path.dirname(BASE), exist_ok=True)
+        with open(BASE, 'w', encoding='utf-8') as f:
+            json.dump(now, f, ensure_ascii=False, indent=1)
+        print(f'  기준선을 새로 적었다: {now}')
+        return 0
+    with open(BASE, encoding='utf-8') as f:
+        base = json.load(f)
+    bad = [(g, base.get(g, 0), n) for g, n in now.items() if n > base.get(g, 0)]
+    for g, b, n in bad:
+        print(f'  ❌ 늘었다  {g}  {b} → {n}')
+    if bad:
+        return 1
+    print('  ✅ 늘지 않았다  ' + ' · '.join(f'{g} {n}(기준선 {base.get(g, 0)})'
+                                        for g, n in now.items()))
     return 0
 
 if __name__ == '__main__':

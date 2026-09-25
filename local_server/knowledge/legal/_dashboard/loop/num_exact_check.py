@@ -114,7 +114,15 @@ def law_dirs(page_file, body_text=''):
     return sorted(set(hits))
 
 
+_CORPUS = {}
+
+
 def corpus(dirs):
+    # ★2026-09-25 — 같은 법 폴더를 쪽마다 다시 읽고 다시 눕히느라 느렸다(1,000쪽 넘게 돌리니 드러났다).
+    #   폴더 묶음을 열쇠로 재워 둔다. **세는 법은 하나도 안 바뀐다** — 읽는 횟수만 준다.
+    key = tuple(sorted(dirs))
+    if key in _CORPUS:
+        return _CORPUS[key]
     buf = []
     for d in dirs:
         for dp, _dn, fns in os.walk(d):
@@ -124,7 +132,8 @@ def corpus(dirs):
                         buf.append(open(os.path.join(dp, fn), encoding='utf-8').read())
                     except Exception:
                         pass
-    return '\n'.join(buf)
+    _CORPUS[key] = '\n'.join(buf)
+    return _CORPUS[key]
 
 
 _OTHER = None

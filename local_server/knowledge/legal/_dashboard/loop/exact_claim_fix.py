@@ -73,7 +73,15 @@ def best_window(needle, hay_flat, hay_idx, hay_raw):
       21건이 0.85~0.89 로 떨어졌는데, 열어 보니 전부 **같은 조문**이었고
       위키가 `(이하 "실태조사"라 한다)` 같은 **괄호를 줄임표 없이 말없이 뺀** 것이었다.
       닮음만 보면 「모르겠다」가 되지만, **뺀 것뿐인지**는 기계가 확실히 가를 수 있다.
-      ⇒ 닮음은 **후보를 고르는 데만** 쓰고, 고칠지 말지는 **갈래**로 정한다."""
+      ⇒ 닮음은 **후보를 고르는 데만** 쓰고, 고칠지 말지는 **갈래**로 정한다.
+
+    ⚠★**2026-09-25 고침 (결심 ⑨) — 창을 「자르기 전」 닮음으로 골라서 갈래가 뒤집혔다.**
+      원문에 **한자 괄호가 더 붙은** 자리(`주의(注意)`·`병과(倂科)`)에서, 창 길이를 위키 글자 수에
+      맞추면 **원문이 더 길어 꼬리가 창 밖으로 밀린다.** 그래도 짧은 창이 **닮음은 더 높게** 나와
+      이겼고, 잘린 꼬리 탓에 `needle` 쪽에 남는 글자가 생겨 갈래가 **`뺐다` → `다르다`** 로 뒤집혔다.
+      그 바람에 **진짜 원문 인용 둘이 「사람 몫」으로 떨어졌다**(형법 제14조 · 형사소송법 제249조).
+      ⇒ **자른 창으로 다시 잰 닮음으로 고른다.** 넓은 창이 꼬리를 덮어도 벌점을 받지 않는다.
+      ★같은 닮음이면 **`뺐다` 를 먼저** 고른다 — 「넣기만 하면 원문이 된다」가 더 강한 증거다."""
     n = len(needle)
     if n < 6 or len(hay_flat) < n:
         return 0.0, '', '다르다'
@@ -90,8 +98,9 @@ def best_window(needle, hay_flat, hay_idx, hay_raw):
             s0, e0 = max(0, a - 4), min(len(hay_flat), a + span)
             win = hay_flat[s0:e0]
             sm = difflib.SequenceMatcher(None, needle, win)
-            r = sm.ratio()
-            if r <= best[0]:
+            # ★여기서 `best` 와 견주어 걸러 내지 않는다 — 자르기 전 값으로 걸러 버리면
+            #   꼬리를 덮는 넓은 창이 짧은 창에 져서 **갈래가 뒤집힌다**(위 고침 참조).
+            if sm.ratio() < 0.5 and best[0] > 0:
                 continue
             # ★창의 앞뒤로 삐져나온 군더더기를 **잘라 낸다** — 인용은 거기서 시작하고 거기서 끝난다.
             blocks = [b for b in sm.get_matching_blocks() if b.size]
@@ -100,10 +109,15 @@ def best_window(needle, hay_flat, hay_idx, hay_raw):
             t0, t1 = s0 + blocks[0].b, s0 + blocks[-1].b + blocks[-1].size
             trimmed = hay_flat[t0:t1]
             # 자른 창과 다시 견준다 — 「넣기만 하면 되는가」를 본다
-            ops = difflib.SequenceMatcher(None, needle, trimmed).get_opcodes()
+            sm2 = difflib.SequenceMatcher(None, needle, trimmed)
+            ops = sm2.get_opcodes()
             kind = '뺐다' if all(o[0] in ('equal', 'insert') for o in ops) else '다르다'
+            # ★자른 창으로 다시 잰 값이 이 창의 점수다(위 고침 참조).
+            r2 = sm2.ratio()
+            if (r2, kind == '뺐다') <= (best[0], best[2] == '뺐다'):
+                continue
             got = hay_raw[hay_idx[t0]:hay_idx[t1 - 1] + 1]
-            best = (r, got, kind)
+            best = (r2, got, kind)
     return best
 
 
@@ -187,8 +201,15 @@ def main():
         worst = min(r[1] for r in results)
         # ★고칠지 말지는 **갈래**로 정한다 — 토막이 전부 「뺐다」이고 닮음이 0.80 이상일 때만 고친다.
         #   0.80 은 「같은 조문인지」를 거르는 문턱이지 판정자가 아니다(판정자는 갈래다).
-        allcut = all(x[4] == '뺐다' for x in results) and worst >= 0.80
-        tag = '고칠 수 있다(원문에서 뺀 것을 도로 넣는다)' if allcut else '사람 몫'
+        # ★2026-09-25 — **줄바꿈이 든 원문은 기계가 안 넣는다.**
+        #   `해양수산발전기본법__국가해양수산정보센터` 에서 원문이
+        #   `…설치ㆍ운영할 수 있다. <개정 2008.2.29, 2013.3.23>\n③ 제2항에 따른…` 이었다.
+        #   그대로 끼우면 **인용 한가운데에 줄이 끊기고 개정 태그가 들어간다** — 글 구조가 바뀐다.
+        #   글자만 되돌리는 것과 구조를 바꾸는 것은 다른 일이다. 이건 사람 몫으로 넘긴다.
+        multiline = any('\n' in (x[2] or '') for x in results)
+        allcut = all(x[4] == '뺐다' for x in results) and worst >= 0.80 and not multiline
+        tag = ('고칠 수 있다(원문에서 뺀 것을 도로 넣는다)' if allcut else
+               '사람 몫(원문에 줄바꿈이 있다)' if multiline else '사람 몫')
         print(f"[{k:2}] {tag}  닮음 {worst:.2f}  {it['쪽']}:{it['줄']}")
         for part, r, got, p, kind in results:
             print(f'      위키 «{part.strip()[:110]}»')

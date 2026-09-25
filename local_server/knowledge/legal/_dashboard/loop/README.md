@@ -26,12 +26,12 @@
 <!-- 자목록:자동 -->
 ### 자 목록 — 누가 부르나 (기계가 씀 · `loop_tool_census.js --index`)
 
-자 **256자루** · 게이트 **58** · 코드 **87** · 글만 **110** · 없음 **1**
+자 **258자루** · 게이트 **59** · 코드 **88** · 글만 **111** · 없음 **0**
 
 | 자 | 누가 부르나 | 무엇을 하는 자인가 |
 |---|---|---|
 | `admrul_annex_survey.py` | 코드 | 고시(행정규칙) raw 에 **별표·별지서식이 빠져 있는지**를 API 와 대조해 세기만 한다(읽기 전용). |
-| `admrul_byl_file_links.py` | 글만 | 행정규칙 별표 `.txt` 에 **내려받기 주소를 적어 넣는다**. (3-53) |
+| `admrul_byl_file_links.py` | 코드 | 행정규칙 별표 `.txt` 에 **내려받기 주소를 적어 넣는다**. (3-53) |
 | `admrul_byl_links.py` | 글만 | 행정규칙에서 온 별표의 **원본 파일 링크(PDF·HWP)** 를 `_links.json` 에 채운다. (3-21 · 3-36) |
 | `admrul_current_check.py` | 글만 | 받아 둔 행정규칙이 **현행판인지** 확인하고, 아니면 현행판으로 바꿔 받는다. |
 | `admrul_diff_wiki.py` | 코드 | 재수집으로 달라진 행정규칙 조문을 뽑고, 그 조문을 인용하는 위키 셀을 찾아낸다. |
@@ -70,6 +70,7 @@
 | `build_cite_review_html.py` | 글만 | 본문 인용 **뜻풀이 판정**을 눈으로 하는 HTML 검토장을 만든다. (3-41 ②) |
 | `build_delegation_graph_73.js` | 코드 | H-34 측정: 파일럿 추출기를 73법 전체에 돌려 커버리지만 집계 |
 | `build_delegation_graph.js` | 코드 | H-34 파일럿: 조문 단위 위임그래프를 원문에서 기계추출(3법 한정) |
+| `build_exact_claim_html.py` | 글만 | 3-57 뒤쪽 (결심 ⑨) — **「원문 그대로」라던 인용 중 기계가 못 고친 것을 사람이 눌러 확정하는 HTML. |
 | `build_fix_tasks.py` | 글만 | 최신 감사 라운드 결과(저널)에서 법×유형 작업큐(fix_tasks.json) 재생성 + fix3 마커 초기화(새 수정라운드). |
 | `build_golden.js` | 글만 | 감사 파일에서 골든 문항 **후보**를 뽑아 `pinned/golden_questions.json` 초안을 만든다. |
 | `build_inspection_cycle_table.py` | 코드 | 검사 주기 표 빌더 겸 검증기 (H-32 확장 — F절 "검사 주기", ★트리 아님). |
@@ -89,9 +90,8 @@
 | `build_zone_tree.py` | 코드 | 해역·항해구역 계층 트리 빌더 겸 검증기 (H-32 확장 · H-36 두 번째 주제). |
 | `byl_image_ocr_cell.js` | 글만 | 별표 이미지(<img>) 청크를 비전 OCR해 _이미지/<id>.txt sidecar로 저장 |
 | `byl_links_pdf.py` | 글만 | 3-21 · P-17 — 별표 `_links.json` 에 **PDF 링크**를 채운다. |
-| `byl_pdf_link_fill.py` | 없음 | 3-21 — 별표 `_links.json` 에 **PDF 주소만** 채운다. (파일은 건드리지 않는다) |
+| `byl_pdf_link_fill.py` | 글만 | 3-21 — 별표 `_links.json` 에 **PDF 주소만** 채운다. (파일은 건드리지 않는다) |
 | `byl_ref_fill.py` | 글만 | 3-62 — `byl_ref_gap.py` 가 짚은 **본문이 가리키는데 없는 별표**를 받아서 메운다. |
-| `byl_ref_gap.py` | 코드 | 본문이 「별표 N과 같다」고 가리키는데 그 별표 파일이 없는 자리**를 센다. (2026-09-24 신설) |
 | `byl_rename_to_decl.py` | 글만 | 별표 파일 **이름을 그 속이 말하는 번호에 맞춘다.** (3-34 = ⓒ 앞쪽) |
 | `byl_tier_fill.py` | 코드 | 3-46 — V5-32 가 「파일이 없다」고 짚은 **계층 별표 빈자리**를 골라서 메운다. |
 | `chatbot_proto.py` | 글만 | 나리야 법률 챗봇 검색+답변 프로토타입 (순수 코드, 임베딩 키 불필요). |
@@ -181,6 +181,7 @@
 | `pick_audit_wave.py` | 글만 | 감사 라운드 R의 다음 파도(≤N, 기본35) 선정+예약. 마커 audit_r<R>_<slug>.done 없는 법 중 서로 다른 법. |
 | `pick_wave.py` | 글만 | 다음 파도(≤N, 기본35) 선정 후 예약(.launched). 서로 다른 법(파일충돌 방지)·미완(.done 없음)·비-in-flight(.launched 25분내 없음). |
 | `probe.py` | 글만 | law.go.kr 에 **낱말별로 몇 건이나 있는지** 세어 보는 한 번짜리 탐침. (조사용) |
+| `promote_first_pass.py` | 코드 | G-4 (결심 ⑪ⓒ) — **승급 기록줄이 없는 canonical 쪽에 「1차는 기계가 했다·2차는 사람 몫」을 적는다. |
 | `promote_verify.js` | 글만 | 새 개념 페이지 수치를 raw 와 대조해 canonical 승격 판정(_SCHEMA §5). 만든 에이전트가 아닌 제3자. |
 | `quote_fix.js` | 글만 | 인용부호 안을 원문 복붙으로 되돌리고 조항 오기를 고친다(L-148). 자기 법 파일만. |
 | `recollect_budchik.py` | 글만 | budchik_check.json에서 mismatch(raw엔 없는데 API엔 있음)로 확인된 건들의 |

@@ -1,0 +1,291 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>인용 원문대조</title><style>
+:root{--bg:#fff;--fg:#15181c;--line:#dfe3e8;--mut:#5b6672;--card:#f7f9fb;
+      --ok:#0b6b3a;--ours:#8a5a00;--skip:#4a5560}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14171a;--fg:#e8ebee;--line:#2c3237;--mut:#9aa4ae;--card:#1b1f23;
+  --ok:#5fd39b;--ours:#e0ad4d;--skip:#9aa4ae}}
+:root[data-theme="dark"]{--bg:#14171a;--fg:#e8ebee;--line:#2c3237;--mut:#9aa4ae;
+  --card:#1b1f23;--ok:#5fd39b;--ours:#e0ad4d;--skip:#9aa4ae}
+*{box-sizing:border-box}
+body{margin:0;padding:20px 16px 80px;background:var(--bg);color:var(--fg);
+  font:15px/1.65 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+.wrap{max-width:1040px;margin:0 auto}
+h1{font-size:21px;margin:0 0 6px}
+.lead{color:var(--mut);margin:0 0 22px}
+.item{border:1px solid var(--line);border-radius:10px;margin:0 0 18px;overflow:hidden}
+.head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+  padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line)}
+.num{font-weight:700}
+.pg{font-size:13px;color:var(--mut);word-break:break-all}
+.why{font-size:13px;color:var(--ours)}
+.body{padding:12px 14px}
+.frag{border-top:1px dashed var(--line);padding:10px 0}
+.frag:first-child{border-top:0;padding-top:0}
+.lb{font-size:12px;color:var(--mut);margin:0 0 3px}
+.tx{white-space:pre-wrap;word-break:break-word;background:var(--card);
+  border-radius:6px;padding:8px 10px;margin:0 0 8px;font-size:14px}
+.meta{font-size:12px;color:var(--mut);word-break:break-all}
+.pick{display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line)}
+button{font:inherit;padding:7px 12px;border-radius:7px;border:1px solid var(--line);
+  background:var(--bg);color:var(--fg);cursor:pointer}
+button.on[data-k="원문대로"]{border-color:var(--ok);color:var(--ok);font-weight:700}
+button.on[data-k="우리정리"]{border-color:var(--ours);color:var(--ours);font-weight:700}
+button.on[data-k="그대로"]{border-color:var(--skip);color:var(--skip);font-weight:700}
+textarea{width:100%;min-height:52px;font:inherit;padding:8px 10px;border-radius:7px;
+  border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:12px;align-items:center;
+  padding:10px 16px;background:var(--card);border-top:1px solid var(--line)}
+.bar .big{padding:9px 16px;font-weight:700}
+.cnt{color:var(--mut);font-size:13px}
+@media (max-width:640px){body{padding:16px 16px 92px}}
+</style></head><body><div class="wrap">
+<h1>「원문 그대로」라던 인용 — 기계가 못 고친 15자리</h1>
+<p class="lead">기계는 <b>고르지 않습니다</b>. 찾은 증거만 나란히 놓았습니다. 셋 중 하나를 눌러 주시고 <b>내보내기</b> 를 누르시면 됩니다.<br>· <b>원문대로 고친다</b> — 오른쪽 원문이 맞다. 그 글자로 갈아 끼운다<br>· <b>우리 정리다</b> — 원문 인용이 아니다. 따옴표를 떼고 「우리 정리」로 표시한다<br>· <b>그대로 둔다</b> — 손대지 않는다(까닭을 적어 주시면 등록부에 남깁니다)</p>
+<div class="item" data-id="1" data-pg="wiki/concepts/낚시관리및육성법__미끼관리와기준.md" data-ln="71" data-got="정)
+이 법은 낚시의 관리 및 육성에">
+<div class="head"><span class="num">[1]</span><span class="pg">wiki/concepts/낚시관리및육성법__미끼관리와기준.md:71</span><span class="why">기계가 못 한 까닭 — raw 전체에서도 닮은 원문을 못 찾았다 (닮음 0.14)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">검정은 의무가 아니므로 받았을 수도 안 받았을 수도 있고, 다만 기준에 부적합하면 판매 자체가 금지된다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">정)
+이 법은 낚시의 관리 및 육성에</div>
+<p class="meta">닮음 0.140 · 다르다 · raw/09_레저관광/낚시관리및육성법/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="2" data-pg="wiki/concepts/선박안전법__특별검사결함신고및보고조사.md" data-ln="13" data-got="칙
+
+[제1조] 목적 (시행 20230628 · 일부개정">
+<div class="head"><span class="num">[2]</span><span class="pg">wiki/concepts/선박안전법__특별검사결함신고및보고조사.md:13</span><span class="why">기계가 못 한 까닭 — raw 전체에서도 닮은 원문을 못 찾았다 (닮음 0.08)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">공고 후~특별검사 전까지 원칙상 운항이 계속되는 것으로 추정된다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">칙
+
+[제1조] 목적 (시행 20230628 · 일부개정</div>
+<p class="meta">닮음 0.077 · 다르다 · raw/04_선박해운/선박안전법/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="3" data-pg="wiki/concepts/수산부산물재활용촉진에관한법률__수산부산물정의적용대상.md" data-ln="106" data-got="제106조, 제107조, 제108조제3호ㆍ제5호 및 제109조의 경우 범인이 소유하거나 소지하는 어획물ㆍ제품ㆍ어선ㆍ어구 또는 폭발물이나 유독물은 몰수할 수 있다. 다만">
+<div class="head"><span class="num">[3]</span><span class="pg">wiki/concepts/수산부산물재활용촉진에관한법률__수산부산물정의적용대상.md:106</span><span class="why">기계가 못 한 까닭 — 토막 중에 「뺀 것뿐」이 아닌 것이 있다 (닮음 0.96)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">제106조ㆍ제107조ㆍ제108조제3ㆍ5호 및 제109조의 경우 범인이 소유하거나 소지하는 어획물ㆍ제품ㆍ어선ㆍ어구 또는 폭발물이나 유독물은 몰수할 수 있다. 다만</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">제106조, 제107조, 제108조제3호ㆍ제5호 및 제109조의 경우 범인이 소유하거나 소지하는 어획물ㆍ제품ㆍ어선ㆍ어구 또는 폭발물이나 유독물은 몰수할 수 있다. 다만</div>
+<p class="meta">닮음 0.961 · 다르다 · raw/05_수산어업/수산업법/법률.txt</p>
+</div>
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">최근 5년 이내에 2회 이상 처벌을 받은 경우에는 어획물ㆍ어선ㆍ어구를 몰수하여야 한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">최근 5년 이내에 2회 이상 처벌을 받은 경우에는 어획물ㆍ어선ㆍ어구를 몰수하여야 한다</div>
+<p class="meta">닮음 1.000 · 뺐다 · raw/05_수산어업/수산업법/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="4" data-pg="wiki/concepts/수산종자산업육성법__정의허브.md" data-ln="227" data-got="· 일부개정)
+이 법">
+<div class="head"><span class="num">[4]</span><span class="pg">wiki/concepts/수산종자산업육성법__정의허브.md:227</span><span class="why">기계가 못 한 까닭 — raw 전체에서도 닮은 원문을 못 찾았다 (닮음 0.14)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">★수협·지자체가 하는 치어 방류행사에도 이 법이 걸리나요 — 축을 셋으로 갈라야 한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">· 일부개정)
+이 법</div>
+<p class="meta">닮음 0.136 · 다르다 · raw/05_수산어업/수산종자산업육성법/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="6" data-pg="wiki/concepts/유류오염손해배상보장법__강제보험가입.md" data-ln="14" data-got="은 「유류오염">
+<div class="head"><span class="num">[6]</span><span class="pg">wiki/concepts/유류오염손해배상보장법__강제보험가입.md:14</span><span class="why">기계가 못 한 까닭 — raw 전체에서도 닮은 원문을 못 찾았다 (닮음 0.27)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">기름 실은 배·큰 배는 반드시 유류오염 배상보험(P&amp;I 등)에 들어야 한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">은 「유류오염</div>
+<p class="meta">닮음 0.270 · 다르다 · raw/14_해양사법/유류오염손해배상보장법/시행규칙.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="7" data-pg="wiki/concepts/해양경비법__점용사용허가등통보.md" data-ln="131" data-got="제1항부터 제4항까지의 규정에 따른 구체적인 통보">
+<div class="head"><span class="num">[7]</span><span class="pg">wiki/concepts/해양경비법__점용사용허가등통보.md:131</span><span class="why">기계가 못 한 까닭 — raw 전체에서도 닮은 원문을 못 찾았다 (닮음 0.78)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">법 제20조제1항부터 제4항까지의 규정에 따른 통보는</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">제1항부터 제4항까지의 규정에 따른 구체적인 통보</div>
+<p class="meta">닮음 0.783 · 다르다 · raw/02_해양경비구조/해양경비법/법률.txt</p>
+</div>
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">허가등을 하기 5일 전까지 이루어져야 한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">하기 5일 전까지 이루어져야 한다</div>
+<p class="meta">닮음 0.875 · 다르다 · raw/02_해양경비구조/해양경비법/시행규칙.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="8" data-pg="wiki/concepts/독도의지속가능한이용에관한법률__독도주변해역사전협의.md" data-ln="406" data-got="국외 반출을 허가받은 자에게 해당 문화유산의 현황 및 보존ㆍ관리 실태 등의 자료를 제출하도록 요구할 수 있다. 이 경우 요구를 받은 자는 특별한 사유가 없으면 이에 따라야 한다">
+<div class="head"><span class="num">[8]</span><span class="pg">wiki/concepts/독도의지속가능한이용에관한법률__독도주변해역사전협의.md:406</span><span class="why">기계가 못 한 까닭 — 토막 중에 「뺀 것뿐」이 아닌 것이 있다 (닮음 0.88)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">국가유산청장은 반출을 허가받은 자에게 현황 및 보존·관리 실태 등의 자료를 제출하도록 요구할 수 있다. 요구를 받은 자는 특별한 사유가 없으면 이에 따라야 한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">국외 반출을 허가받은 자에게 해당 문화유산의 현황 및 보존ㆍ관리 실태 등의 자료를 제출하도록 요구할 수 있다. 이 경우 요구를 받은 자는 특별한 사유가 없으면 이에 따라야 한다</div>
+<p class="meta">닮음 0.878 · 다르다 · raw/15_관련타부처/문화유산의보존및활용에관한법률/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="11" data-pg="wiki/concepts/국제항해선박등에대한해적행위피해예방에관한법률__적격성심사및심사대행기관.md" data-ln="94" data-got="20220218 · 일부개정)
+이 법은 우리나라 영">
+<div class="head"><span class="num">[11]</span><span class="pg">wiki/concepts/국제항해선박등에대한해적행위피해예방에관한법률__적격성심사및심사대행기관.md:94</span><span class="why">기계가 못 한 까닭 — raw 전체에서도 닮은 원문을 못 찾았다 (닮음 0.10)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">최근 2년간 같은 위반으로 2회 영업정지를 받으면 개별기준과 무관하게 허가취소로 한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">20220218 · 일부개정)
+이 법은 우리나라 영</div>
+<p class="meta">닮음 0.102 · 다르다 · raw/03_해상교통안전/국제항해선박등에대한해적행위피해예방에관한법률/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="12" data-pg="wiki/annexes/선박의입항및출항등에관한법률__시행규칙_별표1_무역항별예선보유기준.md" data-ln="33" data-got="항의 수상구역 등에서 선박의 입항ㆍ출항에 대한 지원과 선박운항의 안전 및 질서 유지에 필요한">
+<div class="head"><span class="num">[12]</span><span class="pg">wiki/annexes/선박의입항및출항등에관한법률__시행규칙_별표1_무역항별예선보유기준.md:33</span><span class="why">기계가 못 한 까닭 — raw 전체에서도 닮은 원문을 못 찾았다 (닮음 0.15)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">예항력은 합계 기준 2천마력 이상, 척수는 1척 이상일 것(1천마력 이상 1척을 포함한다). 다만, 사업구역을 경인항에 한정하는 경우 예항력은 합계 기준 1천마력 이상으로 한다.</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">항의 수상구역 등에서 선박의 입항ㆍ출항에 대한 지원과 선박운항의 안전 및 질서 유지에 필요한</div>
+<p class="meta">닮음 0.155 · 다르다 · raw/03_해상교통안전/선박의입항및출항등에관한법률/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="14" data-pg="wiki/concepts/서해5도지원특별법__사업비지원및국고보조율.md" data-ln="92" data-got="기준보조율이 100분의 80 이상인 경우">
+<div class="head"><span class="num">[14]</span><span class="pg">wiki/concepts/서해5도지원특별법__사업비지원및국고보조율.md:92</span><span class="why">기계가 못 한 까닭 — 토막 중에 「뺀 것뿐」이 아닌 것이 있다 (닮음 0.81)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">기준보조율이 100분의 80보다 낮은 경우</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">기준보조율이 100분의 80 이상인 경우</div>
+<p class="meta">닮음 0.811 · 다르다 · raw/15_관련타부처/접경지역지원특별법/시행령.txt</p>
+</div>
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">100분의 80을 초과하면 100분의 80을 지원보조율로 한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">100분의 80을 초과하면 100분의 80을 지원보조율로 한다</div>
+<p class="meta">닮음 1.000 · 뺐다 · raw/08_섬영토/서해5도지원특별법/시행령.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="16" data-pg="wiki/concepts/항만법__항만시설안전시설기준.md" data-ln="129" data-got="인명피해가 발생하지 않도록 적합한 안전시설을 설치해야 한다">
+<div class="head"><span class="num">[16]</span><span class="pg">wiki/concepts/항만법__항만시설안전시설기준.md:129</span><span class="why">기계가 못 한 까닭 — 토막 중에 「뺀 것뿐」이 아닌 것이 있다 (닮음 0.82)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">인명피해가 발생하지 않도록 시설별 위험상황에 적합한 안전시설을 설치하여야 한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">인명피해가 발생하지 않도록 적합한 안전시설을 설치해야 한다</div>
+<p class="meta">닮음 0.820 · 다르다 · raw/10_항만물류/항만법/행정규칙/항만시설물의안전시설설계지침.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="17" data-pg="wiki/concepts/해양과학조사법__핵심정의.md" data-ln="57" data-got="해양광물자원의 개발사업과 관련된 조사 또는 탐사 등에 대해서는 적용하지 아니한다">
+<div class="head"><span class="num">[17]</span><span class="pg">wiki/concepts/해양과학조사법__핵심정의.md:57</span><span class="why">기계가 못 한 까닭 — 토막 중에 「뺀 것뿐」이 아닌 것이 있다 (닮음 0.94)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">해양광물자원의 개발사업과 관련된 조사 또는 탐사 등에 대하여는 적용하지 아니한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">해양광물자원의 개발사업과 관련된 조사 또는 탐사 등에 대해서는 적용하지 아니한다</div>
+<p class="meta">닮음 0.943 · 다르다 · raw/01_해양주권정책/해양과학조사법/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="18" data-pg="wiki/concepts/자연유산의보존및활용에관한법률__천연기념물동물의질병관리와치료.md" data-ln="82" data-got="소유자등이 부담하는 것을 원칙으로 하되, 국가유산청장">
+<div class="head"><span class="num">[18]</span><span class="pg">wiki/concepts/자연유산의보존및활용에관한법률__천연기념물동물의질병관리와치료.md:82</span><span class="why">기계가 못 한 까닭 — 토막 중에 「뺀 것뿐」이 아닌 것이 있다 (닮음 0.87)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">소유자등이 부담하는 것을 원칙으로 하되, 국가유산청장이 지원할 수 있다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">소유자등이 부담하는 것을 원칙으로 하되, 국가유산청장</div>
+<p class="meta">닮음 0.873 · 다르다 · raw/15_관련타부처/자연유산의보존및활용에관한법률/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="19" data-pg="wiki/concepts/해양수산발전기본법__실무위원회및분과위원회.md" data-ln="141" data-got="실무위원회&quot;라 한다)를 둔다.
+②실무위원회의 효율적 운영을 위하여 실무위원회에 분야별로 분과위원회를 운영할 수 있다.">
+<div class="head"><span class="num">[19]</span><span class="pg">wiki/concepts/해양수산발전기본법__실무위원회및분과위원회.md:141</span><span class="why">기계가 못 한 까닭 — 원문에 줄바꿈이 있다 — 끼우면 글 구조가 바뀐다 (닮음 0.91)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">해양수산발전실무위원회를 둔다. ②실무위원회의 효율적 운영을 위하여 실무위원회에 분야별로 분과위원회를 운영할 수 있다.</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">실무위원회&quot;라 한다)를 둔다.
+②실무위원회의 효율적 운영을 위하여 실무위원회에 분야별로 분과위원회를 운영할 수 있다.</div>
+<p class="meta">닮음 0.906 · 다르다 · raw/01_해양주권정책/해양수산발전기본법/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+<div class="item" data-id="20" data-pg="wiki/concepts/해양수산발전기본법__국가해양수산정보센터.md" data-ln="153" data-got="② 해양수산부장관은">
+<div class="head"><span class="num">[20]</span><span class="pg">wiki/concepts/해양수산발전기본법__국가해양수산정보센터.md:153</span><span class="why">기계가 못 한 까닭 — 원문에 줄바꿈이 있다 — 끼우면 글 구조가 바뀐다 (닮음 0.84)</span></div>
+<div class="body">
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">②해양수산부장관은</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">② 해양수산부장관은</div>
+<p class="meta">닮음 1.000 · 뺐다 · raw/01_해양주권정책/해양수산발전기본법/법률.txt</p>
+</div>
+<div class="frag">
+<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">국가해양수산정보센터를 설치ㆍ운영할 수 있다. ③제2항에 따른 국가해양수산정보센터의 설치ㆍ운영에 필요한 사항은 해양수산부령으로 정한다</div>
+<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">국가해양수산정보센터를 설치ㆍ운영할 수 있다. &lt;개정 2008.2.29, 2013.3.23&gt;
+③ 제2항에 따른 국가해양수산정보센터의 설치ㆍ운영에 필요한 사항은 해양수산부령으로 정한다</div>
+<p class="meta">닮음 0.844 · 뺐다 · raw/01_해양주권정책/해양수산발전기본법/법률.txt</p>
+</div>
+</div>
+<div class="pick"><button data-k="원문대로">원문대로 고친다</button><button data-k="우리정리">우리 정리다</button><button data-k="그대로">그대로 둔다</button></div>
+<div class="body"><textarea placeholder="까닭·메모 (선택)"></textarea></div>
+</div>
+</div><div class="bar"><button class="big" onclick="save()">내보내기 (JSON)</button><span class="cnt" id="cnt"></span></div>
+<script>const TOTAL=15;
+const KEY='exact_claim_review_v1';
+let S={};try{S=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){S={}}
+function draw(){
+  document.querySelectorAll('.item').forEach(el=>{
+    const id=el.dataset.id, s=S[id]||{};
+    el.querySelectorAll('button[data-k]').forEach(b=>b.classList.toggle('on',b.dataset.k===s.고른것));
+    const t=el.querySelector('textarea'); if(t&&t.value!==(s.메모||''))t.value=s.메모||'';
+  });
+  const n=Object.values(S).filter(x=>x&&x.고른것).length;
+  document.getElementById('cnt').textContent=n+' / '+TOTAL+' 고르셨습니다';
+}
+function put(id,k){S[id]=Object.assign({},S[id],{고른것:k});store();draw()}
+function memo(id,v){S[id]=Object.assign({},S[id],{메모:v});store()}
+function store(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function save(){
+  const out={만든날:new Date().toISOString().slice(0,10),자:'build_exact_claim_html.py',고른것:[]};
+  document.querySelectorAll('.item').forEach(el=>{
+    const id=el.dataset.id,s=S[id]||{};
+    out.고른것.push({번호:+id,쪽:el.dataset.pg,줄:+el.dataset.ln,
+      고른것:s.고른것||'',메모:s.메모||'',원문:el.dataset.got||''});
+  });
+  const b=new Blob([JSON.stringify(out,null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);
+  a.download='인용_원문대조_확정.json';a.click();
+}
+document.addEventListener('click',e=>{const b=e.target.closest('button[data-k]');
+  if(b)put(b.closest('.item').dataset.id,b.dataset.k)});
+document.addEventListener('input',e=>{if(e.target.tagName==='TEXTAREA')
+  memo(e.target.closest('.item').dataset.id,e.target.value)});
+draw();
+</script></body></html>
