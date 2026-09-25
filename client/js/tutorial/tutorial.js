@@ -662,6 +662,28 @@
                 if (pr && pr.marine_zone_no) { id = String(pr.marine_zone_no); return; }
             }
         });
+        if (id) return id;
+
+        // [한가운데가 육지일 때] 해구 격자는 바다에만 있어서, 화면 가운데가 내륙이면
+        //   위 방법으로는 아무것도 못 찾는다(실측 2026-09-25 — 지도가 한반도 내륙을
+        //   보고 있어 창이 끝내 안 열렸다). 그럴 때는 **가장 가까운 칸**을 고른다.
+        var bestD = Infinity;
+        map.getLayers().forEach(function (l) {
+            var src = l.getSource && l.getSource();
+            if (!src || typeof src.getFeatures !== 'function') return;
+            var fs;
+            try { fs = src.getFeatures(); } catch (e) { return; }
+            for (var i = 0; i < fs.length; i++) {
+                var no = fs[i].get('marine_zone_no');
+                if (!no) continue;
+                var g = fs[i].getGeometry();
+                if (!g) continue;
+                var e = g.getExtent();
+                var cx = (e[0] + e[2]) / 2, cy = (e[1] + e[3]) / 2;
+                var d = (cx - c[0]) * (cx - c[0]) + (cy - c[1]) * (cy - c[1]);
+                if (d < bestD) { bestD = d; id = String(no); }
+            }
+        });
         return id;
     }
 
@@ -1416,6 +1438,9 @@
     function _obSet(sel, on) {
         var b = _ob(sel);
         if (!b) return;
+        // 화면에 없는 버튼은 건드리지 않는다 — 「특보 ON」은 지금 특보가 있을 때만
+        //   나타나고, 특보구역을 켠 **뒤에야** 생긴다. 숨은 것을 누르면 엉뚱한 상태가 된다.
+        if (b.getBoundingClientRect().height < 1) return;
         var now = b.classList.contains('active');
         if (now !== on) b.click();
     }
@@ -1432,7 +1457,19 @@
     function _setOceanBtns(list) {
         var want = {};
         (list || []).forEach(function (sel) { want[sel] = true; });
-        OCEAN_BTNS.forEach(function (sel) { _obSet(sel, !!want[sel]); });
+        var pass = function () {
+            // [순서가 중요하다] 끌 것을 **뒤에서부터** 먼저 끄고, 켤 것을 나중에 켠다.
+            //   「특보 ON」은 특보구역에 딸린 버튼이라, 특보구역을 먼저 꺼 버리면
+            //   그 버튼이 화면에서 사라져 **끌 수가 없다**(실측: 켠 채로 끝까지 남았다).
+            for (var i = OCEAN_BTNS.length - 1; i >= 0; i--) {
+                if (!want[OCEAN_BTNS[i]]) _obSet(OCEAN_BTNS[i], false);
+            }
+            OCEAN_BTNS.forEach(function (sel) { if (want[sel]) _obSet(sel, true); });
+        };
+        pass();
+        // 한 번 더 맞춘다 — 「특보 ON」 버튼은 **특보구역을 켠 뒤에** 화면에 생기므로
+        //   첫 번째에는 아직 없어서 건너뛴다(위 _obSet 의 "안 보이면 건드리지 않는다").
+        setTimeout(pass, 0);
     }
 
     /**
@@ -1466,8 +1503,195 @@
     var OCEAN_BTNS = [
         '[data-layer="wind"]', '[data-layer="current"]', '[data-layer="wave"]',
         'ocean-buoy-toggle-btn', 'ocean-marine-zone-toggle-btn',
-        'ocean-warn-zone-toggle-btn', 'ocean-typhoon-toggle-btn'
+        'ocean-warn-zone-toggle-btn', 'ocean-warn-active-toggle-btn',
+        'ocean-typhoon-toggle-btn'
     ];
+
+    /**
+     * 이 단계에서 열어 둘 "눌러서 보는 창"을 맞춘다.
+     *
+     * 왜 필요한가?
+     *   버튼만 켜면 지도에 표시가 생길 뿐이고, **그것을 눌렀을 때 무엇이 나오는지**는
+     *   안 보인다(사용자 지적 2026-09-25 — 부이·해구도 둘 다 누른 화면이 없었다).
+     *   그래서 이 단계에서는 앱이 대신 눌러 준다.
+     *
+     * @param {string} which - 'buoy'(부이 관측값 창) · 'zone'(해구 기상전망 창) · 없으면 둘 다 닫는다
+     * [연계] ocean_buoy.js 의 window.showBuoyModal · marine.js 의 window.getMarineZoneData /
+     *        window.closeSeaZoneModal
+     */
+    function _setOceanOpen(which) {
+        // 먼저 이 단계에서 필요 없는 창을 닫는다
+        if (which !== 'buoy') {
+            var bm = document.getElementById('buoy-info-modal');
+            var bd = document.getElementById('buoy-modal-backdrop');
+            if (bm) bm.remove();
+            if (bd) bd.remove();
+        }
+        if (which !== 'zone' && typeof window.closeSeaZoneModal === 'function') {
+            if (document.getElementById('sea-zone-modal')) window.closeSeaZoneModal();
+        }
+        if (!which) return;
+
+        // 자료가 실제로 올라온 뒤에 연다(시간이 아니라 조건으로 기다린다)
+        if (which === 'buoy') {
+            if (document.getElementById('buoy-info-modal')) return;
+            _when(function () { return !!_centerBuoy(); }, function () {
+                if (document.getElementById('buoy-info-modal')) return;
+                var f = _centerBuoy();
+                if (!f || typeof window.showBuoyModal !== 'function') return;
+                window.showBuoyModal(f.get('buoyId'),
+                    { name: f.get('buoyName'), type: f.get('buoyType') });
+            });
+        } else if (which === 'zone') {
+            if (document.getElementById('sea-zone-modal')) return;
+            _when(function () { return _zoneIdsNear(1).length > 0; }, function () {
+                if (document.getElementById('sea-zone-modal')) return;
+                if (typeof window.getMarineZoneData !== 'function') return;
+                _pickZoneWithData(function (id) {
+                    if (!_root || document.getElementById('sea-zone-modal')) return;
+                    if (id) window.getMarineZoneData(id);
+                });
+            });
+        }
+    }
+
+    /**
+     * 화면 한가운데에서 가까운 해구(대해구) 번호를 가까운 순으로 모은다.
+     *
+     * @param {number} n - 몇 개까지
+     * @returns {Array<string>} 해구 번호들(가까운 순)
+     * [연계] 지도에 올라온 해구 격자 피처의 marine_zone_no.
+     *        소해구(번호에 '-' 가 들어간 것)는 제외한다 — 예보값은 대해구 단위다.
+     */
+    function _zoneIdsNear(n) {
+        var map = window.getOceanMap && window.getOceanMap();
+        if (!map) return [];
+        var c;
+        try { c = map.getView().getCenter(); } catch (e) { return []; }
+        if (!c) return [];
+        var list = [];
+        var seen = {};
+        map.getLayers().forEach(function (l) {
+            var src = l.getSource && l.getSource();
+            if (!src || typeof src.getFeatures !== 'function') return;
+            var fs;
+            try { fs = src.getFeatures(); } catch (e) { return; }
+            for (var i = 0; i < fs.length; i++) {
+                var no = fs[i].get('marine_zone_no');
+                if (!no) continue;
+                no = String(no);
+                if (no.indexOf('-') !== -1 || seen[no]) continue;
+                var g = fs[i].getGeometry();
+                if (!g) continue;
+                var e = g.getExtent();
+                var cx = (e[0] + e[2]) / 2, cy = (e[1] + e[3]) / 2;
+                seen[no] = true;
+                list.push({ id: no, d: (cx - c[0]) * (cx - c[0]) + (cy - c[1]) * (cy - c[1]) });
+            }
+        });
+        list.sort(function (a, b) { return a.d - b.d; });
+        return list.slice(0, n || 8).map(function (o) { return o.id; });
+    }
+
+    /**
+     * 가까운 해구 중 **예보값이 실제로 들어 있는** 것을 하나 고른다.
+     *
+     * 왜 필요한가?
+     *   해구마다 예보가 있는 곳과 없는 곳이 갈린다. 그냥 가장 가까운 칸을 열었더니
+     *   표가 전부 "-999.0"(값 없음)으로 찼다(실측 2026-09-25 — 5097해구).
+     *   설명용 화면이 값 없는 표면 보여줄 것이 없다.
+     *
+     * @param {Function} done - 고른 해구 번호를 받는 함수(끝내 못 찾으면 가장 가까운 것)
+     * [연계] GET /api/marine-zone-forecasts/:zone — 해구 하나치만 받는 가벼운 길
+     */
+    function _pickZoneWithData(done) {
+        var ids = _zoneIdsNear(8);
+        if (!ids.length) { done(null); return; }
+        var i = 0;
+        var next = function () {
+            if (i >= ids.length) { done(ids[0]); return; }   // 다 없으면 가장 가까운 것
+            var id = ids[i++];
+            fetch('/api/marine-zone-forecasts/' + id)
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (j) {
+                    var d = j && j.data && j.data[id];
+                    var txt = d ? JSON.stringify(d) : '';
+                    if (txt.length > 50 && txt.indexOf('-999') === -1) done(id);
+                    else next();
+                })
+                .catch(next);
+        };
+        next();
+    }
+
+    /**
+     * 화면 한가운데에서 가장 가까운 부이를 고른다.
+     *
+     * @returns {Object|null} ol feature (부이) 또는 없으면 null
+     * [연계] ocean_buoy.js 가 지도에 올린 마커(markerType === 'buoy').
+     *        화면에 찍힌 것으로 찾지 않고 **자료에서 좌표로** 고른다 — 해구도와 같은 이유
+     *        (탭을 오간 직후에는 아직 다시 그려지지 않아 못 찾는다).
+     */
+    function _centerBuoy() {
+        var map = window.getOceanMap && window.getOceanMap();
+        if (!map) return null;
+        var c;
+        try { c = map.getView().getCenter(); } catch (e) { return null; }
+        if (!c) return null;
+        var best = null, bestD = Infinity;
+        map.getLayers().forEach(function (l) {
+            var src = l.getSource && l.getSource();
+            if (!src || typeof src.getFeatures !== 'function') return;
+            var fs;
+            try { fs = src.getFeatures(); } catch (e) { return; }
+            for (var i = 0; i < fs.length; i++) {
+                if (fs[i].get('markerType') !== 'buoy') continue;
+                var g = fs[i].getGeometry();
+                if (!g || typeof g.getCoordinates !== 'function') continue;
+                var p = g.getCoordinates();
+                var d = (p[0] - c[0]) * (p[0] - c[0]) + (p[1] - c[1]) * (p[1] - c[1]);
+                if (d < bestD) { bestD = d; best = fs[i]; }
+            }
+        });
+        return best;
+    }
+
+    /**
+     * 태풍이 설명 카드와 아래 조작줄 사이의 **한가운데**에 오도록 지도를 옮긴다.
+     *
+     * 왜 필요한가?
+     *   앱은 태풍을 켤 때 "태풍 + 우리나라"가 다 보이게 맞추는데, 태풍이 멀리 있으면
+     *   화면 구석에 몰린다(사용자 지적 2026-09-25). 튜토리얼에서는 태풍 자체를 봐야 한다.
+     *
+     * [연계] ocean_typhoon.js 가 지도에 올린 말풍선 중 **지금 위치**(tphn-bubble,
+     *        tphn-faint 가 아닌 것)의 좌표를 쓴다. 앱이 켜면서 맞추는 이동(0.6초)이
+     *        끝난 뒤에 다시 맞춘다.
+     */
+    function _focusTyphoon() {
+        var map = window.getOceanMap && window.getOceanMap();
+        var box = _oceanMapEl();
+        if (!map || !box) return;
+        var pos = null;
+        map.getOverlays().forEach(function (o) {
+            if (pos) return;
+            var el = o.getElement();
+            var cls = el ? String(el.className || '') : '';
+            if (cls.indexOf('tphn-bubble') === -1 || cls.indexOf('tphn-faint') !== -1) return;
+            pos = o.getPosition();
+        });
+        if (!pos) return;
+        var size = map.getSize();
+        if (!size) return;
+        var r = box.getBoundingClientRect();
+        // 카드(위)와 태풍 조작줄(아래) 사이가 실제로 보이는 구간이다
+        var card  = _card ? _card.getBoundingClientRect() : null;
+        var panel = document.getElementById('ocean-typhoon-panel');
+        var pr = panel ? panel.getBoundingClientRect() : null;
+        var top    = (card && card.bottom > r.top ? card.bottom : r.top) - r.top + GAP;
+        var bottom = (pr && pr.height > 1 ? pr.top : r.bottom) - r.top - GAP;
+        if (bottom <= top) { top = 0; bottom = size[1]; }
+        map.getView().centerOn(pos, size, [size[0] / 2, (top + bottom) / 2]);
+    }
 
     /** 지도 그림 전체(구멍을 지도에 뚫을 때 쓴다). @returns {HTMLElement|null} */
     function _oceanMapEl() { return document.getElementById('ocean-map'); }
@@ -1559,10 +1783,36 @@
             btns: ['ocean-buoy-toggle-btn']
         },
         {
+            title: '부이를 누르면 — 관측값이 열립니다',
+            body: '지도에 뜬 부이를 누르면 그 부이가 방금 잰 값이 열립니다. '
+                + '풍속·풍향·기온·기압처럼 그 자리에서 실제로 측정한 값이고, '
+                + '부이 종류에 따라 나오는 항목이 다릅니다. '
+                + '지금은 화면 한가운데에서 가장 가까운 부이를 대신 눌러 보여드립니다.',
+            target: function () {
+                var m = document.getElementById('buoy-info-modal');
+                return m ? [m] : null;
+            },
+            btns: ['ocean-buoy-toggle-btn'], open: 'buoy'
+        },
+        {
             title: '해구기상',
             bodyHtml: _info('seagrid').bodyHtml,
             target: _obTarget('ocean-marine-zone-toggle-btn'),
             btns: ['ocean-marine-zone-toggle-btn']
+        },
+        {
+            title: '해구 칸을 누르면 — 기상전망이 열립니다',
+            // [짧게 쓴 이유] 이 단계는 기상전망 창이 화면을 거의 다 쓰므로 카드 자리가
+            //   좁다. 길게 쓰면 마지막 줄이 잘린다(실측 2026-09-25).
+            body: '격자의 칸을 누르면 그 해구의 기상전망이 열립니다. '
+                + '풍향 · 풍속 · 유의파고 · 파향 · 파주기 · 시정을 '
+                + '3시간 간격으로 최대 75시간까지 보여줍니다.',
+            target: function () {
+                var m = document.getElementById('sea-zone-modal');
+                var c = m && m.querySelector('.modal-content');
+                return c ? [c] : (m ? [m] : null);
+            },
+            btns: ['ocean-marine-zone-toggle-btn'], open: 'zone', fitZoneModal: true
         },
         {
             title: '특보구역',
@@ -1577,13 +1827,32 @@
                 if (m) list.push(m);
                 return list;
             },
-            btns: ['ocean-warn-zone-toggle-btn']
+            // 「특보 ON」도 함께 켠다(사용자 확정 2026-09-25) — 특보가 없는 날에는
+            //   그 버튼이 화면에 아예 없으므로 _obSet 이 알아서 건너뛴다.
+            btns: ['ocean-warn-zone-toggle-btn', 'ocean-warn-active-toggle-btn']
         },
         {
             title: '태풍',
             bodyHtml: _info('typhoon').bodyHtml,
-            target: _obTarget('ocean-typhoon-toggle-btn'),
-            btns: ['ocean-typhoon-toggle-btn']
+            // 태풍이 없는 날에는 버튼이 회색(tphn-disabled)이라 눌러도 아무 일이 없다
+            //   → 이 단계를 통째로 건너뛴다(사용자 확정 2026-09-25).
+            skip: function () {
+                var b = document.getElementById('ocean-typhoon-toggle-btn');
+                return !b || b.classList.contains('tphn-disabled')
+                    || b.getBoundingClientRect().height < 1;
+            },
+            // 아래 조작줄(연도·태풍·자료출처 고르는 줄)까지 함께 비춘다 — 설명 카드가
+            //   그 줄을 덮지 않게 하려는 것이다(사용자 지적 2026-09-25).
+            target: function () {
+                var b = _ob('ocean-typhoon-toggle-btn'), m = _oceanMapEl();
+                if (!b) return null;
+                var list = [b];
+                if (m) list.push(m);
+                var p = document.getElementById('ocean-typhoon-panel');
+                if (p && p.getBoundingClientRect().height > 1) list.push(p);
+                return list;
+            },
+            btns: ['ocean-typhoon-toggle-btn'], cardTop: true, focusTyphoon: true
         },
         {
             title: '천기',
@@ -1821,7 +2090,8 @@
         var step = _steps[_stepIdx];
         // 해구 기상전망 창은 이 단계에서만 화면에 맞춰 줄인다(그래야 구멍도 줄어든 창을 감싼다)
         var _d = step.drill;
-        _fitZoneModal((_d && _d.indexOf(':') > 0 ? _d.split(':')[1] : _d) === 'zonegrid');
+        _fitZoneModal(!!step.fitZoneModal
+            || (_d && _d.indexOf(':') > 0 ? _d.split(':')[1] : _d) === 'zonegrid');
         // 단계를 새로 그릴 때만 화면 밖으로 넘쳤는지 보고 맞춘다. 더 일찍 맞추면 그 뒤에
         //   내용이 더 펼쳐져(부이 관측값 등) 다시 어긋나고, 반대로 **매번** 맞추면
         //   사람이 화면을 움직일 때마다 되돌려 버린다(실측 2026-09-23).
@@ -1919,13 +2189,23 @@
         _hole.style.width  = Math.round(hw) + 'px';
         _hole.style.height = Math.round(hh) + 'px';
 
-        // 카드 자리: 아래쪽 공간과 위쪽 공간을 재어 넓은 쪽에 붙인다
+        // 카드 자리: 아래쪽 공간과 위쪽 공간을 재어 넓은 쪽에 붙인다.
+        //   다만 태풍 단계처럼 **화면 아래에 조작줄이 있는 단계**는 위쪽으로 못박는다 —
+        //   그러지 않으면 카드가 그 줄을 덮어 고를 수가 없다(사용자 지적 2026-09-25).
         var below = bottomLimit - (hy + hh + GAP);
-        var useBelow = below >= above;
-        _card.style.maxHeight = Math.max(CARD_MIN, Math.round(useBelow ? below : above)) + 'px';
+        var useBelow = step.cardTop ? false : (below >= above);
+        // 위쪽에 붙일 때, 구멍이 화면을 거의 다 차지하면(지도 단계) 위 공간이 0 이라
+        //   카드가 납작해진다. 그럴 때는 화면 위쪽 절반까지 쓰게 한다.
+        // 위에 못박는 단계는 「시험 모드」 딱지 줄 아래에서 시작하고(그러지 않으면 딱지와
+        //   단계 번호를 덮는다), 화면의 절반 남짓만 쓴다 — 나머지로 지도를 봐야 한다.
+        var topFixed = topLimit + TAG_H;
+        var space = useBelow ? below
+                             : (step.cardTop ? Math.max(above, (bottomLimit - topFixed) * 0.45) : above);
+        _card.style.maxHeight = Math.max(CARD_MIN, Math.round(space)) + 'px';
         var ch = _card.offsetHeight;
         _card.style.top = Math.round(useBelow ? (hy + hh + GAP)
-                                              : Math.max(topLimit, hy - GAP - ch)) + 'px';
+                                   : (step.cardTop ? topFixed
+                                                   : Math.max(topLimit, hy - GAP - ch))) + 'px';
     }
 
     /**
@@ -2043,6 +2323,7 @@
             // 지도 튜토리얼 — 아코디언이 아니라 지도 버튼을 이 단계 모습으로 맞춘다
             _setOceanBtns(step.btns);
             _setOceanPop(step.pop);
+            _setOceanOpen(step.open);
         } else {
             _setAccordion(ACC_FORECAST, step.want.forecast);
             _setAccordion(ACC_ALERT, step.want.alert);
@@ -2061,6 +2342,7 @@
             //   끝내 안 나왔다(배포본에서 실측 — src 가 빈 채로 남아 있었다).
             //   그림 단계는 아코디언 상태를 볼 필요가 없으므로 그 확인을 건너뛴다.
             // 지도 단계는 아코디언과 무관하다 — 비출 것이 화면에 잡히면 준비된 것이다
+            //   (눌러서 여는 창이 있는 단계는 그 창이 떠야 잡힌다)
             if (_mode === 'ocean') return (!step.target || !!_unionRect(_targets(step)));
             return (step.image || _isMapStep(step.drill) || _settled(step.want))
                 && _drillSettled(step.drill)
@@ -2071,7 +2353,15 @@
             // 아코디언 여닫는 애니메이션(0.4초)과 스크롤이 멈춘 뒤에 자리를 잡는다.
             //   멎은 뒤 한 번 더 "화면 밖으로 넘쳤는지"를 보고 맞춘다 — 그 전에 맞추면
             //   아직 펼쳐지는 중이라 계산이 어긋난다(실측).
-            _whenStable(function () { return _targets(step); }, function () { _paint(true); });
+            _whenStable(function () { return _targets(step); }, function () {
+                _paint(true);
+                // 태풍 단계는 카드 자리가 정해진 **뒤에** 지도를 맞춰야 한다 —
+                //   카드와 아래 조작줄 사이 한가운데에 태풍을 놓기 때문이다.
+                //   앱이 켜면서 하는 이동(0.6초)이 끝난 뒤라야 덮어쓰지 않는다.
+                if (step.focusTyphoon) setTimeout(function () {
+                    if (_root && _steps[_stepIdx] === step) { _focusTyphoon(); _paint(false); }
+                }, 800);
+            });
         });
     }
 
@@ -2122,7 +2412,8 @@
         _closeSeas('alert');
         _closeSubs('status');
         _closeSeas('status');
-        // 지도 튜토리얼이 켠 버튼·펼친 팝아웃도 원래대로
+        // 지도 튜토리얼이 켠 버튼·펼친 팝아웃·열어 준 창도 원래대로
+        _setOceanOpen(null);
         _setOceanPop(null);
         if (_snapshot.ocean) {
             _snapshot.ocean.forEach(function (o) { _obSet(o.sel, o.on); });
