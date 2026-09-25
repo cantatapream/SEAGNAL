@@ -227,8 +227,11 @@ ok('출처 드롭다운(#tphn-source)이 있다', /id="tphn-source"/.test(HTML_S
 ['한국(기상청)', '미국(JTWC)', '일본(JMA/RSMC)', '유럽(ECMWF)', '중국(CMA)'].forEach(function (nm) {
     ok('드롭다운에 ' + nm + ' 가 있다', HTML_SRC.indexOf(nm) >= 0);
 });
-ok('아직 자료원이 없는 세 곳(일본·유럽·중국)은 잠겨 있다',
-    /value="jma" disabled/.test(HTML_SRC) &&
+ok('연결된 세 곳(한국·미국·일본)은 고를 수 있다',
+    /<option value="kma">/.test(HTML_SRC) &&
+    /<option value="jtwc">/.test(HTML_SRC) &&
+    /<option value="jma">/.test(HTML_SRC));
+ok('아직 자료원이 없는 두 곳(유럽·중국)은 잠겨 있다',
     /value="ecmwf" disabled/.test(HTML_SRC) &&
     /value="cma" disabled/.test(HTML_SRC));
 ok('드롭다운이 ⓘ 버튼 왼쪽에 있다',
@@ -247,10 +250,13 @@ ok('★중계 업체 이름이 사용자 화면 문구에 남아 있지 않다',
     !/Xweather/i.test(TYPHOON_SRC.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')));
 
 ok('해외 출처에서는 연도 이동을 잠근다', /ySel\.disabled = \(src !== 'kma'\)/.test(TYPHOON_SRC));
-ok('★70%반경 체크박스는 기상청에서만 열린다 (JTWC 는 그 값을 발표하지 않는다)',
-    /lockLayerChk\('tphn-ly-prob', _src === 'kma'/.test(TYPHOON_SRC));
-ok('★위험구역 체크박스는 JTWC 에서만 열린다 (기상청은 그 도형을 발표하지 않는다)',
-    /lockLayerChk\('tphn-ly-swath', _src === 'jtwc'/.test(TYPHOON_SRC));
+// 70%확률반경은 한국·일본이 발표하고, 위험구역 도형은 미국만 발표한다.
+ok('★70%반경 체크박스는 그 값을 발표하는 기관(한국·일본)에서만 열린다',
+    /var PROB_SOURCES = \['kma', 'jma'\];/.test(TYPHOON_SRC) &&
+    /lockLayerChk\('tphn-ly-prob', PROB_SOURCES\.indexOf\(_src\) >= 0/.test(TYPHOON_SRC));
+ok('★위험구역 체크박스는 그 도형을 발표하는 기관(미국)에서만 열린다',
+    /var SWATH_SOURCES = \['jtwc'\];/.test(TYPHOON_SRC) &&
+    /lockLayerChk\('tphn-ly-swath', SWATH_SOURCES\.indexOf\(_src\) >= 0/.test(TYPHOON_SRC));
 ok('왜 잠겼는지 알려 주고, 대신 무엇을 보면 되는지도 적는다',
     /70% 확률반경을 발표하지 않습니다/.test(TYPHOON_SRC) &&
     /34노트 위험구역 도형을 발표하지 않습니다/.test(TYPHOON_SRC));
