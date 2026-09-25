@@ -1,0 +1,7 @@
+{
+ "script": "collect_pending_law",
+ "stamp": "20260925-144406-117",
+ "files": [
+  "local_server/knowledge/legal/_dashboard/pending_index.json"
+ ]
+}

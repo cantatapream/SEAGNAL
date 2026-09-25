@@ -20,7 +20,14 @@
  *
  * [세는 법] `article_text.listArticleNumbers` — 챗봇이 쓰는 그 함수(L-136).
  * [연계] → `meta_measured_gate.js`(V5-41) 가 이 칸을 검사한다
- * 사용법: node meta_measured_refresh.js [--apply]
+ * 사용법: node meta_measured_refresh.js [--apply] [--only <폴더조각>]
+ *
+ * ★`--only <폴더조각>` (2026-09-25 보탬) — **그 조각이 든 폴더만** 다시 쓴다.
+ *   왜 필요했나: `park_future_article.py` 로 raw 한 파일을 고치자 `V5-41` 이 그 파일 하나를
+ *   빨간불로 잡았다(바이트·조문수). 그런데 `--apply` 를 그냥 돌리면 **335 폴더**가 함께
+ *   다시 써진다 — 내 손질과 무관한 것까지 한 커밋에 섞인다(외과수술식 변경을 깬다).
+ *   그래서 「한 폴더만 다시 쓰는 문」을 냈다. **손으로 고치는 문이 아니다** —
+ *   여전히 이 자가 `article_text.listArticleNumbers` 로 재서 쓴다(L-136).
  */
 'use strict';
 const fs = require('fs');
@@ -31,6 +38,7 @@ const LEGAL = path.dirname(path.dirname(HERE));
 const RAW = path.join(LEGAL, 'raw');
 const AT = require(path.resolve(LEGAL, '../../services/article_text.js'));
 const APPLY = process.argv.includes('--apply');
+const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1] : '';
 const TODAY = '2026-09-24';
 const NEWKEY = `실측_${TODAY}`;
 const RULER = 'article_text.listArticleNumbers (2026-09-24 판 — 조약 조문꼴 꼴④ 포함)';
@@ -49,6 +57,8 @@ function main() {
             const p = path.join(d, e.name);
             if (e.isDirectory()) { if (e.name !== '_대기') walk(p); continue; }
             if (e.name !== '_meta.json') continue;
+            // ★`--only` 는 **폴더 경로에 그 조각이 든 것만** 본다(저장소 상대경로로 견준다).
+            if (ONLY && !path.relative(RAW, d).split(path.sep).join('/').includes(ONLY)) continue;
             let meta;
             try { meta = JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { continue; }
             const old = latestKey(meta);
