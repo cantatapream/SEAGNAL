@@ -353,9 +353,36 @@ function parseStormList(html) {
     return out;
 }
 
+/**
+ * JTWC 제품 폴더 목록에서 올해 통보문 파일의 앞부분을 뽑는다.
+ * 예: '... <a href="wp2526web.txt">wp2526web.txt</a> ...' → ['wp2526']
+ * [왜 필요한가] 안내 화면(jtwc.html)은 우리 서버에 403 을 준다(2026-09-25 확인).
+ *   같은 호스트라도 /products/ 안은 받아지므로, 거기 목록에서 번호를 읽는다.
+ * [올해 것만] 파일 이름 끝 두 자리가 연도다. 지난 해 것이 남아 있어도 걸러 낸다.
+ * @param {string} html - 폴더 목록 원문
+ * @param {number} year - 올해(4자리)
+ * @returns {Array<string>} ['wp2526', 'ep1726', …] — 중복 없이, 번호 순
+ */
+function parseProductDir(html, year) {
+    const yy = String(year).slice(2);
+    const re = new RegExp('\\b((?:wp|ep|cp|io|sh)\\d{2}' + yy + ')web\\.txt', 'gi');
+    const seen = {};
+    const out = [];
+    let m;
+    while ((m = re.exec(String(html || ''))) !== null) {
+        const b = m[1].toLowerCase();
+        if (seen[b]) continue;
+        seen[b] = true;
+        out.push(b);
+    }
+    out.sort();
+    return out;
+}
+
 module.exports = {
     parseWarning,
     parseStormList,
+    parseProductDir,
     fileBase,
     // 아래는 시험에서 규칙을 하나씩 고정하려고 연다.
     _nmToKm: nmToKm,
