@@ -179,7 +179,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 
 <!-- 검사목록:시작 — `python3 scripts/refactor/gen_rulebook.py` 가 다시 쓴다. 손으로 고치지 않는다 -->
 
-### ⓐ 게이트 53 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
+### ⓐ 게이트 54 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
 
 | 검사 이름 | 무엇을 못박나 | 자 |
 |---|---|---|
@@ -218,6 +218,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `V5-46` | 본문이 가리키는데 없는 별표 | `local_server/knowledge/legal/_dashboard/loop/byl_ref_gap.py` · `loop_tool_census.js` |
 | `V5-45` | 안 짚히는 자 | `local_server/knowledge/legal/_dashboard/loop/loop_tool_census.js` |
 | `V5-44` | 진행판 = 실측 | `local_server/knowledge/legal/_dashboard/loop/worklist_progress.py` |
+| `V5-49` | [미확인] 없이 나가는 REVIEW 줄 | `local_server/knowledge/legal/_dashboard/loop/unverified_leak_gate.js` |
 | `V5-48` | 모델이 받는 근거자료 크기 | `local_server/knowledge/legal/_dashboard/loop/context_size.js` · `scripts/refactor/gen_rulebook.py` |
 | `V5-47` | 규칙집 검사 목록 최신성 | `scripts/refactor/gen_rulebook.py` |
 | `V5-20` | 표가 열 단위로 펼쳐진 자리 | `local_server/knowledge/legal/_dashboard/loop/col_split_scan.js` |
@@ -237,7 +238,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 48 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 49 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -245,6 +246,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_child_unknown_gate` | 자식 정보 '미상' 게이트 검증 |
 | `test_child_confirm` | 자식 확정 관찰창 회귀 테스트 |
 | `test_ef_exact_refine` | 발효시각 "범위형 → 정확시각" 정밀화 알림 |
+| `test_unverified_leak` | **V5-49 의 탐지기가 진짜 잡는지** 고정 문장으로 확인한다. |
 | `test_cancel_verdict_room` | 판정 보류실 e2e 시뮬레이션 |
 | `test_push_pagination` | 2026-07-13 실사고: 전국 구독자에게 여러 해역 동시 "발표"(publish) 푸시가 |
 | `test_bulletin_cancel_scanner` | bulletin_cancel_scanner 단위 테스트 |

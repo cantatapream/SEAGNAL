@@ -99,6 +99,7 @@ run "V4 시뮬레이션" node scripts/refactor/simulate.js
 # ============================================================================
 echo; echo "── V5 테스트 스위트 ──"
 SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_exact_refine
+  test_unverified_leak
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner
         test_parent_release_debounce
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render
@@ -473,6 +474,20 @@ node local_server/knowledge/legal/_dashboard/loop/loop_tool_census.js --gate \
 echo; echo "── V5-44 진행판 = 실측 ──"
 python3 local_server/knowledge/legal/_dashboard/loop/worklist_progress.py --gate \
   || fail "V5-44 진행판에 적힌 숫자가 실측과 다르다"
+
+# ── V5-49 [미확인] 없이 나가는 REVIEW 줄 (2026-09-26 신설, N-2) ───────────────
+#   N-2 는 「신뢰도 단위를 쪽 → 절로 쪼갠다」이고 사장님이 **ⓐ(문턱을 낮춘다)** 로 확정하셨다.
+#   ★착수 전 위험검토에서 **그 문턱이 이미 없다는 것**을 실측으로 찾았다 — 쪽 단위 제외는
+#     2026-08-05 에 내용 단위로, 2026-09-07 에 상태 무관 **줄 단위**로 이미 바뀌어 있었다.
+#     생산 입구 `search({canonicalOnly:true})` 로 재니 근거로 실린 1,326쪽 중 `concept/draft` 285 ·
+#     `comparison/draft` 3 · `annex/draft` 1 이 본문까지 온전히 실렸다. ⇒ ⓐ는 이미 돌고 있다.
+#   그래서 남은 몫은 **그것을 잠그는 것**이다: 문턱이 낮은 채로 도는 한,
+#   **미확인 판단이 머리표 없이 근거로 나가는 일은 0 이어야 한다**(그것이 환각이 되는 자리다).
+#   ⚠0 만 찍는 게이트는 죽은 게이트라 **탐지기가 진짜 잡는지**를 스위트 `test_unverified_leak`
+#     6문항으로 따로 못박았다(고정 문장 — 배너는 남기고 진짜 판단은 잡는다).
+echo; echo "── V5-49 [미확인] 없이 나가는 REVIEW 줄 ──"
+node local_server/knowledge/legal/_dashboard/loop/unverified_leak_gate.js --gate \
+  || fail "V5-49 미확인 판단이 [미확인] 머리표 없이 근거로 나간다"
 
 # ── V5-48 모델이 실제로 받는 근거자료 크기 (2026-09-26 신설, G-51) ────────────
 #   `CONTEXT_MAX_CHARS`(80,000)는 **본문 합계**만 묶는다. `buildContextBlock` 이 쪽마다
