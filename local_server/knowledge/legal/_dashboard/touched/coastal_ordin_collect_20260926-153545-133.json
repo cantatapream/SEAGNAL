@@ -1,0 +1,9 @@
+{
+ "script": "coastal_ordin_collect",
+ "stamp": "20260926-153545-133",
+ "files": [
+  "local_server/knowledge/legal/raw/_자치법규/경상북도/영덕군해수욕장운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경상북도/영덕군해수욕장운영조례/별표/_links.json",
+  "local_server/knowledge/legal/_dashboard/law_raw_paths.json"
+ ]
+}

@@ -44,6 +44,7 @@ os.makedirs(TMP, exist_ok=True)
 OC = 'hyoo1431'
 APPLY = '--apply' in sys.argv
 ONLY = sys.argv[sys.argv.index('--only') + 1] if '--only' in sys.argv else None
+DUMP = sys.argv[sys.argv.index('--dump') + 1] if '--dump' in sys.argv else None
 sys.path.insert(0, HERE)
 
 
@@ -132,18 +133,59 @@ def hwpx글자(path):
     paras = []
     for s in secs:
         root = ET.fromstring(z.read(s))
-        for p_ in root.iter():
-            if not p_.tag.endswith('}p'):
+        # ★부모 지도 — ElementTree 는 부모를 안 알려 준다. 표 안인지 밖인지를 가리려면 필요하다.
+        부모 = {}
+        for 어버이 in root.iter():
+            for 자식 in 어버이:
+                부모[id(자식)] = 어버이
+
+        def 가장가까운표(el):
+            x = 부모.get(id(el))
+            while x is not None:
+                if x.tag.endswith('}tbl'):
+                    return id(x)
+                x = 부모.get(id(x))
+            return None
+
+        def 칸글자(el):
+            """그 요소 아래 글자를 다 모은다. `hp:t` 는 자식을 가질 수 있어 itertext() 로 읽는다."""
+            buf = [''.join(t.itertext()) for t in el.iter()
+                   if (t.tag.endswith('}t') or t.tag.endswith('}script'))]
+            return re.sub(r'\s+', ' ', ''.join(buf)).strip()
+
+        for el in root.iter():
+            tag = el.tag
+            # ★①표는 **행 단위**로 싣는다 (2026-09-26, 3-36·P-8).
+            #   HWPX 는 표를 `<hp:tbl><hp:tr><hp:tc><hp:p>칸글자` 로 담는다. `hp:p` 만 읽으면
+            #   **칸 하나가 한 줄**이 되어 표가 세로로 풀린다 — 값은 다 있는데 **행·열 짝이 사라진다**.
+            #   그것이 V5-20(`col_split_scan.js`)이 세는 「열 단위로 펼쳐진 덩이」다.
+            #   ★짝을 넘겨짚는 것이 아니다 — **원본이 그 짝을 갖고 있다.** 우리는 읽기만 한다.
+            #   적는 꼴은 저장소가 이미 쓰는 `| 칸 | 칸 |` 이다(강선의구조기준 raw 에 그대로 있다).
+            if tag.endswith('}tbl'):
+                if 가장가까운표(el) is not None:
+                    continue                       # 겹표 — 바깥 표가 제 칸 안에 이미 싣는다
+                for tr in el.iter():
+                    if not tr.tag.endswith('}tr') or 가장가까운표(tr) != id(el):
+                        continue
+                    칸 = [칸글자(tc) for tc in tr if tc.tag.endswith('}tc')]
+                    if 칸:
+                        paras.append('| ' + ' | '.join(칸) + ' |')
                 continue
-            # ★①수식도 싣는다. HWPX 는 수식을 `<hp:equation><hp:script>sqrt {L}</hp:script>` 로 담는다 —
+            if not tag.endswith('}p'):
+                continue
+            if 가장가까운표(el) is not None:
+                continue                           # 표 칸 안의 문단 — 위에서 행으로 실었다
+            # ★②수식도 싣는다. HWPX 는 수식을 `<hp:equation><hp:script>sqrt {L}</hp:script>` 로 담는다 —
             #   `hp:t` 만 읽으면 **식이 통째로 사라진다**(강선 4,809개 · FRP 77개 실측).
-            # ★②`<hp:t>` 는 **자식 요소를 가질 수 있다** — `<hp:t><hp:fwSpace/>  1. 낙하시험 : …</hp:t>`.
+            # ★③`<hp:t>` 는 **자식 요소를 가질 수 있다** — `<hp:t><hp:fwSpace/>  1. 낙하시험 : …</hp:t>`.
             #   ElementTree 는 자식 뒤의 글자를 부모의 `.text` 가 아니라 **그 자식의 `.tail`** 에 둔다.
             #   `t.text` 만 읽었더니 **그 호가 통째로 버려졌다**(강선 제8조의 낙하시험·해머링시험 요건 —
             #   2026-09-26 실측. 처음엔 「원본이 부실하다」고 오판했다. L-382 그 뿌리 — 값의 꼴).
             #   ⇒ `itertext()` 로 그 요소 안의 글자를 **전부** 모은다.
-            buf = [''.join(t.itertext()) for t in p_.iter()
-                   if (t.tag.endswith('}t') or t.tag.endswith('}script'))]
+            #   ⚠표 밖의 문단이라도 그 안에 표가 들어 있을 수 있어 **표 아래 글자는 뺀다**(위에서 실었다).
+            buf = [''.join(t.itertext()) for t in el.iter()
+                   if (t.tag.endswith('}t') or t.tag.endswith('}script'))
+                   and 가장가까운표(t) is None]
             line = ''.join(buf).rstrip()
             if not line.strip():
                 continue
@@ -380,6 +422,30 @@ def main():
             보고.append(f"   ↻ {이름} — 삭제 표시를 옛 전사본에서 살렸다 {len(살린표시)}건: "
                        + ' · '.join(살린표시[:6]))
 
+        # ── ★연혁 부칙 이어붙이기 (HWPX 길에서만 생긴다) ────────────────────────
+        #   HWPX 첨부(개정전문·전문)는 **그 개정의 부칙 하나만** 싣는다
+        #   (선박만재흘수선기준: `부  칙 <제2024-44호, 2024. 04. 19.>` 하나. ⚠「부」와 「칙」
+        #    사이에 공백이 둘이라 `부칙` 으로 찾으면 **없는 줄 안다** — 내가 처음에 그렇게 봤다).
+        #   그런데 우리 raw 에는 2026-08-31 「고시 raw에 부칙 채우기」가 **API 로 받은 연혁 부칙
+        #   전부**가 `[부칙]` 블록으로 들어 있다(그 파일은 8건).
+        #   ⇒ 그냥 갈아 끼우면 **개정 연혁 7건이 통째로 사라진다.** 받은 것이 더 나은 줄 알았는데
+        #     **한 축에서는 옛것이 더 많이 갖고 있었다.**
+        #   ⇒ 옛 파일의 `[부칙]` 블록에서 **본문에 이미 있는 호를 뺀 나머지**를 그대로 옮긴다.
+        #     지어내는 것이 아니라 **우리 앞선 공식 수집본의 그 블록**을 옮기는 것이고,
+        #     무엇을 옮겼는지 파일 머리에 남긴다(삭제 표시 살리기와 같은 결).
+        옛부칙줄, 옮긴부칙 = [], []
+        m부 = re.search(r'(?m)^\[부칙\]\s*$', 옛)
+        if m부:
+            옛부칙줄 = [l for l in 옛[m부.end():].split('\n') if l.strip()]
+            있는호 = set(re.findall(r'<\s*제?\s*([0-9]{4}-[0-9]+)\s*호', 몸통))
+            for l in 옛부칙줄:
+                호 = re.search(r'<\s*제?\s*([0-9]{4}-[0-9]+)\s*호', l)
+                if 호 and 호.group(1) in 있는호:
+                    continue                      # 본문이 이미 그 부칙을 갖고 있다 — 두 번 안 넣는다
+                옮긴부칙.append(l)
+            if 옮긴부칙:
+                몸통 = 몸통.rstrip() + '\n\n[부칙]\n' + '\n'.join(옮긴부칙)
+
         # ── ★원본 오기 바로잡기 — 선언된 글자만, 기록을 남기고 ────────────────────
         #   HWPX 원본에 **한 글자 오기**가 있으면(`제727(브래킷)`·`재815조(적용)`) 생산 파서가
         #   그 조를 못 찾아 **옛 파일은 꺼낼 수 있던 조를 못 꺼내게 된다.** 그래서 바로잡는다 —
@@ -403,6 +469,12 @@ def main():
                        f"근거와 함께 적은 뒤 다시 돌린다.")
             막힌것 += 1
             continue
+        if 옮긴부칙:
+            정정줄.append(f"※ 연혁 부칙 {len(옮긴부칙)}건을 옛 수집본에서 그대로 옮겼다"
+                        f"(옛 {len(옛부칙줄)}건 중 본문에 이미 있는 {len(옛부칙줄)-len(옮긴부칙)}건은 뺐다)"
+                        " — HWPX 첨부는 그 개정의 부칙 하나만 싣는다. 옮기지 않으면 개정 연혁이"
+                        " 사라진다. 글을 지은 것이 아니라 우리 앞선 공식 수집본(2026-08-31 API)의"
+                        " `[부칙]` 블록을 옮긴 것이다.")
         if 살린표시:
             정정줄.append("※ 삭제 표시를 옛 전사본에서 그대로 살렸다(" + str(len(살린표시)) + "건): "
                         + ' · '.join(살린표시)
@@ -446,14 +518,29 @@ def main():
         좋아졌나 = ㄴ['조줄평균자'] >= ㄱ['조줄평균자'] * 1.3
         # ★「잃지 않았다」만 보면 **두 번 들어간 것**을 못 잡는다(실측으로 겪었다).
         #   그래서 글자 수도 본다 — 조 수가 같은데 글자가 1.25배를 넘으면 중복을 의심한다.
-        옛자, 새자 = len(re.sub(r'\s', '', 옛)), len(re.sub(r'\s', '', 새))
+        # ⚠표를 `| 칸 | 칸 |` 로 싣기 시작하면서 **칸막이 글자가 수에 섞인다.**
+        #   그대로 세면 「글자가 25% 넘게 늘었다 — 두 번 들어갔나」가 **헛울린다**.
+        #   ⇒ 중복을 의심하는 자는 **내용 글자만** 센다 — 흰칸과 칸막이를 뺀다.
+        def 알맹이(t):
+            return len(re.sub(r'[\s|]', '', t))
+        옛자, 새자 = 알맹이(옛), 알맹이(새)
+        # ★부칙을 잃지 않았나 — 「호」 집합으로 본다(줄 수로 보면 줄바꿈 꼴이 달라도 틀린다).
+        def 부칙호(t):
+            m = re.search(r'(?m)^\[부칙\]\s*$', t)
+            꼬 = t[m.end():] if m else ''
+            본 = t if not m else t[:m.start()]
+            return set(re.findall(r'<\s*제?\s*([0-9]{4}-[0-9]+)\s*호', 꼬)) | \
+                   set(re.findall(r'부\s*칙[^\n]{0,40}?<\s*제?\s*([0-9]{4}-[0-9]+)\s*호', 본))
+        잃은부칙 = sorted(부칙호(옛) - 부칙호(새))
+        옛표줄 = len([1 for l in 옛.split('\n') if l.startswith('|')])
+        새표줄 = len([1 for l in 새.split('\n') if l.startswith('|')])
         조수같나 = len(조번호들(옛)) == len(새조전체)
         불었나 = 조수같나 and 새자 > 옛자 * 1.25
         옛판독 = len(re.findall(r'【이미지판독\s*\d+】', 옛))
         새판독 = len(re.findall(r'【이미지판독\s*\d+】', 새))
         판독잃음 = 새판독 < 옛판독
         ok = ((not 잃은별표) and (not 잃은조) and (not 잃은번호) and 좋아졌나
-              and (not 불었나) and (not 판독잃음) and (not 쪼그라든조))
+              and (not 불었나) and (not 판독잃음) and (not 쪼그라든조) and (not 잃은부칙))
         보고.append(
             f"{'✅' if ok else '❌'} {이름}  ({길})\n"
             f"       조문줄  옛 {ㄱ['조줄']}줄·평균{ㄱ['조줄평균자']}자  →  "
@@ -464,7 +551,12 @@ def main():
             + (("  ★" + ' '.join(f"{j}({a}→{b}자)" for j, a, b in sorted(쪼그라든조, key=lambda x: x[1]-x[2], reverse=True)[:4])) if 쪼그라든조 else "") + "\n"
             f"       판독  이미지판독 블록 옛 {옛판독}개 → 새 {새판독}개"
             + ("  ★줄었다 — 앞선 재수집의 성과를 지우는 것이다" if 판독잃음 else "") + "\n"
-            f"       글자  옛 {옛자:,}자 → 새 {새자:,}자 ({100*(새자-옛자)/max(1,옛자):+.1f}%)"
+            f"       부칙  옛 {len(부칙호(옛))}건 → 새 {len(부칙호(새))}건 · 잃은 것 {len(잃은부칙)}"
+            + (f"  ★{잃은부칙[:6]}" if 잃은부칙 else "")
+            + (f"  (옛 수집본에서 {len(옮긴부칙)}건 옮겼다)" if 옮긴부칙 else "") + "\n"
+            f"       표    행으로 실은 줄 옛 {옛표줄}줄 → 새 {새표줄}줄"
+            + ("  ← 표가 세로로 풀려 있던 것이 행으로 돌아왔다" if 새표줄 > 옛표줄 else "") + "\n"
+            f"       글자  옛 {옛자:,}자 → 새 {새자:,}자 ({100*(새자-옛자)/max(1,옛자):+.1f}%)  (칸막이·흰칸 뺀 알맹이)"
             + ("  ★조 수가 같은데 글자가 25% 넘게 늘었다 — 두 번 들어갔는지 본다" if 불었나 else "") + "\n"
             f"       조    옛 본문 있는 조 {len(옛본문조)}개 중 새것에 없는 것 {len(잃은조)}"
             + (f" {잃은조[:8]}" if 잃은조 else "")
@@ -472,6 +564,15 @@ def main():
             + (f" {잃은번호[:8]}" if 잃은번호 else "")
             + (("\n       봐준 조 " + ' · '.join(f"{j}({봐준조[j]['판정']})" for j in 봐준것)
                 + "  ← 선언에 까닭이 적혀 있다") if 봐준것 else ""))
+        # ★`--dump <폴더>` — 새 글을 raw 가 아니라 그 폴더에 적는다. 쓰기 전에 **사람이 견주기** 위한 문이다.
+        #   (글자 수가 줄거나 늘었을 때 「무엇이 달라졌나」를 눈으로 봐야 한다 — 짐작하지 않는다.)
+        if DUMP:
+            os.makedirs(DUMP, exist_ok=True)
+            with open(os.path.join(DUMP, 이름 + '.새.txt'), 'w', encoding='utf-8') as f:
+                f.write(새)
+            with open(os.path.join(DUMP, 이름 + '.옛.txt'), 'w', encoding='utf-8') as f:
+                f.write(옛)
+            print('       ↘ 뽑았다 → %s' % os.path.join(DUMP, 이름 + '.{옛,새}.txt'))
         if ok and APPLY:
             open(old_p, 'w', encoding='utf-8').write(새)
             touched.add(old_p)

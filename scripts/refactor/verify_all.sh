@@ -109,7 +109,7 @@ run "V4 시뮬레이션" node scripts/refactor/simulate.js
 #     **게이트가 읽는 모든 파일**이다(→ `_LESSONS.md` L-382 갈래⑧).
 echo; echo "── V5 테스트 스위트 ──"
 SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_exact_refine
-  test_unverified_leak test_split_law_ask test_section_name_kinds
+  test_unverified_leak test_split_law_ask test_section_name_kinds test_ref_tier_route
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner
         test_parent_release_debounce
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render
@@ -450,6 +450,21 @@ node local_server/knowledge/legal/_dashboard/loop/annex_row_coverage.js --gate |
 #   [★왜 「못 찾음」은 안 잠그나] 3-33 이 이미 판단했다 — 그 자는 판정자가 못 된다
 #   (빨간불 가운데 참이 소수라 거짓 경보가 된다). **오탐이 있을 수 없는 것만** 잠근다.
 #   [고치는 법] 그 줄에 큰따옴표로 인용을 적는다. **주장을 지우지 않는다**(G-34).
+# ── V5-52 EXACT 주장 속 숫자 중 **어디에도 없는 것**이 늘지 않나 (2026-09-26 신설, G-29·3-33) ──
+#   `exact_claim_numbers.py` 는 2026-09-24 에 생겼고 **게이트에 없었다.** 386줄·숫자 6,367개를
+#   재면서 그 핵심 수(「어디에도 없다 33」)를 아무도 안 봤다. 아무도 안 세면 늘어도 모른다.
+#   ★같은 흠을 같은 날 G-13 에서도 찾았다 — 기준선 파일에 `원문없음` 이 적혀 있는데 게이트
+#     코드가 그것을 견주지 않아 **192 → 99 로 93이나 움직이는 동안 아무도 몰랐다**(그쪽도 고쳤다).
+#   ★**판정하지 않는다. 0 을 요구하지 않는다.** 3-33 이 판단했듯 이 자는 판정자가 못 된다 —
+#     「어디에도 없다」에는 **우리 계산값**처럼 흠이 아닌 것이 섞여 있다. **늘면 빨간불**만 켠다.
+#   [빨간불이면] `--list` 로 늘어난 줄을 본다. 우리 계산값이면 까닭을 커밋에 적고
+#     `--gate --update` 로 잠근다. 원문을 안 받은 것이면 받는다.
+#     ⚠수를 맞추려고 주장을 지우지 않는다(G-34·G-49).
+#   ⏱약 50초 든다(실측).
+echo; echo "── V5-52 EXACT 숫자 중 어디에도 없는 것 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_numbers.py --gate > /tmp/_v552.log 2>&1 \
+  && tail -3 /tmp/_v552.log || { tail -8 /tmp/_v552.log; fail "V5-52 EXACT 숫자 중 어디에도 없는 것이 늘었다"; }
+
 echo; echo "── V5-43 인용 없는 EXACT 주장 ──"
 python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py --gate > /tmp/_v543.log 2>&1 \
   && tail -6 /tmp/_v543.log || { tail -8 /tmp/_v543.log; fail "V5-43 인용 없는 EXACT 주장"; }
@@ -510,6 +525,20 @@ python3 local_server/knowledge/legal/_dashboard/loop/section_fill_3_6.py --check
 #   **미확인 판단이 머리표 없이 근거로 나가는 일은 0 이어야 한다**(그것이 환각이 되는 자리다).
 #   ⚠0 만 찍는 게이트는 죽은 게이트라 **탐지기가 진짜 잡는지**를 스위트 `test_unverified_leak`
 #     6문항으로 따로 못박았다(고정 문장 — 배너는 남기고 진짜 판단은 잡는다).
+# ── V5-51 3-22 수집기의 증명이 「아니오」를 말할 수 있나 (2026-09-26 신설, 3-22) ──
+#   3-22 는 연안 시군구 조례를 받는 일이다. 3-68(고시 다시 받기)에서 나는 **받아 쓴 뒤에**
+#     온전함을 쟀고, 그 사이에 쪼그라든 조문과 잃은 판독 블록이 raw 에 들어갔다.
+#     그래서 수집기는 순서를 뒤집었다 — **증명을 넘은 것만 파일이 된다**(갈래 ①~⑨).
+#   ★이 자가 보는 것은 「증명이 아직 「아니오」를 말할 수 있나」다. 한 번도 막지 않는 자는
+#     자가 아니다(G-49). 갈래마다 **일부러 깨뜨린 한 벌**을 넣어 그 번호가 떠오르는지 본다.
+#   ⚠실제로 여기서 잡혔다: 갈래 ④(운영 파서가 여나)가 **무조건 초록**이었다 —
+#     node 쪽에서 `r.body || r.text || r` 로 써서 body 가 빈 글자일 때 `|| r` 로 넘어가
+#     **객체가 '[object Object]' 로 바뀌어** 「열렸다」가 됐다. 이 자가 없었으면 몰랐다.
+#   ⚠빨간불이면 수집기의 증명이 뚫린 것이다. **문턱을 낮추지 말고** 갈래를 고친다.
+echo; echo "── V5-51 3-22 증명이 「아니오」를 말할 수 있나 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/coastal_ordin_collect.py --check \
+  || fail "V5-51 3-22 수집기의 증명이 깨뜨린 한 벌을 막지 못한다"
+
 echo; echo "── V5-49 [미확인] 없이 나가는 REVIEW 줄 ──"
 node local_server/knowledge/legal/_dashboard/loop/unverified_leak_gate.js --gate \
   || fail "V5-49 미확인 판단이 [미확인] 머리표 없이 근거로 나간다"

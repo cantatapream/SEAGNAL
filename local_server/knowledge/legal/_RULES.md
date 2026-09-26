@@ -179,7 +179,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 
 <!-- 검사목록:시작 — `python3 scripts/refactor/gen_rulebook.py` 가 다시 쓴다. 손으로 고치지 않는다 -->
 
-### ⓐ 게이트 55 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
+### ⓐ 게이트 57 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
 
 | 검사 이름 | 무엇을 못박나 | 자 |
 |---|---|---|
@@ -214,11 +214,13 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `V5-40` | 별표 항목수 대조 | `local_server/knowledge/legal/_dashboard/loop/annex_rowcount_gate.js` |
 | `V5-41` | 「실측」 칸 | `local_server/knowledge/legal/_dashboard/loop/meta_measured_gate.js` |
 | `V5-42` | 별표 줄의 임자 | `local_server/knowledge/legal/_dashboard/loop/annex_row_coverage.js` |
+| `V5-52` | EXACT 숫자 중 어디에도 없는 것 | `local_server/knowledge/legal/_dashboard/loop/exact_claim_numbers.py` |
 | `V5-43` | 인용 없는 EXACT 주장 | `local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py` |
 | `V5-46` | 본문이 가리키는데 없는 별표 | `local_server/knowledge/legal/_dashboard/loop/byl_ref_gap.py` · `loop_tool_census.js` |
 | `V5-45` | 안 짚히는 자 | `local_server/knowledge/legal/_dashboard/loop/loop_tool_census.js` |
 | `V5-44` | 진행판 = 실측 | `local_server/knowledge/legal/_dashboard/loop/worklist_progress.py` |
 | `V5-50` | 3-6 으로 채운 51자리 = 원문 | `local_server/knowledge/legal/_dashboard/loop/section_fill_3_6.py` |
+| `V5-51` | 3-22 증명이 「아니오」를 말할 수 있나 | `local_server/knowledge/legal/_dashboard/loop/coastal_ordin_collect.py` |
 | `V5-49` | [미확인] 없이 나가는 REVIEW 줄 | `local_server/knowledge/legal/_dashboard/loop/unverified_leak_gate.js` |
 | `V5-48` | 모델이 받는 근거자료 크기 | `local_server/knowledge/legal/_dashboard/loop/context_size.js` · `scripts/refactor/gen_rulebook.py` |
 | `V5-47` | 규칙집 검사 목록 최신성 | `scripts/refactor/gen_rulebook.py` |
@@ -239,7 +241,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 52 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 53 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -250,6 +252,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_unverified_leak` | **V5-49 의 탐지기가 진짜 잡는지** 고정 문장으로 확인한다. |
 | `test_split_law_ask` | **쪼개진 법을 옛 이름으로 물었을 때 되묻는가** (2026-09-26 신설, 4-6) |
 | `test_section_name_kinds` | 표준 절 이름의 세 갈래 — 「없다」 / 「꼬리표」 / ★「이름다름(뜻은 같다)」 |
+| `test_ref_tier_route` | 3-64 — 가리킴 앞의 **계층어**를 읽어 그 계층의 별표로 보낸다 (그리고 **안 보낼 것은 안 보낸다**) |
 | `test_cancel_verdict_room` | 판정 보류실 e2e 시뮬레이션 |
 | `test_push_pagination` | 2026-07-13 실사고: 전국 구독자에게 여러 해역 동시 "발표"(publish) 푸시가 |
 | `test_bulletin_cancel_scanner` | bulletin_cancel_scanner 단위 테스트 |
