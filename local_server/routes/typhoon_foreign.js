@@ -476,8 +476,14 @@ async function fetchEcmwf() {
                    + ' 강도(약~초강력)는 참고용입니다.'
                    + '|70% 확률반경·돌풍·이동 방향은 제공되지 않습니다.'
                    + '|강풍·폭풍반경은 초속 18m·26m 이상 바람의 네 방향 거리입니다.'
-                   + '|원자료는 15일까지 있으나, 다른 기관과 같게 5일(120시간)까지 12시간 간격으로 보여 드립니다.',
-                other: '출처: 유럽중기예보센터(ECMWF) 공개자료(https://data.ecmwf.int) · CC BY 4.0'
+                   + '|원자료는 15일까지 있으나, 다른 기관과 같게 5일(120시간)까지 12시간 간격으로 보여 드립니다.'
+                   // [면책] ECMWF 공개자료 이용 조건이 붙이도록 한 문구를 옮겼다.
+                   + '|ECMWF는 자료의 오류·누락, 자료 제공 여부, 자료 사용으로 생긴 손실·피해에 대해'
+                   + ' 어떠한 책임도 지지 않습니다.',
+                // [출처표기] CC BY 4.0 — 저작권자(© 연도 ECMWF)·출처·라이선스(주소 포함)·가공 사실.
+                other: '출처: © ' + t.baseKst.slice(0, 4) + ' European Centre for Medium-Range Weather Forecasts'
+                     + '(ECMWF) · www.ecmwf.int · CC BY 4.0(https://creativecommons.org/licenses/by/4.0/)'
+                     + ' · ECMWF 자료·제품을 바탕으로 우리 화면 형식으로 가공해 작성'
             }]
         };
     });

@@ -185,7 +185,13 @@ ok('아직 오지 않은 실행은 찾지 않는다 (05Z 에 26일 12z 를 부�
 ok('유럽 공개자료 주소에서 받는다', /https:\/\/data\.ecmwf\.int\/forecasts\//.test(ROUTE_SRC));
 ok('파일이 BUFR 로 시작하는지 확인한다 (오류 페이지를 풀지 않게)',
     /buf\.slice\(0, 4\)\.toString\('latin1'\) === 'BUFR'/.test(ROUTE_SRC));
-ok('출처표기(other)에 CC BY 4.0 을 적는다', /CC BY 4\.0/.test(ROUTE_SRC));
+// [출처표기 — CC BY 4.0 이 요구하는 것] 저작권자·라이선스(주소)·가공 표시, 그리고 ECMWF 면책 문구.
+ok('★i 버튼 출처에 저작권자(© 연도 ECMWF)를 적는다',
+    /other: '출처: © ' \+ t\.baseKst\.slice\(0, 4\) \+ ' European Centre for Medium-Range Weather Forecasts'/.test(ROUTE_SRC));
+ok('★i 버튼 출처에 라이선스와 그 주소를 적는다',
+    /CC BY 4\.0\(https:\/\/creativecommons\.org\/licenses\/by\/4\.0\/\)/.test(ROUTE_SRC));
+ok('★가공했다는 사실을 적는다 (CC BY 4.0 요구)', /ECMWF 자료·제품을 바탕으로 우리 화면 형식으로 가공해 작성/.test(ROUTE_SRC));
+ok('★ECMWF 면책 문구를 안내에 넣는다', /어떠한 책임도 지지 않습니다/.test(ROUTE_SRC));
 ok('★안내문에 "공식 태풍 예보가 아닙니다"를 적는다', /공식 태풍 예보가 아닙니다/.test(ROUTE_SRC));
 
 console.log('\n[4-2] 응답 한 판 — 실제 파일을 상류인 척 물려 끝까지 돌려 본다');
@@ -229,9 +235,9 @@ console.log('\n[4-2] 응답 한 판 — 실제 파일을 상류인 척 물려 �
 // ── [5] 화면 배선 ──────────────────────────────────────────────────────────
 console.log('\n[5] 화면 배선');
 ok('출처 드롭다운에서 유럽을 고를 수 있다 (잠금이 풀렸다)', /<option value="ecmwf">유럽\(ECMWF\)<\/option>/.test(HTML_SRC));
-ok('★출처표기에 CC BY 4.0 과 "공식 태풍 예보 아님"이 있다',
+ok('★화면 출처 한 줄에 저작권자·라이선스·가공·"공식 예보 아님"이 모두 있다',
     /ecmwf: \{ label: '유럽\(ECMWF\)'/.test(TYPHOON_SRC) &&
-    /CC BY 4\.0 · 컴퓨터 모델 예측\(공식 태풍 예보 아님\)/.test(TYPHOON_SRC));
+    /note: '자료: © ' \+ new Date\(\)\.getFullYear\(\) \+ ' 유럽중기예보센터\(ECMWF\) · CC BY 4\.0 · 우리 화면 형식으로 가공 · 컴퓨터 모델 예측\(공식 태풍 예보 아님\)'/.test(TYPHOON_SRC));
 ok('유럽은 70%반경·위험구역 둘 다 잠긴다',
     /var PROB_SOURCES = \['kma', 'jma'\];/.test(TYPHOON_SRC) && /var SWATH_SOURCES = \['jtwc'\];/.test(TYPHOON_SRC));
 

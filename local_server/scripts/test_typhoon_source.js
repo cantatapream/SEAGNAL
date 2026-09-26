@@ -224,7 +224,7 @@ ok('★형식이 안 맞으면 빈 값 — 경로조작을 막는다',
 console.log('\n[6] 화면 배선 — 드롭다운·출처표기·버튼');
 
 ok('출처 드롭다운(#tphn-source)이 있다', /id="tphn-source"/.test(HTML_SRC));
-['한국(기상청)', '미국(JTWC)', '일본(JMA/RSMC)', '유럽(ECMWF)', '중국(CMA)'].forEach(function (nm) {
+['한국(기상청)', '미국(JTWC)', '일본(JMA/RSMC)', '유럽(ECMWF)'].forEach(function (nm) {
     ok('드롭다운에 ' + nm + ' 가 있다', HTML_SRC.indexOf(nm) >= 0);
 });
 ok('연결된 네 곳(한국·미국·일본·유럽)은 고를 수 있다',
@@ -232,7 +232,13 @@ ok('연결된 네 곳(한국·미국·일본·유럽)은 고를 수 있다',
     /<option value="jtwc">/.test(HTML_SRC) &&
     /<option value="jma">/.test(HTML_SRC) &&
     /<option value="ecmwf">/.test(HTML_SRC));
-ok('아직 자료원이 없는 중국은 잠겨 있다', /value="cma" disabled/.test(HTML_SRC));
+// [2026-09-26] 중국 중앙기상대 사이트 성명이 서면 허가 없는 사용을 금지해 사용자 결정으로 뺐다.
+const SRC_SELECT = HTML_SRC.slice(HTML_SRC.indexOf('id="tphn-source"'),
+    HTML_SRC.indexOf('</select>', HTML_SRC.indexOf('id="tphn-source"')));
+ok('★중국(CMA)은 드롭다운에 없다 — 허가 없이 쓸 수 없는 자료',
+    !/value="cma"/.test(SRC_SELECT) && !/중국/.test(SRC_SELECT));
+ok('뺀 이유를 마크업에 남겨 둔다 (다음 사람이 다시 붙이지 않게)', /서면 허가 없는/.test(HTML_SRC));
+ok('드롭다운에 잠긴(준비 중) 항목이 남아 있지 않다', !/<option value="[a-z]+" disabled>/.test(SRC_SELECT));
 ok('드롭다운이 ⓘ 버튼 왼쪽에 있다',
     /id="tphn-source"[\s\S]{0,700}id="tphn-info-btn"/.test(HTML_SRC));
 ok('출처 드롭다운을 모든 사용자에게 보여 준다(숨기는 코드가 없다)',
