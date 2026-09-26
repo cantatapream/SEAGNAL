@@ -127,7 +127,7 @@
     var _steps    = null;   // 지금 진행 중인 단계 목록(특보정보용 STEPS 또는 지도용 STEPS_OCEAN)
     var _mode     = 'alert';// 'alert' = 특보정보 탭 튜토리얼, 'ocean' = 해양종합정보 탭 튜토리얼
     var _oceanArmed = false;// 공지사항 5연타로 켜진다 — 해양종합정보 탭에 들어가면 지도 튜토리얼 시작
-    var _sheetPt  = null;   // 바텀시트를 띄운 바다 지점 [위도, 경도] — 한 번 고르면 그대로 쓴다
+    var _sheetScrollId = 0; // 바텀시트를 천천히 내리는 중인 애니메이션 번호
 
     // ========================================================================
     // [작은 도구들]
@@ -1542,13 +1542,10 @@
         if (which === 'sheet') {
             var sh = document.getElementById('ocean-bottom-sheet');
             if (sh && sh.classList.contains('open')) return;
-            _when(function () { return !!_seaPointNear(); }, function () {
+            _when(function () { return typeof window.showOceanBottomSheet === 'function'; }, function () {
                 var el = document.getElementById('ocean-bottom-sheet');
                 if (el && el.classList.contains('open')) return;
-                var pt = _seaPointNear();
-                if (pt && typeof window.showOceanBottomSheet === 'function') {
-                    window.showOceanBottomSheet(pt[0], pt[1]);
-                }
+                window.showOceanBottomSheet(SHEET_PT[0], SHEET_PT[1]);
             });
         } else if (which === 'buoy') {
             if (document.getElementById('buoy-info-modal')) return;
@@ -1572,37 +1569,68 @@
         }
     }
 
+    // 바텀시트를 띄워 보여 줄 자리 — **동해 삼척 앞바다**(사용자 확정 2026-09-26).
+    //   [왜 고정인가] 전에는 화면 한가운데에서 가까운 바다를 찾았는데, 지도가 한반도
+    //   중부를 보고 있어 서해가 걸렸고 그 자리는 **조석이 안 나왔다**(사용자 지적).
+    //   삼척 동쪽은 조석까지 다 나오는 것을 확인했다.
+    var SHEET_PT = [37.45, 129.30];   // [위도, 경도]
+
     /**
-     * 화면 한가운데에서 가까운 **바다** 지점 하나를 고른다.
+     * 바텀시트가 보이는 자리(시트 위쪽 지도 구간)의 한가운데로 지도를 옮긴다.
      *
      * 왜 필요한가?
-     *   "지도를 누르면 그 지점 정보가 나온다"를 보여주려면 누를 자리가 바다여야 한다.
-     *   화면 가운데는 내륙일 때가 많다(우리나라 지도라 그렇다).
-     *   그래서 가운데에서 바깥으로 돌아가며 처음 만나는 바다를 고른다.
+     *   "어디를 찍은 것이냐"가 화면으로 드러나야 한다(사용자 지적 2026-09-26).
+     *   시트가 화면 아래를 덮으므로, 그 위에 남는 구간의 한가운데에 그 지점을 놓는다.
      *
-     * @returns {Array<number>|null} [위도, 경도] 또는 아직 판정할 수 없으면 null
-     * [연계] ocean_overlay.js 의 window.isOceanLand(lat, lon) —
-     *        육지면 true, 바다면 false, 육지 자료가 아직이면 null.
+     * [연계] ol.proj.fromLonLat · view.centerOn
      */
-    function _seaPointNear() {
-        // [한 번 고르면 그대로 쓴다] 뒤 단계에서 지도가 움직이면(태풍 단계가 지도를 옮긴다)
-        //   [이전] 로 돌아왔을 때 **다른 지점**의 정보가 떠 화면이 달라졌다(실측 2026-09-25).
-        if (_sheetPt) return _sheetPt;
+    function _focusSheetPoint() {
         var map = window.getOceanMap && window.getOceanMap();
-        if (!map || typeof window.isOceanLand !== 'function' || typeof ol === 'undefined') return null;
-        var c;
-        try { c = ol.proj.toLonLat(map.getView().getCenter()); } catch (e) { return null; }
-        if (!c) return null;
-        for (var rad = 0; rad <= 3; rad += 0.25) {
-            for (var a = 0; a < 16; a++) {
-                var th = a * Math.PI / 8;
-                var lon = c[0] + rad * Math.cos(th);
-                var lat = c[1] + rad * Math.sin(th);
-                if (window.isOceanLand(lat, lon) === false) { _sheetPt = [lat, lon]; return _sheetPt; }
-                if (rad === 0) break;   // 한가운데는 한 번만 본다
-            }
-        }
-        return null;
+        var box = _oceanMapEl();
+        if (!map || !box || typeof ol === 'undefined') return;
+        var size = map.getSize();
+        if (!size) return;
+        var r = box.getBoundingClientRect();
+        var sheet = document.getElementById('ocean-bottom-sheet');
+        var sr = sheet ? sheet.getBoundingClientRect() : null;
+        // [카드는 안 본다] 이 단계의 설명 카드는 시트 **아래**에 놓인다. 그것까지 계산에
+        //   넣었더니 남는 구간이 없다고 판단해 지도 한가운데로 밀렸고, 그 자리가 시트에
+        //   가려 엉뚱한 곳(북한 동해안)이 보였다(실측 2026-09-26).
+        //   보이는 곳은 "지도 위쪽 ~ 시트가 시작되는 곳" 이다.
+        var top    = GAP + _insets.top + TAG_H;
+        var bottom = (sr && sr.height > 1 ? sr.top - r.top : size[1]) - GAP;
+        if (bottom <= top) { top = 0; bottom = size[1]; }
+        map.getView().centerOn(ol.proj.fromLonLat([SHEET_PT[1], SHEET_PT[0]]),
+                               size, [size[0] / 2, (top + bottom) / 2]);
+    }
+
+    /**
+     * 바텀시트를 위에서 아래까지 **천천히 한 번** 내려 보여 준다.
+     *
+     * 왜 필요한가?
+     *   휴대폰 화면이 좁아 시트가 다 안 들어간다. 로딩이 끝나면 위쪽만 보이고
+     *   아래(조석·천문·기압 등)는 손으로 밀어야 보였다(사용자 지적 2026-09-26).
+     *
+     * [연계] #ocean-bottom-sheet 자체가 스크롤 상자다(overflow-y:auto).
+     *        내용이 늦게 도착해 길이가 늘어날 수 있어 **매 프레임 끝 위치를 다시 잰다.**
+     */
+    function _autoScrollSheet() {
+        var el = document.getElementById('ocean-bottom-sheet');
+        if (!el) return;
+        if (_sheetScrollId) { cancelAnimationFrame(_sheetScrollId); _sheetScrollId = 0; }
+        el.scrollTop = 0;
+        var t0 = 0;
+        var DUR = 4000;   // 4초에 걸쳐 천천히
+        var step = function (ts) {
+            if (!_root) { _sheetScrollId = 0; return; }
+            if (!t0) t0 = ts;
+            var to = el.scrollHeight - el.clientHeight;
+            if (to < 4) { _sheetScrollId = 0; return; }
+            var p = Math.min(1, (ts - t0) / DUR);
+            el.scrollTop = to * p;
+            _sheetScrollId = (p < 1) ? requestAnimationFrame(step) : 0;
+        };
+        _sheetScrollId = requestAnimationFrame(step);
     }
 
     /**
@@ -1772,14 +1800,13 @@
             title: '지도를 누르면 — 그 지점의 종합 정보',
             // [짧게 쓴 이유] 바텀시트가 화면 아래 60%를 차지해 카드 자리가 좁다.
             //   길게 쓰면 마지막 줄이 잘린다(실측 2026-09-25).
-            body: '바다 위 아무 곳이나 누르면 그 지점의 정보가 한 번에 열립니다 — '
-                + '파고 · 바람 · 물살 · 수온 · 수심 · 시정에 일출몰 · 물때 · 기압까지. '
-                + '지금은 가까운 바다 지점을 대신 눌렀습니다.',
+            body: '바다 아무 곳이나 누르면 그 지점의 파고 · 바람 · 물살 · 수온 · 수심 · '
+                + '시정에 조석 · 일출몰 · 기압까지 한 번에 열립니다(동해 삼척 앞바다).',
             target: function () {
                 var sh = document.getElementById('ocean-bottom-sheet');
                 return (sh && sh.getBoundingClientRect().height > 1) ? [sh] : null;
             },
-            btns: [], open: 'sheet'
+            btns: [], open: 'sheet', focusSheet: true, autoScroll: true
         },
         {
             title: '위치 검색',
@@ -1859,7 +1886,10 @@
         },
         {
             title: '해구기상',
-            bodyHtml: _info('seagrid').bodyHtml,
+            // [짧게 쓴 이유] 사용자 확정 2026-09-26 — 격자 구조·자동 배경전환 같은 속사정은
+            //   빼고, "누르면 표로 보여준다" 만 알려 준다. 실제 화면은 바로 다음 단계에서 본다.
+            body: '바다를 격자로 나눠 표시합니다. 각 대해구(또는 소해구)를 누르면 '
+                + '그 해구의 기상 내용을 표로 보여줍니다.',
             target: _obTarget('ocean-marine-zone-toggle-btn'),
             btns: ['ocean-marine-zone-toggle-btn']
         },
@@ -1896,7 +1926,10 @@
         },
         {
             title: '태풍',
-            bodyHtml: _info('typhoon').bodyHtml,
+            // [짧게 쓴 이유] 사용자 확정 2026-09-26 — 재생·회차·반경 같은 속사정은 빼고
+            //   "예상 진로를 그리고 행동요령까지 준다" 만 알려 준다.
+            body: '우리 바다에 영향을 주는 태풍의 예상 진로를 지도에 그려 줍니다. '
+                + '태풍을 눌러 들어가면 해상 · 육상 행동요령까지 볼 수 있습니다.',
             // 태풍이 없는 날에는 버튼이 회색(tphn-disabled)이라 눌러도 아무 일이 없다
             //   → 이 단계를 통째로 건너뛴다(사용자 확정 2026-09-25).
             skip: function () {
@@ -1916,17 +1949,6 @@
                 return list;
             },
             btns: ['ocean-typhoon-toggle-btn'], cardTop: true, focusTyphoon: true
-        },
-        {
-            title: '천기',
-            bodyHtml: _info('otherwx').bodyHtml,
-            target: function () {
-                var b = document.getElementById('ocean-other-wx-toggle-btn');
-                var p = document.getElementById('ocean-other-wx-popup');
-                if (!b) return null;
-                return (p && p.getBoundingClientRect().height > 1) ? [b, p] : [b];
-            },
-            btns: [], pop: 'otherwx'
         },
         {
             title: '지도를 눌러서 보는 것 — 수심 · 조석 · 기압',
@@ -2427,6 +2449,14 @@
                 if (step.focusTyphoon) setTimeout(function () {
                     if (_root && _steps[_stepIdx] === step) { _focusTyphoon(); _paint(false); }
                 }, 800);
+                // 바텀시트 단계 — 그 지점으로 지도를 옮기고, 시트를 천천히 끝까지 내려 준다.
+                //   시트가 다 찬 뒤라야 끝이 어디인지 알 수 있어 잠시 기다린다.
+                if (step.focusSheet) setTimeout(function () {
+                    if (_root && _steps[_stepIdx] === step) { _focusSheetPoint(); _paint(false); }
+                }, 800);
+                if (step.autoScroll) setTimeout(function () {
+                    if (_root && _steps[_stepIdx] === step) _autoScrollSheet();
+                }, 1600);
             });
         });
     }
@@ -2555,7 +2585,7 @@
         _shot = null;
         _card = null;
         _stepIdx = 0;
-        _sheetPt = null;
+        if (_sheetScrollId) { cancelAnimationFrame(_sheetScrollId); _sheetScrollId = 0; }
         _restore();
     }
 
