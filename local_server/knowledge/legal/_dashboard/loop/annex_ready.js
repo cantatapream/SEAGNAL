@@ -25,8 +25,12 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
-const A = require('/home/user/SEAGNAL/local_server/services/article_text.js');
+// ⚠2026-09-22(G-31) — 여기는 예전에 `/home/user/SEAGNAL/...` 절대경로였다. 그 탓에 이 게이트는
+//   **이 컨테이너 한 대에서만** 돌았고, 깃허브 CI 에서는 MODULE_NOT_FOUND 로 죽으면서
+//   진단 한 줄 없이 실패만 세웠다(CI run #27 에서 같은 이유로 7개 게이트가 동시에 죽어 있었다).
+//   저장소 안 상대경로로 바꾼다 — 어디에 체크아웃하든 따라온다.
+const R = require('../../../../services/legal_retriever.js');
+const A = require('../../../../services/article_text.js');
 
 const REPO = path.resolve(__dirname, '../../../../..');
 const LEGAL = path.resolve(__dirname, '../..');
@@ -34,6 +38,7 @@ const WIKI = path.join(LEGAL, 'wiki');
 const argv = process.argv.slice(2);
 const arg = k => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : ''; };
 const squash = s => String(s || '').replace(/[\s「」『』()（）·ㆍ・,.\-_]/g, '');
+const CAP = Number(arg('--cap')) || 8;      // 생산과 같은 값이 기본. 2-10b 를 잴 때만 올린다.
 
 /** 페이지 → 그 페이지의 법(baseLaw). link_ready 와 같은 재료(index.json)를 쓴다. */
 function buildBaseLawMap() {
@@ -98,7 +103,11 @@ function keysOf(baseRel, noticePath, law, need) {
     const needAll = need0.concat(need0.filter(k => k.indexOf('서식') === 0).map(k => '별지' + k.slice(2)));
     const hasKey = n => needAll.some(k => new RegExp('(^|[^0-9A-Za-z가-힣])' + k + '([^0-9]|$)').test(n));
     const pool = mine.length ? mine : all;
-    for (const n of pool.slice().sort((a, b) => (hasKey(b) ? 1 : 0) - (hasKey(a) ? 1 : 0)).slice(0, 8)) {
+    // ★상한 8 은 **생산(`article_text.resolveRefs` ⑤)과 같은 값**이라야 한다 — 게이트가 더 많이 보면
+    //   「열린다」가 부풀어 **사용자가 못 보는 것을 열린다고 세게 된다**(L-136 의 취지).
+    //   `--cap N` 은 **2-10b 를 재기 위한 손잡이**다: 상한을 올렸을 때 몇 개가 더 열리는지 보고
+    //   생산의 상한을 올릴지 정한다. ⚠게이트로 돌릴 때는 절대 쓰지 않는다(기본 8 그대로).
+    for (const n of pool.slice().sort((a, b) => (hasKey(b) ? 1 : 0) - (hasKey(a) ? 1 : 0)).slice(0, CAP)) {
       let parsed;
       try { parsed = A.parseBylFile(fs.readFileSync(path.join(bd, n), 'utf8')); } catch (_) { continue; }
       if (want && !wants.some(w => squash(parsed.owner).includes(w))) continue;   // 임자 확인 — 생산과 같다

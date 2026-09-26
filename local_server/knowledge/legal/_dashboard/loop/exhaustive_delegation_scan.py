@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """H-28 전수조사: 73법 전체 조문의 위임체인을 lsDelegated API로 전수 대조해 collection_hole을
    감사(질문 시뮬레이션)에 의존하지 않고 baseline으로 확정한다. 순수 API 호출+로컬파일 대조만
    수행하는 로직 전용 1차 패스(AI 미사용) — 애매한 잔여만 사람/AI 2차 검토 대상으로 남긴다.
@@ -9,7 +10,7 @@
 import json, os, re, time, urllib.request
 
 OC = 'hyoo1431'
-LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 
 STRUCTURAL_PATTERNS = [
     (r'관보에?\s*고시', '관보 고시'),

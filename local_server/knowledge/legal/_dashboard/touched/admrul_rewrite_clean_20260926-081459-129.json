@@ -1,0 +1,12 @@
+{
+ "script": "admrul_rewrite_clean",
+ "stamp": "20260926-081459-129",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/선박안전법/행정규칙/강화플라스틱(FRP)선의구조기준.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박안전법/행정규칙/선박만재흘수선기준.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박안전법/행정규칙/선박전기설비기준.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박안전법/행정규칙/강선의구조기준.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박안전법/행정규칙/알루미늄선의구조기준.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/어선법/행정규칙/어선복원성및만재흘수선기준.txt"
+ ]
+}

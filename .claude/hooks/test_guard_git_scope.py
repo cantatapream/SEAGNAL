@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """guard-git-scope.py 가 의도대로 갈리는지 시험한다."""
-import json, subprocess
+import json, os, subprocess
 
 A = 'git ' + 'add'
 CO = 'git ' + 'checkout'
@@ -22,7 +22,8 @@ cases = [
 ]
 ok = True
 for cmd, exp in cases:
-    r = subprocess.run(['python3', '/home/user/SEAGNAL/.claude/hooks/guard-git-scope.py'],
+    # ★2026-09-23 (3-39) — 시험 대상은 **이 파일과 같은 폴더**의 훅이다(G-31 · 그 컴퓨터 이름 금지).
+    r = subprocess.run(['python3', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'guard-git-scope.py')],
                        input=json.dumps({'tool_name': 'Bash', 'tool_input': {'command': cmd}}),
                        capture_output=True, text=True)
     got = '차단' if r.stdout.strip() else '통과'

@@ -1,3 +1,4 @@
+const path = require('path');
 // concept_new.js — statutes 허브에만 있어 챗봇이 못 꺼내는 내용을 **개념 페이지로 옮긴다**(결정 ④⑤).
 // 역할(초보자용): 어떤 법은 원문 정리(statutes)는 400~500줄로 충실한데 개념 페이지가 1~2개뿐이다.
 //   챗봇은 개념 페이지의 `## 근거 조문` 표에서만 근거를 만들므로(_SCHEMA.md §6-E), 그 내용이
@@ -11,7 +12,7 @@ export const meta = {
   description: 'statutes 에만 있는 내용을 개념 페이지로 신설(결정 ④⑤). 자기 법 파일만 = 병렬안전.',
   phases: [{ title: '개념신설', detail: '법별 1에이전트: 주제 묶음을 정해 개념 페이지 신설 + 근거 조문 표' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const MANIFEST = {
   type: 'object', required: ['law', 'status', 'created'],

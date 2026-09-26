@@ -1,3 +1,4 @@
+const path = require('path');
 // e6_fix.js — §6-E 빈틈 메우기. 본문은 인용하는데 `## 근거 조문` 표에 행이 없는 조문을 채운다.
 // 역할(초보자용): 챗봇은 개념 페이지의 "근거 조문" 표에서만 근거를 만든다. 표에 행이 없으면
 //   본문에 아무리 잘 적혀 있어도 못 꺼낸다. 그 빠진 행을 법별 사서가 하나씩 확인해 넣는다.
@@ -20,7 +21,7 @@ export const meta = {
   description: '§6-E 빈틈(본문엔 있고 근거표엔 없는 조문)을 법별로 확인해 채운다. 자기 법 파일만 = 병렬안전.',
   phases: [{ title: 'E6채움', detail: '법당 사서 1명: 목록 확인 → 오탐 거르고 cite_row.js 로 표 행 추가' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const MANIFEST = {
   type: 'object', required: ['law', 'status', 'checked', 'added', 'rejected'],

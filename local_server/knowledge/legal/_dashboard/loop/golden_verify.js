@@ -1,3 +1,4 @@
+const path = require('path');
 // golden_verify.js — 골든 문항의 **라벨을 사서가 확인**한다(H-47 ①). 라벨이 틀리면 채점판이 틀린다.
 // 역할(초보자용): 기계가 감사 파일에서 뽑은 문항 초안은 "이 질문의 정답 근거는 이 조문"이라고
 //   적어 놨지만 확인된 게 아니다. 사서가 원문·위키를 열어 맞는지 보고 고친다.
@@ -11,7 +12,7 @@ export const meta = {
   description: '골든 문항 라벨을 사서가 원문·위키로 확인(H-47 ①). 자기 결과 파일만 = 병렬안전.',
   phases: [{ title: '라벨확인', detail: '법별 1에이전트: 문항·기대근거를 원문/위키로 대조해 확정·정정·제외' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const QFILE = `${LEGAL}/_dashboard/loop/pinned/golden_questions.json`
 const ODIR = `${LEGAL}/_dashboard/loop/pinned/golden_verify`
 

@@ -440,7 +440,7 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
     // 30초마다 하트비트 전송 — Fly.io 프록시 60초 idle timeout 방지
     // SSE 규격에서 ':'로 시작하는 줄은 코멘트로 클라이언트에서 무시됨
     const heartbeat = setInterval(() => {
-        try { res.write(': keepalive\n\n'); } catch (_) {}
+        try { res.write(': keepalive\n\n'); } catch (_) { /* SSE 연결이 이미 끊겼으면 던진다 — 아래 타이머 정리가 뒤따른다 */ }
     }, 30000);
 
     req.on('close', () => {
@@ -545,7 +545,7 @@ router.get('/api/regional-debug', (req, res) => {
             for (const f of result.files) {
                 try {
                     result.contents[f] = fs.readFileSync(require('path').join(debugDir, f), 'utf8');
-                } catch (_) {}
+                } catch (_) { /* 진단 파일 하나를 못 읽은 것이다 — 그 파일만 빼고 나머지를 담아 돌려준다 */ }
             }
         }
     } catch (e) {
@@ -1042,12 +1042,19 @@ async function _getZoneBulletinData() {
             const m = String(n.warn_title || '').match(/제\s*[0-9]+-[0-9]+호/);
             if (m) reportByFile[f] = m[0].replace(/\s+/g, '');
         }
-    } catch (e) { /* 호수 조회 실패해도 목록은 정상(호수만 생략) */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 목록은 뜨지만 **특보 「제N-M호」 가 전부 빠진다** —
+        //   호수 없는 통보문과 구분이 안 된다.
+        console.warn('[weather] 특보 호수 조회 실패 — 목록에 호수 없이 그린다:', e && e.message);
+    }
     // [예비특보] ef/list 엔 발효 통보문만 있고 예비특보(발표대기)는 없다.
     //   warn/ready(no-auth)가 예비특보 발표를 해역명(warn_zone_nm)+시각으로 준다(PDF 는 없음).
     let readyRows = [];
     try { const rd = await marineClient.fetchWarnReady(); readyRows = Array.isArray(rd) ? rd : []; }
-    catch (e) { /* 예비 조회 실패해도 발효 목록은 정상 */ }
+    catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **예비특보가 통째로 빠진다** — 「예비특보가 없다」와 같아 보인다.
+        console.warn('[weather] 예비특보 조회 실패 — 예비특보 없이 발효분만 그린다:', e && e.message);
+    }
     _zoneBulletinCache = { at: now, rows: safe, homeByZone, reportByFile, readyRows };
     return _zoneBulletinCache;
 }

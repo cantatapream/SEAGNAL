@@ -23,9 +23,9 @@
  *        ⚠읽기 전용.
  */
 const fs = require('fs');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
+const R = require(require('path').resolve(__dirname, '../../../../services/legal_retriever.js'));
 const { execFileSync } = require('child_process');
-const DIR = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/loop/pinned/';
+const DIR = path.resolve(__dirname, './pinned');
 const arg = k => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : ''; };
 const norm = s => String(s || '').replace(/[\s·ㆍ()（）]/g, '');
 
@@ -33,7 +33,7 @@ const norm = s => String(s || '').replace(/[\s·ㆍ()（）]/g, '');
 // 한 프로세스 안에서 값만 바꿔가며 돌리면 termWeights 캐시 등 상태가 섞일 수 있어 매번 새로 띄운다.
 function rankOf(question, targets, fakeTerms) {
   const script = `
-    const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
+    const R = require(require('path').resolve(__dirname, '../../../../services/legal_retriever.js'));
     const norm = s => String(s||'').replace(/[\\s·ㆍ()（）]/g,'');
     (async () => {
       const { contextPages } = await R.search(process.argv[1], { canonicalOnly: true });

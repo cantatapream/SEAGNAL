@@ -148,12 +148,12 @@
     function writeLastMatch(rec) {
         try {
             const json = JSON.stringify(rec);
-            try { root.localStorage.setItem('location_alert_last_match', json); } catch (_) { }
+            try { root.localStorage.setItem('location_alert_last_match', json); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
             try {
                 const M = root.LocationAlertBackground && root.LocationAlertBackground.Mirror;
                 if (M && M.set) M.set('location_alert_last_match', json);
-            } catch (_) { }
-        } catch (_) { }
+            } catch (_) { /* 네이티브 미러(Preferences)가 없는 환경이면 던진다 — localStorage 기록은 위에서 이미 남겼다 */ }
+        } catch (_) { /* 진단 기록은 best-effort 다 — 기록이 실패해도 알림 판정 자체를 멈추지 않는다 */ }
     }
 
     /**
@@ -165,12 +165,12 @@
     function writeLastWake(rec) {
         try {
             const json = JSON.stringify(rec);
-            try { root.localStorage.setItem('location_alert_last_wake', json); } catch (_) { }
+            try { root.localStorage.setItem('location_alert_last_wake', json); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
             try {
                 const M = root.LocationAlertBackground && root.LocationAlertBackground.Mirror;
                 if (M && M.set) M.set('location_alert_last_wake', json);
-            } catch (_) { }
-        } catch (_) { }
+            } catch (_) { /* 같은 까닭 — 미러는 네이티브에서 읽으려는 사본이라 없으면 없는 대로 둔다 */ }
+        } catch (_) { /* 같은 까닭 — wake 진단 기록이 실패해도 wake 처리는 그대로 이어간다 */ }
     }
 
     /** last_wake 기록 1건 구성 — { at, src, lat, lng, posAt, outcome, zone }. 위치 없으면 lat/lng null. */
@@ -202,7 +202,12 @@
                 //   getFreshPosition 은 전경 fix 실패 시 마지막 저장 위치로 폴백(없으면 null).
                 const BG = root.LocationAlertBackground;
                 if (BG && typeof BG.getFreshPosition === 'function') {
-                    try { pos = await BG.getFreshPosition(); } catch (_) { pos = null; }
+                    try { pos = await BG.getFreshPosition(); } catch (e) {
+                        // ★조용히 넘어가지 않는다 (3-44). 위치가 null 이면 **이번 깨움은 통째로 건너뛴다** —
+                        //   「알릴 일이 없었다」와 겉으로 똑같다.
+                        console.warn('[LocationAlert] 위치 획득 실패 — 이번 깨움은 건너뛴다:', e && e.message);
+                        pos = null;
+                    }
                 } else if (BG && BG.getPosition) {
                     pos = BG.getPosition();
                 } else {
@@ -251,7 +256,7 @@
             }
         } catch (e) {
             // 예기치 못한 예외도 best-effort 로 기록(관측 불가 wake 를 없앤다).
-            try { writeLastWake(wakeRec('suberror', pos, src, '')); } catch (_) { }
+            try { writeLastWake(wakeRec('suberror', pos, src, '')); } catch (_) { /* 이미 예외 처리 중이다 — 진단 기록마저 실패하면 더 할 일이 없다(바로 아래 console.error 가 남긴다) */ }
             console.error('[LocationAlertRuntime] handleWake 실패:', e && e.message);
         }
     }

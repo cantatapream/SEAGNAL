@@ -1,3 +1,4 @@
+const path = require('path');
 // xref_fix.js — `## 타법 연결` 표에만 있는 근거를 `## 근거 조문` 표로 옮긴다(결정 ①ⓐ, 2026-08-20).
 // 역할(초보자용): 위키는 법과 법을 이어 놨는데, 챗봇은 그 연결표를 안 읽는다. 그래서 이어 놓은
 //   3,391행이 사용자에게 안 닿는다. 법별 사서 한 명이 자기 법의 그 행들을 근거 표로 옮긴다.
@@ -10,7 +11,7 @@ export const meta = {
   description: '타법 연결 표의 근거를 근거 조문 표로 이관(결정 ①ⓐ). 자기 법 파일만 = 병렬안전.',
   phases: [{ title: '이관', detail: '법별 1에이전트: 타법연결 행 → 근거 조문 표 행으로 옮기고 승격 판단' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const MANIFEST = {
   type: 'object', required: ['law', 'status', 'moved'],

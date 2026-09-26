@@ -5,12 +5,13 @@
        실패기록: _dashboard/contacts_collect_failures.json
 [로드 순서] 단독 실행(python3 collect_contacts.py). Workflow/Agent 불필요(순수 API 호출).
 """
+import os
 import json, glob, time, sys, threading
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 OC = "hyoo1431"
-LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 TARGET_LAWS_FILE = f"{LEGAL}/_dashboard/loop/audit9_groups.json"
 OUT_FILE = f"{LEGAL}/_dashboard/contacts_collected.json"
 FAIL_FILE = f"{LEGAL}/_dashboard/contacts_collect_failures.json"

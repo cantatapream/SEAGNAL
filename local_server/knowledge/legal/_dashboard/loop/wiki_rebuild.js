@@ -1,3 +1,4 @@
+const path = require('path');
 // wiki_rebuild.js — 새로 수집된 raw(별표 이미지판독·별표·신규 고시/타법)를 반영해 법별 위키를 재빌드한다.
 // 역할(초보자용): 기존 위키(5라운드 감사 정제분)를 참조하며, 현재 raw 전량을 다시 읽어 각 법의 statute 허브+
 //   concept 페이지를 최신화한다. 감사로 다듬은 제약(⚠REVIEW·감사지적 반영)은 보존하고, 새 데이터(별표 수치·
@@ -12,7 +13,7 @@ export const meta = {
   phases: [{ title: '재빌드', detail: '법별 1에이전트: 기존 concept 참조+현재 raw로 최신화' }],
 }
 
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const DATA = `${LEGAL}/_dashboard/loop/build_data.json`
 
 const MANIFEST = {

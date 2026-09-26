@@ -355,9 +355,15 @@
   }
 
   // ============================================================================
-  // 관리자 검토 데이터 모델 (5개 서브탭 전부 서버 연동 — 배지: refreshAdminStats/refreshStats,
-  //   목록: 초안승인=renderDraftCards·⚠수치검증=renderReviewCards·나머지 3방=renderFeedbackCards/
-  //   renderCandidateCards/renderAmendCards)
+  // 관리자 검토 데이터 모델 — **7개 방** 전부 서버 연동 (배지: refreshAdminStats/refreshStats)
+  //   ⚠2026-09-24 정정 — 종전 주석은 **「5개 서브탭 … 나머지 3방」** 이라 적고 있었다.
+  //     그 뒤 `원문신선도`·`원문결손` 둘이 늘었는데 주석이 안 따라왔다(D-12 · 4-4).
+  //     ★숫자를 주석에 박으면 이렇게 낡는다 — 방 목록의 주인은 **아래 `ADMIN` 과 `ADMIN_ORDER`** 다.
+  //       세고 싶으면 그것을 센다(지금 7개).
+  //   목록을 그리는 짝 (실측 2026-09-24):
+  //     ⚠수치검증=renderReviewCards · 초안승인=renderDraftCards · 피드백=renderFeedbackCards
+  //     새지식후보=renderCandidateCards · 개정검토=renderAmendCards
+  //     원문신선도=renderFreshCards · 원문결손=renderMokCards
   // ============================================================================
   var ADMIN = {
     초안승인: { n: '…', desc: '사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 재검증 파이프라인이 자동 승격, 처벌·안전값 포함분은 ⚠수치검증 방에서 사람이 승인해야 canonical이 됩니다.', render: null /* 서버 연동: renderDraftCards */ },
@@ -963,7 +969,41 @@
   }
 
   /**
+   * cardShell — 관리자 검토 카드 **일곱 장이 공통으로 쓰는 겉껍데기 한 곳.** (등록부 4-1)
+   *
+   * [왜 있나] 카드 일곱이 각자 `<div class="nrya-rv" …><div class="nrya-rv-head">…` 를
+   * 손으로 적고 있었다. 한 장에 손볼 일이 생기면 일곱 자리를 다 찾아야 하고, 하나를 빼먹으면
+   * **관리자 화면만 어긋난다**(사용자 화면과 달리 아무도 안 본다).
+   *
+   * ★**일곱이 서로 같지 않다** — 합치기 전에 일곱을 다 읽고 잰 차이다(scripts/test_admin_cards.js):
+   *   ① 열쇠 칸이 다르다  — 여섯은 `data-id`, **초안만 `data-file`**(초안은 id 가 없다)
+   *   ② 머리표가 다르다   — `draft` · `🕰` · 항목 id · **mok 은 머리표가 없다**
+   *   ③ 제목 마디가 다르다 — 여섯은 `nrya-rv-t`+`<small>`, **mok 만 `nrya-rv-title`**
+   *   ④ 겉 class 가 붙는다 — `reviewCardHTML` 이 `nrya-open`·`nrya-approved` 를 더한다
+   *   ⑤ 상태 알약이 **넷** — `wait`·`done`·`rej`·`warn`, 카드마다 쓰는 짝이 다르다
+   *   ⇒ 그래서 이 자는 **뭉개지 않는다.** 다른 마디는 인자로 받고, 머리 전체를 손수 적어야 하는
+   *      카드(mok)는 `headHTML` 로 그대로 넘긴다. 뭉개면 **지금 화면이 바뀐다.**
+   *
+   * ⚠`title`·`badge` 는 이 자가 이스케이프한다. `subHTML`·`statusHTML`·`bodyHTML`·`headHTML` 은
+   *   **이미 만들어진 HTML** 이라 그대로 넣는다 — 부르는 쪽이 `esc()` 를 거쳐 넘겨야 한다.
+   *
+   * @param {object} o - {id, key, cls, badge, title, subHTML, statusHTML, headHTML, bodyHTML}
+   * @returns {string}
+   */
+  function cardShell(o) {
+    var head = o.headHTML != null ? o.headHTML
+      : (o.badge != null ? '<span class="nrya-rv-id">' + esc(o.badge) + '</span>' : '') +
+        '<div class="nrya-rv-t">' + esc(o.title == null ? '' : o.title) +
+          '<small>' + (o.subHTML || '') + '</small></div>' + (o.statusHTML || '');
+    return '<div class="nrya-rv' + (o.cls ? ' ' + o.cls : '') + '" ' +
+      (o.key || 'data-id') + '="' + esc(o.id) + '">' +
+      '<div class="nrya-rv-head">' + head + '</div>' +
+      (o.bodyHTML || '') + '</div>';
+  }
+
+  /**
    * 초안 카드 한 장. 「미확인 N줄」이 이 초안이 대기 중인 **이유**이므로 상태 자리에 그것을 둔다.
+   * ★겉껍데기는 `cardShell()` 이 찍는다(4-1) — 일곱 중 **이 카드만 `data-file`** 을 쓴다.
    * @param {object} d - {file,law,topic,penalty,unverified}
    * @returns {string}
    */
@@ -972,14 +1012,15 @@
     var st = n === 0 ? '<span class="nrya-rv-st nrya-done">미확인 0줄 · 승격 후보</span>'
       : n > 0 ? '<span class="nrya-rv-st nrya-warn">미확인 ' + nfmt(n) + '줄</span>'
       : '<span class="nrya-rv-st nrya-wait">본문을 읽지 못함</span>';
-    return '<div class="nrya-rv" data-file="' + esc(d.file) + '">' +
-      '<div class="nrya-rv-head"><span class="nrya-rv-id">draft</span>' +
-        '<div class="nrya-rv-t">' + esc(d.topic || d.file) + '<small>' + esc(d.law || '') +
-          (d.penalty ? ' · 처벌·수치 포함' : '') + '</small></div>' + st + '</div>' +
-      '<button class="nrya-btn-brief nrya-btn-draft" type="button">📄 초안 보기</button>' +
-      '<div class="nrya-draft-body nrya-hidden"></div>' +
-      '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
-      '</div>';
+    return cardShell({
+      key: 'data-file', id: d.file, badge: 'draft',
+      title: d.topic || d.file,
+      subHTML: esc(d.law || '') + (d.penalty ? ' · 처벌·수치 포함' : ''),
+      statusHTML: st,
+      bodyHTML: '<button class="nrya-btn-brief nrya-btn-draft" type="button">📄 초안 보기</button>' +
+        '<div class="nrya-draft-body nrya-hidden"></div>' +
+        '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>',
+    });
   }
 
   /**
@@ -1232,7 +1273,11 @@
         (fb.status === 'pending' ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 처리완료</button><button class="nrya-btn-no">✗ 무시</button></div>' : '') +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
       '</div>';
-    return '<div class="nrya-rv" data-id="' + esc(fb.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">' + (fb.thumb === 'down' ? '👎' : '👍') + '</span><div class="nrya-rv-t">' + esc((fb.question || '').slice(0, 60) || fb.id) + '<small>' + esc(shortTs(fb.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+    return cardShell({                                  // 겉껍데기는 한 곳에서 찍는다(4-3)
+      id: fb.id, badge: (fb.thumb === 'down' ? '👎' : '👍'),
+      title: (fb.question || '').slice(0, 60) || fb.id,
+      subHTML: esc(shortTs(fb.ts)), statusHTML: st, bodyHTML: body,
+    });
   }
 
   /**
@@ -1272,7 +1317,11 @@
         (cd.status === 'pending' ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 승인(위키 편입 필요)</button><button class="nrya-btn-no">✗ 무시</button></div>' : '') +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
       '</div>';
-    return '<div class="nrya-rv" data-id="' + esc(cd.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">💡</span><div class="nrya-rv-t">' + esc((cd.query || '').slice(0, 60) || cd.id) + '<small>' + esc(shortTs(cd.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+    return cardShell({                                  // 겉껍데기는 한 곳에서 찍는다(4-3)
+      id: cd.id, badge: '💡',
+      title: (cd.query || '').slice(0, 60) || cd.id,
+      subHTML: esc(shortTs(cd.ts)), statusHTML: st, bodyHTML: body,
+    });
   }
 
   /**
@@ -1400,7 +1449,10 @@
           : '') +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
       '</div>';
-    return '<div class="nrya-rv" data-id="' + esc(am.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">📌</span><div class="nrya-rv-t">' + esc(lawName || am.id) + '<small>' + esc(shortTs(am.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+    return cardShell({                                  // 겉껍데기는 한 곳에서 찍는다(4-3)
+      id: am.id, badge: '📌', title: lawName || am.id,
+      subHTML: esc(shortTs(am.ts)), statusHTML: st, bodyHTML: body,
+    });
   }
 
   /**
@@ -1868,8 +1920,10 @@
         (((it.status || 'pending') === 'pending') ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok">✓ 처리완료</button><button class="nrya-btn-no">✗ 해당없음</button></div>' : '') +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
       '</div>';
-    return '<div class="nrya-rv" data-id="' + esc(it.id) + '"><div class="nrya-rv-head"><span class="nrya-rv-id">🕰</span><div class="nrya-rv-t">' +
-      esc(it.title || it.id) + '<small>' + esc(shortTs(it.ts)) + '</small></div>' + st + '</div>' + body + '</div>';
+    return cardShell({                                  // 겉껍데기는 한 곳에서 찍는다(4-3)
+      id: it.id, badge: '🕰', title: it.title || it.id,
+      subHTML: esc(shortTs(it.ts)), statusHTML: st, bodyHTML: body,
+    });
   }
 
   /**
@@ -1995,12 +2049,18 @@
     var re = it.reopen_reason
       ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">↩</span>' + esc(it.reopen_reason) + '</div>'
       : '';
-    return '<div class="nrya-rv" data-id="' + esc(it.id) + '">' +
-      '<div class="nrya-rv-head"><div class="nrya-rv-title">' + esc(it.title || '(제목 없음)') +
-        ' <span style="font-size:11.5px;color:var(--nrya-text-sub)">' + esc(it.tier || '') + '</span></div>' + st + '</div>' +
-      re + cnt + mst + spots + files + acts +
-      '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-act="ok">처리완료</button>' +
-      '<button class="nrya-btn-no" data-act="no">해당없음</button></div></div>';
+    // ★이 카드만 머리가 `nrya-rv-title` 이다(다른 여섯은 머리표 + `nrya-rv-t`). 그래서 `headHTML`
+    //   로 머리를 통째로 넘긴다 — 다른 여섯 꼴에 맞추면 **지금 화면이 바뀐다**(4-3).
+    return cardShell({
+      id: it.id,
+      headHTML: '<div class="nrya-rv-title">' + esc(it.title || '(제목 없음)') +
+        ' <span style="font-size:11.5px;color:var(--nrya-text-sub)">' + esc(it.tier || '') + '</span></div>' + st,
+      // ⚠판정 버튼이 `status` 와 무관하게 언제나 붙는다 — 목록이 `?status=pending` 만 받아 오기
+      //   때문이다(scripts/test_admin_cards.js 가 이 꼴을 못박고 있다).
+      bodyHTML: re + cnt + mst + spots + files + acts +
+        '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-act="ok">처리완료</button>' +
+        '<button class="nrya-btn-no" data-act="no">해당없음</button></div>',
+    });
   }
 
   /**
@@ -2174,15 +2234,18 @@
     // 이미 승인된 항목은 승인/반려 대신 **되돌리기**만 보여준다(잘못 누른 승인을 되돌릴 길이 없었다).
     if (approved) {
       var pagesA = (rv.targetPages || []).map(esc).join(' · ');
-      return '<div class="nrya-rv nrya-approved' + (open ? ' nrya-open' : '') + '" data-id="' + esc(rv.id) + '">' +
-        '<div class="nrya-rv-head"><span class="nrya-rv-id">' + esc(rv.id) + '</span>' +
-        '<div class="nrya-rv-t">' + esc(rv.title || rv.id) + '<small><b>' + esc(rv.law || '') + '</b></small></div>' +
-        '<span class="nrya-rv-st nrya-done">✓ 승인·canonical</span></div>' +
+      return cardShell({                                // 겉껍데기는 한 곳에서 찍는다(4-3)
+        id: rv.id, cls: 'nrya-approved' + (open ? ' nrya-open' : ''),
+        badge: rv.id, title: rv.title || rv.id,
+        subHTML: '<b>' + esc(rv.law || '') + '</b>',
+        statusHTML: '<span class="nrya-rv-st nrya-done">✓ 승인·canonical</span>',
+        bodyHTML:
         '<div class="nrya-rv-body">' + reviewFieldsHTML(rv) +
           (pagesA ? '<div class="nrya-src-line">📍 대상 페이지: ' + pagesA + '</div>' : '') +
           '<div class="nrya-rv-actions"><button class="nrya-btn-no nrya-btn-undo">↩ 승인 되돌리기 (대기로)</button></div>' +
           '<div class="nrya-inline-err nrya-hidden" style="display:none"></div><div class="nrya-chain"></div>' +
-        '</div></div>';
+        '</div>',
+      });
     }
     var pages = (rv.targetPages || []).map(esc).join(' · ');
     var st = approved
@@ -2221,8 +2284,13 @@
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
         '<div class="nrya-chain"></div>' +
       '</div>';
-    return '<div class="nrya-rv' + (open ? ' nrya-open' : '') + (approved ? ' nrya-approved' : '') + '" data-id="' + esc(rv.id) + '">' +
-      '<div class="nrya-rv-head"><span class="nrya-rv-id">' + esc(rv.id) + '</span><div class="nrya-rv-t">' + esc(rv.title || rv.id) + '<small><b>' + esc(rv.law || '') + '</b>' + (pages ? ' · ' + (rv.targetPages || []).length + '개 페이지' : '') + '</small></div>' + st + '</div>' + body + '</div>';
+    return cardShell({                                  // 겉껍데기는 한 곳에서 찍는다(4-3)
+      // ⚠class 는 **붙는 순서까지** 원래대로다 — `nrya-open` 다음 `nrya-approved`.
+      id: rv.id, cls: [open ? 'nrya-open' : '', approved ? 'nrya-approved' : ''].filter(Boolean).join(' '),
+      badge: rv.id, title: rv.title || rv.id,
+      subHTML: '<b>' + esc(rv.law || '') + '</b>' + (pages ? ' · ' + (rv.targetPages || []).length + '개 페이지' : ''),
+      statusHTML: st, bodyHTML: body,
+    });
   }
 
   /**
@@ -2504,7 +2572,7 @@
    * [연계] ← doSend(닫힌 상태로 답변 도착), openChat(0으로 리셋). → paintBadge
    */
   function setUnread(n) {
-    try { localStorage.setItem(LS_UNREAD, String(n)); } catch (_) {}
+    try { localStorage.setItem(LS_UNREAD, String(n)); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     paintBadge();
   }
 
@@ -2531,7 +2599,7 @@
    */
   function updateFabVisibility() {
     var fab = document.getElementById('nryaFab'); if (!fab) return;
-    var t = null; try { t = document.body.getAttribute('data-active-tab'); } catch (_) {}
+    var t = null; try { t = document.body.getAttribute('data-active-tab'); } catch (_) { /* 아직 body 가 없는 시점이면 던진다 — t 는 null 로 두고 FAB 를 숨긴 채 다음 호출을 기다린다 */ }
     var tabIsMain = (t === null || t === undefined || t === '' || t === MAIN_TAB_GROUP);
     var exposureAllows = (serverExposure === 'user') || (serverExposure === 'admin' && isAdmin());
     fab.style.display = (tabIsMain && exposureAllows) ? 'grid' : 'none';
@@ -3277,7 +3345,7 @@
         saveProfileField(s.getAttribute('data-k'), v); openProf(); return;
       }
       if (e.target.closest('.nrya-prof-reset')) {
-        try { localStorage.removeItem(LS_PROFILE); } catch (_) {}
+        try { localStorage.removeItem(LS_PROFILE); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         openProf();
       }
     });
@@ -5483,7 +5551,7 @@
     if (params.get('popup') !== 'ai_chat') return;
     var rid = params.get('rid') || '';
     // 주소창에서 파라미터 제거 — 새로고침 때 이미 비워진 보관함을 또 조회하지 않게(fix_popup_logic.js 와 동일 처리)
-    try { if (window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname); } catch (_) {}
+    try { if (window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname); } catch (_) { /* history 를 못 쓰는 환경이면 던진다 — 주소창 파라미터만 안 지워진다 */ }
 
     // rid 없이는 채팅창을 열지 않는다 — ?popup=ai_chat 만으로 노출설정(exposure)을 우회해
     // 숨겨둔 챗봇을 여는 구멍이 되면 안 되므로(rid는 실제로 푸시를 받은 사람만 가진 값).
@@ -5571,7 +5639,7 @@
     try {
       var moBody = new MutationObserver(function () { updateFabVisibility(); });
       moBody.observe(document.body, { attributes: true, attributeFilter: ['data-active-tab'] });
-    } catch (_) {}
+    } catch (_) { /* MutationObserver 가 없는 오래된 웹뷰면 던진다 — FAB 는 탭을 옮길 때 다시 계산된다 */ }
 
     // 다른 탭/창에서 관리자 모드가 바뀌면(=admin 노출조건 변동) FAB 재평가
     window.addEventListener('storage', function (e) {

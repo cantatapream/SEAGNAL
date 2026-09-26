@@ -17,6 +17,7 @@
   · 답변 문장의 사실 정확성은 안 잰다(근거줄이 맞는지만 본다).
   · 되묻기는 1회까지만 자동으로 이어간다. 2단 이상 되물으면 clarify 로 끝난다.
 """
+import os
 import json, re, sys, time, urllib.request, urllib.error, os
 API='https://seagnal-server.fly.dev/api/legal/ask'
 def norm(s): return re.sub(r'[\s·ㆍ()「」]','',s or '')
@@ -121,7 +122,7 @@ def run(qs, outp):
     fh.close()
 
 if __name__=='__main__':
-    legal='/home/user/SEAGNAL/local_server/knowledge/legal'
+    legal=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
     j=json.load(open(f'{legal}/_dashboard/loop/pinned/golden_questions.json'))
     qs=j if isinstance(j,list) else j['questions']
     a=int(sys.argv[1]) if len(sys.argv)>1 else 0

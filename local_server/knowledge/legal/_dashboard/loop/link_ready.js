@@ -29,8 +29,12 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
-const A = require('/home/user/SEAGNAL/local_server/services/article_text.js');
+// ⚠2026-09-22(G-31) — 여기는 예전에 `/home/user/SEAGNAL/...` 절대경로였다. 그 탓에 이 게이트는
+//   **이 컨테이너 한 대에서만** 돌았고, 깃허브 CI 에서는 MODULE_NOT_FOUND 로 죽으면서
+//   진단 한 줄 없이 실패만 세웠다(CI run #27 에서 같은 이유로 7개 게이트가 동시에 죽어 있었다).
+//   저장소 안 상대경로로 바꾼다 — 어디에 체크아웃하든 따라온다.
+const R = require('../../../../services/legal_retriever.js');
+const A = require('../../../../services/article_text.js');
 
 // 생산(`article_text.js` squash)과 같은 정규화 — 이름 비교에만 쓴다.
 const squash = s0 => String(s0 || '').replace(/\.txt$/i, '').replace(/[^0-9A-Za-z가-힣]/g, '');
@@ -216,7 +220,11 @@ function articleNumbersOf(file, tier, addenda) {
   return out;
 }
 
-const now = { rows: 0, ok: 0, deleted: 0, no_article: 0, no_parse: 0, no_base: 0, no_file: 0, no_notice: 0, skipped: 0 };
+const now = { rows: 0, ok: 0, deleted: 0, no_article: 0, no_parse: 0, no_base: 0, no_file: 0, no_notice: 0, skipped: 0,
+              // ★넘긴 것을 **갈라서** 센다 (2026-09-23, G-9). 예전엔 1,007 이 한 덩이라
+              //   「V5-5 소관」이라고만 적혀 있었고, 그중 **별표가 몇인지 아무도 몰랐다**.
+              //   V5-11(annex_ready)은 **고시 별표만 328줄** 본다 — 나머지가 비었는지 알려면 갈라야 한다.
+              skip_annex: 0, skip_whole: 0, skip_nojo: 0 };
 const ex = { no_article: [], no_parse: [], no_base: [], no_file: [], no_notice: [] };
 
 for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities']) {
@@ -251,10 +259,14 @@ for (const dir of ['concepts', 'statutes', 'comparisons', 'annexes', 'activities
         if (ex.no_parse.length < 400) ex.no_parse.push(`${dir}/${f}  |  ${law.slice(0, 30)}  |  ${String(row.article).slice(0, 40)}`);
         continue;
       }
-      if (ref.mode === 'whole' || ref.mode === 'annex') { now.skipped++; continue; }
+      if (ref.mode === 'whole' || ref.mode === 'annex') {
+        now.skipped++;
+        if (ref.mode === 'annex') now.skip_annex++; else now.skip_whole++;
+        continue;
+      }
       const jos = (ref.joList && ref.joList.length ? ref.joList : (ref.jo ? [ref.jo] : []))
         .filter(j => /^제\d+조(?:의\d+)?$/.test(j));
-      if (!jos.length) { now.skipped++; continue; }              // 별표·별지·설명뿐인 칸은 V5-5 소관
+      if (!jos.length) { now.skipped++; now.skip_nojo++; continue; }   // 별표·별지·설명뿐인 칸은 V5-5 소관
       let baseRel = A.resolveBase(law, baseLaw, tier);
       // 이름이 우리가 가진 고시면 그 고시가 있는 법 폴더를 쓴다 — 생산과 같은 순서(L-136).
       if (!baseRel) {
@@ -329,6 +341,10 @@ console.log(`  ⚠ 원문 폴더를 못 찾음   ${String(now.no_base).padStart(
 console.log(`  ⏭️ 그 계층 파일이 없음   ${String(now.no_file).padStart(6)}${delta('no_file')}   (법률·시행령·시행규칙 미수집 — 4축 ①)`);
 console.log(`  ⚠ 고시 파일을 못 고름   ${String(now.no_notice).padStart(6)}${delta('no_notice')}   (미수집이거나 위키 이름과 파일 이름이 어긋남)`);
 console.log(`  ⏭️ 조문 칸이 아님        ${String(now.skipped).padStart(6)}${delta('skipped')}   (별표·별지·설명 — V5-5 소관)`);
+// ★무엇을 넘겼는지 **갈라서** 적는다(2026-09-23, G-9) — 한 덩이면 빈자리가 안 보인다.
+console.log(`      └ 별표·별지를 짚은 줄 ${String(now.skip_annex).padStart(5)}   ← 「열리나」는 V5-11(annex_ready)이 본다`);
+console.log(`      └ 전체·전문을 짚은 줄 ${String(now.skip_whole).padStart(5)}   ← 특정 조가 없어 이 검사의 대상이 아니다`);
+console.log(`      └ 조 토큰이 없는 칸   ${String(now.skip_nojo).padStart(5)}   ← 설명만 적힌 칸 등`);
 if (unindexed.length) {
   console.log(`\n  ❌ 색인에 없는 위키 페이지 ${unindexed.length}장 — 챗봇이 **아예 못 봅니다**`);
   unindexed.slice(0, 10).forEach(x => console.log('      · ' + x));

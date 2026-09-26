@@ -182,9 +182,9 @@
         }
         // 2) 출력 캔버스로 확대 + 블러 1회 → 부드러운 해안선. 확대 보간과 blur 가
         //    저해상도 채움의 픽셀 경계를 함께 가린다.
-        try { octx.filter = 'blur(' + (2.6 * pr) + 'px)'; } catch (e) {}
+        try { octx.filter = 'blur(' + (2.6 * pr) + 'px)'; } catch (e) { /* 오래된 브라우저엔 ctx.filter 가 없다 — 흐림만 빠지고 그림은 그대로 그려진다 */ }
         octx.imageSmoothingEnabled = true;
-        try { octx.imageSmoothingQuality = 'low'; } catch (e) {}
+        try { octx.imageSmoothingQuality = 'low'; } catch (e) { /* 일부 브라우저에 없는 속성 — 화질 힌트일 뿐이라 없어도 그려진다 */ }
         octx.drawImage(tmp, 0, 0, tw, th, 0, 0, W, H);
         return out;
     }
@@ -205,13 +205,13 @@
         try { return localStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) { return false; }
     }
     function setUnlocked() {
-        try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
+        try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     }
     function getUnlockClicks() {
         try { return parseInt(localStorage.getItem(CLICK_KEY) || '0', 10) || 0; } catch (e) { return 0; }
     }
     function setUnlockClicks(n) {
-        try { localStorage.setItem(CLICK_KEY, String(n)); } catch (e) {}
+        try { localStorage.setItem(CLICK_KEY, String(n)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     }
 
     // 잠금(비활성) 외형 적용/해제 — 회색 처리하되 클릭은 계속 받는다.
@@ -347,10 +347,10 @@
         var btn = $('ocean-mudflat-toggle-btn');
         // [단독 표출] 물빠짐은 유향유속·풍향풍속·파고파랑·해구도·천기·시정과 겹치지
         //   않게 — 켜질 때 그 오버레이들을 모두 끈다(슬라이더/캔버스 충돌·중첩 방지).
-        if (window._shrtForecastDeactivate) { try { window._shrtForecastDeactivate(); } catch (e) {} }
-        if (window._vsbyForecastDeactivate) { try { window._vsbyForecastDeactivate(); } catch (e) {} }
-        if (window.oceanOverlayTurnOff) { try { window.oceanOverlayTurnOff(); } catch (e) {} }
-        if (window.setMarineZoneGridVisible) { try { window.setMarineZoneGridVisible(false); } catch (e) {} }
+        if (window._shrtForecastDeactivate) { try { window._shrtForecastDeactivate(); } catch (e) { /* 남의 오버레이를 끄는 일이다 — 저쪽이 실패해도 이쪽 켜기를 막지 않는다 */ } }
+        if (window._vsbyForecastDeactivate) { try { window._vsbyForecastDeactivate(); } catch (e) { /* 위와 같다 — 남의 오버레이 끄기 실패가 이쪽을 막으면 안 된다 */ } }
+        if (window.oceanOverlayTurnOff) { try { window.oceanOverlayTurnOff(); } catch (e) { /* 위와 같다 */ } }
+        if (window.setMarineZoneGridVisible) { try { window.setMarineZoneGridVisible(false); } catch (e) { /* 위와 같다 */ } }
 
         _active = true;
         if (btn) btn.classList.add('active');
@@ -372,7 +372,7 @@
             }
             showSliderBar(true);
             // 슬라이더 바가 생기며 뷰포트가 바뀌므로 지도 크기 재측정(작게 렌더 방지).
-            if (_map) { try { _map.updateSize(); } catch (e) {} setTimeout(function () { try { _map.updateSize(); } catch (e) {} }, 80); }
+            if (_map) { try { _map.updateSize(); } catch (e) { /* 지도가 아직 준비 전이면 던진다 — 크기 재측정은 다음 기회에 다시 한다 */ } setTimeout(function () { try { _map.updateSize(); } catch (e) { /* 지도가 아직 준비 전이면 던진다 — 크기 재측정은 다음 기회에 다시 한다 */ } }, 80); }
             // [안내] 예측 자료 면책 — 두 줄(\n)로 나눠 각 줄이 정상 폰트로 들어가게
             //   한다(한 줄이 길면 _showOceanToast 가 폰트를 11px까지 축소하므로).
             toast('예측 자료입니다. 참고용으로만 사용하고\n실제 현장·기상 상황을 꼭 확인하세요.');
@@ -419,8 +419,8 @@
         // [지도 크기 재측정] 슬라이더 바가 사라지며 뷰포트가 바뀌므로, 베이스맵이
         //   일부(작은 박스)만 렌더되는 현상 방지를 위해 OL 에 크기 재측정·재렌더 요청.
         if (_map) {
-            try { _map.updateSize(); } catch (e) {}
-            setTimeout(function () { try { _map.updateSize(); } catch (e) {} }, 80);
+            try { _map.updateSize(); } catch (e) { /* 지도가 아직 준비 전이면 던진다 — 크기 재측정은 다음 기회에 다시 한다 */ }
+            setTimeout(function () { try { _map.updateSize(); } catch (e) { /* 지도가 아직 준비 전이면 던진다 — 크기 재측정은 다음 기회에 다시 한다 */ } }, 80);
         }
     }
     // 외부(다른 오버레이 활성 시)에서 강제 OFF
@@ -611,11 +611,12 @@
             _prevMinZoom = v.getMinZoom();
             v.setMinZoom(MIN_DISPLAY_ZOOM);
             _floorLocked = true;
-        } catch (e) {}
+        } catch (e) { /* 지도 뷰가 아직 없거나 교체 중이면 던진다 — 바닥 잠금은 부가 기능이라
+                         못 걸면 `_floorLocked` 가 false 로 남고 다음에 다시 시도한다 */ }
     }
     function releaseFloorLock() {
         if (!_floorLocked || !_map) return;
-        try { _map.getView().setMinZoom(_prevMinZoom || 0); } catch (e) {}
+        try { _map.getView().setMinZoom(_prevMinZoom || 0); } catch (e) { /* 뷰가 이미 바뀐 뒤면 던진다 — 바닥 잠금 해제는 부가 기능이라 실패해도 그만이다 */ }
         _floorLocked = false; _prevMinZoom = undefined;
     }
     function ensureZoomHintEl() {
@@ -977,7 +978,7 @@
         _popupOverlay.setPosition(coordinate);
         el.style.display = 'block';
         // 클릭한 지점을 화면 중앙으로 부드럽게 이동(팝업·핀은 지도 좌표에 고정돼 함께 따라옴).
-        try { if (_map) _map.getView().animate({ center: coordinate, duration: 350 }); } catch (e) {}
+        try { if (_map) _map.getView().animate({ center: coordinate, duration: 350 }); } catch (e) { /* 화면 이동은 보기 좋으라고 하는 것 — 실패해도 팝업·핀은 제 좌표에 그대로 있다 */ }
         var closeBtn = $('mudflat-popup-close');
         if (closeBtn) closeBtn.onclick = function () {
             hidePopup();
@@ -1026,7 +1027,7 @@
         // 앱 공용 토스트(_showOceanToast) 사용 — 천기·시정 등 형제 오버레이와 동일
         //   (하단 중앙). 이전엔 존재하지 않는 window.showToast 를 불러 토스트가 안 떴음.
         if (typeof window._showOceanToast === 'function') {
-            try { window._showOceanToast(msg, 'bottom', 2600, true); return; } catch (e) {}
+            try { window._showOceanToast(msg, 'bottom', 2600, true); return; } catch (e) { /* 토스트가 실패하면 아래 기본 알림으로 내려간다(return 을 안 타므로) */ }
         }
         console.log('[tide_field]', msg);
     }

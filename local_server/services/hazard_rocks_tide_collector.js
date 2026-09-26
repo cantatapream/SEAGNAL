@@ -130,7 +130,12 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     const { collectTideBedPages, getGridHash } = getTideCollector();
 
     let hash = null;
-    try { hash = await getGridHash(qLat, qLon, yyyymmdd); } catch (e) { hash = null; }
+    try { hash = await getGridHash(qLat, qLon, yyyymmdd); } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 격자 조회가 죽으면 **「그 해역엔 조석 격자가 없다」와
+        //   똑같이** 처리된다 — 미제공 해역과 조회 실패가 구분되지 않았다.
+        console.warn('[조석] 격자 조회 실패 — 「격자 미제공」과 같이 처리된다:', qLat, qLon, e && e.message);
+        hash = null;
+    }
     if (!hash) {
         writeCurve(anchor, yyyymmdd, {
             status: 'no_grid', curve: [], loadedPages: [], failedPages: [],

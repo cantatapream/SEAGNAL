@@ -1,0 +1,53 @@
+[전자민원창구 운영에 관한 고시] 별지3 — 가사·육아분야 체류자격 외 활동허가 전자민원 허가확인서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000257762 (수집 2026-09-25 · 옛 기록은 도구에 박힌 날짜 때문에 2026-08-31 로 적혀 있었다)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=151064261
+
+【별지 서식 3호】가사ㆍ육아분야 체류자격 외 활동허가 전자민원 허가확인서
+┌─────────────────────────────────────────────────────┐
+│                                                                                                          │
+│  법무부                    Ministry of Justice                                                           │
+│  출입국·외국인정책본부    Korea Immigration Service                                                     │
+│────────────────────────────                                                  │
+│                                                                                                          │
+│┌────────────────────────────┐                                              │
+││전자민원 허가확인서                                     │                                              │
+││(Certificate of Permission/Acceptance for e-Application)│                                              │
+│└────────────────────────────┘                                              │
+│                                                                                                          │
+│ □ 민원인 정보(Applicant Information)                                                                    │
+│   ? 국적(Nationality)                                                                                   │
+│   ? 성명(Full name)                                                                                     │
+│   ? 성별(Sex)                                                                                           │
+│   ? 생년월일(Date of Birth)                                                                             │
+│   ? 외국인등록번호(Alien Registration No.)                                                              │
+│                                                                                                          │
+│ □ 허가·수리내용(Permission/Acceptance Details)                                                         │
+│   ? 허가·수리번호(Permission/Acceptance No.)                                                           │
+│   ? 민원종류(Application Type) 가사·육아(만6세 이상) 활동, 구체적 허가조건은 붙임 참고                 │
+│   ? 유효기간(Valid Until)                                                                               │
+│   ? 발급일자(Date of Permission/Acceptance)                                                             │
+│                                                                                                          │
+│상기 민원이 전자민원 창구를 통해 허가되었음을 확인합니다.                                                 │
+│(We hereby certify that the above permission has been granted through e-Application Service.)             │
+│                                                                                                          │
+│Chief, OO Immigration Office                                                                              │
+│OO출입국·외국인청(사무소·출장소)장                                                                      │
+│┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓│
+│┃ □ 공지사항(Note)                                                                                    ┃│
+│┃   ? 전자민원의 효력(Validation of Permission for e-Application)                                     ┃│
+│┃    - 하이코리아 전자민원 창구를 통해 허가받은 민원은 사무소를 방문하여 허가받은 것과 동일한          ┃│
+│┃효력을 갖습니다.(All permissions/acceptances granted through the Hi-Korea’s                          ┃│
+│┃e-application service are equally valid as those granted through a physical visit to                  ┃│
+│┃Immigration Office.)                                                                                  ┃│
+│┃   ※ 동 확인서를 여권과 함께 소지하시고, 필요할 경우 관계 공무원에게 제시하시기 바랍니다.(Please     ┃│
+│┃keep this certificate with your passport and present it to the relevant immigration                   ┃│
+│┃officer when needed.)                                                                                 ┃│
+│┃   ※ 만일 외국인등록증상에 허가사항의 기재를 원하시는 경우에는 가까운 출입국·외국인청(사무소·      ┃│
+│┃출장소)을 방문하시기 바랍니다.(If you want your Alien Registration Card to be renewed,                ┃│
+│┃please just visit nearby Immigration Office.)                                                         ┃│
+│┃   ? 전자민원 확인서 발급조회(Confirmation or Certificate Issuance)                                  ┃│
+│┃    - 하이코리아 전자민원 창구를 통해 전자민원 확인서의 발급여부를 확인할 수 있습니다.(You            ┃│
+│┃may verify this certificate on the Hi-Korea website.)                                                 ┃│
+│┃※ 하이코리아 웹주소:www.hikorea.go.kr  외국인종합안내센터(Foreigner Complex Counseling Center)☎1345 ┃│
+│┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│
+└─────────────────────────────────────────────────────┘

@@ -77,6 +77,16 @@ const { getAdmin } = require('../services/firebase_admin_lazy');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const REVIEW_QUEUE = path.join(LEGAL_DIR, '_dashboard', 'review_queue.md');
+// ★2026-09-23 (3-17 · G-11) — 검수 큐를 읽는 **규칙을 여기 적지 않는다.**
+//   종전에는 이 파일과 `_dashboard/loop/human_workload.py` 가 **따로** 규칙을 갖고 있었고,
+//   `해당 없음` 처리가 파이썬에만 있어 **두 숫자가 어긋난 채 방치**됐다(뿌리 사슬 ⑥).
+//   이제 셋(여기 · human_workload.py · V5-30 게이트)이 **한 파일**을 읽는다.
+const REVIEW_RULES = require(path.join(LEGAL_DIR, '_dashboard', 'review_queue_rules.json'));
+const RQ_HEAD = new RegExp(REVIEW_RULES.카드머리);
+const RQ_CLOSE = new RegExp(REVIEW_RULES.카드닫기);
+const RQ_OK = new RegExp(REVIEW_RULES.승인);
+const RQ_NA = new RegExp(REVIEW_RULES.해당없음);
+const RQ_SPLIT = new RegExp(REVIEW_RULES.쪼갬);
 const CONCEPTS_DIR = path.join(LEGAL_DIR, 'wiki', 'concepts');
 // ★승인 이력은 **볼륨**(local_server/data)에 둔다. 종전 경로(knowledge/legal/_dashboard/)는
 //   컨테이너 이미지 안이라 **재배포할 때마다 관리자가 승인한 기록이 통째로 사라졌다.**
@@ -118,7 +128,7 @@ function parseReviewQueue() {
   let cur = null;
   for (const line of lines) {
     // 헤더 id는 콜론 앞 전체(끝이 -숫자가 아니어도 인식: 예 'REVIEW-야간운항-3법')
-    const m = line.match(/^###\s+(REVIEW-.+?):\s*(.*)$/);
+    const m = line.match(RQ_HEAD);
     if (m) {
       if (cur) entries.push(cur);
       const id = m[1];
@@ -127,11 +137,20 @@ function parseReviewQueue() {
               excluded: false, excludedReason: '' };
       continue;
     }
+    // ── 카드가 아닌 `### ` 제목은 **앞 카드를 닫는다**(2026-09-22, P-10) ──
+    // review_queue.md 에는 카드가 아닌 `### 〔기록〕 …`·`### 사용자 확정 7건 …`·`### 〔관리 메모〕…`
+    // 블록이 5개 있고, 그 안에도 `- 승인: [ ] 대기` 줄이 3개(9435·9468·9515행) 들어 있다.
+    // 종전에는 이 제목이 새 카드를 열지 않으므로 **그 줄들이 바로 앞 카드로 흘러들었고**,
+    // 아래 `ap` 매칭이 마지막 값으로 덮어쓰는 구조라 **이미 [x] 로 승인된 카드 2장
+    // (해양생태계법-907 · 선박법-907)이 「대기」로 뒤집혀 관리자 화면에 떴다.**
+    // body 도 같은 경로로 오염돼 남의 기록이 카드에 붙어 보였다.
+    // 여기서 cur 를 닫으면 두 증상이 함께 사라진다(대기 3장 → 1장).
+    if (RQ_CLOSE.test(line)) { if (cur) { entries.push(cur); cur = null; } continue; }
     if (!cur) continue;
     cur.body += line + '\n';
     const tp = line.match(/^-\s*대상\s*페이지:\s*(.+)$/);
     if (tp) cur.targetPages = tp[1].split(/[,·]/).map(s => s.trim()).filter(Boolean);
-    const ap = line.match(/^-\s*승인:\s*\[([ xX])\]\s*(.*)$/);
+    const ap = line.match(RQ_OK);
     if (ap) { cur.approved = ap[1].toLowerCase() === 'x'; cur.approvedMeta = (ap[2] || '').trim(); }
     // ── 세 번째 상태: **승인도 대기도 아닌 카드**(2026-09-18 사용자 확정) ──
     // 종전에는 상태가 둘뿐이었다 — 승인란에 x 가 있으면 승인, 없으면 대기. 그래서 "사람이 할
@@ -142,9 +161,9 @@ function parseReviewQueue() {
     //     `human_workload.py` 는 2026-08-23 적대검증 뒤 이미 이 카드를 빼고 세는데
     //     **서버에는 같은 처리가 없어 두 숫자가 어긋난 채였다.** 여기서 맞춘다.
     //     (`[ ]` 가 앞에 붙은 꼴도 받는다 — 2026-09-18 에 기계가 읽도록 그렇게 고쳤다.)
-    const sp = line.match(/^-\s*쪼갬:\s*(.*)$/);
+    const sp = line.match(RQ_SPLIT);
     if (sp) { cur.excluded = true; cur.excludedReason = '쪼갬 — ' + (sp[1] || '').trim(); }
-    const na = line.match(/^-\s*승인:\s*(?:\[[ xX]\]\s*)?해당\s*없음(.*)$/);
+    const na = line.match(RQ_NA);
     if (na) { cur.excluded = true; cur.excludedReason = '해당 없음 — ' + (na[1] || '').trim(); }
   }
   if (cur) entries.push(cur);
@@ -219,17 +238,17 @@ const CONFIG_FILE = path.join(DATA_DIR, 'nariya_config.json');
 const CONFIG_FILE_LEGACY = path.join(LEGAL_DIR, '_dashboard', 'nariya_config.json');
 let configMigrated = false;      // 프로세스당 1회만 시도(볼륨 쓰기 실패해도 조회는 계속돼야 한다)
 function readConfig() {
-  try { if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (_) {}
+  try { if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (_) { /* 설정 파일이 깨졌으면 던진다 — 아래에서 옛 자리(legacy)를 보고, 그래도 없으면 기본값으로 간다 */ }
   try {
     if (fs.existsSync(CONFIG_FILE_LEGACY)) {
       const legacy = JSON.parse(fs.readFileSync(CONFIG_FILE_LEGACY, 'utf8'));
       if (!configMigrated) {
         configMigrated = true;
-        try { writeFileAtomic(CONFIG_FILE, JSON.stringify(legacy, null, 1)); } catch (_) {}
+        try { writeFileAtomic(CONFIG_FILE, JSON.stringify(legacy, null, 1)); } catch (_) { /* 볼륨이 읽기전용이면 던진다 — 옮겨 적기만 실패하고 **조회는 옛 자리 값으로 계속된다** */ }
       }
       return legacy;
     }
-  } catch (_) {}
+  } catch (_) { /* 옛 자리까지 못 읽으면 던진다 — 부르는 쪽이 기본 설정으로 뜬다(법령 조회는 멈추지 않는다) */ }
   return {};
 }
 // 정규화: exposure는 off|admin|user(기본 off) · answerCanonicalOnly는 검증완료 후 켜는 스위치(기본 false).
@@ -741,7 +760,11 @@ async function triageFeedback(entry) {
       const m = result.text.match(/\{[\s\S]*\}/);
       if (m) adminQueues.updateJsonlById(FEEDBACK_FILE, entry.id, { triage: JSON.parse(m[0]) });
     }
-  } catch (_) { /* 트리아지 실패는 조용히 — triage:null로 남아 관리자가 직접 판단 */ }
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). `triage:null` 로 남아 **관리자가 직접 판단**하면 되지만,
+    //   「분류할 것이 없었다」와 「분류가 실패했다」가 겉으로 똑같았다.
+    console.warn('[Legal-FeedbackTriage] 분류 실패 — triage 없이 쌓인다(관리자가 직접 본다):', e && e.message);
+  }
 }
 
 // GET /api/legal/feedback?status=pending|reviewed|dismissed|all (관리자)
@@ -1619,6 +1642,28 @@ router.post('/api/legal/ask', async (req, res) => {
       return;
     }
 
+    // [4-6] 쪼개진 법을 **옛 이름으로** 물었으면 어느 쪽인지 되묻는다 (2026-09-26, 사장님 확정 ⓐ).
+    //   ★zoneTreeStep 과 **같은 자리·같은 반환 꼴**이라 같은 후처리로 나간다.
+    //   ★decideClarify(모델 판단) **앞**에 둔다 — 결정론적이라 매번 같은 답이 나오고 스위트로 잠글 수 있다.
+    //   좁게 발동한다: 옛 이름을 **홀로** 쓴 물음에만(새 이름을 썼으면 사용자가 이미 고른 것이다).
+    //   실측: 골든 291문항 중 옛 이름을 홀로 쓴 문항 **0건** ⇒ 판정 퇴보 위험 0.
+    //   ⚠되묻기 라운드 카운터를 **여기서도 올린다** — 안 올리면 상한(CLARIFY_MAX_ROUNDS)이 이 경로를
+    //     안 세어 사용자가 더 오래 갇힌다(2026-09-26 L-8 측정에서 카운터가 한 칸 뒤처지는 것을 겪었다).
+    const split = legalRetriever.splitLawStep(q);
+    if (split) {
+      ctx.cl = { q: split.clarify.question,
+        labels: split.clarify.options.map(o => o.label), n: clarifyRoundNext(ctx) };
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      if (res.flushHeaders) res.flushHeaders();
+      res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
+        answer: legalRetriever.withAssumedNotice(split.answer, assumed),
+        sources: [], citationChain: [], note: split.note, clarify: split.clarify })) + '\n');
+      res.end();
+      if (askId) inFlightAsks.delete(askId);
+      return;
+    }
+
     // [H-37 §5.5·§7.4] 검색어에만 상황질문·프로필로 확정된 조건을 덧붙인다 — `q` 자체는 안 건드린다.
     //   되묻기 판단(decideClarify)·답변 합성에는 **원 질문 q**를 그대로 넘긴다: 상황 정보는 검색
     //   후보를 고르는 데만 쓰고, 답변은 사용자가 실제로 쓴 문장에 답한다(안 그러면 답변 문장과
@@ -1750,6 +1795,21 @@ router.post('/api/legal/ask', async (req, res) => {
           if (res.flush) res.flush(); // compression() 버퍼를 즉시 내보내 실제로 조각조각 도착하게 함
         }
       } catch (e) { streamError = e; }
+    }
+
+    // ★규약 5-7 — `해석주의` 플래그가 붙은 근거를 썼으면 **참고 한 줄을 자동으로 붙인다**
+    //   (`_CHATBOT.md` 5-7, 사용자 확정 2026-07-18). 모델에게 맡기지 않는다 — 규약이
+    //   "플래그가 있으면 붙인다"고 정한 것이라 확률에 맡길 일이 아니다.
+    //   ASSUMED_NOTICE 와 **같은 방식**으로 델타로도 내보낸다(위 1748행 참고) — 그래야
+    //   스트리밍 중 화면과 최종 렌더(`ai_chat.js` 가 done 의 `answer` 로 다시 그린다)가 같다.
+    //   답이 한 글자도 안 나온 경우(스트림 실패)에는 붙일 답 자체가 없어 건너뛴다.
+    if (synth.trim().length > 0) {
+      const caselawTail = legalRetriever.caselawNoticeFor(contextPages, full);
+      if (caselawTail) {
+        full += caselawTail;
+        res.write(JSON.stringify({ type: 'delta', text: caselawTail }) + '\n');
+        if (res.flush) res.flush();
+      }
     }
 
     const usedGemini = synth.trim().length > 0;

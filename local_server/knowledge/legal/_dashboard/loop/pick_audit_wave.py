@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+import os
 # 감사 라운드 R의 다음 파도(≤N, 기본35) 선정+예약. 마커 audit_r<R>_<slug>.done 없는 법 중 서로 다른 법.
 # 사용: python3 pick_audit_wave.py <round> [N] [--reserve]   출력: 각 줄 법명
 import json, os, sys, time
 S='/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad'
-LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
+LEGAL=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 MARK=os.path.join(LEGAL,'_dashboard/fix3')
 os.makedirs(MARK, exist_ok=True)
 args=[a for a in sys.argv[1:]]

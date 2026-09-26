@@ -1,3 +1,4 @@
+const path = require('path');
 // lint_xref.js — 보강 린트: 타법연결 표의 "평문 우리70법 인용"을 [[링크]]로 전환.
 // 역할(초보자용): 위키의 가장 조문-밀도 높은 자산인 "## 타법 연결" 표는 다른 법을 「법명」 텍스트로만 적어
 //   신경망(그래프)에 안 들어가 있다. 각 법이 **자기 페이지의 타법연결 표에서 우리 70법 인용을 [[링크]]로 바꾼다.**
@@ -15,7 +16,7 @@ export const meta = {
   description: '보강 린트: 타법연결 표 평문인용을 [[링크]]로 전환(자기 법 파일만=병렬안전)',
   phases: [{ title: '보강린트', detail: '법별 1에이전트: 타법연결 표 링크화' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const DATA = `${LEGAL}/_dashboard/loop/build_data.json`
 
 const SCHEMA = {

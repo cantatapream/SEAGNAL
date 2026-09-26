@@ -44,7 +44,83 @@
 const BASE = process.env.SIM_URL || 'http://localhost:3001';
 const DELAY = Number(process.env.DELAY || 2500);   // 자료 응답을 늦추는 시간
 const GAP = Number(process.env.GAP || 400);        // A 누르고 B 누르기까지
-const SETTLE = Number(process.env.SETTLE || 14000); // 늦춘 응답까지 다 도착하기를 기다리는 시간
+const DRAW_MAX = Number(process.env.DRAW_MAX || 45000);  // 회복 뒤 다시 그려질 때까지의 **상한**(2-23)
+// ★고정 대기가 아니라 **모양이 멎을 때까지**의 상한이다 (2026-09-22, 2-22).
+//   [무엇이 문제였나] 종전에는 이만큼 그냥 기다리고 찍었다. 러너가 바쁘면 그 안에 자료가
+//     못 와서 `레이어=[]` 로 찍혔다 — **버튼·화면은 맞는데 레이어만 빈** 실패다.
+//     ★**같은 코드**로 CI 실패가 1→2→5 건으로 흔들렸고(run #70·#72·#74·#76 — #76 은 문서만
+//     바뀐 커밋이다) 실패하는 쌍도 매번 달라졌다. 제품이 아니라 **재는 방식**이 문제였다.
+//   [★반대 방향 구멍이 더 심각했다] A 의 자료가 이 시간 **뒤에** 도착해 스스로 그려지면
+//     고정 대기는 **그걸 못 본다** — 이 스위트가 2026-09-10 사용자 보고를 받고 막으려던
+//     바로 그 버그다. 거짓 실패뿐 아니라 **거짓 통과**도 만들고 있었다.
+//   [첫 고침안은 틀렸다 — CI run #80] "모양이 안 바뀌면 멎은 것"으로 봤는데, 응답을 일부러
+//     2,500ms 늦추는 **그 동안 화면은 아무것도 안 바뀐다.** 바닥 14초 + 2초 무변화를 채우고
+//     찍어도 자료는 그 뒤에 온다. 결과 8 PASS / 3 FAIL — 종전 변동 폭(1·1·2·5·4) 그대로였다.
+//     ★**「아무것도 안 바뀐다」는 「다 도착했다」가 아니다.** G-34(「실패가 없다」≠「통과했다」)와
+//     같은 모양의 착각이고, 오늘 그걸 일곱 번 고쳐 놓고 내가 또 했다.
+//   [고침] 화면이 아니라 **네트워크**를 본다 — **날아다니는 요청이 0** 이고 화면도 안 바뀐 채로
+//     `STABLE_FOR` 만큼 이어지면 그때 찍는다.
+//   ⚠그래도 틀릴 수 있으니 **찍은 순간의 미결 요청 수와 기다린 시간을 실패 문구에 남긴다** —
+//     또 틀리면 다음 run 이 말해 준다(G-40 의 마디).
+//   ⚠★**바닥을 종전 값(14초)으로 둔다.** 처음엔 안 뒀다가 구멍을 만들 뻔했다 —
+//     자료가 빨리 오면 5초쯤에 "멎었다"고 보고 찍는데, **A 의 자료가 그 뒤 10초에 도착해
+//     스스로 그려지면 못 본다.** 그건 종전 14초가 잡던 것이라 **더 약해지는 것**이다.
+//     그래서 "종전만큼은 반드시 기다리고, 그 뒤로는 멎을 때까지 더 기다린다"로 한다.
+//     빨라지지는 않지만 **절대 약해지지 않는다** — 이 스위트는 실제 사용자 보고를 막는 자다.
+const SETTLE_MIN = Number(process.env.SETTLE || 14000);      // 종전 고정 대기 = 바닥
+const SETTLE_MAX = Number(process.env.SETTLE_MAX || 45000);  // 멎기를 기다리는 상한
+const STABLE_FOR = Number(process.env.STABLE_FOR || 2000);   // 이만큼 안 바뀌면 멎은 것으로 본다
+const STEP = 500;                                            // 다시 보는 간격
+// ★**보이는 벡터 도형을 세는 자 — 이 파일에 단 하나** (2026-09-23, 2-24)
+//   두 가지 검사가 각자 세면 같은 화면을 다르게 읽게 된다(뿌리 사슬 ⑥ — 세는 법을 안 정하면
+//   같은 것을 재도 답이 다르다). 그래서 한 자만 둔다.
+// ★**통계 시트를 여는 「격자 칸」의 화면 위치를 찾는다** (2026-09-23, 2-24)
+//   종전은 화면 **한가운데를 고정으로 탭**하고 거기 칸이 있기를 바랐다. 지도 초기 위치가
+//   조금만 달라지면 **허공을 친다** — 실측했다: 칸 39개 · 화면 안 5개인데
+//   한가운데(188,334)엔 없고, 진짜 칸(198,289)을 누르면 열렸다.
+//   → 칸을 찾아 그것을 누른다. 사람이 하는 것과 같은 일이라 시험이 약해지지 않는다.
+//   ⚠화면 가장자리는 뺀다 — 위쪽은 탭바, 아래쪽은 하단 탭바가 덮어 탭이 안 닿는다(실측).
+//   격자 칸은 `members` 속성을 갖는다(accident_info.js `tryHandleGridClick` → `hit.get('members')`).
+const GRID_SPOTS = `(() => {
+  const m = window.getOceanMap && window.getOceanMap(); if (!m) return { total: 0, inView: [] };
+  const size = m.getSize() || [0, 0];
+  let total = 0; const inView = [];
+  m.getLayers().getArray().forEach(l => {
+    if (!l.getVisible || !l.getVisible()) return;
+    let s = null; try { s = l.getSource && l.getSource(); } catch (e) {}
+    if (!s) return; let fs = null;
+    try { fs = (s.getSource && s.getSource() && s.getSource().getFeatures) ? s.getSource().getFeatures()
+             : (s.getFeatures ? s.getFeatures() : null); } catch (e) {}
+    if (!fs) return;
+    fs.forEach(f => {
+      let mem = null; try { mem = f.get('members'); } catch (e) {}
+      if (!mem) return; total++;
+      try {
+        const ex = f.getGeometry().getExtent();
+        const px = m.getPixelFromCoordinate([(ex[0] + ex[2]) / 2, (ex[1] + ex[3]) / 2]);
+        if (px && px[0] > 40 && px[1] > 90 && px[0] < size[0] - 40 && px[1] < size[1] - 140) {
+          inView.push([Math.round(px[0]), Math.round(px[1])]);
+        }
+      } catch (e) {}
+    });
+  });
+  return { total, inView: inView.slice(0, 6) };
+})()`;
+
+const FEATURE_COUNT = `(() => {
+  const map = window.getOceanMap && window.getOceanMap();
+  let n = 0;
+  if (map) map.getLayers().getArray().forEach(l => {
+    if (!l.getVisible || !l.getVisible()) return;
+    let s = null; try { s = l.getSource && l.getSource(); } catch(e){}
+    if (!s) return; let raw = null;
+    try { if (s.getSource && s.getSource() && s.getSource().getFeatures) raw = s.getSource().getFeatures().length;
+          else if (s.getFeatures) raw = s.getFeatures().length; } catch(e){}
+    if (raw) n += raw;
+  });
+  return n;
+})()`;
+
 const FULL = process.argv.indexOf('--full') >= 0;
 
 const BTNS = [
@@ -109,6 +185,12 @@ function serverUp() {
 async function run(browser, ids) {
     const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
     const p = await ctx.newPage();
+    // ★날아다니는 요청 수를 센다 — 화면이 아니라 **네트워크**가 조용해야 다 온 것이다.
+    let inFlight = 0;
+    p.on('request', () => { inFlight++; });
+    p.on('requestfinished', () => { inFlight--; });
+    p.on('requestfailed', () => { inFlight--; });
+    const t0 = Date.now();
     try {
         await p.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
         await p.waitForTimeout(3500);
@@ -128,8 +210,26 @@ async function run(browser, ids) {
             await p.click('#' + ids[i]);
             if (i < ids.length - 1) await p.waitForTimeout(GAP);
         }
-        await p.waitForTimeout(SETTLE);
-        return await p.evaluate(SNAP);
+        // ★모양이 멎을 때까지 기다린다(위 SETTLE 주석 참고). 상한에 걸리면 그때 것을 쓴다 —
+        //   그 경우도 **감추지 않는다**: 안 멎은 채 찍혔다는 뜻이라 실패로 드러나는 편이 낫다.
+        //   최소 한 번은 늦춘 응답이 도착할 시간을 준 뒤에 재기 시작한다.
+        await p.waitForTimeout(SETTLE_MIN);          // ★바닥 — 종전과 똑같이 기다린 뒤에야 재기 시작
+        let last = JSON.stringify(await p.evaluate(SNAP));
+        let quiet = 0;
+        const deadline = Date.now() + (SETTLE_MAX - SETTLE_MIN);
+        while (Date.now() < deadline) {
+            await p.waitForTimeout(STEP);
+            const cur = JSON.stringify(await p.evaluate(SNAP));
+            const changed = cur !== last;
+            last = cur;
+            // ★미결 요청이 0 이고 화면도 안 바뀌어야 "다 왔다"로 본다.
+            if (!changed && inFlight <= 0) { quiet += STEP; if (quiet >= STABLE_FOR) break; }
+            else quiet = 0;
+        }
+        const snap = JSON.parse(last);
+        snap.pending = inFlight;              // 찍은 순간 아직 날아다니던 요청 수
+        snap.waited = Date.now() - t0;        // 열고부터 찍기까지
+        return snap;
     } finally { await ctx.close(); }
 }
 
@@ -149,10 +249,85 @@ async function checkNoDeadButtons(browser) {
         await clear();
         await p.click('.main-tabs .tab-btn[data-target="ocean-life-group"]');
         await p.waitForTimeout(2500); await clear();
+        // ★고정 대기를 없앤다 (2026-09-23, 2-24) — 이 파일에서 **세 번째** 같은 결함이다.
+        //   [무엇이 문제였나] 종전은 사고정보를 누르고 **고정 9초**를 기다렸다가 화면 한가운데를
+        //     탭했다. 그런데 사고정보는 **7.1MB** 다 — 바쁜 러너에서는 9초 안에 격자가 안 생긴다.
+        //     그러면 탭이 **허공을 치고**, 시트가 안 열리고, 전제와 닫기 버튼 검사가 함께 넘어졌다
+        //     (CI run #100/#101: `9 PASS / 2 FAIL`). 제품이 아니라 **재는 방식**이다.
+        //   [왜 시험이 약해지지 않나] 이 검사가 잡는 것은 **시트가 열렸을 때 버튼이 죽는가**이다.
+        //     시트를 여는 것은 그 앞의 **준비**다. 준비를 튼튼하게 하는 것은 판별력을 안 건드린다 —
+        //     시트가 끝내 안 열리면 전제는 그대로 실패한다(아래 상한까지 다 기다린 뒤).
+        const SHEET_OPEN = `!!(document.getElementById('accident-stats-sheet')
+                              && document.getElementById('accident-stats-sheet').classList.contains('open'))`;
         await p.tap('#ocean-accident-toggle-btn');
-        await p.waitForTimeout(9000);
-        await p.touchscreen.tap(Math.round(W / 2), Math.round(H / 2));   // 격자 한 칸 → 통계 시트
-        await p.waitForTimeout(2500);
+        // ⓐ 자료가 **실제로 그려질 때까지** 기다린다 (고정 9초 → 상한 45초)
+        const t0 = Date.now();
+        let feat = 0;
+        while (Date.now() - t0 < DRAW_MAX) {
+            await p.waitForTimeout(500);
+            feat = await p.evaluate(FEATURE_COUNT);
+            if (feat > 0) break;
+        }
+        const drawnAt = Date.now() - t0;
+        // ⓑ ★**진짜 격자 칸을 찾아서** 누른다 (고정 좌표 탭은 허공을 친다 — 위 GRID_SPOTS 주석)
+        // ★★칸이 **생기자마자** 누르면 안 된다 — 자료가 더 오면 격자가 **다시 그려지고**,
+        //   그때 `accident_info.js:2291` 이 열린 시트를 **설계대로 닫는다**:
+        //       // 격자가 다시 그려졌으니 "그 칸" 시트는 무효다.
+        //       if (!_statsNationwide) closeStatsSheet();
+        //   즉 「열렸다가 닫힌다」는 제품 결함이 아니라 **시험이 자료 적재와 경주한 것**이다.
+        //   CI 실측(2026-09-23): 도형 5,413개가 **11.3초** 걸렸고, 그 사이에 누른 탓에
+        //   시트가 열렸다가 곧 닫혔다. 로컬은 자료가 빨라 이 틈이 안 보였다(L-333).
+        //   → **칸 수가 두 번 연속 같을 때**(= 더 안 그려진다) 누른다.
+        let grid = { total: 0, inView: [] };
+        let prevTotal = -1, gridSettleMs = 0;
+        const gUntil = Date.now() + 30000;
+        const g0 = Date.now();
+        while (Date.now() < gUntil) {
+            grid = await p.evaluate(GRID_SPOTS);
+            if (grid.inView.length && grid.total === prevTotal) break;   // 두 번 연속 같다 = 멎었다
+            prevTotal = grid.total;
+            await p.waitForTimeout(500);
+        }
+        gridSettleMs = Date.now() - g0;
+        let opened = false, taps = 0;
+        // ★「한 번도 안 열렸다」와 「열렸다가 닫혔다」는 **서로 다른 일**이다(2026-09-23, L-333).
+        //   예전엔 이 둘을 구분 못 해서, CI 가 `탭 1번 · 화면 안 6개` 를 찍고도
+        //   "1번 눌렀는데 안 열렸다 = 제품 결함" 이라고 **틀린 결론**을 적었다.
+        //   탭 고리는 `opened` 가 참일 때만 일찍 끊긴다 — 즉 탭이 1번이면 **열렸던 것**이다.
+        let everOpened = false;
+        for (const [gx, gy] of grid.inView) {
+            taps++;
+            await p.touchscreen.tap(gx, gy);
+            const until = Date.now() + 3000;
+            while (Date.now() < until) {
+                await p.waitForTimeout(250);
+                if (await p.evaluate(SHEET_OPEN)) { opened = true; everOpened = true; break; }
+            }
+            if (opened) break;
+        }
+
+        // ★재기 전에 **시트가 다 올라오기를 기다린다**(2026-09-23).
+        //   시트는 `transform: translateY(100%) → 0` 을 **0.28초** 동안 움직이는데
+        //   (style.css `.accident-stats-sheet` / `.open`), 시험은 `.open` 클래스를 보고
+        //   **곧바로** 잰다. 클래스는 애니메이션 **시작**에 붙는다 — 그 순간 ✕ 는 아직
+        //   화면 밖이다. 이 저장소가 이미 한 번 겪은 병이다(아코디언 0.4초 transition
+        //   중에 좌표를 재서 구멍이 384px 어긋난 일).
+        //   ⚠**판별력은 안 줄인다** — 정말로 무엇이 ✕ 를 덮고 있다면 다 올라온 뒤에도
+        //   덮고 있고, 그때 실패한다. 줄어드는 것은 **잘못 재는 경우**뿐이다.
+        const SETTLE_MAX = 2000;
+        const sheetTop = `(() => { const e = document.getElementById('accident-stats-sheet');
+                                   return e ? Math.round(e.getBoundingClientRect().top) : -1; })()`;
+        let prevTop = null, settleMs = 0;
+        const s0 = Date.now();
+        while (Date.now() - s0 < SETTLE_MAX) {
+            const top = await p.evaluate(sheetTop);
+            if (prevTop !== null && top === prevTop) break;   // 두 번 연속 같은 자리 = 멈췄다
+            prevTop = top;
+            await p.waitForTimeout(80);
+        }
+        settleMs = Date.now() - s0;
+        const openAfterSettle = await p.evaluate(SHEET_OPEN);
+
         const r = await p.evaluate(`(() => {
           const sheet = document.getElementById('accident-stats-sheet');
           const dead = [];
@@ -163,17 +338,65 @@ async function checkNoDeadButtons(browser) {
             const t = document.elementFromPoint(Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2));
             if (!(t && (t === e || e.contains(t)))) dead.push(btn.name);
           });
+          // ★왜 안 눌리는지까지 돌려준다(G-40). 예전엔 closeOk 하나만 돌려줘서
+          //   빨간불이 떠도 「없는 것 / 가려진 것 / 화면 밖인 것」을 구분할 수 없었다.
           const close = document.querySelector('#accident-stats-sheet .ocean-sheet-close');
-          let closeOk = false;
-          if (close) { const b = close.getBoundingClientRect();
-            const t = document.elementFromPoint(Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2));
-            closeOk = !!(t && (t === close || close.contains(t))); }
-          return { open: !!(sheet && sheet.classList.contains('open')), dead, closeOk };
+          let closeOk = false, closeWhy = '', rect = null;
+          const vw = window.innerWidth, vh = window.innerHeight;
+          if (!close) {
+            closeWhy = '#accident-stats-sheet 안에 .ocean-sheet-close 가 아예 없다';
+          } else {
+            const b = close.getBoundingClientRect();
+            rect = [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)];
+            const cx = Math.round(b.left + b.width / 2), cy = Math.round(b.top + b.height / 2);
+            if (b.width === 0 || b.height === 0) {
+              closeWhy = '크기가 0 이다(' + rect.join(',') + ') — 아직 안 그려졌거나 display:none';
+            } else if (cx < 0 || cy < 0 || cx > vw || cy > vh) {
+              closeWhy = '가운데(' + cx + ',' + cy + ')가 화면(' + vw + 'x' + vh + ') 밖이다 — 시트가 덜 올라왔다';
+            } else {
+              const t = document.elementFromPoint(cx, cy);
+              closeOk = !!(t && (t === close || close.contains(t)));
+              if (!closeOk) {
+                const hit = t ? (t.tagName.toLowerCase()
+                          + (t.id ? '#' + t.id : '')
+                          + (t.className && typeof t.className === 'string'
+                             ? '.' + t.className.trim().split(/\s+/).join('.') : '')) : 'null(그 자리에 아무것도 없다)';
+                closeWhy = '가운데(' + cx + ',' + cy + ')를 짚으니 ✕ 가 아니라 **' + hit + '** 가 잡힌다 — 그것이 덮고 있다';
+              }
+            }
+          }
+          return { open: !!(sheet && sheet.classList.contains('open')), dead, closeOk, closeWhy, rect, vw, vh };
         })()`);
-        ok('통계 시트가 열렸다(시험 전제)', r.open, '        시트가 안 열려 이 검사는 의미가 없다');
+        // ★전제가 깨졌을 때 **왜**인지까지 적는다(G-40) — 자료가 안 온 것·칸이 화면 밖인 것·
+        //   칸을 눌렀는데도 안 열린 것은 **서로 다른 일**이다. 셋을 한 문장으로 묶으면 다음 사람이 또 헤맨다.
+        ok('통계 시트가 열렸다(시험 전제)', r.open,
+            '        시트가 안 열려 이 검사는 의미가 없다\n' +
+            `        도형 ${feat}개(${drawnAt}ms) · 격자 칸 ${grid.total}개 · 화면 안 ${grid.inView.length}개 · 탭 ${taps}번\n` +
+            `        열린 적 있나 ${everOpened ? '있다' : '없다'} · 멈춤대기 뒤 ${openAfterSettle ? '열림' : '닫힘'} · 멈추는 데 ${settleMs}ms\n` +
+            `        격자가 멎기까지 ${gridSettleMs}ms (상한 30000ms — 상한까지 갔으면 아직 자료가 오는 중이다)\n` +
+            '        ' + (feat === 0
+                ? `→ 도형이 0 이다: 자료가 상한 ${DRAW_MAX}ms 안에 안 왔거나 사고정보가 안 켜졌다`
+                : grid.total === 0
+                ? '→ 도형은 있는데 **격자 칸이 0** 이다: 격자 계산(recomputeGrid)이 안 돌았다'
+                : grid.inView.length === 0
+                ? '→ 칸은 있으나 **전부 화면 밖**이다: 지도 초기 위치가 달라졌다(환경)'
+                : everOpened
+                ? '→ ★**열렸다가 다시 닫혔다.** 「안 열린다」가 아니다 — 여는 것은 됐고 **열린 채로 못 있는다.**\n' +
+                  '          자료가 늦게 도착해 다시 그려지면서 시트를 닫는 쪽을 의심한다(도형 ' + feat + '개가 ' + drawnAt + 'ms 걸렸다).'
+                : '→ 칸을 ' + taps + '번 눌렀는데도 **한 번도 안 열렸다**: 제품 결함이다(tryHandleGridClick)'));
+
         ok('시트가 열려 있어도 "보이는데 눌리지 않는" 버튼이 없다', r.dead.length === 0,
             '        눌리지 않는 버튼: ' + r.dead.join(', '));
-        ok('시트를 닫는 버튼은 눌린다(갇히지 않는다)', r.closeOk);
+        // ★전제가 깨졌으면 이 문항은 **잴 수 없었던 것**이지 통과가 아니다.
+        //   예전엔 시트가 안 열려도 ✕ 가 눌리기만 하면 ✅ 가 떴다 — 아무것도 보장 못 하는 초록불이다.
+        //   (2026-09-23 실측: 로컬에서 전제 ❌ 인데 이 줄만 ✅ 였다. L-331)
+        ok('시트를 닫는 버튼은 눌린다(갇히지 않는다)', r.open && r.closeOk,
+            r.open
+                ? '        ' + (r.closeWhy || '까닭을 못 적었다 — 진단을 더 넣어야 한다') +
+                  '\n        ✕ 자리 [x,y,w,h]=' + JSON.stringify(r.rect) + ' · 화면 ' + r.vw + 'x' + r.vh +
+                  '\n        시트가 멈추기까지 ' + settleMs + 'ms 기다렸다(상한 ' + SETTLE_MAX + 'ms) — 상한까지 갔으면 아직 움직이는 중일 수 있다'
+                : '        시트가 안 열려 **잴 수 없었다** — 위 「시험 전제」 줄이 까닭을 적고 있다.\n' +
+                  '        (전제가 깨진 채 이 줄만 초록이면 그 초록은 아무것도 보장하지 않는다)');
     } finally { await ctx.close(); }
 }
 
@@ -194,19 +417,7 @@ async function checkRecoversAfterNetworkDrop(browser) {
         { id: 'ocean-accident-toggle-btn', name: '사고정보' },
         { id: 'ocean-terrain-toggle-btn', name: '위험지형' }
     ];
-    const COUNT = `(() => {
-      const map = window.getOceanMap && window.getOceanMap();
-      let n = 0;
-      if (map) map.getLayers().getArray().forEach(l => {
-        if (!l.getVisible || !l.getVisible()) return;
-        let s = null; try { s = l.getSource && l.getSource(); } catch(e){}
-        if (!s) return; let raw = null;
-        try { if (s.getSource && s.getSource() && s.getSource().getFeatures) raw = s.getSource().getFeatures().length;
-              else if (s.getFeatures) raw = s.getFeatures().length; } catch(e){}
-        if (raw) n += raw;
-      });
-      return n;
-    })()`;
+    const COUNT = FEATURE_COUNT;
     for (const c of CASES) {
         const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
         const p = await ctx.newPage();
@@ -229,13 +440,36 @@ async function checkRecoversAfterNetworkDrop(browser) {
             if (await p.evaluate(`document.getElementById('${c.id}').classList.contains('active')`)) {
                 await p.click('#' + c.id); await p.waitForTimeout(1500);
             }
+            // ★고정 10초가 아니라 **그려질 때까지** 기다린다 (2026-09-23, 2-23).
+            //   [무엇이 문제였나] CI run #90 에서 `위험지형` 만 `그려진 도형 0개` 로 떨어졌다.
+            //     같은 함수의 `사고정보`(7.1MB, 더 크다)는 통과했다. 위험지형은 갯바위
+            //     4.7MB 를 **회복 직후 다시** 받아 오는데, 바쁜 러너에서는 그게 10초를
+            //     넘긴다. 그러면 제품이 멀쩡해도 0 개로 찍힌다 — 2-22 와 **같은 모양**의
+            //     「고정 대기」 결함이다(같은 파일에서 그걸 고쳐 놓고 옆 함수를 놓쳤다).
+            //   [왜 시험이 약해지지 않나] 이 시험이 잡으려는 결함은 **실패한 약속을 기억해
+            //     버려 받으러 가지도 않는 것**이다. 그 상태에서는 아무리 기다려도 0 이라,
+            //     상한까지 다 기다린 뒤 여전히 0 이면 그대로 실패한다. A/B 판별력은 그대로다.
+            //   [왜 미결 요청도 같이 보나] 0 인 채 끝났을 때 「아직 받는 중이었나(= 더
+            //     기다렸어야 했나)」와 「받으러 가지도 않았나(= 진짜 결함)」를 가른다.
+            let inFlight = 0;
+            p.on('request', () => { inFlight++; });
+            p.on('requestfinished', () => { inFlight--; });
+            p.on('requestfailed', () => { inFlight--; });
             await p.click('#' + c.id);
-            await p.waitForTimeout(10000);
-            const after = await p.evaluate(COUNT);
+            const t0 = Date.now();
+            let after = 0;
+            while (Date.now() - t0 < DRAW_MAX) {
+                await p.waitForTimeout(500);
+                after = await p.evaluate(COUNT);
+                if (after > 0) break;
+            }
+            const waited = Date.now() - t0;
             ok(`${c.name} — 통신이 끊긴 채 누르면 아무것도 안 그려진다(시험 전제)`, failed === 0,
                 `        그려진 도형 ${failed}개 — 끊기가 안 걸려 이 검사는 의미가 없다`);
             ok(`${c.name} — 신호가 돌아온 뒤 다시 누르면 정상 표출된다`, after > 0,
-                `        그려진 도형 ${after}개 — 실패를 기억해 버려 계속 먹통이다`);
+                `        그려진 도형 ${after}개 — 실패를 기억해 버려 계속 먹통이다\n` +
+                `        ${waited}ms 기다렸고 그때 미결 요청 ${inFlight}개 ` +
+                `(미결>0 이면 아직 받는 중 = 상한 ${DRAW_MAX}ms 를 늘려야 한다, 0 이면 받으러 가지도 않은 것 = 제품 결함)`);
         } finally { await ctx.close(); }
     }
 }
@@ -247,20 +481,39 @@ async function checkRecoversAfterNetworkDrop(browser) {
         return;
     }
 
-    let chromium;
-    try { ({ chromium } = require('playwright')); }
-    catch (e) {
-        console.log('\n⏭️  건너뜀 — playwright 가 없다(' + e.message + ').');
-        console.log('\n0 PASS / 0 FAIL');
+    // ⚠2026-09-22(G-34) — 여기는 `playwright` 만 찾았다. 그런데 이 저장소에 실제로 깔려 있는
+    //   것은 **`playwright-core`** 다(두 묶음은 브라우저 조작 API 가 같다). 그래서 이 스위트는
+    //   **한 번도 돌지 않고** `0 PASS / 0 FAIL` 만 찍어 왔고, verify_all 은 그것을 ✅ 로 셌다.
+    //   둘 다 받아들인다 — 먼저 `playwright`, 없으면 `playwright-core`.
+    let chromium = null, pwErr = null;
+    for (const mod of ['playwright', 'playwright-core']) {
+        try { ({ chromium } = require(mod)); break; } catch (e) { pwErr = e; }
+    }
+    if (!chromium) {
+        console.log('\n⏭️  건너뜀 — playwright 도 playwright-core 도 없다(' + pwErr.message.split('\n')[0] + ').');
+        console.log('\n0 PASS / 0 FAIL (SKIPPED: playwright 없음)');
         return;
     }
 
-    const exe = process.env.PW_CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+    // ⚠2026-09-22(G-33·G-34) — 여기는 `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` 이
+    //   **판번호까지 박혀** 있었다. 그 판이 없는 자리(깃허브 CI·다른 기계·브라우저를 올린 뒤)
+    //   에서는 못 띄우고 **`0 PASS / 0 FAIL` 을 찍고 조용히 돌아갔다** — 그러면 verify_all 이
+    //   그것을 ✅ 로 센다. 즉 **아무것도 안 돌린 스위트가 통과로 잡혀 왔다.**
+    //   경로를 박지 말고 환경에게 묻는다(순서는 simulate.js resolveChromium 과 같다).
+    const cand = [];
+    if (process.env.PW_CHROME) cand.push(process.env.PW_CHROME);
+    try { cand.push(chromium.executablePath()); } catch (_) { /* 판을 모르면 건너뛴다 */ }
+    if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
+        cand.push(require('path').join(process.env.PLAYWRIGHT_BROWSERS_PATH, 'chromium'));
+    }
+    const fsx = require('fs');
+    const exe = cand.find(c => { try { return c && fsx.existsSync(c); } catch (_) { return false; } });
     let browser;
-    try { browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] }); }
+    try { browser = await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args: ['--no-sandbox'] }); }
     catch (e) {
+        // ⚠건너뛴다는 사실을 **결과줄에 남긴다** — `0 PASS / 0 FAIL` 만 찍으면 통과처럼 보인다.
         console.log('\n⏭️  건너뜀 — 브라우저를 못 띄웠다(' + e.message + ').');
-        console.log('\n0 PASS / 0 FAIL');
+        console.log('\n0 PASS / 0 FAIL (SKIPPED: 브라우저 없음)');
         return;
     }
 
@@ -293,7 +546,10 @@ async function checkRecoversAfterNetworkDrop(browser) {
         const same = got.sig === want.sig && got.on === want.on && got.dom === want.dom;
         ok(`${an} 를 받는 중에 ${bn} 를 누르면 ${bn} 만 남는다`, same,
             `        기대(${bn}만) 켜짐=[${want.on}] 화면=[${want.dom}] 레이어=[${want.sig}]\n` +
-            `        실제        켜짐=[${got.on}] 화면=[${got.dom}] 레이어=[${got.sig}]`);
+            `        실제        켜짐=[${got.on}] 화면=[${got.dom}] 레이어=[${got.sig}]\n` +
+            // ★왜 그 순간에 찍었는지도 남긴다(G-40) — 미결 요청이 남아 있었으면 아직 안 온 것이다.
+            `        찍은 때     미결요청=${got.pending} 기다림=${got.waited}ms` +
+            ` (기준 쪽은 미결요청=${want.pending} 기다림=${want.waited}ms)`);
     }
 
     await browser.close();

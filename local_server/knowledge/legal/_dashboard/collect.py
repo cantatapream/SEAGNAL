@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 import json,urllib.request,urllib.parse,time,os,re,sys
 sys.path.insert(0,os.path.dirname(__file__))
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'loop'))  # 공용 판별기는 loop/ 에 있다
@@ -7,8 +8,8 @@ import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 
 from master_laws import MASTER
 
 OC='hyoo1431'
-ROOT='/home/user/SEAGNAL/local_server/knowledge/legal/raw'
-REPORT='/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/collection_report.md'
+ROOT=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../raw')
+REPORT=os.path.join(os.path.dirname(os.path.abspath(__file__)), './collection_report.md')
 os.makedirs(os.path.dirname(REPORT),exist_ok=True)
 
 def api(url):

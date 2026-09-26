@@ -9,13 +9,16 @@ _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 줬는지 가린다(L-294)
 
 OC='hyoo1431'
-ROOT='/home/user/SEAGNAL/local_server/knowledge/legal/raw'
+ROOT=_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '../../raw')
 
 def api(url):
     # ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속).
     #   종전에는 오류쪽 HTML 도 네트워크 오류와 똑같이 삼켜서
     #   **"권한 없음"이 "모르겠다"로 바뀌어** 나왔다.
-    for _ in range(4):
+    # ★2026-09-23 (3-46) — 4회로는 모자랐다. 같은 MST 가 한 번은 실패하고 다음 실행에서 성공했다.
+    #   law.go.kr 은 **막힌 게 아니라 간헐적**이다(L-322 실측: 단발 4/8, 재시도를 붙이면 9/10).
+    #   4회에서 25회로 늘린다 — 되는 것을 "안 된다"고 적는 것이 제일 나쁘다.
+    for _i in range(25):
         try:
             with urllib.request.urlopen(url, timeout=40) as r:
                 body = r.read().decode('utf-8', 'replace')
@@ -28,7 +31,7 @@ def api(url):
                     return None          # 재시도로 안 풀린다
         except Exception:
             pass
-        time.sleep(1.5)
+        time.sleep(min(1.5 + 0.4 * _i, 6.0))
     return None
 
 def fetch_body(mst):
@@ -49,8 +52,17 @@ def flat(x):
     if isinstance(x,list): return '\n'.join(flat(i) for i in x)
     return str(x)
 
-def extract_layer(body,kind,outdir,links):
-    """kind = 법률|시행령|시행규칙. 층별 접두어로 별표 저장. links 딕셔너리에 병합."""
+def extract_layer(body,kind,outdir,links,only=None,overwrite=True,links_all=False):
+    """kind = 법률|시행령|시행규칙. 층별 접두어로 별표 저장. links 딕셔너리에 병합.
+
+    ★2026-09-23 (3-46) — **골라 채우기**를 위해 두 개를 더 받는다. 기본값은 예전 그대로다.
+      only      : 쓸 파일이름 집합. 주면 **그 안에 있는 것만** 쓴다(빈자리만 메울 때).
+      overwrite : False 면 **이미 있는 파일은 건드리지 않는다.**
+      links_all : True 면 **파일을 안 써도 링크는 다 적는다**(3-21 · PDF 링크만 채울 때).
+                  ⚠기본값은 False 라 종전 동작 그대로다 — 쓴 것만 링크에 남는다.
+    이렇게 하는 까닭은 **별표를 적는 꼴을 한 곳에만 두기 위해서**다(L-136).
+    골라 채우는 도구가 같은 글꼴을 따로 베끼면, 언젠가 둘이 달라진다.
+    """
     try: byl=body['법령']['별표']['별표단위']
     except (KeyError,TypeError): return 0
     if isinstance(byl,dict): byl=[byl]
@@ -63,12 +75,24 @@ def extract_layer(body,kind,outdir,links):
         title=b.get('별표제목','') or ''
         txt=flat(b.get('별표내용','')); txt=re.sub(r'<[^>]+>',' ',txt); txt=re.sub(r'&[a-z]+;',' ',txt)
         fname=f"{kind}_{typ}{numlabel}.txt"
-        with open(os.path.join(outdir,fname),'w',encoding='utf-8') as f:
-            f.write(f"[{kind}] {typ}{numlabel} — {title}\n\n{txt}")
+        skip = (only is not None and fname not in only) or \
+               (not overwrite and os.path.exists(os.path.join(outdir,fname)))
+        if skip and not links_all: continue
+        if not skip:
+            with open(os.path.join(outdir,fname),'w',encoding='utf-8') as f:
+                f.write(f"[{kind}] {typ}{numlabel} — {title}\n\n{txt}")
         hwp=b.get('별표서식파일링크',''); img=b.get('별표서식이미지파일링크','')
+        # ★2026-09-23 (3-21 · P-17) — **PDF 링크를 여태 안 읽고 있었다.**
+        #   등록부는 *"서식 다운로드가 HWP 일변도 — 2,754항목 중 PDF 24개"* 라고 적었는데,
+        #   원인은 **원문 제공처가 PDF 를 안 주는 것이 아니라 우리가 그 칸을 안 읽은 것**이었다.
+        #   응답에는 `별표서식PDF파일링크`·`별표PDF파일명` 이 나란히 들어 있다(실측: 골재채취법 시행령 별표1).
+        #   3-20 의 부칙과 **똑같은 꼴**이다 — "구조적으로 못 얻는 것이 아니라 얻을 수 있는데 안 받은 것".
+        pdf=b.get('별표서식PDF파일링크','')
         links[f"{kind} {typ} {numlabel}"]={"제목":title,
             "HWP":("https://www.law.go.kr"+hwp) if hwp else "",
+            "PDF":("https://www.law.go.kr"+pdf) if pdf else "",
             "이미지":(["https://www.law.go.kr"+x for x in (img if isinstance(img,list) else [img])] if img else [])}
+        if skip: continue          # 링크만 적고 파일은 안 썼다 — 쓴 개수에 안 센다
         n+=1
     return n
 

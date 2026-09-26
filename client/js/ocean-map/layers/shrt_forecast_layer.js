@@ -967,11 +967,11 @@
         // [Mutual Exclusion] 다른 ocean overlay (current/wind/wave) 가 활성 상태면 끔
         // ocean_overlay.js 가 export 한 turn-off 핸들러 사용.
         if (typeof window.oceanOverlayTurnOff === 'function') {
-            try { window.oceanOverlayTurnOff(); } catch (e) {}
+            try { window.oceanOverlayTurnOff(); } catch (e) { /* 남의 오버레이를 끄는 일이다 — 저쪽 실패가 이쪽 켜기를 막으면 안 된다 */ }
         }
         // [Mutual Exclusion] 물빠짐 레이어도 하단 슬라이더를 공유하므로 함께 끔.
         if (typeof window._tideFieldDeactivate === 'function') {
-            try { window._tideFieldDeactivate(); } catch (e) {}
+            try { window._tideFieldDeactivate(); } catch (e) { /* 같은 까닭 — 아래 슬라이더를 함께 쓰는 층이라 끄기만 시도한다 */ }
         }
 
         // [C-cache] 사용자가 의식적으로 천기 카테고리를 활성화 → 캐시 무효화 + 강제 새 fetch.

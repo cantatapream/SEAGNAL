@@ -1,0 +1,43 @@
+[농산물우수관리 인증 등에 관한 세부실시 요령] 별지6 — 영문인증서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000281904 (수집 2026-09-25 · 옛 기록은 도구에 박힌 날짜 때문에 2026-08-31 로 적혀 있었다)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=166805767
+
+[별지 제6호 서식]             
+영문인증서
+                                                                              
+                                                                              
+┌─────────────────────────────────────┐
+│                                                                          │
+│                                                                          │
+│GAP CERTIFICATION                                                         │
+│                                                                          │
+│                                                                          │
+│                                                                          │
+│   1. Certification No. :                                                 │
+│   2. Grower (Name of Organization) :                                     │
+│      (Number of Producer :      )                                        │
+│   3. Date of birth(Business registration number) :                       │
+│   4. Address :                                                           │
+│   5. Item(s) :                                                           │
+│   6. Cultivation Area (㎡) :                                             │
+│   7. Location of Cultivated operation(s) :                               │
+│   8. Valid Until :                                                       │
+│   9. The cultivating contents by producer(s)(Refer to the attached sheet)│
+│                                                                          │
+│      This is to certify that the above item(s) is certified as Good      │
+│Agricultural Practices produce in accordance with Article 6 of the ?     │
+│Agricultural and Fishery Products Quality Control Act? and Article 11-5 of │
+│the Enforcement Regulations of the same Act.                              │
+│                                                                          │
+│                     Date:                                                │
+│                                                                          │
+│Director General of GAP Certification Body                                │
+├─────────────────────────────────────┤
+│※ 이 물품의 HS No는 (####-##)이며, 이 서류는 ?자유무역협정의 이행을 위한 │
+│관세법의 특례에 관한 법률?에 따른 원산지증빙서류로 관세청장이 인정한 서류임│
+├─────────────────────────────────────┤
+│※ HS code of this item is (####-##), and this document has been approved │
+│by the Commissioner of Korea Customs Service as a documentary evidence    │
+│of origin stipulated in Act on Special Cases of the Customs Act for the   │
+│Implementation of Free Trade Agreement.                                   │
+└─────────────────────────────────────┘

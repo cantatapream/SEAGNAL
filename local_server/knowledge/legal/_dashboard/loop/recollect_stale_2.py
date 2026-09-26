@@ -9,10 +9,15 @@ sys.path.insert(0, os.path.dirname(__file__))
 from recollect_jomun import api, build_text  # noqa: E402
 import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 줬는지 가린다(L-294·L-295)
 
+# ★2026-09-23 (3-39) — 그 컴퓨터 이름을 박지 않는다(G-31).
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', '..'))
+def R(rel):
+    return os.path.join(REPO, rel)
+
 TARGETS = [
-    {'meta': '/home/user/SEAGNAL/local_server/knowledge/legal/raw/08_섬영토/무인도서의보전및관리에관한법률/_meta.json',
+    {'meta': R("local_server/knowledge/legal/raw/08_섬영토/무인도서의보전및관리에관한법률/_meta.json"),
      'new_MST': '288415', 'new_시행일자': '20260727'},
-    {'meta': '/home/user/SEAGNAL/local_server/knowledge/legal/raw/04_선박해운/선박안전법/_meta.json',
+    {'meta': R("local_server/knowledge/legal/raw/04_선박해운/선박안전법/_meta.json"),
      'new_MST': '288417', 'new_시행일자': '20260727'},
 ]
 

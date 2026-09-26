@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'ocr-annex',
   description: '이미지로만 존재하는 별표·고시(처벌표·요율표 등)를 비전 OCR로 텍스트화 — 처벌수치는 REVIEW 플래그',
   phases: [{ title: 'OCR', detail: '항목마다 에이전트가 이미지 받아 읽고 별표 txt에 반영' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const SCHEMA = {
   type: 'object', required: ['item', 'status'],
   properties: {

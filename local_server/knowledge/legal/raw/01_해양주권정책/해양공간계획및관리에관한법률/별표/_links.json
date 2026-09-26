@@ -14,21 +14,24 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=147201809",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=147201811",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=147201813"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=144111733"
   },
   "시행규칙 서식 1": {
     "제목": "해양공간관리계획 수립(변경) 요청",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037721",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037725"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104147349"
   },
   "시행규칙 서식 2": {
     "제목": "주민의견 제출서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037727",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037731"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104147355"
   },
   "시행규칙 서식 3": {
     "제목": "해양용도구역 관리대장",
@@ -36,41 +39,47 @@
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037737",
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037739"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104147361"
   },
   "시행규칙 서식 4": {
     "제목": "해양공간 적합성 협의 요청",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037741",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037745"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104147369"
   },
   "시행규칙 서식 5": {
     "제목": "해양공간 적합성 여부 검토의견 통보서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037747",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037751"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104147375"
   },
   "시행규칙 서식 6": {
     "제목": "해양공간적합성협의 관리대장",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037753",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037757"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104147381"
   },
   "시행규칙 서식 7": {
     "제목": "해양공간계획평가 전문기관 지정신청서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037759",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037763"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104147387"
   },
   "시행규칙 서식 8": {
     "제목": "해양공간계획평가 전문기관 지정서",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037765",
     "이미지": [
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=104037769"
-    ]
+    ],
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=104147393"
   }
 }

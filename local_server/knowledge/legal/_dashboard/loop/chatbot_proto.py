@@ -7,7 +7,7 @@
    실행: python3 chatbot_proto.py "질문"   (질문 없으면 데모 4문항)
 """
 import os,re,sys,glob
-LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
+LEGAL=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 CDIR=f'{LEGAL}/wiki/concepts'
 
 # ---------- 로드 ----------

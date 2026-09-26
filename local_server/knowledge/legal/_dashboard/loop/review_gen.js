@@ -1,3 +1,4 @@
+const path = require('path');
 // review_gen.js — ①절충: 민감 draft의 "AI 제안값 + 출처"를 리뷰큐에 미리 채우는 앞단 생성기.
 // 역할(초보자용): 사람이 확정해야 하는 민감값(별표 OCR 수치·처벌 금액·기한)마다, AI가 읽은 제안값과
 //   그 근거(원문 조문 + law.go.kr 링크 + 로컬 별표/이미지)를 한 카드로 만든다. 사용자는 리뷰페이지에서
@@ -10,7 +11,7 @@ export const meta = {
   description: '민감 draft의 AI 제안값+출처(원문/별표/이미지)를 법별 partial 리뷰카드로 생성(공유파일 미접촉)',
   phases: [{ title: '제안값생성', detail: '법별 1에이전트: 확정가능한 민감값마다 제안값+근거 카드를 자기 partial에 기록' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['law', 'status'],

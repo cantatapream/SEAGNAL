@@ -1,0 +1,11 @@
+{
+ "script": "admrul_byl_file_links",
+ "stamp": "20260923-232440-085",
+ "files": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/별표/무역항내어항구(분구)설정고시_별지1.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/별표/장기체류화물의처리에관한규정_별지1.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박직원법/별표/상선해기사승선실습프로그램_별표1.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박직원법/별표/어선해기사승선실습프로그램_별표1.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/별표/남북항로에대한선박투입제한고시_별지1.txt"
+ ]
+}

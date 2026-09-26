@@ -28,8 +28,8 @@
  * [연계] ← pinned/live_r22_pass{5,6,7}.json(각 라운드가 남긴 법별 결과). ⚠읽기 전용.
  */
 const fs = require('fs');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
-const DIR = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/loop/pinned/';
+const R = require(require('path').resolve(__dirname, '../../../../services/legal_retriever.js'));
+const DIR = path.resolve(__dirname, './pinned');
 const ROUNDS = [5, 6, 7];
 
 // 동그라미 숫자(①~⑳)는 위키·감사파일이 "항"을 적는 또 하나의 표기다 — 같은 뜻으로 펴 준다.

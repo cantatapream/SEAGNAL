@@ -117,7 +117,7 @@ function clearCurves() {
     try {
         const files = fs.readdirSync(C.CURVES_DIR);
         for (const f of files) {
-            if (f.endsWith('.json')) { try { fs.unlinkSync(path.join(C.CURVES_DIR, f)); n++; } catch (e) {} }
+            if (f.endsWith('.json')) { try { fs.unlinkSync(path.join(C.CURVES_DIR, f)); n++; } catch (e) { /* 파일 하나가 이미 지워졌거나 잠겨 있으면 던진다 — 그 파일만 건너뛰고 나머지를 계속 지운다 */ } }
         }
     } catch (e) { /* 폴더 없음 */ }
     return n;
@@ -233,7 +233,7 @@ function saveProbeOverrides() {
 /** 재빌드(앵커 위치 변동) 시 보정 캐시·격자 캐시 폐기. */
 function clearProbeOverrides() {
     _probeOverrides = null; _gridCells = null;
-    try { if (fs.existsSync(C.PROBE_OVERRIDE_PATH)) fs.unlinkSync(C.PROBE_OVERRIDE_PATH); } catch (e) {}
+    try { if (fs.existsSync(C.PROBE_OVERRIDE_PATH)) fs.unlinkSync(C.PROBE_OVERRIDE_PATH); } catch (e) { /* 덮어쓰기 파일이 없으면 던진다 — 지우려던 것이 없으니 목적은 이뤄졌다 */ }
 }
 
 /**
@@ -274,7 +274,12 @@ async function resolveNudge(anchor, yyyymmdd, log) {
         const qLat = Math.round(cand[i].lat * 100000) / 100000;
         const qLon = Math.round(cand[i].lon * 100000) / 100000;
         let hash = null;
-        try { hash = await getGridHash(qLat, qLon, yyyymmdd); } catch (e) { hash = null; }
+        try { hash = await getGridHash(qLat, qLon, yyyymmdd); } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 격자 조회가 죽으면 **「그 해역엔 조석 격자가 없다」와
+        //   똑같이** 처리된다 — 미제공 해역과 조회 실패가 구분되지 않았다.
+        console.warn('[조석] 격자 조회 실패 — 「격자 미제공」과 같이 처리된다:', qLat, qLon, e && e.message);
+        hash = null;
+    }
         if (hash) { found = { lon: qLon, lat: qLat, distKm: Math.round(cand[i].dKm * 100) / 100 }; break; }
     }
 
@@ -312,7 +317,11 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     if (verifyGrid) {
         let hash = null;
         try { hash = await getGridHash(qLat, qLon, yyyymmdd); }
-        catch (e) { hash = null; /* 조회 실패는 막지 않음 — 아래 보정/진행 */ }
+        catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 막지는 않지만, **미제공 해역과 조회 실패가 같아 보인다.**
+            console.warn('[조석] 격자 검증 조회 실패 — 인근 격자 보정으로 넘어간다:', e && e.message);
+            hash = null;
+        }
         if (!hash) {
             // 앵커 자체는 격자 미제공 → 인근 격자 셀로 보정 시도(캐시·자가복구).
             nudged = (opts.nudge !== false) ? await resolveNudge(anchor, yyyymmdd, log) : null;

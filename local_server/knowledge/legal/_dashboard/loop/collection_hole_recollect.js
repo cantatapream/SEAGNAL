@@ -1,3 +1,4 @@
+const path = require('path');
 // collection_hole_recollect.js — collection_hole_reverify.js가 확정한 action=recollect 백로그를 실제로 수집·위키 반영
 // 역할(초보자용): collection_hole_reclass_report_g<N>.md의 "1. action=recollect" 절에 적힌 항목을
 //   그 절이 이미 알려준 구체 방법(DRF API 대상·ID·MST, ordin/eflaw/admrul 구분, hwp5html 경유 등)대로
@@ -11,7 +12,7 @@ export const meta = {
   phases: [{ title: '재수집', detail: '그룹 리포트의 recollect 절을 읽고 실제 API/HWP 변환으로 수집 후 raw·wiki 반영' }],
 }
 
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object',

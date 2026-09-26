@@ -1,3 +1,4 @@
+const path = require('path');
 // quote_fix.js — "원문 발췌"라고 인용부호를 달아 놓고 다듬어 쓴 문장을 **원문 복붙으로 되돌린다**(L-148).
 // 역할(초보자용): 큰따옴표는 "원문이 이렇다"는 약속이다. 그 안이 다듬은 문장이면 거짓말이 된다.
 //   제3자 검증이 찾아낸 불일치를 원문 그대로 고치고, 조항·항수 오기도 함께 바로잡는다.
@@ -9,7 +10,7 @@ export const meta = {
   description: '인용부호 안을 원문 복붙으로 되돌리고 조항 오기를 고친다(L-148). 자기 법 파일만.',
   phases: [{ title: '인용정정', detail: '법별 1에이전트: 인용문 전수 grep 대조 → 원문 복붙 · 오기 정정' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const MANIFEST = {
   type: 'object', required: ['law', 'fixed', 'left'],

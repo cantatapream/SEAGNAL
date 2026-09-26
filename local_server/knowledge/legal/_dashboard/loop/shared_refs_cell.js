@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'wiki-shared-refs-bootstrap',
   description: '여러 기준법이 공통으로 인용하는 타법 조문(전자정부법 제36조 등 최다 38개 법 공용)을 law.go.kr DRF로 1회 수집해 raw/15_관련타부처/에 공용 저장. 각 법 collect 셀이 재수집 안 하고 연결만 하도록 하는 부트스트랩. 완료 시 마커.',
   phases: [{ title: '공용타법수집', detail: '참조당 1에이전트: DRF 발췌수집 + 기존 발췌 병합(삭제금지) + REVIEW 헤더' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const MARK = `${LEGAL}/_dashboard/fix3`
 const TABU = `${LEGAL}/raw/15_관련타부처`
 

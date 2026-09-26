@@ -139,7 +139,9 @@ window.getMarineZoneData = async function (zoneId) {
                 `해당 해구(${zoneId})의 데이터가 없습니다.<br>스케줄러가 데이터를 수집할 때까지 기다려주세요.`);
         }
     } catch (error) {
-        // console.error('해구별 데이터 조회 오류:', error);
+        // ★조용히 넘어가지 않는다 (3-44). 조회가 죽으면 **「데이터가 없습니다」로 보인다** —
+        //   정말 없는 것과 못 받은 것이 구분되지 않았다.
+        console.warn('[해구] 해구별 데이터 조회 실패 — 「데이터 없음」으로 보인다:', error && error.message);
         if (requestId !== window._marineZoneRequestId) return;
         showMarineZoneModal(zoneId, null, false, `데이터 조회 중 오류: ${error.message}`);
     }
@@ -284,7 +286,9 @@ async function fetchZoneVisibility(zoneId) {
         });
         if (oneH.length) { oneH.sort((a, b) => a.ms - b.ms); window._marineVis1h = oneH; }
     } catch (e) {
-        // 시정은 부가정보 — 실패해도 기존 풍향/풍속/파고 표는 그대로 표출
+        // ★조용히 넘어가지 않는다 (3-44). 풍향·풍속·파고 표는 그대로지만 **시정 줄만 빠진다** —
+        //   「시정 자료가 없는 해구」와 겉으로 똑같다.
+        console.warn('[해구] 시정 자료 처리 실패 — 시정 줄 없이 그린다:', e && e.message);
     }
     return out;
 }

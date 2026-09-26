@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """조례(자치법규) 수집: 해양·수산 키워드로 target=ordin 검색 → 지역별 저장.
    조례는 지역 기반(법 넘나듦)이라 raw/_자치법규/<지역>/에 보관. 지역 비교표 재료."""
 import json,urllib.request,urllib.parse,time,os,re
 OC='hyoo1431'
-OUT='/home/user/SEAGNAL/local_server/knowledge/legal/raw/_자치법규'
+OUT=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../raw/_자치법규')
 KEYS=['어항','어촌','수산','조업','낚시어선','수상레저','해수욕장','해양쓰레기','어선','포구','갯벌']
 CAP_KW=40  # 키워드당 상한
 def api(u):

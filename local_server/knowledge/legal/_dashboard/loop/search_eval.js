@@ -31,8 +31,8 @@
  *        ⚠읽기 전용.
  */
 const fs = require('fs');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
-const PINNED = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/loop/pinned/r22_questions.json';
+const R = require(require('path').resolve(__dirname, '../../../../services/legal_retriever.js'));
+const PINNED = path.resolve(__dirname, './pinned/r22_questions.json');
 
 const norm = s => String(s || '').replace(/[\s·ㆍ()（）]/g, '');
 const arg = k => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : ''; };

@@ -538,7 +538,7 @@
         btn.addEventListener('click', function () {
             visible = !visible;
             apply(visible);
-            try { localStorage.setItem('seagnal_marine_zone_visible', String(visible)); } catch (e) {}
+            try { localStorage.setItem('seagnal_marine_zone_visible', String(visible)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
             // [배경지도] 해구기상은 격자와 숫자를 읽는 화면이라 위성사진 위에서는 잘 안 보인다.
             //   켤 때 기본맵으로 바꾸고, 끌 때 원래 지도로 되돌린다(사용자 확정 2026-09-09).
             if (typeof window.oceanGetBasemap === 'function' && typeof window.oceanSetBasemap === 'function') {
@@ -554,7 +554,7 @@
             if (!visible) _resetMarineZoneSelection();
             // [단독 표출] 해구도 ON 시 물빠짐이 켜져 있으면 끔.
             if (visible && typeof window._tideFieldDeactivate === 'function') {
-                try { window._tideFieldDeactivate(); } catch (e) {}
+                try { window._tideFieldDeactivate(); } catch (e) { /* 같은 까닭 — 물빠짐 층이 없는 빌드도 있다 */ }
             }
         });
 

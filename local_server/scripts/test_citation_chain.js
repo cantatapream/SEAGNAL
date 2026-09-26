@@ -343,5 +343,34 @@ console.log('── 답변이 고시 이름만 써도 그 페이지를 잃지 �
     R.filterSourcesByAnswer([src], '별표 2에 따라 최소 2회 이상입니다.').length === 0);
 }
 
+// ── 꼬리가 **별표**인 화살표도 계층을 갈라 준다 (2026-09-24, 2-10 · V5-21b 가 드러냄) ──
+//   `제38조 → 시행규칙 별표2` 는 종전에 **안 갈렸다.** 그러면 tier 가 모법(law)인 채라
+//   `별표/법률_별표2.txt` 를 찾고 — 그 별표는 시행규칙 것이라 **영영 안 열렸다.**
+//   실측 33줄 · 22쪽이 그랬고, 고친 뒤 V5-21b 의 「열린다」가 1,258 → 1,291 로 늘었다.
+{
+  console.log('\n── 화살표 꼬리가 별표일 때 (2-10) ──');
+  const md = ['## 근거 조문', '',
+    '| 법령 | 조문 | 요지 |', '|---|---|---|',
+    '| 낚시 관리 및 육성법 | 제38조 → 시행규칙 별표2 | 영업정지 기준 |', ''].join('\n');
+  const rows = R.extractCitationChain(md);
+  const byl = rows.find(r => /별표\s*2/.test(r.article || ''));
+  ok('★별표 꼬리가 **제 계층으로 갈라진다**', !!byl && byl.tier === 'rule',
+    '        ' + JSON.stringify(rows.map(r => ({ law: r.law, article: r.article, tier: r.tier }))));
+  ok('   그 줄의 법 이름도 시행규칙으로 바뀐다', !!byl && /시행규칙$/.test(byl.law || ''));
+  ok('   앞쪽 조문 줄은 모법으로 남는다',
+    rows.some(r => r.tier === 'law' && /제38조/.test(r.article || '') && !/별표/.test(r.article || '')));
+
+  // ⚠느슨해지지 않는다 — 번호 없는 「별표」 한 낱말로는 가르지 않는다(무엇을 가리키는지 모른다).
+  const md2 = md.replace('별표2', '별표');
+  ok('번호 없는 「별표」로는 **가르지 않는다**',
+    !R.extractCitationChain(md2).some(r => r.tier === 'rule'),
+    '        ' + JSON.stringify(R.extractCitationChain(md2).map(r => r.article)));
+
+  // 종전 동작(조문 꼬리)은 그대로다
+  const md3 = md.replace('제38조 → 시행규칙 별표2', '제59조의2 → 시행규칙 제18조의2');
+  ok('조문 꼬리는 **종전 그대로** 갈린다',
+    R.extractCitationChain(md3).some(r => r.tier === 'rule' && /제18조의2/.test(r.article || '')));
+}
+
 console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
 process.exit(fail ? 1 : 0);

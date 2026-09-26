@@ -375,7 +375,11 @@ window.atmFetchReports = async function () {
                 processedIds = new Set(processedData.processedIds || []);
                 failedIds = new Set(processedData.failedIds || []);
             }
-        } catch (e) { /* processed-reports 실패해도 통보문 목록은 정상 표시 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 목록은 뜨지만 **처리됨·실패 표시가 전부 빠진다** —
+            //   운영자에게는 「아직 아무것도 처리 안 한 상태」로 보인다.
+            console.warn('[관리자] 처리 기록 조회 실패 — 처리됨·실패 표시 없이 목록만 그린다:', e && e.message);
+        }
 
         if (data.count === 0) {
             listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">해당 날짜에 [특보]/[예비] 통보문이 없습니다.</div>';
@@ -543,7 +547,11 @@ window.atmCollectOne = async function (i, refTimeOverride) {
             await fetch('/api/admin/collect-failures', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reportId: report.id, title: report.title, error: lastData.aiError || 'AI 분석 결과 없음', retriesUsed: attempt })
             });
-        } catch (e) { /* 무시 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). **AI 실패 기록이 서버에 안 남는다** —
+            //   화면의 「AI실패」 배지는 새로고침하면 사라지고, 무엇이 실패했는지 아무 데도 안 남는다.
+            console.warn('[관리자] AI 실패 기록 저장 실패 — 이 실패는 새로고침하면 사라진다:', e && e.message);
+        }
         // [제거됨] 방문자 카운터 빨간색 표시는 관리자 배너 + FCM 푸시로 대체
     } else {
         btn.innerHTML = attempt > 1
@@ -563,7 +571,11 @@ window.atmRenderForecastReports = async function (forecastReports) {
     try {
         const cacheList = await fetch(CONFIG.API_BASE + '/api/forecast-cache/list').then(r => r.json());
         cachedIds = new Set((cacheList || []).map(c => c.reportId));
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 캐시 목록을 못 읽으면 **이미 만들어 둔 것도 「없음」으로**
+        //   보여 운영자가 같은 것을 다시 만들게 된다.
+        console.warn('[관리자] 예보 캐시 목록 조회 실패 — 이미 만든 것도 「없음」으로 보인다:', e && e.message);
+    }
 
     // 현재 표출 중인 전망 reportId
     let activeIds = new Set();
@@ -573,7 +585,11 @@ window.atmRenderForecastReports = async function (forecastReports) {
             if (marineFcst.ultraShort && marineFcst.ultraShort.reportId) activeIds.add(marineFcst.ultraShort.reportId);
             if (marineFcst.shortTerm && marineFcst.shortTerm.reportId) activeIds.add(marineFcst.shortTerm.reportId);
         }
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 현행 예보 번호를 못 읽으면 **어느 것이 지금 쓰이는 것인지**
+        //   표시가 빠진 채로 목록이 그려진다.
+        console.warn('[관리자] 현행 해상예보 조회 실패 — 「지금 쓰는 것」 표시 없이 그린다:', e && e.message);
+    }
 
     let html = `<div style="font-weight:700;color:#e2e8f0;font-size:0.9rem;margin-bottom:10px;"><i class="fa-solid fa-water" style="color:#94a3b8;"></i> 해상 기상 전망 (${forecastReports.length}건)</div>`;
     forecastReports.forEach((r, i) => {
@@ -1780,7 +1796,7 @@ async function renderUnifiedApiContent(container) {
                             // 개별 파일 진행률 (하단): "do_korea_20260404_09.png 다운로드 중 57%"
                             if (fileEl) fileEl.textContent = data.fileDetail || '';
                         }
-                    } catch (e) { }
+                    } catch (e) { /* 진행률 표시용 파싱이다 — 서버가 보낸 한 토막이 깨져도 다음 토막이 오면 다시 그린다. 여기서 던지면 SSE 수신이 통째로 끊긴다 */ }
                 };
                 es.onerror = () => { es.close(); reject(new Error('SSE 연결 실패')); };
             });
@@ -1892,6 +1908,8 @@ async function renderUnifiedNoticeContent(container) {
     for (let i = 0; i < 60; i += 10) mSelect.innerHTML += `<option value="${i}">${String(i).padStart(2, '0')}분</option>`;
 
     window.refreshUnifiedNoticeList = async function () {
+        // ⚠기다리는 일을 삼키면 **화면이 거짓말을 한다**(3-44 · G-14b) — 목록을 못 받으면
+        //   옛 목록이 그대로 남아 운영자가 「지금 상태」로 읽는다. 그래서 까닭을 남긴다.
         try {
             const res = await fetch(CONFIG.API_BASE + '/api/notices');
             const data = await res.json();
@@ -1918,7 +1936,9 @@ async function renderUnifiedNoticeContent(container) {
                     </div>
                 </div>
             `).join('') || '<div style="color:#64748b; font-size:0.8rem; padding:10px;">종료 이력 없음</div>';
-        } catch (e) { }
+        } catch (e) {
+            console.warn('[admin_collect] 공지 목록을 못 받았다 — 화면은 **옛 목록** 그대로다', e);
+        }
     };
 
     window.saveNoticeUnified = async function () {
@@ -2007,6 +2027,7 @@ async function renderUnifiedNoticeContent(container) {
 
 // 통합 모달 전용 공지사항 수정
 window.editNoticeUnified = async function (id) {
+    // ⚠실패하면 **눌러도 아무 일이 안 일어난다** — 운영자는 버튼이 죽은 줄 안다(3-44).
     try {
         const res = await fetch(CONFIG.API_BASE + '/api/notices');
         const data = await res.json();
@@ -2036,7 +2057,11 @@ window.editNoticeUnified = async function (id) {
                         const post = await pRes.json();
                         window.selectLinkedPromoUnified(post.id, post.title);
                     }
-                } catch (e) { /* 게시글 삭제됨 */ }
+                } catch (e) {
+                    // ★조용히 넘어가지 않는다 (3-44). 보통은 **연결된 게시글이 지워진 것**이라 정상이다.
+                    //   다만 망 오류일 때도 똑같이 조용해서, 연결 표시만 안 뜨고 까닭을 알 수 없었다.
+                    console.warn('[관리자] 연결 게시글 조회 실패(지워졌거나 망 오류) — 연결 표시 없이 그린다:', e && e.message);
+                }
             } else {
                 window.clearLinkedPromoUnified();
             }
@@ -2045,7 +2070,9 @@ window.editNoticeUnified = async function (id) {
             // 폼으로 스크롤
             document.getElementById('notice-form-container').scrollIntoView({ behavior: 'smooth' });
         }
-    } catch (e) { }
+    } catch (e) {
+        console.warn('[admin_collect] 공지 목록을 못 받아 수정 폼을 못 열었다 — 버튼이 죽은 것처럼 보인다', e);
+    }
 };
 
 // 통합 모달 전용 공지사항 삭제
@@ -2394,7 +2421,10 @@ async function renderUnifiedPromoContent(container) {
         try {
             const bRes = await fetch(CONFIG.API_BASE + '/api/boards');
             boards = await bRes.json();
-        } catch (e) {}
+        } catch (e) {
+            // ⚠못 받으면 필터 드롭다운이 **빈 채로** 그려진다 — 「게시판이 없다」로 읽힌다(3-44).
+            console.warn('[admin_collect] 게시판 목록을 못 받았다 — 필터가 빈 채로 그려진다', e);
+        }
 
         el.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
@@ -3275,11 +3305,11 @@ var USAGE_THEMES = {
 var USAGE_THEME_KEY = 'seagnal_usage_theme';   // localStorage 키
 function getUsageTheme() {
     var t = 'dark';
-    try { t = localStorage.getItem(USAGE_THEME_KEY) || 'dark'; } catch (e) {}
+    try { t = localStorage.getItem(USAGE_THEME_KEY) || 'dark'; } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     return (t === 'light') ? 'light' : 'dark';
 }
 function setUsageTheme(t) {
-    try { localStorage.setItem(USAGE_THEME_KEY, t); } catch (e) {}
+    try { localStorage.setItem(USAGE_THEME_KEY, t); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
 }
 function usageThemeTokens() { return USAGE_THEMES[getUsageTheme()]; }
 
@@ -3765,7 +3795,7 @@ function _usageRenderAffChart() {
     if (sel.length) dist = dist.filter(function (d) { return sel.indexOf(d.name) !== -1; });
     var aLabels = dist.map(function (d) { return d.name; });
     var aValues = dist.map(function (d) { return d.total; });
-    if (usageAffChart) { try { usageAffChart.destroy(); } catch (e) {} usageAffChart = null; }
+    if (usageAffChart) { try { usageAffChart.destroy(); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ } usageAffChart = null; }
     var el = document.getElementById('usage-aff-chart');
     var wrap = document.getElementById('usage-aff-canvas-wrap');
     if (!el || typeof Chart === 'undefined') return;
@@ -3808,7 +3838,7 @@ function _usageRenderFeatureChart() {
     var byFeature = data.byFeature || {};
     var featRows = Object.keys(byFeature).map(function (k) { return { key: k, count: byFeature[k] }; });
     featRows.sort(function (a, b) { return b.count - a.count; });
-    if (usageFeatureChart) { try { usageFeatureChart.destroy(); } catch (e) {} usageFeatureChart = null; }
+    if (usageFeatureChart) { try { usageFeatureChart.destroy(); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ } usageFeatureChart = null; }
     var el = document.getElementById('usage-feature-chart');
     var wrap = document.getElementById('usage-feat-canvas-wrap');
     if (!el || typeof Chart === 'undefined') return;
@@ -3880,9 +3910,9 @@ function _usageAnimateExplode(chart, which, from, to, done) {
         var t = Math.min(1, (ts - start) / dur);
         var e = 1 - Math.pow(1 - t, 3);   // easeOutCubic
         setF(from + (to - from) * e);
-        try { chart.draw(); } catch (err) {}
+        try { chart.draw(); } catch (err) { /* 차트가 아직 붙기 전이거나 캔버스가 사라진 뒤면 던진다 — 그리기 실패가 이 화면을 막으면 안 된다 */ }
         if (t < 1) { requestAnimationFrame(step); }
-        else { setF(to); try { chart.draw(); } catch (err) {} if (done) done(); }
+        else { setF(to); try { chart.draw(); } catch (err) { /* 차트가 아직 붙기 전이거나 캔버스가 사라진 뒤면 던진다 — 그리기 실패가 이 화면을 막으면 안 된다 */ } if (done) done(); }
     }
     requestAnimationFrame(step);
 }
@@ -4235,7 +4265,7 @@ window._usageRedrawTrend = function () {
             fill: true, tension: 0.3, pointRadius: 2, pointBackgroundColor: T.accent2
         });
     }
-    if (usageTrendChart) { try { usageTrendChart.destroy(); } catch (e) {} usageTrendChart = null; }
+    if (usageTrendChart) { try { usageTrendChart.destroy(); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ } usageTrendChart = null; }
     var el = document.getElementById('usage-trend-chart');
     if (el && typeof Chart !== 'undefined') {
         usageTrendChart = new Chart(el, {
@@ -4454,9 +4484,9 @@ function _usageCaptureReady() {
             try {
                 // 진행 중 차트 애니메이션을 완료 상태로 강제(스냅) → 완성 프레임 캡처.
                 [usageTrendChart, usageAffChart, usageFeatureChart].forEach(function (c) {
-                    if (c) { try { c.update('none'); } catch (e) {} }
+                    if (c) { try { c.update('none'); } catch (e) { /* 차트가 이미 없어졌을 수 있다 — 다시 그리기는 부가 동작 */ } }
                 });
-            } catch (e) {}
+            } catch (e) { /* 차트가 이미 없어졌을 수 있다 — 다시 그릴 때 새로 만든다 */ }
             // 폰트/차트 반영 후 한 프레임 더 기다렸다 캡처.
             (window.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
                 (window.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(resolve);
@@ -4482,12 +4512,12 @@ function _usageCaptureWide(el, charts, T, filename, wide) {
     if (wide) {
         el.style.width = WIDE + 'px';
         el.style.maxWidth = 'none';
-        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) { /* 위와 같다 — 크기 재조정 실패가 나머지 차트를 막지 않게 하나씩 감싼다 */ } } });
     }
     var restore = function () {
         if (!wide) return;
         el.style.width = prevW; el.style.maxWidth = prevMax;
-        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) { /* 위와 같다 — 크기 재조정 실패가 나머지 차트를 막지 않게 하나씩 감싼다 */ } } });
     };
     var raf = window.requestAnimationFrame || function (cb) { setTimeout(cb, 32); };
     raf(function () { raf(function () {  // 폭 변경 + 차트 리사이즈 반영을 위해 2프레임 대기
@@ -4628,7 +4658,7 @@ function _usageTriggerDownload(href, filename, revoke) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    if (revoke) { setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) {} }, 1500); }
+    if (revoke) { setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) { /* 이미 풀린 주소면 던진다 — 메모리 정리라 실패해도 사용자에겐 아무 일도 없다 */ } }, 1500); }
 }
 
 // 앱(네이티브)에서 PNG 저장: 서버에 잠깐 업로드(토큰) → 시스템 브라우저로 GET 열어 다운로드(CSV 원리).
@@ -4674,9 +4704,9 @@ function _usageUpdateLandscapeBtn() {
 }
 function _usageExitLandscape() {
     var p = _usageOrientationPlugin();
-    if (p) { try { if (p.unlock) p.unlock(); else p.lock({ orientation: 'portrait' }); } catch (e) {} }
+    if (p) { try { if (p.unlock) p.unlock(); else p.lock({ orientation: 'portrait' }); } catch (e) { /* 화면 회전 잠금은 브라우저·기기마다 되고 안 되고가 갈린다 — 안 되면 그냥 안 잠글 뿐이다 */ } }
     _usageLandscapeOn = false;
-    if (_usageLeaveObserver) { try { _usageLeaveObserver.disconnect(); } catch (e) {} _usageLeaveObserver = null; }
+    if (_usageLeaveObserver) { try { _usageLeaveObserver.disconnect(); } catch (e) { /* 이미 끊겼을 수 있다 — 어차피 바로 아래에서 null 로 버린다 */ } _usageLeaveObserver = null; }
     _usageUpdateLandscapeBtn();
 }
 window.toggleUsageLandscape = function () {
@@ -4722,7 +4752,10 @@ window.showNoticeManagementModal = async function () {
                 const old = await res2.json();
                 if (old.isActive) notices.active = [old];
             }
-        } catch (e2) { }
+        } catch (e2) {
+            // ★조용히 넘어가지 않는다 (3-44). 옛 꼴 공지 폴백까지 실패하면 **띄워야 할 공지가 안 뜬다.**
+            console.warn('[관리자] 옛 꼴 공지 조회도 실패 — 진행 중 공지가 안 보일 수 있다:', e2 && e2.message);
+        }
     }
 
     const existingModal = document.getElementById('notice-management-modal');
@@ -4857,7 +4890,9 @@ window.editNotice = async function (id) {
             document.getElementById('notice-title').focus();
         }
     } catch (e) {
-        // console.error('수정 데이터 로드 실패:', e);
+        // ★조용히 넘어가지 않는다 (3-44). **[수정] 을 눌러도 칸이 안 채워진다** — 운영자에게는
+        //   「아무 일도 안 일어난 것」으로 보이고, 그대로 저장하면 옛 값이 덮인다.
+        console.warn('[관리자] 수정 데이터 로드 실패 — 칸이 안 채워진다(그대로 저장하지 말 것):', e && e.message);
     }
 };
 
@@ -5082,7 +5117,7 @@ window.forceUpdateApi = async function (type) {
                         pctEl.textContent = pct + '%';
                         barEl.style.width = pct + '%';
                     }
-                } catch (e) { }
+                } catch (e) { /* 위와 같다 — 진행률 한 토막의 파싱 실패로 수신 자체를 끊지 않는다 */ }
             };
             es.onerror = () => {
                 es.close();
@@ -5139,7 +5174,8 @@ function hexToRgb(hex) {
             updateNewBadges(posts);
         }
     } catch (e) {
-        // 공지사항 뱃지 초기화 실패 시 무시
+        // ★조용히 넘어가지 않는다 (3-44). **새 글 뱃지가 안 뜬다** — 새 글이 없는 것과 구분이 안 된다.
+        console.warn('[관리자] 공지 뱃지 초기화 실패 — 새 글 뱃지가 안 뜬다:', e && e.message);
     }
 })();
 

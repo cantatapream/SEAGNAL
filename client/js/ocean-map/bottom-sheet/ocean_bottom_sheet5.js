@@ -87,7 +87,7 @@
                     // [양방향 동기] 카드 아이콘 클릭으로도 지도 범례 갱신 — 사용자가 어디서
                     //   토글하든 범례/카드 단위 일관성 유지 (사용자 명세).
                     if (typeof window.oceanOverlayUpdateLegend === 'function') {
-                        try { window.oceanOverlayUpdateLegend(); } catch (e) {}
+                        try { window.oceanOverlayUpdateLegend(); } catch (e) { /* 남의 범례를 새로 그리는 일이다 — 저쪽이 아직 없으면 범례만 그대로 있다 */ }
                     }
                 };
             }

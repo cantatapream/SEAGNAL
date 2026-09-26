@@ -24,6 +24,9 @@
   - 씀:   _dashboard/admrul_annex_survey.json (조사 결과만 — raw 는 건드리지 않는다)
 사용법: python3 admrul_annex_survey.py [--limit N]
 """
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from _admrul_id import find_id   # ★판번호를 찾는 단 한 곳(P-19b)
 import glob, json, os, re, sys, time, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -62,7 +65,9 @@ def main():
         m = re.search(r'^ID:(\d+)', '\n'.join(lines[:8]), re.M)
         # 머리글에 ID 가 없으면 옆 `_admrul.json` 의 행정규칙일련번호를 쓴다
         # (2026-08-31 — 「선박법 사무취급 요령」이 이 이유로 조사에서 통째로 빠져 있었다).
-        aid = m.group(1) if m else None
+        # ★판번호를 찾는 법은 `_admrul_id.find_id()` 한 곳에 있다(P-19b · L-386).
+        #   위 `m` 은 옛 자다 — 지우지 않고 남기되, 값은 한 곳에서 받는다.
+        aid = find_id(p, chr(10).join(lines[:8]))[0] or (m.group(1) if m else None)
         if not aid:
             mp = os.path.join(os.path.dirname(p), '_admrul.json')
             if os.path.exists(mp):

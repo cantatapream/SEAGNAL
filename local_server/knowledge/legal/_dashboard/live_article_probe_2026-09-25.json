@@ -1,0 +1,159 @@
+{
+  "생성": "2026-09-25T22:47:10.580Z",
+  "문항": 291,
+  "서로 다른 (법·조) 조합": 2847,
+  "열렸다": 2827,
+  "열림 비율": "99.3%",
+  "못 연 사유": {
+    "bad_request": 10,
+    "file_not_found": 3,
+    "law_not_found": 4,
+    "article_not_found": 3
+  },
+  "첨부 총계": 1177,
+  "  └ 별표": 752,
+  "  └ 서식·별지": 384,
+  "  └ 이미지": 41,
+  "실패표본": [
+    {
+      "law": "도선법",
+      "article": "부칙 <제7788호,2005.12.29> 제2항",
+      "tier": "law",
+      "baseLaw": "도선법",
+      "reason": "bad_request"
+    },
+    {
+      "law": "선원법 시행규칙",
+      "article": "제58~58조의10",
+      "tier": "rule",
+      "baseLaw": "선원법",
+      "reason": "bad_request"
+    },
+    {
+      "law": "「행정절차법」·「행정심판법」·「행정소송법」",
+      "article": "제21~23조 등",
+      "tier": "law",
+      "baseLaw": "수산업ㆍ어촌 발전 기본법",
+      "reason": "bad_request"
+    },
+    {
+      "law": "해양경찰법 제11조제5항 단서에 따른 긴급하고 중요한 사건의 범위 등에 관한 규정(대통령령)",
+      "article": "제5조",
+      "tier": "decree",
+      "baseLaw": "해양경찰법",
+      "reason": "file_not_found"
+    },
+    {
+      "law": "선박안전법 적용을 받는 특수한 구조로 되어 있는 선박의 종류에 대한 고시",
+      "article": "제2조·제3조",
+      "tier": "notice",
+      "baseLaw": "선박안전법",
+      "reason": "file_not_found"
+    },
+    {
+      "law": "「항로표지의 기능 및 규격에 관한 기준」(고시)",
+      "article": "제1~56·79조(원문 실제 총 81조·17장 — 종전 \"총 58조\" 표기는 오류) + 별표1~11·1의2·1의3(2026-07-21 Stage B 전사 반영)",
+      "tier": "notice",
+      "baseLaw": "항로표지법",
+      "reason": "bad_request"
+    },
+    {
+      "law": "괴산군·충주시·보은군·진천군·음성군·진안군·당진시 「유선 및 도선의 안전검사 수수료 징수 조례」(시행령 제12조⑥ 위임)",
+      "article": "제2조",
+      "tier": "decree",
+      "baseLaw": "유선 및 도선 사업법",
+      "reason": "law_not_found"
+    },
+    {
+      "law": "개발대상도서 지정",
+      "article": "전문",
+      "tier": "notice",
+      "baseLaw": "섬 발전 촉진법",
+      "reason": "article_not_found"
+    },
+    {
+      "law": "유류오염손해에 대한 민사책임에 관한 국제협약(1969년 원협약)",
+      "article": "제1조제6호",
+      "tier": "law",
+      "baseLaw": "유류오염손해배상 보장법",
+      "reason": "law_not_found"
+    },
+    {
+      "law": "유류오염손해에 대한 민사책임에 관한 국제협약(1969년 원협약)",
+      "article": "제2조",
+      "tier": "law",
+      "baseLaw": "유류오염손해배상 보장법",
+      "reason": "law_not_found"
+    },
+    {
+      "law": "「전담기관의 지정 및 운영 요령」(고시)",
+      "article": "제4~7조(제8조는 삭제)",
+      "tier": "notice",
+      "baseLaw": "수산업ㆍ어촌 발전 기본법",
+      "reason": "bad_request"
+    },
+    {
+      "law": "수상레저안전법 시행령",
+      "article": "제25·26조·시행규칙 제37조",
+      "tier": "decree",
+      "baseLaw": "수상레저안전법",
+      "reason": "bad_request"
+    },
+    {
+      "law": "「항만법」 개정 부칙",
+      "article": "제9773호(2009.6.9)⑮ 등",
+      "tier": "law",
+      "baseLaw": "신항만건설 촉진법",
+      "reason": "bad_request"
+    },
+    {
+      "law": "개정 부칙",
+      "article": "제5453호(1997.12.13) 제5조 등",
+      "tier": "law",
+      "baseLaw": "신항만건설 촉진법",
+      "reason": "law_not_found"
+    },
+    {
+      "law": "태안해양경찰서 통개항 해역 출입통제구역 지정 공고",
+      "article": "전문",
+      "tier": "notice",
+      "baseLaw": "연안사고 예방에 관한 법률",
+      "reason": "article_not_found"
+    },
+    {
+      "law": "태안해양경찰서 안흥외항 테트라포드 출입통제구역 지정 공고",
+      "article": "전문",
+      "tier": "notice",
+      "baseLaw": "연안사고 예방에 관한 법률",
+      "reason": "article_not_found"
+    },
+    {
+      "law": "자연유산의 보존 및 활용에 관한 법률 시행규칙",
+      "article": "별표",
+      "tier": "rule",
+      "baseLaw": "자연유산의보존및활용에관한법률",
+      "reason": "bad_request"
+    },
+    {
+      "law": "「항로표지 장비·용품 검사수수료」 고시",
+      "article": "별표1 전체(사용전·정기검사, 점멸식/회전식×LED/전구식×NM구간)",
+      "tier": "notice",
+      "baseLaw": "항로표지법",
+      "reason": "bad_request"
+    },
+    {
+      "law": "해사안전기본법",
+      "article": "부칙 제4·7조 (법률 제19572호)",
+      "tier": "law",
+      "baseLaw": "해사안전기본법",
+      "reason": "bad_request"
+    },
+    {
+      "law": "해양수산부고시 제2020-11호",
+      "article": "부산 해양공간관리계획(부산 및 부산 인근 EEZ 해역)",
+      "tier": "notice",
+      "baseLaw": "해양공간계획 및 관리에 관한 법률",
+      "reason": "file_not_found"
+    }
+  ]
+}

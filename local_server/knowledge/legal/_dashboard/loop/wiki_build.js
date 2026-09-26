@@ -1,3 +1,4 @@
+const path = require('path');
 export const meta = {
   name: 'maritime-wiki-build',
   description: '해양법률 raw → 위키 페이지를 다수 에이전트로 병렬 구축(동일 _SCHEMA.md 지침)',
@@ -7,7 +8,7 @@ export const meta = {
   ],
 }
 
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const SCHEMA = `${LEGAL}/_SCHEMA.md`
 
 const MANIFEST = {

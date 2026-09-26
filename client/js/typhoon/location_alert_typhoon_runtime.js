@@ -190,7 +190,12 @@
             const BG = root.LocationAlertBackground;
             let pos = null;
             if (BG && typeof BG.getFreshPosition === 'function') {
-                try { pos = await BG.getFreshPosition(); } catch (_) { pos = null; }
+                try { pos = await BG.getFreshPosition(); } catch (e) {
+                    // ★조용히 넘어가지 않는다 (3-44). 위치가 없으면 **태풍 알림 판단을 건너뛴다** —
+                    //   「태풍이 안 가까웠다」와 겉으로 똑같다.
+                    console.warn('[Typhoon] 위치 획득 실패 — 태풍 알림 판단을 건너뛴다:', e && e.message);
+                    pos = null;
+                }
             } else if (BG && BG.getPosition) {
                 try { pos = BG.getPosition(); } catch (_) { pos = null; }
             }
@@ -213,7 +218,7 @@
             }
             if (!typhoons || typhoons.length === 0) { console.log('[TyphoonRuntime] 활성 태풍 없음 → skip'); return; }
             // buildDemoUrl 연도 폴백용으로 전역에 잠깐 보관(없어도 동작).
-            if (year != null) try { root.__typhoonYear = year; } catch (_) { }
+            if (year != null) try { root.__typhoonYear = year; } catch (_) { /* 전역에 값을 얹는 일이다 — 막힌 환경이면 그 해(年) 표시만 빠지고 태풍 판정은 그대로 돈다 */ }
 
             // ④ 각 태풍 판정 — 진입한 태풍마다 1건.
             const results = decideTyphoonAlerts(loc, typhoons);

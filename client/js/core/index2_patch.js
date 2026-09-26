@@ -234,15 +234,15 @@ function _scheduleActiveMapResize() {
         try {
             var m1 = window.getOceanMap && window.getOceanMap();
             if (m1 && m1.updateSize) m1.updateSize();
-        } catch (e) {}
+        } catch (e) { /* 그 탭의 지도가 아직 안 만들어졌으면 던진다 — 나머지 두 지도는 아래에서 계속 맞춘다 */ }
         try {
             var m2 = window.getFishingMap && window.getFishingMap();
             if (m2 && m2.updateSize) m2.updateSize();
-        } catch (e) {}
+        } catch (e) { /* 같은 까닭 — 지도마다 따로 감싸는 것이 하나가 없다고 나머지를 건너뛰지 않기 위해서다 */ }
         try {
             var m3 = (window._surfing && window._surfing.map) || null;
             if (m3 && m3.updateSize) m3.updateSize();
-        } catch (e) {}
+        } catch (e) { /* 같은 까닭 — 서핑 지도는 그 탭에 들어가야 생긴다 */ }
     }
     // 즉시 한 번 + transition 완료 후 한 번 (총 2회 호출해 중간 상태/최종 상태 모두 대응)
     requestAnimationFrame(_resizeAll);
@@ -373,7 +373,7 @@ window.switchMainTab = function (targetId) {
                 if (window.oceanOverlayInit) window.oceanOverlayInit(m);
                 // OL 에 강제 렌더 요청 — prerender 훅을 재호출해 파티클 합성 재개
                 if (m.render) m.render();
-            } catch (e) {}
+            } catch (e) { /* 복구 도중 지도가 이미 사라졌으면 던진다 — 다음 탭 전환 때 같은 복구가 다시 돈다 */ }
         }
         requestAnimationFrame(_oceanRevive);
         setTimeout(_oceanRevive, 400);
@@ -428,7 +428,7 @@ function _applyOceanInitialCenter(map) {
 
     try {
         map.getView().setCenter(ol.proj.fromLonLat([lon, lat]));
-    } catch (e) {}
+    } catch (e) { /* 뷰가 아직 준비 전이면 던진다 — 지도는 기본 좌표로 그대로 뜬다 */ }
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -964,7 +964,7 @@ function _bindOverlayButtonHoverReset() {
             btn.addEventListener('click', function () {
                 // click 처리(active 토글 등)가 완료된 뒤에 실행되도록 지연
                 setTimeout(function () {
-                    try { btn.blur(); } catch (e) {}
+                    try { btn.blur(); } catch (e) { /* 이미 화면에서 빠진 버튼이면 던진다 — 초점 해제는 못 해도 누른 동작은 이미 끝났다 */ }
                     var prev = btn.style.pointerEvents;
                     btn.style.pointerEvents = 'none';
                     requestAnimationFrame(function () {

@@ -138,7 +138,10 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
     }
 
     var pushHistory = [];
-    try { var hRes = await fetch('/api/push-history'); if (hRes.ok) pushHistory = await hRes.json(); } catch (e) { }
+    try { var hRes = await fetch('/api/push-history'); if (hRes.ok) pushHistory = await hRes.json(); } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **보낸 기록이 빈 채로** 그려진다 — 「보낸 적이 없다」와 같아 보인다.
+        console.warn('[알림] 발송 이력 조회 실패 — 이력 없이 그린다:', e && e.message);
+    }
 
     var allAlerts = [...appState.alerts].filter(function(a) { return !a.isCoastal && !a.zoneName.includes('연안바다') && !a.zoneName.includes('평수구역'); });
 
@@ -429,7 +432,11 @@ window.renderCustomPushTab = async function (container) {
         ]);
         if (histRes.ok) history = await histRes.json();
         if (statsRes.ok) window._subscriberStats = await statsRes.json();
-    } catch (e) { }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **이력·구독자 수가 빈 채로** 그려진다 —
+        //   「보낸 적이 없다·구독자가 없다」와 같아 보인다.
+        console.warn('[알림] 이력·구독자 통계 조회 실패 — 빈 값으로 그린다:', e && e.message);
+    }
 
     var regions = {};
     if (typeof SUB_REGION_ZONES !== 'undefined') {

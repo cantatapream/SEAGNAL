@@ -15,3 +15,18 @@
 
 ## 연계
 - `_dashboard/pending_discussions.md`의 "피드백 학습" 항목의 실체.
+
+---
+
+## ★2026-09-24 정정 (3-13 · N-3) — **설계는 이미 코드가 되어 있다. 다만 파일이 아직 없다**
+
+옛 서술을 지우지 않고 정정만 붙인다. **직접 재 봤다**(추측 아님):
+
+| 물음 | 실측 |
+|---|---|
+| 코드가 있나 | **있다** — `routes/legal.js` 가 `_feedback/logs.jsonl`·`_candidates/queue.jsonl` 에 쓰고 읽는다(`FEEDBACK_FILE`·`CANDIDATES_FILE`·`logKnowledgeCandidate`) |
+| 파일이 있나 | **없다** — 아직 아무도 👍/👎 를 누르지 않았다(서비스 전). **결함이 아니다** |
+| 위 「파일」 절이 맞나 | **아니다** — `triage.md`·`verified.md` 는 **어느 코드도 쓰지 않는다.** 코드가 `logs.jsonl`·`queue.jsonl` **한 파일**에 `triage`·`status` 칸으로 합쳤다(`legal.js` 719·793 주석: *"파일 하나로 단순화"*) |
+
+⇒ **이 폴더는 「미구현」이 아니라 「아직 빈 것」이다.** 비어 있다고 지우지 않는다.
+⇒ 위 「## 파일」 절의 `triage.md`·`verified.md` 는 **설계 당시의 계획**이고, 실제 구현은 한 파일이다.

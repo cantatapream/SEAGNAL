@@ -1,3 +1,4 @@
+const path = require('path');
 // collection_hole_graceful.js — 재확인된 a_genuine/b_structural collection_hole에 H-30 3요건(위임체인+경계선언+소관부서 연락처)을 붙여 "정직한 답변"으로 완성
 // 역할(초보자용): collection_hole_reclass_report_g<N>.md가 "진짜 원문공백(a)"·"구조적 접근불가(b)"로
 //   재확인한 항목이 위키 페이지에서 그냥 "확인 안 됨"으로 끝나 있으면, H-30 기준(_SCHEMA.md §6-C) —
@@ -12,7 +13,7 @@ export const meta = {
   phases: [{ title: '정직답변보강', detail: '그룹 리포트의 a_genuine·b_structural 절을 읽고 위키에 3요건 확인·보강' }],
 }
 
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object',

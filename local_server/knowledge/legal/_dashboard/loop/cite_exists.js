@@ -23,6 +23,8 @@ const fs = require('fs');
 const path = require('path');
 const LEGAL = path.resolve(__dirname, '../..');
 const WIKI = path.join(LEGAL, 'wiki');
+// 2-6 세는 법 사전 — 「근거 조문 행」의 뜻과 범위는 여기 하나에만 적혀 있다.
+const COUNT = require('./_counting.js');
 const RAW = path.join(LEGAL, 'raw');
 
 /** raw 폴더를 훑어 `법이름 → 그 법에 실재하는 조문 번호 집합` 을 만든다. */
@@ -79,12 +81,15 @@ for (const kind of ['concepts', 'statutes', 'annexes', 'comparisons']) {
   if (!fs.existsSync(dir)) continue;
   for (const f of fs.readdirSync(dir)) {
     if (!f.endsWith('.md')) continue;
-    const cj = section(fs.readFileSync(path.join(dir, f), 'utf8'), '근거\\s*조문');
-    for (let line of cj.split('\n')) {
-      line = line.trim();
-      if (!line.startsWith('|') || /^\|[\s:|-]+\|$/.test(line)) continue;
-      const c = line.replace(/^\||\|$/g, '').split('|').map(x => x.trim());
-      if (c.length < 2) continue;
+    // ★행 고르기를 **세는 법 사전**에 맡긴다 (2026-09-22, 2-6).
+    //   [무엇이 틀렸었나] 종전에는 구분선(`|---|`)만 건너뛰고 **표 머리행**
+    //   (`| 법령명 | 조문 | 시행일 | 요지 |`)은 데이터 행으로 셌다. 그 탓에 이 도구가
+    //   보고하던 19,161 이 실제보다 **1,248행 부풀어** 있었고, 같은 것을 세는 다른 두
+    //   도구(14,218·17,903)와 영영 안 맞았다(G-10 = 뿌리 사슬 ⑥).
+    //   [왜 사전에 맡기나] 여기서 다시 직접 쪼개면 또 갈린다. 절 찾기·칸 쪼개기는
+    //   **생산 함수의 것 하나**(`R.sectionTable`·`R.tableCells`)만 쓴다(L-136).
+    const body = COUNT.stripFrontmatter(fs.readFileSync(path.join(dir, f), 'utf8'));
+    for (const c of COUNT.writtenRows(body)) {
       rows++;
       // 법령 칸에서 이름만 남긴다(괄호 주석·낫표·강조 제거). 계층(시행령 등)은 떼어 모법으로 본다.
       const law = c[0].replace(/[「」*\[\]]/g, '').replace(/\(.*?\)/g, '')
@@ -100,7 +105,9 @@ for (const kind of ['concepts', 'statutes', 'annexes', 'comparisons']) {
     }
   }
 }
-console.log(`근거 조문 행 ${rows.toLocaleString()}개 · 그중 raw 로 대조 가능한 행 ${checked.toLocaleString()}개`);
+// ⚠숫자만 말하지 않는다 — **뜻과 범위를 함께** 말한다(2-6). 그러지 않으면 또 갈린다.
+console.log(`근거 조문 행 ${rows.toLocaleString()}개 (뜻: 표에 적힌 데이터 행 · 범위: ${COUNT.SCOPES.indexed})`
+  + ` · 그중 raw 로 대조 가능한 행 ${checked.toLocaleString()}개`);
 console.log(`\n★인용 오류 후보(그 법 raw 를 **전문으로** 갖고 있는데 그 조가 없다): ${bad.length}개`);
 if (process.argv.includes('--examples')) bad.slice(0, 25).forEach(b => console.log('  ' + b));
 console.log(`\n수집 공백(그 법 raw 가 **발췌본**이라 판단 보류 — 4축 ①): ${partial.length}개`);

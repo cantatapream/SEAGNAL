@@ -1,3 +1,4 @@
+const path = require('path');
 // backlog_fix.js — 법별 **미해소 백로그**(_dashboard/backlog/<법>.md)를 사서가 확인·처리한다(H-43).
 // 역할(초보자용): 감사 파일은 한 법에 6,000줄이 넘어 사서가 옛 항목까지 되짚지 못한다.
 //   그래서 "아직 안 고쳐진 것만" 뽑아 짧은 목록으로 만들어 뒀다. 이 스크립트는 그 목록을
@@ -18,7 +19,7 @@ export const meta = {
   description: '법별 미해소 백로그를 확인·처리(H-43). 자기 법 파일만 = 병렬안전.',
   phases: [{ title: '백로그처리', detail: '법별 1에이전트: 위키 현재상태 확인 → 해소면 체크, 미해소면 수정·재분류' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const MANIFEST = {
   type: 'object', required: ['law', 'status', 'checked'],

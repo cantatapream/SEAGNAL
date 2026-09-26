@@ -25,7 +25,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
+const R = require(require('path').resolve(__dirname, '../../../../services/legal_retriever.js'));
 const G = require('./golden_eval.js');
 
 const HERE = __dirname;

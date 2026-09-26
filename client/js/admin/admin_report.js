@@ -198,6 +198,9 @@ async function loadReportList() {
         _allReports = norm.items;
     } catch (e) {
         if (myReq !== _reportSeq) return;
+        // ★조용히 넘어가지 않는다 (3-44). **제보가 하나도 없는 것처럼** 그려진다 —
+        //   「제보가 없다」와 「못 받았다」가 구분되지 않았다.
+        console.warn('[관리자] 제보 목록 조회 실패 — 「제보 없음」으로 그린다:', e && e.message);
         _allReports = [];
     }
     if (myReq !== _reportSeq) return;
@@ -404,6 +407,8 @@ async function _loadCommentReportList(depth = 0) {
         }
     } catch (e) {
         if (myReq !== _commentReportSeq) return;
+        // ★조용히 넘어가지 않는다 (3-44). **댓글 신고가 하나도 없는 것처럼** 그려진다.
+        console.warn('[관리자] 댓글 신고 목록 조회 실패 — 「신고 없음」으로 그린다:', e && e.message);
         _allCommentReports = [];
         _commentReportPagination = { page: 1, limit: _COMMENT_REPORT_LIMIT, total: 0, totalPages: 1 };
     }
@@ -540,7 +545,11 @@ window._processCommentReport = async function(id, status) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ isAdmin: true, deletedBy: 'admin' })
                 });
-            } catch (e) { /* 이미 삭제된 경우 무시 */ }
+            } catch (e) {
+                // ★조용히 넘어가지 않는다 (3-44). 보통은 **이미 지워진 것**이라 정상이다.
+                //   다만 망 오류일 때도 똑같이 조용해서 **안 지워졌는데 지운 줄 알게 된다.**
+                console.warn('[관리자] 연결 글 삭제 요청 실패(이미 지워졌거나 망 오류):', e && e.message);
+            }
         }
     }
 
@@ -555,7 +564,10 @@ window._processCommentReport = async function(id, status) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ isAdmin: true, deletedBy: 'admin' })
                 });
-            } catch (e) { /* 무시 */ }
+            } catch (e) {
+                // ★조용히 넘어가지 않는다 (3-44). **안 지워졌는데 지운 줄 알게 된다.**
+                console.warn('[관리자] 연결 글 삭제 요청 실패:', e && e.message);
+            }
         }
     }
 
@@ -589,7 +601,11 @@ window._showReportDetail = async function (id) {
             report.isRead = true; // 로컬 상태 즉시 반영
             // 헤더 봉투 뱃지도 즉시 갱신
             if (typeof window.updateReportBadge === 'function') window.updateReportBadge();
-        } catch (e) { /* 읽음 처리 실패해도 상세보기는 정상 진행 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 상세보기는 뜨지만 **읽음 처리가 서버에 안 남아**
+            //   봉투 뱃지가 다음에 또 뜬다.
+            console.warn('[관리자] 읽음 처리 실패 — 뱃지가 다시 뜬다:', e && e.message);
+        }
     }
 
     const body = document.getElementById('unified-admin-body');
@@ -1297,6 +1313,9 @@ async function loadBlockList() {
         if (!res.ok) throw new Error('API 오류');
         _allBlocks = await res.json();
     } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **차단 목록이 빈 채로** 그려진다 —
+        //   「차단된 것이 없다」와 같아 보여, 실제 차단을 못 보고 지나친다.
+        console.warn('[관리자] 차단 목록 조회 실패 — 「차단 없음」으로 그린다:', e && e.message);
         _allBlocks = { reportBlocks: [], tideBlocks: [], appBlocks: [] };
     }
     renderBlockList();

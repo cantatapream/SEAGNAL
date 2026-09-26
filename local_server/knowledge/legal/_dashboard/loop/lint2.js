@@ -1,3 +1,4 @@
+const path = require('path');
 export const meta = {
   name: 'maritime-wiki-lint-round2',
   description: 'lint 2라운드: 백본 정의 허브 신설(영해법 등) + 역링크(비대칭) 보강',
@@ -7,7 +8,7 @@ export const meta = {
     { title: '비평', detail: '재색인 후 완결성 점검' },
   ],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const SCHEMA = `${LEGAL}/_SCHEMA.md`
 
 // 피인용 최다 백본 법 — 정의 허브(개념 페이지) 신설/강화

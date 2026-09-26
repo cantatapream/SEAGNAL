@@ -31,6 +31,9 @@ import json, os, re, sys, time, urllib.request
 OC = 'hyoo1431'
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
+# ★2026-09-23 (3-39) — 저장소 뿌리를 **이 파일 자리에서** 센다.
+#   전에는 `'/home/user/SEAGNAL'` 이 박혀 있어 **다른 컴퓨터에서는 그냥 안 돌았다**(G-31).
+REPO = os.path.abspath(os.path.join(LEGAL, '..', '..', '..'))
 SWEEP = os.path.join(LEGAL, '_dashboard', 'delegated_sweep')
 
 # 개별 처분 — 특정 대상 하나를 지정·조정·해제하는 고시. 일반 규범이 아니라 받지 않는다.
@@ -93,7 +96,7 @@ def main():
         rel = paths.get(law)
         if not rel:
             print(f'✖ {law}: law_raw_paths.json 에 없다'); continue
-        d = os.path.join('/home/user/SEAGNAL', rel, '행정규칙')
+        d = os.path.join(REPO, rel, '행정규칙')
         os.makedirs(d, exist_ok=True)
         print(f'===== {law} — 받을 것 {len(todo)}건')
         for title, ID in todo:

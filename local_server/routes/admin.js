@@ -295,7 +295,7 @@ router.post('/api/admin/children-reset', (req, res) => {
         for (const c of childrenToForget) {
             try {
                 forgottenKeys += dmdwPushSender.forgetChild(c.parentZone, c.display);
-            } catch (_) {}
+            } catch (_) { /* 한 아이의 기록 삭제가 실패해도 나머지 아이들은 계속 지운다(아래 합계에 안 더해진다) */ }
         }
 
         // tree 재귀: zone leaf 의 children 만 null 로
@@ -1337,7 +1337,7 @@ router.post('/api/admin/maintenance', (req, res) => {
         let config = { active: false, title: '', content: '', startedAt: null, startedBy: 'admin', blockPush: true, blockedFeatures: [] };
 
         if (fs.existsSync(MAINTENANCE_FILE)) {
-            try { config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')); } catch (_) {}
+            try { config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')); } catch (_) { /* 점검 설정 파일이 없거나 깨졌으면 던진다 — 빈 설정(점검 아님)으로 본다 */ }
         }
 
         if (typeof active === 'boolean') config.active = active;
@@ -1383,7 +1383,7 @@ router.post('/api/admin/app-version', (req, res) => {
         // 기존 파일 읽기
         let config = {};
         if (fs.existsSync(APP_VERSION_FILE)) {
-            try { config = JSON.parse(fs.readFileSync(APP_VERSION_FILE, 'utf8')); } catch (_) {}
+            try { config = JSON.parse(fs.readFileSync(APP_VERSION_FILE, 'utf8')); } catch (_) { /* 앱 버전 파일이 없거나 깨졌으면 던진다 — 빈 설정으로 본다(강제 업데이트 안 검) */ }
         }
 
         // 값 업데이트
@@ -1482,7 +1482,7 @@ router.post('/api/admin/maintenance-features', (req, res) => {
         let config = { active: false, title: '', content: '', startedAt: null, startedBy: 'admin', blockedFeatures: [] };
 
         if (fs.existsSync(MAINTENANCE_FILE)) {
-            try { config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')); } catch (_) {}
+            try { config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')); } catch (_) { /* 같은 까닭 — 점검 설정을 못 읽으면 점검 중이 아닌 것으로 본다 */ }
         }
 
         if (Array.isArray(blockedFeatures)) config.blockedFeatures = blockedFeatures;

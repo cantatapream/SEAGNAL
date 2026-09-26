@@ -1,3 +1,4 @@
+const path = require('path');
 // tech_standard_wiki_cell.js — 기술기준(설비·구조 고시) 기준법-급 위키 구축 셀
 // 역할(초보자용): 선박설비·구명·소방·전기·구조·어선설비/기관 등 "내 배에 뭘 갖춰야 하나"의 실제 답이 되는
 //   기술기준 행정규칙을, 기준법과 동일한 깊이(정의→적용범위(선종·톤수)→의무항목(조·별표)→처벌연결→소관부서)의
@@ -29,7 +30,7 @@ const STANDARDS = [
   { name: '어선복원성 및 만재흘수선 기준', parent: '어선법', kw: '어선복원성' },
 ]
 
-const ROOT = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const ROOT = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object',

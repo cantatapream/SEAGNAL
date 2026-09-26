@@ -25,11 +25,15 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
+// ⚠2026-09-22(G-31) — 여기는 예전에 `/home/user/SEAGNAL/...` 절대경로였다. 그 탓에 이 게이트는
+//   **이 컨테이너 한 대에서만** 돌았고, 깃허브 CI 에서는 MODULE_NOT_FOUND 로 죽으면서
+//   진단 한 줄 없이 실패만 세웠다(CI run #27 에서 같은 이유로 7개 게이트가 동시에 죽어 있었다).
+//   저장소 안 상대경로로 바꾼다 — 어디에 체크아웃하든 따라온다.
+const R = require('../../../../services/legal_retriever.js');
 
 // `--wiki <디렉터리>` 로 다른 시점의 위키를 가리킬 수 있다(git 으로 옛 커밋을 꺼내 기준선을 잡을 때).
 const _wi = process.argv.indexOf('--wiki');
-const WIKI = _wi >= 0 ? process.argv[_wi + 1] : '/home/user/SEAGNAL/local_server/knowledge/legal/wiki';
+const WIKI = _wi >= 0 ? process.argv[_wi + 1] : path.resolve(__dirname, '../../wiki');
 // ⚠**코드가 실제로 어떻게 대조하는지에 맞춰 두 갈래로 나눈다**(2026-08-19 정정).
 //   `시행령`·`시행규칙`만 적힌 칸은 lawMentionedInAnswer 의 ⓐ 갈래가 그 페이지의 법을 붙여
 //   (`<법이름> 시행령`) 대조하므로 **결함이 아니다**(services/legal_retriever.js BARE_TIER_CELL_RE).
@@ -124,7 +128,10 @@ const LABEL = {
   article_all: '④ 조문 칸이 전체·전문',
   paren: '⑤ 법령 칸에 괄호 주석(코드가 감당함 — 추이 관찰용)',
 };
-console.log(`개념 페이지 ${now.pages}개 · 근거 조문 행 ${now.rows}개`);
+// ⚠숫자만 말하지 않는다 — **뜻과 범위를 함께**(2-6 세는 법 사전). 이 도구는 개념 페이지만 본다.
+const _CNT = require('./_counting.js');
+console.log(`개념 페이지 ${now.pages}개 · 근거 조문 행 ${now.rows}개`
+  + ` (뜻: 챗봇이 꺼내는 사슬 항목 · 범위: ${_CNT.SCOPES.concepts})`);
 console.log(`(참고: 법령 칸이 '시행령'·'시행규칙'뿐인 행 ${now.tier_ok}개 — 원문 **찾아오기**는 된다`);
 console.log(`   (코드가 페이지의 법을 붙여 대조한다). 다만 **보여주기**는 화면 쪽에서 따로 막고 있다 —`);
 console.log(`   여러 법이 섞인 답변에서 근거 목록이 "시행규칙 제1조의2"처럼 어느 법인지 없이 나오던 것을`);

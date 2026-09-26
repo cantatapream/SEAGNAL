@@ -143,7 +143,7 @@ function _writeLastKey(key) {
     try {
         fs.mkdirSync(path.dirname(_SIG_FILE), { recursive: true });
         fs.writeFileSync(_SIG_FILE, JSON.stringify({ key: key, at: new Date().toISOString() }));
-    } catch (_) { }
+    } catch (_) { /* 지문 파일을 못 써도 발송은 진행한다 — 다음 회차에 중복 판정만 느슨해진다 */ }
 }
 
 /** 활성 태풍 배열에서 active 한 것만(이름 등으로 요약). typhoon.json 의 typhoons 형태 가정. */
@@ -247,7 +247,7 @@ async function dispatchTyphoonOnLatest(opts = {}) {
 
         return await dispatchTyphoon(json, opts);
     } catch (e) {
-        try { console.error('[TyphoonRadiusDispatch] dispatchTyphoonOnLatest 실패(무시):', e && e.message); } catch (_) { }
+        try { console.error('[TyphoonRadiusDispatch] dispatchTyphoonOnLatest 실패(무시):', e && e.message); } catch (_) { /* 이미 예외 처리 중이다 — 로그 출력마저 막힌 환경이면 더 할 일이 없다 */ }
         return { sent: 0, reason: 'error' };
     }
 }

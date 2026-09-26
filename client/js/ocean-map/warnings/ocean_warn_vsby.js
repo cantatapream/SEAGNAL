@@ -464,7 +464,7 @@
         state.refreshTimer = setTimeout(function () {
             state.refreshTimer = null;
             if (window.ZoneAvg && typeof window.ZoneAvg.refreshAll === 'function') {
-                try { window.ZoneAvg.refreshAll(); } catch (e) {}
+                try { window.ZoneAvg.refreshAll(); } catch (e) { /* 남의 층(zone_avg)을 다시 그리는 일이라 저쪽 실패가 시정 경고를 멈추면 안 된다 */ }
             }
         }, 150);
     }
@@ -663,7 +663,7 @@
     function _removeLayer() {
         var map = _getMap();
         if (state.layer && map) {
-            try { map.removeLayer(state.layer); } catch (e) {}
+            try { map.removeLayer(state.layer); } catch (e) { /* 이미 지도에서 빠진 층이면 던진다 — 지우려던 것이 없는 것이니 그대로 둔다 */ }
         }
         state.layer = null;
         state.activeCode = null;
@@ -765,7 +765,7 @@
             var layers = [];
             // 베이스맵(OSM) — 빌드에 없으면 가드해 벡터만 표시(팝업 자체는 항상 뜸).
             var hasOsm = false;
-            try { if (ol.source && ol.source.OSM) { layers.push(new ol.layer.Tile({ source: new ol.source.OSM(), opacity: 0.9 })); hasOsm = true; } } catch (e) {}
+            try { if (ol.source && ol.source.OSM) { layers.push(new ol.layer.Tile({ source: new ol.source.OSM(), opacity: 0.9 })); hasOsm = true; } } catch (e) { /* 빌드에 OSM 소스가 없으면 던진다 — 베이스맵만 빠지고 벡터 격자와 팝업은 그대로 뜬다 */ }
             layers.push(vLayer);
             // OL 기본 저작권 컨트롤은 끄고(중앙/우측에 떠 보이는 문제), 직접 좌측하단에 고정 표기.
             var ctrls; try { ctrls = ol.control.defaults.defaults({ attribution: false }); } catch (e) { try { ctrls = ol.control.defaults({ attribution: false }); } catch (e2) { ctrls = undefined; } }
@@ -784,7 +784,7 @@
             }
             state.popupMap = map;
             setTimeout(function () {
-                try { map.updateSize(); } catch (e) {}
+                try { map.updateSize(); } catch (e) { /* 팝업이 그새 닫혀 지도가 사라졌으면 던진다 — 크기 맞추기는 다음에 열 때 다시 한다 */ }
                 if (meta && Array.isArray(meta.viewBox) && meta.viewBox.length === 4) _fitToExtentLonLat(map, meta.viewBox);
                 else if (built.features.length) _fitToFeatures(map, vLayer.getSource());
             }, 40);
@@ -795,13 +795,13 @@
             state.activeCode = code;
             _refreshBadgeActiveState();
             // 하드웨어 뒤로가기 버튼으로 닫히도록 팝업 스택에 등록(backbutton.js).
-            try { if (window.PopupStack) window.PopupStack.push('vsby-zone-popup', _closePopup); } catch (e) {}
+            try { if (window.PopupStack) window.PopupStack.push('vsby-zone-popup', _closePopup); } catch (e) { /* 뒤로가기 스택은 있을 때만 쓴다 — 없으면 팝업은 뜨고 하드웨어 뒤로가기만 안 걸린다 */ }
         });
     }
 
     function _closePopup() {
-        try { if (window.PopupStack) window.PopupStack.remove('vsby-zone-popup'); } catch (e) {}
-        if (state.popupMap) { try { state.popupMap.setTarget(null); } catch (e) {} state.popupMap = null; }
+        try { if (window.PopupStack) window.PopupStack.remove('vsby-zone-popup'); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ }
+        if (state.popupMap) { try { state.popupMap.setTarget(null); } catch (e) { /* 이미 떼어진 지도면 던진다 — 어차피 버리는 지도라 그대로 둔다 */ } state.popupMap = null; }
         if (state.popupEl && state.popupEl.parentNode) state.popupEl.parentNode.removeChild(state.popupEl);
         state.popupEl = null;
         state.activeCode = null;
@@ -910,7 +910,7 @@
         //    로드 완료 시 refreshAll 로 보강.)
         _loadGridMap().then(function () {
             if (window.ZoneAvg && typeof window.ZoneAvg.refreshAll === 'function') {
-                try { window.ZoneAvg.refreshAll(); } catch (e) {}
+                try { window.ZoneAvg.refreshAll(); } catch (e) { /* 같은 까닭 — 남의 층 보강이라 실패해도 이쪽 그림은 이미 다 그려져 있다 */ }
             }
             // 특보/기상 데이터 갱신 시 평균박스 재생성으로 시정 자동 합류 → 별도 관찰 불필요.
         });

@@ -1,0 +1,18 @@
+{
+ "script": "tier_fill",
+ "stamp": "20260924-013316-088",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/국제민간항공협약/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/2004년선박평형수및침전물의통제및관리를위한국제협약/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/1979년해상수색및구조에관한국제협약/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/국제해상충돌예방규칙협약_COLREG/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/선원의훈련자격증명및당직근무기준에관한국제협약_STCW/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/1974년해상에서의인명안전을위한국제협약_SOLAS/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/만재흘수선에관한국제협약/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/해양법에관한국제연합협약(UNCLOS)/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/선박으로부터의오염방지를위한국제협약_MARPOL/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/안전한콘테이너를위한국제협약_CSC/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/물새서식처로서국제적으로중요한습지에관한협약/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/1969년선박톤수측정에관한국제협약/_meta.json"
+ ]
+}

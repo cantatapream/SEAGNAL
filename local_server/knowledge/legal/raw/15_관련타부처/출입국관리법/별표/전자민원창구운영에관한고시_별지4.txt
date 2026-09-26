@@ -1,0 +1,52 @@
+[전자민원창구 운영에 관한 고시] 별지4 — 전자민원 불허(불수리)통지서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000257762 (수집 2026-09-25 · 옛 기록은 도구에 박힌 날짜 때문에 2026-08-31 로 적혀 있었다)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=151064267
+
+【별지 서식 4호】전자민원 불허(불수리)통지서
+┌─────────────────────────────────────────────────────┐
+│                                                                                                          │
+│  법무부                    Ministry of Justice                                                           │
+│  출입국·외국인정책본부    Korea Immigration Service                                                     │
+│────────────────────────────                                                  │
+│                                                                                                          │
+│┌───────────────────────────┐                                                │
+││전자민원 불허·불수리통지서                           │                                                │
+││(Disapproval/Non Acceptance Notice for e-Application) │                                                │
+│└───────────────────────────┘                                                │
+│                                                                                                          │
+│ □ 민원인 정보(Applicant Information)                                                                    │
+│   ? 국적(Nationality)                                                                                   │
+│   ? 성명(Full name)                                                                                     │
+│   ? 성별(Sex)                                                                                           │
+│   ? 생년월일(Date of Birth)                                                                             │
+│   ? 외국인등록번호(Alien Registration No.)                                                              │
+│                                                                                                          │
+│ □ 신청민원 종류(Type of e-Application)                                                                  │
+│    :                                                                                                     │
+│                                                                                                          │
+│ □ 불허사유(Reasons for Disapproval/Non Acceptance)                                                      │
+│    :                                                                                                     │
+│                                                                                                          │
+│ □ 출국기한(Deadline for Departure)                                                                      │
+│    :                                                                                                     │
+│                                                                                                          │
+│「「출입국관리법」 시행령」   조에 따라 상기 신청 민원에 대하여                                           │
+│허가·수리하지 아니하기로 결정하였음을 통보합니다.                                                        │
+│(In accordance with Article   of the Enforcement Decree of the Immigration Act,                           │
+│we notify that your e-Application has been denied.)                                                       │
+│                                                                                                          │
+│Chief, OO Immigration Office                                                                              │
+│OO출입국·외국인청(사무소·출장소)장                                                                      │
+│┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓│
+│┃□ 공지사항(Note)                                                                                     ┃│
+│┃?귀하는 위 처분에 대하여 이의가 있을 때에는 이 통지서를 받은 날부터 90일 이내에 행정심판 또는        ┃│
+│┃행정소송을 제기할 수 있습니다.                                                                        ┃│
+│┃ (A person who has an objection to the above disposition may file an administrative appeal or an      ┃│
+│┃administrative litigation within 90 days after receiving the disapproval notice.)                     ┃│
+│┃      ※ 행정심판을 청구할 때에는 온라인행정심판(www.simpan.go.kr), 행정소송을 청구할 때에는 전자     ┃│
+│┃소송(ecfs.scourt.go.kr)을 통하여 온라인으로도 청구할 수 있습니다.                                     ┃│
+│┃      (※ You may file an administrative appeal online (www.simpan.go.kr) and an administrative       ┃│
+│┃litigation on the Internet (ecfs.scourt.go.kr))                                                       ┃│
+│┃※ 하이코리아 웹주소:www.hikorea.go.kr  외국인종합안내센터(Foreigner Complex Counseling Center)☎1345 ┃│
+│┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│
+└─────────────────────────────────────────────────────┘

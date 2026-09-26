@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'wiki-fix-cell',
   description: '한 법의 한 문제유형만 수정하는 원자 작업(에이전트 1개=작업 1개). 유형: ①타법연결(raw대조후 연결조문만)·②일반법연결(걸리는조문만)·③별표전량이관·④닿지않음해소(unreachable)·thin심화·풀빌드(신규기준법). 완료 시 done 마커 파일 생성.',
   phases: [{ title: '수정', detail: '법명+유형 하나만, 스코핑 규율 준수, 마커로 완료표시' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const MARK = `${LEGAL}/_dashboard/fix3`
 
 const SCHEMA = {

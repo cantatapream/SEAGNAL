@@ -39,7 +39,11 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
+// ⚠2026-09-22(G-31) — 여기는 예전에 `/home/user/SEAGNAL/...` 절대경로였다. 그 탓에 이 게이트는
+//   **이 컨테이너 한 대에서만** 돌았고, 깃허브 CI 에서는 MODULE_NOT_FOUND 로 죽으면서
+//   진단 한 줄 없이 실패만 세웠다(CI run #27 에서 같은 이유로 7개 게이트가 동시에 죽어 있었다).
+//   저장소 안 상대경로로 바꾼다 — 어디에 체크아웃하든 따라온다.
+const R = require('../../../../services/legal_retriever.js');
 
 const HERE = __dirname;
 const argv = process.argv.slice(2);
@@ -274,6 +278,20 @@ async function run() {
     else { verdict = 'search'; where = `있는 곳: ${owners.slice(0, 2).join(', ')}`; }
     const row = { law: q.law, q: q.question.slice(0, 60), verdict, where,
                   want: `${q.expect_law} ${q.expect_article}` };
+    // ★`search` 실패만 **주제를 주고 한 번 더** 잰다 (3-32, 2026-09-25).
+    //   왜: 챗봇은 `opts.topic`(직전 주제)을 얹어 검색하는데 이 채점은 `{}` 로 부른다.
+    //   그래서 「이 법 때문에 배 살 때…」처럼 **가리킴말만 있는 질문은 원리상 못 찾는다** —
+    //   그것을 「검색이 약하다」로 세면 고칠 자리를 엉뚱한 데서 찾게 된다(등록부 3-32 가 그랬다).
+    //   ⚠**엄격한 판정(맥락 없이)은 그대로 둔다** — 그것이 「처음 묻는 질문」의 실제 모습이고
+    //     회귀를 잡는 잣대다. 여기서 재는 것은 **한 층 아래의 까닭**이다(L-389).
+    //   ⚠13문항만 더 부르므로 채점 시간은 거의 안 늘어난다(전체를 두 번 재지 않는다).
+    //   ⚠`주제 = 그 법 이름` 은 운영보다 **너그러운 상한**이다(운영의 주제는 낱말 하나다).
+    if (verdict === 'search') {
+      let t = null;
+      try { t = await R.search(q.question, { topic: q.law }); } catch (_) { t = null; }
+      const gotT = new Set(((t && t.contextPages) || []).map(p => String(p.file || '')));
+      row.topicHit = owners.some(o => gotT.has(o));
+    }
     // §6-E 로 찍힌 문항은 "원문에는 있나"까지 갈라 둔다 — 있으면 B11 보탬이 구제할 수 있고,
     // 없으면 수집 공백(4축 ①)이라 손댈 곳이 다르다.
     if (verdict === '6e') row.raw = inRaw(rawIdx, q.expect_law, wantArts);
@@ -297,6 +315,13 @@ run().then(rows => {
   console.log(`  ✅ chain   ${String(c('chain')).padStart(4)} (${pct(c('chain'))}%)  기대 조문이 인용 후보에 들어옴`);
   console.log(`  ⚠ §6-E    ${String(c('6e')).padStart(4)} (${pct(c('6e'))}%)  위키 어느 근거 조문 표에도 그 행이 없음 → 위키`);
   console.log(`  ❌ search  ${String(c('search')).padStart(4)} (${pct(c('search'))}%)  행은 위키에 있는데 그 페이지가 후보에 안 옴 → 검색`);
+  // ★그 실패를 **한 층 아래로** 가른다(3-32) — 까닭이 다르면 고칠 자리가 다르다.
+  const srch = rows.filter(r => r.verdict === 'search');
+  if (srch.length) {
+    const soft = srch.filter(r => r.topicHit).length;
+    console.log(`      └ 주제(직전 대화의 그 법)를 주면 닿는다 ${soft}건 — **채점이 맥락을 안 준 것**(챗봇은 준다) · ` +
+      `★주제를 줘도 못 닿는다 ${srch.length - soft}건 ← 이것만이 진짜 검색 공백`);
+  }
   // §6-E 를 갈라 보여 준다(H-47 ③ 계측): 원문에 조가 있으면 답변이 그 조를 인용하는 순간
   // 생산 코드의 B11 보탬(routes/legal.js synthesizeChainRows)이 카드를 붙여 준다.
   const sixE = rows.filter(r => r.verdict === '6e');
@@ -327,12 +352,25 @@ run().then(rows => {
     }
   }
   if (arg('--save')) {
-    fs.writeFileSync(arg('--save'), JSON.stringify({ n, chain: c('chain'), '6e': c('6e'), search: c('search'), rows }, null, 1));
+    fs.writeFileSync(arg('--save'), JSON.stringify({ n, chain: c('chain'), '6e': c('6e'), search: c('search'),
+      searchHard: rows.filter(r => r.verdict === 'search' && !r.topicHit).length, rows }, null, 1));
     console.log(`\n스냅샷 저장: ${arg('--save')}`);
   }
   if (argv.includes('--gate')) {
     if (!base) { console.log('\n  ⏭️  기준선이 없어 게이트를 건너뜁니다(--base 로 지정).'); return; }
     if (worse.length) { console.log(`\n  ❌ 기대 근거가 안 닿게 된 문항 ${worse.length}개`); process.exit(1); }
+    // ★「주제를 줘도 못 닿는 것」은 **늘면 실패**다(3-32). 기준선에 그 수가 없으면(옛 스냅샷) 건너뛴다 —
+    //   없는 값을 0 으로 가정하면 옛 기준선에서 곧바로 빨간불이 난다(그건 회귀가 아니다).
+    const hardNow = rows.filter(r => r.verdict === 'search' && !r.topicHit).length;
+    if (typeof base.searchHard === 'number') {
+      if (hardNow > base.searchHard) {
+        console.log(`\n  ❌ 주제를 줘도 못 닿는 문항이 늘었다  ${base.searchHard} → ${hardNow}`);
+        process.exit(1);
+      }
+      console.log(`  ✅ 주제를 줘도 못 닿는 문항 ${hardNow}건(기준선 ${base.searchHard})`);
+    } else {
+      console.log(`  ⏭️  기준선에 「주제를 줘도 못 닿는 것」이 없다(옛 스냅샷) — 지금은 ${hardNow}건. --save 로 다시 찍으면 잠긴다.`);
+    }
     console.log('\n  ✅ 기준선 대비 나빠진 문항 없음');
   }
 }).catch(e => { console.error('실패:', e && e.message); process.exit(2); });

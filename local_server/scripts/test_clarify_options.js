@@ -62,8 +62,15 @@ console.log('── 손대지 않아야 하는 경우 ──');
   const routes = require('fs').readFileSync(__dirname + '/../routes/legal.js', 'utf8');
   ok('routes 가 되묻기 횟수를 ctx 에 누적한다(clarifyRoundNext)',
     /function clarifyRoundNext\(/.test(routes));
-  ok('세 갈래 되묻기 모두 카운터를 갱신한다',
-    (routes.match(/n: clarifyRoundNext\(ctx\)/g) || []).length === 3);
+  // ⚠[2026-09-26 4-6] 종전에는 **갈래 수를 손으로 적어 두었다(=== 3)**. 「쪼개진 법」 되묻기를
+  //   붙이자 4가 되어 빨간불이 났다. 갈래 수는 앞으로도 는다 — 숫자가 아니라 **뜻**을 센다:
+  //   `ctx.cl` 을 세우는 자리는 **모두** `clarifyRoundNext(ctx)` 로 n 을 채워야 한다. 한 자리라도
+  //   빼먹으면 그 갈래에서만 상한이 안 걸린다(위에 적은 4회 되묻기 사고의 원인이 바로 그것이다).
+  const 되묻기세우는자리 = (routes.match(/ctx\.cl\s*=\s*\{/g) || []).length;
+  const 카운터채운자리 = (routes.match(/n: clarifyRoundNext\(ctx\)/g) || []).length;
+  ok('되묻기를 세우는 자리마다 카운터를 갱신한다(ctx.cl 자리 수 = clarifyRoundNext 자리 수)',
+    되묻기세우는자리 >= 3 && 되묻기세우는자리 === 카운터채운자리,
+    `ctx.cl ${되묻기세우는자리}자리 · clarifyRoundNext ${카운터채운자리}자리`);
   const src = require('fs').readFileSync(__dirname + '/../services/legal_retriever.js', 'utf8');
   ok('상한 판정이 구분자 개수와 ctx 누적값 중 큰 쪽을 쓴다',
     /const rounds = Math\.max\(byJoiner,/.test(src));

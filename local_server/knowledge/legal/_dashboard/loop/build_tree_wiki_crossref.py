@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """H-36 후속 — 13개 계층자산(트리·표·플로우) ↔ 기존 위키(statutes+concepts) 조문 단위 연결지도 빌더.
    트리 항목이 근거로 든 조문을, 그 조문을 이미 인용하고 있는 위키 페이지와 이어 붙인 조회용 인덱스를 만든다.
    위키 파일도 자산 JSON도 절대 수정하지 않는다(읽기 전용) — 산출물은 신규 파일 1개뿐.
@@ -14,7 +15,7 @@ import json, os, re, glob, sys, random, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lint_coverage import CITATION_RE  # ★H-33 검증 정규식 원본 재사용(재구현 금지)
 
-LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 WIKI = f'{LEGAL}/wiki'
 DASH = f'{LEGAL}/_dashboard'
 OUT = f'{DASH}/tree_wiki_crossref.json'

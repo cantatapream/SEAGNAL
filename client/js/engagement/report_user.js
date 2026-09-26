@@ -75,6 +75,8 @@
             checkReportAnswer(deviceId);
 
         } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 단추는 뜨지만 **차단 여부·미확인 답변을 모른 채** 뜬다.
+            console.warn('[제보] 상태 조회 실패 — 차단 여부를 모른 채 제보 단추를 띄운다:', e && e.message);
             // 서버 연결 실패 시 기본적으로 제보 버튼 표시
             const reportBtn = document.getElementById('header-report-btn');
             if (reportBtn) reportBtn.style.display = 'flex';
@@ -104,7 +106,10 @@
                     badge.style.display = 'none';
                 }
             }
-        } catch (e) { /* 무시 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). **안 읽은 답변 뱃지가 안 뜬다** — 「답변이 없다」와 같아 보인다.
+            console.warn('[제보] 답변 뱃지 갱신 실패 — 뱃지 없이 그린다:', e && e.message);
+        }
     }
 
     // ========================================================================
@@ -596,7 +601,10 @@
             if (data.hasAnswer) {
                 showAnswerPopup(data);
             }
-        } catch (e) { /* 무시 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). **답변이 와 있어도 창이 안 뜬다** — 사용자는 모른다.
+            console.warn('[제보] 답변 확인 실패 — 답변이 와 있어도 창이 안 뜬다:', e && e.message);
+        }
     }
 
     /**
@@ -677,7 +685,10 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deviceId: getDeviceId(), reportId, type: type || 'answer' })
             });
-        } catch (e) { /* 무시 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). **읽음 표시가 서버에 안 남아** 다음에 또 뜬다.
+            console.warn('[제보] 답변 읽음 표시 실패 — 다음에 또 뜬다:', e && e.message);
+        }
     };
 
     /**

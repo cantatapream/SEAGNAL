@@ -65,7 +65,7 @@ try {
 // ============================================================================
 // 경로 설정
 // ============================================================================
-const ROOT = path.resolve(__dirname, '..', '..');                  // /home/user/SEAGNAL
+const ROOT = path.resolve(__dirname, '..', '..');                  // 저장소 뿌리
 const PARENT_PATH = path.join(ROOT, 'local_server/assets/warn_zones.geojson');
 const SUB_PATH    = path.join(ROOT, 'local_server/assets/warn_zones_sub.geojson');
 const MAPPINGS_PATH = path.join(ROOT, 'local_server/js/shared/utils/mappings.js');

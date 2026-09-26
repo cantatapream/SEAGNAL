@@ -1,0 +1,98 @@
+{
+  "별표1": {
+    "제목": "(별표 1) 본청 공통사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425393&flNm=%28%EB%B3%84%ED%91%9C+1%29+%EB%B3%B8%EC%B2%AD+%EA%B3%B5%ED%86%B5%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표2": {
+    "제목": "(별표 2) 본청 일반사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425395&flNm=%28%EB%B3%84%ED%91%9C+2%29+%EB%B3%B8%EC%B2%AD+%EC%9D%BC%EB%B0%98%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표3": {
+    "제목": "(별표 3) 본청 민원사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425397&flNm=%28%EB%B3%84%ED%91%9C+3%29+%EB%B3%B8%EC%B2%AD+%EB%AF%BC%EC%9B%90%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표4": {
+    "제목": "[별표 4] 직속기관 공통사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425399&flNm=%5B%EB%B3%84%ED%91%9C+4%5D+%EC%A7%81%EC%86%8D%EA%B8%B0%EA%B4%80+%EA%B3%B5%ED%86%B5%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표5": {
+    "제목": "[별표 5] 직속기관 일반사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425401&flNm=%5B%EB%B3%84%ED%91%9C+5%5D+%EC%A7%81%EC%86%8D%EA%B8%B0%EA%B4%80+%EC%9D%BC%EB%B0%98%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표6": {
+    "제목": "[별표 6] 직속기관 민원사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425403&flNm=%5B%EB%B3%84%ED%91%9C+6%5D+%EC%A7%81%EC%86%8D%EA%B8%B0%EA%B4%80+%EB%AF%BC%EC%9B%90%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표7": {
+    "제목": "[별표 7] 사업소 공통사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425405&flNm=%5B%EB%B3%84%ED%91%9C+7%5D+%EC%82%AC%EC%97%85%EC%86%8C+%EA%B3%B5%ED%86%B5%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표8": {
+    "제목": "(별표 8) 사업소 일반사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425407&flNm=%28%EB%B3%84%ED%91%9C+8%29+%EC%82%AC%EC%97%85%EC%86%8C+%EC%9D%BC%EB%B0%98%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표9": {
+    "제목": "(별표 9) 사업소 민원사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425409&flNm=%28%EB%B3%84%ED%91%9C+9%29+%EC%82%AC%EC%97%85%EC%86%8C+%EB%AF%BC%EC%9B%90%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표10": {
+    "제목": "[별표 10] 합의제행정기관 공통사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425411&flNm=%5B%EB%B3%84%ED%91%9C+10%5D+%ED%95%A9%EC%9D%98%EC%A0%9C%ED%96%89%EC%A0%95%EA%B8%B0%EA%B4%80+%EA%B3%B5%ED%86%B5%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표11": {
+    "제목": "[별표 11] 합의제행정기관 일반사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425413&flNm=%5B%EB%B3%84%ED%91%9C+11%5D+%ED%95%A9%EC%9D%98%EC%A0%9C%ED%96%89%EC%A0%95%EA%B8%B0%EA%B4%80+%EC%9D%BC%EB%B0%98%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표12": {
+    "제목": "[별표 12] 행정시 공통사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425415&flNm=%5B%EB%B3%84%ED%91%9C+12%5D+%ED%96%89%EC%A0%95%EC%8B%9C+%EA%B3%B5%ED%86%B5%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표13": {
+    "제목": "(별표 13) 행정시 일반사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425417&flNm=%28%EB%B3%84%ED%91%9C+13%29+%ED%96%89%EC%A0%95%EC%8B%9C+%EC%9D%BC%EB%B0%98%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표14": {
+    "제목": "[별표 14] 행정시 민원사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425419&flNm=%5B%EB%B3%84%ED%91%9C+14%5D+%ED%96%89%EC%A0%95%EC%8B%9C+%EB%AF%BC%EC%9B%90%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표15": {
+    "제목": "(별표 15) 읍ㆍ면 일반사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425421&flNm=%28%EB%B3%84%ED%91%9C+15%29+%EC%9D%8D%E3%86%8D%EB%A9%B4+%EC%9D%BC%EB%B0%98%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  },
+  "별표16": {
+    "제목": "(별표 16) 동 일반사무",
+    "파일꼴": "xls",
+    "원본": "http://www.law.go.kr/flDownload.do?gubun=ELIS&flSeq=168425423&flNm=%28%EB%B3%84%ED%91%9C+16%29+%EB%8F%99+%EC%9D%BC%EB%B0%98%EC%82%AC%EB%AC%B4",
+    "본문있나": false
+  }
+}

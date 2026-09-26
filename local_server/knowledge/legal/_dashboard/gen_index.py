@@ -57,6 +57,21 @@ for slug in by_law: by_dom[domain_of(slug)].append(slug)
 concept_total = sum(len(v) for v in by_law.values())
 statute_n = len([f for f in os.listdir(SD) if f.endswith('.md')]) if os.path.isdir(SD) else 0
 
+def mdlink(rel):
+    """`index.md` 에서 **눌러서 열리는** 링크를 만든다 (2026-09-23, G-25).
+
+    고친 것 둘:
+      ① ★`wiki/` 접두사 — `index.md` 는 `legal/` 에 있고 쪽들은 `legal/wiki/` 에 있다.
+         예전에는 `concepts/…` 라고만 적어 **1,020개가 전부 안 열렸다**(실측 2026-09-23).
+      ② ★괄호를 `<>` 로 감싼다 — 파일명에 `(` 가 든 쪽이 **12개** 있다
+         (`선박평형수(船舶平衡水)…`, `…인증(GAP)…`). 마크다운 링크는 **첫 `)` 에서 끊기므로**
+         감싸지 않으면 그 12개는 이름이 잘린 채 죽는다.
+    ⚠`index.md` 는 사람이 **눌러서** 찾아가는 목차다(_SCHEMA §13 "누가 언제 봐도").
+      읽는 코드가 없다고 해서 안 고쳐도 되는 것이 아니다 — 읽는 것이 사람이다.
+    """
+    rel = 'wiki/' + rel
+    return '<' + rel + '>' if ('(' in rel or ')' in rel or ' ' in rel) else rel
+
 out = ['# 해양법률 위키 — 인덱스 (자동생성)', '',
        '> `_dashboard/gen_index.py`가 `wiki/` 실제 파일 기준으로 재생성한다(사서 ingest/수정/lint 후). 현존 페이지 전체 목차.',
        f'> 개념 {concept_total} · 법(statute) {statute_n} · 도메인 {len([d for d in by_dom])}. 규칙 [`_SCHEMA.md`](./_SCHEMA.md) · 답변 [`_CHATBOT.md`](./_CHATBOT.md) · 일지 [`log.md`](./log.md)', '']
@@ -64,11 +79,11 @@ for dom in sorted(by_dom):
     out.append(f'## {dom.replace("zz_","")}')
     for slug in sorted(by_dom[dom], key=law_name):
         cs = by_law[slug]
-        st = f' · [개요](statutes/{slug}.md)' if os.path.exists(os.path.join(SD, slug + '.md')) else ''
+        st = f' · [개요]({mdlink(f"statutes/{slug}.md")})' if os.path.exists(os.path.join(SD, slug + '.md')) else ''
         out.append(f'- **{law_name(slug)}** ({len(cs)}개){st}')
         for f, title in sorted(cs):
             t = title if len(title) <= 48 else title[:47] + '…'
-            out.append(f'  - [{t}](concepts/{f})')
+            out.append(f'  - [{t}]({mdlink(f"concepts/{f}")})')
     out.append('')
 
 open(os.path.join(LEGAL, 'index.md'), 'w', encoding='utf-8').write('\n'.join(out))
