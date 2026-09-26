@@ -4174,6 +4174,10 @@
                         .tphn-img-btn{flex:none;width:30px;height:28px;border-radius:6px;border:1px solid rgba(120,150,200,0.4);
                             background:#15407a;cursor:pointer;font-size:15px;line-height:1;padding:0;}
                         .tphn-img-btn:hover{background:#1b4f96;}
+                        /* 출처 바꿀 때 가운데 로딩 표시 — 상자·스피너·글자 모양은 물빠짐 레이어의
+                           .mudflat-loading-* 를 그대로 쓴다(ocean_typhoon.js showSourceLoading). */
+                        #tphn-loading{position:fixed;inset:0;z-index:1400;display:none;align-items:center;justify-content:center;pointer-events:none;}
+                        #tphn-loading.show{display:flex;}
                         .tphn-note-line{margin:3px 0;}
                         .tphn-modal-btn{flex:1;background:#2d6cdf;color:#fff;border:none;border-radius:6px;
                             padding:8px;font-size:13px;font-weight:700;cursor:pointer;}

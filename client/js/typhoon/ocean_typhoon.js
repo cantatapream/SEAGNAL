@@ -135,6 +135,8 @@
     var STRONG_C = [232, 160, 0];   // 강풍반경 — 황색
     var STORM_C = [43, 108, 214];   // 폭풍반경 — 청색
     var PROB_C = [60, 165, 110];    // 70% 확률반경 — 녹색
+    // 70%반경 층 높이 — 기본은 강풍(118)·폭풍(120) 아래, 일본만 폭풍 위(122)로 올린다(applyLayerVisibility).
+    var PROB_Z = 116, PROB_Z_TOP = 122;
     var SWATH_C = [0, 150, 160];    // 34노트 위험구역(JTWC) — 청록색(JTWC 예보도 그림과 같은 계열)
     function cssRgb(c) { return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
 
@@ -1230,8 +1232,8 @@
             }
             setSelValue('tphn-name', seq);
             _selSeq = seq || null;
-            if (seq) loadTyphoon(year, seq, preferCode);
-            else clearTrack();
+            if (seq) return loadTyphoon(year, seq, preferCode);
+            clearTrack();
         }).catch(function (e) { console.warn('[OceanTyphoon] loadYear 실패:', e.message); });
     }
 
@@ -1250,7 +1252,8 @@
                 populateBulletins();
                 var code0 = pickCode(preferCode);
                 setSelValue('tphn-bulletin', code0);
-                if (code0) selectBulletin(year, code0); else clearTrack();
+                if (code0) return selectBulletin(year, code0);
+                clearTrack();
                 return Promise.resolve();
             }
             // (폴백) 캐시엔 TD 통보문뿐 → 서버에서 최신 통보문 목록을 다시 받아온다(승격분 반영).
@@ -1261,7 +1264,8 @@
             populateBulletins();
             var code0 = pickCode(preferCode);
             setSelValue('tphn-bulletin', code0);
-            if (code0) selectBulletin(year, code0); else clearTrack();
+            if (code0) return selectBulletin(year, code0);
+            clearTrack();
         }).catch(function (e) { console.warn('[OceanTyphoon] loadTyphoon 실패:', e.message); });
     }
     // ── 해외 출처(JTWC 등) ────────────────────────────────────────────────────
@@ -1333,8 +1337,47 @@
         applyImageBtn();
         applyProbControl();
         renderSourceNote();
-        if (src === 'kma') { loadYear(_year, null, null); return; }
-        loadForeign(src);
+        // [로딩 표시 — 2026-09-26 사용자 요청] 출처를 바꾸면 해외 자료는 서버가 상류에서
+        //   받아 오느라 몇 초 걸린다. 그동안 빈 지도만 보이지 않게 가운데에 표시를 띄우고,
+        //   다 그려지거나(성공) 없음·실패로 끝나면 끈다.
+        var token = showSourceLoading(SOURCES[src].label);
+        var p = (src === 'kma') ? loadYear(_year, null, null) : loadForeign(src);
+        var done = function () { hideSourceLoading(token); };
+        Promise.resolve(p).then(done, done);
+    }
+
+    /**
+     * 출처를 바꾸는 동안 화면 가운데에 로딩 표시를 띄운다.
+     * 예: showSourceLoading('미국(JTWC)') → "미국(JTWC) 태풍 정보를 불러오는 중…"
+     * [모양] 같은 지도의 물빠짐 레이어가 쓰는 가운데 스피너(.mudflat-loading-*)를 그대로
+     *   빌려 쓴다 — 앱 안에서 로딩 표시가 제각각이지 않게. 지도 조작은 막지 않는다.
+     * [빠르게 연달아 바꿀 때] 표시마다 번호를 매겨, 앞선 요청이 늦게 끝나도 지금 떠 있는
+     *   표시를 끄지 않게 한다(hideSourceLoading 이 번호를 맞춰 본다).
+     * @param {string} label - 출처 이름
+     * @returns {number} 이 표시의 번호
+     * [연계] ← setSource (같은 파일) · index2.html #tphn-loading 스타일
+     */
+    var _loadingSeq = 0;
+    function showSourceLoading(label) {
+        _loadingSeq += 1;
+        var el = document.getElementById('tphn-loading');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'tphn-loading';
+            el.innerHTML = '<div class="mudflat-loading-box">' +
+                '<div class="mudflat-loading-spin"></div>' +
+                '<div class="mudflat-loading-text"></div></div>';
+            document.body.appendChild(el);
+        }
+        el.querySelector('.mudflat-loading-text').textContent = label + ' 태풍 정보를 불러오는 중…';
+        el.classList.add('show');
+        return _loadingSeq;
+    }
+    /** 번호가 지금 떠 있는 표시와 같을 때만 끈다. @param {number} token */
+    function hideSourceLoading(token) {
+        if (token !== _loadingSeq) return;
+        var el = document.getElementById('tphn-loading');
+        if (el) el.classList.remove('show');
     }
 
     /**
@@ -1447,8 +1490,9 @@
         pause();
         _selCode = code;
         var key = year + '_' + code;
-        if (_tableCache[key]) { renderBulletin(_tableCache[key]); return; }
-        fetchJSON('/api/typhoon/bulletin?year=' + year + '&code=' + encodeURIComponent(code)).then(function (d) {
+        if (_tableCache[key]) { renderBulletin(_tableCache[key]); return Promise.resolve(); }
+        // 끝나는 시점을 돌려준다 — 출처를 바꿀 때 로딩 표시를 언제 끌지 알기 위해(setSource).
+        return fetchJSON('/api/typhoon/bulletin?year=' + year + '&code=' + encodeURIComponent(code)).then(function (d) {
             if (!d || d.error) return;
             _tableCache[key] = d;
             if (_selCode === code) renderBulletin(d); // 그 사이 다른 선택 안 했을 때만
@@ -1685,7 +1729,7 @@
         var uw = { updateWhileInteracting: true, updateWhileAnimating: true };
         // 위험구역이 가장 넓으므로 맨 아래(114) — 그 위에 70%(116)·강풍(118)·폭풍(120)이 얹힌다.
         _swathLayer = new ol.layer.Vector(Object.assign({ source: _swathSrc, zIndex: 114, style: swathStyle(rgba(SWATH_C, 0.95), rgba(SWATH_C, 0.20)) }, uw));
-        _probLayer = new ol.layer.Vector(Object.assign({ source: _probSrc, zIndex: 116, style: swathStyle(rgba(PROB_C, 0.95), rgba(PROB_C, 0.30)) }, uw));
+        _probLayer = new ol.layer.Vector(Object.assign({ source: _probSrc, zIndex: PROB_Z, style: swathStyle(rgba(PROB_C, 0.95), rgba(PROB_C, 0.30)) }, uw));
         _strongLayer = new ol.layer.Vector(Object.assign({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) }, uw));
         _stormLayer = new ol.layer.Vector(Object.assign({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) }, uw));
         _trackLayer = new ol.layer.Vector(Object.assign({ source: _trackSrc, zIndex: 124 }, uw));
@@ -1718,7 +1762,13 @@
         // swath(회랑)는 정지=전체 / 재생=시작~현재까지 자라나는 항적. 두 경우 모두 토글대로 표시.
         // 위험구역은 기관이 발표한 도형 한 장이라 재생 중에도 그대로 둔다(자라나지 않는다).
         if (_swathLayer) _swathLayer.setVisible(_visible && _layerOn.swath);
-        if (_probLayer) _probLayer.setVisible(_visible && _layerOn.prob);
+        if (_probLayer) {
+            _probLayer.setVisible(_visible && _layerOn.prob);
+            // [일본만 70%반경을 위로 — 2026-09-26 사용자 요청] 일본 예보 시점의 폭풍 범위
+            //   (120시간 뒤 560km)가 70%반경(460km)보다 넓어, 기본 순서(70% 116 < 폭풍 120)
+            //   대로면 70%반경이 폭풍 범위 밑에 깔려 안 보였다. 한국·미국은 기존 순서 그대로.
+            _probLayer.setZIndex(_src === 'jma' ? PROB_Z_TOP : PROB_Z);
+        }
         if (_strongLayer) _strongLayer.setVisible(_visible && _layerOn.strong);
         if (_stormLayer) _stormLayer.setVisible(_visible && _layerOn.storm);
         if (_trackLayer) _trackLayer.setVisible(_visible && _layerOn.track);
