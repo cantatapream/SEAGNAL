@@ -994,6 +994,50 @@ function addendaAfter(src, at) {
   return (i >= 0 ? rest.slice(0, i) : rest).trim();
 }
 
+// ── 3-64: 가리킴 앞에 붙은 **계층어**를 읽는다 (2026-09-26) ──────────────────
+//   [무엇이 문제였나] 고시가 `영 별표 제1호`(= 상위법 시행령의 별표1)라 써도 `collectRefs` 는
+//     `{key:'별표1'}` 만 돌려줬고, `resolveRefs` 는 **그 고시의 별표1** 을 찾다 못 찾아
+//     사용자에게 「(원문 미수집)」으로 보였다. 실측: 못 찾은 525건 중 **남의 계층 118**.
+//     ★그 파일은 **같은 법 폴더에 있다**(`<법>/별표/시행령_별표1.txt`) — 못 찾은 게 아니라
+//     **엉뚱한 이름으로 찾고 있었다.** (`TIER_BYL_PREFIX` 에 notice 가 없어 ③·④단계가 아예 안 돈다.)
+//   [왜 조심하나] `byl_ref_gap.py` 가 **바로 이 자리에서 여섯 번** 틀렸다 — 걸러 내려다 분모가
+//     563→172 로 주저앉았다. **과교정은 미교정보다 나쁘다.** 그래서 두 가지를 못박는다:
+//     ① **낱말 경계 뒤에 홀로 선 계층어만** 받는다. `해사안전법 별표` 의 `법` 은 낱말의 꼬리라 안 받는다.
+//     ② **남의 법이 앞에 붙으면 안 받는다** — `「화학물질관리법」 시행규칙 별표1` 은 남의 법이고,
+//        `같은 법 시행규칙` 은 **앞 문장이 가리키는 법**이라 상위법일 수도 남의 법일 수도 있다
+//        (표본에 둘 다 있다). 가릴 수 없으면 **안 보낸다.**
+//     실측(고시 928개): 보낼 수 있다 **304건** · 막는다 **7건**(전부 남의 법·「같은 법」).
+//   ⚠그리고 `resolveRefs` 는 **보낸 자리에서 못 찾으면 지금 하던 대로 되돌아간다** —
+//     지금 열리는 것은 하나도 안 닫힌다.
+const TIER_WORD = { 영: 'decree', 시행령: 'decree', 규칙: 'rule', 시행규칙: 'rule', 법: 'law', 법률: 'law' };
+// 계층어가 **낱말 경계 뒤에 홀로** 서 있는가 (`: 영`·`형상은 시행규칙`·`신고서(규칙`)
+const TIER_BEFORE_RE = /(?:^|[\s(（:,、·])(법률|시행규칙|시행령|규칙|영|법)\s*$/;
+// 계층어 **앞의 글**에 남의 법 이름이나 「같은」이 있으면 안 받는다.
+//   ⚠처음엔 계층어 바로 앞 6자만 봤더니 `같은 법 시행규칙` 을 못 막았다 — 「같은」과 계층어 사이에
+//     `법 ` 이 끼어 있었다(2026-09-26 실측). 그래서 **계층어 앞 글의 꼬리 14자**를 본다.
+const TIER_BLOCK_RE = /같은|」|』/;
+// `…법 시행령` · `…법률 시행규칙` 꼴 — 낱말로 끝나는 법 이름이 계층어를 데리고 있다
+const LAW_NAME_TAIL_RE = /[가-힣]{2,}(?:법|법률)\s*$/;
+
+/**
+ * 가리킴 바로 앞 글을 보고 **어느 계층의 별표를 가리키는지** 읽는다. 못 읽으면 null.
+ * 예: tierOfRef('… 표지의 크기와 형상은 시행규칙 ') → 'rule'
+ *     tierOfRef('… 「화학물질관리법」 시행규칙 ')     → null  (남의 법)
+ *     tierOfRef('… 해사안전법 ')                      → null  (낱말의 꼬리)
+ * @param {string} before - 가리킴 바로 앞 글(끝쪽 24자면 넉넉하다)
+ * @returns {?string} 'law'|'decree'|'rule' 또는 null
+ * [연계] ← collectRefs(). → resolveRefs 가 이 계층의 접두로 파일을 먼저 찾는다.
+ */
+function tierOfRef(before) {
+  const t = String(before || '').replace(/\n/g, ' ');
+  const m = TIER_BEFORE_RE.exec(t);
+  if (!m) return null;
+  const head = t.slice(0, m.index).slice(-14);   // 계층어 앞의 글(꼬리 14자)
+  if (TIER_BLOCK_RE.test(head)) return null;     // 「같은 …」·닫는 따옴표 = 남의 법이거나 가릴 수 없다
+  if (LAW_NAME_TAIL_RE.test(head)) return null;  // 「…법 시행령」 = 남의 법
+  return TIER_WORD[m[1]] || null;
+}
+
 /** 참조 정규식 매치 하나를 비교용 열쇠로 바꾼다(`별표1`·`서식1`·`이미지123`). */
 function refKeyOf(m) {
   if (m[1] != null) return '서식' + m[1];
@@ -1043,10 +1087,16 @@ function collectRefs(text) {
   let byl = 0, img = 0;
   let m;
   REF_RE.lastIndex = 0;
-  while ((m = REF_RE.exec(String(text || '')))) {
+  const src = String(text || '');
+  while ((m = REF_RE.exec(src))) {
     const key = refKeyOf(m);
-    if (seen.has(key)) continue;
-    seen.add(key);
+    // ★3-64: 가리킴 **바로 앞** 글로 계층을 읽는다. 자리마다 따로 읽어야 한다 —
+    //   한 문서가 `영 별표 1` 과 `별표 1` 을 **둘 다** 쓰는 경우가 실측 96파일·151열쇠 있다.
+    //   그래서 중복 제거도 `열쇠|계층` 으로 한다. 계층이 없으면 종전과 완전히 같다.
+    const tier = key.indexOf('이미지') === 0 ? null : tierOfRef(src.slice(Math.max(0, m.index - 24), m.index));
+    const seenKey = key + '|' + (tier || '');
+    if (seen.has(seenKey)) continue;
+    seen.add(seenKey);
     // 별표·서식과 이미지는 상한이 따로다(MAX_IMG_REFS 주석 참고). 별표 상한에 걸려도 스캔을
     // 멈추지 않는다 — 뒤쪽에 남은 이미지는 아직 받을 자리가 있다.
     if (key.indexOf('이미지') === 0) {
@@ -1056,7 +1106,7 @@ function collectRefs(text) {
       if (byl >= MAX_REFS) continue;
       byl += 1;
     }
-    out.push({ key, text: m[0] });
+    out.push(tier ? { key, text: m[0], tier } : { key, text: m[0] });
     if (byl >= MAX_REFS && img >= MAX_IMG_REFS) break;
   }
   return out;
@@ -1885,7 +1935,9 @@ function buildArticles(text, tier, joList) {
  * [연계] ← loadArticle(). → github_raw.fetchText/listDir · client/js/ai-chat/ai_chat.js 의 별표 팝업.
  */
 async function resolveRefs(found, ctx) {
-  const refs = found.map(f => ({ key: f.key, text: f.text, kind: 'missing' }));
+  const refs = found.map(f => (f.tier
+    ? { key: f.key, text: f.text, kind: 'missing', tier: f.tier }
+    : { key: f.key, text: f.text, kind: 'missing' }));
   // 아직 못 찾은 별표·서식만 다음 단계로 넘긴다(이미지는 ①에서만 판정한다 — 별표 파일로 찾을 게 없다).
   const rest = () => refs.filter(r => r.kind === 'missing' && r.key.indexOf('이미지') !== 0);
 
@@ -1924,15 +1976,30 @@ async function resolveRefs(found, ctx) {
   //      선언줄과 일치해(불일치 0) 추가 검증 없이 그대로 쓴다.
   //    ⚠ 내용이 `[별표 7] 삭제` 한 줄뿐인 폐지 별표는 원문이 있는 게 아니므로 여기서 확정하지 않고
   //      ④(_links.json)로 넘긴다.
-  if (prefix && rest().length) {
-    const want = rest();
+  //    ── 3-64 (2026-09-26): 가리킴이 **제 계층을 말하면 그 계층으로 먼저 찾는다** ──────────
+  //      고시가 `영 별표 제1호` 라 쓰면 찾아야 할 파일은 **같은 법 폴더의** `시행령_별표1.txt` 다.
+  //      종전에는 `TIER_BYL_PREFIX` 에 notice 가 없어 `prefix` 가 undefined → **이 단계가 통째로
+  //      안 돌았고**, 사용자에게는 「(원문 미수집)」으로 보였다(실측 118건).
+  //      ⚠**과교정을 막는다** — 이 자리에서 `byl_ref_gap.py` 가 여섯 번 틀렸다(분모 563→172).
+  //        ① 계층은 **가리킴 바로 앞 글**로만 읽는다(`tierOfRef` — 남의 법·「같은 법」은 안 받는다).
+  //        ② **보낸 자리에서 못 찾으면 지금 하던 대로 되돌아간다.** 그래서 지금 열리는 것은
+  //           하나도 안 닫힌다(더하기만 한다).
+  const pfxOf = (r) => TIER_BYL_PREFIX[r.tier] || prefix;
+  if (rest().some(r => pfxOf(r))) {
+    const want = rest().filter(r => pfxOf(r));
     const texts = await Promise.all(want.map(async r => {
       const k = splitRefKey(r.key);
       if (!k) return null;
-      const owned = await githubRaw.fetchText(`${ctx.base}/별표/${prefix}_${k.type}${k.num}.txt`);
+      const pfx = pfxOf(r);
+      const owned = await githubRaw.fetchText(`${ctx.base}/별표/${pfx}_${k.type}${k.num}.txt`);
       if (owned) return hasBylBody(owned) ? owned : null;
+      // 계층으로 보냈는데 그 파일이 없으면 **되돌아간다** — 이 문서의 제 계층(prefix)으로 다시 본다.
+      if (pfx !== prefix && prefix) {
+        const back = await githubRaw.fetchText(`${ctx.base}/별표/${prefix}_${k.type}${k.num}.txt`);
+        if (back && hasBylBody(back)) return back;
+      }
       const bare = await githubRaw.fetchText(`${ctx.base}/별표/${k.type}${k.num}.txt`);
-      if (!bare || !bylDeclMatches(bare, prefix, k) || !hasBylBody(bare)) return null;
+      if (!bare || !bylDeclMatches(bare, pfx, k) || !hasBylBody(bare)) return null;
       return bare;
     }));
     want.forEach((r, i) => {
@@ -1950,7 +2017,7 @@ async function resolveRefs(found, ctx) {
   //      참조(rest())만 여기까지 와서, 원문이 있는 별표는 다운로드 버튼이 아예 안 떴다.
   //      다만 앞 단계에서 확정된 kind·title·body 는 덮어쓰지 않는다(다운로드 필드만 보탠다).
   const bylRefs = refs.filter(r => r.key.indexOf('이미지') !== 0);
-  if (prefix && bylRefs.length) {
+  if (bylRefs.some(r => pfxOf(r))) {
     let links = null;
     try { links = JSON.parse(await githubRaw.fetchText(`${ctx.base}/별표/_links.json`) || 'null'); } catch (e) {
       // ★조용히 넘어가지 않는다 (3-44). `_links.json` 을 못 읽으면 **별표 내려받기 단추가 안 뜬다** —
@@ -1961,7 +2028,8 @@ async function resolveRefs(found, ctx) {
     if (links && typeof links === 'object') {
       for (const r of bylRefs) {
         const k = splitRefKey(r.key);
-        const v = k && links[`${prefix} ${k.type} ${k.num}`];
+        const v = k && (links[`${pfxOf(r)} ${k.type} ${k.num}`]
+          || (prefix ? links[`${prefix} ${k.type} ${k.num}`] : null));   // 3-64: 보낸 계층 먼저, 없으면 되돌아간다
         if (!v || typeof v !== 'object') continue;
         // `PDF` 키는 수집 스크립트가 아직 안 채우고 있다(_LESSONS L-55) — 채워지면 그대로 뜬다.
         r.hwp = absUrl(v.HWP);

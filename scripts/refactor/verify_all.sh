@@ -109,7 +109,7 @@ run "V4 시뮬레이션" node scripts/refactor/simulate.js
 #     **게이트가 읽는 모든 파일**이다(→ `_LESSONS.md` L-382 갈래⑧).
 echo; echo "── V5 테스트 스위트 ──"
 SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_exact_refine
-  test_unverified_leak test_split_law_ask test_section_name_kinds
+  test_unverified_leak test_split_law_ask test_section_name_kinds test_ref_tier_route
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner
         test_parent_release_debounce
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render

@@ -239,7 +239,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 52 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 53 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -250,6 +250,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_unverified_leak` | **V5-49 의 탐지기가 진짜 잡는지** 고정 문장으로 확인한다. |
 | `test_split_law_ask` | **쪼개진 법을 옛 이름으로 물었을 때 되묻는가** (2026-09-26 신설, 4-6) |
 | `test_section_name_kinds` | 표준 절 이름의 세 갈래 — 「없다」 / 「꼬리표」 / ★「이름다름(뜻은 같다)」 |
+| `test_ref_tier_route` | 3-64 — 가리킴 앞의 **계층어**를 읽어 그 계층의 별표로 보낸다 (그리고 **안 보낼 것은 안 보낸다**) |
 | `test_cancel_verdict_room` | 판정 보류실 e2e 시뮬레이션 |
 | `test_push_pagination` | 2026-07-13 실사고: 전국 구독자에게 여러 해역 동시 "발표"(publish) 푸시가 |
 | `test_bulletin_cancel_scanner` | bulletin_cancel_scanner 단위 테스트 |
