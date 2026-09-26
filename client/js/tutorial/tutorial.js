@@ -129,6 +129,21 @@
     var _oceanArmed = false;// 공지사항 5연타로 켜진다 — 해양종합정보 탭에 들어가면 지도 튜토리얼 시작
     var _safetyArmed = false;// 같은 연타로 켜진다 — 해양안전 화면에 들어가면 그 튜토리얼 시작
     var _lifeArmed   = false;// 같은 연타로 켜진다 — 해양생활 화면에 들어가면 그 튜토리얼 시작
+    var _alertArmed  = false;// 같은 연타로 켜진다 — 특보정보 탭을 누르면 그 튜토리얼 시작
+
+    // [연타를 기억한다] 한 번 5연타하면 그 표시를 휴대폰에 적어 두고, 앱을 껐다 켜도
+    //   그대로 쓴다(사용자 확정 2026-09-26). 그러지 않으면 새 버전을 받으려고 앱을
+    //   닫을 때마다 5연타를 다시 해야 했다.
+    //   시험을 끝내려면 콘솔에서 localStorage.removeItem('tutorial_test_armed').
+    var ARMED_KEY = 'tutorial_test_armed';
+
+    /** 적어 둔 연타 표시를 읽어 네 화면을 모두 열 수 있게 한다. */
+    function _restoreArmed() {
+        var on = false;
+        try { on = localStorage.getItem(ARMED_KEY) === '1'; } catch (e) { /* 저장소 못 쓰면 그냥 꺼진 채 */ }
+        if (!on) return;
+        _alertArmed = _oceanArmed = _safetyArmed = _lifeArmed = true;
+    }
     var _sheetScrollId = 0; // 바텀시트를 천천히 내리는 중인 애니메이션 번호
 
     // ========================================================================
@@ -2951,6 +2966,8 @@
         _oceanArmed = true;
         _safetyArmed = true;
         _lifeArmed = true;
+        _alertArmed = false;   // 특보는 지금 바로 여니 탭 진입으로 또 열 필요가 없다
+        try { localStorage.setItem(ARMED_KEY, '1'); } catch (e) { /* 저장 실패해도 이번 실행에는 쓴다 */ }
         if (typeof window.openZoneSetup === 'function') window.openZoneSetup(function () { _open(); });
         else _open();
     }
@@ -3034,8 +3051,33 @@
         });
     }
 
+    /**
+     * 특보정보 탭을 누를 때 그 튜토리얼을 시작하도록 걸어 둔다.
+     *
+     * 왜 필요한가?
+     *   연타 표시를 기억하게 되면서, 앱을 다시 켠 뒤에도 각 탭에 들어가면 그 화면의
+     *   튜토리얼이 뜨게 됐다. 특보정보만 그 길이 없으면 5연타를 또 해야 한다.
+     *   **탭을 누를 때만** 열고 앱을 켜자마자 열지는 않는다(특보정보가 첫 화면이라
+     *   앱을 켤 때마다 튜토리얼이 뜨면 성가시다).
+     *
+     * [연계] index2.html 하단 `.tab-btn[data-target="weather-group"]`
+     */
+    function _bindAlertTrigger() {
+        var btn = document.querySelector('.tab-btn[data-target="weather-group"]');
+        if (!btn) return;
+        btn.addEventListener('click', function (e) {
+            if (!(e.detail > 0 || e.isTrusted)) return;
+            if (!_alertArmed || _root) return;
+            if (document.getElementById('zone-setup-overlay')) return;
+            _alertArmed = false;
+            setTimeout(function () { _open(); }, 600);
+        });
+    }
+
     function _bindAll() {
-        _bindTrigger(); _bindOceanTrigger(); _bindSafetyTrigger(); _bindLifeTrigger();
+        _restoreArmed();
+        _bindTrigger(); _bindAlertTrigger(); _bindOceanTrigger();
+        _bindSafetyTrigger(); _bindLifeTrigger();
     }
 
     if (document.readyState === 'loading') {
