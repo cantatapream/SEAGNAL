@@ -179,7 +179,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 
 <!-- 검사목록:시작 — `python3 scripts/refactor/gen_rulebook.py` 가 다시 쓴다. 손으로 고치지 않는다 -->
 
-### ⓐ 게이트 55 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
+### ⓐ 게이트 56 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
 
 | 검사 이름 | 무엇을 못박나 | 자 |
 |---|---|---|
@@ -219,6 +219,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `V5-45` | 안 짚히는 자 | `local_server/knowledge/legal/_dashboard/loop/loop_tool_census.js` |
 | `V5-44` | 진행판 = 실측 | `local_server/knowledge/legal/_dashboard/loop/worklist_progress.py` |
 | `V5-50` | 3-6 으로 채운 51자리 = 원문 | `local_server/knowledge/legal/_dashboard/loop/section_fill_3_6.py` |
+| `V5-51` | 3-22 증명이 「아니오」를 말할 수 있나 | `local_server/knowledge/legal/_dashboard/loop/coastal_ordin_collect.py` |
 | `V5-49` | [미확인] 없이 나가는 REVIEW 줄 | `local_server/knowledge/legal/_dashboard/loop/unverified_leak_gate.js` |
 | `V5-48` | 모델이 받는 근거자료 크기 | `local_server/knowledge/legal/_dashboard/loop/context_size.js` · `scripts/refactor/gen_rulebook.py` |
 | `V5-47` | 규칙집 검사 목록 최신성 | `scripts/refactor/gen_rulebook.py` |

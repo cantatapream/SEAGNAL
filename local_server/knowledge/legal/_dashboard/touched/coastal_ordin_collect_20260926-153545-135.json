@@ -1,0 +1,9 @@
+{
+ "script": "coastal_ordin_collect",
+ "stamp": "20260926-153545-135",
+ "files": [
+  "local_server/knowledge/legal/raw/_자치법규/전남광주통합특별시/고흥군어업지도선운영관리규칙/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/전남광주통합특별시/고흥군어업지도선운영관리규칙/별표/_links.json",
+  "local_server/knowledge/legal/_dashboard/law_raw_paths.json"
+ ]
+}
