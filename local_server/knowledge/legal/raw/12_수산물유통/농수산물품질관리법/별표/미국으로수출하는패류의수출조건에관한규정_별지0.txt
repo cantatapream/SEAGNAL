@@ -1,0 +1,60 @@
+[미국으로 수출하는 패류의 수출조건에 관한 규정] 별지0 — 패류 채취 및 가공 확인 증명서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000219406 (수집 2026-08-31)
+주의: ★**원문에 이 별표의 번호가 없다.** 원문 선언줄이 `[별표]` 처럼 번호 없이 적혀 있고 제공처 API 도 `별표번호: "0000"` 을 준다. 파일 이름의 `0` 은 **수집 실수가 아니라 그 사실의 표시**다. ⚠이 파일은 2026-09-26 까지 이름이 `별표1`(또는 `별지1`)이었다 — 수집 도구가 번호가 없을 때 `1` 을 **지어내** 박고 있었고, 그날 도구를 `0` 으로 고치면서 이름도 되돌렸다. 번호를 우리가 지어 붙이지 않는다(2026-09-24 결심 ⑥ⓑ · 환각 0).
+
+[별지 서식]
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃패류 채취 및 가공 확인 증명서                                             ┃
+┃(Certification of Molluscan Shellfish Harvesting and Processing Identification)┃
+┃                                                                          ┃
+┃  (발행번호)(Issue number):              발행일(Date of Issue):           ┃
+┃                                                                          ┃
+┠──────┬──────────────┬───────────────┨
+┃수 출 자    │업 체 명                    │                              ┃
+┃(Exporter)  │(Name of company)           │                              ┃
+┃            ├──────────────┼───────────────┨
+┃            │대 표 자                    │                              ┃
+┃            │(Representative)            │                              ┃
+┃            ├──────────────┼───────────────┨
+┃            │업체주소                    │                              ┃
+┃            │(Address)                   │                              ┃
+┃            ├──────────────┼───────────────┨
+┃            │사업자등록번호              │                              ┃
+┃            │(Business Registration No.) │                              ┃
+┠──────┼──────────────┼───────────────┨
+┃제 조 자    │업체명/(등록번호)           │               (          )   ┃
+┃(Processor) │(Processing plant)/         │                              ┃
+┃            │(Registration number)       │                              ┃
+┃            ├──────────────┼───────────────┨
+┃            │대 표 자                    │                              ┃
+┃            │(Representative)            │                              ┃
+┃            ├──────────────┼───────────────┨
+┃            │공장주소                    │                              ┃
+┃            │(Address)                   │                              ┃
+┃            ├──────────────┼───────────────┨
+┃            │사업자등록번호              │                              ┃
+┃            │(Business Registration No.) │                              ┃
+┃            ├──────────────┼───────────────┨
+┃            │기타(Other information)     │                              ┃
+┠──────┼┬─────────────┴┬──────────────┨
+┃품  명      ││수량 및 중량(Kg)            │                            ┃
+┃(Commodity) ││(No. of packages            │                            ┃
+┃            ││/Net weight)                │                            ┃
+┠──────┴┴──────────────┴──────────────┨
+┃                                                                          ┃
+┃위 패류는 「농수산물품질관리법」 제71조에 따른 지정해역에서 채취되었으    ┃
+┃며, 같은 법 제74조에 따른 등록시설에서 가공되었음을 확인합니다.           ┃
+┃I, the undersigned, declare that above Molluscan shellfish have been      ┃
+┃harvested from the Designated Sea Area in accordance with the Article 71  ┃
+┃of Agricultural and Fishery Products Quality Management Act and have      ┃
+┃been processed at the Approved establishment in accordance with the       ┃
+┃Article 74 of Agricultural and Fishery Products Quality Management Act    ┃
+┠──────┬──────────────────────────────┨
+┃확인자      │    국립수산물품질관리원     지원장                         ┃
+┃(Identifier)│            Director of ○○ Regional office of NFQS        ┃
+┃            │                                                            ┃
+┃            │            서  명                                          ┃
+┃            │            Signature                                       ┃
+┃            │                      ──────────────          ┃
+┗━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+210mm×297mm(일반용지 60g/㎡(재활용품))
