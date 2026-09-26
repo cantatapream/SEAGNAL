@@ -218,6 +218,15 @@ async function main() {
     console.log(`    … 못 찾은 고시 ${new Set(miss.map((m) => m.고시)).size}개`);
   }
 
+  // `--dump <경로>` — 못 찾은 가리킴을 **한 줄씩 그대로** 내준다(고시·열쇠·까닭).
+  //   [왜] 수만 보면 무엇을 고쳐야 할지 모른다. 3-67(번호 어긋남 197종)을 다루려면
+  //   「본문이 무엇을 가리켰나」를 열어 봐야 하는데, 그걸 다시 세는 자를 만들면 자가 둘이 된다(§0-E).
+  const dump = arg('--dump');
+  if (dump) {
+    fs.writeFileSync(dump, JSON.stringify(miss, null, 1) + '\n');
+    console.log(`\n  못 찾은 가리킴 ${miss.length}줄을 내렸다: ${dump}`);
+  }
+
   const save = arg('--save');
   if (save) {
     fs.writeFileSync(save, JSON.stringify({

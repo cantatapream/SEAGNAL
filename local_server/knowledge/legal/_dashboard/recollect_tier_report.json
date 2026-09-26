@@ -369,6 +369,26 @@
      ]
     }
    ]
+  },
+  {
+   "ran_at": "2026-09-26 07:27 KST",
+   "results": [
+    {
+     "slug": "수상에서의수색ㆍ구조등에관한법률",
+     "tier": "법률",
+     "old_mst": "267421",
+     "new_mst": "289945",
+     "old_eff": "20251221",
+     "new_eff": "20260922",
+     "old_chars": 30542,
+     "new_chars": 30746,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/수상에서의수색ㆍ구조등에관한법률/20251221",
+     "status": "갱신"
+    }
+   ]
   }
  ]
 }

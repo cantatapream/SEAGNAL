@@ -10,7 +10,7 @@
  * [무엇을] 골든 291문항 → 상위 3쪽 → 그 쪽의 근거 조문 행 → `loadArticle`.
  *   열림/실패 사유별 집계 + 첨부(서식·별지·이미지) 수를 센다.
  * [쓰는 법] node .../live_article_probe.js [문항수]
- * [연계] 결과 `_dashboard/live_article_probe_2026-09-22.json` · 짝 `live_probe.js`
+ * [연계] 결과 `_dashboard/live_article_probe_<돌린날>.json`(회차마다 따로 남는다) · 짝 `live_probe.js`
  * ============================================================================
  */
 'use strict';
@@ -20,7 +20,13 @@ const R = require('../../../../services/legal_retriever.js');
 const A = require('../../../../services/article_text.js');
 
 const QFILE = path.join(__dirname, 'pinned', 'golden_questions.json');
-const OUT = path.join(__dirname, '..', 'live_article_probe_2026-09-22.json');
+// ★파일 이름은 **돌린 날짜**로 짓는다 (2026-09-25 고침 — `live_probe.js` 와 같은 병이었다).
+//   날짜가 박혀 있어서 다시 돌리면 **앞 회차 측정 기록이 그 자리에서 덮인다.**
+//   날짜는 UTC 기준으로 적는다(저장소 선례: 9/22 판의 생성 시각이 15:42Z 인데 이름은 9-22 다).
+const RUN_DAY = new Date().toISOString().slice(0, 10);
+const OUT = process.argv.includes('--out')
+    ? process.argv[process.argv.indexOf('--out') + 1]
+    : path.join(__dirname, '..', `live_article_probe_${RUN_DAY}.json`);
 const PAGES_PER_Q = 3, ROWS_PER_PAGE = 8;
 
 (async () => {

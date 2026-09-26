@@ -156,6 +156,10 @@ def stale_locks(rows, lines):
 # 다른 칸이 「내가 이 일을 한다」고 제 손으로 적은 자리 — `**P-11 · G-14**` 꼴의 연결 칸.
 CLAIM_RE = re.compile(r'(?<![0-9A-Za-z])([0-9A-Z]+-[0-9]+[a-z]?)(?![0-9A-Za-z])')
 
+# 일감이 아닌 갈래 — 「끝났는데 마커만 안 바뀐 칸」 후보에서 뺀다(아래 주석 참조).
+NOT_WORK = ('결정', '사장님몫', '조사')
+
+
 def done_but_open(rows, lines):
     """★「이미 끝났는데 칸 머리만 안 바뀐 것」을 찾는다 (2026-09-25 신설).
 
@@ -183,8 +187,17 @@ def done_but_open(rows, lines):
             if other == me:
                 continue
             r = rows.get(other)
-            if r and r['st'] not in DONE:
-                out.append((other, r['st'], me))
+            if not r or r['st'] in DONE:
+                continue
+            # ★**일감이 아닌 갈래는 후보에서 뺀다** (2026-09-25 고침).
+            #   `결정`(사장님 결심 기록)·`사장님몫`·`조사`(끝난 1라운드) 칸은 **애초에 할 일이 아니다.**
+            #   그 칸의 상태 자리에는 결심 글이 들어 있어 마커가 `?` 로 읽히고, 그래서
+            #   「끝난 칸이 안 끝난 칸을 가리킨다」에 걸렸다 — **21건 중 7건이 그런 허수였다**
+            #   (`Q-5`·`Q-6`·`Q-7`·`Q-16`·`Q-17`). 끝난 칸이 **자기를 허락한 결심을 적는 것은 정상**이다.
+            #   ⚠뺀 것은 **세는 데서만** 뺀다 — 등록부의 그 칸은 그대로 있다.
+            if r.get('g') in NOT_WORK:
+                continue
+            out.append((other, r['st'], me))
     # 같은 후보가 여러 번 나오면 한 번만
     seen, uniq = set(), []
     for a, st, b in out:
