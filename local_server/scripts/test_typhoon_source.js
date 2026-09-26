@@ -224,16 +224,21 @@ ok('★형식이 안 맞으면 빈 값 — 경로조작을 막는다',
 console.log('\n[6] 화면 배선 — 드롭다운·출처표기·버튼');
 
 ok('출처 드롭다운(#tphn-source)이 있다', /id="tphn-source"/.test(HTML_SRC));
-['한국(기상청)', '미국(JTWC)', '일본(JMA/RSMC)', '유럽(ECMWF)', '중국(CMA)'].forEach(function (nm) {
+['한국(기상청)', '미국(JTWC)', '일본(JMA/RSMC)', '유럽(ECMWF)'].forEach(function (nm) {
     ok('드롭다운에 ' + nm + ' 가 있다', HTML_SRC.indexOf(nm) >= 0);
 });
-ok('연결된 세 곳(한국·미국·일본)은 고를 수 있다',
+ok('연결된 네 곳(한국·미국·일본·유럽)은 고를 수 있다',
     /<option value="kma">/.test(HTML_SRC) &&
     /<option value="jtwc">/.test(HTML_SRC) &&
-    /<option value="jma">/.test(HTML_SRC));
-ok('아직 자료원이 없는 두 곳(유럽·중국)은 잠겨 있다',
-    /value="ecmwf" disabled/.test(HTML_SRC) &&
-    /value="cma" disabled/.test(HTML_SRC));
+    /<option value="jma">/.test(HTML_SRC) &&
+    /<option value="ecmwf">/.test(HTML_SRC));
+// [2026-09-26] 중국 중앙기상대 사이트 성명이 서면 허가 없는 사용을 금지해 사용자 결정으로 뺐다.
+const SRC_SELECT = HTML_SRC.slice(HTML_SRC.indexOf('id="tphn-source"'),
+    HTML_SRC.indexOf('</select>', HTML_SRC.indexOf('id="tphn-source"')));
+ok('★중국(CMA)은 드롭다운에 없다 — 허가 없이 쓸 수 없는 자료',
+    !/value="cma"/.test(SRC_SELECT) && !/중국/.test(SRC_SELECT));
+ok('뺀 이유를 마크업에 남겨 둔다 (다음 사람이 다시 붙이지 않게)', /서면 허가 없는/.test(HTML_SRC));
+ok('드롭다운에 잠긴(준비 중) 항목이 남아 있지 않다', !/<option value="[a-z]+" disabled>/.test(SRC_SELECT));
 ok('드롭다운이 ⓘ 버튼 왼쪽에 있다',
     /id="tphn-source"[\s\S]{0,700}id="tphn-info-btn"/.test(HTML_SRC));
 ok('출처 드롭다운을 모든 사용자에게 보여 준다(숨기는 코드가 없다)',
@@ -253,10 +258,15 @@ ok('해외 출처에서는 연도 이동을 잠근다', /ySel\.disabled = \(src 
 // 70%확률반경은 한국·일본이 발표하고, 위험구역 도형은 미국만 발표한다.
 ok('★70%반경 체크박스는 그 값을 발표하는 기관(한국·일본)에서만 열린다',
     /var PROB_SOURCES = \['kma', 'jma'\];/.test(TYPHOON_SRC) &&
-    /lockLayerChk\('tphn-ly-prob', PROB_SOURCES\.indexOf\(_src\) >= 0/.test(TYPHOON_SRC));
+    /var hasProb = PROB_SOURCES\.indexOf\(_src\) >= 0;/.test(TYPHOON_SRC) &&
+    /lockLayerChk\('tphn-ly-prob', hasProb,/.test(TYPHOON_SRC));
 ok('★위험구역 체크박스는 그 도형을 발표하는 기관(미국)에서만 열린다',
     /var SWATH_SOURCES = \['jtwc'\];/.test(TYPHOON_SRC) &&
-    /lockLayerChk\('tphn-ly-swath', SWATH_SOURCES\.indexOf\(_src\) >= 0/.test(TYPHOON_SRC));
+    /var hasSwath = SWATH_SOURCES\.indexOf\(_src\) >= 0;/.test(TYPHOON_SRC) &&
+    /lockLayerChk\('tphn-ly-swath', hasSwath,/.test(TYPHOON_SRC));
+ok('대신 볼 것은 그 기관에 실제로 있을 때만 권한다 (유럽은 둘 다 없다)',
+    /\(hasSwath \? ' \(대신 "위험구역"을 보세요\)' : ''\)/.test(TYPHOON_SRC) &&
+    /\(hasProb \? ' \(대신 "70%반경"을 보세요\)' : ''\)/.test(TYPHOON_SRC));
 ok('왜 잠겼는지 알려 주고, 대신 무엇을 보면 되는지도 적는다',
     /70% 확률반경을 발표하지 않습니다/.test(TYPHOON_SRC) &&
     /34노트 위험구역 도형을 발표하지 않습니다/.test(TYPHOON_SRC));

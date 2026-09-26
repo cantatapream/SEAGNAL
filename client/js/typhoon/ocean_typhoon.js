@@ -89,6 +89,8 @@
     //           중심기압·70%확률반경이 없고, 반경은 네 방향 값을 옮긴 근사다(라우트 주석 참조).
     // 'jma'   : /api/typhoon/foreign?src=jma — 일본 기상청. 기상청과 발표 방식이 같아
     //           70%확률반경·예상 시점 중심기압이 그대로 있고, 풍속도 10분 평균이다.
+    // 'ecmwf' : /api/typhoon/foreign?src=ecmwf — 유럽중기예보센터. 공식 예보가 아니라
+    //           컴퓨터 모델의 예측 경로다. 70%확률반경·위험구역 둘 다 없다.
     var SOURCES = {
         kma:  { label: '한국(기상청)', note: '자료: 기상청 방재기상플랫폼 통보문 · 10분마다 수집' },
         jtwc: { label: '미국(JTWC)',
@@ -99,7 +101,15 @@
                 // [출처표기] 일본 기상청 자료는 「공공데이터 이용규약(제1.0판)」 적용이라
                 //   출처를 적고, 가공했으면 가공했다고 밝혀야 한다 — 둘 다 여기에 적는다.
                 //   (https://www.jma.go.jp/jma/kishou/info/coment.html)
-                note: '자료: 일본 기상청 홈페이지(www.jma.go.jp) 태풍정보를 우리 화면 형식으로 가공해 작성 · 풍속은 10분 평균(우리 기상청과 같음)' }
+                note: '자료: 일본 기상청 홈페이지(www.jma.go.jp) 태풍정보를 우리 화면 형식으로 가공해 작성 · 풍속은 10분 평균(우리 기상청과 같음)' },
+        ecmwf: { label: '유럽(ECMWF)',
+                // [출처표기 — 2026-09-26 보강] ECMWF 공개자료는 CC BY 4.0 + ECMWF 이용약관.
+                //   CC BY 4.0 이 요구하는 것: 저작권자 표시(© 연도 ECMWF)·라이선스 표시·
+                //   가공했으면 가공했다는 표시. 화면 한 줄에는 이 셋을 모두 넣고,
+                //   라이선스 주소와 면책 문구는 i 버튼 안내(서버 rem/other)에 넣는다.
+                //   공식 예보가 아니라 모델 예측이라는 점도 반드시 함께 적는다.
+                //   (https://www.ecmwf.int/en/forecasts/datasets/open-data · /en/terms-use)
+                note: '자료: © ' + new Date().getFullYear() + ' 유럽중기예보센터(ECMWF) · CC BY 4.0 · 우리 화면 형식으로 가공 · 컴퓨터 모델 예측(공식 태풍 예보 아님)' }
     };
     var _src = 'kma';          // 지금 보고 있는 출처
     var _foreignData = null;   // 해외 출처 응답 캐시
@@ -1289,10 +1299,13 @@
     var PROB_SOURCES = ['kma', 'jma'];    // 70% 확률반경을 발표하는 기관
     var SWATH_SOURCES = ['jtwc'];         // 위험구역 도형을 발표하는 기관
     function applyProbControl() {
-        lockLayerChk('tphn-ly-prob', PROB_SOURCES.indexOf(_src) >= 0,
-            '이 기관은 70% 확률반경을 발표하지 않습니다 (대신 "위험구역"을 보세요)');
-        lockLayerChk('tphn-ly-swath', SWATH_SOURCES.indexOf(_src) >= 0,
-            '이 기관은 34노트 위험구역 도형을 발표하지 않습니다 (대신 "70%반경"을 보세요)');
+        var hasProb = PROB_SOURCES.indexOf(_src) >= 0;
+        var hasSwath = SWATH_SOURCES.indexOf(_src) >= 0;
+        // 대신 볼 것을 권할 때는 그 기관에 실제로 있는 것만 권한다(유럽은 둘 다 없다).
+        lockLayerChk('tphn-ly-prob', hasProb,
+            '이 기관은 70% 확률반경을 발표하지 않습니다' + (hasSwath ? ' (대신 "위험구역"을 보세요)' : ''));
+        lockLayerChk('tphn-ly-swath', hasSwath,
+            '이 기관은 34노트 위험구역 도형을 발표하지 않습니다' + (hasProb ? ' (대신 "70%반경"을 보세요)' : ''));
     }
 
     /** 레이어 체크박스 하나를 켤 수 있게/없게 한다. 잠그면 흐려지고 why 가 설명으로 붙는다. */

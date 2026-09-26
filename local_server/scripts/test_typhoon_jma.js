@@ -231,7 +231,7 @@ ok('모양은 앱에 이미 있는 가운데 스피너를 그대로 쓴다',
 console.log('\n[8] 서버 — 어디서 받아 무엇을 내주나');
 
 ok('일본 기상청에서 직접 받는다', /www\.jma\.go\.jp\/bosai\/typhoon\/data\//.test(ROUTE_SRC));
-ok('출처 두 곳(미국·일본)을 받는다', /const SOURCES = \['jtwc', 'jma'\];/.test(ROUTE_SRC));
+ok('서버가 받는 출처에 일본이 있다', /const SOURCES = \['jtwc', 'jma', 'ecmwf'\];/.test(ROUTE_SRC));
 ok('출처마다 캐시를 따로 둔다 — 서로 덮어쓰지 않게',
     /cache\.jtwc = \{/.test(ROUTE_SRC) && /cache\.jma = \{/.test(ROUTE_SRC));
 ok('일본은 캐시를 미국(30분)보다 짧게 둔다 (15분) — 새 발표를 늦게 보이지 않게',
