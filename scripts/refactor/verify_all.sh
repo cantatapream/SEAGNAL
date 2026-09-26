@@ -109,7 +109,7 @@ run "V4 시뮬레이션" node scripts/refactor/simulate.js
 #     **게이트가 읽는 모든 파일**이다(→ `_LESSONS.md` L-382 갈래⑧).
 echo; echo "── V5 테스트 스위트 ──"
 SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_exact_refine
-  test_unverified_leak test_split_law_ask
+  test_unverified_leak test_split_law_ask test_section_name_kinds
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner
         test_parent_release_debounce
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render
@@ -484,6 +484,20 @@ node local_server/knowledge/legal/_dashboard/loop/loop_tool_census.js --gate \
 echo; echo "── V5-44 진행판 = 실측 ──"
 python3 local_server/knowledge/legal/_dashboard/loop/worklist_progress.py --gate \
   || fail "V5-44 진행판에 적힌 숫자가 실측과 다르다"
+
+# ── V5-50 3-6 으로 채운 51자리가 아직 원문 그대로인가 (2026-09-26 신설, 3-6) ──
+#   3-6ⓐ 는 표준 절 51자리를 채운 일이다. ★착수 전 위험검토에서 **17자리는 비어 있지 않았다**는
+#     것을 찾았다 — `## ★ 적용범위 (내 배에 적용되나) — 가장 중요` 처럼 이름이 규약과 달라
+#     세는 자(`startsWith`)에 안 걸렸을 뿐이다. 그 17자리에 원문을 새로 넣으면 **적용범위 절이
+#     두 개**가 된다. 그래서 17은 이름만 맞추고, 진짜 빈 34에만 원문을 옮겼다.
+#   이 자가 보는 것은 **「원문 그대로」가 아직 참인가**다. 채울 때 쓴 것과 같은 길
+#   (`article_text.extractArticleBlock`)로 raw 에서 다시 꺼내 위키 본문에 그 글자가 있는지 본다.
+#   ⇒ raw 가 재수집돼 조문이 바뀌면 **빨간불**이 된다 — 위키가 낡은 원문을 「원문 그대로」라고
+#     말하고 있는 것이 그때 드러난다(그냥 두면 아무도 모른다).
+#   ⚠빨간불일 때 위키를 손으로 고치지 마라. `section_fill_3_6.py` 를 다시 돌려 **원문에서** 옮긴다.
+echo; echo "── V5-50 3-6 으로 채운 51자리 = 원문 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/section_fill_3_6.py --check \
+  || fail "V5-50 3-6 으로 채운 자리가 raw 원문과 어긋난다"
 
 # ── V5-49 [미확인] 없이 나가는 REVIEW 줄 (2026-09-26 신설, N-2) ───────────────
 #   N-2 는 「신뢰도 단위를 쪽 → 절로 쪼갠다」이고 사장님이 **ⓐ(문턱을 낮춘다)** 로 확정하셨다.

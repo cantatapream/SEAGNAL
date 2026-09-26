@@ -30,9 +30,24 @@ function heads(text) {
   return text.split('\n').filter((l) => l.startsWith('## ')).map((l) => l.replace(/\s+$/, ''));
 }
 
+// ★2026-09-26 (3-6) — 「없다」와 「꼬리표」 사이에 **제3의 갈래**가 있었다.
+//   `## ★ 적용범위 (내 배에 적용되나) — 가장 중요` 는 꼬리표가 아니라 **이름이 아예 다른 것**이라
+//   `startsWith` 로도 안 걸려 「없다」로 세어졌다. 3-6 의 51자리 중 **17자리가 이것**이었다.
+//   ⚠위험한 이유: 「없다」로 믿고 내용을 새로 넣으면 **같은 뜻의 절이 두 개**가 된다.
+//   그래서 따로 센다. 뜻 사전은 코드에 박지 않고 `section_rules.json` 에 적는다(L-386).
+const 뜻사전 = RULES['이름_다르지만_같은_뜻'] || {};
+function 뜻은같은이름(want, hs) {
+  const pats = 뜻사전[want];
+  if (!Array.isArray(pats)) return null;
+  // ⚠낱말 하나로 맞히면 `## 청문 대상`·`## 위반 시 (처벌 연결)` 같은 벌칙 절까지 걸린다 — 구(句)로 맞힌다.
+  const re = new RegExp(pats.join('|'));
+  return hs.find((h) => re.test(h)) || null;
+}
+
 function scan() {
   const none = [];
   const tailed = [];
+  const renamed = [];
   let pages = 0;
   for (const kind of Object.keys(RULES['필수'])) {
     const dir = path.join(WIKI, kind);
@@ -44,12 +59,15 @@ function scan() {
       for (const want of RULES['필수'][kind]) {
         const exact = hs.some((h) => h === want);
         const pre = hs.some((h) => h.startsWith(want));
-        if (!pre) none.push({ kind, f, want });
-        else if (!exact) tailed.push({ kind, f, want, got: hs.find((h) => h.startsWith(want)) });
+        if (!pre) {
+          const 같은뜻 = 뜻은같은이름(want, hs);
+          if (같은뜻) renamed.push({ kind, f, want, got: 같은뜻 });
+          else none.push({ kind, f, want });
+        } else if (!exact) tailed.push({ kind, f, want, got: hs.find((h) => h.startsWith(want)) });
       }
     }
   }
-  return { pages, none, tailed };
+  return { pages, none, tailed, renamed };
 }
 
 const r = scan();
@@ -57,6 +75,7 @@ const argv = process.argv.slice(2);
 console.log(`  표준 절을 봐야 하는 쪽 ${r.pages}개 (뜻: \`section_rules.json\` 의 「필수」만 · 조건부·자유는 안 본다)`);
 console.log(`    ❌ 없다     ${String(r.none.length).padStart(4)}   앞가지로도 없다 — 진짜 빈 것(3-6 이 채운다)`);
 console.log(`    ⚠ 꼬리표   ${String(r.tailed.length).padStart(4)}   있는데 이름에 꼬리가 붙었다 — 소비자는 startsWith 로 읽으니 **깨진 건 아니다**`);
+console.log(`    ⚠ 이름다름 ${String(r.renamed.length).padStart(4)}   뜻은 같은데 이름이 아예 다르다 — ★**「없다」로 믿고 새로 넣으면 절이 두 개가 된다**`);
 
 const byKind = (rows) => {
   const m = {};
@@ -66,13 +85,25 @@ const byKind = (rows) => {
 if (argv.includes('--list')) {
   console.log('\n  ── 없다 ──');
   for (const [k, n] of Object.entries(byKind(r.none)).sort((a, b) => b[1] - a[1])) console.log(`     ${String(n).padStart(4)}  ${k}`);
-  for (const x of r.none.slice(0, 40)) console.log(`       · ${x.kind}/${x.f}  ← ${x.want}`);
+  // ⚠[2026-09-26 3-6] 종전엔 여기서 **무조건 40개만** 찍었다(`slice(0, 40)`). 빈 자리가 51인데
+  //   화면엔 40만 나와서 **11칸이 어디인지 모르는 채로** 일을 시작하게 된다 — 자가 제 눈을 가렸다.
+  //   `--all` 을 주면 전부 찍는다. 기본을 40으로 둔 것은 게이트 로그가 길어지지 않게 하려는 것이다.
+  const ALL = argv.includes('--all');
+  for (const x of (ALL ? r.none : r.none.slice(0, 40))) console.log(`       · ${x.kind}/${x.f}  ← ${x.want}`);
+  if (!ALL && r.none.length > 40) console.log(`       … ${r.none.length - 40}개 더 있다 — 전부 보려면 \`--list --all\``);
+  if (r.renamed.length) {
+    console.log('\n  ── 이름다름(뜻은 같다) ──');
+    for (const x of (ALL ? r.renamed : r.renamed.slice(0, 20)))
+      console.log(`       · ${x.kind}/${x.f}  ← ${x.want}  (지금 이름: ${x.got})`);
+    if (!ALL && r.renamed.length > 20) console.log(`       … ${r.renamed.length - 20}개 더 있다`);
+  }
   console.log('\n  ── 꼬리표 ──');
   for (const [k, n] of Object.entries(byKind(r.tailed)).sort((a, b) => b[1] - a[1])) console.log(`     ${String(n).padStart(4)}  ${k}`);
-  for (const x of r.tailed.slice(0, 20)) console.log(`       · ${x.kind}/${x.f}  ← ${x.got}`);
+  for (const x of (ALL ? r.tailed : r.tailed.slice(0, 20))) console.log(`       · ${x.kind}/${x.f}  ← ${x.got}`);
+  if (!ALL && r.tailed.length > 20) console.log(`       … ${r.tailed.length - 20}개 더 있다 — 전부 보려면 \`--list --all\``);
 }
 
-const now = { 없다: r.none.length, 꼬리표: r.tailed.length };
+const now = { 없다: r.none.length, 꼬리표: r.tailed.length, 이름다름: r.renamed.length };
 if (argv.includes('--update')) {
   fs.mkdirSync(path.dirname(BASE_FILE), { recursive: true });
   fs.writeFileSync(BASE_FILE, JSON.stringify(now, null, 1) + '\n', 'utf8');
