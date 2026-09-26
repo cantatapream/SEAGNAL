@@ -103,10 +103,13 @@
                 //   (https://www.jma.go.jp/jma/kishou/info/coment.html)
                 note: '자료: 일본 기상청 홈페이지(www.jma.go.jp) 태풍정보를 우리 화면 형식으로 가공해 작성 · 풍속은 10분 평균(우리 기상청과 같음)' },
         ecmwf: { label: '유럽(ECMWF)',
-                // [출처표기] ECMWF 공개자료는 CC BY 4.0 — 출처를 밝히면 재배포·상업 이용 가능.
-                //   (https://www.ecmwf.int/en/forecasts/datasets/open-data)
-                //   공식 예보가 아니라 모델 예측이라는 점을 반드시 함께 적는다.
-                note: '자료: 유럽중기예보센터(ECMWF) 공개자료 · CC BY 4.0 · 컴퓨터 모델 예측(공식 태풍 예보 아님) · 하루 두 번 갱신' }
+                // [출처표기 — 2026-09-26 보강] ECMWF 공개자료는 CC BY 4.0 + ECMWF 이용약관.
+                //   CC BY 4.0 이 요구하는 것: 저작권자 표시(© 연도 ECMWF)·라이선스 표시·
+                //   가공했으면 가공했다는 표시. 화면 한 줄에는 이 셋을 모두 넣고,
+                //   라이선스 주소와 면책 문구는 i 버튼 안내(서버 rem/other)에 넣는다.
+                //   공식 예보가 아니라 모델 예측이라는 점도 반드시 함께 적는다.
+                //   (https://www.ecmwf.int/en/forecasts/datasets/open-data · /en/terms-use)
+                note: '자료: © ' + new Date().getFullYear() + ' 유럽중기예보센터(ECMWF) · CC BY 4.0 · 우리 화면 형식으로 가공 · 컴퓨터 모델 예측(공식 태풍 예보 아님)' }
     };
     var _src = 'kma';          // 지금 보고 있는 출처
     var _foreignData = null;   // 해외 출처 응답 캐시
