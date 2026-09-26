@@ -1949,13 +1949,6 @@
                 return list;
             },
             btns: ['ocean-typhoon-toggle-btn'], cardTop: true, focusTyphoon: true
-        },
-        {
-            title: '지도를 눌러서 보는 것 — 수심 · 조석 · 기압',
-            body: '버튼이 따로 없고, 지도를 직접 눌러서 보는 정보입니다. '
-                + '자세한 설명은 「안 내」 버튼의 수심 · 조석 · 기압 탭에 있습니다.',
-            target: function () { var m = _oceanMapEl(); return m ? [m] : null; },
-            btns: []
         }
     ];
 
