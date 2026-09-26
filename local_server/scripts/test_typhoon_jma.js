@@ -195,11 +195,43 @@ ok('★70%반경 체크박스가 일본에서도 열린다',
 ok('★위험구역 체크박스는 일본에서 잠긴다 (그 도형이 없다)',
     /var SWATH_SOURCES = \['jtwc'\];/.test(TYPHOON_SRC));
 
+// [2026-09-26 사용자 요청] 일본은 예보 시점의 폭풍 범위가 70%반경보다 넓어(120시간 뒤
+//   560km > 460km), 기본 층 순서대로면 70%반경이 폭풍 범위 밑에 깔려 안 보였다.
+const zOf = (re) => { const m = re.exec(TYPHOON_SRC); return m ? +m[1] : NaN; };
+const Z_PROB = zOf(/var PROB_Z = (\d+)/), Z_PROB_TOP = zOf(/PROB_Z_TOP = (\d+)/);
+const Z_STORM = zOf(/source: _stormSrc, zIndex: (\d+)/), Z_TRACK = zOf(/source: _trackSrc, zIndex: (\d+)/);
+ok('실제 자료에서 일본 폭풍 범위가 70%반경보다 넓다 (그래서 순서를 바꾼다)',
+    F120.radStorm > F120.radProb, F120.radStorm + ' > ' + F120.radProb);
+ok('★일본일 때 70%반경이 폭풍반경 위로 올라온다',
+    /_probLayer\.setZIndex\(_src === 'jma' \? PROB_Z_TOP : PROB_Z\)/.test(TYPHOON_SRC) &&
+    Z_PROB_TOP > Z_STORM, Z_PROB_TOP + ' > ' + Z_STORM);
+ok('올라와도 예보 경로선·점보다는 아래다 (경로를 가리지 않는다)',
+    Z_PROB_TOP < Z_TRACK, Z_PROB_TOP + ' < ' + Z_TRACK);
+ok('한국·미국은 원래 순서 그대로 (70%반경이 폭풍반경 아래)',
+    Z_PROB < Z_STORM && /zIndex: PROB_Z, style/.test(TYPHOON_SRC), Z_PROB + ' < ' + Z_STORM);
+
+// [2026-09-26 사용자 요청] 출처를 바꾸는 동안 가운데 로딩 표시.
+ok('★출처를 바꾸면 가운데 로딩 표시를 띄운다',
+    /var token = showSourceLoading\(SOURCES\[src\]\.label\);/.test(TYPHOON_SRC) &&
+    /태풍 정보를 불러오는 중…/.test(TYPHOON_SRC));
+ok('★성공이든 실패든 끝나면 끈다 (영원히 떠 있지 않게)',
+    /Promise\.resolve\(p\)\.then\(done, done\);/.test(TYPHOON_SRC));
+ok('★빠르게 연달아 바꿔도 앞선 요청이 지금 표시를 끄지 않는다',
+    /if \(token !== _loadingSeq\) return;/.test(TYPHOON_SRC));
+// 기상청 쪽 불러오기가 "다 그렸다"를 알려 줘야 표시를 제때 끈다 — 안 기다리면 그리기 전에 꺼진다.
+ok('기상청 불러오기가 통보문을 다 그릴 때까지 기다린다',
+    /if \(seq\) return loadTyphoon\(year, seq, preferCode\);/.test(TYPHOON_SRC) &&
+    (TYPHOON_SRC.match(/if \(code0\) return selectBulletin\(year, code0\);/g) || []).length === 2 &&
+    /return fetchJSON\('\/api\/typhoon\/bulletin\?year='/.test(TYPHOON_SRC));
+ok('로딩 표시가 지도 조작을 막지 않는다', /#tphn-loading\{[^}]*pointer-events:none/.test(HTML_SRC));
+ok('모양은 앱에 이미 있는 가운데 스피너를 그대로 쓴다',
+    /mudflat-loading-box/.test(TYPHOON_SRC) && /\.mudflat-loading-box \{/.test(HTML_SRC));
+
 // ── [8] 서버 ───────────────────────────────────────────────────────────────
 console.log('\n[8] 서버 — 어디서 받아 무엇을 내주나');
 
 ok('일본 기상청에서 직접 받는다', /www\.jma\.go\.jp\/bosai\/typhoon\/data\//.test(ROUTE_SRC));
-ok('출처 두 곳(미국·일본)을 받는다', /const SOURCES = \['jtwc', 'jma'\];/.test(ROUTE_SRC));
+ok('서버가 받는 출처에 일본이 있다', /const SOURCES = \['jtwc', 'jma', 'ecmwf'\];/.test(ROUTE_SRC));
 ok('출처마다 캐시를 따로 둔다 — 서로 덮어쓰지 않게',
     /cache\.jtwc = \{/.test(ROUTE_SRC) && /cache\.jma = \{/.test(ROUTE_SRC));
 ok('일본은 캐시를 미국(30분)보다 짧게 둔다 (15분) — 새 발표를 늦게 보이지 않게',
