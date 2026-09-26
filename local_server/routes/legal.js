@@ -1642,6 +1642,28 @@ router.post('/api/legal/ask', async (req, res) => {
       return;
     }
 
+    // [4-6] 쪼개진 법을 **옛 이름으로** 물었으면 어느 쪽인지 되묻는다 (2026-09-26, 사장님 확정 ⓐ).
+    //   ★zoneTreeStep 과 **같은 자리·같은 반환 꼴**이라 같은 후처리로 나간다.
+    //   ★decideClarify(모델 판단) **앞**에 둔다 — 결정론적이라 매번 같은 답이 나오고 스위트로 잠글 수 있다.
+    //   좁게 발동한다: 옛 이름을 **홀로** 쓴 물음에만(새 이름을 썼으면 사용자가 이미 고른 것이다).
+    //   실측: 골든 291문항 중 옛 이름을 홀로 쓴 문항 **0건** ⇒ 판정 퇴보 위험 0.
+    //   ⚠되묻기 라운드 카운터를 **여기서도 올린다** — 안 올리면 상한(CLARIFY_MAX_ROUNDS)이 이 경로를
+    //     안 세어 사용자가 더 오래 갇힌다(2026-09-26 L-8 측정에서 카운터가 한 칸 뒤처지는 것을 겪었다).
+    const split = legalRetriever.splitLawStep(q);
+    if (split) {
+      ctx.cl = { q: split.clarify.question,
+        labels: split.clarify.options.map(o => o.label), n: clarifyRoundNext(ctx) };
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      if (res.flushHeaders) res.flushHeaders();
+      res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly,
+        answer: legalRetriever.withAssumedNotice(split.answer, assumed),
+        sources: [], citationChain: [], note: split.note, clarify: split.clarify })) + '\n');
+      res.end();
+      if (askId) inFlightAsks.delete(askId);
+      return;
+    }
+
     // [H-37 §5.5·§7.4] 검색어에만 상황질문·프로필로 확정된 조건을 덧붙인다 — `q` 자체는 안 건드린다.
     //   되묻기 판단(decideClarify)·답변 합성에는 **원 질문 q**를 그대로 넘긴다: 상황 정보는 검색
     //   후보를 고르는 데만 쓰고, 답변은 사용자가 실제로 쓴 문장에 답한다(안 그러면 답변 문장과

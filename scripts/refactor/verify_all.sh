@@ -97,9 +97,19 @@ run "V4 시뮬레이션" node scripts/refactor/simulate.js
 #           실패하던 것을 2026-08-09 에 기준일 이동으로 수정. 실패가 일상이 되면
 #           점검표를 무시하는 습관이 생겨 게이트 자체가 무력해진다.)
 # ============================================================================
+# ⚠★**이 스크립트가 도는 동안 이 파일을 고치지 마라** (2026-09-26 실측으로 겪었다).
+#   bash 는 스크립트를 **실행하면서 이어 읽는다** — 도는 중에 파일이 바뀌면 읽던 바이트 위치가
+#   어긋나 **아무 잘못 없는 줄에서 문법 오류**가 난다(그때 190줄에 `(` 가 없는데 그렇게 났다).
+#   `bash -n` 은 통과하므로 **내 수정이 잘못된 것처럼 보여** 엉뚱한 곳을 뒤지게 된다.
+#   기다리는 동안 손댈 일이 있으면 **사본으로 돌린다 — 단 사본은 이 폴더 안에 둔다**:
+#     `cp scripts/refactor/verify_all.sh scripts/refactor/.verify_run.sh && bash scripts/refactor/.verify_run.sh`
+#   ⚠`/tmp` 에 두면 안 된다 — 이 스크립트는 27줄에서 `cd "$(dirname "$0")/../.."` 로 제 뿌리를
+#     잡으므로, `/tmp` 에서 돌리면 뿌리가 `/` 가 되어 **전부 「파일 없음」**이 된다(2026-09-26 겪었다).
+#   ★「게이트와 raw 쓰기를 겹치지 않는다」와 같은 병이다 — 겹치지 말아야 하는 것은 raw 만이 아니라
+#     **게이트가 읽는 모든 파일**이다(→ `_LESSONS.md` L-382 갈래⑧).
 echo; echo "── V5 테스트 스위트 ──"
 SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_exact_refine
-  test_unverified_leak
+  test_unverified_leak test_split_law_ask
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner
         test_parent_release_debounce
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render

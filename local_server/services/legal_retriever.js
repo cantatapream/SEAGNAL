@@ -4265,6 +4265,68 @@ const ZONE_CLARIFY_NOTE = '추가 정보가 필요해요';
  * [연계] ← routes/legal.js POST /api/legal/ask 의 맨 앞 게이트(search()보다 앞).
  *        → ai_chat.js는 기존 되묻기·답변과 같은 필드만 보므로 클라이언트 변경이 없다.
  */
+// ── 4-6 쪼개진 법 되묻기 (2026-09-26 신설, 사장님 확정 ⓐ) ─────────────────────
+// [무엇] 2024년처럼 **법이 둘로 쪼개졌는데 옛 이름으로 물었을 때** 어느 쪽인지 되묻는다.
+// [왜] 옛 이름은 이제 어느 법도 아니다. 실측(2026-09-25): 「해사안전법」으로 물으면
+//   후보 39쪽 중 기본법 11쪽(1위·10,110자) · 교통안전법 10쪽(12위·819자) — 둘 다 닿지만
+//   **두께가 12배** 다르고 음주운항·충돌예방이 교통안전법에 있어 **절반만 두껍게** 뜬다.
+// [★왜 글로서리로 판정하지 않나] 글로서리에서 「법 둘 이상을 가리키는 행」은 3개인데 그중 둘
+//   (「기름통 버림」·「물양장」)은 **둘 다 답인 경우**다. 거기서 되물으면 퇴보다(되묻기가 늘면
+//   답까지 걸음이 늘어난다). 「쪼개졌다」는 **선언해야 아는 사실**이라 `_dashboard/split_laws.json`
+//   한 곳에 적어 두고 읽는다(규칙을 코드에 박지 않는다 — L-386).
+// [좁게 발동한다] 옛 이름을 **홀로** 쓴 물음에만. 새 이름 중 하나가 물음에 있으면 발동하지 않는다.
+//   실측: 골든 291문항 중 옛 이름을 홀로 쓴 문항 **0건** ⇒ 판정 퇴보 위험 0.
+// [연계] → routes/legal.js(zoneTreeStep 과 같은 자리·같은 반환 꼴) · 등록표 `4-6` ·
+//         `_dashboard/split_laws.json` · 스위트 `test_split_law_ask`.
+const SPLIT_LAWS_FILE = path.join(LEGAL_DIR, '_dashboard', 'split_laws.json');
+let _splitLaws = null;
+/** 쪼개진 법 선언을 읽는다(한 번만). 파일이 없거나 깨졌으면 **조용히 빈 목록** — 기존 흐름 그대로. */
+function loadSplitLaws() {
+  if (_splitLaws) return _splitLaws;
+  try {
+    const d = JSON.parse(fs.readFileSync(SPLIT_LAWS_FILE, 'utf8'));
+    _splitLaws = Array.isArray(d['쪼개진법']) ? d['쪼개진법'] : [];
+  } catch (_) { _splitLaws = []; }
+  return _splitLaws;
+}
+
+/**
+ * 쪼개진 법을 옛 이름으로 물었으면 어느 쪽인지 되묻는다.
+ * 예: splitLawStep('해사안전법이 뭐야') → {answer, note, clarify:{question, options}}
+ *     splitLawStep('해상교통안전법 음주운항 처벌') → null  (새 이름을 이미 썼다)
+ * @param {string} query - 사용자 물음
+ * @returns {{answer:string, note:string, clarify:{question:string, options:Array}}|null}
+ * [연계] ← routes/legal.js POST /api/legal/ask (zoneTreeStep 바로 뒤).
+ */
+function splitLawStep(query) {
+  const q = String(query || '');
+  if (!q.trim()) return null;
+  for (const it of loadSplitLaws()) {
+    const 옛 = String(it['옛이름'] || '');
+    const 새 = Array.isArray(it['새이름']) ? it['새이름'].filter(Boolean) : [];
+    if (!옛 || 새.length < 2) continue;
+    if (!q.includes(옛)) continue;
+    // ★새 이름을 이미 썼으면 되묻지 않는다 — 사용자가 이미 고른 것이다.
+    //   ⚠`해사안전기본법` 은 `해사안전법` 을 품지 않지만(글자가 다르다) 다른 법에서는 품을 수 있어
+    //     **새 이름 쪽을 먼저 본다**(옛 이름이 새 이름의 일부인 경우를 안전하게 넘긴다).
+    if (새.some((n) => q.includes(n))) return null;
+    const 설명 = it['무엇이어디에'] || {};
+    return {
+      answer: `「${옛}」은 ${it['쪼개진날'] || '2024년'}에 **${새.join(' · ')}** 으로 나뉘었습니다.`,
+      note: '추가 정보가 필요해요',
+      clarify: {
+        question: `어느 쪽을 찾으시나요?`,
+        options: 새.map((n) => ({
+          label: n,
+          hint: String(설명[n] || ''),
+          // 질의에 그 법 이름을 얹어 보낸다 — 되묻기 규약 그대로(라벨이 곧 좁히는 말이다).
+        })),
+      },
+    };
+  }
+  return null;
+}
+
 function zoneTreeStep(query) {
   try {
     const tree = matchZoneTreeTopic(query);
@@ -5415,7 +5477,9 @@ module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
   // 2026-09-25 일감 L-2: 사전의 `statutes/…` 꼴을 {kind,file} 로 바꾸는 **생산 규칙**.
   //   탐침(`glossary_route_probe.js`)이 제 사본을 만들면 자와 실물이 갈린다(L-136) —
   //   실제로 처음에 사본을 써서 「가리키는 쪽이 색인에 없다 10건」이라는 **허수**를 냈다.
-  normalizeSlug, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+  normalizeSlug, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep,
+  splitLawStep,   // ★4-6 쪼개진 법 되묻기 — routes/legal.js 가 zoneTreeStep 바로 뒤에서 부른다
+  matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
   // 2026-09-22 P-19: 합계 상한. 검사 도구가 **생산과 같은 값**을 보고 재려고 내보낸다(L-136).
   CONTEXT_MAX_CHARS, MIN_BODY_CHARS, MAX_BODY_CHARS, MID_BODY_CHARS, TAIL_BODY_CHARS,
