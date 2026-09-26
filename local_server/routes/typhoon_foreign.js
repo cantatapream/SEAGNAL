@@ -2,10 +2,10 @@
  * ============================================================================
  * 파일명: routes/typhoon_foreign.js
  * 역할: 해외 기관 태풍 자료를 우리 태풍 탭이 쓰는 형식으로 바꿔 내주는 API.
- *       미국 JTWC(합동태풍경보센터)와 일본 기상청(JMA) 두 곳 — 둘 다 공개 자료를 직접 읽는다.
+ *       미국 JTWC(합동태풍경보센터)·일본 기상청(JMA)·유럽 ECMWF 세 곳 — 모두 공개 자료를 직접 읽는다.
  * ============================================================================
  *
- * - GET /api/typhoon/foreign?src=jtwc|jma   → 활성 태풍 + 통보(자문) + 예보 프레임
+ * - GET /api/typhoon/foreign?src=jtwc|jma|ecmwf → 활성 태풍 + 통보(자문) + 예보 프레임
  * - GET /api/typhoon/foreign/image?src=jtwc&seq=wp2526  → JTWC 경고 그래픽(gif) 중계
  *   (일본은 예보도 그림 파일이 없어 이 주소를 쓰지 않는다)
  *
@@ -50,11 +50,18 @@
  *     출처를 적고, 가공했으면 가공했다고 밝혀야 한다 — 화면 안내문에 그렇게 적는다.
  *     (https://www.jma.go.jp/jma/kishou/info/coment.html)
  *
+ * [유럽(ECMWF)은 무엇이 다른가 — 2026-09-26 추가]
+ *   기관이 사람이 검토해 내는 '공식 예보'가 아니라 **컴퓨터 모델(IFS)의 예측 경로**다.
+ *   이진 형식(BUFR)이라 services/ecmwf_bufr.js 가 직접 푼다(ecCodes 와 전 칸 대조로 검증).
+ *   70% 확률반경·돌풍·이동방향이 없고, 풍속은 모델이 계산한 10m 바람이라 강도는 참고용이다.
+ *   이용 조건 CC-BY-4.0 — 출처를 밝힌다(https://www.ecmwf.int/en/forecasts/datasets/open-data).
+ *
  * [연계 파일]
  * - server.js → app.use() 로 등록
  * - services/jtwc_parse.js → 통보문·목록 해독
  * - services/jtwc_kmz.js → 구글어스 파일(.kmz)에서 위험구역·지나온 경로 해독
  * - services/jma_parse.js → 일본 기상청 태풍 JSON 해독
+ * - services/ecmwf_bufr.js → 유럽 ECMWF 태풍 경로(BUFR) 해독
  * - client/js/typhoon/ocean_typhoon.js → 출처 드롭다운에서 "미국(JTWC)" 선택 시 호출
  * ============================================================================
  */
@@ -66,6 +73,7 @@ const router = express.Router();
 const jtwc = require('../services/jtwc_parse');
 const jtwcKmz = require('../services/jtwc_kmz');
 const jma = require('../services/jma_parse');
+const ecmwf = require('../services/ecmwf_bufr');
 
 const JTWC_BASE = 'https://www.metoc.navy.mil/jtwc/';
 // [어디서 목록을 얻나 — 2026-09-25 실측]
@@ -85,7 +93,13 @@ const HTTP_TIMEOUT_MS = 20000;
 const UA = 'Mozilla/5.0 (compatible; SEAGNAL/1.0; +https://seagnal-server.fly.dev)';
 const REQ_HEADERS = { 'User-Agent': UA, 'Accept': 'text/html,text/plain,*/*' };
 const JMA_BASE = 'https://www.jma.go.jp/bosai/typhoon/data/';
-const SOURCES = ['jtwc', 'jma'];
+const SOURCES = ['jtwc', 'jma', 'ecmwf'];
+const ECMWF_BASE = 'https://data.ecmwf.int/forecasts/';
+// [보여 줄 범위] 유럽 파일은 6시간 간격으로 최대 360시간(15일)까지 준다. 그대로 그리면
+//   시점마다 말풍선이 붙어 지도가 60개 넘는 말풍선으로 뒤덮인다. 다른 기관(최대 120시간)과
+//   같은 범위·간격으로 맞춘다 — 자료를 지어내는 게 아니라 있는 시점 중 일부만 고르는 것이다.
+const ECMWF_MAX_HOURS = 120;
+const ECMWF_STEP_HOURS = 12;
 const TTL_MS = 30 * 60 * 1000;          // 상류가 6시간마다 갱신 — 30분이면 충분
 // [왜 15분인가] 2026-09-25 21:47 KST 에 나란히 받아 보니 일본은 21:00 기준, 미국은 15:00 기준이었다.
 //   일본의 정확한 발표 주기는 확인하지 않았다 — 새 발표를 늦게 보이지 않도록 미국(30분)보다 짧게 둔다.
@@ -382,10 +396,111 @@ async function fetchJma() {
     return data;
 }
 
+/**
+ * 유럽 파일 주소 후보 — 최신 실행부터. 00·12 UTC 두 번 돌고, 태풍이 있을 때만 파일이 생긴다.
+ * 예: 2026-09-26 05Z 에 부르면 → 26일 00z, 25일 12z, 25일 00z 순서
+ * [아직 안 올라온 실행] 실행 뒤 몇 시간 지나야 올라오므로 404 면 다음 후보로 넘어간다.
+ * @param {number} nowMs
+ * @returns {Array<{url:string, runUtcMs:number}>}
+ */
+function ecmwfCandidates(nowMs) {
+    const out = [];
+    const day0 = Date.UTC(new Date(nowMs).getUTCFullYear(), new Date(nowMs).getUTCMonth(), new Date(nowMs).getUTCDate());
+    const p = (n) => String(n).padStart(2, '0');
+    for (let back = 0; back <= 1; back++) {
+        [12, 0].forEach((hh) => {
+            const run = day0 - back * 86400000 + hh * 3600000;
+            if (run > nowMs) return;                       // 아직 오지 않은 실행
+            const d = new Date(run);
+            const ymd = d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate());
+            out.push({
+                url: ECMWF_BASE + ymd + '/' + p(hh) + 'z/ifs/0p25/oper/' + ymd + p(hh) + '0000-360h-oper-tf.bufr',
+                runUtcMs: run
+            });
+        });
+    }
+    return out;
+}
+
+/**
+ * 유럽 ECMWF 자료를 받아 우리 응답 형식으로 만든다. 30분 캐시(상류는 하루 두 번).
+ * [못 받으면] 후보를 다 돌아도 파일이 없으면 null — '태풍 없음'과 구별되게 실패로 알린다.
+ *   (파일은 태풍이 있을 때만 생기므로, 없는 경우도 실제로 있을 수 있다 — probe 로 가른다.)
+ * @returns {Promise<Object|null>}
+ */
+async function fetchEcmwf() {
+    if (cache.ecmwf && (Date.now() - cache.ecmwf.at) < TTL_MS) return cache.ecmwf.data;
+
+    lastError = '';
+    Object.keys(probe).forEach(k => delete probe[k]);
+
+    let buf = null, used = null;
+    for (const c of ecmwfCandidates(Date.now())) {
+        buf = await fetchBuffer(c.url);
+        if (buf && buf.slice(0, 4).toString('latin1') === 'BUFR') { used = c; break; }
+        buf = null;
+    }
+    if (!buf) { lastError = lastError || 'no_file'; return null; }
+
+    const recs = ecmwf.decodeMessages(buf);
+    const storms = recs.map(ecmwf.toTyphoon).filter(Boolean);
+    console.log(`[typhoon-foreign] ECMWF ${used.url.split('/').pop()} 메시지 ${recs.length}개`
+              + ` (못 푼 것 ${recs.filter(r => !r).length}) → 태풍 ${storms.length}개`);
+
+    const typhoons = storms.map((t) => {
+        const current = t.frames[0];
+        // 12시간 간격·120시간까지만 고른다(위 ECMWF_MAX_HOURS 주석).
+        const baseMs = kstStampToMs(t.baseKst);
+        const forecast = t.frames.slice(1).filter((f) => {
+            const h = Math.round((kstStampToMs(f.time) - baseMs) / 3600000);
+            return h > 0 && h <= ECMWF_MAX_HOURS && h % ECMWF_STEP_HOURS === 0;
+        });
+        const seq = 'EC' + t.id;
+        return {
+            seq: seq,
+            name: t.name,
+            nameEn: t.name,
+            latestTmFc: t.baseKst,
+            past: null,                 // 이 파일은 앞으로의 경로만 준다
+            swath: null,
+            bulletins: [{
+                code: seq + '_' + t.baseKst,
+                label: '[ ECMWF ] 모델 예측 / ' + stampToLabel(t.baseKst) + ' 기준(KST)',
+                kind: 'TYP',
+                isLatest: true,
+                current: current,
+                forecast: forecast,
+                rem: '유럽중기예보센터(ECMWF)의 컴퓨터 모델(IFS)이 계산한 예측 경로입니다.'
+                   + ' 기관이 발표하는 공식 태풍 예보가 아닙니다.'
+                   + '|풍속은 모델이 계산한 바람이라 관측 기준의 평균 시간이 없습니다.'
+                   + ' 강도(약~초강력)는 참고용입니다.'
+                   + '|70% 확률반경·돌풍·이동 방향은 제공되지 않습니다.'
+                   + '|강풍·폭풍반경은 초속 18m·26m 이상 바람의 네 방향 거리입니다.'
+                   + '|원자료는 15일까지 있으나, 다른 기관과 같게 5일(120시간)까지 12시간 간격으로 보여 드립니다.',
+                other: '출처: 유럽중기예보센터(ECMWF) 공개자료(https://data.ecmwf.int) · CC BY 4.0'
+            }]
+        };
+    });
+
+    const data = {
+        success: true,
+        src: 'ecmwf',
+        label: '유럽(ECMWF)',
+        updatedAt: new Date().toISOString(),
+        year: new Date(Date.now() + KST_OFFSET_MS).getUTCFullYear(),
+        hasActive: typhoons.length > 0,
+        listChars: buf.length,
+        typhoons: typhoons
+    };
+    cache.ecmwf = { at: Date.now(), data: data };
+    return data;
+}
+
 /** 출처 이름에 맞는 자료를 준다. 모르는 출처면 null. */
 function fetchActive(src) {
     if (src === 'jtwc') return fetchJtwc();
     if (src === 'jma') return fetchJma();
+    if (src === 'ecmwf') return fetchEcmwf();
     return Promise.resolve(null);
 }
 
@@ -448,5 +563,6 @@ router.get('/api/typhoon/foreign/image', async (req, res) => {
 router._clearCache = function () { Object.keys(cache).forEach(k => delete cache[k]); };
 router._stampToLabel = stampToLabel;
 router._kstStampToMs = kstStampToMs;
+router._ecmwfCandidates = ecmwfCandidates;
 
 module.exports = router;

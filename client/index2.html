@@ -4189,14 +4189,14 @@
                             <select id="tphn-name" class="tphn-select" title="태풍 선택"></select>
                             <!-- 자료 출처 선택 — 기관마다 예보가 다르다. 한국(기상청)이 기본.
                                  미국(JTWC)은 공개 통보문과 구글어스 파일(.kmz)을,
-                                 일본(JMA)은 공개 태풍정보 JSON 을 직접 읽는다
-                                 (routes/typhoon_foreign.js · services/jtwc_kmz.js · jma_parse.js).
-                                 유럽·중국은 아직 자료원을 붙이지 않아 "준비 중"으로 잠가 둔다. -->
+                                 일본(JMA)은 공개 태풍정보 JSON 을, 유럽(ECMWF)은 모델 예측 경로(BUFR)를 직접 읽는다
+                                 (routes/typhoon_foreign.js · services/jtwc_kmz.js · jma_parse.js · ecmwf_bufr.js).
+                                 중국은 아직 자료원을 붙이지 않아 "준비 중"으로 잠가 둔다. -->
                             <select id="tphn-source" class="tphn-select tphn-source" title="자료 출처 선택">
                                 <option value="kma">한국(기상청)</option>
                                 <option value="jtwc">미국(JTWC)</option>
                                 <option value="jma">일본(JMA/RSMC)</option>
-                                <option value="ecmwf" disabled>유럽(ECMWF) — 준비 중</option>
+                                <option value="ecmwf">유럽(ECMWF)</option>
                                 <option value="cma" disabled>중국(CMA) — 준비 중</option>
                             </select>
                             <button id="tphn-info-btn" class="tphn-info-btn" type="button" title="통보문 안내"><i class="fa-solid fa-circle-info"></i></button>
