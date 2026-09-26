@@ -127,6 +127,7 @@
     var _steps    = null;   // 지금 진행 중인 단계 목록(특보정보용 STEPS 또는 지도용 STEPS_OCEAN)
     var _mode     = 'alert';// 'alert' = 특보정보 탭 튜토리얼, 'ocean' = 해양종합정보 탭 튜토리얼
     var _oceanArmed = false;// 공지사항 5연타로 켜진다 — 해양종합정보 탭에 들어가면 지도 튜토리얼 시작
+    var _safetyArmed = false;// 같은 연타로 켜진다 — 해양안전 화면에 들어가면 그 튜토리얼 시작
     var _sheetScrollId = 0; // 바텀시트를 천천히 내리는 중인 애니메이션 번호
 
     // ========================================================================
@@ -1462,10 +1463,11 @@
             // [순서가 중요하다] 끌 것을 **뒤에서부터** 먼저 끄고, 켤 것을 나중에 켠다.
             //   「특보 ON」은 특보구역에 딸린 버튼이라, 특보구역을 먼저 꺼 버리면
             //   그 버튼이 화면에서 사라져 **끌 수가 없다**(실측: 켠 채로 끝까지 남았다).
-            for (var i = OCEAN_BTNS.length - 1; i >= 0; i--) {
-                if (!want[OCEAN_BTNS[i]]) _obSet(OCEAN_BTNS[i], false);
+            var list = _btnList();
+            for (var i = list.length - 1; i >= 0; i--) {
+                if (!want[list[i]]) _obSet(list[i], false);
             }
-            OCEAN_BTNS.forEach(function (sel) { if (want[sel]) _obSet(sel, true); });
+            list.forEach(function (sel) { if (want[sel]) _obSet(sel, true); });
         };
         pass();
         // 한 번 더 맞춘다 — 「특보 ON」 버튼은 **특보구역을 켠 뒤에** 화면에 생기므로
@@ -1500,6 +1502,16 @@
             }, 0);
         });
     }
+
+    // 해양안전(해양안전생활 탭) 지도 버튼 — 화면 세로 순서 그대로
+    var SAFETY_BTNS = [
+        'ocean-terrain-toggle-btn', 'ocean-accident-toggle-btn', 'ocean-banzone-toggle-btn',
+        'ocean-navwarn-btn', 'ocean-mudflat-toggle-btn', 'ocean-cctv-toggle-btn',
+        'ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn'
+    ];
+
+    /** 지금 모드에서 켜고 끄는 버튼 목록. @returns {Array<string>} */
+    function _btnList() { return (_mode === 'safety') ? SAFETY_BTNS : OCEAN_BTNS; }
 
     var OCEAN_BTNS = [
         '[data-layer="wind"]', '[data-layer="current"]', '[data-layer="wave"]',
@@ -1952,6 +1964,109 @@
         }
     ];
 
+
+    // ========================================================================
+    // [단계 목록 — 해양안전생활 ▸ 해양안전]
+    //
+    // 같은 지도를 쓰지만 버튼 구성이 해양종합정보와 다르다(index2.html 의 body.ls-safety
+    // 규칙). 설명 글은 「안 내」 원문을 **한두 줄로 줄여** 따로 썼다(사용자 확정 2026-09-26).
+    // ========================================================================
+    var STEPS_SAFETY = [
+        {
+            title: '해양안전 — 바다에서 조심할 것',
+            body: '바다에서 위험한 곳과 하면 안 되는 곳을 지도에 겹쳐 보는 화면입니다. '
+                + '오른쪽 버튼을 누르면 바위 · 사고 기록 · 금지구역 같은 것이 하나씩 올라옵니다.',
+            target: function () { var m = _oceanMapEl(); return m ? [m] : null; },
+            btns: []
+        },
+        {
+            title: '지도 종류',
+            body: '지도 배경을 바꿉니다. 버튼에 따라 위성지도나 전자해도로 저절로 바뀌기도 합니다.',
+            target: function () {
+                var b = document.getElementById('ocean-basemap-toggle');
+                var m = document.getElementById('ocean-basemap-menu');
+                if (!b) return null;
+                return (m && m.getBoundingClientRect().height > 1) ? [b, m] : [b];
+            },
+            btns: [], pop: 'basemap'
+        },
+        {
+            title: '안 내 — 자세한 설명은 여기',
+            body: '지금 보여드리는 것보다 자세한 설명이 이 버튼 안에 들어 있습니다. '
+                + '자료를 어디에서 받아 오는지(출처)와 주의할 점까지 적혀 있습니다.',
+            target: function () {
+                var b = document.getElementById('ocean-info-btn');
+                return b ? [b] : null;
+            },
+            btns: []
+        },
+        {
+            title: '진북 정렬',
+            body: '지도를 정북(위쪽=북) 방향으로 맞춥니다.',
+            target: function () {
+                var b = document.getElementById('ocean-northup-btn');
+                return b ? [b] : null;
+            },
+            btns: []
+        },
+        {
+            title: '위험지형',
+            body: '바다 위와 물속의 바위를 표시합니다. 켜면 화면 왼쪽 위에 스위치가 생겨 '
+                + '노출암 · 갯바위와 간출암 · 암암을 골라 볼 수 있습니다.',
+            target: _obTarget('ocean-terrain-toggle-btn'),
+            btns: ['ocean-terrain-toggle-btn']
+        },
+        {
+            title: '사고정보',
+            body: '실제로 일어난 해양사고 기록을 지도에 보여줍니다. 왼쪽 위 [분석 · 현황]으로 '
+                + '한 건씩 보거나 격자 통계로 볼 수 있습니다. 지나간 기록이며 예보가 아닙니다.',
+            target: _obTarget('ocean-accident-toggle-btn'),
+            btns: ['ocean-accident-toggle-btn']
+        },
+        {
+            title: '금지구역',
+            body: '낚시금지구역과 출입통제구역을 함께 표시합니다. 구역을 누르면 '
+                + '지정 사유 · 통제 기간 · 벌칙까지 볼 수 있습니다.',
+            target: _obTarget('ocean-banzone-toggle-btn'),
+            btns: ['ocean-banzone-toggle-btn']
+        },
+        {
+            title: '항행경보',
+            body: '그날 발효 중인 항행경보 구역(사고 · 장애물 · 해상사격훈련 등)을 '
+                + '빨간 점선으로 표시합니다. 날짜와 시각을 바꿔 가며 볼 수 있습니다.',
+            target: _obTarget('ocean-navwarn-btn'),
+            btns: ['ocean-navwarn-btn']
+        },
+        {
+            title: '물빠짐',
+            body: '서해 · 남해 갯벌이 썰물에 얼마나 드러나는지 예측해 갈색으로 표시합니다. '
+                + '아래 슬라이더로 3일치를 1시간 단위로 볼 수 있습니다.',
+            target: _obTarget('ocean-mudflat-toggle-btn'),
+            btns: ['ocean-mudflat-toggle-btn']
+        },
+        {
+            title: 'CCTV',
+            body: '공공에 공개된 해안 CCTV 영상을 볼 수 있습니다. '
+                + '항구 상태와 바다 날씨를 눈으로 확인할 때 씁니다.',
+            target: _obTarget('ocean-cctv-toggle-btn'),
+            btns: ['ocean-cctv-toggle-btn']
+        },
+        {
+            title: '관제구역',
+            body: '선박교통관제구역(VTS)을 표시하고 관제채널이 함께 적힙니다. '
+                + '구역을 누르면 관제센터 주소와 전화번호를 볼 수 있습니다.',
+            target: _obTarget('ocean-vts-toggle-btn'),
+            btns: ['ocean-vts-toggle-btn']
+        },
+        {
+            title: '항로·해역',
+            body: '지정된 항로는 자홍색으로, 한중 · 한일 사이 해양경계 수역은 선홍색으로 '
+                + '나눠 표시합니다.',
+            target: _obTarget('ocean-seaway-toggle-btn'),
+            btns: ['ocean-seaway-toggle-btn']
+        }
+    ];
+
     // ========================================================================
     // [화면 만들기]
     // ========================================================================
@@ -2400,7 +2515,7 @@
         next.textContent = (_nextIdx(idx, 1) === -1) ? '완료' : '다음';
 
         // 이 단계가 필요로 하는 화면 상태를 통째로 맞춘다(앞/뒤 어느 쪽에서 와도 같은 결과)
-        if (_mode === 'ocean') {
+        if (_mode === 'ocean' || _mode === 'safety') {
             // 지도 튜토리얼 — 아코디언이 아니라 지도 버튼을 이 단계 모습으로 맞춘다
             _setOceanBtns(step.btns);
             _setOceanPop(step.pop);
@@ -2424,7 +2539,7 @@
             //   그림 단계는 아코디언 상태를 볼 필요가 없으므로 그 확인을 건너뛴다.
             // 지도 단계는 아코디언과 무관하다 — 비출 것이 화면에 잡히면 준비된 것이다
             //   (눌러서 여는 창이 있는 단계는 그 창이 떠야 잡힌다)
-            if (_mode === 'ocean') return (!step.target || !!_unionRect(_targets(step)));
+            if (_mode !== 'alert') return (!step.target || !!_unionRect(_targets(step)));
             return (step.image || _isMapStep(step.drill) || _settled(step.want))
                 && _drillSettled(step.drill)
                 && (!step.target || !!_unionRect(_targets(step)));
@@ -2476,7 +2591,7 @@
             grid: !!gridBtn && gridBtn.classList.contains('active'),
             warn: !!warnBtn && warnBtn.classList.contains('active'),
             // 지도 튜토리얼이 켜고 끄는 버튼들 — 닫을 때 하나씩 원래대로 돌린다
-            ocean: OCEAN_BTNS.map(function (sel) {
+            ocean: _btnList().map(function (sel) {
                 var b = _ob(sel);
                 return { sel: sel, on: !!b && b.classList.contains('active') };
             })
@@ -2534,14 +2649,17 @@
      */
     function _open(mode) {
         if (_root) return;
-        _mode  = (mode === 'ocean') ? 'ocean' : 'alert';
-        _steps = (_mode === 'ocean') ? STEPS_OCEAN : STEPS;
+        _mode  = (mode === 'ocean' || mode === 'safety') ? mode : 'alert';
+        _steps = (_mode === 'ocean') ? STEPS_OCEAN
+               : (_mode === 'safety') ? STEPS_SAFETY : STEPS;
         _snapshot = _snap();
 
         // 특보정보 튜토리얼은 특보정보 탭에서 시작한다(연타는 공지사항 탭에서 일어난다).
         //   지도 튜토리얼은 이미 해양종합정보 탭에 들어와 있으므로 탭을 옮기지 않는다.
-        var startSec = (_mode === 'ocean') ? 'ocean-map-section' : 'weather-alert-section';
-        if (_mode !== 'ocean' && typeof window.switchMainTab === 'function') {
+        var startSec = (_mode === 'ocean') ? 'ocean-map-section'
+                     : (_mode === 'safety') ? 'ocean-map-section'   // 해양안전도 같은 지도를 빌려 쓴다
+                     : 'weather-alert-section';
+        if (_mode === 'alert' && typeof window.switchMainTab === 'function') {
             window.switchMainTab(startSec);
         }
 
@@ -2640,6 +2758,7 @@
         //   사용자가 해양종합정보 탭에 들어가면 지도 튜토리얼이 이어서 시작한다
         //   (시험 단계 진입 규칙, 사용자 확정 2026-09-24).
         _oceanArmed = true;
+        _safetyArmed = true;
         if (typeof window.openZoneSetup === 'function') window.openZoneSetup(function () { _open(); });
         else _open();
     }
@@ -2670,7 +2789,42 @@
         });
     }
 
-    function _bindAll() { _bindTrigger(); _bindOceanTrigger(); }
+    /**
+     * 해양안전생활 탭의 「해양안전」 화면에 들어갈 때 그 튜토리얼을 시작하도록 걸어 둔다.
+     *
+     * 무엇을 하나?
+     *   ① 하단 「해양안전생활」 탭을 눌렀을 때(그 탭은 해양안전 화면으로 열린다)
+     *   ② 그 안의 「해양안전」 하위 탭을 눌렀을 때
+     *   둘 다에서, 공지사항 5연타로 켜 둔 표시가 있으면 연다. 한 번 열리면 표시를 끈다.
+     *
+     * [연계] index2.html 하단 `.tab-btn[data-target="ocean-life-group"]` 와
+     *        `#ocean-safety-sub-tabs .sub-tab-btn[data-target="ocean-safety-section"]`
+     */
+    function _bindSafetyTrigger() {
+        var open = function () {
+            if (!_safetyArmed || _root) return;
+            if (document.getElementById('zone-setup-overlay')) return;
+            // 해양안전 화면일 때만 연다(해양생활 쪽은 아직 따로 만들지 않았다)
+            var sec = document.getElementById('ocean-safety-section');
+            var on = document.querySelector('#ocean-safety-sub-tabs .sub-tab-btn.active');
+            if (!on || on.dataset.target !== 'ocean-safety-section') return;
+            _safetyArmed = false;
+            _open('safety');
+        };
+        var main = document.querySelector('.tab-btn[data-target="ocean-life-group"]');
+        if (main) main.addEventListener('click', function (e) {
+            if (!(e.detail > 0 || e.isTrusted)) return;
+            // 탭 전환과 화면 그리기가 끝난 뒤에 연다(다른 트리거와 같은 이유)
+            setTimeout(open, 600);
+        });
+        var sub = document.querySelector('#ocean-safety-sub-tabs .sub-tab-btn[data-target="ocean-safety-section"]');
+        if (sub) sub.addEventListener('click', function (e) {
+            if (!(e.detail > 0 || e.isTrusted)) return;
+            setTimeout(open, 600);
+        });
+    }
+
+    function _bindAll() { _bindTrigger(); _bindOceanTrigger(); _bindSafetyTrigger(); }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _bindAll);
@@ -2682,4 +2836,6 @@
     window.openTutorial = _open;
     // 시험·디버그용: 지도 튜토리얼만 바로 열어 본다
     window.openOceanTutorial = function () { _open('ocean'); };
+    // 시험·디버그용: 해양안전 튜토리얼만 바로 열어 본다
+    window.openSafetyTutorial = function () { _open('safety'); };
 })();
