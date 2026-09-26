@@ -22,12 +22,13 @@
   - 읽음: raw/*/*/행정규칙/*.txt (둘째 줄 ID · 본문 `[별표` 블록)
   - 호출: https://www.law.go.kr/DRF/lawService.do (OC=hyoo1431, target=admrul)
   - 씀:   _dashboard/admrul_annex_survey.json (조사 결과만 — raw 는 건드리지 않는다)
-사용법: python3 admrul_annex_survey.py [--limit N]
+사용법: python3 admrul_annex_survey.py [--limit N] [--redo-failed]
+        --redo-failed : 앞선 조사에서 **망 탓으로 실패한 것만** 다시 재어 옛 산출물에 얹는다
 """
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from _admrul_id import find_id   # ★판번호를 찾는 단 한 곳(P-19b)
-import glob, json, os, re, sys, time, urllib.request
+import glob, json, os, re, subprocess, sys, time, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -41,20 +42,47 @@ OUT = (sys.argv[sys.argv.index('--out') + 1] if '--out' in sys.argv
 
 
 def api(url, tries=4):
+    """★`curl` 로 부른다 — `urllib` 은 이 프록시 뒤에서 더 약하다 (2026-09-26 실측, 3-65).
+
+    [무엇이 있었나] 조사 결과에 `실패 5` 가 남아 있었고 등록부는 그것을 「조사 실패(다시 재야 한다)」로
+      적어 두었다. 그 다섯을 **curl 로 다시 부르니 다섯 다 받아졌다**
+      (별표단위 5·2·38·없다·없다). 즉 「실패」는 **망 탓**이었고 자료의 사실이 아니었다.
+    [왜 curl 인가] `curl --retry --retry-all-errors` 는 `Recv failure: Connection reset by peer`
+      같은 끊김을 **자기 안에서** 다시 건다. urllib 은 그 자리에서 예외로 끝난다.
+      같은 일을 오늘 `coastal_ordin_collect` 에서도 겪었다(L-322 의 그 뿌리).
+    ⚠파이썬 쪽 되풀이도 그대로 둔다 — 둘이 겹쳐야 끝까지 간다.
+    """
     last = None
     for i in range(tries):
-        try:
-            with urllib.request.urlopen(url, timeout=40) as r:
-                return json.load(r)
-        except Exception as e:
-            last = str(e)
-            time.sleep(1.5 * (i + 1))
+        r = subprocess.run(['curl', '-sS', '--retry', '5', '--retry-all-errors',
+                            '--retry-delay', '2', '--max-time', '60', url,
+                            '-H', 'User-Agent: Mozilla/5.0'], capture_output=True, text=True)
+        if r.returncode == 0 and r.stdout.strip().startswith('{'):
+            try:
+                return json.loads(r.stdout)
+            except Exception as e:
+                last = 'JSON 아님: ' + str(e)[:60]
+        else:
+            last = (r.stderr or '')[-80:] or ('되돌린값 %d' % r.returncode)
+        time.sleep(1.5 * (i + 1))
     return {'_err': last}
 
 
 def main():
     limit = int(sys.argv[sys.argv.index('--limit') + 1]) if '--limit' in sys.argv else None
     files = sorted(glob.glob(os.path.join(LEGAL, 'raw', '*', '*', '행정규칙', '*.txt')))
+    # ★`--redo-failed` — 앞선 조사에서 **망 탓으로 실패한 것만** 다시 잰다 (2026-09-26, 3-65).
+    #   900건을 다시 부르지 않는다. 결과는 **옛 산출물에 얹어 합친다**(나머지 갈래를 잃지 않는다).
+    #   망은 또 끊길 테니 한 번 쓰고 버릴 문이 아니다.
+    옛것 = None
+    if '--redo-failed' in sys.argv:
+        옛것 = json.load(open(OUT, encoding='utf-8'))
+        다시 = set(옛것.get('실패') or [])
+        if not 다시:
+            print('앞선 조사에 실패가 없다 — 다시 잴 것이 없다')
+            return
+        files = [p for p in files if os.path.basename(p) in 다시]
+        print('실패였던 %d건만 다시 잰다' % len(files))
     res = {'빠짐': [], '이미있음': [], '수가모자람': [], 'API에별표없음': [], 'ID없음': [], '실패': []}
     done = 0
     for p in files:
@@ -124,8 +152,25 @@ def main():
         else:
             res['이미있음'].append(name)
 
+    if 옛것 is not None:
+        # 합친다 — 다시 잰 이름들을 옛 갈래에서 빼고, 새 갈래에 넣는다.
+        다시본 = {os.path.basename(p) for p in files}
+        def 이름(x):
+            return x if isinstance(x, str) else str((x or {}).get('파일') or (x or {}).get('name') or x)
+        합 = {}
+        for k in ('빠짐', '이미있음', '수가모자람', 'API에별표없음', 'ID없음', '실패'):
+            남은 = [x for x in (옛것.get(k) or []) if 이름(x) not in 다시본]
+            합[k] = 남은 + res[k]
+        print('  ── 합친 결과(옛 것에 얹었다) ──')
+        for k in 합:
+            print('  %s: %d건  (이번에 다시 잰 것 %d건)' % (k, len(합[k]), len(res[k])))
+        합['checked'] = (옛것.get('checked') or 0) + done
+        합['ran_at'] = time.strftime('%Y-%m-%d %H:%M:%S KST', time.gmtime(time.time() + 9 * 3600))
+        합['_실패만_다시_잰_날'] = 합['ran_at']
+        res = 합
     for k in res:
-        print(f"{k}: {len(res[k])}건")
+        if isinstance(res[k], list):
+            print(f"{k}: {len(res[k])}건")
     # 스캐너가 화면에 '언제 · 몇 건'을 쓰려면 숫자가 결과 안에 있어야 한다(2026-09-21).
     res['checked'] = done
     res['ran_at'] = time.strftime('%Y-%m-%d %H:%M:%S KST', time.gmtime(time.time() + 9 * 3600))
