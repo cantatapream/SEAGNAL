@@ -37,7 +37,7 @@
        `_admrul_id.find_id()`(그 파일을 읽는 쪽) · `admrul_fresh.py`(조회 함수의 임자).
 """
 import importlib.util
-import io
+import io, subprocess, urllib.parse
 import json
 import os
 import re
@@ -90,6 +90,56 @@ def kind_of(path):
     return '③ 여느 제목'
 
 
+# ── ★둘째 걸음: 제목으로 못 찾으면 **기관명으로 찾아 후보를 적는다** (2026-09-26, P-19b) ──
+#   [무엇이 틀렸나] 등록부에 *「해경서·지자체 공고는 이 창구 밖으로 보인다」* 고 적어 두었다.
+#     **틀렸다 — 창구 안에 있다.** 실측:
+#         우리 제목 : 태안해양경찰서 — 곰섬갯벌 출입통제**장소**
+#         API 이름  : 태안해양경찰서 곰섬 **갯벌** 출입통제**구역** 지정 공고   (종류 공고 · 태안해양경찰서)
+#     막힌 것은 **창구가 아니라 제목 맞히기**였다(띄어쓰기 · 「장소/구역」 · 「지정 공고」 꼬리).
+#     ⇒ 「보인다」를 사실로 바꿔 적고, 자를 고친다.
+#   [무엇을 하나] 기관명(`○○해양경찰서`·`○○청` 등)으로 다시 찾아 **그 기관의 행정규칙 목록을 후보로 적는다.**
+#   ⚠**고르지 않는다**(G-34). 「곰섬갯벌 출입통제장소」와 「곰섬 갯벌 출입통제구역 지정 공고」가
+#     같은 것인지는 **사람이 본다** — 이름이 바뀐 것인지 다른 공고인지 기계가 단정할 수 없다.
+#     자는 사람이 볼 후보를 **손에 쥐여 주는 것**까지만 한다(지금 후보는 전부 빈 목록이다).
+기관_RE = re.compile(r'([가-힣]{2,10}(?:해양경찰서|해양경찰청|지방해양수산청|지방환경청|유역환경청|'
+                    r'해양수산부|경찰서|시청|군청|구청|청|시|군|구))')
+
+
+def 기관이름(제목):
+    """제목에서 기관 이름을 뽑는다. 못 뽑으면 None — 그러면 둘째 걸음을 건너뛴다."""
+    앞 = re.split(r'[—\-–]', str(제목 or ''), 1)[0]
+    앞 = 앞.strip().strip('()（）[]')
+    m = 기관_RE.search(앞)
+    return m.group(1) if m else None
+
+
+def 기관으로_후보찾기(기관):
+    """그 기관의 행정규칙 목록을 받는다. **적기만 한다 — 고르지 않는다.**"""
+    u = ('https://www.law.go.kr/DRF/lawSearch.do?OC=hyoo1431&target=admrul&type=JSON'
+         '&display=50&query=' + urllib.parse.quote(기관))
+    for _ in range(4):
+        r = subprocess.run(['curl', '-sS', '--retry', '5', '--retry-all-errors',
+                            '--retry-delay', '2', '-m', '50', u], capture_output=True, text=True)
+        if r.returncode == 0 and r.stdout.strip().startswith('{'):
+            try:
+                d = json.loads(r.stdout)
+            except Exception:
+                continue
+            b = d.get('AdmRulSearch') or {}
+            rows = b.get('admrul')
+            rows = rows if isinstance(rows, list) else ([] if rows is None else [rows])
+            out = []
+            for x in rows:
+                if 기관 not in str(x.get('소관부처명') or ''):
+                    continue                        # 그 기관 것만 — 이름이 스쳐 걸린 것은 뺀다
+                out.append('%s | %s | %s | ID %s' % (
+                    x.get('행정규칙명'), x.get('행정규칙종류'), x.get('소관부처명'),
+                    x.get('행정규칙일련번호') or x.get('ID') or ''))
+            return out
+        time.sleep(2)
+    return None                                     # 못 받았다 — 빈 목록과 구별한다
+
+
 def main():
     af = load_af()
     miss = [p for p in walk_admrul() if not find_id(p)[0]]
@@ -131,10 +181,24 @@ def main():
                 }
                 print(f'  [{i}/{len(todo)}] ✔ {t[:44]} → ID {rid}')
                 continue
+        후보 = [c if isinstance(c, str) else str(c)[:80] for c in (cands or [])][:5]
+        찾은법 = '제목조회'
+        # ★둘째 걸음 — 제목으로 후보가 하나도 안 나오면 **기관명으로** 다시 찾는다.
+        #   「창구 밖」이 아니었다(위 머리말의 실측). 고르지 않고 적어만 둔다.
+        if not 후보:
+            기관 = 기관이름(t)
+            if 기관:
+                기관후보 = 기관으로_후보찾기(기관)
+                if 기관후보 is None:
+                    찾은법 = '기관조회 — 못 받았다'
+                elif 기관후보:
+                    후보, 찾은법 = 기관후보[:12], '기관조회(«%s»)' % 기관
+                else:
+                    찾은법 = '기관조회 — 그 기관 것이 0건'
         hold.append({'파일': rel, '제목': t, '사유': why, '갈래': kind_of(p),
-                     '후보': [c if isinstance(c, str) else str(c)[:80] for c in (cands or [])][:5]})
+                     '후보찾은법': 찾은법, '후보': 후보})
         print(f'  [{i}/{len(todo)}] · {t[:44]} → {why}'
-              + (f' (후보 {len(cands)})' if cands else ''))
+              + (f' (후보 {len(후보)} · {찾은법})' if 후보 else f' ({찾은법})'))
 
     print('\n  사유별')
     for k, v in sorted(why_c.items(), key=lambda x: -x[1]):
