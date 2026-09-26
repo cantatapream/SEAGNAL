@@ -264,7 +264,14 @@ def main():
             if m0:
                 no = m0.group(2) + ('의' + m0.group(3) if m0.group(3) else '')
             else:
-                base_no = str(u.get('별표번호') or '').lstrip('0') or '1'
+                # ★번호가 없으면 **`0` 으로 둔다 — 지어내지 않는다** (2026-09-26, 3-67).
+                #   종전에는 `or '1'` 이었다. 그러면 API 가 `별표번호: "0000"`(원문에 번호가 없다)을
+                #   줄 때 **우리가 `별표1` 이라는 번호를 만들어 붙인다**. 그것은 환각 0 위반이고,
+                #   사장님 결심 ⑥ⓑ(2026-09-24)가 이미 「`0` 그대로 두고 『원문에 번호가 없다』고
+                #   적는다」로 정한 그 자리다(→ `nonum_byl_note.py`).
+                #   ⚠이 저장소의 다른 도구 8개는 전부 `or '0'` 이었다 — 여기 한 곳만 어긋나 있었다
+                #   (collect.py·recollect_byl.py·byl_tier_fill.py·admrul_byl_links.py 등).
+                base_no = str(u.get('별표번호') or '').lstrip('0') or '0'
                 bkey = str(u.get('별표키') or '')
                 br = bkey[-2:] if len(bkey) >= 3 else ''
                 no = base_no + ('의' + str(int(br)) if br.isdigit() and int(br) > 1 else '')
