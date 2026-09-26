@@ -450,6 +450,21 @@ node local_server/knowledge/legal/_dashboard/loop/annex_row_coverage.js --gate |
 #   [★왜 「못 찾음」은 안 잠그나] 3-33 이 이미 판단했다 — 그 자는 판정자가 못 된다
 #   (빨간불 가운데 참이 소수라 거짓 경보가 된다). **오탐이 있을 수 없는 것만** 잠근다.
 #   [고치는 법] 그 줄에 큰따옴표로 인용을 적는다. **주장을 지우지 않는다**(G-34).
+# ── V5-52 EXACT 주장 속 숫자 중 **어디에도 없는 것**이 늘지 않나 (2026-09-26 신설, G-29·3-33) ──
+#   `exact_claim_numbers.py` 는 2026-09-24 에 생겼고 **게이트에 없었다.** 386줄·숫자 6,367개를
+#   재면서 그 핵심 수(「어디에도 없다 33」)를 아무도 안 봤다. 아무도 안 세면 늘어도 모른다.
+#   ★같은 흠을 같은 날 G-13 에서도 찾았다 — 기준선 파일에 `원문없음` 이 적혀 있는데 게이트
+#     코드가 그것을 견주지 않아 **192 → 99 로 93이나 움직이는 동안 아무도 몰랐다**(그쪽도 고쳤다).
+#   ★**판정하지 않는다. 0 을 요구하지 않는다.** 3-33 이 판단했듯 이 자는 판정자가 못 된다 —
+#     「어디에도 없다」에는 **우리 계산값**처럼 흠이 아닌 것이 섞여 있다. **늘면 빨간불**만 켠다.
+#   [빨간불이면] `--list` 로 늘어난 줄을 본다. 우리 계산값이면 까닭을 커밋에 적고
+#     `--gate --update` 로 잠근다. 원문을 안 받은 것이면 받는다.
+#     ⚠수를 맞추려고 주장을 지우지 않는다(G-34·G-49).
+#   ⏱약 50초 든다(실측).
+echo; echo "── V5-52 EXACT 숫자 중 어디에도 없는 것 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_numbers.py --gate > /tmp/_v552.log 2>&1 \
+  && tail -3 /tmp/_v552.log || { tail -8 /tmp/_v552.log; fail "V5-52 EXACT 숫자 중 어디에도 없는 것이 늘었다"; }
+
 echo; echo "── V5-43 인용 없는 EXACT 주장 ──"
 python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py --gate > /tmp/_v543.log 2>&1 \
   && tail -6 /tmp/_v543.log || { tail -8 /tmp/_v543.log; fail "V5-43 인용 없는 EXACT 주장"; }

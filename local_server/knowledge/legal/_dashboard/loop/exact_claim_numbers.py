@@ -138,6 +138,41 @@ def main():
         out = os.path.join(HERE, '..', 'exact_claim_numbers.json')
         json.dump(rows, open(out, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         print('  저장:', out)
+
+    # ── ★--gate: 「어디에도 없다」가 **늘지 못하게만** 한다 (2026-09-26 신설, G-29·3-33) ──
+    # [왜] 이 자는 2026-09-24 에 생겼고 **게이트에 없었다.** 386줄·숫자 6,367개를 재면서
+    #   그 핵심 수(「어디에도 없다」)를 아무도 안 봤다. 아무도 안 세면 늘어도 모른다.
+    #   ★같은 흠을 같은 날 G-13 에서도 찾았다 — 기준선 파일에 `원문없음` 이 적혀 있는데
+    #     게이트 코드가 그것을 견주지 않아 **192 → 99 로 93이나 움직이는 동안 아무도 몰랐다**.
+    # [무엇을 하지 않나] **판정하지 않는다.** 0 을 요구하지도 않는다 —
+    #   3-33 이 이미 판단했듯 이 자는 판정자가 못 된다(「어디에도 없다」에는
+    #   **우리 계산값**처럼 흠이 아닌 것이 섞여 있다). 그래서 **늘면 빨간불**만 켠다(V5-46 의 결).
+    # [빨간불이면] 늘어난 줄을 `--list` 로 본다. 그것이 **우리 계산값**이면 사람이 확인하고
+    #   `--gate --update` 로 잠그면서 **왜 늘었는지 커밋에 적는다**. 원문을 안 받은 것이면 받는다.
+    #   ⚠수를 맞추려고 주장을 지우지 않는다(G-34).
+    if '--gate' in sys.argv:
+        base_path = os.path.join(HERE, 'baseline', 'exact_claim_numbers.json')
+        now = {'어디에도없다': tot['어디에도 없다']}
+        if '--update' in sys.argv:
+            os.makedirs(os.path.dirname(base_path), exist_ok=True)
+            json.dump(now, open(base_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+            print('  기준선을 다시 구웠다:', now)
+            return 0
+        try:
+            base = json.load(open(base_path, encoding='utf-8'))
+        except Exception:
+            print('  ⚠기준선이 없다 — `--gate --update` 로 한 번 구워야 한다')
+            return 1
+        옛 = base['어디에도없다']
+        if now['어디에도없다'] > 옛:
+            print('  ❌ 늘었다 어디에도없다 %d → %d' % (옛, now['어디에도없다']))
+            print('     → 위키가 **우리가 안 가진 숫자**를 새로 EXACT 라고 주장했다.')
+            print('       `--list` 로 그 줄을 보고, 우리 계산값이면 까닭을 적고 잠근다.')
+            print('     ⚠수를 맞추려고 주장을 지우지 않는다(G-34·G-49).')
+            return 1
+        print('  ✅ 기준선 그대로 — 늘지 않았다' if now['어디에도없다'] == 옛
+              else '  ✅ 줄었다 어디에도없다 %d → %d — `--gate --update` 로 잠근다'
+                   % (옛, now['어디에도없다']))
     return 0
 
 if __name__ == '__main__':
