@@ -512,11 +512,16 @@ console.log('\n[8-2] 응답 한 판 — 실제 파일을 상류인 척 물려 �
     };
     const realFetch = global.fetch;
     const realLog = console.log;
+    const realNow = Date.now;
     global.fetch = async function (url) {
         const b = FILES[String(url).split('/').pop()];
         if (!b) return { ok: false, status: 404, headers: new Map() };
         return { ok: true, status: 200, text: async () => b.toString('utf8'), arrayBuffer: async () => b };
     };
+    // [시각 고정 — 2026-09-26] 라우트는 발표 18시간이 지난 통보문을 '끝난 태풍'으로 거른다.
+    //   실제 시계를 쓰면 저장해 둔 25일 자료가 다음 날부터 걸러져 검사가 저절로 깨진다
+    //   (실제로 26일에 깨졌다 — CLAUDE.md "시각 의존 테스트 금지"). 발표 직후 시각으로 고정한다.
+    Date.now = function () { return Date.parse('2026-09-25T04:00:00Z'); };
     console.log = function () {};          // 라우트가 찍는 진행 기록은 여기선 가린다
     route._clearCache();
     const handler = route.stack.find(function (l) {
@@ -529,6 +534,7 @@ console.log('\n[8-2] 응답 한 판 — 실제 파일을 상류인 척 물려 �
         setTimeout(function () {
             global.fetch = realFetch;
             console.log = realLog;
+            Date.now = realNow;
             route._clearCache();
             const t = out && out.typhoons && out.typhoons[0];
             ok('★응답이 성공으로 나온다', !!(out && out.success));
