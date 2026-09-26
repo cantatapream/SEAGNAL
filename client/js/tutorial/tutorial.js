@@ -128,6 +128,7 @@
     var _mode     = 'alert';// 'alert' = 특보정보 탭 튜토리얼, 'ocean' = 해양종합정보 탭 튜토리얼
     var _oceanArmed = false;// 공지사항 5연타로 켜진다 — 해양종합정보 탭에 들어가면 지도 튜토리얼 시작
     var _safetyArmed = false;// 같은 연타로 켜진다 — 해양안전 화면에 들어가면 그 튜토리얼 시작
+    var _lifeArmed   = false;// 같은 연타로 켜진다 — 해양생활 화면에 들어가면 그 튜토리얼 시작
     var _sheetScrollId = 0; // 바텀시트를 천천히 내리는 중인 애니메이션 번호
 
     // ========================================================================
@@ -2067,6 +2068,189 @@
         }
     ];
 
+
+    // ========================================================================
+    // [단계 목록 — 해양안전생활 ▸ 해양생활]
+    //
+    // 활동 7개를 오른쪽 세로 레일에서 고른다. 여섯은 "지점마다 색으로 지수를 찍은 지도"라
+    // 생김새가 같고, 바다갈라짐만 표로 보여준다.
+    // ========================================================================
+
+    /** 레일의 활동 버튼. @param {string} sec - 활동 섹션 id @returns {HTMLElement|null} */
+    function _actBtn(sec) { return document.querySelector('#ls-rail [data-act="' + sec + '"]'); }
+
+    /**
+     * 이 단계에서 보여 줄 활동으로 바꾼다(이미 그 활동이면 아무것도 안 한다).
+     * @param {string} sec - 활동 섹션 id
+     */
+    function _setAct(sec) {
+        if (!sec) return;
+        var el = document.getElementById(sec);
+        if (el && el.getBoundingClientRect().height > 1) return;   // 이미 이 활동이다
+        var b = _actBtn(sec);
+        if (b) b.click();
+    }
+
+    /**
+     * 지금 보고 있는 활동의 지도를 얻는다.
+     * @returns {Object|null} ol.Map
+     * [연계] 활동마다 지도 핸들을 내놓는 이름이 다르다(life_safety.js 의 목록과 같다).
+     */
+    function _actMap() {
+        var gets = [window.getFishingMap, window.getSwimmingMap, window.getScubaMap,
+                    window.getMudflatMap, window.getSwellMap];
+        for (var i = 0; i < gets.length; i++) {
+            if (typeof gets[i] !== 'function') continue;
+            var m;
+            try { m = gets[i](); } catch (e) { continue; }
+            // 화면에 실제로 붙어 있는 지도만 고른다(활동을 바꿔도 옛 지도가 남아 있다)
+            if (m && m.getTargetElement && m.getTargetElement()
+                && m.getTargetElement().getBoundingClientRect().height > 1) return m;
+        }
+        if (window._surfing && window._surfing.map) return window._surfing.map;
+        return null;
+    }
+
+    /**
+     * 지도 한가운데에서 가장 가까운 지점을 **대신 눌러** 상세 시트를 띄운다.
+     *
+     * 왜 이렇게 하나?
+     *   활동마다 시트를 여는 함수가 안쪽에 숨어 있어 직접 부를 수 없다. 대신 지도에
+     *   "눌렀다"는 신호(singleclick)를 보내면 앱이 평소처럼 시트를 연다(실측으로 확인).
+     *
+     * @param {boolean} on - 열지(true) 닫을지(false)
+     */
+    function _setLifeSheet(on) {
+        var sheet = document.getElementById('fishing-bottomsheet');
+        if (!on) {
+            var x = document.getElementById('fishing-bs-close');
+            if (sheet && sheet.classList.contains('active') && x) x.click();
+            return;
+        }
+        if (sheet && sheet.classList.contains('active')) return;
+        _when(function () { return !!_actMap(); }, function () {
+            var m = _actMap();
+            if (!m || typeof ol === 'undefined') return;
+            var c = m.getView().getCenter();
+            var best = null, bestD = Infinity;
+            m.getLayers().forEach(function (l) {
+                var src = l.getSource && l.getSource();
+                if (!src || typeof src.getFeatures !== 'function') return;
+                src.getFeatures().forEach(function (f) {
+                    if (!f.get('placeName')) return;
+                    var g = f.getGeometry();
+                    if (!g || typeof g.getCoordinates !== 'function') return;
+                    var p = g.getCoordinates();
+                    var d = (p[0] - c[0]) * (p[0] - c[0]) + (p[1] - c[1]) * (p[1] - c[1]);
+                    if (d < bestD) { bestD = d; best = f; }
+                });
+            });
+            if (!best) return;
+            var coord = best.getGeometry().getCoordinates();
+            var pixel = m.getPixelFromCoordinate(coord);
+            if (!pixel) return;
+            m.dispatchEvent({ type: 'singleclick', pixel: pixel, coordinate: coord, map: m });
+        });
+    }
+
+    /** 활동 화면 전체(구멍을 그 화면에 뚫을 때). @returns {Array|null} */
+    function _actTarget(sec) {
+        return function () {
+            var el = document.getElementById(sec);
+            return (el && el.getBoundingClientRect().height > 1) ? [el] : null;
+        };
+    }
+
+    var STEPS_LIFE = [
+        {
+            title: '해양생활 — 오늘 하기 좋은가',
+            body: '바다에서 하는 활동마다 "오늘 하기 좋은 정도"를 지점별로 색으로 보여줍니다. '
+                + '오른쪽 세로줄에서 활동을 고릅니다.',
+            target: function () {
+                var r = document.getElementById('ls-rail');
+                return r ? [r] : null;
+            },
+            act: 'fishing-section'
+        },
+        {
+            title: '지도 종류 · 안 내',
+            body: '왼쪽 위에서 지도 배경을 바꾸고, 「안 내」로 활동마다 지수를 어떻게 매기는지 '
+                + '자세한 설명과 출처를 볼 수 있습니다.',
+            target: function () {
+                var e = document.getElementById('ls-topleft-controls');
+                return (e && e.getBoundingClientRect().height > 1) ? [e] : null;
+            },
+            act: 'fishing-section'
+        },
+        {
+            title: '색이 무슨 뜻인가',
+            body: '지점 색은 그 활동을 하기에 좋은 정도입니다 — 파랑(매우좋음)에서 '
+                + '빨강(매우나쁨)까지. 활동에 따라 기준이 다릅니다.',
+            target: function () {
+                var sec = document.getElementById('fishing-section');
+                if (!sec) return null;
+                var lg = sec.querySelector('[class*=legend]');
+                return (lg && lg.getBoundingClientRect().height > 1) ? [lg] : null;
+            },
+            act: 'fishing-section'
+        },
+        {
+            title: '지점을 누르면 — 자세히 보기',
+            body: '지점을 누르면 그날의 지수와 근거가 되는 바다 상태가 열립니다. '
+                + '날짜를 넘겨 가며 볼 수도 있습니다. 지금은 가까운 지점을 대신 눌렀습니다.',
+            target: function () {
+                var s = document.getElementById('fishing-bottomsheet');
+                return (s && s.getBoundingClientRect().height > 1) ? [s] : null;
+            },
+            act: 'fishing-section', sheet: true
+        },
+        {
+            title: '바다낚시',
+            body: '갯바위와 선상 낚시를 지점마다 보여줍니다. '
+                + '「바다낚시」를 한 번 더 누르면 갯바위 · 선상을 갈라 볼 수 있습니다.',
+            target: _actTarget('fishing-section'),
+            act: 'fishing-section'
+        },
+        {
+            title: '서핑',
+            body: '서핑하기 좋은 정도를 지점마다 보여줍니다.',
+            target: _actTarget('surfing-section'),
+            act: 'surfing-section'
+        },
+        {
+            title: '해수욕',
+            body: '해수욕하기 좋은 정도를 해수욕장마다 보여줍니다.',
+            target: _actTarget('swimming-section'),
+            act: 'swimming-section'
+        },
+        {
+            title: '스킨스쿠버',
+            body: '스킨스쿠버 하기 좋은 정도를 지점마다 보여줍니다.',
+            target: _actTarget('scuba-section'),
+            act: 'scuba-section'
+        },
+        {
+            title: '갯벌체험',
+            body: '갯벌체험 하기 좋은 정도를 갯벌마다 보여줍니다.',
+            target: _actTarget('mudflat-section'),
+            act: 'mudflat-section'
+        },
+        {
+            title: '바다갈라짐',
+            body: '이것만 지도가 아니라 표로 보여줍니다. 지역을 고르면 날짜마다 '
+                + '바다가 갈라지는 시간과 체험지수가 나옵니다.',
+            target: _actTarget('sea-parting-section'),
+            act: 'sea-parting-section'
+        },
+        {
+            title: '너울',
+            body: '너울이 얼마나 위험한지를 관심 · 주의 · 경계 · 위험으로 나눠 보여줍니다. '
+                + '갯바위나 방파제에 나갈 때 꼭 확인하세요.',
+            target: _actTarget('swell-section'),
+            act: 'swell-section'
+        }
+    ];
+
     // ========================================================================
     // [화면 만들기]
     // ========================================================================
@@ -2515,7 +2699,11 @@
         next.textContent = (_nextIdx(idx, 1) === -1) ? '완료' : '다음';
 
         // 이 단계가 필요로 하는 화면 상태를 통째로 맞춘다(앞/뒤 어느 쪽에서 와도 같은 결과)
-        if (_mode === 'ocean' || _mode === 'safety') {
+        if (_mode === 'life') {
+            // 해양생활 — 이 단계에서 보여 줄 활동으로 바꾸고, 지점 상세를 열지 말지 맞춘다
+            _setAct(step.act);
+            _setLifeSheet(!!step.sheet);
+        } else if (_mode === 'ocean' || _mode === 'safety') {
             // 지도 튜토리얼 — 아코디언이 아니라 지도 버튼을 이 단계 모습으로 맞춘다
             _setOceanBtns(step.btns);
             _setOceanPop(step.pop);
@@ -2591,7 +2779,7 @@
             grid: !!gridBtn && gridBtn.classList.contains('active'),
             warn: !!warnBtn && warnBtn.classList.contains('active'),
             // 지도 튜토리얼이 켜고 끄는 버튼들 — 닫을 때 하나씩 원래대로 돌린다
-            ocean: _btnList().map(function (sel) {
+            ocean: (_mode === 'life' ? [] : _btnList()).map(function (sel) {
                 var b = _ob(sel);
                 return { sel: sel, on: !!b && b.classList.contains('active') };
             })
@@ -2619,6 +2807,7 @@
         // 지도 튜토리얼이 켠 버튼·펼친 팝아웃·열어 준 창도 원래대로
         _setOceanOpen(null);
         _setOceanPop(null);
+        _setLifeSheet(false);   // 해양생활이 대신 눌러 띄운 지점 상세도 닫는다
         if (_snapshot.ocean) {
             _snapshot.ocean.forEach(function (o) { _obSet(o.sel, o.on); });
         }
@@ -2649,15 +2838,17 @@
      */
     function _open(mode) {
         if (_root) return;
-        _mode  = (mode === 'ocean' || mode === 'safety') ? mode : 'alert';
+        _mode  = (mode === 'ocean' || mode === 'safety' || mode === 'life') ? mode : 'alert';
         _steps = (_mode === 'ocean') ? STEPS_OCEAN
-               : (_mode === 'safety') ? STEPS_SAFETY : STEPS;
+               : (_mode === 'safety') ? STEPS_SAFETY
+               : (_mode === 'life') ? STEPS_LIFE : STEPS;
         _snapshot = _snap();
 
         // 특보정보 튜토리얼은 특보정보 탭에서 시작한다(연타는 공지사항 탭에서 일어난다).
         //   지도 튜토리얼은 이미 해양종합정보 탭에 들어와 있으므로 탭을 옮기지 않는다.
         var startSec = (_mode === 'ocean') ? 'ocean-map-section'
                      : (_mode === 'safety') ? 'ocean-map-section'   // 해양안전도 같은 지도를 빌려 쓴다
+                     : (_mode === 'life') ? 'fishing-section'       // 해양생활은 활동 화면에서 시작
                      : 'weather-alert-section';
         if (_mode === 'alert' && typeof window.switchMainTab === 'function') {
             window.switchMainTab(startSec);
@@ -2759,6 +2950,7 @@
         //   (시험 단계 진입 규칙, 사용자 확정 2026-09-24).
         _oceanArmed = true;
         _safetyArmed = true;
+        _lifeArmed = true;
         if (typeof window.openZoneSetup === 'function') window.openZoneSetup(function () { _open(); });
         else _open();
     }
@@ -2824,7 +3016,27 @@
         });
     }
 
-    function _bindAll() { _bindTrigger(); _bindOceanTrigger(); _bindSafetyTrigger(); }
+    /**
+     * 해양안전생활 탭의 「해양생활」 화면에 들어갈 때 그 튜토리얼을 시작하도록 걸어 둔다.
+     *
+     * [연계] index2.html 의 `#ls-life-sub-btn`(해양생활 하위 탭 버튼)
+     */
+    function _bindLifeTrigger() {
+        var btn = document.getElementById('ls-life-sub-btn');
+        if (!btn) return;
+        btn.addEventListener('click', function (e) {
+            if (!(e.detail > 0 || e.isTrusted)) return;
+            if (!_lifeArmed || _root) return;
+            if (document.getElementById('zone-setup-overlay')) return;
+            _lifeArmed = false;
+            // 활동 화면이 그려진 뒤에 연다(지도가 올라오는 데 시간이 걸린다)
+            setTimeout(function () { _open('life'); }, 900);
+        });
+    }
+
+    function _bindAll() {
+        _bindTrigger(); _bindOceanTrigger(); _bindSafetyTrigger(); _bindLifeTrigger();
+    }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _bindAll);
@@ -2838,4 +3050,6 @@
     window.openOceanTutorial = function () { _open('ocean'); };
     // 시험·디버그용: 해양안전 튜토리얼만 바로 열어 본다
     window.openSafetyTutorial = function () { _open('safety'); };
+    // 시험·디버그용: 해양생활 튜토리얼만 바로 열어 본다
+    window.openLifeTutorial = function () { _open('life'); };
 })();
