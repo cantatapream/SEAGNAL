@@ -465,6 +465,20 @@ echo; echo "── V5-52 EXACT 숫자 중 어디에도 없는 것 ──"
 python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_numbers.py --gate > /tmp/_v552.log 2>&1 \
   && tail -3 /tmp/_v552.log || { tail -8 /tmp/_v552.log; fail "V5-52 EXACT 숫자 중 어디에도 없는 것이 늘었다"; }
 
+# ── V5-53 옛 판(`_구판/`) 파일에 「현행이 아니다」 경고가 붙어 있나 (2026-09-27 신설, L-244·V5-15 계열) ──
+#   옛 판은 지우지 않고 `_구판/` 에 남기는 것이 규약이다. 그런데 **경고가 없으면 LLM 은 현행으로 읽는다.**
+#   항만시설 운영세칙·사용료 고시는 **요율**을 담으므로 그대로 인용되면 **틀린 금액이 나간다.**
+#   ★무엇이 이 검사를 만들게 했나: 같은 구판의 **형제 사본 두 쪽 중 한 쪽에만** 경고가 있었다
+#     (무역항 등의 항만시설 사용 및 사용료에 관한 규정 — 항만법 쪽엔 2026-09-03 부터, 항로표지법 쪽엔 없음).
+#     **한쪽에만 붙은 경고는 없는 것과 같다.** 전수로 쓸어 보니 21개 중 9개가 맨몸이었다(가장 오래된 것은 2015년 판).
+#   ⚠**망을 쓰지 않는다** — 머리 12줄에 경고 낱말이 있는지만 본다(낱말 목록은 선언이 갖는다).
+#   [빨간불이면] `python3 …/gupan_notice.py` 로 재고 `--apply` 로 채운다(창구가 구판 N·현행 Y 라고
+#     해야만 쓴다 — 증명을 못 대면 안 쓰고 까닭을 적는다). 파일을 지워서 초록을 만들지 않는다(G-34).
+#   ⏱1초 미만.
+echo; echo "── V5-53 옛 판에 「현행 아님」 경고 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/gupan_notice.py --gate > /tmp/_v553.log 2>&1 \
+  && tail -2 /tmp/_v553.log || { tail -12 /tmp/_v553.log; fail "V5-53 경고 없는 옛 판 파일이 늘었다"; }
+
 echo; echo "── V5-43 인용 없는 EXACT 주장 ──"
 python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py --gate > /tmp/_v543.log 2>&1 \
   && tail -6 /tmp/_v543.log || { tail -8 /tmp/_v543.log; fail "V5-43 인용 없는 EXACT 주장"; }

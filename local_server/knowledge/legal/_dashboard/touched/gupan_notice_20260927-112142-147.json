@@ -1,0 +1,15 @@
+{
+ "script": "gupan_notice",
+ "stamp": "20260927-112142-147",
+ "files": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/_구판/여수항·광양항항만시설운영세칙_구판_첨부전사_ID2100000249232.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/_구판/울산항항만시설운영세칙_구판_첨부전사_ID2100000274400.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/_구판/군산·장항항항만시설운영세칙_구판_ID2100000175038.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/_구판/대산항항만시설운영세칙_구판_ID2100000185871.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/_구판/울산항항만시설운영세칙_구판_ID2200000039625.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/_구판/평택·당진항항만시설운영세칙_구판_ID2100000120211.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/행정규칙/_구판/대산항항만시설운영세칙_구판_ID2100000185871.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/행정규칙/_구판/여수항·광양항항만시설운영세칙_구판_첨부전사_ID2100000249232.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/행정규칙/_구판/울산항항만시설운영세칙_구판_첨부전사_ID2100000274400.txt"
+ ]
+}

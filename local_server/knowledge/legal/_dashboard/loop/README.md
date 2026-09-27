@@ -26,12 +26,12 @@
 <!-- 자목록:자동 -->
 ### 자 목록 — 누가 부르나 (기계가 씀 · `loop_tool_census.js --index`)
 
-자 **277자루** · 게이트 **65** · 코드 **100** · 글만 **109** · 없음 **3**
+자 **279자루** · 게이트 **66** · 코드 **102** · 글만 **110** · 없음 **1**
 
 | 자 | 누가 부르나 | 무엇을 하는 자인가 |
 |---|---|---|
 | `admrul_annex_survey.py` | 코드 | 고시(행정규칙) raw 에 **별표·별지서식이 빠져 있는지**를 API 와 대조해 세기만 한다(읽기 전용). |
-| `admrul_body_rewrite_hwp.py` | 없음 | 행정규칙 **본문** raw 를 원본 `.hwp` 첨부에서 다시 쓴다 — 표는 행 단위로. |
+| `admrul_body_rewrite_hwp.py` | 코드 | 행정규칙 **본문** raw 를 원본 `.hwp` 첨부에서 다시 쓴다 — 표는 행 단위로. |
 | `admrul_byl_file_links.py` | 코드 | 행정규칙 별표 `.txt` 에 **내려받기 주소를 적어 넣는다**. (3-53) |
 | `admrul_byl_links.py` | 코드 | 행정규칙에서 온 별표의 **원본 파일 링크(PDF·HWP)** 를 `_links.json` 에 채운다. (3-21 · 3-36) |
 | `admrul_current_check.py` | 글만 | 받아 둔 행정규칙이 **현행판인지** 확인하고, 아니면 현행판으로 바꿔 받는다. |
@@ -68,6 +68,7 @@
 | `backlog_rollup_close.py` | 글만 | 백로그의 **집계 줄**(질문이 아니라 라운드 요약)을 닫는다 — 단, 안전 조건을 만족할 때만. |
 | `backlog_stale_scan.py` | 글만 | 백로그 미해소 항목 중 **이미 위키가 답하고 있을 가능성이 있는 것**을 추려 낸다(후보 목록). |
 | `backlog_triage.js` | 글만 | 백로그 "확인만" 패스. **18,794건 중 실제로 손댈 수 있는 게 몇 건인지**를 센다. |
+| `build_admrul_id_review_html.py` | 없음 | 행정규칙 **판번호 짝맞추기**를 눈으로 하는 검토장을 만든다. (P-19b · 결심 ⑭) |
 | `build_business_type_aliases.py` | 글만 | 사업자 유형" ↔ 기존 선박종류 트리(vessel_doc_tree.json) 별칭 매핑 빌더 겸 검증기. |
 | `build_change_baseline.py` | 코드 | 변동감지의 비교 기준점(baseline) 스냅샷을 조립한다 — "지금 우리 raw가 알고 있는 법령/고시가 |
 | `build_cite_review_html.py` | 글만 | 본문 인용 **뜻풀이 판정**을 눈으로 하는 HTML 검토장을 만든다. (3-41 ②) |
@@ -96,7 +97,7 @@
 | `byl_pdf_link_fill.py` | 글만 | 3-21 — 별표 `_links.json` 에 **PDF 주소만** 채운다. (파일은 건드리지 않는다) |
 | `byl_ref_fill.py` | 글만 | 3-62 — `byl_ref_gap.py` 가 짚은 **본문이 가리키는데 없는 별표**를 받아서 메운다. |
 | `byl_rename_to_decl.py` | 글만 | 별표 파일 **이름을 그 속이 말하는 번호에 맞춘다.** (3-34 = ⓒ 앞쪽) |
-| `byl_rewrite_hwp.py` | 없음 | 별표 raw 를 **원본 `.hwp` 에서 다시 쓴다 — 표는 행 단위로.** 선언: `_dashboard/hwp_byl_rewrite.json` |
+| `byl_rewrite_hwp.py` | 코드 | 별표 raw 를 **원본 `.hwp` 에서 다시 쓴다 — 표는 행 단위로.** 선언: `_dashboard/hwp_byl_rewrite.json` |
 | `byl_tier_fill.py` | 코드 | 3-46 — V5-32 가 「파일이 없다」고 짚은 **계층 별표 빈자리**를 골라서 메운다. |
 | `chatbot_proto.py` | 글만 | 나리야 법률 챗봇 검색+답변 프로토타입 (순수 코드, 임베딩 키 불필요). |
 | `check_budchik.py` | 글만 | 73법 raw(법률/시행령/시행규칙)에 부칙 섹션이 빠져있는지 전수 점검한다(H-26 후속). |
@@ -104,7 +105,7 @@
 | `cite_number_check.py` | 코드 | 본문 인용 목록(3-41)에서 **숫자·금액 인용만 골라 원문과 기계로 맞대어 본다. |
 | `cite_number_raw.js` | 코드 | 3-41 ① — 본문 인용의 **값 숫자**(금액·기간·비율·치수)를 **raw 원문과 맞대어 본다. |
 | `coastal_ordin_scan.py` | 코드 | 3-22 — **연안 시군구가 어디인지 전국 자치법규로 세어 정한다.** 선언: `_dashboard/coastal_ordin.json` |
-| `col_split_source_survey.py` | 없음 | V5-20(표가 열 단위로 펼쳐진 자리)이 남긴 쪽마다 **원본 `.hwp`/`.hwpx` 가 있는지 전수 조사한다. |
+| `col_split_source_survey.py` | 글만 | V5-20(표가 열 단위로 펼쳐진 자리)이 남긴 쪽마다 **원본 `.hwp`/`.hwpx` 가 있는지 전수 조사한다. |
 | `collect_admrul_by_name.py` | 글만 | 고시(행정규칙)를 **이름으로 찾아** 그 법 폴더에 받아 둔다. |
 | `collect_admrul.py` | 코드 | 고시(행정규칙) 정밀 수집: lsDelegated(위임법령) API로 '그 법이 실제 위임한 고시만' 수집. |
 | `collect_contacts.py` | 코드 | law.go.kr DRF API의 연락부서(법률/시행령/시행규칙)·담당부서기관(행정규칙) 필드를 수집한다. |

@@ -135,7 +135,13 @@ def main():
         for r in rows[:25]:
             print(f"   · {r['쪽']}:{r['줄']}  숫자 {r['숫자']}개 중 {len(r['없는것'])}개 — {', '.join(r['없는것'][:8])}")
     if '--save' in sys.argv:
-        out = os.path.join(HERE, '..', 'exact_claim_numbers.json')
+        # ★`--save <파일>` 은 **그 파일에 쓴다.** 예전엔 인자를 받아 놓고 **무시하고** 늘
+        #   저장소 파일에 썼다 — 2026-09-27 에 임시 경로를 주었더니 **저장소 파일이 조용히
+        #   덮여** 옛 목록을 잃을 뻔했다(git 에 있어 살렸다). 머리말은 `--save <파일>` 이라
+        #   적혀 있었으니 **글과 코드가 어긋난 것**이다.
+        i = sys.argv.index('--save')
+        준것 = sys.argv[i + 1] if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith('--') else None
+        out = 준것 or os.path.join(HERE, '..', 'exact_claim_numbers.json')
         json.dump(rows, open(out, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         print('  저장:', out)
 
