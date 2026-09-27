@@ -99,7 +99,22 @@ def covered(ours, cur):
         a, b = trim(x[:w // 2]), trim(x[w // 2:])
         return len(a) >= 12 and len(b) >= 12 and a in c and b in c
 
-    return sum(1 for x in wins if hit(x)) / len(wins)
+    # ★2026-09-27 — 비율만 돌려주면 **사람이 판단할 수 없다.** 3-37 의 남은 일이 바로
+    #   「보류 27건을 사람이 보고 재수집 여부 판단」인데, 손에 든 것이 「67%」 하나면 아무것도 못 고른다.
+    #   그래서 **못 찾은 창을 같이 남긴다.** 비율 계산은 한 글자도 바꾸지 않았다(A/B 로 확인했다).
+    못찾 = [x for x in wins if not hit(x)]
+    covered.마지막_못찾 = 못찾
+    return (len(wins) - len(못찾)) / len(wins)
+
+
+def covered_windows(ours, cur):
+    """`covered()` 와 **똑같이** 재고, 비율과 **못 찾은 창**을 같이 돌려준다. → (0~1, [창…])
+
+    ★자를 두 벌 만들지 않으려고 `covered()` 를 그대로 부른다(L-386). 부르는 쪽은
+    `meta_mst_holdover_diff.py` — 어느 조가 어떻게 다른지 사람에게 보여 줘야 한다.
+    """
+    r = covered(ours, cur)
+    return r, list(getattr(covered, '마지막_못찾', []))
 
 
 def api(url):
