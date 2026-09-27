@@ -35,6 +35,7 @@
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
+ *                    POST /api/legal/config {answerModel|codexForUsers} (답변 AI 모델·일반 사용자 적용, 관리자)
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
@@ -162,6 +163,11 @@
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
+  // [Codex 모드 · 2026-09-27 사용자 확정] 관리자 센터 설정 두 개(서버 /api/legal/config 가 진실의 원천).
+  //   serverAnswerModel: 관리자 기기의 질문을 어느 AI 로 답할지(기본 ChatGPT Luna).
+  //   serverCodexForUsers: ChatGPT 답변을 일반 사용자에게도 적용할지(기본 꺼짐).
+  var serverAnswerModel = 'gpt-6-luna';
+  var serverCodexForUsers = false;
   var statsCache = null;                       // {total,pending,approved} — 배지용
   var adminStatsCache = null;                  // {draft,feedback,candidates,amendments} — 서브탭 배지용
   var curAdminSubtab = '⚠수치검증';            // renderSubtabs가 마지막으로 그린 활성 탭(재갱신 시 유지용)
@@ -423,6 +429,24 @@
                 '<div class="nrya-seg-help" id="nryaSegHelp">노출 설정을 불러오는 중…</div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaSegErr"></div>' +
               '</div>' +
+              // [Codex 모드] 답변 AI 모델 + 일반 사용자 적용 스위치. 저장은 POST /api/legal/config.
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 모델 (서버 전역)</div>' +
+                '<div class="nrya-seg" id="nryaModelSeg">' +
+                  '<button data-model="gemini">Gemini</button>' +
+                  '<button data-model="gpt-6-luna">GPT Luna</button>' +
+                  '<button data-model="gpt-6-sol">GPT Sol</button>' +
+                  '<button data-model="gpt-6-astra">GPT Astra</button>' +
+                '</div>' +
+                '<div class="nrya-seg-help" id="nryaModelHelp">설정을 불러오는 중…</div>' +
+                '<div class="nrya-card-lab" style="margin-top:14px"><span class="nrya-pipe"></span>ChatGPT 답변을 일반 사용자에게도 적용</div>' +
+                '<div class="nrya-seg" id="nryaUsersSeg">' +
+                  '<button data-users="on">켜기</button>' +
+                  '<button data-users="off">끄기(기본)</button>' +
+                '</div>' +
+                '<div class="nrya-seg-help" id="nryaUsersHelp"></div>' +
+                '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
+              '</div>' +
               '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
               '<div class="nrya-subtabs" id="nryaSubtabs"></div>' +
               '<div id="nryaAdminContent"></div>' +
@@ -446,6 +470,8 @@
 
     // 노출 3-state 토글(서버 전역 설정)
     initSeg(root);
+    // 답변 AI 모델 · 일반 사용자 적용 스위치(서버 전역 설정)
+    initModelSeg(root);
 
     // 초기 렌더
     renderRoomPills('원문'); renderRoom('원문');
@@ -493,6 +519,75 @@
     if (help) help.innerHTML = (configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>') + (HELP[serverExposure] || HELP.off);
   }
 
+  /**
+   * 답변 AI 모델 토글과 「일반 사용자에게도」 스위치에 클릭을 잇고 현재 값으로 칠한다.
+   * @param {HTMLElement} root - .nrya-console 루트
+   * [연계] → setAnswerConfig(POST /api/legal/config). 서버 적용은 codex_bridge.withRequest.
+   */
+  function initModelSeg(root) {
+    root.querySelector('#nryaModelSeg').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-model]'); if (!b) return;
+      setAnswerConfig({ answerModel: b.dataset.model });
+    });
+    root.querySelector('#nryaUsersSeg').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-users]'); if (!b) return;
+      var on = b.dataset.users === 'on';
+      if (on && !serverCodexForUsers && !window.confirm('일반 사용자 질문도 ChatGPT(관리자 정액제 계정)로 답합니다.\n' +
+        'OpenAI 약관상 계정 공유에 해당해 계정이 정지될 수 있고, 사용량 한도가 빨리 찰 수 있습니다.\n켜시겠습니까?')) return;
+      setAnswerConfig({ codexForUsers: on });
+    });
+    paintModelSeg();
+  }
+
+  /**
+   * 답변 AI 모델 토글·일반 사용자 스위치를 서버 값에 맞춰 칠하고 안내문을 갱신한다.
+   * 콘솔이 안 떠 있으면 아무 것도 하지 않는다.
+   */
+  function paintModelSeg() {
+    var seg = document.getElementById('nryaModelSeg'); if (!seg) return;
+    seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('nrya-on', x.dataset.model === serverAnswerModel); });
+    var users = document.getElementById('nryaUsersSeg');
+    users.querySelectorAll('button').forEach(function (x) {
+      var on = (x.dataset.users === 'on') === serverCodexForUsers;
+      x.classList.toggle('nrya-on', on);
+      x.classList.toggle('nrya-warn', on && serverCodexForUsers);
+    });
+    var pre = configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>';
+    var help = document.getElementById('nryaModelHelp');
+    if (help) help.innerHTML = pre + (serverAnswerModel === 'gemini'
+      ? '<b>Gemini</b> — 모든 질문을 Gemini API 로 답합니다(ChatGPT 미사용).'
+      : '<b>' + serverAnswerModel + '</b> — 관리자 기기의 질문을 VM 의 ChatGPT(정액제)로 답합니다. ' +
+        'VM 작업자가 꺼져 있으면 Gemini 로 답합니다.');
+    var uh = document.getElementById('nryaUsersHelp');
+    if (uh) uh.innerHTML = serverCodexForUsers
+      ? '<b>켜짐</b> — 일반 사용자 질문도 위 ChatGPT 모델로 답합니다. ⚠OpenAI 약관상 계정 공유 위험·사용량 한도 주의.'
+      : '<b>꺼짐(기본값)</b> — 일반 사용자 질문은 Gemini 로 답합니다.';
+  }
+
+  /**
+   * 답변 AI 모델 또는 일반 사용자 스위치를 서버에 저장(관리자 전용)한다.
+   * 예: setAnswerConfig({ answerModel: 'gpt-6-sol' }) · setAnswerConfig({ codexForUsers: false })
+   * @param {{answerModel?:string, codexForUsers?:boolean}} patch
+   * [연계] → POST /api/legal/config. ← initModelSeg 클릭.
+   */
+  function setAnswerConfig(patch) {
+    var err = document.getElementById('nryaModelErr');
+    if (err) { err.style.display = 'none'; err.textContent = ''; }
+    legalPost('/api/legal/config', patch).then(function (res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      var msg = data._denied ? '관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'
+        : (!data || !data.ok) ? ((data && data.error) || '설정 저장 실패') : '';
+      if (msg) { if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = msg; } return; }
+      serverAnswerModel = data.answerModel || serverAnswerModel;
+      serverCodexForUsers = data.codexForUsers === true;
+      paintModelSeg();
+    }).catch(function (e) {
+      if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = '네트워크 오류: ' + String(e && e.message || e); }
+    });
+  }
+
   /** 노출 토글 저장 실패 등 인라인 오류 표시. @param {string} msg */
   function segError(msg) {
     var el = document.getElementById('nryaSegErr'); if (!el) return;
@@ -512,12 +607,16 @@
       if (data && data.ok && ['off', 'admin', 'user'].indexOf(data.exposure) !== -1) {
         serverExposure = data.exposure;
       }
+      if (data && data.ok && typeof data.answerModel === 'string') serverAnswerModel = data.answerModel;
+      if (data && data.ok) serverCodexForUsers = data.codexForUsers === true;
       configLoaded = true;
       paintSeg();
+      paintModelSeg();
       updateFabVisibility();
     }).catch(function () {
       configLoaded = true; // 실패해도 기본 off 로 확정
       paintSeg();
+      paintModelSeg();
       updateFabVisibility();
     });
   }

@@ -1,26 +1,29 @@
 /**
  * ============================================================================
  * 파일명: services/codex_bridge.js
- * 역할: 나리야 답변 AI를 **관리자 본인 요청에 한해** VM 의 ChatGPT(Codex)로 돌리는 중계소.
+ * 역할: 나리야 답변 AI를 VM 의 ChatGPT(Codex)로 돌리는 중계소.
  *       Fly 서버는 질문을 줄(대기열)에 세워 두기만 하고, VM 작업자가 가져가 답을 만들어 돌려준다.
  *       (VM 은 밖으로 나가기만 한다 — VM 에 들어오는 문을 열지 않는다.)
  * ============================================================================
  *
- * [삼중 잠금] 셋 다 맞아야 codex 로 간다. 하나라도 빠지면 **지금과 똑같이 Gemini**.
- *   ① 서버 스위치 — 환경변수 NRYA_CODEX_SECRET(16자 이상)이 있어야 이 기능이 산다.
- *      없으면 대기열·작업자 창구가 모두 404 이고 withRequest 는 아무 일도 안 한다.
- *   ② 관리자 인증 — 요청 헤더 X-Admin-Token 이 유효(admin_auth.verifyToken).
- *   ③ 명시 선택  — 요청 본문 llm: "codex".
- *   ⚠이유: /api/legal/ask 는 인증 없이 열려 있다(버튼만 숨김). 잠금 없이 붙이면 남이 내
- *     ChatGPT 정액제를 쓰게 되고, 그건 OpenAI 약관상 계정 공유다.
- *
+ * [언제 codex 로 가나] withRequest 주석의 결정 순서가 전부다. 요약:
+ *   ① 서버 스위치 — 환경변수 NRYA_CODEX_SECRET(16자 이상)이 없으면 무조건 Gemini·작업자 창구 404.
+ *   ② 관리자 센터 설정(routes/legal.js normConfig):
+ *      answerModel(기본 gpt-6-luna) — 관리자 기기의 질문을 어느 모델로 답할지. 'gemini' 면 codex 안 씀.
+ *      codexForUsers(기본 false) — 켜면 **일반 사용자 질문도** codex 로 답한다.
+ *   ③ 시험용 명시 선택 — 요청 본문 llm:"codex"(관리자 토큰 필요)·llm:"gemini".
+ *   ⚠codexForUsers 를 켜면 남이 관리자의 ChatGPT 정액제를 쓰게 된다 — OpenAI 약관상 계정 공유 위험.
+ *     사용자가 「책임은 내가 지니까 진행」으로 확정했다(2026-09-27, codex_client.design.md §0).
+ *     그래서 기본값은 꺼짐이고, 관리자 화면에 경고문을 붙인다.
+
  * [요청 범위 표시] AsyncLocalStorage — withRequest 가 codex 요청이라고 표시하면, 그 요청 안에서
  *   불리는 gemini_client.callGeminiRaw/callGeminiStream 이 active() 로 알아보고 여기로 온다.
  *   legal_retriever.js 의 AI 호출 지점(9종)은 **한 줄도 고치지 않는다.**
  *   특보분석 등 다른 기능은 그 요청 밖이라 영향이 없다.
  *
- * [실패는 숨기지 않는다] 작업자가 없거나 시간초과면 Gemini 로 몰래 바꾸지 않고 실패로 돌려준다
- *   (어느 AI 답인지 섞이면 비교 시험이 무의미해진다). 응답 헤더 X-Nrya-LLM 으로 어느 쪽이었는지 알린다.
+ * [실패 처리] 시험(llm:"codex")은 작업자가 없거나 시간초과면 Gemini 로 몰래 바꾸지 않고 실패로 돌려준다
+ *   (어느 AI 답인지 섞이면 비교가 무의미해진다). 앱에서 온 평소 질문은 **작업자가 연결돼 있지 않을 때만**
+ *   Gemini 로 답한다(요청을 받는 순간에 판단 — 도중 실패는 그대로 실패). 헤더 X-Nrya-LLM 으로 알린다.
  *
  * [연계]
  *   - services/gemini_client.js   → 입구 두 곳에서 active()·callRaw() 를 부른다
@@ -54,19 +57,52 @@ const queue = [];            // 아직 안 가져간 id 순서
 let waiter = null;           // 붙잡아 둔 작업자 요청 { res, timer } — 작업자는 하나라 한 자리만 둔다
 let lastWorkerSeenAt = 0;
 
+// 관리자 센터에서 고를 수 있는 답변 모델(routes/legal.js normConfig 의 answerModel 과 같은 목록).
+//   'gemini' 는 codex 를 안 쓴다는 뜻. 나머지는 VM 작업자가 `codex exec -m <모델>` 로 쓴다.
+//   기본값 gpt-6-luna(2026-09-27 사용자 확정) — 같은 5문항에서 원문 불일치 0·5시간 한도 −1%p(Astra −35%p).
+const ANSWER_MODELS = ['gemini', 'gpt-6-luna', 'gpt-6-sol', 'gpt-6-astra'];
+const DEFAULT_MODEL = 'gpt-6-luna';
+
 /**
- * /api/legal/ask 앞에 끼우는 미들웨어. 삼중 잠금이 모두 맞으면 이 요청을 codex 로 표시한다.
- * 예: 관리자 토큰 + { llm: "codex" } → 응답 헤더 X-Nrya-LLM: codex, 그 요청의 AI 호출이 전부 VM 으로.
+ * /api/legal/ask 앞에 끼우는 미들웨어. 이 요청의 AI 판단을 codex(VM)로 보낼지 정한다.
+ * 결정 순서(위가 이긴다):
+ *   ① 서버 스위치(NRYA_CODEX_SECRET) 없음 → Gemini
+ *   ② 요청 본문 llm:"gemini" → Gemini (비교 시험의 기준군)
+ *   ③ 요청 본문 llm:"codex" + 관리자 토큰 → codex (모델은 관리자 센터 설정, 'gemini' 면 기본 Luna).
+ *      작업자가 없어도 Gemini 로 안 바꾼다 — 실패로 드러나야 시험이 안 섞인다.
+ *   ④ 본문에 llm 없음(앱에서 온 평소 질문) — 관리자 센터 설정을 따른다:
+ *      answerModel 이 'gemini' 가 아니고, (관리자 토큰 있음 || codexForUsers 켜짐) 이면 codex.
+ *      ★이 경로만은 VM 작업자가 연결돼 있지 않으면 **Gemini 로 답한다** — 앱 사용자가
+ *        「VM 작업자 연결 없음」으로 답을 못 받는 일이 없게(시험이 아니라 실사용 경로라서).
+ * 헤더 X-Nrya-LLM(codex|gemini)·X-Nrya-Model: codex 로 갔거나 llm 을 요청했을 때만 붙인다.
+ *   아무것도 요청 안 한 일반 사용자가 Gemini 로 가면 헤더도 없다(응답 바이트 동일).
+ * 예: 관리자 토큰 + { llm: "codex" } → X-Nrya-LLM: codex, X-Nrya-Model: gpt-6-luna
  * @param {object} req @param {object} res @param {Function} next
- * [연계] ← routes/legal.js router.post('/api/legal/ask', codexBridge.withRequest, …)
+ * @param {{answerModel?:string, codexForUsers?:boolean}} [cfg] - 관리자 센터 설정(normConfig 결과)
+ * [연계] ← routes/legal.js /api/legal/ask 앞(설정을 읽어 넘긴다). → admin_auth.verifyToken.
  */
-function withRequest(req, res, next) {
-  const wants = !!(req.body && req.body.llm === 'codex');
-  if (!wants) return next();                       // 평소 요청 — 헤더도 안 붙인다(응답 바이트 동일)
-  const ok = ENABLED && require('./admin_auth').verifyToken(req.get('X-Admin-Token') || '');
-  res.setHeader('X-Nrya-LLM', ok ? 'codex' : 'gemini');
-  if (!ok) return next();
-  return als.run({ codex: true }, next);
+function withRequest(req, res, next, cfg) {
+  const c = cfg || {};
+  const llm = req.body && req.body.llm;
+  const model = ANSWER_MODELS.includes(c.answerModel) && c.answerModel !== 'gemini' ? c.answerModel : null;
+  const toGemini = () => { if (llm) res.setHeader('X-Nrya-LLM', 'gemini'); return next(); };
+  const toCodex = (m) => {
+    res.setHeader('X-Nrya-LLM', 'codex');
+    res.setHeader('X-Nrya-Model', m);
+    return als.run({ codex: true, model: m }, next);
+  };
+  if (!ENABLED || llm === 'gemini') return toGemini();
+  const isAdmin = () => require('./admin_auth').verifyToken(req.get('X-Admin-Token') || '');
+  if (llm === 'codex') return isAdmin() ? toCodex(model || DEFAULT_MODEL) : toGemini();
+  if (!model) return toGemini();
+  if (!(c.codexForUsers === true || isAdmin())) return toGemini();
+  if (!workerAlive()) return toGemini();
+  return toCodex(model);
+}
+
+/** VM 작업자가 최근(WORKER_STALE_MS 안)에 창구에 왔는가. @returns {boolean} */
+function workerAlive() {
+  return Date.now() - lastWorkerSeenAt <= WORKER_STALE_MS;
 }
 
 /**
@@ -92,7 +128,7 @@ function handOut() {
   const w = waiter; waiter = null;
   clearTimeout(w.timer);
   job.state = 'taken';
-  w.res.json({ id: job.id, prompt: job.prompt, json: job.json, caller: job.caller });
+  w.res.json({ id: job.id, prompt: job.prompt, json: job.json, caller: job.caller, model: job.model });
 }
 
 /**
@@ -105,14 +141,15 @@ function handOut() {
  */
 function callRaw({ contents, config, caller = 'unknown' }) {
   const fail = (error) => ({ success: false, response: null, error, isRateLimited: false, keyLabel: 'codex' });
-  if (Date.now() - lastWorkerSeenAt > WORKER_STALE_MS) {
+  if (!workerAlive()) {
     console.error(`[Codex] VM 작업자 연결 없음 caller=${caller} (마지막 접속 ${lastWorkerSeenAt ? Math.round((Date.now() - lastWorkerSeenAt) / 1000) + '초 전' : '없음'})`);
     return Promise.resolve(fail('VM 작업자 연결 없음'));
   }
   const id = crypto.randomUUID();
   const json = !!(config && config.responseMimeType === 'application/json');
   return new Promise((resolve) => {
-    const job = { id, prompt: promptText(contents), json, caller, state: 'queued', createdAt: Date.now(), resolve: null, timer: null };
+    const store = als.getStore() || {};
+    const job = { id, prompt: promptText(contents), json, caller, model: store.model || DEFAULT_MODEL, state: 'queued', createdAt: Date.now(), resolve: null, timer: null };
     job.resolve = (r) => { clearTimeout(job.timer); jobs.delete(id); resolve(r); };
     job.timer = setTimeout(() => {
       const i = queue.indexOf(id); if (i >= 0) queue.splice(i, 1);
@@ -174,4 +211,4 @@ function result(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { withRequest, active, callRaw, poll, result, stripFence, ENABLED };
+module.exports = { withRequest, active, callRaw, poll, result, stripFence, workerAlive, ENABLED, ANSWER_MODELS, DEFAULT_MODEL };

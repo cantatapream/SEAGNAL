@@ -39,12 +39,13 @@ function fakeRes() {
   return r;
 }
 /** withRequest 를 통과시켜 next 안에서 fn 을 돌린다 — 실제 라우트와 같은 모양. */
-function through(body, headers, fn) {
+function through(body, headers, fn, cfg) {
   const res = fakeRes();
   let out;
-  bridge.withRequest(fakeReq(body, headers), res, () => { out = fn(); });
+  bridge.withRequest(fakeReq(body, headers), res, () => { out = fn(); }, cfg);
   return { res, out };
 }
+const LUNA = { answerModel: 'gpt-6-luna', codexForUsers: false };
 
 (async () => {
   console.log('── ① 삼중 잠금 ──');
@@ -79,6 +80,14 @@ function through(body, headers, fn) {
     const env2 = Object.assign({}, env, { NRYA_CODEX_SECRET: 'short' });
     try { o = JSON.parse(execFileSync(process.execPath, ['-e', code], { env: env2, encoding: 'utf8', timeout: 20000 }).trim().split('\n').pop()); } catch (e) { o = { err: e.message }; }
     ok('비밀 열쇠가 16자 미만 → 꺼짐', o.en === false && o.act === false, JSON.stringify(o));
+  }
+
+  console.log('\n── ①-2 관리자 센터 설정(작업자가 아직 한 번도 안 온 상태) ──');
+  {
+    const a = through({}, { 'X-Admin-Token': 'GOOD' }, () => bridge.active(), LUNA);
+    ok('설정 Luna + 관리자 기기 + 작업자 없음 → Gemini 로 답한다(앱 사용자가 답을 못 받는 일 없게)', a.out === false && !('X-Nrya-LLM' in a.res.headers));
+    const b = through({ llm: 'codex' }, { 'X-Admin-Token': 'GOOD' }, () => bridge.active(), LUNA);
+    ok('시험 llm:codex 는 작업자가 없어도 codex 로 표시(실패로 드러나게 — 몰래 안 바꿈)', b.out === true);
   }
 
   console.log('\n── ② 작업자 창구 ──');
@@ -142,6 +151,31 @@ function through(body, headers, fn) {
     ok('callGeminiStream 도 codex 로 가서 완성된 답을 한 번에 준다', job && job.prompt === 'S' && chunks.join('') === '스트림답', JSON.stringify(chunks));
     const outside = await gemini.callGemini({ model: 'm', contents: 'P', config: {}, caller: 'c' });
     ok('요청 밖 callGemini 는 기존 경로(키 없음 실패) — codex 로 새지 않는다', outside.success === false && /GEMINI_API_KEY/.test(outside.error || ''), JSON.stringify(outside));
+  }
+
+  console.log('\n── ⑤ 관리자 센터 설정(작업자 연결됨) ──');
+  {
+    const w = fakeRes(); bridge.poll(fakeReq({}, secretH), w);   // 작업자가 방금 왔다
+    const cases = [
+      ['설정 Luna + 관리자 기기(llm 없음) → codex·Luna', {}, { 'X-Admin-Token': 'GOOD' }, LUNA, true, 'gpt-6-luna'],
+      ['설정 Luna + 일반 사용자 + 사용자 스위치 꺼짐 → Gemini·헤더 없음(바이트 동일)', {}, {}, LUNA, false, null],
+      ['설정 Luna + 일반 사용자 + 사용자 스위치 켜짐 → codex', {}, {}, { answerModel: 'gpt-6-luna', codexForUsers: true }, true, 'gpt-6-luna'],
+      ['설정 gemini + 사용자 스위치 켜짐 → Gemini(모델이 gemini 면 codex 안 씀)', {}, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'gemini', codexForUsers: true }, false, null],
+      ['설정 Sol + 관리자 기기 → codex·Sol', {}, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'gpt-6-sol' }, true, 'gpt-6-sol'],
+      ['시험 llm:gemini + 관리자 + 설정 Luna → Gemini(비교 기준군)', { llm: 'gemini' }, { 'X-Admin-Token': 'GOOD' }, LUNA, false, null],
+      ['시험 llm:codex + 설정 gemini → codex·기본 Luna', { llm: 'codex' }, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'gemini' }, true, 'gpt-6-luna'],
+      ['틀린 모델 이름이 설정에 들어와도 codex 로 안 감', {}, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'rm -rf' }, false, null],
+    ];
+    for (const [name, body, headers, cfg, want, model] of cases) {
+      const r = through(body, headers, () => bridge.active(), cfg);
+      const gotModel = r.res.headers['X-Nrya-Model'] || null;
+      ok(name, r.out === want && gotModel === model, JSON.stringify({ active: r.out, headers: r.res.headers }));
+    }
+    const { job } = await roundTrip(() => {
+      let p; through({}, { 'X-Admin-Token': 'GOOD' }, () => { p = bridge.callRaw({ contents: 'M', caller: 'm' }); }, { answerModel: 'gpt-6-astra' });
+      return p;
+    }, { ok: true, text: 'x' });
+    ok('일감에 설정 모델이 실려 작업자에게 간다', job && job.model === 'gpt-6-astra', JSON.stringify(job));
   }
 
   console.log(`\n  ${pass} PASS / ${fail} FAIL`);

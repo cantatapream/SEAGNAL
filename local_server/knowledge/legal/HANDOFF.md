@@ -1531,6 +1531,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-09-27 21:03 KST] ✅완료 — Codex 모드 관리자 센터 설정 2종
+answerModel(gemini|gpt-6-luna|sol|astra, 기본 Luna)·codexForUsers(기본 꺼짐, 켤 때 약관 경고 확인창) — routes/legal.js normConfig/POST config, codex_bridge.withRequest 결정순서 재작성(앱 질문은 작업자 미연결 시 Gemini), 일감에 model 실어 작업자가 -m 로 사용, ai_chat.js 관리자 콘솔 카드. test_codex_bridge 30 PASS. 로컬 서버로 config GET/POST·401·400 확인. 사용자 확정 원문 codex_client.design.md §0·§0-1. 다음: verify_all 결과 확인·배포 후 VM git pull+서비스 재시작, 20문항 비교 결과 대조.
+
+
 ### [2026-09-27 20:34 KST] ✅완료 — Codex 모드 모델 비교 — Luna 채택(잠정)
 원인: 기본 모델 gpt-6-astra(생각강도 none) — 한도는 입력량에서 나감. 같은 5문항 Luna: 5시간 한도 −1%p(Astra −35%p), 답 4건 raw 원문 대조 전부 일치·1건 되묻기. 작업자는 CODEX_MODEL=gpt-6-luna 로 실행. 다음: 사용자 판단(더 많은 문항 확인/기본값 코드 반영).
 
