@@ -531,15 +531,70 @@
     }
 
     /**
-     * 관측부이 버튼 중 **맨 앞 것**을 눌러 실제 관측값을 띄우거나 도로 닫는다.
+     * 관측부이 버튼을 눌러 실제 관측값을 띄우거나 도로 닫는다.
+     *
+     * 왜 한 개만 누르지 않나?
+     *   부이는 있는데 **그 부이에서 오늘 관측값이 안 올라온 경우**가 있다. 맨 앞 것만
+     *   누르면 "해당 부이에서는 기상정보가 관측되지 않았습니다" 만 보여, 정작 설명하려던
+     *   관측값을 못 보여준다(사용자 지적 2026-09-27 — 당사 부이가 그랬다).
+     *   그래서 값이 있는 부이가 나올 때까지 다음 부이를 눌러 본다.
      *
      * @param {boolean} on - true=눌러서 값 표출
-     * [연계] render.js 의 부이 버튼은 같은 버튼을 다시 누르면 닫히는 토글이다.
+     * @param {string} [kind] - 'alert'(기본) | 'status'
+     * [연계] render.js · windy.js 의 부이 버튼은 같은 버튼을 다시 누르면 닫히는 토글이고,
+     *        값은 같은 카드의 `.buoy-info-area` 에 그려진다.
      */
     function _setBuoy(on, kind) {
-        var btn = _buoyBtn(kind);
-        if (!btn) return;
-        if (btn.classList.contains('active') !== on) btn.click();
+        var list = _buoyBtns(kind);
+        if (!list.length) return;
+        var off = function () {
+            list.forEach(function (b) { if (b.classList.contains('active')) b.click(); });
+        };
+        if (!on) { off(); return; }
+        // 이미 값이 있는 부이가 눌려 있으면 그대로 둔다(다시 눌러 깜빡이지 않게)
+        var opened = list.filter(function (b) { return b.classList.contains('active'); });
+        if (opened.length === 1 && !_buoyEmpty(kind)) return;
+        off();
+        var i = 0;
+        var tryOne = function () {
+            if (!_root || i >= list.length) return;   // 다 없으면 마지막 것을 그대로 둔다
+            var b = list[i];
+            b.click();
+            setTimeout(function () {
+                if (!_root) return;
+                if (!_buoyEmpty(kind)) { _paint(true); return; }   // 값이 있다 → 여기서 멈춘다
+                if (b.classList.contains('active')) b.click();     // 닫고 다음 부이로
+                i++;
+                tryOne();
+            }, 700);
+        };
+        tryOne();
+    }
+
+    /**
+     * 카드 안 관측부이 버튼을 **전부** 찾는다(앞 것부터 차례대로).
+     * @param {string} [kind] - 'alert'(기본) | 'status'
+     * @returns {Array<HTMLElement>}
+     */
+    function _buoyBtns(kind) {
+        var card = _firstCard(kind);
+        if (!card) return [];
+        var list = card.querySelectorAll('.buoy-btn');
+        if (!list.length) list = card.querySelectorAll('.buoy-status-btn');
+        return Array.prototype.slice.call(list);
+    }
+
+    /**
+     * 지금 펼쳐진 부이 값이 "관측 안 됨" 인가.
+     * @param {string} [kind] - 'alert'(기본) | 'status'
+     * @returns {boolean}
+     * [연계] render_coastal.js 가 값이 없을 때 그 자리에 적는 문구를 그대로 본다.
+     */
+    function _buoyEmpty(kind) {
+        var card = _firstCard(kind);
+        var area = card && card.querySelector('.buoy-info-area');
+        if (!area) return false;
+        return (area.textContent || '').indexOf('관측되지 않았습니다') >= 0;
     }
 
     /**
@@ -2262,6 +2317,17 @@
         return m ? [m] : null;
     }
 
+    /**
+     * 전국이 한눈에 들어오는 지도 자리 [경도, 위도, 확대].
+     *
+     * 왜 필요한가?
+     *   버튼별로 열게 되면서, 앞서 어딘가를 확대해 둔 채로 버튼을 누르면 그 자리에서
+     *   설명이 시작됐다(사용자 지적 2026-09-27 — 위험지형을 눌렀는데 일본 앞바다가
+     *   보였다). 무엇이 어디에 있는지 보려면 동·서·남해가 다 보여야 한다.
+     *   값은 앱이 지도를 처음 열 때 쓰는 자리와 같다(ocean_map.js DEFAULT_CENTER/ZOOM).
+     */
+    var KOREA_VIEW = [127.0, 34.5, 7];
+
     // ========================================================================
     // [단계 목록 — 해양안전생활 ▸ 해양안전]
     //
@@ -2281,7 +2347,8 @@
             body: '바다 위와 물속의 바위를 표시합니다. 켜면 화면 왼쪽 위에 스위치가 생겨 '
                 + '노출암 · 갯바위와 간출암 · 암암을 골라 볼 수 있습니다.',
             target: _obTarget('ocean-terrain-toggle-btn'),
-            btns: ['ocean-terrain-toggle-btn'], owner: 'ocean-terrain-toggle-btn'
+            btns: ['ocean-terrain-toggle-btn'], owner: 'ocean-terrain-toggle-btn',
+            goto: KOREA_VIEW
         },
         {
             title: '빨간 바위 — 곧 물에 잠깁니다',
@@ -2297,7 +2364,8 @@
             body: '실제로 일어난 해양사고 기록을 지도에 보여줍니다. 왼쪽 위 [분석 · 현황]으로 '
                 + '한 건씩 보거나 격자 통계로 볼 수 있습니다. 지나간 기록이며 예보가 아닙니다.',
             target: _obTarget('ocean-accident-toggle-btn'),
-            btns: ['ocean-accident-toggle-btn'], owner: 'ocean-accident-toggle-btn'
+            btns: ['ocean-accident-toggle-btn'], owner: 'ocean-accident-toggle-btn',
+            goto: KOREA_VIEW
         },
         {
             title: '전국 통계',
@@ -2319,7 +2387,8 @@
             body: '낚시금지구역과 출입통제구역을 함께 표시합니다. 구역을 누르면 '
                 + '지정 사유 · 통제 기간 · 벌칙까지 볼 수 있습니다.',
             target: _obTarget('ocean-banzone-toggle-btn'),
-            btns: ['ocean-banzone-toggle-btn'], owner: 'ocean-banzone-toggle-btn'
+            btns: ['ocean-banzone-toggle-btn'], owner: 'ocean-banzone-toggle-btn',
+            goto: KOREA_VIEW
         },
         {
             title: '금지구역을 누르면 — 제주 생이기정',
@@ -2334,7 +2403,8 @@
             body: '그날 발효 중인 항행경보 구역(사고 · 장애물 · 해상사격훈련 등)을 '
                 + '빨간 점선으로 표시합니다. 자료를 받아 그리는 데 잠시 걸립니다.',
             target: _obTarget('ocean-navwarn-btn'),
-            btns: ['ocean-navwarn-btn'], waitNavwarn: true, owner: 'ocean-navwarn-btn'
+            btns: ['ocean-navwarn-btn'], waitNavwarn: true, owner: 'ocean-navwarn-btn',
+            goto: KOREA_VIEW
         },
         {
             title: '항행경보를 누르면',
@@ -2372,7 +2442,8 @@
                 + '모두 버튼을 켜면 지도에 바로 나타납니다.',
             target: function () { var m = _oceanMapEl(); return m ? [m] : null; },
             btns: ['ocean-cctv-toggle-btn', 'ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn'],
-            owner: ['ocean-cctv-toggle-btn', 'ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn']
+            owner: ['ocean-cctv-toggle-btn', 'ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn'],
+            goto: KOREA_VIEW
         }
     ];
 
