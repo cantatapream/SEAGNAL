@@ -26,21 +26,24 @@
 <!-- 자목록:자동 -->
 ### 자 목록 — 누가 부르나 (기계가 씀 · `loop_tool_census.js --index`)
 
-자 **259자루** · 게이트 **59** · 코드 **90** · 글만 **110** · 없음 **0**
+자 **277자루** · 게이트 **65** · 코드 **100** · 글만 **109** · 없음 **3**
 
 | 자 | 누가 부르나 | 무엇을 하는 자인가 |
 |---|---|---|
 | `admrul_annex_survey.py` | 코드 | 고시(행정규칙) raw 에 **별표·별지서식이 빠져 있는지**를 API 와 대조해 세기만 한다(읽기 전용). |
+| `admrul_body_rewrite_hwp.py` | 없음 | 행정규칙 **본문** raw 를 원본 `.hwp` 첨부에서 다시 쓴다 — 표는 행 단위로. |
 | `admrul_byl_file_links.py` | 코드 | 행정규칙 별표 `.txt` 에 **내려받기 주소를 적어 넣는다**. (3-53) |
-| `admrul_byl_links.py` | 글만 | 행정규칙에서 온 별표의 **원본 파일 링크(PDF·HWP)** 를 `_links.json` 에 채운다. (3-21 · 3-36) |
+| `admrul_byl_links.py` | 코드 | 행정규칙에서 온 별표의 **원본 파일 링크(PDF·HWP)** 를 `_links.json` 에 채운다. (3-21 · 3-36) |
 | `admrul_current_check.py` | 글만 | 받아 둔 행정규칙이 **현행판인지** 확인하고, 아니면 현행판으로 바꿔 받는다. |
 | `admrul_diff_wiki.py` | 코드 | 재수집으로 달라진 행정규칙 조문을 뽑고, 그 조문을 인용하는 위키 셀을 찾아낸다. |
-| `admrul_fill_addenda.py` | 글만 | 고시(행정규칙) raw 파일에 빠져 있는 **부칙**을 API에서 받아 뒤에 덧붙인다. |
+| `admrul_fill_addenda.py` | 코드 | 고시(행정규칙) raw 파일에 빠져 있는 **부칙**을 API에서 받아 뒤에 덧붙인다. |
 | `admrul_fill_annex.py` | 코드 | 고시(행정규칙) raw 에 빠져 있는 **별표·별지서식**을 API 에서 받아 채운다. |
 | `admrul_fresh_pass2.py` | 코드 | admrul_fresh.py 의 '조회실패'를 다시 판정하는 2차 대조. |
+| `admrul_id_recover.py` | 코드 | ★판번호가 **저장소 어디에도 없는** 행정규칙의 번호를 제목으로 되찾는다. (P-19b) |
 | `admrul_recollect_stale.py` | 코드 | admrul_fresh 가 '구버전'으로 판정한 행정규칙을 현행본으로 다시 받아 raw를 갱신한다. |
 | `admrul_restore_ocr.py` | 글만 | 재수집으로 사라진 이미지 판독 전사분을, 그림이 같은 것만 골라 되살린다. |
 | `admrul_review_verify.py` | 글만 | 3-28 / G-24 — **「DRF 자동수집 … 원문 대조 필요」 표시를 기계가 실제로 대조한다. |
+| `admrul_rewrite_clean.py` | 글만 | 3-68ⓐ — **낱말이 갈라진 고시 raw 를 다시 받는다.** 선언: `_dashboard/pdf_wrapped_notices.json` |
 | `annex_gap.py` | 글만 | 별표(법에 딸린 표) 수치가 위키에 옮겨졌는지 기계적으로 판정한다 (H-40 P1). |
 | `annex_rowcount_fill.js` | 글만 | §6-F 항목수 대조 줄의 **기계 몫**을 채운다. (Q-18 결심 ① 뒤끝, 2026-09-24) |
 | `apply_approvals.py` | 코드 | 서버(볼륨)에 쌓인 **사람 승인 기록**을 저장소에 반영한다. |
@@ -93,11 +96,15 @@
 | `byl_pdf_link_fill.py` | 글만 | 3-21 — 별표 `_links.json` 에 **PDF 주소만** 채운다. (파일은 건드리지 않는다) |
 | `byl_ref_fill.py` | 글만 | 3-62 — `byl_ref_gap.py` 가 짚은 **본문이 가리키는데 없는 별표**를 받아서 메운다. |
 | `byl_rename_to_decl.py` | 글만 | 별표 파일 **이름을 그 속이 말하는 번호에 맞춘다.** (3-34 = ⓒ 앞쪽) |
+| `byl_rewrite_hwp.py` | 없음 | 별표 raw 를 **원본 `.hwp` 에서 다시 쓴다 — 표는 행 단위로.** 선언: `_dashboard/hwp_byl_rewrite.json` |
 | `byl_tier_fill.py` | 코드 | 3-46 — V5-32 가 「파일이 없다」고 짚은 **계층 별표 빈자리**를 골라서 메운다. |
 | `chatbot_proto.py` | 글만 | 나리야 법률 챗봇 검색+답변 프로토타입 (순수 코드, 임베딩 키 불필요). |
 | `check_budchik.py` | 글만 | 73법 raw(법률/시행령/시행규칙)에 부칙 섹션이 빠져있는지 전수 점검한다(H-26 후속). |
+| `cite_link_check.js` | 글만 | **답변 속 조문 표기에 화면이 실제로 링크를 거나** (2026-09-26 신설, L-8b) |
 | `cite_number_check.py` | 코드 | 본문 인용 목록(3-41)에서 **숫자·금액 인용만 골라 원문과 기계로 맞대어 본다. |
 | `cite_number_raw.js` | 코드 | 3-41 ① — 본문 인용의 **값 숫자**(금액·기간·비율·치수)를 **raw 원문과 맞대어 본다. |
+| `coastal_ordin_scan.py` | 코드 | 3-22 — **연안 시군구가 어디인지 전국 자치법규로 세어 정한다.** 선언: `_dashboard/coastal_ordin.json` |
+| `col_split_source_survey.py` | 없음 | V5-20(표가 열 단위로 펼쳐진 자리)이 남긴 쪽마다 **원본 `.hwp`/`.hwpx` 가 있는지 전수 조사한다. |
 | `collect_admrul_by_name.py` | 글만 | 고시(행정규칙)를 **이름으로 찾아** 그 법 폴더에 받아 둔다. |
 | `collect_admrul.py` | 코드 | 고시(행정규칙) 정밀 수집: lsDelegated(위임법령) API로 '그 법이 실제 위임한 고시만' 수집. |
 | `collect_contacts.py` | 코드 | law.go.kr DRF API의 연락부서(법률/시행령/시행규칙)·담당부서기관(행정규칙) 필드를 수집한다. |
@@ -105,16 +112,14 @@
 | `collect_gap.py` | 코드 | 추가 수집: (A) 기준법 시행령/시행규칙 미수집분 전수조사·수집  (B) 타법 원문 표적 수집. |
 | `collect_law_aliases.py` | 코드 | 법령 공식 약칭 수집 — 우리가 가진 모든 법(raw/*/*/_meta.json)의 **공식 약칭**을 |
 | `collect_missing_admrul.py` | 글만 | `delegated_sweep` 이 "확인 필요"로 찍은 위임 행정규칙을 실제로 받아 온다. |
-| `collect_ordin.py` | 글만 | 조례(자치법규) 수집: 해양·수산 키워드로 target=ordin 검색 → 지역별 저장. |
+| `collect_ordin.py` | 코드 | 조례(자치법규) 수집: 해양·수산 키워드로 target=ordin 검색 → 지역별 저장. |
 | `collect_pending_law.py` | 코드 | 예고본(시행예정 개정 법령) 원문을 **시행일 전에 미리** 받아 `raw/<도메인>/<법>/_대기/<시행일>/<층>.txt` 로 둔다. |
 | `collect_raw.js` | 글만 | collect_queue의 수집가능 원문을 DRF로 raw에만 수집(위키 미편집=린트와 병렬 안전) |
-| `collect.py` | 코드 | ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속). |
 | `collection_hole_graceful.js` | 글만 | a_genuine/b_structural collection_hole에 H-30 3요건(위임체인·경계선언·소관부서) 보강(그룹별, 자기 법 파일만=병렬안전) |
 | `collection_hole_recollect.js` | 코드 | collection_hole 재검증이 확정한 action=recollect 백로그를 실제 수집·위키 반영(그룹별, 자기 법 파일만=병렬안전) |
 | `collection_hole_reverify.js` | 코드 | H-26 기준 collection_hole a/b/c 재분류·재검증 후 통합 리포트 |
 | `concept_new.js` | 글만 | statutes 에만 있는 내용을 개념 페이지로 신설(결정 ④⑤). 자기 법 파일만 = 병렬안전. |
 | `content_gap_reverify.js` | 글만 | thin(content_gap) 판정이 정말 원문에도 없는 것인지 raw 재대조로 전수 재검증 후 통합 리포트 |
-| `context_size.js` | 코드 | 한 질문에 **모델로 넘어가는 근거자료가 몇 자인가**를 골든 291문항 전수로 잰다. |
 | `crawl.py` | 코드 | ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속). |
 | `defect_triage.js` | 글만 | 남은 결손의 **원인을 자동으로 가른다**(AI 안 씀, 비용 0). |
 | `delegated_sweep.py` | 코드 | 위임 행정규칙 조회 기록을 만든다 — "규정이 없다"고 말하려면 이 기록이 있어야 한다(_SCHEMA.md §6-B-1 ⓑ). |
@@ -122,9 +127,9 @@
 | `detect_law_changes.py` | 코드 | 법령·위임고시 변동감지(H-29 1~4·8~12항) — 소관부처 단위 "광역질의" 몇 번으로 최근 변동을 |
 | `draft_reverify.js` | 코드 | draft를 raw 원문 grounding으로 재판정: 원문인용은 승급, 별표OCR값만 사람(수치검증 카드 자동생성) |
 | `e6_fix.js` | 글만 | §6-E 빈틈(본문엔 있고 근거표엔 없는 조문)을 법별로 확인해 채운다. 자기 법 파일만 = 병렬안전. |
+| `edition_forms.py` | 글만 | ★raw 원문이 **판(시행일·일련번호)을 적는 꼴**을 전수로 센다. (등록부 D-5 · 2-5) |
 | `empty_byl_stub.py` | 글만 | 3-55 — **까닭도 없이 빈 별표 6개**에 내려받기 주소를 달아 정직하게 만든다. |
 | `exact_claim_fix.py` | 코드 | 3-33 뒤쪽(결심 ①ⓐ) — **「원문 그대로」라던 인용 24건을 원문 글자에 맞춘다. |
-| `exact_claim_numbers.py` | 글만 | 인용 없이 「원문과 EXACT 일치」라고만 적은 주장을 **숫자로** 다시 맞춰 본다. (G-29 · 3-33) |
 | `exhaustive_delegation_scan.py` | 글만 | H-28 전수조사: 73법 전체 조문의 위임체인을 lsDelegated API로 전수 대조해 collection_hole을 |
 | `expansion_probe.js` | 글만 | AI 검색어 확장이 정답 페이지를 밀어낼 위험이 **몇 건짜리인지** 잰다(AI 안 씀, 비용 0). |
 | `extract_11_remaining.py` | 글만 | H-28 전수조사(c)uncollected 43건 중 텍스트 API로 저장 안 된 나머지를 PDF 첨부에서 직접 추출. |
@@ -137,13 +142,16 @@
 | `fold_effective.py` | 코드 | 시행일이 **지난** 예고본을 현행으로 승격하고 위키의 시행일 마커를 평문으로 접는다(H-29 트랙 C 정리 단계). |
 | `full_build.js` | 글만 | 풀 깊이 빌드(Sonnet 5): 법당 전 주제 concept 완비(스로틀 제거) |
 | `gap6e_fix.js` | 글만 | 고정 문제집이 §6-E(위키에 근거 행 없음)로 찍은 10건을 법마다 한 명씩 보강 |
+| `glossary_route_probe.js` | 코드 | [왜 있나 — 일감 L-2] |
 | `golden_merge.js` | 글만 | 사서(에이전트)들이 확인한 라벨을 고정 문제집에 합친다. |
+| `golden_search_why.js` | 글만 | ★골든 `search` 실패가 **왜** 실패하는지 가른다. (등록부 3-32) |
 | `golden_verify.js` | 코드 | 골든 문항 라벨을 사서가 원문·위키로 확인(H-47 ①). 자기 결과 파일만 = 병렬안전. |
 | `grep_table.py` | 코드 | 표(테두리) 안에서 낱말이 줄 경계로 쪼개져 grep 이 놓치는 것을 찾아 준다. |
 | `handoff.py` | 코드 | 인계인수 로그를 HANDOFF.md "작업 로그"에 일관된 형식으로 append(계정 간 연속성). |
 | `hwpx_table.py` | 글만 | HWPX 첨부파일에서 본문과 표를 구조 그대로 뽑아낸다. |
 | `img_worksheet.py` | 코드 | 사람이 눈으로 봐 줘야 하는 "그림으로만 있는 표" 작업지를 HTML 한 장으로 만든다. |
 | `inspect_shrink_guard.py` | 글만 | admrul_pdf_extract_log.json의 skipped_shrink_guard 44건을, 실제로는 완전본인지 |
+| `l8_answer_quality.js` | 코드 | [왜 있나 — 일감 L-8 · Q-11(사용자 확정: 15문항)] |
 | `law_api_guard.py` | 코드 | 권한이 없다"와 "네트워크가 흔들린다"를 갈라서, 앞의 것은 재시도를 멈추게 한다. |
 | `law_fresh.py` | 코드 | 법령 신선도 대조 — 우리가 받아 둔 **법률·시행령·시행규칙** 원문이 지금도 현행판인지 확인한다. |
 | `link_live.js` | 코드 | 실제 배포 챗봇에 물어, **답변 본문의 조문 링크가 걸리는지·눌러서 원문이 열리는지**를 잰다. |
@@ -154,7 +162,7 @@
 | `lint_verify.py` | 글만 | lint 검증(사후 확인): 전수 린트가 실제로 촘촘한지 3개 실질 지표로 측정. |
 | `lint_xref.js` | 글만 | 보강 린트: 타법연결 표 평문인용을 [[링크]]로 전환(자기 법 파일만=병렬안전) |
 | `lint2.js` | 글만 | lint 2라운드: 백본 정의 허브 신설(영해법 등) + 역링크(비대칭) 보강 |
-| `live_article_probe.js` | 글만 | [왜] 2-11(github_raw 로컬 폴백)로 조문 원문·서식(§5-5)·별표 이미지(§5-9) 경로가 |
+| `live_article_probe.js` | 코드 | [왜] 2-11(github_raw 로컬 폴백)로 조문 원문·서식(§5-5)·별표 이미지(§5-9) 경로가 |
 | `live_probe.js` | 코드 | [왜 있나 — 2026-09-22, 일감 L-1·L-4·L-5·L-6] |
 | `live_verify.js` | 코드 | 감사관이 full로 채점한 논점을 실제 챗봇 API로 다시 물어 대조(법당 1~2문항) — _SCHEMA.md §6-E 자기판단 보정 |
 | `map_scope_cell.js` | 글만 | 한 기준법의 원문(법률·시행령·시행규칙)을 직접 훑어 수집해야 할  |
@@ -168,8 +176,10 @@
 | `meta_mst_align.py` | 코드 | V5-18 「어긋남」 — **같은 계층을 두 자리가 다르게 말하는** `_meta.json` 을 맞춘다. |
 | `meta_mst_recover.py` | 코드 | 3-37 — **판번호가 아예 없는 `_meta.json` 68곳**에 번호를 되찾아 준다. |
 | `mok_audit.py` | 코드 | raw 조문 파일에 **목(가.·나.·다.)이 통째로 빠진 곳**을 원본과 직접 대조해 찾는다. |
-| `nonum_byl_note.py` | 글만 | 3-54 뒤쪽 (결심 ⑥ⓑ) — **번호 없는 별표에 「원문에 번호가 없다」고 적는다. |
-| `notice_ref_ready.js` | 글만 | ★**고시 파일이 스스로 가리키는 별표·서식을 눌러서 열 수 있나.** (P-5) |
+| `nonum_byl_note.py` | 코드 | 3-54 뒤쪽 (결심 ⑥ⓑ) — **번호 없는 별표에 「원문에 번호가 없다」고 적는다. |
+| `nonum_byl_rename.js` | 글만 | 3-67 ③ — **원문에 번호가 없는 별표 파일의 이름에서 지어낸 번호를 뗀다**(`_별표1` → `_별표0`). |
+| `nonum_byl_scan.js` | 코드 | 3-67 ⓐ — **「원문에 번호가 없는데 우리 파일 이름은 번호를 달고 있는」 별표를 전수로 센다. |
+| `notice_ref_ready.js` | 코드 | ★**고시 파일이 스스로 가리키는 별표·서식을 눌러서 열 수 있나.** (P-5) |
 | `notice_scope_prep.py` | 코드 | 고시 쪽의 **`## 적용범위·제외` · `## 타법 연결`** 에 넣을 **원문을 미리 뽑아 둔다**. (3-6 준비) |
 | `num_exact_check.py` | 코드 | 위키 쪽이 적은 **숫자로 된 법적 효과**가 raw 원문에 글자 그대로 있는지 기계로 센다. |
 | `ocr_review_verify.js` | 글만 | 별표OCR값확정 대기 카드(review_gen/)를 Opus 비전으로 원본 이미지/원문 재검증 → 일치 확인 시 canonical 승격 |
@@ -179,6 +189,7 @@
 | `ordin_byl_stub7.py` | 글만 | 3-49 남은 7자리 (결심 ⑤ⓑ) — **조례 별표 7자리를 정직하게 채운다. |
 | `ordin_recollect.py` | 코드 | 3-43 — 조 머리줄(`[제N조]`) 이 하나도 없는 자치법규 원문을 **다시 받아** 제 꼴로 바꾼다. |
 | `ordin_to_folder.py` | 코드 | 조례(자치법규) 원문을 **챗봇이 열 수 있는 꼴**로 바꿔 폴더에 넣는다. |
+| `park_future_article.py` | 코드 | ★**아직 시행되지 않은 조문이 현행 파일에 섞여 있을 때** 그것을 `_대기/<시행일>/` 로 옮긴다. (3-37 · 3-25 후속) |
 | `pick_audit_wave.py` | 글만 | 감사 라운드 R의 다음 파도(≤N, 기본35) 선정+예약. 마커 audit_r<R>_<slug>.done 없는 법 중 서로 다른 법. |
 | `pick_wave.py` | 글만 | 다음 파도(≤N, 기본35) 선정 후 예약(.launched). 서로 다른 법(파일충돌 방지)·미완(.done 없음)·비-in-flight(.launched 25분내 없음). |
 | `probe.py` | 글만 | law.go.kr 에 **낱말별로 몇 건이나 있는지** 세어 보는 한 번짜리 탐침. (조사용) |
@@ -218,6 +229,7 @@
 | `tech_standard_wiki_cell.js` | 글만 | 기술기준(설비·구조 고시)을 기준법-급 개념 위키로 구축 |
 | `tier_fill.py` | 코드 | `_meta.json` 의 `tier`(1군·2군·3군)를 규약대로 채운다. (3-1) |
 | `topicmap.js` | 글만 | 풀 깊이 사이징: 핵심법 65개 각각의 전체 개념 주제 목록을 추출(스로틀 제거) |
+| `tree_cite_requote.py` | 글만 | raw 를 다시 받아 글자가 바뀌면, **그 원문을 인용해 둔 나무(tree)의 인용문이 낡는다. |
 | `triage_admrul_pdf.py` | 글만 | admrul_fix_log.json에서 skipped(첨부파일형/축소감지)로 남은 150건을, |
 | `trty_to_excerpt.py` | 글만 | 조약 raw(`조약_*.txt`)를 챗봇이 읽을 수 있는 `법률_발췌.txt` 로 모은다. |
 | `verify_claims.py` | 글만 | 감사가 보고한 결함 주장을 **사람(에이전트)이 하나씩 실측 확인**하도록 배치를 짠다. |
