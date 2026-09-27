@@ -279,7 +279,7 @@ function normConfig(c) {
 // naverTermLookup(§4-U 모르는 구어 해소)은 2026-08-16 사용자 확정으로 **기본 true**로 전환(다른
 // 스위치와 반대 관례) — 관리자가 명시적으로 {naverTermLookup:false}를 보내야만 꺼진다(킬스위치는
 // 유지). 이 환경에 NAVER_CLIENT_ID/SECRET이 없으면 스위치가 켜져 있어도 단계가 조용히 물러난다.
-const BOOL_SWITCHES = ['answerCanonicalOnly', 'understandConfirm', 'scopeNarrow', 'profileConfirm', 'naverTermLookup', 'codexForUsers'];
+const BOOL_SWITCHES = ['codexForUsers', 'answerCanonicalOnly', 'understandConfirm', 'scopeNarrow', 'profileConfirm', 'naverTermLookup'];
 
 /**
  * 되묻기를 **몇 번째로 내는지** 센다(ctx 에 누적).
