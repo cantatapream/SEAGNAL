@@ -27,6 +27,8 @@
  *                                       done 이벤트의 clarify 필드로 내려보낸다(legal_retriever.decideClarify)
  *                                       위키에 근거가 없으면 2차로 법령 원문(GitHub 온디맨드)을 훑어 "미검증 참고" 답변 시도
  *                                       6초 넘게 걸린 요청 + 알림 동의 시 답변을 임시 보관하고 개인 푸시 발송
+ *                                       관리자 토큰 + llm:"codex" 면 AI 호출을 VM 의 Codex 로(services/codex_bridge.js)
+ *  - POST /api/legal/codex/poll|result → VM Codex 작업자 창구(X-Codex-Secret, NRYA_CODEX_SECRET 없으면 404)
  *  - GET  /api/legal/pending-answer/:requestId → 푸시로 다시 들어온 사용자에게 그 답변을 1회만 돌려줌
  *  - GET  /api/legal/article-text     → 답변카드의 조문 카드를 눌렀을 때 띄울 원문. 인용 표기에 따라
  *                                       조 하나(항·호 분해 + 인용 항 강조) / 범위(제1~9조) / 문서 전체로
@@ -63,6 +65,7 @@ const articleText = require('../services/article_text');
 const effectiveDate = require('../services/effective_date');   // 지식 방 '원문'이 챗봇과 같은 판(예고본 포함)을 보여주게
 const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
+const codexBridge = require('../services/codex_bridge');   // 관리자 전용 Codex 개발자 모드(삼중 잠금)
 const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
 const wikiBrief = require('../services/legal_wiki_brief');
@@ -1538,7 +1541,14 @@ async function synthesizeChainRows(answerText, rows) {
 //   lastQuestion(선택, H-37 최소 절충안): 클라이언트가 매 요청에 싣는 직전 질문 원문 — ctx와
 //   무관해 새 질문 타이핑에도 안 비워진다. decideClarify가 이미 애매해 되물을 때만 "방금 그거예요?"
 //   확인 후보 하나를 더 보여주는 데만 쓴다(답을 대신 짓지 않는다).
-router.post('/api/legal/ask', async (req, res) => {
+// [Codex 개발자 모드] VM 작업자 창구 — NRYA_CODEX_SECRET 이 없으면 404, 열쇠가 틀리면 401.
+//   설계: services/codex_client.design.md · 작업자: scripts/codex_worker.js
+router.post('/api/legal/codex/poll', codexBridge.poll);
+router.post('/api/legal/codex/result', codexBridge.result);
+
+// codexBridge.withRequest: 삼중 잠금(서버 스위치·관리자 토큰·llm:"codex")이 다 맞을 때만 이 요청의
+//   AI 호출을 VM 의 Codex 로 돌린다. 아니면 아무것도 안 하고 넘긴다(평소 응답과 바이트 동일).
+router.post('/api/legal/ask', codexBridge.withRequest, async (req, res) => {
   const startedAt = Date.now();   // 6초 판정 기준(핸들러 시작~완료 실제 소요시간)
   const q = String((req.body && req.body.query) || '').trim();
   if (!q) return res.status(400).json({ ok: false, error: 'query 필요' });
