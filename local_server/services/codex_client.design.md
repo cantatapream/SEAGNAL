@@ -1,6 +1,7 @@
 # 나리야 답변 AI를 ChatGPT 정액제(Codex)로 돌리는 개발자 전용 모드 — 설계
 
 > 상태: **구현·배포됨, VM 실전 5문항 시험 완료(§6)** · 최초 2026-09-27(설계안) → 같은 날 ②방식으로 개정·구현
+> 운영·이어하기 안내서: [`codex_vm_runbook.md`](codex_vm_runbook.md) (VM 구성·명령·오늘 겪은 문제·다음 할 일)
 > 코드: `services/codex_bridge.js`(Fly 쪽 대기열) · `scripts/codex_worker.js`(VM 쪽 작업자)
 >       · `services/gemini_client.js` 입구 분기 · `routes/legal.js` 미들웨어·창구 · 시험 `scripts/test_codex_bridge.js`
 
