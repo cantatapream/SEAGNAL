@@ -53,7 +53,7 @@ const SRC_RE = /^[ \t]*>?[ \t]*(?:★)?[ \t]*raw[ \t]*원문[ \t]*[::][ \t]*`?(r
 
 // ★별표 표를 골라내는 법은 **공용 모듈 한 곳**에 있다(L-386) — `_byl_wiki_table.js`.
 //   예전에는 이 자와 `annex_rowcount_fill.js` 가 각자 세었고 **둘 다 파일의 표를 전부 긁었다.**
-const { 별표표 } = require('./_byl_wiki_table.js');
+const { 별표표, 마디수, 원문큰마디, 없는큰마디: 없는큰마디찾기 } = require('./_byl_wiki_table.js');
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -227,12 +227,12 @@ function 칠no(id){
 
 function count(){
  const 표칸=Object.keys(D).filter(k=>D[k].종류==='표');
- const 없칸=Object.keys(D).filter(k=>D[k].종류==='표없음');
+ const 없칸=Object.keys(D).filter(k=>D[k].종류==='표없음'||D[k].종류==='마디');
  const a=표칸.filter(k=>{const v=S[k]||{};return v.위키!==null&&v.위키!==undefined&&
    (v.원문===v.위키||(v.까닭||'').trim())}).length;
  const b=없칸.filter(k=>(S[k]||{}).판정).length;
  document.getElementById('cnt').textContent=
-   '수를 적은 칸 '+a+' / '+표칸.length+'  ·  표 없는 칸 '+b+' / '+없칸.length}
+   '수를 적은 칸 '+a+' / '+표칸.length+'  ·  고른 칸 '+b+' / '+없칸.length}
 
 function 내보내기글(){
  const L=['# 별표 항목수 대조 (§6-F) — 판정 결과',
@@ -248,7 +248,7 @@ function 내보내기글(){
    L.push('')}
   else{
    if(!v.판정)return;
-   n++;L.push('['+(i+1)+'] '+d.쪽+'   ※위키에 별표 표가 없는 자리');
+   n++;L.push('['+(i+1)+'] '+d.쪽+(d.종류==='마디'?'   ※별표를 마디로 풀어 적은 자리':'   ※위키에 별표 표가 없는 자리'));
    L.push('    판정: '+v.판정);
    if(v.메모&&v.메모.trim())L.push('    메모: '+v.메모.trim());
    L.push('')}});
@@ -285,6 +285,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 function main() {
     const 표칸 = [];
     const 없칸 = [];
+    const 마디칸 = [];
     for (const f of fs.readdirSync(WIKI).filter((x) => x.endsWith('.md')).sort()) {
         const txt = fs.readFileSync(path.join(WIKI, f), 'utf8');
         const m = ROW_RE.exec(txt);
@@ -300,11 +301,21 @@ function main() {
         const 표시맞나 = 표시.센수 === 참값;
         const 표들 = 별표표(txt);
         const 후보 = 표들.reduce((a, x) => a + x.데이터행, 0);
+        // ★별표를 `###` 마디로 풀어 놓은 쪽은 **행으로 견줄 수 없다**(표 한 줄 = 한 항목이 아니다).
+        //   실측: 수산업법 시행령 별표2 는 원문 154행을 어업 40종 마디로 835줄에 담았다 — 「154 대 18」로
+        //   보이지만 빠진 것은 없었다. 그 6쪽은 물음을 바꿔 따로 묶는다(2026-09-27).
+        const 마디 = 마디수(txt);
+        const 큰마디 = 원문큰마디(raw);
+        const 없는큰마디 = 없는큰마디찾기(raw, txt);
+        const 한글 = (t) => (String(t).match(/[가-힣]/g) || []).length;
         const it = {
             f, 쪽: f.replace(/\.md$/, ''), src, 원문: Number(m[1]), 적힌: Number(m[2]),
             원문글: 표시맞나 ? 표시.글 : raw, 표시맞나, 참값, 표들, 후보,
+            마디, 큰마디, 없는큰마디, 한글원문: 한글(raw), 한글위키: 한글(txt),
         };
-        (표들.length ? 표칸 : 없칸).push(it);
+        if (마디 >= 3) 마디칸.push(it);
+        else if (표들.length) 표칸.push(it);
+        else 없칸.push(it);
     }
 
     const 데이터 = {};
@@ -368,6 +379,42 @@ function main() {
    <input type="text" id="m_${id}" placeholder="한 줄 적어 두실 것이 있으면" oninput="memoNo('${id}')"></label>
  </div></section>`;
 
+    const 마디칸글 = (it, id, 차례, 모두) => `<section class="item" id="${id}" data-it="${id}" data-page="${esc(it.f)}">
+ <h3>${차례} / ${모두} · ${esc(it.쪽)}<span class="p">원문: ${esc(it.src.join(' · ')) || '(적힌 원문 경로가 없다)'}</span></h3>
+ <div class="sec"><b class="k">①</b> <b>우리가 아는 것</b> — 원문은 표이고 기계가 <b>${it.원문}행</b>으로 세었습니다.
+   그런데 위키는 그 표를 <b>표로 옮기지 않고 「${it.마디}개 마디」로 풀어 적었습니다</b>(문서 전체 기준).</div>
+ <div class="sec"><b class="k">②</b> <b>무엇이 막혔나</b> — <b>행으로 견줄 수 없습니다.</b>
+   표 한 줄이 한 항목이 아니기 때문입니다. 그래서 「${it.원문}행 대 ${it.후보}행」처럼 보이지만
+   그건 <b>구조가 다른 것</b>이고, 빠졌다는 뜻이 아닙니다.</div>
+ <div class="sec hint"><b class="k">③</b> <b>그래서 제가 다른 자로 대조했습니다</b>
+   <ul style="margin:6px 0 0 20px;padding:0">
+   <li>원문의 <b>큰 마디 ${it.큰마디.length}가지</b>(${esc(it.큰마디.slice(0, 5).join(' · '))}${it.큰마디.length > 5 ? ' …' : ''})
+       가운데 <b>위키에 이름조차 없는 것 ${it.없는큰마디.length}가지</b>${it.없는큰마디.length ? `: <span class="big-gap">${esc(it.없는큰마디.join(' · '))}</span>` : ''}</li>
+   <li>한글 글자 수 — 원문 <b>${it.한글원문}</b> · 위키 <b>${it.한글위키}</b>
+       ${it.한글위키 >= it.한글원문 ? '(위키가 더 많습니다 — 위키는 설명·근거표를 덧붙이므로 정상입니다)'
+                                  : '<span class="big-gap">(위키가 더 적습니다 — 줄여 적었을 수 있습니다)</span>'}</li>
+   </ul>
+   ⚠글자 수는 <b>참고일 뿐 판정이 아닙니다</b> — 위키가 덧붙인 글이 섞여 있어 이것만으로는 누락을 가릴 수 없습니다.</div>
+ <div class="two">
+  <div class="side"><div class="tag"><b>원문 표</b> (raw)${it.표시맞나 ? ' · <code>▸</code> = 기계가 센 한 행' : ''}</div>
+   <pre>${esc(it.원문글.slice(0, 9000))}</pre></div>
+  <div class="side"><div class="tag"><b>위키 쪽</b> — 마디로 풀어 적은 글${it.표들.length ? ` (표도 ${it.표들.length}덩이 있습니다)` : ''}</div>
+   ${it.표들.length ? it.표들.map((t, j) => `<div class="tbl"><div class="cap">표 ${j + 1} — 데이터 줄 <b>${t.데이터행}</b>개`
+       + (t.머리글 !== '(머리글 없음)' ? ` · 마디 「${esc(t.머리글)}」` : '') + `</div><pre>${esc(t.글.slice(0, 5000))}</pre></div>`).join('')
+     : '<p>(표는 없고 글로만 적혀 있습니다)</p>'}</div>
+ </div>
+ <div class="ask"><b class="k">④</b>
+  <div class="pick">
+   <button data-v="행 대조 면제 — 마디로 풀어 적었다고 기록" onclick="pickNo('${id}','행 대조 면제 — 마디로 풀어 적었다고 기록')">행 대조 면제 — 「마디로 풀어 적었다」고 기록</button>
+   <button data-v="내가 직접 볼 것이 있다" onclick="pickNo('${id}','내가 직접 볼 것이 있다')">내가 직접 볼 것이 있다</button>
+   <button data-v="줄여 적은 것 같다 — 다시 옮겨라" onclick="pickNo('${id}','줄여 적은 것 같다 — 다시 옮겨라')">줄여 적은 것 같다 — 다시 옮겨라</button>
+   <button data-v="모르겠다" onclick="pickNo('${id}','모르겠다')">모르겠다 — 넘긴다</button>
+  </div>
+  <span class="st need" id="s_${id}">— 아직 안 고르셨습니다</span>
+  <label style="flex:1;display:flex;gap:8px;align-items:center;width:100%">메모
+   <input type="text" id="m_${id}" placeholder="한 줄 적어 두실 것이 있으면" oninput="memoNo('${id}')"></label>
+ </div></section>`;
+
     let 몸 = '';
     if (표칸.length) {
         몸 += `<h2 class="grp">가. 위키에 표가 있는 자리 — ${표칸.length}칸 (위키가 몇 행인지 적어 주세요)</h2>`;
@@ -389,14 +436,34 @@ function main() {
         });
     }
 
+    if (마디칸.length) {
+        몸 += `<h2 class="grp">다. 별표를 「마디」로 풀어 적은 자리 — ${마디칸.length}칸 (행으로 견줄 수 없습니다)</h2>`
+            + `<p style="font-size:14px;color:var(--mut);margin:0 0 14px">`
+            + `이 ${마디칸.length}칸은 위키가 원문 표를 <b>표가 아니라 마디로 풀어</b> 적었습니다. `
+            + `행 수를 견주면 큰 누락처럼 보이지만 구조가 다른 것입니다 — 실측으로 확인했습니다`
+            + `(수산업법 시행령 별표2: 「154행 대 18행」으로 보이나 원문의 어업 46가지가 위키에 모두 있고 `
+            + `문서가 주장한 원문 20,099자도 정확했습니다). <b>제가 다른 자로 대조한 결과를 칸마다 적어 두었습니다.</b></p>`;
+        마디칸.forEach((it, k) => {
+            const id = 'd' + k;
+            데이터[id] = { 종류: '마디', 쪽: it.쪽, 원문: it.원문, 후보: it.후보 };
+            몸 += 마디칸글(it, id, k + 1, 마디칸.length);
+        });
+    }
+
     fs.mkdirSync(OUT_DIR, { recursive: true });
     fs.writeFileSync(OUT, TPL.replace('__BODY__', 몸)
-        .replace('__N__', String(표칸.length + 없칸.length))
+        .replace('__N__', String(표칸.length + 없칸.length + 마디칸.length))
         .replace('__DATA__', JSON.stringify(데이터)), 'utf8');
     const 표시못 = [...표칸, ...없칸].filter((x) => !x.표시맞나);
     const 큰차 = 표칸.filter((x) => x.후보 > 0 && x.후보 * 2 <= x.원문);
     console.log(`▣ 만들었다: ${path.relative(LEGAL, OUT)}`);
-    console.log(`   자리 ${표칸.length + 없칸.length}개 = 표 있는 것 ${표칸.length} + 표 없는 것 ${없칸.length}`);
+    console.log(`   자리 ${표칸.length + 없칸.length + 마디칸.length}개`
+        + ` = 표 중심 ${표칸.length} + 마디로 풀어 적은 것 ${마디칸.length} + 위키에 표가 없는 것 ${없칸.length}`);
+    for (const x of 마디칸) {
+        console.log(`       [마디 ${String(x.마디).padStart(2)}] 원문 ${String(x.원문).padStart(3)}행`
+            + ` · 큰마디 ${x.큰마디.length}가지 중 위키에 없는 것 ${x.없는큰마디.length}`
+            + ` · 한글 ${x.한글원문}→${x.한글위키}${x.한글위키 < x.한글원문 ? ' ★줄었다' : ''}   ${x.쪽.slice(0, 46)}`);
+    }
     console.log(`   · 줄 표시를 못 붙인 자리 ${표시못.length}개 (붙인 수가 countBoxRows 값과 안 맞아 일부러 뗐다)`);
     console.log(`   · 위키가 원문의 절반도 안 되는 자리 ${큰차.length}개 — 빠진 것일 수 있다`);
     for (const x of 큰차) console.log(`       원문 ${String(x.원문).padStart(3)} → 위키 ${String(x.후보).padStart(3)}   ${x.쪽}`);
