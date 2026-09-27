@@ -145,6 +145,8 @@
         _alertArmed = _oceanArmed = _safetyArmed = _lifeArmed = true;
     }
     var _sheetScrollId = 0; // 바텀시트를 천천히 내리는 중인 애니메이션 번호
+    var _statsScrollId = 0; // 사고정보 전국통계 시트를 내리는 중인 애니메이션 번호
+    var _rockPt = null;     // 빨갛게 경고 중인 간출암 자리 [경도, 위도] — 한 번 고르면 그대로
 
     // ========================================================================
     // [작은 도구들]
@@ -1981,6 +1983,281 @@
     ];
 
 
+
+    // ========================================================================
+    // [해양안전 — 지도를 움직이고 대신 눌러 주는 손]
+    // ========================================================================
+
+    /**
+     * 지도를 그 자리로 옮기고 확대한다.
+     *
+     * @param {number} lon - 경도  @param {number} lat - 위도  @param {number} zoom
+     * [연계] 해양안전은 해양종합정보와 같은 지도(window.getOceanMap)를 빌려 쓴다.
+     */
+    function _mapGoto(lon, lat, zoom) {
+        var map = window.getOceanMap && window.getOceanMap();
+        if (!map || typeof ol === 'undefined') return;
+        var view = map.getView();
+        var size = map.getSize();
+        var coord = ol.proj.fromLonLat([lon, lat]);
+        view.setZoom(zoom);
+        // 설명 카드가 아래를 가리므로, 보이는 구간(위쪽)의 한가운데에 놓는다
+        if (size) {
+            var box = _oceanMapEl();
+            var card = _card ? _card.getBoundingClientRect() : null;
+            var r = box ? box.getBoundingClientRect() : null;
+            var bottom = (card && r && card.top > r.top) ? (card.top - r.top - GAP) : size[1];
+            var top = GAP + _insets.top + TAG_H;
+            if (bottom <= top) { top = 0; bottom = size[1]; }
+            view.centerOn(coord, size, [size[0] / 2, (top + bottom) / 2]);
+        } else {
+            view.setCenter(coord);
+        }
+    }
+
+    /**
+     * 그 자리를 **대신 눌러** 준다(앱이 평소처럼 팝업을 연다).
+     *
+     * @param {number} lon @param {number} lat
+     * [연계] ocean_map.js 의 handleMapClick 이 각 기능의 …TryHandleClick 을 부른다.
+     *        그 손잡이는 **'click'** 에 걸려 있다 — 'singleclick' 으로 보내면 아무 일도
+     *        일어나지 않는다(실측 2026-09-27: 생이기정 위를 네 번 눌렀는데 그대로였다).
+     *        그림이 다시 그려진 뒤에 눌러야 맞는 것이 잡힌다.
+     */
+    function _mapClickAt(lon, lat) {
+        var map = window.getOceanMap && window.getOceanMap();
+        if (!map || typeof ol === 'undefined') return;
+        var coord = ol.proj.fromLonLat([lon, lat]);
+        var pixel = map.getPixelFromCoordinate(coord);
+        if (!pixel) return;
+        map.dispatchEvent({ type: 'click', pixel: pixel, coordinate: coord, map: map });
+    }
+
+    /**
+     * 지금 **빨갛게 표시되는 간출암**(곧 잠기는 바위) 하나의 자리를 찾는다.
+     *
+     * 왜 API 를 두 번 부르나?
+     *   어느 바위가 빨간지는 시각에 따라 달라져서 그때그때 물어봐야 하고(잠김경고),
+     *   그 바위가 어디 있는지는 다른 자료(암초 목록)에 있다.
+     *
+     * @param {Function} done - [경도, 위도] 를 받는 함수(못 찾으면 null)
+     * [연계] GET /api/hazard-rocks/submersion · GET /hazard_rocks.json
+     */
+    function _findWarnedRock(done) {
+        if (_rockPt) { done(_rockPt); return; }
+        fetch('/api/hazard-rocks/submersion')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                var w = (j && j.warnings) || null;
+                if (!w) { done(null); return; }
+                return fetch('/hazard_rocks.json')
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (d) {
+                        var fs = (d && d.features) || d || [];
+                        for (var i = 0; i < fs.length; i++) {
+                            var pr = fs[i].properties || fs[i];
+                            if (pr.k !== 1) continue;                 // 간출암만(빨간 경고 대상)
+                            if (!w[String(pr.id)]) continue;
+                            var g = fs[i].geometry || {};
+                            if (!g.coordinates) continue;
+                            _rockPt = g.coordinates;
+                            done(_rockPt);
+                            return;
+                        }
+                        done(null);
+                    });
+            })
+            .catch(function () { done(null); });
+    }
+
+    /**
+     * 지도에 그려진 **항행경보 구역** 하나의 가운데 자리를 찾는다.
+     *
+     * @returns {Array<number>|null} [경도, 위도] — 아직 안 그려졌으면 null
+     * [연계] navigational_warning.js 가 올린 피처(속성 'zone' 을 갖는다).
+     *        이 값이 나오는 것 자체가 "자료를 다 받아 그렸다"는 신호라, 기다리는 데도 쓴다.
+     */
+    function _navwarnPoint() {
+        var map = window.getOceanMap && window.getOceanMap();
+        if (!map || typeof ol === 'undefined') return null;
+        // 오늘 날짜(YYYYMMDD)와 지금 시각(자정부터 몇 분) — 아직 안 끝난 경보를 고르려고
+        var now = new Date();
+        var today = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+        var mins = now.getHours() * 60 + now.getMinutes();
+        var live = null, any = null;
+        map.getLayers().forEach(function (l) {
+            var src = l.getSource && l.getSource();
+            if (!src || typeof src.getFeatures !== 'function') return;
+            var fs;
+            try { fs = src.getFeatures(); } catch (e) { return; }
+            fs.forEach(function (f) {
+                var zone = f.get('zone');
+                var g = zone && f.getGeometry();
+                if (!g) return;
+                var ex = g.getExtent();
+                var pt = ol.proj.toLonLat([(ex[0] + ex[2]) / 2, (ex[1] + ex[3]) / 2]);
+                if (!any) any = pt;
+                // 오늘 시간창이 있고 아직 끝나지 않았으면 그쪽을 먼저 쓴다
+                //   (끝난 경보는 팝업에 빨갛게 '종료' 라고 나와 설명에 어울리지 않는다)
+                if (live) return;
+                (zone.windows || []).forEach(function (w) {
+                    if (!live && w.date === today && w.end >= mins) live = pt;
+                });
+            });
+        });
+        return live || any;
+    }
+
+    /**
+     * 지금 지도 위에 떠 있는 **설명 팝업**을 돌려준다(없으면 null).
+     *
+     * @returns {Element|null} 출입통제·항행경보 팝업(.seagnal-modal-content) 또는
+     *          간출암 조석 팝업(.rock-tide-popup)
+     * [연계] _clickForPopup() 이 "열렸나" 를 볼 때, 각 단계가 구멍을 씌울 곳을 정할 때.
+     */
+    function _safetyPopupEl() {
+        var sel = ['.rock-tide-popup', '#seagnal-custom-modal .seagnal-modal-content'];
+        for (var i = 0; i < sel.length; i++) {
+            var e = document.querySelector(sel[i]);
+            if (e && e.getBoundingClientRect().height > 1) return e;
+        }
+        return null;
+    }
+
+    /**
+     * 그 자리를 팝업이 뜰 때까지 **여러 번** 눌러 준다.
+     *
+     * 왜 여러 번인가?
+     *   앱은 작은 구역이나 뭉쳐 있는 바위를 처음 누르면 **팝업 대신 그쪽으로 확대**한다
+     *   (access_control.js 60px 미만 · hazard_rocks.js 클러스터). 그래서 한 번만 누르면
+     *   확대만 되고 설명이 안 뜬다 — 떠 있는 것이 보일 때까지 다시 누른다.
+     *
+     * @param {number} lon @param {number} lat
+     * @param {Function} alive - 아직 같은 단계인지 알려 주는 함수
+     * @param {Function} [check] - "떴나?" 를 보는 함수(기본값: _safetyPopupEl)
+     * @param {Function} [after] - 떴을 때 할 일(기본값: 구멍을 팝업에 맞춘다)
+     * [연계] _mapClickAt() · _safetyPopupEl() · _paint()
+     */
+    function _clickForPopup(lon, lat, alive, check, after) {
+        check = check || _safetyPopupEl;
+        var tries = 0;
+        var tick = function () {
+            if (!alive()) return;
+            if (check()) { if (after) after(); else _paint(true); return; }
+            if (tries >= 6) return;
+            tries++;
+            _mapClickAt(lon, lat);
+            setTimeout(tick, 1200);
+        };
+        tick();
+    }
+
+    /** 갯벌 지점 말풍선이 떠 있나? @returns {boolean} [연계] 물빠짐 단계 */
+    function _mudflatPopupOpen() {
+        var e = document.querySelector('.mudflat-popup-title');
+        return !!e && e.getBoundingClientRect().height > 2;
+    }
+
+    /**
+     * 대신 눌러 띄운 설명 팝업을 닫는다(출입통제 · 항행경보 · 간출암 조석).
+     *
+     * [연계] 팝업을 쓰지 않는 단계로 넘어갈 때와 튜토리얼을 닫을 때 부른다.
+     *        지도 팝업은 닫기 단추가 따로 없어, 아무것도 없는 자리를 눌러 닫는다.
+     */
+    function _closeSafetyPopup() {
+        if (document.getElementById('seagnal-custom-modal') &&
+            typeof window.closeSeagnalModal === 'function') window.closeSeagnalModal();
+        // [주의] 이 팝업 요소는 한 번 만들어지면 지도에 그대로 남고 위치만 지워진다.
+        //   있는지(querySelector)로 보면 그 뒤 모든 단계에서 헛클릭이 나가 지도에 핀이
+        //   꽂힌다(실측 2026-09-27: 물빠짐 단계에 엉뚱한 핀이 찍혔다). 보이는지로 본다.
+        var rp = document.querySelector('.rock-tide-popup');
+        if (!rp || rp.getBoundingClientRect().height < 2) return;
+        var mp = window.getOceanMap && window.getOceanMap();
+        if (!mp) return;
+        var c = mp.getView().getCenter();
+        if (c) mp.dispatchEvent({ type: 'click', pixel: [1, 1], coordinate: c, map: mp });
+    }
+
+    /**
+     * 사고정보의 **전국 통계** 시트를 열고, 천천히 끝까지 내려 보여 준다.
+     *
+     * @param {boolean} on
+     * [연계] #accident-nationwide-btn(버튼) · #accident-stats-sheet(시트) ·
+     *        #accident-stats-body(안쪽 스크롤 상자)
+     */
+    function _setStatsSheet(on) {
+        var sheet = document.getElementById('accident-stats-sheet');
+        var open = !!(sheet && sheet.classList.contains('open'));
+        if (!on) {
+            if (_statsScrollId) { cancelAnimationFrame(_statsScrollId); _statsScrollId = 0; }
+            if (open) {
+                var x = document.getElementById('accident-stats-close');
+                if (x) x.click();
+            }
+            return;
+        }
+        if (open) return;
+        _when(function () {
+            var b = document.getElementById('accident-nationwide-btn');
+            return !!b && b.getBoundingClientRect().height > 1;
+        }, function () {
+            if (document.getElementById('accident-stats-sheet') &&
+                document.getElementById('accident-stats-sheet').classList.contains('open')) return;
+            var b = document.getElementById('accident-nationwide-btn');
+            if (b) b.click();
+            // 표가 다 채워진 뒤 천천히 내린다(해양종합정보 바텀시트와 같은 방식)
+            setTimeout(_autoScrollStats, 1600);
+        });
+    }
+
+    /** 전국 통계 시트를 4초에 걸쳐 끝까지 내린다. [연계] #accident-stats-body */
+    function _autoScrollStats() {
+        var el = document.getElementById('accident-stats-body');
+        if (!el) return;
+        if (_statsScrollId) { cancelAnimationFrame(_statsScrollId); _statsScrollId = 0; }
+        el.scrollTop = 0;
+        var t0 = 0, DUR = 4000;
+        var step = function (ts) {
+            if (!_root) { _statsScrollId = 0; return; }
+            if (!t0) t0 = ts;
+            var to = el.scrollHeight - el.clientHeight;
+            if (to < 4) { _statsScrollId = 0; return; }
+            var p = Math.min(1, (ts - t0) / DUR);
+            el.scrollTop = to * p;
+            _statsScrollId = (p < 1) ? requestAnimationFrame(step) : 0;
+        };
+        _statsScrollId = requestAnimationFrame(step);
+    }
+
+    /**
+     * 물빠짐 시간 슬라이더를 재생/정지한다.
+     * @param {boolean} on
+     * [연계] #mudflat-play-btn — 누를 때마다 재생↔정지가 바뀐다.
+     */
+    function _setMudflatPlay(on) {
+        var b = document.getElementById('mudflat-play-btn');
+        if (!b || b.getBoundingClientRect().height < 1) return;
+        var playing = !!b.querySelector('.fa-pause');   // 재생 중이면 정지 아이콘이 보인다
+        if (playing !== on) b.click();
+    }
+
+    /**
+     * 팝업이 떠 있으면 팝업을, 아직이면 지도를 가리킨다.
+     *
+     * 왜 지도로 물러서나?
+     *   팝업만 가리키게 두면 **팝업이 뜰 때까지 단계가 준비되지 않고**, 팝업을 여는 일은
+     *   준비된 다음에 하게 돼 있어 서로 기다리다 영영 멈춘다(실측 2026-09-27).
+     *
+     * @returns {Array<Element>|null}
+     * [연계] _clickForPopup() 이 팝업을 연 뒤 _paint(true) 로 구멍을 옮긴다.
+     */
+    function _popupOrMap() {
+        var p = _safetyPopupEl();
+        if (p) return [p];
+        var m = _oceanMapEl();
+        return m ? [m] : null;
+    }
+
     // ========================================================================
     // [단계 목록 — 해양안전생활 ▸ 해양안전]
     //
@@ -1996,41 +2273,19 @@
             btns: []
         },
         {
-            title: '지도 종류',
-            body: '지도 배경을 바꿉니다. 버튼에 따라 위성지도나 전자해도로 저절로 바뀌기도 합니다.',
-            target: function () {
-                var b = document.getElementById('ocean-basemap-toggle');
-                var m = document.getElementById('ocean-basemap-menu');
-                if (!b) return null;
-                return (m && m.getBoundingClientRect().height > 1) ? [b, m] : [b];
-            },
-            btns: [], pop: 'basemap'
-        },
-        {
-            title: '안 내 — 자세한 설명은 여기',
-            body: '지금 보여드리는 것보다 자세한 설명이 이 버튼 안에 들어 있습니다. '
-                + '자료를 어디에서 받아 오는지(출처)와 주의할 점까지 적혀 있습니다.',
-            target: function () {
-                var b = document.getElementById('ocean-info-btn');
-                return b ? [b] : null;
-            },
-            btns: []
-        },
-        {
-            title: '진북 정렬',
-            body: '지도를 정북(위쪽=북) 방향으로 맞춥니다.',
-            target: function () {
-                var b = document.getElementById('ocean-northup-btn');
-                return b ? [b] : null;
-            },
-            btns: []
-        },
-        {
             title: '위험지형',
             body: '바다 위와 물속의 바위를 표시합니다. 켜면 화면 왼쪽 위에 스위치가 생겨 '
                 + '노출암 · 갯바위와 간출암 · 암암을 골라 볼 수 있습니다.',
             target: _obTarget('ocean-terrain-toggle-btn'),
             btns: ['ocean-terrain-toggle-btn']
+        },
+        {
+            title: '빨간 바위 — 곧 물에 잠깁니다',
+            body: '빨갛게 깜빡이는 간출암은 세 시간 안에 물에 잠기는 바위입니다. '
+                + '누르면 오늘부터 모레까지 물 높이가 어떻게 오르내리는지 그래프로 보여줍니다. '
+                + '지금은 그런 바위 하나를 대신 눌렀습니다.',
+            target: _popupOrMap,
+            btns: ['ocean-terrain-toggle-btn'], rock: true, cardTop: true
         },
         {
             title: '사고정보',
@@ -2040,6 +2295,20 @@
             btns: ['ocean-accident-toggle-btn']
         },
         {
+            title: '전국 통계',
+            body: '[전국 통계]를 누르면 우리나라 전체 사고를 한 장으로 정리해 줍니다 — '
+                + '해마다 얼마나 났는지, 어떤 사고가 많은지, 특보 중 사고는 얼마나 되는지. '
+                + '아래로 내려가며 보여드립니다.',
+            target: function () {
+                // 시트는 닫혀 있어도 화면 밖에 그대로 있다(높이 675px) — 'open' 일 때만 가리킨다
+                var e = document.getElementById('accident-stats-sheet');
+                if (e && e.classList.contains('open')) return [e];
+                var m = _oceanMapEl();
+                return m ? [m] : null;
+            },
+            btns: ['ocean-accident-toggle-btn'], stats: true, cardTop: true
+        },
+        {
             title: '금지구역',
             body: '낚시금지구역과 출입통제구역을 함께 표시합니다. 구역을 누르면 '
                 + '지정 사유 · 통제 기간 · 벌칙까지 볼 수 있습니다.',
@@ -2047,39 +2316,55 @@
             btns: ['ocean-banzone-toggle-btn']
         },
         {
+            title: '금지구역을 누르면 — 제주 생이기정',
+            body: '예로 제주 한경면 생이기정 앞 출입통제구역을 확대해 눌렀습니다. '
+                + '어디가 왜 막혀 있는지, 언제까지인지, 어기면 어떻게 되는지 나옵니다.',
+            target: _popupOrMap,
+            btns: ['ocean-banzone-toggle-btn'], cardTop: true,
+            goto: [126.1672, 33.3153, 14], clickAt: [126.1672, 33.3153]
+        },
+        {
             title: '항행경보',
             body: '그날 발효 중인 항행경보 구역(사고 · 장애물 · 해상사격훈련 등)을 '
-                + '빨간 점선으로 표시합니다. 날짜와 시각을 바꿔 가며 볼 수 있습니다.',
+                + '빨간 점선으로 표시합니다. 자료를 받아 그리는 데 잠시 걸립니다.',
             target: _obTarget('ocean-navwarn-btn'),
-            btns: ['ocean-navwarn-btn']
+            btns: ['ocean-navwarn-btn'], waitNavwarn: true
+        },
+        {
+            title: '항행경보를 누르면',
+            body: '구역을 누르면 무슨 경보인지, 언제까지인지, 어디에서 나온 것인지 나옵니다. '
+                + '위쪽 화살표로 날짜를, 아래 슬라이더로 시각을 바꿔 볼 수 있습니다.',
+            target: _popupOrMap,
+            btns: ['ocean-navwarn-btn'], clickNavwarn: true, cardTop: true
         },
         {
             title: '물빠짐',
             body: '서해 · 남해 갯벌이 썰물에 얼마나 드러나는지 예측해 갈색으로 표시합니다. '
-                + '아래 슬라이더로 3일치를 1시간 단위로 볼 수 있습니다.',
-            target: _obTarget('ocean-mudflat-toggle-btn'),
-            btns: ['ocean-mudflat-toggle-btn']
+                + '갯벌을 누르면 그 자리가 지금 잠겼는지, 언제 드러나는지 알려 줍니다.',
+            target: function () { var m = _oceanMapEl(); return m ? [m] : null; },
+            btns: ['ocean-mudflat-toggle-btn'],
+            goto: [126.335, 35.19, 12.5], pin: [126.3045, 35.1885]
         },
         {
-            title: 'CCTV',
-            body: '공공에 공개된 해안 CCTV 영상을 볼 수 있습니다. '
-                + '항구 상태와 바다 날씨를 눈으로 확인할 때 씁니다.',
-            target: _obTarget('ocean-cctv-toggle-btn'),
-            btns: ['ocean-cctv-toggle-btn']
+            title: '시간에 따라 어떻게 변하나',
+            body: '아래 슬라이더로 오늘부터 3일치를 1시간 단위로 볼 수 있고, '
+                + '재생(▶)을 누르면 갯벌이 드러났다 잠기는 모습이 이어서 움직입니다.',
+            target: function () {
+                var b = document.getElementById('mudflat-slider-bar');
+                var m = _oceanMapEl();
+                if (!b || b.getBoundingClientRect().height < 1) return m ? [m] : null;
+                return m ? [m, b] : [b];
+            },
+            btns: ['ocean-mudflat-toggle-btn'], cardTop: true,
+            goto: [126.335, 35.19, 12.5], pin: [126.3045, 35.1885], play: true
         },
         {
-            title: '관제구역',
-            body: '선박교통관제구역(VTS)을 표시하고 관제채널이 함께 적힙니다. '
-                + '구역을 누르면 관제센터 주소와 전화번호를 볼 수 있습니다.',
-            target: _obTarget('ocean-vts-toggle-btn'),
-            btns: ['ocean-vts-toggle-btn']
-        },
-        {
-            title: '항로·해역',
-            body: '지정된 항로는 자홍색으로, 한중 · 한일 사이 해양경계 수역은 선홍색으로 '
-                + '나눠 표시합니다.',
-            target: _obTarget('ocean-seaway-toggle-btn'),
-            btns: ['ocean-seaway-toggle-btn']
+            title: '나머지 셋 — CCTV · 관제구역 · 항로·해역',
+            body: 'CCTV는 공개된 해안 영상, 관제구역은 선박교통관제(VTS) 구역과 관제채널, '
+                + '항로·해역은 지정된 항로와 한중 · 한일 해양경계를 보여줍니다. '
+                + '모두 버튼을 켜면 지도에 바로 나타납니다.',
+            target: function () { var m = _oceanMapEl(); return m ? [m] : null; },
+            btns: ['ocean-cctv-toggle-btn', 'ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn']
         }
     ];
 
@@ -2302,7 +2587,7 @@
 
         var root = document.createElement('div');
         root.id = 'tutorial-overlay';
-        root.style.cssText = 'position:fixed;inset:0;z-index:20000;font-family:' + FONT
+        root.style.cssText = 'position:fixed;inset:0;z-index:45000;font-family:' + FONT
             + ';color:#fff;overflow:hidden;';
 
         // 구멍 — 설명 대상만 밝게 남기고 바깥을 어둡게 한다
@@ -2574,9 +2859,12 @@
         // [딱지 줄을 비운다] 카드가 화면 위쪽에 붙을 때는 「시험 모드」 딱지와 단계 번호가
         //   있는 줄 아래에서 시작해야 한다. 그러지 않으면 카드가 그 둘을 덮는다
         //   (실측 2026-09-25 — 바텀시트 단계에서 드러났다).
+        // [카드를 위에 못박는 단계는 자르지 않는다] 그런 단계는 카드가 구멍 위에 겹쳐
+        //   놓이므로 자리를 따로 비울 필요가 없다. 자르면 오히려 화면 아래쪽에 있는 것을
+        //   (물빠짐 시간 슬라이더처럼) 설명하면서 어둡게 덮어 버린다(실측 2026-09-27).
         var topCard = topLimit + TAG_H;
         var above = (hy - GAP) - topCard;
-        if (bottomLimit - (hy + hh + GAP) < CARD_MIN && above < CARD_MIN) {
+        if (!step.cardTop && bottomLimit - (hy + hh + GAP) < CARD_MIN && above < CARD_MIN) {
             hh = Math.max(40, bottomLimit - CARD_MIN - GAP - hy);
         }
 
@@ -2723,6 +3011,10 @@
             _setOceanBtns(step.btns);
             _setOceanPop(step.pop);
             _setOceanOpen(step.open);
+            _setStatsSheet(!!step.stats);
+            if (!step.play) _setMudflatPlay(false);
+            // 앞 단계가 띄운 팝업이 남아 있으면 다음 설명을 가린다
+            if (!(step.rock || step.clickAt || step.clickNavwarn)) _closeSafetyPopup();
         } else {
             _setAccordion(ACC_FORECAST, step.want.forecast);
             _setAccordion(ACC_ALERT, step.want.alert);
@@ -2742,6 +3034,9 @@
             //   그림 단계는 아코디언 상태를 볼 필요가 없으므로 그 확인을 건너뛴다.
             // 지도 단계는 아코디언과 무관하다 — 비출 것이 화면에 잡히면 준비된 것이다
             //   (눌러서 여는 창이 있는 단계는 그 창이 떠야 잡힌다)
+            // 항행경보는 자료를 받아 그리기까지 몇 초 걸린다 — 다 그려지기 전에
+            //   설명을 띄우면 빈 지도를 가리킨다(사용자 요청 2026-09-27: "로딩때까지 기다렸다가").
+            if (step.waitNavwarn && !_navwarnPoint()) return false;
             if (_mode !== 'alert') return (!step.target || !!_unionRect(_targets(step)));
             return (step.image || _isMapStep(step.drill) || _settled(step.want))
                 && _drillSettled(step.drill)
@@ -2768,6 +3063,71 @@
                 if (step.autoScroll) setTimeout(function () {
                     if (_root && _steps[_stepIdx] === step) _autoScrollSheet();
                 }, 1600);
+
+                // ── 해양안전 — 지도를 옮기고 대신 눌러 주는 단계들 ──────────────
+                //   카드 자리가 정해진 **뒤에** 움직인다(카드가 가린 만큼 비껴 놓는다).
+                //   같은 단계가 아직 떠 있을 때만 한다 — [다음] 을 빨리 누르면 앞 단계의
+                //   예약이 뒤늦게 터져 엉뚱한 곳으로 지도를 끌고 가기 때문이다.
+                var alive = function () { return _root && _steps[_stepIdx] === step; };
+                if (step.goto) setTimeout(function () {
+                    if (!alive()) return;
+                    _mapGoto(step.goto[0], step.goto[1], step.goto[2]);
+                    _paint(false);
+                }, 400);
+                // 옮겨 간 자리를 눌러 팝업을 연다 — 지도가 새 자리를 다 그린 뒤라야
+                //   그 자리에 무엇이 있는지 잡힌다(실측: 2.2초).
+                if (step.clickAt) setTimeout(function () {
+                    if (alive()) _clickForPopup(step.clickAt[0], step.clickAt[1], alive);
+                }, 2200);
+                // 빨갛게 경고 중인 간출암 — 오늘 어느 바위인지는 물어봐야 안다.
+                if (step.rock) setTimeout(function () {
+                    if (!alive()) return;
+                    _findWarnedRock(function (pt) {
+                        if (!alive() || !pt) return;
+                        _mapGoto(pt[0], pt[1], 15);   // 뭉치지 않고 낱개로 보이는 줌
+                        _paint(false);
+                        setTimeout(function () {
+                            if (alive()) _clickForPopup(pt[0], pt[1], alive);
+                        }, 1800);
+                    });
+                }, 400);
+                // 항행경보 구역 하나를 눌러 팝업을 연다(어디에 있는지는 그린 것에서 읽는다).
+                if (step.clickNavwarn) setTimeout(function () {
+                    if (!alive()) return;
+                    var pt = _navwarnPoint();
+                    if (!pt) return;
+                    _mapGoto(pt[0], pt[1], 11);
+                    _paint(false);
+                    setTimeout(function () {
+                        if (alive()) _clickForPopup(pt[0], pt[1], alive);
+                    }, 1800);
+                }, 600);
+                // 물빠짐 — 갯벌 한 지점을 눌러 그 자리의 예측을 말풍선으로 띄운다.
+                //   (팝업이 뜰 때까지 되누르지 않는다 — 누를 때마다 핀이 하나씩 꽂힌다.)
+                // [이전]으로 돌아왔을 때처럼 갯벌 자료를 다시 받는 중이면 첫 클릭이
+                //   헛돈다 — 말풍선이 뜰 때까지 다시 누른다(실측 2026-09-27).
+                if (step.pin) setTimeout(function () {
+                    if (!alive()) return;
+                    _clickForPopup(step.pin[0], step.pin[1], alive, _mudflatPopupOpen, function () {
+                        // 앱은 누른 자리를 화면 한가운데로 옮긴다(tide_field.js). 말풍선은 그
+                        //   오른쪽으로 펼쳐져 화면 밖으로 넘친다 — 이동이 끝난 뒤 다시 자리를
+                        //   잡아 누른 곳을 왼쪽에 놓는다(그래야 말풍선이 다 보인다).
+                        setTimeout(function () {
+                            if (!alive() || !step.goto) return;
+                            _mapGoto(step.goto[0], step.goto[1], step.goto[2]);
+                            _paint(false);
+                        }, 900);
+                    });
+                }, 2600);
+                // 물빠짐 시간 슬라이더를 재생시킨다(자료를 받아 온 뒤라야 바가 생긴다).
+                if (step.play) setTimeout(function () {
+                    if (!alive()) return;
+                    _setMudflatPlay(true);
+                    // 재생을 누르면 아래 시간 슬라이더가 그때 나타난다 — 구멍을 다시 잡아
+                    //   슬라이더까지 감싸게 한다(안 그러면 설명하는 슬라이더가 어둡게 덮인다).
+                    setTimeout(function () { if (alive()) _paint(true); }, 700);
+                    setTimeout(function () { if (alive()) _paint(true); }, 2500);
+                }, 2500);
             });
         });
     }
@@ -2823,6 +3183,9 @@
         _setOceanOpen(null);
         _setOceanPop(null);
         _setLifeSheet(false);   // 해양생활이 대신 눌러 띄운 지점 상세도 닫는다
+        _setStatsSheet(false);  // 사고정보 전국 통계 시트
+        _setMudflatPlay(false); // 물빠짐 시간 슬라이더 재생
+        _closeSafetyPopup();    // 대신 눌러 띄운 설명 팝업
         if (_snapshot.ocean) {
             _snapshot.ocean.forEach(function (o) { _obSet(o.sel, o.on); });
         }
@@ -2903,6 +3266,8 @@
         _card = null;
         _stepIdx = 0;
         if (_sheetScrollId) { cancelAnimationFrame(_sheetScrollId); _sheetScrollId = 0; }
+        if (_statsScrollId) { cancelAnimationFrame(_statsScrollId); _statsScrollId = 0; }
+        _rockPt = null;
         _restore();
     }
 
