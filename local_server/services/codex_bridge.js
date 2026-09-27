@@ -26,7 +26,7 @@
  *   - services/gemini_client.js   → 입구 두 곳에서 active()·callRaw() 를 부른다
  *   - routes/legal.js             → /api/legal/ask 앞 미들웨어(withRequest),
  *                                   작업자 창구 POST /api/legal/codex/poll · /api/legal/codex/result
- *   - services/admin_auth.js      → ② 관리자 토큰 검증
+ *   - services/admin_auth.js      → ② 관리자 토큰 검증(withRequest 안에서 늦게 require — 아래 ⚠)
  *   - scripts/codex_worker.js     → VM 에서 도는 작업자(이 파일의 상대편)
  *   - services/codex_client.design.md → 설계안(삼중 잠금·대기 중 상태 표)
  * [로드 순서] 서버 코드(require 로 로드) — index2.html 과 무관.
@@ -35,7 +35,9 @@
 
 const crypto = require('crypto');
 const { AsyncLocalStorage } = require('async_hooks');
-const adminAuth = require('./admin_auth');
+// ⚠admin_auth 는 **쓸 때 불러온다**(withRequest 안). 이 파일은 gemini_client → legal_retriever 를 통해
+//   서버 없이 도는 시험·도구 스크립트에도 실린다. admin_auth 를 맨 위에서 부르면 그 1시간 청소 타이머
+//   (setInterval)가 스크립트를 끝나지 못하게 붙잡는다 — test_split_law_ask 가 그렇게 멈췄다(2026-09-27).
 
 const SECRET = String(process.env.NRYA_CODEX_SECRET || '');
 const ENABLED = SECRET.length >= 16;
@@ -61,7 +63,7 @@ let lastWorkerSeenAt = 0;
 function withRequest(req, res, next) {
   const wants = !!(req.body && req.body.llm === 'codex');
   if (!wants) return next();                       // 평소 요청 — 헤더도 안 붙인다(응답 바이트 동일)
-  const ok = ENABLED && adminAuth.verifyToken(req.get('X-Admin-Token') || '');
+  const ok = ENABLED && require('./admin_auth').verifyToken(req.get('X-Admin-Token') || '');
   res.setHeader('X-Nrya-LLM', ok ? 'codex' : 'gemini');
   if (!ok) return next();
   return als.run({ codex: true }, next);
