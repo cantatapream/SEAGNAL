@@ -1,0 +1,27 @@
+{
+ "script": "fix_broken_char",
+ "stamp": "20260927-111305-502",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/전자서명법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/총포도검화약류등의안전관리에관한법률시행규칙/시행규칙_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/전파법/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/수목원정원의조성및진흥에관한법률/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/고엽제후유의증등환자지원및단체설립에관한법률/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/한국자산관리공사설립등에관한법률/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/전기사업법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/농약관리법시행령/시행령_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/성폭력범죄의처벌등에관한특례법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/은행법/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/가축전염병예방법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/소득세법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/소득세법/시행령_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/지하수법/시행령_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/사법경찰관리의직무를수행할자와그직무범위에관한법률/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/관광진흥법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/농수산물유통및가격안정에관한법률/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/독도등도서지역의생태계보전에관한특별법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/국민체육진흥법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/제주특별자치도설치및국제자유도시조성을위한특별법/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/개인정보보호법/법률.txt"
+ ]
+}

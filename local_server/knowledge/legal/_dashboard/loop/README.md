@@ -26,7 +26,7 @@
 <!-- 자목록:자동 -->
 ### 자 목록 — 누가 부르나 (기계가 씀 · `loop_tool_census.js --index`)
 
-자 **279자루** · 게이트 **66** · 코드 **102** · 글만 **110** · 없음 **1**
+자 **281자루** · 게이트 **66** · 코드 **104** · 글만 **110** · 없음 **1**
 
 | 자 | 누가 부르나 | 무엇을 하는 자인가 |
 |---|---|---|
@@ -45,7 +45,7 @@
 | `admrul_review_verify.py` | 글만 | 3-28 / G-24 — **「DRF 자동수집 … 원문 대조 필요」 표시를 기계가 실제로 대조한다. |
 | `admrul_rewrite_clean.py` | 글만 | 3-68ⓐ — **낱말이 갈라진 고시 raw 를 다시 받는다.** 선언: `_dashboard/pdf_wrapped_notices.json` |
 | `annex_gap.py` | 글만 | 별표(법에 딸린 표) 수치가 위키에 옮겨졌는지 기계적으로 판정한다 (H-40 P1). |
-| `annex_rowcount_fill.js` | 글만 | §6-F 항목수 대조 줄의 **기계 몫**을 채운다. (Q-18 결심 ① 뒤끝, 2026-09-24) |
+| `annex_rowcount_fill.js` | 코드 | §6-F 항목수 대조 줄의 **기계 몫**을 채운다. (Q-18 결심 ① 뒤끝, 2026-09-24) |
 | `apply_approvals.py` | 코드 | 서버(볼륨)에 쌓인 **사람 승인 기록**을 저장소에 반영한다. |
 | `apply_resolutions.py` | 글만 | review_resolve 판정을 **단독(직렬)** 적용. (공유파일 쓰기는 여기 한 곳에서만 = ⚠경합없음) |
 | `apply_shrink_guard_verified.py` | 글만 | shrink_guard_inspect.json에서 genuine_fulltext_shorter/ambiguous(사람이 실물 확인 후 |
@@ -68,7 +68,7 @@
 | `backlog_rollup_close.py` | 글만 | 백로그의 **집계 줄**(질문이 아니라 라운드 요약)을 닫는다 — 단, 안전 조건을 만족할 때만. |
 | `backlog_stale_scan.py` | 글만 | 백로그 미해소 항목 중 **이미 위키가 답하고 있을 가능성이 있는 것**을 추려 낸다(후보 목록). |
 | `backlog_triage.js` | 글만 | 백로그 "확인만" 패스. **18,794건 중 실제로 손댈 수 있는 게 몇 건인지**를 센다. |
-| `build_admrul_id_review_html.py` | 없음 | 행정규칙 **판번호 짝맞추기**를 눈으로 하는 검토장을 만든다. (P-19b · 결심 ⑭) |
+| `build_admrul_id_review_html.py` | 글만 | 행정규칙 **판번호 짝맞추기** 검토장을 만든다. (P-19b · 결심 ⑭) |
 | `build_business_type_aliases.py` | 글만 | 사업자 유형" ↔ 기존 선박종류 트리(vessel_doc_tree.json) 별칭 매핑 빌더 겸 검증기. |
 | `build_change_baseline.py` | 코드 | 변동감지의 비교 기준점(baseline) 스냅샷을 조립한다 — "지금 우리 raw가 알고 있는 법령/고시가 |
 | `build_cite_review_html.py` | 글만 | 본문 인용 **뜻풀이 판정**을 눈으로 하는 HTML 검토장을 만든다. (3-41 ②) |
@@ -84,7 +84,7 @@
 | `build_port_entry_flow.py` | 글만 | 출입항 신고 · 위치보고" 절차 플로우 빌더 겸 검증기 (H-32 확장). |
 | `build_qualification_tree.py` | 글만 | 자격·면허 등급 계층 트리 빌더 겸 검증기 (H-32 확장 · H-36 두 번째 트리). |
 | `build_review_html.py` | 코드 | 그림 속 표를 **눈으로 대조**하는 HTML 검토장을 만든다. (3-28) |
-| `build_rowcount_html.js` | 코드 | §6-F 항목수 대조의 **사람 몫**을 눌러서 확정하는 쪽을 만든다. (2026-09-24) |
+| `build_rowcount_html.js` | 코드 | §6-F 항목수 대조의 **사람 몫**을 눌러서 확정하는 쪽을 만든다. (2026-09-24, 2026-09-27 다시 짬) |
 | `build_scope_html.py` | 글만 | 3-6 (결심 ②ⓐ) — **고시 11쪽의 「적용범위」를 사람이 눌러서 확정하는 HTML 을 만든다. |
 | `build_tonnage_facet.py` | 글만 | 톤수·길이 기준값 사전(facet dictionary) 빌더 겸 검증기 (H-32 확장 · candidates E절). |
 | `build_training_table.py` | 글만 | 교육·훈련 의무" 표 빌더 겸 검증기 (H-32 확장 — 트리 아님, 표). |
@@ -137,6 +137,7 @@
 | `extract_admrul_hwp.py` | 글만 | admrul_pdf_triage.json에서 kind=no_pdf_attachment이고 첨부가 구형 HWP(바이너리)인 |
 | `extract_admrul_pdf.py` | 코드 | admrul_pdf_triage.json에서 kind=text(PDF 텍스트밀도 충분) 또는 hwpx(PDF 없이 HWPX만)로 |
 | `fix_admrul_ids.py` | 글만 | admrul_id_check.json에서 mismatch(구버전 ID 의심)로 확인된 290건을, |
+| `fix_broken_char.py` | 없음 | raw 법령 원문에 박힌 **깨진 글자(U+FFFD)** 를 창구 원문으로 메운다. (2026-09-27) |
 | `fix_cell.js` | 코드 | 한 법의 한 문제유형만 수정하는 원자 작업(에이전트 1개=작업 1개). 유형: ①타법연결(raw대조후 연결조문만)·②일반법연결(걸리는조문만)·③별표전량이관·④닿지않음해소(unreachable)·th |
 | `fix_png_transparency.py` | 글만 | 그림이 화면에서 안 보이게 만드는 잘못된 "투명 색" 설정을 떼어낸다. |
 | `fix_wiki.js` | 글만 | 감사 리포트 기반 위키 수정·보완: 없는 페이지 생성·얇은 페이지 심화·수집구멍 원문반영·답변방식 준수 |
@@ -175,6 +176,7 @@
 | `meta_id_home.py` | 글만 | 꼬리표 판번호를 **제자리(`families.<계층>`)로** 옮긴다 — 3-37 이 「계층 불명」으로 남긴 것. (3-9) |
 | `meta_measured_refresh.js` | 코드 | V5-41 의 짝 — **「실측」 칸을 다시 재어 새 날짜로 적는다.** (2026-09-24 신설) |
 | `meta_mst_align.py` | 코드 | V5-18 「어긋남」 — **같은 계층을 두 자리가 다르게 말하는** `_meta.json` 을 맞춘다. |
+| `meta_mst_holdover_diff.py` | 코드 | `3-37` 보류 27건을 **조 하나씩 글로** 대조한다. (2026-09-27) |
 | `meta_mst_recover.py` | 코드 | 3-37 — **판번호가 아예 없는 `_meta.json` 68곳**에 번호를 되찾아 준다. |
 | `mok_audit.py` | 코드 | raw 조문 파일에 **목(가.·나.·다.)이 통째로 빠진 곳**을 원본과 직접 대조해 찾는다. |
 | `nonum_byl_note.py` | 코드 | 3-54 뒤쪽 (결심 ⑥ⓑ) — **번호 없는 별표에 「원문에 번호가 없다」고 적는다. |
