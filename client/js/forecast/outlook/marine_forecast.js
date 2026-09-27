@@ -392,7 +392,8 @@ function applyMarineForecastDefaultExpansion(data) {
  *
  * [우선순위]
  * 1. 수동 지방청 설정 (localStorage의 'officeManualSettings')이 있으면 최우선 적용
- * 2. 수동 설정이 없으면 기존 관심해역 설정에 따라 자동 결정
+ * 2. 수동 설정이 없으면 관심해역이 **가장 많은 지방청 하나**(config.js getTopOffice).
+ *    관심해역을 아직 안 고른 상태면 판단 근거가 없어 모든 지방청을 보여준다.
  *
  * [연계] toggleOfficeSettingsPanel() → 수동 설정 UI
  * [연계] renderRegionalForecast() → 이 함수의 반환값으로 표시할 지방청 결정
@@ -409,9 +410,9 @@ function getRelevantOfficeCodes() {
         return codes;
     }
 
-    // 2순위: 기존 관심해역 기반 자동 결정
-    if (typeof getRelevantOffices === 'function' && typeof UserSettings !== 'undefined') {
-        return getRelevantOffices(UserSettings.settings);
+    // 2순위: 관심해역이 **가장 많은 지방청 하나**(사용자 확정 2026-09-27)
+    if (typeof getTopOffice === 'function' && typeof UserSettings !== 'undefined') {
+        return getTopOffice(UserSettings.settings);
     }
     // config.js 로드 전이면 모든 지방청 반환
     return Object.keys(REGIONAL_OFFICES || {});
@@ -479,8 +480,9 @@ function toggleOfficeSettingsPanel() {
     if (manualSettings) {
         currentCodes = new Set(Object.keys(manualSettings).filter(function(k) { return manualSettings[k]; }));
     } else {
-        if (typeof getRelevantOffices === 'function' && typeof UserSettings !== 'undefined') {
-            currentCodes = new Set(getRelevantOffices(UserSettings.settings));
+        // 수동 설정이 없을 때의 "지금 상태" 도 화면과 같아야 한다 → 같은 함수를 쓴다
+        if (typeof getTopOffice === 'function' && typeof UserSettings !== 'undefined') {
+            currentCodes = new Set(getTopOffice(UserSettings.settings));
         } else {
             currentCodes = new Set(Object.keys(REGIONAL_OFFICES || {}));
         }

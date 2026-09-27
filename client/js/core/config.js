@@ -621,8 +621,21 @@ function getRelevantOffices(settings) {
         // 설정이 없으면 모든 지방청
         return Object.keys(REGIONAL_OFFICES);
     }
+    return Object.keys(countZonesByOffice(settings));
+}
 
-    const offices = new Set();
+/**
+ * 관심해역으로 켜 둔 구역이 지방청마다 몇 개인지 센다.
+ *
+ * 예: 동해만 켜면 { '159': 5, '105': 4, '143': 3 } 처럼 나온다.
+ *
+ * @param {Object} settings - UserSettings.settings 객체
+ * @returns {Object} { 지방청코드: 구역수 } — 한 구역도 없는 지방청은 아예 없다
+ * [연계] getRelevantOffices()(관할 지방청 목록) · getTopOffice()(가장 많은 곳 하나)
+ *        보이는지 판단하는 규칙(구역·중분류·대분류)은 여기 한 군데에만 둔다.
+ */
+function countZonesByOffice(settings) {
+    const count = {};
 
     // 모든 소분류 존을 순회하며 visible인 것만 지방청 매핑
     for (const [subRegion, zones] of Object.entries(SUB_REGION_ZONES)) {
@@ -635,13 +648,45 @@ function getRelevantOffices(settings) {
             if (mainRegion && settings[mainRegion] === false) continue;
             if (mainRegion !== '제주' && settings[subRegion] === false) continue;
 
-            // 매핑된 지방청 추가
+            // 매핑된 지방청 세기
             const officeCode = ZONE_TO_OFFICE[zone];
-            if (officeCode) offices.add(officeCode);
+            if (officeCode) count[officeCode] = (count[officeCode] || 0) + 1;
         }
     }
 
-    return Array.from(offices);
+    return count;
+}
+
+/**
+ * 관심해역으로 켜 둔 구역이 **가장 많은 지방청 하나**를 돌려준다.
+ *
+ * 왜 하나인가? (사용자 확정 2026-09-27)
+ *   관할하는 지방청을 모두 보여주면 동해만 골라도 부산·강원·대구 셋이 떠서, 정작
+ *   내 바다와 먼 지방청 글까지 읽어야 했다. *"관심해역이 가장 많은 지방청 하나로
+ *   하고자해"* → 기상 전망은 그 한 곳만 보여준다.
+ *
+ * @param {Object} settings - UserSettings.settings 객체
+ * @returns {string[]} 지방청 코드 한 개짜리 배열. 관심해역을 아직 안 고른 상태면
+ *          판단 근거가 없으므로 **모든 지방청**을 그대로 돌려준다(종전과 같다).
+ * [연계] marine_forecast.js 의 getRelevantOfficeCodes() · 지방청 설정 패널의 현재 상태
+ */
+function getTopOffice(settings) {
+    if (!settings || Object.keys(settings).length === 0) {
+        return Object.keys(REGIONAL_OFFICES);
+    }
+
+    const count = countZonesByOffice(settings);
+    let top = null;
+    let best = 0;
+    // 같은 수면 화면에 나오는 차례(REGIONAL_OFFICES 적힌 순서)가 앞선 곳을 쓴다 —
+    //   무엇이 뽑힐지 사람이 예측할 수 있어야 한다.
+    for (const code of Object.keys(REGIONAL_OFFICES)) {
+        if ((count[code] || 0) > best) {
+            best = count[code];
+            top = code;
+        }
+    }
+    return top ? [top] : [];
 }
 
 // 기존 호환용: 구역명 → 대분류 (동해/서해/남해/제주)
