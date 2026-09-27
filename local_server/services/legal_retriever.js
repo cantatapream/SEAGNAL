@@ -5629,7 +5629,7 @@ function withAssumedNotice(answer, assumed) {
 // termsOf 는 순수 함수다(네트워크·AI 없음). 검사 도구(_dashboard/loop/search_gap.js)가
 // "검색이 이 질문을 어떤 낱말로 쪼개는지"를 **생산과 똑같이** 보려고 쓴다 — 따로 쪼개면
 // 검사와 코드가 어긋나 엉뚱한 결론이 난다(L-136·L-153).
-module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
+module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex, ANSWER_MODEL,
   // readPage 는 시행일 마커 접기(effective_date)가 본문 입구에서 도는지 회귀 테스트(test_pending_law)가 보려고 내보낸다.
   readPage,
   // 2026-09-25 결심 4-5ⓐ: 「변경 이력」을 점수에서 빼는 자. 검사(test_score_body)가 **생산 함수를**

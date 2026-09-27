@@ -178,6 +178,15 @@ const LUNA = { answerModel: 'gpt-6-luna', codexForUsers: false };
     ok('일감에 설정 모델이 실려 작업자에게 간다', job && job.model === 'gpt-6-astra', JSON.stringify(job));
   }
 
+  console.log('\n── ⑥ 답변 끝 「어느 AI 가 답했는지」 한 줄 ──');
+  {
+    ok('요청 밖(Gemini) → Gemini 2.5 Flash', bridge.answerLabel('gemini-2.5-flash') === '\n\n※ 이 답변은 Gemini 2.5 Flash 모델이 답했습니다.', JSON.stringify(bridge.answerLabel('gemini-2.5-flash')));
+    const l = through({ llm: 'codex' }, { 'X-Admin-Token': 'GOOD' }, () => bridge.answerLabel('gemini-2.5-flash'), { answerModel: 'gpt-6-sol' }).out;
+    ok('codex 요청 안 → 그 모델(ChatGPT GPT-6 Sol)', l === '\n\n※ 이 답변은 ChatGPT GPT-6 Sol 모델이 답했습니다.', JSON.stringify(l));
+    const g = through({}, {}, () => bridge.answerLabel('gemini-2.5-flash'), LUNA).out;
+    ok('일반 사용자(스위치 꺼짐) → Gemini', /Gemini 2\.5 Flash/.test(g), JSON.stringify(g));
+  }
+
   console.log(`\n  ${pass} PASS / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);
 })();
