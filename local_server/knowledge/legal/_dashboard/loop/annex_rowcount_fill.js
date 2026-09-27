@@ -38,16 +38,16 @@ const HAS_RE = /항목수\s*대조\s*\(?§?6-F\)?\s*[::]/;
  * ★이건 **후보를 내는 자**지 판정자가 아니다(위 머리말 참고). 원문 쪽 자(`countBoxRows`)와
  *   달리 규약이 아니므로 `article_text.js` 에 두지 않는다.
  */
-function countMdRows(text) {
-    let n = 0;
-    for (const l of String(text || '').split('\n')) {
-        const t = l.trim();
-        if (!t.startsWith('|')) continue;
-        if (/^\|[\s:|-]+\|$/.test(t)) continue;          // |---|---| 구분줄
-        n++;
-    }
-    return n;
-}
+/**
+ * ⚠**옛 `countMdRows()` 는 틀렸다.** 위키 파일의 표를 **전부** 세고, 표 머리줄까지 세었다.
+ *   위키 별표 문서에는 `## 근거 조문` · `## 변경 이력` 표가 함께 있으므로 —
+ *     국제항해선박 시행규칙 별표2: 별표(1+4) + 근거 조문(1+4) + 변경 이력(1+1) = **12**
+ *     ← 위키 38쪽에 `기계 셈 12행` 으로 적힌 수가 이것이다. 별표 표만 세면 **4**(원문 4행과 같다).
+ *   38쪽 전수로 재니 적힌 값과 바른 값이 같은 것은 **0/38** 이었다(2026-09-27, 사장님께 검토장을
+ *   내밀기 전에 잡았다). ⇒ 세는 법을 공용 모듈로 옮기고 여기서는 그것만 부른다(L-386).
+ *   ★이미 적힌 38줄은 이 자가 고치지 않는다(`HAS_RE` 로 건너뛴다) — 사람이 확정한 값으로 덮인다.
+ */
+const { 별표행수 } = require('./_byl_wiki_table.js');
 
 function main() {
     const files = fs.readdirSync(WIKI).filter((f) => f.endsWith('.md')).sort();
@@ -71,7 +71,7 @@ function main() {
         }
         if (missing) { noSrc++; continue; }
         if (real === 0) { notTable++; zero.push(f); continue; }   // 표가 아니다 — 손대지 않는다
-        const m = countMdRows(txt);
+        const m = 별표행수(txt);
         const prefix = (lines[i].match(/^[ \t]*>?[ \t]*/) || [''])[0];
         const line = `${prefix}항목수 대조(§6-F): 원문 ${real}행 / 위키 미확인(기계 셈 ${m}행)`;
         // 같은 출처 선언 묶음의 **마지막 줄 아래**에 끼운다
