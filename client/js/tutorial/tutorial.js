@@ -3183,6 +3183,12 @@
             _setOceanOpen(step.open);
             _setStatsSheet(!!step.stats);
             if (!step.play) _setMudflatPlay(false);
+            // [지도 자리는 기다리지 않고 먼저 잡는다] 아래 _go 끝의 예약은 "비출 것이
+            //   화면에 잡힌 뒤"에 돈다. 항행경보처럼 자료를 받아 그릴 때까지 기다리는
+            //   단계는 그 사이 지도가 엉뚱한 자리에 그대로 있었다(실측 2026-09-27:
+            //   일본 앞바다에서 눌렀더니 139.5/33 그대로). 여기서 한 번 옮겨 두고,
+            //   카드 자리가 정해진 뒤 그 예약이 한 번 더 정확히 맞춘다.
+            if (step.goto) _mapGoto(step.goto[0], step.goto[1], step.goto[2]);
             // 앞 단계가 띄운 팝업이 남아 있으면 다음 설명을 가린다
             if (!(step.rock || step.clickAt || step.clickNavwarn)) _closeSafetyPopup();
         } else {
