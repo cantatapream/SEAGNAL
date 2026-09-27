@@ -134,7 +134,8 @@
     // [연타를 기억한다] 한 번 5연타하면 그 표시를 휴대폰에 적어 두고, 앱을 껐다 켜도
     //   그대로 쓴다(사용자 확정 2026-09-26). 그러지 않으면 새 버전을 받으려고 앱을
     //   닫을 때마다 5연타를 다시 해야 했다.
-    //   시험을 끝내려면 콘솔에서 localStorage.removeItem('tutorial_test_armed').
+    //   시험을 끝내려면 공지사항 탭을 3초 안에 다섯 번 더 누른다(켜기↔끄기).
+    //   콘솔에서 localStorage.removeItem('tutorial_test_armed') 로도 끌 수 있다.
     var ARMED_KEY = 'tutorial_test_armed';
 
     /** 적어 둔 연타 표시를 읽어 네 화면을 모두 열 수 있게 한다. */
@@ -1856,7 +1857,7 @@
                 if (!b) return null;
                 return (m && m.getBoundingClientRect().height > 1) ? [b, m] : [b];
             },
-            btns: [], pop: 'basemap'
+            btns: [], pop: 'basemap', owner: 'ocean-basemap-toggle'
         },
         {
             title: '진북 정렬',
@@ -1865,7 +1866,7 @@
                 var b = document.getElementById('ocean-northup-btn');
                 return b ? [b] : null;
             },
-            btns: []
+            btns: [], owner: 'ocean-northup-btn'
         },
         {
             title: '안 내 — 모든 설명이 여기 있습니다',
@@ -1876,31 +1877,31 @@
                 var b = document.getElementById('ocean-info-btn');
                 return b ? [b] : null;
             },
-            btns: []
+            btns: [], owner: 'ocean-info-btn'
         },
         {
             title: '풍향·풍속',
             body: _info('wind').body,
             target: _obTarget('[data-layer="wind"]'),
-            btns: ['[data-layer="wind"]']
+            btns: ['[data-layer="wind"]'], owner: '[data-layer="wind"]'
         },
         {
             title: '유향·유속',
             body: _info('current').body,
             target: _obTarget('[data-layer="current"]'),
-            btns: ['[data-layer="current"]']
+            btns: ['[data-layer="current"]'], owner: '[data-layer="current"]'
         },
         {
             title: '파고·파향',
             body: _info('wave').body,
             target: _obTarget('[data-layer="wave"]'),
-            btns: ['[data-layer="wave"]']
+            btns: ['[data-layer="wave"]'], owner: '[data-layer="wave"]'
         },
         {
             title: '기상부이',
             body: _info('buoy').body,
             target: _obTarget('ocean-buoy-toggle-btn'),
-            btns: ['ocean-buoy-toggle-btn']
+            btns: ['ocean-buoy-toggle-btn'], owner: 'ocean-buoy-toggle-btn'
         },
         {
             title: '부이를 누르면 — 관측값이 열립니다',
@@ -1912,7 +1913,7 @@
                 var m = document.getElementById('buoy-info-modal');
                 return m ? [m] : null;
             },
-            btns: ['ocean-buoy-toggle-btn'], open: 'buoy'
+            btns: ['ocean-buoy-toggle-btn'], open: 'buoy', owner: 'ocean-buoy-toggle-btn'
         },
         {
             title: '해구기상',
@@ -1921,7 +1922,7 @@
             body: '바다를 격자로 나눠 표시합니다. 각 대해구(또는 소해구)를 누르면 '
                 + '그 해구의 기상 내용을 표로 보여줍니다.',
             target: _obTarget('ocean-marine-zone-toggle-btn'),
-            btns: ['ocean-marine-zone-toggle-btn']
+            btns: ['ocean-marine-zone-toggle-btn'], owner: 'ocean-marine-zone-toggle-btn'
         },
         {
             title: '해구 칸을 누르면 — 기상전망이 열립니다',
@@ -1935,7 +1936,8 @@
                 var c = m && m.querySelector('.modal-content');
                 return c ? [c] : (m ? [m] : null);
             },
-            btns: ['ocean-marine-zone-toggle-btn'], open: 'zone', fitZoneModal: true
+            btns: ['ocean-marine-zone-toggle-btn'], open: 'zone', fitZoneModal: true,
+            owner: 'ocean-marine-zone-toggle-btn'
         },
         {
             title: '특보구역',
@@ -1952,7 +1954,8 @@
             },
             // 「특보 ON」도 함께 켠다(사용자 확정 2026-09-25) — 특보가 없는 날에는
             //   그 버튼이 화면에 아예 없으므로 _obSet 이 알아서 건너뛴다.
-            btns: ['ocean-warn-zone-toggle-btn', 'ocean-warn-active-toggle-btn']
+            btns: ['ocean-warn-zone-toggle-btn', 'ocean-warn-active-toggle-btn'],
+            owner: ['ocean-warn-zone-toggle-btn', 'ocean-warn-active-toggle-btn']
         },
         {
             title: '태풍',
@@ -1978,7 +1981,8 @@
                 if (p && p.getBoundingClientRect().height > 1) list.push(p);
                 return list;
             },
-            btns: ['ocean-typhoon-toggle-btn'], cardTop: true, focusTyphoon: true
+            btns: ['ocean-typhoon-toggle-btn'], cardTop: true, focusTyphoon: true,
+            owner: 'ocean-typhoon-toggle-btn'
         }
     ];
 
@@ -2277,7 +2281,7 @@
             body: '바다 위와 물속의 바위를 표시합니다. 켜면 화면 왼쪽 위에 스위치가 생겨 '
                 + '노출암 · 갯바위와 간출암 · 암암을 골라 볼 수 있습니다.',
             target: _obTarget('ocean-terrain-toggle-btn'),
-            btns: ['ocean-terrain-toggle-btn']
+            btns: ['ocean-terrain-toggle-btn'], owner: 'ocean-terrain-toggle-btn'
         },
         {
             title: '빨간 바위 — 곧 물에 잠깁니다',
@@ -2285,14 +2289,15 @@
                 + '누르면 오늘부터 모레까지 물 높이가 어떻게 오르내리는지 그래프로 보여줍니다. '
                 + '지금은 그런 바위 하나를 대신 눌렀습니다.',
             target: _popupOrMap,
-            btns: ['ocean-terrain-toggle-btn'], rock: true, cardTop: true
+            btns: ['ocean-terrain-toggle-btn'], rock: true, cardTop: true,
+            owner: 'ocean-terrain-toggle-btn'
         },
         {
             title: '사고정보',
             body: '실제로 일어난 해양사고 기록을 지도에 보여줍니다. 왼쪽 위 [분석 · 현황]으로 '
                 + '한 건씩 보거나 격자 통계로 볼 수 있습니다. 지나간 기록이며 예보가 아닙니다.',
             target: _obTarget('ocean-accident-toggle-btn'),
-            btns: ['ocean-accident-toggle-btn']
+            btns: ['ocean-accident-toggle-btn'], owner: 'ocean-accident-toggle-btn'
         },
         {
             title: '전국 통계',
@@ -2306,21 +2311,22 @@
                 var m = _oceanMapEl();
                 return m ? [m] : null;
             },
-            btns: ['ocean-accident-toggle-btn'], stats: true, cardTop: true
+            btns: ['ocean-accident-toggle-btn'], stats: true, cardTop: true,
+            owner: 'ocean-accident-toggle-btn'
         },
         {
             title: '금지구역',
             body: '낚시금지구역과 출입통제구역을 함께 표시합니다. 구역을 누르면 '
                 + '지정 사유 · 통제 기간 · 벌칙까지 볼 수 있습니다.',
             target: _obTarget('ocean-banzone-toggle-btn'),
-            btns: ['ocean-banzone-toggle-btn']
+            btns: ['ocean-banzone-toggle-btn'], owner: 'ocean-banzone-toggle-btn'
         },
         {
             title: '금지구역을 누르면 — 제주 생이기정',
             body: '예로 제주 한경면 생이기정 앞 출입통제구역을 확대해 눌렀습니다. '
                 + '어디가 왜 막혀 있는지, 언제까지인지, 어기면 어떻게 되는지 나옵니다.',
             target: _popupOrMap,
-            btns: ['ocean-banzone-toggle-btn'], cardTop: true,
+            btns: ['ocean-banzone-toggle-btn'], cardTop: true, owner: 'ocean-banzone-toggle-btn',
             goto: [126.1672, 33.3153, 14], clickAt: [126.1672, 33.3153]
         },
         {
@@ -2328,21 +2334,22 @@
             body: '그날 발효 중인 항행경보 구역(사고 · 장애물 · 해상사격훈련 등)을 '
                 + '빨간 점선으로 표시합니다. 자료를 받아 그리는 데 잠시 걸립니다.',
             target: _obTarget('ocean-navwarn-btn'),
-            btns: ['ocean-navwarn-btn'], waitNavwarn: true
+            btns: ['ocean-navwarn-btn'], waitNavwarn: true, owner: 'ocean-navwarn-btn'
         },
         {
             title: '항행경보를 누르면',
             body: '구역을 누르면 무슨 경보인지, 언제까지인지, 어디에서 나온 것인지 나옵니다. '
                 + '위쪽 화살표로 날짜를, 아래 슬라이더로 시각을 바꿔 볼 수 있습니다.',
             target: _popupOrMap,
-            btns: ['ocean-navwarn-btn'], clickNavwarn: true, cardTop: true
+            btns: ['ocean-navwarn-btn'], clickNavwarn: true, cardTop: true,
+            owner: 'ocean-navwarn-btn'
         },
         {
             title: '물빠짐',
             body: '서해 · 남해 갯벌이 썰물에 얼마나 드러나는지 예측해 갈색으로 표시합니다. '
                 + '갯벌을 누르면 그 자리가 지금 잠겼는지, 언제 드러나는지 알려 줍니다.',
             target: function () { var m = _oceanMapEl(); return m ? [m] : null; },
-            btns: ['ocean-mudflat-toggle-btn'],
+            btns: ['ocean-mudflat-toggle-btn'], owner: 'ocean-mudflat-toggle-btn',
             goto: [126.335, 35.19, 12.5], pin: [126.3045, 35.1885]
         },
         {
@@ -2355,7 +2362,7 @@
                 if (!b || b.getBoundingClientRect().height < 1) return m ? [m] : null;
                 return m ? [m, b] : [b];
             },
-            btns: ['ocean-mudflat-toggle-btn'], cardTop: true,
+            btns: ['ocean-mudflat-toggle-btn'], cardTop: true, owner: 'ocean-mudflat-toggle-btn',
             goto: [126.335, 35.19, 12.5], pin: [126.3045, 35.1885], play: true
         },
         {
@@ -2364,7 +2371,8 @@
                 + '항로·해역은 지정된 항로와 한중 · 한일 해양경계를 보여줍니다. '
                 + '모두 버튼을 켜면 지도에 바로 나타납니다.',
             target: function () { var m = _oceanMapEl(); return m ? [m] : null; },
-            btns: ['ocean-cctv-toggle-btn', 'ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn']
+            btns: ['ocean-cctv-toggle-btn', 'ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn'],
+            owner: ['ocean-cctv-toggle-btn', 'ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn']
         }
     ];
 
@@ -2565,80 +2573,80 @@
             body: '갯바위와 선상 낚시를 지점마다 보여줍니다. '
                 + '「바다낚시」를 한 번 더 누르면 갯바위 · 선상을 갈라 볼 수 있습니다.',
             target: _actTarget('fishing-section'),
-            act: 'fishing-section'
+            act: 'fishing-section', owner: 'fishing-section'
         },
         {
             title: '낚시 지점을 누르면',
             body: '그날의 낚시지수와 근거가 되는 바다 상태(파고 · 바람 · 수온 · 물때)가 열립니다. '
                 + '날짜를 넘겨 가며 볼 수도 있습니다. 지금은 가까운 지점을 대신 눌렀습니다.',
             target: _lifeSheetTarget('fishing-section'),
-            act: 'fishing-section', sheet: true, cardTop: true
+            act: 'fishing-section', owner: 'fishing-section', sheet: true, cardTop: true
         },
         {
             title: '서핑',
             body: '서핑하기 좋은 정도를 해수욕장마다 보여줍니다.',
             target: _actTarget('surfing-section'),
-            act: 'surfing-section'
+            act: 'surfing-section', owner: 'surfing-section'
         },
         {
             title: '서핑 지점을 누르면',
             body: '그 해수욕장의 서핑지수가 초급 · 중급 · 상급으로 나뉘어 열리고, '
                 + '파도 · 파주기 · 바람 · 수온과 그 앞바다 해상특보까지 함께 나옵니다.',
             target: _lifeSheetTarget('surfing-section'),
-            act: 'surfing-section', sheet: true, cardTop: true
+            act: 'surfing-section', owner: 'surfing-section', sheet: true, cardTop: true
         },
         {
             title: '해수욕',
             body: '해수욕하기 좋은 정도를 해수욕장마다 보여줍니다.',
             target: _actTarget('swimming-section'),
-            act: 'swimming-section'
+            act: 'swimming-section', owner: 'swimming-section'
         },
         {
             title: '해수욕장을 누르면',
             body: '그 해수욕장의 해수욕지수가 오전 · 오후로 나뉘어 열리고, '
                 + '파고 · 수온 · 기온 · 바람과 지금 개장 중인지까지 나옵니다.',
             target: _lifeSheetTarget('swimming-section'),
-            act: 'swimming-section', sheet: true, cardTop: true
+            act: 'swimming-section', owner: 'swimming-section', sheet: true, cardTop: true
         },
         {
             title: '스킨스쿠버',
             body: '스킨스쿠버 하기 좋은 정도를 지점마다 보여줍니다.',
             target: _actTarget('scuba-section'),
-            act: 'scuba-section'
+            act: 'scuba-section', owner: 'scuba-section'
         },
         {
             title: '스쿠버 지점을 누르면',
             body: '그 지점의 스쿠버지수가 오전 · 오후로 나뉘어 열리고, '
                 + '파고 · 유속 · 수온과 물때가 함께 나옵니다.',
             target: _lifeSheetTarget('scuba-section'),
-            act: 'scuba-section', sheet: true, cardTop: true
+            act: 'scuba-section', owner: 'scuba-section', sheet: true, cardTop: true
         },
         {
             title: '갯벌체험',
             body: '갯벌체험 하기 좋은 정도를 갯벌마다 보여줍니다.',
             target: _actTarget('mudflat-section'),
-            act: 'mudflat-section'
+            act: 'mudflat-section', owner: 'mudflat-section'
         },
         {
             title: '갯벌을 누르면',
             body: '그 갯벌에서 날짜마다 언제 체험할 수 있는지(체험시간)와 '
                 + '그때 기온 · 날씨가 며칠치 한 표로 열립니다.',
             target: _lifeSheetTarget('mudflat-section'),
-            act: 'mudflat-section', sheet: true, cardTop: true
+            act: 'mudflat-section', owner: 'mudflat-section', sheet: true, cardTop: true
         },
         {
             title: '바다갈라짐',
             body: '이것만 지도가 아니라 표로 보여줍니다. 위쪽에서 지역을 고르면 날짜마다 '
                 + '바다가 갈라지는 시간과 체험지수가 나옵니다.',
             target: _actTarget('sea-parting-section'),
-            act: 'sea-parting-section'
+            act: 'sea-parting-section', owner: 'sea-parting-section'
         },
         {
             title: '너울',
             body: '너울이 얼마나 위험한지를 관심 · 주의 · 경계 · 위험으로 나눠 색으로만 보여줍니다. '
                 + '갯바위나 방파제에 나갈 때 꼭 확인하세요.',
             target: _actTarget('swell-section'),
-            act: 'swell-section'
+            act: 'swell-section', owner: 'swell-section'
         }
     ];
 
@@ -3290,10 +3298,30 @@
         _setAccordion(ACC_FORECAST, _snapshot.forecast);
         _setAccordion(ACC_ALERT, _snapshot.alert);
         _setAccordion(ACC_STATUS, _snapshot.status);
-        if (_snapshot.tab && typeof window.switchMainTab === 'function') {
+        // [이미 그 탭이면 건드리지 않는다] 탭을 다시 고르면 그 탭은 **기본 하위 화면**으로
+        //   열린다 — 해양생활에서 버튼을 눌러 설명을 보고 닫았더니 해양안전 화면으로
+        //   튕겨 나갔다(실측 2026-09-27). 튜토리얼이 탭을 옮긴 경우에만 되돌린다.
+        var curTab = document.querySelector('.tab-btn.active');
+        if (_snapshot.tab && (!curTab || curTab.dataset.target !== _snapshot.tab)
+            && typeof window.switchMainTab === 'function') {
             window.switchMainTab(_snapshot.tab);
         }
         _snapshot = null;
+    }
+
+    /**
+     * 이 단계가 그 버튼의 설명인가?
+     *
+     * @param {Object} step - 단계 하나
+     * @param {string} owner - 버튼 id(또는 선택자) · 해양생활은 활동 섹션 id
+     * @returns {boolean}
+     * [연계] 각 단계의 `owner` 칸 — 한 버튼이 여러 단계를 가질 수 있고(위험지형 →
+     *        빨간 간출암 팝업), 한 단계가 여러 버튼 것일 수도 있다(CCTV·관제구역·항로).
+     */
+    function _ownedBy(step, owner) {
+        var o = step.owner;
+        if (!o) return false;
+        return (o instanceof Array) ? (o.indexOf(owner) >= 0) : (o === owner);
     }
 
     /**
@@ -3305,19 +3333,25 @@
      *
      * [연계] 공지사항 탭 연타 트리거와 window.openTutorial 이 호출한다.
      */
-    function _open(mode) {
+    function _open(mode, owner) {
         if (_root) return;
         _mode  = (mode === 'ocean' || mode === 'safety' || mode === 'life') ? mode : 'alert';
-        _steps = (_mode === 'ocean') ? STEPS_OCEAN
+        var all = (_mode === 'ocean') ? STEPS_OCEAN
                : (_mode === 'safety') ? STEPS_SAFETY
                : (_mode === 'life') ? STEPS_LIFE : STEPS;
+        // 버튼 하나를 누른 것이면 그 버튼의 단계만 추린다(사용자 확정 2026-09-27).
+        //   추렸는데 하나도 없으면(설명이 없는 버튼) 아무것도 열지 않는다.
+        _steps = owner ? all.filter(function (st) { return _ownedBy(st, owner); }) : all;
+        if (!_steps.length) { _steps = all; if (owner) return; }
         _snapshot = _snap();
 
         // 특보정보 튜토리얼은 특보정보 탭에서 시작한다(연타는 공지사항 탭에서 일어난다).
         //   지도 튜토리얼은 이미 해양종합정보 탭에 들어와 있으므로 탭을 옮기지 않는다.
-        var startSec = (_mode === 'ocean') ? 'ocean-map-section'
-                     : (_mode === 'safety') ? 'ocean-map-section'   // 해양안전도 같은 지도를 빌려 쓴다
-                     : (_mode === 'life') ? 'fishing-section'       // 해양생활은 활동 화면에서 시작
+        //   해양생활은 활동마다 화면이 달라 **첫 단계가 쓰는 활동**을 기다린다 —
+        //   늘 바다낚시를 기다리면, 서핑 버튼으로 연 경우 그 화면이 없어 30초 동안
+        //   빈 카드가 떠 있었다(실측 2026-09-27).
+        var startSec = (_mode === 'ocean' || _mode === 'safety') ? 'ocean-map-section'
+                     : (_mode === 'life') ? (_steps[0].act || 'fishing-section')
                      : 'weather-alert-section';
         if (_mode === 'alert' && typeof window.switchMainTab === 'function') {
             window.switchMainTab(startSec);
@@ -3416,9 +3450,22 @@
      * [연계] zone_setup.js 의 window.openZoneSetup(끝났을때호출할함수)
      */
     function _startFlow() {
-        // 여기서부터 **해양종합정보 탭 튜토리얼도 켜 둔다** — 이 흐름이 끝난 뒤
-        //   사용자가 해양종합정보 탭에 들어가면 지도 튜토리얼이 이어서 시작한다
-        //   (시험 단계 진입 규칙, 사용자 확정 2026-09-24).
+        // [켜기 ↔ 끄기] 버튼별 설명은 시험 모드가 켜져 있는 **동안 계속** 뜬다
+        //   (사용자 확정 2026-09-27). 그러니 끄는 길도 같은 자리에 있어야 한다 —
+        //   이미 켜져 있을 때 5연타를 또 하면 끈다.
+        if (_oceanArmed || _safetyArmed || _lifeArmed) {
+            _alertArmed = _oceanArmed = _safetyArmed = _lifeArmed = false;
+            try { localStorage.removeItem(ARMED_KEY); } catch (e) { /* 못 지워도 이번 실행엔 꺼진다 */ }
+            if (typeof window.showSeagnalModal === 'function') {
+                window.showSeagnalModal('튜토리얼 시험 모드',
+                    '시험 모드를 껐습니다. 버튼을 눌러도 설명이 뜨지 않습니다.\n'
+                    + '다시 켜려면 공지사항 탭을 3초 안에 다섯 번 누르세요.', 'info');
+            }
+            return;
+        }
+        // 여기서부터 **지도·활동 화면의 버튼별 설명도 켜 둔다** — 이 흐름이 끝난 뒤
+        //   그 화면에서 버튼을 누르면 그 버튼의 설명이 뜬다
+        //   (시험 단계 진입 규칙, 사용자 확정 2026-09-24 · 버튼별로 바꾼 것은 2026-09-27).
         _oceanArmed = true;
         _safetyArmed = true;
         _lifeArmed = true;
@@ -3429,82 +3476,85 @@
     }
 
     /**
-     * 해양종합정보 탭에 들어갈 때 지도 튜토리얼을 시작하도록 걸어 둔다.
+     * 지도·활동 **버튼을 누를 때 그 버튼의 설명만** 뜨도록 걸어 둔다.
      *
      * 무엇을 하나?
-     *   공지사항 5연타로 켜 둔 표시(_oceanArmed)가 있을 때만, 그 탭을 누르는 순간
-     *   지도 튜토리얼을 연다. 한 번 열리면 표시를 끄므로 그 뒤에는 다시 안 열린다.
-     *   탭 전환 자체는 막지 않는다 — 평소처럼 지도가 열리고 그 위에 튜토리얼이 뜬다.
+     *   시험 모드가 켜져 있을 때, 아래 세 화면의 버튼을 누르면 그 버튼의 단계만 모아
+     *   튜토리얼을 연다(사용자 확정 2026-09-27 — "해당 버튼을 누를 때 해당 버튼에 대한
+     *   설명만 나올 수 있도록"). 탭에 들어갈 때 처음부터 끝까지 이어서 보여주던 것은
+     *   같은 확정으로 없앴다. **특보정보 탭은 그대로** 전체 순서대로 진행한다.
+     *     · 해양종합정보 — 지도 버튼(풍향·유향·파고·부이·해구·특보구역·태풍) + 좌측 위
+     *       지도 종류 · 진북 정렬 · 안 내
+     *     · 해양안전 — 위험지형·사고정보·금지구역·항행경보·물빠짐·CCTV·관제구역·항로
+     *     · 해양생활 — 오른쪽 세로 레일의 활동 버튼 7개
      *
-     * 왜 탭을 누를 때인가?
-     *   지도 화면을 설명하는 튜토리얼이라 그 화면에 실제로 들어와 있어야 가리킬 것이 있다.
+     * 왜 누른 뒤(setTimeout 0)에 여는가?
+     *   앱의 원래 버튼 처리가 먼저 끝나야 한다. 그래야 "열기 전 상태"를 적어 둘 때
+     *   사용자가 방금 켠 상태가 담기고, 튜토리얼을 닫아도 그 버튼이 그대로 켜져 있다.
      *
-     * [연계] index2.html 하단 메인탭 `.tab-btn[data-target="ocean-map-section"]`
+     * [연계] index2.html `#ocean-overlay-controls` · `#ocean-topleft-controls` ·
+     *        `#ocean-northup-btn` · `#ls-rail [data-act]`
      */
-    function _bindOceanTrigger() {
-        var btn = document.querySelector('.tab-btn[data-target="ocean-map-section"]');
-        if (!btn) return;
-        btn.addEventListener('click', function (e) {
+    function _bindBtnTutorials() {
+        document.addEventListener('click', function (e) {
             if (!(e.detail > 0 || e.isTrusted)) return;   // 사용자 클릭만
-            if (!_oceanArmed || _root) return;
+            if (_root) return;                            // 이미 열려 있으면 그만
             if (document.getElementById('zone-setup-overlay')) return;   // 관심해역 설정 중
-            _oceanArmed = false;
-            // 앱의 원래 탭 전환 처리가 끝난 뒤에 연다(특보탭 트리거와 같은 이유)
-            setTimeout(function () { _open('ocean'); }, 0);
-        });
+            var mode = _liveMode();
+            if (!mode) return;
+            if (mode === 'life' ? !_lifeArmed
+                : mode === 'safety' ? !_safetyArmed : !_oceanArmed) return;
+            var owner = _btnOwner(e.target, mode);
+            if (!owner) return;
+            setTimeout(function () { _open(mode, owner); }, 0);
+        }, true);   // 잡아채기(capture) — 버튼이 스스로 클릭을 삼켜도 우리는 본다
     }
 
     /**
-     * 해양안전생활 탭의 「해양안전」 화면에 들어갈 때 그 튜토리얼을 시작하도록 걸어 둔다.
-     *
-     * 무엇을 하나?
-     *   ① 하단 「해양안전생활」 탭을 눌렀을 때(그 탭은 해양안전 화면으로 열린다)
-     *   ② 그 안의 「해양안전」 하위 탭을 눌렀을 때
-     *   둘 다에서, 공지사항 5연타로 켜 둔 표시가 있으면 연다. 한 번 열리면 표시를 끈다.
-     *
-     * [연계] index2.html 하단 `.tab-btn[data-target="ocean-life-group"]` 와
-     *        `#ocean-safety-sub-tabs .sub-tab-btn[data-target="ocean-safety-section"]`
+     * 지금 화면이 어느 튜토리얼의 화면인가.
+     * @returns {string|null} 'ocean' · 'safety' · 'life' — 그 밖의 화면이면 null
+     * [연계] 하단 메인탭의 active 표시와 life_safety.js 가 붙이는 body.ls-safety/ls-life
      */
-    function _bindSafetyTrigger() {
-        var open = function () {
-            if (!_safetyArmed || _root) return;
-            if (document.getElementById('zone-setup-overlay')) return;
-            // 해양안전 화면일 때만 연다(해양생활 쪽은 아직 따로 만들지 않았다)
-            var sec = document.getElementById('ocean-safety-section');
-            var on = document.querySelector('#ocean-safety-sub-tabs .sub-tab-btn.active');
-            if (!on || on.dataset.target !== 'ocean-safety-section') return;
-            _safetyArmed = false;
-            _open('safety');
-        };
-        var main = document.querySelector('.tab-btn[data-target="ocean-life-group"]');
-        if (main) main.addEventListener('click', function (e) {
-            if (!(e.detail > 0 || e.isTrusted)) return;
-            // 탭 전환과 화면 그리기가 끝난 뒤에 연다(다른 트리거와 같은 이유)
-            setTimeout(open, 600);
-        });
-        var sub = document.querySelector('#ocean-safety-sub-tabs .sub-tab-btn[data-target="ocean-safety-section"]');
-        if (sub) sub.addEventListener('click', function (e) {
-            if (!(e.detail > 0 || e.isTrusted)) return;
-            setTimeout(open, 600);
-        });
+    function _liveMode() {
+        var tab = document.querySelector('.tab-btn.active');
+        var t = tab ? tab.dataset.target : null;
+        if (t === 'ocean-map-section') return 'ocean';
+        if (t !== 'ocean-life-group') return null;
+        if (document.body.classList.contains('ls-life')) return 'life';
+        if (document.body.classList.contains('ls-safety')) return 'safety';
+        return null;
     }
 
     /**
-     * 해양안전생활 탭의 「해양생활」 화면에 들어갈 때 그 튜토리얼을 시작하도록 걸어 둔다.
+     * 누른 곳이 설명이 있는 버튼인지 보고, 그 버튼의 이름을 돌려준다.
      *
-     * [연계] index2.html 의 `#ls-life-sub-btn`(해양생활 하위 탭 버튼)
+     * @param {EventTarget} target - 클릭이 일어난 요소
+     * @param {string} mode - 'ocean' · 'safety' · 'life'
+     * @returns {string|null} 단계의 `owner` 와 맞춰 볼 이름
+     * [연계] _ownedBy() · 각 단계의 owner 칸
      */
-    function _bindLifeTrigger() {
-        var btn = document.getElementById('ls-life-sub-btn');
-        if (!btn) return;
-        btn.addEventListener('click', function (e) {
-            if (!(e.detail > 0 || e.isTrusted)) return;
-            if (!_lifeArmed || _root) return;
-            if (document.getElementById('zone-setup-overlay')) return;
-            _lifeArmed = false;
-            // 활동 화면이 그려진 뒤에 연다(지도가 올라오는 데 시간이 걸린다)
-            setTimeout(function () { _open('life'); }, 900);
-        });
+    function _btnOwner(target, mode) {
+        if (!target || !target.closest) return null;
+        if (mode === 'life') {
+            // 갯바위·선상처럼 활동 **안쪽**을 고르는 단추는 그 활동 설명을 띄우지 않는다
+            if (target.closest('[data-gubun]')) return null;
+            var act = target.closest('#ls-rail [data-act]');
+            if (!act) return null;
+            // 이미 보고 있는 활동을 다시 누른 것이면 설명을 띄우지 않는다 —
+            //   그 누름은 앱에서 갯바위·선상을 펼치는 동작이라, 가로채면 그 기능을
+            //   시험 모드 동안 아예 쓸 수 없게 된다.
+            if (act.classList.contains('active')) return null;
+            return act.dataset.act;
+        }
+        var btn = target.closest('button');
+        if (!btn) return null;
+        // **켜는 누름**에만 설명을 붙인다. 켜져 있는 것을 끄는 누름에 설명이 뜨면
+        //   "끄려는데 설명이 뜨는" 꼴이 된다.
+        if (btn.classList.contains('active')) return null;
+        if (btn.id) return btn.id;
+        // 풍향·유향·파고는 id 가 없고 data-layer 로 구분한다(단계의 owner 도 그 선택자다)
+        var layer = btn.dataset ? btn.dataset.layer : null;
+        return layer ? '[data-layer="' + layer + '"]' : null;
     }
 
     /**
@@ -3532,8 +3582,7 @@
 
     function _bindAll() {
         _restoreArmed();
-        _bindTrigger(); _bindAlertTrigger(); _bindOceanTrigger();
-        _bindSafetyTrigger(); _bindLifeTrigger();
+        _bindTrigger(); _bindAlertTrigger(); _bindBtnTutorials();
     }
 
     if (document.readyState === 'loading') {
@@ -3544,10 +3593,10 @@
 
     // 시험·디버그용: 콘솔에서 바로 열어 볼 수 있게 열기 함수만 노출한다.
     window.openTutorial = _open;
-    // 시험·디버그용: 지도 튜토리얼만 바로 열어 본다
-    window.openOceanTutorial = function () { _open('ocean'); };
+    // 시험·디버그용: 지도 튜토리얼만 바로 열어 본다(버튼 이름을 주면 그 버튼 것만)
+    window.openOceanTutorial = function (owner) { _open('ocean', owner); };
     // 시험·디버그용: 해양안전 튜토리얼만 바로 열어 본다
-    window.openSafetyTutorial = function () { _open('safety'); };
+    window.openSafetyTutorial = function (owner) { _open('safety', owner); };
     // 시험·디버그용: 해양생활 튜토리얼만 바로 열어 본다
-    window.openLifeTutorial = function () { _open('life'); };
+    window.openLifeTutorial = function (owner) { _open('life', owner); };
 })();
