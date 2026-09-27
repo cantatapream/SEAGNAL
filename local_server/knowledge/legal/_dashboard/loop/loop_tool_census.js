@@ -35,8 +35,8 @@ const BEG = '<!-- 자목록:자동 -->';
 const END = '<!-- /자목록 -->';
 
 const SENSES = {
-  게이트: 'verify_all.sh 가 이름을 부른다 — 매번 돈다',
-  코드: '다른 코드(.js/.py/.sh/.yml)가 부른다',
+  게이트: 'verify_all.sh 가 **실행한다** — 매번 돈다 (주석에 이름만 적힌 것은 여기 아니다)',
+  코드: '다른 코드(.js/.py/.sh/.yml)에 이름이 있다 — 부르거나, 주석으로 가리킨다',
   글만: '.md/.json 에만 이름이 있다 — 자동으로 돌지는 않는다',
   없음: '★아무데서도 안 짚힌다 — 있는 줄도 모른다',
 };
@@ -83,6 +83,16 @@ function purpose(f) {
 function census() {
   const list = tools();
   const gate = fs.existsSync(GATE) ? fs.readFileSync(GATE, 'utf8') : '';
+  // ★「게이트가 부른다」는 **게이트가 실제로 실행하는 것**만이다 — 주석·안내문에 이름이 적힌 것은 아니다.
+  //   ⚠2026-09-27 결함: V5-54 를 달 때 `#` 안내문에 `fix_broken_char.py` · `meta_measured_refresh.js`
+  //     이름을 적었더니, 통짜 `gate.includes(t)` 가 그것을 **부른다**고 셈했다. 그 탓에
+  //     ①「안 짚히는 자」가 1 → 0 이 되어 **V5-45 가 거짓 초록불**이 되고(뿌리 사슬 ⑥ — 세는 법),
+  //     ②README 자 목록에서 그 두 자루가 **사라졌다**(게이트 갈래는 표에 넣지 않으므로).
+  //   ⇒ 주석줄과 화면에 찍는 안내문은 떼어 내고 **실행되는 줄만** 본다.
+  const 게이트실행줄 = gate.split('\n')
+    .filter((l) => !/^\s*#/.test(l))                          // 주석줄은 부르는 것이 아니다
+    .map((l) => l.replace(/\b(?:echo|printf)\b.*$/, ''))      // 찍는 안내문도 부르는 것이 아니다
+    .join('\n');
   // ⚠`git ls-files` 는 이 저장소에서 기본 버퍼(1MB)를 넘겨 ENOBUFS 로 죽는다 — 넉넉히 준다.
   const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
     .split('\n').filter(f => /\.(js|py|sh|yml|md|json)$/.test(f));
@@ -98,7 +108,7 @@ function census() {
       if (f === 'scripts/refactor/verify_all.sh') continue;     // 게이트는 따로 본다
       if (txt.includes(t)) hits.push(f);
     }
-    const 갈래 = gate.includes(t) ? '게이트'
+    const 갈래 = 게이트실행줄.includes(t) ? '게이트'
       : hits.some(f => /\.(js|py|sh|yml)$/.test(f)) ? '코드'
         : hits.length ? '글만' : '없음';
     rows.push({ 자: t, 갈래, 짚는곳: hits.length, 머리말: purpose(t) });

@@ -26,10 +26,11 @@
 <!-- 자목록:자동 -->
 ### 자 목록 — 누가 부르나 (기계가 씀 · `loop_tool_census.js --index`)
 
-자 **281자루** · 게이트 **66** · 코드 **104** · 글만 **110** · 없음 **1**
+자 **283자루** · 게이트 **61** · 코드 **112** · 글만 **110** · 없음 **0**
 
 | 자 | 누가 부르나 | 무엇을 하는 자인가 |
 |---|---|---|
+| `add_other_law_article.js` | 코드 | **타법 조문 한 개**를 law.go.kr 에서 받아 우리 발췌본에 덧붙인다. |
 | `admrul_annex_survey.py` | 코드 | 고시(행정규칙) raw 에 **별표·별지서식이 빠져 있는지**를 API 와 대조해 세기만 한다(읽기 전용). |
 | `admrul_body_rewrite_hwp.py` | 코드 | 행정규칙 **본문** raw 를 원본 `.hwp` 첨부에서 다시 쓴다 — 표는 행 단위로. |
 | `admrul_byl_file_links.py` | 코드 | 행정규칙 별표 `.txt` 에 **내려받기 주소를 적어 넣는다**. (3-53) |
@@ -39,6 +40,7 @@
 | `admrul_fill_addenda.py` | 코드 | 고시(행정규칙) raw 파일에 빠져 있는 **부칙**을 API에서 받아 뒤에 덧붙인다. |
 | `admrul_fill_annex.py` | 코드 | 고시(행정규칙) raw 에 빠져 있는 **별표·별지서식**을 API 에서 받아 채운다. |
 | `admrul_fresh_pass2.py` | 코드 | admrul_fresh.py 의 '조회실패'를 다시 판정하는 2차 대조. |
+| `admrul_fresh.py` | 코드 | 행정규칙 신선도 대조 — 수집해 둔 원문의 일련번호를 law.go.kr 현행본과 기계 대조한다. |
 | `admrul_id_recover.py` | 코드 | ★판번호가 **저장소 어디에도 없는** 행정규칙의 번호를 제목으로 되찾는다. (P-19b) |
 | `admrul_recollect_stale.py` | 코드 | admrul_fresh 가 '구버전'으로 판정한 행정규칙을 현행본으로 다시 받아 raw를 갱신한다. |
 | `admrul_restore_ocr.py` | 글만 | 재수집으로 사라진 이미지 판독 전사분을, 그림이 같은 것만 골라 되살린다. |
@@ -104,6 +106,7 @@
 | `cite_link_check.js` | 글만 | **답변 속 조문 표기에 화면이 실제로 링크를 거나** (2026-09-26 신설, L-8b) |
 | `cite_number_check.py` | 코드 | 본문 인용 목록(3-41)에서 **숫자·금액 인용만 골라 원문과 기계로 맞대어 본다. |
 | `cite_number_raw.js` | 코드 | 3-41 ① — 본문 인용의 **값 숫자**(금액·기간·비율·치수)를 **raw 원문과 맞대어 본다. |
+| `cite_row.js` | 코드 | 근거 조문 표의 행을 **쓰기 시점에** 규격대로 만들어 준다(H-47 ②). |
 | `coastal_ordin_scan.py` | 코드 | 3-22 — **연안 시군구가 어디인지 전국 자치법규로 세어 정한다.** 선언: `_dashboard/coastal_ordin.json` |
 | `col_split_source_survey.py` | 글만 | V5-20(표가 열 단위로 펼쳐진 자리)이 남긴 쪽마다 **원본 `.hwp`/`.hwpx` 가 있는지 전수 조사한다. |
 | `collect_admrul_by_name.py` | 글만 | 고시(행정규칙)를 **이름으로 찾아** 그 법 폴더에 받아 둔다. |
@@ -137,8 +140,9 @@
 | `extract_admrul_hwp.py` | 글만 | admrul_pdf_triage.json에서 kind=no_pdf_attachment이고 첨부가 구형 HWP(바이너리)인 |
 | `extract_admrul_pdf.py` | 코드 | admrul_pdf_triage.json에서 kind=text(PDF 텍스트밀도 충분) 또는 hwpx(PDF 없이 HWPX만)로 |
 | `fix_admrul_ids.py` | 글만 | admrul_id_check.json에서 mismatch(구버전 ID 의심)로 확인된 290건을, |
-| `fix_broken_char.py` | 없음 | raw 법령 원문에 박힌 **깨진 글자(U+FFFD)** 를 창구 원문으로 메운다. (2026-09-27) |
+| `fix_broken_char.py` | 코드 | raw 법령 원문에 박힌 **깨진 글자(U+FFFD)** 를 창구 원문으로 메운다. (2026-09-27) |
 | `fix_cell.js` | 코드 | 한 법의 한 문제유형만 수정하는 원자 작업(에이전트 1개=작업 1개). 유형: ①타법연결(raw대조후 연결조문만)·②일반법연결(걸리는조문만)·③별표전량이관·④닿지않음해소(unreachable)·th |
+| `fix_deictic_law_cells.js` | 코드 | 근거 조문 표의 법령 칸에 **가리키는 말**만 적힌 행을 정식 이름으로 편다. |
 | `fix_png_transparency.py` | 글만 | 그림이 화면에서 안 보이게 만드는 잘못된 "투명 색" 설정을 떼어낸다. |
 | `fix_wiki.js` | 글만 | 감사 리포트 기반 위키 수정·보완: 없는 페이지 생성·얇은 페이지 심화·수집구멍 원문반영·답변방식 준수 |
 | `fold_effective.py` | 코드 | 시행일이 **지난** 예고본을 현행으로 승격하고 위키의 시행일 마커를 평문으로 접는다(H-29 트랙 C 정리 단계). |
@@ -150,6 +154,7 @@
 | `golden_verify.js` | 코드 | 골든 문항 라벨을 사서가 원문·위키로 확인(H-47 ①). 자기 결과 파일만 = 병렬안전. |
 | `grep_table.py` | 코드 | 표(테두리) 안에서 낱말이 줄 경계로 쪼개져 grep 이 놓치는 것을 찾아 준다. |
 | `handoff.py` | 코드 | 인계인수 로그를 HANDOFF.md "작업 로그"에 일관된 형식으로 append(계정 간 연속성). |
+| `human_workload.py` | 코드 | 최종 사람 검수량을 **분야별**로 집계(모든 자동처리 후 남는 진짜 사람 몫). |
 | `hwpx_table.py` | 글만 | HWPX 첨부파일에서 본문과 표를 구조 그대로 뽑아낸다. |
 | `img_worksheet.py` | 코드 | 사람이 눈으로 봐 줘야 하는 "그림으로만 있는 표" 작업지를 HTML 한 장으로 만든다. |
 | `inspect_shrink_guard.py` | 글만 | admrul_pdf_extract_log.json의 skipped_shrink_guard 44건을, 실제로는 완전본인지 |
@@ -161,6 +166,7 @@
 | `lint_coverage.py` | 코드 | H-33 조문-위키 커버리지 전수조사: 각 법의 raw 원문 전체 조문 목록과, 위키(statutes+concepts)가 |
 | `lint_full.js` | 글만 | 전수 린트: 법별 비대칭 역링크·허브링크·dangling 정리(자기 법 파일만=병렬안전) |
 | `lint_hubs.js` | 글만 | 교차 연결 정합화(lint 3단계): 테마 허브 생성 + glossary 병합 + 완결성 비평 |
+| `lint_index.py` | 코드 | lint 1단계: 완성된 위키 전체를 알고리즘으로 색인 → 교집합·링크갭·테마맵 산출. |
 | `lint_verify.py` | 글만 | lint 검증(사후 확인): 전수 린트가 실제로 촘촘한지 3개 실질 지표로 측정. |
 | `lint_xref.js` | 글만 | 보강 린트: 타법연결 표 평문인용을 [[링크]]로 전환(자기 법 파일만=병렬안전) |
 | `lint2.js` | 글만 | lint 2라운드: 백본 정의 허브 신설(영해법 등) + 역링크(비대칭) 보강 |
@@ -244,6 +250,7 @@
 | `wiki_build.js` | 코드 | 해양법률 raw → 위키 페이지를 다수 에이전트로 병렬 구축(동일 _SCHEMA.md 지침) |
 | `wiki_rebuild.js` | 코드 | 현재 raw(별표 수치·신규 고시) 반영해 법별 위키 재빌드(감사정제 보존) |
 | `xref_fix.js` | 코드 | 타법 연결 표의 근거를 근거 조문 표로 이관(결정 ①ⓐ). 자기 법 파일만 = 병렬안전. |
+| `xref_fix.py` | 코드 | 위키 깨진 [[링크]] 자동 수리 — **답이 하나로 확정될 때만** 고친다(H-40 Phase 3). |
 | `xref_todo.js` | 글만 | `## 타법 연결` 표에는 있는데 `## 근거 조문` 표에는 없는 행을 뽑아 |
 
 > 게이트가 부르는 자는 `verify_all.sh` 에서 바로 보이므로 이 표에 넣지 않는다.
