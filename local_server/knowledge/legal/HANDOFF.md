@@ -1531,6 +1531,26 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-09-27 21:10 KST] ✅완료 — Codex 20문항 「확인 안 됨」 4건 원인 조사 + BOOL_SWITCHES 회귀 수정
+search()+buildContextBlock() 로 근거자료 대조: 12·14는 정답 문장이 실렸는데 모델이 확정 못 함(AI 원인), 15는 고시 별표1(187,338자) 1위지만 본문 10,040자 상한에 좌표가 잘림, 19는 해양환경보전법 시행령 별표1 이 후보 40장에 없음(검색 원인 — Gemini 도 동일). 로컬엔 Gemini 키 없어 AI 검색어 확장 빠짐(운영과 차이 가능). verify_all 에서 test_naver_term_step 1 FAIL(BOOL_SWITCHES 끝모양 정규식) — codexForUsers 를 목록 앞으로 옮겨 95/0.
+
+
+### [2026-09-27 21:05 KST] ✅완료 — Codex 모드 20문항 비교(Luna vs Gemini)
+답까지 Luna 14/20·Gemini 2/20(Gemini 되묻기 18). Luna 14건 골든 메모·raw 대조: 정답 7·내용정답 인용부정확 1(16)·다른 법으로 답 1(5 내수면→수산업법 시행령)·결론 맞으나 다른 법 인용 1(18)·있는데 확인안됨 4(12·14·15·19). 엉뚱한 되묻기 2(1·8). 한도 5시간 −2%p. 상세 codex_client.design.md §6. 사용자 노출 전 추가 확인 필요.
+
+
+### [2026-09-27 21:03 KST] ✅완료 — Codex 모드 관리자 센터 설정 2종
+answerModel(gemini|gpt-6-luna|sol|astra, 기본 Luna)·codexForUsers(기본 꺼짐, 켤 때 약관 경고 확인창) — routes/legal.js normConfig/POST config, codex_bridge.withRequest 결정순서 재작성(앱 질문은 작업자 미연결 시 Gemini), 일감에 model 실어 작업자가 -m 로 사용, ai_chat.js 관리자 콘솔 카드. test_codex_bridge 30 PASS. 로컬 서버로 config GET/POST·401·400 확인. 사용자 확정 원문 codex_client.design.md §0·§0-1. 다음: verify_all 결과 확인·배포 후 VM git pull+서비스 재시작, 20문항 비교 결과 대조.
+
+
+### [2026-09-27 20:34 KST] ✅완료 — Codex 모드 모델 비교 — Luna 채택(잠정)
+원인: 기본 모델 gpt-6-astra(생각강도 none) — 한도는 입력량에서 나감. 같은 5문항 Luna: 5시간 한도 −1%p(Astra −35%p), 답 4건 raw 원문 대조 전부 일치·1건 되묻기. 작업자는 CODEX_MODEL=gpt-6-luna 로 실행. 다음: 사용자 판단(더 많은 문항 확인/기본값 코드 반영).
+
+
+### [2026-09-27 20:20 KST] ✅완료 — Codex 모드 VM 실전 시험 — 연결 성공·5문항 비교
+배포(PR #1335 머지)·Fly 시크릿 설정 후 VM 작업자 연결. 질문 1개 4단계 약 24초, 명령사용 없음(last.jsonl 확인). 5문항: codex 4문항 답(원문 raw 대조 4/4 일치)·1문항 되묻기, Gemini 5문항 모두 되묻기/이해확인(1회 실행). 한도: 5시간 92→57%, 주간 99→93% ⇒ 5시간당 약 14문항·주당 약 80문항(어림). 상세 codex_client.design.md §6. 다음: 사용자 판단 대기(2라운드 되묻기 이어가기·앱 관리자 스위치 여부).
+
+
 ### [2026-09-27 17:59 KST] ✅완료 — Codex 개발자 모드 ②방식 구현(VM이 Fly에 일감 가지러 감)
 codex_bridge.js(Fly 대기열·삼중잠금·AsyncLocalStorage)·codex_worker.js(VM 작업자)·gemini_client 입구 분기·routes/legal.js 미들웨어+작업자 창구 2개·test_codex_bridge 19 PASS(verify_all SUITES 등록). 가짜 codex 로 서버↔작업자 왕복 확인, 진짜 codex 는 이 환경 OpenAI 차단으로 미시험. Fly 1대 운영(사용자 확인). 다음: 사용자 VM Codex 설치·로그인, Fly 시크릿 NRYA_CODEX_SECRET 설정, main 머지 결정, 5문항 시험.
 

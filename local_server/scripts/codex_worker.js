@@ -11,6 +11,7 @@
  *   export NRYA_CODEX_SECRET='<Fly 에 넣은 것과 같은 비밀 열쇠>'
  *   node local_server/scripts/codex_worker.js
  *   (선택) NRYA_SERVER=https://seagnal-server.fly.dev  CODEX_MODEL=<모델명>  CODEX_TIMEOUT_S=240
+ *   모델은 서버가 일감마다 실어 보낸다(관리자 센터 「답변 AI 모델」). CODEX_MODEL 은 그게 없을 때의 대비.
  *   끄기: Ctrl+C
  *
  * [안전장치]
@@ -53,17 +54,18 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 /**
  * codex exec 를 한 번 돌려 최종 답을 받는다.
- * 예: runCodex('질문…', false) → { ok: true, text: '답…', commands: 0 }
+ * 예: runCodex('질문…', false, 'gpt-6-luna') → { ok: true, text: '답…', commands: 0 }
  * @param {string} prompt @param {boolean} json - JSON 만 출력하라고 덧붙일지
+ * @param {string} [model] - codex -m 에 넘길 모델(없으면 codex 기본값)
  * @returns {Promise<{ok:boolean, text?:string, error?:string, commands:number}>}
  * [연계] ← main 루프. 결과는 codex_bridge.result 로 간다.
  */
-function runCodex(prompt, json) {
+function runCodex(prompt, json, model) {
   const outFile = path.join(WORK_DIR, 'last_message.txt');
   try { fs.unlinkSync(outFile); } catch (_) { /* 없으면 그만 */ }
   const args = ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '-s', 'read-only',
     '-C', EMPTY_DIR, '-o', outFile];
-  if (MODEL) args.push('-m', MODEL);
+  if (model) args.push('-m', model);
   args.push('-');
   return new Promise((resolve) => {
     const child = spawn('codex', args, { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -125,8 +127,11 @@ async function main() {
       continue;
     }
     const t0 = Date.now();
-    console.log(`[${now()}] 일감 받음 ${job.caller} (${job.prompt.length.toLocaleString()}자${job.json ? ', JSON' : ''})`);
-    const out = await runCodex(job.prompt, job.json);
+    console.log(`[${now()}] 일감 받음 ${job.caller} (${job.prompt.length.toLocaleString()}자${job.json ? ', JSON' : ''}${job.model ? ' · ' + job.model : ''})`);
+    // 모델: 서버가 일감에 실어 보낸 것(관리자 센터 설정)이 먼저, 없으면 CODEX_MODEL 환경변수.
+    //   이름 꼴만 확인한다(명령줄 인자로 들어가므로 영문·숫자·.-_ 만 허용).
+    const model = (typeof job.model === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(job.model)) ? job.model : MODEL;
+    const out = await runCodex(job.prompt, job.json, model);
     const ms = Date.now() - t0;
     console.log(`[${now()}]   → ${out.ok ? '완료' : '실패: ' + out.error} · ${(ms / 1000).toFixed(1)}초 · 명령사용 ${out.commands}`);
     try {
