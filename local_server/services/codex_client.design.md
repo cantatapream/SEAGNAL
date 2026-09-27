@@ -1,0 +1,134 @@
+# 나리야 답변 AI를 ChatGPT 정액제(Codex)로 돌리는 개발자 전용 모드 — 설계
+
+> 상태: **구현됨(VM 실전 시험 전)** · 최초 2026-09-27(설계안) → 같은 날 ②방식으로 개정·구현
+> 코드: `services/codex_bridge.js`(Fly 쪽 대기열) · `scripts/codex_worker.js`(VM 쪽 작업자)
+>       · `services/gemini_client.js` 입구 분기 · `routes/legal.js` 미들웨어·창구 · 시험 `scripts/test_codex_bridge.js`
+
+## 0. 사용자 확정 사항 (대화 원문 병기)
+
+> *"챗봇의 목적은 공공으로 사용할 목적이지만, 현재는 내 개인 개발용으로 사용 중이고, 개발이 완료되면
+> 고사양 vm이 들어왔을 때 전환할 예정인데, 현재 open ai 정액제 요금으로 사용해서 반영할 수 있지 않니 ?
+> 개인 사용 목적이므로, 현재 사용자들에게 노출도 시키지 않고 있으니 말이야."*
+
+> *"좋아. 그렇게 한번 해보자. 설계부터 해볼래 ?"*
+
+> *"다시한번 강조하지만 정확하게 말하면, 나는 vm에서는 chatgpt의 검색, 답변 기능만을 사용할 거야.
+> 다른 기능은 vm에서가 아니라 지금 fly io 서버를 그대로 이용할거야."*
+
+> *"② VM이 Fly에 일감을 가지러 가는 방식(권장) … 으로 진행하자."*
+
+같은 대화에서 합의한 조건:
+1. **관리자(본인) 요청에만** ChatGPT 정액제를 쓴다. 그 밖의 요청은 지금처럼 Gemini.
+2. **기본값은 Gemini.** ChatGPT는 스위치로 켜는 개발용 모드.
+3. **공공 서비스 전환 전에 반드시 떼어낸다.** (고사양 VM 자체 모델 또는 정식 API 로 교체)
+4. 먼저 **5문항 정도**로 시험한다.
+5. **앱 서버는 Fly.io 그대로.** VM 은 ChatGPT 호출만 한다.
+
+"검색"의 해석(내가 정한 것 — 사용자가 다르면 정정): 자료 창고 낱말 검색은 지금처럼 Fly 가 하고(AI 아님),
+질문 이해·검색어 넓히기·되묻기 판단·답변 작성 등 **지금 Gemini 가 하는 판단 전부**를 ChatGPT 가 한다.
+ChatGPT 의 **인터넷 검색은 쓰지 않는다**(근거가 우리 자료 밖으로 나가면 "환각 0" 원칙과 부딪힌다).
+
+## 1. 왜 잠금이 필요한가 (확인한 사실)
+
+| 사실 | 근거 |
+|---|---|
+| OpenAI 이용약관: 계정을 다른 사람이 쓰게 하면 안 됨, 자동·프로그램 방식 추출 금지 | 검색엔진 요약으로 확인(원문은 이 개발 환경 망에서 openai.com 차단으로 직접 못 엶) |
+| 자동화·서버용은 API 키를 권장 | 검색엔진 요약(OpenAI Codex 인증 문서) |
+| 챗봇 버튼 노출은 기본 `off` | `routes/legal.js` normConfig |
+| **그러나 `/api/legal/ask` 자체엔 관리자 확인이 없다** — 주소를 알면 누구나 질문 가능 | `routes/legal.js` ask 라우트(직접 읽음) |
+
+→ 버튼을 숨긴 것만으로 ChatGPT 를 붙이면 **남이 내 정액제를 쓸 수 있는 구조**가 된다(= 약관상 계정 공유).
+
+## 2. 구조 — VM 이 일감을 가지러 간다
+
+```
+[관리자 질문] → Fly /api/legal/ask
+                 │ codexBridge.withRequest: 삼중 잠금 통과?
+                 ├ 아니오 → 지금과 100% 동일(Gemini). llm 을 안 보냈으면 헤더도 안 붙는다.
+                 └ 예    → 요청 범위에 "codex" 표시(AsyncLocalStorage), 응답 헤더 X-Nrya-LLM: codex
+                           │
+     legal_retriever.js (수정 없음 — AI 호출 9종 그대로)
+                           │
+     gemini_client.js 입구(callGeminiRaw·callGeminiStream·hasAnyKey)에서 표시 확인
+                           └ 표시 있음 → codexBridge.callRaw → Fly 메모리 대기열에 일감 등록
+                                                 ▲                    │
+          VM codex_worker.js ── POST /api/legal/codex/poll ──────────┘ (일감 가져감, 최대 25초 붙잡아 기다림)
+                    │ codex exec (ChatGPT 정액제 로그인)
+                    └──── POST /api/legal/codex/result ──→ 대기 중인 요청이 답을 받아 이어서 진행
+```
+
+- VM 은 **밖으로 나가기만** 한다. VM→Fly(`/api/health` 200), VM→OpenAI(`HTTP/2 421` 응답 = 연결됨) 모두 사용자 VM 에서 확인.
+- 작업자 창구는 **VM 만 아는 비밀 열쇠**(`X-Codex-Secret` = Fly 시크릿 `NRYA_CODEX_SECRET`)로 잠근다.
+
+## 3. 삼중 잠금 — 셋 다 맞아야 ChatGPT 로 간다
+
+| 잠금 | 내용 | 없으면 |
+|---|---|---|
+| ① 서버 스위치 | Fly 시크릿 `NRYA_CODEX_SECRET`(16자 이상) | 기능 전체 꺼짐 — ask 는 Gemini, 작업자 창구 404 |
+| ② 관리자 인증 | 요청 헤더 `X-Admin-Token` 유효 | Gemini (헤더 `X-Nrya-LLM: gemini`) |
+| ③ 명시 선택 | 요청 본문 `llm: "codex"` | Gemini (헤더 없음 — 평소 응답과 바이트 동일) |
+
+→ 전부 `scripts/test_codex_bridge.js` 문항으로 고정(`verify_all.sh` SUITES 등록).
+
+## 4. 작업자(VM) — `codex exec` 를 어떻게 부르나
+
+```
+codex exec --json --ephemeral --skip-git-repo-check -s read-only -C ~/.codex_worker/empty -o <마지막답 파일> [-m 모델] -
+```
+| 옵션 | 왜 |
+|---|---|
+| `-` (stdin) | 근거자료가 최대 약 9만 자 — 명령줄 길이 한도를 피한다 |
+| `-o` | 최종 답만 파일로 받는다(이벤트 모양에 기대지 않는다) |
+| `--json` | 이벤트를 남겨(`~/.codex_worker/last.jsonl`) 명령 사용 여부를 본다 |
+| `--ephemeral` | 대화 기록을 디스크에 남기지 않는다 |
+| `-s read-only` + 빈 폴더 | Codex 는 코딩 비서라 명령을 실행하려 할 수 있다 — 가둔다 |
+| 프롬프트 앞머리 | "도구·명령 금지, 답만 출력", JSON 호출이면 "JSON 하나만, 코드블록 금지" |
+
+옵션 존재는 `@openai/codex` 0.157.1 `codex exec --help` 로 확인. 한 번에 한 질문만 처리(한도 보호).
+Gemini 전용 `config`(`thinkingConfig`, `temperature`)는 무시한다. JSON 호출은 서버가 응답 앞뒤 ```` ``` ```` 를 벗긴다.
+
+## 5. 대기 중 상태 변화 (CLAUDE.md 결정로그: 대기를 도입하면 전수 열거)
+
+| 대기 중 일어난 일 | 동작 | 시험 |
+|---|---|---|
+| 작업자가 90초 넘게 안 왔음(VM 꺼짐·작업자 안 돎) | 일감을 세우지 않고 **즉시 실패** "VM 작업자 연결 없음" | ✅ 문항 |
+| 작업자가 실패를 돌려줌(한도·로그인 만료·codex 오류) | 그대로 실패 — **Gemini 로 몰래 안 바꿈** | ✅ 문항 |
+| 작업자 쪽 codex 가 240초 넘음 | 작업자가 강제종료 → 실패 "시간초과" | 가짜 codex 로 수동 확인 전 |
+| 서버 쪽 300초 넘음(작업자가 결과를 못 보냄) | 대기열에서 빼고 실패 "codex 시간초과" | 수동 |
+| 작업자 재접속(이전 poll 이 붙잡혀 있음) | 옛 자리를 204 로 비우고 새 자리로 | — |
+| 넘겨준 직후 작업자 연결이 끊김 | 그 일감은 300초 뒤 시간초과로 끝남(재전달 안 함 — 개발용이라 단순하게) | — |
+| 질문한 화면이 닫힘 | 일감은 끝까지 돈다(취소 안 함 — 개발용이라 단순하게) | — |
+| Fly 서버 재시작·배포 | 메모리 대기열 유실 → 대기 중 요청도 같이 끊김, 재질문 | — |
+| Fly 머신이 2대 이상 | 대기열이 머신마다 따로라 **질문과 작업자가 다른 머신에 붙으면 못 만남** | 현재 **1대 운영**(사용자 확인 2026-09-27) — 늘리면 이 모드는 못 쓴다 |
+
+## 6. 아직 모르는 것 (추측 금지 — VM 1차 시험에서 잰다)
+
+이 개발 환경은 OpenAI 서버 접속이 막혀(`api.openai.com` 프록시 403) **진짜 codex 호출은 못 해봤다.**
+가짜 `codex`(stdin 읽고 `-o` 파일에 쓰는 셸 스크립트)로 **서버↔작업자 왕복은 확인**했다.
+1. 질문 1개 소요시간 — 한 질문에 AI 단계가 여러 번 불리고, 작업자는 **한 번에 하나씩** 처리한다
+2. 5문항에 정액제 한도를 얼마나 쓰는지 (`codex` → `/status` 전후 비교)
+3. JSON 지시를 지키는 비율 (되묻기·검색어 확장이 JSON 에 의존)
+4. 명령 사용 이벤트의 실제 이름 — 작업자는 `"command_execution"` 문자열을 센다(**추정**). `last.jsonl` 로 확인
+
+## 7. 1차 시험 계획과 성공 기준
+
+5문항(골든 문제집)을 **같은 질문으로 Gemini·Codex 각각** 돌려 비교:
+
+| 항목 | 성공 기준 |
+|---|---|
+| 완주 | 5문항 모두 답변까지 도달 (JSON 파싱 실패로 멈추지 않음) |
+| 정확성 | 답의 조문번호·금액·기관명이 근거자료 원문에 있음 (환각 0 — 기존 원칙) |
+| 도구 사용 | 명령 사용 0건 |
+| 잠금 | 관리자 토큰 없이 `llm:"codex"` → `X-Nrya-LLM: gemini` (문항 + 실서버 1회 확인) |
+| 기록 | 소요시간·한도 사용량을 표로 남김 |
+
+## 8. 떼어내는 법
+
+`codex_bridge.js`·`codex_worker.js`·`test_codex_bridge.js` 삭제, `gemini_client.js` 입구 분기(표시 `codexBridge`) 제거,
+`routes/legal.js` 의 `codexBridge` 줄 제거, `verify_all.sh` SUITES 에서 `test_codex_bridge` 제거, Fly 시크릿 `NRYA_CODEX_SECRET` 삭제.
+**가장 빠른 비상 정지**: Fly 시크릿 `NRYA_CODEX_SECRET` 만 지우면(`fly secrets unset`) 코드 그대로 기능이 꺼진다.
+
+## 9. 별건 (이번 범위 밖, 기록만)
+
+`/api/legal/ask` 가 인증 없이 열려 있다. 지금은 버튼만 숨긴 상태라, 주소를 아는 누구나 Gemini 요금을 쓰게 할 수 있다.
+Codex 모드와 무관하게 공공 공개 전에 따로 다룰 사항.

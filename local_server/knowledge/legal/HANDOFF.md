@@ -1531,6 +1531,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-09-27 17:59 KST] ✅완료 — Codex 개발자 모드 ②방식 구현(VM이 Fly에 일감 가지러 감)
+codex_bridge.js(Fly 대기열·삼중잠금·AsyncLocalStorage)·codex_worker.js(VM 작업자)·gemini_client 입구 분기·routes/legal.js 미들웨어+작업자 창구 2개·test_codex_bridge 19 PASS(verify_all SUITES 등록). 가짜 codex 로 서버↔작업자 왕복 확인, 진짜 codex 는 이 환경 OpenAI 차단으로 미시험. Fly 1대 운영(사용자 확인). 다음: 사용자 VM Codex 설치·로그인, Fly 시크릿 NRYA_CODEX_SECRET 설정, main 머지 결정, 5문항 시험.
+
+
+### [2026-09-27 16:52 KST] ✅완료 — Codex(ChatGPT 정액제) 개발자 전용 모드 설계안
+local_server/services/codex_client.design.md 작성(미구현). 관리자 본인 요청만 ChatGPT 정액제(codex exec)로, 기본은 Gemini. 삼중잠금(NRYA_CODEX env·X-Admin-Token·llm:codex), gemini_client 입구 2곳 분기, VM에서만 실행. 발견: /api/legal/ask 무인증(routes/legal.js:1541) — 버튼만 숨김. 다음: 사용자 §9 결정 3건 받은 뒤 구현·5문항 시험.
+
+
 ### [2026-09-26 09:58 KST] ✅완료 — L-8 실측 — 운영 챗봇에 골든 15문항을 실제로 물었다 (규약 9줄 15/15 · 「가리키는 말」만 12/15)
 **무엇을 했나**: L-8(답변 문장 품질)을 **운영 서버**(`https://seagnal-server.fly.dev/api/legal/ask` — 키가 있는 곳)에 실제로 물어 쟀다. 임시 CI 워크플로는 필요 없었다(등록표의 옛 서술을 정정했다).
 
