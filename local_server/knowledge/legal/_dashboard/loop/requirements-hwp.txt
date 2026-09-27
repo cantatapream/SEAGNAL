@@ -1,0 +1,16 @@
+# `.hwp`(구형 이진) 판독기 — **게이트·CI 는 이것을 쓰지 않는다**
+#
+# ★저장소 루트에 두지 않는다. CI(`verify-all-gate.yml`)는 파이썬 꾸러미를 하나도 깔지 않고,
+#   게이트 도구는 표준 라이브러리만 쓴다. 이 목록은 **손으로 돌리는 수집기**만을 위한 것이다.
+#
+# 만드는 법 (한 번만):
+#   python3 -m venv ~/.cache/hwp5venv
+#   ~/.cache/hwp5venv/bin/python -m pip install 'setuptools<60' wheel
+#   ~/.cache/hwp5venv/bin/python -m pip install --no-build-isolation -r requirements-hwp.txt
+#   ⚠`--no-build-isolation` 과 `setuptools<60` 이 둘 다 필요하다
+#     (그냥 깔면 AttributeError: install_layout 으로 멈춘다 — 데비안이 손댄 setuptools 탓).
+#
+# 실측으로 깔린 판 (2026-09-26)
+pyhwp==0.1b15
+six==1.17.0
+olefile==0.47

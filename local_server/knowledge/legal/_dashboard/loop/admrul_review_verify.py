@@ -36,6 +36,7 @@ RAW = os.path.join(LEGAL, 'raw')
 sys.path.insert(0, HERE)
 import law_api_guard
 from _touched import Touched
+from _admrul_id import find_id as 파일이_적어둔_판번호        # ★L-386 — 판번호 읽는 자는 한 자리
 
 _sp = importlib.util.spec_from_file_location('mr', os.path.join(HERE, 'meta_mst_recover.py'))
 MR = importlib.util.module_from_spec(_sp); _sp.loader.exec_module(MR)
@@ -74,6 +75,24 @@ def api(url):
     return None
 
 
+def admrul_원문(aid):
+    """돌려주는 것: (글, 창구가_답했나, 첨부이름들)
+
+    ★왜 「답했나」를 따로 돌려주나 — 2026-09-27 실측으로 걸렸다.
+      `매장문화재 보존조치유적 지정 고시`(ID 2100000234918)는 창구가 **답은 하는데
+      `조문내용` 이 비어 있다**(첨부에만 내용이 있는 고시다). 그런데 이 자는 글이 비면
+      전부 「원문을 못 받았다」로 묶어 **조용히 넘겼다** — 망이 끊긴 것과 구별이 안 됐다.
+      ⇒ 창구가 답한 경우는 「이 길로는 대조 불가」로 **파일에 적는다.** 망 문제는 적지 않는다
+        (다시 물으면 되는 일을 파일에 못 박으면 그것이 거짓이 된다).
+    """
+    d = api(f'https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=admrul&ID={aid}&type=JSON')
+    root = (d or {}).get('AdmRulService') or d or {}
+    답했나 = bool(root.get('행정규칙기본정보'))
+    첨 = (root.get('첨부파일') or {}).get('첨부파일명') or []
+    첨 = 첨 if isinstance(첨, list) else [첨]
+    return ''.join(MR._all_text(root, [])), 답했나, [str(x) for x in 첨]
+
+
 def admrul_text(aid):
     d = api(f'https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=admrul&ID={aid}&type=JSON')
     root = (d or {}).get('AdmRulService') or d or {}
@@ -83,7 +102,10 @@ def admrul_text(aid):
     return ''.join(MR._all_text(root, []))
 
 
-def find_id(name):
+def 이름으로_창구에_묻기(name):
+    """제목으로 창구를 뒤져 판번호를 찾는다. ⚠**이름이 `find_id` 였다 — 공용 자와 같은 이름**이라
+    `from _admrul_id import find_id` 를 해도 이 자가 덮어썼다(2026-09-27 실측으로 걸렸다).
+    하는 일이 다르다: 공용 자는 **파일이 이미 적어 둔 번호**를 읽고, 이 자는 **창구에 묻는다.**"""
     q = urllib.parse.quote(name)
     d = api(f'https://www.law.go.kr/DRF/lawSearch.do?OC={OC}&target=admrul&type=JSON&display=20&query={q}')
     ls = ((d or {}).get('AdmRulSearch') or {}).get('admrul') or []
@@ -94,6 +116,12 @@ def find_id(name):
         if re.sub(r'\s', '', str(x.get('행정규칙명') or '')) == want:
             return str(x.get('행정규칙일련번호') or ''), str(x.get('행정규칙명') or '')
     return '', ''
+
+
+def 오늘():
+    """기록에 적는 날짜. ★**박아 두지 않는다** — 2026-09-27 에 돌렸는데 파일에는
+    「2026-09-24」 라고 적혔다. 언제 확인했는지가 이 기록의 값어치인데 그것이 거짓이 된다."""
+    return time.strftime('%Y-%m-%d')
 
 
 def targets():
@@ -135,18 +163,29 @@ def main():
         rel = os.path.relpath(p, RAW)
         text = open(p, encoding='utf-8', errors='replace').read()
         head = text[:2500]
-        m = IDRE.search(head)
-        aid = m.group(1) if m else ''
-        via = '머리에 적힌 ID'
+        # ★판번호를 세 걸음으로 찾는다 (2026-09-27 고침, L-386).
+        #   [무엇이 잘못돼 있었나 — 전수 A/B 로 쟀다]
+        #   이 자는 제 정규식 `IDRE` 를 먼저 썼는데 그 자에 흠이 둘 있었다:
+        #     ①저장소 규약인 **줄머리 `ID:2100000246402`** 꼴을 아예 못 본다(`ID=`·`ID ` 만 본다).
+        #     ②**산문 속 옛 판 번호**를 집는다 — 재수집 안내문 *"종전 raw 는 ID 2100000185871 였다"*.
+        #   실측(행정규칙 전수): 같다 97 · **값이 다르다 146**(대부분 ②) · **새만 찾는다 657**(①) · 옛만 1.
+        #   ⇒ 그대로 두면 **옛 판과 대조하고 「완료」라고 적을** 수 있는 자다.
+        #   ★다행히 피해는 없었다 — 이미 적힌 「원문 대조」 기록 **28개는 전부 그 파일의 판번호와 같았다**
+        #     (①에 걸린 657쪽은 「ID 를 못 찾았다」로 건너뛰어졌을 뿐이다). **놓친 일감**이었지 오기가 아니다.
+        #   ★★그리고 더 깊은 까닭이 있었다 — 이 파일이 **`find_id` 라는 이름을 스스로 또 정의**하고 있어
+        #     공용 자를 들여와도 **지역 자가 덮어쓴다.** P-19b 가 「여섯 자가 각자 다시 구현한다」고 쓸어냈는데
+        #     이 자가 **일곱째**였고, 이름까지 같아 눈에 안 띄었다. ⇒ 지역 자는 `이름으로_창구에_묻기` 로 갈랐다.
+        aid, via = 파일이_적어둔_판번호(p)          # ①파일이 이미 적어 둔 번호(망이 필요 없다)
+        if not aid:
+            m = IDRE.search(head)                  # ②머리글 **산문** 속 `ID=…`·`target=admrul&ID=…`
+            aid, via = (m.group(1), '산문 속 ID') if m else ('', '')
         if not aid:
             name = os.path.splitext(os.path.basename(p))[0]
-            aid, got = find_id(name)
-            via = f'이름으로 찾음({got})' if aid else ''
+            aid, got = 이름으로_창구에_묻기(name)   # ③창구에 제목으로 묻는다
+            via = f'창구에 이름으로 물음({got})' if aid else ''
         if not aid:
             print(f'· {rel[:70]} — ID 를 못 찾았다'); miss += 1; continue
-        cur = admrul_text(aid)
-        if not cur:
-            print(f'· {rel[:70]} — 원문을 못 받았다(ID={aid})'); miss += 1; continue
+        cur, 답했나, 첨부 = admrul_원문(aid)
         ratio = MR.covered(our_body(text), cur)
         ours_len = len(MR.norm(our_body(text)))
         cur_len = len(MR.norm(cur))
@@ -168,11 +207,27 @@ def main():
                 open(p2, 'w', encoding='utf-8').write(new)
                 touched.add(p2)
         p2 = p
+        if not cur:
+            # ★창구가 답했는데 글이 비었다 = **첨부에만 내용이 있는 고시**다(망 문제가 아니다).
+            if not 답했나:
+                print(f'· {rel[:70]} — 창구가 답을 안 줬다(ID={aid}) → 다시 물어라'); miss += 1; continue
+            꼴 = sorted({(x.rsplit('.', 1)[-1].lower() if '.' in x else '?') for x in 첨부}) or ['없음']
+            nobody += 1
+            print(f'⚠ {rel[:60]} — ID={aid} · **창구에 조문내용이 없다** '
+                  f'(첨부 {len(첨부)}개 · 꼴 {"/".join(꼴)}) → 이 길로는 대조 불가')
+            annotate(f'⚠이 길로는 대조 불가({오늘()}): law.go.kr admrul ID={aid} 는 답은 하지만 '
+                     f'**`조문내용` 이 비어 있다** — 내용이 첨부에만 있는 고시다'
+                     f'(첨부 {len(첨부)}개 · 꼴 {"/".join(꼴)}). 우리 파일은 그 첨부를 전사한 것이다. '
+                     + ('⚠첨부에 `.hwp`/`.hwpx` 가 없어 **판독기로도 못 연다**(PDF 뿐이다). '
+                        if not any(x.lower().endswith(('.hwp', '.hwpx')) for x in 첨부) else
+                        '★첨부에 `.hwp`/`.hwpx` 가 있다 — 판독기로 열어 대조할 수 있다. ')
+                     + f'⇒ **사람이 첨부 원본과 맞춘다**(3-28). 도구 admrul_review_verify.py')
+            continue
         if cur_len * 5 < ours_len or '본문 생략' in cur:
             nobody += 1
             print(f'⚠ {rel[:60]} — ID={aid} · **API 가 본문을 안 준다**'
                   f'(API {cur_len}자 ↔ 우리 {ours_len}자) → 첨부 전사본이라 이 길로는 대조 불가')
-            annotate(f'⚠이 길로는 대조 불가(2026-09-24): law.go.kr admrul ID={aid} 는 **본문을 안 준다**'
+            annotate(f'⚠이 길로는 대조 불가({오늘()}): law.go.kr admrul ID={aid} 는 **본문을 안 준다**'
                      f'(API {cur_len}자 ↔ 우리 {ours_len}자 · `[본문 생략]` 과 그림 자리표시뿐). '
                      f'진짜 내용은 **첨부파일** 안에 있고 우리 파일은 그 전사본이다. '
                      f'⇒ API 대조로는 확인할 수 없다. **첨부 원본과 사람이 맞춰야 한다.** 도구 admrul_review_verify.py')
@@ -180,7 +235,7 @@ def main():
         if ratio < GOOD:
             diff += 1
             print(f'❗ {rel[:60]} — ID={aid} · 우리 글의 {round(ratio*100)}%만 현행에 있다 → **표시 그대로 둔다**')
-            annotate(f'🟡기계 대조 {round(ratio*100)}%(2026-09-24): law.go.kr admrul ID={aid} 를 다시 불러 '
+            annotate(f'🟡기계 대조 {round(ratio*100)}%({오늘()}): law.go.kr admrul ID={aid} 를 다시 불러 '
                      f'우리 글을 30글자 창으로 훑으니 **{round(ratio*100)}% 가 현행에 그대로 있다.** '
                      f'나머지는 표·별표·부칙처럼 API 가 다르게 주는 자리이거나 실제 차이다 — **사람이 본다.** '
                      f'(문턱 {int(GOOD*100)}% 미만이라 「대조 완료」로 올리지 않았다) 도구 admrul_review_verify.py')
@@ -191,7 +246,7 @@ def main():
             continue
         def swap(mo):
             old = mo.group(0).strip()
-            return (f'✅원문 대조 완료(2026-09-24): law.go.kr admrul ID={aid} 를 다시 불러 '
+            return (f'✅원문 대조 완료({오늘()}): law.go.kr admrul ID={aid} 를 다시 불러 '
                     f'우리 글을 30글자 창으로 훑으니 **{round(ratio*100)}% 일치**. 도구 admrul_review_verify.py\n'
                     f'  (옛 표시는 지우지 않는다 — {old})')
         new = DRF_MARK.sub(swap, text, count=1)
