@@ -1831,6 +1831,15 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
       }
     }
 
+    // [답변 AI 표시 · 2026-09-27 사용자 요청] 답이 실제로 나왔으면 **맨 끝**에 어느 AI 가 답했는지 한 줄.
+    //   위 참고 한 줄과 같은 방식(델타로도 보내 화면과 done.answer 가 같게). 답이 없으면 붙이지 않는다.
+    if (synth.trim().length > 0) {
+      const aiTail = codexBridge.answerLabel(legalRetriever.ANSWER_MODEL);
+      full += aiTail;
+      res.write(JSON.stringify({ type: 'delta', text: aiTail }) + '\n');
+      if (res.flush) res.flush();
+    }
+
     const usedGemini = synth.trim().length > 0;
     // L-57 조치③: 답변이 실제로 나온 경우에만 sourcesOut을 답변 인용 여부로 교차확인해 좁힌다
     // (스트림 실패로 답변이 없으면 교차확인할 대상이 없어 후보를 그대로 반환).
@@ -1934,7 +1943,8 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
 
     let answer, sourcesOut, note;
     if (raw && raw.answer) {
-      answer = legalRetriever.withAssumedNotice(raw.answer, assumed);   // [H-37 §4.4] 2차 조회 경로에도 붙인다
+      answer = legalRetriever.withAssumedNotice(raw.answer, assumed)    // [H-37 §4.4] 2차 조회 경로에도 붙인다
+        + codexBridge.answerLabel(legalRetriever.ANSWER_MODEL);          // [답변 AI 표시] 2차 원문 답변도 AI 가 쓴 것
       sourcesOut = [];
       // 2차(원문 직독) 답변은 위키 근거 조문 표를 쓰지 않았다 — 1차에서 만들다 만 인용사슬을 그대로
       // 딸려 보내면 이 답변의 근거인 척 붙는다(환각 0). sources와 같이 비운다.
