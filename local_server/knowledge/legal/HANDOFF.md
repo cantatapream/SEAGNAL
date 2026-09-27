@@ -1531,6 +1531,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-09-27 20:20 KST] ✅완료 — Codex 모드 VM 실전 시험 — 연결 성공·5문항 비교
+배포(PR #1335 머지)·Fly 시크릿 설정 후 VM 작업자 연결. 질문 1개 4단계 약 24초, 명령사용 없음(last.jsonl 확인). 5문항: codex 4문항 답(원문 raw 대조 4/4 일치)·1문항 되묻기, Gemini 5문항 모두 되묻기/이해확인(1회 실행). 한도: 5시간 92→57%, 주간 99→93% ⇒ 5시간당 약 14문항·주당 약 80문항(어림). 상세 codex_client.design.md §6. 다음: 사용자 판단 대기(2라운드 되묻기 이어가기·앱 관리자 스위치 여부).
+
+
 ### [2026-09-27 17:59 KST] ✅완료 — Codex 개발자 모드 ②방식 구현(VM이 Fly에 일감 가지러 감)
 codex_bridge.js(Fly 대기열·삼중잠금·AsyncLocalStorage)·codex_worker.js(VM 작업자)·gemini_client 입구 분기·routes/legal.js 미들웨어+작업자 창구 2개·test_codex_bridge 19 PASS(verify_all SUITES 등록). 가짜 codex 로 서버↔작업자 왕복 확인, 진짜 codex 는 이 환경 OpenAI 차단으로 미시험. Fly 1대 운영(사용자 확인). 다음: 사용자 VM Codex 설치·로그인, Fly 시크릿 NRYA_CODEX_SECRET 설정, main 머지 결정, 5문항 시험.
 
