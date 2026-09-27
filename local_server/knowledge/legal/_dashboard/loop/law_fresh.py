@@ -141,6 +141,27 @@ def wiki_pages_of(slug):
     return out
 
 
+def judge(t, cur):
+    """우리 사본과 현행판을 견줘 판정한다 → `(verdict, same_eff_case)`.
+
+    ★왜 함수로 뺐나 (2026-09-25): 아래 **두 번째 마디**(조회실패 재시도)가 같은 판정을 다시 해야 하는데,
+      루프 안의 if/elif 를 베끼면 자가 둘이 된다(§0-E · 뿌리 사슬 ⑥ — 같은 것을 재도 답이 달라진다).
+    ⚠판정 이름은 그냥 `'구버전'` 으로 둔다 — 관리자 화면(`services/admrul_fresh_scanner.js`)이
+      `verdict === '구버전'` 만 큐에 올리므로 새 이름을 만들면 화면에서 사라진다.
+      어떤 종류인지는 `same_mst_diff_eff` 플래그로 따로 남긴다.
+    """
+    if cur is None:
+        return '조회실패', False
+    if str(cur.get('법령일련번호') or '') == t['mst']:
+        # ★번호가 같아도 **시행일이 다르면 다른 판이다**(file_effective_date 주석 참조).
+        feff = file_effective_date(t['slug'], t['tier'])
+        ceff = str(cur.get('시행일자') or '')
+        if feff and ceff and feff < ceff:
+            return '구버전', True
+        return '현행', False
+    return '구버전', False
+
+
 def main():
     argv = sys.argv[1:]
     limit = int(argv[argv.index('--limit') + 1]) if '--limit' in argv else None
@@ -184,35 +205,16 @@ def main():
     print('■ 법령 신선도 대조 — 우리 사본의 판번호와 현행판을 맞춰 본다 (기준일 %s KST)' % today)
     print('   대상: %d개 계열' % len(targets))
 
-    rows, fresh, stale, unknown = [], 0, 0, 0
+    rows = []
     for i, t in enumerate(targets, 1):
         same_eff_case = False
         got = rows_of(t['lid'])
+        # ★수는 끝에서 줄을 보고 다시 센다(두 번째 마디가 판정을 바꿀 수 있다) — 여기서 올리지 않는다.
         if got is None:
-            verdict, cur, future = '조회실패', None, []
-            unknown += 1
+            cur, future = None, []
         else:
             cur, future = pick_current(got, today)
-            if cur is None:
-                verdict = '조회실패'
-                unknown += 1
-            elif str(cur.get('법령일련번호') or '') == t['mst']:
-                # ★번호가 같아도 **시행일이 다르면 다른 판이다**(위 file_effective_date 주석 참조).
-                feff = file_effective_date(t['slug'], t['tier'])
-                ceff = str(cur.get('시행일자') or '')
-                if feff and ceff and feff < ceff:
-                    # 판정 이름은 그냥 '구버전' 으로 둔다 — 관리자 화면(services/admrul_fresh_scanner.js)이
-                    # `verdict === '구버전'` 만 큐에 올리므로 새 이름을 만들면 화면에서 사라진다.
-                    # 어떤 종류인지는 아래 same_mst_diff_eff 플래그로 따로 남긴다.
-                    verdict = '구버전'
-                    same_eff_case = True
-                    stale += 1
-                else:
-                    verdict = '현행'
-                    fresh += 1
-            else:
-                verdict = '구버전'
-                stale += 1
+        verdict, same_eff_case = judge(t, cur)
         title = '%s %s' % (t['name'], t['tier']) if t['tier'] != '법률' else t['name']
         row = {'title': title, 'tier': t['tier'], 'slug': t['slug'],
                'held_ids': [t['mst']], 'verdict': verdict,
@@ -239,7 +241,53 @@ def main():
         print('[%d/%d] %s %s' % (i, len(targets), verdict, title), flush=True)
         time.sleep(0.15)
 
+    # ★**두 번째 마디 — 「조회실패」를 끝에서 한 번 더 두들긴다** (2026-09-25 신설, P-20 후속)
+    #   [무슨 일이 있었나] 2026-09-20 판이 `조회실패 16`, 오늘 1차가 `6` 이었다. 그 6건을 **하나씩
+    #   다시 두들겨 보니 6건 다 열렸고, 전부 우리 판이 현행과 같았다**(일련번호까지 동일).
+    #   즉 「조회실패」는 결함이 아니라 **그 순간 망이 끊긴 것**이었고, 보고서가 그것을 결함처럼 적고 있었다.
+    #   ★같은 병을 P-20 에서 이미 만났다 — `backfill_lawid` 가 망오류를 「법령ID 없음」이라 적어
+    #   13층이 나흘 동안 방치됐다. **까닭을 뭉치거나 한 번만 두들기면, 다음 사람이 엉뚱한 곳을 본다.**
+    #   행정규칙 쪽에는 이미 `admrul_fresh_pass2.py` 가 있었는데 **법률 계열에는 없었다.**
+    #   [무엇을 하나] 1차에서 `조회실패` 로 남은 줄만 다시 조회해 **같은 판정 함수 `judge()`** 로 다시 매긴다.
+    #   ⚠재시도해도 안 열리면 그대로 `조회실패` 로 둔다 — 없는 것을 있다고 하지 않는다.
+    retry = [r for r in rows if r['verdict'] == '조회실패']
+    if retry:
+        print('\n■ 두 번째 마디 — 조회실패 %d건을 다시 두들긴다' % len(retry), flush=True)
+        by_slug_tier = {(t['slug'], t['tier']): t for t in targets}
+        for r in retry:
+            t = by_slug_tier.get((r['slug'], r['tier']))
+            if not t:
+                continue
+            got = rows_of(t['lid'])
+            cur2, fut2 = (None, []) if got is None else pick_current(got, today)
+            v2, same2 = judge(t, cur2)
+            if v2 == '조회실패':
+                print('   · %s — 다시 두들겨도 안 열린다' % r['title'][:44], flush=True)
+                continue
+            r['verdict'] = v2
+            r['2차에_열렸다'] = True
+            r['current'] = None if not cur2 else {
+                'serial': str(cur2.get('법령일련번호') or ''),
+                'issued': str(cur2.get('시행일자') or ''),
+                'no': str(cur2.get('공포번호') or ''),
+                'state': str(cur2.get('법령명한글') or '')}
+            r['pending'] = [{'serial': str(x.get('법령일련번호') or ''),
+                             'issued': str(x.get('시행일자') or ''),
+                             'no': str(x.get('공포번호') or '')} for x in (fut2 or [])][:5]
+            if v2 == '구버전':
+                r['wiki_pages'] = wiki_pages_of(t['slug'])
+            if same2:
+                r['same_mst_diff_eff'] = True
+                r['file_eff'] = file_effective_date(t['slug'], t['tier'])
+            print('   · %s → %s (2차에 열렸다)' % (r['title'][:44], v2), flush=True)
+            time.sleep(0.15)
+
+    # ★수는 **줄에서 다시 센다** — 루프 안에서 올리던 카운터는 두 번째 마디와 어긋날 수 있다.
+    fresh = sum(1 for r in rows if r['verdict'] == '현행')
+    stale = sum(1 for r in rows if r['verdict'] == '구버전')
+    unknown = sum(1 for r in rows if r['verdict'] == '조회실패')
     rep = {'checked': len(targets), 'fresh': fresh, 'stale': stale, 'unknown': unknown,
+           '2차에_열린_줄': sum(1 for r in rows if r.get('2차에_열렸다')),
            'basis_date': today, 'rows': rows}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, 'w', encoding='utf-8') as f:

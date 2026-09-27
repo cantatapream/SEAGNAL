@@ -1,0 +1,27 @@
+{
+ "script": "byl_tier_fill",
+ "stamp": "20260923-123937-067",
+ "files": [
+  "local_server/knowledge/legal/raw/01_해양주권정책/배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률/별표/_links.json",
+  "local_server/knowledge/legal/raw/01_해양주권정책/영해및접속수역법/별표/_links.json",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/별표/_links.json",
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법/별표/_links.json",
+  "local_server/knowledge/legal/raw/09_레저관광/낚시관리및육성법/별표/_links.json",
+  "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법/별표/_links.json",
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/별표/_links.json",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/별표/_links.json",
+  "local_server/knowledge/legal/raw/11_해양신산업/해양치유자원의관리및활용에관한법률/별표/_links.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/골재채취법/별표/시행령_별표2의2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/골재채취법/별표/_links.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/시행규칙_별표10의3.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/시행규칙_별표11.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/시행규칙_별표12.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/시행규칙_별표4의2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/시행규칙_별표5.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/_links.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/시행령_별표8.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/환경영향평가법/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/환경영향평가법/별표/시행령_별표3.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/환경영향평가법/별표/_links.json"
+ ]
+}

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """어선안전조업법 감사 160문항 Q&A → HTML 아티팩트 생성."""
 import re, json, html, os
 
-SRC="/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/audit/어선안전조업및어선원의안전ㆍ보건증진등에관한법률.md"
-OUT="/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/qa_어선안전조업법.html"
+SRC=os.path.join(os.path.dirname(os.path.abspath(__file__)), './audit/어선안전조업및어선원의안전ㆍ보건증진등에관한법률.md')
+OUT=os.path.join(os.path.dirname(os.path.abspath(__file__)), './qa_어선안전조업법.html')
 
 txt=open(SRC,encoding="utf-8").read()
 lines=txt.split("\n")

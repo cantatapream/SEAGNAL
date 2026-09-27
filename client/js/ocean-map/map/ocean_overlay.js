@@ -254,15 +254,15 @@
                     // 레이어 전환 또는 ON
                     // [Mutual Exclusion] 단기예보 raster (기타기상) 가 활성 상태면 끔
                     if (typeof window._shrtForecastDeactivate === 'function') {
-                        try { window._shrtForecastDeactivate(); } catch (e) {}
+                        try { window._shrtForecastDeactivate(); } catch (e) { /* 남의 오버레이를 끄는 일이다 — 저쪽이 아직 안 올라왔거나 이미 꺼져 있어도 이쪽 켜기는 계속한다 */ }
                     }
                     // [Mutual Exclusion] 시정예측 raster 가 활성 상태면 끔
                     if (typeof window._vsbyForecastDeactivate === 'function') {
-                        try { window._vsbyForecastDeactivate(); } catch (e) {}
+                        try { window._vsbyForecastDeactivate(); } catch (e) { /* 같은 까닭 — 끄기는 하나씩 감싸야 하나가 던져도 나머지가 꺼진다 */ }
                     }
                     // [Mutual Exclusion] 물빠짐이 활성 상태면 끔(단독 표출)
                     if (typeof window._tideFieldDeactivate === 'function') {
-                        try { window._tideFieldDeactivate(); } catch (e) {}
+                        try { window._tideFieldDeactivate(); } catch (e) { /* 같은 까닭 — 조류장 오버레이가 없는 화면도 있다 */ }
                     }
                     streamActive = true;
                     document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
@@ -331,7 +331,7 @@
                 // 2) 슬라이더 말풍선은 시각만 표시 (단위 무관) — 갱신 불필요
                 // 3) 바텀시트 카드 — 시트 열려있으면 즉시 갱신
                 if (window.OceanSheet && typeof window.OceanSheet.renderCurrentWindValues === 'function') {
-                    try { window.OceanSheet.renderCurrentWindValues(); } catch (e2) {}
+                    try { window.OceanSheet.renderCurrentWindValues(); } catch (e2) { /* 바닥 시트가 아직 안 열렸으면 던진다 — 값 새로고침만 빠지고 지도 그림은 그대로다 */ }
                 }
             });
             // 클릭 가능 시각 단서 — current/wind 활성 시에만 cursor pointer.
@@ -390,7 +390,7 @@
         //   시정예측 activate 도 이 함수를 호출하지만 그 시점엔 state.active 가 아직
         //   false 라 _vsbyForecastDeactivate 는 no-op (자기 자신 끄기 방지).
         if (typeof window._vsbyForecastDeactivate === 'function') {
-            try { window._vsbyForecastDeactivate(); } catch (e) {}
+            try { window._vsbyForecastDeactivate(); } catch (e) { /* 같은 까닭 — 끄려던 오버레이가 이미 없는 것이니 그대로 둔다 */ }
         }
         if (!streamActive) return; // 이미 꺼진 상태면 불필요
         streamActive = false;

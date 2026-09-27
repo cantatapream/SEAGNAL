@@ -1,3 +1,4 @@
+const path = require('path');
 export const meta = {
   name: 'sonnet-penalty-pilot',
   description: 'Sonnet 5 파일럿: 3개 법 처벌·정의 정확도를 Opus 심판으로 검증',
@@ -6,7 +7,7 @@ export const meta = {
     { title: '심판(Opus)', detail: 'Opus가 원문 대조로 채점' },
   ],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const SCHEMA = `${LEGAL}/_SCHEMA.md`
 const OUT = '/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad/sonnet_pilot'
 

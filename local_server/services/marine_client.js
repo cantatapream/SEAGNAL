@@ -170,7 +170,9 @@ function _request({ method = 'GET', path, body = null, headers = {}, authRequire
         try {
             await _rateGate();
         } catch (e) {
-            // _rateGate 자체 실패는 무시
+            // ★조용히 넘어가지 않는다 (3-44). 문지기가 죽으면 **속도 제한 없이 그대로 부른다** —
+            //   상대 서버가 막는 원인이 될 수 있는데 아무 표시가 없었다.
+            console.warn('[marine_client] 속도 문지기 실패 — 제한 없이 그대로 부른다:', e && e.message);
         }
 
         const reqHeaders = {

@@ -23,6 +23,7 @@ OUT = f"{LEGAL}/_dashboard/law_change_baseline.json"
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from backfill_lawid import load_target_laws, family_items  # noqa: E402
+from _admrul_id import find_id, find_title  # noqa: E402
 
 
 def norm_title(s):
@@ -97,6 +98,19 @@ def held_ids_from_raw(folder):
 
     예: held_ids_from_raw('/…/선박안전법/행정규칙') → {'위험물선박운송기준': '2100000280940', …}
     [연계] admrul_fresh.scan_files() 와 같은 규칙으로 읽는다 — 앞 6줄에서 `[…] 제목` 과 `ID:` 를 찾는다.
+    ★**판번호·제목을 찾는 법은 `_admrul_id` 한 곳에 있다**(P-19b · L-386, 2026-09-26).
+      이 자가 마지막까지 `^ID:` 와 `[…] 제목` 을 **제 손으로** 다시 구현하고 있었다(여섯 자 중
+      마지막). 한 곳으로 모으면 라벨이 `행정규칙일련번호:`·`MST` 인 것, 폴더 꼬리표
+      `_admrul.json`, 제목 조회로 되찾아 둔 곁 파일까지 함께 읽는다.
+      ⚠**이 자는 기준선을 만드는 자**다. 그래서 옛 줄을 지우지 않고 **먼저 옛 방식으로 읽은 뒤,
+      그것이 비었을 때만** 공용 자에 묻는다 — 이미 잡히던 것이 바뀌지 않게 하려는 것이다
+      **A/B 실측 (2026-09-26, 옛 판을 그대로 두고 같은 폴더에서 나란히 돌렸다)**:
+      제목 **823 → 851 (+28)** · **사라진 제목 0** · **값이 바뀐 제목 0**.
+      ⚠새로 잡힌 28 중 **3건은 쓸 수 없는 제목**이다 — 머리줄에 메타가 덧붙은 것 2건
+      (`… 고시 (행정규칙ID 89524, …`)과 두 ID 를 들고 오는 `대조완료` 1건. 앞의 둘은
+      대조에서 안 맞을 뿐 해가 없고, 뒤의 하나는 아래 「값이 둘이면 뺀다」 안전장치가 거른다.
+      ★그 잡티는 **이 변경이 만든 것이 아니라 raw 머리줄에 원래 있던 것**이다(A-1 도 같은
+      줄을 읽는다). 여기서 손대지 않는다 — 자를 건드리지 않고 사실만 적어 둔다.
     """
     out = {}
     try:
@@ -123,6 +137,13 @@ def held_ids_from_raw(folder):
                             rid = m.group(1)
         except Exception:
             continue
+        # ★옛 방식으로 못 읽은 것만 공용 자에 묻는다(위 주석 참고 — 이미 잡히던 값은 그대로 둔다).
+        if not rid or not title:
+            fp = os.path.join(folder, fn)
+            if not rid:
+                rid = find_id(fp)[0]
+            if not title:
+                title = find_title(fp)[0]
         if title and rid:
             out.setdefault(norm_title_keep_org(title), set()).add(rid)
     # 같은 제목의 파일이 **서로 다른 ID** 를 들고 있으면 어느 쪽을 "가진 판"이라 할지 알 수 없다.

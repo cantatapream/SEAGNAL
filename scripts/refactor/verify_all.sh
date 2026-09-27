@@ -4,12 +4,51 @@
 # 역할  : [강화 검증 올인원] 스테이징 미사용 방침에 따라, main 직행 전
 #         모든 검증(V1~V4 + 서버 API 스모크 + JS 내용 해시 전수 대조)을
 #         한 번에 실행한다. 하나라도 실패하면 즉시 비정상 종료.
-# 사용  : node local_server/server.js &   (선기동)
+# 사용  : node local_server/server.js &   (선기동 — **권유가 아니라 필수**, 아래 D-17 블록 참조)
 #         bash scripts/refactor/verify_all.sh
 # ============================================================================
+# ── ★서버를 먼저 띄우지 않으면 **언제나 exit 1** 이다 (2026-09-25 신설, D-17 · D-16) ──
+# [왜 적나] 위 「사용」줄이 `node local_server/server.js &` 를 **권하는 말투**로만 적혀 있어서,
+#   여러 세션이 서버 없이 돌린 뒤 **"내가 뭘 깨뜨렸나"** 하고 헤맸다. 사실은 이렇다 —
+#   · 서버가 없으면 **HTTP 스모크 21건**(아래 `SMOKE` 배열 실측)이 전부 `000` 으로 실패한다.
+#   · V4 시뮬레이션도 브라우저가 붙을 곳이 없어 `ERR_CONNECTION_REFUSED` 로 죽는다.
+#   · 그래서 **코드가 완벽해도 판정은 ❌** 이고 종료값은 1 이다. 선기동은 권유가 아니라 **전제**다.
+#   · 끝의 총정리 블록은 이 HTTP 실패 21건을 **일부러 뺀다**(아래 「⚠HTTP 스모크는 뺀다」 줄).
+#     그래서 총정리가 짧은데 exit 1 인 상황이 생긴다 — 그건 버그가 아니라 이 규약이다.
+#
+# [V4 의 playwright 는 어디서 오나 — D-16, 2026-09-25 재실측]
+#   `simulate.js` 는 `require("playwright-core")` 하는데 그 꾸러미는 **어떤 `package.json` 에도
+#   선언돼 있지 않다**(`grep -rn playwright --include=package.json` → **0건**).
+#   CI 는 `.github/workflows/verify-all-gate.yml` 이 `--no-save` 로 따로 깔아서 통과한다.
+#   ⚠그러니 V4 가 빨간불일 때 **먼저 볼 것은 서버**이고, 의존성은 그 다음이다
+#   (2026-09-21 에 이 순서를 거꾸로 짚어 「playwright 부재 탓」으로 잘못 적었다 — D-15).
+
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 FAIL=0
+
+# ── ★★**게이트는 「키 없는 상태」에서 잰다** (2026-09-23 신설, G-49) ──────────────────
+# [무슨 일이 있었나] 사용자가 깃허브 시크릿에 `GEMINI_API_KEY_26_8` 을 넣자마자
+#   **게이트가 빨간불**이 됐다(run #103). 제품은 손대지 않았는데도다.
+#     run #101 (키 0개)  V5-7 search 13 · 나빠진 문항 0
+#     run #103 (키 1개)  V5-7 search 11 · 나빠진 2 / 좋아진 4
+#   까닭은 `legal_retriever.js` 의 `expandQueryTerms()` 다 — `if (!gemini.hasAnyKey()) return []`.
+#   **키가 있으면 Gemini 가 질문을 확장해 검색 후보가 달라진다.**
+#
+# [왜 키를 빼는가] 전체로는 **나아졌다**(13→11). 그런데도 빼는 이유는 하나다 —
+#   ★**자는 움직이면 안 된다.** LLM 은 같은 질문에도 매번 같은 말을 주지 않는다.
+#   그걸 기준선과 견주면 게이트는 **영원히 흔들리고**, 그때마다 기준선을 다시 잡게 된다.
+#   기준선을 습관적으로 다시 잡는 게이트는 **이미 죽은 게이트**다(G-34).
+#   ⚠이건 「시험을 끄는 것」이 아니다 — 검사는 그대로 돌고, **기준선을 재던 그 조건**으로 돌릴 뿐이다.
+#
+# [그럼 Gemini 는 어디서 보나] **L-8** 에서 본다 — 거기가 「실제로 어떻게 답하나」를
+#   보는 자리다. 게이트는 「꺼내는 사슬이 끊기는가」를 보는 자리다. 둘은 다른 물음이다.
+#   위 2문항이 옮겨 간 것과 4문항이 좋아진 것은 **버리지 않고** 등록부 G-49 에 적었다.
+export GEMINI_API_KEY_26_8=''
+export GEMINI_API_KEY=''
+echo "── 재는 조건 ──"
+echo "  Gemini 키를 **일부러 비우고** 잰다 (G-49) — LLM 이 끼면 같은 질문에도 답이 달라져"
+echo "  기준선과 견줄 수 없다. 실제 답변 품질은 L-8 이 본다."
 
 # ── 실패 항목을 **마지막에 한 번 더 모아 찍는다**(2026-08-27 신설, L-196) ────────────
 # [왜] 이 스크립트는 검사를 위에서 아래로 찍어 내려간다. 그래서 출력이 200줄을 넘고,
@@ -22,11 +61,29 @@ FAIL=0
 #   **자르고 읽어도 마지막 블록에 실패가 전부 남는다.**
 _VA_LOG="$(mktemp)"
 exec > >(tee "$_VA_LOG") 2>&1
-run() { echo; echo "── $1 ──"; shift; "$@" || FAIL=1; }
+# ── 어느 검사가 실패를 세웠는지 **이름을 남긴다** (2026-09-22 신설) ─────────────
+# [왜] `FAIL=1` 을 세우는 자리가 26곳인데 **어디서 세웠는지 아무 데도 안 남았다.**
+#   그래서 "총정리는 표시줄뿐인데 exit 1" 인 상황이 생긴다 — 실제로 깃허브 run #17 이
+#   그랬다. 총정리의 ❌ 여섯 줄이 전부 분류 표시(0건·기준선 이하)인데 종료 코드는 1이었고,
+#   **무엇이 실패했는지 로그 어디에도 없었다.** L-196 이 "총정리만 보면 다 보인다"고
+#   보장하려 만든 것인데 그 보장이 깨진 것이다.
+# [무엇을] `fail <이름>` 으로 세우고, 마지막 총정리에 그 이름 목록을 함께 찍는다.
+#   ⚠새 검사를 넣을 때 `|| FAIL=1` 대신 `|| fail "<이름>"` 을 쓸 것.
+FAILED_NAMES=""
+# 문항이 0개라 「통과」로 셀 수 없는 스위트(G-34). 실패는 아니지만 초록으로 위장하면 안 된다.
+SKIPPED_SUITES=""
+fail() { FAIL=1; FAILED_NAMES="${FAILED_NAMES}
+  · $1"; }
+run() { echo; echo "── $1 ──"; local _n="$1"; shift; "$@" || fail "$_n"; }
 
 # V2 경로 · V3 로드순서 · V4 시뮬레이션
 run "V2 경로 무결성" node scripts/refactor/check_paths.js
 run "V3 로드 순서" node scripts/refactor/check_order.js
+# ── V2-b 절대경로 (2026-09-22 신설, G-31) ───────────────────────────────────
+#   게이트 7개가 `/home/user/SEAGNAL/…` 를 require 하고 있어 깃허브 CI 에서 진단 한 줄
+#   없이 전부 죽고 있었다(run #27). 같은 사고가 이번이 **세 번째**다(2026-09-10 프로덕션 ·
+#   2026-09-18 L-289 · 2026-09-22 이것). 교훈을 한 줄 더 적는 대신 재는 것을 둔다.
+run "V2-b 절대경로(그 컴퓨터에서만 도는 코드)" node scripts/refactor/check_abs_paths.js
 run "V4 시뮬레이션" node scripts/refactor/simulate.js
 
 # ============================================================================
@@ -40,8 +97,19 @@ run "V4 시뮬레이션" node scripts/refactor/simulate.js
 #           실패하던 것을 2026-08-09 에 기준일 이동으로 수정. 실패가 일상이 되면
 #           점검표를 무시하는 습관이 생겨 게이트 자체가 무력해진다.)
 # ============================================================================
+# ⚠★**이 스크립트가 도는 동안 이 파일을 고치지 마라** (2026-09-26 실측으로 겪었다).
+#   bash 는 스크립트를 **실행하면서 이어 읽는다** — 도는 중에 파일이 바뀌면 읽던 바이트 위치가
+#   어긋나 **아무 잘못 없는 줄에서 문법 오류**가 난다(그때 190줄에 `(` 가 없는데 그렇게 났다).
+#   `bash -n` 은 통과하므로 **내 수정이 잘못된 것처럼 보여** 엉뚱한 곳을 뒤지게 된다.
+#   기다리는 동안 손댈 일이 있으면 **사본으로 돌린다 — 단 사본은 이 폴더 안에 둔다**:
+#     `cp scripts/refactor/verify_all.sh scripts/refactor/.verify_run.sh && bash scripts/refactor/.verify_run.sh`
+#   ⚠`/tmp` 에 두면 안 된다 — 이 스크립트는 27줄에서 `cd "$(dirname "$0")/../.."` 로 제 뿌리를
+#     잡으므로, `/tmp` 에서 돌리면 뿌리가 `/` 가 되어 **전부 「파일 없음」**이 된다(2026-09-26 겪었다).
+#   ★「게이트와 raw 쓰기를 겹치지 않는다」와 같은 병이다 — 겹치지 말아야 하는 것은 raw 만이 아니라
+#     **게이트가 읽는 모든 파일**이다(→ `_LESSONS.md` L-382 갈래⑧).
 echo; echo "── V5 테스트 스위트 ──"
 SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_exact_refine
+  test_unverified_leak test_split_law_ask test_section_name_kinds test_ref_tier_route
         test_cancel_verdict_room test_push_pagination test_bulletin_cancel_scanner
         test_parent_release_debounce
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render
@@ -49,15 +117,44 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_clarify_options test_unverified_review test_accident_sheet test_pending_law
   test_hazard_rocks_tide test_guide_tabs test_tab_structure test_usage_keys test_maintenance_tree
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
-  test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source test_typhoon_jma test_typhoon_ecmwf)
+  test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source test_typhoon_jma
+  test_typhoon_ecmwf
+  test_byl_decl test_treaty_caselaw_meta test_context_budget test_counting_dict test_silent_catch
+  test_gate_5xx_class test_meta_schema test_admrul_review test_ho_count test_section_ready test_treaty_article test_byl_body_kind test_box_rows test_score_body test_admin_cards)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
-  if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; FAIL=1; continue; fi
+  if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
   out=$(node "$f" 2>&1)
   line=$(echo "$out" | grep -oE "[0-9]+ PASS / [0-9]+ FAIL" | tail -1)
-  if [ -z "$line" ]; then echo "  ❌ $suite — 실행 실패(결과줄 없음)"; echo "$out" | tail -3; FAIL=1; continue; fi
-  if echo "$line" | grep -qE "/ 0 FAIL$"; then echo "  ✅ $suite — $line"
-  else echo "  ❌ $suite — $line"; echo "$out" | grep "❌" | head -5; FAIL=1; fi
+  if [ -z "$line" ]; then echo "  ❌ $suite — 실행 실패(결과줄 없음)"; echo "$out" | tail -3; fail "스위트 $suite — 결과줄 없음"; continue; fi
+  # ── ⚠`0 PASS / 0 FAIL` 을 통과로 세지 않는다 (2026-09-22 신설, G-34) ──────────
+  #   [무엇이 문제였나] `test_overlay_solo` 는 브라우저를 못 띄우면 `0 PASS / 0 FAIL` 을
+  #     찍고 조용히 돌아간다. 그런데 이 줄은 "FAIL 이 0 이면 ✅" 라고만 봐서
+  #     **아무것도 안 돌린 스위트를 통과로 세 왔다.** 실제로 그 스위트는 브라우저 경로가
+  #     판번호까지 박혀 있어(G-33) 이 컨테이너에서조차 최근 판에서는 안 돌았다.
+  #   [무엇을] 문항이 0개면 ⏭️ 로 따로 세고 총정리에 남긴다. **실패로는 만들지 않는다** —
+  #     환경에 따라 정당하게 건너뛰는 스위트가 있다. 다만 **초록으로 위장하지는 못하게** 한다.
+  pf=${line%% PASS*}
+  if [ "$pf" = "0" ] && echo "$line" | grep -qE "/ 0 FAIL"; then
+    echo "  ⏭️  $suite — $line  ← **문항이 0개다. 통과가 아니다.**"
+    echo "$out" | grep -E "건너뜀|SKIPPED" | head -2 | sed 's/^/       /'
+    SKIPPED_SUITES="${SKIPPED_SUITES}
+  · $suite"
+  elif echo "$line" | grep -qE "/ 0 FAIL$"; then echo "  ✅ $suite — $line"
+  else
+    echo "  ❌ $suite — $line"
+    # ★실패한 **문항 이름만** 찍고 끝내지 않는다 — 그 밑에 붙는 「기대/실제」까지 함께 준다
+    #   (2026-09-22, G-43). 종전에는 `grep "❌"` 라 ❌ 줄만 나왔고, 스위트가 정성껏 찍어 둔
+    #   `기대(…) 켜짐=[…]` / `실제 켜짐=[…]` 두 줄이 **매번 버려졌다.**
+    #   그 탓에 `test_overlay_solo` 의 CI 전용 실패를 여러 라운드 동안 "이름은 아는데 이유는
+    #   모르는" 상태로 끌었다. G-32(본문)·G-40(근거)·G-42(까닭)와 같은 마디다 —
+    #   **판정하는 자리가 근거를 함께 줘야 한다.**
+    #   ⚠그리고 ❌ 가 아닌 줄(기대/실제)은 **`  ↓ ` 로 표시해 둔다** — 총정리(`_VA_BAD`)가
+    #     모으는 표식이 `❌` 와 `^  ↓` 둘뿐이라, 표시를 안 붙이면 로그에는 있어도
+    #     **요약에는 안 올라온다.** CI run #72 에서 실제로 그랬다(이름만 올라오고 기대/실제는 누락).
+    echo "$out" | grep -A 3 "❌" | head -24 | sed -e '/❌/!s/^ */  ↓ /' 
+    fail "스위트 $suite — $line"
+  fi
 done
 
 # ============================================================================
@@ -79,46 +176,35 @@ done
 # ============================================================================
 # ── V5-0 계기판 최신성 — **게이트가 낡은 색인을 읽고 있지 않은가** (2026-08-29 신설, L-209) ──
 # [왜] V5-7(골든체인)·V5-8(링크 도달성)·V5-10(한쪽만 걸린 링크) 세 게이트는 위키 마크다운이
-#   아니라 **생성물 `_dashboard/index.json` 을 읽는다.** 그런데 그 파일은 위키를 고칠 때
-#   자동으로 다시 만들어지지 않는다. 실제로 몇 라운드 동안 색인이 낡은 채였고, 게이트는
-#   **낡은 스냅샷과 낡은 기준선을 비교하며 "변화 없음"을 보고**하고 있었다.
-#   2026-08-29 에 색인을 다시 만들자 그동안 쌓인 실제 상태가 한꺼번에 드러났다(한쪽만 걸린
-#   링크 2,702 → 2,710). **숫자가 나빠진 게 아니라 원래 그랬던 것이 이제 보인 것이다.**
+#   아니라 **생성물 `_dashboard/index.json` 을 읽는다.** 그 파일은 위키를 고칠 때 자동으로
+#   다시 만들어지지 않는다. 실제로 몇 라운드 동안 색인이 낡은 채였고, 게이트는 **낡은
+#   스냅샷과 낡은 기준선을 비교하며 "변화 없음"을 보고**하고 있었다.
 #   "변화 없음"은 두 가지 뜻이다 — 정말 안 변했거나, **안 보고 있거나.**
-# [무엇을] 위키 마크다운 중 가장 최근에 고쳐진 것이 색인보다 새로우면 실패시킨다.
-#   고치는 법도 함께 찍는다(자동으로 다시 만들지는 않는다 — 검증이 트리를 바꾸면 안 된다).
+#
+# ── ★2026-09-23 (G-19) — mtime 을 버리고 **내용**으로 잰다 ─────────────────────
+# [옛 방식이 왜 틀렸나] `find wiki -newer "$IDX"` 는 **파일 수정시각(mtime)** 으로 쟀다.
+#   git 은 mtime 을 보존하지 않는다 — 새 체크아웃에서는 전부 체크아웃 시각이고 순서는
+#   쓰기 순서일 뿐이다. CI run #3 이 "위키 1,287장이 색인보다 새롭다"를 냈고 색인은 멀쩡했다.
+# [그래서 어떻게 했었나] **CI 에서는 이 검사를 통째로 건너뛰었다**(2026-09-22).
+#   `legal-index-sync.yml` 이 대신 지키니 된다고 보았다. 절반만 맞았다 —
+#   ★그 워크플로는 게이트와 **같은 푸시에서 나란히** 돈다. 그러니 그 푸시의 게이트 실행은
+#   **낡은 색인을 읽은 채** V5-7·V5-8·V5-10 을 재고 초록불을 낸다. 고쳐지는 것은 그 다음
+#   커밋이다. L-209 가 말한 바로 그 병이 **CI 에서만 살아 있었다.**
+#   (낡는 일이 드물어서 봐준 것도 아니다 — 그 워크플로는 지금까지 **26번** 커밋했다.)
+# [지금] **다시 만들어 보고 저장된 것과 같은지 본다.** 재생성은 결정적이고 값싸다
+#   (실측 2.9초 · 생성물 5개 바이트 동일). mtime 과 달리 **CI 와 로컬이 같은 답**을 준다 —
+#   ★예외가 없어졌다. 자가 하나다(뿌리 사슬 ⑥).
+#   트리는 바꾸지 않는다 — 생성물을 옆에 치웠다가 비교 뒤 **결과와 무관하게 되돌린다.**
 echo; echo "── V5-0 계기판 최신성(색인이 위키보다 낡지 않았나) ──"
-IDX=local_server/knowledge/legal/_dashboard/index.json
-if [ ! -f "$IDX" ]; then
-  echo "  ❌ 색인이 아예 없다: $IDX"; FAIL=1
-else
-  # ⚠`wiki/_backbone.md` 는 **생성물**이다(lint_build.py 가 lint_index.py 뒤에 만든다).
-  #   그래서 항상 색인보다 새롭다 — 위키 소스로 세면 늘 실패한다. 빼고 센다.
-  FIND_SRC=(find local_server/knowledge/legal/wiki -name '*.md' ! -name '_backbone.md' -newer "$IDX")
-  NEWEST=$("${FIND_SRC[@]}" -print -quit 2>/dev/null)
-  if [ -n "$NEWEST" ]; then
-    N=$("${FIND_SRC[@]}" 2>/dev/null | wc -l)
-    echo "  ❌ 색인이 위키보다 낡았다 — 위키 ${N}장이 색인보다 새롭다"
-    echo "     예: ${NEWEST#local_server/knowledge/legal/}"
-    echo "     ⚠이 상태에서는 V5-7(골든체인)·V5-8(링크 도달성)·V5-10(한쪽만 걸린 링크)이"
-    echo "       **낡은 자료를 재고 있어 숫자를 믿을 수 없다.**"
-    echo "     고치려면: python3 local_server/knowledge/legal/_dashboard/loop/lint_index.py \\"
-    echo "            && python3 local_server/knowledge/legal/_dashboard/loop/lint_build.py"
-    echo "     그리고 다시 만든 생성물을 **소스와 같은 커밋에 담는다**(L-209)."
-    FAIL=1
-  else
-    echo "  ✅ 색인이 위키보다 최신이다 — 아래 게이트가 현재 상태를 잰다"
-  fi
-fi
-
+python3 local_server/knowledge/legal/_dashboard/loop/index_fresh.py || fail "V5-0 색인 최신성 — 다시 만드니 달라진다"
 echo; echo "── V5-3 근거 조문 표 무결성 ──"
-node local_server/knowledge/legal/_dashboard/loop/citation_table_scan.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/citation_table_scan.js --gate || fail "V5-3 근거 조문 표 무결성"
 
 echo; echo "── V5-4 정답 페이지 도달 ──"
 # 사람이 정답이라고 확인한 개념 페이지가 검색 후보에, 그리고 모델에게 넘어가는 자료에 들어오는가.
 # 순위엔 문턱을 두지 않는다(위키가 바뀌면 자연히 흔들린다) — "아예 못 닿는다"만 실패로 본다.
-node local_server/knowledge/legal/_dashboard/loop/page_eval.js --gate || FAIL=1
-node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/page_eval.js --gate || fail "V5-4 정답 페이지 도달"
+node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || fail "V5-4 정답 페이지 도달"
 
 # ============================================================================
 # V5-5 근거 조문 행 도달성 (2026-08-20 신설)
@@ -131,14 +217,14 @@ node local_server/knowledge/legal/_dashboard/loop/context_eval.js --gate || FAIL
 #                  --save local_server/knowledge/legal/_dashboard/loop/pinned/reach_eval_base.json
 # ============================================================================
 echo; echo "── V5-5 근거 조문 행 도달성 ──"
-node local_server/knowledge/legal/_dashboard/loop/reach_eval.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/reach_eval.js --gate || fail "V5-5 근거 조문 행 도달성"
 
 echo; echo "── V5-6 근거 조문 인용 존재성 ──"
 # 근거 조문 표의 **법령 칸과 조문 칸이 짝이 맞는지** 원문으로 대조한다(2026-08-20 신설).
 #   왜: '조문 번호는 맞는데 주인이 틀린' 행은 지금까지 어떤 검사도 못 잡았다 — 링크는 걸리고
 #   표는 멀쩡해 보이지만 사용자가 눌러 보면 다른 내용이 나온다. 신설 당일 2건이 실재했다.
 #   ⚠이 검사를 만들고도 여기 안 걸어 뒀던 것을 독립 검토자가 지적해 등록한다(L-105 재발).
-node local_server/knowledge/legal/_dashboard/loop/cite_exists.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/cite_exists.js --gate || fail "V5-6 근거 조문 인용 존재성"
 
 echo; echo "── V5-7 골든 문항 근거 도달성 ──"
 # 문항마다 **기대 근거(법령+조문)가 인용 후보까지 닿는가**를 잰다(H-47 ①, 2026-08-20 신설).
@@ -148,7 +234,7 @@ echo; echo "── V5-7 골든 문항 근거 도달성 ──"
 #   지금까지는 유료 라이브 검증으로만 잡혔다. 이제 무료·자동으로 잡는다.
 #   ⚠AI 채점을 쓰지 않는다(L-133: 채점자가 AI면 라운드 간 42%가 뒤집힘). 문자열 대조만.
 node local_server/knowledge/legal/_dashboard/loop/golden_eval.js \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/golden_eval_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/golden_eval_base.json --gate || fail "V5-7 골든 문항 근거 도달성"
 
 echo; echo "── V5-8 조문 링크 도달성(눌러서 원문이 열리나) ──"
 # 사용자가 실제로 만나는 근거는 **답변 본문의 조문 하이퍼링크**다 — 2026-08-18 확정으로 근거 카드
@@ -157,14 +243,351 @@ echo; echo "── V5-8 조문 링크 도달성(눌러서 원문이 열리나) �
 #   그 파일에 그 조가 실제로 있는가. 판정은 생산 함수(article_text.resolveBase·pickNoticeFile·
 #   listArticleNumbers)를 그대로 태워서 한다(L-136). AI 안 쓴다.
 node local_server/knowledge/legal/_dashboard/loop/link_ready.js \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/link_ready_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/link_ready_base.json --gate || fail "V5-8 조문 링크 도달성(눌러서 원문이 열리나)"
 
 echo; echo "── V5-8c 고시 지도 최신성(다른 부처 고시를 찾을 수 있나) ──"
 # 고시는 그 위키가 속한 법 폴더에서만 찾는데, 위키는 남의 부처 고시도 짚는다(독도법 페이지가
 #   국가유산청 고시를 짚는 식). 그래서 `_dashboard/notice_index.json`(고시 이름 → 법 폴더)을
 #   두고, 자기 폴더에서 못 찾았을 때만 그 지도를 본다. **고시를 새로 받아 놓고 지도를 안 돌리면
 #   그 고시는 남의 법 페이지에서 계속 안 열린다** — 그래서 어긋남을 여기서 막는다.
-python3 local_server/knowledge/legal/_dashboard/loop/sync_notice_index.py --check || FAIL=1
+python3 local_server/knowledge/legal/_dashboard/loop/sync_notice_index.py --check || fail "V5-8c 고시 지도 최신성(다른 부처 고시를 찾을 수 있나)"
+
+# ── V5-21a 계층 무접두 별표 파일이 열리나 (2026-09-22 신설, 2-7 · P-3) ─────────
+#   `article_text.js` ③경로는 `별표/별표1.txt` 처럼 계층 접두가 없는 파일을 **파일 안
+#   선언줄**로 검증한다(파일명 번호와 내용 번호가 어긋난 것이 실측 178개라 그냥 믿으면
+#   다른 별표를 그 번호인 것처럼 보여준다). 그런데 **그 판정을 재는 것이 하나도 없어서**,
+#   종전 규칙이 `시행규칙|시행령` 만 받는 바람에 「선박에서의 오염방지에 관한 규칙」
+#   (tier:1) 별표가 90개 중 0개 열리는데도 게이트는 전부 초록이었다.
+#   기준선(2026-09-22): 열린다 1657 · 번호어긋남 178 · 선언못읽음 29.
+#   ⚠이 검사는 **파일 단위**다. 위키 근거 줄 단위(1,367행)는 2-10(V5-21b)이 따로 잰다.
+# ── V5-23 본문이 가리키는 그림이 실제로 있나 (2026-09-22 신설, P-13) ────────────
+#   없으면 화면이 그 자리를 **흔적 없이 지운다** — 거짓말은 아니나 **원문에 있던 표가
+#   조용히 사라진다**. 사용자는 그런 것이 있었다는 사실조차 모른다.
+#   기준선(2026-09-22): 가리킴 1,069 · 있다 845(79.0%) · 없다 **224**.
+#   채우려면 law.go.kr 이 필요한데 이 컨테이너에서는 10번 중 1번만 붙는다 → 3-25.
+echo; echo "── V5-23 본문 그림 도달성 ──"
+node local_server/knowledge/legal/_dashboard/loop/body_image_ready.js --gate || fail "V5-23 본문 그림 도달성"
+
+# ── V5-22 근거 조문 표의 법령 칸이 어느 법인지 말하는가 (2026-09-22 신설, P-12) ──
+#   법령 칸이 `시행령`·`시행규칙` 한 낱말뿐이면 ①어느 법인지 모를 근거가 뜨고
+#   ②눌러도 원문이 안 열리고 ③연락처도 안 붙는다. 2026-09-22 에 163행을 0 으로 만들었다.
+#   **0 을 요구한다** — 고치는 데 네트워크도 사람 판단도 필요 없다.
+echo; echo "── V5-22 근거 조문 표의 법령 칸 특정 ──"
+node local_server/knowledge/legal/_dashboard/loop/law_cell_named.js --gate || fail "V5-22 근거 조문 표의 법령 칸 특정"
+
+# ── V5-18 꼬리표의 판번호가 제자리에 있나 (2026-09-23 신설, 2-3 · 2-2) ──────────
+# [왜] 2-2 가 꼬리표 사전(`_meta_schema.js`)을 세웠지만, **게이트가 안 재는 자리는 죽는다**(③).
+#   `_SCHEMA §1` 이 요구한 8키를 다 갖춘 꼬리표가 516개 중 0개였던 것이 그 증거다(0-3).
+#   이제 사전을 **게이트가 부른다** — 규칙은 사전에만 적혀 있고 여기서 다시 적지 않는다(L-136).
+# [무엇을] 판번호(MST)가 `families.<계층>` 안에 있는가. 밖에 흩어졌거나·없거나·
+#   families 와 어긋나면 **늘지 못하게** 막는다. 줄어드는 것은 막지 않는다.
+# ⚠빨간불이 뜨면 **기준선을 다시 굽지 않는다** — 줄었을 때만 다시 굽는다(G-49).
+echo; echo "── V5-18 꼬리표 판번호 제자리 ──"
+node local_server/knowledge/legal/_dashboard/loop/meta_schema_gate.js --gate || fail "V5-18 꼬리표 판번호 제자리"
+
+# ── V5-19 교훈 번호가 겹치지 않나 (2026-09-23 신설, L-329) ──────────────────────
+# 갈래 둘이 각자 L-306 다음을 L-307 부터 쓰면 합칠 때까지 아무도 모른다.
+echo; echo "── V5-19 교훈 번호 겹침 ──"
+node local_server/knowledge/legal/_dashboard/loop/lesson_no_gate.js || fail "V5-19 교훈 번호 겹침"
+
+# ── V5-24 「사람이 봐야 한다」 표시가 달린 채 남은 행정규칙 (2026-09-23 신설, G-24 · 2-19) ──
+# 수집기가 스스로 `⚠REVIEW` 를 적어 두었는데 **그 대조가 이뤄졌는지 세는 것이 없었다.**
+# ⚠표시를 지워서 초록을 만들지 않는다 — 그것은 대조를 한 것이 아니다(G-34).
+echo; echo "── V5-24 「사람이 봐야 한다」 표시 ──"
+node local_server/knowledge/legal/_dashboard/loop/admrul_review_gate.js || fail "V5-24 사람이 봐야 한다 표시"
+
+# ── V5-25 74법 목록 **밖**에 있는 기준법급(tier:1) 부령 (2026-09-23 신설, G-26) ──
+# ★결함이 아니라 설계다(§3.5). 다만 **그 설계를 아는 도구와 모르는 도구가 갈린다** —
+# 2026-08-10 에 빌더 하나가 74법 폴더만 훑어 중간검사 시기를 "raw 미수집"이라 잘못 적었다.
+# 늘면 실패시켜 **사람이 빌더마다 한 번 보고 지나가게** 한다(기계가 고르지 않는다, G-34).
+echo; echo "── V5-25 74법 목록 밖 기준법급 부령 ──"
+node local_server/knowledge/legal/_dashboard/loop/tier1_outside_gate.js || fail "V5-25 74법 목록 밖 기준법급 부령"
+
+# ── V5-26 §8-B 「인용은 줄 번호가 아니라 항목 이름으로」 (2026-09-23 신설, G-6) ──
+# 규약은 2026-09-02 부터 있었는데 **읽는 코드가 없었다.** 세는 함수(2-6b)는 시험만 불렀다.
+# 규약이 "앞으로 쓰는 것에만 건다"고 못박았으므로 **위키가 늘지 않는 것**만 본다(0 을 안 요구한다).
+echo; echo "── V5-26 §8-B 줄번호 인용 ──"
+node local_server/knowledge/legal/_dashboard/loop/line_cite_gate.js || fail "V5-26 §8-B 줄번호 인용"
+
+# ── V5-27 §5-D ⓕ 「각 호 N개」가 원문과 맞나 (2026-09-23 신설, G-7) ──
+# 규약이 *"틀린 값 중 가장 많은 유형"* 이라고 적은 것이다. **어긋남 0 을 요구한다** —
+# 기준선을 두지 않는다. 취향이 아니라 **사실이 틀린 것**이기 때문이다.
+# ⚠`제N조 각 호 K개` 한 꼴만 본다(다른 표기는 §6-F 와 같은 병, Q-18).
+echo; echo "── V5-27 §5-D ⓕ 각 호 개수 ──"
+node local_server/knowledge/legal/_dashboard/loop/ho_count_gate.js || fail "V5-27 §5-D ⓕ 각 호 개수"
+
+# ── V5-28 목차(`index.md`) 링크가 눌러서 열리나 (2026-09-23 신설, G-25) ──
+# 읽는 **코드**는 없다. 읽는 것이 **사람**이다(§13 "누가 언제 봐도 목차로 찾아가야 한다").
+# 2026-09-23 실측: 1,037개 중 열리는 것이 **3개**였다. 고친 뒤 1,040개 전부 열린다.
+# **0 을 요구한다** — 목차가 안 열리는 것은 취향이 아니라 고장이다.
+echo; echo "── V5-28 목차 링크 도달성 ──"
+node local_server/knowledge/legal/_dashboard/loop/index_links_gate.js || fail "V5-28 목차 링크 도달성"
+
+# ── V5-29 감사파일에 다른 법의 감사 보고서가 섞였나 (2026-09-23 신설, G-22) ──
+# 기준선(3)보다 **늘면 실패**한다. 지우는 것은 따로 한다(3-40) — 수백 줄이라 사람이 볼 일이다.
+echo; echo "── V5-29 감사 교차오염 ──"
+node local_server/knowledge/legal/_dashboard/loop/audit_crosstalk_gate.js || fail "V5-29 감사 교차오염"
+
+# ── V5-30 검수 대기 수를 **두 곳이 같게 세나** (2026-09-23 신설, G-11) ──
+# 같은 물음을 서버 `parseReviewQueue()` 와 `loop/human_workload.py` 가 따로 센다.
+# `human_workload.py` 가 스스로 적어 둔 위험 — "한쪽만 고치면 두 숫자가 어긋난다".
+# ⚠이 검사는 파이썬을 돌리지만 `human_workload.json` 을 **되돌려 놓는다**(트리 무변경).
+echo; echo "── V5-30 검수 대기 수 일치 ──"
+node local_server/knowledge/legal/_dashboard/loop/review_count_agree_gate.js || fail "V5-30 검수 대기 수 일치"
+
+# ── V5-31 조문이 있는데 `[제N조]` 머리줄이 0인 원문 (2026-09-23 신설, G-27) ──
+# ★V5-17 은 머리줄을 **찾아서** 견주므로 머리줄이 **아예 없는** 파일을 원리적으로 못 본다(⑤).
+# 범위는 `raw/_자치법규` 본문만 — 넓히려면 「어떤 파일이 머리줄을 가져야 하나」를 먼저 정해야 한다(3-43).
+echo; echo "── V5-31 조문 머리줄 없는 원문 ──"
+node local_server/knowledge/legal/_dashboard/loop/article_head_missing_gate.js || fail "V5-31 조문 머리줄 없는 원문"
+
+# ── V5-32 **법령 계층 별표**를 짚은 근거 줄이 눌러서 열리나 (2026-09-23 신설, G-9 · 3-42) ──
+# V5-11 은 **고시** 별표만 본다. 법률·시행령·시행규칙 별표는 **아무도 안 보고 있었다**(⑤).
+# 생산과 같은 길로 찾는다(`hasBylBody`·`bylDeclMatches` 를 그대로 부른다, L-136).
+echo; echo "── V5-32 계층 별표 도달성 ──"
+node local_server/knowledge/legal/_dashboard/loop/byl_tier_ready.js || fail "V5-32 계층 별표 도달성"
+
+# ── V5-33 `raw/` 를 고쳤으면 되돌릴 수 있나 (2026-09-23 신설, N-5 · 3-10) ────────
+# [왜] `raw/` 는 규약상 불변이라 적혀 있었지만 실제로는 1,508파일·3,573회 고쳐졌다.
+#   사용자가 "규칙을 현실에 맞춘다"로 확정했다(N-5) — 그러면 현실의 규칙은
+#   **고쳐도 되지만 되돌릴 수 있어야 한다**이다. `_touched.py` 기록이 그 증거다.
+# ⚠갈림점(`origin/main`)을 못 보면 **재지 않고 건너뛴다** — CI 체크아웃이 얕으면 그렇다.
+#   그래서 워크플로에 `fetch-depth: 0` 을 걸어 뒀다(안 걸면 게이트가 죽는다 — ④).
+echo; echo "── V5-33 원문 수정의 되돌리기 기록 ──"
+node local_server/knowledge/legal/_dashboard/loop/raw_touch_guard.js || fail "V5-33 원문 되돌리기 기록"
+
+# ── V5-34 같은 법이 기준법 폴더와 타법 폴더에 이중으로 있나 (2026-09-23 신설, Q-2 · 3-11) ──
+# [왜] 전문(기준법 폴더)과 발췌(15_관련타부처)가 **둘 다** 있는 법이 25개다.
+#   챗봇은 안 속지만(`resolveBase` 가 전문을 고른다) **검사기가 속는다** — V5-16 의 가짜 결손.
+# ⚠**지우지 않고 세기만 한다.** 전수검색 결과 그 폴더를 적은 글이 182파일이고,
+#   무엇보다 **그 폴더를 만드는 도구가 따로 있다**(`add_other_law_article.js`).
+#   도구를 안 고치고 지우면 다음 인용 때 되살아난다 — 그래서 도구 쪽에 경고를 걸고 여기서는 센다.
+echo; echo "── V5-34 기준법·타법 이중 폴더 ──"
+node local_server/knowledge/legal/_dashboard/loop/dup_law_folder_gate.js || fail "V5-34 기준법·타법 이중 폴더"
+
+# ── V5-35 위키 표준 절이 있나 (2026-09-24 신설, 3-4) ──────────────────────────
+# [왜] 표준 절 목록은 `06_STANDARD_SECTIONS.md` 에 **글로** 정해져 있었다(Q-3, 8개 확정).
+#   그런데 **그것을 읽는 검사가 없었다** — 뿌리 사슬 ③·⑤ 그대로다. 3-5 가 이름을
+#   `## 근거 조문` 하나로 모았으니(447쪽) 이제 걸 수 있다.
+# [세는 법] 규칙은 `_dashboard/section_rules.json` 한 곳에 있고 게이트는 **읽기만** 한다(L-136).
+#   ★「없다」와 「꼬리표」를 **따로** 센다 — 한 통에 넣으면 89, 갈라 보면 없다 56 · 꼬리표 33 이다(⑥).
+echo; echo "── V5-35 위키 표준 절 ──"
+node local_server/knowledge/legal/_dashboard/loop/section_ready.js --gate || fail "V5-35 위키 표준 절"
+
+# ── V5-36 꼬리표가 「받았다」는 조문이 정말 그 파일에 있나 (2026-09-24 신설, 3-3) ──
+# [왜] 타법은 전문을 안 받고 **필요한 조문만 발췌**해 둔다. 어디까지 받았는지는
+#   `families.<계층>.조문범위` 에 **사람 말로만** 적혀 있어 기계가 못 읽었다. 그래서
+#   **「이 조문이 우리 발췌 안에 있나」를 아무도 묻지 않았다**(뿌리 사슬 ⑤).
+#   → 3-3(사용자 확정 ⓐ)이 `조문범위_기계` 배열을 만들고, 이 검사가 그것을 **파일과 맞대어 본다.**
+#   검사가 없으면 그 배열은 「적혀만 있는 규칙」이 된다(①·②).
+# [자] 조를 찾는 일은 **챗봇이 쓰는 그 함수**를 그대로 부른다(L-136) —
+#   `article_text.listArticleNumbers` · `extractArticleBlock`.
+echo; echo "── V5-36 발췌 범위가 사실인가 ──"
+node local_server/knowledge/legal/_dashboard/loop/article_range_gate.js --gate || fail "V5-36 발췌 범위가 사실인가"
+
+# ── V5-37 머리말이 본문을 잘라먹지 않나 (2026-09-24 신설) ──────────────────────
+# [왜] `폐기물관리법/시행규칙.txt` **151,785자 · 조 157개**가 챗봇에게 **조 0개**로 보이고 있었다.
+#   수집 공백이 아니라 **내가 쓴 머리말 두 줄** 때문이었다 —
+#     `   (별표5의8 · 별표5 3.다 …` (줄머리 여는 괄호) · `   부칙 전문 포함.` (줄머리 부칙)
+#   `articleRegion()` 이 이 둘을 「본문 끝」으로 읽어 **652바이트에서 파일 전체를 잘랐다.**
+#   ★`extractArticleBlock`(조 하나 찾기)은 잘 돼서 **아무도 몰랐다** — 「전체 보여줘」에서만 비었다.
+# [자] 경계 패턴을 베끼지 않고 `article_text.js` 의 `ANNEX_BLOCK_SRC` 를 **읽어서** 쓴다(L-136).
+#   ⚠이 검사는 **0이어야 한다** — 기준선을 안 둔다. 고칠 자리가 머리말 한 줄이라 늘 고칠 수 있다.
+echo; echo "── V5-37 머리말이 본문을 잘라먹지 않나 ──"
+node local_server/knowledge/legal/_dashboard/loop/head_prose_gate.js --gate || fail "V5-37 머리말이 본문을 잘라먹지 않나"
+
+# ── V5-38 마무리 정직문구가 확정 3유형과 같은 말인가 (2026-09-24 신설, 3-7) ───
+# [왜] 「모른다·못 한다」를 말하는 자리가 1,847곳인데 **문구가 제각각**이었다. 같은 뜻을
+#   다른 말로 하면 ⓐ사용자가 뜻을 못 잡고 ⓑ기계가 「정직한 표시」를 **세지 못한다**(⑥).
+#   사용자가 3유형을 확정했다(2026-09-24) — 문구는 `_dashboard/honest_phrases.json` 한 곳에 있고
+#   이 검사는 **읽기만** 한다(①).
+# [기준선] ★「거의 같다」 수는 **기준선에 안 넣는다** — 고쳐 나갈 후보지 지킬 값이 아니다.
+#   지킬 것은 둘: **빈칸 0**(소관부서·전화를 못 채운 자리) · **확정 문구가 줄지 않는다**(뒷걸음 막기).
+echo; echo "── V5-38 마무리 정직문구 ──"
+node local_server/knowledge/legal/_dashboard/loop/honest_phrase_gate.js --gate || fail "V5-38 마무리 정직문구"
+
+# ── V5-39 별표 파일의 속을 전수로 센다 (2026-09-24 신설, 3-55) ────────────────
+#   [왜] 별표 파일은 7,500개가 넘는데 지금까지 어느 게이트도 **파일 자체의 속**을 재지
+#   않았다. V5-32·V5-11 이 재던 것은 둘 다 **위키 줄**이라서, 아무 위키 줄도 안 짚는
+#   파일은 비어 있어도 아무도 몰랐다(뿌리 사슬 ③). 실제로 **제목·출처 두 줄뿐인 파일
+#   6개**가 「원문이 있다」로 세어지고 있었다.
+#   [무엇을 잠그나] `없다(까닭도 없다)` **하나만**. `주소만`은 우리가 고른 것이고
+#   `없다(삭제라 적힘)`는 법이 그런 것이라 잠그면 법 개정에 빨간불이 켜진다.
+echo; echo "── V5-39 별표 파일의 속 ──"
+node local_server/knowledge/legal/_dashboard/loop/byl_body_census.js --gate || fail "V5-39 별표 파일의 속"
+
+# ── V5-40 별표 쪽의 「항목수 대조」 (2026-09-24 신설, Q-18 결심 ①) ───────────
+#   [왜] §6-F 는 2026-08-17 부터 「원문의 호·목·행 수를 세어 적어라」라고 했지만
+#   **세는 법이 없었고, 그 줄이 있는지 아무도 안 봤다.** 규칙을 글로만 적으면 아무도
+#   안 지킨다(§6-H 가 21라운드를 그렇게 지나갔다 — 뿌리 사슬 ①·③).
+#   [세는 법의 임자] `article_text.countBoxRows()` — 챗봇이 쓰는 그 함수다(L-136).
+#   [잠그는 것] 「적어 놓고 틀린 것」은 처음부터 0. 「줄이 없는 쪽」만 기준선으로 잠근다(G-49).
+echo; echo "── V5-40 별표 항목수 대조 ──"
+node local_server/knowledge/legal/_dashboard/loop/annex_rowcount_gate.js --gate || fail "V5-40 별표 항목수 대조"
+
+# ── V5-41 「실측」 칸이 지금도 사실인가 (2026-09-24 신설, 3-56) ─────────────
+#   [왜] `_meta.json` 409개의 `실측_YYYY-MM-DD` 칸은 스스로 *"판단은 이 칸을 근거로 한다"* 고
+#   적어 놓고 **아무도 다시 재지 않았다**(뿌리 사슬 ③·⑤). 첫 측정에서 적힌 파일 695개 중
+#   조문수가 다른 것 303 · 바이트가 다른 것 72 였다.
+#   [★섞어 세지 않는다] 그중 262 는 **파일이 바뀐 게 아니라 세는 자가 좋아져서** 달라진 것이다
+#   (조약 조문꼴 꼴④ 추가 등). 고치는 도구가 그 까닭을 칸에 같이 적는다.
+echo; echo "── V5-41 「실측」 칸 ──"
+node local_server/knowledge/legal/_dashboard/loop/meta_measured_gate.js --gate || fail "V5-41 「실측」 칸"
+
+# ── V5-42 별표를 짚은 줄에 임자가 다 있나 (2026-09-24 신설, G-9) ──────────────
+#   [왜] V5-8 은 별표를 짚은 줄을 「조문 칸이 아님」으로 넘긴다. 넘긴 자리는 V5-11(고시)과
+#   V5-32(계층)가 나눠 받는데, **둘 다 아닌 줄이 있으면 아무도 안 본다**(뿌리 사슬 ③).
+#   G-9 는 *"605줄을 아무도 안 본다"* 로 열렸고 V5-32 가 그 자리를 받았지만
+#   **「이제 빠짐이 없다」는 아무도 증명하지 않았다** — 세는 자가 셋이라 숫자로는 알 수 없다(⑥).
+#   [무엇을 잠그나] `임자없음` **0**. 줄을 지워서 초록을 만들지 않는다(G-34).
+echo; echo "── V5-42 별표 줄의 임자 ──"
+node local_server/knowledge/legal/_dashboard/loop/annex_row_coverage.js --gate || fail "V5-42 별표 줄의 임자"
+
+# ── V5-43 「원문과 똑같다」면서 무엇과 똑같은지 안 적은 줄 (2026-09-24 신설, G-29) ──
+#   [왜] 위키 곳곳에 *"raw 원문과 EXACT 대조 확인"* 이 적혀 있다. 그 줄이 있다는 이유로
+#   **재대조를 건너뛰게 된다**(3-15 에서 실제로 그랬다). 그런데 그중 **인용을 안 적은 줄**은
+#   참·거짓 이전에 **확인이 구조적으로 불가능**하다 — 무엇과 맞췄는지 알 수 없으니까.
+#   [★왜 「못 찾음」은 안 잠그나] 3-33 이 이미 판단했다 — 그 자는 판정자가 못 된다
+#   (빨간불 가운데 참이 소수라 거짓 경보가 된다). **오탐이 있을 수 없는 것만** 잠근다.
+#   [고치는 법] 그 줄에 큰따옴표로 인용을 적는다. **주장을 지우지 않는다**(G-34).
+# ── V5-52 EXACT 주장 속 숫자 중 **어디에도 없는 것**이 늘지 않나 (2026-09-26 신설, G-29·3-33) ──
+#   `exact_claim_numbers.py` 는 2026-09-24 에 생겼고 **게이트에 없었다.** 386줄·숫자 6,367개를
+#   재면서 그 핵심 수(「어디에도 없다 33」)를 아무도 안 봤다. 아무도 안 세면 늘어도 모른다.
+#   ★같은 흠을 같은 날 G-13 에서도 찾았다 — 기준선 파일에 `원문없음` 이 적혀 있는데 게이트
+#     코드가 그것을 견주지 않아 **192 → 99 로 93이나 움직이는 동안 아무도 몰랐다**(그쪽도 고쳤다).
+#   ★**판정하지 않는다. 0 을 요구하지 않는다.** 3-33 이 판단했듯 이 자는 판정자가 못 된다 —
+#     「어디에도 없다」에는 **우리 계산값**처럼 흠이 아닌 것이 섞여 있다. **늘면 빨간불**만 켠다.
+#   [빨간불이면] `--list` 로 늘어난 줄을 본다. 우리 계산값이면 까닭을 커밋에 적고
+#     `--gate --update` 로 잠근다. 원문을 안 받은 것이면 받는다.
+#     ⚠수를 맞추려고 주장을 지우지 않는다(G-34·G-49).
+#   ⏱약 50초 든다(실측).
+echo; echo "── V5-52 EXACT 숫자 중 어디에도 없는 것 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_numbers.py --gate > /tmp/_v552.log 2>&1 \
+  && tail -3 /tmp/_v552.log || { tail -8 /tmp/_v552.log; fail "V5-52 EXACT 숫자 중 어디에도 없는 것이 늘었다"; }
+
+echo; echo "── V5-43 인용 없는 EXACT 주장 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py --gate > /tmp/_v543.log 2>&1 \
+  && tail -6 /tmp/_v543.log || { tail -8 /tmp/_v543.log; fail "V5-43 인용 없는 EXACT 주장"; }
+
+# ── V5-46 본문이 가리키는데 없는 별표가 늘지 않나 (2026-09-25 신설, 결심 ⑫ⓒ) ──
+#   ★이 게이트는 **0 을 요구하지 않는다.** 사장님 결심 ⑫ⓒ 로 타부처(`15_관련타부처`) 별표는
+#   **「받을 일감」이 아니라 「알고 두는 상태」**로 확정됐다(발췌 수집이 설계다). 기준법 1 은
+#   `byl_ref_gap.py` 가 아직 못 가리는 꼴(`영 제21조의2 및 별표 5의2`)이다.
+#   ⇒ 그래도 **아무도 안 세면 늘어도 모른다.** 그래서 수만 기준선으로 잠근다 — 늘면 빨간불.
+#   ⚠줄어도 통과시킨다 — 줄어든 것이 수리인지 자가 달라진 것인지 여기서는 못 가린다(L-383).
+#   ⚠이 자의 「없다」는 하나씩 열어 봐야 한다 — 만들 때 내가 여섯 번 틀렸다(도구 머리말 참조).
+echo; echo "── V5-46 본문이 가리키는데 없는 별표 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/byl_ref_gap.py --all --gate \
+  || fail "V5-46 본문이 가리키는데 없는 별표가 늘었다"
+
+# ── V5-45 아무데서도 안 짚히는 자 (2026-09-24 신설, G-15) ────────────────────
+#   조사의 ④는 *"게이트를 부르는 것이 없으면 게이트도 죽는다"* 였다. 같은 일이 **자 한 자루
+#   단위**로도 일어난다 — 만들어 놓고 아무도 안 부르면 있는 줄도 모르게 되고, 다음 사람이
+#   **같은 자를 또 만든다.** ★실측에서 **그날 만든 자 둘**이 벌써 그 상태였다.
+#   ⇒ 「게이트에도 없고 글에도 없는 자」만 막는다. 늘면 빨간불.
+#   고치는 법: 게이트에 걸든지, `node loop_tool_census.js --index` 로 README 자 목록에 올린다.
+#   ⚠「글만」은 결함이 아니다 — 일회성 수리 도구는 글로 남는 것이 정상이다(G-34).
+echo; echo "── V5-45 안 짚히는 자 ──"
+node local_server/knowledge/legal/_dashboard/loop/loop_tool_census.js --gate \
+  || fail "V5-45 아무데서도 안 짚히는 loop 자가 늘었다"
+
+# ── V5-44 진행판에 적힌 숫자가 실측과 같은가 (2026-09-24 신설) ────────────────
+#   사장님 지적: *"갱신하는 걸 계속 까먹고 있는 것 같다. 전체 중에 어느 정도 왔는가를
+#   파악할 수 있도록 해야 될 것 같다."* — 까닭은 **진행판 숫자가 손으로 적은 값**이었다는 것이다.
+#   손으로 적은 값은 ①일이 끝나도 안 바뀌고 ②아무도 다시 세지 않는다(뿌리 사슬 ③).
+#   그래서 세는 자리를 `loop/worklist_progress.py` 하나로 옮기고, 게이트가 그것을 지킨다.
+#   빨간불이면 고치는 법은 하나다 — `python3 …/worklist_progress.py --update`.
+echo; echo "── V5-44 진행판 = 실측 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/worklist_progress.py --gate \
+  || fail "V5-44 진행판에 적힌 숫자가 실측과 다르다"
+
+# ── V5-50 3-6 으로 채운 51자리가 아직 원문 그대로인가 (2026-09-26 신설, 3-6) ──
+#   3-6ⓐ 는 표준 절 51자리를 채운 일이다. ★착수 전 위험검토에서 **17자리는 비어 있지 않았다**는
+#     것을 찾았다 — `## ★ 적용범위 (내 배에 적용되나) — 가장 중요` 처럼 이름이 규약과 달라
+#     세는 자(`startsWith`)에 안 걸렸을 뿐이다. 그 17자리에 원문을 새로 넣으면 **적용범위 절이
+#     두 개**가 된다. 그래서 17은 이름만 맞추고, 진짜 빈 34에만 원문을 옮겼다.
+#   이 자가 보는 것은 **「원문 그대로」가 아직 참인가**다. 채울 때 쓴 것과 같은 길
+#   (`article_text.extractArticleBlock`)로 raw 에서 다시 꺼내 위키 본문에 그 글자가 있는지 본다.
+#   ⇒ raw 가 재수집돼 조문이 바뀌면 **빨간불**이 된다 — 위키가 낡은 원문을 「원문 그대로」라고
+#     말하고 있는 것이 그때 드러난다(그냥 두면 아무도 모른다).
+#   ⚠빨간불일 때 위키를 손으로 고치지 마라. `section_fill_3_6.py` 를 다시 돌려 **원문에서** 옮긴다.
+echo; echo "── V5-50 3-6 으로 채운 51자리 = 원문 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/section_fill_3_6.py --check \
+  || fail "V5-50 3-6 으로 채운 자리가 raw 원문과 어긋난다"
+
+# ── V5-49 [미확인] 없이 나가는 REVIEW 줄 (2026-09-26 신설, N-2) ───────────────
+#   N-2 는 「신뢰도 단위를 쪽 → 절로 쪼갠다」이고 사장님이 **ⓐ(문턱을 낮춘다)** 로 확정하셨다.
+#   ★착수 전 위험검토에서 **그 문턱이 이미 없다는 것**을 실측으로 찾았다 — 쪽 단위 제외는
+#     2026-08-05 에 내용 단위로, 2026-09-07 에 상태 무관 **줄 단위**로 이미 바뀌어 있었다.
+#     생산 입구 `search({canonicalOnly:true})` 로 재니 근거로 실린 1,326쪽 중 `concept/draft` 285 ·
+#     `comparison/draft` 3 · `annex/draft` 1 이 본문까지 온전히 실렸다. ⇒ ⓐ는 이미 돌고 있다.
+#   그래서 남은 몫은 **그것을 잠그는 것**이다: 문턱이 낮은 채로 도는 한,
+#   **미확인 판단이 머리표 없이 근거로 나가는 일은 0 이어야 한다**(그것이 환각이 되는 자리다).
+#   ⚠0 만 찍는 게이트는 죽은 게이트라 **탐지기가 진짜 잡는지**를 스위트 `test_unverified_leak`
+#     6문항으로 따로 못박았다(고정 문장 — 배너는 남기고 진짜 판단은 잡는다).
+# ── V5-51 3-22 수집기의 증명이 「아니오」를 말할 수 있나 (2026-09-26 신설, 3-22) ──
+#   3-22 는 연안 시군구 조례를 받는 일이다. 3-68(고시 다시 받기)에서 나는 **받아 쓴 뒤에**
+#     온전함을 쟀고, 그 사이에 쪼그라든 조문과 잃은 판독 블록이 raw 에 들어갔다.
+#     그래서 수집기는 순서를 뒤집었다 — **증명을 넘은 것만 파일이 된다**(갈래 ①~⑨).
+#   ★이 자가 보는 것은 「증명이 아직 「아니오」를 말할 수 있나」다. 한 번도 막지 않는 자는
+#     자가 아니다(G-49). 갈래마다 **일부러 깨뜨린 한 벌**을 넣어 그 번호가 떠오르는지 본다.
+#   ⚠실제로 여기서 잡혔다: 갈래 ④(운영 파서가 여나)가 **무조건 초록**이었다 —
+#     node 쪽에서 `r.body || r.text || r` 로 써서 body 가 빈 글자일 때 `|| r` 로 넘어가
+#     **객체가 '[object Object]' 로 바뀌어** 「열렸다」가 됐다. 이 자가 없었으면 몰랐다.
+#   ⚠빨간불이면 수집기의 증명이 뚫린 것이다. **문턱을 낮추지 말고** 갈래를 고친다.
+echo; echo "── V5-51 3-22 증명이 「아니오」를 말할 수 있나 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/coastal_ordin_collect.py --check \
+  || fail "V5-51 3-22 수집기의 증명이 깨뜨린 한 벌을 막지 못한다"
+
+echo; echo "── V5-49 [미확인] 없이 나가는 REVIEW 줄 ──"
+node local_server/knowledge/legal/_dashboard/loop/unverified_leak_gate.js --gate \
+  || fail "V5-49 미확인 판단이 [미확인] 머리표 없이 근거로 나간다"
+
+# ── V5-48 모델이 실제로 받는 근거자료 크기 (2026-09-26 신설, G-51) ────────────
+#   `CONTEXT_MAX_CHARS`(80,000)는 **본문 합계**만 묶는다. `buildContextBlock` 이 쪽마다
+#   머리글·메타를 덧붙이므로 **모델이 받는 덩어리는 그보다 크다** — 실측 15.3%(최대 92,484자).
+#   「상한을 지켰다」가 「8만 자만 줬다」는 뜻이 아니라는 것이다(G-51). 그 어긋남 자체는
+#   없앨 수 없으니 **자라지 않게 잠근다.**
+#   ⚠이 자에는 기준선이 **있는 척**만 하고 있었다 — 실행마다 제 기록을 덮어써서 무엇을 해도
+#     빨간불이 안 났고, 게다가 이 게이트가 **부르지 않았다**(뿌리 사슬 ③④). 둘 다 고쳤다.
+#   빨간불이면 먼저 **무엇이 늘었는지 연다**(G-49). 쪽수가 늘면 PRIMARY_TOPK·HOP_MAX,
+#   본문이 늘면 CONTEXT_MAX_CHARS 를 본다. 좋아졌을 때만 `--update`.
+echo; echo "── V5-48 모델이 받는 근거자료 크기 ──"
+node local_server/knowledge/legal/_dashboard/loop/context_size.js --gate \
+  || fail "V5-48 모델이 받는 근거자료가 기준선보다 커졌다"
+
+# ── V5-47 규칙집의 검사 목록이 낡지 않았나 (2026-09-25 신설, 2-4) ─────────────
+#   `_RULES.md` 는 규칙마다 **그것을 지키는 검사 이름**을 옆에 달아 둔 짧은 규칙집이다.
+#   그 검사 목록을 **손으로 적으면 반드시 낡는다** — 그것이 이 문서가 막으려는 병 그 자체다
+#   (뿌리 사슬 ①②③). 그래서 목록은 `gen_rulebook.py` 가 `verify_all.sh` 를 읽어 찍고,
+#   이 검사는 **지금 찍은 것과 문서에 적힌 것이 같은지**만 본다. 게이트를 하나 늘리거나
+#   스위트를 하나 더하면 여기서 빨간불이 나고, `python3 scripts/refactor/gen_rulebook.py`
+#   한 줄로 고친다.
+echo; echo "── V5-47 규칙집 검사 목록 최신성 ──"
+python3 scripts/refactor/gen_rulebook.py --check \
+  || fail "V5-47 규칙집(_RULES.md)의 검사 목록이 낡았다 — gen_rulebook.py 로 다시 쓴다"
+
+# ── V5-20 표가 열 단위로 펼쳐진 자리 (2026-09-22 신설, P-8) ────────────────────
+#   PDF 표를 글자로 뽑을 때 **행이 아니라 열 순서로** 나와, 한 열의 값이 통째로 세로
+#   목록이 된 자리다. ★값은 하나도 안 빠졌는데 **행·열 짝이 사라졌다** — 그래서
+#   "글자가 깨졌다"가 아니라 **"숫자를 엉뚱한 줄에 붙일 수 있다"** 는 문제다.
+#   위키가 그 수치를 옮겨 적은 자리는 아직 확인된 것이 없지만, raw 본문은 LLM 근거자료로
+#   그대로 넘어간다(P-19). 되살리려면 원본 표 모양이 필요하므로 **지금은 세기만 한다** —
+#   기준선(2026-09-22): 덩이 278 · 줄 2,201 · 파일 69.
+echo; echo "── V5-20 표가 열 단위로 펼쳐진 자리 ──"
+node local_server/knowledge/legal/_dashboard/loop/col_split_scan.js --gate || fail "V5-20 표가 열 단위로 펼쳐진 자리"
+
+# ── V5-21b 법률계열 별표 도달성(줄 단위) (2026-09-24 신설, 2-10 → G-8·G-9) ─────
+#   V5-11 은 **고시** 별표를 짚은 줄을, V5-21a 는 별표 **파일**을 본다.
+#   비어 있던 칸이 「법률·시행령·시행규칙 별표를 짚은 **줄**」이었다 — 그 칸을 이 자가 맡는다.
+#   ★세우자마자 33줄이 안 열리는 까닭을 찾아냈다(`제38조 → 시행규칙 별표2` 가 안 갈렸다).
+echo; echo "── V5-21b 법률계열 별표 도달성(줄) ──"
+node local_server/knowledge/legal/_dashboard/loop/byl_line_ready.js --gate \
+  --base local_server/knowledge/legal/_dashboard/loop/baseline/byl_line_ready.json \
+  || fail "V5-21b 법률계열 별표 도달성(줄)"
+
+echo; echo "── V5-21a 계층 무접두 별표 파일 도달성 ──"
+node local_server/knowledge/legal/_dashboard/loop/byl_bare_ready.js --gate || fail "V5-21a 계층 무접두 별표 파일 도달성"
 
 echo; echo "── V5-11 별표 도달성(고시 별표를 눌러 열 수 있나) ──"
 # V5-8(link_ready)은 **조문 칸에 조(條)가 있는 줄**만 본다. 조문 칸이 `별표1`·`별지 제3호서식`
@@ -172,7 +595,7 @@ echo; echo "── V5-11 별표 도달성(고시 별표를 눌러 열 수 있나
 #   **몇 건이나 열리게 됐는지 잴 방법이 없었다**(품질 4축 ③ 도달의 구멍).
 #   판정은 생산 함수(extractAttachments·parseBylFile·pickNoticeFile·resolveBase)를 그대로 태운다(L-136).
 node local_server/knowledge/legal/_dashboard/loop/annex_ready.js \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/annex_ready_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/annex_ready_base.json --gate || fail "V5-11 별표 도달성(고시 별표를 눌러 열 수 있나)"
 
 echo; echo "── V5-8b 원문 덮어쓰기 신호 — 같은 폴더에 같은 ID 가 둘 ──"
 # 재수집이 이름 바뀐 고시를 갈아끼우며 **옛 판본을 통째로 덮어쓴** 사고가 있었다(2026-08-23, L-183).
@@ -193,7 +616,10 @@ echo; echo "── V5-8c 도달(품질 4축 ③) — 본문에 있는데 표에 
 # ★`| head -8` 로 자르지 않는다(2026-08-28) — 파이프가 닫히면서 SIGPIPE 로 파이썬이
 # BrokenPipeError 역추적을 토해내 점검표가 지저분해졌고, 무엇보다 **가운데를 잘라 읽는 것**
 # 자체가 CLAUDE.md §7 이 금지한 것이다. 출력은 20줄 남짓이라 통째로 둔다.
-python3 local_server/knowledge/legal/_dashboard/loop/body_cite_gap.py || true
+# ★2026-09-23 (G-13) — 종전엔 `|| true` 로 **종료 코드를 통째로 버렸다.**
+#   그래서 확인 목록 376건이 3주 넘게 아무도 안 보는 채였고, **늘어도 아무도 몰랐다**(뿌리 사슬 ④).
+#   판정은 여전히 사람 몫이다 — 다만 `--gate` 로 **늘지 못하게** 한다(기준선 376).
+python3 local_server/knowledge/legal/_dashboard/loop/body_cite_gap.py --gate || fail "V5-8c 본문 인용 확인 목록이 늘었다"
 
 echo; echo "── V5-9 수집(품질 4축 ①) — 가져야 할 원문이 손에 있나 ──"
 # 사용자가 정한 품질 4축 중 **①수집만 게이트가 아예 없었다**(H-45). ②는 V5-3, ③은 V5-5·V5-7·V5-8,
@@ -201,24 +627,24 @@ echo; echo "── V5-9 수집(품질 4축 ①) — 가져야 할 원문이 손�
 #   계층**(_meta.json families)인데 파일이 없거나 비어 있는 것만 잡는다 — 애초에 시행규칙이 없는 법을
 #   결손으로 세지 않기 위해서다(사용자 요건: "구조적으로 못 얻는 것"과 "안 한 것"을 반드시 가른다).
 node local_server/knowledge/legal/_dashboard/loop/collect_eval.js \
-  --base pinned/collect_eval_base.json --gate || FAIL=1
+  --base pinned/collect_eval_base.json --gate || fail "V5-9 수집(품질 4축 ①) — 가져야 할 원문이 손에 있나"
 
 echo; echo "── V5-10 연결(품질 4축 ④) — 한쪽만 걸린 링크 ──"
 # V5-2 는 **깨진 링크**만 본다. A→B 는 있는데 B→A 가 없는 것은 아무도 안 세고 있었고, 계기판이
 #   읽던 200 이라는 수는 lint_index.py 가 목록을 200개에서 자른 값이었다(실제 2,666건).
 #   모든 링크가 대칭일 필요는 없으므로 0을 요구하지 않고 **기준선보다 늘지 않는 것**만 본다.
 node local_server/knowledge/legal/_dashboard/loop/link_sym.js \
-  --base pinned/link_sym_base.json --gate || FAIL=1
+  --base pinned/link_sym_base.json --gate || fail "V5-10 연결(품질 4축 ④) — 한쪽만 걸린 링크"
 
 echo; echo "── V5-2 위키 링크 무결성 ──"
-( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || FAIL=1
+( cd local_server/knowledge/legal && python3 _dashboard/loop/xref_check.py wiki ) || fail "V5-2 위키 링크 무결성"
 
 # V5-12 시행일 마커 짝·형식 (2026-09-10 신설)
 # [왜] 마커(`<!--시행 d-->`)의 닫는 짝이 없거나 종류가 어긋나면, 접기 코드가 그 블록 아래를 파일 끝까지
 #   버렸다 — **시행일이 되는 순간** 그 페이지의 뒷부분(근거 조문 표 포함)이 답변에서 사라졌다.
 #   시행 전에는 아무 증상이 없어 사람 눈으로는 못 잡는다. 런타임은 이제 깨진 페이지를 접지 않고 넘기지만
 #   그러면 옛·새 서술이 함께 나가므로, 커밋 전에 여기서 막는다(독립 검토 high, `H29_stage_review_2026-09-10.json`).
-python3 local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py || FAIL=1
+python3 local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py || fail "V5-2 위키 링크 무결성"
 
 echo; echo "── V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린 쪽만 본다 ──"
 # [왜 — C-3, 2026-09-20] `_SCHEMA.md` §5-D 는 승급 절차를 글로 정해 뒀지만 **지키는지 보는 장치가 없었다.**
@@ -229,7 +655,7 @@ echo; echo "── V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린
 #   `origin/main` 과의 merge-base 대비 **이번 가지에서 올린 쪽만** 본다.
 # [한계] "두 번 봤다고 적었는가"를 볼 뿐 **정말 두 번 봤는지는 못 본다.** 그래도 두는 이유는 지금은
 #   적는 자리조차 없어 아무 기록 없이 딱지만 떼는 것이 가능하기 때문이다(§5-D ⓒ 와 같은 취지).
-node local_server/knowledge/legal/_dashboard/loop/promote_guard.js --gate || FAIL=1
+node local_server/knowledge/legal/_dashboard/loop/promote_guard.js --gate || fail "V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린 쪽만 본다"
 
 echo; echo "── V5-14 아직 오지 않은 시행일 ──"
 # [왜 — 2026-09-21, L-295 후속] `lawService.do?target=law&MST=` 는 한 MST 가 시행일 판을 둘 이상
@@ -240,7 +666,7 @@ echo; echo "── V5-14 아직 오지 않은 시행일 ──"
 # [막는 쪽] `law_api_guard.fetch_law_body` 가 현행 시행일을 조회해 `efYd` 로 못 박고, 못 정하면
 #   아무것도 주지 않는다. 이 게이트는 **그게 실제로 막혔는지 눈으로 다시 재는 장치**다.
 # [빼는 것] `_대기/<시행일>/`(일부러 받아 둔 시행예정 대기본)·`_구판/`(보존용 옛 사본).
-python3 local_server/knowledge/legal/_dashboard/loop/future_date_guard.py --gate --examples || FAIL=1
+python3 local_server/knowledge/legal/_dashboard/loop/future_date_guard.py --gate --examples || fail "V5-14 아직 오지 않은 시행일"
 
 echo; echo "── V5-15 같은 고시 사본끼리 판이 맞나 ──"
 # [왜 — 2026-09-21] 한 고시가 여러 법 폴더에 사본으로 들어 있는 일이 흔한데(「울산항 항만시설
@@ -252,7 +678,7 @@ echo; echo "── V5-15 같은 고시 사본끼리 판이 맞나 ──"
 # [기준선] 지금 3종이 갈려 있다(대산항 세칙 · 무역항등 사용료 규정 · 환경보전협회 교육수수료).
 #   어느 쪽이 현행인지는 API 로 확인해야 해서 아직 못 고쳤다 — **늘어나는 것만 막는다.**
 python3 local_server/knowledge/legal/_dashboard/loop/admrul_copy_sync.py \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/admrul_copy_sync_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/admrul_copy_sync_base.json --gate || fail "V5-15 같은 고시 사본끼리 판이 맞나"
 
 echo; echo "── V5-16 「다음 각 목/각 호」라 해 놓고 그 글이 없는 자리 ──"
 # [왜 — 2026-09-21] A-2 를 고쳐 다시 돌리다 「문화유산의 보존 및 활용에 관한 법률 시행령」에서
@@ -277,7 +703,7 @@ echo; echo "── V5-16 「다음 각 목/각 호」라 해 놓고 그 글이 �
 #     따로 나눠 주지 않는다. 재수집으로 더는 못 줄이는 자리다.
 #   지금은 **늘어나는 것만 막는다.**
 python3 local_server/knowledge/legal/_dashboard/loop/mok_promise_guard.py \
-  --base local_server/knowledge/legal/_dashboard/loop/pinned/mok_promise_base.json --gate || FAIL=1
+  --base local_server/knowledge/legal/_dashboard/loop/pinned/mok_promise_base.json --gate || fail "V5-16 「다음 각 목/각 호」라 해 놓고 그 글이 없는 자리"
 
 echo; echo "── V5-17 파일에는 있는데 챗봇이 못 읽는 조문 ──"
 # [왜 — 2026-09-21] 챗봇은 계층 원문을 **정해진 이름으로만** 찾는다(`services/article_text.js`) —
@@ -288,7 +714,7 @@ echo; echo "── V5-17 파일에는 있는데 챗봇이 못 읽는 조문 ─�
 #   ★**받아 놓고도 못 쓰는 것이 안 받은 것보다 나쁘다** — 수집 기록만 보면 있다고 나온다.
 # [기준선 없음 — 0 이어야 한다] 고치는 데 네트워크가 필요 없다(이미 우리 손에 있는 글을
 #   읽히는 이름으로 옮겨 적으면 된다). 그래서 기준선을 두지 않고 **0 을 요구한다.**
-python3 local_server/knowledge/legal/_dashboard/loop/unreachable_article_guard.py --gate --examples || FAIL=1
+python3 local_server/knowledge/legal/_dashboard/loop/unreachable_article_guard.py --gate --examples || fail "V5-17 파일에는 있는데 챗봇이 못 읽는 조문"
 
 # 서버 API + 이동 JS 경로 스모크
 echo; echo "── 서버 스모크 (대표 엔드포인트) ──"
@@ -303,7 +729,7 @@ SMOKE=("/api/health:200" "/api/app-version:200" "/:200" "/sw.js:200" "/style.css
 for pair in "${SMOKE[@]}"; do
   ep="${pair%:*}"; want="${pair##*:}"
   got=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001$ep")
-  if [ "$got" = "$want" ]; then echo "  ✅ $got $ep"; else echo "  ❌ $got (기대 $want) $ep"; FAIL=1; fi
+  if [ "$got" = "$want" ]; then echo "  ✅ $got $ep"; else echo "  ❌ $got (기대 $want) $ep"; fail "서버 스모크 $ep (HTTP $got, 기대 $want)"; fi
 done
 
 # ============================================================================
@@ -336,7 +762,7 @@ else
     })(t.current||{});
     if(bad.length){console.log("  ❌ 폐기 소스(DMDW)가 자식에 머지됨: "+bad.slice(0,5).join(", "));process.exit(1);}
     console.log("  ✅ 자식 노드에 폐기 소스 머지 없음");
-  ' || FAIL=1
+  ' || fail "V6 API 자식 오염 가드"
 fi
 rm -f /tmp/_wa.json
 
@@ -352,6 +778,52 @@ else
   echo
   echo "  ⚠위 목록이 비어 있을 때만 \"전부 통과\"라고 말할 수 있다."
   echo "    한 줄이라도 있으면 그 줄을 **하나도 빠짐없이** 보고해야 한다(L-196)."
+fi
+if [ -n "$FAILED_NAMES" ]; then
+  echo
+  echo "  ── 실패를 세운 검사(이름) ──$FAILED_NAMES"
+  echo "     ⚠총정리 ❌ 줄이 전부 분류 표시여도 여기 이름이 있으면 그 검사가 실패한 것이다."
+  # ── 실패한 검사가 **무엇을 찍었는지**도 여기 붙인다 (2026-09-22 신설) ──────────
+  # [왜] G-28 로 이름은 남게 됐는데, 그러고 나니 다음 물음이 바로 나왔다 —
+  #   "V4 라는 건 알겠는데 **왜** 실패했나?" 깃허브 로그는 1,200줄이라 사람도 나도
+  #   뒤에서 조금 잘라 읽게 되고, 그러면 검사 본문은 이미 밀려나 있다. 실제로
+  #   run #27~#32 에서 실패 원인을 알아내려고 로그를 몇 번씩 다시 받아야 했다.
+  # [무엇을] 각 실패 검사의 `── <이름> ──` 머리부터 다음 머리 직전까지를 그대로 옮긴다.
+  #   길면 뒤가 중요하므로 **끝쪽 20줄**만 남긴다(전문은 위 로그·아티팩트에 그대로 있다).
+  # ⚠HTTP 스모크는 뺀다 — 서버 미기동 환경에서 수십 건이 한꺼번에 나서 총정리를 덮는다.
+  echo
+  echo "  ── 그 검사들이 찍은 것 (각 끝쪽 20줄) ──"
+  printf '%s\n' "$FAILED_NAMES" | sed -n 's/^  · //p' | while IFS= read -r _name; do
+    case "$_name" in 서버\ 스모크*) continue;; esac
+    echo "  ┌─ $_name"
+    # ⚠스위트는 머리줄이 `── 이름 ──` 꼴이 아니다 (2026-09-22 보강).
+    #   SUITES 고리는 `  ❌ <스위트> — N PASS / M FAIL` 과 그 아래 ❌ 줄들을 찍는다.
+    #   그걸 모르고 `── … ──` 만 찾다가, CI 에서 test_overlay_solo 가 1건 실패했는데
+    #   **본문이 빈 채로** 나왔다(run #51). 이름만 알고 이유를 모르면 G-32 이전과 같다.
+    case "$_name" in
+      스위트\ *)
+        _s="${_name#스위트 }"; _s="${_s%% *}"
+        awk -v s="$_s" '
+          index($0, "❌ " s " —") { on = 1; print; next }
+          on && /^  [✅❌⏭]/ { exit }
+          on { print }
+        ' "$_VA_LOG" | tail -20 | sed 's/^/  │ /'
+        ;;
+      *)
+        awk -v want="── ${_name} ──" '
+          index($0, want) { on = 1; next }
+          on && /^── .* ──$/ { exit }
+          on { print }
+        ' "$_VA_LOG" | tail -20 | sed 's/^/  │ /'
+        ;;
+    esac
+    echo "  └─"
+  done
+fi
+if [ -n "$SKIPPED_SUITES" ]; then
+  echo
+  echo "  ── ⏭️ 문항이 0개였던 스위트(통과 아님, G-34) ──$SKIPPED_SUITES"
+  echo "     ⚠이 스위트들은 **아무것도 재지 않았다.** 초록으로 읽지 말 것."
 fi
 _VA_HTTP="$(grep -cE '기대 200|기대 404' "$_VA_LOG" || true)"
 if [ "${_VA_HTTP:-0}" -gt 0 ]; then

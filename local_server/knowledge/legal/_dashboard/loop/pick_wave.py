@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+import os
 # 다음 파도(≤N, 기본35) 선정 후 예약(.launched). 서로 다른 법(파일충돌 방지)·미완(.done 없음)·비-in-flight(.launched 25분내 없음).
 # 출력: 각 줄 "TYPE\tLAWNAME". 인자: 숫자=파도크기, --reserve=선정분 .launched 기록.
 import json, os, sys, time
 S='/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad'
-LEGAL='/home/user/SEAGNAL/local_server/knowledge/legal'
+LEGAL=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 MARK=os.path.join(LEGAL,'_dashboard/fix3')
 os.makedirs(MARK, exist_ok=True)
 N=25  # fix 파도: 검증된 안전치 25(0 실패). 감사(300문항)는 무거워 35에서 429 전멸 → fix도 보수적 유지.

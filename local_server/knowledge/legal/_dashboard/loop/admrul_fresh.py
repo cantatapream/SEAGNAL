@@ -67,6 +67,9 @@ EXCLUDED = {
         '「농촌근대화촉진법 제170조의 확정일부 있는 서류」가 나온다. 공단규정은 이 창구 밖이다',
 }
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _admrul_id import find_id, find_title   # noqa: E402  ★판번호·제목을 찾는 단 한 곳(P-19b)
+
 TITLE_RE = re.compile(r'^\[[^\]]*\]\s*(.+?)\s*$')
 ID_RE = re.compile(r'^ID:\s*(\d+)')
 
@@ -172,16 +175,15 @@ def scan_files():
                     head = [next(f, '') for _ in range(6)]
             except Exception:
                 continue
-            rid = title = None
-            for ln in head:
-                if rid is None:
-                    m = ID_RE.match(ln.strip())
-                    if m:
-                        rid = m.group(1)
-                if title is None and ln.startswith('['):
-                    m = TITLE_RE.match(ln.strip())
-                    if m:
-                        title = m.group(1)
+            # ★판번호를 찾는 법은 **`_admrul_id.find_id()` 한 곳**에 있다(P-19b · L-386).
+            #   전에는 여기서 `^ID:` 만 봤고, 그 탓에 **71개 파일을 구조적으로 못 따라갔다.**
+            #   재 보니 그중 28개는 **번호가 이미 있었다** — 라벨이 `행정규칙일련번호:`(13)·`MST`(1)
+            #   이거나 같은 폴더 `_admrul.json` 에 있었다(14). 받아 올 것은 **43** 뿐이다.
+            #   ⚠raw 는 고치지 않는다 — 번호는 이미 있으니 **읽는 자를 고치는 것**이 옳다.
+            rid, _where = find_id(p, ''.join(head))
+            # ★제목도 같은 자에서 받는다 — 번호가 없던 파일들은 **제목 줄도 없었다**(실측 15개).
+            #   번호만 되찾아 주면 A-1 은 조회할 이름이 없어 여전히 못 따라간다.
+            title, _tw = find_title(p, ''.join(head))
             if rid and title:
                 out.append({'path': os.path.relpath(p, ROOT), 'title': title, 'id': rid})
     return out

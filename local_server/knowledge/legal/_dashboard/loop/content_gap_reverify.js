@@ -1,3 +1,4 @@
+const path = require('path');
 // content_gap_reverify.js — thin(content_gap) 판정이 정말 "원문 자체에 없는 것"인지 raw 재대조로 전수 재검증
 // 역할(초보자용): 감사가 thin(content_gap)으로 찍은 항목(위키만이 아니라 원문에도 없다고 판정한 것)을
 //   raw 원문(법률/시행령/시행규칙/행정규칙/별표)에 다시 grep·정독해, 실은 raw에 있는데 위키만 안 옮긴
@@ -15,7 +16,7 @@ export const meta = {
   ],
 }
 
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const GAP_SCHEMA = {
   type: 'object',

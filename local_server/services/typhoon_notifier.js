@@ -77,7 +77,7 @@ if (!ENABLED) {
  *   - 사용처: loadState, loadQueue, detectAndNotify(typhoon.json 읽기).
  */
 function readJson(file, fallback) {
-    try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) {}
+    try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { /* 파일이 깨졌으면 던진다 — 아래에서 fallback 을 돌려준다 */ }
     return fallback;
 }
 
@@ -354,6 +354,9 @@ async function flushDeferred(opts = {}) {
             try {
                 await postPush({ title: item.title, body: item.body, url: item.url }, 'off');
             } catch (e) {
+                // ★조용히 넘어가지 않는다 (3-44). 보존해 다음 틱에 다시 보내지만, **계속 실패하면**
+                //   영영 안 나가는데 아무 표시가 없었다.
+                console.warn('[typhoon-notify] 보류분 발송 실패 — 다음 틱에 다시 시도한다:', item.title, e && e.message);
                 remaining.push(item); // 실패분은 보존 → 다음 틱 재시도
             }
         }

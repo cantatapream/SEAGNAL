@@ -5,11 +5,12 @@
        출력: _dashboard/admrul_id_check.json ({법명: [{title, stored_id, search_id, match, note}]})
 [로드 순서] 단독 실행. AI 불필요(순수 API 대조). search 결과가 모호(0건/2건+)하면 mismatch 판정 안 함(inconclusive).
 """
+import os
 import json, glob, time, threading, urllib.request, urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 OC = "hyoo1431"
-LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 TARGET_LAWS_FILE = f"{LEGAL}/_dashboard/loop/audit9_groups.json"
 OUT_FILE = f"{LEGAL}/_dashboard/admrul_id_check.json"
 

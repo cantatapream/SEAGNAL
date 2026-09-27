@@ -391,5 +391,64 @@ def main():
                   open(out_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         print('\n   저장: %s' % out_path)
 
+    # ── ★--gate: 더미가 **늘지 못하게만** 한다 (2026-09-23 신설, G-13) ──────────
+    # [왜] 이 도구는 잘 만들어져 있다 — 판정을 기억하고, 본문 줄이 바뀌면 다시 올린다.
+    #   그런데 `verify_all.sh` 가 `|| true` 로 **종료 코드를 통째로 버리고** 있었고
+    #   기준선도 없었다. 그래서 **376건이 3주 넘게 아무도 안 보는 채로** 있었고,
+    #   늘어도 아무도 몰랐다. 뿌리 사슬 ④ — 아무도 안 듣는 게이트는 죽은 게이트다.
+    # [무엇을 하나] **판정은 여전히 안 한다**(이 도구의 원칙이다 — 사람이 본다).
+    #   다만 **기준선보다 늘면 실패**시킨다. 줄어드는 것은 막지 않는다.
+    #   ⚠기준선을 다시 굽는 것으로 넘기지 않는다(G-49).
+    if '--gate' in argv:
+        base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 'baseline', 'body_cite_gap.json')
+        if '--update' in argv:
+            os.makedirs(os.path.dirname(base_path), exist_ok=True)
+            json.dump({'후보': total, '원문없음': nomatch},
+                      open(base_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+            print('   기준선을 다시 구웠다: 후보 %d · 원문없음 %d' % (total, nomatch))
+            return
+        try:
+            base = json.load(open(base_path, encoding='utf-8'))
+        except Exception:
+            print('   ⚠기준선이 없다 — `--gate --update` 로 한 번 구워야 한다')
+            sys.exit(1)
+        # ★하위 숫자도 **읽는다** (2026-09-26, 2군 G-13).
+        #   기준선 파일에는 `원문없음` 이 **처음부터 적혀 있었는데 아무도 견주지 않았다** —
+        #   총 후보만 봤다. 그래서 그 수가 **192 → 99 로 93이나 움직이는 동안 아무도 몰랐다**.
+        #   ⚠적어 놓고 안 읽는 숫자는 없는 숫자다(뿌리 사슬 ④ — 아무도 안 듣는 게이트는 죽은 게이트다).
+        #   ★준 것이 진전인지 내 자가 달라진 탓인지 **갈라서 쟀다**: 같은 자를 기준선 커밋
+        #     (53daf674d) 나무에 대니 **192**, 오늘 나무에 대니 **99**. 자는 그대로이고
+        #     자료가 나아진 것이다(폐기물관리법 시행규칙 157개 조 되살림·P-20 승계 13층·P-18 부칙 등
+        #     그 사이 raw 를 고친 커밋 31개).
+        기준원문없음 = base.get('원문없음')
+        빨강 = False
+        if total > base['후보']:
+            print('   ❌ 확인 목록이 늘었다: %d → %d' % (base['후보'], total))
+            print('      → 본문이 새로 인용한 조문이 근거 조문 표에 안 들어갔다.')
+            print('        사람이 보고 `cite_row.js` 로 넣을지 정한다. 자동으로 안 고친다.')
+            빨강 = True
+        elif total < base['후보']:
+            print('   ✅ 줄었다: 후보 %d → %d — `--gate --update` 로 잠근다' % (base['후보'], total))
+        else:
+            print('   ✅ 후보는 기준선 그대로 — 늘지 않았다 (판정은 여전히 **0건**이다: 사람 몫)')
+
+        if 기준원문없음 is None:
+            print('   ⚠기준선에 `원문없음` 이 없다 — `--gate --update` 로 한 번 구운다')
+        elif nomatch > 기준원문없음:
+            print('   ❌ 우리 법 raw 에 없는 것이 늘었다: %d → %d' % (기준원문없음, nomatch))
+            print('      → 위키가 **우리가 안 가진 조문**을 새로 인용하기 시작했거나,')
+            print('        raw 에서 조문이 사라졌다(수집 공백·계층 오지정). 어느 쪽인지 사람이 본다.')
+            빨강 = True
+        elif nomatch < 기준원문없음:
+            print('   ✅ 줄었다: 원문없음 %d → %d — `--gate --update` 로 잠근다'
+                  % (기준원문없음, nomatch))
+        else:
+            print('   ✅ 원문없음도 기준선 그대로 — 늘지 않았다')
+
+        if 빨강:
+            print('      ⚠기준선을 다시 굽는 것으로 넘기지 않는다(G-49).')
+            sys.exit(1)
+
 
 main()

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """추가 수집: (A) 기준법 시행령/시행규칙 미수집분 전수조사·수집  (B) 타법 원문 표적 수집.
    포맷은 recollect_jomun.build_text와 동일(.txt). 기존 파일은 덮지 않음(A는 없을 때만 채움).
    타법은 raw/15_관련타부처/<법명>/ 에 저장. 순수 API/IO — 토큰 안 씀."""
@@ -9,8 +10,8 @@ from master_laws import MASTER
 import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 줬는지 가린다(L-294)
 
 OC='hyoo1431'
-ROOT='/home/user/SEAGNAL/local_server/knowledge/legal/raw'
-LOG='/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/collect_gap_report.md'
+ROOT=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../raw')
+LOG=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../collect_gap_report.md')
 
 def api(url):
     # ★JSON 이 아니면 **왜 아닌지**를 본다 (2026-09-21, L-294 후속).

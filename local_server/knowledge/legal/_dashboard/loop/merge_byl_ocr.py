@@ -11,7 +11,7 @@ import os, re, sys, glob
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _touched import Touched
 
-ROOT = "/home/user/SEAGNAL/local_server/knowledge/legal"
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 
 def targets():
     if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):

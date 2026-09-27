@@ -1,0 +1,52 @@
+[미국 수출확인증명서 발급 절차에 관한 규정] 별지4 — Certification of Admissibility
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000268574 (수집 2026-09-25 · 옛 기록은 도구에 박힌 날짜 때문에 2026-08-31 로 적혀 있었다)
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=158531269
+
+[별지 제4호서식]
+OMB Control No.: 0648-0651
+Expiration Date: 07/31/2028 
+Serial No. : 
+Certification of Admissibility
+Nations subject to trade restrictions for fishery products pursuant to the
+High Seas Driftnet Fishing Moratorium Protection Act or the Marine Mammal Protection Act
+For fish or fish products for which a certificate of admissibility is required, a shipment of fish or fish products in any form from a nation subject to an import restriction, offered for entry to the United States, is eligible for entry only when accompanied by this completed and certified form attached to the invoice and/or shipping documents. An authorized official or agent of the exporting nation must complete the information below:
+┌─────┬──────┬──┐
+│Exporter  │Address     │Tel.│
+│          │            │Fax.│
+└─────┴──────┴──┘
+┌────────────────────┬───┬───────┬──────┬────────┐
+│U.S. Harmonized Tariff Schedule Number, │Weight│Fishing Gear  │Vessel Flag │Vessel Name(s)  │
+│Species Description, and Product Form   │(kg.) │Used          │            │and Number(s)   │
+├────────────────────┼───┼───────┼──────┼────────┤
+│                                        │      │              │            │                │
+├────────────────────┼───┼───────┼──────┼────────┤
+│                                        │      │              │            │                │
+├────────────────────┼───┼───────┼──────┼────────┤
+│                                        │      │              │            │                │
+└────────────────────┴───┴───────┴──────┴────────┘
+As a duly authorized official/agent of the Government of  Republic of korea , I do hereby certify, to the best of my knowledge and belief, that the fish/fish products in this shipment are of species of fish or fish products, or from fisheries, that are not subject to an import restriction of the United States under the authority of the High Seas Driftnet Fishing Moratorium Protection Act or the Marine Mammal Protection Act.
+                                                                            
+                                                                            
+──────────────────────────────────────
+  Printed Name (Exporting Government Official/Agent)    Signature     Date  
+                                                                            
+  Address                                               Telephone           
+          ──────────────────────            ─────
+                                                        E-mail              
+          ──────────────────────        ───────
+U.S. IMPORTER CERTIFICATION  
+As the Importer of Record/Agent, I do hereby certify, to the best of my knowledge and belief, that the information on this form accurately describes the fish/fish products contained in this shipment: 
+                                
+  U.S. Customs Entry Number     
+                            ──
+                                                                      
+                                                                      
+───────────────────────────────────
+  Printed Name (U.S. Importer of Record/Agent)    Signature     Date  
+                                                                      
+  Address                                         Telephone           
+          ───────────────────            ─────
+                                                  E-mail              
+          ───────────────────        ───────
+Within 24 hours after the shipment is released from U.S. Customs, importers must certify and submit a copy of this form to NMFS through the Customs and Border Protection Automated Commercial Environment. 
+Submission of this form is mandatory for imports of seafood subject to trade restrictions in order to meet the requirements of 50 CFR 300, Subpart N or as required under 50 CFR 216, Subpart C. Data submitted based on this information collection will be accorded confidentiality pursuant to 50 CFR Part 600, Subpart E. Public reporting burden for this collection of information is estimated to be 10 minutes. This estimate includes the time for reviewing instructions, searching existing data sources, gathering and maintaining the data needed, and completing and reviewing the collection of information. Send comments regarding this burden estimate or any other aspect of reducing this burden, to the Office of International Affairs and Seafood Inspection, National Marine Fisheries Service, 1315 East West Highway, Silver Spring, Maryland 20910. Notwithstanding any other provision of law, no person is required to respond to, nor shall any person be subject to a penalty for failure to comply with, a collection of information subject to the requirements of the Paperwork Reduction Act, unless that collection of information displays a currently valid OMB Control Number. 

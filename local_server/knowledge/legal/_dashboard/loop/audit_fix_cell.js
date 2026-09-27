@@ -1,3 +1,4 @@
+const path = require('path');
 // audit_fix_cell.js — 6차(직전) 감사 gap을 입력으로 각 법의 위키를 content+lint 동시 수정한다(H-7 통합수정).
 // 역할(초보자용): 감사가 찾아준 구멍 목록을 읽고, 그 법의 위키를 고친다.
 //   ① content: raw엔 있는데 위키에 안 실린 수치·조문(wiki_lag)을 본문/annex로 옮긴다.
@@ -13,7 +14,7 @@ export const meta = {
   description: '직전 감사 gap으로 법별 위키 content+lint 동시수정(H-7). 자기 법 파일만=병렬안전.',
   phases: [{ title: '통합수정', detail: '법별 1에이전트: 감사gap→wiki_lag 반영+연결결손 링크/허브/타법표 수정' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const CONTACTS_FILE = `${LEGAL}/_dashboard/contacts_collected.json`
 const REVIEW_QUEUE = `${LEGAL}/_dashboard/review_queue.md`
 

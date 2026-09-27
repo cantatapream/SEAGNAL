@@ -1,0 +1,12 @@
+{
+ "script": "empty_byl_stub.py",
+ "stamp": "20260924-061812-099",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/선박법/별표/선박톤수측정요령_별표1.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/선박안전법/별표/외국적시운전선박에대한임시항해검사지침_별표1.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법/별표/상호금융기관의신용사업회계처리기준_별지1.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법/별표/상호금융기관의신용사업회계처리기준_별지2.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법/별표/상호금융기관의신용사업회계처리기준_별지3.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/감정평가및감정평가사에관한법률/별표/서식6.txt"
+ ]
+}

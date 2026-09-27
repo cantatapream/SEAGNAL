@@ -24,10 +24,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const DIR = '/home/user/SEAGNAL/local_server/knowledge/legal/wiki/concepts';
+// ★저장소 안 상대경로로 적는다 (2026-09-22, 2-21 · G-31).
+//   `/home/user/SEAGNAL/...` 로 박아 두면 **이 컨테이너 한 대에서만** 돈다.
+//   `verify_all.sh` 주석이 "실패하면 이걸로 고쳐라"라고 이 파일을 가리키므로,
+//   그 말을 따르는 **다음 사람의 컴퓨터에서 곧바로 깨진다**(G-31 의 지연된 형태).
+const DIR = path.resolve(__dirname, '../../wiki/concepts');
 // 표 안에 진짜 법 이름이 한 번도 안 나오는 페이지(전부 `이 법`)를 위해, slug→정식명 표를 읽어 둔다.
 // 우리가 이름을 지어내는 게 아니라 **이미 확정된 법 목록**에서 그대로 가져오는 것이다.
-const GROUPS = '/home/user/SEAGNAL/local_server/knowledge/legal/_dashboard/loop/audit18_groups.json';
+const GROUPS = path.join(__dirname, 'audit18_groups.json');
 const SLUG2NAME = new Map();
 try {
   const g = JSON.parse(fs.readFileSync(GROUPS, 'utf8'));

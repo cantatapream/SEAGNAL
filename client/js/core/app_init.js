@@ -190,7 +190,9 @@ async function handleHeaderRefresh() {
     try {
         await fetchAllData();
     } catch (e) {
-        // console.error('Refresh failed:', e);
+        // ★조용히 넘어가지 않는다 (3-44). **화면이 옛 자료 그대로 남는다** —
+        //   사용자는 방금 새로고침한 값이라고 믿는다(가장 위험한 꼴이다).
+        console.warn('[앱] 자료 새로고침 실패 — 화면은 옛 값 그대로다:', e && e.message);
     }
 }
 window.handleHeaderRefresh = handleHeaderRefresh;
@@ -293,7 +295,10 @@ window.showAdminAlertBanner = async function () {
                 <button onclick="document.getElementById('admin-alert-banner').remove()" style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:1.2rem;cursor:pointer;padding:0 4px;">&times;</button>
             </div>`;
         document.body.prepend(banner);
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **관리자 알림 띠가 안 뜬다** — 「알릴 것이 없다」와 같아 보인다.
+        console.warn('[앱] 관리자 알림 띠를 못 띄웠다 — 「알릴 것 없음」과 구분이 안 된다:', e && e.message);
+    }
 };
 
 // ============================================================================

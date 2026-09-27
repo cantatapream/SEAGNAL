@@ -1,0 +1,7 @@
+{
+ "script": "promote_first_pass.py",
+ "stamp": "20260925-002832-115",
+ "files": [
+  "local_server/knowledge/legal/_dashboard/promote_first_pass.json"
+ ]
+}

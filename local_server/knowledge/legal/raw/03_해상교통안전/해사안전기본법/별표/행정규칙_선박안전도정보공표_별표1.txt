@@ -1,4 +1,6 @@
 [행정규칙] 선박안전도정보의 공표에 관한 규정 별표1 — 선박 안전도 정보 공표 양식(제6조 관련)
+별표서식파일링크: /LSW/flDownload.do?flSeq=140431495
+별표서식PDF파일링크: /LSW/flDownload.do?flSeq=140431499
 (2026-08-23 law.go.kr DRF API 재조회로 신규 수집 — 감사 25R B-1 collection_hole 해소, admrul ID=2100000240840)
 
 ■ 선박안전도정보의 공표에 관한 규정 [별표 1]

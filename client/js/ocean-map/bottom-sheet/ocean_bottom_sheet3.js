@@ -115,7 +115,7 @@
                 gridHash: gridHash, fileName: fileName, ts: Date.now()
             };
             localStorage.setItem(GRID_HASH_LS_KEY, JSON.stringify(obj));
-        } catch (e) {}
+        } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 격자 지문 캐시가 안 남을 뿐 값은 서버에서 다시 받는다 */ }
     }
 
     function rememberGridHash(lat, lon, gridHash, fileName) {
@@ -543,12 +543,12 @@
                 //   (비즐겨찾기 좌표 시 rememberGridHash 는 localStorage 영속화를 skip 하므로
                 //    forgetGridHash 로 명시적으로 stale 항목을 지운다.)
                 if (resp && resp.success && resp.gridHashRefreshed) {
-                    try { forgetGridHash(lat, lon); } catch (e) {}
+                    try { forgetGridHash(lat, lon); } catch (e) { /* 지우려던 캐시가 이미 없으면 던진다 — 지우는 것이 목적이라 없으면 목적이 이뤄진 것이다 */ }
                 }
                 // 서버가 명시적으로 invalidGridHash 시그널을 보낸 경우 (호환용 — 현재 서버는
                 //   주로 gridHashRefreshed 경로로 응답하지만, 미래 호환 위해 처리 유지.)
                 if (resp && resp.invalidGridHash) {
-                    try { forgetGridHash(lat, lon); } catch (e) {}
+                    try { forgetGridHash(lat, lon); } catch (e) { /* 같은 까닭 */ }
                 }
                 // ❹ 응답의 gridHash 저장 (즐겨찾기면 localStorage 영속화)
                 if (resp && resp.success && resp.gridHash) {

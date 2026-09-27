@@ -378,7 +378,7 @@ function persistToDisk() {
         const gz = zlib.gzipSync(payload);
         // 디렉토리 보장
         if (!fs.existsSync(DATA_DIR)) {
-            try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) {}
+            try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) { /* 다른 일꾼이 그새 같은 폴더를 만들었으면 던진다 — 있으면 된 것이라 그대로 쓴다 */ }
         }
         // [원자적 쓰기] 부팅 직후 fire-and-forget refreshCycle 과 cron tick 이 우연히
         // 겹쳐 persistToDisk 가 동시에 호출돼도 파일이 깨지지 않도록 tmp → rename 패턴.

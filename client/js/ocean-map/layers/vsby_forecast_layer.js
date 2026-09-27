@@ -579,14 +579,14 @@
 
         // [Mutual Exclusion] 천기 / 조류·바람·파고 overlay 가 켜져있으면 끔.
         if (typeof window._shrtForecastDeactivate === 'function') {
-            try { window._shrtForecastDeactivate(); } catch (e) {}
+            try { window._shrtForecastDeactivate(); } catch (e) { /* 남의 오버레이를 끄는 일이다 — 저쪽이 던져도 이쪽 시정 예보는 켠다 */ }
         }
         if (typeof window.oceanOverlayTurnOff === 'function') {
-            try { window.oceanOverlayTurnOff(); } catch (e) {}
+            try { window.oceanOverlayTurnOff(); } catch (e) { /* 같은 까닭 — 끄기는 하나씩 감싼다 */ }
         }
         // [Mutual Exclusion] 물빠짐이 켜져있으면 끔(단독 표출).
         if (typeof window._tideFieldDeactivate === 'function') {
-            try { window._tideFieldDeactivate(); } catch (e) {}
+            try { window._tideFieldDeactivate(); } catch (e) { /* 같은 까닭 — 물빠짐 층이 없는 화면도 있다 */ }
         }
 
         // 사용자 의도적 ON → 캐시 무효화 + 강제 새 fetch (천기와 동일 정책).

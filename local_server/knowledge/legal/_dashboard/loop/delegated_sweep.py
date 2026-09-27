@@ -62,7 +62,9 @@ def sweep(law):
     rel = paths.get(law)
     if not rel:
         print(f'✖ {law}: law_raw_paths.json 에 없다'); return None
-    base = os.path.join(os.path.dirname(LEGAL), *[]) if False else os.path.join('/home/user/SEAGNAL', rel)
+    # ★2026-09-23 (3-39) — 저장소 뿌리를 **이 파일 자리에서** 센다(G-31).
+    #   전에는 `'/home/user/SEAGNAL'` 이 박혀 있었다. 앞의 `if False` 가지는 죽은 길이라 함께 없앤다.
+    base = os.path.join(os.path.abspath(os.path.join(LEGAL, '..', '..', '..')), rel)
     meta_p = os.path.join(base, '_meta.json')
     if not os.path.exists(meta_p):
         print(f'✖ {law}: _meta.json 이 없다 ({meta_p})'); return None

@@ -6,12 +6,13 @@
        출력: _dashboard/admrul_pdf_triage.json ({법/제목: {new_id, kind, pages, avg_chars_per_page, img_pages_ratio, attach_name}})
 [로드 순서] 단독 실행. AI 불필요(순수 API+PyMuPDF 기계적 판정). 재실행 안전(이미 처리된 키 skip).
 """
+import os
 import json, os, re, time, threading, urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import fitz
 
 OC = "hyoo1431"
-LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 FIX_LOG = f"{LEGAL}/_dashboard/admrul_fix_log.json"
 CHECK_FILE = f"{LEGAL}/_dashboard/admrul_id_check.json"
 OUT_FILE = f"{LEGAL}/_dashboard/admrul_pdf_triage.json"

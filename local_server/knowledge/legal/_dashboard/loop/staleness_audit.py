@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """raw 최신성 전수 재검증(읽기 전용) — 74개 핵심법의 법률/시행령/시행규칙 MST와
    위임고시(행정규칙) 목록이 law.go.kr 최신 상태와 일치하는지 대조만 한다.
    기존 raw/ 파일은 절대 건드리지 않고, 결과만 새 리포트 파일에 기록한다(⚠경합위험 없음
@@ -9,7 +10,10 @@
 import json, urllib.request, urllib.parse, time, os, glob, sys
 
 OC = 'hyoo1431'
-ROOT = '/home/user/SEAGNAL/local_server/knowledge/legal'
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
+# ★2026-09-23 (3-39) — 저장소 뿌리를 **이 파일 자리에서** 센다.
+#   전에는 `'/home/user/SEAGNAL'` 이 박혀 있어 **다른 컴퓨터에서는 그냥 안 돌았다**(G-31).
+REPO = os.path.abspath(os.path.join(ROOT, '..', '..', '..'))
 RAW_PATHS = json.load(open(os.path.join(ROOT, '_dashboard/law_raw_paths.json'), encoding='utf-8'))
 STATUTES_DIR = os.path.join(ROOT, 'wiki/statutes')
 REPORT = os.path.join(ROOT, f'_dashboard/staleness_audit_{time.strftime("%Y%m%d")}.json')
@@ -27,7 +31,7 @@ def search_law_family(name_no_space):
     rel = RAW_PATHS.get(name_no_space)
     if not rel:
         return None, None
-    meta_path = os.path.join('/home/user/SEAGNAL', rel, '_meta.json')
+    meta_path = os.path.join(REPO, rel, '_meta.json')
     if not os.path.exists(meta_path):
         return None, rel
     meta = json.load(open(meta_path, encoding='utf-8'))
@@ -83,7 +87,7 @@ def check_admrul(meta, raw_rel):
         for a in delegated_admrul(f['MST']):
             fresh[a['title']] = a['id']
         time.sleep(0.15)
-    catalog_path = os.path.join('/home/user/SEAGNAL', raw_rel, '행정규칙', '_admrul.json')
+    catalog_path = os.path.join(REPO, raw_rel, '행정규칙', '_admrul.json')
     catalog = {}
     if os.path.exists(catalog_path):
         try:
@@ -92,7 +96,7 @@ def check_admrul(meta, raw_rel):
             pass
     # _admrul.json 카탈로그가 아예 없는 법(예: 표준 파이프라인 밖에서 별도 수집된 법)도 있어
     # 카탈로그만 보고 "미수집"이라 단정하면 오탐이 난다 — 폴더 안 실제 파일명과도 느슨하게 대조한다.
-    admrul_dir = os.path.join('/home/user/SEAGNAL', raw_rel, '행정규칙')
+    admrul_dir = os.path.join(REPO, raw_rel, '행정규칙')
     existing_files = os.listdir(admrul_dir) if os.path.isdir(admrul_dir) else []
 
     def norm(s):

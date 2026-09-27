@@ -1,0 +1,8 @@
+{
+ "script": "promote_first_pass.py",
+ "stamp": "20260925-002832-111",
+ "files": [
+  "local_server/knowledge/legal/wiki/annexes/공유수면관리및매립에관한법률__점용사용면적산정기준.md",
+  "local_server/knowledge/legal/wiki/annexes/국제항해선박등에대한해적행위피해예방에관한법률__시행규칙_별표2_선원등교육훈련.md"
+ ]
+}

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 """법령 공식 약칭 수집 — 우리가 가진 모든 법(raw/*/*/_meta.json)의 **공식 약칭**을
    law.go.kr DRF에서 한 번에 긁어 `_dashboard/law_aliases.json` 표 하나로 만든다.
 
@@ -33,7 +34,7 @@ from datetime import datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))   # 컨테이너는 UTC로 돈다(CLAUDE.md 시간 표기 규칙)
 OC = "hyoo1431"                      # detect_law_changes.py·collect_contacts.py와 같은 계정
-LEGAL = "/home/user/SEAGNAL/local_server/knowledge/legal"
+LEGAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 RAW = f"{LEGAL}/raw"
 OUT = f"{LEGAL}/_dashboard/law_aliases.json"
 SLEEP = 0.25                         # API 예의(다른 수집 스크립트와 같은 값)

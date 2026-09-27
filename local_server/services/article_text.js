@@ -129,6 +129,22 @@ const LAWGO_ORIGIN = 'https://www.law.go.kr';
 // raw 폴더 경로(law_raw_paths.json 값) → GET /api/legal/src 의 p 파라미터로 바꿀 때 떼는 앞부분.
 const RAW_PREFIX = 'local_server/knowledge/legal/raw/';
 
+/**
+ * 이 환경에 raw/ 원문이 디스크로 존재하는가. 있으면 토큰 없이도 조문을 읽을 수 있다.
+ * (Fly.io 배포 이미지에는 raw/ 가 없어 false → 종전대로 GitHub API 경로를 탄다.)
+ * 한 번 재고 캐시한다 — loadArticle 마다 statSync 를 부를 이유가 없다.
+ * @returns {boolean}
+ * [연계] → loadArticle() 의 첫 게이트 · services/github_raw.js 의 로컬 폴백과 짝이다.
+ */
+let _localRaw = null;
+function hasLocalRaw() {
+  if (_localRaw === null) {
+    const p = githubRaw.localPathOf(RAW_PREFIX);
+    try { _localRaw = !!p && require('fs').statSync(p).isDirectory(); } catch (_) { _localRaw = false; }
+  }
+  return _localRaw;
+}
+
 /** 정규식에 그대로 끼워 넣기 위해 특수문자를 이스케이프한다. */
 function reEsc(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -804,7 +820,26 @@ function extractArticleBlock(text, jo, tier) {
     const re2 = new RegExp(
       `(?:^|\\n)${reEsc(jo)}[ \\t]*\\(([^)]*)\\)([\\s\\S]*?)`
       + `(?=\\n\\[제\\d+조|\\n제\\d+조(?:의\\d+)?[ \\t]*\\(|\\n제\\d+[편장절]\\s|\\n${ADDENDA_HEAD_SRC}|$)`);
-    const m2 = re2.exec(src);
+    let m2 = re2.exec(src);
+    // ④조약 꼴 — `제1조 일반적 의무` (괄호 없음). **조약 파일에서만** 켠다.
+    //   제목이 그 줄의 나머지고, 다음 조 머리나 부칙에서 끊는다.
+    if (!m2 && isTreatyDoc(src)) {
+      // ㉢(제목이 다음 줄) 도 받는다 — 그때 제목 칸은 비고 본문만 돌려준다.
+      const re4 = new RegExp(
+        `(?:^|\\n)${reEsc(jo)}[ \\t:：]*([^\\n]*)\\n?([\\s\\S]*?)`
+        + `(?=\\n제\\d+조(?:의\\d+)?(?:[ \\t:：]|[ \\t]*\\n)|\\n\\[제\\d+조|\\n제\\d+[편장절]\\s|\\n${ADDENDA_HEAD_SRC}|$)`);
+      m2 = re4.exec(src);
+      // ★제목 칸이 길면 **본문으로 돌린다.** 원문이 제목과 본문을 **붙여** 놓은 파일이 있다
+      //   (실측: UNCLOS `제113조 해저전선·관선의 파괴 및 훼손모든 국가는 자국기를 게양한…`
+      //    — `훼손` 과 `모든` 사이에 아무 표시가 없다). 나눌 수 없으니 **통째로 본문**으로 둔다 —
+      //   제목을 모르는 것이 본문이 0자인 것보다 낫다. 짧으면(40자 이하) 제목으로 본다.
+      if (m2 && m2[1] && m2[1].trim().length > 40) {
+        m2 = [m2[0], '', (m2[1].trim() + '\n' + (m2[2] || '')).trim()].concat();
+        m2.index = re4.lastIndex - 0;                  // addendaAfter 용 — 아래에서 다시 계산한다
+        const again = new RegExp(`(?:^|\\n)${reEsc(jo)}`).exec(src);
+        m2.index = again ? again.index : 0;
+      }
+    }
     if (!m2) return null;
     const lines2 = m2[2].split('\n');
     while (lines2.length && /^$|^(제\d+[편장절]\s|부칙)/.test(lines2[lines2.length - 1].trim())) lines2.pop();
@@ -872,7 +907,55 @@ const REF_RE = /별지\s*제\s*(\d+(?:의\d+)?)\s*호(?:\s*서식)?|별표\s*제
 // ⚠ 줄머리에서만 찾는다(본문 안 "별표 1"은 참조일 뿐 블록 시작이 아니다). 다만 머리줄이 공백으로
 //   들여쓰여 있는 파일이 실측 35개 있어(`  ■ … [별지 제1호서식]`) 줄머리 공백은 허용한다 —
 //   안 그러면 그 블록 93개를 못 잘라 앞 별표에 딸려 들어가고, 정작 그 번호는 "미수집"으로 보인다.
-const ATT_HEAD_RE = /(?:^|\n)[ \t]*(?:■[^\n[〔【(「]*)?[[〔【(「]\s*(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?)\s*호?\s*(?:서식)?\s*[\]〕】)」]([^\n]*)/g;
+// ── 2026-09-22 (2-7b · P-4 · L-299) 두 가지를 넓혔다 ────────────────────────
+//   ⓐ **여는·닫는 괄호에 `< >` 를 더했다.** `<별표 1>`·`<별지 제1호 서식>` 꼴이
+//      실측 **29건 · 파일 8개** 있는데 종전 괄호 5종(`[〔【(「`)에 없어 머리로 안 잡혔다.
+//      L-299 가 1라운드에 "피해 0건"이라 했다가 2라운드에 재현된 그 건이다 —
+//      둘 다 맞았다(가리키는 근거 행은 적지만, **블록이 안 잘려 앞 별표에 딸려 들어간다**).
+//   ⓑ **`제N호의M서식` 을 읽는다.** 종전 번호부는 `(\d+(?:의\d+)?)\s*호?` 라 `의M` 이
+//      **호 앞**에 올 때만 통했다. 그런데 서식은 `제1호의2서식`처럼 **호 뒤**에 온다.
+//      실측 **34건 · 파일 16개**(`【별지 제1호의 1 서식】`처럼 사이에 공백이 끼기도 한다).
+//      그래서 번호를 두 조각(`호` 앞뒤)으로 받아 이어 붙인다.
+//   ⚠ `[별표 1-2]`·`[별지 제5호 서식(1)` 같은 **붙임표·괄호 번호**는 **아직 안 건드린다**
+//      (실측 105건 · 파일 15개). `선원업무처리지침` 은 본문이 「별표 1의2」라 하고 머리줄은
+//      `[별표 1-2]` 라 같은 것이 맞지만, `어선용품의형식승인시험…기준_별표1` 은 **그 파일
+//      고유의 1-N 하위 번호**라 `1의N` 으로 바꾸면 뜻이 달라진다. 파일마다 판단이 달라야
+//      하므로 넘겨짚지 않는다 → 2-7c.
+// ── 2026-09-24 (2-7c) 붙임표 번호(`1-2`)를 받되, **증거가 있을 때만** 별표로 친다 ──────
+//   실측: 붙임표 머리줄 **105곳 · 18파일**. 그런데 `1-2` 의 뜻이 파일마다 다르다.
+//     ⓐ 공식 번호            8곳  `[별지 제35-2호서식]` — 법이 그렇게 이름 붙였다
+//     ⓑ 본문이 「1의2」라 부름 4곳  `선원업무처리지침` 제16조의3 이 *"별표 1의2와 같다"*
+//     ⓒ 본문이 「2-1」이라 부름 1곳  `내항해운에관한업무지침`
+//     ⓓ **아무도 번호로 안 부름 92곳** — `..._별표1.txt` **안의 하위 표**(1-1~1-26)다.
+//   ★ⓓ 를 별표로 치면 **별표 하나가 26조각으로 쪼개진다.** 그래서 받지 않는다.
+//   ⇒ 규칙: 붙임표 번호는 **같은 글 안에 그 번호를 부르는 자리가 있을 때만** 별표로 친다.
+//     (기계가 고르지 않는다 — G-34. 고르는 것은 **원문에 적힌 증거**다.)
+const ATT_HEAD_RE = /(?:^|\n)[ \t]*(?:■[^\n[〔【(「<]*)?[[〔【(「<]\s*(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?(?:\s*[-‐‑–—]\s*\d+)?)\s*호?\s*(?:\s*의\s*(\d+))?\s*(?:서식)?\s*[\]〕】)」>]([^\n]*)/g;
+const ATT_HYPHEN_RE = /^(\d+)\s*[-‐‑–—]\s*(\d+)$/;
+/**
+ * 붙임표 번호를 별표로 칠 것인가, 그리고 **어떤 번호로 부를 것인가**.
+ * ★열쇠 모양이 중요하다 — 본문 인용은 `collectRefs` 가 만든다. 「별표 1의2」를 인용한 쪽은
+ *   `별표1의2` 를 찾으므로, 머리줄이 `[별표 1-2]` 라도 **열쇠는 `1의2` 여야 맞는다.**
+ *   (처음엔 `1-2` 를 그대로 열쇠로 썼는데, 그러면 인용과 영영 안 만난다 — 재 보고 잡았다)
+ * @returns {null|{쓴다:boolean, 번호:string, 까닭:'공식'|'의꼴'|'붙임꼴'}} 붙임표가 아니면 null
+ */
+function attHyphenKind(text, kind, num, headLine) {
+  const h = ATT_HYPHEN_RE.exec(String(num).replace(/\s+/g, ''));
+  if (!h) return null;                       // 붙임표가 아니면 종전대로
+  const [, a, b] = h;
+  if (/제\s*\d+\s*[-‐‑–—]\s*\d+\s*호/.test(headLine || '')) {
+    return { 쓴다: true, 번호: a + '-' + b, 까닭: '공식' };     // ⓐ 법이 그렇게 이름 붙였다
+  }
+  const word = kind === '별표' ? '별표' : '별지';
+  if (new RegExp(word + '\\s*' + a + '\\s*의\\s*' + b).test(text)) {
+    return { 쓴다: true, 번호: a + '의' + b, 까닭: '의꼴' };    // ⓑ 본문이 「N의M」이라 부른다
+  }
+  const bodyOnly = String(text).replace(/[[〔【(「<][^\n]*[\]〕】)」>]/g, '');
+  if (new RegExp(word + '\\s*' + a + '\\s*[-‐‑–—]\\s*' + b).test(bodyOnly)) {
+    return { 쓴다: true, 번호: a + '-' + b, 까닭: '붙임꼴' };   // ⓒ 본문이 「N-M」이라 부른다
+  }
+  return { 쓴다: false, 번호: a + '-' + b, 까닭: '의꼴' };      // ⓓ 아무도 안 부른다 → 본문으로 둔다
+}
 // 별표 구간이 시작되는 자리 — `[별표] 제목` 묶음머리, 또는 번호 붙은 별표 블록.
 const ANNEX_BLOCK_SRC = '\\n\\[별표\\]|\\n\\[별지\\]|\\n[ \\t]*(?:■[^\\n[〔【(「]*)?[[〔【(「]\\s*(?:별표|별지|서식)\\s*제?\\s*\\d';
 const ANNEX_BLOCK_RE = new RegExp(ANNEX_BLOCK_SRC);
@@ -909,6 +992,50 @@ function addendaAfter(src, at) {
   if (!ADDENDA_AT_RE.test(rest)) return '';
   const i = rest.search(ANNEX_BLOCK_RE);
   return (i >= 0 ? rest.slice(0, i) : rest).trim();
+}
+
+// ── 3-64: 가리킴 앞에 붙은 **계층어**를 읽는다 (2026-09-26) ──────────────────
+//   [무엇이 문제였나] 고시가 `영 별표 제1호`(= 상위법 시행령의 별표1)라 써도 `collectRefs` 는
+//     `{key:'별표1'}` 만 돌려줬고, `resolveRefs` 는 **그 고시의 별표1** 을 찾다 못 찾아
+//     사용자에게 「(원문 미수집)」으로 보였다. 실측: 못 찾은 525건 중 **남의 계층 118**.
+//     ★그 파일은 **같은 법 폴더에 있다**(`<법>/별표/시행령_별표1.txt`) — 못 찾은 게 아니라
+//     **엉뚱한 이름으로 찾고 있었다.** (`TIER_BYL_PREFIX` 에 notice 가 없어 ③·④단계가 아예 안 돈다.)
+//   [왜 조심하나] `byl_ref_gap.py` 가 **바로 이 자리에서 여섯 번** 틀렸다 — 걸러 내려다 분모가
+//     563→172 로 주저앉았다. **과교정은 미교정보다 나쁘다.** 그래서 두 가지를 못박는다:
+//     ① **낱말 경계 뒤에 홀로 선 계층어만** 받는다. `해사안전법 별표` 의 `법` 은 낱말의 꼬리라 안 받는다.
+//     ② **남의 법이 앞에 붙으면 안 받는다** — `「화학물질관리법」 시행규칙 별표1` 은 남의 법이고,
+//        `같은 법 시행규칙` 은 **앞 문장이 가리키는 법**이라 상위법일 수도 남의 법일 수도 있다
+//        (표본에 둘 다 있다). 가릴 수 없으면 **안 보낸다.**
+//     실측(고시 928개): 보낼 수 있다 **304건** · 막는다 **7건**(전부 남의 법·「같은 법」).
+//   ⚠그리고 `resolveRefs` 는 **보낸 자리에서 못 찾으면 지금 하던 대로 되돌아간다** —
+//     지금 열리는 것은 하나도 안 닫힌다.
+const TIER_WORD = { 영: 'decree', 시행령: 'decree', 규칙: 'rule', 시행규칙: 'rule', 법: 'law', 법률: 'law' };
+// 계층어가 **낱말 경계 뒤에 홀로** 서 있는가 (`: 영`·`형상은 시행규칙`·`신고서(규칙`)
+const TIER_BEFORE_RE = /(?:^|[\s(（:,、·])(법률|시행규칙|시행령|규칙|영|법)\s*$/;
+// 계층어 **앞의 글**에 남의 법 이름이나 「같은」이 있으면 안 받는다.
+//   ⚠처음엔 계층어 바로 앞 6자만 봤더니 `같은 법 시행규칙` 을 못 막았다 — 「같은」과 계층어 사이에
+//     `법 ` 이 끼어 있었다(2026-09-26 실측). 그래서 **계층어 앞 글의 꼬리 14자**를 본다.
+const TIER_BLOCK_RE = /같은|」|』/;
+// `…법 시행령` · `…법률 시행규칙` 꼴 — 낱말로 끝나는 법 이름이 계층어를 데리고 있다
+const LAW_NAME_TAIL_RE = /[가-힣]{2,}(?:법|법률)\s*$/;
+
+/**
+ * 가리킴 바로 앞 글을 보고 **어느 계층의 별표를 가리키는지** 읽는다. 못 읽으면 null.
+ * 예: tierOfRef('… 표지의 크기와 형상은 시행규칙 ') → 'rule'
+ *     tierOfRef('… 「화학물질관리법」 시행규칙 ')     → null  (남의 법)
+ *     tierOfRef('… 해사안전법 ')                      → null  (낱말의 꼬리)
+ * @param {string} before - 가리킴 바로 앞 글(끝쪽 24자면 넉넉하다)
+ * @returns {?string} 'law'|'decree'|'rule' 또는 null
+ * [연계] ← collectRefs(). → resolveRefs 가 이 계층의 접두로 파일을 먼저 찾는다.
+ */
+function tierOfRef(before) {
+  const t = String(before || '').replace(/\n/g, ' ');
+  const m = TIER_BEFORE_RE.exec(t);
+  if (!m) return null;
+  const head = t.slice(0, m.index).slice(-14);   // 계층어 앞의 글(꼬리 14자)
+  if (TIER_BLOCK_RE.test(head)) return null;     // 「같은 …」·닫는 따옴표 = 남의 법이거나 가릴 수 없다
+  if (LAW_NAME_TAIL_RE.test(head)) return null;  // 「…법 시행령」 = 남의 법
+  return TIER_WORD[m[1]] || null;
 }
 
 /** 참조 정규식 매치 하나를 비교용 열쇠로 바꾼다(`별표1`·`서식1`·`이미지123`). */
@@ -960,10 +1087,16 @@ function collectRefs(text) {
   let byl = 0, img = 0;
   let m;
   REF_RE.lastIndex = 0;
-  while ((m = REF_RE.exec(String(text || '')))) {
+  const src = String(text || '');
+  while ((m = REF_RE.exec(src))) {
     const key = refKeyOf(m);
-    if (seen.has(key)) continue;
-    seen.add(key);
+    // ★3-64: 가리킴 **바로 앞** 글로 계층을 읽는다. 자리마다 따로 읽어야 한다 —
+    //   한 문서가 `영 별표 1` 과 `별표 1` 을 **둘 다** 쓰는 경우가 실측 96파일·151열쇠 있다.
+    //   그래서 중복 제거도 `열쇠|계층` 으로 한다. 계층이 없으면 종전과 완전히 같다.
+    const tier = key.indexOf('이미지') === 0 ? null : tierOfRef(src.slice(Math.max(0, m.index - 24), m.index));
+    const seenKey = key + '|' + (tier || '');
+    if (seen.has(seenKey)) continue;
+    seen.add(seenKey);
     // 별표·서식과 이미지는 상한이 따로다(MAX_IMG_REFS 주석 참고). 별표 상한에 걸려도 스캔을
     // 멈추지 않는다 — 뒤쪽에 남은 이미지는 아직 받을 자리가 있다.
     if (key.indexOf('이미지') === 0) {
@@ -973,7 +1106,7 @@ function collectRefs(text) {
       if (byl >= MAX_REFS) continue;
       byl += 1;
     }
-    out.push({ key, text: m[0] });
+    out.push(tier ? { key, text: m[0], tier } : { key, text: m[0] });
     if (byl >= MAX_REFS && img >= MAX_IMG_REFS) break;
   }
   return out;
@@ -1011,11 +1144,17 @@ function extractAttachments(text) {
   let m;
   ATT_HEAD_RE.lastIndex = 0;
   while ((m = ATT_HEAD_RE.exec(tail))) {
+    // 붙임표 번호는 원문이 그 번호를 부를 때만 별표로 친다(2-7c) — 아니면 **본문으로 둔다**.
+    const hy = attHyphenKind(src, m[1], m[2], m[0]);
+    if (hy && !hy.쓴다) continue;
+    const num = hy ? hy.번호 : String(m[2]).replace(/\s+/g, '');
     heads.push({
       start: m.index,
       bodyAt: ATT_HEAD_RE.lastIndex,
-      key: (m[1] === '별표' ? '별표' : '서식') + m[2],
-      sameLine: (m[3] || '').trim(),
+      // 번호는 두 조각으로 온다 — `별표 1의2`(호 앞) · `별지 제1호의2서식`(호 뒤).
+      // 둘 중 어느 쪽으로 왔든 `1의2` 하나로 모은다.
+      key: (m[1] === '별표' ? '별표' : '서식') + num + (m[3] ? '의' + m[3] : ''),
+      sameLine: (m[4] || '').trim(),
     });
   }
   const out = [];
@@ -1036,29 +1175,150 @@ function extractAttachments(text) {
 }
 
 // 별표 파일 안의 선언줄(`■ 항만법 시행령 [별표 6]`·`■ 항만운송사업법 시행규칙 [별지 제16호의2서식]`).
-// 계층(시행령/시행규칙)과 **번호**를 함께 읽는다 — 실측 표기가 `[별표 5의2]`·`[별지 제2호의2 서식]`·
-// `[별지 23호서식]`·`[별지제41호서식]`·`[별표1]`처럼 갈려 있어 공백·`제`·`호`를 전부 선택적으로 둔다.
-const BYL_DECL_RE = /■[^\n[〔【]*?(시행규칙|시행령)\s*[[〔【]\s*(?:(별표)\s*제?\s*(\d+(?:의\d+)?)|(?:별지|서식)\s*제?\s*(\d+)\s*호(?:\s*의\s*(\d+))?)/;
+// ── 2026-09-22 (2-7 · P-3) 전면 교체 ────────────────────────────────────────
+// [무엇이 문제였나] 종전에는 정규식 **하나**로 선언줄 전체를 한 번에 훑었다.
+//   `/■[^\n[〔【]*?(시행규칙|시행령)\s*[[〔【]…/`
+//   이 한 줄이 세 가지를 동시에 요구한다 — ①`■` 로 시작할 것 ②계층 낱말이
+//   **시행규칙·시행령 둘 중 하나**일 것 ③그 낱말 바로 뒤가 여는 괄호일 것.
+//   실측(2026-09-22, 계층 접두 없는 별표 파일 2,032개)에서 **331개가 걸리지 않았다**:
+//     ⓑ 계층 낱말이 아예 없다 — **88개**. `■ 선박에서의 오염방지에 관한 규칙 [별표 1]`
+//        처럼 **그 문서 자신이 법률 자리**인 것들이다(기준법급 규칙·관세법 등).
+//        「선박에서의 오염방지에 관한 규칙」은 `tier:1` 인데 **90개 중 0개**가 열렸다.
+//     ⓔ `■` 표시가 아예 없다 — **194개**. 괄호줄이 머리 몇 줄 안에 맨몸으로 있다.
+//     ⓐ 계층이 낫표 안에 있다 — **21개**. `■ 「국가기술자격법 시행규칙」 [별지 …]`
+//        은 `시행규칙` 뒤가 `」` 라 ③을 어긴다.
+//     ⓒ 오타 — **4개**. `시행규칙칙`.
+//     ⓓ 괄호에 번호가 없다 — **23개**. `[별표]`·`[별지 서식]`. 이건 **그대로 둔다** —
+//        번호를 요구하는 참조와 맞출 방법이 없다.
+// [무엇을 바꿨나] 정규식 하나로 훑지 않고 **①선언줄을 고르고 ②그 한 줄을 판다.**
+//   계층은 「낱말이 있으면 그 계층, 없으면 법률(그 문서 자신)」로 읽는다.
+//   그러면 ⓐ·ⓑ·ⓒ 가 한꺼번에 풀린다(낫표든 오타든 낱말만 들어 있으면 된다).
+// [안전] 이 검사의 본래 목적은 **파일명 번호와 내용 번호가 어긋난 파일 41개**를 거르는
+//   것이다. 번호 대조는 그대로 남는다. 계층 낱말이 없는 선언줄은 **법률 자리에만**
+//   맞으므로, 시행령·시행규칙 요청이 엉뚱한 파일을 집는 일은 생기지 않는다.
+// [연계] resolveRefs() ③ · scripts 쪽 대조 없음(이 파일 안에서만 쓴다).
+
+/** 괄호 안(`별표 5의2`·`별지 제2호의2 서식`·`별지제41호서식`·`별표1`)에서 종류·번호를 읽는다. */
+const BYL_NUM_RE = /^\s*(?:(별표)\s*제?\s*(\d+(?:의\d+)?)|(?:별지|서식)\s*제?\s*(\d+)\s*호(?:\s*의\s*(\d+))?)/;
+/** 맨몸 선언줄(`[별지 제11호서식]`) — `■` 없이 괄호로 바로 시작하는 꼴. */
+const BYL_BARE_DECL_RE = /^\s*[[〔【]\s*(?:별표|별지|서식)/;
+/** 선언줄을 찾을 때 머리에서 훑어볼 줄 수. 본문 표 안의 `[별표 3]` 인용을 선언으로 오인하지 않게 짧게 둔다. */
+const BYL_DECL_HEAD_LINES = 6;
+
+/**
+ * 별표 파일에서 **선언줄 한 줄**을 고른다.
+ *  ① `■` 로 시작하는 줄이 있으면 그 줄(가장 흔한 꼴).
+ *  ② 없으면 머리 6줄 안에서 여는 괄호 + 별표/별지/서식 으로 시작하는 줄.
+ * @param {string} text - 별표 파일 전체
+ * @returns {string} 선언줄(없으면 빈 문자열)
+ */
+function bylDeclLine(text) {
+  const lines = String(text || '').split('\n');
+  const marked = lines.find(l => l.trimStart().startsWith('■'));
+  if (marked) return marked.trim();
+  const bare = lines.slice(0, BYL_DECL_HEAD_LINES).find(l => BYL_BARE_DECL_RE.test(l));
+  return bare ? bare.trim() : '';
+}
+
+/**
+ * 선언줄 한 줄을 계층·종류·번호로 판다.
+ * @param {string} line - bylDeclLine() 결과
+ * @returns {{tier:string, type:string, num:string}|null}
+ */
+function parseBylDecl(line) {
+  const s = String(line || '').replace(/^\s*■\s*/, '');
+  const at = s.search(/[[〔【]/);
+  if (at < 0) return null;
+  const head = s.slice(0, at);                       // 괄호 앞 — 법령명 + 계층 낱말
+  const inner = s.slice(at + 1);                     // 괄호 뒤 — 종류 + 번호
+  const m = BYL_NUM_RE.exec(inner);
+  if (!m) return null;
+  // ⚠계층 낱말이 없으면 **그 문서 자신(법률 자리)** 이다. 순서 주의 — `시행규칙` 을 먼저 본다.
+  const tier = /시행규칙/.test(head) ? '시행규칙' : /시행령/.test(head) ? '시행령' : '법률';
+  const type = m[1] ? '별표' : '서식';
+  const num = m[1] ? m[2] : (m[3] + (m[4] ? '의' + m[4] : ''));
+  // ★그 문서의 **이름 자체가 「…규칙」**인가 (2026-09-24, 결심 ⓐ).
+  //   `선박톤수의 측정에 관한 규칙`·`위험물 선박운송 및 저장규칙`·`선박에서의 오염방지에 관한 규칙`
+  //   같은 문서는 **계층이 하나뿐**이라 우리 폴더가 `법률.txt` 로 철해 둔다. 그런데 사람은
+  //   그것을 자연스럽게 **「시행규칙」**이라 부르고 위키도 그렇게 적었다 — 실측 15자리.
+  //   두 이름이 **같은 문서를 가리킨다**는 것을 여기서 밝혀 둔다. 이름을 바꾸지 않는 까닭:
+  //   폴더를 3층으로 만들면 **빈 파일 12개가 새로 생긴다**(3-11 이 방금 지운 그 중복이다).
+  const selfRule = tier === '법률' && /(규칙|규정|요령|기준)\s*$/.test(head.trim());
+  return { tier, type, num, selfRule };
+}
 
 /**
  * 계층 접두가 없는 별표 파일(`별표/별표1.txt`)이 **정말 그 계층의 그 번호**인지 선언줄로 확인한다.
  * ⚠ 계층만 보고 번호를 안 보면 사고가 난다 — 수집 시 순번으로 이름 붙은 탓에 파일명 번호와 실제
  *   내용 번호가 어긋난 파일이 실측 41개 있고(예: `별표1.txt` 안이 `[별표 1의2]`), 그 중 20건은
  *   본문이 실제로 그 번호를 인용해 **다른 별표를 그 번호인 것처럼** 보여주게 된다(환각 0 위반).
+ *   ⚠★**정정(2026-09-23, G-12) — 이 「41개」는 낡았고, 무엇보다 자를 안 적어 뒀다.**
+ *     같은 이름의 값이 셋이다: 주석 **41** · 등록부 **152** · 오늘 V5-21a 실측 **178**.
+ *     어느 것이 맞다기보다 **언제 어떤 자로 쟀는지가 안 적혀 있어 견줄 수가 없다**(뿌리 사슬 ⑥).
+ *     ★**숫자를 여기 적지 말고 자를 부른다** — 이 값의 주인은
+ *     `_dashboard/loop/byl_bare_ready.js`(V5-21a) 의 `번호어긋남` 이다. 지금 값이 궁금하면 그것을 돌린다.
+ *     (이 줄 위의 41 은 **그때의 기록**으로 남겨 둔다 — 지우지 않는다.)
  * 예: bylDeclMatches('■ 항만법 시행령 [별표 6]…', '시행령', {type:'별표', num:'6'}) → true
  *     bylDeclMatches('■ … 시행령 [별표 1의2]…',  '시행령', {type:'별표', num:'1'}) → false
+ *     bylDeclMatches('■ 선박에서의 오염방지에 관한 규칙 [별표 1]', '법률', {type:'별표', num:'1'}) → true
  * @param {string} text - 별표 파일 전체
- * @param {string} prefix - 지금 tier 의 계층 이름(시행령·시행규칙)
+ * @param {string} prefix - 지금 tier 의 계층 이름(법률·시행령·시행규칙)
  * @param {{type:string, num:string}} k - 요청한 참조(splitRefKey 결과)
  * @returns {boolean}
  * [연계] ← resolveRefs() ③.
  */
 function bylDeclMatches(text, prefix, k) {
-  const m = BYL_DECL_RE.exec(String(text || ''));
-  if (!m || m[1] !== prefix) return false;
-  const type = m[2] ? '별표' : '서식';
-  const num = m[2] ? m[3] : (m[4] + (m[5] ? '의' + m[5] : ''));
-  return type === k.type && num === k.num;
+  const d = parseBylDecl(bylDeclLine(text));
+  if (!d) return false;
+  if (d.type !== k.type || d.num !== k.num) return false;
+  if (d.tier === prefix) return true;
+  // ★이름 자체가 「…규칙」인 문서는 **「법률」과 「시행규칙」이 같은 자리**다 (2026-09-24, 결심 ⓐ).
+  //   번호와 종류는 위에서 이미 같은지 보았으므로, 여기서 느슨해지는 것은 **계층 이름뿐**이다.
+  return d.selfRule && prefix === '시행규칙';
+}
+
+/**
+ * ★**표의 「행」을 세는 법** — Q-18 사장님 결심 ① (2026-09-24). §6-F 에 같은 말이 적혀 있다.
+ *
+ * [왜 못박나 — 뿌리 사슬 ⑥]
+ *   원문 별표의 표는 `┃ │ ┠──┼──┨` 같은 **박스 문자**로 그려져 있다. 「이 표는 몇 행인가」를
+ *   2026-09-24 하루에만 **세 가지 방법으로 세어 세 가지 답**이 나왔다:
+ *     ① `|` 로 시작하는 줄만 세기 → **0행** (박스 문자라 하나도 안 걸린다)
+ *     ② `┃` 가 있는 줄을 다 세기 → **과다** (한 행이 두세 줄에 걸쳐 그려지고, 테두리도 걸린다)
+ *     ③ **구분선으로 나뉜 덩어리**를 세기 → 이것을 규약으로 삼는다
+ *   세는 법을 안 정하면 **같은 표가 실행할 때마다 다른 숫자**가 된다.
+ *
+ * [세는 법 — 이 말이 규약이다]
+ *   · **구분선**: 공백을 뺀 글자 가운데 **가로선(─ ━)이 절반 이상**인 줄.
+ *     ★왜 「전부」가 아니라 「절반」인가 — 표 안에 작은 표가 들어가면 구분선 왼쪽에
+ *       `┃실`·`┃무` 처럼 **세로로 쓴 글자**가 얹힌다(감정평가 서식5 로 실측). 「전부」로 재면
+ *       그 줄이 본문으로 세어져 **행 7개가 1개로 뭉친다.**
+ *   · **논리 행**: 구분선 사이에 낀 **잇닿은 본문 줄 덩어리 하나**. 한 행이 두 줄에 걸쳐
+ *     그려져도(`사 진` + `(3.5cm × 4.5cm)`) **한 행**이다.
+ *   · 표 밖의 글(제목·머리말·꼬리말)은 세지 않는다 — 세로선(┃ │ |)이 없는 줄은 뺀다.
+ *
+ * [알려진 한계 — 숨기지 않는다]
+ *   이 자는 **원문 쪽만 센다.** 위키에 옮겨진 수를 기계가 채우지는 못한다
+ *   (3-28 실측 — 박스 표 80쪽 중 자동 대조가 맞은 것은 **9쪽뿐**). 그래서 §6-F 는
+ *   **사람이 적은 수**와 이 자가 센 수를 **견주는** 데 쓴다.
+ *
+ * @param {string} text - 별표 원문 전체
+ * @returns {number} 논리 행 수
+ * [연계] → `_dashboard/loop/annex_rowcount_gate.js`(V5-40) · `_SCHEMA.md` §6-F
+ */
+const BOX_H = /[─━]/g;
+const BOX_V = /[┃│|┣┫┠┨├┤]/;
+function countBoxRows(text) {
+  const lines = String(text || '').split('\n');
+  let rows = 0, inRow = false;
+  for (const l of lines) {
+    const bare = l.replace(/\s/g, '');
+    if (!bare || !BOX_V.test(l)) { inRow = false; continue; }   // 표 밖의 글
+    const h = (bare.match(BOX_H) || []).length;
+    if (h * 2 >= bare.length) { inRow = false; continue; }      // 구분선
+    if (!inRow) { rows++; inRow = true; }                       // 새 논리 행이 열린다
+  }
+  return rows;
 }
 
 /** 별표 파일은 첫 줄이 제목, 그 아래가 본문(표)이다. */
@@ -1070,12 +1330,81 @@ function bylBody(text) {
  * 그 별표 파일이 **원문을 실제로 담고 있는지**. `■ 도선법 시행규칙 [별표 7] 삭제` 선언 한 줄뿐인
  * 폐지·이동 별표 파일이 실측 178개 있는데, 이걸 kind='text' 로 확정하면 눌러도 빈 팝업이 뜨고
  * 다음 단계(④ `_links.json` 다운로드 링크)까지 건너뛴다 — 원문이 있는 척하지 않는다.
+ * ⚠2026-09-22 — 선언줄이 `■` 없이 맨몸 괄호로 오는 파일 194개를 새로 받아들이게 되면서
+ *   **그 줄도 함께 걷어내야** 한다. 안 그러면 `[별지 제11호서식] 삭제` 한 줄뿐인 파일이
+ *   "본문이 있다"로 통과한다(실측 73개). 선언줄 자체를 지우고 나서 남는 것이 있는지 본다.
  * @param {string} text - 별표 파일 전체
  * @returns {boolean}
  * [연계] ← resolveRefs() ③.
  */
+/**
+ * 별표 파일 **머리의 메타 줄**들. 원문 글이 아니라 「어디서 받았나·어디서 내려받나」다.
+ * ⚠2026-09-24 — 이 줄들을 본문으로 세고 있었다. 그래서 **내려받기 주소만 있는 파일이
+ *   「원문이 있다」로 통과**했다(3-49 가 만들려던 파일이 바로 그 꼴이다 — 세는 법을 먼저 고친다).
+ *   3-53 이 522개 별표에 `별표서식파일링크:` 를 넣은 뒤로는 이 구분이 더 중요해졌다.
+ */
+// ⚠이름 뒤에 **숫자 꼬리**가 붙는 줄이 있다(`주의2:`) — 안 받아 주면 그 줄이 본문으로 세어져
+//   「주소만 있는 파일」이 「글이 있다」로 통과한다(실측 2026-09-24, 3-49 자리에서 잡혔다).
+const BYL_META_RE = /^\s*(?:출처|고시명|법령명|ID|위임근거|수집일|수집방식|별표서식파일링크|별표서식PDF파일링크|별표PDF파일명|첨부파일|첨부|비고|주의|참고|안내|⚠[^\n]*)\s*\d*\s*[::]/;
+/** 첨부 주소 줄만 있는 파일을 가리기 위한 자 — 내려받기 주소가 하나라도 있나. */
+const BYL_LINK_RE = /flDownload\.do|https?:\/\//;
+
+/**
+ * 별표 파일의 **속이 무엇인가** — 세 갈래로 가른다(2026-09-24 신설).
+ *   `'text'`     원문 글(표·조문)이 있다
+ *   `'linkOnly'` 글은 없고 **내려받기 주소만** 있다 — 사용자는 원문을 볼 수 있지만 우리는 글이 없다
+ *   `'none'`     선언줄뿐이다(`[별표 7] 삭제` 같은 것) 또는 아무것도 없다
+ * ★`'linkOnly'` 를 `'text'` 와 **따로** 세는 것이 요점이다. 한 통에 넣으면
+ *   「주소만 있는 자리」가 보고에서 사라진다(뿌리 사슬 ⑥ — 세는 법을 안 정하면 같은 것이 다르게 잰다).
+ * @param {string} text - 별표 파일 전체
+ * @returns {'text'|'linkOnly'|'none'}
+ */
+/**
+ * 머리의 메타 줄이 **접혀서 다음 줄로 이어진 것**인가.
+ * ★2026-09-24 — 내가 이 병을 **하루에 두 번** 만들었다. `주의:` 로 시작하는 줄을 쓰고
+ *   그 아래에 들여쓴 이어짐 줄을 붙였더니, 그 이어짐 줄이 **본문 글로 세어져**
+ *   「주소만 있는 파일」이 「글이 있다」로 통과했다(6개 → 그리고 또 7개).
+ *   적는 쪽을 조심하라고 주석에 적어 두는 것만으로는 **또 틀린다.** 읽는 쪽이 받아들인다.
+ * [세는 법] **빈 줄 없이 바로 뒤따르는** 들여쓴 줄만 이어짐으로 본다. 빈 줄이 하나라도
+ *   있으면 본문이다 — 별표 원문은 머리줄 뒤에 빈 줄을 두고 표를 시작하는 꼴이 많아서,
+ *   이 조건이 없으면 **진짜 본문을 삼킨다.**
+ */
+function bylMetaContinues(prevWasMeta, line) {
+  return prevWasMeta && /^[ \t]+\S/.test(line);
+}
+
+function bylBodyKind(text) {
+  const decl = bylDeclLine(text);
+  // ★빈 줄을 **거르지 말고 그대로 훑는다** (2026-09-24, 두 번째 고침).
+  //   종전에는 `lines.filter(l => l.trim() !== decl)` 로 먼저 걸렀는데, `bylDeclLine()` 이
+  //   빈 문자열을 주는 파일에서는 **그 한 줄이 빈 줄 전부를 지워 버렸다.** 그러면 머리의 메타 줄
+  //   바로 뒤에 본문이 붙은 것처럼 보여, 「접힌 메타 줄」 규칙이 **30KB짜리 진짜 본문을 삼켰다**
+  //   (`부유식해상구조물…_별표4.txt` 로 실측해 잡았다 — 고치자마자 그 고침이 만든 새 병이었다).
+  const lines = String(text || '').split('\n').slice(1);   // 첫 줄은 제목
+  const meat = [];
+  let prevMeta = false;
+  let sawLink = false;
+  for (const l of lines) {
+    if (BYL_LINK_RE.test(l)) sawLink = true;
+    if (!l.trim()) { prevMeta = false; continue; }          // 빈 줄은 이어짐을 끊는다
+    if (decl && l.trim() === decl) { continue; }            // 선언줄(맨몸 괄호 꼴)
+    if (/^■/.test(l.trim())) { continue; }                  // ■ 로 시작하는 선언 잔재
+    if (BYL_META_RE.test(l)) { prevMeta = true; continue; }
+    if (bylMetaContinues(prevMeta, l)) continue;            // 접힌 메타 줄 — 본문이 아니다
+    prevMeta = false;
+    meat.push(l);
+  }
+  if (meat.length) return 'text';
+  return sawLink ? 'linkOnly' : 'none';
+}
+
+/**
+ * 그 별표 파일이 **원문 글을 담고 있는지**. `■ 도선법 시행규칙 [별표 7] 삭제` 선언 한 줄뿐인
+ * 파일이나 **내려받기 주소만 있는 파일**을 `kind='text'` 로 확정하면 눌러도 빈 팝업이 뜨고
+ * 다음 단계(④ 다운로드 링크)까지 건너뛴다 — **원문이 있는 척하지 않는다.**
+ */
 function hasBylBody(text) {
-  return !!bylBody(text).replace(/^■[^\n]*/, '').trim();
+  return bylBodyKind(text) === 'text';
 }
 
 /** 별표 링크가 `/LSW/flDownload.do?flSeq=…` 상대경로로 적힌 파일이 있어 절대 URL로 만든다. http(s)만 통과. */
@@ -1119,23 +1448,49 @@ function parseBylFile(text) {
   if (entries.length) return { owner, entries };
 
   // 형식 ② — 첫 줄에서 번호를 읽는다. `별표1·2·3`처럼 한 파일이 여러 번호를 담기도 한다.
+  // ⚠번호부에 `호` **뒤**의 가지번호를 더했다(2026-09-22, 2-8) — 서식은 `제1호의2서식` 처럼
+  //   `의M` 이 호 뒤에 온다. 종전 `(\d+(?:의\d+)?)\s*호?` 는 호 **앞**만 알아서
+  //   `별지 제1호의2서식` 을 `서식1` 로 읽었다(실측 그 꼴의 어긋남 다수).
   const head = lines[0] || '';
-  const numRe = /(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?)((?:\s*[·ㆍ,]\s*\d+)*)/g;
+  const numRe = /(별표|별지|서식)\s*제?\s*(\d+(?:의\d+)?)\s*호?\s*(?:\s*의\s*(\d+))?((?:\s*[·ㆍ,]\s*\d+)*)/g;
   const keys = [];
   let hm;
   while ((hm = numRe.exec(head))) {
     const kind = hm[1] === '별표' ? '별표' : '서식';
-    keys.push(kind + hm[2]);
-    for (const extra of (hm[3] || '').split(/[·ㆍ,]/)) {
+    keys.push(kind + hm[2] + (hm[3] ? '의' + hm[3] : ''));
+    for (const extra of (hm[4] || '').split(/[·ㆍ,]/)) {
       if (/^\s*\d+\s*$/.test(extra)) keys.push(kind + extra.trim());
     }
+  }
+
+  // ── ★첫 줄보다 **파일 안 선언줄**을 믿는다 (2026-09-22 신설, 2-8 · P-6) ──────────
+  // [무엇이 문제였나] 종전에는 **첫 줄만** 보고 번호를 정했다. 그런데 첫 줄이 번호가 아니라
+  //   **안내 메모**인 파일이 있다:
+  //     `별표3.txt` 첫 줄 → `[별표 11의2]로 이동 <2014.11.20.>`
+  //     그 아래 선언줄   → `■ 국가기술자격법 시행규칙 [별표 3] [별표 11의2]로 이동`
+  //   그러면 이 파일이 **`별표11의2` 로 등록된다** — 두 방향 모두 사고다.
+  //     ① `별표3` 을 물으면 그 파일이 안 걸린다(있는데 못 연다)
+  //     ② `별표11의2` 를 물으면 **"옮겨 갔다"는 안내뿐인 파일이 그 번호의 원문인 척한다**
+  //        (환각 0 위반 — 우리가 가진 적 없는 표를 가진 것처럼 보여준다)
+  // [무엇을] 파일 안의 선언줄(`■ … [별표 3]` 또는 맨몸 `[별표 3]`)이 있으면 그것을 믿는다.
+  //   ⚠첫 줄이 여러 번호를 담는 파일(`별표1·2·3`)은 그대로 둔다 — 선언줄 번호가 그 목록에
+  //     들어 있으면 첫 줄 쪽이 더 많은 정보를 담고 있다는 뜻이므로 건드리지 않는다.
+  const decl = parseBylDecl(bylDeclLine(text));
+  if (decl) {
+    const declKey = decl.type + decl.num;
+    if (!keys.includes(declKey)) keys.length = 0, keys.push(declKey);
   }
   if (!keys.length) return { owner, entries };
   const hwp = absUrl((/별표서식파일링크\s*:\s*(\S+)/.exec(text) || [])[1]);
   const pdf = absUrl((/별표서식PDF파일링크\s*:\s*(\S+)/.exec(text) || [])[1]);
   // 메타 줄(출처·고시명·소관·비고·링크)을 걷어낸 나머지가 실제 표다.
+  // ⚠선언줄(`■ … [별표 3]`)도 걷어낸다(2026-09-22, 2-8). 안 그러면 **내용이 "옮겨 갔다"는
+  //   한 줄뿐인 파일**의 body 가 그 선언줄 길이만큼 차서, resolveRefs ⑤ 의 `body.length > 40`
+  //   문턱을 넘어 **원문을 가진 것처럼** 등록된다. 우리가 가진 적 없는 표를 가진 척하면 안 된다.
+  const declLine = bylDeclLine(text);
   const body = lines.slice(1)
     .filter(l => !/^\s*(출처|고시명|소관|비고|전화|별표서식(PDF)?파일링크)\s*:/.test(l))
+    .filter(l => l.trim() !== declLine)
     .join('\n').trim();
   const title = head.replace(/^\[[^\]]*\]\s*/, '').trim() || head.trim();
   for (const key of keys) entries.push({ key, title, body, hwp, pdf });
@@ -1359,10 +1714,84 @@ function resolveBase(law, baseLaw, tier) {
  * @returns {string}
  * [연계] ← listArticleNumbers()(whole 모드).
  */
+/**
+ * ★꼴 ④ — **조약 조문머리**는 괄호가 없다: `제1조 일반적 의무` (2026-09-24, 3-51).
+ *
+ * 무엇이 있었나
+ *   조약 본문 **13개 파일**에서 `listArticleNumbers` 가 조를 **하나도** 못 돌려주고 있었다.
+ *   국가법령정보센터 `target=trty` 가 주는 꼴이 법률(`[제10조]`)·고시(`제10조(제목)`)와
+ *   **둘 다 다르기** 때문이다. 다시 받아도 같은 꼴이라 **수집으로는 못 고친다.**
+ *
+ * 왜 raw 를 안 고치고 읽는 쪽을 고쳤나
+ *   raw 를 우리 꼴로 바꿔 적으면 **다음 재수집 때 원래 꼴로 되돌아가** 고친 것이 소리 없이
+ *   사라진다(죽은 수리). 읽는 쪽이 원본 꼴을 알아보는 것이 오래 간다.
+ *
+ * ⚠왜 「조약 파일에서만」 켜나 — **개정문과 구별이 안 되기 때문이다.**
+ *   고시에는 `제1조 중 "…"를 "…"로 한다` 같은 **개정문**이 있어서, 꼴④를 전부에 켜면
+ *   그것을 조문머리로 읽는다(실측: `(인천지방해양수산청)장안서부근해역항행안전에관한고시`).
+ *   ⇒ **조약 표시가 있는 파일에서만** 켠다. 실측으로 정밀도를 쟀다 —
+ *     raw 전체 `.txt` **11,033개 중 이 표시가 붙는 것은 22개**이고 **전부 조약 파일**이다.
+ */
+const TREATY_MARK_RE = /조약일련번호|조약번호|target=trty|조약\(trty\)|^\[조약\]/m;
+/** 조약 파일인가 — 머리 1,200자만 본다(본문에 「조약번호」가 인용될 수 있다). */
+function isTreatyDoc(text) {
+  return TREATY_MARK_RE.test(String(text || '').slice(0, 1200));
+}
+/**
+ * 조약 조문머리 한 줄. 실측으로 **세 가지 꼴**이 나왔다(2026-09-24):
+ *   ㉠`제1조 일반적 의무`          — 제목이 같은 줄
+ *   ㉡`제10조: 증명서 표본양식`     — 쌍점으로 잇는 꼴
+ *   ㉢`제1조` 만 있고 **제목이 다음 줄** (물새서식처협약)
+ * ⚠바로 뒤가 `중` 이면 조문머리가 아니라 **개정문**이다(`제1조 중 "…"를 "…"로 한다`) — 뺀다.
+ *   ★처음엔 조사(`을를이가은는…`)도 함께 뺐는데 **그것이 과했다** — STCW 의 제목이
+ *     `이 협약상의 일반적 의무` 라 `이` 에 걸려 **살릴 수 있는 조를 놓쳤다**.
+ *     조사는 붙여 쓴다(`제1조를`) 공백이 없으므로 `[ \t:：]+` 가 이미 걸러 준다. `중` 만 뺀다.
+ */
+const TREATY_JO_SRC = '제(\\d+)조(?:의(\\d+))?(?:[ \\t:：]+(?!중[\\s"“])[^\\s\\n]|[ \\t]*(?=\\n))';
+
+/**
+ * 자른 앞쪽에 **원문다운 글이 있나** — 우리가 얹은 머리말·구분선만 있으면 「없다」.
+ * ★왜 이 조건이 필요한가 (2026-09-24, 두 번째 조임)
+ *   「자르면 조가 다 사라지니 자르지 말자」로만 했더니, **첨부 전사본**에서 흠이 되살아났다:
+ *   `(인천지방해양수산청) 장안서 부근해역 항행안전에 관한 고시` 는 본문이 **신·구조문대비표**라
+ *   `제1조(목적) 이 고시는…` 이 **개정안 표 안에** 있다. 자르지 않으면 **없는 조 7개**가 목록에 실린다.
+ *   ⇒ 「앞쪽이 **통째로 비어 있을 때**」로 좁힌다 — 부칙만 담은 파일·발췌본이 그렇다.
+ * [세는 법] 우리 머리말 줄(제목·출처·ID·소관·수집일·⚠·※·구분선)을 걷어내고 **40자 이상 남는가**.
+ */
+const OUR_HEAD_LINE_RE = /^\s*(?:\[고시\/행정규칙\]|ID\s*:|출처\s*:|소관부서\s*:|소관\s*:|수집일\s*:|수집방식\s*:|인용출처\s*:|위임근거\s*:|법령명\s*:|시행\s*:|현행여부\s*:|⚠|※|=+\s*$|-+\s*$|_+\s*$)/;
+function hasOwnBody(head) {
+  const lines = String(head || '').split('\n');
+  let n = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l.trim()) continue;
+    if (i === 0) continue;                 // 첫 줄은 우리가 붙인 제목이다
+    if (OUR_HEAD_LINE_RE.test(l)) continue;
+    n += l.trim().length;
+    if (n >= 40) return true;
+  }
+  return false;
+}
+
+/** 그 글에 **조 머리가 하나라도** 있나 — 꼴①`[제N조]` · 꼴②`[제N조(제목)]` · 꼴③`제N조(제목)`.
+ *  `articleRegion()` 이 **잘라도 되는지**를 판단할 때만 쓴다(조를 잃지 않으려는 안전장치). */
+const ART_HEAD_ANY_RE = /(^|\n)\s*(?:[[〔【]\s*제\s*\d+조|제\s*\d+조(?:의\s*\d+)?\s*[((])/;
+
 function articleRegion(text) {
   const src = String(text || '');
   const i = src.search(DOC_TAIL_RE);
-  return i >= 0 ? src.slice(0, i) : src;
+  if (i < 0) return src;
+  const head = src.slice(0, i);
+  // ★잘랐더니 **조가 한 개도 안 남으면, 자른 것이 잘못이다.** (2026-09-24 실측)
+  //   `[부칙 <제5437호,1997.12.13.>] 제정 부칙 전문` 처럼 **부칙 머리줄이 조보다 먼저** 오는 파일이 있다
+  //   (부칙만 발췌한 파일·조약 발췌·별표 발췌 — 실측 13개). 그런 파일은 여기서 통째로 잘려
+  //   **한 조도 안 열렸다.** 챗봇이 그 법을 짚어도 아무것도 못 꺼낸다.
+  //   ⚠2026-09-22 에 폐기물관리법 시행규칙이 **같은 병**으로 151,785자가 0조가 됐었다.
+  //     그때는 머리말 글을 고쳐서 넘겼는데, **읽는 쪽을 안 고쳐 다른 꼴로 되풀이됐다.**
+  //   [세는 법] 자른 앞쪽에 `제N조` 머리가 하나도 없고 **자르기 전에는 있으면** 자르지 않는다.
+  //     — 조를 더 잃지 않는 쪽으로만 움직이므로 **이 판단으로 조가 줄어드는 일은 없다.**
+  if (!ART_HEAD_ANY_RE.test(head) && ART_HEAD_ANY_RE.test(src) && !hasOwnBody(head)) return src;
+  return head;
 }
 
 /**
@@ -1413,6 +1842,13 @@ function listArticleNumbers(text, tier) {
   while ((m = re.exec(src))) {
     if (m[1] !== undefined) push(m[1], m[2]);
     else push(m[3], m[4]);
+  }
+  // ④조약 꼴(`제1조 일반적 의무` — 괄호가 없다). **조약 파일에서만** 켠다(위 주석의 까닭).
+  //   ①②③ 으로 하나도 못 찾았을 때만 본다 — 섞인 파일에서 본문 인용을 조로 올리지 않기 위해서다.
+  if (!out.length && isTreatyDoc(text)) {
+    const re4 = new RegExp('(?:^|\\n)' + TREATY_JO_SRC, 'g');
+    let m4;
+    while ((m4 = re4.exec(src))) push(m4[1], m4[2]);
   }
   return out;
 }
@@ -1499,7 +1935,9 @@ function buildArticles(text, tier, joList) {
  * [연계] ← loadArticle(). → github_raw.fetchText/listDir · client/js/ai-chat/ai_chat.js 의 별표 팝업.
  */
 async function resolveRefs(found, ctx) {
-  const refs = found.map(f => ({ key: f.key, text: f.text, kind: 'missing' }));
+  const refs = found.map(f => (f.tier
+    ? { key: f.key, text: f.text, kind: 'missing', tier: f.tier }
+    : { key: f.key, text: f.text, kind: 'missing' }));
   // 아직 못 찾은 별표·서식만 다음 단계로 넘긴다(이미지는 ①에서만 판정한다 — 별표 파일로 찾을 게 없다).
   const rest = () => refs.filter(r => r.kind === 'missing' && r.key.indexOf('이미지') !== 0);
 
@@ -1538,15 +1976,30 @@ async function resolveRefs(found, ctx) {
   //      선언줄과 일치해(불일치 0) 추가 검증 없이 그대로 쓴다.
   //    ⚠ 내용이 `[별표 7] 삭제` 한 줄뿐인 폐지 별표는 원문이 있는 게 아니므로 여기서 확정하지 않고
   //      ④(_links.json)로 넘긴다.
-  if (prefix && rest().length) {
-    const want = rest();
+  //    ── 3-64 (2026-09-26): 가리킴이 **제 계층을 말하면 그 계층으로 먼저 찾는다** ──────────
+  //      고시가 `영 별표 제1호` 라 쓰면 찾아야 할 파일은 **같은 법 폴더의** `시행령_별표1.txt` 다.
+  //      종전에는 `TIER_BYL_PREFIX` 에 notice 가 없어 `prefix` 가 undefined → **이 단계가 통째로
+  //      안 돌았고**, 사용자에게는 「(원문 미수집)」으로 보였다(실측 118건).
+  //      ⚠**과교정을 막는다** — 이 자리에서 `byl_ref_gap.py` 가 여섯 번 틀렸다(분모 563→172).
+  //        ① 계층은 **가리킴 바로 앞 글**로만 읽는다(`tierOfRef` — 남의 법·「같은 법」은 안 받는다).
+  //        ② **보낸 자리에서 못 찾으면 지금 하던 대로 되돌아간다.** 그래서 지금 열리는 것은
+  //           하나도 안 닫힌다(더하기만 한다).
+  const pfxOf = (r) => TIER_BYL_PREFIX[r.tier] || prefix;
+  if (rest().some(r => pfxOf(r))) {
+    const want = rest().filter(r => pfxOf(r));
     const texts = await Promise.all(want.map(async r => {
       const k = splitRefKey(r.key);
       if (!k) return null;
-      const owned = await githubRaw.fetchText(`${ctx.base}/별표/${prefix}_${k.type}${k.num}.txt`);
+      const pfx = pfxOf(r);
+      const owned = await githubRaw.fetchText(`${ctx.base}/별표/${pfx}_${k.type}${k.num}.txt`);
       if (owned) return hasBylBody(owned) ? owned : null;
+      // 계층으로 보냈는데 그 파일이 없으면 **되돌아간다** — 이 문서의 제 계층(prefix)으로 다시 본다.
+      if (pfx !== prefix && prefix) {
+        const back = await githubRaw.fetchText(`${ctx.base}/별표/${prefix}_${k.type}${k.num}.txt`);
+        if (back && hasBylBody(back)) return back;
+      }
       const bare = await githubRaw.fetchText(`${ctx.base}/별표/${k.type}${k.num}.txt`);
-      if (!bare || !bylDeclMatches(bare, prefix, k) || !hasBylBody(bare)) return null;
+      if (!bare || !bylDeclMatches(bare, pfx, k) || !hasBylBody(bare)) return null;
       return bare;
     }));
     want.forEach((r, i) => {
@@ -1564,13 +2017,19 @@ async function resolveRefs(found, ctx) {
   //      참조(rest())만 여기까지 와서, 원문이 있는 별표는 다운로드 버튼이 아예 안 떴다.
   //      다만 앞 단계에서 확정된 kind·title·body 는 덮어쓰지 않는다(다운로드 필드만 보탠다).
   const bylRefs = refs.filter(r => r.key.indexOf('이미지') !== 0);
-  if (prefix && bylRefs.length) {
+  if (bylRefs.some(r => pfxOf(r))) {
     let links = null;
-    try { links = JSON.parse(await githubRaw.fetchText(`${ctx.base}/별표/_links.json`) || 'null'); } catch (_) { links = null; }
+    try { links = JSON.parse(await githubRaw.fetchText(`${ctx.base}/별표/_links.json`) || 'null'); } catch (e) {
+      // ★조용히 넘어가지 않는다 (3-44). `_links.json` 을 못 읽으면 **별표 내려받기 단추가 안 뜬다** —
+      //   「받을 파일이 없다」와 겉으로 똑같다.
+      console.warn('[article_text] 별표 _links.json 읽기 실패 — 내려받기 단추 없이 낸다:', ctx.base, e && e.message);
+      links = null;
+    }
     if (links && typeof links === 'object') {
       for (const r of bylRefs) {
         const k = splitRefKey(r.key);
-        const v = k && links[`${prefix} ${k.type} ${k.num}`];
+        const v = k && (links[`${pfxOf(r)} ${k.type} ${k.num}`]
+          || (prefix ? links[`${prefix} ${k.type} ${k.num}`] : null));   // 3-64: 보낸 계층 먼저, 없으면 되돌아간다
         if (!v || typeof v !== 'object') continue;
         // `PDF` 키는 수집 스크립트가 아직 안 채우고 있다(_LESSONS L-55) — 채워지면 그대로 뜬다.
         r.hwp = absUrl(v.HWP);
@@ -1679,7 +2138,11 @@ async function loadArticle(q) {
   let tier = Object.prototype.hasOwnProperty.call(TIER_FILE, qTier) ? qTier : (qTier === 'notice' ? 'notice' : 'law');
   const ref = parseArticleRef((q && q.article) || '', tier, law);
   if (!law || !ref) return { ok: false, reason: 'bad_request' };
-  if (!githubRaw.hasToken()) return { ok: false, reason: 'no_token' };
+  // ★2026-09-22 (P-11 · 2-11): 종전에는 여기서 토큰만 보고 바로 끊었다. 그래서 raw/ 가
+  //   바로 옆에 있는 체크아웃 환경에서도 조문 원문·서식(§5-5)·별표 이미지(§5-9)가 전부
+  //   `no_token` 으로 죽었다. 이제 `github_raw` 가 **로컬 디스크를 먼저 보므로**, 읽을 길이
+  //   하나도 없을 때(로컬 raw/ 도 없고 토큰도 없을 때)만 끊는다.
+  if (!githubRaw.hasToken() && !hasLocalRaw()) return { ok: false, reason: 'no_source' };
 
   let base = resolveBase(law, (q && q.baseLaw) || '', tier);
   // ★이름이 우리가 가진 고시면 **그 고시가 있는 법 폴더**를 쓴다(2026-09-01 실측 32줄).
@@ -1914,6 +2377,13 @@ async function loadArticle(q) {
   //     그마저도 호를 지목했을 때만 — 아무것도 안 지목한 `제57조`를 focused 로 주면 접을 것이 없다.
   //  ⓒ 그 항 기호가 조 안에 **하나뿐**이다. 수집이 덜 된 타법 파일에는 한 조 블록 안에 다른 조의
   //     조각까지 섞여 들어가 ①이 두세 번 나오는 블록이 실측 41개 있다(전체 25,919 블록 중).
+  //     ⚠★**정정(2026-09-23, G-12) — 이 숫자는 자를 안 적어 둬서 다시 잴 수가 없다.**
+  //       오늘 「`raw/` 전체에서 `_구판`·`_대기`·`_이미지`·`_원본첨부` 를 뺀 범위」로 재니
+  //       **블록 32,889개 중 317개**다. 그런데 **전체 블록 수부터 다르다**(25,919 ↔ 32,889) —
+  //       즉 **범위가 다른 자**이지, "41 이 317 로 늘었다"고 말할 수 없다.
+  //       ★교훈: 주석에 숫자를 적을 때는 **무엇을 어디까지 셌는지**를 함께 적는다.
+  //       안 적으면 다음 사람이 재현도 비교도 못 하고, 낡았는지조차 알 수 없다(뿌리 사슬 ⑥).
+  //       (이 판정 자체는 숫자와 무관하게 옳다 — ①이 둘이면 앞의 것을 집어 엉뚱한 항을 펼친다.)
   //     그런 조는 findIndex 가 앞의 ①을 집는데 인용이 가리킨 것은 뒤의 ①이라 **엉뚱한 항만 펼쳐진다**
   //     (부가가치세법 제37조 실측). 어느 쪽인지 단정할 수 없으므로 조 전체를 보여준다.
   //  ⓓ 호를 지목했으면 **지목한 호가 전부** 그 항에서 발견돼 hit 가 달렸다. 하나라도 못 찾으면 화면이
@@ -1944,10 +2414,13 @@ async function loadArticle(q) {
 }
 
 module.exports = {
+  attHyphenKind,
+  TIER_BYL_PREFIX,   // ★게이트(V5-21b)가 **같은 접두**를 쓰도록 내보낸다 — 규칙을 다시 적지 않는다(L-136)
+  splitRefKey,
   loadArticle, parseArticleRef, splitHo, splitParagraphs, extractArticleBlock, pickNoticeFile,
   // pickNoticeGlobal 도 게이트가 같은 순서로 고시를 고르게 하려고 내보낸다(L-136).
   pickNoticeGlobal,
-  cleanBody, collectRefs, extractAttachments, parseBylFile, listArticleNumbers, buildArticles, resolveRefs,
+  cleanBody, collectRefs, extractAttachments, parseBylFile, bylBodyKind, countBoxRows, listArticleNumbers, buildArticles, resolveRefs,
   // resolveBase 는 순수 함수다(네트워크 없음). 위키 검사 도구(_dashboard/loop/link_ready.js)가
   // "이 근거 줄을 누르면 어느 원문 파일을 여는가"를 **생산과 똑같이** 계산하려고 쓴다 —
   // 따로 구현하면 검사와 코드가 어긋난다(L-136).
@@ -1955,4 +2428,8 @@ module.exports = {
   // isAddendaCell 도 같은 이유로 내보낸다(L-136) — `○○법 부칙 제2조` 인용을 게이트가
   // 생산과 똑같이 "부칙 구간에서 찾는다"고 판단해야 숫자가 어긋나지 않는다.
   isAddendaCell, addendaLawName,
+  // 2026-09-22(2-7) — 별표 선언줄 판독을 내보낸다. 「계층 접두 없는 별표 파일이 열리나」를
+  // 재는 자(게이트·조사 스크립트)가 **생산과 똑같이** 판단해야 숫자가 어긋나지 않는다(L-136).
+  // 이 셋이 없으면 재는 쪽이 정규식을 베껴 쓰게 되고, 그 사본이 곧 옛 규칙으로 굳는다.
+  bylDeclLine, parseBylDecl, bylDeclMatches, hasBylBody,
 };

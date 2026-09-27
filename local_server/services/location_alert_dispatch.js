@@ -253,7 +253,7 @@ function _readLastSig() {
     try { return (JSON.parse(fs.readFileSync(_SIG_FILE, 'utf8')) || {}).sig || ''; } catch (_) { return ''; }
 }
 function _writeLastSig(sig) {
-    try { fs.mkdirSync(path.dirname(_SIG_FILE), { recursive: true }); fs.writeFileSync(_SIG_FILE, JSON.stringify({ sig, at: new Date().toISOString() })); } catch (_) { }
+    try { fs.mkdirSync(path.dirname(_SIG_FILE), { recursive: true }); fs.writeFileSync(_SIG_FILE, JSON.stringify({ sig, at: new Date().toISOString() })); } catch (_) { /* 마지막 지문 기록은 중복 발송을 줄이려는 것이다 — 못 써도 발송 자체는 정상으로 진행한다 */ }
 }
 
 /** 디스크의 weather_alerts.json 을 읽어 dispatchWake 수행. 크롤러 hook에서 호출(가드됨).

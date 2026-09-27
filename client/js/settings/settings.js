@@ -351,7 +351,7 @@ const NotificationSettings = {
         try {
             const saved = localStorage.getItem(this.STORAGE_KEY);
             if (saved) Object.assign(this.settings, JSON.parse(saved));
-        } catch (e) { }
+        } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
     },
     save() {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.settings));

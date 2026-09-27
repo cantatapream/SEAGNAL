@@ -27,7 +27,14 @@
  *   조타 담당이냐 승객이냐)은 모든 경우를 나열하는 대신 decideClarify()가 질문+선택지(최대 10개)를 만들어
  *   화면에 버튼으로 내려준다. 선택지는 그 순간 검색된 근거 조문에 **실제로 있는 구분**에서만 만든다.
  *
- * [환각 0] canonicalOnly=true면 concept·comparison은 status:canonical만 근거로 채택(statute는 통과).
+ * [환각 0] canonicalOnly=true면 비-statute 쪽의 본문을 `markUnresolvedReview()` 에 태워
+ *   **REVIEW 든 줄만** `[미확인]` 머리표 아래로 옮긴다(statute 는 원문 그대로 통과).
+ *   ⚠★**옛 서술 정정 (2026-09-26)**: 여기에는 *"concept·comparison은 status:canonical만 근거로
+ *     채택"* 이라고 적혀 있었다. **그것은 지금 사실이 아니다** — 쪽 단위 제외는 2026-08-05 에
+ *     내용 단위로(`search()` 안 주석), 2026-09-07 에 **상태와 무관한 줄 단위**로 바뀌었다.
+ *     이 낡은 한 줄 때문에 N-2 착수 전 검토문이 「draft 161쪽이 근거에서 통째로 빠진다」고
+ *     잘못 적었다. 생산 입구로 재 보니 `concept/draft` 가 근거로 **285번** 실렸다(골든 40문항).
+ *     ⇒ 글을 코드보다 믿지 않는다. 이 줄을 고치는 대신 **정정을 붙여** 왜 틀렸는지 남긴다.
  *   실제 답 문장은 항상 [근거자료]로 전달된 위키 원문에서만 만들도록 프롬프트로 강제.
  *
  * [연계 파일]
@@ -92,6 +99,46 @@ const TOP_FULL_RANK = 3;        // 1~3위 — 예산 그대로
 const MID_LAST_RANK = 6;        // 4~6위
 const MID_BODY_CHARS = 5000;
 const TAIL_BODY_CHARS = 3000;   // 7위 이하
+// ★**합계 상한**(2026-09-22, P-19). 위 셋은 **페이지마다의** 예산이라 합계는 페이지 수만큼 는다.
+//   PRIMARY_TOPK 20 + HOP_MAX 20 = 최대 40장이고, 골든 291문항 전수 실측으로
+//   **평균 123,839자 · 중앙값 141,183자 · 최대 161,092자**(≈7만 토큰)가 한 질문에 실려 나갔다.
+//   막아 주는 수가 없어 "관측치가 곧 상한"이었다 — 페이지가 늘면 그대로 늘어난다.
+//   ⚠상한을 두는 까닭은 돈·속도만이 아니다. 40장 가운데 묻힌 한 줄은 **모델이 못 찾는다**.
+//   ★값은 넘겨짚지 않고 **골라서 쟀다** — `context_eval`(정답 문장이 자료에 실리는가)을
+//     40k·60k·80k·100k·120k·무제한으로 돌려, **떨어지지 않는 가장 작은 값**에 안전마진을 얹었다.
+//     되재려면: `NRYA_CONTEXT_MAX=60000 node _dashboard/loop/context_eval.js`
+const CONTEXT_MAX_CHARS = Number(process.env.NRYA_CONTEXT_MAX) > 0 ? Number(process.env.NRYA_CONTEXT_MAX) : 80000;
+// 남은 예산이 이보다 작으면 **그 페이지는 싣지 않는다**. 몇백 자짜리 토막은 근거가 못 되고
+// 자리만 차지한다 — 어중간하게 남기느니 빼는 편이 모델에게 낫다.
+const MIN_BODY_CHARS = 800;
+
+/**
+ * 근거 페이지 **장수**에 맞춰 페이지별 본문 예산을 정한다(P-19 합계 상한).
+ * ⚠**페이지를 버리지 않는다 — 예산만 줄인다.** 앞 순위부터 채우고 남은 것만 주는 방식은
+ *   상한 80,000 에서 근거 페이지가 중앙값 39장 → 18장으로 반 토막 났다(실측). 이 파일이
+ *   위에서 스스로 금지한 것이라(*"배경설명용으로 뒤 페이지가 필요한 질문도 있어 통째로 빼는 것은
+ *   위험하다 — 누락 0"*) 비례 축소로 바꿨다.
+ *   ①1~3위는 제 예산 그대로 ②4위 이하는 남은 예산을 **비례로** 나눠 갖는다(바닥 MIN_BODY_CHARS).
+ * ⚠여기서 세는 것은 **본문 글자 수**다. 머리줄(`--- 근거N: …`)과 협약 문단은 따로 붙으므로
+ *   완성된 블록은 이 값보다 조금 크다(골든 전수 실측 상한 80,000 일 때 최대 92,449자).
+ * @param {number} count - 근거 페이지 장수
+ * @param {number} [cap=CONTEXT_MAX_CHARS] - 본문 합계 상한
+ * @returns {number[]} 순위별 예산(글자)
+ * [연계] ← search(). ← scripts/test_context_budget.js(같은 함수를 부른다 — L-136).
+ */
+function bodyBudgets(count, cap) {
+  const max = Number(cap) > 0 ? Number(cap) : CONTEXT_MAX_CHARS;
+  const wants = [];
+  for (let i = 0; i < count; i++) {
+    wants.push(i < TOP_FULL_RANK ? MAX_BODY_CHARS : i < MID_LAST_RANK ? MID_BODY_CHARS : TAIL_BODY_CHARS);
+  }
+  const headSum = wants.slice(0, TOP_FULL_RANK).reduce((a, b) => a + b, 0);
+  const tailWant = wants.slice(TOP_FULL_RANK).reduce((a, b) => a + b, 0);
+  const tailRoom = Math.max(0, max - headSum);
+  if (tailWant <= tailRoom || tailWant === 0) return wants;
+  const scale = tailRoom / tailWant;
+  return wants.map((w, i) => (i < TOP_FULL_RANK ? w : Math.max(MIN_BODY_CHARS, Math.floor(w * scale))));
+}
 // 실측 확정(2026-07-29): 7→10→30페이지로 늘려도 속도 저하 없음(병목은 Gemini 호출 자체,
 // 검색 자체는 0.1~0.3초). 다만 30개에서 순위 20위 이후는 관련성이 뚜렷이 떨어지는 노이즈성
 // 페이지가 섞이기 시작함(예: "선박안전법 형식승인및검정" 등) — 속도가 아니라 관련성 기준으로
@@ -151,6 +198,25 @@ function loadIndex() {
 
 // ── glossary 캐시(mtime 감지): 구어 → [[개념링크]] 매핑표 파싱 ──
 let _glosCache = null, _glosMtime = 0;
+/**
+ * 괄호 **밖**의 쉼표로만 쪼갠다. glossary 구어 칸에 `(… , …)` 꼴 주석이 들어 있어
+ * 단순 split 으로는 낱말이 갈린다(2026-09-22 실측 4건).
+ * 예: `A, B (가, 나)` → ['A', 'B (가, 나)']
+ * @param {string} s
+ * @returns {string[]}
+ */
+function splitOutsideParens(s) {
+  const out = []; let buf = ''; let depth = 0;
+  for (const ch of String(s || '')) {
+    if (ch === '(' || ch === '（') depth++;
+    else if (ch === ')' || ch === '）') depth = Math.max(0, depth - 1);
+    if ((ch === ',' || ch === '，') && depth === 0) { out.push(buf); buf = ''; continue; }
+    buf += ch;
+  }
+  out.push(buf);
+  return out;
+}
+
 function loadGlossary() {
   try {
     const mt = fs.statSync(GLOSSARY_MD).mtimeMs;
@@ -169,10 +235,29 @@ function loadGlossary() {
       if (!t.startsWith('|')) continue;
       const c = tableCells(t);
       if (c.length < 2 || isSepRow(c) || c[0] === '구어·별칭') continue;
-      const terms = c[0].split(/[,，]/).map(s => s.trim()).filter(Boolean);
+      // ── 구어 칸 쪼개기 (2026-09-22, 3-18) ───────────────────────────────
+      // ⚠괄호 **안**의 쉼표로 쪼개면 안 된다. 실측: `이동식 해양구조물 (동의어 — 법
+      //   제3조①1호다목="해상", 같은 대상)` 이 두 조각으로 갈려 `같은 대상)` 이라는
+      //   **쓸모없는 구어**가 생기고 본래 낱말은 짝이 안 맞게 된다(4건).
+      const terms = splitOutsideParens(c[0]).map(s => s.trim()).filter(Boolean);
+      // ── 편집자 괄호 주석은 **입으로 말하지 않는다** ─────────────────────
+      // `해사안전법(기본법·교통안전법 구분)` 의 괄호는 사서가 단 메모지 사용자가
+      //   치는 말이 아니다. 그런데 `glossaryExpand` 는 질문에 그 괄호까지 똑같이
+      //   들어 있어야 걸린다 → 27개가 사실상 죽어 있었다(「뱃삯(도선)」·「방파제
+      //   낚시(항만)」·「갯바위낚시(연안)」…). **괄호를 뗀 꼴을 함께 등록**한다.
+      //   원래 꼴도 남겨 둔다 — 그렇게 쓰던 질의가 있으면 그대로 걸린다.
+      for (const t0 of [...terms]) {
+        const bare = t0.replace(/\s*[(（][^)）]*[)）]\s*$/, '').trim();
+        if (bare && bare !== t0 && bare.length >= 2 && !terms.includes(bare)) terms.push(bare);
+      }
       const slugs = [];
       const linkRe = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-      let lm; while ((lm = linkRe.exec(c[1])) !== null) slugs.push(lm[1].trim());
+      // ⚠표 안에서는 링크의 파이프를 `\|` 로 **이스케이프**해 적는다(마크다운 표 규칙).
+      //   `[^\]|]+` 는 그 역슬래시를 슬러그의 일부로 가져가 `statutes/해사안전기본법\` 이
+      //   된다 → 어떤 쪽과도 안 맞는다. 실제로 「해사안전법」 행 하나가 통째로 죽어 있었다
+      //   (2024년에 기본법·해상교통안전법으로 쪼개진, 사용자가 옛 이름으로 가장 많이 물을 법).
+      //   꼬리 역슬래시를 떼어 낸다.
+      let lm; while ((lm = linkRe.exec(c[1])) !== null) slugs.push(lm[1].trim().replace(/\\+$/, ''));
       if (terms.length && slugs.length) rows.push({ terms, slugs });
     }
     _glosCache = rows; _glosMtime = mt;
@@ -182,11 +267,17 @@ function loadGlossary() {
 
 /** 질문에 포함된 glossary 구어를 찾아 추가 검색어 + 강제후보 slug를 반환(띄어쓰기 무시 비교). */
 function glossaryExpand(query) {
-  const qFlat = query.replace(/\s+/g, '');
+  // ── 비교 전 정규화 (2026-09-22, 3-18) ───────────────────────────────────
+  // 종전에는 **공백만** 씻었다. 그래서 `관심·주의보·경보` 는 사용자가 가운뎃점까지
+  //   똑같이 찍어야만 걸렸다 — "관심 주의보 경보" 라고 띄어 쓰면 안 걸린다.
+  //   `_SCHEMA §0-E 규칙 3` 이 정한 정규화(가운뎃점 이형 통일)를 여기에도 쓴다.
+  //   **양쪽에 똑같이** 적용하므로 비교가 느슨해지지 않는다.
+  const flat = s => String(s || '').replace(/\s+/g, '').replace(/[·ㆍ・･‧∙⋅•․]/g, '');
+  const qFlat = flat(query);
   const extraTerms = []; const forcedSlugs = [];
   for (const row of loadGlossary()) {
     for (const t of row.terms) {
-      if (t && qFlat.includes(t.replace(/\s+/g, ''))) {
+      if (t && qFlat.includes(flat(t))) {
         forcedSlugs.push(...row.slugs);
         for (const s of row.slugs) extraTerms.push(...s.split(/[_·]/).filter(w => w.length >= 2));
         break;
@@ -361,6 +452,34 @@ function resolvePage(byFile, raw) {
   return null;
 }
 
+/**
+ * 점수용 본문 — 「## 변경 이력」 절을 잘라 낸다. (2026-09-25, 결심 4-5ⓐ)
+ *
+ * 무엇을 자르나: `## 변경 이력` 머리부터 **다음 `##`(또는 더 높은) 머리 앞까지**. 머리가 없으면 끝까지.
+ *   실측(2026-09-25): 그 절이 있는 쪽 **1,289개**(`## 변경 이력` 1,289 · `## 변경 이력(추가)` 1),
+ *   없는 쪽 2개. 그래서 **한 꼴만 보면 된다**.
+ * ⚠**`body` 는 안 건드린다** — 이 값은 `scoreOne`·`termWeights` 만 쓴다(readPage 주석 참조).
+ * ⚠그 절 안에 든 낱말이 **다른 데 없으면** 그 쪽은 그 낱말로 안 찾힌다. 그것이 이 결심의 뜻이다 —
+ *   *"위키가 그 말을 설명하는 것"* 과 *"고친 기록에 그 말이 한 번 나온 것"* 은 다르다.
+ * @param {string} body - readPage 가 만든 본문(frontmatter 제거 뒤)
+ * @returns {string} 「변경 이력」 절을 뺀 본문
+ * [연계] → readPage(entry.scoreBody) → scoreOne·termWeights. 근거: 등록부 `4-5` · L-385.
+ */
+const HISTORY_HEAD = /^##\s*변경\s*이력[^\n]*$/m;
+function stripHistory(body) {
+  // ★한 쪽에 그 절이 **두 번** 있는 쪽이 24개다(`## 변경 이력` 이 두 번, 또는 `## 변경 이력 (추가)`).
+  //   첫 것만 자르면 둘째가 남아 반만 고치는 것이 된다 — 없어질 때까지 돈다(2026-09-25 실측으로 찾았다).
+  let out = body;
+  for (let i = 0; i < 8; i++) {
+    const m = HISTORY_HEAD.exec(out);
+    if (!m) break;
+    const rest = out.slice(m.index + m[0].length);
+    const next = rest.search(/^#{1,2}\s\S/m);
+    out = next === -1 ? out.slice(0, m.index) : out.slice(0, m.index) + rest.slice(next);
+  }
+  return out;
+}
+
 // ── 페이지 본문 캐시(mtime 감지): frontmatter + body 분리 ──
 const _bodyCache = new Map(); // key: fp → { mtime, today, frontmatter, body }
 function readPage(kind, file) {
@@ -398,7 +517,16 @@ function readPage(kind, file) {
     const blocked = effectiveDate.unapprovedStageDates(String(file || '').split('__')[0]);
     body = effectiveDate.applyStageMarkers(body, today, blocked);
   }
-  const entry = { mtime: mt, today: staged ? today : null, appr, frontmatter, body };
+  // ★2026-09-25 (결심 4-5ⓐ) — **점수용 본문을 따로 둔다.** `body` 는 하나도 건드리지 않는다.
+  //   까닭: `scoreOne()` 과 `termWeights()` 가 **본문 전체**로 점수와 낱말 가중치(IDF)를 만드는데,
+  //   그 본문에 「## 변경 이력」이 들어 있어 **과거 서술이 지금 답을 고르는 데 끼어들었다.**
+  //   실측으로 드러난 경위(L-385): 승급 1차 기록을 canonical 987쪽 변경이력에 한 줄씩 넣자
+  //   골든 279문항의 `chain` 이 266 → 265 로 떨어졌다(어선법 SOLAS 문항이 chain → search).
+  //   ⇒ 「변경 이력」은 **무엇을 언제 고쳤나**를 적는 자리이고, 사용자가 묻는 것이 아니다.
+  //   ⚠**점수에서만 뺀다.** 인용(`citableBody`)·모델에 싣는 컨텍스트·되묻기 판정은 `body` 를 그대로 쓴다 —
+  //     거기서 빼면 「그 쪽에 무엇이 적혀 있나」가 바뀌어 답이 달라진다. 이 결심은 **검색 점수**만이다.
+  const entry = { mtime: mt, today: staged ? today : null, appr, frontmatter, body,
+                  scoreBody: stripHistory(body) };
   _bodyCache.set(fp, entry);
   return entry;
 }
@@ -630,8 +758,16 @@ function extractCitationChain(body) {
       //   꼬리에 조문이 있나 — 낱개(`제3조`·`제18조의2`)는 정규식으로, 묶음·범위
       //   (`제74·75조`·`제59~67조`)는 생산 함수 articleEnumTokens 로 본다. 둘 다 봐야 한다:
       //   articleEnumTokens 는 **묶음만** 풀고 낱개엔 []를 돌려준다.
+      // ★2026-09-24 (2-10 · 새 게이트 V5-21b 가 드러냈다) — 꼬리가 **별표·별지**일 때도 가른다.
+      //   종전에는 꼬리에 `제N조` 가 있어야 갈랐다. 그런데 `제38조 → 시행규칙 별표2` 처럼
+      //   **꼬리가 별표뿐인 줄**은 안 갈려 `tier` 가 모법(law)인 채 남았고, 그러면
+      //   `article_text.resolveRefs` ③ 이 `별표/법률_별표2.txt` 를 찾는다 — **그 별표는 시행규칙 것**이라
+      //   영영 못 연다. 실측 **33줄 · 22쪽**이고, 그중엔 낚시법 시행규칙 별표2(행정처분 기준)처럼
+      //   사용자가 바로 묻는 표가 들어 있다.
+      const arrowByl = !!(arrow && /(별표|별지|서식)\s*제?\s*\d/.test(arrow[2]));
       const arrowSplit = !!(arrow && (/제\s*\d+\s*조/.test(arrow[2])
-        || articleEnumTokens(arrow[2]).some(t => /^제\d+조/.test(t))));
+        || articleEnumTokens(arrow[2]).some(t => /^제\d+조/.test(t))
+        || arrowByl));
       out.push({
         law,
         article: arrowSplit ? article.slice(0, arrow.index).trim().replace(/[·,\s]+$/, '') : article,
@@ -801,7 +937,8 @@ function scoreOne(p, terms, weights) {
     const title = p.topic || p.law || '';
     for (const t of terms) {
       if (title.includes(t)) s += 3 * w(t);
-      else if (page.body.includes(t)) s += 2 * w(t);
+      // ★`scoreBody` — 「변경 이력」을 뺀 본문(결심 4-5ⓐ). 인용은 `body` 를 그대로 쓴다.
+      else if (page.scoreBody.includes(t)) s += 2 * w(t);
     }
   }
   return s;
@@ -834,7 +971,9 @@ function termWeights(pages, terms) {
   for (const p of pages) {
     const hay = (p.law || '') + ' ' + (p.topic || '') + ' ' + (p.file || '') + ' ' + (p.themes || []).join(' ');
     const page = readPage(p.kind, p.file);
-    const body = page ? page.body : '';
+    // ★`scoreBody` — 「변경 이력」을 뺀 본문(결심 4-5ⓐ). **여기가 회귀의 진짜 자리였다**:
+    //   987쪽 변경이력에 같은 글을 넣자 그 낱말의 `df` 가 987 늘어 무게가 주저앉았다(L-385).
+    const body = page ? page.scoreBody : '';
     for (const t of terms) if (hay.includes(t) || body.includes(t)) df.set(t, df.get(t) + 1);
   }
   const N = pages.length || 1;
@@ -1766,7 +1905,10 @@ ${block}
     const answer = [terms, lines.map((v, i) => `- **${options[i].label}**: ${v}`).join('\n')]
       .filter(Boolean).join('\n\n');
     return Object.assign({}, fallback, { answer });
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). 되묻기 **설명문**을 못 만들면 사용자는 왜 되묻는지 모른 채
+    //   버튼만 보게 된다 — 종전에는 「설명이 필요 없었던 것」과 구분이 안 됐다.
+    console.warn('[Legal-ClarifyExplain] 설명 생성 실패 — 기본 문구로 되묻는다:', e && e.message);
     return fallback;
   }
 }
@@ -1887,17 +2029,31 @@ async function search(query, opts) {
     .map(x => ({ x, body: citableBody(x.p, canonicalOnly) }))
     .filter(e => e.body);
 
+  // ★합계 상한(P-19, 2026-09-22) — **페이지를 버리지 않고 예산만 줄인다.**
+  //   ⚠앞 순위부터 채우고 남은 것만 주는 방식(먼저 만들어 봤다)은 상한 80,000 에서
+  //     근거 페이지가 **중앙값 39장 → 18장**으로 반 토막 났다. 그건 이 파일이 위에서 스스로
+  //     금지한 것이다 — *"뒤 순위를 버리지 않는다 — 예산만 줄인다 … 배경설명용으로 뒤 페이지가
+  //     필요한 질문도 있어 통째로 빼는 것은 위험하다(누락 0)"*. 그래서 방식을 바꿨다.
+  //   ①1~3위는 제 예산을 그대로 받는다(정답 문장은 실측상 거의 다 여기 있다).
+  //   ②4위 이하는 남은 예산을 **비례로 나눠 갖는다**(바닥 MIN_BODY_CHARS). 장수는 그대로다.
+  //   ③그래도 넘치면(페이지가 아주 많으면) 그때만 뒤에서부터 뺀다 — 바닥 밑으로는 못 준다.
+  //   `sliceRelevant` 가 질문과 가까운 절부터 담으므로, 예산이 줄면 **덜 관련된 절부터** 빠진다.
+  const budgets = bodyBudgets(finalList.length, CONTEXT_MAX_CHARS);
+  let spentChars = 0;
   const contextPages = finalList.map(({ x, body }, rank) => {
     const page = readPage(x.p.kind, x.p.file);
-    const budget = rank < TOP_FULL_RANK ? MAX_BODY_CHARS
-      : rank < MID_LAST_RANK ? MID_BODY_CHARS : TAIL_BODY_CHARS;
+    const budget = budgets[rank];
+    // ③ 바닥까지 줄여도 넘치면 그때는 싣지 않는다(장수가 아주 많을 때만 닿는 길).
+    if (rank >= TOP_FULL_RANK && spentChars + MIN_BODY_CHARS > CONTEXT_MAX_CHARS) return null;
+    const sliced = sliceRelevant(body, allTerms, budget);
+    spentChars += sliced.length;
     return {
       law: x.p.law, topic: x.p.topic, file: x.p.file, kind: x.p.kind, status: x.p.status || null,
       hop: !!x.hop,
       frontmatter: page ? page.frontmatter : {},
-      body: sliceRelevant(body, allTerms, budget),
+      body: sliced,
     };
-  }).filter(cp => cp.body);
+  }).filter(cp => cp && cp.body);
 
   // 인용사슬은 매칭된 모든 소스에서 뽑는다(상위 소수 건으로 자르면, 정작 답변과 정확히
   // 일치하는 표를 가진 페이지가 점수 커트라인 밖으로 밀려 화면에 아예 안 뜨는 사례가 실측됨
@@ -2975,6 +3131,71 @@ function pageLawNames(body, pageLaw) {
 }
 
 /** contextPages를 프롬프트용 [근거자료] 블록 문자열로 직렬화. */
+// ============================================================================
+// §5-6 국제협약 · §5-7 판례변동 — 위키 frontmatter 메타를 **읽는 곳** (2026-09-22, P-15)
+// ----------------------------------------------------------------------------
+// 규약(`_CHATBOT.md` 5-6·5-7, 사용자 확정 2026-07-18)은 두 가지를 정해 두었다 —
+//   5-6 국제협약: 답은 **우리 법 기준**으로 하되, 협약이 기반이라는 **유래를 알려주고 링크를 준다**.
+//                근거 데이터는 위키 frontmatter 의 `국제협약근거`·`협약링크`.
+//   5-7 판례변동: `해석주의` 플래그가 있으면 **챗봇이 참고 한 줄을 자동 첨부**한다.
+// ★그런데 2026-09-22 실측에서 **그 메타를 읽는 코드가 한 줄도 없었다**(`local_server`·`client`·
+//   `scripts` 전수 grep — 유일한 언급은 `_dashboard/loop/wiki_rebuild.js` 의 **생성 프롬프트
+//   설명문**이라 읽는 자리가 아니다). 위키 11장이 메타를 달고 있는데 **아무 데도 닿지 않았다.**
+//   뿌리 사슬 ②「코드가 안 읽는 규칙은 죽는다」의 실례다. 여기가 그 메타의 **첫 소비처**다.
+// ============================================================================
+
+/** 규약 5-7 이 글자 그대로 정해 둔 참고 문구. 바꾸려면 `_CHATBOT.md` 5-7 도 같이 바꾼다. */
+const CASELAW_NOTICE = '※ 참고: 이 부분은 **판례·유권해석에 따라 달라질 수 있으니**, 다툼이 있는 사안은 관할 소관부서·전문가 확인을 권합니다.';
+
+/** frontmatter 값에 따옴표가 씌워진 페이지가 있다(`국제협약근거: "CITES(…)"`). 그것만 벗긴다. */
+function unquoteMeta(v) {
+  const s = String(v == null ? '' : v).trim();
+  const q = s.length >= 2 && ((s[0] === '"' && s[s.length - 1] === '"') || (s[0] === "'" && s[s.length - 1] === "'"));
+  return q ? s.slice(1, -1).trim() : s;
+}
+
+/**
+ * 규약 5-6 — 이 근거 페이지에 협약 메타가 있으면 [근거자료] 머리에 붙일 한 문단을 만든다.
+ * ⚠협약 본문은 우리가 **수집하지 않는다**. 그래서 "지어내지 마라"를 함께 적는다 —
+ *   유래를 알려주라고만 하면 모델이 협약 조문 내용까지 쓸 위험이 있다(환각 0 원칙).
+ * @param {Object} frontmatter - readPage() 가 만든 frontmatter 객체
+ * @returns {string} 붙일 것이 없으면 빈 문자열
+ */
+function treatyNote(frontmatter) {
+  const fm = frontmatter || {};
+  const basis = unquoteMeta(fm['국제협약근거']);
+  const link = unquoteMeta(fm['협약링크']);
+  if (!basis && !link) return '';
+  let s = '\n※ 이 자료의 규정은 국제협약을 국내법화한 것이다';
+  if (basis) s += ' — 근거 협약: ' + basis;
+  s += '. ';
+  if (link) s += '협약 원문 링크: ' + link + ' ';
+  s += '답은 **우리 법 기준**으로 내되, ①그 협약이 기반이라는 유래를 한 줄로 알려 주고 '
+    + '②위 링크가 있으면 그대로 제시하라. ③우리 법과 협약의 차이가 [근거자료]에 적혀 있으면 짚어 주되 결론은 우리 법 기준이다. '
+    + '⚠협약 본문은 우리가 수집하지 않는다 — **협약 조문의 내용을 지어내지 마라**(_CHATBOT.md 5-6).';
+  return s;
+}
+
+/**
+ * 규약 5-7 — `해석주의` 플래그가 붙은 근거를 썼으면 답변 끝에 이어 붙일 꼬리를 만든다.
+ * ⚠모델에게 맡기지 않는다. 규약이 "플래그가 있으면 붙인다"고 정한 것이라 확률에 맡길 일이 아니다.
+ * @param {Array} contextPages - 이 답변이 실제로 쓴 근거 페이지들
+ * @param {string} answerSoFar - 지금까지의 답변(이미 같은 뜻이 적혀 있으면 겹쳐 붙이지 않는다)
+ * @returns {string} 붙일 것이 없으면 빈 문자열
+ */
+function caselawNoticeFor(contextPages, answerSoFar) {
+  const flagged = (contextPages || []).some((cp) => unquoteMeta((cp && cp.frontmatter) ? cp.frontmatter['해석주의'] : ''));
+  if (!flagged) return '';
+  if (String(answerSoFar || '').includes('판례·유권해석에 따라 달라질 수 있')) return '';
+  return '\n\n' + CASELAW_NOTICE;
+}
+
+/** 스트리밍이 아닌 자리에서 쓰는 형태 — `withAssumedNotice` 와 짝이다. */
+function withCaselawNotice(answer, contextPages) {
+  if (!answer) return answer;
+  return answer + caselawNoticeFor(contextPages, answer);
+}
+
 function buildContextBlock(contextPages) {
   return contextPages.map((cp, i) => {
     // ★2026-08-18(사용자 지적): 예전 머리는 `[수산업법 — 허가어업]` 이었고, 모델이 그걸 통째로
@@ -2996,7 +3217,9 @@ function buildContextBlock(contextPages) {
       ? `\n※ 이 자료에는 다음 법령의 조문이 함께 실려 있다 — ${laws.join(' / ')}. `
         + `조문번호만 적힌 자리를 대표 법령(${cp.law}) 것으로 단정하지 마라.`
       : '';
-    return `--- 근거${i + 1}: 「${cp.law}」 관련 자료 (${about}${meta}) ---${also}\n${cp.body}`;
+    // ★규약 5-6 — 협약 메타가 있는 페이지만 붙는다(위키 11장). 없는 페이지는 빈 문자열이라 종전과 똑같다.
+    const treaty = treatyNote(cp.frontmatter);
+    return `--- 근거${i + 1}: 「${cp.law}」 관련 자료 (${about}${meta}) ---${also}${treaty}\n${cp.body}`;
   }).join('\n\n');
 }
 
@@ -3025,7 +3248,7 @@ const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
 4. 여기서는 사용자에게 되묻지 않는다 — 되물어야 하는 질문은 이 답변 **앞 단계(되묻기 판단)** 에서 이미 걸러진다. 조건(선박 톤수·어업 종류·조업구역 등)이 질문에 없어도 되묻지 말고 [근거자료]에 있는 정보로 최선을 다해 답하되, 조건에 따라 갈리면 핵심 갈래만 짧게 구분해 밝힌다(모든 경우를 장황하게 전수 나열하지 않는다).
 5. 판례·법리 해석·다툼의 여지가 있는 논점은 답하지 않는다(스코프 밖). 명확한 조문까지만 안내하고 "이 부분은 개별 사안에 따라 달라져 관할 소관부서에 확인하시는 것이 정확합니다"로 마무리한다.
 6. 딱딱한 조문 나열 금지. 결론 먼저 → 필요한 근거. **본문 첫 문장을 "쉽게 말하면 ~"으로 열어** 결론을 일상어로 짧게 요약한 뒤, 조문·처벌 같은 정확한 근거를 그다음에 이어 붙인다 — 이 쉬운 요약을 답변 맨 끝에 마무리 말로 붙이지 않는다. 과잉 설명은 하지 않는다.
-7. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 법령명은 **정식 명칭 그대로** 쓴다(약칭·줄임말로 쓰지 않는다). ★**"같은 법"·"동법"·"같은 조"·"이 법" 같은 가리키는 말은 쓰지 마라 — 조문번호를 쓸 때마다 「정식 법령명」을 앞에 다시 붙인다.** 시행령·시행규칙도 마찬가지로 「낚시 관리 및 육성법 시행령」처럼 괄호낫표 안에 계층까지 넣어 통째로 쓴다(「낚시 관리 및 육성법」 시행령 제16조처럼 낫표 밖에 계층을 떼어 놓지 마라). 문장이 길어져도 이렇게 쓴다 — 화면이 이 표기를 눌러 원문을 여는 자리로 바꾸는데, 가리키는 말로 쓰면 어느 법인지 확정하지 못해 그 근거는 사용자가 확인할 수 없게 된다. ★**법령명과 조문번호를 붙여 쓴 이 표기가 사용자가 원문을 열어볼 수 있는 유일한 통로다**(화면이 그 자리를 눌러 원문 팝업으로 잇는다) — 2026-08-18 이전에는 답변 아래에 "근거 법령" 목록이 따로 붙었지만 지금은 없앴다. 그러니 법령명만 쓰고 조문번호를 빼거나, 조문번호만 쓰고 법령명을 빼면 **그 근거는 사용자가 확인할 길이 사라진다.** 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다(화면이 답변 끝에 따로 붙인다). ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
+7. 근거로 삼은 법령명·조문번호는 답변 문장 안에서 자연스럽게 밝힌다(예: "「낚시 관리 및 육성법」 제35조에 따라 …"). 법령명은 **정식 명칭 그대로** 쓴다(약칭·줄임말로 쓰지 않는다). ★**"같은 법"·"동법"·"같은 조"·"이 법" 같은 가리키는 말은 쓰지 마라 — 조문번호를 쓸 때마다 「정식 법령명」을 앞에 다시 붙인다.** ★**✗ 이렇게 쓰지 마라**: "「해양치유자원의 관리 및 활용에 관한 법률」 제15조제1항에 따라 신청해야 하며, **같은 법** 제15조제4항은 …" / "「한국해양수산연수원법」 제1조에 따른 것으로, **이 법은** …" / "「농수산물의 원산지 표시 등에 관한 법률 시행령」 제2조에 따르면, **이 법에서** 말하는 통신판매는 …" ★**✓ 이렇게 쓴다**: "…제15조제1항에 따라 신청해야 하며, **「해양치유자원의 관리 및 활용에 관한 법률」** 제15조제4항은 …" — **한 답변 안에서 같은 법을 열 번 말해도 열 번 다 정식 명칭을 쓴다.** ★두 법 이상을 잇달아 인용한 뒤의 "이 법"은 **사람이 읽어도 어느 법인지 모른다** — 그 자리는 특히 반드시 이름을 쓴다. 시행령·시행규칙도 마찬가지로 「낚시 관리 및 육성법 시행령」처럼 괄호낫표 안에 계층까지 넣어 통째로 쓴다(「낚시 관리 및 육성법」 시행령 제16조처럼 낫표 밖에 계층을 떼어 놓지 마라). 문장이 길어져도 이렇게 쓴다 — 화면이 이 표기를 눌러 원문을 여는 자리로 바꾸는데, 가리키는 말로 쓰면 어느 법인지 확정하지 못해 그 근거는 사용자가 확인할 수 없게 된다. ★**법령명과 조문번호를 붙여 쓴 이 표기가 사용자가 원문을 열어볼 수 있는 유일한 통로다**(화면이 그 자리를 눌러 원문 팝업으로 잇는다) — 2026-08-18 이전에는 답변 아래에 "근거 법령" 목록이 따로 붙었지만 지금은 없앴다. 그러니 법령명만 쓰고 조문번호를 빼거나, 조문번호만 쓰고 법령명을 빼면 **그 근거는 사용자가 확인할 길이 사라진다.** 다만 소관부서·연락처·근거자료의 기준일을 답변 마지막에 각주로 따로 붙이지는 않는다(화면이 답변 끝에 따로 붙인다). ("참고용입니다" 면책 문구도 화면이 별도로 붙이니 답변에 넣지 않는다.)
 8. 표·이모지는 쓰지 않는다. 강조는 **굵게**만 사용. 갈래·조건별로 나뉘는 설명은 "*" 같은 밋밋한 기호 하나로 뭉뚱그리지 말고, 단계(갈래→항목→세부조건)에 따라 "1. → 가. → 1)" 순서로 번호를 매겨 위계를 드러낸다(더 깊어지면 "가)→(1)→(가)" 순으로 이어간다). 예: "1. 바다에서 조종한 경우" 아래 "가. 형벌" 아래 "1) 총톤수 5톤 이상 선박은…".
 9. 처벌·의무의 대상이 [근거자료]에 여러 주체(예: 위반한 본인 + 별도 책임 있는 선장·사업자·안전관리자 등)로 나뉘어 규정돼 있으면, 그중 하나만 말하고 끝내지 말고 **해당하는 관련 주체를 전부** 빠짐없이 언급한다.
 10. 시행령·시행규칙의 세부 요건·항목을 조문번호와 함께 나열하기 전에, 그 요건들을 위임한 **모법(법률) 조문번호도 답변 어딘가에서 반드시 한 번 밝힌다**(예: "「낚시 관리 및 육성법」 제25조에 따라 신고해야 하며, 신고요건은 「낚시 관리 및 육성법 시행령」 제16조에서…"). 세부 요건만 나열하고 그 뿌리가 되는 법 조문 자체를 안 밝히면 안 된다.
@@ -3234,7 +3457,10 @@ async function pickCandidateLaws(query, lawNames) {
     // 모델이 목록에 없는 법명을 지어낼 수 있어(환각) 실제 목록에 있는 것만 통과시킨다.
     const known = new Set(lawNames);
     return arr.filter(x => typeof x === 'string' && known.has(x.trim())).map(x => x.trim()).slice(0, RAW_LAW_MAX);
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). 여기서 빈 배열이 되면 **raw 원문을 한 글자도 안 읽고**
+    //   답을 쓴다 — 「읽을 법이 없었다」와 「고르다 실패했다」가 겉으로 똑같았다.
+    console.warn('[Legal-RawLawPick] 후보 법 고르기 실패 — raw 원문 없이 답한다:', e && e.message);
     return [];
   }
 }
@@ -3316,7 +3542,10 @@ async function pickRawFiles(query, bundles) {
       if (out.length >= RAW_FILE_MAX) break;
     }
     return out;
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). 여기서 빈 배열이 되면 **시행령·시행규칙·별표를 안 읽고**
+    //   법률 본문만으로 답한다 — 위임된 수치가 통째로 빠지는데 아무 표시가 없었다.
+    console.warn('[Legal-RawFilePick] 위임 파일 고르기 실패 — 법률 본문만으로 답한다:', e && e.message);
     return [];
   }
 }
@@ -3382,7 +3611,10 @@ async function searchRawFallback(query, hint) {
       laws: bundles.map(b => b.law),
       files: extras.map(x => `${x.law}/${x.file}`),
     };
-  } catch (_) {
+  } catch (e) {
+    // ★조용히 넘어가지 않는다 (3-44). raw 원문 보조검색이 통째로 죽으면 **위키에 있는 것만으로**
+    //   답한다 — 「보조검색이 필요 없었다」와 구분이 안 됐다.
+    console.warn('[Legal-RawFallback] raw 원문 보조검색 실패 — 위키 근거만으로 답한다:', e && e.message);
     return EMPTY;
   }
 }
@@ -4033,6 +4265,68 @@ const ZONE_CLARIFY_NOTE = '추가 정보가 필요해요';
  * [연계] ← routes/legal.js POST /api/legal/ask 의 맨 앞 게이트(search()보다 앞).
  *        → ai_chat.js는 기존 되묻기·답변과 같은 필드만 보므로 클라이언트 변경이 없다.
  */
+// ── 4-6 쪼개진 법 되묻기 (2026-09-26 신설, 사장님 확정 ⓐ) ─────────────────────
+// [무엇] 2024년처럼 **법이 둘로 쪼개졌는데 옛 이름으로 물었을 때** 어느 쪽인지 되묻는다.
+// [왜] 옛 이름은 이제 어느 법도 아니다. 실측(2026-09-25): 「해사안전법」으로 물으면
+//   후보 39쪽 중 기본법 11쪽(1위·10,110자) · 교통안전법 10쪽(12위·819자) — 둘 다 닿지만
+//   **두께가 12배** 다르고 음주운항·충돌예방이 교통안전법에 있어 **절반만 두껍게** 뜬다.
+// [★왜 글로서리로 판정하지 않나] 글로서리에서 「법 둘 이상을 가리키는 행」은 3개인데 그중 둘
+//   (「기름통 버림」·「물양장」)은 **둘 다 답인 경우**다. 거기서 되물으면 퇴보다(되묻기가 늘면
+//   답까지 걸음이 늘어난다). 「쪼개졌다」는 **선언해야 아는 사실**이라 `_dashboard/split_laws.json`
+//   한 곳에 적어 두고 읽는다(규칙을 코드에 박지 않는다 — L-386).
+// [좁게 발동한다] 옛 이름을 **홀로** 쓴 물음에만. 새 이름 중 하나가 물음에 있으면 발동하지 않는다.
+//   실측: 골든 291문항 중 옛 이름을 홀로 쓴 문항 **0건** ⇒ 판정 퇴보 위험 0.
+// [연계] → routes/legal.js(zoneTreeStep 과 같은 자리·같은 반환 꼴) · 등록표 `4-6` ·
+//         `_dashboard/split_laws.json` · 스위트 `test_split_law_ask`.
+const SPLIT_LAWS_FILE = path.join(LEGAL_DIR, '_dashboard', 'split_laws.json');
+let _splitLaws = null;
+/** 쪼개진 법 선언을 읽는다(한 번만). 파일이 없거나 깨졌으면 **조용히 빈 목록** — 기존 흐름 그대로. */
+function loadSplitLaws() {
+  if (_splitLaws) return _splitLaws;
+  try {
+    const d = JSON.parse(fs.readFileSync(SPLIT_LAWS_FILE, 'utf8'));
+    _splitLaws = Array.isArray(d['쪼개진법']) ? d['쪼개진법'] : [];
+  } catch (_) { _splitLaws = []; }
+  return _splitLaws;
+}
+
+/**
+ * 쪼개진 법을 옛 이름으로 물었으면 어느 쪽인지 되묻는다.
+ * 예: splitLawStep('해사안전법이 뭐야') → {answer, note, clarify:{question, options}}
+ *     splitLawStep('해상교통안전법 음주운항 처벌') → null  (새 이름을 이미 썼다)
+ * @param {string} query - 사용자 물음
+ * @returns {{answer:string, note:string, clarify:{question:string, options:Array}}|null}
+ * [연계] ← routes/legal.js POST /api/legal/ask (zoneTreeStep 바로 뒤).
+ */
+function splitLawStep(query) {
+  const q = String(query || '');
+  if (!q.trim()) return null;
+  for (const it of loadSplitLaws()) {
+    const 옛 = String(it['옛이름'] || '');
+    const 새 = Array.isArray(it['새이름']) ? it['새이름'].filter(Boolean) : [];
+    if (!옛 || 새.length < 2) continue;
+    if (!q.includes(옛)) continue;
+    // ★새 이름을 이미 썼으면 되묻지 않는다 — 사용자가 이미 고른 것이다.
+    //   ⚠`해사안전기본법` 은 `해사안전법` 을 품지 않지만(글자가 다르다) 다른 법에서는 품을 수 있어
+    //     **새 이름 쪽을 먼저 본다**(옛 이름이 새 이름의 일부인 경우를 안전하게 넘긴다).
+    if (새.some((n) => q.includes(n))) return null;
+    const 설명 = it['무엇이어디에'] || {};
+    return {
+      answer: `「${옛}」은 ${it['쪼개진날'] || '2024년'}에 **${새.join(' · ')}** 으로 나뉘었습니다.`,
+      note: '추가 정보가 필요해요',
+      clarify: {
+        question: `어느 쪽을 찾으시나요?`,
+        options: 새.map((n) => ({
+          label: n,
+          hint: String(설명[n] || ''),
+          // 질의에 그 법 이름을 얹어 보낸다 — 되묻기 규약 그대로(라벨이 곧 좁히는 말이다).
+        })),
+      },
+    };
+  }
+  return null;
+}
+
 function zoneTreeStep(query) {
   try {
     const tree = matchZoneTreeTopic(query);
@@ -4562,6 +4856,12 @@ async function understandConfirmStep(query, uc, enabled) {
       },
     };
   } catch (_) {
+    // ★3-44 에서 여기에도 `console.warn` 을 달았다가 **되돌렸다.**
+    //   이 절(H-37 §4·5·7)은 `test_ask_context` 의 자물쇠가 **"콘솔로도 안 흘린다"** 를 건 자리다.
+    //   R1(프로필·맥락이 서버 어디에도 남지 않는다)이 로그보다 앞선다 —
+    //   빨간불이 떴다고 기준선을 다시 굽지 않는다(G-49).
+    //   ⚠그래서 **이 단계가 죽으면 확인 없이 바로 답한다**는 사실은 여전히 밖에서 안 보인다.
+    //     남길 곳이 필요하면 로그가 아니라 **진단줄(diag)** 이어야 한다 — 아직 이 함수엔 없다.
     return null;
   }
 }
@@ -5147,6 +5447,9 @@ async function naverTermStep(query, nu, enabled) {
       },
     };
   } catch (_) {
+    // ★위 understandConfirmStep 과 같은 까닭으로 **로그를 달지 않는다**(H-37 §4·5·7 자물쇠).
+    //   ⚠「물어볼 것이 없었다」와 「되묻기 단계가 죽었다」는 여전히 겉으로 똑같다.
+    //     이 절에 남기려면 **진단줄(diag)** 을 먼저 들여야 한다.
     return null;
   }
 }
@@ -5167,8 +5470,20 @@ function withAssumedNotice(answer, assumed) {
 // 검사와 코드가 어긋나 엉뚱한 결론이 난다(L-136·L-153).
 module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
   // readPage 는 시행일 마커 접기(effective_date)가 본문 입구에서 도는지 회귀 테스트(test_pending_law)가 보려고 내보낸다.
-  readPage, loadGlossary, glossaryExpand, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep, matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
+  readPage,
+  // 2026-09-25 결심 4-5ⓐ: 「변경 이력」을 점수에서 빼는 자. 검사(test_score_body)가 **생산 함수를**
+  // 그대로 불러 고정한다(L-136 — 검사가 제 사본을 만들면 둘이 갈린다).
+  stripHistory, loadGlossary, glossaryExpand,
+  // 2026-09-25 일감 L-2: 사전의 `statutes/…` 꼴을 {kind,file} 로 바꾸는 **생산 규칙**.
+  //   탐침(`glossary_route_probe.js`)이 제 사본을 만들면 자와 실물이 갈린다(L-136) —
+  //   실제로 처음에 사본을 써서 「가리키는 쪽이 색인에 없다 10건」이라는 **허수**를 냈다.
+  normalizeSlug, lawCellVariants, citationNearLawName, pageLawNames, buildContextBlock, termWeights, scoreOne, search, decideClarify, synthesizeAnswerStream, normalizeHistory, historyBlock, searchRawFallback, classifyTier, extractCitationChain, extractGapNotices, lookupContact, filterSourcesByAnswer, filterCitationChainByAnswer, groupCitationChainByFlow, rawPathOf, zoneTreeStep,
+  splitLawStep,   // ★4-6 쪼개진 법 되묻기 — routes/legal.js 가 zoneTreeStep 바로 뒤에서 부른다
+  matchZoneTreeTopic, resolveZoneTreePath, collectZoneRules, rankZoneRules, zoneAskedRequirement,
   // H-37 §4·5·7(기본 off 스위치로 잠긴 신규 단계 — 설계 §3.3 R3)
+  // 2026-09-22 P-19: 합계 상한. 검사 도구가 **생산과 같은 값**을 보고 재려고 내보낸다(L-136).
+  CONTEXT_MAX_CHARS, MIN_BODY_CHARS, MAX_BODY_CHARS, MID_BODY_CHARS, TAIL_BODY_CHARS,
+  TOP_FULL_RANK, MID_LAST_RANK, bodyBudgets,
   PROFILE_FIELDS, UNDERSTAND_MAX_ROUNDS, ASSUMED_NOTICE, RESTATE_DEICTIC, RESTATE_BLANK, josaEuro,
   restateAllowed, termsOf, expandQueryTerms,   // §17 재진술 → 검색 확장어
   normalizeAskCtx, ctxNextOf, normalizeProfile,
@@ -5181,4 +5496,10 @@ module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
   extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
   // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)
-  sliceRelevant, isMustSection, MUST_SECTIONS };
+  sliceRelevant, isMustSection, MUST_SECTIONS,
+  // 2026-09-22 P-15: 위키 frontmatter 의 「국제협약근거·협약링크·해석주의」를 읽는 첫 소비처(_CHATBOT.md 5-6·5-7).
+  //   검사 도구가 생산과 똑같은 것을 보려고 함께 내보낸다(L-136).
+  CASELAW_NOTICE, unquoteMeta, treatyNote, caselawNoticeFor, withCaselawNotice,
+  // 2026-09-22 2-6(세는 법 사전): 절 찾기·칸 쪼개기를 **검사 도구도 같은 것을 쓰게** 내보낸다.
+  //   따로 만들면 같은 표를 세도 답이 달라진다 — 그게 뿌리 사슬 ⑥의 정체였다(L-136·G-10).
+  sectionTable, tableCells, isSepRow, plainCell };

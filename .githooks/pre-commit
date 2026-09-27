@@ -24,8 +24,18 @@
 어떻게 켜나 (클론마다 한 번):
     git config core.hooksPath .githooks
 
+★2026-09-22 추가 — 정적 게이트 두 개(사용자 확정 Q-9):
+  `verify_all.sh` 의 게이트 19개를 **자동으로 부르는 것이 하나도 없었다**(CI 0 · 훅 0 · npm 0).
+  전체는 6분이라 커밋마다 돌릴 수 없지만, 그중 **V2 경로 무결성**과 **V3 로드 순서**는
+  서버도 네트워크도 필요 없고 **둘 합쳐 0.1초**다. 이 둘은 여기서 매 커밋 막는다.
+  나머지(스위트 31개 · V4 · V5-* · V6)는 `.github/workflows/verify-all-gate.yml` 이 맡는다.
+  · V2 — 옮긴 파일을 가리키던 경로가 안 깨졌나
+  · V3 — 스크립트 로드 순서가 뒤집히지 않았나
+  끄려면 `SEAGNAL_STATIC_GATE=off`.
+
 [연계] 재생성 도구 `local_server/knowledge/legal/_dashboard/loop/lint_index.py` · `lint_build.py` ·
-       같은 판정을 검증 쪽에서 하는 곳은 `scripts/refactor/verify_all.sh` V5-0
+       같은 판정을 검증 쪽에서 하는 곳은 `scripts/refactor/verify_all.sh` V5-0 ·
+       나머지 게이트를 맡는 곳 `.github/workflows/verify-all-gate.yml`
 """
 import os
 import subprocess
@@ -80,7 +90,36 @@ def regenerate():
     return None
 
 
+def static_gate():
+    """서버·네트워크 없이 1초 안에 끝나는 게이트 셋(V2 경로 · V3 로드 순서 · V2-b 절대경로)을 돌린다.
+
+    `verify_all.sh` 전체는 6분이라 커밋마다 못 돌린다. 그러나 이 둘은 즉시 끝나고,
+    깨지면 **앱이 통째로 안 뜨는** 종류라 커밋 단계에서 막는 값어치가 있다.
+    반환: 0 통과 · 1 실패(메시지는 이미 각 스크립트가 찍었다)
+    """
+    if os.environ.get('SEAGNAL_STATIC_GATE') == 'off':
+        return 0
+    for name, script in (('V2 경로 무결성', 'scripts/refactor/check_paths.js'),
+                         ('V3 로드 순서', 'scripts/refactor/check_order.js'),
+                         # 2026-09-22(G-31) — 절대경로가 박히면 CI·프로덕션에서 조용히 죽는다.
+                         # grep 한 번이라 여기서도 값이 싸다.
+                         ('V2-b 절대경로', 'scripts/refactor/check_abs_paths.js')):
+        if not os.path.exists(script):
+            continue          # 스크립트가 없는 체크아웃에서는 조용히 넘어간다
+        r = subprocess.run(['node', script], capture_output=True, text=True)
+        if r.returncode != 0:
+            print('[정적 게이트] %s 실패 — 커밋을 막는다.' % name)
+            print((r.stdout or '').rstrip()[-2000:])
+            print((r.stderr or '').rstrip()[-1000:])
+            print('  직접 돌려서 보라:  node %s' % script)
+            print('  끄려면 SEAGNAL_STATIC_GATE=off 를 앞에 붙여 실행한다.')
+            return 1
+    return 0
+
+
 def main():
+    if static_gate() != 0:
+        return 1
     if os.environ.get('SEAGNAL_INDEX_SYNC') == 'off':
         return 0
     staged = staged_wiki_md()

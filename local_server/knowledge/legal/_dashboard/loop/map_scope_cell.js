@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'wiki-scope-map-cell',
   description: '한 기준법의 원문(법률·시행령·시행규칙)을 직접 훑어 수집해야 할 "가지 전체"를 누락 없이 도출: 내부 위임(시행령/시행규칙/고시/별표) + 타법 인용조문 + 그 조문이 요구하는 별표·고시까지. 각 항목이 raw에 이미 있는지/미수집인지 대조해 수집 대상 매니페스트 생성. 완료 시 마커.',
   phases: [{ title: '범위확정', detail: '법당 1에이전트: 원문 참조사슬 전수추출 + raw 대조 + 매니페스트 저장' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const MARK = `${LEGAL}/_dashboard/fix3`
 const SCOPE = `${LEGAL}/_dashboard/scope`
 

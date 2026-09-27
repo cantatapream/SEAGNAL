@@ -1,3 +1,4 @@
+const path = require('path');
 // synth_scope.js — 6차 감사 리포트를 읽어 각 법의 '스코프-밖 질문 수'를 판정해 스코프-내 full률을 산출한다.
 // 역할(초보자용): DoD는 "스코프-내 full률 ≥90%". 스코프-밖(판례·법리·입법공백·미제정고시·자치법규·⚠REVIEW미검증)
 //   질문은 위키가 원천적으로 답할 수 없으므로 분모에서 뺀다. 각 에이전트가 담당 법의 감사 리포트를 읽고
@@ -10,7 +11,7 @@ export const meta = {
   description: '6차 감사 리포트로 스코프-내 full률 산출(스코프밖 질문 분모 제외)',
   phases: [{ title: '스코프분류', detail: '법별 에이전트가 감사리포트 읽고 out_scope 질문수 판정' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['law', 'total_q', 'full', 'out_scope_q'],

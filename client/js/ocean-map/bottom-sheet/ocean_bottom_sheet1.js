@@ -278,7 +278,7 @@
             startY = lastY = e.clientY;
             startTime = lastTime = Date.now();
             pointerId = e.pointerId;
-            try { handle.setPointerCapture(pointerId); } catch (err) {}
+            try { handle.setPointerCapture(pointerId); } catch (err) { /* 포인터 캡처를 지원 안 하는 브라우저면 던진다 — 끌기는 일반 포인터 이벤트로 그대로 된다 */ }
             sheet.classList.add('dragging');
         });
 
@@ -296,7 +296,7 @@
             if (!dragging) return;
             dragging = false;
             sheet.classList.remove('dragging');
-            try { if (pointerId != null) handle.releasePointerCapture(pointerId); } catch (err) {}
+            try { if (pointerId != null) handle.releasePointerCapture(pointerId); } catch (err) { /* 잡은 적 없는 포인터를 놓으려 하면 던진다 — 놓는 것이 목적이라 이미 이뤄진 셈이다 */ }
             pointerId = null;
 
             var totalDy = (e ? e.clientY : lastY) - startY;

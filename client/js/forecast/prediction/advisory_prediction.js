@@ -334,7 +334,11 @@
             // 표출 인가 없으면 아코디언 숨김(off, 또는 admin 모드의 비관리자 기기).
             _setAccordionVisible(d && d.display === true);
             if (d && d.display === true) renderAdvisoryPrediction(d);
-        } catch (e) { /* graceful */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). **특보 예측 아코디언이 통째로 안 뜬다** —
+            //   「예측할 것이 없다」와 「못 받았다」가 구분되지 않았다.
+            console.warn('[특보예측] 조회 실패 — 예측 아코디언 없이 그린다:', e && e.message);
+        }
     }
 
     function toggleAdvisoryPredictionAccordion() {

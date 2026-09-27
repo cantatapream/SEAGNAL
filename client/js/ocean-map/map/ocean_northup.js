@@ -161,16 +161,16 @@
         if (newState === STATES.ALIGNED) {
             _rotateToNorth(map);
             _setRotateInteraction(map, true);
-            try { localStorage.removeItem(LS_KEY); } catch (e) {}
+            try { localStorage.removeItem(LS_KEY); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
             if (!silentToast) _toast('North up 정렬');
         } else if (newState === STATES.LOCKED) {
             _rotateToNorth(map);
             _setRotateInteraction(map, false);
-            try { localStorage.setItem(LS_KEY, 'true'); } catch (e) {}
+            try { localStorage.setItem(LS_KEY, 'true'); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
             if (!silentToast) _toast('North up fixed');
         } else {  // FREE
             _setRotateInteraction(map, true);
-            try { localStorage.removeItem(LS_KEY); } catch (e) {}
+            try { localStorage.removeItem(LS_KEY); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
             // 잠금 해제(자유) 진입은 토스트 없음 — 색상 변경으로 식별
         }
 
@@ -196,7 +196,7 @@
      */
     function _restoreFromStorage() {
         var saved = null;
-        try { saved = localStorage.getItem(LS_KEY); } catch (e) {}
+        try { saved = localStorage.getItem(LS_KEY); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         if (saved === 'true') {
             _applyState(STATES.LOCKED, { silentToast: true });
         }

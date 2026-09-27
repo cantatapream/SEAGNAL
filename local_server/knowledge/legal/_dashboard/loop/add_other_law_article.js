@@ -239,6 +239,25 @@ function renderArticle(u) {
       fs.readdirSync(OTHER).find(e => flat(e) === wantSlug);
     if (found) dir = path.join(OTHER, found);
   }
+  // ★2026-09-23 (3-11 · Q-2) — **전문을 이미 가진 법에 발췌 폴더를 또 만들지 않는다.**
+  //   위 가드는 `…시행령`·`…시행규칙` 꼴만 본다. 그런데 **법률 그 자체**가 기준법인 경우에도
+  //   이 도구가 `15_관련타부처/<법>/` 을 새로 만들어 왔고, 그렇게 쌓인 것이 **25개**다.
+  //   ⚠챗봇은 안 속는다(`resolveBase` 가 전문을 고른다). **속는 것은 검사기다** —
+  //     V5-16 이 그 발췌본을 보고 「목이 없다」는 **가짜 결손**을 만든다.
+  //   여기서 막지 않으면, 25개를 지워도 **다음 인용 때 그대로 되살아난다.**
+  if (dir.startsWith(OTHER)) {
+    try {
+      const map = JSON.parse(fs.readFileSync(path.join(LEGAL, '_dashboard', 'law_raw_paths.json'), 'utf8'));
+      const rel = map[wantSlug];
+      if (rel && !rel.includes('15_관련타부처')) {
+        console.error(`  ⚠★이 법은 **전문을 이미 갖고 있다** — ${rel}`);
+        console.error('     발췌 폴더를 새로 만들면 **같은 법이 두 곳에** 생긴다(V5-34 가 센다 · 지금 25개).');
+        console.error('     전문에 그 조가 있으면 **받을 것이 없다.** 없다면 전문 쪽을 다시 받는 것이 맞다.');
+        console.error(`     그래도 진행하려면 \`--dup-ok\` 를 붙인다. (3-11 · Q-2)`);
+        if (!process.argv.includes('--dup-ok')) process.exit(2);
+      }
+    } catch (_) { /* 지도를 못 읽으면 막지 않는다 — 없는 것을 결함이라 하지 않는다 */ }
+  }
   // 계층 파일 고르기: 이미 쓰던 파일이 있으면 **거기에 덧붙인다.**
   const plain = path.join(dir, `${tier}.txt`);
   const excerpt = path.join(dir, `${tier}_발췌.txt`);

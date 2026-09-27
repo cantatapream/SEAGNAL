@@ -377,6 +377,9 @@ async function _getPdfText(fileNm) {
             return null;
         }
     } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). 캐시를 안 해 다음에 다시 받지만, **계속 실패하면**
+        //   통보문 본문이 영영 안 붙는데 「본문이 원래 없다」와 구분이 안 됐다.
+        console.warn('[child-bulletin] 통보문 내려받기·파싱 실패 — 본문 없이 낸다(다음에 재시도):', e && e.message);
         return null;              // 다운로드/파싱 실패 → 캐시 안 함(재시도)
     }
     if (_pdfTextCache.size >= PDF_CACHE_MAX) {

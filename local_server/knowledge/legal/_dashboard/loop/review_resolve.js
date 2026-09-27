@@ -1,3 +1,4 @@
+const path = require('path');
 // review_resolve.js — ③ 리뷰큐 자동 트리아지: 미승인 엔트리를 재검증해 resolved/needs_collect/human 판정.
 // 역할(초보자용): fable5 분류상 미승인 97건 중 67%는 AI가 처리 가능(공개법령 재수집 or 원문 재대조).
 //   이 워크플로우는 각 엔트리를 **원문 근거로 재검증**해서, 근거 인용이 확실하면 resolved(→사람 승인 불필요),
@@ -10,7 +11,7 @@ export const meta = {
   phases: [{ title: '재검증', detail: '엔트리 5건/에이전트: raw 재대조로 근거 확정 or 수집필요 or 사람판단 분류' }],
 }
 const SP = '/tmp/claude-0/-home-user-SEAGNAL/8333e12b-62ed-5369-b337-c007bf38af54/scratchpad'
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const DEC = {
   type: 'object', required: ['idx', 'id', 'verdict'],

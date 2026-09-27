@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'maritime-full-depth-build',
   description: '풀 깊이 빌드(Sonnet 5): 법당 전 주제 concept 완비(스로틀 제거)',
   phases: [{ title: '풀깊이빌드', detail: '법마다 Sonnet 에이전트가 모든 규제 주제를 concept로' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const SCHEMA = `${LEGAL}/_SCHEMA.md`
 
 const MAN = {

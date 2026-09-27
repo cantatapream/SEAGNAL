@@ -1051,7 +1051,9 @@ window.editPromoPost = async function (postId) {
             alert('게시글을 찾을 수 없습니다.');
         }
     } catch (e) {
-        // console.error('수정 로드 오류:', e);
+        // ★조용히 넘어가지 않는다 (3-44). **[수정] 을 눌러도 아무 일이 안 일어난다** —
+        //   「게시글을 찾을 수 없습니다」 알림조차 안 뜬다.
+        console.warn('[게시판] 수정할 글 불러오기 실패 — 눌러도 아무 일이 안 일어난다:', e && e.message);
     }
 };
 
@@ -1103,6 +1105,8 @@ async function _initPromoReactions(postId) {
         const data = res.ok ? await res.json() : { heartCount: 0, thumbsCount: 0, wowCount: 0, myReaction: null };
         _renderReactions(wrap, postId, data);
     } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **반응 수가 전부 0 으로** 그려진다 — 「아무도 안 눌렀다」와 같아 보인다.
+        console.warn('[게시판] 반응 조회 실패 — 전부 0 으로 그린다:', e && e.message);
         _renderReactions(wrap, postId, { heartCount: 0, thumbsCount: 0, wowCount: 0, myReaction: null });
     }
 }
@@ -1156,7 +1160,10 @@ window.toggleReaction = async function(postId, type) {
         const data = await res.json();
         const wrap = document.getElementById('promo-detail-reactions');
         if (wrap) _renderReactions(wrap, postId, data);
-    } catch (e) { /* 무시 */ }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44). **누른 반응이 화면에 안 반영된다** — 안 눌린 것처럼 보인다.
+        console.warn('[게시판] 반응 새로고침 실패 — 누른 것이 화면에 안 보인다:', e && e.message);
+    }
 };
 
 // 12. 탭 전환 시 게시글 로드 및 관리자 인증 (15회 클릭)
@@ -1245,7 +1252,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     try {
         await fetchAllData();
     } catch (e) {
-        // 데이터 로드 실패해도 앱은 표시해야 함
+        // ★조용히 넘어가지 않는다 (3-44). 앱은 뜨지만 **자료가 빈 채로** 뜬다 —
+        //   「자료가 없다」와 「못 받았다」가 구분되지 않았다.
+        console.warn('[게시판] 첫 자료 불러오기 실패 — 빈 화면으로 시작한다:', e && e.message);
     }
 
     // 2. 데이터 로딩 완료 → 조건 1 충족

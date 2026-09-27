@@ -28,7 +28,9 @@ import json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
-REPO = '/home/user/SEAGNAL'
+# ★2026-09-23 (3-39) — 그 컴퓨터 이름을 박아 두면 **다른 데서는 안 돈다**(G-31).
+#   `LEGAL` 이 이미 이 파일 자리에서 계산돼 있으므로 뿌리도 거기서 센다.
+REPO = os.path.abspath(os.path.join(LEGAL, '..', '..', '..'))
 OUT = os.path.join(LEGAL, '_dashboard', 'delegation_gap.md')
 
 # 위임 문구 — "대통령령/○○부령으로 정한다·정하는" 꼴만 본다.

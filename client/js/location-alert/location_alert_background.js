@@ -53,13 +53,13 @@
         try {
             const P = prefsPlugin();
             if (P && P.set) P.set({ key, value: String(value) }).catch(() => { });
-        } catch (_) { }
+        } catch (_) { /* Preferences 플러그인이 없는 환경(그냥 웹)이면 던진다 — 미러 저장만 빠지고 localStorage 값은 그대로다 */ }
     }
     function prefsRemove(key) {
         try {
             const P = prefsPlugin();
             if (P && P.remove) P.remove({ key }).catch(() => { });
-        } catch (_) { }
+        } catch (_) { /* 같은 까닭 — 플러그인이 없으면 지울 미러도 없다 */ }
     }
     // 다른 모듈(location_alert_ui.js)이 동일 경로로 플래그를 쓰도록 노출.
     const Mirror = { set: prefsSet, remove: prefsRemove, POS_KEY };
@@ -81,7 +81,7 @@
             const json = JSON.stringify(rec);
             root.localStorage.setItem(POS_KEY, json);
             prefsSet(POS_KEY, json);   // 네이티브(killed)에서 읽을 수 있도록 미러
-        } catch (_) { }
+        } catch (_) { /* localStorage 가 막힌 환경(사생활 모드·저장 한도)이면 던진다 — 다음 위치 갱신 때 다시 쓴다 */ }
     }
 
     function getPosition() {
@@ -96,7 +96,7 @@
                 const r = await P.get({ key });
                 if (r && r.value != null) return r.value;
             }
-        } catch (_) { }
+        } catch (_) { /* 플러그인이 없거나 아직 준비 전이면 던진다 — null 을 주면 부르는 쪽이 localStorage 로 떨어진다 */ }
         return null;
     }
 
@@ -128,10 +128,10 @@
                 else if (Number.isFinite(tp) && !Number.isFinite(tl)) adopt = true; // Preferences 만 시각 보유
             }
             if (adopt) {
-                try { root.localStorage.setItem(POS_KEY, prefRaw); } catch (_) { }
+                try { root.localStorage.setItem(POS_KEY, prefRaw); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
                 return true;
             }
-        } catch (_) { }
+        } catch (_) { /* 저장된 값이 깨져 파싱·비교에서 던지면 **채택하지 않는다**(아래 false) — 기존 위치를 그대로 둔다 */ }
         return false;
     }
 
@@ -150,7 +150,7 @@
     }
 
     function clearPosition() {
-        try { root.localStorage.removeItem(POS_KEY); } catch (_) { }
+        try { root.localStorage.removeItem(POS_KEY); } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         prefsRemove(POS_KEY);          // 미러도 즉시 삭제(해제 시 단말 위치 제거)
     }
 
@@ -161,7 +161,12 @@
             if (!G || !G.getCurrentPosition) return null;
             const p = await G.getCurrentPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
             return (p && p.coords) ? p.coords : null;
-        } catch (_) { return null; }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 지금 위치를 못 받으면 **마지막 저장 위치로 판단한다** —
+            //   배가 이미 다른 해역에 있어도 옛 해역 기준으로 알림이 가거나 안 간다.
+            console.warn('[LocationAlertBG] 현재 위치 획득 실패 — 마지막 저장 위치로 판단한다:', e && e.message);
+            return null;
+        }
     }
 
     /**
@@ -187,7 +192,11 @@
                     at: new Date().toISOString(), src: 'gps',
                 };
             }
-        } catch (_) { /* fresh-fix 실패 → 저장 위치 폴백 */ }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 새 위치를 못 잡으면 **저장 위치로 내려간다** —
+            //   「위치가 안 변했다」와 「위치를 못 받았다」가 겉으로 똑같았다.
+            console.warn('[LocationAlertBG] 새 위치 획득 실패 — 저장 위치로 폴백한다:', e && e.message);
+        }
         // 폴백: 마지막 저장 위치(may be null).
         try { return getPosition(); } catch (_) { return null; }
     }
@@ -202,11 +211,16 @@
             if (!isNative()) { console.log('[LocationAlertBG] 네이티브 아님 → skip'); return false; }
             // 앱 실행 시 저장소 desync 해소 — 네이티브 wake 가 Preferences 에만 쓴 최신 위치를
             //   localStorage 로 채운다(이후 fresh-fix 성공 시 최신값으로 다시 덮어씀). 방어적.
-            try { await syncPositionFromPrefs(); } catch (_) { }
+            try { await syncPositionFromPrefs(); } catch (_) { /* 미러 동기화가 실패해도 시작을 막지 않는다 — 바로 뒤 getFreshPosition 이 최신 위치로 덮는다 */ }
             await getFreshPosition();   // 즉시 1회 위치 갱신(상시 수집 없음)
             console.log('[LocationAlertBG] event-driven fresh-fix done');
             return true;
-        } catch (_) { return false; }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). 여기서 죽으면 **배경 위치 알림이 통째로 안 켜진다** —
+            //   「알릴 것이 없었다」와 구분이 안 된다.
+            console.warn('[LocationAlertBG] 시작 실패 — 배경 위치 알림이 안 켜진다:', e && e.message);
+            return false;
+        }
     }
 
     /** 해제 시 단말 저장 위치 즉시 삭제(설계 §10-7). 상시 watcher 가 없어 제거할 대상 없음. */
@@ -214,7 +228,7 @@
         try {
             clearPosition();
             console.log('[LocationAlertBG] position cleared');
-        } catch (_) { }
+        } catch (_) { /* 저장소가 막혀 지우기가 던져도 해제는 성공으로 친다 — 지울 수 있는 것은 이미 지웠다 */ }
         return true;
     }
 
@@ -224,12 +238,12 @@
             if (root.LocationAlertSettings && root.LocationAlertSettings.get) {
                 return root.LocationAlertSettings.get().enabled === true;
             }
-        } catch (_) { }
+        } catch (_) { /* 설정 모듈이 아직 안 올라왔으면 던진다 — 아래 persisted 플래그로 떨어진다 */ }
         try {
             const active = root.localStorage.getItem('location_alert_active');
             const consent = root.localStorage.getItem('location_alert_consent');
             return active === 'true' && consent === 'true';
-        } catch (_) { }
+        } catch (_) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         return false;
     }
 

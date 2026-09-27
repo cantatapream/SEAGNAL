@@ -378,9 +378,20 @@ console.log('\n[T22][F2] ctxNext 이어받기 — 프로필 확인 무한루프 
     !!R.ctxNextOf(R.normalizeAskCtx({ uc: { rounds: 1, state: 'none' } }, PROFILE)));
   // [§4-U 2026-08-16] 5번째 done 이 생겼다 — §4-U ③정직한 포기 응답. 이것도 ctxNext 를 붙여야
   //   "이미 한 번 물어봤다"(nu.rounds)가 다음 턴까지 살아 같은 말을 또 묻지 않는다.
-  ok('done 응답 전부(확인카드·트리·되묻기·최종답변·§4-U포기)에 ctxNext 를 붙인다',
-    (ROUTES_CODE.match(/withCtxNext\(/g) || []).length === 5,
-    (ROUTES_CODE.match(/withCtxNext\(/g) || []).length);
+  // ⚠[2026-09-26 4-6] 종전에는 이 자리에 **감싼 횟수를 손으로 적어 두었다(=== 5)**. 되묻기 갈래를
+  //   하나 더 붙였더니(「쪼개진 법」 되묻기 — 4-6) 6이 되어 빨간불이 났다. 갈래가 늘 때마다 손으로
+  //   숫자를 올리는 자는 **뜻을 재지 못한다.** 그래서 "몇 개인가" 대신 **"빠진 자리가 있는가"** 를
+  //   센다 — ok:true 인 done 은 하나도 빠짐없이 감싸야 하고, 감싸지 않아도 되는 자리는 catch 의
+  //   `ok: false` 오류 응답뿐이다(그 갈래에는 이어 줄 맥락이 아예 없다).
+  {
+    const 감싼done = (ROUTES_CODE.match(/JSON\.stringify\(withCtxNext\(/g) || []).length;
+    const 안감싼done = ROUTES_CODE.match(/JSON\.stringify\(\{\s*type: 'done'[^\n]*/g) || [];
+    ok('done 응답 전부(확인카드·트리·되묻기·최종답변·§4-U포기)에 ctxNext 를 붙인다',
+      감싼done >= 5, `감싼 자리 ${감싼done}`);
+    ok('감싸지 않은 done 은 맥락을 이을 수 없는 오류 응답(ok:false)뿐이다',
+      안감싼done.every((t) => /ok: false/.test(t)),
+      안감싼done.filter((t) => !/ok: false/.test(t)).join(' | ') || '(없음)');
+  }
 
   // ⓑ 라이브에서 재현된 무한루프 시나리오를 그대로 고정한다.
   //    프로필확인 "네" → 트리 답변 + **ctx 없는 버튼** → 그 버튼 클릭 → 같은 축을 또 묻는가?

@@ -1,0 +1,11 @@
+{
+ "script": "exact_claim_fix.py",
+ "stamp": "20260924-061812-101",
+ "files": [
+  "local_server/knowledge/legal/wiki/concepts/해양과학조사법__국민의해양과학조사.md",
+  "local_server/knowledge/legal/wiki/concepts/해양과학조사법__조사계획서및기항계획서작성제출.md",
+  "local_server/knowledge/legal/wiki/concepts/원양산업발전법__실태조사.md",
+  "local_server/knowledge/legal/wiki/concepts/원양산업발전법__원양산업협회.md",
+  "local_server/knowledge/legal/wiki/concepts/해양과학조사법__핵심정의.md"
+ ]
+}

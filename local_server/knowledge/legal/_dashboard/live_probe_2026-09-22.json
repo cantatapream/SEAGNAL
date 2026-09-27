@@ -1,0 +1,4799 @@
+{
+  "생성": "2026-09-22T15:42:01.618Z",
+  "문항": 291,
+  "오류": 0,
+  "L-1": "V5-7 이 잰다 — 291문항 중 search 실패 13건(4.7%). 여기서 다시 세지 않는다",
+  "L-4 근거 행": 22845,
+  "L-4 연락처 붙은 행": 17220,
+  "L-4 연락처 비율": "75.4%",
+  "L-5 근거자료 글자 평균": 123749,
+  "L-5 중앙값": 140818,
+  "L-5 상위 10%": 154376,
+  "L-5 최대": 161092,
+  "L-5 쪽수 평균": 32,
+  "L-6 오기 쪽이 근거로 뽑힌 문항": 57,
+  "draft 가 섞인 문항": 284,
+  "rows": [
+    {
+      "q": "옹진장봉도 습지보호지역 지정 근거가 습지보전법 몇 조인가요?",
+      "expect_law": "습지보전법",
+      "expect_article": "제8조",
+      "glossary_forced": 0,
+      "pages": 25,
+      "chars": 105975,
+      "status": {
+        "canonical": 22,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 108,
+      "chain_contact": 85
+    },
+    {
+      "q": "서천·무안·옹진장봉도 습지보호지역 안에서는 이 갯벌법이 아예 적용 안 되나요?",
+      "expect_law": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
+      "expect_article": "제16조·제10조",
+      "glossary_forced": 1,
+      "pages": 20,
+      "chars": 92387,
+      "status": {
+        "canonical": 17,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 63,
+      "chain_contact": 56
+    },
+    {
+      "q": "복원사업 인허가의제 18종을 신청할 때 서류를 각 개별 인허가기관에 따로 내야 하나요?",
+      "expect_law": "갯벌및그주변지역의지속가능한관리와복원에관한법률",
+      "expect_article": "제23조·제22조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153159,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 42,
+      "chain_contact": 29
+    },
+    {
+      "q": "\"매립으로 피해가 예상되는 인근 구역\"은 정확히 뭘 말하나?",
+      "expect_law": "「공유수면 관리 및 매립에 관한 법률 시행령」",
+      "expect_article": "제39조",
+      "glossary_forced": 0,
+      "pages": 27,
+      "chars": 112903,
+      "status": {
+        "canonical": 17,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 45,
+      "chain_contact": 36
+    },
+    {
+      "q": "매립으로 인한 손실은 방지시설 설치가 우선인가, 보상금이 우선인가?",
+      "expect_law": "「공유수면 관리 및 매립에 관한 법률 시행령」",
+      "expect_article": "제40조",
+      "glossary_forced": 0,
+      "pages": 28,
+      "chars": 116730,
+      "status": {
+        "canonical": 22,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 47,
+      "chain_contact": 39
+    },
+    {
+      "q": "(권리양도) 협의매립 중인 국가 매립사업을 준공검사 전에 다른 회사로 넘길 수 있나?",
+      "expect_law": "공유수면관리및매립에관한법률",
+      "expect_article": "제35조②·③",
+      "glossary_forced": 0,
+      "pages": 21,
+      "chars": 97134,
+      "status": {
+        "canonical": 17,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 86,
+      "chain_contact": 54
+    },
+    {
+      "q": "경비원 승선 위험성평가에서 구체적으로 평가해야 할 5가지가 뭔가요?",
+      "expect_law": "「국제항해선박 등에 대한 해적행위 피해예방에 관한 법률 시행규칙」",
+      "expect_article": "제8조",
+      "glossary_forced": 0,
+      "pages": 37,
+      "chars": 145870,
+      "status": {
+        "canonical": 33,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 111,
+      "chain_contact": 102
+    },
+    {
+      "q": "연안국 경비원을 태우려면 서류를 몇 개, 뭘 내야 하나요?",
+      "expect_law": "「국제항해선박 등에 대한 해적행위 피해예방에 관한 법률 시행규칙」",
+      "expect_article": "제9조",
+      "glossary_forced": 0,
+      "pages": 30,
+      "chars": 108011,
+      "status": {
+        "canonical": 24,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 112,
+      "chain_contact": 106
+    },
+    {
+      "q": "허가증을 잃어버리면 어떻게 재발급받나요?",
+      "expect_law": "국제항해선박등에대한해적행위피해예방에관한법률",
+      "expect_article": "제10조",
+      "glossary_forced": 0,
+      "pages": 33,
+      "chars": 125390,
+      "status": {
+        "canonical": 23,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 61,
+      "chain_contact": 31
+    },
+    {
+      "q": "항만 CCTV에 찍힌 내 모습을 열람청구할 수 있나?",
+      "expect_law": "개인정보 보호법",
+      "expect_article": "제35조",
+      "glossary_forced": 1,
+      "pages": 14,
+      "chars": 67962,
+      "status": {
+        "canonical": 13,
+        "draft": 1,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 72,
+      "chain_contact": 51
+    },
+    {
+      "q": "국가 소유 항만시설도 수수료(별표7) 내나?",
+      "expect_law": "국제항해선박및항만시설의보안에관한법률",
+      "expect_article": "별표7·제50조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 158785,
+      "status": {
+        "canonical": 34,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 88,
+      "chain_contact": 80
+    },
+    {
+      "q": "대행기관·보안교육기관 표엔 왜 \"업무정지 중 업무수행\" 사유가 없나(수집누락 vs 원문공백)?",
+      "expect_law": "국제항해선박및항만시설의보안에관한법률",
+      "expect_article": "별표6",
+      "glossary_forced": 0,
+      "pages": 39,
+      "chars": 148493,
+      "status": {
+        "canonical": 33,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 61,
+      "chain_contact": 54
+    },
+    {
+      "q": "낚시가 법적으로 뭘 말하나요? 손으로 잡는 것도 낚시인가요?",
+      "expect_law": "낚시관리및육성법",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 146067,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 48,
+      "chain_contact": 30
+    },
+    {
+      "q": "우리집 앞 저수지(사유지)에서 낚시터 하려는데 이 법 적용되나요?",
+      "expect_law": "낚시관리및육성법",
+      "expect_article": "제3조·제16조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154731,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 76,
+      "chain_contact": 58
+    },
+    {
+      "q": "낚시배 태우면 유선·도선사업법도 같이 걸리나요?",
+      "expect_law": "낚시관리및육성법",
+      "expect_article": "제4조",
+      "glossary_forced": 2,
+      "pages": 40,
+      "chars": 145590,
+      "status": {
+        "canonical": 34,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 123,
+      "chain_contact": 101
+    },
+    {
+      "q": "\"양식장은 내수면어업법 대상인가요, 양식산업발전법 대상인가요?\" (구 #59 ⚠)",
+      "expect_law": "내수면어업법·양식산업발전법",
+      "expect_article": "제9조①2호(내수면어업법, 종묘채포어업)·제10조①7호(양식산업발전법, 내수면양식업)",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154034,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 101,
+      "chain_contact": 79
+    },
+    {
+      "q": "\"하천정비사업으로 지자체가 만든 저수지도 공공용수면인가요?\" (구 #67 ⚠)",
+      "expect_law": "내수면어업법",
+      "expect_article": "제2조제2호",
+      "glossary_forced": 1,
+      "pages": 17,
+      "chars": 73282,
+      "status": {
+        "canonical": 14,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 91,
+      "chain_contact": 71
+    },
+    {
+      "q": "정치망어업 면허를 받으려면 신청서를 어디 내나요?",
+      "expect_law": "내수면어업법 시행령",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 35,
+      "chars": 131130,
+      "status": {
+        "canonical": 29,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 15,
+      "chain_contact": 15
+    },
+    {
+      "q": "수산물을 판매하려면 원산지를 표시해야 하나요?",
+      "expect_law": "농수산물의원산지표시등에관한법률",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 34,
+      "chars": 130659,
+      "status": {
+        "canonical": 30,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 102,
+      "chain_contact": 65
+    },
+    {
+      "q": "인터넷(통신판매)으로 수산물 팔 때도 원산지 표시해야 하나요?",
+      "expect_law": "농수산물의원산지표시등에관한법률",
+      "expect_article": "제5조·제2조",
+      "glossary_forced": 1,
+      "pages": 21,
+      "chars": 93610,
+      "status": {
+        "canonical": 18,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 123,
+      "chain_contact": 81
+    },
+    {
+      "q": "수입 수산물은 원산지를 어떻게 표시하나요?",
+      "expect_law": "농수산물의원산지표시등에관한법률",
+      "expect_article": "별표1·제3조",
+      "glossary_forced": 0,
+      "pages": 37,
+      "chars": 145290,
+      "status": {
+        "canonical": 33,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 115,
+      "chain_contact": 76
+    },
+    {
+      "q": "원산지 표시 잘하는 지자체·업체는 시상받나요?",
+      "expect_law": "농수산물의원산지표시등에관한법률",
+      "expect_article": "제12조·제7조",
+      "glossary_forced": 1,
+      "pages": 13,
+      "chars": 66349,
+      "status": {
+        "canonical": 10,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 130,
+      "chain_contact": 83
+    },
+    {
+      "q": "방사성물질 유출지역 수산물 정보는 어디서 보나요?",
+      "expect_law": "농수산물의원산지표시등에관한법률",
+      "expect_article": "제10조",
+      "glossary_forced": 1,
+      "pages": 23,
+      "chars": 94964,
+      "status": {
+        "canonical": 20,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 130,
+      "chain_contact": 99
+    },
+    {
+      "q": "세관에서 수입 수산물 원산지도 단속하나요?",
+      "expect_law": "농수산물의원산지표시등에관한법률",
+      "expect_article": "제7조",
+      "glossary_forced": 0,
+      "pages": 31,
+      "chars": 123019,
+      "status": {
+        "canonical": 27,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 130,
+      "chain_contact": 83
+    },
+    {
+      "q": "우수관리인증기관 거짓지정 몇 차 취소(별표4)?",
+      "expect_law": "농수산물품질관리법",
+      "expect_article": "별표4",
+      "glossary_forced": 0,
+      "pages": 19,
+      "chars": 84276,
+      "status": {
+        "canonical": 17,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 109,
+      "chain_contact": 98
+    },
+    {
+      "q": "우수관리시설 3차 위반 기준(별표6)?",
+      "expect_law": "농수산물품질관리법",
+      "expect_article": "별표6",
+      "glossary_forced": 0,
+      "pages": 21,
+      "chars": 91809,
+      "status": {
+        "canonical": 18,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 87,
+      "chain_contact": 68
+    },
+    {
+      "q": "이력추적관리 등록취소 세부기준(별표14)?",
+      "expect_law": "농수산물품질관리법",
+      "expect_article": "별표14",
+      "glossary_forced": 0,
+      "pages": 33,
+      "chars": 120714,
+      "status": {
+        "canonical": 29,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 80,
+      "chain_contact": 67
+    },
+    {
+      "q": "검사 결과는 항상 수산물에 표시하나?",
+      "expect_law": "농수산물품질관리법",
+      "expect_article": "제93조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153562,
+      "status": {
+        "canonical": 36,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 95,
+      "chain_contact": 58
+    },
+    {
+      "q": "검사 결과가 불만이면 며칠 이내 재검사 신청?",
+      "expect_law": "농수산물품질관리법",
+      "expect_article": "제96조",
+      "glossary_forced": 0,
+      "pages": 36,
+      "chars": 140183,
+      "status": {
+        "canonical": 29,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 90,
+      "chain_contact": 69
+    },
+    {
+      "q": "안전성조사는 누가 하나(식약처 vs 해수부)?",
+      "expect_law": "농수산물품질관리법",
+      "expect_article": "제61조",
+      "glossary_forced": 0,
+      "pages": 17,
+      "chars": 75360,
+      "status": {
+        "canonical": 15,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 88,
+      "chain_contact": 72
+    },
+    {
+      "q": "심판위원(지리적표시)도 공무원 의제되나?",
+      "expect_law": "농수산물품질관리법",
+      "expect_article": "제116조",
+      "glossary_forced": 0,
+      "pages": 30,
+      "chars": 109379,
+      "status": {
+        "canonical": 27,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 83,
+      "chain_contact": 75
+    },
+    {
+      "q": "농산물검사관이 명의를 빌려주면 처벌은?",
+      "expect_law": "농수산물품질관리법",
+      "expect_article": "제82조·제120조",
+      "glossary_forced": 0,
+      "pages": 19,
+      "chars": 82245,
+      "status": {
+        "canonical": 17,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 135,
+      "chain_contact": 118
+    },
+    {
+      "q": "이력추적관리 표시정지 명령을 어기고 계속 표시하면?",
+      "expect_law": "농수산물품질관리법",
+      "expect_article": "별표14",
+      "glossary_forced": 0,
+      "pages": 30,
+      "chars": 115793,
+      "status": {
+        "canonical": 26,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 101,
+      "chain_contact": 82
+    },
+    {
+      "q": "도선법에서 \"도선\"이 정확히 뭐야?",
+      "expect_law": "도선법",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 22,
+      "chars": 92717,
+      "status": {
+        "canonical": 19,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 90,
+      "chain_contact": 78
+    },
+    {
+      "q": "「도선법」은 1등항해사가 선장 직무를 대행하는 중에도 적용되나요?",
+      "expect_law": "도선법",
+      "expect_article": "제3조",
+      "glossary_forced": 0,
+      "pages": 30,
+      "chars": 119813,
+      "status": {
+        "canonical": 23,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 87,
+      "chain_contact": 75
+    },
+    {
+      "q": "어떤 배가 도선사를 꼭 태워야 해?",
+      "expect_law": "도선법",
+      "expect_article": "제20조",
+      "glossary_forced": 1,
+      "pages": 38,
+      "chars": 140768,
+      "status": {
+        "canonical": 32,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 64,
+      "chain_contact": 51
+    },
+    {
+      "q": "마리나항만구역 안에서 캠핑해도 되나요?",
+      "expect_law": "마리나항만의 조성 및 관리 등에 관한 법률 시행령",
+      "expect_article": "제31조",
+      "glossary_forced": 2,
+      "pages": 40,
+      "chars": 147074,
+      "status": {
+        "canonical": 34,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준",
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 58,
+      "chain_contact": 41
+    },
+    {
+      "q": "회원 모집 계약서에 이용 가능 일수가 안 적혀 있으면 문제가 있는 건가요?",
+      "expect_law": "마리나항만의 조성 및 관리 등에 관한 법률 시행령",
+      "expect_article": "제32조의5",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154777,
+      "status": {
+        "canonical": 25,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 73,
+      "chain_contact": 58
+    },
+    {
+      "q": "계류장에 제 짐(예: 낚시장비)을 1개월 안 넘게 쌓아둬도 허가가 필요한가요?",
+      "expect_law": "마리나항만의 조성 및 관리 등에 관한 법률 시행령",
+      "expect_article": "제13조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 148247,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 10,
+      "chain_contact": 10
+    },
+    {
+      "q": "(R) 마리나선박 정비사 자격은 어떻게 따나?",
+      "expect_law": "마리나항만의 조성 및 관리 등에 관한 법률",
+      "expect_article": "제28조의12·시행규칙 제33조의3",
+      "glossary_forced": 1,
+      "pages": 31,
+      "chars": 119300,
+      "status": {
+        "canonical": 25,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준",
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 67,
+      "chain_contact": 47
+    },
+    {
+      "q": "(R) 마리나항만시설 안전점검은 누가·언제 하나?",
+      "expect_law": "마리나항만의 조성 및 관리 등에 관한 법률",
+      "expect_article": "제24조의2·시행령 제26조의2·별표1",
+      "glossary_forced": 1,
+      "pages": 26,
+      "chars": 110495,
+      "status": {
+        "canonical": 21,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준",
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 57,
+      "chain_contact": 42
+    },
+    {
+      "q": "(R) 부모님 마리나업을 물려받으면 신고해야 하나?",
+      "expect_law": "마리나항만의조성및관리등에관한법률",
+      "expect_article": "제28조의3",
+      "glossary_forced": 1,
+      "pages": 24,
+      "chars": 98816,
+      "status": {
+        "canonical": 19,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 98,
+      "chain_contact": 85
+    },
+    {
+      "q": "무인도서가 법적으로 정확히 뭔가요? 사람이 살면 다 유인도서인가요?",
+      "expect_law": "무인도서의보전및관리에관한법률",
+      "expect_article": "제2조",
+      "glossary_forced": 1,
+      "pages": 33,
+      "chars": 126408,
+      "status": {
+        "canonical": 31,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 46,
+      "chain_contact": 44
+    },
+    {
+      "q": "무인도서 바로 옆에 육지가 있으면 주변해역이 안 되나요?",
+      "expect_law": "무인도서의보전및관리에관한법률 시행령",
+      "expect_article": "제3조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 151330,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 49,
+      "chain_contact": 47
+    },
+    {
+      "q": "이 법과 「연안사고 예방에 관한 법률」의 \"무인도서 안전관리\"는 뭐가 다른가요?",
+      "expect_law": "연안사고예방에관한법률",
+      "expect_article": "제18조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 153288,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 94,
+      "chain_contact": 79
+    },
+    {
+      "q": "준보전무인도서에서 허가 없이 나무를 베거나 동물을 잡으면 처벌이 뭔가요?",
+      "expect_law": "무인도서의보전및관리에관한법률",
+      "expect_article": "제35조",
+      "glossary_forced": 1,
+      "pages": 16,
+      "chars": 78468,
+      "status": {
+        "canonical": 16,
+        "draft": 0,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 122,
+      "chain_contact": 82
+    },
+    {
+      "q": "준보전무인도서에서 조리·야영 허가 안 받고 하면 처벌이 뭔가요?",
+      "expect_law": "무인도서의보전및관리에관한법률",
+      "expect_article": "제37조·별표2",
+      "glossary_forced": 2,
+      "pages": 17,
+      "chars": 81151,
+      "status": {
+        "canonical": 16,
+        "draft": 1,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 124,
+      "chain_contact": 80
+    },
+    {
+      "q": "한국무인도서보전협회는 뭐하는 곳인가요?",
+      "expect_law": "무인도서의보전및관리에관한법률",
+      "expect_article": "제30조·제23조",
+      "glossary_forced": 1,
+      "pages": 2,
+      "chars": 17141,
+      "status": {
+        "canonical": 2,
+        "draft": 0,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 13,
+      "chain_contact": 10
+    },
+    {
+      "q": "\"배출허용기준을 260% 초과한 폐수배출시설을 적발했다. 원래 3차인데 몇 차 처분을 적용해야 하나?\"",
+      "expect_law": "물환경보전법 시행규칙",
+      "expect_article": "별표22·제105조",
+      "glossary_forced": 1,
+      "pages": 21,
+      "chars": 91541,
+      "status": {
+        "canonical": 18,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 136,
+      "chain_contact": 127
+    },
+    {
+      "q": "\"완충저류시설 기술진단을 5년간 한 번도 안 한 지자체 담당자를 형사고발할 수 있나?\"",
+      "expect_law": "물환경보전법",
+      "expect_article": "제21조의4·제82조",
+      "glossary_forced": 0,
+      "pages": 9,
+      "chars": 49376,
+      "status": {
+        "canonical": 5,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 102,
+      "chain_contact": 97
+    },
+    {
+      "q": "\"낚시금지구역에서 낚시하다 적발했는데 '이 구역 지정된 지 오래됐고 재검토 안 됐다'고 항변한다. 단속 유효한가?\"",
+      "expect_law": "물환경보전법",
+      "expect_article": "부칙 제3조·제20조·제82조",
+      "glossary_forced": 0,
+      "pages": 31,
+      "chars": 124378,
+      "status": {
+        "canonical": 20,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 81,
+      "chain_contact": 63
+    },
+    {
+      "q": "❌ \"외국서 산 배는 외국인 배로 취급되나요? — 없음\"",
+      "expect_law": "선박법",
+      "expect_article": "제2조",
+      "glossary_forced": 1,
+      "pages": 38,
+      "chars": 144575,
+      "status": {
+        "canonical": 23,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 19,
+      "chain_contact": 3
+    },
+    {
+      "q": "(대학생) 이 법이 정한 EEZ 자원의 '주인'은 국가인가요, 국민 개개인인가요?",
+      "expect_law": "배타적경제수역및대륙붕에관한법률",
+      "expect_article": "제3조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153708,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 47,
+      "chain_contact": 29
+    },
+    {
+      "q": "(헬기 조종사) 정선명령을 헬기로 방송해도 법적 효력 있는 정선신호로 인정되나요?",
+      "expect_law": "해양경비법 시행규칙",
+      "expect_article": "제1조의2",
+      "glossary_forced": 4,
+      "pages": 23,
+      "chars": 99228,
+      "status": {
+        "canonical": 14,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 53,
+      "chain_contact": 35
+    },
+    {
+      "q": "외국인 어업허가증의 유효기간이 1년이라는데, 매년 새로 신청해야 하나요?",
+      "expect_law": "배타적 경제수역에서의 외국인어업 등에 대한 주권적 권리의 행사에 관한 법률 시행규칙",
+      "expect_article": "별표3·제2조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 154843,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 69,
+      "chain_contact": 58
+    },
+    {
+      "q": "표지깃발을 안 달고 흰 깃발만 달면 위반인가요?",
+      "expect_law": "배타적 경제수역에서의 외국인어업 등에 대한 주권적 권리의 행사에 관한 법률 시행규칙",
+      "expect_article": "별표4",
+      "glossary_forced": 0,
+      "pages": 14,
+      "chars": 68117,
+      "status": {
+        "canonical": 7,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 102,
+      "chain_contact": 58
+    },
+    {
+      "q": "새 배를 사서 조업하려면 처음부터 다시 허가 신청해야 하나요?",
+      "expect_law": "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152171,
+      "status": {
+        "canonical": 25,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 113,
+      "chain_contact": 73
+    },
+    {
+      "q": "\"서해5도지원위원회(국무총리 소속)와 정주생활지원금 심사위원회(옹진군 소속)는 심의사항이 안 겹치나?\"",
+      "expect_law": "서해5도지원특별법·서해5도정주생활지원금지원지침",
+      "expect_article": "제7조·제7조",
+      "glossary_forced": 2,
+      "pages": 16,
+      "chars": 70253,
+      "status": {
+        "canonical": 13,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 46,
+      "chain_contact": 38
+    },
+    {
+      "q": "\"저는 연평도 사는데 백령도 이장님이 저 대신 실거주 확인해줘도 되나요?\"",
+      "expect_law": "서해5도정주생활지원금지원지침",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 26,
+      "chars": 103498,
+      "status": {
+        "canonical": 21,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 48,
+      "chain_contact": 34
+    },
+    {
+      "q": "\"정주생활지원금 받다 죽으면 남은 가족이 대신 받아요?\"",
+      "expect_law": "서해5도정주생활지원금지원지침",
+      "expect_article": "제3조",
+      "glossary_forced": 1,
+      "pages": 11,
+      "chars": 56553,
+      "status": {
+        "canonical": 8,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 69,
+      "chain_contact": 44
+    },
+    {
+      "q": "관제시설 설치 후 검사는 누가, 무슨 기준으로 하나요?",
+      "expect_law": "선박교통관제시설설치및관리에관한규칙",
+      "expect_article": "제6조",
+      "glossary_forced": 0,
+      "pages": 20,
+      "chars": 90891,
+      "status": {
+        "canonical": 16,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 78,
+      "chain_contact": 67
+    },
+    {
+      "q": "과태료 이의제기는 지방해양경찰청에 하나요, 본청에 하나요?",
+      "expect_law": "선박교통관제에관한법률",
+      "expect_article": "제14조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 139982,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 49,
+      "chain_contact": 34
+    },
+    {
+      "q": "신규 수집된 관제시설 규칙(제9조)의 \"일일점검\"은 관제사 본인이 직접 하나요, 별도 인력이 하나요?",
+      "expect_law": "선박교통관제시설설치및관리에관한규칙",
+      "expect_article": "제9조",
+      "glossary_forced": 0,
+      "pages": 16,
+      "chars": 79215,
+      "status": {
+        "canonical": 13,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 87,
+      "chain_contact": 71
+    },
+    {
+      "q": "도선사가 배에 타고 내릴 때도 신고해야 하나요?",
+      "expect_law": "선박교통관제에관한규정",
+      "expect_article": "제7조·별표3",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 150576,
+      "status": {
+        "canonical": 32,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 84,
+      "chain_contact": 71
+    },
+    {
+      "q": "인천항 관제구역 정확한 경계 좌표가 어디인가요?",
+      "expect_law": "선박교통관제에관한규정",
+      "expect_article": "별표1",
+      "glossary_forced": 1,
+      "pages": 29,
+      "chars": 114668,
+      "status": {
+        "canonical": 21,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 58,
+      "chain_contact": 50
+    },
+    {
+      "q": "다리 밑 지나갈 때 신고 기준(교량 높이)은요?",
+      "expect_law": "선박교통관제에관한규정",
+      "expect_article": "별표2",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154578,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 73,
+      "chain_contact": 47
+    },
+    {
+      "q": "\"배를 새로 샀는데 언제까지 등록해야 하나요?\"",
+      "expect_law": "선박법",
+      "expect_article": "제8조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 148907,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 24,
+      "chain_contact": 23
+    },
+    {
+      "q": "\"배를 팔아서 명의(등록사항)가 바뀌었는데 언제까지 신고하나요?\"",
+      "expect_law": "선박법",
+      "expect_article": "제18조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152868,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 88,
+      "chain_contact": 72
+    },
+    {
+      "q": "\"배가 침몰했는데 뭘 신고해야 하나요?\"",
+      "expect_law": "선박법",
+      "expect_article": "제22조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 148525,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 84,
+      "chain_contact": 73
+    },
+    {
+      "q": "정박 중인 20톤 부선을 검문했는데 선박검사증서 자체가 없다고 한다. 바로 제83조1호로 입건 가능한가, 아니면 제84조1항5호(무증서 항해)가 맞나?",
+      "expect_law": "선박안전법",
+      "expect_article": "제7조·제83조·제84조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 154209,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__형식승인및검정",
+        "선박안전법__특수선박구조기준",
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 97,
+      "chain_contact": 96
+    },
+    {
+      "q": "검사증서 효력정지 기간 중 항해 중인 선박을 적발했다. 무증서항해(제84조1항5호)와 동일하게 의율하면 되나?",
+      "expect_law": "선박안전법",
+      "expect_article": "제17조·제84조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 155302,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__형식승인및검정",
+        "선박안전법__특수선박구조기준",
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 97,
+      "chain_contact": 90
+    },
+    {
+      "q": "검사원이 검사 중 금품을 요구했다. 대행검사기관(공단) 소속 검사원도 국가공무원처럼 뇌물죄가 적용되나?",
+      "expect_law": "선박안전법",
+      "expect_article": "제82조",
+      "glossary_forced": 0,
+      "pages": 37,
+      "chars": 141382,
+      "status": {
+        "canonical": 23,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__형식승인및검정"
+      ],
+      "chain_rows": 44,
+      "chain_contact": 31
+    },
+    {
+      "q": "태풍 피항명령 어기면 처벌이 정박구역 위반이랑 같나요?",
+      "expect_law": "선박의입항및출항등에관한법률",
+      "expect_article": "제56조",
+      "glossary_forced": 1,
+      "pages": 29,
+      "chars": 118756,
+      "status": {
+        "canonical": 21,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 170,
+      "chain_contact": 140
+    },
+    {
+      "q": "두 선박이 항로에서 마주치면 누가 우측으로 피해야 하나요?",
+      "expect_law": "선박의입항및출항등에관한법률",
+      "expect_article": "제12조",
+      "glossary_forced": 0,
+      "pages": 30,
+      "chars": 114045,
+      "status": {
+        "canonical": 18,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 97,
+      "chain_contact": 87
+    },
+    {
+      "q": "\"제 배가 5톤도 안 되는데 선박직원법 적용받나요?\"",
+      "expect_law": "선박직원법",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152959,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 118,
+      "chain_contact": 101
+    },
+    {
+      "q": "\"바지선(부선)도 이 법 적용받나요?\"",
+      "expect_law": "선박직원법",
+      "expect_article": "선박직원법시행령 제3조·선박법 제1조의2",
+      "glossary_forced": 0,
+      "pages": 23,
+      "chars": 92327,
+      "status": {
+        "canonical": 16,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 106,
+      "chain_contact": 94
+    },
+    {
+      "q": "\"무면허로 배를 몰다 걸리면 처벌이 얼마인가요?\"",
+      "expect_law": "선박직원법",
+      "expect_article": "제27조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 118997,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 94,
+      "chain_contact": 56
+    },
+    {
+      "q": "\"해기사 되고 몇 년마다 보수교육 받아야 하나요? 안 받으면요?\"",
+      "expect_law": "선박직원법",
+      "expect_article": "제16조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 145138,
+      "status": {
+        "canonical": 32,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 153,
+      "chain_contact": 122
+    },
+    {
+      "q": "\"원양수역 500톤 어선 기관장 몇 급 기관사?\"",
+      "expect_law": "선박직원법",
+      "expect_article": "시행령 별표3",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 145984,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 92,
+      "chain_contact": 87
+    },
+    {
+      "q": "\"해기품질평가 몇 년마다 하나요?\"",
+      "expect_law": "선박직원법",
+      "expect_article": "시행령 제16조의2",
+      "glossary_forced": 0,
+      "pages": 6,
+      "chars": 45849,
+      "status": {
+        "canonical": 6,
+        "draft": 0,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 70,
+      "chain_contact": 59
+    },
+    {
+      "q": "처리물질 승인서류 중 \"유해특성\" 시험자료(급성·만성독성 등) 전체를 볼 수 있나?",
+      "expect_law": "「선박평형수(船舶平衡水) 관리법 시행규칙」",
+      "expect_article": "별표14의2",
+      "glossary_forced": 1,
+      "pages": 2,
+      "chars": 20706,
+      "status": {
+        "canonical": 0,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 39,
+      "chain_contact": 36
+    },
+    {
+      "q": "자문단 전문가는 월급을 받나요, 봉사인가요?",
+      "expect_law": "선박평형수(船舶平衡水)관리법",
+      "expect_article": "제37조의7",
+      "glossary_forced": 0,
+      "pages": 3,
+      "chars": 29749,
+      "status": {
+        "canonical": 2,
+        "draft": 1,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 38,
+      "chain_contact": 27
+    },
+    {
+      "q": "처리업 변경등록(시행규칙 제38조⑦)도 원심사(③)와 같은 \"검토\" 절차를 준용하나?",
+      "expect_law": "「선박평형수(船舶平衡水) 관리법 시행규칙」",
+      "expect_article": "제38조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150959,
+      "status": {
+        "canonical": 26,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 74,
+      "chain_contact": 70
+    },
+    {
+      "q": "평수구역만 다니는 예선(입출항법 제24조)도 선원법 적용받나요?",
+      "expect_law": "선원법",
+      "expect_article": "제3조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 146949,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 130,
+      "chain_contact": 114
+    },
+    {
+      "q": "여객선 아닌 일반 화물선도 여객안전관리선원이 필요한가요?",
+      "expect_law": "선원법",
+      "expect_article": "제64조⑤·시행령 제21조④",
+      "glossary_forced": 0,
+      "pages": 11,
+      "chars": 61567,
+      "status": {
+        "canonical": 7,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 75,
+      "chain_contact": 62
+    },
+    {
+      "q": "취업규칙 신고를 안 하면 벌금이에요, 과태료예요?",
+      "expect_law": "선원법",
+      "expect_article": "제177조·제179조",
+      "glossary_forced": 0,
+      "pages": 20,
+      "chars": 88010,
+      "status": {
+        "canonical": 16,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 83,
+      "chain_contact": 42
+    },
+    {
+      "q": "\"행안부장관이 필요 인정하는 사업\"이란?",
+      "expect_law": "섬발전촉진법",
+      "expect_article": "제19조",
+      "glossary_forced": 0,
+      "pages": 13,
+      "chars": 65562,
+      "status": {
+        "canonical": 10,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 70,
+      "chain_contact": 58
+    },
+    {
+      "q": "사업계획에 우리 동네 전기시설 개선도 넣어달라 할 수 있나요?",
+      "expect_law": "섬발전촉진법",
+      "expect_article": "제6조",
+      "glossary_forced": 0,
+      "pages": 35,
+      "chars": 134671,
+      "status": {
+        "canonical": 25,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 68,
+      "chain_contact": 44
+    },
+    {
+      "q": "5명 사는 섬인데 저희가 직접 지정 신청 낼 수 있나요?",
+      "expect_law": "「섬발전촉진법 시행령」",
+      "expect_article": "제4조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 149812,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 68,
+      "chain_contact": 54
+    },
+    {
+      "q": "친구가 \"천일염도 이 법이 다루는 수산물\"이라는데 소금이 왜?",
+      "expect_law": "수산물 유통의 관리 및 지원에 관한 법률 시행령·수산업ㆍ어촌 발전 기본법",
+      "expect_article": "제2조·제3조제1호가목·마목",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 149804,
+      "status": {
+        "canonical": 32,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 113,
+      "chain_contact": 91
+    },
+    {
+      "q": "현장에서 \"이 협의회에 소비자단체가 있어서 민원 넣어도 되나\" 물어보는 상인이 있으면 뭐라 답하나?",
+      "expect_law": "수산물 유통의 관리 및 지원에 관한 법률 시행령",
+      "expect_article": "제5조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 147964,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 45,
+      "chain_contact": 35
+    },
+    {
+      "q": "협의회 위원이 비리 저지르면 해임할 수 있나, 절차가 있나?",
+      "expect_law": "수산물 유통의 관리 및 지원에 관한 법률 시행령",
+      "expect_article": "제6조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 138460,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 82,
+      "chain_contact": 65
+    },
+    {
+      "q": "나는 전복 양식장을 운영하는데, 관자 빼고 남는 전복 내장도 이 법 6종 \"껍데기\"에 포함되나?",
+      "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행령」",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 148908,
+      "status": {
+        "canonical": 25,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 140,
+      "chain_contact": 118
+    },
+    {
+      "q": "신고 수산물가공업 신고는 어디에 하나요(해수부 아니면 시군구)?",
+      "expect_law": "「수산식품산업의 육성 및 지원에 관한 법률 시행령」",
+      "expect_article": "제13조②·③(법 제16조①)",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152798,
+      "status": {
+        "canonical": 34,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 71,
+      "chain_contact": 60
+    },
+    {
+      "q": "작업장은 있는데 아직 가공업 신고를 안 한 상태면 의무자인가?",
+      "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행령」",
+      "expect_article": "제4조제1호",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150929,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 48,
+      "chain_contact": 35
+    },
+    {
+      "q": "유해화학물질 고시기준 구체 내용은?",
+      "expect_law": "「유해화학물질 예외적 사용 수산부산물 재활용시 환경오염방지 기준에 관한 고시」",
+      "expect_article": "제2조",
+      "glossary_forced": 1,
+      "pages": 25,
+      "chars": 104515,
+      "status": {
+        "canonical": 22,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 118,
+      "chain_contact": 76
+    },
+    {
+      "q": "승계신고를 두 번째로 또 안 지키면 과태료가 올라가나?",
+      "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행령」",
+      "expect_article": "별표4 라목",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 146072,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 81,
+      "chain_contact": 45
+    },
+    {
+      "q": "시설·장비 \"전부\" 미달과 \"일부\" 미달의 차수 구조가 다른가?",
+      "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행령」",
+      "expect_article": "별표2 마목",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152582,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준",
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 99,
+      "chain_contact": 69
+    },
+    {
+      "q": "골재채취구역 복구에 조개껍데기 쓸 수 있나?",
+      "expect_law": "골재채취법",
+      "expect_article": "제29조",
+      "glossary_forced": 2,
+      "pages": 40,
+      "chars": 145945,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 91,
+      "chain_contact": 75
+    },
+    {
+      "q": "한국어촌어항공단이 이 법에서 무슨 역할?",
+      "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행령」·「어촌ㆍ어항법」",
+      "expect_article": "제15조·제57조①",
+      "glossary_forced": 1,
+      "pages": 27,
+      "chars": 110581,
+      "status": {
+        "canonical": 23,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 68,
+      "chain_contact": 45
+    },
+    {
+      "q": "과징금 미납 시 가산금 실제로 붙는가?",
+      "expect_law": "수산부산물재활용촉진에관한법률·지방행정제재ㆍ부과금의 징수 등에 관한 법률",
+      "expect_article": "제14조③·제2조제6호",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 135960,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 113,
+      "chain_contact": 86
+    },
+    {
+      "q": "과태료 부과 전 사전통지·의견제출 기회를 줘야 하나?",
+      "expect_law": "질서위반행위규제법",
+      "expect_article": "제16조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 149666,
+      "status": {
+        "canonical": 26,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 90,
+      "chain_contact": 68
+    },
+    {
+      "q": "이물질 몇 % 이하로 제거해야 하나?",
+      "expect_law": "「수산부산물 배출량 산정 방법과 이물질 등의 제거기준 고시」",
+      "expect_article": "제4조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 141364,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 76,
+      "chain_contact": 60
+    },
+    {
+      "q": "무허가 영업 + 허가증 대여를 동시에 하면 형이 어떻게 되나?",
+      "expect_law": "수산부산물재활용촉진에관한법률·형법",
+      "expect_article": "제20조①1호·제20조③·형법 제37조·제38조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 146839,
+      "status": {
+        "canonical": 25,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 96,
+      "chain_contact": 46
+    },
+    {
+      "q": "껍데기를 골재채취구역 복구에 쓸 수 있나?",
+      "expect_law": "골재채취법",
+      "expect_article": "제29조",
+      "glossary_forced": 0,
+      "pages": 39,
+      "chars": 139559,
+      "status": {
+        "canonical": 26,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 44,
+      "chain_contact": 23
+    },
+    {
+      "q": "영업을 상속받았는데, 피상속인이 받고 있던 영업정지 처분(잔여기간)이나 미납 과태료도 내가 이어받나?",
+      "expect_law": "수산부산물재활용촉진에관한법률",
+      "expect_article": "제10조·제13조①",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 151376,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 35,
+      "chain_contact": 23
+    },
+    {
+      "q": "과징금 상한(1억원)에서 3개월 정지 갈음 시 \"3%\"의 기준이 되는 \"연평균 매출액\" 산정기간은 정확히 며칠/몇 년인가?",
+      "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행령」",
+      "expect_article": "별표3 1.나목·제11조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153383,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 129,
+      "chain_contact": 90
+    },
+    {
+      "q": "처리업자가 낸 과징금은 국고귀속인가, 재투자되나?",
+      "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행령」",
+      "expect_article": "제12조",
+      "glossary_forced": 0,
+      "pages": 27,
+      "chars": 113620,
+      "status": {
+        "canonical": 22,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 143,
+      "chain_contact": 98
+    },
+    {
+      "q": "변경허가 대상(\"중요한 사항\")이 구체적으로 무엇인지 항목별로 나열돼 있나?",
+      "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행령」",
+      "expect_article": "제8조②",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154820,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 83,
+      "chain_contact": 42
+    },
+    {
+      "q": "\"과태료도 5년 지나면 못 받나?\"(제척기간과 공소시효 혼동)",
+      "expect_law": "질서위반행위규제법",
+      "expect_article": "제19조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152954,
+      "status": {
+        "canonical": 25,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 171,
+      "chain_contact": 109
+    },
+    {
+      "q": "\"이사 가면(사업장 소재지 변경) 신고해야 하나요?\"",
+      "expect_law": "「수산부산물 재활용 촉진에 관한 법률 시행규칙」",
+      "expect_article": "제7조①3호",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 149124,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 96,
+      "chain_contact": 66
+    },
+    {
+      "q": "저는 취미로 낚시만 하는 비어업인인데, 「수산업ㆍ어촌 발전 기본법」이 저한테도 적용되나요?",
+      "expect_law": "수산업ㆍ어촌발전기본법",
+      "expect_article": "제3조·제4조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 149590,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 39,
+      "chain_contact": 35
+    },
+    {
+      "q": "\"기후변화 조사원이 저희 어장에 실태조사 나온다는데, 거부할 수 있나요?\"",
+      "expect_law": "수산업ㆍ어촌발전기본법",
+      "expect_article": "제35조의2",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 142701,
+      "status": {
+        "canonical": 37,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 81,
+      "chain_contact": 56
+    },
+    {
+      "q": "2025-10-22 이전에 이미 수립된 기본계획도 새 제7조②(8개호) 기준으로 재수립해야 하나?",
+      "expect_law": "수산업ㆍ어촌발전기본법",
+      "expect_article": "부칙(제20939호) 제2조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 155829,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 62,
+      "chain_contact": 45
+    },
+    {
+      "q": "생산자단체엔 뭐가 포함되나요(수협만?)",
+      "expect_law": "수산업ㆍ어촌발전기본법",
+      "expect_article": "시행령 제4조·시행규칙 제2조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 138341,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 68,
+      "chain_contact": 44
+    },
+    {
+      "q": "여성수산인 지원책이 있나요?",
+      "expect_law": "수산업ㆍ어촌발전기본법",
+      "expect_article": "제18조",
+      "glossary_forced": 1,
+      "pages": 3,
+      "chars": 24098,
+      "status": {
+        "canonical": 3,
+        "draft": 0,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 40,
+      "chain_contact": 32
+    },
+    {
+      "q": "벤처수산업 인정 기업 범위는?",
+      "expect_law": "「수산업ㆍ어촌 발전 기본법 시행령」",
+      "expect_article": "제15조",
+      "glossary_forced": 0,
+      "pages": 5,
+      "chars": 40845,
+      "status": {
+        "canonical": 4,
+        "draft": 1,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 115,
+      "chain_contact": 79
+    },
+    {
+      "q": "이 법은 저수지·하천에도 적용되나?",
+      "expect_law": "수산업법",
+      "expect_article": "제3조",
+      "glossary_forced": 0,
+      "pages": 37,
+      "chars": 140818,
+      "status": {
+        "canonical": 26,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 46,
+      "chain_contact": 37
+    },
+    {
+      "q": "외국인도 어업면허·허가 받을 수 있나?",
+      "expect_law": "수산업법",
+      "expect_article": "제5조·시행령 제3조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152083,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 110,
+      "chain_contact": 90
+    },
+    {
+      "q": "어업자협약 소속이면 어구규모 완화는 어디까지?",
+      "expect_law": "수산업법",
+      "expect_article": "제60조·시행령 제39조·시행령 별표9",
+      "glossary_forced": 0,
+      "pages": 17,
+      "chars": 78266,
+      "status": {
+        "canonical": 13,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 83,
+      "chain_contact": 71
+    },
+    {
+      "q": "조합장 선거에 후보로 등록하려는 사람이 돈을 미리 맡겨야 한다는데, 안 내면 등록 자체가 안 돼요?",
+      "expect_law": "「수산업협동조합정관부속서 임원선거규정(예)」",
+      "expect_article": "제21조의2·제8조①4호",
+      "glossary_forced": 1,
+      "pages": 28,
+      "chars": 113954,
+      "status": {
+        "canonical": 23,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 75,
+      "chain_contact": 61
+    },
+    {
+      "q": "저희 조합이랑 옆 조합이랑 사업구역이 겹쳐서 다투는데 중앙회가 조정해줘요?",
+      "expect_law": "「수산업협동조합법 시행령」",
+      "expect_article": "제68조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153566,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [
+        "수산업협동조합법__합병_분할_해산_청산"
+      ],
+      "chain_rows": 72,
+      "chain_contact": 61
+    },
+    {
+      "q": "조합원이 출자금을 안 냈다고 신고가 들어왔는데 이거 형사처벌 대상이에요?",
+      "expect_law": "수산업협동조합법 (단, 제24조는 「지구별수산업협동조합정관(예)」 — 행정규칙, 별개 문서)",
+      "expect_article": "제177조·제26조·제32조·제24조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 151687,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [
+        "수산업협동조합법__합병_분할_해산_청산"
+      ],
+      "chain_rows": 73,
+      "chain_contact": 34
+    },
+    {
+      "q": "나는 60톤 미만 근해안강망 어선을 모는데, 충남·전북 해안에서 5,500m 밖 바다에서 8~10월에 멸치 잡으려고 안강망 3통 쓰면 별표8 가목 금지구역 단속 대상인가?",
+      "expect_law": "수산자원관리법",
+      "expect_article": "별표8",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154423,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 82,
+      "chain_contact": 71
+    },
+    {
+      "q": "제주 본섬 근해안강망 조업하는데, 60톤 이상 배로 본섬에서 2,700m 밖 특정 구간에서 6~8월에 5통 쓰면 괜찮나?",
+      "expect_law": "수산자원관리법",
+      "expect_article": "별표8",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150952,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 82,
+      "chain_contact": 71
+    },
+    {
+      "q": "기선권현망 조업금지구역이 지역마다 다 다른데 총 몇 곳으로 나뉘어 있나요?",
+      "expect_law": "수산자원관리법",
+      "expect_article": "별표9",
+      "glossary_forced": 0,
+      "pages": 20,
+      "chars": 87932,
+      "status": {
+        "canonical": 18,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 100,
+      "chain_contact": 81
+    },
+    {
+      "q": "수산종자생산업 허가를 받으려면 시설물 종류마다 따로 받아야 하나요, 사업자 단위로 한 번만 받나요?",
+      "expect_law": "수산종자산업육성법",
+      "expect_article": "제21조",
+      "glossary_forced": 1,
+      "pages": 30,
+      "chars": 121700,
+      "status": {
+        "canonical": 22,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 89,
+      "chain_contact": 48
+    },
+    {
+      "q": "허가 신청할 때 다른 어업권자와 구역이 겹치면 어떻게 하나요?",
+      "expect_law": "수산종자산업육성법 시행규칙",
+      "expect_article": "제13조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 147369,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 96,
+      "chain_contact": 70
+    },
+    {
+      "q": "진흥센터 지정을 받으려면 어떤 서류를 내나요?",
+      "expect_law": "수산종자산업육성법 시행규칙",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 27,
+      "chars": 101133,
+      "status": {
+        "canonical": 21,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 62,
+      "chain_contact": 28
+    },
+    {
+      "q": "20톤 이상 세일링요트를 개조해 19톤으로 줄이면 이 법 적용을 받게 되나(반대 방향 전환)?",
+      "expect_law": "수상레저기구의등록및검사에관한법률",
+      "expect_article": "시행령 제3조",
+      "glossary_forced": 0,
+      "pages": 33,
+      "chars": 125313,
+      "status": {
+        "canonical": 25,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 50,
+      "chain_contact": 47
+    },
+    {
+      "q": "압류 통지는 누구한테 가나(소유자만? 이해관계인도?)",
+      "expect_law": "수상레저기구의등록및검사에관한법률",
+      "expect_article": "제12조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 148071,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 0,
+      "chain_contact": 0
+    },
+    {
+      "q": "등록번호판을 재발급받으려는데 예전 번호판을 잃어버렸다. 그래도 신청되나?",
+      "expect_law": "수상레저기구의등록및검사에관한법률",
+      "expect_article": "시행규칙 제4조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152507,
+      "status": {
+        "canonical": 25,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 41,
+      "chain_contact": 28
+    },
+    {
+      "q": "조종면허 결격사유 중 \"정신질환자\"에 해당하는 구체 병명이 뭔가?",
+      "expect_law": "수상레저안전법 시행령",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 33,
+      "chars": 122062,
+      "status": {
+        "canonical": 26,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 105,
+      "chain_contact": 82
+    },
+    {
+      "q": "마약류 결격사유(제7조①3호)에 대마도 포함되나?",
+      "expect_law": "수상레저안전법",
+      "expect_article": "제7조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 139837,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 68,
+      "chain_contact": 47
+    },
+    {
+      "q": "체육단체 등록선수는 나이 제한 없이 면허를 딸 수 있나?",
+      "expect_law": "수상레저안전법",
+      "expect_article": "제7조·제9조",
+      "glossary_forced": 0,
+      "pages": 11,
+      "chars": 59757,
+      "status": {
+        "canonical": 5,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 58,
+      "chain_contact": 41
+    },
+    {
+      "q": "관할 경계가 애매한 해역에서 사고 시 어느 지역구조본부가 1차 대응기관인지 답할 수 있나?",
+      "expect_law": "수상에서의수색ㆍ구조등에관한법률",
+      "expect_article": "제15조",
+      "glossary_forced": 0,
+      "pages": 34,
+      "chars": 130039,
+      "status": {
+        "canonical": 22,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 75,
+      "chain_contact": 60
+    },
+    {
+      "q": "제 조업구역이 어느 지역구조본부 관할인지 미리 알 수 있나요?",
+      "expect_law": "수상에서의수색ㆍ구조등에관한법률 시행규칙",
+      "expect_article": "별표1",
+      "glossary_forced": 1,
+      "pages": 38,
+      "chars": 140830,
+      "status": {
+        "canonical": 31,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 61,
+      "chain_contact": 52
+    },
+    {
+      "q": "2급 자격으로도 지도사 업무(관리감독)를 할 수 있나?",
+      "expect_law": "수상에서의수색ㆍ구조등에관한법률 시행령",
+      "expect_article": "별표1의2",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154595,
+      "status": {
+        "canonical": 32,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 66,
+      "chain_contact": 53
+    },
+    {
+      "q": "\"해외에 있으면 보수교육을 미루거나 미리 받을 수 있어?\"",
+      "expect_law": "수상에서의수색ㆍ구조등에관한법률",
+      "expect_article": "제12조의11",
+      "glossary_forced": 0,
+      "pages": 39,
+      "chars": 130293,
+      "status": {
+        "canonical": 33,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 117,
+      "chain_contact": 71
+    },
+    {
+      "q": "\"다른 사람에게 자격증을 빌려주면 처벌이 얼마야?\"",
+      "expect_law": "수상에서의수색ㆍ구조등에관한법률",
+      "expect_article": "제44조의2",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154376,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 73,
+      "chain_contact": 62
+    },
+    {
+      "q": "\"자격시험 과목이 뭐고 몇 점씩이야?\"",
+      "expect_law": "수상에서의수색ㆍ구조등에관한법률 시행령",
+      "expect_article": "별표1",
+      "glossary_forced": 0,
+      "pages": 31,
+      "chars": 120455,
+      "status": {
+        "canonical": 26,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 107,
+      "chain_contact": 86
+    },
+    {
+      "q": "낚시어선 손님들이 배 위에서 즉흥 스노클링하겠다는데, 내가 현장에서 확인해야 할 것은?",
+      "expect_law": "수중레저활동의안전및활성화등에관한법률",
+      "expect_article": "제3조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 154743,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 81,
+      "chain_contact": 60
+    },
+    {
+      "q": "이용요금 신고 자체를 안 하고 영업하는 사업자를 적발하면 처벌은?",
+      "expect_law": "수중레저활동의안전및활성화등에관한법률",
+      "expect_article": "제19조·제24조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154678,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 178,
+      "chain_contact": 144
+    },
+    {
+      "q": "야간 단속 시 다이버 안전관리요원 동행비율(5명당1명) 위반을 발견하면 누구를 조치하나 — 사업자인가 동행자 개인인가?",
+      "expect_law": "수중레저활동의안전및활성화등에관한법률",
+      "expect_article": "제13조·제32조·「수중레저 안전관리규정」제10조",
+      "glossary_forced": 0,
+      "pages": 15,
+      "chars": 76472,
+      "status": {
+        "canonical": 10,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 116,
+      "chain_contact": 101
+    },
+    {
+      "q": "총사업비 산정 기준도 항만법을 따르나요?",
+      "expect_law": "신항만건설촉진법",
+      "expect_article": "제14조",
+      "glossary_forced": 0,
+      "pages": 30,
+      "chars": 127864,
+      "status": {
+        "canonical": 27,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 41,
+      "chain_contact": 32
+    },
+    {
+      "q": "해수부장관 권한이 시·도지사에게도 위임되나요?",
+      "expect_law": "「신항만건설촉진법」·「신항만건설촉진법 시행령」",
+      "expect_article": "제23조·제36조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 151422,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 31,
+      "chain_contact": 24
+    },
+    {
+      "q": "어업권도 신항만사업으로 수용될 수 있나요?",
+      "expect_law": "「신항만건설촉진법」·「공익사업을 위한 토지 등의 취득 및 보상에 관한 법률」",
+      "expect_article": "제16조·제3조",
+      "glossary_forced": 1,
+      "pages": 28,
+      "chars": 114943,
+      "status": {
+        "canonical": 25,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 106,
+      "chain_contact": 51
+    },
+    {
+      "q": "\"왕우렁이 양식장 현장에서 용수로·배수로에 차단망·포집망이 없으면 그 자체로 허가조건 위반인가?\"",
+      "expect_law": "양식산업발전법 시행규칙",
+      "expect_article": "제45조·별표8",
+      "glossary_forced": 0,
+      "pages": 6,
+      "chars": 41618,
+      "status": {
+        "canonical": 3,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 82,
+      "chain_contact": 60
+    },
+    {
+      "q": "\"저희 양식장에 관정을 새로 뚫으려는데 어디에 뭘 내나요?\"",
+      "expect_law": "지하수법 시행규칙",
+      "expect_article": "제12조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150601,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 30,
+      "chain_contact": 18
+    },
+    {
+      "q": "\"150톤 기준이 정확히 뭘로 재는 건가요?\"",
+      "expect_law": "양식산업발전법",
+      "expect_article": "제13조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153333,
+      "status": {
+        "canonical": 32,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 95,
+      "chain_contact": 61
+    },
+    {
+      "q": "\"나는 양식장에서 사료·산소발생기만 실어 나르는 배를 모는데, 이것도 어선법상 어선인가요?\"",
+      "expect_law": "어선법",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 20,
+      "chars": 84762,
+      "status": {
+        "canonical": 13,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 65,
+      "chain_contact": 51
+    },
+    {
+      "q": "원양어선(「원양산업발전법」 허가)은 「어선법」상 건조·개조 허가를 누가 하나요? 일반 어선과 다른가요?",
+      "expect_law": "어선법 시행규칙",
+      "expect_article": "제4조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152145,
+      "status": {
+        "canonical": 37,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 98,
+      "chain_contact": 78
+    },
+    {
+      "q": "\"이 배가 국제협약(SOLAS 등) 적용 대상인지, 어선법 적용 대상인지 둘 다 걸리면 어떻게 판단하나요?\"",
+      "expect_law": "어선법",
+      "expect_article": "제6조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152789,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 125,
+      "chain_contact": 112
+    },
+    {
+      "q": "저는 서해 조업보호본부 소속인데, 만도리어장에서 12월에 야간조업 중인 어선을 발견했습니다. 개정된 「어선안전조업규정」상 이게 바로 단속 대상인가요?",
+      "expect_law": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
+      "expect_article": "어선안전조업규정 제7조2호",
+      "glossary_forced": 0,
+      "pages": 20,
+      "chars": 88956,
+      "status": {
+        "canonical": 15,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 62,
+      "chain_contact": 53
+    },
+    {
+      "q": "상시 어선원 4명인 소형 어선에서 안전조치 미비로 사망사고가 났습니다. 제52조① 형사처벌이 가능한가요, 아니면 5명 미만이라 처음부터 적용 제외인가요?",
+      "expect_law": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
+      "expect_article": "시행령 제3조②·법 제52조①",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154915,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 56,
+      "chain_contact": 47
+    },
+    {
+      "q": "외국인어선원이 승선한 어선을 단속하는데, 그 선원의 여권번호·외국인등록번호 자료를 제가(해경 조사관) 직접 법무부에 요청할 수 있나요, 신고기관을 통해야만 하나요?",
+      "expect_law": "어선안전조업및어선원의안전ㆍ보건증진등에관한법률",
+      "expect_article": "제8조의2②",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 152443,
+      "status": {
+        "canonical": 26,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 108,
+      "chain_contact": 91
+    },
+    {
+      "q": "\"저는 5톤 미만 어선으로 혼자 조업하는 1인 사업자인데, 어선원을 안 쓰고 저 혼자만 타도 이 법 적용대상인가요?\"",
+      "expect_law": "어선원및어선재해보상보험법",
+      "expect_article": "제2조·제16조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 148337,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 75,
+      "chain_contact": 58
+    },
+    {
+      "q": "\"배 타러 가는 길에 버스에서 내리다 넘어졌어요. 출퇴근 재해로 인정되나요?\"",
+      "expect_law": "어선원및어선재해보상보험법",
+      "expect_article": "제2조·시행령제1조의2",
+      "glossary_forced": 0,
+      "pages": 26,
+      "chars": 106094,
+      "status": {
+        "canonical": 16,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 41,
+      "chain_contact": 33
+    },
+    {
+      "q": "\"다친 병원이 너무 멀어서 집 근처 병원으로 옮기고 싶은데 지금 병원에서 안 된다고 하면 어떻게 하나요?\"",
+      "expect_law": "어선원및어선재해보상보험법",
+      "expect_article": "제23조의4",
+      "glossary_forced": 0,
+      "pages": 9,
+      "chars": 46434,
+      "status": {
+        "canonical": 8,
+        "draft": 1,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 78,
+      "chain_contact": 49
+    },
+    {
+      "q": "\"위탁받은 조사기관이 보고를 부실하게 하면 사업시행자가 어떻게 할 수 있나요?\"",
+      "expect_law": "어촌ㆍ어항법",
+      "expect_article": "제11조제2항",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 158132,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 94,
+      "chain_contact": 62
+    },
+    {
+      "q": "\"국가·지자체가 협의로 어항시설을 쓸 때도 기간 제한이 있나요?\"",
+      "expect_law": "어촌ㆍ어항법",
+      "expect_article": "제38조제7항·제38조제8항",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153871,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 112,
+      "chain_contact": 56
+    },
+    {
+      "q": "\"협의로 쓰는 국가·지자체는 사용료를 안 내나요?\"",
+      "expect_law": "어촌ㆍ어항법 시행령",
+      "expect_article": "제37조제1항제1호",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153174,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 28,
+      "chain_contact": 20
+    },
+    {
+      "q": "\"완충관리구역 상공에서 드론으로 항공촬영만 하고 착륙은 안 했는데 이것도 단속대상인가요?\"",
+      "expect_law": "연안관리법",
+      "expect_article": "제20조의5",
+      "glossary_forced": 0,
+      "pages": 23,
+      "chars": 93875,
+      "status": {
+        "canonical": 16,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 96,
+      "chain_contact": 69
+    },
+    {
+      "q": "\"완충관리구역 형질변경 신고를 받았는데 신고자가 '사구식생 훼손인 줄 몰랐다'고 주장합니다. 사구식생 훼손도 형질변경과 별개의 독자적 금지행위인가요?\"",
+      "expect_law": "연안관리법",
+      "expect_article": "제10조의3·제20조의5",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 144436,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 81,
+      "chain_contact": 60
+    },
+    {
+      "q": "연안안전지킴이가 되고 싶은데 자격증이 있어야 하나요?",
+      "expect_law": "연안사고 예방에 관한 법률 시행규칙",
+      "expect_article": "제11조",
+      "glossary_forced": 0,
+      "pages": 13,
+      "chars": 69777,
+      "status": {
+        "canonical": 11,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 47,
+      "chain_contact": 34
+    },
+    {
+      "q": "무인도서에 여행 가려면 「연안사고 예방에 관한 법률」에 따른 허가가 필요한가요?",
+      "expect_law": "연안사고예방에관한법률",
+      "expect_article": "제18조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 151830,
+      "status": {
+        "canonical": 37,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 87,
+      "chain_contact": 46
+    },
+    {
+      "q": "\"위험구역\"이랑 \"출입통제구역\"이랑 뭐가 달라요, 위험구역은 들어가도 돼요?",
+      "expect_law": "연안사고 안전관리규정(해양경찰청 훈령)",
+      "expect_article": "제2조·제7조·제8조",
+      "glossary_forced": 0,
+      "pages": 34,
+      "chars": 132618,
+      "status": {
+        "canonical": 28,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 47,
+      "chain_contact": 40
+    },
+    {
+      "q": "\"5톤급 외국적 소형어선을 영해에서 단속했는데 승선자 전원이 '우리는 무국적자'라고 주장한다. 승선자 국적이 불분명해도 제8조 처벌이 가능한가?\"",
+      "expect_law": "영해및접속수역법",
+      "expect_article": "제8조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 149738,
+      "status": {
+        "canonical": 23,
+        "draft": 17,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 47,
+      "chain_contact": 41
+    },
+    {
+      "q": "외국적 조사선이 한국 영해에서 해양조사를 하려면 「영해 및 접속수역법」상 무엇이 필요한가요? 허가는 누구에게 받나요?",
+      "expect_law": "영해및접속수역법",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154913,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 86,
+      "chain_contact": 68
+    },
+    {
+      "q": "\"저는 한국 국적 어선의 선장인데 저도 선주도 외국 국적입니다. 접속수역에서 검문받으면 이 배가 '외국선박'으로 취급되나요?\"",
+      "expect_law": "영해및접속수역법",
+      "expect_article": "제6조·제8조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152909,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 41,
+      "chain_contact": 41
+    },
+    {
+      "q": "\"원양어업 하려면 어떻게 허가받나요?\"",
+      "expect_law": "원양산업발전법",
+      "expect_article": "제6조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 152340,
+      "status": {
+        "canonical": 36,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 124,
+      "chain_contact": 99
+    },
+    {
+      "q": "\"제 어선이 9.9톤인데 원양연승어업 할 수 있나요?\"",
+      "expect_law": "원양산업발전법",
+      "expect_article": "별표1·제6조",
+      "glossary_forced": 0,
+      "pages": 2,
+      "chars": 19305,
+      "status": {
+        "canonical": 2,
+        "draft": 0,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 57,
+      "chain_contact": 41
+    },
+    {
+      "q": "\"무허가로 원양어업하면 처벌이 얼마인가요?\"",
+      "expect_law": "원양산업발전법",
+      "expect_article": "제33조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 150460,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 91,
+      "chain_contact": 75
+    },
+    {
+      "q": "압수한 유류 시료가 벙커C유(별표1 2호 제품유)인지 확인해야 단속 근거가 서나, 아니면 \"중유 계열\"이라고만 확인되면 되나?",
+      "expect_law": "유류오염손해배상보장법 시행령",
+      "expect_article": "제3조·별표1",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152047,
+      "status": {
+        "canonical": 23,
+        "draft": 17,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 43,
+      "chain_contact": 34
+    },
+    {
+      "q": "홍콩 법원 확정판결을 들고 온 유조선 측 대리인이 \"이미 홍콩에서 재판 끝났다\"고 주장한다 — 이 판결을 우리가 그대로 인정해줘야 하나?",
+      "expect_law": "유류오염손해배상보장법",
+      "expect_article": "제13조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 151509,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 97,
+      "chain_contact": 70
+    },
+    {
+      "q": "관리인(법인 소속 임원)이 그 직무에 관해 뇌물(제58조 수뢰죄)을 받았다 — 이 경우도 소속 법인이 양벌규정으로 같이 처벌되나?",
+      "expect_law": "유류오염손해배상보장법",
+      "expect_article": "제63조·제60조·제62조·제58조·제59조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150141,
+      "status": {
+        "canonical": 25,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 81,
+      "chain_contact": 68
+    },
+    {
+      "q": "무등록으로 보이는 소형 보트가 손님을 태우고 낚시 포인트로 나가는 걸 순찰 중 목격했다. 현장에서 뭘 확인해야 무면허영업으로 걸 수 있나?",
+      "expect_law": "유선및도선사업법",
+      "expect_article": "제3조·시행령 제3조·제40조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153983,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 115,
+      "chain_contact": 90
+    },
+    {
+      "q": "유선 사업자가 손님한테 술을 팔다 적발됐다. 형사처벌 대상인가 과태료 대상인가?",
+      "expect_law": "유선및도선사업법",
+      "expect_article": "제12조·제41조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153462,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 130,
+      "chain_contact": 89
+    },
+    {
+      "q": "야간에 등화 없이 운항하는 유선을 적발했다. 형사처벌인가 과태료인가?",
+      "expect_law": "유선및도선사업법",
+      "expect_article": "법 제31조②·시행령 제25조12호·제43조·시행령 별표3 러목",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150992,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준",
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 72,
+      "chain_contact": 69
+    },
+    {
+      "q": "시ㆍ도자연유산도 지정하면 반드시 시ㆍ도 이름을 붙이나요?",
+      "expect_law": "자연유산의보존및활용에관한법률",
+      "expect_article": "제40조",
+      "glossary_forced": 0,
+      "pages": 23,
+      "chars": 97032,
+      "status": {
+        "canonical": 19,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 45,
+      "chain_contact": 41
+    },
+    {
+      "q": "시ㆍ도자연유산도 관리협약 맺을 수 있나요?",
+      "expect_law": "자연유산의보존및활용에관한법률",
+      "expect_article": "제44조·제2조",
+      "glossary_forced": 0,
+      "pages": 18,
+      "chars": 83582,
+      "status": {
+        "canonical": 15,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 88,
+      "chain_contact": 79
+    },
+    {
+      "q": "보호구역 조정되면 보존지역도 자동으로 바뀌나요?",
+      "expect_law": "자연유산의보존및활용에관한법률",
+      "expect_article": "제41조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152186,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 82,
+      "chain_contact": 53
+    },
+    {
+      "q": "무역항에 정박 중인 파나마국적 화물선을 검색하러 왔다. 선장한테 뭘 요구할 수 있나?",
+      "expect_law": "출입국관리법",
+      "expect_article": "제69조",
+      "glossary_forced": 0,
+      "pages": 3,
+      "chars": 30879,
+      "status": {
+        "canonical": 1,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 116,
+      "chain_contact": 98
+    },
+    {
+      "q": "위법사실 발견돼서 출국·입국을 정지시켰다. 얼마나 오래 잡아둘 수 있나?",
+      "expect_law": "출입국관리법",
+      "expect_article": "제71조",
+      "glossary_forced": 0,
+      "pages": 24,
+      "chars": 98568,
+      "status": {
+        "canonical": 11,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 25,
+      "chain_contact": 25
+    },
+    {
+      "q": "승선허가 안 받고 몰래 탄 밀항 브로커를 현장에서 잡았다. 형사범인가 통고처분(범칙금)감인가?",
+      "expect_law": "출입국관리법",
+      "expect_article": "제97조·별표7",
+      "glossary_forced": 0,
+      "pages": 22,
+      "chars": 90363,
+      "status": {
+        "canonical": 11,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 51,
+      "chain_contact": 51
+    },
+    {
+      "q": "★재질문(9차 P5/W7) \"지정폐기물 사전확인(제17조5항)을 안 받고 폐유를 배출한 정비업체를 적발했다 — 어느 조문으로 입건하나?\"",
+      "expect_law": "폐기물관리법",
+      "expect_article": "제66조",
+      "glossary_forced": 0,
+      "pages": 34,
+      "chars": 134734,
+      "status": {
+        "canonical": 24,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 82,
+      "chain_contact": 82
+    },
+    {
+      "q": "★재질문(9차 P16) \"폐기물처리업 허가취소(제27조) 처분서를 발부하기 전에 청문을 해야 하나, 안 하면 처분이 무효가 되나?\"",
+      "expect_law": "폐기물관리법",
+      "expect_article": "제61조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 158806,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 62,
+      "chain_contact": 62
+    },
+    {
+      "q": "\"무허가로 폐기물처리업을 운영하다 적발되면?\"",
+      "expect_law": "폐기물관리법",
+      "expect_article": "제64조",
+      "glossary_forced": 0,
+      "pages": 39,
+      "chars": 147674,
+      "status": {
+        "canonical": 29,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 113,
+      "chain_contact": 109
+    },
+    {
+      "q": "공단 직원이 업무상 알게 된 정보를 함부로 말해도 돼?",
+      "expect_law": "한국해양교통안전공단법",
+      "expect_article": "제8조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 143895,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 93,
+      "chain_contact": 44
+    },
+    {
+      "q": "공단 직원이 뇌물 받으면 어떻게 돼?",
+      "expect_law": "한국해양교통안전공단법",
+      "expect_article": "제19조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150777,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 85,
+      "chain_contact": 61
+    },
+    {
+      "q": "선박검사는 공단에서 받아, 정부에서 받아?",
+      "expect_law": "한국해양교통안전공단법",
+      "expect_article": "제9조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152854,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 90,
+      "chain_contact": 79
+    },
+    {
+      "q": "해기사 시험 부정행위하면 어떻게 돼?",
+      "expect_law": "선박직원법",
+      "expect_article": "제5조의3",
+      "glossary_forced": 1,
+      "pages": 32,
+      "chars": 125808,
+      "status": {
+        "canonical": 25,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 83,
+      "chain_contact": 62
+    },
+    {
+      "q": "연수원이 다른 기관 위탁사업도 받아?",
+      "expect_law": "한국해양수산연수원법",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 35,
+      "chars": 136758,
+      "status": {
+        "canonical": 24,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 74,
+      "chain_contact": 52
+    },
+    {
+      "q": "연수원이 수익사업하려면 조건이 있어?",
+      "expect_law": "한국해양수산연수원법",
+      "expect_article": "제5조·제1조",
+      "glossary_forced": 0,
+      "pages": 19,
+      "chars": 83011,
+      "status": {
+        "canonical": 11,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 83,
+      "chain_contact": 63
+    },
+    {
+      "q": "한국해양수산연수원은 왜 만들어졌어(설립목적)?",
+      "expect_law": "한국해양수산연수원법",
+      "expect_article": "제1조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 141702,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 85,
+      "chain_contact": 54
+    },
+    {
+      "q": "연수원이 국가기관이야, 별도 법인이야?",
+      "expect_law": "한국해양수산연수원법",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 31,
+      "chars": 118854,
+      "status": {
+        "canonical": 20,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 48,
+      "chain_contact": 17
+    },
+    {
+      "q": "연수원은 언제 정식 설립된 걸로 봐(성립시점)?",
+      "expect_law": "한국해양수산연수원법",
+      "expect_article": "제3조",
+      "glossary_forced": 0,
+      "pages": 16,
+      "chars": 71809,
+      "status": {
+        "canonical": 7,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 98,
+      "chain_contact": 73
+    },
+    {
+      "q": "연수원 관계자가 조업구역 위반 단속권한도 있어?",
+      "expect_law": "한국해양수산연수원법",
+      "expect_article": "제5조·제13조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 153075,
+      "status": {
+        "canonical": 26,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 50,
+      "chain_contact": 39
+    },
+    {
+      "q": "해기사 시험에 실기시험도 있어, 필기만이야?",
+      "expect_law": "선박직원법 시행령",
+      "expect_article": "제12조③",
+      "glossary_forced": 1,
+      "pages": 28,
+      "chars": 105249,
+      "status": {
+        "canonical": 20,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 59,
+      "chain_contact": 49
+    },
+    {
+      "q": "해기사 시험 응시연령 제한이 있어?",
+      "expect_law": "선박직원법",
+      "expect_article": "제6조",
+      "glossary_forced": 1,
+      "pages": 16,
+      "chars": 77564,
+      "status": {
+        "canonical": 9,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 68,
+      "chain_contact": 49
+    },
+    {
+      "q": "설립등기를 안 하면 어떻게 돼(무효·벌칙)?",
+      "expect_law": "한국해양수산연수원법",
+      "expect_article": "제3조",
+      "glossary_forced": 0,
+      "pages": 23,
+      "chars": 95934,
+      "status": {
+        "canonical": 13,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 34,
+      "chain_contact": 21
+    },
+    {
+      "q": "잉여금 중 이월손실금 보전 후 남은 금액은 용도 제한이 있어?",
+      "expect_law": "한국해양수산연수원법 시행령",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 10,
+      "chars": 56232,
+      "status": {
+        "canonical": 5,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 31,
+      "chain_contact": 16
+    },
+    {
+      "q": "두 사람이 공동으로 유사명칭을 사용했으면 과태료도 나눠서 내?",
+      "expect_law": "한국해양수산연수원법",
+      "expect_article": "제19조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 146007,
+      "status": {
+        "canonical": 20,
+        "draft": 20,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 55,
+      "chain_contact": 24
+    },
+    {
+      "q": "이 법에서 \"해기사\"라는 말이 처음 나오는 조문(제5조)이 이 법의 정의조항이야, 아니면 다른 법(선박직원법)이 정의조항이야?",
+      "expect_law": "선박직원법",
+      "expect_article": "제2조·제4조·제5조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154705,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 124,
+      "chain_contact": 88
+    },
+    {
+      "q": "형벌에 자격정지 같은 부가형이 없다는 게 명시돼 있어?",
+      "expect_law": "한국해양수산연수원법·형법",
+      "expect_article": "제18조·제43조·제44조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150158,
+      "status": {
+        "canonical": 24,
+        "draft": 16,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 91,
+      "chain_contact": 47
+    },
+    {
+      "q": "연수원 그만둔 지 10년 됐는데 그때 알던 비밀을 지금 말하면 아직도 형사처벌 받을 수 있어?",
+      "expect_law": "한국해양수산연수원법·형사소송법",
+      "expect_article": "제14조·제18조·제249조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 149328,
+      "status": {
+        "canonical": 25,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 105,
+      "chain_contact": 65
+    },
+    {
+      "q": "회사 로고에 연수원이랑 비슷한 도안을 넣어 홍보물을 만들어도 이름은 안 썼으니까 괜찮은 거지?",
+      "expect_law": "한국해양수산연수원법",
+      "expect_article": "제15조",
+      "glossary_forced": 1,
+      "pages": 27,
+      "chars": 108918,
+      "status": {
+        "canonical": 13,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 62,
+      "chain_contact": 40
+    },
+    {
+      "q": "등대가 고장난 것 같은데 어디로 전화하면 되나?",
+      "expect_law": "항로표지법",
+      "expect_article": "제17조",
+      "glossary_forced": 1,
+      "pages": 24,
+      "chars": 90323,
+      "status": {
+        "canonical": 21,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 35,
+      "chain_contact": 25
+    },
+    {
+      "q": "위탁관리업 등록 관련 문의는 시행규칙까지 포함해서 한 부서에 다 되나?",
+      "expect_law": "항로표지법",
+      "expect_article": "제23조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 155190,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 127,
+      "chain_contact": 105
+    },
+    {
+      "q": "등질 오작동으로 검사 불합격 처리된 등명기를 그대로 쓰다 적발되면 몇 차까지 과태료가 올라가나?",
+      "expect_law": "항로표지법",
+      "expect_article": "제38조·별표4",
+      "glossary_forced": 0,
+      "pages": 31,
+      "chars": 122126,
+      "status": {
+        "canonical": 21,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 35,
+      "chain_contact": 19
+    },
+    {
+      "q": "출입검사(제85조) 사전통보 며칠 전?",
+      "expect_law": "항만법",
+      "expect_article": "제85조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152949,
+      "status": {
+        "canonical": 34,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 85,
+      "chain_contact": 65
+    },
+    {
+      "q": "조세특례제한법 실제 감면율 확인 가능한가?",
+      "expect_law": "항만법",
+      "expect_article": "제106조",
+      "glossary_forced": 0,
+      "pages": 21,
+      "chars": 94098,
+      "status": {
+        "canonical": 17,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 21,
+      "chain_contact": 8
+    },
+    {
+      "q": "항만개발사업 허가받은 사람이 회사 팔면 허가도 넘어가요?",
+      "expect_law": "항만법",
+      "expect_article": "제101조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 158552,
+      "status": {
+        "canonical": 36,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 123,
+      "chain_contact": 88
+    },
+    {
+      "q": "해양경찰관 — \"검수사가 관세법 위반으로 금고 1년에 집행유예 2년을 선고받았다. 지금 집행유예 기간 중인데 계속 검수사로 일해도 되나?\"",
+      "expect_law": "항만운송사업법",
+      "expect_article": "제8조4호",
+      "glossary_forced": 3,
+      "pages": 40,
+      "chars": 152327,
+      "status": {
+        "canonical": 25,
+        "draft": 15,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 39,
+      "chain_contact": 23
+    },
+    {
+      "q": "해양경찰관 — \"검수사 시험위원 자격요건이 뭔가? 아무나 위원이 될 수 있나?\"",
+      "expect_law": "「항만운송업무 처리지침」",
+      "expect_article": "제7조",
+      "glossary_forced": 2,
+      "pages": 38,
+      "chars": 146079,
+      "status": {
+        "canonical": 29,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 61,
+      "chain_contact": 46
+    },
+    {
+      "q": "해양종사자 — \"저희(검수업체)가 하는 '감정' 업무에 정확히 어떤 일들이 포함되나?\"",
+      "expect_law": "「항만운송업무 처리지침」",
+      "expect_article": "제4조",
+      "glossary_forced": 1,
+      "pages": 21,
+      "chars": 91613,
+      "status": {
+        "canonical": 13,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 77,
+      "chain_contact": 59
+    },
+    {
+      "q": "관세법 위반으로 벌금형만 받았어도(징역·금고 아니고) 검수사 결격되나?",
+      "expect_law": "항만운송사업법",
+      "expect_article": "제8조3호·제8조4호",
+      "glossary_forced": 2,
+      "pages": 40,
+      "chars": 151216,
+      "status": {
+        "canonical": 23,
+        "draft": 17,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 72,
+      "chain_contact": 60
+    },
+    {
+      "q": "필기 합격하고 바로 다음 회 면접에 안 가면 필기 합격이 계속 유효한가?",
+      "expect_law": "항만운송사업법",
+      "expect_article": "시행령 제7조의2",
+      "glossary_forced": 0,
+      "pages": 31,
+      "chars": 122685,
+      "status": {
+        "canonical": 20,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 151,
+      "chain_contact": 127
+    },
+    {
+      "q": "항만에서 그물 손질해주는 것도 등록해야 하는 사업인가?",
+      "expect_law": "「항만운송사업법 시행령」",
+      "expect_article": "제2조1호",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 161092,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 113,
+      "chain_contact": 88
+    },
+    {
+      "q": "\"나는 지방해양수산청 소속 특별사법경찰관인데, 지방관리무역항 사업구역에서 무허가 매립을 적발했다. 과태료 부과권은 내 소속기관(지방청)인가 시·도지사인가?\"",
+      "expect_law": "항만재개발및주변지역발전에관한법률",
+      "expect_article": "제47조·제49조·제44조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152714,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 98,
+      "chain_contact": 70
+    },
+    {
+      "q": "\"야간(밤 10시)에 사업구역 내 미준공 건물에 무단침입한 절도 용의자를 검거했다. 이 법(제35조⑤ 준공전사용금지)으로 입건 가능한가, 다른 법으로 가야 하나?\"",
+      "expect_law": "항만재개발및주변지역발전에관한법률",
+      "expect_article": "제35조·제47조",
+      "glossary_forced": 0,
+      "pages": 37,
+      "chars": 146728,
+      "status": {
+        "canonical": 30,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 69,
+      "chain_contact": 44
+    },
+    {
+      "q": "\"나는 항만공사(공기업) 소속 감사팀인데, 우리 공사가 총괄사업관리자로 지정된 사업에서 동시에 사업시행자도 겸할 수 있나?\"",
+      "expect_law": "항만재개발및주변지역발전에관한법률",
+      "expect_article": "제23조",
+      "glossary_forced": 0,
+      "pages": 15,
+      "chars": 73984,
+      "status": {
+        "canonical": 12,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 51,
+      "chain_contact": 46
+    },
+    {
+      "q": "도선사 시험 법규과목에 해사안전기본법이 들어가나요?",
+      "expect_law": "해사안전기본법 시행령",
+      "expect_article": "부칙(제34152호) 제4조①",
+      "glossary_forced": 2,
+      "pages": 39,
+      "chars": 146971,
+      "status": {
+        "canonical": 29,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 115,
+      "chain_contact": 82
+    },
+    {
+      "q": "해양경찰 공무원 임용시험 과목에 해사안전기본법이 포함되나요?",
+      "expect_law": "해사안전기본법 시행규칙",
+      "expect_article": "부칙(제651호) 제2조③",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 152579,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 92,
+      "chain_contact": 56
+    },
+    {
+      "q": "제가 이 법 때문에 배 살 때 뭘 갖춰야 하나요?",
+      "expect_law": "해사안전기본법",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 106107,
+      "status": {
+        "canonical": 33,
+        "draft": 6,
+        "other": 1
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준",
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 96,
+      "chain_contact": 93
+    },
+    {
+      "q": "하천·저수지에도 이 법이 적용되나요?",
+      "expect_law": "해상교통안전법",
+      "expect_article": "제3조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 148054,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 63,
+      "chain_contact": 44
+    },
+    {
+      "q": "「해상교통안전법」은 다른 법에 특별한 규정이 있으면 그 법이 우선인가요?",
+      "expect_law": "해상교통안전법",
+      "expect_article": "제4조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 153650,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 78,
+      "chain_contact": 67
+    },
+    {
+      "q": "\"조종불능선\"이 그냥 고장난 배를 말하는 건가요?",
+      "expect_law": "해상교통안전법",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 30,
+      "chars": 97207,
+      "status": {
+        "canonical": 16,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 95,
+      "chain_contact": 80
+    },
+    {
+      "q": "\"1년 내 4번째 같은 위반 적발이다. 별표4 상한(500만원)을 넘겨 부과할 수 있나?\"",
+      "expect_law": "해수욕장의이용및관리에관한법률",
+      "expect_article": "별표4·제47조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 148318,
+      "status": {
+        "canonical": 28,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 54,
+      "chain_contact": 28
+    },
+    {
+      "q": "\"거짓 신고로 수탁자 지정을 받은 정황을 조사 중인데, 이게 형사입건 대상인가 과태료 대상인가?\"",
+      "expect_law": "해수욕장의이용및관리에관한법률",
+      "expect_article": "제47조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 151841,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 101,
+      "chain_contact": 65
+    },
+    {
+      "q": "\"과태료 부과 후 60일 이내 이의제기가 들어왔다. 그다음 절차는?\"",
+      "expect_law": "질서위반행위규제법",
+      "expect_article": "제20조·제21조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 149254,
+      "status": {
+        "canonical": 26,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 98,
+      "chain_contact": 49
+    },
+    {
+      "q": "정박 중인 무등록 낚시어선업 의심 선박을 발견했다. 이 법 제12조①3호(\"국내법령 위반 의심\")로 검문검색을 개시할 상당한 이유가 인정되나?",
+      "expect_law": "해양경비법",
+      "expect_article": "제12조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 155283,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 21,
+      "chain_contact": 9
+    },
+    {
+      "q": "제 배가 소화포에 맞아서 도색이 벗겨졌어요. 수리비 청구할 수 있나요?",
+      "expect_law": "해양경비법 시행령·국가배상법",
+      "expect_article": "제5조·제2조",
+      "glossary_forced": 0,
+      "pages": 31,
+      "chars": 106636,
+      "status": {
+        "canonical": 23,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 116,
+      "chain_contact": 76
+    },
+    {
+      "q": "제 배가 이동조치됐는데 국가 소유 배가 아니라 민간 예인선 업체가 끌고 갔어요. 비용은 제가 내나요, 예인선 업체가 내나요?",
+      "expect_law": "해양경비법 시행령",
+      "expect_article": "제4조의3",
+      "glossary_forced": 0,
+      "pages": 36,
+      "chars": 139418,
+      "status": {
+        "canonical": 24,
+        "draft": 12,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 64,
+      "chain_contact": 45
+    },
+    {
+      "q": "\"해양경찰법이 왜 있는 거야? 목적이 뭐야?\"",
+      "expect_law": "해양경찰법",
+      "expect_article": "제1조",
+      "glossary_forced": 1,
+      "pages": 31,
+      "chars": 120610,
+      "status": {
+        "canonical": 28,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 45,
+      "chain_contact": 32
+    },
+    {
+      "q": "\"해경이 권한 남용하면 이 법으로 처벌받아?\"",
+      "expect_law": "해양경찰법",
+      "expect_article": "제3조",
+      "glossary_forced": 1,
+      "pages": 27,
+      "chars": 98031,
+      "status": {
+        "canonical": 24,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 40,
+      "chain_contact": 22
+    },
+    {
+      "q": "\"해양경찰위원회는 어디에 있는 조직이야?\"",
+      "expect_law": "해양경찰법",
+      "expect_article": "제5조",
+      "glossary_forced": 2,
+      "pages": 15,
+      "chars": 71707,
+      "status": {
+        "canonical": 15,
+        "draft": 0,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 47,
+      "chain_contact": 33
+    },
+    {
+      "q": "(신규) 「해양용도구역 관리지침」 제5~13조의 \"개발계획 수립등을 제한할 수 있다\"는 규정을 관리기관이 어겨서 실제로는 다 허가해줬다면, 그 관리기관에 제재가 있나요?",
+      "expect_law": "해양공간계획및관리에관한법률",
+      "expect_article": "제14조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 155535,
+      "status": {
+        "canonical": 32,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 87,
+      "chain_contact": 59
+    },
+    {
+      "q": "나는 기장군에서 전복 양식(외해양식업)을 하는데, 내 어장이 어업활동보호구역 경계 밖 1.2km에 있어요. 보호 대상이 되나요?",
+      "expect_law": "「해양공간관리계획의 수립 및 관리 등에 관한 규정」",
+      "expect_article": "제17조",
+      "glossary_forced": 1,
+      "pages": 20,
+      "chars": 87982,
+      "status": {
+        "canonical": 17,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 84,
+      "chain_contact": 56
+    },
+    {
+      "q": "어업활동보호구역 안에서 무허가 골재채취 현장을 적발했는데, 이 법 위반으로 조서를 쓸 수 있나요?",
+      "expect_law": "골재채취법",
+      "expect_article": "제49조·제51조",
+      "glossary_forced": 1,
+      "pages": 21,
+      "chars": 91380,
+      "status": {
+        "canonical": 17,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 21,
+      "chain_contact": 14
+    },
+    {
+      "q": "\"국제기구\"도 이 법 적용받아요? UN 산하 기구 같은 거요?",
+      "expect_law": "해양과학조사법",
+      "expect_article": "제1조·제4조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150878,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 50,
+      "chain_contact": 38
+    },
+    {
+      "q": "우리 어선이 조사 활동을 하면 이 법 위반인가요?",
+      "expect_law": "해양과학조사법",
+      "expect_article": "제20조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 151615,
+      "status": {
+        "canonical": 24,
+        "draft": 16,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 55,
+      "chain_contact": 33
+    },
+    {
+      "q": "공해에서 하는 조사도 \"관할해역\" 조사예요?",
+      "expect_law": "해양과학조사법",
+      "expect_article": "제2조·제20조의2",
+      "glossary_forced": 0,
+      "pages": 36,
+      "chars": 137715,
+      "status": {
+        "canonical": 32,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 28,
+      "chain_contact": 13
+    },
+    {
+      "q": "해수부장관이 외국 조사선의 편의 제공 요청을 거부할 수도 있어요?",
+      "expect_law": "해양과학조사법",
+      "expect_article": "제5조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 155810,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 94,
+      "chain_contact": 57
+    },
+    {
+      "q": "동의(EEZ·대륙붕) 신청도 6개월 전에 내야 해요?",
+      "expect_law": "해양과학조사법",
+      "expect_article": "제7조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 144276,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 62,
+      "chain_contact": 29
+    },
+    {
+      "q": "공동조사에서 국민 참여자가 계획서를 내면 외교부를 안 거쳐도 돼요?",
+      "expect_law": "해양과학조사법",
+      "expect_article": "제8조",
+      "glossary_forced": 0,
+      "pages": 24,
+      "chars": 100311,
+      "status": {
+        "canonical": 18,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 55,
+      "chain_contact": 39
+    },
+    {
+      "q": "「해양레저관광진흥법」은 어촌에서 숙박업을 하려는 개인에게 어떤 지원을 정하고 있나요?",
+      "expect_law": "해양레저관광진흥법",
+      "expect_article": "제8조",
+      "glossary_forced": 1,
+      "pages": 30,
+      "chars": 117421,
+      "status": {
+        "canonical": 25,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 74,
+      "chain_contact": 57
+    },
+    {
+      "q": "이 법 이름에 '레저'가 들어가는데 나 등산도 좋아하거든, 그것도 이 법에 포함돼?",
+      "expect_law": "해양레저관광진흥법",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 148654,
+      "status": {
+        "canonical": 26,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 79,
+      "chain_contact": 50
+    },
+    {
+      "q": "협회가 국제기구와 국제협력 사업을 하고 싶다는데, 제3조②(국제협력체계 구축 노력)이 협회에도 직접 적용되는 근거가 되나?",
+      "expect_law": "해양레저관광진흥법",
+      "expect_article": "제3조·제12조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 159144,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 76,
+      "chain_contact": 54
+    },
+    {
+      "q": "준해양사고 유형이 3개뿐인가(화재·오염위험은)?",
+      "expect_law": "해양사고의 조사 및 심판에 관한 법률 시행규칙",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 31,
+      "chars": 114572,
+      "status": {
+        "canonical": 23,
+        "draft": 8,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 68,
+      "chain_contact": 52
+    },
+    {
+      "q": "낚시어선업 등록 취소가 이 법의 사고 이력과 연동되나?",
+      "expect_law": "낚시관리 및 육성법",
+      "expect_article": "제38조제1항제3호·제5호",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 150060,
+      "status": {
+        "canonical": 34,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 72,
+      "chain_contact": 61
+    },
+    {
+      "q": "사고 원인자가 시정명령(제5조3항 재결)을 받고 안 지키면 얼마?",
+      "expect_law": "해양사고의조사및심판에관한법률",
+      "expect_article": "제90조제2항제1호·시행령 별표2",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 155097,
+      "status": {
+        "canonical": 26,
+        "draft": 14,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 67,
+      "chain_contact": 55
+    },
+    {
+      "q": "해양보호구역이 정확히 뭐야? 아무 데나 지정돼?",
+      "expect_law": "해양생태계의보전및관리에관한법률",
+      "expect_article": "제2조·제25조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 147687,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 75,
+      "chain_contact": 55
+    },
+    {
+      "q": "해양보호구역 안에서 모래 채취해도 돼?",
+      "expect_law": "해양생태계의보전및관리에관한법률",
+      "expect_article": "제27조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 144681,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 49,
+      "chain_contact": 37
+    },
+    {
+      "q": "해양보호구역에 안내판 훼손하면 어떻게 돼?",
+      "expect_law": "해양생태계의보전및관리에관한법률",
+      "expect_article": "제65조·별표2",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 144357,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 67,
+      "chain_contact": 51
+    },
+    {
+      "q": "한국해양수산연수원도 제31조로 만들어진 기관인가?",
+      "expect_law": "해양수산발전기본법",
+      "expect_article": "제31조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 150752,
+      "status": {
+        "canonical": 27,
+        "draft": 13,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 40,
+      "chain_contact": 16
+    },
+    {
+      "q": "\"기본이념\"이 법인데 이걸 안 지키면 뭐가 어떻게 되나요?",
+      "expect_law": "해양수산발전기본법",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 30,
+      "chars": 111589,
+      "status": {
+        "canonical": 23,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 93,
+      "chain_contact": 93
+    },
+    {
+      "q": "요즘 뉴스에 \"해양신산업\"이라는 말 나오던데 이 법에 있는 거예요?",
+      "expect_law": "해양수산발전기본법",
+      "expect_article": "제28조의2",
+      "glossary_forced": 0,
+      "pages": 16,
+      "chars": 78208,
+      "status": {
+        "canonical": 9,
+        "draft": 6,
+        "other": 1
+      },
+      "suspect_hit": [],
+      "chain_rows": 74,
+      "chain_contact": 60
+    },
+    {
+      "q": "외국 어선이 EEZ에서 무허가로 산호를 채취하다 적발됐다. 현장에서 즉시 나포 가능한가, 법원 영장이 필요한가?",
+      "expect_law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+      "expect_article": "제13조",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 154066,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 65,
+      "chain_contact": 51
+    },
+    {
+      "q": "분양승인이 취소돼서 자원을 반납해야 하는데, 반납 안 하고 폐기해버리면 어떻게 돼?",
+      "expect_law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+      "expect_article": "제21조·제20조",
+      "glossary_forced": 0,
+      "pages": 12,
+      "chars": 65829,
+      "status": {
+        "canonical": 9,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 71,
+      "chain_contact": 39
+    },
+    {
+      "q": "지정취소된 기탁등록보존기관이 지정증서를 반납했다. 그 후 보유 자원은 자동으로 국가에 귀속되나, 별도 협의가 필요한가?",
+      "expect_law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+      "expect_article": "제19조",
+      "glossary_forced": 0,
+      "pages": 12,
+      "chars": 60024,
+      "status": {
+        "canonical": 10,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 75,
+      "chain_contact": 43
+    },
+    {
+      "q": "(1라운드#1 회귀) \"해양수산생명자원\"의 정의를 이제 위키 한 페이지에서 통으로 볼 수 있어?",
+      "expect_law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률",
+      "expect_article": "제2조",
+      "glossary_forced": 0,
+      "pages": 32,
+      "chars": 127136,
+      "status": {
+        "canonical": 26,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 100,
+      "chain_contact": 82
+    },
+    {
+      "q": "(1라운드#60~71 회귀) 우리 기관도 기탁등록보존기관 지정받고 싶은데 요건이 뭐야?",
+      "expect_law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률 시행령",
+      "expect_article": "제14조",
+      "glossary_forced": 0,
+      "pages": 11,
+      "chars": 55625,
+      "status": {
+        "canonical": 9,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 86,
+      "chain_contact": 69
+    },
+    {
+      "q": "(1라운드#63 회귀) 지정기관이 업무 안 하면 바로 취소야 경고부터야?",
+      "expect_law": "해양수산생명자원의확보ㆍ관리및이용등에관한법률 시행령",
+      "expect_article": "별표1",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 155914,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 67,
+      "chain_contact": 55
+    },
+    {
+      "q": "무허가로 국가해양관측망에 출입해 촬영만 하고 나온 사람(훼손 없음)도 제64조①1호(1년/1천만원) 처벌 대상인가?",
+      "expect_law": "해양조사와해양정보활용에관한법률",
+      "expect_article": "제16조·제64조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 155995,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 91,
+      "chain_contact": 60
+    },
+    {
+      "q": "해양조사의 날이 있다던데 언제예요?",
+      "expect_law": "해양조사와해양정보활용에관한법률",
+      "expect_article": "제6조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152336,
+      "status": {
+        "canonical": 34,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 82,
+      "chain_contact": 58
+    },
+    {
+      "q": "국립해양조사원 홈페이지에서 우리 동네 앞바다 수심을 무료로 볼 수 있나요?",
+      "expect_law": "해양조사와해양정보활용에관한법률",
+      "expect_article": "제42조·제58조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 133576,
+      "status": {
+        "canonical": 31,
+        "draft": 9,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 55,
+      "chain_contact": 33
+    },
+    {
+      "q": "인증받은 프로그램인지 어디서 확인할 수 있나요?",
+      "expect_law": "해양치유자원의관리및활용에관한법률 시행규칙",
+      "expect_article": "제14조",
+      "glossary_forced": 0,
+      "pages": 22,
+      "chars": 86517,
+      "status": {
+        "canonical": 17,
+        "draft": 4,
+        "other": 1
+      },
+      "suspect_hit": [],
+      "chain_rows": 47,
+      "chain_contact": 35
+    },
+    {
+      "q": "관리단이 정확히 어떤 일을 하는 곳인가요? 제가 이용할 수 있는 서비스가 있나요?",
+      "expect_law": "해양치유자원의관리및활용에관한법률",
+      "expect_article": "제22조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 154803,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 71,
+      "chain_contact": 62
+    },
+    {
+      "q": "조성계획이 취소되면 이미 받은 지원금(부담금 감면분)도 다 토해내야 하나요?",
+      "expect_law": "해양치유자원의관리및활용에관한법률",
+      "expect_article": "제16조",
+      "glossary_forced": 0,
+      "pages": 33,
+      "chars": 130920,
+      "status": {
+        "canonical": 29,
+        "draft": 4,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 45,
+      "chain_contact": 33
+    },
+    {
+      "q": "「해양치유자원의 관리 및 활용에 관한 법률」에서 위탁업무 종사자가 직무상 알게 된 비밀을 누설하면 처벌이 어떻게 되나요?",
+      "expect_law": "해양치유자원의관리및활용에관한법률",
+      "expect_article": "제34조의2·제35조",
+      "glossary_forced": 1,
+      "pages": 35,
+      "chars": 140438,
+      "status": {
+        "canonical": 30,
+        "draft": 4,
+        "other": 1
+      },
+      "suspect_hit": [],
+      "chain_rows": 68,
+      "chain_contact": 54
+    },
+    {
+      "q": "타당성조사 세부기준 항목은?",
+      "expect_law": "해양치유자원의관리및활용에관한법률 시행령",
+      "expect_article": "별표1",
+      "glossary_forced": 0,
+      "pages": 10,
+      "chars": 53756,
+      "status": {
+        "canonical": 7,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 94,
+      "chain_contact": 66
+    },
+    {
+      "q": "전문인력양성기관 지정기준 세부요건은?",
+      "expect_law": "해양치유자원의관리및활용에관한법률 시행령",
+      "expect_article": "별표2",
+      "glossary_forced": 0,
+      "pages": 27,
+      "chars": 101920,
+      "status": {
+        "canonical": 22,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 48,
+      "chain_contact": 26
+    },
+    {
+      "q": "\"생활폐기물 과태료 부과 후 60일 안에 이의제기하면 어떻게 되나?\"",
+      "expect_law": "해양폐기물및해양오염퇴적물관리법",
+      "expect_article": "제20조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 149803,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 124,
+      "chain_contact": 89
+    },
+    {
+      "q": "\"과태료를 5년간 안 걷으면 소멸되나?\"",
+      "expect_law": "해양폐기물및해양오염퇴적물관리법",
+      "expect_article": "제15조",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 146492,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 78,
+      "chain_contact": 45
+    },
+    {
+      "q": "\"외국 국적 화물선이 우리 영해에서 폐기물을 버렸는데 처벌할 수 있나?\"",
+      "expect_law": "해양환경관리법",
+      "expect_article": "제22조제1항·제127조제1호",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152719,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 65,
+      "chain_contact": 56
+    },
+    {
+      "q": "방제업체 대표자 변경도 변경등록 대상 \"중요사항\"인가?",
+      "expect_law": "해양환경관리법 시행규칙",
+      "expect_article": "제37조",
+      "glossary_forced": 0,
+      "pages": 30,
+      "chars": 118711,
+      "status": {
+        "canonical": 24,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 137,
+      "chain_contact": 91
+    },
+    {
+      "q": "선박대선박 기름이송 작업기록은 얼마나 보관해야 하나?",
+      "expect_law": "해양환경관리법",
+      "expect_article": "제32조의2",
+      "glossary_forced": 0,
+      "pages": 20,
+      "chars": 85874,
+      "status": {
+        "canonical": 17,
+        "draft": 3,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 79,
+      "chain_contact": 62
+    },
+    {
+      "q": "부이(계류부표)도 해양시설 신고대상인가?",
+      "expect_law": "해양환경관리법 시행규칙",
+      "expect_article": "별표1",
+      "glossary_forced": 1,
+      "pages": 40,
+      "chars": 149893,
+      "status": {
+        "canonical": 34,
+        "draft": 6,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 70,
+      "chain_contact": 57
+    },
+    {
+      "q": "기름오염방지설비 안 갖추고 항해하면?",
+      "expect_law": "해양환경관리법",
+      "expect_article": "제26조·제128조",
+      "glossary_forced": 0,
+      "pages": 13,
+      "chars": 66359,
+      "status": {
+        "canonical": 11,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 81,
+      "chain_contact": 61
+    },
+    {
+      "q": "해양시설 안전점검은 몇 년마다 하나?",
+      "expect_law": "해양환경관리법",
+      "expect_article": "제36조의2·별표9의2",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 157571,
+      "status": {
+        "canonical": 30,
+        "draft": 10,
+        "other": 0
+      },
+      "suspect_hit": [
+        "선박안전법__형식승인및검정",
+        "선박안전법__특수선박구조기준"
+      ],
+      "chain_rows": 105,
+      "chain_contact": 94
+    },
+    {
+      "q": "저장시설 운영자가 위반하면 처분이 몇 차까지 escalation 되나?",
+      "expect_law": "해양환경관리법 시행규칙",
+      "expect_article": "별표10의3",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 149959,
+      "status": {
+        "canonical": 35,
+        "draft": 5,
+        "other": 0
+      },
+      "suspect_hit": [
+        "마리나항만의조성및관리등에관한법률__마리나업등록"
+      ],
+      "chain_rows": 103,
+      "chain_contact": 95
+    },
+    {
+      "q": "오염원인자책임 안 지키면 벌금 얼마?",
+      "expect_law": "해양환경보전및활용에관한법률",
+      "expect_article": "제8조",
+      "glossary_forced": 1,
+      "pages": 14,
+      "chars": 66860,
+      "status": {
+        "canonical": 13,
+        "draft": 1,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 88,
+      "chain_contact": 70
+    },
+    {
+      "q": "해양환경통합정보망엔 뭐가 들어가나(별표2)?",
+      "expect_law": "해양환경보전및활용에관한법률 시행령",
+      "expect_article": "별표2",
+      "glossary_forced": 1,
+      "pages": 10,
+      "chars": 46704,
+      "status": {
+        "canonical": 9,
+        "draft": 1,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 45,
+      "chain_contact": 35
+    },
+    {
+      "q": "어촌·어항 계획도 대상(별표1 25호)?",
+      "expect_law": "해양환경보전및활용에관한법률 시행령",
+      "expect_article": "별표1(25호)",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 152896,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 79,
+      "chain_contact": 64
+    },
+    {
+      "q": "해양환경종합계획 확정 전 공청회는 반드시 열어야 하나?",
+      "expect_law": "해양환경보전및활용에관한법률",
+      "expect_article": "제10조③",
+      "glossary_forced": 1,
+      "pages": 26,
+      "chars": 107564,
+      "status": {
+        "canonical": 24,
+        "draft": 2,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 68,
+      "chain_contact": 60
+    },
+    {
+      "q": "기후변화 대응 지원 업무는 누구에게 위탁되나?",
+      "expect_law": "해양환경보전및활용에관한법률·해양환경보전및활용에관한법률 시행령",
+      "expect_article": "제17조②·시행령 제13조①1호",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 137811,
+      "status": {
+        "canonical": 33,
+        "draft": 7,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 26,
+      "chain_contact": 20
+    },
+    {
+      "q": "국가환경종합계획(환경정책기본법)도 해양환경질평가 반영대상인가?",
+      "expect_law": "해양환경보전및활용에관한법률 시행령",
+      "expect_article": "별표1(43호)",
+      "glossary_forced": 1,
+      "pages": 10,
+      "chars": 49038,
+      "status": {
+        "canonical": 10,
+        "draft": 0,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 60,
+      "chain_contact": 52
+    },
+    {
+      "q": "순항여객운송사업(크루즈) 면허받으려면 배가 몇 톤 이상이어야 하나?",
+      "expect_law": "해운법 시행규칙",
+      "expect_article": "별표2",
+      "glossary_forced": 1,
+      "pages": 6,
+      "chars": 42933,
+      "status": {
+        "canonical": 5,
+        "draft": 1,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 108,
+      "chain_contact": 91
+    },
+    {
+      "q": "여객선 이력관리는 구체적으로 무엇을 관리해야 하나?",
+      "expect_law": "해운법 시행규칙",
+      "expect_article": "제10조의3",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 151675,
+      "status": {
+        "canonical": 24,
+        "draft": 16,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 113,
+      "chain_contact": 93
+    },
+    {
+      "q": "여객선 안전정보는 얼마나 자주 갱신해야 하나?",
+      "expect_law": "해운법 시행규칙",
+      "expect_article": "제10조의4",
+      "glossary_forced": 0,
+      "pages": 40,
+      "chars": 149039,
+      "status": {
+        "canonical": 29,
+        "draft": 11,
+        "other": 0
+      },
+      "suspect_hit": [],
+      "chain_rows": 52,
+      "chain_contact": 43
+    }
+  ]
+}

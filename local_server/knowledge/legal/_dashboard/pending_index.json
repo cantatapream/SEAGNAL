@@ -163,6 +163,16 @@
    }
   }
  ],
+ "local_server/knowledge/legal/raw/15_관련타부처/노인복지법": [
+  {
+   "date": "20261231",
+   "files": [
+    "법률_발췌.txt"
+   ],
+   "mst": {},
+   "queue_id": {}
+  }
+ ],
  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법": [
   {
    "date": "20261112",

@@ -1,3 +1,4 @@
+const path = require('path');
 // auto_promote.js — ① 비민감 draft 자동 승급: 각 법의 draft 개념 중 사람검증 불필요한 것만 canonical로.
 // 역할(초보자용): 위키의 86%가 draft(미승인)라 챗봇이 못 씀. 그중 **원문 그대로 인용·순수 정의/절차**처럼
 //   기계로 검증 가능한 비민감 페이지만 canonical로 올린다. 처벌·안전수치·OCR판독·⚠REVIEW는 손대지 않고
@@ -10,7 +11,7 @@ export const meta = {
   description: '비민감 draft 개념을 canonical로 자동 승급(민감·⚠REVIEW·OCR판독은 draft 유지=B안)',
   phases: [{ title: '자동승급', detail: '법별 1에이전트: draft 중 비민감만 canonical, 애매하면 draft 유지' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['law', 'status'],

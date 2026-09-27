@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'wiki-fix',
   description: '감사 리포트 기반 위키 수정·보완: 없는 페이지 생성·얇은 페이지 심화·수집구멍 원문반영·답변방식 준수',
   phases: [{ title: '수정보완', detail: '법마다 에이전트가 audit 리포트대로 위키를 고침' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {
   type: 'object', required: ['law', 'fixed'],

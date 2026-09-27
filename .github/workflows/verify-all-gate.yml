@@ -1,0 +1,294 @@
+# ============================================================================
+# [용도] `scripts/refactor/verify_all.sh` 를 **깃허브 서버가 자동으로 돌린다.**
+#
+# 왜 있나 (2026-09-22 신설, 사용자 확정 Q-9):
+#   이 저장소에는 게이트가 19개(V2·V3·V4·V5-0~V5-17·V6) + 테스트 스위트 31개 있는데,
+#   **그것을 자동으로 부르는 것이 하나도 없었다.** 2026-09-22 전수 검색 결과 —
+#   CI 워크플로 0건 · git 훅 0건 · npm 스크립트 0건. `CLAUDE.md` 에 "돌려라"는
+#   문장 하나와 다른 파일 주석에 이름만 있었다.
+#
+#   그래서 게이트는 **사람이 기억할 때만** 돌았다. 조사에서 나온 뿌리 사슬의
+#   네 번째 마디가 정확히 이것이다:
+#       ①규칙은 있었다 → 코드가 안 읽는다
+#       ②코드가 안 읽는 규칙은 죽는다 → 그래서 게이트를 만들었다
+#       ③게이트가 안 재는 자리도 죽는다 → 그런데 게이트를 부르는 것이 없다
+#       ④★게이트를 부르는 것이 없으면 게이트도 죽는다   ← 이 워크플로가 이걸 막는다
+#   (근거: `local_server/knowledge/legal/_dashboard/d_standard_2026-09-22/` G-1)
+#
+# ── 왜 서버를 띄우나 ────────────────────────────────────────────────────────
+#   `verify_all.sh` 는 머리말에 `node local_server/server.js &` 선기동을 요구한다.
+#   서버가 없으면 ①HTTP 스모크 21건이 전부 실패하고 ②V4 시뮬레이션이
+#   `ERR_CONNECTION_REFUSED` 로 죽는다 → **어떤 경우에도 exit 1.**
+#   스크립트 자신도 358행에서 *"HTTP 스모크 실패는 총정리에서 뺐다"* 고 적지만
+#   `FAIL=1` 은 그대로 두므로, 서버 없이 걸면 **영원히 빨간불**이 된다.
+#   서버 기동 방식은 이미 이 저장소에서 검증된 `phase0-gate.yml` 의 단계를 그대로 쓴다.
+#
+# ── 왜 처음에는 차단하지 않나 (continue-on-error: true) ─────────────────────
+#   `verify_all.sh` 40행이 스스로 경고한다 —
+#     *"실패가 일상이 되면 점검표를 무시하는 습관이 생겨 게이트 자체가 무력해진다."*
+#   게이트를 21라운드 만에 처음 자동으로 켜는 것이라, **진짜 기준선을 모르는 상태**다.
+#   처음부터 차단으로 걸면 PR 이 막히고, 그러면 사람이 게이트를 꺼 버린다 —
+#   그것이 지금까지 게이트가 죽어 있던 것과 같은 결말이다.
+#   그래서 1~2회 관찰해 CI 에서의 실제 기준선을 확정한 뒤 차단으로 전환한다.
+#   (같은 이유로 `phase0-gate.yml` 도 비차단으로 운영 중이다.)
+#   ⚠단 **잡 레벨 `continue-on-error` 로는 하지 않는다** — 그러면 잡이 언제나 초록이라
+#     빨간 것이 아무에게도 안 보인다(run #9 에서 실제로 그랬다). 비차단은 verify 스텝에만
+#     걸고, 잡의 성패는 「★판정」 스텝이 실제 종료 코드로 정한다. 차단으로 바꿀 때는
+#     그 스텝의 `BLOCKING` 이 그것이다. ★**2026-09-23 부터 `'true'`** — 2-0 완성(Q-15).
+#     되돌리려면 `'false'` 로만 바꾸고, 시험을 꺼서 초록을 만들지는 않는다(G-34).
+#
+# ── 2026-09-22 로컬 실측 (이 커밋 기준, 서버 켠 상태) ───────────────────────
+#   ✅ 78 · ❌ 23 · EXIT=1
+#   ❌ 23건 중 **게이트 판정을 실패로 만든 것은 V4 하나뿐**이고, 나머지는 전부
+#   분류 표시줄이다(각 게이트의 판정줄은 모두 `✅ 기준선 대비 나빠지지 않음`).
+#     · V5-4 `search 13 (4.7%)`      → 판정 `✅ 기준선 대비 나빠진 문항 없음`
+#     · V5-8 `칸을 못 읽음 81`        → 판정 `✅ 기준선 대비 나빠지지 않음`
+#     · V5-11 `그 별표가 없다 2`      → 판정 `✅ 열리는 줄 321건 — 기준선(321) 이상`
+#     · V5-9 `행정규칙이 비어 있다 2` → 판정 `✅ 수집 결손 2건 — 기준선(2) 이하`
+#     · V5-16 `목 8파일·14곳 / 호 3파일·6곳` → 판정 `✅ 기준선 대비 나빠지지 않음`
+#   V4 가 찍은 콘솔 에러 2건은 **로컬 컨테이너 환경 탓**으로 보인다 —
+#   `ERR_CERT_AUTHORITY_INVALID`(에이전트 프록시 CA) 와 API 키 부재로 인한 500.
+#   깃허브에서는 실제 시크릿이 있으므로 다를 수 있다. **그것을 확인하는 것이
+#   이 워크플로의 1단계 목적이다.**
+#
+# ── V4 가 쓰는 playwright ───────────────────────────────────────────────────
+#   `scripts/refactor/simulate.js` 는 `playwright-core` 를 require 하는데,
+#   이 저장소의 **어떤 package.json 에도 선언돼 있지 않다**(2026-09-22 확인).
+#   로컬 컨테이너에만 설치돼 있다. 저장소의 의존성 계약을 바꾸지 않으려고
+#   여기서 `--no-save` 로만 설치한다.
+#
+# [연계] 검증 본체 `scripts/refactor/verify_all.sh` ·
+#        서버 기동 방식의 원본 `.github/workflows/phase0-gate.yml` ·
+#        커밋 단계의 빠른 부분집합 `.githooks/pre-commit` ·
+#        배경과 기준선 `local_server/knowledge/legal/_dashboard/d_standard_2026-09-22/00_WORKLIST.md`
+# ============================================================================
+name: 전체 검증 게이트 (verify_all)
+
+on:
+  push:
+    paths:
+      - 'local_server/**'
+      - 'client/**'
+      - 'scripts/refactor/**'
+      - '.github/workflows/verify-all-gate.yml'
+  pull_request:
+    paths:
+      - 'local_server/**'
+      - 'client/**'
+      - 'scripts/refactor/**'
+  schedule:
+    # UTC 19:00 = KST 04:00 — 기존 야간 작업(phase0 KST 02:00, 색인 KST 03:00)과 겹치지 않게.
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: '수동 실행 사유'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-all-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify_all.sh 전체 실행
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # ⚠★잡 레벨 `continue-on-error` 는 쓰지 않는다 (2026-09-22 run #9 에서 배웠다).
+    #   처음에 여기에 걸었더니 **잡이 언제나 초록**이 돼서, verify_all 이 exit 1 인데도
+    #   PR 화면은 통과로 보이고 check_run 실패 알림도 오지 않았다. 관찰 단계의 목적은
+    #   "지금 무엇이 빨간지 보는 것"인데 그 신호 자체를 가려 버린 것이다 —
+    #   게이트를 만들어 놓고 결과가 아무에게도 안 가는 G-1 의 사촌이다.
+    #   비차단은 **아래 verify 스텝에만** 걸고(그래야 뒷정리·아티팩트·요약이 끝까지 돈다),
+    #   잡의 성패는 마지막 판정 스텝이 실제 종료 코드로 정한다.
+
+    env:
+      BASE_URL: 'http://127.0.0.1:3001'
+      # 시크릿 → 서버 부팅이 참조. 로그 echo 금지(깃허브가 자동 마스킹하지만 규약상 금지).
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      # ★챗봇이 쓰는 이름은 `_26_8` 하나다 (2026-09-23 사용자 확정, G-48).
+      #   운영(Fly.io) 시크릿에도 `GEMINI_API_KEY_26_8` 만 있다 — 화면으로 확인했다.
+      #   그래서 여기서도 그 이름을 넣는다. 윗줄 `GEMINI_API_KEY` 는 챗봇이 아닌 쪽
+      #   (`topic_embedding.js`·`ai_report_parser.js`)이 읽는 이름이라 남겨 둔다.
+      #   ⚠깃허브 시크릿에 `GEMINI_API_KEY_26_8` 이 없으면 빈 문자열로 들어오고,
+      #   서버는 그 사실을 부팅 로그에 적는다(「찾은 이름: …」). L-8 을 CI 에서 돌리려면
+      #   깃허브 시크릿에도 같은 이름으로 한 번 넣어야 한다.
+      GEMINI_API_KEY_26_8: ${{ secrets.GEMINI_API_KEY_26_8 }}
+      KMA_DMDW_ID: ${{ secrets.KMA_DMDW_ID }}
+      KMA_DMDW_PW: ${{ secrets.KMA_DMDW_PW }}
+      MARINE_USER_ID: ${{ secrets.MARINE_USER_ID }}
+      MARINE_USER_PWD: ${{ secrets.MARINE_USER_PWD }}
+      ROMS_SERVICE_KEY: ${{ secrets.ROMS_SERVICE_KEY }}
+      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+        with:
+          # ★2026-09-23 (3-10 · V5-33) — **깊이 1 로 받으면 V5-33 이 죽는다.**
+          #   그 게이트는 `origin/main` 과의 **갈림점**을 봐야 「이 PR 이 raw 를 고쳤나」를 알 수 있다.
+          #   얕게 받으면 `merge-base` 가 실패하고 게이트는 조용히 건너뛴다 — 뿌리 사슬 ④ 그대로다.
+          #   ⚠값: 받는 시간이 는다(.git 869MB · 커밋 8,262개). 이 잡은 이미 11분쯤 걸리므로
+          #     1~2분 더 드는 것을 **게이트가 실제로 도는 값**으로 친다.
+          fetch-depth: 0
+
+      - name: Node 20 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: local_server/package-lock.json
+
+      - name: Python 3.11 준비
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 서버 의존성 설치
+        working-directory: local_server
+        run: npm ci
+
+      - name: 로그 폴더 먼저 만든다
+        run: mkdir -p _ci_logs
+
+      - name: V4 시뮬레이션용 playwright 설치 (--no-save)
+        run: |
+          # `simulate.js` 는 `scripts/refactor/` 에서 `require('playwright-core')` 하므로
+          # Node 가 **저장소 루트 node_modules** 에서 찾는다 → 루트에 깔아야 한다.
+          #
+          # ⚠ run #1 이 여기서 죽었다고 적혀 있었다: 루트 package.json 의 capacitor 묶음에
+          #   peer 충돌이 있어 `npm i` 가 ERESOLVE 로 멈춘다 —
+          #   그래서 `--legacy-peer-deps` 로 피하고 있었다. `--no-save` 라 저장소의
+          #   package.json·lock 은 건드리지 않는다.
+          # ★2026-09-25 다시 재 보니 **그 충돌이 없다.** `--legacy-peer-deps` 를 뺐다(2-17).
+          #   ⚠위에 적혀 있던 까닭(`@capacitor/core@8.5.2` vs `@capacitor/geolocation@8.1.0`
+          #     peer `>=8.0.0`)은 **지금 이 저장소의 범위에서는 나올 수 없는 판**이다 —
+          #     루트 `package.json` 은 `@capacitor/*` 를 `^7.0.0` 으로 묶고 있고,
+          #     `^8` 로 적힌 적이 **한 번도 없다**(`git log -S` 로 확인). 오진이었다.
+          #   실측(node 22.22.2 · npm 10.9.7, lock·node_modules 없는 빈 폴더에서):
+          #     · `npm i --no-save playwright-core playwright`  → 559묶음 설치, ERESOLVE 없음
+          #     · `npm install`(lock 있음)                      → 797묶음 설치, ERESOLVE 없음
+          #     · `npm install --no-save playwright@1.48 proj4@2.21.0` → 559묶음, ERESOLVE 없음
+          #   지금 풀리는 판: `@capacitor/core@7.6.9` · `@capacitor/geolocation@7.1.8`
+          #   (그 peer 는 `@capacitor/core >=7.0.0` 이라 **맞는다**).
+          #   ⚠다시 ERESOLVE 가 나면 **판을 정렬해서** 고친다 — 플래그로 덮지 않는다.
+          #     `npm i --no-save playwright-core playwright` 를 빈 폴더에서 돌려 재현부터 한다.
+          npm i --no-save playwright-core playwright
+          npx playwright install --with-deps chromium
+
+      - name: 서버 기동 (백그라운드) 후 health 대기
+        run: |
+          set -eu
+          cd local_server
+          nohup node server.js > ../_ci_logs/server.log 2>&1 &
+          echo $! > ../_ci_logs/server.pid
+          cd ..
+          for i in $(seq 1 90); do
+            if curl -fsS -o /dev/null "${BASE_URL}/" 2>/dev/null; then
+              echo "[health] 서버가 ${i}초 만에 떴다"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "[health] 90초 안에 서버가 뜨지 않았다"
+          echo "--- server.log 끝 50줄 ---"
+          tail -50 _ci_logs/server.log || true
+          exit 1
+
+      - name: verify_all.sh 실행
+        id: verify
+        continue-on-error: true
+        run: |
+          set +e
+          bash scripts/refactor/verify_all.sh 2>&1 | tee _ci_logs/verify_all.log
+          echo "verify_exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: 서버 내리기
+        if: always()
+        run: |
+          if [ -f _ci_logs/server.pid ]; then kill "$(cat _ci_logs/server.pid)" 2>/dev/null || true; fi
+
+      - name: 로그를 아티팩트로 저장
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-all-logs-${{ github.run_number }}
+          path: _ci_logs/
+          retention-days: 14
+
+      - name: 결과 요약
+        if: always()
+        run: |
+          {
+            echo "## 전체 검증 게이트 (verify_all)"
+            echo ""
+            echo "- 종료 코드: \`${{ steps.verify.outputs.verify_exit }}\`"
+            echo ""
+            echo "### 실패·악화 항목 총정리"
+            echo ""
+            echo '```'
+            # ⚠L-196 — 이 블록은 **한 줄도 빠짐없이** 옮긴다. 잘라 읽으면 가운데 실패를 놓친다.
+            if [ -f _ci_logs/verify_all.log ]; then
+              sed -n '/실패·악화 항목 총정리/,$p' _ci_logs/verify_all.log
+            else
+              echo '(verify_all.log 없음 — 그 앞 단계에서 멈췄다. 위 스텝 로그를 보라)'
+            fi
+            echo '```'
+            echo ""
+            echo "> ★ 이 잡은 **2단계(차단)** — 빨간불이면 이 잡이 실패한다 (2026-09-23, Q-15)."
+            echo "> 올린 근거: CI **연속 초록 2회** — run #95(1f9921aa3) · #97(55b4850aa), 둘 다 exit 0 · 판정 비어 있음."
+            echo "> 로컬 실측(2026-09-23, 서버 켠 상태): ✅ 전체 검증 통과 · 스위트 38/38 · exit 0."
+            echo "> ⚠빨간불을 보면 **시험을 꺼서 초록을 만들지 말 것**(G-34). 총정리를 한 줄도 빠짐없이 읽고 고친다(L-196)."
+          } >> "$GITHUB_STEP_SUMMARY"
+      # ⚠순서 주의 — **「결과 요약」보다 뒤**에 둔다 (2026-09-22, G-39).
+      #   요약 스텝은 스크립트 본문만 25줄 넘게 로그에 찍힌다. 판정이 그 앞에 있으면
+      #   로그를 뒤에서 30~60줄 잘라 읽을 때 **판정이 창 밖으로 밀려난다**.
+      #   판정을 마지막에 두면 뒤에 붙는 것은 Post job cleanup 뿐이다.
+      - name: ★판정 — verify_all 의 실제 종료 코드로 잡의 성패를 정한다
+        if: always()
+        # ★★**2단계(차단)으로 올렸다** (2026-09-23, 2-0 완성 · 사용자 결정 Q-15)
+        #   근거는 **CI 연속 초록 2회** — run #95(1f9921aa3) · #97(55b4850aa).
+        #   ⚠**왜 한 번이 아니고 두 번인가** — `test_overlay_solo` 는 같은 코드로 실패가
+        #     1·1·2·5·4·3·0·1 로 흔들렸던 시험이다. 초록 **한 번**을 근거로 「해소」라 적었다가
+        #     바로 뒤집힌 것이 바로 오늘이다(L-319).
+        #   되돌리려면 아래 한 줄을 `'false'` 로만 바꾼다.
+        #   ⚠빨간불이 뜨면 **시험을 꺼서 초록을 만들지 않는다** — 게이트를 죽이는 가장 빠른 길이다(G-34).
+        env:
+          BLOCKING: 'true'
+        run: |
+          code="${{ steps.verify.outputs.verify_exit }}"
+          # ★총정리를 **여기서 한 번 더** 찍는다. verify 스텝 뒤로 뒷정리·아티팩트 스텝이
+          #   따라붙어서, 로그를 뒤에서 조금만 잘라 읽으면 총정리가 이미 밀려나 있다.
+          #   판정 바로 앞에 두면 어디서 잘라 읽어도 실패 내용이 함께 온다(L-196 과 같은 취지).
+          echo "════ verify_all 실패·악화 항목 총정리 (재출력) ════"
+          if [ -f _ci_logs/verify_all.log ]; then
+            sed -n '/실패·악화 항목 총정리/,$p' _ci_logs/verify_all.log
+          else
+            echo "(verify_all.log 없음)"
+          fi
+          echo "════ 총정리 끝 ════"
+          # ★실패 이름을 **맨 끝에 다시** 찍는다 (2026-09-22, G-39).
+          #   깃허브 로그는 1,300줄이라 사람도 도구도 **뒤에서 조금 잘라** 읽는다. 그런데
+          #   총정리 뒤로 「결과 요약」 스텝과 Post job cleanup 이 40줄 넘게 붙어서,
+          #   20~60줄을 당겨 읽으면 **정작 실패 이름이 안 들어온다** — 이 세션에서 같은 로그를
+          #   대여섯 번 다시 받았다. 맨 끝 몇 줄만 봐도 답이 오게 둔다.
+          if [ -f _ci_logs/verify_all.log ]; then
+            echo "════ 한 줄 판정 ════"
+            sed -n '/실패를 세운 검사(이름)/,/⚠총정리/p' _ci_logs/verify_all.log \
+              | grep -E '^  · ' | grep -v '서버 스모크' | head -12
+            sed -n '/그 검사들이 찍은 것/,$p' _ci_logs/verify_all.log \
+              | grep -E '^  │ ' | tail -8
+            echo "════ 판정 끝 ════"
+          fi
+          if [ "$code" = "0" ]; then
+            echo "✅ verify_all 통과 (exit 0)"
+            exit 0
+          fi
+          echo "::warning title=verify_all 실패::종료 코드 $code — 아래 요약의 「실패·악화 항목 총정리」를 한 줄도 빠짐없이 읽어라(L-196)."
+          if [ "$BLOCKING" = "true" ]; then exit 1; fi
+          echo "⚠BLOCKING=false 로 되돌려져 있어 여기서 막지 않는다 — 2026-09-23 이후라면 누가 꺼 둔 것이다(2-0 참조)."
+

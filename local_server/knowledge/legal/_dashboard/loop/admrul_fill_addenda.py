@@ -28,7 +28,9 @@
   --skip 은 다른 에이전트가 지금 만지고 있는 법의 폴더를 빼 둘 때 쓴다(동시 쓰기 회피).
 """
 import glob, json, os, re, sys, time, urllib.request
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _touched import Touched
+from _admrul_id import find_id   # ★판번호를 찾는 단 한 곳(P-19b)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -40,8 +42,14 @@ OC = 'hyoo1431'
 REPORT_DIR = os.path.join(LEGAL, '_dashboard', 'admrul_addenda')
 
 
-def api(url, tries=4):
-    """law.go.kr JSON 을 받아 온다. 프록시가 끊는 일이 잦아 네 번까지 다시 시도한다."""
+def api(url, tries=25):
+    """law.go.kr JSON 을 받아 온다. 프록시가 끊는 일이 잦아 여러 번 다시 시도한다.
+
+    ★2026-09-23 (3-20 · L-341) — **4회는 모자랐다.** L-322 가 잰 값이 있다 —
+      단발 4/8 · 재시도를 붙이면 9/10. 4회는 그 경계에 딱 걸린다.
+      4회에서 멈추면 그 고시는 보고서에 *"API 가 안 준다"* 로 남는다 —
+      **되는 것을 「안 된다」고 적는 것**이 제일 나쁘다. 25회로 올린다.
+    """
     last = None
     for i in range(tries):
         try:
@@ -49,7 +57,7 @@ def api(url, tries=4):
                 return json.load(r)
         except Exception as e:
             last = str(e)
-            time.sleep(1.5 * (i + 1))
+            time.sleep(min(1.5 + 0.4 * i, 6.0))
     return {'_err': last}
 
 
@@ -141,8 +149,12 @@ def main():
         #   첫 줄에 `⚠REVIEW(수집 …)` 배너가 붙은 파일은 ID 가 셋째 줄로 밀린다.
         #   그런 파일이 22건 있었는데 전부 조용히 건너뛰고는 "ID줄이 없다"로 세었다 —
         #   "안 받아 본 것"을 "받을 수 없는 것"으로 잘못 보고한 셈이다. 머리글 몇 줄을 훑는다.
-        m = re.search(r'^ID:(\d+)', '\n'.join(text.split('\n')[:8]), re.M)
-        admrul_id = m.group(1) if m else id_from_map(p)
+        # ★판번호를 찾는 법은 `_admrul_id.find_id()` 한 곳에 있다(P-19b · L-386, 2026-09-25).
+        #   여기서 `^ID:` 만 보던 탓에 **번호가 있는데도 건너뛴 파일**이 있었다 — 라벨이
+        #   `행정규칙일련번호:`·`MST` 이거나, 폴더 꼬리표 `_admrul.json`·곁 파일에 있던 것들이다.
+        #   전수로는 928개 중 71개가 `^ID:` 로 안 읽혔고 그중 43개는 번호가 이미 있었다.
+        _rid, _rwhere = find_id(p, '\n'.join(text.split('\n')[:8]))
+        admrul_id = _rid or id_from_map(p)
         if not admrul_id:
             rep['ID없음'].append(name)
             continue

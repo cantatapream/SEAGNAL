@@ -106,7 +106,12 @@
             var z = window.LocationAlertCore.locateZone({ lat: lat, lng: lng }, features, acc || 0);
             if (z && z.feature) return { sea: true, zone: (z.feature.properties && z.feature.properties.name) || '', gray: !!z.grayZone };
             return { sea: false, zone: null, gray: false };
-        } catch (_) { return null; }
+        } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). **해역 판정 칸이 빈 채로** 그려진다 —
+            //   「바다 밖이다」와 「판정을 못 했다」가 구분되지 않았다.
+            console.warn('[관리자] 해역 판정 실패 — 해역 칸 없이 그린다:', e && e.message);
+            return null;
+        }
     }
 
     // ── 렌더 ────────────────────────────────────────────────────────────────
@@ -233,7 +238,11 @@
         }
         var slEl = document.getElementById('locstat-sealand');
         if (slEl) { slEl.textContent = '위치 수집 중…'; }
-        try { await BG.getFreshPosition(); } catch (_) { /* 실패해도 저장 위치 표시 */ }
+        try { await BG.getFreshPosition(); } catch (e) {
+            // ★조용히 넘어가지 않는다 (3-44). **마지막 저장 위치가 그대로 보인다** —
+            //   방금 받은 위치라고 오해할 수 있다.
+            console.warn('[관리자] 위치 새로 받기 실패 — 마지막 저장 위치를 보여 준다:', e && e.message);
+        }
         window.locationStatusRefresh();
     };
 

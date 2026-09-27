@@ -55,7 +55,7 @@
         const { state } = MC;
         // 이전 진행 중 fetch 가 있으면 취소
         if (state.fetchAbort) {
-            try { state.fetchAbort.abort(); } catch (e) {}
+            try { state.fetchAbort.abort(); } catch (e) { /* 이미 없어졌거나 정리된 뒤일 수 있다 — 정리는 실패해도 그대로 둔다 */ }
         }
         const ac = new AbortController();
         state.fetchAbort = ac;

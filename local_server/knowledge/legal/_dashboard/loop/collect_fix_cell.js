@@ -1,9 +1,10 @@
+const path = require('path');
 export const meta = {
   name: 'wiki-collect-fix-cell',
   description: '한 법의 scope 매니페스트(_dashboard/scope/<slug>.md)를 체크리스트로 삼아 "미수집" 항목을 하나하나 law.go.kr DRF로 수집→raw 저장→위키 연결·소관부서 연락처 추가하고, 각 항목이 실제로 수집됐는지 대조검증. 지자체 고시/조례는 안내 대체, 판례·법리·다툼은 스코프 밖 정직표기. 완료 시 done 마커.',
   phases: [{ title: '수집검증', detail: '법당 1에이전트: 매니페스트 체크리스트대로 DRF 수집 + 위키 연결 + 소관부서 + 항목별 대조 + 마커' }],
 }
-const LEGAL = '/home/user/SEAGNAL/local_server/knowledge/legal'
+const LEGAL = path.resolve(__dirname, '../..')
 const MARK = `${LEGAL}/_dashboard/fix3`
 const SCOPE = `${LEGAL}/_dashboard/scope`
 

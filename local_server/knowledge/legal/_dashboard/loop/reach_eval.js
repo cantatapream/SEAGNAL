@@ -31,7 +31,11 @@
  */
 const fs = require('fs');
 const path = require('path');
-const R = require('/home/user/SEAGNAL/local_server/services/legal_retriever.js');
+// ⚠2026-09-22(G-31) — 여기는 예전에 `/home/user/SEAGNAL/...` 절대경로였다. 그 탓에 이 게이트는
+//   **이 컨테이너 한 대에서만** 돌았고, 깃허브 CI 에서는 MODULE_NOT_FOUND 로 죽으면서
+//   진단 한 줄 없이 실패만 세웠다(CI run #27 에서 같은 이유로 7개 게이트가 동시에 죽어 있었다).
+//   저장소 안 상대경로로 바꾼다 — 어디에 체크아웃하든 따라온다.
+const R = require('../../../../services/legal_retriever.js');
 
 const argv = process.argv.slice(2);
 const arg = k => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null; };
@@ -140,7 +144,8 @@ let base = null;
 if (fs.existsSync(BASE_FILE)) { try { base = JSON.parse(fs.readFileSync(BASE_FILE, 'utf8')); } catch (_) {} }
 const delta = k => base && typeof base[k] === 'number' ? (now[k] - base[k] > 0 ? `  (+${now[k] - base[k]})` : now[k] - base[k] < 0 ? `  (${now[k] - base[k]})` : '') : '';
 
-console.log(`근거 조문 표 전체 행: ${now.rows.toLocaleString()}`);
+// ⚠뜻과 범위를 함께 말한다(2-6 세는 법 사전). 이 도구는 위키 전체를 본다.
+console.log(`근거 조문 표 전체 행: ${now.rows.toLocaleString()} (뜻: 챗봇이 꺼내는 사슬 항목 · 범위: ${require('./_counting.js').SCOPES.all})`);
 console.log(`어떤 답변으로도 근거로 못 뜨는 행: ${now.dead} (${(now.dead / now.rows * 100).toFixed(2)}%)${delta('dead')}`);
 console.log(`법령 칸이 답변에 나올 수 없는 꼴인 행: ${now.law_cell_unusable}${delta('law_cell_unusable')}\n`);
 if (argv.includes('--examples')) (ex.law_cell || []).slice(0, 10).forEach(x => console.log('        · ' + x));

@@ -65,7 +65,7 @@ os.makedirs(outdir, exist_ok=True)
 
 BRIEF = """# 감사 결함 주장 실측 검증 — 공통 지시
 
-작업 디렉토리: /home/user/SEAGNAL/local_server/knowledge/legal
+작업 디렉토리: <저장소뿌리>/local_server/knowledge/legal
 
 ## 왜 이 일을 하나
 감사관이 결함을 보고했다. 각 항목에는 **주장**이 붙어 있다 — "원문엔 있는데 위키에만 없다",
@@ -163,4 +163,4 @@ print()
 print('   각 배치를 Agent(sonnet)에게 이렇게 시켜라:')
 print('     "먼저 %s/verify_brief.md 를 정독하고 그대로 따르라.' % outdir)
 print('      검증할 항목 목록: %s/verify_N.md' % outdir)
-print('      작업 디렉토리는 /home/user/SEAGNAL/local_server/knowledge/legal 이다."')
+print('      작업 디렉토리는 <저장소뿌리>/local_server/knowledge/legal 이다."')

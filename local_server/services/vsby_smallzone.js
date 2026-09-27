@@ -250,7 +250,13 @@ async function collect({ baseTm = null, limitFrames = 0 } = {}) {
         for (let f = 0; f < bufs.length; f++) {
             const buf = bufs[f];
             if (!buf) continue;
-            let img; try { img = await Jimp.read(buf); } catch (e) { continue; }
+            let img;
+            try { img = await Jimp.read(buf); } catch (e) {
+                // ★조용히 넘어가지 않는다 (3-44). 한 프레임을 건너뛰면 **그 시각 값이 통째로 빠지는데**
+                //   「그 시각엔 자료가 없었다」와 겉으로 똑같았다.
+                console.warn(`[vsby] 프레임 ${f} 디코드 실패 — 그 시각 값 없이 이어간다:`, e && e.message);
+                continue;
+            }
             const data = img.bitmap.data;
             for (let ci = 0; ci < centers.length; ci++) {
                 const p = px[ci]; if (!p) continue;
