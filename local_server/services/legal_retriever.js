@@ -1019,6 +1019,159 @@ const PARTIAL_NOTE = '\n\n> (발췌 안내) 이 문서는 원문이 더 깁니�
 const HUGE_NOTE = '> (발췌 안내) 이 문서는 원문이 방대하고 소제목으로 나뉘어 있지 않아 본문을 싣지 않았습니다. ' +
   '아래는 맨 앞부분 미리보기뿐입니다 — 여기 없는 내용은 "확인되지 않습니다"라고 답하고, 원문 전체는 ' +
   '별표·서식 다운로드 버튼으로 안내하세요.';
+// [D] 첫 `## ` 앞 글이 **표**이고 그것만으로 이 페이지 예산을 넘으면 — 앞에서부터 자르지 않고
+//   **질문과 맞는 행을 골라** 싣는다 (2026-09-27 · 골든 15 · WORKLIST 3-70).
+//   ★왜: 별표 쪽은 표 전체가 첫 `## ` 앞(intro)에 들어 있다. 그런데 이 함수는 intro 를
+//     `intro.slice(0, maxChars)` 로 **앞에서부터** 잘랐고, 절이 2개 이하인 초대형 쪽은 [C] 로 **500자
+//     미리보기**만 줬다. 그래서 표 뒤쪽 행은 어떤 질문으로도 실리지 못했다 — 챗봇이 **갖고 있는 좌표를
+//     「확인되지 않습니다」라고 답했다**(「인천항 관제구역 경계 좌표」: 5위 · 예산 2,976자 · 실린 것 636자).
+//     같은 병을 가진 쪽(전수 1,288개 중 첫 `## ` 앞 글이 3,000자 넘는 것 19개 · 그중 상자 표 7 · md 표 9):
+//     관제 고시 별표1(143,415자) · **항만법 시행령 별표1(50,954자 — 절이 3개라 [C] 에도 안 걸린다)** ·
+//     양식산업발전법 시행규칙 별표3(16,177자) 등.
+//   ★행을 가르는 법: 상자 표는 **줄 첫 글자가 `├`·`└` 인 줄**이 행 구분선이다(칸 안 줄바꿈은 `│` 로
+//     시작하므로 행을 안 끊는다). md 표는 `|` 줄 하나가 한 행이다. 첫 구분선 앞(제목·열 제목)은
+//     **점수 후보에서 뺀다** — 쪽 이름·주제어와 겹쳐 점수를 받고 예산을 먼저 차지했다(실측 2.55점 —
+//     인천항 행 1.05점보다 높았다).
+//   ★모양만 줄인다: 선만 있는 줄을 빼고, 겹친 빈칸을 한 칸으로, 이어진 `│` 를 하나로 줄인다.
+//     **글자는 원문 그대로다**(인천항 행 8,372자 → 2,257자). 줄였다는 사실을 안내문에 밝힌다.
+//   ★고르는 법: 절 점수와 같은 **행-내 문서빈도 역가중**. 점수 TABLE_ROW_MIN_SCORE 미만 행은 싣지 않는다
+//     — 두 행 이하에만 나오는 낱말이 하나도 안 맞은 행이다(「관제」만 맞은 평택항 행 0.05점 같은 것).
+//     ⚠「1위 점수의 절반」을 문턱으로 잡으면 인천항 행(1.05)까지 빠진다 — 비고 행이 1.55점이다.
+//     예산에 안 드는 행을 만나면 **잘라서라도 넣고 잘렸다고 적은 뒤 멈춘다**. 건너뛰고 더 작은 행을 찾으면
+//     덜 맞는 행이 들어온다. 고른 행은 **표 순서대로** 싣는다.
+//     맞는 행이 하나도 없으면 표 순서대로 앞에서부터(줄인 모양으로) 싣는다 — 옛 동작과 같은 뜻이다.
+//   ⚠표가 아니면(가를 행이 없으면) 이 길을 안 탄다 — 옛 동작 그대로다.
+const TABLE_ROW_MIN_SCORE = 0.5;
+const TABLE_HEAD_MAX_RATIO = 0.15;   // 열 제목은 예산의 15% 이내일 때만 앞에 붙인다(행이 우선이다)
+const TABLE_ROW_CUT = ' (…이 행의 뒤쪽은 잘렸음)';
+const TABLE_ROWS_NOTE = '> (발췌 안내) 이 문서의 표는 원문이 매우 깁니다 — 질문과 관련 있는 행만 골라 실었고, ' +
+  '표의 선과 겹친 빈칸은 줄였습니다(글자는 원문 그대로입니다). 여기 없는 행은 "확인되지 않습니다"라고 답하고, ' +
+  '규정이 없다고 단정하지 마세요. 원문 전체는 별표·서식 다운로드 버튼으로 안내하세요.';
+const BOX_ONLY_LINE = /^[\s│┃├┤┬┼┴┌┐└┘─━┄┈]*$/;
+// 예산보다 큰 행 묶음은 **첫 칸이 항목 기호로 시작하는 줄**에서 한 번 더 가른다([B-1] 의 splitSection 과 같은 생각).
+//   ★왜: 항만법 시행령 별표1(표 50,954자)은 항만 사이에 가로선이 **하나도 없다**(가로선 4줄이 전부 표 경계다).
+//     항만은 첫 칸이 `어. 부산항` 처럼 항목 기호로 시작하는 줄에서 바뀐다. 가로선만 보면 표가 5덩이로만 갈려
+//     「부산항」을 물어도 무역항 덩이 전체(수만 자) 앞머리만 실렸다.
+//   ⚠첫 칸이 비어 있는 줄(`│        │          │01. 북위…` — 관제 고시의 좌표 줄)은 안 가른다. 좌표 번호는
+//     셋째 칸의 것이라 행이 아니다.
+const FIRST_CELL_ITEM = /^│\s*(?:(?:[가-힣]|\d{1,3})\.\s|\(\d{1,3}\)|[①-⑳])/;
+
+/** 표 한 행(여러 줄)의 모양만 줄인다 — 선만 있는 줄·코드 울타리를 빼고 겹친 빈칸과 `│` 를 하나로. 글자는 그대로. */
+function compactTableRow(text) {
+  return String(text || '').split('\n')
+    .filter(l => !BOX_ONLY_LINE.test(l) && l.trim() !== '```')
+    .map(l => l.replace(/[ \t\u3000]{2,}/g, ' ').replace(/│(?:\s*│)+/g, '│').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * 첫 `## ` 앞 글을 **쪽 제목 · 표 앞 글 · 열 제목 · 행 묶음**으로 가른다. 표가 아니면 null.
+ *   ★머리를 한 덩이로 보면 안 된다(2026-09-27 골든 291 전수 A/B 실측): 처음엔 첫 구분선 앞을 통째로
+ *   「머리」로 보고 크면 뺐는데, 그 안에 **쪽 제목**(이것이 어느 법 몇 번 별표인지)과 **표 앞 줄글**
+ *   (예: 과태료 부과기준의 「1. 일반기준」)이 같이 들어 있어 함께 사라졌다.
+ * @param {string} intro
+ * @returns {{title:string, pre:string, colHead:string, rows:string[]}|null}
+ * [연계] ← sliceTableRows.
+ */
+function tableRowGroups(intro) {
+  const lines = String(intro || '').split('\n');
+  const split = (headLines, colHeadLines, rows) => ({
+    title: headLines.filter(l => /^#\s/.test(l)).join('\n'),
+    pre: headLines.filter(l => !/^#\s/.test(l)).join('\n'),
+    colHead: colHeadLines.join('\n'),
+    rows,
+  });
+  const boxCut = [];
+  lines.forEach((l, i) => { if (l[0] === '├' || l[0] === '└') boxCut.push(i); });
+  if (boxCut.length >= 2) {
+    const rows = [];
+    for (let k = 0; k < boxCut.length; k++) rows.push(lines.slice(boxCut[k], k + 1 < boxCut.length ? boxCut[k + 1] : lines.length).join('\n'));
+    let top = -1;
+    for (let i = boxCut[0] - 1; i >= 0; i--) { if (lines[i][0] === '┌') { top = i; break; } }
+    if (top < 0) top = boxCut[0];
+    return split(lines.slice(0, top), lines.slice(top, boxCut[0]), rows);
+  }
+  const sep = lines.findIndex(l => /^\|[\s:|-]+\|?\s*$/.test(l) && l.includes('-'));
+  if (sep < 1 || lines.filter(l => l.startsWith('|')).length < 4) return null;
+  const rows = [];
+  let buf = [];
+  for (const l of lines.slice(sep + 1)) {
+    if (l.startsWith('|')) { if (buf.join('').trim()) rows.push(buf.join('\n')); buf = []; rows.push(l); } else buf.push(l);
+  }
+  if (buf.join('').trim()) rows.push(buf.join('\n'));
+  return split(lines.slice(0, sep - 1), lines.slice(sep - 1, sep + 1), rows);
+}
+
+/**
+ * [D] 표로 된 첫 `## ` 앞 글에서 질문과 맞는 행을 골라 budget 안에 싣는다. 표가 아니면 null.
+ *   싣는 차례: ①쪽 제목(늘) ②맞는 행(점수순 — 안 들면 잘라서 넣고 멈춘다) ③열 제목(자리가 남으면)
+ *   ④남는 예산에 표 앞 글 → 나머지 행을 **문서 순서대로**(맞는 행이 없을 때는 여기서도 잘라서 넣고 멈춘다).
+ *   내보낼 때는 모두 **문서 순서대로** 놓는다.
+ * @param {string} intro - 첫 `## ` 앞 글
+ * @param {string[]} terms - 질의 확장어
+ * @param {number} budget - 쓸 수 있는 글자 수(안내문 제외)
+ * @returns {string|null}
+ * [연계] ← sliceRelevant. ← scripts/test_table_rows_slice.js(같은 함수를 부른다 — L-136).
+ */
+function sliceTableRows(intro, terms, budget) {
+  const g = tableRowGroups(intro);
+  if (!g || !g.rows.length) return null;
+  const split = [];
+  for (const r of g.rows) {
+    if (compactTableRow(r).length <= budget) { split.push(r); continue; }
+    let cur = [];
+    for (const l of r.split('\n')) {
+      if (cur.length && FIRST_CELL_ITEM.test(l)) { split.push(cur.join('\n')); cur = []; }
+      cur.push(l);
+    }
+    if (cur.length) split.push(cur.join('\n'));
+  }
+  const rows = split.map((r, i) => ({ i, t: compactTableRow(r) })).filter(r => r.t);
+  if (!rows.length) return null;
+  const df = terms.map(t => rows.reduce((n, r) => n + (r.t.includes(t) ? 1 : 0), 0));
+  for (const r of rows) r.sc = terms.reduce((n, t, k) => n + (df[k] > 0 && r.t.includes(t) ? 1 / df[k] : 0), 0);
+  // 문서 순서: 쪽 제목 -3 · 표 앞 글 -2 · 열 제목 -1 · 행 0..
+  const title = compactTableRow(g.title);
+  const pre = { i: -2, t: compactTableRow(g.pre) };
+  const colHead = compactTableRow(g.colHead);
+  let room = budget - (title ? title.length + 1 : 0);
+  if (room <= 0) return null;
+  const chosen = [];
+  const taken = new Set();
+  // 한 목록을 차례로 넣는다. 안 드는 것은 잘라서라도 넣고 멈춘다(cut=true 일 때) — 건너뛰고 더 작은 행을
+  // 찾으면 덜 맞는 행이 들어온다.
+  const take = (list, cut) => {
+    for (const r of list) {
+      if (!r.t || taken.has(r.i)) continue;
+      if (r.t.length + 1 <= room) { chosen.push({ i: r.i, t: r.t }); taken.add(r.i); room -= r.t.length + 1; continue; }
+      if (!cut) continue;
+      const keep = room - TABLE_ROW_CUT.length - 1;
+      if (keep > 0) { chosen.push({ i: r.i, t: r.t.slice(0, keep) + TABLE_ROW_CUT }); taken.add(r.i); room = 0; }
+      return false;
+    }
+    return true;
+  };
+  // ② 맞는 행 — 점수순
+  const hitsDone = take(rows.filter(r => r.sc >= TABLE_ROW_MIN_SCORE).sort((a, b) => b.sc - a.sc || a.i - b.i), true);
+  const hadHits = chosen.length > 0;
+  // ③ 열 제목 — 맞는 행을 다 넣고 자리가 남을 때만(행이 먼저다 · 한 행이 잘리는 것보다 열 제목을 빼는 게 낫다)
+  let useHead = false;
+  if (hitsDone && colHead && colHead.length + 1 <= Math.min(room, budget * TABLE_HEAD_MAX_RATIO)) { useHead = true; room -= colHead.length + 1; }
+  // ④ 남는 예산은 표 앞 글 → 나머지 행을 **문서 순서대로** 채운다 — 맞는 행을 밀어내지 않고 남는 자리만 쓴다.
+  //   ★왜: 맞는 행만 싣고 예산을 비워 두면 옛 방식(앞에서부터 예산만큼)보다 **덜 싣는** 쪽이 생긴다
+  //     (골든 291 전수 A/B 실측: 도선법 시행규칙 별표3 2,031→753자 · 관제 고시 별표2 6,020→2,106자).
+  //     질의어가 안 맞았어도 답이 그 행에 있을 수 있다 — 옛 방식이 우연히 담던 것을 잃으면 회귀다.
+  //   맞는 행이 하나도 없을 때도 이 길이다(문서 순서대로 앞에서부터 — 옛 동작과 같은 뜻, 모양만 줄였다).
+  if (hitsDone) take([pre, ...rows], !hadHits);
+  chosen.sort((a, b) => a.i - b.i);
+  const out = [];
+  if (title) out.push(title);
+  for (const c of chosen.filter(c => c.i < 0)) out.push(c.t);
+  if (useHead) out.push(colHead);
+  for (const c of chosen.filter(c => c.i >= 0)) out.push(c.t);
+  return out.join('\n');
+}
 
 /** 이 절이 [A] "관련도와 무관하게 항상 싣는" 소제목으로 시작하는가. */
 function isMustSection(sec) {
@@ -1074,6 +1227,14 @@ function sliceRelevant(body, terms, maxChars) {
   const introIsSection = parts[0].startsWith('## ');
   const intro = introIsSection ? '' : parts[0];
   const sections = introIsSection ? parts : parts.slice(1);
+  // [D] 첫 `## ` 앞 글이 표이고 그것만으로 예산을 넘는다 — 앞에서 자르지 않고 맞는 행을 고른다.
+  //   (표가 아니면 null 이 와서 아래 옛 길을 그대로 탄다.)
+  if (intro.length > maxChars) {
+    // 안내문은 예산 **밖에** 붙인다 — 옛 길(`out + PARTIAL_NOTE` · `HUGE_NOTE + 미리보기`)과 같다. 안에 넣으면
+    //   이 길만 표 행이 안내문 길이(약 190자)만큼 덜 실린다(골든 A/B 에서 드러났다).
+    const rows = sliceTableRows(intro, terms, maxChars);
+    if (rows) return TABLE_ROWS_NOTE + '\n\n' + rows;
+  }
   // [C] 절이 사실상 없는 초대형 문서 — 발췌할 단위가 없다.
   if (body.length > HUGE_BODY_CHARS && sections.length <= HUGE_MAX_SECTIONS) {
     return HUGE_NOTE + '\n\n' + body.slice(0, HUGE_PREVIEW_CHARS);
@@ -5496,7 +5657,7 @@ module.exports = { termsOf, CLARIFY_TOPK, PRIMARY_TOPK, loadIndex, ANSWER_MODEL,
   // 2026-08-17: 답변 인용 기반 근거 카드 폴백(B11 — 위키 `## 근거 조문` 표가 없는 페이지의 구멍 메우기)
   extractAnswerCitations, missingAnswerCitations, resolveAnswerLaw, lawKeyOf, SYNTH_CANDIDATE_MAX,
   // 2026-08-17: 4천자 컨텍스트 발췌(회귀 테스트 대상 — 이 로직에서 회귀가 두 번 재발했다)
-  sliceRelevant, isMustSection, MUST_SECTIONS,
+  sliceRelevant, sliceTableRows, compactTableRow, TABLE_ROWS_NOTE, isMustSection, MUST_SECTIONS,
   // 2026-09-22 P-15: 위키 frontmatter 의 「국제협약근거·협약링크·해석주의」를 읽는 첫 소비처(_CHATBOT.md 5-6·5-7).
   //   검사 도구가 생산과 똑같은 것을 보려고 함께 내보낸다(L-136).
   CASELAW_NOTICE, unquoteMeta, treatyNote, caselawNoticeFor, withCaselawNotice,

@@ -151,7 +151,13 @@ def main():
             left = ''.join(
                 f'<div class="tag">{html.escape(s["제목"])} — 원문 그대로</div>'
                 f'<pre>{html.escape(s["글"])}</pre>'
-                f'<button class="go" onclick="put(\'{sid}\',{json.dumps(s["글"], ensure_ascii=False)})">'
+                # ★`json.dumps` 는 **쌍따옴표**로 감싼 글을 낸다. 그것을 `onclick="…"`(쌍따옴표 속성)
+                #   안에 그대로 넣으면 **첫 따옴표가 속성을 닫아** 원문 전체가 HTML 로 새어 나간다.
+                #   실측(2026-09-27, 브라우저로 열어 봄): 22자리 쪽에 `")">이 원문 그대로 쓴다` 꼴의
+                #   껍데기 단추 7개가 생기고 원문 글이 단추 이름으로 나왔다 — 쪽이 쓸 수 없는 상태였다.
+                #   ⇒ 속성에 넣을 값은 **반드시 `html.escape(..., quote=True)`** 로 감싼다.
+                f'<button class="go" onclick="put(&quot;{sid}&quot;,'
+                f'{html.escape(json.dumps(s["글"], ensure_ascii=False), quote=True)})">'
                 f'이 원문 그대로 쓴다</button> '
                 for s in srcs)
             rows.append(

@@ -67,6 +67,36 @@ SKIP_DIRS = ('_구판', '_대기', '_이미지', '_원본첨부')
 #   857 그대로였다. 실제 까닭은 **파일 집합이 다른 것**이었다: A-1 은 `_구판`(일부러 남긴 옛 판)
 #   **13개까지 훑고**, 이 자의 `walk_admrul()` 은 그것을 뺀다. 그래서 855+13 = 868 이다.
 #   (A-1 이 옛 판을 훑는 것은 뒤에서 따로 가려낸다 — `_SCHEMA §0-E` 의 보존본 규약 참고.)
+# ★찾는 규칙은 **코드가 아니라 선언 파일**에 있다(L-386) — `_dashboard/admrul_id_read.json`.
+#   2026-09-27 사장님이 검토장에서 잡아 주신 두 버그를 그 파일에 적어 두었다.
+DECL = os.path.join(LEGAL, '_dashboard', 'admrul_id_read.json')
+_decl_cache = None
+
+
+def _decl():
+    """선언 파일. 없거나 깨져 있으면 **빈 것**으로 봐 예전대로 굴러가게 한다."""
+    global _decl_cache
+    if _decl_cache is None:
+        try:
+            _decl_cache = json.load(io.open(DECL, encoding='utf-8'))
+        except Exception:
+            _decl_cache = {}
+    return _decl_cache
+
+
+def _꼴들():
+    """[(이름, 컴파일된 정규식)] — 선언 파일 순서대로. 선언이 없으면 코드 안 기본값."""
+    out = []
+    for it in (_decl().get('판번호 꼴') or []):
+        try:
+            out.append((it.get('이름') or '?', re.compile(it['정규식'], re.M)))
+        except Exception:
+            continue
+    if not out:   # 선언이 없을 때의 기본값(예전과 같다)
+        out = [('ID:', ID_RE), ('행정규칙일련번호', SERIAL_RE), ('MST', MST_RE)]
+    return out
+
+
 ID_RE = re.compile(r'^[ \t]*ID\s*:\s*(\d+)', re.M)
 SERIAL_RE = re.compile(r'행정규칙일련번호\s*:\s*(\d+)')
 MST_RE = re.compile(r'MST\s*[:=]\s*(\d+)')
@@ -88,10 +118,14 @@ def find_id(path, head=None):
                 head = ''.join([next(f, '') for _ in range(HEAD_LINES)])
         except OSError:
             return None, '파일을 못 읽었다'
-    for rx, where in ((ID_RE, 'ID:'), (SERIAL_RE, '행정규칙일련번호'), (MST_RE, 'MST')):
-        m = rx.search(head)
-        if m:
-            return m.group(1), where
+    # ★선언 파일의 꼴을 위에서 아래로 본다. **한 꼴이 번호를 두 가지 이상 담으면 버린다**(G-34)
+    #   — 19곳 고시를 묶은 파일에서 하나를 대표로 고르면 나머지 18곳의 개정을 놓친다.
+    for where, rx in _꼴들():
+        찾 = list(dict.fromkeys(rx.findall(head)))
+        if len(찾) == 1:
+            return 찾[0], where
+        if len(찾) > 1:
+            return None, '%s 가 %d가지 — 대표를 못 고른다' % (where, len(찾))
     # ④ 같은 폴더 꼬리표
     aj = os.path.join(os.path.dirname(path), '_admrul.json')
     if os.path.exists(aj):
@@ -118,6 +152,32 @@ def find_id(path, head=None):
     if isinstance(hit, dict) and hit.get('ID'):
         return str(hit['ID']), 'admrul_id_recovered.json'
     return None, '어디에도 없다'
+
+
+def find_ids(path):
+    """그 파일이 가리키는 **판번호 전부.** → `(번호목록, 어디서)`
+
+    보통은 한 개다(`find_id` 와 같은 답). ⚠단 **여러 고시를 묶은 파일**은 여럿이다:
+        `유도선_게시사항_게시장소_고시_15개관할서.txt` → 관할서 19곳의 번호 19개
+        (본문에 `(속초해양경찰서) admrul 2100000233964` 꼴로 적혀 있다)
+    `find_id` 는 그런 파일에서 **아무 것도 고르지 않는다**(대표를 고르면 나머지를 놓친다).
+    따라가는 쪽(A-1)은 이 함수로 전부 받아 **하나씩** 조회해야 한다.
+    """
+    rid, where = find_id(path)
+    if rid:
+        return [rid], where
+    try:
+        글 = io.open(path, encoding='utf-8', errors='replace').read()
+    except OSError:
+        return [], '파일을 못 읽었다'
+    for where2, rx in _꼴들():
+        찾 = list(dict.fromkeys(rx.findall(글)))
+        if 찾:
+            return 찾, '%s (본문 전체)' % where2
+    찾 = list(dict.fromkeys(re.findall(r'admrul\s+(\d{6,})', 글)))
+    if 찾:
+        return 찾, 'admrul NNN (본문 전체)'
+    return [], where
 
 
 def _relkey(path):
@@ -187,12 +247,23 @@ def find_title(path, head=None):
                 head = ''.join([next(f, '') for _ in range(HEAD_LINES)])
         except OSError:
             return None, '파일을 못 읽었다'
+    # ★`[..]` 로 시작하는 **첫 줄을 무조건** 집으면 안 된다. 2026-09-27 사장님 지적:
+    #   `[출처] 국가법령정보센터 DRF lawService.do?target=admrul&ID=…` 가 제목으로 나갔다.
+    #   막을 꼬리표와 버릴 글은 선언 파일에 있다(928개 전수로 재 보니 걸리는 것은 [출처]·[재수집 시도 기록] 둘뿐).
+    막 = set(_decl().get('제목이 아닌 꼬리표') or [])
+    버릴 = list(_decl().get('제목에 들어가면 버리는 글') or [])
     for ln in head.split('\n'):
         ln = ln.strip()
         if ln.startswith('['):
+            꼬 = re.match(r'\[([^\]]*)\]', ln)
+            if 꼬 and 꼬.group(1).strip() in 막:
+                continue
             m = TITLE_RE.match(ln)
             if m and m.group(1):
-                return m.group(1), '머리줄'
+                값 = m.group(1)
+                if any(x in 값 for x in 버릴):
+                    continue
+                return 값, '머리줄'
     key = os.path.relpath(os.path.abspath(path), RAW).replace(os.sep, '/')
     hit = _recovered().get(key)
     if isinstance(hit, dict) and hit.get('공식명'):

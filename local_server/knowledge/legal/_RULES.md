@@ -179,7 +179,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 
 <!-- 검사목록:시작 — `python3 scripts/refactor/gen_rulebook.py` 가 다시 쓴다. 손으로 고치지 않는다 -->
 
-### ⓐ 게이트 58 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
+### ⓐ 게이트 60 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
 
 | 검사 이름 | 무엇을 못박나 | 자 |
 |---|---|---|
@@ -216,6 +216,8 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `V5-42` | 별표 줄의 임자 | `local_server/knowledge/legal/_dashboard/loop/annex_row_coverage.js` |
 | `V5-52` | EXACT 숫자 중 어디에도 없는 것 | `local_server/knowledge/legal/_dashboard/loop/exact_claim_numbers.py` |
 | `V5-53` | 옛 판에 「현행 아님」 경고 | `local_server/knowledge/legal/_dashboard/loop/gupan_notice.py` |
+| `V5-54` | raw 원문의 깨진 글자 | `local_server/knowledge/legal/_dashboard/loop/broken_char_gate.js` |
+| `V5-55` | 「원문 그대로」 선언과 실제 글 | `local_server/knowledge/legal/_dashboard/loop/verbatim_coverage.js` |
 | `V5-43` | 인용 없는 EXACT 주장 | `local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py` |
 | `V5-46` | 본문이 가리키는데 없는 별표 | `local_server/knowledge/legal/_dashboard/loop/byl_ref_gap.py` · `loop_tool_census.js` |
 | `V5-45` | 안 짚히는 자 | `local_server/knowledge/legal/_dashboard/loop/loop_tool_census.js` |
@@ -242,7 +244,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 54 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 55 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -287,6 +289,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_byl_decl` | 별표 파일 **선언줄** 판독(`bylDeclLine`·`parseBylDecl`·`hasBylBody`). |
 | `test_treaty_caselaw_meta` | §5-6 국제협약 · §5-7 판례변동 메타를 **읽는지** 고정한다. |
 | `test_context_budget` | 모델에게 넘기는 [근거자료]의 **합계 상한**(P-19)을 고정한다. |
+| `test_table_rows_slice` | 큰 표를 가진 별표 쪽이 근거자료에 **질문과 맞는 행으로** 실리는지 고정한다. |
 | `test_counting_dict` | ★**세는 법 사전**(2-6)이 정한 뜻과 범위를 고정한다. |
 | `test_silent_catch` | 2-6b ★「조용히 삼키는 catch」의 뜻을 고정하고 **늘지 못하게** 막는다. |
 | `test_gate_5xx_class` | G-47 ★V4 게이트가 5xx 를 「환경」으로 봐주는 **잠금**을 고정한다. |

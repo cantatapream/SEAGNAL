@@ -1,0 +1,36 @@
+--- local_server/services/legal_retriever.js	2026-09-27 13:51:10.084518167 +0000
++++ /tmp/claude-0/-home-user-Link-One/5a176a42-85e6-5042-a62f-e73852f552dd/scratchpad/sec2_retriever_src.js	2026-09-27 14:11:44.277863557 +0000
+@@ -1193,16 +1193,26 @@
+   const lines = sec.split('\n');
+   const head = lines[0];
+   const chunks = [];
+-  // 둘째 조각부터는 소제목에 `(이어짐)`을 붙인다 — 같은 소제목이 여러 번 나오면 AI가 서로 다른 절로
+-  // 오해할 수 있다. 원문 내용에 손대는 게 아니라 조각임을 알리는 표시일 뿐이다.
+   const headOf = () => (chunks.length ? head + ' (이어짐)' : head);
++  // md 표 머리(열 제목 줄 + 구분선) — 표 가운데서 시작하는 조각에 다시 붙인다(소제목을 다시 붙이는 것과 같다)
++  // 기록 절(변경 이력·출처 등)의 표는 쪼개지 않는다 — 쪼개면 그 조각이 본문 자리를 파고든다(A/B 실측)
++  const tableSplit = !/^## (변경 이력|출처|관련 개념|관련|참고|바뀐 자리|덧댄 기록)/.test(head);
++  const iSep = lines.findIndex((l, i) => i > 1 && /^\|[\s:|-]+\|?\s*$/.test(l) && l.includes('-') && lines[i - 1].startsWith('|'));
++  const tHead = iSep > 0 ? lines[iSep - 1] + '\n' + lines[iSep] : '';
+   let cur = '';
+-  for (const line of lines.slice(1)) {
+-    const boundary = /^\s*-\s/.test(line) || !line.trim();
+-    if (cur.length >= SUBCHUNK_MIN_CHARS && boundary) { chunks.push(headOf() + '\n' + cur); cur = ''; }
++  let curInTable = false;
++  lines.slice(1).forEach((line, k) => {
++    const idx = k + 1;
++    const mdRow = tableSplit && iSep > 0 && idx > iSep && line.startsWith('|');
++    const boxRow = tableSplit && (line[0] === '├' || line[0] === '└');
++    const boundary = /^\s*-\s/.test(line) || !line.trim() || mdRow || boxRow;
++    if (cur.length >= SUBCHUNK_MIN_CHARS && boundary) {
++      chunks.push(headOf() + '\n' + (curInTable && tHead ? tHead + '\n' : '') + cur); cur = '';
++      curInTable = mdRow;
++    }
+     cur += (cur ? '\n' : '') + line;
+-  }
+-  if (cur.trim()) chunks.push(headOf() + '\n' + cur);
++  });
++  if (cur.trim()) chunks.push(headOf() + '\n' + (curInTable && tHead ? tHead + '\n' : '') + cur);
+   return chunks.length ? chunks : [sec];
+ }
+ 

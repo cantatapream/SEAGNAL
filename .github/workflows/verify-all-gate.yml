@@ -66,6 +66,23 @@ name: 전체 검증 게이트 (verify_all)
 
 on:
   push:
+    # ★★`branches: [main]` — **같은 커밋에 이 게이트가 두 번 돌던 것을 막는다.** (2026-09-27)
+    #   [실측] 커밋 `8d32256aa` 하나에 실행이 둘 붙었다:
+    #       실행 437  event: push          started 11:49:58
+    #       실행 438  event: pull_request  started 11:50:00
+    #     같은 워크플로 파일 · 같은 작업 이름 · 같은 head_sha 인데 **15분 게이트를 두 번** 돌렸다.
+    #   [왜 아래 concurrency 가 못 막았나] `github.ref` 가 두 사건에서 **다르다** —
+    #     push 는 `refs/heads/<브랜치>` · pull_request 는 `refs/pull/<번호>/merge`.
+    #     ⇒ **다른 묶음이라 서로를 취소하지 않는다.** 취소 열쇠를 고치는 길(ⓑ)도 있었지만
+    #     한쪽이 `cancelled` 로 남아 실패처럼 보이고 필수 검사를 막을 수 있어 **이 길(ⓐ)을 골랐다**.
+    #   [무엇이 달라지나] PR 브랜치 → `pull_request` 로 **한 번** · `main` → `push` 로 **한 번**.
+    #     러너 시간이 **절반**이 된다(이 브랜치에서만 하루에 커밋 7개 × 2배 × 15분 ≈ 3.5시간을 썼다).
+    #   ⚠**PR 없이 브랜치에만 밀면 이 게이트가 안 돈다.** 지금 작업 방식은 늘 PR 을 열므로 실질
+    #     손실이 없고, 야간 예약(`schedule`)과 수동 실행(`workflow_dispatch`)은 그대로다.
+    #     ★PR 을 열지 않고 긴 브랜치 작업을 할 때는 **로컬에서** `verify_all.sh` 를 돌린다
+    #     (머리말의 선기동 요구대로 `node local_server/server.js &` 를 먼저 켠다).
+    branches:
+      - main
     paths:
       - 'local_server/**'
       - 'client/**'

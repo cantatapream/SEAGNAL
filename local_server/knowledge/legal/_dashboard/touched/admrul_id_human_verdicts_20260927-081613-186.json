@@ -1,0 +1,9 @@
+{
+ "script": "admrul_id_human_verdicts",
+ "stamp": "20260927-081613-186",
+ "files": [
+  "local_server/knowledge/legal/_dashboard/admrul_id_recovered.json",
+  "local_server/knowledge/legal/_dashboard/admrul_id_read.json",
+  "local_server/knowledge/legal/_dashboard/review_html/행정규칙_판번호_짝맞추기.html"
+ ]
+}

@@ -1,0 +1,7 @@
+{
+ "script": "recover_cand_id_fill",
+ "stamp": "20260927-160926-151",
+ "files": [
+  "local_server/knowledge/legal/_dashboard/admrul_id_recovered.json"
+ ]
+}
