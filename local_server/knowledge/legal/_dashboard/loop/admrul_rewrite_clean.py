@@ -164,6 +164,19 @@ def hwpx글자(path):
             if tag.endswith('}tbl'):
                 if 가장가까운표(el) is not None:
                     continue                       # 겹표 — 바깥 표가 제 칸 안에 이미 싣는다
+                # ★표 제목(`<hp:tbl><hp:caption>`)을 먼저 싣는다 — 2026-09-27 실측으로 잡은 흠.
+                #   caption 안의 `hp:p` 는 **표 안**에 있어 아래 문단 갈래가 건너뛰고, 행 갈래는
+                #   `hp:tr` 만 보므로 **어느 쪽도 싣지 않아 통째로 사라졌다.**
+                #   실측: (낙동강유역환경청)공공폐수처리시설기본계획통합고시 — 「(단위 : ㎎/L, 개/mL, TU)」
+                #   5개가 안 실려 글자 42자가 모자랐다. 단위가 사라지면 **숫자의 뜻이 사라진다.**
+                #   ⚠HWP(구형) 판독기에서 똑같은 흠을 이미 잡았다(`_hwp_read.py` 의 `<caption>`) —
+                #     두 판독기가 같은 자리에서 같은 흠을 냈다. 판독기를 새로 쓸 때 먼저 볼 자리다.
+                for cap in el.iter():
+                    if not cap.tag.endswith('}caption') or 가장가까운표(cap) != id(el):
+                        continue
+                    글 = 칸글자(cap)
+                    if 글:
+                        paras.append(글)
                 for tr in el.iter():
                     if not tr.tag.endswith('}tr') or 가장가까운표(tr) != id(el):
                         continue
