@@ -111,6 +111,7 @@ h1{font-size:21px;margin:0 0 6px}
 .frag{border-top:1px dashed var(--line);padding:10px 0}
 .frag:first-child{border-top:0;padding-top:0}
 .lb{font-size:12px;color:var(--mut);margin:0 0 3px}
+.tx.none{background:#fff8e1;border-color:#e8c35a}
 .tx{white-space:pre-wrap;word-break:break-word;background:var(--card);
   border-radius:6px;padding:8px 10px;margin:0 0 8px;font-size:14px}
 .meta{font-size:12px;color:var(--mut);word-break:break-all}
@@ -215,10 +216,30 @@ def build(data):
         for f in d['토막']:
             P.append('<div class="frag">')
             P.append('<p class="lb">위키가 따옴표 안에 적은 글</p><div class="tx">%s</div>' % e(f['위키']))
-            P.append('<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">%s</div>'
-                     % (e(f['원문']) or '<i>— 닮은 원문을 못 찾았다</i>'))
-            P.append('<p class="meta">닮음 %.3f · %s · %s</p>'
-                     % (f['닮음'], e(f['갈래']), e(f['파일']) or '—'))
+            # ★닮음이 너무 낮으면 「가장 닮은 원문」을 **원문 후보로 내밀지 않는다.**
+            #   실측(2026-09-27, 브라우저로 열어 봄): 19토막 중 6토막이 닮음 0.30 미만이고,
+            #   그 자리에는 엉뚱한 조각이 원문 후보로 올라와 있었다 — 보기 —
+            #     위키: "검정은 의무가 아니므로 받았을 수도 안 받았을 수도 있고 …"
+            #     보여 준 「가장 닮은 원문」: "정)\n이 법은 낚시의 관리 및 육성에"  (닮음 0.14)
+            #   이런 조각은 견줄 거리가 아니라 **헷갈리게 하는 것**이다. 기계가 못 찾았다고 말하는 것이
+            #   맞다(L-384 — 「없다」는 가장 비싼 주장이니, 찾지 못했다고만 적는다).
+            낮 = f['닮음'] < 0.30
+            if 낮:
+                P.append('<p class="lb">기계가 찾은 가장 닮은 원문</p>'
+                         '<div class="tx none">— <b>닮은 원문을 찾지 못했습니다</b>(닮음 %.2f). '
+                         '아래에 기계가 집은 조각이 있지만 <b>견줄 거리가 못 됩니다</b> — '
+                         '이 글은 원문 인용이 아니라 <b>우리 정리</b>일 가능성이 큽니다.</div>'
+                         % f['닮음'])
+                if f['원문']:
+                    P.append('<details><summary style="font-size:12px;color:#777;cursor:pointer">'
+                             '기계가 집은 조각 보기 (참고 안 됨)</summary>'
+                             '<div class="tx">%s</div></details>' % e(f['원문']))
+            else:
+                P.append('<p class="lb">기계가 찾은 가장 닮은 원문</p><div class="tx">%s</div>'
+                         % (e(f['원문']) or '<i>— 닮은 원문을 못 찾았다</i>'))
+            P.append('<p class="meta">닮음 %.3f%s · %s · %s</p>'
+                     % (f['닮음'], ' ★너무 낮아 견줄 수 없다' if 낮 else '',
+                        e(f['갈래']), e(f['파일']) or '—'))
             P.append('</div>')
         P.append('</div>')
         P.append('<div class="pick">'
