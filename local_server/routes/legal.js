@@ -27,6 +27,9 @@
  *                                       done 이벤트의 clarify 필드로 내려보낸다(legal_retriever.decideClarify)
  *                                       위키에 근거가 없으면 2차로 법령 원문(GitHub 온디맨드)을 훑어 "미검증 참고" 답변 시도
  *                                       6초 넘게 걸린 요청 + 알림 동의 시 답변을 임시 보관하고 개인 푸시 발송
+ *                                       관리자 센터 answerModel(기본 Luna)·codexForUsers(기본 꺼짐)에 따라 AI 호출을
+ *                                       VM 의 Codex 로(services/codex_bridge.js). 시험용 llm:"codex"|"gemini" 도 받는다
+ *  - POST /api/legal/codex/poll|result → VM Codex 작업자 창구(X-Codex-Secret, NRYA_CODEX_SECRET 없으면 404)
  *  - GET  /api/legal/pending-answer/:requestId → 푸시로 다시 들어온 사용자에게 그 답변을 1회만 돌려줌
  *  - GET  /api/legal/article-text     → 답변카드의 조문 카드를 눌렀을 때 띄울 원문. 인용 표기에 따라
  *                                       조 하나(항·호 분해 + 인용 항 강조) / 범위(제1~9조) / 문서 전체로
@@ -63,6 +66,7 @@ const articleText = require('../services/article_text');
 const effectiveDate = require('../services/effective_date');   // 지식 방 '원문'이 챗봇과 같은 판(예고본 포함)을 보여주게
 const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
+const codexBridge = require('../services/codex_bridge');   // 관리자 전용 Codex 개발자 모드(삼중 잠금)
 const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
 const wikiBrief = require('../services/legal_wiki_brief');
@@ -265,13 +269,17 @@ function normConfig(c) {
     scopeNarrow: c.scopeNarrow === true,
     profileConfirm: c.profileConfirm === true,
     naverTermLookup: c.naverTermLookup !== false,
+    // [Codex 모드 · 2026-09-27 사용자 확정] 답변 모델(기본 Luna)과 「일반 사용자에게도 codex」 스위치(기본 꺼짐).
+    //   실제 적용은 codexBridge.withRequest 가 한다 — NRYA_CODEX_SECRET 이 없는 서버에서는 둘 다 효과 없음.
+    answerModel: codexBridge.ANSWER_MODELS.includes(c.answerModel) ? c.answerModel : codexBridge.DEFAULT_MODEL,
+    codexForUsers: c.codexForUsers === true,
   };
 }
 // POST /api/legal/config 가 받는 boolean 스위치 목록(위 normConfig 와 1:1).
 // naverTermLookup(§4-U 모르는 구어 해소)은 2026-08-16 사용자 확정으로 **기본 true**로 전환(다른
 // 스위치와 반대 관례) — 관리자가 명시적으로 {naverTermLookup:false}를 보내야만 꺼진다(킬스위치는
 // 유지). 이 환경에 NAVER_CLIENT_ID/SECRET이 없으면 스위치가 켜져 있어도 단계가 조용히 물러난다.
-const BOOL_SWITCHES = ['answerCanonicalOnly', 'understandConfirm', 'scopeNarrow', 'profileConfirm', 'naverTermLookup'];
+const BOOL_SWITCHES = ['codexForUsers', 'answerCanonicalOnly', 'understandConfirm', 'scopeNarrow', 'profileConfirm', 'naverTermLookup'];
 
 /**
  * 되묻기를 **몇 번째로 내는지** 센다(ctx 에 누적).
@@ -297,6 +305,8 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   const b = req.body || {};
   if (b.exposure !== undefined && !['off', 'admin', 'user'].includes(b.exposure))
     return res.status(400).json({ ok: false, error: 'exposure는 off|admin|user' });
+  if (b.answerModel !== undefined && !codexBridge.ANSWER_MODELS.includes(b.answerModel))
+    return res.status(400).json({ ok: false, error: `answerModel은 ${codexBridge.ANSWER_MODELS.join('|')}` });
   for (const k of BOOL_SWITCHES) {
     if (b[k] !== undefined && typeof b[k] !== 'boolean')
       return res.status(400).json({ ok: false, error: `${k}는 true|false` });
@@ -304,6 +314,7 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   withLock(async () => {
     const cur = normConfig(readConfig());                       // 기존 필드 보존(머지) — 한 필드 갱신이 다른 필드 삭제 안 하게
     if (b.exposure !== undefined) cur.exposure = b.exposure;
+    if (b.answerModel !== undefined) cur.answerModel = b.answerModel;
     for (const k of BOOL_SWITCHES) if (b[k] !== undefined) cur[k] = b[k];
     writeFileAtomic(CONFIG_FILE, JSON.stringify(Object.assign(cur, { updatedAt: new Date().toISOString() }), null, 1));
     return cur;
@@ -1538,7 +1549,15 @@ async function synthesizeChainRows(answerText, rows) {
 //   lastQuestion(선택, H-37 최소 절충안): 클라이언트가 매 요청에 싣는 직전 질문 원문 — ctx와
 //   무관해 새 질문 타이핑에도 안 비워진다. decideClarify가 이미 애매해 되물을 때만 "방금 그거예요?"
 //   확인 후보 하나를 더 보여주는 데만 쓴다(답을 대신 짓지 않는다).
-router.post('/api/legal/ask', async (req, res) => {
+// [Codex 개발자 모드] VM 작업자 창구 — NRYA_CODEX_SECRET 이 없으면 404, 열쇠가 틀리면 401.
+//   설계: services/codex_client.design.md · 작업자: scripts/codex_worker.js
+router.post('/api/legal/codex/poll', codexBridge.poll);
+router.post('/api/legal/codex/result', codexBridge.result);
+
+// codexBridge.withRequest: 서버 스위치·관리자 센터 설정(answerModel·codexForUsers)·관리자 토큰·llm 을 보고
+//   이 요청의 AI 호출을 VM 의 Codex 로 돌릴지 정한다. 결정 순서는 그 함수 주석 참고.
+//   설정이 기본(codexForUsers 꺼짐)이면 일반 사용자 요청은 아무것도 안 하고 넘긴다(평소 응답과 바이트 동일).
+router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, res, next, normConfig(readConfig())), async (req, res) => {
   const startedAt = Date.now();   // 6초 판정 기준(핸들러 시작~완료 실제 소요시간)
   const q = String((req.body && req.body.query) || '').trim();
   if (!q) return res.status(400).json({ ok: false, error: 'query 필요' });

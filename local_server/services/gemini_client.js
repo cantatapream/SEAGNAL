@@ -20,6 +20,9 @@
  */
 
 const { GoogleGenAI } = require('@google/genai');
+// [Codex 개발자 모드] 관리자 본인 요청에 한해 AI 호출을 VM 의 ChatGPT(Codex)로 돌린다.
+//   표시가 없는 호출(= 평소의 모든 호출)은 아래 코드가 그대로 돈다. 설계: services/codex_client.design.md
+const codexBridge = require('./codex_bridge');
 
 // [쿨다운 정책] 429 의 종류에 따라 차등 적용.
 //   기존엔 무조건 1시간이라, 분당 한도(RPM, 1분이면 회복)엔 과하게 길어 불필요한
@@ -93,6 +96,7 @@ function getUsageStats() { return Object.assign({}, _ensureUsage()); }
 
 /** 등록된 키가 하나라도 있는지 */
 function hasAnyKey() {
+    if (codexBridge.active()) return true;   // codex 요청은 Gemini 키 유무와 무관
     return keys.length > 0;
 }
 
@@ -165,6 +169,7 @@ function notifyAdmin(title, body) {
  * @returns {Promise<{success, text, error, isRateLimited, keyLabel}>}
  */
 async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
+    if (codexBridge.active()) return codexBridge.callRaw({ contents, config, caller });
     if (!hasAnyKey()) {
         return {
             success: false, response: null,
@@ -250,6 +255,13 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
  * @yields {string} 텍스트 조각(delta)
  */
 async function* callGeminiStream({ model, contents, config, caller = 'unknown' }) {
+    // codex 는 조각 스트리밍이 없다 — 완성된 답을 한 번에 넘긴다(실패는 Gemini 스트림 실패와 같게 throw).
+    if (codexBridge.active()) {
+        const r = await codexBridge.callRaw({ contents, config, caller });
+        if (!r.success) throw new Error(r.error || 'codex 실패');
+        yield r.response.text;
+        return;
+    }
     if (!hasAnyKey()) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
 
     bumpUsage('requests', caller);
