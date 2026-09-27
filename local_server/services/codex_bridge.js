@@ -100,6 +100,25 @@ function withRequest(req, res, next, cfg) {
   return toCodex(model);
 }
 
+/**
+ * 답변 맨 끝에 붙일 「어느 AI 가 답했는지」 한 줄(2026-09-27 사용자 요청:
+ * *"최종답변의 맨 마지막에 어떤 ai 모델이 답했습니다. 라고 나오도록"*).
+ * 이 요청이 codex 로 표시됐으면 그 모델, 아니면 Gemini(부르는 쪽이 넘긴 모델명)다.
+ * 예: answerLabel('gemini-2.5-flash') → '\n\n※ 이 답변은 Gemini 2.5 Flash 모델이 답했습니다.'
+ *     (codex 요청 안이면 '… ChatGPT GPT-6 Luna 모델이 답했습니다.')
+ * @param {string} geminiModel - Gemini 로 답할 때 쓰는 모델명(legal_retriever.ANSWER_MODEL)
+ * @returns {string} 줄바꿈 두 개로 시작하는 한 줄
+ * [연계] ← routes/legal.js /api/legal/ask(1차 합성 답변·2차 원문 답변 끝).
+ */
+function answerLabel(geminiModel) {
+  const s = als.getStore();
+  const name = (s && s.codex)
+    ? 'ChatGPT ' + String(s.model || DEFAULT_MODEL).replace(/^gpt-(\d+)-(\w+)$/i, (m, v, n) => `GPT-${v} ${n.charAt(0).toUpperCase()}${n.slice(1)}`)
+    : 'Gemini ' + String(geminiModel || '').replace(/^gemini-/i, '').split('-')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return `\n\n※ 이 답변은 ${name.trim()} 모델이 답했습니다.`;
+}
+
 /** VM 작업자가 최근(WORKER_STALE_MS 안)에 창구에 왔는가. @returns {boolean} */
 function workerAlive() {
   return Date.now() - lastWorkerSeenAt <= WORKER_STALE_MS;
@@ -211,4 +230,4 @@ function result(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { withRequest, active, callRaw, poll, result, stripFence, workerAlive, ENABLED, ANSWER_MODELS, DEFAULT_MODEL };
+module.exports = { withRequest, active, callRaw, poll, result, stripFence, workerAlive, answerLabel, ENABLED, ANSWER_MODELS, DEFAULT_MODEL };

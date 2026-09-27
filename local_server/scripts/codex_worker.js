@@ -134,10 +134,20 @@ async function main() {
     const out = await runCodex(job.prompt, job.json, model);
     const ms = Date.now() - t0;
     console.log(`[${now()}]   → ${out.ok ? '완료' : '실패: ' + out.error} · ${(ms / 1000).toFixed(1)}초 · 명령사용 ${out.commands}`);
-    try {
-      await post('/api/legal/codex/result', { id: job.id, ok: out.ok, text: out.text, error: out.error, ms, commands: out.commands }, 20000);
-    } catch (e) {
-      console.error(`[${now()}] 결과 전송 실패: ${e.message}`);
+    // 답을 서버에 돌려주기 — 연결이 한 번 끊겨도 다시 보낸다(최대 4번, 0·2·4·8초 뒤).
+    //   ⚠2026-09-27 VM 실측: 긴 대기(poll) 직후의 전송이 `fetch failed` 로 한 번 끊겼고, 재시도가 없어
+    //   이미 만든 답이 버려져 서버가 5분 시간초과까지 기다렸다. 서버 쪽 result 는 같은 id 를 두 번
+    //   받아도 두 번째는 「없는 일감」으로 무시하므로 다시 보내도 안전하다.
+    const body = { id: job.id, ok: out.ok, text: out.text, error: out.error, ms, commands: out.commands };
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        const r = await post('/api/legal/codex/result', body, 20000);
+        if (r.ok) break;
+        throw new Error('HTTP ' + r.status);
+      } catch (e) {
+        console.error(`[${now()}] 결과 전송 실패(${attempt}/4): ${e.message}`);
+        if (attempt < 4) await sleep(2000 * 2 ** (attempt - 1));
+      }
     }
   }
 }
