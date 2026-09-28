@@ -212,8 +212,9 @@ router.get('/api/ocean/config', (req, res) => {
 // ============================================================================
 // KHOA 해아름 WMS 프록시
 // ============================================================================
-// KHOA WMS는 HTTPS → HTTP 302 리다이렉트를 보내서 브라우저가 mixed-content로
-// 차단합니다. 서버에서 대신 받아 PNG만 클라이언트에 전달합니다.
+// KHOA WMS 를 브라우저가 직접 부르면 (예전엔 HTTPS → HTTP 302 리다이렉트 때문에)
+// mixed-content 로 차단됐다. 서버에서 대신 받아 PNG만 클라이언트에 전달합니다.
+// 서버 쪽 호출은 2026-09-28 부터 HTTPS (아래 upstream 주석 참조).
 //
 // GET /api/ocean/khoa-wms?layer=BASEMAP_RLTM3857&BBOX=...&WIDTH=256&...
 router.get('/api/ocean/khoa-wms', async (req, res) => {
@@ -229,8 +230,12 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
             params.append(k, req.query[k]);
         }
 
-        // HTTP로 직접 요청 (KHOA가 어차피 302로 HTTP로 보냄)
-        const upstream = 'http://www.khoa.go.kr/oceanmap/' + layer +
+        // [2026-09-28 HTTPS 로 전환] 예전에는 KHOA 가 HTTPS 요청을 HTTP 로 302 되돌려 보내
+        //   처음부터 HTTP 로 불렀다. 개방海가 보안정책으로 오픈API 호출을 HTTPS 로 전환한다고
+        //   공지(시행 2026-09-15)해 HTTPS 로 바꾼다. HTTP 가 막히면 해양종합정보 배경 해도
+        //   (기본맵·전자해도·해안도)가 통째로 비게 된다. 같은 호스트(www.khoa.go.kr)를
+        //   유향·유속(khoa_stream_cache)·항행경보가 이미 HTTPS 로 문제없이 쓰고 있다.
+        const upstream = 'https://www.khoa.go.kr/oceanmap/' + layer +
             '/wmsVectordata.do?' + params.toString();
 
         const fetchFn = global.fetch || require('node-fetch');
@@ -246,7 +251,7 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
         //   ⚠제한시간도 함께 둔다 — 종전에는 없어서, 상류가 응답을 안 주면 그 요청이
         //     **무한정 매달려 있었다**(undici 기본값은 300초다).
         const HEADERS = {
-            'Referer': 'http://www.khoa.go.kr/oceanmap/main.do',
+            'Referer': 'https://www.khoa.go.kr/oceanmap/main.do',
             'User-Agent': 'Mozilla/5.0'
         };
         /** 다시 불러 볼 만한 실패인가 — **네트워크가 끊긴 것**만 해당한다(우리 코드 오류는 아니다). */
