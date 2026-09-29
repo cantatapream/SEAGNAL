@@ -1,0 +1,136 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>부선의구조및설비등에관한기준</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--line:#d8d8d8;--soft:#f6f6f6;--ok:#137333;--fx:#a50e0e;--un:#8a6d00;--accent:#0b57d0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e8e8e8;--line:#3a3d42;--soft:#1e2126;--ok:#5bb974;--fx:#f28b82;--un:#fdd663;--accent:#8ab4f8}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e8e8e8;--line:#3a3d42;--soft:#1e2126;--ok:#5bb974;--fx:#f28b82;--un:#fdd663;--accent:#8ab4f8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+header{position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px}
+h1{margin:0 0 4px;font-size:17px}
+.meta{font-size:13px;opacity:.75}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.bar button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--line);border-radius:7px;background:var(--soft);color:var(--fg);cursor:pointer}
+.bar button.primary{background:var(--accent);color:#fff;border-color:transparent}
+.count{font-size:13px;margin-left:auto;opacity:.8}
+main{padding:16px;max-width:1400px;margin:0 auto}
+section{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+@media (max-width:900px){section{grid-template-columns:1fr}}
+.pane{min-width:0}
+.pane.img{position:sticky;top:96px;align-self:start}
+.pane.img img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+.noimg{padding:14px;border:1px dashed var(--line);border-radius:8px;font-size:13px;color:var(--un)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--line);padding:5px 7px;vertical-align:top;text-align:left}
+th{background:var(--soft);font-weight:600}
+td.rv{background:var(--soft);min-width:130px}
+td.rv .val{font-weight:700;margin-bottom:4px;word-break:break-all}
+td.rv .btns{display:flex;gap:3px}
+td.rv button{font:inherit;font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg);cursor:pointer}
+td.rv input.newv{margin-top:4px;width:100%;font:inherit;font-size:12px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg)}
+td.rv .mark{font-size:11px;margin-top:3px;font-weight:700}
+td.rv[data-s="맞음"]{outline:2px solid var(--ok);outline-offset:-2px}
+td.rv[data-s="고침"]{outline:2px solid var(--fx);outline-offset:-2px}
+td.rv[data-s="모름"]{outline:2px solid var(--un);outline-offset:-2px}
+footer{padding:20px 16px 50px;font-size:12.5px;opacity:.75;max-width:1400px;margin:0 auto}
+</style></head><body>
+<header>
+  <h1>부선의구조및설비등에관한기준</h1>
+  <div class="meta">원문: <code>raw/04_선박해운/선박안전법/행정규칙/부선의구조및설비등에관한기준.txt</code> · 확인할 값 <b>1</b>개<br>
+  왼쪽이 <b>원문 그림</b>, 오른쪽이 <b>옮겨 적은 표</b>입니다. 노란 칸이 확인할 값입니다.</div>
+  <div class="bar">
+    <button class="primary" id="copyOut">내보내기 — 복사</button>
+    <button id="dlJson">JSON 내려받기</button>
+    <button id="dlCsv">CSV 내려받기</button>
+    <button id="allOk">남은 것 전부 「맞음」</button>
+    <button id="reset">지우기</button>
+    <span class="count" id="count"></span>
+  </div>
+</header>
+<main><section><div class="pane img"><img src="data:image/png;base64,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" alt="원본 그림 115756349"></div><div class="pane tbl"><table><tr><th>경하상태</th><th>만재상태</th><th>비고</th></tr><tr><td>GₘM ≥ 0.164B</td><td>GₘM ≥ 0.055B</td><td class="rv" data-k="1"><div class="val">B는 부선의 형폭이다</div><div class="btns"><button class="ok" data-k="1" data-v="맞음">맞음</button><button class="fx" data-k="1" data-v="고침">고침</button><button class="un" data-k="1" data-v="모름">모름</button></div><input class="newv" data-k="1" placeholder="바른 값" hidden><div class="mark" data-k="1"></div></td></tr></table></div></section></main>
+<footer>
+  · 고른 것은 <b>이 브라우저에 저장</b>됩니다(다른 기기·다른 사람에게는 안 갑니다). 끝나면 <b>「내보내기 — 복사」로 대화창에 붙여 넣거나</b> 내려받아 주세요. 게시판(claude.ai)에서 열면 누르는 즉시 저장소에도 남습니다.<br>
+  · 「고침」을 누르면 바른 값을 적는 칸이 열립니다. 적은 값은 내려받는 파일에 함께 담깁니다.<br>
+  · 원문 그림이 안 뜨는 표는 <span style="color:var(--un)">노란 안내</span>가 대신 나옵니다 — 그 값도 확인 대상입니다.
+</footer>
+<script>
+const KEY='review:부선의구조및설비등에관한기준';
+let DB=null,DBt=0;
+let S={};
+try{S=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){S={}}
+const tds=[...document.querySelectorAll('td.rv')];
+function paint(){
+  for(const td of tds){
+    const k=td.dataset.k, s=S[k];
+    if(!s){td.removeAttribute('data-s');td.querySelector('.mark').textContent='';continue}
+    td.dataset.s=s.state;
+    const inp=td.querySelector('.newv');
+    inp.hidden = s.state!=='고침';
+    if(s.state==='고침'&&inp.value!==(s.value||''))inp.value=s.value||'';
+    td.querySelector('.mark').textContent =
+      s.state==='고침' ? '고침 → '+(s.value||'(값을 적어 주세요)') : s.state;
+  }
+  const done=Object.keys(S).length;
+  document.getElementById('count').textContent=done+' / '+tds.length+' 확인함';
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  // ★2026-09-29 — 누르는 즉시 저장소에도 둔다(Claude 가 읽는다). 저장소가 없으면(내려받은 파일) 이 브라우저에만 남는다.
+  //   문서 이름은 영숫자만 받으므로 한글 이름 대신 이름의 sha1 앞 12자리(f3354e9c70d8a)를 쓴다.
+  if(DB){clearTimeout(DBt);DBt=setTimeout(()=>{DB.doc('review/f3354e9c70d8a').set({이름:KEY.replace('review:',''),S:JSON.stringify(S),at:new Date().toISOString()}).catch(()=>{})},400)}
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('td.rv button'); if(!b)return;
+  const k=b.dataset.k, v=b.dataset.v;
+  if(S[k]&&S[k].state===v){delete S[k]} else {S[k]={state:v,value:(S[k]||{}).value||'',
+    orig:document.querySelector('td.rv[data-k="'+k+'"] .val').textContent}}
+  paint();
+  if(S[k]&&S[k].state==='고침'){const i=document.querySelector('input.newv[data-k="'+k+'"]');i.hidden=false;i.focus()}
+});
+document.addEventListener('input',e=>{
+  const i=e.target.closest('input.newv'); if(!i)return;
+  const k=i.dataset.k; S[k]=S[k]||{state:'고침',orig:''}; S[k].value=i.value; paint();
+});
+function rows(){
+  return tds.map(td=>{const k=td.dataset.k,s=S[k]||{};
+    return {번호:+k, 옮겨적은값:td.querySelector('.val').textContent,
+            판정:s.state||'', 바른값:s.value||''}});
+}
+function dl(name,text,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();
+}
+document.getElementById('dlJson').onclick=()=>dl('부선의구조및설비등에관한기준_검토.json',
+  JSON.stringify({원문:'raw/04_선박해운/선박안전법/행정규칙/부선의구조및설비등에관한기준.txt',확인한때:new Date().toISOString(),결과:rows()},null,1),'application/json');
+document.getElementById('dlCsv').onclick=()=>{
+  const r=rows(); const esc=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  dl('부선의구조및설비등에관한기준_검토.csv','\uFEFF'+['번호,옮겨적은값,판정,바른값',
+    ...r.map(x=>[x.번호,x.옮겨적은값,x.판정,x.바른값].map(esc).join(','))].join('\n'),'text/csv');
+};
+document.getElementById('allOk').onclick=()=>{
+  if(!confirm('아직 안 고른 값을 전부 「맞음」으로 표시합니다. 계속할까요?'))return;
+  for(const td of tds){const k=td.dataset.k; if(!S[k])S[k]={state:'맞음',value:'',
+    orig:td.querySelector('.val').textContent}}
+  paint();
+};
+document.getElementById('reset').onclick=()=>{
+  if(!confirm('고른 것을 모두 지웁니다. 계속할까요?'))return;
+  S={};try{localStorage.removeItem(KEY)}catch(e){};
+  for(const i of document.querySelectorAll('input.newv')){i.value='';i.hidden=true}
+  paint();
+};
+document.getElementById('copyOut').onclick=async()=>{
+  const r=rows().filter(x=>x.판정);
+  const t=['[그림 값 검토 — '+KEY.replace('review:','')+'] '+r.length+' / '+tds.length+' 확인함',
+           ...r.map(x=>'#'+x.번호+' '+x.옮겨적은값+' = '+x.판정+(x.바른값?' → '+x.바른값:''))].join('\n');
+  try{await navigator.clipboard.writeText(t);alertBox('복사했습니다 — 대화창에 붙여 넣어 주세요')}
+  catch(e){const ta=document.getElementById('outbox');ta.hidden=false;ta.value=t;ta.focus();ta.select();alertBox('복사가 막혔습니다 — 아래 글상자에서 직접 복사해 주세요')}
+};
+function alertBox(m){const c=document.getElementById('count');const o=c.textContent;c.textContent=m;setTimeout(()=>paint(),1800)}
+paint();
+(async()=>{let d=null;try{d=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){d=null}
+  if(!d)return; DB=d;
+  DB.doc('review/f3354e9c70d8a').onSnapshot(doc=>{const b=doc&&doc.data&&doc.data();if(!b||!b.S)return;
+    try{const got=JSON.parse(b.S);if(JSON.stringify(got)!==JSON.stringify(S)){S=got;paint()}}catch(e){}},()=>{});
+})();
+</script>
+<textarea id="outbox" hidden style="width:100%;height:220px;font:12px ui-monospace,monospace"></textarea></body></html>

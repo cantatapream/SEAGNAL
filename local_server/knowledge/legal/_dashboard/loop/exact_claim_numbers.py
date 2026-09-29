@@ -30,7 +30,14 @@ sys.path.insert(0, HERE)
 import exact_claim_recheck as E          # ★주장 고르기·원문 모으기는 그 자를 그대로 쓴다(L-136)
 
 UNIT = r'(?:원|만원|억원|억|년|개월|월|일|시간|분|톤|미터|m|km|%|퍼센트|배|회|명|인|세|kW|마력|노트)'
-NUM = re.compile(r'(\d[\d,]*(?:\.\d+)?)\s*(' + UNIT + r')')
+# ★2026-09-29 (확인판 E1 ⓐ) — 「어디에도 없다」 31건 표본 5건이 **전부 자의 흠**이었다. 고친 셋:
+#   ① 수의 **꼬리 쉼표**까지 삼켰다 — `이미지판독 19697685, 원본` → 「19697685원」, `MST=277061, 원문` → 「277061원」,
+#      `054-429-4149, 인증` → 「4149인」. ⇒ 쉼표는 **세 자리 묶음 사이에서만** 받는다.
+#   ② 단위 글자로 **시작하는 다른 낱말**을 단위로 읽었다 — `807 일치`·`3,000분의1`·`2100000283456, 일부개정`.
+#      ⇒ 단위 뒤에 곧바로 그런 낱말이 붙으면 수치가 아니다(`FALSE_TAIL`).
+#   ③ 공식의 지수(`▽^0.1667인 선박`)·전화번호 뒷자리를 수치로 셌다 ⇒ `^`·`숫자-` 바로 뒤의 수는 뺀다.
+NUM = re.compile(r'(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(' + UNIT + r')')
+FALSE_TAIL = re.compile(r'^(?:일(?:치|부|반|정|대|련|자|체|괄|원|시|단|상)|분(?:의|야|석|류|할|기)|원(?:문|본|칙|래|장|인|형|고|활|격|어|천|회|칙)|인(?:증|정|가|허|계|용|근|력|원)|회(?:의|계|사|원|복|수|피|신)|세(?:부|대|칙|계|관|목)|월(?:별))')
 DROP_CTX = re.compile(r'제\s*$|별표\s*$|별지\s*$|호\s*$')
 DATE = re.compile(r'20\d\d[.\-\s년]')
 
@@ -49,6 +56,8 @@ def body_only(text):
             break                                   # 변경 이력부터 끝까지는 작업 기록이다
         if WORKLOG.search(line):
             continue                                # 한 줄짜리 작업 기록도 뺀다
+        if re.search(r'종전|개정\s*전|구\s*고시|옛\s*판', line):
+            continue                                # 옛 판의 값을 적은 줄 — 지금 원문에 없는 것이 당연하다(2026-09-29)
         out.append(line)
     return '\n'.join(out)
 
@@ -58,6 +67,8 @@ def numbers(text):
     for m in NUM.finditer(text):
         head = text[max(0, m.start() - 6):m.start()]
         if DROP_CTX.search(head):
+            continue
+        if re.search(r'(?:\^|\d-)$', head) or FALSE_TAIL.match(text[m.end() - len(m.group(2)):m.end() + 2]):
             continue
         n, u = m.group(1).replace(',', ''), m.group(2)
         if u == '년' and YEARISH.match(n):
@@ -94,12 +105,20 @@ def main():
         # ★네 번째로 틀렸던 자리 — **원문 표는 단위를 머리말에 한 번만 적는다.**
         #   `(단위: 만원)` 이라 적고 칸에는 `120` 만 쓴다. 위키는 `120만원` 이라 쓴다.
         #   그래서 있는 값이 「없다」로 나왔다. ⇒ 그런 표를 가진 원문에서는 **맨 수도** 맞다고 본다.
-        bodies = [b.replace(',', '').replace('，', '') for _a, b in pool]
+        # ★원문은 `2천 시간`·`3천킬로와트`·`2,550미터` 처럼 적는다 — 위키는 `2000시간`·`3000kW`·`2550m`.
+        #   ⇒ 원문 쪽의 `N천`·`N만` 을 아라비아 수로 편 판을 함께 두고, 단위 이름(m↔미터 · kW↔킬로와트 · %↔퍼센트)도 함께 찾는다.
+        def spread(t):
+            t = t.replace(',', '').replace('，', '')
+            t = re.sub(r'(\d+)천(?=\s*[가-힣A-Za-z%])', lambda m: str(int(m.group(1)) * 1000), t)
+            return t
+        bodies = [spread(b) for _a, b in pool]
         unit_head = {u for b in bodies for u in re.findall(r'단위[:：]\s*(만원|원|톤|미터|m|일|시간|%)', b)}
         miss = []
         for n, u in dict.fromkeys(nums):
             flat = E.flat(n + u).replace(',', '')
-            hit = any(flat in b for b in bodies)
+            syn = {'m': '미터', '미터': 'm', 'kW': '킬로와트', '%': '퍼센트', '퍼센트': '%'}.get(u)
+            alts = [flat] + ([E.flat(n + syn)] if syn else [])
+            hit = any(a in b for a in alts for b in bodies)
             if not hit and u in unit_head:           # 단위를 머리말에 적은 표 — 맨 수로 찾는다
                 hit = any(re.search(r'(?<![0-9])' + re.escape(n) + r'(?![0-9])', b) for b in bodies)
             if not hit:
