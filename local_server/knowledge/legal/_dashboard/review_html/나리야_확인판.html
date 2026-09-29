@@ -121,7 +121,10 @@ textarea{width:100%;font:inherit;font-size:14px;padding:8px 10px;border-radius:8
 .meter{flex:1;min-width:140px;height:8px;border-radius:99px;background:var(--sunk);overflow:hidden}
 .meter i{display:block;height:100%;background:var(--accent);width:0}
 .save{font-size:12.5px;color:var(--muted)}
-#out{display:none;width:100%;font-family:var(--mono);font-size:12px}
+.export{background:var(--surface);border:2px solid var(--accent);border-radius:12px;padding:18px;display:grid;gap:12px;scroll-margin-top:16px}
+.export textarea{font-family:var(--mono);font-size:12.5px;min-height:180px}
+.export .msg{font-size:14px;font-weight:600;color:var(--good)}
+.export .msg.warn{color:var(--warn)}
 @media (max-width:560px){.bar .save{display:none}.bar .in{gap:8px}.bar .btn{padding:5px 10px;font-size:13px}.meter{min-width:60px}}
 </style>
 
@@ -140,21 +143,27 @@ textarea{width:100%;font:inherit;font-size:14px;padding:8px 10px;border-radius:8
     <li>위에서부터 읽으시면서 「정하실 것」에서 하나를 누르세요. 누르면 곧바로 저장되고, 저도 같은 기록을 읽습니다.</li>
     <li><span class="rec" style="margin:0">추천</span> 표시는 제 의견입니다. 다르게 보시면 다른 것을 누르고 메모를 남겨 주세요.</li>
     <li>다 누르지 않으셔도 됩니다. <b>가장 먼저</b> 표시가 붙은 셋만 해 주셔도 막힌 일 대부분이 풀립니다.</li>
-    <li>끝나면 저에게 「확인판 봤다」라고만 말씀해 주세요. 고르신 대로 반영하고, 반영할 때마다 게이트(자동 검사 60개)를 통과시킨 뒤 올립니다.</li>
+    <li>끝나면 저에게 「확인판 봤다」라고만 말씀해 주세요. 저장이 이 브라우저에만 되는 경우(내려받은 파일로 여셨을 때 등)에는 맨 아래 <a href="#export"><b>내보내기</b></a>에서 결과를 복사해 대화창에 붙여 주세요. 고르신 대로 반영하고, 반영할 때마다 게이트(자동 검사 60개)를 통과시킨 뒤 올립니다.</li>
   </ol>
 </section>
 
 <section class="map" id="map" aria-label="목차"></section>
 
 <div id="groups" class="wrap" style="gap:34px"></div>
+
+<section class="export" id="export">
+  <h2>내보내기 — 고르신 것을 Claude 에게 붙여 넣기</h2>
+  <p>아래 단추를 누르면 지금까지 고르신 것과 메모가 글로 만들어지고 <b>복사</b>됩니다. 그대로 대화창에 붙여 넣어 주시면 제가 그대로 반영합니다.</p>
+  <div class="row"><button class="btn" type="button" id="mkout">결과 만들고 복사하기</button><span class="msg" id="outmsg" role="status"></span></div>
+  <textarea id="out" rows="10" readonly placeholder="단추를 누르면 여기에 결과가 나옵니다."></textarea>
+</section>
 </div>
 
 <div class="bar"><div class="in">
   <span id="count" style="font-variant-numeric:tabular-nums;font-weight:600"></span>
   <div class="meter" aria-hidden="true"><i id="meterfill"></i></div>
   <span class="save" id="save"></span>
-  <button class="btn ghost" type="button" id="outbtn">고른 것을 글로 보기</button>
-  <textarea id="out" rows="8" readonly></textarea>
+  <a class="btn" href="#export" id="outbtn">내보내기</a>
 </div></div>
 
 <script>
@@ -509,7 +518,16 @@ function build(){
     el('div',{class:'gl'}, el('b',{text:'3'}), el('span',{text:'가장 먼저 해 주실 것 — 모두 판정함에서'})),
     el('div',{class:'gl'}, el('b',{text:String(qn)}), el('span',{text:'하나씩 누르실 인용 (③)'})),
     el('div',{class:'gl'}, el('b',{text:fmt(DATA.judge.total)}), el('span',{text:'작업 목록에서 끝난 일 (전체 '+fmt(DATA.judge.all)+' 중)'})));
-  $('#outbtn').addEventListener('click', () => { const o=$('#out'); o.value = textOut(); o.style.display='block'; o.select(); try{navigator.clipboard.writeText(o.value)}catch(_){} });
+  $('#mkout').addEventListener('click', () => {
+    const o=$('#out'), m=$('#outmsg');
+    o.value = textOut();
+    const n = o.value.split('\n').length - 1;
+    const fallback = () => { o.focus(); o.select(); m.className='msg warn'; m.textContent='자동 복사가 막혔습니다 — 글상자 안을 길게 눌러(또는 Ctrl+A) 전체 선택 후 복사해 주세요.'; };
+    if (!n) { m.className='msg warn'; m.textContent='아직 고르신 것이 없습니다.'; return; }
+    try {
+      navigator.clipboard.writeText(o.value).then(() => { m.className='msg'; m.textContent='복사됐습니다 ('+n+'줄) — 대화창에 붙여 넣어 주세요.'; }, fallback);
+    } catch(_) { fallback(); }
+  });
 }
 function refresh(){
   document.querySelectorAll('[data-key][data-v]').forEach(b => { const s=state[b.dataset.key]; b.setAttribute('aria-pressed', String(!!(s&&s.v===b.dataset.v))); });
@@ -530,8 +548,8 @@ function refresh(){
 }
 function textOut(){
   const L=['[나리야 확인판 — 고른 것]'];
-  ORDER.forEach(id => { const s=state['d-'+id]; if (s&&s.v) L.push(id+' '+MAPTITLE[id]+' = '+s.v+(s.note?' | '+s.note:'')); });
-  DATA.quotes.forEach(q => { const s=state['q-'+q.n]; if (s&&s.v) L.push('인용 #'+q.n+' '+q.쪽+':'+q.줄+' = '+s.v+(s.note?' | '+s.note:'')); });
+  ORDER.forEach(id => { const s=state['d-'+id]; if (s&&(s.v||s.note)) L.push(id+' '+MAPTITLE[id]+' = '+(s.v||'(안 고름)')+(s.note?' | 메모: '+s.note:'')); });
+  DATA.quotes.forEach(q => { const s=state['q-'+q.n]; if (s&&s.v) L.push('인용 #'+q.n+' '+q.쪽+':'+q.줄+' = '+s.v+(s.note?' | 메모: '+s.note:'')); });
   return L.join('\n');
 }
 
