@@ -57,8 +57,8 @@
 | 천기 | 7종 (6종 + 시정예측 RDPS) | 에이전트 보고 |
 | 배경지도 | 소개서 4종 (코드에는 위성지도 포함 5종이나, 시험 단계라 사용자 지시로 소개서에서 제외) | `index2.html:3655-3672` |
 | 해상일기도 수치파랑 | 5영역 · 변수 22 | 에이전트 보고. 5/28 기획서는 "4영역". 파랑실황도가 추가됨 |
-| 커밋 수 | 5월 445 · 6월 525 · 7월 2,053 · 8월 1,920 · 9월 1,266 (merge 제외) | `git log origin/main --since --until --no-merges --oneline \| wc -l`. 5/1 이전은 shallow clone 이라 세지 않음 |
-| PR 머지 | 431 (5/28 이후) | `git log --merges \| grep -c 'Merge pull request'` |
+| 커밋 수 | 전체 7,059 (merge 제외). 월별 2월 150 · 3월 192 · 4월 465 · 5월 446 · 6월 523 · 7월 2,053 · 8월 1,926 · 9월 1,304 | `git fetch --unshallow` 후 `git log origin/main --no-merges --format=%cd --date=format:%Y-%m \| sort \| uniq -c` (origin/main 463eed4). 저장소 첫 커밋은 2026-02-01 「Backup at 2026-02-01」 — 개발 착수(2025-08)~2026-01 은 git 기록 없음 |
+| PR 머지 | 전체 1,165 | `git log origin/main --merges --oneline \| grep -c 'Merge pull request'` |
 | 앱 버전 | 1.2.2 (versionCode 14) | `android/app/build.gradle` |
 
 ---
