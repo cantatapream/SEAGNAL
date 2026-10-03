@@ -199,3 +199,20 @@
   - 해제 판단은 서버가 MMIS 목록 변화로 한다(`local_server/marine_warning_crawler.js`).
 - **7-2 핵심 강점 ①** (다른 국가기관 앱에서 연안바다·평수구역 특보를 찾기 어렵다)
   - 사용자 현장 판단이다. 5월 기획서에는 "특정관리해역 정보까지 제공하는 앱은 유일(기상청 MMIS 는 웹페이지로 제외)"이라고 적었다.
+
+## J. AI 법률 챗봇 강점(소개서 10-3) 근거
+
+- **개정 감지 일정** (`local_server/server.js`, 모두 `timezone: 'Asia/Seoul'`)
+  - `cron.schedule('0 1 * * *')` → `legal_amendment_scanner.runAmendmentScan()`: 매일 01:00. 공포번호·시행일자가 바뀐 법을 찾아 큐에 적재
+  - `cron.schedule('0 3 * * 0')` → `admrul_fresh_scanner.runFreshnessScan()`: 매주 일요일 03:00. 원문 판번호를 law.go.kr 현행본과 대조. 주석상 대상은 행정규칙 653건 + 법률·시행령·시행규칙 222건
+  - `cron.schedule('0 3 * * 3')` → `mok_audit_scanner.runMokAuditScan()`: 매주 수요일 03:00. 조문 목·별표·별지 누락 점검
+- **갱신**: 개정 큐는 관리자가 승인·반려한다(`routes/legal.js` 개정 검토 API). 승인해도 재수집·재빌드는 자동 실행하지 않는다(사람 승인 게이트).
+- **시행일 반영**: `services/effective_date.js`. 예고본을 `_대기/<시행일>/` 에 미리 받아 두고, 위키의 시행일 마커와 함께 "오늘(KST) 기준 유효한 판"을 읽을 때 고른다.
+- **피드백**
+  - `POST /api/legal/feedback`: 공개, 익명. 👎만 AI 재검토(트리아지)
+  - 관리자 검토: `GET/POST /api/legal/feedback/:id/decide`
+- **새 지식 후보**
+  - 위키 밖 질문을 원문으로 답한 경우(searchRawFallback 성공)와, 사용자가 확인한 구어→뜻 매핑을 후보로 적재
+  - 관리자 승인: `/api/legal/candidates/:id/decide`
+  - 승인 후 위키 편입은 사람 작업
+- **"답변 첫머리 핵심 정리"·"조문 관계 설명"**: 사용자(개발자) 설명에 따른 서술이다. 답변 프롬프트 문구로는 이번에 직접 대조하지 않았다.
