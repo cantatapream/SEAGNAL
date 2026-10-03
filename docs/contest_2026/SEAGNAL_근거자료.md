@@ -39,6 +39,7 @@
 | 낚시금지구역 | 236 | `client/fishing_ban_zones.json` |
 | 관제(VTS)구역 | 33 | `client/vts_zones.json` |
 | 항로·해역 | 144 | `client/seaway_zones.json` (141 + 한중·한일 수역 3, 내역은 에이전트 보고) |
+| 물빠짐 조석 지점 | 315 (3일 창 → 첫 수집 945건, 이후 매일 1일치) | 운영 서버 `GET https://seagnal-server.fly.dev/api/tide-field/status` 2026-10-03 조회: `anchors:315, windowDays:3, total:945`. 수집은 `scheduler.js` KST 23:30 1일 1회(`services/tide_field_collector.js`). 저장소의 `local_server/data/tide_field/anchors.json` 은 빈 자리표시 파일(count 0)이라 저장소로는 셀 수 없음. 같은 조회 시점에 `/api/tide-field/anchors` 는 확보 3·미수집 311·격자없음 1 로 수집 진행 중(running:true)이었음 |
 | 너울 소해구 | 233 | 코드 주석(`swell.js:22`, `routes/swell_smallzone.js:9`)에 적힌 값. 실시간 응답으로 세지는 않음 |
 | 기준 법률 | 70 | `raw/0*`~`raw/1[0-4]*` 아래 `법률.txt` 70개 (`local_server/knowledge/legal/raw`) |
 | 기준 시행령 | 68 (+ 별도 대통령령 3) | `시행령.txt` 68개. 별도 대통령령: `시행령_해양경찰위원회규정`, `시행령_해양경찰분야과학기술진흥에관한규정`, `시행령_긴급중요사건범위등에관한규정` |
