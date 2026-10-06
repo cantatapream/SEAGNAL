@@ -41,7 +41,7 @@ const SET = opt('set') || 'pilot';
 const OUT = opt('out');
 const ONLY = opt('only') ? new Set(opt('only').split(',')) : null;
 if (!['a', 'b', 'c'].includes(ARM) || !OUT) {
-  console.error('사용: node run_arms.js --arm a|b|c --set pilot|main --out <결과.jsonl>');
+  console.error('사용: node run_arms.js --arm a|b|c --set pilot|rest|main --out <결과.jsonl>');
   process.exit(2);
 }
 
@@ -262,6 +262,8 @@ async function main() {
   const qs = JSON.parse(fs.readFileSync(path.join(HERE, 'questions.json'), 'utf8'));
   let list = qs.main;
   if (SET === 'pilot') list = list.filter(m => qs.pilot.includes(m.id));
+  // rest = 본실험 40 중 시험 10 을 뺀 30문항 — C 를 고칠 때 보지 않은 문항(과적합 없이 재려고, 2026-10-06 사용자 확정)
+  if (SET === 'rest') list = list.filter(m => !qs.pilot.includes(m.id));
   if (ONLY) list = list.filter(m => ONLY.has(m.id));
   const done = new Set(fs.existsSync(OUT)
     ? fs.readFileSync(OUT, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l).id) : []);

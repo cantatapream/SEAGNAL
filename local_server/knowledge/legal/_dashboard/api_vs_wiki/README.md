@@ -52,6 +52,7 @@
 cd local_server/knowledge/legal/_dashboard/api_vs_wiki
 bash run.sh pilot      # 시험 10문항 × A·B·C  → results/pilot_<KST시각>/
 bash run.sh main       # 본실험 40문항 × A·B·C
+bash run.sh rest       # 시험 10을 뺀 처음 보는 30문항 × A·B·C (C 를 고칠 때 안 본 문항)
 ARMS="c" bash run.sh pilot   # 한 방식만
 ```
 
