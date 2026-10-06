@@ -60,6 +60,30 @@ ARMS="c" bash run.sh pilot   # 한 방식만
 `.github/workflows/api-vs-wiki-run.yml` 이 그 push 에서만 돌아 `run.sh` 를 실행하고 결과 폴더를 같은 갈래에 커밋한다.
 ⚠운영 키와 한도를 나눠 쓴다. ⚠GitHub 서버는 해외라 법제처 접속이 막힐 수 있다 — 실행 기록의 「법제처 연결 확인」 줄을 먼저 본다.
 
+**GPT 루나로 돌리기 (2026-10-06 사용자 요청 「BC까지 루나로 할 수 있도록 장치를 고쳐서 해볼래?」)**:
+루나는 API 키가 아니라 **VM 에 로그인된 ChatGPT 정액제(Codex CLI)** 로만 돈다 → **codex 가 로그인된 VM 에서** 실행한다.
+`LLM=luna bash run.sh pilot` 이면 run.sh 가 ①실험 전용 비밀을 매번 새로 만들고 ②사본 서버 설정을 answerModel=gpt-6-luna 로 깔고
+③Gemini 키를 환경에서 빼고(새어 들지 않게) ④`avw_worker.js`(실험 전용 작업자, 작업 폴더 `~/.avw_codex_worker` — 운영 작업자의
+`~/.codex_worker` 와 분리)를 이 실험 서버에만 붙인다. **운영 서버·운영 작업자(nrya-codex-worker)는 건드리지 않는다.**
+- A: 사본 서버의 `/api/legal/ask` 가 설정대로 codex 로 보낸다(기록의 `llm_used` 가 `codex` 여야 한다 — `gemini` 면 섞인 것).
+- B: `searchRawFallback` 을 앱과 같은 표시(`codex_bridge.withRequest`) 안에서 불러 세 번의 AI 호출이 다 루나로 간다.
+- C: 루나 통로에는 Gemini 의 도구 호출 기능이 없어, 같은 도구·지시문으로 매 차례 `{"tool":…,"args":…}` 또는
+  `{"final":true}` 를 JSON 으로 받고, final 이면 모은 원문으로 답을 한 번 따로 쓰게 한다(기록에 `c_protocol: text-json`).
+- 작업자가 끊기면 그 문항은 **실패로 둔다**(조용히 Gemini 로 돌리지 않는다).
+- 배선 시험(2026-10-06, 가짜 codex): A `llm_used=codex`·답 끝 「GPT-6 Luna」, B `Legal-RawLawPick` 부터 codex, C 도구 호출→final→답 확인.
+  같은 시험에서 Gemini 모드가 결과 폴더 이름 줄(`set -e`)에서 말없이 멈추는 버그를 잡아 고쳤다.
+
+VM 에서(운영 작업자가 쓰는 `~/projects/Seagnal` 작업본은 바꾸지 않고 옆에 따로 받는다):
+```bash
+cd ~/projects/Seagnal && git fetch --depth 1 origin claude/serene-brahmagupta-cfxh4b \
+  && git worktree add --detach ~/projects/avw FETCH_HEAD
+cd ~/projects/avw/local_server && npm ci --no-audit --no-fund
+cd knowledge/legal/_dashboard/api_vs_wiki && LLM=luna bash run.sh pilot
+# 결과 올리기(결과 폴더만):
+git add -- results && git commit -m "api_vs_wiki 루나 실험 결과 (VM)" && git push origin HEAD:claude/serene-brahmagupta-cfxh4b
+```
+⚠ChatGPT 정액제 한도를 쓴다 — 돌리기 전·후에 `codex` → `/status` 로 남은 한도를 본다.
+
 결과 폴더에 `a.jsonl`·`b.jsonl`·`c.jsonl`(문항별 답변 전문·시간·토큰·API 호출 기록)과 `score.txt`(채점표)가 남는다.
 같은 결과 파일로 다시 돌리면 이미 한 문항은 건너뛴다.
 
