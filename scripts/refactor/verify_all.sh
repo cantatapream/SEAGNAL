@@ -121,7 +121,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_typhoon_ecmwf
   test_byl_decl test_treaty_caselaw_meta test_context_budget test_table_rows_slice test_counting_dict test_silent_catch
   test_gate_5xx_class test_meta_schema test_admrul_review test_ho_count test_section_ready test_treaty_article test_byl_body_kind test_box_rows test_score_body test_admin_cards
-  test_codex_bridge)
+  test_codex_bridge test_picture_text)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
@@ -497,6 +497,19 @@ python3 local_server/knowledge/legal/_dashboard/loop/gupan_notice.py --gate > /t
 echo; echo "── V5-54 raw 원문의 깨진 글자 ──"
 node local_server/knowledge/legal/_dashboard/loop/broken_char_gate.js --gate > /tmp/_v554.log 2>&1 \
   && tail -2 /tmp/_v554.log || { tail -12 /tmp/_v554.log; fail "V5-54 raw 원문의 깨진 글자가 늘었다"; }
+
+# ── V5-56 그림 판독문이 모델 근거로 새지 않나 (2026-10-06 신설, 3-75 · Q-19) ──────────
+#   사장님 결정(Q-19): 그림은 원본을 그대로 보여 주고, 판독문(AI 든 사람이든)은 **검색용으로만** 둔다.
+#   막는 곳은 `services/picture_text.js` 한 곳이고, 그것이 기대는 자료가 둘이다 — 이 둘이 낡으면 새기 시작한다:
+#   ① raw 의 판독 블록마다 끝 표시(`【이미지판독 끝 N】`)가 있나 · 끝 뒤로 그 그림의 판독 줄이 새지 않나
+#      (`ocr_block_end.py --check` — 끝이 없으면 picture_text 는 **시작 줄만** 지우므로 판독 표가 그대로 간다)
+#   ② 숫자로 가린 위키 줄 목록(`picture_wiki_lines.json`)이 지금 위키·raw 와 맞나
+#   ⚠빨간불이면 **목록을 손으로 고치지 말고** 두 도구를 다시 돌린다(새 판독 블록이 들어왔거나 위키가 바뀐 것).
+echo; echo "── V5-56 그림 판독문이 모델 근거로 새지 않나 ──"
+python3 local_server/knowledge/legal/_dashboard/loop/ocr_block_end.py --check \
+  || fail "V5-56 판독 블록에 끝 표시가 없거나 끝 뒤로 판독문이 샌다 → ocr_block_end.py --apply"
+python3 local_server/knowledge/legal/_dashboard/loop/picture_wiki_lines.py --check \
+  || fail "V5-56 picture_wiki_lines.json 이 낡았다 → picture_wiki_lines.py 다시 돌림"
 
 # ── V5-55 「원문 그대로 · 요약 금지」를 선언한 쪽이 원문 글을 담고 있나 (2026-09-27 신설) ──
 #   [왜] 위키 쪽 **210개**가 「원문 그대로 적는다 · 요약·재해석 금지」를 선언하는데

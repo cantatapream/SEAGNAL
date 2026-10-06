@@ -164,7 +164,9 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
   (사장님 선택 「검색용으로만 남김」). ⇒ 그림 값 686개를 사람이 맞춰 보는 일(`3-28`)은 **필요 없어졌다.**
   ★**사람이 옮겨 적은 판독값도 같다**(2026-10-06 사장님 「모두 검색용」) — raw 판독 494묶음 중 약 59묶음은 사장님이 원본을 보고 옮겨 적었거나 확인했지만,
   위키에 옮겨진 값은 누가 읽었는지 가를 수 없어 **한 규칙으로 간다.** 답에는 숫자를 쓰지 않고 「원문 그림으로 정해져 있다 — 별표·조문 창에서 확인」으로 안내한다.
-  ⚠구현(`3-75`) 전까지는 판독문이 **아직 답변 근거로 들어간다** — 끝났다고 적지 않는다.
+  ★**막는 곳은 `services/picture_text.js` 한 곳이다**(3-75 · 2026-10-06) — 모델에 넘기는 근거(답변·되묻기·용어설명 · raw 대체 경로 · 해역 트리)와
+  조문 창 화면에서 판독문을 「〔원문 그림 …〕」 표시로 바꾼다. 그것이 기대는 자료: raw 판독 블록의 **끝 표시**(`loop/ocr_block_end.py`)와
+  위키에서 숫자로 가린 줄 목록(`_dashboard/picture_wiki_lines.json` · `loop/picture_wiki_lines.py`). **새 판독 블록·위키 수정 뒤에는 두 도구를 다시 돌린다**(V5-56).
 - **글자로 뽑히는 것은 그대로 글자로 쓴다** — 첨부 원본에서 글자가 그대로 나오는데 우리 글에 없는 것은 「얻을 수 있는데 안 한 것」이다(§5ⓐ①).
 - **그림이 어디에 있는지는 기계가 정한다** — `_dashboard/picture_census.json`(`loop/picture_census.py`).
   원본 파일 구조(PDF 그림 배치·HWP 그림 컨트롤)만 보고 **그림 속 내용은 읽지 않는다.**
@@ -198,7 +200,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 
 <!-- 검사목록:시작 — `python3 scripts/refactor/gen_rulebook.py` 가 다시 쓴다. 손으로 고치지 않는다 -->
 
-### ⓐ 게이트 60 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
+### ⓐ 게이트 61 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
 
 | 검사 이름 | 무엇을 못박나 | 자 |
 |---|---|---|
@@ -236,6 +238,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `V5-52` | EXACT 숫자 중 어디에도 없는 것 | `local_server/knowledge/legal/_dashboard/loop/exact_claim_numbers.py` |
 | `V5-53` | 옛 판에 「현행 아님」 경고 | `local_server/knowledge/legal/_dashboard/loop/gupan_notice.py` |
 | `V5-54` | raw 원문의 깨진 글자 | `local_server/knowledge/legal/_dashboard/loop/broken_char_gate.js` |
+| `V5-56` | 그림 판독문이 모델 근거로 새지 않나 | `local_server/knowledge/legal/_dashboard/loop/ocr_block_end.py` · `local_server/knowledge/legal/_dashboard/loop/picture_wiki_lines.py` |
 | `V5-55` | 「원문 그대로」 선언과 실제 글 | `local_server/knowledge/legal/_dashboard/loop/verbatim_coverage.js` |
 | `V5-43` | 인용 없는 EXACT 주장 | `local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py` |
 | `V5-46` | 본문이 가리키는데 없는 별표 | `local_server/knowledge/legal/_dashboard/loop/byl_ref_gap.py` · `loop_tool_census.js` |
@@ -263,7 +266,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 55 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 56 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -322,6 +325,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_score_body` | ★「변경 이력」이 **검색 점수에서 빠졌는지**를 고정한다. (결심 4-5ⓐ) |
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
+| `test_picture_text` | ★그림 판독문이 **모델 근거에서 빠지는지**를 고정한다. (3-75 · Q-19) |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.
@@ -344,7 +348,6 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `git add -A` 금지 | 훅으로 막을 수는 있으나 아직 없다 |
 | 병렬 경합 규칙 | 어떤 파일을 동시에 쓰는지 사후에만 안다 |
 | 시간 표기 KST · 응답 언어·난이도 | 기계가 잴 대상이 아니다 |
-| §5ⓓ 판독문은 검색용으로만 — 답변에 인용하지 않는다 (Q-19) | 막는 코드(`3-75`)가 아직 없다 — 그 코드와 함께 「근거자료에 판독문 숫자가 실리지 않는가」를 재는 검사를 단다 |
 
 ---
 
