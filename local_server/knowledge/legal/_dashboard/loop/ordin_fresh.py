@@ -49,6 +49,8 @@ import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _fail_reasons                                 # 3-80 — 실패한 까닭을 버리지 않는다
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
@@ -77,9 +79,14 @@ def api(url, tries=8):
     for i in range(tries):
         try:
             with urllib.request.urlopen(req, timeout=30) as r:
-                return json.loads(r.read().decode('utf-8', 'replace'))
-        except Exception:                                        # noqa: BLE001
-            time.sleep(min(1.2 + 0.6 * i, 5.0))
+                body = r.read().decode('utf-8', 'replace')
+            try:
+                return json.loads(body)
+            except ValueError:
+                _fail_reasons.note_body(body)       # 3-80 — 오류 쪽 HTML 의 첫 글자를 까닭으로
+        except Exception as e:                                   # noqa: BLE001
+            _fail_reasons.note(e)
+        time.sleep(min(1.2 + 0.6 * i, 5.0))
     return None
 
 
@@ -246,6 +253,7 @@ def main():
     rep = {'checked': len(rows), 'fresh': cnt('현행'), 'stale': cnt('구버전'), 'renamed': cnt('이름바뀜의심'),
            'mismatch': cnt('이름불일치') + cnt('여럿'), 'unknown': cnt('조회실패'),
            '2차에_열린_줄': sum(1 for r in rows if r.get('2차에_열렸다')),
+           'fail_reasons': _fail_reasons.top(),
            'basis_date': today, 'rows': rows}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, 'w', encoding='utf-8') as f:

@@ -356,7 +356,16 @@ async function runAmendmentScan() {
     seedIfMissing(H29_QUEUE_FILE, SEED_H29_QUEUE_FILE);
     const startedAt = new Date().toISOString();
     const r = await runDetectScript(DETECT_DAYS);
-    if (!r.ok) console.error('나리야 개정감지 탐지 스크립트 실패:', r.error);
+    if (!r.ok) {
+      console.error('나리야 개정감지 탐지 스크립트 실패:', r.error);
+      // ★실패도 알린다(3-80). law.go.kr 이 한 번도 답하지 않으면 탐지 자가 이제 실패로 죽는다 —
+      //   종전에는 빈 결과를 「개정 없음」 으로 남겨, 매일 아무것도 안 보고 있어도 아무도 몰랐다.
+      try {
+        await require('./admin_push').sendAdminPush('나리야 개정감지 — 오늘 확인 실패',
+          `오늘 개정 여부를 확인하지 못했습니다(「개정 없음」 이 아닙니다). ${String(r.error || '').slice(-180)}`,
+          { type: 'amendment_scan_failed' });
+      } catch (e) { console.error('[나리야 개정감지] 관리자 푸시 실패:', e && e.message); }
+    }
     const pending = loadH29PendingItems();
     const known = existingLegacyIds();
     const fresh = pending.filter((it) => !known.has(it.id));

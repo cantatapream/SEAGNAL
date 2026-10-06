@@ -1919,7 +1919,18 @@
    * @param {object|null} last - {ok,finishedAt,checked,stale,added,unknown,error}
    * @returns {string} HTML
    */
+  /** 마지막 점검이 **하나도 확인하지 못했나**(3-80). 옛 상태 파일은 이 경우에도 ok:true 로 적혀 있다. */
+  function freshNothingVerified(last) {
+    return !!(last && (last.checked || 0) > 0 && (last.unknown || 0) >= (last.checked || 0));
+  }
+
   function freshLastHTML(last) {
+    if (last && last.ok && freshNothingVerified(last)) {
+      // ★2026-10-06: 운영 화면이 「848건 대조 · 응답없음 848건」 아래에 「낡은 원문이 없습니다」 라고 적었다.
+      //   하나도 확인 못 한 점검은 실패다 — 실패 상자로 보여 준다(서버도 이제 ok:false 로 적는다).
+      last = Object.assign({}, last, { ok: false,
+        error: last.error || ('law.go.kr 조회가 ' + last.checked + '건 모두 실패했습니다(응답없음 ' + last.unknown + '건). 까닭은 이 점검 판에 기록되지 않았습니다 — 다음 점검부터 까닭이 함께 적힙니다.') });
+    }
     if (!last) {
       return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 한 번도 점검하지 않았습니다. 매주 일요일 새벽 3시(KST)에 자동으로 돌고, 아래 버튼으로 지금 돌릴 수도 있습니다.</div>';
     }
@@ -2079,7 +2090,7 @@
       var list = data.items || [];
       if (!list.length) {
         // 점검이 실패했으면 "이상 없음"이라고 쓰지 않는다 — freshLastHTML 이 그 사정을 위에 적어 준다.
-        var okMsg = (data.last && data.last.ok)
+        var okMsg = (data.last && data.last.ok && !freshNothingVerified(data.last))
           ? '<div class="nrya-notice-box"><span class="nrya-em">✅</span>낡은 원문이 없습니다.</div>'
           : '';
         listHost.innerHTML = head + okMsg; return;
@@ -2606,7 +2617,8 @@
       //   그대로 찍히고 있었다(끝 탭이라 잘려 `undefine` 으로 보였다). 서버는
       //   routes/legal.js:599 에서 정상적으로 보내고 있고 ADMIN_STAT_KEY 도 'freshness' 로
       //   매핑돼 있었다 — 받는 쪽 한 칸만 빠진 것이었다.
-      adminStatsCache = { draft: data.draft, feedback: data.feedback, candidates: data.candidates, amendments: data.amendments, freshness: data.freshness };
+      // ★mokAudit 를 빠뜨려 「원문결손」 배지가 늘 `undefined` 로 떴다(2026-10-06 사장님 화면 · 3-80).
+      adminStatsCache = { draft: data.draft, feedback: data.feedback, candidates: data.candidates, amendments: data.amendments, freshness: data.freshness, mokAudit: data.mokAudit };
       renderSubtabs(curAdminSubtab); // 현재 보고 있는 탭을 유지한 채 배지만 최신화
     }).catch(function () { /* 무시 */ });
   }

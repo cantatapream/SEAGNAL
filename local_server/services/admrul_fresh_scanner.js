@@ -234,6 +234,25 @@ function toQueueEntry(row) {
   };
 }
 
+/**
+ * 한 점검의 보고서가 **실제로 무엇이든 확인했는지** 가른다. (3-80)
+ * 예: partFailure({checked:653, unknown:653, fail_reasons:[{why:'URLError: …', n:1959}]})
+ *     → '653건을 하나도 확인하지 못했다(응답없음 653) — 까닭: URLError: … ×1959'
+ *     partFailure({checked:653, unknown:12}) → null
+ * @param {object} rep 점검 스크립트 보고서
+ * @returns {string|null} 실패로 볼 까닭(실패가 아니면 null)
+ * [왜 — 2026-10-06 사장님 화면] 운영 서버가 「848건 대조 · 낡은 원문 0건 · 응답없음 848건」 인데도
+ *   ok:true 로 적어, 화면이 「✅ 낡은 원문이 없습니다」 라고 말했다. **하나도 확인 못 한 점검은 실패다.**
+ *   보고서 파일이 생겼다는 것과 점검이 됐다는 것은 다른 말이다.
+ */
+function partFailure(rep) {
+  const checked = Number(rep && rep.checked) || 0;
+  const unknown = Number(rep && rep.unknown) || 0;
+  if (!checked || unknown < checked) return null;
+  const why = (rep.fail_reasons || []).slice(0, 3).map((x) => `${x.why} ×${x.n}`).join(' / ');
+  return `${checked}건을 하나도 확인하지 못했다(응답없음 ${unknown})` + (why ? ` — 까닭: ${why}` : ' — 까닭은 기록되지 않았다');
+}
+
 /** 큐에 이미 들어 있는 id 집합(중복 적재 방지). */
 function existingIds() {
   const ids = new Set();
@@ -324,6 +343,14 @@ async function runFreshnessScan() {
         errors.push(`${part.name}: ${r.error || '결과 파일을 읽지 못했습니다'}`);
         continue;
       }
+      // ★하나도 확인하지 못한 점검은 **실패**다(3-80). 「이상 없음」 숫자에 섞지 않는다.
+      const failWhy = partFailure(rep);
+      if (failWhy) {
+        errors.push(`${part.name}: ${failWhy}`);
+        checked += rep.checked || 0;
+        unknown += rep.unknown || 0;
+        continue;
+      }
       checked += rep.checked || 0;
       freshCnt += rep.fresh || 0;
       unknown += rep.unknown || 0;
@@ -336,9 +363,16 @@ async function runFreshnessScan() {
     }
     if (errors.length === parts.length) {
       const st = { ok: false, startedAt, finishedAt: new Date().toISOString(),
-        error: errors.join(' / '), checked: 0, stale: 0, added: 0 };
+        error: errors.join(' / '), checked, unknown, stale: 0, added: 0 };
       writeStatus(st);
       console.error('[AdmrulFresh] 점검 실패:', st.error);
+      // ★실패도 알린다(3-80). 종전에는 상태 파일에만 적혀, 관리자가 방을 열어 보기 전에는
+      //   **몇 주가 지나도 점검이 안 되고 있다는 것을 아무도 몰랐다**(10.04 판: 848건 전부 응답없음).
+      try {
+        await require('./admin_push').sendAdminPush('나리야 원문 신선도 — 점검 실패',
+          `이번 점검은 아무것도 확인하지 못했습니다. ${String(st.error).slice(0, 180)}`,
+          { type: 'admrul_fresh_failed' });
+      } catch (e) { console.error('[AdmrulFresh] 관리자 푸시 실패:', e && e.message); }
       return st;
     }
 
@@ -401,4 +435,4 @@ function startFreshnessScan() {
 }
 
 module.exports = { runFreshnessScan, startFreshnessScan, readStatus, QUEUE_FILE, REPORT_FILE, reopenStillStale,
-  toQueueEntry, ORDIN_SCRIPT, ORDIN_REPORT_FILE };
+  toQueueEntry, ORDIN_SCRIPT, ORDIN_REPORT_FILE, partFailure };
