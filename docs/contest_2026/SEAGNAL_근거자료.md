@@ -231,3 +231,26 @@
   - 어떤 행을 빼는지는 이번에 코드로 확인하지 않았다.
 - S23 차트 데이터(연도별 추이·특보 종류별·원인·사망실종 발생률)는 앱 화면 캡처의 숫자를 옮겨 적은 값이다.
   - 원본 캡처: `images/S23-ref_*`
+
+## L. 추가 슬라이드 7장 근거 (2026-10-06)
+
+원고: `notebooklm/SEAGNAL_추가슬라이드_원고.md` · 계획: `SEAGNAL_추가수정_계획.md`
+
+| 항목 | 값 | 어떻게 확인했나 |
+|---|---|---|
+| 커밋 수 | 7,069회(병합 제외) · 작성자 Claude 6,921회 · 작업일 188일 · 병합 포함 8,523회 | `git fetch origin main` 후 `git log origin/main --since=2026-02-01 --no-merges` 행 수, `--format=%an` 에서 claude(대소문자 무시) 행 수, `--format=%ad --date=short` 고유 날짜 수. origin/main 0cdc14bfb(2026-10-06 13:34 KST). 저장소 첫 커밋 2026-02-01 |
+| 자동 검사 | 검사 번호 57종 + 테스트 묶음 56개 | `scripts/refactor/verify_all.sh` 의 주석 아닌 줄에서 `V5-숫자[영문]` 고유값 57개(V5-12는 주석에만 있어 제외), `SUITES=( … )` 항목 56개. `SEAGNAL_수상작분석.md` 의 「59종」은 세는 기준을 재현하지 못해 정정함 |
+| 시행착오 기록 | 397건 | `_LESSONS.md` 의 `## L-` / `### L-` 제목 줄 수(번호 최대 L-399) |
+| 챗봇 모델 등급 | 최상위(gemini-pro-latest = 3.1 Pro) → 중간(gemini-2.5-flash) | `MASTER_PLAN.md` H-31 후속(2026-07-30). 위 21행에는 「상위→경량」으로 적었으나, 구글 라인업(Pro·Flash·Flash-Lite) 가운데 Flash는 가운데 등급이라 슬라이드에는 「중간」으로 씀(분류는 작성자 판단) |
+| 한도 소진 | 2026-07-20, 에이전트 70여 개(10그룹 병렬), 33법 미처리 | `_LESSONS.md` L-12 |
+| 사례 ① | 5개 스위트 314건 통과 뒤 독립 리뷰로 재현 가능한 결함 4건, 그중 2건(F1 중복 발사·F2 미발효 오단정)은 사용자에게 즉시 드러남 | `client/js/forecast/alerts/mmis_history.design.md` §6.8.8 |
+| 사례 ② | 관리자 화면 0건인데 원문 6개 계층 낡음, 어선원 시행규칙 2024-07-24판(2년 넘게). 닫은 카드가 다시 안 뜨던 한 줄 → `reopenStillStale()`, 알림 조건 수정 | `_LESSONS.md` L-291 |
+| 사례 ③ | `git checkout -- …/raw` 로 다른 에이전트의 판독 재확인 23장 수정분 삭제(「500미터 → 50미터」 등) → 재실행, 파일 단위 되돌리기 | `_LESSONS.md` L-179 |
+| 광고·결제 없음 | 광고·결제 모듈 없음 | `client`·`android` 의 js·html·gradle·xml·json 에서 admob·adsbygoogle·in-app purchase·billingclient 검색 0건 |
+| 대화 기록 기기 저장 | 「지난 대화 기록(질문·답변만 · 기기 안에서만 보관)」 | `client/js/ai-chat/ai_chat.js:107` (localStorage) |
+| 참고용 안내 문구 | 챗봇·특보구역·조석 3개 | `client/js/ai-chat/ai_chat.js:5556`, `client/js/core/index2_patch.js:913`, `client/js/ocean-map/layers/tide_field.js:378` |
+| 댓글 신고 사유 | 「개인정보 노출」 | `client/js/notice/comments/promo_comment3.js:292` |
+| 개인정보처리방침 | **앱 코드에서 찾지 못함** | `client/` html·js 에서 「개인정보 처리방침」·「privacy」 검색(시안 폴더 제외) 0건. 구글 플레이 등록 여부는 확인 안 함 |
+| 안드로이드만 배포 | 저장소에 `android/` 만 있고 `ios/` 없음 | 저장소 최상위 목록 |
+| 29장 법적 사실 | 출입항 신고기관 = 해양경찰서 소속 파출소·출장소(+민간 대행), 조종면허 = 해양경찰청장 | `raw/05_수산어업/어선안전조업및어선원의안전ㆍ보건증진등에관한법률/법률.txt` 제2조·제8조, `raw/09_레저관광/수상레저안전법/법률.txt` 제5조 |
+| 도구별 역할·운영비 항목·사비 운영·포상 미수령 | 사용자 설명 | 저장소로 확인할 수 없는 사실 — 사용자 진술 |
