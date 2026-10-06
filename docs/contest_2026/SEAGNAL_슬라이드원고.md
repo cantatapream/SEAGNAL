@@ -117,6 +117,9 @@
     - `images/logo_기상청.png` — 기상청 로고
     - `images/logo_국립해양조사원.png` — 국립해양조사원 로고
     - `images/logo_국가법령정보센터.png` — 법제처 국가법령정보센터 로고
+  - 상용 앱 로고 2개 (확정): 「그런데 쓰기 어렵다」 영역의 5번째 이유 「결국 외산·상용 앱에 의존」 옆에 작게 나란히
+    - `images/logo_윈디.png` — 윈디(Windy) 앱 아이콘
+    - `images/logo_바다타임.png` — 바다타임(BaDa TIME) 앱 아이콘
   - 추후 확정 (후보: 메뉴가 복잡한 기관 홈페이지 캡처 2~3장)
 
 ---
@@ -878,4 +881,6 @@
 | `images/logo_기상청.png` | 기상청 로고 | 4, 27 |
 | `images/logo_국립해양조사원.png` | 국립해양조사원 로고 | 4, 27 |
 | `images/logo_국가법령정보센터.png` | 법제처 국가법령정보센터 로고 | 4, 27 |
+| `images/logo_윈디.png` | 윈디(Windy) 앱 아이콘 | 4 |
+| `images/logo_바다타임.png` | 바다타임(BaDa TIME) 앱 아이콘 | 4 |
 | `images/S08_사용자반응.png` | 실제 사용자 댓글·1:1 문의 캡처 | 8 |
