@@ -346,6 +346,55 @@ ok('해외에서는 해외 전용 주소를 부른다',
     /'\/api\/typhoon\/foreign\/image\?src=' \+ encodeURIComponent\(_src\)/.test(TYPHOON_SRC));
 
 // ── [7] 서버 라우트 ────────────────────────────────────────────────────────
+// ── [6-2] 출처를 바꿔도 보던 태풍 유지 + 한글 이름 (2026-10-06 사용자 요청) ─────────
+console.log('\n[6-2] 출처를 바꿔도 보던 태풍 유지 · 화면은 한글 이름');
+// 화면 코드의 함수를 그대로 꺼내 돌린다. _activeData(기상청 활성 목록)만 바깥에서 넣어 준다.
+const SAME_SRC = (TYPHOON_SRC.match(/var SAME_STORM_MAX_DEG[\s\S]*?function koTyphoonName[\s\S]*?\n    \}/) || [''])[0];
+// 아래 이름·위치는 2026-10-06 운영 서버(/api/typhoon · /api/typhoon/foreign)에서 받은 실제 값이다.
+function ty(seq, name, nameEn, lat, lon) {
+    return { seq: seq, name: name, nameEn: nameEn, bulletins: [{ current: { lat: lat, lon: lon } }] };
+}
+const KMA = { year: 2026, typhoons: [
+    ty('29', '제 29호 고구마', 'KOGUMA', 12.5, 167.4),
+    ty('28', '제 28호 놀로', 'NOLO', 25.7, 173.1),
+    ty('27', '제 27호 초이완', 'CHOI-WAN', 29.9, 145.7)] };
+const JTWC = [ty('wp2626', 'CHOI-WAN', 'CHOI-WAN', 28.4, 145.5),
+              ty('ep1526', 'NOLO', 'NOLO', 25.8, 174.7),
+              ty('wp2726', 'KOGUMA', 'KOGUMA', 12.2, 167.6)];
+const ECMWF = [ty('EC33W', 'CHOI-WAN', 'CHOI-WAN', 27.3, 145.9),
+               ty('EC35W', 'NOLO', 'NOLO', 25.6, 176.2),
+               ty('EC18E', 'RACHEL', 'RACHEL', 20.4, -115.8)];
+// 함수를 못 꺼내면(이름이 바뀌었거나 지워졌으면) 여기서 멈추지 말고 아래 항목들이 ❌ 로 드러나게 한다.
+let SAME = { find: function () { return { seq: '(함수 없음)' }; }, ko: function () { return '(함수 없음)'; } };
+try {
+    SAME = new Function('_activeData', SAME_SRC +
+        '; return { find: findSameTyphoon, ko: koTyphoonName };')(KMA);
+} catch (e) { /* 아래 '함수를 꺼냈다' 항목이 ❌ */ }
+const prevOf = function (t) { return { nameEn: t.nameEn, pos: t.bulletins[0].current }; };
+
+ok('함수를 화면 코드에서 꺼냈다', SAME_SRC.length > 0 && typeof SAME.find === 'function');
+ok('★기상청 놀로를 보다 미국으로 → 미국 놀로(ep1526). 제주 최근접(초이완)이 아니다',
+    SAME.find(JTWC, prevOf(KMA.typhoons[1])).seq === 'ep1526');
+ok('★미국 고구마를 보다 기상청으로 → 기상청 제29호',
+    SAME.find(KMA.typhoons, prevOf(JTWC[2])).seq === '29');
+ok('유럽에 없는 태풍(고구마)을 보다 유럽으로 → 못 찾음(null) — 엉뚱한 태풍을 집지 않는다',
+    SAME.find(ECMWF, prevOf(KMA.typhoons[0])) === null);
+ok('이름이 아직 없으면 위치로 — 같은 자리(3도 안)의 태풍을 고른다',
+    SAME.find(JTWC, { nameEn: '', pos: { lat: 25.7, lon: 173.1 } }).seq === 'ep1526');
+ok('이름이 없고 5도 안에 아무것도 없으면 못 찾음(null)',
+    SAME.find(JTWC, { nameEn: '', pos: { lat: 40, lon: 120 } }) === null);
+ok('보던 태풍이 없으면(null) 못 찾음 — 기본 고르기로 넘어간다', SAME.find(JTWC, null) === null);
+ok('★해외 태풍 이름은 기상청 한글 이름으로 — 영문을 붙이지 않는다',
+    SAME.ko(JTWC[0]) === '초이완' && SAME.ko(JTWC[1]) === '놀로' && SAME.ko(JTWC[2]) === '고구마');
+ok('기상청이 발표하지 않는 태풍은 받은 이름 그대로(RACHEL)', SAME.ko(ECMWF[2]) === 'RACHEL');
+ok('출처를 바꿀 때 직전 태풍을 기억하고 해외 목록에서 먼저 찾는다',
+    /var prevT = \(_src === 'kma'\)/.test(TYPHOON_SRC) &&
+    /findSameTyphoon\(_foreignData\.typhoons, prev\) \|\|/.test(TYPHOON_SRC));
+ok('기상청으로 돌아올 때도 같은 태풍을 넘긴다',
+    /loadYear\(_year, same \? same\.seq : null, null\)/.test(TYPHOON_SRC));
+ok('해외 드롭다운 두 곳(처음 받기·5분 갱신) 모두 한글 이름을 쓴다',
+    (TYPHOON_SRC.match(/name: koTyphoonName\(t\)/g) || []).length === 2);
+
 console.log('\n[7] 서버 — 어디서 받아 무엇을 내주나');
 
 ok('★중계 업체가 아니라 JTWC 에서 직접 받는다',

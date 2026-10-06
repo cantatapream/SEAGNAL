@@ -266,7 +266,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 56 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 58 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -308,6 +308,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_typhoon_source` | 태풍 탭 "자료 출처" 전환이 조용히 깨지지 않게 고정한다. |
 | `test_typhoon_jma` | 태풍 탭의 "일본(JMA)" 출처가 조용히 깨지지 않게 고정한다. |
 | `test_typhoon_ecmwf` | 태풍 탭의 "유럽(ECMWF)" 출처가 조용히 깨지지 않게 고정한다. |
+| `test_khoa_https` | 개방海(국립해양조사원, khoa.go.kr)를 http:// 로 부르는 코드가 없게 고정한다. |
 | `test_byl_decl` | 별표 파일 **선언줄** 판독(`bylDeclLine`·`parseBylDecl`·`hasBylBody`). |
 | `test_treaty_caselaw_meta` | §5-6 국제협약 · §5-7 판례변동 메타를 **읽는지** 고정한다. |
 | `test_context_budget` | 모델에게 넘기는 [근거자료]의 **합계 상한**(P-19)을 고정한다. |
@@ -325,6 +326,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_score_body` | ★「변경 이력」이 **검색 점수에서 빠졌는지**를 고정한다. (결심 4-5ⓐ) |
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
+| `test_fav_tide_prefetch` | 즐겨찾기 조석 미리받기(OS.prefetchFavoriteTides)를 고정한다. |
 | `test_picture_text` | ★그림 판독문이 **모델 근거에서 빠지는지**를 고정한다. (3-75 · Q-19) |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,

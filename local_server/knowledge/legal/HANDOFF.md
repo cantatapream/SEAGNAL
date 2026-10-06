@@ -1531,8 +1531,16 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-06 12:18 KST] ✅완료 — 해양종합 즐겨찾기 조석 미리받기
+완료 100%. ocean_bottom_sheet3.js 에 OS.prefetchFavoriteTides 신설 — load 3초 뒤·visibilitychange(visible) 시 위치 즐겨찾기 중 오늘치 없는 곳만 차례로 /api/save_tide_input→/data 폴링, final 만 tideCache:v1 에 저장(화면·메모리 캐시 무접촉·기존 dayKey 덮어쓰기 없음·받는 사이 해제 시 버림·동해북부 IDW 경로). 스위트 test_fav_tide_prefetch 32건(verify_all SUITES 등록, 코드를 일부러 망가뜨린 3종에서 실패 확인), _RULES.md 재생성(V5-47). 실제 index2.html Chromium(서버 응답 가짜): 앱 시작 POST 1회→칩 클릭 추가 POST 0회·카드 즉시. 실서버는 컨테이너 외부망 403 이라 KHOA 실자료 확인 못 함(실패 시 조용히 넘어감은 확인). verify_all: 실패 2건(V4 시뮬레이션 외부망 콘솔에러 2·test_overlay_solo 시험전제 1) — 둘 다 변경 전 원본 코드로 돌려도 똑같이 나와 이번 변경과 무관. 다음: 실기기(운영)에서 즐겨찾기 칩 즉시 표출 확인.
+
+
 ### [2026-10-06 11:42 KST] ✅완료 — 3-75 판독문을 답변 근거에서 뺐다 — picture_text.js 한 곳 · 게이트 V5-56
 모델에 가던 길: 위키 contextPages(답변·되묻기·용어설명) · raw 대체 경로 · 해역 트리 · 조문 창 화면. raw 판독 블록 494개에 끝 표시(ocr_block_end.py, 판독 파일 증거·모르면 멈춤). 위키는 줄 단위 — 출처를 밝힌 줄 + 그림 쪽에만 있는 숫자 줄(picture_wiki_lines.json 7쪽 54줄). 머리줄로 절 통째 빼기는 글로 된 원문 값을 버려 쓰지 않음(L-400). 답변 규칙 17. 시험 test_picture_text 19 PASS. 시험 질문 4개의 근거 21쪽 판독 표시 123줄 → 0.
+
+
+### [2026-10-06 11:34 KST] 🟢착수 — 해양종합 즐겨찾기 조석 미리받기
+앱 시작(및 앱 복귀) 시 위치 즐겨찾기(최대 6곳)의 오늘 조석을 조용히 미리 받아 기존 영속 캐시(tideCache:v1)에 넣는다. 조석만·같은 기기 기준(사용자 확정). 대상: client/js/ocean-map/bottom-sheet/ocean_bottom_sheet3.js + 새 스위트 test_fav_tide_prefetch
 
 
 ### [2026-10-06 11:23 KST] 🟢착수 — 3-75 판독문을 답변 근거에서 빼기
@@ -1573,6 +1581,8 @@ _dashboard/review_html/나리야_확인판.html 게시(claude.ai 확인판 · db
 
 ### [2026-09-28 12:58 KST] 🟢착수 — 사장님 확인판 — 사람 몫 전부를 한 쪽에
 남은 12칸(G-13·G-24·G-29·3-28·3-33·3-36·3-37·3-41·3-45·3-69·3-71·3-72)과 U-3·미배정을 쟁점·그냥 두면·왜 기계가 못 정하나·고를 것(추천)으로 한 HTML 에 모은다. 내밀기 전 표본을 먼저 연다(S-2).
+
+
 
 
 ### [2026-09-28 09:25 KST] ✅완료 — 3-69·3-72 기계 몫 + 사장님 판정함
