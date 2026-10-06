@@ -26,8 +26,8 @@ L = {
  4: [P((137, 234, 353, 290), 'logo_기상청.png', 'contain', r=8, bg=(255, 255, 255), pad=6),
      P((75, 310, 416, 372), 'logo_국립해양조사원.png', 'contain', r=8, bg=(255, 255, 255), pad=6),
      P((137, 388, 353, 450), 'logo_국가법령정보센터.png', 'contain', r=8, bg=(255, 255, 255), pad=8),
-     P((1213, 552, 1268, 608), 'logo_윈디.png', 'contain', r=8, bg=(255, 255, 255)),
-     P((1278, 552, 1333, 608), 'logo_바다타임.png', 'contain', r=8, bg=(255, 255, 255))],
+     P((1213, 552, 1268, 608), 'logo_윈디_모자이크.png', 'contain', r=8, bg=(255, 255, 255)),
+     P((1278, 552, 1333, 608), 'logo_바다타임_모자이크.png', 'contain', r=8, bg=(255, 255, 255))],
  7: [P((1186, 50, 1307, 170), 'S02-1_수상_해양경찰청AI경진대회.png', anchor='center', r=10)],
  8: [P((714, 492, 1310, 720), '@S08', 'contain', r=10)],
  9: [P((127, 141, 237, 355), 'S09-1_특보정보탭.png', r=14),
@@ -65,6 +65,14 @@ L = {
  30: [P((551, 427, 668, 546), 'logo_SEAGNAL_앱아이콘.png', r=12),
       P((708, 427, 825, 546), 'S30-1_앱다운로드_QR.png', 'contain', r=8, bg=(255, 255, 255), pad=4)],
 }
+
+
+# 슬라이드 위에 올리는 고칠 수 있는 글 상자: (x0, y0, x1, y1), 글, 크기(px, 1376 기준), 색
+TXT = {
+ 2: [((1043, 716, 1345, 740), '※ 수상하였으나 포상은 받지 않았습니다', 15, (125, 211, 252))],
+ 7: [((1170, 175, 1330, 196), '※ 포상은 받지 않음', 14, (125, 211, 252))],
+}
+FONT = '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc'
 
 
 def load(f):
@@ -140,6 +148,15 @@ for n in range(1, 31):
         pic = sl.shapes.add_picture(fn, Emu(round(x0 * E)), Emu(round(Y0 + y0 * EY)), Emu(round((x1 - x0) * E)), Emu(round((y1 - y0) * EY)))
         pic.name = os.path.splitext(p['f'].lstrip('@'))[0]
         prev.alpha_composite(ov.resize((x1 - x0, y1 - y0), Image.LANCZOS), (x0, y0))
+    from pptx.util import Pt
+    from pptx.dml.color import RGBColor
+    from PIL import ImageFont
+    for (x0, y0, x1, y1), t, px, col in TXT.get(n, []):
+        tb = sl.shapes.add_textbox(Emu(round(x0 * E)), Emu(round(Y0 + y0 * EY)), Emu(round((x1 - x0) * E)), Emu(round((y1 - y0) * EY)))
+        tf = tb.text_frame; tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0; tf.word_wrap = False
+        r = tf.paragraphs[0].add_run(); r.text = t
+        r.font.size = Pt(px * 1280 / W); r.font.name = '맑은 고딕'; r.font.color.rgb = RGBColor(*col)
+        ImageDraw.Draw(prev).text((x0, y0), t, font=ImageFont.truetype(FONT, px), fill=col + (255,))
     prev.convert('RGB').save(f'{OUT}prev/s{n:02d}.jpg', quality=88)
 prs.core_properties.title = '바다 : 그 날의 신호, SEA:GNAL'
 prs.save(OUT + 'tmp.pptx')
