@@ -1,0 +1,33 @@
+결과 폴더: /home/runner/work/SEAGNAL/SEAGNAL/local_server/knowledge/legal/_dashboard/api_vs_wiki/results/pilot_20261006_1333
+
+■ A 지금 챗봇(위키) — 10문항
+  답변 글 기준: hit 6 · partial 1 · miss_art 1 · miss 2 · clarify 0 · no_answer 0 · skipped 0
+  hit 비율 60% (hit+partial 70%) — 잰 10문항 기준
+  평균 20.2초 · 평균 토큰 입력 79,338 / 출력 3,248 · 문항당 약 $0.0319
+  (참고) 근거 목록 기준 hit 6/10 · 되묻기 평균 2.5회
+  층별 hit: 법률 1/2 · 시행령 0/2 · 시행규칙 2/2 · 별표 1/2 · 행정규칙 2/2
+
+■ B 원문 직독(모아 둔 원문) — 10문항
+  답변 글 기준: hit 3 · partial 1 · miss_art 0 · miss 5 · clarify 0 · no_answer 1 · skipped 0
+  hit 비율 30% (hit+partial 40%) — 잰 10문항 기준
+  평균 13.0초 · 평균 토큰 입력 113,352 / 출력 2,319 · 문항당 약 $0.0398
+  층별 hit: 법률 1/2 · 시행령 0/2 · 시행규칙 0/2 · 별표 1/2 · 행정규칙 1/2
+
+■ C 법제처 API 만 — 10문항
+  답변 글 기준: hit 3 · partial 1 · miss_art 0 · miss 6 · clarify 0 · no_answer 0 · skipped 0
+  hit 비율 30% (hit+partial 40%) — 잰 10문항 기준
+  평균 21.6초 · 평균 토큰 입력 41,717 / 출력 1,980 · 문항당 약 $0.0175
+  법제처 API 호출 평균 6.3회 · 도구 사용 평균 6.1회 · 재시도 2회 · 끝내 실패 0회
+  층별 hit: 법률 1/2 · 시행령 0/2 · 시행규칙 0/2 · 별표 1/2 · 행정규칙 1/2
+
+문항별(A / B / C):
+  법률-01      hit / hit / hit
+  법률-02      miss / partial / partial
+  별표-01      hit / miss / miss
+  별표-02      partial / hit / hit
+  시행규칙-01    hit / miss / miss
+  시행규칙-02    hit / miss / miss
+  시행령-01     miss / miss / miss
+  시행령-02     miss_art / miss / miss
+  행정규칙-01    hit / no_answer / miss
+  행정규칙-02    hit / hit / hit
