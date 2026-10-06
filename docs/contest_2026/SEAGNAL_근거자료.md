@@ -13,8 +13,8 @@
 |---|---|---|---|
 | 총 설치자 | 1,800여 명 이상 | 사용자 제공 HWP 초안, 10/1 관리자 화면 | 코드에 "설치자"라는 지표 이름은 없음(`grep 설치자\|installCount` 0건). 가장 가까운 값은 FCM 구독자 수(`GET /api/push-subscriber-stats`, `local_server/routes/push.js:913`) |
 | 총 정보 제공 | 51,496회 이상 | 같음 | 기능별 사용 건수 `GET /api/stats/usage` (`routes/usage.js:296`)로 추정 |
-| 특보 알림 | 2,267회 · 708,471개 | 같음 | `GET /api/push-counter` → `data/push_counter.json` 의 `totalSends`(발송 횟수)·`totalCount`(받은 기기 수 합). 위치기반 발송도 같은 카운터에 더해짐(`location_alert_dispatch.js`) |
-| 제보 반영 | 16건 중 12건 | HWP 초안 | 이 문장은 5/28 기획서와 같은 숫자. 10/1 기준으로 다시 셀지 확인 필요 |
+| 특보 알림 | 2,267회 · 708,471개 | 같음 | `GET /api/push-counter` → `data/push_counter.json` 의 `totalSends`(발송 횟수)·`totalCount`(받은 기기 수 합). 위치기반 발송도 같은 카운터에 더해짐(`location_alert_dispatch.js`) — 10/1 값. 원고·소개는 10/6 값(2,316회·726,282개)으로 통일 |
+| 제보 반영 | 18건 중 13건 | 사용자 확정 (2026. 10. 6. 기준) | 종전 16건 중 12건은 5/28 기획서 숫자 |
 | 5/28 값 | 1,143명 구독, 방문 11,711, 526회·155,958개, 직군 분포 | 5/28 기획서 붙임 p.1 캡처 | |
 | 수상 | 2026 해양경찰청 AI 경진대회 개발·활용 부문 2등 | 사용자 제공 시상 보드 사진 (`images/S02-1_수상_해양경찰청AI경진대회.png`), 사용자 확정 2026. 10. 6. | 해커톤 수상은 사용자 결정으로 자료에서 뺌 |
 | 10. 6. 갱신값 | 알림 2,316회·726,282건, 구독자 1,347명, 유지율 주 99.8%·월 98.8%(전체 68.0%는 미사용), 설문 971명 직군·설치경로 | 사용자 제공 관리자 화면 캡처 5장 (`docs/contest_2026/ref/관리자_*_20261006.png`) | 저장소로는 검증 불가 |
@@ -72,7 +72,7 @@
 | **GPS '내 위치' 버튼 (전부)** | 숨김. 2026-09-09 위치정보법(위치기반서비스사업 신고) 대상에서 벗어나려고 주석 처리 | `client/index2.html:4023`(지도), `:5415`(해양안전생활 레일), 활동 지도 `:4760·4864·4958·5029·5113·5238`. 너울 `#swell-my-location-btn`(`:5311`)은 주석이 아니지만 `body.ls-mode .life-map-controls-topright{display:none}`(`:655`)로 가려지고, `ls-mode` 는 `life_safety.js:104` 에서 항상 켜짐 |
 | 위치기반 특보·태풍 반경 알림 | 관리자 단말 전용 | `client/js/location-alert/location_alert_ui.js:19, 123, 335-343, 415-421`. 앱 실행 시 자동 수집 경로(`capacitor-plugins.js:680-694`)도 관리자 토글로만 켜지는 값을 봄 |
 | 설정 "내 주변 바다 기상" | 죽은 코드 | `settings.js:983` 의 대상 버튼 `#my-location-btn` 이 마크업에 없음 |
-| **AI 법률 챗봇** | 운영값 `exposure: "admin"` (관리자만). 대회 기간에 공개 예정(사용자 확인) | `curl https://seagnal-server.fly.dev/api/legal/config` (2026-10-03 조회): `{"exposure":"admin","answerCanonicalOnly":true,...,"answerModel":"gpt-6-luna","codexForUsers":false}`. 표시 조건은 `ai_chat.js:2693-2704` |
+| **AI 법률 챗봇** | 운영값 `exposure: "admin"` (관리자만). API 비용 때문에 비공개 고도화 중, AI 실험실 VM 로컬 LLM 전환(무료) 때 일반 공개 예정 (사용자 확정 2026. 10. 6.) | `curl https://seagnal-server.fly.dev/api/legal/config` (2026-10-03 조회): `{"exposure":"admin","answerCanonicalOnly":true,...,"answerModel":"gpt-6-luna","codexForUsers":false}`. 표시 조건은 `ai_chat.js:2693-2704` |
 | 기상 음성 비서 「나리야」 | 앱 안에서는 관리자 전용 | 켜는 곳: 관리자센터 AI탭(`admin.js:775-779`), 별도 페이지 `client/assistant.html` |
 | 해역별 특보 예측(beta) | 숨김 | `index2.html:3199-3202, 3246` display:none, 서버 기본 `mode:'off'`(`advisory/displayControl.js:34`). 운영값은 미확인 |
 | 튜토리얼(77단계)·온보딩 관심해역 마법사 | 숨김. 공지 탭 5연타 시에만 열림 | `tutorial.js:64-65, 3497-3527` |
