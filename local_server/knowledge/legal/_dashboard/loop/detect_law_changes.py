@@ -49,6 +49,18 @@ import law_api_guard                 # law.go.kr 이 본문 대신 오류쪽을 
 LAYER_FILE = {"법률": "법률.txt", "시행령": "시행령.txt", "시행규칙": "시행규칙.txt"}
 
 
+# ★몇 번 묻고 몇 번 답을 받았나(3-80). 광역질의가 실패하면 `search_rows` 가 빈 목록을 돌려주는데,
+#   그것은 「최근 바뀐 것이 없다」와 **구별되지 않는다** — 망이 막힌 날에도 「개정 없음」으로 끝났다.
+#   하나도 답을 못 받았으면 끝에서 실패로 죽어, 서버(legal_amendment_scanner)가 「스캔 실패」로 적게 한다.
+API_STAT = {'ok': 0, 'fail': 0, 'why': {}}
+
+
+def _api_fail(why):
+    API_STAT['fail'] += 1
+    k = re.sub(r'OC=[^&\s]+', 'OC=…', str(why))[:160]
+    API_STAT['why'][k] = API_STAT['why'].get(k, 0) + 1
+
+
 def api(url):
     """DRF API 1회 호출(JSON). 3회까지 재시도하고 그래도 안 되면 None.
     예: api('https://www.law.go.kr/DRF/lawSearch.do?…') → {'LawSearch': {...}}
@@ -65,14 +77,16 @@ def api(url):
             with urllib.request.urlopen(req, timeout=40) as r:
                 body = r.read().decode('utf-8', 'replace')
             if body.lstrip()[:1] in '{[':
+                API_STAT['ok'] += 1
                 return json.loads(body)
             reason = law_api_guard.block_reason(body)
+            _api_fail('JSON 이 아닌 응답: ' + (reason or re.sub(r'<[^>]+>', ' ', body).strip()[:120] or '(빈 응답)'))
             if reason:
                 law_api_guard.announce(reason, url)
                 if law_api_guard.is_fatal(reason):
                     return None          # 재시도로 안 풀린다
-        except Exception:
-            pass
+        except Exception as e:
+            _api_fail('%s: %s' % (type(e).__name__, e))
         time.sleep(1.5)
     return None
 
@@ -481,6 +495,12 @@ def run(days, out=QUEUE):
     law_items, q1 = scan_laws(base, by_lawid, days)
     print(f"법령 광역질의 {q1}회 → 후보 {len(law_items)}건", flush=True)
     adm_items, q2 = scan_admruls(base, by_admrul, days, name_index)
+    if API_STAT['ok'] == 0:
+        # ★하나도 답을 못 받았다 — 「개정 없음」이 아니라 「확인 못 함」이다. 큐를 건드리지 않고 실패로 끝낸다.
+        why = ' / '.join('%s ×%d' % kv for kv in sorted(API_STAT['why'].items(), key=lambda kv: -kv[1])[:3])
+        print('❌ law.go.kr 이 한 번도 답하지 않았다(실패 %d회) — 개정 여부를 확인하지 못했다. 까닭: %s'
+              % (API_STAT['fail'], why or '기록 없음'), file=sys.stderr, flush=True)
+        sys.exit(2)
     unrelated = sum(1 for i in adm_items if i["kind"] == "admrul_unknown_new" and not i["related_laws"]
                     and i["evidence"].get("relevance") == "checked")
     print(f"행정규칙 광역질의 {q2}회 → 후보 {len(adm_items)}건 (신규 고시 중 우리 법과 무관 {unrelated}건 — "

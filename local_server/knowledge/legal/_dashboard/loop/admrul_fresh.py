@@ -38,6 +38,8 @@
 """
 import json, os, re, sys, time
 import urllib.request
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _fail_reasons                                 # 3-80 — 실패한 까닭을 버리지 않는다
 from urllib.parse import quote
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -155,7 +157,8 @@ def held_is_live(serial):
             b = (d.get('AdmRulService') or {}).get('행정규칙기본정보') or {}
             v = str(b.get('현행여부') or '').strip()
             return (v == 'Y') if v else None
-        except Exception:
+        except Exception as e:
+            _fail_reasons.note(e)
             time.sleep(1.5)
     return None
 
@@ -214,13 +217,15 @@ def api_current(title):
             with urllib.request.urlopen(req, timeout=25) as r:
                 body = r.read().decode('utf-8', 'replace')
             break
-        except Exception:
+        except Exception as e:
+            _fail_reasons.note(e)
             time.sleep(1.5)
     if body is None:
         return None, '응답없음', []
     try:
         d = json.loads(body)['AdmRulSearch']
     except Exception:
+        _fail_reasons.note_body(body)
         return None, '응답없음', []
     arr = d.get('admrul') or []
     if isinstance(arr, dict):
@@ -432,7 +437,8 @@ def main():
         prog.close()
 
     rep = {'checked': total, 'fresh': fresh, 'stale': stale, 'unknown': unknown,
-           'mismatch': mismatch, 'future_held': future_held, 'rows': rows}
+           'mismatch': mismatch, 'future_held': future_held,
+           'fail_reasons': _fail_reasons.top(), 'rows': rows}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(rep, f, ensure_ascii=False, indent=1)

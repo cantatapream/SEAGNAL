@@ -53,6 +53,8 @@ import glob
 import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _fail_reasons                                 # 3-80 — 실패한 까닭을 버리지 않는다
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
@@ -69,9 +71,14 @@ def api(url, tries=3):
     for i in range(tries):
         try:
             with urllib.request.urlopen(req, timeout=30) as r:
-                return json.loads(r.read().decode('utf-8', 'replace'))
-        except Exception:
-            time.sleep(1.5 + i)
+                body = r.read().decode('utf-8', 'replace')
+            try:
+                return json.loads(body)
+            except ValueError:
+                _fail_reasons.note_body(body)       # 오류 쪽 HTML 이 왔다 — 첫 글자를 까닭으로 남긴다
+        except Exception as e:
+            _fail_reasons.note(e)
+        time.sleep(1.5 + i)
     return None
 
 
@@ -288,6 +295,7 @@ def main():
     unknown = sum(1 for r in rows if r['verdict'] == '조회실패')
     rep = {'checked': len(targets), 'fresh': fresh, 'stale': stale, 'unknown': unknown,
            '2차에_열린_줄': sum(1 for r in rows if r.get('2차에_열렸다')),
+           'fail_reasons': _fail_reasons.top(),
            'basis_date': today, 'rows': rows}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, 'w', encoding='utf-8') as f:
