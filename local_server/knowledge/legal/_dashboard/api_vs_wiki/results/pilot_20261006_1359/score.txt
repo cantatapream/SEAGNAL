@@ -1,0 +1,20 @@
+결과 폴더: /home/runner/work/SEAGNAL/SEAGNAL/local_server/knowledge/legal/_dashboard/api_vs_wiki/results/pilot_20261006_1359
+
+■ C 법제처 API 만 — 10문항
+  답변 글 기준: hit 4 · partial 1 · miss_art 1 · miss 4 · clarify 0 · no_answer 0 · skipped 0
+  hit 비율 40% (hit+partial 50%) — 잰 10문항 기준
+  평균 35.9초 · 평균 토큰 입력 41,614 / 출력 1,641 · 문항당 약 $0.0166
+  법제처 API 호출 평균 7.1회 · 도구 사용 평균 5.1회 · 재시도 9회 · 끝내 실패 0회
+  층별 hit: 법률 0/2 · 시행령 1/2 · 시행규칙 1/2 · 별표 2/2 · 행정규칙 0/2
+
+문항별(A / B / C):
+  법률-01      - / - / miss_art
+  법률-02      - / - / partial
+  별표-01      - / - / hit
+  별표-02      - / - / hit
+  시행규칙-01    - / - / miss
+  시행규칙-02    - / - / hit
+  시행령-01     - / - / miss
+  시행령-02     - / - / hit
+  행정규칙-01    - / - / miss
+  행정규칙-02    - / - / miss
