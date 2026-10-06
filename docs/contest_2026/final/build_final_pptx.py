@@ -15,8 +15,9 @@ K = 2  # 덧붙일 그림 해상도 배율
 
 # mode: cover(꽉 채우고 넘치는 부분 자름, anchor top/center) | contain(전체가 보이게, 남는 곳 배경색)
 # r: 모서리 둥글기(px, 1376 기준)  fade: 아래쪽 흐려짐 높이(px)
-def P(box, f, mode='cover', anchor='top', r=14, fade=0, bg=None, pad=0):
-    return dict(box=box, f=f, mode=mode, anchor=anchor, r=r, fade=fade, bg=bg, pad=pad)
+def P(box, f, mode='cover', anchor='top', r=14, fade=0, bg=None, pad=0, sy=None):
+    # sy: cover 일 때 원본 그림에서 이 y(px)부터 보이게 (보여 줄 부분 지정)
+    return dict(box=box, f=f, mode=mode, anchor=anchor, r=r, fade=fade, bg=bg, pad=pad, sy=sy)
 
 L = {
  1: [P((632, 52, 744, 165), 'logo_SEAGNAL_앱아이콘.png', r=12)],
@@ -45,8 +46,8 @@ L = {
  18: [P((318, 144, 436, 368), 'S09-2_해양종합정보탭.png', r=14),
       P((630, 144, 746, 368), 'S18-2_유향유속.png', r=14),
       P((940, 144, 1058, 368), 'S18-3_파고파향.png', r=14)],
- 20: [P((228, 212, 628, 406), 'S20-1_태풍_기상청.png', r=30, fade=40),
-      P((750, 212, 1147, 406), 'S20-2_태풍_JMA.png', r=30, fade=40)],
+ 20: [P((228, 212, 628, 406), 'S20-1_태풍_기상청.png', r=30, fade=24, sy=525),
+      P((750, 212, 1147, 406), 'S20-2_태풍_JMA.png', r=30, fade=24, sy=556)],
  21: [P((110, 160, 420, 598), 'S09-3_해양안전_사고분석.png', r=30)],
  22: [P((408, 214, 598, 574), 'S22-1_위험지형_잠김경고.png', r=22),
       P((778, 214, 964, 574), 'S22-3_물빠짐_예측팝업.png', r=22)],
@@ -91,6 +92,8 @@ def render(slide, p):
         im = src.resize((round(src.width * s), round(src.height * s)), Image.LANCZOS)
         ox = (im.width - bw) // 2
         oy = 0 if p['anchor'] == 'top' else (im.height - bh) // 2
+        if p['sy'] is not None:
+            oy = max(0, min(im.height - bh, round(p['sy'] * s)))
         im = im.crop((ox, oy, ox + bw, oy + bh))
         canvas = Image.new('RGBA', (bw, bh), (0, 0, 0, 255))
         canvas.alpha_composite(im.convert('RGBA'))
