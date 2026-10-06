@@ -43,7 +43,7 @@
  *                    GET  /api/legal/freshness?status=pending  (원문신선도 — 낡은 행정규칙 원문 목록
  *                                                               + last: 마지막 점검이 언제·어떻게 끝났나)
  *                    POST /api/legal/freshness/:id/decide       (처리완료/해당없음)
- *                    POST /api/legal/freshness/scan-now         (즉시 1회 점검, 백그라운드 20~30분)
+ *                    POST /api/legal/freshness/scan-now         (즉시 1회 점검, 백그라운드 약 1시간 — 행정규칙·법령·조례)
  *                    GET  /api/legal/mok-audit?status=pending  (원문결손 — 조문 목·고시 별표가
  *                                                              빠진 목록 + 마지막 점검 상태)
  *                    POST /api/legal/mok-audit/:id/decide       (처리완료/해당없음)
@@ -1964,8 +1964,12 @@
       : '<span class="nrya-rv-st nrya-warn">' + ((it.verdict === '이름바뀜의심') ? '이름 바뀜 의심' : '구버전') + '</span>';
     var cur = it.current || {};
     var held = (it.held_ids || []).join(', ');
-    var link = 'https://www.law.go.kr/admRulSc.do?menuId=5&query=' + encodeURIComponent(it.title || '');
     var tier = it.tier || '행정규칙';
+    // ★조례(3-78)는 일련번호가 아니라 **시행일**로 견준다(우리 머리말에 일련번호가 없는 파일이 많다).
+    var isOrdin = tier.indexOf('조례') === 0;
+    var link = isOrdin
+      ? 'https://www.law.go.kr/자치법규/' + encodeURIComponent(it.title || '')
+      : 'https://www.law.go.kr/admRulSc.do?menuId=5&query=' + encodeURIComponent(it.title || '');
     // 시행예정 판이 있으면 알려 준다 — **결함이 아니라 "곧 이렇게 바뀐다"는 예고다.**
     var pend = (it.pending || []).length
       ? '<div class="nrya-rv-field"><div class="nrya-rv-flab">📅 시행예정</div><div class="nrya-rv-fval">' +
@@ -1980,7 +1984,7 @@
           '<ul style="margin:4px 0 0;padding-left:18px">' + cands.map(function (c) {
             return '<li style="margin:2px 0">「' + esc(c.name) + '」<br>' +
               '<span style="font-size:11.5px;color:var(--nrya-text-sub)">일련 ' + esc(c.serial) +
-              ' · 발령 ' + esc(c.issued) + '</span></li>'; }).join('') + '</ul>' +
+              (isOrdin ? ' · ' + esc(c.org || '') + ' · 시행 ' : ' · 발령 ') + esc(c.issued) + '</span></li>'; }).join('') + '</ul>' +
           '<span style="font-size:11.5px;color:var(--nrya-text-sub)">⚠후보일 뿐입니다. 이름이 비슷해도 다른 문서일 수 있어요 — ' +
           '소관 기관과 적용 대상(구역·단지)이 같은지 본문으로 대조한 뒤에 판단하세요.</span></div></div>'
       : '';
@@ -2006,7 +2010,11 @@
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">📚 계열</div><div class="nrya-rv-fval">' + esc(tier) + '</div></div>' +
         '<div class="nrya-rv-field"><div class="nrya-rv-flab">🔢 어떻게 낡았나</div><div class="nrya-rv-fval">' +
           (cands.length
-            ? '우리가 가진 일련번호 <b>' + esc(held || '?') + '</b>. 이 이름으로는 <b>현행 목록에서 못 찾았습니다</b> — 이름이 바뀌었을 수 있습니다(아래 후보 참고).'
+            ? (isOrdin ? '우리 파일 시행일 <b>' + esc(it.file_eff || '?') + '</b>' : '우리가 가진 일련번호 <b>' + esc(held || '?') + '</b>') +
+              '. 이 이름으로는 <b>현행 목록에서 못 찾았습니다</b> — 이름이 바뀌었을 수 있습니다(아래 후보 참고).'
+            : isOrdin
+            ? '우리 파일 시행일 <b>' + esc(it.file_eff || '?') + '</b> → 현행 시행일 <b>' + esc(cur.issued || '?') + '</b>' +
+              (cur.serial ? '<br>현행 자치법규일련번호 ' + esc(cur.serial) + (cur.no ? ' · 공포번호 ' + esc(cur.no) : '') : '')
             : '우리가 가진 일련번호 <b>' + esc(held || '?') + '</b> → 현행 <b>' + esc(cur.serial || '?') + '</b>' +
               (cur.issued ? '<br>현행 발령일자 ' + esc(cur.issued) + (cur.no ? ' · 발령번호 ' + esc(cur.no) : '') : '')) +
         '</div></div>' +
@@ -2026,7 +2034,7 @@
   }
 
   /**
-   * 원문신선도 방: 상단 "지금 점검" 버튼(정기 점검과 별개로 즉시 1회, 백그라운드 20~30분) + 목록.
+   * 원문신선도 방: 상단 "지금 점검" 버튼(정기 점검과 별개로 즉시 1회, 백그라운드 약 1시간 — 조례 416건이 3-78 에 더해졌다) + 목록.
    * 처리완료로 표시해도 재수집·위키수정은 여기서 자동 실행하지 않는다(사람이 직접 한다).
    * @param {HTMLElement} host
    */
@@ -2050,7 +2058,7 @@
         if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '점검 시작 실패'; } return; }
         var listHost = document.getElementById('nryaFreshListHost');
         if (listHost) {
-          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 점검이 시작됐습니다. 행정규칙 653건 + 법령 222건을 하나씩 대조하느라 30~40분 걸립니다 — 나중에 이 방을 다시 열어 확인해 주세요.</div>');
+          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 점검이 시작됐습니다. 행정규칙 653건 + 법령 222건 + 조례 416건을 하나씩 대조하느라 1시간 가까이 걸립니다 — 나중에 이 방을 다시 열어 확인해 주세요.</div>');
         }
       }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
     };
