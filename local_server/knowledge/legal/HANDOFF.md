@@ -1531,6 +1531,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-07 03:36 KST] ✅완료 — 3-83 원문결손 방에 「📋 대기 전체 지시문」 · 고시 별표 점검이 운영에서 curl 없어 죽던 것
+사장님 「원문결손에도 개정검토처럼 전체 지시문 복사」. services/mok_brief.js + GET /api/legal/mok-audit/brief-all(관리자·대기만) + 방 위 버튼(renderBriefBox). 글: 한눈에 보기 표 · 건별 어디가 빈가(40 넘으면 자르고 적음) · 종류별 할 일 한 번 · 발췌 의심(15_관련타부처·연결조문) · 해당없음도 선언 없는 발췌본은 다시 뜬다는 사실 · 끝에 건마다 판정표(관리자가 그대로 누름). 같은 화면의 「고시 별표: FileNotFoundError 'curl'」 — 운영 이미지에 curl 없음 → admrul_annex_survey 가 curl 없으면 urllib · Dockerfile curl + 빌드 확인. test_mok_brief 23. 라우트 실제 호출 확인. L-403 덧붙임. 배포 뒤 원문결손 「지금 점검」 다시 → 고시 별표 부분도 돌아야 정상.
+
+
 ### [2026-10-07 03:17 KST] ✅완료 — 3-82 승인한 개정을 종류 가리지 않고 한 명령으로 받는다 — 행정규칙·시행 중 법령이 승인해도 안 받히던 것
 사장님 「행정규칙도 관련성이 있으면 함께 수집되어야」. 인계문 1단계 collect_pending_law.py --all-approved 는 law_pending 만 받고 admrul_amended·admrul_unknown_new·law_amended 는 ⏭️ 대상 아님 · 작업 세션은 운영 승인을 못 봄(로컬 큐 사본). 고침: collect_approved.py — 예고본 collect_item · 시행 중 recollect_tier.do_one · 가진 고시 admrul_recollect_stale.refresh_file(떼어 냄, 안전장치 그대로) · 새 고시는 관련 법 하나면 그 법 행정규칙/, 여럿이면 --place(G-34). 시행 전·묶음 파일·같은 제목·우리 사본이 더 새 판은 보류/이미 현행+까닭. 인계문 끝 수집 목록(collect-manifest) + 1단계 --from-brief. 옛 자는 안 받는 승인분 수를 말함. test_collect_approved 26 · test_wiki_brief_bulk 갱신. 실데이터 --dry 3건 확인. L-404. 다음: 인계문 다시 뽑아 44건 실제 수집·위키 반영(사장님 결정).
 
