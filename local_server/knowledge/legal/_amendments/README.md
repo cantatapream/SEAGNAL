@@ -44,8 +44,8 @@
 (`fly.toml` mounts), 서버가 `raw/` 나 `wiki/` 에 새 파일을 써도 **다음 배포 때 사라진다.**
 그래서 재수집·위키 수정은 **작업 세션**이 해서 저장소에 커밋해야 한다:
 ```
-python3 _dashboard/loop/collect_pending_law.py --all-approved   # 예고본 내려받기(승인된 것만)
-python3 _dashboard/loop/collect_pending_law.py --verify         # 받은 것이 맞는지 재조회 대조
+python3 _dashboard/loop/collect_approved.py --from-brief <인계문 파일>   # ★승인분 전부(법령·행정규칙) — 3-82
+python3 _dashboard/loop/collect_pending_law.py --verify         # 받은 예고본이 맞는지 재조회 대조
 #   → 위키에 시행일 마커 반영(사서) → lint → 커밋 → 배포
 python3 _dashboard/loop/fold_effective.py                        # 시행일이 지난 뒤 정리(승격·마커 접기)
 ```
@@ -59,6 +59,17 @@ python3 _dashboard/loop/fold_effective.py                        # 시행일이 
   ⚠법 이름을 함께 보지 않으면 `제2조` 하나로 다른 법 페이지 수십 쪽이 딸려 온다(2026-09-10 실측 43쪽).
 - 시행 전이면 §10 시행일 마커를 쓰라고, 이미 시행 중이면 본문을 직접 고치라고 글이 알려 준다.
 - 큐에 없는 내용은 쓰지 않는다 — 본문을 못 받았으면 "받지 못했다"고 적는다.
+
+**승인분 수집은 종류를 가리지 않는다 (2026-10-07 · 3-82 — 사장님 「행정규칙도 관련성이 있으면 함께 수집되어야」)**
+종전 1단계 `collect_pending_law.py --all-approved` 는 **시행예정 법령(`law_pending`)만** 받고 나머지 승인분
+(가진 고시의 새 판 `admrul_amended` · 우리 법을 인용하는 새 고시 `admrul_unknown_new` · 시행 중 법령 개정
+`law_amended`)은 `⏭️ 대상 아님` 으로 건너뛰었다 — 승인해도 **아무도 안 받았다.** 이제 `collect_approved.py` 가
+종류마다 이미 있는 자를 부른다: 예고본 → `collect_pending_law` · 시행 중 법령 → `recollect_tier.do_one` ·
+가진 고시 → `admrul_recollect_stale.refresh_file`(같은 판번호 파일 전부) · 새 고시 → 관련 법이 **하나**면 그 법
+`행정규칙/`(둘 이상이면 기계가 고르지 않는다 — `--place <id>=<법slug>`). 시행 전 고시·사람 손 흔적이 사라지는 판·
+같은 제목 파일이 이미 있는 새 고시는 **보류하고 까닭을 적는다.** 결과 `_dashboard/collect_approved_report.json`.
+인계문 끝의 **수집 목록**(`<!-- collect-manifest:start -->`)이 운영 서버의 승인분을 작업 세션에 넘긴다 —
+아래 ⚠ 의 「작업 컴퓨터는 승인을 못 본다」 를 이것으로 메운다.
 
 ⚠**작업 컴퓨터는 실서비스의 승인을 바로 보지 못한다.** 승인은 폰(실서비스 볼륨)에 남고, 작업
 컴퓨터가 읽는 것은 자기 사본이다. 그래서 실무는 둘 중 하나다 — ①승인한 카드의 id 를 알려 주고

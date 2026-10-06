@@ -1531,6 +1531,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-07 03:17 KST] ✅완료 — 3-82 승인한 개정을 종류 가리지 않고 한 명령으로 받는다 — 행정규칙·시행 중 법령이 승인해도 안 받히던 것
+사장님 「행정규칙도 관련성이 있으면 함께 수집되어야」. 인계문 1단계 collect_pending_law.py --all-approved 는 law_pending 만 받고 admrul_amended·admrul_unknown_new·law_amended 는 ⏭️ 대상 아님 · 작업 세션은 운영 승인을 못 봄(로컬 큐 사본). 고침: collect_approved.py — 예고본 collect_item · 시행 중 recollect_tier.do_one · 가진 고시 admrul_recollect_stale.refresh_file(떼어 냄, 안전장치 그대로) · 새 고시는 관련 법 하나면 그 법 행정규칙/, 여럿이면 --place(G-34). 시행 전·묶음 파일·같은 제목·우리 사본이 더 새 판은 보류/이미 현행+까닭. 인계문 끝 수집 목록(collect-manifest) + 1단계 --from-brief. 옛 자는 안 받는 승인분 수를 말함. test_collect_approved 26 · test_wiki_brief_bulk 갱신. 실데이터 --dry 3건 확인. L-404. 다음: 인계문 다시 뽑아 44건 실제 수집·위키 반영(사장님 결정).
+
+
 ### [2026-10-07 01:12 KST] ✅완료 — 3-81 운영 서버 파이썬 인증서 저장소가 비어 law.go.kr 을 한 번도 못 열던 것 — Dockerfile ca-certificates
 3-80 이 남긴 까닭: CERTIFICATE_VERIFY_FAILED self-signed certificate in certificate chain ×54(개정감지 10-07 01:04). law.go.kr 인증서 정상(GlobalSign Root R3, SSL Labs). node:20-slim 이 ca-certificates 를 지워 파이썬만 빈 저장소 — Node 는 내장 목록이라 멀쩡. Dockerfile 에 ca-certificates + 저장소 비면 빌드 실패 단언. 검증 끄지 않음. 개정감지 실패 푸시 문장 중복 정리. test_scan_fail_honest F6. L-403. 배포 뒤 「지금 스캔」 으로 확인 — 법령 7건 카드가 떠야 정상.
 

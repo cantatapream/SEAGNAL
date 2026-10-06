@@ -122,13 +122,13 @@ console.log('\n── 위키 반영 지시문(단건·일괄) ──');
     past.text.includes('마커를 쓰지 않는다') && !past.text.includes('<!--시행전'), past.text.slice(-1200));
 }
 
-// ── ⑥ 재수집 명령은 일괄에서 `--all-approved` 한 줄이다 ──────────────────────
+// ── ⑥ 재수집 명령은 수집 목록을 읽는 한 줄이다 (3-82) ──────────────────────
 {
   const r = W.buildBulkWikiBrief([item({ id: 'e1', law: '어선법', eff: '20261201', arts: [art(10, '가', '옛', '새')] })], TODAY);
-  ok('T-bulk-17 일괄본은 --all-approved 로 한 번에 받으라고 적는다',
-    r.text.includes('collect_pending_law.py --all-approved'), r.text.slice(-1600));
-  ok('T-bulk-18 --all-approved 가 0건일 때의 대안(큐 id 직접 지정)도 함께 적는다',
-    r.text.includes('collect_pending_law.py <id>'));
+  ok('T-bulk-17 일괄본은 collect_approved.py --from-brief 로 법령·행정규칙을 한 번에 받으라고 적는다(3-82)',
+    r.text.includes('collect_approved.py --from-brief') && !r.text.includes('collect_pending_law.py --all-approved'), r.text.slice(-1600));
+  ok('T-bulk-18 보류·실패는 받지 않은 것이라고, 관련 법이 여럿인 새 고시는 --place 로 정한다고 적는다',
+    r.text.includes('받지 않은 것이다') && r.text.includes('--place <큐id>=<법slug>'));
   ok('T-bulk-19 검사(verify_all.sh)와 「나빠진 문항 0」 기준을 적는다',
     r.text.includes('verify_all.sh') && r.text.includes('나빠진 문항이 0'));
   ok('T-bulk-20 커밋 규칙(git add -A 금지)을 적는다', r.text.includes('`git add -A` 금지'));
@@ -140,8 +140,8 @@ console.log('\n── 위키 반영 지시문(단건·일괄) ──');
   ok('T-brief-1 단건본은 「위키 반영 요청 — <법령명>」으로 시작한다',
     one.ok && one.text.startsWith('# 위키 반영 요청 — 어선법 법률 (시행 2026-12-01)'), one.text.slice(0, 120));
   ok('T-brief-2 단건본에도 개정 전/후가 그대로 실린다', one.text.includes('옛 본문') && one.text.includes('새 본문'));
-  ok('T-brief-3 단건본의 재수집 명령은 그 건의 id 를 직접 준다',
-    one.text.includes('collect_pending_law.py f1'), one.text.slice(-1200));
+  ok('T-brief-3 단건본도 끝에 그 건 하나의 수집 목록을 싣고 collect_approved.py 로 받으라고 적는다(3-82)',
+    one.text.includes('collect_approved.py --from-brief') && /"id":"f1"/.test(one.text), one.text.slice(-1200));
   ok('T-brief-4 단건본은 pages 배열을 함께 돌려준다', Array.isArray(one.pages));
   const none = W.buildWikiBrief(null, TODAY);
   ok('T-brief-5 항목이 없으면 던지지 않고 ok:false 를 준다', none.ok === false);
