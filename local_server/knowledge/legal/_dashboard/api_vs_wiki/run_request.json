@@ -1,6 +1,6 @@
 {
  "_note": "이 파일이 바뀐 push 에서만 .github/workflows/api-vs-wiki-run.yml 이 실험을 돌리고 결과를 results/ 에 커밋한다. set: pilot(10문항) | main(40문항).",
  "set": "pilot",
- "arms": "a b c",
- "requested": "2026-10-06 사용자 지시 「해당 키로 그냥 바로 진행해줘. 26_8로」 · 「방법 1 허락함」"
+ "arms": "c",
+ "requested": "2026-10-06 사용자 지시 「API 방식이 더 법을 잘 찾고 고친다음 비교해볼까? 원인부터 확인하고.」 — C 2회차(본문 검색·부처 우선·관련성 확인)만 다시"
 }

@@ -27,6 +27,8 @@ const OC = process.env.LAW_OC || 'hyoo1431';
 const TRIES = 6;              // 이 환경에서 연결이 중간에 끊기는 일이 있어(실측: 5연속 끊김도 봤다) 재시도한다
 const TIMEOUT_MS = 40000;
 const MAX_TOOL_CHARS = 20000; // 도구 결과 한 번의 상한 — AI 에게 너무 큰 덩어리를 주지 않는다
+// 소관부처 코드(법제처 검색 응답의 「소관부처코드」 실측: 어선법=1192000, 해양경비법=1532000)
+const ORG = { mof: '1192000', kcg: '1532000' };
 
 /**
  * 도구 상태(호출 수 등)를 담는 새 세션을 만든다. 질문마다 하나씩 만든다 — 질문끼리 캐시를
@@ -141,6 +143,26 @@ const tools = {
     return list.slice(0, 20).map(x => `${x.name} [${x.kind}·${x.dept}]`).join('\n');
   },
 
+  /**
+   * 본문 검색(2회차 추가, 2026-10-06): 법 **이름**이 아니라 **조문 본문**에 그 낱말이 있는 법령을 찾는다.
+   * [왜] 시험 10문항에서 C 가 틀린 원인 — 질문 속 「검수사」「해상특수경비원」「수상구조사」는 이름 검색으로
+   *   0건이고(실측), 본문 검색으로는 맞는 법이 나온다. 다만 본문 검색은 **가나다순 100건까지만** 주고
+   *   (「이동조치」 1,365건 → 해양경비법이 100건 밖), 관련도 정렬이 없다. 그래서 소관 부처 필터(org)로
+   *   해양수산부·해양경찰청 소관을 먼저 따로 받는다(「지도사」를 해경으로 거르면 수색구조법이 1순위 — 실측).
+   *   다른 부처 법(출입국관리법·질서위반행위규제법 등)도 답이 될 수 있어 전체 결과도 함께 보인다.
+   */
+  async search_text(s, { query }) {
+    const one = async org => {
+      const j = await drf(s, 'lawSearch.do', { target: 'law', query, search: '2', display: '30', ...(org ? { org } : {}) });
+      const r = (j && j.LawSearch) || {};
+      return { total: r.totalCnt || '0', list: arr(r.law).map(x => `${x['법령명한글']} [${x['소관부처명']}]`) };
+    };
+    const [mof, kcg, all] = await Promise.all([one(ORG.mof), one(ORG.kcg), one(null)]);
+    const block = (title, r) => `[${title} — 총 ${r.total}건]\n${r.list.length ? r.list.join('\n') : '(없음)'}`;
+    return clip([block('해양수산부 소관', mof), block('해양경찰청 소관', kcg),
+      block('전체 부처(가나다순 앞 30건만 — 많으면 낱말을 더 구체적으로)', all)].join('\n\n'));
+  },
+
   /** 목차: 그 법령의 조 번호·제목 전부와 별표 제목 목록(본문은 안 준다 — 가볍다). */
   async law_toc(s, { law_name }) {
     const { law, cands } = await loadLaw(s, law_name);
@@ -215,12 +237,22 @@ const tools = {
     return clip(lines.length ? [...new Set(lines)].join('\n') : `「${law_name}」 ${article || ''} 에서 위임된 곳이 없다`);
   },
 
-  /** 행정규칙(고시·훈령·예규) 검색. */
+  /**
+   * 행정규칙(고시·훈령·예규) 검색 — 이름 검색 + 본문 검색(2회차 추가)을 합쳐, 해양수산부·해양경찰청 소관을 앞에 둔다.
+   * [왜] 「검수사」는 이름 검색 0건, 본문 검색이면 「항만운송업무 처리지침」이 나온다(실측).
+   */
   async search_admin_rule(s, { query }) {
-    const j = await drf(s, 'lawSearch.do', { target: 'admrul', query, display: '20' });
-    const list = arr(j && j.AdmRulSearch && j.AdmRulSearch.admrul);
-    if (!list.length) return `「${query}」 행정규칙 검색 결과 없음`;
-    return list.map(x => `${x['행정규칙명']} [${x['행정규칙종류']}·${x['소관부처명']}·시행 ${x['시행일자']}]`).join('\n');
+    const get = async search => {
+      const j = await drf(s, 'lawSearch.do', { target: 'admrul', query, display: '30', ...(search ? { search } : {}) });
+      return arr(j && j.AdmRulSearch && j.AdmRulSearch.admrul);
+    };
+    const [byName, byText] = await Promise.all([get(null), get('2')]);
+    const seen = new Set();
+    const list = byName.concat(byText).filter(x => !seen.has(x['행정규칙일련번호']) && seen.add(x['행정규칙일련번호']));
+    if (!list.length) return `「${query}」 행정규칙 검색 결과 없음(이름·본문 모두)`;
+    const mar = x => /해양수산부|해양경찰청|지방해양수산청/.test(x['소관부처명'] || '') ? 0 : 1;
+    list.sort((a, b) => mar(a) - mar(b));
+    return clip(list.slice(0, 30).map(x => `${x['행정규칙명']} [${x['행정규칙종류']}·${x['소관부처명']}·시행 ${x['시행일자']}]`).join('\n'));
   },
 
   /** 행정규칙 본문: 이름이 정확히 같은 현행 행정규칙의 조문 전체(크면 앞부분만). */
@@ -244,12 +276,13 @@ const tools = {
 const S = (props, req) => ({ type: 'OBJECT', properties: props, required: req });
 const STR = d => ({ type: 'STRING', description: d });
 const declarations = [
-  { name: 'search_law', description: '키워드로 법률·시행령·시행규칙의 정식 이름을 찾는다.', parameters: S({ query: STR('법령 이름 또는 그 일부') }, ['query']) },
+  { name: 'search_law', description: '법령 **이름**으로 법률·시행령·시행규칙을 찾는다(이름에 그 낱말이 있어야 나온다).', parameters: S({ query: STR('법령 이름 또는 그 일부') }, ['query']) },
+  { name: 'search_text', description: '조문 **본문**에 그 낱말이 들어 있는 법령을 찾는다. 질문에 법 이름이 없을 때 제도명·자격명·전문용어로 찾는다. 해양수산부·해양경찰청 소관 결과를 따로 먼저 보여 준다.', parameters: S({ query: STR('본문에 나올 만한 구체적인 낱말(예: 수상구조사, 해상특수경비원)') }, ['query']) },
   { name: 'law_toc', description: '법령의 조문 목차(조 번호·제목)와 별표 목록을 본다. 본문은 주지 않는다.', parameters: S({ law_name: STR('정식 법령명(예: 어선법 시행규칙)') }, ['law_name']) },
   { name: 'get_articles', description: '법령의 특정 조문 본문을 원문 그대로 받는다.', parameters: S({ law_name: STR('정식 법령명'), articles: { type: 'ARRAY', items: STR('조문(예: 제13조, 제16조의2)'), description: '읽을 조문들' } }, ['law_name', 'articles']) },
   { name: 'get_annex', description: '법령의 별표 본문(표 내용)을 받는다.', parameters: S({ law_name: STR('정식 법령명'), annex_no: STR('별표 번호(예: 4, 1의2)') }, ['law_name', 'annex_no']) },
   { name: 'delegations', description: '법령 조문이 시행령·시행규칙·고시(행정규칙)의 어디에 세부사항을 위임했는지 본다.', parameters: S({ law_name: STR('정식 법령명'), article: STR('조문(예: 제13조). 비우면 그 법령 전체') }, ['law_name']) },
-  { name: 'search_admin_rule', description: '고시·훈령·예규·지침 등 행정규칙의 이름을 찾는다.', parameters: S({ query: STR('행정규칙 이름 또는 그 일부') }, ['query']) },
+  { name: 'search_admin_rule', description: '고시·훈령·예규·지침 등 행정규칙을 이름과 본문으로 찾는다.', parameters: S({ query: STR('행정규칙 이름이나 본문에 나올 낱말') }, ['query']) },
   { name: 'get_admin_rule', description: '행정규칙 본문을 받는다(이름이 정확해야 한다).', parameters: S({ rule_name: STR('정확한 행정규칙명') }, ['rule_name']) },
 ];
 

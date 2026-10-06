@@ -128,12 +128,19 @@ async function armB(q) {
 const MAX_STEPS = 15;
 const C_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 이번에는 미리 정리된 자료가 **없다.**
 주어진 도구로 법제처 국가법령정보센터에서 법령 원문을 **직접 찾아 읽고** 답한다.
-찾는 순서(권장): ①search_law·search_admin_rule 로 법령 이름 확인 → ②law_toc 로 목차를 보고 관련 조문을 고른다
-→ ③get_articles 로 조문 원문을 읽는다 → ④조문이 "대통령령·해양수산부령·고시로 정한다"고 넘기면 delegations 로
-위임받은 시행령·시행규칙·고시를 찾아 get_articles·get_annex·get_admin_rule 로 끝까지 따라간다.
+찾는 순서(권장): ①법령 찾기 — 질문에 법 이름이 있으면 search_law, **없으면 search_text 로 질문 속 제도명·자격명·
+전문용어(예: 수상구조사, 해상특수경비원, 검수사)를 본문 검색**한다. 고시·지침이면 search_admin_rule. 이 챗봇은 해양수산
+분야라 해양수산부·해양경찰청 소관 후보를 먼저 보되, 다른 부처 법이 맞으면 그 법을 쓴다
+→ ②law_toc 로 목차를 보고 관련 조문을 고른다 → ③get_articles 로 조문 원문을 읽는다
+→ ④조문이 "대통령령·해양수산부령·고시로 정한다"고 넘기면 delegations 로 위임받은 시행령·시행규칙·고시를 찾아
+get_articles·get_annex·get_admin_rule 로 끝까지 따라간다.
+★답하기 전에 확인한다: 읽은 조문이 **질문의 핵심 낱말과 상황을 실제로 다루는가.** 이름만 비슷한 다른 제도(예: 질문은
+수상구조사의 「지도사」인데 찾은 것은 「경영지도사」)라면 그 법으로 답하지 말고 다시 찾는다. 끝내 못 찾으면 지어내지 말고
+"확인되지 않습니다"라고 답한다 — 엉뚱한 법으로 자신 있게 답하는 것이 가장 나쁘다.
 도구로 받은 원문만이 아래 규칙에서 말하는 [근거자료]다. 원문을 충분히 읽었으면 도구를 그만 부르고 답을 쓴다.
 
 `;
+const C_VERSION = 2;   // 1 = 시험 1회차(이름 검색만) · 2 = 본문 검색·부처 우선·관련성 확인 추가(2026-10-06)
 let genai = null;
 async function armC(q) {
   if (!genai) {
@@ -171,7 +178,7 @@ async function armC(q) {
     }
     contents.push({ role: 'user', parts: responses });
   }
-  return { answer, steps, api: s.stats, tokens: tok };
+  return { answer, steps, api: s.stats, tokens: tok, c_version: C_VERSION };
 }
 
 // ============================================================================
