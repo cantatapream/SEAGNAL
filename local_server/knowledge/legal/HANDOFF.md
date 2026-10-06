@@ -1531,6 +1531,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-07 01:12 KST] ✅완료 — 3-81 운영 서버 파이썬 인증서 저장소가 비어 law.go.kr 을 한 번도 못 열던 것 — Dockerfile ca-certificates
+3-80 이 남긴 까닭: CERTIFICATE_VERIFY_FAILED self-signed certificate in certificate chain ×54(개정감지 10-07 01:04). law.go.kr 인증서 정상(GlobalSign Root R3, SSL Labs). node:20-slim 이 ca-certificates 를 지워 파이썬만 빈 저장소 — Node 는 내장 목록이라 멀쩡. Dockerfile 에 ca-certificates + 저장소 비면 빌드 실패 단언. 검증 끄지 않음. 개정감지 실패 푸시 문장 중복 정리. test_scan_fail_honest F6. L-403. 배포 뒤 「지금 스캔」 으로 확인 — 법령 7건 카드가 떠야 정상.
+
+
 ### [2026-10-07 00:15 KST] ✅완료 — 3-80 하나도 확인 못 한 점검이 「이상 없음」 으로 보이던 것 — 실패로 적고 까닭을 남기고 알린다
 사장님 화면: 운영 원문신선도 「10.04 · 848건 대조 · 응답없음 848건」 아래 「✅ 낡은 원문이 없습니다」. law.go.kr 조회가 전부 실패했는데 ok:true · 실패 까닭은 버려짐. 같은 결: 매일 개정감지(광역질의 실패 = 빈 목록 = 개정 없음) · 원문결손(전부 응답없음도 ok) · 「원문결손」 배지 undefined(화면이 mokAudit 칸을 안 옮겨 담음). 고침: _fail_reasons.py(신선도 점검 셋이 실패 까닭을 보고서 fail_reasons 에) · admrul_fresh_scanner.partFailure(하나도 확인 못 하면 실패+까닭, 전부 실패면 ok:false+푸시) · detect_law_changes 한 번도 답이 없으면 종료코드 2(큐 안 건드림)→서버가 스캔 실패로 적고 푸시 · mok_audit 같은 규칙+푸시 · 화면은 옛 상태 파일도 실패 상자로·「낡은 원문 없음」 안 씀 · mokAudit 배지. 스위트 test_scan_fail_honest 21. ⚠운영에서 왜 막혔는지는 아직 모름(이 컨테이너에선 조회됨) — 배포 뒤 「지금 점검」 한 번이면 실패 상자에 까닭이 찍힌다. L-402. 게이트 exit 0.
 
