@@ -8,7 +8,7 @@
 | 파일 | 역할 | 주요 함수 |
 |------|------|-----------|
 | `location_alert_typhoon_runtime.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `getRadius`, `getMessage`, `framesOf`, `decideTyphoonAlerts`, `notifIdForSeq`, `_refOfTyphoon` |
-| `ocean_typhoon.js` | 해양종합 지도(OpenLayers)에 "태풍" 오버레이 + 재생 애니메이션을 표출. 자료 출처(한국 기상청 / 미국 JTWC)를 드롭다운으로 전환한다. | `cssRgb`, `beaufortWaveM`, `dir16`, `dirStr`, `asymNote`, `haversineKm` |
+| `ocean_typhoon.js` | 해양종합 지도(OpenLayers)에 "태풍" 오버레이 + 재생 애니메이션을 표출. 자료 출처(한국 기상청 / 미국 JTWC / 일본 JMA / 유럽 ECMWF)를 드롭다운으로 전환한다. 출처를 바꿔도 직전에 보던 태풍을 이어서 보여 주고(영문 이름으로 맞춤, 이름이 없으면 5도 안 위치로), 해외 출처 태풍 이름은 기상청 한글 이름으로 표시한다(2026-10-06). | `cssRgb`, `beaufortWaveM`, `dir16`, `dirStr`, `asymNote`, `haversineKm` |
 
 ## 로드 순서
 
