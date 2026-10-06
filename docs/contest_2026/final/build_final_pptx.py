@@ -119,23 +119,40 @@ def render(slide, p):
 
 prs = Presentation()
 prs.slide_width = Emu(16256000)
-prs.slide_height = Emu(round(16256000 * H / W))
+prs.slide_height = Emu(9144000)  # NotebookLM PPTX와 같은 16:9 크기
 E = 16256000 / W
+Y0, EY = 38100, 9067800 / H  # NotebookLM과 같게: 배경을 위아래 여백 38100 두고 비율 유지
 blank = prs.slide_layouts[6]
 for n in range(1, 31):
     slide_img = Image.open(f'{D}/px/s{n:02d}.png').convert('RGB')
     sl = prs.slides.add_slide(blank)
     bgj = f'{OUT}ov/bg{n:02d}.jpg'; slide_img.save(bgj, quality=92)
-    sl.shapes.add_picture(bgj, 0, 0, prs.slide_width, prs.slide_height)
+    sl.shapes.add_picture(bgj, 0, Emu(Y0), prs.slide_width, Emu(9067800))
     prev = slide_img.convert('RGBA')
     for i, p in enumerate(L.get(n, [])):
         ov = render(slide_img, p)
         fn = f'{OUT}ov/s{n:02d}_{i}.png'
         ov.save(fn)
         x0, y0, x1, y1 = p['box']
-        pic = sl.shapes.add_picture(fn, Emu(round(x0 * E)), Emu(round(y0 * E)), Emu(round((x1 - x0) * E)), Emu(round((y1 - y0) * E)))
+        pic = sl.shapes.add_picture(fn, Emu(round(x0 * E)), Emu(round(Y0 + y0 * EY)), Emu(round((x1 - x0) * E)), Emu(round((y1 - y0) * EY)))
         pic.name = os.path.splitext(p['f'].lstrip('@'))[0]
         prev.alpha_composite(ov.resize((x1 - x0, y1 - y0), Image.LANCZOS), (x0, y0))
     prev.convert('RGB').save(f'{OUT}prev/s{n:02d}.jpg', quality=88)
-prs.save(OUT + 'SEAGNAL_final_30.pptx')
+prs.core_properties.title = '바다 : 그 날의 신호, SEA:GNAL'
+prs.save(OUT + 'tmp.pptx')
+# 템플릿에 남은 4:3 표기·빈 미리보기 그림 정리
+import zipfile, re, io
+zin = zipfile.ZipFile(OUT + 'tmp.pptx')
+zout = zipfile.ZipFile(OUT + 'SEAGNAL_final_30.pptx', 'w', zipfile.ZIP_DEFLATED)
+th = io.BytesIO(); Image.open(f'{OUT}prev/s01.jpg').resize((256, 143)).save(th, 'JPEG', quality=85)
+for it in zin.infolist():
+    data = zin.read(it.filename)
+    if it.filename == 'ppt/presentation.xml':
+        data = re.sub(rb'<p:sldSz [^>]*/>', b'<p:sldSz cx="16256000" cy="9144000"/>', data)
+    elif it.filename == 'docProps/app.xml':
+        data = data.replace(b'On-screen Show (4:3)', b'Custom').replace(b'<Slides>0</Slides>', b'<Slides>30</Slides>')
+    elif it.filename == 'docProps/thumbnail.jpeg':
+        data = th.getvalue()
+    zout.writestr(it, data)
+zout.close(); os.remove(OUT + 'tmp.pptx')
 print('ok', os.path.getsize(OUT + 'SEAGNAL_final_30.pptx'))
