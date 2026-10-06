@@ -260,6 +260,11 @@ async function runMokAuditScan() {
     if (!rep) {
       // **"이상 없음"이 아니라 "확인 못 했음"이다.**
       errors.push(`조문 목: ${r1.error || '결과 파일을 읽지 못했습니다'}`);
+    } else if ((rep.checked || 0) > 0 && (rep.no_answer || []).length >= (rep.checked || 0)) {
+      // ★하나도 답을 못 받은 판은 **실패**다(3-80) — 「결손 없음」 숫자에 섞지 않는다.
+      checked = rep.checked || 0;
+      noAnswer = (rep.no_answer || []).length;
+      errors.push(`조문 목: ${checked}건을 하나도 확인하지 못했다(응답없음 ${noAnswer})`);
     } else {
       checked = rep.checked || 0;
       noAnswer = (rep.no_answer || []).length;
@@ -273,8 +278,13 @@ async function runMokAuditScan() {
     const r2 = await runScript(ANNEX_SCRIPT, ['--out', ANNEX_REPORT_FILE]);
     let arep = null;
     try { arep = JSON.parse(fs.readFileSync(ANNEX_REPORT_FILE, 'utf8')); } catch (_) { arep = null; }
+    const annexAnswered = arep ? ['빠짐', '이미있음', '수가모자람', 'API에별표없음'].reduce((n, k) => n + (arep[k] || []).length, 0) : 0;
+    const annexFailedAll = arep ? (arep['실패'] || []).length : 0;
     if (!arep) {
       errors.push(`고시 별표: ${r2.error || '결과 파일을 읽지 못했습니다'}`);
+    } else if (!annexAnswered && annexFailedAll) {
+      // ★하나도 답을 못 받은 판은 실패다(3-80).
+      errors.push(`고시 별표: ${annexFailedAll}건 조회가 모두 실패했다`);
     } else {
       annexMissing = (arep['빠짐'] || []).length;
       annexShort = (arep['수가모자람'] || []).length;
@@ -286,9 +296,13 @@ async function runMokAuditScan() {
 
     if (errors.length === 2) {
       const st = { ok: false, startedAt, finishedAt: new Date().toISOString(),
-        error: errors.join(' / '), checked: 0, missing: 0, added: 0 };
+        error: errors.join(' / '), checked, no_answer: noAnswer, missing: 0, added: 0 };
       writeStatus(st);
       console.error('[MokAudit] 점검 실패:', st.error);
+      try {
+        await require('./admin_push').sendAdminPush('나리야 원문결손 — 점검 실패',
+          `이번 점검은 아무것도 확인하지 못했습니다. ${String(st.error).slice(0, 180)}`, { type: 'mok_audit_failed' });
+      } catch (e) { console.error('[MokAudit] 관리자 푸시 실패:', e && e.message); }
       return st;
     }
 
