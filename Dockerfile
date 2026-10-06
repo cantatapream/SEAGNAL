@@ -42,12 +42,22 @@ ENV TZ=Asia/Seoul
 # 파이썬을 설치하는 곳이 아무 데도 없었다 — 개정감지가 실서비스에서 실제로 돌고
 # 있었는지 확인할 방법이 없어(컨테이너 접속 불가) **환경에 기대지 않고 명시적으로 넣는다.**
 # 두 스크립트 모두 표준 라이브러리만 쓰므로 pip 설치는 필요 없다.
+#
+# ★`ca-certificates` 를 꼭 같이 넣는다 (2026-10-07 · 3-81).
+#   `node:20-slim` 은 빌드 중에만 ca-certificates 를 쓰고 **지운다**. Node 는 자기 안에 루트 인증서 목록을
+#   갖고 있어 괜찮지만, 파이썬(OpenSSL)은 시스템 저장소(/etc/ssl/certs)만 본다 — 그것이 **비어 있었다.**
+#   그래서 운영 서버의 파이썬 점검이 law.go.kr 을 한 번도 못 열었다:
+#     `SSL: CERTIFICATE_VERIFY_FAILED … self-signed certificate in certificate chain` (×54 · 개정감지 10.07)
+#   law.go.kr 인증서는 정상이다(GlobalSign Root R3 — Mozilla·Apple 저장소 신뢰). 우리 쪽에 저장소가 없었을 뿐이다.
+#   ⚠검증을 끄는 것으로 「고치지」 않는다 — 저장소를 넣는다.
+#   마지막 줄은 **저장소가 비어 있으면 빌드를 멈춘다**(망 없이 센다) — 같은 일이 조용히 되풀이되지 않게.
 # ----------------------------------------------------------------------------
-RUN apt-get update && apt-get install -y --no-install-recommends tzdata python3 \
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata python3 ca-certificates \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/* \
-    && python3 --version
+    && python3 --version \
+    && python3 -c "import ssl; n = ssl.create_default_context().cert_store_stats()['x509_ca']; print('python CA', n); assert n > 50, 'python 인증서 저장소가 비었다 — ca-certificates'"
 
 WORKDIR /app
 

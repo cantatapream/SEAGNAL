@@ -15,6 +15,7 @@
  *  F4 화면: 옛 상태 파일(ok:true · 전부 응답없음)도 실패 상자로 보이고 「낡은 원문이 없습니다」 를 쓰지 않는다 ·
  *     「원문결손」 배지가 통계 칸을 받는다
  *  F5 원문결손·개정감지·신선도 서버: 전부 실패면 실패로 적고 관리자에게 알린다
+ *  F6 운영 이미지(Dockerfile)가 파이썬 인증서 저장소를 깔고, 비면 빌드를 멈춘다 — 검증을 끄는 우회는 없다 (3-81)
  *
  * [연계] ← scripts/refactor/verify_all.sh SUITES
  *        → services/admrul_fresh_scanner.js(partFailure) · services/mok_audit_scanner.js · services/legal_amendment_scanner.js
@@ -112,6 +113,14 @@ ok('F5 원문결손: 조문 목 전부 응답없음 → 오류', /건을 하나�
 ok('F5 원문결손: 고시 별표 조회 전부 실패 → 오류', /조회가 모두 실패했다/.test(mok));
 ok('F5 원문결손·신선도·개정감지가 실패를 관리자에게 알린다',
   /type: 'mok_audit_failed'/.test(mok) && /type: 'admrul_fresh_failed'/.test(scSrc) && /type: 'amendment_scan_failed'/.test(amd));
+
+console.log('\n── 운영 이미지: 파이썬 인증서 저장소 (3-81) ──');
+const dk = fs.readFileSync(path.join(__dirname, '..', '..', 'Dockerfile'), 'utf8');
+ok('F6 운영 이미지가 ca-certificates 를 깐다(node:20-slim 은 지운다 — 파이썬이 law.go.kr 을 못 열었다)',
+  /apt-get install[^\n]*python3[^\n]*ca-certificates/.test(dk));
+ok('F6 저장소가 비면 빌드를 멈춘다(cert_store_stats 단언)', /cert_store_stats\(\)\['x509_ca'\][\s\S]{0,80}assert n > 50/.test(dk));
+ok('F6 검증을 끄는 우회가 없다', !/CERT_NONE|check_hostname\s*=\s*False|_create_unverified_context|PYTHONHTTPSVERIFY=0/.test(dk));
+ok('F6 개정감지 실패 푸시가 까닭을 한 번만 싣는다', /split\('까닭:'\)\.pop\(\)/.test(amd));
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
