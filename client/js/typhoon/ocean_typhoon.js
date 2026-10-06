@@ -1174,6 +1174,71 @@
         });
         return best || actives[0];   // 위치 정보가 전무하면 활성 중 최신 발생
     }
+
+    /*
+     * [출처를 바꿔도 보던 태풍 유지 — 2026-10-06 사용자 요청]
+     *   사용자 원문: "직전에 내가 만약에 B라는 태풍을 봤으면 다른 관측 개소 미국이나 일본을
+     *   눌러도 B에 대한 관측 화면이 나왔으면 좋겠어"
+     *   기관마다 태풍 번호가 달라(기상청 '27' · 미국 'wp2626' · 일본 'TC2633' · 유럽 'EC33W')
+     *   번호로는 같은 태풍을 못 알아본다. 영문 이름은 네 기관이 똑같이 준다(2026-10-06 운영
+     *   서버 실측: CHOI-WAN·NOLO·KOGUMA 가 네 곳 모두 같은 철자). 그래서 영문 이름으로 맞춘다.
+     */
+    // 이름이 아직 없는(붙기 전) 태풍만 위치로 맞춘다. 같은 태풍이라도 기관마다 현재 위치가
+    //   최대 3.1도 어긋났다(2026-10-06 실측: 놀로 경도 173.1 vs 176.2). 이 값이 없으면
+    //   보던 태풍이 그 출처에 없을 때 수천 km 떨어진 전혀 다른 태풍을 '같은 태풍'으로 집는다.
+    var SAME_STORM_MAX_DEG = 5;
+    function normNameEn(s) { return String(s || '').toUpperCase().replace(/[^A-Z]/g, ''); }
+    function typhoonNow(t) { var b = t && t.bulletins && t.bulletins[0]; return (b && b.current) || null; }
+    function typhoonNameEn(t) {
+        var b = t && t.bulletins && t.bulletins[0];
+        return (t && t.nameEn) || (b && b.nameEn) || '';
+    }
+
+    /**
+     * 다른 출처의 태풍 목록에서 직전에 보던 태풍과 같은 태풍을 찾는다.
+     * 예: findSameTyphoon(일본 목록, { nameEn: 'CHOI-WAN', pos: {lat:29.9, lon:145.7} }) → TC2633
+     * ① 영문 이름이 같으면 그 태풍 ② 이름이 안 맞으면 현재 위치가 SAME_STORM_MAX_DEG 안에서
+     *   가장 가까운 태풍 ③ 둘 다 없으면 null(부르는 쪽이 제주 최근접으로 고른다)
+     * @param {Array} list - 바꾼 출처의 태풍 목록(bulletins[0].current 를 가진 형식)
+     * @param {{nameEn:string, pos:?{lat:number, lon:number}}} prev - 직전 태풍
+     * @returns {?Object} 찾은 태풍 또는 null
+     * [연계] ← setSource · loadForeign (같은 파일)
+     */
+    function findSameTyphoon(list, prev) {
+        if (!prev || !list || !list.length) return null;
+        var en = normNameEn(prev.nameEn);
+        if (en) {
+            var hit = list.find(function (t) { return normNameEn(typhoonNameEn(t)) === en; });
+            if (hit) return hit;
+        }
+        var p = prev.pos;
+        if (!p || p.lat == null || p.lon == null) return null;
+        var best = null, bestD = SAME_STORM_MAX_DEG * SAME_STORM_MAX_DEG;
+        list.forEach(function (t) {
+            var c = typhoonNow(t);
+            if (!c || c.lat == null || c.lon == null) return;
+            var dLat = c.lat - p.lat;
+            var dLon = (c.lon - p.lon) * Math.cos(p.lat * Math.PI / 180);
+            var d = dLat * dLat + dLon * dLon;
+            if (d <= bestD) { bestD = d; best = t; }
+        });
+        return best;
+    }
+
+    /**
+     * 해외 출처 태풍을 기상청 한글 이름으로 보여 준다(사용자 확정: 화면은 한국어만).
+     * 예: 'CHOI-WAN' → 기상청 '제 27호 초이완' 과 영문이 같으므로 '초이완'
+     * 기상청이 발표하지 않는 태풍(예: 유럽 자료의 동태평양 RACHEL)은 한글 이름이 없어 원래 이름.
+     * @param {Object} t - 해외 출처 태풍
+     * @returns {string}
+     * [연계] ← loadForeign · refreshForeign (같은 파일) · _activeData(/api/typhoon)
+     */
+    function koTyphoonName(t) {
+        // 위치는 넘기지 않는다 — 이름이 같을 때만 한글 이름을 빌린다.
+        var k = findSameTyphoon((_activeData && _activeData.typhoons) || [], { nameEn: typhoonNameEn(t) });
+        var ko = k ? String(k.name || '').replace(/^제\s*\d+\s*호\s*/, '').trim() : '';
+        return ko || t.name;
+    }
     // 통보문 code → dmdw 통보문 이미지 파일명 (태풍정보 RTKO63 / TD정보 RTKO64, 호수 2자리).
     function bulletinImageName(code) {
         var p = String(code || '').split('_'); // [oTypInfo, oTmFc, oTdSeq, oTmSeq]
@@ -1341,6 +1406,9 @@
 
     function setSource(src) {
         if (!SOURCES[src]) src = 'kma';
+        // 바꾸기 전에 지금 보던 태풍을 기억한다(출처가 바뀌어도 같은 태풍을 이어 보이기 위해).
+        var prevT = (_src === 'kma') ? activeTyphoon(_year, _selSeq) : foreignTyphoon(_selSeq);
+        var prev = prevT ? { nameEn: typhoonNameEn(prevT), pos: typhoonNow(prevT) } : null;
         _src = src;
         pause();
         clearTrack();
@@ -1354,7 +1422,15 @@
         //   받아 오느라 몇 초 걸린다. 그동안 빈 지도만 보이지 않게 가운데에 표시를 띄우고,
         //   다 그려지거나(성공) 없음·실패로 끝나면 끈다.
         var token = showSourceLoading(SOURCES[src].label);
-        var p = (src === 'kma') ? loadYear(_year, null, null) : loadForeign(src);
+        var p;
+        if (src === 'kma') {
+            // 기상청 활성 목록에서 같은 태풍을 찾으면 그 해·그 태풍으로, 못 찾으면 종전처럼 기본 고르기.
+            var same = findSameTyphoon((_activeData && _activeData.typhoons) || [], prev);
+            if (same) { _year = _activeData.year; setSelValue('tphn-year', String(_year)); }
+            p = loadYear(_year, same ? same.seq : null, null);
+        } else {
+            p = loadForeign(src, prev);
+        }
         var done = function () { hideSourceLoading(token); };
         Promise.resolve(p).then(done, done);
     }
@@ -1398,9 +1474,10 @@
      * 서버(routes/typhoon_foreign.js)가 기상청과 같은 프레임 형식으로 바꿔 주므로
      * 그리는 코드(renderBulletin)는 그대로 쓴다.
      * @param {string} src - 'jtwc'
+     * @param {?Object} prev - 출처를 바꾸기 전에 보던 태풍({nameEn, pos}). 같은 태풍이 있으면 그것을 고른다.
      * [연계] ← setSource (같은 파일) → GET /api/typhoon/foreign
      */
-    function loadForeign(src) {
+    function loadForeign(src, prev) {
         return fetchJSON('/api/typhoon/foreign?src=' + encodeURIComponent(src)).then(function (j) {
             if (!j || !j.success) {
                 var why = (j && j.reason === 'no_key') ? '아직 연결되지 않았습니다'
@@ -1415,7 +1492,7 @@
             }
             _foreignData = j;
             _typhoonList = (j.typhoons || []).map(function (t) {
-                return { seq: t.seq, name: t.name, ended: false };
+                return { seq: t.seq, name: koTyphoonName(t), ended: false };
             });
             populateNames();
             if (!_typhoonList.length) {
@@ -1424,10 +1501,12 @@
                 return;
             }
             renderSourceNote();
-            // 기상청 경로와 같은 규칙으로 고른다 — 제주에서 가장 가까운 태풍.
+            // ① 직전에 보던 태풍이 이 출처에도 있으면 그것(findSameTyphoon).
+            // ② 없으면 기상청 경로와 같은 규칙으로 고른다 — 제주에서 가장 가까운 태풍.
             //   JTWC 는 전 세계 태풍을 한꺼번에 주므로(대서양·동태평양·인도양까지),
             //   받은 순서의 첫 번째를 집으면 우리와 무관한 태풍이 기본이 된다.
-            var d0 = pickDefaultTyphoon(_foreignData.typhoons) || _foreignData.typhoons[0];
+            var d0 = findSameTyphoon(_foreignData.typhoons, prev) ||
+                     pickDefaultTyphoon(_foreignData.typhoons) || _foreignData.typhoons[0];
             selectForeignTyphoon(d0.seq);
         }).catch(function (e) {
             console.warn('[OceanTyphoon] loadForeign 실패:', e.message);
@@ -1465,7 +1544,7 @@
             if (!j || !j.success || !(j.typhoons || []).length) return;   // 실패하면 보던 화면을 유지
             _foreignData = j;
             _typhoonList = j.typhoons.map(function (t) {
-                return { seq: t.seq, name: t.name, ended: false };
+                return { seq: t.seq, name: koTyphoonName(t), ended: false };
             });
             populateNames();
             var t = foreignTyphoon(_selSeq);
