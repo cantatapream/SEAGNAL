@@ -55,6 +55,11 @@ bash run.sh main       # 본실험 40문항 × A·B·C
 ARMS="c" bash run.sh pilot   # 한 방식만
 ```
 
+**GitHub 에서 돌리기 (2026-10-06 사용자 확정 — 운영 키 `GEMINI_API_KEY_26_8` 시크릿 사용)**:
+작업 세션에 키가 없을 때는 `run_request.json` 의 `set`(pilot|main)·`arms` 를 고쳐 `claude/**` 갈래에 push 한다.
+`.github/workflows/api-vs-wiki-run.yml` 이 그 push 에서만 돌아 `run.sh` 를 실행하고 결과 폴더를 같은 갈래에 커밋한다.
+⚠운영 키와 한도를 나눠 쓴다. ⚠GitHub 서버는 해외라 법제처 접속이 막힐 수 있다 — 실행 기록의 「법제처 연결 확인」 줄을 먼저 본다.
+
 결과 폴더에 `a.jsonl`·`b.jsonl`·`c.jsonl`(문항별 답변 전문·시간·토큰·API 호출 기록)과 `score.txt`(채점표)가 남는다.
 같은 결과 파일로 다시 돌리면 이미 한 문항은 건너뛴다.
 
