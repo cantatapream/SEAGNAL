@@ -83,6 +83,26 @@ async function startLocalServer() {
  * 운영 서버·운영 작업자와 무관하다 — 작업자가 이 프로세스의 localhost 창구만 본다.
  */
 let worker = null;
+
+/**
+ * 추적 기록(AVW_TRACE=1, 루나 모드) — 루나에게 보낸 글과 받은 글을 그대로 `<결과>.trace.jsonl` 에 남긴다.
+ * [왜] 2026-10-06 원인 조사: ①원문 직독(B)이 빈 답을 낸 10건이 어느 단계에서 왜 비었는지,
+ *   ②A 가 맞는 조문을 인용하고도 「확인되지 않습니다」로 물러선 7건에서 루나가 **실제로 받은 근거자료**에
+ *   결론 문장이 있었는지 — 둘 다 루나의 입출력 원문이 있어야 확인된다(결과 파일에는 최종 답만 남는다).
+ * 운영 코드는 고치지 않는다 — 이 프로세스 안의 codex_bridge.callRaw 를 감쌀 뿐이다.
+ */
+let traceQ = null;
+if (LLM === 'luna' && process.env.AVW_TRACE === '1') {
+  const tracePath = OUT.replace(/\.jsonl$/, '') + '.trace.jsonl';
+  const orig = codexBridge.callRaw;
+  codexBridge.callRaw = async (args) => {
+    const r = await orig(args);
+    const prompt = typeof args.contents === 'string' ? args.contents : JSON.stringify(args.contents);
+    fs.appendFileSync(tracePath, JSON.stringify({ id: traceQ, caller: args.caller, prompt_chars: prompt.length,
+      prompt, ok: r.success, text: r.response ? r.response.text : null, error: r.error }) + '\n');
+    return r;
+  };
+}
 async function startLunaWorker() {
   const { spawn } = require('child_process');
   worker = spawn(process.execPath, [path.join(HERE, 'avw_worker.js')], {
@@ -271,6 +291,7 @@ async function main() {
   const fh = fs.openSync(OUT, 'a');
   for (const q of list) {
     if (done.has(q.id)) continue;
+    traceQ = q.id;
     const t0 = Date.now();
     const k0 = tokenSnap();
     let r;

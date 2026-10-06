@@ -10,6 +10,8 @@
 # 사용: bash run.sh pilot            # 시험 10문항 × A·B·C
 #       bash run.sh main             # 본실험 40문항 × A·B·C
 #       ARMS="c" bash run.sh pilot   # 특정 방식만
+#       ONLY="법률-04,시행령-03" bash run.sh rest   # 고른 문항만
+#       AVW_TRACE=1 LLM=luna …       # 루나에게 보낸 글·받은 글을 <방식>.trace.jsonl 로 남긴다(원인 조사용)
 #       LLM=luna bash run.sh pilot   # ★GPT 루나(ChatGPT 정액제, Codex CLI)로 — codex 가 로그인된 VM 에서만
 # 필요: Gemini 는 환경변수 GEMINI_API_KEY_26_8. 루나는 `codex` 명령(로그인돼 있어야 한다).
 #   루나 모드는 실험 전용 비밀을 매번 새로 만들고, 실험 전용 작업자(avw_worker.js)가 이 실험 서버에만 붙는다 —
@@ -52,7 +54,7 @@ export GITHUB_RAW_TOKEN="${GITHUB_RAW_TOKEN:-local-disk-only}"
 mkdir -p "$OUTDIR"
 for ARM in $ARMS; do
   echo "== 방식 $ARM =="
-  (cd "$TREE/local_server" && node "$TREE/$REL/run_arms.js" --arm "$ARM" --set "$SET" --out "$OUTDIR/$ARM.jsonl")
+  (cd "$TREE/local_server" && node "$TREE/$REL/run_arms.js" --arm "$ARM" --set "$SET" --out "$OUTDIR/$ARM.jsonl" ${ONLY:+--only "$ONLY"})
 done
 python3 "$HERE/score.py" "$OUTDIR" | tee "$OUTDIR/score.txt"
 echo "결과: $OUTDIR"

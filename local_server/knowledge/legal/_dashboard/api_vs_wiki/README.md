@@ -85,6 +85,10 @@ git add -- results && git commit -m "api_vs_wiki 루나 실험 결과 (VM)" && g
 ```
 ⚠ChatGPT 정액제 한도를 쓴다 — 돌리기 전·후에 `codex` → `/status` 로 남은 한도를 본다.
 
+일부 문항만: `ONLY="법률-04,법률-05" ARMS=b LLM=luna bash run.sh rest`.
+루나 입출력 기록: 앞에 `AVW_TRACE=1` 을 붙이면 루나에 보낸 프롬프트·받은 답을 결과 폴더 `<arm>.trace.jsonl` 에 남긴다
+(원인 조사용, `results/INVESTIGATION_20261006.md` 4절).
+
 결과 폴더에 `a.jsonl`·`b.jsonl`·`c.jsonl`(문항별 답변 전문·시간·토큰·API 호출 기록)과 `score.txt`(채점표)가 남는다.
 같은 결과 파일로 다시 돌리면 이미 한 문항은 건너뛴다.
 
