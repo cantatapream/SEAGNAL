@@ -1589,6 +1589,10 @@ GitHub Actions run 37414234923(운영 키, 사용자 확정)로 시험 10문항�
 
 ### [2026-10-06 12:24 KST] 🟢착수 — 위키 방식 vs 법제처 API 직접 방식 비교 실험 — 준비
 사용자 요청(2026-10-06): 현행 위키 기반 답변과 law.go.kr API만으로 답하는 방식을 실제로 돌려 비교. 사용자 확정: (가) 실험 전용 Gemini 키를 작업환경에 넣고, 운영 서버·앱 코드에 영향 없이 별도로 검증. 이번 세션(키 없음)은 실험 장치만 만든다: _dashboard/api_vs_wiki/ 에 질문지(골든 계층별 40문항·시험 10문항)·법제처 API 도구·A(현행 챗봇 복사본)/B(원문 직독 2차 경로 강제)/C(API만 쓰는 에이전트) 실행기·채점기. 앱 코드 수정 0줄.
+### [2026-10-07 01:12 KST] ✅완료 — 3-81 운영 서버 파이썬 인증서 저장소가 비어 law.go.kr 을 한 번도 못 열던 것 — Dockerfile ca-certificates
+3-80 이 남긴 까닭: CERTIFICATE_VERIFY_FAILED self-signed certificate in certificate chain ×54(개정감지 10-07 01:04). law.go.kr 인증서 정상(GlobalSign Root R3, SSL Labs). node:20-slim 이 ca-certificates 를 지워 파이썬만 빈 저장소 — Node 는 내장 목록이라 멀쩡. Dockerfile 에 ca-certificates + 저장소 비면 빌드 실패 단언. 검증 끄지 않음. 개정감지 실패 푸시 문장 중복 정리. test_scan_fail_honest F6. L-403. 배포 뒤 「지금 스캔」 으로 확인 — 법령 7건 카드가 떠야 정상.
+
+
 ### [2026-10-07 00:15 KST] ✅완료 — 3-80 하나도 확인 못 한 점검이 「이상 없음」 으로 보이던 것 — 실패로 적고 까닭을 남기고 알린다
 사장님 화면: 운영 원문신선도 「10.04 · 848건 대조 · 응답없음 848건」 아래 「✅ 낡은 원문이 없습니다」. law.go.kr 조회가 전부 실패했는데 ok:true · 실패 까닭은 버려짐. 같은 결: 매일 개정감지(광역질의 실패 = 빈 목록 = 개정 없음) · 원문결손(전부 응답없음도 ok) · 「원문결손」 배지 undefined(화면이 mokAudit 칸을 안 옮겨 담음). 고침: _fail_reasons.py(신선도 점검 셋이 실패 까닭을 보고서 fail_reasons 에) · admrul_fresh_scanner.partFailure(하나도 확인 못 하면 실패+까닭, 전부 실패면 ok:false+푸시) · detect_law_changes 한 번도 답이 없으면 종료코드 2(큐 안 건드림)→서버가 스캔 실패로 적고 푸시 · mok_audit 같은 규칙+푸시 · 화면은 옛 상태 파일도 실패 상자로·「낡은 원문 없음」 안 씀 · mokAudit 배지. 스위트 test_scan_fail_honest 21. ⚠운영에서 왜 막혔는지는 아직 모름(이 컨테이너에선 조회됨) — 배포 뒤 「지금 점검」 한 번이면 실패 상자에 까닭이 찍힌다. L-402. 게이트 exit 0.
 

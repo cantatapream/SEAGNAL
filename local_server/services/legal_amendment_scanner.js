@@ -362,7 +362,8 @@ async function runAmendmentScan() {
       //   종전에는 빈 결과를 「개정 없음」 으로 남겨, 매일 아무것도 안 보고 있어도 아무도 몰랐다.
       try {
         await require('./admin_push').sendAdminPush('나리야 개정감지 — 오늘 확인 실패',
-          `오늘 개정 여부를 확인하지 못했습니다(「개정 없음」 이 아닙니다). ${String(r.error || '').slice(-180)}`,
+          // 탐지 자의 오류 줄에서 「까닭:」 뒤만 싣는다(같은 문장이 두 번 찍히던 것 — 2026-10-07 사장님 화면).
+          `오늘 개정 여부를 확인하지 못했습니다(「개정 없음」 이 아닙니다). 까닭: ${(String(r.error || '').split('까닭:').pop() || '').trim().slice(-160)}`,
           { type: 'amendment_scan_failed' });
       } catch (e) { console.error('[나리야 개정감지] 관리자 푸시 실패:', e && e.message); }
     }
