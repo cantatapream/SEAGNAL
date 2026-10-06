@@ -137,7 +137,7 @@ Y0, EY = 38100, 9067800 / H  # NotebookLM과 같게: 배경을 위아래 여백 
 blank = prs.slide_layouts[6]
 SC = os.path.dirname(D)  # ⚠원본은 작업 폴더(scratchpad)의 NotebookLM 추출 그림 r1cpx·r2dpx·r2bpx·px — 저장소에는 없음
 FIX = {2: 'r1cpx/s1_image1.png', 7: 'r1cpx/s2_image2.png', 15: 'r1cpx/s3_image3.png', 16: 'r1cpx/s4_image4.png',
-       28: 'r1cpx/s5_image5.png', 29: 'r1cpx/s6_image6.png', 30: 'r1cpx/s7_image7.png'}
+       28: 'r1cpx/s5_image5.png', 29: 'r1epx/s6.png', 30: 'r1cpx/s7_image7.png'}
 NEW = {'A1': 'r2dpx/s1.png', 'A2': 'r2dpx/s2.png', 'A3': 'r2dpx/s3.png', 'A4': 'r2dpx/s4.png',
        'A5': 'r2dpx/s5.png', 'A6': 'r2bpx/s6.png', 'A7': 'r2dpx/s7.png', 'A8': 'r2dpx/s8.png'}
 ORDER = [1, 2, 'A1', 3, 4, 5, 6, 7, 8, 'A2', 'A3', 'A4', 'A5', 9, 10, 11, 12, 13, 'A8'] + list(range(14, 27)) + ['A6', 27, 28, 'A7', 29, 30]
