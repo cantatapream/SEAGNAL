@@ -18,10 +18,18 @@
   꼬리표(`_meta.json`)의 `families` 로 계층별 MST 를 찾아 부르고,
   `recollect_byl.extract_layer` 를 **그대로 부른다**(L-136 — 링크 적는 꼴을 두 벌로 만들지 않는다).
 
+★`--missing` (2026-10-03 · 사장님 결정 「그림은 읽지 않고 원본을 보여 준다」)
+  법률계열 별표 폴더 160개 중 **79개에는 `_links.json` 이 아예 없었다** — 그 법들의 별표는
+  챗봇 팝업에 **원본 쪽 그림도, 내려받기 단추도 뜨지 않는다**(`article_text.js` ④가 이 파일만 읽는다).
+  받을 수 없는 자리가 아니라 **아직 안 만든 자리**다 — API 는 7,045개 전부에 HWP·PDF·쪽 그림을 준다.
+  `--missing` 을 주면 그런 폴더에 **새 `_links.json` 을 만든다.** 꼴은 위와 똑같이 `extract_layer` 가 정한다.
+  `.txt` 는 여전히 한 글자도 안 건드린다.
+
 쓰는 법:
     python3 _dashboard/loop/byl_links_pdf.py            # 무엇을 채울지만 보여준다
     python3 _dashboard/loop/byl_links_pdf.py --apply    # `_links.json` 에 PDF 칸을 채운다
     python3 _dashboard/loop/byl_links_pdf.py --apply --limit 5
+    python3 _dashboard/loop/byl_links_pdf.py --missing --apply   # 없는 폴더에 새로 만든다
 
 [연계] → `raw/**/별표/_links.json` (PDF 칸만) · ← `recollect_byl.py`(내려받기·링크 꼴) · `_touched.py`
 """
@@ -44,12 +52,18 @@ def run():
         limit = int(sys.argv[sys.argv.index('--limit') + 1])
     targets = sorted(glob.glob(os.path.join(RAW, '*', '*', '별표', '_links.json')))
     print('별표 `_links.json` %d개' % len(targets))
+    if '--missing' in sys.argv:
+        # 별표 폴더는 있는데 `_links.json` 이 없는 법률계열만(조례는 `_자치법규/` 아래라 이 꼴에 안 걸린다)
+        targets = sorted(os.path.join(d, '_links.json')
+                         for d in glob.glob(os.path.join(RAW, '*', '*', '별표'))
+                         if os.path.isdir(d) and not os.path.exists(os.path.join(d, '_links.json')))
+        print('  → --missing: `_links.json` 이 없는 별표 폴더 %d개만 본다' % len(targets))
     touched = Touched('byl_links_pdf') if apply_ else None
     done = filled = skipped = 0
     for lp in targets:
         base = os.path.dirname(os.path.dirname(lp))
         short = os.path.relpath(base, RAW)
-        links = json.load(open(lp, encoding='utf-8'))
+        links = json.load(open(lp, encoding='utf-8')) if os.path.exists(lp) else {}
         have = sum(1 for v in links.values() if isinstance(v, dict) and v.get('PDF'))
         if have and have == len(links):
             skipped += 1

@@ -73,6 +73,19 @@ const STRAY_ID_KEYS = [
  *   ⚠이름을 `MST` 로 **바꾸지 않는다** — 다른 번호를 같은 이름으로 부르면 나중에 못 가린다.
  */
 const FAM_ID_KEYS = ['MST', '법령ID', '조약일련번호'];
+/**
+ * ★행정규칙 **하나뿐인** 폴더의 판번호는 머리가 제자리다 (사장님 확정 2026-09-29, 3-45 = B3 ⓐ).
+ *   규칙: 「행정규칙 하나뿐인 폴더는 머리에, 법령에 딸린 행정규칙은 families 칸 안에」.
+ *   까닭 — families 는 한 폴더에 법률·시행령·시행규칙이 **함께** 있을 때 계층을 가르는 칸이다.
+ *   고시·훈령 하나뿐인 폴더는 가를 계층이 없다. 그 폴더의 머리 `행정규칙ID`·`행정규칙일련번호`
+ *   는 흩어진 것이 아니라 제자리다.
+ *   알아보는 법 — 꼬리표에 `행정규칙종류` 가 있고 `families` 가 없다.
+ *   (법령 폴더 아래의 행정규칙은 `행정규칙/_admrul.json` 에 이름 → ID 로 적혀 있어 이 사전 밖이다.)
+ */
+const ADMRUL_TOP_KEYS = ['행정규칙ID', '행정규칙일련번호'];
+function isStandaloneAdmrul(d) {
+    return !!d && d['행정규칙종류'] != null && d['행정규칙종류'] !== '' && d.families == null;
+}
 
 /**
  * 계층 이름을 최상위 별칭에서 읽어낸다.
@@ -136,8 +149,10 @@ function readMeta(file) {
             }
         }
     }
+    const standalone = isStandaloneAdmrul(d);
     for (const k of STRAY_ID_KEYS) {
         if (d[k] == null || d[k] === '') continue;
+        if (standalone && ADMRUL_TOP_KEYS.includes(k)) { out.hasId = true; continue; }   // 머리가 제자리(B3 ⓐ)
         out.strays[k] = d[k];
         // 계층을 알 수 있는 것만 families 와 맞대어 본다 — 모르는 것은 **추측하지 않는다**.
         const layer = layerOfStray(k);
@@ -183,6 +198,6 @@ function census(root) {
 }
 
 module.exports = {
-    RAW_ROOT, STRAY_ID_KEYS, FAM_ID_KEYS,
+    RAW_ROOT, STRAY_ID_KEYS, FAM_ID_KEYS, ADMRUL_TOP_KEYS, isStandaloneAdmrul,
     layerOfStray, metaFiles, readMeta, census,
 };

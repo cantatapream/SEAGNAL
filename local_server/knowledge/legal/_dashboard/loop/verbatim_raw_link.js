@@ -128,18 +128,44 @@ function 판정() {
   return 결과;
 }
 
-function 적기(r) {
+function 적기(r, 표 = '2026-09-28 기계가 되찾음') {
   const t = fs.readFileSync(r.절대, 'utf8');
   const ls = t.split('\n');
   const i = ls.findIndex((l) => RULE.test(l));
   if (i < 0) return false;
-  const 줄 = `> raw 원문: \`${r.고름.경로}\` (2026-09-28 기계가 되찾음 · 원문 낱말 ${(100 * r.고름.덮임).toFixed(0)}% 남음 — verbatim_raw_link.js)`;
+  const 줄 = `> raw 원문: \`${r.고름.경로}\` (${표} · 원문 낱말 ${(100 * r.고름.덮임).toFixed(0)}% 남음 — verbatim_raw_link.js)`;
   ls.splice(i + 1, 0, 줄);
   fs.writeFileSync(r.절대, ls.join('\n'));
   return true;
 }
 
-if (require.main === module) {
+// ★`--confirmed <목록.json>` (2026-09-29 신설) — 95% 문턱에 못 미쳐 사람 몫으로 넘어갔던 쪽을
+//   **사장님이 Claude 에게 맡겨**(확인판 A2) 쪽 이름(법·계층·별표 번호)과 파일 머리를 대조해 원문 파일을
+//   하나로 확정한 목록이다. 문턱은 그대로 두고, 확정된 경로만 적는다 — 낱말 덮임(%)은 그대로 함께 적어
+//   「요약 의심」 자(V5-55)가 계속 볼 수 있게 한다. 목록 꼴: [{"쪽":"annexes/…md","경로":"raw/…txt"}, …]
+function 확정적기(목록) {
+  const 고친 = [];
+  for (const { 쪽, 경로 } of 목록) {
+    const 절대 = path.join(WIKI, 쪽);
+    if (!fs.existsSync(절대) || !fs.existsSync(path.join(LEGAL, 경로))) { console.log('  ✗ 없다', 쪽, 경로); continue; }
+    const t = fs.readFileSync(절대, 'utf8');
+    RAWRE.lastIndex = 0;
+    if ([...t.matchAll(RAWRE)].length) { console.log('  · 이미 라벨', 쪽); continue; }
+    const c = 덮임(경로, V.눕(t));
+    if (!c) { console.log('  ✗ 원문 낱말이 너무 적다', 쪽); continue; }
+    if (적기({ 절대, 고름: { 경로, 덮임: c.덮임 } }, '2026-09-29 Claude 판독 — 사장님 위임(확인판 A2)')) 고친.push(path.relative(REPO, 절대));
+  }
+  return 고친;
+}
+
+if (require.main === module && process.argv.includes('--confirmed')) {
+  const 목록 = JSON.parse(fs.readFileSync(process.argv[process.argv.indexOf('--confirmed') + 1], 'utf8'));
+  const 고친 = 확정적기(목록);
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+  const out = path.join(LEGAL, '_dashboard', 'touched', `verbatim_raw_link_confirmed_${stamp}.json`);
+  fs.writeFileSync(out, JSON.stringify({ script: 'verbatim_raw_link --confirmed', stamp, files: 고친 }, null, 1));
+  console.log(`✅ ${고친.length}쪽에 적었다 · 기록 ${path.relative(REPO, out)}`);
+} else if (require.main === module) {
   const 결과 = 판정();
   const 고른 = 결과.filter((r) => r.고름);
   const 적힘에서 = 고른.filter((r) => r.고름.출처 === '쪽에 적힘').length;

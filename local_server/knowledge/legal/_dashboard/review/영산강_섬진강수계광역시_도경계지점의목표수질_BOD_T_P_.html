@@ -1,0 +1,136 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>영산강·섬진강수계광역시·도경계지점의목표수질(BOD,T-P)</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--line:#d8d8d8;--soft:#f6f6f6;--ok:#137333;--fx:#a50e0e;--un:#8a6d00;--accent:#0b57d0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e8e8e8;--line:#3a3d42;--soft:#1e2126;--ok:#5bb974;--fx:#f28b82;--un:#fdd663;--accent:#8ab4f8}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e8e8e8;--line:#3a3d42;--soft:#1e2126;--ok:#5bb974;--fx:#f28b82;--un:#fdd663;--accent:#8ab4f8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+header{position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px}
+h1{margin:0 0 4px;font-size:17px}
+.meta{font-size:13px;opacity:.75}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.bar button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--line);border-radius:7px;background:var(--soft);color:var(--fg);cursor:pointer}
+.bar button.primary{background:var(--accent);color:#fff;border-color:transparent}
+.count{font-size:13px;margin-left:auto;opacity:.8}
+main{padding:16px;max-width:1400px;margin:0 auto}
+section{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+@media (max-width:900px){section{grid-template-columns:1fr}}
+.pane{min-width:0}
+.pane.img{position:sticky;top:96px;align-self:start}
+.pane.img img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+.noimg{padding:14px;border:1px dashed var(--line);border-radius:8px;font-size:13px;color:var(--un)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--line);padding:5px 7px;vertical-align:top;text-align:left}
+th{background:var(--soft);font-weight:600}
+td.rv{background:var(--soft);min-width:130px}
+td.rv .val{font-weight:700;margin-bottom:4px;word-break:break-all}
+td.rv .btns{display:flex;gap:3px}
+td.rv button{font:inherit;font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg);cursor:pointer}
+td.rv input.newv{margin-top:4px;width:100%;font:inherit;font-size:12px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg)}
+td.rv .mark{font-size:11px;margin-top:3px;font-weight:700}
+td.rv[data-s="맞음"]{outline:2px solid var(--ok);outline-offset:-2px}
+td.rv[data-s="고침"]{outline:2px solid var(--fx);outline-offset:-2px}
+td.rv[data-s="모름"]{outline:2px solid var(--un);outline-offset:-2px}
+footer{padding:20px 16px 50px;font-size:12.5px;opacity:.75;max-width:1400px;margin:0 auto}
+</style></head><body>
+<header>
+  <h1>영산강·섬진강수계광역시·도경계지점의목표수질(BOD,T-P)</h1>
+  <div class="meta">원문: <code>raw/15_관련타부처/물환경보전법/행정규칙/영산강·섬진강수계광역시·도경계지점의목표수질(BOD,T-P).txt</code> · 확인할 값 <b>12</b>개<br>
+  왼쪽이 <b>원문 그림</b>, 오른쪽이 <b>옮겨 적은 표</b>입니다. 노란 칸이 확인할 값입니다.</div>
+  <div class="bar">
+    <button class="primary" id="copyOut">내보내기 — 복사</button>
+    <button id="dlJson">JSON 내려받기</button>
+    <button id="dlCsv">CSV 내려받기</button>
+    <button id="allOk">남은 것 전부 「맞음」</button>
+    <button id="reset">지우기</button>
+    <span class="count" id="count"></span>
+  </div>
+</header>
+<main><section><div class="pane img"><img src="data:image/png;base64,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" alt="원본 그림 45261458"></div><div class="pane tbl"><table><tr><th>수계구간명</th><th>설정지점</th><th>목표수질 BOD</th><th>목표수질 T-P</th></tr><tr><td>영본A</td><td>전라남도와 광주광역시 경계의 영산강본류 지점 (담양군과 광주광역시 북구 경계지점)</td><td class="rv" data-k="1"><div class="val">2.4</div><div class="btns"><button class="ok" data-k="1" data-v="맞음">맞음</button><button class="fx" data-k="1" data-v="고침">고침</button><button class="un" data-k="1" data-v="모름">모름</button></div><input class="newv" data-k="1" placeholder="바른 값" hidden><div class="mark" data-k="1"></div></td><td class="rv" data-k="2"><div class="val">0.082</div><div class="btns"><button class="ok" data-k="2" data-v="맞음">맞음</button><button class="fx" data-k="2" data-v="고침">고침</button><button class="un" data-k="2" data-v="모름">모름</button></div><input class="newv" data-k="2" placeholder="바른 값" hidden><div class="mark" data-k="2"></div></td></tr><tr><td>황룡A</td><td>전라남도와 광주광역시 경계의 황룡강본류 지점 (장성군과 광주광역시 광산구 경계지점)</td><td class="rv" data-k="3"><div class="val">2.2</div><div class="btns"><button class="ok" data-k="3" data-v="맞음">맞음</button><button class="fx" data-k="3" data-v="고침">고침</button><button class="un" data-k="3" data-v="모름">모름</button></div><input class="newv" data-k="3" placeholder="바른 값" hidden><div class="mark" data-k="3"></div></td><td class="rv" data-k="4"><div class="val">0.060</div><div class="btns"><button class="ok" data-k="4" data-v="맞음">맞음</button><button class="fx" data-k="4" data-v="고침">고침</button><button class="un" data-k="4" data-v="모름">모름</button></div><input class="newv" data-k="4" placeholder="바른 값" hidden><div class="mark" data-k="4"></div></td></tr><tr><td>영본B</td><td>광주광역시와 전라남도 경계의 영산강본류 지점 (광주광역시 남구와 나주시 경계지점)</td><td class="rv" data-k="5"><div class="val">4.6</div><div class="btns"><button class="ok" data-k="5" data-v="맞음">맞음</button><button class="fx" data-k="5" data-v="고침">고침</button><button class="un" data-k="5" data-v="모름">모름</button></div><input class="newv" data-k="5" placeholder="바른 값" hidden><div class="mark" data-k="5"></div></td><td class="rv" data-k="6"><div class="val">0.145</div><div class="btns"><button class="ok" data-k="6" data-v="맞음">맞음</button><button class="fx" data-k="6" data-v="고침">고침</button><button class="un" data-k="6" data-v="모름">모름</button></div><input class="newv" data-k="6" placeholder="바른 값" hidden><div class="mark" data-k="6"></div></td></tr><tr><td>섬본C</td><td>전라북도와 전라남도 경계의 섬진강본류 지점 (순창군과 곡성군 경계지점)</td><td class="rv" data-k="7"><div class="val">1.4</div><div class="btns"><button class="ok" data-k="7" data-v="맞음">맞음</button><button class="fx" data-k="7" data-v="고침">고침</button><button class="un" data-k="7" data-v="모름">모름</button></div><input class="newv" data-k="7" placeholder="바른 값" hidden><div class="mark" data-k="7"></div></td><td class="rv" data-k="8"><div class="val">0.038</div><div class="btns"><button class="ok" data-k="8" data-v="맞음">맞음</button><button class="fx" data-k="8" data-v="고침">고침</button><button class="un" data-k="8" data-v="모름">모름</button></div><input class="newv" data-k="8" placeholder="바른 값" hidden><div class="mark" data-k="8"></div></td></tr><tr><td>요천B</td><td>전라북도와 전라남도 경계의 요천본류 지점 (섬진강본류 합류전 요천본류 지점)</td><td class="rv" data-k="9"><div class="val">1.5</div><div class="btns"><button class="ok" data-k="9" data-v="맞음">맞음</button><button class="fx" data-k="9" data-v="고침">고침</button><button class="un" data-k="9" data-v="모름">모름</button></div><input class="newv" data-k="9" placeholder="바른 값" hidden><div class="mark" data-k="9"></div></td><td class="rv" data-k="10"><div class="val">0.054</div><div class="btns"><button class="ok" data-k="10" data-v="맞음">맞음</button><button class="fx" data-k="10" data-v="고침">고침</button><button class="un" data-k="10" data-v="모름">모름</button></div><input class="newv" data-k="10" placeholder="바른 값" hidden><div class="mark" data-k="10"></div></td></tr><tr><td>섬본E</td><td>전라남도와 경상남도 경계의 섬진강본류 지점 (하양시 다압면과 하동군 하동읍 경계지점)</td><td class="rv" data-k="11"><div class="val">1.1</div><div class="btns"><button class="ok" data-k="11" data-v="맞음">맞음</button><button class="fx" data-k="11" data-v="고침">고침</button><button class="un" data-k="11" data-v="모름">모름</button></div><input class="newv" data-k="11" placeholder="바른 값" hidden><div class="mark" data-k="11"></div></td><td class="rv" data-k="12"><div class="val">0.030</div><div class="btns"><button class="ok" data-k="12" data-v="맞음">맞음</button><button class="fx" data-k="12" data-v="고침">고침</button><button class="un" data-k="12" data-v="모름">모름</button></div><input class="newv" data-k="12" placeholder="바른 값" hidden><div class="mark" data-k="12"></div></td></tr><tr><td>섬본F</td><td>경상남도와 전라남도 경계의 섬진강본류 지점 (섬진강본류 종점)</td><td>-</td><td>-</td></tr></table></div></section></main>
+<footer>
+  · 고른 것은 <b>이 브라우저에 저장</b>됩니다(다른 기기·다른 사람에게는 안 갑니다). 끝나면 <b>「내보내기 — 복사」로 대화창에 붙여 넣거나</b> 내려받아 주세요. 게시판(claude.ai)에서 열면 누르는 즉시 저장소에도 남습니다.<br>
+  · 「고침」을 누르면 바른 값을 적는 칸이 열립니다. 적은 값은 내려받는 파일에 함께 담깁니다.<br>
+  · 원문 그림이 안 뜨는 표는 <span style="color:var(--un)">노란 안내</span>가 대신 나옵니다 — 그 값도 확인 대상입니다.
+</footer>
+<script>
+const KEY='review:영산강_섬진강수계광역시_도경계지점의목표수질_BOD_T_P_';
+let DB=null,DBt=0;
+let S={};
+try{S=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){S={}}
+const tds=[...document.querySelectorAll('td.rv')];
+function paint(){
+  for(const td of tds){
+    const k=td.dataset.k, s=S[k];
+    if(!s){td.removeAttribute('data-s');td.querySelector('.mark').textContent='';continue}
+    td.dataset.s=s.state;
+    const inp=td.querySelector('.newv');
+    inp.hidden = s.state!=='고침';
+    if(s.state==='고침'&&inp.value!==(s.value||''))inp.value=s.value||'';
+    td.querySelector('.mark').textContent =
+      s.state==='고침' ? '고침 → '+(s.value||'(값을 적어 주세요)') : s.state;
+  }
+  const done=Object.keys(S).length;
+  document.getElementById('count').textContent=done+' / '+tds.length+' 확인함';
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  // ★2026-09-29 — 누르는 즉시 저장소에도 둔다(Claude 가 읽는다). 저장소가 없으면(내려받은 파일) 이 브라우저에만 남는다.
+  //   문서 이름은 영숫자만 받으므로 한글 이름 대신 이름의 sha1 앞 12자리(fefa1176e0d2f)를 쓴다.
+  if(DB){clearTimeout(DBt);DBt=setTimeout(()=>{DB.doc('review/fefa1176e0d2f').set({이름:KEY.replace('review:',''),S:JSON.stringify(S),at:new Date().toISOString()}).catch(()=>{})},400)}
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('td.rv button'); if(!b)return;
+  const k=b.dataset.k, v=b.dataset.v;
+  if(S[k]&&S[k].state===v){delete S[k]} else {S[k]={state:v,value:(S[k]||{}).value||'',
+    orig:document.querySelector('td.rv[data-k="'+k+'"] .val').textContent}}
+  paint();
+  if(S[k]&&S[k].state==='고침'){const i=document.querySelector('input.newv[data-k="'+k+'"]');i.hidden=false;i.focus()}
+});
+document.addEventListener('input',e=>{
+  const i=e.target.closest('input.newv'); if(!i)return;
+  const k=i.dataset.k; S[k]=S[k]||{state:'고침',orig:''}; S[k].value=i.value; paint();
+});
+function rows(){
+  return tds.map(td=>{const k=td.dataset.k,s=S[k]||{};
+    return {번호:+k, 옮겨적은값:td.querySelector('.val').textContent,
+            판정:s.state||'', 바른값:s.value||''}});
+}
+function dl(name,text,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();
+}
+document.getElementById('dlJson').onclick=()=>dl('영산강_섬진강수계광역시_도경계지점의목표수질_BOD_T_P__검토.json',
+  JSON.stringify({원문:'raw/15_관련타부처/물환경보전법/행정규칙/영산강·섬진강수계광역시·도경계지점의목표수질(BOD,T-P).txt',확인한때:new Date().toISOString(),결과:rows()},null,1),'application/json');
+document.getElementById('dlCsv').onclick=()=>{
+  const r=rows(); const esc=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  dl('영산강_섬진강수계광역시_도경계지점의목표수질_BOD_T_P__검토.csv','\uFEFF'+['번호,옮겨적은값,판정,바른값',
+    ...r.map(x=>[x.번호,x.옮겨적은값,x.판정,x.바른값].map(esc).join(','))].join('\n'),'text/csv');
+};
+document.getElementById('allOk').onclick=()=>{
+  if(!confirm('아직 안 고른 값을 전부 「맞음」으로 표시합니다. 계속할까요?'))return;
+  for(const td of tds){const k=td.dataset.k; if(!S[k])S[k]={state:'맞음',value:'',
+    orig:td.querySelector('.val').textContent}}
+  paint();
+};
+document.getElementById('reset').onclick=()=>{
+  if(!confirm('고른 것을 모두 지웁니다. 계속할까요?'))return;
+  S={};try{localStorage.removeItem(KEY)}catch(e){};
+  for(const i of document.querySelectorAll('input.newv')){i.value='';i.hidden=true}
+  paint();
+};
+document.getElementById('copyOut').onclick=async()=>{
+  const r=rows().filter(x=>x.판정);
+  const t=['[그림 값 검토 — '+KEY.replace('review:','')+'] '+r.length+' / '+tds.length+' 확인함',
+           ...r.map(x=>'#'+x.번호+' '+x.옮겨적은값+' = '+x.판정+(x.바른값?' → '+x.바른값:''))].join('\n');
+  try{await navigator.clipboard.writeText(t);alertBox('복사했습니다 — 대화창에 붙여 넣어 주세요')}
+  catch(e){const ta=document.getElementById('outbox');ta.hidden=false;ta.value=t;ta.focus();ta.select();alertBox('복사가 막혔습니다 — 아래 글상자에서 직접 복사해 주세요')}
+};
+function alertBox(m){const c=document.getElementById('count');const o=c.textContent;c.textContent=m;setTimeout(()=>paint(),1800)}
+paint();
+(async()=>{let d=null;try{d=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){d=null}
+  if(!d)return; DB=d;
+  DB.doc('review/fefa1176e0d2f').onSnapshot(doc=>{const b=doc&&doc.data&&doc.data();if(!b||!b.S)return;
+    try{const got=JSON.parse(b.S);if(JSON.stringify(got)!==JSON.stringify(S)){S=got;paint()}}catch(e){}},()=>{});
+})();
+</script>
+<textarea id="outbox" hidden style="width:100%;height:220px;font:12px ui-monospace,monospace"></textarea></body></html>

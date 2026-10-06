@@ -54,6 +54,8 @@ const gemini = require('./gemini_client');
 const githubRaw = require('./github_raw');
 // 예고본·시행일 마커 전환(H-29 트랙 C) — 오늘(KST) 계산과 접기 규칙은 이 모듈 한 곳에 있다.
 const effectiveDate = require('./effective_date');
+// ★그림 판독문은 검색용으로만 — 모델에 넘기는 근거에서 뺀다(3-75 · Q-19 · `_RULES.md` §5ⓓ).
+const pictureText = require('./picture_text');
 
 const LEGAL_DIR = path.join(__dirname, '..', 'knowledge', 'legal');
 const INDEX_JSON = path.join(LEGAL_DIR, '_dashboard', 'index.json');
@@ -435,6 +437,9 @@ const KIND_DIRS = { statute: STATUTES_DIR, comparison: COMPARISONS_DIR, annex: A
 function pageFilePath(kind, file) {
   return path.join(KIND_DIRS[kind] || CONCEPTS_DIR, file + '.md');
 }
+/** 위키 상대경로(`concepts/…md`) — `_dashboard/picture_wiki_lines.json` 의 열쇠. @param {{kind:string,file:string}} p */
+const WIKI_SUBDIR = { statute: 'statutes', comparison: 'comparisons', annex: 'annexes', activity: 'activities' };
+function wikiKeyOf(p) { return (WIKI_SUBDIR[p.kind] || 'concepts') + '/' + p.file + '.md'; }
 
 // [[링크]] 표기가 'comparisons/'·'annexes/'·'activities/' 접두어 없이 쓰인 기존 위키 문서가
 // 많아(허브·별표 페이지 관행이 정착되기 전 작성분), normalizeSlug만으론 kind를 못 맞힐 수
@@ -2206,7 +2211,9 @@ async function search(query, opts) {
     const budget = budgets[rank];
     // ③ 바닥까지 줄여도 넘치면 그때는 싣지 않는다(장수가 아주 많을 때만 닿는 길).
     if (rank >= TOP_FULL_RANK && spentChars + MIN_BODY_CHARS > CONTEXT_MAX_CHARS) return null;
-    const sliced = sliceRelevant(body, allTerms, budget);
+    // ★그림에서 옮긴 줄은 모델 근거에서 뺀다(3-75 · Q-19). 점수(scoreBody)·화면 인용사슬(sources)은 그대로 —
+    //   여기서 빼면 답변·되묻기·용어설명 세 프롬프트가 함께 막힌다(셋 다 contextPages 를 읽는다).
+    const sliced = sliceRelevant(pictureText.stripWikiPictureText(body, wikiKeyOf(x.p)), allTerms, budget);
     spentChars += sliced.length;
     return {
       law: x.p.law, topic: x.p.topic, file: x.p.file, kind: x.p.kind, status: x.p.status || null,
@@ -3438,7 +3445,11 @@ const ANSWER_RULES_BODY = `[답변 원칙 — 반드시 지킬 것]
     - 잘못된 예: "저장시설 운영자가 위반하면 처분이 몇 차까지?"에 법 제38조·제38조의3(처분 근거)만 인용하고, **차수별 기준이 실제로 적힌 시행규칙 별표를 빠뜨리는 것.**
     - 올바른 예: 위반 조문과 함께 **그 값이 실제로 적힌 자리**(별표·별지·다른 조)를 같이 인용한다.
     - ⚠이건 규칙 11(같은 조의 각 호를 반복해 적지 말라)과 다른 이야기다. 규칙 11은 **한 조 안**의 반복을 막는 것이고, 이 규칙은 **서로 다른 조·별표**를 빠뜨리지 말라는 것이다. 규칙 11 자신도 "다른 법·다른 조에서 나온 항목은 그 항목에만 따로 적는다"를 예외로 두고 있다.
-    - [근거자료]에 그 자리가 **없으면** 지어내지 말고, 그 부분은 확인되지 않는다고 밝힌다(규칙 2).`;
+    - [근거자료]에 그 자리가 **없으면** 지어내지 말고, 그 부분은 확인되지 않는다고 밝힌다(규칙 2).
+17. ★**[근거자료]에 「〔원문 그림 …〕」 표시가 있으면, 그 자리의 기준은 법령 원문에 그림(표·도면·산식·지도)으로 실려 있고 우리는 그 그림 속 글·숫자를 옮겨 적지 않았다.**
+    - 그 그림 속 값을 **짐작하거나 다른 자리에서 끌어와 채우지 마라.** 그림 값은 사람이 봐도 읽기 어렵고 AI 가 읽으면 틀릴 수 있어 일부러 뺀 것이다.
+    - 대신 그 기준이 **어느 법령의 어느 별표·조문에 그림으로 실려 있는지** 밝히고, "그 별표(조문)를 열면 원본 그림을 볼 수 있습니다"라고 안내한다 — 화면이 「법령명 + 별표·조문번호」 표기를 눌러 원본 그림이 든 창을 연다(규칙 7).
+    - 그림 **앞뒤의 글**(그림이 무엇을 정하는지 · 적용 대상 · 다른 조건)은 글로 실려 있으니 종전대로 답한다. 규칙 13(표의 값을 그대로 말하라)은 **글로 실린 표**에만 해당한다 — 그림으로 실린 표에는 이 규칙 17이 앞선다.`;
 
 const ANSWER_RULES = `너는 "나리야" — 대한민국 해양수산 법령을 안내하는 AI 챗봇이다. 아래 [근거자료]는 검증 절차를 거친 법령 위키에서 그대로 발췌한 원문이다.
 
@@ -3649,12 +3660,14 @@ async function loadLawBundle(law) {
   if (!lawText) return null;
   const isText = n => /\.(txt|md)$/i.test(n);
   const files = top.filter(e => e.type === 'file' && isText(e.name) && e.name !== '법률.txt').map(e => e.name);
-  const dirs = top.filter(e => e.type === 'dir').map(e => e.name);
+  // ★`_` 로 시작하는 폴더는 근거 후보가 아니다(3-75): `_이미지/`(그림 판독 파일) · `_대기/`(시행 전 예고본 —
+  //   시행일이 지난 것은 위 stagedRawPath 가 따로 읽는다) · `_구판/`(옛 판). 전에는 고르는 모델이 이것도 골랐다.
+  const dirs = top.filter(e => e.type === 'dir' && !e.name.startsWith('_')).map(e => e.name);
   const subs = await Promise.all(dirs.map(d => githubRaw.listDir(base + '/' + d)));
   dirs.forEach((d, i) => {
     for (const e of subs[i]) if (e.type === 'file' && isText(e.name)) files.push(d + '/' + e.name);
   });
-  return { law, base, lawText, files };
+  return { law, base, lawText: pictureText.stripRawPictureText(lawText), files };
 }
 
 // ②파일 선택 호출은 법률.txt 전문(최대 RAW_MAX_CHARS)까지 읽히므로 질의확장(10초)보다 여유가 필요하다.
@@ -3757,7 +3770,7 @@ async function searchRawFallback(query, hint) {
       // 시행령·시행규칙은 늘 현행을 읽어, 시행일 뒤 조문 팝업과 2차 조회 답이 어긋났다(2026-09-10 검토).
       const staged = effectiveDate.stagedRawPath(p.base, p.file);
       const text = (staged && await githubRaw.fetchText(staged)) || await githubRaw.fetchText(p.base + '/' + p.file);
-      return text ? { law: p.law, file: p.file, text } : null;
+      return text ? { law: p.law, file: p.file, text: pictureText.stripRawPictureText(text) } : null;
     }))).filter(Boolean);
 
     const blocks = bundles.map(b => `--- [${b.law}] 법률 원문 ---\n${b.lawText.slice(0, RAW_MAX_CHARS)}`)
@@ -3833,7 +3846,10 @@ function loadZoneTree() {
   try {
     const mt = fs.statSync(ZONE_TREE_JSON).mtimeMs;
     if (_zoneCache && mt === _zoneMtime) return _zoneCache;
-    _zoneCache = JSON.parse(fs.readFileSync(ZONE_TREE_JSON, 'utf8')); _zoneMtime = mt;
+    // ★트리에 옮겨 둔 raw 발췌에도 판독 블록이 섞여 있다(선박설비기준 제12조 등) — 글자마다 걸러 둔다(3-75).
+    _zoneCache = JSON.parse(fs.readFileSync(ZONE_TREE_JSON, 'utf8'),
+      (k, v) => (typeof v === 'string' && v.indexOf('【이미지판독') >= 0 ? pictureText.stripRawPictureText(v) : v));
+    _zoneMtime = mt;
   } catch (_) { if (!_zoneCache) _zoneCache = { trees: [] }; }
   return _zoneCache;
 }

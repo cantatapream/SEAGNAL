@@ -64,6 +64,17 @@ console.log('\n── ② 판번호의 제자리는 families.<계층> 안이다 
   ok('families 는 있는데 번호가 비면 hasId 가 아니다', e.hasId === false);
 }
 
+console.log('\n── ②-b 행정규칙 하나뿐인 폴더는 머리가 제자리다 (3-45 = B3 ⓐ, 2026-09-29) ──');
+{
+  const a = withMeta({ 행정규칙종류: '고시', 행정규칙ID: '21845', 행정규칙일련번호: '2100000280806' }, M.readMeta);
+  ok('행정규칙종류가 있고 families 가 없으면 머리의 번호가 hasId 다', a.hasId === true);
+  ok('그 번호는 흩어진 것(strays)으로 세지 않는다', Object.keys(a.strays).length === 0, JSON.stringify(a.strays));
+  const f = withMeta({ 행정규칙종류: '고시', 행정규칙ID: '1', families: { 시행규칙: { 파일: 'x.txt' } } }, M.readMeta);
+  ok('★families 가 있으면(법령에 딸린 것) 머리는 여전히 옛 자리다', f.hasId === false && f.strays['행정규칙ID'] === '1');
+  const l = withMeta({ 법령ID: '001948' }, M.readMeta);
+  ok('법령의 머리 번호는 이 규칙과 무관하다(옛 자리)', l.hasId === false && l.strays['법령ID'] === '001948');
+}
+
 console.log('\n── ③ 계층 이름은 괄호에서만 읽는다 (추측하지 않는다) ──');
 {
   ok('`법령일련번호(시행령)` → 시행령', M.layerOfStray('법령일련번호(시행령)') === '시행령');

@@ -4874,7 +4874,10 @@ const D={"r0":{"종류":"표","쪽":"국제항해선박등에대한해적행위�
 let 종=0;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');
  clearTimeout(종);종=setTimeout(()=>t.classList.remove('on'),1600)}
-function 저장(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+let DB=null,DBt=0;
+function 저장(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+ // ★2026-09-29 — 누르는 즉시 저장소에도 둔다(Claude 가 읽는다). 저장소가 없으면(내려받은 파일) 이 브라우저에만 남는다.
+ if(DB){clearTimeout(DBt);DBt=setTimeout(()=>{DB.doc('rowcount/state').set({S:JSON.stringify(S),at:new Date().toISOString()}).catch(()=>toast('저장소에 못 썼습니다 — 「내보내기」로 복사해 주세요'))},400)}}
 
 /* ── 표가 있는 칸: 수를 적는다 ── */
 function chg(id){
@@ -4948,7 +4951,7 @@ function save(){
  a.download='별표_항목수_확정.txt';a.click();
  toast('내려받지 못하면 「복사」를 눌러 주세요')}
 
-window.addEventListener('DOMContentLoaded',()=>{
+function 채우기(){
  Object.keys(D).forEach(k=>{
   const d=D[k],v=S[k]||{};
   if(d.종류==='표'){
@@ -4958,7 +4961,13 @@ window.addEventListener('DOMContentLoaded',()=>{
    document.getElementById('wy_'+k).value=v.까닭||'';
    chg(k)}
   else{const m=document.getElementById('m_'+k);if(m&&v.메모)m.value=v.메모;칠no(k)}});
- count()})
+ count()}
+window.addEventListener('DOMContentLoaded',채우기);
+(async()=>{let d=null;try{d=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){d=null}
+ if(!d)return; DB=d;
+ DB.doc('rowcount/state').onSnapshot(doc=>{const b=doc&&doc.data&&doc.data();if(!b||!b.S)return;
+  try{const got=JSON.parse(b.S);if(JSON.stringify(got)!==JSON.stringify(S)){S=got;try{localStorage.setItem(KEY,b.S)}catch(e){};채우기()}}catch(e){}},()=>{});
+})();
 </script>
 <textarea id="out" hidden style="width:100%;height:220px;font:12px ui-monospace,monospace"></textarea>
 </body></html>

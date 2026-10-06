@@ -1,0 +1,172 @@
+<title>그림 값 검토장</title>
+<style>
+:root{--bg:#fbfbfa;--fg:#1c1d1f;--mut:#5d6168;--line:#d9dbde;--soft:#f0f1f2;--card:#fff;--ok:#137333;--fx:#b3261e;--un:#8a6d00;--rv:#fff6d6;--accent:#0b57d0;--accfg:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#15171a;--fg:#e7e8ea;--mut:#a3a7ad;--line:#393d43;--soft:#1f2227;--card:#1b1e22;--ok:#6dd58c;--fx:#f2b8b5;--un:#fdd663;--rv:#3a3317;--accent:#8ab4f8;--accfg:#0b1d3a}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#15171a;--fg:#e7e8ea;--mut:#a3a7ad;--line:#393d43;--soft:#1f2227;--card:#1b1e22;--ok:#6dd58c;--fx:#f2b8b5;--un:#fdd663;--rv:#3a3317;--accent:#8ab4f8;--accfg:#0b1d3a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+h1{margin:0;font-size:17px;text-wrap:balance}
+.total{margin-left:auto;font-size:13px;color:var(--mut);font-variant-numeric:tabular-nums}
+.bar{margin-top:8px}
+select{font:inherit;font-size:14px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--fg);max-width:100%;min-width:0;flex:1 1 320px}
+button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--line);border-radius:7px;background:var(--soft);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accfg);border-color:transparent}
+button.warn{border-color:var(--fx);color:var(--fx)}
+.meta{font-size:12.5px;color:var(--mut);margin-top:6px;word-break:break-all}
+.msg{font-size:13px;color:var(--accent);min-height:1em}
+.intro{max-width:1400px;margin:14px auto 0;padding:0 16px;font-size:13.5px;color:var(--mut)}
+.intro b{color:var(--fg)}
+.list{max-width:1400px;margin:10px auto 0;padding:0 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px}
+.list button{text-align:left;display:flex;justify-content:space-between;gap:8px;background:var(--card);font-size:12.5px}
+.list button.on{border-color:var(--accent);outline:1px solid var(--accent)}
+.list button .n{font-variant-numeric:tabular-nums;color:var(--mut);white-space:nowrap}
+.list button.done .n{color:var(--ok);font-weight:700}
+main{padding:16px;max-width:1400px;margin:0 auto}
+section{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+@media (max-width:900px){section{grid-template-columns:1fr}}
+.pane{min-width:0}
+.pane.tbl{overflow-x:auto}
+.pane.img{position:sticky;top:var(--hh,140px);align-self:start}
+@media (max-width:900px){.pane.img{position:static}}
+.pane.img img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+.noimg{padding:14px;border:1px dashed var(--line);border-radius:8px;font-size:13px;color:var(--un)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--line);padding:5px 7px;vertical-align:top;text-align:left}
+th{background:var(--soft);font-weight:600}
+td.rv{background:var(--rv);min-width:130px}
+td.rv .val{font-weight:700;margin-bottom:4px;word-break:break-all}
+td.rv .btns{display:flex;gap:3px;flex-wrap:wrap}
+td.rv button{font-size:11px;padding:2px 6px;border-radius:5px;background:var(--card)}
+td.rv input.newv{margin-top:4px;width:100%;font:inherit;font-size:12px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--fg)}
+td.rv .mark{font-size:11px;margin-top:3px;font-weight:700}
+td.rv[data-s="맞음"]{outline:2px solid var(--ok);outline-offset:-2px}
+td.rv[data-s="맞음"] .mark{color:var(--ok)}
+td.rv[data-s="고침"]{outline:2px solid var(--fx);outline-offset:-2px}
+td.rv[data-s="고침"] .mark{color:var(--fx)}
+td.rv[data-s="모름"]{outline:2px solid var(--un);outline-offset:-2px}
+td.rv[data-s="모름"] .mark{color:var(--un)}
+.loading{padding:30px;text-align:center;color:var(--mut)}
+#outbox{width:100%;height:220px;font:12px ui-monospace,monospace;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:7px;margin-top:8px}
+footer{padding:20px 16px 50px;font-size:12.5px;color:var(--mut);max-width:1400px;margin:0 auto}
+</style>
+<header id="hd">
+  <div class="row"><h1>그림 값 검토장</h1><span class="total" id="total"></span></div>
+  <div class="row bar">
+    <select id="pick" aria-label="규정 고르기"></select>
+    <button class="primary" id="copyOut">내보내기 — 복사</button>
+    <button id="allOk">이 규정 남은 것 전부 「맞음」</button>
+    <button id="reset">이 규정 지우기</button>
+  </div>
+  <div class="meta" id="meta"></div>
+  <div class="msg" id="msg"></div>
+</header>
+<div class="intro">원문이 <b>그림으로만</b> 있는 표에서 사람이 읽어 옮긴 값 <b>686개</b>를 원본 그림과 맞춰 보는 곳입니다(확인판 D1 ⓑ).
+왼쪽이 <b>원본 그림</b>, 오른쪽이 <b>옮겨 적은 표</b>이고, 노란 칸이 확인할 값입니다. 칸마다 <b>맞음 · 고침 · 모름</b> 가운데 하나를 누르고, 「고침」이면 바른 값을 적어 주세요.
+누르는 즉시 <b>저장소에 저장</b>되어 Claude 가 바로 읽습니다 — 중간에 닫아도 이어서 할 수 있습니다.</div>
+<div class="intro"><textarea id="outbox" hidden></textarea></div>
+<div class="list" id="list"></div>
+<main id="main"><div class="loading">불러오는 중…</div></main>
+<footer>· 값이 많은 규정부터 늘어놓았습니다. 위 목록의 숫자는 <b>확인한 값 / 확인할 값</b>입니다.<br>
+· 저장소에 못 쓰는 창(내려받은 파일 등)에서는 이 브라우저에만 남습니다 — 그때는 「내보내기 — 복사」로 대화창에 붙여 넣어 주세요.<br>
+· 원본 그림이 없는 표는 <span style="color:var(--un)">노란 안내</span>가 대신 나옵니다 — 그 값도 확인 대상입니다.</footer>
+<script>
+const IDX=__IDX__;
+const GRAND=IDX.reduce((a,x)=>a+x.total,0);
+let ALL={};            // 규정 이름 → {번호: {state,value,orig}}
+let CUR=-1, S={}, tds=[], DB=null, DBt={}, armed=null, HOLD={};
+try{ALL=JSON.parse(localStorage.getItem('figrev:all')||'{}')}catch(e){ALL={}}
+async function sha(s){try{const b=await crypto.subtle.digest('SHA-1',new TextEncoder().encode(s));return 'f'+[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('').slice(0,12)}catch(e){return null}}
+const DOCID={};
+const $=id=>document.getElementById(id);
+function msg(t){$('msg').textContent=t;clearTimeout(msg.t);msg.t=setTimeout(()=>$('msg').textContent='',2600)}
+function counts(){let d=0;for(const x of IDX)d+=Object.keys(ALL[x.name]||{}).length;return d}
+function paintList(){
+  $('list').innerHTML='';$('pick').innerHTML='';
+  IDX.forEach((x,i)=>{
+    const n=Object.keys(ALL[x.name]||{}).length;
+    const b=document.createElement('button');
+    b.className=(i===CUR?'on ':'')+(n===x.total?'done':'');
+    b.innerHTML='<span></span><span class="n"></span>';
+    b.firstChild.textContent=x.title;b.lastChild.textContent=n+' / '+x.total;
+    b.onclick=()=>openRule(i);$('list').appendChild(b);
+    const o=document.createElement('option');o.value=i;o.textContent=x.title+' — '+n+' / '+x.total;if(i===CUR)o.selected=true;$('pick').appendChild(o);
+  });
+  $('total').textContent='전체 '+counts()+' / '+GRAND+' 확인함';
+}
+function paint(){
+  for(const td of tds){
+    const k=td.dataset.k, s=S[k];
+    const inp=td.querySelector('.newv');
+    if(!s){td.removeAttribute('data-s');td.querySelector('.mark').textContent='';inp.hidden=true;continue}
+    td.dataset.s=s.state;
+    inp.hidden=s.state!=='고침';
+    if(s.state==='고침'&&document.activeElement!==inp&&inp.value!==(s.value||''))inp.value=s.value||'';
+    td.querySelector('.mark').textContent=s.state==='고침'?'고침 → '+(s.value||'(값을 적어 주세요)'):s.state;
+  }
+  paintList();
+}
+function save(){
+  const x=IDX[CUR]; if(!x)return;
+  ALL[x.name]=S;
+  try{localStorage.setItem('figrev:all',JSON.stringify(ALL))}catch(e){}
+  if(DB&&DOCID[x.name]){const id=DOCID[x.name],body={이름:x.name,원문:'raw/'+x.rel,S:JSON.stringify(S),at:new Date().toISOString()};
+    HOLD[id]=Date.now()+2500;clearTimeout(DBt[id]);DBt[id]=setTimeout(()=>{try{DB.doc('review/'+id).set(body).catch(()=>msg('저장소에 못 썼습니다 — 「내보내기 — 복사」로 옮겨 주세요'))}catch(e){}},400)}
+}
+async function openRule(i){
+  CUR=i;const x=IDX[i];S=ALL[x.name]||{};disarm();
+  $('meta').textContent='원문: raw/'+x.rel+' · 확인할 값 '+x.total+'개';
+  $('main').innerHTML='<div class="loading">불러오는 중…</div>';
+  paintList();
+  try{const r=await fetch(x.f);const d=await r.json();if(CUR!==i)return;$('main').innerHTML=d.body}
+  catch(e){$('main').innerHTML='<div class="loading">이 규정을 불러오지 못했습니다 — 다시 골라 주세요.</div>';tds=[];return}
+  tds=[...document.querySelectorAll('#main td.rv')];
+  try{history.replaceState(null,'','#r'+i)}catch(e){}
+  hh();paint();window.scrollTo(0,0);
+}
+function hh(){document.documentElement.style.setProperty('--hh',($('hd').offsetHeight+10)+'px')}
+window.addEventListener('resize',hh);
+$('pick').onchange=e=>openRule(+e.target.value);
+document.addEventListener('click',e=>{
+  const b=e.target.closest('#main td.rv button'); if(!b)return;
+  const k=b.dataset.k,v=b.dataset.v;
+  if(S[k]&&S[k].state===v){delete S[k]}else{S[k]={state:v,value:(S[k]||{}).value||'',orig:document.querySelector('#main td.rv[data-k="'+k+'"] .val').textContent}}
+  save();paint();
+  if(S[k]&&S[k].state==='고침'){const i=document.querySelector('#main input.newv[data-k="'+k+'"]');i.hidden=false;i.focus()}
+});
+document.addEventListener('input',e=>{
+  const i=e.target.closest('#main input.newv'); if(!i)return;
+  const k=i.dataset.k;S[k]=S[k]||{state:'고침',orig:''};S[k].value=i.value;save();paint();
+});
+// 한 번 더 눌러야 되는 단추(창 안의 확인 — 알림창은 이 화면에서 안 뜬다)
+function disarm(){armed=null;$('allOk').textContent='이 규정 남은 것 전부 「맞음」';$('reset').textContent='이 규정 지우기';$('allOk').className='';$('reset').className=''}
+function arm(id,label){if(armed===id){disarm();return true}disarm();armed=id;$(id).textContent=label;$(id).className='warn';setTimeout(()=>{if(armed===id)disarm()},5000);return false}
+$('allOk').onclick=()=>{if(CUR<0||!arm('allOk','정말요? 한 번 더 누르면 적용'))return;
+  for(const td of tds){const k=td.dataset.k;if(!S[k])S[k]={state:'맞음',value:'',orig:td.querySelector('.val').textContent}}
+  save();paint();msg('남은 값을 「맞음」으로 표시했습니다')};
+$('reset').onclick=()=>{if(CUR<0||!arm('reset','정말요? 한 번 더 누르면 지움'))return;
+  S={};for(const i of document.querySelectorAll('#main input.newv')){i.value='';i.hidden=true}
+  save();paint();msg('이 규정에서 고른 것을 지웠습니다')};
+$('copyOut').onclick=async()=>{
+  const out=['[그림 값 검토장] 전체 '+counts()+' / '+GRAND+' 확인함'];
+  for(const x of IDX){const s=ALL[x.name]||{};const ks=Object.keys(s).sort((a,b)=>a-b);if(!ks.length)continue;
+    const c={맞음:0,고침:0,모름:0};ks.forEach(k=>c[s[k].state]=(c[s[k].state]||0)+1);
+    out.push('','■ '+x.title+' ('+ks.length+' / '+x.total+') 맞음 '+c.맞음+' · 고침 '+c.고침+' · 모름 '+c.모름);
+    for(const k of ks){const v=s[k];if(v.state!=='맞음')out.push('#'+k+' '+(v.orig||'')+' = '+v.state+(v.value?' → '+v.value:''))}}
+  const t=out.join('\n');
+  try{await navigator.clipboard.writeText(t);$('outbox').hidden=true;msg('복사했습니다 — 대화창에 붙여 넣어 주세요 (「맞음」은 수만 담았습니다)')}
+  catch(e){const ta=$('outbox');ta.hidden=false;ta.value=t;ta.scrollIntoView({block:'center'});ta.focus();ta.select();msg('복사가 막혔습니다 — 아래 글상자에서 직접 복사해 주세요')}
+};
+(async()=>{
+  for(const x of IDX)DOCID[x.name]=await sha(x.name);
+  let h=(location.hash||'').match(/^#r(\d+)$/);openRule(h&&IDX[+h[1]]?+h[1]:0);
+  let d=null;try{d=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){d=null}
+  if(!d)return;DB=d;
+  const byId={};for(const x of IDX)if(DOCID[x.name])byId[DOCID[x.name]]=x.name;
+  try{DB.collection('review').onSnapshot(snap=>{let ch=false;
+    for(const doc of snap.docs){const nm=byId[doc.id];if(HOLD[doc.id]&&Date.now()<HOLD[doc.id])continue;const b=doc.data();if(!nm||!b||!b.S)continue;
+      try{const got=JSON.parse(b.S);if(JSON.stringify(got)!==JSON.stringify(ALL[nm]||{})){ALL[nm]=got;ch=true;if(IDX[CUR]&&IDX[CUR].name===nm)S=got}}catch(e){}}
+    if(ch){try{localStorage.setItem('figrev:all',JSON.stringify(ALL))}catch(e){};paint()}},()=>{})}catch(e){}
+})();
+</script>

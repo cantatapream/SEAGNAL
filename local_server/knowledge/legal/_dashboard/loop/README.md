@@ -26,7 +26,7 @@
 <!-- 자목록:자동 -->
 ### 자 목록 — 누가 부르나 (기계가 씀 · `loop_tool_census.js --index`)
 
-자 **285자루** · 게이트 **61** · 코드 **112** · 글만 **110** · 없음 **2**
+자 **288자루** · 게이트 **61** · 코드 **113** · 글만 **113** · 없음 **1**
 
 | 자 | 누가 부르나 | 무엇을 하는 자인가 |
 |---|---|---|
@@ -101,6 +101,7 @@
 | `byl_rename_to_decl.py` | 글만 | 별표 파일 **이름을 그 속이 말하는 번호에 맞춘다.** (3-34 = ⓒ 앞쪽) |
 | `byl_rewrite_hwp.py` | 코드 | 별표 raw 를 **원본 `.hwp` 에서 다시 쓴다 — 표는 행 단위로.** 선언: `_dashboard/hwp_byl_rewrite.json` |
 | `byl_tier_fill.py` | 코드 | 3-46 — V5-32 가 「파일이 없다」고 짚은 **계층 별표 빈자리**를 골라서 메운다. |
+| `char_split_join.py` | 없음 | 글자 하나씩 한 줄로 쪼개져 저장된 raw** 를 다시 잇는다. (3-36 · 확인판 B4 ⓐ · 2026-09-29) |
 | `chatbot_proto.py` | 글만 | 나리야 법률 챗봇 검색+답변 프로토타입 (순수 코드, 임베딩 키 불필요). |
 | `check_budchik.py` | 글만 | 73법 raw(법률/시행령/시행규칙)에 부칙 섹션이 빠져있는지 전수 점검한다(H-26 후속). |
 | `cite_link_check.js` | 글만 | **답변 속 조문 표기에 화면이 실제로 링크를 거나** (2026-09-26 신설, L-8b) |
@@ -108,6 +109,7 @@
 | `cite_number_raw.js` | 코드 | 3-41 ① — 본문 인용의 **값 숫자**(금액·기간·비율·치수)를 **raw 원문과 맞대어 본다. |
 | `cite_row.js` | 코드 | 근거 조문 표의 행을 **쓰기 시점에** 규격대로 만들어 준다(H-47 ②). |
 | `coastal_ordin_scan.py` | 코드 | 3-22 — **연안 시군구가 어디인지 전국 자치법규로 세어 정한다.** 선언: `_dashboard/coastal_ordin.json` |
+| `col_split_close.py` | 코드 | 되살릴 길이 없는 「열로 풀린 표」에 한계 표시를 단다.** 선언: `_dashboard/col_split_closed.json` (3-36 · 확인판 B4 ⓐ) |
 | `col_split_source_survey.py` | 글만 | V5-20(표가 열 단위로 펼쳐진 자리)이 남긴 쪽마다 **원본 `.hwp`/`.hwpx` 가 있는지 전수 조사한다. |
 | `collect_admrul_by_name.py` | 글만 | 고시(행정규칙)를 **이름으로 찾아** 그 법 폴더에 받아 둔다. |
 | `collect_admrul.py` | 코드 | 고시(행정규칙) 정밀 수집: lsDelegated(위임법령) API로 '그 법이 실제 위임한 고시만' 수집. |
@@ -134,6 +136,7 @@
 | `edition_forms.py` | 글만 | ★raw 원문이 **판(시행일·일련번호)을 적는 꼴**을 전수로 센다. (등록부 D-5 · 2-5) |
 | `empty_byl_stub.py` | 글만 | 3-55 — **까닭도 없이 빈 별표 6개**에 내려받기 주소를 달아 정직하게 만든다. |
 | `exact_claim_fix.py` | 코드 | 3-33 뒤쪽(결심 ①ⓐ) — **「원문 그대로」라던 인용 24건을 원문 글자에 맞춘다. |
+| `excerpt_refresh_current.py` | 글만 | 발췌본의 조 하나를 **창구(DRF)의 현행 원문으로 다시 받는다** — 사장님 확정 2026-09-29 (확인판 B1 ⓐ · B2 ⓐ). |
 | `exhaustive_delegation_scan.py` | 글만 | H-28 전수조사: 73법 전체 조문의 위임체인을 lsDelegated API로 전수 대조해 collection_hole을 |
 | `expansion_probe.js` | 글만 | AI 검색어 확장이 정답 페이지를 밀어낼 위험이 **몇 건짜리인지** 잰다(AI 안 씀, 비용 0). |
 | `extract_11_remaining.py` | 글만 | H-28 전수조사(c)uncollected 43건 중 텍스트 API로 저장 안 된 나머지를 PDF 첨부에서 직접 추출. |
@@ -149,7 +152,7 @@
 | `full_build.js` | 글만 | 풀 깊이 빌드(Sonnet 5): 법당 전 주제 concept 완비(스로틀 제거) |
 | `gap6e_fix.js` | 글만 | 고정 문제집이 §6-E(위키에 근거 행 없음)로 찍은 10건을 법마다 한 명씩 보강 |
 | `glossary_route_probe.js` | 코드 | [왜 있나 — 일감 L-2] |
-| `golden_evidence_draft.js` | 없음 | 3-72 — 골든 문항에 「정답 문장 표식」(evidence) 초안을 만든다 — **사람이 확정한다** (2026-09-28) |
+| `golden_evidence_draft.js` | 글만 | 3-72 — 골든 문항에 「정답 문장 표식」(evidence) 초안을 만든다 — **사람이 확정한다** (2026-09-28) |
 | `golden_merge.js` | 글만 | 사서(에이전트)들이 확인한 라벨을 고정 문제집에 합친다. |
 | `golden_search_why.js` | 글만 | ★골든 `search` 실패가 **왜** 실패하는지 가른다. (등록부 3-32) |
 | `golden_verify.js` | 코드 | 골든 문항 라벨을 사서가 원문·위키로 확인(H-47 ①). 자기 결과 파일만 = 병렬안전. |
@@ -242,7 +245,7 @@
 | `tree_cite_requote.py` | 글만 | raw 를 다시 받아 글자가 바뀌면, **그 원문을 인용해 둔 나무(tree)의 인용문이 낡는다. |
 | `triage_admrul_pdf.py` | 글만 | admrul_fix_log.json에서 skipped(첨부파일형/축소감지)로 남은 150건을, |
 | `trty_to_excerpt.py` | 글만 | 조약 raw(`조약_*.txt`)를 챗봇이 읽을 수 있는 `법률_발췌.txt` 로 모은다. |
-| `verbatim_raw_link.js` | 없음 | 3-69 — 「원문 그대로」를 선언했지만 `raw 원문:` 경로가 없는 쪽에 **증명된 경우에만** 경로를 적는다 (2026-09-28) |
+| `verbatim_raw_link.js` | 글만 | 3-69 — 「원문 그대로」를 선언했지만 `raw 원문:` 경로가 없는 쪽에 **증명된 경우에만** 경로를 적는다 (2026-09-28) |
 | `verify_claims.py` | 글만 | 감사가 보고한 결함 주장을 **사람(에이전트)이 하나씩 실측 확인**하도록 배치를 짠다. |
 | `verify_penalty_tree.py` | 코드 | penalty_tree.json 독립 재대조 — 빌더 로직을 한 줄도 재사용하지 않는다. |
 | `verify_vessel_equipment.py` | 글만 | 선박종류 트리의 `장비` 항목 전량 독립 재대조기 (H-32 장비 축 확장, 설계 §11.8). |

@@ -1,0 +1,20 @@
+{
+ "script": "col_split_close",
+ "stamp": "20260929-011200-160",
+ "files": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/별표/시행규칙_서식11의2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/별표/완충저류시설설치및운영관리지침_별지10.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/완충저류시설설치및운영관리지침.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/행정규칙/해양사고의_조사_및_심판에_관한_사무처리요령.txt",
+  "local_server/knowledge/legal/raw/01_해양주권정책/해양공간계획및관리에관한법률/행정규칙/부산해양공간관리계획(부산및부산인근EEZ해역).txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/(보령해양경찰서)직언도갯벌_출입통제장소.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/(보령해양경찰서)직언도갯벌인근해역출입통제구역지정공고.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/(인천해양경찰서)하나개해수욕장갯벌일부출입통제구역고시.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/(제주해양경찰서)용수리해역_출입통제장소.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/(평택해양경찰서)매박섬_출입통제장소.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/태안해양경찰서가경주항해역모래톱출입통제구역지정공고.txt",
+  "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법/행정규칙/(제주해양경찰서)수상레저활동금지구역지정고시.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/(대구지방환경청)수질오염물질의배출허용기준중별도배출허용기준개정통합고시.txt"
+ ]
+}

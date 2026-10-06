@@ -1,0 +1,571 @@
+<title>나리야 확인판</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@600;700&display=swap">
+<style>
+:root{
+  --ground:#f3f5f4; --surface:#ffffff; --ink:#17232e; --muted:#58676f; --rule:#d7dedb; --sunk:#eef2f1;
+  --accent:#1d6b72; --accent-ink:#ffffff; --accent-soft:#e0eeed;
+  --warn:#9a620f; --warn-soft:#f7ecd9; --bad:#a23b33; --bad-soft:#f6e3e1; --good:#2d7547; --good-soft:#e2f0e6;
+  --serif:"Noto Serif KR","Nanum Myeongjo",Georgia,serif;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --ground:#0f1519; --surface:#172027; --ink:#dde6e9; --muted:#95a5ac; --rule:#2b373e; --sunk:#131b20;
+  --accent:#62b8c0; --accent-ink:#0c1a1d; --accent-soft:#193033;
+  --warn:#dca650; --warn-soft:#33291a; --bad:#e3827a; --bad-soft:#3a2321; --good:#72c493; --good-soft:#1c3024;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0f1519; --surface:#172027; --ink:#dde6e9; --muted:#95a5ac; --rule:#2b373e; --sunk:#131b20;
+  --accent:#62b8c0; --accent-ink:#0c1a1d; --accent-soft:#193033;
+  --warn:#dca650; --warn-soft:#33291a; --bad:#e3827a; --bad-soft:#3a2321; --good:#72c493; --good-soft:#1c3024;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.65;margin:0;padding-inline:16px;padding-block:28px 110px}
+.wrap{max-width:920px;margin:0 auto;display:grid;gap:30px}
+h1,h2,h3{font-family:var(--serif);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:30px}
+h2{font-size:21px}
+h3{font-size:17px}
+p{margin:0}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono);font-size:.86em;word-break:break-all}
+.lead{color:var(--muted);max-width:64ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+header{display:grid;gap:10px}
+
+/* 한눈에 */
+.glance{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.gl{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px 16px;display:grid;gap:4px;align-content:start}
+.gl b{font-family:var(--serif);font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
+.gl span{color:var(--muted);font-size:13px}
+.howto{background:var(--accent-soft);border-radius:10px;padding:14px 16px;display:grid;gap:8px}
+.howto ol{margin:0;padding-left:20px;display:grid;gap:4px}
+.map{display:grid;gap:6px}
+.map a{display:flex;gap:10px;align-items:baseline;text-decoration:none;color:var(--ink);padding:8px 12px;border-radius:8px;background:var(--surface);border:1px solid var(--rule)}
+.map a:hover{border-color:var(--accent)}
+.map .st{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+.map .st.on{color:var(--good);font-weight:600}
+.map .id{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:3.2em}
+
+/* 무리 */
+.group{display:grid;gap:14px}
+.group>header{gap:6px;border-top:2px solid var(--ink);padding-top:14px}
+.group>header .lead{font-size:14px}
+
+/* 카드 */
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;overflow:hidden;scroll-margin-top:16px}
+.card[data-done="1"]{border-color:var(--good)}
+.chead{display:grid;gap:6px;padding:16px 18px 12px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tag{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);font-family:var(--mono)}
+.tag.first{background:var(--warn-soft);color:var(--warn);font-family:var(--sans);font-weight:600}
+.tag.done{background:var(--good-soft);color:var(--good);font-family:var(--sans);font-weight:600}
+.issue{font-size:15.5px}
+.cbody{display:grid;gap:14px;padding:0 18px 16px}
+.facts{display:grid;grid-template-columns:8.5em 1fr;gap:6px 14px;margin:0}
+.facts dt{color:var(--muted);font-size:13px;padding-top:2px}
+.facts dd{margin:0}
+@media (max-width:560px){.facts{grid-template-columns:1fr}.facts dt{padding-top:6px}}
+details.ex{border:1px solid var(--rule);border-radius:8px;background:var(--sunk)}
+details.ex>summary{cursor:pointer;padding:9px 12px;font-weight:500;font-size:14px}
+details.ex>div{padding:4px 12px 12px;display:grid;gap:10px}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12.5px}
+td.n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+tr.hl td{background:var(--warn-soft)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:640px){.pair{grid-template-columns:1fr}}
+.box{border-radius:8px;padding:9px 11px;background:var(--surface);border:1px solid var(--rule);font-size:14px;white-space:pre-wrap;word-break:break-word}
+.box .lb{display:block;font-size:12px;color:var(--muted);margin-bottom:3px;white-space:normal}
+.box.miss{border-color:var(--bad);background:var(--bad-soft)}
+.box.ok{border-color:var(--good)}
+mark{background:var(--warn-soft);color:inherit;padding:0 2px;border-radius:3px}
+.note{font-size:13px;color:var(--muted)}
+
+/* 고르기 */
+.decide{border-top:1px solid var(--rule);background:var(--sunk);padding:14px 18px 16px;display:grid;gap:10px}
+.decide h4{margin:0;font-size:14px;font-family:var(--sans);font-weight:600}
+.opts{display:grid;gap:8px}
+.opt{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:start;text-align:left;font:inherit;color:inherit;background:var(--surface);border:1px solid var(--rule);border-radius:9px;padding:10px 12px;cursor:pointer}
+.opt:hover{border-color:var(--accent)}
+.opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset;background:var(--accent-soft)}
+.opt .k{font-family:var(--serif);font-weight:700;font-size:16px;line-height:1.4}
+.opt .t{font-weight:600}
+.opt .d{grid-column:2;font-size:13.5px;color:var(--muted)}
+.rec{display:inline-block;font-size:11.5px;font-weight:600;color:var(--accent-ink);background:var(--accent);border-radius:99px;padding:0 8px;margin-left:6px;vertical-align:1px}
+textarea{width:100%;font:inherit;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);resize:vertical}
+.btn{font:inherit;font-size:14px;padding:7px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);cursor:pointer;text-decoration:none;display:inline-block}
+.btn.ghost{background:transparent;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* 하나씩 */
+.item{border:1px solid var(--rule);border-radius:10px;background:var(--surface);display:grid;gap:10px;padding:12px 14px}
+.item[data-done="1"]{border-color:var(--good)}
+.item .top{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
+.item .num{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.guess{font-size:12.5px;color:var(--warn)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:inherit;font-size:13.5px;padding:5px 11px;border-radius:99px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.items{display:grid;gap:10px}
+
+/* 바닥 */
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--rule);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));z-index:5}
+.bar .in{max-width:920px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.meter{flex:1;min-width:140px;height:8px;border-radius:99px;background:var(--sunk);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent);width:0}
+.save{font-size:12.5px;color:var(--muted)}
+.export{background:var(--surface);border:2px solid var(--accent);border-radius:12px;padding:18px;display:grid;gap:12px;scroll-margin-top:16px}
+.export textarea{font-family:var(--mono);font-size:12.5px;min-height:180px}
+.export .msg{font-size:14px;font-weight:600;color:var(--good)}
+.export .msg.warn{color:var(--warn)}
+@media (max-width:560px){.bar .save{display:none}.bar .in{gap:8px}.bar .btn{padding:5px 10px;font-size:13px}.meter{min-width:60px}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">나리야 법률 챗봇 · 2026-09-28 기준</div>
+  <h1>사장님이 직접 정하실 것</h1>
+  <p class="lead">작업 목록에서 기계가 할 수 있는 일은 끝냈고, 남은 것은 사장님 판단이 있어야 움직입니다. 이 한 쪽에 그 전부를 모았습니다. 항목마다 <b>무엇이 문제인지</b>, <b>그냥 두면 어떻게 되는지</b>, <b>왜 제가 대신 못 정하는지</b>, <b>무엇을 고르시면 되는지</b>를 적었습니다.</p>
+</header>
+
+<section class="glance" id="glance"></section>
+
+<section class="howto">
+  <b>이렇게 쓰시면 됩니다</b>
+  <ol>
+    <li>위에서부터 읽으시면서 「정하실 것」에서 하나를 누르세요. 누르면 곧바로 저장되고, 저도 같은 기록을 읽습니다.</li>
+    <li><span class="rec" style="margin:0">추천</span> 표시는 제 의견입니다. 다르게 보시면 다른 것을 누르고 메모를 남겨 주세요.</li>
+    <li>다 누르지 않으셔도 됩니다. <b>가장 먼저</b> 표시가 붙은 셋만 해 주셔도 막힌 일 대부분이 풀립니다.</li>
+    <li>끝나면 저에게 「확인판 봤다」라고만 말씀해 주세요. 저장이 이 브라우저에만 되는 경우(내려받은 파일로 여셨을 때 등)에는 맨 아래 <a href="#export"><b>내보내기</b></a>에서 결과를 복사해 대화창에 붙여 주세요. 고르신 대로 반영하고, 반영할 때마다 게이트(자동 검사 60개)를 통과시킨 뒤 올립니다.</li>
+  </ol>
+</section>
+
+<section class="map" id="map" aria-label="목차"></section>
+
+<div id="groups" class="wrap" style="gap:34px"></div>
+
+<section class="export" id="export">
+  <h2>내보내기 — 고르신 것을 Claude 에게 붙여 넣기</h2>
+  <p>아래 단추를 누르면 지금까지 고르신 것과 메모가 글로 만들어지고 <b>복사</b>됩니다. 그대로 대화창에 붙여 넣어 주시면 제가 그대로 반영합니다.</p>
+  <div class="row"><button class="btn" type="button" id="mkout">결과 만들고 복사하기</button><span class="msg" id="outmsg" role="status"></span></div>
+  <textarea id="out" rows="10" readonly placeholder="단추를 누르면 여기에 결과가 나옵니다."></textarea>
+</section>
+</div>
+
+<div class="bar"><div class="in">
+  <span id="count" style="font-variant-numeric:tabular-nums;font-weight:600"></span>
+  <div class="meter" aria-hidden="true"><i id="meterfill"></i></div>
+  <span class="save" id="save"></span>
+  <a class="btn" href="#export" id="outbtn">내보내기</a>
+</div></div>
+
+<script>
+const DATA = {"judge": {"evi": 257, "evfail": 34, "sumr": 9, "r69": 66, "선언": 210, "원문없음": 102, "견줄": 97, "total": 210, "all": 224}, "sumr0": {"쪽": "농수산물품질관리법__시행규칙_별표31_검정기관지정기준.md", "덮임": 0.41, "원문": "raw/12_수산물유통/농수산물품질관리법/별표/시행규칙_별표31.txt", "잃은": ["일반성분에", "검정실의", "검정실은", "인원", "자격기준", "어느", "전문대학에서", "원예학", "식품공학", "식품가공학", "생화학", "유전공학", "일반성분의", "관련이"], "원문낱말": 861}, "op": [{"n": 15, "q": "인천항 관제구역 정확한 경계 좌표가 어디인가요?", "a": "선박교통관제에 관한 규정(고시) 별표1 — 인천항 좌표 01. 북위 37도 05분 00초 …"}, {"n": 19, "q": "어촌·어항 계획도 대상(별표1 25호)?", "a": "해양환경보전및활용에관한법률 시행령 별표1 25호 — 「어촌·어항법」 제4조에 따른 어촌·어항발전기본계획"}], "hold": [{"폴더": "신문등의진흥에관한법률", "계층": "법률", "조": "제9조", "판정": "정말 다르다", "덮임": 0.0, "우리": 238, "현행": 1099, "현행시행": "20251001"}, {"폴더": "형의실효등에관한법률", "계층": "법률", "조": "(조 머리 없음)", "판정": "조로 가를 수 없다", "덮임": null, "우리": null, "현행": null, "현행시행": "20230706"}, {"폴더": "소방시설설치및관리에관한법률", "계층": "법률", "조": "제6조", "판정": "정말 다르다", "덮임": 0.0, "우리": 352, "현행": 1326, "현행시행": "20241201"}, {"폴더": "총포도검화약류등의안전관리에관한법률시행령", "계층": "시행령", "조": "제3조", "판정": "정말 다르다", "덮임": 0.547, "우리": 819, "현행": 810, "현행시행": "20260324"}, {"폴더": "성폭력범죄의처벌등에관한특례법", "계층": "법률", "조": "제3조", "판정": "우리 글이 없다", "덮임": null, "우리": null, "현행": null, "현행시행": "20251001"}, {"폴더": "해양수산정보의수집관리및공동이용에관한규칙", "계층": "법률", "조": "제3조", "판정": "정말 다르다", "덮임": 0.929, "우리": 449, "현행": 501, "현행시행": "20200221"}, {"폴더": "소득세법", "계층": "법률", "조": "제104조", "판정": "정말 다르다", "덮임": 0.878, "우리": 1130, "현행": 4755, "현행시행": "20260701"}, {"폴더": "소득세법", "계층": "법률", "조": "제129조", "판정": "정말 다르다", "덮임": 0.92, "우리": 3030, "현행": 3032, "현행시행": "20260701"}, {"폴더": "대한민국국기법시행령", "계층": "시행령", "조": "제14조", "판정": "정말 다르다", "덮임": 0.8, "우리": 97, "현행": 116, "현행시행": "20170726"}, {"폴더": "토지이용규제기본법", "계층": "법률", "조": "제8조", "판정": "정말 다르다", "덮임": 0.053, "우리": 305, "현행": 1408, "현행시행": "20260227"}], "u3": {"mst": "268091", "ours": "② 제1항에 따른 허가를 받으려는 법인은 다음 각 호의 요건을 갖추어야 한다.\n  1. 대통령령으로 정하는 1억원 이상의 자본금의 보유\n  2. 다음 각 목의 경비인력 요건\n      (가·나목 없음)\n  3. 대통령령으로 정하는 시설과 장비의 보유\n  4. 그 밖에 경비업무 수행을 위하여 대통령령으로 정하는 사항", "cur": "② 제1항에 따른 허가를 받으려는 법인은 다음 각 호의 요건을 갖추어야 한다.\n  1. 대통령령으로 정하는 1억원 이상의 자본금의 보유\n  2. 다음 각 목의 경비인력 요건\n      가. 시설경비업무: 경비원 10명 이상 및 경비지도사 1명 이상\n      나. 시설경비업무 외의 경비업무: 대통령령으로 정하는 경비 인력\n  3. 대통령령으로 정하는 시설과 장비의 보유\n  4. 그 밖에 경비업무 수행을 위하여 대통령령으로 정하는 사항"}, "quotes": [{"n": 1, "쪽": "concepts/낚시관리및육성법__미끼관리와기준.md", "줄": 71, "닮음": 0.14, "까닭": "raw 전체에서도 닮은 원문을 못 찾았다", "토막": [{"위키": "검정은 의무가 아니므로 받았을 수도 안 받았을 수도 있고, 다만 기준에 부적합하면 판매 자체가 금지된다", "원문": "", "닮음": 0.14, "파일": ""}]}, {"n": 2, "쪽": "concepts/선박안전법__특별검사결함신고및보고조사.md", "줄": 13, "닮음": 0.077, "까닭": "raw 전체에서도 닮은 원문을 못 찾았다", "토막": [{"위키": "공고 후~특별검사 전까지 원칙상 운항이 계속되는 것으로 추정된다", "원문": "", "닮음": 0.077, "파일": ""}]}, {"n": 3, "쪽": "concepts/수산부산물재활용촉진에관한법률__수산부산물정의적용대상.md", "줄": 106, "닮음": 0.961, "까닭": "토막 중에 「뺀 것뿐」이 아닌 것이 있다", "토막": [{"위키": "제106조ㆍ제107조ㆍ제108조제3ㆍ5호 및 제109조의 경우 범인이 소유하거나 소지하는 어획물ㆍ제품ㆍ어선ㆍ어구 또는 폭발물이나 유독물은 몰수할 수 있다. 다만", "원문": "제106조, 제107조, 제108조제3호ㆍ제5호 및 제109조의 경우 범인이 소유하거나 소지하는 어획물ㆍ제품ㆍ어선ㆍ어구 또는 폭발물이나 유독물은 몰수할 수 있다. 다만", "닮음": 0.961, "파일": "05_수산어업/수산업법/법률.txt"}, {"위키": "최근 5년 이내에 2회 이상 처벌을 받은 경우에는 어획물ㆍ어선ㆍ어구를 몰수하여야 한다", "원문": "최근 5년 이내에 2회 이상 처벌을 받은 경우에는 어획물ㆍ어선ㆍ어구를 몰수하여야 한다", "닮음": 1.0, "파일": "05_수산어업/수산업법/법률.txt"}]}, {"n": 4, "쪽": "concepts/수산종자산업육성법__정의허브.md", "줄": 227, "닮음": 0.136, "까닭": "raw 전체에서도 닮은 원문을 못 찾았다", "토막": [{"위키": "★수협·지자체가 하는 치어 방류행사에도 이 법이 걸리나요 — 축을 셋으로 갈라야 한다", "원문": "", "닮음": 0.136, "파일": ""}]}, {"n": 6, "쪽": "concepts/유류오염손해배상보장법__강제보험가입.md", "줄": 14, "닮음": 0.27, "까닭": "raw 전체에서도 닮은 원문을 못 찾았다", "토막": [{"위키": "기름 실은 배·큰 배는 반드시 유류오염 배상보험(P&I 등)에 들어야 한다", "원문": "", "닮음": 0.27, "파일": ""}]}, {"n": 7, "쪽": "concepts/해양경비법__점용사용허가등통보.md", "줄": 131, "닮음": 0.783, "까닭": "raw 전체에서도 닮은 원문을 못 찾았다", "토막": [{"위키": "법 제20조제1항부터 제4항까지의 규정에 따른 통보는", "원문": "제1항부터 제4항까지의 규정에 따른 구체적인 통보", "닮음": 0.783, "파일": "02_해양경비구조/해양경비법/법률.txt"}, {"위키": "허가등을 하기 5일 전까지 이루어져야 한다", "원문": "하기 5일 전까지 이루어져야 한다", "닮음": 0.875, "파일": "02_해양경비구조/해양경비법/시행규칙.txt"}]}, {"n": 8, "쪽": "concepts/독도의지속가능한이용에관한법률__독도주변해역사전협의.md", "줄": 406, "닮음": 0.878, "까닭": "토막 중에 「뺀 것뿐」이 아닌 것이 있다", "토막": [{"위키": "국가유산청장은 반출을 허가받은 자에게 현황 및 보존·관리 실태 등의 자료를 제출하도록 요구할 수 있다. 요구를 받은 자는 특별한 사유가 없으면 이에 따라야 한다", "원문": "국외 반출을 허가받은 자에게 해당 문화유산의 현황 및 보존ㆍ관리 실태 등의 자료를 제출하도록 요구할 수 있다. 이 경우 요구를 받은 자는 특별한 사유가 없으면 이에 따라야 한다", "닮음": 0.878, "파일": "15_관련타부처/문화유산의보존및활용에관한법률/법률.txt"}]}, {"n": 11, "쪽": "concepts/국제항해선박등에대한해적행위피해예방에관한법률__적격성심사및심사대행기관.md", "줄": 94, "닮음": 0.102, "까닭": "raw 전체에서도 닮은 원문을 못 찾았다", "토막": [{"위키": "최근 2년간 같은 위반으로 2회 영업정지를 받으면 개별기준과 무관하게 허가취소로 한다", "원문": "", "닮음": 0.102, "파일": ""}]}, {"n": 12, "쪽": "annexes/선박의입항및출항등에관한법률__시행규칙_별표1_무역항별예선보유기준.md", "줄": 33, "닮음": 0.155, "까닭": "raw 전체에서도 닮은 원문을 못 찾았다", "토막": [{"위키": "예항력은 합계 기준 2천마력 이상, 척수는 1척 이상일 것(1천마력 이상 1척을 포함한다). 다만, 사업구역을 경인항에 한정하는 경우 예항력은 합계 기준 1천마력 이상으로 한다.", "원문": "", "닮음": 0.155, "파일": ""}]}, {"n": 14, "쪽": "concepts/서해5도지원특별법__사업비지원및국고보조율.md", "줄": 92, "닮음": 0.811, "까닭": "토막 중에 「뺀 것뿐」이 아닌 것이 있다", "토막": [{"위키": "기준보조율이 100분의 80보다 낮은 경우", "원문": "기준보조율이 100분의 80 이상인 경우", "닮음": 0.811, "파일": "15_관련타부처/접경지역지원특별법/시행령.txt"}, {"위키": "100분의 80을 초과하면 100분의 80을 지원보조율로 한다", "원문": "100분의 80을 초과하면 100분의 80을 지원보조율로 한다", "닮음": 1.0, "파일": "08_섬영토/서해5도지원특별법/시행령.txt"}]}, {"n": 16, "쪽": "concepts/항만법__항만시설안전시설기준.md", "줄": 129, "닮음": 0.82, "까닭": "토막 중에 「뺀 것뿐」이 아닌 것이 있다", "토막": [{"위키": "인명피해가 발생하지 않도록 시설별 위험상황에 적합한 안전시설을 설치하여야 한다", "원문": "인명피해가 발생하지 않도록 적합한 안전시설을 설치해야 한다", "닮음": 0.82, "파일": "10_항만물류/항만법/행정규칙/항만시설물의안전시설설계지침.txt"}]}, {"n": 17, "쪽": "concepts/해양과학조사법__핵심정의.md", "줄": 57, "닮음": 0.943, "까닭": "토막 중에 「뺀 것뿐」이 아닌 것이 있다", "토막": [{"위키": "해양광물자원의 개발사업과 관련된 조사 또는 탐사 등에 대하여는 적용하지 아니한다", "원문": "해양광물자원의 개발사업과 관련된 조사 또는 탐사 등에 대해서는 적용하지 아니한다", "닮음": 0.943, "파일": "01_해양주권정책/해양과학조사법/법률.txt"}]}, {"n": 18, "쪽": "concepts/자연유산의보존및활용에관한법률__천연기념물동물의질병관리와치료.md", "줄": 82, "닮음": 0.873, "까닭": "토막 중에 「뺀 것뿐」이 아닌 것이 있다", "토막": [{"위키": "소유자등이 부담하는 것을 원칙으로 하되, 국가유산청장이 지원할 수 있다", "원문": "소유자등이 부담하는 것을 원칙으로 하되, 국가유산청장", "닮음": 0.873, "파일": "15_관련타부처/자연유산의보존및활용에관한법률/법률.txt"}]}, {"n": 19, "쪽": "concepts/해양수산발전기본법__실무위원회및분과위원회.md", "줄": 141, "닮음": 0.906, "까닭": "원문에 줄바꿈이 있다 — 끼우면 글 구조가 바뀐다", "토막": [{"위키": "해양수산발전실무위원회를 둔다. ②실무위원회의 효율적 운영을 위하여 실무위원회에 분야별로 분과위원회를 운영할 수 있다.", "원문": "실무위원회\"라 한다)를 둔다.\n②실무위원회의 효율적 운영을 위하여 실무위원회에 분야별로 분과위원회를 운영할 수 있다.", "닮음": 0.906, "파일": "01_해양주권정책/해양수산발전기본법/법률.txt"}]}, {"n": 20, "쪽": "concepts/해양수산발전기본법__국가해양수산정보센터.md", "줄": 153, "닮음": 0.844, "까닭": "원문에 줄바꿈이 있다 — 끼우면 글 구조가 바뀐다", "토막": [{"위키": "②해양수산부장관은", "원문": "② 해양수산부장관은", "닮음": 1.0, "파일": "01_해양주권정책/해양수산발전기본법/법률.txt"}, {"위키": "국가해양수산정보센터를 설치ㆍ운영할 수 있다. ③제2항에 따른 국가해양수산정보센터의 설치ㆍ운영에 필요한 사항은 해양수산부령으로 정한다", "원문": "국가해양수산정보센터를 설치ㆍ운영할 수 있다. <개정 2008.2.29, 2013.3.23>\n③ 제2항에 따른 국가해양수산정보센터의 설치ㆍ운영에 필요한 사항은 해양수산부령으로 정한다", "닮음": 0.844, "파일": "01_해양주권정책/해양수산발전기본법/법률.txt"}]}], "rows38": [{"쪽": "국제항해선박등에대한해적행위피해예방에관한법률__시행규칙_별표2_선원등교육훈련", "종류": "표", "원문": 4, "위키": 4}, {"쪽": "국제항해선박등에대한해적행위피해예방에관한법률__시행규칙_별표3_심사대행기관지정취소업무정지기준", "종류": "표", "원문": 7, "위키": 5}, {"쪽": "국제항해선박등에대한해적행위피해예방에관한법률__시행규칙_별표4_해상특수경비업허가취소영업정지기준", "종류": "표", "원문": 10, "위키": 8}, {"쪽": "국제항해선박등에대한해적행위피해예방에관한법률__시행규칙_별표5_해상특수경비원교육훈련방법", "종류": "표", "원문": 4, "위키": 3}, {"쪽": "국제항해선박등에대한해적행위피해예방에관한법률__시행령_별표1_해상특수경비업허가요건", "종류": "표", "원문": 5, "위키": 4}, {"쪽": "국제항해선박등에대한해적행위피해예방에관한법률__시행령_별표2_과태료부과기준", "종류": "표", "원문": 3, "위키": 12}, {"쪽": "낚시관리및육성법__시행규칙_별표4_검정기관지정취소기준", "종류": "표", "원문": 6, "위키": 4}, {"쪽": "낚시관리및육성법__시행령_별표1_유해물질의허용기준", "종류": "표", "원문": 5, "위키": 4}, {"쪽": "낚시관리및육성법__시행령_별표2_안전편의관리시설장비기준", "종류": "표", "원문": 5, "위키": 22}, {"쪽": "낚시관리및육성법__시행령_별표3_지장시설장비의종류", "종류": "표", "원문": 8, "위키": 7}, {"쪽": "낚시관리및육성법__시행령_별표4_낚시어선설비기준", "종류": "표", "원문": 5, "위키": 22}, {"쪽": "낚시관리및육성법__시행령_별표5_미끼특정물질함량기준", "종류": "표", "원문": 14, "위키": 15}, {"쪽": "낚시관리및육성법__시행령_별표5의2_검정기관지정기준", "종류": "표", "원문": 4, "위키": 7}, {"쪽": "낚시관리및육성법__시행령_별표6_과태료부과기준", "종류": "표", "원문": 37, "위키": 47}, {"쪽": "도선법__시행규칙_별표3_도선구의명칭과구역", "종류": "표", "원문": 14, "위키": 12}, {"쪽": "배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률__시행규칙_별표3_어업활동허가또는시험연구승인시제한이나조건", "종류": "표", "원문": 3, "위키": 3}, {"쪽": "선박안전법__시행규칙_별표3_대역또는구역별해면및계절기간", "종류": "표", "원문": 11, "위키": 9}, {"쪽": "수산업법__시행령_별표7_어구사용금지구역및금지기간", "종류": "표", "원문": 65, "위키": 63}, {"쪽": "수산자원관리법__시행령_별도2_왕돌초주변해역", "종류": "표", "원문": 1, "위키": 4}, {"쪽": "수산자원관리법__시행령_별표1_포획채취금지기간구역수심", "종류": "표", "원문": 41, "위키": 40}, {"쪽": "수산자원관리법__시행령_별표2_포획채취금지체장체중", "종류": "표", "원문": 43, "위키": 42}, {"쪽": "유선및도선사업법__시행규칙_별표1_기상특보발효시운항허용기준및절차", "종류": "표", "원문": 3, "위키": 6}, {"쪽": "유선및도선사업법__시행규칙_별표3_위반행위종류와과징금금액", "종류": "표", "원문": 3, "위키": 5}, {"쪽": "유선및도선사업법__시행령_별표2_기상특보발효시운항가능해수면범위", "종류": "표", "원문": 11, "위키": 10}, {"쪽": "출입국관리법__시행령_별표2_과태료부과기준", "종류": "표", "원문": 52, "위키": 69}, {"쪽": "해상교통안전법__시행규칙_별표11_안전관리체제에포함되어야할사항", "종류": "표", "원문": 44, "위키": 39}, {"쪽": "해상교통안전법__시행령_별표1_교통안전특정해역의범위", "종류": "표", "원문": 6, "위키": 1}, {"쪽": "해운법__시행규칙_별표2의3_운항관리규정에포함되어야하는사항", "종류": "표", "원문": 14, "위키": 13}, {"쪽": "낚시관리및육성법__시행규칙_별표1_통제구역안내판규격", "종류": "표없음", "원문": 6, "위키": 0}, {"쪽": "낚시관리및육성법__시행규칙_별표3_신고확인증게시방법", "종류": "표없음", "원문": 2, "위키": 0}, {"쪽": "선박법__선박톤수의측정에관한규칙_별표", "종류": "표없음", "원문": 23, "위키": 0}, {"쪽": "해상교통안전법__시행령_별표4_안전진단대상사업의범위", "종류": "표없음", "원문": 6, "위키": 0}, {"쪽": "낚시관리및육성법__시행규칙_별표2_행정처분기준", "종류": "마디", "원문": 9, "위키": 27}, {"쪽": "농수산물품질관리법__시행규칙_별표31_검정기관지정기준", "종류": "마디", "원문": 26, "위키": 35}, {"쪽": "수산업법__시행령_별표10_어업손실액산출방법산출기준및산출기관", "종류": "마디", "원문": 8, "위키": 16}, {"쪽": "수산업법__시행령_별표2_어업별어구의규모형태재질사용량및사용방법", "종류": "마디", "원문": 154, "위키": 18}, {"쪽": "수산자원관리법__시행규칙_별표1_비어업인허용어구", "종류": "마디", "원문": 12, "위키": 0}, {"쪽": "해상교통안전법__시행규칙_별표2_교통안전특정해역지정항로의범위", "종류": "마디", "원문": 25, "위키": 0}], "numsx": [["농수산물품질관리법 GAP 쪽 「<b>4149인<\/b>」", "연락처 <code>054-429-4149, 인증기관…<\/code> — 전화번호 끝자리 뒤의 「인」을 붙여 셌습니다."], ["어촌ㆍ어항법 바다해설사 쪽 「<b>2100000283456일<\/b>」", "고시 번호 <code>admrul ID 2100000283456, 일부개정<\/code> — 행정규칙 번호를 날짜 수로 셌습니다."], ["선박안전법 특수선박구조기준 쪽 「<b>0.1667인<\/b>」", "고속선 공식 <code>3.7×▽^0.1667인 선박<\/code> — 공식의 지수를 사람 수로 셌습니다."], ["선박법 국기게양 쪽 「<b>140만원<\/b>」", "원문 별표 표에 <code>140<\/code> 이 있고 단위(만원)는 표 머리에 한 번만 적혀 있습니다 — 값은 맞습니다."], ["수산업법 폐어구 쪽 「<b>65원<\/b>」", "2025-12-30 개정 전 <b>옛 단가<\/b>를 변경 기록에 적은 것입니다 — 지금 원문에 없는 것이 당연합니다."]], "cite_sample": [{"법": "해상교통안전법", "조": "제3조", "줄": "| 항행장애물 | 선박에서 떨어진 물건, 침몰·좌초(임박·예견 포함) 선박 또는 그로부터 분리된 물건·일부분 | 제2조제15호, 시행규칙 제3조 (2024-07-26 시행) |", "봄": "<b>다른 계층<\/b> — 시행규칙 제3조를 짚은 것"}, {"법": "한국해양수산연수원법", "조": "제231조", "줄": "| 「형법」 제30조(공동정범)·제31조(교사범)·제32조(종범, 방조범) | 의미연결(일반법·형법총칙) — raw 편입됨 `15_관련타부처/형법` | 타인의 유사명칭 사용(제15조 위반)을 광고 제작·인쇄 등으로 **방조한 자는 종범**으로 처벌될 수 있으나(제32조①), 이는 제15", "봄": "<b>남의 법<\/b> — 형법 조문"}, {"법": "해양폐기물및해양오염퇴적물관리법", "조": "제30조", "줄": "| 2026-08-26 | 근거 조문 표에 시행령 제4조(배출 폐기물·해역)·시행규칙 제3조(처리기준·방법) 신규 반영(적용범위 표에서 이미 인용 중이었는데 표에 행이 없었음). \"불법투기 포상금\" FAQ의 인용 오류도 정정 — 원문은 시행령 제13조의2(연안정화의 날)인데 존재하지 않", "봄": "<b>변경 이력 줄<\/b> — 지난 기록이라 대상이 아님"}, {"법": "수산부산물재활용촉진에관한법률", "조": "제57조", "줄": "| [[어촌ㆍ어항법__한국어촌어항공단|어촌ㆍ어항법]] 제57조(한국어촌어항공단) | 업무 위탁 | 통계조사·판로확대 업무 위탁 | ✅ raw 존재(10_항만물류/어촌ㆍ어항법) |", "봄": "<b>남의 법<\/b> — 어촌ㆍ어항법 제57조"}, {"법": "해상교통안전법", "조": "제268조", "줄": "- **업무상과실치상 경합(#88)**: 항행장애물의 원인이 된 사고(예: 충돌)로 사람이 다치면, 이 법의 보고·표시·제거의무 위반죄(제118조제3항)와 별개로 「형법」 제268조(업무상과실치상, 5년 이하 금고 또는 2천만원 이하 벌금)가 함께 성립할 수 있다 — 경합범(「형법」 제", "봄": "<b>남의 법<\/b> — 형법 제268조"}, {"법": "해양공간계획및관리에관한법률", "조": "제22조", "줄": "- **지정취소 전 청문 필수**(법 준용, 시행령 제21조제2항, 지정지침 제11조제2항). 청문의 진행 절차(사전통지·주재자·의견진술·문서열람 등) 자체는 이 법·시행령·지정지침에 별도 규정이 없어, 일반법인 「행정절차법」 제21조(처분의 사전 통지)·제22조(의견청취)·제23조(처", "봄": "<b>남의 법<\/b> — 행정절차법 제22조"}, {"법": "해양경비법", "조": "제11조", "줄": "| 2026-07-17 | 3R thin/missing 심화 — 고시 제11조(재검토기한) 반영, 실제 재검토 완료·최신판 여부는 원문에 없어 확인불가 명시 | 3R 감사(T25) |", "봄": "<b>변경 이력 줄<\/b> · 고시 조문"}, {"법": "해양사고의조사및심판에관한법률", "조": "제18조의2", "줄": "- **특별조사부 조사와 수사·행정처분의 관계**: \"특별조사부의 해양사고 조사는 **민형사상 책임과 관련된 사법절차, 심판청구를 위한 조사 절차 및 행정처분절차 또는 행정쟁송절차와 분리하여 독립적으로 수행**되어야 하며, 특별조사부의 조사관에 대하여는 제18조(지휘감독) 및 제18조의", "봄": "<b>진짜 확인거리<\/b> — 이 법 조문"}, {"법": "공유수면관리및매립에관한법률", "조": "제56조", "줄": "- **매립 권한 위임(시행령 제74조①, 23개 조문 전체 위임 — 국가관리무역항 항만구역 안·10만㎡ 이상·제28조② 매립구역)**: 제28조(매립면허·협의)·제33조(면허고시)·제34조(수수료 징수·면제)·제35조①④(국가·지자체 협의매립·준공검사)·제35조⑥ 준용사항 중 일부(1", "봄": "<b>진짜 확인거리<\/b> — 이 법 조문(우리 원문에서 그 조를 못 찾음)"}, {"법": "선박직원법", "조": "제11조", "줄": "| 결원 특례 | 항행 중 선박직원 결원이 생겨 보충이 곤란한 경우 제11조(승무기준) 적용을 배제하는 것 | 선박직원법 제12조제1항 (2025-12-17 시행) |", "봄": "<b>진짜 확인거리<\/b> — 이 법 조문, 표에만 없음"}, {"법": "물환경보전법", "조": "제36조", "줄": "| 폐수처리업 권리·의무 승계 | 제65조 | 제36조(배출시설 승계)와 같은 계열 — 사업 양도·상속·합병 시 폐수처리업 허가 승계 |", "봄": "<b>진짜 확인거리<\/b> — 이 법 조문, 표에만 없음"}, {"법": "내수면어업법", "조": "제26조", "줄": "| 낚시 중 개인 안전사고(익수 등) 책임 | **이 법 소관 아님** — 이 법은 어업·유어행위의 자원·질서 규제만 다루고, 개인 안전사고의 민·형사 책임은 규정하지 않는다 | 일반 불법행위·과실책임 법리(민법). 「댐건설ㆍ관리 및 주변지역지원 등에 관한 법률」은 제2조(정의)·제26", "봄": "<b>불분명<\/b> — 줄에 다른 법(댐건설법)이 함께 나와 어느 법 조문인지 줄만으로는 모름"}]};
+const JUDGE_URL = 'https://claude.ai/artifact/PXLUyo2HE61vqmpQpCjn8A';
+const ROWS_URL = 'https://claude.ai/artifact/JafWUHjh4ZapfvRNxVRr8i';
+const FIG_URL = 'https://claude.ai/artifact/6T39qbcgpkzWJwSsHsbKJu';
+
+const $ = s => document.querySelector(s);
+function el(tag, attrs, ...kids){
+  const e = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs||{})) {
+    if (v == null) continue;
+    if (k === 'text') e.textContent = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+const fmt = n => Number(n).toLocaleString('ko-KR');
+
+/* ─────────── 저장 ─────────── */
+let state = {}, db = null;
+try { state = JSON.parse(localStorage.getItem('nrya-hub') || '{}') || {}; } catch(_) { state = {}; }
+const saveLocal = () => { try { localStorage.setItem('nrya-hub', JSON.stringify(state)); } catch(_){} };
+function setSave(m){ $('#save').textContent = m==='db' ? '저장됨 — Claude 가 읽을 수 있습니다' : m==='local' ? '이 브라우저에만 저장 — 끝나면 「고른 것을 글로 보기」를 복사해 보내 주세요' : '저장소에 잇는 중…'; }
+function put(key, patch){
+  const next = {...(state[key]||{}), ...patch, at: new Date().toISOString()};
+  state[key] = next; saveLocal(); refresh();
+  if (db) db.doc('decisions/' + key).set({...next, key}).catch(() => setSave('local'));
+}
+
+/* ─────────── 공통 조각 ─────────── */
+function facts(rows){
+  const dl = el('dl', {class:'facts'});
+  for (const [k,v] of rows) { if (!v) continue; dl.append(el('dt',{text:k}), el('dd',{html:v})); }
+  return dl;
+}
+function ex(title, ...kids){ return el('details',{class:'ex'}, el('summary',{text:title}), el('div',{}, ...kids)); }
+function decide(key, opts, label){
+  const wrap = el('div',{class:'decide'});
+  wrap.append(el('h4',{text: label || '정하실 것'}));
+  const box = el('div',{class:'opts'});
+  opts.forEach(o => {
+    const b = el('button',{class:'opt',type:'button','data-key':key,'data-v':o.v,'aria-pressed':'false',onclick:()=>put(key,{v:o.v})},
+      el('span',{class:'k',text:o.v}),
+      el('span',{class:'t'}, o.t, o.rec ? el('span',{class:'rec',text:'추천'}) : null),
+      el('span',{class:'d',html:o.d}));
+    box.append(b);
+  });
+  wrap.append(box);
+  const ta = el('textarea',{rows:'1',placeholder:'메모 (선택) — 다르게 하고 싶으신 점, 궁금한 점','data-note':key});
+  ta.addEventListener('change', () => put(key, {note: ta.value}));
+  wrap.append(ta);
+  return wrap;
+}
+function card(c){
+  const node = el('article',{class:'card',id:c.id,'data-key':c.key||('d-'+c.id)});
+  const tags = el('div',{class:'tags'});
+  if (c.first) tags.append(el('span',{class:'tag first',text:'가장 먼저'}));
+  (c.codes||[]).forEach(t => tags.append(el('span',{class:'tag',text:t})));
+  tags.append(el('span',{class:'tag done',text:'정함','data-donetag':'1',hidden:''}));
+  node.append(el('div',{class:'chead'}, tags, el('h3',{text:c.title}), el('p',{class:'issue',html:c.issue})));
+  const body = el('div',{class:'cbody'});
+  if (c.facts) body.append(facts(c.facts));
+  (c.extra||[]).forEach(x => body.append(x));
+  node.append(body);
+  if (c.opts) node.append(decide(c.key||('d-'+c.id), c.opts, c.optLabel));
+  if (c.after) node.append(c.after);
+  return node;
+}
+
+/* ─────────── ① 가장 먼저 ─────────── */
+function cardA1(){
+  const ev = DATA.judge;
+  return card({id:'A1', first:true, codes:['3-72','3-71'], title:'정답 문장 표시 — 개선 두 개를 판정할 자 만들기',
+    issue:'챗봇이 받는 근거자료를 좋게 바꾸는 개선이 <b>두 개 준비돼 있는데, 좋아졌는지 잴 자가 모자라서 멈춰 있습니다.</b> 그 자를 만드는 일이 사장님 판정입니다.',
+    facts:[
+      ['개선 ①','<b>큰 표 쪼개 싣기</b>(3-72) — 한 절이 커다란 표 하나로 된 쪽이 601쪽(표 덩이 840개)입니다. 지금은 이런 절이 통째로 들어가거나 통째로 밀려납니다. 표를 행 단위로 골라 싣게 바꾸면 필요한 행만 들어갑니다.'],
+      ['개선 ②','<b>별표 쪽을 순위에 올리기</b>(3-71) — 「○○항 항만구역의 범위」처럼 별표가 답인 질문 6개 중 5개에서, 그 별표 쪽이 후보 40장 안에 들지 못합니다.'],
+      ['왜 멈췄나','둘 다 <b>거의 모든 답의 근거자료를 바꿉니다.</b> 좋아지는 질문과 나빠지는 질문이 섞일 수 있습니다. 그런데 「답에 필요한 문장이 모델에게 실렸나」를 잴 수 있는 문항이 지금 <b>25개뿐</b>이라, 좋아졌는지 판정할 수 없습니다.'],
+      ['자를 만드는 법','골든 질문마다 <b>원문에서 정답이 들어 있는 한 토막</b>을 표시해 두면, 고치기 전과 뒤에 그 토막이 실렸는지를 기계가 셉니다.'],
+      ['지금까지','기계가 질문 '+fmt(ev.evi)+'개에 후보 토막을 뽑아 두었습니다(원문에서 그대로 떼어 낸 글자만). 못 뽑은 질문은 '+fmt(ev.evfail)+'개입니다. 어느 토막이 정답인지는 <b>기계가 고르지 않습니다</b> — 기계가 고르면 기계가 자기 답을 채점하게 됩니다.'],
+      ['어디서','<a href="'+JUDGE_URL+'" target="_blank" rel="noopener">판정함</a> → 「정답 문장 표식」 탭. 질문마다 후보 토막 가운데 맞는 것을 누르시면 됩니다.'],
+    ],
+    optLabel:'정하실 것 — 몇 문항을 보실지',
+    opts:[
+      {v:'ⓐ',t:'법마다 고르게 80문항만 먼저 본다',rec:true,d:'지금 있는 25개에 80개를 더하면 105개가 됩니다. 그것으로 개선 두 개를 한 번 재 보고, 판정이 애매하면 그때 더 봅니다. 한 문항에 20~30초로 잡으면 30~40분쯤 걸립니다(짐작). <b>고르시면 판정함에 그 80문항만 먼저 보이게 바꿔 드립니다.</b>'},
+      {v:'ⓑ',t:fmt(ev.evi)+'문항 전부 본다',d:'가장 정확합니다. 같은 셈으로 1.5~2시간쯤 걸립니다(짐작).'},
+      {v:'ⓒ',t:'이 개선 두 개는 미룬다',d:'판정함 이 탭은 건너뛰십시오. 3-72·3-71 은 멈춘 채로 둡니다. 지금 답이 나빠지지는 않습니다 — 좋아질 기회를 미루는 것입니다.'},
+    ]});
+}
+function cardA2(){
+  const s = DATA.judge;
+  const e1 = DATA.sumr0;
+  return card({id:'A2', first:true, codes:['3-69'], title:'「원문 그대로」라고 적은 쪽이 정말 원문 그대로인가',
+    issue:'위키 쪽 '+fmt(s.선언)+'개가 스스로 <b>「원문 그대로 · 요약 금지」</b>라고 적어 두었습니다. 그런데 그 말을 지켰는지 확인할 원문 경로가 없는 쪽이 <b>'+fmt(s.원문없음)+'쪽</b>이고, 원문과 견줄 수 있는 쪽 중에도 원문 낱말이 적게 남은 쪽이 있습니다.',
+    facts:[
+      ['그냥 두면','챗봇이 요약한 글을 원문처럼 보여 줄 수 있습니다. 실제로 두 곳에서 요약해 적은 것이 우연히 발견됐습니다(농수산물품질관리법 별표31, 3-37 의 조 3개).'],
+      ['지금까지','원문 경로가 없던 쪽을 156 → '+fmt(s.원문없음)+'쪽으로 줄였습니다(기계가 경로를 되찾음). 견줄 수 있는 쪽은 43 → '+fmt(s.견줄)+'쪽으로 늘었습니다. 더 줄이려면 사람이 맞는지 봐야 합니다.'],
+      ['판정함에 있는 것','<b>요약 의심 '+fmt(DATA.judge.sumr)+'쪽</b> — 원문 낱말이 적게 남은 쪽입니다. ⓐ누락이다 ⓑ표로 옮기며 생긴 차이다 ⓒ원문이 더 새 판이다 ⓓ모르겠다 중에서 고르십시오.<br><b>원문 후보 '+fmt(DATA.judge.r69)+'쪽</b> — 원문 경로가 없던 쪽에 기계가 찾은 원문 파일이 맞는지 예/아니오로 누르십시오.'],
+      ['왜 제가 못 정하나','낱말이 줄어든 까닭이 요약인지, 표로 옮기며 생긴 차이인지는 법 글을 읽어야 가려집니다. 틀리게 고르면 멀쩡한 쪽을 원문으로 덮어쓰게 됩니다.'],
+    ],
+    extra:[ex('보기 — 요약 의심 1순위', el('p',{html:'<code>'+e1.쪽+'</code> — 원문 낱말의 <b>'+Math.round(e1.덮임*100)+'%</b>만 위키에 남아 있습니다. 위키에 없는 원문 낱말: '+e1.잃은.slice(0,10).map(w=>'<mark>'+w+'</mark>').join(' ')+' …'}))],
+    optLabel:'정하실 것 — 판정함에서 하시고, 끝나면 여기서 누르십시오',
+    opts:[
+      {v:'끝',t:'판정함에서 다 봤다',d:'제가 판정함 기록을 읽어 반영합니다 — 누락이면 원문대로 다시 옮기고, 맞는 원문 파일이면 그 쪽에 원문 경로 줄을 답니다.'},
+      {v:'일부',t:'일부만 봤다 — 본 것만 먼저 반영해라',d:'본 것만 반영하고 나머지는 남겨 둡니다.'},
+    ]});
+}
+function cardA3(){
+  const qs = DATA.op;
+  const list = el('div',{class:'items'});
+  qs.forEach(x => list.append(el('div',{class:'item'},
+    el('div',{class:'top'}, el('span',{class:'num',text:'골든 '+x.n}), el('b',{text:x.q})),
+    el('p',{class:'note',text:'정답: '+x.a}))));
+  return card({id:'A3', first:true, codes:['3-70','운영'], title:'운영 챗봇에 두 질문을 직접 물어 보기',
+    issue:'어느 AI 로 물어도 「확인되지 않습니다」라고 하던 두 질문을 고쳤습니다. <b>운영 챗봇에서 한 번 물어봐 주셔야 확인이 끝납니다.</b>',
+    facts:[
+      ['원인','검색이 큰 표를 앞에서부터 잘라 실었습니다. 그래서 정답 행(인천항 좌표, 별표1 25호)이 잘려 나갔습니다. 표를 행 단위로 골라 싣게 고쳤고, 이 수정은 병합됐습니다(#1342).'],
+      ['왜 사장님이','이 작업 환경에는 운영용 Gemini 키가 없습니다. 그래서 운영이 검색어를 넓히는 단계는 재현하지 못했습니다. 병합된 코드가 <b>배포된 뒤</b>에 운영에서 물어봐야 확인됩니다.'],
+      ['어디서','<a href="'+JUDGE_URL+'" target="_blank" rel="noopener">판정함</a> → 「운영에서 확인」 탭. 질문을 복사해 물어보시고, 「정답을 답했다 / 확인되지 않는다고 했다 / 틀린 답」 중 하나를 누르십시오.'],
+    ],
+    extra:[list],
+    optLabel:'끝나면 여기서도 누르십시오',
+    opts:[
+      {v:'끝',t:'둘 다 물어 봤다',d:'판정함 기록을 읽어 결과를 등록부에 적습니다. 또 「확인되지 않습니다」가 나오면 그 답 첫 줄로 원인을 다시 찾습니다.'},
+      {v:'배포 전',t:'아직 배포 전이다',d:'배포되면 다시 알려 주십시오.'},
+    ]});
+}
+
+/* ─────────── ② 한 번 고르면 끝 ─────────── */
+function cardB1(){
+  const plain = {
+    '신문등의진흥에관한법률|제9조':['요약해 적었다','원문 대신 줄여 쓴 글입니다. 「(국가ㆍ지자체발행 … 등예외)」처럼 우리 말로 묶었습니다.',true],
+    '소방시설설치및관리에관한법률|제6조':['요약해 적었다','①~⑥항을 한 줄씩 줄여 썼습니다(「제출의무(국가기밀예외)」).',true],
+    '토지이용규제기본법|제8조':['요약해 적었다','「(예외:법령·자치법규로직접지정, …)」처럼 줄여 썼습니다.',true],
+    '총포도검화약류등의안전관리에관한법률시행령|제3조':['현행과 다르다','총 종류 목록의 일부가 현행과 다릅니다(글자가 55%만 겹침) — 개정된 것으로 보입니다.'],
+    '해양수산정보의수집관리및공동이용에관한규칙|제3조':['한 호가 빠졌다','우리 글은 8호 다음이 10호입니다 — <b>9호가 없습니다.</b>'],
+    '성폭력범죄의처벌등에관한특례법|제3조':['글이 비었다','조 이름만 있고 조문 글이 없습니다.'],
+    '형의실효등에관한법률|(조 머리 없음)':['조로 못 가른다','파일에 조 머리가 없어 조 단위로 견줄 수 없습니다.'],
+    '대한민국국기법시행령|제14조':['깨진 글자 1개','「국<mark>?</mark>의 깃면」 — 수집할 때 한 글자가 깨졌습니다.'],
+    '소득세법|제104조':['사실상 같다','차이는 절 제목 한 줄(「제6절 양도소득에 대한 세액의 계산」)이 붙은 것뿐입니다.'],
+    '소득세법|제129조':['사실상 같다','차이는 세율 표를 그림으로 담았는지 글로 담았는지뿐입니다(3,030자 대 3,032자).'],
+  };
+  const tb = el('table',{}, el('thead',{}, el('tr',{}, ...['법','조','무엇이 다른가','우리 / 현행 글자'].map(h=>el('th',{text:h})))));
+  const body = el('tbody');
+  DATA.hold.forEach(h => {
+    const p = plain[h.폴더+'|'+h.조] || [h.판정,''];
+    body.append(el('tr',{class:p[2]?'hl':''}, el('td',{text:h.폴더}), el('td',{text:h.조}),
+      el('td',{html:'<b>'+p[0]+'</b> — '+p[1]}), el('td',{class:'n',text:(h.우리!=null?fmt(h.우리)+' / '+fmt(h.현행):'—')})));
+  });
+  tb.append(body);
+  return card({id:'B1', codes:['3-37'], title:'다른 법에서 떼어 온 조문 10자리가 현행과 다르다',
+    issue:'우리 법이 인용하는 남의 법 조문은 필요한 조만 떼어 받아 둡니다(발췌본). 그중 <b>10자리가 지금 시행 중인 글과 다릅니다.</b> 3자리는 원문이 아니라 <b>우리가 요약해 적은 글</b>입니다.',
+    facts:[
+      ['그냥 두면','챗봇이 옛 글이나 요약한 글을 「원문」으로 보여 줍니다. 요약한 3조는 「요약·재해석 금지」 규약을 어기고 있습니다.'],
+      ['지금까지','108개 조를 한 조씩 현행과 글로 견줬습니다. 99조는 같았습니다(71조는 순서만 다름). 깨진 글자 28곳을 메워 다른 조를 12개에서 8개로 줄였습니다. 아래 표는 그 뒤에도 남은 것입니다.'],
+      ['왜 제가 못 정하나','다시 받으면 우리 파일의 글이 바뀝니다. 「다시 받을지」는 등록부에 사람 몫으로 적혀 있었습니다.'],
+    ],
+    extra:[el('div',{class:'tbl'},tb), el('p',{class:'note',text:'노란 줄 = 요약해 적은 것(규약 위반).'})],
+    opts:[
+      {v:'ⓐ',t:'10자리 모두 현행 원문으로 다시 받는다',rec:true,d:'바꾸기 전과 뒤의 글을 보고서로 남깁니다. 소득세법 2자리는 차이가 모양뿐이라 글은 그대로 두고 「같다」로 기록만 합니다.'},
+      {v:'ⓑ',t:'요약한 3조만 다시 받는다',d:'규약 위반만 먼저 고칩니다. 나머지 7자리는 그대로 남습니다.'},
+      {v:'ⓒ',t:'그대로 둔다',d:'지금 글을 유지합니다.'},
+    ]});
+}
+function cardB2(){
+  const u = DATA.u3;
+  return card({id:'B2', codes:['U-3'], title:'경비업법 제4조 — 우리 글에서 경비 인력 요건이 빠져 있다',
+    issue:'우리가 받아 둔 경비업법 제4조 ②항 2호는 「다음 각 목의 경비인력 요건」이라고만 끝납니다. <b>그 아래 가·나목</b>(경비원 10명 이상 · 경비지도사 1명 이상)이 없습니다.',
+    facts:[
+      ['그냥 두면','항만 보안 쪽 질문(국제항해선박 보안법 제31조 — 특수경비업자 위탁)에서 경비업 허가 요건을 물으면, 인원 기준 없이 답하게 됩니다.'],
+      ['왜 사장님 몫이었나','9월 초 자동 수집이 이 조를 새 글로 바꾸려다 「새 글이 2자 짧다」는 안전장치에 걸려 멈췄습니다. 줄어드는 교체는 사람이 보고 정하게 되어 있습니다. 그때 무엇과 견줬는지는 기록이 남아 있지 않습니다.'],
+      ['오늘 확인','오늘 국가법령정보센터에서 현행(판 '+u.mst+')을 다시 받아 맞대 보았습니다. <b>빠진 쪽은 우리 글입니다.</b>'],
+    ],
+    extra:[el('div',{class:'pair'},
+      el('div',{class:'box miss'}, el('span',{class:'lb',text:'우리 글 (지금)'}), u.ours),
+      el('div',{class:'box ok'}, el('span',{class:'lb',text:'현행 원문 (오늘 받음)'}), u.cur))],
+    opts:[
+      {v:'ⓐ',t:'현행 원문으로 바꾼다',rec:true,d:'제4조 전체를 현행으로 갈아 끼우고, 바꾼 기록을 남깁니다.'},
+      {v:'ⓑ',t:'그대로 둔다',d:''},
+    ]});
+}
+function cardB3(){
+  return card({id:'B3', codes:['3-45'], title:'행정규칙의 판번호를 파일 어디에 적을지 — 규칙 한 줄',
+    issue:'법령은 판번호를 법률·시행령·시행규칙 칸(<code>families</code>) 안에 적는다고 정했습니다. <b>행정규칙(고시·훈령)은 어디에 적을지 규칙이 없습니다.</b>',
+    facts:[
+      ['지금 모습','행정규칙 대부분은 법령 폴더 아래 <code>_admrul.json</code> 에 「이름 → ID」로 적혀 있어 문제가 없습니다. 따로 폴더를 가진 행정규칙 셋만 갈립니다. 상호금융업감독규정·선원근로감독관직무취급요령은 <b>파일 머리</b>에 적었고, 보안업무규정은 딸린 칸 <b>안</b>에 적었습니다.'],
+      ['왜 중요한가','개정 탐지(신선도 점검)와 게이트가 번호를 <b>한 자리에서만</b> 찾아야 놓치지 않습니다. 자리가 둘이면 한쪽을 빠뜨립니다.'],
+      ['왜 제가 못 정하나','데이터 규약(스키마)을 정하는 일이라 사장님 확정이 필요합니다.'],
+    ],
+    opts:[
+      {v:'ⓐ',t:'「행정규칙 하나뿐인 폴더는 머리에, 법령에 딸린 행정규칙은 칸 안에」로 정한다',rec:true,d:'지금 세 곳이 모두 이미 이 꼴이라 <b>옮길 것이 없습니다.</b> 규칙을 스키마에 적고 게이트가 그 자리만 보게 합니다.'},
+      {v:'ⓑ',t:'법령처럼 모두 칸 안에 적는다',d:'머리에 적힌 2곳을 칸 안으로 옮깁니다.'},
+    ]});
+}
+function cardB4(){
+  return card({id:'B4', codes:['3-36'], title:'표 모양을 되살리지 못한 83덩이를 어떻게 닫을지',
+    issue:'원문 표가 칸마다 한 줄씩 풀려 저장된 자리입니다(행이 안 보입니다). 202덩이에서 <b>83덩이까지</b> 되살렸습니다(지난번 「.hwp 판독기를 들여라」 결정 덕분). 남은 것은 되살릴 길이 없거나, 되살리면 안 되는 것입니다.',
+    facts:[
+      ['남은 것','· <b>수산업법 시행령 별표2</b>(102줄) — 표가 아니라 그림 위에 붙은 번호라서 그대로가 맞습니다.<br>· <b>부산해양공간관리계획</b>(74줄) — 첨부에 같은 이름의 원본(.hwp)이 없습니다.<br>· <b>해경 출입통제 공고 4쪽</b>(107줄) — 원본 첨부를 받을 창구가 없습니다.<br>· <b>별표 32쪽</b> — 별표를 받는 창구가 따로 있어서, 그쪽으로 다시 시도해 볼 수 있습니다.'],
+      ['그냥 두면','챗봇이 그 표를 줄줄이 풀린 글로 받습니다. 행과 칸이 섞여서 어느 값이 어느 행 것인지 흐려집니다. 늘지 않게는 게이트가 막고 있습니다.'],
+    ],
+    opts:[
+      {v:'ⓐ',t:'별표 32쪽은 다시 시도하고, 나머지는 「표 모양 복원 불가 — 원본 참조」 표시를 달고 닫는다',rec:true,d:'정직하게 한계를 적는 쪽입니다. 수산업법 별표2 는 「그림 번호라 원래 모양」으로 적습니다.'},
+      {v:'ⓑ',t:'ⓐ에 더해, 해경 공고 4쪽은 원본을 구해 사람이 옮긴다',d:'원본 PDF 를 구해 주시면 제가 옮깁니다(좌표표라 오독 확인이 필요합니다).'},
+      {v:'ⓒ',t:'지금 그대로 둔다',d:'등록부에 「남음 83」으로 계속 둡니다.'},
+    ]});
+}
+function cardB5(){
+  return card({id:'B5', codes:['진행판'], title:'새로 생긴 일 네 칸을 어느 무리에 넣을지',
+    issue:'진행판의 「미배정」 칸에 <code>3-69</code>·<code>3-70</code>·<code>3-71</code>·<code>3-72</code>가 떠 있습니다. 이 칸은 비어 있어야 정상입니다. 무리(군)를 정하는 것은 작업 순서를 정하는 일이라 여쭙니다.',
+    facts:[
+      ['무리 뜻','3군 = 데이터 정리 · 4군 = 사용자면(챗봇이 받는 것·답하는 것)'],
+    ],
+    opts:[
+      {v:'ⓐ',t:'3-69 는 3군, 3-70·3-71·3-72 는 4군',rec:true,d:'3-69 는 위키 글이 원문과 같은지 보는 데이터 일입니다. 나머지 셋은 챗봇이 받는 근거자료를 바꾸는 일입니다.'},
+      {v:'ⓑ',t:'넷 다 3군',d:''},
+      {v:'ⓒ',t:'넷 다 4군',d:''},
+    ]});
+}
+
+/* ─────────── ③ 하나씩 ─────────── */
+function cardC1(){
+  const Q = DATA.quotes;
+  const low = Q.filter(q=>q.닮음<0.3);
+  const list = el('div',{class:'items'});
+  Q.forEach(q => {
+    const key = 'q-'+q.n;
+    const it = el('div',{class:'item','data-key':key});
+    it.append(el('div',{class:'top'}, el('span',{class:'num',text:'#'+q.n}), el('code',{text:q.쪽+':'+q.줄})));
+    it.append(el('p',{class:'guess',text: q.닮음<0.3 ? '기계 짐작: 원문 인용이 아닌 듯합니다 — 비슷한 원문이 전혀 없습니다(닮음 '+q.닮음.toFixed(2)+')' : '기계 짐작: 원문과 거의 같습니다 — 글자 몇 개가 다릅니다(닮음 '+q.닮음.toFixed(2)+')'}));
+    q.토막.forEach(t => it.append(el('div',{class:'pair'},
+      el('div',{class:'box'}, el('span',{class:'lb',text:'위키가 따옴표 안에 적은 글'}), t.위키),
+      el('div',{class:'box'+(t.원문?'':' miss')}, el('span',{class:'lb',text: t.원문 ? '가장 닮은 원문 · '+t.파일+' · 닮음 '+t.닮음.toFixed(2) : '닮은 원문을 찾지 못했습니다'}), t.원문 || '—'))));
+    const chips = el('div',{class:'chips'});
+    [['원문대로','원문대로 고친다'],['우리정리','우리 정리다 — 따옴표를 뗀다'],['그대로','그대로 둔다']].forEach(([v,l]) =>
+      chips.append(el('button',{class:'chip',type:'button','data-key':key,'data-v':v,'aria-pressed':'false',onclick:()=>put(key,{v}),text:l})));
+    it.append(chips);
+    list.append(it);
+  });
+  const bulk = el('div',{class:'row'},
+    el('button',{class:'btn ghost',type:'button',onclick:()=>{ low.forEach(q=>{ if(!(state['q-'+q.n]&&state['q-'+q.n].v)) put('q-'+q.n,{v:'우리정리',bulk:1}); }); },
+      text:'닮음 0.3 미만 '+low.length+'건을 한꺼번에 「우리 정리다」로'}),
+    el('span',{class:'note',text:'이미 누른 것은 건드리지 않습니다.'}));
+  return card({id:'C1', key:'d-C1', codes:['결심 ⑨','3-33'], title:'「원문 그대로」라며 따옴표로 인용했는데 원문과 다른 '+Q.length+'곳',
+    issue:'위키가 큰따옴표 안에 적어 <b>원문을 옮긴 것처럼 보이는 글</b>인데, 원문 전체(raw)를 다 뒤져도 똑같은 글이 없는 '+Q.length+'곳입니다.',
+    facts:[
+      ['그냥 두면','챗봇이 우리가 풀어 쓴 말을 「법에 이렇게 적혀 있다」며 따옴표 그대로 전합니다. 법 조문처럼 들리니 가장 오해를 사기 쉬운 꼴입니다.'],
+      ['지금까지','처음 24곳 중 9곳은 기계가 원문대로 고쳤습니다(한자 괄호 등을 뺀 것뿐이던 자리).'],
+      ['왜 제가 못 정하나','남은 곳이 한 갈래가 아닙니다. ① 우리가 쉽게 풀어 쓴 말에 따옴표를 친 것 ② 줄임표(…)로 줄인 진짜 원문 ③ 원문이 조금 다르게 바뀐 것이 섞여 있습니다. 모두 같은 처방을 쓰면 <b>원문인데 원문이 아니라고 적는 일</b>이 생깁니다.'],
+      ['고르는 법','<b>원문대로 고친다</b> — 오른쪽 원문 글자로 바꿉니다. <b>우리 정리다</b> — 따옴표를 떼고 「우리 정리」로 표시합니다. <b>그대로 둔다</b> — 손대지 않습니다(메모에 까닭을 적어 주시면 남깁니다).'],
+    ],
+    extra:[bulk, list],
+    after: el('div',{class:'decide'}, el('p',{class:'note',text:'하나씩 누르신 것이 그대로 반영됩니다. 따로 정하실 것은 없습니다.'}))
+  });
+}
+function cardC2(){
+  const R = DATA.rows38.slice().map(r => ({...r, d:r.위키-r.원문}));
+  const less = R.filter(r => r.종류==='표' && r.d<0);
+  const kinds = {표:'표로 옮김',마디:'마디로 풀어 적음',표없음:'위키에 표 없음'};
+  const tb = el('table',{}, el('thead',{}, el('tr',{}, ...['별표','꼴','원문 행','위키 행'].map(h=>el('th',{text:h})))));
+  const body = el('tbody');
+  R.sort((a,b)=>(a.종류===b.종류?a.d-b.d:(a.종류==='표'?-1:b.종류==='표'?1:0))).forEach(r =>
+    body.append(el('tr',{class:(r.종류==='표'&&r.d<0)?'hl':''}, el('td',{},el('code',{text:r.쪽})), el('td',{text:kinds[r.종류]||r.종류}),
+      el('td',{class:'n',text:fmt(r.원문)}), el('td',{class:'n',text:fmt(r.위키)}))));
+  tb.append(body);
+  return card({id:'C2', codes:['3-28','§6-F'], title:'별표의 행 수가 원문과 다른 38쪽',
+    issue:'원문 별표의 행 수와 위키 표의 행 수가 다른 38쪽입니다. <b>위키가 원문보다 적으면 빠진 행이 있을 수 있습니다</b> — 그 행의 기준(금액·기간·구역)을 챗봇이 모르게 됩니다.',
+    facts:[
+      ['하지만','수만으로는 판정할 수 없습니다. 위키가 한 행을 둘로 쪼개거나, 여러 행을 한 행에 묶거나, 표를 마디 글로 풀어 적은 경우도 있습니다. 예를 들어 수산업법 시행령 별표2 는 「원문 154행 → 위키 18행」으로 보였지만, 어업 40종을 마디로 풀어 적은 것이라 <b>빠진 것이 없었습니다.</b>'],
+      ['세 무리','표로 옮긴 것 28 · 마디로 풀어 적은 것 6 · 위키에 표가 없는 것 4'],
+      ['볼 곳','<b>ⓑ 로 고르셨습니다 — 누르는 즉시 저장되는 검토장을 올렸습니다:</b> <a href="'+ROWS_URL+'" target="_blank" rel="noopener">별표 행 수 검토장</a>. 칸마다 원문 표와 위키 표가 나란히 있고, 고르신 것은 Claude 가 바로 읽습니다(저장소 파일: <code>_dashboard/review_html/별표_항목수.html</code>).'],
+    ],
+    extra:[ex('38쪽 목록 보기 — 노란 줄은 위키 행이 더 적은 표 '+less.length+'쪽', el('div',{class:'tbl'},tb))],
+    opts:[
+      {v:'ⓐ',t:'위키 행이 더 적은 표 '+less.length+'쪽만 먼저 본다',rec:true,d:'빠졌을 가능성이 있는 쪽만 봅니다. 위키가 더 많은 쪽은 대개 쪼개 적은 것이라 뒤로 미룹니다.'},
+      {v:'ⓑ',t:'38쪽 전부 본다',d:''},
+      {v:'ⓒ',t:'지금은 안 본다',d:'목록은 남겨 둡니다.'},
+    ]});
+}
+
+/* ─────────── ④ 방침만 ─────────── */
+function cardD1(){
+  return card({id:'D1', codes:['G-24','3-28'], title:'그림에서 읽어 옮긴 값 686개',
+    issue:'원문이 <b>그림(이미지)</b>으로만 있는 표·수식·도면에서 읽어 옮긴 값 686개에 「원문 대조 필요」 표시가 붙어 있습니다. 글자로 된 원문이 없어서 <b>기계는 맞는지 확인할 수 없습니다.</b>',
+    facts:[
+      ['어디에 많나','선박설비기준·어선설비기준·선박소방설비기준 같은 기술기준 고시와 수질오염 배출허용기준 고시입니다.'],
+      ['볼 곳','<b>ⓑ 로 고르셨습니다 — 19개 규정 686개 값을 한 곳에 모은 검토장을 올렸습니다:</b> <a href="'+FIG_URL+'" target="_blank" rel="noopener">그림 값 검토장</a>. 누르는 즉시 저장됩니다. (예전에 「검토장 12개」로 적었는데, 실제로 값이 든 것은 11개이고 <b>686개 중 618개만</b> 들어 있었습니다 — 검토장을 안 만든 규정 7개(53개 값), 그리고 이름이 같은 「선박설비기준」이 두 법(해상교통안전법·선박안전법)에 있어 하나가 다른 하나를 덮어써 빠진 15개. 고쳐서 19개 규정 686개 전부입니다.)'],
+      ['그냥 두면','읽다가 틀린 값이 있으면 챗봇이 틀린 치수·기준값을 말할 수 있습니다.'],
+      ['지금까지','같은 표시가 붙은 것 가운데 글자 원문을 다시 받을 수 있는 것(54파일)은 기계가 모두 대조했습니다. 686개는 그림뿐이라 그 길이 없습니다.'],
+    ],
+    opts:[
+      {v:'ⓐ',t:'표본 30개를 먼저 본다',rec:true,d:'파일마다 고르게 30개를 뽑아 그림과 값을 나란히 놓은 판을 만들어 드립니다. 틀린 게 0개면 표시를 「그림 판독 · 표본 30 확인」으로 바꾸고 닫습니다. 틀린 게 나오면 그 파일은 전부 봅니다.'},
+      {v:'ⓑ',t:'686개 전부 본다',d:'검토장(19개 규정)으로 봅니다. 가장 정확하지만 여러 날 걸립니다.'},
+      {v:'ⓒ',t:'표시만 두고 닫는다',d:'「그림에서 읽은 값 — 원본 확인 필요」 표시를 그대로 두고 일감에서 뺍니다.'},
+    ]});
+}
+
+/* ─────────── ⑤ 제가 먼저 ─────────── */
+function cardE(){
+  const nums = DATA.numsx;
+  const cs = DATA.cite_sample;
+  const tbN = el('table',{}, el('thead',{}, el('tr',{}, ...['자가 「원문에 없다」고 센 것','실제로는'].map(h=>el('th',{text:h})))),
+    el('tbody',{}, ...nums.map(x => el('tr',{}, el('td',{html:x[0]}), el('td',{html:x[1]})))));
+  const tbC = el('table',{}, el('thead',{}, el('tr',{}, ...['자가 짚은 것','본문 줄(앞부분)','제가 본 것'].map(h=>el('th',{text:h})))),
+    el('tbody',{}, ...cs.map(x => el('tr',{}, el('td',{text:x.법+' '+x.조}), el('td',{text:x.줄.slice(0,130)+(x.줄.length>130?'…':'')}), el('td',{html:x.봄})))));
+  const wrap = el('div',{class:'cbody'});
+  return card({id:'E1', codes:['G-29','3-41','G-13','3-45'], title:'사장님 몫으로 적혀 있었지만, 열어 보니 제가 먼저 할 일',
+    issue:'등록부에 「사람이 본다」로 적혀 있던 목록 중 셋은 <b>표본을 열어 보니 대부분 재는 도구(자)가 잘못 짚은 것</b>이었습니다. 그대로 드리면 사장님 시간을 헛되이 씁니다. 자를 먼저 고쳐 진짜만 남긴 뒤 다시 여쭙겠습니다.',
+    facts:[
+      ['① 숫자 31건','「원문과 똑같다」고 적어 둔 쪽에서, 원문 어디에도 없는 숫자라고 센 31건(19쪽)입니다. 열어 보니 전화번호·행정규칙 번호·표 머리 단위·옛 단가를 법 숫자로 센 것이었습니다(아래 보기). ⇒ 자를 고쳐 다시 셉니다.'],
+      ['② 인용 247건','위키 본문이 「제○조」를 짚는데 그 쪽의 근거 조문 표에 없는 247곳(160쪽)입니다. 무작위로 12곳을 뽑아 보니 7곳은 <b>남의 법 조문</b>(형법 제268조, 행정절차법 제22조 등)이나 시행규칙 조문, 변경 이력 줄을 이 법 조문으로 잘못 짚은 것이었습니다. 진짜 확인거리로 보이는 것은 4곳, 줄만으로는 모르는 것이 1곳입니다. ⇒ 자를 고쳐 남의 법·다른 계층·변경 이력 줄을 가른 뒤, 남는 것만 드립니다.'],
+      ['③ 판번호 2곳','「계층이 여럿이라 기계가 못 고른다」던 두 곳을 국가법령정보센터에 물었습니다. 예금자보호법 판 277269 는 <b>법률</b>이고, 선원노동위원회규정 판 287143 은 <b>대통령령</b>입니다. ⇒ 제자리에 옮깁니다. 선원노동위원회규정은 파일 이름이 <code>법률_발췌.txt</code> 로 잘못 붙어 있어 이것도 바로잡습니다.'],
+    ],
+    extra:[
+      ex('보기 ① — 숫자 31건 중 제가 열어 본 것', el('div',{class:'tbl'},tbN)),
+      ex('보기 ② — 인용 247건 중 무작위 12건', el('div',{class:'tbl'},tbC), el('p',{class:'note',text:'「제가 본 것」은 제가 눈으로 가른 짐작입니다. 자를 고친 뒤 기계로 다시 셉니다.'})),
+    ],
+    optLabel:'정하실 것',
+    opts:[
+      {v:'ⓐ',t:'그렇게 해라 — 자부터 고치고 진짜만 다시 가져와라',rec:true,d:'고친 뒤의 수와, 사장님이 보실 몫이 몇 건 남는지 보고합니다.'},
+      {v:'ⓑ',t:'먼저 전부 보고 싶다',d:'목록 전체를 이 확인판에 붙여 드립니다.'},
+    ]});
+}
+
+/* ─────────── 조립 ─────────── */
+const GROUPS = [
+  {t:'① 가장 먼저 — 막힌 일을 푸는 것', d:'셋 다 판정함(따로 있는 쪽)에서 누르는 일입니다. 이것만 해 주셔도 멈춰 있는 개선 두 개와 원문 확인 일이 움직입니다.', cards:[cardA1,cardA2,cardA3]},
+  {t:'② 한 번 고르면 끝나는 결정', d:'한 번 누르시면 나머지는 제가 합니다.', cards:[cardB1,cardB2,cardB3,cardB4,cardB5]},
+  {t:'③ 하나씩 보셔야 하는 것', d:'법 글을 읽어야 가려지는 것들입니다. 수가 적은 것부터 놓았습니다.', cards:[cardC1,cardC2]},
+  {t:'④ 수가 많아서 방침만 정하실 것', d:'하나씩 보시기 전에, 어디까지 볼지를 먼저 정합니다.', cards:[cardD1]},
+  {t:'⑤ 사장님 몫이 아니었던 것', d:'등록부에는 사람 몫으로 적혀 있었지만, 열어 보니 제가 먼저 할 일이었습니다. 알려 드리는 것이고, 한 번만 눌러 주시면 됩니다.', cards:[cardE]},
+];
+
+const MAPTITLE = {A1:'정답 문장 표시 — 개선 두 개를 판정할 자',A2:'「원문 그대로」가 정말 원문 그대로인가',A3:'운영 챗봇에 두 질문 물어 보기',B1:'떼어 온 조문 10자리가 현행과 다르다',B2:'경비업법 제4조 — 인력 요건이 빠짐',B3:'행정규칙 판번호 자리 규칙',B4:'표 모양 못 되살린 83덩이',B5:'새 일 네 칸의 무리',C1:'따옴표 인용이 원문과 다른 15곳',C2:'별표 행 수가 다른 38쪽',D1:'그림에서 읽은 값 686개',E1:'제가 먼저 할 일 (알려 드림)'};
+const ORDER = Object.keys(MAPTITLE);
+
+function build(){
+  const g = $('#groups');
+  GROUPS.forEach(G => {
+    const sec = el('section',{class:'group'}, el('header',{}, el('h2',{text:G.t}), el('p',{class:'lead',text:G.d})));
+    G.cards.forEach(f => sec.append(f()));
+    g.append(sec);
+  });
+  const map = $('#map');
+  ORDER.forEach(id => map.append(el('a',{href:'#'+id,'data-map':id}, el('span',{class:'id',text:id}), el('span',{text:MAPTITLE[id]}), el('span',{class:'st',text:'아직'}))));
+  const qn = DATA.quotes.length;
+  const gl = $('#glance');
+  gl.append(
+    el('div',{class:'gl'}, el('b',{text:String(ORDER.length)}), el('span',{text:'누르실 항목 — 아래 목차 순서대로'})),
+    el('div',{class:'gl'}, el('b',{text:'3'}), el('span',{text:'가장 먼저 해 주실 것 — 모두 판정함에서'})),
+    el('div',{class:'gl'}, el('b',{text:String(qn)}), el('span',{text:'하나씩 누르실 인용 (③)'})),
+    el('div',{class:'gl'}, el('b',{text:fmt(DATA.judge.total)}), el('span',{text:'작업 목록에서 끝난 일 (전체 '+fmt(DATA.judge.all)+' 중)'})));
+  $('#mkout').addEventListener('click', () => {
+    const o=$('#out'), m=$('#outmsg');
+    o.value = textOut();
+    const n = o.value.split('\n').length - 1;
+    const fallback = () => { o.focus(); o.select(); m.className='msg warn'; m.textContent='자동 복사가 막혔습니다 — 글상자 안을 길게 눌러(또는 Ctrl+A) 전체 선택 후 복사해 주세요.'; };
+    if (!n) { m.className='msg warn'; m.textContent='아직 고르신 것이 없습니다.'; return; }
+    try {
+      navigator.clipboard.writeText(o.value).then(() => { m.className='msg'; m.textContent='복사됐습니다 ('+n+'줄) — 대화창에 붙여 넣어 주세요.'; }, fallback);
+    } catch(_) { fallback(); }
+  });
+}
+function refresh(){
+  document.querySelectorAll('[data-key][data-v]').forEach(b => { const s=state[b.dataset.key]; b.setAttribute('aria-pressed', String(!!(s&&s.v===b.dataset.v))); });
+  document.querySelectorAll('textarea[data-note]').forEach(t => { const s=state[t.dataset.note]; if (s&&s.note!=null&&document.activeElement!==t) t.value=s.note; });
+  document.querySelectorAll('.item[data-key]').forEach(i => i.dataset.done = (state[i.dataset.key]&&state[i.dataset.key].v)?'1':'0');
+  let done=0;
+  ORDER.forEach(id => {
+    const c = document.getElementById(id); if (!c) return;
+    let ok;
+    if (id==='C1') { const n=DATA.quotes.filter(q=>state['q-'+q.n]&&state['q-'+q.n].v).length; ok = n===DATA.quotes.length; const m=document.querySelector('[data-map="C1"] .st'); m.textContent = n? n+' / '+DATA.quotes.length : '아직'; m.classList.toggle('on',ok); }
+    else { const s=state['d-'+id]; ok=!!(s&&s.v); const m=document.querySelector('[data-map="'+id+'"] .st'); m.textContent = ok? '정함 · '+s.v : '아직'; m.classList.toggle('on',ok); }
+    c.dataset.done = ok?'1':'0';
+    const t=c.querySelector('[data-donetag]'); if (t) t.hidden = !ok;
+    if (ok) done++;
+  });
+  $('#count').textContent = done+' / '+ORDER.length+' 정함';
+  $('#meterfill').style.width = (done/ORDER.length*100)+'%';
+}
+function textOut(){
+  const L=['[나리야 확인판 — 고른 것]'];
+  ORDER.forEach(id => { const s=state['d-'+id]; if (s&&(s.v||s.note)) L.push(id+' '+MAPTITLE[id]+' = '+(s.v||'(안 고름)')+(s.note?' | 메모: '+s.note:'')); });
+  DATA.quotes.forEach(q => { const s=state['q-'+q.n]; if (s&&s.v) L.push('인용 #'+q.n+' '+q.쪽+':'+q.줄+' = '+s.v+(s.note?' | 메모: '+s.note:'')); });
+  return L.join('\n');
+}
+
+build(); refresh(); setSave('none');
+(async()=>{
+  let d=null;
+  try { d = window.claude && window.claude.use ? await window.claude.use('db') : null; } catch(_) { d=null; }
+  if (!d) { setSave('local'); return; }
+  db=d; setSave('db');
+  db.collection('decisions').onSnapshot(snap=>{
+    let changed=false;
+    for (const doc of snap.docs) { const b=doc.data(); if (!b) continue; const k=b.key||doc.id; const c0=state[k]; if (!c0 || (b.at||'')>(c0.at||'')) { const {key,...rest}=b; state[k]=rest; changed=true; } }
+    if (changed) { saveLocal(); refresh(); }
+  }, ()=>setSave('local'));
+})();
+</script>
