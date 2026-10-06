@@ -1,0 +1,136 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>수질오염물질배출허용기준중별도배출허용기준지정·고시</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--line:#d8d8d8;--soft:#f6f6f6;--ok:#137333;--fx:#a50e0e;--un:#8a6d00;--accent:#0b57d0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e8e8e8;--line:#3a3d42;--soft:#1e2126;--ok:#5bb974;--fx:#f28b82;--un:#fdd663;--accent:#8ab4f8}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e8e8e8;--line:#3a3d42;--soft:#1e2126;--ok:#5bb974;--fx:#f28b82;--un:#fdd663;--accent:#8ab4f8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+header{position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px}
+h1{margin:0 0 4px;font-size:17px}
+.meta{font-size:13px;opacity:.75}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.bar button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--line);border-radius:7px;background:var(--soft);color:var(--fg);cursor:pointer}
+.bar button.primary{background:var(--accent);color:#fff;border-color:transparent}
+.count{font-size:13px;margin-left:auto;opacity:.8}
+main{padding:16px;max-width:1400px;margin:0 auto}
+section{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+@media (max-width:900px){section{grid-template-columns:1fr}}
+.pane{min-width:0}
+.pane.img{position:sticky;top:96px;align-self:start}
+.pane.img img{width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+.noimg{padding:14px;border:1px dashed var(--line);border-radius:8px;font-size:13px;color:var(--un)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--line);padding:5px 7px;vertical-align:top;text-align:left}
+th{background:var(--soft);font-weight:600}
+td.rv{background:var(--soft);min-width:130px}
+td.rv .val{font-weight:700;margin-bottom:4px;word-break:break-all}
+td.rv .btns{display:flex;gap:3px}
+td.rv button{font:inherit;font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg);cursor:pointer}
+td.rv input.newv{margin-top:4px;width:100%;font:inherit;font-size:12px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg)}
+td.rv .mark{font-size:11px;margin-top:3px;font-weight:700}
+td.rv[data-s="맞음"]{outline:2px solid var(--ok);outline-offset:-2px}
+td.rv[data-s="고침"]{outline:2px solid var(--fx);outline-offset:-2px}
+td.rv[data-s="모름"]{outline:2px solid var(--un);outline-offset:-2px}
+footer{padding:20px 16px 50px;font-size:12.5px;opacity:.75;max-width:1400px;margin:0 auto}
+</style></head><body>
+<header>
+  <h1>수질오염물질배출허용기준중별도배출허용기준지정·고시</h1>
+  <div class="meta">원문: <code>raw/15_관련타부처/물환경보전법/행정규칙/수질오염물질배출허용기준중별도배출허용기준지정·고시.txt</code> · 확인할 값 <b>5</b>개<br>
+  왼쪽이 <b>원문 그림</b>, 오른쪽이 <b>옮겨 적은 표</b>입니다. 노란 칸이 확인할 값입니다.</div>
+  <div class="bar">
+    <button class="primary" id="copyOut">내보내기 — 복사</button>
+    <button id="dlJson">JSON 내려받기</button>
+    <button id="dlCsv">CSV 내려받기</button>
+    <button id="allOk">남은 것 전부 「맞음」</button>
+    <button id="reset">지우기</button>
+    <span class="count" id="count"></span>
+  </div>
+</header>
+<main><section><div class="pane img"><img src="data:image/png;base64,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" alt="원본 그림 21088000"></div><div class="pane tbl"><table><tr><th>대상</th><th>항목</th><th>별도배출허용기준</th></tr><tr><td>장흥 바이오식품산업단지에서 배수설비를 통하여 폐수를 전량 장흥 바이오식품산업단지 폐수종말처리시설(1단계, 2,000㎥/일)로 유입시켜 처리하는 배출시설 (전라남도 장흥군)</td><td>BOD</td><td class="rv" data-k="1"><div class="val">468</div><div class="btns"><button class="ok" data-k="1" data-v="맞음">맞음</button><button class="fx" data-k="1" data-v="고침">고침</button><button class="un" data-k="1" data-v="모름">모름</button></div><input class="newv" data-k="1" placeholder="바른 값" hidden><div class="mark" data-k="1"></div></td></tr><tr><td></td><td>COD</td><td class="rv" data-k="2"><div class="val">454</div><div class="btns"><button class="ok" data-k="2" data-v="맞음">맞음</button><button class="fx" data-k="2" data-v="고침">고침</button><button class="un" data-k="2" data-v="모름">모름</button></div><input class="newv" data-k="2" placeholder="바른 값" hidden><div class="mark" data-k="2"></div></td></tr><tr><td></td><td>SS</td><td class="rv" data-k="3"><div class="val">239</div><div class="btns"><button class="ok" data-k="3" data-v="맞음">맞음</button><button class="fx" data-k="3" data-v="고침">고침</button><button class="un" data-k="3" data-v="모름">모름</button></div><input class="newv" data-k="3" placeholder="바른 값" hidden><div class="mark" data-k="3"></div></td></tr><tr><td></td><td>T-N</td><td class="rv" data-k="4"><div class="val">55</div><div class="btns"><button class="ok" data-k="4" data-v="맞음">맞음</button><button class="fx" data-k="4" data-v="고침">고침</button><button class="un" data-k="4" data-v="모름">모름</button></div><input class="newv" data-k="4" placeholder="바른 값" hidden><div class="mark" data-k="4"></div></td></tr><tr><td></td><td>T-P</td><td class="rv" data-k="5"><div class="val">10</div><div class="btns"><button class="ok" data-k="5" data-v="맞음">맞음</button><button class="fx" data-k="5" data-v="고침">고침</button><button class="un" data-k="5" data-v="모름">모름</button></div><input class="newv" data-k="5" placeholder="바른 값" hidden><div class="mark" data-k="5"></div></td></tr></table></div></section></main>
+<footer>
+  · 고른 것은 <b>이 브라우저에 저장</b>됩니다(다른 기기·다른 사람에게는 안 갑니다). 끝나면 <b>「내보내기 — 복사」로 대화창에 붙여 넣거나</b> 내려받아 주세요. 게시판(claude.ai)에서 열면 누르는 즉시 저장소에도 남습니다.<br>
+  · 「고침」을 누르면 바른 값을 적는 칸이 열립니다. 적은 값은 내려받는 파일에 함께 담깁니다.<br>
+  · 원문 그림이 안 뜨는 표는 <span style="color:var(--un)">노란 안내</span>가 대신 나옵니다 — 그 값도 확인 대상입니다.
+</footer>
+<script>
+const KEY='review:수질오염물질배출허용기준중별도배출허용기준지정_고시';
+let DB=null,DBt=0;
+let S={};
+try{S=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){S={}}
+const tds=[...document.querySelectorAll('td.rv')];
+function paint(){
+  for(const td of tds){
+    const k=td.dataset.k, s=S[k];
+    if(!s){td.removeAttribute('data-s');td.querySelector('.mark').textContent='';continue}
+    td.dataset.s=s.state;
+    const inp=td.querySelector('.newv');
+    inp.hidden = s.state!=='고침';
+    if(s.state==='고침'&&inp.value!==(s.value||''))inp.value=s.value||'';
+    td.querySelector('.mark').textContent =
+      s.state==='고침' ? '고침 → '+(s.value||'(값을 적어 주세요)') : s.state;
+  }
+  const done=Object.keys(S).length;
+  document.getElementById('count').textContent=done+' / '+tds.length+' 확인함';
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  // ★2026-09-29 — 누르는 즉시 저장소에도 둔다(Claude 가 읽는다). 저장소가 없으면(내려받은 파일) 이 브라우저에만 남는다.
+  //   문서 이름은 영숫자만 받으므로 한글 이름 대신 이름의 sha1 앞 12자리(f6e3b79e1d12b)를 쓴다.
+  if(DB){clearTimeout(DBt);DBt=setTimeout(()=>{DB.doc('review/f6e3b79e1d12b').set({이름:KEY.replace('review:',''),S:JSON.stringify(S),at:new Date().toISOString()}).catch(()=>{})},400)}
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('td.rv button'); if(!b)return;
+  const k=b.dataset.k, v=b.dataset.v;
+  if(S[k]&&S[k].state===v){delete S[k]} else {S[k]={state:v,value:(S[k]||{}).value||'',
+    orig:document.querySelector('td.rv[data-k="'+k+'"] .val').textContent}}
+  paint();
+  if(S[k]&&S[k].state==='고침'){const i=document.querySelector('input.newv[data-k="'+k+'"]');i.hidden=false;i.focus()}
+});
+document.addEventListener('input',e=>{
+  const i=e.target.closest('input.newv'); if(!i)return;
+  const k=i.dataset.k; S[k]=S[k]||{state:'고침',orig:''}; S[k].value=i.value; paint();
+});
+function rows(){
+  return tds.map(td=>{const k=td.dataset.k,s=S[k]||{};
+    return {번호:+k, 옮겨적은값:td.querySelector('.val').textContent,
+            판정:s.state||'', 바른값:s.value||''}});
+}
+function dl(name,text,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();
+}
+document.getElementById('dlJson').onclick=()=>dl('수질오염물질배출허용기준중별도배출허용기준지정_고시_검토.json',
+  JSON.stringify({원문:'raw/15_관련타부처/물환경보전법/행정규칙/수질오염물질배출허용기준중별도배출허용기준지정·고시.txt',확인한때:new Date().toISOString(),결과:rows()},null,1),'application/json');
+document.getElementById('dlCsv').onclick=()=>{
+  const r=rows(); const esc=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  dl('수질오염물질배출허용기준중별도배출허용기준지정_고시_검토.csv','\uFEFF'+['번호,옮겨적은값,판정,바른값',
+    ...r.map(x=>[x.번호,x.옮겨적은값,x.판정,x.바른값].map(esc).join(','))].join('\n'),'text/csv');
+};
+document.getElementById('allOk').onclick=()=>{
+  if(!confirm('아직 안 고른 값을 전부 「맞음」으로 표시합니다. 계속할까요?'))return;
+  for(const td of tds){const k=td.dataset.k; if(!S[k])S[k]={state:'맞음',value:'',
+    orig:td.querySelector('.val').textContent}}
+  paint();
+};
+document.getElementById('reset').onclick=()=>{
+  if(!confirm('고른 것을 모두 지웁니다. 계속할까요?'))return;
+  S={};try{localStorage.removeItem(KEY)}catch(e){};
+  for(const i of document.querySelectorAll('input.newv')){i.value='';i.hidden=true}
+  paint();
+};
+document.getElementById('copyOut').onclick=async()=>{
+  const r=rows().filter(x=>x.판정);
+  const t=['[그림 값 검토 — '+KEY.replace('review:','')+'] '+r.length+' / '+tds.length+' 확인함',
+           ...r.map(x=>'#'+x.번호+' '+x.옮겨적은값+' = '+x.판정+(x.바른값?' → '+x.바른값:''))].join('\n');
+  try{await navigator.clipboard.writeText(t);alertBox('복사했습니다 — 대화창에 붙여 넣어 주세요')}
+  catch(e){const ta=document.getElementById('outbox');ta.hidden=false;ta.value=t;ta.focus();ta.select();alertBox('복사가 막혔습니다 — 아래 글상자에서 직접 복사해 주세요')}
+};
+function alertBox(m){const c=document.getElementById('count');const o=c.textContent;c.textContent=m;setTimeout(()=>paint(),1800)}
+paint();
+(async()=>{let d=null;try{d=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){d=null}
+  if(!d)return; DB=d;
+  DB.doc('review/f6e3b79e1d12b').onSnapshot(doc=>{const b=doc&&doc.data&&doc.data();if(!b||!b.S)return;
+    try{const got=JSON.parse(b.S);if(JSON.stringify(got)!==JSON.stringify(S)){S=got;paint()}}catch(e){}},()=>{});
+})();
+</script>
+<textarea id="outbox" hidden style="width:100%;height:220px;font:12px ui-monospace,monospace"></textarea></body></html>

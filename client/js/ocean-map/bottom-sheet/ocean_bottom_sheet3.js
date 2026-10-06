@@ -4,11 +4,13 @@
  * 역할: 바텀시트 조석 카드 — TideBED 폴링 + 3모드 렌더링(loading/error/detail)
  * [연계]
  *  - 사용하는 파일 : tide.js(computeMulddae 등), ocean_bottom_sheet4.js(OS.tryEastSeaIdw),
- *                    ocean_cctv.js(window.oceanFav.locationFindNear), ocean_bottom_sheet1.js(OS 공용 유틸)
+ *                    ocean_cctv.js(window.oceanFav.locationFindNear·locationGetAll), ocean_bottom_sheet1.js(OS 공용 유틸)
  *  - 서버 API      : POST /api/save_tide_input, GET /data/{filename}
  *  - 마크업        : index2.html #ocean-card-tide
  *  - 나를 쓰는 곳  : OS.fetchTideForSheet(ocean_bottom_sheet5.js loadAllForDate),
- *                    OS.refreshTideGaugeForTime(ocean_bottom_sheet2.js SheetTL.onRelease)
+ *                    OS.refreshTideGaugeForTime(ocean_bottom_sheet2.js SheetTL.onRelease),
+ *                    OS.prefetchFavoriteTides(이 파일의 load·visibilitychange 리스너 — 앱 시작·복귀 시
+ *                    즐겨찾기 해점 오늘 조석을 미리 받아 영속 캐시에 넣음)
  * ============================================================================
  *
  * [표시 형식 (이미지 기반)]
@@ -658,6 +660,200 @@
             })();
         }
     };
+
+    /* --------------------------------------------------------------
+     * 즐겨찾기 조석 미리받기 (2026-10-06 사용자 요청)
+     *
+     * [왜] 위 영속 캐시(tideCache:v1)는 사용자가 바텀시트를 "직접 열었을 때만" 채워진다.
+     *   그래서 날이 바뀐 뒤 즐겨찾기를 처음 누르면 오늘치가 없어 3~5초 이상 기다렸다.
+     *   앱을 켤 때(또는 백그라운드에서 돌아올 때) 즐겨찾기 해점의 오늘 조석을 화면 없이
+     *   미리 받아 영속 캐시에 넣어 두면, 칩을 누르는 순간 fetchTideForSheet 가 캐시 hit 한다.
+     * [범위] 조석만 · 같은 기기(localStorage 즐겨찾기) 기준 — 사용자 확정 2026-10-06.
+     * [원칙]
+     *   - 오늘치가 이미 영속 캐시에 있으면 그 해점은 건너뛴다(중복 호출 없음).
+     *   - 해점은 한 곳씩 차례로 받는다(서버·KHOA 동시 부하 방지).
+     *   - 화면(카드 DOM)·메모리 캐시(_tideMultiDayCache)는 건드리지 않는다 — 영속 캐시에만 쓴다.
+     *   - 실패·시간초과는 조용히 넘긴다 → 그 해점은 지금처럼 시트를 열 때 받아온다.
+     *   - final 상태('complete'·'complete (IDW)')만 저장한다. 'complete-quick'(임시)은 저장 안 함.
+     * [대기 중 상태 변화]
+     *   - 받는 도중 즐겨찾기가 해제됨 → 저장 직전 isFavoritePoint 재확인, 해제됐으면 버림.
+     *   - 받는 도중 사용자가 그 해점 시트를 엶 → 시트는 자기 경로로 받는다(서버가 같은 파일을
+     *     이미 수집 중이라 더 빠름). 이미 저장된 dayKey 는 덮어쓰지 않는다.
+     *   - 미리받기가 도는 중 또 호출됨(앱 복귀 반복) → 진행 중 플래그로 무시.
+     * ------------------------------------------------------------ */
+    var PREFETCH_POLL_MS = 1000;
+    var PREFETCH_POLL_MAX = 60;   // 해점당 최대 60초
+    var _prefetchRunning = false;
+
+    /**
+     * 즐겨찾기 해점 전체의 오늘 조석을 차례로 미리 받아 영속 캐시에 넣는다.
+     * 예: 즐겨찾기 3곳 중 1곳만 오늘치 캐시가 없으면 그 1곳만 받는다.
+     * @returns {Promise<void>} 모든 해점 처리가 끝나면 resolve (실패도 resolve)
+     * [연계] ← 아래 load / visibilitychange 리스너 (앱 시작·복귀 시)
+     *        → window.oceanFav.locationGetAll (ocean_cctv.js) 즐겨찾기 목록을 얻기 위해
+     *        → prefetchOnePoint → 영속 캐시에 쓰기 위해
+     */
+    OS.prefetchFavoriteTides = function () {
+        if (_prefetchRunning) return Promise.resolve();
+        var fav = window.oceanFav;
+        if (!fav || typeof fav.locationGetAll !== 'function') return Promise.resolve();
+        var dateObj = new Date();
+        var todayKey = dayKeyOf(dateObj);
+        var persist = loadPersistCache();
+        var targets = fav.locationGetAll().filter(function (it) {
+            if (!it || typeof it.lat !== 'number' || typeof it.lon !== 'number') return false;
+            var pt = persist[pointKey(it.lat, it.lon)];
+            return !(pt && pt.days && pt.days[todayKey]);
+        });
+        if (!targets.length) return Promise.resolve();
+        _prefetchRunning = true;
+        var chain = Promise.resolve();
+        targets.forEach(function (it) {
+            chain = chain.then(function () {
+                return prefetchOnePoint(it.lat, it.lon, dateObj).catch(function () {
+                    /* 한 해점 실패는 다음 해점에 영향 없음 — 그 해점은 시트 열 때 받는다 */
+                });
+            });
+        });
+        return chain.then(function () { _prefetchRunning = false; });
+    };
+
+    /**
+     * 해점 하나의 어제·오늘·내일 조석을 화면 없이 받아 영속 캐시에 넣는다.
+     * 예: (35.1, 129.0) → POST /api/save_tide_input → /data/tide_*.json 3개가 final 이 될 때까지 폴링.
+     * @param {number} lat
+     * @param {number} lon
+     * @param {Date} dateObj 오늘
+     * @returns {Promise<void>}
+     * [연계] ← OS.prefetchFavoriteTides
+     *        → OS.tryEastSeaIdw (ocean_bottom_sheet4.js) 동해북부 좌표 — 시트와 같은 우회 경로
+     *        → lookupGridHash / rememberGridHash — 시트(fetchTideKhoa)와 같은 격자ID 캐시 공유
+     *        → storePrefetched 저장
+     */
+    function prefetchOnePoint(lat, lon, dateObj) {
+        // 동해북부 우회 — fetchTideForSheet 와 같은 조건·같은 함수
+        if (lat >= 36 && lon >= 128) {
+            if (typeof OS.tryEastSeaIdw !== 'function') return Promise.resolve();
+            return new Promise(function (resolve) {
+                OS.tryEastSeaIdw(lat, lon, dateObj, function (result) {
+                    if (result && result.today) storePrefetched(lat, lon, dateObj, result, true);
+                    resolve();
+                });
+            });
+        }
+
+        var qLat = Math.round(lat * 100000) / 100000;
+        var qLon = Math.round(lon * 100000) / 100000;
+        var body = { lat: qLat, lon: qLon, date: OS.formatDateInt(dateObj), time: nowHHMM() };
+        var cachedGrid = lookupGridHash(lat, lon);
+        if (cachedGrid) {
+            body.gridHash = cachedGrid.gridHash;
+            if (cachedGrid.fileName) body.fileName = cachedGrid.fileName;
+        }
+
+        return fetch('/api/save_tide_input', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (resp) {
+                if (resp && resp.success && resp.gridHashRefreshed) {
+                    try { forgetGridHash(lat, lon); } catch (e) { /* 지울 캐시가 없으면 목적 달성 */ }
+                }
+                if (resp && resp.success && resp.gridHash) {
+                    rememberGridHash(lat, lon, resp.gridHash, (resp.files && resp.files.today) || null);
+                }
+                if (!resp || !resp.success || !resp.files || !resp.files.today) return;
+                return pollFinal(resp.files).then(function (got) {
+                    if (got.today) storePrefetched(lat, lon, dateObj, got, false);
+                });
+            });
+    }
+
+    /**
+     * 3일치 파일이 final 이 될 때까지 폴링해 final 인 것만 돌려준다.
+     * 예: today=complete, tomorrow=complete-quick(시간초과) → { today: {...}, tomorrow: null }
+     * @param {{yesterday:string, today:string, tomorrow:string}} files 서버가 준 파일명
+     * @returns {Promise<{yesterday:Object|null, today:Object|null, tomorrow:Object|null}>}
+     * [연계] ← prefetchOnePoint. 시트의 pollThreeDayFiles 와 달리 렌더하지 않고 final 만 모은다.
+     */
+    function pollFinal(files) {
+        var got = { yesterday: null, today: null, tomorrow: null };
+        var done = { yesterday: !files.yesterday, today: false, tomorrow: !files.tomorrow };
+        function isFinal(st) { return st === 'complete' || st === 'complete (IDW)'; }
+        function fetchOne(key) {
+            if (done[key]) return Promise.resolve();
+            return fetch('/data/' + files[key])
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (!d) return;
+                    if (isFinal(d.tideBedStatus)) { got[key] = d; done[key] = true; }
+                    else if (d.tideBedStatus === 'error') { done[key] = true; }
+                })
+                .catch(function () { /* 이번 회차 실패 — 다음 회차에 다시 */ });
+        }
+        return new Promise(function (resolve) {
+            var tries = 0;
+            (function loop() {
+                Promise.all([fetchOne('yesterday'), fetchOne('today'), fetchOne('tomorrow')])
+                    .then(function () {
+                        // 오늘이 error 로 끝났으면 저장할 것이 없다
+                        if (done.today && !got.today) return resolve(got);
+                        if ((done.yesterday && done.today && done.tomorrow)
+                            || ++tries >= PREFETCH_POLL_MAX) return resolve(got);
+                        setTimeout(loop, PREFETCH_POLL_MS);
+                    });
+            })();
+        });
+    }
+
+    /**
+     * 미리 받은 결과를 영속 캐시에 넣는다. 형식은 renderTideData 가 putCachedDay 로
+     * 저장하는 것과 같다(오늘 = neighbors 포함, 어제·내일 = neighbors null).
+     * 이미 있는 dayKey 는 덮어쓰지 않는다 — 그 사이 시트가 저장한 결과를 존중.
+     * @param {number} lat
+     * @param {number} lon
+     * @param {Date} dateObj 오늘
+     * @param {{yesterday:Object|null, today:Object, tomorrow:Object|null}} got
+     * @param {boolean} isIdw 동해북부 보간 결과 여부
+     * [연계] ← prefetchOnePoint → loadPersistCache/savePersistCache (이 파일 위쪽 영속 캐시)
+     */
+    function storePrefetched(lat, lon, dateObj, got, isIdw) {
+        if (!isFavoritePoint(lat, lon)) return;   // 받는 사이 즐겨찾기 해제됨
+        var persist = loadPersistCache();
+        var pk = pointKey(lat, lon);
+        if (!persist[pk]) persist[pk] = { days: {}, lastUsed: Date.now() };
+        var days = persist[pk].days;
+        var tKey = dayKeyOf(dateObj);
+        var yKey = shiftDayKey(dateObj, -1);
+        var nKey = shiftDayKey(dateObj, +1);
+        if (!days[tKey]) {
+            days[tKey] = {
+                data: got.today, isIdw: !!isIdw,
+                neighbors: { yesterday: got.yesterday || null, tomorrow: got.tomorrow || null,
+                             lat: lat, lon: lon }
+            };
+        }
+        if (got.yesterday && !days[yKey]) days[yKey] = { data: got.yesterday, isIdw: !!isIdw, neighbors: null };
+        if (got.tomorrow && !days[nKey]) days[nKey] = { data: got.tomorrow, isIdw: !!isIdw, neighbors: null };
+        // lastUsed 는 갱신하지 않는다 — LRU 는 "사용자가 쓴 순서" 기준이어야 하므로.
+        savePersistCache(persist);
+    }
+
+    // 앱 시작 시 — 첫 화면 로딩과 겹치지 않게 load 후 3초 뒤.
+    // 앱 복귀 시 — 모바일 웹뷰는 다시 열어도 load 가 안 나는 경우가 많아(백그라운드 유지)
+    //   화면이 다시 보일 때도 한 번 확인한다. 오늘치가 이미 있으면 아무것도 안 받는다.
+    if (typeof window.addEventListener === 'function') {
+        window.addEventListener('load', function () {
+            setTimeout(function () { OS.prefetchFavoriteTides(); }, 3000);
+        });
+    }
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') OS.prefetchFavoriteTides();
+        });
+    }
 
     /* --------------------------------------------------------------
      * 렌더링 1) 로딩 (조석정보 탭과 동일 양식)

@@ -147,9 +147,46 @@ def table_articles(tbl):
     return have
 
 
+# ★2026-09-29 (확인판 E1 ⓐ — 사장님 「자부터 고치고 진짜만 다시 가져와라」) — 무작위 12건 중 7건이 오탐이었다.
+#   ① **변경 이력 표 줄**(`| 2026-08-26 | …`)은 지난 작업 기록이지 인용이 아니다.
+#   ② 같은 마디 안에서 **남의 법 이름이 먼저 나오면** 뒤의 조는 그 법 것이다 —
+#      `「형법」 제30조(공동정범)·제31조(교사범)` 의 제31조는 앞 조가 아니라 「형법」을 따른다.
+#      종전 OTHER_LAW 는 **바로 앞 30자**만 봐서 가운뎃점으로 이어진 조를 놓쳤다.
+#      이 페이지의 법 이름(`파일명 앞머리`)과 같은 「…」 는 제 법이므로 그대로 센다.
+HISTORY_ROW = re.compile(r'^\|\s*20\d\d-\d\d-\d\d')
+QUOTED_LAW = re.compile(r'「([^」]{2,60})」')
+CLAUSE_END = re.compile(r'\||(?<=다)\.\s|[.;]\s')
+
+
+def _squash(s):
+    return re.sub(r'[\s·ㆍ・「」]', '', s or '')
+
+
+def other_law_before(ln, pos, own):
+    """그 조 앞 **같은 마디** 안에서 마지막으로 나온 「법 이름」이 이 쪽의 법이 아니면 그 이름을 돌려준다."""
+    head = ln[:pos]
+    cut = 0
+    for m in CLAUSE_END.finditer(head):
+        cut = m.end()
+    seg = head[cut:]
+    ms = list(QUOTED_LAW.finditer(seg))
+    if not ms:
+        return None
+    last = re.sub(r'\s*(시행령|시행규칙)$', '', ms[-1].group(1)).strip()
+    if _squash(last) == _squash(own):
+        return None
+    # 남의 법 이름 **뒤에** 제 법을 다시 가리키면(`[[제법__…]]`·「이 법」) 그 조는 제 법 것이다
+    #   — 신항만건설촉진법 `「국유재산법」제30조 … [[신항만건설촉진법__국유지처분제한]] 제12조` (2026-09-29 표본에서 찾음)
+    tail = seg[ms[-1].end():]
+    if ('[[' + own) in tail or '이 법' in tail:
+        return None
+    return ms[-1].group(1)
+
+
 def scan(path):
     """한 페이지의 후보 목록. 표가 없거나 표에 조문이 없으면 빈 목록(다른 문제다)."""
     text = open(path, encoding='utf-8').read()
+    own = os.path.basename(path)[:-3].split('__')[0]
     if '## 근거 조문' not in text:
         return []
     tbl, body = split_page(text)
@@ -159,13 +196,15 @@ def scan(path):
     out, seen = [], set()
     for ln in body.split('\n'):
         s = ln.lstrip()
-        if RANGE.search(ln) or NOTE.search(ln) or s.startswith('>'):
+        if RANGE.search(ln) or NOTE.search(ln) or s.startswith('>') or HISTORY_ROW.match(s):
             continue
         for m in ART_TITLED.finditer(ln):
             k = key_of(m)
             if k in have or k in seen:
                 continue
             if OTHER_LAW.search(ln[:m.start()][-30:].strip()):
+                continue
+            if other_law_before(ln, m.start(), own):
                 continue
             seen.add(k)
             out.append({'article': k, 'title': m.group(3)[:40], 'line': ln.strip()[:160]})

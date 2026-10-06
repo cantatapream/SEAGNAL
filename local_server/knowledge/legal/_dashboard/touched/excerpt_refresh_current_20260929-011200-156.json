@@ -1,0 +1,15 @@
+{
+ "script": "excerpt_refresh_current",
+ "stamp": "20260929-011200-156",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/신문등의진흥에관한법률/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/소방시설설치및관리에관한법률/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/토지이용규제기본법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/총포도검화약류등의안전관리에관한법률시행령/시행령_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/해양수산정보의수집관리및공동이용에관한규칙/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/성폭력범죄의처벌등에관한특례법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/대한민국국기법시행령/시행령_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/경비업법/법률.txt",
+  "local_server/knowledge/legal/_dashboard/excerpt_refresh_current.json"
+ ]
+}

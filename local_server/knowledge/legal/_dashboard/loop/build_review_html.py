@@ -23,6 +23,7 @@
 [연계] ← `raw/**\/행정규칙/*.txt` + `_이미지/*.png` → `_dashboard/review/<이름>.html`
 사용법: python3 build_review_html.py [--top N] [--all]
 """
+import hashlib
 import os, re, sys, json, base64, html, collections
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -169,7 +170,8 @@ footer{padding:20px 16px 50px;font-size:12.5px;opacity:.75;max-width:1400px;marg
   <div class="meta">원문: <code>raw/__REL__</code> · 확인할 값 <b>__TOTAL__</b>개<br>
   왼쪽이 <b>원문 그림</b>, 오른쪽이 <b>옮겨 적은 표</b>입니다. 노란 칸이 확인할 값입니다.</div>
   <div class="bar">
-    <button class="primary" id="dlJson">JSON 내려받기</button>
+    <button class="primary" id="copyOut">내보내기 — 복사</button>
+    <button id="dlJson">JSON 내려받기</button>
     <button id="dlCsv">CSV 내려받기</button>
     <button id="allOk">남은 것 전부 「맞음」</button>
     <button id="reset">지우기</button>
@@ -178,12 +180,13 @@ footer{padding:20px 16px 50px;font-size:12.5px;opacity:.75;max-width:1400px;marg
 </header>
 <main>__BODY__</main>
 <footer>
-  · 고른 것은 <b>이 브라우저에 저장</b>됩니다(다른 기기·다른 사람에게는 안 갑니다). 끝나면 <b>내려받아</b> 주세요.<br>
+  · 고른 것은 <b>이 브라우저에 저장</b>됩니다(다른 기기·다른 사람에게는 안 갑니다). 끝나면 <b>「내보내기 — 복사」로 대화창에 붙여 넣거나</b> 내려받아 주세요. 게시판(claude.ai)에서 열면 누르는 즉시 저장소에도 남습니다.<br>
   · 「고침」을 누르면 바른 값을 적는 칸이 열립니다. 적은 값은 내려받는 파일에 함께 담깁니다.<br>
   · 원문 그림이 안 뜨는 표는 <span style="color:var(--un)">노란 안내</span>가 대신 나옵니다 — 그 값도 확인 대상입니다.
 </footer>
 <script>
 const KEY='review:__NAME__';
+let DB=null,DBt=0;
 let S={};
 try{S=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){S={}}
 const tds=[...document.querySelectorAll('td.rv')];
@@ -201,6 +204,9 @@ function paint(){
   const done=Object.keys(S).length;
   document.getElementById('count').textContent=done+' / '+tds.length+' 확인함';
   try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  // ★2026-09-29 — 누르는 즉시 저장소에도 둔다(Claude 가 읽는다). 저장소가 없으면(내려받은 파일) 이 브라우저에만 남는다.
+  //   문서 이름은 영숫자만 받으므로 한글 이름 대신 이름의 sha1 앞 12자리(__DOCID__)를 쓴다.
+  if(DB){clearTimeout(DBt);DBt=setTimeout(()=>{DB.doc('review/__DOCID__').set({이름:KEY.replace('review:',''),S:JSON.stringify(S),at:new Date().toISOString()}).catch(()=>{})},400)}
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('td.rv button'); if(!b)return;
@@ -242,8 +248,22 @@ document.getElementById('reset').onclick=()=>{
   for(const i of document.querySelectorAll('input.newv')){i.value='';i.hidden=true}
   paint();
 };
+document.getElementById('copyOut').onclick=async()=>{
+  const r=rows().filter(x=>x.판정);
+  const t=['[그림 값 검토 — '+KEY.replace('review:','')+'] '+r.length+' / '+tds.length+' 확인함',
+           ...r.map(x=>'#'+x.번호+' '+x.옮겨적은값+' = '+x.판정+(x.바른값?' → '+x.바른값:''))].join('\\n');
+  try{await navigator.clipboard.writeText(t);alertBox('복사했습니다 — 대화창에 붙여 넣어 주세요')}
+  catch(e){const ta=document.getElementById('outbox');ta.hidden=false;ta.value=t;ta.focus();ta.select();alertBox('복사가 막혔습니다 — 아래 글상자에서 직접 복사해 주세요')}
+};
+function alertBox(m){const c=document.getElementById('count');const o=c.textContent;c.textContent=m;setTimeout(()=>paint(),1800)}
 paint();
-</script></body></html>'''
+(async()=>{let d=null;try{d=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){d=null}
+  if(!d)return; DB=d;
+  DB.doc('review/__DOCID__').onSnapshot(doc=>{const b=doc&&doc.data&&doc.data();if(!b||!b.S)return;
+    try{const got=JSON.parse(b.S);if(JSON.stringify(got)!==JSON.stringify(S)){S=got;paint()}}catch(e){}},()=>{});
+})();
+</script>
+<textarea id="outbox" hidden style="width:100%;height:220px;font:12px ui-monospace,monospace"></textarea></body></html>'''
 
 
 def wiki_cited_admrul():
@@ -302,13 +322,22 @@ def main():
     print(f'검토장을 만들 대상: {len(targets)}개 · 값 {sum(n for n, _ in targets)}개'
           f' ({sum(n for n, _ in targets) * 100 // max(1, sum(n for n, _ in fw))}%)')
     made = []
+    # ★2026-09-29 — 이름이 같은 행정규칙이 두 법에 있다(선박설비기준: 해상교통안전법·선박안전법).
+    #   같은 이름이면 나중 것이 앞 것을 덮어 값이 사라졌다 → 겹치는 이름에는 법 폴더 이름을 붙인다.
+    base_cnt = {}
+    for n, p in targets:
+        b = os.path.splitext(os.path.basename(p))[0]
+        base_cnt[b] = base_cnt.get(b, 0) + 1
     for n, p in targets:
         name, rel, total, seq, body = build(p)
+        if base_cnt.get(os.path.splitext(os.path.basename(p))[0], 0) > 1:
+            name = name + '(' + os.path.basename(os.path.dirname(os.path.dirname(p))) + ')'
         if not seq:
             print(f'  · {name[:40]:40s} 표에서 못 찾음(값 {n}개는 표 밖에 있다) — 건너뜀')
             continue
         h = (TPL.replace('__TITLE__', html.escape(name))
                 .replace('__REL__', html.escape(rel))
+                .replace('__DOCID__', 'f' + hashlib.sha1(re.sub(r'[^0-9A-Za-z가-힣]', '_', name).encode()).hexdigest()[:12])
                 .replace('__NAME__', re.sub(r'[^0-9A-Za-z가-힣]', '_', name))
                 .replace('__TOTAL__', str(seq))
                 .replace('__BODY__', body))

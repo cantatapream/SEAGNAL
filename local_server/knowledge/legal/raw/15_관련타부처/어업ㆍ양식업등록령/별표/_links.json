@@ -1,0 +1,56 @@
+{
+  "법률 서식 1": {
+    "제목": "어업권등록부",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990059",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990061",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990063",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990065"
+    ]
+  },
+  "법률 서식 2": {
+    "제목": "어업권등록부 또는 양식업권등록부",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990067",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990069",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990071",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990073"
+    ]
+  },
+  "법률 서식 3": {
+    "제목": "어업권 공유자 명부 또는 양식업권 공유자 명부",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990075",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990077",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990079",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990081"
+    ]
+  },
+  "법률 서식 4": {
+    "제목": "입어등록부",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990083",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990085",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990087",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990089"
+    ]
+  },
+  "법률 서식 5": {
+    "제목": "신탁등록부",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990091",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990093",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990095",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990097"
+    ]
+  },
+  "법률 서식 6": {
+    "제목": "입어등록부",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990099",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990101",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990103",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=123990105"
+    ]
+  }
+}
