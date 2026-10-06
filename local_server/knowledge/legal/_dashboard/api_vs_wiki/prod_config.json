@@ -1,0 +1,11 @@
+{
+ "_note": "운영 서버 GET /api/legal/config 응답(2026-10-06 12시경 KST 조회). A 방식 복사본이 운영과 같은 스위치로 돌게 run.sh 가 작업 사본의 local_server/data/nariya_config.json 에 그대로 쓴다. answerModel·codexForUsers 는 NRYA_CODEX_SECRET 이 없으면 효과가 없다(일반 사용자 경로 = Gemini).",
+ "exposure": "admin",
+ "answerCanonicalOnly": true,
+ "understandConfirm": true,
+ "scopeNarrow": true,
+ "profileConfirm": true,
+ "naverTermLookup": true,
+ "answerModel": "gpt-6-luna",
+ "codexForUsers": false
+}
