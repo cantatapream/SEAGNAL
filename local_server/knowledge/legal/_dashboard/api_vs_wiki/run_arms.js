@@ -178,6 +178,7 @@ get_articles·get_annex·get_admin_rule 로 끝까지 따라간다.
 
 `;
 const C_VERSION = 2;   // 1 = 시험 1회차(이름 검색만) · 2 = 본문 검색·부처 우선·관련성 확인 추가(2026-10-06)
+// (루나 텍스트 판은 2026-10-06 2회차부터 「원문 0건이면 final 대신 도구」 안내 + 작업자 머리말 분리 — 기록의 c_protocol: text-json-2)
 let genai = null;
 async function armC(q) {
   if (LLM === 'luna') return inLlm(() => armCText(q));
@@ -240,7 +241,8 @@ async function armCText(q) {
   for (let step = 0; step < MAX_STEPS; step++) {
     const prompt = `${C_RULES}${retriever.ANSWER_RULES_BODY}\n\n[쓸 수 있는 도구]\n${toolDoc}\n\n` +
       `[지금까지 부른 도구와 결과]\n${log.length ? log.join('\n\n') : '(아직 없음)'}\n\n질문: "${q.question}"\n\n` +
-      `다음 행동을 JSON 하나로만 답하라. 도구를 더 부를 때: {"tool":"도구이름","args":{…}} · 원문을 충분히 읽어 답을 쓸 수 있을 때: {"final":true}`;
+      `다음 행동을 JSON 하나로만 답하라. 도구를 더 부를 때: {"tool":"도구이름","args":{…}} · 원문을 충분히 읽어 답을 쓸 수 있을 때: {"final":true}` +
+      (log.length ? '' : `\n⚠아직 원문을 하나도 읽지 않았다 — 지금은 final 이 아니라 도구를 골라야 한다.`);
     const r = await ask(prompt, true);
     if (!r.success || !r.text) { steps.push({ tool: '(판단 실패)', args: {}, chars: 0, head: String(r.error || '').slice(0, 160) }); break; }
     let act;
@@ -252,7 +254,7 @@ async function armCText(q) {
   }
   const final = await ask(`${C_RULES}${retriever.ANSWER_RULES_BODY}\n\n[근거자료 — 도구로 받은 원문]\n${log.join('\n\n') || '(없음)'}\n\n질문: "${q.question}"\n답:`, false);
   return { answer: final.success ? String(final.text || '') : '', error: final.success ? undefined : String(final.error || ''),
-    steps, api: s.stats, c_version: C_VERSION, c_protocol: 'text-json' };
+    steps, api: s.stats, c_version: C_VERSION, c_protocol: 'text-json-2' };
 }
 
 // ============================================================================

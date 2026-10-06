@@ -1535,6 +1535,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-06 15:18 KST] ✅완료 — api_vs_wiki 루나 시험 10문항 판독 + C 루나 장치 결함 수정
+VM 실행 결과(2d5e27af) 정독: A 루나 ✓7 △3 ✗0 (Gemini A ✓7 △1 ✗2), B 루나 ✓2 △3 ✗5 ✗✗0, C 루나 ✓1 △1 ✗7 ✗✗1. C 루나는 3문항 도구 0회·2문항 1회 — avw_worker 가 운영과 같은 머리말(도구 절대 쓰지 마라, [근거자료]만으로)을 C 의 도구 고르기 차례에도 붙인 장치 결함으로 판단(별표-01 은 9회 호출로 정답). 수정: AVW-C-Step 전용 머리말, 원문 0건이면 final 대신 도구 안내(c_protocol text-json-2). 가짜 codex 로 배선 확인. 다음: 사용자가 VM 에서 C 만 재실행(ARMS=c LLM=luna) → 판독.
+
+
 ### [2026-10-06 14:54 KST] ✅완료 — api_vs_wiki 루나(GPT-6 Luna) 모드 추가 — VM 실행 대기
 사용자 요청 「BC까지 루나로 할 수 있도록 장치를 고쳐서 해볼래?」. 루나는 VM 의 ChatGPT 정액제(codex exec)로만 돌고 이 작업 환경에서 VM 접근 경로 없음(list_environments·ListAgents 확인) → 장치를 고쳐 VM 에서 실행하게 함. avw_worker.js(실험 전용 작업자, ~/.avw_codex_worker — 운영 작업자 폴더와 분리, codex 인자·머리말은 운영과 동일), run_arms.js AVW_LLM=luna(사본 서버+작업자, B 는 codex_bridge.withRequest 안에서, C 는 JSON 텍스트 프로토콜, 작업자 끊기면 실패 처리·A llm_used 기록), run.sh LLM=luna(실험 비밀 매번 생성, Gemini 키 제거, 결과 폴더 _luna). 가짜 codex 배선 시험: A·B·C 모두 codex 경로 확인. Gemini 모드 set -e 버그(결과 폴더 이름 줄) 발견·수정 후 재확인. 다음: 사용자가 VM 에서 README 「GPT 루나로 돌리기」 명령 실행 → 결과 push → 판독.
 

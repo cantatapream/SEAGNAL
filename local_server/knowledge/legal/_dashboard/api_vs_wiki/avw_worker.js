@@ -12,6 +12,7 @@
  *   서로의 답 파일을 덮어써 **운영 답변이 섞일 수 있다.** 그래서 폴더만 `~/.avw_codex_worker` 로
  *   다르게 하고, codex 를 부르는 방식(인자·머리말)은 운영 작업자와 **똑같이** 맞춘 사본을 둔다.
  *   (앱 코드는 고치지 않는다 — 실험 장치 안에서 끝낸다.)
+ * [다르게 둔 것 하나] C 의 「도구 고르기」 차례(caller=AVW-C-Step)만 머리말이 다르다 — 아래 PREAMBLE_C_STEP 주석.
  * [같게 맞춘 것] codex exec 인자(--json --ephemeral --skip-git-repo-check -s read-only -C <빈 폴더> -o <파일> -m <모델>),
  *   「도구·셸·파일 읽기 금지」 머리말, JSON 일감 머리말 — scripts/codex_worker.js 와 같은 글자다.
  * [환경변수] NRYA_SERVER(실험 서버 주소, 필수) · NRYA_CODEX_SECRET(실험용 비밀, run.sh 가 매번 새로 만든다)
@@ -40,11 +41,22 @@ const PREAMBLE_TEXT = [
   '',
 ].join('\n');
 const PREAMBLE_JSON = PREAMBLE_TEXT + '출력은 JSON 하나뿐이다. 코드블록(```)이나 다른 글자를 붙이지 않는다.\n\n';
+// ★C 방식의 「다음 도구 고르기」 차례에만 쓰는 머리말(2026-10-06 루나 시험 1회차에서 발견).
+//   위 운영 머리말은 「도구를 절대 쓰지 말고 [근거자료]만으로 답하라」인데, C 는 바로 그 차례에 **법령 도구를
+//   고르라**고 시킨다 — 두 지시가 부딪쳐 루나가 10문항 중 3문항에서 도구를 한 번도 안 부르고 끝냈다.
+//   셸·파일 금지는 그대로 두고, 「아래 법령 도구는 바깥 프로그램이 대신 실행하니 골라도 된다」를 분명히 한다.
+const PREAMBLE_C_STEP = [
+  '[실행 규칙] 너는 이번 작업에서 셸 명령·파일 읽기를 절대 쓰지 않는다.',
+  '다만 아래 [쓸 수 있는 도구]는 네가 실행하는 것이 아니라, 네가 JSON 으로 고르면 바깥 프로그램이 법제처에서 대신 조회해',
+  '다음 차례에 결과를 보여 준다. 그러니 원문을 아직 못 읽었으면 도구를 골라라.',
+  '출력은 JSON 하나뿐이다. 코드블록(```)이나 다른 글자를 붙이지 않는다.',
+  '', '',
+].join('\n');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /** codex exec 한 번 — 운영 작업자의 runCodex 와 같은 방식. */
-function runCodex(prompt, json, model) {
+function runCodex(prompt, json, model, caller) {
   const outFile = path.join(WORK_DIR, 'last_message.txt');
   try { fs.unlinkSync(outFile); } catch (_) { /* 없으면 그만 */ }
   const args = ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '-s', 'read-only', '-C', EMPTY_DIR, '-o', outFile, '-m', model, '-'];
@@ -64,7 +76,7 @@ function runCodex(prompt, json, model) {
       if (code !== 0 || !text) return resolve({ ok: false, error: `codex 종료코드 ${code}: ${(stderr || events).split('\n').filter(Boolean).slice(-2).join(' | ').slice(0, 280)}`, commands });
       resolve({ ok: true, text, commands });
     });
-    child.stdin.end((json ? PREAMBLE_JSON : PREAMBLE_TEXT) + prompt);
+    child.stdin.end((caller === 'AVW-C-Step' ? PREAMBLE_C_STEP : json ? PREAMBLE_JSON : PREAMBLE_TEXT) + prompt);
   });
 }
 
@@ -87,7 +99,7 @@ async function main() {
     } catch (e) { await sleep(2000); continue; }
     const t0 = Date.now();
     const model = (typeof job.model === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(job.model)) ? job.model : MODEL;
-    const out = await runCodex(job.prompt, job.json, model);
+    const out = await runCodex(job.prompt, job.json, model, job.caller);
     const ms = Date.now() - t0;
     console.error(`[avw_worker] ${job.caller} ${out.ok ? '완료' : '실패: ' + out.error} ${(ms / 1000).toFixed(1)}초`);
     for (let i = 0; i < 4; i++) {
