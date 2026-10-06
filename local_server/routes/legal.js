@@ -1072,7 +1072,7 @@ router.post('/api/legal/freshness/:id/decide', adminAuth.requireAdminToken, (req
 });
 
 // POST /api/legal/freshness/scan-now (관리자) — 정기 점검과 별개로 즉시 1회 점검.
-//   653건 전수 대조라 실측 20~30분 걸린다. 완료를 기다리지 않고 즉시 응답(started:true).
+//   행정규칙 653 · 법령 222 · 조례 416(3-78) 전수 대조라 1시간 가까이 걸린다. 완료를 기다리지 않고 즉시 응답(started:true).
 router.post('/api/legal/freshness/scan-now', adminAuth.requireAdminToken, (req, res) => {
   const r = freshScanner.startFreshnessScan();
   res.status(r.ok ? 200 : 409).json(r);

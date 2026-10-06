@@ -266,7 +266,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 58 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 59 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -328,6 +328,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
 | `test_fav_tide_prefetch` | 즐겨찾기 조석 미리받기(OS.prefetchFavoriteTides)를 고정한다. |
 | `test_picture_text` | ★그림 판독문이 **모델 근거에서 빠지는지**를 고정한다. (3-75 · Q-19) |
+| `test_ordin_fresh` | ★조례(자치법규)도 주간 원문 신선도 점검에 들어가 있는지를 고정한다. (3-78) |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

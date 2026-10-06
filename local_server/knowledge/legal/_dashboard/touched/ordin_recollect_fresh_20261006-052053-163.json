@@ -1,0 +1,27 @@
+{
+ "script": "ordin_recollect_fresh",
+ "stamp": "20261006-052053-163",
+ "files": [
+  "local_server/knowledge/legal/raw/_자치법규/부산광역시/부산광역시수상레저활동안전관리조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/부산광역시/부산광역시지역연안관리심의회조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/인천광역시/인천광역시지역연안관리심의회구성및운영에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/전남광주통합특별시/고흥군어항관리및사용료징수에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/전남광주통합특별시/고흥군어항관리및사용료징수에관한조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/전남광주통합특별시/신안군행정선운영ㆍ관리지원조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/전남광주통합특별시/영암군제증명등수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/전남광주통합특별시/영암군제증명등수수료징수조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/제주특별자치도/제주특별자치도연안관리에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/제주특별자치도/제주특별자치도연안관리에관한조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/제주특별자치도/제주특별자치도해수욕장의이용및관리에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/제주특별자치도/제주특별자치도해수욕장의이용및관리에관한조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/충청남도/보령시무창포타워관리및운영에관한조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청남도/보령시무창포타워관리및운영에관한조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/충청남도/서산시제증명등수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청남도/서산시제증명등수수료징수조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/충청남도/충청남도지역연안관리심의회운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청북도/괴산군제증명등수수료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/충청북도/괴산군제증명등수수료징수조례/별표/_links.json",
+  "local_server/knowledge/legal/_dashboard/law_raw_paths.json"
+ ],
+ "_정정": "전라남도수산부산물…/법률.txt 는 쓴 뒤 되돌렸다(git checkout) — 새 이름 사본이 이미 따로 있었다(3-78)"
+}
