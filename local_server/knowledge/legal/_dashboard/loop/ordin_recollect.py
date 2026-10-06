@@ -32,6 +32,10 @@
     python3 _dashboard/loop/ordin_recollect.py            # 무엇을 받아 어떻게 바꿀지만 보여준다
     python3 _dashboard/loop/ordin_recollect.py --apply    # 실제로 받아 쓴다
     python3 _dashboard/loop/ordin_recollect.py --only 울릉군   # 이름에 그 말이 든 것만
+    # 3-78(a) — 주간 조례 점검(`ordin_fresh.py`)이 「구버전」으로 짚은 것을 현행판으로 다시 받는다
+    python3 _dashboard/loop/ordin_recollect.py --from-report _dashboard/ordin_fresh_report.json            # 마른 실행
+    python3 _dashboard/loop/ordin_recollect.py --from-report _dashboard/ordin_fresh_report.json --apply
+    #   --renamed : 「이름바뀜의심」 중 후보가 하나뿐인 것도 받는다(★사람이 같은 문서임을 확인한 뒤에만)
 
 [연계] → `raw/_자치법규/**` · `_dashboard/law_raw_paths.json`
         ← `article_head_missing_gate.js`(대상 목록) · `ordin_to_folder.py`(변환기 `convert`)
@@ -133,8 +137,17 @@ def find_mst(head, name, catalog, cache):
     for rows in catalog.values():
         for r in rows:
             if flat(r.get('명', '')) == key:
-                cache[key] = str(r['ID'])
-                return cache[key], '목록(_ordin_catalog)'
+                # ★목록의 `ID` 는 **자치법규ID** 다 — `MST=`(자치법규일련번호)로 부르면 「일치하는 자치법규가
+                #   없습니다」가 온다(2026-10-06 실측 8곳 · 3-77). `ID=` 로 한 번 불러 **현행 일련번호**로 바꿔 준다.
+                #   못 바꾸면 이 길을 쓰지 않고 아래 이름 검색으로 넘어간다(틀린 번호를 돌려주지 않는다).
+                d = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=ordin&type=JSON&ID=%s'
+                        % (OC, r['ID']))
+                b = list(d.values())[0] if isinstance(d, dict) and d else None
+                serial = str(((b or {}).get('자치법규기본정보') or {}).get('자치법규일련번호') or '') if isinstance(b, dict) else ''
+                if serial:
+                    cache[key] = serial
+                    return serial, '목록(_ordin_catalog) ID→현행 일련번호'
+                break
     # ★가운뎃점이 든 이름은 **그대로 물으면 0건**이 온다(실측: 인천광역시 각종 위원회의 설치·운영…).
     #   답이 없는 게 아니라 **묻는 말이 안 먹힌 것**이다 — 점을 띄어쓰기로 바꿔 한 번 더 묻는다.
     for q in (name, re.sub(r'[·ㆍ・]', ' ', name)):
@@ -208,10 +221,144 @@ def fix_paths(apply_):
     return 0
 
 
+NOTE_RE = re.compile(r'⚠|REVIEW|사용자 확인|소유자|이미지판독|옮겨 적|다시 받기\(')
+
+
+def refresh_from_report(report_path, apply_, only=None, renamed=False):
+    """3-78(a) — `ordin_fresh.py` 가 **구버전**으로 짚은 조례를 현행판으로 다시 받는다.
+
+    [왜 따로 길을 두나] 위 `run()` 은 3-43(머리줄 없는 파일)용이다. 그 길은 **머리말을 글자 그대로 옮기므로**
+      다시 받아도 머리말의 `시행 20240925` 가 그대로 남는다 — 새 판을 받고도 점검은 계속 「구버전」이라 말한다.
+      그래서 머리말을 **새 판의 기본정보로 새로 쓰는** `coastal_ordin_collect` 의 꼴(`납작한꼴`)과
+      **증명(`증명`: 조 수·운영 파서로 열림·제1조·번호 구멍·부칙)** 을 그대로 부른다(L-136 — 자를 둘로 만들지 않는다).
+    [무엇을 지키나]
+      · 증명을 못 넘으면 **쓰지 않는다**(까닭을 적는다).
+      · 옛 파일에 사람 손일(⚠·REVIEW·판독·대조 메모)이 있으면 **쓰지 않는다** — 다시 받아서는 안 나오는 것이다.
+      · 경로는 **그대로** 둔다(위키·`law_raw_paths.json` 이 그 경로를 부른다). 이름이 바뀐 것은 새 이름을 열쇠로 더한다.
+      · 머리에 「언제·무엇에서 무엇으로 다시 받았나」 한 줄을 남긴다.
+      · 별표는 본문이 안 온다 — 3-22 와 같이 `별표/_links.json` 에 길만 적는다.
+      · 받은 판의 시행일이 **아직 오지 않았으면** 쓰지 않는다(시행예정 판을 현행처럼 넣지 않는다 · L-297).
+    예: refresh_from_report('_dashboard/ordin_fresh_report.json', False) → 0(막힌 것 없음) · 마른 실행이라 쓰지 않는다
+    @param {str} report_path ordin_fresh.py 보고서
+    @param {bool} renamed True 면 `이름바뀜의심` 중 **후보가 하나뿐인 것**도 받는다(사람이 같은 문서임을 확인한 뒤에만 쓴다)
+    """
+    import coastal_ordin_collect as CC                               # 꼴·증명·받기를 그대로 쓴다
+    rep = json.load(open(report_path, encoding='utf-8'))
+    want = ('구버전', '이름바뀜의심') if renamed else ('구버전',)
+    rows = [r for r in rep.get('rows', []) if r.get('verdict') in want and (not only or only in r['slug'])]
+    print('대상 %d건 (보고서 %s · 기준일 %s)' % (len(rows), report_path, rep.get('basis_date')))
+    tmpdir = os.path.join(HERE, '.코스탈임시')
+    os.makedirs(tmpdir, exist_ok=True)
+    touched = Touched('ordin_recollect_fresh') if apply_ else None
+    today = time.strftime('%Y-%m-%d')
+    repo = os.path.abspath(os.path.join(LEGAL, '..', '..', '..'))
+    done, blocked, alias = [], [], []
+    for r in rows:
+        src = os.path.join(LEGAL, r['files'][0])
+        print('\n· %s  (%s)' % (r['slug'], r['verdict']))
+        if r['verdict'] == '이름바뀜의심':
+            cands = r.get('rename_candidates') or []
+            if len(cands) != 1:
+                blocked.append((r['slug'], '이름 후보가 %d개 — 사람이 고른다' % len(cands)))
+                print('    ⛔ 후보가 %d개 — 고르지 않는다(G-34)' % len(cands))
+                continue
+            # ★새 이름 조례를 **이미 따로 갖고 있으면** 옛 사본에 덮어쓰지 않는다 — 같은 조례가 두 벌이 된다
+            #   (2026-10-06 실측: 「전라남도 수산부산물…」 → 이미 있던 「전남광주통합특별시 수산부산물…」 과 겹칠 뻔했다).
+            if r.get('superseded_by') or cands[0].get('held_as'):
+                blocked.append((r['slug'], '새 이름 조례가 이미 있다(%s) — 옛 사본 처리는 사람이 정한다'
+                                % (r.get('superseded_by') or cands[0].get('held_as'))))
+                print('    ⛔ 새 이름 조례가 이미 있다 — 덮어쓰지 않는다(두 벌이 된다)')
+                continue
+            serial = cands[0]['serial']
+        else:
+            serial = (r.get('current') or {}).get('serial')
+        old = open(src, encoding='utf-8').read()
+        notes = [ln for ln in old.split('\n') if NOTE_RE.search(ln)]
+        if notes:
+            blocked.append((r['slug'], '손일 %d줄이 있다' % len(notes)))
+            print('    ⛔ 사람 손일 %d줄 — 덮어쓰지 않는다: %s' % (len(notes), notes[0][:80]))
+            continue
+        b = CC.본문받기(serial)
+        if not b:
+            blocked.append((r['slug'], '망이 끝내 안 열렸다'))
+            print('    ⚠못 받았다 (일련 %s)' % serial)
+            continue
+        기본 = b.get('자치법규기본정보') or {}
+        # ★받은 판이 **아직 시행 전**이면 쓰지 않는다 — 시행예정 판을 현행처럼 raw 에 넣으면 아직 효력이 없는
+        #   조문을 지금 법처럼 안내한다(L-297 · `law_fresh.py` 의 같은 규칙). 시행일이 지나면 주간 점검이 다시 짚는다.
+        if str(기본.get('시행일자') or '') > time.strftime('%Y%m%d'):
+            blocked.append((r['slug'], '받은 판이 시행 전(%s) — 시행일 뒤에 받는다' % 기본.get('시행일자')))
+            print('    ⏳ 받은 판의 시행일 %s 이 아직 안 왔다 — 쓰지 않는다' % 기본.get('시행일자'))
+            continue
+        조들 = CC.L((b.get('조문') or {}).get('조'))
+        부칙 = (b.get('부칙') or {}).get('부칙내용') or ''
+        old_title = title_of(old)
+        메모 = ['재수집: %s ordin_recollect --from-report — 옛 판 시행 %s → 현행 시행 %s (자치법규일련번호 %s)'
+              % (today, r.get('file_eff') or '?', 기본.get('시행일자'), serial)]
+        if flat(old_title) != flat(기본.get('자치법규명') or ''):
+            메모.append('옛 이름: %s (이름이 바뀌었다 — 경로는 옛 이름 그대로 둔다)' % old_title)
+        새글 = CC.OF.convert(CC.납작한꼴(기본, 조들, 부칙, 메모)) if 조들 else None
+        막힘, 정직 = CC.증명(기본, 조들, 부칙, b.get('별표'), 새글, tmpdir)
+        if 정직:
+            새글 = CC.OF.convert(CC.납작한꼴(기본, 조들, 부칙, 메모 + 정직))
+        if 막힘:
+            blocked.append((r['slug'], ' / '.join(막힘)))
+            print('    ❌ 증명 못 넘음: %s' % ' / '.join(막힘))
+            continue
+        olds, news = arts_new(old), arts_new(새글)
+        key = lambda x: [int(n) for n in re.findall(r'\d+', x)]
+        gone, added = sorted(olds - news, key=key), sorted(news - olds, key=key)
+        길 = CC.별표길(b.get('별표'))
+        print('    시행 %s → %s · 조 %d → %d%s%s · 별표 길 %d (옛 파일 안 [별표] %d)'
+              % (r.get('file_eff'), 기본.get('시행일자'), len(olds), len(news),
+                 (' · 없어진 조 ' + ','.join(gone[:8])) if gone else '',
+                 (' · 새 조 ' + ','.join(added[:8])) if added else '',
+                 len(길), len(re.findall(r'(?m)^\[별표\]', old))))
+        done.append(r['slug'])
+        if not apply_:
+            continue
+        open(src, 'w', encoding='utf-8').write(새글)
+        touched.add(src)
+        if 길:
+            lp = os.path.join(os.path.dirname(src), '별표', '_links.json')
+            os.makedirs(os.path.dirname(lp), exist_ok=True)
+            옛 = json.load(open(lp, encoding='utf-8')) if os.path.exists(lp) else {}
+            옛.setdefault('_무엇', '조례 별표는 본문이 안 온다 — 원본으로 가는 길만 적는다(3-49·3-22).')
+            옛['별표'] = 길
+            json.dump(옛, open(lp, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+            touched.add(lp)
+        if open(src, encoding='utf-8').read() != 새글:
+            print('    ❌ 쓴 뒤 확인 — 디스크 글이 증명한 글과 다르다')
+        new_name = CC.safe(기본.get('자치법규명') or '')
+        if new_name and flat(new_name) != flat(os.path.basename(os.path.dirname(src))):
+            alias.append((new_name, os.path.relpath(os.path.dirname(src), repo)))
+    if apply_ and alias:
+        m = json.load(open(PATHS_JSON, encoding='utf-8'))
+        add = [(k, v) for k, v in alias if k not in m]
+        for k, v in add:
+            m[k] = v
+        json.dump(m, open(PATHS_JSON, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+        touched.add(PATHS_JSON)
+        print('\nlaw_raw_paths.json 에 새 이름 %d개를 더했다(옛 열쇠는 그대로): %s' % (len(add), ' · '.join(k for k, _ in add)))
+    import shutil
+    shutil.rmtree(tmpdir, ignore_errors=True)                       # 증명용 임시 폴더 — 저장소에 남기지 않는다
+    print('\n=== 받을 수 있는 것 %d · 막힌 것 %d%s ===' % (len(done), len(blocked), '' if apply_ else ' (마른 실행 — 쓰지 않았다)'))
+    for s, why in blocked:
+        print('   ⛔ %s — %s' % (s, why))
+    if apply_:
+        touched.save()
+        print('되돌리기 기록을 남겼다(_touched). 다음: python3 _dashboard/loop/ordin_fresh.py 로 0 이 됐나 본다.')
+    return 1 if blocked else 0
+
+
 def run():
     apply_ = '--apply' in sys.argv
     if '--paths' in sys.argv:
         return fix_paths(apply_)
+    if '--from-report' in sys.argv:
+        only_ = sys.argv[sys.argv.index('--only') + 1] if '--only' in sys.argv else None
+        return refresh_from_report(sys.argv[sys.argv.index('--from-report') + 1], apply_, only_,
+                                   renamed='--renamed' in sys.argv)
     only = None
     if '--only' in sys.argv:
         only = sys.argv[sys.argv.index('--only') + 1]

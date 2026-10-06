@@ -1,0 +1,13 @@
+{
+ "script": "3-79_repealed_ordin_and_bureong_move",
+ "stamp": "20261006-070143-165",
+ "files": [
+  "local_server/knowledge/legal/raw/_자치법규/전남광주통합특별시/전라남도수산부산물관리및재활용촉진조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/전남광주통합특별시/전라남도지역연안관리심의회구성및운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/행정규칙/수산관계법령_위반행위에_대한_행정처분의_기준과_절차에_관한_규칙.txt",
+  "local_server/knowledge/legal/raw/_자치법규/_ordin_catalog.json",
+  "local_server/knowledge/legal/_dashboard/law_raw_paths.json",
+  "local_server/knowledge/legal/_dashboard/notice_index.json",
+  "local_server/knowledge/legal/raw/05_수산어업/수산관계법령위반행위에대한행정처분의기준과절차에관한규칙/_meta.json"
+ ]
+}

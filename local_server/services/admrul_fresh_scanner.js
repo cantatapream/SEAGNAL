@@ -6,8 +6,9 @@
  *         (초보자용: 우리가 예전에 받아 둔 법령·고시 원문이 그새 개정돼 낡은 것이
  *          아닌지 주마다 국가법령정보센터에 물어보고, 낡은 것이 있으면 관리자가 볼 수
  *          있게 목록만 남겨 두는 역할. 위키를 자동으로 고치지는 않는다.)
- *         대상은 두 가지다 — **행정규칙(고시·훈령) 653건**과
- *         **법률·시행령·시행규칙 222건**(2026-08-24 사용자 지적으로 후자를 추가했다).
+ *         대상은 세 가지다 — **행정규칙(고시·훈령) 653건**과
+ *         **법률·시행령·시행규칙 222건**(2026-08-24 사용자 지적으로 추가),
+ *         **자치법규(조례·규칙) 416건**(2026-10-06 3-78 — 그때까지 조례를 묻는 정기 점검이 하나도 없었다).
  * ----------------------------------------------------------------------------
  * [왜 있나 — 2026-08-23 실제 사고]
  *  「위험물 선박운송 기준」이 2016년판으로 수집돼 있어, 위키가 **이미 삭제된 조문을
@@ -51,6 +52,7 @@
  *  - knowledge/legal/_dashboard/loop/admrul_fresh.py → 행정규칙 점검(표준 라이브러리만 씀)
  *  - knowledge/legal/_dashboard/loop/law_fresh.py    → 법률·시행령·시행규칙 점검
  *  - knowledge/legal/_dashboard/loop/admrul_fresh_pass2.py → 행정규칙 2차 대조(이름불일치 해소)
+ *  - knowledge/legal/_dashboard/loop/ordin_fresh.py   → 자치법규(조례) 점검(3-78) · 다시 받기는 ordin_recollect.py --from-report
  * ============================================================================
  */
 const fs = require('fs');
@@ -70,9 +72,13 @@ const LAW_SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'law_fresh.py');
 // admrul_fresh_pass2.py 의 shares_chunk 안전장치).
 // 이걸 안 돌리면 그 60건은 매주 점검이 돌아도 영원히 확인되지 않는다.
 const PASS2_SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'admrul_fresh_pass2.py');
+// ★자치법규(조례)용 형제 점검(2026-10-06 3-78 신설). 개정감지(`detect_law_changes.py`)는 eflaw·admrul 만 묻고
+//   이 점검도 행정규칙·법령만 봐서 **조례는 어디서도 안 봤다** — 실측 416건 중 12건이 옛 판, 2건은 이름이 바뀌었다.
+const ORDIN_SCRIPT = path.join(LEGAL, '_dashboard', 'loop', 'ordin_fresh.py');
 const DATA = path.join(__dirname, '..', 'data');
 const REPORT_FILE = path.join(DATA, 'admrul_fresh_report.json');
 const LAW_REPORT_FILE = path.join(DATA, 'law_fresh_report.json');
+const ORDIN_REPORT_FILE = path.join(DATA, 'ordin_fresh_report.json');
 /** 관리자 화면이 읽는 큐. 개정검토(`_amendments/queue.jsonl`)와 같은 형식(JSONL). */
 const QUEUE_FILE = path.join(DATA, 'admrul_fresh_queue.jsonl');
 /** 마지막 점검이 언제·어떻게 끝났는지. 화면 위에 그대로 보여 준다. */
@@ -142,6 +148,34 @@ function actionsFor(row) {
   //   구버전은 "같은 고시의 새 판을 받으면" 되지만, 이쪽은 **정말 같은 고시인지부터** 확인해야 한다.
   //   실측 반례가 있다: 「…별도배출허용기준 지정(보령관창 산단)」의 후보 셋은 전부 다른 산업단지 고시였다.
   const cands = row.rename_candidates || [];
+  // ★자치법규(조례 · 3-78). 다시 받는 도구가 다르다 — `ordin_recollect.py --from-report` 가 이 점검의 보고서를 읽는다.
+  if (String(row.tier || '').startsWith('조례')) {
+    // 보고서는 서버 점검이 볼륨(`local_server/data/`)에 쓴다 — knowledge/legal 에서 돌리면 `../../data/` 다.
+    const rep = '`python3 _dashboard/loop/ordin_recollect.py --from-report ../../data/ordin_fresh_report.json --only ' + (row.slug || '') + '`';
+    // ★새 이름 조례를 **이미 따로 갖고 있는** 경우(2026-10-06 실측 — 전라남도 → 전남광주통합특별시).
+    //   다시 받으면 같은 조례가 두 벌이 된다. 옛 사본은 통합 조례 부칙으로 폐지된 것일 공산이 크다.
+    const held = row.superseded_by || (cands.find((c) => c.held_as) || {}).held_as;
+    if (held) {
+      return [
+        `① **새 이름 조례는 이미 우리에게 있다** — \`${held}\`. 이 옛 사본은 다시 받지 않는다(받으면 같은 조례가 두 벌이 된다).`,
+        `② 새 조례 부칙에 「…조례는 폐지한다」가 있는지 본다 — 있으면 이 옛 사본은 **폐지된 조례**다. 옛 사본을 지울지·폐지 표기를 달지는 사람이 정한다.`,
+        `③ ${n ? `옛 이름을 인용하는 위키 ${n}곳을 새 이름 조례로 바꾼다.` : '옛 이름을 인용하는 위키 페이지는 못 찾았다(조례 이름·폴더 이름으로 찾았다).'}`,
+      ];
+    }
+    if (cands.length) {
+      const list = cands.map((c) => `「${c.name}」(${c.org || ''} · 일련 ${c.serial} · 시행 ${c.issued}${c.future ? ' — ⏳시행 전' : ''})`).join(' / ');
+      return [
+        `① **정말 같은 조례인지 먼저 확인한다.** 우리 이름으로는 현행 목록에 없고, 같은 지자체에 이름이 비슷한 현행이 있다: ${list}. ★지자체 통합·개칭으로 이름만 바뀐 것인지, 다른 조례인지 본문으로 대조한다.`,
+        `② 같은 조례가 맞고 후보가 하나뿐이면 ${rep.replace(/`$/, ' --renamed`')} 로 먼저 마른 실행해 본 뒤 \`--apply\` 를 붙인다. 경로는 옛 이름 그대로 두고 새 이름을 \`law_raw_paths.json\` 에 더한다.`,
+        `③ 다른 조례라면 우리 사본은 **폐지된 것**일 수 있다 — 이 원문을 인용하는 위키에서 "지금은 폐지됐다"는 표기로 고친다.`,
+        `④ ${n ? `이 원문을 인용하는 위키 ${n}곳을 고친다.` : '이 원문을 인용하는 위키 페이지는 못 찾았다(조례 이름·폴더 이름으로 찾았다).'}`,
+      ];
+    }
+    return [
+      `① 원문을 다시 받는다 — ${rep} 로 먼저 마른 실행(받을 판·조 수 변화·별표 길을 보여 준다) 뒤 \`--apply\`. ★증명(조 수·운영 파서로 열림·부칙)을 못 넘거나 사람 손일이 있는 파일은 **쓰지 않는다**.`,
+      `② ${n ? `이 원문을 인용하는 위키 ${n}곳에서 달라진 조문을 짚은 부분만 고친다.` : '이 원문을 인용하는 위키 페이지는 못 찾았다(조례 이름·폴더 이름으로 찾았다) — 위키는 고칠 것이 없을 수 있다.'}`,
+    ];
+  }
   if (cands.length) {
     const list = cands.map((c) => `「${c.name}」(일련 ${c.serial} · 발령 ${c.issued})`).join(' / ');
     return [
@@ -192,7 +226,9 @@ function toQueueEntry(row) {
     held_ids: row.held_ids || [],
     current: { serial: cur.serial || '', issued: cur.issued || '', no: cur.no || '', state: cur.state || '' },
     files: row.files || [],
+    file_eff: row.file_eff || '',
     wiki_pages: row.wiki_pages || [],
+    superseded_by: row.superseded_by || '',
     actions: actionsFor(row),
     status: 'pending',
   };
@@ -264,11 +300,12 @@ async function runFreshnessScan() {
   _scanning = true;
   const startedAt = new Date().toISOString();
   try {
-    // 두 점검을 잇달아 돌린다. 둘 다 law.go.kr 을 두드리므로 동시에 돌리지 않는다.
-    //   ① 행정규칙(고시·훈령) 653건  ② 법률·시행령·시행규칙 222건
+    // 세 점검을 잇달아 돌린다. 모두 law.go.kr 을 두드리므로 동시에 돌리지 않는다.
+    //   ① 행정규칙(고시·훈령) 653건  ② 법률·시행령·시행규칙 222건  ③ 자치법규(조례) 416건(3-78)
     const parts = [
       { name: '행정규칙', script: SCRIPT, out: REPORT_FILE, pass2: PASS2_SCRIPT },
       { name: '법령', script: LAW_SCRIPT, out: LAW_REPORT_FILE },
+      { name: '조례', script: ORDIN_SCRIPT, out: ORDIN_REPORT_FILE },
     ];
     const errors = [];
     let allRows = [];
@@ -353,14 +390,15 @@ async function runFreshnessScan() {
 }
 
 /**
- * 관리자 "지금 점검" 버튼용 — 백그라운드로 시작하고 즉시 반환한다(실측 20~30분이라
+ * 관리자 "지금 점검" 버튼용 — 백그라운드로 시작하고 즉시 반환한다(행정규칙·법령 30~40분 + 조례 약 25분이라
  * HTTP 응답을 붙들 수 없다). 관리자는 잠시 후 새로고침해 결과를 본다.
  * @returns {{ok:boolean, started:boolean, error?:string}}
  */
 function startFreshnessScan() {
-  if (_scanning) return { ok: false, started: false, error: '점검이 이미 진행 중입니다. 20~30분 걸립니다.' };
+  if (_scanning) return { ok: false, started: false, error: '점검이 이미 진행 중입니다. 모두 마치는 데 1시간 가까이 걸립니다.' };
   runFreshnessScan().catch((e) => console.error('나리야 원문 신선도 점검 오류:', e && e.message));
   return { ok: true, started: true };
 }
 
-module.exports = { runFreshnessScan, startFreshnessScan, readStatus, QUEUE_FILE, REPORT_FILE, reopenStillStale };
+module.exports = { runFreshnessScan, startFreshnessScan, readStatus, QUEUE_FILE, REPORT_FILE, reopenStillStale,
+  toQueueEntry, ORDIN_SCRIPT, ORDIN_REPORT_FILE };
