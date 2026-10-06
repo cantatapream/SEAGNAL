@@ -133,8 +133,17 @@ def find_mst(head, name, catalog, cache):
     for rows in catalog.values():
         for r in rows:
             if flat(r.get('명', '')) == key:
-                cache[key] = str(r['ID'])
-                return cache[key], '목록(_ordin_catalog)'
+                # ★목록의 `ID` 는 **자치법규ID** 다 — `MST=`(자치법규일련번호)로 부르면 「일치하는 자치법규가
+                #   없습니다」가 온다(2026-10-06 실측 8곳 · 3-77). `ID=` 로 한 번 불러 **현행 일련번호**로 바꿔 준다.
+                #   못 바꾸면 이 길을 쓰지 않고 아래 이름 검색으로 넘어간다(틀린 번호를 돌려주지 않는다).
+                d = api('https://www.law.go.kr/DRF/lawService.do?OC=%s&target=ordin&type=JSON&ID=%s'
+                        % (OC, r['ID']))
+                b = list(d.values())[0] if isinstance(d, dict) and d else None
+                serial = str(((b or {}).get('자치법규기본정보') or {}).get('자치법규일련번호') or '') if isinstance(b, dict) else ''
+                if serial:
+                    cache[key] = serial
+                    return serial, '목록(_ordin_catalog) ID→현행 일련번호'
+                break
     # ★가운뎃점이 든 이름은 **그대로 물으면 0건**이 온다(실측: 인천광역시 각종 위원회의 설치·운영…).
     #   답이 없는 게 아니라 **묻는 말이 안 먹힌 것**이다 — 점을 띄어쓰기로 바꿔 한 번 더 묻는다.
     for q in (name, re.sub(r'[·ㆍ・]', ' ', name)):
