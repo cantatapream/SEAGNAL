@@ -142,6 +142,34 @@ def make_text(law):
     return txt, bool(bu and (bu.get('부칙단위')))
 
 
+def byl_changed(law, tier, bdir):
+    """새 판 응답의 그 층 별표를 우리 별표와 견줘 **다르거나 없는 것**의 이름을 돌려준다(쓰지 않는다).
+    우리 파일은 `<층>_별표N.txt` 를 먼저, 없으면 접두 없는 `별표N.txt` 를 보되 머리에 그 층 이름이 있을 때만 같은 별표로 친다.
+    예: byl_changed(law, '시행령', '…/항만운송사업법/별표') → ['시행령_별표6.txt']"""
+    import tempfile
+    td = tempfile.mkdtemp(prefix='bylchk-')
+    try:
+        extract_layer({'법령': law}, tier, td, {})
+        norm = lambda t: re.sub(r'\s+', '', '\n'.join(t.split('\n')[2:]))
+        out = []
+        for f in sorted(os.listdir(td)):
+            new = open(os.path.join(td, f), encoding='utf-8').read()
+            mine = None
+            pre, bare = os.path.join(bdir, f), os.path.join(bdir, f[len(tier) + 1:])
+            if os.path.exists(pre):
+                mine = open(pre, encoding='utf-8', errors='replace').read()
+            elif os.path.exists(bare):
+                t = open(bare, encoding='utf-8', errors='replace').read()
+                head = '\n'.join(t.split('\n')[:5])
+                same_tier = (tier + ' [별표' in head) if tier != '법률' else not re.search(r'(시행령|시행규칙) \[별표', head)
+                mine = t if same_tier else None
+            if mine is None or norm(mine) != norm(new):
+                out.append(f)
+        return out
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+
+
 def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, other=False, byl=True, force=False):
     base = find_raw_dir(slug, other)
     if not base:
@@ -216,6 +244,14 @@ def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, 
         rec['byl_marks'] = byl_marks
         return rec
     rec['old_byl'] = len(old_byl)
+    if not byl and byl_units:
+        # ★별표를 안 바꾸는 재수집(byl=False)도 **바뀐 별표가 있는지는 본다** (2026-10-07, 3-86).
+        #   원문결손 7건을 byl=False 로 받은 뒤, 항만운송사업법 시행령 별표6(선박연료공급업 친환경·일반 분리)·
+        #   하천법 시행령 별표3·6(아예 없음)·별표4(삭제) 등이 낡은 채 남아 있었는데 아무도 몰랐다(L-407).
+        rec['byl_skipped_changed'] = byl_changed(law, tier, bdir)
+        if rec['byl_skipped_changed']:
+            rec['byl_note'] = ('별표는 그대로 두었지만 원문과 다른 별표가 %d개 있다 — 사람이 보고 받을 것: %s'
+                               % (len(rec['byl_skipped_changed']), ', '.join(rec['byl_skipped_changed'])))
 
     # 옛 판 보관
     legacy_dir = os.path.join(LEGACY, slug, rec['old_eff'] or 'unknown')
