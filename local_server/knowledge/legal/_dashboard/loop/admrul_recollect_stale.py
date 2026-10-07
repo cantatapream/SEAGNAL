@@ -41,7 +41,11 @@ HUMAN_MARKS = ['【이미지판독', '⚠REVIEW', '첨부파일 전사', '판독
 
 
 def curl(url):
-    cmd = ['curl', '-sS', '--max-time', '40', '--cacert', CA]
+    cmd = ['curl', '-sS', '--max-time', '40']
+    # 인증서 묶음은 그 파일이 있을 때만 준다 — 없는 컴퓨터에서 `--cacert` 가 curl 을 통째로 실패시킨다
+    # (3-82 에서 이 자를 `collect_approved.py` 가 부르게 되며 고쳤다 · 검증을 끄는 것이 아니다).
+    if os.path.exists(CA):
+        cmd += ['--cacert', CA]
     if PROXY:
         cmd += ['--proxy', PROXY]
     cmd.append(url)
@@ -108,6 +112,78 @@ def head_lines(text):
     return keep, '\n'.join(lines[len(keep):]).lstrip('\n')
 
 
+def refresh_file(rel, title, serial, body, info, held_ids, issued_fallback, touched, dry):
+    """행정규칙 raw 파일 **하나**를 새 판 본문으로 갈아끼운다 — 안전장치를 그대로 건다. → 결과 dict
+
+    main()(신선도 보고서의 구버전 행)과 `collect_approved.py`(관리자가 승인한 「행정규칙 개정」 — 3-82)가
+    **같은 함수**를 쓴다. 덮어쓰기 규칙이 두 곳에 있으면 한쪽만 고쳐지는 일이 생긴다(L-386).
+    @param rel   ROOT(=legal) 기준 상대경로 또는 절대경로
+    @param title 로그·_admrul.json 에서 찾을 제목
+    @param serial 새 판 행정규칙일련번호
+    @param body/info fetch_body() 결과
+    @param held_ids 옛 번호들(머리글 「현행화」 줄에 남긴다)
+    @param issued_fallback 응답에 발령일자가 없을 때 쓸 값
+    예: refresh_file('raw/…/행정규칙/포항항선박안전운항관리규정.txt', '포항항선박안전운항관리규정',
+                     '2100000283648', body, info, ['2100000264778'], '20260805', touched, False)
+        → {'status': '갱신', 'old_chars': …, 'new_chars': …}
+    """
+    # ★`_구판/` 은 **옛 판을 일부러 보존해 둔 폴더**다 — 현행판으로 덮으면 안 된다
+    #   (2026-09-21, --dry 로 잡았다).
+    #   실측: `_구판/여수항·광양항항만시설운영세칙_구판_ID2100000185240.txt` 가 `갱신` 대상으로
+    #   올라왔다. 덮으면 **파일 이름에 박힌 판 ID 와 내용이 어긋난다** —
+    #   "ID2100000185240 의 구판"이라는 이름 아래 2100000285128 의 본문이 들어앉는다.
+    #   보존본이 보존이 아니게 되고, 나중에 "그때 무엇이 적혀 있었나"를 물을 길이 사라진다.
+    #   ⚠이 폴더는 **A-1 이 구버전 판정의 근거로도 읽는다**(held_ids 에 그 ID 가 들어 있다).
+    if os.sep + '_구판' + os.sep in os.sep + rel.replace('/', os.sep):
+        return {'title': title, 'file': rel, 'status': '건너뜀(_구판 보존본)'}
+    path = rel if os.path.isabs(rel) else os.path.join(ROOT, rel)
+    try:
+        old = open(path, encoding='utf-8').read()
+    except Exception:
+        return {'title': title, 'file': rel, 'status': '파일없음'}
+    hdr, oldbody = head_lines(old)
+    if len(body) < len(oldbody) * 0.7:
+        return {'title': title, 'file': rel, 'status': '보류(본문축소)',
+                'old_chars': len(oldbody), 'new_chars': len(body)}
+    # 사람 손이 들어간 흔적이 새 본문에 없으면 덮어쓰지 않는다(L-176).
+    lost = [m for m in HUMAN_MARKS if m in old and m not in body]
+    if lost:
+        return {'title': title, 'file': rel, 'status': '보류(사람작업 소실)',
+                'lost_marks': lost, 'old_chars': len(oldbody), 'new_chars': len(body)}
+    hdr = [re.sub(r'^ID:\s*\d+', 'ID:' + serial, h) for h in hdr]
+    # 머리글 ID 줄에 옛 '시행일:·발령일:' 이 함께 적혀 있으면 지운다 — 아래에서
+    # 새 판의 발령·시행일을 권위 있는 한 줄로 다시 붙이므로, 남겨 두면 같은 머리글이
+    # 2016년과 2026년을 동시에 말한다(2026-09-10 재활용환경성평가기관 지침에서 실제로 그랬다).
+    hdr = [re.sub(r'\s*·\s*(시행일|발령일)\s*:\s*\d{8}', '', h) if h.startswith('ID:') else h
+           for h in hdr]
+    issued = flat(info.get('발령일자')) or issued_fallback
+    eff = flat(info.get('시행일자'))
+    hdr = [h for h in hdr if not h.startswith('발령:')]
+    hdr.append('발령: %s %s · 발령일자 %s · 시행일자 %s'
+               % (flat(info.get('제개정구분명')), flat(info.get('발령번호')), issued, eff))
+    hdr.append('현행화: %s admrul_recollect_stale.py (구ID %s → 현행 %s)'
+               % (TODAY, ','.join(held_ids), serial))
+    new = '\n'.join(hdr) + '\n\n' + body + '\n'
+    if not dry:
+        open(path, 'w', encoding='utf-8').write(new)
+        touched.add(path)
+    # 옆 목록(_admrul.json)의 ID도 현행으로
+    cat = os.path.join(os.path.dirname(path), '_admrul.json')
+    if os.path.exists(cat) and not dry:
+        try:
+            c = json.load(open(cat, encoding='utf-8'))
+            for k in c:
+                if re.sub(r'\s+', '', k) == re.sub(r'\s+', '', title):
+                    c[k]['ID'] = serial
+            json.dump(c, open(cat, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+            touched.add(cat)
+        except Exception:
+            pass
+    return {'title': title, 'file': rel, 'status': '갱신',
+            'old_chars': len(oldbody), 'new_chars': len(body),
+            'old_id': held_ids, 'new_id': serial, 'issued': issued}
+
+
 def main():
     touched = Touched('admrul_recollect_stale')
     rep = json.load(open(REPORT, encoding='utf-8'))
@@ -122,73 +198,10 @@ def main():
             print('[%d/%d] 본문없음 %s' % (i, len(stale), title[:38]), flush=True)
             continue
         for rel in r['files']:
-            # ★`_구판/` 은 **옛 판을 일부러 보존해 둔 폴더**다 — 현행판으로 덮으면 안 된다
-            #   (2026-09-21, --dry 로 잡았다).
-            #   실측: `_구판/여수항·광양항항만시설운영세칙_구판_ID2100000185240.txt` 가 `갱신` 대상으로
-            #   올라왔다. 덮으면 **파일 이름에 박힌 판 ID 와 내용이 어긋난다** —
-            #   "ID2100000185240 의 구판"이라는 이름 아래 2100000285128 의 본문이 들어앉는다.
-            #   보존본이 보존이 아니게 되고, 나중에 "그때 무엇이 적혀 있었나"를 물을 길이 사라진다.
-            #   ⚠이 폴더는 **A-1 이 구버전 판정의 근거로도 읽는다**(held_ids 에 그 ID 가 들어 있다).
-            if os.sep + '_구판' + os.sep in os.sep + rel.replace('/', os.sep):
-                results.append({'title': title, 'file': rel, 'status': '건너뜀(_구판 보존본)'})
-                print('[%d/%d] 건너뜀(_구판 보존본) %s' % (i, len(stale), title[:34]), flush=True)
-                continue
-            path = os.path.join(ROOT, rel)
-            try:
-                old = open(path, encoding='utf-8').read()
-            except Exception:
-                results.append({'title': title, 'file': rel, 'status': '파일없음'})
-                continue
-            hdr, oldbody = head_lines(old)
-            if len(body) < len(oldbody) * 0.7:
-                results.append({'title': title, 'file': rel, 'status': '보류(본문축소)',
-                                'old_chars': len(oldbody), 'new_chars': len(body)})
-                print('[%d/%d] 보류(축소 %d→%d) %s'
-                      % (i, len(stale), len(oldbody), len(body), title[:32]), flush=True)
-                continue
-            # 사람 손이 들어간 흔적이 새 본문에 없으면 덮어쓰지 않는다(L-176).
-            lost = [m for m in HUMAN_MARKS if m in old and m not in body]
-            if lost:
-                results.append({'title': title, 'file': rel, 'status': '보류(사람작업 소실)',
-                                'lost_marks': lost, 'old_chars': len(oldbody),
-                                'new_chars': len(body)})
-                print('[%d/%d] 보류(사람작업 %s 사라짐) %s'
-                      % (i, len(stale), '·'.join(lost), title[:32]), flush=True)
-                continue
-            hdr = [re.sub(r'^ID:\s*\d+', 'ID:' + serial, h) for h in hdr]
-            # 머리글 ID 줄에 옛 '시행일:·발령일:' 이 함께 적혀 있으면 지운다 — 아래에서
-            # 새 판의 발령·시행일을 권위 있는 한 줄로 다시 붙이므로, 남겨 두면 같은 머리글이
-            # 2016년과 2026년을 동시에 말한다(2026-09-10 재활용환경성평가기관 지침에서 실제로 그랬다).
-            hdr = [re.sub(r'\s*·\s*(시행일|발령일)\s*:\s*\d{8}', '', h) if h.startswith('ID:') else h
-                   for h in hdr]
-            issued = flat(info.get('발령일자')) or r['current']['issued']
-            eff = flat(info.get('시행일자'))
-            hdr = [h for h in hdr if not h.startswith('발령:')]
-            hdr.append('발령: %s %s · 발령일자 %s · 시행일자 %s'
-                       % (flat(info.get('제개정구분명')), flat(info.get('발령번호')), issued, eff))
-            hdr.append('현행화: %s admrul_recollect_stale.py (구ID %s → 현행 %s)'
-                       % (TODAY, ','.join(r['held_ids']), serial))
-            new = '\n'.join(hdr) + '\n\n' + body + '\n'
-            if not DRY:
-                open(path, 'w', encoding='utf-8').write(new)
-                touched.add(path)
-            results.append({'title': title, 'file': rel, 'status': '갱신',
-                            'old_chars': len(oldbody), 'new_chars': len(body),
-                            'old_id': r['held_ids'], 'new_id': serial, 'issued': issued})
-            # 옆 목록(_admrul.json)의 ID도 현행으로
-            cat = os.path.join(os.path.dirname(path), '_admrul.json')
-            if os.path.exists(cat) and not DRY:
-                try:
-                    c = json.load(open(cat, encoding='utf-8'))
-                    for k in c:
-                        if re.sub(r'\s+', '', k) == re.sub(r'\s+', '', title):
-                            c[k]['ID'] = serial
-                    json.dump(c, open(cat, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-                    touched.add(cat)
-                except Exception:
-                    pass
-            print('[%d/%d] 갱신 %s (%d→%d자)'
-                  % (i, len(stale), title[:32], len(oldbody), len(body)), flush=True)
+            rec = refresh_file(rel, title, serial, body, info, r['held_ids'],
+                               r['current']['issued'], touched, DRY)
+            results.append(rec)
+            print('[%d/%d] %s %s' % (i, len(stale), rec['status'], title[:34]), flush=True)
         time.sleep(0.3)
 
     json.dump({'ran_at': TODAY, 'dry': DRY, 'results': results},

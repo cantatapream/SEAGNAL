@@ -74,6 +74,7 @@ const freshScanner = require('../services/admrul_fresh_scanner');
 // 원문 **결손** 점검(조문 목 누락 + 고시 별표 누락). 위 신선도가 "사본이 낡았나"를 본다면
 // 이쪽은 "판은 맞는데 안이 비었나"를 본다. 2026-09-21 신설(C-2 이행).
 const mokScanner = require('../services/mok_audit_scanner');
+const mokBrief = require('../services/mok_brief');   // 원문결손 대기 전 건 인계문(3-83)
 const { DATA_DIR, FILES } = require('../config/server_config');
 
 // [Lazy] Firebase Admin(답변완료 개인 푸시용). routes/report.js 와 같은 이유로 첫 발송 시 로딩.
@@ -1095,6 +1096,23 @@ router.get('/api/legal/mok-audit', adminAuth.requireAdminToken, (req, res) => {
     let list = adminQueues.readJsonl(mokScanner.QUEUE_FILE).reverse();
     if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
     res.json({ ok: true, count: list.length, items: list, last: mokScanner.readStatus() });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/mok-audit/brief-all (관리자) — 대기 전 건을 AI 작업 세션에 넘길 한 덩어리 인계문으로(3-83).
+//   개정검토의 「승인분 전체 지시문」 과 같은 자리다(사장님 2026-10-07 「여기에도 … 전체 지시문 복사할 수 있도록」).
+//   이 방에는 승인이 없으므로 **대기(pending) 전 건**을 묶는다. ids 를 콤마로 주면 그 건만.
+router.get('/api/legal/mok-audit/brief-all', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const rows = adminQueues.readJsonl(mokScanner.QUEUE_FILE).reverse();
+    const idsQ = String(req.query.ids || '').split(',').map((v) => v.trim()).filter(Boolean);
+    const list = idsQ.length
+      ? rows.filter((e) => idsQ.indexOf(String(e.id)) >= 0)
+      : rows.filter((e) => (e.status || 'pending') === 'pending');
+    if (!list.length) return res.status(404).json({ ok: false, error: idsQ.length ? '그 id 로 묶을 카드를 찾지 못했습니다.' : '대기 중인 결손 카드가 없습니다.' });
+    const r = mokBrief.buildMokBrief(list);
+    if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
+    res.json({ ok: true, count: r.count, kinds: r.kinds, excerpt: r.excerpt, text: r.text });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 

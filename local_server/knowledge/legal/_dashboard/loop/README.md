@@ -119,6 +119,7 @@
 | `collect_law_aliases.py` | 코드 | 법령 공식 약칭 수집 — 우리가 가진 모든 법(raw/*/*/_meta.json)의 **공식 약칭**을 |
 | `collect_missing_admrul.py` | 글만 | `delegated_sweep` 이 "확인 필요"로 찍은 위임 행정규칙을 실제로 받아 온다. |
 | `collect_ordin.py` | 코드 | 조례(자치법규) 수집: 해양·수산 키워드로 target=ordin 검색 → 지역별 저장. |
+| `collect_approved.py` | 코드 | ★**관리자가 승인한 개정을 종류에 상관없이 한 명령으로 받는다**(3-82 · 2026-10-07) — 시행예정 법령 → `_대기/` · 시행 중 법령 → `recollect_tier` · 가진 고시 새 판 → `admrul_recollect_stale.refresh_file` · 새 고시 → 관련 법 `행정규칙/`(여럿이면 `--place`). 인계문 끝 수집 목록을 `--from-brief` 로 읽는다. 시험 `scripts/test_collect_approved.js`. |
 | `collect_pending_law.py` | 코드 | 예고본(시행예정 개정 법령) 원문을 **시행일 전에 미리** 받아 `raw/<도메인>/<법>/_대기/<시행일>/<층>.txt` 로 둔다. |
 | `collect_raw.js` | 글만 | collect_queue의 수집가능 원문을 DRF로 raw에만 수집(위키 미편집=린트와 병렬 안전) |
 | `collection_hole_graceful.js` | 글만 | a_genuine/b_structural collection_hole에 H-30 3요건(위임체인·경계선언·소관부서) 보강(그룹별, 자기 법 파일만=병렬안전) |

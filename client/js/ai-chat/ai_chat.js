@@ -2188,11 +2188,44 @@
   function renderMokCards(host) {
     if (!host) return;
     var SCAN_LABEL = '🔍 지금 점검 (백그라운드 · 완료까지 20~40분)';
-    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaMokScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
+    var BRIEF_LABEL = '📋 대기 전체 지시문';
+    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaMokScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button>' +
+      '<button class="nrya-btn-ok" id="nryaMokBriefBtn" style="flex:0 0 auto;padding:8px 16px">' + BRIEF_LABEL + '</button></div>' +
       '<div class="nrya-inline-err nrya-hidden" id="nryaMokScanErr" style="display:none"></div>' +
+      '<div class="nrya-brief nrya-hidden" id="nryaMokBrief"></div>' +
       '<div id="nryaMokListHost"></div>';
     var scanBtn = document.getElementById('nryaMokScanBtn');
     var scanErr = document.getElementById('nryaMokScanErr');
+    // ── 「📋 대기 전체 지시문」 (3-83 · 사장님 2026-10-07 「개정검토 탭처럼 전체 지시문 복사할 수 있도록」) ──
+    //   대기 카드 전 건을 서버가 한 덩어리 인계문으로 만들어 주고, 개정검토와 같은 글상자(renderBriefBox)에 펼친다.
+    //   다시 누르면 접는다. [연계] → GET /api/legal/mok-audit/brief-all · services/mok_brief.js
+    var briefBtn = document.getElementById('nryaMokBriefBtn');
+    var briefBox = document.getElementById('nryaMokBrief');
+    if (briefBtn) briefBtn.onclick = function () {
+      if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
+      if (briefBox && !briefBox.classList.contains('nrya-hidden') && briefBox.dataset.loaded === '1') {
+        briefBox.classList.add('nrya-hidden'); return;
+      }
+      briefBtn.disabled = true; briefBtn.textContent = '만드는 중…';
+      legalGet('/api/legal/mok-audit/brief-all').then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+      }).then(function (d) {
+        briefBtn.disabled = false; briefBtn.textContent = BRIEF_LABEL;
+        var fail = function (m) { if (scanErr) { scanErr.classList.remove('nrya-hidden'); scanErr.style.display = 'block'; scanErr.textContent = m; } };
+        if (d && d._denied) { fail('관리자 로그인 필요'); return; }
+        if (!d || !d.ok) { fail((d && d.error) || '지시문을 만들지 못했습니다.'); return; }
+        var kinds = Object.keys(d.kinds || {}).map(function (k) { return esc(k) + ' <b>' + nfmt(d.kinds[k]) + '건</b>'; }).join(' · ');
+        renderBriefBox(briefBox,
+          d.text,
+          '대기 <b>전 건(' + nfmt(d.count) + '건)</b>을 한 덩어리로 묶었습니다 — ' + kinds + '. ' +
+          (d.excerpt ? '그중 <b>' + nfmt(d.excerpt) + '건</b>은 발췌본일 수 있어 「정말 빠졌나」부터 보라고 적었습니다. ' : '') +
+          '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 확인·재수집을 이어서 하고, 끝에 건마다 <b>처리완료/해당없음 판정표</b>를 돌려줍니다 — 그 표대로 카드 버튼을 누르시면 됩니다.');
+      }).catch(function (e) {
+        briefBtn.disabled = false; briefBtn.textContent = BRIEF_LABEL;
+        if (scanErr) { scanErr.classList.remove('nrya-hidden'); scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); }
+      });
+    };
     if (scanBtn) scanBtn.onclick = function () {
       if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
       scanBtn.disabled = true; scanBtn.textContent = '점검 시작 중…';
