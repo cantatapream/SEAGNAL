@@ -29,7 +29,8 @@
     python3 …/collect_approved.py --from-brief <인계문을 저장한 파일> [--dry]     ← 운영 서버 승인분(기본 절차)
     python3 …/collect_approved.py --all-approved [--dry]                           ← 이 컴퓨터 큐 사본의 승인분
     python3 …/collect_approved.py <큐 id> [<id>…] [--dry]                          ← 이 컴퓨터 큐 사본에서 그 id
-  공통: --only <id> … · --place <id>=<법slug> …
+  공통: --only <id> … · --place <id>=<법slug> … · --force(받아 둔 예고본도 다시 받는다 — `collect_pending_law.py --verify` 가
+        「같은 MST 인데 내용이 달라졌다」고 할 때. 2026-10-07 연안사고예방법 실측)
   결과: `_dashboard/collect_approved_report.json` · 고친 파일 목록 `_dashboard/touched/collect_approved_<시각>.json`
 
 [연계] ← services/legal_wiki_brief.js(collectManifest — 인계문의 수집 목록) · local_server/data/law_change_queue.json
@@ -161,7 +162,7 @@ def _quiet(fn, *a, **k):
     return r, buf.getvalue().strip()
 
 
-def do_law_pending(it, touched, dry):
+def do_law_pending(it, touched, dry, force=False):
     base = law_dir(it['slug'], it['raw'])
     if not base:
         return {'status': '실패(법 폴더 없음)'}
@@ -170,7 +171,7 @@ def do_law_pending(it, touched, dry):
     item = {'id': it['id'], 'kind': 'law_pending', 'layer': it['layer'], 'after': {'MST': it['MST_new']},
             '시행일자': it['시행일자'], 'law': {'slug': it['slug'], 'raw': base},
             'changed_articles': it['changed_articles']}
-    ok, said = _quiet(CPL.collect_item, item, touched)
+    ok, said = _quiet(CPL.collect_item, item, touched, force)
     if ok:
         return {'status': '수집', 'note': said, 'staged': True}
     if said.startswith('='):
@@ -296,7 +297,7 @@ def do_admrul_new(it, touched, dry, idx, place):
     return {'status': '수집', 'note': os.path.relpath(out, REPO)}
 
 
-def run(items, dry=False, only=None, place=None, touched=None):
+def run(items, dry=False, only=None, place=None, touched=None, force=False):
     """정규화한 항목들을 종류별로 받는다. → 결과 목록"""
     place = place or {}
     touched = touched or Touched('collect_approved')
@@ -309,7 +310,7 @@ def run(items, dry=False, only=None, place=None, touched=None):
         k = it['kind']
         try:
             if k == 'law_pending':
-                r = do_law_pending(it, touched, dry)
+                r = do_law_pending(it, touched, dry, force)
             elif k == 'law_amended':
                 r = do_law_amended(it, touched, dry)
             elif k in ('admrul_amended', 'admrul_unknown_new'):
@@ -387,7 +388,7 @@ def main(argv):
         where = os.path.relpath(qp, REPO)
     print('승인분 %d건 · 출처 %s · dry=%s' % (len(items), where, dry), flush=True)
     touched = Touched('collect_approved') if not dry else CPL._NullTouched()
-    results = run(items, dry, only, place, touched)
+    results = run(items, dry, only, place, touched, '--force' in flags)
     s = summary(results)
     print('\n결과:', json.dumps(s, ensure_ascii=False))
     if not dry:

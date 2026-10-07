@@ -43,18 +43,6 @@
  ],
  "local_server/knowledge/legal/raw/05_수산어업/양식산업발전법": [
   {
-   "date": "20261001",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "285151"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_5cedf5"
-   }
-  },
-  {
    "date": "20261231",
    "files": [
     "법률.txt"

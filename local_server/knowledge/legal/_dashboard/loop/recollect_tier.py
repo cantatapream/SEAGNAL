@@ -142,7 +142,7 @@ def make_text(law):
     return txt, bool(bu and (bu.get('부칙단위')))
 
 
-def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, other=False):
+def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, other=False, byl=True, force=False):
     base = find_raw_dir(slug, other)
     if not base:
         return {'slug': slug, 'tier': tier, 'status': '폴더없음'}
@@ -162,7 +162,9 @@ def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, 
     _path = os.path.join(base, tier + '.txt')
     _old_txt = open(_path, encoding='utf-8').read() if os.path.exists(_path) else ''
     _old_eff = old_effective_date(_old_txt, meta.get('시행일'))
-    if old_mst == str(new_mst) and str(_old_eff or '') == str(efyd):
+    # force=True 면 같은 판이라도 다시 받는다 (2026-10-07, 3-85) — 판은 맞는데 **옛 수집 형식이라 목·조가 빠진** 파일
+    #   (지방행정제재법 시행령: 목 4/7 · 조 37/42). 안전장치(70%·사람손)는 그대로 건다.
+    if old_mst == str(new_mst) and str(_old_eff or '') == str(efyd) and not force:
         return {'slug': slug, 'tier': tier, 'status': '이미 현행'}
 
     law = fetch_law(new_mst, efyd)
@@ -223,7 +225,7 @@ def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, 
         if old_txt:
             shutil.copy2(path, os.path.join(legacy_dir, tier + '.txt'))
             touched.add(os.path.join(legacy_dir, tier + '.txt'))
-        if old_byl:
+        if byl and old_byl:                       # 별표를 안 바꾸면(byl=False) 옛 별표를 따로 보관할 까닭이 없다
             os.makedirs(os.path.join(legacy_dir, '별표'), exist_ok=True)
             for f in old_byl:
                 shutil.copy2(os.path.join(bdir, f), os.path.join(legacy_dir, '별표', f))
@@ -232,7 +234,9 @@ def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, 
         open(path, 'w', encoding='utf-8').write(new_txt)
         touched.add(path)
         # 별표
-        if byl_units:
+        # ★byl=False 면 별표는 손대지 않는다 (2026-10-07, 3-85). 원문결손(목 누락) 7건을 고칠 때 쓴다 —
+        #   `15_관련타부처` 의 타법 폴더에 그 층 별표를 통째로 새로 들이면 일이 「목 되찾기」 를 넘어선다.
+        if byl and byl_units:
             for f in old_byl:
                 os.remove(os.path.join(bdir, f))
                 touched.add(os.path.join(bdir, f))

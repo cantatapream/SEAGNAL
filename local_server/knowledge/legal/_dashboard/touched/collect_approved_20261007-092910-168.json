@@ -1,0 +1,9 @@
+{
+ "script": "collect_approved",
+ "stamp": "20261007-092910-168",
+ "files": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/_대기/20270513/법률.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/_대기/20270513/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json"
+ ]
+}

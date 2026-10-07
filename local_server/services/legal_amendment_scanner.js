@@ -68,6 +68,11 @@ const DETECT_SCRIPT = path.join(LEGAL_DIR, '_dashboard', 'loop', 'detect_law_cha
 /** 마지막 스캔이 언제·어떻게 끝났는지(볼륨). **실패와 "개정 없음"을 화면에서 가르려고 남긴다**(2026-09-20 사용자 지시). */
 const SCAN_STATUS_FILE = path.join(DATA, 'amendment_last_scan.json');
 const DETECT_DAYS = 7;          // 큐 실행 주기와 맞춤(H-29 주간 Routine과 동일 창)
+// ★따라잡기 창(3-84). 탐지가 며칠 실패하면(2026-09-28~10-07 TLS 장애) 고정 7일 창이 그 사이 공포분을
+//   영영 못 본다 — 50일로 다시 돌려 보니 개정 5건·고시 개정 5건이 빠져 있었다. 그래서 창을
+//   「마지막으로 성공한 스캔 시작 이후 + 여유 2일」 로 넓히되, 한 번에 60일을 넘기지 않는다(실측 50일 창 정상 완료).
+const CATCHUP_MARGIN_DAYS = 2;
+const CATCHUP_MAX_DAYS = 60;
 // 실측: 2026-08-10 세션 3~4분. 2026-09-10 세션(law.go.kr 이 connection reset·응답 지연을 자주 내던 날)은
 // 8분 상한에 걸려 죽었고, 직접 돌리니 10분 3초가 걸렸다(법령 질의만 약 10분 — 응답 지연·재시도 누적). 스크립트는 끝에서 한 번에 쓰므로 상한에 걸리면 그날 결과가
 // 통째로 없다 — 그래서 넉넉히 잡는다(admrul_fresh_scanner 는 60분). 좀비 방지용이지 속도 기준이 아니다.
@@ -253,6 +258,33 @@ function readScanStatus() {
   try { return JSON.parse(fs.readFileSync(SCAN_STATUS_FILE, 'utf8')); } catch (_) { return null; }
 }
 
+/**
+ * 마지막으로 **성공한** 스캔의 시작 시각(ISO). 실패 기록이 덮어써도 잃지 않도록 `lastOkAt` 을 따로 이어 적는다.
+ * 예: {ok:false, lastOkAt:'2026-09-27T16:00:00Z'} → '2026-09-27T16:00:00Z' · {ok:true, startedAt:X} → X
+ * @param {object|null} st readScanStatus() 결과
+ * @returns {string|null} 한 번도 성공 기록이 없으면 null
+ */
+function lastOkAt(st) {
+  if (!st) return null;
+  if (st.lastOkAt) return st.lastOkAt;
+  return st.ok ? (st.startedAt || st.finishedAt || null) : null;
+}
+
+/**
+ * 이번 스캔의 창(일). 마지막 성공 이후 지난 날 + 여유를 덮되 DETECT_DAYS 보다 좁히지 않고 CATCHUP_MAX_DAYS 에서 자른다.
+ * 예: 마지막 성공 10일 전 → 12 · 어제 → 7 · 기록 없음 → 7 · 100일 전 → 60
+ * @param {object|null} st readScanStatus() 결과
+ * @param {number} [nowMs] 지금(검사용)
+ * @returns {number}
+ * [연계] ← runAmendmentScan · scripts/test_scan_catchup.js
+ */
+function scanWindowDays(st, nowMs) {
+  const at = Date.parse(lastOkAt(st) || '');
+  if (!Number.isFinite(at)) return DETECT_DAYS;
+  const gap = Math.ceil(((nowMs || Date.now()) - at) / 86400000) + CATCHUP_MARGIN_DAYS;
+  return Math.min(CATCHUP_MAX_DAYS, Math.max(DETECT_DAYS, gap));
+}
+
 /** H-29 큐(`law_change_queue.json`)에서 status:pending 항목만 읽는다. 파일 없거나 파싱 실패면 []. */
 function loadH29PendingItems() {
   try {
@@ -344,7 +376,10 @@ function appendQueue(entries) {
  * @returns {Promise<{scanned:number, changed:number, filtered:number, errors:number}>}
  *   scanned: H-29 큐의 pending 전체 · changed: 이번에 관리자 큐에 새로 올린 수 · filtered: 무관 신규 고시로 거른 수
  */
-async function runAmendmentScan() {
+/**
+ * @param {{days?:number}} [opts] days: 관리자가 고른 창(1~CATCHUP_MAX_DAYS). 없으면 scanWindowDays(마지막 성공 이후).
+ */
+async function runAmendmentScan(opts) {
   if (_scanning) return { scanned: 0, changed: 0, filtered: 0, errors: 0 };
   _scanning = true;
   // 이번 실행의 진행률을 초기화한다(지난 실행 값이 남아 게이지가 100%부터 시작하면 안 된다).
@@ -355,7 +390,11 @@ async function runAmendmentScan() {
     queueFile();
     seedIfMissing(H29_QUEUE_FILE, SEED_H29_QUEUE_FILE);
     const startedAt = new Date().toISOString();
-    const r = await runDetectScript(DETECT_DAYS);
+    const prevStatus = readScanStatus();
+    const asked = Math.floor(Number(opts && opts.days));
+    const days = asked >= 1 ? Math.min(CATCHUP_MAX_DAYS, asked) : scanWindowDays(prevStatus);
+    if (days > DETECT_DAYS) console.log(`[나리야 개정감지] 마지막 성공 스캔(${lastOkAt(prevStatus)}) 이후를 덮으려 창을 ${days}일로 넓힌다`);
+    const r = await runDetectScript(days);
     if (!r.ok) {
       console.error('나리야 개정감지 탐지 스크립트 실패:', r.error);
       // ★실패도 알린다(3-80). law.go.kr 이 한 번도 답하지 않으면 탐지 자가 이제 실패로 죽는다 —
@@ -382,7 +421,8 @@ async function runAmendmentScan() {
     // ★탐지 스크립트가 죽으면 카드가 0건인데, 그것은 "개정이 없다"가 아니라 "확인을 못 했다"이다.
     //   화면이 둘을 구별할 수 있도록 결과를 볼륨에 남긴다(2026-09-20 사용자 지시).
     writeScanStatus({
-      ok: r.ok, startedAt, finishedAt: new Date().toISOString(), days: DETECT_DAYS,
+      ok: r.ok, startedAt, finishedAt: new Date().toISOString(), days,
+      lastOkAt: r.ok ? startedAt : lastOkAt(prevStatus),
       error: r.ok ? null : (r.error || '탐지 스크립트 실패'),
       scanned: pending.length, changed: relevant.length, filtered,
     });
@@ -430,13 +470,13 @@ async function notifyAdmins(entries) {
  * 결과를 확인한다.
  * @returns {{ok:boolean, started:boolean, error?:string}}
  */
-function startAmendmentScan() {
+function startAmendmentScan(opts) {
   if (_scanning) return { ok: false, started: false, error: '스캔이 이미 진행 중입니다. 잠시 후 다시 시도하세요.' };
-  runAmendmentScan().catch((e) => console.error('나리야 개정감지 스캔 오류:', e && e.message));
+  runAmendmentScan(opts).catch((e) => console.error('나리야 개정감지 스캔 오류:', e && e.message));
   return { ok: true, started: true };
 }
 
 module.exports = { runAmendmentScan, startAmendmentScan, getScanProgress,
   // 진행률 한 줄 파서는 검사(test_wiki_brief_bulk.js)가 직접 먹여 보려고 함께 내보낸다.
-  applyProgressLine, queueFile, h29QueueFile, mirrorDecisionToH29, readScanStatus,
-  notifyAdmins, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE };
+  applyProgressLine, queueFile, h29QueueFile, mirrorDecisionToH29, readScanStatus, scanWindowDays, lastOkAt,
+  notifyAdmins, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE, CATCHUP_MAX_DAYS };
