@@ -28,7 +28,7 @@
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from _admrul_id import find_id   # ★판번호를 찾는 단 한 곳(P-19b)
-import glob, json, os, re, subprocess, sys, time, urllib.request
+import glob, json, os, re, shutil, subprocess, sys, time, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -51,7 +51,13 @@ def api(url, tries=4):
       같은 끊김을 **자기 안에서** 다시 건다. urllib 은 그 자리에서 예외로 끝난다.
       같은 일을 오늘 `coastal_ordin_collect` 에서도 겪었다(L-322 의 그 뿌리).
     ⚠파이썬 쪽 되풀이도 그대로 둔다 — 둘이 겹쳐야 끝까지 간다.
+    ★curl 이 **없는 컴퓨터**에서는 파이썬 내장(urllib)으로 부른다 (2026-10-07, 3-83).
+      운영 이미지(`node:20-slim`)에는 curl 이 없어 이 자가 첫 호출에서
+      `FileNotFoundError: [Errno 2] No such file or directory: 'curl'` 로 **통째로 죽었다**
+      (사장님 원문결손 화면 「고시 별표: Traceback …」). Dockerfile 에 curl 도 넣었지만, 없을 때 죽지 않게 둘 다 둔다.
     """
+    if not shutil.which('curl'):
+        return _api_urllib(url, tries)
     last = None
     for i in range(tries):
         r = subprocess.run(['curl', '-sS', '--retry', '5', '--retry-all-errors',
@@ -64,6 +70,23 @@ def api(url, tries=4):
                 last = 'JSON 아님: ' + str(e)[:60]
         else:
             last = (r.stderr or '')[-80:] or ('되돌린값 %d' % r.returncode)
+        time.sleep(1.5 * (i + 1))
+    return {'_err': last}
+
+
+def _api_urllib(url, tries=4):
+    """curl 이 없을 때의 길 — 같은 되풀이·같은 실패 꼴(`{'_err': 까닭}`)을 돌려준다."""
+    last = None
+    for i in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                body = r.read().decode('utf-8', 'replace')
+            if body.strip().startswith('{'):
+                return json.loads(body)
+            last = 'JSON 아님: ' + re.sub(r'<[^>]+>|\s+', ' ', body).strip()[:60]
+        except Exception as e:
+            last = ('%s: %s' % (type(e).__name__, e))[:80]
         time.sleep(1.5 * (i + 1))
     return {'_err': last}
 

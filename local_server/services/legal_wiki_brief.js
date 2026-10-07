@@ -18,7 +18,7 @@
  *
  * [일괄본(buildBulkWikiBrief) 이 단건과 다른 점 — 2026-09-10 사용자 요청으로 신설]
  * 단건과 **같은 문장·같은 규칙**을 쓰되 셋만 다르다: ①맨 앞에 「한눈에 보기」 표 ②「해야 할 일」·「지키는
- * 규칙」은 건마다 반복하지 않고 문서 끝에 한 번만 ③재수집은 id 를 하나씩 주는 대신 `--all-approved` 한 줄.
+ * 규칙」은 건마다 반복하지 않고 문서 끝에 한 번만 ③재수집은 단건·일괄 모두 끝의 **수집 목록**을 `collect_approved.py --from-brief` 가 읽는다(3-82).
  * 바뀐 조문 정보가 없는 건(신규 고시 발견 등 — 비교할 옛 원문이 아예 없다)은 상세 절 없이 목록으로만 모은다.
  * 타법 인용 페이지 목록은 일괄본에서만 앞 20쪽으로 줄이고, **줄였다는 사실과 전부 보는 방법을 그 자리에 적는다.**
  *
@@ -286,6 +286,57 @@ function pageLines(f, citeCap) {
   return { lines: L, pages };
 }
 
+/** 수집 목록에 싣는 큐 칸 — `collect_approved.py normalize()` 가 읽는 것만(본문은 싣지 않는다 — 글이 길어진다). */
+const MANIFEST_SNAP = ['MST', 'ID', '시행일자', '발령일자', '공포일자', '법령명'];
+
+/**
+ * 인계문 끝에 붙이는 **기계가 읽는 수집 목록** (3-82 · 2026-10-07).
+ * 예: collectManifest([am]) → ['<!-- collect-manifest:start -->', '```json', '{"v":1,"items":[…]}', '```', '<!-- collect-manifest:end -->']
+ * @param {Array<object>} rows - 관리자 큐 항목들
+ * @returns {Array<string>} 글 줄
+ * [왜] 작업 세션은 **운영 서버의 큐를 못 본다**(승인은 운영 볼륨에 있다). 그래서 종전 지시문의
+ *   `collect_pending_law.py --all-approved` 는 작업 컴퓨터의 낡은 사본을 보고 0건을 잡거나, 잡아도
+ *   **시행예정 법령만** 받고 행정규칙·시행 중 개정은 건너뛰었다. 이 목록을 `collect_approved.py --from-brief` 가 읽는다.
+ * [연계] → _dashboard/loop/collect_approved.py (read_brief · normalize) — 칸 이름을 바꾸면 거기도 같이.
+ */
+function collectManifest(rows) {
+  const pick = (v) => {
+    const o = {};
+    for (const k of MANIFEST_SNAP) if (v && v[k]) o[k] = String(v[k]);
+    return o;
+  };
+  const items = (rows || []).map((am) => ({
+    id: am.id, kind_code: am.kind_code || '', layer: am.layer || '', law: am.law || '', 법령명: am.법령명 || '',
+    status: am.status || 'pending',
+    이전: pick(am.이전), 현재: pick(am.현재),
+    related_laws: (am.related_laws || []).map((r) => ({ slug: r.slug || '' })).filter((r) => r.slug),
+    changed_articles: (am.changed_articles || []).map((a) => ({ 조문번호: a.조문번호 || '', 조문가지번호: a.조문가지번호 || '' })),
+  }));
+  return [
+    '<!-- collect-manifest:start -->',
+    '```json',
+    JSON.stringify({ v: 1, items }),
+    '```',
+    '<!-- collect-manifest:end -->',
+  ];
+}
+
+/** 「원문을 먼저 받는다」 단계의 글(단건·일괄 공통). 3-82 — 법령·행정규칙을 한 명령으로. */
+function collectStepLines() {
+  return [
+    '1. **원문을 먼저 받는다 — 법령·행정규칙 모두 한 명령으로.** 이 글 전체를 파일로 저장한 뒤(예: `/tmp/brief.md`) 저장소 루트에서:',
+    '   ```',
+    '   python3 local_server/knowledge/legal/_dashboard/loop/collect_approved.py --from-brief /tmp/brief.md --dry',
+    '   python3 local_server/knowledge/legal/_dashboard/loop/collect_approved.py --from-brief /tmp/brief.md',
+    '   python3 local_server/knowledge/legal/_dashboard/loop/collect_pending_law.py --verify',
+    '   ```',
+    '   이 글 맨 끝의 **수집 목록**(기계가 읽는 칸)을 읽어 종류마다 받는다 — 시행예정 법령은 `_대기/` 에 예고본,',
+    '   시행 중 법령은 현행 층을 새 판으로, 가진 고시의 새 판은 같은 파일을, 새로 찾은 고시는 그 법의 `행정규칙/` 에.',
+    '   ⚠**「보류」·「실패」 로 끝난 건은 까닭이 함께 찍힌다 — 그 건은 받지 않은 것이다.** 사람이 보고 정한다',
+    '   (예: 관련 법이 둘 이상인 새 고시는 `--place <큐id>=<법slug>` 로 둘 폴더를 정해 다시 돌린다).',
+  ];
+}
+
 function buildWikiBrief(am, today) {
   if (!am) return { ok: false, text: '', pages: [], error: '항목을 찾지 못했습니다.' };
   const f = amFacts(am, today);
@@ -307,12 +358,7 @@ function buildWikiBrief(am, today) {
   for (const ln of pl.lines) L.push(ln);
   L.push('## 3. 해야 할 일');
   L.push('');
-  L.push('1. **원문을 먼저 받는다.** 저장소 루트에서:');
-  L.push('   ```');
-  L.push(`   python3 local_server/knowledge/legal/_dashboard/loop/collect_pending_law.py ${am.id}`);
-  L.push('   python3 local_server/knowledge/legal/_dashboard/loop/collect_pending_law.py --verify');
-  L.push('   ```');
-  L.push('   (승인 상태는 실서비스에 있고 작업 컴퓨터 사본은 뒤처질 수 있다 — 그래서 id 를 직접 준다.)');
+  for (const ln of collectStepLines()) L.push(ln);
   L.push('2. **위 2번 목록의 페이지를 하나씩 열어**, 위 1번의 개정 전/후를 대조해 고칠 자리를 찾는다.');
   L.push('   근거 조문 표의 **법령 칸·조문 칸은 게이트가 그 칸으로 원문을 여는 자리**라 규약대로 적는다.');
   if (future) {
@@ -339,6 +385,10 @@ function buildWikiBrief(am, today) {
   L.push('- **원문 발췌는 복붙.** 위 1번의 「개정 후」 본문을 손으로 고쳐 쓰지 않는다.');
   L.push('- 원문이 정하지 않은 것(해석 다툼)은 단정하지 말고 `⚠REVIEW` 로 남긴다.');
   L.push('- 시행일이 지난 뒤에는 `_dashboard/loop/fold_effective.py` 가 마커를 평문으로 접는다(그때 조문 번호 재편은 사람이 표를 고친다).');
+  L.push('');
+  L.push('## 수집 목록 (기계가 읽는 칸 — 고치지 말 것)');
+  L.push('');
+  for (const ln of collectManifest([am])) L.push(ln);
 
   return { ok: true, text: L.join('\n'), pages };
 }
@@ -352,7 +402,8 @@ function buildWikiBrief(am, today) {
  * 단건 인계문(buildWikiBrief)과 **같은 문장·같은 규칙**을 쓴다 — 바뀐 부분은 셋뿐이다:
  *   ①맨 앞에 「한눈에 보기」 표를 둬 몇 건이 어떤 상태인지 먼저 보인다
  *   ②「해야 할 일」·「지키는 규칙」은 건마다 반복하지 않고 **문서 끝에 한 번만** 둔다
- *   ③원문 재수집은 id 를 하나씩 주는 대신 `--all-approved` 한 줄로 끝낸다
+ *   ③원문 재수집은 끝의 **수집 목록**(전 건)을 `collect_approved.py --from-brief` 한 줄이 읽는다(3-82 — 종전 `--all-approved` 는
+ *     작업 컴퓨터의 낡은 큐를 봤고 시행예정 법령만 받았다)
  *
  * **바뀐 조문 정보가 없는 건**(신규 고시 발견 등 — 비교할 옛 원문이 아예 없는 것)은 상세 절을
  * 만들지 않고 뒤쪽에 목록으로만 모은다. 그런 건에 개정 전/후 칸을 만들어 두면 빈 칸만 늘어나
@@ -415,8 +466,9 @@ function buildBulkWikiBrief(list, today) {
   if (brief.length) {
     L.push(`## 2. 조문 정보가 없는 ${brief.length}건 — 무엇인지부터 판단한다`);
     L.push('');
-    L.push('아래는 **비교할 옛 원문이 없는 것들**이다. 대부분 "새로 발령된 고시를 발견"한 경우라 개정 전/후를 만들 수 없다.');
-    L.push('먼저 이 고시가 우리 74법과 실제로 관련이 있는지 판단하고, 관련이 있으면 원문을 수집한 뒤 관련 법 위키에 반영한다.');
+    L.push('아래는 **바뀐 조문 정보가 없는 것들**이다 — 우리가 가진 고시의 새 판이거나, 우리 법을 인용하는 새 고시다.');
+    L.push('**원문은 아래 「해야 할 일」 1번 명령이 함께 받는다**(3-82 — 종전에는 이 건들을 받는 자가 없었다).');
+    L.push('받은 뒤 그 고시가 우리 위키 서술과 겹치는지 대조해 관련 법 위키에 반영한다. 관련 법이 둘 이상인 새 고시는 둘 폴더를 사람이 정한다.');
     L.push('');
     L.push('| # | 법령·고시 | 계층 | 시행일 | 본문이 인용한 우리 법 | 큐 id |');
     L.push('|---|---|---|---|---|---|');
@@ -430,13 +482,7 @@ function buildBulkWikiBrief(list, today) {
   const secDo = brief.length ? 3 : 2;
   L.push(`## ${secDo}. 해야 할 일 (전 건 공통)`);
   L.push('');
-  L.push('1. **원문을 먼저 받는다.** 승인된 건을 한 번에 받는다 — 저장소 루트에서:');
-  L.push('   ```');
-  L.push('   python3 local_server/knowledge/legal/_dashboard/loop/collect_pending_law.py --all-approved');
-  L.push('   python3 local_server/knowledge/legal/_dashboard/loop/collect_pending_law.py --verify');
-  L.push('   ```');
-  L.push('   승인 상태는 실서비스에 있고 작업 컴퓨터 사본은 뒤처질 수 있다 — `--all-approved` 가 0건을 잡으면');
-  L.push('   위 표의 큐 id 를 하나씩 인자로 줘서 받는다(`collect_pending_law.py <id>`).');
+  for (const ln of collectStepLines()) L.push(ln);
   L.push(`2. **위 1번의 건별 위키 목록을 하나씩 열어**, 그 건의 개정 전/후를 대조해 고칠 자리를 찾는다.`);
   L.push('   근거 조문 표의 **법령 칸·조문 칸은 게이트가 그 칸으로 원문을 여는 자리**라 규약대로 적는다.');
   if (anyFuture) {
@@ -467,10 +513,14 @@ function buildBulkWikiBrief(list, today) {
   L.push('- 원문이 정하지 않은 것(해석 다툼)은 단정하지 말고 `⚠REVIEW` 로 남긴다.');
   L.push('- 시행일이 지난 뒤에는 `_dashboard/loop/fold_effective.py` 가 마커를 평문으로 접는다(그때 조문 번호 재편은 사람이 표를 고친다).');
   L.push('- **한 건 끝낼 때마다 검사를 돌린다.** 여러 건을 몰아서 고친 뒤 한꺼번에 돌리면 어느 건이 숫자를 떨어뜨렸는지 못 가른다.');
+  L.push('');
+  L.push('## 수집 목록 (기계가 읽는 칸 — 고치지 말 것)');
+  L.push('');
+  for (const ln of collectManifest(rows)) L.push(ln);
 
   return { ok: true, text: L.join('\n'), count: rows.length, detailed: detail.length, listed: brief.length, pages: pageCount };
 }
 
 // bodyMentions·articleCellHas 는 **검사(scripts/test_wiki_brief_bulk.js)가 직접 붙잡으려고** 함께 내보낸다.
 // 이 둘이 지시문의 오탐/누락을 결정하는 자리라, 실제 위키 없이도 규칙을 고정해 둔다.
-module.exports = { buildWikiBrief, buildBulkWikiBrief, candidatePages, articleLabel, bodyMentions, articleCellHas };
+module.exports = { buildWikiBrief, buildBulkWikiBrief, candidatePages, articleLabel, bodyMentions, articleCellHas, collectManifest };

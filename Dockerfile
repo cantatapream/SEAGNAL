@@ -51,12 +51,18 @@ ENV TZ=Asia/Seoul
 #   law.go.kr 인증서는 정상이다(GlobalSign Root R3 — Mozilla·Apple 저장소 신뢰). 우리 쪽에 저장소가 없었을 뿐이다.
 #   ⚠검증을 끄는 것으로 「고치지」 않는다 — 저장소를 넣는다.
 #   마지막 줄은 **저장소가 비어 있으면 빌드를 멈춘다**(망 없이 센다) — 같은 일이 조용히 되풀이되지 않게.
+#
+# ★`curl` 도 넣는다 (2026-10-07 · 3-83). 원문결손 점검의 `admrul_annex_survey.py` 가 끊김에 강한
+#   `curl --retry-all-errors` 로 law.go.kr 을 부르는데, 이 이미지에 curl 이 없어 첫 호출에서
+#   `FileNotFoundError: 'curl'` 로 죽었다(관리자 화면 「고시 별표: Traceback …」). 그 자는 이제 curl 이 없으면
+#   파이썬 내장으로 부르지만, 운영도 개발 컨테이너와 같은 길(curl)로 가게 한다(L-403).
 # ----------------------------------------------------------------------------
-RUN apt-get update && apt-get install -y --no-install-recommends tzdata python3 ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata python3 ca-certificates curl \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/* \
     && python3 --version \
+    && curl --version | head -1 \
     && python3 -c "import ssl; n = ssl.create_default_context().cert_store_stats()['x509_ca']; print('python CA', n); assert n > 50, 'python 인증서 저장소가 비었다 — ca-certificates'"
 
 WORKDIR /app

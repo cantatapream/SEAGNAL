@@ -6,7 +6,9 @@
 
 쓰는 법:
     python3 collect_pending_law.py <큐항목id> [<id>…]     그 항목만
-    python3 collect_pending_law.py --all-approved          큐에서 status=approved 인 law_pending 전부(기본 절차)
+    python3 collect_pending_law.py --all-approved          큐에서 status=approved 인 law_pending 전부
+      ⚠**승인분 전체(시행 중 법령·행정규칙 포함)는 `collect_approved.py` 가 받는다**(3-82 · 2026-10-07).
+        이 자는 시행예정 법령(`law_pending`)만 다룬다 — 그 밖의 승인분은 `⏭️ 대상 아님` 이었다.
     python3 collect_pending_law.py --all-pending           status=pending 까지(승인 전 미리 받아 볼 때)
     python3 collect_pending_law.py --verify [--prune]      받아 둔 대기본이 아직 유효한가(연기·철회·dismissed·이미 현행)
     python3 collect_pending_law.py --status                대기본별로 위키 마커 준비 상태(사서가 고쳤나)
@@ -339,6 +341,11 @@ def main(argv):
     if not qp:
         print('큐 파일 없음:', QUEUE_CANDIDATES); return 2
     items = [i for i in q.get('items', []) if i.get('kind') == 'law_pending']
+    other = [i for i in q.get('items', []) if i.get('kind') != 'law_pending' and i.get('status') == 'approved']
+    if other and '--all-approved' in flags:
+        # 3-82: 이 자가 안 받는 승인분이 있다는 것을 **말한다**(종전에는 조용히 0건이었다).
+        print(f'⚠ 승인분 중 {len(other)}건은 시행예정 법령이 아니라 이 자가 받지 않는다 — '
+              f'collect_approved.py --all-approved 로 받아라', flush=True)
     if '--all-approved' in flags:
         targets = [i for i in items if i.get('status') == 'approved']
     elif '--all-pending' in flags:
