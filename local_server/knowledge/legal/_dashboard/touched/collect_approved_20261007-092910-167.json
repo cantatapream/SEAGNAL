@@ -1,0 +1,9 @@
+{
+ "script": "collect_approved",
+ "stamp": "20261007-092910-167",
+ "files": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법/행정규칙/(해양경찰청)범죄수사규칙.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/해양경비법/행정규칙/해양경찰무인비행장치운용및관리에관한규칙.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/유역관리업무지침.txt"
+ ]
+}

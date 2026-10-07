@@ -1035,8 +1035,10 @@ router.get('/api/legal/amendments/scan-progress', adminAuth.requireAdminToken, (
 // detect_law_changes.py, 실측 3~4분 소요) 백그라운드 시작. HTTP 응답을 그만큼 붙들면
 // 리버스 프록시·브라우저 타임아웃 위험이라 완료를 기다리지 않고 즉시 응답(started:true) —
 // 클라는 잠시 후 새로고침해 결과를 확인한다.
+// days(선택, 3-84): 「60일 따라잡기」 — 탐지가 여러 날 실패한 뒤 그 사이 공포분을 한 번에 다시 본다(최대 60).
 router.post('/api/legal/amendments/scan-now', adminAuth.requireAdminToken, (req, res) => {
-  const r = amendmentScanner.startAmendmentScan();
+  const days = Number((req.body && req.body.days) || 0) || undefined;
+  const r = amendmentScanner.startAmendmentScan(days ? { days } : undefined);
   res.status(r.ok ? 200 : 409).json(r);
 });
 

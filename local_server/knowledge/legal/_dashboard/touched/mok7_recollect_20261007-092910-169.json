@@ -1,0 +1,24 @@
+{
+ "script": "mok7_recollect",
+ "stamp": "20261007-092910-169",
+ "files": [
+  "local_server/knowledge/legal/_legacy/공직자의이해충돌방지법/20220519/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/공직자의이해충돌방지법/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/공직자의이해충돌방지법/_meta.json",
+  "local_server/knowledge/legal/_legacy/항만운송사업법/20231221/시행령.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/시행령.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/_meta.json",
+  "local_server/knowledge/legal/_legacy/산지관리법/20260528/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/산지관리법/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/산지관리법/_meta.json",
+  "local_server/knowledge/legal/_legacy/자동차손해배상보장법/20260324/시행령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/자동차손해배상보장법/시행령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/자동차손해배상보장법/_meta.json",
+  "local_server/knowledge/legal/_legacy/공유재산및물품관리법/20260701/시행령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/공유재산및물품관리법/시행령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/공유재산및물품관리법/_meta.json",
+  "local_server/knowledge/legal/_legacy/하천법/20260701/시행령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/하천법/시행령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/하천법/_meta.json"
+ ]
+}

@@ -1,0 +1,19 @@
+{
+ "ran_at": "2026-10-07 10:23 KST",
+ "source": "인계문 /tmp/claude-0/-home-user-Link-One/5a176a42-85e6-5042-a62f-e73852f552dd/scratchpad/brief/amend44.md",
+ "summary": {
+  "법령": {
+   "수집": 1
+  }
+ },
+ "results": [
+  {
+   "id": "chg_20260810_1d3c3e",
+   "kind": "law_pending",
+   "layer": "법률",
+   "title": "연안사고 예방에 관한 법률",
+   "status": "수집",
+   "note": "✓ 수집 연안사고예방에관한법률 법률 시행 20270513 MST 285973 → local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/_대기/20270513/법률.txt (14,021자)"
+  }
+ ]
+}

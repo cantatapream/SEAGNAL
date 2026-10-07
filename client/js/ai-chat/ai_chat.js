@@ -1742,7 +1742,10 @@
   function renderAmendCards(host) {
     if (!host) return;
     var SCAN_LABEL = '🔍 지금 스캔 (백그라운드 · 완료까지 3~4분)';
-    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:8px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
+    // ⏪따라잡기(3-84): 스캔이 여러 날 실패한 뒤, 그 사이 공포분은 「최근 N일」 창 밖이라 안 보인다 — 60일을 한 번에 본다.
+    var CATCHUP_LABEL = '⏪ 60일 따라잡기';
+    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:8px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button>' +
+      '<button class="nrya-btn-brief" id="nryaAmendCatchupBtn" type="button" title="스캔이 며칠 실패했다면 그 사이 바뀐 것까지 60일을 다시 봅니다(더 오래 걸림)" style="flex:0 0 auto;margin:0;padding:8px 16px;white-space:nowrap">' + CATCHUP_LABEL + '</button></div>' +
       // ★일괄 처리 줄(2026-09-10 사용자 요청). 전체 승인은 **누르기 전에 무엇이 벌어지는지 먼저 보여준다**.
       '<div class="nrya-rv-actions" style="margin-bottom:10px">' +
         '<button class="nrya-btn-ok" id="nryaAmendAllBtn" style="flex:1 1 auto;padding:8px 16px;white-space:nowrap">✓ 전체 승인</button>' +
@@ -1759,10 +1762,13 @@
     }).then(function (d) { if (d && d.ok && d.running) startScanGauge(); }).catch(function () {});
     var scanBtn = document.getElementById('nryaAmendScanBtn');
     var scanErr = document.getElementById('nryaAmendScanErr');
-    if (scanBtn) scanBtn.onclick = function () {
+    var catchupBtn = host.querySelector('#nryaAmendCatchupBtn');
+    if (catchupBtn) catchupBtn.onclick = function () { runScan({ days: 60 }); };
+    if (scanBtn) scanBtn.onclick = function () { runScan({}); };
+    function runScan(body) {
       if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
       scanBtn.disabled = true; scanBtn.textContent = '스캔 시작 중…';
-      legalPost('/api/legal/amendments/scan-now', {}).then(function (res) {
+      legalPost('/api/legal/amendments/scan-now', body).then(function (res) {
         if (res.status === 401 || res.status === 403) return { _denied: true };
         return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
       }).then(function (data) {
@@ -1772,7 +1778,7 @@
         // started:true — 백그라운드에서 계속 진행 중. 게이지 바를 띄우고 2초마다 진행률을 물어본다.
         startScanGauge();
       }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
-    };
+    }
     loadAmendList();
   }
 

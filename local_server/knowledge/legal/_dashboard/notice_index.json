@@ -326,6 +326,9 @@
  "(해양경찰청)긴급구조지원기관능력평가에관한규정.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
  ],
+ "(해양경찰청)범죄수사규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법"
+ ],
  "(해양수산부)갯벌생태관광의인증에관한규정.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/갯벌및그주변지역의지속가능한관리와복원에관한법률"
  ],
@@ -1925,6 +1928,9 @@
  "유류오염사고피해주민손해보전의지원에관한규정.txt": [
   "local_server/knowledge/legal/raw/14_해양사법/유류오염손해배상보장법"
  ],
+ "유역관리업무지침.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
+ ],
  "유전자변형농수산물표시위반신고포상금지급요령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
@@ -2446,6 +2452,9 @@
  ],
  "해양경찰구조대운영규칙.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
+ ],
+ "해양경찰무인비행장치운용및관리에관한규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/해양경비법"
  ],
  "해양경찰청명예해양환경감시원운영규칙.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
