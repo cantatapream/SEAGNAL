@@ -150,6 +150,15 @@ def _file_eff(path):
         return '00000000'
 
 
+def _indent_of(raw):
+    """JSON 글의 들여쓰기 칸 수(둘째 줄 앞 공백). 못 읽으면 2."""
+    for ln in str(raw).split('\n')[1:3]:
+        n = len(ln) - len(ln.lstrip(' '))
+        if n:
+            return n
+    return 2
+
+
 def fold_raw(today, dry, touched, ids, allow_unapproved=False):
     idx = cpl.build_index()
     n = skipped = 0
@@ -157,9 +166,11 @@ def fold_raw(today, dry, touched, ids, allow_unapproved=False):
         base = os.path.join(REPO, key)
         meta_p = os.path.join(base, '_meta.json')
         try:
-            meta = json.load(open(meta_p, encoding='utf-8'))
+            meta_raw = open(meta_p, encoding='utf-8').read()
+            meta = json.loads(meta_raw)
         except Exception:
-            meta = None
+            meta_raw, meta = '', None
+        meta_changed = False
         for e in sorted(ents, key=lambda x: x['date']):       # 앞 시행일부터 차례로 — 뒤 판이 앞 판을 덮는다
             d = e['date']
             if d > today:
@@ -209,13 +220,18 @@ def fold_raw(today, dry, touched, ids, allow_unapproved=False):
                     if layer == '법률':
                         meta['시행일'] = d
                     meta['예고본승격'] = f"{time.strftime('%Y-%m-%d')} {layer} MST {old_mst}→{new_mst} 시행 {d} (fold_effective.py)"
+                    meta_changed = True
                 n += 1
             if not dry:
                 if os.path.isdir(ddir) and not [f for f in os.listdir(ddir) if f.endswith('.txt')]:
                     shutil.rmtree(ddir)
                     print(f'   폴더 정리 {os.path.relpath(ddir, REPO)}')
-        if meta is not None and not dry:
-            json.dump(meta, open(meta_p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+        # ★바뀐 것이 있을 때만, **원래 들여쓰기 그대로** 쓴다 (2026-10-07, 3-84).
+        #   종전에는 대기본이 있는 법의 _meta.json 을 **승격이 없어도** indent=2 로 다시 써서,
+        #   내용은 같은데 줄 수천 개가 바뀐 diff 가 생겼다(노인복지법·폐기물관리법 실측 — 되돌렸다).
+        if meta is not None and meta_changed and not dry:
+            open(meta_p, 'w', encoding='utf-8').write(
+                json.dumps(meta, ensure_ascii=False, indent=_indent_of(meta_raw)))
             touched.add(meta_p)
     if skipped:
         print(f'\n⏸ 승인 전이라 건너뛴 층 {skipped}개 — 관리자 화면 "개정검토"에서 승인한 뒤 다시 돌린다.')

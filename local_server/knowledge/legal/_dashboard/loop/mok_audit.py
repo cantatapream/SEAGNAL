@@ -175,24 +175,9 @@ def api_mok_count(mst, lid=None):
 
 rows, no_answer, not_found, excerpt = [], [], [], []
 
-# ★"이 파일은 일부러 일부만 받아온 것"이라고 스스로 밝힌 표시(2026-08-23 신설).
-#   `raw/15_관련타부처/` 밑에는 다른 부처 법을 **연결된 조문만** 발췌한 파일이 많다.
-#   원본 전체와 목 개수를 비교하면 당연히 모자라므로 "누락"으로 잡히는데, 이건 결함이 아니라
-#   의도된 설계다. 실측: 첫 전수 실행에서 누락 68건 중 66건이 이 경우였고, 사람이 파일을
-#   하나씩 열어 머리말을 읽고 걸러 냈다. 그 판단을 도구가 대신하게 한다.
-#   ⚠표시가 없는 발췌본은 여전히 못 가른다 — 그건 누락으로 잡히고 사람이 봐야 한다.
-EXCERPT_MARK = re.compile(
-    r'부분\s*수집|발췌\s*수집|\[발췌|연결\s*조문만|전체를\s*편입하지\s*않|일부만\s*수집|해당\s*조문만')
+# 발췌본 판정은 `_excerpt.py` 한 곳에 있다(3-85) — 시험이 같은 자를 불러 쓴다.
+from _excerpt import excerpt_reason, is_excerpt   # noqa: E402
 
-
-def is_excerpt(path):
-    """파일 머리말(앞 12줄)이 '나는 발췌본이다'라고 밝히고 있나."""
-    try:
-        with open(path, encoding='utf-8') as f:
-            head = ''.join(next(f, '') for _ in range(12))
-    except Exception:
-        return False
-    return bool(EXCERPT_MARK.search(head))
 
 
 metas = sorted(glob.glob(os.path.join(RAW, '*', '*', '_meta.json')))
@@ -266,7 +251,10 @@ for i, (law, kind, mst, p, lid) in enumerate(targets, 1):
                'api_mok': theirs, 'raw_mok': ours, 'missing': theirs - ours,
                'spots': spots[:12]}
         # 스스로 발췌본이라 밝힌 파일은 "모자란 것"이 정상이다 — 결함 목록과 갈라 담는다.
-        exc = is_excerpt(p)
+        why = excerpt_reason(p)
+        exc = bool(why)
+        if exc:
+            rec['excerpt_why'] = why
         (excerpt if exc else rows).append(rec)
         _note(dict(rec, _key=key, _verdict='excerpt' if exc else 'missing'))
     else:
