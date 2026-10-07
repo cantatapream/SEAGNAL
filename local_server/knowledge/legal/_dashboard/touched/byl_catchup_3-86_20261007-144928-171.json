@@ -1,0 +1,19 @@
+{
+ "script": "byl_catchup_3-86",
+ "stamp": "20261007-144928-171",
+ "files": [
+  "local_server/knowledge/legal/_legacy/항만운송사업법/20231221/별표/시행령_별표6.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/별표/시행령_별표6.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/별표/_links.json",
+  "local_server/knowledge/legal/_legacy/자동차손해배상보장법/20260324/별표/별표5.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/자동차손해배상보장법/별표/별표5.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/자동차손해배상보장법/별표/_links.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/하천법/별표/시행령_별표3.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/하천법/별표/시행령_별표6.txt",
+  "local_server/knowledge/legal/_legacy/하천법/20260701/별표/별표3의2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/하천법/별표/별표3의2.txt",
+  "local_server/knowledge/legal/_legacy/하천법/20260701/별표/별표4.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/하천법/별표/별표4.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/하천법/별표/_links.json"
+ ]
+}

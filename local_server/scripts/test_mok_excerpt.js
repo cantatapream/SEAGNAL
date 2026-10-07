@@ -13,6 +13,7 @@
  *  X5 ⚠머리말에 「발췌」 낱말만 있는 **전문**(옛 내력 설명)은 발췌가 아니다 · 「전문 수집」 은 위 넷을 이긴다
  *  X6 진짜 빈 전문(표시 없음)은 발췌가 아니다 — 결함으로 남는다
  *  X7 mok_audit.py 가 이 자를 쓰고 까닭(excerpt_why)을 남긴다 · 함께 고친 도구 옵션 셋(정적)
+ *  X8 별표를 안 바꾸는 재수집(byl=False)도 원문과 다른 별표를 찾아 기록한다(3-86 — 그 사이 바뀐 별표 6개를 놓쳤다)
  *
  * [연계] ← scripts/refactor/verify_all.sh SUITES
  *        → _dashboard/loop/_excerpt.py · mok_audit.py · fold_effective.py · recollect_tier.py · collect_approved.py
@@ -83,6 +84,8 @@ ok('X7 fold_effective.py 는 승격이 있을 때만, 원래 들여쓰기로 _me
   /if meta is not None and meta_changed and not dry:/.test(read('fold_effective.py')) && /_indent_of\(meta_raw\)/.test(read('fold_effective.py')));
 ok('X7 recollect_tier.do_one 에 byl=False(별표 그대로)·force=True(같은 판 다시) 옵션',
   /def do_one\([^)]*byl=True, force=False\)/.test(read('recollect_tier.py')) && /if byl and byl_units:/.test(read('recollect_tier.py')) && /and not force:/.test(read('recollect_tier.py')));
+ok('X8 byl=False 재수집도 바뀐 별표를 찾아 적는다(byl_changed → byl_skipped_changed · 쓰지 않는다)(3-86)',
+  /def byl_changed\(law, tier, bdir\)/.test(read('recollect_tier.py')) && /if not byl and byl_units:\s*\n[\s\S]{0,400}rec\['byl_skipped_changed'\] = byl_changed\(law, tier, bdir\)/.test(read('recollect_tier.py')));
 ok('X7 collect_approved.py --force 가 예고본 재수집까지 이어진다', /'--force' in flags/.test(read('collect_approved.py')) && /CPL\.collect_item, item, touched, force/.test(read('collect_approved.py')));
 
 fs.rmSync(TMP, { recursive: true, force: true });
