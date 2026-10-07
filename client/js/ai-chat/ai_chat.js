@@ -1744,8 +1744,10 @@
     var SCAN_LABEL = '🔍 지금 스캔 (백그라운드 · 완료까지 3~4분)';
     // ⏪따라잡기(3-84): 스캔이 여러 날 실패한 뒤, 그 사이 공포분은 「최근 N일」 창 밖이라 안 보인다 — 60일을 한 번에 본다.
     var CATCHUP_LABEL = '⏪ 60일 따라잡기';
-    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:8px"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button>' +
-      '<button class="nrya-btn-brief" id="nryaAmendCatchupBtn" type="button" title="스캔이 며칠 실패했다면 그 사이 바뀐 것까지 60일을 다시 봅니다(더 오래 걸림)" style="flex:0 0 auto;margin:0;padding:8px 16px;white-space:nowrap">' + CATCHUP_LABEL + '</button></div>' +
+    //   ⚠`.nrya-btn-brief` 는 width:100% 라 긴 「지금 스캔」 옆에 두면 상자 밖으로 밀려 잘린다(2026-10-07 사장님 「버튼이 안 보인다」 —
+    //   폰 폭 390px 실측: 버튼이 342px 에서 시작해 670px 까지, 글자가 통째로 화면 밖). 폭을 풀고 줄이 좁으면 다음 줄로 내린다.
+    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:8px;flex-wrap:wrap"><button class="nrya-btn-ok" id="nryaAmendScanBtn" style="flex:1 1 auto;padding:8px 16px">' + SCAN_LABEL + '</button>' +
+      '<button class="nrya-btn-brief" id="nryaAmendCatchupBtn" type="button" title="스캔이 며칠 실패했다면 그 사이 바뀐 것까지 60일을 다시 봅니다(더 오래 걸림)" style="flex:1 1 auto;width:auto;margin:0;padding:8px 16px;white-space:nowrap">' + CATCHUP_LABEL + '</button></div>' +
       // ★일괄 처리 줄(2026-09-10 사용자 요청). 전체 승인은 **누르기 전에 무엇이 벌어지는지 먼저 보여준다**.
       '<div class="nrya-rv-actions" style="margin-bottom:10px">' +
         '<button class="nrya-btn-ok" id="nryaAmendAllBtn" style="flex:1 1 auto;padding:8px 16px;white-space:nowrap">✓ 전체 승인</button>' +
