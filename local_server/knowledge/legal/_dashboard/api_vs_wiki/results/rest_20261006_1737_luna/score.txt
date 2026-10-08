@@ -1,0 +1,53 @@
+결과 폴더: /home/ubuntu/projects/avw/local_server/knowledge/legal/_dashboard/api_vs_wiki/results/rest_20261006_1737_luna
+
+■ A 지금 챗봇(위키) — 30문항
+  답변 글 기준: hit 21 · partial 4 · miss_art 1 · miss 4 · clarify 0 · no_answer 0 · skipped 0
+  hit 비율 70% (hit+partial 83%) — 잰 30문항 기준
+  평균 30.0초 · 평균 토큰 입력 0 / 출력 0 · 문항당 약 $0.0000
+  (참고) 근거 목록 기준 hit 23/30 · 되묻기 평균 0.2회
+  층별 hit: 법률 8/10 · 시행령 3/5 · 시행규칙 4/4 · 별표 3/8 · 행정규칙 3/3
+
+■ B 원문 직독(모아 둔 원문) — 30문항
+  답변 글 기준: hit 6 · partial 2 · miss_art 4 · miss 8 · clarify 0 · no_answer 10 · skipped 0
+  hit 비율 20% (hit+partial 27%) — 잰 30문항 기준
+  평균 15.2초 · 평균 토큰 입력 0 / 출력 0 · 문항당 약 $0.0000
+  층별 hit: 법률 3/10 · 시행령 0/5 · 시행규칙 1/4 · 별표 2/8 · 행정규칙 0/3
+
+■ C 법제처 API 만 — 30문항
+  답변 글 기준: hit 14 · partial 3 · miss_art 2 · miss 11 · clarify 0 · no_answer 0 · skipped 0
+  hit 비율 47% (hit+partial 57%) — 잰 30문항 기준
+  평균 109.7초 · 평균 토큰 입력 0 / 출력 0 · 문항당 약 $0.0000
+  법제처 API 호출 평균 15.0회 · 도구 사용 평균 8.7회 · 재시도 0회 · 끝내 실패 0회
+  층별 hit: 법률 7/10 · 시행령 2/5 · 시행규칙 2/4 · 별표 2/8 · 행정규칙 1/3
+
+문항별(A / B / C):
+  법률-03      hit / hit / hit
+  법률-04      hit / no_answer / hit
+  법률-05      hit / no_answer / partial
+  법률-06      miss / miss / hit
+  법률-07      hit / hit / hit
+  법률-08      hit / no_answer / hit
+  법률-09      hit / miss_art / hit
+  법률-10      miss_art / miss_art / miss_art
+  법률-11      hit / miss / miss
+  법률-12      hit / hit / hit
+  별표-03      partial / no_answer / miss_art
+  별표-04      hit / miss_art / hit
+  별표-05      partial / miss / miss
+  별표-06      partial / partial / partial
+  별표-07      hit / hit / miss
+  별표-08      hit / miss / hit
+  별표-09      miss / miss / miss
+  별표-10      partial / hit / partial
+  시행규칙-03    hit / miss_art / hit
+  시행규칙-04    hit / miss / miss
+  시행규칙-05    hit / no_answer / miss
+  시행규칙-06    hit / hit / hit
+  시행령-03     miss / no_answer / miss
+  시행령-04     hit / no_answer / miss
+  시행령-05     hit / no_answer / hit
+  시행령-06     miss / miss / miss
+  시행령-07     hit / partial / hit
+  행정규칙-03    hit / miss / miss
+  행정규칙-04    hit / no_answer / hit
+  행정규칙-05    hit / no_answer / miss

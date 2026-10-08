@@ -1,0 +1,17 @@
+결과 폴더: /home/ubuntu/projects/avw/local_server/knowledge/legal/_dashboard/api_vs_wiki/results/rest_20261006_2359_luna
+
+■ A 지금 챗봇(위키) — 7문항
+  답변 글 기준: hit 4 · partial 2 · miss_art 0 · miss 1 · clarify 0 · no_answer 0 · skipped 0
+  hit 비율 57% (hit+partial 86%) — 잰 7문항 기준
+  평균 38.5초 · 평균 토큰 입력 0 / 출력 0 · 문항당 약 $0.0000
+  (참고) 근거 목록 기준 hit 5/7 · 되묻기 평균 0.4회
+  층별 hit: 법률 0/1 · 시행령 1/1 · 시행규칙 2/2 · 별표 0/1 · 행정규칙 1/2
+
+문항별(A / B / C):
+  법률-10      partial / - / -
+  별표-03      partial / - / -
+  시행규칙-03    hit / - / -
+  시행규칙-04    hit / - / -
+  시행령-04     hit / - / -
+  행정규칙-03    hit / - / -
+  행정규칙-05    miss / - / -

@@ -1,0 +1,60 @@
+# 위키 vs 법제처 API 직접 방식 비교 실험 실행 (local_server/knowledge/legal/_dashboard/api_vs_wiki/README.md)
+#
+# [왜 GitHub 에서 도나] 실험에는 Gemini 키가 필요한데, 작업 세션 환경에는 없고 이 저장소의
+#   깃허브 시크릿(`GEMINI_API_KEY_26_8`)에만 있다. 사용자 확정(2026-10-06): *"해당 키로 그냥 바로
+#   진행해줘. 26_8로"* · *"방법 1 허락함."*(비밀값을 쓰는 실험용 자동 실행 파일을 만들어 올리는 것).
+#   운영 키와 같은 키라 사용 한도를 나눠 쓴다 — 한도 소진은 score.py 가 skipped 로 따로 센다.
+# [운영 영향] 운영 서버(fly.dev)를 부르지 않는다. run.sh 가 임시 git worktree 에서만 돌린다.
+#   이 실행이 저장소에 쓰는 것은 결과 폴더(_dashboard/api_vs_wiki/results/) 하나뿐이다.
+# [언제 도나] 같은 폴더의 run_request.json 이 바뀐 push 에서만(set: pilot|main, arms: "a b c").
+#   다른 push·PR 에서는 돌지 않는다.
+name: 위키 vs API 비교 실험
+on:
+  push:
+    branches:
+      - 'claude/**'
+    paths:
+      - 'local_server/knowledge/legal/_dashboard/api_vs_wiki/run_request.json'
+permissions:
+  contents: write
+concurrency:
+  group: api-vs-wiki-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GEMINI_API_KEY_26_8: ${{ secrets.GEMINI_API_KEY_26_8 }}
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+      - name: Node 20 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: local_server/package-lock.json
+      - name: 서버 의존성 설치
+        working-directory: local_server
+        run: npm ci --no-audit --no-fund
+      - name: 법제처 연결 확인(기록만 — 해외 서버에서 막히는지 본다)
+        run: |
+          curl -sS -m 30 -o /dev/null -w "law.go.kr HTTP %{http_code}\n" \
+            "https://www.law.go.kr/DRF/lawSearch.do?OC=hyoo1431&target=law&type=JSON&query=%EC%96%B4%EC%84%A0%EB%B2%95" || echo "law.go.kr 연결 실패"
+      - name: 실험 실행
+        working-directory: local_server/knowledge/legal/_dashboard/api_vs_wiki
+        run: |
+          SET=$(python3 -c "import json;print(json.load(open('run_request.json'))['set'])")
+          ARMS=$(python3 -c "import json;print(json.load(open('run_request.json')).get('arms','a b c'))")
+          ARMS="$ARMS" AVW_TREE="$RUNNER_TEMP/avw_tree" bash run.sh "$SET"
+      - name: 결과 커밋
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- local_server/knowledge/legal/_dashboard/api_vs_wiki/results
+          git diff --cached --quiet && { echo "결과 없음"; exit 0; }
+          git commit -m "api_vs_wiki 실험 결과 (Actions run ${{ github.run_id }})"
+          for i in 1 2 3 4; do git pull --rebase -q origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}" && exit 0; sleep $((2**i)); done
+          exit 1
