@@ -224,6 +224,47 @@ function reopenStillMissing(entries, file = QUEUE_FILE) {
   return back;
 }
 
+/**
+ * ★대기 카드 중 **이번 점검에서 더는 누락으로 나오지 않은 것**을 자동으로 닫는다 (3-88).
+ * @param {object[]} entries 이번 점검이 누락으로 판정한 행 전부(목·별표)
+ * @param {{mokOk:boolean, annexOk:boolean, noAnswer:string[], annexFailed:string[], excerpt:object[]}} ctx
+ *   mokOk/annexOk: 그쪽 점검이 실제로 답을 받았나(실패한 쪽 카드는 건드리지 않는다)
+ *   noAnswer: 원본을 못 받은 계열 라벨(`법 계층 (MST=…)`) · annexFailed: 조회 실패한 고시 이름
+ *   excerpt: 발췌본으로 판정된 행(닫는 까닭에 적는다)
+ * @param {string} [file] 큐 파일(테스트가 임시 파일을 준다)
+ * @returns {string[]} 닫은 카드 id
+ * [왜] 2026-10-08 사장님 「72장을 하나씩 누를 필요가 있겠어?」 — 점검 규칙을 고쳐(3-85) 65건이
+ *   더는 누락이 아닌데도 카드는 사람이 누를 때까지 대기로 남았다. 다시 띄우는 쪽(reopenStillMissing)만
+ *   있고 닫는 쪽이 없었다. **원본을 못 받아 판정 못 한 카드는 닫지 않는다** — 「모른다」 를 「해소」 로 읽지 않는다.
+ */
+function autoResolveCleared(entries, ctx, file = QUEUE_FILE) {
+  const now = new Set(entries.map((e) => e.id));
+  const nowTitle = new Set(entries.filter((e) => e.kind === '조문 목 누락').map((e) => e.title));
+  const unknown = new Set((ctx.noAnswer || []).map((l) => String(l).replace(/\s*\(MST=[^)]*\)\s*$/, '').trim()));
+  const annexFailed = new Set((ctx.annexFailed || []).map((x) => String(typeof x === 'string' ? x : (x.name || x.title || '')).trim()));
+  const excerptWhy = new Map((ctx.excerpt || []).map((r) => [String(r.file || ''), r.excerpt_why || '발췌본']));
+  const closed = [];
+  for (const cur of adminQueues.readJsonl(file)) {
+    if (!cur || !cur.id || (cur.status || 'pending') !== 'pending' || now.has(cur.id)) continue;
+    const isMok = cur.kind === '조문 목 누락';
+    if (isMok ? !ctx.mokOk : !ctx.annexOk) continue;            // 그쪽 점검이 실패했으면 모른다
+    if (isMok && unknown.has(String(cur.title || '').trim())) continue;   // 원본을 못 받은 계열
+    if (!isMok && annexFailed.has(String(cur.title || '').trim())) continue;
+    const f = (cur.files || [])[0] || '';
+    let why;
+    if (isMok && nowTitle.has(cur.title)) why = '같은 자리가 빠진 수가 달라져 새 카드로 다시 올라왔다';
+    else if (isMok && excerptWhy.has(f)) why = `발췌본으로 판정됐다(${excerptWhy.get(f)}) — 모자란 것이 정상`;
+    else why = '이번 점검에서 누락으로 나오지 않았다';
+    adminQueues.updateJsonlById(file, cur.id, {
+      status: 'done', decidedBy: '자동(점검)', decidedAt: new Date().toISOString(),
+      auto_resolved: true, resolve_reason: why,
+    });
+    closed.push(cur.id);
+  }
+  if (closed.length) console.log(`[MokAudit] 더는 누락이 아닌 대기 카드 ${closed.length}건을 자동으로 닫았습니다.`);
+  return closed;
+}
+
 /** 마지막 점검 결과를 기록한다 — 화면 위에 "언제 검사했고 어떻게 끝났나"를 보여주기 위해. */
 function writeStatus(obj) {
   try {
@@ -310,17 +351,30 @@ async function runMokAuditScan() {
     const fresh = entries.filter((e) => !known.has(e.id));
     for (const e of fresh) adminQueues.appendJsonl(QUEUE_FILE, e);
     const reopened = reopenStillMissing(entries.filter((e) => known.has(e.id)));
+    const resolved = autoResolveCleared(entries, {
+      mokOk: !!rep && !errors.some((m) => m.startsWith('조문 목')),
+      annexOk: !!arep && !errors.some((m) => m.startsWith('고시 별표')),
+      noAnswer: (rep && rep.no_answer) || [],
+      annexFailed: arep ? [].concat(arep['실패'] || [], arep['ID없음'] || []) : [],
+      excerpt: (rep && rep.excerpt_ok) || [],
+    });
 
     const st = { ok: true, startedAt, finishedAt: new Date().toISOString(),
       checked, missing: entries.length, missing_moks: missingMoks,
       no_answer: noAnswer, excerpt_ok: excerptOk, file_not_found: notFound,
       annex_missing: annexMissing, annex_short: annexShort, annex_unknown: annexFail,
-      added: fresh.length, reopened: reopened.length,
+      added: fresh.length, reopened: reopened.length, resolved: resolved.length,
       // 한쪽만 실패했으면 ok:true 로 두되 **무엇을 못 봤는지 반드시 남긴다.**
       partialError: errors.length ? errors.join(' / ') : null, error: null };
     writeStatus(st);
     if (errors.length) console.error('[MokAudit] 일부 점검 실패:', st.partialError);
 
+    if (resolved.length && !fresh.length && !reopened.length) {
+      try {
+        await require('./admin_push').sendAdminPush(`나리야 원문 결손 — 해소된 카드 ${resolved.length}건 자동 정리`,
+          `이번 점검에서 더는 누락으로 나오지 않은 대기 카드 ${resolved.length}건을 자동으로 닫았습니다.`, { type: 'mok_audit_resolved', count: String(resolved.length) });
+      } catch (e) { console.error('[MokAudit] 관리자 푸시 실패:', e && e.message); }
+    }
     if (fresh.length || reopened.length) {
       const names = fresh.slice(0, 3).map((e) => e.title);
       const more = fresh.length > 3 ? ` 외 ${fresh.length - 3}건` : '';
@@ -359,5 +413,5 @@ function startMokAuditScan() {
 module.exports = {
   runMokAuditScan, startMokAuditScan, readStatus,
   QUEUE_FILE, MOK_REPORT_FILE, ANNEX_REPORT_FILE,
-  reopenStillMissing, toMokEntry, toAnnexEntry,
+  reopenStillMissing, autoResolveCleared, toMokEntry, toAnnexEntry,
 };

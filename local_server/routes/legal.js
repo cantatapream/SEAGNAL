@@ -1131,6 +1131,60 @@ router.post('/api/legal/mok-audit/:id/decide', adminAuth.requireAdminToken, (req
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// ============================================================================
+// 지시문을 **마크다운 파일(.md)** 로 받기 (3-88 · 사장님 2026-10-08 「지시문 전체를 텍스트가 아닌 마크다운 파일로 받을 수 있도록」)
+//   앱(Capacitor WebView)은 <a download>/blob 저장이 안 된다(admin_collect.js 의 CSV·PNG 와 같은 사정).
+//   ① POST 로 글을 잠깐 맡기고(관리자 토큰 필요) 1회용 토큰을 받는다 → ② 그 토큰 주소를 시스템 브라우저로 열면 파일이 내려온다.
+//   토큰은 추측할 수 없는 난수(crypto) · 5분 · 한 번 내려받으면 지운다 — 지시문에는 운영 큐 내용이 들어 있어서다.
+// ============================================================================
+const _briefFileStore = new Map(); // token -> { text, name, exp }
+function _briefFileName(name) {
+  const base = String(name || '').replace(/[\\/:*?"<>|\r\n]+/g, '_').trim().slice(0, 80) || 'nariya_brief';
+  return /\.md$/i.test(base) ? base : base + '.md';
+}
+router.post('/api/legal/brief-file', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const text = String((req.body && req.body.text) || '');
+    if (!text.trim()) return res.status(400).json({ ok: false, error: '지시문이 비어 있습니다.' });
+    const now = Date.now();
+    for (const [k, v] of _briefFileStore) if (v.exp < now) _briefFileStore.delete(k);
+    const token = require('crypto').randomBytes(18).toString('hex');
+    _briefFileStore.set(token, { text, name: _briefFileName(req.body && req.body.name), exp: now + 5 * 60 * 1000 });
+    res.json({ ok: true, token, name: _briefFileStore.get(token).name });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+// GET /api/legal/brief-file/:token — 시스템 브라우저가 연다(관리자 머리글을 실을 수 없으므로 토큰이 곧 권한이다).
+router.get('/api/legal/brief-file/:token', (req, res) => {
+  const item = _briefFileStore.get(req.params.token);
+  if (!item || item.exp < Date.now()) {
+    _briefFileStore.delete(req.params.token);
+    return res.status(404).type('text/plain; charset=utf-8').send('파일이 만료되었거나 이미 내려받았습니다. 관리자 화면에서 다시 눌러 주세요.');
+  }
+  _briefFileStore.delete(req.params.token);
+  res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+  res.setHeader('Content-Disposition', "attachment; filename=\"nariya_brief.md\"; filename*=UTF-8''" + encodeURIComponent(item.name));
+  res.send(item.text);
+});
+
+// POST /api/legal/mok-audit/decide-all (관리자) — body: { decision:'done'|'dismissed', ids?:[...], by? } (3-88)
+//   사장님 2026-10-08 「72장을 하나씩 누를 필요가 있겠어? 전체승인 버튼있으면 좋지않아?」 — 대기 전 건(또는 ids)을 한 번에 닫는다.
+//   ⚠닫아도 **다음 점검에서 아직 빠져 있으면 다시 대기로 돌아온다**(reopenStillMissing) — 그래서 일괄로 닫아도 놓치지 않는다.
+router.post('/api/legal/mok-audit/decide-all', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const { decision = 'done', ids = null, by = '관리자(전체 처리)' } = req.body || {};
+    if (decision !== 'done' && decision !== 'dismissed') return res.status(400).json({ ok: false, error: 'decision 은 done|dismissed' });
+    const want = Array.isArray(ids) && ids.length ? new Set(ids.map(String)) : null;
+    const at = new Date().toISOString();
+    const done = [];
+    for (const e of adminQueues.readJsonl(mokScanner.QUEUE_FILE)) {
+      if (!e || !e.id || (e.status || 'pending') !== 'pending') continue;
+      if (want && !want.has(String(e.id))) continue;
+      if (adminQueues.updateJsonlById(mokScanner.QUEUE_FILE, e.id, { status: decision, decidedBy: by, decidedAt: at })) done.push(e.id);
+    }
+    res.json({ ok: true, decided: done.length, decision, ids: done });
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
 // POST /api/legal/mok-audit/scan-now (관리자) — 정기 점검(수요일 03:00)과 별개로 즉시 1회.
 //   573계열 + 고시 824건 대조라 실측 20~40분. 완료를 기다리지 않고 즉시 응답(started:true).
 router.post('/api/legal/mok-audit/scan-now', adminAuth.requireAdminToken, (req, res) => {

@@ -1580,7 +1580,7 @@
         btn.textContent = '📋 지시문 접기';
         renderBriefBox(box, d.text,
           '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 위키 반영 작업을 이어서 할 수 있습니다. ' +
-          '고칠 위키 후보 <b>' + nfmt((d.pages || []).length) + '쪽</b>이 함께 적혀 있습니다.');
+          '고칠 위키 후보 <b>' + nfmt((d.pages || []).length) + '쪽</b>이 함께 적혀 있습니다.', '개정검토_지시문');
       }).catch(function (e) {
         btn.disabled = false; btn.textContent = LABEL;
         showCardErr(card, '네트워크 오류: ' + String(e && e.message || e));
@@ -1602,12 +1602,52 @@
    * @param {string} helpHTML - 상자 맨 위 안내 한 줄(HTML 허용 — 호출부가 만든 문장만 넣는다)
    * [연계] ← bindBriefButton(단건) · bindAmendBulk(일괄).
    */
-  function renderBriefBox(box, text, helpHTML) {
+  /**
+   * 지시문을 **마크다운 파일(.md)** 로 내려받는다 (3-88 · 사장님 2026-10-08 「텍스트가 아닌 마크다운 파일로 받을 수 있도록」).
+   * 앱(Capacitor WebView)은 blob/<a download> 저장이 안 되므로 서버에 잠깐 맡기고(1회용 토큰 · 5분)
+   * 그 주소를 시스템 브라우저로 연다 — admin_collect.js 의 CSV·PNG 저장과 같은 방식. 웹 브라우저는 blob 으로 바로 받는다.
+   * 예: downloadBriefMd('# 개정 반영 요청…', '개정검토_승인분_전체지시문') → 「개정검토_승인분_전체지시문_20261008-0912.md」
+   * @param {string} text 지시문 전문 @param {string} [name] 파일 이름 머리(날짜·시각과 .md 는 붙여 준다)
+   * @returns {Promise<{ok:boolean, error?:string}>}
+   * [연계] → POST /api/legal/brief-file · GET /api/legal/brief-file/:token
+   */
+  function downloadBriefMd(text, name) {
+    var d = new Date(), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    var fname = (name || '나리야_지시문') + '_' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + '.md';
+    var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    if (!isNative && typeof Blob !== 'undefined' && window.URL && URL.createObjectURL) {
+      try {
+        var url = URL.createObjectURL(new Blob([text], { type: 'text/markdown;charset=utf-8' }));
+        var a = document.createElement('a'); a.href = url; a.download = fname;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { try { URL.revokeObjectURL(url); } catch (_) { /* 이미 풀린 주소 — 메모리 정리라 실패해도 무해 */ } }, 1500);
+        return Promise.resolve({ ok: true });
+      } catch (_) { /* 아래 서버 중계로 */ }
+    }
+    return legalPost('/api/legal/brief-file', { text: text, name: fname }).then(function (res) {
+      if (res.status === 401 || res.status === 403) return { ok: false, error: '관리자 로그인 필요' };
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (j) {
+      if (!j || !j.ok || !j.token) return { ok: false, error: (j && j.error) || '파일을 만들지 못했습니다.' };
+      var furl = window.location.origin + '/api/legal/brief-file/' + j.token;
+      var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+      if (isNative && Browser && Browser.open) {
+        var pr = Browser.open({ url: furl });
+        if (pr && typeof pr.catch === 'function') pr.catch(function () { window.open(furl, '_blank'); });
+      } else {
+        window.open(furl, '_blank');
+      }
+      return { ok: true };
+    }).catch(function (e) { return { ok: false, error: '네트워크 오류: ' + String(e && e.message || e) }; });
+  }
+
+  function renderBriefBox(box, text, helpHTML, fileName) {
     box.dataset.loaded = '1';
     box.classList.remove('nrya-hidden');
     box.innerHTML = '<div class="nrya-brief-help">' + helpHTML + '</div>' +
       '<div class="nrya-brief-acts"><button type="button" class="nrya-btn-copy">📄 복사</button>' +
-      '<button type="button" class="nrya-btn-selall">전체 선택</button></div>' +
+      '<button type="button" class="nrya-btn-selall">전체 선택</button>' +
+      '<button type="button" class="nrya-btn-md">⬇ .md 파일</button></div>' +
       '<textarea class="nrya-brief-txt" readonly rows="14"></textarea>';
     var ta = box.querySelector('.nrya-brief-txt');
     ta.value = text || '';
@@ -1624,6 +1664,15 @@
       catch (_) { done(false); }
     };
     box.querySelector('.nrya-btn-selall').onclick = function () { ta.focus(); ta.select(); };
+    box.querySelector('.nrya-btn-md').onclick = function () {
+      var b = this;
+      b.disabled = true; b.textContent = '파일 만드는 중…';
+      downloadBriefMd(ta.value, fileName).then(function (r) {
+        b.disabled = false;
+        b.textContent = r.ok ? '✅ 받기 시작' : ('⚠ ' + (r.error || '실패'));
+        setTimeout(function () { b.textContent = '⬇ .md 파일'; }, 3000);
+      });
+    };
   }
 
   /**
@@ -1669,7 +1718,7 @@
           ' 그중 <b>' + nfmt(d.detailed) + '건</b>은 바뀐 조문까지 적혀 있고, ' +
           '<b>' + nfmt(d.listed) + '건</b>은 비교할 옛 원문이 없어 목록으로만 담았습니다. ' +
           '고칠 위키 후보는 모두 <b>' + nfmt(d.pages) + '쪽</b>입니다. ' +
-          '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 위키 반영 작업을 이어서 할 수 있습니다.');
+          '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 위키 반영 작업을 이어서 할 수 있습니다.', '개정검토_승인분_전체지시문');
       }).catch(function (e) {
         briefBtn.disabled = false; briefBtn.textContent = BRIEF_LABEL;
         fail('네트워크 오류: ' + String(e && e.message || e));
@@ -2197,8 +2246,13 @@
     if (!host) return;
     var SCAN_LABEL = '🔍 지금 점검 (백그라운드 · 완료까지 20~40분)';
     var BRIEF_LABEL = '📋 대기 전체 지시문';
-    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaMokScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button>' +
-      '<button class="nrya-btn-ok" id="nryaMokBriefBtn" style="flex:0 0 auto;padding:8px 16px">' + BRIEF_LABEL + '</button></div>' +
+    var ALL_LABEL = '✓ 전체 처리';
+    // ⚠둘 다 flex:0 0 auto 이던 때는 긴 「지금 점검」 옆에서 「대기 전체 지시문」 이 화면 밖으로 잘렸다
+    //   (2026-10-08 사장님 캡처 — 3-87 따라잡기 버튼과 같은 병). 줄을 접고 버튼이 줄을 나눠 쓴다.
+    host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:8px;flex-wrap:wrap"><button class="nrya-btn-ok" id="nryaMokScanBtn" style="flex:1 1 auto;padding:8px 16px">' + SCAN_LABEL + '</button>' +
+      '<button class="nrya-btn-ok" id="nryaMokBriefBtn" style="flex:1 1 auto;padding:8px 16px;white-space:nowrap">' + BRIEF_LABEL + '</button>' +
+      // ★「✓ 전체 처리」(3-88 · 사장님 2026-10-08 「72장을 하나씩 누를 필요가 있겠어?」) — 두 번 눌러야 실행된다(개정검토 전체 승인과 같은 방식).
+      '<button class="nrya-btn-ok" id="nryaMokAllBtn" style="flex:1 1 auto;padding:8px 16px;white-space:nowrap">' + ALL_LABEL + '</button></div>' +
       '<div class="nrya-inline-err nrya-hidden" id="nryaMokScanErr" style="display:none"></div>' +
       '<div class="nrya-brief nrya-hidden" id="nryaMokBrief"></div>' +
       '<div id="nryaMokListHost"></div>';
@@ -2209,6 +2263,42 @@
     //   다시 누르면 접는다. [연계] → GET /api/legal/mok-audit/brief-all · services/mok_brief.js
     var briefBtn = document.getElementById('nryaMokBriefBtn');
     var briefBox = document.getElementById('nryaMokBrief');
+    // ── 「✓ 전체 처리」 — 첫 클릭은 대기 건수를 물어 「N건을 처리완료로 닫습니다 — 한 번 더 누르면 실행」 으로 바꾸고,
+    //   두 번째 클릭에서 POST /api/legal/mok-audit/decide-all. 닫아도 다음 점검에서 아직 빠져 있으면 다시 뜬다(놓치지 않는다).
+    var allBtn = document.getElementById('nryaMokAllBtn');
+    var allArmed = 0;
+    function allDisarm() { allArmed = 0; if (allBtn) { allBtn.textContent = ALL_LABEL; allBtn.classList.remove('nrya-btn-danger'); } }
+    function allFail(m) { if (scanErr) { scanErr.classList.remove('nrya-hidden'); scanErr.style.display = 'block'; scanErr.textContent = m; } }
+    if (allBtn) allBtn.onclick = function () {
+      if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
+      if (allArmed) {
+        allBtn.disabled = true; allBtn.textContent = '처리하는 중…';
+        legalPost('/api/legal/mok-audit/decide-all', { decision: 'done' }).then(function (res) {
+          if (res.status === 401 || res.status === 403) return { _denied: true };
+          return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+        }).then(function (d) {
+          allBtn.disabled = false; allDisarm();
+          if (d && d._denied) { allFail('관리자 로그인 필요'); return; }
+          if (!d || !d.ok) { allFail((d && d.error) || '전체 처리에 실패했습니다.'); return; }
+          loadMokList(); refreshAdminStats();
+        }).catch(function (e) { allBtn.disabled = false; allDisarm(); allFail('네트워크 오류: ' + String(e && e.message || e)); });
+        return;
+      }
+      allBtn.disabled = true; allBtn.textContent = '세는 중…';
+      legalGet('/api/legal/mok-audit?status=pending').then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return { ok: false }; });
+      }).then(function (d) {
+        allBtn.disabled = false;
+        if (d && d._denied) { allDisarm(); allFail('관리자 로그인 필요'); return; }
+        var n = (d && d.ok && d.count) || 0;
+        if (!n) { allDisarm(); allFail('대기 중인 카드가 없습니다.'); return; }
+        allArmed = n;
+        allBtn.classList.add('nrya-btn-danger');
+        allBtn.textContent = '⚠ ' + nfmt(n) + '건 처리완료로 닫기 — 한 번 더 누르면 실행';
+        setTimeout(function () { if (allArmed === n) allDisarm(); }, 8000);   // 8초 안에 다시 안 누르면 풀린다
+      }).catch(function (e) { allBtn.disabled = false; allDisarm(); allFail('네트워크 오류: ' + String(e && e.message || e)); });
+    };
     if (briefBtn) briefBtn.onclick = function () {
       if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
       if (briefBox && !briefBox.classList.contains('nrya-hidden') && briefBox.dataset.loaded === '1') {
@@ -2228,7 +2318,7 @@
           d.text,
           '대기 <b>전 건(' + nfmt(d.count) + '건)</b>을 한 덩어리로 묶었습니다 — ' + kinds + '. ' +
           (d.excerpt ? '그중 <b>' + nfmt(d.excerpt) + '건</b>은 발췌본일 수 있어 「정말 빠졌나」부터 보라고 적었습니다. ' : '') +
-          '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 확인·재수집을 이어서 하고, 끝에 건마다 <b>처리완료/해당없음 판정표</b>를 돌려줍니다 — 그 표대로 카드 버튼을 누르시면 됩니다.');
+          '아래 글을 <b>통째로 복사해 AI에게 붙여 넣으면</b> 확인·재수집을 이어서 하고, 끝에 건마다 <b>처리완료/해당없음 판정표</b>를 돌려줍니다 — 그 표대로 카드 버튼을 누르시거나 위 <b>「✓ 전체 처리」</b> 로 한 번에 닫으면 됩니다(닫아도 아직 빠져 있으면 다음 점검에서 다시 뜨고, 해소된 카드는 점검이 끝날 때 저절로 닫힙니다).', '원문결손_대기_전체지시문');
       }).catch(function (e) {
         briefBtn.disabled = false; briefBtn.textContent = BRIEF_LABEL;
         if (scanErr) { scanErr.classList.remove('nrya-hidden'); scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); }
