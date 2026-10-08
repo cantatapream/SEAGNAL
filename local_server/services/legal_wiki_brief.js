@@ -321,6 +321,20 @@ function collectManifest(rows) {
   ];
 }
 
+/** 「다른 에이전트가 다시 읽는다」 단계의 글(단건·일괄 공통). 1단계 1-4 — 사장님 결정 D2(2026-10-08) · `_SCHEMA.md` §5-D ⓖ ⓗ.
+ *  canonical 쪽을 고치면 **고친 이가 아닌 에이전트가 바뀐 바로 그 본문**을 읽고 PASS 해야 한다 — V5-57 이 장부로 막는다.
+ *  지시문에 이 단계가 없으면 받는 쪽은 고치고 바로 검사로 넘어가 V5-57 에서 막힌다(3-90~3-92: 기계 대조를 다 통과한
+ *  쪽에서도 다른 에이전트의 읽기가 조건 문구 누락·다른 조에 붙은 의무를 찾았다). */
+function rereadStepLines() {
+  return [
+    '4-2. **다른 에이전트에게 읽힌다**(`_SCHEMA.md` §5-D ⓖ ⓗ — 고친 이가 직접 확인한 것으로 끝내지 않는다).',
+    '   고친 쪽마다 **고치지 않은 에이전트**가 바뀐 줄과 그 줄이 기대는 조문을 raw 원문과 대조한다(처음 올리는 쪽은 본문 전체).',
+    '   지적은 A(결론이 틀림)·B(범위가 넓어지거나 좁아짐)·C(오타 등)로 나누고, **원문을 열어 맞다고 확인한 것만** 고친다.',
+    '   판정을 장부에 적는다: `node local_server/knowledge/legal/_dashboard/loop/reread_ledger.js add --page <쪽> --reader <읽은이> --fixer <고친이> --verdict PASS|HOLD --scope 전체|변경분`',
+    '   HOLD 면 고치고 **또 다른** 에이전트가 읽는다(상한 4번). 시행일이 닥쳐 읽기를 미룰 때만 `--verdict 대기`(14일 안에 PASS).',
+  ];
+}
+
 /** 「원문을 먼저 받는다」 단계의 글(단건·일괄 공통). 3-82 — 법령·행정규칙을 한 명령으로. */
 function collectStepLines() {
   return [
@@ -370,6 +384,7 @@ function buildWikiBrief(am, today) {
     L.push('3. **이미 시행 중이므로 본문을 직접 고친다**(마커를 쓰지 않는다). 옛 서술을 새 서술로 바꾼다.');
   }
   L.push('4. 고친 페이지마다 「## 변경 이력」 표 끝에 한 줄 추가한다(무엇을 왜 고쳤는지, 근거 조문).');
+  for (const ln of rereadStepLines()) L.push(ln);
   L.push('5. **검사**를 돌린다. 저장소 루트에서:');
   L.push('   ```');
   L.push('   python3 local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py');
@@ -496,6 +511,7 @@ function buildBulkWikiBrief(list, today) {
     L.push('3. **전부 이미 시행 중이므로 본문을 직접 고친다**(마커를 쓰지 않는다). 옛 서술을 새 서술로 바꾼다.');
   }
   L.push('4. 고친 페이지마다 「## 변경 이력」 표 끝에 한 줄 추가한다(무엇을 왜 고쳤는지, 근거 조문).');
+  for (const ln of rereadStepLines()) L.push(ln);
   L.push('5. **검사**를 돌린다. 저장소 루트에서:');
   L.push('   ```');
   L.push('   python3 local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py');

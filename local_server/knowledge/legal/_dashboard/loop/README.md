@@ -26,7 +26,7 @@
 <!-- 자목록:자동 -->
 ### 자 목록 — 누가 부르나 (기계가 씀 · `loop_tool_census.js --index`)
 
-자 **294자루** · 게이트 **63** · 코드 **115** · 글만 **115** · 없음 **1**
+자 **297자루** · 게이트 **65** · 코드 **117** · 글만 **115** · 없음 **0**
 
 | 자 | 누가 부르나 | 무엇을 하는 자인가 |
 |---|---|---|
@@ -58,7 +58,7 @@
 | `audit_backlog_gap.py` | 코드 | 감사 파일에는 **결함으로 적혀 있는데 백로그에 안 올라온 줄**을 전수로 찾는다. |
 | `audit_fix_cell.js` | 코드 | 직전 감사 gap으로 법별 위키 content+lint 동시수정(H-7). 자기 법 파일만=병렬안전. |
 | `audit_sim.js` | 코드 | 위키 커버리지 감사(3차+): 법별 600문항(해양경찰관·일반인·해양종사자 3페르소나, 직전 미흡분 재질문+신규)→위키만으로 답변 시도→구멍 분류 |
-| `auto_promote.js` | 글만 | 비민감 draft 개념을 canonical로 자동 승급(민감·⚠REVIEW·OCR판독은 draft 유지=B안) |
+| `auto_promote.js` | 글만 | ⛔**폐기(2026-10-08, 1단계 1-6)** — 다른 눈의 PASS 장부 없이 승격하던 워크플로우. 맨 앞에서 멈춘다. 승격은 `draft_verify1.py` → `reread_ledger.js` → `promote_page.py`(§5-D ⓔ). 옛 설명: 비민감 draft 개념을 canonical로 자동 승급(민감·⚠REVIEW·OCR판독은 draft 유지=B안) |
 | `backfill_lawid.py` | 코드 | 74법 `_meta.json`의 families 각 층(법률/시행령/시행규칙 등)에 `법령ID`를 채워 넣는다. |
 | `backfill_retry.py` | 글만 | backfill_lawid.py 가 **못 받은 층만** 다시 받아 스냅샷에 채워 넣는다. |
 | `backlog_by_article.py` | 글만 | 백로그 항목을 **그 항목이 가리키는 근거 조문**으로 묶어 준다. |
@@ -132,8 +132,8 @@
 | `delegated_sweep.py` | 코드 | 위임 행정규칙 조회 기록을 만든다 — "규정이 없다"고 말하려면 이 기록이 있어야 한다(_SCHEMA.md §6-B-1 ⓑ). |
 | `delegation_gap.py` | 글만 | 법이 "대통령령·부령으로 정한다"고 위임했는데, **그 법의 시행령·시행규칙에 대응 조문이 없는 자리**를 찾는다. |
 | `detect_law_changes.py` | 코드 | 법령·위임고시 변동감지(H-29 1~4·8~12항) — 소관부처 단위 "광역질의" 몇 번으로 최근 변동을 |
-| `draft_reverify.js` | 코드 | draft를 raw 원문 grounding으로 재판정: 원문인용은 승급, 별표OCR값만 사람(수치검증 카드 자동생성) |
-| `draft_verify1.py` | 없음 | 초안(draft) 승격 **1차 재점검 — 기계 대조** (_SCHEMA §5-D ⓑ 의 1차). |
+| `draft_reverify.js` | 코드 | ⛔**폐기(2026-10-08, 1단계 1-6)** — 다른 눈의 PASS 장부 없이 승격하던 워크플로우. 맨 앞에서 멈춘다. 승격은 `draft_verify1.py` → `reread_ledger.js` → `promote_page.py`(§5-D ⓔ). 옛 설명: draft를 raw 원문 grounding으로 재판정: 원문인용은 승급, 별표OCR값만 사람(수치검증 카드 자동생성) |
+| `draft_verify1.py` | 코드 | 초안(draft) 승격 **1차 재점검 — 기계 대조** (_SCHEMA §5-D ⓑ 의 1차). |
 | `e6_fix.js` | 글만 | §6-E 빈틈(본문엔 있고 근거표엔 없는 조문)을 법별로 확인해 채운다. 자기 법 파일만 = 병렬안전. |
 | `edition_forms.py` | 글만 | ★raw 원문이 **판(시행일·일련번호)을 적는 꼴**을 전수로 센다. (등록부 D-5 · 2-5) |
 | `empty_byl_stub.py` | 글만 | 3-55 — **까닭도 없이 빈 별표 6개**에 내려받기 주소를 달아 정직하게 만든다. |
@@ -211,7 +211,8 @@
 | `picture_census.py` | 글만 | 별표·서식·첨부 원본에 **그림이 어디에 얼마나 있는지** 기계로 잰다 — 그림 속 내용은 읽지 않는다. |
 | `probe.py` | 글만 | law.go.kr 에 **낱말별로 몇 건이나 있는지** 세어 보는 한 번짜리 탐침. (조사용) |
 | `promote_first_pass.py` | 코드 | G-4 (결심 ⑪ⓒ) — **승급 기록줄이 없는 canonical 쪽에 「1차는 기계가 했다·2차는 사람 몫」을 적는다. |
-| `promote_verify.js` | 글만 | 새 개념 페이지 수치를 raw 와 대조해 canonical 승격 판정(_SCHEMA §5). 만든 에이전트가 아닌 제3자. |
+| `promote_page.py` | 코드 | draft → canonical **승격 도구** — 다른 에이전트의 PASS 가 장부에 있을 때만 올린다 (_SCHEMA §5-D ⓔ ⓖ ⓗ). |
+| `promote_verify.js` | 글만 | ⛔**폐기(2026-10-08, 1단계 1-6)** — 다른 눈의 PASS 장부 없이 승격하던 워크플로우. 맨 앞에서 멈춘다. 승격은 `draft_verify1.py` → `reread_ledger.js` → `promote_page.py`(§5-D ⓔ). 옛 설명: 새 개념 페이지 수치를 raw 와 대조해 canonical 승격 판정(_SCHEMA §5). 만든 에이전트가 아닌 제3자. |
 | `quote_fix.js` | 글만 | 인용부호 안을 원문 복붙으로 되돌리고 조항 오기를 고친다(L-148). 자기 법 파일만. |
 | `recollect_budchik.py` | 글만 | budchik_check.json에서 mismatch(raw엔 없는데 API엔 있음)로 확인된 건들의 |
 | `recollect_byl.py` | 코드 | 별표 충돌 버그 수정: 법률/시행령/시행규칙 별표를 층별 접두어로 재수집. |

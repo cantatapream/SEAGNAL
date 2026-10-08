@@ -11,6 +11,14 @@ export const meta = {
   description: '비민감 draft 개념을 canonical로 자동 승급(민감·⚠REVIEW·OCR판독은 draft 유지=B안)',
   phases: [{ title: '자동승급', detail: '법별 1에이전트: draft 중 비민감만 canonical, 애매하면 draft 유지' }],
 }
+
+// ★2026-10-08 폐기(1단계 1-6 · 사장님 결정 D2·D3) — **이 워크플로우로 승격하지 않는다.**
+//   한 번의 읽기로 status 를 canonical 로 바꾸고 끝나서, 「고친 이가 아닌 에이전트가 바로 그 본문을 읽고 PASS」
+//   기록(`_dashboard/reread/verdicts.jsonl`)도 · 읽기 상한(4번)도 · 지적의 원문 확인도 남지 않는다.
+//   승격 경로는 이제 `draft_verify1.py`(1차) → 다른 에이전트 읽기 + `reread_ledger.js add`(2차) →
+//   `promote_page.py`(PASS 와 본문해시가 맞을 때만 올림) 하나다(_SCHEMA.md §5-D ⓔ ⓖ ⓗ).
+//   실수로 돌려도 아무것도 바꾸지 못하게 맨 앞에서 멈춘다.
+throw new Error('auto_promote.js 는 폐기됐다(2026-10-08) — §5-D ⓔ 의 승격 경로(draft_verify1 → 다른 눈 읽기 + reread_ledger → promote_page)를 쓴다');
 const LEGAL = path.resolve(__dirname, '../..')
 
 const SCHEMA = {

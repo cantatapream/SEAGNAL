@@ -109,6 +109,7 @@ SEAGNAL 저장소(현재 작업 브랜치는 `git branch --show-current`로 확�
 ## 4. 안전장치·설계 결정 요약 (상세는 `MASTER_PLAN.md`, 여기선 빠른 참조만)
 
 - **4-1 승급(draft→canonical) 기준**: raw 원문과 grep EXACT 일치하면 AI 자체승급 가능. 사람이 진짜 필요한 건 ①별표 스캔 이미지 OCR값 ②AI가 원문에 없는 걸 추론한 법리판단뿐. (`_SCHEMA.md` 5절, `MASTER_PLAN.md` H-12②)
+- ⚠**정정 (2026-10-08, 1단계 1-5)** — 아래 4-2 줄은 낡았다. 운영 값은 **true**(`/api/legal/config` 실측)이고, 이 스위치는 **draft 를 빼지 않는다** — REVIEW 든 줄만 [미확인]으로 옮긴다(`routes/legal.js` normConfig 위 주석 · `_SCHEMA.md` §5-D ⓑ-2). draft 를 실제로 빼면 골든 279문항 중 정답 쪽에 닿는 문항이 266 → 241(−25).
 - **4-2 canonical 안전필터 스위치(아직 OFF)**: `routes/legal.js` `/api/legal/config`, 필드 `answerCanonicalOnly`(기본 false). **켜는 절차(순서 필수)**: ①canonical 커버리지 확인 → ②`lint_index.py`로 index.json 재빌드(★안 하면 답변 0건 함정) → ③`POST {answerCanonicalOnly:true}` → ④대표질문 커버리지 확인 후 노출. 되돌리기는 `{false}`로 즉시 무손실. 상세 `MASTER_PLAN.md` E절.
 - **4-3 graph.json 재빌드가 필요 없는 경우**: 승급(status 변경)은 본문·링크를 안 건드리므로 graph 재빌드 불요 — index.json만 재빌드하면 됨.
 - **4-4 모델 정책**: fable 금지(사용자 명시 지시 전까지), 검증·재판정=sonnet·medium, 생성·감사=sonnet·high, 부트=sonnet·low. 상세·근거는 `_LESSONS.md` L-12. (스크립트별 매핑표는 낡아 제거함 — 최신은 각 `_dashboard/loop/*.js` 코드에서 직접 확인)
@@ -1530,6 +1531,9 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
+
+### [2026-10-09 KST] ✅완료 — 3-93 1단계 규칙·도구 정리 (사장님 결정 D2·D3·D4·D5·D6)
+①`_SCHEMA.md` §5-D: ⓐ-2 그림→원문 안내면 통과(D4) · ⓔ 승격 경로 하나(draft_verify1 → 다른 눈 + `reread_ledger.js` → `promote_page.py`) · ⓖ canonical 을 고치면 고친 이가 아닌 에이전트가 바뀐 그 본문을 읽는다(D2) · ⓗ 오류 등급 A/B/C · 지적은 원문 확인 후 · 읽기 상한 4번(D3). ②판정 장부 `_dashboard/reread/verdicts.jsonl`(본문해시) · **V5-57** `reread_guard.js` · test_reread_guard 29 PASS. ③개정 반영 지시문에 다른 에이전트 읽기 단계. ④옛 승격 워크플로우 3개 폐기(맨 앞에서 멈춤). ⑤1차 보강 — 관리자 방 규칙 · 개념 밖 draft · `ocr_words.json` · 출처 없는 전화번호 → draft 134쪽 통과 47 · 막힘 56→0. ⑥D5 운영 `answerCanonicalOnly`=true(실측) — draft 를 빼지 않는다, 빼면 골든 266→241 → 동작 그대로·문서만 정정(사장님 결정 대기). ⑦D6 raw 사본 삭제 예외(MASTER_PLAN). 다음: 2단계 D1 다시 읽기 — 워크플로우 승인·묶음 크기·비용 상한을 사장님께 받는다. 각 호 개수 넓히기는 보류(L-414).
 
 ### [2026-10-08 23:40 KST] ✅완료 — 3-92 목포항 발췌 별표 사본 14개 삭제 · draft 7쪽 전부 승격
 ① `도선법/별표/목포항항만시설운영세칙—제10조(도선)부분만발췌_*` 14개 — 본문이 `선박의입항및출항등에관한법률/별표/` 의 세칙 별표와 같고, 발췌본 수집메모가 「별표는 여기서 수집하지 않음」, 가리키는 곳 없음 → git rm. ② 3-91 의 draft 7쪽: 1차(값 383개) → 2차 새 에이전트 4차례(통과 2·3·0·2) → 7쪽 모두 canonical. 2차가 찾은 것은 조건 문구 누락·다른 조에 붙은 의무·출처 없는 전화번호(122)·두 값으로 갈린 시행일 확정 · 2차의 틀린 지적 2건은 raw 로 확인해 받지 않음(L-413). ③ 남은 draft 116쪽은 1차만(통과 16) — `draft_verify1.py` 의 「안 풀린 확인 항목」 판정이 `[x]` 만 보고 관리자 방 규칙(`review_queue_rules.json`)과 달라 56쪽이 과하게 막혔을 수 있음 → 다음 일. 기록 `_dashboard/draft_promote_3-92.md`. ④ 사장님 요청 설명서(챗봇 구조·위키·검증·관리 방·반복 문제·그림 정책·새 법 추가·로드맵)는 별도 에이전트가 비공개 artifact 로 게시(저장소 밖).
