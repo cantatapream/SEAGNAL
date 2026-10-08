@@ -256,11 +256,17 @@ function readConfig() {
   } catch (_) { /* 옛 자리까지 못 읽으면 던진다 — 부르는 쪽이 기본 설정으로 뜬다(법령 조회는 멈추지 않는다) */ }
   return {};
 }
-// 정규화: exposure는 off|admin|user(기본 off) · answerCanonicalOnly는 검증완료 후 켜는 스위치(기본 false).
-//   answerCanonicalOnly=false → 현행 동작(모든 페이지 검색). true → canonical만 답변 근거로(미검증 draft 차단).
-//   ⚠ true로 켜기 전 반드시 index.json을 status 포함 재빌드(lint_index.py)할 것 — 안 그러면 status 미기재로 전부 제외됨.
-// H-37 §3.3 R3: 신규 단계 3종은 각각 서버 스위치로 잠근다. **기본 전부 false** — canonical 안전
-//   필터와 같은 관례("미리 준비하되 안전장치와 함께"). 켜는 순서 권고: understandConfirm →
+// 정규화: exposure는 off|admin|user(기본 off) · answerCanonicalOnly(기본 false).
+//   ⚠★**이름과 실제 동작이 다르다 (2026-10-08 1단계 1-5 · 사장님 결정 D5 — 이름은 운영 설정 파일·관리 화면이 쓰므로 그대로 둔다).**
+//   이 스위치는 **「canonical 만 근거로」 가 아니다.** 하는 일은 하나 — true 면 statute 가 아닌 쪽의 본문을
+//   `markUnresolvedReview()` 에 태워 **REVIEW 가 든 줄을 [미확인] 머리표 아래로 옮긴다**(`legal_retriever.citableBody`).
+//   쪽의 status(draft/canonical)는 보지 않는다 — **draft 쪽도 근거로 쓰인다**(2026-09-07 부터, _SCHEMA §5-D ⓑ-2).
+//   false 면 그 줄들이 **표시 없이** 근거로 나간다. 운영 값은 true(2026-10-08 `/api/legal/config` 실측).
+//   옛 설명(「true → canonical 만 답변 근거로(미검증 draft 차단)」·「켜기 전 index 재빌드 안 하면 전부 제외」)은
+//   2026-08-05 이전 동작이다. 실측(골든 279문항): draft 를 정말로 빼면 정답 쪽에 닿는 문항이 266 → 241(−25).
+//   draft 를 빼는 동작으로 바꿀지는 D1 다시 읽기로 draft 가 줄어든 뒤 사장님이 정한다.
+// H-37 §3.3 R3: 신규 단계 3종은 각각 서버 스위치로 잠근다. **기본 전부 false** — answerCanonicalOnly
+//   스위치와 같은 관례("미리 준비하되 안전장치와 함께"). 켜는 순서 권고: understandConfirm →
 //   profileConfirm → scopeNarrow. 되돌리기는 {false} 한 번, 무손실.
 function normConfig(c) {
   return {

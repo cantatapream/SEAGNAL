@@ -92,8 +92,13 @@ const FIRST_PASS = (() => {
     return {};                     // 아직 안 돌렸거나 파일이 없다 — 판정은 종전대로
   }
 })();
-/** ⓐ-2 — 판독·OCR·출처미확인 신호 */
-const OCR_WORDS = /이미지판독|OCR|판독 불가|출처미확인|원본이미지/;
+/** ⓐ-2 — 판독·OCR·출처미확인 신호.
+ *  ★2026-10-08(1단계 1-8) — 낱말을 `_dashboard/ocr_words.json` **한 곳**으로 옮겼다. 종전에는 여기와
+ *  `draft_verify1.py` 가 다른 낱말로 셌다(여기 「이미지판독·판독 불가」 ↔ 거기 「판독」). 이제 둘이 같은 파일을 읽는다 —
+ *  「판독」 이 들면 「이미지판독·판독 불가」 도 든다(넓어진 쪽으로 맞췄다). */
+const OCR_WORDS = new RegExp(JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', 'ocr_words.json'), 'utf8'))['낱말']
+  .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'));
 
 function sh(cmd) { return execSync(cmd, { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); }
 /**

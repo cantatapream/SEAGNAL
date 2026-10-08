@@ -200,7 +200,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 
 <!-- 검사목록:시작 — `python3 scripts/refactor/gen_rulebook.py` 가 다시 쓴다. 손으로 고치지 않는다 -->
 
-### ⓐ 게이트 61 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
+### ⓐ 게이트 62 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
 
 | 검사 이름 | 무엇을 못박나 | 자 |
 |---|---|---|
@@ -259,6 +259,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `V5-10` | 연결(품질 4축 ④) — 한쪽만 걸린 링크 | `local_server/knowledge/legal/_dashboard/loop/link_sym.js` |
 | `V5-2` | 위키 링크 무결성 | `_dashboard/loop/xref_check.py` · `local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py` |
 | `V5-13` | 승급 요건(§5-D) — 이번에 canonical 로 올린 쪽만 본다 | `local_server/knowledge/legal/_dashboard/loop/promote_guard.js` |
+| `V5-57` | 고친 canonical 을 다른 눈이 읽었나 | `local_server/knowledge/legal/_dashboard/loop/reread_guard.js` |
 | `V5-14` | 아직 오지 않은 시행일 | `local_server/knowledge/legal/_dashboard/loop/future_date_guard.py` |
 | `V5-15` | 같은 고시 사본끼리 판이 맞나 | `local_server/knowledge/legal/_dashboard/loop/admrul_copy_sync.py` |
 | `V5-16` | 「다음 각 목/각 호」라 해 놓고 그 글이 없는 자리 | `local_server/knowledge/legal/_dashboard/loop/mok_promise_guard.py` |
@@ -266,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 65 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 66 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -335,6 +336,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_mok_excerpt` | ★원문결손 점검이 **스스로 발췌라고 밝힌 파일**을 결함으로 세지 않는다. (3-85) |
 | `test_scan_catchup` | ★개정 스캔이 며칠 실패한 뒤에는 그 사이를 따라잡는다. (3-84) |
 | `test_mok_bulk` | ★원문결손 방: 해소된 카드 자동 닫기 · 「✓ 전체 처리」 · 지시문 .md 받기 · 버튼 잘림 (3-88) |
+| `test_reread_guard` | ★고친 canonical 은 다른 에이전트가 읽어야 한다 (1단계 1-2·1-3 · 사장님 결정 D2·D3, 2026-10-08) |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

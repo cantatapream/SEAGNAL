@@ -121,7 +121,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_typhoon_ecmwf test_khoa_https
   test_byl_decl test_treaty_caselaw_meta test_context_budget test_table_rows_slice test_counting_dict test_silent_catch
   test_gate_5xx_class test_meta_schema test_admrul_review test_ho_count test_section_ready test_treaty_article test_byl_body_kind test_box_rows test_score_body test_admin_cards
-  test_codex_bridge test_fav_tide_prefetch test_picture_text test_ordin_fresh test_scan_fail_honest test_collect_approved test_mok_brief test_mok_excerpt test_scan_catchup test_mok_bulk)
+  test_codex_bridge test_fav_tide_prefetch test_picture_text test_ordin_fresh test_scan_fail_honest test_collect_approved test_mok_brief test_mok_excerpt test_scan_catchup test_mok_bulk test_reread_guard)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi
@@ -718,6 +718,15 @@ echo; echo "── V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린
 # [한계] "두 번 봤다고 적었는가"를 볼 뿐 **정말 두 번 봤는지는 못 본다.** 그래도 두는 이유는 지금은
 #   적는 자리조차 없어 아무 기록 없이 딱지만 떼는 것이 가능하기 때문이다(§5-D ⓒ 와 같은 취지).
 node local_server/knowledge/legal/_dashboard/loop/promote_guard.js --gate || fail "V5-13 승급 요건(§5-D) — 이번에 canonical 로 올린 쪽만 본다"
+
+echo; echo "── V5-57 고친 canonical 을 다른 눈이 읽었나 ──"
+# [왜 — 2026-10-08 사장님 결정 D2, 1단계 1-2] V5-13 은 draft → canonical **올린 순간**만 본다.
+#   이미 canonical 인 쪽을 개정 반영·정정으로 고칠 때는 아무도 다시 안 읽었다(1,092쪽에 다른 눈의 읽기 기록 없음).
+#   3-90~3-92 에서 다른 에이전트의 읽기는 기계 대조를 다 통과한 쪽에서도 조건 문구 누락·다른 조에 붙은 의무·
+#   원문에 없는 전화번호를 찾았다. 그래서 **canonical 본문이 바뀌면 바로 그 본문을 고친 이가 아닌 에이전트가
+#   PASS 했다는 장부 기록**(`_dashboard/reread/verdicts.jsonl`, 본문해시로 묶음)을 요구한다.
+#   링크 대상·절 제목만 바뀐 것은 면제 · 급한 개정은 「대기」 로 14일 · HOLD 4번(상한)인 canonical 은 실패(§5-D ⓖ ⓗ).
+node local_server/knowledge/legal/_dashboard/loop/reread_guard.js --gate || fail "V5-57 고친 canonical 을 다른 눈이 안 읽었다 — reread_ledger.js 로 읽기 기록을 남긴다"
 
 echo; echo "── V5-14 아직 오지 않은 시행일 ──"
 # [왜 — 2026-09-21, L-295 후속] `lawService.do?target=law&MST=` 는 한 MST 가 시행일 판을 둘 이상
