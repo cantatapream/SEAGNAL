@@ -1531,6 +1531,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-08 10:02 KST] ✅완료 — 3-88 원문결손 — 해소 카드 자동 닫기 · 전체 처리 · 지시문 .md 받기 · 버튼 잘림
+autoResolveCleared(no_answer·조회실패·실패한 쪽은 안 닫음) · 「✓ 전체 처리」(두 번 눌러, decide-all) · 「⬇ .md 파일」(앱은 1회용 토큰+시스템 브라우저) · 원문결손 머리 flex-wrap. test_mok_bulk 20. 라우트 실측 401/200/404/400.
+
+
 ### [2026-10-08 08:06 KST] ✅완료 — 3-87 「⏪ 60일 따라잡기」 버튼이 화면 밖으로 잘리던 것
 원인: .nrya-btn-brief 가 width:100% 라 긴 「지금 스캔」 옆에서 상자 밖으로 밀려 잘림(390px 실측 342~670px). 줄 flex-wrap + 버튼 width:auto 로 고치고 Playwright 390·600px 로 확인. test_scan_catchup C7.
 
