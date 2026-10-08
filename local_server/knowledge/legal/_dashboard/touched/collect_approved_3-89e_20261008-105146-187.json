@@ -1,0 +1,8 @@
+{
+ "script": "collect_approved_3-89e",
+ "stamp": "20261008-105146-187",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/항로표지시설관리지침.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/_admrul.json"
+ ]
+}

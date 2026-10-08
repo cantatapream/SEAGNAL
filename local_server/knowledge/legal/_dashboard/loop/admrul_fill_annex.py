@@ -27,6 +27,7 @@
 사용법: python3 admrul_fill_annex.py [--dry] [--limit N] [--skip <경로조각>] [--relink]
   --relink : 이미 쓴 파일이 **제목·출처뿐**이면 빠진 `별표서식파일링크:` 한 줄만 덧붙인다(지우지 않는다).
   --refix  : 이미 쓴 파일이 **글자 하나씩 쪼개진 꼴**이면 본문만 다시 쓴다(우리 API 수집본만 · 사람 전사본은 안 건드린다).
+  --refresh <고시파일…> : 새 판으로 갈아끼운 고시의 별표 파일을 그 판에 맞춘다(API 수집본만 · 3-89 · refresh_annex()).
 """
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
@@ -185,8 +186,131 @@ def is_bare(path):
     return True
 
 
+def unit_key(u, rows0):
+    """API 별표단위 하나의 파일 키 — `별표9의2` · `별지3` · 번호 없으면 `별표0`.
+    main()(빈 별표 채우기)과 refresh_annex()(새 판으로 갈아끼운 고시의 별표 맞추기)가 **같은 자**를 쓴다."""
+    # ★가지번호(9의2·9의3)를 잃지 않는다 (2026-08-31 실측).
+    #   API 의 `별표번호` 는 **가지번호를 안 준다** — 「위험물 선박운송 기준」은 별표9·별표9의2·
+    #   별표9의3 이 셋 다 `별표번호: 0009` 로 온다. 그대로 쓰면 파일 이름이 겹쳐 뒤의 둘이
+    #   통째로 사라진다(이미 있으면 건너뛰므로 조용히 없어진다).
+    #   ⓐ내용 첫 줄의 `[별표 9의2]` 표기가 가장 확실하고,
+    #   ⓑ없으면 `별표키` 뒤 두 자리(000900=본, 000902=의2, 000903=의3)로 만든다.
+    head0 = str(rows0[0]) if rows0 else ''
+    # ★서식은 `[별지 제3호의2서식]` 처럼 숫자와 `의` 사이에 `호` 가 낀다 (3-89, 2026-10-08 실측).
+    #   종전 정규식은 `3` 바로 뒤의 `의` 만 봐서 3호와 3호의2 가 같은 `별지3` 이 됐다 — main() 은
+    #   「이미 있으면 건너뜀」 이라 뒤의 것이 **조용히 사라졌다**. `호` 를 건너뛰고, 그래도 없으면
+    #   API 의 `별표가지번호`(00=본, 02=의2)를 본다.
+    m0 = re.match(r'\s*\[?\s*(별표|별지|서식)\s*제?\s*(\d+)\s*호?(?:\s*의\s*(\d+))?', head0)
+    gubun = (u.get('별표구분') or (m0.group(1) if m0 else '별표')).strip()
+    if m0:
+        ga = m0.group(3)
+        if not ga:
+            gv = str(u.get('별표가지번호') or '').strip()
+            ga = str(int(gv)) if gv.isdigit() and int(gv) > 1 else None
+        no = m0.group(2) + ('의' + ga if ga else '')
+    else:
+        # ★번호가 없으면 **`0` 으로 둔다 — 지어내지 않는다** (2026-09-26, 3-67).
+        #   종전에는 `or '1'` 이었다. 그러면 API 가 `별표번호: "0000"`(원문에 번호가 없다)을
+        #   줄 때 **우리가 `별표1` 이라는 번호를 만들어 붙인다**. 그것은 환각 0 위반이고,
+        #   사장님 결심 ⑥ⓑ(2026-09-24)가 이미 「`0` 그대로 두고 『원문에 번호가 없다』고
+        #   적는다」로 정한 그 자리다(→ `nonum_byl_note.py`).
+        #   ⚠이 저장소의 다른 도구 8개는 전부 `or '0'` 이었다 — 여기 한 곳만 어긋나 있었다
+        #   (collect.py·recollect_byl.py·byl_tier_fill.py·admrul_byl_links.py 등).
+        base_no = str(u.get('별표번호') or '').lstrip('0') or '0'
+        bkey = str(u.get('별표키') or '')
+        br = bkey[-2:] if len(bkey) >= 3 else ''
+        no = base_no + ('의' + str(int(br)) if br.isdigit() and int(br) > 1 else '')
+    key = ('별표' if gubun == '별표' else '별지') + no
+    return key
+
+
+def refresh_annex(paths, dry=False, touched=None):
+    """새 판으로 갈아끼운(또는 새로 받은) 고시의 `<법>/별표/` 파일을 **그 판**에 맞춘다 → 보고 dict
+
+    왜 (3-89, 2026-10-08 실제로 당했다): `article_text.js` 는 고시 별표를 본문 파일이 아니라
+    `<법>/별표/<고시명>_별표N.txt` 에서 읽는다. 그런데 고시 갱신(`refresh_file`)은 본문 파일만 갈아끼워서
+    「선박교통관제에 관한 규정」은 본문이 2026-10호인데 별표1·2 파일은 옛 판(2100000260394)을 그대로
+    말하고 있었다 — 챗봇은 그 옛 별표로 답한다. main() 은 「이미 있는 파일은 절대 덮지 않는다」라서 못 고친다.
+
+    규칙:
+      · 파일 머리 `출처:` 가 **이 API 수집본**(`행정규칙 API … ID=`)이고 ID 가 지금 판과 다르면 → 새 판으로 다시 쓴다.
+      · 출처가 API 가 아닌 파일(사람 전사·HWP 판독)은 **덮지 않는다** — `사람전사_그대로` 로만 보고한다.
+      · 없던 별표는 새로 쓴다. 새 판에 없어진 별표 파일은 **지우지 않고** `새판에없음` 으로 보고한다(G-34).
+    @param paths 고시 본문 파일 경로들(raw/…/행정규칙/<이름>.txt)
+    예: refresh_annex(['…/선박교통관제에관한법률/행정규칙/선박교통관제에관한규정.txt'])
+        → {'다시썼다': [...], '새로썼다': [...], '그대로(같은판)': [...], '사람전사_그대로': [...], '새판에없음': [...], '실패': [...]}
+    """
+    own = touched is None
+    touched = touched or Touched('admrul_fill_annex_refresh')
+    rep = {'다시썼다': [], '새로썼다': [], '그대로(같은판)': [], '사람전사_그대로': [], '새판에없음': [], '실패': [], '별표없음': [], '키겹침': []}
+    for p in paths:
+        aid = id_of(p)
+        name = os.path.basename(p)
+        if not aid:
+            rep['실패'].append(name + ' (ID 없음)')
+            continue
+        d = api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=admrul&type=JSON&ID={aid}")
+        if not isinstance(d, dict) or '_err' in d:
+            rep['실패'].append(name)
+            continue
+        units = ((d.get('AdmRulService', d)).get('별표') or {}).get('별표단위')
+        gosi = title_of(p)
+        byldir = os.path.join(os.path.dirname(os.path.dirname(p)), '별표')
+        old = set(glob.glob(os.path.join(byldir, f"{safe(gosi)}_별표*.txt")) +
+                  glob.glob(os.path.join(byldir, f"{safe(gosi)}_별지*.txt")))
+        if units is None:
+            rep['별표없음'].append(name)
+            continue
+        if not isinstance(units, list):
+            units = [units]
+        seen = set()
+        for u in units:
+            rows = body_rows(u)
+            key = unit_key(u, rows)
+            out = os.path.join(byldir, f"{safe(gosi)}_{key}.txt")
+            rel = os.path.relpath(out, LEGAL)
+            if out in seen:          # 한 판 안에서 키가 겹치면 덮지 않는다(앞의 것을 지운다) — 사람이 본다
+                rep['키겹침'].append(rel)
+                continue
+            seen.add(out)
+            if os.path.exists(out):
+                head = open(out, encoding='utf-8').read().split('\n')[:4]
+                src = next((l for l in head if l.startswith('출처:')), '')
+                whole = open(out, encoding='utf-8').read()
+                # API 수집본이라도 뒤에 사람이 판독문·검토 표시를 덧붙였으면 덮지 않는다(L-176 · refresh_file 과 같은 표시).
+                if '행정규칙 API' not in src or any(m in whole for m in ('【이미지판독', '⚠REVIEW', '첨부파일 전사', '판독불가')):
+                    rep['사람전사_그대로'].append(rel)
+                    continue
+                if f'ID={aid}' in src:
+                    rep['그대로(같은판)'].append(rel)
+                    continue
+                bucket = '다시썼다'
+            else:
+                bucket = '새로썼다'
+            txt = (f"[{gosi}] {key} — {(u.get('별표제목') or '').strip()}\n"
+                   f"출처: 국가법령정보센터 행정규칙 API target=admrul ID={aid} (수집 {TODAY})\n")
+            link = link_of(u)
+            if link:
+                txt += f"별표서식파일링크: {link}\n"
+            if not dry:
+                os.makedirs(byldir, exist_ok=True)
+                open(out, 'w', encoding='utf-8').write(txt + '\n' + '\n'.join(str(r) for r in rows) + '\n')
+                touched.add(out)
+            rep[bucket].append(rel)
+        rep['새판에없음'] += [os.path.relpath(x, LEGAL) for x in sorted(old - seen)]
+    if not dry and own:              # 남이 넘긴 기록이면 저장은 그쪽이 한다
+        touched.save()
+    return rep
+
+
 def main():
     dry = '--dry' in sys.argv
+    if '--refresh' in sys.argv:
+        paths = [a for a in sys.argv[sys.argv.index('--refresh') + 1:] if not a.startswith('--')]
+        rep = refresh_annex(paths, dry)
+        for k, v in rep.items():
+            print(f"{k}: {len(v)}건" + (''.join('\n   · ' + x for x in v) if v and k != '그대로(같은판)' else ''))
+        return
     limit = int(sys.argv[sys.argv.index('--limit') + 1]) if '--limit' in sys.argv else None
     skip = sys.argv[sys.argv.index('--skip') + 1] if '--skip' in sys.argv else None
     relink = '--relink' in sys.argv
@@ -252,30 +376,7 @@ def main():
         gosi = title_of(p)
         for u in units:
             rows0 = body_rows(u)
-            # ★가지번호(9의2·9의3)를 잃지 않는다 (2026-08-31 실측).
-            #   API 의 `별표번호` 는 **가지번호를 안 준다** — 「위험물 선박운송 기준」은 별표9·별표9의2·
-            #   별표9의3 이 셋 다 `별표번호: 0009` 로 온다. 그대로 쓰면 파일 이름이 겹쳐 뒤의 둘이
-            #   통째로 사라진다(이미 있으면 건너뛰므로 조용히 없어진다).
-            #   ⓐ내용 첫 줄의 `[별표 9의2]` 표기가 가장 확실하고,
-            #   ⓑ없으면 `별표키` 뒤 두 자리(000900=본, 000902=의2, 000903=의3)로 만든다.
-            head0 = str(rows0[0]) if rows0 else ''
-            m0 = re.match(r'\s*\[?\s*(별표|별지|서식)\s*제?\s*(\d+)(?:\s*의\s*(\d+))?', head0)
-            gubun = (u.get('별표구분') or (m0.group(1) if m0 else '별표')).strip()
-            if m0:
-                no = m0.group(2) + ('의' + m0.group(3) if m0.group(3) else '')
-            else:
-                # ★번호가 없으면 **`0` 으로 둔다 — 지어내지 않는다** (2026-09-26, 3-67).
-                #   종전에는 `or '1'` 이었다. 그러면 API 가 `별표번호: "0000"`(원문에 번호가 없다)을
-                #   줄 때 **우리가 `별표1` 이라는 번호를 만들어 붙인다**. 그것은 환각 0 위반이고,
-                #   사장님 결심 ⑥ⓑ(2026-09-24)가 이미 「`0` 그대로 두고 『원문에 번호가 없다』고
-                #   적는다」로 정한 그 자리다(→ `nonum_byl_note.py`).
-                #   ⚠이 저장소의 다른 도구 8개는 전부 `or '0'` 이었다 — 여기 한 곳만 어긋나 있었다
-                #   (collect.py·recollect_byl.py·byl_tier_fill.py·admrul_byl_links.py 등).
-                base_no = str(u.get('별표번호') or '').lstrip('0') or '0'
-                bkey = str(u.get('별표키') or '')
-                br = bkey[-2:] if len(bkey) >= 3 else ''
-                no = base_no + ('의' + str(int(br)) if br.isdigit() and int(br) > 1 else '')
-            key = ('별표' if gubun == '별표' else '별지') + no
+            key = unit_key(u, rows0)
             fn = f"{safe(gosi)}_{key}.txt"
             out = os.path.join(byldir, fn)
             if os.path.exists(out):

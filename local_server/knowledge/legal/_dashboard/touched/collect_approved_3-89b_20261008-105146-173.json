@@ -1,0 +1,8 @@
+{
+ "script": "collect_approved_3-89b",
+ "stamp": "20261008-105146-173",
+ "files": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/여수·광양항선박교통안전규정.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/_admrul.json"
+ ]
+}

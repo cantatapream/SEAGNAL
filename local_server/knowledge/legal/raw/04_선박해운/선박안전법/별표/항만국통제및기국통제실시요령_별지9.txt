@@ -1,0 +1,66 @@
+[항만국통제 및 기국통제 실시요령] 별지9 — (항만국통제(PSC), 기국통제(FSC)) 결함시정 확인점검 신청서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000285596 (수집 2026-10-08)
+별표서식파일링크: /LSW/flDownload.do?flSeq=169813687
+
+[별지 제9호서식]
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ [  ] 항만국통제(PSC)       결함시정 확인점검 신청서                        ┃
+┃                            Application Form for Re-inspection              ┃
+┃ [  ] 기국통제(FSC)                                                         ┃
+┣━━━━━━━━━━━━┯━━━━━━━━┯━━━━━━━━━━┯━━━━━┫
+┃①  선 명               │                │②  호출부호        │          ┃
+┃    Ship's Name         │                │    Call Sign       │          ┃
+┃                        │                ├──────────┼─────┨
+┃                        │                │③  IMO No.         │          ┃
+┠────────────┼────────┼──────────┼─────┨
+┃④  초기점검일/장소     │                │⑤  결함번호        │          ┃
+┃    Date and Location   │                │    No. of          │          ┃
+┃    of Initial          │                │    Deficiencies    │          ┃
+┃    Inspection          │                │                    │          ┃
+┠────────────┼────────┼──────────┼─────┨
+┃⑥  확인점검 요청일시   │                │⑦  재점검 장소     │          ┃
+┃    Date and Time       │                │    Location of     │          ┃
+┃    Requiring           │                │    Re-inspection   │          ┃
+┃    Re-inspection       │                │                    │          ┃
+┠───────┬────┴───────┬┴──┬───────┴─────┨
+┃⑧  신청인    │회사명(Name of Company) │      │ 선주측(Owner)          □┃
+┃    인적상황  │등록번호(No. of         │      │ 안전관리사측(Manager)  □┃
+┃    Details of│Registration)           │      │ 용선주측(Charterer)    □┃
+┃    Applicant │대표자명(Representative)│      │ 기타(Other)            □┃
+┃              │연락처(Telephone)       │      │                          ┃
+┣━━━━━━━┷━━━━┯━━━━━━━┷┯━━┷━━━━━━━┯━━━━━┫
+┃⑨  접수일              │                │⑩  접수번호        │          ┃
+┃    Date of receipt     │                │    Registration No.│          ┃
+┠────────────┼────────┼──────────┼─────┨
+┃⑪  기본수수료          │                │⑫  추가수수료      │          ┃
+┃    Re-inspection Fee   │                │    (해당될 경우)   │          ┃
+┃                        │                │    Additional fee  │          ┃
+┃                        │                │    (if applicable) │          ┃
+┠────────────┼────────┴──────────┴─────┨
+┃⑬  점검시간            │                                                  ┃
+┃    Re-inspection Period│                                                  ┃
+┠────────────┼─────────────────────────┨
+┃⑭  점검 검사관         │  담당 :                (서명)                    ┃
+┃    PSC/FSC Officer     │                                                  ┃
+┣━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃「선박안전법」제80조제5항 및 「해상교통안전법」제63조의 규                  ┃
+┃정에 따라 위와 같이 결함사항의 시정여부에 대한 확인점검을                   ┃
+┃신청합니다.                                                                 ┃
+┃In accordance with Article 80(5) of the Ship Safety act and Article         ┃
+┃63 of the Maritime Traffic Safety Act, I apply for an inspection to         ┃
+┃rectify the deficiency as above.                                            ┃
+┃                                                                            ┃
+┃     신청인 :                              (인)                             ┃
+┃                Applicant                                   (Stamp)         ┃
+┃      ㅇㅇ지방해양수산청장 귀하                                             ┃
+┃                   ○○Regional Office of Oceans and Fisheries              ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃비고)                                                                       ┃
+┃1. 신청인은 ①～⑧만 기재하십시오.                                          ┃
+┃  Applicant is requested to fills up only Column ①～⑧                     ┃
+┃2. ⑥항의 점검요청시간은 항만국통제관의 업무일정에 따라 변경될 수 있습니다. ┃
+┃  The re-inspection schedule is subject to change depending on the PSCO’s  ┃
+┃schedule.                                                                   ┃
+┃3. 실제 점검시간에 따라 ⑪항의 추가수수료가 발생할 수 있습니다.             ┃
+┃  Additional fee may impose according to actual re-inspection time taken.   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

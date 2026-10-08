@@ -1,6 +1,18 @@
 {
  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률": [
   {
+   "date": "20270323",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289923"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_3f768d"
+   }
+  },
+  {
    "date": "20270513",
    "files": [
     "법률.txt"
@@ -10,6 +22,20 @@
    },
    "queue_id": {
     "법률.txt": "chg_20260810_1d3c3e"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/04_선박해운/어선법": [
+  {
+   "date": "20270617",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289947"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_965c66"
    }
   }
  ],
@@ -25,6 +51,18 @@
    "queue_id": {
     "법률.txt": "chg_20260810_eea555"
    }
+  },
+  {
+   "date": "20270617",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289939"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_dcf08b"
+   }
   }
  ],
  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법": [
@@ -38,6 +76,32 @@
    },
    "queue_id": {
     "법률.txt": "chg_20260810_3dc6ea"
+   }
+  },
+  {
+   "date": "20270617",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289941"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_cdfdb8"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법": [
+  {
+   "date": "20270323",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289943"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_8308da"
    }
   }
  ],
@@ -79,6 +143,46 @@
    "queue_id": {
     "시행규칙.txt": "chg_20260810_bc2810"
    }
+  },
+  {
+   "date": "20270923",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289949"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_0ffbf0"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률": [
+  {
+   "date": "20270323",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289931"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_1bd6de"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/07_해양환경생태/연안관리법": [
+  {
+   "date": "20270923",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289951"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_da65d5"
+   }
   }
  ],
  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법": [
@@ -106,6 +210,34 @@
    },
    "queue_id": {
     "법률.txt": "chg_20260810_ab2051"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/09_레저관광/낚시관리및육성법": [
+  {
+   "date": "20270323",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289933"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_13ede5"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/09_레저관광/마리나항만의조성및관리등에관한법률": [
+  {
+   "date": "20270909",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289351"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_d33f10"
    }
   }
  ],
@@ -137,6 +269,20 @@
    }
   }
  ],
+ "local_server/knowledge/legal/raw/10_항만물류/항만재개발및주변지역발전에관한법률": [
+  {
+   "date": "20270930",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "290219"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_e39763"
+   }
+  }
+ ],
  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률": [
   {
    "date": "20261022",
@@ -148,6 +294,34 @@
    },
    "queue_id": {
     "법률.txt": "chg_20260810_acbe7f"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/12_수산물유통/수산물유통의관리및지원에관한법률": [
+  {
+   "date": "20270323",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289935"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_402563"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률": [
+  {
+   "date": "20261223",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "289925"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261007_aca9b7"
    }
   }
  ],

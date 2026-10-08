@@ -15,6 +15,10 @@
  *     같은 제목 파일이 있으면 보류 · 두 번 돌려도 같은 파일을 두 번 만들지 않는다
  *  C5 시행 중 법령 → `recollect_tier.do_one` 에 넘긴다(15_관련타부처면 other) · 이름·부처만 바뀐 건은 「받을 원문 없음」
  *  C6 옛 자 `collect_pending_law.py --all-approved` 는 자기가 안 받는 승인분이 있으면 그렇다고 말한다
+ *  C7 (3-89) 머리글에만 있는 표시는 잃지 않으므로 보류하지 않는다 · 옛 번호가 구판 보존본에만 있으면 「이미 현행」
+ *     · 고시 본문을 받을 때 부칙도 같은 응답에서 받는다 · 소관부처는 집합으로 견준다(공동소관 오탐)
+ *  C8 (3-89) 고시를 받거나 갈아끼우면 `<법>/별표/` 파일도 그 판으로 맞춘다(챗봇은 별표를 거기서 읽는다)
+ *     · 사람 전사본은 덮지 않는다 · 새 판에 없는 파일은 지우지 않는다 · `[별지 제3호의2서식]` 은 별지3의2
  *
  * [연계] ← scripts/refactor/verify_all.sh SUITES
  *        → _dashboard/loop/collect_approved.py · admrul_recollect_stale.py(refresh_file) · collect_pending_law.py
@@ -64,16 +68,29 @@ fs.writeFileSync(path.join(TLEGAL, '_dashboard', 'law_raw_paths.json'), JSON.str
 }));
 const A4 = path.join(lawA, '행정규칙', '묶음고시_관할서.txt');
 fs.writeFileSync(A4, '[고시/행정규칙] 묶음고시\n\n(가서) admrul 2100000000141\n' + '가 '.repeat(30) + '\n(나서) admrul 2100000000142\n' + '나 '.repeat(30) + '\n');
-const before = { A1: fs.readFileSync(A1, 'utf8'), A2: fs.readFileSync(A2, 'utf8') };
+// (3-89) 머리글 배너에만 ⚠REVIEW 가 있는 파일 — 머리글은 남으므로 「사람작업 소실」 이 아니다
+const A5 = path.join(lawA, '행정규칙', '고시다.txt');
+fs.writeFileSync(A5, '[고시/행정규칙] 고시다\nID:151 · 소관: 해양수산부\n⚠REVIEW / 출처: 옛 재수집 배너\n\n' + '옛 본문 '.repeat(30) + '\n');
+// (3-89) 일부러 남긴 구판 보존본(옛 번호 161)과 이미 새 번호(162)로 바뀐 현행본
+const A6 = path.join(lawA, '행정규칙', '보존고시_2026-1호_구판전사.txt');
+const A7 = path.join(lawA, '행정규칙', '보존고시.txt');
+fs.writeFileSync(A6, '[고시/행정규칙] 보존고시 — 구판 전사본(보존)\nID:161 · 소관: 원주청\n\n' + '구판 '.repeat(30) + '\n');
+fs.writeFileSync(A7, '[고시/행정규칙] 보존고시\nID:162 · 소관: 원주청\n\n' + '현행 '.repeat(30) + '\n');
+const before = { A6: fs.readFileSync(A6, 'utf8'), A1: fs.readFileSync(A1, 'utf8'), A2: fs.readFileSync(A2, 'utf8') };
 
 // ── 관리자 큐 항목(운영 서버의 legal_amendments_queue.jsonl 꼴 — toLegacyEntry) ──
 const E = (id, kind, o) => Object.assign({ id, kind_code: kind, layer: '행정규칙', law: '법A', status: 'approved', 이전: {}, 현재: {}, related_laws: [], changed_articles: [] }, o);
 const rows = [
   E('q1', 'law_pending', { layer: '법률', law: '어선원및어선재해보상보험법', 법령명: '어선원 및 어선 재해보상보험법',
     현재: { MST: '283875', 시행일자: '20260911' }, changed_articles: [{ 조문번호: '28', 조문가지번호: '', 옛본문: '긴 옛 본문 ㄱ', 새본문: '긴 새 본문 ㄴ' }] }),
+  // ★시행일이 지났고 현행이 이미 그 판(MST 259243)이면 다시 대기로 받지 않는다(3-89 — 어제 처리한 44건이 오늘 113건 안에 다시 실렸다).
+  E('q2', 'law_pending', { layer: '법률', law: '어선원및어선재해보상보험법', 법령명: '어선원 및 어선 재해보상보험법',
+    현재: { MST: '259243', 시행일자: '20240724' } }),
   E('a1', 'admrul_amended', { 법령명: '고시가', 이전: { ID: '111', 법령명: '고시가' }, 현재: { ID: '112', 시행일자: '20260805', 발령일자: '20260805' } }),
   E('a2', 'admrul_amended', { 법령명: '고시나', 이전: { ID: '121', 법령명: '고시나' }, 현재: { ID: '122', 시행일자: '20260805' } }),
   E('a3', 'admrul_amended', { 법령명: '고시가', 이전: { ID: '111', 법령명: '고시가' }, 현재: { ID: '113', 시행일자: '20261231' } }),
+  E('a5', 'admrul_amended', { 법령명: '고시다', 이전: { ID: '151', 법령명: '고시다' }, 현재: { ID: '152', 시행일자: '20260805' } }),
+  E('a6', 'admrul_amended', { 법령명: '보존고시', 이전: { ID: '161', 법령명: '보존고시' }, 현재: { ID: '162', 시행일자: '20260805' } }),
   E('a4', 'admrul_amended', { 법령명: '묶음고시', 이전: { ID: '2100000000141', 법령명: '묶음고시' }, 현재: { ID: '2100000000149', 시행일자: '20260805' } }),
   E('n1', 'admrul_unknown_new', { law: '', 법령명: '새고시', 현재: { ID: '333', 시행일자: '20260806' }, related_laws: [{ slug: '법A', name: '법A' }] }),
   E('n2', 'admrul_unknown_new', { law: '', 법령명: '둘고시', 현재: { ID: '555', 시행일자: '20260806' }, related_laws: [{ slug: '법A' }, { slug: '법B' }] }),
@@ -111,7 +128,7 @@ CA.time.sleep = lambda *_: None
 fx = json.load(open(FIX, encoding='utf-8'))
 CPL.fetch_eflaw = lambda mst, ef, from_json=None: fx
 INFO = {'발령일자': '20260805', '시행일자': '20260805', '제개정구분명': '일부개정', '발령번호': '제7호', '소관부처명': '해양수산부'}
-BODY = {'112': '새 판 본문 ' * 40, '122': '새 판 본문 ' * 40, '333': '새 고시 본문 ' * 10, '555': '둘 고시 본문 ' * 10}
+BODY = {'112': '새 판 본문 ' * 40, '152': '새 판 본문 ' * 40, '122': '새 판 본문 ' * 40, '333': '새 고시 본문 ' * 10, '555': '둘 고시 본문 ' * 10}
 calls = []
 def fb(serial, tries=4):
     calls.append(serial)
@@ -122,6 +139,8 @@ def do_one(slug, t, mst, ef, touched, dry, allow, held_mst=None, other=False):
     tier.append({'slug': slug, 'tier': t, 'mst': mst, 'ef': ef, 'held': held_mst, 'other': other})
     return {'slug': slug, 'tier': t, 'status': '갱신'}
 RT.do_one = do_one
+annex = []
+CA.FA.refresh_annex = lambda paths, dry=False, touched=None: (annex.extend(os.path.basename(x) for x in paths), {'다시썼다': ['x']})[1]
 out = {}
 out['code1'] = CA.main(['--from-brief', BRIEF])
 out['r1'] = json.load(open(CA.OUT, encoding='utf-8'))['results']
@@ -130,6 +149,7 @@ out['code2'] = CA.main(['--from-brief', BRIEF, '--place', 'n2=법B'])
 out['r2'] = json.load(open(CA.OUT, encoding='utf-8'))['results']
 out['tier'] = tier
 out['calls'] = calls
+out['annex'] = annex
 print('@@' + json.dumps(out, ensure_ascii=False))
 `;
 const r = spawnSync('python3', ['-c', PY, LOOP, TLEGAL, TMP, BRIEF, FIX], {
@@ -140,13 +160,15 @@ try { o = JSON.parse((r.stdout.split('\n').find((l) => l.startsWith('@@')) || '@
 if (!o.r1) { ok('파이썬 시험이 돌았다', false, (r.stderr || '') + (r.stdout || '').slice(-800)); }
 const by = (list, id) => (list || []).find((x) => x.id === id) || {};
 const R1 = o.r1 || [], R2 = o.r2 || [];
-ok('C1 승인 안 된 건(p1)은 받지 않는다', !by(R1, 'p1').id && R1.length === 11, R1.map((x) => x.id));
+ok('C1 승인 안 된 건(p1)은 받지 않는다', !by(R1, 'p1').id && R1.length === 14, R1.map((x) => x.id));
 
 console.log('\n── C2 시행예정 법령 ──');
 const staged = path.join(lawP, '_대기', '20260911', '법률.txt');
 ok('C2 예고본을 _대기/20260911/법률.txt 에 둔다', by(R1, 'q1').status === '수집' && fs.existsSync(staged), by(R1, 'q1'));
 ok('C2 현행 법률.txt 는 그대로', fs.readFileSync(path.join(lawP, '법률.txt'), 'utf8') === P_LAW);
 ok('C2 두 번째는 「이미 있음」', by(R2, 'q1').status === '이미 있음', by(R2, 'q1'));
+ok('C2 시행일이 지났고 현행이 그 판이면 「이미 현행」 — _대기/ 를 다시 만들지 않는다(3-89)',
+  by(R1, 'q2').status === '이미 현행' && !fs.existsSync(path.join(lawP, '_대기', '20240724')), by(R1, 'q2'));
 
 console.log('\n── C3 가진 고시의 새 판 ──');
 const a1now = fs.readFileSync(A1, 'utf8');
@@ -190,6 +212,66 @@ const OLD = path.join(TMP, 'old_brief.md');
 fs.writeFileSync(OLD, '# 위키 반영 요청 — 일괄 승인분 2건\n\n1. collect_pending_law.py --all-approved\n');
 const r7 = spawnSync('python3', [path.join(LOOP, 'collect_approved.py'), '--from-brief', OLD], { encoding: 'utf8' });
 ok('C6 수집 목록이 없는 옛 인계문이면 다시 뽑으라고 말하고 종료코드 2', r7.status === 2 && /다시 뽑아라/.test(r7.stdout || ''), r7.stdout);
+
+console.log('\n── C7 (3-89) 머리글 표시 · 구판 보존본 · 부칙 · 공동소관 ──');
+const a5now = fs.readFileSync(A5, 'utf8');
+ok('C7 머리글 배너에만 있는 ⚠REVIEW 는 남으므로 보류하지 않고 갱신한다', by(R1, 'a5').status === '수집' && /^ID:152/m.test(a5now) && /⚠REVIEW \/ 출처: 옛 재수집 배너/.test(a5now), by(R1, 'a5'));
+ok('C7 옛 번호가 구판 보존본에만 있고 현행본이 이미 새 번호면 「이미 현행」 — 보존본은 그대로',
+  by(R1, 'a6').status === '이미 현행' && fs.readFileSync(A6, 'utf8') === before.A6 && (o.calls || []).indexOf('162') < 0, by(R1, 'a6'));
+const PY7 = String.raw`
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import admrul_recollect_stale as ARS, detect_law_changes as D
+resp = {'AdmRulService': {'행정규칙기본정보': {'발령일자': '20260928'}, '조문내용': ['제1조(목적) 본문'],
+        '부칙': {'부칙내용': ['부칙 <제1호, 2020. 1. 1.>이 고시는 발령한 날부터 시행한다.', '부칙 <제2호, 2026. 9. 28.>이 고시는 발령한 날부터 시행한다.']}}}
+ARS.curl = lambda url: json.dumps(resp, ensure_ascii=False)
+body, info = ARS._fetch_once('9')
+resp['AdmRulService'].pop('부칙')
+body2, _ = ARS._fetch_once('9')
+print('@@' + json.dumps({'body': body, 'body2': body2,
+  'same': D._dept_set('농림축산식품부') <= D._dept_set('농림축산식품부,식품의약품안전처,해양수산부'),
+  'moved': D._dept_set('농림축산식품부') <= D._dept_set('해양수산부')}, ensure_ascii=False))
+`;
+const r8 = spawnSync('python3', ['-c', PY7, LOOP], { encoding: 'utf8' });
+let o8 = {};
+try { o8 = JSON.parse((r8.stdout.split('\n').find((l) => l.startsWith('@@')) || '@@{}').slice(2)); } catch (e) { /* 아래 실패 */ }
+ok('C7 고시 본문을 받을 때 부칙도 같은 응답에서 [부칙] 으로 붙인다(갱신 때 부칙이 지워지던 것)',
+  /제1조\(목적\) 본문\n\n\[부칙\]\n부칙 <제1호[^\n]*\n부칙 <제2호/.test(o8.body || ''), (o8.body || '') + (r8.stderr || ''));
+ok('C7 응답에 부칙이 없으면 [부칙] 을 지어 붙이지 않는다', o8.body2 === '제1조(목적) 본문', o8.body2);
+ok('C7 공동소관 목록에 기준선 부처가 들어 있으면 이관이 아니다 · 빠지면 이관', o8.same === true && o8.moved === false, o8);
+
+console.log('\n── C8 (3-89) 고시 별표 파일도 그 판으로 ──');
+ok('C8 갈아끼운 고시(고시가)·새 고시(새고시)의 별표를 맞추라고 부른다 · 보류된 것(고시나)은 안 부른다',
+  (o.annex || []).includes('고시가.txt') && (o.annex || []).includes('새고시.txt') && !(o.annex || []).includes('고시나.txt')
+  && /별표: 다시썼다 1/.test(by(R1, 'a1').note || ''), [o.annex, by(R1, 'a1').note]);
+const BY = path.join(lawA, '별표');
+fs.mkdirSync(BY, { recursive: true });
+const G = path.join(lawA, '행정규칙', '별표고시.txt');
+fs.writeFileSync(G, '[고시/행정규칙] 별표고시\nID:902 · 소관: 해양수산부\n\n본문\n');
+const F1 = path.join(BY, '별표고시_별표1.txt'), F2 = path.join(BY, '별표고시_별표2.txt'), F9 = path.join(BY, '별표고시_별표9.txt');
+fs.writeFileSync(F1, '[별표고시] 별표1 — 옛 제목\n출처: 국가법령정보센터 행정규칙 API target=admrul ID=901 (수집 2026-08-31)\n\n옛 표\n');
+fs.writeFileSync(F2, '[별표고시] 별표2 — 사람 전사\n출처: 첨부 HWP 를 사람이 옮김\n\n사람 표\n');
+fs.writeFileSync(F9, '[별표고시] 별표9 — 옛 판에만\n출처: 국가법령정보센터 행정규칙 API target=admrul ID=901\n\n옛\n');
+const PY8 = String.raw`
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import admrul_fill_annex as FA
+from collect_pending_law import _NullTouched
+units = [{'별표구분': '별표', '별표번호': '0001', '별표키': '000100', '별표제목': '새 제목', '별표내용': '[별표 1]\n새 표'},
+         {'별표구분': '별표', '별표번호': '0002', '별표키': '000200', '별표제목': '새 둘', '별표내용': '[별표 2]\n새 둘'},
+         {'별표구분': '별지', '별표번호': '0003', '별표가지번호': '02', '별표키': '000302', '별표제목': '감리 조서', '별표내용': '[별지 제3호의2서식]\n칸'}]
+FA.api = lambda url, tries=4: {'AdmRulService': {'별표': {'별표단위': units}}}
+r = FA.refresh_annex([sys.argv[2]], False, _NullTouched())
+print('@@' + json.dumps({k: [x.split('/')[-1] for x in v] for k, v in r.items()}, ensure_ascii=False))
+`;
+const r9 = spawnSync('python3', ['-c', PY8, LOOP, G], { encoding: 'utf8' });
+let o9 = {};
+try { o9 = JSON.parse((r9.stdout.split('\n').find((l) => l.startsWith('@@')) || '@@{}').slice(2)); } catch (e) { /* 아래 실패 */ }
+const f1now = fs.existsSync(F1) ? fs.readFileSync(F1, 'utf8') : '';
+ok('C8 옛 판 API 수집본은 새 판으로 다시 쓴다(ID 902 · 새 표)', (o9['다시썼다'] || []).includes('별표고시_별표1.txt') && /ID=902/.test(f1now) && /새 표/.test(f1now) && !/옛 표/.test(f1now), [o9, r9.stderr]);
+ok('C8 사람 전사본(출처가 API 가 아님)은 덮지 않는다', (o9['사람전사_그대로'] || []).includes('별표고시_별표2.txt') && /사람 표/.test(fs.readFileSync(F2, 'utf8')), o9);
+ok('C8 새 판에 없는 별표 파일은 지우지 않고 알린다', (o9['새판에없음'] || []).includes('별표고시_별표9.txt') && fs.existsSync(F9), o9);
+ok('C8 `[별지 제3호의2서식]` 은 별지3의2 로 쓴다(3호와 겹쳐 사라지지 않게)', (o9['새로썼다'] || []).includes('별표고시_별지3의2.txt') && fs.existsSync(path.join(BY, '별표고시_별지3의2.txt')), o9);
 
 fs.rmSync(TMP, { recursive: true, force: true });
 console.log(`\n${pass} PASS / ${fail} FAIL`);
