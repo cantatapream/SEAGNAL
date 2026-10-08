@@ -28,6 +28,7 @@
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from _admrul_id import find_id   # ★판번호를 찾는 단 한 곳(P-19b)
+from admrul_fill_annex import title_of   # ★별표 파일 이름을 짓는 그 자리와 같은 이름(3-91)
 import glob, json, os, re, shutil, subprocess, sys, time, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -106,7 +107,7 @@ def main():
             return
         files = [p for p in files if os.path.basename(p) in 다시]
         print('실패였던 %d건만 다시 잰다' % len(files))
-    res = {'빠짐': [], '이미있음': [], '수가모자람': [], 'API에별표없음': [], 'ID없음': [], '실패': []}
+    res = {'빠짐': [], '이미있음': [], '수가모자람': [], 'API에별표없음': [], 'ID없음': [], '실패': [], '발췌': []}
     done = 0
     for p in files:
         name = os.path.basename(p)
@@ -135,6 +136,12 @@ def main():
         if not aid:
             res['ID없음'].append(name)
             continue
+        # ★머리말이 스스로 「발췌」 라고 밝힌 고시는 세지 않는다(3-91) — 별표가 모자란 것이 정상이다.
+        #   「승선하선구역_목포항」(목포항 항만시설운영세칙 제10조만 발췌)이 세칙 전체의 별표 15개와 견줘
+        #   매주 「수가 모자람」 카드로 떴고, 채우는 자가 발췌본 이름으로 별지를 또 쓰기까지 했다.
+        if re.search(r'^\[[^\]]*발췌[^\]]*\]|부분만 발췌|— 발췌', '\n'.join(lines[:3]), re.M):
+            res['발췌'].append(name)
+            continue
         if limit is not None and done >= limit:
             break
         d = api(f"https://www.law.go.kr/DRF/lawService.do?OC={OC}&target=admrul&type=JSON&ID={aid}")
@@ -162,11 +169,17 @@ def main():
         #   **채워 넣은 뒤에 오히려 '빠짐'이 늘어난 것처럼** 나왔다. 세는 자리를 맞춘다.
         lawdir = os.path.dirname(os.path.dirname(p))
         gosi_key = re.sub(r'[\\/:*?"<>|\s]', '', os.path.basename(p)[:-4])
+        # ★채우는 자(`admrul_fill_annex.py`)는 별표 파일 이름을 **머리글의 고시 이름**(`title_of`)으로 짓는다(3-91).
+        #   파일 이름과 고시 이름이 다른 고시(예: `승선하선구역_목포항.txt` ↔ 「목포항도선사의승선·하선구역고시」)는
+        #   별표를 받아 놓고도 여기서 0 으로 세어 원문결손 카드가 「별표 없음」 으로 남았다. 두 이름을 다 본다.
+        keys = {gosi_key, re.sub(r'[\\/:*?"<>|\s]', '', title_of(p))}
+        keys.discard('')
         byl_files = [n for n in os.listdir(os.path.join(lawdir, '별표'))
-                     if n.endswith('.txt') and re.sub(r'[\\/:*?"<>|\s]', '', n).startswith(gosi_key)] \
+                     if n.endswith('.txt') and any(re.sub(r'[\\/:*?"<>|\s]', '', n).startswith(k + '_') for k in keys)] \
                     if os.path.isdir(os.path.join(lawdir, '별표')) else []
         have = have_blocks + len(byl_files)
-        row = {'파일': name, 'API별표수': want, 'raw보유': have,
+        # '경로' — 원문결손 카드가 어느 법의 어느 파일인지 적으려면 이름만으로는 모자란다(3-91).
+        row = {'파일': name, '경로': os.path.relpath(p, LEGAL), 'API별표수': want, 'raw보유': have,
                '제목': [ (u.get('별표제목') or '')[:40] for u in units ][:6]}
         if have == 0:
             res['빠짐'].append(row)
@@ -181,7 +194,7 @@ def main():
         def 이름(x):
             return x if isinstance(x, str) else str((x or {}).get('파일') or (x or {}).get('name') or x)
         합 = {}
-        for k in ('빠짐', '이미있음', '수가모자람', 'API에별표없음', 'ID없음', '실패'):
+        for k in ('빠짐', '이미있음', '수가모자람', 'API에별표없음', 'ID없음', '실패', '발췌'):
             남은 = [x for x in (옛것.get(k) or []) if 이름(x) not in 다시본]
             합[k] = 남은 + res[k]
         print('  ── 합친 결과(옛 것에 얹었다) ──')

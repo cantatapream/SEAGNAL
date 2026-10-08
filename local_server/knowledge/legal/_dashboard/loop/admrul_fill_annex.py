@@ -200,13 +200,15 @@ def unit_key(u, rows0):
     #   종전 정규식은 `3` 바로 뒤의 `의` 만 봐서 3호와 3호의2 가 같은 `별지3` 이 됐다 — main() 은
     #   「이미 있으면 건너뜀」 이라 뒤의 것이 **조용히 사라졌다**. `호` 를 건너뛰고, 그래도 없으면
     #   API 의 `별표가지번호`(00=본, 02=의2)를 본다.
-    m0 = re.match(r'\s*\[?\s*(별표|별지|서식)\s*제?\s*(\d+)\s*호?(?:\s*의\s*(\d+))?', head0)
+    # ★3-91: 머리가 `【별지 제1호의 1 서식】` 처럼 **겹낫표**로 오는 고시가 있다(포항항 출입절차 운영세칙 등).
+    #   `[` 만 보던 종전 정규식은 이 줄을 못 읽어 아래 `별표키` 길로 갔다.
+    m0 = re.match(r'\s*[\[【]?\s*(별표|별지|서식)\s*제?\s*(\d+)\s*호?(?:\s*의\s*(\d+))?', head0)
     gubun = (u.get('별표구분') or (m0.group(1) if m0 else '별표')).strip()
     if m0:
         ga = m0.group(3)
         if not ga:
             gv = str(u.get('별표가지번호') or '').strip()
-            ga = str(int(gv)) if gv.isdigit() and int(gv) > 1 else None
+            ga = str(int(gv)) if gv.isdigit() and int(gv) > 0 else None
         no = m0.group(2) + ('의' + ga if ga else '')
     else:
         # ★번호가 없으면 **`0` 으로 둔다 — 지어내지 않는다** (2026-09-26, 3-67).
@@ -219,7 +221,10 @@ def unit_key(u, rows0):
         base_no = str(u.get('별표번호') or '').lstrip('0') or '0'
         bkey = str(u.get('별표키') or '')
         br = bkey[-2:] if len(bkey) >= 3 else ''
-        no = base_no + ('의' + str(int(br)) if br.isdigit() and int(br) > 1 else '')
+        # ★3-91: 가지 `01` 도 가지다 — 원문 「제1호의 1」 이 `000101` 로 온다. `> 1` 로 막아 두었더니
+        #   `별지1`(000100)과 `별지1의1`(000101)이 같은 이름이 되어 뒤의 것이 「이미 있음」 으로 조용히 빠졌다
+        #   (포항항 5개 중 2개 · 목포항 출입절차 19개 중 4개 · 평택당진 · 내항해운 · 목포항 운영세칙 각 1개).
+        no = base_no + ('의' + str(int(br)) if br.isdigit() and int(br) > 0 else '')
     key = ('별표' if gubun == '별표' else '별지') + no
     return key
 
