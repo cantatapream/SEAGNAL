@@ -1,0 +1,39 @@
+[시행규칙] 서식66 — 검정합격증명서
+
+[별지 제66호서식]                                     
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃제    호                                                              ┃
+┃                                                                      ┃
+┃검정합격증명서                                                        ┃
+┃CERTIFICATE OF INSPECTION                                             ┃
+┃                                                                      ┃
+┃1. 품명:                                                              ┃
+┃  (Name of Article)                                                   ┃
+┃2. 형식 및 규격 :                                                     ┃
+┃  (TypeㆍSizeㆍCapacity)                                              ┃
+┃3. 수량:                                                              ┃
+┃  (Quantity)                                                          ┃
+┃4. 형식승인번호:                                                      ┃
+┃  (Approval No.)                                                      ┃
+┃5. 형식승인연월일:                                                    ┃
+┃  (Date of Approval)                                                  ┃
+┃6. 제작(수입)자 성명:                                                 ┃
+┃  (Name of Manufacturer or Importer)                                  ┃
+┃7. 제작(수입)자 주소:                                                 ┃
+┃  (Address of Manufacturer or Importer)                               ┃
+┃8. 제작(수입)연월일:                                                  ┃
+┃  (Date of Manufacture or Import)                                     ┃
+┃9. 제작번호:                                                          ┃
+┃  (Serial No. of Manufacture)                                         ┃
+┃                                                                      ┃
+┃ 「해양환경관리법 시행규칙」제70조에 따라 검정에 합격하였음을 증명합  ┃
+┃니다.                                                                 ┃
+┃  This certificate is issued under the Article 70 of the Enforcement  ┃
+┃Rule of the Marine Environment Management Act.                        ┃
+┃                                                                      ┃
+┃년(Y)        월(M)        일(D)                                       ┃
+┃                                                                      ┃
+┃해양경찰연구센터장 ??                                               ┃
+┃The Chief of Korea Coast Guard Research Center                        ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  210㎜ × 297㎜[보존용지(1종) 120g/㎡]

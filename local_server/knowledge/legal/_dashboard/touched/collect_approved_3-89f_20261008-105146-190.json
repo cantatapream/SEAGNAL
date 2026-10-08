@@ -1,0 +1,9 @@
+{
+ "script": "collect_approved_3-89f",
+ "stamp": "20261008-105146-190",
+ "files": [
+  "local_server/knowledge/legal/_legacy/항만재개발및주변지역발전에관한법률/20250501/법률.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만재개발및주변지역발전에관한법률/법률.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만재개발및주변지역발전에관한법률/_meta.json"
+ ]
+}

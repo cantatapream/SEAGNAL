@@ -1,0 +1,8 @@
+{
+ "script": "collect_approved",
+ "stamp": "20261008-105146-188",
+ "files": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/인천항·경인항선박통항규칙.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/_admrul.json"
+ ]
+}

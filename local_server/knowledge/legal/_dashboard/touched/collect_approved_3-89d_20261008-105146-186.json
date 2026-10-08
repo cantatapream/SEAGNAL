@@ -1,0 +1,10 @@
+{
+ "script": "collect_approved_3-89d",
+ "stamp": "20261008-105146-186",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/항로표지의고시에관한업무취급요령.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/_admrul.json",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/_이미지/169752721.png",
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/_이미지/169752721.txt"
+ ]
+}

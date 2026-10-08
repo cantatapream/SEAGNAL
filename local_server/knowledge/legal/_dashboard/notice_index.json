@@ -638,6 +638,9 @@
  "남북항로에대한선박투입제한고시.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/해운법"
  ],
+ "남해어업관리단종합상황실운영규정.txt": [
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률"
+ ],
  "내항해운에관한업무지침.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/해운법"
  ],
@@ -1037,6 +1040,9 @@
  ],
  "비지정권자어항개발사업경합신청시사업시행자선정기준.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법"
+ ],
+ "사설항로표지의설치및관리에관한규정.txt": [
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법"
  ],
  "사회통합자원봉사위원기본규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
@@ -1949,6 +1955,9 @@
  "의료폐기물전용용기검사수수료고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
+ "인공어초시설사업집행및관리규정.txt": [
+  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법"
+ ],
  "인천항·경인항선박통항규칙.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률"
  ],
@@ -2214,6 +2223,9 @@
  "폐기물매립시설사후관리대행자지정고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
+ "폐기물매립시설사후관리업무처리규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
  "폐기물매립시설사후관리이행보증금의비용산출기준등에관한규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
@@ -2437,6 +2449,12 @@
  ],
  "해상구조조정본부지정등에관한고시.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
+ ],
+ "해상에서의항공기조난시수색.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률"
+ ],
+ "해상풍력입지정보망운영및관리에관한규정.txt": [
+  "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률"
  ],
  "해수욕장안전관리에관한지침.txt": [
   "local_server/knowledge/legal/raw/09_레저관광/해수욕장의이용및관리에관한법률"
