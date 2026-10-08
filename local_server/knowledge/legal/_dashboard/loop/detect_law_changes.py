@@ -297,6 +297,12 @@ def related_laws_in(text, name_index):
     return [found[k] for k in sorted(found)]
 
 
+def _dept_set(s):
+    """「농림축산식품부,식품의약품안전처,해양수산부」 → {세 부처}. 빈 값이면 빈 집합.
+    예: _dept_set('농림축산식품부') <= _dept_set('농림축산식품부,해양수산부') → True (이관 아님)"""
+    return {p.strip() for p in str(s or '').split(',') if p.strip()}
+
+
 def make_item(kind, law, layer, ident, before, after, arts, evidence, related=None):
     """큐 항목 1건을 H-29 5~7항(승인방)이 그대로 소비할 스키마로 만든다.
     예: make_item('law_pending', 수산업법, '법률', {'법령ID':'001486'}, before, after, arts, {'query':'W3'})
@@ -369,7 +375,12 @@ def scan_laws(base, by_lawid, days):
                      "현행연혁코드": status}
             ev = {"query": tag, "org": org}
             # 소관부처 이관(H-29 9항) — MST가 그대로여도 부처명만 바뀔 수 있어 따로 본다
-            if row.get("소관부처명") and row["소관부처명"] != fam.get("소관부처명"):
+            # ★문자열이 아니라 **부처 집합**으로 견준다(3-89, 2026-10-08 — 오탐 4건).
+            #   검색 목록(lawSearch)은 공동소관을 「농림축산식품부,식품의약품안전처,해양수산부」처럼 쉼표로 다 주는데,
+            #   기준선(build_change_baseline — 상세 lawService)은 첫 부처 하나만 적는다. 그래서 농수산물 품질관리법은
+            #   1999년 판부터 한 번도 안 바뀐 소관이 스캔마다 「소관부처 변경」 카드로 올라왔다(원산지표시법도 같다).
+            #   기준선 부처가 지금 목록에 다 들어 있으면 이관이 아니다. 빠진 부처가 있을 때만 카드를 낸다.
+            if row.get("소관부처명") and not _dept_set(fam.get("소관부처명")) <= _dept_set(row["소관부처명"]):
                 items.append(make_item("law_dept_changed", law, layer, {"법령ID": lid},
                                        {"소관부처명": fam.get("소관부처명", "")},
                                        {"소관부처명": row["소관부처명"], "MST": mst, "시행일자": efyd},

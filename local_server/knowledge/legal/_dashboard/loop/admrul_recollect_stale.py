@@ -98,6 +98,17 @@ def _fetch_once(serial):
         byltxt += '\n[별표] ' + flat(un.get('별표제목')) + '\n' + \
                   re.sub(r'<[^>]+>', ' ', flat(un.get('별표내용')))
     body = (jo + ('\n\n' + byltxt if byltxt.strip() else '')).strip()
+    # ★부칙도 같은 응답에서 받는다(3-89, 2026-10-08 실제로 당했다).
+    #   이 함수는 조문·별표만 돌려줬고, refresh_file() 이 머리글 뒤를 통째로 갈아끼우므로
+    #   L-218 백필(admrul_fill_addenda.py)로 붙여 둔 `[부칙]` 이 갱신 때마다 지워졌다 —
+    #   여수·광양항 선박교통안전규정이 부칙 2개를 잃은 채로 갱신된 것을 diff 에서 잡았다.
+    #   형식은 admrul_fill_addenda.py 와 같다(`[부칙]` 한 줄 + 문단들) — 그래야 그 도구가
+    #   「이미있음」으로 알아보고 두 번 붙이지 않는다.
+    bc = b.get('부칙')
+    bc = bc.get('부칙내용') if isinstance(bc, dict) else None
+    paras = [flat(t).strip() for t in L(bc) if flat(t).strip()] if bc else []
+    if paras and body:
+        body += '\n\n[부칙]\n' + '\n'.join(paras)
     return body, info
 
 
@@ -112,7 +123,8 @@ def head_lines(text):
     return keep, '\n'.join(lines[len(keep):]).lstrip('\n')
 
 
-def refresh_file(rel, title, serial, body, info, held_ids, issued_fallback, touched, dry):
+def refresh_file(rel, title, serial, body, info, held_ids, issued_fallback, touched, dry,
+                 allow_shrink=False):
     """행정규칙 raw 파일 **하나**를 새 판 본문으로 갈아끼운다 — 안전장치를 그대로 건다. → 결과 dict
 
     main()(신선도 보고서의 구버전 행)과 `collect_approved.py`(관리자가 승인한 「행정규칙 개정」 — 3-82)가
@@ -123,6 +135,8 @@ def refresh_file(rel, title, serial, body, info, held_ids, issued_fallback, touc
     @param body/info fetch_body() 결과
     @param held_ids 옛 번호들(머리글 「현행화」 줄에 남긴다)
     @param issued_fallback 응답에 발령일자가 없을 때 쓸 값
+    @param allow_shrink 사람이 옛 본문을 직접 열어 「줄어든 만큼이 옛 판 잔재·중복」임을 확인한 때만 True.
+                        기계 실행(main·collect_approved)은 절대 넘기지 않는다.
     예: refresh_file('raw/…/행정규칙/포항항선박안전운항관리규정.txt', '포항항선박안전운항관리규정',
                      '2100000283648', body, info, ['2100000264778'], '20260805', touched, False)
         → {'status': '갱신', 'old_chars': …, 'new_chars': …}
@@ -142,11 +156,15 @@ def refresh_file(rel, title, serial, body, info, held_ids, issued_fallback, touc
     except Exception:
         return {'title': title, 'file': rel, 'status': '파일없음'}
     hdr, oldbody = head_lines(old)
-    if len(body) < len(oldbody) * 0.7:
+    if len(body) < len(oldbody) * 0.7 and not allow_shrink:
         return {'title': title, 'file': rel, 'status': '보류(본문축소)',
                 'old_chars': len(oldbody), 'new_chars': len(body)}
     # 사람 손이 들어간 흔적이 새 본문에 없으면 덮어쓰지 않는다(L-176).
-    lost = [m for m in HUMAN_MARKS if m in old and m not in body]
+    # ★머리글은 아래에서 그대로 남기므로(발령: 줄만 새로 쓴다) 머리글에 있는 표시는 잃지 않는다.
+    #   (3-89, 2026-10-08) 「항로표지시설 관리지침」이 머리글 배너의 ⚠REVIEW 하나 때문에
+    #   「사람작업 소실」로 걸렸다 — 실제로는 본문에 사람 손이 하나도 없었다.
+    kept = '\n'.join(h for h in hdr if not h.startswith('발령:'))
+    lost = [m for m in HUMAN_MARKS if m in old and m not in body and m not in kept]
     if lost:
         return {'title': title, 'file': rel, 'status': '보류(사람작업 소실)',
                 'lost_marks': lost, 'old_chars': len(oldbody), 'new_chars': len(body)}

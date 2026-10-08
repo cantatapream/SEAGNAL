@@ -53,6 +53,7 @@ import _admrul_id                                  # noqa: E402
 import collect_pending_law as CPL                  # noqa: E402
 import recollect_tier as RT                        # noqa: E402
 import admrul_recollect_stale as ARS               # noqa: E402
+import admrul_fill_annex as FA                     # noqa: E402
 
 LEGAL = os.path.normpath(os.path.join(HERE, '..', '..'))
 REPO = os.path.normpath(os.path.join(LEGAL, '..', '..', '..'))
@@ -166,6 +167,15 @@ def do_law_pending(it, touched, dry, force=False):
     base = law_dir(it['slug'], it['raw'])
     if not base:
         return {'status': '실패(법 폴더 없음)'}
+    # ★시행일이 이미 지난 예고본은 다시 대기로 받지 않는다 (2026-10-08, 3-89).
+    #   인계문은 **승인된 전 건**을 다시 싣는다 — 어제 처리한 44건이 오늘 113건 안에 그대로 들어 있었고,
+    #   그사이 fold_effective 가 현행으로 올린 판(양식산업발전법 10-01 등 13건)을 이 자가 `_대기/` 에 **다시 만들었다**.
+    #   현행이 그 판이거나(MST 같음) 더 새 판(현행 시행일 ≥ 예고본 시행일)이면 「이미 현행」 이다.
+    if it['시행일자'] and it['시행일자'] <= today():
+        have = CPL.current_mst(base, it['layer'])
+        cur = CPL.file_eff(os.path.join(base, it['layer'] + '.txt'))
+        if have == str(it['MST_new']) or (cur and cur >= it['시행일자']):
+            return {'status': '이미 현행', 'note': '시행일(%s)이 지났고 현행 사본이 그 판이거나 더 새 판(MST %s · 시행 %s)' % (it['시행일자'], have, cur or '?')}
     if dry:
         return {'status': '받을 것(dry)', 'note': '예고본 MST %s · 시행 %s → _대기/' % (it['MST_new'], it['시행일자'])}
     item = {'id': it['id'], 'kind': 'law_pending', 'layer': it['layer'], 'after': {'MST': it['MST_new']},
@@ -223,6 +233,15 @@ def do_admrul_amended(it, touched, dry, idx):
         how = '제목'
     if not files:
         return {'status': '실패(가진 파일을 못 찾았다 — 옛 번호 %s · 제목 %s)' % (it['ID_old'], it['title_old'] or it['title'])}
+    # ★옛 번호를 가진 파일이 **일부러 남긴 구판 보존본**뿐이고 현행본은 따로 새 번호를 이미 갖고 있으면 끝난 일이다
+    #   (3-89, 2026-10-08). 「(원주지방환경청)…통합고시_2026-144호_구판전사.txt」가 옛 번호를 가진 탓에
+    #   새 판으로 덮일 뻔했다(본문축소로 걸려 무사했다) — 현행본은 8월에 이미 새 번호로 갈아끼워져 있었다.
+    #   보존본은 덮지 않는다(refresh_file 의 `_구판/` 폴더 규칙과 같은 뜻 — 파일 이름에 박힌 판과 내용이 어긋난다).
+    keep = [p for p in files if '구판' in os.path.basename(p)]
+    if keep and len(keep) == len(files) and any(it['ID_new'] in f['ids'] for f in idx):
+        cur = [f['path'] for f in idx if it['ID_new'] in f['ids']]
+        return {'status': '이미 현행', 'note': '옛 번호는 구판 보존본에만 있다 — 현행본 %s' % os.path.relpath(cur[0], REPO)}
+    files = [p for p in files if p not in keep] or files
     if all(it['ID_new'] in f['ids'] for f in idx if f['path'] in files):
         return {'status': '이미 현행', 'note': '%d파일' % len(files)}
     # 여러 고시를 묶은 파일(예: 관할서 19곳을 한 파일에)은 통째로 덮으면 나머지 18곳이 사라진다 — 사람이 그 칸만 고친다.
@@ -239,11 +258,28 @@ def do_admrul_amended(it, touched, dry, idx):
     held = [r for r in recs if r['status'] != '갱신']
     rel = lambda p: os.path.relpath(p, REPO)
     note = '%s 로 찾은 %d파일 — ' % (how, len(files)) + ' · '.join('%s %s' % (r['status'], rel(r['file'])) for r in recs)
+    if done and not dry:
+        note += _annex([r['file'] for r in done], touched)
     if done and not held:
         return {'status': '수집' if not dry else '받을 것(dry)', 'note': note}
     if done:
         return {'status': '일부 수집(%d/%d)' % (len(done), len(recs)), 'note': note}
     return {'status': held[0]['status'], 'note': note}
+
+
+def _annex(paths, touched):
+    """받은 고시의 `<법>/별표/` 파일을 그 판에 맞춘다 → 보고 꼬리말.
+
+    ★챗봇은 고시 별표를 본문 파일이 아니라 `<법>/별표/<고시명>_별표N.txt` 에서 읽는다(article_text.js).
+      본문만 새 판으로 갈아끼우면 별표는 옛 판으로 남는다 — 3-89 에서 「선박교통관제에 관한 규정」 등
+      31개 고시가 그랬다(L-409). 사람 전사본은 덮지 않는다(refresh_annex 규칙).
+    """
+    try:
+        r = FA.refresh_annex(paths, False, touched)
+    except Exception as e:          # 별표 때문에 본문 수집을 실패로 돌리지 않는다 — 대신 알린다
+        return ' · ⚠별표 맞추기 실패(%s) — admrul_fill_annex.py --refresh 로 다시' % str(e)[:60]
+    bits = ['%s %d' % (k, len(v)) for k, v in r.items() if v and k != '그대로(같은판)']
+    return (' · 별표: ' + ', '.join(bits)) if bits else ''
 
 
 def _fname(title):
@@ -294,7 +330,7 @@ def do_admrul_new(it, touched, dry, idx, place):
     os.makedirs(d, exist_ok=True)
     open(out, 'w', encoding='utf-8').write(hdr + body + '\n')
     touched.add(out)
-    return {'status': '수집', 'note': os.path.relpath(out, REPO)}
+    return {'status': '수집', 'note': os.path.relpath(out, REPO) + _annex([out], touched)}
 
 
 def run(items, dry=False, only=None, place=None, touched=None, force=False):

@@ -1,0 +1,9 @@
+{
+ "script": "collect_approved",
+ "stamp": "20261008-105146-174",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/사설항로표지의설치및관리에관한규정.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법/행정규칙/인공어초시설사업집행및관리규정.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/행정규칙/해상에서의항공기조난시수색.txt"
+ ]
+}
