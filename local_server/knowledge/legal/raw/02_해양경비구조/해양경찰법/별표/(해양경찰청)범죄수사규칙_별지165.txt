@@ -1,0 +1,48 @@
+[(해양경찰청) 범죄수사규칙] 별지165 — 진술녹음 고지ㆍ동의 확인서(베트남어)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000283526 (수집 2026-10-08)
+별표서식파일링크: /LSW/flDownload.do?flSeq=167962561
+
+■ 범죄수사규칙 [별지 제165호서식]
+┌────────────────────────────────────────────────────────────┐
+│THONG BAO GHI AM VA XAC NH?N Ð?NG Y GHI AM L?I KHAI                                                          │
+├─────────────┬──────────────────────────────────────────────┤
+│S? ti?p nh?n c?a KICS │0000-000000                                                                                 │
+├─────────────┼─────┬───────────┬────────────────────────────┤
+│H? ten                  │대상자성명│Ngay thang n?m sinh│생년월일                                                │
+├─────────────┴─────┴───────────┴────────────────────────────┤
+│ <Co quan c?nh sat ðang th?c hi?n ch? ð? ghi am l?i khai ð? giup qua trinh đi?u tra tr? nen khach  │
+│quan va minh b?ch, ð?ng th?i giup b?o v? nhan quy?n c?a đ?i t??ng đi?u tra. Vi?c ghi am l?i         │
+│khai ch? ð??c đ??c th?c hi?n khi b?n đa ð?c k? va ð?ng y v?i nh?ng n?i dung d??i đay.>        │
+│※Tuy nhien, ngay c? khi b?n đ?ng y ghi am l?i khai nh?ng co ly do b?t kh? khang nh?                     │
+│thi?u phong ghi am l?i khai, thi?t b? ghi am b? h?ng thi vi?c ghi am l?i khai co th? khong              │
+│ti?n hanh đ??c.                                                                                                    │
+│?Sau khi ð?ng y, b?n v?n co th? yeu c?u d?ng vi?c ghi am trong khi đang ghi am l?i khai                 │
+│ho?c sau khi khong đ?ng y, b?n v?n co th? yeu c?u ghi am l?i khai trong khi đang đi?u tra               │
+│ma khong ghi am.                                                                                                     │
+│?Vi?c ghi am l?i khai ð??c th?c hi?n k? t? khi b?t đ?u vi?t bien b?n đi?u tra cho đ?n khi          │
+│đ?i t??ng đi?u tra hoan thanh xong bien b?n đi?u tra b?ng cach đong d?u giap lai va ghi ten         │
+│đong d?u ho?c ky ten vao bien b?n đi?u tra.                                                                  │
+│?File ghi am l?i khai ch? ð??c s? d?ng v?i m?c đich ki?m tra xem co s? vi ph?m nhan                   │
+│quy?n trong qua trinh đi?u tra hay khong, ki?m tra xem l?i khai c?a b?n than co đ??c ghi                 │
+│đung trong bien b?n đi?u tra hay khong, đ?ng th?i đ? kh?i g?i l?i tri nh? c?a ng??i khai va        │
+│file ghi am l?i khai s? khong ð??c g?i đ?n c? quan ki?m sat.                                               │
+│※Tuy nhien, file ghi am l?i khai co th? ð??c cung c?p trong tr??ng h?p toa an ho?c co quan             │
+│ði?u tra yeu c?u d?a tren cac quy ð?nh phap lu?t khac.                                                      │
+│?Co th? nghe l?i File ghi am l?i khai trong qua trinh ð?c bien b?n đi?u tra, ngay sau khi đong          │
+│d?u giap lai va ghi ten đong d?u ho?c ky ten vao bien b?n đi?u tra đ? hoan thanh bien b?n          │
+│đi?u tra, sau đo, b?n co th? nghe file ghi am theo th? t?c yeu c?u cong khai thong tin ho?c              │
+│co th? ki?m tra l?i n?i dung ða khai thong qua vi?c l?p* b?n ghi chep n?i dung ghi am.                    │
+│  ＊Chi phi ghi am s? do b?n than chi tr? va khong ð??c cung c?p file ghi am l?i khai (bao                │
+│g?m c? b?n sao va b?n ph?c ch?)                                                                                  │
+│  ※Co th? cung c?p m?t b?n sao c?a bien b?n đi?u tra thong qua quy trinh yeu c?u cong                   │
+│khai thong tin, đi?u nay tach bi?t v?i vi?c nghe va ghi l?i file ghi am l?i khai.                           │
+│?File ghi am l?i khai s? ð??c l?u gi? trong 3 n?m k? t? ngay ghi am v?i m?c đich b?o v?             │
+│quy?n rieng ty c?a đ?i t??ng đi?u tra, sau đo s? đ??c h?y b? đ?ng lo?t.                            │
+│※Tuy nhien, try?c khi h?t th?i h?n 3 nam, n?u co yeu c?u cong khai thong tin, ð?c, sao chep,           │
+│yeu c?u c?a toa an ho?c co quan ði?u tra v? file ghi am l?i khai, thi sau khi hoan thanh cac            │
+│bi?n phap x? ly theo th? t?c yeu c?u lien quan, file ghi am l?i khai m?i ð??c h?y b?.                  │
+│? T?t c? cac ð?i t??ng đi?u tra đ?u co quy?n khong đ?ng y v?i vi?c ghi am l?i khai.               │
+│     ?   B?n co ð?ng y ghi am l?i l?i khai theo quy?t đ?nh c?a b?n than hay khong?                      │
+│Ð?ng y  (      )           Khong đ?ng y (      )                                                                 │
+│Ngay      thang      n?m           H? ten: 대상자성명     (Ky ten)                                               │
+└────────────────────────────────────────────────────────────┘

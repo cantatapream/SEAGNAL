@@ -1,0 +1,46 @@
+[(해양경찰청) 범죄수사규칙] 별지163 — 진술녹음 고지ㆍ동의 확인서(영어)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000283526 (수집 2026-10-08)
+별표서식파일링크: /LSW/flDownload.do?flSeq=167962549
+
+■ 범죄수사규칙 [별지 제163호서식]
+                                                                                                                      
+  Statement Recording Notice and Consent Form                                                                         
+┌────────┬────────────────────────────────────────────────┐
+│KICS Receipt No.│0000-000000                                                                                     │
+├────────┼─────┬───────┬──────────────────────────────────┤
+│Name            │대상자성명│Date of Birth │생년월일                                                            │
+├────────┴─────┴───────┴──────────────────────────────────┤
+│<The statement recording process is enacted by the police to protect the human rights of the subjects of          │
+│investigation through objective and transparent investigation procedures. Carefully read the following            │
+│information, and your statements will be recorded only if you agree to the contents of the form.>                 │
+│   ※However, the statement recording may not be conducted due to inevitable reasons such as                      │
+│the lack of room used for statement recording or the failure in equipment, even though the                        │
+│subject of the investigation has agreed to record one‘s statements.                                              │
+│?Even though the recording has started by the consent of the subject of investigation, the subject may           │
+│request the inspector to stop recording one's statements. Similarly, the subject may request to be                │
+│recorded during an investigation, even though the subject has refused to do so in the beginning.                  │
+│?The recording of statement shall begin when the subject of the investigation starts filling out the report,     │
+│and shall end when the report is completed by the subject's stamp or sign on the report with the date.            │
+│?The recorded file shall solely be used for confirmation on matters related to the violation of human rights,    │
+│matters related to the verification of the report in accordance with one’s statement, and for recollection       │
+│of the subject's memory on the topic of the investigation. The file will not be sent to the prosecution.          │
+│   ※However, if the recorded file is requested by the court or investigation agency, the file may be transmitted.│
+│?The recorded file is accessible during the process of reviewing the report or immediately after                 │
+│completing the report by stamping or signing the report with the date. From that time on, the                     │
+│contents of the statement is accessible through transcribing or listening to the recorded files in                │
+│compliance with the Information Disclosure Request Procedure.                                                     │
+│  ＊The costs for transcription will be paid for by the subject(s), and the file of statement                     │
+│recording (including duplicates and copies) will not be provided.                                                 │
+│   ※ A copy of the report can be provided through the Information Disclosure Request Procedure                   │
+│apart from listening and/or recording the file of statement recording.                                            │
+│?The recorded file will be discarded after three years since it was created, in order to protect personal        │
+│information of the subjects of the investigation.                                                                 │
+│   ※However, in case the file of the statement recording is requested by the court or investigation              │
+│agency, or is requested for viewing or copying by the Information Disclosure Request before                       │
+│the three-year expiration, the file will be discarded after all the measures has been taken                       │
+│according to the request procedure.                                                                               │
+│?All subjects of the investigation may refuse statement recording.                                               │
+│?  Do you agree to the statement recording out of your own volition?                                             │
+│I agree  (      )           I disagree (      )                                                                   │
+│20    .     .     .           Name 대상자성명     (Signature)                                                     │
+└─────────────────────────────────────────────────────────┘
