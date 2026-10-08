@@ -1992,7 +1992,7 @@
       return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 한 번도 점검하지 않았습니다. 매주 일요일 새벽 3시(KST)에 자동으로 돌고, 아래 버튼으로 지금 돌릴 수도 있습니다.</div>';
     }
     if (!last.ok) {
-      return '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span><b>마지막 점검이 실패했습니다</b> (' + esc(shortTs(last.finishedAt)) + ')<br>' +
+      return run + '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span><b>마지막 점검이 실패했습니다</b> (' + esc(shortTs(last.finishedAt)) + ')<br>' +
         '<span style="font-size:11.5px">사유: ' + esc(last.error || '알 수 없음') + '</span><br>' +
         '<span style="font-size:11.5px;color:var(--nrya-text-sub)">아래 목록이 비어 있어도 <b>"낡은 원문이 없다"는 뜻이 아닙니다</b> — 확인을 못 한 것입니다.</span></div>';
     }
@@ -2164,9 +2164,25 @@
   //    [연계] ← GET /api/legal/mok-audit · POST /api/legal/mok-audit/:id/decide
   //           · POST /api/legal/mok-audit/scan-now · services/mok_audit_scanner.js
 
+  /**
+   * 지금 도는 점검 알림 — 없으면 ''.
+   * ★(3-90) 점검은 끝나야 상태가 바뀐다. 도는 동안 아래 「마지막 점검」 은 **지난 결과**라는 것을 먼저 알린다 —
+   *   안 그러면 지난 점검의 실패 문구가 지금 실패하는 것처럼 읽힌다(사장님 캡처 2026-10-08).
+   * @param {?{startedAt:string, phase:string}} running
+   */
+  function mokRunningHTML(running) {
+    if (!running) return '';
+    return '<div class="nrya-notice-box" style="margin-bottom:8px"><span class="nrya-em">⏳</span>' +
+      '<b>지금 점검이 돌고 있습니다</b> — ' + esc(shortTs(running.startedAt)) + ' 시작 · 지금 <b>' + esc(running.phase || '') + '</b> 단계' +
+      '<br><span style="font-size:11.5px">조문 목(20~40분) → 고시 별표(약 30분) 순서라 다 끝나려면 보통 <b>40~70분</b> 걸립니다. ' +
+      '<b>아래는 지난 점검 결과</b>이고, 끝나면 새 결과로 바뀝니다.</span></div>';
+  }
+
   /** 마지막 점검이 언제·어떻게 끝났는지. **"이상 없음"과 "확인 못 함"을 반드시 가른다.** */
-  function mokLastHTML(last) {
+  function mokLastHTML(last, running) {
+    var run = mokRunningHTML(running);
     if (!last) {
+      if (run) return run;
       return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 한 번도 점검하지 않았습니다. 매주 <b>수요일 새벽 3시</b>(KST)에 자동으로 돌고, 아래 버튼으로 지금 돌릴 수도 있습니다.</div>';
     }
     if (!last.ok) {
@@ -2174,11 +2190,13 @@
         '<span style="font-size:11.5px">사유: ' + esc(last.error || '알 수 없음') + '</span><br>' +
         '<span style="font-size:11.5px;color:var(--nrya-text-sub)">아래 목록이 비어 있어도 <b>"빠진 것이 없다는 뜻이 아닙니다"</b> — 확인을 못 한 것입니다.</span></div>';
     }
+    // ★실패 문구에 **언제 점검의 것인지**를 붙인다(3-90) — 날짜 없이 traceback 만 있으면 지금 일로 읽힌다.
     var partial = last.partialError
-      ? '<div class="nrya-notice-box nrya-err" style="margin-bottom:8px"><span class="nrya-em">⚠️</span><b>일부 점검이 실패했습니다</b><br><span style="font-size:11.5px">' + esc(last.partialError) + '<br>그 부분은 <b>확인하지 못한 것</b>이지 "이상 없음"이 아닙니다.</span></div>'
+      ? '<div class="nrya-notice-box nrya-err" style="margin-bottom:8px"><span class="nrya-em">⚠️</span><b>' +
+          (running ? '지난 점검' : '마지막 점검') + '(' + esc(shortTs(last.finishedAt)) + ')에서 일부가 실패했습니다</b><br><span style="font-size:11.5px">' + esc(last.partialError) + '<br>그 부분은 <b>확인하지 못한 것</b>이지 "이상 없음"이 아닙니다.</span></div>'
       : '';
     var unk = (last.no_answer || 0);
-    return partial + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
+    return run + partial + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
       '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '계열 대조 · 누락 ' + (last.missing || 0) + '건' +
       (last.missing_moks ? ' (빠진 목 ' + last.missing_moks + '개)' : '') +
       (last.annex_missing ? ' · 고시 별표 없음 ' + last.annex_missing + '건' : '') +
@@ -2334,10 +2352,8 @@
         scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL;
         if (data && data._denied) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '관리자 로그인 필요'; } return; }
         if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '점검 시작 실패'; } return; }
-        var listHost = document.getElementById('nryaMokListHost');
-        if (listHost) {
-          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 점검이 시작됐습니다. 법령 573계열과 고시 824건을 하나씩 대조하느라 20~40분 걸립니다 — 나중에 이 방을 다시 열어 확인해 주세요.</div>');
-        }
+        // 목록을 다시 불러 「⏳ 지금 점검이 돌고 있습니다」(서버 running) 를 바로 띄운다(3-90).
+        loadMokList();
       }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
     };
     loadMokList();
@@ -2353,7 +2369,7 @@
     }).then(function (data) {
       if (data === null) return;
       if (!data || !data.ok) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((data && data.error) || '목록을 불러오지 못했습니다.') + '</div>'; return; }
-      var head = mokLastHTML(data.last);
+      var head = mokLastHTML(data.last, data.running);
       var list = data.items || [];
       if (!list.length) {
         // 점검이 실패했으면 "이상 없음"이라고 쓰지 않는다 — mokLastHTML 이 그 사정을 위에 적는다.

@@ -110,5 +110,19 @@ ok('B5 앱(웹뷰)은 서버에 맡기고 시스템 브라우저로 받는다 ·
   /isNativePlatform/.test(dl) && /legalPost\('\/api\/legal\/brief-file'/.test(dl) && /Browser\.open\(\{ url: furl \}\)/.test(dl) && /new Blob\(\[text\], \{ type: 'text\/markdown/.test(dl));
 ok('B5 지시문 상자 세 곳이 각자 파일 이름을 준다', ["'개정검토_지시문'", "'개정검토_승인분_전체지시문'", "'원문결손_대기_전체지시문'"].every((n) => (ui.match(new RegExp(n, 'g')) || []).length >= 1));
 
+console.log('\n── B6 (3-90) 도는 점검을 알린다 — 지난 점검의 실패가 지금 일로 읽히지 않게 ──');
+const scanMod = require('../services/mok_audit_scanner.js');
+ok('B6 점검이 안 돌면 scanState() 는 null', typeof scanMod.scanState === 'function' && scanMod.scanState() === null);
+const scanSrc = fs.readFileSync(path.join(__dirname, '..', 'services', 'mok_audit_scanner.js'), 'utf8');
+ok('B6 점검 단계(조문 목 → 고시 별표)를 적고, 끝나면(finally) 지운다',
+  /_scanState = \{ startedAt, phase: '조문 목' \}/.test(scanSrc) && /_scanState = \{ startedAt, phase: '고시 별표' \}/.test(scanSrc) && /finally \{\s*_scanning = false;\s*_scanState = null;/.test(scanSrc));
+ok('B6 GET /api/legal/mok-audit 가 running 을 함께 준다', /running: mokScanner\.scanState\(\)/.test(routes));
+const last = ui.slice(ui.indexOf('function mokRunningHTML'), ui.indexOf('function mokCardHTML'));
+ok('B6 화면: 도는 중이면 「지금 점검이 돌고 있습니다 · 아래는 지난 점검 결과」 를 먼저 띄운다',
+  /지금 점검이 돌고 있습니다/.test(last) && /아래는 지난 점검 결과/.test(last) && /mokLastHTML\(data\.last, data\.running\)/.test(ui));
+ok('B6 화면: 실패 문구에 언제 점검의 것인지(끝난 시각)를 붙인다',
+  /\(running \? '지난 점검' : '마지막 점검'\) \+ '\(' \+ esc\(shortTs\(last\.finishedAt\)\) \+ '\)에서 일부가 실패했습니다/.test(last));
+ok('B6 「지금 점검」 을 누르면 목록을 다시 불러 도는 중 표시를 바로 띄운다', /loadMokList\(\);\s*\n\s*\}\)\.catch\(function \(e\) \{ scanBtn\.disabled = false/.test(ui));
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

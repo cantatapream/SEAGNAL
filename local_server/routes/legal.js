@@ -1097,7 +1097,8 @@ router.get('/api/legal/mok-audit', adminAuth.requireAdminToken, (req, res) => {
     const status = req.query.status || 'pending';
     let list = adminQueues.readJsonl(mokScanner.QUEUE_FILE).reverse();
     if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
-    res.json({ ok: true, count: list.length, items: list, last: mokScanner.readStatus() });
+    // running: 지금 도는 점검({startedAt, phase} · 없으면 null) — `last` 는 끝난 점검이라 도는 동안 옛 결과다(3-90).
+    res.json({ ok: true, count: list.length, items: list, last: mokScanner.readStatus(), running: mokScanner.scanState() });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
