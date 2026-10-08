@@ -44,7 +44,9 @@ function updateJsonlById(file, id, patch) {
   const items = readJsonl(file);
   const idx = items.findIndex((it) => it.id === id);
   if (idx === -1) return null;
-  items[idx] = Object.assign({}, items[idx], patch);
+  // ★같은 id 줄이 여럿이면 **모두** 고친다(3-91). 원문결손 큐에 이름 없는 고시 별표 카드 41줄이
+  //   id 2개로 쌓였는데, 첫 줄만 고치던 탓에 「처리완료」 를 눌러도 나머지 40줄은 대기로 남았다.
+  for (let i = idx; i < items.length; i++) if (items[i].id === id) items[i] = Object.assign({}, items[i], patch);
   const body = items.length ? items.map((it) => JSON.stringify(it)).join('\n') + '\n' : '';
   writeFileAtomic(file, body);
   return items[idx];
