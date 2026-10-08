@@ -78,6 +78,14 @@ const STATUS_FILE = path.join(DATA, 'mok_audit_status.json');
 const SCAN_TIMEOUT_MS = 90 * 60 * 1000;
 
 let _scanning = false; // 중복 실행 락(cron·수동스캔 동시 발동 시 결과 파일 경합 방지)
+/**
+ * 지금 도는 점검 — {startedAt, phase} · 안 돌면 null.
+ * ★(3-90, 2026-10-08 사장님 캡처) 「지금 점검」을 누른 뒤에도 화면은 **지난 점검 결과**만 보여 줘서,
+ *   3-83 이전 코드로 돈 10-07 03:00 점검의 「curl FileNotFoundError」가 **지금 실패하는 것처럼** 보였다.
+ *   점검은 조문 목(20~40분)과 고시 별표(약 30분)를 잇달아 돌아 끝날 때까지 상태 파일이 안 바뀐다.
+ *   그래서 도는 중임을 화면에 알린다.
+ */
+let _scanState = null;
 
 /**
  * 점검 스크립트를 자식 프로세스로 1회 실행한다. 비동기(spawn).
@@ -288,6 +296,7 @@ async function runMokAuditScan() {
   if (_scanning) return { ok: false, checked: 0, missing: 0, added: 0, error: '점검이 이미 진행 중입니다.' };
   _scanning = true;
   const startedAt = new Date().toISOString();
+  _scanState = { startedAt, phase: '조문 목' };
   try {
     const errors = [];
     let entries = [];
@@ -316,6 +325,7 @@ async function runMokAuditScan() {
     }
 
     // ② 고시 별표 누락
+    _scanState = { startedAt, phase: '고시 별표' };
     const r2 = await runScript(ANNEX_SCRIPT, ['--out', ANNEX_REPORT_FILE]);
     let arep = null;
     try { arep = JSON.parse(fs.readFileSync(ANNEX_REPORT_FILE, 'utf8')); } catch (_) { arep = null; }
@@ -396,7 +406,13 @@ async function runMokAuditScan() {
     return st;
   } finally {
     _scanning = false;
+    _scanState = null;
   }
+}
+
+/** 지금 도는 점검 → {startedAt, phase} · 안 돌면 null. [연계] → GET /api/legal/mok-audit 의 `running` */
+function scanState() {
+  return _scanState ? Object.assign({}, _scanState) : null;
 }
 
 /**
@@ -411,7 +427,7 @@ function startMokAuditScan() {
 }
 
 module.exports = {
-  runMokAuditScan, startMokAuditScan, readStatus,
+  runMokAuditScan, startMokAuditScan, readStatus, scanState,
   QUEUE_FILE, MOK_REPORT_FILE, ANNEX_REPORT_FILE,
   reopenStillMissing, autoResolveCleared, toMokEntry, toAnnexEntry,
 };
