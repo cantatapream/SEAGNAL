@@ -13,6 +13,7 @@
  *  C5 runAmendmentScan 이 이 창으로 탐지를 부르고, 상태에 실제 창과 lastOkAt 을 남긴다(정적)
  *  C6 「⏪ 60일 따라잡기」 — 관리자가 days 를 주면 그 창(60 상한)으로 돈다: 라우트 body.days → startAmendmentScan → 화면 버튼
  *     (이미 lastOkAt 없이 실패를 덮어쓴 운영 기록은 자동으로 못 따라잡는다 — 이 버튼이 그 한 번을 메운다)
+ *  C7 그 버튼이 화면 밖으로 밀려 잘리지 않는다 — 줄이 접히고(flex-wrap) 폭 100% 를 푼다(2026-10-07 「버튼이 안 보인다」, 3-87)
  *
  * [연계] ← scripts/refactor/verify_all.sh SUITES → services/legal_amendment_scanner.js
  */
@@ -52,6 +53,10 @@ ok('C6 POST scan-now 가 body.days 를 받는다', /scan-now', adminAuth\.requir
 const ui = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'js', 'ai-chat', 'ai_chat.js'), 'utf8');
 const room = ui.slice(ui.indexOf('function renderAmendCards'), ui.indexOf('var scanPollTimer'));
 ok('C6 개정검토 방에 「⏪ 60일 따라잡기」 버튼이 days:60 으로 부른다', /id="nryaAmendCatchupBtn"/.test(room) && /runScan\(\{ days: 60 \}\)/.test(room) && /legalPost\('\/api\/legal\/amendments\/scan-now', body\)/.test(room));
+
+const row = room.slice(room.indexOf('<div class="nrya-rv-actions"'), room.indexOf('nryaAmendCatchupBtn') + 400);
+ok('C7 버튼 줄이 접힌다(flex-wrap:wrap) — 좁은 폰에서 다음 줄로 내려간다', /class="nrya-rv-actions" style="[^"]*flex-wrap:wrap/.test(row), row.slice(0, 200));
+ok('C7 따라잡기 버튼은 폭 100%(.nrya-btn-brief 기본)를 풀고 줄을 나눠 쓴다(width:auto · flex:1 1 auto)', /id="nryaAmendCatchupBtn"[^>]*style="[^"]*flex:1 1 auto;width:auto/.test(row));
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
