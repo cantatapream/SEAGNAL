@@ -1,0 +1,18 @@
+{
+ "script": "admrul_fill_annex",
+ "stamp": "20261008-164027-194",
+ "files": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률/별표/목포항항만출입절차에관한세부운영세칙_별지1의1.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률/별표/목포항항만출입절차에관한세부운영세칙_별지2의1.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률/별표/목포항항만출입절차에관한세부운영세칙_별지9의1.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률/별표/목포항항만출입절차에관한세부운영세칙_별지10의1.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률/별표/평택·당진항출입절차예규_별지3의1.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률/별표/포항항항만시설출입절차및경비·보안업무에관한운영세칙_별지1의1.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률/별표/포항항항만시설출입절차및경비·보안업무에관한운영세칙_별지2의1.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/별표/목포항항만시설운영세칙_별지5의1.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/별표/목포항항만시설운영세칙_별지5의1.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법/별표/목포항항만시설운영세칙_별지5의1.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/도선법/별표/목포항항만시설운영세칙—제10조(도선)부분만발췌_별지5의1.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/별표/내항해운에관한업무지침_별표2의1.txt"
+ ]
+}

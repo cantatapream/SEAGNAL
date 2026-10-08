@@ -1,0 +1,26 @@
+{
+ "script": "admrul_fill_annex",
+ "stamp": "20261008-164027-193",
+ "files": [
+  "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법/별표/(속초해양경찰서)수상레저활동금지구역지정고시_별지0.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/별표/한국환경보전원교육수수료_별표0.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/한국환경보전원교육수수료_별표0.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/도선법/별표/군산항도선사의승선·하선구역고시_별지0.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/도선법/별표/평택·당진항도선사승선·하선구역에관한고시_별지0.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/별표/국가어업지도선운용관리및지도선직원복무규칙_별지9의2.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/별표/국가어업지도선운용관리및지도선직원복무규칙_별지13의2.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/별표/국가어업지도선운용관리및지도선직원복무규칙_별지13의3.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/별표/해양사고의조사및심판에관한사무처리요령_별지9의1.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/별표/해양사고의조사및심판에관한사무처리요령_별지17의2.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/별표/해양사고의조사및심판에관한사무처리요령_별지17의3.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/별표/해양사고의조사및심판에관한사무처리요령_별지30의2.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/별표/해양사고의조사및심판에관한사무처리요령_별지30의3.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/별표/해양사고의조사및심판에관한사무처리요령_별지41의6.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/별표/해양사고의조사및심판에관한사무처리요령_별지50의2.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/별표/해양사고의조사및심판에관한사무처리요령_별지84의2.txt",
+  "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/별표/해양사고의조사및심판에관한사무처리요령_별지84의5.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/별표/발굴조사의방법및절차등에관한규정_별지1의2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/매장유산보호및조사에관한법률/별표/발굴조사의방법및절차등에관한규정_별지1의5.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/별표/사회통합자원봉사위원기본규정_별지1의2.txt"
+ ]
+}

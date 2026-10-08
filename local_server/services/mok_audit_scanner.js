@@ -168,22 +168,38 @@ function toMokEntry(row) {
   };
 }
 
-/** 고시 별표 누락 행 → 큐 1줄. `admrul_annex_survey.py` 의 `빠짐`·`수가모자람` 을 받는다. */
+/**
+ * 고시 별표 누락 행 → 큐 1줄. `admrul_annex_survey.py` 의 `빠짐`·`수가모자람` 을 받는다.
+ * ★그 조사는 칸 이름을 **한글**로 낸다 — `{파일, 경로, API별표수, raw보유, 제목:[…]}`(3-91).
+ *   처음 이 함수는 `name/file/api/raw` 만 읽어서 **모든 카드가 이름 없이** 만들어졌고, id 가 이름·파일로
+ *   만들어지므로 23건이 id 하나, 18건이 id 하나로 뭉쳤다(사장님 2026-10-08 지시문 41건 「(제목 없음)」).
+ *   3-83 전까지는 운영에서 이 조사가 curl 없음으로 죽어 카드가 아예 안 생겨서 드러나지 않았다.
+ * 예: toAnnexEntry({파일:'선박검사기준.txt', 경로:'raw/04_선박해운/선박안전법/행정규칙/선박검사기준.txt',
+ *       API별표수:5, raw보유:1, 제목:['…']}, '수가모자람').title → '선박검사기준'
+ * @returns {object|null} 이름을 못 읽으면 null(이름 없는 카드는 만들지 않는다)
+ */
 function toAnnexEntry(row, bucket) {
-  const name = typeof row === 'string' ? row : (row.name || row.title || '');
-  const file = typeof row === 'string' ? '' : (row.file || row.path || '');
-  const api = typeof row === 'string' ? '' : (row.api ?? row.api_count ?? '');
-  const raw = typeof row === 'string' ? '' : (row.raw ?? row.raw_count ?? '');
+  const o = typeof row === 'string' ? { 파일: row } : (row || {});
+  const name = String(o.파일 || o.name || o.title || '').replace(/\.txt$/, '').trim();
+  if (!name) return null;
+  const file = o.경로 || o.file || o.path || '';
+  const pick = (...v) => { for (const x of v) if (x !== undefined && x !== null) return x; return ''; };
+  const api = pick(o.API별표수, o.api, o.api_count);
+  const raw = pick(o.raw보유, o.raw, o.raw_count);
+  const titles = Array.isArray(o.제목) ? o.제목.filter(Boolean) : [];
+  const law = (String(file).match(/^raw\/[^/]+\/([^/]+)\//) || [])[1] || '';
   return {
     id: mokId(name, '행정규칙', file || name, `${bucket}|${api}|${raw}`),
     ts: new Date().toISOString(),
     title: name,
     tier: '행정규칙',
-    slug: '',
+    slug: law,
     kind: bucket === '빠짐' ? '고시 별표 없음' : '고시 별표 수가 모자람',
     verdict: bucket,
     api_count: api,
     raw_count: raw,
+    missing: (api !== '' && raw !== '' && Number(api) > Number(raw)) ? Number(api) - Number(raw) : '',
+    spots: titles.map((t) => `원본 별표: ${t}`),
     files: file ? [file] : [],
     actions: [
       `① 원문에 별표가 정말 있는지 확인한다 — 이 판정은 거칠다(본문에 \`[별표\` 블록이 하나라도 `
@@ -249,7 +265,7 @@ function autoResolveCleared(entries, ctx, file = QUEUE_FILE) {
   const now = new Set(entries.map((e) => e.id));
   const nowTitle = new Set(entries.filter((e) => e.kind === '조문 목 누락').map((e) => e.title));
   const unknown = new Set((ctx.noAnswer || []).map((l) => String(l).replace(/\s*\(MST=[^)]*\)\s*$/, '').trim()));
-  const annexFailed = new Set((ctx.annexFailed || []).map((x) => String(typeof x === 'string' ? x : (x.name || x.title || '')).trim()));
+  const annexFailed = new Set((ctx.annexFailed || []).map((x) => String(typeof x === 'string' ? x : (x.파일 || x.name || x.title || '')).replace(/\.txt$/, '').trim()));
   const excerptWhy = new Map((ctx.excerpt || []).map((r) => [String(r.file || ''), r.excerpt_why || '발췌본']));
   const closed = [];
   for (const cur of adminQueues.readJsonl(file)) {
@@ -259,8 +275,10 @@ function autoResolveCleared(entries, ctx, file = QUEUE_FILE) {
     if (isMok && unknown.has(String(cur.title || '').trim())) continue;   // 원본을 못 받은 계열
     if (!isMok && annexFailed.has(String(cur.title || '').trim())) continue;
     const f = (cur.files || [])[0] || '';
+    if (closed.indexOf(cur.id) >= 0) continue;                  // 같은 id 여러 줄은 한 번에 닫혔다
     let why;
-    if (isMok && nowTitle.has(cur.title)) why = '같은 자리가 빠진 수가 달라져 새 카드로 다시 올라왔다';
+    if (!isMok && !String(cur.title || '').trim()) why = '이름 없이 잘못 만들어진 카드였다(3-91 — 고시 별표 조사의 칸 이름을 못 읽었다). 이번 점검이 고시 이름을 달아 새 카드로 다시 올렸다';
+    else if (isMok && nowTitle.has(cur.title)) why = '같은 자리가 빠진 수가 달라져 새 카드로 다시 올라왔다';
     else if (isMok && excerptWhy.has(f)) why = `발췌본으로 판정됐다(${excerptWhy.get(f)}) — 모자란 것이 정상`;
     else why = '이번 점검에서 누락으로 나오지 않았다';
     adminQueues.updateJsonlById(file, cur.id, {
@@ -342,7 +360,8 @@ async function runMokAuditScan() {
       annexFail = (arep['실패'] || []).length + (arep['ID없음'] || []).length;
       entries = entries
         .concat((arep['빠짐'] || []).map((r) => toAnnexEntry(r, '빠짐')))
-        .concat((arep['수가모자람'] || []).map((r) => toAnnexEntry(r, '수가모자람')));
+        .concat((arep['수가모자람'] || []).map((r) => toAnnexEntry(r, '수가모자람')))
+        .filter(Boolean);
     }
 
     if (errors.length === 2) {
@@ -358,7 +377,9 @@ async function runMokAuditScan() {
     }
 
     const known = existingIds();
-    const fresh = entries.filter((e) => !known.has(e.id));
+    // 한 판 안에서 같은 id 가 두 번 나와도 한 장만 싣는다(3-91 — 이름 없는 41줄이 id 2개로 쌓인 그 길).
+    const seen = new Set();
+    const fresh = entries.filter((e) => !known.has(e.id) && !seen.has(e.id) && seen.add(e.id));
     for (const e of fresh) adminQueues.appendJsonl(QUEUE_FILE, e);
     const reopened = reopenStillMissing(entries.filter((e) => known.has(e.id)));
     const resolved = autoResolveCleared(entries, {

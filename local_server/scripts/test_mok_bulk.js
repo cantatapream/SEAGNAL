@@ -124,5 +124,39 @@ ok('B6 화면: 실패 문구에 언제 점검의 것인지(끝난 시각)를 붙
   /\(running \? '지난 점검' : '마지막 점검'\) \+ '\(' \+ esc\(shortTs\(last\.finishedAt\)\) \+ '\)에서 일부가 실패했습니다/.test(last));
 ok('B6 「지금 점검」 을 누르면 목록을 다시 불러 도는 중 표시를 바로 띄운다', /loadMokList\(\);\s*\n\s*\}\)\.catch\(function \(e\) \{ scanBtn\.disabled = false/.test(ui));
 
+console.log('\n── B7 (3-91) 고시 별표 카드 — 조사의 한글 칸 이름을 읽고, 이름 없는 카드는 만들지도 남기지도 않는다 ──');
+const ROW = { 파일: '선박검사기준.txt', 경로: 'raw/04_선박해운/선박안전법/행정규칙/선박검사기준.txt', API별표수: 5, raw보유: 1, 제목: ['선박검사의 종류', '검사 수수료'] };
+const ae = S.toAnnexEntry(ROW, '수가모자람');
+ok('B7 한글 칸(파일·경로·API별표수·raw보유·제목)을 읽어 이름·파일·수·빈 자리를 싣는다',
+  ae && ae.title === '선박검사기준' && ae.slug === '선박안전법' && ae.files[0] === ROW.경로 && ae.api_count === 5 && ae.raw_count === 1 && ae.missing === 4 && ae.spots.length === 2,
+  JSON.stringify(ae && { t: ae.title, s: ae.slug, m: ae.missing }));
+const ae2 = S.toAnnexEntry(Object.assign({}, ROW, { 파일: '선원근로감독규정.txt', 경로: 'raw/04_선박해운/선원법/행정규칙/선원근로감독규정.txt' }), '수가모자람');
+ok('B7 다른 고시는 다른 id(예전에는 모두 한 id 로 뭉쳤다)', ae2 && ae2.id !== ae.id);
+ok('B7 이름을 못 읽으면 카드를 만들지 않는다(null)', S.toAnnexEntry({}, '빠짐') === null && S.toAnnexEntry({ API별표수: 3 }, '수가모자람') === null);
+ok('B7 점검 끝에서 null 을 거르고, 한 판 안의 같은 id 는 한 장만 싣는다',
+  /\.concat\(\(arep\['수가모자람'\] \|\| \[\]\)\.map\(\(r\) => toAnnexEntry\(r, '수가모자람'\)\)\)\s*\n\s*\.filter\(Boolean\)/.test(scan)
+  && /!known\.has\(e\.id\) && !seen\.has\(e\.id\) && seen\.add\(e\.id\)/.test(scan));
+const TMP7 = fs.mkdtempSync(path.join(os.tmpdir(), 'mok-bulk7-'));
+const f7 = path.join(TMP7, 'q7.jsonl');
+const junk = { id: 'mok_15629068', kind: '고시 별표 없음', title: '', tier: '행정규칙', status: 'pending' };
+fs.writeFileSync(f7, [junk, junk, junk, { id: 'mok_keep', kind: '고시 별표 없음', title: '살아 있는 고시', status: 'pending' }].map((e) => JSON.stringify(e)).join('\n') + '\n');
+const c7 = S.autoResolveCleared([{ id: 'mok_keep' }], { mokOk: true, annexOk: true }, f7);
+const q7 = Q.readJsonl(f7);
+ok('B7 이름 없이 쌓인 같은 id 3줄을 한 번에 모두 닫고(까닭: 잘못 만들어진 카드), 이번에도 나온 카드는 그대로',
+  c7.length === 1 && q7.filter((e) => e.id === 'mok_15629068').every((e) => e.status === 'done' && /이름 없이 잘못 만들어진 카드/.test(e.resolve_reason))
+  && q7.find((e) => e.id === 'mok_keep').status === 'pending', JSON.stringify(c7));
+fs.writeFileSync(f7, [junk, junk].map((e) => JSON.stringify(e)).join('\n') + '\n');
+Q.updateJsonlById(f7, 'mok_15629068', { status: 'dismissed' });
+ok('B7 관리자 버튼(updateJsonlById)도 같은 id 줄을 모두 닫는다', Q.readJsonl(f7).every((e) => e.status === 'dismissed'));
+const sv = fs.readFileSync(path.join(__dirname, '..', 'knowledge', 'legal', '_dashboard', 'loop', 'admrul_annex_survey.py'), 'utf8');
+fs.rmSync(TMP7, { recursive: true, force: true });
+ok('B7 조사 행에 경로(raw/…)를 함께 적는다', /'경로': os\.path\.relpath\(p, LEGAL\)/.test(sv));
+
+ok('B7 조사가 별표 파일을 원문 파일 이름과 머리글 고시 이름(title_of) 둘 다로 센다',
+  /from admrul_fill_annex import title_of/.test(sv) && /keys = \{gosi_key, re\.sub\([^)]*title_of\(p\)\)\}/.test(sv));
+ok('B7 머리말이 스스로 「발췌」 라고 밝힌 고시는 별표 수를 세지 않는다(발췌 갈래)', /res\['발췌'\]\.append\(name\)/.test(sv));
+const fa = fs.readFileSync(path.join(__dirname, '..', 'knowledge', 'legal', '_dashboard', 'loop', 'admrul_fill_annex.py'), 'utf8');
+ok('B7 별표 번호: 겹낫표 머리(【별지 제1호의 1 서식】)와 가지번호 01 을 읽는다',
+  /\[\\\[【\]\?/.test(fa) && /int\(gv\) > 0/.test(fa) && /int\(br\) > 0/.test(fa));
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
