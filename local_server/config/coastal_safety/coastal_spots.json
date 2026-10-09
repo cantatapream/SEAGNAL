@@ -16,7 +16,8 @@
 "point_in_sea": "해안선 파일상 바다 위(항구·방파제·파일에 없는 작은 섬)",
 "manual_include": "사용자 확정 포함"
 },
-"count": 1361
+"count": 1354,
+"user_excluded": "island_editor ②모드로 사용자가 뺀 곳은 manual_coords.json decisions.exclude_by_editor 참고"
 },
 "spots": [
 {
@@ -5058,18 +5059,6 @@
 "rule": "within_1km",
 "coord_src": "kor2_exact",
 "kor2_title": "주벅배전망대"
-},
-{
-"sgg": "44210",
-"sgg_name": "충청남도 서산시",
-"name": "참샘골 호박농원",
-"lat": 36.9325742882,
-"lon": 126.4683626565,
-"coast_km": 0.553,
-"on": "mainland",
-"rule": "within_1km",
-"coord_src": "kor2_exact",
-"kor2_title": "참샘골 호박농원"
 },
 {
 "sgg": "44210",
@@ -15404,18 +15393,6 @@
 {
 "sgg": "51830",
 "sgg_name": "강원특별자치도 양양군",
-"name": "양양송이조각공원",
-"lat": 38.0858969583,
-"lon": 128.6296582726,
-"coast_km": 0.59,
-"on": "mainland",
-"rule": "within_1km",
-"coord_src": "kor2_exact",
-"kor2_title": "양양송이조각공원"
-},
-{
-"sgg": "51830",
-"sgg_name": "강원특별자치도 양양군",
 "name": "오산리선사유적박물관",
 "lat": 38.0858601216138,
 "lon": 128.660469578843,
@@ -15544,18 +15521,6 @@
 "rule": "within_1km",
 "coord_src": "kor2_exact",
 "kor2_title": "하조대해수욕장"
-},
-{
-"sgg": "51830",
-"sgg_name": "강원특별자치도 양양군",
-"name": "현산공원",
-"lat": 38.074343,
-"lon": 128.617579,
-"coast_km": 0.513,
-"on": "mainland",
-"rule": "within_1km",
-"coord_src": "kor2_exact",
-"kor2_title": "현산공원"
 },
 {
 "sgg": "51830",
@@ -15968,30 +15933,6 @@
 {
 "sgg": "52210",
 "sgg_name": "전북특별자치도 김제시",
-"name": "삼불암",
-"lat": 35.7719657126,
-"lon": 126.7892559478,
-"coast_km": 0.66,
-"on": "mainland",
-"rule": "within_1km",
-"coord_src": "kor2_partial",
-"kor2_title": "삼불암(김제)"
-},
-{
-"sgg": "52210",
-"sgg_name": "전북특별자치도 김제시",
-"name": "성모암(김제)",
-"lat": 35.8866945853,
-"lon": 126.805387662,
-"coast_km": 0.282,
-"on": "mainland",
-"rule": "within_1km",
-"coord_src": "kor2_exact",
-"kor2_title": "성모암(김제)"
-},
-{
-"sgg": "52210",
-"sgg_name": "전북특별자치도 김제시",
 "name": "심포항",
 "lat": 35.8570905843,
 "lon": 126.698825719,
@@ -16000,30 +15941,6 @@
 "rule": "point_in_sea",
 "coord_src": "kor2_exact",
 "kor2_title": "심포항"
-},
-{
-"sgg": "52210",
-"sgg_name": "전북특별자치도 김제시",
-"name": "저산서원(김제)",
-"lat": 35.8983657356098,
-"lon": 126.882024726169,
-"coast_km": 0.942,
-"on": "mainland",
-"rule": "within_1km",
-"coord_src": "kor2_exact",
-"kor2_title": "저산서원(김제)"
-},
-{
-"sgg": "52210",
-"sgg_name": "전북특별자치도 김제시",
-"name": "조앙사",
-"lat": 35.88670289,
-"lon": 126.8037711396,
-"coast_km": 0.233,
-"on": "mainland",
-"rule": "within_1km",
-"coord_src": "kor2_exact",
-"kor2_title": "조앙사"
 },
 {
 "sgg": "52800",
