@@ -1532,6 +1532,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-10 01:45 KST] ✅완료 — 해안 안전 예보 설계서 + 섬 테두리 편집도구
+완료: ①설계서 client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md (사용자 확정 U1~U15 원문 병기, 미결 M1~M12, 확인 기록 §9) ②데이터 local_server/config/coastal_safety/{coastal_spots.json 1,361곳, manual_coords.json, island_targets.json 22곳} ③단독 편집기 local_server/tools/island_editor/island_editor.html (빌드: build_island_editor.js) — 헤드리스 크롬에서 섬 이동·그리기·점삭제·되돌리기·관광지 제외·자동저장 복원·내보내기 확인. verify_all: 앱 런타임 코드 변경 없음, 남은 실패 V4(외부망 끊김 ERR_TUNNEL_CONNECTION_FAILED)·V5-57(기존 법률 위키 canonical 읽기기록, 이번 변경과 무관). 다음: 사용자 편집기 내보내기 파일 반영, M1 위험 점수 규칙, 위험구역 5km 매칭 방식 결정 대기.
+
+
+### [2026-10-10 01:20 KST] 🟢착수 — 해안 안전 예보 설계서 + 섬 테두리 편집도구
+앱 기능(법률 파이프라인 아님). 관광지 집중률·해양교통 혼잡도 등 외부 API 실측 결과와 사용자 확정사항을 client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md 로 정리하고, 해안 관광지 1,361곳 좌표 데이터와 섬 테두리 편집 단독 HTML(local_server/tools/island_editor/) 을 만든다.
+
+
 ### [2026-10-09 KST] ✅완료 — 3-93 1단계 규칙·도구 정리 (사장님 결정 D2·D3·D4·D5·D6)
 ①`_SCHEMA.md` §5-D: ⓐ-2 그림→원문 안내면 통과(D4) · ⓔ 승격 경로 하나(draft_verify1 → 다른 눈 + `reread_ledger.js` → `promote_page.py`) · ⓖ canonical 을 고치면 고친 이가 아닌 에이전트가 바뀐 그 본문을 읽는다(D2) · ⓗ 오류 등급 A/B/C · 지적은 원문 확인 후 · 읽기 상한 4번(D3). ②판정 장부 `_dashboard/reread/verdicts.jsonl`(본문해시) · **V5-57** `reread_guard.js` · test_reread_guard 29 PASS. ③개정 반영 지시문에 다른 에이전트 읽기 단계. ④옛 승격 워크플로우 3개 폐기(맨 앞에서 멈춤). ⑤1차 보강 — 관리자 방 규칙 · 개념 밖 draft · `ocr_words.json` · 출처 없는 전화번호 → draft 134쪽 통과 47 · 막힘 56→0. ⑥D5 운영 `answerCanonicalOnly`=true(실측) — draft 를 빼지 않는다, 빼면 골든 266→241 → 동작 그대로·문서만 정정(사장님 결정 대기). ⑦D6 raw 사본 삭제 예외(MASTER_PLAN). 다음: 2단계 D1 다시 읽기 — 워크플로우 승인·묶음 크기·비용 상한을 사장님께 받는다. 각 호 개수 넓히기는 보류(L-414).
 

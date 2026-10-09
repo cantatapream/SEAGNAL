@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<!--
+============================================================================
+파일명: local_server/tools/island_editor/island_editor.template.html
+역할  : 해안 안전 예보용 "섬 테두리 그리기 + 해안 관광지 검토" 편집기의 원본 틀.
+        이 파일은 직접 열지 않는다 — build_island_editor.js 가 OpenLayers 와
+        데이터(섬 목록·관광지 목록·참고 해안선)를 끼워 넣어 더블클릭만으로 열리는
+        단독본 island_editor.html 을 만든다.
+----------------------------------------------------------------------------
+[연계]
+ - 사용하는 파일 : (빌드 때 인라인) client/assets/vendor/ol/ol.js·ol.css,
+                   local_server/config/coastal_safety/island_targets.json·coastal_spots.json,
+                   client/land_mask_korea.json(목표 주변 해안선만)
+ - 서버 API      : 없음(단독 실행). 배경지도 타일만 인터넷에서 받는다.
+ - 나를 쓰는 곳  : build_island_editor.js
+ - 설계 문서     : client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md §6
+============================================================================
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>섬 테두리·해안 관광지 편집기</title>
+<!--@@OL_CSS@@-->
+<style>
+  :root { --panel: 340px; --bg:#0f1420; --pn:#131b29; --ln:#233048; --tx:#e6ecf5; --sub:#8aa0bf; --btn:#1c2638; --bd:#2e3e5a; --on:#1d6fb8; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; background:var(--bg); color:var(--tx); }
+  #wrap { display:flex; height:100vh; }
+  #map { flex:1; height:100%; background:#16202f; position:relative; }
+  #panel { width:var(--panel); flex:0 0 var(--panel); padding:12px 14px; overflow-y:auto; background:var(--pn); border-left:1px solid var(--ln); font-size:13px; }
+  h1 { font-size:15px; margin:0 0 4px; color:#6fd0ff; }
+  h2 { font-size:13px; margin:14px 0 6px; color:#9fd8ff; }
+  .sub { font-size:11px; color:var(--sub); margin:0 0 8px; line-height:1.5; }
+  button, input { font-family:inherit; }
+  .row { display:flex; gap:6px; margin:6px 0; flex-wrap:wrap; }
+  .row button { flex:1; min-width:88px; }
+  button { padding:8px 6px; border-radius:6px; border:1px solid var(--bd); background:var(--btn); color:#cdd8ea; font-size:12px; cursor:pointer; }
+  button.on { background:var(--on); border-color:#2f9bff; color:#fff; font-weight:600; }
+  button.warn { border-color:#7a3340; color:#ffb3bf; }
+  button:disabled { opacity:.45; cursor:default; }
+  input[type=text] { width:100%; padding:7px 8px; border-radius:6px; border:1px solid var(--bd); background:var(--btn); color:var(--tx); font-size:12px; }
+  .list { border:1px solid var(--ln); border-radius:6px; max-height:38vh; overflow-y:auto; }
+  .item { padding:7px 9px; border-bottom:1px solid #1b2536; cursor:pointer; display:flex; justify-content:space-between; gap:6px; }
+  .item:last-child { border-bottom:none; }
+  .item:hover { background:#1a2436; }
+  .item.sel { background:#1d3556; }
+  .badge { font-size:10px; padding:1px 6px; border-radius:9px; border:1px solid var(--bd); color:var(--sub); white-space:nowrap; }
+  .b-missing { color:#ffcf7a; border-color:#6b5320; }
+  .b-direct { color:#ff9fb0; border-color:#6b2a37; }
+  .b-check { color:#9fe3b0; border-color:#2a6b3c; }
+  .b-done { color:#7fd0ff; border-color:#1d5b86; }
+  .muted { color:var(--sub); font-size:11px; }
+  .mode { display:none; }
+  .mode.active { display:block; }
+  #modebar { display:flex; gap:6px; margin:8px 0 4px; }
+  #modebar button { flex:1; padding:10px 6px; font-size:13px; }
+  #toast { position:absolute; left:50%; bottom:18px; transform:translateX(-50%); background:rgba(10,16,28,.92); border:1px solid var(--bd); padding:8px 14px; border-radius:8px; font-size:12px; display:none; z-index:10; }
+  #legend { position:absolute; left:10px; bottom:10px; background:rgba(10,16,28,.85); border:1px solid var(--bd); padding:6px 10px; border-radius:6px; font-size:11px; z-index:5; line-height:1.7; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+  @media (max-width: 760px) {
+    #wrap { flex-direction:column; }
+    #map { height:55vh; flex:none; }
+    #panel { width:100%; flex:1; border-left:none; border-top:1px solid var(--ln); padding:10px 16px; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="map"><div id="toast"></div><div id="legend"></div></div>
+  <div id="panel">
+    <h1>섬 테두리 · 해안 관광지 편집기</h1>
+    <p class="sub">작업은 이 브라우저에 자동 저장됩니다. 끝나면 <b>내보내기</b>로 받은 파일을 전달해 주세요.</p>
+    <div id="modebar">
+      <button id="mode-island" class="on">① 섬 테두리 그리기</button>
+      <button id="mode-spot">② 해안 관광지 검토</button>
+    </div>
+
+    <!-- ① 섬 테두리 그리기 -->
+    <div id="pane-island" class="mode active">
+      <h2>그릴 섬 <span id="island-count" class="muted"></span></h2>
+      <div id="target-list" class="list"></div>
+      <div class="row">
+        <button id="btn-prev">◀ 이전 섬</button>
+        <button id="btn-next">다음 섬 ▶</button>
+      </div>
+      <h2>도구</h2>
+      <div class="row">
+        <button id="btn-draw">새 테두리 그리기</button>
+        <button id="btn-del-vertex">점 삭제 모드</button>
+      </div>
+      <div class="row">
+        <button id="btn-undo">되돌리기</button>
+        <button id="btn-del-poly" class="warn">선택 테두리 삭제</button>
+      </div>
+      <div class="row">
+        <button id="btn-add-target">목록에 없는 섬 추가</button>
+      </div>
+      <p class="muted">· 그리기: 지도에서 섬 둘레를 차례로 클릭, 마지막 점을 <b>두 번 클릭</b>하면 닫힙니다.<br>
+      · 점 옮기기: 그린 테두리의 점을 끌어서 옮깁니다. 선 위를 끌면 점이 새로 생깁니다.<br>
+      · 점 삭제: "점 삭제 모드"를 켜고 점을 클릭합니다.<br>
+      · 한 섬에 테두리를 여러 개 그릴 수 있습니다(예: 독도 동도·서도).<br>
+      · 노란 점선은 앱이 지금 가진 해안선입니다(참고용).</p>
+    </div>
+
+    <!-- ② 해안 관광지 검토 -->
+    <div id="pane-spot" class="mode">
+      <h2>해안 관광지 <span id="spot-count" class="muted"></span></h2>
+      <p class="muted">지도의 점을 클릭하면 <b>제외</b>(빨강)로 바뀌고, 다시 클릭하면 되돌아갑니다.</p>
+      <input type="text" id="spot-search" placeholder="관광지 이름 검색 (Enter → 이동)">
+      <div id="spot-search-result" class="list" style="max-height:20vh;margin-top:6px;display:none"></div>
+      <h2>제외한 곳 <span id="excl-count" class="muted"></span></h2>
+      <div id="excl-list" class="list" style="max-height:30vh"></div>
+    </div>
+
+    <h2>파일</h2>
+    <div class="row">
+      <button id="btn-export" class="on">내보내기 (파일 받기)</button>
+      <button id="btn-import">불러오기</button>
+      <input type="file" id="file-import" accept=".json,.geojson" style="display:none">
+    </div>
+    <div class="row">
+      <button id="btn-base">배경: 위성</button>
+      <button id="btn-ref">참고 해안선: 켜짐</button>
+    </div>
+    <p class="muted" id="save-state"></p>
+  </div>
+</div>
+
+<!--@@OL_JS@@-->
+<!--@@DATA@@-->
+<script>
+(function () {
+  'use strict';
+
+  /* 데이터는 빌드 때 window.__ISLAND_EDITOR__ 로 들어온다.
+     { targets:[{id,name,spot,sgg,sgg_name,lat,lon,group,...}], spots:[[idx,name,sgg_name,lat,lon,rule],...], ref:[[[lon,lat],...],...] } */
+  var DATA = window.__ISLAND_EDITOR__ || { targets: [], spots: [], ref: [] };
+  var STORE_KEY = 'seagnal_island_editor_v1';
+  var GROUP_LABEL = { missing: '해안선 없음', direct: '직접 확인', check: '위성 확인', custom: '직접 추가' };
+
+  /* ---------- 공용 ---------- */
+  function $(id) { return document.getElementById(id); }
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.style.display = 'block';
+    clearTimeout(toast._h); toast._h = setTimeout(function () { t.style.display = 'none'; }, 2200);
+  }
+  var fmt = new ol.format.GeoJSON();
+  var GEO_OPT = { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' };
+
+  /* ---------- 지도 ---------- */
+  var satLayer = new ol.layer.Tile({
+    source: new ol.source.XYZ({
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      maxZoom: 19, attributions: 'Imagery © Esri'
+    })
+  });
+  var osmLayer = new ol.layer.Tile({ source: new ol.source.OSM(), visible: false });
+
+  var refSource = new ol.source.Vector();
+  DATA.ref.forEach(function (ring) {
+    refSource.addFeature(new ol.Feature(new ol.geom.LineString(ring).transform('EPSG:4326', 'EPSG:3857')));
+  });
+  var refLayer = new ol.layer.Vector({
+    source: refSource,
+    style: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,214,90,0.9)', width: 1.5, lineDash: [6, 4] }) })
+  });
+
+  var targetSource = new ol.source.Vector();
+  var targetLayer = new ol.layer.Vector({ source: targetSource, style: targetStyle });
+
+  var drawSource = new ol.source.Vector();
+  var drawLayer = new ol.layer.Vector({ source: drawSource, style: polyStyle });
+
+  var spotSource = new ol.source.Vector();
+  var spotLayer = new ol.layer.Vector({ source: spotSource, style: spotStyle, visible: false });
+
+  var map = new ol.Map({
+    target: 'map',
+    layers: [satLayer, osmLayer, refLayer, drawLayer, targetLayer, spotLayer],
+    view: new ol.View({ center: ol.proj.fromLonLat([127.6, 36.0]), zoom: 7 })
+  });
+
+  /* ---------- 상태 ---------- */
+  var state = { mode: 'island', selTarget: null, excluded: {}, customTargets: [] };
+  var selectedPoly = null;
+  var undoStack = [];
+  var drawItx = null;
+  var deleteVertexMode = false;
+
+  /** 섬 목록 = 빌드 때 받은 목록 + 사용자가 추가한 섬. */
+  function allTargets() { return DATA.targets.concat(state.customTargets); }
+  function targetById(id) {
+    var all = allTargets();
+    for (var i = 0; i < all.length; i++) if (String(all[i].id) === String(id)) return all[i];
+    return null;
+  }
+
+  /* ---------- 스타일 ---------- */
+  function targetStyle(f) {
+    var sel = state.selTarget && String(f.get('id')) === String(state.selTarget);
+    return new ol.style.Style({
+      image: new ol.style.Circle({
+        radius: sel ? 8 : 5,
+        fill: new ol.style.Fill({ color: sel ? '#ff5c7a' : 'rgba(255,92,122,0.6)' }),
+        stroke: new ol.style.Stroke({ color: '#fff', width: sel ? 2 : 1 })
+      }),
+      text: new ol.style.Text({
+        text: f.get('name'), offsetY: -16, font: 'bold 12px sans-serif',
+        fill: new ol.style.Fill({ color: '#fff' }), stroke: new ol.style.Stroke({ color: '#000', width: 3 })
+      })
+    });
+  }
+  function polyStyle(f) {
+    var sel = f === selectedPoly;
+    return [
+      new ol.style.Style({
+        fill: new ol.style.Fill({ color: sel ? 'rgba(80,200,255,0.25)' : 'rgba(80,200,255,0.12)' }),
+        stroke: new ol.style.Stroke({ color: sel ? '#ffffff' : '#50c8ff', width: sel ? 3 : 2 })
+      }),
+      new ol.style.Style({
+        image: new ol.style.Circle({ radius: sel ? 4 : 3, fill: new ol.style.Fill({ color: sel ? '#fff' : '#50c8ff' }) }),
+        geometry: function (feat) { return new ol.geom.MultiPoint(feat.getGeometry().getCoordinates()[0]); }
+      })
+    ];
+  }
+  var RULE_COLOR = { within_1km: '#3fa9ff', point_in_sea: '#b07cff', manual_include: '#3ddc97' };
+  function spotStyle(f) {
+    var ex = !!state.excluded[f.get('key')];
+    var z = map.getView().getZoom();
+    return new ol.style.Style({
+      image: new ol.style.Circle({
+        radius: ex ? 6 : 5,
+        fill: new ol.style.Fill({ color: ex ? '#ff4d5e' : (RULE_COLOR[f.get('rule')] || '#3fa9ff') }),
+        stroke: new ol.style.Stroke({ color: ex ? '#ffe3e6' : '#ffffff', width: 1 })
+      }),
+      text: z >= 12 ? new ol.style.Text({
+        text: (ex ? '✕ ' : '') + f.get('name'), offsetY: -13, font: '11px sans-serif',
+        fill: new ol.style.Fill({ color: ex ? '#ffb3bb' : '#fff' }), stroke: new ol.style.Stroke({ color: '#000', width: 3 })
+      }) : undefined
+    });
+  }
+
+  /* ---------- 저장·되돌리기 ---------- */
+  /** 지금 그린 테두리 전체를 GeoJSON(경위도, 소수 6자리)으로 직렬화. */
+  function polysGeoJson() {
+    var obj = fmt.writeFeaturesObject(drawSource.getFeatures(), GEO_OPT);
+    obj.features.forEach(function (ft) {
+      ft.geometry.coordinates = ft.geometry.coordinates.map(function (ring) {
+        return ring.map(function (c) { return [Math.round(c[0] * 1e6) / 1e6, Math.round(c[1] * 1e6) / 1e6]; });
+      });
+    });
+    return obj;
+  }
+  function snapshot() {
+    undoStack.push(JSON.stringify(polysGeoJson()));
+    if (undoStack.length > 60) undoStack.shift();
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        polys: polysGeoJson(), excluded: state.excluded, customTargets: state.customTargets, savedAt: new Date().toISOString()
+      }));
+      $('save-state').textContent = '자동 저장됨 · ' + new Date().toLocaleTimeString();
+    } catch (e) {
+      $('save-state').textContent = '이 브라우저에는 자동 저장이 안 됩니다 — 내보내기로 파일을 받아 두세요.';
+    }
+  }
+  function loadPolys(gj) {
+    drawSource.clear();
+    if (gj && gj.features && gj.features.length) drawSource.addFeatures(fmt.readFeatures(gj, GEO_OPT));
+  }
+  function restore() {
+    var raw = null;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) { raw = null; }
+    if (!raw) return;
+    try {
+      var s = JSON.parse(raw);
+      state.excluded = s.excluded || {};
+      state.customTargets = s.customTargets || [];
+      loadPolys(s.polys);
+      $('save-state').textContent = '이전 작업을 불러왔습니다 (' + (s.savedAt || '') + ')';
+    } catch (e) { /* 깨진 저장본은 무시 */ }
+  }
+
+  /* ---------- ① 섬 목록 ---------- */
+  function polyCount(id) {
+    return drawSource.getFeatures().filter(function (f) { return String(f.get('target_id')) === String(id); }).length;
+  }
+  function renderTargets() {
+    targetSource.clear();
+    var list = $('target-list'); list.innerHTML = '';
+    var done = 0, all = allTargets();
+    all.forEach(function (t) {
+      var ft = new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([t.lon, t.lat])));
+      ft.set('id', t.id); ft.set('name', t.name);
+      targetSource.addFeature(ft);
+      var n = polyCount(t.id); if (n) done++;
+      var el = document.createElement('div');
+      el.className = 'item' + (String(state.selTarget) === String(t.id) ? ' sel' : '');
+      el.innerHTML = '<span>' + t.name + ' <span class="muted">' + (t.sgg_name || '') + '</span></span>' +
+        '<span><span class="badge b-' + (t.group || 'custom') + '">' + (GROUP_LABEL[t.group] || '') + '</span> ' +
+        (n ? '<span class="badge b-done">' + n + '개</span>' : '') + '</span>';
+      el.onclick = function () { selectTarget(t.id, true); };
+      list.appendChild(el);
+    });
+    $('island-count').textContent = '(' + done + ' / ' + all.length + ' 그림)';
+  }
+  /** 섬을 고르고, 지도를 그 섬 좌표로 옮긴다(사용자 요청 — "자동으로 그 위치로 이동"). */
+  function selectTarget(id, fly) {
+    state.selTarget = id;
+    var t = targetById(id);
+    if (t && fly) map.getView().animate({ center: ol.proj.fromLonLat([t.lon, t.lat]), zoom: 16, duration: 600 });
+    renderTargets();
+    targetLayer.changed();
+  }
+  function stepTarget(d) {
+    var all = allTargets(); if (!all.length) return;
+    var i = -1;
+    for (var k = 0; k < all.length; k++) if (String(all[k].id) === String(state.selTarget)) i = k;
+    i = (i + d + all.length) % all.length;
+    selectTarget(all[i].id, true);
+  }
+
+  /* ---------- ① 그리기 도구 ---------- */
+  var modifyItx = new ol.interaction.Modify({
+    source: drawSource,
+    deleteCondition: function (e) {
+      return deleteVertexMode ? ol.events.condition.singleClick(e) : (ol.events.condition.altKeyOnly(e) && ol.events.condition.singleClick(e));
+    }
+  });
+  modifyItx.on('modifystart', snapshot);
+  modifyItx.on('modifyend', function () { save(); renderTargets(); });
+  map.addInteraction(modifyItx);
+  map.addInteraction(new ol.interaction.Snap({ source: drawSource }));
+
+  function startDraw() {
+    if (!state.selTarget) { toast('먼저 목록에서 섬을 고르세요'); return; }
+    stopDraw();
+    drawItx = new ol.interaction.Draw({ source: drawSource, type: 'Polygon' });
+    drawItx.on('drawstart', snapshot);
+    drawItx.on('drawend', function (e) {
+      var t = targetById(state.selTarget);
+      e.feature.set('target_id', t.id);
+      e.feature.set('name', t.name);
+      e.feature.set('spot', t.spot || '');
+      e.feature.set('sgg', t.sgg || '');
+      e.feature.set('drawn_at', new Date().toISOString());
+      selectedPoly = e.feature;
+      setTimeout(function () { stopDraw(); save(); renderTargets(); drawLayer.changed(); }, 0);
+      toast(t.name + ' 테두리를 추가했습니다');
+    });
+    map.addInteraction(drawItx);
+    $('btn-draw').classList.add('on');
+    toast('섬 둘레를 클릭하세요 — 마지막 점은 두 번 클릭');
+  }
+  function stopDraw() {
+    if (drawItx) { map.removeInteraction(drawItx); drawItx = null; }
+    $('btn-draw').classList.remove('on');
+  }
+
+  /* ---------- ② 해안 관광지 ---------- */
+  function buildSpots() {
+    DATA.spots.forEach(function (s) {
+      var f = new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([s[4], s[3]])));
+      f.set('key', s[0]); f.set('name', s[1]); f.set('sgg_name', s[2]); f.set('rule', s[5]); f.set('lat', s[3]); f.set('lon', s[4]);
+      f.set('isSpot', true);
+      spotSource.addFeature(f);
+    });
+  }
+  function spotByKey(k) {
+    var fs = spotSource.getFeatures();
+    for (var i = 0; i < fs.length; i++) if (fs[i].get('key') === k) return fs[i];
+    return null;
+  }
+  function toggleExclude(f) {
+    var k = f.get('key');
+    if (state.excluded[k]) delete state.excluded[k];
+    else state.excluded[k] = { name: f.get('name'), sgg_name: f.get('sgg_name'), lat: f.get('lat'), lon: f.get('lon') };
+    spotLayer.changed(); save(); renderExcluded();
+  }
+  function renderExcluded() {
+    var keys = Object.keys(state.excluded);
+    $('spot-count').textContent = '(' + (DATA.spots.length - keys.length) + ' / ' + DATA.spots.length + ' 유지)';
+    $('excl-count').textContent = '(' + keys.length + '곳)';
+    var list = $('excl-list'); list.innerHTML = keys.length ? '' : '<div class="item muted">아직 없음</div>';
+    keys.forEach(function (k) {
+      var e = state.excluded[k];
+      var el = document.createElement('div'); el.className = 'item';
+      el.innerHTML = '<span>' + e.name + ' <span class="muted">' + (e.sgg_name || '') + '</span></span><span class="badge">되돌리기</span>';
+      el.onclick = function () { var f = spotByKey(k); if (f) toggleExclude(f); else { delete state.excluded[k]; save(); renderExcluded(); } };
+      el.ondblclick = function () { map.getView().animate({ center: ol.proj.fromLonLat([e.lon, e.lat]), zoom: 15 }); };
+      list.appendChild(el);
+    });
+  }
+  function searchSpots(q) {
+    var box = $('spot-search-result');
+    q = (q || '').trim();
+    if (!q) { box.style.display = 'none'; return; }
+    var hits = spotSource.getFeatures().filter(function (f) { return f.get('name').indexOf(q) >= 0; }).slice(0, 30);
+    box.innerHTML = hits.length ? '' : '<div class="item muted">없음</div>';
+    hits.forEach(function (f) {
+      var el = document.createElement('div'); el.className = 'item';
+      el.innerHTML = '<span>' + f.get('name') + ' <span class="muted">' + f.get('sgg_name') + '</span></span>';
+      el.onclick = function () { map.getView().animate({ center: f.getGeometry().getCoordinates(), zoom: 15 }); };
+      box.appendChild(el);
+    });
+    box.style.display = 'block';
+    return hits;
+  }
+
+  /* ---------- 지도 클릭 ---------- */
+  map.on('singleclick', function (e) {
+    if (drawItx || deleteVertexMode) return;
+    if (state.mode === 'spot') {
+      var hit = map.forEachFeatureAtPixel(e.pixel, function (f) { return f.get('isSpot') ? f : null; }, { hitTolerance: 6 });
+      if (hit) toggleExclude(hit);
+      return;
+    }
+    var poly = map.forEachFeatureAtPixel(e.pixel, function (f, layer) { return layer === drawLayer ? f : null; });
+    var tgt = map.forEachFeatureAtPixel(e.pixel, function (f, layer) { return layer === targetLayer ? f : null; }, { hitTolerance: 6 });
+    selectedPoly = poly || null;
+    if (poly) selectTarget(poly.get('target_id'), false);
+    else if (tgt) selectTarget(tgt.get('id'), false);
+    drawLayer.changed();
+  });
+  map.getView().on('change:resolution', function () { if (state.mode === 'spot') spotLayer.changed(); });
+
+  /* ---------- 모드 전환 ---------- */
+  function setMode(m) {
+    state.mode = m; stopDraw(); setDeleteVertex(false);
+    $('mode-island').classList.toggle('on', m === 'island');
+    $('mode-spot').classList.toggle('on', m === 'spot');
+    $('pane-island').classList.toggle('active', m === 'island');
+    $('pane-spot').classList.toggle('active', m === 'spot');
+    spotLayer.setVisible(m === 'spot');
+    targetLayer.setVisible(m === 'island');
+    modifyItx.setActive(m === 'island');
+    renderLegend();
+  }
+  function setDeleteVertex(on) {
+    deleteVertexMode = on;
+    $('btn-del-vertex').classList.toggle('on', on);
+    if (on) toast('점을 클릭하면 지워집니다 (다시 누르면 끔)');
+  }
+  function renderLegend() {
+    $('legend').innerHTML = state.mode === 'spot'
+      ? '<span class="dot" style="background:#3fa9ff"></span>해안선 1km 이내<br><span class="dot" style="background:#b07cff"></span>해안선 파일상 바다 위<br><span class="dot" style="background:#3ddc97"></span>직접 포함<br><span class="dot" style="background:#ff4d5e"></span>제외'
+      : '<span class="dot" style="background:#ff5c7a"></span>그릴 섬 위치<br><span class="dot" style="background:#50c8ff"></span>그린 테두리<br><span style="color:#ffd65a">- - -</span> 앱의 현재 해안선';
+  }
+
+  /* ---------- 내보내기·불러오기 ---------- */
+  /** 두 모드의 결과를 한 파일로 — 섬 테두리(GeoJSON) + 제외한 관광지 목록. */
+  function buildExport() {
+    return {
+      type: 'seagnal_island_editor_export', version: 1, exported_at: new Date().toISOString(),
+      island_outlines: polysGeoJson(),
+      excluded_spots: Object.keys(state.excluded).map(function (k) {
+        var e = state.excluded[k]; return { key: k, name: e.name, sgg_name: e.sgg_name, lat: e.lat, lon: e.lon };
+      }),
+      custom_targets: state.customTargets
+    };
+  }
+  function exportDownload() {
+    var blob = new Blob([JSON.stringify(buildExport(), null, 1)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'island_editor_export_' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('파일을 받았습니다 — 이 파일을 전달해 주세요');
+  }
+  function importFile(file) {
+    var r = new FileReader();
+    r.onload = function () {
+      try {
+        var obj = JSON.parse(r.result);
+        snapshot();
+        if (obj.type === 'seagnal_island_editor_export') {
+          loadPolys(obj.island_outlines);
+          state.excluded = {};
+          (obj.excluded_spots || []).forEach(function (e) { state.excluded[e.key] = e; });
+          state.customTargets = obj.custom_targets || [];
+        } else if (obj.type === 'FeatureCollection') {
+          loadPolys(obj);
+        } else { throw new Error('형식 모름'); }
+        renderTargets(); renderExcluded(); spotLayer.changed(); save();
+        toast('불러왔습니다');
+      } catch (e) { toast('불러오기 실패: ' + e.message); }
+    };
+    r.readAsText(file);
+  }
+
+  /* ---------- 버튼 연결 ---------- */
+  $('mode-island').onclick = function () { setMode('island'); };
+  $('mode-spot').onclick = function () { setMode('spot'); };
+  $('btn-prev').onclick = function () { stepTarget(-1); };
+  $('btn-next').onclick = function () { stepTarget(1); };
+  $('btn-draw').onclick = function () { if (drawItx) stopDraw(); else startDraw(); };
+  $('btn-del-vertex').onclick = function () { setDeleteVertex(!deleteVertexMode); };
+  $('btn-undo').onclick = function () {
+    if (!undoStack.length) { toast('되돌릴 것이 없습니다'); return; }
+    loadPolys(JSON.parse(undoStack.pop())); selectedPoly = null; save(); renderTargets();
+  };
+  $('btn-del-poly').onclick = function () {
+    if (!selectedPoly) { toast('지울 테두리를 먼저 클릭하세요'); return; }
+    snapshot(); drawSource.removeFeature(selectedPoly); selectedPoly = null; save(); renderTargets();
+  };
+  $('btn-add-target').onclick = function () {
+    var name = (window.prompt('섬 이름을 입력하세요 (지금 지도 가운데에 표시됩니다)') || '').trim();
+    if (!name) return;
+    var c = ol.proj.toLonLat(map.getView().getCenter());
+    var t = { id: 'c' + Date.now(), name: name, group: 'custom', lat: Math.round(c[1] * 1e6) / 1e6, lon: Math.round(c[0] * 1e6) / 1e6 };
+    state.customTargets.push(t); save(); selectTarget(t.id, false);
+  };
+  $('btn-export').onclick = exportDownload;
+  $('btn-import').onclick = function () { $('file-import').click(); };
+  $('file-import').onchange = function (e) { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; };
+  $('btn-base').onclick = function () {
+    var sat = satLayer.getVisible();
+    satLayer.setVisible(!sat); osmLayer.setVisible(sat);
+    this.textContent = '배경: ' + (sat ? '일반 지도' : '위성');
+  };
+  $('btn-ref').onclick = function () {
+    var v = !refLayer.getVisible(); refLayer.setVisible(v);
+    this.textContent = '참고 해안선: ' + (v ? '켜짐' : '꺼짐');
+  };
+  $('spot-search').addEventListener('input', function () { searchSpots(this.value); });
+  $('spot-search').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { var h = searchSpots(this.value); if (h && h[0]) map.getView().animate({ center: h[0].getGeometry().getCoordinates(), zoom: 15 }); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { stopDraw(); setDeleteVertex(false); }
+  });
+
+  /* ---------- 시작 ---------- */
+  buildSpots();
+  restore();
+  renderTargets();
+  renderExcluded();
+  setMode('island');
+  if (allTargets().length) selectTarget(allTargets()[0].id, true);
+
+  // 점검·자동 시험용으로만 노출(화면 동작에는 쓰지 않음).
+  window.__islandEditor = { map: map, drawSource: drawSource, spotSource: spotSource, state: state, buildExport: buildExport, selectTarget: selectTarget, toggleExclude: toggleExclude, setMode: setMode };
+})();
+</script>
+</body>
+</html>
