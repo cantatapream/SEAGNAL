@@ -4,9 +4,9 @@
 """
 import sys, os, re, glob
 P, R = sys.argv[1:3]
-ref = ''.join(open(os.path.join(R, f)).read() for f in ('tables.md', 'season_tables.md', 'extra_tables.md', 'event_days.md', 'checks_v3.md', 'points.md', 'event_ccr.md', 'warning_equivalence_alldays.md') if os.path.exists(os.path.join(R, f)))
+ref = ''.join(open(os.path.join(R, f)).read() for f in ('tables.md', 'season_tables.md', 'extra_tables.md', 'event_days.md', 'checks_v3.md', 'points.md', 'event_ccr.md', 'warning_equivalence_alldays.md', 'fatal_points.md', 'fatality_warn.md', 'summer_bonus.md', 'fcst_leads.md', 'prewarn.md', 'extras.md', 'swell.md', 'points_v31.md') if os.path.exists(os.path.join(R, f)))
 pat = re.compile(r'(\d+\.\d\d)\s*\((\d+\.\d\d)[–-](\d+\.\d\d)\)')
-refset = set(pat.findall(ref))
+refset = set(pat.findall(ref.replace('배 (', ' (')))
 found = miss = 0; misses = []
 for f in sorted(glob.glob(os.path.join(P, '*.md'))):
     for i, line in enumerate(open(f).read().split('\n'), 1):
