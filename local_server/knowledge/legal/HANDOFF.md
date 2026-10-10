@@ -1532,6 +1532,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-10 10:08 KST] ✅완료 — 해안안전예보 — 과거 사고 분석·행사 대조 완료(가중치 제안)
+사고 분석 에이전트(노력 최대) 결과를 검산해 저장소에 올림: local_server/config/coastal_safety/accident_analysis/(report.md·tables.md·data/ 가공자료·결과 CSV), 스크립트 local_server/tools/coastal_accident_analysis/. 행사 웹조사 163행(45개 행사)은 local_server/config/coastal_safety/events/. 행사일 대조(17_event_days.py): 행사 시군구-일 279개, 사고 관측 20 / 기대 12.08 → 1.66배(1.01–2.56). 설계서 coastal_safety_forecast.design.md §7.1·§10.7·M17·M18 추가. 핵심: 연안 인명은 사람·장소(주말 1.70, 방문자2배 1.86, 위험구역 6+ 4.19)가 좌우, 특보일은 0.79(회피와 구분 불가); 선박 기상민감4종 주의보1.68·경보4.46, 충돌은 주의보 0.32. 제안(미확정): 바다·날씨 축 max(특보, 파고 2.5/4m, 풍속 14/17m/s, 해상만 12m/s=1), 위험구역 0/1-2/3-5/6+ 유지, 집중률 12.5/25/50, 행사 +1단계. 발견: 사고정보 탭 특보 딱지 버그 2건(인천·경기 가운뎃점, 강풍 짧은/긴 이름) — 코드로 확인, 미수정(M17). 다음: 사용자 결정 M17·M18, 편집기 ③ 4곳 판정 대기.
+
+
 ### [2026-10-10 01:45 KST] ✅완료 — 해안 안전 예보 설계서 + 섬 테두리 편집도구
 완료: ①설계서 client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md (사용자 확정 U1~U15 원문 병기, 미결 M1~M12, 확인 기록 §9) ②데이터 local_server/config/coastal_safety/{coastal_spots.json 1,361곳, manual_coords.json, island_targets.json 22곳} ③단독 편집기 local_server/tools/island_editor/island_editor.html (빌드: build_island_editor.js) — 헤드리스 크롬에서 섬 이동·그리기·점삭제·되돌리기·관광지 제외·자동저장 복원·내보내기 확인. verify_all: 앱 런타임 코드 변경 없음, 남은 실패 V4(외부망 끊김 ERR_TUNNEL_CONNECTION_FAILED)·V5-57(기존 법률 위키 canonical 읽기기록, 이번 변경과 무관). 다음: 사용자 편집기 내보내기 파일 반영, M1 위험 점수 규칙, 위험구역 5km 매칭 방식 결정 대기.
 
