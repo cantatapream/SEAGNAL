@@ -11,6 +11,8 @@ def f(r, mincase=5):
     cw = r.get('cases_with', np.nan)
     if not np.isnan(cw) and cw < mincase:
         return '(사례 %d — 추정 보류)' % cw
+    if not (r['lo'] > 0) or not np.isfinite(r['hi']) or r['hi'] / r['lo'] > 50:   # v2: 분리로 값이 터진 칸
+        return '(사례 %s — 추정 불안정, 구간 과대)' % ('?' if np.isnan(cw) else int(cw))
     s = '%.2f (%.2f–%.2f)' % (r['RR'], r['lo'], r['hi'])
     if not np.isnan(cw): s += ' [%d]' % cw
     return s
@@ -24,7 +26,7 @@ def table(df, rows, cols, title, note=''):
     print('|---|' + '---|' * len(cols))
     for lab, model, term in rows:
         print('| ' + lab + ' | ' + ' | '.join(f(get(df, model if m is None else m, sub, term)) for _, sub, m in cols) + ' |')
-PT = [('전체', '전체', None), ('익수', '익수', None), ('추락', '추락', None), ('고립', '고립', None), ('표류', '표류', None), ('변사', '변사', None), ('사망·실종 사고', '사망·실종', None)]
+PT = [('전체', '전체', None), ('익수', '익수', None), ('추락', '추락', None), ('고립', '고립', None), ('표류', '표류', None), ('사망·실종 사고', '사망·실종', None)]
 table(P, [('주말·공휴일 (평일 대비)', 'A1b', 'weekend_or_hol'), ('토요일 (월요일 대비)', 'A1_', 'dow5'), ('일요일 (월요일 대비)', 'A1_', 'dow6'), ('공휴일', 'A1_', 'hol')],
       PT, '인명 — 달력(요일·공휴일)', '값 = 같은 장소·같은 달 안에서의 하루당 사고 배수(RR, 95% 신뢰구간) [조건 해당 사고 수].')
 table(P, [('외지인 방문자 2배 (달력 보정)', 'D2_', 'log2_outsider'), ('전체 방문자 2배 (달력 보정)', 'D3_', 'log2_total'),
@@ -48,7 +50,7 @@ table(P, [('외지인 방문자 2배 + 특보 동시 — 특보', 'D5', 'any_war
 # 월
 print('\n#### 인명 — 월 (같은 장소·같은 해 안, 1월 대비, 요일·공휴일 보정)\n')
 print('| 유형 | ' + ' | '.join('%d월' % m for m in range(2, 13)) + ' |'); print('|---|' + '---|' * 11)
-for sub in ['전체', '익수', '추락', '고립', '표류', '변사', '사망·실종']:
+for sub in ['전체', '익수', '추락', '고립', '표류', '사망·실종']:
     x = PM[(PM.model.str.startswith('M1')) & (PM.subset == sub)].set_index('term')
     print('| ' + sub + ' | ' + ' | '.join('%.2f' % x.loc['m%02d' % m, 'RR'] for m in range(2, 13)) + ' |')
 x = PM[(PM.model.str.startswith('M2')) & (PM.subset == '전체')].set_index('term')
@@ -97,7 +99,7 @@ for b in ['0', '1', '2', '3', '4-5', '6-8', '9-12', '13+']:
     print('| %s | %d | %d | %.2f | %s | %s |' % (b, d.spots, d.events, d.per_spot_per_year, g('n_all'), g('n_2023_24')))
 x = H[H.model.str.contains('사망사고') & (H.term == 'fatal_any')]
 print('\n사망사고 발생구역이 3km 안에 1곳 이상(개수 구간 함께 보정): ' + '; '.join('%s %.2f (%.2f–%.2f)' % ({'n_all': '전체 사고', 'n_2023_24': '2023~24', 'n_fatal': '사망·실종 사고'}[o], a, b, c) for o, a, b, c in zip(x.outcome, x.RR, x.lo, x.hi)))
-x = H[(H.model.str.startswith('출발안 구간(')) & H.outcome.isin(['n_익수', 'n_추락', 'n_고립', 'n_표류', 'n_변사']) & H.term.str.startswith('bin_start')]
+x = H[(H.model.str.startswith('출발안 구간(')) & H.outcome.isin(['n_익수', 'n_추락', 'n_고립', 'n_표류']) & H.term.str.startswith('bin_start')]
 print('\n유형별(출발안 구간 RR, 1-2 / 3-5 / 6+): ' + '; '.join('%s %s' % (o[2:], ' / '.join('%.2f' % v for v in g.RR)) for o, g in x.groupby('outcome', sort=False)))
 C = pd.read_csv(R + '/coastgrid_hazard_models.csv')
 x = C[(C.bins == 'bin')]

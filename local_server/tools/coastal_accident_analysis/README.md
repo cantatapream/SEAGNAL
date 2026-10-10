@@ -9,3 +9,8 @@
 - 키(data.go.kr·기상청 API허브)는 파일에서 읽는다 — 스크립트에 들어 있지 않다.
 - 방법: 시간층화 사례교차(= 조건부 포아송), `ccr.py`. 검산 `test_ccr.py`.
 - `17_event_days.py`: 행사일 vs 같은 시군구·같은 달·같은 요일 비교(설계서 §7.1). 다른 스크립트와 달리 저장소 안 파일만으로 돈다.
+
+## v2 (2026-10-10) — 변사 제외 · 계절별 · 상세 보고서
+- 인명 입력(`geo_person.csv`)에서 변사를 뺀 작업 폴더로 07~16 을 다시 돌림. 바뀐 스크립트: `07_person.py`·`09_spots.py`·`10_severity.py`(변사 묶음 제거), `16_tables.py`(신뢰구간 상·하한 비 50배 초과 → "추정 불안정"), `08_ship.py`(시각 맞춤 층 행도 저장).
+- 새 스크립트: `18_season.py`(계절별 모형) · `18b_season_desc.py`(계절별 건수표·조건 빈도) · `19_season_tables.py`(계절별 표) · `20_extra_tables.py`(월별 신뢰구간·2025 제외 비교) · `17b_event_table.py`(행사일 표) · `21_build_report.py`(본문 + 표 조립 — 표 숫자를 손으로 옮기지 않음) · `22_check_citations.py`(본문 인용 숫자 ↔ 표 대조).
+- 결과: `local_server/config/coastal_safety/accident_analysis/v2/report.md`. 재현 순서는 그 문서 §11.

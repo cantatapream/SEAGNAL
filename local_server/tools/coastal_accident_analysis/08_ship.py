@@ -150,8 +150,7 @@ for mode in ('day', 'time'):
             q['nw_or_%s_%s' % (A_, B_)] = (nw0 & ((q[whc] >= A_) | (q[wsc] >= B_))).astype(float)
         add('S%s_C7_축(특보없음 & (파고≥1.5 또는 풍속≥10))' % tag, nm, q.copy(), ['nw_or_1.5_10', 'w_주의보', 'w_경보'] + CAL)
         add('S%s_C8_축(특보없음 & (파고≥2 또는 풍속≥12))' % tag, nm, q.copy(), ['nw_or_2.0_12', 'w_주의보', 'w_경보'] + CAL)
-    if mode == 'day':
-        rows.to_csv(OUT + '/ship_strata_rows_day%s.csv.gz' % ('_ex2025' if EX25 else ''), index=False, compression='gzip')
+    rows.to_csv(OUT + '/ship_strata_rows_%s%s.csv.gz' % (mode, '_ex2025' if EX25 else ''), index=False, compression='gzip')   # v2: 시각 맞춤 행도 저장(계절별 분석용)
     pd.DataFrame(results).to_csv(OUT + '/ship_models%s.csv' % ('_ex2025' if EX25 else ''), index=False, encoding='utf-8-sig')
 # 월 효과(층 = 사건 × 연)
 results_m = []

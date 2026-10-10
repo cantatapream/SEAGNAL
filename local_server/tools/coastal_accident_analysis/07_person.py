@@ -99,7 +99,7 @@ def dummies(df, col, bins, labels, ref):
         nm = '%s[%s]' % (col, lab); df[nm] = (cat == lab).astype(float); df.loc[cat.isna(), nm] = np.nan; names.append(nm)
     return names
 
-subsets = [('전체', None), ('익수', '익수'), ('추락', '추락'), ('고립', '고립'), ('표류', '표류'), ('변사', '변사'), ('사망·실종', 'FATAL'), ('변사제외', 'NOBYUNSA')]
+subsets = [('전체', None), ('익수', '익수'), ('추락', '추락'), ('고립', '고립'), ('표류', '표류'), ('사망·실종', 'FATAL')]   # v2: 변사는 입력(geo_person.csv)에서 제외
 pe['fatal'] = ((pe.death.fillna(0) + pe.missing.fillna(0)) > 0)
 def pick(df, t):
     if t is None: return df

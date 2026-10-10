@@ -29,7 +29,7 @@ pc['any_warn'] = (pc.anyw >= 1).astype(int); pc['warn_주의보'] = (pc.anyw == 
 pc['sea_warn'] = (pc.seaw >= 1).astype(int); pc['gw_warn'] = (pc.gw >= 1).astype(int)
 pc['nw_wh_1.5+'] = ((pc.anyw == 0) & (pc.wh_max >= 1.5)).astype(float); pc.loc[pc.wh_max.isna(), 'nw_wh_1.5+'] = np.nan
 pc['nw_ws_10+'] = ((pc.anyw == 0) & (pc.ws_max >= 10)).astype(float); pc.loc[pc.ws_max.isna(), 'nw_ws_10+'] = np.nan
-for sub, lab in [(pc, '인명 전체'), (pc[pc.type != '변사'], '인명(변사 제외)')]:
+for sub, lab in [(pc, '인명 전체(변사 제외)')]:
     run(sub, 'fatal', ['any_warn'], ['type', 'month', 'yr'], lab + ': 특보 있는 날 사고의 사망·실종 비율 배수', 'sea_zone')
     run(sub, 'fatal', ['warn_주의보', 'warn_경보'], ['type', 'month', 'yr'], lab + ': 특보 수준별', 'sea_zone')
     run(sub, 'fatal', ['sea_warn', 'gw_warn'], ['type', 'month', 'yr'], lab + ': 해상특보·강풍특보 따로', 'sea_zone')

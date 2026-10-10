@@ -17,7 +17,7 @@ pe['late'] = pe.date >= '20230101'
 def cnt(mask, name):
     c = pe[mask].groupby('spot').size(); sp[name] = sp.spot.map(c).fillna(0).astype(int)
 cnt(pe.date.notna(), 'n_all'); cnt(pe.late, 'n_2023_24'); cnt(~pe.late, 'n_2020_22'); cnt(pe.fatal, 'n_fatal')
-for t in ['익수', '추락', '고립', '표류', '변사']: cnt(pe.type == t, 'n_' + t)
+for t in ['익수', '추락', '고립', '표류']: cnt(pe.type == t, 'n_' + t)
 sp['log_coast'] = np.log(sp.coast_cells_share + 1)
 def binz(x, edges, labels):
     return pd.cut(x, bins=edges, labels=labels, right=False).astype(str)
@@ -39,7 +39,7 @@ def fit(y, terms, label, data, ref_note=''):
         rows.append(dict(model=label, outcome=y, term=c, RR=np.exp(b), lo=np.exp(b - 1.96 * s), hi=np.exp(b + 1.96 * s), p=m.pvalues[c],
                          n_spots=len(data), events=int(data[y].sum())))
     return m
-for y in ['n_all', 'n_2020_22', 'n_2023_24', 'n_fatal', 'n_익수', 'n_추락', 'n_고립', 'n_표류', 'n_변사']:
+for y in ['n_all', 'n_2020_22', 'n_2023_24', 'n_fatal', 'n_익수', 'n_추락', 'n_고립', 'n_표류']:
     fit(y, ['bin_start'], '출발안 구간(0/1-2/3-5/6+)', sp)
 for y in ['n_all', 'n_2023_24', 'n_fatal']:
     fit(y, ['bin_fine'], '세분 구간', sp)
