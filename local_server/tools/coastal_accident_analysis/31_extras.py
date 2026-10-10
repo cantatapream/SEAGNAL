@@ -4,6 +4,7 @@
     층 = 사고 × 연월(07_person.py 행), 노출 = log₂ 외지인 방문자, 사고가 속한 관광지의 위험구역 구간별로 방문자 효과를 따로 → 같은가 검정
  ② 선박: 주의보만 떼어 파고 4m 이상(§6.6 '주의보 안에서도' 미분석) — 기상민감 4종, 사고 시각 맞춤
  ③ 선박 기상민감 4종: 주말·공휴일, 달(1~12월, 1년 평균 날 대비) — 전체·사망실종(점수 후보 칸이 비어 있었음)
+ ⑤ 선박 충돌·접촉 — 특보 × 파고·풍속 칸(기상민감 4종 §6.6 칸과 같은 틀, 바텀시트 종류별 수치용)
  ④ 주말 효과의 계절 차이 검정 — 연안 사망·실종(§6 "검정하지는 않았다"), 선박 충돌·접촉(§6 "검정하지 않았다")
 군집 = 사고 날짜. 사용: python3 -I 31_extras.py <data_dir> <results_dir> > results/extras.md
 """
@@ -110,4 +111,15 @@ season_weekend(pf, '연안 사망·실종(층 = 사고 × 연월)')
 sd = pd.read_csv(R + '/ship_strata_rows_day.csv.gz'); sd = sd[traf[sd.ev.values]].copy()
 sd['wkh'] = ((sd.dow >= 5) | (sd.hol == 1)).astype(float); sd['month_'] = month[sd.day.values]
 season_weekend(sd, '선박 충돌·접촉(층 = 사고 × 연월)')
+# ⑤ 충돌·접촉 — 특보 × 파고·풍속
+trf = st[traf[st.ev.values]]
+out += ['#### ⑤ 선박 충돌·접촉 — 특보 중 파고·풍속 칸(사고 시각 맞춤, 기준 = 특보 없는 때)\n', '| 칸 | 배수 (95% 신뢰구간) | 해당 사고 |', '|---|---|---|']
+for col, cuts, lab in (('wh', [2, 4], '파고'), ('ws', [14, 17], '풍속')):
+    q = trf.dropna(subset=[col]).copy(); w = q.seaw >= 1
+    q['c0'] = (w & (q[col] < cuts[0])).astype(float); q['c1'] = (w & (q[col] >= cuts[0]) & (q[col] < cuts[1])).astype(float); q['c2'] = (w & (q[col] >= cuts[1])).astype(float)
+    _, t, _ = fit(q, ['c0', 'c1', 'c2'] + CAL)
+    for c, nm in zip(('c0', 'c1', 'c2'), ('%s %g 미만' % (lab, cuts[0]), '%s %g~%g' % (lab, cuts[0], cuts[1]), '%s %g 이상' % (lab, cuts[1]))):
+        n = int(((q.case == 1) & (q[c] == 1)).sum())
+        out.append('| 특보 & %s | %s | %d |' % (nm, '추정 보류' if n < 5 else fmt(t[c]), n))
+out.append('')
 print('\n'.join(out))
