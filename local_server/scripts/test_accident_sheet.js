@@ -135,9 +135,12 @@ ok('분모 시작일 상수가 그대로다',
     const all = { warn: a.warn + b.warn, denom: a.denom + b.denom };
     all.pct = all.warn / all.denom * 100;
     // 원본 JSON 기준값(화면은 좌표 이상치 등을 걸러 조금 낮다 — 설계서 참고).
-    ok('선박 특보 중 사고 비율이 4.0% 언저리', Math.abs(a.pct - 4.0) < 0.3, a.pct.toFixed(2) + '%');
-    ok('인명 특보 중 사고 비율이 6.3% 언저리', Math.abs(b.pct - 6.3) < 0.3, b.pct.toFixed(2) + '%');
-    ok('통합 특보 중 사고 비율이 4.3% 언저리', Math.abs(all.pct - 4.3) < 0.3, all.pct.toFixed(2) + '%');
+    // [2026-10-10 기준값 갱신] build_accident_warn_flags.js 가 구역 이름 표기 차이(인천·경기 앞바다의 가운뎃점,
+    // 강풍 육상구역의 짧은·긴 이름)를 넓게 받도록 고쳐 빠졌던 딱지가 추가됐다(지워진 딱지 0 — 커밋 메시지 참고).
+    // 옛 기준 선박 4.0 · 인명 6.3 · 통합 4.3 → 선박 4.33 · 인명 9.87 · 통합 5.13.
+    ok('선박 특보 중 사고 비율이 4.3% 언저리', Math.abs(a.pct - 4.33) < 0.3, a.pct.toFixed(2) + '%');
+    ok('인명 특보 중 사고 비율이 9.9% 언저리', Math.abs(b.pct - 9.87) < 0.3, b.pct.toFixed(2) + '%');
+    ok('통합 특보 중 사고 비율이 5.1% 언저리', Math.abs(all.pct - 5.13) < 0.3, all.pct.toFixed(2) + '%');
 })();
 
 (function () {
