@@ -229,3 +229,7 @@ local_server/scripts/_accident_raw/
 # 강풍(W) 별도 저장 — 실행 중 생기는 자료(services/gale_warning_store.js)
 local_server/data/gale_warnings.json
 local_server/data/gale_warnings_log.jsonl
+
+# 위험지수 산출 근거 보고서 — 생성물(원고 .md 에서 40_public_report_pdf.js 로 다시 만듦). 확정본은 앱 배포 위치에 따로 둔다
+local_server/config/coastal_safety/accident_analysis/v3/public/*.html
+local_server/config/coastal_safety/accident_analysis/v3/public/*.pdf
