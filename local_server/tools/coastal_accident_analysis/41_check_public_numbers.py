@@ -13,7 +13,7 @@ refpairs = set(pair.findall(ref))
 dec = re.compile(r'(?<![\d.])-?\d+\.\d\d(?![\d])')
 cnt = re.compile(r'(?<![\d,])\d{1,3}(?:,\d{3})+(?![\d])')
 refdec = set(x.lstrip('-') for x in dec.findall(ref))
-refcnt = set(cnt.findall(ref))
+refcnt = set(re.findall(r'(?<![\d.])\d+(?![\d.])', ref.replace(',', '')))  # 원자료는 쉼표 없이 적은 건수도 있다(3138)
 bad = 0; seen = 0
 for f in sorted(glob.glob(os.path.join(V3, 'public', '*_위험지수_산출근거.md'))):
     for i, line in enumerate(open(f).read().replace('−', '-').split('\n'), 1):
@@ -27,6 +27,6 @@ for f in sorted(glob.glob(os.path.join(V3, 'public', '*_위험지수_산출근�
             if x.lstrip('-') not in refdec: bad += 1; print('  - 원자료에 없음(소수): %s:%d %s' % (os.path.basename(f), i, x))
         for x in cnt.findall(rest):
             seen += 1
-            if x not in refcnt: bad += 1; print('  - 원자료에 없음(건수): %s:%d %s' % (os.path.basename(f), i, x))
+            if x.replace(',', '') not in refcnt: bad += 1; print('  - 원자료에 없음(건수): %s:%d %s' % (os.path.basename(f), i, x))
 print('대조한 숫자 %d개, 원자료에 없는 숫자 %d개' % (seen, bad))
 sys.exit(1 if bad else 0)
