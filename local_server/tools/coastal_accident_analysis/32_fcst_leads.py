@@ -55,10 +55,11 @@ def fl(mz, day, k, A, B):
     return v
 sd = pd.read_csv(R + '/ship_strata_rows_day.csv.gz'); sens = se.types.str.contains('전복|침몰|침수|표류').values; sd = sd[sens[sd.ev.values]]
 sfat = ((se.death.fillna(0) + se.missing.fillna(0)) > 0).values
+sd_all = pd.read_csv(R + '/ship_strata_rows_day.csv.gz'); traf = se.types.str.contains('충돌|접촉').values; st_tr = sd_all[traf[sd_all.ev.values]]
 pr = pd.read_csv(R + '/person_strata_rows.csv.gz'); pe['fatal'] = (pe.death.fillna(0) + pe.missing.fillna(0)) > 0
 out += ['#### ② 예보가 특보급으로 본 날의 사고 배수(실제 특보 여부와 무관, 기준 = 예보가 기준 미만으로 본 날, 같은 장소·같은 달)\n',
         '| 대상 | 기준 | ' + ' | '.join(LAB[k] for k in range(3)) + ' |', '|---|---|---|---|---|']
-for lab, df, mzs in (('선박 기상민감 4종', sd, se.mzone.values), ('선박 기상민감 4종 사망·실종', sd[sfat[sd.ev.values]], se.mzone.values), ('연안 인명 전체', pr, pe.mzone.values), ('연안 사망·실종', pr[pe.fatal.values[pr.ev.values]], pe.mzone.values)):
+for lab, df, mzs in (('선박 기상민감 4종', sd, se.mzone.values), ('선박 기상민감 4종 사망·실종', sd[sfat[sd.ev.values]], se.mzone.values), ('선박 충돌·접촉', st_tr, se.mzone.values), ('연안 인명 전체', pr, pe.mzone.values), ('연안 사망·실종', pr[pe.fatal.values[pr.ev.values]], pe.mzone.values)):
     for A, B in ((2.0, 12), (2.5, 14), (4.0, 17)):
         cells = []
         for k in range(3):
