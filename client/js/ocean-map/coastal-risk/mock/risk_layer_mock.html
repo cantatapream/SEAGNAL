@@ -1,0 +1,423 @@
+<title>사고위험 지도 시안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* 레이아웃: 왼쪽 = 앱 화면(폰 폭) 시안 — 앱의 짙은 남색 화면을 그대로 흉내(단일 테마), 오른쪽 = 결정 사항·문장 틀(뷰어 테마를 따름). 좁으면 위아래로. */
+:root{
+  --bg:#eef2f4; --panel:#ffffff; --fg:#13202a; --muted:#5a6b78; --line:#d3dce2; --tint:#e8f2f6; --link:#1f6f8b;
+  /* 앱 화면(앱 style.css 의 값 그대로) */
+  --app-card:#161b2d; --app-text:#ffffff; --app-sub:#94a3b8; --app-yellow:#ffd740; --app-blue:#448aff;
+  --app-sea:#0d2742; --app-land:#2a2f3a; --app-landline:#5b6576; --app-grid:rgba(200,225,240,.12);
+  --g0:#2fb36b; --g1:#f2c230; --g2:#e0322c;
+  --b-pre:#ffd740; --b-adv:#ff8f1f; --b-wrn:#ff3b30;
+  --f-body:"Noto Sans KR",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0e161c; --panel:#152129; --fg:#e4edf2; --muted:#93a5b2; --line:#26343e; --tint:#1b2c35; --link:#5cb5d6; color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e161c; --panel:#152129; --fg:#e4edf2; --muted:#93a5b2; --line:#26343e; --tint:#1b2c35; --link:#5cb5d6; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);line-height:1.55}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:880px){.wrap{grid-template-columns:minmax(0,1fr)}}
+h1{font-size:1.4rem;margin:0 0 4px;text-wrap:balance}
+.sub{color:var(--muted);margin:0 0 14px;font-size:.9rem}
+/* ── 앱 화면 ── */
+.phone{background:linear-gradient(180deg,#080a0f,#1c2640);border-radius:22px;overflow:hidden;max-width:420px;color:var(--app-text);border:1px solid #26314a}
+.map{position:relative}
+.map svg{display:block;width:100%;height:auto}
+.tl{position:absolute;left:8px;top:8px;display:flex;flex-direction:column;gap:2px;background:rgba(10,15,28,.94);border:1px solid #2a3550;border-radius:12px;padding:4px}
+.tl button{display:flex;align-items:center;gap:10px;padding:4px 8px;border:0;border-radius:999px;background:transparent;cursor:pointer;font:700 .7rem var(--f-body);white-space:nowrap;color:var(--app-sub)}
+.tl button .nm{flex:1 1 auto;text-align:left}
+.tl button:not(.on) .nm{opacity:.4}
+.sw{position:relative;width:28px;height:16px;border-radius:8px;background:rgba(255,255,255,.25);flex:0 0 auto}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:left .15s}
+.tl button.on .sw{background:var(--app-yellow)} .tl button.on .sw::after{left:14px}
+.rb{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px}
+.rb span{width:38px;padding:7px 0 5px;border-radius:10px;background:rgba(15,27,51,.85);color:rgba(255,255,255,.6);font-size:.58rem;text-align:center;line-height:1.2;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.rb span.on{color:var(--app-yellow);box-shadow:0 0 0 1px var(--app-yellow)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--app-blue);outline-offset:2px}
+.sheet{background:linear-gradient(180deg,#0c1a3a 0%,#162d5a 100%);border-radius:20px 20px 0 0;padding:10px 16px 18px;margin-top:-14px;position:relative;z-index:2}
+.grab{width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.3);margin:0 auto 10px}
+.sh-title{font-weight:700;font-size:1.05rem;margin:0}
+.sh-where{color:var(--app-sub);font-size:.8rem;margin:2px 0 10px}
+.slwrap{position:relative;margin:28px 0 12px}
+.slider{-webkit-appearance:none;appearance:none;width:100%;height:18px;background:transparent;margin:0;cursor:pointer}
+.slider::-webkit-slider-runnable-track{height:8px;background:linear-gradient(90deg,rgba(100,180,255,.45),rgba(100,180,255,.30)),rgba(140,200,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:4px}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#dff2ff 0%,#64b4ff 60%,#2a78c8 100%);border:2px solid #fff;margin-top:-6px;box-shadow:0 0 12px rgba(100,180,255,.6),0 1px 3px rgba(0,0,0,.4);cursor:grab}
+.slider::-moz-range-track{height:8px;background:rgba(100,180,255,.35);border:1px solid rgba(255,255,255,.18);border-radius:4px}
+.slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#64b4ff;border:2px solid #fff}
+.tip{position:absolute;top:-1.75rem;left:0;padding:4px 10px;background:rgba(140,200,255,.12);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.35);border-radius:12px;color:#e8f4ff;font-size:.72rem;font-weight:600;white-space:nowrap;transform:translateX(-50%);opacity:0;transition:opacity 1s;pointer-events:none}
+.tip.visible{opacity:1;transition:opacity 0s}
+.idx{display:grid;gap:6px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);margin-bottom:12px}
+.idx .top{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center}
+.idx .rl{display:flex;justify-content:space-between;font-size:.66rem;color:var(--app-sub)}
+.t-g{color:#4ade80}.t-y{color:#facc15}.t-o{color:#fb923c}.t-r{color:#f87171}
+.idx{position:relative}
+.basis-btn{position:absolute;top:8px;right:8px;font:700 .7rem var(--f-body);color:var(--app-sub);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:3px 9px;cursor:pointer}
+.basis-btn:hover{color:#fff}
+.modal{position:absolute;inset:0;background:rgba(4,8,18,.72);display:flex;align-items:flex-end;z-index:5}
+.modal[hidden]{display:none}
+.mbox{word-break:keep-all;overflow-wrap:break-word;background:linear-gradient(180deg,#0c1a3a,#162d5a);border-radius:20px 20px 0 0;width:100%;max-height:88%;overflow-y:auto;padding:14px 16px 20px;font-size:.82rem;line-height:1.6}
+.mbox h3{margin:0 0 2px;font-size:1rem}
+.mbox h4{margin:12px 0 4px;font-size:.86rem;color:var(--app-yellow)}
+.mbox p{margin:0 0 4px}
+.mbox table{width:100%;border-collapse:collapse;font-size:.78rem;margin:4px 0}
+.mbox th,.mbox td{padding:4px 4px;border-bottom:1px solid rgba(255,255,255,.12);text-align:left}
+.mbox th,.mbox td{color:#e6edf8;background:transparent}
+.mbox th{color:#ffe17a}
+.mbox td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mbox td.wrap{white-space:normal}
+.pdf-btn{display:inline-block;margin:6px 0 2px;padding:5px 12px;border-radius:999px;font-size:.78rem;background:rgba(255,215,64,.14);border:1px solid rgba(255,215,64,.45);color:#ffe17a;font-weight:700;text-align:center;text-decoration:none}
+.pdf-btn small{display:block;font-weight:400;color:var(--app-sub);font-size:.72rem}
+.mclose{float:right;font:700 .78rem var(--f-body);background:rgba(255,255,255,.1);color:#fff;border:0;border-radius:999px;padding:4px 10px;cursor:pointer}
+.phone{position:relative}
+.idx .box{display:grid;justify-items:center;padding:6px 12px;border-radius:12px;color:#10151f;min-width:78px}
+.idx .box small{font-size:.66rem;font-weight:700;letter-spacing:.04em}
+.idx .box b{font-size:1.6rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.idx p{margin:0;font-size:.84rem}
+#shBody{word-break:keep-all;overflow-wrap:break-word}
+.rows{display:grid;gap:0}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.1)}
+.row .k{font-size:.86rem;font-weight:700}
+.row .v{font-size:.86rem;text-align:right;white-space:nowrap}
+.row .why{grid-column:1/-1;font-size:.76rem;color:var(--app-sub)}
+.hzacc{margin-top:4px}
+.hzacc summary{cursor:pointer;color:#cfe0ff;font-size:.74rem;list-style:none}
+.hzacc summary::-webkit-details-marker{display:none}
+.hzacc summary:before{content:"▸ ";}
+.hzacc[open] summary:before{content:"▾ ";}
+.hzacc ol{margin:4px 0 0;padding-left:18px}
+.hzacc li{margin:3px 0}
+.hzacc li span{display:block;color:var(--app-sub)}
+.hzlink{color:#8fc3ff;text-decoration:underline;cursor:pointer}
+.row .tag{font-size:.64rem;color:#10151f;background:var(--app-yellow);border-radius:6px;padding:1px 5px;margin-left:6px;font-weight:700}
+.kinds{display:grid;gap:4px;margin-top:10px;font-size:.84rem}
+.kinds div{display:flex;justify-content:space-between;gap:8px}
+.up{color:#ff8a65} .down{color:#7cc4ff} .na{color:var(--app-sub)}
+.msg{margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(255,143,31,.14);border:1px solid rgba(255,143,31,.35);font-size:.8rem}
+.legend{padding:0 16px 18px;display:grid;gap:6px;font-size:.74rem;color:var(--app-sub)}
+.ramp{height:8px;border-radius:4px;background:linear-gradient(90deg,var(--g0),var(--g1),var(--g2))}
+.marks{display:flex;gap:12px;flex-wrap:wrap}
+.marks i.dash{border-top-style:dashed}
+.marks i{display:inline-block;width:18px;height:0;border-top:3px solid;vertical-align:middle;margin-right:4px}
+/* ── 오른쪽 설명 ── */
+aside{min-width:0}
+aside h2{font-size:1.02rem;margin:18px 0 6px}
+aside ul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:.9rem}
+.card{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:10px 14px;font-size:.86rem}
+.card pre{white-space:pre-wrap;font:400 .8rem/1.6 var(--f-body);margin:6px 0 0;background:var(--tint);padding:8px 10px;border-radius:8px}
+.slot{color:var(--link);font-weight:700}
+.live{border-left:3px solid var(--link);padding:6px 10px;background:var(--panel);border-radius:0 8px 8px 0;font-size:.86rem}
+.note{color:var(--muted);font-size:.78rem}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <section>
+    <h1>사고위험 지도 시안</h1>
+    <p class="sub">해양안전 탭 「위험예측」. 예시 해역·예시 수치이며 실제 예보가 아닙니다. 칸이나 관광지 원을 누르고, 슬라이더 손잡이를 잡고 움직여 보세요.</p>
+    <div class="phone">
+      <div class="map">
+        <svg id="svg" viewBox="0 0 400 440" role="img" aria-label="위험예측 예시 지도"></svg>
+        <div class="tl" role="group" aria-label="위험예측 보기">
+          <button id="tCoast" class="on" aria-pressed="true"><span class="nm">연안 위험 예측·분석</span><span class="sw" aria-hidden="true"></span></button>
+          <button id="tSea" class="on" aria-pressed="true"><span class="nm">해상 위험 예측·분석</span><span class="sw" aria-hidden="true"></span></button>
+        </div>
+        <div class="rb" aria-hidden="true"><span>위험<br>지형</span><span>사고<br>정보</span><span>금지<br>구역</span><span class="on">위험<br>예측</span></div>
+      </div>
+      <div class="sheet" aria-live="polite">
+        <div class="grab" aria-hidden="true"></div>
+        <p class="sh-title" id="shTitle"></p>
+        <p class="sh-where" id="shWhere"></p>
+        <div class="slwrap">
+          <span class="tip" id="tip"></span>
+          <input id="hour" class="slider" type="range" min="0" max="47" step="1" value="6" aria-label="시간 이동">
+        </div>
+        <div id="shBody"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="modal" id="modal" hidden><div class="mbox" id="mbox" role="dialog" aria-modal="true" aria-label="기준 상세"></div></div>
+    </div>
+  </section>
+
+  <aside>
+    <h2>연안 위험 예측·분석 — 이번 판</h2>
+    <ul>
+      <li><b>위험지수 상자 오른쪽 위 [기준 상세]</b> 버튼(해상·연안 모두) — 누르면 아래에서 설명 창이 올라옴: 무엇을 나타내나 · 「평소/기준」의 뜻 · 어떻게 셌나 · 배수→위험지수 표 · 「N% 높음/낮음」 읽는 법 · 단계 말 · 넣지 않은 것 · 한계.</li>
+      <li>연안: 관광지마다 3km 원을 총점 색으로 칠함(왼쪽 위 스위치로 연안·해상 따로 끄고 켬).</li>
+      <li>바텀시트 제목 = 관광지 이름, 아래 줄 = 주소 · <b>파출소 관할</b> · 해수욕장 여부.</li>
+      <li>슬라이더 = <b>3시간 간격, 3일</b>(해상과 같은 말풍선).</li>
+      <li>위험지수 상자 = 「한산하고 위험구역 없는 곳의 평범한 날보다 / 사고 가능성 약 N배」 + <b>사망·실종 사고 가능성</b> 한 줄.</li>
+      <li>안내 문구(특보·예비특보·특보급 가능성·떠밀림)는 <b>위험지수 바로 아래</b>.</li>
+      <li>요소 줄 순서: 사람 혼잡 → 위험구역 → 사망사고 발생구역 → 주말 행사 → 달 → 너울 → 이안류. <b>해당 없는 요소는 줄을 뺌</b>(예: 위험구역 0곳, 행사 없는 날).</li>
+      <li>요소마다 두 줄 + 사망·실종 한 줄: 「○○(으)로 평소 대비 약 N배 높은 사고 발생 가능성 / 사고 종류 : … / 사망·실종 사고 : N% 높음」.</li>
+      <li>이안류·너울은 「정책 점수」라고 밝힘(약 23% 높게 반영).</li>
+    </ul>
+    <h2>확인해 주실 것</h2>
+    <div class="card">
+      <p><b>위험지수(100점)</b>: 3점(평소의 8배) = 100, 그 위는 100. 연안은 요소를 더하므로 여름 주말 붐비는 해수욕장은 100에 자주 닿을 수 있습니다(예시의 갈매기해수욕장 100). 연안만 상한을 높일지(예: 4점 = 100) 정해 주세요.</p>
+      <p><b>사람 혼잡 단계</b>: 관광지 집중률 12.5 / 25 / 50 경계로 1·2·3단계(설계서 U18 근거 — 집중률이 쌓이면 다시 잼).</p>
+      <p><b>연안 3일째 「특보급 날씨 가능성」</b> 테두리: 노랑 점선.</p>
+    </div>
+    <h2>문장 틀 (숫자만 채움)</h2>
+    <div class="card">
+      <b>요소 줄</b>
+      <pre><span class="slot">{조건}</span>(으)로 평소 대비 <span class="slot">{약 N배 / N%}</span> 높은 사고 발생 가능성
+사고 종류 : <span class="slot">{사고 종류}</span></pre>
+      <b style="display:block;margin-top:8px">해상 위험 해역 한 줄(브리핑)</b>
+      <pre><span class="slot">{해구}</span> 반경 <span class="slot">{반경}</span>해리(<span class="slot">{주요지명} {방위}° {거리}</span>해리) — 위험지수 <span class="slot">{지수}</span>, <span class="slot">{가장 큰 이유}</span>. 배 혼잡 <span class="slot">{등급}</span>.</pre>
+      <b style="display:block;margin-top:8px">연안 지점 한 줄(브리핑)</b>
+      <pre><span class="slot">{관광지}</span> — 위험지수 <span class="slot">{지수}</span>(<span class="slot">{단계 말}</span>), <span class="slot">{가장 큰 이유 1~2개}</span>.</pre>
+    </div>
+    <h2>지금 고른 곳으로 채운 예</h2>
+    <div class="live" id="liveTpl"></div>
+  </aside>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var NS="http://www.w3.org/2000/svg", svg=document.getElementById("svg"), W=400, H=440, C=22;
+  var show={coast:true,sea:true}, hour=6, sel={type:"cell",gx:15,gy:14};
+  var BASE_H=9, DAYS=["8. 15.(토)","8. 16.(일)","8. 17.(월)"];
+  var LAND=[[0,0],[400,0],[400,60],[340,72],[300,98],[268,92],[236,118],[206,112],[180,140],[150,132],[120,160],[96,150],[70,178],[40,170],[0,196]];
+  var ISLES=[[[250,200],[272,192],[286,206],[270,220],[250,216]],[[120,270],[136,262],[148,276],[132,288]],[[318,300],[332,294],[340,308],[326,316]]];
+  var NAMES=[{n:"갈매기항",x:96,y:170},{n:"솔섬",x:132,y:274},{n:"모래항",x:236,y:122},{n:"동섬",x:328,y:304},{n:"검은바위",x:262,y:206}];
+  var NM_PER_PX=0.06;
+  function inPoly(x,y,p){var c=false;for(var i=0,j=p.length-1;i<p.length;j=i++){var a=p[i],b=p[j];if(((a[1]>y)!==(b[1]>y))&&(x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]))c=!c;}return c;}
+  function isLand(x,y){if(inPoly(x,y,LAND))return true;for(var k=0;k<ISLES.length;k++)if(inPoly(x,y,ISLES[k]))return true;return false;}
+  function inBox(x,y,b){return x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h;}
+  var ADV={x:198,y:250,w:202,h:190}, WRN={x:250,y:300,w:150,h:140}, CORE={x:300,y:340,w:100,h:100}, PRE={x:150,y:230,w:250,h:210}, FCST={x:120,y:250,w:280,h:190};
+  function absH(h){return BASE_H+h;}
+  function dayOf(h){return Math.floor(absH(h)/24);}
+  function wd(h){var a=absH(h)%24;return DAYS[dayOf(h)]+" "+(a<10?"0":"")+a+":00";}
+
+  function cellState(cx,cy,h){
+    var A=absH(h), st={kind:"none",score:0,wh:0.6+0.3*Math.sin(cx/37)+0.2*Math.cos(cy/29),ws:5+3*Math.sin(cx/50+A/6)};
+    if(A>=9&&A<24){
+      if(inBox(cx,cy,CORE)&&A>=14&&A<20){st.kind="warn4m";st.score=3.86;st.wh=4.4;st.ws=18;}
+      else if(inBox(cx,cy,WRN)&&A>=12&&A<22){st.kind="경보";st.score=2.16;st.wh=3.4;st.ws=15;}
+      else if(inBox(cx,cy,ADV)){st.kind="주의보";st.score=0.75;st.wh=2.6;st.ws=13;}
+    } else if(A>=42&&A<48&&inBox(cx,cy,PRE)){st.kind="예비";st.score=0.75;st.wh=2.3;st.ws=12.5;}
+    var lane=Math.abs((cy-150)-0.55*(cx-60)), port=Math.hypot(cx-210,cy-150), dayF=(A%24>=6&&A%24<19)?1:0.35;
+    st.ci=(0.12+40*Math.exp(-lane*lane/700)+60*Math.exp(-port*port/1600))*dayF;
+    return st;
+  }
+  function ciLevel(ci){return ci<1?0:ci<10?1:ci<20?2:3;}
+  var CILAB=["낮음","보통","높음","매우높음"];
+  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+  function hex(h){h=h.replace("#","");return [0,2,4].map(function(i){return parseInt(h.substr(i,2),16);});}
+  function mix(a,b,t){var pa=hex(a),pb=hex(b);return "rgb("+pa.map(function(v,i){return Math.round(v+(pb[i]-v)*t);}).join(",")+")";}
+  function col(s){var g0=css("--g0"),g1=css("--g1"),g2=css("--g2");s=Math.max(0,Math.min(3,s));return s<=1.5?mix(g0,g1,s/1.5):mix(g1,g2,(s-1.5)/1.5);}
+  // 위험지수 상자 글자색 — 바탕색에 더 잘 보이는 쪽(검정/흰색)을 고른다(빨강 바탕에 검정은 대비 4.06 으로 부족)
+  function ink(bg){var m=(bg.match(/[\d.]+/g)||[0,0,0]).map(Number).slice(0,3),L=function(c){var f=function(v){v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);};return 0.2126*f(c[0])+0.7152*f(c[1])+0.0722*f(c[2]);}(m);
+    return (1.05/(L+0.05))>((L+0.05)/(0.0074+0.05))?"#ffffff":"#10151f";}
+  function idx(s){return Math.round(Math.max(0,Math.min(3,s))/3*100);}
+  function fmt(rr){if(rr>=2)return "약 "+(rr>=10?Math.round(rr):(Math.round(rr*10)/10))+"배";var p=Math.round((rr-1)*100);return (p>0?"+":p<0?"−":"±")+Math.abs(p)+"%";}
+  function band(s){var i=idx(s);return i<33?"평소 수준":i<67?"다소 높음":i<100?"높음":"매우 높음";}
+  function el(n,a,p){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e;}
+  function bearing(cx,cy){var best=null,bd=1e9;NAMES.forEach(function(p){var d=Math.hypot(cx-p.x,cy-p.y);if(d<bd){bd=d;best=p;}});
+    var ang=(Math.atan2(cx-best.x,-(cy-best.y))*180/Math.PI+360)%360;return best.n+" "+Math.round(ang)+"° "+(bd*NM_PER_PX).toFixed(1)+"해리 (가까운 주요지명 기준)";}
+  function haegu(gx,gy){var big=152+Math.floor(gx/9)+10*Math.floor(gy/10);var sub=1+Math.floor((gx%9)/3)+3*Math.min(2,Math.floor((gy%10)/3.4));return big+"-"+sub+"해구";}
+  var SENS="전복·침몰·침수·표류";
+
+  var SPOTS=[
+    {x:84,y:182,name:"갈매기해수욕장",addr:"예시시 갈매기면",police:"갈매기파출소",ppl:[2,2,1],cr:[31,28,14],hz:3,hzl:[["갈매기항 어선부두","항포구(선착장)","사망사고 발생구역","예시시 갈매기면 12-3 인근","갈매기",[[96,186],[106,184],[108,194],[98,196]]],["갈매기 방파제","방파제(TTP)","연안사고 위험구역","예시시 갈매기면 45 인근","갈매기",[[66,196],[80,192],[82,198],[68,202]]],["북쪽 갯바위","갯바위(간출암 등)","연안사고 다발구역","예시시 갈매기면 산7 인근","갈매기",[[88,160],[98,158],[100,166],[90,168]]]],fz:true,ev:"갈매기 바다축제",evDays:[0,2],beach:true,rip:"주의",swell:false,warn:false},
+    {x:160,y:146,name:"솔섬해변",addr:"예시시 솔섬동",police:"갈매기파출소",ppl:[1,1,0],cr:[19,17,9],hz:1,hzl:[["솔섬 선착장","항포구(선착장)","연안사고 위험구역","예시시 솔섬동 88 인근","갈매기",[[168,154],[178,152],[180,160],[170,162]]]],fz:false,ev:null,beach:true,rip:null,swell:false,warn:false},
+    {x:228,y:126,name:"모래항 방파제",addr:"예시시 모래동",police:"모래항파출소",ppl:[3,2,1],cr:[56,33,15],hz:6,hzl:[["모래항 동방파제","방파제(TTP)","사망사고 발생구역","예시시 모래동 1 인근","모래항",[[240,130],[252,126],[254,132],[242,136]]],["모래항 서방파제","방파제(TTP)","연안사고 다발구역","예시시 모래동 2 인근","모래항",[[210,134],[222,130],[224,136],[212,140]]],["모래항 어선부두","항포구(선착장)","연안사고 위험구역","예시시 모래동 30 인근","모래항",[[228,138],[238,136],[240,144],[230,146]]],["모래 해변","해안가(해변)","연안사고 위험구역","예시시 모래동 51 인근","모래항",[[244,112],[256,110],[258,116],[246,118]]],["작은섬","무인도서","연안사고 위험구역","예시시 모래동 산1 인근","모래항",[[222,148],[230,146],[232,154],[224,156]]],["모래 갯벌","갯벌","연안사고 위험구역","예시시 모래동 77 인근","모래항",[[204,118],[214,114],[216,122],[206,124]]]],fz:true,ev:null,beach:false,rip:null,swell:true,warn:true,wr:[{n:"풍랑주의보",eff:[9,24]},{n:"강풍주의보",pre:[9,24],eff:[24,36]}]},
+    {x:318,y:84,name:"동쪽 몽돌해안",addr:"예시군 동면",police:"모래항파출소",ppl:[0,0,0],cr:[7,6,5],hz:0,fz:false,ev:null,beach:false,rip:null,swell:true,warn:true,wr:[{n:"풍랑주의보",eff:[9,24]},{n:"태풍주의보",pre:[24,48]}]}];
+  var CK={sea:"전복, 침몰, 침수, 표류",coast:"익수, 추락, 고립, 떠밀림"};
+  function tone(rr){return rr<1.5?"g":rr<4?"y":rr<8?"o":"r";}
+  function B(t,c){return '<b class="t-'+c+'">'+t+'</b>';}
+  function amt(rr){return rr>=2?fmt(rr):Math.round(Math.abs(rr-1)*100)+"%";}
+  function line(cond,rr,kind,base){return cond+(base||" 평소 대비 ")+B(amt(rr),tone(rr))+(rr>=1?" 높은":" 낮은")+" 사고 발생 가능성"+(kind?"<br>사고 종류 : "+kind:"");}
+  function fat(rr,base){return rr==null?'':'<br>사망·실종 사고 발생 가능성 : '+(base?base+' ':'')+(B(amt(rr)+(rr>=1?" 높음":" 낮음"),tone(rr)));}
+  // 위험구역 현황 아코디언 — 해경 연안위험구역 자료의 장소명·장소형태·구역분류·주소·관할파출소
+  var hzSel=null;  // {s:관광지 번호, z:구역 번호} — 주소를 누르면 지도에 그 구역을 그림
+  function hzAcc(s){if(!s.hzl||!s.hzl.length)return "";var si=SPOTS.indexOf(s);
+    return '<details class="hzacc"><summary>위험구역 '+s.hzl.length+'곳 현황</summary><ol>'+s.hzl.map(function(z,zi){
+      return '<li><b>'+z[0]+'</b> · '+z[1]+' · '+z[2]+'<span><a class="hzlink" data-s="'+si+'" data-z="'+zi+'">'+z[3]+'</a> · '+z[4]+'파출소 관할</span></li>';}).join("")+'</ol></details>';}
+  function spotRows(s,h){
+    var d=dayOf(h),A=absH(h),p=s.ppl[d],rows=[],F=1;
+    var hzr=s.hz>=6?3.34:s.hz>=3?2.36:s.hz>=1?1.62:1, hzf=s.hz>=6?2.25:s.hz>=3?2.12:s.hz>=1?1.18:1, rp=Math.pow(1.96,p);
+    if(p>0){rows.push({k:"사람 혼잡",v:B(p+"단계",tone(rp))+' <span class="na">(집중률 '+s.cr[d]+')</span>',pt:0.97*p,why:line("사람 혼잡 "+B(p+"단계",tone(rp))+"라",rp,null," 한산할 때(0단계) 대비 ")+fat(Math.pow(1.54,p),"한산할 때(0단계) 대비")});F*=Math.pow(1.54,p);}
+    if(s.hz){rows.push({k:"위험구역(3km 안)",v:B(s.hz+"곳",tone(hzr)),pt:Math.log2(hzr),why:line("위험구역이 "+B(s.hz+"곳",tone(hzr))+" 있어",hzr,null," 위험구역 없는 곳 대비 ")+fat(hzf,"위험구역 없는 곳 대비")+hzAcc(s)});F*=hzf;}
+    if(s.fz){rows.push({k:"사망사고 발생구역",v:B("3km 안","g"),pt:0.37,why:line("사망사고가 난 구역이 "+B("3km 안","g")+"에 있어",1.29,null," 없는 곳 대비 ")+fat(1.30,"없는 곳 대비")});F*=1.30;}
+    var weekend=d<=1;  // 예시 첫날 = 토요일, 둘째 날 = 일요일
+    if(s.ev&&s.evDays.indexOf(d)>=0){rows.push(weekend?{k:"행사 정보",v:B(s.ev,"y"),pt:1.09,why:line("주말 행사가 있어",2.14,null," 같은 요일 행사 없는 날 대비 ")}:{k:"행사 정보",v:B(s.ev,"g"),pt:0,why:"평일 행사는 과거 사고에 차이가 없어 점수에 넣지 않음"});}
+    rows.push({k:"8월 분석",v:"1년 평균 대비 "+B(amt(1.58),tone(1.58))+" 높은 사고 발생 가능성",pt:0.66,why:fat(1.66,"1년 평균 대비").replace(/^<br>/,"")});F*=1.66;
+    if(s.swell)rows.push({k:"너울",v:B("파도 주기 13초","g"),pt:0.3,why:"(분석) 파도 주기가 12초 이상인 경우 사고 발생률이 "+B("25%",tone(1.25))+" 증가 · 점수에는 "+B("23%",tone(1.23))+"로 반영"});
+    if(s.rip&&d<2)rows.push({k:"이안류",v:B(s.rip,"g"),pt:0.3,why:""});
+    var t=0;rows.forEach(function(r){t+=r.pt;});
+    var notes=[];
+    // 그 지점에 걸린 특보만 이어 씀(풍랑·강풍) — 예: 「풍랑주의보, 강풍주의보 발효 상태입니다.」
+    // 그 지점에 걸린 특보(풍랑·강풍·태풍)를 예비/발효로 나눠 씀
+    //  발효만 「풍랑주의보 발효 상태입니다. …」 · 예비만 「풍랑주의보 발표 상태입니다.」
+    //  섞이면 「강풍주의보 예비특보, 풍랑주의보 발효 상태입니다. …」
+    var inn=function(w){return w&&A>=w[0]&&A<w[1];}, ef=[], pr=[];
+    (s.wr||[]).forEach(function(w){if(inn(w.eff))ef.push(w.n);else if(inn(w.pre))pr.push(w.n);});
+    var FT=" 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 "+B("14%",tone(1.14))+" 높습니다.";
+    if(ef.length&&pr.length)notes.push("⚠ "+pr.join(", ")+" 예비특보, "+ef.join(", ")+" 발효 상태입니다."+FT);
+    else if(ef.length)notes.push("⚠ "+ef.join(", ")+" 발효 상태입니다."+FT);
+    else if(pr.length)notes.push("⚠ "+pr.join(", ")+" 발표 상태입니다.");
+    if(s.warn&&d===2)notes.push("⚠ 특보가 발효될 수 있을 정도의 날씨가 될 가능성이 있습니다.");
+    var ws=6+4*Math.sin(A/5); if(s.beach&&ws>=8)notes.push("🛟 이 앞바다 바람 "+B(ws.toFixed(0)+"m/s","y")+" — 튜브·물놀이기구 떠밀림 주의");
+    return {rows:rows,total:t,notes:notes,fatal:F};
+  }
+  function seaRows(st){
+    var rows=[], lv=ciLevel(st.ci);
+    if(lv>0)rows.push({k:"배 혼잡도",v:B("지수 "+st.ci.toFixed(1)+" ("+CILAB[lv]+")",lv===1?"y":"r"),s:null,why:""});
+    var WK={"주의보":["풍랑주의보",1.68],"경보":["풍랑경보",4.46],"warn4m":["풍랑경보",4.46],"예비":["예비 풍랑주의보",1.68]}[st.kind];
+    if(WK)rows.push({k:"특보",v:B(WK[0],tone(WK[1])),s:Math.log2(WK[1]),why:line(WK[0]+(st.kind==="예비"?"(18시부터 특보로 가정)":"")+" 발효 시",WK[1],null)});
+    var wh=st.wh.toFixed(1)+"m";
+    if(st.kind!=="none"&&st.wh>=4)rows.push({k:"파고",v:B(wh,"r"),s:3.86,why:line("파고 "+B("4m 이상","r")+"으로",14.55,null)});
+    else rows.push({k:"파고",v:B(wh,st.wh>=2?"y":"g"),s:null,why:""});
+    var ws=st.ws.toFixed(0)+"m/s";
+    if(st.kind!=="none"&&st.ws>=17)rows.push({k:"풍속",v:B(ws,"r"),s:3.39,why:line("풍속 "+B("17m/s 이상","r")+"으로",10.46,null)});
+    else if(st.kind!=="none"&&st.ws>=14)rows.push({k:"풍속",v:B(ws,tone(4.27)),s:2.09,why:line("풍속 "+B("14m/s 이상",tone(4.27))+"으로",4.27,null)});
+    else rows.push({k:"풍속",v:B(ws,st.ws>=12?"y":"g"),s:null,why:""});
+    var best=null;rows.forEach(function(r){if(r.s!=null&&(!best||r.s>best.s))best=r;}); if(best)best.used=true;
+    var coll={"주의보":0.40,"경보":0.70,"warn4m":0.89,"예비":0.40}[st.kind];
+    return {rows:rows,score:best?best.s:0,coll:coll||1,sensRR:best?Math.pow(2,best.s):1};
+  }
+  function clickable(st){return st.score>0||ciLevel(st.ci)>0;}
+
+  function draw(){
+    svg.innerHTML="";
+    el("rect",{x:0,y:0,width:W,height:H,fill:css("--app-sea")});
+    for(var gy=0;gy<H;gy+=C)for(var gx=0;gx<W;gx+=C){
+      var cx=gx+C/2,cy=gy+C/2; if(isLand(cx,cy))continue;
+      el("rect",{x:gx,y:gy,width:C,height:C,fill:"none",stroke:css("--app-grid"),"stroke-width":.5});
+      if(!show.sea)continue;
+      var st=cellState(cx,cy,hour); if(!clickable(st))continue;
+      var r=el("rect",{x:gx,y:gy,width:C,height:C,fill:st.score>0?col(st.score):"rgba(0,0,0,0)","fill-opacity":.7});
+      var n=[0,2,5,9][ciLevel(st.ci)];
+      for(var k=0;k<n;k++)el("circle",{cx:gx+3+((k*7+(gx/C)*3)%16),cy:gy+3+((k*11+(gy/C)*5)%16),r:1.25,fill:"#ffffff","fill-opacity":.85});
+      r.style.cursor="pointer";
+      (function(a,b){r.addEventListener("click",function(){sel={type:"cell",gx:a,gy:b};render();});})(gx/C,gy/C);
+      if(sel.type==="cell"&&sel.gx===gx/C&&sel.gy===gy/C)el("rect",{x:gx+1,y:gy+1,width:C-2,height:C-2,fill:"none",stroke:"#ffffff","stroke-width":2});
+    }
+    el("polygon",{points:LAND.map(function(p){return p.join(",");}).join(" "),fill:css("--app-land"),stroke:css("--app-landline"),"stroke-width":2.4});
+    ISLES.forEach(function(p){el("polygon",{points:p.map(function(q){return q.join(",");}).join(" "),fill:css("--app-land"),stroke:css("--app-landline"),"stroke-width":2});});
+    NAMES.forEach(function(p){el("circle",{cx:p.x,cy:p.y,r:2.2,fill:css("--app-blue")});});
+    // 특보 테두리 — 글자 없이 색만. 지금 발효 중인 것 기준
+    var A=absH(hour);
+    function border(b,c,dash){el("rect",{x:b.x+2,y:b.y+2,width:b.w-4,height:b.h-4,fill:"none",stroke:c,"stroke-width":3.5,"stroke-dasharray":dash||"",rx:3});}
+    if(A>=9&&A<24){border(ADV,css("--b-adv"));if(A>=12&&A<22)border(WRN,css("--b-wrn"));}
+    else if(A>=24&&A<42)border(PRE,css("--b-pre"));
+    else if(A>=42&&A<48)border(PRE,css("--b-adv"));
+    else if(show.coast&&dayOf(hour)===2)border(FCST,css("--b-pre"),"6 5");
+    if(show.coast)SPOTS.forEach(function(s,i){
+      var sc=spotRows(s,hour), cc=el("circle",{cx:s.x,cy:s.y,r:30,fill:col(sc.total),"fill-opacity":.5,stroke:col(sc.total),"stroke-width":2});
+      el("circle",{cx:s.x,cy:s.y,r:4,fill:"#ffffff"});
+      cc.style.cursor="pointer";cc.addEventListener("click",function(){sel={type:"spot",i:i};hzSel=null;render();});
+      if(sel.type==="spot"&&sel.i===i)el("circle",{cx:s.x,cy:s.y,r:30,fill:"none",stroke:"#ffffff","stroke-width":2.5});});
+    if(show.coast&&hzSel&&sel.type==="spot"&&sel.i===hzSel.s){var z=SPOTS[hzSel.s].hzl[hzSel.z];
+      el("polygon",{points:z[5].map(function(q){return q.join(",");}).join(" "),fill:"#ff8f1f","fill-opacity":.55,stroke:"#ffd740","stroke-width":2});}
+  }
+
+  function legend(){
+    document.getElementById("legend").innerHTML='<div class="marks"><span><i style="border-color:var(--b-pre)"></i>예비특보</span><span><i style="border-color:var(--b-adv)"></i>주의보</span><span><i style="border-color:var(--b-wrn)"></i>경보</span>'+(show.coast?'<span><i class="dash" style="border-color:var(--b-pre)"></i>특보급 날씨 가능성(3일째)</span>':'')+(show.sea?'<span>점 = 배 혼잡</span>':'')+'</div>';
+  }
+  function idxBox(score,label,base,what,rr){return '<div class="idx"><button type="button" class="basis-btn" data-basis="sea">기준 상세</button><div class="top"><div class="box" style="background:'+col(score)+';color:'+ink(col(score))+'"><small>위험지수</small><b>'+idx(score)+'</b></div><p><b>'+label+'</b><br>'+base+'<br>'+what+' 가능성 '+B(rr===1?"평소 수준":fmt(rr),tone(rr))+'<br><span class="na">사고 종류 : '+CK.sea+'</span></p></div><div class="ramp" aria-hidden="true"></div><div class="rl"><span>0</span><span>50</span><span>100</span></div></div>';}
+  function sheet(){
+    var sl=document.getElementById("hour"), seaSel=sel.type==="cell";
+    var max=seaSel?47:69, step=seaSel?1:3; sl.max=max; sl.step=step; if(hour>max)hour=max; if(!seaSel)hour=Math.round(hour/3)*3; sl.value=hour;
+    var T=document.getElementById("shTitle"),Wh=document.getElementById("shWhere"),Bd=document.getElementById("shBody"),L=document.getElementById("liveTpl");
+    if(seaSel){
+      var cx=sel.gx*C+C/2,cy=sel.gy*C+C/2,st=cellState(cx,cy,hour);
+      T.textContent=haegu(sel.gx,sel.gy); Wh.textContent=bearing(cx,cy);
+      if(!clickable(st)){Bd.innerHTML='<p class="na" style="font-size:.85rem">이 시각에는 날씨 위험도 없고 배도 적은 칸입니다(지도에 색이 없음).</p>';L.textContent="—";return;}
+      var R=seaRows(st);
+      Bd.innerHTML=idxBox(R.score,band(R.score),"평소(특보 없는 때)보다","선박 사고",R.sensRR)+
+        '<div class="rows">'+R.rows.map(function(r){return '<div class="row"><span class="k">'+r.k+(r.used?'<span class="tag">위험지수에 반영</span>':'')+'</span><span class="v">'+r.v+'</span>'+(r.why?'<span class="why">'+r.why+'</span>':'')+'</div>';}).join("")+'</div>'+
+        '<div class="kinds"><div><span>전복·침몰·침수·표류</span>'+(R.sensRR===1?'<b class="t-g">평소 수준</b>':B(R.sensRR>=2?fmt(R.sensRR):amt(R.sensRR)+" 높음",tone(R.sensRR)))+'</div><div><span>충돌·접촉</span>'+(R.coll===1?'<b class="t-g">평소 수준</b>':B(amt(R.coll)+(R.coll<1?" 낮음":" 높음"),tone(R.coll)))+'</div></div>';
+      var top=R.rows.filter(function(r){return r.used;})[0];
+      L.innerHTML=haegu(sel.gx,sel.gy)+" 반경 1해리("+bearing(cx,cy).replace(" (가까운 주요지명 기준)","")+") — 위험지수 "+idx(R.score)+(top?", "+top.k+" "+top.v:"")+". 배 혼잡 "+CILAB[ciLevel(st.ci)]+".";
+    } else {
+      var s=SPOTS[sel.i],sc=spotRows(s,hour),rr=Math.pow(2,sc.total);
+      T.textContent=s.name; Wh.textContent=s.addr+" · "+s.police+" 관할";
+      Bd.innerHTML='<div class="idx"><button type="button" class="basis-btn" data-basis="coast">기준 상세</button><div class="top"><div class="box" style="background:'+col(sc.total)+';color:'+ink(col(sc.total))+'"><small>위험지수</small><b>'+idx(sc.total)+'</b></div><p><b>'+band(sc.total)+'</b><br>한산하고 위험구역 없는 곳의 평범한 날보다<br>사고 가능성 '+B(fmt(rr),tone(rr))+'<br><span class="na">사망·실종 사고 발생 가능성 '+B(fmt(sc.fatal),tone(sc.fatal))+'<br>사고 종류 : '+CK.coast+'</span></p></div><div class="ramp" aria-hidden="true"></div><div class="rl"><span>0</span><span>50</span><span>100</span></div></div>'+
+        sc.notes.map(function(n){return '<div class="msg">'+n+'</div>';}).join("")+
+        '<div class="rows" style="margin-top:8px">'+sc.rows.map(function(r){return '<div class="row"><span class="k">'+r.k+'</span><span class="v">'+r.v+'</span>'+(r.why?'<span class="why">'+r.why+'</span>':'')+'</div>';}).join("")+'</div>';
+      var top2=sc.rows.slice().sort(function(a,b){return b.pt-a.pt;}).slice(0,2).map(function(r){return r.k+" "+r.v.replace(/<[^>]+>/g,"");});
+      L.innerHTML=s.name+" — 위험지수 "+idx(sc.total)+"("+band(sc.total)+"), "+top2.join("·")+".";
+    }
+  }
+  var BASIS={
+    sea:'<button type="button" class="mclose" id="mclose">닫기</button><h3>기준 상세 — 해상 위험지수</h3>'+
+      '<a class="pdf-btn" href="해상_위험지수_산출근거.pdf" download>위험지수 산출 근거 보고서(PDF)</a>'+
+      '<h4>무엇을 나타내나?</h4><p>이 해역에서 이 시각에 <b>선박 사고(전복·침몰·침수·표류)</b>가 <b>평소보다 몇 배 일어나기 쉬운지</b>를 0~100으로 나타낸 값입니다.<br>사고가 꼭 난다는 예측이 아닙니다.</p>'+
+      '<h4>「평소」란?</h4><p>같은 해역 · 같은 달 · 같은 시각에 <b>특보가 없었을 때</b>입니다.</p>'+
+      '<h4>어떻게 셌나?</h4><p>2020~2025년 선박사고 <b>6,810건</b>(앱 「사고정보」 탭과 같은 자료)마다, 사고가 난 날과 <b>같은 장소·같은 달의 다른 날 같은 시각</b>을 비교했습니다.<br>사고 난 때에 특보·높은 파도가 평소보다 얼마나 더 자주 있었는지로 배수를 구했습니다.<br>특보는 기상청 특보 기록, 파고·풍속은 기상청 해구 파랑 예보입니다.</p>'+
+      '<h4>배수 → 위험지수</h4><p>위험이 <b>2배</b>가 될 때마다 1점, <b>3점(8배) = 100</b>, 그보다 크면 100입니다.<br>조건이 여럿이면 <b>가장 높은 하나</b>를 씁니다(겹쳐 세지 않음).</p>'+
+      '<table><thead><tr><th>조건</th><th class="n">평소 대비</th><th class="n">위험지수</th></tr></thead><tbody>'+
+      '<tr><td>특보 없음</td><td class="n">같음</td><td class="n">0</td></tr>'+
+      '<tr><td>주의보(풍랑·태풍)</td><td class="n">68% 높음</td><td class="n">25</td></tr>'+
+      '<tr><td>특보 중 풍속 14m/s 이상</td><td class="n">약 4.3배</td><td class="n">70</td></tr>'+
+      '<tr><td>경보(풍랑·태풍)</td><td class="n">약 4.5배</td><td class="n">72</td></tr>'+
+      '<tr><td>특보 중 풍속 17m/s 이상</td><td class="n">약 10배</td><td class="n">100</td></tr>'+
+      '<tr><td>특보 중 파고 4m 이상</td><td class="n">약 15배</td><td class="n">100</td></tr>'+
+      '<tr><td>예비특보</td><td colspan="2" class="n wrap">발효 예정 범위가 시작되는 시각부터 그 특보로 계산</td></tr>'+
+      '<tr><td>내일 예보만 특보급(파고 2m·풍속 12m/s 이상)</td><td class="n">63% 높음</td><td class="n">23</td></tr>'+
+      '</tbody></table>'+
+      '<h4>「N% 높음 / 낮음」 읽는 법</h4><p>평소 같은 조건에서 사고가 100건 날 때 <b>68% 높음</b>이면 168건, <b>60% 낮음</b>이면 40건 꼴이라는 뜻입니다.</p>'+
+      '<h4>수치 기준</h4><p>0~32 평소 수준 · 33~66 다소 높음 · 67~99 높음 · 100 매우 높음.</p>'+
+      '<h4>사고 종류마다 다른 이유</h4><p>날씨가 나쁘면 <b>충돌·접촉은 줄고</b>, 나가 있는 배의 <b>전복·침몰은 늘었습니다</b>.<br>충돌·접촉이 준 것은 배가 덜 나가기 때문으로 추정됩니다.<br>그래서 둘을 나눠 보여 줍니다.</p>'+
+      '<h4>배 혼잡도</h4><p><b>한국해양교통안전공단 「해양교통(어선 포함) 혼잡도 예보」</b>를 그대로 씁니다.<br>바다를 약 2.3×2.8km 칸으로 나눠 <b>1시간 간격, 2일치</b> 예보가 나오고, 칸마다 <b>혼잡지수(0.1~100)</b>와 등급이 옵니다.</p>'+
+      '<table><thead><tr><th>등급</th><th class="n">혼잡지수</th><th class="n">지도 표시</th></tr></thead><tbody>'+
+      '<tr><td>낮음</td><td class="n">1 미만</td><td class="n">점 없음</td></tr>'+
+      '<tr><td>보통</td><td class="n">1~10</td><td class="n">점 조금</td></tr>'+
+      '<tr><td>높음</td><td class="n">10~20</td><td class="n">점 보통</td></tr>'+
+      '<tr><td>매우높음</td><td class="n">20 이상</td><td class="n">점 빽빽</td></tr>'+
+      '</tbody></table>'+
+      '<p>등급 경계(1·10·20)는 공단 응답을 직접 받아 확인한 값입니다.<br>혼잡지수가 0.1보다 작은 칸은 응답에 오지 않아 표시하지 않습니다.<br>혼잡지수가 정확히 무엇을 세는지(배 척수인지 등)는 공단 설명서에 나와 있지 않습니다.</p>'+
+      '<p><b>위험지수에 넣지 않는 이유</b> : 과거 날짜별 혼잡도 자료가 없어, 배가 많을 때 사고가 몇 배 느는지 잴 수 없었습니다.<br>그래서 점수로 바꾸지 않고 점으로만 보여 줍니다.</p>'+
+      '<h4>한계</h4><p>파고·풍속은 넓은 해역(약 44×55km)의 예보값입니다. 과거 평균에서 나온 값이라 그 자리·그날의 사정은 다를 수 있습니다.</p>',
+    coast:'<button type="button" class="mclose" id="mclose">닫기</button><h3>기준 상세 — 연안 위험지수</h3>'+
+      '<a class="pdf-btn" href="연안_위험지수_산출근거.pdf" download>위험지수 산출 근거 보고서(PDF)</a>'+
+      '<h4>무엇을 나타내나</h4><p>이 관광지 주변 3km에서 이 시각에 <b>연안 사고(익수·추락·고립·떠밀림)</b>가 <b>기준보다 몇 배 일어나기 쉬운지</b>를 0~100으로 나타낸 값입니다.</p>'+
+      '<h4>「기준」이란</h4><p>사람이 가장 적고, 위험구역이 없고, 행사가 없는 <b>1년 중 평범한 날</b>입니다. 그래서 위험구역이 많은 곳은 평소에도 숫자가 높게 나옵니다.</p>'+
+      '<h4>어떻게 셌나</h4><p>2020~2024년 연안 사고 <b>3,075건</b>(변사 제외, 앱 「사고정보」 탭과 같은 자료)을 같은 장소·같은 달의 다른 날과 비교하거나(사람·달·행사), 같은 시군구의 다른 관광지와 비교했습니다(위험구역).</p>'+
+      '<h4>요소마다 곱해서 → 위험지수</h4><p>요소별 배수를 곱해 합칩니다(점수로는 더함). 위험이 2배가 될 때마다 1점, 3점(8배) = 100입니다.</p>'+
+      '<table><thead><tr><th>요소</th><th class="n">배수</th><th class="n">점수</th></tr></thead><tbody>'+
+      '<tr><td>사람 혼잡 1단계마다(사람 2배)</td><td class="n">96% 높음</td><td class="n">+0.97</td></tr>'+
+      '<tr><td>위험구역 1~2 / 3~5 / 6곳 이상</td><td class="n">62% · 약 2.4배 · 약 3.3배</td><td class="n">+0.70 · 1.24 · 1.74</td></tr>'+
+      '<tr><td>사망사고 발생구역 3km 안</td><td class="n">29% 높음</td><td class="n">+0.37</td></tr>'+
+      '<tr><td>주말 행사</td><td class="n">약 2.1배</td><td class="n">+1.09</td></tr>'+
+      '<tr><td>달(1년 평균 대비)</td><td class="n">8월 58% 높음 … 1월 42% 낮음</td><td class="n">+0.66 … −0.78</td></tr>'+
+      '<tr><td>너울 · 이안류(정책 점수)</td><td class="n">각 약 23%</td><td class="n">+0.3</td></tr>'+
+      '</tbody></table>'+
+      '<h4>사망·실종 사고 가능성</h4><p>같은 방법으로 사망·실종 사고만 다시 센 값입니다. 사람이 많을 때 늘어나는 폭은 전체 사고보다 작습니다(사람 2배에 54%).</p>'+
+      '<h4>특보 때는 점수가 오르지 않는 이유</h4><p>특보 날에는 사람이 덜 나가 사고 수가 20% 적었습니다. 그래서 점수에는 넣지 않고, 사고가 나면 사망·실종으로 이어질 가능성(14% 높음)을 문구로 알립니다.</p>'+
+      '<h4>단계 말</h4><p>0~32 평소 수준 · 33~66 다소 높음 · 67~99 높음 · 100 매우 높음. 「안전」이라고는 쓰지 않습니다.</p>'+
+      '<h4>한계</h4><p>사람 혼잡은 관광공사 집중률 예측을 쓰며, 단계 경계는 집중률이 쌓이면 다시 확인합니다. 정책 점수(너울·이안류)는 과거 사고로 확인한 값이 아닙니다.</p>'
+  };
+  var modal=document.getElementById("modal"), mbox=document.getElementById("mbox");
+  document.addEventListener("click",function(e){
+    var b=e.target.closest&&e.target.closest(".basis-btn");
+    if(b){mbox.innerHTML=BASIS[b.getAttribute("data-basis")];modal.hidden=false;var c=document.getElementById("mclose");c.focus();c.addEventListener("click",function(){modal.hidden=true;b.focus&&b.focus();});return;}
+    if(e.target===modal)modal.hidden=true;
+  });
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")modal.hidden=true;});
+  // 산출 근거 보고서(PDF) — 미리보기 화면은 일반 다운로드 링크를 막으므로 downloads 기능으로 저장.
+  // 기능이 없는 곳(실제 앱 등)에서는 링크가 그대로 동작한다.
+  var dl=null;(window.claude&&window.claude.use?window.claude.use("downloads"):Promise.resolve(null)).then(function(d){dl=d;}).catch(function(){});
+  document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest(".pdf-btn");if(!a||!dl)return;e.preventDefault();
+    var href=a.getAttribute("href");fetch(href).then(function(r){if(!r.ok)throw new Error(r.status);return r.blob();})
+      .then(function(b){return dl.save({filename:href,data:b});})
+      .catch(function(err){if(err&&err.code==="declined")return;alert("보고서를 내려받지 못했습니다"+(err&&err.code?" ("+err.code+")":""));});});
+  document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest(".hzlink");if(!a)return;e.preventDefault();
+    hzSel={s:+a.getAttribute("data-s"),z:+a.getAttribute("data-z")};draw();svg.scrollIntoView({behavior:"smooth",block:"start"});});
+  function render(){draw();legend();sheet();}
+  // 말풍선 — 잡고 움직이는 동안 보이고, 놓으면 1초 뒤 사라짐(앱 슬라이더와 같은 동작)
+  var sl=document.getElementById("hour"), tip=document.getElementById("tip"), hideT=null;
+  function placeTip(){var r=(sl.value-sl.min)/(sl.max-sl.min);tip.style.left="calc("+(r*100)+"% + "+(8-r*16)+"px)";tip.textContent=wd(+sl.value);}
+  sl.addEventListener("input",function(){hour=+this.value;placeTip();tip.classList.add("visible");clearTimeout(hideT);render();});
+  ["pointerdown","touchstart"].forEach(function(ev){sl.addEventListener(ev,function(){placeTip();tip.classList.add("visible");clearTimeout(hideT);},{passive:true});});
+  ["pointerup","touchend","change"].forEach(function(ev){sl.addEventListener(ev,function(){clearTimeout(hideT);hideT=setTimeout(function(){tip.classList.remove("visible");},50);});});
+  function tog(id,key){var b=document.getElementById(id);b.addEventListener("click",function(){show[key]=!show[key];b.classList.toggle("on",show[key]);b.setAttribute("aria-pressed",show[key]);
+    if(key==="sea"&&!show.sea&&sel.type==="cell")sel={type:"spot",i:0};if(key==="coast"&&!show.coast&&sel.type==="spot")sel={type:"cell",gx:15,gy:14};render();});}
+  tog("tCoast","coast");tog("tSea","sea");
+  new MutationObserver(render).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  render();
+})();
+</script>
