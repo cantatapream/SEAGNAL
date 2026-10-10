@@ -1,7 +1,7 @@
 # island_editor — 섬 테두리 · 해안 관광지 편집기
 
 해안 안전 예보(`client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md` §6)를 위해
-사람이 직접 **①작은 섬 테두리를 그리고 ②해안 관광지 중 뺄 곳을 고르는** 단독 HTML 편집기.
+사람이 직접 **①작은 섬 테두리를 그리고 ②해안 관광지 중 뺄 곳을 고르고 ③모양이 어긋나는 파출소 관할을 판정하는** 단독 HTML 편집기.
 
 | 파일 | 설명 |
 |---|---|
@@ -22,6 +22,7 @@ node local_server/tools/island_editor/build_island_editor.js
 - **① 섬 테두리 그리기**: 목록에서 섬을 누르면 그 좌표로 이동한다 → "새 테두리 그리기" → 섬 둘레를 클릭, 마지막 점을 두 번 클릭.
   점은 끌어서 옮기고, "점 삭제 모드"로 지운다. 노란 점선은 앱이 지금 가진 해안선(`client/land_mask_korea.json`).
 - **② 해안 관광지 검토**: 점을 누르면 제외(빨강), 다시 누르면 되돌림. 이름 검색 가능.
+- **③ 파출소 관할 검토**: `coastguard_stations.geojson` 에서 `review_needed` 인 파출소의 별표(파랑 실선)·개방해 2024(주황 긴 점선)·2022 자료(초록 짧은 점선) 모양을 겹쳐 보여 주고, 맞는 쪽을 고른다(메모 가능).
 - **내보내기**: `island_editor_export_YYYY-MM-DD.json` 한 파일에 섬 테두리(GeoJSON, 경위도 소수 6자리)와 제외 목록이 함께 담긴다.
   작업은 브라우저에 자동 저장되고, "불러오기"로 내보낸 파일을 다시 열 수 있다.
 
@@ -34,7 +35,8 @@ node local_server/tools/island_editor/build_island_editor.js
     { "type": "Feature", "geometry": { "type": "Polygon", "coordinates": [[[lon, lat], ...]] },
       "properties": { "target_id": 1, "name": "팔미도", "spot": "인천 팔미도 등대", "sgg": "28110", "drawn_at": "..." } } ] },
   "excluded_spots": [ { "key": "26350|해운대해수욕장", "name": "...", "sgg_name": "...", "lat": 0, "lon": 0 } ],
-  "custom_targets": [ { "id": "c...", "name": "...", "group": "custom", "lat": 0, "lon": 0 } ]
+  "custom_targets": [ { "id": "c...", "name": "...", "group": "custom", "lat": 0, "lon": 0 } ],
+  "station_choices": { "평택|평택파출소": { "choice": "law|khoa|ref2022|unsure", "note": "...", "at": "..." } }
 }
 ```
 

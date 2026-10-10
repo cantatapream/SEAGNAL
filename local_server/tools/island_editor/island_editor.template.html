@@ -2,7 +2,7 @@
 <!--
 ============================================================================
 파일명: local_server/tools/island_editor/island_editor.template.html
-역할  : 해안 안전 예보용 "섬 테두리 그리기 + 해안 관광지 검토" 편집기의 원본 틀.
+역할  : 해안 안전 예보용 "섬 테두리 그리기 + 해안 관광지 검토 + 파출소 관할 검토" 편집기의 원본 틀.
         이 파일은 직접 열지 않는다 — build_island_editor.js 가 OpenLayers 와
         데이터(섬 목록·관광지 목록·참고 해안선)를 끼워 넣어 더블클릭만으로 열리는
         단독본 island_editor.html 을 만든다.
@@ -10,7 +10,8 @@
 [연계]
  - 사용하는 파일 : (빌드 때 인라인) client/assets/vendor/ol/ol.js·ol.css,
                    local_server/config/coastal_safety/island_targets.json·coastal_spots.json,
-                   client/land_mask_korea.json(목표 주변 해안선만)
+                   client/land_mask_korea.json(목표 주변 해안선만),
+                   coastguard_stations*.geojson(③ 확인 필요 파출소의 세 모양)
  - 서버 API      : 없음(단독 실행). 배경지도 타일만 인터넷에서 받는다.
  - 나를 쓰는 곳  : build_island_editor.js
  - 설계 문서     : client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md §6
@@ -74,6 +75,7 @@
     <div id="modebar">
       <button id="mode-island" class="on">① 섬 테두리 그리기</button>
       <button id="mode-spot">② 해안 관광지 검토</button>
+      <button id="mode-station">③ 파출소 관할 검토</button>
     </div>
 
     <!-- ① 섬 테두리 그리기 -->
@@ -113,6 +115,17 @@
       <div id="excl-list" class="list" style="max-height:30vh"></div>
     </div>
 
+    <!-- ③ 파출소 관할 검토 -->
+    <div id="pane-station" class="mode">
+      <h2>확인할 파출소 <span id="station-count" class="muted"></span></h2>
+      <p class="muted">세 자료의 관할 모양을 겹쳐 보여 줍니다. 맞는 쪽을 고르세요.<br>
+      <span style="color:#4fa3ff">━ 별표(사무분장 규칙, 기준)</span> ·
+      <span style="color:#ffa64d">┅ 개방해 2024</span> ·
+      <span style="color:#5ee07a">┈ 2022 자료</span></p>
+      <div id="station-list" class="list"></div>
+      <div id="station-choice" style="margin-top:8px"></div>
+    </div>
+
     <h2>파일</h2>
     <div class="row">
       <button id="btn-export" class="on">내보내기 (파일 받기)</button>
@@ -134,8 +147,10 @@
   'use strict';
 
   /* 데이터는 빌드 때 window.__ISLAND_EDITOR__ 로 들어온다.
-     { targets:[{id,name,spot,sgg,sgg_name,lat,lon,group,...}], spots:[[idx,name,sgg_name,lat,lon,rule],...], ref:[[[lon,lat],...],...] } */
-  var DATA = window.__ISLAND_EDITOR__ || { targets: [], spots: [], ref: [] };
+     { targets:[…], spots:[[idx,name,sgg_name,lat,lon,rule],…], ref:[[[lon,lat],…],…],
+       stations:[{key,name,station,iou,law,khoa,ref2022}] (③ 모드 — 각 모양은 GeoJSON geometry) } */
+  var DATA = window.__ISLAND_EDITOR__ || { targets: [], spots: [], ref: [], stations: [] };
+  DATA.stations = DATA.stations || [];
   var STORE_KEY = 'seagnal_island_editor_v1';
   var GROUP_LABEL = { missing: '해안선 없음', direct: '직접 확인', check: '위성 확인', custom: '직접 추가' };
 
@@ -182,7 +197,7 @@
   });
 
   /* ---------- 상태 ---------- */
-  var state = { mode: 'island', selTarget: null, excluded: {}, customTargets: [] };
+  var state = { mode: 'island', selTarget: null, excluded: {}, customTargets: [], stationChoices: {}, selStation: null };
   var selectedPoly = null;
   var undoStack = [];
   var drawItx = null;
@@ -259,7 +274,7 @@
   function save() {
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify({
-        polys: polysGeoJson(), excluded: state.excluded, customTargets: state.customTargets, savedAt: new Date().toISOString()
+        polys: polysGeoJson(), excluded: state.excluded, customTargets: state.customTargets, stationChoices: state.stationChoices, savedAt: new Date().toISOString()
       }));
       $('save-state').textContent = '자동 저장됨 · ' + new Date().toLocaleTimeString();
     } catch (e) {
@@ -278,6 +293,7 @@
       var s = JSON.parse(raw);
       state.excluded = s.excluded || {};
       state.customTargets = s.customTargets || [];
+      state.stationChoices = s.stationChoices || {};
       loadPolys(s.polys);
       $('save-state').textContent = '이전 작업을 불러왔습니다 (' + (s.savedAt || '') + ')';
     } catch (e) { /* 깨진 저장본은 무시 */ }
@@ -409,6 +425,69 @@
     return hits;
   }
 
+  /* ---------- ③ 파출소 관할 검토 ---------- */
+  var STATION_STYLE = {
+    law: new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#4fa3ff', width: 3 }), fill: new ol.style.Fill({ color: 'rgba(79,163,255,0.10)' }) }),
+    khoa: new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#ffa64d', width: 2.5, lineDash: [10, 6] }) }),
+    ref2022: new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#5ee07a', width: 2.5, lineDash: [2, 6] }) })
+  };
+  var stationSource = new ol.source.Vector();
+  var stationLayer = new ol.layer.Vector({ source: stationSource, style: function (f) { return STATION_STYLE[f.get('kind')]; }, visible: false });
+  map.addLayer(stationLayer);
+  var CHOICES = [['law', '별표 모양이 맞다'], ['khoa', '개방해 2024 모양이 맞다'], ['ref2022', '2022 모양이 맞다'], ['unsure', '판단 보류']];
+
+  /** 확인할 파출소 목록과 선택 상태를 그린다. */
+  function renderStations() {
+    var list = $('station-list'); list.innerHTML = '';
+    var done = 0;
+    DATA.stations.forEach(function (st) {
+      var c = state.stationChoices[st.key];
+      if (c && c.choice) done++;
+      var el = document.createElement('div');
+      el.className = 'item' + (state.selStation === st.key ? ' sel' : '');
+      el.innerHTML = '<span>' + st.name + ' <span class="muted">' + st.station + '서 · 개방해와 겹침 ' + st.iou + '</span></span>' +
+        (c && c.choice ? '<span class="badge b-done">' + (CHOICES.filter(function (x) { return x[0] === c.choice; })[0] || ['', ''])[1].replace(' 모양이 맞다', '') + '</span>' : '<span class="badge b-check">미확인</span>');
+      el.onclick = function () { selectStation(st.key); };
+      list.appendChild(el);
+    });
+    $('station-count').textContent = '(' + done + ' / ' + DATA.stations.length + ' 확인)';
+  }
+  /** 파출소를 고르면 세 모양을 겹쳐 그리고 그 범위로 이동한다. */
+  function selectStation(key) {
+    state.selStation = key;
+    var st = DATA.stations.filter(function (x) { return x.key === key; })[0];
+    stationSource.clear();
+    ['ref2022', 'khoa', 'law'].forEach(function (kind) {
+      if (!st[kind]) return;
+      var f = fmt.readFeature({ type: 'Feature', geometry: st[kind], properties: { kind: kind } }, GEO_OPT);
+      stationSource.addFeature(f);
+    });
+    var ext = stationSource.getExtent();
+    if (ext && isFinite(ext[0])) map.getView().fit(ext, { padding: [40, 40, 40, 40], duration: 500, maxZoom: 14 });
+    var c = state.stationChoices[key] || {};
+    var box = $('station-choice');
+    box.innerHTML = '<div class="muted" style="margin-bottom:4px">' + st.name + ' — 어느 모양이 맞나요?' +
+      (st.ref2022 ? '' : ' <span style="color:#ffcf7a">(2022 자료에는 이 파출소가 없음)</span>') + '</div>' +
+      CHOICES.map(function (x) {
+        var dis = (x[0] !== 'unsure' && x[0] !== 'law' && !st[x[0]]) ? ' disabled' : '';
+        return '<label style="display:block;padding:4px 0;font-size:12px"><input type="radio" name="stc" value="' + x[0] + '"' + (c.choice === x[0] ? ' checked' : '') + dis + '> ' + x[1] + '</label>';
+      }).join('') +
+      '<input type="text" id="station-note" placeholder="메모 (선택)" value="' + (c.note || '').replace(/"/g, '&quot;') + '">';
+    box.querySelectorAll('input[name=stc]').forEach(function (r) {
+      r.onchange = function () { setStationChoice(key, r.value); };
+    });
+    $('station-note').onchange = function () { setStationChoice(key, null, this.value); };
+    renderStations();
+  }
+  function setStationChoice(key, choice, note) {
+    var c = state.stationChoices[key] || {};
+    if (choice) c.choice = choice;
+    if (note !== undefined) c.note = note;
+    c.at = new Date().toISOString();
+    state.stationChoices[key] = c;
+    save(); renderStations();
+  }
+
   /* ---------- 지도 클릭 ---------- */
   map.on('singleclick', function (e) {
     if (drawItx || deleteVertexMode) return;
@@ -431,10 +510,15 @@
     state.mode = m; stopDraw(); setDeleteVertex(false);
     $('mode-island').classList.toggle('on', m === 'island');
     $('mode-spot').classList.toggle('on', m === 'spot');
+    $('mode-station').classList.toggle('on', m === 'station');
     $('pane-island').classList.toggle('active', m === 'island');
     $('pane-spot').classList.toggle('active', m === 'spot');
+    $('pane-station').classList.toggle('active', m === 'station');
     spotLayer.setVisible(m === 'spot');
     targetLayer.setVisible(m === 'island');
+    drawLayer.setVisible(m === 'island');
+    stationLayer.setVisible(m === 'station');
+    if (m === 'station') renderStations();
     modifyItx.setActive(m === 'island');
     renderLegend();
   }
@@ -444,6 +528,7 @@
     if (on) toast('점을 클릭하면 지워집니다 (다시 누르면 끔)');
   }
   function renderLegend() {
+    if (state.mode === 'station') { $('legend').innerHTML = '<span style="color:#4fa3ff">━</span> 별표(기준)<br><span style="color:#ffa64d">┅</span> 개방해 2024<br><span style="color:#5ee07a">┈</span> 2022 자료'; return; }
     $('legend').innerHTML = state.mode === 'spot'
       ? '<span class="dot" style="background:#3fa9ff"></span>해안선 1km 이내<br><span class="dot" style="background:#b07cff"></span>해안선 파일상 바다 위<br><span class="dot" style="background:#3ddc97"></span>직접 포함<br><span class="dot" style="background:#ff4d5e"></span>제외'
       : '<span class="dot" style="background:#ff5c7a"></span>그릴 섬 위치<br><span class="dot" style="background:#50c8ff"></span>그린 테두리<br><span style="color:#ffd65a">- - -</span> 앱의 현재 해안선';
@@ -458,7 +543,8 @@
       excluded_spots: Object.keys(state.excluded).map(function (k) {
         var e = state.excluded[k]; return { key: k, name: e.name, sgg_name: e.sgg_name, lat: e.lat, lon: e.lon };
       }),
-      custom_targets: state.customTargets
+      custom_targets: state.customTargets,
+      station_choices: state.stationChoices
     };
   }
   function exportDownload() {
@@ -480,6 +566,7 @@
           state.excluded = {};
           (obj.excluded_spots || []).forEach(function (e) { state.excluded[e.key] = e; });
           state.customTargets = obj.custom_targets || [];
+          state.stationChoices = obj.station_choices || {};
         } else if (obj.type === 'FeatureCollection') {
           loadPolys(obj);
         } else { throw new Error('형식 모름'); }
@@ -493,6 +580,7 @@
   /* ---------- 버튼 연결 ---------- */
   $('mode-island').onclick = function () { setMode('island'); };
   $('mode-spot').onclick = function () { setMode('spot'); };
+  $('mode-station').onclick = function () { setMode('station'); };
   $('btn-prev').onclick = function () { stepTarget(-1); };
   $('btn-next').onclick = function () { stepTarget(1); };
   $('btn-draw').onclick = function () { if (drawItx) stopDraw(); else startDraw(); };
@@ -541,7 +629,7 @@
   if (allTargets().length) selectTarget(allTargets()[0].id, true);
 
   // 점검·자동 시험용으로만 노출(화면 동작에는 쓰지 않음).
-  window.__islandEditor = { map: map, drawSource: drawSource, spotSource: spotSource, state: state, buildExport: buildExport, selectTarget: selectTarget, toggleExclude: toggleExclude, setMode: setMode };
+  window.__islandEditor = { selectStation: selectStation, stationSource: stationSource, map: map, drawSource: drawSource, spotSource: spotSource, state: state, buildExport: buildExport, selectTarget: selectTarget, toggleExclude: toggleExclude, setMode: setMode };
 })();
 </script>
 </body>

@@ -10,7 +10,8 @@
  *  - 사용하는 파일 : island_editor.template.html(틀),
  *                    client/assets/vendor/ol/ol.js·ol.css,
  *                    local_server/config/coastal_safety/island_targets.json·coastal_spots.json,
- *                    client/land_mask_korea.json(그릴 섬 주변 해안선만 잘라 참고선으로 씀)
+ *                    client/land_mask_korea.json(그릴 섬 주변 해안선만 잘라 참고선으로 씀),
+ *                    coastguard_stations*.geojson(③ 파출소 관할 검토 — 확인 필요 파출소의 세 모양)
  *  - 서버 API      : 없음
  *  - 나를 쓰는 곳  : 사람이 직접 실행 — node local_server/tools/island_editor/build_island_editor.js
  *  - 비슷한 도구   : local_server/tools/build_standalone_editor.js (해구↔특보구역 편집기)
@@ -57,6 +58,30 @@ function nearbyCoastLines(targets) {
   return out;
 }
 
+/**
+ * ③ 파출소 관할 검토용 — 사용자 확인이 필요한 파출소(review_needed)의 세 모양을 모은다.
+ * 예: 평택파출소 → { law: 별표 모양, khoa: 개방해 2024 모양, ref2022: 2022 자료 모양 }
+ * @returns {Array<{key,name,station,iou,law,khoa,ref2022}>} 각 모양은 GeoJSON geometry(없으면 null)
+ * [연계] coastguard_stations.geojson(정리판, review_needed 표시) ·
+ *        coastguard_stations_khoa_ref.geojson · coastguard_stations_2022_ref.geojson —
+ *        편집기 template 의 selectStation() 이 셋을 겹쳐 그린다.
+ */
+function reviewStations() {
+  const dir = 'local_server/config/coastal_safety/';
+  const law = JSON.parse(read(dir + 'coastguard_stations.geojson')).features;
+  const khoa = JSON.parse(read(dir + 'coastguard_stations_khoa_ref.geojson')).features;
+  const r22 = JSON.parse(read(dir + 'coastguard_stations_2022_ref.geojson')).features;
+  const bare = s => String(s || '').replace(/\s/g, '').replace('해양경찰서', '');
+  return law.filter(f => f.properties.review_needed).map(f => {
+    const st = bare(f.properties.station), nm = bare(f.properties.name);
+    const k = khoa.find(x => bare(x.properties.cmptnc_kcgofc_nm) === st && bare(x.properties.korn_nm) === nm)
+      || khoa.find(x => bare(x.properties.korn_nm) === nm);
+    const r = r22.find(x => bare(x.properties.GRP2_NM).replace(/서$/, '') === st && bare(x.properties.POL_NM) === nm);
+    return { key: st + '|' + nm, name: nm, station: st, iou: f.properties.iou_khoa_2024,
+             law: f.geometry, khoa: k ? k.geometry : null, ref2022: r ? r.geometry : null };
+  });
+}
+
 function main() {
   let h = fs.readFileSync(path.join(HERE, 'island_editor.template.html'), 'utf8');
   const targets = JSON.parse(read('local_server/config/coastal_safety/island_targets.json')).targets;
@@ -65,7 +90,8 @@ function main() {
   // 관광지는 편집기에 필요한 칸만 배열로 줄여 싣는다: [키, 이름, 시군구, 위도, 경도, 포함규칙]
   const spotRows = spots.map(s => [s.sgg + '|' + s.name, s.name, s.sgg_name, s.lat, s.lon, s.rule]);
   const ref = nearbyCoastLines(targets);
-  const data = { targets, spots: spotRows, ref };
+  const stations = reviewStations();
+  const data = { targets, spots: spotRows, ref, stations };
 
   const swap = (marker, body) => {
     if (!h.includes(marker)) throw new Error('치환 표시 없음: ' + marker);
@@ -79,7 +105,8 @@ function main() {
   fs.writeFileSync(out, h);
   const kb = (fs.statSync(out).size / 1024).toFixed(0);
   console.log('생성:', path.relative(REPO, out), '|', kb, 'KB');
-  console.log('섬', targets.length, '곳 | 관광지', spotRows.length, '곳 | 참고 해안선 조각', ref.length, '개');
+  console.log('섬', targets.length, '곳 | 관광지', spotRows.length, '곳 | 참고 해안선 조각', ref.length, '개 | 확인할 파출소',
+    stations.map(x => x.name + (x.khoa ? '' : '(개방해없음)') + (x.ref2022 ? '' : '(2022없음)')).join(', '));
 }
 
 main();
