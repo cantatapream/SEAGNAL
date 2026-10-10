@@ -1532,6 +1532,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-10 22:29 KST] ✅완료 — 위험예측 구현 설계서 작성
+client/js/ocean-map/coastal-risk/risk_forecast.impl_design.md (852줄, 오퍼스 high). 점수는 서버 계산, 미리보기 페이지 client/risk_forecast_preview.html(선례 admin_zone_editor.html), index2·기존 수집기·푸시 불변. 새로 만들 것: 수집기 3(혼잡도·집중률·행사), 칸 위치표, 정적 표 빌드, 순수 모듈 3, 점수 엔진·저장, API, server.js 기동 블록. 위험: server.js·scheduler.js 에 unhandledRejection 처리기 없음(grep 확인). 다음: 사용자에게 결정 질문(N1~N13, K-x) → 단계 1(오퍼스) 착수.
+
+
 ### [2026-10-10 21:53 KST] ✅완료 — 위험예측 요구사항 정리 — 중단(사용량 한도)
 요구사항 정리(소넷 지시)·앱 구조 조사 에이전트 둘 다 시작 직후 주간 사용량 한도(429, 해제 2026-10-15 07:00 KST)로 실패. 산출물 없음(risk_forecast_ui.spec.md 미생성). 재개 시: 설계서 U1~U76 + 시안 판 23(scratchpad/mock/risk_layer_mock.html — 세션 임시 폴더라 사라질 수 있음, 아티팩트 https://claude.ai/artifact/94hgf2XdrgSSGbmZJET2wM 판 23 에서 읽을 수 있음)으로 명세서 작성 → 설계 모델 추천 → 구현(index2 미연결).
 
