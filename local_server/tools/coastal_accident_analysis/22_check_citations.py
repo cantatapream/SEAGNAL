@@ -4,7 +4,7 @@
 """
 import sys, os, re, glob
 P, R = sys.argv[1:3]
-ref = ''.join(open(os.path.join(R, f)).read() for f in ('tables.md', 'season_tables.md', 'extra_tables.md', 'event_days.md'))
+ref = ''.join(open(os.path.join(R, f)).read() for f in ('tables.md', 'season_tables.md', 'extra_tables.md', 'event_days.md', 'checks_v3.md', 'points.md', 'event_ccr.md', 'warning_equivalence_alldays.md') if os.path.exists(os.path.join(R, f)))
 pat = re.compile(r'(\d+\.\d\d)\s*\((\d+\.\d\d)[–-](\d+\.\d\d)\)')
 refset = set(pat.findall(ref))
 found = miss = 0; misses = []

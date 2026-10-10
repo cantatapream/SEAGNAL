@@ -67,7 +67,9 @@ def build_rows(stratum='ym'):
     df['dow'] = dow[df.day.values]; df['hol'] = hol[df.day.values].astype(int); df['month'] = month[df.day.values]
     df['type'] = pe.type.values[df.ev.values]; df['sea_zone'] = pe.sea_zone.values[df.ev.values]
     df['ym'] = year[df.day.values] * 100 + month[df.day.values]
-    df['cl'] = df['sea_zone'] + '_' + (year[pe.date.map(expo.DIDX).values][df.ev.values] * 100 + month[pe.date.map(expo.DIDX).values][df.ev.values]).astype(str)
+    # v3(2026-10-10, 독립검증 A 지적): 군집 = 사고 날짜. 같은 날 여러 해역 사고는 요일·전국 날씨를 공유해 독립이 아니다
+    # (v2 의 '해상특보구역×연월' 군집은 이 상관을 못 잡아 신뢰구간이 좁았다).
+    df['cl'] = pe.date.values[df.ev.values]
     df['anyw'] = np.maximum(np.maximum(df.wv, df.ty), df.gw)
     df['seaw'] = np.maximum(df.wv, df.ty)
     return df

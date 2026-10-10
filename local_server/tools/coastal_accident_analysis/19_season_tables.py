@@ -29,6 +29,7 @@ def cell(r):
         return '추정 불안정(%s건, 구간 과대)' % ('?' if pd.isna(cw) else int(cw))
     s = '%.2f (%.2f–%.2f)' % (r.RR, r.lo, r.hi)
     if not pd.isna(cw): s += ' [%d]' % cw
+    if r.hi / r.lo > 20: s += ' ‡'   # v3: 구간 상·하한 비 20~50배 — 숫자는 보이되 근거로 쓰지 않는다(독립검증 A)
     return s
 for grp, fn in (('인명(변사 제외)', 'season_person_models.csv'), ('선박', 'season_ship_models.csv')):
     df = pd.read_csv(R + '/' + fn)

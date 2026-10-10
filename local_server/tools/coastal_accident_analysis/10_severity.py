@@ -1,5 +1,5 @@
 """치명도: '사고가 났을 때 사망·실종으로 이어지는 비율'이 조건에 따라 달라지는가(사고 1건 단위).
-수정 포아송(로그 링크, 강건 SE) → 비율의 배수(치명률 배수). 보정: 사고유형 + 월 + 연도. 군집: 해상특보구역.
+수정 포아송(로그 링크, 강건 SE) → 비율의 배수(치명률 배수). 보정: 사고유형 + 월 + 연도. 군집: 사고 날짜(v3).
 노출은 사례교차 표(case 행)에서 가져온다(같은 정의).
 사용: python3 -I 10_severity.py <data_dir> <results_dir>
 """
@@ -30,15 +30,15 @@ pc['sea_warn'] = (pc.seaw >= 1).astype(int); pc['gw_warn'] = (pc.gw >= 1).astype
 pc['nw_wh_1.5+'] = ((pc.anyw == 0) & (pc.wh_max >= 1.5)).astype(float); pc.loc[pc.wh_max.isna(), 'nw_wh_1.5+'] = np.nan
 pc['nw_ws_10+'] = ((pc.anyw == 0) & (pc.ws_max >= 10)).astype(float); pc.loc[pc.ws_max.isna(), 'nw_ws_10+'] = np.nan
 for sub, lab in [(pc, '인명 전체(변사 제외)')]:
-    run(sub, 'fatal', ['any_warn'], ['type', 'month', 'yr'], lab + ': 특보 있는 날 사고의 사망·실종 비율 배수', 'sea_zone')
-    run(sub, 'fatal', ['warn_주의보', 'warn_경보'], ['type', 'month', 'yr'], lab + ': 특보 수준별', 'sea_zone')
-    run(sub, 'fatal', ['sea_warn', 'gw_warn'], ['type', 'month', 'yr'], lab + ': 해상특보·강풍특보 따로', 'sea_zone')
-    run(sub.dropna(subset=['nw_wh_1.5+']), 'fatal', ['nw_wh_1.5+', 'any_warn'], ['type', 'month', 'yr'], lab + ': 특보 없는 날 파고1.5m↑ vs 그 외', 'sea_zone')
-    run(sub.dropna(subset=['nw_ws_10+']), 'fatal', ['nw_ws_10+', 'any_warn'], ['type', 'month', 'yr'], lab + ': 특보 없는 날 풍속10m/s↑ vs 그 외', 'sea_zone')
+    run(sub, 'fatal', ['any_warn'], ['type', 'month', 'yr'], lab + ': 특보 있는 날 사고의 사망·실종 비율 배수', 'day')
+    run(sub, 'fatal', ['warn_주의보', 'warn_경보'], ['type', 'month', 'yr'], lab + ': 특보 수준별', 'day')
+    run(sub, 'fatal', ['sea_warn', 'gw_warn'], ['type', 'month', 'yr'], lab + ': 해상특보·강풍특보 따로', 'day')
+    run(sub.dropna(subset=['nw_wh_1.5+']), 'fatal', ['nw_wh_1.5+', 'any_warn'], ['type', 'month', 'yr'], lab + ': 특보 없는 날 파고1.5m↑ vs 그 외', 'day')
+    run(sub.dropna(subset=['nw_ws_10+']), 'fatal', ['nw_ws_10+', 'any_warn'], ['type', 'month', 'yr'], lab + ': 특보 없는 날 풍속10m/s↑ vs 그 외', 'day')
 for t in ['익수', '추락', '고립', '표류']:
     s = pc[pc.type == t]
     if s.fatal.sum() >= 10:
-        run(s, 'fatal', ['any_warn'], ['month', 'yr'], '인명 ' + t + ': 특보 있는 날 사망·실종 비율 배수', 'sea_zone')
+        run(s, 'fatal', ['any_warn'], ['month', 'yr'], '인명 ' + t + ': 특보 있는 날 사망·실종 비율 배수', 'day')
 # 선박
 sr = pd.read_csv(R + '/ship_strata_rows_day.csv.gz')
 sc = sr[sr.case == 1].copy()
@@ -48,9 +48,9 @@ sc['type1'] = se.types.str.split('|').str[0].values[sc.ev.values]; sc['month'] =
 sc['zone'] = se.sea_zone.values[sc.ev.values]
 sc['any_warn'] = (sc.seaw >= 1).astype(int); sc['warn_주의보'] = (sc.seaw == 1).astype(int); sc['warn_경보'] = (sc.seaw == 2).astype(int)
 sc['nw_wh_2+'] = ((sc.seaw == 0) & (sc.wh_max >= 2)).astype(float); sc.loc[sc.wh_max.isna(), 'nw_wh_2+'] = np.nan
-run(sc, 'fatal', ['any_warn'], ['type1', 'month', 'yr'], '선박 전체: 특보 있는 날 사고의 사망·실종 비율 배수', 'zone')
-run(sc, 'fatal', ['warn_주의보', 'warn_경보'], ['type1', 'month', 'yr'], '선박: 특보 수준별', 'zone')
-run(sc.dropna(subset=['nw_wh_2+']), 'fatal', ['nw_wh_2+', 'any_warn'], ['type1', 'month', 'yr'], '선박: 특보 없는 날 파고2m↑ vs 그 외', 'zone')
+run(sc, 'fatal', ['any_warn'], ['type1', 'month', 'yr'], '선박 전체: 특보 있는 날 사고의 사망·실종 비율 배수', 'day')
+run(sc, 'fatal', ['warn_주의보', 'warn_경보'], ['type1', 'month', 'yr'], '선박: 특보 수준별', 'day')
+run(sc.dropna(subset=['nw_wh_2+']), 'fatal', ['nw_wh_2+', 'any_warn'], ['type1', 'month', 'yr'], '선박: 특보 없는 날 파고2m↑ vs 그 외', 'day')
 res = pd.DataFrame(out); res.to_csv(R + '/severity_models.csv', index=False, encoding='utf-8-sig')
 pd.set_option('display.width', 250)
 print(res.round(3).to_string())

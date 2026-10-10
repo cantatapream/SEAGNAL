@@ -71,7 +71,7 @@ def build(mode):
     df = pd.DataFrame({c: np.concatenate(v) for c, v in recs.items()})
     df['dow'] = dow[df.day.values]; df['hol'] = hol[df.day.values].astype(float)
     ym = (year[se.date.map(expo.DIDX).values] * 100 + month[se.date.map(expo.DIDX).values])
-    df['cl'] = se.sea_zone.values[df.ev.values] + '_' + ym[df.ev.values].astype(str)
+    df['cl'] = se.date.values[df.ev.values]   # v3: 군집 = 사고 날짜(07_person.py 와 같은 이유)
     df['seaw'] = np.maximum(df.wv, df.ty)
     for d_ in range(1, 7): df['dow%d' % d_] = (df.dow == d_).astype(float)
     return df
@@ -159,7 +159,7 @@ for k, r in se.iterrows():
     ci = expo.DIDX[r.date]; days = np.where((year == year[ci]) & (np.arange(expo.ND) <= LASTW))[0]
     recs['ev'].append(np.full(len(days), k)); recs['day'].append(days); recs['case'].append((days == ci).astype(np.int8))
 ry = pd.DataFrame({c: np.concatenate(v) for c, v in recs.items()})
-ry['cl'] = se.sea_zone.values[ry.ev.values] + '_' + year[se.date.map(expo.DIDX).values][ry.ev.values].astype(str)
+ry['cl'] = se.date.values[ry.ev.values]   # v3: 군집 = 사고 날짜
 for m_ in range(2, 13): ry['m%02d' % m_] = (month[ry.day.values] == m_).astype(float)
 for d_ in range(1, 7): ry['dow%d' % d_] = (dow[ry.day.values] == d_).astype(float)
 ry['hol'] = hol[ry.day.values].astype(float)

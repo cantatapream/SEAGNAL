@@ -14,3 +14,8 @@
 - 인명 입력(`geo_person.csv`)에서 변사를 뺀 작업 폴더로 07~16 을 다시 돌림. 바뀐 스크립트: `07_person.py`·`09_spots.py`·`10_severity.py`(변사 묶음 제거), `16_tables.py`(신뢰구간 상·하한 비 50배 초과 → "추정 불안정"), `08_ship.py`(시각 맞춤 층 행도 저장).
 - 새 스크립트: `18_season.py`(계절별 모형) · `18b_season_desc.py`(계절별 건수표·조건 빈도) · `19_season_tables.py`(계절별 표) · `20_extra_tables.py`(월별 신뢰구간·2025 제외 비교) · `17b_event_table.py`(행사일 표) · `21_build_report.py`(본문 + 표 조립 — 표 숫자를 손으로 옮기지 않음) · `22_check_citations.py`(본문 인용 숫자 ↔ 표 대조).
 - 결과: `local_server/config/coastal_safety/accident_analysis/v2/report.md`. 재현 순서는 그 문서 §11.
+
+## v3 (2026-10-10) — 독립 검증 반영
+- 군집 = 사고 날짜(`07_person.py`·`08_ship.py`·`10_severity.py`). 표에 ‡(구간비 20~50배) 표시(`16_tables.py`·`19_season_tables.py`), 방문자 보정 요일 표 추가.
+- 새 스크립트: `14b_warn_equiv_alldays.py`(특보 상당 표 전체 날짜) · `17c_event_ccr.py`(행사일 조건부 포아송) · `23_checks.py`(계절 간 차이 검정·BH q·2023 충돌 민감도·평소 대비 칸) · `24_points.py`(A안 점수표).
+- 결과: `local_server/config/coastal_safety/accident_analysis/v3/report.md`.
