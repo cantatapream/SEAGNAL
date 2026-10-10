@@ -191,7 +191,7 @@ spT = STRtree(spP)
 pspot = np.full(len(pe), -1); pspd = np.full(len(pe), np.nan)
 for a, b, d_ in zip(ai, bi, dd): pspot[a] = b; pspd[a] = d_
 print('person -> spot within 3km: %d / %d' % ((pspot >= 0).sum(), len(pe)))
-hz = json.load(open(scr + '/shp/coastal_hazard_zones.wgs84.geojson'))['features']
+hz = json.load(open(root + '/local_server/config/coastal_safety/coastal_hazard_zones.wgs84.geojson'))['features']  # 해경 연안위험구역 820곳(2023-01-01 지정), 저장소 보관본
 hzG = [shapely.make_valid(P(shape(f['geometry']))) for f in hz]; hzC = [f['properties'].get('구역분류') for f in hz]
 hzT = STRtree(hzG)
 cnt = np.zeros((len(spots), 4), int)  # 전체, 사망, 다발, 위험

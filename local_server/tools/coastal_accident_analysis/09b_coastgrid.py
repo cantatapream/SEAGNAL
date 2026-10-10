@@ -19,7 +19,7 @@ units = collections.Counter(zip(gx, gy))
 U = sorted(units); ulon = np.array([(u[0] + 0.5) * 0.03 for u in U]); ulat = np.array([(u[1] + 0.5) * 0.03 for u in U])
 ncoast = np.array([units[u] for u in U])
 x, y = TR.transform(ulon, ulat); uP = shapely.points(x, y)
-hz = json.load(open(scr + '/shp/coastal_hazard_zones.wgs84.geojson'))['features']
+hz = json.load(open(root + '/local_server/config/coastal_safety/coastal_hazard_zones.wgs84.geojson'))['features']  # 해경 연안위험구역 820곳(2023-01-01 지정), 저장소 보관본
 hzG = [shapely.make_valid(shapely.transform(shape(f['geometry']), lambda xy: np.column_stack(TR.transform(xy[:, 0], xy[:, 1])))) for f in hz]
 hzF = np.array([f['properties'].get('구역분류') == '사망사고 발생구역' for f in hz])
 T = STRtree(hzG)
