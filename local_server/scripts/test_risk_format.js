@@ -32,4 +32,11 @@ test('특보없는 파고2m 노랑',()=>assert.match(S.seaRows([{key:'wave',valu
 test('특보없는 풍속12m 노랑·정수',()=>assert.match(S.seaRows([{key:'wind',value:14}]),/rf-t-y[^>]*>14m\/s/));
 test('높은 혼잡도 빨강',()=>assert.match(S.seaRows([{key:'congestion',ci:12,level:2,levelName:'높음'}]),/rf-t-r/));
 test('예보 결측 자료 이름 한국어',()=>assert.equal(S.sourceName('forecast'),'해구 예보'));
+test('예보만 높은 파고는 해당행에 근거·반영 꼬리표 표시',()=>{const html=S.seaRows([{key:'wave',value:2.7,forecastOnly:true,cond:'fcst_only',threshold:2.5,lead:0,rr:2.29,used:true}]);assert.match(html,/파고.*위험지수에 반영/);assert.match(html,/특보 없는 오늘 파고.*2\.5m 이상/);assert.match(html,/약 2\.3배/);assert.ok(!html.includes('특보급 날씨 예보'));assert.ok(!html.includes('특보 중'));});
+test('예보만 풍속 단계 근거는 실제 임계값 사용',()=>assert.match(S.seaRows([{key:'wind',value:17.4,forecastOnly:true,cond:'fcst_only',threshold:17,lead:1,rr:3.39,used:true}]),/특보 없는 내일 풍속.*17m\/s 이상/));
+test('낡은 예보 기준은 해당 파고줄에도 표시',()=>assert.match(S.seaRows([{key:'wave',value:2.6,sourceTime:"'26. 10. 9.(금) 09:00"}]),/예보 기준/));
+test('원천 실패와 한산함을 구분하고 마지막 성공시각 표시',()=>{const text=S.sourceMessages({sources:{congestion:{status:'error',lastSuccess:'2026-10-09T05:14:00+09:00'}}},'sea').join();assert.match(text,/수집에 실패/);assert.match(text,/마지막 수집 '26\. 10\. 9\./);});
+test('UTC10자리 예보발표는 KST기준으로 표시',()=>assert.match(S.sourceMessages({sources:{zoneForecasts:{status:'stale',base:'2026100912',updatedAt:'2026-10-09T22:00:00+09:00'}}},'sea').join(),/예보 기준 '26\. 10\. 9\.\(금\) 21:00/));
+test('선택일 다음달행사 누락을 당월정상과 분리',()=>{const sources={events:{status:'ok',months:{'2026-10':{status:'ok'},'2026-11':{status:'missing'}}}};assert.equal(S.sourceMessages({t:'2026-10-31T21:00:00+09:00',sources},'coast').length,0);assert.match(S.sourceMessages({t:'2026-11-01T00:00:00+09:00',sources},'coast').join(),/행사 자료를 받지 못했습니다/);});
+test('행사 개별 원문과 공식원천 링크 문구 구분',()=>{const html=S.coastRows([{key:'event',name:'축제A, 경기B',weekend:false,events:[{name:'축제A',src:'https://example.com/a',sourceType:'tourapi',start:'2026-10-11',end:'2026-10-12'},{name:'경기B',src:'https://example.com/b',start:'2026-10-11',end:'2026-10-11'}]}]);assert.match(html,/축제A · 관광공사 원천 자료/);assert.match(html,/경기B · 행사 원문/);assert.match(html,/https:\/\/example\.com\/b/);});
 console.log(`${pass} PASS / ${fail} FAIL`);process.exitCode=fail?1:0;

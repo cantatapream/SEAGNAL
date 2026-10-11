@@ -12,7 +12,7 @@ function createRouter({store=createStore(),reportDir=path.join(__dirname,'..','c
     /** 실패를 상태 포함 JSON으로 보낸다. 예: 자료준비전503. @param {function} fn @param {number} maxAge @returns {function} [연계] ← route handlers */
     function handle(fn,maxAge=60){return(req,res)=>{try{res.set('Cache-Control',maxAge?'public, max-age='+maxAge:'no-store');res.json({ok:true,...fn(req),sources:store.sources()});}catch(e){res.status(e.status||503).set('Cache-Control','no-store').json({ok:false,error:e.status?e.message:'위험예측 자료 처리 실패',sources:store.sources()});}};}
     router.get(base+'/meta',handle(()=>store.meta(),0));
-    router.get(base+'/status',handle(()=>({now:store.meta().now}),0));
+    router.get(base+'/status',handle(()=>({now:store.meta().now,sources:store.sources(true)}),0));
     router.get(base+'/coast/spots',handle(()=>store.spots(),86400));
     router.get(base+'/sea/cells',handle(()=>store.cells(),3600));
     router.get(base+'/coast/frame',handle(req=>store.frame(false,req.query.t)));
