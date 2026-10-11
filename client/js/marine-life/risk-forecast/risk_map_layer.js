@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_map_layer.js
- * 역할  : 해상 격자·연안 분할 원·특보 테두리와 선택 구역을 OpenLayers에 그린다.
+ * 역할  : 공식 사고 격자 면·혼잡 격자 선/점·연안 분석과 특보 경계를 구별해 그린다.
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
@@ -15,13 +15,13 @@
     /**
      * 위험예측의 지도 층과 육지 마스크·클릭 처리를 만든다.
      * 예: RiskMapLayer.create(map,select)
-     * @param {ol.Map} map - 앱 지도; select(kind,id)는 선택 콜백(동일좌표는 id 배열)
+     * @param {ol.Map} map - 앱 지도; select(kind,id,point)는 선택 콜백(사고는 실제 클릭 좌표, 동일좌표 관광지는 id 배열)
      * @returns {Object} 경계·표·프레임·선택·가시성·정리 API
      * [연계] RiskForecast → OpenLayers
      */
     function create(map, select) {
-        var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], active={coast:true,sea:false}, selection=null, zones={}, land=[], maskKey='', maskCanvas=null;
-        ['sea','coast','borders','hazard','selection','shore','points'].forEach(function (k,i) {
+        var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], active={coast:true,sea:false}, selection=null, zones={}, land=[], maskKey='', maskCanvas=null;
+        ['accident','sea','coast','borders','hazard','selection','shore','points'].forEach(function (k,i) {
             sources[k]=new ol.source.Vector();
             layers[k]=new ol.layer.Vector({source:sources[k], zIndex:130+i, className:'rf-'+k+'-canvas'});
             map.addLayer(layers[k]);
@@ -62,6 +62,7 @@
             }
             ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation=kind==='coast'?'destination-in':'destination-out'; ctx.drawImage(maskCanvas,0,0); ctx.restore();
         }
+        layers.accident.on('postrender',function (e) { mask(e,'sea'); });
         layers.sea.on('postrender',function (e) { mask(e,'sea'); });
         layers.coast.on('postrender',function (e) { mask(e,'coast'); });
         function landGeometry(g,island) {
@@ -82,7 +83,7 @@
             var failed=outcomes.filter(function(x){return x.status==='rejected';});
             if(failed.length) throw new Error(failed.map(function(x){return x.reason.message;}).join(' / '));
         }
-        function setTables(c,s) { cells=c.cells||[]; spots=s.spots||[]; }
+        function setTables(c,s,a) { cells=c.cells||[]; spots=s.spots||[]; accidentCells=a&&a.cells||[]; }
         function drawCoast(frame) {
             sources.coast.clear();sources.points.clear();var centers=new Map();
             (frame.spots||[]).forEach(function (v) {
@@ -95,19 +96,33 @@
                 else {center=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([p.lon,p.lat])),kind:'coast',id:p.id,ids:[p.id]});center.setStyle(new ol.style.Style({image:new ol.style.Circle({radius:4,fill:new ol.style.Fill({color:'#fff'}),stroke:new ol.style.Stroke({color:w.RiskFormat.col(v[1]),width:2})})}));sources.points.addFeature(center);centers.set(key,center);}
             });
         }
+        /**
+         * 기관이 제공한 사고 단계만 원본 격자 면색으로 표시한다.
+         * 예: [0,0.0013,'경계']는 빨간 면이며 위험지수를 확률로 바꾸지 않는다.
+         * @param {Object} frame - cells는 [i,riskIndex,officialLevel] 배열
+         * @returns {void} [연계] RiskForecast.refresh → 공식 사고 경계 표
+         */
+        function drawAccident(frame) {
+            sources.accident.clear();
+            var palette={'낮음':'rgba(47,179,107,.42)','보통':'rgba(242,194,48,.48)','주의':'rgba(251,146,60,.55)','경계':'rgba(224,50,44,.62)'};
+            (frame.cells||[]).forEach(function(v){var c=accidentCells.find(function(c){return c.i===v[0];});if(!c||!palette[v[2]])return;add('accident',c.geometry,{kind:'accident',id:c.id,riskIndex:v[1],level:v[2]},new ol.style.Style({fill:new ol.style.Fill({color:palette[v[2]]}),stroke:new ol.style.Stroke({color:'rgba(240,248,255,.24)',width:.6})}));});
+        }
+        /**
+         * 혼잡도 공식 단계는 원래 GR4 격자의 테두리와 점으로 사고 면 위에 겹친다.
+         * 예: 매우높음은 자홍 점 9개이며 점은 실제 선박 위치나 척수가 아니다.
+         * @param {Object} frame - cells는 [i,legacyScore,ci,officialLevel] 배열
+         * @returns {void} [연계] RiskForecast.refresh → 기존 혼잡 위치 표
+         */
         function drawSea(frame) {
             sources.sea.clear();
-            (frame.cells||[]).forEach(function (v) {
-                var c=cells.find(function(c){return c.i===v[0];}); if(!c)return;
-                var clickable=Number(v[1])>0 || v[2]>=1;
-                if(!clickable)return;
-                var half=0.0125, g=c.geometry||{type:'Polygon',coordinates:[[[c.lon-half,c.lat-half],[c.lon+half,c.lat-half],[c.lon+half,c.lat+half],[c.lon-half,c.lat+half],[c.lon-half,c.lat-half]]]};
-                var f=add('sea',g,{kind:'sea',id:c.id,score:v[1],ci:v[2]},colorStyle(v[1],false));
-                var count=v[2]==null||v[2]<1?0:v[2]<10?2:v[2]<20?5:9, styles=[colorStyle(v[1],false)];
-                for(var k=0;k<count;k++) {
-                    var lon=c.lon+( ((k*7)%17)/16-0.5)*0.019, lat=c.lat+( ((k*11)%17)/16-0.5)*0.019;
-                    styles.push(new ol.style.Style({geometry:new ol.geom.Point(ol.proj.fromLonLat([lon,lat])),image:new ol.style.Circle({radius:1.25,fill:new ol.style.Fill({color:'rgba(255,255,255,.85)'})})}));
-                }
+            var levels=['낮음','보통','높음','매우높음'],colors=['#b8c5da','#74b9ff','#d47cff','#ff5fe3'];
+            (frame.cells||[]).forEach(function(v){
+                var c=cells.find(function(c){return c.i===v[0];});if(!c||!Number.isFinite(v[2]))return;
+                var level=levels.indexOf(v[3]),color=level<0?'#b8c5da':colors[level];
+                var half=.0125,g=c.geometry||{type:'Polygon',coordinates:[[[c.lon-half,c.lat-half],[c.lon+half,c.lat-half],[c.lon+half,c.lat+half],[c.lon-half,c.lat+half],[c.lon-half,c.lat-half]]]};
+                var outline=new ol.style.Style({stroke:new ol.style.Stroke({color:color,width:level>=2?1.3:.8,lineDash:[3,3]}),fill:new ol.style.Fill({color:'rgba(0,0,0,0)'})});
+                var f=add('sea',g,{kind:'sea',id:c.id,ci:v[2],level:v[3]},outline),count=level<0?0:[1,2,5,9][level],styles=[outline];
+                for(var k=0;k<count;k++){var lon=c.lon+(((k*7)%17)/16-.5)*.019,lat=c.lat+(((k*11)%17)/16-.5)*.019;styles.push(new ol.style.Style({geometry:new ol.geom.Point(ol.proj.fromLonLat([lon,lat])),image:new ol.style.Circle({radius:1.65,fill:new ol.style.Fill({color:color}),stroke:new ol.style.Stroke({color:'#12213b',width:.7})})}));}
                 f.setStyle(styles);
             });
         }
@@ -131,7 +146,7 @@
             if(features.length)map.getView().fit(sources.hazard.getExtent(),{padding:[55,55,Math.min(map.getSize()[1]*0.5,300),55],duration:250,maxZoom:16});
         }
         function setActive(state,enabled) {
-            active=state; layers.coast.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);
+            active=state; layers.coast.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);layers.accident.setVisible(enabled&&state.sea);
             ['borders','shore','selection','hazard'].forEach(function(k){layers[k].setVisible(enabled&&(state.coast||state.sea));});
         }
         function hit(evt) {
@@ -139,11 +154,12 @@
             // 그림에서 잘린 쪽은 클릭도 막는다. 겹친 육지와 섬은 합집합으로 판정한다.
             var landHit=land.some(function(p){var geom=new ol.geom.Polygon(p.rings);return geom.intersectsCoordinate(evt.coordinate);});
             var wanted=landHit?'coast':'sea'; if(!active[wanted])return false;
+            if(wanted==='sea'){var accident=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers.accident?f:null;},{layerFilter:function(l){return l===layers.accident;},hitTolerance:0});if(accident){var lonLat=ol.proj.toLonLat(evt.coordinate);select('accident',accident.get('id'),{lon:lonLat[0],lat:lonLat[1]});return true;}}
             var feature=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers[wanted]?f:null;},{layerFilter:function(l){return l===layers[wanted];},hitTolerance:2});
             if(feature){select(wanted,feature.get('id'));return true;}return false;
         }
         function destroy(){Object.keys(layers).forEach(function(k){map.removeLayer(layers[k]);});}
-        return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawBorders:drawBorders,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,destroy:destroy};
+        return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawBorders:drawBorders,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,destroy:destroy};
     }
     w.RiskMapLayer={create:create};
 })(window);

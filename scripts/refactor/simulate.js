@@ -258,6 +258,19 @@ if (require.main === module) (async () => {
             return state.enabled && state.coast && !state.sea && !state.selected && !document.getElementById('risk-forecast-sheet').classList.contains('open');
         });
         if (!ok) throw new Error('기본 층 또는 초기 시트 상태 불일치');
+        // 공식 사고 면과 원래 혼잡 격자 층은 자료 결측 때도 서로 독립적으로 켜고 끈다.
+        await page.evaluate(() => document.querySelector('#risk-forecast-legend [data-layer="sea"]').click());
+        await page.waitForFunction(() => {
+            const layers = getOceanMap().getLayers().getArray();
+            return ['rf-accident-canvas', 'rf-sea-canvas'].every(name => layers.some(layer => layer.getClassName() === name && layer.getVisible()));
+        }, null, {timeout:15000});
+        const officialLayers = await page.evaluate(() => {
+            const layers = getOceanMap().getLayers().getArray();
+            const visible = name => layers.some(layer => layer.getClassName() === name && layer.getVisible());
+            const key = document.querySelector('#risk-forecast-legend [data-accident-legend]');
+            return _riskForecastApp.getState().sea && visible('rf-accident-canvas') && visible('rf-sea-canvas') && key && !key.hidden && key.textContent.includes('경계');
+        });
+        scenarios.push({label:'위험예측:공식 사고·혼잡 동시층',target:'ocean-risk-forecast-toggle-btn',ok:!!officialLayers,required:true});
         await page.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').click());
         const off=await page.evaluate(() => !window._riskForecastApp.getState().enabled && document.getElementById('risk-forecast-legend').hidden && document.getElementById('risk-forecast-banner').hidden);
         scenarios.push({label:'위험예측:실제앱 기본층·OFF',target:'ocean-risk-forecast-toggle-btn',ok:off,required:true});

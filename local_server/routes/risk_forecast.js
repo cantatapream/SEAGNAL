@@ -1,5 +1,5 @@
 /**
- * 역할: 위험예측 시간축·지도·상세·상태와 원본 PDF 다운로드를 제공한다.
+ * 역할: 연안 분석·공식 선박사고와 혼잡 예보·자료 상태·원본 PDF를 수집 없이 제공한다.
  * [연계] risk_store → /api/risk-forecast/* → marine-life/risk-forecast 화면.
  * [로드 순서] server.js 라우트 등록. 요청에서는 수집·AI·푸시 호출이 없다.
  */
@@ -15,6 +15,9 @@ function createRouter({store=createStore(),reportDir=path.join(__dirname,'..','c
     router.get(base+'/status',handle(()=>({now:store.meta().now,sources:store.sources(true)}),0));
     router.get(base+'/coast/spots',handle(()=>store.spots(),86400));
     router.get(base+'/sea/cells',handle(()=>store.cells(),3600));
+    router.get(base+'/sea/accident-cells',handle(()=>store.accidentCells(),3600));
+    router.get(base+'/sea/accident-frame',handle(req=>store.accidentFrame(req.query.t)));
+    router.get(base+'/sea/accident-cell',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('사고 격자 id 필요'),{status:400});return store.accidentDetail(req.query.id,req.query.t,{lon:req.query.lon,lat:req.query.lat});}));
     router.get(base+'/coast/frame',handle(req=>store.frame(false,req.query.t)));
     router.get(base+'/sea/frame',handle(req=>store.frame(true,req.query.t)));
     router.get(base+'/coast/spot',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('관광지 id 필요'),{status:400});return store.coastDetail(req.query.id,req.query.t);}));

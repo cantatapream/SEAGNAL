@@ -1,6 +1,6 @@
 /**
- * 역할: 새 해양교통 칸에 대해구·대표 소해구·주요지명·특보구역을 붙인다.
- * [연계] sea_traffic_collector → data/risk_forecast/sea_cells.json → risk_store/지도.
+ * 역할: 해양교통 칸과 공식 사고 격자의 실제 경계를 대표 해구·주요지명·특보구역에 연결한다.
+ * [연계] sea_traffic_collector/mtis_accident_grid → 위치표 → risk_store/지도.
  * [로드 순서] 서버 require 부작용 없음. 육지 자르기는 화면의 해안선 마스크와 같은 원본을 쓴다.
  */
 'use strict';
@@ -28,11 +28,11 @@ function loadTables() {
     tables = { boxes, refs, zones, subZones };
     return tables;
 }
-/** 중심±.0125도 칸을 공간표에 연결한다. 예: 동률 소해구는 번호 작은 쪽. @param {object} r @returns {object} [연계] ← update */
-function describe(r) {
+/** 칸의 실제 경계 상자를 공간표에 연결한다. 예: 혼잡은±.0125도, 사고는공식경계. @param {object} r @param {object} options - bounds는경위도상자 @returns {object} [연계] ← update */
+function describe(r, { bounds } = {}) {
     const { boxes, refs, zones, subZones } = loadTables();
     const lat = Number(r.latitude), lon = Number(r.longitude);
-    const rect = [lon-.0125, lat-.0125, lon+.0125, lat+.0125];
+    const rect = bounds || [lon-.0125, lat-.0125, lon+.0125, lat+.0125];
     const area = b => Math.max(0,Math.min(rect[2],b.maxX)-Math.max(rect[0],b.minX))*Math.max(0,Math.min(rect[3],b.maxY)-Math.max(rect[1],b.minY));
     let best = null, bestArea = 0;
     for (const b of boxes) { const a = area(b); if (a > bestArea) { bestArea = a; best = b; } }
