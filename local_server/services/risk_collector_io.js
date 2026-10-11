@@ -129,15 +129,20 @@ async function request({ dir = DEFAULT_DIR, name, limit, url, params, fetchImpl 
     if (header && !normalSea && !['00', '0000', '0', 'NORMAL_SERVICE'].includes(String(header.resultCode))) throw new Error('invalid response');
     return data;
 }
-/** body/items/item 공개 응답을 검증한다. 예: 0행은 정상캐시 덮기 금지. @param {object} data @returns {{rows:array,total:number}} [연계] ← 공공자료 수집기 */
-function items(data) {
+/** body/items/item 공개 응답을 검증한다. 예: 기본0행거부, 명시적totalCount=0인공식목록만보충검색허용.
+ * @param {object} data - 공개응답 @param {object} options - allowEmpty(기본false)
+ * @returns {{rows:array,total:number}} [연계] ← coastal_events/sea_traffic/tour_concentration_collector / 빈실패로정상캐시덮기금지.
+ */
+function items(data, { allowEmpty = false } = {}) {
     const body = data.response && data.response.body;
     if (!body) throw new Error('invalid response');
     const value = body.items && body.items.item;
     const rows = Array.isArray(value) ? value : value && typeof value === 'object' ? [value] : [];
-    if (!rows.length) throw new Error('empty response');
     const total = Number(body.totalCount);
-    if (!Number.isInteger(total) || total < rows.length) throw new Error('invalid response');
+    if (body.totalCount === null || body.totalCount === '' || body.totalCount === undefined || !Number.isInteger(total) || total < rows.length) throw new Error('invalid response');
+    if (!rows.length && !(allowEmpty && total === 0 && Object.hasOwn(body, 'items') &&
+        (body.items === '' || body.items === null || (body.items &&
+            (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)))))) throw new Error('empty response');
     return { rows, total };
 }
 /** 최종 시도 상태를 저장한다. 예: 오류여도 마지막 성공 자료를 유지. @param {object} args @returns {void} [연계] ← 세 수집기 → risk_store */

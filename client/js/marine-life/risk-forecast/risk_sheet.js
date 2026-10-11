@@ -73,7 +73,7 @@
                 case 'people': if(!r.stage)return ''; return row(labels.people,b(r.stage+'단계',r.rr)+' <small>(집중률 '+F.escape(r.cr)+')</small>','사람 혼잡 '+b(r.stage+'단계',r.rr)+'라 한산할 때(0단계) 대비 '+possibility(r.rr)+fatal(r.fatalRr,'한산할 때(0단계) 대비'));
                 case 'hazard': if(!r.count)return ''; return row(labels.hazard,b(r.count+'곳',r.rr),'위험구역이 '+b(r.count+'곳',r.rr)+' 있어 위험구역 없는 곳 대비 '+possibility(r.rr)+fatal(r.fatalRr,'위험구역 없는 곳 대비')+hazards(r.zones||[]));
                 case 'fatalZone':return row(labels.fatalZone,b('3km 안',r.rr),'사망사고가 난 구역이 '+b('3km 안',r.rr)+'에 있어 없는 곳 대비 '+possibility(r.rr)+fatal(r.fatalRr,'없는 곳 대비'));
-                case 'event': var url=F.safeURL(r.src);return row(labels.event,'<b class="rf-t-'+(r.weekend?'y':'g')+'">'+F.escape(r.name)+'</b>',(r.weekend?'주말 행사가 있어 같은 요일 행사 없는 날 대비 '+possibility(r.rr):'평일 행사는 과거 사고에 차이가 없어 점수에 넣지 않음')+(url?'<br><a href="'+F.escape(url)+'" target="_blank" rel="noopener noreferrer">행사 원문</a>':'')+(r.dateRange?' · '+F.escape(Array.isArray(r.dateRange)?r.dateRange.join(' ~ '):r.dateRange):''));
+                case 'event': var events=r.events&&r.events.length?r.events:[{name:r.name,src:r.src,sourceType:r.sourceType,start:r.dateRange&&r.dateRange[0],end:r.dateRange&&r.dateRange[1]}],links=events.map(function(e){var url=F.safeURL(e.src);return (url?'<br><a href="'+F.escape(url)+'" target="_blank" rel="noopener noreferrer">'+(events.length>1?F.escape(e.name)+' · ':'')+(e.sourceType==='tourapi'?'관광공사 원천 자료':'행사 원문')+'</a>':'')+(e.start&&e.end?' · '+F.escape(e.start+' ~ '+e.end):'');}).join('');return row(labels.event,'<b class="rf-t-'+(r.weekend?'y':'g')+'">'+F.escape(r.name)+'</b>',(r.weekend?'주말 행사가 있어 같은 요일 행사 없는 날 대비 '+possibility(r.rr):'평일 행사는 과거 사고에 차이가 없어 점수에 넣지 않음')+links);
                 case 'month':return row(labels.month,'', '1년 평균 대비 '+possibility(r.rr)+fatal(r.fatalRr,'1년 평균 대비'));
                 case 'swell': if(!(r.periodS>=12))return ''; return row(labels.swell,b('파도 주기 '+Number(r.periodS).toFixed(1)+'초',r.analysisRr),'(분석) 파도 주기가 12초 이상인 경우 사고 발생률이 '+b('25%',r.analysisRr)+' 증가 · 점수에는 '+b('23%',r.analysisRr)+'로 반영');
                 case 'rip': return row(labels.rip,'<b class="rf-t-g">'+F.escape(r.level)+'</b>','');
@@ -90,13 +90,14 @@
      */
     function seaRows(rows) {
         return rows.map(function(r){
-            var label={congestion:'배 혼잡도',warning:'특보',wave:'파고',wind:'풍속',forecastOnly:'특보급 날씨 예보'}[r.key]||r.key;
+            var label={congestion:'배 혼잡도',warning:'특보',wave:'파고',wind:'풍속'}[r.key]||r.key;
             if(r.missing)return row(label,'<span class="rf-muted">자료 없음</span>','');
             if(r.key==='congestion')return r.level>=1?row(label,'<b class="rf-t-'+['g','y','r','r'][r.level]+'">지수 '+Number(r.ci).toFixed(1)+' ('+F.escape(r.levelName)+')</b>',''):'';
             if(r.key==='warning') {var name=r.name||((r.type||'')+(r.level||'')),pre=r.state==='예비'?'예비 ':'';var assumed=r.state==='예비가정'?'('+F.escape(r.assumedFromHour)+'시부터 특보로 가정)':'';return row(label,b(pre+name,r.rr||1),r.state==='예비'?'':F.escape(name)+assumed+' 발효 시 평소 대비 '+possibility(r.rr),r.used);}
-            if(r.key==='forecastOnly')return row(label,b('파고 '+r.dayMaxWh+'m · 풍속 '+r.dayMaxWs+'m/s',r.rr),'특보 없이 예보만 특보급인 날 평소 대비 '+possibility(r.rr),r.used);
-            var unit=r.key==='wave'?'m':'m/s',value=Number(r.value).toFixed(r.key==='wave'?1:0)+unit,cond=r.cond?(r.key==='wave'?'특보 중 파고 '+value+'로':'특보 중 풍속 '+value+'로')+' 평소 대비 '+possibility(r.rr):'';
+            var unit=r.key==='wave'?'m':'m/s',value=Number(r.value).toFixed(r.key==='wave'?1:0)+unit,threshold=r.threshold==null?(r.key==='wave'?4:r.cond==='wind17'?17:14):r.threshold;
+            var cond=r.cond?(r.forecastOnly?'특보 없는 '+(r.lead===0?'오늘 ':r.lead===1?'내일 ':''):'특보 중 ')+(r.key==='wave'?'파고 ':'풍속 ')+b(threshold+unit+' 이상',r.rr)+'으로 평소 대비 '+possibility(r.rr):'';
             var valueHTML=r.cond?b(value,r.rr||1):'<b class="rf-t-'+(Number(r.value)>=(r.key==='wave'?2:12)?'y':'g')+'">'+F.escape(value)+'</b>';
+            if(r.sourceTime)cond+=(cond?'<br>':'')+'<span class="rf-muted">예보 기준 '+F.escape(r.sourceTime)+'</span>';
             return row(label,valueHTML,cond,r.used);
         }).join('');
     }
@@ -111,7 +112,7 @@
         return (list||[]).map(function(n){
             if(n.key==='warning') {
                 var effective=n.effective||[],pre=n.prelim||[],s='';
-                if(pre.length)s+=F.escape(pre.join(', '))+(effective.length?' 예비특보,':' 발표 상태입니다.');
+                if(pre.length)s+=F.escape(pre.join(', '))+(effective.length?' 예비특보, ':' 발표 상태입니다.');
                 if(effective.length)s+=F.escape(effective.join(', '))+' 발효 상태입니다. 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 '+b('14%',1.14)+' 높습니다.';
                 return s?'<div class="rf-notice">⚠ '+s+'</div>':'';
             }
@@ -135,28 +136,34 @@
     /**
      * 닫기·위험구역 이동·기준 상세·재시도 동작을 시트에 연결한다.
      * 예: RiskSheet.create(el,handlers)
-     * @param {HTMLElement} el - 시트; handlers는 close·hazard·basis·retry 콜백
-     * @returns {Object} show·error·clear·timelineEl API
+     * @param {HTMLElement} el - 시트; handlers는 close·hazard·basis·retry·choose 콜백
+     * @returns {Object} show·error·choose·clear·timelineEl API
      * [연계] RiskForecast → 상세 응답 표시
      */
     function create(el,handlers) {
         el.innerHTML='<div class="rf-sheet-handle"></div><button class="ocean-sheet-close rf-close" type="button" aria-label="위험예측 닫기">×</button><h3 class="rf-title"></h3><div class="rf-subtitle"></div><div class="rf-timeline"></div><div class="rf-body" aria-live="polite"></div>';
         el.querySelector('.rf-close').addEventListener('click',handlers.close);
         el.addEventListener('click',function(e){var z=e.target.closest('[data-zone-id]'),basis=e.target.closest('[data-basis]'),retry=e.target.closest('[data-retry]');if(z)handlers.hazard(z.dataset.zoneId);if(basis)handlers.basis(basis.dataset.basis,basis);if(retry)handlers.retry();});
+        el.addEventListener('click',function(e){var spot=e.target.closest('[data-spot-id]');if(spot)handlers.choose('coast',spot.dataset.spotId);});
         function show(d,kind,item) {
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
             el.querySelector('.rf-subtitle').textContent=kind==='sea'?[sub.name,sub.bearingWord||F.direction(sub.bearingDeg||0),String(Math.round(sub.bearingDeg||0)%360).padStart(3,'0')+'도',Number(sub.distNm||0).toFixed(1)+'해리'].join(' '):F.dms(sub.lat==null?item.lat:sub.lat,true)+' - '+F.dms(sub.lon==null?item.lon:sub.lon,false)+(sub.police?' · '+sub.police+(sub.police.endsWith('파출소')?'':'파출소')+' 관할':'');
             var missing=(d.missing||[]).filter(function(k){return k!=='swell';});
-            var body=(missing.length?'<div class="rf-missing">⚠ 일부 요소 자료 없음 — '+F.escape(missing.map(sourceName).join(', '))+'</div>':'');
+            el.querySelector('.rf-timeline').hidden=false;
+            var sourceWarnings=sourceMessages(d,kind),body=sourceWarnings.map(function(text){return '<div class="rf-missing">⚠ '+F.escape(text)+'</div>';}).join('');
+            if(missing.length)body+='<div class="rf-missing">⚠ 일부 요소 자료 없음 — '+F.escape(missing.map(sourceName).join(', '))+'</div>';
+            var rows=d.rows||[];
+            if(d.sources&&d.sources.zoneForecasts&&d.sources.zoneForecasts.status==='stale')rows=rows.map(function(r){return r.key==='wave'||r.key==='wind'?Object.assign({},r,{sourceTime:sourceTime((d.inputs||{}).zoneForecastBase||d.sources.zoneForecasts.base||d.sources.zoneForecasts.updatedAt)}):r;});
             if(d.clickable===false)body+='<p class="rf-muted">이 시각에는 날씨 위험도 없고 배도 적은 칸입니다(지도에 색이 없음).</p>';
-            else {body+=summary(d,kind)+(kind==='coast'?notices(d.notices)+coastRows(d.rows||[]):seaRows(d.rows||[]));
+            else {body+=summary(d,kind)+(kind==='coast'?notices(d.notices)+coastRows(rows):seaRows(rows));
                 if(kind==='sea'&&d.kinds){var sensitive=d.kinds.sensitive||{},collision=d.kinds.collision||{};body+='<div class="rf-kinds"><div>전복·침몰·침수·표류 <span>'+b(sensitive.rr===1?'평소 수준':F.amt(sensitive.rr)+(sensitive.rr<2?' 높음':''),sensitive.rr)+'</span></div><div>충돌·접촉 <span>'+(collision.status==='withheld'?'<span class="rf-muted">자료가 적어 따로 재지 못함</span>':b(collision.rr===1?'평소 수준':F.amt(collision.rr)+(collision.rr>=1?' 높음':' 낮음'),collision.rr))+'</span></div></div>';}
             }
             el.querySelector('.rf-body').innerHTML=body;el.classList.add('open');
         }
         function error(message){el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';el.classList.add('open');}
-        return {show:show,error:error,clear:function(){el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';},timelineEl:el.querySelector('.rf-timeline')};
+        function choose(items){el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';el.classList.add('open');}
+        return {show:show,error:error,choose:choose,clear:function(){el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';},timelineEl:el.querySelector('.rf-timeline')};
     }
     /**
      * 서버 자료 키를 화면에서 읽을 수 있는 이름으로 바꾼다.
@@ -166,5 +173,15 @@
      * [연계] RiskForecast·create.show → 결측 안내
      */
     function sourceName(k) {return {congestion:'배 혼잡도',tourConcentration:'관광지 집중률',people:'사람 혼잡',concentration:'사람 혼잡',rip:'이안류',forecast:'해구 예보',zoneForecasts:'해구 예보',swell:'너울',ripCurrent:'이안류',events:'행사',warnings:'특보',gale:'강풍'}[k]||k;}
-    w.RiskSheet={create:create,sourceName:sourceName,coastRows:coastRows,seaRows:seaRows};
+    /** 수집·UTC 해구 발표 시각을 KST로 표시한다. 예: 2026101112 → '26. 10. 11.(일) 21:00.
+     * @param {string|null} value - ISO 또는 YYYYMMDDHH UTC 시각 @returns {string} 표시 시각
+     * [연계] sourceMessages·create.show → RiskFormat.time / 낡은 자료의 기준을 알린다.
+     */
+    function sourceTime(value){if(!value)return '없음';var compact=/^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(String(value));if(compact){var date=new Date(Date.UTC(+compact[1],+compact[2]-1,+compact[3],+compact[4]));if(date.getUTCFullYear()!==+compact[1]||date.getUTCMonth()+1!==+compact[2]||date.getUTCDate()!==+compact[3]||date.getUTCHours()!==+compact[4])return '시각 확인 불가';value=date.toISOString();}return F.time(value)||'시각 확인 불가';}
+    /** 관련 원천의 실패·낡음과 마지막 수집시각을 알린다. 예: stale → 예보가 오래되었습니다.
+     * @param {Object} data - sources를 포함한 응답 @param {string} kind - sea/coast
+     * @returns {string[]} 화면 문장 [연계] RiskForecast.refresh·create.show → 배너·시트
+     */
+    function sourceMessages(data,kind){var sources=Object.assign({},data.sources||{}),stamp=Date.parse(data.t);if(Number.isFinite(stamp)&&sources.events&&sources.events.months){var month=new Date(stamp+9*3600000).toISOString().slice(0,7);sources.events=sources.events.months[month]||{status:'missing'};}var keys=kind==='sea'?['warnings','zoneForecasts','congestion']:['warnings','gale','zoneForecasts','swell','ripCurrent','tourConcentration','events'];return keys.filter(function(key){var s=sources[key];return s&&s.status&&!['ok','offseason'].includes(s.status);}).map(function(key){var s=sources[key],text=sourceName(key)+(s.status==='stale'?' 자료가 오래되었습니다':s.status==='error'?' 자료 수집에 실패했습니다':' 자료를 받지 못했습니다');if(key==='zoneForecasts'&&s.status==='stale')text+=' (예보 기준 '+sourceTime((data.inputs||{}).zoneForecastBase||s.base||s.updatedAt)+')';return text+' (마지막 수집 '+sourceTime(s.lastSuccess||s.updatedAt)+')';});}
+    w.RiskSheet={create:create,sourceName:sourceName,sourceMessages:sourceMessages,coastRows:coastRows,seaRows:seaRows};
 })(window);

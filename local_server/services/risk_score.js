@@ -22,15 +22,17 @@ const active=warnings.filter(w=>['풍랑','태풍'].includes(w.type)&&w.state!==
 const warning=active.sort((a,b)=>(b.level==='경보')-(a.level==='경보'))[0]||null;
 const candidates=[],factors=[],missing=[];
 if(!numeric(ci))missing.push('congestion');if(!numeric(wh)||!numeric(ws))missing.push('forecast');
-if(warning){const key=warning.level==='경보'?'warn_wrn':'warn_adv';candidates.push({key,...P.SEA[key]});if(numeric(wh)&&wh>=4)candidates.push({key:'wave4m',...P.SEA.wave4m});if(numeric(ws)&&ws>=14){const k=ws>=17?'wind17':'wind14';candidates.push({key:k,...P.SEA[k]});}}
-else{const lead=T.dayOffset(t,now);if(lead===0||lead===1){const tier=(numeric(wh)&&wh>=4)||(numeric(ws)&&ws>=17)?2:(numeric(wh)&&wh>=2.5)||(numeric(ws)&&ws>=14)?1:(numeric(wh)&&wh>=2)||(numeric(ws)&&ws>=12)?0:-1;if(tier>=0)candidates.push({key:'fcst_only',tier,lead,...P.FORECAST[lead][tier]});}}
+let wave=null,wind=null;
+if(warning){const key=warning.level==='경보'?'warn_wrn':'warn_adv';candidates.push({key,...P.SEA[key]});if(numeric(wh)&&wh>=4)wave={key:'wave4m',source:'wave',threshold:4,...P.SEA.wave4m};if(numeric(ws)&&ws>=14){const k=ws>=17?'wind17':'wind14';wind={key:k,source:'wind',threshold:ws>=17?17:14,...P.SEA[k]};}}
+else{const lead=T.dayOffset(t,now);if(lead===0||lead===1){const waveTier=numeric(wh)?wh>=4?2:wh>=2.5?1:wh>=2?0:-1:-1,windTier=numeric(ws)?ws>=17?2:ws>=14?1:ws>=12?0:-1:-1;if(waveTier>=0)wave={key:'fcst_only',source:'wave',forecastOnly:true,tier:waveTier,lead,threshold:[2,2.5,4][waveTier],...P.FORECAST[lead][waveTier]};if(windTier>=0)wind={key:'fcst_only',source:'wind',forecastOnly:true,tier:windTier,lead,threshold:[12,14,17][windTier],...P.FORECAST[lead][windTier]};}}
+// 줄 순서 특보→파고→풍속: 같은 후보점수는 먼저 나온 줄을 유지한다.
+if(wave)candidates.push(wave);if(wind)candidates.push(wind);
 const picked=candidates.reduce((best,c)=>c.score>best.score?c:best,{key:null,score:0,rr:1,collisionRr:1});
 factors.push({key:'congestion',kind:'congestion',ci:numeric(ci)?ci:null,score:0,missing:!numeric(ci),applied:false});
 const warn=warning||warnings.find(w=>['풍랑','태풍'].includes(w.type))||null;
 if(warn)factors.push({key:'warning',kind:'warning',...warn,score:warning?P.SEA[warning.level==='경보'?'warn_wrn':'warn_adv'].score:0,rr:warning?P.SEA[warning.level==='경보'?'warn_wrn':'warn_adv'].rr:null,applied:picked.key?.startsWith('warn_')||false});
-factors.push({key:'wave',kind:'wave',value:wh,wh,score:picked.key==='wave4m'?picked.score:0,rr:warning&&numeric(wh)&&wh>=4?P.SEA.wave4m.rr:null,missing:!numeric(wh),applied:picked.key==='wave4m'});
-factors.push({key:'wind',kind:'wind',value:ws,ws,score:picked.key?.startsWith('wind')?picked.score:0,rr:warning&&numeric(ws)&&ws>=14?P.SEA[ws>=17?'wind17':'wind14'].rr:null,missing:!numeric(ws),applied:picked.key?.startsWith('wind')||false});
-if(picked.key==='fcst_only')factors.push({...picked,key:'forecast',kind:'forecast',applied:true});
+factors.push({...wave,key:'wave',kind:'wave',value:wh,wh,score:wave?.score||0,rr:wave?.rr??null,missing:!numeric(wh),applied:!!wave&&picked===wave});
+factors.push({...wind,key:'wind',kind:'wind',value:ws,ws,score:wind?.score||0,rr:wind?.rr??null,missing:!numeric(ws),applied:!!wind&&picked===wind});
 const ciLevel=!numeric(ci)?null:ci<1?0:ci<10?1:ci<20?2:3;
 return{...result(picked.score,factors,missing),rr:picked.rr,picked:picked.key,candidate:picked,collisionRr:picked.collisionRr,ci:numeric(ci)?ci:null,ciLevel,clickable:picked.score>0||(ciLevel!==null&&ciLevel>=1),warning:warn};}
 /** 연안 요소별 점수를 합산한다. 예: 8월 토요일 행사+혼잡2+위험4+사망→5.30.

@@ -20,7 +20,7 @@
      * [연계] RiskForecast → RiskFormat.time
      */
     function mount(el, times, selected, change) {
-        el.innerHTML = '<div class="ocean-sheet-slider-wrap"><div class="rf-divider-track"></div><input class="ocean-sheet-slider" type="range" min="0" max="' + Math.max(0,times.length-1) + '" step="1" aria-label="위험예측 시각"><div class="ocean-sheet-tooltip"></div></div>';
+        el.innerHTML = '<div class="ocean-sheet-slider-wrap"><div class="rf-divider-track"></div><input class="ocean-sheet-slider" type="range" min="0" max="' + Math.max(0,times.length-1) + '" step="1" aria-label="시간 이동"><div class="ocean-sheet-tooltip"></div></div>';
         var input = el.querySelector('input'), tip = el.querySelector('.ocean-sheet-tooltip'), dividers = el.querySelector('.rf-divider-track');
         input.value = String(Math.max(0,times.indexOf(selected)));
         for (var i=1; i<times.length; i++) if (times[i].slice(0,10) !== times[i-1].slice(0,10)) {
