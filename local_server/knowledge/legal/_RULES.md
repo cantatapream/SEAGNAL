@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 67 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 80 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -338,6 +338,19 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_mok_bulk` | ★원문결손 방: 해소된 카드 자동 닫기 · 「✓ 전체 처리」 · 지시문 .md 받기 · 버튼 잘림 (3-88) |
 | `test_reread_guard` | ★고친 canonical 은 다른 에이전트가 읽어야 한다 (1단계 1-2·1-3 · 사장님 결정 D2·D3, 2026-10-08) |
 | `test_gale_store` | 강풍(W) 별도 저장 검증 |
+| `test_risk_points` | 점수표를 원고와 대조하고 반올림한 지수의 새 단계 경계를 고정한다. |
+| `test_risk_time` | 기존 크롤러 정규화 글자·월말·해제예고·한국 날짜 시간축을 검증한다. |
+| `test_risk_score_sea` | 선택시각 예보·특보 최대후보·혼잡 결측·강풍 제외를 검증한다. |
+| `test_risk_score_coast` | 연안 합산·사망배수 분리·주말·정책값·결측 생략을 검증한다. |
+| `test_risk_static` | 배송 정적 표가 원본 관광지·위험구역·이안류·기하 계약을 보존하는지 검사한다. |
+| `test_risk_geo` | 홀·다중면·경계 포함·방위·거리·겹침 동률 기초를 검증한다. |
+| `test_risk_format` | U77·U78의 위험예측 서식·색·좌표와 HTML/URL 처리를 제품 함수로 검사한다. |
+| `test_risk_preview` | 위험예측 미리보기와 실제 앱의 원본 스위치 CSS·스크립트 순서·오버레이 연결을 검사한다. |
+| `test_risk_lifecycle` | 실제 위험예측 조율기의 실패 복구·OFF 경쟁·날짜 전환과 API TTL을 검사한다. |
+| `test_risk_map_layer` | 실제 관광지·육지·섬 원천 전체를 제품 OpenLayers 지도 층에 넣어 빈 형상 회귀를 검사한다. |
+| `test_risk_collectors` | risk_collector_io 및 세 수집기 · 운영키/외부 HTTP/푸시 호출 없음 |
+| `test_risk_store` | risk_store + 계산기 · 임시 fixture 파일만 읽고 기존 수집 파일/푸시를 수정하지 않는다. |
+| `test_risk_routes` | routes/risk_forecast.js · 임시 보고서/가짜 저장소만 사용, 수집/키/푸시 없음 |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

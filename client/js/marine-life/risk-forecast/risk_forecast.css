@@ -1,0 +1,60 @@
+/* 위험예측 전용 표시. banzone 스위치와 ocean-sheet 슬라이더 원본은 재사용한다. */
+#ocean-risk-forecast-toggle-btn { display:none; }
+body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn { display:flex !important; order:0; }
+#ocean-risk-forecast-toggle-btn .ocean-overlay-label { font-size:.6rem !important; white-space:nowrap; }
+#ocean-risk-forecast-toggle-btn .ocean-overlay-label::before,#ocean-risk-forecast-toggle-btn .ocean-overlay-label::after { content:none !important; }
+.rf-sheet { position:absolute; z-index:450; bottom:0; left:0; right:0; max-height:66%; overflow-y:auto; display:none; background:linear-gradient(180deg,#0c1a3a,#162d5a); border-radius:20px 20px 0 0; padding:9px 16px 18px; color:#e6edf8; font-size:.84rem; line-height:1.55; word-break:keep-all; overflow-wrap:break-word; box-shadow:0 -4px 25px #0007; }
+.rf-sheet.open { display:block; }
+.rf-sheet [hidden],.rf-legend [hidden] { display:none !important; }
+.rf-sheet button,.rf-basis button,.rf-legend button { min-height:24px; min-width:24px; }
+.rf-sheet-handle { width:36px; height:4px; border-radius:3px; background:#afbbcc; margin:0 auto 8px; }
+.rf-title { font-size:1rem; margin:0 30px 1px 0; color:#e6edf8; }
+.rf-subtitle { font-size:.72rem; color:#bfcbde; }
+.rf-close { position:absolute; top:10px; right:10px; }
+.rf-timeline { position:relative; margin:30px 0 14px; }
+.rf-timeline .ocean-sheet-slider-wrap { position:relative; width:100%; }
+.rf-timeline .ocean-sheet-slider { min-height:24px; min-width:24px; }
+.rf-divider-track { position:absolute; inset:8px 8px; pointer-events:none; }
+.rf-slider-labels { display:none; }
+.rf-index { position:relative; border:1px solid #ffffff30; border-radius:14px; padding:34px 12px 10px; margin-bottom:12px; background:#ffffff0d; }
+.rf-index-main { display:flex; align-items:center; gap:12px; }
+.rf-score-box { border-radius:12px; min-width:78px; padding:6px 10px; text-align:center; flex-shrink:0; }
+.rf-score-box small { display:block; font-size:.66rem; font-weight:700; }
+.rf-score-box strong { display:block; font-size:1.6rem; line-height:1.1; }
+.rf-index-prose { font-size:.84rem; }
+.rf-index-prose small { display:block; font-size:.72rem; color:#cbd5e6; }
+.rf-basis-btn { position:absolute; right:8px; top:6px; border:1px solid #ffffff55; border-radius:999px; padding:3px 9px; font-size:.7rem; background:#ffffff14; color:#e6edf8; }
+.rf-ramp { height:8px; border-radius:4px; margin-top:10px; background:linear-gradient(90deg,#2fb36b 0%,#f2c230 19.49875%,#fb923c 66.6667%,#e0322c 100%); }
+.rf-ramp-labels { display:flex; justify-content:space-between; color:#cbd5e6; font-size:.66rem; }
+.rf-t-g { color:#4ade80; } .rf-t-y { color:#facc15; } .rf-t-o { color:#fb923c; } .rf-t-r { color:#f87171; }
+.rf-muted,.rf-row small { color:#bfcbde; }
+.rf-row { border-bottom:1px solid #ffffff25; padding:8px 0; }
+.rf-row-head { display:flex; justify-content:space-between; gap:8px; font-size:.86rem; }
+.rf-row-head>span { text-align:right; }
+.rf-row-desc { font-size:.76rem; color:#bfcbde; margin-top:4px; }
+.rf-row a,.rf-hazard-link { color:#8fc3ff; }
+.rf-used { margin-left:6px; font-size:.64rem; padding:1px 5px; border-radius:6px; background:#ffd740; color:#10151f !important; white-space:nowrap; }
+.rf-notice,.rf-missing { padding:8px 10px; border:1px solid #ffffff35; border-radius:8px; margin:6px 0; background:#ffffff0a; font-size:.76rem; color:#d2dcea; }
+.rf-kinds { margin-top:10px; }
+.rf-kinds>div { display:flex; justify-content:space-between; gap:8px; }
+.rf-hazards summary { cursor:pointer; min-height:24px; color:#cfe0ff; margin-top:5px; }
+.rf-hazards ol { padding-left:18px; }
+.rf-hazards li { margin:6px 0; }
+.rf-hazard-link { background:none; border:0; padding:0; text-decoration:underline; font:inherit; text-align:left; cursor:pointer; }
+.rf-legend { display:flex; flex-direction:column; gap:5px; }
+.rf-legend[hidden],.rf-banner[hidden] { display:none !important; }
+.rf-legend .bzl-row { min-height:24px; min-width:24px; }
+.rf-map-legend { display:flex; flex-direction:column; gap:3px; color:#e6edf8; font-size:.62rem; padding:5px 8px; background:rgba(10,15,28,.94); border:1px solid var(--border-color); border-radius:10px; }
+.rf-map-legend span { display:flex; align-items:center; gap:5px; }
+.rf-line { width:18px; border-top:3px solid; display:inline-block; }
+.rf-pre { border-color:#ffd740; } .rf-adv { border-color:#ff8f1f; } .rf-wrn { border-color:#ff3b30; } .rf-day3 { border-color:#ffd740; border-top-style:dashed; }
+.rf-banner { position:absolute; bottom:10px; left:8px; right:8px; z-index:440; background:#132342ed; color:#e6edf8; padding:7px 10px; border-radius:8px; font-size:.75rem; pointer-events:none; }
+.rf-modal { position:fixed; z-index:11000; inset:0; background:rgba(4,8,18,.72); display:flex; align-items:flex-end; justify-content:center; }
+.rf-basis { width:100%; max-width:600px; max-height:88vh; overflow-y:auto; border-radius:20px 20px 0 0; background:linear-gradient(180deg,#0c1a3a,#162d5a); padding:14px 16px 20px; font-size:.82rem; line-height:1.6; color:#e6edf8; word-break:keep-all; overflow-wrap:break-word; }
+.rf-basis h3 { font-size:1rem; margin:0; color:#e6edf8; } .rf-basis h4 { color:#ffe17a; font-size:.86rem; margin:12px 0 4px; } .rf-basis p { margin:6px 0; }
+.rf-basis table { border-collapse:collapse; width:100%; margin:8px 0; font-size:.72rem; } .rf-basis th,.rf-basis td { color:#e6edf8; border:1px solid #ffffff40; padding:5px 6px; background:transparent; }
+.rf-basis .n { text-align:right; } .rf-basis .wrap { white-space:normal; }
+.rf-basis .mclose { float:right; border:0; border-radius:999px; background:#ffffff22; color:#fff; padding:4px 10px; font-size:.78rem; font-weight:700; }
+.rf-basis .pdf-btn { display:inline-block; border:1px solid #ffd74073; background:#ffd74024; color:#ffe17a; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:700; margin:6px 0 2px; }
+/* 해양종합정보에서는 안전 오버레이가 남지 않도록 화면 클래스에 묶는다. */
+body:not(.ls-safety) #risk-forecast-sheet,body:not(.ls-safety) #risk-forecast-legend,body:not(.ls-safety) #risk-forecast-banner { display:none !important; }

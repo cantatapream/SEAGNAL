@@ -1184,6 +1184,12 @@
             if (hit) return;
         }
 
+        // 위험예측 연안 원/해상 격자 클릭을 소비한다(단독 안전 오버레이).
+        // [연계] js/marine-life/risk-forecast/risk_forecast.js
+        if (typeof window._riskForecastTryHandleClick === 'function') {
+            if (window._riskForecastTryHandleClick(oceanMap, evt)) return;
+        }
+
         // 사고정보 마커/격자 클릭 확인 (해양안전 전용, 소스 선택 전이면 항상 false)
         // [연계] js/marine-life/safety/accident_info.js
         if (typeof window._accidentInfoTryHandleClick === 'function') {

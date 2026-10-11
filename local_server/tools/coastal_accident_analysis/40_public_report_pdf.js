@@ -13,11 +13,21 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { chromium } = require('playwright');
+// CI·클라우드에서는 저장소 검증과 같은 playwright-core + 시스템 Chromium도 지원한다.
+let chromium;
+try { ({ chromium } = require('playwright')); } catch (err) {
+  if (err.code !== 'MODULE_NOT_FOUND') throw err;
+  ({ chromium } = require('playwright-core'));
+}
 
 const ROOT = path.resolve(__dirname, '../../..');
 const DIR = process.env.REPORT_DIR || path.join(ROOT, 'local_server/config/coastal_safety/accident_analysis/v3/public');
 const FONT_CSS = path.join(ROOT, 'client/assets/vendor/fonts/fonts.css');
+// 글꼴을 내장하면 파일 URL을 막는 클라우드 Chromium에서도 외부 접속 없이 렌더링된다.
+const fontCss = fs.readFileSync(FONT_CSS, 'utf8').replace(/url\(([^)]+)\)/g, (_, value) => {
+  const font = path.resolve(path.dirname(FONT_CSS), value.replace(/['"]/g, ''));
+  return 'url(data:font/woff2;base64,' + fs.readFileSync(font).toString('base64') + ')';
+});
 const DOCS = ['해상_위험지수_산출근거', '연안_위험지수_산출근거'];
 
 /**
@@ -114,18 +124,20 @@ b{font-weight:700}
 `;
 
 (async () => {
-  const browser = await chromium.launch();
+  const executablePath = process.env.CHROMIUM_EXECUTABLE || process.env.PW_CHROME ||
+    (fs.existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined);
+  const browser = await chromium.launch({ executablePath, args: ['--no-sandbox'] });
   for (const name of DOCS) {
     const src = path.join(DIR, name + '.md');
     if (!fs.existsSync(src)) { console.log('없음(건너뜀):', src); continue; }
     const md = fs.readFileSync(src, 'utf8');
     const title = (md.match(/^#\s+(.*)$/m) || [, name])[1];
     const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${inline(title)}</title>` +
-      `<link rel="stylesheet" href="file://${FONT_CSS}"><style>${CSS}</style></head><body>${mdToHtml(md)}</body></html>`;
+      `<style>${fontCss}\n${CSS}</style></head><body>${mdToHtml(md)}</body></html>`;
     const htmlPath = path.join(DIR, name + '.html');
     fs.writeFileSync(htmlPath, html);
     const page = await browser.newPage();
-    await page.goto('file://' + htmlPath, { waitUntil: 'networkidle' });
+    await page.setContent(html, { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
     await page.pdf({
       path: path.join(DIR, name + '.pdf'), format: 'A4', printBackground: true, preferCSSPageSize: true,

@@ -249,6 +249,21 @@ if (require.main === module) (async () => {
     //   짝을 못 찾아 그 시나리오가 조용히 통과 처리된다(검사가 약해진다).
     //   화면상의 이름은 2026-09-10 부터 "해양안전생활" 이다.
     await clickTab('ocean-life-group', '메인탭 재진입:해양생활');
+    // 실제 앱 버튼을 열어 기본 층·닫힌 시트·OFF 상태를 확인한다. 자료 결측은 상태 배너로 드러난다.
+    try {
+        await page.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').click());
+        await page.waitForFunction(() => window._riskForecastApp && !document.getElementById('risk-forecast-legend').hidden, null, {timeout:15000});
+        const ok = await page.evaluate(() => {
+            const state=window._riskForecastApp.getState();
+            return state.enabled && state.coast && !state.sea && !state.selected && !document.getElementById('risk-forecast-sheet').classList.contains('open');
+        });
+        if (!ok) throw new Error('기본 층 또는 초기 시트 상태 불일치');
+        await page.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').click());
+        const off=await page.evaluate(() => !window._riskForecastApp.getState().enabled && document.getElementById('risk-forecast-legend').hidden && document.getElementById('risk-forecast-banner').hidden);
+        scenarios.push({label:'위험예측:실제앱 기본층·OFF',target:'ocean-risk-forecast-toggle-btn',ok:off,required:true});
+    } catch(e) {
+        scenarios.push({label:'위험예측:실제앱 기본층·OFF',target:'ocean-risk-forecast-toggle-btn',ok:false,required:true,error:String(e).slice(0,150)});
+    }
     for (const t of LIFE_SUBTABS) await clickTab(t, `서브탭:${t}`);
 
     // ★판정 전에 404 본문 읽기를 **다 기다린다**(G-38).
@@ -324,7 +339,7 @@ if (require.main === module) (async () => {
     const lostGlobals = base.globalFunctions.filter((g) => !result.globalFunctions.includes(g));
     const brokenScenarios = result.scenarios.filter((s) => {
         const b = base.scenarios.find((x) => x.label === s.label);
-        return b && b.ok && !s.ok; // 기준선에서 되던 것이 안 되면 회귀
+        return (s.required || (b && b.ok)) && !s.ok; // 새 필수 시나리오도 기준선 등록 전부터 검사
     });
 
     // ★「자료 파일이 없어서 나는 404」는 회귀가 아니다 — 다만 **숨기지는 않는다**(G-34 의 교훈).
