@@ -16,7 +16,7 @@
  *                  "강풍이 왔는데 모양이 달라 버려졌다"를 "안 왔다"로 오판하지 않으려고.
  *   - 적대검증 : 2026-10-10 독립 리뷰 반영 — 빈 응답 글리치 한 번에 0행으로 덮지 않음 · 기록 중복 방지 열쇠를
  *                24시간 기억 · 행 순서를 정렬해 순서만 바뀐 응답에 다시 쓰지 않음 · 판정 기준을 크롤러 _isLiveRow 와 같게
- *   - 읽는 곳  : (구현 예정) 해양안전 탭 「연안 위험분석」
+ *   - 읽는 곳  : 해양안전 탭 「위험예측」 — 본문 savedAt은 변경 시각, risk_forecast/gale_status.json checkedAt은 성공 확인 시각
  *   - 검사     : scripts/test_gale_store.js
  *
  * [로드 순서] 서버 모듈 — require 시점 부작용 없음(파일은 save() 를 부를 때만 쓴다).
@@ -114,6 +114,13 @@ function save(fetched, opts = {}) {
         fs.appendFileSync(path.join(dir, 'gale_warnings_log.jsonl'), lines);
     }
     for (const r of all) _seen.set(rowKey(r), t);
+    // 본문/기록은 기존 변경 때만 쓰는 규칙을 지키고, 수집 성공 시각만 위험예측 전용 파일에 남긴다.
+    const statusDir = path.join(dir, 'risk_forecast');
+    fs.mkdirSync(statusDir, { recursive: true });
+    const statusFile = path.join(statusDir, 'gale_status.json');
+    const statusTmp = statusFile + '.' + process.pid + '.tmp';
+    fs.writeFileSync(statusTmp, JSON.stringify({ checkedAt: now.toISOString() }));
+    fs.renameSync(statusTmp, statusFile);
     return { count: rows.length, wrote, appended: fresh.length, odd: all.length - rows.length };
 }
 

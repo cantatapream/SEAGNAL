@@ -1,0 +1,5 @@
+{
+  "now": "2024-08-03T09:17:00+09:00",
+  "sea": {"t":"2024-08-03T12:00:00+09:00","ci":12,"wh":4.4,"ws":18,"warnings":[{"type":"풍랑","level":"경보","state":"발효"}]},
+  "coast": {"t":"2024-08-03T12:00:00+09:00","spot":{"beach":true,"hazard":{"count":4,"fatal":true}},"concentration":31,"events":[{"name":"검증 행사","source":"https://example.org/event"}],"swell":{"periodS":11}}
+}

@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 111개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 119개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -87,6 +87,15 @@ client/js/
 │   │   ├── mudflat.js
 │   ├── ripcurrent/
 │   │   ├── ripcurrent.js
+│   ├── risk-forecast/
+│   │   ├── risk_api.js
+│   │   ├── risk_basis_content.js
+│   │   ├── risk_basis.js
+│   │   ├── risk_forecast.js
+│   │   ├── risk_format.js
+│   │   ├── risk_map_layer.js
+│   │   ├── risk_sheet.js
+│   │   ├── risk_slider.js
 │   ├── safety/
 │   │   ├── access_control.js
 │   │   ├── accident_geocode_review_person.js
@@ -138,7 +147,7 @@ client/js/
 │   │   ├── cctv4.js
 │   │   ├── ocean_cctv.js
 │   ├── coastal-risk/
-│   │   └── mock/
+│   │   ├── mock/
 │   ├── layers/
 │   │   ├── shrt_forecast_layer.js
 │   │   ├── tide_field.js
@@ -300,6 +309,19 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `ripcurrent.js` | 이안류 지수 프론트엔드 전체 로직 (지도형 — 스킨스쿠버 방식) |
+
+### `client/js/marine-life/risk-forecast/`
+
+| 파일 | 역할 |
+|------|------|
+| `risk_api.js` | 위험예측 API의 응답을 제한 시간 안에 받고 입력 시각별로 캐시한다. |
+| `risk_basis.js` | 확정된 기준 상세 문안을 대화창으로 열고 원본 PDF 다운로드를 연결한다. |
+| `risk_basis_content.js` | 확정 시안 BASIS 문안을 그대로 보관한다. 동적인 API 데이터는 이 문자열에 섞지 않는다. |
+| `risk_forecast.js` | 해양안전의 위험예측 버튼·두 층·서버 시각·지도와 바텀시트를 함께 조율한다. |
+| `risk_format.js` | 서버가 계산한 점수·배수를 글자와 표시색으로 바꾼다. 점수 판정은 하지 않는다. |
+| `risk_map_layer.js` | 해상 격자·연안 분할 원·특보 테두리와 선택 구역을 OpenLayers에 그린다. |
+| `risk_sheet.js` | 서버가 판정한 해상·연안 상세 응답을 고정 문장 틀과 바텀시트로 표시한다. |
+| `risk_slider.js` | 서버 KST 시간축 배열을 기존 해양종합정보 슬라이더 모양으로 표시한다. |
 
 ### `client/js/marine-life/safety/`
 

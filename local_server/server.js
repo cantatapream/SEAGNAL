@@ -286,6 +286,7 @@ const cctvSeafogRouter = require('./routes/cctv_seafog');
 app.use(cctvSeafogRouter);
 app.use(require('./routes/ocean1'));        // 해양종합정보 API (수심/ROMS/기상/파고/저질)
 app.use(require('./routes/ocean2'));        // ROMS 격자/저질 API
+app.use(require('./routes/risk_forecast'));  // 위험예측 시간축·점수·산출근거 PDF API
 app.use(require('./routes/ocean3'));        // 해양현황 날씨/바람 API (zone_forecasts 기반)
 app.use(require('./routes/ocean4'));        // 해양현황 파고/zone-forecasts 오버레이 API
 app.use(require('./routes/pressure'));     // 바텀시트 기압 카드 API (OpenWeather 해면기압)
@@ -499,6 +500,12 @@ app.listen(PORT, '0.0.0.0', () => {
             }
         } catch (e) {
             console.error('[startup] CCTV 초기수집 트리거 실패:', e && e.message);
+        }
+
+        // 위험예측은 운영에서만 외부 수집. 각 실패는 다른 수집기와 서버 응답을 막지 않는다.
+        for (const name of ['sea_traffic_collector', 'tour_concentration_collector', 'coastal_events_collector']) {
+            try { require('./services/' + name).start(); }
+            catch (_) { console.error('[startup] 위험예측 수집기 시작 실패:', name); }
         }
 
         // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).

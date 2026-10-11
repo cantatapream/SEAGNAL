@@ -1,0 +1,32 @@
+/** 역할: 위험예측 저장소의 원천 스키마·월말·결측·테두리 시각·수집 실패 응답을 검증한다.
+ * [연계] risk_store + 계산기 · 임시 fixture 파일만 읽고 기존 수집 파일/푸시를 수정하지 않는다.
+ */
+'use strict';
+const fs=require('fs'),path=require('path'),os=require('os'),io=require('../services/risk_collector_io'),{createStore,timestamp}=require('../services/risk_store'),run=require('./risk_test_helpers');
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'risk-store-')),dataDir=path.join(root,'data'),dir=path.join(root,'risk'),configDir=path.join(root,'config'),clientDir=path.join(root,'client');
+const now=Date.parse('2026-10-31T12:17:00+09:00'),t='2026-10-31T15:00:00+09:00',next='2026-11-01T12:00:00+09:00';
+const write=(base,file,value)=>io.write(path.join(base,file),value);
+write(configDir,'risk_spots.json',{_about:{hash:'test'},spots:[{id:'one',name:'관광지',lat:35,lon:129,sgg_name:'부산광역시 중구',major:92,warnZone:'부산앞바다',galeZone:null,beach:false,station:null,coastCell:'92-1',ripBeach:null,hazard:{count:0,zones:[]},geometry:{type:'Polygon',coordinates:[]}}]});
+write(clientDir,'assets/warn_zones.geojson',{features:[]});write(clientDir,'assets/warn_zones_land_coastal.geojson',{features:[]});
+write(dataDir,'weather_alerts.json',{updatedAt:new Date(now).toISOString(),current:{남해:{'부산앞바다':{current:null,upcoming:{wrnTp:'풍랑',wrnLvl:'예비',tmEf:'31일 15시'},children:{'부산앞바다 자식':null}}}}});
+write(dataDir,'gale_warnings.json',{updatedAt:new Date(now).toISOString(),rows:[]});
+write(dataDir,'zone_forecasts.json',{updatedAt:new Date(now).toISOString(),data:{92:[{tm:'2026103103',wh:4,ws:5},{tm:'2026103106',wh:4,ws:5},{tm:'2026110103',wh:2,ws:8}]}});
+write(dir,'sea_cells.json',{v:1,cellDeg:.025,cells:[{i:0,id:'a',haegu:{major:92,sub:1},warnZone:'부산앞바다',warnSubZone:null,ref:{name:'가까운 항구',bearingDeg:45,bearingWord:'북동'}}]});
+write(dir,'sea_traffic.json.gz',{date:'2026-10-31',collectedAt:new Date(now).toISOString(),frames:{202610311500:[{gridId:'a',congestionIndex:12}]}});
+write(dir,'tour_concentration.json',{date:'2026-10-31',collectedAt:new Date(now).toISOString(),values:{one:{'2026-10-31':25,'2026-11-01':50}}});
+write(dir,'events_202610.json',{month:'2026-10',collectedAt:new Date(now).toISOString(),events:[]});
+write(dir,'events_202611.json',{month:'2026-11',collectedAt:new Date(now).toISOString(),events:[{name:'다음 달 행사',spotId:'one',start:'2026-11-01',end:'2026-11-02',src:'https://city.example/event'}]});
+const store=createStore({dir,dataDir,configDir,clientDir,clock:()=>now});
+try{run({
+ 'KST 한국어 갱신 시각 파싱':a=>a.equal(timestamp('2026. 10. 31. 오후 12:17:00'),now),
+ '관측 wall-clock은 호스트 timezone과 무관한 KST':a=>a.equal(timestamp('2026-10-31 12:17'),now),
+ 'meta 시간축 규정 끝·정적 표 버전':a=>{const m=store.meta();a.equal(m.timeline.sea.times.at(-1),'2026-11-01T23:00:00+09:00');a.equal(m.timeline.coast.times.at(-1),'2026-11-02T21:00:00+09:00');a.equal(m.versions.spots,'test');},
+ '월말 다음 달 행사 파일을 슬라이더 날짜에 사용':a=>{const r=store.coastDetail('one',next);const event=r.rows.find(r=>r.key==='event');a.equal(event.name,'다음 달 행사');a.equal(event.score,1.09);a.equal(r.missing.includes('events'),false);},
+ '연안 예비 안내 유지·테두리는 시작 시각부터 주의보색':a=>{const before=store.frame(false,'2026-10-31T14:00:00+09:00'),after=store.frame(false,t);a.equal(before.borders[0].color,'pre');a.equal(after.borders[0].color,'adv');a.equal(store.coastDetail('one',t).notices.find(n=>n.key==='warning').prelim[0],'풍랑주의보');},
+ '부모 특보를 native null 자식에 상속하지 않음':a=>{write(dir,'sea_cells.json',{cells:[{i:0,id:'a',haegu:{major:92,sub:1},warnZone:'부산앞바다',warnSubZone:'부산앞바다 자식'}]});store.invalidate();const r=store.seaDetail('a',t);a.equal(r.rows.some(r=>r.key==='warning'),false);a.equal(r.rows.find(r=>r.key==='forecastOnly').rr,4.34);},
+ '혼잡 실패는 정상캐시 유지하며 날씨만 계산·자료없음 표출':a=>{write(dir,'congestion_status.json',{status:'error',lastError:'HTTP 500'});store.invalidate();const r=store.seaDetail('a',t);a.equal(r.rows.find(r=>r.key==='congestion').ci,null);a.ok(r.missing.includes('congestion'));a.equal(store.frame(true,t).cells.length,1);a.equal(store.sources().congestion.status,'error');a.equal(io.read(path.join(dir,'sea_traffic.json.gz')).frames['202610311500'][0].congestionIndex,12);},
+ '예보 끝 밖에서는 과거 풍속·파고 연장 금지':a=>{const r=store.coastDetail('one','2026-11-02T21:00:00+09:00');a.ok(r.missing.includes('forecast'));a.equal(r.inputs.forecastAt,null);},
+ '시각·없는 지점 400/404와 준비 전 503':a=>{a.throws(()=>store.coastDetail('one','2026-10-31T15:00:00'),e=>e.status===400);a.throws(()=>store.coastDetail('one','2040-01-01T00:00:00Z'),e=>e.status===400);a.throws(()=>store.coastDetail('missing',t),e=>e.status===404);const empty=createStore({dir:path.join(root,'empty'),dataDir:path.join(root,'empty'),configDir:path.join(root,'empty'),clientDir,clock:()=>now});a.throws(()=>empty.spots(),e=>e.status===503);a.equal(empty.sources().warnings.status,'missing');},
+ '강풍은 본문 변경 시각보다 성공 heartbeat로 freshness 판단':a=>{write(dataDir,'gale_warnings.json',{savedAt:'2026-10-01T00:00:00Z',rows:[]});write(dir,'gale_status.json',{checkedAt:new Date(now).toISOString()});store.invalidate();a.equal(store.sources().gale.status,'ok');a.equal(store.sources().gale.checkedAt,new Date(now).toISOString());},
+ '손상 JSON은 missing과 구별한 error':a=>{fs.writeFileSync(path.join(dataDir,'weather_alerts.json'),'{bad');store.invalidate();a.equal(store.sources().warnings.status,'error');}
+});}finally{fs.rmSync(root,{recursive:true,force:true});}

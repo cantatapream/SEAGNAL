@@ -9,6 +9,8 @@
 |--------------|---------|
 | 🗺️ **구조가 궁금하다** — 폴더가 어떻게 짜여 있고 각 파일이 뭘 하는지 | **[ARCHITECTURE.md](ARCHITECTURE.md)** (설계도면) |
 | 🛠️ **코드를 추가·수정하려 한다** | **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** (개발지침) — 작업 전 필독 |
+| 🌊 위험예측 화면·계산·수집 구조를 확인한다 | [위험예측 개발 안내](client/js/marine-life/risk-forecast/guide.md) |
+| 🌊 위험예측 검증 결과와 남은 실수집 조건을 확인한다 | [위험예측 검증 기록](client/js/marine-life/risk-forecast/validation.md) |
 | 📐 왜 이렇게 정리했나 (리팩토링 배경) | [00_docs/REFACTORING_PROPOSAL_STRUCTURE.md](00_docs/REFACTORING_PROPOSAL_STRUCTURE.md) |
 
 ## 빠른 실행

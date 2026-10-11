@@ -1,0 +1,70 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>위험예측 미리보기</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/assets/vendor/ol/ol.css"><link rel="stylesheet" href="/js/marine-life/risk-forecast/risk_forecast.css"><style>
+body{display:block;margin:0;background:#07152a;color:#e6edf8}.rf-preview{position:relative;width:100%;max-width:430px;height:calc(100dvh - 42px);min-height:500px;margin:auto;overflow:hidden}.rf-preview-header{height:42px;max-width:430px;margin:auto;padding:8px;font-size:.8rem}#risk-preview-map{position:absolute;inset:0}.rf-preview .ocean-legend-stack{position:absolute;top:12px;left:8px;z-index:300}.rf-preview .rf-sheet{max-height:58%}
+        .ocean-legend-stack > .banzone-legend,
+        .ocean-legend-stack > .rf-legend > .banzone-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            /* 재질은 "전국 통계" 버튼(.accident-filter-reset-btn)과 같게 맞춘다
+               [2026-09-09 사용자 확정] — 같은 자리에 나란히 뜨는 요소라 톤이 어긋나면
+               따로 노는 상자처럼 보인다. 모서리만 두 줄짜리 상자에 맞게 알약(999px)
+               대신 12px 로 둔다. */
+            background: rgba(10, 15, 28, 0.94);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 4px;
+        }
+        .banzone-legend .bzl-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 8px;
+            border: 0;
+            border-radius: 999px;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 700;
+            white-space: nowrap;
+            /* 글자색은 "전국 통계" 버튼(.accident-filter-reset-btn)과 같게 — 지정하지 않으면
+               버튼이 상위에서 색을 물려받아 노랗게 나온다(사용자 지적 2026-09-09). */
+            color: var(--text-sub);
+        }
+        /* 색칩(네모) 없이 **글자 색으로** 구분한다 — 지도 폴리곤과 같은 색
+           (access_control.js 빨강 / fishing_ban.js 주황). */
+        .banzone-legend .bzl-row-ac .bzl-name { color: rgb(255, 82, 82); }
+        .banzone-legend .bzl-row-fb .bzl-name { color: rgb(255, 152, 0); }
+        .banzone-legend .bzl-name { flex: 1 1 auto; text-align: left; }
+        /* 꺼진 줄은 흐리게 — 색은 남겨 어느 구역인지 계속 알아볼 수 있게 한다 */
+        .banzone-legend .bzl-row:not(.on) .bzl-name { opacity: 0.4; }
+        /* 켜고 끄는 스위치(작은 토글 모양) */
+        .banzone-legend .bzl-switch {
+            position: relative;
+            width: 28px;
+            height: 16px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.25);
+            flex: 0 0 auto;
+            transition: background 0.15s;
+        }
+        .banzone-legend .bzl-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fff;
+            transition: left 0.15s;
+        }
+        /* 켜짐 색은 "분석/현황" 토글의 활성 색과 같게 맞춘다(사용자 확정 2026-09-09).
+           손잡이는 켜짐·꺼짐 모두 흰색으로 둔다(사용자 확정). */
+        .banzone-legend .bzl-row.on .bzl-switch { background: var(--accent-yellow); }
+        .banzone-legend .bzl-row.on .bzl-switch::after { left: 14px; }
+
+</style></head><body class="ls-safety"><div class="rf-preview-header">위험예측 · <span id="preview-mode"></span></div><main class="rf-preview"><div id="risk-preview-map"></div><div class="ocean-legend-stack"><div class="rf-legend" id="risk-forecast-legend"></div></div><div class="rf-banner" id="risk-forecast-banner" hidden></div><div class="rf-sheet" id="risk-forecast-sheet"></div></main><script src="/assets/vendor/ol/ol.js"></script><script src="/js/ocean-map/map/ocean_map.js"></script><script src="/js/marine-life/risk-forecast/risk_format.js"></script><script src="/js/marine-life/risk-forecast/risk_api.js"></script><script src="/js/marine-life/risk-forecast/risk_map_layer.js"></script><script src="/js/marine-life/risk-forecast/risk_slider.js"></script><script src="/js/marine-life/risk-forecast/risk_sheet.js"></script><script src="/js/marine-life/risk-forecast/risk_basis_content.js"></script><script src="/js/marine-life/risk-forecast/risk_basis.js"></script><script src="/js/marine-life/risk-forecast/risk_forecast.js"></script><script>
+(function(){document.getElementById('preview-mode').textContent='실제 자료';var map=new ol.Map({target:'risk-preview-map',layers:[window.oceanCreateKhoaLayer('coast')],view:new ol.View({center:ol.proj.fromLonLat([129.1604,35.1587]),zoom:12})});window.riskPreviewMap=map;window.riskPreview=RiskForecast.mount({map:map,sheetEl:document.getElementById('risk-forecast-sheet'),legendEl:document.getElementById('risk-forecast-legend'),bannerEl:document.getElementById('risk-forecast-banner')});map.on('singleclick',function(evt){window.riskPreview.tryHandleClick(evt);});})();
+</script></body></html>

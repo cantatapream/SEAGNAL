@@ -16,6 +16,7 @@
  *                    marine-life/*(fishing·surfing·scuba·mudflat·sea_parting·swimming — 활동 로직 그대로 재사용),
  *                    forecast/alerts/marine.js(TAB_GROUP_SUBTABS·SECTION_TO_GROUP·switchSubTab)
  *  - 서버 API      : 없음 (활동별 데이터 호출은 각 활동 모듈이 기존대로 담당)
+ *                    risk-forecast/risk_forecast.js — 단독 오버레이 및 시트 가시성 조율
  *  - 마크업        : index2.html 의 #ocean-safety-section, #ocean-safety-sub-tabs,
  *                    #ls-topleft-controls, #ls-rail,
  *                    .main-tabs .tab-btn[data-target="ocean-life-group"](N 배지를 붙이는 탭) ·
@@ -287,7 +288,7 @@
         //   ⚠이 시트만 열림 표시가 'active' 가 아니라 'open' 이다 — 아래 _sync 참고.
         var ids = ['fishing-bottomsheet', 'mudflat-bottomsheet', 'scuba-bottomsheet',
                    'rip-bottomsheet', 'surfing-popup', 'swim-bottomsheet',
-                   'accident-stats-sheet'];
+                   'accident-stats-sheet', 'risk-forecast-sheet'];
         var els = [];
         for (var i = 0; i < ids.length; i++) {
             var el = document.getElementById(ids[i]);
@@ -889,8 +890,9 @@
     // 5-B. 해양안전 오버레이 단독 표출 (2026-09-09 사용자 확정)
     // ========================================================================
 
-    /** 해양안전 화면 우측 버튼 8개 — 이 중 하나만 켜지게 한다. */
+    /** 해양안전 화면 우측 오버레이 버튼 — 이 중 하나만 켜지게 한다. */
     var SOLO_BTN_IDS = [
+        'ocean-risk-forecast-toggle-btn', // 위험예측
         'ocean-terrain-toggle-btn',   // 위험지형
         'ocean-accident-toggle-btn',  // 사고정보
         'ocean-banzone-toggle-btn',   // 금지구역
