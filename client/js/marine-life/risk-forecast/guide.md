@@ -27,7 +27,13 @@ Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 �
 
 관광지 집중률은 사용자 첨부 `한국관광공사_OpenAPI_활용매뉴얼(관광지집중률방문자추이예측정보)_v4.1`을 기준으로 한다. 호출 주소는 `B551011/TatsCnctrRateService/tatsCnctrRatedList`이며 필수 항목은 `serviceKey`, `MobileOS`, `MobileApp`, `areaCd`, `signguCd`다. `_type=json`, `pageNo`, `numOfRows`를 함께 보내고 선택 검색 항목은 `tAtsNm`이다. 응답 관광지명도 대소문자를 포함해 **`tAtsNm`**이며, `baseYmd`와 `cnctrRate`로 날짜별 값을 연결한다. 공식 XML 예제의 7개 응답 필드를 수집기 회귀 검사에 반영했다. 앱의 시군구 코드 60개는 첨부 코드표에 모두 있다.
 
-사용자가 제공한 해양교통 혼잡 예보 REST 화면에서 호출 주소 `B554035/sea-tfc-congst-fcst/get_sea_tfc_congst_fcst`와 `fcstDate=YYYYMMDD`, `fcstTime=HHmm`, `gridLevel=4`, `type=json`, `pageNo`, `numOfRows`를 확인했다. 화면의 승인과 기존 서버 키 일치를 확인했다. 사용자 제공 성공 호출 기록은 2026-10-10 12:00에 4단계 총 6,165칸이며, 헤더는 `200 / NORMAL_SERVICE`다. 공통 요청기는 이 조합을 정상 응답으로 받아들이고 `153 / NOT_FOUND_DATA`를 성공으로 취급하지 않는다. 당시 응답 원본 전체와 현재 클라우드의 성공 응답은 아직 확보하지 못했다. 포털 미리보기의 `153 / NOT_FOUND_DATA`와 클라우드의 HTTP400·코드10은 다른 결과로 기록하며, 인증키를 제외한 실제 요청 주소로 대조해야 한다. 날짜·시간이 다른 조회를 동일 조건의 응답으로 취급하지 않는다. 인증키는 문서나 시험 파일에 기록하지 않는다.
+사용자가 제공한 해양교통 혼잡 예보 REST 화면과 당일 F12 성공 기록에서 GET 주소 `B554035/sea-tfc-congst-fcst/get_sea_tfc_congst_fcst`, `fcstDate=YYYYMMDD`, `fcstTime=HHmm`, `gridLevel=4`, `type=json`, `pageNo`, `numOfRows`를 확인했다. 공공데이터포털의 공개 Swagger2.0 명세도 같은 필수 항목7개를 제공한다. 기존 서버 키와 사용자 키의 디코딩 후 일치 여부를 확인했고 값은 기록하지 않았다.
+
+사용자의 2026-10-11 13:00·격자4 직접 GET은 HTTP200·`200 / NORMAL_SERVICE`, 전체5,666개였다. 첫10개 응답은 현재 파서가 모두 받아들이며 같은 시각 MTIS 표의 좌표·혼잡 단계·풍속·파고와 불일치0건이다. 공통 요청기는 정상 코드200/메시지 조합을 허용하고 `153 / NOT_FOUND_DATA`를 성공으로 취급하지 않는다. 과거10월10일12시 성공의 전체6,165개와 당일 자료를 구분한다.
+
+클라우드에서는 동일 경로·조건·인코딩의 공공 API 요청이 HTTP400·코드10을 반환한다. 사용자 성공 요청의 실제 주소를 이미 확보했으므로 주소 미확보를 남은 조건으로 제시하지 않는다. 일반 브라우저 헤더와 Node/curl 전송도 대조했지만 원인은 미확정이다. 인증키나 쿠키를 문서·시험 파일에 기록하지 않으며 오류를 정상 자료로 대체하지 않는다.
+
+MTIS 공개 웹의 지도·표 POST는 새 익명 세션으로 클라우드에서 HTTP200·5,666개를 확인했다. 이 웹 계약의 실제 좌표는 `ctrptYCrd=경도`, `ctrptXCrd=위도`이며, 지도 문자열 `"null"`과 표 JSON null은 결측으로 해석한다. 응답과 엑셀 설정에는 수치 `congestionIndex`와 생성시각 `fcstCreateDateTime`이 없어 기존 공식 수집기의0.1 필터·상세값을 대체할 수 없다. 단계에서 숫자 혼잡지수를 만들어 넣지 않는다. 구체적인 증거와 실제 수집의 남은 제한은 [검증 기록](validation.md)에 남긴다.
 
 ## 검사
 
