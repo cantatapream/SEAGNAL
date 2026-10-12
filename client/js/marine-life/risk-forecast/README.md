@@ -19,3 +19,5 @@
 [해상 통합 설계·수집 계약·보류 작업 목록](marine_fusion.design.md)
 
 작업의 사용자 취지·검토 과정·운영 확인·보류 과제 재개 순서는 루트 [handoff_marine_fusion.md](../../../../handoff_marine_fusion.md)에 정리했다.
+
+과제11의 수집 일정과 실제 요청 템플릿은 [행사 수집 프롬프트](coastal_events_prompt.design.md)에 정리했다. 매월 말일−3일03:20 KST 일정은 유지하고 전체 검색 유형·목표 월·공식 원문/주소/후보 재확인 조건을 명시했다.

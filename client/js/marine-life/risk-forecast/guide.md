@@ -87,3 +87,7 @@ bash scripts/refactor/verify_all.sh
 
 ## 해상 통합 확장
 `risk_marine.js`의 render·briefing·history는 서버 분석을 HTML로 표시하고, 모든 원천 문자열을 escape한다. 공식 단계와 현재 척수의 기준·시각을 분리한다. 해상 상세와 관할 브리핑은 sea/analysis와 sea/briefing의 같은 종합 결과를 사용한다. 현재 수집은 sea_realtime_collector·mtis_live_web, 반복 예보 저장은 marine_congestion_codec, 분석은 marine_fusion이다. 상세 계약과 후속 과거자료 작업은 [marine_fusion.design.md](marine_fusion.design.md)에 기록했다.
+
+## 과제11: 월말 행사 수집과 프롬프트
+
+행사 수집은 KST 달력의 말일−3일03:20에 다음 달 누락/실패 자료를 수집한다. 정상 월 캐시는 유지하며 원래 예약과 재시도 로직은 변경하지 않았다. 기존 요약 검색 문구를 수상·해안 육상·낚시·야간·물때·지역/계절축제·해수욕장 개폐장·에어쇼·함정 공개로 확장하고 목표 월 범위를 명시했다. 전월 후보는 현재 공식 원문으로 재확인하며 실제 주소/기간과 HTTPS 원문을 요구한다. 실제 템플릿·검증 범위·grounding/공식 소유 도메인 확인의 한계는 [행사 수집 프롬프트](coastal_events_prompt.design.md)를 본다.
