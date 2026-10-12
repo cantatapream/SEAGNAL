@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_forecast.js
- * 역할  : 연안 분석과 공식 선박 사고·혼잡 예보를 독립 요청하고 지도·시각·상세 시트를 조율한다.
+ * 역할  : 연안 분석과 공식 선박 사고·혼잡 예보를 독립 요청하고 지도·시각·상세 시트와 휴대폰 뒤로가기 순서를 조율한다.
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
@@ -34,7 +34,14 @@
         legend.innerHTML='<div class="banzone-legend" role="group" aria-label="위험예측 보기"><button type="button" class="bzl-row on" data-layer="coast" aria-pressed="true"><span class="bzl-name">연안 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button><button type="button" class="bzl-row" data-layer="sea" aria-pressed="false"><span class="bzl-name">해상 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button></div><div class="rf-map-legend"><span><i class="rf-line rf-pre"></i>예비특보</span><span><i class="rf-line rf-adv"></i>주의보</span><span><i class="rf-line rf-wrn"></i>경보</span><span data-coast-legend><i class="rf-line rf-day3"></i>특보급 날씨 가능성(3일째)</span><div class="rf-accident-key" data-sea-legend hidden>점·점선 = 공단 선박 혼잡 (실제 선박 위치·척수 아님) <span><i style="border:2px dashed #b8c5da;background:transparent"></i>낮음</span> · <span><i style="border:2px dashed #74b9ff;background:transparent"></i>보통</span> · <span><i style="border:2px dashed #d47cff;background:transparent"></i>높음</span> · <span><i style="border:2px dashed #ff5fe3;background:transparent"></i>매우높음</span></div><div class="rf-accident-key" data-accident-legend hidden>면 = 공단 선박 사고예보 <span><i style="background:#2fb36b"></i>낮음</span> · <span><i style="background:#f2c230"></i>보통</span> · <span><i style="background:#fb923c"></i>주의</span> · <span><i style="background:#e0322c"></i>경계</span></div></div>';
         legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));legend.querySelector('[data-'+kind+'-legend]').hidden=!state[kind];if(kind==='sea')legend.querySelector('[data-accident-legend]').hidden=!state.sea;if((selected&&(selected.kind===kind||(kind==='sea'&&selected.kind==='accident')))||(choosing&&kind==='coast'))clearSelection();refresh();});
         function message(text) {if(banner){banner.textContent=text;banner.hidden=!text;}}
-        function clearSelection(){detailSeq++;selected=null;choosing=false;sheet.clear();layer.setSelection(null);w.RiskBasis.close();}
+        function clearSelection(){if(w.PopupStack)w.PopupStack.remove('risk-forecast-sheet');detailSeq++;selected=null;choosing=false;sheet.clear();layer.setSelection(null);w.RiskBasis.close();}
+        /**
+         * 열린 시트를 기존 휴대폰 뒤로가기 관리자에 등록한다.
+         * 예: 기준창이 열려도 기존 시트 항목은 다시 쌓지 않는다.
+         * @param 없음 @returns {void}
+         * [연계] select/detail → core/backbutton.js의 PopupStack, 뒤로가기 시 창부터 닫는다.
+         */
+        function registerSheet(){if(w.PopupStack)w.PopupStack.push('risk-forecast-sheet',clearSelection);}
         function nearest(times,value){return times.reduce(function(a,b){return Math.abs(Date.parse(b)-Date.parse(value))<Math.abs(Date.parse(a)-Date.parse(value))?b:a;},times[0]);}
         /**
          * 두 날의 시간별 혼잡 예보와 세 날의 3시간별 공식 사고 예보를 한 조회 축으로 합친다.
@@ -47,7 +54,7 @@
         function selectionTimes(kind){return kind==='coast'?meta.timeline.coast.times:seaTimes();}
         function select(kind,id,location){
             if(!enabled||!state[kind==='accident'?'sea':kind]||disposed)return;
-            if(Array.isArray(id)){var choices=table.coast.spots.filter(function(p){return id.includes(p.id);});clearSelection();choosing=true;sheet.choose(choices);return;}
+            if(Array.isArray(id)){var choices=table.coast.spots.filter(function(p){return id.includes(p.id);});clearSelection();choosing=true;sheet.choose(choices);registerSheet();return;}
             var item=(kind==='coast'?table.coast.spots:table[kind].cells).find(function(p){return p.id===id;});if(!item)return;
             if(!selected||selected.id!==id||selected.kind!==kind)layer.setSelection(kind,id);
             choosing=false;selected={kind:kind,id:id,item:item,location:kind==='accident'&&location&&Number.isFinite(location.lon)&&Number.isFinite(location.lat)?{lon:location.lon,lat:location.lat}:null};if(meta){t=nearest(selectionTimes(kind),t||meta.now);w.RiskSlider.mount(sheet.timelineEl,selectionTimes(kind),t,function(value){t=value;refresh();});}refresh();
@@ -55,8 +62,8 @@
         async function hazard(id){var snapshot=selected;try{var fc=await api.get('hazard-zones',{ids:id});if(enabled&&selected===snapshot&&selected&&state.coast)layer.showHazards(fc);}catch(e){console.warn('[위험예측] 위험구역 요청 실패',failureInfo(e));if(enabled&&!disposed&&selected===snapshot)message('위험구역 자료를 불러오지 못했습니다 — '+e.message);}}
         async function detail(){
             if(!selected||!enabled)return;var n=++detailSeq,s=selected,at=t;
-            try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;}var d=await api.get(s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||t!==at)return;sheet.show(d,s.kind,s.item);}
-            catch(e){console.warn('[위험예측] 상세 요청 실패',failureInfo(e));if(n===detailSeq&&enabled&&selected===s&&t===at)sheet.error(e.message);}
+            try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;}var d=await api.get(s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||t!==at)return;sheet.show(d,s.kind,s.item);registerSheet();}
+            catch(e){console.warn('[위험예측] 상세 요청 실패',failureInfo(e));if(n===detailSeq&&enabled&&selected===s&&t===at){sheet.error(e.message);registerSheet();}}
         }
         async function refresh(){
             if(!meta||disposed)return;var n=++seq,at=t,freshAccident=accidentFresh;layer.setActive(state,enabled);legend.hidden=!enabled;
