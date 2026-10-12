@@ -2,6 +2,13 @@
 
 > 이 문서는 다른 세션이 대화 내역이나 현재 작업 폴더의 임시 패치 없이도 **현재 구현의 취지, 확정한 동작, 검증 수준, 미완료 과제, 다음 작업 순서**를 이해하도록 작성했다. 사용자에게 승인된 현재 우선 작업은 해상 통합이다. 기존 연안 UI 등의 과제는 중단 상태를 유지하며, 통합 완료 뒤 충돌 부분을 논의하고 재개한다. 인증키·쿠키·CSRF·관리자 비밀번호는 여기에 기록하지 않는다.
 
+## 최종 전달 위치
+
+- PR/머지 링크: <https://github.com/cantatapream/SEAGNAL/pull/1371>.
+- 최초 기능·인계 문서 커밋: `74d51f5bfdcb1322d9adcb91f27207d9ef5c8735`. 이어지는 문서 커밋은 이 실제 PR 링크와 전달 상태만 추가한다.
+- 전달 시점 PR 상태는 OPEN/일반 PR(초안 아님), 충돌 없이 MERGEABLE이며 GitHub의 `verify_all.sh 전체 실행`은 진행 중이었다. 로컬 전체 게이트는 exit0, 83개 스위트3,376 PASS / 0 FAIL이다. 다음 세션은 원격 CI/머지/배포의 현재 상태를 이 기록과 별도로 확인한다.
+- main 머지·Fly 배포는 이 작업에서 실행하지 않았다. 보류 과제는 그대로 보존했다.
+
 ## 1. 먼저 읽을 핵심 상태
 
 - 기준 main: `05da45e5e3777b37fa14e9d444beedcc070d3b42` — PR #1370 머지 직후의 코드. 다음 세션에서는 실제 main/PR 상태를 다시 확인한다.
@@ -14,7 +21,7 @@
 - 사용자는 Fly에 `MTIS_ACCIDENT_SERVICE_KEY`를 설정하고 배포했다고 알렸다. 이 개발환경에는 해당 비밀 바인딩이 없으므로 인증 API의 실제 성공이나 현재 Fly 정상 수집을 확인했다고 주장하지 않는다.
 - 이전 PR #1369(공식 사고·혼잡), #1370(휴대폰 뒤로가기 포함 통합)은 사용자에 의해 이미 머지되었다. 옛 패치를 다시 적용하지 않는다.
 
-이번 PR 찾기: `gh pr list --repo cantatapream/SEAGNAL --head codex/marine-traffic-fusion --json number,url,state,title`.
+이번 PR 찾기: `gh pr list --repo cantatapream/SEAGNAL --head codex/marine-traffic-fusion --state all --json number,url,state,title`.
 비교 링크: <https://github.com/cantatapream/SEAGNAL/compare/main...codex/marine-traffic-fusion>.
 
 ## 2. 사용자가 만드는 서비스의 목적
