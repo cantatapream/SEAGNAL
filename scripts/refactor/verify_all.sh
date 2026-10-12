@@ -124,7 +124,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_codex_bridge test_fav_tide_prefetch test_picture_text test_ordin_fresh test_scan_fail_honest test_collect_approved test_mok_brief test_mok_excerpt test_scan_catchup test_mok_bulk test_reread_guard test_gale_store
   test_risk_points test_risk_time test_risk_score_sea test_risk_score_coast test_risk_static test_risk_geo
   test_risk_format test_risk_preview test_risk_lifecycle test_risk_map_layer
-  test_risk_collectors test_risk_store test_risk_routes test_risk_accident)
+  test_risk_collectors test_risk_store test_risk_routes test_risk_accident test_marine_fusion test_marine_ui)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi

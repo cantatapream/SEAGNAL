@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_map_layer.js
- * 역할  : 공식 사고 격자 면·혼잡 격자 선/점·연안 분석과 특보 경계를 구별해 그린다.
+ * 역할  : 해상은 단일 GR4의 연속 면색·확대 척수와 선택 경계로, 연안은 기존 분석으로 표시한다.
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
@@ -20,10 +20,10 @@
      * [연계] RiskForecast → OpenLayers
      */
     function create(map, select) {
-        var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], active={coast:true,sea:false}, selection=null, zones={}, land=[], maskKey='', maskCanvas=null;
-        ['accident','sea','coast','borders','hazard','selection','shore','points'].forEach(function (k,i) {
+        var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], trafficCells=[], unifiedCells=[], unified=false, unifiedMode=null, visible=false, active={coast:true,sea:false}, selection=null, zones={}, land=[], maskKey='', maskCanvas=null;
+        ['accident','sea','marine','traffic','coast','borders','hazard','selection','shore','points'].forEach(function (k,i) {
             sources[k]=new ol.source.Vector();
-            layers[k]=new ol.layer.Vector({source:sources[k], zIndex:130+i, className:'rf-'+k+'-canvas'});
+            layers[k]=new ol.layer.Vector({source:sources[k], zIndex:130+i, className:'rf-'+k+'-canvas',declutter:k==='traffic'});
             map.addLayer(layers[k]);
         });
         function read(g) { return geo.readGeometry(g,{dataProjection:'EPSG:4326',featureProjection:map.getView().getProjection()}); }
@@ -64,6 +64,10 @@
         }
         layers.accident.on('postrender',function (e) { mask(e,'sea'); });
         layers.sea.on('postrender',function (e) { mask(e,'sea'); });
+        layers.traffic.on('postrender',function (e) { mask(e,'sea'); });
+        // 색 경계만 부드럽게 하고 숫자와 원본 값은 별도로 유지한다.
+        layers.marine.on('prerender',function(e){if(e.context)e.context.filter='blur(6px)';});
+        layers.marine.on('postrender',function(e){if(e.context)e.context.filter='none';mask(e,'sea');});
         layers.coast.on('postrender',function (e) { mask(e,'coast'); });
         function landGeometry(g,island) {
             if (!g) return;
@@ -83,7 +87,29 @@
             var failed=outcomes.filter(function(x){return x.status==='rejected';});
             if(failed.length) throw new Error(failed.map(function(x){return x.reason.message;}).join(' / '));
         }
-        function setTables(c,s,a) { cells=c.cells||[]; spots=s.spots||[]; accidentCells=a&&a.cells||[]; }
+        function setTables(c,s,a,current) { cells=c.cells||[]; spots=s.spots||[]; accidentCells=a&&a.cells||[];if(current)trafficCells=current.cells||[]; }
+        /** 원본 GR4 경계 하나로 면색을 표시하고 숫자는 확대할 때만 보여준다.
+         * 예: 현재21척 숫자, 혼잡점·중복 사고격자선 없음.
+         * @param {object} table - 공통 경계 @param {object} frame - 선택 항목
+         * @returns {void} [연계] ← RiskForecast / 사고 원본 지수는 색단계만 유지.
+         */
+        function drawUnified(table,frame){
+            unified=true;unifiedMode=frame.mode;unifiedCells=table.cells||[];sources.marine.clear();sources.traffic.clear();
+            var byIndex=new Map(unifiedCells.map(function(c){return[c.i,c];})),palette=frame.mode==='current'?{'여유':'#56a66f','보통':'#dbc753','주의':'#e58b46','혼잡':'#d64b45'}:frame.mode==='congestion'?{'낮음':'#56a66f','보통':'#dbc753','높음':'#e58b46','매우높음':'#d64b45'}:{'낮음':'#56a66f','관심':'#dbc753','보통':'#dbc753','주의':'#e58b46','경계':'#d64b45'};
+            (frame.cells||[]).forEach(function(v){
+                var c=byIndex.get(v[0]),color=Number.isFinite(v[3])&&w.RiskMarine?w.RiskMarine.color(v[3]):palette[v[2]];if(!c||!color)return;
+                var g=c.geometry||{type:'Polygon',coordinates:[[[c.lon-.0125,c.lat-.0125],[c.lon+.0125,c.lat-.0125],[c.lon+.0125,c.lat+.0125],[c.lon-.0125,c.lat+.0125],[c.lon-.0125,c.lat-.0125]]]};
+                add('marine',g,{kind:'marine',id:c.id,mode:frame.mode,level:v[2],colorValue:v[3]},new ol.style.Style({fill:new ol.style.Fill({color:color.startsWith('rgb(')?rgba(color,.5):color+'80'})}));
+                if(frame.mode==='current'){var f=add('traffic',{type:'Point',coordinates:[c.lon,c.lat]},{id:c.id,count:v[1]},null);if(f)f.setStyle(function(feature,resolution){return resolution<80?new ol.style.Style({text:new ol.style.Text({text:String(v[1]),font:'bold 12px sans-serif',fill:new ol.style.Fill({color:'#fff'}),stroke:new ol.style.Stroke({color:'#10223d',width:3})})}):[];});}
+            });
+            layers.sea.setVisible(false);layers.accident.setVisible(false);layers.traffic.setVisible(visible&&active.sea&&frame.mode==='current');layers.marine.setVisible(visible&&active.sea);
+        }
+
+        /** 현재 척수는 원본 GR4 격자의 숫자로 겹쳐 표시한다. 예: 21척, 실제 선박 위치 점 아님.
+         * @param {object} frame - [i,count,density,trafficLevel] @returns {void}
+         * [연계] ← RiskForecast.refresh / 공식 사고 면색과 혼잡 예보 테두리는 유지한다.
+         */
+        function drawCurrent(frame){sources.traffic.clear();if(frame.status&&frame.status.status!=='ok')return;var byIndex=new Map(trafficCells.map(function(c){return[c.i,c];}));(frame.cells||[]).forEach(function(v){var c=byIndex.get(v[0]);if(!c)return;var g=c.geometry||{type:'Polygon',coordinates:[[[c.lon-.0125,c.lat-.0125],[c.lon+.0125,c.lat-.0125],[c.lon+.0125,c.lat+.0125],[c.lon-.0125,c.lat+.0125],[c.lon-.0125,c.lat-.0125]]]};add('traffic',g,{kind:'traffic',id:c.id,count:v[1]},new ol.style.Style({stroke:new ol.style.Stroke({color:'rgba(255,255,255,.35)',width:.5}),fill:new ol.style.Fill({color:'rgba(0,0,0,0)'}),text:new ol.style.Text({text:String(v[1]),font:'bold 12px sans-serif',fill:new ol.style.Fill({color:'#fff'}),stroke:new ol.style.Stroke({color:'#10223d',width:3})})}));});}
         function drawCoast(frame) {
             sources.coast.clear();sources.points.clear();var centers=new Map();
             (frame.spots||[]).forEach(function (v) {
@@ -136,7 +162,7 @@
             var changed=!selection||selection.kind!==kind||selection.id!==id;
             selection=kind?{kind:kind,id:id}:null; sources.selection.clear(); if(changed||!selection)sources.hazard.clear();
             if(!selection)return;
-            var f=sources[kind].getFeatures().find(function(f){return f.get('id')===id;});
+            var f=sources[kind]&&sources[kind].getFeatures().find(function(f){return f.get('id')===id;});
             if(f){var copy=f.clone();copy.setStyle(new ol.style.Style({stroke:new ol.style.Stroke({color:'#fff',width:kind==='sea'?2:2.5})}));sources.selection.addFeature(copy);}
             if(kind==='coast'){var p=spots.find(function(p){return p.id===id;});if(p){var center=new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([p.lon,p.lat])));center.setStyle(new ol.style.Style({image:new ol.style.Circle({radius:6,stroke:new ol.style.Stroke({color:'#fff',width:2.5})})}));sources.selection.addFeature(center);}}
         }
@@ -146,7 +172,8 @@
             if(features.length)map.getView().fit(sources.hazard.getExtent(),{padding:[55,55,Math.min(map.getSize()[1]*0.5,300),55],duration:250,maxZoom:16});
         }
         function setActive(state,enabled) {
-            active=state; layers.coast.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);layers.accident.setVisible(enabled&&state.sea);
+            active=state;visible=enabled; layers.coast.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);layers.accident.setVisible(enabled&&state.sea);layers.traffic.setVisible(enabled&&state.sea);
+            if(unified){layers.sea.setVisible(false);layers.accident.setVisible(false);layers.traffic.setVisible(enabled&&state.sea&&unifiedMode==='current');}layers.marine.setVisible(enabled&&state.sea&&unified);
             ['borders','shore','selection','hazard'].forEach(function(k){layers[k].setVisible(enabled&&(state.coast||state.sea));});
         }
         function hit(evt) {
@@ -154,12 +181,14 @@
             // 그림에서 잘린 쪽은 클릭도 막는다. 겹친 육지와 섬은 합집합으로 판정한다.
             var landHit=land.some(function(p){var geom=new ol.geom.Polygon(p.rings);return geom.intersectsCoordinate(evt.coordinate);});
             var wanted=landHit?'coast':'sea'; if(!active[wanted])return false;
+            if(wanted==='sea'&&unified){var f=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers.marine?f:null;},{layerFilter:function(l){return l===layers.marine;},hitTolerance:0});if(f){var p=ol.proj.toLonLat(evt.coordinate);select('marine',f.get('id'),{lon:p[0],lat:p[1]});return true;}return false;}
+            if(wanted==='sea'){var current=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers.traffic?f:null;},{layerFilter:function(l){return l===layers.traffic;},hitTolerance:0});if(current){var currentPoint=ol.proj.toLonLat(evt.coordinate);select('traffic',current.get('id'),{lon:currentPoint[0],lat:currentPoint[1]});return true;}}
             if(wanted==='sea'){var accident=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers.accident?f:null;},{layerFilter:function(l){return l===layers.accident;},hitTolerance:0});if(accident){var lonLat=ol.proj.toLonLat(evt.coordinate);select('accident',accident.get('id'),{lon:lonLat[0],lat:lonLat[1]});return true;}}
             var feature=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers[wanted]?f:null;},{layerFilter:function(l){return l===layers[wanted];},hitTolerance:2});
             if(feature){select(wanted,feature.get('id'));return true;}return false;
         }
         function destroy(){Object.keys(layers).forEach(function(k){map.removeLayer(layers[k]);});}
-        return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawBorders:drawBorders,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,destroy:destroy};
+        return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawCurrent:drawCurrent,drawUnified:drawUnified,drawBorders:drawBorders,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,destroy:destroy};
     }
     w.RiskMapLayer={create:create};
 })(window);

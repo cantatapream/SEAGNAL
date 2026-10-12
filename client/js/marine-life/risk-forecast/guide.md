@@ -84,3 +84,6 @@ bash scripts/refactor/verify_all.sh
 ## 과제1: 휴대폰 뒤로가기
 
 실제 열린 관광지 선택목록·상세·오류 시트는 기존 `PopupStack`의 `risk-forecast-sheet`에 등록한다. 기준 설명창은 `risk-forecast-basis`에 쌓여 첫 뒤로가기에서 기준창, 다음에서 시트를 닫는다. 주기 상세 갱신은 스택 순서를 바꾸지 않는다. 직접 닫기·층 OFF·전체 OFF·destroy는 항목을 제거하며, 지연 응답이 닫힌 시트를 다시 열지 않는다. 시간 선택은 닫기로 초기화하지 않는다. 후속 과제6의 즉시 스켈레톤도 열린 순간 같은 스택에 등록해야 한다.
+
+## 해상 통합 확장
+`risk_marine.js`의 render·briefing·history는 서버 분석을 HTML로 표시하고, 모든 원천 문자열을 escape한다. 공식 단계와 현재 척수의 기준·시각을 분리한다. 해상 상세와 관할 브리핑은 sea/analysis와 sea/briefing의 같은 종합 결과를 사용한다. 현재 수집은 sea_realtime_collector·mtis_live_web, 반복 예보 저장은 marine_congestion_codec, 분석은 marine_fusion이다. 상세 계약과 후속 과거자료 작업은 [marine_fusion.design.md](marine_fusion.design.md)에 기록했다.

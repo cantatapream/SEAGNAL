@@ -7,7 +7,7 @@
 const express=require('express'),path=require('path'),fs=require('fs');
 const {createStore}=require('../services/risk_store');
 /** 위험예측 전용 라우터를 만든다. 예: 검사에서는 가짜저장소로계약확인. @param {object} options @returns {Router} [연계] ← server.js */
-function createRouter({store=createStore(),reportDir=path.join(__dirname,'..','config','coastal_safety','accident_analysis','v3','public')}={}){
+function createRouter({store=createStore(),marine=require('../services/marine_fusion').createStore({risk:store}),reportDir=path.join(__dirname,'..','config','coastal_safety','accident_analysis','v3','public')}={}){
     const router=express.Router(),base='/api/risk-forecast';
     /** 실패를 상태 포함 JSON으로 보낸다. 예: 자료준비전503. @param {function} fn @param {number} maxAge @returns {function} [연계] ← route handlers */
     function handle(fn,maxAge=60){return(req,res)=>{try{res.set('Cache-Control',maxAge?'public, max-age='+maxAge:'no-store');res.json({ok:true,...fn(req),sources:store.sources()});}catch(e){res.status(e.status||503).set('Cache-Control','no-store').json({ok:false,error:e.status?e.message:'위험예측 자료 처리 실패',sources:store.sources()});}};}
@@ -15,6 +15,13 @@ function createRouter({store=createStore(),reportDir=path.join(__dirname,'..','c
     router.get(base+'/status',handle(()=>({now:store.meta().now,sources:store.sources(true)}),0));
     router.get(base+'/coast/spots',handle(()=>store.spots(),86400));
     router.get(base+'/sea/cells',handle(()=>store.cells(),3600));
+    router.get(base+'/sea/traffic-cells',handle(()=>marine.tables(),60));
+    router.get(base+'/sea/current',handle(()=>marine.current(),0));
+    router.get(base+'/sea/unified-cells',handle(()=>marine.unifiedCells(),60));
+    router.get(base+'/sea/unified-frame',handle(req=>marine.unifiedFrame(req.query.mode,req.query.t),0));
+    router.get(base+'/sea/analysis',handle(req=>marine.analysis(req.query),0));
+    router.get(base+'/sea/jurisdictions',handle(()=>marine.jurisdictionList(),86400));
+    router.get(base+'/sea/briefing',handle(req=>marine.briefing(req.query.id,req.query.t),0));
     router.get(base+'/sea/accident-cells',handle(()=>store.accidentCells(),3600));
     router.get(base+'/sea/accident-frame',handle(req=>store.accidentFrame(req.query.t)));
     router.get(base+'/sea/accident-cell',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('사고 격자 id 필요'),{status:400});return store.accidentDetail(req.query.id,req.query.t,{lon:req.query.lon,lat:req.query.lat});}));

@@ -146,6 +146,11 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     function hazards(ids){const all=io.read(path.join(configDir,'coastal_hazard_zones.wgs84.geojson'));if(!all)throw Object.assign(new Error('위험구역 자료 준비 전'),{status:503});return{type:'FeatureCollection',features:all.features.filter(f=>ids.includes(f.properties.name))};}
     /** 섬원본과공통육지geometry를 준다. 예: 서버·화면동일해안선. @returns {object} [연계] ← /islands */
     function islands(){refresh();return{...io.read(path.join(configDir,'island_outlines.geojson')),landGeometry:staticTable?.landGeometry||null};}
-    return{meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,seaDetail,frame,hazards,islands,invalidate(){loadedAt=-Infinity;}};
+    /** 공유 예보 캐시를 복제하지 않고 해상 통합 분석에 제공한다. 예: 기상 조회는 기존 forecast 재사용.
+     * @returns {object} 예보·경계·상태·버전 @param 없음
+     * [연계] ← marine_fusion / 원천 파일과 기상 캐시의 중복 상주를 막는다.
+     */
+    function marineInputs(){refresh();return{version:inputVersion,congestion:cache.congestion.data,accident:cache.accident.data,cells:cache.cells.data,sources:sources(),weather:forecast};}
+    return{meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,seaDetail,frame,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
 }
 module.exports={createStore,zoneName,timestamp,utcForecast};

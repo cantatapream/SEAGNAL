@@ -109,6 +109,8 @@ if (require.main === module) (async () => {
     //   (실제로 이번에 그랬고, 다시 돌리니 안 났다 — 그러면 원인을 영영 모른다).
     //   회귀 판정에는 쓰지 않는다(콘솔 에러 쪽이 이미 잡는다). **진단을 위해 남길 뿐이다.**
     const server5xx = [];
+    // 403의 실제 주소도 남긴다. 브라우저의 공통 문구만으로 원인을 놓치지 않으며 판정은 유지한다.
+    const forbidden403 = [];
     page.on('console', (msg) => {
         if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 300));
     });
@@ -155,6 +157,10 @@ if (require.main === module) (async () => {
         } catch (_) { return false; }
     }
     page.on('response', (res) => {
+        if (res.status() === 403) {
+            const resource = new URL(res.url());
+            forbidden403.push(resource.origin + resource.pathname); // 쿼리의 인증 정보는 출력하지 않는다.
+        }
         if (res.status() >= 500 && res.url().startsWith(URL_BASE)) {
             const at = server5xx.length;
             server5xx.push(res.status() + ' ' + res.url().replace(URL_BASE, ''));
@@ -273,15 +279,17 @@ if (require.main === module) (async () => {
         await page.evaluate(() => document.querySelector('#risk-forecast-legend [data-layer="sea"]').click());
         await page.waitForFunction(() => {
             const layers = getOceanMap().getLayers().getArray();
-            return ['rf-accident-canvas', 'rf-sea-canvas'].every(name => layers.some(layer => layer.getClassName() === name && layer.getVisible()));
+            return ['rf-marine-canvas'].every(name => layers.some(layer => layer.getClassName() === name && layer.getVisible()));
         }, null, {timeout:15000});
         const officialLayers = await page.evaluate(() => {
             const layers = getOceanMap().getLayers().getArray();
             const visible = name => layers.some(layer => layer.getClassName() === name && layer.getVisible());
-            const key = document.querySelector('#risk-forecast-legend [data-accident-legend]');
-            return _riskForecastApp.getState().sea && visible('rf-accident-canvas') && visible('rf-sea-canvas') && key && !key.hidden && key.textContent.includes('경계');
+            const key = document.querySelector('.rf-color-legend [data-accident-legend]');
+            return _riskForecastApp.getState().sea && visible('rf-marine-canvas') && !visible('rf-accident-canvas') && !visible('rf-sea-canvas') && key && !key.hidden && key.textContent.includes('경계');
         });
         scenarios.push({label:'위험예측:공식 사고·혼잡 동시층',target:'ocean-risk-forecast-toggle-btn',ok:!!officialLayers,required:true});
+        const marineWired=await page.evaluate(()=>!!window.RiskMarine && !!document.querySelector('#risk-forecast-legend [data-marine-brief]') && getOceanMap().getLayers().getArray().some(l=>l.getClassName()==='rf-marine-canvas'));
+        scenarios.push({label:'해상통합:현재 교통·관할 브리핑 연결',target:'ocean-risk-forecast-toggle-btn',ok:marineWired,required:true});
         await page.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').click());
         const off=await page.evaluate(() => !window._riskForecastApp.getState().enabled && document.getElementById('risk-forecast-legend').hidden && document.getElementById('risk-forecast-banner').hidden);
         scenarios.push({label:'위험예측:실제앱 기본층·OFF',target:'ocean-risk-forecast-toggle-btn',ok:off,required:true});
@@ -401,6 +409,10 @@ if (require.main === module) (async () => {
     }
     if (realErrors.length) {
         fail = true; console.error('  ❌ 신규 콘솔 에러:'); realErrors.slice(0, 10).forEach((e) => console.error('    - ' + e));
+        if (realErrors.some((e) => /status of 403\b/.test(e))) {
+            console.error('  ↳ 이번 주행에서 403을 낸 주소(쿼리 제외):');
+            [...new Set(forbidden403)].forEach((url) => console.error('      ' + url));
+        }
         // 콘솔 문구만으로는 어느 주소인지 모른다 — 우리가 따로 적어 둔 5xx 목록을 함께 준다.
         if (server5xx.length) {
             console.error('  ↳ 이번 주행에서 5xx 를 낸 주소:');

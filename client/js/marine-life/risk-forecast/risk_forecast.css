@@ -76,3 +76,27 @@ body:not(.ls-safety) #risk-forecast-sheet,body:not(.ls-safety) #risk-forecast-le
 .rf-weather-title { margin:12px 0 4px; color:#cfe0ff; font-size:.86rem; }
 
 .rf-official-basis { display:block; margin:0 0 8px auto; border:1px solid #ffffff55; border-radius:999px; padding:3px 9px; font-size:.7rem; font-weight:700; background:#ffffff14; color:#e6edf8; }
+/* 해역 종합·관할 브리핑: 현재 관측과 미래 예보를 분리하고 긴 목록은 접어 표시한다. */
+.rf-marine-section,.rf-marine-summary{margin:12px 0;padding:12px;border:1px solid rgba(160,180,210,.3);border-radius:10px}
+.rf-marine-summary{background:rgba(65,105,180,.15)}
+.rf-marine-section h4,.rf-marine-summary h4{margin:0 0 8px}
+.rf-marine-metrics,.rf-marine-composition{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+.rf-marine-metrics span,.rf-marine-composition span{padding:6px 8px;background:rgba(120,150,200,.1);border-radius:6px}
+.rf-marine-reasons{padding-left:20px}.rf-marine-reasons li{margin:9px 0}.rf-marine-reasons small{display:block;color:#98abc7}
+.rf-marine-table{width:100%;border-collapse:collapse}.rf-marine-table th,.rf-marine-table td{padding:7px;border-bottom:1px solid rgba(160,180,210,.25);text-align:left}
+.rf-marine-region{width:100%;text-align:left;padding:9px;background:rgba(80,125,195,.2);color:inherit;border:1px solid #607998;border-radius:7px}
+.rf-brief-controls{max-width:270px;padding:8px}.rf-brief-controls select{max-width:100%;width:100%;padding:8px;margin:8px 0;background:#1d304e;color:#fff;border:1px solid #6f87a6;border-radius:6px}
+.rf-brief-controls button{padding:8px;background:#315c95;color:#fff;border:1px solid #7792b4;border-radius:6px}
+
+.rf-marine-modes{display:flex;gap:4px;margin:6px 0}.rf-marine-modes button{padding:5px 7px;color:#d7e5ff;background:#1d304e;border:1px solid #5f7899;border-radius:6px;font-size:12px}.rf-marine-modes button[aria-pressed="true"]{background:#365fc0;color:#fff}.rf-mini-key{display:flex;gap:7px;font-size:11px}.rf-mini-key span{white-space:nowrap}.rf-mini-key i{display:inline-block;width:9px;height:9px;margin-right:3px;border-radius:2px}.rf-brief-controls [data-current-stamp]{display:block;margin-top:5px;font-size:11px}.rf-brief-controls{padding:5px 8px}
+
+.rf-marine-compact .banzone-legend{display:flex;gap:4px}.rf-marine-compact .bzl-row{padding:5px 7px;min-height:32px;font-size:12px}.rf-marine-compact .bzl-switch{display:none}.rf-marine-caption{display:block;font-size:12px;margin-top:6px}.rf-map-time{font-size:11px;margin:4px 0}.rf-map-time .rf-slider{margin:0;padding:0}.rf-map-time .rf-slider input{height:20px}.rf-marine-compact .rf-map-legend{margin-top:3px}.rf-marine-compact .rf-marine-modes{margin:3px 0}
+
+/* 사고정보 .accident-grid-legend와 같은 상자; 색상막대와4개문구만 별도 내용이다. */
+.rf-color-legend{position:fixed;left:8px;bottom:calc(var(--main-tab-height,68px) + 8px + 25px);z-index:150;display:flex;flex-direction:column;gap:4px;width:150px;padding:7px 9px;background:rgba(10,15,28,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--border-color,#334155);border-radius:8px;font-size:.64rem;color:var(--text-sub,#94a3b8);box-sizing:border-box;pointer-events:none}
+body.sub-tabs-open .rf-color-legend{bottom:calc(var(--main-tab-height,68px) + var(--sub-tab-height,50px) + 8px + 25px)}
+body.ls-mode.ls-safety .rf-color-legend{bottom:calc(var(--ls-bottom-chrome,68px) + 6px + 25px)}
+body.ls-mode.ls-safety.ls-mudflat-on .rf-color-legend{bottom:calc(var(--ls-bottom-chrome,68px) + 2.25rem + 6px + 25px)}
+.rf-color-legend[hidden]{display:none}.rf-color-legend .rf-marine-caption{margin:0;text-align:left;font-size:inherit;font-weight:700;color:var(--text-main,#eaf1fa);background:none}.rf-color-legend .rf-mini-key{display:block}.rf-gradient-bar{height:6px;border-radius:3px;background:linear-gradient(to right,#56a66f 0%,#dbc753 33.333%,#e58b46 66.666%,#d64b45 100%)}.rf-gradient-labels{display:flex;justify-content:space-between;margin-top:4px;font-size:inherit}
+
+.rf-legend-change{animation:rf-legend-change .65s ease-out 1}@keyframes rf-legend-change{0%,100%{opacity:1}35%{opacity:.45}}@media(prefers-reduced-motion:reduce){.rf-legend-change{animation:none}}

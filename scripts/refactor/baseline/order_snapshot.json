@@ -126,6 +126,7 @@
     "risk_api.js",
     "risk_map_layer.js",
     "risk_slider.js",
+    "risk_marine.js",
     "risk_sheet.js",
     "risk_basis_content.js",
     "risk_basis.js",
