@@ -66,3 +66,13 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 @media (prefers-reduced-motion:reduce) { .rf-sheet *,.rf-basis *,.rf-legend *,.rf-legend *::after { transition:none !important; } }
 /* 해양종합정보에서는 안전 오버레이가 남지 않도록 화면 클래스에 묶는다. */
 body:not(.ls-safety) #risk-forecast-sheet,body:not(.ls-safety) #risk-forecast-legend,body:not(.ls-safety) #risk-forecast-banner { display:none !important; }
+
+/* 공식 선박 사고 면색과 혼잡 선/점은 서로 다른 범례로 읽는다. */
+.rf-accident-key { border-top:1px solid #ffffff30; padding-top:5px; margin-top:3px; }
+.rf-accident-key span { display:flex; align-items:center; gap:5px; }
+.rf-accident-key i { width:10px; height:10px; border-radius:2px; display:inline-block; }
+.rf-official { border:1px solid #ffffff30; border-radius:12px; padding:10px; margin:10px 0; }
+.rf-official>strong { color:#cfe0ff; }
+.rf-weather-title { margin:12px 0 4px; color:#cfe0ff; font-size:.86rem; }
+
+.rf-official-basis { display:block; margin:0 0 8px auto; border:1px solid #ffffff55; border-radius:999px; padding:3px 9px; font-size:.7rem; font-weight:700; background:#ffffff14; color:#e6edf8; }

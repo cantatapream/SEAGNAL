@@ -31,7 +31,7 @@
             var p = (async function () {
                 var c = new AbortController(), timer = setTimeout(function () { c.abort(); },15000);
                 try {
-                    var r = await fetch(url, {signal:c.signal}), j = await r.json();
+                    var r = await fetch(url, {signal:c.signal,cache:fresh?'no-store':'default'}), j = await r.json();
                     if (!r.ok || j.ok === false) {var error=new Error(j.error || 'HTTP ' + r.status);error.status=r.status;throw error;}
                     cache.set(url,{value:j,at:Date.now()});
                     if (cache.size > 150) cache.delete(cache.keys().next().value);

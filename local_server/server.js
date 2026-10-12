@@ -503,7 +503,7 @@ app.listen(PORT, '0.0.0.0', () => {
         }
 
         // 위험예측은 운영에서만 외부 수집. 각 실패는 다른 수집기와 서버 응답을 막지 않는다.
-        for (const name of ['sea_traffic_collector', 'tour_concentration_collector', 'coastal_events_collector']) {
+        for (const name of ['sea_traffic_collector', 'sea_accident_collector', 'tour_concentration_collector', 'coastal_events_collector']) {
             try { require('./services/' + name).start(); }
             catch (_) { console.error('[startup] 위험예측 수집기 시작 실패:', name); }
         }

@@ -1,11 +1,11 @@
 /**
- * 역할: 기존 수집 파일을 읽어 슬라이더 시각의 연안·해상 점수와 자료 상태를 함께 만든다.
- * [연계] risk_points/time/score, data/risk_forecast 수집 파일 → routes/risk_forecast.
+ * 역할: 기존 연안 점수와 공식 선박사고 예보·혼잡·해구 기상을 선택시각에 맞춰 읽는다.
+ * [연계] risk_points/time/score/geo, sea_accident_collector의 배열·경계 → routes/risk_forecast.
  * [로드 순서] 서버 require에 수집 부작용 없음. 기존 수집 파일은 절대로 쓰지 않는다.
  */
 'use strict';
 const fs=require('fs'),path=require('path');
-const io=require('./risk_collector_io'),T=require('./risk_time'),S=require('./risk_score');
+const io=require('./risk_collector_io'),T=require('./risk_time'),S=require('./risk_score'),G=require('./risk_geo'),A=require('./sea_accident_collector');
 const ROOT=path.join(__dirname,'..'),CLIENT=path.join(ROOT,'..','client');
 /** 구역의 공백·점표기를 통일한다. 예: 인천.경기→인천·경기. @param {string} s @returns {string} [연계] ← flattenWarnings */
 function zoneName(s){return String(s||'').replace(/\./g,'·').replace(/\s/g,'');}
@@ -25,7 +25,7 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     function refresh(force=false){const now=clock(),today=io.day(now);if(!force&&today===loadedDay&&now-loadedAt<30000)return cache;
         const visibleMonths=new Set(T.timeline(now,3,3,21).map(t=>T.dateKey(t).slice(0,7)));
         const files=['weather_alerts.json','gale_warnings.json','zone_forecasts.json','ripcurrent_index.json','swell_smallzone.json.gz'].map(f=>path.join(dataDir,f));
-        files.push(...['sea_traffic.json.gz','tour_concentration.json','sea_cells.json','events_status.json','congestion_status.json','tourConcentration_status.json','gale_status.json','congestion_quota.json','tourConcentration_quota.json'].map(f=>path.join(dir,f)));
+        files.push(...['sea_traffic.json.gz','sea_accident.json.gz','accident_status.json','accident_quota.json','tour_concentration.json','sea_cells.json','events_status.json','congestion_status.json','tourConcentration_status.json','gale_status.json','congestion_quota.json','tourConcentration_quota.json'].map(f=>path.join(dir,f)));
         for(const month of visibleMonths)for(const suffix of ['.json','_status.json'])files.push(path.join(dir,'events_'+month.replace('-','')+suffix));
         files.push(path.join(configDir,'risk_spots.json'),path.join(clientDir,'assets','warn_zones.geojson'),path.join(clientDir,'assets','warn_zones_land_coastal.geojson'));
         const version=files.map(file=>{try{const st=fs.statSync(file);return[file,st.mtimeMs,st.size,st.ino];}catch{return[file,null];}});
@@ -33,9 +33,9 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         loadedAt=now;loadedDay=today;cache.sourceInfo=null;if(!changed&&cache.warnings)return cache;cache.warningMap=null;
         const read=(name,filename)=>{const file=path.join(dataDir,filename),data=io.read(file);cache[name]={data,exists:fs.existsSync(file)};};
         read('warnings','weather_alerts.json');read('gale','gale_warnings.json');read('zoneForecasts','zone_forecasts.json');read('ripCurrent','ripcurrent_index.json');read('swell','swell_smallzone.json.gz');
-        for(const [key,file]of Object.entries({congestion:'sea_traffic.json.gz',tourConcentration:'tour_concentration.json',cells:'sea_cells.json',events:'events_'+io.day(now).slice(0,7).replace('-','')+'.json'})){const filename=path.join(dir,file);cache[key]={data:io.read(filename),exists:fs.existsSync(filename)};}
+        for(const [key,file]of Object.entries({congestion:'sea_traffic.json.gz',accident:'sea_accident.json.gz',tourConcentration:'tour_concentration.json',cells:'sea_cells.json',events:'events_'+io.day(now).slice(0,7).replace('-','')+'.json'})){const filename=path.join(dir,file);cache[key]={data:io.read(filename),exists:fs.existsSync(filename)};}
         cache.events.months={};cache.events.attempts={};cache.events.monthExists={};for(const key of visibleMonths){const file=path.join(dir,'events_'+key.replace('-','')+'.json');cache.events.months[key]=io.read(file);cache.events.monthExists[key]=fs.existsSync(file);cache.events.attempts[key]=io.read(path.join(dir,'events_'+key.replace('-','')+'_status.json'));}
-        for(const key of ['congestion','tourConcentration','events','gale'])cache[key].attempt=io.read(path.join(dir,key+'_status.json'));
+        for(const key of ['congestion','accident','tourConcentration','events','gale'])cache[key].attempt=io.read(path.join(dir,key+'_status.json'));
         if(!staticTable)staticTable=io.read(path.join(configDir,'risk_spots.json'));
         if(!zones)zones=io.read(path.join(clientDir,'assets','warn_zones.geojson'))?.features||[];
         if(!landZones)landZones=io.read(path.join(clientDir,'assets','warn_zones_land_coastal.geojson'))?.features||[];
@@ -52,7 +52,7 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     function galeFor(spot,t){if(!spot.galeZone)return[];return(cache.gale.data?.rows||[]).filter(r=>r.live&&zoneName(r.zoneNm)===zoneName(spot.galeZone)).map(r=>T.warningAt({...r,type:'강풍',level:r.lvl.includes('경보')?'경보':r.lvl.includes('예비')?'예비':'주의보',preliminary:r.src.endsWith('Ready')||r.lvl.includes('예비')},t,clock(),T.timeline(clock(),3,3,21).at(-1),{assumePreliminary:false})).filter(Boolean);}
     /** 자료별 성공·낡음·오류를 분리한다. 예: 파일이 있어도 마지막 요청실패는 error. @returns {object} [연계] ← API responses */
     function sources(fresh=false){refresh(fresh);if(cache.sourceInfo)return cache.sourceInfo;const now=clock(),date=io.day(now),out={};
-        for(const key of ['warnings','gale','zoneForecasts','swell','ripCurrent','congestion','tourConcentration','events']){
+        for(const key of ['warnings','gale','zoneForecasts','swell','ripCurrent','congestion','accident','tourConcentration','events']){
             const c=cache[key],d=c.data;const at=timestamp((key==='gale'?c.attempt?.checkedAt:null)||d?.updatedAt||d?.savedAt||d?.collectedAt);
             let status=!d?(c.exists?'error':'missing'):'ok';
             const max={warnings:10*60000,gale:10*60000,zoneForecasts:15*T.HOUR,swell:24*T.HOUR}[key];
@@ -66,9 +66,13 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         const names=new Set(landZones.map(z=>zoneName(z.properties.name)));out.gale.checkedAt=cache.gale.attempt?.checkedAt||null;out.gale.savedAt=timestamp(cache.gale.data?.savedAt)?T.isoKst(timestamp(cache.gale.data.savedAt)):null;out.gale.rows=cache.gale.data?.rows?.length||0;out.gale.unmatched=(cache.gale.data?.rows||[]).filter(r=>r.live&&!names.has(zoneName(r.zoneNm))).length;
         const rip=cache.ripCurrent.data?.places||{};out.ripCurrent.withData=Object.values(rip).filter(r=>r.hasData).length;out.ripCurrent.total=Object.keys(rip).length;
         const month=Number(date.slice(5,7));if(cache.ripCurrent.data&&out.ripCurrent.withData===0&&(month<6||month>9))out.ripCurrent.status='offseason';
-        for(const key of ['congestion','tourConcentration'])out[key].callsToday=io.read(path.join(dir,key+'_quota.json'))?.date===date?io.read(path.join(dir,key+'_quota.json')).calls:0;
+        for(const key of ['congestion','accident','tourConcentration'])out[key].callsToday=io.read(path.join(dir,key+'_quota.json'))?.date===date?io.read(path.join(dir,key+'_quota.json')).calls:0;
         out.zoneForecasts.base=cache.zoneForecasts.data?.baseTmUtf||cache.zoneForecasts.data?.baseTm||null;
         out.swell.baseTm=cache.swell.data?.baseTm||null;out.swell.frames=cache.swell.data?.fctTimes?.length||0;
+        const accident=cache.accident.data,attempt=cache.accident.attempt,local=new Date(now+9*T.HOUR),hour=local.getUTCHours(),base=Date.parse(date+'T00:00:00+09:00');
+        const latestWindow=base+(hour>=15?15:hour>=3?3:-9)*T.HOUR,checked=timestamp(attempt?.checkedAt);
+        if(accident&&out.accident.status==='ok'&&(accident.date!==date||!checked||checked<latestWindow))out.accident.status='stale';
+        Object.assign(out.accident,{createdAt:accident?.createdAt||null,checkedAt:attempt?.checkedAt||null,frames:Object.keys(accident?.frames||{}).length,date:accident?.date||null,source:'한국해양교통안전공단 MTIS 선박사고 위험예보',callCap:attempt?.callCap??90});
         const tour=cache.tourConcentration.data;out.tourConcentration.date=tour?.date||null;out.tourConcentration.spotsMatched=Object.keys(tour?.values||{}).length;out.tourConcentration.spotsTotal=staticTable?.spots?.length||0;
         const observation=cache.tourConcentration.attempt?.observation;if(observation)out.tourConcentration.observation={samples:observation.samples??0,...Object.fromEntries(['firstRun','windowEndsAt','lastObservedAt','lastChangedAt'].map(key=>[key,timestamp(observation[key])?T.isoKst(timestamp(observation[key])):null]))};
         out.events.months={};for(const [month,d]of Object.entries(cache.events.months)){const attempt=cache.events.attempts[month]||(cache.events.attempt?.month===month?cache.events.attempt:null);const status=attempt?.status==='error'?'error':!d?(cache.events.monthExists[month]?'error':'missing'):d.month===month?'ok':'stale';const at=timestamp(d?.collectedAt||d?.updatedAt);out.events.months[month]={status,month,count:d?.events?.length||0,updatedAt:at?T.isoKst(at):null,lastRun:timestamp(attempt?.lastRun)?T.isoKst(timestamp(attempt.lastRun)):null,lastSuccess:timestamp(attempt?.lastSuccess)?T.isoKst(timestamp(attempt.lastSuccess)):null,lastError:attempt?.lastError||null,...(attempt?.sourceCounts?{sourceCounts:attempt.sourceCounts}:{})};}
@@ -81,7 +85,7 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         const r=inside?T.nearest(rows,t,x=>utcForecast(x.tm)):null;const same=rows.filter(x=>Number.isFinite(utcForecast(x.tm))&&T.dateKey(utcForecast(x.tm))===T.dateKey(t));
         const number=x=>x!==null&&x!==''&&x!==undefined&&Number.isFinite(Number(x))&&Number(x)>=0?Number(x):null;
         const max=k=>{const v=same.map(x=>number(x[k])).filter(x=>x!==null);return v.length?Math.max(...v):null;};
-        return {wh:number(r?.wh),ws:number(r?.ws),forecastAt:r?T.isoKst(utcForecast(r.tm)):null,dayMax:{wh:max('wh'),ws:max('ws')}};}
+        return {wh:number(r?.wh),ws:number(r?.ws),wp:number(r?.wp),wd:number(r?.waveDir),windDir:number(r?.windDir),forecastAt:r?T.isoKst(utcForecast(r.tm)):null,dayMax:{wh:max('wh'),ws:max('ws')}};}
     /** 소해구 너울을 범위 안에서만 가져온다. 예: 모레 범위밖은null. @param {string} key @param {string} t @returns {object|null} [연계] ← coastDetail */
     function swell(key,t){const data=cache.swell.data,c=data?.cells?.[key];if(!c)return null;const rows=(data.fctTimes||[]).map((x,i)=>{const m=String(x).match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);return{t:m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5])-9*T.HOUR:NaN,periodS:c.wp?.[i]};});const valid=rows.filter(r=>Number.isFinite(r.t)),target=timestamp(t);if(!valid.length||target<valid[0].t-1.5*T.HOUR||target>valid.at(-1).t+1.5*T.HOUR)return null;const r=T.nearest(valid,t);return r?.periodS!=null?{periodS:Number(r.periodS)}:null;}
     /** 이안류는 오늘 관측만 연결한다. 예: 어제 관측 파일을 오늘 위험으로 연장하지 않는다.
@@ -104,20 +108,44 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         const f=forecast(c.haegu?.major,t),warning=warningsFor(c.warnZone,t,true,c.warnSubZone);const r=S.scoreSea({t,now:clock(),ci:row?.congestionIndex??null,warnings:warning,...f});
         const rows=r.factors.map(x=>({...x,key:x.key,used:x.applied,cond:x.forecastOnly?'fcst_only':x.key==='wave'&&x.rr?'wave4m':x.key==='wind'&&x.rr?(f.ws>=17?'wind17':'wind14'):null,...(x.key==='congestion'?{level:r.ciLevel,levelName:r.ciLevel===null?null:['낮음','보통','높음','매우높음'][r.ciLevel]}:{}),...(x.key==='warning'?{name:x.type+x.level,assumedFromHour:x.from?new Date(timestamp(x.from)+9*T.HOUR).getUTCHours():null}:{})}));
         if(sources().warnings.status!=='ok')r.missing.push('warnings');
-        return remember(detailCache,memo,{t,title:c.haegu||{major:null,sub:null},subtitle:c.ref||null,clickable:r.clickable,score:r.score,index:r.index,band:r.band,rr:r.rr,rows,kinds:{sensitive:{rr:r.rr},collision:{rr:r.collisionRr,status:r.collisionRr===null?'withheld':r.picked?'ok':'none'}},inputs:{forecastAt:f.forecastAt,zoneForecastBase:cache.zoneForecasts.data?.baseTmUtf||null,congestionCreated:timestamp(row?.fcstCreateDateTime)?T.isoKst(timestamp(row.fcstCreateDateTime)):null},missing:r.missing},6000);}
+        return remember(detailCache,memo,{t,title:c.haegu||{major:null,sub:null},subtitle:c.ref||null,clickable:r.clickable,score:r.score,index:r.index,band:r.band,rr:r.rr,officialCongestionLevel:row?.congestionLevel||null,rows,kinds:{sensitive:{rr:r.rr},collision:{rr:r.collisionRr,status:r.collisionRr===null?'withheld':r.picked?'ok':'none'}},inputs:{forecastAt:f.forecastAt,zoneForecastBase:cache.zoneForecasts.data?.baseTmUtf||null,congestionCreated:timestamp(row?.fcstCreateDateTime)?T.isoKst(timestamp(row.fcstCreateDateTime)):null},missing:r.missing},6000);}
+    /** 공식 사고 시간대를 이전3시간정시로 고른다. 예:13시는12시원본,보간없음.
+     * @param {string} t - 선택시각 @returns {object} t,key,forecastAt [연계] ← accidentFrame/Detail / 혼잡시간과별도표시
+     */
+    function accidentTime(t){const n=timestamp(t),now=clock(),base=Date.parse(T.dateKey(now)+'T00:00:00+09:00');if(!Number.isFinite(n)||!/(?:Z|[+-]\d\d:\d\d)$/.test(String(t))||n<base||n>base+2*T.DAY+23*T.HOUR+59*60000)throw Object.assign(new Error('잘못된 사고예보 시각'),{status:400});const at=base+Math.floor((n-base)/(3*T.HOUR))*3*T.HOUR,local=new Date(at+9*T.HOUR);return{t:T.isoKst(n),forecastAt:T.isoKst(at),key:T.dateKey(at).replace(/-/g,'')+String(local.getUTCHours()).padStart(2,'0')+'00'};}
+    /** 공식 경계표를 한번 제공한다. 예:사고격자와혼잡ID는별개.
+     * @returns {object} cells,v [연계] ← /sea/accident-cells / 프레임에는경계중복안함
+     */
+    function accidentCells(){refresh();const d=cache.accident.data;if(!d?.cells?.length)throw Object.assign(new Error('공식 선박사고 격자 준비 전'),{status:503});return{v:d.v,cells:d.cells,geometrySource:d.geometrySource};}
+    /** 공식 지수·단계배열을 반환한다. 예:수집실패시지난정상본은낡음표시와함께유지.
+     * @param {string} t - 선택시각 @returns {object} 선택원본시각과공식행 [연계] ← /sea/accident-frame / 재계산안함
+     */
+    function accidentFrame(t){refresh();const slot=accidentTime(t),d=cache.accident.data,values=d?.frames?.[slot.key];if(!Array.isArray(values)||!values.length)throw Object.assign(new Error('해당 시각 공식 선박사고 예보 준비 전'),{status:503});return{...slot,v:d.v,createdAt:d.createdAt,cells:values,degraded:sources().accident.status==='ok'?[]:['accident']};}
+    /** 실제 클릭좌표에서 공식 사고와 혼잡칸을 각각 연결한다. 예:같은사고칸양쪽은다른혼잡칸.
+     * @param {string} id - 사고격자ID @param {string} t - 선택시각 @param {object} point - lon/lat
+     * @returns {object} 공식사고·원본혼잡·기상청해구예보 [연계] ← /sea/accident-cell / 임의가중/일대일ID매칭금지
+     */
+    function accidentDetail(id,t,point={}){refresh();const c=accidentCells().cells.find(c=>c.id===id);if(!c)throw Object.assign(new Error('사고 격자 없음'),{status:404});const frame=accidentFrame(t),row=frame.cells.find(r=>r[0]===c.i);if(!row)throw Object.assign(new Error('해당 격자 사고예보 준비 전'),{status:503});
+        const hasPoint=point.lon!==undefined||point.lat!==undefined,lon=hasPoint?Number(point.lon):c.lon,lat=hasPoint?Number(point.lat):c.lat;
+        if((hasPoint&&[point.lon,point.lat].some(v=>v===null||v===''||v===undefined||Array.isArray(v)))||!Number.isFinite(lon)||!Number.isFinite(lat)||!G.pointInGeometry([lon,lat],c.geometry))throw Object.assign(new Error('사고 격자 안의 클릭 좌표 필요'),{status:400});
+        const n=new Date(timestamp(frame.t)+9*T.HOUR),trafficAt=T.isoKst(Math.floor(timestamp(frame.t)/T.HOUR)*T.HOUR),key=T.dateKey(frame.t).replace(/-/g,'')+String(n.getUTCHours()).padStart(2,'0')+'00',traffic=cache.congestion.data?.frames?.[key]||[];
+        const matches=(cache.cells.data?.cells||[]).filter(v=>Number.isFinite(v.lon)&&Number.isFinite(v.lat)&&Math.abs(v.lon-lon)<=.0125+1e-10&&Math.abs(v.lat-lat)<=.0125+1e-10).sort((a,b)=>a.id.localeCompare(b.id));
+        const all=matches.map(v=>{const r=traffic.find(r=>r.gridId===v.id);return r?{gridId:r.gridId,congestionIndex:r.congestionIndex,congestionLevel:r.congestionLevel||null,forecastAt:trafficAt,createdAt:timestamp(r.fcstCreateDateTime)?T.isoKst(timestamp(r.fcstCreateDateTime)):null}:null;}).filter(Boolean),candidate=forecast(c.haegu?.major,frame.forecastAt),f=candidate.forecastAt===frame.forecastAt?candidate:{wh:null,ws:null,wp:null,wd:null,windDir:null,forecastAt:null},missing=[];
+        if(sources().accident.status!=='ok')missing.push('accident');if(!all.length||sources().congestion.status!=='ok')missing.push('congestion');if(['wh','ws','wp','wd'].some(k=>f[k]===null))missing.push('forecast');
+        return{t:frame.t,v:frame.v,title:c.haegu||{major:null,sub:null},subtitle:c.ref||null,gridId:c.id,lat:c.lat,lon:c.lon,accidentRiskIndex:row[1],accidentRiskLevel:row[2],forecastAt:frame.forecastAt,createdAt:frame.createdAt,weather:{wh:f.wh,ws:f.ws,wp:f.wp,wd:f.wd,windDir:f.windDir,forecastAt:f.forecastAt,source:'기상청 해구별 예보',major:c.haegu?.major||null,base:cache.zoneForecasts.data?.baseTmUtf||null},congestion:all[0]||null,congestionMatches:all,queryPoint:{lon,lat},matchingAt:{lon,lat,method:hasPoint?'클릭 위치 공간 포함':'격자 중심 공간 포함'},missing};}
     /** 지도테두리를 선택시각 특보와 맞춘다. 예: 예비시작전pre노랑. @param {string} t @param {boolean} sea @returns {array} [연계] ← frames */
     function borders(t,sea){const out=[];for(const [_,entry]of flattenWarnings()){const states=warningsFor(entry.name,t,true);if(!states.length)continue;const effective=states.filter(w=>w.state==='발효');const w=(effective.length?effective:states).sort((a,b)=>(b.state==='예비'?0:b.level==='경보'?2:1)-(a.state==='예비'?0:a.level==='경보'?2:1))[0];out.push({zone:entry.name,color:w.state==='예비'?'pre':w.level==='경보'?'wrn':'adv',state:w.state,from:w.from||null});}return out;}
     /** 지도용 작은 숫자배열을 만든다. 예: 해상시각 응답에없는칸은빼되 전체실패면날씨만. @param {boolean} sea @param {string} t @returns {object} [연계] ← /frames */
     function frame(sea,t){refresh();t=validateTime(t,sea);const memo=resultKey(sea?'seaFrame':'coastFrame',t);if(frameCache.has(memo))return frameCache.get(memo);const src=sources(),degraded=Object.entries(src).filter(([k,v])=>(sea?['warnings','zoneForecasts','congestion']:['warnings','gale','zoneForecasts','swell','ripCurrent','tourConcentration','events']).includes(k)&&!['ok','offseason'].includes(v.status)).map(([k])=>k);
-        if(sea){const n=new Date(timestamp(t)+9*T.HOUR),key=T.dateKey(t).replace(/-/g,'')+String(n.getUTCHours()).padStart(2,'0')+'00';const traffic=src.congestion.status==='ok'?cache.congestion.data?.frames?.[key]:null,active=traffic?new Set(traffic.map(r=>r.gridId)):null;return remember(frameCache,memo,{t,cells:cells().cells.filter(c=>!active||active.has(c.id)).map(c=>{const r=seaDetail(c.id,t);return[c.i,r.score,r.rows[0]?.ci??null];}),borders:borders(t,true),degraded},8);}
+        if(sea){const n=new Date(timestamp(t)+9*T.HOUR),key=T.dateKey(t).replace(/-/g,'')+String(n.getUTCHours()).padStart(2,'0')+'00';const traffic=src.congestion.status==='ok'?cache.congestion.data?.frames?.[key]:null,active=traffic?new Set(traffic.map(r=>r.gridId)):null,trafficById=new Map((traffic||[]).map(r=>[r.gridId,r]));return remember(frameCache,memo,{t,cells:cells().cells.filter(c=>!active||active.has(c.id)).map(c=>{const r=seaDetail(c.id,t);return[c.i,r.score,r.rows[0]?.ci??null,trafficById.get(c.id)?.congestionLevel||null];}),borders:borders(t,true),degraded},8);}
         const eventStatus=src.events.months[T.dateKey(t).slice(0,7)]?.status;if(eventStatus==='ok'){const i=degraded.indexOf('events');if(i>=0)degraded.splice(i,1);}else if(!degraded.includes('events'))degraded.push('events');
         const day3Dashed=new Set();const entries=(staticTable?.spots||[]).map((p,i)=>{const r=coastDetail(p.id,t);if(r.notices.some(n=>n.key==='day3')&&p.warnZone)day3Dashed.add(p.warnZone);return[i,r.score];});if(!staticTable)throw Object.assign(new Error('관광지 표 준비 전'),{status:503});return remember(frameCache,memo,{t,day:T.dayOffset(t,clock()),spots:entries,borders:borders(t,false),day3Dashed:[...day3Dashed],degraded},8);}
     /** 첫로드에 시간축·정적표버전·자료상태를 함께 준다. 예: 지금칸은 분유지. @returns {object} [연계] ← /meta */
-    function meta(){refresh();const now=clock();return{now:T.isoKst(now),timeline:{sea:{stepH:1,times:T.timeline(now,1,2,23)},coast:{stepH:3,times:T.timeline(now,3,3,21),day3From:T.dateKey(now+2*T.DAY)+'T00:00:00+09:00'}},versions:{spots:staticTable?._about?.hash||null,cells:cache.cells.data?.cells?.length||0},sources:sources()};}
+    function meta(){refresh();const now=clock();return{now:T.isoKst(now),timeline:{sea:{stepH:1,times:T.timeline(now,1,2,23)},accident:{stepH:3,times:A.slots(now).map(s=>s.at)},coast:{stepH:3,times:T.timeline(now,3,3,21),day3From:T.dateKey(now+2*T.DAY)+'T00:00:00+09:00'}},versions:{spots:staticTable?._about?.hash||null,cells:cache.cells.data?.cells?.length||0,accident:cache.accident.data?.v||null},sources:sources()};}
     /** 클릭한 위험구역 원본을 준다. 예: 동일id의 폴리곤만. @param {string[]} ids @returns {object} [연계] ← /hazard-zones */
     function hazards(ids){const all=io.read(path.join(configDir,'coastal_hazard_zones.wgs84.geojson'));if(!all)throw Object.assign(new Error('위험구역 자료 준비 전'),{status:503});return{type:'FeatureCollection',features:all.features.filter(f=>ids.includes(f.properties.name))};}
     /** 섬원본과공통육지geometry를 준다. 예: 서버·화면동일해안선. @returns {object} [연계] ← /islands */
     function islands(){refresh();return{...io.read(path.join(configDir,'island_outlines.geojson')),landGeometry:staticTable?.landGeometry||null};}
-    return{meta,sources,spots,cells,coastDetail,seaDetail,frame,hazards,islands,invalidate(){loadedAt=-Infinity;}};
+    return{meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,seaDetail,frame,hazards,islands,invalidate(){loadedAt=-Infinity;}};
 }
 module.exports={createStore,zoneName,timestamp,utcForecast};
