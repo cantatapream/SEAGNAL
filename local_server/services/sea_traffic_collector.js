@@ -26,7 +26,7 @@ function createCollector({ dir = io.DEFAULT_DIR, fetchImpl, key, clock = Date.no
         const now = clock(), date = io.day(now);
         try {
             let pending = io.read(pendingFile);
-            if (!pending || pending.date !== date) pending = { date, frames: {} };
+            if (!pending || pending.date !== date) pending = require('./marine_congestion_codec').decode(require('./marine_congestion_codec').pack({ date, frames: {} }));
             const times = [];
             for (let d = 0; d < 2; d++) {
                 const dt = new Date(Date.parse(date + 'T00:00:00+09:00') + d * 86400000);
@@ -67,9 +67,9 @@ function createCollector({ dir = io.DEFAULT_DIR, fetchImpl, key, clock = Date.no
                 }
             }
             if (failed || Object.keys(pending.frames).length !== 48) throw new Error('partial response');
-            const cells = [...new Map(Object.values(pending.frames).flat().map(r => [r.gridId, r])).values()];
+            const byId=new Map();for(const key of Object.keys(pending.frames))for(const r of pending.frames[key])byId.set(r.gridId,r);const cells=[...byId.values()];
             await (updateCells || require('./risk_sea_cells').update)(cells, { dir });
-            const next = { date, collectedAt: io.iso(now), frames: pending.frames };
+            pending.collectedAt=io.iso(now);const next=pending;
             io.write(file, next);
             io.status(dir, 'congestion', now, null, { date, framesReady: 48 });
             return { ok: true, frames: 48 };

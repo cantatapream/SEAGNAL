@@ -24,7 +24,7 @@
         async function get(path, params, fresh) {
             var q = new URLSearchParams(params || {});
             var url = '/api/risk-forecast/' + path + (q.size ? '?' + q : '');
-            var ttl=/^(coast\/spots|islands)$/.test(path)?86400000:path==='sea/cells'?3600000:path==='status'?0:60000;
+            var ttl=/^(coast\/spots|islands|sea\/jurisdictions)$/.test(path)?86400000:/^sea\/(?:cells|unified-cells)$/.test(path)?3600000:path==='status'?0:60000;
             var cached=cache.get(url);
             if (!fresh && cached && Date.now()-cached.at<ttl) return cached.value;
             if (!fresh && pending.has(url)) return pending.get(url);
@@ -34,6 +34,8 @@
                     var r = await fetch(url, {signal:c.signal,cache:fresh?'no-store':'default'}), j = await r.json();
                     if (!r.ok || j.ok === false) {var error=new Error(j.error || 'HTTP ' + r.status);error.status=r.status;throw error;}
                     cache.set(url,{value:j,at:Date.now()});
+                    // 전국 격자 프레임은 모바일 메모리를 위해 최근8시각만 유지한다.
+                    if(path==='sea/unified-frame'){var frames=Array.from(cache.keys()).filter(function(k){return k.includes('/sea/unified-frame?');});while(frames.length>8)cache.delete(frames.shift());}
                     if (cache.size > 150) cache.delete(cache.keys().next().value);
                     return j;
                 } finally { clearTimeout(timer); pending.delete(url); }

@@ -1,13 +1,13 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_sheet.js
- * 역할  : 공식 선박 사고·혼잡 예보와 앱 해구 기상, 연안 관광객 분석을 구별해 표시한다.
+ * 역할  : 해역 종합·관할 브리핑과 공식 예보·해구 기상·선박사고 이력을 표시하고 연안 분석과 구별한다.
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
  *  - 마크업        : index2.html #risk-forecast-sheet / #risk-forecast-legend
  *  - 나를 쓰는 곳  : risk_forecast.js 또는 index2.html / risk_forecast_preview.html
- * [로드 순서] risk_slider.js 다음 · risk_basis_content.js 이전
+ * [로드 순서] risk_marine.js 다음 · risk_basis_content.js 이전
  * ============================================================================
  */
 (function (w) {
@@ -177,7 +177,9 @@
         el.querySelector('.rf-close').addEventListener('click',handlers.close);
         el.addEventListener('click',function(e){var z=e.target.closest('[data-zone-id]'),basis=e.target.closest('[data-basis]'),retry=e.target.closest('[data-retry]');if(z)handlers.hazard(z.dataset.zoneId);if(basis)handlers.basis(basis.dataset.basis,basis);if(retry)handlers.retry();});
         el.addEventListener('click',function(e){var spot=e.target.closest('[data-spot-id]');if(spot)handlers.choose('coast',spot.dataset.spotId);});
+        el.addEventListener('click',function(e){var point=e.target.closest('[data-marine-lon]');if(point&&handlers.marinePoint)handlers.marinePoint(Number(point.dataset.marineLon),Number(point.dataset.marineLat));});
         function show(d,kind,item) {
+            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?(d.marine.station||''):'선박 교통·예보·사고 이력 종합';el.querySelector('.rf-timeline').hidden=false;el.querySelector('.rf-body').innerHTML=d.marine?w.RiskMarine.render(d.marine):w.RiskMarine.briefing(d);el.classList.add('open');return;}
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='accident'?'선박 사고 위험예보 · 격자 '+d.gridId:kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
             el.querySelector('.rf-subtitle').textContent=kind==='accident'?'격자 중심 '+F.dms(d.lat,true)+' - '+F.dms(d.lon,false):kind==='sea'?[sub.name,sub.bearingWord||F.direction(sub.bearingDeg||0),String(Math.round(sub.bearingDeg||0)%360).padStart(3,'0')+'도',Number(sub.distNm||0).toFixed(1)+'해리'].join(' '):F.dms(sub.lat==null?item.lat:sub.lat,true)+' - '+F.dms(sub.lon==null?item.lon:sub.lon,false)+(sub.police?' · '+sub.police+(sub.police.endsWith('파출소')?'':'파출소')+' 관할':'');

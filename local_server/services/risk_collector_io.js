@@ -21,12 +21,13 @@ function publicKey() {
     catch (_) { return ''; }
 }
 /** 파일을 읽는다. 예: gzip JSON → 객체. @param {string} file @returns {object|null} [연계] ← 수집기/위험 저장소 */
-function read(file) { try { const b = fs.readFileSync(file); return JSON.parse(file.endsWith('.gz') ? zlib.gunzipSync(b).toString() : b.toString()); } catch (_) { return null; } }
+function read(file) { try { const b = fs.readFileSync(file),d=JSON.parse(file.endsWith('.gz') ? zlib.gunzipSync(b).toString() : b.toString());return /^sea_traffic(?:_pending)?\.json\.gz$/.test(path.basename(file))?require('./marine_congestion_codec').decode(d):d; } catch (_) { return null; } }
 /** 자기 파일을 원자적으로 바꾼다. 예: 실패 전 정상 캐시는 남는다. @param {string} file @param {object} data @returns {void} [연계] ← 세 수집기 */
 function write(file, data) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const tmp = file + '.' + process.pid + '.tmp';
-    const b = Buffer.from(JSON.stringify(data));
+    const stored=/^sea_traffic(?:_pending)?\.json\.gz$/.test(path.basename(file))?require('./marine_congestion_codec').pack(data):data;
+    const b = Buffer.from(JSON.stringify(stored));
     try { fs.writeFileSync(tmp, file.endsWith('.gz') ? zlib.gzipSync(b) : b); fs.renameSync(tmp, file); }
     finally { try { fs.unlinkSync(tmp); } catch (_) { /* rename 후 없음 */ } }
 }
