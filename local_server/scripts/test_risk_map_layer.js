@@ -1,6 +1,6 @@
 /**
  * 파일명: local_server/scripts/test_risk_map_layer.js
- * 역할  : 실제 관광지·육지·섬 원천 전체를 제품 OpenLayers 지도 층에 넣어 빈 형상 회귀를 검사한다.
+ * 역할  : 실제 관광지·육지·섬 원천 전체를 제품 OpenLayers 지도 층에 넣어 빈 형상 회귀와 상세 시트의 실제 연안 합계 설명을 검사한다.
  * [연계] risk_map_layer.js · risk_spots.json · land_mask_korea.json · island_outlines.geojson / verify_all.sh
  */
 'use strict';
@@ -101,6 +101,26 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
   test('공식사고 원천실패는 상세경고로 구분',()=>assert.match(officialSheet.missingMessages.join(' '),/공식 선박 사고 위험예보 자료 수집에 실패/));
   test('혼잡5의 공식낮음은 기존보통 판정으로 바꾸지 않음',()=>{assert.match(officialSheet.trafficText,/낮음 · 지수 5/);assert.doesNotMatch(officialSheet.trafficText,/보통/);assert.match(officialSheet.unknownText,/단계 확인 불가/);assert.doesNotMatch(officialSheet.unknownText,/높음/);});
   test('사고·혼잡 시트 모두 공식기준 상세 버튼 연결',()=>{assert.equal(officialSheet.accidentBasis,true);assert.equal(officialSheet.trafficBasis,true);assert.deepEqual(officialSheet.basisKinds,['sea','sea']);});
+
+
+  const scorer=require('../services/risk_score');
+  const coastInput={t:'2026-10-11T15:00:00+09:00',now:'2026-10-11T15:00:00+09:00',spot:{hazard:{count:11,fatal:true}},concentration:90.52,events:[],swell:{periodS:8}};
+  const scored=scorer.scoreCoast(coastInput);scored.rows=scored.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
+  const incomplete=scorer.scoreCoast({...coastInput,concentration:null,events:null,swell:null});incomplete.rows=incomplete.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
+  const policy=scorer.scoreCoast({...coastInput,swell:{periodS:12},spot:{hazard:{count:11,fatal:true},ripBeach:'fixture'},rip:{level:'주의',hasData:true}});policy.rows=policy.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
+  const calculation=await page.evaluate(({scored,incomplete,policy})=>{
+   const host=document.createElement('div');host.className='rf-sheet';document.body.appendChild(host);const sheet=RiskSheet.create(host,{close(){},hazard(){},basis(){},retry(){},choose(){}});
+   const show=d=>{sheet.show({...d,title:'영도 흰여울해안터널',subtitle:{lat:35,lon:129},notices:[]},'coast',{});return host.textContent;};
+   const complete=show(scored),closed=!host.querySelector('.rf-calculation').open;host.querySelector('.rf-calculation summary').click();const opened=host.querySelector('.rf-calculation').open;
+   const partial=show(incomplete),policyText=show(policy),mismatch=RiskSheet.coastCalculation({...scored,score:99}),unsafe=RiskSheet.coastCalculation({...scored,rows:scored.rows.map(r=>r.key==='month'?{...r,month:'<img onerror=alert(1)>'}:r)});
+   return{complete,closed,opened,partial,policyText,mismatch,unsafe};
+  },{scored,incomplete,policy});
+  test('연안33배 사례는 실제 점수와10월을 합쳐 설명',()=>{assert.match(calculation.complete,/2.91 \+ 1.74 \+ 0.37 \+ 0.02 = 5.04점/);assert.match(calculation.complete,/32.9배/);assert.match(calculation.complete,/10월 분석/);assert.match(calculation.complete,/상대 비교 지표/);});
+  test('사망실종11배는 반올림전 계수와10월 계수 곱',()=>{assert.match(calculation.complete,/3.652264 × 2.25 × 1.3 × 1.02 ≈ 10.9배/);assert.match(calculation.complete,/반올림한 표시값/);assert.ok(Math.abs(scored.fatalRr-10.8965296416)<1e-8);});
+  test('배수 설명은 선택적으로 펼치고 접는 접근가능한details',()=>{assert.equal(calculation.closed,true);assert.equal(calculation.opened,true);});
+  test('입력누락 배수를 전체사고 가능성으로 확정하지 않음',()=>{assert.match(calculation.partial,/확인된 요소 기준의 상대 사고지표/);assert.match(calculation.partial,/전체 요소를 반영한 비교 배수는 확인되지 않았습니다/);assert.doesNotMatch(calculation.partial,/한산하고 위험구역 없는 곳의 평범한 날과 비교/);});
+  test('너울·이안류 정책점수는 사망배수에 중복하지 않음',()=>{assert.match(calculation.policyText,/너울 정책 점수/);assert.match(calculation.policyText,/이안류 정책 점수/);assert.match(calculation.policyText,/사망·실종 계수는 없어 그 배수에는 추가하지 않습니다/);assert.equal(policy.fatalRr,scored.fatalRr);});
+  test('불일치 합계와 HTML 입력은 추측·실행하지 않음',()=>{assert.match(calculation.mismatch,/계산에 필요한 상세 요소를 확인하지 못했습니다/);assert.doesNotMatch(calculation.mismatch,/2<sup>/);assert.doesNotMatch(calculation.unsafe,/<img/);assert.match(calculation.unsafe,/&lt;img/);});
 
 
  }finally{await browser.close();}

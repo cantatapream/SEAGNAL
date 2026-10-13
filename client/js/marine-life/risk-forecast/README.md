@@ -7,10 +7,12 @@
 - `risk_forecast.js`: 버튼·층·선택·60초 자료 갱신 조율
 - `risk_api.js`: 15초 제한, 경로별 TTL과 동시 요청 중복 방지
 - `risk_map_layer.js`: 육지로 잘린 연안 분할 원·모든 관광지의 선택 중심점, 부드러운 단일 해상 면색·확대 척수·공식 원본 위치 연결, 본·하위 특보 경계, 21개 섬
-- `risk_slider.js`, `risk_sheet.js`: 서버 시간축·자료 신선도와 상세 문장·동일 좌표 관광지 선택 목록
+- `risk_slider.js`, `risk_sheet.js`: 서버 시간축·자료 신선도와 상세 문장·연안 합계 배수 설명·동일 좌표 관광지 선택 목록
 - `risk_format.js`: DMS 정수 초, 16방위, HTML·출처 URL 보호, 색과 숫자 명암
 - `risk_basis.js`, `risk_basis_content.js`: 기준 상세 및 서버 PDF 다운로드
 - `risk_forecast.css`: 기존 스위치·슬라이더를 재사용하는 표시 스타일
+
+[연안 합계 배수 설명과 후속 과제 인계](../../../../handoff_remaining_risk_tasks.md) · [공단 정보공개청구 초안](../../../../information-disclosure-request.md)
 
 [설치·검증·자료 계약](guide.md) · [화면 명세](../../ocean-map/coastal-risk/risk_forecast_ui.spec.md) · [구현 설계](../../ocean-map/coastal-risk/risk_forecast.impl_design.md)
 

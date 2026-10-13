@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_sheet.js
- * 역할  : 해역 종합·관할 브리핑과 공식 예보·해구 기상·선박사고 이력을 표시하고 연안 분석과 구별한다.
+ * 역할  : 해역 종합·공식 예보·해구 기상·선박사고 이력과 연안 분석을 구별하고 연안 합계 배수의 계산 과정을 설명한다.
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
@@ -154,6 +154,31 @@
         }).join('');
     }
     /**
+     * 선택한 연안 시각의 실제 요소를 합친 과정을 펼쳐 보여 준다.
+     * 예: 2.91+1.74+0.37+0.02=5.04 → 2^5.04 ≈ 32.9배.
+     * @param {Object} d - risk_store.coastDetail의 score·rr·fatalRr·rows·missing
+     * @returns {string} 접근 가능한 계산 설명 HTML
+     * [연계] create.show ← local_server/services/risk_store.js / 서버 계산값을 설명하며 다시 판정하지 않는다.
+     */
+    function coastCalculation(d) {
+        var rows=d.rows||[], names={people:'사람 혼잡',concentration:'사람 혼잡',hazard:'위험구역',fatalZone:'사망사고 발생구역',event:'주말 행사',month:'월 분석',swell:'너울 정책 점수',rip:'이안류 정책 점수'};
+        var label=function(r){return r.key==='month'?r.month+'월 분석':r.key==='people'||r.key==='concentration'?'사람 혼잡 '+r.stage+'단계':names[r.key]||'기타 요소';};
+        var n=function(v){return String(Math.round(v*1000000)/1000000);};
+        var known=rows.filter(function(r){return !r.missing&&Number.isFinite(r.score);}), scored=known.filter(function(r){return r.score!==0;}), fatalFactors=known.filter(function(r){return Number.isFinite(r.fatalRr)&&r.fatalRr>0&&r.fatalRr!==1;});
+        var partial=(d.missing||[]).length>0||rows.some(function(r){return r.missing;});
+        var sums=known.reduce(function(sum,r){return sum+r.score;},0), product=known.reduce(function(prod,r){return prod*(Number.isFinite(r.fatalRr)&&r.fatalRr>0?r.fatalRr:1);},1);
+        var valid=known.length>0&&Number.isFinite(d.score)&&Number.isFinite(d.rr)&&d.rr>0&&Number.isFinite(d.fatalRr)&&d.fatalRr>0&&Math.abs(sums-d.score)<1e-8&&Math.abs(Math.pow(2,d.score)-d.rr)<1e-8*Math.max(1,d.rr)&&Math.abs(product-d.fatalRr)<1e-8*Math.max(1,d.fatalRr);
+        var body='<p>이 배수는 앱의 연안 사고 분석에서 나온 상대 비교 지표입니다. 사고가 날 확률(%)이나 특정 사람의 사고 확률을 뜻하지 않습니다.</p>';
+        if(partial)body+='<p>현재 확인된 요소만 반영한 값입니다. 빠진 요소를 안전하다고 판단한 것이 아니며, 전체 요소를 반영한 비교 배수는 확인되지 않았습니다.</p>';
+        if(!valid)return '<details class="rf-calculation"><summary>사고 배수는 어떻게 합쳤나요?</summary>'+body+'<p>계산에 필요한 상세 요소를 확인하지 못했습니다.</p></details>';
+        body+='<p><b>전체 사고</b>: 요소별 점수를 더한 뒤, 2를 합계 점수만큼 거듭 제곱합니다. 점수 1점은 2배, 2점은 4배입니다.</p><ul>'+scored.map(function(r){return '<li>'+F.escape(label(r))+': '+F.escape(n(r.score))+'점</li>';}).join('')+'</ul>';
+        body+='<p>점수 합계: '+F.escape(scored.map(function(r){return n(r.score);}).join(' + ')||'0')+' = '+F.escape(n(d.score))+'점<br>전체 사고 비교: 2<sup>'+F.escape(n(d.score))+'</sup> ≈ '+F.escape(String(Math.round(d.rr*10)/10))+'배</p>';
+        body+='<p><b>사망·실종 사고</b>: 별도로 분석한 요소별 계수를 곱합니다.</p><ul>'+fatalFactors.map(function(r){return '<li>'+F.escape(label(r))+': '+F.escape(n(r.fatalRr))+'배</li>';}).join('')+'</ul><p>'+F.escape(fatalFactors.map(function(r){return n(r.fatalRr);}).join(' × ')||'1')+' ≈ '+F.escape(String(Math.round(d.fatalRr*10)/10))+'배</p>';
+        body+='<p>각 행의 “약 7.5배”, “약 3.3배”처럼 반올림한 표시값을 다시 곱하면 위 결과와 조금 다를 수 있습니다. 전체 사고는 서버의 점수 합계, 사망·실종은 반올림 전 계수로 계산합니다. 1배인 계수와 0점인 요소는 이 목록에서 생략합니다.</p>';
+        if(known.some(function(r){return (r.key==='swell'||r.key==='rip')&&r.score!==0;}))body+='<p>너울·이안류 정책 점수는 전체 사고 점수에만 더합니다. 과거 사고 분석에서 얻은 사망·실종 계수는 없어 그 배수에는 추가하지 않습니다.</p>';
+        return '<details class="rf-calculation"><summary>사고 배수는 어떻게 합쳤나요?</summary>'+body+'</details>';
+    }
+    /**
      * 서버가 계산한 위험지수·등급·배수를 요약한다.
      * 예: summary(detail,'coast')
      * @param {Object} d - 상세 응답; kind는 coast 또는 sea
@@ -162,7 +187,7 @@
      */
     function summary(d,kind) {
         var c=F.col(d.score),rr=d.rr===1?'평소 수준':F.fmt(d.rr);
-        var prose=kind==='sea'?'평소(특보 없는 때)보다<br>선박 사고 가능성 '+b(rr,d.rr)+'<small>사고 종류 : 전복, 침몰, 침수, 표류</small>':'한산하고 위험구역 없는 곳의 평범한 날보다<br>사고 가능성 '+b(rr,d.rr)+'<small>사망·실종 사고 발생 가능성 '+b(F.fmt(d.fatalRr),d.fatalRr)+'</small><small>사고 종류 : 익수, 추락, 고립, 떠밀림</small>';
+        var prose=kind==='sea'?'평소(특보 없는 때)보다<br>선박 사고 가능성 '+b(rr,d.rr)+'<small>사고 종류 : 전복, 침몰, 침수, 표류</small>':((d.missing||[]).length?'확인된 요소 기준의 상대 사고지표<br>':'한산하고 위험구역 없는 곳의 평범한 날과 비교<br>')+'전체 사고 '+b(rr,d.rr)+'<small>사망·실종 사고 '+b(F.fmt(d.fatalRr),d.fatalRr)+'</small><small>사고 종류 : 익수, 추락, 고립, 떠밀림</small>';
         return '<div class="rf-index"><button type="button" class="rf-basis-btn" data-basis="'+kind+'">기준 상세</button><div class="rf-index-main"><div class="rf-score-box" style="background:'+c+';color:'+F.ink(c)+'"><small>위험지수</small><strong>'+F.escape(d.index)+'</strong></div><div class="rf-index-prose"><b>'+F.escape(d.band)+'</b><br>'+prose+'</div></div><div class="rf-ramp"></div><div class="rf-ramp-labels"><span>0</span><span>50</span><span>100</span></div></div>';
     }
     /**
@@ -192,7 +217,7 @@
             if(kind==='accident')body+=accidentRows(d);
             else if(kind==='sea')body+=trafficRows(d,rows);
             else if(d.clickable===false)body+='<p class="rf-muted">이 시각에는 날씨 위험도 없고 배도 적은 칸입니다(지도에 색이 없음).</p>';
-            else body+=summary(d,kind)+notices(d.notices)+coastRows(rows);
+            else body+=summary(d,kind)+coastCalculation(d)+notices(d.notices)+coastRows(rows);
             el.querySelector('.rf-body').innerHTML=body;el.classList.add('open');
         }
         function error(message){el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';el.classList.add('open');}
@@ -217,5 +242,5 @@
      * @returns {string[]} 화면 문장 [연계] RiskForecast.refresh·create.show → 배너·시트
      */
     function sourceMessages(data,kind){var sources=Object.assign({},data.sources||{}),stamp=Date.parse(data.t);if(Number.isFinite(stamp)&&sources.events&&sources.events.months){var month=new Date(stamp+9*3600000).toISOString().slice(0,7);sources.events=sources.events.months[month]||{status:'missing'};}var keys=kind==='accident'?['accident','zoneForecasts','congestion']:kind==='sea'?['warnings','zoneForecasts','congestion']:['warnings','gale','zoneForecasts','swell','ripCurrent','tourConcentration','events'];return keys.filter(function(key){var s=sources[key];return s&&s.status&&!['ok','offseason'].includes(s.status);}).map(function(key){var s=sources[key],text=sourceName(key)+(s.status==='stale'?' 자료가 오래되었습니다':s.status==='error'?' 자료 수집에 실패했습니다':' 자료를 받지 못했습니다');if(key==='zoneForecasts'&&s.status==='stale')text+=' (예보 기준 '+sourceTime((data.inputs||{}).zoneForecastBase||s.base||s.updatedAt)+')';return text+' (마지막 수집 '+sourceTime(s.lastSuccess||s.updatedAt)+')';});}
-    w.RiskSheet={create:create,sourceName:sourceName,sourceMessages:sourceMessages,coastRows:coastRows,seaRows:seaRows};
+    w.RiskSheet={create:create,sourceName:sourceName,sourceMessages:sourceMessages,coastRows:coastRows,coastCalculation:coastCalculation,seaRows:seaRows};
 })(window);
