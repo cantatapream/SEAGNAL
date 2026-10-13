@@ -65,7 +65,7 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-sheet :focus-visible,.rf-basis :focus-visible,.rf-legend :focus-visible { outline:2px solid #448aff; outline-offset:2px; }
 @media (prefers-reduced-motion:reduce) { .rf-sheet *,.rf-basis *,.rf-legend *,.rf-legend *::after { transition:none !important; } }
 /* 해양종합정보에서는 안전 오버레이가 남지 않도록 화면 클래스에 묶는다. */
-body:not(.ls-safety) #risk-forecast-sheet,body:not(.ls-safety) #risk-forecast-legend,body:not(.ls-safety) #risk-forecast-banner { display:none !important; }
+body:not(.ls-safety) #risk-forecast-sheet,body:not(.ls-safety) #risk-forecast-legend,body:not(.ls-safety) #risk-forecast-banner,body:not(.ls-safety) .rf-marine-timebar,body:not(.ls-safety) .rf-color-legend { display:none !important; }
 
 /* 공식 선박 사고 면색과 혼잡 선/점은 서로 다른 범례로 읽는다. */
 .rf-accident-key { border-top:1px solid #ffffff30; padding-top:5px; margin-top:3px; }
@@ -90,7 +90,7 @@ body:not(.ls-safety) #risk-forecast-sheet,body:not(.ls-safety) #risk-forecast-le
 
 .rf-marine-modes{display:flex;gap:4px;margin:6px 0}.rf-marine-modes button{padding:5px 7px;color:#d7e5ff;background:#1d304e;border:1px solid #5f7899;border-radius:6px;font-size:12px}.rf-marine-modes button[aria-pressed="true"]{background:#365fc0;color:#fff}.rf-mini-key{display:flex;gap:7px;font-size:11px}.rf-mini-key span{white-space:nowrap}.rf-mini-key i{display:inline-block;width:9px;height:9px;margin-right:3px;border-radius:2px}.rf-brief-controls [data-current-stamp]{display:block;margin-top:5px;font-size:11px}.rf-brief-controls{padding:5px 8px}
 
-.rf-marine-compact .banzone-legend{display:flex;gap:4px}.rf-marine-compact .bzl-row{padding:5px 7px;min-height:32px;font-size:12px}.rf-marine-compact .bzl-switch{display:none}.rf-marine-caption{display:block;font-size:12px;margin-top:6px}.rf-map-time{font-size:11px;margin:4px 0}.rf-map-time .rf-slider{margin:0;padding:0}.rf-map-time .rf-slider input{height:20px}.rf-marine-compact .rf-map-legend{margin-top:3px}.rf-marine-compact .rf-marine-modes{margin:3px 0}
+.rf-marine-caption{display:block;font-size:12px;margin-top:6px}.rf-map-time{font-size:11px;margin:4px 0}.rf-map-time .rf-slider{margin:0;padding:0}.rf-map-time .rf-slider input{height:20px}.rf-marine-compact .rf-map-legend{margin-top:3px}.rf-marine-compact .rf-marine-modes{margin:3px 0}
 
 /* 사고정보 .accident-grid-legend와 같은 상자; 색상막대와4개문구만 별도 내용이다. */
 .rf-color-legend{position:fixed;left:8px;bottom:calc(var(--main-tab-height,68px) + 8px + 25px);z-index:150;display:flex;flex-direction:column;gap:4px;width:150px;padding:7px 9px;background:rgba(10,15,28,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--border-color,#334155);border-radius:8px;font-size:.64rem;color:var(--text-sub,#94a3b8);box-sizing:border-box;pointer-events:none}
@@ -100,3 +100,32 @@ body.ls-mode.ls-safety.ls-mudflat-on .rf-color-legend{bottom:calc(var(--ls-botto
 .rf-color-legend[hidden]{display:none}.rf-color-legend .rf-marine-caption{margin:0;text-align:left;font-size:inherit;font-weight:700;color:var(--text-main,#eaf1fa);background:none}.rf-color-legend .rf-mini-key{display:block}.rf-gradient-bar{height:6px;border-radius:3px;background:linear-gradient(to right,#56a66f 0%,#dbc753 33.333%,#e58b46 66.666%,#d64b45 100%)}.rf-gradient-labels{display:flex;justify-content:space-between;margin-top:4px;font-size:inherit}
 
 .rf-legend-change{animation:rf-legend-change .65s ease-out 1}@keyframes rf-legend-change{0%,100%{opacity:1}35%{opacity:.45}}@media(prefers-reduced-motion:reduce){.rf-legend-change{animation:none}}
+
+/* 해상 시각: 메인 탭과 지도 출처 사이의 낮은 전폭 바. 날짜는 고정 output, 이동만 버튼. */
+body.rf-sea-time-on{--rf-time-height:46px;--rf-bottom-chrome:var(--main-tab-height,68px)}
+body.rf-sea-time-on.sub-tabs-open{--rf-bottom-chrome:calc(var(--main-tab-height,68px) + var(--sub-tab-height,50px))}
+.rf-marine-timebar{position:fixed;left:0;right:0;bottom:var(--rf-bottom-chrome,var(--main-tab-height,68px));z-index:151;height:46px;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1.7fr) repeat(4,minmax(0,1fr));align-items:center;gap:4px;padding:5px 8px;background:rgba(15,26,45,.96);border-top:1px solid #56708c;border-bottom:1px solid #56708c;box-shadow:0 -3px 10px rgba(0,0,0,.18);color:#eef4ff}
+.rf-marine-timebar[hidden]{display:none}
+.rf-marine-timebar output{font-size:12px;text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rf-marine-timebar button{height:34px;min-width:0;padding:0 3px;font-size:12px;color:inherit;background:#223752;border:1px solid #617b99;border-radius:6px;cursor:pointer}
+.rf-marine-timebar button[aria-pressed="true"]{background:#365fc0;border-color:#92afff}
+.rf-marine-timebar button:disabled{opacity:.35;cursor:default}
+.rf-marine-timebar button:focus-visible{outline:2px solid #ffd740;outline-offset:1px}
+body.rf-sea-time-on .ol-attribution,body.rf-sea-time-on .ol-scale-line{position:fixed!important;bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 6px)!important}
+body.rf-sea-time-on .rf-color-legend{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 31px)!important}
+body.rf-sea-time-on.ls-mudflat-on .ol-attribution,body.rf-sea-time-on.ls-mudflat-on .ol-scale-line{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 2.25rem + 6px)!important}
+body.rf-sea-time-on.ls-mudflat-on .rf-color-legend{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 2.25rem + 31px)!important}
+@media(max-width:360px){.rf-marine-timebar{gap:3px;padding-left:5px;padding-right:5px}.rf-marine-timebar output,.rf-marine-timebar button{font-size:11px}}
+
+/* 위험지형과 같은 banzone/bzl 공통 디자인과 스위치를 그대로 사용한다. */
+#ocean-risk-forecast-toggle-btn.rf-preview-locked{opacity:.4;filter:grayscale(1);cursor:default}
+.rf-marine-compact .rf-map-legend[hidden]{display:none}
+.rf-marine-options{border-top:1px solid var(--border-color,#334155);margin-top:4px;padding-top:2px}
+.rf-marine-options summary{display:flex;justify-content:space-between;align-items:center;min-height:26px;padding:2px 8px;font-size:.7rem;color:var(--text-sub,#94a3b8);cursor:pointer;list-style:none}
+.rf-marine-options summary::-webkit-details-marker{display:none}
+.rf-marine-options[open] summary>span{transform:rotate(180deg)}
+.rf-marine-options .bzl-row{width:100%}
+.rf-mode-badge{display:block;margin:3px 8px;padding:3px 6px;border:1px solid #536b8a;border-radius:5px;font-size:.65rem;color:var(--text-sub,#94a3b8);background:rgba(90,120,160,.12)}
+.rf-mode-badge[hidden],[data-marine-tools][hidden]{display:none}
+/* 하단의 법률/AI 진입 버튼도 새 시간바·축척을 덮지 않도록 함께 올린다. */
+body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 44px)}

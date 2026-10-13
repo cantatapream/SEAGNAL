@@ -257,6 +257,8 @@ if (require.main === module) (async () => {
     await clickTab('ocean-life-group', '메인탭 재진입:해양생활');
     // 실제 앱 버튼을 열어 기본 층·닫힌 시트·OFF 상태를 확인한다. 자료 결측은 상태 배너로 드러난다.
     try {
+        const previewLocked=await page.evaluate(()=>{const b=document.getElementById('ocean-risk-forecast-toggle-btn');for(let i=0;i<9;i++)b.click();return b.getAttribute('aria-disabled')==='true'&&!window._riskForecastApp&&!b.classList.contains('active');});
+        scenarios.push({label:'위험예측:10회 트리거의 첫9회 비활성',target:'ocean-risk-forecast-toggle-btn',ok:previewLocked,required:true});
         await page.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').click());
         await page.waitForFunction(() => window._riskForecastApp && !document.getElementById('risk-forecast-legend').hidden, null, {timeout:15000});
         const ok = await page.evaluate(() => {
@@ -288,10 +290,12 @@ if (require.main === module) (async () => {
             return _riskForecastApp.getState().sea && visible('rf-marine-canvas') && !visible('rf-accident-canvas') && !visible('rf-sea-canvas') && key && !key.hidden && key.textContent.includes('경계');
         });
         scenarios.push({label:'위험예측:공식 사고·혼잡 동시층',target:'ocean-risk-forecast-toggle-btn',ok:!!officialLayers,required:true});
-        const marineWired=await page.evaluate(()=>!!window.RiskMarine && !!document.querySelector('#risk-forecast-legend [data-marine-brief]') && getOceanMap().getLayers().getArray().some(l=>l.getClassName()==='rf-marine-canvas'));
-        scenarios.push({label:'해상통합:현재 교통·관할 브리핑 연결',target:'ocean-risk-forecast-toggle-btn',ok:marineWired,required:true});
+        const terrainStyle=await page.evaluate(()=>{const risk=document.querySelector('#risk-forecast-legend .banzone-legend'),terrain=document.getElementById('terrain-legend');if(!risk||!terrain)return false;const r=getComputedStyle(risk),t=getComputedStyle(terrain),rs=getComputedStyle(risk.querySelector('.bzl-switch')),ts=getComputedStyle(terrain.querySelector('.bzl-switch'));return r.backgroundColor===t.backgroundColor&&r.borderRadius===t.borderRadius&&r.flexDirection==='column'&&rs.display!=='none'&&rs.width===ts.width&&rs.height===ts.height;});
+        scenarios.push({label:'위험예측:위험지형 동일 박스·스위치',target:'ocean-risk-forecast-toggle-btn',ok:terrainStyle,required:true});
+        const marineWired=await page.evaluate(()=>!!window.RiskMarine && !!document.querySelector('.rf-marine-timebar [data-time-step="3"]') && !document.querySelector('#risk-forecast-legend [data-marine-brief]') && getOceanMap().getLayers().getArray().some(l=>l.getClassName()==='rf-marine-canvas'));
+        scenarios.push({label:'해상통합:하단 시각 버튼·브리핑 진입 제거',target:'ocean-risk-forecast-toggle-btn',ok:marineWired,required:true});
         await page.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').click());
-        const off=await page.evaluate(() => !window._riskForecastApp.getState().enabled && document.getElementById('risk-forecast-legend').hidden && document.getElementById('risk-forecast-banner').hidden);
+        const off=await page.evaluate(() => !window._riskForecastApp.getState().enabled && document.getElementById('risk-forecast-legend').hidden && document.getElementById('risk-forecast-banner').hidden && document.querySelector('.rf-marine-timebar').hidden && document.querySelector('.rf-color-legend').hidden);
         scenarios.push({label:'위험예측:실제앱 기본층·OFF',target:'ocean-risk-forecast-toggle-btn',ok:off,required:true});
     } catch(e) {
         scenarios.push({label:'위험예측:실제앱 기본층·OFF',target:'ocean-risk-forecast-toggle-btn',ok:false,required:true,error:String(e).slice(0,150)});
