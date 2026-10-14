@@ -38,3 +38,5 @@ docs/ · 00_docs/   문서
 ```
 
 > 서비스 계정 키는 `secrets/` 에 두며 git 에 올리지 않습니다. 새 환경에서는 수동 배치 필요.
+
+해상 위험예측 후속 화면은10회 클릭 진입·하단3시간 시각 버튼·배타적 표시 항목과 지도 렌더링 최적화를 사용한다. 세부 계약과 Fly 메모리 조사 구분은 [인계 문서](handoff_marine_fusion.md) 및 [해상 설계](client/js/marine-life/risk-forecast/marine_fusion.design.md)를 참고한다.
