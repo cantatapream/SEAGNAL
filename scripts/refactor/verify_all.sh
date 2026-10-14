@@ -115,7 +115,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
         test_zone_tree_wiring test_ask_context test_naver_term_step test_article_images test_chat_render
         test_glossary_parse test_citation_chain
   test_clarify_options test_unverified_review test_accident_sheet test_pending_law
-  test_hazard_rocks_tide test_guide_tabs test_tab_structure test_usage_keys test_maintenance_tree
+  test_hazard_rocks_tide test_tide_field_memory test_guide_tabs test_tab_structure test_usage_keys test_maintenance_tree
   test_overlay_solo test_wiki_brief_bulk test_review_marker_registered test_stale_reopen
   test_mok_audit_scanner test_add_other_law_refresh test_pressure_card test_typhoon_source test_typhoon_jma
   test_typhoon_ecmwf test_khoa_https test_khoa_stream_cache_memory
