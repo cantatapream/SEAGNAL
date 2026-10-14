@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 85 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 88 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -352,6 +352,9 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_collectors` | risk_collector_io 및 세 수집기 · 운영키/외부 HTTP/푸시 호출 없음 |
 | `test_risk_store` | risk_store + 계산기 · 임시 fixture 파일만 읽고 기존 수집 파일/푸시를 수정하지 않는다. |
 | `test_risk_store_file_cache` | 위험예측 파일 캐시 회귀: 작은 상태/쿼터 갱신은 큰 자료를 재파싱하지 않되 |
+| `test_risk_errors` | risk_error_history / risk_errors / 기존 admin_auth. 외부 수집·실사용 인증키 없음. |
+| `test_risk_errors_ui` | 제품 admin.js / risk_sheet.js. 운영 API·인증정보 없이 Chromium 사용. |
+| `test_risk_history_sources` | 오류 감시의 본문 제거·손상 판별·공개 저장소와 같은 신선도·갱신/삭제를 검사한다. |
 | `test_risk_routes` | routes/risk_forecast.js · 임시 보고서/가짜 저장소만 사용, 수집/키/푸시 없음 |
 | `test_risk_accident` | 공식 선박사고 순차수집·원자게시·3시간원본·클릭공간매칭을 임시자료로 검증한다. |
 | `test_marine_fusion` | 해상 통합의 누락·중복·시각·사고유형·관할 집계와 최신 수집의 정상본 보존을 검증한다. |
