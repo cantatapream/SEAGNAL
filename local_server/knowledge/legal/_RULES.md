@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 83 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 85 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -310,6 +310,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_typhoon_jma` | 태풍 탭의 "일본(JMA)" 출처가 조용히 깨지지 않게 고정한다. |
 | `test_typhoon_ecmwf` | 태풍 탭의 "유럽(ECMWF)" 출처가 조용히 깨지지 않게 고정한다. |
 | `test_khoa_https` | 개방海(국립해양조사원, khoa.go.kr)를 http:// 로 부르는 코드가 없게 고정한다. |
+| `test_khoa_stream_cache_memory` | 유향·유속·수온 캐시의 과거 슬롯 제거와 73슬롯 상한을 검증한다. |
 | `test_byl_decl` | 별표 파일 **선언줄** 판독(`bylDeclLine`·`parseBylDecl`·`hasBylBody`). |
 | `test_treaty_caselaw_meta` | §5-6 국제협약 · §5-7 판례변동 메타를 **읽는지** 고정한다. |
 | `test_context_budget` | 모델에게 넘기는 [근거자료]의 **합계 상한**(P-19)을 고정한다. |
@@ -347,13 +348,14 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_format` | U77·U78의 위험예측 서식·색·좌표와 HTML/URL 처리를 제품 함수로 검사한다. |
 | `test_risk_preview` | 위험예측 미리보기와 실제 앱의 원본 스위치 CSS·스크립트 순서·오버레이 연결을 검사한다. |
 | `test_risk_lifecycle` | 실제 위험예측 조율기의 공식 선박 예보의 독립 요청·3일 시간축·실패 복구·뒤로가기 스택·OFF 경쟁과 API TTL을 검사한다. |
-| `test_risk_map_layer` | 실제 관광지·육지·섬 원천 전체를 제품 OpenLayers 지도 층에 넣어 빈 형상 회귀를 검사한다. |
+| `test_risk_map_layer` | 실제 관광지·육지·섬 원천 전체를 제품 OpenLayers 지도 층에 넣어 빈 형상 회귀와 상세 시트의 실제 연안 합계 설명을 검사한다. |
 | `test_risk_collectors` | risk_collector_io 및 세 수집기 · 운영키/외부 HTTP/푸시 호출 없음 |
 | `test_risk_store` | risk_store + 계산기 · 임시 fixture 파일만 읽고 기존 수집 파일/푸시를 수정하지 않는다. |
+| `test_risk_store_file_cache` | 위험예측 파일 캐시 회귀: 작은 상태/쿼터 갱신은 큰 자료를 재파싱하지 않되 |
 | `test_risk_routes` | routes/risk_forecast.js · 임시 보고서/가짜 저장소만 사용, 수집/키/푸시 없음 |
 | `test_risk_accident` | 공식 선박사고 순차수집·원자게시·3시간원본·클릭공간매칭을 임시자료로 검증한다. |
 | `test_marine_fusion` | 해상 통합의 누락·중복·시각·사고유형·관할 집계와 최신 수집의 정상본 보존을 검증한다. |
-| `test_marine_ui` | 실제 Chromium에서 해상 종합·선종·사고 이력·시각 독립·관할 브리핑·HTML 보호를 검사한다. |
+| `test_marine_ui` | 실제 Chromium에서 해상 종합·선종·사고 이력·시각 버튼·시각 독립·실패 복구·모바일 렌더링·HTML 보호를 검사한다. |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

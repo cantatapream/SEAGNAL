@@ -29,18 +29,24 @@
             if (!fresh && cached && Date.now()-cached.at<ttl) return cached.value;
             if (!fresh && pending.has(url)) return pending.get(url);
             var p = (async function () {
-                var c = new AbortController(), timer = setTimeout(function () { c.abort(); },15000);
-                try {
-                    var r = await fetch(url, {signal:c.signal,cache:fresh?'no-store':'default'}), j = await r.json();
-                    if (!r.ok || j.ok === false) {var error=new Error(j.error || 'HTTP ' + r.status);error.status=r.status;throw error;}
-                    cache.set(url,{value:j,at:Date.now()});
-                    // 전국 격자 프레임은 모바일 메모리를 위해 최근8시각만 유지한다.
-                    if(path==='sea/unified-frame'){var frames=Array.from(cache.keys()).filter(function(k){return k.includes('/sea/unified-frame?');});while(frames.length>8)cache.delete(frames.shift());}
-                    if (cache.size > 150) cache.delete(cache.keys().next().value);
-                    return j;
-                } finally { clearTimeout(timer); pending.delete(url); }
+                for(var attempt=0;attempt<3;attempt++){
+                    var c=new AbortController(),timer=setTimeout(function(){c.abort();},15000);
+                    try{
+                        var r=await fetch(url,{signal:c.signal,cache:fresh||attempt?'no-store':'default'}),j=await r.json();
+                        if(!r.ok||j.ok===false){var error=new Error(j.error||'HTTP '+r.status);error.status=r.status;throw error;}
+                        cache.set(url,{value:j,at:Date.now()});
+                        // 전국 프레임은 최근8시각만 유지한다. 비정상 응답은 저장하지 않는다.
+                        if(path==='sea/unified-frame'){var frames=Array.from(cache.keys()).filter(function(k){return k.includes('/sea/unified-frame?');});while(frames.length>8)cache.delete(frames.shift());}
+                        if(cache.size>150)cache.delete(cache.keys().next().value);return j;
+                    }catch(e){
+                        // Wi-Fi 전환·일시 연결 중단은 짧게 재시도, 사용자 입력 오류/잘못된 JSON은 즉시 반환.
+                        var retry=e.name==='TypeError'||e.name==='AbortError'||e.status>=500;
+                        if(!retry||attempt===2)throw e;
+                        await new Promise(function(resolve){setTimeout(resolve,attempt?900:300);});
+                    }finally{clearTimeout(timer);}
+                }
             })();
-            pending.set(url,p); return p;
+            pending.set(url,p);try{return await p;}finally{if(pending.get(url)===p)pending.delete(url);}
         }
         return {get:get, clear:function () { cache.clear(); }};
     }
