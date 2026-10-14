@@ -10,7 +10,8 @@
  *   - 불필요 필드(salt, zeta) 제거 — lat/lon/s/d/temp 5필드만 보관
  *   - 양자화: s→0.01, d→정수, temp→0.1 단위 (전송 바이트 절감 + JSON 가독)
  *   - 5×5 가우시안 평활화 (cm/s 환산 후 crsp/crdir 기준으로 1회 통과)
- *   - 메모리 캐시 (key='YYYYMMDD_HH') + gzip 디스크 백업 (cold start 대응)
+ *   - 현재 시간대~+72시간만 메모리 보관(최대73슬롯), 지난 예보시각은1분 정리
+ *   - 슬롯별 gzip 백업(cold start 대응). 과거 슬롯은 백업 게시·복원에서 제외
  *   - In-flight 중복제거: 같은 (date,hour) 동시 요청은 하나의 Promise 공유
  *
  * [기존 routes/ocean1.js 와의 차이]
@@ -74,6 +75,12 @@ const SEQUENTIAL_DELAY_MS = 500;
 
 // 스케줄러 1회 사이클이 미리 채울 시간 범위 (현재 시각 포함, 총 73 슬롯)
 const REFRESH_HOURS_AHEAD = 72;
+// 실제 조회 가능한 현재 시간대~+72h만 보관한다. 지난 예보시각은 메모리·백업에서 즉시 제거한다.
+// TTL은 재수집 판단이고, 이 제한은 메모리·디스크 보관량 제한이다.
+const CACHE_HOURS_BEHIND = 0;
+const MAX_CACHE_SLOTS = REFRESH_HOURS_AHEAD + CACHE_HOURS_BEHIND + 1;
+const MAX_BACKUP_BYTES = 64 * 1024 * 1024;
+const MAX_SLOT_BYTES = 8 * 1024 * 1024;
 
 // ============================================================================
 // 메모리 캐시 상태
@@ -88,7 +95,45 @@ const _failCache = new Map();
 // In-flight Promise dedup — 같은 키에 대한 동시 외부 fetch 차단
 const _khoaPending = new Map();
 
-function _cacheKey(date, hour) { return date + '_' + hour; }
+/** 같은 정시의 숫자/두 자리 문자열 인자를 공통 키로 맞춘다. 예:9와09는 한 슬롯.
+ * @param {string} date - YYYYMMDD @param {number|string} hour - 정시
+ * @returns {string} YYYYMMDD_HH [연계] ← getStream/hydrateFromDisk
+ */
+function _cacheKey(date, hour) {
+    return String(date) + '_' + String(Number(hour)).padStart(2, '0');
+}
+
+/** YYYYMMDD_HH를 KST 예보 epoch로 변환한다. 잘못된 달·날짜는 NaN. [연계] ← _prune/hydrateFromDisk */
+function _forecastTime(key) {
+    const m = /^(\d{4})(\d{2})(\d{2})_(\d{1,2})$/.exec(key);
+    if (!m || +m[4] > 23) return NaN;
+    const time = Date.UTC(+m[1], +m[2]-1, +m[3], +m[4]) - 9*3600000;
+    const d = new Date(time + 9*3600000);
+    return d.getUTCFullYear()===+m[1] && d.getUTCMonth()===+m[2]-1 && d.getUTCDate()===+m[3] ? time : NaN;
+}
+/** KST 격자 예보시각으로 보관창을 계산하며 지난 성공·실패 항목을 해제한다.
+ * 예: 지금15시이면14시 데이터는 제거하지만,16시 예보를2시간 전에 받은 생성본은 유지할 수 있다.
+ * 생성본 age의24시간 stale 허용과 예보시각의 과거 여부는 서로 다른 정책이다.
+ * @param {number} now - 서버 현재 UTC epoch @returns {void}
+ * [연계] getStream/refreshCycle/persistToDisk/hydrateFromDisk. 현재 시간대~72h 및 동일 미래 예보시각의 stale 정책은 유지.
+ */
+function _prune(now = Date.now()) {
+    const base = Math.floor(now / 3600000) * 3600000;
+    for (const [map, ttl] of [[_cache, MAX_STALE_MS], [_failCache, FAIL_TTL_MS]]) {
+        for (const [key, entry] of map) {
+            const time = _forecastTime(key);
+            if (!Number.isFinite(time) || time < base-CACHE_HOURS_BEHIND*3600000 ||
+                time > base+REFRESH_HOURS_AHEAD*3600000 || now-entry.ts>ttl || entry.ts>now+60000) map.delete(key);
+        }
+        while (map.size>MAX_CACHE_SLOTS) map.delete(map.keys().next().value);
+    }
+}
+
+
+// 조회나 외부 수집이 멈춰 있어도 지난 슬롯을 다음 1분 정리 주기에 해제한다.
+// 외부 요청·디스크 쓰기는 없으며 timer가 프로세스 종료를 붙잡지 않는다.
+const _pruneTimer = setInterval(() => _prune(), 60000);
+_pruneTimer.unref();
 
 // ============================================================================
 // 양자화 / 평활화 / 가공
@@ -208,12 +253,12 @@ function _normalizeRawPoints(rawArr) {
     const filtered = [];
     for (let i = 0; i < rawArr.length; i++) {
         const r = rawArr[i];
-        if (!r || typeof r.lat !== 'number' || typeof r.lon !== 'number') continue;
+        if (!r || !Number.isFinite(r.lat) || !Number.isFinite(r.lon) || r.lat < -90 || r.lat > 90 || r.lon < -180 || r.lon > 180) continue;
         const s = typeof r.s === 'number' ? r.s : 0;
         const d = typeof r.d === 'number' ? r.d : 0;
         const temp = typeof r.temp === 'number' ? r.temp : 0;
         // 결측 격자 제거 (s/d/temp 모두 0 → 육지)
-        if (s === 0 && d === 0 && temp === 0) continue;
+        if (![s,d,temp].every(Number.isFinite) || (s === 0 && d === 0 && temp === 0)) continue;
         filtered.push({
             lat: r.lat,
             lon: r.lon,
@@ -305,6 +350,7 @@ async function _fetchUpstream(date, hour) {
  * 동일 키 동시 요청 → 단일 Promise 공유 (in-flight dedup).
  */
 async function getStream(date, hour) {
+    _prune();
     const key = _cacheKey(date, hour);
 
     // 1) 메모리 캐시 hit
@@ -336,11 +382,13 @@ async function getStream(date, hour) {
             const points = _normalizeRawPoints(rawPoints);
             const entry = { ts: Date.now(), points, meta };
             _cache.set(key, entry);
+            _prune();
             // 실패 캐시 잔재 정리 — 정상 복구 시 다음 폴링이 즉시 hit 되도록
             _failCache.delete(key);
             return entry;
         } catch (e) {
             _failCache.set(key, { ts: Date.now(), reason: e.message });
+            _prune();
             // [stale 폴백] upstream 실패해도 24h 이내 옛 데이터 보유 시 그것 반환.
             // 호출자(routes/ocean1.js) 가 success:true 로 처리하되 stale 플래그로 구분 가능.
             if (cached && (Date.now() - cached.ts) < MAX_STALE_MS) {
@@ -365,16 +413,20 @@ async function getStream(date, hour) {
 
 /**
  * 현재 메모리 캐시 전체를 gzip JSON 으로 디스크 백업.
- * 형식: { savedAt, entries: { 'YYYYMMDD_HH': { ts, points, meta } } }
- * 동기 write (fsync 없음) — 캐시 갱신 직후 호출이라 큰 임팩트 없음.
+ * 형식: codec2 { savedAt, entries: { 'YYYYMMDD_HH': base64(gzip({ts,points,meta})) } }. 구형 객체 슬롯은 복원 시 계속 지원한다.
+ * 동기 write (fsync 없음). 보관창/슬롯 상한을 적용하고 슬롯별로 압축하여 전체 원문 문자열의 순간 중복을 줄인다.
  */
 function persistToDisk() {
     try {
+        _prune();
         const entries = {};
         for (const [k, v] of _cache.entries()) {
-            entries[k] = { ts: v.ts, points: v.points, meta: v.meta };
+            // 슬롯별 압축: 부팅 때 수십만 point 객체를 한 번에 JSON.parse 하지 않는다.
+            const slot = JSON.stringify({ ts: v.ts, points: v.points, meta: v.meta });
+            if (Buffer.byteLength(slot)>MAX_SLOT_BYTES) throw new Error('cache slot too large');
+            entries[k] = zlib.gzipSync(slot).toString('base64');
         }
-        const payload = JSON.stringify({ savedAt: Date.now(), entries });
+        const payload = JSON.stringify({ codec: 2, savedAt: Date.now(), entries });
         const gz = zlib.gzipSync(payload);
         // 디렉토리 보장
         if (!fs.existsSync(DATA_DIR)) {
@@ -399,23 +451,31 @@ function hydrateFromDisk() {
     try {
         if (!fs.existsSync(DISK_BACKUP_PATH)) return 0;
         const gz = fs.readFileSync(DISK_BACKUP_PATH);
-        const payload = JSON.parse(zlib.gunzipSync(gz).toString('utf8'));
+        const payload = JSON.parse(zlib.gunzipSync(gz, { maxOutputLength: MAX_BACKUP_BYTES }).toString('utf8'));
         const entries = payload && payload.entries;
         if (!entries) return 0;
         let restored = 0, stale = 0;
         const now = Date.now();
         for (const k of Object.keys(entries)) {
-            const e = entries[k];
+            // 보관창 밖 슬롯은 base64 해제·JSON 파싱 전에 건너뛴다.
+            const time = _forecastTime(k), base = Math.floor(now/3600000)*3600000;
+            if (!Number.isFinite(time) || time<base-CACHE_HOURS_BEHIND*3600000 || time>base+REFRESH_HOURS_AHEAD*3600000) continue;
+            let e = entries[k];
+            if (payload.codec===2) {
+                if (typeof e!=='string') continue;
+                try { e=JSON.parse(zlib.gunzipSync(Buffer.from(e,'base64'), {maxOutputLength:MAX_SLOT_BYTES}).toString('utf8')); }
+                catch (_) { continue; } // 한 슬롯 손상은 다른 정상 슬롯 복원을 막지 않는다.
+            }
             if (!e || !Array.isArray(e.points)) continue;
-            if (typeof e.ts !== 'number') continue;
+            if (!Number.isFinite(e.ts) || e.ts > now+60000) continue;
             const age = now - e.ts;
             // 24시간 초과 → 정말 너무 오래된 데이터, 폐기.
-            if (age > MAX_STALE_MS) continue;
+            if (age > MAX_STALE_MS || e.points.some(p=>!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon) || p.lat < -90 || p.lat > 90 || p.lon < -180 || p.lon > 180 || ![p.s,p.d,p.temp].every(Number.isFinite))) continue;
             // 1시간 이내 → 신선 (정상 entry).
             // 1~24시간 → stale 플래그 부여하여 복원 (다음 refreshCycle 가 덮어쓰기 전까지
             //   빈 화면 대신 옛 데이터라도 노출).
             const isStale = age > CACHE_TTL_MS;
-            _cache.set(k, {
+            _cache.set(_cacheKey(k.slice(0,8),k.slice(9)), {
                 ts: e.ts,
                 points: e.points,
                 meta: e.meta || {},
@@ -424,6 +484,9 @@ function hydrateFromDisk() {
             if (isStale) stale++;
             restored++;
         }
+        _prune(now);
+        restored = _cache.size;
+        stale = Array.from(_cache.values()).filter(e=>now-e.ts>CACHE_TTL_MS).length;
         console.log('[KHOA-Cache] 디스크 백업 복원: ' + restored + ' 슬롯' +
             (stale > 0 ? ' (그 중 ' + stale + ' 슬롯은 1h 초과 stale)' : ''));
         return restored;
@@ -475,6 +538,7 @@ async function refreshCycle(opts) {
         return { ok: 0, fail: 0, elapsedMs: 0, skipped: true };
     }
     _refreshInProgress = true;
+    _prune();
     const t0 = Date.now();
     log('[KHOA-Cache] 정기 수집 시작 (73 슬롯, ~' +
         Math.round(REFRESH_HOURS_AHEAD * SEQUENTIAL_DELAY_MS / 1000) + '초 예상)');
