@@ -255,7 +255,7 @@ if (require.main === module) (async () => {
     //   짝을 못 찾아 그 시나리오가 조용히 통과 처리된다(검사가 약해진다).
     //   화면상의 이름은 2026-09-10 부터 "해양안전생활" 이다.
     await clickTab('ocean-life-group', '메인탭 재진입:해양생활');
-    // 실제 앱 버튼을 열어 기본 층·닫힌 시트·OFF 상태를 확인한다. 자료 결측은 상태 배너로 드러난다.
+    // 실제 앱 버튼을 열어 기본 층·닫힌 시트·OFF 상태를 확인한다. 원천 오류 배너는 숨기고 관리자 인증된 이력에서만 조회한다.
     try {
         const previewLocked=await page.evaluate(()=>{const b=document.getElementById('ocean-risk-forecast-toggle-btn');for(let i=0;i<9;i++)b.click();return b.getAttribute('aria-disabled')==='true'&&!window._riskForecastApp&&!b.classList.contains('active');});
         scenarios.push({label:'위험예측:10회 트리거의 첫9회 비활성',target:'ocean-risk-forecast-toggle-btn',ok:previewLocked,required:true});
@@ -296,6 +296,13 @@ if (require.main === module) (async () => {
             return shown && PopupStack.popLast() && !document.getElementById('risk-forecast-sheet').classList.contains('open');
         });
         scenarios.push({label:'연안위험:실제 API 합계 배수 설명',target:'risk-forecast-sheet',ok:!!coastExplanation,required:true});
+
+        const privateResponse=await page.request.get(new URL('/api/admin/risk-forecast/errors',page.url()).href);
+        const privateDiagnostics=privateResponse.status()===401 && await page.evaluate(()=>{
+            const banner=document.getElementById('risk-forecast-banner');
+            return banner.hidden && !banner.textContent;
+        });
+        scenarios.push({label:'위험예측:원천오류 관리자 전용',target:'ocean-risk-forecast-toggle-btn',ok:privateDiagnostics,required:true});
         // 공식 사고 면과 원래 혼잡 격자 층은 자료 결측 때도 서로 독립적으로 켜고 끈다.
         await page.evaluate(() => document.querySelector('#risk-forecast-legend [data-layer="sea"]').click());
         await page.waitForFunction(() => {

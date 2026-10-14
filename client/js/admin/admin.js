@@ -709,10 +709,10 @@ async function renderUnifiedAiTab(container) {
     container.innerHTML =
         '<div id="ai-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('chatbot', 'AI 챗봇')
+        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('forecast', 'AI 사고예측') + mkTabBtn('chatbot', 'AI 챗봇')
         + '</div>'
         + '<div id="ai-subtab-body"></div>';
-    switchAiSubTab(['test', 'chatbot'].includes(saved) ? saved : 'assistant');
+    switchAiSubTab(['test', 'forecast', 'chatbot'].includes(saved) ? saved : 'assistant');
 }
 
 window.switchAiSubTab = function (which) {
@@ -730,6 +730,7 @@ window.switchAiSubTab = function (which) {
     var _m = document.getElementById('unified-admin-modal');
     if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
     if (which === 'test') renderAiTestSubtab(sub);
+    else if (which === 'forecast') renderAiForecastSubtab(sub);
     else if (which === 'chatbot') {
         // [AI 챗봇] 나리야 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)
         if (window.NariyaChat && window.NariyaChat.renderAdminInto) window.NariyaChat.renderAdminInto(sub);
@@ -737,6 +738,30 @@ window.switchAiSubTab = function (which) {
     }
     else renderAiAssistantSubtab(sub);
 };
+
+/** 관리자 AI 사고예측에서 서버의 현재 상태와 유한 오류 이력을 조회한다.
+ * 예: AI → AI 사고예측 → 오류현황. @param {HTMLElement} container @returns {void}
+ * [연계] 기존 관리자 fetch 토큰 래퍼 → /api/admin/risk-forecast/errors
+ */
+function renderAiForecastSubtab(container) {
+    const names={warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통'};
+    const statuses={ok:'정상',offseason:'비운영 기간',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
+    const phases={opened:'문제 발생',changed:'문제 변경',recovered:'복구'};
+    const esc=value=>String(value==null?'—':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const at=value=>value&&Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})+' KST':'—';
+    container.innerHTML='<div><button type="button" aria-selected="true">오류현황</button><p>자료 수집·누락·오래됨과 복구 내역입니다. 같은 문제가 반복되면 한 건으로 유지합니다.</p>'+
+        '<label>원천 <select data-risk-source><option value="">전체</option>'+Object.keys(names).map(k=>'<option value="'+k+'">'+names[k]+'</option>').join('')+'</select></label> '+
+        '<label>상태 <select data-risk-status><option value="">전체</option>'+['error','stale','missing','ok'].map(k=>'<option value="'+k+'">'+statuses[k]+'</option>').join('')+'</select></label> '+
+        '<button type="button" data-risk-refresh>새로고침</button><div data-risk-history aria-live="polite"></div><div data-risk-pagination></div></div>';
+    const host=container.firstElementChild,body=host.querySelector('[data-risk-history]'),pager=host.querySelector('[data-risk-pagination]');let page=1,request=0;
+    async function load(){const n=++request;body.textContent='오류현황을 불러오는 중입니다.';pager.replaceChildren();const params=new URLSearchParams({page:String(page),limit:'30'});for(const key of ['source','status']){const value=host.querySelector('[data-risk-'+key+']').value;if(value)params.set(key,value);}
+        try{const response=await fetch('/api/admin/risk-forecast/errors?'+params.toString());if(!response.ok)throw Error('unavailable');const result=await response.json();if(n!==request||!host.isConnected||!container.contains(host))return;const current=result.current||[],rows=result.data||[];
+            body.innerHTML='<p>최종 상태 확인 '+esc(at(result.observedAt))+'</p><h4>현재 원천 상태</h4>'+current.map(r=>'<div style="padding:8px;border-bottom:1px solid #475569;">'+esc(names[r.source])+' '+(r.scope!=='global'?esc(r.scope)+' ':'')+'· '+esc(statuses[r.status])+'<br>마지막 정상 수집 '+esc(at(r.lastSuccess||r.updatedAt))+(r.checkedAt?'<br>최신화 확인 '+esc(at(r.checkedAt)):'')+(r.code?'<br>분류 '+esc(r.code):'')+'</div>').join('')+
+                '<h4>오류·복구 이력</h4>'+(rows.length?rows.map(r=>'<div style="padding:10px;border-bottom:1px solid #475569;">'+esc(names[r.source])+' '+(r.scope!=='global'?esc(r.scope)+' ':'')+'· '+esc(phases[r.phase])+' / '+esc(statuses[r.status])+'<br>'+esc(at(r.lastAt))+'<br>최초 감지 '+esc(at(r.firstAt))+(r.code?'<br>분류 '+esc(r.code):'')+'</div>').join(''):'<p>기록된 이력이 없습니다.</p>');
+            const p=result.pagination;page=p.page;pager.innerHTML='<button type="button" data-risk-prev '+(page<=1?'disabled':'')+'>이전</button> '+page+' / '+p.totalPages+' · '+p.total+'건 <button type="button" data-risk-next '+(page>=p.totalPages?'disabled':'')+'>다음</button>';pager.querySelector('[data-risk-prev]').onclick=()=>{page--;load();};pager.querySelector('[data-risk-next]').onclick=()=>{page++;load();};
+        }catch(_){console.warn('[관리자] 사고예측 오류현황 조회 실패');if(n===request&&host.isConnected&&container.contains(host))body.textContent='오류현황을 불러오지 못했습니다. 새로고침으로 다시 시도해주세요.';}}
+    host.querySelector('[data-risk-refresh]').onclick=load;for(const key of ['source','status'])host.querySelector('[data-risk-'+key+']').onchange=()=>{page=1;load();};load();
+}
 
 // AI 비서 하위탭 — Gemini 호출량 + 권한 + 음성 토글(+현재 엔진) + 테스트 호출 + 대화 내역.
 async function renderAiAssistantSubtab(container) {
