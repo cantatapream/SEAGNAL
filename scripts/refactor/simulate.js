@@ -266,6 +266,8 @@ if (require.main === module) (async () => {
             return state.enabled && state.coast && !state.sea && !state.selected && !document.getElementById('risk-forecast-sheet').classList.contains('open');
         });
         if (!ok) throw new Error('기본 층 또는 초기 시트 상태 불일치');
+        // legend는 비동기 자료 준비 전에 표시된다. 시각이 잡혀 위치표가 설치된 뒤 지점을 선택한다.
+        await page.waitForFunction(() => window._riskForecastApp && Number.isFinite(Date.parse(_riskForecastApp.getState().t)), null, {timeout:15000});
         const backWorks = await page.evaluate(async () => {
             const points = await fetch('/api/risk-forecast/coast/spots').then(r => r.json());
             const ids = points.spots.slice(0,2).map(p => p.id);
@@ -277,6 +279,23 @@ if (require.main === module) (async () => {
             return opened && popped && !document.getElementById('risk-forecast-sheet').classList.contains('open') && _riskForecastApp.getState().t === before && !PopupStack.list().includes('risk-forecast-sheet');
         });
         scenarios.push({label:'위험예측:뒤로가기 시트 닫기',target:'ocean-risk-forecast-toggle-btn',ok:backWorks,required:true});
+        // 실제 API의 한 연안 지점을 열어 합계 설명의 기본 접힘·펼침과 상대 지표 문구를 확인한다.
+        await page.evaluate(async () => {
+            const response = await fetch('/api/risk-forecast/coast/spots');
+            if (!response.ok) throw new Error('연안 위치표 응답 실패');
+            const points = await response.json();
+            if (!points.spots.length) throw new Error('연안 위치표 비어 있음');
+            _riskForecastApp.select('coast', points.spots[0].id);
+        });
+        await page.waitForFunction(() => document.querySelector('#risk-forecast-sheet.open .rf-calculation'), null, {timeout:15000});
+        const coastExplanation = await page.evaluate(() => {
+            const explanation = document.querySelector('#risk-forecast-sheet .rf-calculation');
+            const initiallyClosed = !explanation.open;
+            explanation.querySelector('summary').click();
+            const shown = initiallyClosed && explanation.open && explanation.textContent.includes('상대 비교 지표') && explanation.textContent.includes('전체 사고');
+            return shown && PopupStack.popLast() && !document.getElementById('risk-forecast-sheet').classList.contains('open');
+        });
+        scenarios.push({label:'연안위험:실제 API 합계 배수 설명',target:'risk-forecast-sheet',ok:!!coastExplanation,required:true});
         // 공식 사고 면과 원래 혼잡 격자 층은 자료 결측 때도 서로 독립적으로 켜고 끈다.
         await page.evaluate(() => document.querySelector('#risk-forecast-legend [data-layer="sea"]').click());
         await page.waitForFunction(() => {
@@ -436,7 +455,7 @@ if (require.main === module) (async () => {
             '    - ' + e + '\n        ↳ ' + (notAbsentWhy.get(e) || '본문 읽기가 제한시간(5초) 안에 안 끝났다')));
     }
     if (lostGlobals.length) { fail = true; console.error('  ❌ 사라진 전역 함수:'); lostGlobals.slice(0, 20).forEach((e) => console.error('    - ' + e)); }
-    if (brokenScenarios.length) { fail = true; console.error('  ❌ 깨진 시나리오:'); brokenScenarios.forEach((s) => console.error('    - ' + s.label)); }
+    if (brokenScenarios.length) { fail = true; console.error('  ❌ 깨진 시나리오:'); brokenScenarios.forEach((s) => console.error('    - ' + s.label + (s.error ? ' — ' + s.error : ''))); }
 
     if (fail) process.exit(1);
     console.log('[simulate] ✅ 통과 — 기준선 대비 회귀 없음');
