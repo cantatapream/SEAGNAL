@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 90 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 91 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -352,6 +352,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_map_layer` | 실제 관광지·육지·섬 원천 전체를 제품 OpenLayers 지도 층에 넣어 빈 형상 회귀와 상세 시트의 실제 연안 합계 설명을 검사한다. |
 | `test_risk_collectors` | risk_collector_io 및 세 수집기 · 운영키/외부 HTTP/푸시 호출 없음 |
 | `test_risk_store` | risk_store + 계산기 · 임시 fixture 파일만 읽고 기존 수집 파일/푸시를 수정하지 않는다. |
+| `test_risk_missing_notice` | 실제 risk_store 가 임시 자료로 만든 상세 응답을 실제 RiskSheet(Chromium)에 그대로 넣고, 같은 원천 상태를 관리자 오류이력에도 넣는다. |
 | `test_risk_store_file_cache` | 위험예측 파일 캐시 회귀: 작은 상태/쿼터 갱신은 큰 자료를 재파싱하지 않되 |
 | `test_risk_errors` | risk_error_history / risk_errors / 기존 admin_auth. 외부 수집·실사용 인증키 없음. |
 | `test_risk_errors_ui` | 제품 admin.js / risk_sheet.js. 운영 API·인증정보 없이 Chromium 사용. |
