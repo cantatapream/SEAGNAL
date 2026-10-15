@@ -25,6 +25,7 @@ const FIELDS = new Set([
     'lastError',
     'checkedAt',
     'lastRun',
+    'detail', // 실시간 교통 수집기가 남기는 실패·제외 사유 한 줄(2026-10-15)
 ]);
 /** JSON을 끝까지 검사하되 각 본문 값을 즉시 버린다. 예: frames 48개도 객체로 남기지 않는다.
  * @param {string} file - JSON 또는 gzip 파일 @returns {Promise<object|null>} 실제 메타데이터, 손상은 null
@@ -305,6 +306,8 @@ function createReader(options = {}) {
                 lastSuccess: attempt?.lastSuccess || live?.collectedAt || null,
                 checkedAt: attempt?.lastRun || null,
                 lastError: attempt?.lastError || null,
+                // 무엇 때문에 실패했는지/몇 줄을 뺐는지 — 수집기가 고정 문구로만 만든다(키·주소 없음).
+                detail: typeof attempt?.detail === 'string' ? attempt.detail : null,
             },
             visibility: visibilitySource(vsbyStatus(), now),
         };

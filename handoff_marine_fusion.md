@@ -378,3 +378,11 @@ ${target} ${province} 해안에서 열리는 행사 중 관광공사 공식 목�
   ⚠위 목록이 비어 있을 때만 "전부 통과"라고 말할 수 있다.
     한 줄이라도 있으면 그 줄을 **하나도 빠짐없이** 보고해야 한다(L-196).
 ```
+
+## 후속: 실시간 교통 「invalid response」 정지와 줄 단위 허용 — 2026-10-15
+- 증상: 운영 `/api/risk-forecast/sea/current` 의 `collectedAt` 이 2026-10-14 18:25 KST 에서 멈춤(20시간+), 관리자 오류현황 「실시간 선박 교통 · 수집 실패 / 분류 invalid response」(최초 감지 10-15 09:45).
+- 확인한 것: 같은 시각 공단 v2 원천은 정상 갱신 중(사용자 포털 샘플 `regDt 2026-10-15 15:10:06`, totalCount 4046, 표준 `response.body.items.item` 모양). 이 작업 환경에서 같은 웹 수집 코드를 돌리면 정상(3,807격자). 운영(Fly nrt)에서만 두 길이 함께 실패.
+- 확인하지 못한 것: 운영에서 **어느 줄·어느 단계**가 걸렸는지 — 종전 코드는 4천여 줄 중 한 줄만 조건(밀집도 0~100, 정수 척수, 격자번호 모양)을 벗어나도 응답 전체를 버리고, 사유를 `invalid response` 한 단어로만 남겼다.
+- 조치(사용자 「키없이 바로 할 수 있는 수정을 진행하자」): `sea_realtime_collector.readApi`·`normalizeWeb` 이 이상한 줄만 빼고(밀집도 범위 밖은 밀집도만 비우고 척수 유지, 선종·톤수 합계 불일치는 그 격자 구성만 비움), 사유를 `realtime_status.json.detail` 한 줄로 남긴다. 두 길 다 실패하면 「API 무엇 · 웹 무엇(보안 토큰 없음 등)」 을 남긴다. 관리자 오류현황 「상세」 줄로 보인다. 구조 오류(등록시각 형식·페이지 불일치)는 종전대로 전체 거부.
+- 시험: `local_server/scripts/test_realtime_tolerant.js` 7/0(수정 전 코드 1/6), `test_marine_fusion` 27/0(전체 거부를 고정하던 2항목을 새 규칙으로 바꿈).
+- 선박용도·톤수: 공단 v1(`/api/v1/traffic/realtime`, 포털 명세 비어 있음)·v2 샘플 모두 `grid_id·vmtc·dnsty` 3항목뿐. 공단 전화 답변(「API로 제공」)과 맞추려면 요청 파라미터 이름을 공단에 확인해야 한다. 그 전까지 선종·톤수는 웹 수집(`mtis_live_web.js`) 유지. 참고: `https://mtis.komsa.or.kr/robots.txt` 는 `Disallow: /`.

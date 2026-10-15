@@ -17,7 +17,7 @@ async function current(fetchImpl=fetch,now=Date.now()){
     if(!page.ok)throw Error('HTTP '+page.status);
     const html=await page.text(),meta={};
     for(const m of html.matchAll(/<meta\b[^>]*>/gi)){const attrs={};for(const a of m[0].matchAll(/([\w-]+)\s*=\s*['"]([^'"]*)['"]/g))attrs[a[1]]=a[2];if(attrs.name)meta[attrs.name]=attrs.content;}
-    if(!meta._csrf||!/^x[-\w]+$/i.test(meta._csrf_header||''))throw Error('invalid response');
+    if(!meta._csrf||!/^x[-\w]+$/i.test(meta._csrf_header||''))throw Object.assign(Error('invalid response'),{detail:'접속 페이지에 보안 토큰 없음'});
     const cookies=(page.headers.getSetCookie?.()||[]).map(c=>c.split(';')[0]).join('; ');
     const local=new Date(now+9*3600000),body={stdrDe:local.toISOString().slice(0,10).replace(/-/g,''),stdrTime:String(local.getUTCHours()).padStart(2,'0'),gridLevel:'lv4',shipTypes:Array.from({length:7},(_,i)=>'S'+String(i+1).padStart(3,'0')),tonTypes:Array.from({length:10},(_,i)=>'T'+String(i+1).padStart(3,'0')),isNowTime:true};
     const headers={'Content-Type':'application/json',Accept:'application/json','X-Requested-With':'XMLHttpRequest',Origin:ORIGIN,Referer:ORIGIN+'/traffic/liveSea',Cookie:cookies,[meta._csrf_header]:meta._csrf};
