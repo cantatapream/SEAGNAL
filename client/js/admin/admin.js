@@ -753,9 +753,11 @@ window.switchAiSubTab = function (which) {
 function renderAiForecastSubtab(container, opts) {
     const view = opts && (opts.view === 'current' || opts.view === 'history') ? opts.view : null;
     const names = {warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측'};
-    // partial(일부 실패): 자료는 저장·사용 중이지만 일부가 빠졌다 — 예: 행사 수집의 Gemini 보충검색이 일부 시도에서 실패(2026-10-15).
+    // partial(일부 실패): 자료는 저장·사용 중이지만 일부가 빠졌다 — 예: 행사 수집의 Gemini·카카오·공식 목록 중 일부 실패(2026-10-15). 분류는 원인별 이름(예: 행사 일부 실패 — 카카오).
     const statuses = {ok:'정상',offseason:'비운영 기간',partial:'일부 실패',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
-    const phases = {opened:'문제 발생',changed:'문제 변경',recovered:'복구'};
+    // recovered 사건인데 상태가 offseason 이면 「복구」가 아니라 더 수집하지 않게 되어 닫힌 것이다(예: 지난 달 행사 — risk_error_history 3차 검토 F2).
+    const phases = {opened:'문제 발생',changed:'문제 변경',recovered:'복구'},
+        phaseName = r => r.phase === 'recovered' && r.status === 'offseason' ? '수집 종료' : phases[r.phase];
     // 상태 배지 색 — 관리자 화면에서 이미 쓰는 값(정상 #34d399·경고 #fbbf24·에러 #f87171·보조 #94a3b8·강조 #22d3ee) + 일부 실패 주황 #fb923c
     const tones = {ok:'52,211,153',stale:'251,191,36',partial:'251,146,60',error:'248,113,113',missing:'148,163,184',offseason:'34,211,238'};
     const esc = value => String(value == null ? '—' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -827,7 +829,7 @@ function renderAiForecastSubtab(container, opts) {
                     : empty(filtered ? '조건에 맞는 원천이 없습니다.' : '아직 기록된 원천 상태가 없습니다.')) + '</div>';
             const historyHtml = section('<i class="fa-solid fa-clock-rotate-left"></i> 오류·복구 이력', p.total,
                     rows.length ? rows.map(r => card(r,
-                        '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;white-space:nowrap;background:rgba(255,255,255,.06);color:#cbd5e1;">' + esc(phases[r.phase]) + '</span>' + badge(r.status), [
+                        '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;white-space:nowrap;background:rgba(255,255,255,.06);color:#cbd5e1;">' + esc(phaseName(r)) + '</span>' + badge(r.status), [
                         ['기록 시각', at(r.lastAt)],
                         ['최초 감지', at(r.firstAt)],
                         ['분류', code(r)],

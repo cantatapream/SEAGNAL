@@ -482,7 +482,8 @@ async function check(name, fn) {
                             lastError: null,
                             failedProvinces: count ? ['경상남도', '전라남도'] : [],
                             failedProvinceCount: count,
-                            detail: count ? '시도 실패 경상남도(Gemini 호출 실패), 전라남도(Gemini 호출 실패)' : null,
+                            detail: count ? '시도 실패 경상남도, 전라남도(Gemini 호출 실패)' : null,
+                            partialCode: count ? '행사 일부 실패 — Gemini' : null,
                         }),
                     h = createHistory({
                         dir: path.join(root, 'events-partial-history'),
@@ -496,6 +497,7 @@ async function check(name, fn) {
                 const b = await read();
                 assert.equal(b.events.months['2026-10'].status, 'ok');
                 assert.equal(b.events.months['2026-10'].failedProvinceCount, 2);
+                assert.equal(b.events.months['2026-10'].partialCode, '행사 일부 실패 — Gemini', '감시 경로도 원인별 분류를 읽는다(3차 검토 F5)');
                 assert.equal(
                     publicStore.sources(true).events.months['2026-10'].status,
                     'ok',
@@ -503,7 +505,7 @@ async function check(name, fn) {
                 );
                 h.observeSources(b);
                 assert.equal(current().status, 'partial');
-                assert.equal(current().code, 'Gemini 일부 실패');
+                assert.equal(current().code, '행사 일부 실패 — Gemini');
                 now += 60000;
                 status(0);
                 h.observeSources(await read());

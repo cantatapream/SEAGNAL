@@ -31,8 +31,11 @@ async function test(name, fn) {
     }
 }
 // 고정 시각(어제 이전) — 시각 의존 금지.
-let now = Date.parse('2026-10-12T09:00:00+09:00');
+let now = Date.parse('2026-09-30T09:00:00+09:00');
 const history = createHistory({ dir, clock: () => now });
+// 지난 달(9월) 일부 실패 — 10월 관찰에서 「수집 종료」로 닫힌다(2026-10-15 3차 검토 F2).
+history.observeSources({ events: { months: { '2026-09': { status: 'ok', failedProvinceCount: 1, partialCode: '행사 일부 실패 — 카카오', detail: '시도 실패 경상남도(카카오 호출 실패(HTTP 500))' } } } });
+now = Date.parse('2026-10-12T09:00:00+09:00');
 // 원천 여섯: 실패 둘(시정·실시간), 오래됨(사고), 정상(특보), 비운영(이안류), 행사 월 자료 없음.
 history.observeSources({
     visibility: {
@@ -55,7 +58,8 @@ history.observeSources({
             '2026-11': {
                 status: 'ok',
                 failedProvinceCount: 2,
-                detail: '시도 실패 경상남도(Gemini 호출 실패), 전라남도(Gemini 호출 실패)',
+                partialCode: '행사 일부 실패 — Gemini',
+                detail: '시도 실패 경상남도, 전라남도(Gemini 호출 실패)',
             },
         },
     },
@@ -204,11 +208,18 @@ app.get('/', (req, res) =>
             assert.ok(values.includes('partial'), 'partial 선택지 없음');
             await choose('status', 'partial');
             const { current, history: h } = await sections();
-            for (const t of ['행사', '2026-11', '일부 실패', 'Gemini 일부 실패', '경상남도(Gemini 호출 실패)'])
+            for (const t of ['행사', '2026-11', '일부 실패', '행사 일부 실패 — Gemini', '경상남도, 전라남도(Gemini 호출 실패)'])
                 assert.ok(current.includes(t), '현재 상태에 ' + t + ' 없음');
             for (const other of ['해구별 시정 예측', '2026-10', '이안류']) assert.ok(!current.includes(other), '현재 상태에 ' + other + ' 가 남아 있음');
             assert.ok(h.includes('문제 발생') && h.includes('일부 실패') && !h.includes('수집 실패'), '이력 필터');
             await choose('status', '');
+        });
+        await test('지난 달 닫힘: 이력에 「수집 종료」·비운영 기간 배지·상세, 현재 상태에는 지난 달 없음', async () => {
+            const { current, history: h } = await sections();
+            assert.ok(h.includes('수집 종료') && h.includes('지난 달 — 더 수집하지 않음(마지막 상태: 행사 일부 실패 — 카카오)'), '이력에 수집 종료 사건 없음');
+            assert.ok(!current.includes('2026-09'), '현재 상태에 지난 달이 남아 있음');
+            const recoveredLabels = await page.evaluate(() => [...document.querySelectorAll('[data-risk-row]')].map((r) => r.textContent).filter((t) => t.includes('2026-09') && t.includes('복구')).length);
+            assert.equal(recoveredLabels, 0, '닫힌 지난 달을 「복구」로 보이지 않는다');
         });
         await test('상세·분류·시각 줄 유지', async () => {
             const { current } = await sections();

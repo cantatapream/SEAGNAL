@@ -147,11 +147,23 @@ function placeName(value){return String(value||'').normalize('NFKC').replace(/\(
  * @param {string} reason - 시도 실패 사유(Gemini 호출 실패·시도 응답 해석 실패·시도 응답 시간 초과 — provinces 에만, skipped 에는 넣지 않음) @returns {Error} [연계] ← webSearch·collect / 공식 목록·다른 시도 결과는 저장한다.
  */
 function provinceError(reason){return Object.assign(new Error('network or parse error'),{provinceFailure:reason});}
-/** 카카오 주소·장소검색 호출 자체의 고장(HTTP 오류·시간 초과·네트워크·키 없음)을 「불일치」와 구별되게 표시한다. 예: HTTP 500 → {message:'HTTP 500', kakaoFailure:true}.
+/** 카카오 주소·장소검색 호출 자체의 고장(HTTP 오류·시간 초과·네트워크·키 없음)을 「불일치」와 구별되게 표시한다. kakaoFailure 에 실제 원인 사유를 담는다.
+ * 예: HTTP 500 → {message:'HTTP 500', kakaoFailure:'카카오 호출 실패(HTTP 500)'} · 키 없음 → {message:'missing key', kakaoFailure:'카카오 키 없음(설정)'}
  * @param {Error} err - geocode·findPlace 가 던진 오류 @returns {Error} 메시지는 io.errorName 의 고정 분류
- * [연계] ← link / collect 가 받아 Gemini 행사면 그 시도만 「카카오 호출 실패」, 공식 행사면 저장된 그 달 행사 유지(사용자 2026-10-15 D7 결정).
+ * [연계] ← link / collect 가 받아 Gemini 행사면 그 시도만 실패, 공식 행사면 저장된 그 달 행사 유지(사용자 2026-10-15 D7 결정).
+ *        3차 검토 F3: 키 없음(설정 문제)이 「카카오 호출 실패」로 뭉개졌다 — 사유에 원인 분류를 붙인다.
  */
-function kakaoFailure(err){return Object.assign(new Error(io.errorName(err)),{kakaoFailure:true});}
+function kakaoFailure(err){const why=io.errorName(err);return Object.assign(new Error(why),{kakaoFailure:why==='missing key'?'카카오 키 없음(설정)':'카카오 호출 실패('+(/^HTTP \d{3}$/.test(why)?why:'네트워크·시간 초과·응답 해석')+')'});}
+/** ISO 시각을 관리자 상세용 짧은 KST 로 쓴다. 예: 2026-10-01T03:20:00+09:00 → 10-01 03:20 KST, 없음 → 알 수 없음.
+ * @param {string|null} value @returns {string} [연계] ← collect(공식 목록 마지막 성공 — 3차 검토 F1) */
+function kstShort(value){const t=Date.parse(value||'');return Number.isFinite(t)?new Date(t+9*3600000).toISOString().slice(5,16).replace('T',' ')+' KST':'알 수 없음';}
+/** 실패 부분의 원인 분류를 오류현황 「일부 실패」 분류 이름으로 만든다(risk_error_history 가 이 이름만 받는다). 원인 순서 고정: Gemini·카카오·공식 목록.
+ * 예: 시도 사유 「Gemini 호출 실패」+공식 목록 TourAPI 실패 → 「행사 일부 실패 — Gemini·공식 목록」 · 실패 없음 → null
+ * @param {object} provinces - 시도별 결과 @param {string|null} officialStage - 'list'(TourAPI)·'location'(공식 행사 카카오)·null
+ * @returns {string|null} [연계] ← collect → 상태 파일 partialCode → risk_error_history(3차 검토 F5: 원인이 바뀌어도 분류가 늘 같아 사건이 안 남았다).
+ */
+function partialCode(provinces,officialStage){const causes=new Set();for(const p of Object.values(provinces))if(p?.status==='error')causes.add(String(p.reason).startsWith('카카오')?'카카오':'Gemini');
+    if(officialStage)causes.add(officialStage==='location'?'카카오':'공식 목록');const list=['Gemini','카카오','공식 목록'].filter(c=>causes.has(c));return list.length?'행사 일부 실패 — '+list.join('·'):null;}
 /** Gemini 답에서 첫 { ~ 마지막 } 만 잘라 events 배열을 읽는다. 예: 「찾았습니다: {"events":[]}」→ []
  * @param {string} text - 모델 답 @returns {object[]} events [연계] ← webSearch / JSON 이 아니면 그 시도만 실패(검토 C3).
  */
@@ -160,14 +172,21 @@ function parseEvents(text){const s=String(text||''),a=s.indexOf('{'),b=s.lastInd
 }
 /** 사유별 건수를 더한다. 예: add(s,'기간 밖') → s['기간 밖']+1. @param {object} into @param {string} why @param {number} n [연계] ← collect. */
 function addSkip(into,why,n=1){if(n>0)into[why]=(into[why]||0)+n;}
+// 관리자 오류현황 상세 한 줄의 상한(risk_error_history detailText 가 200자에서 자른다 — 잘리지 않게 여기서 줄인다).
+const DETAIL_LIMIT=200;
 /** 관리자 오류현황 「상세」에 보일 한 줄을 만든다(고정 문구+숫자, 키·주소 없음). 예: 시도 실패 경상남도(시도 응답 해석 실패) · 건너뜀 근거 불일치 2·번지 없음 1
- * 공식 목록 실패 문구가 있으면 맨 앞에 둔다. 예: 공식 목록 다시 받기 실패(HTTP 500) — 저장된 행사 유지 · 시도 실패 경상남도(카카오 호출 실패)
+ * 공식 목록 실패 문구가 있으면 맨 앞에 둔다. 실패 시도는 사유별로 묶는다 — 사유마다 3곳까지는 이름, 넘으면 「N곳」.
+ * 200자를 넘으면 차례로 줄인다: 시도 이름 → 사유별 곳 수 → 건너뜀 합계 → 「시도 실패 N곳(원인 M가지)」(3차 검토 F4: 10개 시도 실패가 200자에서 잘렸다).
+ * 예: 공식 목록 다시 받기 실패(HTTP 500) · 저장된 행사 유지(공식 목록 마지막 성공 10-01 03:20 KST) · 시도 실패 10곳(카카오 키 없음(설정))
  * @param {object} skipped - 사유별 건수 @param {object} provinces - 시도별 결과 @param {string} [officialNote] - 공식 목록 실패 문구(collect 가 만든다)
- * @returns {string|null} [연계] ← collect → io.status detail.
+ * @returns {string|null} 200자 이하 [연계] ← collect → io.status detail.
  */
-function skipDetail(skipped,provinces,officialNote){const failed=Object.entries(provinces).filter(([,p])=>p.status==='error').map(([name,p])=>name+'('+p.reason+')');
-    const parts=SKIP_ORDER.filter(k=>skipped[k]).map(k=>k+' '+skipped[k]);
-    return [officialNote||'',failed.length?'시도 실패 '+failed.join(', '):'',parts.length?'건너뜀 '+parts.join('·'):''].filter(Boolean).join(' · ')||null;
+function skipDetail(skipped,provinces,officialNote){const groups=new Map();for(const [name,p] of Object.entries(provinces))if(p?.status==='error'){if(!groups.has(p.reason))groups.set(p.reason,[]);groups.get(p.reason).push(name);}
+    const failedCount=[...groups.values()].reduce((n,g)=>n+g.length,0),parts=SKIP_ORDER.filter(k=>skipped[k]).map(k=>k+' '+skipped[k]),skipTotal=SKIP_ORDER.reduce((n,k)=>n+(skipped[k]||0),0);
+    const prov=mode=>!failedCount?'':'시도 실패 '+(mode==='total'?failedCount+'곳(원인 '+groups.size+'가지)':[...groups].map(([why,names])=>(mode==='names'&&names.length<=3?names.join(', '):names.length+'곳')+'('+why+')').join('; '));
+    const skip=mode=>!parts.length?'':'건너뜀 '+(mode==='total'?skipTotal+'건':parts.join('·'));
+    let text=null;for(const [p,k] of [['names','full'],['count','full'],['names','total'],['count','total'],['total','total']]){text=[officialNote||'',prov(p),skip(k)].filter(Boolean).join(' · ')||null;if(!text||text.length<=DETAIL_LIMIT)break;}
+    return text;
 }
 /** 주입 가능한 공식목록·보충검색 수집기를 만든다. 예: 검사에서는 외부 HTTP와 Gemini를 모두 주입한다.
  * @param {object} options - dir/clock/fetchImpl/key/kakaoKey/search/festivalSearch/spots/coastalGeometry/searchTimeoutMs(검사용)
@@ -269,10 +288,11 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
             const same=io.read(file(target)),saved=same?.month===target&&Array.isArray(same.events)?same:null;
             // 같은 달 파일에 실패한 부분(시도·공식 목록)이 남아 있으면 실패한 시도만 다시 묻고, 성공했던 시도의 Gemini 결과는 그대로 다시 쓴다(사용자 승인 2026-10-15).
             const retryOnly=saved?.provinces&&(Object.values(saved.provinces).some(p=>p?.status==='error')||saved.official?.status==='error')?saved.provinces:null;
-            const official=[],officialSkipped={};let officialError=null,normalized=[],freshIds=new Set();
+            // officialStage: 공식 부분이 어디서 실패했나 — 'list'(TourAPI 목록 받기) · 'location'(공식 행사 위치 연결, 카카오)(3차 검토 F3).
+            const official=[],officialSkipped={};let officialError=null,officialStage=null,normalized=[],freshIds=new Set();
             try{const rawOfficial=await(festivalSearch||festivals)(target);if(!Array.isArray(rawOfficial))throw new Error('invalid response');
                 normalized=rawOfficial.map(normalizeFestival);freshIds=new Set(rawOfficial.map(e=>String(e.contentid)));}
-            catch(err){if(!saved)throw err;officialError=io.errorName(err);}
+            catch(err){if(!saved)throw err;officialError=io.errorName(err);officialStage='list';}
             /** 번지 없는 행사장을 연결한다: ⓐ 같은 시군구 관광지 이름이 정확히 같은 곳 1곳 ⓑ 카카오 장소검색 「시군구+행사장」에서 같은 시군구 후보가 한 좌표일 때만.
              * ⓑ 는 한 좌표로 모인 후보의 주소 시군구가 대상 시군구(scope)에 정확히 있어야 받는다 — 「경상남도 창원시」로 적은 행사가 관광지 없는
              *   성산구 장소로 돌아와 진해구 관광지에 붙던 것(2026-10-15 검토 D1). 좌표가 갈리는지는 scope 밖 후보까지 넣어 본다. ⓐ 는 관광지 자신의 시군구라 늘 scope 안이다.
@@ -310,11 +330,17 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
                 try{addSkip(officialSkipped,'취소',normalized.filter(e=>!e).length);
                     for(const e of normalized){if(!e)continue;if(!scope.has(municipal(e.address))){addSkip(officialSkipped,'대상 시군구 밖');continue;}if(e.end<bounds.first||e.start>bounds.last){addSkip(officialSkipped,'기간 밖');continue;}
                         official.push(e);const why=await link({...e,sourceObservedAt:io.iso(clock()),carriedForward:false});if(why)addSkip(officialSkipped,why);}}
-                catch(err){if(!err?.kakaoFailure||!saved)throw err;officialError='카카오 호출 실패';rows.length=before;official.length=0;for(const k of Object.keys(officialSkipped))delete officialSkipped[k];}}
+                catch(err){if(!err?.kakaoFailure||!saved)throw err;officialError=err.kakaoFailure;officialStage='location';rows.length=before;official.length=0;for(const k of Object.keys(officialSkipped))delete officialSkipped[k];}}
             // 저장된 공식 행사 재사용: sourceType tourapi 인 저장 행(공식 행이 먼저 쌓여 공식·Gemini 중복은 공식 쪽으로 합쳐져 있다). sources 는 아래 중복 합치기에서
             // 다시 만든다 — 같은 Gemini 행은 시도 저장 행(provinces[].rows)으로 다시 들어와 같은 행사로 합쳐진다. 대상 시군구 검사는 새 공식 행과 같은 규칙.
+            // officialLastSuccess: 공식 목록을 마지막으로 받은 시각(3차 검토 F1 — 저장분을 쓰는 동안 관리자 상세에 보인다. 재사용 기간 상한은 두지 않는다:
+            //   그 달 행사이므로 말일까지 쓰는 것이 사용자 결정 취지). 옛 파일(official 칸 없음)은 저장 공식 행의 sourceObservedAt 중 가장 늦은 값.
+            // officialSkippedUnknown: 옛 파일은 공식 부분 건너뜀 수를 따로 남기지 않아 알 수 없다 — 0 처럼 보이지 않게 표시한다(3차 검토 F8).
+            let officialLastSuccess=officialError?null:io.iso(clock()),officialSkippedUnknown=false;
             if(officialError){const reused=saved.events.filter(e=>e&&typeof e==='object'&&e.sourceType==='tourapi'),kept=reused.filter(e=>scope.has(municipal(e.address)));
+                officialSkippedUnknown=!saved.official||!saved.official.skipped||!!saved.official.skippedUnknown;
                 Object.assign(officialSkipped,saved.official?.skipped||{});addSkip(officialSkipped,'대상 시군구 밖',reused.length-kept.length);
+                officialLastSuccess=saved.official?.lastSuccess||reused.map(e=>e.sourceObservedAt).filter(v=>Number.isFinite(Date.parse(v||''))).sort((a,b)=>Date.parse(a)-Date.parse(b)).pop()||null;
                 for(const e of kept){const {sources:_old,...clean}=e;rows.push(clean);official.push(clean);}freshIds=new Set(kept.map(e=>String(e.contentId)));}
             for(const [why,n] of Object.entries(officialSkipped))addSkip(skipped,why,n);
             const prior=new Date(bounds.first+'T00:00:00Z');prior.setUTCMonth(prior.getUTCMonth()-1);const previous=io.read(file(prior.toISOString().slice(0,7)));
@@ -334,21 +360,23 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
                 try{for(const e of result.events){if(!e||typeof e!=='object'){addSkip(local,'항목 형식 오류');continue;}let source;try{source=new URL(e.src);}catch(_){addSkip(local,'근거 불일치');continue;}
                     if(source.protocol!=='https:'||source.username||source.password){addSkip(local,'근거 불일치');continue;}const real=matchGrounding(e.src,grounded);if(!real){addSkip(local,unresolved?'근거 확인 불가':'근거 불일치');continue;}
                     const why=await link({...e,src:real,sourceType:'gemini',sourceObservedAt:io.iso(clock()),carriedForward:false});if(why)addSkip(local,why);}}
-                catch(err){if(!err?.kakaoFailure)throw err;rows.length=before;provinceResults[province]={status:'error',reason:'카카오 호출 실패'};continue;}
+                catch(err){if(!err?.kakaoFailure)throw err;rows.length=before;provinceResults[province]={status:'error',reason:err.kakaoFailure};continue;}
                 provinceResults[province]={status:'ok',rows:rows.slice(before),skipped:local};for(const [why,n] of Object.entries(local))addSkip(skipped,why,n);
             }
             // 저장할 행이 없으면 그 달은 실패(error)다. 그래도 시도 실패·버린 이유는 상세에 남긴다 — Gemini 가 전 시도에서 실패하고 공식 해안 행사가 0건이면
             // 종전엔 detail 이 null 이라 관리자가 원인을 몰랐다(2026-10-15 검토 D5).
-            const officialNote=officialError?'공식 목록 다시 받기 실패('+officialError+')':'';
+            const officialNote=!officialError?'':(officialStage==='location'?'공식 행사 위치 연결 실패 — '+officialError:'공식 목록 다시 받기 실패('+officialError+')')+(officialSkippedUnknown?' · 공식 건너뜀 수 모름(옛 파일)':'');
             if(!rows.length)throw Object.assign(new Error('empty response'),{collectDetail:skipDetail(skipped,provinceResults,officialNote)});
             // 같은 행사 판정: 이름·기간·연결 관광지. 번지 없는 Gemini 행은 주소가 비어 있어 종전 주소키로는 공식 행과 합쳐지지 않는다(2026-10-15).
             const unique=new Map();for(const e of rows){const id=[e.name.replace(/\s/g,'').toLowerCase(),e.start,e.end,e.spotId].join('|'),source={sourceType:e.sourceType,src:e.src,...(e.contentId?{contentId:e.contentId}:{})};if(unique.has(id))unique.get(id).sources.push(source);else unique.set(id,{...e,sources:[source]});}
             const events=[...unique.values()],sourceCounts={tourapi:events.filter(e=>e.sourceType==='tourapi').length,gemini:events.filter(e=>e.sourceType==='gemini').length,duplicates:rows.length-events.length},collectedAt=io.iso(clock());
             const coverage={queryStart:bounds.first,queryEnd:bounds.last,ongoingCandidates:carried.length,carriedCount:0,previousMonthCached:!!previous,completeOngoing:false};
-            const failedProvinces=Object.entries(provinceResults).filter(([,p])=>p.status==='error').map(([name])=>name),failedProvinceCount=failedProvinces.length+(officialError?1:0),detail=skipDetail(skipped,provinceResults,officialNote&&officialNote+' — 저장된 행사 유지');
+            const failedProvinces=Object.entries(provinceResults).filter(([,p])=>p.status==='error').map(([name])=>name),failedProvinceCount=failedProvinces.length+(officialError?1:0),
+                detail=skipDetail(skipped,provinceResults,officialNote&&officialNote+' · 저장된 행사 유지(공식 목록 마지막 성공 '+kstShort(officialLastSuccess)+')');
             // official: 공식 목록 부분의 결과(error 면 다음 03:20 에 다시 받는다 — needsMonth). skipped 는 저장 행사를 다시 쓸 때 공식 부분의 버린 수를 잇기 위해 남긴다.
-            const officialResult={status:officialError?'error':'ok',...(officialError?{reason:officialError}:{}),skipped:officialSkipped};
-            io.write(file(target),{month:target,collectedAt,events,sourceCounts,coverage,skipped,provinces:provinceResults,official:officialResult});status(target,null,{count:events.length,sourceCounts,skipped,failedProvinces,failedProvinceCount,detail});return{ok:true,count:events.length,skipped,failedProvinces,...(officialError?{officialError}:{})};
+            const officialResult={status:officialError?'error':'ok',...(officialError?{reason:officialError,stage:officialStage}:{}),lastSuccess:officialLastSuccess,skipped:officialSkipped,...(officialSkippedUnknown?{skippedUnknown:true}:{})};
+            // partialCode: 오류현황 「일부 실패」 분류(원인별). 실패가 없으면 null 로 지운다 — 상태 파일은 앞 값을 이어 쓰기 때문.
+            io.write(file(target),{month:target,collectedAt,events,sourceCounts,coverage,skipped,provinces:provinceResults,official:officialResult});status(target,null,{count:events.length,sourceCounts,skipped,failedProvinces,failedProvinceCount,partialCode:partialCode(provinceResults,officialError?officialStage:null),detail});return{ok:true,count:events.length,skipped,failedProvinces,...(officialError?{officialError}:{})};
         }catch(e){status(target,e,{detail:e?.collectDetail||null});return{ok:false,error:io.errorName(e)};}finally{running=false;release();}
     }
     /** 예정일을 지난 다음달을 구한다. 예:10월29일은 놓친10월28일예약 보충.
@@ -371,4 +399,4 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
     function start(){if(!process.env.FLY_ALLOC_ID||timer)return false;(async()=>{const target=io.day(clock()).slice(0,7);if(needsMonth(target))await collect(target);const next=dueNext(clock());if(next&&needsMonth(next))await collect(next);})().catch(e=>io.reportError('events startup',e));timer=setInterval(()=>{tick().catch(e=>io.reportError('events tick',e));},60000);timer.unref();return true;}
     return{collect,tick,start,stop(){if(timer)clearInterval(timer);timer=null;}};
 }
-const defaultCollector=createCollector();module.exports={...defaultCollector,createCollector,sameProvince,addressKey,geocode,validDate,normalizeFestival,monthBounds,isCoastal,urlKey,matchGrounding,resolveGrounding,parseCsv,pastEvents,parseEvents,PERMANENT_DAYS,SEARCH_TIMEOUT_MS};
+const defaultCollector=createCollector();module.exports={...defaultCollector,createCollector,sameProvince,addressKey,geocode,validDate,normalizeFestival,monthBounds,isCoastal,urlKey,matchGrounding,resolveGrounding,parseCsv,pastEvents,parseEvents,skipDetail,PERMANENT_DAYS,SEARCH_TIMEOUT_MS};

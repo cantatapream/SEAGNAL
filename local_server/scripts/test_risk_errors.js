@@ -203,10 +203,18 @@ async function check(name, fn) {
                     );
                 }
                 const current = createHistory({ dir: yearsDir }).list().current;
+                // 2026-10-15 3차 검토 F2: 감시가 보는 달보다 앞선 달은 닫힌다 — 감시만으로는 마지막 달 하나만 남는다.
                 assert.equal(
                     current.filter((r) => r.source === 'events').length,
-                    4
+                    1
                 );
+                // 현재 월 상한(4)은 수집기 기록 경로로 확인한다(수집기 기록은 지난 달을 닫지 않는다).
+                const capped = createHistory({ dir: path.join(dir, 'years-cap'), clock: () => now });
+                for (let i = 0; i < 60; i++) {
+                    const month = new Date(Date.UTC(2020, i, 1)).toISOString().slice(0, 7);
+                    assert.equal(capped.recordCollector('events_' + month.replace('-', ''), { month, status: i % 2 ? 'ok' : 'error', lastError: 'HTTP 400' }), true);
+                }
+                assert.equal(capped.list().current.filter((r) => r.source === 'events').length, 4);
                 assert.equal(
                     current.filter((r) => r.source === 'accident').length,
                     1
@@ -520,7 +528,8 @@ async function check(name, fn) {
                 const row = () =>
                     h.list().current.find((r) => r.source === 'events');
                 assert.equal(row().status, 'partial');
-                assert.equal(row().code, 'Gemini 일부 실패');
+                // partialCode 가 없는 상태 파일(이 변경 전 수집기)은 원인 모름 분류(3차 검토 F5).
+                assert.equal(row().code, '행사 일부 실패');
                 assert.equal(row().detail, st.detail);
                 assert.deepEqual(
                     h.list().data.map((e) => [e.phase, e.status]),
@@ -557,6 +566,65 @@ async function check(name, fn) {
                 assert.equal(h.list().data[0].phase, 'changed');
             }
         );
+        // 2026-10-15 3차 검토 F2: 달이 바뀐 뒤 지난 달 「일부 실패」가 현재 목록에 약 3개월 고정됐다.
+        await check('지난 달 닫기: 감시가 더 보지 않는 지난 달의 문제 상태(일부 실패·실패)는 「수집 종료」 사건을 남기고 현재 목록에서 빠짐 · 정상 지난 달은 조용히 빠짐 · 지금 달은 닫지 않음', () => {
+            let clock = Date.parse('2026-10-31T12:00:00+09:00');
+            const h = createHistory({ dir: path.join(dir, 'past-month'), clock: () => clock }),
+                cur = () => h.list({ source: 'events' }).current.map((r) => r.scope + ':' + r.status).sort();
+            h.recordCollector('events_202608', { month: '2026-08', status: 'ok' });
+            h.recordCollector('events_202609', { month: '2026-09', status: 'error', lastError: 'HTTP 500' });
+            h.observeSources({ events: { months: { '2026-10': { status: 'ok', failedProvinceCount: 1, partialCode: '행사 일부 실패 — 공식 목록' }, '2026-11': { status: 'error', lastError: 'HTTP 500' } } } });
+            assert.deepEqual(cur(), ['2026-10:partial', '2026-11:error'], '감시 달보다 앞선 8·9월은 닫힘');
+            const closed9 = h.list({ source: 'events' }).data.find((e) => e.scope === '2026-09' && e.phase === 'recovered');
+            assert.equal(closed9.status, 'offseason');
+            assert.equal(closed9.detail, '지난 달 — 더 수집하지 않음(마지막 상태: HTTP 500)');
+            assert.ok(!h.list({ source: 'events' }).data.some((e) => e.scope === '2026-08' && e.phase === 'recovered'), '정상 지난 달은 사건 없이 빠짐');
+            clock = Date.parse('2026-11-01T00:01:00+09:00');
+            h.observeSources({ events: { months: { '2026-11': { status: 'error', lastError: 'HTTP 500' } } } });
+            assert.deepEqual(cur(), ['2026-11:error']);
+            const closed10 = h.list({ source: 'events' }).data[0];
+            assert.deepEqual([closed10.scope, closed10.phase, closed10.status, closed10.code], ['2026-10', 'recovered', 'offseason', null]);
+            assert.equal(closed10.detail, '지난 달 — 더 수집하지 않음(마지막 상태: 행사 일부 실패 — 공식 목록)');
+            assert.equal(h.list({ status: 'partial' }).data.filter((e) => e.scope === '2026-10').length, 1, '원래 문제 사건(opened)은 이력에 남음');
+            // 다시 읽어도(clean) 유효, 다음 관찰에서 같은 사건을 또 만들지 않음
+            h.observeSources({ events: { months: { '2026-11': { status: 'error', lastError: 'HTTP 500' } } } });
+            assert.equal(createHistory({ dir: path.join(dir, 'past-month'), clock: () => clock }).list({ source: 'events' }).data.filter((e) => e.phase === 'recovered').length, 2);
+            // 감시 달이 다음 달뿐이어도 지금 달은 닫지 않는다
+            const g = createHistory({ dir: path.join(dir, 'past-month-2'), clock: () => Date.parse('2026-10-12T09:00:00+09:00') });
+            g.observeSources({ events: { months: { '2026-10': { status: 'missing' } } } });
+            g.observeSources({ events: { months: { '2026-11': { status: 'ok' } } } });
+            assert.deepEqual(g.list().current.filter((r) => r.source === 'events').map((r) => r.scope).sort(), ['2026-10', '2026-11']);
+            // 행사 달이 없는 관찰은 닫지 않는다
+            g.observeSources({ warnings: { status: 'ok' } });
+            assert.equal(g.list().current.filter((r) => r.source === 'events').length, 2);
+        });
+        // 2026-10-15 3차 검토 F5: partial 분류가 늘 「Gemini 일부 실패」라 원인이 바뀌어도 사건이 안 남았다.
+        await check('일부 실패 분류는 원인별(partialCode) · 원인이 바뀌면 문제 변경 사건 · 칸 없는 감시 행은 앞 분류 유지 · 고정 이름 밖은 받지 않음 · 옛 이름은 읽힘', () => {
+            let clock = Date.parse('2026-10-12T03:21:00+09:00');
+            const pdir = path.join(dir, 'partial-code'),
+                h = createHistory({ dir: pdir, clock: () => clock }),
+                row = () => h.list({ source: 'events' }).current.find((r) => r.scope === '2026-10'),
+                phases = () => h.list({ source: 'events' }).data.map((e) => e.phase + '|' + e.code).reverse();
+            const st = (code) => ({ month: '2026-10', status: 'ok', failedProvinceCount: 1, partialCode: code });
+            h.recordCollector('events_202610', st('행사 일부 실패 — Gemini'));
+            assert.equal(row().code, '행사 일부 실패 — Gemini');
+            clock += 60000;
+            h.observeSources({ events: { months: { '2026-10': { status: 'ok', failedProvinceCount: 1 } } } });
+            assert.equal(row().code, '행사 일부 실패 — Gemini', '감시 행에 칸이 없으면 앞 분류 유지(가짜 변경 없음)');
+            clock += 86400000;
+            h.recordCollector('events_202610', st('행사 일부 실패 — 공식 목록'));
+            assert.deepEqual(phases(), ['opened|행사 일부 실패 — Gemini', 'changed|행사 일부 실패 — 공식 목록']);
+            h.recordCollector('events_202610', st('<script>아무 글</script>'));
+            assert.equal(row().code, '행사 일부 실패 — 공식 목록', '고정 이름 밖 글은 받지 않고 앞 분류 유지');
+            const fresh = createHistory({ dir: path.join(dir, 'partial-code-2'), clock: () => clock });
+            fresh.recordCollector('events_202610', st('<script>아무 글</script>'));
+            assert.equal(fresh.list().current[0].code, '행사 일부 실패', '앞 분류가 없으면 원인 모름 분류');
+            const file = path.join(pdir, 'error_history.json'), data = JSON.parse(fs.readFileSync(file, 'utf8'));
+            data.current['events:2026-10'].code = 'Gemini 일부 실패';
+            data.events[0].code = 'Gemini 일부 실패';
+            fs.writeFileSync(file, JSON.stringify(data));
+            assert.equal(createHistory({ dir: pdir, clock: () => clock }).list().current.find((r) => r.source === 'events').code, 'Gemini 일부 실패', '이 변경 전 이력 파일의 옛 이름도 읽힘');
+        });
         await check('이미 보유한 파일 잠금은 다른 변경을 차단', () => {
             const release = io.acquireLock(
                 path.join(dir, 'error_history.json.lock')
