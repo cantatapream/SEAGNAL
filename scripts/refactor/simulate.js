@@ -100,6 +100,16 @@ if (require.main === module) (async () => {
     console.log(`[simulate] 크로미움: ${exePath || '(playwright 기본 해석에 맡김)'}`);
     const browser = await loadChromium().launch({ ...(exePath ? { executablePath: exePath } : {}), headless: true });
     const page = await browser.newPage({ viewport: { width: 412, height: 915 } }); // 모바일 비율
+    // ⚠브이월드(위성지도) 타일은 투명 그림으로 대신 준다 (2026-10-15).
+    //   위험예측을 켜면 배경이 위성지도로 바뀌는데, 깃허브 CI 에서 api.vworld.kr 이 타일 요청 29건을
+    //   ERR_HTTP2_SERVER_REFUSED_STREAM 으로 거절했다(run 38668118019 — 진단 출력으로 호스트 확인).
+    //   타일 서버가 받아 주는지는 우리 코드의 회귀가 아니고, 실제 사용자 단말이 받는 경로와도 다르다.
+    //   그래서 이 시뮬레이션에서는 바깥 타일 서버에 의존하지 않게 한다. 우리 서버(/api/…)·다른 호스트는 그대로 간다.
+    let vworldStubbed = 0;
+    await page.route(/^https:\/\/api\.vworld\.kr\//, (route) => {
+        vworldStubbed++;
+        route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
+    });
 
     const consoleErrors = [];
     const failed404 = [];
@@ -437,6 +447,7 @@ if (require.main === module) (async () => {
     const realErrors = newErrors.filter((e) => !envErrRe.some((r) => r.test(e)));
 
     console.log(`[simulate] 신규 콘솔에러 ${realErrors.length}(+환경 ${envErrors.length}) · 신규 404 ${real404.length}(+자료부재 ${envMiss.length}) · 사라진 전역함수 ${lostGlobals.length} · 깨진 시나리오 ${brokenScenarios.length}`);
+    if (vworldStubbed) console.log(`  ⏭️  브이월드 위성 타일 ${vworldStubbed}건은 투명 그림으로 대신 줬다(바깥 타일 서버에 의존하지 않음 — 위 page.route 설명)`);
     let fail = false;
     if (envErrors.length) {
         console.log(`  ⏭️  환경 탓인 콘솔 에러 ${envErrors.length}건 — 회귀로 세지 않는다`);
