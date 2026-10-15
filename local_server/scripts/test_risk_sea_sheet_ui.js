@@ -297,7 +297,7 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
  await check('원천 문자열의 HTML 을 실행하지 않음(사고 종류·원인·해역 이름)',async()=>{
   const r=await direct({...base,location:'<img src=x onerror=alert(1)>',current:null,history:{...base.history,accidents:[{date:'2024-01-01',year:2024,type:'<img src=x onerror=alert(1)>',cause:'<script>evil()</script>',death:0,missing:0}]}},at);
   assert.ok(!/<img|<script/.test(r.html),'escape');assert.ok(r.html.includes('&lt;img'));});
- await check('기준 상세(sea): 밀집도 앱 가안·지도 [혼잡도] 지금/미래·교통량 정의·사고 범위 문구',async()=>{const sea=await page.evaluate(()=>RiskBasisContent.sea);for(const s of ['앱 가안','5·10·20%','같은 산식인지는 확인하지 못했습니다','[혼잡도]는 지금 시각이면 실시간 밀집도','미래 시각이면 공식 혼잡예보','5분 값','평균 척수','배포 뒤부터','5㎞ 칸','2021~2025년','해양오염·부유물감김은 제외'])assert.ok(sea.includes(s),s);});
+ await check('기준 상세(sea): 밀집도 앱 가안·지도 [혼잡도] 지금/미래·교통량 정의·사고 범위 문구',async()=>{const sea=await page.evaluate(()=>RiskBasisContent.sea);for(const s of ['앱 가안','1% 초과~10% 미만','같은 산식인지는 확인하지 못했습니다','[혼잡도]는 지금 시각이면 실시간 밀집도','미래 시각이면 공식 혼잡예보','5분 값','평균 척수','배포 뒤부터','5㎞ 칸','2021~2025년','해양오염·부유물감김은 제외'])assert.ok(sea.includes(s),s);});
  await check('독립 검토 지적 고정: 해상 막대 뒤 같은 칸에 연안 막대를 그리면 해상 전용 class(rf-risk-time)가 남지 않음',async()=>{
   const r=await page.evaluate(()=>{const el=document.createElement('div');document.body.appendChild(el);const times=['2026-10-15T16:12:00+09:00','2026-10-15T18:00:00+09:00'];
    RiskSlider.mount(el,times,times[0],()=>{},{risk:true,now:times[0]});const a=el.classList.contains('rf-risk-time');RiskSlider.mount(el,times,times[0],()=>{});const b=el.classList.contains('rf-risk-time');el.remove();return[a,b];});
