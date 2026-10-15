@@ -55,7 +55,7 @@
      * [연계] coastRows → create 클릭 처리
      */
     function hazards(zones) {
-        return '<details class="rf-hazards"><summary>위험구역 '+zones.length+'곳 현황</summary><ol>'+zones.map(function(z){return '<li><b>'+F.escape(z.place||z.name)+'</b> · '+F.escape(z.shape)+' · '+F.escape(z.class)+'<br><button type="button" class="rf-hazard-link" data-zone-id="'+F.escape(z.id)+'">'+F.escape(z.addr||'구역 위치 보기')+'</button>'+ (z.police?' · '+F.escape(z.police)+(z.police.endsWith('파출소')?'':'파출소')+' 관할':'')+'</li>';}).join('')+'</ol></details>';
+        return '<details class="rf-hazards"><summary>위험구역 '+zones.length+'곳 현황</summary><ol>'+zones.map(function(z){return '<li data-zone-li="'+F.escape(z.id)+'"><b>'+F.escape(z.place||z.name)+'</b> · '+F.escape(z.shape)+' · '+F.escape(z.class)+'<br><button type="button" class="rf-hazard-link" data-zone-id="'+F.escape(z.id)+'" aria-pressed="false">'+F.escape(z.addr||'구역 위치 보기')+'</button>'+ (z.police?' · '+F.escape(z.police)+(z.police.endsWith('파출소')?'':'파출소')+' 관할':'')+'</li>';}).join('')+'</ol></details>';
     }
     /**
      * 서버 연안 분석 행을 표시하고 결측 너울 행은 생략한다.
@@ -194,7 +194,7 @@
      * 닫기·위험구역 이동·기준 상세·재시도 동작을 시트에 연결한다.
      * 예: RiskSheet.create(el,handlers)
      * @param {HTMLElement} el - 시트; handlers는 close·hazard·basis·retry·choose 콜백
-     * @returns {Object} show·loading·error·choose·clear·timelineEl API
+     * @returns {Object} show·loading·markZone·error·choose·clear·timelineEl API
      * [연계] RiskForecast → 상세 응답 표시
      */
     function create(el,handlers) {
@@ -233,9 +233,15 @@
             else body+=summary(d,kind)+coastCalculation(d)+notices(d.notices)+coastRows(rows);
             el.querySelector('.rf-body').innerHTML=body;el.classList.add('open');
         }
+        /**
+         * 지도에 표시한 위험구역을 목록에서 눌린 상태로 표시한다. 다른 지점을 고르면 시트 본문이 새로 그려져 해제된다.
+         * 예: markZone('z3') → z3 버튼 aria-pressed=true, 나머지 false
+         * @param {string} id - 위험구역 id @returns {void} [연계] RiskForecast.hazard → 지도 이동에 성공한 뒤 호출
+         */
+        function markZone(id){el.querySelectorAll('[data-zone-id]').forEach(function(b){var on=b.dataset.zoneId===id;b.setAttribute('aria-pressed',String(on));var li=b.closest('li');if(li)li.classList.toggle('is-selected',on);});}
         function error(message){el.removeAttribute('aria-busy');el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';el.classList.add('open');}
         function choose(items){el.removeAttribute('aria-busy');el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';el.classList.add('open');}
-        return {show:show,loading:loading,error:error,choose:choose,clear:function(){el.removeAttribute('aria-busy');el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';},timelineEl:el.querySelector('.rf-timeline')};
+        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,clear:function(){el.removeAttribute('aria-busy');el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';},timelineEl:el.querySelector('.rf-timeline')};
     }
     /**
      * 서버 자료 키를 화면에서 읽을 수 있는 이름으로 바꾼다.

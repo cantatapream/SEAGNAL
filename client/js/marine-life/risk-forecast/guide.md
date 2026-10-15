@@ -132,3 +132,9 @@ bash scripts/refactor/verify_all.sh
 - `RiskSheet.create(...).loading(hint)`가 시트를 열고 본문을 회색 틀로 채운다(`aria-busy`). `show`·`error`·`choose`·`clear`가 해제한다. 새 시트 종류를 추가해도 응답 처리 쪽에서 반드시 이 넷 중 하나로 끝나야 한다.
 - 호출 위치는 `RiskForecast.select`(지점 선택)와 `sliderChanged`(시트 시각 변경)뿐이다. `refresh`·60초 갱신에서 부르지 않는다(읽는 도중 내용이 깜빡이지 않게).
 - 늦은 응답 보호는 `detail()`의 `n!==detailSeq || selected!==s || (s.at||t)!==at` 검사다. 이를 약화하지 않는다.
+
+## 지도 이동 여백 — 과제10
+
+- `RiskForecast.visiblePadding()`이 [위 30, 오른쪽 40, 아래 (지도 아래 − 시트 윗변) + 30, 왼쪽 40]px를 돌려준다. 지도에 `fit`할 때 이 값을 `padding`으로 쓰면 대상이 시트 위 남은 영역의 정확히 가운데에 온다. 시트가 닫혀 있으면 아래 여백은 30px다.
+- 이동 직전에 계산한다(`marinePoint`는 시트가 회색 틀로 바뀌기 전의 높이). 시트 높이는 서브탭 열림 여부에 따라 달라지므로 고정 비율(예전 50%·60%)을 쓰지 않는다.
+- 위험구역 이동 뒤 `RiskSheet.markZone(id)`가 목록 표시를 맞춘다.

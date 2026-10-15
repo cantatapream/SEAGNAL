@@ -141,6 +141,42 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  await check('열린 상세는 과제15 접힌 설명을 유지',async()=>{
   const m=await pg.evaluate(()=>{const d=document.querySelector('#risk-forecast-sheet .rf-calculation');return{has:!!d,open:d&&d.open,summary:d&&d.querySelector('summary').textContent};});assert.equal(m.has,true);assert.equal(m.open,false);assert.equal(m.summary,'사고 배수는 어떻게 합쳤나요?');
  });
+ // ── 과제10: 위험구역 아코디언과 시트에 가려지지 않은 지도 영역의 가운데 이동 ──
+ /** 지도가 움직임(애니메이션)을 끝낼 때까지 기다린다. 예: await settleMap(). @returns {Promise<void>} [연계] ← 과제10 */
+ const settleMap=async()=>{await pg.waitForFunction(()=>!map.getView().getAnimating()&&!map.getView().getInteracting());await pg.waitForTimeout(600);};
+ /** 위험구역 폴리곤(또는 한 점)의 지도 화면 위치를 시트 윗변과 함께 잰다. @param {string} what 'hazard'|'point' @param {number[]} [lonlat] 점 좌표 @returns {Promise<object>} cx·cy·top·bottom·visibleCenterY·sheetTop [연계] ← 과제10 */
+ const placed=(what,lonlat)=>pg.evaluate(([w,ll])=>{const el=document.getElementById('risk-forecast-sheet'),m=document.getElementById('map').getBoundingClientRect(),sr=el.getBoundingClientRect();let x0,y0,x1,y1;if(w==='hazard'){const ex=map.getLayers().getArray().find(l=>l.getClassName()==='rf-hazard-canvas').getSource().getExtent();const a=map.getPixelFromCoordinate([ex[0],ex[3]]),b=map.getPixelFromCoordinate([ex[2],ex[1]]);x0=a[0];y0=a[1];x1=b[0];y1=b[1];}else{const a=map.getPixelFromCoordinate(ol.proj.fromLonLat(ll));x0=x1=a[0];y0=y1=a[1];}return{cx:(x0+x1)/2,cy:(y0+y1)/2,top:y0,bottom:y1,mapWidth:m.width,visibleCenterY:(sr.top-m.top)/2,sheetTop:sr.top-m.top};},[what,lonlat||null]);
+ await check('위험구역 N곳 현황은 버튼 모양 아코디언(접힘→펼침)이고 구역마다 정보·주소 버튼',async()=>{
+  await fresh();await open('a');
+  const m=await pg.evaluate(()=>{const d=document.querySelector('#risk-forecast-sheet .rf-hazards'),sm=d.querySelector('summary'),r=sm.getBoundingClientRect();const closed=!d.open;sm.scrollIntoView();sm.click();return{closed,opened:d.open,text:sm.textContent,height:r.height,items:d.querySelectorAll('li').length,buttons:d.querySelectorAll('button[data-zone-id]').length,minBtn:Math.min(...Array.from(d.querySelectorAll('button')).map(b=>b.getBoundingClientRect().height)),first:d.querySelector('li').textContent};});
+  console.log('측정 아코디언',JSON.stringify({height:m.height,items:m.items,minBtn:m.minBtn}));
+  assert.ok(m.closed&&m.opened);assert.equal(m.text,'위험구역 12곳 현황');assert.ok(m.height>=40);assert.equal(m.items,12);assert.equal(m.buttons,12);assert.ok(m.minBtn>=24,'누르는 곳 높이 '+m.minBtn);
+  for(const t of ['위험구역0','갯바위','연안사고 위험구역','부산 수영구 광안로 100','광안리파출소 관할'])assert.ok(m.first.includes(t),t);
+ });
+ await check('위험구역을 누르면 시트에 가려지지 않은 지도 영역의 가운데로 이동(서브탭 닫힘·열림)',async()=>{
+  for(const sub of [false,true]){
+   await tabs({sub});await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-zone-id="z3"]').click());
+   await pg.waitForFunction(()=>map.getLayers().getArray().find(l=>l.getClassName()==='rf-hazard-canvas').getSource().getFeatures().length===1&&document.querySelector('#risk-forecast-sheet [data-zone-id="z3"]').getAttribute('aria-pressed')==='true');await settleMap();
+   const r=await placed('hazard');console.log('측정 위험구역 이동 서브탭'+(sub?'열림':'닫힘'),JSON.stringify(r));
+   assert.ok(Math.abs(r.cx-r.mapWidth/2)<=2,'가로 중심 '+r.cx);assert.ok(Math.abs(r.cy-r.visibleCenterY)<=2,'세로 중심 '+r.cy+' vs 남은 영역 가운데 '+r.visibleCenterY);assert.ok(r.bottom<=r.sheetTop&&r.top>=0,'구역이 시트에 가려짐 '+r.bottom+' > '+r.sheetTop);
+  }
+  const pressed=await pg.evaluate(()=>Array.from(document.querySelectorAll('#risk-forecast-sheet [data-zone-id]')).filter(b=>b.getAttribute('aria-pressed')==='true').map(b=>b.dataset.zoneId));assert.deepEqual(pressed,['z3']);
+  await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-zone-id="z7"]').click());await pg.waitForFunction(()=>document.querySelector('#risk-forecast-sheet [data-zone-id="z7"]').getAttribute('aria-pressed')==='true');
+  assert.equal(await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-zone-id="z3"]').getAttribute('aria-pressed')),'false','이전 구역 선택 해제');await tabs({});
+ });
+ await check('다른 지점을 고르면 위험구역 표시가 해제됨',async()=>{
+  await pg.evaluate(()=>{app.select('coast','b');});await waitTitle('해운대해수욕장');
+  assert.equal(await pg.evaluate(()=>map.getLayers().getArray().find(l=>l.getClassName()==='rf-hazard-canvas').getSource().getFeatures().length),0);
+ });
+ await check('해상 관할 해역 이동도 같은 보이는 영역 가운데 규칙(서브탭 닫힘·열림)',async()=>{
+  for(const sub of [false,true]){
+   await tabs({sub});await open('a');await settleMap();
+   await pg.evaluate(()=>{const b=document.createElement('button');b.dataset.marineLon='129.2';b.dataset.marineLat='35.2';b.id='marine-test';document.querySelector('#risk-forecast-sheet .rf-body').appendChild(b);b.click();});await pg.waitForTimeout(50);await settleMap();
+   const r=await placed('point',[129.2,35.2]);console.log('측정 해역 이동 서브탭'+(sub?'열림':'닫힘'),JSON.stringify(r));
+   assert.ok(Math.abs(r.cx-r.mapWidth/2)<=2,'가로 '+r.cx);assert.ok(Math.abs(r.cy-r.visibleCenterY)<=2,'세로 '+r.cy+' vs '+r.visibleCenterY);assert.ok(r.cy<r.sheetTop);
+  }
+  await tabs({});
+ });
  await check('PopupStack·닫기 버튼 동작 유지(뒤로가기로 시트 닫힘)',async()=>{
   await open('a');assert.deepEqual(await pg.evaluate(()=>Array.from(PopupStack.list())),['risk-forecast-sheet']);
   assert.equal(await pg.evaluate(()=>PopupStack.popLast()),true);assert.equal(await pg.evaluate(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')),false);assert.equal(await pg.evaluate(()=>app.getState().selected),null);
