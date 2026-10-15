@@ -1532,6 +1532,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-10-15 10:41 KST] ✅완료 — 위험예측 UI 과제 통합(#1381) — 12·13·14·2·4·시트5~8/10 + 사용자 결정 가~마 + 운영 로그 분석
+Codex 인계(handoff_remaining_risk_tasks.md) 기준으로 병렬 에이전트 결과를 claude/pensive-ride-rldvam 에 병합(PR #1381). 사용자 결정(10/15): 가 연안도 2일(오늘·내일)·3일째 자료 보관 안 함, 나 시간 버튼 유지, 다 예비특보 구역 칠하지 않음, 라 특보 없으면 표시 없음(기존 동작 확인), 마 위성지도 실패 시 기본맵. 혼잡예보 점검 04:00·04:30·05:00·05:30(첫 요청 빈 응답이면 한도 절약 위해 중단). 운영 로그에서 #1380 배포 직후 '위험예측 상태 감시 시작 실패' 원인 확인: stream-json 이 루트 package.json 에 없어 Docker 미설치 → 루트 의존성 추가 + test_root_deps 재발 방지. 실수 2건 기록: 병합 스크립트가 validation.md 를 비우고 verify_all.sh 를 127줄로 자른 채 푸시(둘 다 복구). HTTP 응답시간 그래프 20~30초는 나리야 Codex VM 작업자의 25초 대기(long-poll) 때문으로 판단(앱 API 80개 실측 0.5~3.5초). 해구별 시정(vsby) imgList 가 빈 응답 → 캐시 baseTm 10/11 00 이후 미갱신, 원인 조사 에이전트 진행 중. 남은 것: 과제3(연안 빨강), 실기기 육안 확인, CI 시뮬레이션의 ERR_HTTP2_SERVER_REFUSED_STREAM(진단 출력 추가), 사용자 결정 대기 항목(가 후속 질문·KHOA 집계 분리·FCM 4KB·느린 요청 기록·stream-json 별도 PR).
+
+
 ### [2026-10-10 22:29 KST] ✅완료 — 위험예측 구현 설계서 작성
 client/js/ocean-map/coastal-risk/risk_forecast.impl_design.md (852줄, 오퍼스 high). 점수는 서버 계산, 미리보기 페이지 client/risk_forecast_preview.html(선례 admin_zone_editor.html), index2·기존 수집기·푸시 불변. 새로 만들 것: 수집기 3(혼잡도·집중률·행사), 칸 위치표, 정적 표 빌드, 순수 모듈 3, 점수 엔진·저장, API, server.js 기동 블록. 위험: server.js·scheduler.js 에 unhandledRejection 처리기 없음(grep 확인). 다음: 사용자에게 결정 질문(N1~N13, K-x) → 단계 1(오퍼스) 착수.
 

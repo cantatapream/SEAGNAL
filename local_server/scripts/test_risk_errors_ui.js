@@ -112,6 +112,14 @@ async function test(name, fn) {
                 1
             );
         });
+        await test('해구별 시정 예측도 관리자 원천 필터에 포함', async () => {
+            assert.equal(
+                await page
+                    .locator('[data-risk-source] option[value="visibility"]')
+                    .innerText(),
+                '해구별 시정 예측'
+            );
+        });
         await test('모바일 390px에서 관리자 오류 목록 가로 넘침 없음', async () => {
             assert.equal(
                 await page.evaluate(

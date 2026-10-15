@@ -100,6 +100,16 @@ if (require.main === module) (async () => {
     console.log(`[simulate] 크로미움: ${exePath || '(playwright 기본 해석에 맡김)'}`);
     const browser = await loadChromium().launch({ ...(exePath ? { executablePath: exePath } : {}), headless: true });
     const page = await browser.newPage({ viewport: { width: 412, height: 915 } }); // 모바일 비율
+    // ⚠브이월드(위성지도) 타일은 투명 그림으로 대신 준다 (2026-10-15).
+    //   위험예측을 켜면 배경이 위성지도로 바뀌는데, 깃허브 CI 에서 api.vworld.kr 이 타일 요청 29건을
+    //   ERR_HTTP2_SERVER_REFUSED_STREAM 으로 거절했다(run 38668118019 — 진단 출력으로 호스트 확인).
+    //   타일 서버가 받아 주는지는 우리 코드의 회귀가 아니고, 실제 사용자 단말이 받는 경로와도 다르다.
+    //   그래서 이 시뮬레이션에서는 바깥 타일 서버에 의존하지 않게 한다. 우리 서버(/api/…)·다른 호스트는 그대로 간다.
+    let vworldStubbed = 0;
+    await page.route(/^https:\/\/api\.vworld\.kr\//, (route) => {
+        vworldStubbed++;
+        route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
+    });
 
     const consoleErrors = [];
     const failed404 = [];
@@ -111,6 +121,12 @@ if (require.main === module) (async () => {
     const server5xx = [];
     // 403의 실제 주소도 남긴다. 브라우저의 공통 문구만으로 원인을 놓치지 않으며 판정은 유지한다.
     const forbidden403 = [];
+    // 네트워크 단계에서 실패한 요청(net::ERR_…)도 콘솔 문구에는 주소가 없다 — 오류명·호스트만 남긴다(진단용, 판정 불변).
+    //   2026-10-15 CI 에서 ERR_HTTP2_SERVER_REFUSED_STREAM 이 처음 났는데 어느 서버인지 알 길이 없었다.
+    const netFailed = [];
+    page.on('requestfailed', (req) => {
+        try { const u = new URL(req.url()); netFailed.push(((req.failure() || {}).errorText || '?') + ' ' + u.host); } catch (_) { /* URL 이 아닌 요청(data: 등)은 진단 대상이 아니다 */ }
+    });
     page.on('console', (msg) => {
         if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 300));
     });
@@ -408,7 +424,7 @@ if (require.main === module) (async () => {
     const envMiss = new404.filter((e) => missingData.has(e));
     const real404 = new404.filter((e) => !missingData.has(e));
 
-    // 콘솔 에러 중에도 **환경 탓인 것**이 있다. 두 가지뿐이고, 둘 다 이유가 분명하다.
+    // 콘솔 에러 중에도 **환경 탓인 것**이 있다. 아래 ⓐ~ⓓ 뿐이고, 모두 이유가 분명하다.
     //   ⓐ `… status of 404 (Not Found)` — 위 envMiss 가 브라우저 콘솔에 되비친 것이다.
     //      ⚠진짜 404 가 하나라도 있으면 이 줄이 그것 때문일 수도 있으므로 **빼지 않는다**.
     //   ⓑ `ERR_CERT_AUTHORITY_INVALID` — 개발 컨테이너의 에이전트 프록시 CA 탓이다.
@@ -418,6 +434,10 @@ if (require.main === module) (async () => {
     const envErrRe = [];
     if (envMiss.length && !real404.length) envErrRe.push(/status of 404 \(Not Found\)/i);
     if (behindProxy) envErrRe.push(/ERR_CERT_AUTHORITY_INVALID/i);
+    //   ⓓ `ERR_TUNNEL_CONNECTION_FAILED` — 같은 프록시가 허용 목록 밖 호스트(브이월드·OSM 지도 타일)로의
+    //      터널을 거절한 것이다(2026-10-15 실측: 위험예측이 배경을 위성지도로 바꾸며 api.vworld.kr·
+    //      tile.openstreetmap.org 타일만 이 오류). ⓑ 와 같이 **프록시가 켜져 있을 때만** 뺀다.
+    if (behindProxy) envErrRe.push(/ERR_TUNNEL_CONNECTION_FAILED/i);
     //   ⓒ `status of 5xx` — 그 주행에서 난 5xx 가 **전부** 우리 프로시의 바깥길 끊김일 때만(G-47).
     //      하나라도 그 꼴이 아니면 이 줄이 **그것 때문일 수도** 있으니 빼지 않는다(ⓐ 와 같은 잠금).
     const uniq5xx = [...new Set(server5xx)];
@@ -427,6 +447,7 @@ if (require.main === module) (async () => {
     const realErrors = newErrors.filter((e) => !envErrRe.some((r) => r.test(e)));
 
     console.log(`[simulate] 신규 콘솔에러 ${realErrors.length}(+환경 ${envErrors.length}) · 신규 404 ${real404.length}(+자료부재 ${envMiss.length}) · 사라진 전역함수 ${lostGlobals.length} · 깨진 시나리오 ${brokenScenarios.length}`);
+    if (vworldStubbed) console.log(`  ⏭️  브이월드 위성 타일 ${vworldStubbed}건은 투명 그림으로 대신 줬다(바깥 타일 서버에 의존하지 않음 — 위 page.route 설명)`);
     let fail = false;
     if (envErrors.length) {
         console.log(`  ⏭️  환경 탓인 콘솔 에러 ${envErrors.length}건 — 회귀로 세지 않는다`);
@@ -442,6 +463,11 @@ if (require.main === module) (async () => {
         if (realErrors.some((e) => /status of 403\b/.test(e))) {
             console.error('  ↳ 이번 주행에서 403을 낸 주소(쿼리 제외):');
             [...new Set(forbidden403)].forEach((url) => console.error('      ' + url));
+        }
+        if (realErrors.some((e) => /net::ERR_/.test(e)) && netFailed.length) {
+            console.error('  ↳ 이번 주행에서 네트워크 단계에서 실패한 요청(오류·호스트, 건수):');
+            const n = new Map(); netFailed.forEach((k) => n.set(k, (n.get(k) || 0) + 1));
+            [...n].slice(0, 10).forEach(([k, c]) => console.error('      ' + k + ' ×' + c));
         }
         // 콘솔 문구만으로는 어느 주소인지 모른다 — 우리가 따로 적어 둔 5xx 목록을 함께 준다.
         if (server5xx.length) {

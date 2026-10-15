@@ -13,6 +13,9 @@
  *   - PNG 본체(무인증): https://marine.kma.go.kr + img_list[i]
  *   - PNG 배치: EPSG:4326, extent = MMIS 번들 검증값(아래 VSBY_EXTENT).
  *   런(생산시각)은 img 경로의 RDPS_<YYYYMMDDHH>_VIS 에서 추출 → 바뀔 때만 재수집.
+ *   ⚠(2026-10-15 확인) imgList 가 HTTP 200 · 0바이트를 돌려준다(헤더·쿠키를 바꿔도 같음,
+ *     MMIS 화면 번들도 같은 주소를 무인증 GET 으로 부름 · gdps/imgList 도 0바이트).
+ *     확인 실패는 getStatus().lastCheckOk/lastCheckError/failStreak/failSince 로 드러난다.
  *
  * [대해구 시정 — 소해구 래스터 집계(완전 래스터화)]
  *   해구별 기상전망에서 "대해구" 클릭 시 선 차트는 그 대해구에 속한 9개 소해구
@@ -190,11 +193,23 @@ function _sampleKm(data, W, H, x, y) {
 // ────────────────────────────────────────────────────────────────────────────
 const _H = { Referer: `${KMA_BASE}/mmis/`, 'User-Agent': 'Mozilla/5.0 (SEAGNAL/vsby)' };
 
-/** imgList → { fctTimes:[...], imgs:[...], baseTm } (무인증). */
+/**
+ * imgList → { fctTimes:[...], imgs:[...], baseTm } (무인증).
+ * 응답이 비었거나 JSON 이 아니면 HTTP 상태·길이·형식을 담아 throw 한다.
+ *   (2026-10-15) 기상청이 HTTP 200 · 0바이트를 돌려줘 r.json() 이 「Unexpected end of JSON
+ *   input」만 남겼다 — 잘린 응답인지 빈 응답인지 로그로 구분이 안 됐다.
+ * @returns {Promise<{fctTimes:string[], imgs:string[], baseTm:string|null}>}
+ * [연계] ← refreshIfStale(1시간 폴링) · collect
+ */
 async function fetchImgList() {
     const r = await fetch(IMGLIST_URL, { headers: _H, timeout: 15000 });
     if (!r.ok) throw new Error('imgList ' + r.status);
-    const j = await r.json();
+    const text = await r.text();
+    const ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '없음';
+    if (!text.length) throw new Error(`imgList 빈 응답 (HTTP ${r.status}, 0바이트, content-type=${ct})`);
+    let j;
+    try { j = JSON.parse(text); }
+    catch (e) { throw new Error(`imgList JSON 아님 (HTTP ${r.status}, ${text.length}바이트, content-type=${ct}): ${e.message}`); }
     const fctTimes = (j.data && j.data.fct_tm_list) || [];
     const imgs = (j.data && j.data.img_list) || [];
     const m = /RDPS_(\d{10})_VIS/.exec(imgs[0] || '');
@@ -349,9 +364,19 @@ async function getMajorForGraphByPoint(lat, lon) {
 // ────────────────────────────────────────────────────────────────────────────
 function init() { _loadCache(); }
 
+// 마지막 imgList 확인 결과 — getStatus 로 노출. 확인이 계속 실패해도 캐시는 옛 런을 그대로
+//   내주므로, 이것이 없으면 「갱신이 멈췄다」가 콘솔 한 줄 말고는 어디에도 안 보였다(2026-10-15).
+let _lastCheck = { at: null, ok: null, error: null, failStreak: 0, failSince: null };
+
 async function refreshIfStale() {
     let il;
-    try { il = await fetchImgList(); } catch (e) { console.error('[vsby_sz] imgList 확인 실패:', e.message); return; }
+    const at = new Date().toISOString();
+    try { il = await fetchImgList(); } catch (e) {
+        console.error('[vsby_sz] imgList 확인 실패:', e.message);
+        _lastCheck = { at, ok: false, error: e.message, failStreak: _lastCheck.failStreak + 1, failSince: _lastCheck.failSince || at };
+        return;
+    }
+    _lastCheck = { at, ok: true, error: null, failStreak: 0, failSince: null };
     const empty = !_cache || !Object.keys(_cache.cells || {}).length;
     if (!il.baseTm) { if (empty) console.log('[vsby_sz] baseTm 미확인 + 캐시 없음'); return; }
     if (!empty && _cache.baseTm === il.baseTm) return;   // 최신
@@ -369,12 +394,26 @@ function startAutoRefresh() {
     console.log('[vsby_sz] 자동 갱신 시작 (래스터, 폴링 1시간)');
 }
 
+/**
+ * 캐시·갱신 상태. 예: { baseTm:'2026101100', lastFctTm:'2026.10.14 16:00', lastCheckOk:false, failStreak:3, ... }
+ * lastFctTm 이 지금보다 과거면 화면에 나갈 앞날 예측이 하나도 없다는 뜻이다.
+ * @returns {object}
+ * [연계] → routes/vsby_smallzone.js GET /api/vsby-smallzone/status
+ *        → risk_history_sources.visibilitySource (관리자 AI 사고예측 → 오류현황, 1분 감시)
+ */
 function getStatus() {
+    const ft = _cache.fctTimes || [];
     return {
         baseTm: _cache.baseTm,
         collectedAt: _cache.collectedAt,
         cellCount: Object.keys(_cache.cells || {}).length,
-        frameCount: (_cache.fctTimes || []).length,
+        frameCount: ft.length,
+        lastFctTm: ft.length ? ft[ft.length - 1] : null,
+        lastCheckAt: _lastCheck.at,
+        lastCheckOk: _lastCheck.ok,
+        lastCheckError: _lastCheck.error,
+        failStreak: _lastCheck.failStreak,
+        failSince: _lastCheck.failSince,
         cached: fs.existsSync(CACHE_PATH)
     };
 }

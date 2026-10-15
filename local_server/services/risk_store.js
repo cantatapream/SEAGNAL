@@ -13,6 +13,12 @@ function zoneName(s){return String(s||'').replace(/\./g,'·').replace(/\s/g,'');
 function timestamp(s){if(typeof s==='number')return s;const v=String(s||'');const k=v.match(/^(\d{4})\.\s*(\d+)\.\s*(\d+)\.\s*(오전|오후)\s*(\d+):(\d+):(\d+)/);if(k){let h=+k[5]%12;if(k[4]==='오후')h+=12;return Date.UTC(+k[1],+k[2]-1,+k[3],h,+k[6],+k[7])-9*T.HOUR;}const wall=/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$/.test(v)?v.replace(' ','T')+'+09:00':v;const d=Date.parse(wall);return Number.isFinite(d)?d:null;}
 /** 10자리 UTC 해구 예보시각을 읽는다. 예: 2026101000→09시KST. @param {string} tm @returns {number} [연계] ← forecast */
 function utcForecast(tm){const m=/^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(String(tm));return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4]):NaN;}
+/** 연안 시간축(오늘·내일, 3시간 칸, 내일 21시 끝)을 만든다. 해상(내일 23시)과 같은 2일이다(사용자 확정 2026-10-15 「가」).
+ * 예: 10-31 12:17 → [12:17, 15:00, …, 11-01 21:00]; 모레 00시는 들어가지 않는다.
+ * @param {number} now - 현재 ms @returns {string[]} KST ISO
+ * [연계] ← meta·validateTime·warningsFor·galeFor·읽을 행사 월(sourceFiles/refresh) — 한 곳에서만 기간을 정해 3일 가정이 다시 섞이지 않게 한다.
+ */
+function coastTimeline(now){return T.timeline(now,3,2,21);}
 /** 화면은 원본을 읽고 오류 감시는 readData/metadataOnly로 같은 신선도 규칙만 재사용한다.
  * 폴더 안 실제 자료를 읽는 저장소를 만든다. 예: 검사에서는 임시자료만 읽는다. @param {object} options @returns {object} [연계] ← API/검사 */
 function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDir=path.join(ROOT,'config','coastal_safety'),clientDir=CLIENT,clock=Date.now,readData=io.read,metadataOnly=false}={}){
@@ -26,7 +32,7 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      * @returns {string[]} 파일 경로 [연계] refresh / risk_history_sources의 순차 메타 읽기
      */
     function sourceFiles(){const now=clock();
-        const visibleMonths=new Set(T.timeline(now,3,3,21).map(t=>T.dateKey(t).slice(0,7)));
+        const visibleMonths=new Set(coastTimeline(now).map(t=>T.dateKey(t).slice(0,7)));
         const files=['weather_alerts.json','gale_warnings.json','zone_forecasts.json','ripcurrent_index.json','swell_smallzone.json.gz'].map(f=>path.join(dataDir,f));
         files.push(...['sea_traffic.json.gz','sea_accident.json.gz','accident_status.json','accident_quota.json','tour_concentration.json','sea_cells.json','events_status.json','congestion_status.json','tourConcentration_status.json','gale_status.json','congestion_quota.json','tourConcentration_quota.json'].map(f=>path.join(dir,f)));
         for(const month of visibleMonths)for(const suffix of ['.json','_status.json'])files.push(path.join(dir,'events_'+month.replace('-','')+suffix));
@@ -35,7 +41,7 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     }
     /** 읽기 결과를 30초 공유한다. 예: JSON 손상은 missing이 아니라 error. @returns {object} [연계] ← 모든 GET */
     function refresh(force=false){const now=clock(),today=io.day(now);if(!force&&today===loadedDay&&now-loadedAt<30000)return cache;
-        const visibleMonths=new Set(T.timeline(now,3,3,21).map(t=>T.dateKey(t).slice(0,7)));
+        const visibleMonths=new Set(coastTimeline(now).map(t=>T.dateKey(t).slice(0,7)));
         const files=sourceFiles();
         const version=files.map(file=>{try{const st=fs.statSync(file);return[file,st.mtimeMs,st.size,st.ino];}catch{return[file,null];}});
         // 전체 버전은 그대로 무효화하되, 변경되지 않은 파일 객체는 다시 JSON.parse 하지 않는다.
@@ -59,13 +65,13 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     }
     /** 나무에서 부모와 자식 표출 블록을 각각 꺼낸다. 예: 자식null은 부모 특보로 채우지 않는다. @returns {Map} [연계] ← warningsFor/borders */
     function flattenWarnings(){if(cache.warningMap)return cache.warningMap;const out=new Map();const visit=(n)=>{if(!n||typeof n!=='object')return;for(const [name,v]of Object.entries(n)){if(v&&typeof v==='object'&&Object.hasOwn(v,'children')){out.set(zoneName(name),{name,block:v});for(const [child,b]of Object.entries(v.children||{}))out.set(zoneName(child),{name:child,block:b});}else visit(v);}};visit(cache.warnings.data?.current);cache.warningMap=out;return out;}
-    /** 한 구역의 자료상/가정 특보 상태를 가져온다. 예: 해상 예비21시부터 가정, 연안은 예비 그대로. @param {string} zone @param {string} t @param {boolean} sea @returns {array} [연계] ← details */
-    function warningsFor(zone,t,sea,child){const map=flattenWarnings(),end=T.timeline(clock(),sea?1:3,sea?2:3,sea?23:21).at(-1);
+    /** 한 구역의 자료상/가정 특보 상태를 가져온다. 예: 해상 예비21시부터 가정, 연안은 예비 그대로; assume=false면 해상도 예비를 승격하지 않는다. @param {string} zone @param {string} t @param {boolean} sea @param {string} [child] @param {boolean} [assume=sea] 예비 가정 여부 @returns {array} [연계] ← details/borders */
+    function warningsFor(zone,t,sea,child,assume=sea){const map=flattenWarnings(),end=(sea?T.timeline(clock(),1,2,23):coastTimeline(clock())).at(-1);
         const entry=map.get(zoneName(child||zone));if(!entry||!entry.block)return[];const b=entry.block;
         const blocks=(Object.hasOwn(b,'current')||Object.hasOwn(b,'upcoming'))?[b.current,b.upcoming?{...b.upcoming,preliminary:true}:null]:[b];
-        return blocks.map(w=>T.warningAt(w,t,clock(),end,{assumePreliminary:sea})).filter(Boolean);}
+        return blocks.map(w=>T.warningAt(w,t,clock(),end,{assumePreliminary:assume})).filter(Boolean);}
     /** 관광지 육상강풍을 연결한다. 예: 이름 미일치는 status unmatched로 드러낸다. @param {object} spot @param {string} t @returns {array} [연계] ← coastDetail */
-    function galeFor(spot,t){if(!spot.galeZone)return[];return(cache.gale.data?.rows||[]).filter(r=>r.live&&zoneName(r.zoneNm)===zoneName(spot.galeZone)).map(r=>T.warningAt({...r,type:'강풍',level:r.lvl.includes('경보')?'경보':r.lvl.includes('예비')?'예비':'주의보',preliminary:r.src.endsWith('Ready')||r.lvl.includes('예비')},t,clock(),T.timeline(clock(),3,3,21).at(-1),{assumePreliminary:false})).filter(Boolean);}
+    function galeFor(spot,t){if(!spot.galeZone)return[];return(cache.gale.data?.rows||[]).filter(r=>r.live&&zoneName(r.zoneNm)===zoneName(spot.galeZone)).map(r=>T.warningAt({...r,type:'강풍',level:r.lvl.includes('경보')?'경보':r.lvl.includes('예비')?'예비':'주의보',preliminary:r.src.endsWith('Ready')||r.lvl.includes('예비')},t,clock(),coastTimeline(clock()).at(-1),{assumePreliminary:false})).filter(Boolean);}
     /** 자료별 성공·낡음·오류를 분리한다. 예: 파일이 있어도 마지막 요청실패는 error. @returns {object} [연계] ← API responses */
     function sources(fresh=false){refresh(fresh);if(cache.sourceInfo)return cache.sourceInfo;const now=clock(),date=io.day(now),out={};
         for(const key of ['warnings','gale','zoneForecasts','swell','ripCurrent','congestion','accident','tourConcentration','events']){
@@ -94,15 +100,16 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         out.events.months={};for(const [month,d]of Object.entries(cache.events.months)){const attempt=cache.events.attempts[month]||(cache.events.attempt?.month===month?cache.events.attempt:null);const status=attempt?.status==='error'?'error':!d?(cache.events.monthExists[month]?'error':'missing'):d.month===month?'ok':'stale';const at=timestamp(d?.collectedAt||d?.updatedAt);out.events.months[month]={status,month,count:d?.events?.length||0,updatedAt:at?T.isoKst(at):null,lastRun:timestamp(attempt?.lastRun)?T.isoKst(timestamp(attempt.lastRun)):null,lastSuccess:timestamp(attempt?.lastSuccess)?T.isoKst(timestamp(attempt.lastSuccess)):null,lastError:attempt?.lastError||null,...(attempt?.sourceCounts?{sourceCounts:attempt.sourceCounts}:{})};}
         const current=out.events.months[date.slice(0,7)];if(current)Object.assign(out.events,current);cache.sourceInfo=out;return out;
     }
-    /** 요청시각이 공개 시간범위에 들었는지 확인한다. 예: 2040년 요청은400. @param {string} t @param {boolean} sea @returns {string} [연계] ← frame/detail */
-    function validateTime(t,sea){const n=timestamp(t),now=clock(),times=T.timeline(now,sea?1:3,sea?2:3,sea?23:21);if(!Number.isFinite(n)||!/(?:Z|[+-]\d\d:\d\d)$/.test(String(t))||n<now-5*60000||n>timestamp(times.at(-1)))throw Object.assign(new Error('잘못된 예보 시각'),{status:400});return T.isoKst(n);}
-    /** 자료를 해구·선택시각에 맞춘다. 예: 자료끝 밖에 이전예보를 연장하지 않는다. @param {number} major @param {string} t @returns {object} [연계] ← detail */
+    /** 요청시각이 공개 시간범위에 들었는지 확인한다. 예: 2040년 요청은400; 연안 모레 00시도400(「가」 2일 제한). @param {string} t @param {boolean} sea @returns {string} [연계] ← frame/detail/warningZones */
+    function validateTime(t,sea){const n=timestamp(t),now=clock(),times=sea?T.timeline(now,1,2,23):coastTimeline(now);if(!Number.isFinite(n)||!/(?:Z|[+-]\d\d:\d\d)$/.test(String(t))||n<now-5*60000||n>timestamp(times.at(-1)))throw Object.assign(new Error('잘못된 예보 시각'),{status:400});return T.isoKst(n);}
+    /** 자료를 해구·선택시각에 맞춘다. 예: 자료끝 밖에 이전예보를 연장하지 않는다.
+     * 그날 하루 최대값(dayMax)은 3일째 특보급 안내에만 쓰였으므로 「가」(2026-10-15)로 그 안내와 함께 뺐다.
+     * @param {number} major @param {string} t @returns {object} [연계] ← detail / marine_fusion(weather) */
     function forecast(major,t){const rows=cache.zoneForecasts.data?.data?.[String(major)]||[];const times=rows.map(r=>utcForecast(r.tm)).filter(Number.isFinite);const target=timestamp(t);const inside=times.length&&target>=Math.min(...times)-1.5*T.HOUR&&target<=Math.max(...times)+1.5*T.HOUR;
-        const r=inside?T.nearest(rows,t,x=>utcForecast(x.tm)):null;const same=rows.filter(x=>Number.isFinite(utcForecast(x.tm))&&T.dateKey(utcForecast(x.tm))===T.dateKey(t));
+        const r=inside?T.nearest(rows,t,x=>utcForecast(x.tm)):null;
         const number=x=>x!==null&&x!==''&&x!==undefined&&Number.isFinite(Number(x))&&Number(x)>=0?Number(x):null;
-        const max=k=>{const v=same.map(x=>number(x[k])).filter(x=>x!==null);return v.length?Math.max(...v):null;};
-        return {wh:number(r?.wh),ws:number(r?.ws),wp:number(r?.wp),wd:number(r?.waveDir),windDir:number(r?.windDir),forecastAt:r?T.isoKst(utcForecast(r.tm)):null,dayMax:{wh:max('wh'),ws:max('ws')}};}
-    /** 소해구 너울을 범위 안에서만 가져온다. 예: 모레 범위밖은null. @param {string} key @param {string} t @returns {object|null} [연계] ← coastDetail */
+        return {wh:number(r?.wh),ws:number(r?.ws),wp:number(r?.wp),wd:number(r?.waveDir),windDir:number(r?.windDir),forecastAt:r?T.isoKst(utcForecast(r.tm)):null};}
+    /** 소해구 너울을 범위 안에서만 가져온다. 예: 너울 예보 끝보다 1.5시간 넘게 뒤면 null. @param {string} key @param {string} t @returns {object|null} [연계] ← coastDetail */
     function swell(key,t){const data=cache.swell.data,c=data?.cells?.[key];if(!c)return null;const rows=(data.fctTimes||[]).map((x,i)=>{const m=String(x).match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);return{t:m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5])-9*T.HOUR:NaN,periodS:c.wp?.[i]};});const valid=rows.filter(r=>Number.isFinite(r.t)),target=timestamp(t);if(!valid.length||target<valid[0].t-1.5*T.HOUR||target>valid.at(-1).t+1.5*T.HOUR)return null;const r=T.nearest(valid,t);return r?.periodS!=null?{periodS:Number(r.periodS)}:null;}
     /** 이안류는 오늘 관측만 연결한다. 예: 어제 관측 파일을 오늘 위험으로 연장하지 않는다.
      * @param {string} name - 해수욕장 @param {string} t - 선택 시각 @returns {object|null} 오늘 관측 [연계] ← coastDetail
@@ -113,10 +120,12 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     /** 한 연안 지점 설명을 같은 계산기로 만든다. 예: 집중률이 없어도 정적위험과달은계산. @param {string} id @param {string} t @returns {object} [연계] ← /coast/spot/frame */
     function coastDetail(id,t){refresh();const p=staticTable?.spots?.find(p=>p.id===id);if(!p)throw Object.assign(new Error('관광지 없음'),{status:staticTable?404:503});t=validateTime(t,false);const memo=resultKey('coast',t,id);if(detailCache.has(memo))return detailCache.get(memo);const d=T.dateKey(t),f=forecast(p.major,t),src=sources(),cr=src.tourConcentration.status==='ok'?cache.tourConcentration.data?.values?.[id]?.[d]:null;const eventMonth=cache.events.months[d.slice(0,7)];const events=src.events.months[d.slice(0,7)]?.status==='ok'&&eventMonth?.month===d.slice(0,7)?eventMonth.events.filter(e=>e.spotId===id&&e.start<=d&&e.end>=d):null;
         const warning=warningsFor(p.warnZone,t,false).concat(galeFor(p,t));const r=S.scoreCoast({t,now:clock(),spot:p,concentration:typeof cr==='number'?cr:null,events,swell:swell(p.coastCell,t),rip:ripFor(p.ripBeach,t),warnings:warning,...f});
-        const notices=[];if(r.notices.effective.length||r.notices.prelim.length)notices.push({key:'warning',effective:r.notices.effective.map(w=>w.type+w.level),prelim:r.notices.prelim.map(w=>w.type+w.level)});if(r.notices.day3)notices.push({key:'day3'});if(r.notices.windMs!==null)notices.push({key:'drift',windMs:r.notices.windMs});
+        const notices=[];if(r.notices.effective.length||r.notices.prelim.length)notices.push({key:'warning',effective:r.notices.effective.map(w=>w.type+w.level),prelim:r.notices.prelim.map(w=>w.type+w.level)});if(r.notices.windMs!==null)notices.push({key:'drift',windMs:r.notices.windMs});
         const rows=r.factors.map(x=>({...x,key:x.key==='concentration'?'people':x.key,used:x.applied, ...(x.key==='hazard'?{zones:(x.zones||[]).map(z=>({id:z.id,place:z['장소명'],shape:z['장소형태'],class:z['구역분류'],addr:z['주소'],police:z['관할파출소']}))}:{}),...(x.key==='event'&&x.events?.length?{src:x.events[0].src,sourceType:x.events[0].sourceType||'gemini',contentId:x.events[0].contentId||null,dateRange:[x.events[0].start,x.events[0].end]}:{})}));
+        // 과제4: 행사·특보가 '없음'이면 자료 파일은 정상(ok)+빈 목록이라 missing 에 들지 않는다. 받지 못했을 때(missing/stale/error)만 아래에서 들어간다.
+        // 이안류 비수기(offseason)는 정상 상태라 반환 직전에 missing 에서 뺀다.
         if(sources().events.months[d.slice(0,7)]?.status!=='ok')r.missing.push('events');if(sources().warnings.status!=='ok')r.missing.push('warnings');if(sources().gale.status!=='ok')r.missing.push('gale');if(f.wh===null||f.ws===null)r.missing.push('forecast');
-        return remember(detailCache,memo,{t,title:p.name,subtitle:{addr:null,lat:p.lat,lon:p.lon,sggName:p.sgg_name,police:p.station||null},score:r.score,index:r.index,band:r.band,rr:r.rr,fatalRr:r.fatalRr,notices,rows,missing:[...new Set(r.missing)],inputs:{forecastAt:f.forecastAt}},6000);}
+        return remember(detailCache,memo,{t,title:p.name,subtitle:{addr:null,lat:p.lat,lon:p.lon,sggName:p.sgg_name,police:p.station||null},score:r.score,index:r.index,band:r.band,rr:r.rr,fatalRr:r.fatalRr,notices,rows,missing:[...new Set(r.missing)].filter(k=>k!=='rip'||sources().ripCurrent.status!=='offseason'),inputs:{forecastAt:f.forecastAt}},6000);}
     /** 위치표를 전달한다. 예: 아직수집전이면503. @returns {object} [연계] ← /sea/cells */
     function cells(){refresh();if(!cache.cells.data?.cells?.length)throw Object.assign(new Error('해양교통 칸 위치표 준비 전'),{status:503});return cache.cells.data;}
     /** 한 해상 칸 설명을 계산한다. 예: 수집실패시 null혼잡과날씨만 표시. @param {string} id @param {string} t @returns {object} [연계] ← /sea/cell/frame */
@@ -125,10 +134,11 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         const rows=r.factors.map(x=>({...x,key:x.key,used:x.applied,cond:x.forecastOnly?'fcst_only':x.key==='wave'&&x.rr?'wave4m':x.key==='wind'&&x.rr?(f.ws>=17?'wind17':'wind14'):null,...(x.key==='congestion'?{level:r.ciLevel,levelName:r.ciLevel===null?null:['낮음','보통','높음','매우높음'][r.ciLevel]}:{}),...(x.key==='warning'?{name:x.type+x.level,assumedFromHour:x.from?new Date(timestamp(x.from)+9*T.HOUR).getUTCHours():null}:{})}));
         if(sources().warnings.status!=='ok')r.missing.push('warnings');
         return remember(detailCache,memo,{t,title:c.haegu||{major:null,sub:null},subtitle:c.ref||null,clickable:r.clickable,score:r.score,index:r.index,band:r.band,rr:r.rr,officialCongestionLevel:row?.congestionLevel||null,rows,kinds:{sensitive:{rr:r.rr},collision:{rr:r.collisionRr,status:r.collisionRr===null?'withheld':r.picked?'ok':'none'}},inputs:{forecastAt:f.forecastAt,zoneForecastBase:cache.zoneForecasts.data?.baseTmUtf||null,congestionCreated:timestamp(row?.fcstCreateDateTime)?T.isoKst(timestamp(row.fcstCreateDateTime)):null},missing:r.missing},6000);}
-    /** 공식 사고 시간대를 이전3시간정시로 고른다. 예:13시는12시원본,보간없음.
+    /** 공식 사고 시간대를 이전3시간정시로 고른다. 예:13시는12시원본,보간없음; 내일 23:59는 내일21시, 모레00시는400.
+     * 범위는 오늘00시~내일23:59(수집기 16칸과 같은 2일 — 「해상 공식 사고예보는 2일까지만」 2026-10-15). 배포 전 24칸 저장본의 모레 칸도 이 검사로 내보내지 않는다.
      * @param {string} t - 선택시각 @returns {object} t,key,forecastAt [연계] ← accidentFrame/Detail / 혼잡시간과별도표시
      */
-    function accidentTime(t){const n=timestamp(t),now=clock(),base=Date.parse(T.dateKey(now)+'T00:00:00+09:00');if(!Number.isFinite(n)||!/(?:Z|[+-]\d\d:\d\d)$/.test(String(t))||n<base||n>base+2*T.DAY+23*T.HOUR+59*60000)throw Object.assign(new Error('잘못된 사고예보 시각'),{status:400});const at=base+Math.floor((n-base)/(3*T.HOUR))*3*T.HOUR,local=new Date(at+9*T.HOUR);return{t:T.isoKst(n),forecastAt:T.isoKst(at),key:T.dateKey(at).replace(/-/g,'')+String(local.getUTCHours()).padStart(2,'0')+'00'};}
+    function accidentTime(t){const n=timestamp(t),now=clock(),base=Date.parse(T.dateKey(now)+'T00:00:00+09:00');if(!Number.isFinite(n)||!/(?:Z|[+-]\d\d:\d\d)$/.test(String(t))||n<base||n>base+T.DAY+23*T.HOUR+59*60000)throw Object.assign(new Error('잘못된 사고예보 시각'),{status:400});const at=base+Math.floor((n-base)/(3*T.HOUR))*3*T.HOUR,local=new Date(at+9*T.HOUR);return{t:T.isoKst(n),forecastAt:T.isoKst(at),key:T.dateKey(at).replace(/-/g,'')+String(local.getUTCHours()).padStart(2,'0')+'00'};}
     /** 공식 경계표를 한번 제공한다. 예:사고격자와혼잡ID는별개.
      * @returns {object} cells,v [연계] ← /sea/accident-cells / 프레임에는경계중복안함
      */
@@ -149,15 +159,21 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         const all=matches.map(v=>{const r=traffic.find(r=>r.gridId===v.id);return r?{gridId:r.gridId,congestionIndex:r.congestionIndex,congestionLevel:r.congestionLevel||null,forecastAt:trafficAt,createdAt:timestamp(r.fcstCreateDateTime)?T.isoKst(timestamp(r.fcstCreateDateTime)):null}:null;}).filter(Boolean),candidate=forecast(c.haegu?.major,frame.forecastAt),f=candidate.forecastAt===frame.forecastAt?candidate:{wh:null,ws:null,wp:null,wd:null,windDir:null,forecastAt:null},missing=[];
         if(sources().accident.status!=='ok')missing.push('accident');if(!all.length||sources().congestion.status!=='ok')missing.push('congestion');if(['wh','ws','wp','wd'].some(k=>f[k]===null))missing.push('forecast');
         return{t:frame.t,v:frame.v,title:c.haegu||{major:null,sub:null},subtitle:c.ref||null,gridId:c.id,lat:c.lat,lon:c.lon,accidentRiskIndex:row[1],accidentRiskLevel:row[2],forecastAt:frame.forecastAt,createdAt:frame.createdAt,weather:{wh:f.wh,ws:f.ws,wp:f.wp,wd:f.wd,windDir:f.windDir,forecastAt:f.forecastAt,source:'기상청 해구별 예보',major:c.haegu?.major||null,base:cache.zoneForecasts.data?.baseTmUtf||null},congestion:all[0]||null,congestionMatches:all,queryPoint:{lon,lat},matchingAt:{lon,lat,method:hasPoint?'클릭 위치 공간 포함':'격자 중심 공간 포함'},missing};}
-    /** 지도테두리를 선택시각 특보와 맞춘다. 예: 예비시작전pre노랑. @param {string} t @param {boolean} sea @returns {array} [연계] ← frames */
-    function borders(t,sea){const out=[];for(const [_,entry]of flattenWarnings()){const states=warningsFor(entry.name,t,true);if(!states.length)continue;const effective=states.filter(w=>w.state==='발효');const w=(effective.length?effective:states).sort((a,b)=>(b.state==='예비'?0:b.level==='경보'?2:1)-(a.state==='예비'?0:a.level==='경보'?2:1))[0];out.push({zone:entry.name,color:w.state==='예비'?'pre':w.level==='경보'?'wrn':'adv',state:w.state,from:w.from||null});}return out;}
+    /** 지도테두리를 선택시각 특보와 맞춘다. 예: 예비시작전pre노랑; assume=false면 예비 시작 뒤에도 pre 그대로. @param {string} t @param {boolean} sea @param {boolean} [assume=true] 예비 가정 승격 @returns {array} [연계] ← frames/warningZones */
+    function borders(t,sea,assume=true){const out=[];for(const [_,entry]of flattenWarnings()){const states=warningsFor(entry.name,t,true,undefined,assume);if(!states.length)continue;const effective=states.filter(w=>w.state==='발효');const w=(effective.length?effective:states).sort((a,b)=>(b.state==='예비'?0:b.level==='경보'?2:1)-(a.state==='예비'?0:a.level==='경보'?2:1))[0];out.push({zone:entry.name,color:w.state==='예비'?'pre':w.level==='경보'?'wrn':'adv',state:w.state,from:w.from||null});}return out;}
     /** 지도용 작은 숫자배열을 만든다. 예: 해상시각 응답에없는칸은빼되 전체실패면날씨만. @param {boolean} sea @param {string} t @returns {object} [연계] ← /frames */
     function frame(sea,t){refresh();t=validateTime(t,sea);const memo=resultKey(sea?'seaFrame':'coastFrame',t);if(frameCache.has(memo))return frameCache.get(memo);const src=sources(),degraded=Object.entries(src).filter(([k,v])=>(sea?['warnings','zoneForecasts','congestion']:['warnings','gale','zoneForecasts','swell','ripCurrent','tourConcentration','events']).includes(k)&&!['ok','offseason'].includes(v.status)).map(([k])=>k);
         if(sea){const n=new Date(timestamp(t)+9*T.HOUR),key=T.dateKey(t).replace(/-/g,'')+String(n.getUTCHours()).padStart(2,'0')+'00';const traffic=src.congestion.status==='ok'?cache.congestion.data?.frames?.[key]:null,active=traffic?new Set(traffic.map(r=>r.gridId)):null,trafficById=new Map((traffic||[]).map(r=>[r.gridId,r]));return remember(frameCache,memo,{t,cells:cells().cells.filter(c=>!active||active.has(c.id)).map(c=>{const r=seaDetail(c.id,t);return[c.i,r.score,r.rows[0]?.ci??null,trafficById.get(c.id)?.congestionLevel||null];}),borders:borders(t,true),degraded},8);}
         const eventStatus=src.events.months[T.dateKey(t).slice(0,7)]?.status;if(eventStatus==='ok'){const i=degraded.indexOf('events');if(i>=0)degraded.splice(i,1);}else if(!degraded.includes('events'))degraded.push('events');
-        const day3Dashed=new Set();const entries=(staticTable?.spots||[]).map((p,i)=>{const r=coastDetail(p.id,t);if(r.notices.some(n=>n.key==='day3')&&p.warnZone)day3Dashed.add(p.warnZone);return[i,r.score];});if(!staticTable)throw Object.assign(new Error('관광지 표 준비 전'),{status:503});return remember(frameCache,memo,{t,day:T.dayOffset(t,clock()),spots:entries,borders:borders(t,false),day3Dashed:[...day3Dashed],degraded},8);}
-    /** 첫로드에 시간축·정적표버전·자료상태를 함께 준다. 예: 지금칸은 분유지. @returns {object} [연계] ← /meta */
-    function meta(){refresh();const now=clock();return{now:T.isoKst(now),timeline:{sea:{stepH:1,times:T.timeline(now,1,2,23)},accident:{stepH:3,times:A.slots(now).map(s=>s.at)},coast:{stepH:3,times:T.timeline(now,3,3,21),day3From:T.dateKey(now+2*T.DAY)+'T00:00:00+09:00'}},versions:{spots:staticTable?._about?.hash||null,cells:cache.cells.data?.cells?.length||0,accident:cache.accident.data?.v||null},sources:sources()};}
+        const entries=(staticTable?.spots||[]).map((p,i)=>[i,coastDetail(p.id,t).score]);if(!staticTable)throw Object.assign(new Error('관광지 표 준비 전'),{status:503});return remember(frameCache,memo,{t,day:T.dayOffset(t,clock()),spots:entries,borders:borders(t,false),degraded},8);}
+    /** 선택 시각에 실제 발표된 해상 특보 구역만 준다(연안·해상 위험 계산과 무관한 작은 조회).
+     * 예: 12시 풍랑주의보 발효 구역 → [{zone:'부산앞바다',color:'adv',state:'발효'}]; 예비특보 구역은 시작 전후 모두 넣지 않는다(사용자 확정 2026-10-15 「다」 — 칠하지 않음); 특보가 없으면 zones 빈 배열.
+     * @param {string} t - 선택 시각 KST ISO @returns {object} {t,zones,degraded} degraded에 warnings가 있으면 특보 원천이 정상이 아니다
+     * [연계] ← /warning-zones → 클라이언트 지도 배경 특보층 / 구역 이름→폴리곤은 정적 warn_zones(+_sub)에서 클라이언트가 맞춘다.
+     */
+    function warningZones(t){refresh();t=validateTime(t,false);const memo=resultKey('warningZones',t);if(detailCache.has(memo))return detailCache.get(memo);const degraded=['ok','offseason'].includes(sources().warnings.status)?[]:['warnings'];return remember(detailCache,memo,{t,zones:borders(t,true,false).filter(z=>z.state!=='예비'),degraded},6000);}
+    /** 첫로드에 시간축·정적표버전·자료상태를 함께 준다. 예: 지금칸은 분유지; 연안은 내일 21시까지(「가」 — 3일째 시작 표시 day3From 없음); 공식 사고는 오늘00시~내일21시 16칸(A.slots, 2026-10-15 2일 제한). @returns {object} [연계] ← /meta */
+    function meta(){refresh();const now=clock();return{now:T.isoKst(now),timeline:{sea:{stepH:1,times:T.timeline(now,1,2,23)},accident:{stepH:3,times:A.slots(now).map(s=>s.at)},coast:{stepH:3,times:coastTimeline(now)}},versions:{spots:staticTable?._about?.hash||null,cells:cache.cells.data?.cells?.length||0,accident:cache.accident.data?.v||null},sources:sources()};}
     /** 클릭한 위험구역 원본을 준다. 예: 동일id의 폴리곤만. @param {string[]} ids @returns {object} [연계] ← /hazard-zones */
     function hazards(ids){const all=io.read(path.join(configDir,'coastal_hazard_zones.wgs84.geojson'));if(!all)throw Object.assign(new Error('위험구역 자료 준비 전'),{status:503});return{type:'FeatureCollection',features:all.features.filter(f=>ids.includes(f.properties.name))};}
     /** 섬원본과공통육지geometry를 준다. 예: 서버·화면동일해안선. @returns {object} [연계] ← /islands */
@@ -167,6 +183,6 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      * [연계] ← marine_fusion / 원천 파일과 기상 캐시의 중복 상주를 막는다.
      */
     function marineInputs(){refresh();return{version:inputVersion,congestion:cache.congestion.data,accident:cache.accident.data,cells:cache.cells.data,sources:sources(),weather:forecast};}
-    return{sourceFiles,meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,seaDetail,frame,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
+    return{sourceFiles,meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,seaDetail,frame,warningZones,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
 }
 module.exports={createStore,zoneName,timestamp,utcForecast};

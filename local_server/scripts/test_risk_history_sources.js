@@ -14,6 +14,9 @@ const io = require('../services/risk_collector_io'),
 const {
         createReader,
         readMetadata,
+        visibilitySource,
+        VSBY_FAIL_STREAK,
+        VSBY_STALE_MS,
     } = require('../services/risk_history_sources'),
     { createHistory } = require('../services/risk_error_history');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'risk-thin-')),
@@ -301,6 +304,172 @@ async function check(name, fn) {
             fs.unlinkSync(path.join(dir, 'sea_realtime.json.gz'));
             assert.equal((await read()).realtime.status, 'missing');
         });
+        await check(
+            '해구별 시정: 정상·임계 미만 실패는 문제 아님, 연속 실패·오래된 수집은 문제',
+            () => {
+                const hour = 3600000,
+                    recent = io.iso(now - 2 * hour),
+                    checked = io.iso(now - 5 * 60000),
+                    empty = 'imgList 빈 응답 (HTTP 200, 0바이트, content-type=없음)';
+                const base = {
+                    collectedAt: recent,
+                    lastCheckAt: checked,
+                    lastCheckOk: true,
+                    lastCheckError: null,
+                    failStreak: 0,
+                };
+                assert.equal(visibilitySource(base, now).status, 'ok');
+                assert.equal(
+                    visibilitySource(
+                        {
+                            ...base,
+                            lastCheckOk: false,
+                            lastCheckError: empty,
+                            failStreak: VSBY_FAIL_STREAK - 1,
+                        },
+                        now
+                    ).status,
+                    'ok'
+                );
+                const failing = visibilitySource(
+                    {
+                        ...base,
+                        lastCheckOk: false,
+                        lastCheckError: empty,
+                        failStreak: VSBY_FAIL_STREAK,
+                    },
+                    now
+                );
+                assert.equal(failing.status, 'error');
+                assert.equal(failing.lastError, 'empty response');
+                assert.equal(failing.lastSuccess, recent);
+                assert.equal(failing.checkedAt, checked);
+                assert.equal(
+                    visibilitySource(
+                        {
+                            ...base,
+                            lastCheckOk: false,
+                            lastCheckError:
+                                'imgList JSON 아님 (HTTP 200, 31바이트, content-type=text/html): x',
+                            failStreak: VSBY_FAIL_STREAK,
+                        },
+                        now
+                    ).lastError,
+                    'invalid response'
+                );
+                assert.equal(
+                    visibilitySource(
+                        {
+                            ...base,
+                            lastCheckOk: false,
+                            lastCheckError: 'imgList 503',
+                            failStreak: VSBY_FAIL_STREAK,
+                        },
+                        now
+                    ).lastError,
+                    'HTTP 503'
+                );
+                // 확인은 성공해도 새 수집이 없으면(같은 런 반복·PNG 실패) 낡음
+                assert.equal(
+                    visibilitySource(
+                        {
+                            ...base,
+                            collectedAt: io.iso(now - VSBY_STALE_MS - 60000),
+                        },
+                        now
+                    ).status,
+                    'stale'
+                );
+                // 재기동으로 연속 실패 수가 0이 되어도 오래된 수집은 정상으로 돌아가지 않음
+                assert.equal(
+                    visibilitySource(
+                        {
+                            collectedAt: io.iso(now - 4 * 86400000),
+                            lastCheckAt: null,
+                            lastCheckOk: null,
+                            failStreak: 0,
+                        },
+                        now
+                    ).status,
+                    'stale'
+                );
+                assert.equal(
+                    visibilitySource({ collectedAt: null, failStreak: 0 }, now)
+                        .status,
+                    'missing'
+                );
+            }
+        );
+        await check(
+            '해구별 시정 감시: 실패 지속은 오류현황에 남고 복구도 기록, 정상은 이력 없음',
+            async () => {
+                const hour = 3600000;
+                let vs = {
+                    collectedAt: io.iso(now - hour),
+                    lastCheckAt: io.iso(now),
+                    lastCheckOk: true,
+                    lastCheckError: null,
+                    failStreak: 0,
+                };
+                const reader = createReader({
+                        ...options,
+                        vsbyStatus: () => vs,
+                    }),
+                    historyDir = path.join(root, 'vsby-history'),
+                    h = createHistory({ dir: historyDir, clock: () => now }),
+                    rows = () => h.list({ source: 'visibility' }).data,
+                    current = () =>
+                        h.list().current.find((r) => r.source === 'visibility');
+                h.observeSources(await reader());
+                assert.equal(current().status, 'ok');
+                assert.equal(rows().length, 0);
+                const success = vs.collectedAt;
+                for (let i = 1; i <= VSBY_FAIL_STREAK + 2; i++) {
+                    now += hour;
+                    vs = {
+                        ...vs,
+                        lastCheckAt: io.iso(now),
+                        lastCheckOk: false,
+                        lastCheckError:
+                            'request to https://marine.kma.go.kr/mmis_marine_api/v1/kma/mdl/rdps/imgList?serviceKey=SECRET failed, reason: socket hang up',
+                        failStreak: i,
+                    };
+                    h.observeSources(await reader());
+                }
+                assert.equal(rows().length, 1);
+                assert.equal(rows()[0].phase, 'opened');
+                assert.equal(rows()[0].status, 'error');
+                assert.equal(current().status, 'error');
+                assert.equal(current().code, 'network or parse error');
+                assert.equal(current().lastSuccess, success);
+                const raw = fs.readFileSync(
+                    path.join(historyDir, 'error_history.json'),
+                    'utf8'
+                );
+                for (const word of [
+                    'SECRET',
+                    'https:',
+                    'marine.kma',
+                    'serviceKey',
+                    'socket',
+                ])
+                    assert.ok(!raw.includes(word), word);
+                now += hour;
+                vs = {
+                    collectedAt: io.iso(now),
+                    lastCheckAt: io.iso(now),
+                    lastCheckOk: true,
+                    lastCheckError: null,
+                    failStreak: 0,
+                };
+                h.observeSources(await reader());
+                assert.equal(rows()[0].phase, 'recovered');
+                assert.equal(rows().length, 2);
+                assert.equal(current().status, 'ok');
+                assert.ok(current().recoveredAt);
+                assert.equal(current().lastSuccess, vs.collectedAt);
+            }
+        );
         await check(
             '월 경계 후 이전 행사 메타데이터도 감시 캐시에서 제거',
             async () => {

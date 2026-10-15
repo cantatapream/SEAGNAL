@@ -2,6 +2,7 @@
  * 파일명: local_server/services/risk_history_sources.js
  * 역할: 오류 감시에서 예보 본문을 보관하지 않고 실제 상태·수집 시각만 읽는다.
  * [연계] risk_error_history.start → risk_store.sources의 동일 신선도 규칙.
+ *        해구별 시정은 vsby_smallzone.getStatus(같은 프로세스 메모리 상태)를 visibilitySource로 판정.
  * [로드 순서] 운영 감시 시작 시 생성. 화면용 저장소와 별도의 작은 메타데이터만 보관한다.
  */
 'use strict';
@@ -198,6 +199,48 @@ async function readMetadata(file) {
         if (source) source.destroy();
     }
 }
+// 해구별 시정(RDPS 래스터) 감시 경계. vsby_smallzone 은 1시간마다 imgList 를 확인한다.
+// 연속 실패 3회: 없으면(1회 실패=오류) 기상청 연결이 한 번 끊길 때마다 발생·복구 한 쌍이 쌓여
+//   실제 장애가 묻힌다(2026-10-15 조사 컨테이너에서도 기상청 연결 간헐 끊김을 겪음). 3회 = 최소 2시간 연속 실패.
+const VSBY_FAIL_STREAK = 3;
+// 마지막 수집 36시간: 없으면 확인은 성공하는데 새 수집이 안 될 때(같은 런 반복·PNG 실패·재기동으로
+//   실패 수 초기화) 받아둔 예측(운영 실측 67프레임 = 67시간치)이 다 떨어질 때까지 정상으로 보인다.
+//   런 주기는 확인하지 못했으므로 하루 1회 런이어도 오탐하지 않게 24시간+여유 12시간으로 둔다.
+const VSBY_STALE_MS = 36 * 3600000;
+/** 시정 확인 오류문을 고정 분류로 바꾼다. 예: 'imgList 빈 응답 (HTTP 200, …)'→'empty response'.
+ * 원문(주소·네트워크 사유)은 넘기지 않는다. @param {string|null} message @returns {string}
+ * [연계] ← visibilitySource / 분류명은 io.errorName 허용 목록과 같다.
+ */
+function vsbyErrorCode(message) {
+    const m = String(message || ''),
+        http = /^imgList (\d{3})$/.exec(m);
+    if (/^imgList 빈 응답/.test(m)) return 'empty response';
+    if (/^imgList JSON 아님/.test(m)) return 'invalid response';
+    return http ? 'HTTP ' + http[1] : 'network or parse error';
+}
+/** vsby_smallzone.getStatus 를 오류현황 원천 상태로 바꾼다.
+ * 예: failStreak 3 → error / 마지막 수집 36시간 초과 → stale / 수집본 없음 → missing.
+ * 연속 실패가 기준보다 적어도 수집이 오래되면 stale 이라 재기동으로 정상처럼 바뀌지 않는다.
+ * @param {object} s - getStatus 결과 @param {number} now - 현재 ms @returns {object} 원천 상태
+ * [연계] ← createReader / → risk_error_history.observeSources
+ */
+function visibilitySource(s, now) {
+    const collectedAt = s?.collectedAt || null,
+        at = Date.parse(collectedAt),
+        out = {
+            updatedAt: collectedAt,
+            lastSuccess: collectedAt,
+            checkedAt: s?.lastCheckAt || null,
+        };
+    if (s?.lastCheckOk === false && s.failStreak >= VSBY_FAIL_STREAK)
+        return {
+            ...out,
+            status: 'error',
+            lastError: vsbyErrorCode(s.lastCheckError),
+        };
+    if (!Number.isFinite(at)) return { ...out, status: 'missing' };
+    return { ...out, status: now - at > VSBY_STALE_MS ? 'stale' : 'ok' };
+}
 /** 관리자 감시 전용 읽기 함수를 만든다. 예: 삭제·날짜 만료는 같은 sources 규칙으로 재평가한다.
  * @param {object} options - 검사에서 임시 폴더·시계 주입 @returns {function} 작은 원천 상태
  * [연계] risk_error_history.start / 화면의 격자·통계는 공개 저장소가 계속 담당한다.
@@ -205,6 +248,9 @@ async function readMetadata(file) {
 function createReader(options = {}) {
     const dir = options.dir || io.DEFAULT_DIR,
         clock = options.clock || Date.now,
+        vsbyStatus =
+            options.vsbyStatus ||
+            (() => require('./vsby_smallzone').getStatus()),
         cache = new Map();
     const store = createStore({
         ...options,
@@ -260,7 +306,14 @@ function createReader(options = {}) {
                 checkedAt: attempt?.lastRun || null,
                 lastError: attempt?.lastError || null,
             },
+            visibility: visibilitySource(vsbyStatus(), now),
         };
     };
 }
-module.exports = { createReader, readMetadata };
+module.exports = {
+    createReader,
+    readMetadata,
+    visibilitySource,
+    VSBY_FAIL_STREAK,
+    VSBY_STALE_MS,
+};

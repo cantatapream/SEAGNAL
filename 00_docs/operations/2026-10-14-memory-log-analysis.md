@@ -116,3 +116,23 @@ CCTV는 배열 없음이라는 로그만으로 응답 구조 변경인지 서비
 - 위치기반 FCM은 전체 구역을 유지하면서 4KiB 안에 넣는 송수신 형식과 실제 성공/실패 집계를 함께 고쳐야 한다. 일반 푸시의 성공 집계로 위치기반 data의 성공을 대신하지 않는다.
 
 위 외부 자료·푸시 오류를 이번 메모리 수정으로 해결했다고 간주하지 않는다. 원본 로그와 인증 정보는 이 문서·커밋에 포함하지 않았다.
+
+## 2026-10-15 후속 조치 (Claude 세션, PR #1381·#1382)
+
+사용자가 10/15 로그·그래프 분석을 보고 다음을 확정했다(원문: ① 「만들어」 ② 「좋아」 ③ 「좋아.」 ⑤ 「권장안 대로」).
+
+- **운영 서버 stream-json 미설치**: #1380 배포 직후 09:45:13 「위험예측 상태 감시 시작 실패」의 원인. Dockerfile 은 루트 `package.json` 만 설치하는데 `stream-json` 이 `local_server/package.json` 에만 있었다. 루트 의존성 추가와 재발 방지 시험 `test_root_deps` 를 별도 PR #1382 로 분리했다(같은 수정이 #1381 에도 있다).
+- **느린 요청 기록**: Fly HTTP 응답시간 그래프(50% 약 19초)는 나리야 Codex VM 작업자가 `/api/legal/codex/poll` 을 25초씩 붙잡는 long-poll 이 채운 것으로 판단했다(앱 API 80개 실측 0.5~3.5초, 운영에 Codex 모드 켜짐 확인 — 작업자가 실제로 돌고 있는지는 미확인). 그래프로 진짜 느린 요청을 볼 수 없어 `services/slow_request_log.js` 가 3초 이상 걸린 요청을 `[slow] 4.2s GET /api/tide 200` 꼴로 남긴다. 쿼리는 남기지 않고, codex poll·SSE 진행 스트림은 제외한다. 시험 `test_slow_request_log`.
+- **KHOA 정기 수집 집계**: 「성공 73」 이 옛 자료 대체를 포함하던 것을 「새로 받음 / 최근분 유지 / 옛 자료로 대체 / 실패」 네 갈래로 나눴다. 화면 동작(24시간 안의 옛 자료로 채움)은 그대로다. 시험 `test_khoa_stream_cache_memory` 에 4건 추가(옛 코드로 실패 확인).
+- **혼잡예보 점검**: 04:00·04:30·05:00·05:30 + 네 번 다 실패한 날 06:30~12:30 매시 30분. 회차 첫 요청이 빈 응답이면 1건만 쓰고 멈춰 하루 한도(90건)를 지킨다. 시험 `test_risk_collectors`.
+- **아직 하지 않은 것**: 위치기반 푸시 4KB 초과(사용자에게 한계 설명 후 결정 대기), TideBED·해무 CCTV 진단, 해구별 시정(vsby) imgList 빈 응답(원인 조사 중 — 저장본 baseTm 2026101100).
+
+## 후속 확인 — 시정 imgList (2026-10-15 10:40~11:00 KST)
+
+위 「시정 imgList는 어디에서 잘렸는지 미정」 항목을 다시 확인했다. 잘린 응답이 아니라 **기상청이 처음부터 빈 응답을 준다.**
+
+- `GET /mmis_marine_api/v1/kma/mdl/rdps/imgList` 는 HTTP 200, `content-length: 0`, 본문 0바이트다. Referer·Origin·Accept·브라우저 User-Agent·`sec-fetch-*`·gzip·`/mmis/` 쿠키를 붙여도 같았다. 같은 계열 `gdps/imgList` 도 0바이트다. 반면 같은 시각 `shrt/netcdf/imgList?shrtType=pop`·`swell/.../forecast-times`·`obs/buoy/list`·`ripcrnt-1h/list` 는 정상 JSON이다. (이 컨테이너에서 기상청 쪽 연결이 간헐적으로 끊겼고, 끊긴 요청은 판정에서 뺐다.)
+- 공개 MMIS 화면 번들(`/mmis/js/chunk-common.66338b44.js`, Last-Modified 2026-10-07 07:58 GMT)도 같은 주소를 **로그인 없는 axios 인스턴스로, 쿼리 없이 GET** 한다(`getSvcImage("rdps")`, 메뉴 `ldps` → `rdps`). 우리 요청 방식 문제가 아니다. 로그인 토큰을 붙이면 다르게 나오는지는 시험하지 않았다(로그인 금지).
+- node-fetch 로 HTTP 200·0바이트를 받아 `r.json()` 하면 로그와 똑같은 `invalid json response body ... Unexpected end of JSON input` 이 난다(로컬 재현).
+- 운영 `/api/vsby-smallzone/status` (10:4x KST 조회): `baseTm 2026101100`, `collectedAt 2026-10-11T12:10:07Z`(= 10/11 21:10 KST), 67프레임. 셀 시계열은 `2026.10.11 22:00`~`2026.10.14 16:00`(KST)이다. **10/14 16:00 KST 이후로는 앞날 예측이 하나도 없다.**
+- 조치: `fetchImgList` 가 빈 응답/JSON 아님을 HTTP 상태·바이트 수·형식과 함께 남기고, `/api/vsby-smallzone/status` 에 `lastFctTm`·`lastCheckAt`·`lastCheckOk`·`lastCheckError`·`failStreak`·`failSince` 를 더했다(스위트 `test_vsby_imglist_check`). 기상청이 자료를 다시 주기 전에는 근본 해결이 없다.

@@ -456,6 +456,32 @@ async function check(name, fn) {
                 assert.equal(h.list().current[0].recoveredAt, recovered);
             }
         );
+        await check('해구별 시정 원천도 이력·현재 상태에 기록', () => {
+            const h = createHistory({
+                dir: path.join(dir, 'visibility'),
+                clock: () => now,
+            });
+            const success = io.iso(now - 3 * 86400000);
+            h.observeSources({
+                visibility: {
+                    status: 'error',
+                    lastError: 'empty response',
+                    lastSuccess: success,
+                    updatedAt: success,
+                    checkedAt: io.iso(now),
+                },
+            });
+            const row = h
+                .list()
+                .current.find((r) => r.source === 'visibility');
+            assert.ok(row);
+            assert.equal(row.code, 'empty response');
+            assert.equal(row.lastSuccess, success);
+            assert.equal(
+                h.list({ source: 'visibility' }).data[0].phase,
+                'opened'
+            );
+        });
         await check('이미 보유한 파일 잠금은 다른 변경을 차단', () => {
             const release = io.acquireLock(
                 path.join(dir, 'error_history.json.lock')
@@ -495,6 +521,14 @@ async function check(name, fn) {
                 assert.equal(r.status, 200);
                 assert.equal(r.headers.get('cache-control'), 'no-store');
                 assert.equal((await r.json()).pagination.limit, 2);
+                assert.equal(
+                    (
+                        await fetch(url + '?source=visibility', {
+                            headers: { 'X-Admin-Token': token },
+                        })
+                    ).status,
+                    200
+                );
                 for (const query of [
                     'limit=101',
                     'page=-1',

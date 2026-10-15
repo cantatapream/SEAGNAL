@@ -2,6 +2,7 @@
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_map_layer.js
  * 역할  : 해상은 단일 GR4의 연속 면색·확대 척수와 선택 경계로, 연안은 기존 분석으로 표시한다.
+ *           실제 발표된 특보 구역은 이름 없는 배경 면(예비 노랑·주의보 주황·경보 빨강)으로, 위험 색상층 아래에 칠한다.
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
@@ -20,10 +21,10 @@
      * [연계] RiskForecast → OpenLayers
      */
     function create(map, select) {
-        var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], trafficCells=[], unifiedCells=[], unified=!!w.RiskMarine, unifiedMode=null, visible=false, active={coast:true,sea:false}, selection=null, zones={}, land=[], maskKey='', maskCanvas=null, smoothCanvas=null, disposed=false, unifiedTable=null, unifiedIndex=new Map(), unifiedRows=new Map(), unifiedFeatures=new Map(), unifiedBins=new Map(), fillStyles=new Map(), numberStyles=new Map();
+        var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], trafficCells=[], unifiedCells=[], unified=!!w.RiskMarine, unifiedMode=null, visible=false, active={coast:true,sea:false}, selection=null, zones={}, land=[], maskKey='', maskCanvas=null, smoothCanvas=null, disposed=false, unifiedTable=null, unifiedIndex=new Map(), unifiedRows=new Map(), unifiedFeatures=new Map(), unifiedBins=new Map(), fillStyles=new Map(), numberStyles=new Map(), warnList=[], zonesWait=Promise.resolve(false), zonesOk=false;
         ['accident','sea','marine','traffic','coast','borders','hazard','selection','shore','points'].forEach(function (k,i) {
             sources[k]=new ol.source.Vector();
-            layers[k]=new ol.layer.Vector({source:sources[k], zIndex:130+i, className:'rf-'+k+'-canvas',declutter:k==='traffic'});
+            layers[k]=new ol.layer.Vector({source:sources[k], zIndex:k==='borders'?129:130+i, className:'rf-'+k+'-canvas',declutter:k==='traffic'});
             map.addLayer(layers[k]);
         });
         function read(g) { return geo.readGeometry(g,{dataProjection:'EPSG:4326',featureProjection:map.getView().getProjection()}); }
@@ -68,6 +69,8 @@
         // 격자마다 필터를 적용하지 않고 완성된 면색 canvas에 단 한 번 흐림을 적용한다.
         layers.marine.on('postrender',function(e){var ctx=e.context;if(ctx&&ctx.canvas){if(!smoothCanvas)smoothCanvas=document.createElement('canvas');if(smoothCanvas.width!==ctx.canvas.width||smoothCanvas.height!==ctx.canvas.height){smoothCanvas.width=ctx.canvas.width;smoothCanvas.height=ctx.canvas.height;}var sc=smoothCanvas.getContext('2d');sc.clearRect(0,0,smoothCanvas.width,smoothCanvas.height);sc.drawImage(ctx.canvas,0,0);ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);ctx.filter='blur(6px)';ctx.drawImage(smoothCanvas,0,0);ctx.restore();}mask(e,'sea');});
         layers.coast.on('postrender',function (e) { mask(e,'coast'); });
+        // 특보 배경 면이 거친 구역 경계 때문에 육지 위로 번지지 않게 다른 해상 층과 같은 육지 마스크로 자른다.
+        layers.borders.on('postrender',function (e) { mask(e,'sea'); });
         function landGeometry(g,island) {
             if (!g) return;
             var polys=g.type==='MultiPolygon'?g.coordinates:[g.coordinates];
@@ -77,11 +80,24 @@
                 var f=new ol.Feature(geometry); f.setStyle(new ol.style.Style({stroke:new ol.style.Stroke({color:'#5b6576',width:island?2:2.4})})); sources.shore.addFeature(f);
             }); maskKey='';
         }
+        /** 특보 구역 키: 공백·마침표·중점을 없애 서버 구역 이름과 정적 폴리곤 이름을 맞춘다.
+         * 예: '동해남부 남쪽 안쪽먼바다'·'동해남부남쪽안쪽먼바다'가 같은 키, '태안서산북쪽 평수구역'='태안·서산북쪽평수구역'.
+         * @param {string} name @returns {string} [연계] ← boundaries(정적 폴리곤) · drawWarnings(서버 구역)
+         */
+        function zoneKey(name) { return String(name||'').replace(/[.·\s]/g,''); }
+        /** 정적 특보 구역에서 그릴 면을 고른다. 부모는 자식 구역을 뺀 `_holedGeometry`가 있으면 그것을, 자식은 자기 도형을 쓴다.
+         * 예: 부모 특보만 있고 자식 연안바다는 특보 없음 → 자식 영역은 칠하지 않는다(실제 특보구역 표시와 동일).
+         * @param {object} f - warn_zones(+_sub) feature @returns {object|null} GeoJSON geometry [연계] ← boundaries
+         */
+        function zoneGeometry(f) { var h=f.properties&&f.properties._holedGeometry; return h&&h.type&&Array.isArray(h.coordinates)?h:f.geometry; }
         async function boundaries(api) {
-            zones={};land=[];sources.shore.clear();maskKey='';
-            var outcomes=await Promise.allSettled([Promise.all(['/api/warn-zones','/api/warn-zones-sub'].map(function(url){return fetch(url).then(function(r){if(!r.ok)throw Error('특보 경계 HTTP '+r.status);return r.json();});})).then(function(parts){return {features:parts.reduce(function(all,p){return all.concat(p.features||[]);},[])};}),fetch('/api/ocean/land-mask').then(function(r){if(!r.ok)throw Error('해안선 HTTP '+r.status);return r.json();}),api.get('islands')]);
-            if(disposed)return;
-            if (outcomes[0].status==='fulfilled') (outcomes[0].value.features||[]).forEach(function(f){ zones[f.properties.name]=f.geometry; });
+            zones={};zonesOk=false;land=[];sources.shore.clear();maskKey='';
+            var zoneJob=Promise.all(['/api/warn-zones','/api/warn-zones-sub'].map(function(url){return fetch(url).then(function(r){if(!r.ok)throw Error('특보 경계 HTTP '+r.status);return r.json();});})).then(function(parts){return {features:parts.reduce(function(all,p){return all.concat(p.features||[]);},[])};});
+            // 특보 면 그리기는 육지·섬 자료를 기다리지 않고 구역 경계만 받으면 시작한다. 결과는 성공 여부(true/false)로만 알린다.
+            var token=zones;
+            zonesWait=zoneJob.then(function(value){if(disposed||token!==zones)return false;(value.features||[]).forEach(function(f){zones[zoneKey(f.properties.name)]=zoneGeometry(f);});zonesOk=true;renderWarnings();return true;},function(){return false;});
+            var outcomes=await Promise.allSettled([zoneJob,fetch('/api/ocean/land-mask').then(function(r){if(!r.ok)throw Error('해안선 HTTP '+r.status);return r.json();}),api.get('islands')]);
+            if(disposed)return;await zonesWait;
             if (outcomes[1].status==='fulfilled') (outcomes[1].value.rings||[]).forEach(function(r){landGeometry({type:'Polygon',coordinates:[r]});});
             if (outcomes[2].status==='fulfilled') (outcomes[2].value.features||[]).forEach(function(f){landGeometry(f.geometry,true);});
             var failed=outcomes.filter(function(x){return x.status==='rejected';});
@@ -175,11 +191,22 @@
                 f.setStyle(styles);
             });
         }
-        function drawBorders(frames) {
-            sources.borders.clear(); var merged={};
-            frames.forEach(function(frame){(frame.borders||[]).forEach(function(b){var rank={pre:0,adv:1,wrn:2};if(!merged[b.zone]||rank[b.color]>rank[merged[b.zone].color])merged[b.zone]=b;});});
-            Object.keys(merged).sort(function(a,b){return merged[a].color==='wrn'?1:-1;}).forEach(function(k){var b=merged[k];add('borders',b.geometry||zones[k],{},new ol.style.Style({stroke:new ol.style.Stroke({color:{pre:'#ffd740',adv:'#ff8f1f',wrn:'#ff3b30'}[b.color]||'#ffd740',width:3.5})}));});
-            frames.forEach(function(frame){(frame.day3Dashed||[]).forEach(function(k){add('borders',typeof k==='object'?k.geometry:zones[k],{},new ol.style.Style({stroke:new ol.style.Stroke({color:'#ffd740',width:3.5,lineDash:[6,5]})}));});});
+        /** 서버가 알려 준 "실제 발표된 특보 구역"을 정적 폴리곤에 칠해 지도 배경으로 그린다. 구역 이름은 쓰지 않는다.
+         * 예: [{zone:'부산앞바다',color:'adv'}] → 주황 면 하나; 빈 배열이면 아무것도 그리지 않는다.
+         * @param {Array} list - [{zone,color:'pre'|'adv'|'wrn'}] 서버 warning-zones 응답의 zones
+         * @returns {string[]} 도형을 찾지 못해 못 그린 구역 이름(경계 자료 실패를 정상처럼 숨기지 않기 위해 호출자가 안내)
+         * [연계] ← RiskForecast.refresh / 경계가 아직 없으면 보관했다가 boundaries가 끝나면 renderWarnings가 다시 그린다.
+         */
+        function drawWarnings(list) { warnList=Array.isArray(list)?list.slice():[]; return renderWarnings(); }
+        function renderWarnings() {
+            sources.borders.clear(); var missing=[];
+            var palette={pre:['rgba(255,215,64,.34)','rgba(255,215,64,.95)'],adv:['rgba(255,143,31,.38)','rgba(255,143,31,.95)'],wrn:['rgba(255,59,48,.42)','rgba(255,59,48,.95)']},rank={pre:0,adv:1,wrn:2};
+            warnList.filter(function(z){return z&&palette[z.color];}).sort(function(a,b){return rank[a.color]-rank[b.color];}).forEach(function(z){
+                var g=zones[zoneKey(z.zone)];
+                if(!g){missing.push(z.zone);return;}
+                var c=palette[z.color];add('borders',g,{},new ol.style.Style({fill:new ol.style.Fill({color:c[0]}),stroke:new ol.style.Stroke({color:c[1],width:2})}));
+            });
+            return missing;
         }
         function setSelection(kind,id) {
             var changed=!selection||selection.kind!==kind||selection.id!==id;
@@ -190,10 +217,16 @@
             if(f){var copy=f.clone();copy.setStyle(new ol.style.Style({stroke:new ol.style.Stroke({color:'#fff',width:kind==='sea'?2:2.5})}));sources.selection.addFeature(copy);}
             if(kind==='coast'){var p=spots.find(function(p){return p.id===id;});if(p){var center=new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([p.lon,p.lat])));center.setStyle(new ol.style.Style({image:new ol.style.Circle({radius:6,stroke:new ol.style.Stroke({color:'#fff',width:2.5})})}));sources.selection.addFeature(center);}}
         }
-        function showHazards(fc) {
+        /**
+         * 선택한 위험구역을 그리고 시트에 가려지지 않은 지도 영역의 가운데에 오도록 이동한다.
+         * 예: showHazards(fc,[30,40,330,40]) — 아래 330px는 시트가 가린 높이
+         * @param {Object} fc - GeoJSON FeatureCollection @param {number[]} [pad] - [위,오른쪽,아래,왼쪽] 여백(px)
+         * @returns {void} [연계] RiskForecast.hazard → visiblePadding() / 해상 관할 해역 이동과 같은 여백을 쓴다
+         */
+        function showHazards(fc,pad) {
             sources.hazard.clear(); var features=geo.readFeatures(fc,{dataProjection:'EPSG:4326',featureProjection:map.getView().getProjection()});
             features.forEach(function(f){f.setStyle(new ol.style.Style({fill:new ol.style.Fill({color:'rgba(255,143,31,.55)'}),stroke:new ol.style.Stroke({color:'#ffd740',width:2})}));});sources.hazard.addFeatures(features);
-            if(features.length)map.getView().fit(sources.hazard.getExtent(),{padding:[55,55,Math.min(map.getSize()[1]*0.5,300),55],duration:250,maxZoom:16});
+            if(features.length)map.getView().fit(sources.hazard.getExtent(),{padding:pad||[55,55,Math.min(map.getSize()[1]*0.5,300),55],duration:250,maxZoom:16});
         }
         function setActive(state,enabled) {
             active=state;visible=enabled; layers.coast.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);layers.accident.setVisible(enabled&&state.sea);layers.traffic.setVisible(enabled&&state.sea);
@@ -212,7 +245,7 @@
             if(feature){select(wanted,feature.get('id'));return true;}return false;
         }
         function destroy(){disposed=true;map.un('moveend',renderUnified);unifiedFeatures.clear();smoothCanvas=null;Object.keys(layers).forEach(function(k){map.removeLayer(layers[k]);});}
-        return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawCurrent:drawCurrent,drawUnified:drawUnified,drawBorders:drawBorders,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,destroy:destroy};
+        return {boundaries:boundaries,zonesLoaded:function(){return zonesWait;},setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawCurrent:drawCurrent,drawUnified:drawUnified,drawWarnings:drawWarnings,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,destroy:destroy};
     }
     w.RiskMapLayer={create:create};
 })(window);

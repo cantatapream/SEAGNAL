@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 89 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 97 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -312,6 +312,8 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_typhoon_ecmwf` | 태풍 탭의 "유럽(ECMWF)" 출처가 조용히 깨지지 않게 고정한다. |
 | `test_khoa_https` | 개방海(국립해양조사원, khoa.go.kr)를 http:// 로 부르는 코드가 없게 고정한다. |
 | `test_khoa_stream_cache_memory` | 유향·유속·수온 캐시의 과거 슬롯 제거와 73슬롯 상한을 검증한다. |
+| `test_vsby_imglist_check` | 해구별 시정(RDPS 래스터) imgList 확인 실패가 상태로 드러나는지 고정한다. |
+| `test_vsby_stale` | 시정 표시가 「최신 자료가 아니면 정보 없음」으로 나오는지 확인한다(사용자 확정 2026-10-15). |
 | `test_byl_decl` | 별표 파일 **선언줄** 판독(`bylDeclLine`·`parseBylDecl`·`hasBylBody`). |
 | `test_treaty_caselaw_meta` | §5-6 국제협약 · §5-7 판례변동 메타를 **읽는지** 고정한다. |
 | `test_context_budget` | 모델에게 넘기는 [근거자료]의 **합계 상한**(P-19)을 고정한다. |
@@ -348,10 +350,11 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_geo` | 홀·다중면·경계 포함·방위·거리·겹침 동률 기초를 검증한다. |
 | `test_risk_format` | U77·U78의 위험예측 서식·색·좌표와 HTML/URL 처리를 제품 함수로 검사한다. |
 | `test_risk_preview` | 위험예측 미리보기와 실제 앱의 원본 스위치 CSS·스크립트 순서·오버레이 연결을 검사한다. |
-| `test_risk_lifecycle` | 실제 위험예측 조율기의 공식 선박 예보의 독립 요청·3일 시간축·실패 복구·뒤로가기 스택·OFF 경쟁과 API TTL을 검사한다. |
+| `test_risk_lifecycle` | 실제 위험예측 조율기의 공식 선박 예보의 독립 요청·2일(오늘·내일) 시간축·실패 복구·뒤로가기 스택·OFF 경쟁과 API TTL을 검사한다. |
 | `test_risk_map_layer` | 실제 관광지·육지·섬 원천 전체를 제품 OpenLayers 지도 층에 넣어 빈 형상 회귀와 상세 시트의 실제 연안 합계 설명을 검사한다. |
 | `test_risk_collectors` | risk_collector_io 및 세 수집기 · 운영키/외부 HTTP/푸시 호출 없음 |
 | `test_risk_store` | risk_store + 계산기 · 임시 fixture 파일만 읽고 기존 수집 파일/푸시를 수정하지 않는다. |
+| `test_risk_missing_notice` | 실제 risk_store 가 임시 자료로 만든 상세 응답을 실제 RiskSheet(Chromium)에 그대로 넣고, 같은 원천 상태를 관리자 오류이력에도 넣는다. |
 | `test_risk_store_file_cache` | 위험예측 파일 캐시 회귀: 작은 상태/쿼터 갱신은 큰 자료를 재파싱하지 않되 |
 | `test_risk_errors` | risk_error_history / risk_errors / 기존 admin_auth. 외부 수집·실사용 인증키 없음. |
 | `test_risk_errors_ui` | 제품 admin.js / risk_sheet.js. 운영 API·인증정보 없이 Chromium 사용. |
@@ -360,6 +363,11 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_accident` | 공식 선박사고 순차수집·원자게시·3시간원본·클릭공간매칭을 임시자료로 검증한다. |
 | `test_marine_fusion` | 해상 통합의 누락·중복·시각·사고유형·관할 집계와 최신 수집의 정상본 보존을 검증한다. |
 | `test_marine_ui` | 실제 Chromium에서 해상 종합·선종·사고 이력·시각 버튼·시각 독립·실패 복구·모바일 렌더링·HTML 보호를 검사한다. |
+| `test_risk_basemap` | 위험예측을 켜면 배경이 위성지도로 바뀌고, 끄거나 없애면 켜기 전 배경으로 돌아오는지(과제12)와 |
+| `test_risk_main_time` | 연안·해상 공통 메인 시각(하단 날짜·시각 버튼)을 실제 Chromium에서 검사한다. |
+| `test_risk_sheet_ui` | 휴대폰 크기 Chromium에서 위험예측 바텀시트의 하단 탭 가림 방지·고정 머리/스크롤 본문·즉시 스켈레톤과 늦은 응답 보호·고정 일시 표시·위험구역 아코디언과 보이는 지도 중앙 이동을 검사한다. |
+| `test_root_deps` | 운영 서버가 실제로 쓰는 외부 패키지가 **저장소 루트 package.json** 에 모두 들어 있는지 검사한다. |
+| `test_slow_request_log` | 느린 요청 기록(services/slow_request_log.js)이 3초 넘는 요청만, 쿼리 없이, 붙잡는 요청은 빼고 남기는지 실제 HTTP 로 확인한다. |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

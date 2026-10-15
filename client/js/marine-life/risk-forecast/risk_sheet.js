@@ -55,7 +55,7 @@
      * [연계] coastRows → create 클릭 처리
      */
     function hazards(zones) {
-        return '<details class="rf-hazards"><summary>위험구역 '+zones.length+'곳 현황</summary><ol>'+zones.map(function(z){return '<li><b>'+F.escape(z.place||z.name)+'</b> · '+F.escape(z.shape)+' · '+F.escape(z.class)+'<br><button type="button" class="rf-hazard-link" data-zone-id="'+F.escape(z.id)+'">'+F.escape(z.addr||'구역 위치 보기')+'</button>'+ (z.police?' · '+F.escape(z.police)+(z.police.endsWith('파출소')?'':'파출소')+' 관할':'')+'</li>';}).join('')+'</ol></details>';
+        return '<details class="rf-hazards"><summary>위험구역 '+zones.length+'곳 현황</summary><ol>'+zones.map(function(z){return '<li data-zone-li="'+F.escape(z.id)+'"><b>'+F.escape(z.place||z.name)+'</b> · '+F.escape(z.shape)+' · '+F.escape(z.class)+'<br><button type="button" class="rf-hazard-link" data-zone-id="'+F.escape(z.id)+'" aria-pressed="false">'+F.escape(z.addr||'구역 위치 보기')+'</button>'+ (z.police?' · '+F.escape(z.police)+(z.police.endsWith('파출소')?'':'파출소')+' 관할':'')+'</li>';}).join('')+'</ol></details>';
     }
     /**
      * 서버 연안 분석 행을 표시하고 결측 너울 행은 생략한다.
@@ -134,7 +134,7 @@
         return body;
     }
     /**
-     * 서버 특보·3일째·떠밀림 안내를 표시한다.
+     * 서버 특보·떠밀림 안내를 표시한다(3일째 특보급 안내는 연안 2일 제한 「가」 2026-10-15로 서버가 더 이상 보내지 않는다).
      * 예: notices(detail.notices)
      * @param {Object[]} list - 서버 안내 목록
      * @returns {string} 안내 HTML
@@ -148,7 +148,6 @@
                 if(effective.length)s+=F.escape(effective.join(', '))+' 발효 상태입니다. 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 '+b('14%',1.14)+' 높습니다.';
                 return s?'<div class="rf-notice">⚠ '+s+'</div>':'';
             }
-            if(n.key==='day3'||n.key==='forecastDay3')return '<div class="rf-notice">⚠ 특보가 발효될 수 있을 정도의 날씨가 될 가능성이 있습니다.</div>';
             if(n.key==='drift')return '<div class="rf-notice">🛟 이 앞바다 바람 <b class="rf-t-y">'+Math.round(n.windMs)+'m/s</b> — 튜브·물놀이기구 떠밀림 주의</div>';
             return '';
         }).join('');
@@ -194,16 +193,30 @@
      * 닫기·위험구역 이동·기준 상세·재시도 동작을 시트에 연결한다.
      * 예: RiskSheet.create(el,handlers)
      * @param {HTMLElement} el - 시트; handlers는 close·hazard·basis·retry·choose 콜백
-     * @returns {Object} show·error·choose·clear·timelineEl API
+     * @returns {Object} show·loading·markZone·error·choose·clear·timelineEl API
      * [연계] RiskForecast → 상세 응답 표시
      */
     function create(el,handlers) {
-        el.innerHTML='<div class="rf-sheet-handle"></div><button class="ocean-sheet-close rf-close" type="button" aria-label="위험예측 닫기">×</button><h3 class="rf-title"></h3><div class="rf-subtitle"></div><div class="rf-timeline"></div><div class="rf-body" aria-live="polite"></div>';
+        var SKELETON='<div class="rf-skeleton" role="status"><span class="rf-sr">불러오는 중</span><div class="rf-sk rf-sk-score"></div><div class="rf-sk rf-sk-line"></div><div class="rf-sk rf-sk-line rf-sk-short"></div><div class="rf-sk rf-sk-row"></div><div class="rf-sk rf-sk-row"></div><div class="rf-sk rf-sk-row"></div></div>';
+        // 위쪽(손잡이·닫기·제목·시각 조작)은 고정 머리, 그 아래 .rf-body만 스크롤된다. 머리는 상세·브리핑·선택 목록이 함께 쓴다.
+        el.innerHTML='<div class="rf-sheet-head"><div class="rf-sheet-handle"></div><button class="ocean-sheet-close rf-close" type="button" aria-label="위험예측 닫기">×</button><h3 class="rf-title"></h3><div class="rf-subtitle"></div><div class="rf-timeline"></div></div><div class="rf-body" aria-live="polite"></div>';
         el.querySelector('.rf-close').addEventListener('click',handlers.close);
         el.addEventListener('click',function(e){var z=e.target.closest('[data-zone-id]'),basis=e.target.closest('[data-basis]'),retry=e.target.closest('[data-retry]');if(z)handlers.hazard(z.dataset.zoneId);if(basis)handlers.basis(basis.dataset.basis,basis);if(retry)handlers.retry();});
         el.addEventListener('click',function(e){var spot=e.target.closest('[data-spot-id]');if(spot)handlers.choose('coast',spot.dataset.spotId);});
         el.addEventListener('click',function(e){var point=e.target.closest('[data-marine-lon]');if(point&&handlers.marinePoint)handlers.marinePoint(Number(point.dataset.marineLon),Number(point.dataset.marineLat));});
+        /**
+         * 응답이 오기 전에 시트를 먼저 열고 내용 자리를 회색 틀(스켈레톤)로 채운다.
+         * 예: loading({title:'광안리해수욕장'}) / 시간만 바꿀 때는 loading()으로 제목은 두고 본문만 비운다.
+         * @param {Object} [hint] - 아는 제목·부제만(지점 이름 등). 없으면 기존 제목을 유지; 모르면 '불러오는 중'
+         * @returns {void} [연계] RiskForecast.select·슬라이더 → 응답 뒤 show/error가 덮어쓴다. 이전 지점·시각의 값은 남기지 않는다.
+         */
+        function loading(hint) {
+            if(hint){el.querySelector('.rf-title').textContent=hint.title||'불러오는 중…';el.querySelector('.rf-subtitle').textContent=hint.subtitle||'';}
+            var body=el.querySelector('.rf-body');el.querySelector('.rf-timeline').hidden=false;
+            body.innerHTML=SKELETON;body.scrollTop=0;el.setAttribute('aria-busy','true');el.classList.add('open');
+        }
         function show(d,kind,item) {
+            el.removeAttribute('aria-busy');
             if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?(d.marine.station||''):'선박 교통·예보·사고 이력 종합';el.querySelector('.rf-timeline').hidden=false;el.querySelector('.rf-body').innerHTML=d.marine?w.RiskMarine.render(d.marine):w.RiskMarine.briefing(d);el.classList.add('open');return;}
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='accident'?'선박 사고 위험예보 · 격자 '+d.gridId:kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
@@ -219,9 +232,15 @@
             else body+=summary(d,kind)+coastCalculation(d)+notices(d.notices)+coastRows(rows);
             el.querySelector('.rf-body').innerHTML=body;el.classList.add('open');
         }
-        function error(message){el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';el.classList.add('open');}
-        function choose(items){el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';el.classList.add('open');}
-        return {show:show,error:error,choose:choose,clear:function(){el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';},timelineEl:el.querySelector('.rf-timeline')};
+        /**
+         * 지도에 표시한 위험구역을 목록에서 눌린 상태로 표시한다. 다른 지점을 고르면 시트 본문이 새로 그려져 해제된다.
+         * 예: markZone('z3') → z3 버튼 aria-pressed=true, 나머지 false
+         * @param {string} id - 위험구역 id @returns {void} [연계] RiskForecast.hazard → 지도 이동에 성공한 뒤 호출
+         */
+        function markZone(id){el.querySelectorAll('[data-zone-id]').forEach(function(b){var on=b.dataset.zoneId===id;b.setAttribute('aria-pressed',String(on));var li=b.closest('li');if(li)li.classList.toggle('is-selected',on);});}
+        function error(message){el.removeAttribute('aria-busy');el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';el.classList.add('open');}
+        function choose(items){el.removeAttribute('aria-busy');el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';el.classList.add('open');}
+        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,clear:function(){el.removeAttribute('aria-busy');el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';},timelineEl:el.querySelector('.rf-timeline')};
     }
     /**
      * 서버 자료 키를 화면에서 읽을 수 있는 이름으로 바꾼다.
