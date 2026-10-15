@@ -18,7 +18,7 @@
     // 점 위 글자는 정수로 반올림한다 — 30분 값은 소수 한 자리 평균이라 「20.4척」으로 쓰면 글자가 넓어져 ×50 에서도 문턱을 못 넘는다(실측 ×67.7).
     // 정확한 값은 누르면 나오는 말풍선·평균 칸에 소수 한 자리로 보인다.
     var LAB_NUM=8,LAB_UNIT=6.5,LAB_GAP=2,ZOOM_MAX=50;
-    var ACC_COL=['#3987e5','#c98500','#9085e9','#199e70'],ACC_ETC='#a9b3c4';
+    var ACC_COL=['#3987e5','#c98500','#9085e9','#199e70','#d9638f'],ACC_ETC='#a9b3c4';   // 5종이면 「기타」 없이 5색(groups 는 6종부터 묶음) — 2026-10-15 독립 검토: 5종일 때 다섯째 색이 비던 결함
     // 한 시트 안 화면 상태 — 60초 자동 갱신으로 본문을 다시 그려도 같은 지점·같은 시각이면 확대·넘김·말풍선·날씨 펼침을 지킨다.
     var ui={key:null,z:{s:1,off:0,tap:null},wxOpen:false,history:null};
     /** 숫자·단계와 관측/조회 시각을 안전한 HTML로 표시한다. 예: null은 자료 없음.
@@ -79,7 +79,7 @@
         if(isNow(m,ctx)){
             var live=c&&c.status==='ok'&&Number.isFinite(c.count),dens=live&&Number.isFinite(c.density)?c.density:null;
             var line=live?(c.absent?'<p>이 해역 선박 없음</p>':'<p>이 해역 선박 <b>'+F.escape(c.count)+'척</b>(밀집도 '+(dens===null?'-':dens.toFixed(1)+'%')+')</p>'):'<p>이 해역 선박 정보 없음</p>';
-            var fh=cf&&Number.isFinite(Date.parse(cf.forecastAt))?k(Date.parse(cf.forecastAt)).h+'시 ':'';
+            var fh=cf&&Number.isFinite(Date.parse(cf.forecastAt))?p2(k(Date.parse(cf.forecastAt)).h)+'시 ':'';
             row=badge('밀집도',live&&dens!==null?c.densityLevel:null,CONG)+'<div class="rf-txt">'+line+cc+'<p>'+(okC?fh+'혼잡예보 '+chip(cf.level):'혼잡예보 정보 없음')+'</p></div>';
         }else row=badge('혼잡도',okC?cf.level:null,CONG)+'<div class="rf-txt"><p>혼잡 지수 <b>'+(okC&&Number.isFinite(cf.index)?Number(cf.index).toFixed(1):'-')+'</b></p>'+cc+'</div>';
         return '<section class="rf-card rf-hero"><div class="rf-r">'+badge('위험 예측',okA?a.level:null,RISK)+'<div class="rf-txt"><p>최근 5년 간 사고사례 및<br>기상정보 기반 예측 결과</p></div></div><div class="rf-r">'+row+'</div></section>';
@@ -205,8 +205,9 @@
      */
     function fillTraffic(body,cell,h,problem){
         var st=body&&body._rfMarine,card=body&&body.querySelector('[data-traffic-card]');if(!st||!card||(cell&&st.cell!==cell))return;
-        if(h&&cell)ui.history={cell:cell,data:h};
-        var d=h&&!problem?prepare(h,st.m,st.ctx):{series:[],warnings:[],empty:true,avg:{n:0,v:null,hh:prepareHH(st.m)},start:0,end:1};
+        var d0=null;if(h&&!problem){try{d0=prepare(h,st.m,st.ctx);}catch(e){problem='error';}}   // 형식이 깨진 응답 한 번에 시트 전체가 오류가 되지 않게(검토 지적)
+        if(h&&cell&&d0)ui.history={cell:cell,data:h};
+        var d=d0?d0:{series:[],warnings:[],empty:true,avg:{n:0,v:null,hh:prepareHH(st.m)},start:0,end:1};
         var a=d.avg;card.querySelector('[data-avg-name]').textContent=a.n>=14||a.n===0?'2주 평균 '+a.hh:'평균 '+a.hh+' ('+a.n+'일)';
         var av=card.querySelector('[data-avg-value]');if(a.v===null){av.className='none';av.textContent='-';}else{av.className='';av.innerHTML=num(a.v)+'<em>척</em>';}
         var msg=card.querySelector('[data-chart-msg]');msg.hidden=problem!=='error';msg.textContent=problem==='error'?'기록을 불러오지 못했습니다.':'';
@@ -264,7 +265,8 @@
                     labs+='<text x="'+X.toFixed(1)+'" y="'+ly.toFixed(1)+'" fill="#d6f0ff" font-size="'+LAB_NUM+'" font-weight="600" text-anchor="middle" stroke="#10213f" stroke-width="2" paint-order="stroke" data-n="1">'+lt+'<tspan font-size="'+LAB_UNIT+'">척</tspan></text>';});
                 s+=dots+labs;}
         }else s+='<text x="'+(padL+pw/2)+'" y="'+(padT+ph/2+8)+'" fill="#98abc7" font-size="22" font-weight="700" text-anchor="middle" data-empty="1">-</text>';
-        var tip='';if(Z.tap!=null&&!empty&&d.series[Z.tap]){var tp=d.series[Z.tap],tx=x(tp.t),ty=y(tp.n);
+        var ti=Z.tap==null?-1:d.series.findIndex(function(p){return p.t===Z.tap;});   // 누른 점은 시각(ms)으로 기억 — 60초 갱신으로 창이 한 칸 밀려도 같은 시각
+        var tip='';if(ti>=0&&!empty){var tp=d.series[ti],tx=x(tp.t),ty=y(tp.n);
             if(tx>=padL-.5&&tx<=padL+pw+.5){var qq=k(tp.t),tt=num(tp.n)+'척 · '+p2(qq.m)+'.'+p2(qq.d)+'('+qq.w+') '+p2(qq.h)+':'+p2(qq.mi),tw=textW(tt,10.5,700,d.fam)+16,bh=20,bx=Math.max(padL,Math.min(padL+pw-tw,tx-tw/2)),byy=ty-12-bh;if(byy<1)byy=ty+12;
                 tip='<line x1="'+tx+'" x2="'+tx+'" y1="'+padT+'" y2="'+(padT+ph)+'" stroke="rgba(255,255,255,.35)" stroke-dasharray="2 2"/><circle cx="'+tx+'" cy="'+ty+'" r="7" fill="rgba(255,255,255,.22)"/><circle cx="'+tx+'" cy="'+ty+'" r="4" fill="#fff" stroke="#10213f" stroke-width="1" data-tap-dot="1"/>'
                     +'<rect x="'+bx+'" y="'+byy+'" width="'+tw+'" height="'+bh+'" rx="6" fill="#0b1b33" stroke="rgba(255,255,255,.55)"/><text x="'+(bx+tw/2)+'" y="'+(byy+14)+'" fill="#fff" font-size="10.5" font-weight="700" text-anchor="middle" data-tip="1">'+tt+'</text>';}}
@@ -282,7 +284,7 @@
         function rel(e){var b=CH.getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top};}
         function frac(px){var g=CH._g;return(Z().off+px-g.padL)/(g.pw*Z().s);}
         function snap(){var a=Array.from(P.values());if(a.length>=2){var p=a[0],q=a[1];G={pinch:true,d0:Math.max(10,Math.hypot(p.x-q.x,p.y-q.y)),s0:Z().s,f:frac((p.x+q.x)/2)};}else if(a.length===1)G={pinch:false,x0:a[0].x,off0:Z().off};else G=null;}
-        function tap(px){var d=CH._d;if(!d||d.empty||!d.series.length)return;var g=CH._g,t=d.start+(Z().off+px-g.padL)/g.pxMs,best=0;d.series.forEach(function(p,i){if(Math.abs(p.t-t)<Math.abs(d.series[best].t-t))best=i;});Z().tap=best;CH._draw();}
+        function tap(px){var d=CH._d;if(!d||d.empty||!d.series.length)return;var g=CH._g,t=d.start+(Z().off+px-g.padL)/g.pxMs,best=0;d.series.forEach(function(p,i){if(Math.abs(p.t-t)<Math.abs(d.series[best].t-t))best=i;});Z().tap=d.series[best].t;CH._draw();}
         CH.addEventListener('pointerdown',function(e){var r0=rel(e);P.set(e.pointerId,r0);try{CH.setPointerCapture(e.pointerId);}catch(_){/* 합성 이벤트 등 캡처를 못 하는 경우에도 동작은 같다 */}T=P.size===1?{id:e.pointerId,x:r0.x,y:r0.y}:null;snap();});
         CH.addEventListener('pointermove',function(e){if(!P.has(e.pointerId)||!G||!CH._g)return;var r1=rel(e);P.set(e.pointerId,r1);var a=Array.from(P.values());
             if(T&&T.id===e.pointerId&&Math.hypot(r1.x-T.x,r1.y-T.y)>6)T=null;

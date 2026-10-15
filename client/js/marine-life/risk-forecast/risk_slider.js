@@ -28,6 +28,7 @@
     function mount(el, times, selected, change, opts) {
         opts=opts||{};
         if (opts.risk) return mountRisk(el, times, selected, change, opts);
+        el.classList.remove('rf-risk-time');   // 해상 막대를 그린 뒤 같은 칸에 연안 막대를 그리면 해상용 투명 줄 스타일이 남던 결함(2026-10-15 독립 검토)
         el.innerHTML = '<output class="rf-time-label" aria-live="off"></output><div class="ocean-sheet-slider-wrap"><div class="rf-divider-track"></div><input class="ocean-sheet-slider" type="range" min="0" max="' + Math.max(0,times.length-1) + '" step="1" aria-label="시간 이동"></div>';
         var input = el.querySelector('input'), label = el.querySelector('.rf-time-label'), dividers = el.querySelector('.rf-divider-track');
         input.value = String(Math.max(0,times.indexOf(selected)));

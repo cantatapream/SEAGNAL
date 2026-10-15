@@ -36,7 +36,7 @@ function summary(rows){const s=emptySummary();for(const r of rows){s.count++;con
  */
 function trafficLevel(n){return n===null?null:n<7?'여유':n<14?'보통':n<21?'주의':'혼잡';}
 // 실시간 밀집도(%) 4단계 — 공식 단계가 아니라 앱 가안이다. 실시간 API 는 칸번호·척수·밀집도 세 값만 주고 단계는 주지 않는다.
-// 공단 혼잡예보 단계 경계(유효선박면적 비율 5·10·20%)를 빌렸다. 두 %가 같은 산식인지는 확인하지 못했다.
+// 공단 혼잡예보 「기관 안내 문구」의 경계(유효선박면적 비율 5·10·20%)를 빌렸다(실제 혼잡예보 응답의 단계 경계는 혼잡지수 1·10·20 — 아래 unifiedFrame 주석). 두 %가 같은 산식인지는 확인하지 못했다.
 // 사용자 결정 2026-10-15 「밀집도는 가안대로 가자.」
 const DENSITY_CUTS=[0,5,10,20,100],DENSITY_LEVELS=['낮음','보통','높음','매우높음'];
 /** 실시간 밀집도를 가안 4단계로 나눈다. 예: 12.0 → 높음, 5 → 낮음(경계값은 아래 단계), null → null.
@@ -168,7 +168,7 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const regions=[...byRegion.values()];
         regions.sort((a,b)=>b.attentionRank-a.attentionRank||(b.current?.count||0)-(a.current?.count||0)||a.location.localeCompare(b.location,'ko'));
         const stationAccidents=accidents.filter(r=>stationFor([r[1],r[0]])?.id===id),historySummary={...summary(stationAccidents),...period};
-        const status=freshness(),result={station:{id:s.id,name:s.name},t:at,current:live?{count:rows.length?count:null,gridCount:rows.length,...status}:null,history:historySummary,regions:regions.slice(0,20),totalAttentionRegions:regions.length,gridCount:candidates.size,method:'격자 중심이 속한 관할로 배정한 척수 집계. 경계·중복 관할은 이름순 1개에 배정하며 실제 선박 위치 기반 관할 척수가 아닙니다. 수신 격자가 없는 관할은 0척이 아닌 자료 없음으로 표시합니다.',baselineAvailable:false};
+        const status=freshness(),result={station:{id:s.id,name:s.name},t:at,current:live?{count:rows.length?count:null,gridCount:rows.length,...status}:null,history:historySummary,regions:regions.slice(0,20).map(r=>r.history?{...r,history:{...r.history,accidents:undefined}}:r),totalAttentionRegions:regions.length,gridCount:candidates.size,method:'격자 중심이 속한 관할로 배정한 척수 집계. 경계·중복 관할은 이름순 1개에 배정하며 실제 선박 위치 기반 관할 척수가 아닙니다. 수신 격자가 없는 관할은 0척이 아닌 자료 없음으로 표시합니다.',baselineAvailable:false};
         briefCache.set(key,result);while(briefCache.size>8)briefCache.delete(briefCache.keys().next().value);return result;
     }
     return{tables,current,unifiedCells,unifiedFrame,jurisdictionList,analysis,briefing};

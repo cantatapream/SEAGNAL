@@ -104,6 +104,7 @@ const risk={marineInputs:()=>inputs,sources:()=>inputs.sources};
         const h=m.analysis({id:trafficCell.id}).marine.history;
         assert.equal(h.accidents.length,h.count,'목록 건수 = 집계 건수(해양오염·부유물감김 제외 규칙 같음)');
         assert.ok(h.accidents.every(a=>a.year>=2021&&a.year<=2025));
+        const br=m.briefing(m.jurisdictionList().stations[0].id);assert.ok(br.regions.every(r=>!r.history||!('accidents' in JSON.parse(JSON.stringify(r.history)))),'관할 브리핑에는 사고 목록을 싣지 않음(독립 검토 지적)');
     });
     await check('실제 HTTP 통합·관할 계약과 읽기전용 오류',async()=>{const app=express();app.use(createRouter({store:risk,marine:m}));server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const url='http://127.0.0.1:'+server.address().port+'/api/risk-forecast/sea/';const a=await fetch(url+'analysis?id='+trafficCell.id);assert.equal(a.status,200);assert.equal(a.headers.get('cache-control'),'no-store');assert.ok((await a.json()).marine);assert.equal((await fetch(url+'briefing?id=none')).status,404);assert.equal((await(await fetch(url+'jurisdictions')).json()).stations.length,2);});
 }finally{if(server)await new Promise(resolve=>server.close(resolve));fs.rmSync(dir,{recursive:true,force:true});console.log(`${pass} PASS / ${fail} FAIL`);if(fail)process.exitCode=1;}})();

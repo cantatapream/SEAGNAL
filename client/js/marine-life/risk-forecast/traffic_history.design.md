@@ -118,7 +118,7 @@
 `GET /api/risk-forecast/sea/traffic-history?cell=GR4_F4K23_P4&days=14`
 
 - `cell`: GR4 칸 번호(짜임이 틀리면 400). `days`: 1~15 정수, 기본 14(400).
-- 기간: **오늘 포함 KST 달력일 `days` 일** — `start` 는 (오늘−days+1)일 00:00, 배열은 언제나 `days×24` 칸(아직 오지 않은 시간·진행 중인 시간은 `null`).
+- 기간: **오늘 포함 KST 달력일 `days` 일** — `start` 는 (오늘−days+1)일 00:00, 배열은 언제나 `days×48` 칸(30분, 아직 오지 않은 30분·진행 중인 30분은 `null`).
 - 캐시 60초(`Cache-Control: public, max-age=60`). 다른 위험예측 응답처럼 `ok`·`sources` 가 붙는다.
 
 ```json

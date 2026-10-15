@@ -227,5 +227,21 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   const r=await direct({...base,location:'<img src=x onerror=alert(1)>',current:null,history:{...base.history,accidents:[{date:'2024-01-01',year:2024,type:'<img src=x onerror=alert(1)>',cause:'<script>evil()</script>',death:0,missing:0}]}},at);
   assert.ok(!/<img|<script/.test(r.html),'escape');assert.ok(r.html.includes('&lt;img'));});
  await check('기준 상세(sea): 밀집도 앱 가안·지도 [혼잡도] 지금/미래·교통량 정의·사고 범위 문구',async()=>{const sea=await page.evaluate(()=>RiskBasisContent.sea);for(const s of ['앱 가안','5·10·20%','같은 산식인지는 확인하지 못했습니다','[혼잡도]는 지금 시각이면 실시간 밀집도','미래 시각이면 공식 혼잡예보','5분 값','평균 척수','배포 뒤부터','5㎞ 칸','2021~2025년','해양오염·부유물감김은 제외'])assert.ok(sea.includes(s),s);});
+ await check('독립 검토 지적 고정: 해상 막대 뒤 같은 칸에 연안 막대를 그리면 해상 전용 class(rf-risk-time)가 남지 않음',async()=>{
+  const r=await page.evaluate(()=>{const el=document.createElement('div');document.body.appendChild(el);const times=['2026-10-15T16:12:00+09:00','2026-10-15T18:00:00+09:00'];
+   RiskSlider.mount(el,times,times[0],()=>{},{risk:true,now:times[0]});const a=el.classList.contains('rf-risk-time');RiskSlider.mount(el,times,times[0],()=>{});const b=el.classList.contains('rf-risk-time');el.remove();return[a,b];});
+  assert.deepEqual(r,[true,false]);});
+ await check('독립 검토 지적 고정: 사고 종류가 꼭 5개면 「기타」 없이 5색 모두 칠함(빈 색 없음)',async()=>{
+  const acc=['충돌','접촉','표류','침수','화재'].map((t,i)=>({date:'2024-0'+(i+1)+'-01',year:2024,type:t,cause:null,death:0,missing:0}));
+  await direct({...base,current:null,history:{...base.history,accidents:acc}},at);
+  const r=await page.evaluate(()=>{const b=document.querySelector('#direct .rf-body');return{leg:[...b.querySelectorAll('.rf-acc-leg i')].map(i=>getComputedStyle(i).backgroundColor),arcs:[...b.querySelectorAll('[data-arc]')].map(c=>c.getAttribute('stroke')),etc:b.innerText.includes('기타')};});
+  assert.equal(r.leg.length,5);assert.ok(r.leg.every(c=>c!=='rgba(0, 0, 0, 0)'),JSON.stringify(r.leg));assert.ok(r.arcs.every(c=>c&&c!=='undefined'),JSON.stringify(r.arcs));assert.equal(r.etc,false);});
+ await check('독립 검토 지적 고정: 형식이 깨진 교통량 응답이어도 예외 없이 「기록을 불러오지 못했습니다」·평균 「-」',async()=>{
+  await direct({...base,current:null},at);
+  const r=await page.evaluate(()=>{const b=document.querySelector('#direct .rf-body');let err=null;try{RiskMarine.fillTraffic(b,'GR4_F4K23_P4',{start:'2026-10-01T00:00:00+09:00'});}catch(e){err=e.message;}return{err,msg:b.querySelector('[data-chart-msg]').textContent,avg:b.querySelector('[data-avg-value]').textContent};});
+  assert.deepEqual(r,{err:null,msg:'기록을 불러오지 못했습니다.',avg:'-'});});
+ await check('기준 상세(sea): 옛 규칙 문장이 남지 않음(「빼고 평균」·「인명피해 없음으로 세지 않습니다」) · 새 규칙 문장 있음',async()=>{const sea=await page.evaluate(()=>RiskBasisContent.sea);
+  for(const s of ['0으로 세지 않고','인명피해 없음으로 세지 않습니다'])assert.ok(!sea.includes(s),s);
+  for(const s of ['그 5분은 0척으로 셉니다','사망·실종이 기록된 사고만'])assert.ok(sea.includes(s),s);});
  await check('실행 오류 없음',()=>assert.deepEqual(errors,[]));
 }finally{if(browser)await browser.close();if(server)await new Promise(r=>server.close(r));for(const d of dirs)fs.rmSync(d,{recursive:true,force:true});console.log(`${pass} PASS / ${fail} FAIL`);if(fail)process.exitCode=1;}})().catch(e=>{console.error('❌ 브라우저 검사 실행 실패:',e.message);console.log(`${pass} PASS / ${fail+1} FAIL`);process.exitCode=1;});
