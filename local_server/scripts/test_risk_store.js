@@ -19,6 +19,11 @@ write(dir,'events_202611.json',{month:'2026-11',collectedAt:new Date(now).toISOS
 const store=createStore({dir,dataDir,configDir,clientDir,clock:()=>now});
 try{run({
  'KST 한국어 갱신 시각 파싱':a=>a.equal(timestamp('2026. 10. 31. 오후 12:17:00'),now),
+ // 2026-10-15: 운영(Fly)은 같은 toLocaleString 이 AM/PM 으로 찍어 특보·해구 예보가 늘 「오래됨」 이었다.
+ '운영 형식 AM/PM 갱신 시각도 파싱(PM 12시=정오, AM 12시=자정)':a=>{a.equal(timestamp('2026. 10. 31. PM 12:17:00'),now);a.equal(timestamp('2026. 10. 31. AM 12:17:00'),now-12*3600000);a.equal(timestamp('2026. 10. 31. pm 3:30:48'),Date.parse('2026-10-31T15:30:48+09:00'));},
+ '해구 예보: 운영 형식 갱신 시각+최근 판이면 정상, 판이 24시간 넘게 묵었으면 오래됨':a=>{
+   const st=(base)=>{const dd=fs.mkdtempSync(path.join(os.tmpdir(),'risk-zf-'));write(dd,'zone_forecasts.json',{updatedAt:'2026. 10. 31. PM 12:10:00',baseTmUtf:base,data:{}});return createStore({dir,dataDir:dd,configDir,clientDir,clock:()=>now}).sources(true).zoneForecasts.status;};
+   a.equal(st('2026103100'),'ok');a.equal(st('2026103012'),'ok');a.equal(st('2026102912'),'stale');},
  '관측 wall-clock은 호스트 timezone과 무관한 KST':a=>a.equal(timestamp('2026-10-31 12:17'),now),
  'meta 시간축 규정 끝·정적 표 버전':a=>{const m=store.meta();a.equal(m.timeline.sea.times.at(-1),'2026-11-01T23:00:00+09:00');a.equal(m.timeline.coast.times.at(-1),'2026-11-01T21:00:00+09:00');a.equal(Object.hasOwn(m.timeline.coast,'day3From'),false);a.equal(m.versions.spots,'test');},
  '가(2026-10-15) 연안 2일 제한: 모레 시각은 연안 상세·프레임 모두 400, 내일 21시는 정상':a=>{const day3='2026-11-02T00:00:00+09:00';for(const call of [()=>store.coastDetail('one',day3),()=>store.frame(false,day3)])a.throws(call,e=>e.status===400&&e.message==='잘못된 예보 시각');const last='2026-11-01T21:00:00+09:00',f=store.frame(false,last);a.equal(f.t,last);a.equal(Object.hasOwn(f,'day3Dashed'),false);a.equal(store.coastDetail('one',last).notices.some(n=>n.key==='day3'),false);a.throws(()=>store.coastDetail('one','2026-11-01T21:01:00+09:00'),e=>e.status===400);},
