@@ -36,8 +36,9 @@ function shipsAt(t){const d=new Date(t+9*HR),h=d.getUTCHours()+d.getUTCMinutes()
 const nowSlot=Math.floor(now/MIN30)*MIN30;
 // 위 카드 위험 예측 설명(사용자 2026-10-16 확정 문장 — 종전 「최근 5년 간 사고사례 및 기상정보 기반 예측 결과」를 바꿨다).
 const FIT_TEXT='최근 5년 간의 해양사고, 기상예보 등의 정보를 활용, 인공신경망의 한 종류인 MLP모델을 사용하여 사고위험도를 예측';
-// [?] 표 단계 점 색 = 지도와 같은 팔레트(risk_marine.js RISK·CONG).
-const PAL={risk:{'낮음':'rgb(86, 166, 111)','보통':'rgb(219, 199, 83)','주의':'rgb(229, 139, 70)','경계':'rgb(214, 75, 69)'},cong:{'낮음':'rgb(184, 197, 218)','보통':'rgb(116, 185, 255)','높음':'rgb(212, 124, 255)','매우높음':'rgb(255, 95, 227)'}};
+// [?] 표 단계 점 색 = 지도와 같은 팔레트(risk_marine.js RISK·CONG). 혼잡도·밀집도도 위험 예측 4색을 단계 순서대로 쓴다(사용자 2026-10-16 「그냥 해양쪽과 같은 색상을 사용하자.」).
+const RISK_RGB={'낮음':'rgb(86, 166, 111)','보통':'rgb(219, 199, 83)','주의':'rgb(229, 139, 70)','경계':'rgb(214, 75, 69)'};
+const PAL={risk:RISK_RGB,cong:{'낮음':RISK_RGB['낮음'],'보통':RISK_RGB['보통'],'높음':RISK_RGB['주의'],'매우높음':RISK_RGB['경계']}};
 const history={series(id,from,count){const recStart=fx.days>=15?-Infinity:Date.parse(kst(now).slice(0,10)+'T00:00:00+09:00')-(fx.days-1)*86400000,values=[],samples=[];for(let i=0;i<count;i++){const t=from+i*MIN30,ok=fx.days>0&&t>=recStart&&t<nowSlot;values.push(ok?shipsAt(t):null);samples.push(ok?6:0);}return{values,samples};}};
 const warnings={list(){return{intervals:fx.warnings?[{zone:'부산앞바다',role:'main',kind:'앞바다',type:'풍랑',level:'주의보',start:'2026-10-07T15:00:00+09:00',startBy:'tmEf',end:'2026-10-08T03:00:00+09:00',endBy:'levelChange'},{zone:'부산앞바다',role:'main',kind:'앞바다',type:'풍랑',level:'경보',start:'2026-10-08T03:00:00+09:00',startBy:'tmEf',end:'2026-10-08T18:00:00+09:00',endBy:'clrNtcTm'},{zone:'부산앞바다',role:'main',kind:'앞바다',type:'풍랑',level:'주의보',start:'2026-10-15T09:00:00+09:00',startBy:'tmEf',end:null,endBy:null}]:[],checkedAt:'2026-10-15T16:11:00+09:00'};}};
 const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(id)?{center:[cell.lon,cell.lat],main:{name:'부산앞바다',code:'S1',kind:'앞바다'},sub:null}:null,clock:()=>now});
@@ -90,6 +91,10 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   assert.deepEqual(await checked(),['혼잡도']);assert.equal(await caption(),'밀집도 (실시간)');assert.equal(await labels(),'낮음보통높음매우높음');assert.equal(lastMode(),'current');assert.equal(await page.locator('.rf-color-legend .rf-gradient-bar.rf-pal-cong').count(),1);
   const c=await page.evaluate(()=>{const l=map.getLayers().getArray().find(l=>l.getClassName()==='rf-marine-canvas'),f=l.getSource().getFeatures()[0];return{fill:f.getStyle().getFill().getColor(),want:RiskMarine.congestionColor(Math.round(f.get('colorValue')*255)/255)};});
   assert.ok(c.fill.startsWith(c.want.replace('rgb(','rgba(').replace(')',',')),JSON.stringify(c));await shot('map_3_sea_on_cong_now');});
+ await check('혼잡도·밀집도 색 = 위험 예측 4색(낮음·보통·높음=주의·매우높음=경계): 지도 면색 함수·범례 막대(사용자 2026-10-16 「그냥 해양쪽과 같은 색상을 사용하자.」)',async()=>{
+  const r=await page.evaluate(()=>({same:[0,.1,.25,.4,.5,.6,.75,.9,.999].every(p=>RiskMarine.congestionColor(p)===RiskMarine.color(p)),bar:getComputedStyle(document.querySelector('.rf-color-legend .rf-gradient-bar.rf-pal-cong')).backgroundImage}));
+  assert.ok(r.same,'congestionColor = color');for(const c of ['rgb(86, 166, 111)','rgb(219, 199, 83)','rgb(229, 139, 70)','rgb(214, 75, 69)'])assert.ok(r.bar.includes(c),c+' / '+r.bar);for(const c of ['184, 197, 218','116, 185, 255','212, 124, 255','255, 95, 227'])assert.ok(!r.bar.includes(c),'옛 혼잡 색 '+c);
+  await shot('map_legend_cong_now','.ocean-legend-stack');});
  await check('지도: [혼잡도] 그대로 +3H(미래) → mode congestion·「혼잡도 (예보)」, 현재로 오면 다시 밀집도',async()=>{
   await page.locator('[data-time-step="3"]').click();await page.waitForFunction(()=>{const l=map.getLayers().getArray().find(l=>l.getClassName()==='rf-marine-canvas');const f=l&&l.getSource().getFeatures()[0];return f&&f.get('mode')==='congestion';});
   assert.equal(lastMode(),'congestion');assert.equal(await caption(),'혼잡도 (예보)');assert.deepEqual(await checked(),['혼잡도']);assert.equal(await labels(),'낮음보통높음매우높음');await shot('map_4_sea_on_cong_future');
@@ -106,7 +111,7 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
  const heroText=()=>page.locator(body+' .rf-hero').innerText();
  await check('시트 지금: 위 카드 「위험 예측 보통」·「밀집도 높음」(혼잡 색)·「이 해역 선박 18척(밀집도 12.0%)」·충돌주의·「16시 혼잡예보 [높음]」',async()=>{
   const r=await page.evaluate(b=>[...document.querySelectorAll(b+' .rf-hero .rf-lvl')].map(l=>({small:l.querySelector('small').textContent,strong:l.querySelector('strong').textContent,bg:getComputedStyle(l).backgroundColor})),body);
-  assert.deepEqual(r.map(x=>[x.small,x.strong]),[['위험 예측','보통'],['밀집도','높음']]);assert.equal(r[0].bg,'rgb(219, 199, 83)');assert.equal(r[1].bg,'rgb(212, 124, 255)');
+  assert.deepEqual(r.map(x=>[x.small,x.strong]),[['위험 예측','보통'],['밀집도','높음']]);assert.equal(r[0].bg,'rgb(219, 199, 83)');assert.equal(r[1].bg,PAL.cong['높음']);
   const t=(await heroText()).replace(/\s+/g,' ');for(const s of [FIT_TEXT,'이 해역 선박 18척(밀집도 12.0%)','충돌·접촉사고 주의','16시 혼잡예보 높음'])assert.ok(t.includes(s),s+' / '+t);
   assert.equal(await page.locator(body+' .rf-hero .rf-chip').innerText(),'높음');assert.equal(await page.locator(body+' .rf-hero b.rf-cc').count(),1);});
  // ── 위 카드 [?] 두 개·팝업·위험 예측 문장 자간 맞춤(사용자 2026-10-16) ──
@@ -130,13 +135,16 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   const r=await heroLayout();console.log('  380px 줄 '+r.lines+'(자연 '+r.natLines+') · 최소 자간 '+r.minLs.toFixed(3)+'em · 줄 끝 남은 px '+r.gaps.join(','));
   assert.equal(r.text,FIT_TEXT);assert.ok(r.text.includes('MLP모델'));assert.ok(r.lines>=2,'줄 나눔 '+r.lines);assert.ok(r.oneLine,'줄이 다시 갈림');assert.ok(r.inside,'폭 넘침');assert.ok(r.minLs>=-0.0601,String(r.minLs));assert.ok(r.lines<=r.natLines,r.lines+'>'+r.natLines);assert.equal(r.keepAll,'keep-all');
   await shot('hero_380',body+' .rf-hero');});
+ await check('[?] 혼잡도 표 경계 = 서버 밀집도 단계(marine_fusion.densityLevel): 1% 이하 낮음 · 1% 초과~10% 미만 보통 · 10% 이상~20% 미만 높음 · 20% 이상 매우높음(사용자 2026-10-16 「1-(나)」·「그럼 ㄱ으로 하자」)',async()=>{
+  assert.deepEqual(HELP.cong.map(x=>x[2]),['유효선박면적 1% 이하','유효선박면적 1% 초과~10% 미만','유효선박면적 10% 이상~20% 미만','유효선박면적 20% 이상']);
+  assert.deepEqual([1,1.01,9.99,10,19.99,20].map(M.densityLevel),['낮음','보통','보통','높음','높음','매우높음']);assert.deepEqual(HELP.cong.map(x=>x[0]),['낮음','보통','높음','매우높음']);});
  await check('[?] 위험 예측 팝업: 「사고위험도는 총 4단계(5km*5km 격자 단위)로 표출」·표 4행(HELP.risk)·단계 점 = 지도 위험 색, ✕ 로 닫으면 [?] 로 초점',async()=>{
   await page.locator(body+' [data-help="risk"]').click();await page.waitForSelector('.rf-acc-pop:not([hidden]) [data-help-pop="risk"]');const r=await helpPop();
   assert.equal(r.label,'위험 예측 기준 설명');assert.deepEqual(r.lines,['사고위험도는 총 4단계(5km*5km 격자 단위)로 표출']);assert.deepEqual(r.rows,HELP.risk);assert.equal(r.rows.length,4);
   assert.deepEqual(r.dots,HELP.risk.map(x=>PAL.risk[x[0]]));assert.ok(r.focus,'열면 ✕ 에 초점');await shot('help_risk_380');
   await page.locator('.rf-acc-pop .x').click();assert.equal(await page.locator('.rf-acc-pop').isVisible(),false);assert.equal(await page.evaluate(()=>document.activeElement&&document.activeElement.dataset.help),'risk');});
  let congHtml;
- await check('[?] 밀집도·혼잡도 팝업(지금): 줄 7개가 실제로 따로(「실시간·예측」·「GAN」), 「(줄바꿈)」·「중점」 글자 없음, 표 4행(HELP.cong)·점 = 혼잡 색, 바깥·Escape 로 닫힘(시트는 그대로)',async()=>{
+ await check('[?] 밀집도·혼잡도 팝업(지금): 줄 7개가 실제로 따로(「실시간·예측」·「GAN」), 「(줄바꿈)」·「중점」 글자 없음, 표 4행(HELP.cong)·점 = CONG(위험 4색 순서), 바깥·Escape 로 닫힘(시트는 그대로)',async()=>{
   await page.locator(body+' [data-help="cong"]').click();const r=await helpPop();congHtml=r.html;
   assert.equal(r.label,'밀집도·혼잡도 기준 설명');assert.deepEqual(r.lines,['밀집도/혼잡도는 KOMSA의 실시간·예측 결과이며, 유효선박면적 비율 기준입니다.','(혼잡도는 공단 안내 기준, 밀집도는 같은 기준 추정).','혼잡도는 과거 5년간의 선박 운항이력 데이터를 활용하여 딥러닝 기법의 한 종류인 GAN 모델을 통해 예측합니다.','유효선박면적 비율이란 다음과 같습니다.','가.큰 배는 1척이어도 넓은 면적을 차지','나.육지가 많이 섞여 바다 면적이 작은 칸은 배 한두 척으로도 비율 증가','다.4단계 혼잡도 격자 기준']);
   assert.ok(r.sep,'줄마다 다음 줄에');for(const s of ['실시간·예측','GAN'])assert.ok(r.text.includes(s),s);for(const s of ['줄바꿈','중점'])assert.ok(!r.text.includes(s),s);
@@ -250,7 +258,7 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   const t=await page.locator(body+' [data-acc-none]').evaluate(e=>[e.querySelector('h4').firstChild.textContent,e.querySelector('.rf-src').textContent]);assert.deepEqual(t,['이 해역 선박사고 없음','2021~2025년']);assert.equal(await page.locator(body+' .rf-acc').count(),0);
   const r=await page.evaluate(b=>{const c=document.querySelector(b+' [data-traffic-card]');return{name:c.querySelector('[data-avg-name]').textContent,val:c.querySelector('[data-avg-value]').textContent,dash:c.querySelector('[data-empty]')&&c.querySelector('[data-empty]').textContent,lines:c.querySelectorAll('polyline').length,warn:c.querySelectorAll('rect[data-warn]').length,leg:c.querySelector('[data-chart-leg]').textContent};},body);
   assert.deepEqual(r,{name:'2주 평균 16:00',val:'-',dash:'-',lines:0,warn:0,leg:'선박 수'});
-  const lv=await page.evaluate(b=>[...document.querySelectorAll(b+' .rf-hero .rf-lvl strong')].map(s=>s.textContent),body);assert.deepEqual(lv,['보통','낮음']);assert.equal(await page.locator(body+' .rf-hero b.rf-cc').count(),1,'4척이어도 16시 혼잡 예보 높음이면 충돌·접촉 주의(서버 조건A)');
+  const lv=await page.evaluate(b=>[...document.querySelectorAll(b+' .rf-hero .rf-lvl strong')].map(s=>s.textContent),body);assert.deepEqual(lv,['보통','보통'],'밀집도 2.4% → 보통(1 초과~10 미만, 2026-10-16 경계 1·10·20)');assert.equal(await page.locator(body+' .rf-hero b.rf-cc').count(),1,'4척이어도 16시 혼잡 예보 높음이면 충돌·접촉 주의(서버 조건A)');
   if(SHOTS){await page.evaluate(()=>document.body.classList.add('full'));await page.setViewportSize({width:380,height:2400});await page.locator('#risk-forecast-sheet').screenshot({path:path.join(SHOTS,'sheet_calm_acc0_days0_full.png')});await page.evaluate(()=>document.body.classList.remove('full'));await page.setViewportSize({width:380,height:820});}});
  await check('교통 기록 일부: 오늘 포함 3일째면 끝난 16:00 칸 2개 「평균 16:00 (2일)」·4일째 「(3일)」·2주 창을 다 덮으면 「2주 평균」',async()=>{
   fx.days=3;await reopen();

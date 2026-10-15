@@ -68,19 +68,19 @@ const risk={marineInputs:()=>inputs,sources:()=>inputs.sources};
     await check('원천 실패는 마지막 정상본을 덮어쓰지 않음',async()=>{const before=fs.readFileSync(path.join(dir,'sea_realtime.json.gz'));const failed=C.createCollector({dir,key:'test',clock:()=>now,fetchImpl:async()=>{throw Error('secret serviceKey=never-log');},describe});assert.equal((await failed.collect()).ok,false);assert.deepEqual(fs.readFileSync(path.join(dir,'sea_realtime.json.gz')),before);assert.doesNotMatch(JSON.stringify(io.read(path.join(dir,'realtime_status.json'))),/secret|serviceKey/);});
     await check('API 등록시각이 다른 페이지를 섞지 않음',async()=>{let n=0;const f=async()=>({ok:true,json:async()=>({response:{header:{resultCode:'200',resultMsg:'NORMAL_SERVICE'},body:{regDt:++n===1?'2026-10-12 13:05:00':'2026-10-12 13:10:00',totalCount:2,items:{item:[{grid_id:n===1?'GR4_F4K23_P4':'GR4_F4K23_P3',vmtc:1,dnsty:0}]}}}})});await assert.rejects(C.readApi({dir,key:'test',fetchImpl:f,now}),/partial response/);});
     await check('다음 5분 구간 API 값은 같은 칸 번호를 유지하고 척수만 바뀜',async()=>{now+=5*60000;const c=C.createCollector({dir,key:'test',clock:()=>now,fetchImpl:api([[trafficCell.id,22,1]],'2026-10-12 13:30:00'),describe});assert.equal((await c.collect()).ok,true);const saved=io.read(path.join(dir,'sea_realtime.json.gz'));assert.deepEqual(saved.rows,[[0,22,1]]);assert.equal(saved.cells.length,1);});
-    await check('밀집도 가안 4단계 경계(5·10·20%, 경계값은 아래 단계)·빈 값은 단계 없음(사용자 2026-10-15 「밀집도는 가안대로」)',()=>{
-        assert.deepEqual([0,5,5.01,10,10.1,20,20.02,100].map(M.densityLevel),['낮음','낮음','보통','보통','높음','높음','매우높음','매우높음']);
+    await check('밀집도 잠정 4단계 경계 = 혼잡예보 응답 경계(낮음 ≤1 · 보통 1 초과~10 미만 · 높음 10 이상~20 미만 · 매우높음 20 이상)·빈 값은 단계 없음(사용자 2026-10-16 「그럼 ㄱ으로 하자」)',()=>{
+        assert.deepEqual([0,1,1.01,5,9.99,10,19.99,20,100].map(M.densityLevel),['낮음','낮음','보통','보통','보통','높음','높음','매우높음','매우높음']);
         for(const v of [null,undefined,NaN])assert.equal(M.densityLevel(v),null);
     });
     await check('지금 혼잡도 지도(current)는 밀집도로 칠하고 칸 숫자는 척수 그대로 · 밀집도 빈 칸은 칠하지 않음 · 응답에 없는 칸은 「낮음」·0척(사용자 「배가없는 칸을 낮음으로」) · 낡으면 아무것도 안 칠함',()=>{
-        const scoped=fs.mkdtempSync(path.join(os.tmpdir(),'fusion-density-')),second={...trafficCell,id:'GR4_F4K23_P3',i:1,lon:126.5625,geometry:{type:'Polygon',coordinates:[[[126.55,33.55],[126.575,33.55],[126.575,33.575],[126.55,33.575],[126.55,33.55]]]}};
-        io.write(path.join(scoped,'sea_realtime.json.gz'),{cells:[trafficCell,second],rows:[[0,18,12],[1,30,null]],sourceAt:io.iso(now),collectedAt:io.iso(now),source:'MTIS realtime API'});
-        const local={...inputs,cells:{cells:[trafficCell,second]}};
+        const scoped=fs.mkdtempSync(path.join(os.tmpdir(),'fusion-density-')),second={...trafficCell,id:'GR4_F4K23_P3',i:1,lon:126.5625,geometry:{type:'Polygon',coordinates:[[[126.55,33.55],[126.575,33.55],[126.575,33.575],[126.55,33.575],[126.55,33.55]]]}},third={...trafficCell,id:'GR4_F4K23_P2',i:2,lon:126.5875,geometry:{type:'Polygon',coordinates:[[[126.575,33.55],[126.6,33.55],[126.6,33.575],[126.575,33.575],[126.575,33.55]]]}};
+        io.write(path.join(scoped,'sea_realtime.json.gz'),{cells:[trafficCell,second,third],rows:[[0,18,12],[1,30,null],[2,6,5.5]],sourceAt:io.iso(now),collectedAt:io.iso(now),source:'MTIS realtime API'});
+        const local={...inputs,cells:{cells:[trafficCell,second,third]}};
         const s2=M.createStore({risk:{marineInputs:()=>local,sources:()=>local.sources},dir:scoped,clock:()=>now,stations,accidents,describe});
         const f=s2.unifiedFrame('current');
         const ids=new Map(s2.unifiedCells().cells.map(c=>[c.i,c.id]));
         const got=f.cells.map(([i,n,level,color])=>[ids.get(i),n,level,Math.round(color*1000)/1000]);
-        assert.deepEqual(got.filter(r=>r[1]>0),[['GR4_F4K23_P4',18,'높음',0.55]]);              // 12% → 높음 칸(10~20)의 20% 위치 → (2+0.2)/4
+        assert.deepEqual(got.filter(r=>r[1]>0).sort((a,b)=>a[0].localeCompare(b[0])),[['GR4_F4K23_P2',6,'보통',0.375],['GR4_F4K23_P4',18,'높음',0.55]]);   // 12% → 높음 칸(10~20)의 20% 위치 → (2+0.2)/4 · 5.5% → 보통 칸(1~10)의 50% → (1+0.5)/4(종전 5·10 경계면 0.275)
         assert.ok(!got.some(r=>r[0]==='GR4_F4K23_P3'),'척수는 있는데 밀집도가 빈 칸은 칠하지 않음');
         const empty=got.filter(r=>r[1]===0);assert.ok(empty.length>0&&empty.every(r=>r[2]==='낮음'&&r[3]===0),'응답에 없는 칸은 낮음·0');
         const late=M.createStore({risk:{marineInputs:()=>local,sources:()=>local.sources},dir:scoped,clock:()=>now+20*60000,stations,accidents,describe});assert.deepEqual(late.unifiedFrame('current').cells,[],'수집이 낡았으면 0척으로 지어내지 않음');

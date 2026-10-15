@@ -137,7 +137,8 @@ body.rf-sea-time-on.ls-mudflat-on .rf-color-legend{bottom:calc(var(--rf-bottom-c
 .rf-seg button[aria-checked="true"]{background:var(--accent-yellow,#ffd740);color:#10151f}
 .rf-seg button:focus-visible{outline:2px solid #448aff;outline-offset:1px}
 .rf-color-legend .rf-marine-caption small{font-weight:400;color:var(--text-sub,#94a3b8);font-size:inherit}
-.rf-gradient-bar.rf-pal-cong{background:linear-gradient(to right,#b8c5da 0%,#74b9ff 33.333%,#d47cff 66.666%,#ff5fe3 100%)}
+/* 혼잡도·밀집도 범례도 위험 예측과 같은 4색(사용자 2026-10-16 「그냥 해양쪽과 같은 색상을 사용하자.」, 종전 #b8c5da→#74b9ff→#d47cff→#ff5fe3). 단계 이름(낮음·보통·높음·매우높음)과 제목으로 구분한다. */
+.rf-gradient-bar.rf-pal-cong{background:linear-gradient(to right,#56a66f 0%,#dbc753 33.333%,#e58b46 66.666%,#d64b45 100%)}
 /* 하단의 법률/AI 진입 버튼도 새 시간바·축척을 덮지 않도록 함께 올린다. */
 body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 44px)}
 
