@@ -336,3 +336,32 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 - **killed 상태 동작 + 한계**: 종료 상태에서도 FCM 으로 `LocationAlertMessagingService` 가 깨어나 `getFresh()` 로 그 순간 위치를 받는다. **한계** — 종료·정지 단말에서는 OS 절전으로 활성 단발 픽스가 throttle 돼 ~8s 내 즉시 반환이 보장되지 않을 수 있다. 이때는 `getLastKnownLocation` 캐시(최근 OS 보유 위치)로 폴백하며, 그 캐시가 12시간(STALE_MAX_MS)보다 낡으면 낡음 가드가 알림을 막는다. 활성 픽스 신뢰도는 기기·안드로이드 버전·절전 상태에 따라 달라진다(미검증 — 실기기 검증 필요).
 - **재빌드**: 서버/JS 변경은 재배포로 반영되나, **네이티브 fresh-fix(종료 상태 표시)는 새 APK 빌드·배포가 필요**하다.
 - **테스트**: `scripts/test_location_alert_background.js`에 `getFreshPosition` 항목 추가(존재→fresh+저장, 부재→저장 폴백, 저장 없음→null). 기존 워처 경쟁 테스트(`test_location_alert_start_race.js`)는 워처 제거로 무효가 되어 **`test_location_alert_fresh_fix.js`로 교체**(getFreshPosition/start/stop 이벤트 기반 동작 + `addWatcher` 0회 호출 검증). 기존 core/forecast/runtime/ui/server 테스트 전부 통과.
+
+## 18. 발송 신뢰성 + 스냅샷 축약 — 서버만, 앱 업데이트 없음 (2026-10-15)
+> 사용자 결정(2026-10-15) 원문 요지: **"①②둘 다, 서버만, 앱 업데이트 없음."**
+> ① 신뢰성 — (a) 발송마다 토큰별 실패 코드 요약(코드별 건수, 토큰 미기록)과 성공/실패 수를 로그로 (b) 이력 count = 실제 successCount(예외·미구성은 0) (c) 성공 0이면 지문을 저장하지 않아 다음 주기에 재시도 (d) 토큰을 500개 이하로 나눠 보내고 합산. 태풍 반경 디스패치에도 같게.
+> ② 축약 — 구역은 하나도 빼지 않고(BUG A 방지), 단말이 안 읽는 필드만 뺀다.
+
+**왜**: 운영 2026-10-14 15:02 KST 위치기반 발송 이력이 count 0 으로 남았고(관리자 배지 숨김), 그 스냅샷이 5772B 로 FCM data 한도 4096B 를 넘었다. 또 종전 코드는 ① 동의 토큰 전부를 `sendEachForMulticast` 한 번에 넘겨 500개를 넘으면 SDK 가 예외를 던지고(전원 미수신) ② 결과와 무관하게 대상 수를 `sent` 로 돌려 지문을 저장해, 실패한 발송이 특보 상황이 바뀔 때까지 다시 시도되지 않았다.
+
+- **분할 발송** — 신규 `local_server/services/fcm_multicast_chunked.js`(`sendMulticastChunked`): 500개씩 호출·합산, 한 묶음이 예외여도 나머지는 계속 보냄. 실패는 `errorCodes`(코드→건수)로 모은다.
+- **실제 성공 수** — `dispatchWake` 의 `sent` 는 이제 **실제 성공 수**(종전: 대상 수), `targets` 는 대상 수, `failed` 는 실패 수. 이력 count 도 같은 성공 수(숫자 successCount 가 없으면 0).
+- **재시도** — `dispatchOnLatest` 는 `sent>0` 일 때만 지문을 저장한다 → 성공 0이면 다음 크롤러 주기(1분)에 다시 보낸다. 같은 상황이 계속 실패하면 **0건 이력은 첫 번만** 남기고(프로세스 메모리 `_lastFailedSig`, 서버 재시작 시 비워짐), **로그는 주기당 1줄**(`[LocationAlertDispatch] 발송 결과 — 대상·호출·성공·실패·실패코드·데이터 바이트`)만 찍는다. 묶음 예외가 났을 때만 첫 예외 1줄이 더 찍힌다.
+  - ⚠**한도 초과가 계속되는 경우**: 4096B 를 넘는 스냅샷은 FCM 이 계속 거절할 수 있다. 그때는 상황이 바뀔 때까지 **매 분 전원에게 재발송 시도**가 일어난다(로그 1줄·이력 0건 1회). 사용자 지시대로 구역을 빼지 않고 보내되 로그에 `⚠FCM 4096B 한도 초과 — 구역은 빼지 않고 그대로 보냄` 을 남긴다.
+- **지문 호환** — 스냅샷에서 `event:'active'` 를 생략해도 `_signatureOf` 가 기본값 `active` 를 채워 **종전 지문 문자열과 같다**(배포 직후 같은 상황 재발송 없음).
+- **스냅샷 축약** — `{ zones: { [구역명]: { tier, warnType?, event?, efTime?, forecast? } } }`
+  - 뺀 것: `level`·`ynTime`(단말 미사용), 최상위 `generatedAt`(단말 미사용).
+  - 기본값이면 생략: `warnType:'풍랑'`, `event:'active'`, `forecast:null`.
+  - `efTime` 은 **단말이 문구에 쓰는 경우에만**: `tier==='prelim'` 또는 `event!=='active'`.
+  - 근거(코드 확인): Java `LocationAlertDecider.optStr(z,"warnType","풍랑")`·`optStr(z,"event","active")`·`optStr(z,"efTime","")`·`z.optJSONObject("forecast")` / JS `location_alert_runtime.decideAlert` 의 `z.warnType || '풍랑'`·`z.event || 'active'`·`z.efTime || ''`·`z.forecast || null`. 문구의 timeText 사용처는 Java·JS `buildMessage` 모두 예비 분기와 `event!=='active'` 분기뿐. 첫 네이티브판(7bbeca349)·첫 JS판(0fcd4ba69)부터 같은 기본값이다(git show 로 확인).
+  - 측정(`buildSnapshot`, 폴리곤 44개 표준 구역명, forecast `{day:'14', summary:'북서풍 12~18m/s, 파고 2.0~4.0m'}`): 44개 전부 주의보 발효중 10366B → **5353B** · 22개 5218B → **2691B** · 44개 혼합(경보·예비·발효예정) 10278B → **6321B** · 22개 혼합 5173B → **3129B** · forecast 없음 44개 7902B → 2185B · 22개 3986B → 1107B. **⚠44개 전역 특보 + 예측 기상이 있으면 축약 후에도 4096B 를 넘는다** — 이 경우는 앱 업데이트 없이는 풀리지 않는다(구역 분할·드롭 금지).
+- **검사**: `local_server/scripts/test_location_dispatch_reliability.js`(verify_all SUITES 등록) — 1201 토큰 → 500/500/201 호출·합산, 성공 0 ⇒ 지문 미저장·이력 0·같은 상황 재실패 시 이력 추가 없음·주기당 로그 1줄·로그에 토큰 없음, 예외/no_admin ⇒ 0, 종전 지문 호환, 44구역 전부 tier 보유·필드 규칙, **JS decideAlert 를 종전 스냅샷과 축약 스냅샷에 돌려 제목·본문·tier·event·진단이 전부 같음**(340건). 태풍도 분할·성공 0 ⇒ 키 미저장·이력 0.
+  - Java 판정기(`LocationAlertCore`·`LocationAlertDecider`)는 2026-10-15 에 **임시 검사로 한 번** 돌렸다(저장소 미등록): 저장소 `node_modules/@trapezedev/gradle-parse/lib/json-20210307.jar`(JSON-java)로 컴파일해 3개 시나리오×858 위치 = 2574건 비교, 알림 1472건, 차이 0. efTime 을 전부 지운 변이본은 251건 차이로 잡혔다. ⚠안드로이드 내장 org.json 이 아니라 JSON-java 로 돌린 것이다(없는 키 → 기본값 처리는 두 구현 모두 같다고 보지만 단말에서 직접 확인하지는 않았다).
+
+### 18.1 독립 검증에서 나온 재시도 위험과 사용자 결정 (2026-10-15)
+독립 리뷰(적대검증)가 「성공 0이면 다음 주기 재시도」 정책의 위험을 넷 짚었다 — ①FCM 세션 오류로 실제 도달했는데 0건으로 세면
+매 분 중복 알림(단말에 중복 제거 없음: 알림 id 가 매번 새 시각) ②한도 초과(약 34구역 이상+예측 기상)·전 토큰 무효·firebase 미구성이면
+매 분 무한 재시도 ③500명 초과 부분 성공 시 실패 묶음은 재발송 안 함 ④배포 전에 0건으로 끝난 상황은 배포 뒤 재시도 안 됨.
+재시도 횟수 상한(예: 3회)을 제안했으나 **사용자 결정: 그대로 둔다.**
+> 사용자 원문: *"오류가 나지 않는다는 가정 하에 진행하자."*
+위 경우가 실제로 관측되면(같은 알림 반복 수신·매 분 같은 `[location-alert]` 실패 로그) 이 절로 돌아와 상한을 다시 논의한다.
