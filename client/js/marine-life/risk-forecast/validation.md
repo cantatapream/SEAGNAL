@@ -107,8 +107,8 @@ MTIS 표에 오늘00시 조건을 한 번 추가 조회해 HTTP200·0행을 확�
 | 10 | 위험구역 아코디언 버튼과 보이는 지도 중앙 이동 | 구현·시험 틀 측정 완료 (아래 과제10 절) |
 | 11 | 다음달 행사 수집 일정·Gemini 프롬프트 대조 | 일정·프롬프트 보완 및 검증 완료 |
 | 12 | 연안·해상 위험예측 기본 위성지도 | 조율기 코드·회귀 19건 완료(`test_risk_basemap`), 실제 Chromium 육안 확인 대기 |
-| 13 | 지도 특보·3일째 범례 제거 | 구현·집중 검증 완료(이유 설명의 표시 위치는 사용자 결정 대기) |
-| 14 | 특보 있는 해상 구역만 이름 없이 지도 표시 | 코드·회귀 검증 완료 (아래 과제14 절) |
+| 13 | 지도 특보·3일째 범례 제거 | 종결 — 범례 삭제, 이유 설명도 넣지 않음(사용자 2026-10-15 「특보범례는 아예 반영하지 않을 예정」) |
+| 14 | 특보 있는 해상 구역만 이름 없이 지도 표시 | **폐지(2026-10-15)** — 위험예측 지도에 특보 영역을 그리지 않음 (아래 「특보 영역 미표시」 절) |
 | 15 | 총 사고·사망실종 배수 산출을 쉽게 설명 | 대기 |
 | 16 | 관리자 AI 사고예측 → 오류현황 기록, 일반 화면 오류 알림 제거 | 대기 |
 
@@ -167,6 +167,8 @@ test_marine_ui(실제 Chromium)에 2건을 추가해 15→17 PASS: ① 범례 �
 실제 `risk_store`(임시 자료)와 실제 `RiskSheet`(Chromium)로 `test_risk_missing_notice` 16건을 만들었다: 행사·특보·강풍 없음(문구 없음), 행사 파일 없음/오류/손상, 특보 없음/손상/20분 낡음, 일부 실패, 월말 다음 달 정상 없음·미수신, 월초, 이안류 비수기/성수기, 관리자 이력(없음 미기록·실패 기록). 이안류 비수기 수정 전에는 3건이 실패했고(비수기에 `rip` 이 결측으로 세어져 「확인된 요소 기준」 문구가 떴다) 수정 후 16건 통과했다. 실제 운영 자료로 확인한 것이 아니며, 운영에서 특보 낡음(10분)이 자주 걸리는지는 확인하지 못했다.
 
 ## 과제14 특보 구역 배경 면 검증 — 2026-10-15
+
+> ⚠이 절의 기능은 같은 날 사용자 지시로 걷어냈다 — 아래 「특보 영역 미표시 — 2026-10-15」 절. 이력으로만 남긴다.
 
 구현: 서버 `warning-zones` 조회, 지도 `drawWarnings`, 조율기 `refreshWarnings`. 확인한 것은 코드와 아래 시험이다. 실제 운영 서버의 특보 수집·화면은 확인하지 않았다.
 
@@ -247,3 +249,16 @@ test_marine_ui(실제 Chromium)에 2건을 추가해 15→17 PASS: ① 범례 �
 
 확인하지 않은 것: 실제 MTIS API 호출(키 없이 가짜 응답으로만 시험), 운영 서버에서 배포 직후 24칸 파일이 실제로 16칸으로 바뀌는지(시험의 같은 경로로만 확인), 저장 크기 감소량(위 「현재 저장 구조의 크기」 측정은 24칸 기준이며 다시 재지 않았다), 실기기 화면.
 
+## 특보 영역 미표시 — 2026-10-15 (과제14 폐지)
+
+사용자 원문: 「이미지를 보면 지도에 특보 영역을 표시하지 말자고 했는데 나오고 있는데 없애주고. 범례를 없앴으니 다시 없애야지.」 (화면: 위험예측 연안 지도의 서해 먼바다에 주황 테두리 갈색 특보 구역 면 두 개)
+
+지운 것: 화면 `risk_forecast.js` `refreshWarnings`·`warningJob`, 지도 `risk_map_layer.js`의 `borders` 층·`drawWarnings`·`renderWarnings`·`zonesLoaded`·`zoneKey`·`zoneGeometry`와 `boundaries()`의 `/api/warn-zones`·`/api/warn-zones-sub` 내려받기, 서버 `GET /api/risk-forecast/warning-zones`·`risk_store.warningZones`·`borders()`·frame 응답의 `borders`. 스크립트 캐시 버전 `risk_map_layer.js`·`risk_forecast.js` `?v=20261015b`.
+
+다른 화면 영향 없음 근거: 지운 함수·경로 이름(`warning-zones`, `warningZones`, `drawWarnings`, `zonesLoaded`, frame `borders`)을 `client`·`local_server`에서 grep 하면 위험예측 폴더·`risk_store.js`·`routes/risk_forecast.js`·위험예측 시험 말고는 쓰는 곳이 없었다. `/api/warn-zones(-sub)`는 `routes/weather.js`에 그대로 있고 해양지도 `ocean_warn_zone.js`·`location_alert_runtime.js`·`zone_setup.js`가 계속 쓴다 — 이 파일들은 바꾸지 않았다.
+
+시험(전 → 후, 같은 시험 파일 기준):
+- 회귀 시험을 옛 코드(origin/main의 화면·지도·저장소·라우터 4파일)에 돌려 실패 확인: `test_risk_store` 23 PASS / 2 FAIL, `test_risk_routes` 8/1, `test_risk_lifecycle` 42/1(`warning-zones` 요청 5회), `test_risk_map_layer` 36/3(특보 층·함수 존재, `/api/warn-zones`·`-sub` 요청).
+- 새 코드: `test_risk_store` 26→25(특보 구역 공급 시험 2건을 미공급 확인 1건으로), `test_risk_routes` 8→9, `test_risk_lifecycle` 48→43(특보 배경층 6건을 미표시 1건으로), `test_risk_map_layer` 45→39(특보 면 10건을 미표시 4건으로) — 모두 0 FAIL. 위험예측·해상 스위트 25개 전부 0 FAIL.
+
+확인하지 않은 것: 실제 운영 화면(브라우저 육안)·실기기.

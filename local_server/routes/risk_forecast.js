@@ -25,7 +25,6 @@ function createRouter({store=createStore(),marine=require('../services/marine_fu
     router.get(base+'/sea/accident-cells',handle(()=>store.accidentCells(),3600));
     router.get(base+'/sea/accident-frame',handle(req=>store.accidentFrame(req.query.t)));
     router.get(base+'/sea/accident-cell',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('사고 격자 id 필요'),{status:400});return store.accidentDetail(req.query.id,req.query.t,{lon:req.query.lon,lat:req.query.lat});}));
-    router.get(base+'/warning-zones',handle(req=>store.warningZones(req.query.t)));
     router.get(base+'/coast/frame',handle(req=>store.frame(false,req.query.t)));
     router.get(base+'/sea/frame',handle(req=>store.frame(true,req.query.t)));
     router.get(base+'/coast/spot',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('관광지 id 필요'),{status:400});return store.coastDetail(req.query.id,req.query.t);}));
