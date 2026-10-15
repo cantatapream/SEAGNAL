@@ -482,6 +482,24 @@ async function check(name, fn) {
                 'opened'
             );
         });
+        await check('원천·상태 필터는 이력뿐 아니라 현재 상태에도 적용', () => {
+            const h = createHistory({
+                dir: path.join(dir, 'filter-current'),
+                clock: () => now,
+            });
+            h.observeSources({
+                visibility: { status: 'error', lastError: 'empty response' },
+                realtime: { status: 'error', lastError: 'HTTP 503' },
+                accident: { status: 'stale' },
+                warnings: { status: 'ok' },
+            });
+            const sources = (f) =>
+                h.list(f).current.map((r) => r.source).sort().join(',');
+            assert.equal(sources({}), 'accident,realtime,visibility,warnings');
+            assert.equal(sources({ source: 'visibility' }), 'visibility');
+            assert.equal(sources({ status: 'error' }), 'realtime,visibility');
+            assert.equal(sources({ source: 'accident', status: 'error' }), '');
+        });
         await check('이미 보유한 파일 잠금은 다른 변경을 차단', () => {
             const release = io.acquireLock(
                 path.join(dir, 'error_history.json.lock')
