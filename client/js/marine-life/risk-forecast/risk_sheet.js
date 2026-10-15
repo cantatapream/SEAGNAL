@@ -58,12 +58,19 @@
         return '<details class="rf-hazards"><summary>위험구역 '+zones.length+'곳 현황</summary><ol>'+zones.map(function(z){return '<li data-zone-li="'+F.escape(z.id)+'"><b>'+F.escape(z.place||z.name)+'</b> · '+F.escape(z.shape)+' · '+F.escape(z.class)+'<br><button type="button" class="rf-hazard-link" data-zone-id="'+F.escape(z.id)+'" aria-pressed="false">'+F.escape(z.addr||'구역 위치 보기')+'</button>'+ (z.police?' · '+F.escape(F.stationLabel(z.police,z.office)):'')+'</li>';}).join('')+'</ol></details>';
     }
     /**
-     * 오늘 집중률이 평소(30일 기하평균)의 몇 배인지 소수 한 자리로 쓴다(U81① — 사람 혼잡 줄).
-     * 예: crowdTimes(1.84) → '1.8배'
+     * 오늘 집중률이 평소(30일 기하평균)의 몇 배인지 쓴다(U81 — 사람 혼잡 줄). 2배 미만은 소수 둘째 자리, 2배 이상은 소수 한 자리.
+     * 왜: 2배 미만의 사고 가능성은 정수 %(R6-1·R6-2, 1% 단위)로 나오므로 사람 배수도 1% 단위로 맞춘다 — 소수 한 자리면
+     *     1.03배가 「1.0배라 평소 대비 3% 높은」처럼 서로 어긋나 보였다(2026-10-15 검토).
+     * 예: crowdTimes(1.034) → '1.03배' · crowdTimes(1.84) → '1.84배' · crowdTimes(4.27) → '4.3배'
      * @param {number} ratio - 서버 factor.ratio(오늘 집중률 ÷ 30일 기하평균)
      * @returns {string} 표시 문구 [연계] coastRows·coastCalculation
      */
-    function crowdTimes(ratio) { return (Math.round(ratio*10)/10).toFixed(1)+'배'; }
+    function crowdTimes(ratio) { return ratio<2?(Math.round(ratio*100)/100).toFixed(2)+'배':(Math.round(ratio*10)/10).toFixed(1)+'배'; }
+    /**
+     * 30일 기하평균 집중률을 소수 한 자리로 쓴다. 예: crowdBase(17.3205) → '17.3', crowdBase(20) → '20.0'.
+     * @param {number} base - 서버 factor.base(risk_score 의 gm, 반올림 없음) @returns {string} [연계] coastRows / 계산은 서버 원값으로 한다(표시만 반올림).
+     */
+    function crowdBase(base) { return Number.isFinite(Number(base))?Number(base).toFixed(1):''; }
     /**
      * 위험구역 종류별 개수를 한 줄로 쓴다(U81② — 종류마다 따로 셈). 0곳인 종류는 뺀다.
      * 예: hazardKinds([{class:'연안사고 위험구역',count:2},{class:'사망사고 발생구역',count:0},{class:'연안사고 다발구역',count:1}]) → '연안사고 위험구역 2곳 · 연안사고 다발구역 1곳, 모두 '
@@ -84,7 +91,7 @@
             var labels={people:'사람 혼잡',hazard:'위험구역(3km 안)',event:'행사 정보',month:r.month+'월 분석',swell:'너울',rip:'이안류'};
             if(r.missing)return row(labels[r.key]||r.key,'<span class="rf-muted">자료 없음</span>','',false);
             switch(r.key) {
-                case 'people': if(!(r.score>0))return ''; var times=crowdTimes(r.ratio); return row(labels.people,b(times,r.rr)+' <small>(집중률 '+F.escape(r.cr)+' · 30일 평균 '+F.escape(r.base)+')</small>','사람이 평소(30일 평균) 대비 '+b(times,r.rr)+'라 평소 대비 '+possibility(r.rr)+fatal(r.fatalRr,'평소 대비'));
+                case 'people': if(!(r.score>0))return ''; var times=crowdTimes(r.ratio); return row(labels.people,b(times,r.rr)+' <small>(집중률 '+F.escape(r.cr)+' · 30일 평균 '+F.escape(crowdBase(r.base))+')</small>','사람이 평소(30일 평균) 대비 '+b(times,r.rr)+'라 평소 대비 '+possibility(r.rr)+fatal(r.fatalRr,'평소 대비'));
                 case 'hazard': if(!r.count)return ''; return row(labels.hazard,b(r.count+'곳',r.rr),hazardKinds(r.byType)+b(r.count+'곳',r.rr)+' 있어 위험구역 없는 곳 대비 '+possibility(r.rr)+fatal(r.fatalRr,'위험구역 없는 곳 대비')+hazards(r.zones||[]));
                 case 'event': var events=r.events&&r.events.length?r.events:[{name:r.name,src:r.src,sourceType:r.sourceType,start:r.dateRange&&r.dateRange[0],end:r.dateRange&&r.dateRange[1]}],links=events.map(function(e){var url=F.safeURL(e.src);return (url?'<br><a href="'+F.escape(url)+'" target="_blank" rel="noopener noreferrer">'+(events.length>1?F.escape(e.name)+' · ':'')+(e.sourceType==='tourapi'?'관광공사 원천 자료':'행사 원문')+'</a>':'')+(e.start&&e.end?' · '+F.escape(e.start+' ~ '+e.end):'');}).join('');return row(labels.event,'<b class="rf-t-'+(r.weekend?'y':'g')+'">'+F.escape(r.name)+'</b>',(r.weekend?'주말 행사가 있어 같은 요일 행사 없는 날 대비 '+possibility(r.rr):'평일 행사는 과거 사고에 차이가 없어 점수에 넣지 않음')+links);
                 case 'month':return row(labels.month,'', '1년 평균 대비 '+possibility(r.rr)+fatal(r.fatalRr,'1년 평균 대비'));

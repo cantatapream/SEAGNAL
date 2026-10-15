@@ -30,6 +30,11 @@ test('위험구역 이름 escape',()=>assert.ok(S.coastRows([{key:'hazard',count
 test('평일 행사 설명',()=>assert.ok(S.coastRows([{key:'event',name:'축제',weekend:false}]).includes('평일 행사는 과거 사고에 차이가 없어')));
 test('U81 사람: 평소(30일 평균) 이하라 0점이면 줄 숨김(종전 「0단계 숨김」)',()=>{assert.equal(S.coastRows([{key:'people',score:0,ratio:.5,cr:5,base:10,rr:1,fatalRr:1}]),'');assert.equal(S.coastRows([{key:'people',stage:0}]),'');});
 test('U81 사람 줄: 「평소(30일 평균) 대비 N배」·집중률과 30일 평균을 함께·평소 대비 사고 가능성',()=>{const h=S.coastRows([{key:'people',score:.97,ratio:2,cr:40,base:20,baseDays:30,rr:1.96,fatalRr:1.54}]);assert.match(h,/사람이 평소\(30일 평균\) 대비 <b class="rf-t-y">2\.0배<\/b>라 평소 대비 /);assert.match(h,/집중률 40 · 30일 평균 20/);assert.match(h,/96%<\/b> 높은 사고 발생 가능성/);assert.match(h,/사망·실종 사고 발생 가능성 : 평소 대비 /);assert.doesNotMatch(h,/단계|한산할 때/);});
+// 2026-10-15 검토: 30일 평균이 17.3205 처럼 원값 그대로, 1.03배가 「1.0배라 평소 대비 3% 높은」처럼 어긋나 보였다.
+test('U81 사람 줄 숫자: 30일 평균은 소수 한 자리 · 2배 미만 배수는 소수 둘째 자리(정수 %와 같은 1% 단위) · 2배 이상은 소수 한 자리',()=>{
+  const rr=r=>1.96**Math.log2(r),row=(ratio,base)=>S.coastRows([{key:'people',score:.97*Math.log2(ratio),ratio,cr:+(ratio*base).toFixed(1),base,baseDays:30,rr:rr(ratio),fatalRr:1.54**Math.log2(ratio)}]);
+  let h=row(1.03,17.3205);assert.match(h,/30일 평균 17\.3\)/);assert.doesNotMatch(h,/17\.32/);assert.match(h,/대비 <b[^>]*>1\.03배<\/b>라 평소 대비 <b[^>]*>3%<\/b> 높은/);assert.doesNotMatch(h,/1\.0배/);
+  assert.match(row(1.84,20),/1\.84배.*30일 평균 20\.0/);assert.match(row(4.27,10),/4\.3배/);assert.match(row(2,20),/2\.0배/);});
 test('U81 사람 결측은 「자료 없음」 줄(30일 평균이 없을 때 포함)',()=>assert.match(S.coastRows([{key:'people',missing:true,score:0}]),/사람 혼잡.*자료 없음/));
 test('U81 위험구역 줄: 종류별 개수(0곳 종류는 뺌)·모두 N곳·없는 곳 대비',()=>{const h=S.coastRows([{key:'hazard',count:3,rr:1.85,fatalRr:1.86,byType:[{class:'연안사고 위험구역',count:2},{class:'사망사고 발생구역',count:0},{class:'연안사고 다발구역',count:1}],zones:[]}]);assert.match(h,/연안사고 위험구역 2곳 · 연안사고 다발구역 1곳, 모두 <b[^>]*>3곳<\/b> 있어 위험구역 없는 곳 대비/);assert.doesNotMatch(h,/사망사고 발생구역 0곳/);});
 test('U81 연안 기준 상세: 새 기준(평소=30일 평균)·종류별 위험구역 점수·재추정 달·0점 뜻 변화 문구, 옛 계단·가산 문구 없음',()=>{const ctx={window:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(dir,'risk_basis_content.js'),'utf8'),ctx);const c=ctx.window.RiskBasisContent.coast;

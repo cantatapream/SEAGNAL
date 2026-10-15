@@ -25,7 +25,7 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
    assert.equal((await collector.collect('2026-10')).ok,true);assert.equal(calls,1);assert.equal(captured.model,'gemini-2.5-flash');assert.equal(captured.caller,'CoastalEvents');assert.deepEqual(captured.config.tools,[{googleSearch:{}}]);
    for(const term of ['철인3종','오픈워터','수영','서핑','SUP','카누','용선','드래곤보트','요트','마라톤','달리기','자전거','비치발리볼','배구','걷기','갯바위','방파제','선상','불꽃','음악','해넘이','해맞이','바닷길','갯벌','수산물','해산물','머드','벚꽃','군항제','개장/폐장','에어쇼','함정 공개','2026-10-01','2026-10-31','공식 지자체/주최기관','원문 https URL','시도·시군구·번지','좌표는 추정하지','취소','내륙/하천','상시 관광활동','만들어 넣지','전월후보','재확인하지 못한 후보는 제외',
     // 2026-10-15 사용자 승인 보완(4·5번): 섬·대상 시군구·해안 1km·스포츠 먼저·해변/항구 지역축제·올해 일정만·실제 연 페이지·출처 범위·빈 결과·작년까지 열린 행사·venue/sgg
-    '섬 지역','한산도','부산광역시 중구','해안선에서 1km','스포츠 대회를 먼저','바다축제','모래축제','한산대첩축제','거북선축제','2026년 일정이 명시된','작년 일정을 올해로 옮기지','바뀐 일정','실제로 열어 본','국제연맹','신문사','{"events":[]}','설명·마크다운 금지','"venue"','"sgg"','번지가 없으면 빈 문자열','작년까지 이 지역에서 열린 행사','부산불꽃축제(야간·대규모)','남해안컵 국제요트대회(물에 들어가는 대회)'])assert.ok(captured.contents.includes(term),term);
+    '섬 지역','한산도','부산광역시 중구','해안선에서 1km','스포츠 대회를 먼저','바다축제','모래축제','한산대첩축제','거북선축제','2026년 일정이 명시된','작년 일정을 올해로 옮기지','바뀐 일정','실제로 열어 본','국제연맹','신문사','{"events":[]}','설명·마크다운 금지','"venue"','"sgg"','구가 있는 시는 구까지','번지가 없으면 빈 문자열','작년까지 이 지역에서 열린 행사','부산불꽃축제(야간·대규모)','남해안컵 국제요트대회(물에 들어가는 대회)'])assert.ok(captured.contents.includes(term),term);
    assert.equal(captured.contents.includes('진해군항제'),false,'다른 시도(경남) 과거 행사는 넣지 않는다');
    const saved=io.read(path.join(dir,'events_202610.json')).events[0];assert.equal(saved.sourceType,'gemini');assert.equal(saved.src,src,'경유 주소를 풀어낸 실제 주소로 근거 확인');
    assert.equal(redirectOptions.length,1);assert.equal(redirectOptions[0].redirect,'manual');assert.ok(redirectOptions[0].signal,'경유 주소 풀기에도 시간 제한');
@@ -220,6 +220,75 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
   let guard;const r=await Promise.race([c.collect('2026-10'),new Promise((_,reject)=>{guard=setTimeout(()=>reject(new Error('시간 제한이 동작하지 않음')),5000);})]).finally(()=>clearTimeout(guard));
   assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.failedProvinces,['경상남도']);assert.deepEqual(io.read(path.join(dir,'events_202610.json')).provinces['경상남도'],{status:'error',reason:'시도 응답 시간 초과'});
   assert.equal((await c.collect('2026-10')).ok,true,'잠금이 풀려 다음 수집이 돈다');assert.equal(events.SEARCH_TIMEOUT_MS,600000);
+ });
+ // 2026-10-15 사용자: 「공식 행사는 저장해놔야지. 그리고 우리 앱에 저장실패했다는 내용을 알려야하겠지? 우리 기능 중 오류를 기록하는 기능이 있잖아? 서버 기록 말고. 통합관리자 센터에서.」
+ await check('9 Gemini 호출 자체 실패(success:false — 키 쿨다운 등)도 그 시도만 실패 · 공식·다른 시도 저장 · 상태 ok · 오류현황 「일부 실패」 · 다음 03:20 그 시도만 재질문 → 복구',async()=>{
+  let gyeongnamDown=true;const real='https://www.busan.go.kr/e/1',tongyeong='https://www.tongyeong.go.kr/e/2';
+  const reply=p=>p==='부산광역시'?geminiReply([{name:'부산 대회',venue:'민락수변공원',sgg:'부산광역시 수영구',address:'',start:'2026-10-11',end:'2026-10-11',src:real}],[REDIR+'a'])
+   :gyeongnamDown?{success:false,response:null,error:'모든 Gemini API 키가 쿨다운 중입니다.',isRateLimited:true,keyLabel:null}:geminiReply([{name:'한산도 낚시대회',venue:'한산도',sgg:'경상남도 통영시',address:'',start:'2026-10-18',end:'2026-10-18',src:tongyeong}],[REDIR+'b']);
+  await withGemini(reply,async asked=>{const dir=temp();let clock=now;
+   const c=events.createCollector({dir,kakaoKey:'test',clock:()=>clock,festivalSearch:async()=>[officialRow()],spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch({redirects:{a:real,b:tongyeong},kakao:officialKakao})});
+   const r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.failedProvinces,['경상남도']);
+   let f=io.read(path.join(dir,'events_202610.json'));assert.deepEqual(f.events.map(e=>e.name).sort(),['공식 행사','부산 대회'],'공식 행사와 다른 시도 결과는 저장');
+   assert.deepEqual(f.provinces['경상남도'],{status:'error',reason:'Gemini 호출 실패'});assert.equal(f.skipped['Gemini 호출 실패'],1);
+   let st=io.read(path.join(dir,'events_202610_status.json'));assert.equal(st.status,'ok','행사 점수에 쓰이도록 상태는 ok');assert.equal(st.failedProvinceCount,1);assert.ok(st.detail.startsWith('시도 실패 경상남도(Gemini 호출 실패)'),st.detail);
+   const history=require('../services/risk_error_history').createHistory({dir,clock:()=>clock}),row=()=>history.list({source:'events'}).current.find(x=>x.scope==='2026-10');
+   assert.equal(row().status,'partial');assert.equal(row().code,'Gemini 일부 실패');assert.equal(row().detail,st.detail);
+   const opened=history.list({source:'events'}).data;assert.deepEqual(opened.map(e=>[e.phase,e.status]),[['opened','partial']],'두 상태 파일(events·events_202610)이 같은 달이라 이력은 한 건');
+   // 1분 관찰(risk_store 월 상태 — status ok + failedProvinceCount)이 「일부 실패」를 정상으로 덮지 않는다.
+   history.observeSources({events:{months:{'2026-10':{status:'ok',month:'2026-10',lastError:null,failedProvinceCount:1}}}});assert.equal(row().status,'partial');assert.equal(history.list({source:'events'}).data.length,1);
+   clock=Date.parse('2026-10-12T03:20:00+09:00');gyeongnamDown=false;
+   assert.equal((await c.tick()).ok,true);assert.deepEqual([...asked],['부산광역시','경상남도','경상남도'],'성공한 부산은 다시 묻지 않는다');
+   f=io.read(path.join(dir,'events_202610.json'));assert.deepEqual(f.events.map(e=>e.name).sort(),['공식 행사','부산 대회','한산도 낚시대회']);
+   st=io.read(path.join(dir,'events_202610_status.json'));assert.equal(st.failedProvinceCount,0);assert.equal(st.detail,null);
+   assert.equal(row().status,'ok');assert.ok(row().recoveredAt,'복구 시각');assert.deepEqual(history.list({source:'events'}).data.map(e=>[e.phase,e.status]),[['recovered','ok'],['opened','partial']]);
+   assert.deepEqual(history.list({status:'partial'}).data.map(e=>e.phase),['opened'],'상태 필터 「일부 실패」');
+  });
+ });
+ // ── 2026-10-15 독립 검토(32e28ba6a 기준 재현) 결함 회귀 시험 10~14
+ await check('10 근거: 쿼리까지 같은 근거 먼저 · 호스트+경로가 같은 근거가 둘인데 전체 일치가 없으면 근거 불일치 · 하나뿐이면 추적 쿼리 무시',async()=>{
+  const g7='https://www.suyeong.go.kr/board/view.do?idx=7',g8='https://www.suyeong.go.kr/board/view.do?idx=8',base={venue:'민락수변공원',sgg:'부산광역시 수영구',address:'',start:'2026-10-11',end:'2026-10-11'};
+  const dir=temp(),c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:noOfficial,spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch(),
+   search:async(_t,p)=>p!=='부산광역시'?{events:[],grounded:[]}:{events:[{...base,name:'진짜 대회',src:g8},{...base,name:'지어낸 대회',src:'https://www.suyeong.go.kr/board/view.do?idx=99999'}],grounded:[g7,g8]}});
+  const r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));const f=io.read(path.join(dir,'events_202610.json'));
+  assert.deepEqual(f.events.map(e=>[e.name,e.src]),[['진짜 대회',g8]],'진짜 행사는 자기 글 링크로, 지어낸 글 번호는 버림');assert.deepEqual(f.skipped,{'근거 불일치':1});
+  assert.equal(events.matchGrounding('https://a.example/x?utm=1',['https://a.example/x']),'https://a.example/x','같은 경로 근거가 하나면 추적 쿼리는 무시');
+  assert.equal(events.matchGrounding('https://a.example/x?idx=3',[g7,'https://a.example/x?idx=1','https://a.example/x?idx=2']),null);
+  assert.equal(events.matchGrounding('https://A.example/x/?idx=2#top',['https://a.example/x?idx=1','https://a.example/x?idx=2']),'https://a.example/x?idx=2','대소문자·끝 /·조각은 정규화');
+ });
+ await check('11 구가 있는 시: Gemini sgg 「경상남도 창원시」(구 없음)도 진해구 관광지 이름·카카오 후보와 연결 · 시 안 후보가 둘로 갈리면 버림',async()=>{
+  const spots=[...evSpots,{sgg:'48129',sgg_name:'경상남도 창원시 진해구',name:'속천항',lat:35.14,lon:128.69}],src='https://www.changwon.go.kr/e/1',base={sgg:'경상남도 창원시',address:'',start:'2026-10-11',end:'2026-10-11',src};
+  const kakao=q=>q==='창원시 진해루'?[{place_name:'진해루',road_address_name:'경남 창원시 진해구 천자로 1',x:'128.70',y:'35.13'}]
+   :q==='창원시 해변공원'?[{place_name:'해변공원',road_address_name:'경남 창원시 진해구 a로 1',x:'128.70',y:'35.13'},{place_name:'해변공원',road_address_name:'경남 창원시 마산합포구 b로 2',x:'128.57',y:'35.2'}]:[];
+  const dir=temp(),fetchImpl=fakeFetch({kakao}),c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:noOfficial,spots,coastalGeometry:farLand,fetchImpl,
+   search:async(_t,p)=>p!=='경상남도'?{events:[],grounded:[]}:{events:[{...base,name:'진해 낚시대회',venue:'속천항'},{...base,name:'진해루 행사',venue:'진해루'},{...base,name:'두 구 후보',venue:'해변공원'}],grounded:[src]}});
+  const r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));const f=io.read(path.join(dir,'events_202610.json')),by=Object.fromEntries(f.events.map(e=>[e.name,e]));
+  assert.deepEqual(Object.keys(by).sort(),['진해 낚시대회','진해루 행사']);assert.equal(by['진해 낚시대회'].spotId,'48129|속천항');assert.equal(by['진해루 행사'].resolvedAddress,'경남 창원시 진해구 천자로 1');
+  assert.deepEqual(f.skipped,{'주소/장소 불일치':1});assert.deepEqual(fetchImpl.log.kakao,['창원시 진해루','창원시 해변공원'],'관광지 이름이 맞으면 카카오를 부르지 않는다');
+ });
+ await check('12 Gemini 행사도 대상 시군구(관광지가 있는 시군구) 밖이면 건너뜀 — 행사장 이름 경로·번지 경로 모두(전남 여수 행사가 남해 관광지에 붙지 않음)',async()=>{
+  const spots=[...evSpots,{sgg:'48840',sgg_name:'경상남도 남해군',name:'남해 상주은모래비치',lat:34.72,lon:127.99}],src='https://www.yeosu.go.kr/e/1',ok='https://city.example/e';
+  const kakao=q=>q.includes('여수')?[{place_name:'이순신광장',road_address_name:'전남 여수시 중앙로 1',address_name:'전남 여수시 중앙동 1',x:'127.737',y:'34.737'}]:[];
+  const dir=temp(),fetchImpl=fakeFetch({kakao}),c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:noOfficial,spots,coastalGeometry:farLand,fetchImpl,
+   search:async(_t,p)=>p!=='경상남도'?{events:[{name:'부산 대회',venue:'민락수변공원',sgg:'부산광역시 수영구',start:'2026-10-11',end:'2026-10-11',src:ok}],grounded:[ok]}:{events:[{name:'여수 축제',venue:'이순신광장',sgg:'전라남도 여수시',address:'',start:'2026-10-17',end:'2026-10-18',src},{name:'여수 번지 행사',venue:'',sgg:'',address:'전라남도 여수시 중앙동 1',start:'2026-10-17',end:'2026-10-18',src}],grounded:[src]}});
+  const r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));const f=io.read(path.join(dir,'events_202610.json'));
+  assert.deepEqual(f.events.map(e=>e.name),['부산 대회']);assert.deepEqual(f.skipped,{'대상 시군구 밖':2});assert.deepEqual(fetchImpl.log.kakao,[],'대상 밖이면 카카오도 부르지 않는다');
+ });
+ await check('13 근거는 https 만: 경유 주소가 http:// 로 풀리거나 근거 자체가 http 면 저장하지 않음(근거 확인 불가)',async()=>{
+  assert.deepEqual(await events.resolveGrounding(REDIR+'h',async()=>({status:302,headers:new Headers({location:'http://www.busan.go.kr/e/1'})})),{error:'not https'});
+  assert.deepEqual(await events.resolveGrounding('http://www.busan.go.kr/e/1',async()=>{throw Error('부르지 않는다');}),{error:'not https'});
+  const ev={name:'http 근거',venue:'민락수변공원',sgg:'부산광역시 수영구',address:'',start:'2026-10-11',end:'2026-10-11',src:'https://www.busan.go.kr/e/1'};
+  await withGemini(p=>p==='부산광역시'?geminiReply([ev],[REDIR+'h']):geminiReply([],[]),async()=>{const dir=temp();const c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:async()=>[officialRow()],spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch({redirects:{h:'http://www.busan.go.kr/e/1'},kakao:officialKakao})});
+   const r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));const f=io.read(path.join(dir,'events_202610.json'));assert.deepEqual(f.events.map(e=>e.name),['공식 행사']);assert.deepEqual(f.skipped,{'근거 확인 불가':1});});
+ });
+ await check('14 실패 시도만 재질문하는 실행에서 Gemini 가 전부 실패해도 월 상태는 ok(저장된 행사가 점수에서 빠지지 않음) · 오류현황은 일부 실패',async()=>{
+  let down=false;const real='https://www.busan.go.kr/e/1';
+  const reply=p=>down?{success:false,response:null,error:'모든 Gemini API 키가 쿨다운 중입니다.',isRateLimited:true,keyLabel:null}:p==='부산광역시'?geminiReply([{name:'부산 대회',venue:'민락수변공원',sgg:'부산광역시 수영구',address:'',start:'2026-10-11',end:'2026-10-11',src:real}],[REDIR+'a']):geminiReply('찾지 못했습니다',[]);
+  await withGemini(reply,async asked=>{const dir=temp();let clock=now;const c=events.createCollector({dir,kakaoKey:'test',clock:()=>clock,festivalSearch:async()=>[officialRow()],spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch({redirects:{a:real},kakao:officialKakao})});
+   assert.equal((await c.collect('2026-10')).ok,true);down=true;clock=Date.parse('2026-10-12T03:20:00+09:00');const r=await c.tick();assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual([...asked],['부산광역시','경상남도','경상남도']);
+   const st=io.read(path.join(dir,'events_202610_status.json'));assert.equal(st.status,'ok');assert.equal(st.failedProvinceCount,1);assert.deepEqual(io.read(path.join(dir,'events_202610.json')).events.map(e=>e.name).sort(),['공식 행사','부산 대회']);
+   const store=require('../services/risk_store').createStore({dir,clock:()=>clock});assert.equal(store.sources(true).events.months['2026-10'].status,'ok','risk_store 가 그 달 행사를 쓴다');
+   assert.equal(require('../services/risk_error_history').createHistory({dir,clock:()=>clock}).list({source:'events'}).current.find(x=>x.scope==='2026-10').status,'partial');});
  });
  await check('8 버린 이유 전부 사유별(근거·기간 밖·내륙·형식·취소·대상 시군구 밖) + 상태 detail → 관리자 오류현황 상세(1분 관찰이 지우지 않음)',async()=>{
   const dir=temp(),src='https://city.example/e',land={type:'Polygon',coordinates:[[[129.10,35.14],[129.14,35.14],[129.14,35.17],[129.10,35.17],[129.10,35.14]]]};

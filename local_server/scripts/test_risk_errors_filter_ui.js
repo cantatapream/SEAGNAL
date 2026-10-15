@@ -48,6 +48,18 @@ history.observeSources({
     ripCurrent: { status: 'offseason' },
     events: { months: { '2026-10': { status: 'missing' } } },
 });
+// 행사 다음 달: 수집은 성공(ok)했지만 Gemini 보충검색이 두 시도에서 실패 → 「일부 실패」(2026-10-15).
+history.observeSources({
+    events: {
+        months: {
+            '2026-11': {
+                status: 'ok',
+                failedProvinceCount: 2,
+                detail: '시도 실패 경상남도(Gemini 호출 실패), 전라남도(Gemini 호출 실패)',
+            },
+        },
+    },
+});
 now += 60000;
 history.observeSources({ warnings: { status: 'stale' } });
 now += 60000;
@@ -178,6 +190,25 @@ app.get('/', (req, res) =>
             assert.ok(sr > sb + 60 && sg > sb + 60, '자료 오래됨은 노랑 계열: ' + colors.stale);
             assert.ok(og > or + 60, '정상은 초록 계열: ' + colors.ok);
             assert.ok(Math.max(mr, mg, mb) - Math.min(mr, mg, mb) < 40, '자료 없음은 회색 계열: ' + colors.missing);
+        });
+        // 2026-10-15 사용자: 「우리 앱에 저장실패했다는 내용을 알려야하겠지? … 통합관리자 센터에서.」
+        await test('일부 실패: 주황 배지·선택지·상태 필터가 현재 상태·이력에 적용·분류와 상세 줄', async () => {
+            const color = await page.evaluate(() => {
+                const b = document.querySelector('[data-risk-current] [data-risk-badge="partial"]');
+                return b ? getComputedStyle(b).color : null;
+            });
+            assert.ok(color, '일부 실패 배지 없음');
+            const [r, g, b] = color.match(/\d+/g).slice(0, 3).map(Number);
+            assert.ok(r > g + 80 && g > b + 60, '일부 실패는 주황 계열(노랑·빨강과 구별): ' + color);
+            const values = await page.locator('[data-risk-status] option').evaluateAll((os) => os.map((o) => o.value));
+            assert.ok(values.includes('partial'), 'partial 선택지 없음');
+            await choose('status', 'partial');
+            const { current, history: h } = await sections();
+            for (const t of ['행사', '2026-11', '일부 실패', 'Gemini 일부 실패', '경상남도(Gemini 호출 실패)'])
+                assert.ok(current.includes(t), '현재 상태에 ' + t + ' 없음');
+            for (const other of ['해구별 시정 예측', '2026-10', '이안류']) assert.ok(!current.includes(other), '현재 상태에 ' + other + ' 가 남아 있음');
+            assert.ok(h.includes('문제 발생') && h.includes('일부 실패') && !h.includes('수집 실패'), '이력 필터');
+            await choose('status', '');
         });
         await test('상세·분류·시각 줄 유지', async () => {
             const { current } = await sections();

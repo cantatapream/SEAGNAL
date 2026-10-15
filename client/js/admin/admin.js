@@ -748,10 +748,11 @@ window.switchAiSubTab = function (which) {
  */
 function renderAiForecastSubtab(container) {
     const names = {warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측'};
-    const statuses = {ok:'정상',offseason:'비운영 기간',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
+    // partial(일부 실패): 자료는 저장·사용 중이지만 일부가 빠졌다 — 예: 행사 수집의 Gemini 보충검색이 일부 시도에서 실패(2026-10-15).
+    const statuses = {ok:'정상',offseason:'비운영 기간',partial:'일부 실패',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
     const phases = {opened:'문제 발생',changed:'문제 변경',recovered:'복구'};
-    // 상태 배지 색 — 관리자 화면에서 이미 쓰는 값(정상 #34d399·경고 #fbbf24·에러 #f87171·보조 #94a3b8·강조 #22d3ee)
-    const tones = {ok:'52,211,153',stale:'251,191,36',error:'248,113,113',missing:'148,163,184',offseason:'34,211,238'};
+    // 상태 배지 색 — 관리자 화면에서 이미 쓰는 값(정상 #34d399·경고 #fbbf24·에러 #f87171·보조 #94a3b8·강조 #22d3ee) + 일부 실패 주황 #fb923c
+    const tones = {ok:'52,211,153',stale:'251,191,36',partial:'251,146,60',error:'248,113,113',missing:'148,163,184',offseason:'34,211,238'};
     const esc = value => String(value == null ? '—' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const at = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('ko-KR', {timeZone:'Asia/Seoul', hour12:false}) + ' KST' : '—';
     const selectStyle = 'width:100%;padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;box-sizing:border-box;';
@@ -765,7 +766,7 @@ function renderAiForecastSubtab(container) {
         + '<div style="color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;">자료 수집·누락·오래됨과 복구 내역입니다. 같은 문제가 반복되면 한 건으로 유지합니다. 원천·상태를 고르면 <b>현재 원천 상태</b>와 <b>오류·복구 이력</b>이 함께 걸러집니다.</div>'
         + '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">'
         +   '<div style="flex:1 1 140px;min-width:0;"><label style="' + labelStyle + '">원천<select data-risk-source style="' + selectStyle + 'margin-top:3px;">' + options(Object.keys(names), names) + '</select></label></div>'
-        +   '<div style="flex:1 1 120px;min-width:0;"><label style="' + labelStyle + '">상태<select data-risk-status style="' + selectStyle + 'margin-top:3px;">' + options(['error','stale','missing','ok','offseason'], statuses) + '</select></label></div>'
+        +   '<div style="flex:1 1 120px;min-width:0;"><label style="' + labelStyle + '">상태<select data-risk-status style="' + selectStyle + 'margin-top:3px;">' + options(['error','partial','stale','missing','ok','offseason'], statuses) + '</select></label></div>'
         +   '<button type="button" data-risk-refresh style="padding:8px 14px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-size:0.8rem;font-weight:700;cursor:pointer;"><i class="fa-solid fa-rotate-right"></i> 새로고침</button>'
         + '</div>'
         + '<div data-risk-history aria-live="polite"></div><div data-risk-pagination style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;color:#94a3b8;font-size:0.8rem;"></div></div>';

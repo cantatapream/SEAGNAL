@@ -9,7 +9,7 @@ const fs = require('fs'),
     express = require('express'),
     vm = require('vm');
 const { createRequire } = require('module');
-const { createHistory } = require('../services/risk_error_history'),
+const { createHistory, STATES } = require('../services/risk_error_history'),
     io = require('../services/risk_collector_io');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'risk-errors-'));
 const TEST_PASSWORD = 'test-only-password';
@@ -500,6 +500,63 @@ async function check(name, fn) {
             assert.equal(sources({ status: 'error' }), 'realtime,visibility');
             assert.equal(sources({ source: 'accident', status: 'error' }), '');
         });
+        // 2026-10-15 사용자: 「우리 앱에 저장실패했다는 내용을 알려야하겠지? … 통합관리자 센터에서.」
+        await check(
+            '일부 실패(partial): 행사 수집 ok + failedProvinceCount>0 만 · 두 상태 파일 한 건 · 재기동 후 읽기 · 필터 · 오류로 바뀌면 changed · 다른 원천 영향 없음',
+            () => {
+                const partialDir = path.join(dir, 'partial'),
+                    h = createHistory({ dir: partialDir, clock: () => now }),
+                    st = {
+                        month: '2026-10',
+                        status: 'ok',
+                        lastError: null,
+                        failedProvinces: ['경상남도'],
+                        failedProvinceCount: 1,
+                        detail: '시도 실패 경상남도(Gemini 호출 실패)',
+                    };
+                assert.ok(STATES.includes('partial'));
+                h.recordCollector('events_202610', st);
+                h.recordCollector('events', st);
+                const row = () =>
+                    h.list().current.find((r) => r.source === 'events');
+                assert.equal(row().status, 'partial');
+                assert.equal(row().code, 'Gemini 일부 실패');
+                assert.equal(row().detail, st.detail);
+                assert.deepEqual(
+                    h.list().data.map((e) => [e.phase, e.status]),
+                    [['opened', 'partial']]
+                );
+                h.observeSources({
+                    warnings: { status: 'ok' },
+                    accident: { status: 'ok' },
+                    ripCurrent: { status: 'offseason' },
+                    realtime: { status: 'error', lastError: 'HTTP 503' },
+                });
+                const statusOf = (source) =>
+                    h.list().current.find((r) => r.source === source).status;
+                assert.equal(statusOf('warnings'), 'ok');
+                assert.equal(statusOf('ripCurrent'), 'offseason');
+                assert.equal(statusOf('realtime'), 'error');
+                const again = createHistory({
+                    dir: partialDir,
+                    clock: () => now,
+                }).list({ status: 'partial' });
+                assert.deepEqual(
+                    again.current.map((r) => r.source + ':' + r.scope),
+                    ['events:2026-10'],
+                    '저장 파일을 다시 읽어도(clean) partial 유지'
+                );
+                assert.equal(again.data.length, 1);
+                now += 60000;
+                h.recordCollector('events', {
+                    ...st,
+                    status: 'error',
+                    lastError: 'HTTP 500',
+                });
+                assert.equal(row().status, 'error');
+                assert.equal(h.list().data[0].phase, 'changed');
+            }
+        );
         await check('이미 보유한 파일 잠금은 다른 변경을 차단', () => {
             const release = io.acquireLock(
                 path.join(dir, 'error_history.json.lock')
@@ -546,6 +603,15 @@ async function check(name, fn) {
                         })
                     ).status,
                     200
+                );
+                assert.equal(
+                    (
+                        await fetch(url + '?status=partial', {
+                            headers: { 'X-Admin-Token': token },
+                        })
+                    ).status,
+                    200,
+                    '「일부 실패」 상태 필터'
                 );
                 for (const query of [
                     'limit=101',

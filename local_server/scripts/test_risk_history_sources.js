@@ -471,6 +471,54 @@ async function check(name, fn) {
             }
         );
         await check(
+            '행사 일부 시도 실패(failedProvinceCount): 공개 저장소는 그 달을 ok(점수에 사용) · 감시 경로는 숫자를 읽어 오류현황 「일부 실패」 → 0 이면 복구 (2026-10-15)',
+            async () => {
+                const status = (count) =>
+                        write(dir, 'events_202610_status.json', {
+                            month: '2026-10',
+                            status: 'ok',
+                            lastRun: at(),
+                            lastSuccess: at(),
+                            lastError: null,
+                            failedProvinces: count ? ['경상남도', '전라남도'] : [],
+                            failedProvinceCount: count,
+                            detail: count ? '시도 실패 경상남도(Gemini 호출 실패), 전라남도(Gemini 호출 실패)' : null,
+                        }),
+                    h = createHistory({
+                        dir: path.join(root, 'events-partial-history'),
+                        clock: () => now,
+                    }),
+                    current = () =>
+                        h.list({ source: 'events' }).current.find(
+                            (r) => r.scope === '2026-10'
+                        );
+                status(2);
+                const b = await read();
+                assert.equal(b.events.months['2026-10'].status, 'ok');
+                assert.equal(b.events.months['2026-10'].failedProvinceCount, 2);
+                assert.equal(
+                    publicStore.sources(true).events.months['2026-10'].status,
+                    'ok',
+                    '공개 저장소는 그 달 행사를 계속 쓴다'
+                );
+                h.observeSources(b);
+                assert.equal(current().status, 'partial');
+                assert.equal(current().code, 'Gemini 일부 실패');
+                now += 60000;
+                status(0);
+                h.observeSources(await read());
+                assert.equal(current().status, 'ok');
+                assert.deepEqual(
+                    h
+                        .list({ source: 'events' })
+                        .data.filter((e) => e.scope === '2026-10')
+                        .map((e) => e.phase),
+                    ['recovered', 'opened']
+                );
+                fs.rmSync(path.join(dir, 'events_202610_status.json'));
+            }
+        );
+        await check(
             '월 경계 후 이전 행사 메타데이터도 감시 캐시에서 제거',
             async () => {
                 now = Date.parse('2026-11-01T12:00:00+09:00');

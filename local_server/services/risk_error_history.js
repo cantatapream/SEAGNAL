@@ -1,5 +1,5 @@
 /**
- * 역할: 위험예측 자료의 오류·누락·낡음·복구를 비밀 없이 유한 이력으로 보관한다.
+ * 역할: 위험예측 자료의 오류·누락·낡음·일부 실패·복구를 비밀 없이 유한 이력으로 보관한다.
  * [연계] risk_collector_io.status / risk_history_sources의 작은 상태 자료 / server.js 상태 감시 → routes/risk_errors.
  * [로드 순서] require만으로 감시하지 않는다. 운영 서버에서 start를 호출한다.
  */
@@ -20,8 +20,12 @@ const SOURCES = [
     'realtime',
     'visibility', // 해구별 시정 예측(RDPS 래스터) — risk_history_sources.visibilitySource
 ];
-const STATES = ['ok', 'offseason', 'missing', 'stale', 'error'],
-    BAD = ['missing', 'stale', 'error'];
+// partial(일부 실패): 수집은 성공해 자료는 쓰이지만 일부가 빠졌다 — 지금은 행사 수집에서 Gemini 보충검색이 실패한 시도가 있을 때뿐이다
+//   (사용자 2026-10-15 「공식 행사는 저장해놔야지. 그리고 우리 앱에 저장실패했다는 내용을 알려야하겠지?」). 원천 상태 파일은 ok 로 두고
+//   (risk_store 는 error 인 달의 행사를 쓰지 않는다) failedProvinceCount>0 인 ok 행만 여기서 partial 로 바꾼다 — statusOf.
+const STATES = ['ok', 'offseason', 'partial', 'missing', 'stale', 'error'],
+    BAD = ['partial', 'missing', 'stale', 'error'],
+    PARTIAL_CODE = 'Gemini 일부 실패';
 const STAMP =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})$/;
 /** 실제 ISO 시각만 보관한다. 예: URL이나 자유문장은 null. @param {unknown} value @returns {string|null} [연계] ← clean */
@@ -44,11 +48,28 @@ function identity(name, month) {
         return null;
     return { source: name, scope: name === 'events' ? month : 'global' };
 }
-/** 파일에 있던 값도 다시 검사하고 비밀·자유 텍스트는 버린다. @param {object} row @returns {object|null} [연계] ← load */
+/** 수집 결과 행의 이력 상태를 정한다. 예: {status:'ok',failedProvinceCount:2} → partial, 그 밖은 그대로.
+ * @param {object} row - 수집기 상태(recordCollector) 또는 관찰 행(observeSources) @returns {string}
+ * [연계] ← update / 수집기(coastal_events_collector)가 상태 파일에 남긴 숫자 — 관찰 경로는 risk_store 월 상태로 같은 숫자가 온다.
+ */
+function statusOf(row) {
+    return row.status === 'ok' && Number(row.failedProvinceCount) > 0
+        ? 'partial'
+        : row.status;
+}
+/** 문제 상태의 고정 분류. 예: error → io.errorName, partial → 'Gemini 일부 실패', stale → 'stale', ok → null.
+ * @param {string} status @param {string} raw - 원천 lastError @returns {string|null} [연계] ← clean·update
+ */
+function codeOf(status, raw) {
+    if (!BAD.includes(status)) return null;
+    if (status === 'error') return io.errorName({ message: raw || '' });
+    return status === 'partial' ? PARTIAL_CODE : status;
+}
 /** 관리자에게 보일 상세 한 줄을 다듬는다. 예: 문자열만, 200자까지. @param {*} v @returns {string|null} [연계] ← clean·update */
 function detailText(v) {
     return typeof v === 'string' && v ? v.slice(0, 200) : null;
 }
+/** 파일에 있던 값도 다시 검사하고 비밀·자유 텍스트는 버린다. @param {object} row @returns {object|null} [연계] ← load */
 function clean(row) {
     if (
         !row ||
@@ -62,11 +83,7 @@ function clean(row) {
         out = {
             ...id,
             status: row.status,
-            code: BAD.includes(row.status)
-                ? row.status === 'error'
-                    ? io.errorName({ message: row.code || '' })
-                    : row.status
-                : null,
+            code: codeOf(row.status, row.code),
             firstAt: row.firstAt,
             lastAt: row.lastAt,
         };
@@ -137,21 +154,18 @@ function createHistory({
             for (const row of rows) {
                 const id = identity(row.source, row.scope);
                 if (!id || !STATES.includes(row.status)) continue;
-                const key = id.source + ':' + id.scope,
+                const status = statusOf(row),
+                    key = id.source + ':' + id.scope,
                     previous = data.current[key],
-                    bad = BAD.includes(row.status),
-                    code = bad
-                        ? row.status === 'error'
-                            ? io.errorName({ message: row.code || '' })
-                            : row.status
-                        : null;
+                    bad = BAD.includes(status),
+                    code = codeOf(status, row.code);
                 const next = {
                     ...id,
-                    status: row.status,
+                    status,
                     code,
                     firstAt:
                         previous &&
-                        previous.status === row.status &&
+                        previous.status === status &&
                         previous.code === code
                             ? previous.firstAt
                             : at,
@@ -175,7 +189,7 @@ function createHistory({
                 if (
                     bad &&
                     (!previous ||
-                        previous.status !== row.status ||
+                        previous.status !== status ||
                         previous.code !== code)
                 )
                     data.events.push({

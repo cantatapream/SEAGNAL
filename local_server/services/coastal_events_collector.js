@@ -21,7 +21,7 @@ const SEARCH_TIMEOUT_MS=10*60000;
 // Gemini 근거(groundingChunks[].web.uri)는 구글 경유 주소로 온다(공개 자료: python-genai issue #1322 등 — 실호출로는 확인 못 함).
 const REDIRECT_HOST='vertexaisearch.cloud.google.com',REDIRECT_TIMEOUT_MS=15000;
 // 버린 행사의 사유(월 파일 skipped·상태 detail 에 이 순서로 남긴다).
-const SKIP_ORDER=['시도 응답 해석 실패','시도 응답 시간 초과','근거 불일치','근거 확인 불가','기간 밖','상시 행사','내륙(해안 1km 밖)','주소/장소 불일치','번지 없음','항목 형식 오류','취소','대상 시군구 밖'];
+const SKIP_ORDER=['Gemini 호출 실패','시도 응답 해석 실패','시도 응답 시간 초과','근거 불일치','근거 확인 불가','기간 밖','상시 행사','내륙(해안 1km 밖)','주소/장소 불일치','번지 없음','항목 형식 오류','취소','대상 시군구 밖'];
 // events_2020_2025.csv 의 type 칸(notes.md §1).
 const TYPE_NAMES={1:'물에 들어가는 대회',2:'해안 육상 대회',3:'낚시대회',4:'야간·대규모',5:'물때',6:'지역 해양·수산 축제'};
 const PROVINCES={서울:'서울',부산:'부산',대구:'대구',인천:'인천',광주:'광주',대전:'대전',울산:'울산',세종:'세종',경기:'경기',강원:'강원',충북:'충북',충청북:'충북',충남:'충남',충청남:'충남',전북:'전북',전라북:'전북',전남:'전남',전라남:'전남',경북:'경북',경상북:'경북',경남:'경남',경상남:'경남',제주:'제주'};
@@ -88,21 +88,29 @@ function isCoastal(coord,geometry){if(!geometry||!['Polygon','MultiPolygon'].inc
  */
 function municipal(value){const a=addressParts(value);return a.province&&a.city.length?a.province+'|'+a.city.join('/'):null;}
 /** 두 주소를 「호스트+경로」로 비교하는 키를 만든다(끝 / 제거, 쿼리·조각·http/https 무시 — 사용자 승인 2026-10-15).
- * 예: https://Busan.go.kr/a/b/?x=1#y → busan.go.kr/a/b
- * @param {string} value - URL @returns {string|null} 해석 불가는 null [연계] ← collect / Gemini src 와 실제 근거 주소를 맞춘다.
+ * withQuery 면 쿼리까지 넣은 전체 주소 키(조각만 무시). 예: https://Busan.go.kr/a/b/?x=1#y → busan.go.kr/a/b · withQuery → busan.go.kr/a/b?x=1
+ * @param {string} value - URL @param {boolean} [withQuery] @returns {string|null} 해석 불가는 null [연계] ← matchGrounding / Gemini src 와 실제 근거 주소를 맞춘다.
  */
-function urlKey(value){try{const u=new URL(value);return u.hostname.toLowerCase()+u.pathname.replace(/\/+$/,'');}catch(_){return null;}}
+function urlKey(value,withQuery){try{const u=new URL(value);return u.hostname.toLowerCase()+u.pathname.replace(/\/+$/,'')+(withQuery?u.search:'');}catch(_){return null;}}
+/** Gemini src 에 맞는 실제 근거 주소를 고른다. 쿼리까지 같은 근거가 먼저, 없으면 「호스트+경로」가 같은 근거가 **하나뿐일 때만**.
+ * 예: 근거 view.do?idx=7·idx=8 에 src idx=8 → idx=8 / src idx=99999 → null(같은 게시판 글이 둘이라 어느 것인지 모름) / src a?utm=x, 근거 a 하나 → a
+ * @param {string} src - Gemini 가 적은 주소 @param {string[]} grounded - 실제 근거 주소 @returns {string|null}
+ * [연계] ← collect / 2026-10-15 독립 검토: 호스트+경로만 보면 첫 근거만 남아 진짜 행사가 다른 글 링크로 저장되고 지어낸 글 번호도 통과했다.
+ */
+function matchGrounding(src,grounded){const full=urlKey(src,true),path=urlKey(src);if(!full)return null;const exact=grounded.find(u=>urlKey(u,true)===full);if(exact)return exact;
+    const same=[...new Set(grounded.filter(u=>urlKey(u)===path))];return same.length===1?same[0]:null;}
 /** Gemini 근거 주소가 구글 경유 주소면 한 번 따라가 실제 주소(Location)를 얻는다. 예: vertexaisearch…/grounding-api-redirect/AB → https://city.go.kr/event/1
  * @param {string} uri - groundingChunks[].web.uri @param {function} fetchImpl - HTTP
  * @returns {Promise<object>} {url: 실제 주소} 또는 {error: 못 푼 까닭} — 풀지 못한 것은 지어내지 않고 「근거 확인 불가」 건수로 남는다
  * [연계] ← webSearch / 경유 주소와 Gemini 가 적은 src 가 문자열로 같을 수 없어 근거 확인이 늘 실패하던 문제(2026-10-15 검토 C1).
  */
 async function resolveGrounding(uri,fetchImpl){let u;try{u=new URL(uri);}catch(e){return{error:'invalid uri'};}
-    if(u.hostname!==REDIRECT_HOST||!u.pathname.startsWith('/grounding-api-redirect/'))return{url:u.href};
+    if(u.hostname!==REDIRECT_HOST||!u.pathname.startsWith('/grounding-api-redirect/'))return u.protocol==='https:'?{url:u.href}:{error:'not https'};
     let r;try{r=await fetchImpl(u.href,{redirect:'manual',signal:AbortSignal.timeout(REDIRECT_TIMEOUT_MS)});}catch(e){return{error:io.errorName(e)};}
     const location=r.status>=300&&r.status<400&&typeof r.headers?.get==='function'?r.headers.get('location'):null;if(!location)return{error:'HTTP '+r.status};
     let real;try{real=new URL(location,u.href);}catch(e){return{error:'invalid location'};}
-    return real.hostname===REDIRECT_HOST||!/^https?:$/.test(real.protocol)?{error:'not a page'}:{url:real.href};
+    // 근거는 https 만 받는다(2026-10-15 검토 — http Location 이 src 의 https 조건을 우회해 저장됐다).
+    return real.hostname===REDIRECT_HOST||!/^https?:$/.test(real.protocol)?{error:'not a page'}:real.protocol!=='https:'?{error:'not https'}:{url:real.href};
 }
 /** 따옴표 안 쉼표·줄바꿈·"" 를 지키며 CSV 를 읽는다. 예: a,"b,c"\r\n → [{h1:'a',h2:'b,c'}]
  * @param {string} text - CSV 원문(첫 줄 머리글) @returns {object[]} 행 객체 [연계] ← pastEvents / 과거 행사 목록을 읽는다.
@@ -172,7 +180,7 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
      * @param {string} target - 조사월 @param {string} province - 시도 @param {object[]} official - 공식 목록 @param {object[]} ongoing - 전월 재확인 후보
      * @param {object} extra - municipalities(그 시도의 대상 시군구 이름)
      * @returns {Promise<object>} events/grounded(풀어낸 실제 근거 주소)/unresolved(풀지 못한 근거 수)
-     * [연계] ← collect / gemini_client 의 Google Search 와 공유 429 쿨다운을 쓴다. JSON 이 아니면 provinceError 로 그 시도만 실패.
+     * [연계] ← collect / gemini_client 의 Google Search 와 공유 429 쿨다운을 쓴다. 호출 실패·JSON 아님이면 provinceError 로 그 시도만 실패.
      */
     async function webSearch(target,province,official,ongoing,{municipalities=[]}={}){const gemini=require('./gemini_client'),bounds=monthBounds(target),year=target.slice(0,4);
         const known=official.filter(e=>sameProvince(e.address,province)).map(e=>({name:e.name,start:e.start,end:e.end,address:e.address}));
@@ -194,11 +202,13 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
             'src 는 실제로 열어 본 그 페이지의 원문 https URL을 그대로 적으세요(주소를 고치거나 만들지 마세요).',
             `기존 공식 목록: ${JSON.stringify(known)}. 전월부터 진행되는 미확인 후보: ${JSON.stringify(candidates)}. 후보는 이전 자료일 뿐입니다. 현재 공식 원문에서 개최 여부·행사장·기간을 다시 확인한 후보만 events에 넣고, 취소되었거나 재확인하지 못한 후보는 제외하세요.`,
             '장소 좌표는 추정하지 마세요.',
-            'JSON 객체만 답하세요(설명·마크다운 금지): {"events":[{"name":"행사명","venue":"원문에 적힌 행사장 이름(「일원」「일대」 같은 말은 빼고 장소 이름만)","sgg":"시도와 시군구(예: 경상남도 통영시)","address":"원문에 번지가 있을 때만 시도·시군구·번지까지 전체 주소, 없으면 빈 문자열","start":"YYYY-MM-DD","end":"YYYY-MM-DD","src":"원문 https URL"}]}.',
+            'JSON 객체만 답하세요(설명·마크다운 금지): {"events":[{"name":"행사명","venue":"원문에 적힌 행사장 이름(「일원」「일대」 같은 말은 빼고 장소 이름만)","sgg":"시도와 시군구 — 구가 있는 시는 구까지(예: 경상남도 통영시, 경상남도 창원시 진해구)","address":"원문에 번지가 있을 때만 시도·시군구·번지까지 전체 주소, 없으면 빈 문자열","start":"YYYY-MM-DD","end":"YYYY-MM-DD","src":"원문 https URL"}]}.',
             'address 는 원문에 번지가 없으면 빈 문자열로 두고 다른 곳에서 가져오거나 추정하지 마세요. 날짜와 행사장을 원문으로 확인할 수 없는 행사는 제외하세요. 찾은 행사가 없으면 {"events":[]} 만 답하세요.',
         ].join(' ');
         const result=await gemini.callGeminiRaw({model:'gemini-2.5-flash',caller:'CoastalEvents',contents,config:{tools:[{googleSearch:{}}]}});
-        if(!result.success)throw new Error('network or parse error');const response=result.response,text=result.text||response?.text||response?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'';
+        // 호출 자체 실패(키 쿨다운·키 없음·네트워크 — gemini_client 의 success:false)도 그 시도만 실패로 둔다. 공식 행사·다른 시도 결과는 저장한다
+        //   (사용자 2026-10-15 「공식 행사는 저장해놔야지. 그리고 우리 앱에 저장실패했다는 내용을 알려야하겠지?」 — 알림은 관리자 오류현황 「일부 실패」).
+        if(!result.success)throw provinceError('Gemini 호출 실패');const response=result.response,text=result.text||response?.text||response?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'';
         const events=parseEvents(text),chunks=response?.candidates?.[0]?.groundingMetadata?.groundingChunks||[];
         const uris=[...new Set(chunks.map(c=>c?.web?.uri).filter(u=>typeof u==='string'&&u))],resolved=await Promise.all(uris.map(u=>resolveGrounding(u,fetchImpl)));
         return{events,grounded:resolved.filter(x=>x.url).map(x=>x.url),unresolved:resolved.filter(x=>!x.url).length};
@@ -208,13 +218,21 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
      */
     function withTimeout(promise,ms){let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(provinceError('시도 응답 시간 초과')),ms);})]).finally(()=>clearTimeout(timer));}
     /** 검증된 월을 원자적으로 바꾼다. 예: 키 없음·HTTP 오류·전체0건이면 기존정상캐시 유지, 공식·Gemini중복은 한 행.
-     * 한 시도 답만 해석 실패·시간 초과면 그 시도만 실패로 적고(provinces) 나머지는 저장한다 — 다음 03:20 에는 그 시도만 다시 묻는다.
+     * 한 시도의 Gemini 호출 실패·해석 실패·시간 초과면 그 시도만 실패로 적고(provinces) 나머지는 저장한다 — 다음 03:20 에는 그 시도만 다시 묻는다.
+     * 그때 상태 파일은 ok(행사 점수에 쓰임)이고 failedProvinceCount>0 이라 관리자 오류현황에는 「일부 실패」로 남는다(risk_error_history).
      * @param {string} target - 조사월 @returns {Promise<object>} 성공여부/개수/사유별 건너뜀
      * [연계] ← tick/start / 공식목록·근거·주소/행사장 검증·최근접 연결 후 risk_store가 읽을 파일을 쓴다.
      */
     async function collect(target=io.day(clock()).slice(0,7)){if(running)return{ok:false,error:'collector busy'};const release=io.acquireLock(path.join(dir,'events_collect.lock'));if(!release)return{ok:false,error:'collector busy'};running=true;
         try{const bounds=monthBounds(target),locations=spots||JSON.parse(fs.readFileSync(SPOTS)).spots,provinces=[...new Set(locations.map(s=>s.sgg_name.split(' ')[0]))];
             const scope=new Set(locations.map(s=>municipal(s.sgg_name))),rows=[],skipped={},provinceResults={};
+            /** 구가 있는 시를 구 없이 적은 경우도 같은 곳으로 본다. 예: 요청 경남|창원시 ↔ 후보 경남|창원시/진해구 → true, 경남|창원 ↔ 경남|창원시 → false.
+             * @param {string|null} want - 요청 시군구 키 @param {string|null} have - 후보 시군구 키 @returns {boolean}
+             * [연계] ← inScope·findPlace / 2026-10-15 검토: Gemini sgg 「경상남도 창원시」가 진해구 관광지와 맞지 않아 버려졌다(coastal_spots 74곳이 구 있는 시).
+             */
+            const sameArea=(want,have)=>!!want&&!!have&&(have===want||have.startsWith(want+'/'));
+            /** 대상 시군구(관광지가 있는 시군구) 안인지. 예: 전남|여수시 → false(관광지 없음). @param {string|null} m @returns {boolean} [연계] ← link */
+            const inScope=m=>[...scope].some(s=>sameArea(m,s));
             const rawOfficial=await(festivalSearch||festivals)(target);if(!Array.isArray(rawOfficial))throw new Error('invalid response');
             const normalized=rawOfficial.map(normalizeFestival),freshIds=new Set(rawOfficial.map(e=>String(e.contentid)));addSkip(skipped,'취소',normalized.filter(e=>!e).length);
             const prior=new Date(bounds.first+'T00:00:00Z');prior.setUTCMonth(prior.getUTCMonth()-1);const previous=io.read(file(prior.toISOString().slice(0,7)));
@@ -227,10 +245,10 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
              * [연계] ← link / 과거 수작업 163행 중 번지 있는 행이 0이라 번지만으로는 비공식 행사를 거의 못 붙였다(검토 C2).
              */
             async function findPlace(e){const want=municipal(e.sgg),name=placeName(e.venue);if(!want||!name)return null;
-                const named=locations.filter(s=>municipal(s.sgg_name)===want&&placeName(s.name)===name);if(named.length===1)return{lat:named[0].lat,lon:named[0].lon,spot:named[0],linkMethod:'관광지 이름'};
+                const named=locations.filter(s=>sameArea(want,municipal(s.sgg_name))&&placeName(s.name)===name);if(named.length===1)return{lat:named[0].lat,lon:named[0].lon,spot:named[0],linkMethod:'관광지 이름'};
                 if(!kakaoKey)throw new Error('missing key');const url=new URL('https://dapi.kakao.com/v2/local/search/keyword.json');url.searchParams.set('query',addressParts(e.sgg).city.join(' ')+' '+String(e.venue).trim());url.searchParams.set('size','7');
                 const response=await fetchImpl(url.toString(),{headers:{Authorization:'KakaoAK '+kakaoKey},signal:AbortSignal.timeout(30000)});if(!response.ok)throw new Error('HTTP '+response.status);
-                const found=[];for(const d of (await response.json()).documents||[]){const address=[d.road_address_name,d.address_name].find(a=>a&&municipal(a)===want);if(!address)continue;const lat=Number(d.y),lon=Number(d.x);
+                const found=[];for(const d of (await response.json()).documents||[]){const address=[d.road_address_name,d.address_name].find(a=>a&&sameArea(want,municipal(a)));if(!address)continue;const lat=Number(d.y),lon=Number(d.x);
                     if(d.y===null||d.y===''||d.x===null||d.x===''||!Number.isFinite(lat)||!Number.isFinite(lon)||lat<20||lat>45||lon<115||lon>140)return null;found.push({lat,lon,resolvedAddress:address,resolvedPlace:typeof d.place_name==='string'?d.place_name:null,linkMethod:'카카오 장소검색'});}
                 return found.length&&new Set(found.map(d=>d.lat+'|'+d.lon)).size===1?found[0]:null;
             }
@@ -240,6 +258,8 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
              */
             async function link(e){const text=(v,max)=>v===undefined||v===null||(typeof v==='string'&&v.length<=max);
                 if(!e||typeof e!=='object'||typeof e.name!=='string'||!e.name.trim()||e.name.length>200||!text(e.address,500)||!text(e.venue,200)||!text(e.sgg,100)||!validDate(e.start)||!validDate(e.end)||e.start>e.end)return'항목 형식 오류';
+                // 대상 시군구 밖(관광지가 없는 시군구)은 가장 가까운 다른 시군구 관광지에 잘못 붙으므로 건너뛴다 — 공식 목록은 아래 for 에서 먼저 거른다(2026-10-15 검토: 전남 여수 행사가 23km 떨어진 남해 관광지에 붙었다).
+                const area=addressKey(e.address)?municipal(e.address):e.venue&&e.sgg?municipal(e.sgg):null;if(area&&!inScope(area))return'대상 시군구 밖';
                 if(e.end<bounds.first||e.start>bounds.last)return'기간 밖';if(eventDays(e)>=PERMANENT_DAYS)return'상시 행사';
                 let coord;if(addressKey(e.address)){try{coord={...await geocode(e,fetchImpl,kakaoKey),linkMethod:'카카오 주소'};}catch(err){const why=io.errorName(err);if(why!=='unmatched event'&&why!=='invalid event')throw err;return'주소/장소 불일치';}}
                 else if(e.venue&&e.sgg){coord=await findPlace(e);if(!coord)return'주소/장소 불일치';}else return'번지 없음';
@@ -256,11 +276,12 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
                 const local={},before=rows.length,municipalities=[...new Set(locations.filter(s=>s.sgg_name.split(' ')[0]===province).map(s=>s.sgg_name))];let result;
                 try{result=await withTimeout((search||webSearch)(target,province,official,carried,{municipalities}),searchTimeoutMs);if(!result||!Array.isArray(result.events)||!Array.isArray(result.grounded))throw provinceError('시도 응답 해석 실패');}
                 catch(err){if(!err?.provinceFailure)throw err;provinceResults[province]={status:'error',reason:err.provinceFailure};addSkip(skipped,err.provinceFailure);continue;}
-                // 근거 확인: Gemini 가 적은 src 와 실제로 검색에 쓰인 근거 주소(경유 주소는 풀어낸 실제 주소)를 「호스트+경로」로 비교한다.
-                // 도메인만 같다고 받지 않는다 — 아무 페이지나 붙여 지어낸 행사가 통과하는 길이 된다. 저장하는 src 는 일치한 실제 주소다.
-                const grounded=new Map();for(const u of result.grounded){const k=urlKey(u);if(k&&!grounded.has(k))grounded.set(k,u);}const unresolved=Number(result.unresolved)>0;
+                // 근거 확인: Gemini 가 적은 src 와 실제로 검색에 쓰인 근거 주소(경유 주소는 풀어낸 실제 주소)를 비교한다 — 쿼리까지 같은 근거 먼저,
+                // 없으면 「호스트+경로」가 같은 근거가 하나뿐일 때만(matchGrounding). 도메인만 같다고 받지 않는다 — 아무 페이지나 붙여 지어낸 행사가 통과하는 길이 된다.
+                // 저장하는 src 는 일치한 실제 주소다.
+                const grounded=result.grounded.filter(u=>typeof u==='string'),unresolved=Number(result.unresolved)>0;
                 for(const e of result.events){if(!e||typeof e!=='object'){addSkip(local,'항목 형식 오류');continue;}let source;try{source=new URL(e.src);}catch(_){addSkip(local,'근거 불일치');continue;}
-                    if(source.protocol!=='https:'||source.username||source.password){addSkip(local,'근거 불일치');continue;}const real=grounded.get(urlKey(e.src));if(!real){addSkip(local,unresolved?'근거 확인 불가':'근거 불일치');continue;}
+                    if(source.protocol!=='https:'||source.username||source.password){addSkip(local,'근거 불일치');continue;}const real=matchGrounding(e.src,grounded);if(!real){addSkip(local,unresolved?'근거 확인 불가':'근거 불일치');continue;}
                     const why=await link({...e,src:real,sourceType:'gemini',sourceObservedAt:io.iso(clock()),carriedForward:false});if(why)addSkip(local,why);}
                 provinceResults[province]={status:'ok',rows:rows.slice(before),skipped:local};for(const [why,n] of Object.entries(local))addSkip(skipped,why,n);
             }
@@ -270,7 +291,7 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
             const events=[...unique.values()],sourceCounts={tourapi:events.filter(e=>e.sourceType==='tourapi').length,gemini:events.filter(e=>e.sourceType==='gemini').length,duplicates:rows.length-events.length},collectedAt=io.iso(clock());
             const coverage={queryStart:bounds.first,queryEnd:bounds.last,ongoingCandidates:carried.length,carriedCount:0,previousMonthCached:!!previous,completeOngoing:false};
             const failedProvinces=Object.entries(provinceResults).filter(([,p])=>p.status==='error').map(([name])=>name),detail=skipDetail(skipped,provinceResults);
-            io.write(file(target),{month:target,collectedAt,events,sourceCounts,coverage,skipped,provinces:provinceResults});status(target,null,{count:events.length,sourceCounts,skipped,failedProvinces,detail});return{ok:true,count:events.length,skipped,failedProvinces};
+            io.write(file(target),{month:target,collectedAt,events,sourceCounts,coverage,skipped,provinces:provinceResults});status(target,null,{count:events.length,sourceCounts,skipped,failedProvinces,failedProvinceCount:failedProvinces.length,detail});return{ok:true,count:events.length,skipped,failedProvinces};
         }catch(e){status(target,e,{detail:null});return{ok:false,error:io.errorName(e)};}finally{running=false;release();}
     }
     /** 예정일을 지난 다음달을 구한다. 예:10월29일은 놓친10월28일예약 보충.
@@ -293,4 +314,4 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
     function start(){if(!process.env.FLY_ALLOC_ID||timer)return false;(async()=>{const target=io.day(clock()).slice(0,7);if(needsMonth(target))await collect(target);const next=dueNext(clock());if(next&&needsMonth(next))await collect(next);})().catch(e=>io.reportError('events startup',e));timer=setInterval(()=>{tick().catch(e=>io.reportError('events tick',e));},60000);timer.unref();return true;}
     return{collect,tick,start,stop(){if(timer)clearInterval(timer);timer=null;}};
 }
-const defaultCollector=createCollector();module.exports={...defaultCollector,createCollector,sameProvince,addressKey,geocode,validDate,normalizeFestival,monthBounds,isCoastal,urlKey,resolveGrounding,parseCsv,pastEvents,parseEvents,PERMANENT_DAYS,SEARCH_TIMEOUT_MS};
+const defaultCollector=createCollector();module.exports={...defaultCollector,createCollector,sameProvince,addressKey,geocode,validDate,normalizeFestival,monthBounds,isCoastal,urlKey,matchGrounding,resolveGrounding,parseCsv,pastEvents,parseEvents,PERMANENT_DAYS,SEARCH_TIMEOUT_MS};

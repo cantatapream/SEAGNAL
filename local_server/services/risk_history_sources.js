@@ -26,6 +26,7 @@ const FIELDS = new Set([
     'checkedAt',
     'lastRun',
     'detail', // 실시간 교통 수집기가 남기는 실패·제외 사유 한 줄(2026-10-15)
+    'failedProvinceCount', // 행사 수집에서 Gemini 보충검색이 실패한 시도 수 — 0보다 크면 오류현황 「일부 실패」(2026-10-15)
 ]);
 /** JSON을 끝까지 검사하되 각 본문 값을 즉시 버린다. 예: frames 48개도 객체로 남기지 않는다.
  * @param {string} file - JSON 또는 gzip 파일 @returns {Promise<object|null>} 실제 메타데이터, 손상은 null
