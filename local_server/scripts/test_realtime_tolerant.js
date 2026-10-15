@@ -79,7 +79,9 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rt-tolerant-'));
     });
     await check('관리자 화면이 「상세」 줄을 그린다', () => {
         const src = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'js', 'admin', 'admin.js'), 'utf8');
-        assert.ok(src.includes("(r.detail?'<br>상세 '+esc(r.detail):'')"));
+        // 2026-10-15 오류현황 화면을 카드 꼴로 정리하며 줄 모음(lines)의 한 칸이 됐다.
+        //   실제 화면에 「상세」 가 그려지는지는 test_risk_errors_filter_ui 가 Chromium 으로 본다.
+        assert.ok(src.includes("['상세', r.detail]"));
     });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);

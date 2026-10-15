@@ -740,27 +740,107 @@ window.switchAiSubTab = function (which) {
 };
 
 /** 관리자 AI 사고예측에서 서버의 현재 상태와 유한 오류 이력을 조회한다.
- * 예: AI → AI 사고예측 → 오류현황. @param {HTMLElement} container @returns {void}
- * [연계] 기존 관리자 fetch 토큰 래퍼 → /api/admin/risk-forecast/errors
+ * 예: AI → AI 사고예측 → 오류현황. 원천·상태 필터는 서버가 현재 상태와 이력 둘 다에 건다.
+ * 모양은 같은 AI 탭의 다른 하위탭(AI 비서·서버 로그)과 같은 어두운 카드·배지·버튼 꼴을 따른다.
+ * @param {HTMLElement} container @returns {void}
+ * [연계] 기존 관리자 fetch 토큰 래퍼 → /api/admin/risk-forecast/errors (routes/risk_errors.js →
+ *        services/risk_error_history.list) · 검사 test_risk_errors_ui / test_risk_errors_filter_ui
  */
 function renderAiForecastSubtab(container) {
-    const names={warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측'};
-    const statuses={ok:'정상',offseason:'비운영 기간',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
-    const phases={opened:'문제 발생',changed:'문제 변경',recovered:'복구'};
-    const esc=value=>String(value==null?'—':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const at=value=>value&&Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})+' KST':'—';
-    container.innerHTML='<div><button type="button" aria-selected="true">오류현황</button><p>자료 수집·누락·오래됨과 복구 내역입니다. 같은 문제가 반복되면 한 건으로 유지합니다.</p>'+
-        '<label>원천 <select data-risk-source><option value="">전체</option>'+Object.keys(names).map(k=>'<option value="'+k+'">'+names[k]+'</option>').join('')+'</select></label> '+
-        '<label>상태 <select data-risk-status><option value="">전체</option>'+['error','stale','missing','ok'].map(k=>'<option value="'+k+'">'+statuses[k]+'</option>').join('')+'</select></label> '+
-        '<button type="button" data-risk-refresh>새로고침</button><div data-risk-history aria-live="polite"></div><div data-risk-pagination></div></div>';
-    const host=container.firstElementChild,body=host.querySelector('[data-risk-history]'),pager=host.querySelector('[data-risk-pagination]');let page=1,request=0;
-    async function load(){const n=++request;body.textContent='오류현황을 불러오는 중입니다.';pager.replaceChildren();const params=new URLSearchParams({page:String(page),limit:'30'});for(const key of ['source','status']){const value=host.querySelector('[data-risk-'+key+']').value;if(value)params.set(key,value);}
-        try{const response=await fetch('/api/admin/risk-forecast/errors?'+params.toString());if(!response.ok)throw Error('unavailable');const result=await response.json();if(n!==request||!host.isConnected||!container.contains(host))return;const current=result.current||[],rows=result.data||[];
-            body.innerHTML='<p>최종 상태 확인 '+esc(at(result.observedAt))+'</p><h4>현재 원천 상태</h4>'+current.map(r=>'<div style="padding:8px;border-bottom:1px solid #475569;">'+esc(names[r.source])+' '+(r.scope!=='global'?esc(r.scope)+' ':'')+'· '+esc(statuses[r.status])+'<br>마지막 정상 수집 '+esc(at(r.lastSuccess||r.updatedAt))+(r.checkedAt?'<br>최신화 확인 '+esc(at(r.checkedAt)):'')+(r.code?'<br>분류 '+esc(r.code):'')+(r.detail?'<br>상세 '+esc(r.detail):'')+'</div>').join('')+
-                '<h4>오류·복구 이력</h4>'+(rows.length?rows.map(r=>'<div style="padding:10px;border-bottom:1px solid #475569;">'+esc(names[r.source])+' '+(r.scope!=='global'?esc(r.scope)+' ':'')+'· '+esc(phases[r.phase])+' / '+esc(statuses[r.status])+'<br>'+esc(at(r.lastAt))+'<br>최초 감지 '+esc(at(r.firstAt))+(r.code?'<br>분류 '+esc(r.code):'')+'</div>').join(''):'<p>기록된 이력이 없습니다.</p>');
-            const p=result.pagination;page=p.page;pager.innerHTML='<button type="button" data-risk-prev '+(page<=1?'disabled':'')+'>이전</button> '+page+' / '+p.totalPages+' · '+p.total+'건 <button type="button" data-risk-next '+(page>=p.totalPages?'disabled':'')+'>다음</button>';pager.querySelector('[data-risk-prev]').onclick=()=>{page--;load();};pager.querySelector('[data-risk-next]').onclick=()=>{page++;load();};
-        }catch(_){console.warn('[관리자] 사고예측 오류현황 조회 실패');if(n===request&&host.isConnected&&container.contains(host))body.textContent='오류현황을 불러오지 못했습니다. 새로고침으로 다시 시도해주세요.';}}
-    host.querySelector('[data-risk-refresh]').onclick=load;for(const key of ['source','status'])host.querySelector('[data-risk-'+key+']').onchange=()=>{page=1;load();};load();
+    const names = {warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측'};
+    const statuses = {ok:'정상',offseason:'비운영 기간',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
+    const phases = {opened:'문제 발생',changed:'문제 변경',recovered:'복구'};
+    // 상태 배지 색 — 관리자 화면에서 이미 쓰는 값(정상 #34d399·경고 #fbbf24·에러 #f87171·보조 #94a3b8·강조 #22d3ee)
+    const tones = {ok:'52,211,153',stale:'251,191,36',error:'248,113,113',missing:'148,163,184',offseason:'34,211,238'};
+    const esc = value => String(value == null ? '—' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const at = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('ko-KR', {timeZone:'Asia/Seoul', hour12:false}) + ' KST' : '—';
+    const selectStyle = 'width:100%;padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;box-sizing:border-box;';
+    const labelStyle = 'display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;';
+    const boxStyle = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;';
+    const pageBtnStyle = 'padding:6px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#e2e8f0;font-size:0.78rem;font-weight:600;cursor:pointer;';
+    const options = (keys, labels) => '<option value="">전체</option>' + keys.map(k => '<option value="' + k + '">' + labels[k] + '</option>').join('');
+    container.innerHTML =
+        '<div>'
+        + '<div class="admin-section-title"><span><i class="fa-solid fa-triangle-exclamation" style="color:#22d3ee;"></i> 오류현황</span></div>'
+        + '<div style="color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;">자료 수집·누락·오래됨과 복구 내역입니다. 같은 문제가 반복되면 한 건으로 유지합니다. 원천·상태를 고르면 <b>현재 원천 상태</b>와 <b>오류·복구 이력</b>이 함께 걸러집니다.</div>'
+        + '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">'
+        +   '<div style="flex:1 1 140px;min-width:0;"><label style="' + labelStyle + '">원천<select data-risk-source style="' + selectStyle + 'margin-top:3px;">' + options(Object.keys(names), names) + '</select></label></div>'
+        +   '<div style="flex:1 1 120px;min-width:0;"><label style="' + labelStyle + '">상태<select data-risk-status style="' + selectStyle + 'margin-top:3px;">' + options(['error','stale','missing','ok','offseason'], statuses) + '</select></label></div>'
+        +   '<button type="button" data-risk-refresh style="padding:8px 14px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-size:0.8rem;font-weight:700;cursor:pointer;"><i class="fa-solid fa-rotate-right"></i> 새로고침</button>'
+        + '</div>'
+        + '<div data-risk-history aria-live="polite"></div><div data-risk-pagination style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;color:#94a3b8;font-size:0.8rem;"></div></div>';
+    const host = container.firstElementChild, body = host.querySelector('[data-risk-history]'), pager = host.querySelector('[data-risk-pagination]');
+    let page = 1, request = 0;
+    /** 상태 한 칸 배지. 예: error → 빨간 「수집 실패」. data-risk-badge 는 검사가 색을 읽는 자리. */
+    const badge = status => {
+        const tone = tones[status] || tones.missing;
+        return '<span data-risk-badge="' + esc(status) + '" style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:700;white-space:nowrap;'
+            + 'background:rgba(' + tone + ',0.15);color:rgb(' + tone + ');border:1px solid rgba(' + tone + ',0.3);">' + esc(statuses[status] || status) + '</span>';
+    };
+    /** 「이름 칸 · 값」 줄 모음. 값이 없는 줄은 뺀다. 분류가 상태와 같으면(stale·missing) 겹치므로 생략. */
+    const lines = pairs => '<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 10px;margin-top:8px;font-size:0.78rem;line-height:1.45;">'
+        + pairs.filter(p => p[1]).map(p => '<span style="color:#64748b;white-space:nowrap;">' + p[0] + '</span><span style="color:#cbd5e1;overflow-wrap:anywhere;">' + esc(p[1]) + '</span>').join('') + '</div>';
+    const code = r => r.code && r.code !== r.status ? r.code : null;
+    /** 카드 한 장 — 왼쪽 띠 색으로 상태를 한눈에. */
+    const card = (r, chips, pairs, mark) => {
+        const tone = tones[r.status] || tones.missing;
+        return '<div ' + mark + ' style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.06);border-left:3px solid rgb(' + tone + ');border-radius:8px;padding:10px 12px;margin-top:8px;">'
+            + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
+            + '<span style="color:#e2e8f0;font-weight:700;font-size:0.88rem;">' + esc(names[r.source]) + (r.scope !== 'global' ? ' <span style="color:#94a3b8;font-weight:600;">' + esc(r.scope) + '</span>' : '') + '</span>'
+            + '<span style="display:flex;gap:6px;flex-wrap:wrap;">' + chips + '</span></div>' + lines(pairs) + '</div>';
+    };
+    const section = (title, count, inner) => '<div style="' + boxStyle + '"><div style="font-size:0.85rem;color:#94a3b8;">' + title + ' <span style="color:#64748b;">(' + count + ')</span></div>' + inner + '</div>';
+    const empty = text => '<div style="color:#64748b;font-size:0.8rem;padding:10px 0 2px;">' + text + '</div>';
+    async function load() {
+        const n = ++request;
+        body.innerHTML = '<div style="color:#64748b;font-size:0.8rem;padding:6px 0;">오류현황을 불러오는 중입니다.</div>';
+        pager.replaceChildren();
+        const params = new URLSearchParams({page: String(page), limit: '30'});
+        let filtered = false;
+        for (const key of ['source', 'status']) {
+            const value = host.querySelector('[data-risk-' + key + ']').value;
+            if (value) { params.set(key, value); filtered = true; }
+        }
+        try {
+            const response = await fetch('/api/admin/risk-forecast/errors?' + params.toString());
+            if (!response.ok) throw Error('unavailable');
+            const result = await response.json();
+            if (n !== request || !host.isConnected || !container.contains(host)) return;
+            const current = result.current || [], rows = result.data || [], p = result.pagination;
+            body.innerHTML =
+                '<div style="color:#64748b;font-size:0.75rem;margin-bottom:8px;">최종 상태 확인 ' + esc(at(result.observedAt)) + '</div>'
+                + '<div data-risk-current>' + section('<i class="fa-solid fa-signal"></i> 현재 원천 상태', current.length,
+                    current.length ? current.map(r => card(r, badge(r.status), [
+                        ['마지막 정상 수집', at(r.lastSuccess || r.updatedAt)],
+                        ['최신화 확인', r.checkedAt && at(r.checkedAt)],
+                        ['분류', code(r)],
+                        ['상세', r.detail],
+                    ], 'data-risk-card')).join('')
+                    : empty(filtered ? '조건에 맞는 원천이 없습니다.' : '아직 기록된 원천 상태가 없습니다.')) + '</div>'
+                + section('<i class="fa-solid fa-clock-rotate-left"></i> 오류·복구 이력', p.total,
+                    rows.length ? rows.map(r => card(r,
+                        '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;white-space:nowrap;background:rgba(255,255,255,.06);color:#cbd5e1;">' + esc(phases[r.phase]) + '</span>' + badge(r.status), [
+                        ['기록 시각', at(r.lastAt)],
+                        ['최초 감지', at(r.firstAt)],
+                        ['분류', code(r)],
+                        ['상세', r.detail],
+                    ], 'data-risk-row')).join('')
+                    : empty('기록된 이력이 없습니다.'));
+            page = p.page;
+            pager.innerHTML = '<button type="button" data-risk-prev style="' + pageBtnStyle + (page <= 1 ? 'opacity:.4;cursor:default;' : '') + '" ' + (page <= 1 ? 'disabled' : '') + '>이전</button>'
+                + '<span>' + page + ' / ' + p.totalPages + ' · ' + p.total + '건</span>'
+                + '<button type="button" data-risk-next style="' + pageBtnStyle + (page >= p.totalPages ? 'opacity:.4;cursor:default;' : '') + '" ' + (page >= p.totalPages ? 'disabled' : '') + '>다음</button>';
+            pager.querySelector('[data-risk-prev]').onclick = () => { page--; load(); };
+            pager.querySelector('[data-risk-next]').onclick = () => { page++; load(); };
+        } catch (_) {
+            console.warn('[관리자] 사고예측 오류현황 조회 실패');
+            if (n === request && host.isConnected && container.contains(host))
+                body.innerHTML = '<div style="padding:12px;border-radius:8px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);color:#fca5a5;font-size:0.82rem;">오류현황을 불러오지 못했습니다. 새로고침으로 다시 시도해주세요.</div>';
+        }
+    }
+    host.querySelector('[data-risk-refresh]').onclick = load;
+    for (const key of ['source', 'status']) host.querySelector('[data-risk-' + key + ']').onchange = () => { page = 1; load(); };
+    load();
 }
 
 // AI 비서 하위탭 — Gemini 호출량 + 권한 + 음성 토글(+현재 엔진) + 테스트 호출 + 대화 내역.
