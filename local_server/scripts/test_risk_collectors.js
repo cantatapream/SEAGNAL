@@ -396,7 +396,7 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
   await withGemini(reply,async()=>{const dir=temp();let clock=now;const kakao=q=>q==='통영시 제승당'?[{place_name:'제승당',road_address_name:'경남 통영시 한산면 a로 1',x:'128.5',y:'34.78'}]:officialKakao();
    const mk=key=>events.createCollector({dir,kakaoKey:key,clock:()=>clock,festivalSearch:async()=>[officialRow()],spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch({redirects:{a:real,b:tongyeong},kakao})});
    assert.equal((await mk('test').collect('2026-10')).ok,true);const f0=io.read(path.join(dir,'events_202610.json'));f0.provinces['경상남도']={status:'error',reason:'Gemini 호출 실패'};io.write(path.join(dir,'events_202610.json'),f0);
-   clock=Date.parse('2026-10-12T03:20:00+09:00');const r=await mk(undefined).tick();assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.officialError,'카카오 키 없음(설정)');
+   clock=Date.parse('2026-10-12T03:20:00+09:00');const r=await mk('')  /* 키 없음 — undefined 면 기본값 process.env.KAKAO_REST_API_KEY 가 들어가 CI(키 있음)에서만 실패했다 */.tick();assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.officialError,'카카오 키 없음(설정)');
    const f=io.read(path.join(dir,'events_202610.json')),st=io.read(path.join(dir,'events_202610_status.json'));
    assert.deepEqual(f.events.map(e=>e.name).sort(),['공식 행사','부산 대회'],'키 없음도 저장분은 계속 쓴다');assert.deepEqual(f.provinces['경상남도'],{status:'error',reason:'카카오 키 없음(설정)'});assert.equal(f.official.stage,'location');
    assert.equal(st.status,'ok');assert.equal(st.partialCode,'행사 일부 실패 — 카카오');
