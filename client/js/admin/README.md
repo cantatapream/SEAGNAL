@@ -7,7 +7,7 @@
 
 | 파일 | 역할 | 주요 함수 |
 |------|------|-----------|
-| `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) | `getStoredAdminToken`, `saveAdminToken`, `clearAdminToken`, `setAdminAuthState`, `_getDeviceToken`, `renderUnifiedAiTab` |
+| `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) | `getStoredAdminToken`, `saveAdminToken`, `clearAdminToken`, `setAdminAuthState`, `_getDeviceToken`, `renderUnifiedAiTab`, `renderAiForecastSubtab` |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 | `isAdminTestMode`, `getAdminToken`, `getTestModeParams`, `renderATMStatus`, `renderATMCollect`, `renderATMForecast` |
 | `admin_location_status.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `readPrefFirst`, `readPos`, `fmtAgo`, `fmtAbs`, `esc`, `seaLandOf` |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI | `escapeHTML`, `_reportDisplayName`, `loadReportList`, `renderReportList`, `_loadCommentReportList`, `_renderCommentReportList` |
@@ -28,3 +28,7 @@
 ## 로드 순서
 
 index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없음).
+
+## AI 사고예측 → 오류현황
+
+기존 통합 관리자 인증으로 로그인한 뒤 **AI → AI 사고예측 → 오류현황**에서 현재 원천 상태와 오류·복구 이력을 확인한다. `renderAiForecastSubtab`은 `GET /api/admin/risk-forecast/errors`를 호출한다. 기존 `adminAwareFetch`가 토큰을 붙이고 401을 처리한다. 원천·상태 필터, 30건 페이지, 수동 새로고침을 제공하며 KST 시각과 최종 상태 확인 시각을 표시한다. 탭을 떠난 뒤 늦게 도착한 응답은 무시한다. 비밀번호를 새로 만들거나 코드에 넣지 않는다.

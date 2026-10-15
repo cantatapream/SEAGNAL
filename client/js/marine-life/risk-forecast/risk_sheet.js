@@ -208,10 +208,9 @@
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='accident'?'선박 사고 위험예보 · 격자 '+d.gridId:kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
             el.querySelector('.rf-subtitle').textContent=kind==='accident'?'격자 중심 '+F.dms(d.lat,true)+' - '+F.dms(d.lon,false):kind==='sea'?[sub.name,sub.bearingWord||F.direction(sub.bearingDeg||0),String(Math.round(sub.bearingDeg||0)%360).padStart(3,'0')+'도',Number(sub.distNm||0).toFixed(1)+'해리'].join(' '):F.dms(sub.lat==null?item.lat:sub.lat,true)+' - '+F.dms(sub.lon==null?item.lon:sub.lon,false)+(sub.police?' · '+sub.police+(sub.police.endsWith('파출소')?'':'파출소')+' 관할':'');
-            var missing=(d.missing||[]).filter(function(k){return k!=='swell';});
             el.querySelector('.rf-timeline').hidden=false;
-            var sourceWarnings=sourceMessages(d,kind),body=sourceWarnings.map(function(text){return '<div class="rf-missing">⚠ '+F.escape(text)+'</div>';}).join('');
-            if(missing.length)body+='<div class="rf-missing">⚠ 일부 요소 자료 없음 — '+F.escape(missing.map(sourceName).join(', '))+'</div>';
+            // 수집 진단은 관리자 오류현황에 두고 개별 결측값과 다시 시도는 유지한다.
+            var body='';
             var rows=d.rows||[];
             if(d.sources&&d.sources.zoneForecasts&&d.sources.zoneForecasts.status==='stale')rows=rows.map(function(r){return r.key==='wave'||r.key==='wind'?Object.assign({},r,{sourceTime:sourceTime((d.inputs||{}).zoneForecastBase||d.sources.zoneForecasts.base||d.sources.zoneForecasts.updatedAt)}):r;});
             if(kind==='accident')body+=accidentRows(d);
@@ -239,7 +238,7 @@
     function sourceTime(value){if(!value)return '없음';var compact=/^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(String(value));if(compact){var date=new Date(Date.UTC(+compact[1],+compact[2]-1,+compact[3],+compact[4]));if(date.getUTCFullYear()!==+compact[1]||date.getUTCMonth()+1!==+compact[2]||date.getUTCDate()!==+compact[3]||date.getUTCHours()!==+compact[4])return '시각 확인 불가';value=date.toISOString();}return F.time(value)||'시각 확인 불가';}
     /** 관련 원천의 실패·낡음과 마지막 수집시각을 알린다. 예: stale → 예보가 오래되었습니다.
      * @param {Object} data - sources를 포함한 응답 @param {string} kind - sea/coast/accident
-     * @returns {string[]} 화면 문장 [연계] RiskForecast.refresh·create.show → 배너·시트
+     * @returns {string[]} 진단 문장 [연계] RiskForecast.refresh / 공개 배너·시트에는 출력하지 않는다
      */
     function sourceMessages(data,kind){var sources=Object.assign({},data.sources||{}),stamp=Date.parse(data.t);if(Number.isFinite(stamp)&&sources.events&&sources.events.months){var month=new Date(stamp+9*3600000).toISOString().slice(0,7);sources.events=sources.events.months[month]||{status:'missing'};}var keys=kind==='accident'?['accident','zoneForecasts','congestion']:kind==='sea'?['warnings','zoneForecasts','congestion']:['warnings','gale','zoneForecasts','swell','ripCurrent','tourConcentration','events'];return keys.filter(function(key){var s=sources[key];return s&&s.status&&!['ok','offseason'].includes(s.status);}).map(function(key){var s=sources[key],text=sourceName(key)+(s.status==='stale'?' 자료가 오래되었습니다':s.status==='error'?' 자료 수집에 실패했습니다':' 자료를 받지 못했습니다');if(key==='zoneForecasts'&&s.status==='stale')text+=' (예보 기준 '+sourceTime((data.inputs||{}).zoneForecastBase||s.base||s.updatedAt)+')';return text+' (마지막 수집 '+sourceTime(s.lastSuccess||s.updatedAt)+')';});}
     w.RiskSheet={create:create,sourceName:sourceName,sourceMessages:sourceMessages,coastRows:coastRows,coastCalculation:coastCalculation,seaRows:seaRows};

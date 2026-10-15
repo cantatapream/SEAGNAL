@@ -85,7 +85,7 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
    const result={choices,staleText,basis,headerColor:getComputedStyle(document.querySelector('.rf-basis th')).color,focusWidth:focused.outlineWidth,focusColor:focused.outlineColor,focusOffset:focused.outlineOffset,tipTransition:getComputedStyle(host.querySelector('.ocean-sheet-tooltip')).transitionDuration,switchTransition:getComputedStyle(legend.querySelector('.bzl-switch')).transitionDuration,sliderLabel:host.querySelector('input').getAttribute('aria-label')};RiskBasis.close();return result;
   });
   test('같은 위치 목록에서 다른 관광지 선택',()=>assert.deepEqual(ui.choices,[{kind:'coast',id:'b'}]));
-  test('낡은 예보 기준은 경고와 파고·풍속줄에 표시',()=>assert.ok((ui.staleText.match(/예보 기준/g)||[]).length>=3));
+  test('낡은 예보 기준은 파고·풍속줄에 남고 공통 원천 경고는 숨김',()=>{assert.equal((ui.staleText.match(/예보 기준/g)||[]).length,2);assert.ok(!ui.staleText.includes('해구 예보 자료가 오래되었습니다'));});
   test('연안 기준상세 확정 색문안 복구',()=>{assert.match(ui.basis,/1배 초록 → 1.5배 노랑 → 4배 주황 → 8배 빨강의 연속 그라데이션/);assert.match(ui.basis,/이 관광지 주변 3km에서 이 날에/);});
   test('근거표 제목 색은 확정노랑',()=>assert.equal(ui.headerColor,'rgb(255, 225, 122)'));
   test('키보드 초점은 파랑2px·offset2px',()=>{assert.equal(ui.focusWidth,'2px');assert.equal(ui.focusColor,'rgb(68, 138, 255)');assert.equal(ui.focusOffset,'2px');});
@@ -98,7 +98,7 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
   });
   test('공식 사고상세는 원시지수·생성시각과 다른기상 출처분리',()=>{assert.match(officialSheet.text,/공식 선박 사고 위험예보/);assert.match(officialSheet.text,/0.015262514/);assert.match(officialSheet.text,/발생 확률/);assert.match(officialSheet.text,/GR4_fixture/);assert.match(officialSheet.text,/파주기/);assert.match(officialSheet.text,/4.14s/);assert.match(officialSheet.text,/241°/);assert.match(officialSheet.text,/기상청 해구별 예보/);assert.equal(officialSheet.noOwnIndex,true);});
   test('혼잡만있는 상세는 자체위험 배수를 공식처럼 표시하지 않음',()=>{assert.doesNotMatch(officialSheet.trafficText,/약 8배|위험지수|전복/);assert.match(officialSheet.trafficText,/낮음/);});
-  test('공식사고 원천실패는 상세경고로 구분',()=>assert.match(officialSheet.missingMessages.join(' '),/공식 선박 사고 위험예보 자료 수집에 실패/));
+  test('공식사고 원천실패는 내부 진단 문장으로 구분',()=>assert.match(officialSheet.missingMessages.join(' '),/공식 선박 사고 위험예보 자료 수집에 실패/));
   test('혼잡5의 공식낮음은 기존보통 판정으로 바꾸지 않음',()=>{assert.match(officialSheet.trafficText,/낮음 · 지수 5/);assert.doesNotMatch(officialSheet.trafficText,/보통/);assert.match(officialSheet.unknownText,/단계 확인 불가/);assert.doesNotMatch(officialSheet.unknownText,/높음/);});
   test('사고·혼잡 시트 모두 공식기준 상세 버튼 연결',()=>{assert.equal(officialSheet.accidentBasis,true);assert.equal(officialSheet.trafficBasis,true);assert.deepEqual(officialSheet.basisKinds,['sea','sea']);});
 
