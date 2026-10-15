@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 109 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 110 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -347,6 +347,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_score_sea` | 선택시각 예보·특보 최대후보·혼잡 결측·강풍 제외를 검증한다. |
 | `test_risk_score_coast` | 연안 합산·사망배수 분리·주말·정책값·결측 생략과 U81(사람 30일 평균 대비·위험구역 후보 A)을 검증한다. |
 | `test_risk_static` | 배송 정적 표가 원본 관광지·위험구역·이안류·기하 계약을 보존하는지 검사한다. |
+| `test_coast_accidents` | 관광지별 주변 연안 인명사고 정적 표(coast_accidents.json)가 유형·기간·중복·영역 계약을 지키는지 |
 | `test_risk_geo` | 홀·다중면·경계 포함·방위·거리·겹침 동률 기초를 검증한다. |
 | `test_risk_format` | U77·U78의 위험예측 서식·색·좌표와 HTML/URL 처리를 제품 함수로 검사한다. |
 | `test_risk_preview` | 위험예측 미리보기와 실제 앱의 원본 스위치 CSS·스크립트 순서·오버레이 연결을 검사한다. |
