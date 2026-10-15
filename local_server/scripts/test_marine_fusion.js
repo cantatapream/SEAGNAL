@@ -72,7 +72,7 @@ const risk={marineInputs:()=>inputs,sources:()=>inputs.sources};
         assert.deepEqual([0,5,5.01,10,10.1,20,20.02,100].map(M.densityLevel),['낮음','낮음','보통','보통','높음','높음','매우높음','매우높음']);
         for(const v of [null,undefined,NaN])assert.equal(M.densityLevel(v),null);
     });
-    await check('지금 혼잡도 지도(current)는 밀집도로 칠하고 칸 숫자는 척수 그대로 · 밀집도 빈 칸은 칠하지 않음',()=>{
+    await check('지금 혼잡도 지도(current)는 밀집도로 칠하고 칸 숫자는 척수 그대로 · 밀집도 빈 칸은 칠하지 않음 · 응답에 없는 칸은 「낮음」·0척(사용자 「배가없는 칸을 낮음으로」) · 낡으면 아무것도 안 칠함',()=>{
         const scoped=fs.mkdtempSync(path.join(os.tmpdir(),'fusion-density-')),second={...trafficCell,id:'GR4_F4K23_P3',i:1,lon:126.5625,geometry:{type:'Polygon',coordinates:[[[126.55,33.55],[126.575,33.55],[126.575,33.575],[126.55,33.575],[126.55,33.55]]]}};
         io.write(path.join(scoped,'sea_realtime.json.gz'),{cells:[trafficCell,second],rows:[[0,18,12],[1,30,null]],sourceAt:io.iso(now),collectedAt:io.iso(now),source:'MTIS realtime API'});
         const local={...inputs,cells:{cells:[trafficCell,second]}};
@@ -80,7 +80,10 @@ const risk={marineInputs:()=>inputs,sources:()=>inputs.sources};
         const f=s2.unifiedFrame('current');
         const ids=new Map(s2.unifiedCells().cells.map(c=>[c.i,c.id]));
         const got=f.cells.map(([i,n,level,color])=>[ids.get(i),n,level,Math.round(color*1000)/1000]);
-        assert.deepEqual(got,[['GR4_F4K23_P4',18,'높음',0.55]]);              // 12% → 높음 칸(10~20)의 20% 위치 → (2+0.2)/4
+        assert.deepEqual(got.filter(r=>r[1]>0),[['GR4_F4K23_P4',18,'높음',0.55]]);              // 12% → 높음 칸(10~20)의 20% 위치 → (2+0.2)/4
+        assert.ok(!got.some(r=>r[0]==='GR4_F4K23_P3'),'척수는 있는데 밀집도가 빈 칸은 칠하지 않음');
+        const empty=got.filter(r=>r[1]===0);assert.ok(empty.length>0&&empty.every(r=>r[2]==='낮음'&&r[3]===0),'응답에 없는 칸은 낮음·0');
+        const late=M.createStore({risk:{marineInputs:()=>local,sources:()=>local.sources},dir:scoped,clock:()=>now+20*60000,stations,accidents,describe});assert.deepEqual(late.unifiedFrame('current').cells,[],'수집이 낡았으면 0척으로 지어내지 않음');
         assert.equal(s2.analysis({id:trafficCell.id}).marine.current.densityLevel,'높음');
         fs.rmSync(scoped,{recursive:true,force:true});
     });
