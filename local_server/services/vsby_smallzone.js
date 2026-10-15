@@ -399,6 +399,7 @@ function startAutoRefresh() {
  * lastFctTm 이 지금보다 과거면 화면에 나갈 앞날 예측이 하나도 없다는 뜻이다.
  * @returns {object}
  * [연계] → routes/vsby_smallzone.js GET /api/vsby-smallzone/status
+ *        → risk_history_sources.visibilitySource (관리자 AI 사고예측 → 오류현황, 1분 감시)
  */
 function getStatus() {
     const ft = _cache.fctTimes || [];

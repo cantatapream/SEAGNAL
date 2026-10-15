@@ -18,6 +18,7 @@ const SOURCES = [
     'tourConcentration',
     'events',
     'realtime',
+    'visibility', // 해구별 시정 예측(RDPS 래스터) — risk_history_sources.visibilitySource
 ];
 const STATES = ['ok', 'offseason', 'missing', 'stale', 'error'],
     BAD = ['missing', 'stale', 'error'];
