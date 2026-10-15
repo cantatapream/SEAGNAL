@@ -270,6 +270,7 @@ app.use(require('./routes/push'));
 app.use(require('./routes/push_test'));
 app.use(require('./routes/location_alert'));  // 위치기반 특보 경보 동의 기록 API (④)
 app.use(require('./routes/risk_errors'));  // 기존 관리자 토큰으로 보호된 사고예측 오류현황
+app.use(require('./routes/data_collection'));  // 관리자 점검 → 데이터 수집현황(수집 목록) — 같은 토큰 인증
 app.use(require('./routes/admin'));
 app.use(require('./routes/survey'));
 app.use(require('./routes/report'));
@@ -506,7 +507,7 @@ app.listen(PORT, '0.0.0.0', () => {
         // 위험예측은 운영에서만 외부 수집. 각 실패는 다른 수집기와 서버 응답을 막지 않는다.
         try { require('./services/risk_error_history').start(); }
         catch (_) { console.error('[startup] 위험예측 상태 감시 시작 실패'); }
-        for (const name of ['sea_traffic_collector', 'sea_accident_collector', 'sea_realtime_collector', 'tour_concentration_collector', 'coastal_events_collector']) {
+        for (const name of ['sea_traffic_collector', 'sea_accident_collector', 'sea_realtime_collector', 'tour_concentration_collector', 'coastal_events_collector', 'sea_warning_history']) {
             try { require('./services/' + name).start(); }
             catch (_) { console.error('[startup] 위험예측 수집기 시작 실패:', name); }
         }

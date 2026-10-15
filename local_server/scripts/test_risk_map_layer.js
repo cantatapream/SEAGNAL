@@ -122,10 +122,12 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
 
 
   const scorer=require('../services/risk_score');
-  const coastInput={t:'2026-10-11T15:00:00+09:00',now:'2026-10-11T15:00:00+09:00',spot:{hazard:{count:11,fatal:true}},concentration:90.52,events:[],swell:{periodS:8}};
+  // U81(2026-10-15): 사람 = 평소(30일 평균 11.315)의 8배 → 2.91점, 위험구역 = 종류별(위험 6·사망 2·다발 3, 3곳에서 멈춤) 합.
+  const typedZones=[['연안사고 위험구역',6],['사망사고 발생구역',2],['연안사고 다발구역',3]].flatMap(([c,n])=>Array.from({length:n},(_,i)=>({id:c+i,'구역분류':c})));
+  const coastInput={t:'2026-10-11T15:00:00+09:00',now:'2026-10-11T15:00:00+09:00',spot:{hazard:{count:11,zones:typedZones}},concentration:90.52,concentrationBase:{gm:11.315,days:30},events:[],swell:{periodS:8}};
   const scored=scorer.scoreCoast(coastInput);scored.rows=scored.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
   const incomplete=scorer.scoreCoast({...coastInput,concentration:null,events:null,swell:null});incomplete.rows=incomplete.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
-  const policy=scorer.scoreCoast({...coastInput,swell:{periodS:12},spot:{hazard:{count:11,fatal:true},ripBeach:'fixture'},rip:{level:'주의',hasData:true}});policy.rows=policy.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
+  const policy=scorer.scoreCoast({...coastInput,swell:{periodS:12},spot:{hazard:{count:11,zones:typedZones},ripBeach:'fixture'},rip:{level:'주의',hasData:true}});policy.rows=policy.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
   const calculation=await page.evaluate(({scored,incomplete,policy})=>{
    const host=document.createElement('div');host.className='rf-sheet';document.body.appendChild(host);const sheet=RiskSheet.create(host,{close(){},hazard(){},basis(){},retry(){},choose(){}});
    const show=d=>{sheet.show({...d,title:'영도 흰여울해안터널',subtitle:{lat:35,lon:129},notices:[]},'coast',{});return host.textContent;};
@@ -133,10 +135,10 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
    const partial=show(incomplete),policyText=show(policy),mismatch=RiskSheet.coastCalculation({...scored,score:99}),unsafe=RiskSheet.coastCalculation({...scored,rows:scored.rows.map(r=>r.key==='month'?{...r,month:'<img onerror=alert(1)>'}:r)});
    return{complete,closed,opened,partial,policyText,mismatch,unsafe};
   },{scored,incomplete,policy});
-  test('연안33배 사례는 실제 점수와10월을 합쳐 설명',()=>{assert.match(calculation.complete,/2.91 \+ 1.74 \+ 0.37 \+ 0.02 = 5.04점/);assert.match(calculation.complete,/32.9배/);assert.match(calculation.complete,/10월 분석/);assert.match(calculation.complete,/상대 비교 지표/);});
-  test('사망실종11배는 반올림전 계수와10월 계수 곱',()=>{assert.match(calculation.complete,/3.652264 × 2.25 × 1.3 × 1.02 ≈ 10.9배/);assert.match(calculation.complete,/반올림한 표시값/);assert.ok(Math.abs(scored.fatalRr-10.8965296416)<1e-8);});
+  test('U81 연안43배 사례는 실제 점수(사람 8배·위험구역 종류별 합)와10월을 합쳐 설명',()=>{assert.match(calculation.complete,/2.91 \+ 2.452601 \+ 0.07 = 5.432601점/);assert.match(calculation.complete,/43.2배/);assert.match(calculation.complete,/사람 혼잡\(평소의 8.0배\)/);assert.match(calculation.complete,/10월 분석/);assert.match(calculation.complete,/상대 비교 지표/);});
+  test('U81 사망실종22배는 반올림전 계수(사람·위험구역 종류별 곱)와10월 계수 곱',()=>{assert.match(calculation.complete,/3.652264 × 5.646016 × 1.06 ≈ 21.9배/);assert.match(calculation.complete,/반올림한 표시값/);assert.ok(Math.abs(scored.fatalRr-21.857984648808593)<1e-8);});
   test('배수 설명은 선택적으로 펼치고 접는 접근가능한details',()=>{assert.equal(calculation.closed,true);assert.equal(calculation.opened,true);});
-  test('입력누락 배수를 전체사고 가능성으로 확정하지 않음',()=>{assert.match(calculation.partial,/확인된 요소 기준의 상대 사고지표/);assert.match(calculation.partial,/전체 요소를 반영한 비교 배수는 확인되지 않았습니다/);assert.doesNotMatch(calculation.partial,/한산하고 위험구역 없는 곳의 평범한 날과 비교/);});
+  test('입력누락 배수를 전체사고 가능성으로 확정하지 않음',()=>{assert.match(calculation.partial,/확인된 요소 기준의 상대 사고지표/);assert.match(calculation.partial,/전체 요소를 반영한 비교 배수는 확인되지 않았습니다/);assert.doesNotMatch(calculation.partial,/평소만큼 붐비고 위험구역 없는 곳의 평범한 날과 비교/);assert.match(calculation.complete,/평소만큼 붐비고 위험구역 없는 곳의 평범한 날과 비교/);});
   test('너울·이안류 정책점수는 사망배수에 중복하지 않음',()=>{assert.match(calculation.policyText,/너울 정책 점수/);assert.match(calculation.policyText,/이안류 정책 점수/);assert.match(calculation.policyText,/사망·실종 계수는 없어 그 배수에는 추가하지 않습니다/);assert.equal(policy.fatalRr,scored.fatalRr);});
   test('불일치 합계와 HTML 입력은 추측·실행하지 않음',()=>{assert.match(calculation.mismatch,/계산에 필요한 상세 요소를 확인하지 못했습니다/);assert.doesNotMatch(calculation.mismatch,/2<sup>/);assert.doesNotMatch(calculation.unsafe,/<img/);assert.match(calculation.unsafe,/&lt;img/);});
 

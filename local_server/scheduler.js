@@ -17,6 +17,7 @@
  *
  * [연계 모듈]
  *   - services/tide_collector.js : TideBED 조석 데이터 수집 (별도 스케줄)
+ *   - services/zone_forecast_guard.js : 해구별 예보 판 비교(옛 판으로 덮어쓰기 방지)·결과 기록
  *   - services/firebase_admin_lazy.js : push 알림용 Firebase Admin (lazy init)
  *   - routes/admin.js : 작업 모드(점검 모드) 설정 — loadWorkModeConfig
  *
@@ -202,6 +203,8 @@ const regionalBulletinCollector = require('./regional_bulletin_collector');
 //   사용자 첫 요청 시점에 외부 호출이 발생하지 않도록 사전 적재 + gzip 디스크 백업.
 //   변경 사유 및 동작은 services/khoa_stream_cache.js 모듈 헤더 참고.
 const khoaStreamCache = require('./services/khoa_stream_cache');
+// [해구 예보 판 비교 — 2026-10-15] 찾은 판이 가진 판보다 오래되면 덮어쓰지 않고, 결과를 data/zone_forecasts_status.json 에 남긴다.
+const zoneGuard = require('./services/zone_forecast_guard');
 
 // [물빠짐 예측 — Phase 1] 서해·남해 앵커 1분 조위곡선 배치 수집기.
 //   anchors.json(build_tide_field.js 산출) 을 순회하며 오늘~+2일(KST) TideBED
@@ -564,6 +567,20 @@ async function collectZoneForecasts() {
             } catch (e) { }
         }
 
+        // [판 비교 — 2026-10-15 사용자 지시 「새 판 없음, 기존 판 유지 기록 · 더 오래된 판으로 덮어쓰지 않기」]
+        //   찾은 판이 가진 판보다 오래됐으면(예: 12UTC 판 확인이 일시 실패해 00UTC 로 내려감) 받지도 덮어쓰지도 않는다.
+        //   같은 판은 종전대로 다시 받는다 — 받은 시각(updatedAt)이 갱신돼야 risk_store 의 15시간 낡음 규칙이
+        //   12UTC 판이 늦는 밤마다 울리지 않는다(그 규칙을 바꾸는 것은 이번 범위가 아니다).
+        const expectedBaseTm = getUtcTm(latestUtc);
+        const storedBaseTm = zoneGuard.storedBase(CONFIG.DATA_DIR);
+        const zoneVerdict = zoneGuard.decide(storedBaseTm, validBaseTm);
+        if (zoneVerdict === 'older' || zoneVerdict === 'none') {
+            const kept = zoneGuard.record(CONFIG.DATA_DIR, { result: zoneVerdict, stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
+            lastRunStatus.zone = { lastRun: getNowStr(), status: '유지', message: kept ? kept.message : '새 판 없음, 기존 판 유지' };
+            log(`ℹ️ 해구별 예보: ${lastRunStatus.zone.message}`);
+            return;
+        }
+
         if (validBaseTm) {
             const zoneDataMap = {};
             const baseDate = new Date(Date.UTC(parseInt(validBaseTm.substring(0, 4)), parseInt(validBaseTm.substring(4, 6)) - 1, parseInt(validBaseTm.substring(6, 8)), parseInt(validBaseTm.substring(8, 10))));
@@ -593,6 +610,9 @@ async function collectZoneForecasts() {
             if (Object.keys(zoneDataMap).length > 0) {
                 saveData('zone_forecasts.json', { updatedAt: getNowStr(), baseTmUtf: validBaseTm, data: zoneDataMap, count: Object.keys(zoneDataMap).length });
                 lastRunStatus.zone = { lastRun: getNowStr(), status: '성공', message: `${Object.keys(zoneDataMap).length}개 구역 저장` };
+                zoneGuard.record(CONFIG.DATA_DIR, { result: zoneVerdict, stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
+            } else {
+                zoneGuard.record(CONFIG.DATA_DIR, { result: 'empty', stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
             }
         }
     } catch (e) {
@@ -2607,8 +2627,9 @@ async function init() {
             collectMarineVs();
         }
 
-        // 기상예보: 하루 2회 (05:15, 17:15)
-        if (['05:15', '17:15'].includes(hm)) collectGeneralForecasts();
+        // 기상예보: 하루 3회 (05:15, 11:15, 17:15) — 해상 단기 통보문 공식 발표 05·11·17시(data.go.kr 15058629),
+        //   11시분을 17:15까지 못 받던 것 보완(사용자 2026-10-15 「해상단기통보문은 11시 15분 한번 더 넣고」)
+        if (['05:15', '11:15', '17:15'].includes(hm)) collectGeneralForecasts();
 
         // 해구별 기상전망: 하루 2회 (09:30, 21:30 KST)
         if (['09:30', '21:30'].includes(hm)) collectZoneForecasts();

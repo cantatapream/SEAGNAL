@@ -1,0 +1,4 @@
+﻿type,zones,area_median_m2,overlap_area_with_사망,nearest_사망_le_0m,nearest_사망_le_100m,nearest_사망_le_500m,nearest_사망_median_m,overlap_area_with_다발,nearest_다발_le_0m,nearest_다발_le_100m,nearest_다발_le_500m,nearest_다발_median_m,overlap_area_with_위험,nearest_위험_le_0m,nearest_위험_le_100m,nearest_위험_le_500m,nearest_위험_median_m
+위험,527,22163.077211486307,3.0,3.0,17.0,58.0,3953.3572561804667,6.0,6.0,25.0,41.0,8785.55416411768,,,,,
+사망,201,36622.67393107315,,,,,,3.0,3.0,7.0,14.0,7783.202626086651,3.0,3.0,16.0,54.0,1719.9467838891112
+다발,92,64729.79049739461,3.0,3.0,7.0,16.0,2877.160690473983,,,,,,5.0,5.0,23.0,33.0,922.931305595914

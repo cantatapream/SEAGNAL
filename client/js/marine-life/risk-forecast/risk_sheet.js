@@ -58,6 +58,29 @@
         return '<details class="rf-hazards"><summary>위험구역 '+zones.length+'곳 현황</summary><ol>'+zones.map(function(z){return '<li data-zone-li="'+F.escape(z.id)+'"><b>'+F.escape(z.place||z.name)+'</b> · '+F.escape(z.shape)+' · '+F.escape(z.class)+'<br><button type="button" class="rf-hazard-link" data-zone-id="'+F.escape(z.id)+'" aria-pressed="false">'+F.escape(z.addr||'구역 위치 보기')+'</button>'+ (z.police?' · '+F.escape(F.stationLabel(z.police,z.office)):'')+'</li>';}).join('')+'</ol></details>';
     }
     /**
+     * 오늘 집중률이 평소(30일 기하평균)의 몇 배인지 쓴다(U81 — 사람 혼잡 줄). 2배 미만은 소수 둘째 자리, 2배 이상은 소수 한 자리.
+     * 왜: 2배 미만의 사고 가능성은 정수 %(R6-1·R6-2, 1% 단위)로 나오므로 사람 배수도 1% 단위로 맞춘다 — 소수 한 자리면
+     *     1.03배가 「1.0배라 평소 대비 3% 높은」처럼 서로 어긋나 보였다(2026-10-15 검토).
+     *     2배 판정은 소수 둘째 자리로 반올림한 값으로 한다 — 반올림 전 값으로 하면 1.995 가 「2.00배」, 2.0 이 「2.0배」로 어긋났다(2026-10-15 2차 검토 D8).
+     * 예: crowdTimes(1.034) → '1.03배' · crowdTimes(1.84) → '1.84배' · crowdTimes(1.995) → '2.0배' · crowdTimes(4.27) → '4.3배'
+     * @param {number} ratio - 서버 factor.ratio(오늘 집중률 ÷ 30일 기하평균)
+     * @returns {string} 표시 문구 [연계] coastRows·coastCalculation
+     */
+    function crowdTimes(ratio) { var r2=Math.round(ratio*100)/100; return r2<2?r2.toFixed(2)+'배':(Math.round(ratio*10)/10).toFixed(1)+'배'; }
+    /**
+     * 30일 기하평균 집중률을 소수 한 자리로 쓴다. 값이 없으면(null·undefined·빈 문자열) 빈 문자열 — Number(null)=0 이라 「0.0」으로 보이던 것(D8).
+     * 예: crowdBase(17.3205) → '17.3', crowdBase(20) → '20.0', crowdBase(null) → ''
+     * @param {number} base - 서버 factor.base(risk_score 의 gm, 반올림 없음) @returns {string} [연계] coastRows / 계산은 서버 원값으로 한다(표시만 반올림).
+     */
+    function crowdBase(base) { return base==null||String(base).trim()===''||!Number.isFinite(Number(base))?'':Number(base).toFixed(1); }
+    /**
+     * 위험구역 종류별 개수를 한 줄로 쓴다(U81② — 종류마다 따로 셈). 0곳인 종류는 뺀다.
+     * 예: hazardKinds([{class:'연안사고 위험구역',count:2},{class:'사망사고 발생구역',count:0},{class:'연안사고 다발구역',count:1}]) → '연안사고 위험구역 2곳 · 연안사고 다발구역 1곳, 모두 '
+     * @param {Object[]} byType - 서버 hazard.byType(class·count)
+     * @returns {string} 안전한 HTML(뒤에 「모두 N곳」이 이어짐) [연계] coastRows
+     */
+    function hazardKinds(byType) { var list=(byType||[]).filter(function(t){return t.count>0;}).map(function(t){return F.escape(t.class)+' '+F.escape(t.count)+'곳';}); return list.length?list.join(' · ')+', 모두 ':'위험구역이 '; }
+    /**
      * 서버 연안 분석 행을 표시하고 결측 너울 행은 생략한다.
      * 예: coastRows(detail.rows)
      * @param {Object[]} rows - 연안 상세 rows 계약
@@ -67,12 +90,12 @@
     function coastRows(rows) {
         return rows.map(function(r){
             if(r.key==='swell'&&r.missing)return '';
-            var labels={people:'사람 혼잡',hazard:'위험구역(3km 안)',fatalZone:'사망사고 발생구역',event:'행사 정보',month:r.month+'월 분석',swell:'너울',rip:'이안류'};
+            var labels={people:'사람 혼잡',hazard:'위험구역(3km 안)',event:'행사 정보',month:r.month+'월 분석',swell:'너울',rip:'이안류'};
             if(r.missing)return row(labels[r.key]||r.key,'<span class="rf-muted">자료 없음</span>','',false);
             switch(r.key) {
-                case 'people': if(!r.stage)return ''; return row(labels.people,b(r.stage+'단계',r.rr)+' <small>(집중률 '+F.escape(r.cr)+')</small>','사람 혼잡 '+b(r.stage+'단계',r.rr)+'라 한산할 때(0단계) 대비 '+possibility(r.rr)+fatal(r.fatalRr,'한산할 때(0단계) 대비'));
-                case 'hazard': if(!r.count)return ''; return row(labels.hazard,b(r.count+'곳',r.rr),'위험구역이 '+b(r.count+'곳',r.rr)+' 있어 위험구역 없는 곳 대비 '+possibility(r.rr)+fatal(r.fatalRr,'위험구역 없는 곳 대비')+hazards(r.zones||[]));
-                case 'fatalZone':return row(labels.fatalZone,b('3km 안',r.rr),'사망사고가 난 구역이 '+b('3km 안',r.rr)+'에 있어 없는 곳 대비 '+possibility(r.rr)+fatal(r.fatalRr,'없는 곳 대비'));
+                // 점수가 0 이거나, 사고 가능성이 반올림해 「0%」면(예: 1.00배) 그리지 않는다 — 「0% 높은」은 평소와 같다는 뜻이라 줄의 의미가 없다(D8).
+                case 'people': if(!(r.score>0)||F.amt(r.rr)==='0%')return ''; var times=crowdTimes(r.ratio); return row(labels.people,b(times,r.rr)+' <small>(집중률 '+F.escape(r.cr)+' · 30일 평균 '+F.escape(crowdBase(r.base))+')</small>','사람이 평소(30일 평균) 대비 '+b(times,r.rr)+'라 평소 대비 '+possibility(r.rr)+fatal(r.fatalRr,'평소 대비'));
+                case 'hazard': if(!r.count)return ''; return row(labels.hazard,b(r.count+'곳',r.rr),hazardKinds(r.byType)+b(r.count+'곳',r.rr)+' 있어 위험구역 없는 곳 대비 '+possibility(r.rr)+fatal(r.fatalRr,'위험구역 없는 곳 대비')+hazards(r.zones||[]));
                 case 'event': var events=r.events&&r.events.length?r.events:[{name:r.name,src:r.src,sourceType:r.sourceType,start:r.dateRange&&r.dateRange[0],end:r.dateRange&&r.dateRange[1]}],links=events.map(function(e){var url=F.safeURL(e.src);return (url?'<br><a href="'+F.escape(url)+'" target="_blank" rel="noopener noreferrer">'+(events.length>1?F.escape(e.name)+' · ':'')+(e.sourceType==='tourapi'?'관광공사 원천 자료':'행사 원문')+'</a>':'')+(e.start&&e.end?' · '+F.escape(e.start+' ~ '+e.end):'');}).join('');return row(labels.event,'<b class="rf-t-'+(r.weekend?'y':'g')+'">'+F.escape(r.name)+'</b>',(r.weekend?'주말 행사가 있어 같은 요일 행사 없는 날 대비 '+possibility(r.rr):'평일 행사는 과거 사고에 차이가 없어 점수에 넣지 않음')+links);
                 case 'month':return row(labels.month,'', '1년 평균 대비 '+possibility(r.rr)+fatal(r.fatalRr,'1년 평균 대비'));
                 case 'swell': if(!(r.periodS>=12))return ''; return row(labels.swell,b('파도 주기 '+Number(r.periodS).toFixed(1)+'초',r.analysisRr),'(분석) 파도 주기가 12초 이상인 경우 사고 발생률이 '+b('25%',r.analysisRr)+' 증가 · 점수에는 '+b('23%',r.analysisRr)+'로 반영');
@@ -154,14 +177,14 @@
     }
     /**
      * 선택한 연안 시각의 실제 요소를 합친 과정을 펼쳐 보여 준다.
-     * 예: 2.91+1.74+0.37+0.02=5.04 → 2^5.04 ≈ 32.9배.
+     * 예: 1.94+1.57+0.74=4.25 → 2^4.25 ≈ 19배(사람 평소의 4배·위험구역 종류별 합·8월).
      * @param {Object} d - risk_store.coastDetail의 score·rr·fatalRr·rows·missing
      * @returns {string} 접근 가능한 계산 설명 HTML
      * [연계] create.show ← local_server/services/risk_store.js / 서버 계산값을 설명하며 다시 판정하지 않는다.
      */
     function coastCalculation(d) {
-        var rows=d.rows||[], names={people:'사람 혼잡',concentration:'사람 혼잡',hazard:'위험구역',fatalZone:'사망사고 발생구역',event:'주말 행사',month:'월 분석',swell:'너울 정책 점수',rip:'이안류 정책 점수'};
-        var label=function(r){return r.key==='month'?r.month+'월 분석':r.key==='people'||r.key==='concentration'?'사람 혼잡 '+r.stage+'단계':names[r.key]||'기타 요소';};
+        var rows=d.rows||[], names={people:'사람 혼잡',concentration:'사람 혼잡',hazard:'위험구역',event:'주말 행사',month:'월 분석',swell:'너울 정책 점수',rip:'이안류 정책 점수'};
+        var label=function(r){return r.key==='month'?r.month+'월 분석':(r.key==='people'||r.key==='concentration')&&Number.isFinite(r.ratio)?'사람 혼잡(평소의 '+crowdTimes(r.ratio)+')':names[r.key]||'기타 요소';};
         var n=function(v){return String(Math.round(v*1000000)/1000000);};
         var known=rows.filter(function(r){return !r.missing&&Number.isFinite(r.score);}), scored=known.filter(function(r){return r.score!==0;}), fatalFactors=known.filter(function(r){return Number.isFinite(r.fatalRr)&&r.fatalRr>0&&r.fatalRr!==1;});
         var partial=(d.missing||[]).length>0||rows.some(function(r){return r.missing;});
@@ -186,14 +209,14 @@
      */
     function summary(d,kind) {
         var c=F.col(d.score),rr=d.rr===1?'평소 수준':F.fmt(d.rr);
-        var prose=kind==='sea'?'평소(특보 없는 때)보다<br>선박 사고 가능성 '+b(rr,d.rr)+'<small>사고 종류 : 전복, 침몰, 침수, 표류</small>':((d.missing||[]).length?'확인된 요소 기준의 상대 사고지표<br>':'한산하고 위험구역 없는 곳의 평범한 날과 비교<br>')+'전체 사고 '+b(rr,d.rr)+'<small>사망·실종 사고 '+b(F.fmt(d.fatalRr),d.fatalRr)+'</small><small>사고 종류 : 익수, 추락, 고립, 떠밀림</small>';
+        var prose=kind==='sea'?'평소(특보 없는 때)보다<br>선박 사고 가능성 '+b(rr,d.rr)+'<small>사고 종류 : 전복, 침몰, 침수, 표류</small>':((d.missing||[]).length?'확인된 요소 기준의 상대 사고지표<br>':'평소만큼 붐비고 위험구역 없는 곳의 평범한 날과 비교<br>')+'전체 사고 '+b(rr,d.rr)+'<small>사망·실종 사고 '+b(F.fmt(d.fatalRr),d.fatalRr)+'</small><small>사고 종류 : 익수, 추락, 고립, 떠밀림</small>';
         return '<div class="rf-index"><button type="button" class="rf-basis-btn" data-basis="'+kind+'">기준 상세</button><div class="rf-index-main"><div class="rf-score-box" style="background:'+c+';color:'+F.ink(c)+'"><small>위험지수</small><strong>'+F.escape(d.index)+'</strong></div><div class="rf-index-prose"><b>'+F.escape(d.band)+'</b><br>'+prose+'</div></div><div class="rf-ramp"></div><div class="rf-ramp-labels"><span>0</span><span>50</span><span>100</span></div></div>';
     }
     /**
      * 닫기·위험구역 이동·기준 상세·재시도 동작을 시트에 연결한다.
      * 예: RiskSheet.create(el,handlers)
      * @param {HTMLElement} el - 시트; handlers는 close·hazard·basis·retry·choose 콜백
-     * @returns {Object} show·loading·markZone·error·choose·clear·timelineEl API
+     * @returns {Object} show·loading·markZone·error·choose·trafficHistory·clear·timelineEl API
      * [연계] RiskForecast → 상세 응답 표시
      */
     function create(el,handlers) {
@@ -220,12 +243,14 @@
          * 예: show({marine:{location:'화순항 북북서방 11.8해리 해역(232-2해구)',station:'한림파출소',office:'제주해양경찰서'}},'sea')
          *     → 부제 「제주해양경찰서 한림파출소 관할」(2026-10-15) · 연안은 「좌표 · <해양경찰서> <파출소> 관할」
          * @param {Object} d - 서버 상세(해상 analysis·연안 coast/spot·공식 사고·브리핑) @param {string} kind - sea/coast/accident/briefing
-         * @param {Object} [item] - 누른 지점(좌표 대체용) @returns {void}
+         * @param {Object} [item] - 누른 지점(좌표 대체용) @param {Object} [ctx] - 해상 본문용 {now: 서버 meta.now}(지금/미래 문구)
+         * @returns {void}
          * [연계] RiskForecast.select → 여기 / 관할 문구는 RiskFormat.stationLabel(서버 office: marine_fusion·risk_store)
+         *        해상 본문은 RiskMarine.render 로 그리고 RiskMarine.attach 로 날씨 펼침·사고 팝업·교통량 그래프 동작을 붙인다(2026-10-15 시안 8차)
          */
-        function show(d,kind,item) {
+        function show(d,kind,item,ctx) {
             el.removeAttribute('aria-busy');
-            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';el.querySelector('.rf-timeline').hidden=false;el.querySelector('.rf-body').innerHTML=d.marine?w.RiskMarine.render(d.marine):w.RiskMarine.briefing(d);el.classList.add('open');return;}
+            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';el.querySelector('.rf-timeline').hidden=false;var mb=el.querySelector('.rf-body');mb.innerHTML=d.marine?w.RiskMarine.render(d.marine,ctx):w.RiskMarine.briefing(d);el.classList.add('open');if(d.marine&&w.RiskMarine.attach)w.RiskMarine.attach(mb,d.marine,ctx);return;}
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='accident'?'선박 사고 위험예보 · 격자 '+d.gridId:kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
             el.querySelector('.rf-subtitle').textContent=kind==='accident'?'격자 중심 '+F.dms(d.lat,true)+' - '+F.dms(d.lon,false):kind==='sea'?[sub.name,sub.bearingWord||F.direction(sub.bearingDeg||0),String(Math.round(sub.bearingDeg||0)%360).padStart(3,'0')+'도',Number(sub.distNm||0).toFixed(1)+'해리'].join(' '):F.dms(sub.lat==null?item.lat:sub.lat,true)+' - '+F.dms(sub.lon==null?item.lon:sub.lon,false)+(sub.police?' · '+F.stationLabel(sub.police,sub.office):'');
@@ -248,7 +273,14 @@
         function markZone(id){el.querySelectorAll('[data-zone-id]').forEach(function(b){var on=b.dataset.zoneId===id;b.setAttribute('aria-pressed',String(on));var li=b.closest('li');if(li)li.classList.toggle('is-selected',on);});}
         function error(message){el.removeAttribute('aria-busy');el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';el.classList.add('open');}
         function choose(items){el.removeAttribute('aria-busy');el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';el.classList.add('open');}
-        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,clear:function(){el.removeAttribute('aria-busy');el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';},timelineEl:el.querySelector('.rf-timeline')};
+        /**
+         * 해상 본문의 「과거 2주간 선박교통량」 카드를 받은 이력으로 채운다. 지금 본문이 다른 칸이면 버린다.
+         * 예: trafficHistory('GR4_F4K23_P4',응답) / trafficHistory(cell,null,'error') → 「-」와 「기록을 불러오지 못했습니다.」
+         * @param {string} cell - 요청한 GR4 칸 @param {Object|null} h - sea/traffic-history 응답 @param {string} [problem] - 'error' @returns {void}
+         * [연계] RiskForecast.detail → 여기 → RiskMarine.fillTraffic
+         */
+        function trafficHistory(cell,h,problem){if(w.RiskMarine&&w.RiskMarine.fillTraffic)w.RiskMarine.fillTraffic(el.querySelector('.rf-body'),cell,h,problem);}
+        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,trafficHistory:trafficHistory,clear:function(){el.removeAttribute('aria-busy');el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';var pop=document.querySelector('.rf-acc-pop');if(pop&&!pop.hidden){pop.hidden=true;if(w.PopupStack)w.PopupStack.remove('risk-sea-accident-pop');}},timelineEl:el.querySelector('.rf-timeline')};
     }
     /**
      * 서버 자료 키를 화면에서 읽을 수 있는 이름으로 바꾼다.
@@ -257,7 +289,7 @@
      * @returns {string} 한국어 자료 이름
      * [연계] RiskForecast·create.show → 결측 안내
      */
-    function sourceName(k) {return {accident:'공식 선박 사고 위험예보',congestion:'배 혼잡도',tourConcentration:'관광지 집중률',people:'사람 혼잡',concentration:'사람 혼잡',rip:'이안류',forecast:'해구 예보',zoneForecasts:'해구 예보',swell:'너울',ripCurrent:'이안류',events:'행사',warnings:'특보',gale:'강풍'}[k]||k;}
+    function sourceName(k) {return {accident:'공식 선박 사고 위험예보',congestion:'배 혼잡도',tourConcentration:'관광지 집중률',people:'사람 혼잡',concentration:'사람 혼잡',hazard:'위험구역',rip:'이안류',forecast:'해구 예보',zoneForecasts:'해구 예보',swell:'너울',ripCurrent:'이안류',events:'행사',warnings:'특보',gale:'강풍'}[k]||k;}
     /** 수집·UTC 해구 발표 시각을 KST로 표시한다. 예: 2026101112 → '26. 10. 11.(일) 21:00.
      * @param {string|null} value - ISO 또는 YYYYMMDDHH UTC 시각 @returns {string} 표시 시각
      * [연계] sourceMessages·create.show → RiskFormat.time / 낡은 자료의 기준을 알린다.

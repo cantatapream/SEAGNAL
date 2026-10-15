@@ -1,0 +1,679 @@
+{
+  "_about": [
+    "데이터 수집현황 목록표 — 관리자 → 점검 → 데이터 수집현황 → 「수집 목록」이 이 표 한 줄마다 카드 한 장을 그린다.",
+    "새 데이터를 더하면 items 에 한 줄만 추가한다(읽는 코드: local_server/services/data_collection_status.js).",
+    "규칙(사용자 확정 2026-10-15): 공식 갱신 시기는 근거(evidence)가 있는 것만 적는다. 없으면 official.kind=null → 화면에 「확인 필요」.",
+    "  kind='doc' = 제공처 문서·저장소 설계서에 출처가 적힌 것, kind='measured' = 우리가 직접 잰 값(「실측」으로 표시).",
+    "  출처 표기 없는 코드 주석은 근거로 치지 않고 official.reference 에 「참고」로만 남긴다.",
+    "evidence 는 {file, quote} — quote 는 그 파일에 그대로 있는 글자다. 줄 번호는 서버가 quote 를 찾아 매번 다시 센다(줄이 밀려도 낡지 않게).",
+    "  검사 test_data_collection_status 가 모든 quote 가 실제로 있는지 본다.",
+    "state: 기준 시각을 어디서 읽나. risk=위험예측 오류현황 원천 이름(현재 상태를 그대로 씀) · file=data/ 아래 파일과 칸 이름 ·",
+    "  checkedFile=마지막 확인 시각이 든 상태 파일 · statusFile=관리자에게 보일 한 줄(message·failStreak)이 든 파일 · scheduler=scheduler.getStatus() 열쇠.",
+    "schedule: times=매일 KST 시각 · minutes=매시 분 · everyMinutes=N분 칸마다 · intervalMinutes=기동 시각 기준 N분 · oncePerDay=그날 받았으면 다음 날 첫 시각까지 안 받음.",
+    "  nextFrom: collected(받은 시각 다음 회차, 기본) · checked(마지막 확인 다음 회차) · none(다음 시각을 정할 수 없음 → nextNote).",
+    "  basisCycleHours: 판 주기가 근거로 확인된 것만. 있으면 「판 시각+주기」 뒤 첫 회차가 다음 기대 시각이다(새 판 기준)."
+  ],
+  "providers": [
+    { "id": "kma-apihub", "name": "기상청 API허브" },
+    { "id": "kma-mmis", "name": "기상청 MMIS" },
+    { "id": "kma-weather", "name": "기상청 날씨누리" },
+    { "id": "kma-dmdw", "name": "기상청 방재기상플랫폼" },
+    { "id": "khoa", "name": "국립해양조사원" },
+    { "id": "komsa", "name": "해양교통안전공단" },
+    { "id": "kto", "name": "한국관광공사" }
+  ],
+  "items": [
+    {
+      "id": "zoneForecasts",
+      "stage": 1,
+      "name": "해구별 기상예보 (기상청 API허브)",
+      "provider": "kma-apihub",
+      "endpoint": "apihub.kma.go.kr /api/typ06/url/marine_large_zone.php",
+      "official": {
+        "kind": "measured",
+        "text": "하루 2판(00·12 UTC 판 = 09·21시 KST 판). 실측 2026-10-15: 00UTC 판은 정상, 12UTC 판은 22:23 KST까지 미게시. 제공처 공표 게시 시각은 확인 필요",
+        "evidence": [
+          { "file": "local_server/services/risk_store.js", "quote": "원천은 하루 2판(00·12UTC)" },
+          { "note": "사용자 실측 2026-10-15 22:23 KST(이 작업 지시문) — 12UTC 판 미게시" }
+        ]
+      },
+      "schedule": {
+        "text": "매일 09:30·21:30 KST + 서버 기동 때 1회. 찾은 판이 가진 판보다 오래되면 덮어쓰지 않음",
+        "times": ["09:30", "21:30"],
+        "evidence": [
+          { "file": "local_server/scheduler.js", "quote": "if (['09:30', '21:30'].includes(hm)) collectZoneForecasts();" },
+          { "file": "local_server/scheduler.js", "quote": "if (zoneVerdict === 'older' || zoneVerdict === 'none') {" }
+        ]
+      },
+      "state": {
+        "risk": "zoneForecasts",
+        "file": "zone_forecasts.json",
+        "collectedField": "updatedAt",
+        "collectedFormat": "koLocale",
+        "basisField": "baseTmUtf",
+        "basisFormat": "utcYmdh",
+        "basisCycleHours": 12,
+        "statusFile": "zone_forecasts_status.json"
+      },
+      "graceMinutes": 30
+    },
+    {
+      "id": "warnings",
+      "stage": 1,
+      "name": "해상 특보 (기상청 MMIS)",
+      "provider": "kma-mmis",
+      "endpoint": "marine.kma.go.kr MMIS warn/list · warn-sasc/list",
+      "official": { "kind": null, "text": "확인 필요", "evidence": [] },
+      "schedule": {
+        "text": "1분마다",
+        "everyMinutes": 1,
+        "evidence": [
+          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run().catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" }
+        ]
+      },
+      "state": { "risk": "warnings", "file": "weather_alerts.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 10
+    },
+    {
+      "id": "gale",
+      "stage": 1,
+      "name": "육상 강풍특보 (기상청 MMIS)",
+      "provider": "kma-mmis",
+      "endpoint": "특보 수집기가 받은 MMIS 응답에서 강풍(W) 행만",
+      "official": { "kind": null, "text": "확인 필요", "evidence": [] },
+      "schedule": {
+        "text": "1분마다(특보 수집기와 함께). 행이 바뀔 때만 본문 저장, 확인 시각은 매번",
+        "everyMinutes": 1,
+        "nextFrom": "checked",
+        "evidence": [
+          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run().catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" },
+          { "file": "local_server/services/gale_warning_store.js", "quote": "본문 savedAt은 변경 시각, risk_forecast/gale_status.json checkedAt은 성공 확인 시각" }
+        ]
+      },
+      "state": {
+        "risk": "gale",
+        "file": "gale_warnings.json",
+        "collectedField": "savedAt",
+        "collectedFormat": "iso",
+        "checkedFile": "risk_forecast/gale_status.json",
+        "checkedField": "checkedAt"
+      },
+      "graceMinutes": 10
+    },
+    {
+      "id": "swell",
+      "stage": 1,
+      "name": "너울 위험등급 (기상청 MMIS)",
+      "provider": "kma-mmis",
+      "endpoint": "marine.kma.go.kr GeoServer mmis:marine_zone_swell (WFS)",
+      "official": { "kind": null, "text": "확인 필요", "evidence": [] },
+      "schedule": {
+        "text": "기동 시각 기준 1시간마다 생산시각 확인, 바뀌었을 때만 수집",
+        "intervalMinutes": 60,
+        "nextFrom": "none",
+        "nextNote": "확인 주기가 서버 기동 시각 기준이고 마지막 확인 시각을 남기지 않아 다음 시각을 정할 수 없음",
+        "evidence": [
+          { "file": "local_server/services/swell_smallzone.js", "quote": "const POLL_INTERVAL_MS = 60 * 60 * 1000;   // 생산시각 변경 폴링(1시간)" }
+        ]
+      },
+      "state": {
+        "risk": "swell",
+        "file": "swell_smallzone.json.gz",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "baseTm",
+        "basisFormat": "kstDot"
+      },
+      "graceMinutes": 30
+    },
+    {
+      "id": "visibility",
+      "stage": 1,
+      "name": "시정 예측 (기상청 MMIS)",
+      "provider": "kma-mmis",
+      "endpoint": "marine.kma.go.kr /mmis_marine_api/v1/kma/mdl/rdps/imgList (RDPS 시정 그림)",
+      "official": {
+        "kind": null,
+        "text": "확인 필요",
+        "evidence": [],
+        "reference": [
+          { "file": "local_server/services/risk_history_sources.js", "quote": "런 주기는 확인하지 못했으므로" }
+        ]
+      },
+      "schedule": {
+        "text": "기동 8초 뒤 + 1시간마다 런 확인, 런이 바뀌었을 때만 수집",
+        "intervalMinutes": 60,
+        "nextFrom": "checked",
+        "evidence": [
+          { "file": "local_server/services/vsby_smallzone.js", "quote": "const POLL_INTERVAL_MS = 60 * 60 * 1000;   // 런 변경 폴링(1시간)" }
+        ]
+      },
+      "state": {
+        "risk": "visibility",
+        "file": "vsby_smallzone.json.gz",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "baseTm",
+        "basisFormat": "raw",
+        "basisLabel": "RDPS 런",
+        "checkedFile": "vsby_check_state.json",
+        "checkedField": "at",
+        "statusFile": "vsby_check_state.json"
+      },
+      "graceMinutes": 30
+    },
+    {
+      "id": "ripCurrent",
+      "stage": 1,
+      "name": "이안류 지수 (국립해양조사원·공공데이터포털)",
+      "provider": "khoa",
+      "endpoint": "apis.data.go.kr /1192136/ripCurrent (+ 망상 KHOA RCData · 기상청 MMIS ripcrnt-1h 보강)",
+      "official": {
+        "kind": null,
+        "text": "확인 필요",
+        "evidence": [],
+        "reference": [
+          { "file": "local_server/scheduler.js", "quote": "이안류 API는 reqDate(기본 오늘)의 5분 간격 시계열을 반환합니다." },
+          { "file": "local_server/scheduler.js", "quote": "운영기간은 여름철(6~9월)이며 그 외에는 전 지점 NODATA 입니다." }
+        ]
+      },
+      "schedule": {
+        "text": "매시 05분·35분",
+        "minutes": [5, 35],
+        "evidence": [
+          { "file": "local_server/scheduler.js", "quote": "if (min === 5 || min === 35) collectRipCurrentIndex();" }
+        ]
+      },
+      "state": { "risk": "ripCurrent", "file": "ripcurrent_index.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 20
+    },
+    {
+      "id": "congestion",
+      "stage": 1,
+      "name": "해양교통 혼잡 예보 (해양교통안전공단)",
+      "provider": "komsa",
+      "endpoint": "apis.data.go.kr /B554035/sea-tfc-congst-fcst/get_sea_tfc_congst_fcst",
+      "official": {
+        "kind": "measured",
+        "text": "예보 생성 하루 1번(03:56~03:57 실측)",
+        "evidence": [
+          { "file": "client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md", "quote": "예보 생성 하루 1번(03:56~03:57)" }
+        ]
+      },
+      "schedule": {
+        "text": "매일 04:00·04:30·05:00·05:30 KST(그날 받으면 남은 회차 건너뜀) · 네 번 다 실패한 날 06:30~12:30 매시 30분",
+        "times": ["04:00", "04:30", "05:00", "05:30"],
+        "oncePerDay": true,
+        "evidence": [
+          { "file": "local_server/services/sea_traffic_collector.js", "quote": "const CHECK_MINUTES = [240, 270, 300, 330, 390, 450, 510, 570, 630, 690, 750];" }
+        ]
+      },
+      "state": {
+        "risk": "congestion",
+        "file": "risk_forecast/sea_traffic.json.gz",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "date",
+        "basisFormat": "raw",
+        "basisLabel": "예보 날짜"
+      },
+      "graceMinutes": 60
+    },
+    {
+      "id": "accident",
+      "stage": 1,
+      "name": "공식 선박사고 예보 (해양교통안전공단 MTIS)",
+      "provider": "komsa",
+      "endpoint": "mtisopenapi.komsa.or.kr /eopt/api/sea-acdnt-risk-fcst-info",
+      "official": {
+        "kind": "doc",
+        "text": "하루 2번 갱신: 02~03시·14~15시(MTIS Open API·공공데이터포털 API 설명)",
+        "evidence": [
+          { "url": "https://mtisopenapi.komsa.or.kr/cop/api/apiInfoDetail.do?No=261" },
+          { "url": "https://www.data.go.kr/data/15169936/openapi.do" },
+          { "note": "MTIS Open API 「해양사고 위험 예보」 상세(/eopt/api/sea-acdnt-risk-fcst-info)와 공공데이터포털 「한국해양교통안전공단_해양사고위험예보」 설명 둘 다: 「* 업데이트 주기 : 02~03시, 14~15시」 (확인 2026-10-15)" }
+        ]
+      },
+      "schedule": {
+        "text": "매일 03:10·15:10 KST 판 확인, 04:10·16:10 재확인 + 기동 때 누락분",
+        "times": ["03:10", "04:10", "15:10", "16:10"],
+        "nextFrom": "checked",
+        "evidence": [
+          { "file": "local_server/services/sea_accident_collector.js", "quote": "if(m!==10||![3,4,15,16].includes(h)||lastSlot===slot)return null;" }
+        ]
+      },
+      "state": {
+        "risk": "accident",
+        "file": "risk_forecast/sea_accident.json.gz",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "createdAt",
+        "basisFormat": "iso",
+        "basisLabel": "예보 생성",
+        "checkedFile": "risk_forecast/accident_status.json",
+        "checkedField": "checkedAt"
+      },
+      "graceMinutes": 30
+    },
+    {
+      "id": "realtime",
+      "stage": 1,
+      "name": "실시간 선박 교통 (해양교통안전공단 MTIS)",
+      "provider": "komsa",
+      "endpoint": "mtisopenapi.komsa.or.kr /api/v2/traffic/realtime",
+      "official": {
+        "kind": "doc",
+        "text": "5분마다 갱신(MTIS Open API 설명)",
+        "evidence": [
+          { "url": "https://mtisopenapi.komsa.or.kr/cop/api/apiInfoDetail.do?No=242" },
+          { "note": "MTIS Open API 「실시간 교통정보_공공데이터」 상세(GET /api/v2/traffic/realtime): 「매 5분 단위의 실시간 해양 교통량 정보(선박척수)와 밀집도(%)를 제공」·「* 업데이트 주기 : 5분」 (확인 2026-10-15)" }
+        ]
+      },
+      "schedule": {
+        "text": "5분 칸마다 1번(1분마다 깨어 확인)",
+        "everyMinutes": 5,
+        "evidence": [
+          { "file": "local_server/services/sea_realtime_collector.js", "quote": "Math.floor(Date.parse(attempt.lastRun)/300000)===Math.floor(now/300000)" }
+        ]
+      },
+      "state": {
+        "risk": "realtime",
+        "file": "risk_forecast/sea_realtime.json.gz",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "sourceAt",
+        "basisFormat": "iso",
+        "basisLabel": "API 등록시각"
+      },
+      "graceMinutes": 10
+    },
+    {
+      "id": "tourConcentration",
+      "stage": 1,
+      "name": "관광지 집중률 (한국관광공사)",
+      "provider": "kto",
+      "endpoint": "apis.data.go.kr /B551011/TatsCnctrRateService/tatsCnctrRatedList",
+      "official": {
+        "kind": "doc",
+        "text": "매뉴얼상 일 1회 갱신(시각은 문서에 없음)",
+        "evidence": [
+          { "file": "client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md", "quote": "매뉴얼상 갱신 일 1회" }
+        ]
+      },
+      "schedule": {
+        "text": "매일 06:20 KST(첫 수집 7일 동안은 갱신 시각 확인용 12:20 추가) + 기동 때 누락분",
+        "times": ["06:20"],
+        "oncePerDay": true,
+        "evidence": [
+          { "file": "local_server/services/tour_concentration_collector.js", "quote": "if(m!==20||!(h===6||(h===12&&" }
+        ]
+      },
+      "state": {
+        "risk": "tourConcentration",
+        "file": "risk_forecast/tour_concentration.json",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "date",
+        "basisFormat": "raw",
+        "basisLabel": "수집일"
+      },
+      "graceMinutes": 60
+    },
+    {
+      "id": "events",
+      "stage": 1,
+      "name": "지역 행사 (한국관광공사 + Gemini 보충)",
+      "provider": "kto",
+      "endpoint": "apis.data.go.kr /B551011/KorService2/searchFestival2 (+ Gemini 보충검색)",
+      "official": {
+        "kind": "doc",
+        "text": "TourAPI 국문 관광정보 서비스 데이터 갱신 하루 1번(시각은 문서에 없음). Gemini 보충분은 해당 없음",
+        "evidence": [
+          { "url": "https://www.data.go.kr/data/15101578/openapi.do" },
+          { "note": "공공데이터포털 「한국관광공사_국문 관광정보 서비스_GW」 참고문서 zip 안 「한국관광공사_개방데이터_활용매뉴얼(국문)_v4.4.docx」 서비스 정보표(KorService2, searchFestival2 포함): 「데이터 갱신 주기 — 일 1회」 (확인 2026-10-15)" }
+        ]
+      },
+      "schedule": {
+        "text": "매월 말일 3일 전 03:20 KST에 다음 달 분 · 실패·누락 달은 매일 03:20 재시도 + 기동 때 보충",
+        "nextFrom": "none",
+        "nextNote": "월 단위 자료 — 다음 달 분은 말일 3일 전 03:20",
+        "evidence": [
+          { "file": "local_server/services/coastal_events_collector.js", "quote": "if(d.getUTCHours()!==3||d.getUTCMinutes()!==20)return null;" }
+        ]
+      },
+      "state": { "risk": "events", "file": "risk_forecast/events_{month}.json", "collectedField": "collectedAt", "collectedFormat": "iso", "basisField": "month", "basisFormat": "raw", "basisLabel": "자료 달" },
+      "graceMinutes": 60
+    },
+    {
+      "id": "buoys",
+      "stage": 2,
+      "name": "해양기상 부이 관측 (기상청 API허브)",
+      "provider": "kma-apihub",
+      "endpoint": "apihub.kma.go.kr /api/typ01/url/sea_obs.php",
+      "official": {
+        "kind": "doc",
+        "text": "매시 정시(00분)·30분 생산(API허브 해양관측 설명)",
+        "evidence": [
+          { "url": "https://apihub.kma.go.kr/apiList.do?seqApi=3&seqApiSub=249" },
+          { "note": "기상청 API허브 해양관측 → 「해양기상부이·파고부이관측」 개요(같은 탭 1.1 해양기상종합관측 = typ01/url/sea_obs.php): 「생산주기 매시 30분 및 정시(00분), 일 자료」 (확인 2026-10-15)" }
+        ]
+      },
+      "schedule": {
+        "text": "매시 05분·35분 + 기동 때 1회",
+        "minutes": [5, 35],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (min % 30 === 5) {" }]
+      },
+      "state": { "file": "buoys.json", "collectedField": "updatedAt", "collectedFormat": "koLocale", "scheduler": "buoys" },
+      "graceMinutes": 20
+    },
+    {
+      "id": "marineBuoys",
+      "stage": 2,
+      "name": "기상부이 관측 (기상청 MMIS)",
+      "provider": "kma-mmis",
+      "endpoint": "marine.kma.go.kr /mmis_marine_api/v1/kma/obs/buoy/list",
+      "official": {
+        "kind": null,
+        "text": "확인 필요",
+        "evidence": [],
+        "reference": [{ "file": "local_server/scheduler.js", "quote": "KMA 부이 데이터 발표(정시 갱신) 후 약 3분 여유를 두고 fetch" }]
+      },
+      "schedule": {
+        "text": "매시 03분·13분 + 기동 때 1회",
+        "minutes": [3, 13],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (min === 3 || min === 13) {" }]
+      },
+      "state": { "file": "marine_buoys.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 20
+    },
+    {
+      "id": "marineWhBuoys",
+      "stage": 2,
+      "name": "파고부이 관측 (기상청 MMIS)",
+      "provider": "kma-mmis",
+      "endpoint": "marine.kma.go.kr /mmis_marine_api/v1/kma/obs/wh-buoy/list",
+      "official": {
+        "kind": null,
+        "text": "확인 필요",
+        "evidence": [],
+        "reference": [{ "file": "local_server/scheduler.js", "quote": "KMA 부이 데이터 발표(정시 갱신) 후 약 3분 여유를 두고 fetch" }]
+      },
+      "schedule": {
+        "text": "매시 03분·13분 + 기동 때 1회",
+        "minutes": [3, 13],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (min === 3 || min === 13) {" }]
+      },
+      "state": { "file": "marine_wh_buoys.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 20
+    },
+    {
+      "id": "marineLhBuoys",
+      "stage": 2,
+      "name": "등표 관측 (기상청 MMIS)",
+      "provider": "kma-mmis",
+      "endpoint": "marine.kma.go.kr /mmis_marine_api/v1/kma/obs/lh/list",
+      "official": {
+        "kind": null,
+        "text": "확인 필요",
+        "evidence": [],
+        "reference": [{ "file": "local_server/scheduler.js", "quote": "KMA 부이 데이터 발표(정시 갱신) 후 약 3분 여유를 두고 fetch" }]
+      },
+      "schedule": {
+        "text": "매시 03분·13분 + 기동 때 1회",
+        "minutes": [3, 13],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (min === 3 || min === 13) {" }]
+      },
+      "state": { "file": "marine_lh_buoys.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 20
+    },
+    {
+      "id": "marineVs",
+      "stage": 2,
+      "name": "시정계 관측 (기상청 MMIS)",
+      "provider": "kma-mmis",
+      "endpoint": "marine.kma.go.kr /mmis_marine_api/v1/kma/obs/vs/list",
+      "official": {
+        "kind": null,
+        "text": "확인 필요",
+        "evidence": [],
+        "reference": [{ "file": "local_server/scheduler.js", "quote": "KMA 부이 데이터 발표(정시 갱신) 후 약 3분 여유를 두고 fetch" }]
+      },
+      "schedule": {
+        "text": "매시 03분·13분 + 기동 때 1회",
+        "minutes": [3, 13],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (min === 3 || min === 13) {" }]
+      },
+      "state": { "file": "marine_vs.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 20
+    },
+    {
+      "id": "generalForecasts",
+      "stage": 2,
+      "name": "해상 단기예보 (기상청 API허브)",
+      "provider": "kma-apihub",
+      "endpoint": "apihub.kma.go.kr /api/typ02/openApi/VilageFcstMsgService/getSeaFcst",
+      "official": {
+        "kind": "doc",
+        "text": "통보문 하루 3번 05·11·17시 발표(공공데이터포털 같은 서비스 VilageFcstMsgService 설명)",
+        "evidence": [
+          { "url": "https://www.data.go.kr/data/15058629/openapi.do" },
+          { "note": "공공데이터포털 「기상청_단기예보 통보문 조회서비스」(apis.data.go.kr/1360000/VilageFcstMsgService, 해상예보조회 포함): 「통보문의 경우 05시, 11시, 17시에 발표하면 주요시도를 중심으로 발표합니다.」 — 우리는 API허브 typ02 창구로 같은 서비스명·기능(getSeaFcst)을 부른다 (확인 2026-10-15)" }
+        ],
+        "reference": [{ "file": "local_server/scheduler.js", "quote": "3시간 간격으로 호출 — KMA 발표 주기 (02/05/08/11/14/17/20/23시) 직후." }]
+      },
+      "schedule": {
+        "text": "매일 05:15·11:15·17:15 KST + 기동 때 1회 (위 참고 주석의 「3시간 간격」과 실제 일정이 다름)",
+        "times": ["05:15", "11:15", "17:15"],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['05:15', '11:15', '17:15'].includes(hm)) collectGeneralForecasts();" }]
+      },
+      "state": { "file": "general_forecasts.json", "collectedField": "updatedAt", "collectedFormat": "koLocale", "scheduler": "general" },
+      "graceMinutes": 30
+    },
+    {
+      "id": "midTermSea",
+      "stage": 2,
+      "name": "중기 해상예보 (기상청 API허브)",
+      "provider": "kma-apihub",
+      "endpoint": "apihub.kma.go.kr /api/typ02/openApi/MidFcstInfoService/getMidSeaFcst",
+      "official": {
+        "kind": "doc",
+        "text": "하루 2번 06·18시(API허브 중기예보 설명)",
+        "evidence": [
+          { "url": "https://apihub.kma.go.kr/apiList.do?seqApi=10&seqApiSub=287" },
+          { "url": "https://www.data.go.kr/data/15059468/openapi.do" },
+          { "note": "기상청 API허브 예특보 → 「중기예보」 개요(같은 탭 2.1 중기해상예보조회 = typ02/openApi/MidFcstInfoService/getMidSeaFcst): 「생산주기 12시간 간격(06, 18시)」 · 공공데이터포털 「기상청_중기예보 조회서비스」: 「(일 2회 발표: 06, 18시)」 (확인 2026-10-15)" }
+        ],
+        "reference": [{ "file": "local_server/scheduler.js", "quote": "KMA 발표 주기 06:00 / 18:00 KST 에 맞춰 그 직후 한 번씩 호출." }]
+      },
+      "schedule": {
+        "text": "매일 06:15·18:15 KST + 기동 때 1회",
+        "times": ["06:15", "18:15"],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['06:15', '18:15'].includes(hm)) collectMidTermSeaForecasts();" }]
+      },
+      "state": { "file": "mid_term_sea_forecasts.json", "collectedField": "updatedAt", "collectedFormat": "koLocale", "basisField": "tmFc", "basisFormat": "raw", "basisLabel": "발표 tmFc" },
+      "graceMinutes": 30
+    },
+    {
+      "id": "marineOutlook",
+      "stage": 2,
+      "name": "해상 기상 전망 통보문 (기상청 날씨누리)",
+      "provider": "kma-weather",
+      "endpoint": "www.weather.go.kr /w/special-report/list.do",
+      "official": { "kind": null, "text": "확인 필요", "evidence": [] },
+      "schedule": {
+        "text": "10분마다(매시 03·13·23·33·43·53분) + 기동 때 1회",
+        "minutes": [3, 13, 23, 33, 43, 53],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (min % 10 === 3) {" }]
+      },
+      "state": { "file": "marine_forecast.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 20
+    },
+    {
+      "id": "regionalForecast",
+      "stage": 2,
+      "name": "지방기상청 단기예보·단기 전망 통보문 (기상청 날씨누리)",
+      "provider": "kma-weather",
+      "endpoint": "www.weather.go.kr (지방청 PDF · list.do 통보문)",
+      "official": {
+        "kind": "measured",
+        "text": "통보문 발표 04:40~04:50 · 16:40 KST(지방청별 다름, 실측 2026-06). PDF 단기예보 발표 시각은 확인 필요",
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "발표시각: KST 04:40~04:50 / 16:40 (지방청별 다름, 실측 2026-06)" }],
+        "reference": [{ "file": "local_server/scheduler.js", "quote": "지방기상청 단기예보: 발표 주기(05, 11, 17시) +10분에 수집" }]
+      },
+      "schedule": {
+        "text": "PDF 05:10·11:10·17:10 KST(못 받은 지방청은 30분마다 재시도) · 통보문 04~05시·16~17시 5분마다 · 두 수집기가 같은 파일을 씀",
+        "times": ["05:10", "11:10", "17:10"],
+        "evidence": [
+          { "file": "local_server/scheduler.js", "quote": "if (['05:10', '11:10', '17:10'].includes(hm)) {" },
+          { "file": "local_server/scheduler.js", "quote": "if ([4, 5, 16, 17].includes(kstDate.getHours()) && (min % 5 === 1)) {" }
+        ]
+      },
+      "state": { "file": "regional_forecast.json", "collectedField": "_lastUpdated", "collectedFormat": "iso" },
+      "graceMinutes": 60
+    },
+    {
+      "id": "fishingIndex",
+      "stage": 2,
+      "name": "바다낚시 지수 (국립해양조사원·공공데이터포털)",
+      "provider": "khoa",
+      "endpoint": "apis.data.go.kr /1192136/fcstFishingv2",
+      "official": {
+        "kind": "doc",
+        "text": "매일 09:00 KST 1회(해양수산부 보도자료 2022.10)",
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "(해양수산부 보도자료 2022.10: 제공시각 11:00 → 09:00 으로 변경, '매일' 1회)" }]
+      },
+      "schedule": {
+        "text": "매일 09:10·09:40 KST + 기동 때 1회",
+        "times": ["09:10", "09:40"],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['09:10', '09:40'].includes(hm)) {" }]
+      },
+      "state": { "file": "fishing_index.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 30
+    },
+    {
+      "id": "surfingIndex",
+      "stage": 2,
+      "name": "서핑 지수 (국립해양조사원·공공데이터포털)",
+      "provider": "khoa",
+      "endpoint": "apis.data.go.kr /1192136/fcstSurfingv2",
+      "official": {
+        "kind": "doc",
+        "text": "매일 09:00 KST 1회(해양수산부 보도자료 2022.10)",
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "(해양수산부 보도자료 2022.10: 제공시각 11:00 → 09:00 으로 변경, '매일' 1회)" }]
+      },
+      "schedule": {
+        "text": "매일 09:10·09:40 KST + 기동 때 1회",
+        "times": ["09:10", "09:40"],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['09:10', '09:40'].includes(hm)) {" }]
+      },
+      "state": { "file": "surfing_index.json", "collectedField": "updatedAt", "collectedFormat": "koLocale", "scheduler": "surfing" },
+      "graceMinutes": 30
+    },
+    {
+      "id": "seaSplitIndex",
+      "stage": 2,
+      "name": "바다갈라짐 체험지수 (국립해양조사원·공공데이터포털)",
+      "provider": "khoa",
+      "endpoint": "apis.data.go.kr /1192136/fcstSeaSplitv2",
+      "official": {
+        "kind": "doc",
+        "text": "매일 09:00 KST 1회(해양수산부 보도자료 2022.10)",
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "(해양수산부 보도자료 2022.10: 제공시각 11:00 → 09:00 으로 변경, '매일' 1회)" }]
+      },
+      "schedule": {
+        "text": "매일 09:10·09:40 KST + 기동 때 1회",
+        "times": ["09:10", "09:40"],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['09:10', '09:40'].includes(hm)) {" }]
+      },
+      "state": { "file": "sea_split_index.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 30
+    },
+    {
+      "id": "mudflatIndex",
+      "stage": 2,
+      "name": "갯벌체험 지수 (국립해양조사원·공공데이터포털)",
+      "provider": "khoa",
+      "endpoint": "apis.data.go.kr /1192136/fcstMudflatv2",
+      "official": {
+        "kind": "doc",
+        "text": "매일 09:00 KST 1회(해양수산부 보도자료 2022.10)",
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "(해양수산부 보도자료 2022.10: 제공시각 11:00 → 09:00 으로 변경, '매일' 1회)" }]
+      },
+      "schedule": {
+        "text": "매일 09:10·09:40 KST + 기동 때 1회",
+        "times": ["09:10", "09:40"],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['09:10', '09:40'].includes(hm)) {" }]
+      },
+      "state": { "file": "mudflat_index.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 30
+    },
+    {
+      "id": "scubaIndex",
+      "stage": 2,
+      "name": "스킨스쿠버 지수 (국립해양조사원·공공데이터포털)",
+      "provider": "khoa",
+      "endpoint": "apis.data.go.kr /1192136/fcstSkinScubav2",
+      "official": {
+        "kind": "doc",
+        "text": "매일 09:00 KST 1회(해양수산부 보도자료 2022.10)",
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "(해양수산부 보도자료 2022.10: 제공시각 11:00 → 09:00 으로 변경, '매일' 1회)" }]
+      },
+      "schedule": {
+        "text": "매일 09:10·09:40 KST + 기동 때 1회",
+        "times": ["09:10", "09:40"],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['09:10', '09:40'].includes(hm)) {" }]
+      },
+      "state": { "file": "scuba_index.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 30
+    },
+    {
+      "id": "swimmingIndex",
+      "stage": 2,
+      "name": "해수욕 지수 (국립해양조사원·공공데이터포털)",
+      "provider": "khoa",
+      "endpoint": "apis.data.go.kr /1192136/fcstBeachv2",
+      "official": {
+        "kind": "doc",
+        "text": "매일 09:00 KST 1회(해양수산부 보도자료 2022.10)",
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "(해양수산부 보도자료 2022.10: 제공시각 11:00 → 09:00 으로 변경, '매일' 1회)" }]
+      },
+      "schedule": {
+        "text": "매일 09:10·09:40 KST + 기동 때 1회",
+        "times": ["09:10", "09:40"],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['09:10', '09:40'].includes(hm)) {" }]
+      },
+      "state": { "file": "swimming_index.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
+      "graceMinutes": 30
+    },
+    {
+      "id": "khoaStream",
+      "stage": 2,
+      "name": "해류·수온 예측 (국립해양조사원 해아름)",
+      "provider": "khoa",
+      "endpoint": "www.khoa.go.kr dynamic-stream-vector (현재~+72시간 73칸)",
+      "official": { "kind": null, "text": "확인 필요", "evidence": [] },
+      "schedule": {
+        "text": "매시 00분·30분 + 기동 때 1회",
+        "minutes": [0, 30],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (min === 0 || min === 30) {" }]
+      },
+      "state": { "file": "khoa_stream_cache.json.gz", "collectedField": "savedAt", "collectedFormat": "epochMs" },
+      "graceMinutes": 30
+    },
+    {
+      "id": "typhoon",
+      "stage": 2,
+      "name": "태풍 통보문 (기상청 방재기상플랫폼)",
+      "provider": "kma-dmdw",
+      "endpoint": "dmdw.kma.go.kr 태풍정보(로그인 필요 — 계정이 없으면 수집 안 함)",
+      "official": { "kind": null, "text": "확인 필요", "evidence": [] },
+      "schedule": {
+        "text": "10분마다(매시 07·17·27·37·47·57분), 계정 설정 시만",
+        "minutes": [7, 17, 27, 37, 47, 57],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (min % 10 === 7 && !crawlPaused && typhoonCrawler.enabled) {" }]
+      },
+      "state": { "file": "typhoon.json", "collectedField": "updatedAt", "collectedFormat": "iso" },
+      "graceMinutes": 20
+    }
+  ]
+}

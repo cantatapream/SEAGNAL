@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 120개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 121개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -28,6 +28,7 @@ SEAGNAL(바다날씨)은 해양 기상특보·해양종합정보·해양생활·
 client/js/
 ├── admin/  ← ⚡ 관리자 센터
 │   ├── admin_collect.js
+│   ├── admin_data_status.js
 │   ├── admin_location_status.js
 │   ├── admin_report.js
 │   ├── admin_survey.js
@@ -202,6 +203,7 @@ client/js/
 |------|------|
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
+| `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
 | `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시 |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
@@ -318,10 +320,10 @@ client/js/
 | `risk_api.js` | 위험예측 API의 응답을 제한 시간 안에 받고 입력 시각별로 캐시한다. |
 | `risk_basis.js` | 확정된 기준 상세 문안을 대화창으로 열고 휴대폰 뒤로가기·원본 PDF 다운로드를 연결한다. |
 | `risk_basis_content.js` | 공식 선박 예보와 연안 분석의 기준 문안을 보관한다. 동적인 API 데이터는 이 문자열에 섞지 않는다. |
-| `risk_forecast.js` | 현재 종합·미래 공식 사고예보를 단일 격자 지도와 상세와 연안·해상 공통 하단 시각 버튼에 연결하고 시트 시각과 뒤로가기를 조 |
+| `risk_forecast.js` | 해상 지도 [위험 예측](공식 사고예보)·[혼잡도](지금 밀집도·미래 혼잡예보) 두 칸 선택을 단일 격자 지도와 상세와 연안· |
 | `risk_format.js` | 서버가 계산한 점수·배수를 글자와 표시색으로 바꾼다. 점수 판정은 하지 않는다. |
 | `risk_map_layer.js` | 해상은 단일 GR4의 연속 면색·확대 척수와 선택 경계로, 연안은 기존 분석으로 표시한다. |
-| `risk_marine.js` | 해역별 종합 근거와 관할별 현재 척수·사고현황·주의 시간대를 표시한다. |
+| `risk_marine.js` | 해상 지점 시트 본문(위 카드 위험 예측·밀집도/혼잡도, 과거 2주간 선박교통량 그래프, 이 해역 과거 선박사고 도넛·팝업, |
 | `risk_sheet.js` | 해역 종합·공식 예보·해구 기상·선박사고 이력과 연안 분석을 구별하고 연안 합계 배수의 계산 과정을 설명한다. |
 | `risk_slider.js` | 서버 KST 시간축 배열을 기존 해양종합정보 슬라이더 모양으로 표시한다. |
 

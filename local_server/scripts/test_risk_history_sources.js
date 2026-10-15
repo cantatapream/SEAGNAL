@@ -471,6 +471,56 @@ async function check(name, fn) {
             }
         );
         await check(
+            '행사 일부 시도 실패(failedProvinceCount): 공개 저장소는 그 달을 ok(점수에 사용) · 감시 경로는 숫자를 읽어 오류현황 「일부 실패」 → 0 이면 복구 (2026-10-15)',
+            async () => {
+                const status = (count) =>
+                        write(dir, 'events_202610_status.json', {
+                            month: '2026-10',
+                            status: 'ok',
+                            lastRun: at(),
+                            lastSuccess: at(),
+                            lastError: null,
+                            failedProvinces: count ? ['경상남도', '전라남도'] : [],
+                            failedProvinceCount: count,
+                            detail: count ? '시도 실패 경상남도, 전라남도(Gemini 호출 실패)' : null,
+                            partialCode: count ? '행사 일부 실패 — Gemini' : null,
+                        }),
+                    h = createHistory({
+                        dir: path.join(root, 'events-partial-history'),
+                        clock: () => now,
+                    }),
+                    current = () =>
+                        h.list({ source: 'events' }).current.find(
+                            (r) => r.scope === '2026-10'
+                        );
+                status(2);
+                const b = await read();
+                assert.equal(b.events.months['2026-10'].status, 'ok');
+                assert.equal(b.events.months['2026-10'].failedProvinceCount, 2);
+                assert.equal(b.events.months['2026-10'].partialCode, '행사 일부 실패 — Gemini', '감시 경로도 원인별 분류를 읽는다(3차 검토 F5)');
+                assert.equal(
+                    publicStore.sources(true).events.months['2026-10'].status,
+                    'ok',
+                    '공개 저장소는 그 달 행사를 계속 쓴다'
+                );
+                h.observeSources(b);
+                assert.equal(current().status, 'partial');
+                assert.equal(current().code, '행사 일부 실패 — Gemini');
+                now += 60000;
+                status(0);
+                h.observeSources(await read());
+                assert.equal(current().status, 'ok');
+                assert.deepEqual(
+                    h
+                        .list({ source: 'events' })
+                        .data.filter((e) => e.scope === '2026-10')
+                        .map((e) => e.phase),
+                    ['recovered', 'opened']
+                );
+                fs.rmSync(path.join(dir, 'events_202610_status.json'));
+            }
+        );
+        await check(
             '월 경계 후 이전 행사 메타데이터도 감시 캐시에서 제거',
             async () => {
                 now = Date.parse('2026-11-01T12:00:00+09:00');
@@ -479,6 +529,35 @@ async function check(name, fn) {
                 assert.ok(b.events.months['2026-11']);
             }
         );
+        // 2026-10-15: 감시(metadataOnly)가 baseTmUtf 를 버려 「판이 24시간보다 오래되면 낡음」을 못 봤다.
+        await check(
+            '해구 예보: 받은 시각은 새것이어도 판이 24시간 넘게 오래되면 감시도 낡음(공개 화면과 같음)',
+            async () => {
+                write(dataDir, 'zone_forecasts.json', {
+                    updatedAt: at(),
+                    baseTmUtf: '2026103000',
+                    data: { 92: [{ tm: '2026103003', wh: 2 }] },
+                });
+                const a = createStore(options).sources(true),
+                    b = await read();
+                assert.equal(a.zoneForecasts.status, 'stale');
+                assert.equal(b.zoneForecasts.status, 'stale');
+                write(dataDir, 'zone_forecasts.json', {
+                    updatedAt: at(),
+                    baseTmUtf: '2026110100',
+                    data: { 92: [{ tm: '2026110103', wh: 2 }] },
+                });
+                assert.equal((await read()).zoneForecasts.status, 'ok');
+            }
+        );
+        await check('readMetadata 는 고른 칸만 남긴다(데이터 수집현황용)', async () => {
+            const meta = await readMetadata(
+                path.join(dataDir, 'zone_forecasts.json'),
+                new Set(['baseTmUtf'])
+            );
+            assert.deepEqual(Object.keys(meta).filter((k) => !k.startsWith('_')), ['baseTmUtf']);
+            assert.equal(meta.baseTmUtf, '2026110100');
+        });
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
         console.log(`${pass} PASS / ${fail} FAIL`);

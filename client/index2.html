@@ -2702,7 +2702,7 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="js/marine-life/risk-forecast/risk_forecast.css?v=20261015c">
+    <link rel="stylesheet" href="js/marine-life/risk-forecast/risk_forecast.css?v=20261015d">
 </head>
 
 <body class="loading">
@@ -5709,6 +5709,8 @@
     <!-- 사용량 통계 기능 키 → 한글 이름표(화면·CSV 공용). admin_collect.js 보다 먼저 -->
     <script src="js/shared/utils/usage_keys.js"></script>
     <script src="js/admin/admin.js?v=Maint_20260910"></script>
+    <!-- [데이터 수집현황] 점검 탭 하위 화면(수집 목록·현재 원천 상태·오류·복구 이력). admin.js 의 renderAiForecastSubtab 을 쓰므로 그 뒤 -->
+    <script src="js/admin/admin_data_status.js"></script>
     <script src="js/admin/admin_collect.js?v=Usage_20260910"></script>
     <script src="js/admin/admin_survey.js"></script>
     <script src="js/admin/admin_report.js"></script>
@@ -5801,13 +5803,13 @@
          switchMainTab/switchSubTab 위에 한 겹 더 얹으므로 반드시 그 뒤에 로드 -->
     <script src="js/marine-life/risk-forecast/risk_format.js?v=20261015"></script>
     <script src="js/marine-life/risk-forecast/risk_api.js?v=20261010"></script>
-    <script src="js/marine-life/risk-forecast/risk_map_layer.js?v=20261015b"></script>
-    <script src="js/marine-life/risk-forecast/risk_slider.js?v=20261015"></script>
-    <script src="js/marine-life/risk-forecast/risk_marine.js?v=20261015c"></script>
-    <script src="js/marine-life/risk-forecast/risk_sheet.js?v=20261015"></script>
-    <script src="js/marine-life/risk-forecast/risk_basis_content.js?v=20261010"></script>
+    <script src="js/marine-life/risk-forecast/risk_map_layer.js?v=20261015g"></script>
+    <script src="js/marine-life/risk-forecast/risk_slider.js?v=20261015f"></script>
+    <script src="js/marine-life/risk-forecast/risk_marine.js?v=20261015g"></script>
+    <script src="js/marine-life/risk-forecast/risk_sheet.js?v=20261015u81"></script>
+    <script src="js/marine-life/risk-forecast/risk_basis_content.js?v=20261015u81"></script>
     <script src="js/marine-life/risk-forecast/risk_basis.js?v=20261010"></script>
-    <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261015b"></script>
+    <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261015d"></script>
     <script src="js/marine-life/safety/life_safety.js?v=Usage_20260910"></script>
 
     <!-- 온보딩 튜토리얼 (공지사항 탭 3초 안에 5회 연타로만 열리는 시험 모드)

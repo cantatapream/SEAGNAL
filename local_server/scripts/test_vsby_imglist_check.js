@@ -10,12 +10,18 @@
  *   ② 연속 실패 → failStreak 가 늘고 failSince 는 처음 실패 시각을 유지한다
  *   ③ HTML 같은 JSON 아닌 응답 → 「JSON 아님」 + 바이트 수
  *   ④ 정상 JSON → 실패 기록이 지워진다
+ *   ⑦ 재기동(모듈 다시 불러 init)해도 연속 실패 수·첫 실패 시각이 이어진다(상태 파일 영속화, 2026-10-15)
  *
  * [실행] node local_server/scripts/test_vsby_imglist_check.js
  * [연계] ← scripts/refactor/verify_all.sh SUITES
  *        → local_server/services/vsby_smallzone.js (fetchImgList · refreshIfStale · getStatus)
  */
 'use strict';
+
+// ⑦ 영속화 검사용 — 실제 data/vsby_check_state.json 을 건드리지 않게 임시 경로를 준다(모듈 require 전에).
+const os = require('os'), fsT = require('fs'), pathT = require('path');
+const stateDir = fsT.mkdtempSync(pathT.join(os.tmpdir(), 'vsby-check-'));
+process.env.VSBY_CHECK_STATE_FILE = pathT.join(stateDir, 'vsby_check_state.json');
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
@@ -81,6 +87,25 @@ console.error = (...a) => { errLines.push(a.join(' ')); };
         ok('③ JSON 아님 → 사유·바이트 수·형식', /JSON 아님/.test(s.lastCheckError || '') && /31바이트/.test(s.lastCheckError || '') && /text\/html/.test(s.lastCheckError || ''), s.lastCheckError);
         ok('③ failStreak=3', s.failStreak === 3);
 
+        // ⑦ 재기동해도 연속 실패 수가 이어진다(2026-10-15 사용자 지시 ⓐ — 전에는 재기동마다 0).
+        //   같은 모듈을 새로 불러(= 재기동) init 만 한 상태를 본다. 가짜 node-fetch 는 그대로 남는다.
+        ok('⑦ 확인할 때마다 상태 파일을 남긴다', fsT.existsSync(process.env.VSBY_CHECK_STATE_FILE));
+        delete require.cache[require.resolve('../services/vsby_smallzone')];
+        const restarted = require('../services/vsby_smallzone');
+        ok('⑦ 새로 불러오기만 하면(init 전) 0 — init 이 되읽는 자리', restarted.getStatus().failStreak === 0);
+        restarted.init();
+        const r = restarted.getStatus();
+        ok('⑦ 재기동(init) 뒤 failStreak=3 · failSince·사유 유지', r.failStreak === 3 && r.failSince === firstFail && /JSON 아님/.test(r.lastCheckError || '') && r.lastCheckOk === false, JSON.stringify(r));
+        next = { status: 200, body: '', ct: null };
+        await restarted.refreshIfStale();
+        ok('⑦ 재기동 뒤 한 번 더 실패 → 4 (0 에서 다시 세지 않음)', restarted.getStatus().failStreak === 4);
+        fsT.writeFileSync(process.env.VSBY_CHECK_STATE_FILE, JSON.stringify({ v: 1, at: 'x', ok: false, error: null, failStreak: -1, failSince: null }));
+        delete require.cache[require.resolve('../services/vsby_smallzone')];
+        const broken = require('../services/vsby_smallzone');
+        broken.init();
+        ok('⑦ 깨진 상태 파일은 버리고 0 부터', broken.getStatus().failStreak === 0 && broken.getStatus().lastCheckAt === null);
+        next = { status: 200, body: '<!DOCTYPE html><title>x</title>', ct: 'text/html' };
+
         // ④ 정상 JSON(목록 비어 baseTm 없음 → 수집은 시작하지 않음) → 실패 기록 해제
         next = { status: 200, body: JSON.stringify({ code: '0000', msg: '성공', data: { fct_tm_list: [], img_list: [] } }), ct: 'application/json;charset=UTF-8' };
         await sz.refreshIfStale();
@@ -95,6 +120,7 @@ console.error = (...a) => { errLines.push(a.join(' ')); };
         ok('⑥ 상태에 lastFctTm 칸이 있다(캐시 없으면 null)', Object.prototype.hasOwnProperty.call(s, 'lastFctTm'));
     } finally {
         console.error = origErr;
+        fsT.rmSync(stateDir, { recursive: true, force: true });
     }
     console.log(`\n${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);

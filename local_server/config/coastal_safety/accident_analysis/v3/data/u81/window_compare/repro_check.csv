@@ -1,0 +1,3 @@
+﻿outcome,n_events_old,n_events_new,crowd_old,crowd_new,crowd_absdiff,score_max_absdiff,n_month_same
+전체 사고,3006,3006,2.011996713653212,2.011996713653212,0.0,1.1102230246251565e-16,True
+사망·실종 사고,467,467,1.4658268566132215,1.4658268566132215,0.0,6.938893903907228e-17,True
