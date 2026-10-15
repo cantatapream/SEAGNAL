@@ -108,7 +108,7 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
      */
     async function collect(target=io.day(clock()).slice(0,7)){if(running)return{ok:false,error:'collector busy'};const release=io.acquireLock(path.join(dir,'events_collect.lock'));if(!release)return{ok:false,error:'collector busy'};running=true;
         try{const bounds=monthBounds(target),locations=spots||JSON.parse(fs.readFileSync(SPOTS)).spots,provinces=[...new Set(locations.map(s=>s.sgg_name.split(' ')[0]))];
-            const municipal=address=>{const a=addressParts(address);return a.province+'|'+a.city.join('/');},scope=new Set(locations.map(s=>municipal(s.sgg_name))),rows=[];
+            const municipal=address=>{const a=addressParts(address);return a.province+'|'+a.city.join('/');},scope=new Set(locations.map(s=>municipal(s.sgg_name))),rows=[],skipped={};
             const rawOfficial=await(festivalSearch||festivals)(target);if(!Array.isArray(rawOfficial))throw new Error('invalid response');
             const normalized=rawOfficial.map(normalizeFestival).filter(Boolean),freshIds=new Set(rawOfficial.map(e=>String(e.contentid)));
             const prior=new Date(bounds.first+'T00:00:00Z');prior.setUTCMonth(prior.getUTCMonth()-1);const previous=io.read(file(prior.toISOString().slice(0,7)));
@@ -122,14 +122,18 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
                 let spot=null,best=Infinity;for(const s of locations){const distance=G.haversine(coord.lat,coord.lon,s.lat,s.lon);if(distance<best){best=distance;spot=s;}}if(!spot)throw new Error('unmatched event');
                 const {sources:_oldSources,...clean}=e;rows.push({...clean,name:e.name.trim(),...coord,spotId:spot.sgg+'|'+spot.name,connectionKm:+best.toFixed(3)});
             }
-            for(const e of normalized){if(!scope.has(municipal(e.address))||e.end<bounds.first||e.start>bounds.last)continue;official.push(e);await connect({...e,sourceObservedAt:io.iso(clock()),carriedForward:false});}
+            // 행사 한 건의 주소가 카카오에서 정확히 맞지 않거나(unmatched) 번지가 없어(invalid) 연결할 수 없으면 그 행사만 건너뛴다.
+            // 종전에는 한 건 때문에 그 달 전체가 실패했다 — 운영 10월 상태가 「unmatched event」로 한 번도 성공하지 못했다(2026-10-15 확인).
+            // 키 없음·HTTP 오류·한도 같은 수집 자체의 문제는 종전대로 그 달을 실패로 둔다(정상 캐시 보존).
+            async function tryConnect(e){try{await connect(e);}catch(err){const why=io.errorName(err);if(why!=='unmatched event'&&why!=='invalid event')throw err;skipped[why]=(skipped[why]||0)+1;}}
+            for(const e of normalized){if(!scope.has(municipal(e.address))||e.end<bounds.first||e.start>bounds.last)continue;official.push(e);await tryConnect({...e,sourceObservedAt:io.iso(clock()),carriedForward:false});}
             for(const province of provinces){const result=await(search||webSearch)(target,province,official,carried);if(!result||!Array.isArray(result.events)||!Array.isArray(result.grounded))throw new Error('invalid response');
-                for(const e of result.events){let source;try{source=new URL(e?.src);}catch(_){continue;}if(source.protocol!=='https:'||source.username||source.password||!result.grounded.includes(e.src))continue;await connect({...e,sourceType:'gemini',sourceObservedAt:io.iso(clock()),carriedForward:false});}
+                for(const e of result.events){let source;try{source=new URL(e?.src);}catch(_){continue;}if(source.protocol!=='https:'||source.username||source.password||!result.grounded.includes(e.src))continue;await tryConnect({...e,sourceType:'gemini',sourceObservedAt:io.iso(clock()),carriedForward:false});}
             }
             if(!rows.length)throw new Error('empty response');const unique=new Map();for(const e of rows){const id=[e.name.replace(/\s/g,'').toLowerCase(),e.start,e.end,addressKey(e.address)].join('|'),source={sourceType:e.sourceType,src:e.src,...(e.contentId?{contentId:e.contentId}:{})};if(unique.has(id))unique.get(id).sources.push(source);else unique.set(id,{...e,sources:[source]});}
             const events=[...unique.values()],sourceCounts={tourapi:events.filter(e=>e.sourceType==='tourapi').length,gemini:events.filter(e=>e.sourceType==='gemini').length,duplicates:rows.length-events.length},collectedAt=io.iso(clock());
             const coverage={queryStart:bounds.first,queryEnd:bounds.last,ongoingCandidates:carried.length,carriedCount:0,previousMonthCached:!!previous,completeOngoing:false};
-            io.write(file(target),{month:target,collectedAt,events,sourceCounts,coverage});status(target,null,{count:events.length,sourceCounts});return{ok:true,count:events.length};
+            io.write(file(target),{month:target,collectedAt,events,sourceCounts,coverage,skipped});status(target,null,{count:events.length,sourceCounts,skipped});return{ok:true,count:events.length,skipped};
         }catch(e){status(target,e);return{ok:false,error:io.errorName(e)};}finally{running=false;release();}
     }
     /** 예정일을 지난 다음달을 구한다. 예:10월29일은 놓친10월28일예약 보충.
