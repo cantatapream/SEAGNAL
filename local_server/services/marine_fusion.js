@@ -5,7 +5,7 @@
  * [로드 순서] 요청에서 외부 수집·Gemini 호출 없음. 연안 관광객 사고는 읽지 않는다.
  */
 'use strict';
-const fs=require('fs'),path=require('path'),io=require('./risk_collector_io'),G=require('./risk_geo'),T=require('./risk_time');
+const fs=require('fs'),path=require('path'),{createHash}=require('crypto'),io=require('./risk_collector_io'),G=require('./risk_geo'),T=require('./risk_time');
 const ROOT=path.join(__dirname,'..'),CLIENT=path.join(ROOT,'..','client'),codec=require('./marine_congestion_codec');
 // 선종·톤수 구성은 다루지 않는다 — 사용자 결정 2026-10-15 「톤수, 선박 종류는 API에서 제공하지않는다고 공식적으로 확인했어. 이용할 수 없을 것 같아.」
 const INCIDENTS={ATY018:'전복',ATY019:'접촉',ATY022:'좌주',ATY023:'좌초',ATY027:'충돌',ATY028:'침몰',ATY029:'침수',ATY032:'폭발',ATY033:'표류',ATY035:'행방불명',ATY036:'화재',ATY037:'침수침몰',ATY041:'좌초/좌주'};
@@ -98,13 +98,18 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     function tables(){const d=loadLive();return{v:d?.v||null,cells:d?.cells||[],status:freshness()};}
     function current(){const d=loadLive();return{v:d?.v||null,cells:(d?.rows||[]).map(r=>[r[0],r[1],r[2],trafficLevel(r[1])]),status:freshness()};}
     /** 현재·혼잡의 공통 GR4 경계만 한 벌로 제공한다. 예: 사고 원본5㎞ 경계를 중복해서 그리지 않는다.
+     * 버전 v 는 **만든 칸 목록(번호 i·id·경위도·displayOnly) 자체의 해시**다(2026-10-16 T5 버벅임 1단계).
+     * 종전 v=실시간 칸 목록 해시+risk_store.inputVersion 은 상태·쿼터 등 약20개 파일 mtime 으로 거의 매분 바뀌어,
+     * 칸이 그대로여도 화면이 프레임 v 불일치로 이 표(약2.5MB)를 매번 강제로 다시 받았다(risk_forecast.js refreshMarine).
+     * 칸이 실제로 늘거나 바뀌면(운영 20분 사이 37,317→38,485칸 실측) 해시가 바뀌어 화면이 새로 받는다.
+     * 계산 자체는 입력이 바뀔 때마다 다시 한다(cacheKey) — 프레임 값의 신선도는 unifiedFrame 이 그대로 지킨다.
      * @returns {object} v,cells @param 없음
-     * [연계] ← routes/risk_forecast / 원본 사고 해상도는 상세에서 보존한다.
+     * [연계] ← routes/risk_forecast·unifiedFrame(같은 v 를 프레임에 실어 화면이 짝을 맞춘다) / 원본 사고 해상도는 상세에서 보존한다.
      */
     function unifiedCells(){const inputs=input(),cacheKey=liveSignature+':'+inputs.version;if(unifiedCache&&unifiedCacheKey===cacheKey)return unifiedCache;const byId=new Map(),occupied=new Set();for(const c of [...(inputs.cells?.cells||[]),...(live?.cells||[])]){if(!String(c.id).startsWith('GR4_'))continue;byId.set(c.id,{id:c.id,lon:c.lon,lat:c.lat});occupied.add(Math.floor(c.lon*40)+','+Math.floor(c.lat*40));}
         // 교통이 없는 사고예보 해역도 같은0.025도표출망으로 유지한다. 내부표출ID를 공식GR4ID로 위장하지 않는다.
         for(const a of inputs.accident?.cells||[]){const b=bounds(a.geometry);for(let x=Math.floor(b[0]*40);x<=Math.floor(b[2]*40);x++)for(let y=Math.floor(b[1]*40);y<=Math.floor(b[3]*40);y++){const key=x+','+y,lon=(x+.5)/40,lat=(y+.5)/40;if(occupied.has(key)||!G.pointInGeometry([lon,lat],a.geometry))continue;occupied.add(key);const id='display_'+x+'_'+y;byId.set(id,{id,lon,lat,displayOnly:true});}}
-        const cells=[...byId.values()].sort((a,b)=>a.id.localeCompare(b.id)).map((c,i)=>({...c,i}));accidentMapping=new Map(cells.map(c=>[c.i,pointCell(inputs.accident?.cells,[c.lon,c.lat])?.i]));unifiedCacheKey=cacheKey;unifiedCache={v:(live?.v||'none')+':'+inputs.version,cells,grid:'GR4-size',accidentResolution:'약5㎞ 원본 사고 격자를0.025도 공통 표출 격자의 중심 위치에 연결. display_ ID는 공식 교통 격자번호가 아님'};return unifiedCache;}
+        const cells=[...byId.values()].sort((a,b)=>a.id.localeCompare(b.id)).map((c,i)=>({...c,i}));accidentMapping=new Map(cells.map(c=>[c.i,pointCell(inputs.accident?.cells,[c.lon,c.lat])?.i]));unifiedCacheKey=cacheKey;unifiedCache={v:createHash('sha256').update(JSON.stringify(cells)).digest('hex').slice(0,16),cells,grid:'GR4-size',accidentResolution:'약5㎞ 원본 사고 격자를0.025도 공통 표출 격자의 중심 위치에 연결. display_ ID는 공식 교통 격자번호가 아님'};return unifiedCache;}
     /** 선택 항목 하나만 GR4 면색으로 표시할 수 있게 수치를 공간 연결한다.
      * 예: 모드 accident/congestion/current, 사고 단계는 원본 그대로 공유. risk(기본)는 현재·미래 모두 공식 사고 예보(2026-10-15 종합 관심단계 폐지).
      * 혼잡 색 위치 경계 0·1·10·20·100 은 실제 응답의 단계 경계다(2026-10-15 운영 혼잡 프레임 10개 46,312칸: 낮음 0.1~1 · 보통 1~9.99 · 높음 10~19.94 · 매우높음 20.02~99.9).

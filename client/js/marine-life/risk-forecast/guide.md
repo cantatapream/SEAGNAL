@@ -21,7 +21,7 @@ node local_server/scripts/build_risk_static.js
 
 34개 관광지는 육지 교차 면이 없거나 같은 좌표의 영역을 다른 관광지가 소유해 빈 MultiPolygon으로 남는다. 관광지 정보와 유효한1,320개 면을 유지하며 빈 면은 중심점으로 선택한다. 같은 좌표의 관광지는 이름 선택 목록을 표시한다. 바다에 새 연안 면을 만들지 않으며, 빈 면을 OpenLayers에 전달해 나머지 표시가 실패하지 않도록 처리한다.
 
-Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 서버는 생성한 JSON을 읽으며 Python을 실행하지 않는다. 섬 외곽선은 API의 `islands`로 받는다. 특보 경계(`/api/warn-zones`)는 읽지 않는다(2026-10-15 특보 영역 미표시).
+Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 서버는 생성한 JSON을 읽으며 Python을 실행하지 않는다. 섬 외곽선은 API의 `islands`로 받는다(섬 `features` 만 — 2026-10-16 공통 육지 geometry `landGeometry` 는 화면이 쓰지 않아 응답에서 뺐다, README 「지도 버벅임 1단계」). 특보 경계(`/api/warn-zones`)는 읽지 않는다(2026-10-15 특보 영역 미표시).
 
 ## 응답과 결측
 

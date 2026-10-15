@@ -234,3 +234,11 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-st-lab{position:relative;height:15px;margin:1px 8px 0}
 .rf-st-lab em{position:absolute;top:0;transform:translateX(-50%);font-style:normal;font-size:.62rem;color:#9fb0c9;white-space:nowrap}
 .rf-st-lab em.day{color:#fff;font-weight:700}
+
+/* 지도 기다림 표시(2026-10-16 T4 — risk_forecast.js waitStart·waitEnd). 사용자가 누른 동작이 250ms 넘게 걸리면 지도 가운데에 띄운다.
+   스피너는 style.css 의 .spinner(36px 파란 고리) 재사용, 실패 안내는 같은 자리에 「잠시 후 다시 시도해 주세요」 2초. 지도 조작을 막지 않게 pointer-events:none. */
+.rf-map-wait{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:140;display:flex;flex-direction:column;align-items:center;pointer-events:none}
+.rf-map-wait[hidden]{display:none}
+.rf-map-wait .spinner{margin:0;background:rgba(10,15,28,.55)}
+.rf-map-wait p{margin:0;padding:8px 12px;border-radius:8px;background:rgba(10,15,28,.9);border:1px solid var(--border-color,#334155);color:var(--text-main,#eaf1fa);font-size:.8rem;white-space:nowrap}
+body:not(.ls-safety) .rf-map-wait{display:none !important}
