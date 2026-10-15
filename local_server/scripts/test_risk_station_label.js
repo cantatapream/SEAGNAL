@@ -29,7 +29,7 @@ async function test(name,fn){try{await fn();pass++;console.log('✅',name);}catc
  // 2) 해상 — marine_fusion 이 관할 폴리곤의 station(해양경찰서)을 office 로 함께 준다.
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'station-label-')),now=Date.parse('2026-10-12T11:00:00+09:00'),at='2026-10-12T11:00:00+09:00';
  const geometry={type:'Polygon',coordinates:[[[126.525,33.55],[126.55,33.55],[126.55,33.575],[126.525,33.575],[126.525,33.55]]]},cell={id:'GR4_F4K23_P4',i:0,lat:33.5625,lon:126.5375,geometry,haegu:{label:'232-2',major:232,sub:2},ref:{name:'화순항',bearingWord:'북북서',distNm:11.8}};
- io.write(path.join(dir,'sea_realtime.json.gz'),{v:'v1',cells:[cell],rows:[[0,21,.2,21,0,0,0,0,0,0,0,0,0,0,21,0,0,0,0,0]],collectedAt:at,sourceAt:null,source:'MTIS public liveSea'});
+ io.write(path.join(dir,'sea_realtime.json.gz'),{v:'v1',cells:[cell],rows:[[0,21,.2]],collectedAt:at,sourceAt:null,source:'MTIS realtime API'});
  const sources={accident:{status:'ok'},congestion:{status:'ok'},zoneForecasts:{status:'ok'}},inputs={version:1,cells:{cells:[cell]},congestion:{frames:{}},accident:{cells:[],frames:{}},sources,weather:()=>({wh:1,ws:5,wp:4,wd:241,forecastAt:at})};
  const risk={sources:()=>sources,marineInputs:()=>inputs,meta:()=>({now:at,timeline:{sea:{times:[at]}},sources})};
  const marineOf=stations=>M.createStore({risk,dir,clock:()=>now,stations,accidents:[],describe:()=>cell}).analysis({lon:cell.lon,lat:cell.lat,t:at}).marine;

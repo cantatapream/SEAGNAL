@@ -90,8 +90,8 @@ body:not(.ls-safety) #risk-forecast-sheet,body:not(.ls-safety) #risk-forecast-le
 .rf-marine-section,.rf-marine-summary{margin:12px 0;padding:12px;border:1px solid rgba(160,180,210,.3);border-radius:10px}
 .rf-marine-summary{background:rgba(65,105,180,.15)}
 .rf-marine-section h4,.rf-marine-summary h4{margin:0 0 8px}
-.rf-marine-metrics,.rf-marine-composition{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
-.rf-marine-metrics span,.rf-marine-composition span{padding:6px 8px;background:rgba(120,150,200,.1);border-radius:6px}
+.rf-marine-metrics{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+.rf-marine-metrics span{padding:6px 8px;background:rgba(120,150,200,.1);border-radius:6px}
 .rf-marine-reasons{padding-left:20px}.rf-marine-reasons li{margin:9px 0}.rf-marine-reasons small{display:block;color:#98abc7}
 .rf-marine-table{width:100%;border-collapse:collapse}.rf-marine-table th,.rf-marine-table td{padding:7px;border-bottom:1px solid rgba(160,180,210,.25);text-align:left}
 .rf-marine-region{width:100%;text-align:left;padding:9px;background:rgba(80,125,195,.2);color:inherit;border:1px solid #607998;border-radius:7px}

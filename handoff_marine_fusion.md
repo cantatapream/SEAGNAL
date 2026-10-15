@@ -39,7 +39,7 @@
 공식 GET: `https://mtisopenapi.komsa.or.kr/api/v2/traffic/realtime`.
 확인한 기본 응답: `grid_id`, `vmtc`(척수), `dnsty`(밀집도%), body의 `regDt`(KST 등록시각), 페이지/전체 건수. 이 기본 API만으로 선종/톤수별 통계나 최근3일 그래프까지 제공된다고 가정하지 않는다.
 
-공개 웹: <https://mtis.komsa.or.kr/traffic/liveSea>.
+공개 웹: <https://mtis.komsa.or.kr/traffic/liveSea>. **(2026-10-15 이 웹 수집은 이용약관 때문에 코드에서 없앴다 — 이 절의 웹·선종·톤수 설명은 옛 상태다. 맨 아래 「후속: MTIS 웹 수집 제거」.)**
 현재 구현은 새 익명 웹 세션의 공개 조회로 GR4 실제 경계, 7개 선종 척수, 10개 톤수 구간 척수와 밀집도를 보완한다. 웹 POST는 `listViewTrafficVolumeStatistics`, `listViewTrafficDensities`다. 최신 조회 조건은 lv4, 전체 선종/톤수, `isNowTime:true`. 사용자 쿠키를 재사용하거나 로그에 세션 값을 기록하지 않는다.
 
 선종 순서: 어선, 여객선, 화물선, 유조선, 예인선, 수상레저기구, 기타선.
@@ -114,7 +114,7 @@
 
 | 파일 | 역할 |
 |---|---|
-| `local_server/services/mtis_live_web.js` | 공개 최신 웹 세션·현재 선종/톤수/경계/밀집도 조회 |
+| ~~`local_server/services/mtis_live_web.js`~~ | 2026-10-15 삭제(웹 수집 금지). 종전: 공개 최신 웹 세션·현재 선종/톤수/경계/밀집도 조회 |
 | `local_server/services/sea_realtime_collector.js` |5분 구간/잠금/페이지 검증/배열화/정상본 유지 |
 | `local_server/services/marine_congestion_codec.js` | 반복 혼잡 예보 압축/기존 형식 호환/8프레임 디코드 제한 |
 | `local_server/services/marine_fusion.js` | 현재·예보·기상·사고 이력·관할·지명 연결/관심 규칙/설명 |
@@ -386,3 +386,11 @@ ${target} ${province} 해안에서 열리는 행사 중 관광공사 공식 목�
 - 조치(사용자 「키없이 바로 할 수 있는 수정을 진행하자」): `sea_realtime_collector.readApi`·`normalizeWeb` 이 이상한 줄만 빼고(밀집도 범위 밖은 밀집도만 비우고 척수 유지, 선종·톤수 합계 불일치는 그 격자 구성만 비움), 사유를 `realtime_status.json.detail` 한 줄로 남긴다. 두 길 다 실패하면 「API 무엇 · 웹 무엇(보안 토큰 없음 등)」 을 남긴다. 관리자 오류현황 「상세」 줄로 보인다. 구조 오류(등록시각 형식·페이지 불일치)는 종전대로 전체 거부.
 - 시험: `local_server/scripts/test_realtime_tolerant.js` 7/0(수정 전 코드 1/6), `test_marine_fusion` 27/0(전체 거부를 고정하던 2항목을 새 규칙으로 바꿈).
 - 선박용도·톤수: 공단 v1(`/api/v1/traffic/realtime`, 포털 명세 비어 있음)·v2 샘플 모두 `grid_id·vmtc·dnsty` 3항목뿐. 공단 전화 답변(「API로 제공」)과 맞추려면 요청 파라미터 이름을 공단에 확인해야 한다. 그 전까지 선종·톤수는 웹 수집(`mtis_live_web.js`) 유지. 참고: `https://mtis.komsa.or.kr/robots.txt` 는 `Disallow: /`.
+
+## 후속: MTIS 웹 수집 제거·선종·톤수 제거 — 2026-10-15
+- 사용자 결정 원문: ①「다른쪽에 이용약관에 사용하면 안된다고 써있어서 오토 스크래핑은 하면 안될 것 같아. 이 부분은 코드에서 제외하도록 수정할 수 있도록 해줘.」 ②「톤수, 선박 종류는 API에서 제공하지않는다고 공식적으로 확인했어. 이용할 수 없을 것 같아.」
+- 저장소 전체 검색(`mtis.komsa.or.kr`·`komsa`·`liveSea`·`focst`·`_csrf`)으로 찾은 웹 자동 접속 코드는 두 곳, 둘 다 운영 서버가 돌리던 것: ⓐ `local_server/services/mtis_live_web.js`(실시간 교통 — 삭제) ⓑ `local_server/services/mtis_accident_grid.js` 의 `collectGrid`(사고예보 격자 경계를 `/traffic/focst/acdntRisk` 에서 받음 — 계산으로 교체). `local_server/tools`·`analysis`·`scripts` 의 일회성 도구 중 MTIS 웹에 접속하는 것은 없었다(`_csrf` 를 쓰는 다른 수집기는 전부 기상청 `kma.go.kr`).
+- 격자 위치: GR4 번호에서 계산(`sea_realtime_collector.cellBounds`) — 운영 웹 폴리곤 29,975칸 전부 일치(최대 3.6e-15도), 혼잡예보 API 중심 20,010칸 전부 일치. 사고 격자는 API 중심점 → 웹 메르카토르 5,000m 칸(`mtis_accident_grid.cells`) — 운영 저장본 5,406칸 전부 일치(최대 8.5e-14도). 상세는 `client/js/marine-life/risk-forecast/marine_fusion.design.md` 「MTIS 웹 수집 제거」.
+- 저장 형식: `sea_realtime.json.gz` 의 `rows` 가 `[i,척수,밀집도]` 3칸으로 줄었다(옛 20칸 저장본도 앞 3칸만 읽으므로 그대로 읽힌다). `source` 는 `MTIS realtime API`, `typeCollectedAt`·`apiError`·`unmapped` 는 더 쓰지 않는다. 키가 없거나 API 가 실패하면 웹으로 대신하지 않고 마지막 정상본을 유지, 관리자 「상세」는 `API 키 없음`·`API HTTP 503` 꼴이다.
+- 위치표 상한(30,000칸)을 넘게 되면 이번 응답 칸만으로 다시 만든다. ⚠관찰(확인 못 함): 운영 `/sea/traffic-cells` 의 위치표가 29,975칸이었고 마지막 수집이 10-14 18:25 KST 에서 멈춰 있었다. 종전 코드는 새 칸이 생겨 30,000을 넘으면 `invalid response` 로 수집 전체를 멈췄으므로 위 「invalid response 정지」의 원인일 가능성이 크다. 운영 상태 파일(관리자 인증 필요)은 보지 못했다.
+- 시험: 새 `test_no_mtis_web`(수정 전 코드 1 PASS / 4 FAIL → 5/0), `test_realtime_tolerant` 12/0, `test_marine_fusion` 26/0, `test_risk_accident` 22/0, `test_marine_ui` 17/0.
