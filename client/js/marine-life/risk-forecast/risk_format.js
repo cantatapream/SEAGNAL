@@ -157,5 +157,9 @@
         var name = /(파출소|출장소)$/.test(police) ? police : police + '파출소';
         return (office ? office + ' ' : '') + name + ' 관할';
     }
-    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, stamp:stamp, direction:direction, luminance:luminance, stationLabel:stationLabel};
+    // 연안 단계 말 4개의 색(2026-10-16 T7 — 연안 시트 시각 막대 칸·범례). 단계 경계(지수 20·67·100 = 점수 log2(1.5)·2·3)가 col()의 색 기준점과
+    // 같으므로 각 단계는 그 단계가 시작하는 기준점의 색이다: 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강. 키 순서 = 범례 순서.
+    var BAND_COLORS = {};
+    ['평소 수준','다소 높음','높음','매우 높음'].forEach(function (band, i) { BAND_COLORS[band] = '#' + RGB[i].map(function (v) { return (v < 16 ? '0' : '') + v.toString(16); }).join(''); });
+    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, stamp:stamp, direction:direction, luminance:luminance, stationLabel:stationLabel, BAND_COLORS:BAND_COLORS};
 })(window);
