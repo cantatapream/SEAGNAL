@@ -108,6 +108,39 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());await open('b');
   assert.equal(await label(),"'26.10.15(목) 15:00");assert.equal(await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet input[type="range"]').value),'0');assert.equal(await pg.evaluate(()=>app.getState().t),now);
  });
+ // ── 과제6: 즉시 시트 열기(회색 틀)와 늦은 응답 보호. 응답 캐시(60초)를 피하려고 시나리오마다 새로 불러온다. ──
+ /** 페이지를 새로 불러와 앱을 다시 올린다(API 응답 캐시 초기화). 예: await fresh(). @returns {Promise<void>} [연계] ← 과제6 시나리오 */
+ async function fresh(){await pg.reload();await pg.evaluate(()=>app.ready);}
+ const sheetState=()=>pg.evaluate(()=>{const el=document.getElementById('risk-forecast-sheet');return{open:el.classList.contains('open'),busy:el.getAttribute('aria-busy'),skeleton:!!el.querySelector('.rf-skeleton'),title:el.querySelector('.rf-title').textContent,body:el.querySelector('.rf-body').textContent,rows:el.querySelectorAll('.rf-row').length,index:!!el.querySelector('.rf-index'),stack:Array.from(PopupStack.list()),bottom:el.getBoundingClientRect().bottom};});
+ await check('지점을 누르면 응답 전에 시트가 열리고 회색 틀과 그 지점 이름만 보임',async()=>{
+  await fresh();const release=hold('a|'+now);await pg.evaluate(()=>app.select('coast','a'));
+  const st=await sheetState();console.log('측정 응답 대기 중 시트',JSON.stringify({open:st.open,skeleton:st.skeleton,title:st.title,bottom:st.bottom,stack:st.stack}));
+  assert.ok(st.open&&st.skeleton&&st.busy==='true');assert.equal(st.title,'광안리해수욕장');assert.equal(st.rows,0);assert.ok(!st.index);assert.deepEqual(st.stack,['risk-forecast-sheet']);assert.equal(st.bottom,847);
+  assert.equal(await pg.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-time-label').length),1,'응답 전에도 시각 조작은 보임');
+  release();await waitTitle('광안리해수욕장');const done=await sheetState();assert.ok(!done.skeleton&&done.busy===null&&done.rows>3);
+ });
+ await check('응답을 기다리는 동안 다른 지점을 누르면 늦게 온 먼저 누른 지점의 응답은 화면에 나오지 않음',async()=>{
+  await fresh();const release=hold('a|'+now);await pg.evaluate(()=>{app.select('coast','a');app.select('coast','b');});await waitTitle('해운대해수욕장');
+  release();await pg.waitForTimeout(300);const st=await sheetState();assert.equal(st.title,'해운대해수욕장');assert.ok(st.body.includes('행사 b@'+now)&&!st.body.includes('행사 a@'),'엉뚱한 지점 내용');
+ });
+ await check('응답을 기다리는 동안 시트 시각을 바꾸면 회색 틀을 다시 보이고 이전 시각의 늦은 응답은 나오지 않음',async()=>{
+  await fresh();await open('a');const release=hold('a|'+later);await slide(1);
+  const st=await sheetState();assert.ok(st.skeleton&&st.title==='광안리해수욕장'&&st.rows===0,'시각 변경 직후 회색 틀 '+JSON.stringify({skeleton:st.skeleton,rows:st.rows}));assert.equal(await label(),"'26.10.15(목) 18:00");
+  await slide(2);await pg.waitForFunction(t=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@'+t),latest);
+  release();await pg.waitForTimeout(300);const end=await sheetState();assert.ok(end.body.includes('@'+latest)&&!end.body.includes('@'+later),'이전 시각 내용 섞임');assert.equal(await pg.evaluate(()=>app.getState().t),now);
+ });
+ await check('응답을 기다리는 동안 시트를 닫으면 늦은 응답이 시트를 다시 열지 않음',async()=>{
+  await fresh();const release=hold('a|'+now);await pg.evaluate(()=>app.select('coast','a'));await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());
+  release();await pg.waitForTimeout(400);const st=await sheetState();assert.ok(!st.open&&st.body===''&&!st.busy);assert.deepEqual(st.stack,[]);assert.equal(await pg.evaluate(()=>app.getState().selected),null);
+ });
+ await check('상세 요청이 실패하면 회색 틀 대신 오류와 다시 시도(꾸미지 않음)',async()=>{
+  await fresh();failures.add('a|'+now);await pg.evaluate(()=>app.select('coast','a'));
+  await pg.waitForFunction(()=>document.querySelector('#risk-forecast-sheet [data-retry]'),null,{timeout:20000});const st=await sheetState();assert.ok(!st.skeleton&&st.busy===null&&st.body.includes('서버 오류')&&!st.index);assert.deepEqual(st.stack,['risk-forecast-sheet']);
+  failures.delete('a|'+now);await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-retry]').click());await waitTitle('광안리해수욕장');
+ });
+ await check('열린 상세는 과제15 접힌 설명을 유지',async()=>{
+  const m=await pg.evaluate(()=>{const d=document.querySelector('#risk-forecast-sheet .rf-calculation');return{has:!!d,open:d&&d.open,summary:d&&d.querySelector('summary').textContent};});assert.equal(m.has,true);assert.equal(m.open,false);assert.equal(m.summary,'사고 배수는 어떻게 합쳤나요?');
+ });
  await check('PopupStack·닫기 버튼 동작 유지(뒤로가기로 시트 닫힘)',async()=>{
   await open('a');assert.deepEqual(await pg.evaluate(()=>Array.from(PopupStack.list())),['risk-forecast-sheet']);
   assert.equal(await pg.evaluate(()=>PopupStack.popLast()),true);assert.equal(await pg.evaluate(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')),false);assert.equal(await pg.evaluate(()=>app.getState().selected),null);

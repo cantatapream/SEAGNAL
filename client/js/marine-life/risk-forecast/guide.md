@@ -126,3 +126,9 @@ bash scripts/refactor/verify_all.sh
 
 - `RiskSlider.mount(el,times,selected,change)`가 `.rf-time-label`(output)을 슬라이더 위에 만든다. 선택 시각이 새 시간축에 없으면 손잡이는 처음 칸이지만 표시는 `selected`(상세가 실제 보여 주는 시각)를 따른다.
 - 말풍선 표시/숨김 타이머와 위치 계산은 없다. 키보드·터치 모두 `input` 이벤트로 표시를 갱신하고 `aria-valuetext`에 같은 문구를 둔다.
+
+## 즉시 열기·스켈레톤 규칙 — 과제6
+
+- `RiskSheet.create(...).loading(hint)`가 시트를 열고 본문을 회색 틀로 채운다(`aria-busy`). `show`·`error`·`choose`·`clear`가 해제한다. 새 시트 종류를 추가해도 응답 처리 쪽에서 반드시 이 넷 중 하나로 끝나야 한다.
+- 호출 위치는 `RiskForecast.select`(지점 선택)와 `sliderChanged`(시트 시각 변경)뿐이다. `refresh`·60초 갱신에서 부르지 않는다(읽는 도중 내용이 깜빡이지 않게).
+- 늦은 응답 보호는 `detail()`의 `n!==detailSeq || selected!==s || (s.at||t)!==at` 검사다. 이를 약화하지 않는다.

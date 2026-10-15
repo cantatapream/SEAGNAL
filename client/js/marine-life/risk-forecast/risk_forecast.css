@@ -139,3 +139,11 @@ body.rf-sea-time-on.ls-mudflat-on .rf-color-legend{bottom:calc(var(--rf-bottom-c
 .rf-mode-badge[hidden],[data-marine-tools][hidden]{display:none}
 /* 하단의 법률/AI 진입 버튼도 새 시간바·축척을 덮지 않도록 함께 올린다. */
 body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 44px)}
+
+/* 응답 전 로딩 스켈레톤(과제6): 내용 자리를 회색 틀로 먼저 보인다. 움직임 줄이기에서는 반짝임을 끈다. */
+.rf-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.rf-skeleton { padding-top:4px; }
+.rf-sk { margin-bottom:10px; border-radius:10px; background:linear-gradient(90deg,#ffffff14 25%,#ffffff2b 50%,#ffffff14 75%); background-size:200% 100%; animation:rf-sk-shimmer 1.2s linear infinite; }
+.rf-sk-score { height:96px; } .rf-sk-line { height:14px; width:80%; } .rf-sk-short { width:55%; } .rf-sk-row { height:46px; }
+@keyframes rf-sk-shimmer { to { background-position:-200% 0; } }
+@media (prefers-reduced-motion:reduce) { .rf-sk { animation:none; } }

@@ -92,8 +92,16 @@
             if(Array.isArray(id)){var choices=table.coast.spots.filter(function(p){return id.includes(p.id);});clearSelection();choosing=true;sheet.choose(choices);registerSheet();return;}
             var item=kind==='marine'?{id:id,lon:location&&location.lon,lat:location&&location.lat}:kind==='briefing'?{id:id}:(kind==='coast'?table.coast.spots:table[kind].cells).find(function(p){return p.id===id;});if(!item)return;
             if(!selected||selected.id!==id||selected.kind!==kind)layer.setSelection(kind==='briefing'?null:kind,id);
-            choosing=false;selected={kind:kind,id:id,item:item,at:t,location:seaKind(kind)==='sea'&&location&&Number.isFinite(location.lon)&&Number.isFinite(location.lat)?{lon:location.lon,lat:location.lat}:null};if(meta){selected.at=nearest(selectionTimes(kind),t||meta.now);w.RiskSlider.mount(sheet.timelineEl,selectionTimes(kind),selected.at,function(value){if(selected){selected.at=value;detail();}});}detail();
+            choosing=false;selected={kind:kind,id:id,item:item,at:t,location:seaKind(kind)==='sea'&&location&&Number.isFinite(location.lon)&&Number.isFinite(location.lat)?{lon:location.lon,lat:location.lat}:null};
+            // 누르는 즉시 시트를 열고 회색 틀을 보인다. 이전 지점의 제목은 남기지 않고 이 지점의 이름(연안만 알고 있음)만 쓴다.
+            sheet.loading({title:kind==='coast'&&typeof item.name==='string'?item.name:'',subtitle:''});registerSheet();
+            if(meta){selected.at=nearest(selectionTimes(kind),t||meta.now);w.RiskSlider.mount(sheet.timelineEl,selectionTimes(kind),selected.at,sliderChanged);}detail();
         }
+        /** 시트 시각 조작 값을 받아 그 시각의 상세를 다시 요청한다. 예: 18시로 옮기면 회색 틀 뒤 18시 상세.
+         * @param {string} value - 선택 ISO 시각 @returns {void}
+         * [연계] ← RiskSlider.mount / 메인 t는 바꾸지 않는다(시간 격리); 늦게 온 이전 시각 응답은 detail()의 세대·시각 검사가 버린다.
+         */
+        function sliderChanged(value){if(selected){selected.at=value;sheet.loading();detail();}}
         async function hazard(id){var snapshot=selected;try{var fc=await api.get('hazard-zones',{ids:id});if(enabled&&selected===snapshot&&selected&&state.coast)layer.showHazards(fc);}catch(e){console.warn('[위험예측] 위험구역 요청 실패',failureInfo(e));if(enabled&&!disposed&&selected===snapshot)message('위험구역 자료를 불러오지 못했습니다 — '+e.message);}}
         async function detail(){
             if(!selected||!enabled)return;var n=++detailSeq,s=selected,at=s.at||t;
@@ -177,7 +185,7 @@
                     if(!w.RiskMarine&&!boundariesLoaded){await layer.boundaries(api);boundariesLoaded=true;}
                     if(w.RiskMarine&&!boundariesLoaded&&!boundaryPending){boundaryPending=layer.boundaries(api).then(function(){boundariesLoaded=true;}).catch(function(e){console.warn('[위험예측] 부가 경계 요청 실패',failureInfo(e));}).finally(function(){boundaryPending=null;});}
                     if(!enabled||disposed)return;
-                    if(selected)w.RiskSlider.mount(sheet.timelineEl,selectionTimes(selected.kind),selected.at||t,function(value){if(selected){selected.at=value;detail();}});
+                    if(selected)w.RiskSlider.mount(sheet.timelineEl,selectionTimes(selected.kind),selected.at||t,sliderChanged);
                     await refresh();
                 }catch(e){console.warn('[위험예측] 자료 갱신 실패',failureInfo(e));if(enabled&&!disposed)message('위험예측 갱신 실패 — '+e.message);}
                 finally{syncPending=null;}
