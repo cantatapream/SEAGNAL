@@ -21,11 +21,11 @@ node local_server/scripts/build_risk_static.js
 
 34개 관광지는 육지 교차 면이 없거나 같은 좌표의 영역을 다른 관광지가 소유해 빈 MultiPolygon으로 남는다. 관광지 정보와 유효한1,320개 면을 유지하며 빈 면은 중심점으로 선택한다. 같은 좌표의 관광지는 이름 선택 목록을 표시한다. 바다에 새 연안 면을 만들지 않으며, 빈 면을 OpenLayers에 전달해 나머지 표시가 실패하지 않도록 처리한다.
 
-Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 서버는 생성한 JSON을 읽으며 Python을 실행하지 않는다. 섬 외곽선은 API의 `islands`로 받는다. 특보 경계는 `/api/warn-zones`와 `/api/warn-zones-sub`를 함께 읽는다.
+Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 서버는 생성한 JSON을 읽으며 Python을 실행하지 않는다. 섬 외곽선은 API의 `islands`로 받는다. 특보 경계(`/api/warn-zones`)는 읽지 않는다(2026-10-15 특보 영역 미표시).
 
 ## 응답과 결측
 
-`meta`의 `now`와 `timeline.coast/sea.times`를 슬라이더에 사용한다. `versions.spots/cells`가 바뀌면 대응 표를 다시 읽는다. `coast/frame`의 `spots`와 `sea/frame`의 `cells`는 정적 표의 `i`를 참조하는 배열이다. 두 층의 프레임·상세에는 슬라이더에서 선택한 같은 시각을 전달하고 원천 예보의 간격 매칭은 서버가 한다. 상세 응답의 `score/index/band/rr`를 그대로 표시하고, `rows`, `notices`, `missing`을 문장 틀로 옮긴다. 특보 경계는 실제 발효 후보를 우선하며 점수 계산의 예비 가정 후보 선택과 구분한다. 특보 없는 날의 예보 배수·사유·반영 여부는 파고·풍속 행에 표시한다. 후보가 동률이면 파고 행 한 곳만 반영 표시한다. 기준 PDF는 `report/sea`와 `report/coast`에서 내려받는다.
+`meta`의 `now`와 `timeline.coast/sea.times`를 슬라이더에 사용한다. `versions.spots/cells`가 바뀌면 대응 표를 다시 읽는다. `coast/frame`의 `spots`와 `sea/frame`의 `cells`는 정적 표의 `i`를 참조하는 배열이다. 두 층의 프레임·상세에는 슬라이더에서 선택한 같은 시각을 전달하고 원천 예보의 간격 매칭은 서버가 한다. 상세 응답의 `score/index/band/rr`를 그대로 표시하고, `rows`, `notices`, `missing`을 문장 틀로 옮긴다. 특보 없는 날의 예보 배수·사유·반영 여부는 파고·풍속 행에 표시한다. 후보가 동률이면 파고 행 한 곳만 반영 표시한다. 기준 PDF는 `report/sea`와 `report/coast`에서 내려받는다.
 
 초기 일부 요청이 실패해도 다시 켜기나 다음 60초 갱신에서 재시도한다. 꺼진 뒤 늦게 도착한 오류는 배너를 다시 열지 않는다. API 캐시는 지점·섬 1일, 해상 칸 1시간, 상세·프레임·meta 1분이며 주기 meta 요청은 캐시를 건너뛴다. 수집기의 상태·자료 시각은 서버가 판단한다. 상태 계산은 `missing/error/stale`를 구분한다. 공통 원천 오류 안내와 마지막 정상 수집시각은 관리자 AI 사고예측 오류현황으로 이전했고 공개 지도 배너는 숨긴다. 월말 행사는 선택 날짜의 월별 상태를 사용한다. `/status`는 매 요청 최신 상태를 읽고 집중률 매칭수·전체수와 행사 마지막 시도시각도 전달한다. 실패 진단 로그에는 오류 종류와 숫자 HTTP 상태만 넣어 원천 URL·API 키·응답 본문을 출력하지 않는다. 특히 혼잡도 수집 실패에는 날씨 위험색을 유지하고 자료 없음으로 표시한다.
 
@@ -51,9 +51,9 @@ node local_server/scripts/test_risk_map_layer.js
 bash scripts/refactor/verify_all.sh
 ```
 
-서식 검사는 0~100 모든 숫자 상자의 명암비, 색 기준, DMS 올림과 HTML/URL 보호를 검증한다. 전체 지도 자료 검사는 실제 1,354개 관광지, 육지 원천, 21개 섬 및 하위 특보 경계를 제품 OpenLayers에 넣어 빈 형상 처리와 반복 렌더링을 검증한다. `PW_CHROME` 또는 `SIM_CHROMIUM`으로 설치된 브라우저 실행 파일을 지정할 수 있다. 생명주기 검사는 초기 부분 실패의 복구, OFF 뒤 늦은 응답, KST 날짜 이동 및 API TTL을 검증한다. 전체 검사의 `simulate.js`는 실제 앱 위험예측 버튼의 기본 층과 OFF 동작을 확인하며, 이 새 시나리오는 기존 기준선에 없어도 실패를 보고한다. 외부 지도·기상 API 연결의 환경 실패는 실제 코드 오류와 구분해서 검사 결과에 남긴다.
+서식 검사는 0~100 모든 숫자 상자의 명암비, 색 기준, DMS 올림과 HTML/URL 보호를 검증한다. 전체 지도 자료 검사는 실제 1,354개 관광지, 육지 원천, 21개 섬을 제품 OpenLayers에 넣어 빈 형상 처리와 반복 렌더링을 검증한다. `PW_CHROME` 또는 `SIM_CHROMIUM`으로 설치된 브라우저 실행 파일을 지정할 수 있다. 생명주기 검사는 초기 부분 실패의 복구, OFF 뒤 늦은 응답, KST 날짜 이동 및 API TTL을 검증한다. 전체 검사의 `simulate.js`는 실제 앱 위험예측 버튼의 기본 층과 OFF 동작을 확인하며, 이 새 시나리오는 기존 기준선에 없어도 실패를 보고한다. 외부 지도·기상 API 연결의 환경 실패는 실제 코드 오류와 구분해서 검사 결과에 남긴다.
 
-브라우저에서는 초기 연안만 켜짐·시트 닫힘, 선택 후 DMS, 해상 16방위·3자리 방위각, 두 층 OFF의 특보 경계 숨김, 선택 층 OFF의 시트 닫힘, 기준 상세의 Escape와 초점 복원, 위험구역 주소 클릭의 지도 이동을 확인한다.
+브라우저에서는 초기 연안만 켜짐·시트 닫힘, 선택 후 DMS, 해상 16방위·3자리 방위각, 선택 층 OFF의 시트 닫힘, 기준 상세의 Escape와 초점 복원, 위험구역 주소 클릭의 지도 이동을 확인한다.
 
 
 ## 2026-10-11 설계 대조 수정의 데이터 계약
@@ -121,15 +121,15 @@ bash scripts/refactor/verify_all.sh
 
 관할 문구(2026-10-15)는 `RiskFormat.stationLabel(파출소, 해양경찰서)`로만 만든다 — 해상 부제는 `analysis.marine.station`+`office`, 연안 부제는 `subtitle.police`+`office`, 위험구역 아코디언은 `zones[].police`+`office`. 새 화면에서 「…파출소 관할」을 쓸 때도 문자열을 직접 잇지 말고 이 함수를 쓴다(「파출소」 접미사·출장소·경찰서 없음 처리가 한 곳에 있다). 대응표와 같은 이름 가르기 규칙은 [README.md](README.md)의 같은 이름 절.
 
-## 특보 구역 배경 면 (과제14)
+## 특보 영역 미표시 (과제14 폐지, 2026-10-15)
 
-`refresh()`는 연안·해상 프레임과 별도로 `refreshWarnings(n,at)`를 실행한다. `state.coast||state.sea`일 때만 `GET /warning-zones?t=<메인 시각>`을 한 번 호출하고(요청 세대 `seq`로 늦은 응답을 버린다), `layer.zonesLoaded()`로 정적 도형 로드를 기다린 뒤 `layer.drawWarnings(zones)`를 부른다. 시트 시각(`selected.at`)은 쓰지 않으므로 메인 15시 / 시트 18시 격리가 유지된다.
+> 사용자 원문(2026-10-15): *「이미지를 보면 지도에 특보 영역을 표시하지 말자고 했는데 나오고 있는데 없애주고. 범례를 없앴으니 다시 없애야지.」*
 
-서버: `risk_store.warningZones(t)`는 `borders(t,true,false)` 즉 예비 가정 승격 없이 계산한다. 자식 값이 null인 자식 구역은 목록에 없다(부모 특보를 상속하지 않음). `degraded:['warnings']`는 특보 원천이 ok/offseason이 아니라는 뜻이다(공개 배너는 과제16 정책으로 숨겨지고 관리자 오류현황이 원천 상태를 기록한다). 구 `/coast/frame`·`/sea/frame`의 `borders`는 그대로다.
+지운 것: 조율기 `refreshWarnings`와 `refresh()`의 `warningJob`, 지도층 `borders`(`rf-borders-canvas`, zIndex 129)·`drawWarnings`·`renderWarnings`·`zonesLoaded`·`zoneKey`·`zoneGeometry`, `boundaries()`의 `/api/warn-zones(-sub)` 내려받기, 서버 `GET /warning-zones`·`risk_store.warningZones`·`borders()`와 frame 응답의 `borders` 필드. 나머지 층의 zIndex는 `130+i`로 순서가 그대로다(특보 층 한 칸이 빠졌을 뿐).
 
-지도: `RiskMapLayer.drawWarnings(list)`가 못 그린 구역 이름 배열을 돌려준다(비어 있지 않으면 경계 도형 누락 안내). 서버 구역 이름과 정적 도형 이름은 공백·마침표·중점을 없앤 키로 맞춘다(93개 중 61개가 공백·중점 때문에 원래 이름이 달랐다: `동해남부 남쪽 안쪽먼바다`, `태안서산북쪽 평수구역` 등). 층은 `borders`(zIndex 129, 위험 색상층 130+ 아래)다. `drawBorders`는 삭제했다.
+다시 넣지 말 것: 특보 범례(과제13, 「아예 반영하지 않음」)와 함께 특보 면·테두리도 위험예측 지도에서 빠졌다. 되살리려면 사용자 확인이 먼저다. 회귀 시험 — `test_risk_map_layer`(특보 층·함수 없음, `/api/warn-zones` 미요청), `test_risk_lifecycle`(켜기/끄기·시각 변경·재진입에서 `warning-zones` 요청·`drawWarnings` 0회), `test_risk_store`(frame에 `borders` 없음·`warningZones` 없음), `test_risk_routes`(`/warning-zones` 404).
 
-수정 시 주의: 범례 칸은 이 기능과 무관하다(과제13). 기존 해양종합정보 탭의 `ocean_warn_*` 특보 표시와 특보 푸시는 건드리지 않는다. 관리자 메타 감시(`/meta`, `/status`)에 정적 도형을 추가하지 않는다.
+건드리지 않은 공용 부분: `/api/warn-zones`·`/api/warn-zones-sub`(routes/weather.js)와 정적 도형, 해양지도 탭 `ocean_warn_*`, 위치 알림·온보딩, 특보 수집·푸시, 해구 예보. 상세 시트의 특보 행·안내와 해상 점수의 특보 반영도 그대로다.
 
 ## 관리자 전용 원천 진단 — 과제16
 
