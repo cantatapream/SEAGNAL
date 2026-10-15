@@ -134,7 +134,7 @@
         return body;
     }
     /**
-     * 서버 특보·3일째·떠밀림 안내를 표시한다.
+     * 서버 특보·떠밀림 안내를 표시한다(3일째 특보급 안내는 연안 2일 제한 「가」 2026-10-15로 서버가 더 이상 보내지 않는다).
      * 예: notices(detail.notices)
      * @param {Object[]} list - 서버 안내 목록
      * @returns {string} 안내 HTML
@@ -148,7 +148,6 @@
                 if(effective.length)s+=F.escape(effective.join(', '))+' 발효 상태입니다. 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 '+b('14%',1.14)+' 높습니다.';
                 return s?'<div class="rf-notice">⚠ '+s+'</div>':'';
             }
-            if(n.key==='day3'||n.key==='forecastDay3')return '<div class="rf-notice">⚠ 특보가 발효될 수 있을 정도의 날씨가 될 가능성이 있습니다.</div>';
             if(n.key==='drift')return '<div class="rf-notice">🛟 이 앞바다 바람 <b class="rf-t-y">'+Math.round(n.windMs)+'m/s</b> — 튜브·물놀이기구 떠밀림 주의</div>';
             return '';
         }).join('');

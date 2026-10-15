@@ -140,9 +140,9 @@ bash scripts/refactor/verify_all.sh
 ## 과제2 — 연안·해상 공통 메인 시각 (`risk_forecast.js`)
 
 해상 전용이던 하단 바(`.rf-marine-timebar`, 고정 output + 현재/+3H/+6H/+12H)를 연안·해상 공통 메인 시각으로 쓴다. 새 컨트롤을 따로 만들지 않았다.
-- `mainTimes()`: 연안 ON이면 `meta.timeline.coast.times`(지금 이후, 3시간 칸, 모레 21시까지) 그대로, 해상만 ON이면 `seaTimes()`(내일 21시까지), 둘 다 ON이면 두 축의 합집합(실서버에서는 연안 축이 해상 축을 포함한다). `nextTime(+3/6/12)`, 정기 `sync()`의 가까운 칸 맞춤, 층 스위치 변경 시 맞춤이 모두 이 목록을 쓴다. 칸이 없으면 버튼은 비활성이다.
+- `mainTimes()`: 연안 ON이면 `meta.timeline.coast.times`(지금 이후, 3시간 칸, 내일 21시까지 — 「가」 2026-10-15) 그대로, 해상만 ON이면 `seaTimes()`(내일 21시까지), 둘 다 ON이면 두 축의 합집합(실서버에서는 두 축의 끝이 같다). `nextTime(+3/6/12)`, 정기 `sync()`의 가까운 칸 맞춤, 층 스위치 변경 시 맞춤이 모두 이 목록을 쓴다. 칸이 없으면 버튼은 비활성이다.
 - `marineTime()`: 바는 연안 또는 해상이 켜져 있을 때 보인다(둘 다 OFF면 숨김). 해상 전용 `[data-marine-tools]`는 해상 ON일 때만 보인다. `body.rf-sea-time-on` 클래스 이름은 CSS 호환을 위해 그대로다.
-- `refreshMarine()`: 시각이 해상 목록의 끝보다 뒤(연안만 제공되는 모레 구간)면 해상 프레임을 요청하지 않고 지도를 비운 뒤 `seaOutOfRange()`로 해상 범례 제목을 「해상 예보 범위 밖 (내일까지)」로 바꾸고 색 막대를 숨긴다(배너는 과제16으로 꺼져 있음). 다음 정상 프레임의 `marineLegend`가 되돌린다. 연안은 정상 표시한다.
+- `refreshMarine()`: 종전에는 연안만 제공되던 모레 구간에서 해상 지도를 비우고 `seaOutOfRange()`로 「해상 예보 범위 밖 (내일까지)」를 띄웠다. 「가」로 연안도 내일 21시에 끝나 이 구간이 없어졌으므로 그 분기와 함수를 삭제했다.
 - 시트 시각은 그대로 `selected.at`이며 메인 `t`와 섞이지 않는다. 시트는 열릴 때 가장 가까운 칸으로 메인 `t`를 한 번 받는다. 해상 시트를 열 때 메인 `t`가 해상 범위 밖이면 해상 마지막 칸으로 시작한다.
 
 ## 시트 위치와 스크롤 구조 — 과제5·7
@@ -167,3 +167,21 @@ bash scripts/refactor/verify_all.sh
 - `RiskForecast.visiblePadding()`이 [위 30, 오른쪽 40, 아래 (지도 아래 − 시트 윗변) + 30, 왼쪽 40]px를 돌려준다. 지도에 `fit`할 때 이 값을 `padding`으로 쓰면 대상이 시트 위 남은 영역의 정확히 가운데에 온다. 시트가 닫혀 있으면 아래 여백은 30px다.
 - 이동 직전에 계산한다(`marinePoint`는 시트가 회색 틀로 바뀌기 전의 높이). 시트 높이는 서브탭 열림 여부에 따라 달라지므로 고정 비율(예전 50%·60%)을 쓰지 않는다.
 - 위험구역 이동 뒤 `RiskSheet.markZone(id)`가 목록 표시를 맞춘다.
+
+## 가 연안 2일 제한 — 2026-10-15
+
+사용자 원문: 「연안 해상 기간 차이 관련해서는 연안도 2일까지 표출하도록 하고, 관련하여 2일 이후 데이터는 받아오지 않도록 하여 메모리 소모 등 문제를 최소화할 수 있도록 해.」 · 「나」(버튼 유지) 「시간 버튼이 앞으로만 감 관련하여 현재 상태로 놔두어. 가.를 처리하면 해결될 것 같은데」
+
+| 위치 | 이전 | 지금 |
+|---|---|---|
+| `risk_store.coastTimeline(now)` | (없음, 곳곳에 `T.timeline(now,3,3,21)`) | `T.timeline(now,3,2,21)` 한 곳 — meta·validateTime·warningsFor(연안 끝)·galeFor·sourceFiles/refresh의 행사 월 |
+| `meta().timeline.coast` | 모레 21시까지 + `day3From` | 내일 21시까지, `day3From` 없음 |
+| `coastDetail`/`frame(false)`/`warningZones` | 모레 시각 허용 | 모레 시각 400 「잘못된 예보 시각」 |
+| `scoreCoast().notices` | `effective`·`prelim`·`day3`·`windMs` | `effective`·`prelim`·`windMs` (`dayMax` 입력도 없앰) |
+| `frame(false)` 응답 | `day3Dashed` 포함 | 없음 |
+| `forecast()` 반환 | `dayMax` 포함 | 없음(3일째 안내 전용이었다) |
+| `RiskSheet` 안내 | `day3`/`forecastDay3` 문구 | 없음(`forecastDay3`는 서버 어디서도 만들지 않았다) |
+| `risk_forecast.js` | `seaOutOfRange()` | 삭제 |
+| `tour_concentration_collector.keepTwoDays` | 원천 약30일 전부 저장 | 수집일~+2일만 저장, 범위 안 날짜가 없으면 `empty response`(정상 파일 보존) |
+
+자르지 않은 원천(공용 또는 해상): 해구 예보 `zone_forecasts.json`(scheduler 수집, 예보 탭·weather 경로 공용 — risk_store가 따로 읽은 복사본도 해상 상세·공식 사고 상세가 함께 쓴다), 너울 `swell_smallzone.json.gz`(너울 화면 공용), `weather_alerts.json`·강풍(특보, 날짜별 예보 아님), 이안류(이미 오늘만), 공식 선박 사고예보 수집(해상, 24칸=3일).
