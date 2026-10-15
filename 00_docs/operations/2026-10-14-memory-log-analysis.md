@@ -116,3 +116,13 @@ CCTV는 배열 없음이라는 로그만으로 응답 구조 변경인지 서비
 - 위치기반 FCM은 전체 구역을 유지하면서 4KiB 안에 넣는 송수신 형식과 실제 성공/실패 집계를 함께 고쳐야 한다. 일반 푸시의 성공 집계로 위치기반 data의 성공을 대신하지 않는다.
 
 위 외부 자료·푸시 오류를 이번 메모리 수정으로 해결했다고 간주하지 않는다. 원본 로그와 인증 정보는 이 문서·커밋에 포함하지 않았다.
+
+## 후속 확인 — 시정 imgList (2026-10-15 10:40~11:00 KST)
+
+위 「시정 imgList는 어디에서 잘렸는지 미정」 항목을 다시 확인했다. 잘린 응답이 아니라 **기상청이 처음부터 빈 응답을 준다.**
+
+- `GET /mmis_marine_api/v1/kma/mdl/rdps/imgList` 는 HTTP 200, `content-length: 0`, 본문 0바이트다. Referer·Origin·Accept·브라우저 User-Agent·`sec-fetch-*`·gzip·`/mmis/` 쿠키를 붙여도 같았다. 같은 계열 `gdps/imgList` 도 0바이트다. 반면 같은 시각 `shrt/netcdf/imgList?shrtType=pop`·`swell/.../forecast-times`·`obs/buoy/list`·`ripcrnt-1h/list` 는 정상 JSON이다. (이 컨테이너에서 기상청 쪽 연결이 간헐적으로 끊겼고, 끊긴 요청은 판정에서 뺐다.)
+- 공개 MMIS 화면 번들(`/mmis/js/chunk-common.66338b44.js`, Last-Modified 2026-10-07 07:58 GMT)도 같은 주소를 **로그인 없는 axios 인스턴스로, 쿼리 없이 GET** 한다(`getSvcImage("rdps")`, 메뉴 `ldps` → `rdps`). 우리 요청 방식 문제가 아니다. 로그인 토큰을 붙이면 다르게 나오는지는 시험하지 않았다(로그인 금지).
+- node-fetch 로 HTTP 200·0바이트를 받아 `r.json()` 하면 로그와 똑같은 `invalid json response body ... Unexpected end of JSON input` 이 난다(로컬 재현).
+- 운영 `/api/vsby-smallzone/status` (10:4x KST 조회): `baseTm 2026101100`, `collectedAt 2026-10-11T12:10:07Z`(= 10/11 21:10 KST), 67프레임. 셀 시계열은 `2026.10.11 22:00`~`2026.10.14 16:00`(KST)이다. **10/14 16:00 KST 이후로는 앞날 예측이 하나도 없다.**
+- 조치: `fetchImgList` 가 빈 응답/JSON 아님을 HTTP 상태·바이트 수·형식과 함께 남기고, `/api/vsby-smallzone/status` 에 `lastFctTm`·`lastCheckAt`·`lastCheckOk`·`lastCheckError`·`failStreak`·`failSince` 를 더했다(스위트 `test_vsby_imglist_check`). 기상청이 자료를 다시 주기 전에는 근본 해결이 없다.
