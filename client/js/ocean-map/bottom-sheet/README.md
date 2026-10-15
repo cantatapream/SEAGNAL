@@ -25,6 +25,12 @@
 - 범위: 조석만 · 같은 기기 기준(즐겨찾기가 localStorage 에만 있으므로). 실패는 조용히 넘기고 그 해점은
   예전처럼 시트를 열 때 받는다. 시험: `local_server/scripts/test_fav_tide_prefetch.js`.
 
+## 시정 카드 — 선택 시각과 1시간 넘게 먼 자료뿐이면 「정보 없음」 (2026-10-15)
+
+`ocean_bottom_sheet_vsby.js` 는 선택 시각에 가장 가까운 시정 frame 을 고르되, 그 frame 도 60분 넘게 떨어져 있으면 **「정보 없음」** 으로 표시한다(MMIS 수집 정지 중 옛 예보가 오늘 값처럼 보이던 문제).
+시간 거리는 실제 분으로 잰다 — 예전엔 `YYYYMMDDHHmm` 숫자를 그냥 빼서 자정을 넘는 비교가 틀렸다.
+시험: `local_server/scripts/test_vsby_stale.js`.
+
 ## 로드 순서
 
 index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없음).

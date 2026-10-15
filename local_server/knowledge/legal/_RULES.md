@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 96 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 97 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -313,6 +313,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_khoa_https` | 개방海(국립해양조사원, khoa.go.kr)를 http:// 로 부르는 코드가 없게 고정한다. |
 | `test_khoa_stream_cache_memory` | 유향·유속·수온 캐시의 과거 슬롯 제거와 73슬롯 상한을 검증한다. |
 | `test_vsby_imglist_check` | 해구별 시정(RDPS 래스터) imgList 확인 실패가 상태로 드러나는지 고정한다. |
+| `test_vsby_stale` | 시정 표시가 「최신 자료가 아니면 정보 없음」으로 나오는지 확인한다(사용자 확정 2026-10-15). |
 | `test_byl_decl` | 별표 파일 **선언줄** 판독(`bylDeclLine`·`parseBylDecl`·`hasBylBody`). |
 | `test_treaty_caselaw_meta` | §5-6 국제협약 · §5-7 판례변동 메타를 **읽는지** 고정한다. |
 | `test_context_budget` | 모델에게 넘기는 [근거자료]의 **합계 상한**(P-19)을 고정한다. |

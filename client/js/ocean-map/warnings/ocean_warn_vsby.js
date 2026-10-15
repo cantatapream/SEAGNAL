@@ -69,6 +69,11 @@
     // ─────────────────────────────────────────────────────────────
     // 모듈 상태
     // ─────────────────────────────────────────────────────────────
+    // 시정 frame 은 1시간 간격이다. 지금과 이보다 멀리 떨어진 frame 밖에 없으면 「정보 없음」으로 표시한다.
+    var MAX_GAP_MS = 60 * 60 * 1000;
+    // 「최신 자료 없음」 판정 뒤 서버에서 새 런이 들어왔는지 다시 받아 보는 간격.
+    var STALE_RETRY_MS = 10 * 60 * 1000;
+
     var state = {
         gridMap: null,        // zone_grid_map.json (code → meta)
         gridMapPromise: null,
@@ -76,8 +81,8 @@
         parentBox: null,      // marine_zone_no → [lonMin,latMin,lonMax,latMax]
         parentBoxPromise: null,
         zoneCache: {},        // code → Promise<{cells, baseTm}>
-        summaryCache: {},     // code → {min,max,time} | null(데이터없음) | 'error'(서버장애) | undefined(미계산/진행중)
-        errRetryAt: {},       // code → 다음 'error' 재시도 허용 epoch ms (장애 시 폭주 방지 쿨다운)
+        summaryCache: {},     // code → {min,max,time} | null(데이터없음) | 'error'(서버장애) | 'stale'(최신 frame 없음) | undefined(미계산/진행중)
+        errRetryAt: {},       // code → 다음 'error'·'stale' 재시도 허용 epoch ms (폭주 방지 쿨다운)
         refreshTimer: null,   // 요약 도착 후 ZoneAvg.refreshAll 디바운스 타이머
         layer: null,          // 현재 그려진 OL VectorLayer
         activeCode: null,     // 현재 토글 ON 인 특보구역 코드 (없으면 null)
@@ -225,7 +230,12 @@
      * 모든 셀이 동일 시각열을 공유한다는 전제(서버가 동일 baseTm 기반 생성)이며,
      * 셀마다 길이가 달라도 인덱스 기반으로 안전하게 접근.
      *
-     * @returns {{index:number, t:string}|null}
+     * ★가장 가까운 frame 도 지금과 MAX_GAP_MS(1시간) 넘게 떨어져 있으면 「최신 자료 없음」으로 본다
+     *   ({stale:true} 반환). 예전엔 거리 제한이 없어, MMIS 가 빈 응답만 주며 수집이 멈춘 동안
+     *   (2026-10-11 런 이후) 하루 전 예보(10월 14일 16시 20km)가 오늘 값처럼 뱃지에 떴다
+     *   (사용자 확정 2026-10-15 「정확한 최신 데이터가 아닌 경우 정보없음」). frame 은 1시간 간격.
+     *
+     * @returns {{index:number, t:string}|{stale:true}|null} 시계열 자체가 없으면 null
      */
     function _pickNearestTimeIndex(cells) {
         var keys = Object.keys(cells || {});
@@ -240,6 +250,7 @@
                     var d = Math.abs(t - now);
                     if (d < bestD) { bestD = d; bestI = i; }
                 }
+                if (!(bestD <= MAX_GAP_MS)) return { stale: true };
                 return { index: bestI, t: series[bestI] && series[bestI].t };
             }
         }
@@ -265,14 +276,15 @@
 
     /**
      * 특보구역 시정 요약 계산.
-     * @returns {Promise<{min:number, max:number, time:string}|null>}
-     *          소해구/데이터 없으면 null.
+     * @returns {Promise<{min:number, max:number, time:string}|'stale'|null>}
+     *          소해구/데이터 없으면 null, 지금과 1시간 안의 frame 이 없으면 'stale'.
      */
     function _computeZoneSummary(code) {
         return _loadZoneCells(code).then(function (data) {
             var cells = data.cells || {};
             var pick = _pickNearestTimeIndex(cells);
             if (!pick) return null;
+            if (pick.stale) return 'stale';
             var min = Infinity, max = -Infinity, found = false;
             var keys = Object.keys(cells);
             for (var i = 0; i < keys.length; i++) {
@@ -389,6 +401,19 @@
             return null;
         }
         if (summary === null) return null;   // 데이터 없는 구역 → 시정 미표시
+        if (summary === 'stale') {
+            // 최신 시정 예보가 없음(MMIS 수집 정지 등) → 옛 값 대신 회색 「정보 없음」 뱃지.
+            //   쿨다운 경과 시 서버에서 다시 받아 새 런이 들어왔으면 정상 표시로 돌아온다.
+            _ensureSummary(code);
+            return _makeDisabledBadge(code, 'stale');
+        }
+        if (summary && typeof summary === 'object' && !(Math.abs(_parseTm(summary.time) - Date.now()) <= MAX_GAP_MS)) {
+            // 앱을 오래 켜 둬 계산해 둔 값의 시각이 지금과 1시간 넘게 벌어졌다 → 서버에서 다시 받아 재계산.
+            delete state.summaryCache[code];
+            delete state.zoneCache[code];
+            _ensureSummary(code);
+            return null;
+        }
         if (summary === 'error') {
             // 기상청 외부 서버 장애(504 등)로 시정 값을 못 받음 → 회색 비활성 "--km"
             //   뱃지로 표시. (데이터 없음[null]과 달리 뱃지는 띄우되 클릭/색칠은 막는다.)
@@ -419,19 +444,26 @@
     }
 
     /**
-     * 회색 비활성 시정 뱃지 ("--km") — 서버 장애로 값을 못 받은 구역용.
-     *   클릭해도 소해구 팝업은 띄우지 않고, 일시적 장애임을 토스트로만 안내한다.
+     * 회색 비활성 시정 뱃지 — 서버 장애("--km") 또는 최신 예보 없음("정보 없음") 구역용.
+     *   클릭해도 소해구 팝업은 띄우지 않고, 사유를 토스트로만 안내한다.
+     * 예: _makeDisabledBadge('12B10100', 'stale') → <span class="zone-avg-badge vsby vsby-disabled">시정 정보 없음</span>
+     * @param {string} code 특보구역 코드
+     * @param {string} [kind] 'stale' 이면 「정보 없음」, 없으면 장애용 「--km」
+     * @returns {HTMLElement}
+     * [연계] ← makeBadge (summaryCache 'error'·'stale')
      */
-    function _makeDisabledBadge(code) {
+    function _makeDisabledBadge(code, kind) {
+        var stale = kind === 'stale';
+        var msg = stale ? '최신 시정 예보가 없어 표시하지 않습니다' : '시정 데이터를 일시적으로 불러올 수 없습니다';
         var badge = document.createElement('span');
         badge.className = 'zone-avg-badge vsby vsby-disabled';
         badge.dataset.vsbyCode = code;
-        badge.title = '시정 데이터를 일시적으로 불러올 수 없습니다';
-        badge.innerHTML = '<span class="lbl">시정</span> --km';
+        badge.title = msg;
+        badge.innerHTML = '<span class="lbl">시정</span> ' + (stale ? '정보 없음' : '--km');
         badge.addEventListener('click', function (e) {
             e.stopPropagation();
             if (typeof window._showOceanToast === 'function') {
-                window._showOceanToast('시정 데이터를 일시적으로 불러올 수 없습니다.', 'bottom', 1800, false);
+                window._showOceanToast(msg + '.', 'bottom', 1800, false);
             }
         });
         return badge;
@@ -441,14 +473,16 @@
     function _ensureSummary(code) {
         var cur = state.summaryCache[code];
         // 진행중(undefined 마커)·정상값·데이터없음(null)은 재요청 불필요.
-        if (code in state.summaryCache && cur !== 'error') return;
-        // 'error'(서버 장애)는 쿨다운(60초) 경과 후에만 재시도해 요청 폭주를 막는다.
-        if (cur === 'error' && Date.now() < (state.errRetryAt[code] || 0)) return;
+        if (code in state.summaryCache && cur !== 'error' && cur !== 'stale') return;
+        // 'error'(서버 장애)·'stale'(최신 frame 없음)은 쿨다운 경과 후에만 재시도해 요청 폭주를 막는다.
+        if ((cur === 'error' || cur === 'stale') && Date.now() < (state.errRetryAt[code] || 0)) return;
+        if (cur === 'stale') delete state.zoneCache[code];   // 새 런이 들어왔는지 서버에서 다시 받는다
 
         state.summaryCache[code] = undefined;      // 진행중 마커
         _computeZoneSummary(code).then(function (summary) {
-            state.summaryCache[code] = summary || null;   // 값 있으면 객체, 없으면 null(데이터없음)
-            delete state.errRetryAt[code];
+            state.summaryCache[code] = summary || null;   // 값 있으면 객체·'stale', 없으면 null(데이터없음)
+            if (summary === 'stale') state.errRetryAt[code] = Date.now() + STALE_RETRY_MS;
+            else delete state.errRetryAt[code];
             _scheduleBadgeRefresh();
         }).catch(function () {
             // fetch 실패(504/네트워크 등) → 데이터 없음(null)과 구분해 'error' 로 표시.
@@ -590,7 +624,7 @@
             var parentBox = res[0];
             var cells = res[1].cells || {};
             var pick = _pickNearestTimeIndex(cells);
-            if (!pick) throw new Error('시정 데이터 없음');
+            if (!pick || pick.stale) throw new Error('시정 데이터 없음');
 
             var meta = state.gridMap[code];
             var smallZones = (meta && meta.smallZones) || Object.keys(cells);
@@ -700,7 +734,7 @@
             var meta = state.gridMap[code];
             var smallZones = (meta && meta.smallZones) || Object.keys(cells);
             var features = [];
-            if (pick) {
+            if (pick && !pick.stale) {
                 for (var i = 0; i < smallZones.length; i++) {
                     var parts = _splitCellKey(smallZones[i]);
                     if (!parts) continue;
@@ -716,7 +750,7 @@
                     features.push(feat);
                 }
             }
-            return { features: features, meta: meta, time: pick && pick.t };
+            return { features: features, meta: meta, time: (pick && !pick.stale && pick.t) || '' };
         });
     }
 
