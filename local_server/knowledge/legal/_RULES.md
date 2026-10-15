@@ -369,7 +369,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_sheet_ui` | 휴대폰 크기 Chromium에서 위험예측 바텀시트의 하단 탭 가림 방지·고정 머리/스크롤 본문·즉시 스켈레톤과 늦은 응답 보호·고정 일시 표시·위험구역 아코디언과 보이는 지도 중앙 이동을 검사한다. |
 | `test_risk_station_label` | 위험예측 시트(해상·연안 부제, 위험구역 목록)의 관할 문구가 「제주해양경찰서 한림파출소 관할」 꼴인지 검사한다. |
 | `test_realtime_tolerant` | 실시간 선박 교통 수집이 「이상한 줄 하나」 때문에 전체를 버리지 않고 그 줄만 빼는지, |
-| `test_traffic_history` | 교통량 2주 그래프용 서버 쪽(1시간 척수 이력·특보 발효 구간·칸→특보구역·조회 API)을 검사한다. |
+| `test_traffic_history` | 교통량 2주 그래프용 서버 쪽(30분 척수 이력·특보 발효 구간·칸→특보구역·조회 API)을 검사한다. |
 | `test_no_mtis_web` | 서버 코드가 MTIS 웹 화면(mtis.komsa.or.kr)에 자동 접속하지 않는지 지킨다. |
 | `test_root_deps` | 운영 서버가 실제로 쓰는 외부 패키지가 **저장소 루트 package.json** 에 모두 들어 있는지 검사한다. |
 | `test_slow_request_log` | 느린 요청 기록(services/slow_request_log.js)이 3초 넘는 요청만, 쿼리 없이, 붙잡는 요청은 빼고 남기는지 실제 HTTP 로 확인한다. |
