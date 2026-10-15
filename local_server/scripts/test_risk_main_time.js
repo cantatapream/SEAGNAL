@@ -19,7 +19,7 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
 function scoreAt(t){return Math.floor(((Date.parse(t)+9*3600000)%86400000)/10800000/1)+1;}
 (async()=>{let browser,server;try{
  const geometry={type:'Polygon',coordinates:[[[126.525,33.55],[126.55,33.55],[126.55,33.575],[126.525,33.575],[126.525,33.55]]]},cell={id:'GR4_F4K23_P4',i:0,lat:33.5625,lon:126.5375,geometry,haegu:{label:'163-6',major:163,sub:6},ref:{name:'제주항',bearingWord:'북서',distNm:8.2}},acc={...cell,id:'100'};
- io.write(path.join(dir,'sea_realtime.json.gz'),{v:'v1',cells:[cell],rows:[[0,21,.2,21,0,0,0,0,0,0,0,0,0,0,21,0,0,0,0,0]],collectedAt:at,sourceAt:null,source:'MTIS public liveSea'});
+ io.write(path.join(dir,'sea_realtime.json.gz'),{v:'v1',cells:[cell],rows:[[0,21,.2]],collectedAt:at,sourceAt:null,source:'MTIS realtime API'});
  // 공식 사고예보는 연안 2일 전체 3시간 칸에 값을 둔다 → 해상 지도가 비면 자료 부재가 아니라 화면 문제임이 구분된다.
  const frames={'202610120900':[[0,.001,'경계']]};for(const t of coastTimes)frames[t.slice(0,13).replace(/[-T]/g,'')+'00']=[[0,.002,'주의']];
  const inputs={version:1,cells:{cells:[cell]},congestion:{frames:{}},accident:{cells:[acc],frames},sources:{accident:{status:'ok'},congestion:{status:'ok'},zoneForecasts:{status:'ok'}},weather:()=>({wh:2,ws:12,wp:4,wd:241,forecastAt:at})};

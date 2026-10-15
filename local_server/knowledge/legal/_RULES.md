@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 100 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 102 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -358,16 +358,18 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_store_file_cache` | 위험예측 파일 캐시 회귀: 작은 상태/쿼터 갱신은 큰 자료를 재파싱하지 않되 |
 | `test_risk_errors` | risk_error_history / risk_errors / 기존 admin_auth. 외부 수집·실사용 인증키 없음. |
 | `test_risk_errors_ui` | 제품 admin.js / risk_sheet.js. 운영 API·인증정보 없이 Chromium 사용. |
+| `test_risk_errors_filter_ui` | 관리자 오류현황의 원천·상태 필터가 현재 상태·이력 둘 다에 걸리는지와 상태 배지 색을 실제 라우터+Chromium 으로 검사한다. |
 | `test_risk_history_sources` | 오류 감시의 본문 제거·손상 판별·공개 저장소와 같은 신선도·갱신/삭제를 검사한다. |
 | `test_risk_routes` | routes/risk_forecast.js · 임시 보고서/가짜 저장소만 사용, 수집/키/푸시 없음 |
 | `test_risk_accident` | 공식 선박사고 순차수집·원자게시·3시간원본·클릭공간매칭을 임시자료로 검증한다. |
 | `test_marine_fusion` | 해상 통합의 누락·중복·시각·사고유형·관할 집계와 최신 수집의 정상본 보존을 검증한다. |
-| `test_marine_ui` | 실제 Chromium에서 해상 종합·선종·사고 이력·시각 버튼·시각 독립·실패 복구·모바일 렌더링·HTML 보호를 검사한다. |
+| `test_marine_ui` | 실제 Chromium에서 해상 종합·현재 척수(선종·톤수 표시 없음)·사고 이력·시각 버튼·시각 독립·실패 복구·모바일 렌더링·HTML 보호를 검사한다. |
 | `test_risk_basemap` | 위험예측을 켜면 배경이 위성지도로 바뀌고, 끄거나 없애면 켜기 전 배경으로 돌아오는지(과제12)와 |
 | `test_risk_main_time` | 연안·해상 공통 메인 시각(하단 날짜·시각 버튼)을 실제 Chromium에서 검사한다. |
 | `test_risk_sheet_ui` | 휴대폰 크기 Chromium에서 위험예측 바텀시트의 하단 탭 가림 방지·고정 머리/스크롤 본문·즉시 스켈레톤과 늦은 응답 보호·고정 일시 표시·위험구역 아코디언과 보이는 지도 중앙 이동을 검사한다. |
 | `test_risk_station_label` | 위험예측 시트(해상·연안 부제, 위험구역 목록)의 관할 문구가 「제주해양경찰서 한림파출소 관할」 꼴인지 검사한다. |
 | `test_realtime_tolerant` | 실시간 선박 교통 수집이 「이상한 줄 하나」 때문에 전체를 버리지 않고 그 줄만 빼는지, |
+| `test_no_mtis_web` | 서버 코드가 MTIS 웹 화면(mtis.komsa.or.kr)에 자동 접속하지 않는지 지킨다. |
 | `test_root_deps` | 운영 서버가 실제로 쓰는 외부 패키지가 **저장소 루트 package.json** 에 모두 들어 있는지 검사한다. |
 | `test_slow_request_log` | 느린 요청 기록(services/slow_request_log.js)이 3초 넘는 요청만, 쿼리 없이, 붙잡는 요청은 빼고 남기는지 실제 HTTP 로 확인한다. |
 | `test_location_dispatch_reliability` | 위치기반 깨우기(특보·태풍) 발송 신뢰성 + 스냅샷 축약 회귀검사 |

@@ -36,7 +36,7 @@
 
 `GET /api/admin/risk-forecast/errors?source=accident&status=error&page=1&limit=30`
 
-`from/to`는 시간대가 포함된 ISO 초 단위 시각을 허용한다. page는 1 이상, limit는 1~100이다. 기존 `X-Admin-Token`만 허용하고 비밀번호를 추가하거나 소스에 넣지 않는다. 응답 캐시는 `no-store`; 손상 이력을 정상 빈 목록으로 감추지 않고 고정 503 메시지를 반환한다. UI는 데이터를 escape하고 탭 이동 뒤 늦은 응답을 무시한다.
+`source`·`status`는 이력(`data`)과 현재 상태(`current`) 둘 다를 거른다(2026-10-15 — 그 전에는 이력만 걸러 관리자 화면 위쪽 현재 상태가 필터와 무관하게 전부 보였다). `from/to`는 이력에만 걸리며 시간대가 포함된 ISO 초 단위 시각을 허용한다. page는 1 이상, limit는 1~100이다. 기존 `X-Admin-Token`만 허용하고 비밀번호를 추가하거나 소스에 넣지 않는다. 응답 캐시는 `no-store`; 손상 이력을 정상 빈 목록으로 감추지 않고 고정 503 메시지를 반환한다. UI는 데이터를 escape하고 탭 이동 뒤 늦은 응답을 무시한다.
 
 영속 파일은 `data/risk_forecast/error_history.json`. 최대 **30일·2000건·1MiB**, 먼저 도달하는 상한으로 오래된 이력을 제거한다. 현재 전역 원천 상태와 최근 행사 4개월은 별도 작은 목록으로 유지한다. 현재 상태를 같은 상태로 반복 확인해도 발생 이벤트를 늘리지 않는다. 마지막 성공시각은 자료가 삭제되어도 보존하고, 복구시각은 후속 정상 감시에도 유지한다. raw URL·키·쿠키·원문 에러·자유 텍스트 대신 고정 오류 분류와 유효 시각만 기록한다.
 
@@ -48,4 +48,4 @@
 
 압축파일도 파일 스트림과 gzip 스트림으로 16KiB씩 읽는다. 파일과 해제된 총량의 상한은 각각64MiB지만 전체 해제 버퍼를 한꺼번에 만들지 않는다. 문자열·키 조각도 제한하고 본문 배열을 만들지 않는다. 감시 중 작은 I/O 조각 사이에 다른 요청이 처리될 수 있고, 이전 감시가 진행 중이면 다음 주기를 중첩하지 않는다. 파서 토큰 할당·압축 버퍼·V8 여유 힙에 따른 일시 RSS 증가는 남는다. 메모리 사용을0으로 만든다는 의미는 아니다. V8의 메모리 회수/RSS 시점과 운영 VM 전체 피크는 별도 배포 후 관찰이 필요하다. Fly 힙/VM 한도는 변경하지 않는다.
 
-검사: `test_risk_errors`(이력·복구·인증·상한·시정 원천 기록·`source=visibility` 조회), `test_risk_history_sources`의 시정 두 사례(임계 미만 실패 정상·3회 실패 오류·36시간 낡음·재기동 후 낡음 유지·오류문 주소/키 미저장·복구 기록), `test_risk_errors_ui`의 시정 필터, `test_risk_errors_ui`(실제 Chromium 관리자 화면·390px·비공개 경고), `test_risk_history_sources`(공개 상태 비교·본문 제거·손상·삭제·월경계), 기존 lifecycle/store/cache/routes/collectors 회귀. 실제 앱 smoke는 공개 배너 숨김과 익명 관리자 API 401을 검증한다. 운영 외부 수집 성공이나 Fly 메모리 수치를 모의 검사 결과로 주장하지 않는다.
+검사: `test_risk_errors`(이력·복구·인증·상한·시정 원천 기록·`source=visibility` 조회), `test_risk_history_sources`의 시정 두 사례(임계 미만 실패 정상·3회 실패 오류·36시간 낡음·재기동 후 낡음 유지·오류문 주소/키 미저장·복구 기록), `test_risk_errors_ui`의 시정 필터, `test_risk_errors_ui`(실제 Chromium 관리자 화면·390px·비공개 경고), `test_risk_errors_filter_ui`(실제 라우터+Chromium으로 필터가 현재 상태·이력 모두에 걸리는지·상태 배지 색·빈 안내·「상세」 줄·380px), `test_risk_history_sources`(공개 상태 비교·본문 제거·손상·삭제·월경계), 기존 lifecycle/store/cache/routes/collectors 회귀. 실제 앱 smoke는 공개 배너 숨김과 익명 관리자 API 401을 검증한다. 운영 외부 수집 성공이나 Fly 메모리 수치를 모의 검사 결과로 주장하지 않는다.

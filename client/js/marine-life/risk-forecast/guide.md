@@ -21,11 +21,11 @@ node local_server/scripts/build_risk_static.js
 
 34개 관광지는 육지 교차 면이 없거나 같은 좌표의 영역을 다른 관광지가 소유해 빈 MultiPolygon으로 남는다. 관광지 정보와 유효한1,320개 면을 유지하며 빈 면은 중심점으로 선택한다. 같은 좌표의 관광지는 이름 선택 목록을 표시한다. 바다에 새 연안 면을 만들지 않으며, 빈 면을 OpenLayers에 전달해 나머지 표시가 실패하지 않도록 처리한다.
 
-Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 서버는 생성한 JSON을 읽으며 Python을 실행하지 않는다. 섬 외곽선은 API의 `islands`로 받는다. 특보 경계는 `/api/warn-zones`와 `/api/warn-zones-sub`를 함께 읽는다.
+Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 서버는 생성한 JSON을 읽으며 Python을 실행하지 않는다. 섬 외곽선은 API의 `islands`로 받는다. 특보 경계(`/api/warn-zones`)는 읽지 않는다(2026-10-15 특보 영역 미표시).
 
 ## 응답과 결측
 
-`meta`의 `now`와 `timeline.coast/sea.times`를 슬라이더에 사용한다. `versions.spots/cells`가 바뀌면 대응 표를 다시 읽는다. `coast/frame`의 `spots`와 `sea/frame`의 `cells`는 정적 표의 `i`를 참조하는 배열이다. 두 층의 프레임·상세에는 슬라이더에서 선택한 같은 시각을 전달하고 원천 예보의 간격 매칭은 서버가 한다. 상세 응답의 `score/index/band/rr`를 그대로 표시하고, `rows`, `notices`, `missing`을 문장 틀로 옮긴다. 특보 경계는 실제 발효 후보를 우선하며 점수 계산의 예비 가정 후보 선택과 구분한다. 특보 없는 날의 예보 배수·사유·반영 여부는 파고·풍속 행에 표시한다. 후보가 동률이면 파고 행 한 곳만 반영 표시한다. 기준 PDF는 `report/sea`와 `report/coast`에서 내려받는다.
+`meta`의 `now`와 `timeline.coast/sea.times`를 슬라이더에 사용한다. `versions.spots/cells`가 바뀌면 대응 표를 다시 읽는다. `coast/frame`의 `spots`와 `sea/frame`의 `cells`는 정적 표의 `i`를 참조하는 배열이다. 두 층의 프레임·상세에는 슬라이더에서 선택한 같은 시각을 전달하고 원천 예보의 간격 매칭은 서버가 한다. 상세 응답의 `score/index/band/rr`를 그대로 표시하고, `rows`, `notices`, `missing`을 문장 틀로 옮긴다. 특보 없는 날의 예보 배수·사유·반영 여부는 파고·풍속 행에 표시한다. 후보가 동률이면 파고 행 한 곳만 반영 표시한다. 기준 PDF는 `report/sea`와 `report/coast`에서 내려받는다.
 
 초기 일부 요청이 실패해도 다시 켜기나 다음 60초 갱신에서 재시도한다. 꺼진 뒤 늦게 도착한 오류는 배너를 다시 열지 않는다. API 캐시는 지점·섬 1일, 해상 칸 1시간, 상세·프레임·meta 1분이며 주기 meta 요청은 캐시를 건너뛴다. 수집기의 상태·자료 시각은 서버가 판단한다. 상태 계산은 `missing/error/stale`를 구분한다. 공통 원천 오류 안내와 마지막 정상 수집시각은 관리자 AI 사고예측 오류현황으로 이전했고 공개 지도 배너는 숨긴다. 월말 행사는 선택 날짜의 월별 상태를 사용한다. `/status`는 매 요청 최신 상태를 읽고 집중률 매칭수·전체수와 행사 마지막 시도시각도 전달한다. 실패 진단 로그에는 오류 종류와 숫자 HTTP 상태만 넣어 원천 URL·API 키·응답 본문을 출력하지 않는다. 특히 혼잡도 수집 실패에는 날씨 위험색을 유지하고 자료 없음으로 표시한다.
 
@@ -39,7 +39,7 @@ Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 �
 
 클라우드에서는 동일 경로·조건·인코딩의 공공 API 요청이 HTTP400·코드10을 반환한다. 사용자 성공 요청의 실제 주소를 이미 확보했으므로 주소 미확보를 남은 조건으로 제시하지 않는다. 일반 브라우저 헤더와 Node/curl 전송도 대조했지만 원인은 미확정이다. 인증키나 쿠키를 문서·시험 파일에 기록하지 않으며 오류를 정상 자료로 대체하지 않는다.
 
-MTIS 공개 웹의 지도·표 POST는 새 익명 세션으로 클라우드에서 HTTP200·5,666개를 확인했다. 이 웹 계약의 실제 좌표는 `ctrptYCrd=경도`, `ctrptXCrd=위도`이며, 지도 문자열 `"null"`과 표 JSON null은 결측으로 해석한다. 응답과 엑셀 설정에는 수치 `congestionIndex`와 생성시각 `fcstCreateDateTime`이 없어 기존 공식 수집기의0.1 필터·상세값을 대체할 수 없다. 단계에서 숫자 혼잡지수를 만들어 넣지 않는다. 구체적인 증거와 실제 수집의 남은 제한은 [검증 기록](validation.md)에 남긴다.
+MTIS 공개 웹의 지도·표 POST는 새 익명 세션으로 클라우드에서 HTTP200·5,666개를 확인했다. 이 웹 계약의 실제 좌표는 `ctrptYCrd=경도`, `ctrptXCrd=위도`이며, 지도 문자열 `"null"`과 표 JSON null은 결측으로 해석한다. 응답과 엑셀 설정에는 수치 `congestionIndex`와 생성시각 `fcstCreateDateTime`이 없어 기존 공식 수집기의0.1 필터·상세값을 대체할 수 없다. 단계에서 숫자 혼잡지수를 만들어 넣지 않는다. 구체적인 증거와 실제 수집의 남은 제한은 [검증 기록](validation.md)에 남긴다. (2026-10-15: MTIS 웹 화면 자동 접속은 이용약관 때문에 코드에서 없앴다 — 이 단락은 조사 기록으로만 남긴다. 아래 「MTIS 웹 수집 제거」.)
 
 ## 검사
 
@@ -51,9 +51,9 @@ node local_server/scripts/test_risk_map_layer.js
 bash scripts/refactor/verify_all.sh
 ```
 
-서식 검사는 0~100 모든 숫자 상자의 명암비, 색 기준, DMS 올림과 HTML/URL 보호를 검증한다. 전체 지도 자료 검사는 실제 1,354개 관광지, 육지 원천, 21개 섬 및 하위 특보 경계를 제품 OpenLayers에 넣어 빈 형상 처리와 반복 렌더링을 검증한다. `PW_CHROME` 또는 `SIM_CHROMIUM`으로 설치된 브라우저 실행 파일을 지정할 수 있다. 생명주기 검사는 초기 부분 실패의 복구, OFF 뒤 늦은 응답, KST 날짜 이동 및 API TTL을 검증한다. 전체 검사의 `simulate.js`는 실제 앱 위험예측 버튼의 기본 층과 OFF 동작을 확인하며, 이 새 시나리오는 기존 기준선에 없어도 실패를 보고한다. 외부 지도·기상 API 연결의 환경 실패는 실제 코드 오류와 구분해서 검사 결과에 남긴다.
+서식 검사는 0~100 모든 숫자 상자의 명암비, 색 기준, DMS 올림과 HTML/URL 보호를 검증한다. 전체 지도 자료 검사는 실제 1,354개 관광지, 육지 원천, 21개 섬을 제품 OpenLayers에 넣어 빈 형상 처리와 반복 렌더링을 검증한다. `PW_CHROME` 또는 `SIM_CHROMIUM`으로 설치된 브라우저 실행 파일을 지정할 수 있다. 생명주기 검사는 초기 부분 실패의 복구, OFF 뒤 늦은 응답, KST 날짜 이동 및 API TTL을 검증한다. 전체 검사의 `simulate.js`는 실제 앱 위험예측 버튼의 기본 층과 OFF 동작을 확인하며, 이 새 시나리오는 기존 기준선에 없어도 실패를 보고한다. 외부 지도·기상 API 연결의 환경 실패는 실제 코드 오류와 구분해서 검사 결과에 남긴다.
 
-브라우저에서는 초기 연안만 켜짐·시트 닫힘, 선택 후 DMS, 해상 16방위·3자리 방위각, 두 층 OFF의 특보 경계 숨김, 선택 층 OFF의 시트 닫힘, 기준 상세의 Escape와 초점 복원, 위험구역 주소 클릭의 지도 이동을 확인한다.
+브라우저에서는 초기 연안만 켜짐·시트 닫힘, 선택 후 DMS, 해상 16방위·3자리 방위각, 선택 층 OFF의 시트 닫힘, 기준 상세의 Escape와 초점 복원, 위험구역 주소 클릭의 지도 이동을 확인한다.
 
 
 ## 2026-10-11 설계 대조 수정의 데이터 계약
@@ -75,7 +75,7 @@ bash scripts/refactor/verify_all.sh
 
 - 공식 API: `GET https://mtisopenapi.komsa.or.kr/eopt/api/sea-acdnt-risk-fcst-info`. 사고 전용 `MTIS_ACCIDENT_SERVICE_KEY`를 환경 시크릿으로 사용한다. 혼잡 API의 ROMS 키와 분리하며 클라이언트·로그·커밋에 키를 넣지 않는다.
 - 수집기: `sea_accident_collector.js`. 오늘00시~내일21시의 16개 3시간 예보를 순차 수집한다(종전 모레21시·24개 — 아래 「해상 공식 사고예보 2일 제한 — 2026-10-15」). 기상 항목은 저장하지 않으며 격자표는 공통으로, 각 시간대는 `[i, accidentRiskIndex, accidentRiskLevel]`로 저장한다.
-- 격자 경계: `mtis_accident_grid.js`. 공개 MTIS 사고 지도의 새 익명 세션에서 경계만 받고 API 격자번호·중심점과 대조한다. 공개 웹의 위험값을 API 값으로 대신하지 않는다. 중심점만으로 5km 경계를 만들어 내지 않으며 도형이나 중심점이 불일치하면 정상 캐시를 교체하지 않는다.
+- 격자 경계: `mtis_accident_grid.js`. API 중심점에서 그 칸의 경계를 계산한다(웹 메르카토르 5,000m 격자 — 종전에 공개 MTIS 사고 지도에서 받아 운영에 저장한 5,406칸과 최대 8.5e-14도 차이). 중심이 칸 한가운데에서 1e-6도 넘게 벗어나면 격자 정의 변경으로 보고 정상 캐시를 교체하지 않는다. (2026-10-15 전: 공개 웹의 새 익명 세션에서 경계를 받았다 — 이용약관 때문에 없앴다.)
 - 갱신: Fly 운영에서 최초 누락본 수집 및03:10·15:10 KST 버전 확인,04:10·16:10 재확인. 생성시각이 같은 완전한 당일 자료는 다시16개 받지 않는다. 페이지와 시간대의 생성본이 섞이거나 부분 실패하면 기존 정상 파일을 보존한다.
 - 저장: `data/risk_forecast/sea_accident.json.gz`. 공통 격자표와 작은 프레임 배열만 보관한다. 메모리 측정에서의 전체 웹 원문24개 유지 방식과 다르다. 실제 운영 메모리는 격자 수·동시 갱신·압축 버퍼에 영향을 받는다.
 - API: `sea/accident-cells`, `sea/accident-frame?t=...`, `sea/accident-cell?id=...&t=...&lon=...&lat=...`. `meta.timeline.accident`와 `versions.accident`로 시간축·공통 도형을 갱신한다. 상세의 클릭 좌표가 해당 사고 도형에 포함되는지 검사한 뒤 겹치는 원래 GR4 혼잡칸을 찾는다. 경계 위에서 여러 혼잡칸에 포함되면 `congestionMatches`로 모두 전달한다.
@@ -92,7 +92,7 @@ bash scripts/refactor/verify_all.sh
 실제 열린 관광지 선택목록·상세·오류 시트는 기존 `PopupStack`의 `risk-forecast-sheet`에 등록한다. 기준 설명창은 `risk-forecast-basis`에 쌓여 첫 뒤로가기에서 기준창, 다음에서 시트를 닫는다. 주기 상세 갱신은 스택 순서를 바꾸지 않는다. 직접 닫기·층 OFF·전체 OFF·destroy는 항목을 제거하며, 지연 응답이 닫힌 시트를 다시 열지 않는다. 시간 선택은 닫기로 초기화하지 않는다. 후속 과제6의 즉시 스켈레톤도 열린 순간 같은 스택에 등록해야 한다.
 
 ## 해상 통합 확장
-`risk_marine.js`의 render·briefing·history는 서버 분석을 HTML로 표시하고, 모든 원천 문자열을 escape한다. 공식 단계와 현재 척수의 기준·시각을 분리한다. 해상 상세와 관할 브리핑은 sea/analysis와 sea/briefing의 같은 종합 결과를 사용한다. 현재 수집은 sea_realtime_collector·mtis_live_web, 반복 예보 저장은 marine_congestion_codec, 분석은 marine_fusion이다. 상세 계약과 후속 과거자료 작업은 [marine_fusion.design.md](marine_fusion.design.md)에 기록했다.
+`risk_marine.js`의 render·briefing·history는 서버 분석을 HTML로 표시하고, 모든 원천 문자열을 escape한다. 공식 단계와 현재 척수의 기준·시각을 분리한다. 해상 상세와 관할 브리핑은 sea/analysis와 sea/briefing의 같은 종합 결과를 사용한다. 현재 수집은 sea_realtime_collector(공식 API 전용, 2026-10-15 웹 수집 제거), 반복 예보 저장은 marine_congestion_codec, 분석은 marine_fusion이다. 상세 계약과 후속 과거자료 작업은 [marine_fusion.design.md](marine_fusion.design.md)에 기록했다.
 
 ## 과제11: 월말 행사 수집과 프롬프트
 
@@ -121,15 +121,15 @@ bash scripts/refactor/verify_all.sh
 
 관할 문구(2026-10-15)는 `RiskFormat.stationLabel(파출소, 해양경찰서)`로만 만든다 — 해상 부제는 `analysis.marine.station`+`office`, 연안 부제는 `subtitle.police`+`office`, 위험구역 아코디언은 `zones[].police`+`office`. 새 화면에서 「…파출소 관할」을 쓸 때도 문자열을 직접 잇지 말고 이 함수를 쓴다(「파출소」 접미사·출장소·경찰서 없음 처리가 한 곳에 있다). 대응표와 같은 이름 가르기 규칙은 [README.md](README.md)의 같은 이름 절.
 
-## 특보 구역 배경 면 (과제14)
+## 특보 영역 미표시 (과제14 폐지, 2026-10-15)
 
-`refresh()`는 연안·해상 프레임과 별도로 `refreshWarnings(n,at)`를 실행한다. `state.coast||state.sea`일 때만 `GET /warning-zones?t=<메인 시각>`을 한 번 호출하고(요청 세대 `seq`로 늦은 응답을 버린다), `layer.zonesLoaded()`로 정적 도형 로드를 기다린 뒤 `layer.drawWarnings(zones)`를 부른다. 시트 시각(`selected.at`)은 쓰지 않으므로 메인 15시 / 시트 18시 격리가 유지된다.
+> 사용자 원문(2026-10-15): *「이미지를 보면 지도에 특보 영역을 표시하지 말자고 했는데 나오고 있는데 없애주고. 범례를 없앴으니 다시 없애야지.」*
 
-서버: `risk_store.warningZones(t)`는 `borders(t,true,false)` 즉 예비 가정 승격 없이 계산한다. 자식 값이 null인 자식 구역은 목록에 없다(부모 특보를 상속하지 않음). `degraded:['warnings']`는 특보 원천이 ok/offseason이 아니라는 뜻이다(공개 배너는 과제16 정책으로 숨겨지고 관리자 오류현황이 원천 상태를 기록한다). 구 `/coast/frame`·`/sea/frame`의 `borders`는 그대로다.
+지운 것: 조율기 `refreshWarnings`와 `refresh()`의 `warningJob`, 지도층 `borders`(`rf-borders-canvas`, zIndex 129)·`drawWarnings`·`renderWarnings`·`zonesLoaded`·`zoneKey`·`zoneGeometry`, `boundaries()`의 `/api/warn-zones(-sub)` 내려받기, 서버 `GET /warning-zones`·`risk_store.warningZones`·`borders()`와 frame 응답의 `borders` 필드. 나머지 층의 zIndex는 `130+i`로 순서가 그대로다(특보 층 한 칸이 빠졌을 뿐).
 
-지도: `RiskMapLayer.drawWarnings(list)`가 못 그린 구역 이름 배열을 돌려준다(비어 있지 않으면 경계 도형 누락 안내). 서버 구역 이름과 정적 도형 이름은 공백·마침표·중점을 없앤 키로 맞춘다(93개 중 61개가 공백·중점 때문에 원래 이름이 달랐다: `동해남부 남쪽 안쪽먼바다`, `태안서산북쪽 평수구역` 등). 층은 `borders`(zIndex 129, 위험 색상층 130+ 아래)다. `drawBorders`는 삭제했다.
+다시 넣지 말 것: 특보 범례(과제13, 「아예 반영하지 않음」)와 함께 특보 면·테두리도 위험예측 지도에서 빠졌다. 되살리려면 사용자 확인이 먼저다. 회귀 시험 — `test_risk_map_layer`(특보 층·함수 없음, `/api/warn-zones` 미요청), `test_risk_lifecycle`(켜기/끄기·시각 변경·재진입에서 `warning-zones` 요청·`drawWarnings` 0회), `test_risk_store`(frame에 `borders` 없음·`warningZones` 없음), `test_risk_routes`(`/warning-zones` 404).
 
-수정 시 주의: 범례 칸은 이 기능과 무관하다(과제13). 기존 해양종합정보 탭의 `ocean_warn_*` 특보 표시와 특보 푸시는 건드리지 않는다. 관리자 메타 감시(`/meta`, `/status`)에 정적 도형을 추가하지 않는다.
+건드리지 않은 공용 부분: `/api/warn-zones`·`/api/warn-zones-sub`(routes/weather.js)와 정적 도형, 해양지도 탭 `ocean_warn_*`, 위치 알림·온보딩, 특보 수집·푸시, 해구 예보. 상세 시트의 특보 행·안내와 해상 점수의 특보 반영도 그대로다.
 
 ## 관리자 전용 원천 진단 — 과제16
 
@@ -207,3 +207,12 @@ bash scripts/refactor/verify_all.sh
 **배포 전 24칸 저장본**: `complete()`가 저장된 칸 수(24)와 기대 칸 수(16)가 다르면 완료본으로 보지 않으므로, 생성시각이 같아도 「변경 없음」으로 넘어가지 않고 **16칸 전체를 다시 받는다**(Fly 운영은 시작 즉시 `start()`가, 그 뒤에는 03:10·04:10·15:10·16:10 확인이). 다시 받기 전·실패해 옛 파일이 남은 동안(개발 서버는 자동 수집이 없어 계속 남는다)에도 모레 칸은 `accidentTime`·`marine_fusion.time`이 400으로 막고 시간축(`meta`)에도 없다. 남는 차이는 `sources().accident.frames`(파일의 칸 수를 그대로 세는 상태값)가 다시 받기 전까지 24로 보인다는 것뿐이다. 이 값을 읽는 화면 코드는 `client/js`에서 찾지 못했다(grep).
 
 건드리지 않은 것(사용자 「다른 화면과 같이 쓰는 해구, 예보 등은 건드리지마.」): 해구 예보 `zone_forecasts.json`, 너울, 특보·강풍, 예보 탭, 해상 혼잡 수집기(이미 2일). 앞으로 보기 표(`analyze()`의 `riskTimes`·`upcoming`)는 이미 오늘00시+48시간 미만으로 잘라 두었으므로 바꾸지 않았다.
+
+## MTIS 웹 수집 제거 — 2026-10-15
+
+사용자 결정 원문: 「다른쪽에 이용약관에 사용하면 안된다고 써있어서 오토 스크래핑은 하면 안될 것 같아. 이 부분은 코드에서 제외하도록 수정할 수 있도록 해줘.」 · 「톤수, 선박 종류는 API에서 제공하지않는다고 공식적으로 확인했어. 이용할 수 없을 것 같아.」
+
+- 서버가 `mtis.komsa.or.kr`(웹 화면)에 자동 접속하던 두 곳을 없앴다: 실시간 교통 `mtis_live_web.js`(삭제), 사고예보 격자 경계 `mtis_accident_grid.collectGrid`(계산으로 대체). 공식 Open API(`mtisopenapi.komsa.or.kr`)·공공데이터포털 API 는 그대로 쓴다. 화면의 「MTIS 공식 사고예보」 등 사용자가 누르는 링크는 자동 접속이 아니므로 남겼다.
+- 해상 상세 「현재 교통현황」에서 선종·톤수 구성(「선종·톤수 구성을 확인할 수 없습니다」·「▶ 톤수별 구성」)을, 관할 브리핑에서 선종별 척수를 없앴다. 시각은 API 등록시각, 등록시각이 없는 옛 저장본은 「수집시각 … (등록시각 미제공)」으로 쓴다.
+- 격자 위치 계산식·대조 수치는 [marine_fusion.design.md](marine_fusion.design.md) 「MTIS 웹 수집 제거」.
+- 지키는 시험: `test_no_mtis_web`(verify_all SUITES).

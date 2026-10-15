@@ -250,9 +250,16 @@ function createHistory({
         if (!id) return false;
         return update([{ ...status, ...id, code: status.lastError }]);
     }
-    /** 관리자에게 최신순 페이지를 준다. @param {object} filter @returns {object} [연계] ← authenticated route */
+    /** 관리자에게 최신순 페이지를 준다. 원천·상태 조건은 이력과 현재 상태 둘 다에 건다
+     * (2026-10-15 — 이전에는 이력만 걸러 현재 상태 목록이 필터와 무관하게 전부 보였다). 기간 조건은 이력에만.
+     * @param {object} filter @returns {object} [연계] ← authenticated route */
     function list({ source, status, page = 1, limit = 30, from, to } = {}) {
         const data = load(),
+            current = Object.values(data.current).filter(
+                (r) =>
+                    (!source || r.source === source) &&
+                    (!status || r.status === status)
+            ),
             events = data.events
                 .filter(
                     (r) =>
@@ -268,7 +275,7 @@ function createHistory({
         return {
             ok: true,
             observedAt: data.observedAt,
-            current: Object.values(data.current),
+            current,
             data: events.slice((page - 1) * limit, page * limit),
             pagination: { page, limit, total, totalPages },
         };

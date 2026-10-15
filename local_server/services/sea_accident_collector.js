@@ -2,7 +2,7 @@
  * 파일명: local_server/services/sea_accident_collector.js
  * 역할  : 공식 선박사고 예보 2일(오늘·내일)·3시간 자료를 버전 확인 후 순차 수집하고 작은 배열로 원자 게시한다.
  *         모레(3일째)는 요청도 저장도 하지 않는다(사용자 확정 2026-10-15 「해상 공식 사고예보는 2일까지만」).
- * [연계] server.js → risk_collector_io/mtis_accident_grid → data/risk_forecast/sea_accident.json.gz → risk_store
+ * [연계] server.js → risk_collector_io/mtis_accident_grid(경계 계산, 외부 접속 없음) → data/risk_forecast/sea_accident.json.gz → risk_store
  * [로드 순서] 서버 require 부작용 없음. FLY_ALLOC_ID 운영만 자동수집하며 연안 관광객 계산에는 사용하지 않는다.
  */
 'use strict';
@@ -49,10 +49,10 @@ function complete(data,times){
     return times.every(slot=>{const rows=data.frames[slot.key];if(!Array.isArray(rows)||rows.length!==data.cells.length)return false;const indices=new Set();for(const r of rows){if(!Array.isArray(r)||r.length!==3||!Number.isInteger(r[0])||r[0]<0||r[0]>=data.cells.length||indices.has(r[0])||!Number.isFinite(r[1])||r[1]<0||!LEVELS.includes(r[2]))return false;indices.add(r[0]);}return true;});
 }
 /** 독립 수집기를 만든다. 예: 검사에서는키·시각·HTTP·경계를주입.
- * @param {object} options - dir/fetchImpl/key/clock/geometryLoader/limit @returns {object} 실행함수
+ * @param {object} options - dir/fetchImpl/key/clock/geometryLoader(rows→칸, 기본은 중심점에서 경계 계산)/limit @returns {object} 실행함수
  * [연계] ← server.js / 하루기본90건보수적상한, 공식허용량확인은별도
  */
-function createCollector({dir=io.DEFAULT_DIR,fetchImpl,key,clock=Date.now,geometryLoader=require('./mtis_accident_grid').collectGrid,limit=90}={}){
+function createCollector({dir=io.DEFAULT_DIR,fetchImpl,key,clock=Date.now,geometryLoader=require('./mtis_accident_grid').cells,limit=90}={}){
     let running=false,timer=null,lastSlot=null;
     const file=path.join(dir,'sea_accident.json.gz');
     /** 한 시각 전체페이지를 순차검증한다. 예: 중복ID·변경된총건수·혼합작성시각거부.
@@ -84,7 +84,7 @@ function createCollector({dir=io.DEFAULT_DIR,fetchImpl,key,clock=Date.now,geomet
                     const sorted=rows.slice().sort((a,b)=>Number(a.gridId)-Number(b.gridId));
                     const oldMap=new Map((Array.isArray(old?.cells)?old.cells:[]).filter(validCell).map(c=>[c.id,c]));
                     const reusable=sorted.every(r=>{const c=oldMap.get(r.gridId);return c?.geometry&&Math.abs(c.lat-r.latitude)<=1e-5&&Math.abs(c.lon-r.longitude)<=1e-5;});
-                    cells=reusable?sorted.map((r,i)=>({...oldMap.get(r.gridId),i})):await geometryLoader(sorted,slot.at.slice(0,19).replace('T',' '),fetchImpl);
+                    cells=reusable?sorted.map((r,i)=>({...oldMap.get(r.gridId),i})):await geometryLoader(sorted);
                     if(!Array.isArray(cells)||cells.length!==sorted.length||cells.some((c,i)=>c.id!==sorted[i].gridId||c.i!==i||!c.geometry))throw new Error('invalid response');
                     ids=new Map(cells.map(c=>[c.id,c]));version=createHash('sha256').update(JSON.stringify(cells)).digest('hex').slice(0,16);
                 }
@@ -92,7 +92,7 @@ function createCollector({dir=io.DEFAULT_DIR,fetchImpl,key,clock=Date.now,geomet
                 const values=rows.map(r=>{const c=ids.get(r.gridId);if(!c||Math.abs(c.lat-r.latitude)>1e-5||Math.abs(c.lon-r.longitude)>1e-5)throw new Error('partial response');return[c.i,r.accidentRiskIndex,r.accidentRiskLevel];});
                 frames[slot.key]=values;
             }
-            io.write(file,{date,collectedAt:io.iso(now),createdAt,v:version,geometrySource:'MTIS official web grid',cells,frames});
+            io.write(file,{date,collectedAt:io.iso(now),createdAt,v:version,geometrySource:'computed from API centers (EPSG:3857 5km grid)',cells,frames});
             io.status(dir,'accident',now,null,{date,createdAt,checkedAt:io.iso(now),framesReady:times.length,callCap:limit});return{ok:true,frames:times.length,cells:cells.length};
         }catch(e){io.status(dir,'accident',now,e,{date,checkedAt:io.iso(now),callCap:limit});return{ok:false,error:io.errorName(e)};}finally{running=false;release();}
     }

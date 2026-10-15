@@ -7,8 +7,7 @@
 'use strict';
 const fs=require('fs'),path=require('path'),io=require('./risk_collector_io'),G=require('./risk_geo'),T=require('./risk_time');
 const ROOT=path.join(__dirname,'..'),CLIENT=path.join(ROOT,'..','client'),codec=require('./marine_congestion_codec');
-const TYPES=['어선','여객선','화물선','유조선','예인선','수상레저기구','기타선'];
-const TONS=['1t 미만','1~2t','2~3t','3~5t','5~10t','10~50t','50~100t','100~500t','500t 이상','미상'];
+// 선종·톤수 구성은 다루지 않는다 — 사용자 결정 2026-10-15 「톤수, 선박 종류는 API에서 제공하지않는다고 공식적으로 확인했어. 이용할 수 없을 것 같아.」
 const INCIDENTS={ATY018:'전복',ATY019:'접촉',ATY022:'좌주',ATY023:'좌초',ATY027:'충돌',ATY028:'침몰',ATY029:'침수',ATY032:'폭발',ATY033:'표류',ATY035:'행방불명',ATY036:'화재',ATY037:'침수침몰',ATY041:'좌초/좌주'};
 const EXCLUDED=new Set(['ATY034','ATY040']),RANK={'낮음':0,'보통':1,'높음':2,'매우높음':3,'주의':2,'경계':3};
 /** 실제 폴리곤의 경위도 상자를 구한다. 예: Polygon과 MultiPolygon 모두 지원.
@@ -64,7 +63,7 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     function stationFor(p){loadStatic();const key=p.join(',');if(stationCache.has(key))return stationCache.get(key);const value=stations.filter(s=>inside(p,s.bounds)&&G.pointInGeometry(p,s.geometry)).sort((a,b)=>a.name.localeCompare(b.name,'ko')||a.id.localeCompare(b.id))[0]||null;stationCache.set(key,value);if(stationCache.size>60000)stationCache.delete(stationCache.keys().next().value);return value;}
     function history(geometry,key){loadStatic();if(historyCache.has(key))return historyCache.get(key);const b=bounds(geometry),rows=[];for(let x=Math.floor(b[0]*4);x<=Math.floor(b[2]*4);x++)for(let y=Math.floor(b[1]*4);y<=Math.floor(b[3]*4);y++)for(const r of buckets.get(x+','+y)||[])if(inside([r[1],r[0]],b)&&G.pointInGeometry([r[1],r[0]],geometry))rows.push(r);const result={...summary(rows),...period,excludedCount};historyCache.set(key,result);if(historyCache.size>20000)historyCache.delete(historyCache.keys().next().value);return result;}
     function input(){loadLive();return risk.marineInputs();}
-    function freshness(){const d=loadLive(),attempt=io.read(path.join(dir,'realtime_status.json')),stamp=Date.parse(d?.sourceAt||d?.collectedAt);return{status:!d?'missing':!Number.isFinite(stamp)||clock()-stamp>15*60000||stamp>clock()+5*60000?'stale':attempt?.status==='error'?'error':'ok',sourceAt:d?.sourceAt||null,collectedAt:d?.collectedAt||null,typeCollectedAt:d?.typeCollectedAt||null,source:d?.source||null,unmapped:d?.unmapped||0,scope:d?.scope||null,timeMeaning:d?.timeMeaning||null};}
+    function freshness(){const d=loadLive(),attempt=io.read(path.join(dir,'realtime_status.json')),stamp=Date.parse(d?.sourceAt||d?.collectedAt);return{status:!d?'missing':!Number.isFinite(stamp)||clock()-stamp>15*60000||stamp>clock()+5*60000?'stale':attempt?.status==='error'?'error':'ok',sourceAt:d?.sourceAt||null,collectedAt:d?.collectedAt||null,source:d?.source||null,unmapped:d?.unmapped||0,scope:d?.scope||null,timeMeaning:d?.timeMeaning||null};}
     function tables(){const d=loadLive();return{v:d?.v||null,cells:d?.cells||[],status:freshness()};}
     function current(){const d=loadLive();return{v:d?.v||null,cells:(d?.rows||[]).map(r=>[r[0],r[1],r[2],trafficLevel(r[1])]),status:freshness()};}
     /** 현재·혼잡의 공통 GR4 경계만 한 벌로 제공한다. 예: 사고 원본5㎞ 경계를 중복해서 그리지 않는다.
@@ -97,7 +96,7 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     function congestion(row,c){return row?{gridId:c.id,index:row.congestionIndex,level:row.congestionLevel,forecastAt:T.isoKst(Date.parse(row.fcstDate.slice(0,4)+'-'+row.fcstDate.slice(4,6)+'-'+row.fcstDate.slice(6,8)+'T'+row.fcstTime.slice(0,2)+':00:00+09:00')),createdAt:row.fcstCreateDateTime}:null;}
     function analyze(p,at,inputs){
         const currentCell=pointCell(live?.cells,p),traffic=pointCell(inputs.cells?.cells,p),accidentCell=pointCell(inputs.accident?.cells,p),cell=currentCell||traffic||accidentCell||describe({gridId:'point',latitude:p[1],longitude:p[0]}),liveRow=currentCell&&(live?.rows||[]).find(r=>r[0]===currentCell.i),status=freshness();
-        const liveData=liveRow?{gridId:currentCell.id,count:liveRow[1],density:liveRow[2],level:trafficLevel(liveRow[1]),types:liveRow.slice(3,10).every(Number.isFinite)?TYPES.map((name,i)=>({name,count:liveRow[i+3]})):null,tons:liveRow.slice(10,20).every(Number.isFinite)?TONS.map((name,i)=>({name,count:liveRow[i+10]})):null,...status}:null;
+        const liveData=liveRow?{gridId:currentCell.id,count:liveRow[1],density:liveRow[2],level:trafficLevel(liveRow[1]),...status}:null;
         const key=forecastKey(at),congestionRow=traffic&&congestionAt(inputs.congestion,key,traffic.id),cf=congestion(congestionRow,traffic);
         const accAt=T.isoKst(Math.floor(Date.parse(at)/(3*3600000))*3*3600000),ar=accidentCell&&findRow(inputs.accident?.frames?.[forecastKey(accAt)],accidentCell.i,true),af=ar?{gridId:accidentCell.id,index:ar[1],level:ar[2],forecastAt:accAt,createdAt:inputs.accident.createdAt,status:inputs.sources.accident?.status}:null;
         if(cf)cf.status=inputs.sources.congestion?.status;
@@ -123,8 +122,8 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     }
     function analysis({id,lon,lat,t}={}){const inputs=input(),at=time(t);let p;if(lon!==undefined&&lat!==undefined){p=[Number(lon),Number(lat)];if(!p.every(Number.isFinite)||p[0]<115||p[0]>140||p[1]<20||p[1]>45)throw Object.assign(Error('좌표 범위 오류'),{status:400});}else{const c=[...(live?.cells||[]),...(inputs.cells?.cells||[]),...(inputs.accident?.cells||[])].find(c=>c.id===id);if(!c)throw Object.assign(Error('해상 격자 없음'),{status:404});p=[c.lon,c.lat];}const marine=analyze(p,at,inputs);return{t:at,marine,title:marine.location,subtitle:marine.station||'',gridId:id||null,lat:p[1],lon:p[0]};}
     function briefing(id,t){loadStatic();const inputs=input(),at=time(t),s=stations.find(s=>s.id===id);if(!s)throw Object.assign(Error('관할 없음'),{status:404});const key=[id,at,liveSignature,inputs.version,freshness().status].join('|');if(briefCache.has(key))return briefCache.get(key);
-        const liveCells=live?.cells||[],byIndex=new Map(liveCells.map(c=>[c.i,c])),rows=(live?.rows||[]).filter(r=>{const c=byIndex.get(r[0]);return c&&stationFor([c.lon,c.lat])?.id===id;}),types=Array(7).fill(0);let count=0,unknownTypes=0;
-        for(const r of rows){count+=r[1];if(r.slice(3,10).every(Number.isFinite))r.slice(3,10).forEach((v,i)=>types[i]+=v);else unknownTypes+=r[1];}
+        const liveCells=live?.cells||[],byIndex=new Map(liveCells.map(c=>[c.i,c])),rows=(live?.rows||[]).filter(r=>{const c=byIndex.get(r[0]);return c&&stationFor([c.lon,c.lat])?.id===id;});let count=0;
+        for(const r of rows)count+=r[1];
         const candidates=new Map();for(const c of [...liveCells,...(inputs.cells?.cells||[]),...(inputs.accident?.cells||[])])if(stationFor([c.lon,c.lat])?.id===id)candidates.set(c.id,c);
         const byRegion=new Map();for(const c of candidates.values()){
             const a=analyze([c.lon,c.lat],at,inputs),group=a.accident?.gridId||c.id,previous=byRegion.get(group);
@@ -133,9 +132,9 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const regions=[...byRegion.values()];
         regions.sort((a,b)=>b.attentionRank-a.attentionRank||(b.current?.count||0)-(a.current?.count||0)||a.location.localeCompare(b.location,'ko'));
         const stationAccidents=accidents.filter(r=>stationFor([r[1],r[0]])?.id===id),historySummary={...summary(stationAccidents),...period};
-        const status=freshness(),result={station:{id:s.id,name:s.name},t:at,current:live?{count:rows.length?count:null,types:rows.length?TYPES.map((name,i)=>({name,count:types[i]})):null,unknownTypes,gridCount:rows.length,...status}:null,history:historySummary,regions:regions.slice(0,20),totalAttentionRegions:regions.length,gridCount:candidates.size,method:'격자 중심이 속한 관할로 배정한 척수 집계. 경계·중복 관할은 이름순 1개에 배정하며 실제 선박 위치 기반 관할 척수가 아닙니다. 수신 격자가 없는 관할은 0척이 아닌 자료 없음으로 표시합니다.',baselineAvailable:false};
+        const status=freshness(),result={station:{id:s.id,name:s.name},t:at,current:live?{count:rows.length?count:null,gridCount:rows.length,...status}:null,history:historySummary,regions:regions.slice(0,20),totalAttentionRegions:regions.length,gridCount:candidates.size,method:'격자 중심이 속한 관할로 배정한 척수 집계. 경계·중복 관할은 이름순 1개에 배정하며 실제 선박 위치 기반 관할 척수가 아닙니다. 수신 격자가 없는 관할은 0척이 아닌 자료 없음으로 표시합니다.',baselineAvailable:false};
         briefCache.set(key,result);while(briefCache.size>8)briefCache.delete(briefCache.keys().next().value);return result;
     }
     return{tables,current,unifiedCells,unifiedFrame,jurisdictionList,analysis,briefing};
 }
-module.exports={createStore,location,trafficLevel,combinedLevel,riskColors,summary,INCIDENTS,TYPES,TONS};
+module.exports={createStore,location,trafficLevel,combinedLevel,riskColors,summary,INCIDENTS};

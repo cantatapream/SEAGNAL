@@ -4,7 +4,7 @@
  *         뺀 사유·실패 사유를 관리자 오류현황(상세 한 줄)으로 남기는지 확인한다.
  *         2026-10-15 운영에서 「invalid response」로 하루 넘게 갱신이 멈췄는데, 어느 줄·어느 단계 때문인지
  *         기록이 없어 원인을 못 찾았다(사용자 「키없이 바로 할 수 있는 수정을 진행하자」).
- * [연계] services/sea_realtime_collector.js(readApi·normalizeWeb·collect) · services/mtis_live_web.js(보안 토큰)
+ * [연계] services/sea_realtime_collector.js(readApi·cellBounds·collect) — 2026-10-15 MTIS 웹 수집 제거 후 API 전용
  *        · services/risk_history_sources.js(realtime.detail) · services/risk_error_history.js(detail 보관)
  *        · client/js/admin/admin.js(「상세」 줄) · scripts/refactor/verify_all.sh SUITES
  * [로드 순서] 독립 Node 실행 — 네트워크·실제 키 없음, 임시 폴더만 쓴다.
@@ -21,15 +21,7 @@ function apiFetch(rows, regDt = '2026-10-15 15:10:06') {
     return async () => ({ ok: true, json: async () => ({ response: { header: { resultCode: '200', resultMsg: 'NORMAL_SERVICE' },
         body: { dataType: 'JSON', items: { item: rows.map(([g, v, d]) => ({ grid_id: g, vmtc: v, dnsty: d })) }, pageNo: 1, numOfRows: 7000, totalCount: rows.length, regDt } } }) });
 }
-/** 웹 응답 — 격자 하나(F4K23_P4, 0.025° 정사각형), 척수 n. */
-function web(n = 5) {
-    const p = { gridId: 'F4K23_P4', shipCount: String(n) };
-    for (let i = 1; i <= 7; i++) p['s' + String(i).padStart(3, '0') + 'Count'] = String(i === 1 ? n : 0);
-    for (let i = 1; i <= 10; i++) p['t' + String(i).padStart(3, '0') + 'Count'] = String(i === 5 ? n : 0);
-    const ring = [[126, 33], [126.025, 33], [126.025, 33.025], [126, 33.025], [126, 33]];
-    return { collection: { type: 'FeatureCollection', features: [{ properties: p, geometry: { type: 'Polygon', coordinates: [ring] } }] }, densities: [{ gridId: 'F4K23_P4', density: '10' }] };
-}
-const describe = (g) => ({ id: g.gridId, name: 'x' });
+const describe = (g, o) => ({ id: g.gridId, name: 'x', lat: g.latitude, lon: g.longitude, bounds: o && o.bounds });
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rt-tolerant-'));
 
 (async () => {
@@ -50,7 +42,7 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rt-tolerant-'));
     });
     await check('수집 성공 + 뺀 줄 있음 → 상태 파일에 사유 한 줄(detail), 관리자 출처에도 실린다', async () => {
         const dir = tmp();
-        const c = C.createCollector({ dir, key: 'k', clock: () => now, describe, fetchImpl: apiFetch([['GR4_F4K23_P4', 5, 101], ['bad', 1, 1]]), webFetch: async () => web(5) });
+        const c = C.createCollector({ dir, key: 'k', clock: () => now, describe, fetchImpl: apiFetch([['GR4_F4K23_P4', 5, 101], ['bad', 1, 1]]) });
         const res = await c.collect();
         assert.equal(res.ok, true, JSON.stringify(res));
         const st = io.read(path.join(dir, 'realtime_status.json'));
@@ -60,26 +52,74 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rt-tolerant-'));
         const src = await reader();
         assert.equal(src.realtime.detail, st.detail);
     });
-    await check('두 길 모두 실패 → 「API 무엇 · 웹 무엇」 이 상세로 남는다(보안 토큰 없음 포함)', async () => {
+    await check('API 실패 → 「API 무엇」 이 상세로 남고 마지막 정상본은 그대로(웹으로 대신하지 않는다)', async () => {
         const dir = tmp();
-        const tokenErr = Object.assign(Error('invalid response'), { detail: '접속 페이지에 보안 토큰 없음' });
-        const c = C.createCollector({ dir, key: 'k', clock: () => now, describe, fetchImpl: async () => ({ ok: false, status: 503 }), webFetch: async () => { throw tokenErr; } });
+        io.write(path.join(dir, 'sea_realtime.json.gz'), { sentinel: 1 });
+        const c = C.createCollector({ dir, key: 'k', clock: () => now, describe, fetchImpl: async () => ({ ok: false, status: 503 }) });
         const res = await c.collect();
         assert.equal(res.ok, false);
         const st = io.read(path.join(dir, 'realtime_status.json'));
-        assert.equal(st.lastError, 'invalid response');
-        assert.equal(st.detail, 'API HTTP 503 · 웹 invalid response(접속 페이지에 보안 토큰 없음)');
+        assert.equal(st.lastError, 'HTTP 503');
+        assert.equal(st.detail, 'API HTTP 503');
+        assert.deepEqual(io.read(path.join(dir, 'sea_realtime.json.gz')), { sentinel: 1 });
+    });
+    await check('키가 없으면 외부 호출 0·상세 「API 키 없음」', async () => {
+        const dir = tmp();
+        let calls = 0;
+        const c = C.createCollector({ dir, key: '', clock: () => now, describe, fetchImpl: async () => { calls++; throw Error('never'); } });
+        assert.equal((await c.collect()).error, 'missing key');
+        assert.equal(calls, 0);
+        assert.equal(io.read(path.join(dir, 'realtime_status.json')).detail, 'API 키 없음');
+    });
+    await check('GR4 번호에서 칸 경계 계산 — 운영에 저장돼 있던 공식 웹 경계 3칸과 같다', () => {
+        // 2026-10-15 운영 /api/risk-forecast/sea/traffic-cells 저장본(종전 MTIS 웹 응답)에서 그대로 옮긴 값.
+        assert.deepEqual(C.cellBounds('GR4_F4G31_M4'), [126.125, 34.35, 126.15, 34.375]);
+        assert.deepEqual(C.cellBounds('GR4_F4K23_P4'), [126.525, 33.55, 126.55, 33.575]);
+        const b = C.cellBounds('GR4_F2I33_E4');  // 공공데이터포털 혼잡예보 API 중심 37.2125, 124.2375
+        assert.ok(Math.abs((b[0] + b[2]) / 2 - 124.2375) < 1e-9 && Math.abs((b[1] + b[3]) / 2 - 37.2125) < 1e-9);
+        assert.deepEqual(C.geometry(C.cellBounds('GR4_F4G31_M4')).coordinates[0], [[126.125, 34.375], [126.15, 34.375], [126.15, 34.35], [126.125, 34.35], [126.125, 34.375]]);
+        for (const bad of ['GR4_F4K23_Z4', 'GR4_F5K23_P4', 'GR4_F4Q23_P4', 'GR4_F4K03_P4', 'F4K23_P4', 'GR4_A1A11_A1']) assert.equal(C.cellBounds(bad), null, bad);
+    });
+    await check('API: 위치를 계산할 수 없는 격자번호 줄은 뺀다(형식은 맞아도)', async () => {
+        const r = await C.readApi({ dir: tmp(), key: 'k', now, fetchImpl: apiFetch([['GR4_F4K23_P4', 3, 1], ['GR4_F4K23_Z4', 2, 1]]) });
+        assert.deepEqual(r.rows.map((x) => x.id), ['GR4_F4K23_P4']);
+        assert.deepEqual(r.dropped, { '격자번호 형식': 1 });
+    });
+    await check('새 격자는 번호에서 계산한 경계·중심으로 위치표에 붙고 행은 [번호,척수,밀집도] 3칸', async () => {
+        const dir = tmp();
+        const c = C.createCollector({ dir, key: 'k', clock: () => now, describe, fetchImpl: apiFetch([['GR4_F4K23_P4', 5, 10]]) });
+        assert.equal((await c.collect()).ok, true);
+        const d = io.read(path.join(dir, 'sea_realtime.json.gz'));
+        assert.equal(d.cells.length, 1);
+        assert.deepEqual(d.cells[0].bounds, [126.525, 33.55, 126.55, 33.575]);
+        assert.equal(d.cells[0].lat, 33.5625); assert.equal(d.cells[0].lon, 126.5375);
+        assert.deepEqual(d.cells[0].geometry.coordinates[0][0], [126.525, 33.575]);
+        assert.deepEqual(d.rows, [[0, 5, 10]]);
+        assert.equal(d.source, 'MTIS realtime API');
+        assert.equal('typeCollectedAt' in d, false);
+    });
+    await check('위치표가 상한(3만 칸)을 넘게 되면 이번 응답의 칸만으로 다시 만든다(수집이 멈추지 않는다)', async () => {
+        const dir = tmp();
+        const old = Array.from({ length: 30000 }, (_, i) => ({ id: 'old' + i, i }));
+        io.write(path.join(dir, 'sea_realtime.json.gz'), { v: 'x', cells: old, rows: [] });
+        const c = C.createCollector({ dir, key: 'k', clock: () => now, describe, fetchImpl: apiFetch([['GR4_F4K23_P4', 5, 10]]) });
+        assert.equal((await c.collect()).ok, true);
+        const d = io.read(path.join(dir, 'sea_realtime.json.gz'));
+        assert.deepEqual(d.cells.map((x) => x.id), ['GR4_F4K23_P4']);
+        assert.deepEqual(d.rows, [[0, 5, 10]]);
     });
     await check('오류 이력도 상세를 보관한다(200자 이내·문자열만)', () => {
         const dir = tmp();
         const H = require('../services/risk_error_history').createHistory({ dir, clock: () => now });
-        H.recordCollector('realtime', { status: 'error', lastError: 'invalid response', lastRun: io.iso(now), detail: 'API HTTP 503 · 웹 invalid response' });
+        H.recordCollector('realtime', { status: 'error', lastError: 'HTTP 503', lastRun: io.iso(now), detail: 'API HTTP 503' });
         const cur = H.list({}).current.find((r) => r.source === 'realtime');
-        assert.equal(cur.detail, 'API HTTP 503 · 웹 invalid response');
+        assert.equal(cur.detail, 'API HTTP 503');
     });
     await check('관리자 화면이 「상세」 줄을 그린다', () => {
         const src = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'js', 'admin', 'admin.js'), 'utf8');
-        assert.ok(src.includes("(r.detail?'<br>상세 '+esc(r.detail):'')"));
+        // 2026-10-15 오류현황 화면을 카드 꼴로 정리하며 줄 모음(lines)의 한 칸이 됐다.
+        //   실제 화면에 「상세」 가 그려지는지는 test_risk_errors_filter_ui 가 Chromium 으로 본다.
+        assert.ok(src.includes("['상세', r.detail]"));
     });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);
