@@ -101,8 +101,8 @@
         function registerSheet(){if(w.PopupStack)w.PopupStack.push('risk-forecast-sheet',clearSelection);}
         function nearest(times,value){return times.reduce(function(a,b){return Math.abs(Date.parse(b)-Date.parse(value))<Math.abs(Date.parse(a)-Date.parse(value))?b:a;},times[0]);}
         /**
-         * 두 날의 시간별 혼잡 예보와 세 날의 3시간별 공식 사고 예보를 한 조회 축으로 합친다.
-         * 예: 모레00·03·06시는 사고 예보만 조회하고 혼잡 격자는 비운다.
+         * 두 날의 시간별 혼잡 예보와 두 날(오늘·내일)의 3시간별 공식 사고 예보를 한 조회 축으로 합친다.
+         * 예: 서버 사고 축은 내일 21시에서 끝난다(2026-10-15 「해상 공식 사고예보는 2일까지만」 — 종전 모레까지). 혼잡 축에 없는 사고 칸은 사고 예보만 조회하고 혼잡 격자는 비운다.
          * @returns {string[]} 지금 이후 KST ISO 시각
          * [연계] selectionTimes → meta.timeline.sea/accident, 원천 간격 매칭은 서버가 한다.
          */

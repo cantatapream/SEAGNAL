@@ -134,10 +134,11 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         const rows=r.factors.map(x=>({...x,key:x.key,used:x.applied,cond:x.forecastOnly?'fcst_only':x.key==='wave'&&x.rr?'wave4m':x.key==='wind'&&x.rr?(f.ws>=17?'wind17':'wind14'):null,...(x.key==='congestion'?{level:r.ciLevel,levelName:r.ciLevel===null?null:['낮음','보통','높음','매우높음'][r.ciLevel]}:{}),...(x.key==='warning'?{name:x.type+x.level,assumedFromHour:x.from?new Date(timestamp(x.from)+9*T.HOUR).getUTCHours():null}:{})}));
         if(sources().warnings.status!=='ok')r.missing.push('warnings');
         return remember(detailCache,memo,{t,title:c.haegu||{major:null,sub:null},subtitle:c.ref||null,clickable:r.clickable,score:r.score,index:r.index,band:r.band,rr:r.rr,officialCongestionLevel:row?.congestionLevel||null,rows,kinds:{sensitive:{rr:r.rr},collision:{rr:r.collisionRr,status:r.collisionRr===null?'withheld':r.picked?'ok':'none'}},inputs:{forecastAt:f.forecastAt,zoneForecastBase:cache.zoneForecasts.data?.baseTmUtf||null,congestionCreated:timestamp(row?.fcstCreateDateTime)?T.isoKst(timestamp(row.fcstCreateDateTime)):null},missing:r.missing},6000);}
-    /** 공식 사고 시간대를 이전3시간정시로 고른다. 예:13시는12시원본,보간없음.
+    /** 공식 사고 시간대를 이전3시간정시로 고른다. 예:13시는12시원본,보간없음; 내일 23:59는 내일21시, 모레00시는400.
+     * 범위는 오늘00시~내일23:59(수집기 16칸과 같은 2일 — 「해상 공식 사고예보는 2일까지만」 2026-10-15). 배포 전 24칸 저장본의 모레 칸도 이 검사로 내보내지 않는다.
      * @param {string} t - 선택시각 @returns {object} t,key,forecastAt [연계] ← accidentFrame/Detail / 혼잡시간과별도표시
      */
-    function accidentTime(t){const n=timestamp(t),now=clock(),base=Date.parse(T.dateKey(now)+'T00:00:00+09:00');if(!Number.isFinite(n)||!/(?:Z|[+-]\d\d:\d\d)$/.test(String(t))||n<base||n>base+2*T.DAY+23*T.HOUR+59*60000)throw Object.assign(new Error('잘못된 사고예보 시각'),{status:400});const at=base+Math.floor((n-base)/(3*T.HOUR))*3*T.HOUR,local=new Date(at+9*T.HOUR);return{t:T.isoKst(n),forecastAt:T.isoKst(at),key:T.dateKey(at).replace(/-/g,'')+String(local.getUTCHours()).padStart(2,'0')+'00'};}
+    function accidentTime(t){const n=timestamp(t),now=clock(),base=Date.parse(T.dateKey(now)+'T00:00:00+09:00');if(!Number.isFinite(n)||!/(?:Z|[+-]\d\d:\d\d)$/.test(String(t))||n<base||n>base+T.DAY+23*T.HOUR+59*60000)throw Object.assign(new Error('잘못된 사고예보 시각'),{status:400});const at=base+Math.floor((n-base)/(3*T.HOUR))*3*T.HOUR,local=new Date(at+9*T.HOUR);return{t:T.isoKst(n),forecastAt:T.isoKst(at),key:T.dateKey(at).replace(/-/g,'')+String(local.getUTCHours()).padStart(2,'0')+'00'};}
     /** 공식 경계표를 한번 제공한다. 예:사고격자와혼잡ID는별개.
      * @returns {object} cells,v [연계] ← /sea/accident-cells / 프레임에는경계중복안함
      */
@@ -171,7 +172,7 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      * [연계] ← /warning-zones → 클라이언트 지도 배경 특보층 / 구역 이름→폴리곤은 정적 warn_zones(+_sub)에서 클라이언트가 맞춘다.
      */
     function warningZones(t){refresh();t=validateTime(t,false);const memo=resultKey('warningZones',t);if(detailCache.has(memo))return detailCache.get(memo);const degraded=['ok','offseason'].includes(sources().warnings.status)?[]:['warnings'];return remember(detailCache,memo,{t,zones:borders(t,true,false).filter(z=>z.state!=='예비'),degraded},6000);}
-    /** 첫로드에 시간축·정적표버전·자료상태를 함께 준다. 예: 지금칸은 분유지; 연안은 내일 21시까지(「가」 — 3일째 시작 표시 day3From 없음). @returns {object} [연계] ← /meta */
+    /** 첫로드에 시간축·정적표버전·자료상태를 함께 준다. 예: 지금칸은 분유지; 연안은 내일 21시까지(「가」 — 3일째 시작 표시 day3From 없음); 공식 사고는 오늘00시~내일21시 16칸(A.slots, 2026-10-15 2일 제한). @returns {object} [연계] ← /meta */
     function meta(){refresh();const now=clock();return{now:T.isoKst(now),timeline:{sea:{stepH:1,times:T.timeline(now,1,2,23)},accident:{stepH:3,times:A.slots(now).map(s=>s.at)},coast:{stepH:3,times:coastTimeline(now)}},versions:{spots:staticTable?._about?.hash||null,cells:cache.cells.data?.cells?.length||0,accident:cache.accident.data?.v||null},sources:sources()};}
     /** 클릭한 위험구역 원본을 준다. 예: 동일id의 폴리곤만. @param {string[]} ids @returns {object} [연계] ← /hazard-zones */
     function hazards(ids){const all=io.read(path.join(configDir,'coastal_hazard_zones.wgs84.geojson'));if(!all)throw Object.assign(new Error('위험구역 자료 준비 전'),{status:503});return{type:'FeatureCollection',features:all.features.filter(f=>ids.includes(f.properties.name))};}
