@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 108 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 109 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -361,6 +361,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_errors_ui` | 제품 admin.js / risk_sheet.js. 운영 API·인증정보 없이 Chromium 사용. |
 | `test_risk_errors_filter_ui` | 관리자 오류현황의 원천·상태 필터가 현재 상태·이력 둘 다에 걸리는지와 상태 배지 색을 실제 라우터+Chromium 으로 검사한다. |
 | `test_data_collection_status` | 관리자 「데이터 수집현황 → 수집 목록」의 목록표(manifest)·계산·API 를 검사한다. |
+| `test_collect_fail_alert` | 이안류·기상청 MMIS 수집 실패 관리자 푸시(services/collect_fail_alert)를 고정한다. |
 | `test_data_collection_ui` | 관리자 → 점검 → 「데이터 수집현황」 화면을 실제 라우터 + Chromium 으로 검사한다. |
 | `test_zone_forecast_guard` | 해구별 기상예보 수집이 새 판을 못 받았을 때 「새 판 없음, 기존 판 유지」를 기록하고 |
 | `test_risk_history_sources` | 오류 감시의 본문 제거·손상 판별·공개 저장소와 같은 신선도·갱신/삭제를 검사한다. |

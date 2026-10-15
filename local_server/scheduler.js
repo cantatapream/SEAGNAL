@@ -31,6 +31,8 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+// 이안류·MMIS 관측 수집이 실패하면 관리자 푸시(첫 실패·복구 1번씩) — 사용자 확정 2026-10-15. require 부작용 없음.
+const collectFailAlert = require('./services/collect_fail_alert');
 
 // ============================================================================
 // [특보 예측] 무거운 일기도(GIF) 분석 사이클을 별도 자식 프로세스로 격리 실행.
@@ -403,6 +405,8 @@ async function collectKmaBuoys() {
 //     2) fetchWithTimeout(url, opts, 8000) → 8초 타임아웃 GET
 //     3) 응답 OK & 응답 JSON code === '0000' 일 때만 파일 저장
 //     4) 실패 시 log 만 남기고 종료 (직전 캐시 유지)
+//     5) 성공·실패를 services/collect_fail_alert 에 알린다 — 첫 실패·복구 때 관리자 푸시 1번씩,
+//        실패 기록은 data/collect_fail_alert.json(데이터 수집현황 카드에 「마지막 수집 실패」로 보임, 2026-10-15)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // [C타입 = 파고부이] 한산도(22467) 등 51개. 파고/파주기/수온 위주.
@@ -416,8 +420,10 @@ async function collectMarineWhBuoys() {
         if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
         // saveData 는 services/save_data 헬퍼 — local_server/data/ 디렉터리에 JSON 저장
         saveData('marine_wh_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
+        collectFailAlert.report('marineWhBuoys', { ok: true });
     } catch (e) {
         log(`⚠️ marine wh-buoy 수집 실패: ${e.message}`);
+        collectFailAlert.report('marineWhBuoys', { ok: false, error: e }); // 관리자 푸시(첫 실패·복구 1번씩) + 실패 기록
     }
 }
 
@@ -431,8 +437,10 @@ async function collectMarineBuoys() {
         const json = await response.json();
         if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
         saveData('marine_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
+        collectFailAlert.report('marineBuoys', { ok: true });
     } catch (e) {
         log(`⚠️ marine buoy 수집 실패: ${e.message}`);
+        collectFailAlert.report('marineBuoys', { ok: false, error: e }); // 관리자 푸시(첫 실패·복구 1번씩) + 실패 기록
     }
 }
 
@@ -446,8 +454,10 @@ async function collectMarineLhBuoys() {
         const json = await response.json();
         if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
         saveData('marine_lh_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
+        collectFailAlert.report('marineLhBuoys', { ok: true });
     } catch (e) {
         log(`⚠️ marine lh 수집 실패: ${e.message}`);
+        collectFailAlert.report('marineLhBuoys', { ok: false, error: e }); // 관리자 푸시(첫 실패·복구 1번씩) + 실패 기록
     }
 }
 
@@ -461,8 +471,10 @@ async function collectMarineVs() {
         const json = await response.json();
         if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
         saveData('marine_vs.json', { updatedAt: getNowStr(), data: json.data || [] });
+        collectFailAlert.report('marineVs', { ok: true });
     } catch (e) {
         log(`⚠️ marine vs 수집 실패: ${e.message}`);
+        collectFailAlert.report('marineVs', { ok: false, error: e }); // 관리자 푸시(첫 실패·복구 1번씩) + 실패 기록
     }
 }
 
@@ -1908,6 +1920,12 @@ async function collectRipCurrentIndex() {
 
         const result = { updatedAt: getNowStr(), places: {} };
         let dataCount = 0;
+        // 공개 API 호출 실패(HTTP 오류·연결·시간초과·해석 실패·비정상 결과코드) — 「자료 없음(03)」과 구분한다.
+        //   전 지점 호출이 다 실패해야 「이안류를 받아오지 못했다」로 보고 관리자 푸시(사용자 확정 2026-10-15).
+        //   성공은 호출 오류가 0건일 때만 — 일부만 실패하면 아무것도 보고하지 않는다(검토 2: 전부 실패 뒤 1곳만
+        //   살아나도 「복구」→ 다시 「실패」 2통이 나갔다).
+        const callErrors = [];
+        let callCount = 0;
 
         for (const beach of RIP_BEACHES) {
             // 망상은 공개 API에 데이터가 없어(코드에 BOM 박힘 → 데이터 미제공) 아래에서 KHOA 내부 데이터로 보강
@@ -1915,7 +1933,10 @@ async function collectRipCurrentIndex() {
                 result.places[beach.name] = { code: beach.code, lat: beach.lat, lot: beach.lot, hasData: false, level: null };
                 continue;
             }
-            const latest = await _fetchRipLatest(beach.code);
+            let latest = null;
+            callCount++;
+            try { latest = await _fetchRipLatest(beach.code); }
+            catch (e) { callErrors.push(e); }   // 로그는 _fetchRipLatest 가 남겼다 — 그 지점은 아래에서 정보없음으로
             if (latest) {
                 dataCount++;
                 result.places[beach.name] = {
@@ -1972,6 +1993,14 @@ async function collectRipCurrentIndex() {
         }
 
         const totalPlaces = Object.keys(result.places).length;
+        if (callCount > 0 && callErrors.length === callCount) {
+            log(`⚠️ 이안류 공개 API ${callCount}개 지점 호출이 모두 실패`);
+            collectFailAlert.report('ripCurrent', { ok: false, error: callErrors[0] });
+        } else if (callErrors.length === 0) {
+            collectFailAlert.report('ripCurrent', { ok: true });
+        } else {
+            log(`⚠️ 이안류 공개 API ${callErrors.length}/${callCount}개 지점 호출 실패 — 수집 실패 알림 상태는 그대로 둔다`);
+        }
         saveData('ripcurrent_index.json', result);
         lastRunStatus.ripcurrent = {
             lastRun: getNowStr(),
@@ -1987,7 +2016,9 @@ async function collectRipCurrentIndex() {
 }
 
 /**
- * 특정 해수욕장의 '가장 최근 관측' 1건을 반환합니다 (없으면 null).
+ * 특정 해수욕장의 '가장 최근 관측' 1건을 반환합니다 (자료 없으면 null).
+ * 호출 자체가 실패하면(HTTP 오류·연결·시간초과·JSON 해석 실패·03/10 밖의 결과코드) throw 한다 —
+ * 「자료 없음」과 「받아오지 못함」을 호출자가 가르게(2026-10-15, 수집 실패 관리자 푸시).
  *
  * [설명]
  * 이안류 API는 reqDate(기본 오늘)의 5분 간격 시계열을 반환합니다.
@@ -2006,15 +2037,21 @@ async function _fetchRipLatest(beachCode) {
         });
         const url = `${RIP_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
         const response = await fetchWithTimeout(url, {}, 30000);
-        if (!response.ok) {
-            log(`⚠️ 이안류 API 응답 오류 (${beachCode}): HTTP ${response.status}`);
-            return null;
-        }
+        if (!response.ok) throw new Error('HTTP ' + response.status);
         const data = await response.json();
-        // 데이터 없음(03)·파라미터 오류(10) 등은 정상적인 '미관측'으로 처리
-        if (data?.header?.resultCode !== '00') return null;
+        // 데이터 없음(03)·파라미터 오류(10)는 정상적인 '미관측'으로 처리. 그 밖의 결과코드는 받아오지 못한 것(호출 실패)이다.
+        //   머리(header)가 최상위가 아니라 response 안에 오는 꼴도 받는다(같은 1192136 계열 routes/ocean2.js·tide_collector 와 같게)
+        //   — 꼴 차이로 「결과코드 없음」 실패 알림이 잘못 나가지 않게(2026-10-15).
+        const header = data?.header || data?.response?.header;
+        // 숫자로 오는 결과코드(3·10·0)도 문자열 '03'·'10'·'00' 과 같게(검토 7 — 비수기 03 을 실패로 세지 않게).
+        const rcRaw = String(header?.resultCode ?? '').trim();
+        const rc = /^\d$/.test(rcRaw) ? '0' + rcRaw : rcRaw;
+        if (rc !== '00') {
+            if (rc === '03' || rc === '10') return null;
+            throw new Error('API 결과코드=' + (rc || '없음'));
+        }
 
-        const items = data?.body?.items?.item;
+        const items = (data?.body || data?.response?.body)?.items?.item;
         if (!items) return null;
         const arr = Array.isArray(items) ? items : [items];
         if (arr.length === 0) return null;
@@ -2027,7 +2064,7 @@ async function _fetchRipLatest(beachCode) {
         return arr[arr.length - 1];
     } catch (e) {
         log(`⚠️ 이안류 API 호출 실패 (${beachCode}): ${e.message}`);
-        return null;
+        throw e;   // 호출자(collectRipCurrentIndex)가 「자료 없음」과 「호출 실패」를 가른다
     }
 }
 
