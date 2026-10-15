@@ -107,3 +107,13 @@ bash scripts/refactor/verify_all.sh
 `renderUnified`는0.25도 위치 인덱스로 현재 화면+128px 주변만 골라 그린다. resolution80 이상은 동일 색상을MultiPolygon으로 묶고, 미만은 개별feature를 재사용한다. 색상 스타일은256개로 제한하고 화면 밖 오래된 형상은8,000개 초과 시 버린다. 원시수치·공식 단계는 바꾸지 않으며 클릭은 원래 공통 격자 공간 포함으로 해석한다. blur는 완성된 면 canvas에1회, 육지 마스크는 그 다음이다. `unifiedCells`는 입력 버전과 실시간 파일 서명으로 재사용하고 전달 필드를id/i/lon/lat/displayOnly로 줄인다. 사고 공간 대응은 표 버전당1회 계산한다. 이 렌더링 개선이 서버OOM 해결을 의미하지는 않는다.
 
 이 화면의 관할 브리핑 목록/버튼/자동 관할조회는 제거했다. 서버`sea/briefing`과renderer는 나중 메인 브리핑을 위해 남기되 현재 화면에서는 접근하지 않는다.
+
+## 특보 구역 배경 면 (과제14)
+
+`refresh()`는 연안·해상 프레임과 별도로 `refreshWarnings(n,at)`를 실행한다. `state.coast||state.sea`일 때만 `GET /warning-zones?t=<메인 시각>`을 한 번 호출하고(요청 세대 `seq`로 늦은 응답을 버린다), `layer.zonesLoaded()`로 정적 도형 로드를 기다린 뒤 `layer.drawWarnings(zones)`를 부른다. 시트 시각(`selected.at`)은 쓰지 않으므로 메인 15시 / 시트 18시 격리가 유지된다.
+
+서버: `risk_store.warningZones(t)`는 `borders(t,true,false)` 즉 예비 가정 승격 없이 계산한다. 자식 값이 null인 자식 구역은 목록에 없다(부모 특보를 상속하지 않음). `degraded:['warnings']`는 특보 원천이 ok/offseason이 아니라는 뜻이다. 구 `/coast/frame`·`/sea/frame`의 `borders`는 그대로다.
+
+지도: `RiskMapLayer.drawWarnings(list)`가 못 그린 구역 이름 배열을 돌려준다(비어 있지 않으면 경계 도형 누락 안내). 서버 구역 이름과 정적 도형 이름은 공백·마침표·중점을 없앤 키로 맞춘다(93개 중 61개가 공백·중점 때문에 원래 이름이 달랐다: `동해남부 남쪽 안쪽먼바다`, `태안서산북쪽 평수구역` 등). 층은 `borders`(zIndex 129, 위험 색상층 130+ 아래)다. `drawBorders`는 삭제했다.
+
+수정 시 주의: 범례 칸은 이 기능과 무관하다(과제13). 기존 해양종합정보 탭의 `ocean_warn_*` 특보 표시와 특보 푸시는 건드리지 않는다. 관리자 메타 감시(`/meta`, `/status`)에 정적 도형을 추가하지 않는다.
