@@ -49,8 +49,6 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-legend .bzl-row { min-height:24px; min-width:24px; }
 .rf-map-legend { display:flex; flex-direction:column; gap:3px; color:#e6edf8; font-size:.74rem; padding:5px 8px; background:rgba(10,15,28,.94); border:1px solid var(--border-color); border-radius:10px; }
 .rf-map-legend span { display:flex; align-items:center; gap:5px; }
-.rf-line { width:18px; border-top:3px solid; display:inline-block; }
-.rf-pre { border-color:#ffd740; } .rf-adv { border-color:#ff8f1f; } .rf-wrn { border-color:#ff3b30; } .rf-day3 { border-color:#ffd740; border-top-style:dashed; }
 .rf-banner { position:absolute; bottom:10px; left:8px; right:8px; z-index:440; background:#132342ed; color:#e6edf8; padding:7px 10px; border-radius:8px; font-size:.75rem; pointer-events:none; }
 .rf-modal { position:fixed; z-index:11000; inset:0; background:rgba(4,8,18,.72); display:flex; align-items:flex-end; justify-content:center; }
 .rf-basis { width:100%; max-width:600px; max-height:88vh; overflow-y:auto; border-radius:20px 20px 0 0; background:linear-gradient(180deg,#0c1a3a,#162d5a); padding:14px 16px 20px; font-size:.82rem; line-height:1.6; color:#e6edf8; word-break:keep-all; overflow-wrap:break-word; }
