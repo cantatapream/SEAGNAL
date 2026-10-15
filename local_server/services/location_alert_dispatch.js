@@ -8,9 +8,16 @@
  * "활성 특보 스냅샷"을 보낸다. 단말은 이 스냅샷 + 내장 폴리곤 + 단말 저장 위치로
  * 직접 판정하여 맞춤 경고(로컬 알림)를 띄운다. (위치는 서버로 오지 않음)
  *
- * 스냅샷: { generatedAt, zones: { [구역명]: {warnType, level, event, efTime, ynTime, tier} } }
+ * 스냅샷: { zones: { [구역명]: {tier, warnType?, event?, efTime?, forecast?} } }
  *   - 단말은 자기 구역명으로 조회 + 전체 맵으로 '최근접 무특보/주의보 구역' tier 판정.
- *   - 구역명에 없는 구역 = 무특보.
+ *   - 구역명에 없는 구역 = 무특보. ★구역은 절대 빼지 않는다(BUG A — 특보 해역을 무특보로 오판정).
+ *   - [축약 2026-10-15] 단말이 안 읽는 level·ynTime·generatedAt 은 싣지 않고, 단말 기본값과 같은
+ *     warnType '풍랑'·event 'active'·forecast null 은 생략, efTime 은 단말이 쓰는 경우(예비 또는
+ *     event≠active)에만 싣는다. 단말(Java LocationAlertDecider·JS location_alert_runtime)의 기본값이
+ *     같아 판정·문구가 글자까지 같다 — 검사: scripts/test_location_dispatch_reliability.js [5][6].
+ *     사용자 결정(2026-10-15): "①②둘 다, 서버만, 앱 업데이트 없음".
+ * 발송 신뢰성(2026-10-15): 토큰 ≤500개씩 나눠 보냄(fcm_multicast_chunked) · 이력 count=실제 성공수 ·
+ *   성공 0이면 지문을 저장하지 않아 다음 주기(크롤러 1분)에 다시 보낸다 · 발송마다 요약 로그 1줄.
  *
  * 순수 부분(buildSnapshot/selectTargetTokens/buildDataMessage)은 테스트로 검증.
  * 실제 전송 sendFn / 동의자 getConsents 는 주입 가능(테스트 시 mock).
@@ -34,7 +41,8 @@ function _zoneSummary(snapshot) {
     const tierLabel = (t) => t === 'severe' ? '경보' : (t === 'advisory' ? '주의보' : (t === 'prelim' ? '예비특보' : ''));
     const parts = names.slice(0, 5).map((z) => {
         const s = snapshot.zones[z] || {};
-        return z + '(' + (s.warnType || '') + tierLabel(s.tier) + ')';
+        // 스냅샷은 '풍랑'을 생략해 싣는다(단말 기본값) → 이력 문구는 기본값을 채워 종전과 같게.
+        return z + '(' + (s.warnType || '풍랑') + tierLabel(s.tier) + ')';
     });
     return parts.join(', ') + (names.length > 5 ? ' 외 ' + (names.length - 5) + '개' : '');
 }
@@ -83,14 +91,18 @@ function buildSnapshot(activeWarnings, now) {
         const tier = core.classifyTier(ws.map(w => ({ type: w.warnType, level: w.level })));
         // 대표(가장 높은 tier) 항목으로 표시 필드 구성
         const rep = ws.slice().sort((a, b) => RANK[_tierOfOne(b)] - RANK[_tierOfOne(a)])[0];
-        zones[z] = {
-            warnType: rep.warnType || '풍랑',
-            level: rep.level || '',
-            event: rep.event || 'active',
-            efTime: rep.efTime || null,
-            ynTime: rep.ynTime || null,
-            tier,
-        };
+        // [축약 2026-10-15] FCM data 4096B 한도 때문에 단말이 안 쓰는 값은 싣지 않는다(구역은 그대로).
+        //   단말 읽기(둘 다 확인): Java LocationAlertDecider.optStr(z,"warnType","풍랑")·("event","active")·
+        //   ("efTime","") / JS runtime decideAlert `z.warnType || '풍랑'`·`z.event || 'active'`·`z.efTime || ''`.
+        //   efTime 을 문구에 쓰는 곳은 buildMessage 의 예비(tier prelim)와 event≠active(발효 예정)뿐이다.
+        //   level·ynTime·generatedAt 은 단말 어디에서도 읽지 않는다(Java·JS grep).
+        const warnType = rep.warnType || '풍랑';
+        const event = rep.event || 'active';
+        const zone = { tier };
+        if (warnType !== '풍랑') zone.warnType = warnType;
+        if (event !== 'active') zone.event = event;
+        if (rep.efTime && (tier === 'prelim' || event !== 'active')) zone.efTime = rep.efTime;
+        zones[z] = zone;
         // 예측 기상(최악) 주입. 데모 override(레코드가 forecast 직접 보유) 우선,
         //   없으면 서버측 구역별 계산. 어떤 경우에도 throw 흡수(줄 생략 허용).
         let fc = null;
@@ -105,9 +117,9 @@ function buildSnapshot(activeWarnings, now) {
                 catch (_) { fc = null; }
             }
         }
-        zones[z].forecast = fc || null;
+        if (fc) zones[z].forecast = fc; // 없으면 생략 — 단말은 없음/null 을 똑같이 '예측 줄 없음'으로 처리
     }
-    return { generatedAt: (now ? new Date(now) : new Date()).toISOString(), zones };
+    return { zones };
 }
 
 /** 동의(활성) 레코드 → 중복 제거된 토큰 배열. */
@@ -121,24 +133,21 @@ function selectTargetTokens(consents) {
 }
 
 /** FCM 데이터 전용 메시지(알림 표시 없음 — 단말이 판정 후 로컬 알림). 값은 문자열.
- *  단말은 항상 진짜 백그라운드 GPS(POS_KEY)로 판정한다. */
-// FCM 데이터 메시지 페이로드 한도(약 4KB). 안전 여유를 두고 경고 임계값을 3.8KB 로 둔다.
+ *  단말은 항상 진짜 백그라운드 GPS(POS_KEY)로 판정한다.
+ *  크기 경고는 여기서 찍지 않고 dispatchWake 의 발송 요약 1줄에 함께 싣는다(주기당 로그 1줄). */
+// FCM 데이터 메시지 페이로드 한도 4096B. 넘어도 구역은 빼지 않는다(BUG A 재유발 금지) — 로그로만 알린다.
+const _FCM_DATA_LIMIT_BYTES = 4096;
 const _FCM_DATA_WARN_BYTES = 3800;
+
+/** data 맵의 키+값 바이트 합. ⚠FCM 이 한도를 세는 정확한 방식은 확인하지 않았다 — 키+값 합으로 어림. */
+function _dataBytes(data) {
+    let n = 0;
+    for (const k of Object.keys(data || {})) n += Buffer.byteLength(k, 'utf8') + Buffer.byteLength(String(data[k]), 'utf8');
+    return n;
+}
 
 function buildDataMessage(snapshot) {
     const snapStr = JSON.stringify(snapshot);
-    // [LIGHT C] FCM 4KB data 한도 근접/초과 안전 경고. 특보 구역이 많으면(전해상 광역 특보)
-    //   스냅샷이 4KB 를 넘을 수 있다. 여기서는 로그만 남기고 절대 구역을 드롭하지 않는다
-    //   (구역 누락은 warned zone 을 무특보로 오판정하는 BUG A 를 재유발하므로 금지).
-    try {
-        const bytes = Buffer.byteLength(snapStr, 'utf8');
-        if (bytes > _FCM_DATA_WARN_BYTES) {
-            const zoneCount = snapshot && snapshot.zones ? Object.keys(snapshot.zones).length : 0;
-            console.warn('[LocationAlertDispatch] ⚠ FCM data snapshot 크기 ' + bytes
-                + 'B (구역 ' + zoneCount + '개) — FCM 4KB 한도 근접/초과 가능. '
-                + '구역 드롭 금지(BUG A 재유발); 향후 페이로드 축약/청크 검토 필요.');
-        }
-    } catch (_) { /* 크기 측정 실패는 무시 */ }
     const data = {
         type: 'location_alert_wake',
         v: '1',
@@ -150,21 +159,19 @@ function buildDataMessage(snapshot) {
     };
 }
 
-/** 기본 전송: firebase-admin 데이터 메시지(멀티캐스트). firebase 미구성/실패는 흡수. */
+/** 기본 전송: firebase-admin 데이터 메시지(멀티캐스트, 토큰 ≤500개씩). firebase 미구성/실패는 흡수.
+ *  항상 숫자 successCount 를 돌려준다(미구성·예외 = 0). 로그는 여기서 찍지 않는다(dispatchWake 요약 1줄). */
 async function _defaultSendFn(tokens, message) {
     try {
         const { getAdmin } = require('./firebase_admin_lazy');
         const admin = getAdmin();
-        if (!admin || !admin.apps || admin.apps.length === 0) return { ok: false, reason: 'no_admin' };
-        const res = await admin.messaging().sendEachForMulticast({
-            tokens,
-            data: message.data,
-            android: message.android,
-        });
-        return { ok: true, successCount: res.successCount, failureCount: res.failureCount };
+        if (!admin || !admin.apps || admin.apps.length === 0) {
+            return { ok: false, reason: 'no_admin', successCount: 0, failureCount: 0, errorCodes: {} };
+        }
+        return await require('./fcm_multicast_chunked').sendMulticastChunked(admin.messaging(), tokens, message);
     } catch (e) {
         console.error('[LocationAlertDispatch] send 실패:', e && e.message);
-        return { ok: false, reason: e && e.message };
+        return { ok: false, reason: e && e.message, successCount: 0, failureCount: tokens.length, errorCodes: { send_threw: tokens.length } };
     }
 }
 
@@ -190,12 +197,35 @@ async function dispatchWake(activeWarnings, opts = {}) {
     const sendFn = opts.sendFn || _defaultSendFn;
     const message = buildDataMessage(snapshot);
     const result = await sendFn(tokens, message);
+    // [2026-10-15] 실제 성공 수만 센다 — 결과에 숫자 successCount 가 없으면(예외·미구성) 0.
+    //   종전엔 tokens.length 로 채워 "못 보냈는데 보낸 것처럼" 이력이 남을 수 있었다.
+    const successCount = (result && Number.isFinite(result.successCount)) ? result.successCount : 0;
+    const failureCount = (result && Number.isFinite(result.failureCount)) ? result.failureCount : (tokens.length - successCount);
+    _logSendSummary(tokens.length, result, message, snapshot, successCount);
     // 발송 이력 + 누적 집계 기록(관리자 '실시간 특보 알림 관리'). 테스트는 opts.record===false 로 생략.
-    if (opts.record !== false) {
-        const count = (result && Number.isFinite(result.successCount)) ? result.successCount : tokens.length;
-        recordHistory(snapshot, count);
+    //   opts.recordFailure===false(dispatchOnLatest 가 같은 상황의 재시도 때 넘김)면 성공 0 이력은 생략 —
+    //   매 주기 0건 이력이 쌓이지 않게. opts.recordHistory 는 테스트 주입용.
+    if (opts.record !== false && (successCount > 0 || opts.recordFailure !== false)) {
+        (opts.recordHistory || recordHistory)(snapshot, successCount);
     }
-    return { sent: tokens.length, targets: tokens.length, snapshot, result };
+    // sent = 실제 성공 수(종전: 대상 수). dispatchOnLatest 는 sent>0 일 때만 지문을 저장한다.
+    return { sent: successCount, targets: tokens.length, failed: failureCount, snapshot, result };
+}
+
+/** 발송 1회 = 로그 1줄. 대상·성공·실패·실패코드(코드별 건수)·데이터 크기. 토큰 값은 남기지 않는다.
+ *  [연계] ← dispatchWake / → fcm_multicast_chunked.formatSendSummary */
+function _logSendSummary(targets, result, message, snapshot, successCount) {
+    try {
+        const summary = require('./fcm_multicast_chunked').formatSendSummary(targets, result);
+        const zoneCount = Object.keys((snapshot && snapshot.zones) || {}).length;
+        const bytes = _dataBytes(message && message.data);
+        let size = ' · 데이터 ' + bytes + 'B(구역 ' + zoneCount + '개)';
+        if (bytes > _FCM_DATA_LIMIT_BYTES) size += ' ⚠FCM 4096B 한도 초과 — 구역은 빼지 않고 그대로 보냄(BUG A 방지)';
+        else if (bytes > _FCM_DATA_WARN_BYTES) size += ' ⚠4096B 한도 근접';
+        const line = '[LocationAlertDispatch] 발송 결과 — ' + summary + size
+            + (successCount > 0 ? '' : ' · 성공 0 → 지문 미저장, 다음 주기에 재시도');
+        if (successCount > 0) console.log(line); else console.warn(line);
+    } catch (_) { /* 로그 문자열 조립 실패는 발송 결과에 영향 없다 — 발송·이력은 이미 처리됐다 */ }
 }
 
 /**
@@ -247,7 +277,9 @@ function extractActiveWarnings(tree) {
 const _SIG_FILE = path.join(__dirname, '..', 'data', 'location_alert_last_sig.json');
 function _signatureOf(snapshot) {
     const zones = (snapshot && snapshot.zones) || {};
-    return Object.keys(zones).sort().map((z) => z + ':' + zones[z].tier + ':' + zones[z].event).join('|');
+    // event 는 'active' 일 때 스냅샷에서 생략된다 → 기본값을 채워 종전 지문 문자열과 똑같이 만든다
+    //   (안 그러면 배포 직후 지문이 달라져 같은 상황을 한 번 더 보낸다).
+    return Object.keys(zones).sort().map((z) => z + ':' + zones[z].tier + ':' + (zones[z].event || 'active')).join('|');
 }
 function _readLastSig() {
     try { return (JSON.parse(fs.readFileSync(_SIG_FILE, 'utf8')) || {}).sig || ''; } catch (_) { return ''; }
@@ -256,19 +288,31 @@ function _writeLastSig(sig) {
     try { fs.mkdirSync(path.dirname(_SIG_FILE), { recursive: true }); fs.writeFileSync(_SIG_FILE, JSON.stringify({ sig, at: new Date().toISOString() })); } catch (_) { /* 마지막 지문 기록은 중복 발송을 줄이려는 것이다 — 못 써도 발송 자체는 정상으로 진행한다 */ }
 }
 
+// 성공 0으로 끝난 상황의 지문(프로세스 메모리). 같은 상황 재시도가 계속 실패해도 0건 이력은 1번만 남긴다.
+//   서버를 다시 켜면 비워진다 → 재시작 직후 첫 실패에 0건 이력이 1건 더 남을 수 있다(단순함 우선).
+let _lastFailedSig = null;
+
 /** 디스크의 weather_alerts.json 을 읽어 dispatchWake 수행. 크롤러 hook에서 호출(가드됨).
- *  변화 감지: 직전과 동일한 활성 특보 상황이면 재발송하지 않는다(매 주기 중복 방지). */
+ *  변화 감지: 직전과 동일한 활성 특보 상황이면 재발송하지 않는다(매 주기 중복 방지).
+ *  [2026-10-15] 성공 0이면 지문을 저장하지 않는다 → 다음 크롤러 주기(1분)에 다시 보낸다.
+ *  opts.tree / readLastSig / writeLastSig 는 테스트 주입용(저장소 data 파일을 건드리지 않게). */
 async function dispatchOnLatest(opts = {}) {
     let tree = null;
-    try { tree = JSON.parse(fs.readFileSync(_WEATHER_ALERTS_FILE, 'utf8')); }
-    catch (_) { return { sent: 0, reason: 'no_alerts_file' }; }
+    if (opts.tree !== undefined) tree = opts.tree;
+    else {
+        try { tree = JSON.parse(fs.readFileSync(_WEATHER_ALERTS_FILE, 'utf8')); }
+        catch (_) { return { sent: 0, reason: 'no_alerts_file' }; }
+    }
+    const readLastSig = opts.readLastSig || _readLastSig;
+    const writeLastSig = opts.writeLastSig || _writeLastSig;
     const active = extractActiveWarnings(tree);
     const sig = _signatureOf(buildSnapshot(active));
-    if (sig === _readLastSig()) return { sent: 0, reason: 'unchanged' };
-    const res = await dispatchWake(active, opts);
-    // 실제 발송됐거나(중복방지) 활성 0건으로 정리됐을 때 시그니처 갱신. no_targets(동의자 없음)는
-    //   갱신하지 않아 동의자 생기면 다음 주기에 발송되도록 한다.
-    if ((res && res.sent > 0) || sig === '') _writeLastSig(sig);
+    if (sig === readLastSig()) return { sent: 0, reason: 'unchanged' };
+    const res = await dispatchWake(active, Object.assign({}, opts, { recordFailure: sig !== _lastFailedSig }));
+    // 실제 1건 이상 성공했거나 활성 0건으로 정리됐을 때만 시그니처 갱신. no_targets(동의자 없음)·
+    //   성공 0(전원 실패·예외·firebase 미구성)은 갱신하지 않아 다음 주기에 다시 보낸다.
+    if ((res && res.sent > 0) || sig === '') { writeLastSig(sig); _lastFailedSig = null; }
+    else if (res && res.targets > 0) _lastFailedSig = sig;
     return res;
 }
 

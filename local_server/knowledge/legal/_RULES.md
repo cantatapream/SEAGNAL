@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 96 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 97 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -367,6 +367,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_sheet_ui` | 휴대폰 크기 Chromium에서 위험예측 바텀시트의 하단 탭 가림 방지·고정 머리/스크롤 본문·즉시 스켈레톤과 늦은 응답 보호·고정 일시 표시·위험구역 아코디언과 보이는 지도 중앙 이동을 검사한다. |
 | `test_root_deps` | 운영 서버가 실제로 쓰는 외부 패키지가 **저장소 루트 package.json** 에 모두 들어 있는지 검사한다. |
 | `test_slow_request_log` | 느린 요청 기록(services/slow_request_log.js)이 3초 넘는 요청만, 쿼리 없이, 붙잡는 요청은 빼고 남기는지 실제 HTTP 로 확인한다. |
+| `test_location_dispatch_reliability` | 위치기반 깨우기(특보·태풍) 발송 신뢰성 + 스냅샷 축약 회귀검사 |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.
