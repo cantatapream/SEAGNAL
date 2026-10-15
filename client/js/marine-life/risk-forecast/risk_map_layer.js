@@ -217,10 +217,16 @@
             if(f){var copy=f.clone();copy.setStyle(new ol.style.Style({stroke:new ol.style.Stroke({color:'#fff',width:kind==='sea'?2:2.5})}));sources.selection.addFeature(copy);}
             if(kind==='coast'){var p=spots.find(function(p){return p.id===id;});if(p){var center=new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([p.lon,p.lat])));center.setStyle(new ol.style.Style({image:new ol.style.Circle({radius:6,stroke:new ol.style.Stroke({color:'#fff',width:2.5})})}));sources.selection.addFeature(center);}}
         }
-        function showHazards(fc) {
+        /**
+         * 선택한 위험구역을 그리고 시트에 가려지지 않은 지도 영역의 가운데에 오도록 이동한다.
+         * 예: showHazards(fc,[30,40,330,40]) — 아래 330px는 시트가 가린 높이
+         * @param {Object} fc - GeoJSON FeatureCollection @param {number[]} [pad] - [위,오른쪽,아래,왼쪽] 여백(px)
+         * @returns {void} [연계] RiskForecast.hazard → visiblePadding() / 해상 관할 해역 이동과 같은 여백을 쓴다
+         */
+        function showHazards(fc,pad) {
             sources.hazard.clear(); var features=geo.readFeatures(fc,{dataProjection:'EPSG:4326',featureProjection:map.getView().getProjection()});
             features.forEach(function(f){f.setStyle(new ol.style.Style({fill:new ol.style.Fill({color:'rgba(255,143,31,.55)'}),stroke:new ol.style.Stroke({color:'#ffd740',width:2})}));});sources.hazard.addFeatures(features);
-            if(features.length)map.getView().fit(sources.hazard.getExtent(),{padding:[55,55,Math.min(map.getSize()[1]*0.5,300),55],duration:250,maxZoom:16});
+            if(features.length)map.getView().fit(sources.hazard.getExtent(),{padding:pad||[55,55,Math.min(map.getSize()[1]*0.5,300),55],duration:250,maxZoom:16});
         }
         function setActive(state,enabled) {
             active=state;visible=enabled; layers.coast.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);layers.accident.setVisible(enabled&&state.sea);layers.traffic.setVisible(enabled&&state.sea);

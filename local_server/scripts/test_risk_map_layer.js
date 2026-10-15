@@ -127,14 +127,15 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
    const staleText=host.querySelector('.rf-body').textContent;RiskSlider.mount(sheet.timelineEl,['2026-10-11T18:00:00+09:00','2026-10-11T21:00:00+09:00'],'2026-10-11T18:00:00+09:00',()=>{});
    RiskBasis.open('coast');const close=document.querySelector('.mclose'),focused=getComputedStyle(close),basis=document.querySelector('.rf-basis').textContent;
    const legend=document.createElement('div');legend.className='rf-legend';legend.innerHTML='<div class="banzone-legend"><button class="bzl-row"><span class="bzl-switch"></span></button></div>';document.body.appendChild(legend);
-   const result={choices,staleText,basis,headerColor:getComputedStyle(document.querySelector('.rf-basis th')).color,focusWidth:focused.outlineWidth,focusColor:focused.outlineColor,focusOffset:focused.outlineOffset,tipTransition:getComputedStyle(host.querySelector('.ocean-sheet-tooltip')).transitionDuration,switchTransition:getComputedStyle(legend.querySelector('.bzl-switch')).transitionDuration,sliderLabel:host.querySelector('input').getAttribute('aria-label')};RiskBasis.close();return result;
+   const result={choices,staleText,basis,headerColor:getComputedStyle(document.querySelector('.rf-basis th')).color,focusWidth:focused.outlineWidth,focusColor:focused.outlineColor,focusOffset:focused.outlineOffset,bubbles:host.querySelectorAll('.ocean-sheet-tooltip').length,label:host.querySelector('output.rf-time-label').textContent,switchTransition:getComputedStyle(legend.querySelector('.bzl-switch')).transitionDuration,sliderLabel:host.querySelector('input').getAttribute('aria-label')};RiskBasis.close();return result;
   });
   test('같은 위치 목록에서 다른 관광지 선택',()=>assert.deepEqual(ui.choices,[{kind:'coast',id:'b'}]));
   test('낡은 예보 기준은 파고·풍속줄에 남고 공통 원천 경고는 숨김',()=>{assert.equal((ui.staleText.match(/예보 기준/g)||[]).length,2);assert.ok(!ui.staleText.includes('해구 예보 자료가 오래되었습니다'));});
   test('연안 기준상세 확정 색문안 복구',()=>{assert.match(ui.basis,/1배 초록 → 1.5배 노랑 → 4배 주황 → 8배 빨강의 연속 그라데이션/);assert.match(ui.basis,/이 관광지 주변 3km에서 이 날에/);});
   test('근거표 제목 색은 확정노랑',()=>assert.equal(ui.headerColor,'rgb(255, 225, 122)'));
   test('키보드 초점은 파랑2px·offset2px',()=>{assert.equal(ui.focusWidth,'2px');assert.equal(ui.focusColor,'rgb(68, 138, 255)');assert.equal(ui.focusOffset,'2px');});
-  test('움직임줄이기 스위치·말풍선 전환 중단',()=>{assert.equal(ui.tipTransition,'0s');assert.equal(ui.switchTransition,'0s');});
+  test('움직임줄이기 스위치 전환 중단',()=>assert.equal(ui.switchTransition,'0s'));
+  test('슬라이더 말풍선 없이 위에 고정 일시 표시',()=>{assert.equal(ui.bubbles,0);assert.equal(ui.label,"'26.10.11(일) 18:00");});
   test('시간축 보조기기 이름',()=>assert.equal(ui.sliderLabel,'시간 이동'));
   const officialSheet=await page.evaluate(()=>{
    const host=document.createElement('div');host.className='rf-sheet';document.body.appendChild(host);const basisKinds=[];const sheet=RiskSheet.create(host,{close(){},hazard(){},basis:kind=>basisKinds.push(kind),retry(){},choose(){}});

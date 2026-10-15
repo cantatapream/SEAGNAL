@@ -200,12 +200,74 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 
 <!-- 검사목록:시작 — `python3 scripts/refactor/gen_rulebook.py` 가 다시 쓴다. 손으로 고치지 않는다 -->
 
-### ⓐ 게이트 0 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
+### ⓐ 게이트 62 개 — `bash scripts/refactor/verify_all.sh` 가 한 번에 돈다
 
 | 검사 이름 | 무엇을 못박나 | 자 |
 |---|---|---|
+| `V5-0` | 계기판 최신성(색인이 위키보다 낡지 않았나) | `local_server/knowledge/legal/_dashboard/loop/index_fresh.py` |
+| `V5-3` | 근거 조문 표 무결성 | `local_server/knowledge/legal/_dashboard/loop/citation_table_scan.js` |
+| `V5-4` | 정답 페이지 도달 | `local_server/knowledge/legal/_dashboard/loop/page_eval.js` · `local_server/knowledge/legal/_dashboard/loop/context_eval.js` · `local_server/knowledge/legal/_dashboard/loop/reach_eval.js` |
+| `V5-5` | 근거 조문 행 도달성 | `local_server/knowledge/legal/_dashboard/loop/reach_eval.js` |
+| `V5-6` | 근거 조문 인용 존재성 | `local_server/knowledge/legal/_dashboard/loop/cite_exists.js` |
+| `V5-7` | 골든 문항 근거 도달성 | `local_server/knowledge/legal/_dashboard/loop/golden_eval.js` |
+| `V5-8` | 조문 링크 도달성(눌러서 원문이 열리나) | `local_server/knowledge/legal/_dashboard/loop/link_ready.js` |
+| `V5-8c` | 고시 지도 최신성(다른 부처 고시를 찾을 수 있나) | `local_server/knowledge/legal/_dashboard/loop/sync_notice_index.py` |
+| `V5-23` | 본문 그림 도달성 | `local_server/knowledge/legal/_dashboard/loop/body_image_ready.js` |
+| `V5-22` | 근거 조문 표의 법령 칸 특정 | `local_server/knowledge/legal/_dashboard/loop/law_cell_named.js` |
+| `V5-18` | 꼬리표 판번호 제자리 | `local_server/knowledge/legal/_dashboard/loop/meta_schema_gate.js` |
+| `V5-19` | 교훈 번호 겹침 | `local_server/knowledge/legal/_dashboard/loop/lesson_no_gate.js` |
+| `V5-24` | 「사람이 봐야 한다」 표시 | `local_server/knowledge/legal/_dashboard/loop/admrul_review_gate.js` |
+| `V5-25` | 74법 목록 밖 기준법급 부령 | `local_server/knowledge/legal/_dashboard/loop/tier1_outside_gate.js` |
+| `V5-26` | §8-B 줄번호 인용 | `local_server/knowledge/legal/_dashboard/loop/line_cite_gate.js` |
+| `V5-27` | §5-D ⓕ 각 호 개수 | `local_server/knowledge/legal/_dashboard/loop/ho_count_gate.js` |
+| `V5-28` | 목차 링크 도달성 | `local_server/knowledge/legal/_dashboard/loop/index_links_gate.js` |
+| `V5-29` | 감사 교차오염 | `local_server/knowledge/legal/_dashboard/loop/audit_crosstalk_gate.js` |
+| `V5-30` | 검수 대기 수 일치 | `local_server/knowledge/legal/_dashboard/loop/review_count_agree_gate.js` |
+| `V5-31` | 조문 머리줄 없는 원문 | `local_server/knowledge/legal/_dashboard/loop/article_head_missing_gate.js` |
+| `V5-32` | 계층 별표 도달성 | `local_server/knowledge/legal/_dashboard/loop/byl_tier_ready.js` |
+| `V5-33` | 원문 수정의 되돌리기 기록 | `local_server/knowledge/legal/_dashboard/loop/raw_touch_guard.js` |
+| `V5-34` | 기준법·타법 이중 폴더 | `local_server/knowledge/legal/_dashboard/loop/dup_law_folder_gate.js` |
+| `V5-35` | 위키 표준 절 | `local_server/knowledge/legal/_dashboard/loop/section_ready.js` |
+| `V5-36` | 발췌 범위가 사실인가 | `local_server/knowledge/legal/_dashboard/loop/article_range_gate.js` |
+| `V5-37` | 머리말이 본문을 잘라먹지 않나 | `local_server/knowledge/legal/_dashboard/loop/head_prose_gate.js` |
+| `V5-38` | 마무리 정직문구 | `local_server/knowledge/legal/_dashboard/loop/honest_phrase_gate.js` |
+| `V5-39` | 별표 파일의 속 | `local_server/knowledge/legal/_dashboard/loop/byl_body_census.js` |
+| `V5-40` | 별표 항목수 대조 | `local_server/knowledge/legal/_dashboard/loop/annex_rowcount_gate.js` |
+| `V5-41` | 「실측」 칸 | `local_server/knowledge/legal/_dashboard/loop/meta_measured_gate.js` |
+| `V5-42` | 별표 줄의 임자 | `local_server/knowledge/legal/_dashboard/loop/annex_row_coverage.js` |
+| `V5-52` | EXACT 숫자 중 어디에도 없는 것 | `local_server/knowledge/legal/_dashboard/loop/exact_claim_numbers.py` |
+| `V5-53` | 옛 판에 「현행 아님」 경고 | `local_server/knowledge/legal/_dashboard/loop/gupan_notice.py` |
+| `V5-54` | raw 원문의 깨진 글자 | `local_server/knowledge/legal/_dashboard/loop/broken_char_gate.js` |
+| `V5-56` | 그림 판독문이 모델 근거로 새지 않나 | `local_server/knowledge/legal/_dashboard/loop/ocr_block_end.py` · `local_server/knowledge/legal/_dashboard/loop/picture_wiki_lines.py` |
+| `V5-55` | 「원문 그대로」 선언과 실제 글 | `local_server/knowledge/legal/_dashboard/loop/verbatim_coverage.js` |
+| `V5-43` | 인용 없는 EXACT 주장 | `local_server/knowledge/legal/_dashboard/loop/exact_claim_recheck.py` |
+| `V5-46` | 본문이 가리키는데 없는 별표 | `local_server/knowledge/legal/_dashboard/loop/byl_ref_gap.py` · `loop_tool_census.js` |
+| `V5-45` | 안 짚히는 자 | `local_server/knowledge/legal/_dashboard/loop/loop_tool_census.js` |
+| `V5-44` | 진행판 = 실측 | `local_server/knowledge/legal/_dashboard/loop/worklist_progress.py` |
+| `V5-50` | 3-6 으로 채운 51자리 = 원문 | `local_server/knowledge/legal/_dashboard/loop/section_fill_3_6.py` |
+| `V5-51` | 3-22 증명이 「아니오」를 말할 수 있나 | `local_server/knowledge/legal/_dashboard/loop/coastal_ordin_collect.py` |
+| `V5-49` | [미확인] 없이 나가는 REVIEW 줄 | `local_server/knowledge/legal/_dashboard/loop/unverified_leak_gate.js` |
+| `V5-48` | 모델이 받는 근거자료 크기 | `local_server/knowledge/legal/_dashboard/loop/context_size.js` · `scripts/refactor/gen_rulebook.py` |
+| `V5-47` | 규칙집 검사 목록 최신성 | `scripts/refactor/gen_rulebook.py` |
+| `V5-20` | 표가 열 단위로 펼쳐진 자리 | `local_server/knowledge/legal/_dashboard/loop/col_split_scan.js` |
+| `V5-21b` | 법률계열 별표 도달성(줄) | `local_server/knowledge/legal/_dashboard/loop/byl_line_ready.js` |
+| `V5-21a` | 계층 무접두 별표 파일 도달성 | `local_server/knowledge/legal/_dashboard/loop/byl_bare_ready.js` |
+| `V5-11` | 별표 도달성(고시 별표를 눌러 열 수 있나) | `local_server/knowledge/legal/_dashboard/loop/annex_ready.js` |
+| `V5-8b` | 원문 덮어쓰기 신호 — 같은 폴더에 같은 ID 가 둘 | `local_server/knowledge/legal/_dashboard/loop/dup_id_check.py` |
+| `V5-8c` | 도달(품질 4축 ③) — 본문에 있는데 표에 없어 챗봇이 못 꺼내는 조문 | `local_server/knowledge/legal/_dashboard/loop/body_cite_gap.py` |
+| `V5-9` | 수집(품질 4축 ①) — 가져야 할 원문이 손에 있나 | `local_server/knowledge/legal/_dashboard/loop/collect_eval.js` |
+| `V5-10` | 연결(품질 4축 ④) — 한쪽만 걸린 링크 | `local_server/knowledge/legal/_dashboard/loop/link_sym.js` |
+| `V5-2` | 위키 링크 무결성 | `_dashboard/loop/xref_check.py` · `local_server/knowledge/legal/_dashboard/loop/lint_stage_markers.py` |
+| `V5-13` | 승급 요건(§5-D) — 이번에 canonical 로 올린 쪽만 본다 | `local_server/knowledge/legal/_dashboard/loop/promote_guard.js` |
+| `V5-57` | 고친 canonical 을 다른 눈이 읽었나 | `local_server/knowledge/legal/_dashboard/loop/reread_guard.js` |
+| `V5-14` | 아직 오지 않은 시행일 | `local_server/knowledge/legal/_dashboard/loop/future_date_guard.py` |
+| `V5-15` | 같은 고시 사본끼리 판이 맞나 | `local_server/knowledge/legal/_dashboard/loop/admrul_copy_sync.py` |
+| `V5-16` | 「다음 각 목/각 호」라 해 놓고 그 글이 없는 자리 | `local_server/knowledge/legal/_dashboard/loop/mok_promise_guard.py` |
+| `V5-17` | 파일에는 있는데 챗봇이 못 읽는 조문 | `local_server/knowledge/legal/_dashboard/loop/unreachable_article_guard.py` |
+| — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
+| `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 92 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 93 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -301,6 +363,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_marine_ui` | 실제 Chromium에서 해상 종합·선종·사고 이력·시각 버튼·시각 독립·실패 복구·모바일 렌더링·HTML 보호를 검사한다. |
 | `test_risk_basemap` | 위험예측을 켜면 배경이 위성지도로 바뀌고, 끄거나 없애면 켜기 전 배경으로 돌아오는지(과제12)와 |
 | `test_risk_main_time` | 연안·해상 공통 메인 시각(하단 날짜·시각 버튼)을 실제 Chromium에서 검사한다. |
+| `test_risk_sheet_ui` | 휴대폰 크기 Chromium에서 위험예측 바텀시트의 하단 탭 가림 방지·고정 머리/스크롤 본문·즉시 스켈레톤과 늦은 응답 보호·고정 일시 표시·위험구역 아코디언과 보이는 지도 중앙 이동을 검사한다. |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

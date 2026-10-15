@@ -144,3 +144,26 @@ bash scripts/refactor/verify_all.sh
 - `marineTime()`: 바는 연안 또는 해상이 켜져 있을 때 보인다(둘 다 OFF면 숨김). 해상 전용 `[data-marine-tools]`는 해상 ON일 때만 보인다. `body.rf-sea-time-on` 클래스 이름은 CSS 호환을 위해 그대로다.
 - `refreshMarine()`: 시각이 해상 목록의 끝보다 뒤(연안만 제공되는 모레 구간)면 해상 프레임을 요청하지 않고 지도를 비운 뒤 `seaOutOfRange()`로 해상 범례 제목을 「해상 예보 범위 밖 (내일까지)」로 바꾸고 색 막대를 숨긴다(배너는 과제16으로 꺼져 있음). 다음 정상 프레임의 `marineLegend`가 되돌린다. 연안은 정상 표시한다.
 - 시트 시각은 그대로 `selected.at`이며 메인 `t`와 섞이지 않는다. 시트는 열릴 때 가장 가까운 칸으로 메인 `t`를 한 번 받는다. 해상 시트를 열 때 메인 `t`가 해상 범위 밖이면 해상 마지막 칸으로 시작한다.
+
+## 시트 위치와 스크롤 구조 — 과제5·7
+
+- `.rf-sheet`는 `position:fixed; bottom:var(--rf-chrome)`이며 `--rf-chrome`은 `--ls-bottom-chrome`(없으면 `--main-tab-height`, 그것도 없으면 68px)이다. 최대 높이는 (화면 높이 − 하단 탭류) × 66%다.
+- 새 시트 내용을 만들 때는 `.rf-body` 안에만 넣는다. 머리(`.rf-sheet-head`)에는 제목·부제·`.rf-timeline`만 둔다. 시트 자체에 `overflow:auto`를 주면 닫기 버튼이 스크롤과 함께 사라진다.
+- 검사: `node local_server/scripts/test_risk_sheet_ui.js` (Chromium 필요: `PW_CHROME` 환경변수).
+
+## 시트 고정 일시 — 과제8
+
+- `RiskSlider.mount(el,times,selected,change)`가 `.rf-time-label`(output)을 슬라이더 위에 만든다. 선택 시각이 새 시간축에 없으면 손잡이는 처음 칸이지만 표시는 `selected`(상세가 실제 보여 주는 시각)를 따른다.
+- 말풍선 표시/숨김 타이머와 위치 계산은 없다. 키보드·터치 모두 `input` 이벤트로 표시를 갱신하고 `aria-valuetext`에 같은 문구를 둔다.
+
+## 즉시 열기·스켈레톤 규칙 — 과제6
+
+- `RiskSheet.create(...).loading(hint)`가 시트를 열고 본문을 회색 틀로 채운다(`aria-busy`). `show`·`error`·`choose`·`clear`가 해제한다. 새 시트 종류를 추가해도 응답 처리 쪽에서 반드시 이 넷 중 하나로 끝나야 한다.
+- 호출 위치는 `RiskForecast.select`(지점 선택)와 `sliderChanged`(시트 시각 변경)뿐이다. `refresh`·60초 갱신에서 부르지 않는다(읽는 도중 내용이 깜빡이지 않게).
+- 늦은 응답 보호는 `detail()`의 `n!==detailSeq || selected!==s || (s.at||t)!==at` 검사다. 이를 약화하지 않는다.
+
+## 지도 이동 여백 — 과제10
+
+- `RiskForecast.visiblePadding()`이 [위 30, 오른쪽 40, 아래 (지도 아래 − 시트 윗변) + 30, 왼쪽 40]px를 돌려준다. 지도에 `fit`할 때 이 값을 `padding`으로 쓰면 대상이 시트 위 남은 영역의 정확히 가운데에 온다. 시트가 닫혀 있으면 아래 여백은 30px다.
+- 이동 직전에 계산한다(`marinePoint`는 시트가 회색 틀로 바뀌기 전의 높이). 시트 높이는 서브탭 열림 여부에 따라 달라지므로 고정 비율(예전 50%·60%)을 쓰지 않는다.
+- 위험구역 이동 뒤 `RiskSheet.markZone(id)`가 목록 표시를 맞춘다.

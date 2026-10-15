@@ -30,7 +30,7 @@
     function mount(options) {
         var map=options.map,api=w.RiskAPI.create(),enabled=options.enabled!==false,state={coast:true,sea:false},meta=null,t=null,selected=null,choosing=false,seq=0,detailSeq=0,table={coast:{spots:[]},sea:{cells:[]},accident:{cells:[]},traffic:{cells:[]}},oldBase=null,baseWarn='',bannerText='',disposed=false,boundariesLoaded=false,syncPending=null,accidentFresh=false,marineMode='risk',coastVersion=null,boundaryPending=null;
         var legend=options.legendEl,sheetEl=options.sheetEl,banner=options.bannerEl;
-        var layer=w.RiskMapLayer.create(map,select),sheet=w.RiskSheet.create(sheetEl,{close:clearSelection,hazard:hazard,basis:w.RiskBasis.open,choose:select,marinePoint:function(lon,lat){select('marine','point',{lon:lon,lat:lat});var xy=ol.proj.fromLonLat([lon,lat]);map.getView().fit([xy[0]-50,xy[1]-50,xy[0]+50,xy[1]+50],{padding:[55,30,Math.round(map.getSize()[1]*.6),30],maxZoom:14,duration:250});},retry:function(){api.clear();refresh();}});
+        var layer=w.RiskMapLayer.create(map,select),sheet=w.RiskSheet.create(sheetEl,{close:clearSelection,hazard:hazard,basis:w.RiskBasis.open,choose:select,marinePoint:function(lon,lat){var pad=visiblePadding();select('marine','point',{lon:lon,lat:lat});var xy=ol.proj.fromLonLat([lon,lat]);map.getView().fit([xy[0]-50,xy[1]-50,xy[0]+50,xy[1]+50],{padding:pad,maxZoom:14,duration:250});},retry:function(){api.clear();refresh();}});
         legend.innerHTML='<div class="banzone-legend" role="group" aria-label="위험예측 보기"><button type="button" class="bzl-row on" data-layer="coast" aria-pressed="true"><span class="bzl-name">연안 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button><button type="button" class="bzl-row" data-layer="sea" aria-pressed="false"><span class="bzl-name">해상 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button></div><div class="rf-map-legend" hidden><div class="rf-accident-key" data-sea-legend hidden>점·점선 = 공단 선박 혼잡 (실제 선박 위치·척수 아님) <span><i style="border:2px dashed #b8c5da;background:transparent"></i>낮음</span> · <span><i style="border:2px dashed #74b9ff;background:transparent"></i>보통</span> · <span><i style="border:2px dashed #d47cff;background:transparent"></i>높음</span> · <span><i style="border:2px dashed #ff5fe3;background:transparent"></i>매우높음</span></div><div class="rf-accident-key" data-accident-legend hidden>면 = 공단 선박 사고예보 <span><i style="background:#2fb36b"></i>낮음</span> · <span><i style="background:#f2c230"></i>보통</span> · <span><i style="background:#fb923c"></i>주의</span> · <span><i style="background:#e0322c"></i>경계</span></div></div>';
         if(w.RiskMarine){legend.classList.add('rf-marine-compact');legend.querySelector('.rf-map-legend').innerHTML='<div data-sea-legend hidden><strong class="rf-marine-caption" data-marine-caption>현재 종합 관심단계</strong><div data-accident-legend hidden class="rf-mini-key"></div></div>';}
         if(w.RiskMarine){
@@ -121,9 +121,23 @@
             if(Array.isArray(id)){var choices=table.coast.spots.filter(function(p){return id.includes(p.id);});clearSelection();choosing=true;sheet.choose(choices);registerSheet();return;}
             var item=kind==='marine'?{id:id,lon:location&&location.lon,lat:location&&location.lat}:kind==='briefing'?{id:id}:(kind==='coast'?table.coast.spots:table[kind].cells).find(function(p){return p.id===id;});if(!item)return;
             if(!selected||selected.id!==id||selected.kind!==kind)layer.setSelection(kind==='briefing'?null:kind,id);
-            choosing=false;selected={kind:kind,id:id,item:item,at:t,location:seaKind(kind)==='sea'&&location&&Number.isFinite(location.lon)&&Number.isFinite(location.lat)?{lon:location.lon,lat:location.lat}:null};if(meta){selected.at=nearest(selectionTimes(kind),t||meta.now);w.RiskSlider.mount(sheet.timelineEl,selectionTimes(kind),selected.at,function(value){if(selected){selected.at=value;detail();}});}detail();
+            choosing=false;selected={kind:kind,id:id,item:item,at:t,location:seaKind(kind)==='sea'&&location&&Number.isFinite(location.lon)&&Number.isFinite(location.lat)?{lon:location.lon,lat:location.lat}:null};
+            // 누르는 즉시 시트를 열고 회색 틀을 보인다. 이전 지점의 제목은 남기지 않고 이 지점의 이름(연안만 알고 있음)만 쓴다.
+            sheet.loading({title:kind==='coast'&&typeof item.name==='string'?item.name:'',subtitle:''});registerSheet();
+            if(meta){selected.at=nearest(selectionTimes(kind),t||meta.now);w.RiskSlider.mount(sheet.timelineEl,selectionTimes(kind),selected.at,sliderChanged);}detail();
         }
-        async function hazard(id){var snapshot=selected;try{var fc=await api.get('hazard-zones',{ids:id});if(enabled&&selected===snapshot&&selected&&state.coast)layer.showHazards(fc);}catch(e){console.warn('[위험예측] 위험구역 요청 실패',failureInfo(e));if(enabled&&!disposed&&selected===snapshot)message('위험구역 자료를 불러오지 못했습니다 — '+e.message);}}
+        /** 시트 시각 조작 값을 받아 그 시각의 상세를 다시 요청한다. 예: 18시로 옮기면 회색 틀 뒤 18시 상세.
+         * @param {string} value - 선택 ISO 시각 @returns {void}
+         * [연계] ← RiskSlider.mount / 메인 t는 바꾸지 않는다(시간 격리); 늦게 온 이전 시각 응답은 detail()의 세대·시각 검사가 버린다.
+         */
+        function sliderChanged(value){if(selected){selected.at=value;sheet.loading();detail();}}
+        /** 시트가 가린 아래쪽을 뺀 지도 영역의 가운데로 이동하기 위한 fit 여백을 구한다.
+         * 예: 지도 0~915px, 시트 윗변 340px → [30,40,605,40] (남은 0~340px의 가운데로)
+         * @returns {number[]} [위,오른쪽,아래,왼쪽] px
+         * [연계] ← hazard·marinePoint / 연안 위험구역과 해상 관할 해역 이동이 같은 계산을 써서 선택 동작이 어긋나지 않는다.
+         */
+        function visiblePadding(){var pad=[30,40,30,40];try{var size=map.getSize(),el=map.getTargetElement();if(size&&el&&sheetEl.classList&&sheetEl.classList.contains('open')){var m=el.getBoundingClientRect(),s=sheetEl.getBoundingClientRect(),cover=Math.max(0,m.bottom-s.top);pad[2]=Math.min(cover,Math.max(0,size[1]-pad[0]-60))+30;}}catch(e){}return pad;}
+        async function hazard(id){var snapshot=selected;try{var fc=await api.get('hazard-zones',{ids:id});if(enabled&&selected===snapshot&&selected&&state.coast){layer.showHazards(fc,visiblePadding());sheet.markZone(id);}}catch(e){console.warn('[위험예측] 위험구역 요청 실패',failureInfo(e));if(enabled&&!disposed&&selected===snapshot)message('위험구역 자료를 불러오지 못했습니다 — '+e.message);}}
         async function detail(){
             if(!selected||!enabled)return;var n=++detailSeq,s=selected,at=s.at||t;
             try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;}var d=await api.get(s.kind==='briefing'?'sea/briefing':w.RiskMarine&&seaKind(s.kind)==='sea'?'sea/analysis':s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||(s.at||t)!==at)return;sheet.show(d,s.kind,s.item);registerSheet();}
@@ -232,7 +246,7 @@
                     if(!w.RiskMarine&&!boundariesLoaded){await layer.boundaries(api);boundariesLoaded=true;}
                     if(w.RiskMarine&&!boundariesLoaded&&!boundaryPending){boundaryPending=layer.boundaries(api).then(function(){boundariesLoaded=true;}).catch(function(e){console.warn('[위험예측] 부가 경계 요청 실패',failureInfo(e));}).finally(function(){boundaryPending=null;});}
                     if(!enabled||disposed)return;
-                    if(selected)w.RiskSlider.mount(sheet.timelineEl,selectionTimes(selected.kind),selected.at||t,function(value){if(selected){selected.at=value;detail();}});
+                    if(selected)w.RiskSlider.mount(sheet.timelineEl,selectionTimes(selected.kind),selected.at||t,sliderChanged);
                     await refresh();
                 }catch(e){console.warn('[위험예측] 자료 갱신 실패',failureInfo(e));if(enabled&&!disposed)message('위험예측 갱신 실패 — '+e.message);}
                 finally{syncPending=null;}

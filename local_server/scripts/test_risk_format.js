@@ -18,6 +18,8 @@ for(let i=0;i<=100;i++)test('상자 명암 '+i,()=>{const bg=F.col(i*.03),fg=F.i
 test('좌표 초 carry',()=>assert.equal(F.dms(35+59/60+59.9/3600,true),'36°00′00″N'));
 test('좌표 음수',()=>assert.equal(F.dms(-129.5,false),'129°30′00″W'));
 test('KST 날짜',()=>assert.equal(F.time('2026-10-09T15:42:00Z'),"'26. 10. 10.(토) 00:42"));
+test('시트 고정 일시는 「\'26.mm.dd(요일) HH:mm」 두 자리·KST',()=>{assert.equal(F.stamp('2026-10-14T15:00:00+09:00'),"'26.10.14(수) 15:00");assert.equal(F.stamp('2026-01-02T00:05:00+09:00'),"'26.01.02(금) 00:05");assert.equal(F.stamp('2026-10-09T15:42:00Z'),"'26.10.10(토) 00:42");});
+test('시트 고정 일시는 잘못된 시각에 빈 문자열',()=>{assert.equal(F.stamp(''),'');assert.equal(F.stamp('나쁜값'),'');assert.equal(F.stamp(undefined),'');});
 test('16방위',()=>assert.equal(F.direction(45),'북동'));
 test('HTML 보호',()=>assert.equal(F.escape('<img onerror="x">'), '&lt;img onerror=&quot;x&quot;&gt;'));
 test('javascript 링크 거부',()=>assert.equal(F.safeURL('javascript:alert(1)'),''));

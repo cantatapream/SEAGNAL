@@ -3,15 +3,25 @@
 body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn { display:flex !important; order:0; }
 #ocean-risk-forecast-toggle-btn .ocean-overlay-label { font-size:.6rem !important; white-space:nowrap; }
 #ocean-risk-forecast-toggle-btn .ocean-overlay-label::before,#ocean-risk-forecast-toggle-btn .ocean-overlay-label::after { content:none !important; }
-.rf-sheet { position:absolute; z-index:450; bottom:0; left:0; right:0; max-height:66%; overflow-y:auto; display:none; background:linear-gradient(180deg,#0c1a3a,#162d5a); border-radius:20px 20px 0 0; padding:10px 16px 18px; color:#e6edf8; font-size:.84rem; line-height:1.55; word-break:keep-all; overflow-wrap:break-word; box-shadow:0 -4px 25px #0007; }
-.rf-sheet.open { display:block; }
+/* 시트는 화면(viewport) 기준으로 하단 메인탭(+열린 서브탭) 바로 위에 놓는다.
+   --ls-bottom-chrome = 메인탭 + (열려 있으면) 서브탭 높이이며 index2.html이 body.ls-mode.ls-safety에 정의한다.
+   --main-tab-height는 탭 offsetHeight 실측값이라 아이폰 아래 여백(safe-area)이 이미 들어 있어 env()를 또 더하지 않는다.
+   지도 박스 기준 absolute bottom은 서브탭이 닫히면 화면 끝까지 늘어나 시트 하단이 탭 아래로 가려졌다. */
+.rf-sheet { --rf-chrome:var(--ls-bottom-chrome,var(--main-tab-height,68px)); position:fixed; z-index:450; bottom:var(--rf-chrome); left:0; right:0; max-height:calc((100vh - var(--rf-chrome)) * .66); overflow:hidden; display:none; flex-direction:column; background:linear-gradient(180deg,#0c1a3a,#162d5a); border-radius:20px 20px 0 0; color:#e6edf8; font-size:.84rem; line-height:1.55; word-break:keep-all; overflow-wrap:break-word; box-shadow:0 -4px 25px #0007; }
+@supports (height:100dvh) { .rf-sheet { max-height:calc((100dvh - var(--rf-chrome)) * .66); } }
+.rf-sheet.open { display:flex; }
+/* 고정 머리: 손잡이·닫기·제목·시각 조작. 스크롤은 .rf-body 안에서만 일어난다. */
+.rf-sheet-head { flex:none; position:relative; padding:10px 16px 0; }
+.rf-body { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:0 16px 18px; }
 .rf-sheet [hidden],.rf-legend [hidden] { display:none !important; }
 .rf-sheet button,.rf-basis button,.rf-legend button { min-height:24px; min-width:24px; }
 .rf-sheet-handle { width:40px; height:4px; border-radius:3px; background:rgba(255,255,255,.3); margin:0 auto 8px; }
 .rf-title { font-size:1.05rem; font-weight:700; margin:0 30px 2px 0; color:#e6edf8; }
 .rf-subtitle { font-size:.8rem; color:#bfcbde; }
-.rf-close { position:absolute; top:10px; right:10px; }
-.rf-timeline { position:relative; margin:30px 0 14px; }
+.rf-close { position:absolute; top:10px; right:12px; }
+.rf-timeline { position:relative; margin:8px 0 10px; }
+/* 슬라이더 위의 고정 일시 표시(과제8). 말풍선처럼 손잡이를 따라다니지 않는다. */
+.rf-time-label { display:block; min-height:1.4em; margin:0 0 2px; text-align:center; font-size:.9rem; font-weight:700; font-variant-numeric:tabular-nums; color:#e6edf8; }
 .rf-timeline .ocean-sheet-slider-wrap { position:relative; width:100%; }
 .rf-timeline .ocean-sheet-slider { min-height:24px; min-width:24px; }
 .rf-divider-track { position:absolute; inset:8px 8px; pointer-events:none; }
@@ -38,12 +48,14 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-notice { background:rgba(255,143,31,.14); border-color:rgba(255,143,31,.35); }
 .rf-kinds { margin-top:10px; }
 .rf-kinds>div { display:flex; justify-content:space-between; gap:8px; }
-.rf-hazards summary { cursor:pointer; min-height:24px; color:#cfe0ff; font-size:.74rem; list-style:none; margin-top:5px; }
+.rf-hazards summary { display:flex; justify-content:space-between; align-items:center; gap:8px; min-height:40px; margin-top:8px; padding:6px 12px; border:1px solid #ffffff40; border-radius:10px; background:#ffffff12; color:#e6edf8; font-size:.8rem; font-weight:700; cursor:pointer; list-style:none; }
 .rf-hazards summary::-webkit-details-marker { display:none; }
-.rf-hazards summary::before { content:'▸ '; } .rf-hazards[open] summary::before { content:'▾ '; }
+.rf-hazards summary::after { content:'▾'; transition:transform .15s; } .rf-hazards[open] summary::after { transform:rotate(180deg); }
 .rf-hazards ol { padding-left:18px; }
-.rf-hazards li { margin:6px 0; }
-.rf-hazard-link { background:none; border:0; padding:0; text-decoration:underline; font:inherit; text-align:left; cursor:pointer; }
+.rf-hazards li { margin:6px 0; padding:4px 6px; border-radius:8px; }
+.rf-hazards li.is-selected { background:#ffd7401f; box-shadow:inset 3px 0 0 #ffd740; }
+.rf-hazard-link { background:none; border:0; padding:4px 0; min-height:32px; text-decoration:underline; font:inherit; text-align:left; cursor:pointer; }
+.rf-hazard-link[aria-pressed="true"] { color:#ffd740; font-weight:700; }
 .rf-legend { display:flex; flex-direction:column; gap:5px; }
 .rf-legend[hidden],.rf-banner[hidden] { display:none !important; }
 .rf-legend .bzl-row { min-height:24px; min-width:24px; }
@@ -127,3 +139,11 @@ body.rf-sea-time-on.ls-mudflat-on .rf-color-legend{bottom:calc(var(--rf-bottom-c
 .rf-mode-badge[hidden],[data-marine-tools][hidden]{display:none}
 /* 하단의 법률/AI 진입 버튼도 새 시간바·축척을 덮지 않도록 함께 올린다. */
 body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 44px)}
+
+/* 응답 전 로딩 스켈레톤(과제6): 내용 자리를 회색 틀로 먼저 보인다. 움직임 줄이기에서는 반짝임을 끈다. */
+.rf-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.rf-skeleton { padding-top:4px; }
+.rf-sk { margin-bottom:10px; border-radius:10px; background:linear-gradient(90deg,#ffffff14 25%,#ffffff2b 50%,#ffffff14 75%); background-size:200% 100%; animation:rf-sk-shimmer 1.2s linear infinite; }
+.rf-sk-score { height:96px; } .rf-sk-line { height:14px; width:80%; } .rf-sk-short { width:55%; } .rf-sk-row { height:46px; }
+@keyframes rf-sk-shimmer { to { background-position:-200% 0; } }
+@media (prefers-reduced-motion:reduce) { .rf-sk { animation:none; } }
