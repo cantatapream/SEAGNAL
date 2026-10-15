@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 120개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 121개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -28,6 +28,7 @@ SEAGNAL(바다날씨)은 해양 기상특보·해양종합정보·해양생활·
 client/js/
 ├── admin/  ← ⚡ 관리자 센터
 │   ├── admin_collect.js
+│   ├── admin_data_status.js
 │   ├── admin_location_status.js
 │   ├── admin_report.js
 │   ├── admin_survey.js
@@ -202,6 +203,7 @@ client/js/
 |------|------|
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
+| `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
 | `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시 |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |

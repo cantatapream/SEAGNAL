@@ -4,7 +4,7 @@
  * 역할: 통합 관리자 시스템 (인증, 대시보드, 특보 관리)
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : admin_collect.js·admin_survey.js·admin_report.js·advisory_manage_admin.js·admin_location_status.js (각 탭 렌더러), push/alert_push.js(특보 알림 모달), admin/pagination_helper.js
+ *  - 사용하는 파일 : admin_collect.js·admin_survey.js·admin_report.js·advisory_manage_admin.js·admin_location_status.js·admin_data_status.js (각 탭 렌더러), push/alert_push.js(특보 알림 모달), admin/pagination_helper.js
  *  - 서버 API      : /api/admin/login·manual-alert(-release)·maintenance*·work-mode·device-status·weather-alerts-json 등 /api/admin/* 다수, /api/assistant/ask, /api/stats/*, /api/push-*
  *  - 마크업        : index2.html 관리자 센터 모달 (#admin-modal, #alert-admin-inner-content, #ait-* 등)
  *  - 나를 쓰는 곳  : admin_trigger.js·notice/board/promo.js(showUnifiedLoginModal 트리거), core/backbutton.js
@@ -697,7 +697,9 @@ window.SeagnalDebug = window.SeagnalDebug || (function () {
     };
 })();
 
-// AI 탭 호스트 — [AI 비서] / [테스트] 두 하위탭. 시연 탭과 동일한 하위탭 패턴.
+// AI 탭 호스트 — [AI 비서] / [테스트] / [AI 챗봇] 하위탭. 시연 탭과 동일한 하위탭 패턴.
+//   「AI 사고예측(오류현황)」은 2026-10-15 사용자 결정으로 점검 → 데이터 수집현황 아래로 옮겼다
+//   (원문 「빠져서 점검 탭 아래로 가는게 맞음」) — renderDataCollectionTab(admin_data_status.js).
 async function renderUnifiedAiTab(container) {
     var saved = 'assistant';
     try { saved = localStorage.getItem('seagnal_ai_subtab') || 'assistant'; } catch (e) { /* noop */ }
@@ -709,10 +711,10 @@ async function renderUnifiedAiTab(container) {
     container.innerHTML =
         '<div id="ai-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('forecast', 'AI 사고예측') + mkTabBtn('chatbot', 'AI 챗봇')
+        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('chatbot', 'AI 챗봇')
         + '</div>'
         + '<div id="ai-subtab-body"></div>';
-    switchAiSubTab(['test', 'forecast', 'chatbot'].includes(saved) ? saved : 'assistant');
+    switchAiSubTab(['test', 'chatbot'].includes(saved) ? saved : 'assistant');
 }
 
 window.switchAiSubTab = function (which) {
@@ -730,7 +732,6 @@ window.switchAiSubTab = function (which) {
     var _m = document.getElementById('unified-admin-modal');
     if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
     if (which === 'test') renderAiTestSubtab(sub);
-    else if (which === 'forecast') renderAiForecastSubtab(sub);
     else if (which === 'chatbot') {
         // [AI 챗봇] 나리야 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)
         if (window.NariyaChat && window.NariyaChat.renderAdminInto) window.NariyaChat.renderAdminInto(sub);
@@ -739,14 +740,18 @@ window.switchAiSubTab = function (which) {
     else renderAiAssistantSubtab(sub);
 };
 
-/** 관리자 AI 사고예측에서 서버의 현재 상태와 유한 오류 이력을 조회한다.
- * 예: AI → AI 사고예측 → 오류현황. 원천·상태 필터는 서버가 현재 상태와 이력 둘 다에 건다.
- * 모양은 같은 AI 탭의 다른 하위탭(AI 비서·서버 로그)과 같은 어두운 카드·배지·버튼 꼴을 따른다.
- * @param {HTMLElement} container @returns {void}
- * [연계] 기존 관리자 fetch 토큰 래퍼 → /api/admin/risk-forecast/errors (routes/risk_errors.js →
- *        services/risk_error_history.list) · 검사 test_risk_errors_ui / test_risk_errors_filter_ui
+/** 위험예측 자료 원천의 현재 상태와 유한 오류 이력을 조회한다(오류현황).
+ * 예: 점검 → 데이터 수집현황 → 「현재 원천 상태」(view:'current') · 「오류·복구 이력」(view:'history').
+ *     view 를 안 주면 두 구역을 함께 그린다(종전 AI → AI 사고예측 화면과 같음 — 검사가 이 꼴을 본다).
+ *     원천·상태 필터는 서버가 현재 상태와 이력 둘 다에 건다.
+ * 모양은 관리자 화면의 다른 하위탭(AI 비서·서버 로그)과 같은 어두운 카드·배지·버튼 꼴을 따른다.
+ * @param {HTMLElement} container @param {{view?:'current'|'history'}} [opts] @returns {void}
+ * [연계] ← admin_data_status.js renderDataCollectionTab(점검 탭, 2026-10-15 이전 위치는 AI 탭)
+ *        → 기존 관리자 fetch 토큰 래퍼 → /api/admin/risk-forecast/errors (routes/risk_errors.js →
+ *        services/risk_error_history.list) · 검사 test_risk_errors_ui / test_risk_errors_filter_ui / test_data_collection_ui
  */
-function renderAiForecastSubtab(container) {
+function renderAiForecastSubtab(container, opts) {
+    const view = opts && (opts.view === 'current' || opts.view === 'history') ? opts.view : null;
     const names = {warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측'};
     // partial(일부 실패): 자료는 저장·사용 중이지만 일부가 빠졌다 — 예: 행사 수집의 Gemini 보충검색이 일부 시도에서 실패(2026-10-15).
     const statuses = {ok:'정상',offseason:'비운영 기간',partial:'일부 실패',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
@@ -762,8 +767,12 @@ function renderAiForecastSubtab(container) {
     const options = (keys, labels) => '<option value="">전체</option>' + keys.map(k => '<option value="' + k + '">' + labels[k] + '</option>').join('');
     container.innerHTML =
         '<div>'
-        + '<div class="admin-section-title"><span><i class="fa-solid fa-triangle-exclamation" style="color:#22d3ee;"></i> 오류현황</span></div>'
-        + '<div style="color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;">자료 수집·누락·오래됨과 복구 내역입니다. 같은 문제가 반복되면 한 건으로 유지합니다. 원천·상태를 고르면 <b>현재 원천 상태</b>와 <b>오류·복구 이력</b>이 함께 걸러집니다.</div>'
+        + '<div class="admin-section-title"><span><i class="fa-solid fa-triangle-exclamation" style="color:#22d3ee;"></i> ' + (view === 'current' ? '현재 원천 상태' : view === 'history' ? '오류·복구 이력' : '오류현황') + '</span></div>'
+        + '<div style="color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;">' + (view === 'current'
+            ? '위험예측 자료 원천마다 지금 상태입니다(1분마다 확인). 원천·상태로 거를 수 있습니다.'
+            : view === 'history'
+            ? '위험예측 자료의 수집 실패·누락·오래됨과 복구 내역입니다. 같은 문제가 반복되면 한 건으로 유지합니다.'
+            : '자료 수집·누락·오래됨과 복구 내역입니다. 같은 문제가 반복되면 한 건으로 유지합니다. 원천·상태를 고르면 <b>현재 원천 상태</b>와 <b>오류·복구 이력</b>이 함께 걸러집니다.') + '</div>'
         + '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">'
         +   '<div style="flex:1 1 140px;min-width:0;"><label style="' + labelStyle + '">원천<select data-risk-source style="' + selectStyle + 'margin-top:3px;">' + options(Object.keys(names), names) + '</select></label></div>'
         +   '<div style="flex:1 1 120px;min-width:0;"><label style="' + labelStyle + '">상태<select data-risk-status style="' + selectStyle + 'margin-top:3px;">' + options(['error','partial','stale','missing','ok','offseason'], statuses) + '</select></label></div>'
@@ -808,17 +817,15 @@ function renderAiForecastSubtab(container) {
             const result = await response.json();
             if (n !== request || !host.isConnected || !container.contains(host)) return;
             const current = result.current || [], rows = result.data || [], p = result.pagination;
-            body.innerHTML =
-                '<div style="color:#64748b;font-size:0.75rem;margin-bottom:8px;">최종 상태 확인 ' + esc(at(result.observedAt)) + '</div>'
-                + '<div data-risk-current>' + section('<i class="fa-solid fa-signal"></i> 현재 원천 상태', current.length,
+            const currentHtml = '<div data-risk-current>' + section('<i class="fa-solid fa-signal"></i> 현재 원천 상태', current.length,
                     current.length ? current.map(r => card(r, badge(r.status), [
                         ['마지막 정상 수집', at(r.lastSuccess || r.updatedAt)],
                         ['최신화 확인', r.checkedAt && at(r.checkedAt)],
                         ['분류', code(r)],
                         ['상세', r.detail],
                     ], 'data-risk-card')).join('')
-                    : empty(filtered ? '조건에 맞는 원천이 없습니다.' : '아직 기록된 원천 상태가 없습니다.')) + '</div>'
-                + section('<i class="fa-solid fa-clock-rotate-left"></i> 오류·복구 이력', p.total,
+                    : empty(filtered ? '조건에 맞는 원천이 없습니다.' : '아직 기록된 원천 상태가 없습니다.')) + '</div>';
+            const historyHtml = section('<i class="fa-solid fa-clock-rotate-left"></i> 오류·복구 이력', p.total,
                     rows.length ? rows.map(r => card(r,
                         '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;white-space:nowrap;background:rgba(255,255,255,.06);color:#cbd5e1;">' + esc(phases[r.phase]) + '</span>' + badge(r.status), [
                         ['기록 시각', at(r.lastAt)],
@@ -827,7 +834,11 @@ function renderAiForecastSubtab(container) {
                         ['상세', r.detail],
                     ], 'data-risk-row')).join('')
                     : empty('기록된 이력이 없습니다.'));
+            body.innerHTML =
+                '<div style="color:#64748b;font-size:0.75rem;margin-bottom:8px;">최종 상태 확인 ' + esc(at(result.observedAt)) + '</div>'
+                + (view === 'history' ? '' : currentHtml) + (view === 'current' ? '' : historyHtml);
             page = p.page;
+            if (view === 'current') return; // 현재 상태만 보는 화면에는 이력 쪽 넘김이 없다
             pager.innerHTML = '<button type="button" data-risk-prev style="' + pageBtnStyle + (page <= 1 ? 'opacity:.4;cursor:default;' : '') + '" ' + (page <= 1 ? 'disabled' : '') + '>이전</button>'
                 + '<span>' + page + ' / ' + p.totalPages + ' · ' + p.total + '건</span>'
                 + '<button type="button" data-risk-next style="' + pageBtnStyle + (page >= p.totalPages ? 'opacity:.4;cursor:default;' : '') + '" ' + (page >= p.totalPages ? 'disabled' : '') + '>다음</button>';
@@ -4481,7 +4492,8 @@ function renderCollectTestSubTab(container) {
 }
 
 // ============================================================================
-// (G) 점검 모드 관리 탭 렌더링 (하위 탭: 점검 모드 / 운영 병행 모드)
+// (G) 점검 모드 관리 탭 렌더링 (하위 탭: 점검 모드 / 운영 병행 모드 / 서버로그 / 데이터 수집현황)
+//   데이터 수집현황(2026-10-15) — 수집 목록·현재 원천 상태·오류·복구 이력. 본체는 admin_data_status.js.
 // ============================================================================
 async function renderUnifiedMaintenanceContent(container) {
     container.innerHTML = `
@@ -4499,6 +4511,9 @@ async function renderUnifiedMaintenanceContent(container) {
             <button id="maint-subtab-log" onclick="switchMaintenanceSubTab('log')" style="flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
                 <i class="fa-solid fa-file-lines"></i> 서버로그
             </button>
+            <button id="maint-subtab-data" onclick="switchMaintenanceSubTab('data')" style="flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
+                <i class="fa-solid fa-database"></i> 데이터 수집현황
+            </button>
         </div>
         <div id="maint-subtab-body"></div>
     `;
@@ -4510,6 +4525,7 @@ window.switchMaintenanceSubTab = function (tab) {
     const fullBtn = document.getElementById('maint-subtab-full');
     const workBtn = document.getElementById('maint-subtab-work');
     const logBtn = document.getElementById('maint-subtab-log');
+    const dataBtn = document.getElementById('maint-subtab-data');
     const body = document.getElementById('maint-subtab-body');
     if (!body) return;
 
@@ -4519,6 +4535,7 @@ window.switchMaintenanceSubTab = function (tab) {
     if (fullBtn) fullBtn.style.cssText = inactiveStyle;
     if (workBtn) workBtn.style.cssText = inactiveStyle;
     if (logBtn) logBtn.style.cssText = inactiveStyle;
+    if (dataBtn) dataBtn.style.cssText = inactiveStyle;
 
     if (tab === 'full') {
         if (fullBtn) fullBtn.style.cssText = activeStyle;
@@ -4526,6 +4543,10 @@ window.switchMaintenanceSubTab = function (tab) {
     } else if (tab === 'log') {
         if (logBtn) logBtn.style.cssText = activeStyle;
         renderServerLogTab(body);
+    } else if (tab === 'data') {
+        if (dataBtn) dataBtn.style.cssText = activeStyle;
+        if (typeof window.renderDataCollectionTab === 'function') window.renderDataCollectionTab(body);
+        else body.innerHTML = '<div style="padding:20px;color:#fca5a5;">데이터 수집현황 모듈(js/admin/admin_data_status.js)이 로드되지 않았습니다.</div>';
     } else {
         if (workBtn) workBtn.style.cssText = activeStyle;
         renderMaintenanceWorkTab(body);

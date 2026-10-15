@@ -27,12 +27,17 @@ const FIELDS = new Set([
     'lastRun',
     'detail', // 실시간 교통 수집기가 남기는 실패·제외 사유 한 줄(2026-10-15)
     'failedProvinceCount', // 행사 수집에서 Gemini 보충검색이 실패한 시도 수 — 0보다 크면 오류현황 「일부 실패」(2026-10-15)
+    // 해구 예보의 판(UTC YYYYMMDDHH). 없으면 risk_store 의 「판이 24시간보다 오래되면 낡음」 규칙이 이 감시(metadataOnly)에서는
+    //   판을 못 읽어 건너뛰었다 — 공개 화면은 낡음인데 관리자 오류현황은 정상으로 보였다(2026-10-15 데이터 수집현황 작업 중 발견).
+    'baseTmUtf',
 ]);
 /** JSON을 끝까지 검사하되 각 본문 값을 즉시 버린다. 예: frames 48개도 객체로 남기지 않는다.
- * @param {string} file - JSON 또는 gzip 파일 @returns {Promise<object|null>} 실제 메타데이터, 손상은 null
- * [연계] createReader → risk_store.refresh / 원천 날짜를 파일 mtime으로 대체하지 않는다.
+ * @param {string} file - JSON 또는 gzip 파일
+ * @param {Set<string>} [fields] - 남길 최상위 칸 이름(기본 FIELDS). 예: 데이터 수집현황은 new Set(['baseTm','collectedAt'])
+ * @returns {Promise<object|null>} 실제 메타데이터, 손상은 null
+ * [연계] createReader → risk_store.refresh / data_collection_status(수집현황 기준 시각) / 원천 날짜를 파일 mtime으로 대체하지 않는다.
  */
-async function readMetadata(file) {
+async function readMetadata(file, fields = FIELDS) {
     let source, decoded;
     try {
         if (fs.statSync(file).size > 64 * 1024 * 1024) return null;
@@ -58,7 +63,7 @@ async function readMetadata(file) {
         const current = () => stack[stack.length - 1];
         const value = (v) => {
             const c = current();
-            if (stack.length === 1 && FIELDS.has(c.key)) out[c.key] = v;
+            if (stack.length === 1 && fields.has(c.key)) out[c.key] = v;
             if (stack.length === 1 && c.key === 'places') places = null;
             if (
                 stack.length === 2 &&

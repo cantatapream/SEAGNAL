@@ -90,7 +90,9 @@ async function test(name, fn) {
                 'KST',
             ])
                 assert.ok(text.includes(expected));
-            assert.ok(admin.includes("mkTabBtn('forecast', 'AI 사고예측')"));
+            // 2026-10-15: AI 탭에서 빠져 점검 → 데이터 수집현황 아래로 옮겼다(사용자 「빠져서 점검 탭 아래로 가는게 맞음」).
+            assert.ok(!admin.includes("mkTabBtn('forecast', 'AI 사고예측')"));
+            assert.ok(admin.includes("switchMaintenanceSubTab('data')"));
         });
         await test('관리자 목록 다음 페이지와 원천 필터는 실제 요청 조건 변경', async () => {
             await page.locator('[data-risk-next]').click();

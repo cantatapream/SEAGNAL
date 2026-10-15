@@ -1,6 +1,6 @@
 # 위험예측 관리자 오류현황
 
-사용자가 요청한 과제16: 일반 지도·바텀시트의 특보/해구/행사 실패·낡음·결측 공통 메시지를 숨기고 **통합 관리자 센터 → AI → AI 사고예측 → 오류현황**에 내역을 보관한다. 개별 기상값의 자료 없음과 상세 요청의 다시 시도는 유지한다. 자료 상태·점수·공식 사고지수를 정상으로 바꾸지 않는다.
+사용자가 요청한 과제16: 일반 지도·바텀시트의 특보/해구/행사 실패·낡음·결측 공통 메시지를 숨기고 **통합 관리자 센터 → 점검 → 데이터 수집현황**(2026-10-15 사용자 결정으로 종전 AI → AI 사고예측 → 오류현황에서 옮김 — 원문 「빠져서 점검 탭 아래로 가는게 맞음」)에 내역을 보관한다. 개별 기상값의 자료 없음과 상세 요청의 다시 시도는 유지한다. 자료 상태·점수·공식 사고지수를 정상으로 바꾸지 않는다.
 
 ## 파일과 흐름
 
@@ -11,7 +11,8 @@
 | `services/risk_history_sources.js` | JSON 본문 값을 즉시 버리는 메타데이터 읽기, 기존 `risk_store.sources` 신선도 규칙 재사용 |
 | `services/risk_store.js` | 화면의 기존 원본 자료 조회 유지; 내부 감시만 `readData/metadataOnly` 옵션 사용 |
 | `routes/risk_errors.js` | 기존 관리자 토큰을 검사하고 목록·필터·페이지 제공 |
-| `client/js/admin/admin.js` | AI 하위탭, KST 현재 상태/최종 감시시각/이력, 30건 페이지, 필터·새로고침 |
+| `client/js/admin/admin.js` | `renderAiForecastSubtab`: KST 현재 상태/최종 감시시각/이력, 30건 페이지, 필터·새로고침. `view:'current'|'history'` 로 한 구역만 그림 |
+| `client/js/admin/admin_data_status.js` | 점검 → 데이터 수집현황 하위 탭 셋(수집 목록·현재 원천 상태·오류·복구 이력) — 2026-10-15 |
 
 운영 `FLY_ALLOC_ID` 환경에서만 주기 감시가 시작된다. 첫 감시는 시작 1분 뒤이며 외부 API·Gemini 호출 없이 저장된 실제 자료를 읽는다. 수집 실패는 `io.status` 연결에서 즉시 기록하고, 수집이 중단되어 낡아지는 경우는 분 단위 관찰로 기록한다. 비운영 검사에서는 자동 감시나 수집을 시작하지 않는다.
 
@@ -31,6 +32,14 @@
 현재 상태 줄의 「마지막 정상 수집」은 `collectedAt`(마지막 래스터 수집 시각), 「최신화 확인」은 마지막 imgList 확인 시각(`lastCheckAt`)이다. 오류 분류는 고정값만 남긴다: 빈 응답→`empty response`, JSON 아님→`invalid response`, `imgList 503`→`HTTP 503`, 그 밖(주소가 들어간 node-fetch 네트워크 오류 등)→`network or parse error`. 원문 오류문·주소는 저장하지 않는다.
 
 한계: 연속 실패 수는 서버 메모리라 재기동하면 0으로 돌아간다. 장애 중 재기동하면 `error`→`stale`(변경 1건)로 바뀌었다가 재기동 후 세 번째 확인(약 2시간 뒤)에 다시 `error`(변경 1건)가 된다 — 정상으로 잘못 복구되지는 않는다(수집이 36시간 넘게 오래되었으면). 장애 초기 36시간 안에 재기동하면 다시 3회 실패까지 약 2시간 동안 `ok`로 보일 수 있다. 감시 시작은 다른 원천과 같이 운영(`FLY_ALLOC_ID`)에서만이다.
+
+> ⚠**정정 (2026-10-15, 데이터 수집현황 작업)** — 위 「한계」는 낡았다. 연속 실패 수(`failStreak`)·첫 실패 시각·마지막 확인 결과를 `data/vsby_check_state.json` 에 확인할 때마다 남기고 기동(`init`) 때 되읽는다(`vsby_smallzone._saveCheckState/_loadCheckState`). `data/` 는 운영 영속 볼륨(`fly.toml` `[[mounts]]`)이라 배포·재기동 뒤에도 이어 센다. 파일 형식이 어긋나면 버리고 0부터 센다. 검사: `test_vsby_imglist_check` ⑦.
+
+## 해구 예보 판 나이 — 감시 경로 수정 (2026-10-15, 데이터 수집현황 작업 중 발견)
+
+`risk_store.sources()` 는 해구 예보의 판(`baseTmUtf`)이 24시간보다 오래되면 낡음으로 본다. 그런데 이 감시가 쓰는 `risk_history_sources.readMetadata` 는 정해 둔 칸(`FIELDS`)만 남겼고 거기에 `baseTmUtf` 가 없어, **감시 경로에서는 판을 못 읽어 이 규칙을 건너뛰었다**(공개 화면은 낡음, 관리자 오류현황은 정상). `FIELDS` 에 `baseTmUtf` 를 더했다. 검사: `test_risk_history_sources` 「해구 예보: 받은 시각은 새것이어도 판이 24시간 넘게 오래되면 감시도 낡음」.
+
+또 해구 예보 수집(`scheduler.js collectZoneForecasts`)은 찾은 판이 가진 판보다 오래되면 받지도 덮어쓰지도 않고, 판 비교 결과(새 판·같은 판·오래된 판·판 없음)를 `data/zone_forecasts_status.json` 에 남긴다(`services/zone_forecast_guard.js`, 검사 `test_zone_forecast_guard`). 관리자 **점검 → 데이터 수집현황 → 수집 목록**의 해구 예보 카드 「상세」에 그 한 줄이 나온다.
 
 ## API·인증·보관
 

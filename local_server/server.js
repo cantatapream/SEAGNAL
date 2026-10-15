@@ -270,6 +270,7 @@ app.use(require('./routes/push'));
 app.use(require('./routes/push_test'));
 app.use(require('./routes/location_alert'));  // 위치기반 특보 경보 동의 기록 API (④)
 app.use(require('./routes/risk_errors'));  // 기존 관리자 토큰으로 보호된 사고예측 오류현황
+app.use(require('./routes/data_collection'));  // 관리자 점검 → 데이터 수집현황(수집 목록) — 같은 토큰 인증
 app.use(require('./routes/admin'));
 app.use(require('./routes/survey'));
 app.use(require('./routes/report'));

@@ -25,6 +25,8 @@
  * [캐시 / 영속성]
  *   메모리 상주 + data/vsby_smallzone.json.gz(gzip). 부팅 시 로드, 런 동일하면
  *   재수집 생략(재부팅·머지 안전).
+ *   imgList 확인 결과(연속 실패 수 failStreak 등)는 data/vsby_check_state.json 에 남겨
+ *   재기동 뒤에도 이어 센다(2026-10-15).
  * ============================================================================
  */
 'use strict';
@@ -362,11 +364,60 @@ async function getMajorForGraphByPoint(lat, lon) {
 // ────────────────────────────────────────────────────────────────────────────
 // 5. 공개 API
 // ────────────────────────────────────────────────────────────────────────────
-function init() { _loadCache(); }
+function init() { _loadCache(); _loadCheckState(); }
 
 // 마지막 imgList 확인 결과 — getStatus 로 노출. 확인이 계속 실패해도 캐시는 옛 런을 그대로
 //   내주므로, 이것이 없으면 「갱신이 멈췄다」가 콘솔 한 줄 말고는 어디에도 안 보였다(2026-10-15).
 let _lastCheck = { at: null, ok: null, error: null, failStreak: 0, failSince: null };
+
+// [확인 결과 영속화 — 2026-10-15 사용자 지시 ⓐ] 위 _lastCheck 는 메모리라 재기동·배포마다 연속 실패 수가 0 으로
+//   돌아갔다. 그러면 장애 중 재기동할 때마다 관리자 오류현황이 「수집 실패」에서 빠졌다가 약 2시간(3회 확인) 뒤
+//   다시 들어왔다(00_docs/operations/risk-forecast-error-history.md 「한계」). 확인할 때마다 작은 파일에 남기고
+//   init 에서 되읽는다. data/ 는 운영에서 영속 볼륨(fly.toml [[mounts]] → /app/local_server/data)이다.
+//   검사는 VSBY_CHECK_STATE_FILE 로 임시 경로를 준다(실제 data/ 를 건드리지 않게).
+const CHECK_STATE_PATH = process.env.VSBY_CHECK_STATE_FILE || path.join(DATA_DIR, 'vsby_check_state.json');
+
+/**
+ * 마지막 imgList 확인 결과를 파일에 원자적으로 쓴다. 실패해도 수집은 계속한다(콘솔 한 줄).
+ * 예: { at:'2026-10-15T12:00:00.000Z', ok:false, error:'imgList 빈 응답 …', failStreak:2, failSince:'…' }
+ * @returns {void}
+ * [연계] ← refreshIfStale(확인할 때마다) / → _loadCheckState(재기동 때 되읽음)
+ */
+function _saveCheckState() {
+    const tmp = CHECK_STATE_PATH + '.' + process.pid + '.tmp';
+    try {
+        fs.mkdirSync(path.dirname(CHECK_STATE_PATH), { recursive: true });
+        fs.writeFileSync(tmp, JSON.stringify({ v: 1, ..._lastCheck }));
+        fs.renameSync(tmp, CHECK_STATE_PATH);
+    } catch (e) {
+        try { fs.unlinkSync(tmp); } catch (_) { /* 임시 파일이 없으면 정리할 것도 없다 */ }
+        console.error('[vsby_sz] 확인 상태 저장 실패:', e.message);
+    }
+}
+
+/**
+ * 저장해 둔 확인 결과를 되읽는다. 형식이 어긋나면 버리고 처음(0회)부터 센다.
+ * 예: 파일 { failStreak:2, … } → 재기동 직후 getStatus().failStreak === 2
+ * @returns {boolean} 되읽었으면 true
+ * [연계] ← init(startAutoRefresh) / → getStatus → risk_history_sources.visibilitySource(3회 기준)
+ */
+function _loadCheckState() {
+    try {
+        if (!fs.existsSync(CHECK_STATE_PATH)) return false;
+        const o = JSON.parse(fs.readFileSync(CHECK_STATE_PATH, 'utf8'));
+        const iso = (v) => v === null || (typeof v === 'string' && Number.isFinite(Date.parse(v)));
+        if (!o || o.v !== 1 || !iso(o.at) || !iso(o.failSince) || ![true, false, null].includes(o.ok) ||
+            !(o.error === null || typeof o.error === 'string') || !Number.isInteger(o.failStreak) || o.failStreak < 0) {
+            console.error('[vsby_sz] 확인 상태 파일 형식이 맞지 않아 무시');
+            return false;
+        }
+        _lastCheck = { at: o.at, ok: o.ok, error: o.error === null ? null : o.error.slice(0, 300), failStreak: o.failStreak, failSince: o.failSince };
+        return true;
+    } catch (e) {
+        console.error('[vsby_sz] 확인 상태 읽기 실패:', e.message);
+        return false;
+    }
+}
 
 async function refreshIfStale() {
     let il;
@@ -374,9 +425,11 @@ async function refreshIfStale() {
     try { il = await fetchImgList(); } catch (e) {
         console.error('[vsby_sz] imgList 확인 실패:', e.message);
         _lastCheck = { at, ok: false, error: e.message, failStreak: _lastCheck.failStreak + 1, failSince: _lastCheck.failSince || at };
+        _saveCheckState();
         return;
     }
     _lastCheck = { at, ok: true, error: null, failStreak: 0, failSince: null };
+    _saveCheckState();
     const empty = !_cache || !Object.keys(_cache.cells || {}).length;
     if (!il.baseTm) { if (empty) console.log('[vsby_sz] baseTm 미확인 + 캐시 없음'); return; }
     if (!empty && _cache.baseTm === il.baseTm) return;   // 최신
@@ -399,7 +452,7 @@ function startAutoRefresh() {
  * lastFctTm 이 지금보다 과거면 화면에 나갈 앞날 예측이 하나도 없다는 뜻이다.
  * @returns {object}
  * [연계] → routes/vsby_smallzone.js GET /api/vsby-smallzone/status
- *        → risk_history_sources.visibilitySource (관리자 AI 사고예측 → 오류현황, 1분 감시)
+ *        → risk_history_sources.visibilitySource (관리자 점검 → 데이터 수집현황 → 현재 원천 상태, 1분 감시)
  */
 function getStatus() {
     const ft = _cache.fctTimes || [];

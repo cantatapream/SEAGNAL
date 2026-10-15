@@ -1,6 +1,6 @@
 /**
  * 역할: 관리자에게만 위험예측 오류·누락·낡음·복구 이력을 제공한다.
- * [연계] 기존 admin_auth / risk_error_history → 관리자 AI 사고예측 오류현황.
+ * [연계] 기존 admin_auth / risk_error_history → 관리자 점검 → 데이터 수집현황(현재 원천 상태·오류·복구 이력, 2026-10-15 전에는 AI → AI 사고예측).
  * [로드 순서] server.js에서 기존 admin 라우터보다 먼저 등록해 중복 인증을 피한다.
  */
 'use strict';

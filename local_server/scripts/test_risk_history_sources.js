@@ -527,6 +527,35 @@ async function check(name, fn) {
                 assert.ok(b.events.months['2026-11']);
             }
         );
+        // 2026-10-15: 감시(metadataOnly)가 baseTmUtf 를 버려 「판이 24시간보다 오래되면 낡음」을 못 봤다.
+        await check(
+            '해구 예보: 받은 시각은 새것이어도 판이 24시간 넘게 오래되면 감시도 낡음(공개 화면과 같음)',
+            async () => {
+                write(dataDir, 'zone_forecasts.json', {
+                    updatedAt: at(),
+                    baseTmUtf: '2026103000',
+                    data: { 92: [{ tm: '2026103003', wh: 2 }] },
+                });
+                const a = createStore(options).sources(true),
+                    b = await read();
+                assert.equal(a.zoneForecasts.status, 'stale');
+                assert.equal(b.zoneForecasts.status, 'stale');
+                write(dataDir, 'zone_forecasts.json', {
+                    updatedAt: at(),
+                    baseTmUtf: '2026110100',
+                    data: { 92: [{ tm: '2026110103', wh: 2 }] },
+                });
+                assert.equal((await read()).zoneForecasts.status, 'ok');
+            }
+        );
+        await check('readMetadata 는 고른 칸만 남긴다(데이터 수집현황용)', async () => {
+            const meta = await readMetadata(
+                path.join(dataDir, 'zone_forecasts.json'),
+                new Set(['baseTmUtf'])
+            );
+            assert.deepEqual(Object.keys(meta).filter((k) => !k.startsWith('_')), ['baseTmUtf']);
+            assert.equal(meta.baseTmUtf, '2026110100');
+        });
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
         console.log(`${pass} PASS / ${fail} FAIL`);
