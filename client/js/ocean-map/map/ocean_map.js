@@ -1044,6 +1044,16 @@
     window.oceanCreateVworldLayer = function (layer) { return createVworldLayer(layer); };
     window.oceanCreateVworldLayer.maxZoom = VWORLD_MAX_ZOOM;
 
+    /**
+     * [외부 API] 위성지도(브이월드) 인증키를 받아 두었는지 알려준다.
+     * 예: oceanVworldReady().then(ok => ok ? '위성지도 가능' : '키 없음')
+     * 키가 없으면 위성 타일 주소가 비어 빈 배경이 되므로, 위성지도를 기본으로 켜는
+     * 위험예측이 "빈 배경을 정상처럼" 보이지 않게 미리 알아보는 용도다.
+     * @returns {Promise<boolean>} 키를 받았으면 true, 못 받았으면 false
+     * [연계] ← risk-forecast/risk_forecast.js satelliteOn() / → fetchVworldKey()
+     */
+    window.oceanVworldReady = function () { return fetchVworldKey().then(function (k) { return !!k; }); };
+
     function bindBasemapPicker() {
         var toggleBtn = document.getElementById('ocean-basemap-toggle');
         var menu      = document.getElementById('ocean-basemap-menu');
