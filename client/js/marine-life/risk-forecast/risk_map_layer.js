@@ -114,7 +114,8 @@
             var res=view.getResolution(),groups=new Map(),overview=res>=80,showNumbers=unifiedMode==='current'&&res<80;
             for(var x=Math.floor(b[0]*4);x<=Math.floor(b[2]*4);x++)for(var y=Math.floor(b[1]*4);y<=Math.floor(b[3]*4);y++)(unifiedBins.get(x+','+y)||[]).forEach(function(c){
                 var row=unifiedRows.get(c.i);if(!row||c.lon<b[0]-.0125||c.lon>b[2]+.0125||c.lat<b[1]-.0125||c.lat>b[3]+.0125)return;
-                var colorKey=Math.round(row[3]*255),style=fillStyles.get(colorKey);if(!style){var color=w.RiskMarine.color(colorKey/255);style=new ol.style.Style({fill:new ol.style.Fill({color:rgba(color,.5)})});fillStyles.set(colorKey,style);}
+                // 위험 예측(accident)은 위험 4색, 혼잡도(지금 current=밀집도·미래 congestion=혼잡 예보)는 혼잡 4색 — 범례 막대와 같은 색(2026-10-15 조작부 시안).
+                var cong=unifiedMode==='current'||unifiedMode==='congestion',colorKey=(cong?256:0)+Math.round(row[3]*255),style=fillStyles.get(colorKey);if(!style){var color=(cong&&w.RiskMarine.congestionColor?w.RiskMarine.congestionColor:w.RiskMarine.color)((colorKey%256)/255);style=new ol.style.Style({fill:new ol.style.Fill({color:rgba(color,.5)})});fillStyles.set(colorKey,style);}
                 if(overview){
                     // 전국 보기에서는 동일 색상 다각형을 한 도형으로 묶어 수만 개 Feature를 만들지 않는다.
                     var polygon;if(c.geometry){polygon=read(c.geometry).getCoordinates();}else{var lo=ol.proj.fromLonLat([c.lon-.0125,c.lat-.0125]),hi=ol.proj.fromLonLat([c.lon+.0125,c.lat+.0125]);polygon=[[[lo[0],lo[1]],[hi[0],lo[1]],[hi[0],hi[1]],[lo[0],hi[1]],[lo[0],lo[1]]]];}

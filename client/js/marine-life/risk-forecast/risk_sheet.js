@@ -193,7 +193,7 @@
      * 닫기·위험구역 이동·기준 상세·재시도 동작을 시트에 연결한다.
      * 예: RiskSheet.create(el,handlers)
      * @param {HTMLElement} el - 시트; handlers는 close·hazard·basis·retry·choose 콜백
-     * @returns {Object} show·loading·markZone·error·choose·clear·timelineEl API
+     * @returns {Object} show·loading·markZone·error·choose·trafficHistory·clear·timelineEl API
      * [연계] RiskForecast → 상세 응답 표시
      */
     function create(el,handlers) {
@@ -220,12 +220,14 @@
          * 예: show({marine:{location:'화순항 북북서방 11.8해리 해역(232-2해구)',station:'한림파출소',office:'제주해양경찰서'}},'sea')
          *     → 부제 「제주해양경찰서 한림파출소 관할」(2026-10-15) · 연안은 「좌표 · <해양경찰서> <파출소> 관할」
          * @param {Object} d - 서버 상세(해상 analysis·연안 coast/spot·공식 사고·브리핑) @param {string} kind - sea/coast/accident/briefing
-         * @param {Object} [item] - 누른 지점(좌표 대체용) @returns {void}
+         * @param {Object} [item] - 누른 지점(좌표 대체용) @param {Object} [ctx] - 해상 본문용 {now: 서버 meta.now}(지금/미래 문구)
+         * @returns {void}
          * [연계] RiskForecast.select → 여기 / 관할 문구는 RiskFormat.stationLabel(서버 office: marine_fusion·risk_store)
+         *        해상 본문은 RiskMarine.render 로 그리고 RiskMarine.attach 로 날씨 펼침·사고 팝업·교통량 그래프 동작을 붙인다(2026-10-15 시안 8차)
          */
-        function show(d,kind,item) {
+        function show(d,kind,item,ctx) {
             el.removeAttribute('aria-busy');
-            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';el.querySelector('.rf-timeline').hidden=false;el.querySelector('.rf-body').innerHTML=d.marine?w.RiskMarine.render(d.marine):w.RiskMarine.briefing(d);el.classList.add('open');return;}
+            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';el.querySelector('.rf-timeline').hidden=false;var mb=el.querySelector('.rf-body');mb.innerHTML=d.marine?w.RiskMarine.render(d.marine,ctx):w.RiskMarine.briefing(d);el.classList.add('open');if(d.marine&&w.RiskMarine.attach)w.RiskMarine.attach(mb,d.marine,ctx);return;}
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='accident'?'선박 사고 위험예보 · 격자 '+d.gridId:kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
             el.querySelector('.rf-subtitle').textContent=kind==='accident'?'격자 중심 '+F.dms(d.lat,true)+' - '+F.dms(d.lon,false):kind==='sea'?[sub.name,sub.bearingWord||F.direction(sub.bearingDeg||0),String(Math.round(sub.bearingDeg||0)%360).padStart(3,'0')+'도',Number(sub.distNm||0).toFixed(1)+'해리'].join(' '):F.dms(sub.lat==null?item.lat:sub.lat,true)+' - '+F.dms(sub.lon==null?item.lon:sub.lon,false)+(sub.police?' · '+F.stationLabel(sub.police,sub.office):'');
@@ -248,7 +250,14 @@
         function markZone(id){el.querySelectorAll('[data-zone-id]').forEach(function(b){var on=b.dataset.zoneId===id;b.setAttribute('aria-pressed',String(on));var li=b.closest('li');if(li)li.classList.toggle('is-selected',on);});}
         function error(message){el.removeAttribute('aria-busy');el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';el.classList.add('open');}
         function choose(items){el.removeAttribute('aria-busy');el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';el.classList.add('open');}
-        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,clear:function(){el.removeAttribute('aria-busy');el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';},timelineEl:el.querySelector('.rf-timeline')};
+        /**
+         * 해상 본문의 「과거 2주간 선박교통량」 카드를 받은 이력으로 채운다. 지금 본문이 다른 칸이면 버린다.
+         * 예: trafficHistory('GR4_F4K23_P4',응답) / trafficHistory(cell,null,'error') → 「-」와 「기록을 불러오지 못했습니다.」
+         * @param {string} cell - 요청한 GR4 칸 @param {Object|null} h - sea/traffic-history 응답 @param {string} [problem] - 'error' @returns {void}
+         * [연계] RiskForecast.detail → 여기 → RiskMarine.fillTraffic
+         */
+        function trafficHistory(cell,h,problem){if(w.RiskMarine&&w.RiskMarine.fillTraffic)w.RiskMarine.fillTraffic(el.querySelector('.rf-body'),cell,h,problem);}
+        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,trafficHistory:trafficHistory,clear:function(){el.removeAttribute('aria-busy');el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';var pop=document.querySelector('.rf-acc-pop');if(pop&&!pop.hidden){pop.hidden=true;if(w.PopupStack)w.PopupStack.remove('risk-sea-accident-pop');}},timelineEl:el.querySelector('.rf-timeline')};
     }
     /**
      * 서버 자료 키를 화면에서 읽을 수 있는 이름으로 바꾼다.

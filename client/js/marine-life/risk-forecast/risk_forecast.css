@@ -130,13 +130,14 @@ body.rf-sea-time-on.ls-mudflat-on .rf-color-legend{bottom:calc(var(--rf-bottom-c
 /* 위험지형과 같은 banzone/bzl 공통 디자인과 스위치를 그대로 사용한다. */
 #ocean-risk-forecast-toggle-btn.rf-preview-locked{opacity:.4;filter:grayscale(1);cursor:default}
 .rf-marine-compact .rf-map-legend[hidden]{display:none}
-.rf-marine-options{border-top:1px solid var(--border-color,#334155);margin-top:4px;padding-top:2px}
-.rf-marine-options summary{display:flex;justify-content:space-between;align-items:center;min-height:26px;padding:2px 8px;font-size:.7rem;color:var(--text-sub,#94a3b8);cursor:pointer;list-style:none}
-.rf-marine-options summary::-webkit-details-marker{display:none}
-.rf-marine-options[open] summary>span{transform:rotate(180deg)}
-.rf-marine-options .bzl-row{width:100%}
-.rf-mode-badge{display:block;margin:3px 8px;padding:3px 6px;border:1px solid #536b8a;border-radius:5px;font-size:.65rem;color:var(--text-sub,#94a3b8);background:rgba(90,120,160,.12)}
-.rf-mode-badge[hidden],[data-marine-tools][hidden]{display:none}
+/* 해상 ON 일 때만 나오는 두 칸 단일 선택 [혼잡도][위험 예측](2026-10-15 조작부 시안). 「표시 항목」 접이식·「~ 표출 중」 뱃지는 없앴다. */
+[data-marine-tools][hidden]{display:none}
+.rf-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin:2px 4px;padding:2px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08)}
+.rf-seg button{min-height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--text-sub,#94a3b8);font:inherit;font-size:.7rem;font-weight:700;white-space:nowrap;cursor:pointer}
+.rf-seg button[aria-checked="true"]{background:var(--accent-yellow,#ffd740);color:#10151f}
+.rf-seg button:focus-visible{outline:2px solid #448aff;outline-offset:1px}
+.rf-color-legend .rf-marine-caption small{font-weight:400;color:var(--text-sub,#94a3b8);font-size:inherit}
+.rf-gradient-bar.rf-pal-cong{background:linear-gradient(to right,#b8c5da 0%,#74b9ff 33.333%,#d47cff 66.666%,#ff5fe3 100%)}
 /* 하단의 법률/AI 진입 버튼도 새 시간바·축척을 덮지 않도록 함께 올린다. */
 body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 44px)}
 
@@ -147,3 +148,89 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-sk-score { height:96px; } .rf-sk-line { height:14px; width:80%; } .rf-sk-short { width:55%; } .rf-sk-row { height:46px; }
 @keyframes rf-sk-shimmer { to { background-position:-200% 0; } }
 @media (prefers-reduced-motion:reduce) { .rf-sk { animation:none; } }
+
+/* ── 해상 지점 시트 본문(2026-10-15 시안 8차) — risk_marine.js render ── */
+.rf-card{position:relative;margin:0 0 10px;padding:12px;border:1px solid #ffffff30;border-radius:14px;background:#ffffff0d}
+.rf-card h4{margin:0 0 8px;font-size:.86rem;color:#cfe0ff}
+.rf-src{font-size:.72rem;color:#98abc7;font-weight:400;margin-left:6px}
+.rf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rf-tile{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px}
+.rf-tile small{display:block;font-size:.68rem;color:#8fb4e6;font-weight:600;white-space:nowrap}.rf-tile b{font-size:1.05rem;white-space:nowrap}.rf-tile b em{font-style:normal;font-size:.75rem;font-weight:500;color:#bfcbde;margin-left:2px}
+.rf-hero{padding:4px 12px}
+.rf-r{display:flex;gap:12px;align-items:center;padding:10px 0}
+.rf-r+.rf-r{border-top:1px solid #ffffff1c}
+.rf-lvl{width:84px;border-radius:12px;padding:5px 6px;text-align:center;flex-shrink:0;box-sizing:border-box}
+.rf-lvl small{display:block;font-size:.66rem;font-weight:700;white-space:nowrap}.rf-lvl strong{display:block;font-size:1.3rem;line-height:1.2;white-space:nowrap}
+.rf-lvl strong.l4{font-size:1.02rem;line-height:1.56rem}
+.rf-txt{font-size:.84rem;line-height:1.5;color:#e6edf8}.rf-txt p{margin:0}
+.rf-txt .sub{font-size:.74rem;color:#cbd5e6;margin-top:2px}
+.rf-txt b.rf-cc{color:#f0c6ff;font-weight:800;white-space:nowrap}
+.rf-chip{display:inline-block;margin-left:3px;padding:0 6px;border-radius:6px;font-size:.7rem;font-weight:800;line-height:1.5;vertical-align:1px;white-space:nowrap}
+.rf-avg{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 12px}
+.rf-avg small{font-size:.74rem}.rf-avg b{font-size:1.35rem}
+.rf-avg.fut{border-color:#ffd27a88}.rf-avg.fut small{color:#ffd27a}
+.rf-avg b.none{color:#98abc7}
+.rf-chart{margin-top:12px;min-height:156px;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:grab}
+.rf-chart svg{display:block;width:100%}
+.rf-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.68rem;color:#cbd5e6;margin-top:6px;align-items:center}
+.rf-leg span{display:inline-flex;align-items:center;gap:5px}.rf-leg i{display:inline-block;width:14px;height:10px;border-radius:2px}
+.rf-leg i.ln{height:2px;background:#8fd3ff}
+.rf-leg i.adv-j{background:rgba(255,196,64,.45);box-shadow:inset 0 2px 0 #ffc440}.rf-leg i.adv-k{background:rgba(248,96,96,.5);box-shadow:inset 0 2px 0 #f86060}
+.rf-leg .zh{margin-left:auto;color:#98abc7}.rf-leg .zh b{color:#fff;font-weight:700}
+.rf-chart-msg{margin:6px 0 0;font-size:.7rem}
+.rf-none h4{margin:0}
+.rf-acc-sum{display:flex;align-items:center;gap:16px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+.rf-acc-sum svg{flex:none;display:block}
+.rf-acc-leg{flex:1;margin:0;padding:0;list-style:none;font-size:.78rem;color:#d2dcea;min-width:0}
+.rf-acc-leg li{padding:0}.rf-acc-leg li+li{border-top:1px solid #ffffff12}
+.rf-acc-leg button{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;padding:4px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.rf-acc-leg i{width:10px;height:10px;border-radius:3px;flex:none}
+.rf-acc-leg span{flex:1}.rf-acc-leg small{color:#98abc7}.rf-acc-leg b{font-weight:700;color:#fff}.rf-acc-leg b em{font-style:normal;font-weight:500;font-size:.7rem;color:#bfcbde;margin-left:1px}
+.rf-acc-leg .go{flex:none;width:10px;margin-left:2px;color:#8fa3c2;font-size:1rem;line-height:1;text-align:right}
+.rf-acc-cas{margin:8px 2px 0;font-size:.78rem;line-height:1.5;color:#cbd5e6}
+.rf-acc-cas b{color:#ff6b6b;font-weight:800}.rf-acc-cas.none{color:#98abc7}
+.rf-acc-pop{position:fixed;inset:0;z-index:11000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,10,22,.62)}
+.rf-acc-pop[hidden]{display:none}
+.rf-acc-pop .box{width:100%;max-width:340px;max-height:72vh;overflow-y:auto;border-radius:16px;background:#0f2242;border:1px solid #ffffff2e;box-shadow:0 12px 40px rgba(0,0,0,.5);padding:14px 14px 10px;color:#e6edf8}
+.rf-acc-pop .hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.rf-acc-pop .hd i{width:10px;height:10px;border-radius:3px;flex:none}
+.rf-acc-pop .hd h5{flex:1;margin:0;font-size:.95rem;color:#fff}.rf-acc-pop .hd h5 small{font-size:.72rem;color:#98abc7;font-weight:400;margin-left:6px}
+.rf-acc-pop .x{flex:none;width:32px;height:32px;border-radius:50%;border:1px solid #ffffff30;background:transparent;color:#cfe0ff;font-size:1.1rem;line-height:1;cursor:pointer}
+.rf-acc-pop ul{margin:0;padding:0;list-style:none}
+.rf-acc-pop li{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 2px;border-top:1px solid #ffffff14;font-size:.8rem;color:#d2dcea}
+.rf-acc-pop li .t b{color:#fff;font-weight:700}.rf-acc-pop li .t .no{color:#7f93b2}
+.rf-acc-pop li .c{flex:none;white-space:nowrap;font-size:.76rem;color:#7f93b2}.rf-acc-pop li .c.hurt{color:#ff6b6b;font-weight:800}
+.rf-wx{padding:0}
+.rf-wx-head{display:flex;align-items:center;gap:8px;width:100%;padding:12px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.rf-wx-head h4{flex:1;margin:0}
+.rf-wx-head .chev{flex:none;width:9px;height:9px;margin:0 4px 4px 0;border-right:2px solid #cfe0ff;border-bottom:2px solid #cfe0ff;transform:rotate(45deg);transition:transform .2s}
+.rf-wx-head[aria-expanded="true"] .chev{transform:rotate(-135deg);margin:4px 4px 0 0}
+.rf-wx-body{padding:0 12px 12px}
+.rf-wx-body .g{font-size:.68rem;color:#98abc7;font-weight:600;margin:2px 0 5px}.rf-wx-body .g+.rf-grid{margin-bottom:8px}
+.rf-wx-body .rf-tile b em.dir{color:#cfe0ff;font-weight:600;margin-left:3px;font-size:.7rem}
+.rf-wx-body .rf-grid3{grid-template-columns:1fr 1fr 1.3fr}
+.rf-cite{margin:2px 2px 6px;padding:10px 2px 0;border-top:1px solid #ffffff1c;font-size:.68rem;color:#98abc7;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.rf-cite dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 8px}.rf-cite dt{color:#7f93b2}.rf-cite dd{margin:0;color:#b9c6da}
+.rf-cite .rf-basis-btn{position:static;margin:0;flex:none}
+@media (prefers-reduced-motion:reduce){.rf-wx-head .chev{transition:none}}
+
+/* 해상 시트 시각 막대: 시각별 공식 사고 위험 색·3시간 눈금·자정 날짜·「지금」 꼬리표·범례(risk_slider.js mountRisk). 손잡이 중심(양끝 8px 안쪽)에 맞춘다. */
+.rf-risk-time .ocean-sheet-slider::-webkit-slider-runnable-track{background:transparent;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.rf-risk-time .ocean-sheet-slider::-moz-range-track{background:transparent;border:0;box-shadow:none}
+.rf-st-top{position:relative;width:calc(100% - 48px);margin:6px auto 3px;height:15px}
+.rf-st-key{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:9px;font-size:.62rem;color:#b9c6da;white-space:nowrap;line-height:15px}
+.rf-st-key span{display:inline-flex;align-items:center;gap:3px}.rf-st-key i{width:10px;height:6px;border-radius:2px;display:inline-block}
+.rf-st-now{position:absolute;top:0;transform:translateX(-50%);font-size:.6rem;font-weight:800;color:#fff;background:#2a78c8;border-radius:4px;padding:0 4px;line-height:14px;white-space:nowrap}
+.rf-st-now::after{content:'';position:absolute;left:50%;bottom:-3px;margin-left:-3px;border:3px solid transparent;border-bottom:0;border-top-color:#2a78c8}
+.rf-st-wrap{position:relative;width:calc(100% - 32px);margin:0 auto}
+.rf-st-track{position:absolute;left:8px;right:8px;top:5px;height:8px;border-radius:4px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.22)}
+.rf-st-track span{position:absolute;top:0;bottom:0}
+.rf-st-marks{position:absolute;left:8px;right:8px;top:0;height:18px;z-index:1;pointer-events:none}
+.rf-st-marks i{position:absolute;top:3px;width:1px;height:12px;margin-left:-.5px;background:rgba(10,20,40,.75)}
+.rf-st-marks i.day{top:1px;height:16px;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 0 1px rgba(10,20,40,.5)}
+.rf-st-marks i.now{top:1px;height:16px;width:2px;margin-left:-1px;background:#2a78c8}
+.rf-st-marks i[hidden]{display:none}
+.rf-st-wrap .ocean-sheet-slider{position:relative;z-index:2;display:block;width:100%;height:18px}
+.rf-st-lab{position:relative;height:15px;margin:1px 8px 0}
+.rf-st-lab em{position:absolute;top:0;transform:translateX(-50%);font-style:normal;font-size:.62rem;color:#9fb0c9;white-space:nowrap}
+.rf-st-lab em.day{color:#fff;font-weight:700}

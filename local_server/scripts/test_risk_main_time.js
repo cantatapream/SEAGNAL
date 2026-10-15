@@ -78,19 +78,19 @@ function scoreAt(t){return Math.floor(((Date.parse(t)+9*3600000)%86400000)/10800
  await check('해상 버튼과 공존: 같은 바 하나로 연안·해상이 함께 이동하고 해상 ON 시 예전 해상 버튼 구성 유지',async()=>{
   await page.locator('[data-layer="sea"]').click();await page.waitForFunction(()=>marineCount()>0);
   const r=await page.evaluate(()=>({bars:document.querySelectorAll('.rf-marine-timebar').length,outputs:document.querySelectorAll('[data-map-time]').length,labels:Array.from(document.querySelectorAll('.rf-marine-timebar button')).map(b=>b.textContent),tools:document.querySelector('[data-marine-tools]').hidden,caption:document.querySelector('[data-marine-caption]').textContent}));
-  assert.deepEqual([r.bars,r.outputs,r.tools],[1,1,false]);assert.deepEqual(r.labels,['현재','+3H','+6H','+12H']);assert.equal(r.caption,'공식 사고예보','2026-10-15 종합 관심단계 폐지 — 현재도 공식 사고예보');
-  await step(3);await page.waitForFunction(()=>document.querySelector('[data-marine-caption]').textContent.includes('공식 사고예보'));await waitCoast(at3('12:00'));
+  assert.deepEqual([r.bars,r.outputs,r.tools],[1,1,false]);assert.deepEqual(r.labels,['현재','+3H','+6H','+12H']);assert.equal(r.caption,'위험 예측','2026-10-15 조작부 시안 — 해상 기본 [위험 예측](공식 사고예보) 범례 제목 「위험 예측」');
+  await step(3);await page.waitForFunction(()=>document.querySelector('[data-marine-caption]').textContent==='위험 예측');await waitCoast(at3('12:00'));
   assert.ok(log.unified.includes(at3('12:00')),'해상 프레임도 같은 시각으로 요청');assert.equal((await state()).out,'10.12.(월) 12:00');assert.ok(await page.evaluate(()=>marineCount())>0);
   await step('now');await waitCoast(at);
  });
  await check('연안·해상 둘 다 ON: 내일 21시에서 함께 멈추고 해상 지도는 그대로(「가」 — 연안만 남는 모레 구간·범위 밖 안내 없음)',async()=>{
   for(let i=0;i<3;i++)await step(12);const seaEnd=await state();assert.equal(seaEnd.t,'2026-10-13T21:00:00+09:00');await waitCoast(seaEnd.t);
-  await page.waitForFunction(()=>marineCount()>0);assert.equal(await caption(),'공식 사고예보','내일 21시는 해상 범위 안');
+  await page.waitForFunction(()=>marineCount()>0);assert.equal(await caption(),'위험 예측','내일 21시는 해상 범위 안');
   assert.deepEqual(await disabled(),[true,true,true],'두 층의 끝이 같아 더 갈 칸이 없다');assert.doesNotMatch(await caption(),/범위 밖/);
   const unifiedBefore=log.unified.length;await step(3);await step(12);assert.equal((await state()).t,seaEnd.t);assert.equal(log.unified.length,unifiedBefore,'비활성 버튼은 해상 요청도 만들지 않는다');
   await page.evaluate(()=>{app.setEnabled(false);app.setEnabled(true);});await waitCoast(seaEnd.t);assert.equal((await state()).t,seaEnd.t,'재동기화 뒤에도 내일 21시 유지');await page.waitForFunction(()=>marineCount()>0);
   await page.locator('[data-layer="coast"]').click();await page.waitForFunction(t=>app.getState().t===t,seaEnd.t);
-  await page.waitForFunction(()=>marineCount()>0);assert.equal(await caption(),'공식 사고예보','해상만 보아도 같은 시각');assert.equal(await page.locator('.rf-color-legend [data-accident-legend]').isVisible(),true);assert.equal(await page.locator('.rf-marine-timebar').isVisible(),true);
+  await page.waitForFunction(()=>marineCount()>0);assert.equal(await caption(),'위험 예측','해상만 보아도 같은 시각');assert.equal(await page.locator('.rf-color-legend [data-accident-legend]').isVisible(),true);assert.equal(await page.locator('.rf-marine-timebar').isVisible(),true);
   assert.deepEqual(await disabled(),[true,true,true]);
   await page.locator('[data-layer="sea"]').click();assert.equal(await page.locator('.rf-marine-timebar').isVisible(),false,'연안·해상 둘 다 끄면 바 숨김');assert.equal(await page.evaluate(()=>document.body.classList.contains('rf-sea-time-on')),false);
   await page.locator('[data-layer="coast"]').click();await page.waitForFunction(()=>!document.querySelector('.rf-marine-timebar').hidden);
