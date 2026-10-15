@@ -58,7 +58,8 @@ function make(nowIso, opt = {}) {
         cells: { '92-1': { wp: [8] } },
     });
     w(dataDir, 'ripcurrent_index.json', { updatedAt: iso, places: opt.rip || {} });
-    w(dir, 'tour_concentration.json', { date: day, collectedAt: iso, values: { one: { [day]: 10 } } });
+    // U81(2026-10-15): 사람 혼잡은 30일 기하평균(avg30)이 있어야 결측이 아니다 — 정상 파일에는 함께 둔다.
+    w(dir, 'tour_concentration.json', { date: day, collectedAt: iso, values: { one: { [day]: 10 } }, avg30: { one: { gm: 10, days: 30 } } });
     w(dir, 'events_' + mm + '.json', { month, collectedAt: iso, events: [] }); // 행사 없음(정상)
     w(dir, 'events_' + next.replace('-', '') + '.json', { month: next, collectedAt: iso, events: [] });
     const store = createStore({ dir, dataDir, configDir, clientDir, clock: () => now });
@@ -221,7 +222,7 @@ const rm = (f) => fs.rmSync(f, { force: true });
             const body = await render(detail(make(OCT)));
             for (const bad of ['자료 없음', '일부 요소', '확인된 요소', '특보, ', '행사 정보'])
                 assert.ok(!body.includes(bad), bad + ' / ' + body);
-            assert.ok(body.includes('한산하고 위험구역 없는 곳'));
+            assert.ok(body.includes('평소만큼 붐비고 위험구역 없는 곳'));
         });
         await test('시트: 행사 수집 실패 → 행사 행에 자료 없음 + 확인된 요소 기준 안내(전역 경고 목록은 숨김)', async () => {
             const c = make(OCT);

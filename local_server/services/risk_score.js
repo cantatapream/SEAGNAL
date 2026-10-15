@@ -35,19 +35,23 @@ factors.push({...wave,key:'wave',kind:'wave',value:wh,wh,score:wave?.score||0,rr
 factors.push({...wind,key:'wind',kind:'wind',value:ws,ws,score:wind?.score||0,rr:wind?.rr??null,missing:!numeric(ws),applied:!!wind&&picked===wind});
 const ciLevel=!numeric(ci)?null:ci<1?0:ci<10?1:ci<20?2:3;
 return{...result(picked.score,factors,missing),rr:picked.rr,picked:picked.key,candidate:picked,collisionRr:picked.collisionRr,ci:numeric(ci)?ci:null,ciLevel,clickable:picked.score>0||(ciLevel!==null&&ciLevel>=1),warning:warn};}
-/** 연안 요소별 점수를 합산한다. 예: 8월 토요일 행사+혼잡2+위험4+사망→5.30.
- * @param {object} input - {t,now,spot,concentration,events,swell,rip,warnings,ws}
+/** 연안 요소별 점수를 합산한다. 예: 8월 토요일 행사+평소의 4배 붐빔+위험구역(위험2·사망1·다발1)→1.94+(.696+.439+.439)+1.09+.74≈5.34.
+ * 사람 혼잡 = .97×max(0,log2(오늘 집중률÷30일 기하평균)) — 30일 평균이 없으면 지어내지 않고 결측(U81①).
+ * 위험구역 = 종류마다 coef×log2(min(개수,3)+1) 합(후보 A, U81②) — 구역 종류를 확인할 수 없으면 결측.
+ * @param {object} input - {t,now,spot,concentration,concentrationBase:{gm,days}|null,events,swell,rip,warnings,ws}
  * @returns {object} 공통 점수·사망배수·안내(특보·떠밀림 — 3일째 특보급 안내는 연안 2일 제한 「가」 2026-10-15로 없앰)
  * [연계] ← risk_store.js / 정책값과 분석배수를 구분한다.
  */
-function scoreCoast({t,now,spot,concentration=null,events=null,swell=null,rip=null,warnings=[],ws=null}){
+function scoreCoast({t,now,spot,concentration=null,concentrationBase=null,events=null,swell=null,rip=null,warnings=[],ws=null}){
 const factors=[],missing=[];const day=new Date(T.dateKey(t)+'T00:00:00Z'),month=day.getUTCMonth()+1,weekend=[0,6].includes(day.getUTCDay());
-const stage=!numeric(concentration)?0:concentration<12.5?0:concentration<25?1:concentration<50?2:3;
-if(!numeric(concentration))missing.push('concentration');
-factors.push({key:'concentration',kind:'concentration',stage,cr:concentration,score:P.COAST.crowdScore*stage,rr:P.COAST.crowdRr**stage,fatalRr:P.COAST.crowdFatalRr**stage,missing:!numeric(concentration)});
-const hz=spot.hazard||{},count=hz.count||0,bucket=count===0?0:count<=2?1:count<=5?2:3;
-factors.push({key:'hazard',kind:'hazard',count,zones:hz.zones||[],zoneIds:hz.zoneIds||[],...P.HAZARDS[bucket]});
-if(hz.fatal)factors.push({key:'fatalZone',kind:'fatalZone',score:P.COAST.fatalScore,rr:P.COAST.fatalRr,fatalRr:P.COAST.fatalFatalRr});
+const gm=concentrationBase&&numeric(concentrationBase.gm)&&concentrationBase.gm>0?concentrationBase.gm:null,crowdOk=numeric(concentration)&&gm!==null;
+const ratio=crowdOk?concentration/gm:null,doubling=crowdOk&&ratio>0?Math.max(0,Math.log2(ratio)):0;
+if(!crowdOk)missing.push('concentration');
+factors.push({key:'concentration',kind:'concentration',cr:concentration,base:gm,baseDays:gm===null?null:concentrationBase.days??null,ratio,score:P.COAST.crowdScore*doubling,rr:P.COAST.crowdRr**doubling,fatalRr:P.COAST.crowdFatalRr**doubling,missing:!crowdOk});
+const hz=spot.hazard||{},count=hz.count||0,zones=hz.zones||[],typed=zones.length===count&&zones.every(z=>P.HAZARD_TYPES.includes(z['구역분류']));
+if(!typed){missing.push('hazard');factors.push({key:'hazard',kind:'hazard',count,zones,zoneIds:hz.zoneIds||[],score:0,missing:true});}
+else{const byType=P.HAZARD_TYPES.map(c=>{const n=zones.filter(z=>z['구역분류']===c).length;return{class:c,count:n,...P.hazardType(n)};}),score=byType.reduce((sum,x)=>sum+x.score,0);
+factors.push({key:'hazard',kind:'hazard',count,byType,zones,zoneIds:hz.zoneIds||[],score,rr:2**score,fatalRr:byType.reduce((prod,x)=>prod*x.fatalRr,1)});}
 if(events===null){missing.push('events');factors.push({key:'event',kind:'event',score:0,missing:true});}else if(events.length)factors.push({key:'event',kind:'event',events,name:events.map(e=>e.name).join(', '),weekend,score:weekend?P.COAST.eventScore:0,rr:weekend?P.COAST.eventRr:null});
 factors.push({key:'month',kind:'month',month,...P.MONTHS[month-1]});
 // U78: 너울 자료 없으면 줄은 생략하되 결측 상태를 숨기지 않는다.

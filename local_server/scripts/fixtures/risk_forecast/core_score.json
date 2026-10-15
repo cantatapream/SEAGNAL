@@ -1,5 +1,5 @@
 {
   "now": "2024-08-03T09:17:00+09:00",
   "sea": {"t":"2024-08-03T12:00:00+09:00","ci":12,"wh":4.4,"ws":18,"warnings":[{"type":"풍랑","level":"경보","state":"발효"}]},
-  "coast": {"t":"2024-08-03T12:00:00+09:00","spot":{"beach":true,"hazard":{"count":4,"fatal":true}},"concentration":31,"events":[{"name":"검증 행사","source":"https://example.org/event"}],"swell":{"periodS":11}}
+  "coast": {"t":"2024-08-03T12:00:00+09:00","spot":{"beach":true,"hazard":{"count":4,"fatal":true,"zones":[{"id":"r1","구역분류":"연안사고 위험구역"},{"id":"r2","구역분류":"연안사고 위험구역"},{"id":"f1","구역분류":"사망사고 발생구역"},{"id":"q1","구역분류":"연안사고 다발구역"}]}},"concentration":31,"concentrationBase":{"gm":7.75,"days":30},"events":[{"name":"검증 행사","source":"https://example.org/event"}],"swell":{"periodS":11}}
 }

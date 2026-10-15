@@ -14,7 +14,8 @@ const now='2026-10-15T15:00:00+09:00',later='2026-10-15T18:00:00+09:00',latest='
 const index=fs.readFileSync(path.join(root,'client/index2.html'),'utf8');
 const chromeRules=[/body\.ls-mode\.ls-safety \{ --ls-bottom-chrome:[^}]*\}/,/body\.ls-mode\.ls-safety\.sub-tabs-open \{[^}]*\}/].map(re=>{const m=index.match(re);if(!m)throw Error('index2.html의 --ls-bottom-chrome 규칙을 찾지 못함: '+re);return m[0];}).join('\n');
 // 연안 상세: 실제 점수 계산기로 만든 요소 + 위험구역 12곳(긴 목록). 행사 이름에 id와 시각을 넣어 엉뚱한 응답이 섞이면 드러나게 한다.
-const coastInput={t:now,now,spot:{hazard:{count:12,fatal:true}},concentration:90.52,events:[],swell:{periodS:8}};
+// U81(2026-10-15): 위험구역 점수는 구역 종류로 세므로 계산기 입력에 종류를 넣고(표시용 zones 는 아래에서 바꿔 끼움), 사람은 30일 평균과 함께 준다.
+const coastInput={t:now,now,spot:{hazard:{count:12,zones:Array.from({length:12},(_,i)=>({id:'z'+i,'구역분류':'연안사고 위험구역'}))}},concentration:90.52,concentrationBase:{gm:30,days:30},events:[],swell:{periodS:8}};
 const scored=scorer.scoreCoast(coastInput),scoredRows=scored.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
 const zones=Array.from({length:12},(_,i)=>({id:'z'+i,place:'위험구역'+i,shape:'갯바위',class:'연안사고 위험구역',addr:'부산 수영구 광안로 '+(100+i),police:'광안리'}));
 const spots=[{i:0,id:'a',name:'광안리해수욕장',lat:35.153,lon:129.118},{i:1,id:'b',name:'해운대해수욕장',lat:35.159,lon:129.16}].map(p=>({...p,sggName:'부산',police:{name:'광안리'},geometry:{type:'Polygon',coordinates:[[[p.lon-.004,p.lat-.004],[p.lon+.004,p.lat-.004],[p.lon+.004,p.lat+.004],[p.lon-.004,p.lat+.004],[p.lon-.004,p.lat-.004]]]}}));
