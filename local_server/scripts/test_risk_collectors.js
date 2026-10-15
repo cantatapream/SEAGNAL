@@ -133,7 +133,7 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
   const original=fs.readFileSync;let reads=0,requests=0;const guarded=new Set();
   try{for(const state of ['absent','old','current']){const dir=temp(),file=path.join(dir,'sea_traffic.json.gz');if(state!=='absent')io.write(file,{date:state==='current'?'2026-10-11':'2026-10-10',frames:{}});guarded.add(file);let clock=now;const collector=sea.createCollector({dir,key:'test',clock:()=>clock,fetchImpl:async()=>{requests++;throw Error('unexpected network');},updateCells(){}});
    fs.readFileSync=function(file,...args){if(guarded.has(file)){reads++;throw Error('unexpected full forecast read');}return original.call(this,file,...args);};
-   for(let minute=0;minute<1440;minute++){const h=Math.floor(minute/60),m=minute%60;if([240,270,300,330].includes(h*60+m))continue;clock=Date.parse('2026-10-11T00:00:00+09:00')+minute*60000;assert.equal(await collector.tick(),null);}
+   for(let minute=0;minute<1440;minute++){const h=Math.floor(minute/60),m=minute%60;if([240,270,300,330,390,450,510,570,630,690,750].includes(h*60+m))continue;clock=Date.parse('2026-10-11T00:00:00+09:00')+minute*60000;assert.equal(await collector.tick(),null);}
   }assert.equal(reads,0);assert.equal(requests,0);}finally{fs.readFileSync=original;}
  });
  await check('혼잡 정기04:00 실패·04:30 누락분 복구·05:00 정상본 유지',async()=>{
@@ -145,6 +145,11 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
   assert.equal((await collector.tick()).ok,false);assert.equal(requests,1);clock=Date.parse('2026-10-11T04:30:00+09:00');assert.equal((await collector.tick()).ok,false);assert.equal(requests,2);
   published=true;clock=Date.parse('2026-10-11T05:00:00+09:00');assert.equal((await collector.tick()).ok,true);assert.equal(requests,50);
   for(const t of ['05:10','06:10','07:10'])assert.equal(await sea.createCollector({dir:temp(),key:'test',clock:()=>Date.parse('2026-10-11T'+t+':00+09:00'),fetchImpl:async()=>{throw Error('unexpected');},updateCells(){}}).tick(),null);
+ });
+ await check('혼잡 05:30까지 다 실패한 날은 06:30~12:30 매시 다시 보고, 13:30 이후는 보지 않음',async()=>{
+  let requests=0;const fetchImpl=async url=>{requests++;const u=new URL(url);return batch([{gridId:'grid',latitude:35,longitude:129,fcstDate:u.searchParams.get('fcstDate'),fcstTime:u.searchParams.get('fcstTime'),congestionIndex:7,congestionLevel:'보통'}]);};
+  for(const t of ['06:30','09:30','12:30']){requests=0;const r=await sea.createCollector({dir:temp(),key:'test',clock:()=>Date.parse('2026-10-11T'+t+':00+09:00'),fetchImpl,updateCells(){}}).tick();assert.equal(r.ok,true,t);assert.equal(requests,48,t);}
+  for(const t of ['06:10','13:30','18:30'])assert.equal(await sea.createCollector({dir:temp(),key:'test',clock:()=>Date.parse('2026-10-11T'+t+':00+09:00'),fetchImpl:async()=>{throw Error('unexpected');},updateCells(){}}).tick(),null,t);
  });
  await check('개발 start는 키가 있어도 자동 수집하지 않음',()=>{const before=process.env.FLY_ALLOC_ID;delete process.env.FLY_ALLOC_ID;try{for(const module of [sea,tour,events])assert.equal(module.createCollector({dir:temp()}).start(),false);}finally{if(before!==undefined)process.env.FLY_ALLOC_ID=before;}});
 })().finally(()=>{for(const dir of dirs)fs.rmSync(dir,{recursive:true,force:true});console.log(`${pass} PASS / ${fail} FAIL`);if(fail)process.exitCode=1;});

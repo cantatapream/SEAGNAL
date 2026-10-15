@@ -24,7 +24,7 @@ let count = 0;
  * @returns {object} 캐시 API와 시계·가짜 호출·타이머 제어 함수
  * [연계] ← 각 회귀 검사. require는 운영 설정 대신 임시 DATA_DIR를 사용한다.
  */
-function instance(tag) {
+function instance(tag, opts = {}) {
     const dir = path.join(testRoot, tag);
     fs.mkdirSync(dir, { recursive: true });
     let clock = Date.parse('2026-10-13T00:00:00Z'),
@@ -45,7 +45,8 @@ function instance(tag) {
         console: { log() {}, warn() {}, error() {} },
         Date: ClockDate,
         Buffer,
-        setTimeout,
+        // fastSleep: 정기 수집의 슬롯 사이 500ms 쉬기만 즉시로 바꾼다(73슬롯×0.5초를 기다리지 않게). _sleep 만 setTimeout 을 쓴다.
+        setTimeout: opts.fastSleep ? (fn) => setImmediate(fn) : setTimeout,
         setInterval: (fn, ms) => {
             sweeps.push({ fn, ms });
             return { unref() {} };
@@ -336,6 +337,26 @@ async function main() {
         assert(timer.sweeps.length === 1 && timer.sweeps[0].ms === 60000)
     );
     ok('background sweep makes no upstream calls', () => assert.equal(timer.requests(), 1));
+    // 정기 수집 집계 네 갈래(2026-10-15): 옛 자료로 채운 칸을 「성공」에 섞지 않는다.
+    // refreshCycle 의 _toDateHour 는 서버 지역시각을 쓴다(운영 Dockerfile TZ=Asia/Seoul). 시험도 같은 시간대로 맞춘다 — UTC 그대로면
+    //   키가 9시간 밀려 끝 9칸이 72시간 밖으로 잘린다(운영과 다른 환경 탓).
+    process.env.TZ = 'Asia/Seoul';
+    const cy = instance('cycle-counts', { fastSleep: true }), lines = [];
+    const log = (l) => lines.push(l);
+    let res = await cy.api.refreshCycle({ log });
+    ok('cycle: 처음엔 73칸 모두 새로 받음', () => assert.deepEqual([res.fresh, res.kept, res.stale, res.fail], [73, 0, 0, 0]));
+    ok('cycle: 로그에 새로 받음·옛 자료로 대체가 따로 찍힘', () => assert.match(lines.at(-1), /새로 받음 73 \/ 최근분 유지 0 \/ 옛 자료로 대체 0 \/ 실패 0/));
+    cy.setNow(cy.now() + 30 * 60000);
+    const before = cy.requests();
+    res = await cy.api.refreshCycle({ log });
+    ok('cycle: 30분 뒤엔 1시간 안에 받은 칸을 그대로 둠(외부 요청 0)', () => assert.deepEqual([res.kept, cy.requests() - before], [73, 0]));
+    cy.setNow(cy.now() + 2 * 3600000);
+    cy.setFail(true);
+    res = await cy.api.refreshCycle({ log });
+    ok('cycle: 장애 땐 옛 자료로 채운 칸은 「옛 자료로 대체」, 채울 것 없는 칸만 「실패」', () => {
+        assert.equal(res.fresh, 0); assert.ok(res.stale >= 1 && res.fail >= 1); assert.equal(res.stale + res.fail, 73);
+        assert.equal(res.ok, res.stale);
+    });
     console.log('RESULT ' + count + ' PASS / 0 FAIL');
 }
 

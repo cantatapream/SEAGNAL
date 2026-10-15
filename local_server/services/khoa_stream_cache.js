@@ -544,14 +544,20 @@ async function refreshCycle(opts) {
         Math.round(REFRESH_HOURS_AHEAD * SEQUENTIAL_DELAY_MS / 1000) + '초 예상)');
 
     const base = new Date();
-    let ok = 0, fail = 0;
+    // 집계는 넷으로 나눈다(사용자 확정 2026-10-15) — 옛 자료로 채운 칸까지 「성공」으로 세면 해양조사원이 404를
+    //   내도 로그가 「성공 73」으로 찍혀 장애를 알아챌 수 없었다(10/14 16:37 회차). 화면 동작(옛 자료로 채움)은 그대로다.
+    //   fresh=이번에 새로 받음 · kept=1시간 안에 받은 것 그대로 · stale=실패해 24시간 안의 옛 자료로 채움 · fail=보여줄 자료 없음
+    let ok = 0, fail = 0, fresh = 0, kept = 0, stale = 0;
     try {
         for (let off = 0; off <= REFRESH_HOURS_AHEAD; off++) {
             const t = new Date(base.getTime() + off * 3600 * 1000);
             const { date, hour } = _toDateHour(t);
             try {
-                await getStream(date, hour);
+                const r = await getStream(date, hour);
                 ok++;
+                if (r && r._failed) { if (r.stale) stale++; else { ok--; fail++; } }
+                else if (r && r.ts >= t0) fresh++;
+                else kept++;
             } catch (e) {
                 fail++;
                 // 개별 슬롯 실패는 noisy 하므로 첫 3건만 출력
@@ -567,8 +573,9 @@ async function refreshCycle(opts) {
         _refreshInProgress = false;
     }
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-    log('[KHOA-Cache] 정기 수집 완료: 성공 ' + ok + ' / 실패 ' + fail + ' (소요 ' + elapsed + '초)');
-    return { ok, fail, elapsedMs: Date.now() - t0 };
+    log('[KHOA-Cache] 정기 수집 완료: 새로 받음 ' + fresh + ' / 최근분 유지 ' + kept + ' / 옛 자료로 대체 ' + stale +
+        ' / 실패 ' + fail + ' (소요 ' + elapsed + '초)');
+    return { ok, fail, fresh, kept, stale, elapsedMs: Date.now() - t0 };
 }
 
 // ============================================================================

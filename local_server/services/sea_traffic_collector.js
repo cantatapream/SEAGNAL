@@ -9,7 +9,9 @@ const io = require('./risk_collector_io');
 const URL = 'https://apis.data.go.kr/B554035/sea-tfc-congst-fcst/get_sea_tfc_congst_fcst';
 /** 응답 칸을 검증한다. 예: 혼잡 0.05는 표출에서 빠지며 풍속/파고는 저장 안 함. @param {object} r @returns {object} [연계] ← collect */
 // 혼잡예보 점검 시각(자정 기준 분). 공단 갱신이 4~5시라 04:00·04:30·05:00·05:30 네 번 본다(사용자 확정 2026-10-15).
-const CHECK_MINUTES = [240, 270, 300, 330];
+// 네 번 다 실패한 날(공단 장애 등)을 위해 06:30~12:30 매시 30분에 더 본다(같은 날 사용자 확정 「권장안 대로」).
+//   그날 정상본이 생기면 남은 시각은 건너뛰고, 갱신 전이면 회차마다 1건만 쓰므로 하루 한도(90건) 안이다.
+const CHECK_MINUTES = [240, 270, 300, 330, 390, 450, 510, 570, 630, 690, 750];
 function normalize(r) {
     const lat = Number(r.latitude), lon = Number(r.longitude), ci = Number(r.congestionIndex);
     if ([r.latitude,r.longitude,r.congestionIndex].some(v=>v===null||v===''||v===undefined) || !/^\d{8}$/.test(String(r.fcstDate)) || !/^(?:[01]\d|2[0-3])00$/.test(String(r.fcstTime)) || !r.gridId || !Number.isFinite(lat) || lat < 20 || lat > 45 || !Number.isFinite(lon) || lon < 115 || lon > 140 || !Number.isFinite(ci) || ci < 0 || ci > 100) throw new Error('invalid response');
@@ -84,7 +86,7 @@ function createCollector({ dir = io.DEFAULT_DIR, fetchImpl, key, clock = Date.no
             return { ok: false, error: io.errorName(e) };
         } finally { running = false; release(); }
     }
-    /** 정해진 점검 시각에만 받는다(04:00·04:30·05:00·05:30 KST — 공단 갱신이 4~5시라 사용자 확정 2026-10-15).
+    /** 정해진 점검 시각에만 받는다(04:00·04:30·05:00·05:30 KST + 실패한 날 06:30~12:30 매시 — 사용자 확정 2026-10-15).
      * 예: 04:00 아직 갱신 전→04:30·05:00·05:30 다시 확인, 그날 정상본이 생기면 남은 시각은 건너뜀. @returns {Promise<object|null>} [연계] ← start */
     async function tick() {
         const now = clock(), local = new Date(now + 9 * 3600000), h = local.getUTCHours(), m = local.getUTCMinutes();
