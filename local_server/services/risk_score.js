@@ -13,7 +13,7 @@ const numeric=v=>typeof v==='number'&&Number.isFinite(v);
  */
 function result(score,factors,missing){const index=P.scoreToIndex(score);return{score,index,band:P.scoreBand(index),rr:2**score,factors,missing};}
 /** 해상 점수를 계산한다. 예: 경보+파고4m→3.86(최대 하나).
- * @param {object} input - {t,now,ci,wh,ws,dayMax,warnings}
+ * @param {object} input - {t,now,ci,wh,ws,warnings}
  * @returns {object} 공통 점수·선택후보·혼잡·충돌배수
  * [연계] ← risk_store.js / 지도 프레임과 상세에 같은 값을 제공한다.
  */
@@ -36,11 +36,11 @@ factors.push({...wind,key:'wind',kind:'wind',value:ws,ws,score:wind?.score||0,rr
 const ciLevel=!numeric(ci)?null:ci<1?0:ci<10?1:ci<20?2:3;
 return{...result(picked.score,factors,missing),rr:picked.rr,picked:picked.key,candidate:picked,collisionRr:picked.collisionRr,ci:numeric(ci)?ci:null,ciLevel,clickable:picked.score>0||(ciLevel!==null&&ciLevel>=1),warning:warn};}
 /** 연안 요소별 점수를 합산한다. 예: 8월 토요일 행사+혼잡2+위험4+사망→5.30.
- * @param {object} input - {t,now,spot,concentration,events,swell,rip,warnings,ws,dayMax}
- * @returns {object} 공통 점수·사망배수·안내
+ * @param {object} input - {t,now,spot,concentration,events,swell,rip,warnings,ws}
+ * @returns {object} 공통 점수·사망배수·안내(특보·떠밀림 — 3일째 특보급 안내는 연안 2일 제한 「가」 2026-10-15로 없앰)
  * [연계] ← risk_store.js / 정책값과 분석배수를 구분한다.
  */
-function scoreCoast({t,now,spot,concentration=null,events=null,swell=null,rip=null,warnings=[],ws=null,dayMax={}}){
+function scoreCoast({t,now,spot,concentration=null,events=null,swell=null,rip=null,warnings=[],ws=null}){
 const factors=[],missing=[];const day=new Date(T.dateKey(t)+'T00:00:00Z'),month=day.getUTCMonth()+1,weekend=[0,6].includes(day.getUTCDay());
 const stage=!numeric(concentration)?0:concentration<12.5?0:concentration<25?1:concentration<50?2:3;
 if(!numeric(concentration))missing.push('concentration');
@@ -55,5 +55,5 @@ if(swell&&numeric(swell.periodS)){const on=swell.periodS>=12;factors.push({key:'
 if(spot.ripBeach&&T.dayOffset(t,now)===0){if(rip&&rip.hasData!==false&&rip.level){const on=['주의','경계','위험'].includes(rip.level);factors.push({key:'rip',kind:'rip',...rip,score:on?P.COAST.policyScore:0});}else missing.push('rip');}
 const score=factors.reduce((sum,f)=>sum+f.score,0),fatalRr=factors.reduce((prod,f)=>prod*(f.fatalRr??1),1);
 const order=w=>(w.type==='태풍'?0:w.type==='풍랑'?1:2)*2+(w.level==='경보'?0:1);const sorted=warnings.slice().sort((a,b)=>order(a)-order(b));
-return{...result(score,factors,missing),fatalRr,notices:{effective:sorted.filter(w=>w.state==='발효'),prelim:sorted.filter(w=>w.state!=='발효'),day3:T.dayOffset(t,now)===2&&((numeric(dayMax.wh)&&dayMax.wh>=2)||(numeric(dayMax.ws)&&dayMax.ws>=12)),windMs:spot.beach&&numeric(ws)&&ws>=8?Math.round(ws):null}};}
+return{...result(score,factors,missing),fatalRr,notices:{effective:sorted.filter(w=>w.state==='발효'),prelim:sorted.filter(w=>w.state!=='발효'),windMs:spot.beach&&numeric(ws)&&ws>=8?Math.round(ws):null}};}
 module.exports={scoreSea,scoreCoast};

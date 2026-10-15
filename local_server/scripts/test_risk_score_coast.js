@@ -16,6 +16,6 @@ run({
  '이안류 관심은 줄은 있고0점':a=>{const o=scoreCoast({...base,spot:{...base.spot,ripBeach:'검증'},rip:{hasData:true,level:'관심'}}).factors.find(f=>f.key==='rip');a.equal(o.score,0);},
  '특보 점수제외와 태풍풍랑강풍정렬':a=>{const w=['강풍','풍랑','태풍'].map(type=>({type,level:'주의보',state:'발효'}));const o=scoreCoast({...base,warnings:w});a.equal(o.score,scoreCoast(base).score);a.deepEqual(o.notices.effective.map(w=>w.type),['태풍','풍랑','강풍']);},
  '해수욕장 떠밀림8 경계':a=>{a.equal(scoreCoast({...base,ws:8}).notices.windMs,8);a.equal(scoreCoast({...base,ws:7.99}).notices.windMs,null);},
- '모레 특보급은 하루최대':a=>a.equal(scoreCoast({...base,t:'2024-08-05T12:00:00+09:00',dayMax:{wh:2}}).notices.day3,true),
+ '가(2026-10-15) 연안 2일 제한: 3일째 특보급 안내(day3)는 더 이상 만들지 않음':a=>{const n=scoreCoast({...base,t:'2024-08-05T12:00:00+09:00',dayMax:{wh:2,ws:12}}).notices;a.equal(Object.hasOwn(n,'day3'),false);a.deepEqual(Object.keys(n).sort(),['effective','prelim','windMs']);},
  '자료없음을 정상0과 구분':a=>{const o=scoreCoast({...base,concentration:null,events:null});a.ok(o.missing.includes('concentration'));a.ok(o.missing.includes('events'));a.equal(o.factors[0].score,0);}
 });

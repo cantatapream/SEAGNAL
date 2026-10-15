@@ -111,7 +111,7 @@
         function selectionTimes(kind){return kind==='coast'?meta.timeline.coast.times:seaTimes();}
         /**
          * 연안·해상 공통 메인 시각이 고를 수 있는 시각 목록을 만든다.
-         * 예: 연안 ON이면 지금~모레 21시(3시간 간격, 서버 연안 축 그대로); 해상만 ON이면 지금~내일 21시; 둘 다 ON이면 두 축의 합집합.
+         * 예: 연안 ON이면 지금~내일 21시(3시간 간격, 서버 연안 축 그대로 — 「가」 2026-10-15 연안 2일 제한); 해상만 ON이면 지금~내일 21시; 둘 다 ON이면 두 축의 합집합(끝이 같다).
          * @returns {string[]} 지금 이후 KST ISO; 서버가 주지 않은 시각은 넣지 않는다
          * [연계] ← 하단 버튼 nextTime·sync·층 스위치 / → meta.timeline.coast, seaTimes. 시트 시각과는 무관하다.
          */
@@ -144,10 +144,6 @@
             try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;}var d=await api.get(s.kind==='briefing'?'sea/briefing':w.RiskMarine&&seaKind(s.kind)==='sea'?'sea/analysis':s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||(s.at||t)!==at)return;sheet.show(d,s.kind,s.item);registerSheet();}
             catch(e){console.warn('[위험예측] 상세 요청 실패',failureInfo(e));if(n===detailSeq&&enabled&&selected===s&&(s.at||t)===at){sheet.error(e.message);registerSheet();}}
         }
-        /** 해상 범례 제목을 「해상 예보 범위 밖」으로 바꾸고 색 막대를 숨긴다. 예: 모레 연안 시각에서 해상 지도가 빈 이유를 알린다.
-         * @returns {void} [연계] ← refreshMarine / 일반 화면 배너는 과제16으로 꺼져 있어 범례 제목으로 알린다. 다음 정상 프레임의 marineLegend가 되돌린다.
-         */
-        function seaOutOfRange(){if(!colorLegend)return;var title=colorLegend.querySelector('[data-marine-caption]');title.textContent='해상 예보 범위 밖 (내일까지)';title.dataset.meaning='out';colorLegend.querySelector('[data-accident-legend]').style.display='none';}
         /** 연안 요청·부가 경계를 기다리지 않고 해상 지도부터 표시한다.
          * 예: 연안 요청이 늦어도 정상 해상 프레임은 먼저 그린다.
          * @param {number} n - 요청 세대 @param {string} at - 메인 시각
@@ -155,7 +151,6 @@
          * [연계] ← refresh / 지도 버전 검증과 OFF·시간변경 경쟁을 보존한다.
          */
         async function refreshMarine(n,at){var errors=[],sourceWarnings=[];
-                var seaAxis=seaTimes();if(Date.parse(at)>Date.parse(seaAxis[seaAxis.length-1])){layer.drawUnified({cells:[]},{cells:[]});seaOutOfRange();return {errors:[],warnings:[]};}
             try{
                 var pair=await Promise.all([api.get('sea/unified-cells'),api.get('sea/unified-frame',{mode:marineMode,t:at})]),currentTable=pair[0],currentFrame=pair[1];
                 if(n!==seq||!enabled||disposed)return {errors:[],warnings:[]};

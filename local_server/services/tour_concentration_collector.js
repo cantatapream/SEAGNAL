@@ -1,6 +1,6 @@
 /**
  * 역할: 관광지 집중률을 시군구·이름·날짜에 연결하고 첫 주 갱신 관측 구간을 기록한다.
- * [연계] ROMS_SERVICE_KEY·coastal_spots.json → tour_concentration.json 및 tour_concentration_observations.json.
+ * [연계] ROMS_SERVICE_KEY·coastal_spots.json → tour_concentration.json(수집일~+2일만 보관 — 「가」 2026-10-15) 및 tour_concentration_observations.json.
  * [로드 순서] 운영 server.js만 자동 수집. 실패·빈 응답·누락 페이지는 정상 캐시를 보존한다.
  */
 'use strict';
@@ -30,6 +30,17 @@ function recordObservation(dir,now,firstRun,previous,next){const start=Date.pars
     const result={firstRun,windowEndsAt:io.iso(end),samples:kept};io.write(file,result);
     return{firstRun,windowEndsAt:result.windowEndsAt,samples:kept.length,lastObservedAt:sample.observedAt,lastChangedAt:[...kept].reverse().find(s=>s.changed)?.observedAt||null};
 }
+/** 연안 2일 표출에 필요한 날짜만 남긴다(사용자 확정 2026-10-15 「가」 — 2일 이후 자료는 보관하지 않는다).
+ * 원천은 날짜 조건 없이 오늘부터 약30일을 주므로(설계서 §2) 받은 뒤 저장 전에 거른다. 남기는 범위는 수집일~+2일:
+ * 이 파일은 다음 정상 수집(다음날06:20)까지 쓰이므로, 그 전 새벽(00~06시)에도 「오늘·내일」=수집일+1·+2가 필요하다.
+ * 예: 10-11 수집 → 10-11·10-12·10-13만; 10-10(지난 날)·10-14 이후는 버림.
+ * @param {object} values - {관광지id:{YYYY-MM-DD:집중률}} @param {number} now - 수집 완료 ms
+ * @returns {object} 범위 안 날짜만 남은 values(남은 날짜가 없는 관광지는 뺌)
+ * [연계] ← collect / risk_store.coastDetail 은 그 칸의 KST 날짜 값만 읽는다.
+ */
+function keepTwoDays(values,now){const first=io.day(now),last=io.day(now+2*86400000),out={};
+    for(const [id,dates]of Object.entries(values)){const kept=Object.fromEntries(Object.entries(dates).filter(([d])=>d>=first&&d<=last));if(Object.keys(kept).length)out[id]=kept;}
+    return out;}
 /** 주입 가능한 수집기를 만든다. 예: 테스트 임시폴더/가짜HTTP. @param {object} options @returns {object} [연계] ← server/검사 */
 function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl,key,spots}={}){let running=false,timer=null;
     const file=path.join(dir,'tour_concentration.json');
@@ -43,13 +54,14 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl,key,spots}
             for(const row of batch.rows){const r=normalize(row,sgg),entry=r.id+'|'+r.date;if(seen.has(entry))throw new Error('partial response');seen.add(entry);if(ids.has(r.id)){const dates=values[r.id]||(values[r.id]={});dates[r.date]=r.cr;}}
             count+=batch.rows.length;pageNo++;
         }while(count<total);if(count!==total)throw new Error('partial response');}
-        if(!Object.keys(values).length)throw new Error('empty response');
-        const finished=clock(),prior=io.read(file),previous=io.read(path.join(dir,'tourConcentration_status.json')),firstRun=previous?.firstRun||io.iso(finished),next={date:io.day(finished),collectedAt:io.iso(finished),values};
-        const observation=recordObservation(dir,finished,firstRun,prior,next);io.write(file,next);io.status(dir,'tourConcentration',finished,null,{date:next.date,spotsMatched:Object.keys(values).length,spotsTotal:locations.length,firstRun,...(observation?{observation}:{})});return{ok:true,matched:Object.keys(values).length};
+        const finished=clock(),kept=keepTwoDays(values,finished);
+        if(!Object.keys(kept).length)throw new Error('empty response');
+        const prior=io.read(file),previous=io.read(path.join(dir,'tourConcentration_status.json')),firstRun=previous?.firstRun||io.iso(finished),next={date:io.day(finished),collectedAt:io.iso(finished),values:kept};
+        const observation=recordObservation(dir,finished,firstRun,prior,next);io.write(file,next);io.status(dir,'tourConcentration',finished,null,{date:next.date,spotsMatched:Object.keys(kept).length,spotsTotal:locations.length,firstRun,...(observation?{observation}:{})});return{ok:true,matched:Object.keys(kept).length};
     }catch(e){io.status(dir,'tourConcentration',now,e);return{ok:false,error:io.errorName(e)};}finally{running=false;release();}}
     /** 일1회, 첫주에는 갱신시각확인용12:20을 추가한다. 예: 최초성공7일 뒤06:20만. @returns {Promise<object|null>} [연계] ← start */
     async function tick(){const now=clock(),local=new Date(now+9*3600000),h=local.getUTCHours(),m=local.getUTCMinutes(),state=io.read(path.join(dir,'tourConcentration_status.json'));if(m!==20||!(h===6||(h===12&&(!state?.firstRun||now-Date.parse(state.firstRun)<7*86400000))))return null;if(state?.lastRun&&now-Date.parse(state.lastRun)<60000)return null;return collect();}
     /** 운영만 자동 실행한다. 예: 개발에서 외부호출0. @returns {boolean} [연계] ← server.js */
     function start(){if(!process.env.FLY_ALLOC_ID||timer)return false;const data=io.read(file);if(!data||data.date!==io.day(clock()))collect().catch(e=>io.reportError('tourConcentration startup',e));timer=setInterval(()=>{tick().catch(e=>{io.reportError('tourConcentration tick',e);try{io.status(dir,'tourConcentration',clock(),e);}catch(writeError){io.reportError('tourConcentration status write',writeError);}});},60000);timer.unref();return true;}
     return{collect,tick,start,stop(){if(timer)clearInterval(timer);timer=null;}};}
-const defaultCollector=createCollector();module.exports={...defaultCollector,createCollector,normalize};
+const defaultCollector=createCollector();module.exports={...defaultCollector,createCollector,normalize,keepTwoDays};
