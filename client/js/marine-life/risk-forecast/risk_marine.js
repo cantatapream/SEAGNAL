@@ -64,7 +64,8 @@
     /** 혼잡예보 단계 작은 뱃지. 예: chip('높음') @param {string} lv @returns {string} HTML [연계] ← hero */
     function chip(lv){var c=CONG[lv];return '<span class="rf-chip" style="background:'+c+';color:'+F.ink(rgb(c))+'">'+F.escape(lv)+'</span>';}
     /** 소수 한 자리로 쓴다(정수면 소수 없이). 예: 4 → '4', 4.25 → '4.3' @param {number} v @returns {string} */
-    function num(v){return Number.isInteger(v)?String(v):(Math.round(v*10)/10).toFixed(1);}
+    // 척수는 화면에 정수로만 보인다 — 30분 값·2주 평균은 서버에서 평균(소수)으로 계산하되 표시는 반올림(사용자 2026-10-15 「(가)로 하자」: 평균은 그대로, 화면은 정수).
+    function num(v){return String(Math.round(v));}
     /**
      * 위 카드: 「위험 예측」 뱃지(공식 사고 단계) + 지금이면 「밀집도」 뱃지·척수·충돌주의·혼잡예보 작은 뱃지, 미래면 「혼잡도」 뱃지·혼잡 지수·충돌주의.
      * 예: 지금 18척·12.0%·16시 혼잡 높음 → 「이 해역 선박 18척(밀집도 12.0%)」 「충돌·접촉사고 주의」 「16시 혼잡예보 [높음]」

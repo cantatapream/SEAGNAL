@@ -118,9 +118,9 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   assert.deepEqual(r.day,['10.16(금)']);assert.equal(r.label,"'26.10.15(목) 16:12");assert.equal(r.nowMark,true);});
  await check('교통량(14일): 머리 「16:10 기준 · 2분 전」·「2주 평균 16:00」·선·특보 띠·「지금 18척」, days=15 로 요청',async()=>{
   const r=await page.evaluate(b=>{const c=document.querySelector(b+' [data-traffic-card]');return{src:c.querySelector('.rf-src').textContent,name:c.querySelector('[data-avg-name]').textContent,val:c.querySelector('[data-avg-value]').textContent,fut:c.querySelector('.rf-avg').classList.contains('fut'),lines:c.querySelectorAll('polyline').length,warn:[...c.querySelectorAll('rect[data-warn]')].map(x=>x.dataset.warn),now:c.querySelector('[data-now-label]')&&c.querySelector('[data-now-label]').textContent,leg:c.querySelector('[data-chart-leg]').textContent,empty:c.querySelectorAll('[data-empty]').length,dots:c.querySelectorAll('[data-dot]').length};},body);
-  assert.equal(r.src,'16:10 기준 · 2분 전');assert.equal(r.name,'2주 평균 16:00');assert.match(r.val,/^\d+(\.\d)?척$/);assert.equal(r.fut,false);assert.ok(r.lines>=1);assert.deepEqual(r.warn,['주의보','경보','주의보']);assert.equal(r.now,'지금 18척');assert.ok(r.leg.includes('주의보')&&r.leg.includes('경보'));assert.equal(r.empty,0);assert.equal(r.dots,0,'×1 에서는 선만');
+  assert.equal(r.src,'16:10 기준 · 2분 전');assert.equal(r.name,'2주 평균 16:00');assert.match(r.val,/^\d+척$/,'척수는 정수로만 표시(사용자 「(가)」)');assert.equal(r.fut,false);assert.ok(r.lines>=1);assert.deepEqual(r.warn,['주의보','경보','주의보']);assert.equal(r.now,'지금 18척');assert.ok(r.leg.includes('주의보')&&r.leg.includes('경보'));assert.equal(r.empty,0);assert.equal(r.dots,0,'×1 에서는 선만');
   // 16:00 칸 평균 = 어제~14일 전 16:00 기록 14개의 평균(진행 중인 오늘 16:00 은 빼고)
-  const want=[];for(let d=1;d<=14;d++)want.push(shipsAt(Date.parse('2026-10-15T16:00:00+09:00')-d*86400000));assert.equal(r.val,String(Math.round(want.reduce((a,b)=>a+b,0)/14*10)/10).replace(/\.0$/,'')+'척');
+  const want=[];for(let d=1;d<=14;d++)want.push(shipsAt(Date.parse('2026-10-15T16:00:00+09:00')-d*86400000));assert.equal(r.val,String(Math.round(Math.round(want.reduce((a,b)=>a+b,0)/14*10)/10))+'척');   // 평균은 소수 한 자리로 계산, 화면은 반올림 정수
   assert.deepEqual(log.history.at(-1),{cell:'GR4_F4K23_P4',days:'15'});await shot('sheet_now_busy_hero',body+' .rf-hero');});
  let th;
  await check('그래프 확대: 문턱 아래 점·글자 0개, 문턱 이상 점>0·글자>0·글자끼리/「지금」과 안 겹침, 숫자 8px·「척」 6.5px',async()=>{
@@ -141,7 +141,7 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   await pointer('pointerdown',1,b.x+200,cy);await pointer('pointermove',1,b.x+120,cy);await pointer('pointerup',1,b.x+120,cy);
   const off1=await page.evaluate(b=>document.querySelector(b+' [data-chart] svg rect[fill="#8fd3ff"]').getAttribute('x'),body);assert.ok(Number(off1)>Number(off0),'넘김 '+off0+'→'+off1);
   await pointer('pointerdown',1,b.x+200,cy);await pointer('pointerup',1,b.x+200,cy);
-  const tip=await page.evaluate(b=>{const t=document.querySelector(b+' [data-chart] [data-tip]');return t&&t.textContent;},body);assert.match(tip||'',/^\d+(\.\d)?척 · 10\.\d\d\([일월화수목금토]\) \d\d:(00|30)$/);assert.equal(await page.locator(body+' [data-tap-dot]').count(),1);
+  const tip=await page.evaluate(b=>{const t=document.querySelector(b+' [data-chart] [data-tip]');return t&&t.textContent;},body);assert.match(tip||'',/^\d+척 · 10\.\d\d\([일월화수목금토]\) \d\d:(00|30)$/);assert.equal(await page.locator(body+' [data-tap-dot]').count(),1);
   for(let i=0;i<3;i++){await pointer('pointerdown',1,b.x+100,cy);await pointer('pointerdown',2,b.x+110,cy);await pointer('pointermove',2,b.x+340,cy);await pointer('pointerup',2,b.x+340,cy);await pointer('pointerup',1,b.x+100,cy);}
   assert.equal(await page.locator(body+' [data-zoom]').evaluate(e=>e.textContent),'확대율 ×50.0','최대 ×50');});
  await check('60초 자동 갱신(같은 지점·시각)은 확대·말풍선·날씨 펼침을 지킨다',async()=>{
