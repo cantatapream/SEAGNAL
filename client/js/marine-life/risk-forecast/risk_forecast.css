@@ -18,6 +18,10 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-sheet-handle { width:40px; height:4px; border-radius:3px; background:rgba(255,255,255,.3); margin:0 auto 8px; }
 .rf-title { font-size:1.05rem; font-weight:700; margin:0 30px 2px 0; color:#e6edf8; }
 .rf-subtitle { font-size:.8rem; color:#bfcbde; }
+/* 부제 줄: 부제(좌표·관할) + 오른쪽 끝(✕ 아래) [기준 상세](2026-10-16 T8). 부제가 길면 부제만 줄바꿈하고 버튼 자리는 비워 둔다. */
+.rf-sub-row { display:flex; align-items:flex-start; gap:8px; }
+.rf-sub-row .rf-subtitle { flex:1 1 auto; min-width:0; }
+.rf-sub-row .rf-basis-btn { flex:none; margin:-2px -4px -3px 0; }   /* 24px 누르는 곳이지만 줄 높이(약 19.8px)보다 높게 잡히지 않게 위아래를 음수 여백으로 — 한 줄 부제일 때 시각 줄을 밀지 않는다 */
 .rf-close { position:absolute; top:10px; right:12px; }
 .rf-timeline { position:relative; margin:8px 0 10px; }
 /* 슬라이더 위의 고정 일시 표시(과제8). 말풍선처럼 손잡이를 따라다니지 않는다. */
@@ -26,14 +30,14 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-timeline .ocean-sheet-slider { min-height:24px; min-width:24px; }
 .rf-divider-track { position:absolute; inset:8px 8px; pointer-events:none; }
 .rf-slider-labels { display:none; }
-.rf-index { position:relative; border:1px solid #ffffff30; border-radius:14px; padding:34px 12px 10px; margin-bottom:12px; background:#ffffff0d; }
+.rf-index { position:relative; border:1px solid #ffffff30; border-radius:14px; padding:10px 12px 10px; margin-bottom:12px; background:#ffffff0d; }
 .rf-index-main { display:flex; align-items:center; gap:12px; }
 .rf-score-box { border-radius:12px; min-width:78px; padding:6px 10px; text-align:center; flex-shrink:0; }
 .rf-score-box small { display:block; font-size:.66rem; font-weight:700; }
 .rf-score-box strong { display:block; font-size:1.6rem; line-height:1.1; }
 .rf-index-prose { font-size:.84rem; }
 .rf-index-prose small { display:block; font-size:.72rem; color:#cbd5e6; }
-.rf-basis-btn { position:absolute; right:8px; top:8px; border:1px solid #ffffff55; border-radius:999px; padding:3px 9px; font-size:.7rem; font-weight:700; background:#ffffff14; color:#e6edf8; }
+.rf-basis-btn { border:1px solid #ffffff55; border-radius:999px; padding:3px 9px; font-size:.7rem; font-weight:700; background:#ffffff14; color:#e6edf8; white-space:nowrap; cursor:pointer; }
 .rf-ramp { height:8px; border-radius:4px; margin-top:10px; background:linear-gradient(90deg,#2fb36b 0%,#f2c230 19.49875%,#fb923c 66.6667%,#e0322c 100%); }
 .rf-ramp-labels { display:flex; justify-content:space-between; color:#cbd5e6; font-size:.66rem; }
 .rf-t-g { color:#4ade80; } .rf-t-y { color:#facc15; } .rf-t-o { color:#fb923c; } .rf-t-r { color:#f87171; }
@@ -63,13 +67,19 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-map-legend span { display:flex; align-items:center; gap:5px; }
 .rf-banner { position:absolute; bottom:10px; left:8px; right:8px; z-index:440; background:#132342ed; color:#e6edf8; padding:7px 10px; border-radius:8px; font-size:.75rem; pointer-events:none; }
 .rf-modal { position:fixed; z-index:11000; inset:0; background:rgba(4,8,18,.72); display:flex; align-items:flex-end; justify-content:center; }
-.rf-basis { width:100%; max-width:600px; max-height:88vh; overflow-y:auto; border-radius:20px 20px 0 0; background:linear-gradient(180deg,#0c1a3a,#162d5a); padding:14px 16px 20px; font-size:.82rem; line-height:1.6; color:#e6edf8; word-break:keep-all; overflow-wrap:break-word; }
-.rf-basis h3 { font-size:1rem; margin:0; color:#e6edf8; } .rf-basis h4 { color:#ffe17a; font-size:.86rem; margin:12px 0 4px; } .rf-basis p { margin:6px 0; }
+/* 기준 상세 창: 제목+닫기는 스크롤 밖 고정 머리(.rf-basis-head), 내용만 .rf-basis-body 에서 스크롤(2026-10-16 T8 「스크롤에 관계없이 고정」). 구조는 risk_basis.js open 이 만든다. */
+.rf-basis { width:100%; max-width:600px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; border-radius:20px 20px 0 0; background:linear-gradient(180deg,#0c1a3a,#162d5a); font-size:.82rem; line-height:1.6; color:#e6edf8; word-break:keep-all; overflow-wrap:break-word; }
+.rf-basis-head { flex:none; display:flex; align-items:center; gap:10px; padding:14px 16px 10px; border-bottom:1px solid rgba(255,255,255,.12); }
+.rf-basis-head h3 { flex:1 1 auto; min-width:0; }
+.rf-basis-body { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:2px 16px 20px; }
+.rf-basis h3 { font-size:1rem; margin:0; color:#e6edf8; }
+/* 링크: 남색 바탕에 기본 파랑 밑줄이 안 보였다(2026-10-16 T8) → 밝은 하늘색+밑줄. #8fd3ff 는 창 바탕 두 끝(#0c1a3a·#162d5a) 모두에 4.5:1 이상(test_risk_sheet_ui 가 실제 계산값으로 확인). */
+.rf-basis a,.rf-basis a:visited { color:#8fd3ff; text-decoration:underline; text-underline-offset:2px; } .rf-basis h4 { color:#ffe17a; font-size:.86rem; margin:12px 0 4px; } .rf-basis p { margin:6px 0; }
 .rf-basis table { border-collapse:collapse; width:100%; margin:8px 0; font-size:.78rem; } .rf-basis th,.rf-basis td { color:#e6edf8; border-bottom:1px solid rgba(255,255,255,.12); padding:5px 6px; background:transparent; }
 .rf-basis th { color:#ffe17a; }
 .rf-basis .n { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; } .rf-basis .wrap { white-space:normal; }
-.rf-basis .mclose { float:right; border:0; border-radius:999px; background:#ffffff22; color:#fff; padding:4px 10px; font-size:.78rem; font-weight:700; }
-.rf-basis .pdf-btn { display:inline-block; border:1px solid #ffd74073; background:#ffd74024; color:#ffe17a; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:700; margin:6px 0 2px; }
+.rf-basis .mclose { flex:none; border:0; border-radius:999px; background:#ffffff22; color:#fff; padding:4px 10px; font-size:.78rem; font-weight:700; }
+.rf-basis .pdf-btn,.rf-basis .pdf-btn:visited { display:inline-block; border:1px solid #ffd74073; background:#ffd74024; color:#ffe17a; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:700; margin:6px 0 2px; }
 .rf-location-options { display:flex; flex-direction:column; gap:6px; }
 .rf-location-choice { text-align:left; padding:8px 10px; border:1px solid #ffffff40; border-radius:8px; background:#ffffff14; color:#e6edf8; font:inherit; }
 .rf-sheet :focus-visible,.rf-basis :focus-visible,.rf-legend :focus-visible { outline:2px solid #448aff; outline-offset:2px; }
@@ -211,14 +221,16 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-wx-body .rf-grid3{grid-template-columns:1fr 1fr 1.3fr}
 .rf-cite{margin:2px 2px 6px;padding:10px 2px 0;border-top:1px solid #ffffff1c;font-size:.68rem;color:#98abc7;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .rf-cite dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 8px}.rf-cite dt{color:#7f93b2}.rf-cite dd{margin:0;color:#b9c6da}
-.rf-cite .rf-basis-btn{position:static;margin:0;flex:none}
 @media (prefers-reduced-motion:reduce){.rf-wx-head .chev{transition:none}}
 
-/* 해상 시트 시각 막대: 시각별 공식 사고 위험 색·3시간 눈금·자정 날짜·「지금」 꼬리표·범례(risk_slider.js mountRisk). 손잡이 중심(양끝 8px 안쪽)에 맞춘다. */
+/* 시트 시각 막대(해상·연안 공통 — 연안은 2026-10-16 T7): 시각별 단계 색·3시간 눈금·자정 날짜·「지금」 꼬리표·범례(risk_slider.js mountRisk). 손잡이 중심(양끝 8px 안쪽)에 맞춘다. */
 .rf-risk-time .ocean-sheet-slider::-webkit-slider-runnable-track{background:transparent;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 .rf-risk-time .ocean-sheet-slider::-moz-range-track{background:transparent;border:0;box-shadow:none}
 .rf-st-top{position:relative;width:calc(100% - 48px);margin:6px auto 3px;height:15px}
-.rf-st-key{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:9px;font-size:.62rem;color:#b9c6da;white-space:nowrap;line-height:15px}
+/* 범례: 「지금」 꼬리표 쪽 자리는 mountRisk 가 inline padding 으로 비우고, 남은 폭의 가운데(첫·끝 항목 auto 여백 — 넘치면 음수가 되지 않아 꼬리표 반대쪽으로만 넘친다). */
+.rf-st-key{position:absolute;left:0;right:0;top:0;box-sizing:border-box;display:flex;gap:9px;font-size:.62rem;color:#b9c6da;white-space:nowrap;line-height:15px}
+.rf-st-key span:first-child{margin-left:auto}.rf-st-key span:last-child{margin-right:auto}
+@media (max-width:360px){.rf-st-key{gap:6px}}
 .rf-st-key span{display:inline-flex;align-items:center;gap:3px}.rf-st-key i{width:10px;height:6px;border-radius:2px;display:inline-block}
 .rf-st-now{position:absolute;top:0;transform:translateX(-50%);font-size:.6rem;font-weight:800;color:#fff;background:#2a78c8;border-radius:4px;padding:0 4px;line-height:14px;white-space:nowrap}
 .rf-st-now::after{content:'';position:absolute;left:50%;bottom:-3px;margin-left:-3px;border:3px solid transparent;border-bottom:0;border-top-color:#2a78c8}

@@ -107,11 +107,22 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   assert.equal(await page.locator(body+' .rf-hero .rf-chip').innerText(),'높음');assert.equal(await page.locator(body+' .rf-hero b.rf-cc').count(),1);});
  await check('시트: 「15~18시 예보」 같은 예보 시간 줄 없음·옛 시트 문구(종합 관심단계·현재 교통현황·시간대별 표) 없음',async()=>{
   const t=await page.locator(body).innerText();assert.doesNotMatch(t,/\d+~\d+시 예보/);for(const s of ['종합 관심단계','현재 교통현황','오늘·내일 예보 시간대별 보기','공식 예보 기준','관심 필요','정보 확인'])assert.ok(!t.includes(s),s);});
- await check('시트: 순서 위 카드→교통량→선박사고→날씨→출처, 출처 「해양교통안전공단 API」·[기준 상세]',async()=>{
+ // T8(2026-10-16): [기준 상세]는 출처 칸에서 빼고 시트 머리 부제 줄 오른쪽 끝(✕ 아래)으로 옮겼다 — 이 검사의 출처 칸 단언을 그에 맞게 바꿈.
+ await check('시트: 순서 위 카드→교통량→선박사고→날씨→출처, 출처 「해양교통안전공단 API」, [기준 상세]는 출처 칸이 아니라 머리에',async()=>{
   const order=await page.evaluate(b=>[...document.querySelector(b).children].map(e=>e.matches('.rf-hero')?'hero':e.matches('[data-traffic-card]')?'traffic':e.matches('.rf-acc,.rf-none')?'acc':e.matches('.rf-wx')?'wx':e.matches('.rf-cite')?'cite':e.className),body);
   assert.deepEqual(order,['hero','traffic','acc','wx','cite']);const cite=(await page.locator(body+' .rf-cite').innerText()).replace(/\s+/g,' ');
-  for(const s of ['위험 예측·혼잡도·과거 2주간 선박교통량: 해양교통안전공단 API','이 해역 날씨: 기상청 해구별 예보','이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋','기준 상세'])assert.ok(cite.includes(s),s);assert.ok(!cite.includes('공식 제공 데이터'));
-  assert.equal(await page.locator(body+' .rf-cite [data-basis="sea"]').count(),1);});
+  for(const s of ['위험 예측·혼잡도·과거 2주간 선박교통량: 해양교통안전공단 API','이 해역 날씨: 기상청 해구별 예보','이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋'])assert.ok(cite.includes(s),s);assert.ok(!cite.includes('기준 상세'),'출처 칸에 [기준 상세]가 남음');assert.ok(!cite.includes('공식 제공 데이터'));
+  assert.equal(await page.locator(body+' [data-basis]').count(),0);assert.equal(await page.locator('#risk-forecast-sheet .rf-sheet-head .rf-head-basis[data-basis="sea"]').isVisible(),true);});
+ for(const width of [380,320])await check('T7·T8 해상 '+width+'px: 머리 [기준 상세]는 부제(관할) 줄 오른쪽 끝·✕ 아래·시각 줄을 밀지 않음, 범례와 「지금」 꼬리표 안 겹침',async()=>{
+  await page.setViewportSize({width,height:width===320?568:820});await page.waitForTimeout(150);
+  const m=await page.evaluate(()=>{const s=document.getElementById('risk-forecast-sheet'),q=x=>s.querySelector(x),r=e=>{const b=e.getBoundingClientRect();return{l:+b.left.toFixed(1),r:+b.right.toFixed(1),t:+b.top.toFixed(1),b:+b.bottom.toFixed(1)};};
+   const btn=q('.rf-head-basis'),sub=q('.rf-subtitle'),row=q('.rf-sub-row');return{btn:r(btn),close:r(q('.rf-close')),sub:r(sub),subText:sub.textContent,rowH:row.getBoundingClientRect().height,subH:sub.getBoundingClientRect().height,now:r(q('.rf-st-now')),keys:[...q('.rf-st-key').children].map(r),sheetR:s.getBoundingClientRect().right};});
+  console.log('측정 T8 해상 머리 '+width+'px',JSON.stringify(m));
+  assert.equal(m.subText,'부산해양경찰서 남항파출소 관할');assert.ok(Math.abs(m.btn.r-m.close.r)<=6,'오른쪽 끝 '+m.btn.r+' vs '+m.close.r);assert.ok(m.btn.t>=m.close.b-.5,'✕ 아래 '+m.btn.t+' < '+m.close.b);assert.ok(m.sub.r<=m.btn.l-4,'부제가 버튼 자리 침범');assert.ok(Math.abs(m.rowH-m.subH)<.5,'버튼이 부제 줄을 키움 '+m.rowH+' vs '+m.subH);
+  assert.ok(m.keys[0].l>=m.now.r+1,'범례가 「지금」과 겹침 '+m.keys[0].l+' < '+m.now.r);assert.ok(m.keys.at(-1).r<=m.sheetR-4,'범례 끝이 시트 밖');
+  await shot('sea_head_'+width,'#risk-forecast-sheet .rf-sheet-head');
+  if(width===320){await page.click('#risk-forecast-sheet .rf-head-basis');await page.waitForSelector('.rf-basis');assert.equal(await page.locator('.rf-basis-head h3').innerText(),'공식 선박 사고위험·교통혼잡 예보');await page.evaluate(()=>RiskBasis.close());}
+  await page.setViewportSize({width:380,height:820});});
  await check('시트 막대: 시각별 공식 사고 위험 색·「지금」 꼬리표·범례 4단계·눈금',async()=>{
   const r=await page.evaluate(()=>{const tl=document.querySelector('#risk-forecast-sheet .rf-timeline'),seg=[...tl.querySelectorAll('.rf-st-track span')];return{now:tl.querySelector('.rf-st-now')&&tl.querySelector('.rf-st-now').textContent,key:tl.querySelector('.rf-st-key').textContent,first:seg[0]&&seg[0].dataset.level,firstBg:seg[0]&&getComputedStyle(seg[0]).backgroundColor,levels:seg.map(s=>s.dataset.level||'-'),day:[...tl.querySelectorAll('.rf-st-lab em.day')].map(e=>e.textContent),label:tl.querySelector('.rf-time-label').textContent,nowMark:tl.querySelector('.rf-st-marks i.now').hidden};});
   assert.equal(r.now,'지금');assert.equal(r.key,'낮음보통주의경계');assert.equal(r.first,'보통');assert.equal(r.firstBg,'rgb(219, 199, 83)');assert.ok(r.levels.includes('주의'),r.levels.join(','));assert.ok(!r.levels.includes('-'),'모든 칸 색 '+r.levels.join(','));

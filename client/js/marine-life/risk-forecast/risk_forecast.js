@@ -133,10 +133,10 @@
             sheet.loading({title:kind==='coast'&&typeof item.name==='string'?item.name:'',subtitle:''});registerSheet();
             if(meta){selected.at=nearest(selectionTimes(kind),t||meta.now);mountSlider();}detail();
         }
-        /** 열린 시트의 시각 조작을 (다시) 그린다. 해상은 막대를 시각별 공식 사고 위험 색으로 칠하는 모양이고, 이미 받은 단계 색을 다시 칠한다.
-         * 예: 해상 지점 → RiskSlider.mount(...,{risk:true,now:meta.now}) 뒤 levels(selected.levels)
-         * @returns {void} [연계] ← select·sync / → RiskSlider.mount; 연안은 종전 모양 그대로 */
-        function mountSlider(){if(!selected||!meta)return;var sea=!!w.RiskMarine&&seaKind(selected.kind)==='sea';var sl=w.RiskSlider.mount(sheet.timelineEl,selectionTimes(selected.kind),selected.at||t,sliderChanged,sea?{risk:true,now:meta.now}:undefined);selected.slider=sl||null;if(sea&&sl&&sl.levels&&selected.levels)sl.levels(Object.keys(selected.levels).map(function(k){return selected.levels[k];}));}
+        /** 열린 시트의 시각 조작을 (다시) 그린다. 해상은 막대를 시각별 공식 사고 위험 색, 연안은 시각별 연안 4단계 색(2026-10-16 T7)으로 칠하는 모양이고, 이미 받은 단계 색을 다시 칠한다.
+         * 예: 해상 지점 → RiskSlider.mount(...,{risk:true,now:meta.now}) 뒤 levels(selected.levels) · 연안 지점 → {risk:true,now,colors:RiskFormat.BAND_COLORS}
+         * @returns {void} [연계] ← select·sync / → RiskSlider.mount; 단계는 detail() 이 상세 응답(해상 outlook.accident·연안 outlook)에서 selected.levels 로 모은다 */
+        function mountSlider(){if(!selected||!meta)return;var sea=!!w.RiskMarine&&seaKind(selected.kind)==='sea';var sl=w.RiskSlider.mount(sheet.timelineEl,selectionTimes(selected.kind),selected.at||t,sliderChanged,sea?{risk:true,now:meta.now}:selected.kind==='coast'?{risk:true,now:meta.now,colors:(w.RiskFormat||{}).BAND_COLORS}:undefined);selected.slider=sl||null;if(sl&&sl.levels&&selected.levels)sl.levels(Object.keys(selected.levels).map(function(k){return selected.levels[k];}));}
         /** 시트 시각 조작 값을 받아 그 시각의 상세를 다시 요청한다. 예: 18시로 옮기면 회색 틀 뒤 18시 상세.
          * @param {string} value - 선택 ISO 시각 @returns {void}
          * [연계] ← RiskSlider.mount / 메인 t는 바꾸지 않는다(시간 격리); 늦게 온 이전 시각 응답은 detail()의 세대·시각 검사가 버린다.
@@ -152,7 +152,7 @@
         async function detail(){
             if(!selected||!enabled)return;var n=++detailSeq,s=selected,at=s.at||t;
             try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;}var d=await api.get(s.kind==='briefing'?'sea/briefing':w.RiskMarine&&seaKind(s.kind)==='sea'?'sea/analysis':s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||(s.at||t)!==at)return;sheet.show(d,s.kind,s.item,meta?{now:meta.now}:undefined);registerSheet();
-                if(d&&d.marine){var out=d.marine.outlook&&d.marine.outlook.accident;if(out&&out.length){s.levels=s.levels||{};out.forEach(function(r){if(r&&r.forecastAt)s.levels[r.forecastAt]=r;});if(s.slider&&s.slider.levels)s.slider.levels(out);}trafficHistory(n,s,at,d.marine);}}
+                var out=d&&(d.marine?d.marine.outlook&&d.marine.outlook.accident:d.outlook);if(out&&out.length){s.levels=s.levels||{};out.forEach(function(r){if(r&&r.forecastAt)s.levels[r.forecastAt]=r;});if(s.slider&&s.slider.levels)s.slider.levels(out);}if(d&&d.marine)trafficHistory(n,s,at,d.marine);}   // 시각 막대 칸 색: 해상 outlook.accident · 연안 outlook(2026-10-16 T7)
             catch(e){console.warn('[위험예측] 상세 요청 실패',failureInfo(e));if(n===detailSeq&&enabled&&selected===s&&(s.at||t)===at){sheet.error(e.message);registerSheet();}}
         }
         /** 해상 시트의 「과거 2주간 선박교통량」 이력을 받아 카드를 채운다. 칸이 없으면 요청하지 않는다(카드는 「-」).

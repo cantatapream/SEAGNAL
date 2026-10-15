@@ -136,7 +136,7 @@
         return '<section class="rf-card rf-wx"><button type="button" class="rf-wx-head" aria-expanded="'+open+'" data-wx><h4>'+(isNow(m,ctx)?'지금 이 해역 날씨':'이 해역 '+whenText(m.t,ctx&&ctx.now)+' 예보')+'</h4><i class="chev" aria-hidden="true"></i></button>'
             +'<div class="rf-wx-body" data-wx-body'+(open?'':' hidden')+'><p class="g">파도</p><div class="rf-grid rf-grid3">'+tile('유의파고',x.wh,'m')+tile('파주기',x.wp,'초')+dirTile('파향',x.wd)+'</div><p class="g">바람</p><div class="rf-grid">'+tile('풍속',x.ws,'m/s')+dirTile('풍향',x.windDir)+'</div></div></section>';}
     /**
-     * 해상 지점 시트 본문 HTML 을 만든다. 순서: 위 카드 → 과거 2주간 선박교통량 → 이 해역 과거 선박사고 → 날씨 → 출처(+[기준 상세]).
+     * 해상 지점 시트 본문 HTML 을 만든다. 순서: 위 카드 → 과거 2주간 선박교통량 → 이 해역 과거 선박사고 → 날씨 → 출처([기준 상세]는 2026-10-16 시트 머리로).
      * 예: render(marine,{now:'2026-10-15T16:12:00+09:00'})
      * @param {object} m - marine 분석 @param {object} [ctx] - {now: 서버 meta.now} @returns {string} HTML
      * [연계] ← RiskSheet.show → 이어서 attach(이벤트) / 공식 단계에 자체 가중치를 더하지 않는다. 서버 문자열은 전부 escape.
@@ -144,7 +144,7 @@
     function render(m,ctx){
         var key=[m.location,m.point&&m.point.lon,m.point&&m.point.lat,m.t].join('|');if(key!==ui.key){ui.key=key;ui.z={s:1,off:0,tap:null};ui.wxOpen=false;}
         return hero(m,ctx)+trafficCard(m,ctx)+accidents(m.history)+weather(m,ctx)
-            +'<div class="rf-cite"><dl><dt>출처</dt><dd>위험 예측·혼잡도·과거 2주간 선박교통량: 해양교통안전공단 API</dd><dt></dt><dd>이 해역 날씨: 기상청 해구별 예보</dd><dt></dt><dd>이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋</dd></dl><button type="button" class="rf-basis-btn" data-basis="sea">기준 상세</button></div>';
+            +'<div class="rf-cite"><dl><dt>출처</dt><dd>위험 예측·혼잡도·과거 2주간 선박교통량: 해양교통안전공단 API</dd><dt></dt><dd>이 해역 날씨: 기상청 해구별 예보</dd><dt></dt><dd>이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋</dd></dl></div>';   // [기준 상세]는 시트 머리 부제 줄 오른쪽 끝으로 옮겼다(2026-10-16 T8, risk_sheet.js)
     }
     /**
      * 그려 둔 본문에 동작을 붙인다: 날씨 펼침, 사고 종류 팝업, 교통량 카드(같은 칸 이력을 이미 받았으면 바로 그림).

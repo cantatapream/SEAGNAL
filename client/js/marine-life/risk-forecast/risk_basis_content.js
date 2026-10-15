@@ -2,6 +2,7 @@
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_basis_content.js
  * 역할  : 공식 선박 예보와 연안 분석의 기준 문안을 보관한다. 동적인 API 데이터는 이 문자열에 섞지 않는다.
+ *         제목(h3)에는 「기준 상세 — 」를 붙이지 않는다(2026-10-16 T8 사용자 「"기준 상세 -" 이부분은 빼줘」). 닫기·제목은 risk_basis.js 가 고정 머리로 옮긴다.
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
@@ -13,7 +14,7 @@
 (function (w) {
     'use strict';
     w.RiskBasisContent={
-    sea:'<button type="button" class="mclose" id="mclose">닫기</button><h3>기준 상세 — 공식 선박 사고위험·교통혼잡 예보</h3>'+
+    sea:'<button type="button" class="mclose" id="mclose">닫기</button><h3>공식 선박 사고위험·교통혼잡 예보</h3>'+
       '<h4>해양사고 위험예보</h4><p>한국해양교통안전공단 MTIS가 최근 5년의 해양사고·기상예보 등으로 MLP 모델을 사용해 제공하는 <b>선박 사고위험 예보</b>입니다. 연안 관광객의 익수·추락 등 사고 분석에는 적용하지 않습니다.</p>'+
       '<p>공식 사고위험지수와 <b>낮음·보통·주의·경계</b> 단계를 그대로 표시합니다. 위험지수를 실제 사고 확률이나 자체 분석의 0~100 위험지수로 바꾸지 않습니다.</p>'+
       '<table><thead><tr><th>공식 단계</th><th>공식 안내의 상대 순위 구간</th></tr></thead><tbody>'+
@@ -31,7 +32,7 @@
       '<h4>기상정보</h4><p>파주기·파향·풍속·유의파고는 앱이 수집한 기상청 해구별 3시간 예보입니다. 사고 격자의 위치를 해구에 연결하며 실제 기상예보 시각과 출처를 별도로 표시합니다. 이 값은 공식 사고모델에 입력된 기상값과 같다고 보장할 수 없습니다.</p>'+
       '<h4>출처와 한계</h4><p>공식 예측도 과거 자료에 기반한 참고 정보이며 실제 해상 상황과 차이가 날 수 있습니다. 수집 실패·낡음·해당 시각 자료 없음은 그대로 표시합니다.</p>'+
       '<p><a href="https://mtis.komsa.or.kr/traffic/focst/acdntRisk" target="_blank" rel="noopener noreferrer">MTIS 공식 사고예보</a> · <a href="https://mtis.komsa.or.kr/traffic/focst/density" target="_blank" rel="noopener noreferrer">MTIS 공식 혼잡예보</a></p>',
-    coast:'<button type="button" class="mclose" id="mclose">닫기</button><h3>기준 상세 — 연안 위험지수</h3>'+
+    coast:'<button type="button" class="mclose" id="mclose">닫기</button><h3>연안 위험지수</h3>'+
       '<a class="pdf-btn" href="/api/risk-forecast/report/coast" download>위험지수 산출 근거 보고서(PDF)</a>'+
       '<h4>무엇을 나타내나?</h4><p>이 관광지 주변 3km에서 이 날에 <b>연안 사고(익수·추락·고립·떠밀림)</b>가 <b>기준보다 몇 배 일어나기 쉬운지</b>를 0~100으로 나타낸 값입니다.</p>'+
       '<h4>「기준」이란?</h4><p>이 관광지가 <b>평소(앞으로 30일 집중률의 평균)만큼 붐비고</b>, 3km 안에 위험구역이 없고, 행사가 없는 <b>1년 중 평범한 날</b>(달 점수 0 = 1년 평균)입니다. 그래서 위험구역이 많은 곳은 평소에도 숫자가 높게 나옵니다.</p>'+
