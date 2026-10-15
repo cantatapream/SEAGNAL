@@ -45,6 +45,10 @@ function identity(name, month) {
     return { source: name, scope: name === 'events' ? month : 'global' };
 }
 /** 파일에 있던 값도 다시 검사하고 비밀·자유 텍스트는 버린다. @param {object} row @returns {object|null} [연계] ← load */
+/** 관리자에게 보일 상세 한 줄을 다듬는다. 예: 문자열만, 200자까지. @param {*} v @returns {string|null} [연계] ← clean·update */
+function detailText(v) {
+    return typeof v === 'string' && v ? v.slice(0, 200) : null;
+}
 function clean(row) {
     if (
         !row ||
@@ -74,6 +78,7 @@ function clean(row) {
         'recoveredAt',
     ])
         out[key] = stamp(row[key]);
+    out.detail = detailText(row.detail);
     return out;
 }
 /** 검사에서는 임시 폴더와 시계를 쓴다. 예: 반복 감시는 한 건 유지. @param {object} options @returns {object} [연계] ← singleton/검사 */
@@ -161,6 +166,7 @@ function createHistory({
                     createdAt: stamp(row.createdAt),
                     checkedAt: stamp(row.checkedAt),
                     recoveredAt: bad ? null : previous?.recoveredAt || null,
+                    detail: detailText(row.detail),
                 };
                 if (
                     bad &&

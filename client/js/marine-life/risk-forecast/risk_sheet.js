@@ -48,14 +48,14 @@
         return '<div class="rf-row"><div class="rf-row-head"><strong>'+F.escape(label)+(used?'<small class="rf-used">위험지수에 반영</small>':'')+'</strong><span>'+value+'</span></div>'+(desc?'<div class="rf-row-desc">'+desc+'</div>':'')+'</div>';
     }
     /**
-     * 위험구역 목록에 지도 이동 버튼을 붙인다.
-     * 예: hazards([{id:'a',place:'해안'}])
-     * @param {Object[]} zones - 서버 위험구역 목록
+     * 위험구역 목록에 지도 이동 버튼을 붙인다. 구역별 관할은 「부산해양경찰서 남항파출소 관할」(2026-10-15).
+     * 예: hazards([{id:'a',place:'해안',police:'남항',office:'부산해양경찰서'}])
+     * @param {Object[]} zones - 서버 위험구역 목록(police·office 는 risk_store.coastDetail)
      * @returns {string} 목록 HTML
-     * [연계] coastRows → create 클릭 처리
+     * [연계] coastRows → create 클릭 처리 / 관할 문구는 RiskFormat.stationLabel
      */
     function hazards(zones) {
-        return '<details class="rf-hazards"><summary>위험구역 '+zones.length+'곳 현황</summary><ol>'+zones.map(function(z){return '<li data-zone-li="'+F.escape(z.id)+'"><b>'+F.escape(z.place||z.name)+'</b> · '+F.escape(z.shape)+' · '+F.escape(z.class)+'<br><button type="button" class="rf-hazard-link" data-zone-id="'+F.escape(z.id)+'" aria-pressed="false">'+F.escape(z.addr||'구역 위치 보기')+'</button>'+ (z.police?' · '+F.escape(z.police)+(z.police.endsWith('파출소')?'':'파출소')+' 관할':'')+'</li>';}).join('')+'</ol></details>';
+        return '<details class="rf-hazards"><summary>위험구역 '+zones.length+'곳 현황</summary><ol>'+zones.map(function(z){return '<li data-zone-li="'+F.escape(z.id)+'"><b>'+F.escape(z.place||z.name)+'</b> · '+F.escape(z.shape)+' · '+F.escape(z.class)+'<br><button type="button" class="rf-hazard-link" data-zone-id="'+F.escape(z.id)+'" aria-pressed="false">'+F.escape(z.addr||'구역 위치 보기')+'</button>'+ (z.police?' · '+F.escape(F.stationLabel(z.police,z.office)):'')+'</li>';}).join('')+'</ol></details>';
     }
     /**
      * 서버 연안 분석 행을 표시하고 결측 너울 행은 생략한다.
@@ -215,12 +215,20 @@
             var body=el.querySelector('.rf-body');el.querySelector('.rf-timeline').hidden=false;
             body.innerHTML=SKELETON;body.scrollTop=0;el.setAttribute('aria-busy','true');el.classList.add('open');
         }
+        /**
+         * 서버 응답으로 시트 머리(제목·부제)와 본문을 채운다.
+         * 예: show({marine:{location:'화순항 북북서방 11.8해리 해역(232-2해구)',station:'한림파출소',office:'제주해양경찰서'}},'sea')
+         *     → 부제 「제주해양경찰서 한림파출소 관할」(2026-10-15) · 연안은 「좌표 · <해양경찰서> <파출소> 관할」
+         * @param {Object} d - 서버 상세(해상 analysis·연안 coast/spot·공식 사고·브리핑) @param {string} kind - sea/coast/accident/briefing
+         * @param {Object} [item] - 누른 지점(좌표 대체용) @returns {void}
+         * [연계] RiskForecast.select → 여기 / 관할 문구는 RiskFormat.stationLabel(서버 office: marine_fusion·risk_store)
+         */
         function show(d,kind,item) {
             el.removeAttribute('aria-busy');
-            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?(d.marine.station||''):'선박 교통·예보·사고 이력 종합';el.querySelector('.rf-timeline').hidden=false;el.querySelector('.rf-body').innerHTML=d.marine?w.RiskMarine.render(d.marine):w.RiskMarine.briefing(d);el.classList.add('open');return;}
+            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';el.querySelector('.rf-timeline').hidden=false;el.querySelector('.rf-body').innerHTML=d.marine?w.RiskMarine.render(d.marine):w.RiskMarine.briefing(d);el.classList.add('open');return;}
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='accident'?'선박 사고 위험예보 · 격자 '+d.gridId:kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
-            el.querySelector('.rf-subtitle').textContent=kind==='accident'?'격자 중심 '+F.dms(d.lat,true)+' - '+F.dms(d.lon,false):kind==='sea'?[sub.name,sub.bearingWord||F.direction(sub.bearingDeg||0),String(Math.round(sub.bearingDeg||0)%360).padStart(3,'0')+'도',Number(sub.distNm||0).toFixed(1)+'해리'].join(' '):F.dms(sub.lat==null?item.lat:sub.lat,true)+' - '+F.dms(sub.lon==null?item.lon:sub.lon,false)+(sub.police?' · '+sub.police+(sub.police.endsWith('파출소')?'':'파출소')+' 관할':'');
+            el.querySelector('.rf-subtitle').textContent=kind==='accident'?'격자 중심 '+F.dms(d.lat,true)+' - '+F.dms(d.lon,false):kind==='sea'?[sub.name,sub.bearingWord||F.direction(sub.bearingDeg||0),String(Math.round(sub.bearingDeg||0)%360).padStart(3,'0')+'도',Number(sub.distNm||0).toFixed(1)+'해리'].join(' '):F.dms(sub.lat==null?item.lat:sub.lat,true)+' - '+F.dms(sub.lon==null?item.lon:sub.lon,false)+(sub.police?' · '+F.stationLabel(sub.police,sub.office):'');
             el.querySelector('.rf-timeline').hidden=false;
             // 수집 진단은 관리자 오류현황에 두고 개별 결측값과 다시 시도는 유지한다.
             var body='';

@@ -143,5 +143,19 @@
      * [연계] RiskSheet → 해구 부제목
      */
     function direction(deg) { return ['북','북북동','북동','동북동','동','동남동','남동','남남동','남','남남서','남서','서남서','서','서북서','북서','북북서'][Math.round(((deg%360)+360)%360 / 22.5) % 16]; }
-    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, stamp:stamp, direction:direction, luminance:luminance};
+    /**
+     * 관할 문구를 「<해양경찰서> <파출소> 관할」로 만든다(사용자 요청 2026-10-15).
+     * 예: stationLabel('한림파출소','제주해양경찰서') → 제주해양경찰서 한림파출소 관할
+     *     stationLabel('광안리',null) → 광안리파출소 관할 (경찰서를 모르면 파출소 이름만)
+     * @param {string|null} police - 파출소·출장소 이름(위험구역 자료처럼 「파출소」가 빠진 이름도 받는다)
+     * @param {string|null} office - 소속 해양경찰서(서버 office 필드, 모르면 null)
+     * @returns {string} 관할 문구, 파출소가 없으면 빈 문자열
+     * [연계] RiskSheet → 해상·연안 시트 부제와 위험구역 아코디언 / 서버 marine_fusion.analyze·risk_store.coastDetail 의 office
+     */
+    function stationLabel(police, office) {
+        if (!police) return '';
+        var name = /(파출소|출장소)$/.test(police) ? police : police + '파출소';
+        return (office ? office + ' ' : '') + name + ' 관할';
+    }
+    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, stamp:stamp, direction:direction, luminance:luminance, stationLabel:stationLabel};
 })(window);

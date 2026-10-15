@@ -204,6 +204,18 @@ const stdNames = features.map(f => core.canonZone(f.properties.name));
     check('efTime 은 예비이거나 active 아닐 때만', Object.values(zn).every(z => ('efTime' in z) === (z.tier === 'prelim' || (z.event || 'active') !== 'active')));
     check('forecast 는 있을 때만(null 키 없음)', Object.values(zn).every(z => !('forecast' in z) || (z.forecast && typeof z.forecast === 'object')));
 
+    // ── [5-b] 실제 파일 감싸개 {previous, current} — current 만 읽는다(종전엔 previous 를 읽었다) ──
+    console.log('\n[5-b] weather_alerts.json 감싸개 — 현재(current) 트리를 읽는다');
+    const zt = (cur) => ({ '남해': { '남해동부먼바다': { current: cur, upcoming: null, history: [], missingCount: 0, children: {} } } });
+    const wrapped = (prev, cur) => ({ updatedAt: 'x', lastReportId: null, processedReportIds: [], pendingRetries: {}, previous: zt(prev), current: zt(cur) });
+    let ew = D.extractActiveWarnings(wrapped(null, { wrnTp: '풍랑', wrnLvl: '경보' }));
+    check('현재에만 경보 → 경보 1건', ew.length === 1 && ew[0].zone === '남해동부먼바다' && ew[0].level === '경보', JSON.stringify(ew));
+    ew = D.extractActiveWarnings(wrapped({ wrnTp: '풍랑', wrnLvl: '주의보' }, null));
+    check('직전에만 주의보(이미 해제) → 0건', ew.length === 0, JSON.stringify(ew));
+    ew = D.extractActiveWarnings(wrapped({ wrnTp: '풍랑', wrnLvl: '주의보' }, { wrnTp: '풍랑', wrnLvl: '경보' }));
+    check('직전 주의보 → 현재 경보: 경보만', ew.length === 1 && ew[0].level === '경보', JSON.stringify(ew));
+    check('감싸개 없는 맨 트리도 그대로 읽는다', D.extractActiveWarnings(zt({ wrnTp: '풍랑', wrnLvl: '주의보' })).length === 1);
+
     // ── [6] 단말 판정 동일성 — 종전 스냅샷 vs 축약 스냅샷 ────────────────────
     console.log('\n[6] 단말(JS decideAlert) 판정이 종전 스냅샷과 글자까지 같다');
     // 종전 buildSnapshot 의 출력 모양을 그대로 재현(2026-10-15 이전 코드: 모든 필드 + generatedAt).

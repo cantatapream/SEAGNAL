@@ -29,8 +29,9 @@ const risk={marineInputs:()=>inputs,sources:()=>inputs.sources};
 (async()=>{let server;try{
     await check('웹 GR4 공식 경계·척수·7선종·10톤수 합계 검증',()=>{const r=C.normalizeWeb(web())[0];assert.equal(r.id,trafficCell.id);assert.equal(r.count,21);assert.equal(r.types.length,7);assert.equal(r.tons.length,10);assert.equal(r.lat,33.5625);});
     await check('밀집도 0은 선박 0으로 변환하지 않음',()=>{const w=web();w.densities[0].density=0;assert.equal(C.normalizeWeb(w)[0].count,21);assert.equal(C.normalizeWeb(w)[0].density,0);});
-    await check('밀집도 누락은 null·선종 누락은 잘못된 응답',()=>{const w=web();w.densities=null;assert.equal(C.normalizeWeb(w)[0].density,null);delete w.collection.features[0].properties.s001Count;assert.throws(()=>C.normalizeWeb(w));});
-    await check('중복 격자·음수·잘못된 레벨 거부',()=>{const w=web();w.collection.features.push(w.collection.features[0]);assert.throws(()=>C.normalizeWeb(w));assert.throws(()=>C.gridId('GR3_F4K23_P'));const bad=web(-1);assert.throws(()=>C.normalizeWeb(bad));});
+    // 2026-10-15 사용자 확정: 한 줄이 이상해도 전체를 버리지 않고 그 줄만 뺀다(종전엔 전체 거부 → 하루 넘게 갱신 정지).
+    await check('밀집도 누락은 null·선종 누락은 그 격자 선종·톤수만 비우고 척수 유지',()=>{const w=web();w.densities=null;assert.equal(C.normalizeWeb(w)[0].density,null);delete w.collection.features[0].properties.s001Count;const d={},r=C.normalizeWeb(w,d);assert.equal(r[0].types,null);assert.equal(r[0].tons,null);assert.equal(typeof r[0].count,'number');assert.equal(d['선종·톤수 합계 불일치(척수는 유지)'],1);});
+    await check('중복 격자는 하나만·음수만 있으면 거부·잘못된 레벨 거부',()=>{const w=web(),n=w.collection.features.length;w.collection.features.push(w.collection.features[0]);const d={};assert.equal(C.normalizeWeb(w,d).length,n);assert.equal(d['격자 중복'],1);assert.throws(()=>C.gridId('GR3_F4K23_P'));const bad=web(-1);assert.throws(()=>C.normalizeWeb(bad));});
     const collector=C.createCollector({dir,key:'',clock:()=>now,webFetch:async()=>web(),describe});
     await check('키 없이 공개웹 최신 조회를 작은 배열·한 번의 경계로 게시',async()=>{assert.equal((await collector.collect()).ok,true);const d=io.read(path.join(dir,'sea_realtime.json.gz'));assert.equal(d.rows[0].length,20);assert.equal(d.sourceAt,null);assert.equal(d.cells.length,1);assert.equal(d.rows[0][3],21);});
     await check('5분 동일 구간에는 외부 수집 반복 없음',async()=>{assert.equal((await collector.collect()).unchanged,true);});

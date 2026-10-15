@@ -234,8 +234,15 @@ function _logSendSummary(targets, result, message, snapshot, successCount) {
  *   말단 구역 노드(키=구역명)에 current(발효중)·upcoming(예비/발표예정)이 **객체 또는 null**.
  *   필드: wrnTp(종류 예:'풍랑'), wrnLvl(등급 '주의보'|'경보'|'예비'), tmEf(발효시각·범위형 포함), tmCc(해제예정).
  *   children(연안/평수 자식)도 동일 형태 — 함께 순회하되 device는 메인 구역명만 매칭.
+ * ★디스크의 weather_alerts.json 은 맨 위가 `{ updatedAt, …, previous, current }` 감싸개다
+ *   (marine_warning_crawler.js _writeWeatherAlertsJson). 예전엔 감싸개째 순회해 'current' 키를
+ *   말단 필드로 건너뛰고 **previous(직전 주기) 트리만** 읽었다 → 위치 알림이 약 2주기(약 2분) 전
+ *   상황으로 나갔다(2026-10-15 독립 리뷰 발견·재현, 사용자 「진행」). 감싸개면 current 트리만 본다.
+ * 예: extractActiveWarnings({previous:{…}, current:{'남해':{'남해동부먼바다':{current:{wrnLvl:'경보'}}}}})
+ *     → [{zone:'남해동부먼바다', level:'경보', event:'active', …}]
  */
 function extractActiveWarnings(tree) {
+    if (tree && typeof tree === 'object' && 'previous' in tree && 'current' in tree) tree = tree.current;
     const out = [];
     const LEAF_KEYS = ['current', 'upcoming', 'history', 'children', 'missingCount'];
     function emit(zoneName, node) {

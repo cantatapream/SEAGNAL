@@ -119,6 +119,8 @@ bash scripts/refactor/verify_all.sh
 
 이 화면의 관할 브리핑 목록/버튼/자동 관할조회는 제거했다. 서버`sea/briefing`과renderer는 나중 메인 브리핑을 위해 남기되 현재 화면에서는 접근하지 않는다.
 
+관할 문구(2026-10-15)는 `RiskFormat.stationLabel(파출소, 해양경찰서)`로만 만든다 — 해상 부제는 `analysis.marine.station`+`office`, 연안 부제는 `subtitle.police`+`office`, 위험구역 아코디언은 `zones[].police`+`office`. 새 화면에서 「…파출소 관할」을 쓸 때도 문자열을 직접 잇지 말고 이 함수를 쓴다(「파출소」 접미사·출장소·경찰서 없음 처리가 한 곳에 있다). 대응표와 같은 이름 가르기 규칙은 [README.md](README.md)의 같은 이름 절.
+
 ## 특보 구역 배경 면 (과제14)
 
 `refresh()`는 연안·해상 프레임과 별도로 `refreshWarnings(n,at)`를 실행한다. `state.coast||state.sea`일 때만 `GET /warning-zones?t=<메인 시각>`을 한 번 호출하고(요청 세대 `seq`로 늦은 응답을 버린다), `layer.zonesLoaded()`로 정적 도형 로드를 기다린 뒤 `layer.drawWarnings(zones)`를 부른다. 시트 시각(`selected.at`)은 쓰지 않으므로 메인 15시 / 시트 18시 격리가 유지된다.
