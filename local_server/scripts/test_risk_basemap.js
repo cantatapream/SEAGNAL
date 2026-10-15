@@ -20,7 +20,7 @@ function setup(opts={}){
  const log=[],banner={hidden:true,textContent:''};let base=opts.base||'coast';const ready=opts.ready===undefined?true:opts.ready;
  const meta={now:'2026-10-10T12:00:00+09:00',versions:{spots:'v1',cells:'v1',accident:'v1'},sources:{},timeline:{coast:{times:['2026-10-10T12:00:00+09:00']},sea:{times:['2026-10-10T12:00:00+09:00']}}};
  const api={clear(){},async get(name){if(name==='meta')return meta;if(name==='coast/spots')return {spots:[]};if(name==='sea/cells')return {cells:[]};return {spots:[],cells:[],borders:[],sources:{}};}};
- const layer={setActive(){},setTables(){},async boundaries(){},drawCoast(){},drawSea(){},drawAccident(){},drawBorders(){},setSelection(){},showHazards(){},destroy(){}};
+ const layer={setActive(){},setTables(){},async boundaries(){},drawCoast(){},drawSea(){},drawAccident(){},drawBorders(){},async zonesLoaded(){},drawWarnings(){return [];},setSelection(){},showHazards(){},destroy(){}};
  const sheet={clear(){},show(){},error(){},choose(){},timelineEl:{}};
  const legend={innerHTML:'',hidden:false,addEventListener(){},querySelector(){return {hidden:false};}};
  const win={RiskAPI:{create:()=>api},RiskMapLayer:{create:()=>layer},RiskSheet:{create:()=>sheet,sourceName:ui.window.RiskSheet.sourceName,sourceMessages:ui.window.RiskSheet.sourceMessages},RiskBasis:{open(){},close(){}},RiskSlider:{mount(){}}};
@@ -49,7 +49,7 @@ function setup(opts={}){
  await test('키 확인 함수가 없는 환경(미리보기)도 위성으로 전환하고 오류 없음',async()=>{const s=setup({ready:'none'});s.app.setEnabled(true);await settle();assert.equal(s.base(),'vworld');assert.equal(s.banner.hidden,true);s.app.destroy();});
  await test('지도 배경 함수 자체가 없는 환경(미리보기)에서도 켜고 끄기 오류 없음',async()=>{const s=setup({noBase:true});s.app.setEnabled(true);await settle();s.app.setEnabled(false);s.app.destroy();assert.deepEqual(s.log,[]);});
  await test('ocean_map.js: vworld 배경 전환·위성 줌 한계·키 확인 API가 있다',async()=>{const src=fs.readFileSync(oceanMap,'utf8');assert.match(src,/window\.oceanSetBasemap\s*=/);assert.match(src,/vworld:\s*'위성지도'/);assert.match(src,/type === 'vworld'\) \? VWORLD_MAX_ZOOM : MAX_ZOOM/);assert.match(src,/window\.oceanVworldReady\s*=/);});
- await test('위험예측 층은 자기 canvas 위에 그리며 배경지도 레이어에 의존하지 않는다',async()=>{const src=fs.readFileSync(path.join(root,'risk_map_layer.js'),'utf8');assert.match(src,/className:'rf-'\+k\+'-canvas'/);assert.match(src,/zIndex:130\+i/);assert.doesNotMatch(src,/oceanSetBasemap|oceanGetBasemap|baseLayer/);});
+ await test('위험예측 층은 자기 canvas 위에 그리며 배경지도 레이어에 의존하지 않는다',async()=>{const src=fs.readFileSync(path.join(root,'risk_map_layer.js'),'utf8');assert.match(src,/className:'rf-'\+k\+'-canvas'/);assert.match(src,/zIndex:[^,]*130\+i/);assert.doesNotMatch(src,/oceanSetBasemap|oceanGetBasemap|baseLayer/);});
  await test('위험예측 조율기는 배경을 해안도로 고정하던 옛 동작을 쓰지 않는다',async()=>{const src=fs.readFileSync(path.join(root,'risk_forecast.js'),'utf8');assert.doesNotMatch(src,/oceanSetBasemap\('coast'\);\}legend/);assert.match(src,/oceanSetBasemap\('vworld'\)/);});
  console.log(`${pass} PASS / ${fail} FAIL`);process.exitCode=fail?1:0;
 })().catch(e=>{console.error(e);process.exitCode=1;});

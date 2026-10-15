@@ -139,11 +139,31 @@
             }catch(e){if(n===seq&&enabled&&!disposed){layer.drawUnified({cells:[]},{cells:[]});errors.push('해상 자료를 불러오지 못했습니다. 잠시 후 다시 시도합니다.');}console.warn('[위험예측] 해상 통합 지도 요청 실패',failureInfo(e));}
             return {errors:errors,warnings:sourceWarnings};
         }
+        /** 선택한 메인 시각에 실제 발표된 특보 구역만 지도 배경 면으로 그린다(연안·해상 켬 여부, 위험 프레임과 독립).
+         * 예: 해상만 켜도 /warning-zones 한 번으로 12시 주의보 구역을 칠한다; 특보가 없으면 아무것도 그리지 않는다.
+         * @param {number} n - 요청 세대 @param {string} at - 메인 시각(시트 시각 아님)
+         * @returns {Promise<object>} 안전한 오류·특보 원천 안내
+         * [연계] ← refresh / 구 sea·coast frame은 부르지 않는다. 실패는 빈 화면으로 정상처럼 꾸미지 않고 안내를 남긴다.
+         */
+        async function refreshWarnings(n,at){var errors=[],warnings=[];
+            try{
+                var data=await api.get('warning-zones',{t:at});
+                if(n!==seq||!enabled||disposed)return {errors:[],warnings:[]};
+                var zones=Array.isArray(data.zones)?data.zones:[];
+                await layer.zonesLoaded();
+                if(n!==seq||!enabled||disposed)return {errors:[],warnings:[]};
+                var missing=layer.drawWarnings(zones);
+                if(missing.length){errors.push('특보 구역 경계를 지도에 그리지 못했습니다');console.warn('[위험예측] 특보 구역 도형 없음',{count:missing.length});}
+                if((data.degraded||[]).includes('warnings')||(data.sources&&data.sources.warnings&&!['ok','offseason'].includes(data.sources.warnings.status)))warnings=w.RiskSheet.sourceMessages({t:data.t,sources:{warnings:(data.sources||{}).warnings||{status:'missing'}}},'sea');
+            }catch(e){if(n===seq&&enabled&&!disposed){layer.drawWarnings([]);errors.push('특보 구역 — '+e.message);}console.warn('[위험예측] 특보 구역 요청 실패',failureInfo(e));}
+            return {errors:errors,warnings:warnings};
+        }
         async function refresh(){
             if(!meta||disposed)return;var n=++seq,at=t,freshAccident=accidentFresh;layer.setActive(state,enabled);legend.hidden=!enabled;if(colorLegend)colorLegend.hidden=!enabled||!state.sea;
             if(!enabled){message('');return;}
             var frames=[],errors=[],degraded=[],sourceWarnings=[],kinds=(w.RiskMarine?['coast']:['coast','sea','accident']).filter(function(k){return state[k==='accident'?'sea':k];});
             var marineJob=w.RiskMarine&&state.sea?refreshMarine(n,at):Promise.resolve({errors:[],warnings:[]});
+            var warningJob=state.coast||state.sea?refreshWarnings(n,at):Promise.resolve({errors:[],warnings:[]});
             await Promise.all(kinds.map(async function(kind){
                 // 메타가 이미 위치표 부재를 알려준 경우 준비 전 503을 반복 요청하지 않는다.
                 if((kind==='sea'&&meta.versions.cells===0)||(kind==='accident'&&!meta.versions.accident)){
@@ -174,7 +194,8 @@
                     if(kind==='coast')layer.drawCoast(f);else if(kind==='accident')layer.drawAccident(f);else layer.drawSea(f);frames.push(f);degraded=degraded.concat(f.degraded||[]);sourceWarnings=sourceWarnings.concat(w.RiskSheet.sourceMessages(f,kind));
                 }catch(e){console.warn('[위험예측] '+(kind==='coast'?'연안':kind==='accident'?'공단 사고 위험예보':'선박 혼잡')+' 프레임 처리 실패',failureInfo(e));errors.push((kind==='coast'?'연안':kind==='accident'?'공단 사고 위험예보':'선박 혼잡')+' 자료 — '+e.message);if(n===seq){if(kind==='sea')layer.drawSea({cells:[]});else if(kind==='accident')layer.drawAccident({cells:[]});else layer.drawCoast({spots:[]});}}
             }));
-            if(n!==seq||!enabled)return;layer.drawBorders(frames);
+            if(n!==seq||!enabled)return;
+            var warningResult=await warningJob;if(n!==seq||!enabled||disposed)return;errors=errors.concat(warningResult.errors);sourceWarnings=sourceWarnings.concat(warningResult.warnings);
             var marineResult=await marineJob;if(n!==seq||!enabled||disposed)return;errors=errors.concat(marineResult.errors);sourceWarnings=sourceWarnings.concat(marineResult.warnings);
             message(errors.length?'위험예측 자료를 불러오지 못했습니다 — '+errors.join(' / '):sourceWarnings.length?'⚠ '+Array.from(new Set(sourceWarnings)).join(' / '):degraded.length?'⚠ '+Array.from(new Set(degraded)).map(w.RiskSheet.sourceName).join(', ')+' 자료 없음':'');
             if(selected){layer.setSelection(selected.kind==='briefing'?null:selected.kind,selected.id);await detail();}
