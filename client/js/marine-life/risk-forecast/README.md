@@ -47,3 +47,7 @@
 시트(`#risk-forecast-sheet`)는 지도 박스가 아니라 화면(viewport) 기준 `position:fixed`로 `bottom:var(--ls-bottom-chrome)`(메인탭+열린 서브탭 높이) 위에 놓는다. `--main-tab-height`가 탭 offsetHeight 실측값이라 아이폰 아래 여백(safe-area)이 이미 들어 있어 `env()`를 더하지 않는다. 서브탭이 열리면 변수가 서브탭만큼 커져 이중 여백이 생기지 않는다.
 
 시트 안은 `.rf-sheet-head`(손잡이·닫기·제목·부제·시각 조작, 고정)와 `.rf-body`(내용, 이 안에서만 스크롤)로 나뉜다. 연안·해상·공식 사고 상세, 해상 종합·관할 브리핑 렌더, 같은 위치 관광지 선택 목록이 같은 머리를 쓴다. 닫기 버튼, PopupStack 등록, 휴대폰 뒤로가기는 그대로다. 미리보기(`risk_forecast_preview.html`)는 프레임 안 absolute 배치를 유지한다.
+
+## 시트 고정 일시 표시 — 과제8
+
+슬라이더 말풍선(`.ocean-sheet-tooltip`)을 없애고 슬라이더 위 빈칸에 `<output class="rf-time-label">`로 「'26.10.14(수) 15:00」(KST)를 고정 표시한다. 값은 시트의 `selected.at`(손잡이를 움직이면 그 값)이며 `RiskFormat.stamp`로 만든다. 메인 지도 시각(`t`)은 읽지 않는다 — 메인 15시, 시트 18시로 옮기고 닫으면 메인은 15시, 다른 지점의 새 시트도 15시로 시작한다. 해상 메인 하단 바의 현재/+3H/+6H/+12H와 고정 일시는 그대로다.

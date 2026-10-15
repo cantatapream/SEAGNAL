@@ -121,3 +121,8 @@ bash scripts/refactor/verify_all.sh
 - `.rf-sheet`는 `position:fixed; bottom:var(--rf-chrome)`이며 `--rf-chrome`은 `--ls-bottom-chrome`(없으면 `--main-tab-height`, 그것도 없으면 68px)이다. 최대 높이는 (화면 높이 − 하단 탭류) × 66%다.
 - 새 시트 내용을 만들 때는 `.rf-body` 안에만 넣는다. 머리(`.rf-sheet-head`)에는 제목·부제·`.rf-timeline`만 둔다. 시트 자체에 `overflow:auto`를 주면 닫기 버튼이 스크롤과 함께 사라진다.
 - 검사: `node local_server/scripts/test_risk_sheet_ui.js` (Chromium 필요: `PW_CHROME` 환경변수).
+
+## 시트 고정 일시 — 과제8
+
+- `RiskSlider.mount(el,times,selected,change)`가 `.rf-time-label`(output)을 슬라이더 위에 만든다. 선택 시각이 새 시간축에 없으면 손잡이는 처음 칸이지만 표시는 `selected`(상세가 실제 보여 주는 시각)를 따른다.
+- 말풍선 표시/숨김 타이머와 위치 계산은 없다. 키보드·터치 모두 `input` 이벤트로 표시를 갱신하고 `aria-valuetext`에 같은 문구를 둔다.

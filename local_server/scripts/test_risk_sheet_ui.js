@@ -92,6 +92,22 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   assert.ok(m.scrollable&&m.headMoved===0&&m.closeMoved===0&&m.closeVisible);assert.ok(Math.abs(m.sheetBottom-m.tabTop)<=.5);assert.ok(!m.lastCovered);
   await pg.evaluate(()=>document.getElementById('long-sheet').remove());
  });
+ /** 시트 슬라이더를 한 칸으로 옮긴다. 예: slide(1) → input 이벤트. @param {number} n 칸 번호 @returns {Promise<void>} [연계] ← 과제6·8 */
+ const slide=n=>pg.evaluate(i=>{const el=document.querySelector('#risk-forecast-sheet input[type="range"]');el.value=String(i);el.dispatchEvent(new Event('input',{bubbles:true}));},n);
+ const label=()=>pg.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-time-label').textContent);
+ await check('슬라이더 말풍선 없이 위 빈칸에 「\'26.mm.dd(요일) HH:mm」 고정 표시',async()=>{
+  await open('a');
+  const m=await pg.evaluate(()=>{const l=document.querySelector('#risk-forecast-sheet .rf-time-label'),w=document.querySelector('#risk-forecast-sheet .ocean-sheet-slider-wrap'),lr=l.getBoundingClientRect(),wr=w.getBoundingClientRect(),input=w.querySelector('input');return{tag:l.tagName,text:l.textContent,bubbles:document.querySelectorAll('.ocean-sheet-tooltip').length,above:lr.bottom<=wr.top+.5,visible:lr.width>0&&lr.height>0,valuetext:input.getAttribute('aria-valuetext')};});
+  console.log('측정 고정 일시',JSON.stringify(m));
+  assert.equal(m.tag,'OUTPUT');assert.equal(m.text,"'26.10.15(목) 15:00");assert.equal(m.bubbles,0);assert.ok(m.above&&m.visible);assert.equal(m.valuetext,m.text);
+  await slide(1);assert.equal(await label(),"'26.10.15(목) 18:00");await slide(3);assert.equal(await label(),"'26.10.16(금) 00:00");
+  await pg.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-16T00:00:00+09:00'));
+ });
+ await check('시트 시각을 바꿔도 메인 시각은 그대로·닫고 다른 지점은 메인 시각(15시)으로 시작',async()=>{
+  assert.equal(await pg.evaluate(()=>app.getState().t),now);
+  await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());await open('b');
+  assert.equal(await label(),"'26.10.15(목) 15:00");assert.equal(await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet input[type="range"]').value),'0');assert.equal(await pg.evaluate(()=>app.getState().t),now);
+ });
  await check('PopupStack·닫기 버튼 동작 유지(뒤로가기로 시트 닫힘)',async()=>{
   await open('a');assert.deepEqual(await pg.evaluate(()=>Array.from(PopupStack.list())),['risk-forecast-sheet']);
   assert.equal(await pg.evaluate(()=>PopupStack.popLast()),true);assert.equal(await pg.evaluate(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')),false);assert.equal(await pg.evaluate(()=>app.getState().selected),null);

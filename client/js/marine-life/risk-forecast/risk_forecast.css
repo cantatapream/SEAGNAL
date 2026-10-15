@@ -19,7 +19,9 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-title { font-size:1.05rem; font-weight:700; margin:0 30px 2px 0; color:#e6edf8; }
 .rf-subtitle { font-size:.8rem; color:#bfcbde; }
 .rf-close { position:absolute; top:10px; right:12px; }
-.rf-timeline { position:relative; margin:30px 0 14px; }
+.rf-timeline { position:relative; margin:8px 0 10px; }
+/* 슬라이더 위의 고정 일시 표시(과제8). 말풍선처럼 손잡이를 따라다니지 않는다. */
+.rf-time-label { display:block; min-height:1.4em; margin:0 0 2px; text-align:center; font-size:.9rem; font-weight:700; font-variant-numeric:tabular-nums; color:#e6edf8; }
 .rf-timeline .ocean-sheet-slider-wrap { position:relative; width:100%; }
 .rf-timeline .ocean-sheet-slider { min-height:24px; min-width:24px; }
 .rf-divider-track { position:absolute; inset:8px 8px; pointer-events:none; }
