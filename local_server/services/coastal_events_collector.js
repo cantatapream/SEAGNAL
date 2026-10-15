@@ -20,8 +20,9 @@ const PERMANENT_DAYS=180;
 const SEARCH_TIMEOUT_MS=10*60000;
 // Gemini 근거(groundingChunks[].web.uri)는 구글 경유 주소로 온다(공개 자료: python-genai issue #1322 등 — 실호출로는 확인 못 함).
 const REDIRECT_HOST='vertexaisearch.cloud.google.com',REDIRECT_TIMEOUT_MS=15000;
-// 버린 행사의 사유(월 파일 skipped·상태 detail 에 이 순서로 남긴다).
-const SKIP_ORDER=['Gemini 호출 실패','시도 응답 해석 실패','시도 응답 시간 초과','근거 불일치','근거 확인 불가','기간 밖','상시 행사','내륙(해안 1km 밖)','주소/장소 불일치','번지 없음','항목 형식 오류','취소','대상 시군구 밖'];
+// 버린 행사의 사유(월 파일 skipped·상태 detail 에 이 순서로 남긴다). 행사 건수만 센다 — 시도 실패(「Gemini 호출 실패」「시도 응답 해석 실패」
+// 「시도 응답 시간 초과」)는 시도 수라 여기 넣지 않고 provinces·failedProvinces 와 detail 의 「시도 실패」 줄로만 남긴다(2026-10-15 검토 D6).
+const SKIP_ORDER=['근거 불일치','근거 확인 불가','기간 밖','상시 행사','내륙(해안 1km 밖)','주소/장소 불일치','번지 없음','항목 형식 오류','취소','대상 시군구 밖'];
 // events_2020_2025.csv 의 type 칸(notes.md §1).
 const TYPE_NAMES={1:'물에 들어가는 대회',2:'해안 육상 대회',3:'낚시대회',4:'야간·대규모',5:'물때',6:'지역 해양·수산 축제'};
 const PROVINCES={서울:'서울',부산:'부산',대구:'대구',인천:'인천',광주:'광주',대전:'대전',울산:'울산',세종:'세종',경기:'경기',강원:'강원',충북:'충북',충청북:'충북',충남:'충남',충청남:'충남',전북:'전북',전라북:'전북',전남:'전남',전라남:'전남',경북:'경북',경상북:'경북',경남:'경남',경상남:'경남',제주:'제주'};
@@ -87,18 +88,25 @@ function isCoastal(coord,geometry){if(!geometry||!['Polygon','MultiPolygon'].inc
  * [연계] ← collect(대상 시군구)·findPlace / 번지 없는 행사를 같은 시군구 관광지·카카오 결과와 맞춘다.
  */
 function municipal(value){const a=addressParts(value);return a.province&&a.city.length?a.province+'|'+a.city.join('/'):null;}
-/** 두 주소를 「호스트+경로」로 비교하는 키를 만든다(끝 / 제거, 쿼리·조각·http/https 무시 — 사용자 승인 2026-10-15).
- * withQuery 면 쿼리까지 넣은 전체 주소 키(조각만 무시). 예: https://Busan.go.kr/a/b/?x=1#y → busan.go.kr/a/b · withQuery → busan.go.kr/a/b?x=1
+// 근거 대조에서 빼는 추적용 쿼리 이름(utm_*·광고 클릭 번호). 「utm」 단독도 같은 뜻으로 본다(종전 시험 'x?utm=1' — 글 번호로 쓰는 곳은 확인하지 못했다).
+const TRACKING_PARAM=/^(?:utm(?:_.*)?|fbclid|gclid|gclsrc|dclid|gbraid|wbraid|msclkid|yclid|igshid|mc_cid|mc_eid|_ga|_gl)$/i;
+/** 두 주소를 비교하는 키를 만든다: 호스트(소문자)+경로(끝 / 제거)+해시 라우팅 조각(#/… · #!…). http/https·기본 포트·일반 #앵커는 무시(사용자 승인 2026-10-15).
+ * withQuery 면 추적용 쿼리(TRACKING_PARAM)를 뺀 나머지 쿼리를 이름순으로 붙인다(순서만 다른 쿼리는 같은 키).
+ * 예: https://Busan.go.kr/a/b/?x=1#y → busan.go.kr/a/b · withQuery → busan.go.kr/a/b?x=1 · https://a.kr/#/view/7 → a.kr#/view/7 · a?b=2&a=1&utm_source=z (withQuery) → a?a=1&b=2
  * @param {string} value - URL @param {boolean} [withQuery] @returns {string|null} 해석 불가는 null [연계] ← matchGrounding / Gemini src 와 실제 근거 주소를 맞춘다.
  */
-function urlKey(value,withQuery){try{const u=new URL(value);return u.hostname.toLowerCase()+u.pathname.replace(/\/+$/,'')+(withQuery?u.search:'');}catch(_){return null;}}
-/** Gemini src 에 맞는 실제 근거 주소를 고른다. 쿼리까지 같은 근거가 먼저, 없으면 「호스트+경로」가 같은 근거가 **하나뿐일 때만**.
- * 예: 근거 view.do?idx=7·idx=8 에 src idx=8 → idx=8 / src idx=99999 → null(같은 게시판 글이 둘이라 어느 것인지 모름) / src a?utm=x, 근거 a 하나 → a
+function urlKey(value,withQuery){try{const u=new URL(value),route=/^#[!/]/.test(u.hash)?u.hash:'';
+    const query=withQuery?new URLSearchParams([...u.searchParams].filter(([k])=>!TRACKING_PARAM.test(k)).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:a[1]<b[1]?-1:a[1]>b[1]?1:0)).toString():'';
+    return u.hostname.toLowerCase()+u.pathname.replace(/\/+$/,'')+route+(query?'?'+query:'');}catch(_){return null;}}
+/** Gemini src 에 맞는 실제 근거 주소를 고른다. 정규화 키(urlKey withQuery — 추적용 쿼리를 뺀 쿼리·해시 라우팅까지)가 같은 근거만 받는다.
+ * 같은 키의 근거가 여럿이면 표기만 다른 같은 페이지라 하나로 보고 첫 것을 쓴다(검토 D9). 근거가 하나뿐이어도 쿼리가 다르면 받지 않는다(검토 D2).
+ * 예: 근거 view.do?idx=7·idx=8 에 src idx=8 → idx=8 / src idx=99999 → null(근거가 idx=7 하나뿐이어도 null) / src a?utm_source=x, 근거 a 하나 → a
+ *     / src https://a.kr/#/view/99999, 근거 https://a.kr/#/view/7 → null / src x?utm_source=1, 근거 x·x/ → x
  * @param {string} src - Gemini 가 적은 주소 @param {string[]} grounded - 실제 근거 주소 @returns {string|null}
- * [연계] ← collect / 2026-10-15 독립 검토: 호스트+경로만 보면 첫 근거만 남아 진짜 행사가 다른 글 링크로 저장되고 지어낸 글 번호도 통과했다.
+ * [연계] ← collect / 2026-10-15 독립 검토 두 차례: 호스트+경로만 보면 진짜 행사가 다른 글 링크로 저장되고(1차), 같은 경로 근거가 하나뿐이면
+ *        지어낸 글 번호(idx=99999)가 그 글(idx=7)에 붙었다(2차 D2).
  */
-function matchGrounding(src,grounded){const full=urlKey(src,true),path=urlKey(src);if(!full)return null;const exact=grounded.find(u=>urlKey(u,true)===full);if(exact)return exact;
-    const same=[...new Set(grounded.filter(u=>urlKey(u)===path))];return same.length===1?same[0]:null;}
+function matchGrounding(src,grounded){const want=urlKey(src,true);if(!want)return null;return grounded.find(u=>urlKey(u,true)===want)||null;}
 /** Gemini 근거 주소가 구글 경유 주소면 한 번 따라가 실제 주소(Location)를 얻는다. 예: vertexaisearch…/grounding-api-redirect/AB → https://city.go.kr/event/1
  * @param {string} uri - groundingChunks[].web.uri @param {function} fetchImpl - HTTP
  * @returns {Promise<object>} {url: 실제 주소} 또는 {error: 못 푼 까닭} — 풀지 못한 것은 지어내지 않고 「근거 확인 불가」 건수로 남는다
@@ -136,9 +144,14 @@ function eventDays(e){return Math.round((Date.parse(e.end+'T00:00:00Z')-Date.par
  */
 function placeName(value){return String(value||'').normalize('NFKC').replace(/\([^)]*\)/g,'').replace(/\s/g,'');}
 /** 그 시도 응답 하나만 실패로 표시하는 오류를 만든다. 예: 머리말뿐인 답 → 시도 응답 해석 실패.
- * @param {string} reason - SKIP_ORDER 의 시도 사유 @returns {Error} [연계] ← webSearch·collect / 공식 목록·다른 시도 결과는 저장한다.
+ * @param {string} reason - 시도 실패 사유(Gemini 호출 실패·시도 응답 해석 실패·시도 응답 시간 초과 — provinces 에만, skipped 에는 넣지 않음) @returns {Error} [연계] ← webSearch·collect / 공식 목록·다른 시도 결과는 저장한다.
  */
 function provinceError(reason){return Object.assign(new Error('network or parse error'),{provinceFailure:reason});}
+/** 카카오 주소·장소검색 호출 자체의 고장(HTTP 오류·시간 초과·네트워크·키 없음)을 「불일치」와 구별되게 표시한다. 예: HTTP 500 → {message:'HTTP 500', kakaoFailure:true}.
+ * @param {Error} err - geocode·findPlace 가 던진 오류 @returns {Error} 메시지는 io.errorName 의 고정 분류
+ * [연계] ← link / collect 가 받아 Gemini 행사면 그 시도만 「카카오 호출 실패」, 공식 행사면 저장된 그 달 행사 유지(사용자 2026-10-15 D7 결정).
+ */
+function kakaoFailure(err){return Object.assign(new Error(io.errorName(err)),{kakaoFailure:true});}
 /** Gemini 답에서 첫 { ~ 마지막 } 만 잘라 events 배열을 읽는다. 예: 「찾았습니다: {"events":[]}」→ []
  * @param {string} text - 모델 답 @returns {object[]} events [연계] ← webSearch / JSON 이 아니면 그 시도만 실패(검토 C3).
  */
@@ -148,11 +161,13 @@ function parseEvents(text){const s=String(text||''),a=s.indexOf('{'),b=s.lastInd
 /** 사유별 건수를 더한다. 예: add(s,'기간 밖') → s['기간 밖']+1. @param {object} into @param {string} why @param {number} n [연계] ← collect. */
 function addSkip(into,why,n=1){if(n>0)into[why]=(into[why]||0)+n;}
 /** 관리자 오류현황 「상세」에 보일 한 줄을 만든다(고정 문구+숫자, 키·주소 없음). 예: 시도 실패 경상남도(시도 응답 해석 실패) · 건너뜀 근거 불일치 2·번지 없음 1
- * @param {object} skipped - 사유별 건수 @param {object} provinces - 시도별 결과 @returns {string|null} [연계] ← collect → io.status detail.
+ * 공식 목록 실패 문구가 있으면 맨 앞에 둔다. 예: 공식 목록 다시 받기 실패(HTTP 500) — 저장된 행사 유지 · 시도 실패 경상남도(카카오 호출 실패)
+ * @param {object} skipped - 사유별 건수 @param {object} provinces - 시도별 결과 @param {string} [officialNote] - 공식 목록 실패 문구(collect 가 만든다)
+ * @returns {string|null} [연계] ← collect → io.status detail.
  */
-function skipDetail(skipped,provinces){const failed=Object.entries(provinces).filter(([,p])=>p.status==='error').map(([name,p])=>name+'('+p.reason+')');
+function skipDetail(skipped,provinces,officialNote){const failed=Object.entries(provinces).filter(([,p])=>p.status==='error').map(([name,p])=>name+'('+p.reason+')');
     const parts=SKIP_ORDER.filter(k=>skipped[k]).map(k=>k+' '+skipped[k]);
-    return [failed.length?'시도 실패 '+failed.join(', '):'',parts.length?'건너뜀 '+parts.join('·'):''].filter(Boolean).join(' · ')||null;
+    return [officialNote||'',failed.length?'시도 실패 '+failed.join(', '):'',parts.length?'건너뜀 '+parts.join('·'):''].filter(Boolean).join(' · ')||null;
 }
 /** 주입 가능한 공식목록·보충검색 수집기를 만든다. 예: 검사에서는 외부 HTTP와 Gemini를 모두 주입한다.
  * @param {object} options - dir/clock/fetchImpl/key/kakaoKey/search/festivalSearch/spots/coastalGeometry/searchTimeoutMs(검사용)
@@ -218,8 +233,14 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
      */
     function withTimeout(promise,ms){let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(provinceError('시도 응답 시간 초과')),ms);})]).finally(()=>clearTimeout(timer));}
     /** 검증된 월을 원자적으로 바꾼다. 예: 키 없음·HTTP 오류·전체0건이면 기존정상캐시 유지, 공식·Gemini중복은 한 행.
-     * 한 시도의 Gemini 호출 실패·해석 실패·시간 초과면 그 시도만 실패로 적고(provinces) 나머지는 저장한다 — 다음 03:20 에는 그 시도만 다시 묻는다.
+     * 한 시도의 Gemini 호출 실패·해석 실패·시간 초과·그 시도 행사를 붙이다 카카오 호출 실패면 그 시도만 실패로 적고(provinces) 나머지는 저장한다
+     * — 다음 03:20 에는 그 시도만 다시 묻는다.
+     * 공식 목록(TourAPI) 받기 실패·공식 행사를 붙이다 카카오 호출 실패는, 그 달 파일이 이미 저장돼 있으면 그 파일의 공식 행사를 그대로 쓰고
+     * 월 파일 official.status='error' 로 남긴다 — 다음 03:20 에 공식 목록을 다시 받는다(needsMonth). 그 달 파일이 없으면(첫 수집) 종전대로 그 달 실패.
+     *   (사용자 2026-10-15 D7: 「그대로 쓰되, 오류가 난 부분이 있다면 다음날 다시 수집하는건 어떄? 그 오류가 난 부분에 한해서 말이야.」)
      * 그때 상태 파일은 ok(행사 점수에 쓰임)이고 failedProvinceCount>0 이라 관리자 오류현황에는 「일부 실패」로 남는다(risk_error_history).
+     * ⚠failedProvinceCount 는 이름과 달리 「실패한 부분 수」다: 실패한 시도 수 + 공식 목록 실패면 1(2026-10-15 D7 — 오류현황 쪽 새 칸 없이 기존 partial 경로를 쓰려고 넓힘).
+     *   failedProvinces 는 시도 이름만 담는다.
      * @param {string} target - 조사월 @returns {Promise<object>} 성공여부/개수/사유별 건너뜀
      * [연계] ← tick/start / 공식목록·근거·주소/행사장 검증·최근접 연결 후 risk_store가 읽을 파일을 쓴다.
      */
@@ -229,18 +250,32 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
             /** 구가 있는 시를 구 없이 적은 경우도 같은 곳으로 본다. 예: 요청 경남|창원시 ↔ 후보 경남|창원시/진해구 → true, 경남|창원 ↔ 경남|창원시 → false.
              * @param {string|null} want - 요청 시군구 키 @param {string|null} have - 후보 시군구 키 @returns {boolean}
              * [연계] ← inScope·findPlace / 2026-10-15 검토: Gemini sgg 「경상남도 창원시」가 진해구 관광지와 맞지 않아 버려졌다(coastal_spots 74곳이 구 있는 시).
+             *        카카오 후보는 이것만으로 받지 않고 그 주소의 시군구가 scope 에 정확히 있어야 한다(findPlace — 검토 D1).
              */
             const sameArea=(want,have)=>!!want&&!!have&&(have===want||have.startsWith(want+'/'));
-            /** 대상 시군구(관광지가 있는 시군구) 안인지. 예: 전남|여수시 → false(관광지 없음). @param {string|null} m @returns {boolean} [연계] ← link */
+            /** 대상 시군구(관광지가 있는 시군구) 안인지. 요청 쪽이라 구 없는 시도 받는다. 예: 전남|여수시 → false(관광지 없음), 경남|창원시 → true(진해구 관광지).
+             * @param {string|null} m @returns {boolean} [연계] ← link·outOfScope */
             const inScope=m=>[...scope].some(s=>sameArea(m,s));
-            const rawOfficial=await(festivalSearch||festivals)(target);if(!Array.isArray(rawOfficial))throw new Error('invalid response');
-            const normalized=rawOfficial.map(normalizeFestival),freshIds=new Set(rawOfficial.map(e=>String(e.contentid)));addSkip(skipped,'취소',normalized.filter(e=>!e).length);
-            const prior=new Date(bounds.first+'T00:00:00Z');prior.setUTCMonth(prior.getUTCMonth()-1);const previous=io.read(file(prior.toISOString().slice(0,7)));
-            const carried=(previous?.events||[]).filter(e=>validDate(e.start)&&validDate(e.end)&&e.end>=bounds.first&&e.start<=bounds.last&&!freshIds.has(e.contentId));
-            // 같은 달 파일에 실패한 시도가 남아 있으면 그 시도만 다시 묻고, 성공했던 시도의 Gemini 결과는 그대로 다시 쓴다(사용자 승인 2026-10-15).
-            const same=io.read(file(target)),retryOnly=same?.month===target&&same.provinces&&Object.values(same.provinces).some(p=>p?.status==='error')?same.provinces:null;
-            const official=[];
+            /** 행사가 적은 시군구 키: 번지 주소가 있으면 주소, 없으면 행사장+sgg. 예: {venue:'이순신광장',sgg:'전라남도 여수시'} → 전남|여수시.
+             * @param {object} e - 행사 @returns {string|null} [연계] ← link·outOfScope / 새 수집과 재사용 행이 같은 판정을 쓴다. */
+            const areaOf=e=>addressKey(e.address)?municipal(e.address):e.venue&&e.sgg?municipal(e.sgg):null;
+            /** 재질문 실행에서 다시 쓰는 저장 행이 지금 규칙으로 「대상 시군구 밖」인지. 예: 이 규칙 전에 저장된 여수 행사(한산도에 붙음) → true.
+             * 행사가 적은 시군구(areaOf)가 대상 밖이거나, 카카오 장소검색으로 붙은 행의 실제 주소 시군구가 scope 에 정확히 없으면 밖(link·findPlace 와 같은 판정).
+             * @param {object} e - 저장 행 @returns {boolean} [연계] ← 아래 시도 for(saved.rows) / 2026-10-15 검토 D3: 이전 규칙으로 저장된 행이 그대로 재사용됐다.
+             */
+            const outOfScope=e=>{if(!e||typeof e!=='object')return false;const area=areaOf(e);if(area&&!inScope(area))return true;
+                return e.linkMethod==='카카오 장소검색'&&typeof e.resolvedAddress==='string'&&!scope.has(municipal(e.resolvedAddress));};
+            // 이미 저장된 그 달 파일. 공식 목록을 다시 받지 못하면 여기의 공식 행사를 그대로 쓴다(D7). 파일이 없으면(첫 수집) 공식 목록 실패는 그 달 실패.
+            const same=io.read(file(target)),saved=same?.month===target&&Array.isArray(same.events)?same:null;
+            // 같은 달 파일에 실패한 부분(시도·공식 목록)이 남아 있으면 실패한 시도만 다시 묻고, 성공했던 시도의 Gemini 결과는 그대로 다시 쓴다(사용자 승인 2026-10-15).
+            const retryOnly=saved?.provinces&&(Object.values(saved.provinces).some(p=>p?.status==='error')||saved.official?.status==='error')?saved.provinces:null;
+            const official=[],officialSkipped={};let officialError=null,normalized=[],freshIds=new Set();
+            try{const rawOfficial=await(festivalSearch||festivals)(target);if(!Array.isArray(rawOfficial))throw new Error('invalid response');
+                normalized=rawOfficial.map(normalizeFestival);freshIds=new Set(rawOfficial.map(e=>String(e.contentid)));}
+            catch(err){if(!saved)throw err;officialError=io.errorName(err);}
             /** 번지 없는 행사장을 연결한다: ⓐ 같은 시군구 관광지 이름이 정확히 같은 곳 1곳 ⓑ 카카오 장소검색 「시군구+행사장」에서 같은 시군구 후보가 한 좌표일 때만.
+             * ⓑ 는 한 좌표로 모인 후보의 주소 시군구가 대상 시군구(scope)에 정확히 있어야 받는다 — 「경상남도 창원시」로 적은 행사가 관광지 없는
+             *   성산구 장소로 돌아와 진해구 관광지에 붙던 것(2026-10-15 검토 D1). 좌표가 갈리는지는 scope 밖 후보까지 넣어 본다. ⓐ 는 관광지 자신의 시군구라 늘 scope 안이다.
              * @param {object} e - venue/sgg @returns {Promise<object|null>} 좌표(ⓐ는 그 관광지), 못 찾으면 null
              * [연계] ← link / 과거 수작업 163행 중 번지 있는 행이 0이라 번지만으로는 비공식 행사를 거의 못 붙였다(검토 C2).
              */
@@ -250,58 +285,80 @@ function createCollector({dir=io.DEFAULT_DIR,clock=Date.now,fetchImpl=fetch,key,
                 const response=await fetchImpl(url.toString(),{headers:{Authorization:'KakaoAK '+kakaoKey},signal:AbortSignal.timeout(30000)});if(!response.ok)throw new Error('HTTP '+response.status);
                 const found=[];for(const d of (await response.json()).documents||[]){const address=[d.road_address_name,d.address_name].find(a=>a&&sameArea(want,municipal(a)));if(!address)continue;const lat=Number(d.y),lon=Number(d.x);
                     if(d.y===null||d.y===''||d.x===null||d.x===''||!Number.isFinite(lat)||!Number.isFinite(lon)||lat<20||lat>45||lon<115||lon>140)return null;found.push({lat,lon,resolvedAddress:address,resolvedPlace:typeof d.place_name==='string'?d.place_name:null,linkMethod:'카카오 장소검색'});}
-                return found.length&&new Set(found.map(d=>d.lat+'|'+d.lon)).size===1?found[0]:null;
+                // 시 안 후보가 여러 좌표로 갈리면 대상 밖 후보가 섞여 있어도 버린다(어느 곳인지 모름). 한 좌표로 모여도 그 주소 시군구가 scope 에 정확히 없으면 버린다(D1).
+                return found.length&&new Set(found.map(d=>d.lat+'|'+d.lon)).size===1&&found.every(d=>scope.has(municipal(d.resolvedAddress)))?found[0]:null;
             }
             /** 행사 한 건을 검증해 관광지와 연결한다. 버리면 사유를 돌려준다. 예: 번지 있음→카카오 주소 대조, 없음→findPlace.
              * @param {object} e - 행사 @returns {Promise<string|null>} 버린 사유(SKIP_ORDER) 또는 null(저장)
-             * [연계] ← collect / 두 원천을 같은 연결 규칙으로 저장한다. 키 없음·HTTP 오류는 throw 해 그 달을 실패로 둔다.
+             * [연계] ← collect / 두 원천을 같은 연결 규칙으로 저장한다. 카카오 키 없음·HTTP 오류는 kakaoFailure 로 throw 한다(collect 가 시도 실패·저장 행사 유지로 나눔).
              */
             async function link(e){const text=(v,max)=>v===undefined||v===null||(typeof v==='string'&&v.length<=max);
                 if(!e||typeof e!=='object'||typeof e.name!=='string'||!e.name.trim()||e.name.length>200||!text(e.address,500)||!text(e.venue,200)||!text(e.sgg,100)||!validDate(e.start)||!validDate(e.end)||e.start>e.end)return'항목 형식 오류';
                 // 대상 시군구 밖(관광지가 없는 시군구)은 가장 가까운 다른 시군구 관광지에 잘못 붙으므로 건너뛴다 — 공식 목록은 아래 for 에서 먼저 거른다(2026-10-15 검토: 전남 여수 행사가 23km 떨어진 남해 관광지에 붙었다).
-                const area=addressKey(e.address)?municipal(e.address):e.venue&&e.sgg?municipal(e.sgg):null;if(area&&!inScope(area))return'대상 시군구 밖';
+                const area=areaOf(e);if(area&&!inScope(area))return'대상 시군구 밖';
                 if(e.end<bounds.first||e.start>bounds.last)return'기간 밖';if(eventDays(e)>=PERMANENT_DAYS)return'상시 행사';
-                let coord;if(addressKey(e.address)){try{coord={...await geocode(e,fetchImpl,kakaoKey),linkMethod:'카카오 주소'};}catch(err){const why=io.errorName(err);if(why!=='unmatched event'&&why!=='invalid event')throw err;return'주소/장소 불일치';}}
-                else if(e.venue&&e.sgg){coord=await findPlace(e);if(!coord)return'주소/장소 불일치';}else return'번지 없음';
+                let coord;if(addressKey(e.address)){try{coord={...await geocode(e,fetchImpl,kakaoKey),linkMethod:'카카오 주소'};}catch(err){const why=io.errorName(err);if(why!=='unmatched event'&&why!=='invalid event')throw kakaoFailure(err);return'주소/장소 불일치';}}
+                else if(e.venue&&e.sgg){try{coord=await findPlace(e);}catch(err){throw kakaoFailure(err);}if(!coord)return'주소/장소 불일치';}else return'번지 없음';
                 if(!land)land=io.read(path.join(CONFIG,'risk_spots.json'))?.landGeometry;if(!isCoastal(coord,land))return'내륙(해안 1km 밖)';
                 let spot=coord.spot||null,best=spot?0:Infinity;if(!spot)for(const s of locations){const distance=G.haversine(coord.lat,coord.lon,s.lat,s.lon);if(distance<best){best=distance;spot=s;}}if(!spot)throw new Error('unmatched event');
                 const {sources:_oldSources,...clean}=e,{spot:_spot,...where}=coord;rows.push({...clean,name:e.name.trim(),...where,spotId:spot.sgg+'|'+spot.name,connectionKm:+best.toFixed(3)});return null;
             }
             // 행사 한 건을 연결할 수 없으면 그 행사만 건너뛰고 사유별로 센다(2026-10-15 — 종전에는 한 건 때문에 그 달 전체가 실패했다).
-            // 키 없음·HTTP 오류·한도 같은 수집 자체의 문제는 종전대로 그 달을 실패로 둔다(정상 캐시 보존).
-            for(const e of normalized){if(!e)continue;if(!scope.has(municipal(e.address))){addSkip(skipped,'대상 시군구 밖');continue;}if(e.end<bounds.first||e.start>bounds.last){addSkip(skipped,'기간 밖');continue;}
-                official.push(e);const why=await link({...e,sourceObservedAt:io.iso(clock()),carriedForward:false});if(why)addSkip(skipped,why);}
+            // 키 없음·HTTP 오류·한도 같은 수집 자체의 문제는 그 달을 실패로 둔다(정상 캐시 보존) — 단 저장된 그 달 파일이 있으면 공식 목록 받기 실패·
+            // 공식 행사 카카오 호출 실패는 저장된 공식 행사로 대신한다(D7). 그 밖의 오류(해안선 자료 없음 등)는 종전대로 그 달 실패.
+            if(!officialError){const before=rows.length;
+                try{addSkip(officialSkipped,'취소',normalized.filter(e=>!e).length);
+                    for(const e of normalized){if(!e)continue;if(!scope.has(municipal(e.address))){addSkip(officialSkipped,'대상 시군구 밖');continue;}if(e.end<bounds.first||e.start>bounds.last){addSkip(officialSkipped,'기간 밖');continue;}
+                        official.push(e);const why=await link({...e,sourceObservedAt:io.iso(clock()),carriedForward:false});if(why)addSkip(officialSkipped,why);}}
+                catch(err){if(!err?.kakaoFailure||!saved)throw err;officialError='카카오 호출 실패';rows.length=before;official.length=0;for(const k of Object.keys(officialSkipped))delete officialSkipped[k];}}
+            // 저장된 공식 행사 재사용: sourceType tourapi 인 저장 행(공식 행이 먼저 쌓여 공식·Gemini 중복은 공식 쪽으로 합쳐져 있다). sources 는 아래 중복 합치기에서
+            // 다시 만든다 — 같은 Gemini 행은 시도 저장 행(provinces[].rows)으로 다시 들어와 같은 행사로 합쳐진다. 대상 시군구 검사는 새 공식 행과 같은 규칙.
+            if(officialError){const reused=saved.events.filter(e=>e&&typeof e==='object'&&e.sourceType==='tourapi'),kept=reused.filter(e=>scope.has(municipal(e.address)));
+                Object.assign(officialSkipped,saved.official?.skipped||{});addSkip(officialSkipped,'대상 시군구 밖',reused.length-kept.length);
+                for(const e of kept){const {sources:_old,...clean}=e;rows.push(clean);official.push(clean);}freshIds=new Set(kept.map(e=>String(e.contentId)));}
+            for(const [why,n] of Object.entries(officialSkipped))addSkip(skipped,why,n);
+            const prior=new Date(bounds.first+'T00:00:00Z');prior.setUTCMonth(prior.getUTCMonth()-1);const previous=io.read(file(prior.toISOString().slice(0,7)));
+            const carried=(previous?.events||[]).filter(e=>validDate(e.start)&&validDate(e.end)&&e.end>=bounds.first&&e.start<=bounds.last&&!freshIds.has(e.contentId));
             for(const province of provinces){const saved=retryOnly?.[province];
-                if(saved?.status==='ok'&&Array.isArray(saved.rows)){rows.push(...saved.rows);for(const [why,n] of Object.entries(saved.skipped||{}))addSkip(skipped,why,n);provinceResults[province]=saved;continue;}
+                // 다시 쓰는 행도 지금 규칙의 「대상 시군구 밖」 검사를 다시 건다(이전 규칙으로 저장된 행 — 검토 D3). 걸린 행은 그 시도 skipped 에 더해 파일에도 남긴다.
+                if(saved?.status==='ok'&&Array.isArray(saved.rows)){const kept=saved.rows.filter(e=>!outOfScope(e)),local={...(saved.skipped||{})};addSkip(local,'대상 시군구 밖',saved.rows.length-kept.length);
+                    rows.push(...kept);for(const [why,n] of Object.entries(local))addSkip(skipped,why,n);provinceResults[province]={...saved,rows:kept,skipped:local};continue;}
                 const local={},before=rows.length,municipalities=[...new Set(locations.filter(s=>s.sgg_name.split(' ')[0]===province).map(s=>s.sgg_name))];let result;
                 try{result=await withTimeout((search||webSearch)(target,province,official,carried,{municipalities}),searchTimeoutMs);if(!result||!Array.isArray(result.events)||!Array.isArray(result.grounded))throw provinceError('시도 응답 해석 실패');}
-                catch(err){if(!err?.provinceFailure)throw err;provinceResults[province]={status:'error',reason:err.provinceFailure};addSkip(skipped,err.provinceFailure);continue;}
+                catch(err){if(!err?.provinceFailure)throw err;provinceResults[province]={status:'error',reason:err.provinceFailure};continue;}
                 // 근거 확인: Gemini 가 적은 src 와 실제로 검색에 쓰인 근거 주소(경유 주소는 풀어낸 실제 주소)를 비교한다 — 쿼리까지 같은 근거 먼저,
                 // 없으면 「호스트+경로」가 같은 근거가 하나뿐일 때만(matchGrounding). 도메인만 같다고 받지 않는다 — 아무 페이지나 붙여 지어낸 행사가 통과하는 길이 된다.
                 // 저장하는 src 는 일치한 실제 주소다.
                 const grounded=result.grounded.filter(u=>typeof u==='string'),unresolved=Number(result.unresolved)>0;
-                for(const e of result.events){if(!e||typeof e!=='object'){addSkip(local,'항목 형식 오류');continue;}let source;try{source=new URL(e.src);}catch(_){addSkip(local,'근거 불일치');continue;}
+                // 이 시도 행사를 붙이다 카카오 호출이 고장 나면(불일치가 아님) 이 시도에서 쌓은 행을 거두고 그 시도만 「카카오 호출 실패」 — 다음 03:20 에 다시 묻는다(D7).
+                try{for(const e of result.events){if(!e||typeof e!=='object'){addSkip(local,'항목 형식 오류');continue;}let source;try{source=new URL(e.src);}catch(_){addSkip(local,'근거 불일치');continue;}
                     if(source.protocol!=='https:'||source.username||source.password){addSkip(local,'근거 불일치');continue;}const real=matchGrounding(e.src,grounded);if(!real){addSkip(local,unresolved?'근거 확인 불가':'근거 불일치');continue;}
-                    const why=await link({...e,src:real,sourceType:'gemini',sourceObservedAt:io.iso(clock()),carriedForward:false});if(why)addSkip(local,why);}
+                    const why=await link({...e,src:real,sourceType:'gemini',sourceObservedAt:io.iso(clock()),carriedForward:false});if(why)addSkip(local,why);}}
+                catch(err){if(!err?.kakaoFailure)throw err;rows.length=before;provinceResults[province]={status:'error',reason:'카카오 호출 실패'};continue;}
                 provinceResults[province]={status:'ok',rows:rows.slice(before),skipped:local};for(const [why,n] of Object.entries(local))addSkip(skipped,why,n);
             }
-            if(!rows.length)throw new Error('empty response');
+            // 저장할 행이 없으면 그 달은 실패(error)다. 그래도 시도 실패·버린 이유는 상세에 남긴다 — Gemini 가 전 시도에서 실패하고 공식 해안 행사가 0건이면
+            // 종전엔 detail 이 null 이라 관리자가 원인을 몰랐다(2026-10-15 검토 D5).
+            const officialNote=officialError?'공식 목록 다시 받기 실패('+officialError+')':'';
+            if(!rows.length)throw Object.assign(new Error('empty response'),{collectDetail:skipDetail(skipped,provinceResults,officialNote)});
             // 같은 행사 판정: 이름·기간·연결 관광지. 번지 없는 Gemini 행은 주소가 비어 있어 종전 주소키로는 공식 행과 합쳐지지 않는다(2026-10-15).
             const unique=new Map();for(const e of rows){const id=[e.name.replace(/\s/g,'').toLowerCase(),e.start,e.end,e.spotId].join('|'),source={sourceType:e.sourceType,src:e.src,...(e.contentId?{contentId:e.contentId}:{})};if(unique.has(id))unique.get(id).sources.push(source);else unique.set(id,{...e,sources:[source]});}
             const events=[...unique.values()],sourceCounts={tourapi:events.filter(e=>e.sourceType==='tourapi').length,gemini:events.filter(e=>e.sourceType==='gemini').length,duplicates:rows.length-events.length},collectedAt=io.iso(clock());
             const coverage={queryStart:bounds.first,queryEnd:bounds.last,ongoingCandidates:carried.length,carriedCount:0,previousMonthCached:!!previous,completeOngoing:false};
-            const failedProvinces=Object.entries(provinceResults).filter(([,p])=>p.status==='error').map(([name])=>name),detail=skipDetail(skipped,provinceResults);
-            io.write(file(target),{month:target,collectedAt,events,sourceCounts,coverage,skipped,provinces:provinceResults});status(target,null,{count:events.length,sourceCounts,skipped,failedProvinces,failedProvinceCount:failedProvinces.length,detail});return{ok:true,count:events.length,skipped,failedProvinces};
-        }catch(e){status(target,e,{detail:null});return{ok:false,error:io.errorName(e)};}finally{running=false;release();}
+            const failedProvinces=Object.entries(provinceResults).filter(([,p])=>p.status==='error').map(([name])=>name),failedProvinceCount=failedProvinces.length+(officialError?1:0),detail=skipDetail(skipped,provinceResults,officialNote&&officialNote+' — 저장된 행사 유지');
+            // official: 공식 목록 부분의 결과(error 면 다음 03:20 에 다시 받는다 — needsMonth). skipped 는 저장 행사를 다시 쓸 때 공식 부분의 버린 수를 잇기 위해 남긴다.
+            const officialResult={status:officialError?'error':'ok',...(officialError?{reason:officialError}:{}),skipped:officialSkipped};
+            io.write(file(target),{month:target,collectedAt,events,sourceCounts,coverage,skipped,provinces:provinceResults,official:officialResult});status(target,null,{count:events.length,sourceCounts,skipped,failedProvinces,failedProvinceCount,detail});return{ok:true,count:events.length,skipped,failedProvinces,...(officialError?{officialError}:{})};
+        }catch(e){status(target,e,{detail:e?.collectDetail||null});return{ok:false,error:io.errorName(e)};}finally{running=false;release();}
     }
     /** 예정일을 지난 다음달을 구한다. 예:10월29일은 놓친10월28일예약 보충.
      * @param {number} now - UTC밀리초 @returns {string|null} [연계] ← tick/start / U33월말-3일03:20을 계산한다.
      */
     function dueNext(now){const d=new Date(now+9*3600000),last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();if(d.getUTCDate()<last-3||(d.getUTCDate()===last-3&&d.getUTCHours()*60+d.getUTCMinutes()<200))return null;return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)).toISOString().slice(0,7);}
-    /** 월별 실패/누락만 재시도 대상으로 고른다. 예:정상당월은 다음월실패와 분리。 한 시도만 실패한 달도 재시도 대상(2026-10-15).
+    /** 월별 실패/누락만 재시도 대상으로 고른다. 예:정상당월은 다음월실패와 분리。 한 시도만 실패한 달·공식 목록만 실패한 달(official.status error, D7)도 재시도 대상(2026-10-15).
      * @param {string} target - 월 @returns {boolean} [연계] ← tick/start / 상태와 정상캐시를 함께 확인한다.
      */
-    function needsMonth(target){const data=io.read(file(target)),legacy=io.read(path.join(dir,'events_status.json')),state=io.read(stateFile(target))||(legacy?.month===target?legacy:null);return !data||data.month!==target||!Array.isArray(data.events)||state?.status==='error'||Object.values(data.provinces||{}).some(p=>p?.status==='error');}
+    function needsMonth(target){const data=io.read(file(target)),legacy=io.read(path.join(dir,'events_status.json')),state=io.read(stateFile(target))||(legacy?.month===target?legacy:null);return !data||data.month!==target||!Array.isArray(data.events)||state?.status==='error'||Object.values(data.provinces||{}).some(p=>p?.status==='error')||data.official?.status==='error';}
     /**03:20에 당월실패와 예정 다음월누락을 각각 재시도한다. 예:최초당월실패도 서버재기동 없이 다음날회복。
      * @returns {Promise<object|null>} [연계] ← start / 같은날같은예약을 중복 실행하지 않는다.
      */

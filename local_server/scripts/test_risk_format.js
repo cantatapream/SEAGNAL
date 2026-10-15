@@ -35,6 +35,14 @@ test('U81 사람 줄 숫자: 30일 평균은 소수 한 자리 · 2배 미만 �
   const rr=r=>1.96**Math.log2(r),row=(ratio,base)=>S.coastRows([{key:'people',score:.97*Math.log2(ratio),ratio,cr:+(ratio*base).toFixed(1),base,baseDays:30,rr:rr(ratio),fatalRr:1.54**Math.log2(ratio)}]);
   let h=row(1.03,17.3205);assert.match(h,/30일 평균 17\.3\)/);assert.doesNotMatch(h,/17\.32/);assert.match(h,/대비 <b[^>]*>1\.03배<\/b>라 평소 대비 <b[^>]*>3%<\/b> 높은/);assert.doesNotMatch(h,/1\.0배/);
   assert.match(row(1.84,20),/1\.84배.*30일 평균 20\.0/);assert.match(row(4.27,10),/4\.3배/);assert.match(row(2,20),/2\.0배/);});
+// 2026-10-15 2차 검토 D8: 2배 판정을 반올림 전 값으로 해 1.995 → 「2.00배」·2.0 → 「2.0배」로 어긋났다 · 1.00배라 「0% 높은」 줄이 그려졌다 · 30일 평균 null 이 「0.0」.
+test('U81 사람 줄 경계(D8): 2배 판정은 소수 둘째 자리 반올림 값으로 · 사고 가능성이 반올림해 0% 면 줄을 그리지 않음 · 30일 평균 없음은 빈칸',()=>{
+  const rr=r=>1.96**Math.log2(r),row=(ratio,base=20)=>S.coastRows([{key:'people',score:.97*Math.log2(ratio),ratio,cr:+(ratio*20).toFixed(1),base,baseDays:30,rr:rr(ratio),fatalRr:1.54**Math.log2(ratio)}]);
+  for(const ratio of [1.995,1.999])assert.match(row(ratio),/대비 <b[^>]*>2\.0배<\/b>라/,String(ratio));assert.doesNotMatch(row(1.995),/2\.00배/);
+  assert.match(row(1.994),/대비 <b[^>]*>1\.99배<\/b>라/);
+  for(const ratio of [1.004,1.005])assert.equal(row(ratio),'','반올림해 0% 인 줄은 그리지 않는다 '+ratio);
+  assert.match(row(1.03),/3%<\/b> 높은/,'1% 이상은 그린다');
+  for(const base of [null,''])assert.match(row(1.5,base),/30일 평균 \)/,JSON.stringify(base));assert.doesNotMatch(row(1.5,null),/0\.0\)/);});
 test('U81 사람 결측은 「자료 없음」 줄(30일 평균이 없을 때 포함)',()=>assert.match(S.coastRows([{key:'people',missing:true,score:0}]),/사람 혼잡.*자료 없음/));
 test('U81 위험구역 줄: 종류별 개수(0곳 종류는 뺌)·모두 N곳·없는 곳 대비',()=>{const h=S.coastRows([{key:'hazard',count:3,rr:1.85,fatalRr:1.86,byType:[{class:'연안사고 위험구역',count:2},{class:'사망사고 발생구역',count:0},{class:'연안사고 다발구역',count:1}],zones:[]}]);assert.match(h,/연안사고 위험구역 2곳 · 연안사고 다발구역 1곳, 모두 <b[^>]*>3곳<\/b> 있어 위험구역 없는 곳 대비/);assert.doesNotMatch(h,/사망사고 발생구역 0곳/);});
 test('U81 연안 기준 상세: 새 기준(평소=30일 평균)·종류별 위험구역 점수·재추정 달·0점 뜻 변화 문구, 옛 계단·가산 문구 없음',()=>{const ctx={window:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(dir,'risk_basis_content.js'),'utf8'),ctx);const c=ctx.window.RiskBasisContent.coast;

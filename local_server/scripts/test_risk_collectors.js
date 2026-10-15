@@ -69,7 +69,8 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
   const f=io.read(path.join(dir,'events_202610.json'));assert.deepEqual(f.events.map(e=>e.name),['맞음']);assert.deepEqual(f.skipped,{'주소/장소 불일치':1,'번지 없음':1});});
  await check('키 없음·HTTP 오류 같은 수집 자체 문제는 여전히 그 달 실패(정상 캐시 보존)',async()=>{const dir=temp(),src='https://city.example/event',file=path.join(dir,'events_202610.json');io.write(file,{sentinel:2});
   const collector=events.createCollector({festivalSearch:noOfficial,dir,clock:()=>now,kakaoKey:'test',spots:[{sgg:'1',sgg_name:'경상남도 거제시',name:'a',lat:35,lon:129}],search:async()=>({events:[{name:'맞음',address:'경상남도 거제시 일운면 구조라리 123',start:'2026-10-11',end:'2026-10-12',src}],grounded:[src]}),fetchImpl:async()=>({ok:false,status:503})});
-  assert.equal((await collector.collect()).error,'HTTP 503');assert.equal(io.read(file).sentinel,2);});
+  // 2026-10-15 D7: Gemini 행사를 붙이다 카카오가 고장 나면 그 시도만 「카카오 호출 실패」 — 이 검사는 시도가 하나뿐이라 저장할 행이 없어 그 달은 실패(empty response).
+  assert.equal((await collector.collect()).error,'empty response');assert.equal(io.read(file).sentinel,2);assert.equal(io.read(path.join(dir,'events_202610_status.json')).detail,'시도 실패 경상남도(카카오 호출 실패)');});
  await check('행사 날짜·출처 오류는 기존 정상 월 보존',async()=>{const dir=temp(),file=path.join(dir,'events_202610.json');io.write(file,{sentinel:1});const collector=events.createCollector({festivalSearch:noOfficial,dir,clock:()=>now,spots:[{sgg:'1',sgg_name:'부산광역시 중구',name:'a',lat:35,lon:129}],search:async()=>({events:[{name:'축제',address:'부산광역시 중구 해안로 1',start:'2026-10-32',end:'2026-11-01',src:'https://city.example/event'}],grounded:['https://city.example/event']})});assert.equal((await collector.collect()).ok,false);assert.equal(io.read(file).sentinel,1);});
  await check('행사 예정일 이후 재기동은 다음 달 누락을 보충',async()=>{const dir=temp(),before=process.env.FLY_ALLOC_ID;process.env.FLY_ALLOC_ID='test';io.write(path.join(dir,'events_202610.json'),{month:'2026-10',events:[]});const requested=[];const collector=events.createCollector({festivalSearch:noOfficial,dir,clock:()=>Date.parse('2026-10-29T04:00:00+09:00'),spots:[{sgg:'1',sgg_name:'부산광역시 중구',name:'a',lat:35,lon:129}],search:async target=>{requested.push(target);return{events:[],grounded:[]};}});try{assert.equal(collector.start(),true);await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(requested,['2026-11']);}finally{collector.stop();if(before===undefined)delete process.env.FLY_ALLOC_ID;else process.env.FLY_ALLOC_ID=before;}});
  await check('행사 주소는 다른 시군구·같은도로 다른번지를 건너뛰고 정확한 후보만',async()=>{
@@ -111,8 +112,11 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
   const row={contentid:'1',title:'축제',addr1:'부산광역시 중구 해안로 1',eventstartdate:'20261011',eventenddate:'20261012'};
   for(const kind of ['changing-total','duplicate','empty-page']){const dir=temp();io.write(path.join(dir,'events_202610.json'),{month:'2026-10',events:[{sentinel:42}]});let calls=0,searches=0;
    const collector=events.createCollector({dir,key:'test',clock:()=>now,spots:[{sgg:'1',sgg_name:'부산광역시 중구',name:'해안',lat:35,lon:129}],search:async()=>{searches++;return{events:[],grounded:[]};},fetchImpl:async()=>{calls++;const rows=calls===1?[row]:kind==='empty-page'?[]:[row],reply=await batch(rows).json();reply.response.body.totalCount=kind==='changing-total'&&calls===2?3:2;return{ok:true,json:async()=>reply};}});
-   assert.equal((await collector.collect()).ok,false);assert.equal(calls,2);assert.equal(searches,0);assert.equal(io.read(path.join(dir,'events_202610.json')).events[0].sentinel,42);
+   // 2026-10-15 D7: 그 달 파일이 이미 있으면 공식 목록 실패여도 보충 검색은 진행한다(저장된 공식 행사로 대신 — 이 파일엔 공식 행이 없어 결국 0건 → 실패·파일 보존).
+   assert.equal((await collector.collect()).ok,false);assert.equal(calls,2);assert.equal(searches,1);assert.equal(io.read(path.join(dir,'events_202610.json')).events[0].sentinel,42);
   }
+  {const dir=temp();let searches=0;const collector=events.createCollector({dir,key:'test',clock:()=>now,spots:[{sgg:'1',sgg_name:'부산광역시 중구',name:'해안',lat:35,lon:129}],search:async()=>{searches++;return{events:[],grounded:[]};},fetchImpl:async()=>batch([{...row,contentid:'1'},{...row,contentid:'1'}])});
+   assert.equal((await collector.collect()).error,'partial response','그 달 파일이 없으면(첫 수집) 공식 목록 실패는 종전대로 그 달 실패');assert.equal(searches,0);assert.equal(io.read(path.join(dir,'events_202610.json')),null);}
  });
  await check('명시적으로0건인공식목록은Gemini보충허용·월통합0건은오류',async()=>{
   const dir=temp(),src='https://sports.example/event',spots=[{sgg:'1',sgg_name:'부산광역시 중구',name:'해안',lat:35,lon:129}];
@@ -188,7 +192,7 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
   await withGemini(reply,async asked=>{const dir=temp();let clock=now;
    const c=events.createCollector({dir,kakaoKey:'test',clock:()=>clock,festivalSearch:async()=>[officialRow()],spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch({redirects:{a:real,b:tongyeong},kakao:officialKakao})});
    const r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.failedProvinces,['경상남도']);
-   let f=io.read(path.join(dir,'events_202610.json'));assert.deepEqual(f.events.map(e=>e.name).sort(),['공식 행사','부산 대회']);assert.deepEqual(f.provinces['경상남도'],{status:'error',reason:'시도 응답 해석 실패'});assert.equal(f.skipped['시도 응답 해석 실패'],1);
+   let f=io.read(path.join(dir,'events_202610.json'));assert.deepEqual(f.events.map(e=>e.name).sort(),['공식 행사','부산 대회']);assert.deepEqual(f.provinces['경상남도'],{status:'error',reason:'시도 응답 해석 실패'});assert.equal(f.skipped['시도 응답 해석 실패'],undefined,'시도 실패는 행사 건수(skipped)에 넣지 않는다(검토 D6)');
    const st=io.read(path.join(dir,'events_202610_status.json'));assert.equal(st.status,'ok','저장한 달은 정상 — 행사 점수를 버리지 않는다');assert.ok(st.detail.includes('경상남도(시도 응답 해석 실패)'),st.detail);
    assert.deepEqual([...asked],['부산광역시','경상남도']);
    // 4번(대상 시군구 목록): 그 시도 것만 넘긴다.
@@ -218,7 +222,7 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
   const dir=temp(),src='https://city.example/e';const c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:noOfficial,spots:evSpots,coastalGeometry:farLand,searchTimeoutMs:30,search:(_target,p)=>p==='경상남도'?new Promise(()=>{}):Promise.resolve({events:[{name:'부산 대회',venue:'민락수변공원',sgg:'부산광역시 수영구',start:'2026-10-11',end:'2026-10-11',src}],grounded:[src]})});
   // 시간 제한이 고장 나면 끝나지 않는 약속만 남아 node 가 요약 없이 조용히 끝난다 — 5초 감시로 실패를 드러낸다.
   let guard;const r=await Promise.race([c.collect('2026-10'),new Promise((_,reject)=>{guard=setTimeout(()=>reject(new Error('시간 제한이 동작하지 않음')),5000);})]).finally(()=>clearTimeout(guard));
-  assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.failedProvinces,['경상남도']);assert.deepEqual(io.read(path.join(dir,'events_202610.json')).provinces['경상남도'],{status:'error',reason:'시도 응답 시간 초과'});
+  assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.failedProvinces,['경상남도']);assert.deepEqual(io.read(path.join(dir,'events_202610.json')).provinces['경상남도'],{status:'error',reason:'시도 응답 시간 초과'});assert.deepEqual(io.read(path.join(dir,'events_202610.json')).skipped,{},'시간 초과도 skipped 에 넣지 않는다(검토 D6)');
   assert.equal((await c.collect('2026-10')).ok,true,'잠금이 풀려 다음 수집이 돈다');assert.equal(events.SEARCH_TIMEOUT_MS,600000);
  });
  // 2026-10-15 사용자: 「공식 행사는 저장해놔야지. 그리고 우리 앱에 저장실패했다는 내용을 알려야하겠지? 우리 기능 중 오류를 기록하는 기능이 있잖아? 서버 기록 말고. 통합관리자 센터에서.」
@@ -230,8 +234,8 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
    const c=events.createCollector({dir,kakaoKey:'test',clock:()=>clock,festivalSearch:async()=>[officialRow()],spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch({redirects:{a:real,b:tongyeong},kakao:officialKakao})});
    const r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.failedProvinces,['경상남도']);
    let f=io.read(path.join(dir,'events_202610.json'));assert.deepEqual(f.events.map(e=>e.name).sort(),['공식 행사','부산 대회'],'공식 행사와 다른 시도 결과는 저장');
-   assert.deepEqual(f.provinces['경상남도'],{status:'error',reason:'Gemini 호출 실패'});assert.equal(f.skipped['Gemini 호출 실패'],1);
-   let st=io.read(path.join(dir,'events_202610_status.json'));assert.equal(st.status,'ok','행사 점수에 쓰이도록 상태는 ok');assert.equal(st.failedProvinceCount,1);assert.ok(st.detail.startsWith('시도 실패 경상남도(Gemini 호출 실패)'),st.detail);
+   assert.deepEqual(f.provinces['경상남도'],{status:'error',reason:'Gemini 호출 실패'});assert.deepEqual(f.skipped,{},'시도 실패는 행사 건수(skipped)에 넣지 않는다(검토 D6)');assert.deepEqual(r.skipped,{});
+   let st=io.read(path.join(dir,'events_202610_status.json'));assert.equal(st.status,'ok','행사 점수에 쓰이도록 상태는 ok');assert.equal(st.failedProvinceCount,1);assert.equal(st.detail,'시도 실패 경상남도(Gemini 호출 실패)','같은 말이 「건너뜀」에 다시 나오지 않는다(검토 D6)');
    const history=require('../services/risk_error_history').createHistory({dir,clock:()=>clock}),row=()=>history.list({source:'events'}).current.find(x=>x.scope==='2026-10');
    assert.equal(row().status,'partial');assert.equal(row().code,'Gemini 일부 실패');assert.equal(row().detail,st.detail);
    const opened=history.list({source:'events'}).data;assert.deepEqual(opened.map(e=>[e.phase,e.status]),[['opened','partial']],'두 상태 파일(events·events_202610)이 같은 달이라 이력은 한 건');
@@ -290,6 +294,98 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
    const store=require('../services/risk_store').createStore({dir,clock:()=>clock});assert.equal(store.sources(true).events.months['2026-10'].status,'ok','risk_store 가 그 달 행사를 쓴다');
    assert.equal(require('../services/risk_error_history').createHistory({dir,clock:()=>clock}).list({source:'events'}).current.find(x=>x.scope==='2026-10').status,'partial');});
  });
+ // ── 2026-10-15 2차 독립 검토(f0d89aab9 기준 재현) 결함 회귀 시험 15~18
+ await check('15 구 없이 적은 시(「경상남도 창원시」): 카카오 후보의 시군구가 대상 시군구에 정확히 있어야 — 관광지 없는 성산구 장소는 버리고(D1) 진해구 장소는 계속 연결',async()=>{
+  const spots=[...evSpots,{sgg:'48129',sgg_name:'경상남도 창원시 진해구',name:'속천항',lat:35.14,lon:128.69},{sgg:'48125',sgg_name:'경상남도 창원시 마산합포구',name:'돝섬',lat:35.19,lon:128.58}],src='https://www.changwon.go.kr/e/1',base={sgg:'경상남도 창원시',address:'',start:'2026-10-11',end:'2026-10-11',src};
+  const kakao=q=>q==='창원시 귀산마리나'?[{place_name:'귀산마리나',road_address_name:'경남 창원시 성산구 귀산동 1',x:'128.60',y:'35.18'}]:q==='창원시 진해루'?[{place_name:'진해루',road_address_name:'경남 창원시 진해구 천자로 1',x:'128.70',y:'35.13'}]:[];
+  const dir=temp(),fetchImpl=fakeFetch({kakao}),c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:noOfficial,spots,coastalGeometry:farLand,fetchImpl,
+   search:async(_t,p)=>p!=='경상남도'?{events:[],grounded:[]}:{events:[{...base,name:'귀산 요트대회',venue:'귀산마리나'},{...base,name:'진해루 행사',venue:'진해루'},{...base,name:'진해 낚시대회',venue:'속천항'}],grounded:[src]}});
+  const r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));const f=io.read(path.join(dir,'events_202610.json')),by=Object.fromEntries(f.events.map(e=>[e.name,e]));
+  assert.deepEqual(Object.keys(by).sort(),['진해 낚시대회','진해루 행사'],'성산구 장소는 진해구·마산합포구 관광지에 붙지 않는다');assert.equal(by['진해루 행사'].resolvedAddress,'경남 창원시 진해구 천자로 1');assert.equal(by['진해 낚시대회'].spotId,'48129|속천항');
+  assert.deepEqual(f.skipped,{'주소/장소 불일치':1});assert.deepEqual(fetchImpl.log.kakao,['창원시 귀산마리나','창원시 진해루']);
+ });
+ await check('16 근거 대조(D2·D9): 같은 경로 근거가 하나뿐이어도 추적용이 아닌 쿼리가 다르면 버림 · 해시 라우팅(#/·#!)은 주소의 일부 · 표기만 다른 같은 근거는 하나로',async()=>{
+  const m=events.matchGrounding,g7='https://www.suyeong.go.kr/board/view.do?idx=7';
+  assert.equal(m('https://www.suyeong.go.kr/board/view.do?idx=99999',[g7]),null,'지어낸 글 번호는 근거가 하나뿐이어도 그 글에 붙지 않는다');
+  assert.equal(m('https://www.suyeong.go.kr/board/view.do?idx=7&utm_source=naver&fbclid=x',[g7]),g7,'추적용 쿼리는 뺀다');assert.equal(m('https://a.example/x',['https://a.example/x?gclid=1&utm_medium=m']),'https://a.example/x?gclid=1&utm_medium=m','src 쿼리 없음 · 근거 쿼리가 추적용뿐이면 일치');
+  assert.equal(m('https://a.example/v.do?b=2&a=1',['https://a.example/v.do?a=1&b=2']),'https://a.example/v.do?a=1&b=2','순서만 다른 쿼리는 같은 글');
+  assert.equal(m('https://a.example/#/view/99999',['https://a.example/#/view/7']),null,'#/ 해시 라우팅 글 번호');assert.equal(m('https://a.example/#!/view/9',['https://a.example/#!/view/7']),null,'#! 해시 라우팅');
+  assert.equal(m('https://a.example/#/view/7',['https://a.example/#/view/7']),'https://a.example/#/view/7');assert.equal(m('https://a.example/x#top',['https://a.example/x']),'https://a.example/x','일반 #앵커는 계속 무시');
+  assert.equal(m('https://a.example/x?utm_source=1',['https://a.example/x','https://a.example/x/']),'https://a.example/x','끝 / 만 다른 같은 근거 둘은 하나로(D9)');
+  assert.equal(m('https://a.example/x?utm_source=1',['https://A.example/x/','https://a.example/x?fbclid=2']),'https://A.example/x/','대소문자·추적 쿼리만 다른 근거도 하나로(D9)');
+  const base={venue:'민락수변공원',sgg:'부산광역시 수영구',address:'',start:'2026-10-11',end:'2026-10-11'};
+  const dir=temp(),c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:noOfficial,spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch(),
+   search:async(_t,p)=>p!=='부산광역시'?{events:[],grounded:[]}:{events:[{...base,name:'진짜 대회',src:g7+'&utm_campaign=c'},{...base,name:'지어낸 대회',src:'https://www.suyeong.go.kr/board/view.do?idx=99999'}],grounded:[g7]}});
+  const r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));const f=io.read(path.join(dir,'events_202610.json'));
+  assert.deepEqual(f.events.map(e=>[e.name,e.src]),[['진짜 대회',g7]]);assert.deepEqual(f.skipped,{'근거 불일치':1});
+ });
+ await check('17 재질문 실행에서 다시 쓰는 저장 행도 「대상 시군구 밖」 검사(D3) — 이전 규칙으로 붙은 여수 행사·성산구 카카오 행은 빼고 사유별로 셈',async()=>{
+  const spots=[...evSpots,{sgg:'48129',sgg_name:'경상남도 창원시 진해구',name:'속천항',lat:35.14,lon:128.69},{sgg:'31170',sgg_name:'울산광역시 동구',name:'일산해수욕장',lat:35.49,lon:129.43}];
+  const g=(o)=>({address:'',start:'2026-10-17',end:'2026-10-18',src:'https://city.example/e',sourceType:'gemini',connectionKm:1,...o});
+  const yeosu=g({name:'여수 축제',venue:'이순신광장',sgg:'전라남도 여수시',lat:34.737,lon:127.737,spotId:'48220|한산도',connectionKm:23.1});
+  const busan=g({name:'부산 대회',venue:'민락수변공원',sgg:'부산광역시 수영구',lat:35.155,lon:129.133,spotId:'26500|민락수변공원',linkMethod:'관광지 이름',connectionKm:0});
+  const seongsan=g({name:'귀산 요트대회',venue:'귀산마리나',sgg:'경상남도 창원시',lat:35.18,lon:128.6,spotId:'48129|속천항',linkMethod:'카카오 장소검색',resolvedAddress:'경남 창원시 성산구 귀산동 1'});
+  const jinhae=g({name:'진해루 행사',venue:'진해루',sgg:'경상남도 창원시',lat:35.13,lon:128.7,spotId:'48129|속천항',linkMethod:'카카오 장소검색',resolvedAddress:'경남 창원시 진해구 천자로 1'});
+  const dir=temp();let clock=Date.parse('2026-10-12T03:20:00+09:00');
+  io.write(path.join(dir,'events_202610.json'),{month:'2026-10',collectedAt:new Date(now).toISOString(),events:[yeosu,busan,seongsan,jinhae],provinces:{'부산광역시':{status:'ok',rows:[yeosu,busan],skipped:{'근거 불일치':1}},'경상남도':{status:'ok',rows:[seongsan,jinhae],skipped:{}},'울산광역시':{status:'error',reason:'시도 응답 해석 실패'}},skipped:{}});
+  await withGemini(()=>geminiReply([],[]),async asked=>{const c=events.createCollector({dir,kakaoKey:'test',clock:()=>clock,festivalSearch:noOfficial,spots,coastalGeometry:farLand,fetchImpl:fakeFetch()});
+   const r=await c.tick();assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual([...asked],['울산광역시'],'실패한 시도만 다시 묻는다');
+   const f=io.read(path.join(dir,'events_202610.json'));assert.deepEqual(f.events.map(e=>e.name).sort(),['부산 대회','진해루 행사']);
+   assert.deepEqual(r.skipped,{'근거 불일치':1,'대상 시군구 밖':2});assert.deepEqual(f.skipped,r.skipped);
+   assert.deepEqual(f.provinces['부산광역시'].rows.map(e=>e.name),['부산 대회']);assert.deepEqual(f.provinces['부산광역시'].skipped,{'근거 불일치':1,'대상 시군구 밖':1},'다음 재사용에서도 센 수가 남는다');
+   assert.deepEqual(f.provinces['경상남도'].skipped,{'대상 시군구 밖':1});assert.equal(io.read(path.join(dir,'events_202610_status.json')).detail,'건너뜀 근거 불일치 1·대상 시군구 밖 2');});
+ });
+ await check('18 Gemini 가 전 시도에서 실패하고 공식 해안 행사도 0건이면 그 달은 error 그대로, 상세에 시도 실패 줄(D5) — 관리자 오류현황 상세에도',async()=>{
+  await withGemini(()=>({success:false,response:null,error:'모든 Gemini API 키가 쿨다운 중입니다.',isRateLimited:true,keyLabel:null}),async()=>{const dir=temp();
+   const c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:noOfficial,spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch()});
+   const r=await c.collect('2026-10');assert.deepEqual(r,{ok:false,error:'empty response'});const st=io.read(path.join(dir,'events_202610_status.json'));
+   const detail='시도 실패 부산광역시(Gemini 호출 실패), 경상남도(Gemini 호출 실패)';assert.equal(st.status,'error');assert.equal(st.lastError,'empty response');assert.equal(st.detail,detail);
+   const cur=require('../services/risk_error_history').createHistory({dir,clock:()=>now}).list({source:'events'}).current.find(x=>x.scope==='2026-10');assert.equal(cur.status,'error');assert.equal(cur.detail,detail);});
+ });
+ // ── 2026-10-15 D7 사용자 결정: 「그대로 쓰되, 오류가 난 부분이 있다면 다음날 다시 수집하는건 어떄? 그 오류가 난 부분에 한해서 말이야.」
+ await check('19 재질문 실행에서 공식 목록(TourAPI) HTTP 500 → 저장된 공식 행사 유지·월 ok·오류현황 일부 실패(무엇이 실패했는지) · 중복 행 없음 · 다음 03:20 다시 받아 성공하면 복구',async()=>{
+  let geminiDown=true,tourDown=false;const real='https://www.busan.go.kr/e/1',tongyeong='https://www.tongyeong.go.kr/e/2';
+  const busan=[{name:'부산 대회',venue:'민락수변공원',sgg:'부산광역시 수영구',address:'',start:'2026-10-11',end:'2026-10-11',src:real},{name:'공식 행사',venue:'광안리해수욕장',sgg:'부산광역시 수영구',address:'',start:'2026-10-11',end:'2026-10-11',src:real}];
+  const reply=p=>p==='부산광역시'?geminiReply(busan,[REDIR+'a']):geminiDown?{success:false,response:null,error:'쿨다운',isRateLimited:true,keyLabel:null}:geminiReply([{name:'한산도 낚시대회',venue:'한산도',sgg:'경상남도 통영시',address:'',start:'2026-10-18',end:'2026-10-18',src:tongyeong}],[REDIR+'b']);
+  await withGemini(reply,async asked=>{const dir=temp();let clock=now,tourCalls=0;
+   const c=events.createCollector({dir,kakaoKey:'test',clock:()=>clock,festivalSearch:async()=>{tourCalls++;if(tourDown)throw new Error('HTTP 500');return[officialRow()];},spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch({redirects:{a:real,b:tongyeong},kakao:officialKakao})});
+   const shape=()=>{const f=io.read(path.join(dir,'events_202610.json'));return{f,names:f.events.map(e=>e.name).sort(),merged:f.events.find(e=>e.name==='공식 행사')};};
+   assert.equal((await c.collect('2026-10')).ok,true);let {f,names,merged}=shape();assert.deepEqual(names,['공식 행사','부산 대회']);assert.deepEqual(merged.sources.map(x=>x.sourceType),['tourapi','gemini'],'공식·Gemini 같은 행사는 한 행');assert.equal(f.sourceCounts.duplicates,1);
+   tourDown=true;clock=Date.parse('2026-10-12T03:20:00+09:00');const r=await c.tick();assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.officialError,'HTTP 500');assert.deepEqual([...asked],['부산광역시','경상남도','경상남도'],'성공한 부산은 다시 묻지 않는다');
+   ({f,names,merged}=shape());assert.deepEqual(names,['공식 행사','부산 대회'],'저장된 공식 행사를 그대로 쓴다');assert.equal(f.events.length,2,'재사용 공식 행·재사용 시도 행이 중복 행을 만들지 않는다');assert.deepEqual(merged.sources.map(x=>x.sourceType),['tourapi','gemini']);assert.equal(f.sourceCounts.duplicates,1);
+   assert.deepEqual(f.official,{status:'error',reason:'HTTP 500',skipped:{}});
+   const st=io.read(path.join(dir,'events_202610_status.json')),detail='공식 목록 다시 받기 실패(HTTP 500) — 저장된 행사 유지 · 시도 실패 경상남도(Gemini 호출 실패)';assert.equal(st.status,'ok');assert.equal(st.failedProvinceCount,2,'실패한 부분 수 = 시도 1 + 공식 목록 1');assert.equal(st.detail,detail);
+   const store=()=>require('../services/risk_store').createStore({dir,clock:()=>clock}).sources(true).events.months['2026-10'];assert.equal(store().status,'ok','risk_store 가 그 달 행사를 계속 쓴다');assert.equal(store().count,2);
+   const history=require('../services/risk_error_history').createHistory({dir,clock:()=>clock}),row=()=>history.list({source:'events'}).current.find(x=>x.scope==='2026-10');assert.equal(row().status,'partial');assert.equal(row().detail,detail);
+   tourDown=false;geminiDown=false;clock=Date.parse('2026-10-13T03:20:00+09:00');assert.equal((await c.tick()).ok,true);assert.equal(tourCalls,3,'다음 03:20 에 공식 목록을 다시 받는다');
+   ({f,names}=shape());assert.deepEqual(names,['공식 행사','부산 대회','한산도 낚시대회']);assert.equal(f.official.status,'ok');assert.equal(io.read(path.join(dir,'events_202610_status.json')).failedProvinceCount,0);assert.equal(row().status,'ok');assert.ok(row().recoveredAt);
+  });
+  // 시도는 모두 성공했고 공식 목록만 실패한 달도 다음 03:20 에 다시 잡는다(needsMonth) — Gemini 는 다시 묻지 않고 공식 목록만.
+  await withGemini(p=>p==='부산광역시'?geminiReply(busan.slice(0,1),[REDIR+'a']):geminiReply([],[]),async asked=>{const dir=temp();let clock=now,down=false,calls=0;
+   const c=events.createCollector({dir,kakaoKey:'test',clock:()=>clock,festivalSearch:async()=>{calls++;if(down)throw new Error('HTTP 500');return[officialRow()];},spots:evSpots,coastalGeometry:farLand,fetchImpl:fakeFetch({redirects:{a:real},kakao:officialKakao})});
+   assert.equal((await c.collect('2026-10')).ok,true);down=true;assert.equal((await c.collect('2026-10')).officialError,'HTTP 500');assert.equal(asked.length,4,'저장 파일에 실패 시도가 없으면 종전처럼 전 시도 질문(수동 collect)');
+   down=false;clock=Date.parse('2026-10-12T03:20:00+09:00');assert.equal((await c.tick()).ok,true,'공식 목록만 실패한 달도 다음 03:20 에 다시 수집');assert.equal(calls,3);assert.equal(asked.length,4,'성공한 시도는 다시 묻지 않는다');
+   assert.equal(io.read(path.join(dir,'events_202610.json')).official.status,'ok');clock=Date.parse('2026-10-13T03:20:00+09:00');assert.equal(await c.tick(),null,'복구된 달은 다시 수집하지 않는다');});
+ });
+ await check('20 카카오 HTTP 500: Gemini 행사를 붙이다 나면 그 시도만 「카카오 호출 실패」(그 시도 행은 거둠) · 공식 행사를 붙이다 나면 저장된 공식 행사 유지 · 저장 파일이 없으면 그 달 실패 · 다음날 복구',async()=>{
+  const real='https://www.busan.go.kr/e/1',tongyeong='https://www.tongyeong.go.kr/e/2';
+  const reply=p=>p==='부산광역시'?geminiReply([{name:'부산 대회',venue:'민락수변공원',sgg:'부산광역시 수영구',address:'',start:'2026-10-11',end:'2026-10-11',src:real}],[REDIR+'a'])
+   :geminiReply([{name:'한산도 대회',venue:'한산도',sgg:'경상남도 통영시',address:'',start:'2026-10-18',end:'2026-10-18',src:tongyeong},{name:'제승당 대회',venue:'제승당',sgg:'경상남도 통영시',address:'',start:'2026-10-18',end:'2026-10-18',src:tongyeong}],[REDIR+'b']);
+  await withGemini(reply,async asked=>{const dir=temp();let clock=now,down=q=>q==='통영시 제승당';
+   const kakao=q=>q==='통영시 제승당'?[{place_name:'제승당',road_address_name:'경남 통영시 한산면 a로 1',x:'128.5',y:'34.78'}]:officialKakao();
+   const fake=fakeFetch({redirects:{a:real,b:tongyeong},kakao}),fetchImpl=async(url,o)=>!url.startsWith(REDIR)&&down(new URL(url).searchParams.get('query'))?{ok:false,status:500}:fake(url,o);
+   const c=events.createCollector({dir,kakaoKey:'test',clock:()=>clock,festivalSearch:async()=>[officialRow()],spots:evSpots,coastalGeometry:farLand,fetchImpl});
+   let r=await c.collect('2026-10');assert.equal(r.ok,true,JSON.stringify(r));assert.deepEqual(r.failedProvinces,['경상남도']);let f=io.read(path.join(dir,'events_202610.json'));
+   assert.deepEqual(f.events.map(e=>e.name).sort(),['공식 행사','부산 대회'],'관광지 이름으로 먼저 붙은 한산도 대회도 그 시도 실패라 거둔다');assert.deepEqual(f.provinces['경상남도'],{status:'error',reason:'카카오 호출 실패'});assert.deepEqual(f.skipped,{});
+   let st=io.read(path.join(dir,'events_202610_status.json'));assert.equal(st.status,'ok');assert.equal(st.failedProvinceCount,1);assert.equal(st.detail,'시도 실패 경상남도(카카오 호출 실패)');
+   down=()=>true;clock=Date.parse('2026-10-12T03:20:00+09:00');r=await c.tick();assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.officialError,'카카오 호출 실패');f=io.read(path.join(dir,'events_202610.json'));
+   assert.deepEqual(f.events.map(e=>e.name).sort(),['공식 행사','부산 대회'],'공식 행사 카카오 고장이면 저장된 공식 행사 유지');st=io.read(path.join(dir,'events_202610_status.json'));assert.equal(st.status,'ok');assert.equal(st.failedProvinceCount,2);
+   assert.equal(st.detail,'공식 목록 다시 받기 실패(카카오 호출 실패) — 저장된 행사 유지 · 시도 실패 경상남도(카카오 호출 실패)');
+   down=()=>false;clock=Date.parse('2026-10-13T03:20:00+09:00');assert.equal((await c.tick()).ok,true);f=io.read(path.join(dir,'events_202610.json'));assert.deepEqual(f.events.map(e=>e.name).sort(),['공식 행사','부산 대회','제승당 대회','한산도 대회']);
+   assert.equal(io.read(path.join(dir,'events_202610_status.json')).failedProvinceCount,0);assert.deepEqual([...asked],['부산광역시','경상남도','경상남도','경상남도']);});
+  await withGemini(reply,async()=>{const dir=temp();const c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:async()=>[officialRow()],spots:evSpots,coastalGeometry:farLand,fetchImpl:async()=>({ok:false,status:500})});
+   assert.deepEqual(await c.collect('2026-10'),{ok:false,error:'HTTP 500'},'첫 수집에서 공식 행사 카카오 고장은 종전대로 그 달 실패');assert.equal(io.read(path.join(dir,'events_202610.json')),null);});
+ });
  await check('8 버린 이유 전부 사유별(근거·기간 밖·내륙·형식·취소·대상 시군구 밖) + 상태 detail → 관리자 오류현황 상세(1분 관찰이 지우지 않음)',async()=>{
   const dir=temp(),src='https://city.example/e',land={type:'Polygon',coordinates:[[[129.10,35.14],[129.14,35.14],[129.14,35.17],[129.10,35.17],[129.10,35.14]]]};
   const c=events.createCollector({dir,kakaoKey:'test',clock:()=>now,festivalSearch:async()=>[officialRow({contentid:'2',progresstype:'취소'}),officialRow({contentid:'3',title:'내륙 도시 축제',addr1:'대구광역시 중구 동성로 1'})],spots:evSpots,coastalGeometry:land,fetchImpl:fakeFetch(),
@@ -300,7 +396,8 @@ async function check(name,fn){try{await fn();console.log('✅',name);pass++;}cat
   const detail='건너뜀 근거 불일치 1·기간 밖 1·내륙(해안 1km 밖) 1·항목 형식 오류 1·취소 1·대상 시군구 밖 1';assert.equal(st.detail,detail);
   const history=require('../services/risk_error_history').createHistory({dir,clock:()=>now});const row=()=>history.list({source:'events'}).current.find(x=>x.scope==='2026-10');assert.equal(row().detail,detail);
   history.observeSources({events:{months:{'2026-10':{status:'ok',month:'2026-10',lastError:null}}}});assert.equal(row().detail,detail,'risk_store 월 상태에는 detail 칸이 없어 1분 관찰이 상세를 지우면 안 된다');
-  const failed=events.createCollector({dir,clock:()=>now,spots:evSpots,festivalSearch:async()=>{throw new Error('HTTP 500');}});assert.equal((await failed.collect('2026-10')).ok,false);assert.equal(io.read(path.join(dir,'events_202610_status.json')).detail,null,'실패 상태에 지난 상세를 남기지 않는다');
+  // 2026-10-15 D7: 저장된 달의 공식 목록 실패는 이제 저장 행사 유지(실패가 아님) — 그 달 전체 실패는 보충 검색의 시도 실패가 아닌 오류로 만든다.
+  const failed=events.createCollector({dir,clock:()=>now,spots:evSpots,festivalSearch:noOfficial,search:async()=>{throw new Error('HTTP 500');}});assert.equal((await failed.collect('2026-10')).ok,false);assert.equal(io.read(path.join(dir,'events_202610_status.json')).detail,null,'실패 상태에 지난 상세를 남기지 않는다');
  });
  await check('첫주집중률변경관측구간영속·행순서만바뀌면동일·7일뒤추가관측없음',async()=>{
   const dir=temp(),spots=[{sgg:'1',name:'가'},{sgg:'1',name:'나'}];let clock=Date.parse('2026-10-11T06:20:00+09:00'),value=10,reverse=false;
