@@ -166,6 +166,13 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-txt .sub{font-size:.74rem;color:#cbd5e6;margin-top:2px}
 .rf-txt b.rf-cc{color:#f0c6ff;font-weight:800;white-space:nowrap}
 .rf-chip{display:inline-block;margin-left:3px;padding:0 6px;border-radius:6px;font-size:.7rem;font-weight:800;line-height:1.5;vertical-align:1px;white-space:nowrap}
+/* 위 카드 [?](2026-10-16): 글자 칸이 줄 끝까지 차지하고, 첫 줄 오른쪽 26px 만 비워(::before 띄움) 그 위에 32px 누르는 칸을 얹는다 — 배지·문장을 밀지도 덮지도 않는다.
+   보이는 동그라미(18px)는 첫 줄 가운데 높이. 문장 자간 맞춤(risk_marine.js fitText)은 이 26px 를 읽어 첫 줄을 짧게 잡는다. */
+.rf-hero .rf-txt{flex:1 1 auto;min-width:0;position:relative}
+.rf-hero .rf-txt::before{content:'';float:right;width:26px;height:1.5em}
+.rf-hero .rf-fit{word-break:keep-all}
+.rf-sheet .rf-help-btn{position:absolute;top:-12px;right:-7px;width:32px;height:32px;min-width:32px;min-height:32px;margin:0;padding:13px 0 0;border:0;background:transparent;display:flex;justify-content:center;align-items:flex-start;cursor:pointer}
+.rf-help-btn span{display:block;width:18px;height:18px;box-sizing:border-box;border-radius:50%;border:1px solid #ffffff66;color:#cfe0ff;font-size:.68rem;font-weight:800;line-height:16px;text-align:center}
 .rf-avg{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 12px}
 .rf-avg small{font-size:.74rem}.rf-avg b{font-size:1.35rem}
 .rf-avg.fut{border-color:#ffd27a88}.rf-avg.fut small{color:#ffd27a}
@@ -200,6 +207,15 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-acc-pop li{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 2px;border-top:1px solid #ffffff14;font-size:.8rem;color:#d2dcea}
 .rf-acc-pop li .t b{color:#fff;font-weight:700}.rf-acc-pop li .t .no{color:#7f93b2}
 .rf-acc-pop li .c{flex:none;white-space:nowrap;font-size:.76rem;color:#7f93b2}.rf-acc-pop li .c.hurt{color:#ff6b6b;font-weight:800}
+/* [?] 설명 팝업 — 사고 팝업과 같은 틀(.rf-acc-pop .box)에 문장·표만 다르다. 가·나·다는 내어쓰기. */
+.rf-acc-pop .rf-help p{margin:0 0 5px;font-size:.8rem;line-height:1.55;color:#d2dcea;word-break:keep-all}
+.rf-acc-pop .rf-help p.gi{padding-left:1.6em;text-indent:-1.6em;margin-bottom:3px}.rf-acc-pop .rf-help p.gi b{display:inline-block;width:1.6em;text-indent:0;color:#fff;font-weight:700}
+.rf-acc-pop .rf-help .gt{padding-left:1.6em}
+.rf-help-tbl{width:100%;border-collapse:collapse;margin:6px 0 4px;font-size:.78rem;color:#d2dcea}
+.rf-help-tbl th,.rf-help-tbl td{padding:7px 6px;border-top:1px solid #ffffff1c;text-align:left;vertical-align:middle;word-break:keep-all}
+.rf-help-tbl th{border-top:0;color:#98abc7;font-size:.7rem;font-weight:600}
+.rf-help-tbl td:first-child{white-space:nowrap;color:#fff;font-weight:700}
+.rf-help-tbl td i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
 .rf-wx{padding:0}
 .rf-wx-head{display:flex;align-items:center;gap:8px;width:100%;padding:12px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .rf-wx-head h4{flex:1;margin:0}

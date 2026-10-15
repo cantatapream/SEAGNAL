@@ -1,7 +1,7 @@
 /**
  * 파일명: local_server/scripts/test_risk_sea_sheet_ui.js
  * 역할  : 해상 위험 예측·분석 화면(2026-10-15 확정 시안 8차 + 추가 확정 5가지, 지도 조작부 시안)을 실제 Chromium 에서 검사한다.
- *         위 카드(지금: 밀집도 뱃지·척수·충돌주의·혼잡예보 / 미래: 혼잡도 뱃지·혼잡 지수), 「15~18시 예보」 줄 없음, 출처 「해양교통안전공단 API」,
+ *         위 카드(지금: 밀집도 뱃지·척수·충돌주의·혼잡예보 / 미래: 혼잡도 뱃지·혼잡 지수, [?] 두 개·설명 팝업·MLP 문장 자간 맞춤), 「15~18시 예보」 줄 없음, 출처 「해양교통안전공단 API」,
  *         과거 2주간 선박교통량(기록 0일 「-」·「평균 16:00 (3일)」·「2주 평균」, 확대 문턱 아래 점 0개·위 점>0·글자 안 겹침, 핀치·누르기·×50,
  *         시트 시각 이동 시 초기화), 이 해역 과거 선박사고(0건 한 줄·도넛·팝업·인명피해 줄·null 처리), 날씨 아코디언(접힘·5항목),
  *         시트 시각 막대(공식 사고 위험 색·「지금」), 지도 [혼잡도][위험 예측] 단일 선택·해상 OFF 숨김·혼잡도 지금/미래 mode·범례 제목.
@@ -34,6 +34,10 @@ const fx={days:15,warnings:true,live:{count:18,density:12.0,sourceAt:'2026-10-15
  * @param {number} t - 30분 칸 시작 ms @returns {number} 척수(소수 한 자리) [연계] ← history.series */
 function shipsAt(t){const d=new Date(t+9*HR),h=d.getUTCHours()+d.getUTCMinutes()/60,base=h<5?9:h<9?9+(h-5)*3:h<18?20:20-(h-18)*1.8,wig=((t/MIN30)*7919%13)-6;return Math.max(0,Math.round((base+wig*.6)*10)/10);}
 const nowSlot=Math.floor(now/MIN30)*MIN30;
+// 위 카드 위험 예측 설명(사용자 2026-10-16 확정 문장 — 종전 「최근 5년 간 사고사례 및 기상정보 기반 예측 결과」를 바꿨다).
+const FIT_TEXT='최근 5년 간의 해양사고, 기상예보 등의 정보를 활용, 인공신경망의 한 종류인 MLP모델을 사용하여 사고위험도를 예측';
+// [?] 표 단계 점 색 = 지도와 같은 팔레트(risk_marine.js RISK·CONG).
+const PAL={risk:{'낮음':'rgb(86, 166, 111)','보통':'rgb(219, 199, 83)','주의':'rgb(229, 139, 70)','경계':'rgb(214, 75, 69)'},cong:{'낮음':'rgb(184, 197, 218)','보통':'rgb(116, 185, 255)','높음':'rgb(212, 124, 255)','매우높음':'rgb(255, 95, 227)'}};
 const history={series(id,from,count){const recStart=fx.days>=15?-Infinity:Date.parse(kst(now).slice(0,10)+'T00:00:00+09:00')-(fx.days-1)*86400000,values=[],samples=[];for(let i=0;i<count;i++){const t=from+i*MIN30,ok=fx.days>0&&t>=recStart&&t<nowSlot;values.push(ok?shipsAt(t):null);samples.push(ok?6:0);}return{values,samples};}};
 const warnings={list(){return{intervals:fx.warnings?[{zone:'부산앞바다',role:'main',kind:'앞바다',type:'풍랑',level:'주의보',start:'2026-10-07T15:00:00+09:00',startBy:'tmEf',end:'2026-10-08T03:00:00+09:00',endBy:'levelChange'},{zone:'부산앞바다',role:'main',kind:'앞바다',type:'풍랑',level:'경보',start:'2026-10-08T03:00:00+09:00',startBy:'tmEf',end:'2026-10-08T18:00:00+09:00',endBy:'clrNtcTm'},{zone:'부산앞바다',role:'main',kind:'앞바다',type:'풍랑',level:'주의보',start:'2026-10-15T09:00:00+09:00',startBy:'tmEf',end:null,endBy:null}]:[],checkedAt:'2026-10-15T16:11:00+09:00'};}};
 const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(id)?{center:[cell.lon,cell.lat],main:{name:'부산앞바다',code:'S1',kind:'앞바다'},sub:null}:null,clock:()=>now});
@@ -103,8 +107,49 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
  await check('시트 지금: 위 카드 「위험 예측 보통」·「밀집도 높음」(혼잡 색)·「이 해역 선박 18척(밀집도 12.0%)」·충돌주의·「16시 혼잡예보 [높음]」',async()=>{
   const r=await page.evaluate(b=>[...document.querySelectorAll(b+' .rf-hero .rf-lvl')].map(l=>({small:l.querySelector('small').textContent,strong:l.querySelector('strong').textContent,bg:getComputedStyle(l).backgroundColor})),body);
   assert.deepEqual(r.map(x=>[x.small,x.strong]),[['위험 예측','보통'],['밀집도','높음']]);assert.equal(r[0].bg,'rgb(219, 199, 83)');assert.equal(r[1].bg,'rgb(212, 124, 255)');
-  const t=(await heroText()).replace(/\s+/g,' ');for(const s of ['최근 5년 간 사고사례 및 기상정보 기반 예측 결과','이 해역 선박 18척(밀집도 12.0%)','충돌·접촉사고 주의','16시 혼잡예보 높음'])assert.ok(t.includes(s),s+' / '+t);
+  const t=(await heroText()).replace(/\s+/g,' ');for(const s of [FIT_TEXT,'이 해역 선박 18척(밀집도 12.0%)','충돌·접촉사고 주의','16시 혼잡예보 높음'])assert.ok(t.includes(s),s+' / '+t);
   assert.equal(await page.locator(body+' .rf-hero .rf-chip').innerText(),'높음');assert.equal(await page.locator(body+' .rf-hero b.rf-cc').count(),1);});
+ // ── 위 카드 [?] 두 개·팝업·위험 예측 문장 자간 맞춤(사용자 2026-10-16) ──
+ /** 위 카드 [?]·문장 배치를 잰다: 버튼(누르는 칸·보이는 동그라미)이 배지·글자 줄과 겹치는지, 문장 줄(span)마다 한 줄인지·폭 안인지·자간 하한. @returns {Promise<object>} */
+ const heroLayout=()=>page.evaluate(b=>{const hero=document.querySelector(b+' .rf-hero'),hit=(a,c)=>a.left<c.right-.5&&c.left<a.right-.5&&a.top<c.bottom-.5&&c.top<a.bottom-.5,card=hero.getBoundingClientRect();
+  const btns=[...hero.querySelectorAll('[data-help]')].map(x=>{const r=x.getBoundingClientRect(),dot=x.querySelector('span').getBoundingClientRect(),row=x.closest('.rf-r'),txt=x.closest('.rf-txt'),lines=[];
+   const walk=document.createTreeWalker(txt,NodeFilter.SHOW_TEXT);let n;while((n=walk.nextNode())){if(x.contains(n)||!n.textContent.trim())continue;const rg=document.createRange();rg.selectNodeContents(n);lines.push(...[...rg.getClientRects()].filter(q=>q.width>0));}
+   const badge=row.querySelector('.rf-lvl').getBoundingClientRect();
+   return{kind:x.dataset.help,label:x.getAttribute('aria-label'),pop:x.getAttribute('aria-haspopup'),w:r.width,h:r.height,row:[...hero.querySelectorAll('.rf-r')].indexOf(row),inCard:r.right<=card.right&&r.top>=card.top,hitBadge:hit(r,badge),hitText:lines.filter(q=>hit(r,q)).length,dotHitText:lines.filter(q=>hit(dot,q)).length};});
+  const p=hero.querySelector('[data-fit]'),fs=parseFloat(getComputedStyle(p).fontSize),pr=p.getBoundingClientRect(),bf=getComputedStyle(p.parentNode,'::before'),spans=[...p.querySelectorAll('span')];
+  const nat=p.cloneNode(true);nat.textContent=p.dataset.fit;nat.style.cssText='position:absolute;visibility:hidden;left:0;top:0;width:'+p.clientWidth+'px';p.parentNode.appendChild(nat);const natLines=Math.round(nat.getBoundingClientRect().height/parseFloat(getComputedStyle(nat).lineHeight));nat.remove();
+  return{btns,text:p.innerText.replace(/\s+/g,' '),lines:spans.length,natLines,oneLine:spans.every(s=>s.getClientRects().length===1),inside:spans.every((s,i)=>s.getBoundingClientRect().right<=(i?pr.right:pr.right-parseFloat(bf.width))+.5),minLs:Math.min(0,...spans.map(s=>parseFloat(getComputedStyle(s).letterSpacing)||0))/fs,keepAll:getComputedStyle(p).wordBreak,gaps:spans.slice(0,-1).map((s,i)=>Math.round((i?pr.right:pr.right-parseFloat(bf.width))-s.getBoundingClientRect().right))};},body);
+ /** [?] 팝업 내용을 읽는다. @returns {Promise<object>} {label,title,lines,rows,dots,text,html} */
+ const helpPop=()=>page.evaluate(()=>{const box=document.querySelector('.rf-acc-pop:not([hidden]) .box');if(!box)return null;const ps=[...box.querySelectorAll(':scope > p')];
+  return{label:box.getAttribute('aria-label'),kind:box.dataset.helpPop,title:box.querySelector('h5').textContent,lines:ps.map(p=>p.textContent),sep:ps.every((p,i)=>!i||p.getBoundingClientRect().top>=ps[i-1].getBoundingClientRect().bottom-.5),rows:[...box.querySelectorAll('tbody tr')].map(r=>[r.dataset.level,...[...r.cells].map(c=>c.textContent)]),dots:[...box.querySelectorAll('tbody tr')].map(r=>getComputedStyle(r.querySelector('i')).backgroundColor),text:box.innerText,html:box.innerHTML,focus:document.activeElement&&document.activeElement.classList.contains('x')};});
+ const HELP=await page.evaluate(()=>RiskMarine.HELP);
+ await check('[?] 두 개: 위 줄 「위험 예측 기준 설명」·아래 줄 「밀집도·혼잡도 기준 설명」, aria-haspopup=dialog, 누르는 칸 ≥32px, 380px 에서 배지·글자 줄과 안 겹침·카드 안',async()=>{
+  const r=await heroLayout();assert.deepEqual(r.btns.map(x=>[x.kind,x.row,x.label,x.pop]),[['risk',0,'위험 예측 기준 설명','dialog'],['cong',1,'밀집도·혼잡도 기준 설명','dialog']]);
+  for(const x of r.btns){assert.ok(x.w>=32&&x.h>=32,JSON.stringify(x));assert.equal(x.hitBadge,false,x.kind+' 배지와 겹침');assert.equal(x.hitText,0,x.kind+' 누르는 칸이 글자 줄과 겹침');assert.equal(x.dotHitText,0,x.kind+' 동그라미가 글자 줄과 겹침');assert.ok(x.inCard,x.kind+' 카드 밖');}});
+ await check('위험 예측 문장(380px): 새 문장·「MLP모델」, 어절 단위(keep-all) 줄마다 한 줄·폭 안, 자간 ≥ -0.06em, 줄 수 ≤ 자연 줄바꿈',async()=>{
+  const r=await heroLayout();console.log('  380px 줄 '+r.lines+'(자연 '+r.natLines+') · 최소 자간 '+r.minLs.toFixed(3)+'em · 줄 끝 남은 px '+r.gaps.join(','));
+  assert.equal(r.text,FIT_TEXT);assert.ok(r.text.includes('MLP모델'));assert.ok(r.lines>=2,'줄 나눔 '+r.lines);assert.ok(r.oneLine,'줄이 다시 갈림');assert.ok(r.inside,'폭 넘침');assert.ok(r.minLs>=-0.0601,String(r.minLs));assert.ok(r.lines<=r.natLines,r.lines+'>'+r.natLines);assert.equal(r.keepAll,'keep-all');
+  await shot('hero_380',body+' .rf-hero');});
+ await check('[?] 위험 예측 팝업: 「사고위험도는 총 4단계(5km*5km 격자 단위)로 표출」·표 4행(HELP.risk)·단계 점 = 지도 위험 색, ✕ 로 닫으면 [?] 로 초점',async()=>{
+  await page.locator(body+' [data-help="risk"]').click();await page.waitForSelector('.rf-acc-pop:not([hidden]) [data-help-pop="risk"]');const r=await helpPop();
+  assert.equal(r.label,'위험 예측 기준 설명');assert.deepEqual(r.lines,['사고위험도는 총 4단계(5km*5km 격자 단위)로 표출']);assert.deepEqual(r.rows,HELP.risk);assert.equal(r.rows.length,4);
+  assert.deepEqual(r.dots,HELP.risk.map(x=>PAL.risk[x[0]]));assert.ok(r.focus,'열면 ✕ 에 초점');await shot('help_risk_380');
+  await page.locator('.rf-acc-pop .x').click();assert.equal(await page.locator('.rf-acc-pop').isVisible(),false);assert.equal(await page.evaluate(()=>document.activeElement&&document.activeElement.dataset.help),'risk');});
+ let congHtml;
+ await check('[?] 밀집도·혼잡도 팝업(지금): 줄 7개가 실제로 따로(「실시간·예측」·「GAN」), 「(줄바꿈)」·「중점」 글자 없음, 표 4행(HELP.cong)·점 = 혼잡 색, 바깥·Escape 로 닫힘(시트는 그대로)',async()=>{
+  await page.locator(body+' [data-help="cong"]').click();const r=await helpPop();congHtml=r.html;
+  assert.equal(r.label,'밀집도·혼잡도 기준 설명');assert.deepEqual(r.lines,['밀집도/혼잡도는 KOMSA의 실시간·예측 결과이며, 유효선박면적 비율 기준입니다.','(혼잡도는 공단 안내 기준, 밀집도는 같은 기준 추정).','혼잡도는 과거 5년간의 선박 운항이력 데이터를 활용하여 딥러닝 기법의 한 종류인 GAN 모델을 통해 예측합니다.','유효선박면적 비율이란 다음과 같습니다.','가.큰 배는 1척이어도 넓은 면적을 차지','나.육지가 많이 섞여 바다 면적이 작은 칸은 배 한두 척으로도 비율 증가','다.4단계 혼잡도 격자 기준']);
+  assert.ok(r.sep,'줄마다 다음 줄에');for(const s of ['실시간·예측','GAN'])assert.ok(r.text.includes(s),s);for(const s of ['줄바꿈','중점'])assert.ok(!r.text.includes(s),s);
+  assert.deepEqual(r.rows,HELP.cong);assert.equal(r.rows.length,4);assert.deepEqual(r.dots,HELP.cong.map(x=>PAL.cong[x[0]]));await shot('help_cong_380');
+  await page.mouse.click(5,5);assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'바깥 누르면 닫힘');
+  await page.locator(body+' [data-help="cong"]').click();await page.keyboard.press('Escape');assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'Escape');assert.equal(await page.locator('#risk-forecast-sheet').evaluate(e=>e.classList.contains('open')),true,'Escape 는 팝업만 닫는다');
+  await page.locator(body+' [data-help="risk"]').click();await page.evaluate(()=>PopupStack.popLast());assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'뒤로가기는 팝업부터');assert.equal(await page.locator('#risk-forecast-sheet').evaluate(e=>e.classList.contains('open')),true);});
+ await check('넓은 화면(1024px)·회전 뒤 380px: 문장을 다시 맞춤(줄마다 한 줄·폭 안·자간 하한), [?] 겹침 없음',async()=>{
+  await page.setViewportSize({width:1024,height:820});await page.waitForFunction(b=>{const p=document.querySelector(b+' [data-fit]');return p.querySelectorAll('span').length&&[...p.querySelectorAll('span')].every(s=>s.getBoundingClientRect().right<=p.getBoundingClientRect().right+.5);},body);await page.waitForTimeout(100);
+  let r=await heroLayout();console.log('  1024px 줄 '+r.lines+'(자연 '+r.natLines+') · 최소 자간 '+r.minLs.toFixed(3)+'em · 줄 끝 남은 px '+r.gaps.join(','));
+  assert.equal(r.text,FIT_TEXT);assert.ok(r.oneLine&&r.inside,JSON.stringify(r));assert.ok(r.minLs>=-0.0601);assert.ok(r.lines<=r.natLines);for(const x of r.btns)assert.ok(!x.hitBadge&&!x.hitText&&!x.dotHitText&&x.inCard,JSON.stringify(x));
+  await shot('hero_1024',body+' .rf-hero');await page.locator(body+' [data-help="risk"]').click();await shot('help_risk_1024');await page.keyboard.press('Escape');await page.locator(body+' [data-help="cong"]').click();await shot('help_cong_1024');await page.keyboard.press('Escape');
+  await page.setViewportSize({width:380,height:820});await page.waitForTimeout(150);r=await heroLayout();assert.ok(r.oneLine&&r.inside&&r.lines<=r.natLines&&r.lines>=2,JSON.stringify(r));});
  await check('시트: 「15~18시 예보」 같은 예보 시간 줄 없음·옛 시트 문구(종합 관심단계·현재 교통현황·시간대별 표) 없음',async()=>{
   const t=await page.locator(body).innerText();assert.doesNotMatch(t,/\d+~\d+시 예보/);for(const s of ['종합 관심단계','현재 교통현황','오늘·내일 예보 시간대별 보기','공식 예보 기준','관심 필요','정보 확인'])assert.ok(!t.includes(s),s);});
  await check('시트: 순서 위 카드→교통량→선박사고→날씨→출처, 출처 「해양교통안전공단 API」·[기준 상세]',async()=>{
@@ -182,6 +227,13 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   const r=await page.evaluate(b=>[...document.querySelectorAll(b+' .rf-hero .rf-lvl')].map(l=>[l.querySelector('small').textContent,l.querySelector('strong').textContent]),body);assert.deepEqual(r,[['위험 예측','주의'],['혼잡도','높음']]);
   const t=(await heroText()).replace(/\s+/g,' ');assert.ok(t.includes('혼잡 지수 11.4'));assert.ok(t.includes('충돌·접촉사고 주의'));assert.ok(!t.includes('밀집도'));assert.ok(!t.includes('이 해역 선박'));assert.doesNotMatch(t,/시 예보/);
   const lab=await page.locator('#risk-forecast-sheet .rf-time-label').innerText();assert.equal(lab,"'26.10.16(금) 09:00 · 예보");assert.equal(await page.locator('#risk-forecast-sheet .rf-st-marks i.now').isVisible(),true);});
+ await check('미래(혼잡도 뱃지)에도 [?] 두 개·밀집도·혼잡도 팝업 내용이 지금과 같음 / 시트 시각을 바꾸면 열린 [?] 팝업이 닫힘',async()=>{
+  assert.deepEqual(await page.locator(body+' .rf-hero [data-help]').evaluateAll(a=>a.map(x=>x.dataset.help)),['risk','cong']);
+  await page.locator(body+' [data-help="cong"]').click();const r=await helpPop();assert.equal(r.html,congHtml);
+  await setSlider('2026-10-16T12:00:00+09:00');await page.waitForFunction(()=>{const h=document.querySelector('#risk-forecast-sheet .rf-time-label');return h&&h.textContent.includes('10.16(금) 12:00');});await page.waitForFunction(()=>document.querySelector('.rf-acc-pop').hidden);
+  await setSlider('2026-10-16T09:00:00+09:00');await page.waitForFunction(()=>{const h=document.querySelector('#risk-forecast-sheet .rf-hero');return h&&h.textContent.includes('혼잡 지수 11.4');});
+  await page.locator(body+' [data-help="risk"]').click();await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'시트를 닫으면 [?] 팝업도 닫힘');
+  await openSheet();await setSlider('2026-10-16T09:00:00+09:00');await page.waitForFunction(()=>{const h=document.querySelector('#risk-forecast-sheet .rf-hero');return h&&h.textContent.includes('혼잡 지수 11.4');});await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet [data-chart] svg'));});
  await check('미래 교통량: 머리 「지금 16:10 기준」·평균 칸 노란(fut) 「2주 평균 09:00」 / 날씨 제목 「이 해역 내일 09시 예보」',async()=>{
   const r=await page.evaluate(b=>{const c=document.querySelector(b+' [data-traffic-card]');return{src:c.querySelector('.rf-src').textContent,name:c.querySelector('[data-avg-name]').textContent,fut:c.querySelector('.rf-avg').classList.contains('fut'),col:getComputedStyle(c.querySelector('[data-avg-name]')).color};},body);
   assert.equal(r.src,'지금 16:10 기준');assert.equal(r.name,'2주 평균 09:00');assert.equal(r.fut,true);assert.equal(r.col,'rgb(255, 210, 122)');assert.equal(await page.locator(body+' .rf-wx h4').innerText(),'이 해역 내일 09시 예보');
