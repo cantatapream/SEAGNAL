@@ -1,7 +1,7 @@
 /**
  * 파일명: local_server/scripts/test_risk_basemap.js
  * 역할  : 위험예측을 켜면 배경이 위성지도로 바뀌고, 끄거나 없애면 켜기 전 배경으로 돌아오는지(과제12)와
- *         위성지도를 못 쓸 때 그 사실이 배너에 남는지, 위험예측 층이 배경지도에 기대지 않는지 검사한다.
+ *         위성지도를 못 쓸 때 기본맵으로 바뀌고 배너가 안 뜨는지, 위험예측 층이 배경지도에 기대지 않는지 검사한다.
  * [연계] 실제 risk_forecast.js(조율기) · ocean_map.js(소스 검사) · risk_map_layer.js(소스 검사) / verify_all.sh
  * [로드 순서] 독립 검사; 브라우저·네트워크·운영 키 없음 — 배경지도 함수는 가짜로 바꿔 호출 기록만 본다.
  */
@@ -42,10 +42,10 @@ function setup(opts={}){
  await test('꺼진 상태에서 끄기를 불러도 배경을 건드리지 않는다(다른 탭 지도 보호)',async()=>{const s=setup({base:'osm'});s.app.setEnabled(false);s.app.setEnabled(false);assert.deepEqual(s.log,[]);assert.equal(s.base(),'osm');s.app.destroy();});
  await test('켠 채 없애도(destroy) 원래 배경으로 돌아간다',async()=>{const s=setup({base:'coast'});s.app.setEnabled(true);await settle();s.app.destroy();assert.equal(s.base(),'coast');});
  await test('켠 동안 사용자가 다른 배경을 골랐어도 끄면 켜기 전 배경으로 정리된다',async()=>{const s=setup({base:'coast'});s.app.setEnabled(true);await settle();s.setBase('enc');s.app.setEnabled(false);assert.equal(s.base(),'coast');s.app.destroy();});
- await test('위성 인증키를 못 받으면 빈 배경 대신 원래 배경을 유지하고 배너로 알린다',async()=>{const s=setup({base:'coast',ready:false});s.app.setEnabled(true);await settle();assert.equal(s.base(),'coast');assert.equal(s.banner.hidden,false);assert.match(s.banner.textContent,/위성지도를 불러오지 못해/);s.app.destroy();});
- await test('위성 실패 안내는 자료 갱신(배너 재작성) 뒤에도 남고, 끄면 사라진다',async()=>{const s=setup({base:'coast',ready:false});s.app.setEnabled(true);await s.app.ready;await settle();await s.app.refresh();assert.match(s.banner.textContent,/위성지도를 불러오지 못해/);s.app.setEnabled(false);assert.equal(s.banner.hidden,true);assert.equal(s.banner.textContent,'');assert.equal(s.base(),'coast');s.app.destroy();});
+ await test('위성 인증키를 못 받으면 빈 배경 대신 기본맵(rltm)으로 바꾸고 일반 화면 배너는 띄우지 않는다',async()=>{const s=setup({base:'coast',ready:false});s.app.setEnabled(true);await settle();assert.equal(s.base(),'rltm');assert.equal(s.banner.hidden,true);assert.equal(s.banner.textContent,'');s.app.destroy();});
+ await test('위성 실패 뒤 자료 갱신에도 배너가 안 뜨고, 끄면 켜기 전 배경으로 돌아간다',async()=>{const s=setup({base:'coast',ready:false});s.app.setEnabled(true);await s.app.ready;await settle();await s.app.refresh();assert.equal(s.banner.hidden,true);assert.equal(s.base(),'rltm');s.app.setEnabled(false);assert.equal(s.banner.hidden,true);assert.equal(s.base(),'coast');s.app.destroy();});
  await test('키 확인이 끝나기 전에 꺼도 늦은 실패가 배경·배너를 되살리지 않는다',async()=>{const s=setup({base:'coast',ready:false});s.app.setEnabled(true);s.app.setEnabled(false);await settle();assert.equal(s.base(),'coast');assert.equal(s.banner.hidden,true);s.app.destroy();});
- await test('원래 배경이 위성지도였는데 키 실패면 해안도로 바꾸고 알린다(빈 위성 배경 금지)',async()=>{const s=setup({base:'vworld',ready:false});s.app.setEnabled(true);await settle();assert.equal(s.base(),'coast');assert.match(s.banner.textContent,/위성지도를 불러오지 못해/);s.app.destroy();});
+ await test('원래 배경이 위성지도였는데 키 실패면 기본맵으로 바꾸고, 꺼도 빈 위성 배경으로 돌아가지 않는다',async()=>{const s=setup({base:'vworld',ready:false});s.app.setEnabled(true);await settle();assert.equal(s.base(),'rltm');assert.equal(s.banner.hidden,true);s.app.setEnabled(false);assert.equal(s.base(),'rltm');s.app.destroy();});
  await test('키 확인 함수가 없는 환경(미리보기)도 위성으로 전환하고 오류 없음',async()=>{const s=setup({ready:'none'});s.app.setEnabled(true);await settle();assert.equal(s.base(),'vworld');assert.equal(s.banner.hidden,true);s.app.destroy();});
  await test('지도 배경 함수 자체가 없는 환경(미리보기)에서도 켜고 끄기 오류 없음',async()=>{const s=setup({noBase:true});s.app.setEnabled(true);await settle();s.app.setEnabled(false);s.app.destroy();assert.deepEqual(s.log,[]);});
  await test('ocean_map.js: vworld 배경 전환·위성 줌 한계·키 확인 API가 있다',async()=>{const src=fs.readFileSync(oceanMap,'utf8');assert.match(src,/window\.oceanSetBasemap\s*=/);assert.match(src,/vworld:\s*'위성지도'/);assert.match(src,/type === 'vworld'\) \? VWORLD_MAX_ZOOM : MAX_ZOOM/);assert.match(src,/window\.oceanVworldReady\s*=/);});

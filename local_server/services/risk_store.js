@@ -159,11 +159,11 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         const eventStatus=src.events.months[T.dateKey(t).slice(0,7)]?.status;if(eventStatus==='ok'){const i=degraded.indexOf('events');if(i>=0)degraded.splice(i,1);}else if(!degraded.includes('events'))degraded.push('events');
         const day3Dashed=new Set();const entries=(staticTable?.spots||[]).map((p,i)=>{const r=coastDetail(p.id,t);if(r.notices.some(n=>n.key==='day3')&&p.warnZone)day3Dashed.add(p.warnZone);return[i,r.score];});if(!staticTable)throw Object.assign(new Error('관광지 표 준비 전'),{status:503});return remember(frameCache,memo,{t,day:T.dayOffset(t,clock()),spots:entries,borders:borders(t,false),day3Dashed:[...day3Dashed],degraded},8);}
     /** 선택 시각에 실제 발표된 해상 특보 구역만 준다(연안·해상 위험 계산과 무관한 작은 조회).
-     * 예: 12시 풍랑주의보 발효 구역 → [{zone:'부산앞바다',color:'adv',state:'발효'}]; 예비는 시작 뒤에도 pre(주의보로 승격 안 함); 특보가 없으면 zones 빈 배열.
+     * 예: 12시 풍랑주의보 발효 구역 → [{zone:'부산앞바다',color:'adv',state:'발효'}]; 예비특보 구역은 시작 전후 모두 넣지 않는다(사용자 확정 2026-10-15 「다」 — 칠하지 않음); 특보가 없으면 zones 빈 배열.
      * @param {string} t - 선택 시각 KST ISO @returns {object} {t,zones,degraded} degraded에 warnings가 있으면 특보 원천이 정상이 아니다
      * [연계] ← /warning-zones → 클라이언트 지도 배경 특보층 / 구역 이름→폴리곤은 정적 warn_zones(+_sub)에서 클라이언트가 맞춘다.
      */
-    function warningZones(t){refresh();t=validateTime(t,false);const memo=resultKey('warningZones',t);if(detailCache.has(memo))return detailCache.get(memo);const degraded=['ok','offseason'].includes(sources().warnings.status)?[]:['warnings'];return remember(detailCache,memo,{t,zones:borders(t,true,false),degraded},6000);}
+    function warningZones(t){refresh();t=validateTime(t,false);const memo=resultKey('warningZones',t);if(detailCache.has(memo))return detailCache.get(memo);const degraded=['ok','offseason'].includes(sources().warnings.status)?[]:['warnings'];return remember(detailCache,memo,{t,zones:borders(t,true,false).filter(z=>z.state!=='예비'),degraded},6000);}
     /** 첫로드에 시간축·정적표버전·자료상태를 함께 준다. 예: 지금칸은 분유지. @returns {object} [연계] ← /meta */
     function meta(){refresh();const now=clock();return{now:T.isoKst(now),timeline:{sea:{stepH:1,times:T.timeline(now,1,2,23)},accident:{stepH:3,times:A.slots(now).map(s=>s.at)},coast:{stepH:3,times:T.timeline(now,3,3,21),day3From:T.dateKey(now+2*T.DAY)+'T00:00:00+09:00'}},versions:{spots:staticTable?._about?.hash||null,cells:cache.cells.data?.cells?.length||0,accident:cache.accident.data?.v||null},sources:sources()};}
     /** 클릭한 위험구역 원본을 준다. 예: 동일id의 폴리곤만. @param {string[]} ids @returns {object} [연계] ← /hazard-zones */

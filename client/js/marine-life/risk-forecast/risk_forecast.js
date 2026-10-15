@@ -28,7 +28,7 @@
      * [연계] index2·미리보기 → RiskAPI·RiskMapLayer·RiskSheet
      */
     function mount(options) {
-        var map=options.map,api=w.RiskAPI.create(),enabled=options.enabled!==false,state={coast:true,sea:false},meta=null,t=null,selected=null,choosing=false,seq=0,detailSeq=0,table={coast:{spots:[]},sea:{cells:[]},accident:{cells:[]},traffic:{cells:[]}},oldBase=null,baseWarn='',bannerText='',disposed=false,boundariesLoaded=false,syncPending=null,accidentFresh=false,marineMode='risk',coastVersion=null,boundaryPending=null;
+        var map=options.map,api=w.RiskAPI.create(),enabled=options.enabled!==false,state={coast:true,sea:false},meta=null,t=null,selected=null,choosing=false,seq=0,detailSeq=0,table={coast:{spots:[]},sea:{cells:[]},accident:{cells:[]},traffic:{cells:[]}},oldBase=null,bannerText='',disposed=false,boundariesLoaded=false,syncPending=null,accidentFresh=false,marineMode='risk',coastVersion=null,boundaryPending=null;
         var legend=options.legendEl,sheetEl=options.sheetEl,banner=options.bannerEl;
         var layer=w.RiskMapLayer.create(map,select),sheet=w.RiskSheet.create(sheetEl,{close:clearSelection,hazard:hazard,basis:w.RiskBasis.open,choose:select,marinePoint:function(lon,lat){var pad=visiblePadding();select('marine','point',{lon:lon,lat:lat});var xy=ol.proj.fromLonLat([lon,lat]);map.getView().fit([xy[0]-50,xy[1]-50,xy[0]+50,xy[1]+50],{padding:pad,maxZoom:14,duration:250});},retry:function(){api.clear();refresh();}});
         legend.innerHTML='<div class="banzone-legend" role="group" aria-label="위험예측 보기"><button type="button" class="bzl-row on" data-layer="coast" aria-pressed="true"><span class="bzl-name">연안 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button><button type="button" class="bzl-row" data-layer="sea" aria-pressed="false"><span class="bzl-name">해상 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button></div><div class="rf-map-legend" hidden><div class="rf-accident-key" data-sea-legend hidden>점·점선 = 공단 선박 혼잡 (실제 선박 위치·척수 아님) <span><i style="border:2px dashed #b8c5da;background:transparent"></i>낮음</span> · <span><i style="border:2px dashed #74b9ff;background:transparent"></i>보통</span> · <span><i style="border:2px dashed #d47cff;background:transparent"></i>높음</span> · <span><i style="border:2px dashed #ff5fe3;background:transparent"></i>매우높음</span></div><div class="rf-accident-key" data-accident-legend hidden>면 = 공단 선박 사고예보 <span><i style="background:#2fb36b"></i>낮음</span> · <span><i style="background:#f2c230"></i>보통</span> · <span><i style="background:#fb923c"></i>주의</span> · <span><i style="background:#e0322c"></i>경계</span></div></div>';
@@ -67,13 +67,14 @@
         if(w.RiskMarine){marineLegend();legend.addEventListener('click',function(e){var b=e.target.closest('[data-marine-mode]');if(b){marineMode=marineMode===b.dataset.marineMode?'risk':b.dataset.marineMode;if(marineMode==='current'&&meta)t=meta.now;modeBadge();marineLegend();marineTime();refresh();}});}
         legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';modeBadge();marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));if(w.RiskMarine&&meta&&t)t=nearest(mainTimes(),t);var kindKey=legend.querySelector('[data-'+kind+'-legend]');if(kindKey)kindKey.hidden=!state[kind];if(!w.RiskMarine)legend.querySelector('.rf-map-legend').hidden=!state.sea;if(colorLegend)colorLegend.hidden=!state.sea;marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(!meta)sync();else refresh();});
         function seaKind(kind){return ['accident','traffic','marine','briefing'].includes(kind)?'sea':kind;}
-        /** 배너에는 배경지도 안내만 보인다. 자료 원천 안내는 과제16에 따라 일반 화면에 띄우지 않고 관리자 오류현황으로 보낸다.
-         * 예: message('특보 갱신 지연') → 배너 그대로(숨김), 위성지도 실패 안내(baseWarn)만 남는다.
-         * @param {string} [text] - 자료 쪽 안내(표시하지 않음 — 과제16) @returns {void} [연계] refresh·sync → banner, satelliteOn → baseWarn */
-        function message(text) {bannerText=text||'';if(banner){banner.textContent=baseWarn;banner.hidden=!baseWarn;}}
+        /** 일반 화면 배너는 띄우지 않는다. 자료 원천 안내는 과제16에 따라 관리자 오류현황으로 보내고,
+         * 위성지도 실패도 안내 없이 기본맵으로 바꾼다(사용자 확정 2026-10-15 「마」).
+         * 예: message('특보 갱신 지연') → 배너 숨김 유지.
+         * @param {string} [text] - 자료 쪽 안내(표시하지 않음 — 과제16) @returns {void} [연계] refresh·sync → banner */
+        function message(text) {bannerText=text||'';if(banner){banner.textContent='';banner.hidden=true;}}
         /** 위험예측을 켜면 배경을 위성지도로 바꾼다(켜기 전 배경은 oldBase에 한 번만 기억).
          * 예: 해안도 → 위성지도; 이미 켜진 상태에서 다시 불러도 원래 배경(해안도)을 잃지 않는다.
-         * 위성 인증키를 못 받으면 빈 배경 대신 원래 배경을 유지하고 배너로 알린다.
+         * 위성 인증키를 못 받으면 빈 배경 대신 기본맵(rltm)으로 바꾼다 — 일반 화면 안내는 띄우지 않는다(사용자 확정 2026-10-15 「마」).
          * @returns {void} [연계] ← setEnabled·mount / → ocean_map.js oceanSetBasemap·oceanVworldReady */
         function satelliteOn(){
             if(!w.oceanGetBasemap||!w.oceanSetBasemap)return;
@@ -82,14 +83,14 @@
             if(typeof w.oceanVworldReady!=='function')return;
             w.oceanVworldReady().then(function(ok){
                 if(ok||!enabled||disposed||w.oceanGetBasemap()!=='vworld')return;
-                w.oceanSetBasemap(oldBase&&oldBase!=='vworld'?oldBase:'coast');
-                baseWarn='위성지도를 불러오지 못해 기존 배경지도를 유지합니다';message(bannerText);
+                w.oceanSetBasemap('rltm');if(oldBase==='vworld')oldBase='rltm';
+                console.warn('[위험예측] 위성지도 인증 실패 — 기본맵으로 표시');
             });
         }
         /** 위험예측을 끄거나 없앨 때 켜기 전 배경으로 되돌리고 배경 안내를 지운다.
          * 예: 위성지도 → 해안도. 켠 적이 없으면(oldBase 없음) 아무것도 바꾸지 않는다.
          * @returns {void} [연계] ← setEnabled(false)·destroy / → oceanSetBasemap */
-        function restoreBasemap(){baseWarn='';if(oldBase&&w.oceanSetBasemap)w.oceanSetBasemap(oldBase);oldBase=null;}
+        function restoreBasemap(){if(oldBase&&w.oceanSetBasemap)w.oceanSetBasemap(oldBase);oldBase=null;}
         function clearSelection(){if(w.PopupStack)w.PopupStack.remove('risk-forecast-sheet');detailSeq++;selected=null;choosing=false;sheet.clear();layer.setSelection(null);w.RiskBasis.close();}
         /**
          * 열린 시트를 기존 휴대폰 뒤로가기 관리자에 등록한다.
