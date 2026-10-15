@@ -2922,7 +2922,7 @@ v3 §7 표는 **그 날 당일 예측**(하루 전 발표 3~24시간 앞)으로�
 **왜**: 종전 달 점수는 외지인 방문자 절대값(log2)을 함께 넣고 잰 「남은 몫」이라, 계절에 따라 사람이 느는 몫은 사람 점수가 맡고 있었다. 사람 점수가 「그 관광지 30일 평균 대비」(상대값)가 되면 계절 붐빔 몫이 어디에도 없게 되므로, 달이 그 몫을 다시 담도록 같은 기준으로 다시 잰다.
 
 **방법**: 28_fatal_points.py 달 칸과 같은 틀(층 = 사고 × 그 해, 같은 시군구의 1년 안 날짜끼리 비교 · 요일·공휴일 보정 · 군집 = 사고 날짜 · 조건부 포아송 `ccr.py` · 기준 = 1년 평균 날 = 달마다 배수를 날 수로 가중한 기하평균)에 사람 항만 **log2(그날 외지인 방문자 ÷ 그날부터 30일(t..t+29) 기하평균)** 으로 바꿨다. 앱의 집중률 API 가 주는 창(오늘부터 30일)과 같은 방향이다. 창 30일이 자료 안에 다 들어야 넣었다(방문자 자료 끝 2024-12-31 → 2024-12-02 이후 사고는 빠짐, 민감도 S4 에서 15일 이상이면 넣음). 결과는 전체 사고와 사망·실종 사고(사망 또는 실종 1명 이상)를 각각.
-스크립트·결과(세션 스크래치): `/tmp/claude-0/-home-user-SEAGNAL/714fe44b-de62-577b-abdb-eb7ec1e2182e/scratchpad/coast_impl/month_relative.py` → `out/month_relative.csv` · 표 `make_month_md.py` → `out/month_relative.md`. 재현: `python3 -I month_relative.py local_server/tools/coastal_accident_analysis <analysis_v3/data> out`(약 3분).
+스크립트·결과(2026-10-15 저장소로 옮김 — 결과 `v3/data/u81/month_relative/`): `local_server/tools/coastal_accident_analysis/u81/month_relative.py` → `out/month_relative.csv` · 표 `make_month_md.py` → `out/month_relative.md`. 재현: `python3 -I month_relative.py local_server/tools/coastal_accident_analysis <analysis_v3/data> out`(약 3분).
 **검산**: 같은 스크립트의 R0(종전 방식 — 절대 방문자 log2)이 앱의 종전 표(§12.9: −0.78, −0.42, −0.12, −0.18, +0.16, +0.29, +0.46, +0.66, +0.56, +0.02, −0.12, −0.54)를 12개월 모두 그대로 재현한다(아래 민감도 표 R0 행). S1(산술평균 창)은 앞선 적대 검토 `coast_redteam/sim_baseline.py` 의 값(1월 −0.94 · 7월 +0.70 · 8월 +0.75 · 9월 +0.77)과 같다(그 스크립트를 다시 돌려 같은 숫자를 확인 — `coast_impl/sim_baseline_rerun.txt`).
 
 | 월 | 새 점수 (95% 구간) | 새 배수 (95% 구간) · 백분율 | 지금 점수 | 차이 | 새 사망·실종 배수 (95% 구간) · 백분율 | 지금 사망·실종 배수 | 사고 수(전체 / 사망·실종) |
@@ -2969,7 +2969,7 @@ v3 §7 표는 **그 날 당일 예측**(하루 전 발표 3~24시간 앞)으로�
 
 ### 13.3 위험구역 — 후보 A(세 종류 같은 무게·종류마다 3곳에서 멈춤)
 
-근거 분석: 위험구역 종류별 재분석(2026-10-15, 세션 스크래치 `/tmp/claude-0/-home-user-SEAGNAL/714fe44b-de62-577b-abdb-eb7ec1e2182e/scratchpad/hazard_type_analysis/` — `report_hazard_types.md` §10·§11·§13, 표 `out/score_tables.csv` 의 `candA` 열, 모형 `out/type_models.csv` 의 「b3= 종류별 log2(min(개수,3)+1) 같은 무게」). 방법은 §4.6 과 같은 틀(관광지 1,354곳 포아송 + 시군구 고정효과 + 해안선 길이 보정, 지정 이후 2023~24 사고)이고 §4.6 의 12칸을 모두 그대로 재현한 뒤 진행했다. 재현: `bash /tmp/claude-0/-home-user-SEAGNAL/714fe44b-de62-577b-abdb-eb7ec1e2182e/scratchpad/hazard_type_analysis/run_all.sh`(약 2분).
+근거 분석: 위험구역 종류별 재분석(2026-10-15, 저장소 `local_server/tools/coastal_accident_analysis/u81/hazard_types/`(재현: `bash run_all.sh <data 폴더> [결과 폴더]` — 2026-10-15 저장소 사본으로 다시 돌려 type_models·model_compare·equality_tests·score_tables·보고서가 원본과 같음 확인) · 결과 `v3/data/u81/hazard_types/` — `report_hazard_types.md` §10·§11·§13, 표 `out/score_tables.csv` 의 `candA` 열, 모형 `out/type_models.csv` 의 「b3= 종류별 log2(min(개수,3)+1) 같은 무게」). 방법은 §4.6 과 같은 틀(관광지 1,354곳 포아송 + 시군구 고정효과 + 해안선 길이 보정, 지정 이후 2023~24 사고)이고 §4.6 의 12칸을 모두 그대로 재현한 뒤 진행했다. 재현: `bash local_server/tools/coastal_accident_analysis/u81/hazard_types/run_all.sh`(약 2분).
 
 | 그 종류의 3km 안 개수 | 그 종류 몫 점수 | 전체 사고 배수 | 사망·실종 사고 배수 |
 |---|---|---|---|
