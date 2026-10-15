@@ -462,9 +462,9 @@
         "reference": [{ "file": "local_server/scheduler.js", "quote": "3시간 간격으로 호출 — KMA 발표 주기 (02/05/08/11/14/17/20/23시) 직후." }]
       },
       "schedule": {
-        "text": "매일 05:15·17:15 KST + 기동 때 1회 (위 참고 주석의 「3시간 간격」과 실제 일정이 다름)",
-        "times": ["05:15", "17:15"],
-        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['05:15', '17:15'].includes(hm)) collectGeneralForecasts();" }]
+        "text": "매일 05:15·11:15·17:15 KST + 기동 때 1회 (위 참고 주석의 「3시간 간격」과 실제 일정이 다름)",
+        "times": ["05:15", "11:15", "17:15"],
+        "evidence": [{ "file": "local_server/scheduler.js", "quote": "if (['05:15', '11:15', '17:15'].includes(hm)) collectGeneralForecasts();" }]
       },
       "state": { "file": "general_forecasts.json", "collectedField": "updatedAt", "collectedFormat": "koLocale", "scheduler": "general" },
       "graceMinutes": 30

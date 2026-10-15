@@ -2627,8 +2627,9 @@ async function init() {
             collectMarineVs();
         }
 
-        // 기상예보: 하루 2회 (05:15, 17:15)
-        if (['05:15', '17:15'].includes(hm)) collectGeneralForecasts();
+        // 기상예보: 하루 3회 (05:15, 11:15, 17:15) — 해상 단기 통보문 공식 발표 05·11·17시(data.go.kr 15058629),
+        //   11시분을 17:15까지 못 받던 것 보완(사용자 2026-10-15 「해상단기통보문은 11시 15분 한번 더 넣고」)
+        if (['05:15', '11:15', '17:15'].includes(hm)) collectGeneralForecasts();
 
         // 해구별 기상전망: 하루 2회 (09:30, 21:30 KST)
         if (['09:30', '21:30'].includes(hm)) collectZoneForecasts();
