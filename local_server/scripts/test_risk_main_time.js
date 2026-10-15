@@ -78,7 +78,7 @@ function scoreAt(t){return Math.floor(((Date.parse(t)+9*3600000)%86400000)/10800
  await check('해상 버튼과 공존: 같은 바 하나로 연안·해상이 함께 이동하고 해상 ON 시 예전 해상 버튼 구성 유지',async()=>{
   await page.locator('[data-layer="sea"]').click();await page.waitForFunction(()=>marineCount()>0);
   const r=await page.evaluate(()=>({bars:document.querySelectorAll('.rf-marine-timebar').length,outputs:document.querySelectorAll('[data-map-time]').length,labels:Array.from(document.querySelectorAll('.rf-marine-timebar button')).map(b=>b.textContent),tools:document.querySelector('[data-marine-tools]').hidden,caption:document.querySelector('[data-marine-caption]').textContent}));
-  assert.deepEqual([r.bars,r.outputs,r.tools],[1,1,false]);assert.deepEqual(r.labels,['현재','+3H','+6H','+12H']);assert.equal(r.caption,'종합 관심단계');
+  assert.deepEqual([r.bars,r.outputs,r.tools],[1,1,false]);assert.deepEqual(r.labels,['현재','+3H','+6H','+12H']);assert.equal(r.caption,'공식 사고예보','2026-10-15 종합 관심단계 폐지 — 현재도 공식 사고예보');
   await step(3);await page.waitForFunction(()=>document.querySelector('[data-marine-caption]').textContent.includes('공식 사고예보'));await waitCoast(at3('12:00'));
   assert.ok(log.unified.includes(at3('12:00')),'해상 프레임도 같은 시각으로 요청');assert.equal((await state()).out,'10.12.(월) 12:00');assert.ok(await page.evaluate(()=>marineCount())>0);
   await step('now');await waitCoast(at);
