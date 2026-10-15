@@ -81,9 +81,10 @@ function createCollector({ dir = io.DEFAULT_DIR, fetchImpl, key, clock = Date.no
     /** 정해진 생산 이후·재시도 시각에만 받는다. 예: 05:10 실패→06:10·07:10, 하루 성공은 건너뜀. @returns {Promise<object|null>} [연계] ← start */
     async function tick() {
         const now = clock(), local = new Date(now + 9 * 3600000), h = local.getUTCHours(), m = local.getUTCMinutes();
+        // 수집시각이 아니면 큰2일치 예보를 압축해제·파싱하지 않는다.
+        if (![5, 6, 7].includes(h) || m !== 10) return null;
         const current = io.read(file);
         if (current && current.date === io.day(now)) return null;
-        if (![5, 6, 7].includes(h) || m !== 10) return null;
         return collect();
     }
     /** 운영에서만 자동 실행한다. 예: 개발기동에는 키가 있어도 호출 0. @returns {boolean} [연계] ← server.js */

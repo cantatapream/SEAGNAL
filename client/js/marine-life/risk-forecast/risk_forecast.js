@@ -67,7 +67,7 @@
         if(w.RiskMarine){marineLegend();legend.addEventListener('click',function(e){var b=e.target.closest('[data-marine-mode]');if(b){marineMode=marineMode===b.dataset.marineMode?'risk':b.dataset.marineMode;if(marineMode==='current'&&meta)t=meta.now;modeBadge();marineLegend();marineTime();refresh();}});}
         legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';modeBadge();marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));legend.querySelector('[data-'+kind+'-legend]').hidden=!state[kind];if(colorLegend)colorLegend.hidden=!state.sea;marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(!meta)sync();else refresh();});
         function seaKind(kind){return ['accident','traffic','marine','briefing'].includes(kind)?'sea':kind;}
-        function message(text) {if(banner){banner.textContent=text;banner.hidden=!text;}}
+        function message() {if(banner){banner.textContent='';banner.hidden=true;}}
         function clearSelection(){if(w.PopupStack)w.PopupStack.remove('risk-forecast-sheet');detailSeq++;selected=null;choosing=false;sheet.clear();layer.setSelection(null);w.RiskBasis.close();}
         /**
          * 열린 시트를 기존 휴대폰 뒤로가기 관리자에 등록한다.
@@ -131,7 +131,7 @@
                 await layer.zonesLoaded();
                 if(n!==seq||!enabled||disposed)return {errors:[],warnings:[]};
                 var missing=layer.drawWarnings(zones);
-                if(missing.length)errors.push('특보 구역 경계를 지도에 그리지 못했습니다');
+                if(missing.length){errors.push('특보 구역 경계를 지도에 그리지 못했습니다');console.warn('[위험예측] 특보 구역 도형 없음',{count:missing.length});}
                 if((data.degraded||[]).includes('warnings')||(data.sources&&data.sources.warnings&&!['ok','offseason'].includes(data.sources.warnings.status)))warnings=w.RiskSheet.sourceMessages({t:data.t,sources:{warnings:(data.sources||{}).warnings||{status:'missing'}}},'sea');
             }catch(e){if(n===seq&&enabled&&!disposed){layer.drawWarnings([]);errors.push('특보 구역 — '+e.message);}console.warn('[위험예측] 특보 구역 요청 실패',failureInfo(e));}
             return {errors:errors,warnings:warnings};
