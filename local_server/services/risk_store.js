@@ -13,28 +13,37 @@ function zoneName(s){return String(s||'').replace(/\./g,'·').replace(/\s/g,'');
 function timestamp(s){if(typeof s==='number')return s;const v=String(s||'');const k=v.match(/^(\d{4})\.\s*(\d+)\.\s*(\d+)\.\s*(오전|오후)\s*(\d+):(\d+):(\d+)/);if(k){let h=+k[5]%12;if(k[4]==='오후')h+=12;return Date.UTC(+k[1],+k[2]-1,+k[3],h,+k[6],+k[7])-9*T.HOUR;}const wall=/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$/.test(v)?v.replace(' ','T')+'+09:00':v;const d=Date.parse(wall);return Number.isFinite(d)?d:null;}
 /** 10자리 UTC 해구 예보시각을 읽는다. 예: 2026101000→09시KST. @param {string} tm @returns {number} [연계] ← forecast */
 function utcForecast(tm){const m=/^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(String(tm));return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4]):NaN;}
-/** 폴더 안 실제 자료를 읽는 저장소를 만든다. 예: 검사에서는 임시자료만 읽는다. @param {object} options @returns {object} [연계] ← API/검사 */
-function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDir=path.join(ROOT,'config','coastal_safety'),clientDir=CLIENT,clock=Date.now}={}){
+/** 화면은 원본을 읽고 오류 감시는 readData/metadataOnly로 같은 신선도 규칙만 재사용한다.
+ * 폴더 안 실제 자료를 읽는 저장소를 만든다. 예: 검사에서는 임시자료만 읽는다. @param {object} options @returns {object} [연계] ← API/검사 */
+function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDir=path.join(ROOT,'config','coastal_safety'),clientDir=CLIENT,clock=Date.now,readData=io.read,metadataOnly=false}={}){
     let loadedAt=-Infinity,loadedDay=null,inputVersion=0,inputSignature=null,cache={},staticTable=null,zones=null,landZones=null;
     const detailCache=new Map(),frameCache=new Map(),fileCache=new Map();
     /** 최근 유한 개수의 결과만 보관한다. 예: 슬라이더 왕복은 같은 입력을 재계산하지 않는다. @param {Map} map @param {string} key @param {object} value @param {number} limit @returns {object} [연계] ← detail/frame */
     function remember(map,key,value,limit){if(map.has(key))map.delete(key);map.set(key,value);while(map.size>limit)map.delete(map.keys().next().value);return value;}
     /** 같은 날짜·입력·상태의 계산만 재사용한다. 예: 특보 낡음 전환도 별도 키. @param {string} kind @param {string} t @param {string} id @returns {string} [연계] ← detail/frame */
     function resultKey(kind,t,id=''){return JSON.stringify([inputVersion,T.dateKey(clock()),kind,t,id,Object.entries(sources()).map(([k,v])=>[k,v.status]),sources().events.months]);}
-    /** 읽기 결과를 30초 공유한다. 예: JSON 손상은 missing이 아니라 error. @returns {object} [연계] ← 모든 GET */
-    function refresh(force=false){const now=clock(),today=io.day(now);if(!force&&today===loadedDay&&now-loadedAt<30000)return cache;
+    /** 읽을 원천 파일을 같은 날짜 규칙으로 열거한다. 예: 월경계의 행사만 포함.
+     * @returns {string[]} 파일 경로 [연계] refresh / risk_history_sources의 순차 메타 읽기
+     */
+    function sourceFiles(){const now=clock();
         const visibleMonths=new Set(T.timeline(now,3,3,21).map(t=>T.dateKey(t).slice(0,7)));
         const files=['weather_alerts.json','gale_warnings.json','zone_forecasts.json','ripcurrent_index.json','swell_smallzone.json.gz'].map(f=>path.join(dataDir,f));
         files.push(...['sea_traffic.json.gz','sea_accident.json.gz','accident_status.json','accident_quota.json','tour_concentration.json','sea_cells.json','events_status.json','congestion_status.json','tourConcentration_status.json','gale_status.json','congestion_quota.json','tourConcentration_quota.json'].map(f=>path.join(dir,f)));
         for(const month of visibleMonths)for(const suffix of ['.json','_status.json'])files.push(path.join(dir,'events_'+month.replace('-','')+suffix));
-        files.push(path.join(configDir,'risk_spots.json'),path.join(clientDir,'assets','warn_zones.geojson'),path.join(clientDir,'assets','warn_zones_land_coastal.geojson'));
+        if(!metadataOnly)files.push(path.join(configDir,'risk_spots.json'),path.join(clientDir,'assets','warn_zones.geojson'),path.join(clientDir,'assets','warn_zones_land_coastal.geojson'));
+        return files;
+    }
+    /** 읽기 결과를 30초 공유한다. 예: JSON 손상은 missing이 아니라 error. @returns {object} [연계] ← 모든 GET */
+    function refresh(force=false){const now=clock(),today=io.day(now);if(!force&&today===loadedDay&&now-loadedAt<30000)return cache;
+        const visibleMonths=new Set(T.timeline(now,3,3,21).map(t=>T.dateKey(t).slice(0,7)));
+        const files=sourceFiles();
         const version=files.map(file=>{try{const st=fs.statSync(file);return[file,st.mtimeMs,st.size,st.ino];}catch{return[file,null];}});
         // 전체 버전은 그대로 무효화하되, 변경되지 않은 파일 객체는 다시 JSON.parse 하지 않는다.
         const fileVersions=new Map(version.map(v=>[v[0],JSON.stringify(v.slice(1))]));
         for(const file of fileCache.keys())if(!fileVersions.has(file))fileCache.delete(file);
         const readFile=file=>{const signature=fileVersions.get(file),previous=fileCache.get(file);
             if(previous?.signature===signature)return previous.result;
-            const result={data:signature==='[null]'?null:io.read(file),exists:signature!=='[null]'};
+            const result={data:signature==='[null]'?null:readData(file),exists:signature!=='[null]'};
             fileCache.set(file,{signature,result});return result;};
         const signature=JSON.stringify(version),changed=signature!==inputSignature;if(changed){inputSignature=signature;inputVersion++;detailCache.clear();frameCache.clear();staticTable=null;zones=null;landZones=null;}
         loadedAt=now;loadedDay=today;cache.sourceInfo=null;if(!changed&&cache.warnings)return cache;cache.warningMap=null;
@@ -43,9 +52,9 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         for(const [key,file]of Object.entries({congestion:'sea_traffic.json.gz',accident:'sea_accident.json.gz',tourConcentration:'tour_concentration.json',cells:'sea_cells.json',events:'events_'+io.day(now).slice(0,7).replace('-','')+'.json'})){const filename=path.join(dir,file);cache[key]={...readFile(filename)};}
         cache.events.months={};cache.events.attempts={};cache.events.monthExists={};for(const key of visibleMonths){const file=path.join(dir,'events_'+key.replace('-','')+'.json');cache.events.months[key]=readFile(file).data;cache.events.monthExists[key]=readFile(file).exists;cache.events.attempts[key]=readFile(path.join(dir,'events_'+key.replace('-','')+'_status.json')).data;}
         for(const key of ['congestion','accident','tourConcentration','events','gale'])cache[key].attempt=readFile(path.join(dir,key+'_status.json')).data;
-        if(!staticTable)staticTable=readFile(path.join(configDir,'risk_spots.json')).data;
-        if(!zones)zones=readFile(path.join(clientDir,'assets','warn_zones.geojson')).data?.features||[];
-        if(!landZones)landZones=readFile(path.join(clientDir,'assets','warn_zones_land_coastal.geojson')).data?.features||[];
+        if(!metadataOnly&&!staticTable)staticTable=readFile(path.join(configDir,'risk_spots.json')).data;
+        if(!metadataOnly&&!zones)zones=readFile(path.join(clientDir,'assets','warn_zones.geojson')).data?.features||[];
+        if(!metadataOnly&&!landZones)landZones=readFile(path.join(clientDir,'assets','warn_zones_land_coastal.geojson')).data?.features||[];
         return cache;
     }
     /** 나무에서 부모와 자식 표출 블록을 각각 꺼낸다. 예: 자식null은 부모 특보로 채우지 않는다. @returns {Map} [연계] ← warningsFor/borders */
@@ -70,8 +79,8 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
             if(c.attempt?.status==='error')status='error';
             out[key]={status,updatedAt:at?T.isoKst(at):null,...(c.attempt?{lastSuccess:timestamp(c.attempt.lastSuccess)?T.isoKst(timestamp(c.attempt.lastSuccess)):null,lastError:c.attempt.lastError||null}:{} )};
         }
-        const names=new Set(landZones.map(z=>zoneName(z.properties.name)));out.gale.checkedAt=cache.gale.attempt?.checkedAt||null;out.gale.savedAt=timestamp(cache.gale.data?.savedAt)?T.isoKst(timestamp(cache.gale.data.savedAt)):null;out.gale.rows=cache.gale.data?.rows?.length||0;out.gale.unmatched=(cache.gale.data?.rows||[]).filter(r=>r.live&&!names.has(zoneName(r.zoneNm))).length;
-        const rip=cache.ripCurrent.data?.places||{};out.ripCurrent.withData=Object.values(rip).filter(r=>r.hasData).length;out.ripCurrent.total=Object.keys(rip).length;
+        const names=new Set((landZones||[]).map(z=>zoneName(z.properties.name)));out.gale.checkedAt=cache.gale.attempt?.checkedAt||null;out.gale.savedAt=timestamp(cache.gale.data?.savedAt)?T.isoKst(timestamp(cache.gale.data.savedAt)):null;out.gale.rows=cache.gale.data?.rows?.length||0;out.gale.unmatched=(cache.gale.data?.rows||[]).filter(r=>r.live&&!names.has(zoneName(r.zoneNm))).length;
+        const rip=cache.ripCurrent.data?.places||{};out.ripCurrent.withData=metadataOnly?(cache.ripCurrent.data?._ripWithData||0):Object.values(rip).filter(r=>r.hasData).length;out.ripCurrent.total=metadataOnly?(cache.ripCurrent.data?._ripTotal||0):Object.keys(rip).length;
         const month=Number(date.slice(5,7));if(cache.ripCurrent.data&&out.ripCurrent.withData===0&&(month<6||month>9))out.ripCurrent.status='offseason';
         for(const key of ['congestion','accident','tourConcentration'])out[key].callsToday=io.read(path.join(dir,key+'_quota.json'))?.date===date?io.read(path.join(dir,key+'_quota.json')).calls:0;
         out.zoneForecasts.base=cache.zoneForecasts.data?.baseTmUtf||cache.zoneForecasts.data?.baseTm||null;
@@ -158,6 +167,6 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      * [연계] ← marine_fusion / 원천 파일과 기상 캐시의 중복 상주를 막는다.
      */
     function marineInputs(){refresh();return{version:inputVersion,congestion:cache.congestion.data,accident:cache.accident.data,cells:cache.cells.data,sources:sources(),weather:forecast};}
-    return{meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,seaDetail,frame,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
+    return{sourceFiles,meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,seaDetail,frame,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
 }
 module.exports={createStore,zoneName,timestamp,utcForecast};

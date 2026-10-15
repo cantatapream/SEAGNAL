@@ -1,5 +1,5 @@
 /**
- * 역할: 위험예측 수집기의 인증키·원자적 파일 저장·하루 호출 장부를 관리한다.
+ * 역할: 위험예측 수집기의 인증키·원자적 파일 저장·하루 호출 장부와 비밀을 제외한 수집 결과 이력을 관리한다.
  * [연계] sea_traffic_collector/tour_concentration_collector/coastal_events_collector → data/risk_forecast만 쓴다.
  * [로드 순서] 서버 require. 키는 기존 api_config.json 또는 환경에서 읽고 출력하지 않는다.
  */
@@ -150,7 +150,11 @@ function items(data, { allowEmpty = false } = {}) {
 function status(dir, name, now, error, extra = {}) {
     const file = path.join(dir, name + '_status.json');
     const previous = read(file) || {};
-    write(file, { ...previous, ...extra, status: error ? 'error' : 'ok', lastRun: iso(now),
-        ...(error ? { lastError: errorName(error) } : { lastSuccess: iso(now), lastError: null }) });
+    const next = { ...previous, ...extra, status: error ? 'error' : 'ok', lastRun: iso(now),
+        ...(error ? { lastError: errorName(error) } : { lastSuccess: iso(now), lastError: null }) };
+    write(file, next);
+    // 이력 저장 실패가 실제 원천 수집 성공 여부를 바꾸지 않도록 분리한다.
+    try { require('./risk_error_history').createHistory({ dir }).recordCollector(name, next); }
+    catch (_) { console.warn('[risk_history] 수집 이력 연결 실패'); }
 }
 module.exports = { DEFAULT_DIR, day, iso, publicKey, read, write, errorName, request, items, status, acquireLock, withLock, reportError };

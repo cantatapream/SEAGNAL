@@ -1,0 +1,529 @@
+/** 역할: 임시자료에서 오류이력 중복·복구·상한·비밀 배제와 실제 관리자 HTTP 인증을 검사한다.
+ * [연계] risk_error_history / risk_errors / 기존 admin_auth. 외부 수집·실사용 인증키 없음.
+ */
+'use strict';
+const fs = require('fs'),
+    os = require('os'),
+    path = require('path'),
+    assert = require('assert'),
+    express = require('express'),
+    vm = require('vm');
+const { createRequire } = require('module');
+const { createHistory } = require('../services/risk_error_history'),
+    io = require('../services/risk_collector_io');
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'risk-errors-'));
+const TEST_PASSWORD = 'test-only-password';
+/** 실제 관리자 인증 코드를 임시 토큰 폴더에서 실행한다. 기존 토큰 파일을 읽거나 쓰지 않는다.
+ * @returns {object} 실제 인증 모듈 API [연계] 관리자 HTTP 인증 회귀 검사
+ */
+function isolatedAuth() {
+    const filename = path.join(__dirname, '../services/admin_auth.js'),
+        module = { exports: {} };
+    const context = {
+        module,
+        exports: module.exports,
+        require: createRequire(filename),
+        __dirname: path.join(dir, 'auth', 'services'),
+        __filename: filename,
+        process: { env: { ADMIN_PASSWORD: TEST_PASSWORD } },
+        console: { log() {}, warn() {}, error() {} },
+        Buffer,
+        Date,
+        setInterval: () => ({ unref() {} }),
+        clearInterval() {},
+    };
+    vm.runInNewContext(fs.readFileSync(filename, 'utf8'), context, {
+        filename,
+    });
+    return module.exports;
+}
+const auth = isolatedAuth();
+// 실제 라우터의 기본 인증 의존성에 위의 실제 인증 코드를 연결한다.
+const routerFile = path.join(__dirname, '../routes/risk_errors.js'),
+    routeModule = { exports: {} },
+    routeRequire = createRequire(routerFile);
+vm.runInNewContext(
+    fs.readFileSync(routerFile, 'utf8'),
+    {
+        module: routeModule,
+        exports: routeModule.exports,
+        require: (name) =>
+            name === '../services/admin_auth' ? auth : routeRequire(name),
+    },
+    { filename: routerFile }
+);
+const { createRouter } = routeModule.exports;
+let now = Date.parse('2026-10-12T09:00:00+09:00'),
+    pass = 0,
+    fail = 0;
+const history = createHistory({
+    dir,
+    clock: () => now,
+    maxRecords: 5,
+    retentionDays: 2,
+});
+async function check(name, fn) {
+    try {
+        await fn();
+        pass++;
+        console.log('✅', name);
+    } catch (e) {
+        fail++;
+        console.error('❌', name, e.message);
+    }
+}
+(async () => {
+    let server;
+    try {
+        await check('반복된 같은 오류는 새 이력 없이 유지', () => {
+            for (let i = 0; i < 10; i++) {
+                now += 60000;
+                history.observeSources({
+                    accident: { status: 'error', lastError: 'HTTP 400' },
+                });
+            }
+            assert.equal(history.list().data.length, 1);
+            assert.equal(history.list().current[0].code, 'HTTP 400');
+        });
+        await check('재기동 후 같은 오류도 중복 없음', () => {
+            createHistory({
+                dir,
+                clock: () => now,
+                maxRecords: 5,
+            }).observeSources({
+                accident: { status: 'error', lastError: 'HTTP 400' },
+            });
+            assert.equal(history.list().data.length, 1);
+        });
+        await check('정상 회복 한 건과 문제 변경 한 건', () => {
+            now += 60000;
+            history.observeSources({ accident: { status: 'ok' } });
+            assert.equal(history.list().data[0].phase, 'recovered');
+            now += 60000;
+            history.observeSources({ accident: { status: 'missing' } });
+            now += 60000;
+            history.observeSources({ accident: { status: 'stale' } });
+            assert.equal(history.list().data[0].phase, 'changed');
+            assert.equal(history.list().data.length, 4);
+        });
+        await check('비밀·URL·쿠키·HTML 포함 오류는 고정 분류만 저장', () => {
+            history.observeSources({
+                congestion: {
+                    status: 'error',
+                    lastError:
+                        'https://private/?serviceKey=SECRET cookie=PRIVATE <script>bad</script>',
+                    updatedAt: 'PRIVATE',
+                    lastSuccess: 'https://private',
+                },
+            });
+            const raw = fs.readFileSync(
+                path.join(dir, 'error_history.json'),
+                'utf8'
+            );
+            for (const word of ['SECRET', 'PRIVATE', 'script', 'https:'])
+                assert.ok(!raw.includes(word));
+            assert.equal(history.list().data[0].code, 'network or parse error');
+        });
+        await check('offseason과 정상 행사 없음은 문제를 만들지 않음', () => {
+            const before = history.list().data.length;
+            history.observeSources({
+                ripCurrent: { status: 'offseason' },
+                events: { months: { '2026-10': { status: 'ok', count: 0 } } },
+            });
+            assert.equal(history.list().data.length, before);
+        });
+        await check('상태 변화가 많아도 건수와 파일 바이트 상한 유지', () => {
+            for (let i = 0; i < 20; i++)
+                history.observeSources({
+                    congestion: {
+                        status: i % 2 ? 'ok' : 'error',
+                        lastError: 'HTTP 400',
+                    },
+                });
+            assert.equal(history.list().pagination.total, 5);
+            assert.ok(
+                fs.statSync(path.join(dir, 'error_history.json')).size <
+                    1024 * 1024
+            );
+        });
+        await check('보관기간 지난 이력 삭제와 현재 문제 유지', () => {
+            now += 3 * 86400000;
+            history.observeSources({ accident: { status: 'stale' } });
+            assert.equal(history.list().data.length, 0);
+            assert.equal(
+                history.list().current.find((r) => r.source === 'accident')
+                    .status,
+                'stale'
+            );
+        });
+        await check('현재 source상태 감시만으로 missing·stale 기록', () => {
+            const monitor = createHistory({
+                dir: path.join(dir, 'monitor'),
+                clock: () => now,
+            });
+            monitor.observeSources({ warnings: { status: 'missing' } });
+            now += 60000;
+            monitor.observeSources({ warnings: { status: 'stale' } });
+            assert.equal(monitor.list().data.length, 2);
+        });
+        await check('월별 행사와 공통 상태 기록은 같은 이력에 합침', () => {
+            const eventsDir = path.join(dir, 'events');
+            io.status(eventsDir, 'events_202610', now, Error('HTTP 400'), {
+                month: '2026-10',
+            });
+            io.status(eventsDir, 'events', now, Error('HTTP 400'), {
+                month: '2026-10',
+            });
+            const h = createHistory({ dir: eventsDir });
+            assert.equal(h.list().data.length, 1);
+            assert.equal(h.list().data[0].scope, '2026-10');
+        });
+        await check(
+            '60개월 정상·오류 전환도 현재 월 상한과 재기동을 유지',
+            () => {
+                const yearsDir = path.join(dir, 'years'),
+                    h = createHistory({ dir: yearsDir, clock: () => now });
+                for (let i = 0; i < 60; i++) {
+                    const month = new Date(Date.UTC(2020, i, 1))
+                        .toISOString()
+                        .slice(0, 7);
+                    assert.equal(
+                        h.observeSources({
+                            events: {
+                                months: {
+                                    [month]: {
+                                        status: i % 2 ? 'ok' : 'error',
+                                        lastError: 'HTTP 400',
+                                    },
+                                },
+                            },
+                            accident: { status: 'missing' },
+                        }),
+                        true
+                    );
+                }
+                const current = createHistory({ dir: yearsDir }).list().current;
+                assert.equal(
+                    current.filter((r) => r.source === 'events').length,
+                    4
+                );
+                assert.equal(
+                    current.filter((r) => r.source === 'accident').length,
+                    1
+                );
+                assert.equal(
+                    h.observeSources({ accident: { status: 'ok' } }),
+                    true
+                );
+            }
+        );
+        await check('깨진 이력은 정상 빈 목록으로 감추지 않음', () => {
+            const broken = path.join(dir, 'broken');
+            fs.mkdirSync(broken);
+            fs.writeFileSync(path.join(broken, 'error_history.json'), 'broken');
+            assert.throws(
+                () => createHistory({ dir: broken }).list(),
+                /history unavailable/
+            );
+        });
+        await check('이력 저장 실패가 실제 수집 성공을 바꾸지 않음', () => {
+            const failed = path.join(dir, 'failed');
+            fs.mkdirSync(failed);
+            fs.writeFileSync(path.join(failed, 'error_history.json'), 'broken');
+            io.status(failed, 'accident', now, null);
+            assert.equal(
+                io.read(path.join(failed, 'accident_status.json')).status,
+                'ok'
+            );
+        });
+        await check(
+            '건수 상한 전에도 작은 파일 바이트 상한으로 이력 제한',
+            () => {
+                const smallDir = path.join(dir, 'small'),
+                    h = createHistory({
+                        dir: smallDir,
+                        clock: () => now,
+                        maxRecords: 1000,
+                        maxBytes: 1400,
+                    });
+                for (let i = 0; i < 70; i++) {
+                    now += 1000;
+                    assert.equal(
+                        h.observeSources({
+                            warnings: {
+                                status: i % 2 ? 'ok' : 'error',
+                                lastError: 'HTTP 429',
+                            },
+                        }),
+                        true
+                    );
+                }
+                assert.ok(
+                    fs.statSync(path.join(smallDir, 'error_history.json'))
+                        .size <= 1400
+                );
+                assert.ok(h.list().pagination.total < 70);
+                assert.ok(h.list().pagination.total > 0);
+            }
+        );
+        await check(
+            '운영 감시가 화면 접속 없이 시작·60초 stale·중복 시작 방지',
+            async () => {
+                let tick,
+                    cleared = false,
+                    reads = 0;
+                const m = { exports: {} },
+                    context = {
+                        module: m,
+                        exports: m.exports,
+                        require: (n) =>
+                            n === './risk_collector_io' ? io : require(n),
+                        process: { env: { FLY_ALLOC_ID: 'test-only' } },
+                        console,
+                        Buffer,
+                        setInterval: (fn, ms) => {
+                            assert.equal(ms, 60000);
+                            tick = fn;
+                            return { unref() {} };
+                        },
+                        clearInterval: () => {
+                            cleared = true;
+                        },
+                    };
+                vm.runInNewContext(
+                    fs.readFileSync(
+                        path.join(
+                            __dirname,
+                            '../services/risk_error_history.js'
+                        ),
+                        'utf8'
+                    ),
+                    context
+                );
+                const h = m.exports.createHistory({
+                        dir: path.join(dir, 'timer'),
+                        clock: () => now,
+                    }),
+                    store = {
+                        sources: (fresh) => {
+                            assert.equal(fresh, true);
+                            reads++;
+                            return {
+                                warnings: {
+                                    status: reads === 1 ? 'ok' : 'stale',
+                                },
+                            };
+                        },
+                    };
+                assert.equal(h.start(store), true);
+                assert.equal(h.start(store), false);
+                assert.equal(reads, 0);
+                await tick();
+                await tick();
+                assert.equal(h.list().data[0].status, 'stale');
+                assert.equal(reads, 2);
+                h.stop();
+                assert.equal(cleared, true);
+            }
+        );
+        await check(
+            '느린 비동기 감시는 겹치지 않고 중지 뒤 늦은 결과를 기록하지 않음',
+            async () => {
+                let tick,
+                    release,
+                    calls = 0;
+                const file = path.join(
+                        __dirname,
+                        '../services/risk_error_history.js'
+                    ),
+                    module = { exports: {} };
+                vm.runInNewContext(fs.readFileSync(file, 'utf8'), {
+                    module,
+                    exports: module.exports,
+                    require: (n) =>
+                        n === './risk_collector_io' ? io : require(n),
+                    process: { env: { FLY_ALLOC_ID: 'test-only' } },
+                    console,
+                    Buffer,
+                    setInterval: (fn) => {
+                        tick = fn;
+                        return { unref() {} };
+                    },
+                    clearInterval() {},
+                });
+                const h = module.exports.createHistory({
+                    dir: path.join(dir, 'async-watch'),
+                    clock: () => now,
+                });
+                h.start(() => {
+                    calls++;
+                    return new Promise((resolve) => {
+                        release = resolve;
+                    });
+                });
+                const pending = tick();
+                await tick();
+                assert.equal(calls, 1);
+                h.stop();
+                release({ warnings: { status: 'missing' } });
+                await pending;
+                assert.equal(h.list().current.length, 0);
+            }
+        );
+        await check('실시간 교통의 수집 실패·복구도 기록', () => {
+            const h = createHistory({
+                dir: path.join(dir, 'live'),
+                clock: () => now,
+            });
+            h.recordCollector('realtime', {
+                status: 'error',
+                lastError: 'HTTP 502',
+                lastRun: io.iso(now),
+            });
+            h.observeSources({
+                realtime: {
+                    status: 'ok',
+                    lastSuccess: io.iso(now),
+                    updatedAt: io.iso(now),
+                },
+            });
+            assert.equal(h.list().data[0].phase, 'recovered');
+            assert.equal(h.list().data[1].source, 'realtime');
+            assert.equal(h.list().data[1].code, 'HTTP 502');
+        });
+        await check(
+            '실시간 자료 관측시각을 수집시각으로 대체해도 유효 ISO만 저장',
+            () => {
+                const h = createHistory({
+                    dir: path.join(dir, 'live-times'),
+                    clock: () => now,
+                });
+                h.observeSources({
+                    realtime: {
+                        status: 'stale',
+                        updatedAt: 'not an ISO',
+                        collectedAt: io.iso(now),
+                        lastSuccess: io.iso(now),
+                    },
+                });
+                assert.equal(h.list().current[0].updatedAt, io.iso(now));
+            }
+        );
+        await check('원천 설명문은 사고·실시간 고정 식별자를 덮지 않음', () => {
+            const h = createHistory({
+                dir: path.join(dir, 'identity'),
+                clock: () => now,
+            });
+            h.observeSources({
+                accident: { source: '공식 MTIS 사고', status: 'missing' },
+                realtime: { source: null, status: 'stale' },
+            });
+            assert.deepEqual(
+                h
+                    .list()
+                    .current.map((r) => r.source)
+                    .sort(),
+                ['accident', 'realtime']
+            );
+        });
+        await check(
+            '복구 다음 정상 감시에도 복구시각 유지·삭제에도 마지막 성공 보존',
+            () => {
+                const h = createHistory({
+                    dir: path.join(dir, 'recovery-times'),
+                    clock: () => now,
+                });
+                const success = io.iso(now);
+                h.observeSources({
+                    realtime: {
+                        status: 'ok',
+                        lastSuccess: success,
+                        updatedAt: success,
+                    },
+                });
+                now += 60000;
+                h.observeSources({ realtime: { status: 'missing' } });
+                assert.equal(h.list().current[0].lastSuccess, success);
+                assert.equal(h.list().data[0].updatedAt, success);
+                now += 60000;
+                h.observeSources({
+                    realtime: { status: 'ok', lastSuccess: io.iso(now) },
+                });
+                const recovered = h.list().current[0].recoveredAt;
+                assert.ok(recovered);
+                now += 60000;
+                h.observeSources({ realtime: { status: 'ok' } });
+                assert.equal(h.list().current[0].recoveredAt, recovered);
+            }
+        );
+        await check('이미 보유한 파일 잠금은 다른 변경을 차단', () => {
+            const release = io.acquireLock(
+                path.join(dir, 'error_history.json.lock')
+            );
+            try {
+                assert.equal(
+                    history.observeSources({ warnings: { status: 'missing' } }),
+                    false
+                );
+            } finally {
+                release();
+            }
+        });
+        const app = express();
+        app.use(createRouter({ history }));
+        server = app.listen(0, '127.0.0.1');
+        await new Promise((resolve) => server.once('listening', resolve));
+        const url =
+            'http://127.0.0.1:' +
+            server.address().port +
+            '/api/admin/risk-forecast/errors';
+        await check('토큰 없음·잘못된 토큰은 관리자 HTTP401', async () => {
+            assert.equal((await fetch(url)).status, 401);
+            assert.equal(
+                (await fetch(url, { headers: { 'X-Admin-Token': 'wrong' } }))
+                    .status,
+                401
+            );
+        });
+        const token = auth.issueToken(TEST_PASSWORD, false).token;
+        await check(
+            '기존 관리자 토큰으로만 조회·캐시 금지·페이지 상한',
+            async () => {
+                const r = await fetch(url + '?limit=2', {
+                    headers: { 'X-Admin-Token': token },
+                });
+                assert.equal(r.status, 200);
+                assert.equal(r.headers.get('cache-control'), 'no-store');
+                assert.equal((await r.json()).pagination.limit, 2);
+                for (const query of [
+                    'limit=101',
+                    'page=-1',
+                    'source=private',
+                    'status=bad',
+                    'from=https://private',
+                ])
+                    assert.equal(
+                        (
+                            await fetch(url + '?' + query, {
+                                headers: { 'X-Admin-Token': token },
+                            })
+                        ).status,
+                        400
+                    );
+            }
+        );
+        await check('이력 처리 실패는 고정 관리자 오류만 반환', async () => {
+            history.list = () => {
+                throw Error('https://private?serviceKey=SECRET');
+            };
+            const r = await fetch(url, { headers: { 'X-Admin-Token': token } });
+            assert.equal(r.status, 503);
+            assert.ok(!(await r.text()).includes('SECRET'));
+        });
+    } finally {
+        if (server) await new Promise((resolve) => server.close(resolve));
+        fs.rmSync(dir, { recursive: true, force: true });
+        console.log(`${pass} PASS / ${fail} FAIL`);
+        process.exit(fail ? 1 : 0);
+    }
+})();
