@@ -84,6 +84,16 @@ const risk={marineInputs:()=>inputs,sources:()=>inputs.sources};
         assert.equal(s2.analysis({id:trafficCell.id}).marine.current.densityLevel,'높음');
         fs.rmSync(scoped,{recursive:true,force:true});
     });
+    await check('최신 응답에 이 칸이 없으면 0척·밀집도 낮음(공단 API 는 배 없는 칸을 안 보냄) · 수집이 낡았으면 모름(null)',()=>{
+        const scoped=fs.mkdtempSync(path.join(os.tmpdir(),'fusion-empty-')),other={...trafficCell,id:'GR4_F4K23_P3',i:1,lon:126.5625,geometry:{type:'Polygon',coordinates:[[[126.55,33.55],[126.575,33.55],[126.575,33.575],[126.55,33.575],[126.55,33.55]]]}};
+        io.write(path.join(scoped,'sea_realtime.json.gz'),{cells:[trafficCell,other],rows:[[1,7,3]],sourceAt:io.iso(now),collectedAt:io.iso(now),source:'MTIS realtime API'});
+        const s2=M.createStore({risk,dir:scoped,clock:()=>now,stations,accidents,describe});
+        const c=s2.analysis({id:trafficCell.id}).marine.current;
+        assert.deepEqual([c.gridId,c.count,c.density,c.densityLevel,c.absent,c.status],[trafficCell.id,0,0,'낮음',true,'ok']);
+        const late=M.createStore({risk,dir:scoped,clock:()=>now+20*60000,stations,accidents,describe});
+        assert.equal(late.analysis({id:trafficCell.id}).marine.current,null,'수집이 멈췄으면 0척으로 지어내지 않는다');
+        fs.rmSync(scoped,{recursive:true,force:true});
+    });
     await check('칸 사고 목록: 최신순·종류·원인 이름·사망/실종(빈 값은 null, 0 으로 바꾸지 않음)·제외 유형 빠짐',()=>{
         const list=M.accidentList([row('ATY027',null,2,1,'20230914'),row('ATY028','ACC008',0,0,'20250102'),row('ATY019','ACC012',null,null,'20240501'),row('ATY010','ACC008',0,3,'20220101')]);
         assert.deepEqual(list,[

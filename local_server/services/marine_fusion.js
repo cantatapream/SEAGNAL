@@ -130,7 +130,10 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     function congestion(row,c){return row?{gridId:c.id,index:row.congestionIndex,level:row.congestionLevel,forecastAt:T.isoKst(Date.parse(row.fcstDate.slice(0,4)+'-'+row.fcstDate.slice(4,6)+'-'+row.fcstDate.slice(6,8)+'T'+row.fcstTime.slice(0,2)+':00:00+09:00')),createdAt:row.fcstCreateDateTime}:null;}
     function analyze(p,at,inputs){
         const currentCell=pointCell(live?.cells,p),traffic=pointCell(inputs.cells?.cells,p),accidentCell=pointCell(inputs.accident?.cells,p),cell=currentCell||traffic||accidentCell||describe({gridId:'point',latitude:p[1],longitude:p[0]}),liveRow=currentCell&&(live?.rows||[]).find(r=>r[0]===currentCell.i),status=freshness();
-        const liveData=liveRow?{gridId:currentCell.id,count:liveRow[1],density:liveRow[2],densityLevel:densityLevel(liveRow[2]),level:trafficLevel(liveRow[1]),...status}:null;
+        // 공단 실시간 API 는 배가 없는 칸을 보내지 않는다(2026-10-15 운영 응답 3,890칸 중 0척 칸 0개 — 실행 확인). 그래서 최신 응답(status ok)에
+        // 이 칸이 없으면 0척·밀집도 0 으로 낸다(사용자 2026-10-15 「수집된 데이터가 없으면 그 격자에 선박이 없다는 말」). 수집이 멈춘(낡은) 때는 모름 → null.
+        const emptyId=!liveRow&&status.status==='ok'?(currentCell||traffic)?.id:null;
+        const liveData=liveRow?{gridId:currentCell.id,count:liveRow[1],density:liveRow[2],densityLevel:densityLevel(liveRow[2]),level:trafficLevel(liveRow[1]),...status}:emptyId?{gridId:emptyId,count:0,density:0,densityLevel:densityLevel(0),level:trafficLevel(0),absent:true,...status}:null;
         const key=forecastKey(at),congestionRow=traffic&&congestionAt(inputs.congestion,key,traffic.id),cf=congestion(congestionRow,traffic);
         const accAt=T.isoKst(Math.floor(Date.parse(at)/(3*3600000))*3*3600000),ar=accidentCell&&findRow(inputs.accident?.frames?.[forecastKey(accAt)],accidentCell.i,true),af=ar?{gridId:accidentCell.id,index:ar[1],level:ar[2],forecastAt:accAt,createdAt:inputs.accident.createdAt,status:inputs.sources.accident?.status}:null;
         if(cf)cf.status=inputs.sources.congestion?.status;

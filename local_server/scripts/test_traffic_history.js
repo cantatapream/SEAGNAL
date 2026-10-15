@@ -24,7 +24,7 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
 
 (async () => {
     // ── 1. 30분 집계 ─────────────────────────────────────────────────────────
-    await check('30분 값 = 그 30분 5분 값들의 평균 · 받지 못한 5분은 0으로 세지 않음 · 같은 등록시각은 한 번만', () => {
+    await check('30분 값 = 그 30분 받은 5분 응답들의 평균 · 응답에 칸이 없던 5분은 0척(공단 API 는 배 없는 칸을 안 보냄) · 같은 등록시각은 한 번만', () => {
         const dir = tmp(); let now = K('2026-10-15T15:20:00');
         const h = H.createHistory({ dir, clock: () => now });
         h.add({ sourceAt: at('2026-10-15T15:00:06'), rows: [{ id: A, count: 2 }, { id: B, count: 7 }] });
@@ -37,7 +37,8 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
         const s = h.series(A, K('2026-10-15T15:00:00'), 2);
         assert.deepEqual(s.values, [3.7, null]);              // (2+4+5)/3 = 3.666… → 3.7 · 15:30 칸은 아직 진행 중
         assert.deepEqual(s.samples, [3, 0]);
-        assert.deepEqual(h.series(B, K('2026-10-15T15:00:00'), 1).values, [7.5]);   // (7+8)/2 — 빠진 5분을 0으로 넣지 않음
+        assert.deepEqual(h.series(B, K('2026-10-15T15:00:00'), 1).values, [5]);     // (7+0+8)/3 — 15:05 응답에 B 가 없었다 = 0척
+        assert.deepEqual(h.series('GR4_F4K23_P3', K('2026-10-15T15:00:00'), 2).values, [0, null]);   // 한 번도 안 나온 칸: 응답 받은 30분은 0, 진행 중 30분은 null
         const f = dayFile(dir, '2026-10-15');
         assert.deepEqual(f.ids.sort(), [A, B].sort());
         assert.equal(f.v, 2); assert.equal(f.stepMinutes, 30);

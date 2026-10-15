@@ -18,7 +18,10 @@ const io = require('./risk_collector_io');
 const HOUR = 3600000, SLOT = 30 * 60000, DAY = 86400000, KST = 9 * HOUR, SLOTS_PER_DAY = 48;
 const KEEP_DAYS = 365, MEMORY_DAYS = 15, MAX_TENTHS = 65534;
 const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.json\.gz$/;
-const DEFINITION = '그 30분(KST 정시·30분부터 30분 동안) 받은 5분 값(API 등록시각 regDt 기준)의 평균 척수, 소수 첫째 자리. 받지 못한 5분은 0으로 세지 않고 빼고 평균한다.';
+// 공단 실시간 API 는 배가 없는 칸을 보내지 않는다 — 2026-10-15 21:10 운영 응답 3,890칸 중 척수 0 인 칸 0개·최소 1척(실행 확인).
+// 그래서 「받은 5분 응답에 이 칸이 없다」 = 그 5분 0척으로 센다. 「5분 응답 자체를 못 받은 것」(수집 실패)만 빼고 평균한다.
+// 사용자 2026-10-15 「수집된 데이터가 없으면 그 격자에 선박이 없다는 말인데」.
+const DEFINITION = '그 30분(KST 정시·30분부터 30분 동안) 받은 5분 응답(API 등록시각 regDt 기준)의 평균 척수, 소수 첫째 자리. 응답에 그 칸이 없으면 그 5분은 0척(공단 API 는 배 없는 칸을 보내지 않음). 응답 자체를 못 받은 5분은 빼고 평균한다.';
 
 /** KST 시각을 30분 열쇠로 바꾼다. 예: 2026-10-15T06:40:06Z → '2026-10-15T15:30' @param {number} ms @returns {string} [연계] ← add·flush·series */
 function slotKey(ms) { const s = new Date(ms + KST).toISOString(); return s.slice(0, 14) + (s.slice(14, 16) < '30' ? '00' : '30'); }
@@ -92,7 +95,7 @@ function createHistory({ dir = io.DEFAULT_DIR, clock = Date.now } = {}) {
         const date = o.slot.slice(0, 10), h = slotNo(o.slot), m = ensureDay(date);
         if (!m.has(h) && o.at.length) {
             const pairs = [];
-            for (const [id, [s, n]] of o.cells) if (n > 0 && Number.isFinite(s)) pairs.push([idOf(id), Math.min(MAX_TENTHS, Math.round(s / n * 10))]);
+            for (const [id, [s, n]] of o.cells) if (n > 0 && Number.isFinite(s)) pairs.push([idOf(id), Math.min(MAX_TENTHS, Math.round(s / o.at.length * 10))]);   // 칸이 빠진 5분은 0척
             m.set(h, packSlot(pairs, o.at.length));
             writeDay(date);
         }
@@ -141,7 +144,7 @@ function createHistory({ dir = io.DEFAULT_DIR, clock = Date.now } = {}) {
     /**
      * 한 칸의 30분 척수를 시작 시각부터 count 개 꺼낸다(메모리 15일 안). 예: series('GR4_…', t0, 672) → {values:[2.3,null,…], samples:[6,0,…]}
      * @param {string} id - 칸 번호 @param {number} from - 시작 정시(ms) @param {number} count - 개수
-     * @returns {object} values(척, 없으면 null)·samples(그 30분 5분 표본 수 — 0이면 수집 자체가 없던 30분)
+     * @returns {object} values(척 — 그 30분 응답을 받았는데 칸이 없으면 0, 응답 자체가 없던 30분은 null)·samples(그 30분 5분 표본 수 — 0이면 수집 자체가 없던 30분)
      * [연계] ← createApi.query
      */
     function series(id, from, count) {
@@ -151,6 +154,7 @@ function createHistory({ dir = io.DEFAULT_DIR, clock = Date.now } = {}) {
             const key = slotKey(from + k * SLOT), r = days.get(key.slice(0, 10))?.get(slotNo(key));
             samples.push(r ? r.n : 0);
             let v = null;
+            if (r && r.n > 0) v = 0;   // 그 30분 응답을 받았는데 이 칸이 없으면 0척(배 없는 칸은 응답에 안 온다)
             if (r && i !== undefined) { let lo = 0, hi = r.idx.length - 1; while (lo <= hi) { const mid = (lo + hi) >> 1; if (r.idx[mid] === i) { v = r.val[mid] / 10; break; } if (r.idx[mid] < i) lo = mid + 1; else hi = mid - 1; } }
             values.push(v);
         }

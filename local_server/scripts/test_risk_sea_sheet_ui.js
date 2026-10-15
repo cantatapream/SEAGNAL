@@ -153,20 +153,21 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   assert.equal(await page.locator(body+' [data-wx]').getAttribute('aria-expanded'),'false');assert.equal(await page.locator(body+' [data-wx-body]').isVisible(),false);assert.equal(await page.locator(body+' .rf-wx h4').innerText(),'지금 이 해역 날씨');
   await page.locator(body+' [data-wx]').click();const tiles=await page.locator(body+' [data-wx-body] .rf-tile').evaluateAll(t=>t.map(e=>e.innerText.replace(/\s+/g,' ').trim()));
   assert.deepEqual(tiles.map(t=>t.replace(/\s/g,'')),['유의파고1.2m','파주기6.1초','파향203°남남서','풍속6.4m/s','풍향215°남서'],JSON.stringify(tiles));await shot('sheet_now_wx_open',body+' .rf-wx');await page.locator(body+' [data-wx]').click();});
- await check('선박사고: 도넛 14건·범례 상위 4종+기타(화재·전복)·인명피해 줄(사망·실종 빨강 굵게, 기록 없는 사고 1건)',async()=>{
+ await check('선박사고: 도넛 14건·범례 상위 4종+기타(화재·전복)·인명피해 줄(사망·실종 빨강 굵게, 기록 없는 사고는 적지 않음 — 사용자 「기록없다고 표기하지말고」)',async()=>{
   const r=await page.evaluate(b=>{const s=document.querySelector(b+' .rf-acc');return{total:s.querySelector('[data-acc-total]').textContent,rows:[...s.querySelectorAll('[data-acc-group]')].map(x=>x.innerText.replace(/\s+/g,'')),cas:s.querySelector('[data-acc-cas]').textContent,red:[...s.querySelectorAll('[data-acc-cas] b')].map(x=>[x.textContent,getComputedStyle(x).color,getComputedStyle(x).fontWeight]),arcs:s.querySelectorAll('[data-arc]').length,yrs:s.querySelector('h4 .rf-src').textContent};},body);
   assert.equal(r.total,'14건');assert.deepEqual(r.rows,['충돌5건›','접촉3건›','표류2건›','침수2건›','기타(화재·전복)2건›']);assert.equal(r.arcs,5);assert.equal(r.yrs,'2021~2025년');
-  assert.equal(r.cas,'사망 1명(23년, 충돌), 실종 2명(21년, 전복) · 인명피해 기록 없는 사고 1건');assert.deepEqual(r.red.map(x=>x[0]),['사망 1명','실종 2명']);assert.ok(r.red.every(x=>x[1]==='rgb(255, 107, 107)'&&Number(x[2])>=700));});
- await check('선박사고 팝업: 충돌 최신순 「YYYY년 · 원인: X」/「원인 기록 없음」+「사망 1명」 빨강, 기타는 종류 이름 앞에, 미기록은 「인명피해 기록 없음」',async()=>{
+  assert.equal(r.cas,'사망 1명(23년, 충돌), 실종 2명(21년, 전복)');assert.deepEqual(r.red.map(x=>x[0]),['사망 1명','실종 2명']);assert.ok(r.red.every(x=>x[1]==='rgb(255, 107, 107)'&&Number(x[2])>=700));});
+ await check('선박사고 팝업: 충돌 최신순 「YYYY년 · 원인: X」/「원인 기록 없음」+「사망 1명」 빨강, 기타는 종류 이름 앞에, 사망·실종 없거나 미기록이면 오른쪽 비움(사용자 「사망, 실종 만 표기해」)',async()=>{
   await page.locator(body+' [data-acc-group="0"]').click();await page.waitForSelector('.rf-acc-pop:not([hidden])');
-  let li=await page.locator('.rf-acc-pop li').evaluateAll(a=>a.map(x=>[x.querySelector('.t').textContent,x.querySelector('.c').textContent,x.querySelector('.c').classList.contains('hurt')]));
-  assert.deepEqual(li,[['2025년 · 원인: 운항부주의','인명피해 없음',false],['2023년 · 원인 기록 없음','사망 1명',true],['2022년 · 원인 기록 없음','인명피해 없음',false],['2021년 · 원인: 운항부주의','인명피해 없음',false],['2021년 · 원인 기록 없음','인명피해 없음',false]]);
+  let li=await page.locator('.rf-acc-pop li').evaluateAll(a=>a.map(x=>{const c=x.querySelector('.c');return [x.querySelector('.t').textContent,c?c.textContent:'',!!c&&c.classList.contains('hurt')];}));
+  assert.deepEqual(li,[['2025년 · 원인: 운항부주의','',false],['2023년 · 원인 기록 없음','사망 1명',true],['2022년 · 원인 기록 없음','',false],['2021년 · 원인: 운항부주의','',false],['2021년 · 원인 기록 없음','',false]]);
+  assert.equal(await page.locator('.rf-acc-pop').innerText().then(t=>/인명피해/.test(t)),false,'팝업에 「인명피해 없음/기록 없음」 글자 없음');
   assert.equal(await page.locator('.rf-acc-pop h5').innerText(),'충돌 5건최신순');await shot('sheet_acc_popup');
   await page.locator('.rf-acc-pop .x').click();assert.equal(await page.locator('.rf-acc-pop').isVisible(),false);
-  await page.locator(body+' [data-acc-group="1"]').click();li=await page.locator('.rf-acc-pop li .c').allInnerTexts();assert.deepEqual(li,['인명피해 기록 없음','인명피해 없음','인명피해 없음']);
+  await page.locator(body+' [data-acc-group="1"]').click();li=await page.locator('.rf-acc-pop li .c').allInnerTexts();assert.deepEqual(li,[]);
   await page.keyboard.press('Escape');assert.equal(await page.locator('.rf-acc-pop').isVisible(),false);assert.equal(await page.locator('#risk-forecast-sheet').evaluate(e=>e.classList.contains('open')),true,'Escape 는 팝업만 닫는다');
   await page.locator(body+' [data-acc-group="4"]').click();li=await page.locator('.rf-acc-pop li .t').allInnerTexts();assert.deepEqual(li,['화재 · 2023년 · 원인: 화기취급부주의','전복 · 2021년 · 원인: 기상악화']);
-  assert.deepEqual(await page.locator('.rf-acc-pop li .c').allInnerTexts(),['인명피해 없음','실종 2명']);await page.mouse.click(5,5);assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'바깥 누르면 닫힘');
+  assert.deepEqual(await page.locator('.rf-acc-pop li .c').allInnerTexts(),['실종 2명']);await page.mouse.click(5,5);assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'바깥 누르면 닫힘');
   const cover=await page.evaluate(()=>{const p=document.querySelector('.rf-acc-pop');return p.parentElement===document.body;});assert.equal(cover,true,'팝업은 화면 전체(document.body)');
   await page.locator(body+' [data-acc-group="0"]').click();await page.evaluate(()=>PopupStack.popLast());assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'뒤로가기는 팝업부터 닫음');assert.equal(await page.locator('#risk-forecast-sheet').evaluate(e=>e.classList.contains('open')),true);
   await page.locator(body+' [data-acc-group="0"]').click();await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'시트를 닫으면 팝업도 닫힘');await openSheet();});
@@ -208,14 +209,15 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
  // ── 값이 없거나 낡은 경우(직접 렌더) ──
  const direct=(m,now)=>page.evaluate(([m,now])=>{let host=document.getElementById('direct');if(!host){host=document.createElement('div');host.id='direct';host.className='rf-sheet';host.style.cssText='width:352px;padding:8px';document.body.appendChild(host);}host.innerHTML='<div class="rf-body"></div>';const b=host.firstChild;b.innerHTML=RiskMarine.render(m,{now});RiskMarine.attach(b,m,{now});return{hero:b.querySelector('.rf-hero').innerText.replace(/\s+/g,' '),lv:[...b.querySelectorAll('.rf-hero .rf-lvl strong')].map(s=>s.textContent),cas:b.querySelector('[data-acc-cas]')&&b.querySelector('[data-acc-cas]').textContent,avg:b.querySelector('[data-avg-value]').textContent,dash:!!b.querySelector('[data-empty]'),wx:[...b.querySelectorAll('[data-wx-body] .rf-tile b')].map(x=>x.textContent),html:b.innerHTML};},[m,now]);
  const base={location:'생도 남남동방 1.6해리 해역(99-4해구)',t:at,point:{lon:129.075,lat:35.0375},accident:{level:'보통',status:'ok',forecastAt:'2026-10-15T15:00:00+09:00'},congestion:{gridId:'GR4_F4K23_P4',level:'높음',index:12.3,status:'ok',forecastAt:'2026-10-15T16:00:00+09:00'},collisionNotice:{on:false},weather:{wh:null,wp:null,wd:null,ws:null,windDir:null},history:{available:true,from:'2021-01-01',to:'2025-12-31',accidents:[]}};
- await check('낡은 현재 교통: 밀집도 뱃지 「-」·「이 해역 선박 정보 없음」·마지막 값 「최신성 확인 필요」(지어내지 않음) / 사고 예보 낡음은 「-」',async()=>{
+ await check('낡은 현재 교통: 밀집도 뱃지 「-」·「이 해역 선박 정보 없음」만(옛 숫자·「최신성 확인 필요」 없음) / 최신 응답에 칸 없음(absent)은 「이 해역 선박 없음」·밀집도 낮음 / 사고 예보 낡음은 「-」',async()=>{
   const r=await direct({...base,current:{gridId:'GR4_F4K23_P4',count:30,density:24,densityLevel:'매우높음',status:'stale',sourceAt:'2026-10-15T15:30:00+09:00'},accident:{level:'경계',status:'stale'}},at);
-  assert.deepEqual(r.lv,['-','-']);assert.ok(r.hero.includes('이 해역 선박 정보 없음'));assert.ok(r.hero.includes('마지막 자료 15:30 기준 30척 · 최신성 확인 필요'));assert.ok(!r.hero.includes('매우높음'));
+  assert.deepEqual(r.lv,['-','-']);assert.ok(r.hero.includes('이 해역 선박 정보 없음'));assert.ok(!r.hero.includes('최신성'));assert.ok(!r.hero.includes('30척'));assert.ok(!r.hero.includes('매우높음'));
+  const e=await direct({...base,current:{gridId:'GR4_F4K23_P4',count:0,density:0,densityLevel:'낮음',absent:true,status:'ok',sourceAt:'2026-10-15T16:10:00+09:00'}},at);assert.equal(e.lv[1],'낮음');assert.ok(e.hero.includes('이 해역 선박 없음'));assert.ok(!e.hero.includes('정보 없음 ')&&!e.hero.includes('0척'));
   const n=await direct({...base,current:null,congestion:null},at);assert.deepEqual(n.lv,['보통','-']);assert.ok(n.hero.includes('이 해역 선박 정보 없음'));assert.ok(n.hero.includes('혼잡예보 정보 없음'));assert.equal(n.avg,'-');assert.equal(n.dash,true,'칸 번호가 없으면 교통량 카드 「-」');});
- await check('날씨 값 null 은 「-」 5칸 / 인명피해: 전부 0이면 「인명피해 없음」, 미기록만 있으면 「기록된 인명피해 없음 · …1건」, 한 사고 둘 다면 「사망 1명·실종 2명(23년, 충돌)」',async()=>{
+ await check('날씨 값 null 은 「-」 5칸 / 인명피해: 전부 0이면 「인명피해 없음」, 미기록만 있어도 「인명피해 없음」, 한 사고 둘 다면 「사망 1명·실종 2명(23년, 충돌)」',async()=>{
   const a=(type,date,death,missing)=>({date,year:+date.slice(0,4),type,cause:null,death,missing});
   let r=await direct({...base,current:null,history:{...base.history,accidents:[a('충돌','2023-01-01',0,0),a('접촉','2022-01-01',0,0)]}},at);assert.equal(r.cas,'인명피해 없음');assert.deepEqual(r.wx,['-','-','-','-','-']);
-  r=await direct({...base,current:null,history:{...base.history,accidents:[a('충돌','2023-01-01',0,0),a('접촉','2022-01-01',null,null)]}},at);assert.equal(r.cas,'기록된 인명피해 없음 · 인명피해 기록 없는 사고 1건');
+  r=await direct({...base,current:null,history:{...base.history,accidents:[a('충돌','2023-01-01',0,0),a('접촉','2022-01-01',null,null)]}},at);assert.equal(r.cas,'인명피해 없음');
   r=await direct({...base,current:null,history:{...base.history,accidents:[a('충돌','2023-05-01',1,2),a('전복','2021-01-01',0,1)]}},at);assert.equal(r.cas,'사망 1명·실종 2명(23년, 충돌), 실종 1명(21년, 전복)');});
  await check('시트 막대: 60초 갱신으로 지금이 지나 열린 시트 시각이 지금보다 앞서도 「· 예보」·지금 눈금을 붙이지 않음·미래만 붙임',async()=>{
   const r=await page.evaluate(()=>{const el=document.createElement('div');document.body.appendChild(el);const times=['2026-10-15T16:13:00+09:00','2026-10-15T18:00:00+09:00'],out=[];

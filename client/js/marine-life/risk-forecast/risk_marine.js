@@ -69,7 +69,8 @@
      * 위 카드: 「위험 예측」 뱃지(공식 사고 단계) + 지금이면 「밀집도」 뱃지·척수·충돌주의·혼잡예보 작은 뱃지, 미래면 「혼잡도」 뱃지·혼잡 지수·충돌주의.
      * 예: 지금 18척·12.0%·16시 혼잡 높음 → 「이 해역 선박 18척(밀집도 12.0%)」 「충돌·접촉사고 주의」 「16시 혼잡예보 [높음]」
      * 값 규칙(지어내지 않는다): 서버 상태가 ok 가 아닌 사고·혼잡 예보와 낡은(15분 넘은)·없는 현재 교통은 단계 뱃지를 「-」로 둔다 —
-     * 지도 면색이 같은 자료를 칠하지 않는 규칙(marine_fusion.unifiedFrame)과 같다. 낡은 현재값은 「최신성 확인 필요」와 함께 숫자만 보인다.
+     * 지도 면색이 같은 자료를 칠하지 않는 규칙(marine_fusion.unifiedFrame)과 같다. 낡은 현재값은 보이지 않고 「이 해역 선박 정보 없음」만(사용자 2026-10-15 「최신성 확인 필요… 붙일 필요는 없는 것 같은데」).
+     * 최신 응답에 칸이 없으면(서버 current.absent — 공단 API 는 배 없는 칸을 안 보냄) 「이 해역 선박 없음」.
      * @param {object} m - marine @param {object} ctx - {now} @returns {string} HTML
      * [연계] ← render / 서버 marine.accident·current(densityLevel)·congestion·collisionNotice
      */
@@ -77,7 +78,7 @@
         var a=m.accident,cf=m.congestion,c=m.current,okA=a&&a.status==='ok'&&RISK[a.level],okC=cf&&cf.status==='ok'&&CONG[cf.level],cc=m.collisionNotice&&m.collisionNotice.on?'<p><b class="rf-cc">충돌·접촉사고 주의</b></p>':'',row;
         if(isNow(m,ctx)){
             var live=c&&c.status==='ok'&&Number.isFinite(c.count),dens=live&&Number.isFinite(c.density)?c.density:null;
-            var line=live?'<p>이 해역 선박 <b>'+F.escape(c.count)+'척</b>(밀집도 '+(dens===null?'-':dens.toFixed(1)+'%')+')</p>':'<p>이 해역 선박 정보 없음</p>'+(c&&Number.isFinite(c.count)?'<p class="sub">마지막 자료 '+hm(c.sourceAt||c.collectedAt)+' 기준 '+F.escape(c.count)+'척 · 최신성 확인 필요</p>':'');
+            var line=live?(c.absent?'<p>이 해역 선박 없음</p>':'<p>이 해역 선박 <b>'+F.escape(c.count)+'척</b>(밀집도 '+(dens===null?'-':dens.toFixed(1)+'%')+')</p>'):'<p>이 해역 선박 정보 없음</p>';
             var fh=cf&&Number.isFinite(Date.parse(cf.forecastAt))?k(Date.parse(cf.forecastAt)).h+'시 ':'';
             row=badge('밀집도',live&&dens!==null?c.densityLevel:null,CONG)+'<div class="rf-txt">'+line+cc+'<p>'+(okC?fh+'혼잡예보 '+chip(cf.level):'혼잡예보 정보 없음')+'</p></div>';
         }else row=badge('혼잡도',okC?cf.level:null,CONG)+'<div class="rf-txt"><p>혼잡 지수 <b>'+(okC&&Number.isFinite(cf.index)?Number(cf.index).toFixed(1):'-')+'</b></p>'+cc+'</div>';
@@ -92,9 +93,10 @@
     function trafficCard(m,ctx){var c=m.current,live=c&&c.status==='ok'&&Number.isFinite(c.count),at=live&&(c.sourceAt||c.collectedAt),ago=at&&ctx&&ctx.now?Math.max(0,Math.round((Date.parse(ctx.now)-Date.parse(at))/60000)):null,now=isNow(m,ctx);
         var src=at&&hm(at)?(now?hm(at)+' 기준'+(ago===null?'':ago?' · '+ago+'분 전':' · 방금'):'지금 '+hm(at)+' 기준'):'';
         return '<section class="rf-card rf-traffic" data-traffic-card><h4>과거 2주간 선박교통량<span class="rf-src">'+src+'</span></h4><div class="rf-tile rf-avg'+(now?'':' fut')+'"><small data-avg-name>2주 평균</small><b class="none" data-avg-value>-</b></div><div class="rf-chart" data-chart aria-busy="true"></div><div class="rf-leg" data-chart-leg><span><i class="ln"></i>선박 수</span><span class="zh" data-zoom></span></div><p class="rf-muted rf-chart-msg" data-chart-msg hidden></p></section>';}
-    /** 사고 한 건의 인명피해 글자. 예: {death:1,missing:2} → '사망 1명·실종 2명', 0·0 → '', 둘 중 null 이고 피해 없음 → null(기록 없음)
-     * @param {object} a - 사고 @returns {string|null} [연계] ← 팝업·인명피해 줄 */
-    function hurtOf(a){var x=[];if(a.death>0)x.push('사망 '+a.death+'명');if(a.missing>0)x.push('실종 '+a.missing+'명');return x.length?x.join('·'):(a.death===null||a.missing===null||a.death===undefined||a.missing===undefined)?null:'';}
+    /** 사고 한 건의 인명피해 글자 — 사망·실종이 있을 때만. 예: {death:1,missing:2} → '사망 1명·실종 2명', 0·0 이나 기록 없음(null) → ''
+     * 사용자 2026-10-15 「사망, 실종이 기록되지 않은 사고는 그냥 인명피해 관련 내용을 넣지 말아. 기록없다고 표기하지말고. 사망, 실종 만 표기해.」
+     * @param {object} a - 사고 @returns {string} [연계] ← 팝업·인명피해 줄 */
+    function hurtOf(a){var x=[];if(a.death>0)x.push('사망 '+a.death+'명');if(a.missing>0)x.push('실종 '+a.missing+'명');return x.join('·');}
     /** 사고 목록을 종류별로 묶는다(건수 많은 순, 같으면 최신 사고가 먼저 나온 종류). 6종 이상이면 상위 4종 + 기타.
      * 예: 충돌5·접촉3·표류2·침수2·화재1·전복1 → [충돌,접촉,표류,침수,기타(화재·전복)]
      * @param {object[]} list - history.accidents(최신순) @returns {object[]} {name,n,types,etc,col} [연계] ← accidents·openAcc */
@@ -105,8 +107,7 @@
     /**
      * 「이 해역 과거 선박사고」: 0건이면 한 줄, 있으면 도넛(가운데 총 건수)+누르는 범례(› 팝업)+인명피해 한 줄.
      * 인명피해 줄: 「사망 1명(23년, 충돌), 실종 2명(21년, 전복)」(한 사고에 둘 다면 「사망 1명·실종 2명(23년, 충돌)」) / 없으면 「인명피해 없음」.
-     * 사망·실종 수가 비어 있는(null) 사고는 「없음」으로 단정하지 않는다 — 그런 사고가 있으면 「인명피해 기록 없는 사고 N건」을 덧붙이고,
-     * 피해가 기록된 사고가 하나도 없을 때는 「인명피해 없음」 대신 「기록된 인명피해 없음 · 인명피해 기록 없는 사고 N건」으로 쓴다.
+     * 사망·실종 수가 비어 있는(null) 사고는 따로 적지 않는다(사용자 2026-10-15 「기록없다고 표기하지말고」).
      * @param {object} h - marine.history @returns {string} HTML
      * [연계] ← render / 서버 marine_fusion.accidentList(사고예보 5km 칸 안 2021~2025, 해양오염·부유물감김 제외)
      */
@@ -118,9 +119,9 @@
         g.forEach(function(a){var len=a.n/L.length*C;arcs+='<circle cx="'+D/2+'" cy="'+D/2+'" r="'+rad+'" fill="none" stroke="'+a.col+'" stroke-width="'+sw+'" stroke-dasharray="'+Math.max(0,len-(g.length>1?2:0)).toFixed(2)+' '+C.toFixed(2)+'" stroke-dashoffset="'+(-acc).toFixed(2)+'" transform="rotate(-90 '+D/2+' '+D/2+')" data-arc="'+F.escape(a.name)+'"/>';acc+=len;});
         var donut='<svg width="'+D+'" height="'+D+'" viewBox="0 0 '+D+' '+D+'" role="img" aria-label="사고 종류별 건수, 전체 '+L.length+'건">'+arcs+'<text x="'+D/2+'" y="'+(D/2+7)+'" fill="#fff" font-size="21" font-weight="800" text-anchor="middle" data-acc-total>'+L.length+'<tspan font-size="12" font-weight="500" fill="#bfcbde">건</tspan></text></svg>';
         var leg='<ul class="rf-acc-leg">'+g.map(function(a,i){return '<li><button type="button" data-acc-group="'+i+'" aria-haspopup="dialog"><i style="background:'+a.col+'"></i><span>'+F.escape(a.name)+(a.etc?' <small>('+a.types.map(F.escape).join('·')+')</small>':'')+'</span><b>'+a.n+'<em>건</em></b><span class="go" aria-hidden="true">›</span></button></li>';}).join('')+'</ul>';
-        var hurt=L.filter(function(a){return hurtOf(a);}),unknown=L.filter(function(a){return hurtOf(a)===null;}).length;
-        var cas=hurt.length?'<p class="rf-acc-cas" data-acc-cas>'+hurt.map(function(a){var x=[];if(a.death>0)x.push('<b>사망 '+a.death+'명</b>');if(a.missing>0)x.push('<b>실종 '+a.missing+'명</b>');return x.join('·')+'('+F.escape(String(a.year||String(a.date).slice(0,4)).slice(2,4))+'년, '+F.escape(a.type)+')';}).join(', ')+(unknown?' · 인명피해 기록 없는 사고 '+unknown+'건':'')+'</p>'
-            :'<p class="rf-acc-cas none" data-acc-cas>'+(unknown?'기록된 인명피해 없음 · 인명피해 기록 없는 사고 '+unknown+'건':'인명피해 없음')+'</p>';
+        var hurt=L.filter(function(a){return hurtOf(a);});
+        var cas=hurt.length?'<p class="rf-acc-cas" data-acc-cas>'+hurt.map(function(a){var x=[];if(a.death>0)x.push('<b>사망 '+a.death+'명</b>');if(a.missing>0)x.push('<b>실종 '+a.missing+'명</b>');return x.join('·')+'('+F.escape(String(a.year||String(a.date).slice(0,4)).slice(2,4))+'년, '+F.escape(a.type)+')';}).join(', ')+'</p>'
+            :'<p class="rf-acc-cas none" data-acc-cas>인명피해 없음</p>';
         return '<section class="rf-card rf-acc"><h4>이 해역 과거 선박사고<span class="rf-src">'+yrs+'</span></h4><div class="rf-acc-sum">'+donut+leg+'</div>'+cas+'</section>';
     }
     /** 날씨 방향 칸. 예: dirTile('파향',203.4) → 「203° 남남서」, null → 「-」 @param {string} lbl @param {number|null} d @returns {string} HTML [연계] ← weather */
@@ -158,7 +159,7 @@
         if(!cell)fillTraffic(body,null,null,'nocell');else if(ui.history&&ui.history.cell===cell)fillTraffic(body,cell,ui.history.data);
     }
     /** 사고 종류 팝업을 연다: 그 종류 사고 최신순 「YYYY년 · 원인: X」(기타는 종류 이름 앞에) + 오른쪽 인명피해.
-     * 예: 충돌 5건 → 「2025년 · 원인: 운항부주의 … 인명피해 없음」, 「2023년 · 원인 기록 없음 … 사망 1명」(빨강 굵게)
+     * 예: 충돌 5건 → 「2025년 · 원인: 운항부주의」, 「2023년 · 원인 기록 없음 … 사망 1명」(빨강 굵게). 사망·실종이 없거나 기록이 없으면 오른쪽은 비운다.
      * @param {HTMLElement} body @param {object} grp - groups() 한 줄 @param {object[]} list - 최신순 사고 @param {HTMLElement} opener - 닫으면 돌아갈 버튼 @returns {void}
      * [연계] ← attach / 휴대폰 뒤로가기(PopupStack)·Escape·바깥 누르기로 닫는다. 화면 전체를 덮도록 document.body 에 붙인다
      *        (앱에서 시트는 지도 구역의 쌓임 맥락 안에 있어, 시트 안에 두면 메인 탭이 팝업 위로 올라온다). RiskSheet.clear 가 시트를 닫을 때 함께 닫는다. */
@@ -166,7 +167,7 @@
         var pop=document.querySelector('.rf-acc-pop');
         if(!pop){pop=document.createElement('div');pop.className='rf-acc-pop';pop.hidden=true;document.body.appendChild(pop);pop.addEventListener('click',function(e){if(e.target===pop||e.target.closest('.x'))closeAcc(pop);});document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!pop.hidden&&pop.isConnected)closeAcc(pop);});}
         var rows=list.filter(function(x){return grp.types.indexOf(x.type)>=0;}).map(function(x){var hz=hurtOf(x);
-            return '<li><span class="t">'+(grp.etc?'<b>'+F.escape(x.type)+'</b> · ':'')+F.escape(x.year||String(x.date).slice(0,4))+'년 · '+(x.cause?'원인: '+F.escape(x.cause):'<span class="no">원인 기록 없음</span>')+'</span>'+(hz?'<span class="c hurt">'+F.escape(hz)+'</span>':'<span class="c">'+(hz===null?'인명피해 기록 없음':'인명피해 없음')+'</span>')+'</li>';}).join('');
+            return '<li><span class="t">'+(grp.etc?'<b>'+F.escape(x.type)+'</b> · ':'')+F.escape(x.year||String(x.date).slice(0,4))+'년 · '+(x.cause?'원인: '+F.escape(x.cause):'<span class="no">원인 기록 없음</span>')+'</span>'+(hz?'<span class="c hurt">'+F.escape(hz)+'</span>':'')+'</li>';}).join('');
         pop.innerHTML='<div class="box" role="dialog" aria-modal="true" aria-label="'+F.escape(grp.name)+' 사고 목록"><div class="hd"><i style="background:'+grp.col+'"></i><h5>'+F.escape(grp.name)+' '+grp.n+'건<small>최신순</small></h5><button type="button" class="x" aria-label="닫기">×</button></div><ul>'+rows+'</ul></div>';
         pop._opener=opener;pop.hidden=false;if(w.PopupStack)w.PopupStack.push('risk-sea-accident-pop',function(){closeAcc(pop,true);});pop.querySelector('.x').focus();
     }
