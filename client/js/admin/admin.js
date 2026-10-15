@@ -744,7 +744,7 @@ window.switchAiSubTab = function (which) {
  * [연계] 기존 관리자 fetch 토큰 래퍼 → /api/admin/risk-forecast/errors
  */
 function renderAiForecastSubtab(container) {
-    const names={warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통'};
+    const names={warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측'};
     const statuses={ok:'정상',offseason:'비운영 기간',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
     const phases={opened:'문제 발생',changed:'문제 변경',recovered:'복구'};
     const esc=value=>String(value==null?'—':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
