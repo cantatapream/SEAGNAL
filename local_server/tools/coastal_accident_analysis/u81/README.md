@@ -9,6 +9,7 @@
 | `hazard_types/run_all.sh` | 위험구역 종류별(위험·사망사고 발생·다발) 재분석 전체 — §4.6 재현 후 종류별 모형·후보 A 점수표·보고서 | `bash run_all.sh <data 폴더> [결과 폴더]` (data 폴더 = 상위 `run_all.sh` 의 `04_geo.py` 등이 만든 중간 파일, 약 2분) |
 | `hazard_types/00~07_*.py` | 위 단계별 스크립트(09_spots·09c 는 상위 폴더 것을 그대로 부름) | run_all.sh 가 부름 |
 | `month_relative.py` | 달 점수 재추정 — 노출을 log2(외지인 방문자 ÷ 그날부터 30일 기하평균)으로 바꾼 조건부 포아송(ccr.py) | `python3 -I month_relative.py <tools 폴더> <data 폴더> <결과 폴더>` |
+| `window_compare.py` | 사람 점수 30일 평균의 창 방향 비교 — 앞으로 30일(현행)·지난 30일(오늘 포함/제외)·가운데 30일, 같은 틀(month_relative.py 주 모형)로 사람 항·달 점수·AIC(공통 표본)·철 경계 분포. 저장소 자료만 씀. 결과 `v3/data/u81/window_compare/` | `python3 -I window_compare.py [결과 폴더]` (약 4분) |
 | `make_month_md.py` | 위 결과 CSV → 표 md | `python3 -I make_month_md.py <결과 폴더>` |
 | `preview.js` | 새 scoreCoast 로 관광지 1,354곳 단계 분포 미리보기(10-09 수집 30일 집중률 필요 — 저장소에 없음) | `node preview.js <저장소> <base.json>` |
 
