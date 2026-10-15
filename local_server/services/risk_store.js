@@ -26,6 +26,22 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     const detailCache=new Map(),frameCache=new Map(),fileCache=new Map();
     /** 최근 유한 개수의 결과만 보관한다. 예: 슬라이더 왕복은 같은 입력을 재계산하지 않는다. @param {Map} map @param {string} key @param {object} value @param {number} limit @returns {object} [연계] ← detail/frame */
     function remember(map,key,value,limit){if(map.has(key))map.delete(key);map.set(key,value);while(map.size>limit)map.delete(map.keys().next().value);return value;}
+    let stationIndex=null;
+    /** 파출소의 소속 해양경찰서를 관할 정리판에서 찾는다(사용자 요청 2026-10-15 「제주해양경찰서 한림파출소 관할」).
+     * 예: officeOf('한림파출소') → '제주해양경찰서' · officeOf('남항',{office:'부산해양경찰서'}) → '부산해양경찰서'
+     * @param {string|null} police - 파출소 이름(위험구역 자료처럼 「파출소」가 빠진 이름도 받는다)
+     * @param {object} [hint] - office: 자료에 적힌 소속서(같은 이름 가르기, 정리판에 없는 이름일 때 대신 씀) · lat/lon: 관광지 위치(같은 이름이면 가까운 폴리곤)
+     * @returns {string|null} 해양경찰서, 가르지 못하면 null(화면은 파출소 이름만 쓴다)
+     * [연계] ← coastDetail 부제·위험구역 / config/coastal_safety/coastguard_stations.geojson 의 name→station(97곳, 같은 이름은 남항파출소 부산·목포 둘) → RiskFormat.stationLabel
+     *        정리판이 2023 위험구역 자료의 소속서보다 앞선다 — 강릉해양경찰서 신설(강릉·주문진)이 위험구역 자료에는 반영돼 있지 않다.
+     */
+    function officeOf(police,{office=null,lat,lon}={}){if(!police)return null;
+        if(!stationIndex){stationIndex=new Map();for(const f of io.read(path.join(configDir,'coastguard_stations.geojson'))?.features||[]){const q=f.properties||{};if(!q.name||!q.station)continue;if(!stationIndex.has(q.name))stationIndex.set(q.name,[]);stationIndex.get(q.name).push({office:q.station,points:(f.geometry?.coordinates||[]).flat(Infinity)});}}
+        const list=stationIndex.get(/(파출소|출장소)$/.test(police)?police:police+'파출소')||[],offices=[...new Set(list.map(s=>s.office))];
+        if(offices.length===1)return offices[0];if(!offices.length)return office||null;if(offices.includes(office))return office;
+        if(!Number.isFinite(lat)||!Number.isFinite(lon))return null;
+        const near=s=>{let m=Infinity;for(let i=0;i+1<s.points.length;i+=2)m=Math.min(m,(s.points[i]-lon)**2+(s.points[i+1]-lat)**2);return m;};
+        return list.reduce((a,b)=>near(b)<near(a)?b:a).office;}
     /** 같은 날짜·입력·상태의 계산만 재사용한다. 예: 특보 낡음 전환도 별도 키. @param {string} kind @param {string} t @param {string} id @returns {string} [연계] ← detail/frame */
     function resultKey(kind,t,id=''){return JSON.stringify([inputVersion,T.dateKey(clock()),kind,t,id,Object.entries(sources()).map(([k,v])=>[k,v.status]),sources().events.months]);}
     /** 읽을 원천 파일을 같은 날짜 규칙으로 열거한다. 예: 월경계의 행사만 포함.
@@ -121,11 +137,11 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     function coastDetail(id,t){refresh();const p=staticTable?.spots?.find(p=>p.id===id);if(!p)throw Object.assign(new Error('관광지 없음'),{status:staticTable?404:503});t=validateTime(t,false);const memo=resultKey('coast',t,id);if(detailCache.has(memo))return detailCache.get(memo);const d=T.dateKey(t),f=forecast(p.major,t),src=sources(),cr=src.tourConcentration.status==='ok'?cache.tourConcentration.data?.values?.[id]?.[d]:null;const eventMonth=cache.events.months[d.slice(0,7)];const events=src.events.months[d.slice(0,7)]?.status==='ok'&&eventMonth?.month===d.slice(0,7)?eventMonth.events.filter(e=>e.spotId===id&&e.start<=d&&e.end>=d):null;
         const warning=warningsFor(p.warnZone,t,false).concat(galeFor(p,t));const r=S.scoreCoast({t,now:clock(),spot:p,concentration:typeof cr==='number'?cr:null,events,swell:swell(p.coastCell,t),rip:ripFor(p.ripBeach,t),warnings:warning,...f});
         const notices=[];if(r.notices.effective.length||r.notices.prelim.length)notices.push({key:'warning',effective:r.notices.effective.map(w=>w.type+w.level),prelim:r.notices.prelim.map(w=>w.type+w.level)});if(r.notices.windMs!==null)notices.push({key:'drift',windMs:r.notices.windMs});
-        const rows=r.factors.map(x=>({...x,key:x.key==='concentration'?'people':x.key,used:x.applied, ...(x.key==='hazard'?{zones:(x.zones||[]).map(z=>({id:z.id,place:z['장소명'],shape:z['장소형태'],class:z['구역분류'],addr:z['주소'],police:z['관할파출소']}))}:{}),...(x.key==='event'&&x.events?.length?{src:x.events[0].src,sourceType:x.events[0].sourceType||'gemini',contentId:x.events[0].contentId||null,dateRange:[x.events[0].start,x.events[0].end]}:{})}));
+        const rows=r.factors.map(x=>({...x,key:x.key==='concentration'?'people':x.key,used:x.applied, ...(x.key==='hazard'?{zones:(x.zones||[]).map(z=>({id:z.id,place:z['장소명'],shape:z['장소형태'],class:z['구역분류'],addr:z['주소'],police:z['관할파출소'],office:officeOf(z['관할파출소'],{office:z['소속서']})}))}:{}),...(x.key==='event'&&x.events?.length?{src:x.events[0].src,sourceType:x.events[0].sourceType||'gemini',contentId:x.events[0].contentId||null,dateRange:[x.events[0].start,x.events[0].end]}:{})}));
         // 과제4: 행사·특보가 '없음'이면 자료 파일은 정상(ok)+빈 목록이라 missing 에 들지 않는다. 받지 못했을 때(missing/stale/error)만 아래에서 들어간다.
         // 이안류 비수기(offseason)는 정상 상태라 반환 직전에 missing 에서 뺀다.
         if(sources().events.months[d.slice(0,7)]?.status!=='ok')r.missing.push('events');if(sources().warnings.status!=='ok')r.missing.push('warnings');if(sources().gale.status!=='ok')r.missing.push('gale');if(f.wh===null||f.ws===null)r.missing.push('forecast');
-        return remember(detailCache,memo,{t,title:p.name,subtitle:{addr:null,lat:p.lat,lon:p.lon,sggName:p.sgg_name,police:p.station||null},score:r.score,index:r.index,band:r.band,rr:r.rr,fatalRr:r.fatalRr,notices,rows,missing:[...new Set(r.missing)].filter(k=>k!=='rip'||sources().ripCurrent.status!=='offseason'),inputs:{forecastAt:f.forecastAt}},6000);}
+        return remember(detailCache,memo,{t,title:p.name,subtitle:{addr:null,lat:p.lat,lon:p.lon,sggName:p.sgg_name,police:p.station||null,office:officeOf(p.station,{lat:p.lat,lon:p.lon})},score:r.score,index:r.index,band:r.band,rr:r.rr,fatalRr:r.fatalRr,notices,rows,missing:[...new Set(r.missing)].filter(k=>k!=='rip'||sources().ripCurrent.status!=='offseason'),inputs:{forecastAt:f.forecastAt}},6000);}
     /** 위치표를 전달한다. 예: 아직수집전이면503. @returns {object} [연계] ← /sea/cells */
     function cells(){refresh();if(!cache.cells.data?.cells?.length)throw Object.assign(new Error('해양교통 칸 위치표 준비 전'),{status:503});return cache.cells.data;}
     /** 한 해상 칸 설명을 계산한다. 예: 수집실패시 null혼잡과날씨만 표시. @param {string} id @param {string} t @returns {object} [연계] ← /sea/cell/frame */
