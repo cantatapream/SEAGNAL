@@ -152,12 +152,14 @@ const { createRouter } = routeModule.exports;
         // ── ③ 임시 폴더 + 고정 시계 ──
         let now = K('2026-10-15T21:50:00'),
             rows = [],
-            sched = null;
+            sched = null,
+            fails = {};
         const status = S.createStatus({
             dataDir,
             clock: () => now,
             riskCurrent: () => rows,
             schedulerStatus: () => sched,
+            collectFails: () => fails, // 실제 data/collect_fail_alert.json 을 읽지 않게
         });
         const get = async (id) => (await status.list()).items.find((i) => i.id === id);
         // 해구 예보: 00UTC 판(09시 KST)을 09:30 에 받음 → 새 판은 21:30 회차에 기대.
@@ -215,6 +217,37 @@ const { createRouter } = routeModule.exports;
             assert.equal(c.status, 'error');
             assert.ok(/마지막 시도 실패: HTTP 503/.test(c.detail), c.detail);
             sched = null;
+        });
+        await check('MMIS 관측·이안류: 연속 실패 중이면 파일 시각과 무관하게 수집 실패(빨강) + 실패 한 줄(검토 3)', async () => {
+            write('marine_buoys.json', { updatedAt: '2026. 10. 15. 오전 11:03:10', data: [] });
+            now = K('2026-10-15T11:20:00');
+            fails = { marineBuoys: { streak: 2, since: '2026-10-15T02:13:00.000Z', reason: 'HTTP 503', notified: true } };
+            const a = await get('marineBuoys');
+            assert.equal(a.status, 'error', '다음 기대 시각(11:13)+여유 20분 전이라 파일 시각으로는 정상이지만, 실패 중이므로 빨강');
+            assert.equal(a.reason, '수집 실패 중(연속 2회)');
+            assert.ok(/마지막 수집 실패: HTTP 503 \(연속 2회, 10-15 11:13 KST부터\)/.test(a.detail), a.detail);
+            assert.ok(a.stateFrom.includes('data/collect_fail_alert.json'));
+            now = K('2026-10-15T12:30:00');
+            fails = { marineBuoys: { streak: 0, since: null, reason: null } };
+            assert.equal((await get('marineBuoys')).status, 'stale', '실패 기록이 정상으로 돌아오면 시각 판정(노랑)만');
+            // 이안류: 전 지점이 실패해도 수집기가 새 시각으로 파일을 쓴다 — 그래도 빨강이어야 한다
+            write('ripcurrent_index.json', { updatedAt: '2026. 10. 15. 오후 12:05:34', places: { a: { hasData: false } } });
+            fails = { ripCurrent: { streak: 1, since: '2026-10-15T03:05:00.000Z', reason: 'HTTP 500', notified: true } };
+            const r = await get('ripCurrent');
+            assert.equal(r.status, 'error', '새 파일 시각이어도 실패 중이면 빨강');
+            fails = { visibility: { streak: 4, since: '2026-10-15T02:13:00.000Z', reason: '빈 응답' } };
+            assert.ok(!/마지막 수집 실패/.test((await get('visibility')).detail || ''), '시정 예측은 vsby_check_state 가 이미 보인다 — 겹쳐 적지 않음');
+            fails = {};
+        });
+        await check('관리자 푸시가 전달되지 않았으면 카드 상세에 「관리자 푸시 미전달」 한 줄(시정 예측 포함, 검토 4)', async () => {
+            now = K('2026-10-15T12:30:00');
+            fails = {
+                marineVs: { streak: 1, since: '2026-10-15T03:03:00.000Z', reason: 'HTTP 503', notified: false, pushError: '전달 0건(기기 없음·Firebase 미초기화·발송 오류)', pushErrorAt: '2026-10-15T03:03:05.000Z' },
+                visibility: { streak: 3, since: '2026-10-15T01:00:00.000Z', reason: '빈 응답', notified: false, pushError: '발송 실패 2건', pushErrorAt: '2026-10-15T03:00:00.000Z' },
+            };
+            assert.ok(/관리자 푸시 미전달: 전달 0건\(기기 없음·Firebase 미초기화·발송 오류\) \(10-15 12:03 KST\)/.test((await get('marineVs')).detail), (await get('marineVs')).detail);
+            assert.ok(/관리자 푸시 미전달: 발송 실패 2건 \(10-15 12:00 KST\)/.test((await get('visibility')).detail), (await get('visibility')).detail);
+            fails = {};
         });
         await check('하루 1번 자료(혼잡예보): 04:00 에 받으면 다음 기대는 다음 날 04:00', async () => {
             write('risk_forecast/sea_traffic.json.gz', { date: '2026-10-15', collectedAt: '2026-10-15T04:00:12+09:00', frames: { a: [1] } });

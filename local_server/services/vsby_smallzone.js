@@ -26,7 +26,7 @@
  *   메모리 상주 + data/vsby_smallzone.json.gz(gzip). 부팅 시 로드, 런 동일하면
  *   재수집 생략(재부팅·머지 안전).
  *   imgList 확인 결과(연속 실패 수 failStreak 등)는 data/vsby_check_state.json 에 남겨
- *   재기동 뒤에도 이어 센다(2026-10-15).
+ *   재기동 뒤에도 이어 센다(2026-10-15). 연속 3번 실패하면 관리자 푸시(services/collect_fail_alert).
  * ============================================================================
  */
 'use strict';
@@ -419,6 +419,13 @@ function _loadCheckState() {
     }
 }
 
+/**
+ * 1시간마다 imgList 로 런을 확인하고, 바뀌었으면 수집한다. 확인 결과(연속 실패 수)는 파일에 남기고
+ * collect_fail_alert 에 알린다 — 연속 3번 실패면 관리자 푸시, 그 뒤 성공하면 복구 푸시(2026-10-15).
+ * ⚠imgList 확인이 성공한 뒤의 PNG 수집 실패(collect)는 여기 연속 실패 수에 들어가지 않는다.
+ * @returns {Promise<void>}
+ * [연계] ← startAutoRefresh 타이머 / → fetchImgList · _saveCheckState · collect · services/collect_fail_alert.report
+ */
 async function refreshIfStale() {
     let il;
     const at = new Date().toISOString();
@@ -426,10 +433,13 @@ async function refreshIfStale() {
         console.error('[vsby_sz] imgList 확인 실패:', e.message);
         _lastCheck = { at, ok: false, error: e.message, failStreak: _lastCheck.failStreak + 1, failSince: _lastCheck.failSince || at };
         _saveCheckState();
+        // 관리자 푸시 — 시정 예측만 연속 3번 실패해야 보낸다(사용자 확정 2026-10-15 「(나)」). 세는 수는 위 영속 failStreak.
+        require('./collect_fail_alert').report('visibility', { ok: false, error: e, streak: _lastCheck.failStreak, since: _lastCheck.failSince });
         return;
     }
     _lastCheck = { at, ok: true, error: null, failStreak: 0, failSince: null };
     _saveCheckState();
+    require('./collect_fail_alert').report('visibility', { ok: true });   // 실패 알림을 보냈던 경우에만 「복구」 푸시
     const empty = !_cache || !Object.keys(_cache.cells || {}).length;
     if (!il.baseTm) { if (empty) console.log('[vsby_sz] baseTm 미확인 + 캐시 없음'); return; }
     if (!empty && _cache.baseTm === il.baseTm) return;   // 최신

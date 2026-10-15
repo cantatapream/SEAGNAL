@@ -2,6 +2,7 @@
  * 파일명: client/js/marine-life/risk-forecast/risk_marine.js
  * 역할  : 해상 지점 시트 본문(위 카드 위험 예측·밀집도/혼잡도, 과거 2주간 선박교통량 그래프, 이 해역 과거 선박사고 도넛·팝업,
  *         날씨 아코디언, 출처)과 관할 브리핑을 그린다. 화면 모양은 2026-10-15 확정 시안 8차(+추가 확정 5가지)를 따른다.
+ *         위 카드 두 줄의 [?] 기준 설명 팝업·위험 예측 설명 문장 자간 맞춤은 2026-10-16 사용자 확정.
  *         선종·톤수 구성은 표시하지 않는다(사용자 결정 2026-10-15 「톤수, 선박 종류는 API에서 제공하지않는다고
  *         공식적으로 확인했어. 이용할 수 없을 것 같아.」 — 받던 MTIS 웹 수집도 이용약관 때문에 없앴다).
  * [연계] RiskFormat·RiskAPI → sea/analysis(marine.current·congestion·accident·collisionNotice·weather·history.accidents),
@@ -11,8 +12,21 @@
  */
 (function(w){
     'use strict';var F=w.RiskFormat;
-    // 공식 사고 위험 4색(지도 위험 예측·슬라이더와 같다) · 혼잡도/밀집도 4색(risk_map_layer 혼잡 4색과 같다).
-    var RISK={'낮음':'#56a66f','보통':'#dbc753','주의':'#e58b46','경계':'#d64b45'},CONG={'낮음':'#b8c5da','보통':'#74b9ff','높음':'#d47cff','매우높음':'#ff5fe3'},NONE='#3a4a63';
+    // 공식 사고 위험 4색(지도 위험 예측·슬라이더와 같다). 혼잡도/밀집도도 같은 4색을 단계 순서대로 쓴다: 낮음=낮음 · 보통=보통 · 높음=주의 색 · 매우높음=경계 색.
+    // 사용자 2026-10-16 「B: 위험 4색으로 바꾸기. 기술적으로는 쉽지만 위 문제들이 그대로 생겨요. - 이대로 해.」·「그냥 해양쪽과 같은 색상을 사용하자. 바텀시트에 반영된 색상도 변경해야겠지?」
+    // (종전 혼잡 4색 #b8c5da·#74b9ff·#d47cff·#ff5fe3 — 두 지도 칸이 같은 색이 되는 것은 사용자가 알고 골랐다. 구분은 범례 제목 「위험 예측」/「밀집도」·「혼잡도」.)
+    var RISK={'낮음':'#56a66f','보통':'#dbc753','주의':'#e58b46','경계':'#d64b45'},CONG={'낮음':RISK['낮음'],'보통':RISK['보통'],'높음':RISK['주의'],'매우높음':RISK['경계']},NONE='#3a4a63';
+    // 위 카드 [?] 팝업의 표 행 — 이 배열 한 곳에서만 만든다(경계 숫자를 바꾸면 팝업 표와 시험 단언이 함께 따라온다).
+    // 문구는 사용자 2026-10-16 확정 원문. [단계(색 이름), 단계 칸 글자, 기준 칸 글자].
+    // 혼잡도 표는 공단 혼잡예보 실제 응답 경계(사용자 2026-10-16 「1-(나)」), 밀집도도 같은 경계(「그럼 ㄱ으로 하자」) — 서버 marine_fusion.densityLevel·DENSITY_CUTS 와 정확히 같다.
+    // 종전(첫 확정 원문 표): 1% 초과~5% 이하 / 5% 초과~10% 이하 / 10% 초과~20% 이하 / 20% 초과.
+    var HELP={
+        risk:[['낮음','낮음','위험도 상위 50% 미만'],['보통','보통','위험도 상위 15~50%'],['주의','주의','위험도 상위 5~15%'],['경계','경계','위험도 상위 5% 이내']],
+        cong:[['낮음','낮음(1단계)','유효선박면적 1% 이하'],['보통','보통(2단계)','유효선박면적 1% 초과~10% 미만'],['높음','높음(3단계)','유효선박면적 10% 이상~20% 미만'],['매우높음','매우높음(4단계)','유효선박면적 20% 이상']]
+    };
+    // 위험 예측 설명 문장(사용자 2026-10-16 「최근 5년 간의 해양사고, 기상예보 등의 정보를 활용, 인공신경망의 한 종류인 MLP모델을 사용하여 사고위험도를 예측」).
+    // 어절 단위로 줄을 나누고, 줄 끝이 많이 비면 자간을 FIT_MIN(em)까지 줄여 다음 어절을 당겨 채운다(fitText).
+    var FIT_TEXT='최근 5년 간의 해양사고, 기상예보 등의 정보를 활용, 인공신경망의 한 종류인 MLP모델을 사용하여 사고위험도를 예측',FIT_MIN=-0.06;
     var WD=['일','월','화','수','목','금','토'],HR=3600000,MIN30=1800000,DAY=86400000;
     // 「N척」 글자: 숫자 8px · 「척」 6.5px(추가 확정 4). 점·글자는 30분 점 간격 ≥ 가장 넓은 글자 폭 + 2px 일 때만 보인다.
     // 점 위 글자는 정수로 반올림한다 — 30분 값은 소수 한 자리 평균이라 「20.4척」으로 쓰면 글자가 넓어져 ×50 에서도 문턱을 못 넘는다(실측 ×67.7).
@@ -66,9 +80,13 @@
     /** 소수 한 자리로 쓴다(정수면 소수 없이). 예: 4 → '4', 4.25 → '4.3' @param {number} v @returns {string} */
     // 척수는 화면에 정수로만 보인다 — 30분 값·2주 평균은 서버에서 평균(소수)으로 계산하되 표시는 반올림(사용자 2026-10-15 「(가)로 하자」: 평균은 그대로, 화면은 정수).
     function num(v){return String(Math.round(v));}
+    /** 위 카드 줄 오른쪽 위 [?] 버튼(누르면 기준 설명 팝업). 예: helpBtn('risk') @param {string} kind - 'risk'|'cong' @returns {string} HTML
+     * [연계] ← hero / attach → openHelp. 글자 칸 첫 줄 오른쪽은 CSS(.rf-hero .rf-txt::before)가 비워 두어 문장과 겹치지 않는다. */
+    function helpBtn(kind){return '<button type="button" class="rf-help-btn" data-help="'+kind+'" aria-haspopup="dialog" aria-label="'+(kind==='risk'?'위험 예측 기준 설명':'밀집도·혼잡도 기준 설명')+'"><span aria-hidden="true">?</span></button>';}
     /**
      * 위 카드: 「위험 예측」 뱃지(공식 사고 단계) + 지금이면 「밀집도」 뱃지·척수·충돌주의·혼잡예보 작은 뱃지, 미래면 「혼잡도」 뱃지·혼잡 지수·충돌주의.
      * 예: 지금 18척·12.0%·16시 혼잡 높음 → 「이 해역 선박 18척(밀집도 12.0%)」 「충돌·접촉사고 주의」 「16시 혼잡예보 [높음]」
+     * 두 줄 모두 오른쪽 위에 [?](위 줄 = 위험 예측 기준, 아래 줄 = 밀집도·혼잡도 기준 — 지금·미래 같은 팝업)를 둔다(사용자 2026-10-16).
      * 값 규칙(지어내지 않는다): 서버 상태가 ok 가 아닌 사고·혼잡 예보와 낡은(15분 넘은)·없는 현재 교통은 단계 뱃지를 「-」로 둔다 —
      * 지도 면색이 같은 자료를 칠하지 않는 규칙(marine_fusion.unifiedFrame)과 같다. 낡은 현재값은 보이지 않고 「이 해역 선박 정보 없음」만(사용자 2026-10-15 「최신성 확인 필요… 붙일 필요는 없는 것 같은데」).
      * 최신 응답에 칸이 없으면(서버 current.absent — 공단 API 는 배 없는 칸을 안 보냄) 「이 해역 선박 없음」.
@@ -81,9 +99,9 @@
             var live=c&&c.status==='ok'&&Number.isFinite(c.count),dens=live&&Number.isFinite(c.density)?c.density:null;
             var line=live?(c.absent?'<p>이 해역 선박 없음</p>':'<p>이 해역 선박 <b>'+F.escape(c.count)+'척</b>(밀집도 '+(dens===null?'-':dens.toFixed(1)+'%')+')</p>'):'<p>이 해역 선박 정보 없음</p>';
             var fh=cf&&Number.isFinite(Date.parse(cf.forecastAt))?p2(k(Date.parse(cf.forecastAt)).h)+'시 ':'';
-            row=badge('밀집도',live&&dens!==null?c.densityLevel:null,CONG)+'<div class="rf-txt">'+line+cc+'<p>'+(okC?fh+'혼잡예보 '+chip(cf.level):'혼잡예보 정보 없음')+'</p></div>';
-        }else row=badge('혼잡도',okC?cf.level:null,CONG)+'<div class="rf-txt"><p>혼잡 지수 <b>'+(okC&&Number.isFinite(cf.index)?Number(cf.index).toFixed(1):'-')+'</b></p>'+cc+'</div>';
-        return '<section class="rf-card rf-hero"><div class="rf-r">'+badge('위험 예측',okA?a.level:null,RISK)+'<div class="rf-txt"><p>최근 5년 간 사고사례 및<br>기상정보 기반 예측 결과</p></div></div><div class="rf-r">'+row+'</div></section>';
+            row=badge('밀집도',live&&dens!==null?c.densityLevel:null,CONG)+'<div class="rf-txt">'+helpBtn('cong')+line+cc+'<p>'+(okC?fh+'혼잡예보 '+chip(cf.level):'혼잡예보 정보 없음')+'</p></div>';
+        }else row=badge('혼잡도',okC?cf.level:null,CONG)+'<div class="rf-txt">'+helpBtn('cong')+'<p>혼잡 지수 <b>'+(okC&&Number.isFinite(cf.index)?Number(cf.index).toFixed(1):'-')+'</b></p>'+cc+'</div>';
+        return '<section class="rf-card rf-hero"><div class="rf-r">'+badge('위험 예측',okA?a.level:null,RISK)+'<div class="rf-txt">'+helpBtn('risk')+'<p class="rf-fit" data-fit="'+FIT_TEXT+'">'+FIT_TEXT+'</p></div></div><div class="rf-r">'+row+'</div></section>';
     }
     /** 이 지점의 교통량 이력 칸 번호(GR4)를 고른다. 예: current.gridId 우선, 없으면 그 시각 혼잡 예보 칸. 없으면 null.
      * @param {object} m - marine @returns {string|null} [연계] ← RiskForecast.detail(sea/traffic-history?cell=) · fillTraffic */
@@ -136,26 +154,29 @@
         return '<section class="rf-card rf-wx"><button type="button" class="rf-wx-head" aria-expanded="'+open+'" data-wx><h4>'+(isNow(m,ctx)?'지금 이 해역 날씨':'이 해역 '+whenText(m.t,ctx&&ctx.now)+' 예보')+'</h4><i class="chev" aria-hidden="true"></i></button>'
             +'<div class="rf-wx-body" data-wx-body'+(open?'':' hidden')+'><p class="g">파도</p><div class="rf-grid rf-grid3">'+tile('유의파고',x.wh,'m')+tile('파주기',x.wp,'초')+dirTile('파향',x.wd)+'</div><p class="g">바람</p><div class="rf-grid">'+tile('풍속',x.ws,'m/s')+dirTile('풍향',x.windDir)+'</div></div></section>';}
     /**
-     * 해상 지점 시트 본문 HTML 을 만든다. 순서: 위 카드 → 과거 2주간 선박교통량 → 이 해역 과거 선박사고 → 날씨 → 출처(+[기준 상세]).
+     * 해상 지점 시트 본문 HTML 을 만든다. 순서: 위 카드 → 과거 2주간 선박교통량 → 이 해역 과거 선박사고 → 날씨 → 출처([기준 상세]는 2026-10-16 시트 머리로).
      * 예: render(marine,{now:'2026-10-15T16:12:00+09:00'})
      * @param {object} m - marine 분석 @param {object} [ctx] - {now: 서버 meta.now} @returns {string} HTML
      * [연계] ← RiskSheet.show → 이어서 attach(이벤트) / 공식 단계에 자체 가중치를 더하지 않는다. 서버 문자열은 전부 escape.
+     *        지점·시각이 바뀌면 열린 팝업(사고 목록·[?] 설명)을 닫는다. 같은 지점·시각의 60초 갱신은 팝업을 그대로 둔다(내용이 같다).
      */
     function render(m,ctx){
-        var key=[m.location,m.point&&m.point.lon,m.point&&m.point.lat,m.t].join('|');if(key!==ui.key){ui.key=key;ui.z={s:1,off:0,tap:null};ui.wxOpen=false;}
+        var key=[m.location,m.point&&m.point.lon,m.point&&m.point.lat,m.t].join('|');if(key!==ui.key){ui.key=key;ui.z={s:1,off:0,tap:null};ui.wxOpen=false;var op=document.querySelector('.rf-acc-pop');if(op){op._opener=null;closeAcc(op);}}   // 다른 지점·시각을 그리면 열린 팝업(사고·[?])을 닫는다
         return hero(m,ctx)+trafficCard(m,ctx)+accidents(m.history)+weather(m,ctx)
-            +'<div class="rf-cite"><dl><dt>출처</dt><dd>위험 예측·혼잡도·과거 2주간 선박교통량: 해양교통안전공단 API</dd><dt></dt><dd>이 해역 날씨: 기상청 해구별 예보</dd><dt></dt><dd>이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋</dd></dl><button type="button" class="rf-basis-btn" data-basis="sea">기준 상세</button></div>';
+            +'<div class="rf-cite"><dl><dt>출처</dt><dd>위험 예측·혼잡도·과거 2주간 선박교통량: 해양교통안전공단 API</dd><dt></dt><dd>이 해역 날씨: 기상청 해구별 예보</dd><dt></dt><dd>이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋</dd></dl></div>';   // [기준 상세]는 시트 머리 부제 줄 오른쪽 끝으로 옮겼다(2026-10-16 T8, risk_sheet.js)
     }
     /**
-     * 그려 둔 본문에 동작을 붙인다: 날씨 펼침, 사고 종류 팝업, 교통량 카드(같은 칸 이력을 이미 받았으면 바로 그림).
+     * 그려 둔 본문에 동작을 붙인다: 날씨 펼침, 사고 종류 팝업, 위 카드 [?] 설명 팝업, 위험 예측 문장 자간 맞춤, 교통량 카드(같은 칸 이력을 이미 받았으면 바로 그림).
      * 예: attach(body,marine,{now}) @param {HTMLElement} body - .rf-body @param {object} m @param {object} ctx @returns {void}
-     * [연계] ← RiskSheet.show / → fillTraffic · openAcc
+     * [연계] ← RiskSheet.show / → fillTraffic · openAcc · openHelp · fitText
      */
     function attach(body,m,ctx){
         body._rfMarine={m:m,ctx:ctx,cell:cellOf(m)};
         var wx=body.querySelector('[data-wx]');if(wx)wx.addEventListener('click',function(){ui.wxOpen=wx.getAttribute('aria-expanded')!=='true';wx.setAttribute('aria-expanded',String(ui.wxOpen));body.querySelector('[data-wx-body]').hidden=!ui.wxOpen;});
         var list=((m.history&&m.history.accidents)||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));}),g=groups(list);
         body.querySelectorAll('[data-acc-group]').forEach(function(b){b.addEventListener('click',function(){openAcc(body,g[+b.dataset.accGroup],list,b);});});
+        body.querySelectorAll('[data-help]').forEach(function(b){b.addEventListener('click',function(){openHelp(b.dataset.help,b);});});
+        var fit=body.querySelector('[data-fit]');if(fit)watchFit(fit);
         var cell=body._rfMarine.cell;
         if(!cell)fillTraffic(body,null,null,'nocell');else if(ui.history&&ui.history.cell===cell)fillTraffic(body,cell,ui.history.data);
     }
@@ -165,15 +186,66 @@
      * [연계] ← attach / 휴대폰 뒤로가기(PopupStack)·Escape·바깥 누르기로 닫는다. 화면 전체를 덮도록 document.body 에 붙인다
      *        (앱에서 시트는 지도 구역의 쌓임 맥락 안에 있어, 시트 안에 두면 메인 탭이 팝업 위로 올라온다). RiskSheet.clear 가 시트를 닫을 때 함께 닫는다. */
     function openAcc(body,grp,list,opener){
-        var pop=document.querySelector('.rf-acc-pop');
-        if(!pop){pop=document.createElement('div');pop.className='rf-acc-pop';pop.hidden=true;document.body.appendChild(pop);pop.addEventListener('click',function(e){if(e.target===pop||e.target.closest('.x'))closeAcc(pop);});document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!pop.hidden&&pop.isConnected)closeAcc(pop);});}
         var rows=list.filter(function(x){return grp.types.indexOf(x.type)>=0;}).map(function(x){var hz=hurtOf(x);
             return '<li><span class="t">'+(grp.etc?'<b>'+F.escape(x.type)+'</b> · ':'')+F.escape(x.year||String(x.date).slice(0,4))+'년 · '+(x.cause?'원인: '+F.escape(x.cause):'<span class="no">원인 기록 없음</span>')+'</span>'+(hz?'<span class="c hurt">'+F.escape(hz)+'</span>':'')+'</li>';}).join('');
-        pop.innerHTML='<div class="box" role="dialog" aria-modal="true" aria-label="'+F.escape(grp.name)+' 사고 목록"><div class="hd"><i style="background:'+grp.col+'"></i><h5>'+F.escape(grp.name)+' '+grp.n+'건<small>최신순</small></h5><button type="button" class="x" aria-label="닫기">×</button></div><ul>'+rows+'</ul></div>';
-        pop._opener=opener;pop.hidden=false;if(w.PopupStack)w.PopupStack.push('risk-sea-accident-pop',function(){closeAcc(pop,true);});pop.querySelector('.x').focus();
+        showPop('<div class="box" role="dialog" aria-modal="true" aria-label="'+F.escape(grp.name)+' 사고 목록"><div class="hd"><i style="background:'+grp.col+'"></i><h5>'+F.escape(grp.name)+' '+grp.n+'건<small>최신순</small></h5><button type="button" class="x" aria-label="닫기">×</button></div><ul>'+rows+'</ul></div>',opener);
     }
-    /** 사고 팝업을 닫는다. @param {HTMLElement} pop @param {boolean} [fromBack] - 뒤로가기가 이미 목록에서 뺐으면 true @returns {void} [연계] ← openAcc */
+    /** 사고 팝업과 [?] 팝업이 함께 쓰는 화면 전체 팝업 틀(.rf-acc-pop 하나)을 내용만 바꿔 연다. 처음 한 번 만들고 닫기(×·바깥·Escape)를 붙인다.
+     * 예: showPop('<div class="box" role="dialog">…</div>',버튼) @param {string} html - .box 전체 @param {HTMLElement} opener - 닫으면 돌아갈 버튼 @returns {void}
+     * [연계] ← openAcc·openHelp / PopupStack 이름도 하나(risk-sea-accident-pop)라 RiskSheet.clear·risk_forecast.js Escape 처리가 그대로 둘 다 다룬다. */
+    function showPop(html,opener){
+        var pop=document.querySelector('.rf-acc-pop');
+        if(!pop){pop=document.createElement('div');pop.className='rf-acc-pop';pop.hidden=true;document.body.appendChild(pop);pop.addEventListener('click',function(e){if(e.target===pop||e.target.closest('.x'))closeAcc(pop);});document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!pop.hidden&&pop.isConnected)closeAcc(pop);});}
+        pop.innerHTML=html;pop._opener=opener;pop.hidden=false;if(w.PopupStack)w.PopupStack.push('risk-sea-accident-pop',function(){closeAcc(pop,true);});pop.querySelector('.x').focus();
+    }
+    /** [?] 설명 표 한 개. 예: helpTable(HELP.risk,RISK) → 단계(지도와 같은 색 점)·기준 2열 4행 @param {array} rows - HELP.* @param {object} pal - RISK|CONG @returns {string} HTML [연계] ← openHelp */
+    function helpTable(rows,pal){return '<table class="rf-help-tbl"><thead><tr><th scope="col">단계</th><th scope="col">기준</th></tr></thead><tbody>'+rows.map(function(r){return '<tr data-level="'+r[0]+'"><td><i style="background:'+pal[r[0]]+'"></i>'+r[1]+'</td><td>'+r[2]+'</td></tr>';}).join('')+'</tbody></table>';}
+    /**
+     * 위 카드 [?] 팝업을 연다(사용자 2026-10-16 확정 문구 그대로 — 줄마다 실제 다음 줄).
+     * 예: openHelp('risk',버튼) → 「사고위험도는 총 4단계(5km*5km 격자 단위)로 표출」 + 표 4행 / openHelp('cong',버튼) → 밀집도·혼잡도 설명 4줄 + 가·나·다 + 표 4행
+     * @param {string} kind - 'risk'|'cong' @param {HTMLElement} opener @returns {void} [연계] ← attach([data-help]) → showPop / 표 행은 HELP 상수.
+     */
+    function openHelp(kind,opener){
+        var risk=kind==='risk',x='<button type="button" class="x" aria-label="닫기">×</button>';
+        showPop('<div class="box rf-help" role="dialog" aria-modal="true" aria-label="'+(risk?'위험 예측 기준 설명':'밀집도·혼잡도 기준 설명')+'" data-help-pop="'+kind+'"><div class="hd"><h5>'+(risk?'위험 예측':'밀집도/혼잡도')+'</h5>'+x+'</div>'
+            +(risk?'<p>사고위험도는 총 4단계(5km*5km 격자 단위)로 표출</p>'+helpTable(HELP.risk,RISK)
+                :'<p>밀집도/혼잡도는 KOMSA의 실시간·예측 결과이며, 유효선박면적 비율 기준입니다.</p><p>(혼잡도는 공단 안내 기준, 밀집도는 같은 기준 추정).</p><p>혼잡도는 과거 5년간의 선박 운항이력 데이터를 활용하여 딥러닝 기법의 한 종류인 GAN 모델을 통해 예측합니다.</p><p>유효선박면적 비율이란 다음과 같습니다.</p>'
+                 +'<p class="gi"><b>가.</b>큰 배는 1척이어도 넓은 면적을 차지</p><p class="gi"><b>나.</b>육지가 많이 섞여 바다 면적이 작은 칸은 배 한두 척으로도 비율 증가</p><p class="gi"><b>다.</b>4단계 혼잡도 격자 기준</p><div class="gt">'+helpTable(HELP.cong,CONG)+'</div>')+'</div>',opener);
+    }
+    /** 공용 팝업(사고·[?])을 닫는다. @param {HTMLElement} pop @param {boolean} [fromBack] - 뒤로가기가 이미 목록에서 뺐으면 true @returns {void} [연계] ← showPop·render */
     function closeAcc(pop,fromBack){if(pop.hidden)return;pop.hidden=true;if(!fromBack&&w.PopupStack)w.PopupStack.remove('risk-sea-accident-pop');if(pop._opener&&pop._opener.isConnected)pop._opener.focus();}
+
+    /**
+     * 위험 예측 설명 문장을 어절 단위로 줄을 나누고, 줄 끝이 많이 비어 다음 어절이 자간 FIT_MIN(-0.06em)까지 줄이면 들어가면 당겨서 그 줄을 꽉 채운다.
+     * 하한까지 줄여도 안 들어가면 그 줄은 자간 0 그대로. 첫 줄은 [?] 자리(.rf-txt::before 너비)만큼 짧다.
+     * 예: 380px 폭 → 「최근 5년 간의 해양사고, 기상예보 등의」(자간 -0.4px)… / 실패·측정 불가(폭 0, 예외, 그린 뒤 한 줄이 넘침) → 원래 문장 그대로(브라우저 keep-all 줄바꿈).
+     * @param {HTMLElement} p - [data-fit] 문단 @returns {void}
+     * [연계] ← watchFit / 사용자 2026-10-16 「어절단위로 잘라 표시하되 자름으로써 오른쪽 공간이 많이 남으면 자간을 좀 줄여서 꽉 차게 만들어줘.」
+     */
+    function fitText(p){
+        var txt=p.getAttribute('data-fit');p.textContent=txt;
+        try{
+            var W=p.clientWidth,fs=parseFloat(getComputedStyle(p).fontSize),bf=getComputedStyle(p.parentNode,'::before'),W1=W-(bf.cssFloat==='right'?parseFloat(bf.width)||0:0);
+            if(!(W>0)||!(fs>0))return;
+            var pr=document.createElement('span');pr.style.cssText='position:absolute;left:0;top:0;visibility:hidden;white-space:nowrap';p.appendChild(pr);
+            var wd=function(t){pr.textContent=t;return pr.getBoundingClientRect().width;};
+            var words=txt.split(' '),min=FIT_MIN*fs,out=[],i=0;
+            while(i<words.length){var lw=(out.length?W:W1)-.5,cur=[words[i++]],ls=0;
+                while(i<words.length&&wd(cur.concat(words[i]).join(' '))<=lw)cur.push(words[i++]);
+                while(i<words.length){var t=cur.concat(words[i]).join(' '),need=(lw-wd(t))/Array.from(t).length;if(need<min)break;cur.push(words[i++]);ls=need;}
+                out.push({t:cur.join(' '),ls:ls});}
+            pr.remove();
+            p.innerHTML=out.map(function(l){return '<span'+(l.ls?' style="letter-spacing:'+l.ls.toFixed(2)+'px"':'')+'>'+F.escape(l.t)+'</span>';}).join('<br>');
+            if([].some.call(p.children,function(sp){return sp.tagName==='SPAN'&&sp.getClientRects().length!==1;}))p.textContent=txt;   // 줄이 넘쳐 둘로 갈렸으면(글꼴 차이 등) 원래 문장으로
+        }catch(e){p.textContent=txt;}
+    }
+    /** 문장 폭이 바뀔 때(회전·창 크기·글꼴 도착) 다시 맞춘다. 예: watchFit(p) @param {HTMLElement} p - [data-fit] @returns {void}
+     * [연계] ← attach / 시트를 다시 그려 p 가 문서에서 빠지면 관찰을 끝낸다. 고친 뒤 높이 변화로 같은 틀에서 또 불리지 않게 다음 그림 틀에서 맞춘다. */
+    function watchFit(p){
+        fitText(p);var lastW=p.clientWidth,raf=w.requestAnimationFrame||function(f){return setTimeout(f,16);};
+        if(w.ResizeObserver){var ro=new ResizeObserver(function(){if(!p.isConnected){ro.disconnect();return;}if(p.clientWidth!==lastW){lastW=p.clientWidth;raf(function(){if(p.isConnected)fitText(p);});}});ro.observe(p.parentNode);}
+        if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){if(p.isConnected)fitText(p);});
+    }
 
     var measure=null;
     /** 글자 폭을 잰다(SVG 와 같은 글꼴). 예: textW('18',8,600) @param {string} t @param {number} fs - px @param {number} fw - 굵기 @param {string} family @returns {number} px [연계] ← labW·chart */
@@ -309,9 +381,9 @@
      * [연계] ← RiskMapLayer(위험 예측 면색) / 원본 위험지수나 확률은 바꾸지 않는다.
      */
     function color(position){return blend([[86,166,111],[219,199,83],[229,139,70],[214,75,69]],position);}
-    /** 혼잡도·밀집도 색: #b8c5da(낮음)→#74b9ff→#d47cff→#ff5fe3(매우높음) 연속 보간. 예: congestionColor(0.5) → 높음 시작색
+    /** 혼잡도·밀집도 색: 위험 예측과 같은 4색(낮음 초록→보통 노랑→높음 주황→매우높음 빨강) 연속 보간 — 사용자 2026-10-16 「그냥 해양쪽과 같은 색상을 사용하자.」. 예: congestionColor(0.5) → 높음 시작색(= 위험 주의 색)
      * @param {number} position - 서버 색상위치0..1 @returns {string} CSS RGB
-     * [연계] ← RiskMapLayer(지도 [혼잡도] — 지금은 밀집도 mode current, 미래는 혼잡 예보 mode congestion) / 범례 .rf-pal-cong 과 같은 네 색. */
-    function congestionColor(position){return blend([[184,197,218],[116,185,255],[212,124,255],[255,95,227]],position);}
-    w.RiskMarine={render:render,attach:attach,fillTraffic:fillTraffic,cellOf:cellOf,zoom:zoom,briefing:briefing,history:history,color:color,congestionColor:congestionColor};
+     * [연계] ← RiskMapLayer(지도 [혼잡도] — 지금은 밀집도 mode current, 미래는 혼잡 예보 mode congestion) / 범례 .rf-pal-cong 과 같은 네 색(종전 혼잡 4색 #b8c5da→#74b9ff→#d47cff→#ff5fe3). */
+    function congestionColor(position){return color(position);}
+    w.RiskMarine={HELP:HELP,render:render,attach:attach,fillTraffic:fillTraffic,cellOf:cellOf,zoom:zoom,briefing:briefing,history:history,color:color,congestionColor:congestionColor};
 })(window);

@@ -26,6 +26,7 @@
  *
  * [연계]
  *  - 사용하는 파일 : services/vsby_smallzone.js(소해구 키 유틸은 쓰지 않음 — WFS 가 키를 준다)
+ *                    services/collect_fail_alert.js(받아오지 못하면 관리자 푸시 — 첫 실패·복구 1번씩)
  *  - 나를 쓰는 곳  : routes/swell_smallzone.js · server.js(부팅 시 startAutoRefresh)
  * ============================================================================
  */
@@ -58,6 +59,10 @@ const _H = { Referer: `${KMA_BASE}/mmis/`, 'User-Agent': 'Mozilla/5.0 (SEAGNAL/s
 //  { baseTm, collectedAt, fctTimes:["2026.09.10 15:00", ...],
 //    cells:{ "1-1": { lvl:[1,1,2,...], wh:[0.05,...], wp:[3.3,...] } } }
 let _cache = { baseTm: null, collectedAt: null, fctTimes: [], cells: {} };
+// 마지막 collect() 가 새 자료를 못 받은 까닭(성공이면 null). refreshIfStale 이 수집 실패 알림에 쓴다(2026-10-15).
+let _lastCollectError = null;
+/** 수집 실패 관리자 푸시(services/collect_fail_alert). 지연 require — 이 모듈 require 부작용을 늘리지 않게. */
+function _alert() { return require('./collect_fail_alert'); }
 let _collecting = false;
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -173,22 +178,32 @@ async function _pool(items, conc, fn) {
 async function collect({ limitFrames = 0 } = {}) {
     if (_collecting) { console.log('[swell_sz] 이미 수집 중 — skip'); return _cache; }
     _collecting = true;
+    _lastCollectError = null;
     const t0 = Date.now();
     try {
         const ft = await fetchForecastTimes();
         const baseTm = ft.baseTm;
         let fctTimes = ft.fctTimes || [];
         if (limitFrames > 0) fctTimes = fctTimes.slice(0, limitFrames);
-        if (!fctTimes.length) { console.error('[swell_sz] 예보시각 목록이 비어있음'); return _cache; }
+        if (!fctTimes.length) {
+            console.error('[swell_sz] 예보시각 목록이 비어있음');
+            _lastCollectError = new Error('빈 응답 — 예보시각 목록');
+            return _cache;
+        }
 
         const prdct = toViewParamTime(baseTm);
-        if (!prdct) { console.error('[swell_sz] 생산시각 형식 이상:', baseTm); return _cache; }
+        if (!prdct) {
+            console.error('[swell_sz] 생산시각 형식 이상:', baseTm);
+            _lastCollectError = new Error('JSON 아님 — 생산시각 형식 이상');
+            return _cache;
+        }
 
+        let firstFrameError = null;   // 모든 예보시각이 실패했을 때 그 까닭(첫 실패)을 알리려고
         const frames = await _pool(fctTimes, FRAME_CONCURRENCY,
             tm => {
                 const fc = toViewParamTime(tm);
                 if (!fc) throw new Error('예보시각 형식 이상: ' + tm);
-                return fetchFrame(fc, prdct);
+                return fetchFrame(fc, prdct).catch(e => { firstFrameError = firstFrameError || e; throw e; });
             });
 
         const n = fctTimes.length;
@@ -210,7 +225,11 @@ async function collect({ limitFrames = 0 } = {}) {
                 c.wp[f] = row.wp;
             }
         }
-        if (!Object.keys(cells).length) { console.error('[swell_sz] 수집 결과가 비어있음 — 캐시 유지'); return _cache; }
+        if (!Object.keys(cells).length) {
+            console.error('[swell_sz] 수집 결과가 비어있음 — 캐시 유지');
+            _lastCollectError = firstFrameError || new Error('빈 응답 — 모든 예보시각 결과 없음');
+            return _cache;
+        }
 
         _cache = { baseTm, collectedAt: new Date().toISOString(), fctTimes, cells };
         if (limitFrames === 0) _saveCache();
@@ -219,6 +238,7 @@ async function collect({ limitFrames = 0 } = {}) {
         return _cache;
     } catch (e) {
         console.error('[swell_sz] 수집 실패:', e.message);
+        _lastCollectError = e;
         return _cache;
     } finally {
         _collecting = false;
@@ -255,19 +275,28 @@ function _loadCache() {
 /**
  * 생산시각이 바뀌었으면 다시 수집한다. 같으면 아무것도 하지 않는다.
  * 예: 1시간마다 불려서, baseTm 이 "2026.09.09 21:00" 그대로면 즉시 반환
+ * 받아오지 못하면(예보시각 확인 실패 · 새 판 수집이 빈 결과) collect_fail_alert 에 실패를, 받으면 성공을 알린다
+ *   → 첫 실패·복구 때 관리자 푸시 1번씩(2026-10-15). 일부 예보시각만 실패한 수집은 성공으로 본다.
  * @returns {Promise<boolean>} 재수집했으면 true
- * [연계] ← startAutoRefresh() 의 타이머 / → fetchForecastTimes()·collect()
+ * [연계] ← startAutoRefresh() 의 타이머 / → fetchForecastTimes()·collect() · services/collect_fail_alert.report
  */
 async function refreshIfStale() {
+    let ft;
     try {
-        const ft = await fetchForecastTimes();
-        if (ft.baseTm && ft.baseTm === _cache.baseTm && Object.keys(_cache.cells).length) return false;
-        await collect();
-        return true;
+        ft = await fetchForecastTimes();
     } catch (e) {
         console.error('[swell_sz] 생산시각 확인 실패:', e.message);
+        _alert().report('swell', { ok: false, error: e });
         return false;
     }
+    if (ft.baseTm && ft.baseTm === _cache.baseTm && Object.keys(_cache.cells).length) {
+        _alert().report('swell', { ok: true });   // 확인 성공 · 새 판 없음
+        return false;
+    }
+    if (_collecting) return false;   // 앞선 refreshIfStale 의 수집이 아직 돈다 — 성공·실패는 그쪽이 알린다(여기서 단정하지 않는다)
+    await collect();
+    _alert().report('swell', _lastCollectError ? { ok: false, error: _lastCollectError } : { ok: true });
+    return true;
 }
 
 /** 캐시를 읽고, 없거나 낡았으면 한 번 수집한다(부팅 시 1회). */

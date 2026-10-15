@@ -21,7 +21,7 @@ node local_server/scripts/build_risk_static.js
 
 34개 관광지는 육지 교차 면이 없거나 같은 좌표의 영역을 다른 관광지가 소유해 빈 MultiPolygon으로 남는다. 관광지 정보와 유효한1,320개 면을 유지하며 빈 면은 중심점으로 선택한다. 같은 좌표의 관광지는 이름 선택 목록을 표시한다. 바다에 새 연안 면을 만들지 않으며, 빈 면을 OpenLayers에 전달해 나머지 표시가 실패하지 않도록 처리한다.
 
-Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 서버는 생성한 JSON을 읽으며 Python을 실행하지 않는다. 섬 외곽선은 API의 `islands`로 받는다. 특보 경계(`/api/warn-zones`)는 읽지 않는다(2026-10-15 특보 영역 미표시).
+Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 서버는 생성한 JSON을 읽으며 Python을 실행하지 않는다. 섬 외곽선은 API의 `islands`로 받는다(섬 `features` 만 — 2026-10-16 공통 육지 geometry `landGeometry` 는 화면이 쓰지 않아 응답에서 뺐다, README 「지도 버벅임 1단계」). 특보 경계(`/api/warn-zones`)는 읽지 않는다(2026-10-15 특보 영역 미표시).
 
 ## 응답과 결측
 
@@ -94,6 +94,12 @@ bash scripts/refactor/verify_all.sh
 
 ## 해상 통합 확장
 `risk_marine.js`의 render·briefing·history는 서버 분석을 HTML로 표시하고, 모든 원천 문자열을 escape한다. 공식 단계와 현재 척수의 기준·시각을 분리한다. 해상 상세와 관할 브리핑은 sea/analysis와 sea/briefing의 같은 종합 결과를 사용한다. 현재 수집은 sea_realtime_collector(공식 API 전용, 2026-10-15 웹 수집 제거), 반복 예보 저장은 marine_congestion_codec, 분석은 marine_fusion이다. 상세 계약과 후속 과거자료 작업은 [marine_fusion.design.md](marine_fusion.design.md)에 기록했다.
+
+### 해상 시트 위 카드 [?]·설명 문장 (2026-10-16)
+
+사용자 원문: 「사고위험도는 총 4단계(5km*5km 격자 단위)로 표출 - 낮음(위험도 상위 50% 미만) - 보통(위험도 상위 15~50%) - 주의(위험도 상위 5~15%) - 경계(위험도 상위 5% 이내) 이 내용이 표로 잘 들어가도록 해줄래 ?」 · 「「실시간·예측 결과」 이렇게 반영하자.」 · 「어절단위로 잘라 표시하되 자름으로써 오른쪽 공간이 많이 남으면 자간을 좀 줄여서 꽉 차게 만들어줘.」
+
+`risk_marine.js` `hero`가 두 줄(위험 예측 / 밀집도·혼잡도) 오른쪽 위에 [?](`helpBtn`)를 두고, `attach`가 `openHelp`로 사고 종류 팝업과 같은 틀(`showPop`, `.rf-acc-pop`)에 설명·표를 띄운다. 표 행은 `HELP` 상수 한 곳(혼잡도 표는 2026-10-16 실제 응답 경계 1·10·20 으로 바꿨다 — 사용자 「1-(나)」, 서버 밀집도 단계도 같은 경계 「그럼 ㄱ으로 하자」). 혼잡도·밀집도 색은 위험 예측과 같은 4색이다(「그냥 해양쪽과 같은 색상을 사용하자.」, 상세는 README 「혼잡도·밀집도 색 = 위험 예측 4색」). 위험 예측 설명 문장은 「최근 5년 간의 해양사고, 기상예보 등의 정보를 활용, 인공신경망의 한 종류인 MLP모델을 사용하여 사고위험도를 예측」이며 `fitText`가 어절 단위 줄바꿈 뒤 줄 끝이 많이 비면 자간을 -0.06em 까지 줄여 다음 어절을 당긴다(폭이 바뀌면 다시, 실패하면 원래 문장). 상세는 [README.md](README.md) 「위 카드 [?]·설명 문장 — 2026-10-16」.
 
 ## 과제11: 월말 행사 수집과 프롬프트
 
@@ -217,3 +223,26 @@ bash scripts/refactor/verify_all.sh
 - 해상 상세 「현재 교통현황」에서 선종·톤수 구성(「선종·톤수 구성을 확인할 수 없습니다」·「▶ 톤수별 구성」)을, 관할 브리핑에서 선종별 척수를 없앴다. 시각은 API 등록시각, 등록시각이 없는 옛 저장본은 「수집시각 … (등록시각 미제공)」으로 쓴다.
 - 격자 위치 계산식·대조 수치는 [marine_fusion.design.md](marine_fusion.design.md) 「MTIS 웹 수집 제거」.
 - 지키는 시험: `test_no_mtis_web`(verify_all SUITES).
+
+## 시트 머리 [기준 상세]·연안 시각 막대·기준 상세 창 — 2026-10-16 (T7·T8)
+
+사용자 원문은 [README.md](README.md)의 같은 이름 절. 바뀐 자리:
+
+| 위치 | 이전 | 지금 |
+|---|---|---|
+| `risk_store.coastDetail(id,t)` | 한 시각 상세(캐시 객체 그대로) | `coastScore(id,t)`(종전 본문, 캐시) + `outlook`: `coastTimeline(clock())` 각 시각의 `{forecastAt,score,index,band}`. 지금 칸이 매 요청 달라 응답 자체는 보관하지 않고 칸 계산만 캐시를 쓴다 |
+| `risk_store.frame(false,t)` | `coastDetail(p.id,t).score` | `coastScore(p.id,t).score` — 1,354곳마다 outlook 16칸을 만들지 않게 |
+| `RiskFormat.BAND_COLORS` | (없음) | `{평소 수준:#2fb36b, 다소 높음:#f2c230, 높음:#fb923c, 매우 높음:#e0322c}` — `RGB` 기준점에서 만든다(키 순서 = 범례 순서) |
+| `RiskSlider.mount(..., opts)` | `opts.risk` 면 해상 공식 사고 4색 고정 | `opts.colors`({단계: 색}) 를 받는다(없으면 해상 4색). `levels(rows)` 는 `level`(해상) 또는 `band`(연안)를 읽고 그 색표에 없는 단계는 칠하지 않는다 |
+| 범례 `.rf-st-key` | 막대 위 가운데(`left:50%`) | 「지금」 꼬리표 쪽을 inline padding(`꼬리표 위치 + 16px`)으로 비우고 남은 폭 가운데(첫·끝 항목 auto 여백 — 넘치면 꼬리표 반대쪽으로만) |
+| `RiskForecast.mountSlider` | 연안 `opts` 없음(파란 막대·자정 구분선) | 연안 `{risk:true,now:meta.now,colors:RiskFormat.BAND_COLORS}` |
+| `RiskForecast.detail` | 해상만 `marine.outlook.accident` 를 `selected.levels`·막대로 | 연안은 응답 `outlook` 을 같은 길로(60초 갱신으로 막대를 다시 그려도 칸 색 유지). 교통량 이력 요청은 해상만 그대로 |
+| `RiskSheet.create` 머리 | 손잡이·✕·제목·부제·시각 | 부제를 `.rf-sub-row` 로 감싸 오른쪽 끝에 `.rf-head-basis`(숨김 시작). `basisFor(kind)` — `show` 연안 요약·해상 분석이면 보임(`data-basis` coast/sea), `loading(새 지점)`·`choose`·`clear` 는 숨김(숨긴 버튼은 `data-basis` 를 지워 위임에 안 잡힘). 시각만 바꾸는 `loading()` 은 그대로 둔다 |
+| `summary()` 연안 카드 | 카드 오른쪽 위 [기준 상세], `padding-top:34px` | 버튼 없음, `padding:10px 12px` |
+| `RiskMarine.render` 출처 칸 | `<dl>` + [기준 상세] | `<dl>` 만(이 한 줄만 고침 — hero·혼잡 색은 손대지 않음) |
+| `RiskBasis.open` | 문안을 상자에 그대로(상자 전체 스크롤) | 문안 앞의 닫기·`<h3>` 를 떼어 `.rf-basis-head`(제목 → 닫기) 에, 나머지를 `.rf-basis-body`(이것만 스크롤). 첫 초점은 닫기 그대로 |
+| `RiskBasisContent` 제목 | 「기준 상세 — …」 | 「공식 선박 사고위험·교통혼잡 예보」·「연안 위험지수」 |
+| `.rf-basis a` | 브라우저 기본 파랑(남색 바탕에서 안 보임) | `#8fd3ff` + 밑줄, 방문 후도 같음. 대비 8.3:1(두 끝 중 낮은 쪽) |
+
+수정 시 주의: 버튼은 위아래 음수 여백으로 줄 높이(약 19.8px)보다 높게 잡히지 않는다 — 이 여백을 없애면 한 줄 부제에서 시각 줄이 약 3px 밀린다(`test_risk_sheet_ui` 「한 줄 부제에서 버튼이 시각 줄을 밀어냄」). 기준 상세 문안을 새로 쓸 때도 「닫기 버튼 → h3 → 본문」 순서를 지킨다(머리로 떼어 내는 규칙).
+

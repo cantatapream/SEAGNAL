@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 108 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 111 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -347,6 +347,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_score_sea` | 선택시각 예보·특보 최대후보·혼잡 결측·강풍 제외를 검증한다. |
 | `test_risk_score_coast` | 연안 합산·사망배수 분리·주말·정책값·결측 생략과 U81(사람 30일 평균 대비·위험구역 후보 A)을 검증한다. |
 | `test_risk_static` | 배송 정적 표가 원본 관광지·위험구역·이안류·기하 계약을 보존하는지 검사한다. |
+| `test_coast_accidents` | 관광지별 주변 연안 인명사고 정적 표(coast_accidents.json)가 유형·기간·중복·영역 계약을 지키는지 |
 | `test_risk_geo` | 홀·다중면·경계 포함·방위·거리·겹침 동률 기초를 검증한다. |
 | `test_risk_format` | U77·U78의 위험예측 서식·색·좌표와 HTML/URL 처리를 제품 함수로 검사한다. |
 | `test_risk_preview` | 위험예측 미리보기와 실제 앱의 원본 스위치 CSS·스크립트 순서·오버레이 연결을 검사한다. |
@@ -361,6 +362,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_errors_ui` | 제품 admin.js / risk_sheet.js. 운영 API·인증정보 없이 Chromium 사용. |
 | `test_risk_errors_filter_ui` | 관리자 오류현황의 원천·상태 필터가 현재 상태·이력 둘 다에 걸리는지와 상태 배지 색을 실제 라우터+Chromium 으로 검사한다. |
 | `test_data_collection_status` | 관리자 「데이터 수집현황 → 수집 목록」의 목록표(manifest)·계산·API 를 검사한다. |
+| `test_collect_fail_alert` | 이안류·기상청 MMIS 수집 실패 관리자 푸시(services/collect_fail_alert)를 고정한다. |
 | `test_data_collection_ui` | 관리자 → 점검 → 「데이터 수집현황」 화면을 실제 라우터 + Chromium 으로 검사한다. |
 | `test_zone_forecast_guard` | 해구별 기상예보 수집이 새 판을 못 받았을 때 「새 판 없음, 기존 판 유지」를 기록하고 |
 | `test_risk_history_sources` | 오류 감시의 본문 제거·손상 판별·공개 저장소와 같은 신선도·갱신/삭제를 검사한다. |
@@ -378,6 +380,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_no_mtis_web` | 서버 코드가 MTIS 웹 화면(mtis.komsa.or.kr)에 자동 접속하지 않는지 지킨다. |
 | `test_root_deps` | 운영 서버가 실제로 쓰는 외부 패키지가 **저장소 루트 package.json** 에 모두 들어 있는지 검사한다. |
 | `test_slow_request_log` | 느린 요청 기록(services/slow_request_log.js)이 3초 넘는 요청만, 쿼리 없이, 붙잡는 요청은 빼고 남기는지 실제 HTTP 로 확인한다. |
+| `test_risk_map_wait` | 위험예측 지도의 「기다림 표시」(지도 가운데 스피너·이전 색 흐림·실패 안내 2초)가 켜지고 꺼지는 때를 고정한다(2026-10-16 T4). |
 | `test_location_dispatch_reliability` | 위치기반 깨우기(특보·태풍) 발송 신뢰성 + 스냅샷 축약 회귀검사 |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,

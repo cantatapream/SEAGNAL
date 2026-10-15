@@ -210,7 +210,8 @@
     function summary(d,kind) {
         var c=F.col(d.score),rr=d.rr===1?'평소 수준':F.fmt(d.rr);
         var prose=kind==='sea'?'평소(특보 없는 때)보다<br>선박 사고 가능성 '+b(rr,d.rr)+'<small>사고 종류 : 전복, 침몰, 침수, 표류</small>':((d.missing||[]).length?'확인된 요소 기준의 상대 사고지표<br>':'평소만큼 붐비고 위험구역 없는 곳의 평범한 날과 비교<br>')+'전체 사고 '+b(rr,d.rr)+'<small>사망·실종 사고 '+b(F.fmt(d.fatalRr),d.fatalRr)+'</small><small>사고 종류 : 익수, 추락, 고립, 떠밀림</small>';
-        return '<div class="rf-index"><button type="button" class="rf-basis-btn" data-basis="'+kind+'">기준 상세</button><div class="rf-index-main"><div class="rf-score-box" style="background:'+c+';color:'+F.ink(c)+'"><small>위험지수</small><strong>'+F.escape(d.index)+'</strong></div><div class="rf-index-prose"><b>'+F.escape(d.band)+'</b><br>'+prose+'</div></div><div class="rf-ramp"></div><div class="rf-ramp-labels"><span>0</span><span>50</span><span>100</span></div></div>';
+        // [기준 상세]는 시트 머리 부제 줄 오른쪽 끝(✕ 아래)으로 옮겼다(2026-10-16 T8) — 이 카드 위 버튼 자리 여백도 없앴다.
+        return '<div class="rf-index"><div class="rf-index-main"><div class="rf-score-box" style="background:'+c+';color:'+F.ink(c)+'"><small>위험지수</small><strong>'+F.escape(d.index)+'</strong></div><div class="rf-index-prose"><b>'+F.escape(d.band)+'</b><br>'+prose+'</div></div><div class="rf-ramp"></div><div class="rf-ramp-labels"><span>0</span><span>50</span><span>100</span></div></div>';
     }
     /**
      * 닫기·위험구역 이동·기준 상세·재시도 동작을 시트에 연결한다.
@@ -222,7 +223,16 @@
     function create(el,handlers) {
         var SKELETON='<div class="rf-skeleton" role="status"><span class="rf-sr">불러오는 중</span><div class="rf-sk rf-sk-score"></div><div class="rf-sk rf-sk-line"></div><div class="rf-sk rf-sk-line rf-sk-short"></div><div class="rf-sk rf-sk-row"></div><div class="rf-sk rf-sk-row"></div><div class="rf-sk rf-sk-row"></div></div>';
         // 위쪽(손잡이·닫기·제목·시각 조작)은 고정 머리, 그 아래 .rf-body만 스크롤된다. 머리는 상세·브리핑·선택 목록이 함께 쓴다.
-        el.innerHTML='<div class="rf-sheet-head"><div class="rf-sheet-handle"></div><button class="ocean-sheet-close rf-close" type="button" aria-label="위험예측 닫기">×</button><h3 class="rf-title"></h3><div class="rf-subtitle"></div><div class="rf-timeline"></div></div><div class="rf-body" aria-live="polite"></div>';
+        // 부제 줄 오른쪽 끝(✕ 아래)에 [기준 상세](2026-10-16 T8 사용자 「x버튼 아래, 관할 오른쪽 끝」). 부제가 길면 부제만 줄바꿈하고 버튼 자리는 비워 둔다.
+        el.innerHTML='<div class="rf-sheet-head"><div class="rf-sheet-handle"></div><button class="ocean-sheet-close rf-close" type="button" aria-label="위험예측 닫기">×</button><h3 class="rf-title"></h3><div class="rf-sub-row"><div class="rf-subtitle"></div><button type="button" class="rf-basis-btn rf-head-basis" hidden>기준 상세</button></div><div class="rf-timeline"></div></div><div class="rf-body" aria-live="polite"></div>';
+        var headBasis=el.querySelector('.rf-head-basis');
+        /**
+         * 머리의 [기준 상세] 버튼을 보이거나 숨긴다. 누르면 위 클릭 위임([data-basis])이 handlers.basis(kind) 를 부른다.
+         * 예: basisFor('coast') → 보임·data-basis="coast" / basisFor(null) → 숨김(data-basis 없음 — 숨은 버튼이 위임에 잡히지 않게)
+         * @param {string|null} kind - 'coast'·'sea' 또는 null @returns {void}
+         * [연계] ← show(연안 요약·해상 분석)·loading(새 지점)·choose·clear / → RiskBasis.open(kind) 는 위임이 부른다
+         */
+        function basisFor(kind){headBasis.hidden=!kind;if(kind)headBasis.dataset.basis=kind;else headBasis.removeAttribute('data-basis');}
         el.querySelector('.rf-close').addEventListener('click',handlers.close);
         el.addEventListener('click',function(e){var z=e.target.closest('[data-zone-id]'),basis=e.target.closest('[data-basis]'),retry=e.target.closest('[data-retry]');if(z)handlers.hazard(z.dataset.zoneId);if(basis)handlers.basis(basis.dataset.basis,basis);if(retry)handlers.retry();});
         el.addEventListener('click',function(e){var spot=e.target.closest('[data-spot-id]');if(spot)handlers.choose('coast',spot.dataset.spotId);});
@@ -234,7 +244,7 @@
          * @returns {void} [연계] RiskForecast.select·슬라이더 → 응답 뒤 show/error가 덮어쓴다. 이전 지점·시각의 값은 남기지 않는다.
          */
         function loading(hint) {
-            if(hint){el.querySelector('.rf-title').textContent=hint.title||'불러오는 중…';el.querySelector('.rf-subtitle').textContent=hint.subtitle||'';}
+            if(hint){el.querySelector('.rf-title').textContent=hint.title||'불러오는 중…';el.querySelector('.rf-subtitle').textContent=hint.subtitle||'';basisFor(null);}
             var body=el.querySelector('.rf-body');el.querySelector('.rf-timeline').hidden=false;
             body.innerHTML=SKELETON;body.scrollTop=0;el.setAttribute('aria-busy','true');el.classList.add('open');
         }
@@ -250,7 +260,7 @@
          */
         function show(d,kind,item,ctx) {
             el.removeAttribute('aria-busy');
-            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';el.querySelector('.rf-timeline').hidden=false;var mb=el.querySelector('.rf-body');mb.innerHTML=d.marine?w.RiskMarine.render(d.marine,ctx):w.RiskMarine.briefing(d);el.classList.add('open');if(d.marine&&w.RiskMarine.attach)w.RiskMarine.attach(mb,d.marine,ctx);return;}
+            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';basisFor(d.marine?'sea':null);el.querySelector('.rf-timeline').hidden=false;var mb=el.querySelector('.rf-body');mb.innerHTML=d.marine?w.RiskMarine.render(d.marine,ctx):w.RiskMarine.briefing(d);el.classList.add('open');if(d.marine&&w.RiskMarine.attach)w.RiskMarine.attach(mb,d.marine,ctx);return;}
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='accident'?'선박 사고 위험예보 · 격자 '+d.gridId:kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
             el.querySelector('.rf-subtitle').textContent=kind==='accident'?'격자 중심 '+F.dms(d.lat,true)+' - '+F.dms(d.lon,false):kind==='sea'?[sub.name,sub.bearingWord||F.direction(sub.bearingDeg||0),String(Math.round(sub.bearingDeg||0)%360).padStart(3,'0')+'도',Number(sub.distNm||0).toFixed(1)+'해리'].join(' '):F.dms(sub.lat==null?item.lat:sub.lat,true)+' - '+F.dms(sub.lon==null?item.lon:sub.lon,false)+(sub.police?' · '+F.stationLabel(sub.police,sub.office):'');
@@ -263,6 +273,8 @@
             else if(kind==='sea')body+=trafficRows(d,rows);
             else if(d.clickable===false)body+='<p class="rf-muted">이 시각에는 날씨 위험도 없고 배도 적은 칸입니다(지도에 색이 없음).</p>';
             else body+=summary(d,kind)+coastCalculation(d)+notices(d.notices)+coastRows(rows);
+            // 머리 [기준 상세]는 연안 요약(위험지수 카드)이 있을 때만. 옛 공식 사고·해상 칸 상세는 본문에 자기 버튼이 있다.
+            basisFor(kind!=='accident'&&kind!=='sea'&&d.clickable!==false?kind:null);
             el.querySelector('.rf-body').innerHTML=body;el.classList.add('open');
         }
         /**
@@ -272,7 +284,7 @@
          */
         function markZone(id){el.querySelectorAll('[data-zone-id]').forEach(function(b){var on=b.dataset.zoneId===id;b.setAttribute('aria-pressed',String(on));var li=b.closest('li');if(li)li.classList.toggle('is-selected',on);});}
         function error(message){el.removeAttribute('aria-busy');el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';el.classList.add('open');}
-        function choose(items){el.removeAttribute('aria-busy');el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';el.classList.add('open');}
+        function choose(items){el.removeAttribute('aria-busy');basisFor(null);el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';el.classList.add('open');}
         /**
          * 해상 본문의 「과거 2주간 선박교통량」 카드를 받은 이력으로 채운다. 지금 본문이 다른 칸이면 버린다.
          * 예: trafficHistory('GR4_F4K23_P4',응답) / trafficHistory(cell,null,'error') → 「-」와 「기록을 불러오지 못했습니다.」
@@ -280,7 +292,7 @@
          * [연계] RiskForecast.detail → 여기 → RiskMarine.fillTraffic
          */
         function trafficHistory(cell,h,problem){if(w.RiskMarine&&w.RiskMarine.fillTraffic)w.RiskMarine.fillTraffic(el.querySelector('.rf-body'),cell,h,problem);}
-        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,trafficHistory:trafficHistory,clear:function(){el.removeAttribute('aria-busy');el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';var pop=document.querySelector('.rf-acc-pop');if(pop&&!pop.hidden){pop.hidden=true;if(w.PopupStack)w.PopupStack.remove('risk-sea-accident-pop');}},timelineEl:el.querySelector('.rf-timeline')};
+        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,trafficHistory:trafficHistory,clear:function(){el.removeAttribute('aria-busy');basisFor(null);el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';var pop=document.querySelector('.rf-acc-pop');if(pop&&!pop.hidden){pop.hidden=true;if(w.PopupStack)w.PopupStack.remove('risk-sea-accident-pop');}},timelineEl:el.querySelector('.rf-timeline')};
     }
     /**
      * 서버 자료 키를 화면에서 읽을 수 있는 이름으로 바꾼다.

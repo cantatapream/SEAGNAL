@@ -12,6 +12,7 @@
 | `window_compare.py` | 사람 점수 30일 평균의 창 방향 비교 — 앞으로 30일(현행)·지난 30일(오늘 포함/제외)·가운데 30일, 같은 틀(month_relative.py 주 모형)로 사람 항·달 점수·AIC(공통 표본)·철 경계 분포. 저장소 자료만 씀. 결과 `v3/data/u81/window_compare/` | `python3 -I window_compare.py [결과 폴더]` (약 4분) |
 | `make_month_md.py` | 위 결과 CSV → 표 md | `python3 -I make_month_md.py <결과 폴더>` |
 | `preview.js` | 새 scoreCoast 로 관광지 1,354곳 단계 분포 미리보기(10-09 수집 30일 집중률 필요 — 저장소에 없음) | `node preview.js <저장소> <base.json>` |
+| `other_type_compare.py` | 기타(인명, ATY008)를 결과 사고에 더하면 사람(D2)·달(M)·위험구역(후보 A)·사망실종 근거가 어떻게 바뀌나 — 표본 B(지금)·O(+기타 전부)·Opos(+기타 사고자 1명 이상) 비교, 같은 표본 안 「기타 × 요인」 검정, 점수표 숫자만 바꾼 실제 scoreCoast 미리보기. 표본 B 는 저장소 결과를 그대로 재현(repro_check.csv). 앱 점수표는 안 바꿈. 결과 `v3/data/u81/other_type/`(요약 `other_type_summary.md`) | `python3 -I other_type_compare.py [결과 폴더] [--admdong <HangJeongDong_ver20241231.geojson>] [--base <base.json>]` (약 2분, 시군구 경계 없으면 저장된 `other_person_geo.csv` 를 읽음) |
 
 재현 확인: 2026-10-15 저장소 사본 `hazard_types/run_all.sh` 를 다시 돌려 `type_models.csv`·`model_compare.csv`·`equality_tests.csv`·`score_tables.csv`·보고서가 원래 결과와 같음(cmp·diff).
 `06_build_report.py` 는 「U81 이전 앱 점수표」와 비교하므로 그 판(커밋 1827a30dc 직전)을 git 에서 읽는다.

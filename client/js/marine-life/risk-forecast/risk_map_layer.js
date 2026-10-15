@@ -2,6 +2,7 @@
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_map_layer.js
  * 역할  : 해상은 단일 GR4의 연속 면색·확대 척수와 선택 경계로, 연안은 기존 분석으로 표시한다.
+ *           연안 면은 테두리 없이 6px 흐리고 해안선에서 다시 자른 뒤 아주 연한 흰 경계선을 따로 얹는다(G안, 사용자 2026-10-16 「연안테두리 g로 반영해보자」).
  *           특보 구역은 이 지도에 그리지 않는다(사용자 확정 2026-10-15 「지도에 특보 영역을 표시하지 말자」).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
@@ -21,12 +22,16 @@
      * [연계] RiskForecast → OpenLayers
      */
     function create(map, select) {
-        var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], trafficCells=[], unifiedCells=[], unified=!!w.RiskMarine, unifiedMode=null, visible=false, active={coast:true,sea:false}, selection=null, land=[], maskKey='', maskCanvas=null, smoothCanvas=null, disposed=false, unifiedTable=null, unifiedIndex=new Map(), unifiedRows=new Map(), unifiedFeatures=new Map(), unifiedBins=new Map(), fillStyles=new Map(), numberStyles=new Map();
+        var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], trafficCells=[], unifiedCells=[], unified=!!w.RiskMarine, unifiedMode=null, visible=false, active={coast:true,sea:false}, selection=null, land=[], maskKey='', maskCanvas=null, maskRef=null, maskStale=true, smoothCanvas=null, disposed=false, unifiedTable=null, unifiedIndex=new Map(), unifiedRows=new Map(), unifiedFeatures=new Map(), unifiedBins=new Map(), fillStyles=new Map(), numberStyles=new Map();
         ['accident','sea','marine','traffic','coast','hazard','selection','shore','points'].forEach(function (k,i) {
             sources[k]=new ol.source.Vector();
             layers[k]=new ol.layer.Vector({source:sources[k], zIndex:130+i, className:'rf-'+k+'-canvas',declutter:k==='traffic'});
             map.addLayer(layers[k]);
         });
+        // 연안 G안(사용자 2026-10-16 「연안테두리 g로 반영해보자」): 흐리지 않는 아주 연한 흰 경계선(0.5px·흰 13%)만 담는 층.
+        // 연안 면(coast, 흐림) 바로 위·위험구역(hazard) 아래. 해안선(shore) 층과 섞지 않는다(해안선 도형 수 계약 유지).
+        sources.coastEdge=new ol.source.Vector();layers.coastEdge=new ol.layer.Vector({source:sources.coastEdge,zIndex:134,className:'rf-coast-edge-canvas'});map.addLayer(layers.coastEdge);
+        var coastEdgeStyle=new ol.style.Style({stroke:new ol.style.Stroke({color:'rgba(255,255,255,.13)',width:.5})}),coastSmoothCanvas=null;
         function read(g) { return geo.readGeometry(g,{dataProjection:'EPSG:4326',featureProjection:map.getView().getProjection()}); }
         function add(k,g,props,style) {
             if (!g) return null;
@@ -36,19 +41,36 @@
             var f=new ol.Feature(Object.assign({geometry:read(g)},props||{})); f.setStyle(style); sources[k].addFeature(f); return f;
         }
         function rgba(rgb,a) { return rgb.replace('rgb(','rgba(').replace(')',','+a+')'); }
+        /** 점수 색 면 스타일을 만든다. 예: 연안 colorStyle(2,true) → 점수 색 50% 채움만(테두리 없음).
+         * 연안은 G안(사용자 2026-10-16 「연안테두리 g로 반영해보자」)으로 같은 색 불투명 2px 실선을 없앴다 — 경계는 흐림 뒤 따로 그리는 연한 흰 선(coastEdge)이 맡는다.
+         * @param {number|null} score - 점수 @param {boolean} coast - 연안 면인가 @returns {ol.style.Style} [연계] ← drawCoast / RiskFormat.col 색 */
         function colorStyle(score,coast) {
             var c=w.RiskFormat.col(score);
-            return new ol.style.Style({fill:new ol.style.Fill({color:rgba(c,score==null?0:(coast?0.5:score>0?0.7:0))}),stroke:new ol.style.Stroke({color:coast?c:'rgba(200,225,240,.12)',width:coast?2:0.5})});
+            if(coast)return new ol.style.Style({fill:new ol.style.Fill({color:rgba(c,score==null?0:0.5)})});
+            return new ol.style.Style({fill:new ol.style.Fill({color:rgba(c,score==null?0:score>0?0.7:0)}),stroke:new ol.style.Stroke({color:'rgba(200,225,240,.12)',width:0.5})});
         }
+        /** 육지 가리개(maskCanvas)로 층 canvas 의 육지 쪽을 지우거나(해상) 바다 쪽을 지운다(연안).
+         * 예: 해상 면색 → 육지 부분 투명. 가리개는 지도를 움직이는 동안 다시 만들지 않는다.
+         * 가리개 만들기는 꼭짓점 약28.9만 개를 화면 좌표로 바꾸는 일이라 한 프레임에 약100ms 가 든다(390×780·배율3·z7 실측).
+         * 종전엔 지도 중심·해상도가 바뀌는 매 프레임 새로 만들어 끄는 동안 버벅였다(2026-10-16 T5 버벅임 1단계).
+         * 그래서 손을 뗄 때(moveend → maskStale)·층 canvas 크기나 회전이 바뀔 때·육지 자료가 바뀔 때만 새로 만들고,
+         * 그 사이에는 **직전 가리개를 옮기고 늘려(이동·확대만 하는 변환) 다시 쓴다.** 직전 화면 밖에서 새로 드러난 띠에는
+         * 가리개가 없어 손을 뗄 때까지 잠깐 육지에 해상 색이 비칠 수 있다 — 끄는 동안 부드러운 쪽을 택했다.
+         * 회전이 바뀌면 이동·확대만으로 맞출 수 없어 종전처럼 매번 새로 만든다.
+         * @param {Object} evt - OpenLayers postrender 이벤트(context·frameState) @param {string} kind - 'coast'(바다 지움)·그 밖(육지 지움)
+         * @returns {void} [연계] ← 각 층 postrender / maskStale ← map moveend·landGeometry·boundaries
+         */
         function mask(evt,kind) {
             if (!land.length) return;
             var ctx=evt.context;
             if (!ctx || !ctx.canvas) return;
-            var key=ctx.canvas.width+','+ctx.canvas.height+','+map.getView().getCenter()+','+map.getView().getResolution()+','+map.getView().getRotation();
-            if (maskKey!==key) {
-                maskKey=key; maskCanvas=document.createElement('canvas'); maskCanvas.width=ctx.canvas.width; maskCanvas.height=ctx.canvas.height;
+            var size=map.getSize(),key=ctx.canvas.width+','+ctx.canvas.height+','+map.getView().getRotation();
+            if (maskStale||maskKey!==key||!maskCanvas||!maskRef) {
+                maskStale=false; maskKey=key; maskCanvas=document.createElement('canvas'); maskCanvas.width=ctx.canvas.width; maskCanvas.height=ctx.canvas.height;
+                // 화면 왼쪽 위·오른쪽 아래 두 점의 지도 좌표와 그때의 canvas 좌표를 기억해 두면, 다음 프레임에 두 점이 어디로 갔는지로 이동·확대를 구한다.
+                maskRef={a:map.getCoordinateFromPixel([0,0]),b:map.getCoordinateFromPixel(size),pa:ol.render.getRenderPixel(evt,[0,0]),pb:ol.render.getRenderPixel(evt,size)};
                 var mc=maskCanvas.getContext('2d'); mc.fillStyle='#fff';
-                var extent=map.getView().calculateExtent(map.getSize());
+                var extent=map.getView().calculateExtent(size);
                 land.forEach(function (polygon) {
                     // 각 다각형을 따로 합성하여 겹친 육지·섬이 짝홀 규칙으로 다시 바다가 되는 일을 막는다.
                     if (!ol.extent.intersects(polygon.extent,extent)) return;
@@ -61,14 +83,24 @@
                     }); mc.fill('evenodd');
                 });
             }
-            ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation=kind==='coast'?'destination-in':'destination-out'; ctx.drawImage(maskCanvas,0,0); ctx.restore();
+            var pa=ol.render.getRenderPixel(evt,map.getPixelFromCoordinate(maskRef.a)),pb=ol.render.getRenderPixel(evt,map.getPixelFromCoordinate(maskRef.b));
+            var sx=(pb[0]-pa[0])/(maskRef.pb[0]-maskRef.pa[0]),sy=(pb[1]-pa[1])/(maskRef.pb[1]-maskRef.pa[1]);
+            ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation=kind==='coast'?'destination-in':'destination-out';
+            ctx.drawImage(maskCanvas,pa[0]-maskRef.pa[0]*sx,pa[1]-maskRef.pa[1]*sy,maskCanvas.width*sx,maskCanvas.height*sy); ctx.restore();
         }
+        // 손을 뗀 뒤(이동·확대 끝)에만 가리개를 새로 만든다. 다음 프레임을 요청해 직전 가리개로 그린 마지막 프레임을 곧바로 바로잡는다.
+        function maskMoveEnd(){maskStale=true;map.render();}
+        map.on('moveend',maskMoveEnd);
         layers.accident.on('postrender',function (e) { mask(e,'sea'); });
         layers.sea.on('postrender',function (e) { mask(e,'sea'); });
         layers.traffic.on('postrender',function (e) { mask(e,'sea'); });
         // 격자마다 필터를 적용하지 않고 완성된 면색 canvas에 단 한 번 흐림을 적용한다.
         layers.marine.on('postrender',function(e){var ctx=e.context;if(ctx&&ctx.canvas){if(!smoothCanvas)smoothCanvas=document.createElement('canvas');if(smoothCanvas.width!==ctx.canvas.width||smoothCanvas.height!==ctx.canvas.height){smoothCanvas.width=ctx.canvas.width;smoothCanvas.height=ctx.canvas.height;}var sc=smoothCanvas.getContext('2d');sc.clearRect(0,0,smoothCanvas.width,smoothCanvas.height);sc.drawImage(ctx.canvas,0,0);ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);ctx.filter='blur(6px)';ctx.drawImage(smoothCanvas,0,0);ctx.restore();}mask(e,'sea');});
-        layers.coast.on('postrender',function (e) { mask(e,'coast'); });
+        // 연안 G안: 완성된 연안 면 canvas 전체를 6px 흐린 뒤(해상 marine 과 같은 방식, 단 해상 smoothCanvas 와 섞이지 않게 연안용 canvas 따로)
+        // 같은 육지 가리개로 다시 잘라 해안선은 날카롭게 둔다. 관광지 점(points)·선택 흰 테두리(selection)는 다른 층이라 흐려지지 않는다.
+        // 클릭 판정은 OL 의 도형 기준 hit(forEachFeatureAtPixel)이라 흐림과 무관하다.
+        layers.coast.on('postrender',function (e) {var ctx=e.context;if(ctx&&ctx.canvas){if(!coastSmoothCanvas)coastSmoothCanvas=document.createElement('canvas');if(coastSmoothCanvas.width!==ctx.canvas.width||coastSmoothCanvas.height!==ctx.canvas.height){coastSmoothCanvas.width=ctx.canvas.width;coastSmoothCanvas.height=ctx.canvas.height;}var sc=coastSmoothCanvas.getContext('2d');sc.clearRect(0,0,coastSmoothCanvas.width,coastSmoothCanvas.height);sc.drawImage(ctx.canvas,0,0);ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);ctx.filter='blur(6px)';ctx.drawImage(coastSmoothCanvas,0,0);ctx.restore();} mask(e,'coast'); });
+        layers.coastEdge.on('postrender',function (e) { mask(e,'coast'); });
         function landGeometry(g,island) {
             if (!g) return;
             var polys=g.type==='MultiPolygon'?g.coordinates:[g.coordinates];
@@ -76,14 +108,14 @@
                 var geometry=read({type:'Polygon',coordinates:rings});
                 land.push({rings:geometry.getCoordinates(),extent:geometry.getExtent()});
                 var f=new ol.Feature(geometry); f.setStyle(new ol.style.Style({stroke:new ol.style.Stroke({color:'#5b6576',width:island?2:2.4})})); sources.shore.addFeature(f);
-            }); maskKey='';
+            }); maskStale=true;
         }
         /** 육지·섬 외곽선을 받아 해안선과 육지 마스크를 만든다. 특보 구역 경계(/api/warn-zones)는 받지 않는다(2026-10-15 특보 영역 미표시).
          * 예: boundaries(api) → 해안선 HTTP 실패면 섬만 그리고 오류를 던진다.
          * @param {object} api - RiskApi(get('islands')) @returns {Promise<void>} [연계] ← RiskForecast.refresh
          */
         async function boundaries(api) {
-            land=[];sources.shore.clear();maskKey='';
+            land=[];sources.shore.clear();maskStale=true;
             var outcomes=await Promise.allSettled([fetch('/api/ocean/land-mask').then(function(r){if(!r.ok)throw Error('해안선 HTTP '+r.status);return r.json();}),api.get('islands')]);
             if(disposed)return;
             if (outcomes[0].status==='fulfilled') (outcomes[0].value.rings||[]).forEach(function(r){landGeometry({type:'Polygon',coordinates:[r]});});
@@ -139,11 +171,11 @@
          */
         function drawCurrent(frame){sources.traffic.clear();if(frame.status&&frame.status.status!=='ok')return;var byIndex=new Map(trafficCells.map(function(c){return[c.i,c];}));(frame.cells||[]).forEach(function(v){var c=byIndex.get(v[0]);if(!c)return;var g=c.geometry||{type:'Polygon',coordinates:[[[c.lon-.0125,c.lat-.0125],[c.lon+.0125,c.lat-.0125],[c.lon+.0125,c.lat+.0125],[c.lon-.0125,c.lat+.0125],[c.lon-.0125,c.lat-.0125]]]};add('traffic',g,{kind:'traffic',id:c.id,count:v[1]},new ol.style.Style({stroke:new ol.style.Stroke({color:'rgba(255,255,255,.35)',width:.5}),fill:new ol.style.Fill({color:'rgba(0,0,0,0)'}),text:new ol.style.Text({text:String(v[1]),font:'bold 12px sans-serif',fill:new ol.style.Fill({color:'#fff'}),stroke:new ol.style.Stroke({color:'#10223d',width:3})})}));});}
         function drawCoast(frame) {
-            sources.coast.clear();sources.points.clear();var centers=new Map();
+            sources.coast.clear();sources.coastEdge.clear();sources.points.clear();var centers=new Map();
             (frame.spots||[]).forEach(function (v) {
                 var p=spots.find(function(p){return p.i===v[0];}); if(!p) return;
                 var g=p.geometry || (p.cell?{type:'Polygon',coordinates:[p.cell]}:null);
-                add('coast',g,{kind:'coast',id:p.id,score:v[1]},colorStyle(v[1],true));
+                if(add('coast',g,{kind:'coast',id:p.id,score:v[1]},colorStyle(v[1],true)))add('coastEdge',g,null,coastEdgeStyle);
                 // 빈 면도 중심점은 남긴다. 같은 좌표는 한 점과 선택 목록으로 표시한다.
                 var key=p.lon+','+p.lat,center=centers.get(key);
                 if(center)center.get('ids').push(p.id);
@@ -201,7 +233,7 @@
             if(features.length)map.getView().fit(sources.hazard.getExtent(),{padding:pad||[55,55,Math.min(map.getSize()[1]*0.5,300),55],duration:250,maxZoom:16});
         }
         function setActive(state,enabled) {
-            active=state;visible=enabled; layers.coast.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);layers.accident.setVisible(enabled&&state.sea);layers.traffic.setVisible(enabled&&state.sea);
+            active=state;visible=enabled; layers.coast.setVisible(enabled&&state.coast);layers.coastEdge.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);layers.accident.setVisible(enabled&&state.sea);layers.traffic.setVisible(enabled&&state.sea);
             if(unified){layers.sea.setVisible(false);layers.accident.setVisible(false);layers.traffic.setVisible(enabled&&state.sea&&unifiedMode==='current');}layers.marine.setVisible(enabled&&state.sea&&unified);
             ['shore','selection','hazard'].forEach(function(k){layers[k].setVisible(enabled&&(state.coast||state.sea));});
         }
@@ -216,8 +248,13 @@
             var feature=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers[wanted]?f:null;},{layerFilter:function(l){return l===layers[wanted];},hitTolerance:2});
             if(feature){select(wanted,feature.get('id'));return true;}return false;
         }
-        function destroy(){disposed=true;map.un('moveend',renderUnified);unifiedFeatures.clear();smoothCanvas=null;Object.keys(layers).forEach(function(k){map.removeLayer(layers[k]);});}
-        return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawCurrent:drawCurrent,drawUnified:drawUnified,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,destroy:destroy};
+        /** 사용자가 누른 동작의 응답을 기다리는 동안 위험예측 색 층(연안 면·점, 해상 면색·숫자)을 흐리게 한다.
+         * 예: dim(true) → 불투명도 0.35, dim(false) → 1. 육지 외곽선·선택 테두리·위험구역은 그대로 둔다.
+         * @param {boolean} on - 흐리게 할지 @returns {void}
+         * [연계] ← RiskForecast waitStart(250ms 뒤)·waitEnd / 「글자는 새 시각, 색은 옛 시각」 혼동 방지(2026-10-16 T4) */
+        function dim(on){['coast','coastEdge','points','marine','traffic','sea','accident'].forEach(function(k){layers[k].setOpacity(on?0.35:1);});}
+        function destroy(){disposed=true;map.un('moveend',renderUnified);map.un('moveend',maskMoveEnd);maskCanvas=null;coastSmoothCanvas=null;unifiedFeatures.clear();smoothCanvas=null;Object.keys(layers).forEach(function(k){map.removeLayer(layers[k]);});}
+        return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawCurrent:drawCurrent,drawUnified:drawUnified,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,dim:dim,destroy:destroy};
     }
     w.RiskMapLayer={create:create};
 })(window);

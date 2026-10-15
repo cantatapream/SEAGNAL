@@ -5,7 +5,7 @@
  * [로드 순서] 요청에서 외부 수집·Gemini 호출 없음. 연안 관광객 사고는 읽지 않는다.
  */
 'use strict';
-const fs=require('fs'),path=require('path'),io=require('./risk_collector_io'),G=require('./risk_geo'),T=require('./risk_time');
+const fs=require('fs'),path=require('path'),{createHash}=require('crypto'),io=require('./risk_collector_io'),G=require('./risk_geo'),T=require('./risk_time');
 const ROOT=path.join(__dirname,'..'),CLIENT=path.join(ROOT,'..','client'),codec=require('./marine_congestion_codec');
 // 선종·톤수 구성은 다루지 않는다 — 사용자 결정 2026-10-15 「톤수, 선박 종류는 API에서 제공하지않는다고 공식적으로 확인했어. 이용할 수 없을 것 같아.」
 const INCIDENTS={ATY018:'전복',ATY019:'접촉',ATY022:'좌주',ATY023:'좌초',ATY027:'충돌',ATY028:'침몰',ATY029:'침수',ATY032:'폭발',ATY033:'표류',ATY035:'행방불명',ATY036:'화재',ATY037:'침수침몰',ATY041:'좌초/좌주'};
@@ -36,14 +36,19 @@ function summary(rows){const s=emptySummary();for(const r of rows){s.count++;con
  */
 function trafficLevel(n){return n===null?null:n<7?'여유':n<14?'보통':n<21?'주의':'혼잡';}
 // 실시간 밀집도(%) 4단계 — 공식 단계가 아니라 앱 가안이다. 실시간 API 는 칸번호·척수·밀집도 세 값만 주고 단계는 주지 않는다.
-// 공단 혼잡예보 「기관 안내 문구」의 경계(유효선박면적 비율 5·10·20%)를 빌렸다(실제 혼잡예보 응답의 단계 경계는 혼잡지수 1·10·20 — 아래 unifiedFrame 주석). 두 %가 같은 산식인지는 확인하지 못했다.
-// 사용자 결정 2026-10-15 「밀집도는 가안대로 가자.」
-const DENSITY_CUTS=[0,5,10,20,100],DENSITY_LEVELS=['낮음','보통','높음','매우높음'];
-/** 실시간 밀집도를 가안 4단계로 나눈다. 예: 12.0 → 높음, 5 → 낮음(경계값은 아래 단계), null → null.
+// 경계는 공단 혼잡예보 **실제 응답**의 단계 경계 1·10·20(아래 unifiedFrame 의 혼잡 색 경계 [0,1,10,20,100] 과 같은 배열)이다. 두 %가 같은 산식인지는 확인하지 못했다.
+//  - 사용자 결정 2026-10-16: 혼잡도 표는 「1-(나)」(실제 응답 경계로 고치기), 밀집도는 「그럼 ㄱ으로 하자」(밀집도 잠정 기준도 1·10·20). 종전(2026-10-15 「밀집도는 가안대로 가자.」)은 기관 안내 문구의 5·10·20%, 경계값은 아래 단계였다.
+//  - 경계값이 어느 단계인지: 운영 혼잡 프레임 10개(2026-10-15, 46,312칸) 실제 응답은 낮음 0.1~1 · 보통 1~9.99 · 높음 10~19.94 · 매우높음 20.02~99.9 였다
+//    (2026-10-10 03·12시 실측: 낮음 0.1~1.0 · 보통 1.0~9.97 · 높음 10.07~19.49 · 매우높음 20.24~99.86 — coastal_safety_forecast.design.md 4.2).
+//    10 은 높음 쪽(보통 최대 9.99, 높음 최소 10)이라 「10 이상 높음」. 20 은 두 자료 어디에도 나온 적이 없어 10 과 같은 규칙으로 「20 이상 매우높음」.
+//    1 은 기록이 「낮음 ~1」·「보통 1~」로 겹쳐 응답으로는 가를 수 없다 — 기관 안내 문구의 「1% 초과」(그 위부터 단계가 시작)와 맞춰 「1 이하 낮음」.
+//  - 그래서: 낮음 ≤1 · 보통 1 초과~10 미만 · 높음 10 이상~20 미만 · 매우높음 20 이상.
+const DENSITY_CUTS=[0,1,10,20,100],DENSITY_LEVELS=['낮음','보통','높음','매우높음'];
+/** 실시간 밀집도를 잠정 4단계(혼잡예보 응답 경계 1·10·20)로 나눈다. 예: 1 → 낮음, 1.01 → 보통, 10 → 높음, 12.0 → 높음, 20 → 매우높음, null → null.
  * @param {number|null} d - 밀집도(%) @returns {string|null} 단계
  * [연계] ← analyze(current.densityLevel) · unifiedFrame('current' 지도 색) / 화면 뱃지·범례 「밀집도」
  */
-function densityLevel(d){return d===null||d===undefined||!Number.isFinite(d)?null:d<=5?'낮음':d<=10?'보통':d<=20?'높음':'매우높음';}
+function densityLevel(d){return d===null||d===undefined||!Number.isFinite(d)?null:d<=1?'낮음':d<10?'보통':d<20?'높음':'매우높음';}
 // 사고 원인 코드 → 이름. 출처는 client/js/shared/utils/accident_codes.js(국립해양조사원 개방海 코드정의서)와 같은 값.
 const CAUSES={ACC004:'기타(인명)',ACC005:'관리소홀',ACC006:'기관고장',ACC007:'기관손상',ACC008:'기상악화',ACC009:'기타',ACC010:'별표',ACC011:'연료고갈',ACC012:'운항부주의',ACC013:'원인미상',ACC014:'재질불량',ACC015:'적재불량',ACC016:'전복',ACC017:'정비불량',ACC018:'좌초',ACC019:'충돌',ACC020:'침수',ACC021:'화기취급부주의',ACC022:'안전부주의'};
 /** 칸 안 사고를 한 건씩 최신순 목록으로 만든다(사고 종류별 팝업·인명피해 한 줄용). 예: [{date:'2023-09-14',year:2023,type:'충돌',cause:'운항부주의',death:1,missing:0}]
@@ -98,18 +103,23 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     function tables(){const d=loadLive();return{v:d?.v||null,cells:d?.cells||[],status:freshness()};}
     function current(){const d=loadLive();return{v:d?.v||null,cells:(d?.rows||[]).map(r=>[r[0],r[1],r[2],trafficLevel(r[1])]),status:freshness()};}
     /** 현재·혼잡의 공통 GR4 경계만 한 벌로 제공한다. 예: 사고 원본5㎞ 경계를 중복해서 그리지 않는다.
+     * 버전 v 는 **만든 칸 목록(번호 i·id·경위도·displayOnly) 자체의 해시**다(2026-10-16 T5 버벅임 1단계).
+     * 종전 v=실시간 칸 목록 해시+risk_store.inputVersion 은 상태·쿼터 등 약20개 파일 mtime 으로 거의 매분 바뀌어,
+     * 칸이 그대로여도 화면이 프레임 v 불일치로 이 표(약2.5MB)를 매번 강제로 다시 받았다(risk_forecast.js refreshMarine).
+     * 칸이 실제로 늘거나 바뀌면(운영 20분 사이 37,317→38,485칸 실측) 해시가 바뀌어 화면이 새로 받는다.
+     * 계산 자체는 입력이 바뀔 때마다 다시 한다(cacheKey) — 프레임 값의 신선도는 unifiedFrame 이 그대로 지킨다.
      * @returns {object} v,cells @param 없음
-     * [연계] ← routes/risk_forecast / 원본 사고 해상도는 상세에서 보존한다.
+     * [연계] ← routes/risk_forecast·unifiedFrame(같은 v 를 프레임에 실어 화면이 짝을 맞춘다) / 원본 사고 해상도는 상세에서 보존한다.
      */
     function unifiedCells(){const inputs=input(),cacheKey=liveSignature+':'+inputs.version;if(unifiedCache&&unifiedCacheKey===cacheKey)return unifiedCache;const byId=new Map(),occupied=new Set();for(const c of [...(inputs.cells?.cells||[]),...(live?.cells||[])]){if(!String(c.id).startsWith('GR4_'))continue;byId.set(c.id,{id:c.id,lon:c.lon,lat:c.lat});occupied.add(Math.floor(c.lon*40)+','+Math.floor(c.lat*40));}
         // 교통이 없는 사고예보 해역도 같은0.025도표출망으로 유지한다. 내부표출ID를 공식GR4ID로 위장하지 않는다.
         for(const a of inputs.accident?.cells||[]){const b=bounds(a.geometry);for(let x=Math.floor(b[0]*40);x<=Math.floor(b[2]*40);x++)for(let y=Math.floor(b[1]*40);y<=Math.floor(b[3]*40);y++){const key=x+','+y,lon=(x+.5)/40,lat=(y+.5)/40;if(occupied.has(key)||!G.pointInGeometry([lon,lat],a.geometry))continue;occupied.add(key);const id='display_'+x+'_'+y;byId.set(id,{id,lon,lat,displayOnly:true});}}
-        const cells=[...byId.values()].sort((a,b)=>a.id.localeCompare(b.id)).map((c,i)=>({...c,i}));accidentMapping=new Map(cells.map(c=>[c.i,pointCell(inputs.accident?.cells,[c.lon,c.lat])?.i]));unifiedCacheKey=cacheKey;unifiedCache={v:(live?.v||'none')+':'+inputs.version,cells,grid:'GR4-size',accidentResolution:'약5㎞ 원본 사고 격자를0.025도 공통 표출 격자의 중심 위치에 연결. display_ ID는 공식 교통 격자번호가 아님'};return unifiedCache;}
+        const cells=[...byId.values()].sort((a,b)=>a.id.localeCompare(b.id)).map((c,i)=>({...c,i}));accidentMapping=new Map(cells.map(c=>[c.i,pointCell(inputs.accident?.cells,[c.lon,c.lat])?.i]));unifiedCacheKey=cacheKey;unifiedCache={v:createHash('sha256').update(JSON.stringify(cells)).digest('hex').slice(0,16),cells,grid:'GR4-size',accidentResolution:'약5㎞ 원본 사고 격자를0.025도 공통 표출 격자의 중심 위치에 연결. display_ ID는 공식 교통 격자번호가 아님'};return unifiedCache;}
     /** 선택 항목 하나만 GR4 면색으로 표시할 수 있게 수치를 공간 연결한다.
      * 예: 모드 accident/congestion/current, 사고 단계는 원본 그대로 공유. risk(기본)는 현재·미래 모두 공식 사고 예보(2026-10-15 종합 관심단계 폐지).
      * 혼잡 색 위치 경계 0·1·10·20·100 은 실제 응답의 단계 경계다(2026-10-15 운영 혼잡 프레임 10개 46,312칸: 낮음 0.1~1 · 보통 1~9.99 · 높음 10~19.94 · 매우높음 20.02~99.9).
      * 종전 0·5·10·20 은 보통 칸 81.6%(5,120/6,274)를 지수 5 미만이라 같은 색(0.25)으로 눌렀다.
-     * current(지금 혼잡도 버튼)는 척수가 아니라 실시간 밀집도 가안 4단계(densityLevel, 경계 0·5·10·20·100)로 칠한다 — 사용자 2026-10-15 「현재기준 조회 시 밀집도를 기준으로 미래 조회시 혼잡도를 기준으로」. 밀집도가 빈 칸은 칠하지 않는다. 칸 숫자(n, 크게 확대했을 때 지도에 찍히는 글자)는 종전대로 척수다.
+     * current(지금 혼잡도 버튼)는 척수가 아니라 실시간 밀집도 잠정 4단계(densityLevel, 경계 0·1·10·20·100 — 혼잡 색 경계와 같은 배열, 2026-10-16 「그럼 ㄱ으로 하자」)로 칠한다 — 사용자 2026-10-15 「현재기준 조회 시 밀집도를 기준으로 미래 조회시 혼잡도를 기준으로」. 밀집도가 빈 칸은 칠하지 않는다. 칸 숫자(n, 크게 확대했을 때 지도에 찍히는 글자)는 종전대로 척수다.
      * 최신 응답(status ok)에 없는 칸은 배 없음(공단 API 는 배 없는 칸을 안 보냄)이라 「낮음」·n=0·색 0 으로 칠한다(사용자 2026-10-15). 수집이 낡았으면 아무 칸도 칠하지 않는다.
      * @param {string} mode - 지도 항목 @param {string} t - 선택 시각 @returns {object} 프레임
      * [연계] ← RiskForecast / 현재 숫자를 미래 관측으로 바꾸지 않는다.

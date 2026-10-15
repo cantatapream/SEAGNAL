@@ -22,6 +22,14 @@
 const os = require('os'), fsT = require('fs'), pathT = require('path');
 const stateDir = fsT.mkdtempSync(pathT.join(os.tmpdir(), 'vsby-check-'));
 process.env.VSBY_CHECK_STATE_FILE = pathT.join(stateDir, 'vsby_check_state.json');
+// 수집 실패 알림 상태도 임시 경로로(refreshIfStale 이 collect_fail_alert 에 알린다 — 실제 data/ 를 건드리지 않게).
+process.env.COLLECT_FAIL_ALERT_FILE = pathT.join(stateDir, 'collect_fail_alert.json');
+// ★운영 셸(FLY_ALLOC_ID 있음)에서 돌려도 실제 관리자 푸시가 나가지 않게(검토 5): 운영 표시를 지우고,
+//   그래도 불리면 드러나도록 admin_push 를 가짜로 끼워 부른 횟수를 센다(아래 ⑧).
+delete process.env.FLY_ALLOC_ID;
+const realPushCalls = [];
+require.cache[require.resolve('../services/admin_push')] = { id: 'admin_push', filename: 'admin_push', loaded: true,
+    exports: { sendAdminPush: async (t, b) => { realPushCalls.push(b); return { sent: 0, failed: 0 }; } } };
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
@@ -118,6 +126,7 @@ console.error = (...a) => { errLines.push(a.join(' ')); };
         ok('⑤ 정상 JSON → baseTm 은 이미지 경로 RDPS_<10자리> 에서', il.baseTm === '2026101100' && il.imgs.length === 1 && il.fctTimes.length === 1, JSON.stringify(il));
 
         ok('⑥ 상태에 lastFctTm 칸이 있다(캐시 없으면 null)', Object.prototype.hasOwnProperty.call(s, 'lastFctTm'));
+        ok('⑧ 이 시험은 관리자 푸시(sendAdminPush)를 한 번도 부르지 않는다', realPushCalls.length === 0, realPushCalls.join(' / '));
     } finally {
         console.error = origErr;
         fsT.rmSync(stateDir, { recursive: true, force: true });

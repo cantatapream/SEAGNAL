@@ -10,6 +10,7 @@
  *  - 사용하는 파일 : services/risk_history_sources.readMetadata(큰 JSON·gzip 의 최상위 칸만 흘려 읽기)
  *                    services/risk_error_history(위험예측 원천의 현재 상태 — 오류현황과 같은 판정)
  *                    scheduler.js getStatus(이미 불러온 경우만 — require 하면 수집이 시작되므로 직접 부르지 않는다)
+ *                    services/collect_fail_alert.records(이안류·MMIS 수집 실패 기록 — data/collect_fail_alert.json)
  *  - 서버 API      : routes/data_collection.js GET /api/admin/data-collection
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : routes/data_collection.js · 검사 local_server/scripts/test_data_collection_status.js
@@ -167,6 +168,7 @@ function resolveRef(e, cache, root) {
  * @param {string} [o.manifestFile] @param {string} [o.dataDir] @param {string} [o.root] - 근거 파일 기준 폴더(저장소 뿌리)
  * @param {function} [o.clock] - ms @param {function} [o.riskCurrent] - () => 오류현황 current 행 배열
  * @param {function} [o.schedulerStatus] - () => scheduler.getStatus() 결과 또는 null
+ * @param {function} [o.collectFails] - () => collect_fail_alert.records() 결과(항목 id → {streak, since, reason, pushError, pushErrorAt})
  * @returns {{list: function(): Promise<object>}}
  * [연계] ← routes/data_collection.js(운영 기본값) / 검사
  */
@@ -177,6 +179,7 @@ function createStatus({
     clock = Date.now,
     riskCurrent = defaultRiskCurrent,
     schedulerStatus = defaultSchedulerStatus,
+    collectFails = defaultCollectFails,
 } = {}) {
     const metaCache = new Map(),
         refCache = new Map();
@@ -201,7 +204,7 @@ function createStatus({
     }
 
     /** 목록표 한 줄의 현재 상태를 만든다. [연계] ← list */
-    async function itemStatus(item, rows, sched, now) {
+    async function itemStatus(item, rows, sched, now, fails) {
         const st = item.state || {},
             s = item.schedule || {},
             month = isoKst(now).slice(0, 7).replace('-', ''),
@@ -260,6 +263,21 @@ function createStatus({
             }
         }
         if (st.scheduler) stateFrom.push('scheduler.getStatus().' + st.scheduler + (sched ? '' : ' (이 프로세스에 수집기 없음)'));
+        // 이안류·MMIS 수집 실패 기록(재기동에도 남는다, services/collect_fail_alert). statusFile 이 있는 항목(시정 예측)은 그 파일이
+        //   이미 「연속 확인 실패 N회」를 보이고 오류현황이 3회 기준으로 판정하므로 실패 한 줄·판정은 겹쳐 하지 않는다.
+        //   ★연속 실패 중(1회 이상)이면 파일 시각과 무관하게 빨강(검토 3, 2026-10-15): 이안류는 전 지점 호출이 실패해도
+        //   수집기가 새 시각으로 파일을 써서(정보없음 13곳) 시각만 보면 정상으로 남았다. 모든 기록 대상 항목에 같게 적용한다.
+        const cf = fails ? fails[item.id] : null;
+        if (cf && !st.statusFile && cf.streak > 0) {
+            details.push('마지막 수집 실패: ' + (cf.reason || '기타 오류') + ' (연속 ' + cf.streak + '회' +
+                (cf.since ? ', ' + isoKst(Date.parse(cf.since)).slice(5, 16).replace('T', ' ') + ' KST부터' : '') + ')');
+            status = 'error';
+            reason = '수집 실패 중(연속 ' + cf.streak + '회)';
+        }
+        // 관리자 푸시가 전달되지 않았으면(기기 없음·발송 오류·개발 환경) 한 줄 — 시정 예측 포함 모든 항목(검토 4).
+        if (cf && cf.pushError)
+            details.push('관리자 푸시 미전달: ' + cf.pushError + (cf.pushErrorAt ? ' (' + isoKst(Date.parse(cf.pushErrorAt)).slice(5, 16).replace('T', ' ') + ' KST)' : ''));
+        if (cf && ((!st.statusFile && cf.streak > 0) || cf.pushError)) stateFrom.push('data/collect_fail_alert.json');
         const off = item.official || {};
         return {
             id: item.id,
@@ -318,8 +336,15 @@ function createStatus({
             console.warn('[data_collection] scheduler 상태를 읽지 못함 — 2단계 실패 판정 없이 시각만 본다');
             sched = null;
         }
+        let fails = null;
+        try {
+            fails = collectFails() || null;
+        } catch (_) {
+            console.warn('[data_collection] 수집 실패 기록을 읽지 못함 — 이안류·MMIS 실패 한 줄 없이 시각만 본다');
+            fails = null;
+        }
         const items = [];
-        for (const item of manifest.items) items.push(await itemStatus(item, rows, sched, now));
+        for (const item of manifest.items) items.push(await itemStatus(item, rows, sched, now, fails));
         return {
             ok: true,
             now: isoKst(now),
@@ -339,6 +364,10 @@ function createStatus({
 /** 운영 기본: 위험예측 오류현황의 현재 상태(1분 감시 결과)를 그대로 쓴다. [연계] → risk_error_history.list */
 function defaultRiskCurrent() {
     return require('./risk_error_history').list({ page: 1, limit: 1 }).current;
+}
+/** 이안류·MMIS 수집 실패 기록(파일). require 부작용 없음. [연계] → collect_fail_alert.records */
+function defaultCollectFails() {
+    return require('./collect_fail_alert').records();
 }
 /** scheduler.js 를 이미 다른 곳(routes/weather.js)이 불러온 경우만 상태를 읽는다 — 여기서 require 하면 수집이 시작된다. */
 function defaultSchedulerStatus() {
