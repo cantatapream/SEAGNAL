@@ -38,7 +38,7 @@
             legend.querySelector('.rf-map-legend').hidden=true;
         }
         if(w.RiskMarine){var colorLegend=document.createElement('div');colorLegend.className='rf-color-legend accident-grid-legend';colorLegend.setAttribute('aria-label','해상 위험 색상 범례');var caption=legend.querySelector('[data-marine-caption]'),key=legend.querySelector('[data-accident-legend]');caption.classList.add('agl-title');colorLegend.appendChild(caption);colorLegend.appendChild(key);colorLegend.hidden=true;map.getTargetElement().parentElement.appendChild(colorLegend);}
-        function marineLegend(frame){if(!w.RiskMarine)return;var effective=frame?frame.mode:marineMode==='risk'?(!meta||!t||Date.parse(t)<=Date.parse(meta.now)+60000?'combined':'accident'):marineMode;var levels=effective==='current'?['여유','보통','주의','혼잡']:effective==='congestion'?['낮음','보통','높음','매우높음']:effective==='combined'?['낮음','관심','주의','경계']:['낮음','보통','주의','경계'];(colorLegend||legend).querySelector('[data-accident-legend]').innerHTML='<div class="rf-gradient-bar" aria-hidden="true"></div><div class="rf-gradient-labels">'+levels.map(function(v){return '<span>'+v+'</span>';}).join('')+'</div>';var title=(colorLegend||legend).querySelector('[data-marine-caption]'),kind=effective==='combined'||effective==='current'?'현재':'예보',name=effective==='combined'?'종합 관심단계':effective==='accident'?'공식 사고예보':effective==='congestion'?'공식 혼잡예보':'현재 교통량',changed=title.dataset.meaning&&title.dataset.meaning!==effective;title.textContent=name;title.setAttribute('aria-live','polite');if(changed){title.classList.remove('rf-legend-change');void title.offsetWidth;title.classList.add('rf-legend-change');}title.dataset.meaning=effective;legend.querySelectorAll('[data-marine-mode]').forEach(function(b){var on=b.dataset.marineMode===marineMode;b.setAttribute('aria-pressed',String(on));b.classList.toggle('on',on);});}
+        function marineLegend(frame){if(!w.RiskMarine)return;var effective=frame?frame.mode:marineMode==='risk'?(!meta||!t||Date.parse(t)<=Date.parse(meta.now)+60000?'combined':'accident'):marineMode;var levels=effective==='current'?['여유','보통','주의','혼잡']:effective==='congestion'?['낮음','보통','높음','매우높음']:effective==='combined'?['낮음','관심','주의','경계']:['낮음','보통','주의','경계'];(colorLegend||legend).querySelector('[data-accident-legend]').innerHTML='<div class="rf-gradient-bar" aria-hidden="true"></div><div class="rf-gradient-labels">'+levels.map(function(v){return '<span>'+v+'</span>';}).join('')+'</div>';(colorLegend||legend).querySelector('[data-accident-legend]').style.display='';var title=(colorLegend||legend).querySelector('[data-marine-caption]'),kind=effective==='combined'||effective==='current'?'현재':'예보',name=effective==='combined'?'종합 관심단계':effective==='accident'?'공식 사고예보':effective==='congestion'?'공식 혼잡예보':'현재 교통량',changed=title.dataset.meaning&&title.dataset.meaning!==effective;title.textContent=name;title.setAttribute('aria-live','polite');if(changed){title.classList.remove('rf-legend-change');void title.offsetWidth;title.classList.add('rf-legend-change');}title.dataset.meaning=effective;legend.querySelectorAll('[data-marine-mode]').forEach(function(b){var on=b.dataset.marineMode===marineMode;b.setAttribute('aria-pressed',String(on));b.classList.toggle('on',on);});}
         // 화면 하단은 지도 출처 위가 아니라 출처와 메인 탭 사이에 놓는다.
         var timeBar=null;
         if(w.RiskMarine){
@@ -107,6 +107,10 @@
             try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;}var d=await api.get(s.kind==='briefing'?'sea/briefing':w.RiskMarine&&seaKind(s.kind)==='sea'?'sea/analysis':s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||(s.at||t)!==at)return;sheet.show(d,s.kind,s.item);registerSheet();}
             catch(e){console.warn('[위험예측] 상세 요청 실패',failureInfo(e));if(n===detailSeq&&enabled&&selected===s&&(s.at||t)===at){sheet.error(e.message);registerSheet();}}
         }
+        /** 해상 범례 제목을 「해상 예보 범위 밖」으로 바꾸고 색 막대를 숨긴다. 예: 모레 연안 시각에서 해상 지도가 빈 이유를 알린다.
+         * @returns {void} [연계] ← refreshMarine / 일반 화면 배너는 과제16으로 꺼져 있어 범례 제목으로 알린다. 다음 정상 프레임의 marineLegend가 되돌린다.
+         */
+        function seaOutOfRange(){if(!colorLegend)return;var title=colorLegend.querySelector('[data-marine-caption]');title.textContent='해상 예보 범위 밖 (내일까지)';title.dataset.meaning='out';colorLegend.querySelector('[data-accident-legend]').style.display='none';}
         /** 연안 요청·부가 경계를 기다리지 않고 해상 지도부터 표시한다.
          * 예: 연안 요청이 늦어도 정상 해상 프레임은 먼저 그린다.
          * @param {number} n - 요청 세대 @param {string} at - 메인 시각
@@ -114,7 +118,7 @@
          * [연계] ← refresh / 지도 버전 검증과 OFF·시간변경 경쟁을 보존한다.
          */
         async function refreshMarine(n,at){var errors=[],sourceWarnings=[];
-                var seaAxis=seaTimes();if(Date.parse(at)>Date.parse(seaAxis[seaAxis.length-1])){layer.drawUnified({cells:[]},{cells:[]});return {errors:[],warnings:['선택 시각은 해상 예보 제공 범위(내일까지) 밖이라 해상 지도는 표시하지 않습니다']};}
+                var seaAxis=seaTimes();if(Date.parse(at)>Date.parse(seaAxis[seaAxis.length-1])){layer.drawUnified({cells:[]},{cells:[]});seaOutOfRange();return {errors:[],warnings:[]};}
             try{
                 var pair=await Promise.all([api.get('sea/unified-cells'),api.get('sea/unified-frame',{mode:marineMode,t:at})]),currentTable=pair[0],currentFrame=pair[1];
                 if(n!==seq||!enabled||disposed)return {errors:[],warnings:[]};

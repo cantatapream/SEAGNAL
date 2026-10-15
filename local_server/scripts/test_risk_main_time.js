@@ -46,7 +46,7 @@ function scoreAt(t){return Math.floor(((Date.parse(t)+9*3600000)%86400000)/10800
  const step=async h=>{await page.locator('[data-time-step="'+h+'"]').evaluate(el=>el.click());};
  const disabled=async()=>page.evaluate(()=>['3','6','12'].map(h=>document.querySelector('[data-time-step="'+h+'"]').disabled));
  const at3=hhmm=>coastTimes.find(t=>t.includes('T'+hhmm+':'));
- const banner=()=>page.locator('#risk-forecast-banner').innerText();
+ const banner=()=>page.locator('#risk-forecast-banner').innerText(),caption=()=>page.locator('[data-marine-caption]').innerText();
 
  await check('연안만 켠 기본 화면에도 공통 메인 시각 바(고정 표시+현재·+3H·+6H·+12H)가 보임',async()=>{
   await waitCoast(at);
@@ -83,13 +83,13 @@ function scoreAt(t){return Math.floor(((Date.parse(t)+9*3600000)%86400000)/10800
  });
  await check('해상 범위(내일까지) 밖의 연안 시각: 해상 지도는 비우고 안내, 연안은 정상 표시·정기 갱신에도 시각 유지',async()=>{
   for(let i=0;i<3;i++)await step(12);const seaEnd=await state();assert.equal(seaEnd.t,'2026-10-13T21:00:00+09:00');await waitCoast(seaEnd.t);
-  await page.waitForFunction(()=>marineCount()>0);assert.equal(await banner(),'','내일 21시는 해상 범위 안');
+  await page.waitForFunction(()=>marineCount()>0);assert.equal(await caption(),'공식 사고예보','내일 21시는 해상 범위 안');
   const unifiedBefore=log.unified.length;await step(3);const beyond='2026-10-14T00:00:00+09:00';await waitCoast(beyond);
-  await page.waitForFunction(()=>marineCount()===0);assert.match(await banner(),/해상 예보 제공 범위/);assert.equal((await state()).t,beyond);
+  await page.waitForFunction(()=>marineCount()===0);assert.match(await caption(),/해상 예보 범위 밖/);assert.equal(await page.locator('.rf-color-legend [data-accident-legend]').isVisible(),false,'범위 밖에서는 색 막대도 숨김');assert.equal((await state()).t,beyond);
   assert.equal(log.unified.slice(unifiedBefore).includes(beyond),false,'해상 범위 밖 시각을 해상 프레임으로 요청·지어내지 않는다');
   await page.evaluate(()=>{app.setEnabled(false);app.setEnabled(true);});await waitCoast(beyond);assert.equal((await state()).t,beyond,'재동기화가 연안 시각을 해상 범위로 되돌리지 않는다');
   await page.locator('[data-layer="coast"]').click();await page.waitForFunction(()=>app.getState().t==='2026-10-13T21:00:00+09:00');
-  await page.waitForFunction(()=>marineCount()>0);assert.equal(await banner(),'','해상만 보면 해상 범위 안으로 맞춰진다');assert.equal(await page.locator('.rf-marine-timebar').isVisible(),true);
+  await page.waitForFunction(()=>marineCount()>0);assert.equal(await caption(),'공식 사고예보','해상만 보면 해상 범위 안으로 맞춰진다');assert.equal(await page.locator('.rf-color-legend [data-accident-legend]').isVisible(),true);assert.equal(await page.locator('.rf-marine-timebar').isVisible(),true);
   assert.deepEqual(await disabled(),[true,true,true]);
   await page.locator('[data-layer="sea"]').click();assert.equal(await page.locator('.rf-marine-timebar').isVisible(),false,'연안·해상 둘 다 끄면 바 숨김');assert.equal(await page.evaluate(()=>document.body.classList.contains('rf-sea-time-on')),false);
   await page.locator('[data-layer="coast"]').click();await page.waitForFunction(()=>!document.querySelector('.rf-marine-timebar').hidden);
