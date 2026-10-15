@@ -227,3 +227,23 @@ test_marine_ui(실제 Chromium)에 2건을 추가해 15→17 PASS: ① 범례 �
 함께 돌린 묶음(모두 0 FAIL): test_risk_time 15 · routes 8 · lifecycle 48 · map_layer 45 · sheet_ui 19 · format 145 · preview 24 · marine_ui 17 · missing_notice 16 · basemap 19 · silent_catch 22 · score_sea 15 · history_sources 11 · store_file_cache 21 · accident 19 · gale_store 24 · marine_fusion 26 · risk_errors 23 · risk_errors_ui 8 · geo 8 · points 6 · static 10.
 
 확인하지 않은 것: 실제 관광공사 응답의 날짜 수(설계서 §2의 「오늘부터 30일」 기록을 따랐고 이번에 API를 호출하지 않았다), 운영 서버 메모리 감소량(측정하지 않았다), 실기기 화면.
+
+## 해상 공식 사고예보 2일 제한 — 2026-10-15
+
+사용자 원문: 「해상 공식 사고예보는 2일까지만」 · 「기준 상세 오늘 내일로」 · 「다른 화면과 같이 쓰는 해구, 예보 등은 건드리지마.」
+
+변경 전 기준선(코드·시험 손대기 전): 위험예측·해상 스위트 26개 모두 0 FAIL(`test_risk_accident` 19 PASS, `test_marine_fusion` 26 PASS).
+
+새 회귀(구현 전 실패 → 구현 후 통과로 확인):
+- `test_risk_accident` 새 검사 3건을 넣고 옛 코드로 돌려 19 PASS / 3 FAIL → 구현 후 통과. ①수집기가 요청한 시각이 정확히 16개(`202610110000`~`202610122100`)이고 내일 21시 뒤 요청·모레(`20261013…`) 저장이 없으며 `framesReady`=16(옛 코드: 24) ②배포 전 24칸 저장본은 생성시각이 같아도 「변경 없음」으로 넘어가지 않고 호출 17번으로 16칸을 다시 받으며, 다시 받은 16칸본은 다음 확인에서 재사용된다(옛 코드: 24칸본을 그대로 재사용) ③저장본에 모레 칸이 남아 있어도 `meta.timeline.accident`는 16개·끝 내일 21시, `accidentFrame`·`accidentDetail`과 실제 HTTP `/sea/accident-frame`·`/sea/accident-cell`은 모레 00시·21시를 400, 내일 23:59는 내일 21시 칸(옛 코드: 모레 칸을 200으로 내보냄).
+- `test_risk_accident` 문안 검사 1건: 해상 [기준 상세]에 「오늘·내일을 3시간 간격」이 있고 「모레」가 없다. 문안을 고치기 전 22 PASS / 1 FAIL → 고친 뒤 23 PASS / 0 FAIL.
+- `test_marine_fusion` 새 검사 1건: 입력에 모레 칸이 있어도 `unifiedFrame`(accident·risk)·`analysis`·`briefing`과 실제 HTTP `/sea/unified-frame`·`/sea/analysis`·`/sea/briefing`이 모레 00시·21시를 400, 내일 23:59는 정상. 옛 코드 26 PASS / 1 FAIL(「Missing expected exception」) → 27 PASS / 0 FAIL.
+
+기존 검사 수정(24칸 가정): `test_risk_accident`의 칸 수 24→16, 끝 시각 `2026-11-02T21:00`→`2026-11-01T21:00`, 호출 수 25→17·26→18·51→35, `meta` 축 24→16. `test_risk_lifecycle`의 가짜 `meta.timeline.accident`가 모레(`2026-10-12T00/03`) 칸을 주던 것을 서버 계약과 같게 내일(`2026-10-11T18/21`)로 바꿨다(48 PASS 그대로 — 화면 코드는 서버가 준 축만 쓰므로 바뀐 것이 없다).
+
+구현 후 함께 돌린 묶음(모두 0 FAIL): test_risk_accident 23 · basemap 19 · collectors 36 · errors 23 · errors_ui 8 · format 145 · geo 8 · history_sources 11 · lifecycle 48 · main_time 7 · map_layer 45 · missing_notice 16 · points 6 · preview 24 · routes 8 · score_coast 12 · score_sea 15 · sheet_ui 19 · static 10 · store 26 · store_file_cache 21 · time 15 · marine_fusion 27 · marine_ui 17 · silent_catch 22 · root_deps 3.
+
+`verify_all.sh`(로컬 서버 띄우고 실행) 종료 1, 실패 이름 둘: ①`test_overlay_solo` 10/1 「사고정보 — 통신이 끊긴 채 누르면 아무것도 안 그려진다(시험 전제)」(그려진 도형 5919개 — 끊기가 안 걸림). 이 시험 파일에는 risk·marine_fusion·sea_accident 참조가 0개이고, 직전 「가」 커밋에도 같은 실패가 기록돼 있다 ②V5-47 규칙집 검사 목록 낡음 — 그 검사가 읽는 `verify_all.sh`·`_RULES.md`·`gen_rulebook.py`는 이번에 바꾸지 않았다(`git diff HEAD` 비어 있음). 두 실패 모두 변경 전 기준선에서 같은지 직접 돌려 보지는 않았다. 위험예측·해상 스위트는 게이트 안에서도 모두 0 FAIL(accident 23 · marine_fusion 27 등).
+
+확인하지 않은 것: 실제 MTIS API 호출(키 없이 가짜 응답으로만 시험), 운영 서버에서 배포 직후 24칸 파일이 실제로 16칸으로 바뀌는지(시험의 같은 경로로만 확인), 저장 크기 감소량(위 「현재 저장 구조의 크기」 측정은 24칸 기준이며 다시 재지 않았다), 실기기 화면.
+
