@@ -124,6 +124,18 @@
         return "'" + String(k.getUTCFullYear()).slice(-2) + '. ' + (k.getUTCMonth()+1) + '. ' + k.getUTCDate() + '.(' + ['일','월','화','수','목','금','토'][k.getUTCDay()] + ') ' + String(k.getUTCHours()).padStart(2,'0') + ':' + String(k.getUTCMinutes()).padStart(2,'0');
     }
     /**
+     * 시트 시각 조작 위의 고정 표시를 「'26.10.14(수) 15:00」 꼴로 만든다.
+     * 예: stamp('2026-10-14T15:00:00+09:00') → '26.10.14(수) 15:00
+     * @param {string} v - ISO 시각(시트 selected.at)
+     * @returns {string} KST 날짜·요일·시각, 잘못된 시각은 빈 문자열
+     * [연계] RiskSlider → 슬라이더 위 고정 표시 / time()과 달리 점 뒤 공백·월일 앞자리 0 없이 쓰지 않는다
+     */
+    function stamp(v) {
+        var k = new Date(new Date(v).getTime() + 9*3600000), pad = function (n) { return String(n).padStart(2,'0'); };
+        if (!Number.isFinite(k.getTime())) return '';
+        return "'" + pad(k.getUTCFullYear() % 100) + '.' + pad(k.getUTCMonth()+1) + '.' + pad(k.getUTCDate()) + '(' + ['일','월','화','수','목','금','토'][k.getUTCDay()] + ') ' + pad(k.getUTCHours()) + ':' + pad(k.getUTCMinutes());
+    }
+    /**
      * 방위각을 가장 가까운 16방위 한국어로 표시한다.
      * 예: direction(45) → 북동
      * @param {number} deg - 방위각(도)
@@ -131,5 +143,5 @@
      * [연계] RiskSheet → 해구 부제목
      */
     function direction(deg) { return ['북','북북동','북동','동북동','동','동남동','남동','남남동','남','남남서','남서','서남서','서','서북서','북서','북북서'][Math.round(((deg%360)+360)%360 / 22.5) % 16]; }
-    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, direction:direction, luminance:luminance};
+    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, stamp:stamp, direction:direction, luminance:luminance};
 })(window);
