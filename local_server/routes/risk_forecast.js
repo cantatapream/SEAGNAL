@@ -1,13 +1,14 @@
 /**
  * 역할: 연안 분석·공식 선박사고와 혼잡 예보·자료 상태·원본 PDF를 수집 없이 제공한다.
  * [연계] risk_store → /api/risk-forecast/* → marine-life/risk-forecast 화면.
+ *        sea/traffic-history 는 sea_traffic_history.createApi(칸별 2주 1시간 척수 + 특보 발효 구간) — 화면은 디자인 확정 뒤.
  * [로드 순서] server.js 라우트 등록. 요청에서는 수집·AI·푸시 호출이 없다.
  */
 'use strict';
 const express=require('express'),path=require('path'),fs=require('fs');
 const {createStore}=require('../services/risk_store');
 /** 위험예측 전용 라우터를 만든다. 예: 검사에서는 가짜저장소로계약확인. @param {object} options @returns {Router} [연계] ← server.js */
-function createRouter({store=createStore(),marine=require('../services/marine_fusion').createStore({risk:store}),reportDir=path.join(__dirname,'..','config','coastal_safety','accident_analysis','v3','public')}={}){
+function createRouter({store=createStore(),marine=require('../services/marine_fusion').createStore({risk:store}),trafficHistory=require('../services/sea_traffic_history').createApi(),reportDir=path.join(__dirname,'..','config','coastal_safety','accident_analysis','v3','public')}={}){
     const router=express.Router(),base='/api/risk-forecast';
     /** 실패를 상태 포함 JSON으로 보낸다. 예: 자료준비전503. @param {function} fn @param {number} maxAge @returns {function} [연계] ← route handlers */
     function handle(fn,maxAge=60){return(req,res)=>{try{res.set('Cache-Control',maxAge?'public, max-age='+maxAge:'no-store');res.json({ok:true,...fn(req),sources:store.sources()});}catch(e){res.status(e.status||503).set('Cache-Control','no-store').json({ok:false,error:e.status?e.message:'위험예측 자료 처리 실패',sources:store.sources()});}};}
@@ -17,6 +18,7 @@ function createRouter({store=createStore(),marine=require('../services/marine_fu
     router.get(base+'/sea/cells',handle(()=>store.cells(),3600));
     router.get(base+'/sea/traffic-cells',handle(()=>marine.tables(),60));
     router.get(base+'/sea/current',handle(()=>marine.current(),0));
+    router.get(base+'/sea/traffic-history',handle(req=>trafficHistory.query(req.query),60));
     router.get(base+'/sea/unified-cells',handle(()=>marine.unifiedCells(),60));
     router.get(base+'/sea/unified-frame',handle(req=>marine.unifiedFrame(req.query.mode,req.query.t),0));
     router.get(base+'/sea/analysis',handle(req=>marine.analysis(req.query),0));
