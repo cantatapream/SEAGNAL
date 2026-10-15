@@ -115,3 +115,9 @@ bash scripts/refactor/verify_all.sh
 ## 관리자 전용 원천 진단 — 과제16
 
 `risk_forecast.message`는 지도 원천 배너를 비우고 숨긴다. `risk_sheet.show`는 공통 sourceMessages 및 missing 목록을 출력하지 않는다. 개별 행의 null 표시는 유지하고 API의 상태/점수 계산을 수정하지 않는다. 따라서 자료 없는 요소를 정상0으로 간주하면 안 된다. 상세 요청 자체의 실패·재시도는 이용자가 다시 선택할 수 있도록 유지한다. 원천 오류·낡음·누락·복구는 인증된 관리자 오류현황으로 이전한다.
+
+## 시트 위치와 스크롤 구조 — 과제5·7
+
+- `.rf-sheet`는 `position:fixed; bottom:var(--rf-chrome)`이며 `--rf-chrome`은 `--ls-bottom-chrome`(없으면 `--main-tab-height`, 그것도 없으면 68px)이다. 최대 높이는 (화면 높이 − 하단 탭류) × 66%다.
+- 새 시트 내용을 만들 때는 `.rf-body` 안에만 넣는다. 머리(`.rf-sheet-head`)에는 제목·부제·`.rf-timeline`만 둔다. 시트 자체에 `overflow:auto`를 주면 닫기 버튼이 스크롤과 함께 사라진다.
+- 검사: `node local_server/scripts/test_risk_sheet_ui.js` (Chromium 필요: `PW_CHROME` 환경변수).

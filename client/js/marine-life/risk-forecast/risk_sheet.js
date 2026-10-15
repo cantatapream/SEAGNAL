@@ -198,7 +198,8 @@
      * [연계] RiskForecast → 상세 응답 표시
      */
     function create(el,handlers) {
-        el.innerHTML='<div class="rf-sheet-handle"></div><button class="ocean-sheet-close rf-close" type="button" aria-label="위험예측 닫기">×</button><h3 class="rf-title"></h3><div class="rf-subtitle"></div><div class="rf-timeline"></div><div class="rf-body" aria-live="polite"></div>';
+        // 위쪽(손잡이·닫기·제목·시각 조작)은 고정 머리, 그 아래 .rf-body만 스크롤된다. 머리는 상세·브리핑·선택 목록이 함께 쓴다.
+        el.innerHTML='<div class="rf-sheet-head"><div class="rf-sheet-handle"></div><button class="ocean-sheet-close rf-close" type="button" aria-label="위험예측 닫기">×</button><h3 class="rf-title"></h3><div class="rf-subtitle"></div><div class="rf-timeline"></div></div><div class="rf-body" aria-live="polite"></div>';
         el.querySelector('.rf-close').addEventListener('click',handlers.close);
         el.addEventListener('click',function(e){var z=e.target.closest('[data-zone-id]'),basis=e.target.closest('[data-basis]'),retry=e.target.closest('[data-retry]');if(z)handlers.hazard(z.dataset.zoneId);if(basis)handlers.basis(basis.dataset.basis,basis);if(retry)handlers.retry();});
         el.addEventListener('click',function(e){var spot=e.target.closest('[data-spot-id]');if(spot)handlers.choose('coast',spot.dataset.spotId);});
