@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_forecast.js
- * 역할  : 현재 종합·미래 공식 사고예보를 단일 격자 지도와 상세와 하단 시각 버튼에 연결하고 시트 시각과 뒤로가기를 조율한다.
+ * 역할  : 현재 종합·미래 공식 사고예보를 단일 격자 지도와 상세와 연안·해상 공통 하단 시각 버튼에 연결하고 시트 시각과 뒤로가기를 조율한다.
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
@@ -43,7 +43,7 @@
         var timeBar=null;
         if(w.RiskMarine){
             timeBar=document.createElement('div');timeBar.className='rf-marine-timebar';timeBar.hidden=true;
-            timeBar.setAttribute('role','group');timeBar.setAttribute('aria-label','해상 조회 시각');
+            timeBar.setAttribute('role','group');timeBar.setAttribute('aria-label','연안·해상 조회 시각');
             timeBar.innerHTML='<output data-map-time aria-live="polite"></output><button type="button" data-time-step="now">현재</button><button type="button" data-time-step="3">+3H</button><button type="button" data-time-step="6">+6H</button><button type="button" data-time-step="12">+12H</button>';
             map.getTargetElement().parentElement.appendChild(timeBar);
             timeBar.addEventListener('click',function(e){var b=e.target.closest('[data-time-step]');if(!b||b.disabled||!meta)return;t=b.dataset.timeStep==='now'?meta.now:nextTime(Number(b.dataset.timeStep));if(b.dataset.timeStep!=='now'&&marineMode==='current'){marineMode='risk';marineLegend();modeBadge();}marineTime();refresh();});
@@ -51,21 +51,21 @@
         /** 선택 시각을 기준으로 다음 3시간 예보 칸으로 이동한다.
          * 예: 11:00 +3H →12:00, 다시 +3H →15:00; +6H는 두 칸.
          * @param {number} hours - 3·6·12 @returns {string|null} 공개 범위 안 KST ISO
-         * [연계] ← 하단 버튼 / → seaTimes; 실제 존재하는 예보 시각만 선택한다.
+         * [연계] ← 하단 버튼 / → mainTimes; 실제 존재하는 예보 시각만 선택한다.
          */
-        function nextTime(hours){var target=Math.floor(Date.parse(t||meta.now)/10800000)*10800000+hours*3600000;return seaTimes().find(function(at){return Date.parse(at)>=target;})||null;}
+        function nextTime(hours){var target=Math.floor(Date.parse(t||meta.now)/10800000)*10800000+hours*3600000;return mainTimes().find(function(at){return Date.parse(at)>=target;})||null;}
         /** 고정 날짜 표시와 버튼 사용 가능 여부를 갱신한다.
          * 예: 10.13.(화) 12:00은 버튼이 아닌 output이다.
          * @returns {void} [연계] ← sync·시간버튼 / 현재 복귀는 서버 meta.now를 사용한다.
          */
-        function marineTime(){if(!timeBar)return;var shown=enabled&&state.sea;timeBar.hidden=!shown;var tools=legend.querySelector('[data-marine-tools]');if(tools)tools.hidden=!shown;document.body.classList.toggle('rf-sea-time-on',shown);if(!meta)return;var local=new Date(Date.parse(t||meta.now)+32400000),pad=function(n){return String(n).padStart(2,'0');};timeBar.querySelector('[data-map-time]').textContent=pad(local.getUTCMonth()+1)+'.'+pad(local.getUTCDate())+'.('+['일','월','화','수','목','금','토'][local.getUTCDay()]+') '+pad(local.getUTCHours())+':'+pad(local.getUTCMinutes());timeBar.querySelectorAll('[data-time-step]').forEach(function(b){var current=b.dataset.timeStep==='now';b.disabled=!current&&!nextTime(Number(b.dataset.timeStep));if(current)b.setAttribute('aria-pressed',String(t===meta.now));});}
+        function marineTime(){if(!timeBar)return;var shown=enabled&&(state.coast||state.sea);timeBar.hidden=!shown;var tools=legend.querySelector('[data-marine-tools]');if(tools)tools.hidden=!(enabled&&state.sea);document.body.classList.toggle('rf-sea-time-on',shown);if(!meta)return;var local=new Date(Date.parse(t||meta.now)+32400000),pad=function(n){return String(n).padStart(2,'0');};timeBar.querySelector('[data-map-time]').textContent=pad(local.getUTCMonth()+1)+'.'+pad(local.getUTCDate())+'.('+['일','월','화','수','목','금','토'][local.getUTCDay()]+') '+pad(local.getUTCHours())+':'+pad(local.getUTCMinutes());timeBar.querySelectorAll('[data-time-step]').forEach(function(b){var current=b.dataset.timeStep==='now';b.disabled=!current&&!nextTime(Number(b.dataset.timeStep));if(current)b.setAttribute('aria-pressed',String(t===meta.now));});}
         /** 선택한 한 항목을 뱃지와 배타적인 스위치에 반영한다.
          * 예: 사고위험 예보만 ON → 뱃지 표시; OFF → 기본 통합 색상.
          * @returns {void} [연계] ← 하위 항목·해상 토글 / 선택 후 아코디언을 접는다.
          */
         function modeBadge(){var badge=legend.querySelector('[data-marine-badge]');if(!badge)return;var names={accident:'사고위험 예보',current:'실시간 교통',congestion:'혼잡도 예측'};badge.hidden=marineMode==='risk';badge.textContent=names[marineMode]?names[marineMode]+' 표출 중':'';legend.querySelector('.rf-marine-options').open=false;}
         if(w.RiskMarine){marineLegend();legend.addEventListener('click',function(e){var b=e.target.closest('[data-marine-mode]');if(b){marineMode=marineMode===b.dataset.marineMode?'risk':b.dataset.marineMode;if(marineMode==='current'&&meta)t=meta.now;modeBadge();marineLegend();marineTime();refresh();}});}
-        legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';modeBadge();marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));legend.querySelector('[data-'+kind+'-legend]').hidden=!state[kind];if(colorLegend)colorLegend.hidden=!state.sea;marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(!meta)sync();else refresh();});
+        legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';modeBadge();marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));if(w.RiskMarine&&meta&&t)t=nearest(mainTimes(),t);legend.querySelector('[data-'+kind+'-legend]').hidden=!state[kind];if(colorLegend)colorLegend.hidden=!state.sea;marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(!meta)sync();else refresh();});
         function seaKind(kind){return ['accident','traffic','marine','briefing'].includes(kind)?'sea':kind;}
         function message(text) {if(banner){banner.textContent=text;banner.hidden=!text;}}
         function clearSelection(){if(w.PopupStack)w.PopupStack.remove('risk-forecast-sheet');detailSeq++;selected=null;choosing=false;sheet.clear();layer.setSelection(null);w.RiskBasis.close();}
@@ -86,6 +86,13 @@
         function seaTimes(){var raw=(meta.timeline.sea&&meta.timeline.sea.times||[]).concat(meta.timeline.accident&&meta.timeline.accident.times||[]),times=Array.from(new Set(raw)).filter(function(at){return Date.parse(at)>=Date.parse(meta.now);});if(w.RiskMarine){var local=new Date(Date.parse(meta.now)+32400000).toISOString().slice(0,10),end=Date.parse(local+'T00:00:00+09:00')+172800000;times=times.filter(function(at){var stamp=Date.parse(at);return stamp>Date.parse(meta.now)&&stamp<end&&stamp%10800000===0;});times.unshift(meta.now);}return times.sort(function(a,b){return Date.parse(a)-Date.parse(b);});}
         /** 선택 대상에 맞는 조회 축을 고른다. 예: accident → 해상 공통 축. [연계] select·sync → seaTimes. */
         function selectionTimes(kind){return kind==='coast'?meta.timeline.coast.times:seaTimes();}
+        /**
+         * 연안·해상 공통 메인 시각이 고를 수 있는 시각 목록을 만든다.
+         * 예: 연안 ON이면 지금~모레 21시(3시간 간격, 서버 연안 축 그대로); 해상만 ON이면 지금~내일 21시; 둘 다 ON이면 두 축의 합집합.
+         * @returns {string[]} 지금 이후 KST ISO; 서버가 주지 않은 시각은 넣지 않는다
+         * [연계] ← 하단 버튼 nextTime·sync·층 스위치 / → meta.timeline.coast, seaTimes. 시트 시각과는 무관하다.
+         */
+        function mainTimes(){var coast=state.coast&&meta.timeline.coast&&meta.timeline.coast.times||[];coast=coast.filter(function(at){return Date.parse(at)>=Date.parse(meta.now);});return coast.length&&!state.sea?coast:Array.from(new Set(coast.concat(seaTimes()))).sort(function(a,b){return Date.parse(a)-Date.parse(b);});}
         function select(kind,id,location){
             if(kind==='briefing')return;
             if(!enabled||!state[seaKind(kind)]||disposed)return;
@@ -107,6 +114,7 @@
          * [연계] ← refresh / 지도 버전 검증과 OFF·시간변경 경쟁을 보존한다.
          */
         async function refreshMarine(n,at){var errors=[],sourceWarnings=[];
+                var seaAxis=seaTimes();if(Date.parse(at)>Date.parse(seaAxis[seaAxis.length-1])){layer.drawUnified({cells:[]},{cells:[]});return {errors:[],warnings:['선택 시각은 해상 예보 제공 범위(내일까지) 밖이라 해상 지도는 표시하지 않습니다']};}
             try{
                 var pair=await Promise.all([api.get('sea/unified-cells'),api.get('sea/unified-frame',{mode:marineMode,t:at})]),currentTable=pair[0],currentFrame=pair[1];
                 if(n!==seq||!enabled||disposed)return {errors:[],warnings:[]};
@@ -171,7 +179,7 @@
                     var oldAccidentCreatedAt=meta&&meta.sources&&meta.sources.accident&&meta.sources.accident.createdAt;
                     if(meta&&(accidentVersionChanged||accidentCreatedAt!==oldAccidentCreatedAt)){seq++;api.clear();accidentFresh=true;}
                     if(accidentVersionChanged){table.accident={cells:[]};layer.drawAccident({cells:[]});}
-                    meta=updated;t=followNow?meta.now:nearest(w.RiskMarine&&state.sea?seaTimes():selectionTimes(selected?selected.kind:'coast'),t);marineTime();
+                    meta=updated;t=followNow?meta.now:nearest(w.RiskMarine?mainTimes():selectionTimes(selected?selected.kind:'coast'),t);marineTime();
                     layer.setTables(table.sea,table.coast,table.accident,table.traffic);
                     // 부가 경계 실패가 독립 해상 프레임까지 막지 않는다. OFF 뒤에는 결과를 그리지 않는다.
                     if(!w.RiskMarine&&!boundariesLoaded){await layer.boundaries(api);boundariesLoaded=true;}
