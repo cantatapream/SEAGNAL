@@ -199,8 +199,12 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     function meta(){refresh();const now=clock();return{now:T.isoKst(now),timeline:{sea:{stepH:1,times:T.timeline(now,1,2,23)},accident:{stepH:3,times:A.slots(now).map(s=>s.at)},coast:{stepH:3,times:coastTimeline(now)}},versions:{spots:staticTable?._about?.hash||null,cells:cache.cells.data?.cells?.length||0,accident:cache.accident.data?.v||null},sources:sources()};}
     /** 클릭한 위험구역 원본을 준다. 예: 동일id의 폴리곤만. @param {string[]} ids @returns {object} [연계] ← /hazard-zones */
     function hazards(ids){const all=io.read(path.join(configDir,'coastal_hazard_zones.wgs84.geojson'));if(!all)throw Object.assign(new Error('위험구역 자료 준비 전'),{status:503});return{type:'FeatureCollection',features:all.features.filter(f=>ids.includes(f.properties.name))};}
-    /** 섬원본과공통육지geometry를 준다. 예: 서버·화면동일해안선. @returns {object} [연계] ← /islands */
-    function islands(){refresh();return{...io.read(path.join(configDir,'island_outlines.geojson')),landGeometry:staticTable?.landGeometry||null};}
+    /** 21개 섬 외곽선 원본(island_outlines.geojson)만 준다. 예: {type:'FeatureCollection',features:[…21]}.
+     * 종전엔 risk_spots.json 의 공통 육지 geometry(landGeometry, 운영 응답 5.48MB 중 5.46MB)를 함께 실었으나 화면은 features 만 쓴다
+     * (risk_map_layer.boundaries — 육지는 /api/ocean/land-mask 로 따로 받는다). 2026-10-16 T5 버벅임 1단계에서 뺐다.
+     * landGeometry 를 쓰는 서버 코드(coastal_events_collector)·검사(test_risk_static)는 risk_spots.json 파일을 직접 읽는다.
+     * @returns {object} 섬 FeatureCollection [연계] ← /islands → RiskMapLayer.boundaries */
+    function islands(){return{...io.read(path.join(configDir,'island_outlines.geojson'))};}
     /** 공유 예보 캐시를 복제하지 않고 해상 통합 분석에 제공한다. 예: 기상 조회는 기존 forecast 재사용.
      * @returns {object} 예보·경계·상태·버전 @param 없음
      * [연계] ← marine_fusion / 원천 파일과 기상 캐시의 중복 상주를 막는다.

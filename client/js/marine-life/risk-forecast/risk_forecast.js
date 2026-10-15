@@ -3,8 +3,9 @@
  * 파일명: client/js/marine-life/risk-forecast/risk_forecast.js
  * 역할  : 해상 지도 [위험 예측](공식 사고예보)·[혼잡도](지금 밀집도·미래 혼잡예보) 두 칸 선택을 단일 격자 지도와 상세와 연안·해상 공통 하단 시각 버튼에 연결하고 시트 시각과 뒤로가기를 조율한다.
  *         (2026-10-15 조작부 시안 — 「표시 항목」 접이식 폐지. 종합 관심단계는 같은 날 폐지.)
+ *         사용자가 누른 동작이 250ms 넘게 걸리면 지도 가운데 스피너·이전 색 흐림, 실패면 「잠시 후 다시 시도해 주세요」 2초(2026-10-16 T4).
  * [연계]
- *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
+ *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈) / style.css .spinner(기다림 표시) · risk_forecast.css .rf-map-wait
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js) — 해상 시트는 sea/analysis 뒤 sea/traffic-history?days=15
  *  - 마크업        : index2.html #risk-forecast-sheet / #risk-forecast-legend
  *  - 나를 쓰는 곳  : risk_forecast.js 또는 index2.html / risk_forecast_preview.html
@@ -49,6 +50,30 @@
          * @param {string} at - 메인 시각 ISO @returns {string} unified-frame mode
          * [연계] ← refreshMarine·marineLegend / 시각을 바꾸면 혼잡도는 저절로 밀집도↔혼잡 예보로 바뀐다(종전엔 미래로 가면 위험 예측으로 돌렸다). */
         function frameMode(at){return marineMode!=='congestion'?'risk':meta&&at&&at!==meta.now?'congestion':'current';}
+        // ── 지도 기다림 표시(2026-10-16 T4, 사용자 「추천대로」) ─────────────────────────────
+        // 사용자가 누른 동작(토글 ON·시간 버튼·[혼잡도/위험 예측]·위험예측 켜기)만 250ms 넘게 걸리면 지도 가운데 스피너를 띄우고
+        // 이전 지도 색을 흐리게 한다(「글자는 새 시각, 색은 옛 시각」 혼동 방지). 60초 자동 갱신에는 띄우지 않는다.
+        // 실패하면 원인은 말하지 않고 「잠시 후 다시 시도해 주세요」만 2초 — 과제16(공개 지도 원천 오류 숨김)과 같은 취지(README 「지도 기다림 표시」).
+        // WAIT_LIMIT_MS(안전 타이머) 50초의 근거: risk_api.js 한 요청의 최악은 15초 제한 × 3회 + 재시도 대기 0.3초·0.9초 = 약46.2초.
+        //   그보다 조금 길게 잡아 정상적인 느린 응답은 끊지 않고, 끄는 길을 놓친 경우에도 스피너가 영원히 돌지 않게 한다.
+        //   메타→연안 위치→프레임처럼 요청이 이어지면 46초를 넘을 수 있다 — 그때는 50초에 안내만 띄우고, 늦게 온 응답은 그대로 그린다.
+        var WAIT_SHOW_MS=250,WAIT_LIMIT_MS=50000,WAIT_FAIL_MS=2000,waiting=null,waitFailTimer=null,waitEl=null;
+        if(map.getTargetElement&&map.getTargetElement()){waitEl=document.createElement('div');waitEl.className='rf-map-wait';waitEl.hidden=true;waitEl.setAttribute('role','status');waitEl.setAttribute('aria-live','polite');waitEl.innerHTML='<div class="spinner" data-wait-spin aria-hidden="true"></div><p data-wait-msg hidden>잠시 후 다시 시도해 주세요</p>';map.getTargetElement().parentElement.appendChild(waitEl);}
+        /** 사용자가 누른 동작의 기다림을 시작한다. 250ms 안에 지도가 다 그려지면 아무것도 보이지 않는다.
+         * 예: +3H 누름 → waitStart() → refresh() 가 자기 세대 n 을 waiting.n 에 묶고, 끝나면 waitEnd. 연타하면 마지막 동작의 refresh 에 다시 묶인다.
+         * @returns {void} [연계] ← 시간 버튼·두 칸 선택·층 토글 ON·setEnabled(true) / → refresh(묶기)·waitEnd(끄기). 60초 자동 갱신(sync)은 부르지 않는다. */
+        function waitStart(){if(!waitEl)return;clearTimeout(waitFailTimer);waitEl.querySelector('[data-wait-msg]').hidden=true;
+            if(!waiting){waiting={n:null,shown:false};waiting.show=setTimeout(function(){if(!waiting)return;waiting.shown=true;waitEl.querySelector('[data-wait-spin]').hidden=false;waitEl.hidden=false;if(layer.dim)layer.dim(true);},WAIT_SHOW_MS);}
+            // 이전 동작에 묶인 refresh 가 늦게 끝나도 끄지 않는다(새 동작의 refresh 가 다시 묶을 때까지 n=null).
+            waiting.n=null;clearTimeout(waiting.limit);waiting.limit=setTimeout(function(){waitEnd(true);},WAIT_LIMIT_MS);}
+        /** 기다림 표시를 끈다. 실패면 원인 없이 「잠시 후 다시 시도해 주세요」를 2초 보인다.
+         * 예: waitEnd(false) → 스피너·흐림 해제; waitEnd(true) → 같은 자리에 안내 2초 뒤 사라짐.
+         * @param {boolean} failed - 사용자가 기다린 지도 요청이 실패(또는 안전 타이머 만료)했나
+         * @returns {void} [연계] ← refresh finally(n===seq·자기 세대)·sync catch(아직 refresh 에 묶이기 전 실패)·setEnabled(false)·destroy·안전 타이머 */
+        function waitEnd(failed){if(!waitEl)return;if(waiting){clearTimeout(waiting.show);clearTimeout(waiting.limit);waiting=null;}
+            if(layer.dim)layer.dim(false);clearTimeout(waitFailTimer);waitEl.querySelector('[data-wait-spin]').hidden=true;
+            var msg=waitEl.querySelector('[data-wait-msg]');msg.hidden=!failed;waitEl.hidden=!failed;
+            if(failed)waitFailTimer=setTimeout(function(){msg.hidden=true;waitEl.hidden=true;},WAIT_FAIL_MS);}
         // 화면 하단은 지도 출처 위가 아니라 출처와 메인 탭 사이에 놓는다.
         var timeBar=null;
         if(w.RiskMarine){
@@ -56,7 +81,7 @@
             timeBar.setAttribute('role','group');timeBar.setAttribute('aria-label','연안·해상 조회 시각');
             timeBar.innerHTML='<output data-map-time aria-live="polite"></output><button type="button" data-time-step="now">현재</button><button type="button" data-time-step="3">+3H</button><button type="button" data-time-step="6">+6H</button><button type="button" data-time-step="12">+12H</button>';
             map.getTargetElement().parentElement.appendChild(timeBar);
-            timeBar.addEventListener('click',function(e){var b=e.target.closest('[data-time-step]');if(!b||b.disabled||!meta)return;t=b.dataset.timeStep==='now'?meta.now:nextTime(Number(b.dataset.timeStep));marineLegend();marineTime();refresh();});
+            timeBar.addEventListener('click',function(e){var b=e.target.closest('[data-time-step]');if(!b||b.disabled||!meta)return;t=b.dataset.timeStep==='now'?meta.now:nextTime(Number(b.dataset.timeStep));marineLegend();marineTime();waitStart();refresh();});
         }
         /** 선택 시각을 기준으로 다음 3시간 예보 칸으로 이동한다.
          * 예: 11:00 +3H →12:00, 다시 +3H →15:00; +6H는 두 칸.
@@ -70,8 +95,8 @@
          */
         function marineTime(){if(!timeBar)return;var shown=enabled&&(state.coast||state.sea);timeBar.hidden=!shown;var tools=legend.querySelector('[data-marine-tools]');if(tools)tools.hidden=!(enabled&&state.sea);document.body.classList.toggle('rf-sea-time-on',shown);if(!meta)return;var local=new Date(Date.parse(t||meta.now)+32400000),pad=function(n){return String(n).padStart(2,'0');};timeBar.querySelector('[data-map-time]').textContent=pad(local.getUTCMonth()+1)+'.'+pad(local.getUTCDate())+'.('+['일','월','화','수','목','금','토'][local.getUTCDay()]+') '+pad(local.getUTCHours())+':'+pad(local.getUTCMinutes());timeBar.querySelectorAll('[data-time-step]').forEach(function(b){var current=b.dataset.timeStep==='now';b.disabled=!current&&!nextTime(Number(b.dataset.timeStep));if(current)b.setAttribute('aria-pressed',String(t===meta.now));});}
         // 두 칸은 늘 하나만 켜진다: 이미 켜진 칸을 다시 눌러도 그대로다. 시각은 바꾸지 않는다.
-        if(w.RiskMarine){marineLegend();legend.addEventListener('click',function(e){var b=e.target.closest('[data-marine-mode]');if(b&&b.dataset.marineMode!==marineMode){marineMode=b.dataset.marineMode;marineLegend();refresh();}});}
-        legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));if(w.RiskMarine&&meta&&t)t=nearest(mainTimes(),t);var kindKey=legend.querySelector('[data-'+kind+'-legend]');if(kindKey)kindKey.hidden=!state[kind];if(!w.RiskMarine)legend.querySelector('.rf-map-legend').hidden=!state.sea;if(colorLegend)colorLegend.hidden=!state.sea;marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(!meta)sync();else refresh();});
+        if(w.RiskMarine){marineLegend();legend.addEventListener('click',function(e){var b=e.target.closest('[data-marine-mode]');if(b&&b.dataset.marineMode!==marineMode){marineMode=b.dataset.marineMode;marineLegend();waitStart();refresh();}});}
+        legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));if(w.RiskMarine&&meta&&t)t=nearest(mainTimes(),t);var kindKey=legend.querySelector('[data-'+kind+'-legend]');if(kindKey)kindKey.hidden=!state[kind];if(!w.RiskMarine)legend.querySelector('.rf-map-legend').hidden=!state.sea;if(colorLegend)colorLegend.hidden=!state.sea;marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(state[kind])waitStart();if(!meta)sync();else refresh();});
         function seaKind(kind){return ['accident','traffic','marine','briefing'].includes(kind)?'sea':kind;}
         /** 일반 화면 배너는 띄우지 않는다. 자료 원천 안내는 과제16에 따라 관리자 오류현황으로 보내고,
          * 위성지도 실패도 안내 없이 기본맵으로 바꾼다(사용자 확정 2026-10-15 「마」).
@@ -181,8 +206,10 @@
             return {errors:errors,warnings:sourceWarnings};
         }
         async function refresh(){
-            if(!meta||disposed)return;var n=++seq,at=t,freshAccident=accidentFresh;layer.setActive(state,enabled);legend.hidden=!enabled;if(colorLegend)colorLegend.hidden=!enabled||!state.sea;
+            if(!meta||disposed)return;var n=++seq,at=t,freshAccident=accidentFresh,drawn=false;if(waiting)waiting.n=n;layer.setActive(state,enabled);legend.hidden=!enabled;if(colorLegend)colorLegend.hidden=!enabled||!state.sea;
             if(!enabled){message('');return;}
+            // 지도 기다림 표시는 이 try 의 finally 에서 끈다 — 중간 반환(n!==seq)·예외에도 빠짐없이, 상세(detail)를 기다리기 전에.
+            try{
             var frames=[],errors=[],degraded=[],sourceWarnings=[],kinds=(w.RiskMarine?['coast']:['coast','sea','accident']).filter(function(k){return state[k==='accident'?'sea':k];});
             var marineJob=w.RiskMarine&&state.sea?refreshMarine(n,at):Promise.resolve({errors:[],warnings:[]});
             await Promise.all(kinds.map(async function(kind){
@@ -218,6 +245,8 @@
             if(n!==seq||!enabled)return;
             var marineResult=await marineJob;if(n!==seq||!enabled||disposed)return;errors=errors.concat(marineResult.errors);sourceWarnings=sourceWarnings.concat(marineResult.warnings);
             message(errors.length?'위험예측 자료를 불러오지 못했습니다 — '+errors.join(' / '):sourceWarnings.length?'⚠ '+Array.from(new Set(sourceWarnings)).join(' / '):degraded.length?'⚠ '+Array.from(new Set(degraded)).map(w.RiskSheet.sourceName).join(', ')+' 자료 없음':'');
+            drawn=!errors.length;
+            }finally{if(waiting&&waiting.n===n&&n===seq)waitEnd(!drawn);}
             if(selected){layer.setSelection(selected.kind==='briefing'?null:selected.kind,selected.id);await detail();}
         }
         function sync() {
@@ -242,19 +271,19 @@
                     if(!enabled||disposed)return;
                     if(selected)mountSlider();
                     await refresh();
-                }catch(e){console.warn('[위험예측] 자료 갱신 실패',failureInfo(e));if(enabled&&!disposed)message('위험예측 갱신 실패 — '+e.message);}
+                }catch(e){console.warn('[위험예측] 자료 갱신 실패',failureInfo(e));if(enabled&&!disposed)message('위험예측 갱신 실패 — '+e.message);if(waiting&&waiting.n===null)waitEnd(true);/* refresh 에 묶이기 전(메타 등)에서 실패 — 사용자가 켜고 기다리던 중이면 안내 */}
                 finally{syncPending=null;}
             })();
             return syncPending;
         }
-        function setEnabled(value){enabled=!!value;seq++;if(!enabled){clearSelection();legend.hidden=true;layer.setActive(state,false);if(colorLegend)colorLegend.hidden=true;marineTime();restoreBasemap();message('');}else{satelliteOn();legend.hidden=false;if(colorLegend)colorLegend.hidden=!state.sea;marineTime();sync();}}
+        function setEnabled(value){enabled=!!value;seq++;if(!enabled){waitEnd(false);clearSelection();legend.hidden=true;layer.setActive(state,false);if(colorLegend)colorLegend.hidden=true;marineTime();restoreBasemap();message('');}else{satelliteOn();legend.hidden=false;if(colorLegend)colorLegend.hidden=!state.sea;marineTime();waitStart();sync();}}
         function escapeSheet(e){if(e.key==='Escape'&&enabled&&(selected||choosing)&&!document.querySelector('.rf-modal')&&!document.querySelector('.rf-acc-pop:not([hidden])')){e.preventDefault();clearSelection();}}
         document.addEventListener('keydown',escapeSheet);
         if(options.enabled===false){legend.hidden=true;if(colorLegend)colorLegend.hidden=true;layer.setActive(state,false);}
         if(enabled)satelliteOn();
         var ready=enabled?sync():Promise.resolve();
         var timer=setInterval(function(){if(enabled&&!disposed)sync();},60000);
-        return {ready:ready,setEnabled:setEnabled,select:select,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id}};},destroy:function(){disposed=true;clearInterval(timer);document.removeEventListener('keydown',escapeSheet);seq++;clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();document.body.classList.remove('rf-sea-time-on');}}};
+        return {ready:ready,setEnabled:setEnabled,select:select,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id}};},destroy:function(){disposed=true;clearInterval(timer);document.removeEventListener('keydown',escapeSheet);seq++;waitEnd(false);if(waitEl)waitEl.remove();clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();document.body.classList.remove('rf-sea-time-on');}}};
     }
     /**
      * 해양안전의 실제 위험예측 버튼과 지도 클릭 훅을 등록한다.
