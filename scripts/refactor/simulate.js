@@ -111,6 +111,12 @@ if (require.main === module) (async () => {
     const server5xx = [];
     // 403의 실제 주소도 남긴다. 브라우저의 공통 문구만으로 원인을 놓치지 않으며 판정은 유지한다.
     const forbidden403 = [];
+    // 네트워크 단계에서 실패한 요청(net::ERR_…)도 콘솔 문구에는 주소가 없다 — 오류명·호스트만 남긴다(진단용, 판정 불변).
+    //   2026-10-15 CI 에서 ERR_HTTP2_SERVER_REFUSED_STREAM 이 처음 났는데 어느 서버인지 알 길이 없었다.
+    const netFailed = [];
+    page.on('requestfailed', (req) => {
+        try { const u = new URL(req.url()); netFailed.push(((req.failure() || {}).errorText || '?') + ' ' + u.host); } catch (_) { /* URL 이 아닌 요청(data: 등)은 진단 대상이 아니다 */ }
+    });
     page.on('console', (msg) => {
         if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 300));
     });
@@ -446,6 +452,11 @@ if (require.main === module) (async () => {
         if (realErrors.some((e) => /status of 403\b/.test(e))) {
             console.error('  ↳ 이번 주행에서 403을 낸 주소(쿼리 제외):');
             [...new Set(forbidden403)].forEach((url) => console.error('      ' + url));
+        }
+        if (realErrors.some((e) => /net::ERR_/.test(e)) && netFailed.length) {
+            console.error('  ↳ 이번 주행에서 네트워크 단계에서 실패한 요청(오류·호스트, 건수):');
+            const n = new Map(); netFailed.forEach((k) => n.set(k, (n.get(k) || 0) + 1));
+            [...n].slice(0, 10).forEach(([k, c]) => console.error('      ' + k + ' ×' + c));
         }
         // 콘솔 문구만으로는 어느 주소인지 모른다 — 우리가 따로 적어 둔 5xx 목록을 함께 준다.
         if (server5xx.length) {
