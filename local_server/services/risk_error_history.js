@@ -166,7 +166,11 @@ function createHistory({
                     createdAt: stamp(row.createdAt),
                     checkedAt: stamp(row.checkedAt),
                     recoveredAt: bad ? null : previous?.recoveredAt || null,
-                    detail: detailText(row.detail),
+                    // 행 자체에 detail 칸이 없으면(예: risk_store 의 행사 월 상태 — 1분마다 관찰) 수집기가 남긴 상세를 지우지 않는다(2026-10-15).
+                    detail:
+                        row.detail === undefined
+                            ? previous?.detail || null
+                            : detailText(row.detail),
                 };
                 if (
                     bad &&
