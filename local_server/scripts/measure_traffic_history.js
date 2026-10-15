@@ -1,6 +1,6 @@
 /**
  * 파일명: local_server/scripts/measure_traffic_history.js
- * 역할  : 1시간 교통량 이력의 실제 크기를 잰다 — 가짜 자료(4,046칸 × 5분 12번 × 24시간)로 하루 압축 파일 크기,
+ * 역할  : 30분 교통량 이력의 실제 크기를 잰다 — 가짜 자료(4,046칸 × 5분 6번 × 48칸)로 하루 압축 파일 크기,
  *         1년 추정, 최근 15일을 메모리에 올렸을 때 늘어난 양. 설계 문서의 숫자를 다시 만들 수 있게 남긴다.
  * [연계] services/sea_traffic_history.js(add·series) · client/js/marine-life/risk-forecast/traffic_history.design.md(실측 표)
  * [로드 순서] 독립 실행: `node --expose-gc local_server/scripts/measure_traffic_history.js` — 네트워크·실제 키 없음, 임시 폴더만 쓴다.
@@ -41,7 +41,7 @@ for (let k = 0; k < 24 * 12; k++) {
     now = day0 + k * 300000 + 6000;
     const at = new Date(now + 9 * HOUR).toISOString().slice(0, 19) + '+09:00';
     h.add({ sourceAt: at, rows: ids.map((id, i) => ({ id, count: Math.min(80, poisson(lambda[i])) })) });
-    if (k === 11) openSize = fs.statSync(path.join(dir, 'traffic_history', 'open.json.gz')).size;
+    if (k === 5) openSize = fs.statSync(path.join(dir, 'traffic_history', 'open.json.gz')).size;
 }
 now = day0 + DAY + 60000; h.flush();
 const addMs = Date.now() - t0;
@@ -55,12 +55,12 @@ const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'traffic-measure2-')), today 
 for (let d = 0; d < 15; d++) { const date = io.day(today - d * DAY); io.write(path.join(dir2, 'traffic_history', date + '.json.gz'), { ...content, date }); }
 const before = mem(), t1 = Date.now();
 const h2 = H.createHistory({ dir: dir2, clock: () => today });
-const s = h2.series(ids[0], Date.parse('2026-10-02T00:00:00+09:00'), 336);
+const s = h2.series(ids[0], Date.parse('2026-10-02T00:00:00+09:00'), 672);
 const loadMs = Date.now() - t1, after = mem();
-const t2 = Date.now(); for (let i = 0; i < 100; i++) h2.series(ids[i], Date.parse('2026-10-02T00:00:00+09:00'), 336); const queryMs = (Date.now() - t2) / 100;
+const t2 = Date.now(); for (let i = 0; i < 100; i++) h2.series(ids[i], Date.parse('2026-10-02T00:00:00+09:00'), 672); const queryMs = (Date.now() - t2) / 100;
 console.log(JSON.stringify({
-    cells: CELLS, samplesPerHour: 12, openFileGzipBytes: openSize, dayFileGzipBytes: daySize, dayFileRawBytes: raw, yearEstimateMB: +(daySize * 365 / 1048576).toFixed(1),
+    cells: CELLS, samplesPerSlot: 6, openFileGzipBytes: openSize, dayFileGzipBytes: daySize, dayFileRawBytes: raw, yearEstimateMB: +(daySize * 365 / 1048576).toFixed(1),
     memoryDays: h2._memory().days.length, memoryIncreaseMB: +((after - before) / 1048576).toFixed(2), gcExposed: !!global.gc,
-    oneDayAddMs: addMs, loadFifteenDaysMs: loadMs, queryOneCellMs: +queryMs.toFixed(3), sampleValues: s.values.slice(-30, -24)
+    oneDayAddMs: addMs, loadFifteenDaysMs: loadMs, queryOneCellMs: +queryMs.toFixed(3), sampleValues: s.values.slice(-60, -48)
 }, null, 1));
 fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(dir2, { recursive: true, force: true });

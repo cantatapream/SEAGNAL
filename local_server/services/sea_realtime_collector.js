@@ -5,7 +5,7 @@
  *         써있어서 오토 스크래핑은 하면 안될 것 같아. 이 부분은 코드에서 제외하도록 수정할 수 있도록 해줘.」
  *         「톤수, 선박 종류는 API에서 제공하지않는다고 공식적으로 확인했어. 이용할 수 없을 것 같아.」
  * [연계] server.js → MTIS 공식 realtime API(mtisopenapi) → marine_fusion 읽기 저장소. 격자 경계는 cellBounds 로 계산.
- *        정상 수집마다 sea_traffic_history.add(칸별 1시간 평균 척수 이력, 2026-10-15 사용자 「교통량 그래프를 2주 단위로」).
+ *        정상 수집마다 sea_traffic_history.add(칸별 30분 평균 척수 이력, 2026-10-15 사용자 「교통량 그래프를 2주 단위로」·「30분마다의 선박수로」).
  * [로드 순서] Fly 운영 start만 자동 수집. 과거 교통자료 다운로드는 하지 않는다. 이력은 받은 5분 값으로만 쌓고 1년 넘으면 지운다.
  */
 'use strict';
@@ -68,7 +68,7 @@ async function readApi({dir,key,fetchImpl,now}){
     return{rows,dropped,sourceAt:sourceAt.replace(' ','T')+'+09:00'};
 }
 /** 중복 수집을 막고 최신 한 벌만 저장한다. 예: API 실패·키 없음이면 마지막 정상본을 그대로 둔다.
- * @param {object} options - 주입 가능한 원천·시계·history(1시간 이력 저장소, 기본은 같은 폴더의 sea_traffic_history) @returns {object} collect,start,stop
+ * @param {object} options - 주입 가능한 원천·시계·history(30분 이력 저장소, 기본은 같은 폴더의 sea_traffic_history) @returns {object} collect,start,stop
  * [연계] ← server.js / io.acquireLock으로 Fly 머신 간 중복 호출을 제한한다. → sea_traffic_history.add(정상 저장 직후)
  */
 function createCollector({dir=io.DEFAULT_DIR,key,fetchImpl=fetch,clock=Date.now,describe=require('./risk_sea_cells').describe,history}={}){
@@ -90,7 +90,7 @@ function createCollector({dir=io.DEFAULT_DIR,key,fetchImpl=fetch,clock=Date.now,
             if(!rows.length)throw Error('empty response');
             const v=createHash('sha256').update(JSON.stringify(cells)).digest('hex').slice(0,16),data={v,cells,rows,collectedAt:io.iso(now),sourceAt:basic.sourceAt,source:'MTIS realtime API',scope:'lv4 (GR4)',timeMeaning:'API regDt (KST registration time)'};
             io.write(file,data);io.status(dir,'realtime',now,null,{rows:rows.length,detail});
-            // 1시간 교통량 이력(2주 그래프·1년 보관)에 이번 5분 값을 더한다. 이력 실패가 현재 교통 수집 성공을 바꾸지 않게 분리한다.
+            // 30분 교통량 이력(2주 그래프·1년 보관)에 이번 5분 값을 더한다. 이력 실패가 현재 교통 수집 성공을 바꾸지 않게 분리한다.
             try{(history||require('./sea_traffic_history').forDir(dir)).add({sourceAt:basic.sourceAt,rows:basic.rows});}catch(e){io.reportError('traffic history',e);}
             return{ok:true,rows:rows.length};
         }catch(e){io.status(dir,'realtime',now,e,{detail:typeof e.detail==='string'?e.detail:null});return{ok:false,error:io.errorName(e)};}finally{running=false;release();}

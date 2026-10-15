@@ -1,7 +1,7 @@
 /**
  * 역할: 연안 분석·공식 선박사고와 혼잡 예보·자료 상태·원본 PDF를 수집 없이 제공한다.
  * [연계] risk_store → /api/risk-forecast/* → marine-life/risk-forecast 화면.
- *        sea/traffic-history 는 sea_traffic_history.createApi(칸별 2주 1시간 척수 + 특보 발효 구간) — 화면은 디자인 확정 뒤.
+ *        sea/traffic-history 는 sea_traffic_history.createApi(칸별 2주 30분 척수 + 특보 발효 구간) — 화면은 디자인 확정 뒤.
  * [로드 순서] server.js 라우트 등록. 요청에서는 수집·AI·푸시 호출이 없다.
  */
 'use strict';

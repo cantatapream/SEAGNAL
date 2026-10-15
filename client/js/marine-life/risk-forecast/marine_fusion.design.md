@@ -37,7 +37,7 @@
 | analysis?id=… 또는 lon=…&lat=…&t=… | 동일 위치의 현재·공식예보·기상·사고이력·종합근거 |
 | jurisdictions | 기존 관할 목록 |
 | briefing?id=…&t=… | 관할 집계·사고현황·관심 해역과 시간대 |
-| traffic-history?cell=GR4_…&days=14 | 그 칸의 최근 N일 1시간 척수(5분 값 평균) + 그 칸 특보구역(앞바다/먼바다·연안바다/평수구역)의 발효~해제 구간 — [traffic_history.design.md](traffic_history.design.md) |
+| traffic-history?cell=GR4_…&days=14 | 그 칸의 최근 N일 30분 척수(5분 값 평균) + 그 칸 특보구역(앞바다/먼바다·연안바다/평수구역)의 발효~해제 구간 — [traffic_history.design.md](traffic_history.design.md) |
 
 ## 보류 작업 목록 — 추후 진행
 

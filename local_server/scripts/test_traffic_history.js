@@ -1,6 +1,7 @@
 /**
  * 파일명: local_server/scripts/test_traffic_history.js
- * 역할  : 교통량 2주 그래프용 서버 쪽(1시간 척수 이력·특보 발효 구간·칸→특보구역·조회 API)을 검사한다.
+ * 역할  : 교통량 2주 그래프용 서버 쪽(30분 척수 이력·특보 발효 구간·칸→특보구역·조회 API)을 검사한다.
+ *         같은 날 1시간→30분: 「30분마다의 선박수로 표출해주고 그래프도 그렇게 정교하게 반영해줘.」
  *         사용자 2026-10-15: 「교통량 그래프를 2주 단위로 표출하도록 하자. 그리고 배경에 특보도 표출하고.」
  *         「경보에서 주의보로 격하되어 발효되거나 격상된 경우에는 그 시점을 기준으로」 「(연안바다, 평수구역 구분 필요)」
  * [연계] services/sea_traffic_history.js · services/sea_warning_history.js · services/warn_zone_cells.js
@@ -22,8 +23,8 @@ const A = 'GR4_F4K23_P4', B = 'GR4_F4G31_M4';
 const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(dir, 'traffic_history', d + '.json.gz'))));
 
 (async () => {
-    // ── 1. 1시간 집계 ─────────────────────────────────────────────────────────
-    await check('1시간 값 = 그 시간 5분 값들의 평균 · 받지 못한 5분은 0으로 세지 않음 · 같은 등록시각은 한 번만', () => {
+    // ── 1. 30분 집계 ─────────────────────────────────────────────────────────
+    await check('30분 값 = 그 30분 5분 값들의 평균 · 받지 못한 5분은 0으로 세지 않음 · 같은 등록시각은 한 번만', () => {
         const dir = tmp(); let now = K('2026-10-15T15:20:00');
         const h = H.createHistory({ dir, clock: () => now });
         h.add({ sourceAt: at('2026-10-15T15:00:06'), rows: [{ id: A, count: 2 }, { id: B, count: 7 }] });
@@ -31,61 +32,73 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
         h.add({ sourceAt: at('2026-10-15T15:05:06'), rows: [{ id: A, count: 99 }] });             // 같은 등록시각 재수집 → 무시
         h.add({ sourceAt: at('2026-10-15T15:10:06'), rows: [{ id: A, count: 5 }, { id: B, count: 8 }] });
         assert.equal(h._memory().open.samples, 3);
-        h.add({ sourceAt: at('2026-10-15T16:00:06'), rows: [{ id: A, count: 1 }] });             // 다음 시간 → 15시 확정
-        now = K('2026-10-15T16:10:00');
+        h.add({ sourceAt: at('2026-10-15T15:30:06'), rows: [{ id: A, count: 1 }] });             // 다음 30분 → 15:00 칸 확정
+        now = K('2026-10-15T15:40:00');
         const s = h.series(A, K('2026-10-15T15:00:00'), 2);
-        assert.deepEqual(s.values, [3.7, null]);              // (2+4+5)/3 = 3.666… → 3.7 · 16시는 아직 진행 중
+        assert.deepEqual(s.values, [3.7, null]);              // (2+4+5)/3 = 3.666… → 3.7 · 15:30 칸은 아직 진행 중
         assert.deepEqual(s.samples, [3, 0]);
         assert.deepEqual(h.series(B, K('2026-10-15T15:00:00'), 1).values, [7.5]);   // (7+8)/2 — 빠진 5분을 0으로 넣지 않음
         const f = dayFile(dir, '2026-10-15');
         assert.deepEqual(f.ids.sort(), [A, B].sort());
-        assert.equal(f.hours.length, 1); assert.equal(f.hours[0].h, 15); assert.equal(f.hours[0].n, 3);
-        assert.match(f.definition, /평균/);
+        assert.equal(f.v, 2); assert.equal(f.stepMinutes, 30);
+        assert.equal(f.slots.length, 1); assert.equal(f.slots[0].s, 30); assert.equal(f.slots[0].n, 3);   // 15:00 = 30번째 칸(0부터)
+        assert.match(f.definition, /30분/);
     });
-    await check('지난 시간 값·이미 확정된 시간 값은 받지 않는다 · 수집이 멈춰도 시계가 지나면 마지막 시간이 확정된다', () => {
+    await check('30분 경계: 15:29:59 와 15:30:00 은 다른 칸, 16:00 은 그다음 칸', () => {
+        const dir = tmp(); let now = K('2026-10-15T15:29:59');
+        const h = H.createHistory({ dir, clock: () => now });
+        h.add({ sourceAt: at('2026-10-15T15:29:59'), rows: [{ id: A, count: 2 }] });
+        h.add({ sourceAt: at('2026-10-15T15:30:00'), rows: [{ id: A, count: 8 }] });
+        h.add({ sourceAt: at('2026-10-15T16:00:00'), rows: [{ id: A, count: 5 }] });
+        now = K('2026-10-15T16:30:00');
+        assert.deepEqual(h.series(A, K('2026-10-15T15:00:00'), 3).values, [2, 8, 5]);
+        assert.equal(H.slotKey(K('2026-10-15T15:29:59')), '2026-10-15T15:00');
+        assert.equal(H.slotKey(K('2026-10-15T15:30:00')), '2026-10-15T15:30');
+    });
+    await check('지난 30분 값·이미 확정된 30분 값은 받지 않는다 · 수집이 멈춰도 시계가 지나면 마지막 30분이 확정된다', () => {
         const dir = tmp(); let now = K('2026-10-15T10:01:00');
         const h = H.createHistory({ dir, clock: () => now });
         h.add({ sourceAt: at('2026-10-15T10:00:06'), rows: [{ id: A, count: 6 }] });
-        assert.equal(h.add({ sourceAt: at('2026-10-15T09:55:06'), rows: [{ id: A, count: 1 }] }).reason, 'older hour');
-        now = K('2026-10-15T12:30:00');                        // 11시·12시 수집 없음
+        assert.equal(h.add({ sourceAt: at('2026-10-15T09:55:06'), rows: [{ id: A, count: 1 }] }).reason, 'older slot');
+        now = K('2026-10-15T12:30:00');                        // 10:30 이후 수집 없음
         assert.deepEqual(h.series(A, K('2026-10-15T10:00:00'), 3), { values: [6, null, null], samples: [1, 0, 0] });
-        assert.equal(h.add({ sourceAt: at('2026-10-15T10:30:06'), rows: [{ id: A, count: 1 }] }).reason, 'hour already closed');
+        assert.equal(h.add({ sourceAt: at('2026-10-15T10:20:06'), rows: [{ id: A, count: 1 }] }).reason, 'slot already closed');
     });
 
     // ── 2. 날짜 넘김(KST 자정) ────────────────────────────────────────────────
-    await check('KST 자정: 23:55 값은 전날 파일 23시, 00:00 값은 다음날 0시(UTC 15시가 날짜 경계)', () => {
+    await check('KST 자정: 23:55 값은 전날 파일 23:30 칸(47), 00:00 값은 다음날 0번 칸(UTC 15시가 날짜 경계)', () => {
         const dir = tmp(); let now = K('2026-10-14T23:56:00');
         const h = H.createHistory({ dir, clock: () => now });
         h.add({ sourceAt: at('2026-10-14T23:55:06'), rows: [{ id: A, count: 9 }] });
         h.add({ sourceAt: at('2026-10-15T00:00:06'), rows: [{ id: A, count: 3 }] });
-        now = K('2026-10-15T01:00:30'); h.flush();
-        assert.deepEqual(dayFile(dir, '2026-10-14').hours.map((x) => [x.h, x.c[0]]), [[23, 9]]);
-        assert.deepEqual(dayFile(dir, '2026-10-15').hours.map((x) => [x.h, x.c[0]]), [[0, 3]]);
-        assert.deepEqual(h.series(A, K('2026-10-14T23:00:00'), 2).values, [9, 3]);
+        now = K('2026-10-15T00:30:30'); h.flush();
+        assert.deepEqual(dayFile(dir, '2026-10-14').slots.map((x) => [x.s, x.c[0]]), [[47, 9]]);
+        assert.deepEqual(dayFile(dir, '2026-10-15').slots.map((x) => [x.s, x.c[0]]), [[0, 3]]);
+        assert.deepEqual(h.series(A, K('2026-10-14T23:30:00'), 2).values, [9, 3]);
     });
 
     // ── 3. 재시작 복구 ────────────────────────────────────────────────────────
-    await check('재시작: 완성된 시간은 날짜 파일에서, 진행 중 1시간은 합계 파일에서 이어 받는다', () => {
+    await check('재시작: 완성된 30분은 날짜 파일에서, 진행 중 30분은 합계 파일에서 이어 받는다', () => {
         const dir = tmp(); let now = K('2026-10-15T14:06:00');
         const a = H.createHistory({ dir, clock: () => now });
         a.add({ sourceAt: at('2026-10-15T13:55:06'), rows: [{ id: A, count: 10 }] });
         a.add({ sourceAt: at('2026-10-15T14:00:06'), rows: [{ id: A, count: 2 }] });
         a.add({ sourceAt: at('2026-10-15T14:05:06'), rows: [{ id: A, count: 4 }] });
         const b = H.createHistory({ dir, clock: () => now });                 // 새 프로세스
-        assert.deepEqual(b._memory().open, { hour: '2026-10-15T14', samples: 2 });
+        assert.deepEqual(b._memory().open, { slot: '2026-10-15T14:00', samples: 2 });
         b.add({ sourceAt: at('2026-10-15T14:05:06'), rows: [{ id: A, count: 50 }] });   // 재시작 전과 같은 등록시각 → 무시
         b.add({ sourceAt: at('2026-10-15T14:10:06'), rows: [{ id: A, count: 6 }] });
-        now = K('2026-10-15T15:00:10');
-        assert.deepEqual(b.series(A, K('2026-10-15T13:00:00'), 2).values, [10, 4]);   // (2+4+6)/3
+        now = K('2026-10-15T14:30:10');
+        assert.deepEqual(b.series(A, K('2026-10-15T13:30:00'), 2).values, [10, 4]);   // (2+4+6)/3
         const c = H.createHistory({ dir, clock: () => now });
-        assert.deepEqual(c.series(A, K('2026-10-15T13:00:00'), 2), { values: [10, 4], samples: [1, 3] });
+        assert.deepEqual(c.series(A, K('2026-10-15T13:30:00'), 2), { values: [10, 4], samples: [1, 3] });
         assert.equal(c._memory().open, null);
     });
 
     // ── 4. 보관 1년·메모리 15일 ───────────────────────────────────────────────
     await check('디스크는 365일 넘은 날짜 파일만 지우고(다른 파일은 그대로), 메모리는 최근 15일만 올린다', () => {
         const dir = tmp(), folder = path.join(dir, 'traffic_history'), now = K('2026-10-15T12:00:00');
-        for (let d = 0; d < 20; d++) io.write(path.join(folder, io.day(now - d * 86400000) + '.json.gz'), { v: 1, date: io.day(now - d * 86400000), ids: [A], hours: [{ h: 0, n: 12, c: [d] }] });
+        for (let d = 0; d < 20; d++) io.write(path.join(folder, io.day(now - d * 86400000) + '.json.gz'), { v: 2, date: io.day(now - d * 86400000), ids: [A], slots: [{ s: 0, n: 6, c: [d] }] });
         for (const d of ['2025-10-14', '2025-10-15', '2024-01-01']) io.write(path.join(folder, d + '.json.gz'), { v: 1, date: d, ids: [A], hours: [] });
         fs.writeFileSync(path.join(folder, 'memo.txt'), 'x');
         const h = H.createHistory({ dir, clock: () => now });
@@ -96,7 +109,7 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
         assert.ok(left.includes('2025-10-15.json.gz') && left.includes('memo.txt') && left.includes('2026-09-26.json.gz'));
         assert.deepEqual(h.series(A, K('2026-10-01T00:00:00'), 1).values, [14]);
     });
-    await check('시간이 확정될 때 정리도 함께 돈다(1시간에 한 번)', () => {
+    await check('30분이 확정될 때 정리도 함께 돈다(30분에 한 번)', () => {
         const dir = tmp(), folder = path.join(dir, 'traffic_history'); let now = K('2026-10-15T09:01:00');
         io.write(path.join(folder, '2025-10-01.json.gz'), { v: 1, date: '2025-10-01', ids: [], hours: [] });
         const h = H.createHistory({ dir, clock: () => now });
@@ -115,7 +128,7 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
         const c = C.createCollector({ dir, key: 'k', clock: () => now, describe, fetchImpl: apiFetch([[A, 3, 1.5], ['F2O41_P1', 81, 5]], '2026-10-15 15:10:06') });
         assert.equal((await c.collect()).ok, true);
         const o = io.read(path.join(dir, 'traffic_history', 'open.json.gz'));
-        assert.equal(o.hour, '2026-10-15T15'); assert.deepEqual(o.at, ['2026-10-15T15:10:06+09:00']);
+        assert.equal(o.slot, '2026-10-15T15:00'); assert.deepEqual(o.at, ['2026-10-15T15:10:06+09:00']);
         assert.deepEqual(o.cells.sort(), [[A, 3, 1], ['GR4_F2O41_P1', 81, 1]].sort());
     });
     await check('이력 저장이 실패해도 현재 교통 수집은 성공으로 끝난다', async () => {
@@ -255,7 +268,7 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
     });
 
     // ── 8. 조회 API ───────────────────────────────────────────────────────────
-    await check('API 형식: 14일 × 24시간 배열(오늘 포함 KST 달력일) + 본구역·세부구역 + 같은 기간 특보 구간', () => {
+    await check('API 형식: 14일 × 48칸(30분) 배열(오늘 포함 KST 달력일) + 본구역·세부구역 + 같은 기간 특보 구간', () => {
         const dir = tmp(), now = K('2026-10-15T15:30:00');
         const h = H.createHistory({ dir, clock: () => now });
         h.add({ sourceAt: at('2026-10-15T13:05:00'), rows: [{ id: A, count: 4 }] });
@@ -265,12 +278,12 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
         r.observe();
         const api = H.createApi({ history: h, warnings: r, clock: () => now });
         const b = api.query({ cell: A, days: '14' });
-        assert.equal(b.cell, A); assert.equal(b.days, 14); assert.equal(b.hours, 336); assert.equal(b.stepMinutes, 60);
+        assert.equal(b.cell, A); assert.equal(b.days, 14); assert.equal(b.slots, 672); assert.equal(b.stepMinutes, 30);
         assert.equal(b.start, '2026-10-02T00:00:00+09:00'); assert.equal(b.end, '2026-10-16T00:00:00+09:00');
-        assert.equal(b.traffic.values.length, 336); assert.equal(b.traffic.samples.length, 336);
-        const i13 = 13 * 24 + 13;
-        assert.deepEqual(b.traffic.values.slice(i13, i13 + 3), [4, 6, null]);       // 15시는 진행 중이라 아직 없음
-        assert.equal(b.traffic.currentHour, '2026-10-15T15:00');
+        assert.equal(b.traffic.values.length, 672); assert.equal(b.traffic.samples.length, 672);
+        const i13 = 13 * 48 + 26;                                                   // 10-15 13:00 칸
+        assert.deepEqual(b.traffic.values.slice(i13, i13 + 4), [4, null, 6, null]);  // 13:00·13:30(없음)·14:00·14:30(없음)
+        assert.equal(b.traffic.currentSlot, '2026-10-15T15:30');
         assert.deepEqual(b.zones, { main: { name: '제주도북부앞바다', code: 'S1323100', kind: '앞바다' }, sub: null });
         assert.deepEqual(b.warnings, [{ zone: '제주도북부앞바다', role: 'main', kind: '앞바다', type: '풍랑', level: '주의보', start: '2026-10-15T12:00:00+09:00', startBy: 'tmEf', end: null, endBy: null }]);
         assert.equal(b.warningsCheckedAt, '2026-10-15T12:01:00+09:00');
@@ -280,7 +293,7 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
         const api = H.createApi({ history: { series: () => ({ values: [], samples: [] }) }, warnings: { list: () => ({ intervals: [] }) }, clock: () => K('2026-10-15T00:00:00') });
         for (const q of [{}, { cell: 'GR4_F4K23_P5' }, { cell: A, days: '0' }, { cell: A, days: '16' }, { cell: A, days: '2.5' }, { cell: [A] }])
             assert.throws(() => api.query(q), (e) => e.status === 400, JSON.stringify(q));
-        assert.equal(api.query({ cell: A, days: '15' }).hours, 360);
+        assert.equal(api.query({ cell: A, days: '15' }).slots, 720);
     });
     await check('HTTP 경로 /api/risk-forecast/sea/traffic-history — 200·60초 캐시, 오류 400', async () => {
         const express = require('express'), { createRouter } = require('../routes/risk_forecast');
@@ -291,7 +304,7 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
             const url = 'http://127.0.0.1:' + server.address().port + '/api/risk-forecast/sea/traffic-history';
             const r = await fetch(url + '?cell=' + A + '&days=14'), b = await r.json();
             assert.equal(r.status, 200); assert.equal(r.headers.get('cache-control'), 'public, max-age=60');
-            assert.equal(b.ok, true); assert.equal(b.traffic.values.length, 336);
+            assert.equal(b.ok, true); assert.equal(b.traffic.values.length, 672);
             const bad = await fetch(url + '?cell=nope');
             assert.equal(bad.status, 400); assert.equal((await bad.json()).ok, false);
         } finally { server.close(); }
