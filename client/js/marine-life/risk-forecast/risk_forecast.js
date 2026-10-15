@@ -136,7 +136,7 @@
          * @returns {number[]} [위,오른쪽,아래,왼쪽] px
          * [연계] ← hazard·marinePoint / 연안 위험구역과 해상 관할 해역 이동이 같은 계산을 써서 선택 동작이 어긋나지 않는다.
          */
-        function visiblePadding(){var pad=[30,40,30,40];try{var size=map.getSize(),el=map.getTargetElement();if(size&&el&&sheetEl.classList&&sheetEl.classList.contains('open')){var m=el.getBoundingClientRect(),s=sheetEl.getBoundingClientRect(),cover=Math.max(0,m.bottom-s.top);pad[2]=Math.min(cover,Math.max(0,size[1]-pad[0]-60))+30;}}catch(e){}return pad;}
+        function visiblePadding(){var pad=[30,40,30,40];try{var size=map.getSize(),el=map.getTargetElement();if(size&&el&&sheetEl.classList&&sheetEl.classList.contains('open')){var m=el.getBoundingClientRect(),s=sheetEl.getBoundingClientRect(),cover=Math.max(0,m.bottom-s.top);pad[2]=Math.min(cover,Math.max(0,size[1]-pad[0]-60))+30;}}catch(e){/* 지도·시트 크기를 못 재는 환경(미리보기·시험 틀)은 기본 여백으로 이동한다 — 이동만 덜 정확할 뿐 선택은 그대로 된다 */}return pad;}
         async function hazard(id){var snapshot=selected;try{var fc=await api.get('hazard-zones',{ids:id});if(enabled&&selected===snapshot&&selected&&state.coast){layer.showHazards(fc,visiblePadding());sheet.markZone(id);}}catch(e){console.warn('[위험예측] 위험구역 요청 실패',failureInfo(e));if(enabled&&!disposed&&selected===snapshot)message('위험구역 자료를 불러오지 못했습니다 — '+e.message);}}
         async function detail(){
             if(!selected||!enabled)return;var n=++detailSeq,s=selected,at=s.at||t;
