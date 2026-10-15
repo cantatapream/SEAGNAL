@@ -408,7 +408,7 @@ if (require.main === module) (async () => {
     const envMiss = new404.filter((e) => missingData.has(e));
     const real404 = new404.filter((e) => !missingData.has(e));
 
-    // 콘솔 에러 중에도 **환경 탓인 것**이 있다. 두 가지뿐이고, 둘 다 이유가 분명하다.
+    // 콘솔 에러 중에도 **환경 탓인 것**이 있다. 아래 ⓐ~ⓓ 뿐이고, 모두 이유가 분명하다.
     //   ⓐ `… status of 404 (Not Found)` — 위 envMiss 가 브라우저 콘솔에 되비친 것이다.
     //      ⚠진짜 404 가 하나라도 있으면 이 줄이 그것 때문일 수도 있으므로 **빼지 않는다**.
     //   ⓑ `ERR_CERT_AUTHORITY_INVALID` — 개발 컨테이너의 에이전트 프록시 CA 탓이다.
@@ -418,6 +418,10 @@ if (require.main === module) (async () => {
     const envErrRe = [];
     if (envMiss.length && !real404.length) envErrRe.push(/status of 404 \(Not Found\)/i);
     if (behindProxy) envErrRe.push(/ERR_CERT_AUTHORITY_INVALID/i);
+    //   ⓓ `ERR_TUNNEL_CONNECTION_FAILED` — 같은 프록시가 허용 목록 밖 호스트(브이월드·OSM 지도 타일)로의
+    //      터널을 거절한 것이다(2026-10-15 실측: 위험예측이 배경을 위성지도로 바꾸며 api.vworld.kr·
+    //      tile.openstreetmap.org 타일만 이 오류). ⓑ 와 같이 **프록시가 켜져 있을 때만** 뺀다.
+    if (behindProxy) envErrRe.push(/ERR_TUNNEL_CONNECTION_FAILED/i);
     //   ⓒ `status of 5xx` — 그 주행에서 난 5xx 가 **전부** 우리 프로시의 바깥길 끊김일 때만(G-47).
     //      하나라도 그 꼴이 아니면 이 줄이 **그것 때문일 수도** 있으니 빼지 않는다(ⓐ 와 같은 잠금).
     const uniq5xx = [...new Set(server5xx)];

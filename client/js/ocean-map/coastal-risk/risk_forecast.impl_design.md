@@ -289,7 +289,7 @@ MMIS 특보 ──(1분, 기존)──> marine_warning_crawler.js ────�
 API허브 해구예보 ─(09:30·21:30, 기존)─> scheduler.collectZoneForecasts ─> data/zone_forecasts.json
 MMIS 너울 WFS ─(1시간 폴링, 기존)──> services/swell_smallzone.js ──────> 메모리 + data/swell_smallzone.json.gz
 KHOA·KMA 이안류 ─(30분, 기존)──> scheduler.collectRipCurrentIndex ───> data/ripcurrent_index.json
-공단 혼잡도 ─(하루 1회 05:10, 신설)─> services/sea_traffic_collector.js ─> data/risk_forecast/sea_traffic.json.gz
+공단 혼잡도 ─(04:00·04:30·05:00·05:30 점검, 2026-10-15 변경)─> services/sea_traffic_collector.js ─> data/risk_forecast/sea_traffic.json.gz
                                                               └────> data/risk_forecast/sea_cells.json (칸 위치표, 늘어나기만)
 관광공사 집중률 ─(하루 1회, 신설)─> services/tour_concentration_collector.js ─> data/risk_forecast/tour_concentration.json
 관광공사 행사 + Gemini ─(매월 말일 3일 전, 신설)─> coastal_events_collector.js ─> data/risk_forecast/events_YYYYMM.json
@@ -322,7 +322,7 @@ routes/risk_forecast.js ── /meta · /sea/cells · /sea/frame · /sea/cell �
 | 해구 예보 | 09:30·21:30 KST(기존) | `dataCache.zoneForecasts`(기존) | — |
 | 너울 | 1시간 폴링(기존) | swell 모듈 메모리(기존) — `getStatus().baseTm` 로 변화 감지 | — |
 | 이안류 | 30분(기존) | `dataCache.ripCurrentIndex`(기존) | — |
-| 혼잡도 | **05:10 KST 하루 1회**(신설). 공단 예보 생성 03:56~03:57(설계서 §2.1) 뒤 여유. 실패 시 06:10·07:10 재시도, 하루 호출 상한 90건 | 파일 + 메모리 | — |
+| 혼잡도 | ~~05:10 KST 하루 1회, 실패 시 06:10·07:10 재시도~~ → **04:00·04:30·05:00·05:30 KST 네 번 점검**(사용자 확정 2026-10-15, 원문 「혼잡예보는 4시~5시 업데이트 되므로 4시부터 4시, 4시 30분, 5시, 5시 30분 이렇게 4차례 점검하면 될 것 같은데」). 그날 정상본이 생기면 남은 시각은 건너뜀. 한 회차의 첫 요청부터 빈 응답이면 갱신 전으로 보고 1건만 쓰고 멈춤. 하루 호출 상한 90건 | 파일 + 메모리 | — |
 | 집중률 | **하루 1회**(신설). 관광공사 갱신 시각 **[미확인]**(매뉴얼상 「일 1회」만) → 첫 주는 하루 두 번(06:20·12:20) 받아 바뀌는 시각을 기록해 정한다 | 파일 + 메모리 | — |
 | 행사 | 매월 (말일−3)일 03:20 KST(U33) + 기동 때 이번 달 누락 보충. 실패/누락 월은 하루03:20 재시도하며 정상 월은 재수집하지 않음 | 월별 파일·월별 시도 상태 | — |
 | 정적 표(관광지·원 분할) | 빌드 때 | 메모리 | `max-age=86400` + `?v=<표 해시>` |
