@@ -2,6 +2,7 @@
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_map_layer.js
  * 역할  : 해상은 단일 GR4의 연속 면색·확대 척수와 선택 경계로, 연안은 기존 분석으로 표시한다.
+ *           연안 면은 테두리 없이 6px 흐리고 해안선에서 다시 자른 뒤 아주 연한 흰 경계선을 따로 얹는다(G안, 사용자 2026-10-16 「연안테두리 g로 반영해보자」).
  *           특보 구역은 이 지도에 그리지 않는다(사용자 확정 2026-10-15 「지도에 특보 영역을 표시하지 말자」).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
@@ -27,6 +28,10 @@
             layers[k]=new ol.layer.Vector({source:sources[k], zIndex:130+i, className:'rf-'+k+'-canvas',declutter:k==='traffic'});
             map.addLayer(layers[k]);
         });
+        // 연안 G안(사용자 2026-10-16 「연안테두리 g로 반영해보자」): 흐리지 않는 아주 연한 흰 경계선(0.5px·흰 13%)만 담는 층.
+        // 연안 면(coast, 흐림) 바로 위·위험구역(hazard) 아래. 해안선(shore) 층과 섞지 않는다(해안선 도형 수 계약 유지).
+        sources.coastEdge=new ol.source.Vector();layers.coastEdge=new ol.layer.Vector({source:sources.coastEdge,zIndex:134,className:'rf-coast-edge-canvas'});map.addLayer(layers.coastEdge);
+        var coastEdgeStyle=new ol.style.Style({stroke:new ol.style.Stroke({color:'rgba(255,255,255,.13)',width:.5})}),coastSmoothCanvas=null;
         function read(g) { return geo.readGeometry(g,{dataProjection:'EPSG:4326',featureProjection:map.getView().getProjection()}); }
         function add(k,g,props,style) {
             if (!g) return null;
@@ -36,9 +41,13 @@
             var f=new ol.Feature(Object.assign({geometry:read(g)},props||{})); f.setStyle(style); sources[k].addFeature(f); return f;
         }
         function rgba(rgb,a) { return rgb.replace('rgb(','rgba(').replace(')',','+a+')'); }
+        /** 점수 색 면 스타일을 만든다. 예: 연안 colorStyle(2,true) → 점수 색 50% 채움만(테두리 없음).
+         * 연안은 G안(사용자 2026-10-16 「연안테두리 g로 반영해보자」)으로 같은 색 불투명 2px 실선을 없앴다 — 경계는 흐림 뒤 따로 그리는 연한 흰 선(coastEdge)이 맡는다.
+         * @param {number|null} score - 점수 @param {boolean} coast - 연안 면인가 @returns {ol.style.Style} [연계] ← drawCoast / RiskFormat.col 색 */
         function colorStyle(score,coast) {
             var c=w.RiskFormat.col(score);
-            return new ol.style.Style({fill:new ol.style.Fill({color:rgba(c,score==null?0:(coast?0.5:score>0?0.7:0))}),stroke:new ol.style.Stroke({color:coast?c:'rgba(200,225,240,.12)',width:coast?2:0.5})});
+            if(coast)return new ol.style.Style({fill:new ol.style.Fill({color:rgba(c,score==null?0:0.5)})});
+            return new ol.style.Style({fill:new ol.style.Fill({color:rgba(c,score==null?0:score>0?0.7:0)}),stroke:new ol.style.Stroke({color:'rgba(200,225,240,.12)',width:0.5})});
         }
         /** 육지 가리개(maskCanvas)로 층 canvas 의 육지 쪽을 지우거나(해상) 바다 쪽을 지운다(연안).
          * 예: 해상 면색 → 육지 부분 투명. 가리개는 지도를 움직이는 동안 다시 만들지 않는다.
@@ -87,7 +96,11 @@
         layers.traffic.on('postrender',function (e) { mask(e,'sea'); });
         // 격자마다 필터를 적용하지 않고 완성된 면색 canvas에 단 한 번 흐림을 적용한다.
         layers.marine.on('postrender',function(e){var ctx=e.context;if(ctx&&ctx.canvas){if(!smoothCanvas)smoothCanvas=document.createElement('canvas');if(smoothCanvas.width!==ctx.canvas.width||smoothCanvas.height!==ctx.canvas.height){smoothCanvas.width=ctx.canvas.width;smoothCanvas.height=ctx.canvas.height;}var sc=smoothCanvas.getContext('2d');sc.clearRect(0,0,smoothCanvas.width,smoothCanvas.height);sc.drawImage(ctx.canvas,0,0);ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);ctx.filter='blur(6px)';ctx.drawImage(smoothCanvas,0,0);ctx.restore();}mask(e,'sea');});
-        layers.coast.on('postrender',function (e) { mask(e,'coast'); });
+        // 연안 G안: 완성된 연안 면 canvas 전체를 6px 흐린 뒤(해상 marine 과 같은 방식, 단 해상 smoothCanvas 와 섞이지 않게 연안용 canvas 따로)
+        // 같은 육지 가리개로 다시 잘라 해안선은 날카롭게 둔다. 관광지 점(points)·선택 흰 테두리(selection)는 다른 층이라 흐려지지 않는다.
+        // 클릭 판정은 OL 의 도형 기준 hit(forEachFeatureAtPixel)이라 흐림과 무관하다.
+        layers.coast.on('postrender',function (e) {var ctx=e.context;if(ctx&&ctx.canvas){if(!coastSmoothCanvas)coastSmoothCanvas=document.createElement('canvas');if(coastSmoothCanvas.width!==ctx.canvas.width||coastSmoothCanvas.height!==ctx.canvas.height){coastSmoothCanvas.width=ctx.canvas.width;coastSmoothCanvas.height=ctx.canvas.height;}var sc=coastSmoothCanvas.getContext('2d');sc.clearRect(0,0,coastSmoothCanvas.width,coastSmoothCanvas.height);sc.drawImage(ctx.canvas,0,0);ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);ctx.filter='blur(6px)';ctx.drawImage(coastSmoothCanvas,0,0);ctx.restore();} mask(e,'coast'); });
+        layers.coastEdge.on('postrender',function (e) { mask(e,'coast'); });
         function landGeometry(g,island) {
             if (!g) return;
             var polys=g.type==='MultiPolygon'?g.coordinates:[g.coordinates];
@@ -158,11 +171,11 @@
          */
         function drawCurrent(frame){sources.traffic.clear();if(frame.status&&frame.status.status!=='ok')return;var byIndex=new Map(trafficCells.map(function(c){return[c.i,c];}));(frame.cells||[]).forEach(function(v){var c=byIndex.get(v[0]);if(!c)return;var g=c.geometry||{type:'Polygon',coordinates:[[[c.lon-.0125,c.lat-.0125],[c.lon+.0125,c.lat-.0125],[c.lon+.0125,c.lat+.0125],[c.lon-.0125,c.lat+.0125],[c.lon-.0125,c.lat-.0125]]]};add('traffic',g,{kind:'traffic',id:c.id,count:v[1]},new ol.style.Style({stroke:new ol.style.Stroke({color:'rgba(255,255,255,.35)',width:.5}),fill:new ol.style.Fill({color:'rgba(0,0,0,0)'}),text:new ol.style.Text({text:String(v[1]),font:'bold 12px sans-serif',fill:new ol.style.Fill({color:'#fff'}),stroke:new ol.style.Stroke({color:'#10223d',width:3})})}));});}
         function drawCoast(frame) {
-            sources.coast.clear();sources.points.clear();var centers=new Map();
+            sources.coast.clear();sources.coastEdge.clear();sources.points.clear();var centers=new Map();
             (frame.spots||[]).forEach(function (v) {
                 var p=spots.find(function(p){return p.i===v[0];}); if(!p) return;
                 var g=p.geometry || (p.cell?{type:'Polygon',coordinates:[p.cell]}:null);
-                add('coast',g,{kind:'coast',id:p.id,score:v[1]},colorStyle(v[1],true));
+                if(add('coast',g,{kind:'coast',id:p.id,score:v[1]},colorStyle(v[1],true)))add('coastEdge',g,null,coastEdgeStyle);
                 // 빈 면도 중심점은 남긴다. 같은 좌표는 한 점과 선택 목록으로 표시한다.
                 var key=p.lon+','+p.lat,center=centers.get(key);
                 if(center)center.get('ids').push(p.id);
@@ -220,7 +233,7 @@
             if(features.length)map.getView().fit(sources.hazard.getExtent(),{padding:pad||[55,55,Math.min(map.getSize()[1]*0.5,300),55],duration:250,maxZoom:16});
         }
         function setActive(state,enabled) {
-            active=state;visible=enabled; layers.coast.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);layers.accident.setVisible(enabled&&state.sea);layers.traffic.setVisible(enabled&&state.sea);
+            active=state;visible=enabled; layers.coast.setVisible(enabled&&state.coast);layers.coastEdge.setVisible(enabled&&state.coast);layers.points.setVisible(enabled&&state.coast); layers.sea.setVisible(enabled&&state.sea);layers.accident.setVisible(enabled&&state.sea);layers.traffic.setVisible(enabled&&state.sea);
             if(unified){layers.sea.setVisible(false);layers.accident.setVisible(false);layers.traffic.setVisible(enabled&&state.sea&&unifiedMode==='current');}layers.marine.setVisible(enabled&&state.sea&&unified);
             ['shore','selection','hazard'].forEach(function(k){layers[k].setVisible(enabled&&(state.coast||state.sea));});
         }
@@ -239,8 +252,8 @@
          * 예: dim(true) → 불투명도 0.35, dim(false) → 1. 육지 외곽선·선택 테두리·위험구역은 그대로 둔다.
          * @param {boolean} on - 흐리게 할지 @returns {void}
          * [연계] ← RiskForecast waitStart(250ms 뒤)·waitEnd / 「글자는 새 시각, 색은 옛 시각」 혼동 방지(2026-10-16 T4) */
-        function dim(on){['coast','points','marine','traffic','sea','accident'].forEach(function(k){layers[k].setOpacity(on?0.35:1);});}
-        function destroy(){disposed=true;map.un('moveend',renderUnified);map.un('moveend',maskMoveEnd);maskCanvas=null;unifiedFeatures.clear();smoothCanvas=null;Object.keys(layers).forEach(function(k){map.removeLayer(layers[k]);});}
+        function dim(on){['coast','coastEdge','points','marine','traffic','sea','accident'].forEach(function(k){layers[k].setOpacity(on?0.35:1);});}
+        function destroy(){disposed=true;map.un('moveend',renderUnified);map.un('moveend',maskMoveEnd);maskCanvas=null;coastSmoothCanvas=null;unifiedFeatures.clear();smoothCanvas=null;Object.keys(layers).forEach(function(k){map.removeLayer(layers[k]);});}
         return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawCurrent:drawCurrent,drawUnified:drawUnified,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,dim:dim,destroy:destroy};
     }
     w.RiskMapLayer={create:create};
