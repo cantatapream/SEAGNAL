@@ -68,5 +68,32 @@ const risk={marineInputs:()=>inputs,sources:()=>inputs.sources};
     await check('원천 실패는 마지막 정상본을 덮어쓰지 않음',async()=>{const before=fs.readFileSync(path.join(dir,'sea_realtime.json.gz'));const failed=C.createCollector({dir,key:'test',clock:()=>now,fetchImpl:async()=>{throw Error('secret serviceKey=never-log');},describe});assert.equal((await failed.collect()).ok,false);assert.deepEqual(fs.readFileSync(path.join(dir,'sea_realtime.json.gz')),before);assert.doesNotMatch(JSON.stringify(io.read(path.join(dir,'realtime_status.json'))),/secret|serviceKey/);});
     await check('API 등록시각이 다른 페이지를 섞지 않음',async()=>{let n=0;const f=async()=>({ok:true,json:async()=>({response:{header:{resultCode:'200',resultMsg:'NORMAL_SERVICE'},body:{regDt:++n===1?'2026-10-12 13:05:00':'2026-10-12 13:10:00',totalCount:2,items:{item:[{grid_id:n===1?'GR4_F4K23_P4':'GR4_F4K23_P3',vmtc:1,dnsty:0}]}}}})});await assert.rejects(C.readApi({dir,key:'test',fetchImpl:f,now}),/partial response/);});
     await check('다음 5분 구간 API 값은 같은 칸 번호를 유지하고 척수만 바뀜',async()=>{now+=5*60000;const c=C.createCollector({dir,key:'test',clock:()=>now,fetchImpl:api([[trafficCell.id,22,1]],'2026-10-12 13:30:00'),describe});assert.equal((await c.collect()).ok,true);const saved=io.read(path.join(dir,'sea_realtime.json.gz'));assert.deepEqual(saved.rows,[[0,22,1]]);assert.equal(saved.cells.length,1);});
+    await check('밀집도 가안 4단계 경계(5·10·20%, 경계값은 아래 단계)·빈 값은 단계 없음(사용자 2026-10-15 「밀집도는 가안대로」)',()=>{
+        assert.deepEqual([0,5,5.01,10,10.1,20,20.02,100].map(M.densityLevel),['낮음','낮음','보통','보통','높음','높음','매우높음','매우높음']);
+        for(const v of [null,undefined,NaN])assert.equal(M.densityLevel(v),null);
+    });
+    await check('지금 혼잡도 지도(current)는 밀집도로 칠하고 칸 숫자는 척수 그대로 · 밀집도 빈 칸은 칠하지 않음',()=>{
+        const scoped=fs.mkdtempSync(path.join(os.tmpdir(),'fusion-density-')),second={...trafficCell,id:'GR4_F4K23_P3',i:1,lon:126.5625,geometry:{type:'Polygon',coordinates:[[[126.55,33.55],[126.575,33.55],[126.575,33.575],[126.55,33.575],[126.55,33.55]]]}};
+        io.write(path.join(scoped,'sea_realtime.json.gz'),{cells:[trafficCell,second],rows:[[0,18,12],[1,30,null]],sourceAt:io.iso(now),collectedAt:io.iso(now),source:'MTIS realtime API'});
+        const local={...inputs,cells:{cells:[trafficCell,second]}};
+        const s2=M.createStore({risk:{marineInputs:()=>local,sources:()=>local.sources},dir:scoped,clock:()=>now,stations,accidents,describe});
+        const f=s2.unifiedFrame('current');
+        const ids=new Map(s2.unifiedCells().cells.map(c=>[c.i,c.id]));
+        const got=f.cells.map(([i,n,level,color])=>[ids.get(i),n,level,Math.round(color*1000)/1000]);
+        assert.deepEqual(got,[['GR4_F4K23_P4',18,'높음',0.55]]);              // 12% → 높음 칸(10~20)의 20% 위치 → (2+0.2)/4
+        assert.equal(s2.analysis({id:trafficCell.id}).marine.current.densityLevel,'높음');
+        fs.rmSync(scoped,{recursive:true,force:true});
+    });
+    await check('칸 사고 목록: 최신순·종류·원인 이름·사망/실종(빈 값은 null, 0 으로 바꾸지 않음)·제외 유형 빠짐',()=>{
+        const list=M.accidentList([row('ATY027',null,2,1,'20230914'),row('ATY028','ACC008',0,0,'20250102'),row('ATY019','ACC012',null,null,'20240501'),row('ATY010','ACC008',0,3,'20220101')]);
+        assert.deepEqual(list,[
+            {date:'2025-01-02',year:2025,type:'침몰',cause:'기상악화',death:0,missing:0},
+            {date:'2024-05-01',year:2024,type:'접촉',cause:'운항부주의',death:null,missing:null},
+            {date:'2023-09-14',year:2023,type:'충돌',cause:null,death:2,missing:1},
+            {date:'2022-01-01',year:2022,type:'기상 관련 기타',cause:'기상악화',death:0,missing:3}]);
+        const h=m.analysis({id:trafficCell.id}).marine.history;
+        assert.equal(h.accidents.length,h.count,'목록 건수 = 집계 건수(해양오염·부유물감김 제외 규칙 같음)');
+        assert.ok(h.accidents.every(a=>a.year>=2021&&a.year<=2025));
+    });
     await check('실제 HTTP 통합·관할 계약과 읽기전용 오류',async()=>{const app=express();app.use(createRouter({store:risk,marine:m}));server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const url='http://127.0.0.1:'+server.address().port+'/api/risk-forecast/sea/';const a=await fetch(url+'analysis?id='+trafficCell.id);assert.equal(a.status,200);assert.equal(a.headers.get('cache-control'),'no-store');assert.ok((await a.json()).marine);assert.equal((await fetch(url+'briefing?id=none')).status,404);assert.equal((await(await fetch(url+'jurisdictions')).json()).stations.length,2);});
 }finally{if(server)await new Promise(resolve=>server.close(resolve));fs.rmSync(dir,{recursive:true,force:true});console.log(`${pass} PASS / ${fail} FAIL`);if(fail)process.exitCode=1;}})();

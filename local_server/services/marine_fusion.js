@@ -35,6 +35,23 @@ function summary(rows){const s=emptySummary();for(const r of rows){s.count++;con
  * [연계] ← analyze / MTIS 모바일 GR4 기준 7·14·21.
  */
 function trafficLevel(n){return n===null?null:n<7?'여유':n<14?'보통':n<21?'주의':'혼잡';}
+// 실시간 밀집도(%) 4단계 — 공식 단계가 아니라 앱 가안이다. 실시간 API 는 칸번호·척수·밀집도 세 값만 주고 단계는 주지 않는다.
+// 공단 혼잡예보 단계 경계(유효선박면적 비율 5·10·20%)를 빌렸다. 두 %가 같은 산식인지는 확인하지 못했다.
+// 사용자 결정 2026-10-15 「밀집도는 가안대로 가자.」
+const DENSITY_CUTS=[0,5,10,20,100],DENSITY_LEVELS=['낮음','보통','높음','매우높음'];
+/** 실시간 밀집도를 가안 4단계로 나눈다. 예: 12.0 → 높음, 5 → 낮음(경계값은 아래 단계), null → null.
+ * @param {number|null} d - 밀집도(%) @returns {string|null} 단계
+ * [연계] ← analyze(current.densityLevel) · unifiedFrame('current' 지도 색) / 화면 뱃지·범례 「밀집도」
+ */
+function densityLevel(d){return d===null||d===undefined||!Number.isFinite(d)?null:d<=5?'낮음':d<=10?'보통':d<=20?'높음':'매우높음';}
+// 사고 원인 코드 → 이름. 출처는 client/js/shared/utils/accident_codes.js(국립해양조사원 개방海 코드정의서)와 같은 값.
+const CAUSES={ACC004:'기타(인명)',ACC005:'관리소홀',ACC006:'기관고장',ACC007:'기관손상',ACC008:'기상악화',ACC009:'기타',ACC010:'별표',ACC011:'연료고갈',ACC012:'운항부주의',ACC013:'원인미상',ACC014:'재질불량',ACC015:'적재불량',ACC016:'전복',ACC017:'정비불량',ACC018:'좌초',ACC019:'충돌',ACC020:'침수',ACC021:'화기취급부주의',ACC022:'안전부주의'};
+/** 칸 안 사고를 한 건씩 최신순 목록으로 만든다(사고 종류별 팝업·인명피해 한 줄용). 예: [{date:'2023-09-14',year:2023,type:'충돌',cause:'운항부주의',death:1,missing:0}]
+ * 원인이 없으면 cause:null(「원인 기록 없음」), 사망·실종 수가 비었으면 null(0 으로 바꾸지 않는다).
+ * @param {array} rows - 허용된 기존 선박사고 @returns {array} 사고 목록
+ * [연계] ← history(칸 단위만 — 관할 briefing 은 건수가 많아 싣지 않는다) / 화면 「이 해역 과거 선박사고」
+ */
+function accidentList(rows){const n=x=>Number.isFinite(x)&&x>=0?x:null;return rows.map(r=>{const d=String(r[2]);return{date:d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8),year:Number(d.slice(0,4)),type:INCIDENTS[r[5]]||'기상 관련 기타',cause:CAUSES[r[6]]||null,death:n(r[10]),missing:n(r[11])};}).sort((a,b)=>b.date.localeCompare(a.date));}
 // 사고 단계는 공식 사고 예보 그대로 둔다. 종전 「공식 낮음·보통 + 현재 14척 이상이면 한 단계 올림(종합 관심단계)」은 없앴다 —
 // 사용자 결정 2026-10-15 「혼잡해서 발생하는 사고는 실질적으로 충돌뿐이라 혼잡도·밀집도로 사고 등급을 높이는 게 맞나 싶다」 ·
 // 「충돌, 접촉 주의로 안내가 나가야하고 사유도 명시해야해.」 → 혼잡·척수는 아래 collisionNotice 의 별도 안내로만 쓴다.
@@ -75,7 +92,7 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     }
     function inside(p,b){return p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];}
     function stationFor(p){loadStatic();const key=p.join(',');if(stationCache.has(key))return stationCache.get(key);const value=stations.filter(s=>inside(p,s.bounds)&&G.pointInGeometry(p,s.geometry)).sort((a,b)=>a.name.localeCompare(b.name,'ko')||a.id.localeCompare(b.id))[0]||null;stationCache.set(key,value);if(stationCache.size>60000)stationCache.delete(stationCache.keys().next().value);return value;}
-    function history(geometry,key){loadStatic();if(historyCache.has(key))return historyCache.get(key);const b=bounds(geometry),rows=[];for(let x=Math.floor(b[0]*4);x<=Math.floor(b[2]*4);x++)for(let y=Math.floor(b[1]*4);y<=Math.floor(b[3]*4);y++)for(const r of buckets.get(x+','+y)||[])if(inside([r[1],r[0]],b)&&G.pointInGeometry([r[1],r[0]],geometry))rows.push(r);const result={...summary(rows),...period,excludedCount};historyCache.set(key,result);if(historyCache.size>20000)historyCache.delete(historyCache.keys().next().value);return result;}
+    function history(geometry,key){loadStatic();if(historyCache.has(key))return historyCache.get(key);const b=bounds(geometry),rows=[];for(let x=Math.floor(b[0]*4);x<=Math.floor(b[2]*4);x++)for(let y=Math.floor(b[1]*4);y<=Math.floor(b[3]*4);y++)for(const r of buckets.get(x+','+y)||[])if(inside([r[1],r[0]],b)&&G.pointInGeometry([r[1],r[0]],geometry))rows.push(r);const result={...summary(rows),...period,excludedCount,accidents:accidentList(rows)};historyCache.set(key,result);if(historyCache.size>20000)historyCache.delete(historyCache.keys().next().value);return result;}
     function input(){loadLive();return risk.marineInputs();}
     function freshness(){const d=loadLive(),attempt=io.read(path.join(dir,'realtime_status.json')),stamp=Date.parse(d?.sourceAt||d?.collectedAt);return{status:!d?'missing':!Number.isFinite(stamp)||clock()-stamp>15*60000||stamp>clock()+5*60000?'stale':attempt?.status==='error'?'error':'ok',sourceAt:d?.sourceAt||null,collectedAt:d?.collectedAt||null,source:d?.source||null,unmapped:d?.unmapped||0,scope:d?.scope||null,timeMeaning:d?.timeMeaning||null};}
     function tables(){const d=loadLive();return{v:d?.v||null,cells:d?.cells||[],status:freshness()};}
@@ -92,11 +109,12 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
      * 예: 모드 accident/congestion/current, 사고 단계는 원본 그대로 공유. risk(기본)는 현재·미래 모두 공식 사고 예보(2026-10-15 종합 관심단계 폐지).
      * 혼잡 색 위치 경계 0·1·10·20·100 은 실제 응답의 단계 경계다(2026-10-15 운영 혼잡 프레임 10개 46,312칸: 낮음 0.1~1 · 보통 1~9.99 · 높음 10~19.94 · 매우높음 20.02~99.9).
      * 종전 0·5·10·20 은 보통 칸 81.6%(5,120/6,274)를 지수 5 미만이라 같은 색(0.25)으로 눌렀다.
+     * current(지금 혼잡도 버튼)는 척수가 아니라 실시간 밀집도 가안 4단계(densityLevel, 경계 0·5·10·20·100)로 칠한다 — 사용자 2026-10-15 「현재기준 조회 시 밀집도를 기준으로 미래 조회시 혼잡도를 기준으로」. 밀집도가 빈 칸은 칠하지 않는다. 칸 숫자(n, 크게 확대했을 때 지도에 찍히는 글자)는 종전대로 척수다.
      * @param {string} mode - 지도 항목 @param {string} t - 선택 시각 @returns {object} 프레임
      * [연계] ← RiskForecast / 현재 숫자를 미래 관측으로 바꾸지 않는다.
      */
     function unifiedFrame(mode='risk',t){if(!['risk','accident','congestion','current'].includes(mode))throw Object.assign(Error('지도 항목 오류'),{status:400});const inputs=input(),at=time(t),table=unifiedCells(),status=freshness(),liveById=new Map((live?.rows||[]).map(r=>[live.cells[r[0]].id,r])),accAt=T.isoKst(Math.floor(Date.parse(at)/(3*3600000))*3*3600000),accRows=inputs.accident?.frames?.[forecastKey(accAt)],colorById=riskColors(accRows),result=[];
-        for(const c of table.cells){let level=null,n=null,color=null;if(mode==='current'){const r=liveById.get(c.id);if(r&&status.status==='ok'){n=r[1];level=trafficLevel(n);color=Math.min(.999999,n/28);}}else if(mode==='congestion'){const r=congestionAt(inputs.congestion,forecastKey(at),c.id);if(r&&inputs.sources.congestion?.status==='ok'){level=r.congestionLevel;n=r.congestionIndex;const cuts=[0,1,10,20,100],rank=RANK[level];color=(rank+Math.max(0,Math.min(1,(n-cuts[rank])/(cuts[rank+1]-cuts[rank]))))/4;}}else{const accidentIndex=accidentMapping.get(c.i),r=accidentIndex!==undefined&&findRow(accRows,accidentIndex,true);if(r&&inputs.sources.accident?.status==='ok'){level=r[2];n=r[1];color=colorById.get(accidentIndex);}}if(level&&Number.isFinite(n)&&Number.isFinite(color))result.push([c.i,n,level,color]);}
+        for(const c of table.cells){let level=null,n=null,color=null;if(mode==='current'){const r=liveById.get(c.id);if(r&&status.status==='ok'){level=densityLevel(r[2]);if(level){n=r[1];const rank=DENSITY_LEVELS.indexOf(level);color=Math.min(.999999,(rank+Math.max(0,Math.min(1,(r[2]-DENSITY_CUTS[rank])/(DENSITY_CUTS[rank+1]-DENSITY_CUTS[rank]))))/4);}}}else if(mode==='congestion'){const r=congestionAt(inputs.congestion,forecastKey(at),c.id);if(r&&inputs.sources.congestion?.status==='ok'){level=r.congestionLevel;n=r.congestionIndex;const cuts=[0,1,10,20,100],rank=RANK[level];color=(rank+Math.max(0,Math.min(1,(n-cuts[rank])/(cuts[rank+1]-cuts[rank]))))/4;}}else{const accidentIndex=accidentMapping.get(c.i),r=accidentIndex!==undefined&&findRow(accRows,accidentIndex,true);if(r&&inputs.sources.accident?.status==='ok'){level=r[2];n=r[1];color=colorById.get(accidentIndex);}}if(level&&Number.isFinite(n)&&Number.isFinite(color))result.push([c.i,n,level,color]);}
         return{v:table.v,cells:result,mode:mode==='risk'?'accident':mode,t:at,forecastAt:mode==='accident'||mode==='risk'?accAt:mode==='congestion'?T.isoKst(Math.floor(Date.parse(at)/3600000)*3600000):null,currentStatus:status,grid:table.grid,accidentResolution:table.accidentResolution};}
     function jurisdictionList(){loadStatic();return{stations:stations.map(({id,name,station})=>({id,name,station}))};}
     /** 해상 통합 조회 시각을 검사한다. 예: 지금-3시간~내일 23:59는 통과, 모레 00시는 400.
@@ -112,7 +130,7 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     function congestion(row,c){return row?{gridId:c.id,index:row.congestionIndex,level:row.congestionLevel,forecastAt:T.isoKst(Date.parse(row.fcstDate.slice(0,4)+'-'+row.fcstDate.slice(4,6)+'-'+row.fcstDate.slice(6,8)+'T'+row.fcstTime.slice(0,2)+':00:00+09:00')),createdAt:row.fcstCreateDateTime}:null;}
     function analyze(p,at,inputs){
         const currentCell=pointCell(live?.cells,p),traffic=pointCell(inputs.cells?.cells,p),accidentCell=pointCell(inputs.accident?.cells,p),cell=currentCell||traffic||accidentCell||describe({gridId:'point',latitude:p[1],longitude:p[0]}),liveRow=currentCell&&(live?.rows||[]).find(r=>r[0]===currentCell.i),status=freshness();
-        const liveData=liveRow?{gridId:currentCell.id,count:liveRow[1],density:liveRow[2],level:trafficLevel(liveRow[1]),...status}:null;
+        const liveData=liveRow?{gridId:currentCell.id,count:liveRow[1],density:liveRow[2],densityLevel:densityLevel(liveRow[2]),level:trafficLevel(liveRow[1]),...status}:null;
         const key=forecastKey(at),congestionRow=traffic&&congestionAt(inputs.congestion,key,traffic.id),cf=congestion(congestionRow,traffic);
         const accAt=T.isoKst(Math.floor(Date.parse(at)/(3*3600000))*3*3600000),ar=accidentCell&&findRow(inputs.accident?.frames?.[forecastKey(accAt)],accidentCell.i,true),af=ar?{gridId:accidentCell.id,index:ar[1],level:ar[2],forecastAt:accAt,createdAt:inputs.accident.createdAt,status:inputs.sources.accident?.status}:null;
         if(cf)cf.status=inputs.sources.congestion?.status;
@@ -152,4 +170,4 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     }
     return{tables,current,unifiedCells,unifiedFrame,jurisdictionList,analysis,briefing};
 }
-module.exports={createStore,location,trafficLevel,collisionNotice,riskColors,summary,INCIDENTS};
+module.exports={createStore,location,trafficLevel,densityLevel,accidentList,collisionNotice,riskColors,summary,INCIDENTS};
