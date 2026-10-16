@@ -232,7 +232,7 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  const ENDS=[[12,26,58],[22,45,90]];   // 창 바탕 그라데이션 두 끝 #0c1a3a·#162d5a — 어느 높이든 그 사이 색이다
  // 2026-10-16 사용자 「맨 아래 mtis 공식 사고예보, mtis 공식 혼잡예보가 하이퍼링크 형식으로 있는데 이거는 디자인은 버튼 형식으로 바꿔주고 각 버튼을 가운데 정렬해줘.」
  //   종전 단언(밑줄 하늘색 링크 · 「·」 로 이음)을 버튼 모양·가운데·「·」 없음으로 바꿨다. 같은 날 「여기 제목에 공식 텍스트는 빼줘.」 — 해상 제목 「선박 사고위험·교통혼잡 예보」.
- await check('기준 상세 MTIS 두 링크는 버튼 모양(밑줄 없음·둥근 테두리)·가운데·「·」 없음·목적지 그대로, 창 바탕 두 끝 모두에 글자 대비 4.5:1 이상(연안 PDF 버튼 포함), 해상 제목에 「공식」 없음',async()=>{
+ await check('기준 상세 MTIS 두 링크는 버튼 모양(밑줄 없음·둥근 테두리)·가운데·「·」 없음·새 창, 창 바탕 두 끝 모두에 글자 대비 4.5:1 이상(연안 PDF 버튼 포함), 해상 제목에 「공식」 없음',async()=>{
   const pdf=await pg.evaluate(()=>{const a=document.querySelector('.rf-basis .pdf-btn'),cs=getComputedStyle(a);return{color:cs.color,bg:cs.backgroundColor};});
   for(const width of [380,320,1024]){
    await pg.setViewportSize({width,height:820});await pg.evaluate(()=>{RiskBasis.close();RiskBasis.open('sea');});
@@ -241,7 +241,8 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
     const rows={};links.forEach(a=>{(rows[a.t]=rows[a.t]||[]).push(a);});
     return{links,pText:p.textContent,rows:Object.values(rows).map(row=>({left:Math.min(...row.map(a=>a.l))-inner.l,right:inner.r-Math.max(...row.map(a=>a.r)),n:row.length})),aCount:document.querySelectorAll('.rf-basis a').length};});
    const out={...m,links:m.links.map(l=>({text:l.text,min:+Math.min(...ENDS.map(e=>ratio(rgb(l.color),over(rgb(l.bg),e)))).toFixed(2),rows:undefined}))};console.log('측정 MTIS 버튼 '+width+'px',JSON.stringify({rows:m.rows,links:out.links}));
-   assert.deepEqual(m.links.map(l=>[l.text,l.href,l.target,l.rel]),[['MTIS 공식 사고예보','https://mtis.komsa.or.kr/traffic/focst/acdntRisk','_blank','noopener noreferrer'],['MTIS 공식 혼잡예보','https://mtis.komsa.or.kr/traffic/focst/density','_blank','noopener noreferrer']]);
+   // 2026-10-16 사용자 「1-가」: 주소 비교는 뺀다 — MTIS 웹 주소를 local_server 의 .js 에 적으면 test_no_mtis_web 이 막는다(주소는 risk_basis_content.js 에만 둔다).
+   assert.deepEqual(m.links.map(l=>[l.text,!!l.href,l.target,l.rel]),[['MTIS 공식 사고예보',true,'_blank','noopener noreferrer'],['MTIS 공식 혼잡예보',true,'_blank','noopener noreferrer']]);
    assert.equal(m.pText,'MTIS 공식 사고예보MTIS 공식 혼잡예보','「·」 글자 없음');assert.equal(m.aCount,2);
    for(const l of m.links){assert.equal(l.cls,'link-btn');assert.equal(l.line,'none');assert.equal(l.border,'solid');assert.ok(l.radius>=10,'둥근 모양 '+l.radius);assert.ok(l.h>=24,'누르는 곳 높이 '+l.h);}
    for(const l of out.links)assert.ok(l.min>=4.5,l.text+' 대비 '+l.min);
