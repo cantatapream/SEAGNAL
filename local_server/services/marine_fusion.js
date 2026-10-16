@@ -135,7 +135,7 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     const zonesOf=zonesFor||((id,p)=>{const W=require('./warn_zone_cells');return(typeof id==='string'&&id.startsWith('GR4_')&&W.zonesOfCell(id))||W.zonesAt(p);});
     if(typeof clock!=='function')throw TypeError('clock function required');
     let live=null,liveSignature='',staticLoaded=false,stations=[],accidents=[],buckets=new Map(),period=null,excludedCount=0,staticAvailable=false,unifiedCache=null,unifiedCacheKey=null,accidentMapping=new Map();
-    const historyCache=new Map(),briefCache=new Map(),stationCache=new Map(),spatial=new WeakMap(),frameRows=new WeakMap(),congestionIds=new WeakMap();
+    const historyCache=new Map(),cellSummaryCache=new Map(),briefCache=new Map(),stationCache=new Map(),spatial=new WeakMap(),frameRows=new WeakMap(),congestionIds=new WeakMap();
     function loadLive(){const file=path.join(dir,'sea_realtime.json.gz');let sign='';try{const s=fs.statSync(file);sign=[s.mtimeMs,s.size,s.ino].join(':');}catch(e){if(e.code!=='ENOENT')throw e;}if(sign!==liveSignature){liveSignature=sign;live=io.read(file);briefCache.clear();}return live;}
     function loadStatic(){if(staticLoaded)return;staticLoaded=true;const sc=injectedStations||io.read(path.join(configDir,'coastguard_stations.geojson'))?.features||[];
         stations=sc.filter(f=>['Polygon','MultiPolygon'].includes(f.geometry?.type)).map((f,i)=>({id:String(i),name:f.properties?.name||'관할 '+i,station:f.properties?.station||'',geometry:f.geometry,bounds:bounds(f.geometry)}));
@@ -144,7 +144,9 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     }
     function inside(p,b){return p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];}
     function stationFor(p){loadStatic();const key=p.join(',');if(stationCache.has(key))return stationCache.get(key);const value=stations.filter(s=>inside(p,s.bounds)&&G.pointInGeometry(p,s.geometry)).sort((a,b)=>a.name.localeCompare(b.name,'ko')||a.id.localeCompare(b.id))[0]||null;stationCache.set(key,value);if(stationCache.size>60000)stationCache.delete(stationCache.keys().next().value);return value;}
-    function history(geometry,key){loadStatic();if(historyCache.has(key))return historyCache.get(key);const b=bounds(geometry),rows=[];for(let x=Math.floor(b[0]*4);x<=Math.floor(b[2]*4);x++)for(let y=Math.floor(b[1]*4);y<=Math.floor(b[3]*4);y++)for(const r of buckets.get(x+','+y)||[])if(inside([r[1],r[0]],b)&&G.pointInGeometry([r[1],r[0]],geometry))rows.push(r);const result={...summary(rows),...period,excludedCount,accidents:accidentList(rows)};historyCache.set(key,result);if(historyCache.size>20000)historyCache.delete(historyCache.keys().next().value);return result;}
+    /** 경계 안 과거 선박사고 줄(원자료 배열)을 모은다. @param {object} geometry @returns {Array[]} [연계] ← history·cellHistory */
+    function historyRows(geometry){const b=bounds(geometry),rows=[];for(let x=Math.floor(b[0]*4);x<=Math.floor(b[2]*4);x++)for(let y=Math.floor(b[1]*4);y<=Math.floor(b[3]*4);y++)for(const r of buckets.get(x+','+y)||[])if(inside([r[1],r[0]],b)&&G.pointInGeometry([r[1],r[0]],geometry))rows.push(r);return rows;}
+    function history(geometry,key){loadStatic();if(historyCache.has(key))return historyCache.get(key);const rows=historyRows(geometry);const result={...summary(rows),...period,excludedCount,accidents:accidentList(rows)};historyCache.set(key,result);if(historyCache.size>20000)historyCache.delete(historyCache.keys().next().value);return result;}
     function input(){loadLive();return risk.marineInputs();}
     function freshness(){const d=loadLive(),attempt=io.read(path.join(dir,'realtime_status.json')),stamp=Date.parse(d?.sourceAt||d?.collectedAt);return{status:!d?'missing':!Number.isFinite(stamp)||clock()-stamp>15*60000||stamp>clock()+5*60000?'stale':attempt?.status==='error'?'error':'ok',sourceAt:d?.sourceAt||null,collectedAt:d?.collectedAt||null,source:d?.source||null,unmapped:d?.unmapped||0,scope:d?.scope||null,timeMeaning:d?.timeMeaning||null};}
     function tables(){const d=loadLive();return{v:d?.v||null,cells:d?.cells||[],status:freshness()};}
@@ -238,8 +240,13 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     function stationAt(p){const s=stationFor(p);return s?{id:s.id,name:s.name,station:s.station}:null;}
     /** 한 칸(경계) 안 과거 선박사고 집계를 준다(관할 브리핑 해역 카드 「특성」 — 시트의 history 와 같은 계산, 사고 목록은 뺀다).
      * 예: cellHistory(사고칸.geometry,'grid:12345') → {count:18,topTypes:[{type:'충돌',count:7}],death:1,missing:0,from:'2021-01-01',to:'2025-12-31',…}
-     * @param {object} geometry - GeoJSON Polygon @param {string} key - 캐시 열쇠(시트와 같은 'grid:'+id) @returns {object} [연계] ← station_briefing_inputs.collectSea / → history */
-    function cellHistory(geometry,key){const{accidents:_,...rest}=history(geometry,key);return rest;}
-    return{tables,current,unifiedCells,unifiedFrame,jurisdictionList,analysis,briefing,stationAt,cellHistory};
+     * 사고 목록(accidents)을 만들지 않고, 시트용 큰 캐시(historyCache — 칸마다 사고 목록 통째)에도 넣지 않는다 — 브리핑은 97관할 전 칸을 돌아 그 캐시를 채우던 문제(독립 검토 C5).
+     * 시트가 이미 센 칸이면 그것을 쓰고, 아니면 집계만 작은 캐시(cellSummaryCache, 5,000칸)에 둔다.
+     * @param {object} geometry - GeoJSON Polygon @param {string} key - 캐시 열쇠(시트와 같은 'grid:'+id) @returns {object} [연계] ← station_briefing_inputs.collectSea / → historyRows·summary */
+    function cellHistory(geometry,key){loadStatic();const h=historyCache.get(key);if(h){const{accidents:_,...rest}=h;return rest;}if(cellSummaryCache.has(key))return cellSummaryCache.get(key);
+        const result={...summary(historyRows(geometry)),...period,excludedCount};cellSummaryCache.set(key,result);if(cellSummaryCache.size>5000)cellSummaryCache.delete(cellSummaryCache.keys().next().value);return result;}
+    /** 캐시 크기(시험·점검용). 예: cacheSizes() → {history:0,cellSummary:12}. @returns {object} [연계] ← test_station_briefing */
+    function cacheSizes(){return{history:historyCache.size,cellSummary:cellSummaryCache.size};}
+    return{tables,current,unifiedCells,unifiedFrame,jurisdictionList,analysis,briefing,stationAt,cellHistory,cacheSizes};
 }
 module.exports={createStore,location,trafficLevel,densityLevel,accidentList,collisionNotice,riskColors,summary,warningsAt,warnTime,INCIDENTS};

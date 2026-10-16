@@ -346,3 +346,4 @@
 - 서버: `local_server/services/station_briefing{,_rules,_ai,_inputs}.js` · `routes/station_briefing.js` · 시험 `test_station_briefing`.
 - `marine_fusion` 에 `stationAt`·`cellHistory`(관할 배정·과거 사고 집계를 브리핑이 같은 계산으로 쓰게)를 더했다 — 이 화면 동작은 그대로.
 - API 계약·노출 판정·관리자 설정: [briefing.contract.md](../../ocean-map/coastal-risk/briefing.contract.md) · 설계 기록: [coastal_safety_forecast.design.md](../../ocean-map/coastal-risk/coastal_safety_forecast.design.md) §11.7.
+- **독립 검토 반영(2026-10-16)**: 결측은 「확인 불가(일부)」(평소 수준과 구분)·AI 총평 검증 강화(숫자+단위·한글 수사·지명·단계 말·금지어·HTML)·AI 시간 제한·데드라인·실행 실패 백오프·특보 변경 디바운스. `marine_fusion.cellHistory` 는 이제 사고 목록을 만들지 않고 시트용 캐시(`historyCache`)를 채우지 않는다(작은 집계 캐시를 따로 둔다 — 이 화면의 시트 동작은 그대로, `cacheSizes()` 점검용 추가). 상세: 설계서 §11.7 · 계약 §5·§5.1.
