@@ -412,7 +412,9 @@
             if(!state[layerKey]){var lb=legend.querySelector('[data-layer="'+layerKey+'"]');if(lb)lb.click();await sync();}
             if(!meta||!enabled||disposed||!state[layerKey])return false;
             var next=t||meta.now;
-            if(target.kind==='coast'&&target.date)next=target.date===kstDay(meta.now)?meta.now:coastDays().indexOf(target.date)>=0?coastT(target.date+'T00:00:00+09:00'):next;
+            // 연안 날짜가 위험예측 표(coastDays)에 없으면 다른 날짜를 조용히 열지 않고 false(2단계 검토 A7 — 부른 쪽이 안내한다).
+            if(target.kind==='coast'&&target.date&&target.date!==kstDay(meta.now)&&coastDays().indexOf(target.date)<0)return false;
+            if(target.kind==='coast'&&target.date)next=target.date===kstDay(meta.now)?meta.now:coastT(target.date+'T00:00:00+09:00');
             else if(target.t){var goal=Date.parse(target.t);next=!(goal>Date.parse(meta.now))?meta.now:(mainTimes().filter(function(at){return Date.parse(at)<=goal;}).pop()||meta.now);}
             if(next!==t)await setMain(next);
             if(target.kind==='coast'&&!table.coast.spots.some(function(p){return p.id===target.id;}))return false;
@@ -456,15 +458,20 @@
             finally{pending=false;}
         });
         w._riskForecastTryHandleClick=function(map,evt){return instance?instance.tryHandleClick(evt):false;};
-        /** 「활동지점 안전 브리핑」 카드의 [위험예측에서 보기 ›](설계서 §11.4) — 미리보기 잠금(10번 누름)을 풀고, 꺼져 있으면 버튼을 눌러 켠 뒤(해양안전 단독 표출 규칙 그대로) goTo.
-         * 예: await RiskForecast.openAt({kind:'coast',id:'S1',date:'2026-10-17'}) → true
+        /** 「활동지점 안전 브리핑」 카드의 [위험예측에서 보기 ›](설계서 §11.4) — 꺼져 있으면 버튼을 눌러 켠 뒤(해양안전 단독 표출 규칙 그대로) goTo.
+         * 미리보기 잠금(10번 누름)은 관리자 모드(seagnal_admin_mode)일 때만 푼다 — 일반 기기는 잠금을 그대로 두고 false(2단계 검토 A2: 바로가기가 잠금을 풀어 버렸다).
+         *   일반 공개 때 잠금을 어떻게 할지는 사용자가 따로 정한다(station-briefing/README.md · 설계서 §11.9).
+         * 예: await RiskForecast.openAt({kind:'coast',id:'S1',date:'2026-10-17'}) → true · 일반 기기 + 잠금 → false(잠금 그대로)
          * @param {Object} target - goTo 와 같음 @returns {Promise<boolean>} [연계] ← station_briefing.js openInRisk / → btn click·instance.goTo */
         w.RiskForecast.openAt=async function(target){
+            if(!unlocked){var admin=false;try{admin=localStorage.getItem('seagnal_admin_mode')==='true';}catch(e){admin=false;}if(!admin)return false;}
             unlocked=true;btn.classList.remove('rf-preview-locked');btn.setAttribute('aria-disabled','false');
             if(!enabled)btn.click();
             for(var i=0;i<200&&!(instance&&instance.getState().enabled);i++)await new Promise(function(r){setTimeout(r,50);});   // 지도·모듈 준비(최대 10초)
             return instance&&instance.getState().enabled?instance.goTo(target):false;
         };
+        /** 위험예측 미리보기 잠금이 아직 걸려 있나(10번 누르기 전). 예: 처음 → true. @returns {boolean} [연계] ← station_briefing.js openInRisk(탭을 옮기기 전에 안내) */
+        w.RiskForecast.previewLocked=function(){return !unlocked;};
     }
     w.RiskForecast={mount:mount};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindApp);else bindApp();

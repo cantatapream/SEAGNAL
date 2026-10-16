@@ -2703,7 +2703,7 @@
         };
     </script>
     <link rel="stylesheet" href="js/marine-life/risk-forecast/risk_forecast.css?v=20261016t24">
-    <link rel="stylesheet" href="js/forecast/station-briefing/station_briefing.css?v=20261016sb">
+    <link rel="stylesheet" href="js/forecast/station-briefing/station_briefing.css?v=20261016sb2">
 </head>
 
 <body class="loading">
@@ -5641,7 +5641,7 @@
     <script src="js/forecast/alerts/alert_history.js"></script>
     <script src="js/forecast/alerts/render_coastal.js"></script>
     <script src="js/forecast/alerts/marine.js?v=Maint_20260910"></script>
-    <script src="js/settings/settings.js?v=20261016sb"></script>
+    <script src="js/settings/settings.js?v=20261016sb2"></script>
     <script src="js/location-alert/location_alert_core.js"></script>
     <script src="js/location-alert/location_alert_background.js"></script>
     <script src="js/location-alert/location_alert_runtime.js"></script>
@@ -5729,11 +5729,11 @@
     <script src="js/admin/pagination_helper.js"></script>
     <!-- 사용량 통계 기능 키 → 한글 이름표(화면·CSV 공용). admin_collect.js 보다 먼저 -->
     <script src="js/shared/utils/usage_keys.js"></script>
-    <script src="js/admin/admin.js?v=20261016sb"></script>
+    <script src="js/admin/admin.js?v=20261016sb2"></script>
     <!-- [데이터 수집현황] 점검 탭 하위 화면(수집 목록·현재 원천 상태·오류·복구 이력). admin.js 의 renderAiForecastSubtab 을 쓰므로 그 뒤 -->
     <script src="js/admin/admin_data_status.js"></script>
     <!-- [AI 브리핑] AI 탭 하위 탭(활동지점 안전 브리핑 생성 방식·모델·노출 범위·상태·미리보기). admin.js switchAiSubTab 이 부른다 -->
-    <script src="js/admin/admin_station_briefing.js?v=20261016sb"></script>
+    <script src="js/admin/admin_station_briefing.js?v=20261016sb2"></script>
     <script src="js/admin/admin_collect.js?v=Usage_20260910"></script>
     <script src="js/admin/admin_survey.js"></script>
     <script src="js/admin/admin_report.js"></script>
@@ -5832,13 +5832,13 @@
     <script src="js/marine-life/risk-forecast/risk_sheet.js?v=20261016warn"></script>
     <script src="js/marine-life/risk-forecast/risk_basis_content.js?v=20261016t24"></script>
     <script src="js/marine-life/risk-forecast/risk_basis.js?v=20261016t9"></script>
-    <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261016sb"></script>
+    <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261016sb2"></script>
     <script src="js/marine-life/safety/life_safety.js?v=TabKeep3_20261016"></script>
     <!-- 활동지점 안전 브리핑(해양예보 탭 아코디언, 설계서 §11) — 바로가기가 위험예측(risk_forecast.js)·탭 전환(life_safety.js)을,
          [기준 상세] 문안이 risk_basis_content.js 의 RiskBasisContent 를 쓰므로 그 뒤. 렌더 → 기준 문안 → 본체 순서. -->
-    <script src="js/forecast/station-briefing/station_briefing_render.js?v=20261016sb"></script>
-    <script src="js/forecast/station-briefing/station_briefing_basis.js?v=20261016sb"></script>
-    <script src="js/forecast/station-briefing/station_briefing.js?v=20261016sb"></script>
+    <script src="js/forecast/station-briefing/station_briefing_render.js?v=20261016sb2"></script>
+    <script src="js/forecast/station-briefing/station_briefing_basis.js?v=20261016sb2"></script>
+    <script src="js/forecast/station-briefing/station_briefing.js?v=20261016sb2"></script>
 
     <!-- 온보딩 튜토리얼 (공지사항 탭 3초 안에 5회 연타로만 열리는 시험 모드)
          아직 일반 사용자에게는 보이지 않는다. 앞으로 다른 화면의 아코디언·버튼을
@@ -5953,9 +5953,10 @@
 
         // ── 아코디언 차단 매핑 ──
         // featureId → 아코디언 헤더 DOM ID
-        // [대상] 기상정보 > 특보 및 전망 탭 내 4개 아코디언 (특보 예측 2026-09-10 추가)
+        // [대상] 기상정보 > 특보 및 전망 탭 내 5개 아코디언 (특보 예측 2026-09-10 · 활동지점 안전 브리핑 2026-10-16 추가)
         const featureMap = {
             'marine-forecast': 'marine-forecast-accordion-header',
+            'station-briefing': 'station-briefing-accordion-header',
             'weather-alert': 'main-accordion-header',
             'weather-buoy': 'marine-status-accordion-header',
             'advisory-prediction': 'advisory-prediction-accordion-header',
@@ -5963,6 +5964,7 @@
         // featureId → 아코디언 바디 DOM ID (차단 시 숨김 처리)
         const bodyMap = {
             'marine-forecast': 'marine-forecast-accordion-body',
+            'station-briefing': 'station-briefing-accordion-body',
             'weather-alert': 'main-accordion-body',
             'weather-buoy': 'marine-status-accordion-body',
             'advisory-prediction': 'advisory-prediction-accordion-body',
@@ -5970,6 +5972,7 @@
         // featureId → 원본 onclick 핸들러 (차단 해제 시 복원용)
         const originalOnclickMap = {
             'marine-forecast': 'toggleMarineForecastAccordion()',
+            'station-briefing': 'toggleStationBriefingAccordion()',
             'weather-alert': 'toggleMainAccordion()',
             'weather-buoy': 'toggleMarineStatusAccordion()',
             'advisory-prediction': 'toggleAdvisoryPredictionAccordion()',
@@ -6054,6 +6057,9 @@
                 if (bodyEl) bodyEl.style.display = '';
             }
         }
+        // 활동지점 안전 브리핑은 몸·머리 보임을 서버 노출 판정이 정한다 — 위 차단 해제가 몸을 무조건 보이게 했으니 그 판정으로 다시 맞춘다.
+        // [연계] js/forecast/station-briefing/station_briefing.js applyVisibility(차단 중이면 일반 기기는 몸 숨김)
+        if (window.StationBriefing && typeof window.StationBriefing.applyVisibility === 'function') window.StationBriefing.applyVisibility();
 
         // ── 탭 차단/해제 처리 ──
         // [동작] 메인탭(.tab-btn) 또는 서브탭(.sub-tab-btn)에서 data-target으로 매칭

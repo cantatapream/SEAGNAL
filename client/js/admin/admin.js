@@ -57,6 +57,18 @@ const adminAuthenticated = {
 
 const ADMIN_TOKEN_KEY = 'seagnal_admin_token';
 
+/**
+ * 관리자 상태(로그인 토큰·관리자 모드·관리자 기기 등록)가 바뀌었다고 화면에 알린다 — document 에 'seagnal-admin-change' 사건.
+ * 관리자에게만 보이는 화면(활동지점 안전 브리핑 아코디언)이 다음 정기 갱신(10분)을 기다리지 않고 노출 판정을 다시 받게 한다(2026-10-16 2단계 검토 A8).
+ * 예: _notifyAdminChange('logout') → StationBriefing.refresh()
+ * @param {string} reason - 'login'|'logout'|'mode'|'device' (사건 detail 에 실림) @returns {void}
+ * [연계] → forecast/station-briefing/station_briefing.js init(사건을 듣는다)
+ */
+function _notifyAdminChange(reason) {
+    try { document.dispatchEvent(new CustomEvent('seagnal-admin-change', { detail: { reason: reason } })); }
+    catch (e) { console.warn('[admin] 관리자 상태 변경 알림 실패:', e && e.message); }
+}
+
 /** localStorage(영구) > sessionStorage(세션) 순으로 토큰 조회. 없으면 null. */
 function getStoredAdminToken() {
     try {
@@ -82,6 +94,7 @@ function saveAdminToken(token, persist) {
             sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
         }
     } catch (_) { /* private mode 등 — 조용히 무시 */ }
+    _notifyAdminChange('login');
 }
 
 /** 양쪽 저장소에서 토큰 모두 제거 (만료/로그아웃) */
@@ -90,6 +103,7 @@ function clearAdminToken() {
         localStorage.removeItem(ADMIN_TOKEN_KEY);
         sessionStorage.removeItem(ADMIN_TOKEN_KEY);
     } catch (_) { /* 무시 */ }
+    _notifyAdminChange('logout');
 }
 
 /** adminAuthenticated 플래그 4개를 한꺼번에 설정. UI 가드용 */
@@ -292,6 +306,7 @@ window._toggleAdminMode = function (checked) {
         window._atmTestMode = false;
         fetch('/api/admin/test-cleanup', { method: 'POST' }).catch(() => {});
     }
+    _notifyAdminChange('mode');
 };
 
 // ============================================================================
@@ -366,6 +381,7 @@ window._registerAdminDevice = async function () {
         if (data.success) {
             alert(data.alreadyRegistered ? '이미 등록된 기기입니다.' : '관리자 기기 등록 완료!\n수집 오류 발생 시 이 기기로 푸시 알림을 받습니다.');
             _checkAdminDeviceStatus(); // 버튼 상태 갱신
+            _notifyAdminChange('device');
         } else {
             alert('등록 실패: ' + (data.error || '알 수 없는 오류'));
         }
@@ -389,6 +405,7 @@ window._unregisterAdminDevice = async function () {
         if (data.success) {
             alert('관리자 기기 해제 완료');
             _checkAdminDeviceStatus(); // 버튼 상태 갱신
+            _notifyAdminChange('device');
         }
     } catch (e) {
         alert('해제 요청 실패: ' + e.message);
@@ -4747,6 +4764,7 @@ async function renderMaintenanceFullTab(container) {
             { id: 'weather-alert-tab', label: '특보 및 전망', children: [
                 { id: 'report-btn', label: '오류 제보 버튼' },
                 { id: 'marine-forecast', label: '기상청 해상 기상 전망' },
+                { id: 'station-briefing', label: '활동지점 안전 브리핑' },
                 { id: 'advisory-prediction', label: '특보 예측' },
                 { id: 'weather-alert', label: '해역별 특보현황', linked: ['ov-warn-zone'] },
                 { id: 'weather-buoy', label: '해역별 기상현황', linked: ['ov-buoy'], children: [

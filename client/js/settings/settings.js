@@ -12,6 +12,7 @@
  * - FontSizeManager: 글꼴 크기 조절
  * - findSeaZone(), findNearestZone(): 위치 기반 해역 검색
  * - openSettingsModal(): 관심해역 탭의 「활동지점 안전 브리핑」 칸을 forecast/station-briefing/station_briefing.js(StationBriefing.renderSettings)가 채운다(2026-10-16)
+ * - settingsModalHasUnsaved(): 저장하지 않은 변경이 있나 — 그 칸의 [관할 설정]이 팝업을 닫기 전에 묻는 데 쓴다(2026-10-16 2단계 검토 A4)
  *
  * [로딩 순서] 8번째 (marine.js 이후)
  * ============================================================================
@@ -630,6 +631,30 @@ function closeSettingsModal() {
         window._fontSizeSnapshot = null;
     }
 }
+
+/**
+ * 설정 모달에 저장하지 않은 변경이 있는가 — 관심해역(UserSettings 스냅샷과 비교)·글꼴(스냅샷과 비교)·알림(화면 칸 vs 저장값, saveNotificationUI 가 읽는 칸과 같은 것).
+ * 모달 밖으로 나가는 버튼(활동지점 안전 브리핑 [관할 설정])이 closeSettingsModal 의 스냅샷 복원으로 변경을 조용히 버리지 않게 묻는 데 쓴다(2026-10-16 2단계 검토 A4).
+ * 예: 관심해역 칸 하나를 끈 뒤 → true · 열자마자 → false · 모달이 닫혀 있으면 false
+ * @returns {boolean}
+ * [연계] ← forecast/station-briefing/station_briefing.js renderSettings([관할 설정]) / UserSettings._snapshot·_fontSizeSnapshot·NotificationSettings.settings
+ */
+function settingsModalHasUnsaved() {
+    const modal = document.getElementById('settings-modal');
+    if (!modal || modal.classList.contains('hidden')) return false;
+    if (UserSettings._snapshot && JSON.stringify(UserSettings.settings) !== JSON.stringify(UserSettings._snapshot)) return true;
+    if (window._fontSizeSnapshot && window.FontSizeManager && FontSizeManager.get() !== window._fontSizeSnapshot) return true;
+    const master = document.getElementById('push-master-toggle');
+    if (master) {
+        // 화면에 없는 칸은 비교하지 않는다(그 값은 저장 때도 바뀌지 않는 것으로 본다).
+        const cur = NotificationSettings.settings || {}, chk = (id) => { const e = document.getElementById(id); return e ? e.checked : undefined; };
+        const radio = document.querySelector('input[name="push-target"]:checked');
+        const ui = { master: master.checked, target: radio ? radio.value : undefined, announce: chk('push-opt-announce'), active: chk('push-opt-active'), release: chk('push-opt-release'), night: chk('push-opt-night'), childZones: chk('push-opt-childzones'), typhoon: chk('push-opt-typhoon'), aiAnswer: chk('push-opt-ai-answer') };
+        for (const k of Object.keys(ui)) if (ui[k] !== undefined && cur[k] !== undefined && cur[k] !== ui[k]) return true;
+    }
+    return false;
+}
+window.settingsModalHasUnsaved = settingsModalHasUnsaved;
 
 /**
  * 설정 모달의 변경사항을 확정 저장하고 모달 닫기.

@@ -11,7 +11,9 @@
  *  - 사용하는 파일 : station_briefing_render.js(StationBriefingRender.render) · marine-life/risk-forecast/risk_forecast.js(RiskForecast.openAt — 바로가기)
  *                    · forecast/alerts/marine.js·core/index2_patch.js·marine-life/safety/life_safety.js(switchMainTab·switchSubTab — 탭 이동)
  *                    · settings/settings.js(openSettingsModal 이 renderSettings 를 부름 · closeSettingsModal) · shared/ui/ui_modal.js(showSeagnalModal — 숨김 안내)
- *                    · style.css .new-badge(공지사항과 같은 N 뱃지)
+ *                    · style.css .new-badge(공지사항과 같은 N 뱃지) · core/index2_patch.js(_showOceanToast — 바로가기 실패·잠금 안내)
+ *                    · admin/admin.js('seagnal-admin-change' 사건 — 관리자 상태가 바뀌면 노출 판정 다시) · settings.js settingsModalHasUnsaved·saveSettingsAndClose([관할 설정])
+ *                    · index2.html applyFeatureBlocks(점검 차단 'station-briefing' — window._blockedFeatures, 차단을 바꾼 뒤 applyVisibility 를 부름)
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing?station=&day=auto (routes/station_briefing.js — 노출 판정)
  *                    관리자 기기 판정 정보는 특보 예측 표출 제어(forecast/prediction/advisory_prediction.js _adminAuth)와 같은 방식:
  *                    관리자 모드(seagnal_admin_mode)일 때만 push_token → 쿼리 adminToken · 로그인 토큰 → X-Admin-Token 헤더
@@ -26,8 +28,10 @@
     'use strict';
     var KEY = 'seagnal_station_briefing_v1';
     var DEFAULTS = { station: null, name: null, office: null, seaOnly: false, showSea: true, showLand: true, hidden: false, seen: {} };
-    var REFRESH_MS = 10 * 60000;   // 열어 둔 채 오래 있을 때 다시 받는 간격 — 판은 하루 세 번 + 특보 변경 때만 바뀐다
-    var S = { display: false, audience: null, stations: null, resp: null, fetchedAt: 0, mode: 'view', pick: null, timer: null, seq: 0 };
+    var REFRESH_MS = 10 * 60000;   // 노출 판정·브리핑을 다시 받는 간격 — 판은 하루 세 번 + 특보 변경 때만 바뀐다(노출 범위 전환도 이 간격 안에 반영, 2단계 검토 A3)
+    // 노출 판정 조회가 실패했을 때 다시 묻는 간격(2단계 검토 A5) — 직전 판정은 그대로 두고 짧게 세 번까지. 그 뒤는 10분 주기에 맡긴다.
+    var RETRY_MS = [5000, 20000, 60000];
+    var S = { display: false, audience: null, stations: null, resp: null, fetchedAt: 0, mode: 'view', pick: null, timer: null, seq: 0, retry: 0, retryTimer: null };
 
     /**
      * 이 기기에 저장한 선택을 읽는다(저장소가 막혀 있으면 기본값).
@@ -83,7 +87,9 @@
     function applyVisibility() {
         var p = prefs(), show = S.display && !p.hidden, h = $('station-briefing-accordion-header'), b = $('station-briefing-accordion-body'), gear = $('station-briefing-settings-btn');
         if (h) h.style.display = show ? '' : 'none';
-        if (b) b.style.display = show ? '' : 'none';
+        // 점검 차단(index2.html applyFeatureBlocks — 'station-briefing', 2단계 검토 A6): 몸을 숨긴 채 둔다(머리에는 「점검 중」 덮개).
+        //   관리자 모드는 기존 관례대로 외관만 차단 — 머리를 누르면 열리고(toggle), 열어 둔 것은 정기 갱신이 다시 숨기지 않는다.
+        if (b) b.style.display = show && (!blocked() || (adminMode() && b.style.display !== 'none')) ? '' : 'none';
         if (gear) gear.style.display = show && p.station ? '' : 'none';
         updateBadge();
         var modal = $('settings-modal');
@@ -97,21 +103,27 @@
      */
     async function refreshDisplay() {
         var n = ++S.seq;
+        clearTimeout(S.retryTimer); S.retryTimer = null;
         try {
             var r = await get('/api/station-briefing/stations');
             if (n !== S.seq) return;
             S.display = !!(r && r.display === true); S.audience = r && r.audience || null;
             S.stations = S.display && Array.isArray(r.stations) ? r.stations : null;
+            S.retry = 0;
         } catch (e) {
             if (n !== S.seq) return;
-            console.warn('[활동지점 브리핑] 노출 판정 조회 실패 — 아코디언 없이 그린다:', e && e.message);
-            S.display = false;
+            // 일시 실패로 아코디언을 지우지 않는다(2단계 검토 A5) — 직전 판정(처음이면 「안 보임」)을 그대로 두고 짧게 다시 묻는다.
+            var wait = RETRY_MS[S.retry];
+            console.warn('[활동지점 브리핑] 노출 판정 조회 실패 — 직전 판정 유지(' + (S.display ? '보임' : '안 보임') + ')' + (wait ? ', ' + wait / 1000 + '초 뒤 다시' : ', 다음 정기 갱신에 다시') + ':', e && e.message);
+            if (wait) { S.retry++; S.retryTimer = setTimeout(refreshDisplay, wait); }
+            return;
         }
         var p = prefs();
         // 저장된 관할이 목록에서 사라졌으면(관할 개편) 다시 고르게 한다 — 지난 이름으로 빈 브리핑을 계속 묻지 않는다.
         if (S.display && p.station && S.stations && !S.stations.some(function (s) { return s.key === p.station; })) { p.station = null; save(p); }
         applyVisibility();
-        if (S.display && !p.hidden) { if (p.station) await loadBriefing(); else renderBody(); }
+        // 고르는 중(setup·confirm)이면 본문을 다시 그리지 않는다 — 정기 갱신(10분)이 찾기 글자·고른 관할을 지우지 않게.
+        if (S.display && !p.hidden && S.mode === 'view') { if (p.station) await loadBriefing(); else renderBody(); }
     }
     /**
      * 고른 관할의 브리핑을 받아 본문을 그린다(day=auto — 21시부터 내일 판). 실패면 본문에 「불러오지 못했다」.
@@ -280,6 +292,8 @@
      */
     function toggle() {
         var b = $('station-briefing-accordion-body'), h = $('station-briefing-accordion-header'); if (!b) return;
+        // 점검 차단 중 관리자 모드가 머리를 누른 경우(index2.html 차단 덮개가 원래 onclick 을 부른다) — 숨겨 둔 몸을 다시 보이게(A6).
+        if (b.style.display === 'none' && S.display && !prefs().hidden) b.style.display = '';
         var willOpen = b.classList.contains('collapsed');
         b.classList.toggle('collapsed'); if (h) h.classList.toggle('collapsed-state');
         if (willOpen) { markSeen(); if (prefs().station && Date.now() - S.fetchedAt > REFRESH_MS) loadBriefing(); }
@@ -326,18 +340,33 @@
      * [연계] ← station_briefing_render.js linkBtn / → switchMainTab·switchSubTab·RiskForecast.openAt(risk_forecast.js)
      */
     async function openInRisk(target, btn) {
-        if (!w.RiskForecast || typeof w.RiskForecast.openAt !== 'function') { console.warn('[활동지점 브리핑] 위험예측 모듈이 없어 바로가기를 열지 못함'); return false; }
+        var what = target && target.kind === 'coast' ? '이 관광지' + (target.date ? '(' + (w.StationBriefingRender ? w.StationBriefingRender.dateText(target.date) : target.date) + ')' : '') : '이 해역';
+        if (!w.RiskForecast || typeof w.RiskForecast.openAt !== 'function') { console.warn('[활동지점 브리핑] 위험예측 모듈이 없어 바로가기를 열지 못함'); toast('위험예측을 열지 못했습니다 — 위험예측 화면을 불러오지 못했습니다.'); return false; }
+        // 위험예측은 아직 미리보기(버튼 10번 눌러 잠금 해제)다. 바로가기가 일반 기기의 잠금을 풀지 않게 — 관리자 모드만 연다(2단계 검토 A2).
+        //   일반 공개 때 이 잠금을 어떻게 할지는 사용자가 따로 정할 문제(README·설계서 §11.9).
+        if (typeof w.RiskForecast.previewLocked === 'function' && w.RiskForecast.previewLocked() && !adminMode()) {
+            toast('위험예측은 아직 미리보기 기능이라 이 기기에서는 바로 열 수 없습니다.'); return false;
+        }
         if (btn) btn.disabled = true;
         try {
             if (typeof w.switchMainTab === 'function') w.switchMainTab('ocean-life-group');
             if (!document.body.classList.contains('ls-safety') && typeof w.switchSubTab === 'function') w.switchSubTab('ocean-safety-section');
             await new Promise(function (r) { setTimeout(r, 450); });
             var shown = document.body.getAttribute('data-active-tab') === 'ocean-life-group' && document.body.classList.contains('ls-safety');
-            if (!shown) { console.warn('[활동지점 브리핑] 해양안전 화면으로 옮기지 못함(점검 차단 등) — 바로가기 중단'); return false; }
-            return await w.RiskForecast.openAt(target);
-        } catch (e) { console.warn('[활동지점 브리핑] 바로가기 실패:', e && e.message); return false; }
+            if (!shown) { console.warn('[활동지점 브리핑] 해양안전 화면으로 옮기지 못함(점검 차단 등) — 바로가기 중단'); toast('해양안전 화면으로 옮기지 못해 ' + what + '를 열지 못했습니다.'); return false; }
+            var ok = await w.RiskForecast.openAt(target);
+            // 실패를 조용히 넘기지 않는다(2단계 검토 A7) — 위험예측 표에 그 날짜·장소가 없거나(내일 자료 전 등) 화면 준비 실패.
+            if (ok !== true) { console.warn('[활동지점 브리핑] 위험예측에서 대상을 열지 못함:', JSON.stringify(target)); toast('위험예측에서 ' + what + '를 열지 못했습니다 — 그 날짜·시각 자료가 아직 없거나 위험예측 표에 없는 곳입니다.'); }
+            return ok === true;
+        } catch (e) { console.warn('[활동지점 브리핑] 바로가기 실패:', e && e.message); toast('위험예측에서 ' + what + '를 열지 못했습니다.'); return false; }
         finally { if (btn) btn.disabled = false; }
     }
+    /** 짧은 안내(해양종합정보 토스트 index2_patch.js _showOceanToast — 없으면 콘솔). 예: toast('…열지 못했습니다'). @param {string} msg @returns {void} [연계] ← openInRisk */
+    function toast(msg) { if (typeof w._showOceanToast === 'function') w._showOceanToast(msg, 'bottom', 3500, true); else console.info('[활동지점 브리핑] ' + msg); }
+    /** 관리자 모드인가(localStorage seagnal_admin_mode — admin.js _toggleAdminMode). @returns {boolean} [연계] ← openInRisk·applyVisibility */
+    function adminMode() { try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; } }
+    /** 점검 차단 목록에 이 아코디언이 있나(index2.html applyFeatureBlocks 가 window._blockedFeatures 에 둔다 — admin.js featureTree id 'station-briefing'). @returns {boolean} [연계] ← applyVisibility */
+    function blocked() { return (w._blockedFeatures || []).indexOf('station-briefing') >= 0; }
 
     /**
      * 설정 팝업(오른쪽 위 ⚙ — settings.js) 관심해역 탭의 「활동지점 안전 브리핑」 칸(§11.2 「설정 팝업에 해당 부분이 반영」).
@@ -362,7 +391,12 @@
         r2.appendChild(l2);
         var go = document.createElement('button'); go.type = 'button'; go.className = 'sb-btn sb-btn-primary'; go.id = 'station-briefing-settings-edit'; go.textContent = '관할 설정';
         go.addEventListener('click', function () {
-            if (typeof w.closeSettingsModal === 'function') w.closeSettingsModal();
+            // 설정 팝업에 저장하지 않은 다른 변경(관심해역·알림·글꼴)이 있으면 묻는다(2단계 검토 A4) — 닫기(closeSettingsModal)는 스냅샷으로 되돌리므로
+            //   묻지 않고 닫으면 그 변경이 조용히 사라진다. [확인] 저장하고 이동(saveSettingsAndClose — 팝업 [저장]과 같음) · [취소] 팝업에 그대로 남기.
+            if (typeof w.settingsModalHasUnsaved === 'function' && w.settingsModalHasUnsaved()) {
+                if (!w.confirm('설정 창에 저장하지 않은 변경이 있습니다.\n[확인] 저장하고 관할 설정으로 이동\n[취소] 설정 창에 그대로 남기')) return;
+                if (typeof w.saveSettingsAndClose === 'function') w.saveSettingsAndClose();
+            } else if (typeof w.closeSettingsModal === 'function') w.closeSettingsModal();
             if (typeof w.switchMainTab === 'function' && document.body.getAttribute('data-active-tab') !== 'weather-group') w.switchMainTab('weather-group');
             var sec = $('weather-alert-section'); if (sec && !sec.classList.contains('active') && typeof w.switchSubTab === 'function') w.switchSubTab('weather-alert-section');
             openSetup();
@@ -378,11 +412,14 @@
      */
     function init() {
         refreshDisplay();
-        if (!S.timer) S.timer = setInterval(function () { if (S.display && !prefs().hidden && prefs().station && document.visibilityState !== 'hidden' && S.mode === 'view') loadBriefing(); }, REFRESH_MS);
+        // 10분마다 노출 판정부터 다시(2단계 검토 A3) — 관리자가 「노출 안 함」으로 바꾸면 관할을 고르지 않은 기기도 이 간격 안에 사라진다. 판정이 보임이면 그 안에서 브리핑도 받는다.
+        if (!S.timer) S.timer = setInterval(function () { if (document.visibilityState !== 'hidden') refreshDisplay(); }, REFRESH_MS);
+        // 관리자 로그인·로그아웃·관리자 모드·관리자 기기 등록이 바뀌면 바로 다시 판정(2단계 검토 A8 — admin.js 가 'seagnal-admin-change' 를 보낸다).
+        document.addEventListener('seagnal-admin-change', function () { refreshDisplay(); });
     }
 
     w.toggleStationBriefingAccordion = toggle;
     w.openStationBriefingSetup = openSetup;
-    w.StationBriefing = { init: init, refresh: refreshDisplay, load: loadBriefing, toggle: toggle, openSetup: openSetup, renderSettings: renderSettings, openInRisk: openInRisk, prefs: prefs, _state: S };
+    w.StationBriefing = { init: init, refresh: refreshDisplay, load: loadBriefing, toggle: toggle, openSetup: openSetup, renderSettings: renderSettings, openInRisk: openInRisk, applyVisibility: applyVisibility, prefs: prefs, _state: S };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })(window);
