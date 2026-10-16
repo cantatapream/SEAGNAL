@@ -50,7 +50,7 @@
     /** JSON 요청(관리자 토큰은 admin.js 래퍼가 붙인다). 실패면 {status, error}. @returns {Promise<{status:number, body:Object}>} */
     async function call(path, init) {
         var r = await fetch(API + path, Object.assign({ cache: 'no-store' }, init || {}));
-        var body = null; try { body = await r.json(); } catch (e) { body = null; }
+        var body = null; try { body = await r.json(); } catch (e) { body = null; console.warn('[AI 브리핑 관리] 응답이 JSON 이 아님 — ' + path + ' HTTP ' + r.status + ':', e && e.message); }
         return { status: r.status, body: body || {} };
     }
 
@@ -99,7 +99,7 @@
                         var res = await call('/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
                         if (res.status !== 200 || !res.body.config) throw new Error(res.body.error || ('HTTP ' + res.status));
                         config = res.body.config; paint(); msg.style.color = '#34d399'; msg.textContent = '저장됨 — ' + TITLES[field] + ': ' + ((LABELS[field] || {})[String(v)] || String(v));
-                    } catch (e) { msg.style.color = '#fca5a5'; msg.textContent = '저장 실패: ' + (e && e.message); }
+                    } catch (e) { console.warn('[AI 브리핑 관리] 설정 저장 실패:', field, e && e.message); msg.style.color = '#fca5a5'; msg.textContent = '저장 실패: ' + (e && e.message); }
                 });
                 seg.appendChild(b);
             });
@@ -143,7 +143,7 @@
                 if (r.status === 202) { msg.style.color = '#34d399'; msg.textContent = '시작했습니다 — 21시 전이면 오늘 판, 이후면 내일 판을 다시 만듭니다. 끝나면 [새로고침]으로 결과를 보세요.'; }
                 else if (r.status === 409) { msg.style.color = '#fbbf24'; msg.textContent = '이미 실행 중입니다 — 끝난 뒤 다시 눌러 주세요.'; }
                 else { msg.style.color = '#fca5a5'; msg.textContent = '시작하지 못했습니다: ' + (r.body.error || ('HTTP ' + r.status)); }
-            } catch (e) { msg.style.color = '#fca5a5'; msg.textContent = '요청 실패: ' + (e && e.message); }
+            } catch (e) { console.warn('[AI 브리핑 관리] 지금 다시 만들기 요청 실패:', e && e.message); msg.style.color = '#fca5a5'; msg.textContent = '요청 실패: ' + (e && e.message); }
             finally { run.disabled = false; }
         });
         var r = await call('/status');
