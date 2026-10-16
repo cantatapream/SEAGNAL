@@ -3,9 +3,11 @@
  * 파일명: client/js/marine-life/risk-forecast/risk_sheet.js
  * 역할  : 해역 종합·공식 예보·해구 기상·선박사고 이력과 연안 분석을 구별하고 연안 합계 배수의 계산 과정을 설명한다.
  *         시트는 해양종합정보 바텀시트처럼 아래에서 올라오고 내려간다(0.3초 — hold 로 0.2초 뒤에 올리기, 2026-10-16).
+ *         연안 시트는 날짜(KST)당 하나 — 그날 가장 높은 값(T24). 시각 막대 자리에 해양종합정보 바텀시트와 같은 날짜 넘기기(< '26. 10. 16.(금) >)와 「가장 높은 때 HH시 기준」.
  *         연안 시트 끝에 「이 관광지 주변 연안사고(2020~2024년)」 카드(2026-10-16 T9 — 해상 사고 카드와 같은 꼴, RiskMarine 공용 함수). 경위도는 화면에 쓰지 않는다(같은 날).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈(RiskFormat·RiskMarine.accSort/accSummary/bindAcc/closePop) / OpenLayers(지도 모듈)
+ *                    · style.css 해양종합정보 시트 날짜 줄(.ocean-date-nav-inline·.ocean-date-nav-btn·.ocean-sheet-date-stack·.ocean-sheet-solar·.ocean-sheet-lunar — 연안 날짜 줄이 그대로 씀, T24)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
  *  - 마크업        : index2.html #risk-forecast-sheet / #risk-forecast-legend
  *  - 나를 쓰는 곳  : risk_forecast.js 또는 index2.html / risk_forecast_preview.html
@@ -225,6 +227,12 @@
         return '<section class="rf-card rf-acc rf-coast-acc" data-coast-acc="list"><h4>이 관광지 주변 연안사고'+yrs+'</h4>'+area+w.RiskMarine.accSummary(L)+'</section>';
     }
     /**
+     * 연안 하루 값이 나온 칸을 글로 쓴다(T24 — 「가장 높은 때 HH시 기준」, KST 시). 지금 칸(예 13:25)은 그 시(13시)로 쓴다.
+     * 예: peakText({peakAt:'2026-10-17T03:00:00+09:00'}) → '가장 높은 때 03시 기준' · peakText(undefined) → ''
+     * @param {Object} daily - 서버 risk_store.coastDayDetail 의 daily{date,peakAt,times} @returns {string} [연계] ← create.show(연안) → 날짜 줄 둘째 줄
+     */
+    function peakText(daily) { var at=Date.parse(daily&&daily.peakAt); return Number.isFinite(at)?'가장 높은 때 '+String(new Date(at+9*3600000).getUTCHours()).padStart(2,'0')+'시 기준':''; }
+    /**
      * 서버가 계산한 위험지수·등급·배수를 요약한다.
      * 예: summary(detail,'coast')
      * @param {Object} d - 상세 응답; kind는 coast 또는 sea
@@ -241,8 +249,8 @@
     /**
      * 닫기·위험구역 이동·기준 상세·재시도 동작을 시트에 연결한다.
      * 예: RiskSheet.create(el,handlers)
-     * @param {HTMLElement} el - 시트; handlers는 close·hazard·basis·retry·choose 콜백
-     * @returns {Object} show·loading·markZone·error·choose·trafficHistory·hold·clear·timelineEl API
+     * @param {HTMLElement} el - 시트; handlers는 close·hazard·basis·retry·choose·day(연안 날짜 < > — T24) 콜백
+     * @returns {Object} show·loading·markZone·error·choose·trafficHistory·hold·clear·day·timelineEl API
      * [연계] RiskForecast → 상세 응답 표시
      */
     function create(el,handlers) {
@@ -253,7 +261,7 @@
         var headBasis=el.querySelector('.rf-head-basis'),subRow=el.querySelector('.rf-sub-row'),coastKey=null;
         // 올라오기·내려가기(2026-10-16 사용자 「선택이후 약간의 딜레이(0.2초?) 정도 후 바텀시트가 나오도록 … 아래서 위로 올라오는 느낌의 애니메이션 … 닫을때도 마찬가지로」).
         // CLOSE_MS 는 risk_forecast.css .rf-sheet 의 transition .3s 와 같다 — 해양종합정보 OS.closeSheet 도 300ms 뒤 display:none 으로 정리한다(ocean_bottom_sheet1.js).
-        var CLOSE_MS=300,upTimer=null,downTimer=null,wanted=false;
+        var CLOSE_MS=300,upTimer=null,downTimer=null,wanted=false,dayDate=null;
         /**
          * 시트를 올린다(내용은 부른 쪽이 이미 채웠다). 0.2초 기다리는 중(hold)이면 그때 올리도록 표시만 한다.
          * 예: 닫혀 있음 → .rf-shown(그려짐, 아래에 숨음) → 다시 그림 계산 → .open(0.3초 동안 위로) / 내려가는 중 → 내려가기 정리를 취소하고 그 자리에서 다시 위로
@@ -279,9 +287,23 @@
          * 예: 부제 ''·버튼 보임 → 줄 보임 / 부제 ''·버튼 숨김 → 줄 숨김 @returns {void} [연계] ← basisFor·choose(부제를 바꾼 뒤)
          */
         function syncSubRow(){subRow.hidden=!el.querySelector('.rf-subtitle').textContent&&headBasis.hidden;}
+        /**
+         * 연안 시트의 날짜 줄을 시각 막대 자리(.rf-timeline)에 그리거나 맞춘다(T24, 사용자 2026-10-16 「해당구역을 클릭하면 해양종합정보의 바텀시트처럼 일 시 왼쪽 오른쪽에 < > 버튼 만들어서 넘길 수 있도록.」).
+         * 모양은 해양종합정보 바텀시트 머리 날짜 넘기기 그대로 — index2.html #ocean-sheet-prev·#ocean-sheet-next(.ocean-date-nav-btn + fa-chevron)·.ocean-sheet-date-stack(.ocean-sheet-solar 날짜 · .ocean-sheet-lunar 작은 둘째 줄),
+         * 비활성은 해양종합정보처럼 disabled(style.css .ocean-date-nav-btn:disabled opacity .3). 해양종합정보는 ▶ 가 늘 켜져 있지만 위험예측은 오늘·내일뿐이라(U79) 내일이면 > 도 꺼진다.
+         * 날짜 글자는 해양종합정보 꼴(OS.renderHeader 「'YY. M. D.(요) HH:MM」)에서 시각을 뺀 것, 둘째 줄(음력 자리)은 show 가 채우는 「가장 높은 때 HH시 기준」.
+         * 한 번 그린 뒤에는 글자·비활성만 바꾼다(60초 갱신마다 다시 그려 누르던 버튼의 초점을 잃지 않게). 날짜가 바뀌면 둘째 줄을 비운다(옛 날짜 기준을 남기지 않음).
+         * 예: day({date:'2026-10-16',sheet:"'26. 10. 16.(금)",prev:false,next:true}) → < 비활성·> 켜짐
+         * @param {{date:string,sheet:string,prev:boolean,next:boolean}} info - RiskForecast.dayInfo @returns {void}
+         * [연계] ← RiskForecast.sheetDay(연안 선택·메인 날짜 바뀜) / 누름은 아래 클릭 위임이 handlers.day(-1|1) → RiskForecast.shiftDay. 해상 시트는 RiskSlider.mount 가 같은 자리를 덮어쓴다
+         */
+        function day(info){var tl=el.querySelector('.rf-timeline');if(!tl.querySelector('[data-sheet-day]')){tl.classList.remove('rf-risk-time');tl.innerHTML='<div class="ocean-date-nav-inline rf-sheet-day" role="group" aria-label="연안 위험 예측 날짜"><button type="button" class="ocean-date-nav-btn" data-sheet-day="-1" title="이전 날" aria-label="이전 날"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button><div class="ocean-sheet-date-stack"><div class="ocean-sheet-solar" data-sheet-date></div><div class="ocean-sheet-lunar" data-sheet-peak></div></div><button type="button" class="ocean-date-nav-btn" data-sheet-day="1" title="다음 날" aria-label="다음 날"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button></div>';dayDate=null;}
+            if(info.date!==dayDate){dayDate=info.date;tl.querySelector('[data-sheet-peak]').textContent='';}
+            tl.querySelector('[data-sheet-date]').textContent=info.sheet;[['-1',info.prev],['1',info.next]].forEach(function(x){var b=tl.querySelector('[data-sheet-day="'+x[0]+'"]');b.disabled=!x[1];b.setAttribute('aria-disabled',String(!x[1]));});}
         el.querySelector('.rf-close').addEventListener('click',handlers.close);
         el.addEventListener('click',function(e){var z=e.target.closest('[data-zone-id]'),basis=e.target.closest('[data-basis]'),retry=e.target.closest('[data-retry]');if(z)handlers.hazard(z.dataset.zoneId);if(basis)handlers.basis(basis.dataset.basis,basis);if(retry)handlers.retry();});
         el.addEventListener('click',function(e){var spot=e.target.closest('[data-spot-id]');if(spot)handlers.choose('coast',spot.dataset.spotId);});
+        el.addEventListener('click',function(e){var d=e.target.closest('[data-sheet-day]');if(d&&!d.disabled&&handlers.day)handlers.day(Number(d.dataset.sheetDay));});
         el.addEventListener('click',function(e){var point=e.target.closest('[data-marine-lon]');if(point&&handlers.marinePoint)handlers.marinePoint(Number(point.dataset.marineLon),Number(point.dataset.marineLat));});
         /**
          * 응답이 오기 전에 시트를 먼저 열고 내용 자리를 회색 틀(스켈레톤)로 채운다.
@@ -291,7 +313,7 @@
          */
         function loading(hint) {
             if(hint){el.querySelector('.rf-title').textContent=hint.title||'불러오는 중…';el.querySelector('.rf-subtitle').textContent=hint.subtitle||'';basisFor(null);}
-            var body=el.querySelector('.rf-body');el.querySelector('.rf-timeline').hidden=false;
+            var body=el.querySelector('.rf-body'),peak=el.querySelector('[data-sheet-peak]');el.querySelector('.rf-timeline').hidden=false;if(peak)peak.textContent='';   // 연안 「가장 높은 때」는 응답(show)이 다시 채운다 — 다른 지점·날짜의 기준을 남기지 않음
             body.innerHTML=SKELETON;body.scrollTop=0;el.setAttribute('aria-busy','true');present();
         }
         /**
@@ -324,7 +346,10 @@
             // 머리 [기준 상세]는 연안 요약(위험지수 카드)이 있을 때만. 옛 공식 사고·해상 칸 상세는 본문에 자기 버튼이 있다.
             basisFor(kind!=='accident'&&kind!=='sea'&&d.clickable!==false?kind:null);
             // 다른 관광지·시각을 그리면 열린 사고 목록 팝업을 닫는다(같은 관광지·시각의 60초 갱신은 그대로 — 내용이 같다).
-            var key=kind+'|'+d.title+'|'+d.t;if(key!==coastKey){coastKey=key;if(w.RiskMarine&&w.RiskMarine.closePop)w.RiskMarine.closePop();}
+            // 연안은 날짜(daily.date)로 견준다 — 오늘의 가장 높은 칸이 지금 칸이면 60초 갱신마다 d.t 가 바뀌어도 같은 날짜다(T24).
+            var key=kind+'|'+d.title+'|'+(d.daily&&d.daily.date||d.t);if(key!==coastKey){coastKey=key;if(w.RiskMarine&&w.RiskMarine.closePop)w.RiskMarine.closePop();}
+            // 연안 하루 값(T24): 요소별 설명은 그날 가장 높은 칸의 것이라 날짜 줄 둘째 줄에 그 칸을 작게 밝힌다(사용자 2026-10-16 「1. 가」).
+            var pk=el.querySelector('[data-sheet-peak]');if(pk&&kind==='coast')pk.textContent=peakText(d.daily);
             var cb=el.querySelector('.rf-body');cb.innerHTML=body;present();
             if(kind==='coast'&&d.history&&d.history.available===true&&w.RiskMarine&&w.RiskMarine.bindAcc)w.RiskMarine.bindAcc(cb,coastAccList(d.history.accidents),function(x){return F.escape(String(x.date||'').replace(/-/g,'.'));});
         }
@@ -352,7 +377,7 @@
             function wipe(){basisFor(null);el.querySelector('.rf-body').innerHTML='';}
             if(!el.classList.contains('rf-shown')){wipe();return;}
             clearTimeout(downTimer);downTimer=setTimeout(function(){downTimer=null;el.classList.remove('rf-shown');wipe();},CLOSE_MS);}
-        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,trafficHistory:trafficHistory,hold:hold,clear:clear,timelineEl:el.querySelector('.rf-timeline')};
+        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,trafficHistory:trafficHistory,hold:hold,clear:clear,day:day,timelineEl:el.querySelector('.rf-timeline')};
     }
     /**
      * 서버 자료 키를 화면에서 읽을 수 있는 이름으로 바꾼다.

@@ -167,6 +167,17 @@ body.rf-sea-time-on.ls-mudflat-on .rf-color-legend{bottom:calc(var(--rf-bottom-c
 .rf-time-toast{position:fixed;left:50%;bottom:calc(var(--rf-bottom-chrome,var(--main-tab-height,68px)) + var(--rf-time-height,46px) + 4px);transform:translateX(-50%);z-index:152;box-sizing:border-box;height:24px;padding:0 12px;border-radius:12px;background:rgba(10,15,28,.92);border:1px solid #56708c;color:#eef4ff;font-size:12px;line-height:22px;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
 .rf-time-toast[hidden]{display:none}
 body:not(.ls-safety) .rf-time-toast{display:none!important}
+/* 연안만 켰을 때(T24 — 하단 시간 바 없음) 날짜 넘기기 토스트의 기본 자리: 하단 탭(+열린 서브탭) 바로 위 가운데. 출처·축척·색 범례와 겹치면 liftToast 가 그 위로 올린다. */
+body:not(.rf-sea-time-on) .rf-time-toast{bottom:calc(var(--ls-bottom-chrome,var(--main-tab-height,68px)) + 8px)}
+/* 연안 날짜 넘기기(T24, 사용자 2026-10-16 「항행경보가 반영된곳을 보면 화면 가운데 위쪽에 날짜 변경 기능이 있잖아? 그거처럼」):
+   모양·크기·자리는 index2.html 의 항행경보 규칙(.navwarn-date-nav top:66px 가운데·.navwarn-nav-btn 26px·.navwarn-date-label·.navwarn-date-tag)을 클래스째 그대로 쓴다.
+   여기에는 항행경보에 없는 것만 둔다: [hidden](그 규칙의 display:flex 가 hidden 속성을 이긴다)·비활성 모양(항행경보는 날짜 제한이 없어 없음 — 해양종합정보 시트 날짜 버튼 비활성과 같은 opacity .3)·해양안전 밖 숨김. */
+.rf-date-nav[hidden]{display:none!important}
+.rf-date-nav .navwarn-nav-btn:disabled{opacity:.3;cursor:not-allowed}
+.rf-date-nav .navwarn-nav-btn:disabled:active{transform:none}
+body:not(.ls-safety) .rf-date-nav{display:none!important}
+/* 연안 시트 날짜 줄(T24): 해양종합정보 시트 머리의 날짜 넘기기(.ocean-date-nav-inline — 그쪽은 머리 격자가 가운데에 둔다)를 시각 막대 자리 가운데에. */
+.rf-timeline .rf-sheet-day{justify-content:center}
 /* 연안 색 범례(2026-10-16 「지도에 색상에 따른 범례가 안보이는데 ?」·「범례는 해상위험예측과 동일한 위치에」): 왼쪽 아래 .rf-color-legend 상자 위쪽.
    해상 범례와 같은 제목·막대·글자 모양. 단계 이름이 길어 상자 폭은 내용에 맞춰 넓어진다(최소 150px). [hidden] 은 상자 안에서도 확실히 숨긴다. */
 .rf-color-legend{width:auto!important;min-width:150px}

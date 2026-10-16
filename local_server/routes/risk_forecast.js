@@ -27,9 +27,10 @@ function createRouter({store=createStore(),marine=require('../services/marine_fu
     router.get(base+'/sea/accident-cells',handle(()=>store.accidentCells(),3600));
     router.get(base+'/sea/accident-frame',handle(req=>store.accidentFrame(req.query.t)));
     router.get(base+'/sea/accident-cell',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('사고 격자 id 필요'),{status:400});return store.accidentDetail(req.query.id,req.query.t,{lon:req.query.lon,lat:req.query.lat});}));
-    router.get(base+'/coast/frame',handle(req=>store.frame(false,req.query.t)));
+    // 연안 지도·상세는 날짜(KST)당 하나 — 그날 3시간 칸 중 가장 높은 값(T24, 사용자 2026-10-16 「5-하루 하나로 합치기」·「1. 가」). t 는 그 날짜 안의 시각.
+    router.get(base+'/coast/frame',handle(req=>store.coastDayFrame(req.query.t)));
     router.get(base+'/sea/frame',handle(req=>store.frame(true,req.query.t)));
-    router.get(base+'/coast/spot',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('관광지 id 필요'),{status:400});return store.coastDetail(req.query.id,req.query.t);}));
+    router.get(base+'/coast/spot',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('관광지 id 필요'),{status:400});return store.coastDayDetail(req.query.id,req.query.t);}));
     router.get(base+'/sea/cell',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('해상 칸 id 필요'),{status:400});return store.seaDetail(req.query.id,req.query.t);}));
     router.get(base+'/hazard-zones',handle(req=>{if(typeof req.query.ids!=='string'||!req.query.ids)throw Object.assign(new Error('위험구역 ids 필요'),{status:400});return store.hazards(req.query.ids.split(','));},86400));
     router.get(base+'/islands',handle(()=>store.islands(),86400));
