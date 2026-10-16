@@ -93,6 +93,7 @@
     "usage_keys.js",
     "admin.js",
     "admin_data_status.js",
+    "admin_station_briefing.js",
     "admin_collect.js",
     "admin_survey.js",
     "admin_report.js",
@@ -133,6 +134,9 @@
     "risk_basis.js",
     "risk_forecast.js",
     "life_safety.js",
+    "station_briefing_render.js",
+    "station_briefing_basis.js",
+    "station_briefing.js",
     "zone_setup.js",
     "tutorial.js"
   ]

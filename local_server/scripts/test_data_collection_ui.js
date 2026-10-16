@@ -52,6 +52,8 @@ history.observeSources({
     visibility: { status: 'error', lastError: 'empty response', lastSuccess: '2026-10-11T21:10:00+09:00', checkedAt: '2026-10-15T22:20:00+09:00' },
     warnings: { status: 'ok', updatedAt: '2026-10-15T22:22:00+09:00' },
     accident: { status: 'stale', updatedAt: '2026-10-13T03:00:00+09:00' },
+    // 결정 6(2026-10-16): 활동지점 안전 브리핑 — AI 총평 대신 틀(일부 실패)
+    stationBriefing: { status: 'partial', partialCode: '브리핑 일부 실패 — AI 총평 대신 틀', updatedAt: '2026-10-15T17:30:00+09:00', lastSuccess: '2026-10-15T17:30:00+09:00', detail: '마지막 실행 AI 총평 대신 틀 3곳(validate 3) — 생성 방식 chatgpt' },
 });
 now += 60000;
 history.observeSources({ accident: { status: 'ok', updatedAt: '2026-10-15T15:10:00+09:00' } });
@@ -137,6 +139,12 @@ app.get('/', (req, res) =>
             const [r, g] = rgb(await color('[data-ds-card="visibility"] [data-ds-badge]'));
             assert.ok(r > g + 60, '빨강 계열');
             assert.equal(await page.locator('[data-ds-card="visibility"] [data-ds-needcheck]').count(), 1);
+        });
+        await test('결정 6: 활동지점 안전 브리핑 카드 — 오류현황 일부 실패(주황)·분류·상세', async () => {
+            const t = await page.locator('[data-ds-card="stationBriefing"]').innerText();
+            for (const w of ['활동지점 안전 브리핑 (우리 서버 생성)', '일부 실패', '브리핑 일부 실패 — AI 총평 대신 틀', 'AI 총평 대신 틀 3곳']) assert.ok(t.includes(w), w + ' / ' + t);
+            const [r, g, b] = rgb(await color('[data-ds-card="stationBriefing"] [data-ds-badge]'));
+            assert.ok(r > b + 60 && r > g, '주황 계열');
         });
         await test('읽을 곳이 없는 칸은 「기록 없음」(지어내지 않음)', async () => {
             const t = await page.locator('[data-ds-card="typhoon"]').innerText();

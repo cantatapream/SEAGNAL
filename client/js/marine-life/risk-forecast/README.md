@@ -315,6 +315,16 @@
 
 **하위탭 왕복도 같은 길 (2026-10-16 둘째 결정 「4-1, 2, 3 추천대로」)** — 해양안전 ↔ 해양생활 하위탭을 옮겨 다닐 때도 `life_safety.js` 의 switchSubTab 래퍼가 위와 똑같이 끄고(해양생활에 있는 동안 60초 주기 요청 없음) 다시 켜며 시트를 다시 연다. 해양안전을 보던 중 해양안전 하위탭을 다시 누르면 아무것도 끄지 않는다. 이 파일은 바꾸지 않았다. 검사: `test_life_safety_tab_keep` 「하위 탭」 사례.
 
+## 활동지점 안전 브리핑 바로가기 — `RiskForecast.openAt`·`goTo` (2026-10-16)
+
+> 설계서 `../../ocean-map/coastal-risk/coastal_safety_forecast.design.md` §11.4(U55): 브리핑 카드마다 바로가기 → 해양안전생활 > 해양안전 > 「위험예측」에서 그 지점으로.
+
+- `mount()` 가 돌려주는 객체에 `goTo(target)` — 그 층(연안·해상)을 켜고(꺼져 있으면 범례 스위치 click), 시각을 옮긴 뒤(해상: 지난 시각이면 지금, 아니면 그 시각을 넘지 않는 마지막 메인 시각 · 연안: 오늘이면 지금, 내일이면 그날 첫 칸 — `shiftDay` 와 같은 규칙) `select()` 하고 지도를 그 자리로 옮긴다. 관광지 표에 없는 id 면 `false`.
+- `setMain()` 이 `refresh()` 약속을 돌려준다(종전 반환 없음) — `goTo` 만 기다린다. 버튼·날짜 줄 동작은 그대로.
+- `bindApp()` 이 `RiskForecast.openAt(target)` 을 연다 — 미리보기 잠금(10번 누름)을 풀고, 꺼져 있으면 위험예측 버튼을 실제로 눌러 켠 뒤(해양안전 단독 표출 규칙 그대로) `goTo`. 부르는 곳: `client/js/forecast/station-briefing/station_briefing.js openInRisk`(탭 이동은 거기서 `switchMainTab`·`switchSubTab`).
+- ⚠잠금 해제: 브리핑 바로가기를 누르면 그 기기에서는 위험예측 미리보기 잠금이 풀린다(브리핑이 지금은 관리자 기기에만 보이므로). 브리핑을 일반 사용자에게 열 때 다시 볼 것.
+- 검사: `local_server/scripts/test_station_briefing_ui.js` 「[위험예측에서 보기 ›]」 두 사례.
+
 ## 선택 테두리·시트 올라오기/내려가기 — 2026-10-16
 
 > 사용자 원문(2026-10-16): *「격자를 클릭하면 격자가 선택되었다는 느낌으로 격자 테두리를 표시하고 싶어. 표시 방법은 해구기상에서 해구격자를 선택했을떄와 동일한 스타일로. 그리고 선택이후 약간의 딜레이(0.2초?) 정도 후 바텀시트가 나오도록 하고 바텀시트는 현재 동적 애니메이션은 없는 아래서 위로 올라오는 느낌의 애니메이션이 있으면 좋겠어. 현재 해양종합정보 바텀시트에는 애니메이션이 잘 반영되어있음. 그대로 하면될듯. 닫을때도 마찬가지로 말이야.」* · *「바텀시트 애니메이션 및 클릭 관련해서는 연안에도 적용해줘.」*
@@ -337,5 +347,24 @@
 - **해양안전생활 탭 왕복**: 날짜(메인 시각)와 연안 시트는 종전 규칙대로 그대로 이어진다(`setEnabled(false)` 가 날짜 줄을 숨기고, 돌아와 다시 켜면 같은 날짜·시트). 시험 `test_life_safety_tab_keep` 「T24 연안만·내일 날짜·연안 시트」.
 - **항행경보와 동시에?** 해양안전 단독 오버레이(`life_safety.js` `SOLO_BTN_IDS`)에 두 버튼이 모두 있어 한쪽을 켜면 다른 쪽이 꺼진다 — 두 날짜 줄이 같은 자리에 함께 뜨지 않는다(시험이 확인).
 - 바꾼 곳: 서버 `risk_store.js`·`routes/risk_forecast.js`, 화면 `risk_forecast.js`(`dateNav`·`shiftDay`·`setMain`·`coastT`·`placeDateNav`·`mapSelect`)·`risk_sheet.js`(`day`·`peakText`)·`risk_slider.js`(연안 색 옵션 `colors` 제거)·`risk_forecast.css`·`risk_basis_content.js`(연안 [기준 상세] 「하루 하나 — 그날 가장 높은 값」)·`index2.html` ?v=20261016t24. 공개 문서 `연안_위험지수_산출근거.md`(표지·1.1·6.6)·`.sources.md`·PDF(`40_public_report_pdf.js` 로 다시 만듦).
+- **안내(특보·표류)는 그날 칸 전부에서 — 2026-10-16 (설계서 §16.1 ②)**: 사용자 원문 「모두 추천대로 진행해줘」(② 추천 = 「그날 어느 칸이든 특보가 있으면 시트 안내에 함께 표시」). 종전에는 가장 높은 칸의 특보·표류만 보였는데, 연안 특보·표류 바람은 점수에 들지 않아(`risk_score.scoreCoast` 의 `notices` — 점수 합에 없음) 가장 높은 칸과 특보 칸이 다를 수 있었다. 이제 서버 `risk_store.coastDayDetail` 이 그날 칸마다 이미 센 `coastScore` 에서 안내를 꺼내 `daily.notices`(`dayNotices` — `{key:'warning',name,state:'발효'|'예비',from,to}`·`{key:'drift',windMs,from,to}`)로 주고, 시트(`risk_sheet.js` `dayNotices`)가 시각을 붙여 기존 문구 그대로 쓴다: 「⚠ 18시~ 강풍주의보 예비특보, 11시~15시 풍랑주의보 발효 상태입니다. 특보 중에는 …」·「🛟 12시 무렵 이 앞바다 바람 9m/s — 튜브·물놀이기구 표류 주의」. 같은 특보(이름+발효/예비)가 이어진 칸에 있으면 한 줄(첫 칸~끝 칸 시각), 그날 마지막 칸까지 이어지면 「HH시~」, 한 칸이면 「HH시 무렵」, 끊겼다 다시 나오면 따로. 표류도 같은 원칙(칸마다 바람이 달라 가장 높은 칸 — 대개 그날 첫 칸 — 밖의 센 바람이 빠졌다), 여러 칸이면 그중 가장 센 바람 「최대 Nm/s」. 점수는 그대로. 서버에서 모은 까닭: 화면은 가장 높은 칸 상세 하나만 받고 `/coast/spot` 은 하루 값만 주므로 화면에서는 칸별 안내를 얻을 수 없다(서버는 이미 칸마다 계산해 둔 것을 묶기만 함). 맨 위 `notices`(가장 높은 칸 것)는 그대로 두고, 화면은 `daily.notices` 가 있으면 그것을 쓴다(없으면 종전대로 — 해상·미리보기). `index2.html` `risk_sheet.js?v=20261016t24b`. 시험: `test_risk_store` 「T24 §16.1 ② 하루 안내」(가장 높은 칸 밖에만 있는 발효·이어진 칸 하나로·끊기면 따로·특보 없음·점수 그대로), `test_risk_coast_day` 「§16.1 ② 연안 시트 안내」(실제 index2 — 문구·특보 없는 날 안내 없음).
 - 시험: 새 `test_risk_coast_day`(실제 index2.html — 날짜 줄 모양 대조·비활성·토스트·상단↔시트·해상 함께·지도 클릭 무시와 예외·항행경보 단독), `test_risk_store`(하루 값 8칸·이른 칸·오늘 지금부터·KST 00/21시·모레/지난 400·missing 합침·지도 최댓값), `test_risk_routes`, `test_risk_main_time`·`test_risk_sheet_ui`·`test_risk_select_motion`·`test_life_safety_tab_keep`·`test_risk_lifecycle`(바꾼 단언은 guide 같은 절).
 
+
+## 활동지점 안전 브리핑 — 서버 1단계 (2026-10-16)
+파출소 관할 97곳 브리핑을 서버가 미리 만든다(08:00·17:30·23:00 KST + 특보 변경 때 그 구역 관할만). 판단은 서버 규칙, AI 는 총평 두 문단만(VM → Gemini → 틀). 해상 근거는 이 화면과 같은 저장소(`routes/risk_forecast.js` 의 `stores` — `risk_store`·`marine_fusion`)에서 읽는다.
+- 서버: `local_server/services/station_briefing{,_rules,_ai,_inputs}.js` · `routes/station_briefing.js` · 시험 `test_station_briefing`.
+- `marine_fusion` 에 `stationAt`·`cellHistory`(관할 배정·과거 사고 집계를 브리핑이 같은 계산으로 쓰게)를 더했다 — 이 화면 동작은 그대로.
+- API 계약·노출 판정·관리자 설정: [briefing.contract.md](../../ocean-map/coastal-risk/briefing.contract.md) · 설계 기록: [coastal_safety_forecast.design.md](../../ocean-map/coastal-risk/coastal_safety_forecast.design.md) §11.7.
+- **독립 검토 반영(2026-10-16)**: 결측은 「확인 불가(일부)」(평소 수준과 구분)·AI 총평 검증 강화(숫자+단위·한글 수사·지명·단계 말·금지어·HTML)·AI 시간 제한·데드라인·실행 실패 백오프·특보 변경 디바운스. `marine_fusion.cellHistory` 는 이제 사고 목록을 만들지 않고 시트용 캐시(`historyCache`)를 채우지 않는다(작은 집계 캐시를 따로 둔다 — 이 화면의 시트 동작은 그대로, `cacheSizes()` 점검용 추가). 상세: 설계서 §11.7 · 계약 §5·§5.1.
+- **사용자 결정 반영(2026-10-16, 설계서 §11.8)**: ①특보 시각은 기상청 것 그대로(발표·발효 예정·해제 예고, 「더 일찍 풀릴 수 있음」 삭제) ②육상도 연안 위험지수로 주의·경계(지수 '높음'·'매우 높음' + 오늘 바뀐 요소, 출처 꼬리표 「연안 위험지수 72 '높음'」) ④해제 뒤 관심 해상 1시간·육상 3시간(이미 해제된 특보는 특보 구간 기록 `sea_warning_history` 에서) ⑤조석 문구는 밀물 중심 「HH:MM 저조 뒤부터 물이 차오릅니다(HH:MM 고조)」 + 제주 관할도(제주 격자·간출암 앵커) ⑥관리자 오류현황 원천 `stationBriefing`(데이터 수집현황 목록표·원천 선택지 포함). ③공식 사고예보 경계 거르기는 그대로(논의 중). 규칙 판 v3.
+
+## 연안 시트·브리핑 특보 시각은 기상청 것 그대로 — 2026-10-16 (설계서 §11.8)
+사용자 원문(결정 1): *"어차피 발표, 발효, 해제의 시각은 이미 기상청으로부터 제공이 되는 거니까 그 시각에 맞춰서 그냥 표출해주면 되는 거 아니야? … 그리고 예비특보가 있으면 예비특보도 반영했으면 좋겠는데 브리핑이나 또는 연안 바텀시트에. 더 일찍 풀릴수 있음은 굳이 쓸 필요 없을 것 같애"*
+- **연안 시트 안내**: 「⚠ 강풍주의보 예비특보(10:30 발표) — 21~24시 발효 예정. 풍랑주의보 발효 중(05시 발표) — 13일 03~06시 해제 예고. 특보 중에는 …」 — 시트 날짜와 다른 날이면 「13일 」, 정시는 「HH시」, 분이 있으면 「HH:MM」, 범위는 「HH~HH시」. 시각을 못 읽은 특보만 칸 시각 + 「(칸 기준)」(「태풍주의보 예비특보 — 18시~(칸 기준)」). 표류는 그대로 칸 시각(「12시 무렵」). 「더 일찍 풀릴 수 있음」은 쓰지 않는다.
+- **받는 특보 종류**: 풍랑·태풍(특보 크롤러 트리 `weather_alerts.json`, 관광지 특보구역) · 강풍(육상강풍 `gale_warnings.json`, 관광지 강풍 구역). 폭풍해일 등은 크롤러가 받지 않는다. 표는 설계서 §11.8.
+- 서버: `risk_store.coastScore` notices 에 `times:[{name,state,issued,effective,release}]`(`warnTimes` — `marine_fusion.warnTime` 과 같은 해석), `dayNotices` 가 묶음마다 `issued`·`effective`·`release` 를 싣는다. 새 `coastWarnings(id)`(지금 걸린 특보 + 특보구역 — 브리핑 육상 「해제 뒤 3시간」용).
+- 화면: `risk_sheet.js` `kmaTime`(기상청 시각 → 글자)·`dayNotices`. `index2.html` ?v=20261016warn.
+- 발효 중이면 해제 예고 시각 전 칸은 모두 특보 있음 — 기존 `risk_time.warningAt` 그대로(범위형 해제는 그날 끝까지). `test_risk_store` 가 태풍경보(해제 예고 다음 날 03~06시)로 고정.
+- 시험: `test_risk_store` 「결정1 연안 특보 시각…」(태풍·강풍 발표·발효 예정·해제 예고, coastWarnings), `test_risk_coast_day` 「§16.1 ② + 결정 1 연안 시트 안내…」(실제 index2 — 380px 화면 `RISK_DAY_SHOTS` 의 `day-380-시트-안내.png`).
+- 관리자 오류현황 원천 선택지에 「활동지점 안전 브리핑」(`admin.js` 이름표, 결정 6) — `test_risk_errors_ui`.

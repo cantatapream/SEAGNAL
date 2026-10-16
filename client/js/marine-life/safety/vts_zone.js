@@ -14,7 +14,9 @@
  *                    폴리곤 클릭은 ocean_map.js의 handleMapClick 이
  *                    window._vtsZoneTryHandleClick(map, evt) 를 호출
  *                    (fishing_ban.js 의 _fishingBanTryHandleClick 다음 순위 —
- *                    이래야 해양종합정보 바텀시트가 같은 클릭에 같이 뜨는 걸 막는다)
+ *                    이래야 해양종합정보 바텀시트가 같은 클릭에 같이 뜨는 걸 막는다).
+ *                    life_safety.js 가 탭 왕복 때 window._vtsZoneGetSelected/_vtsZoneSetSelected 로
+ *                    선택 표시를 기억·되살린다(2026-10-16)
  * [로드 순서] fishing_ban.js 다음 · life_safety.js 바로 앞 (marine-life/safety 그룹)
  * [데이터 출처] 해양경찰청(https://www.kcg.go.kr) 전국 20개 VTS센터 페이지의
  *              "관제구역도" 도분초 좌표(WGS-84)와 "관제통신 제원" 표(채널)를 그대로 옮긴
@@ -299,6 +301,30 @@
         } else if (typeof window._showOceanToast === 'function') {
             window._showOceanToast(name, 'bottom', 3000);
         }
+        return true;
+    };
+
+    /**
+     * 지금 선택(하이라이트)된 구역을 돌려준다 — 없으면 null.
+     * 예: 「경인연안 VTS」를 한 번 탭해 연보라로 표시된 상태 → 그 ol.Feature
+     * @returns {ol.Feature|null}
+     * [연계] ← life_safety.js _parkSafety() — 다른 탭으로 떠나기 전에 선택을 기억하려고(2026-10-16).
+     *        버튼을 끄면 아래 토글이 선택을 비우므로 끄기 전에 읽어야 한다.
+     */
+    window._vtsZoneGetSelected = function () { return _selected; };
+
+    /**
+     * 구역 하나를 선택(하이라이트) 상태로 만든다 — 관제구역이 켜져 있고 그 구역이 지금 소스에 있을 때만.
+     * 예: 다른 탭에 다녀와 버튼을 다시 켠 뒤 → _vtsZoneSetSelected(떠날 때 고른 구역) → 같은 구역이 다시 연보라
+     * @param {ol.Feature} f - _vtsZoneGetSelected() 가 돌려준 구역(소스는 한 번 받은 뒤 비우지 않아 같은 객체가 남는다)
+     * @returns {boolean} 선택했으면 true
+     * [연계] ← life_safety.js _unparkSafety() — 탭 왕복 뒤 선택 표시를 되살리려고(사용자 「추천대로」 2026-10-16).
+     *        사용자가 버튼을 직접 껐다 켤 때 선택을 비우는 규칙(_bindToggle)은 그대로다.
+     */
+    window._vtsZoneSetSelected = function (f) {
+        if (!_visible || !_source || !f || _source.getFeatures().indexOf(f) < 0) return false;
+        _selected = f;
+        _source.changed();
         return true;
     };
 

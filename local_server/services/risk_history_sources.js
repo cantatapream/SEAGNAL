@@ -3,6 +3,7 @@
  * 역할: 오류 감시에서 예보 본문을 보관하지 않고 실제 상태·수집 시각만 읽는다.
  * [연계] risk_error_history.start → risk_store.sources의 동일 신선도 규칙.
  *        해구별 시정은 vsby_smallzone.getStatus(같은 프로세스 메모리 상태)를 visibilitySource로 판정.
+ *        활동지점 안전 브리핑은 data/station_briefing/state.json 을 station_briefing.historyRow 로 판정(2026-10-16 결정 6 — 실행 직후 기록과 같은 판정).
  * [로드 순서] 운영 감시 시작 시 생성. 화면용 저장소와 별도의 작은 메타데이터만 보관한다.
  */
 'use strict';
@@ -249,8 +250,19 @@ function visibilitySource(s, now) {
     if (!Number.isFinite(at)) return { ...out, status: 'missing' };
     return { ...out, status: now - at > VSBY_STALE_MS ? 'stale' : 'ok' };
 }
+/** 활동지점 안전 브리핑 상태 파일을 오류현황 원천 상태로 바꾼다(결정 6). 파일이 없으면 missing, 깨졌으면 error(분류 invalid response).
+ * 예: briefingSource('/…/station_briefing', now) → {status:'ok',updatedAt:'…T08:00…',…} · 파일 없음 → {status:'missing',…}
+ * @param {string} dir - 브리핑 폴더 @param {number} now - ms @returns {object} 원천 상태
+ * [연계] ← createReader / → station_briefing.historyRow(실행 직후 기록과 같은 판정 — 감시가 1분마다 다른 상태로 덮어 가짜 사건을 만들지 않게)
+ */
+function briefingSource(dir, now) {
+    let raw;
+    try { raw = fs.readFileSync(path.join(dir, 'state.json'), 'utf8'); } catch (e) { if (e.code === 'ENOENT') return { status: 'missing', updatedAt: null, lastError: null }; return { status: 'error', updatedAt: null, lastError: 'network or parse error' }; }
+    let st; try { st = JSON.parse(raw); } catch (_) { return { status: 'error', updatedAt: null, lastError: 'invalid response' }; }
+    return require('./station_briefing').historyRow(st, now);
+}
 /** 관리자 감시 전용 읽기 함수를 만든다. 예: 삭제·날짜 만료는 같은 sources 규칙으로 재평가한다.
- * @param {object} options - 검사에서 임시 폴더·시계 주입 @returns {function} 작은 원천 상태
+ * @param {object} options - 검사에서 임시 폴더·시계 주입(briefingDir — 활동지점 안전 브리핑 폴더) @returns {function} 작은 원천 상태
  * [연계] risk_error_history.start / 화면의 격자·통계는 공개 저장소가 계속 담당한다.
  */
 function createReader(options = {}) {
@@ -259,6 +271,7 @@ function createReader(options = {}) {
         vsbyStatus =
             options.vsbyStatus ||
             (() => require('./vsby_smallzone').getStatus()),
+        briefingDir = options.briefingDir || path.join(__dirname, '..', 'data', 'station_briefing'),
         cache = new Map();
     const store = createStore({
         ...options,
@@ -317,6 +330,7 @@ function createReader(options = {}) {
                 detail: typeof attempt?.detail === 'string' ? attempt.detail : null,
             },
             visibility: visibilitySource(vsbyStatus(), now),
+            stationBriefing: briefingSource(briefingDir, now),
         };
     };
 }
@@ -324,6 +338,7 @@ module.exports = {
     createReader,
     readMetadata,
     visibilitySource,
+    briefingSource,
     VSBY_FAIL_STREAK,
     VSBY_STALE_MS,
 };

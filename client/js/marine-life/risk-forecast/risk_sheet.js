@@ -4,6 +4,7 @@
  * 역할  : 해역 종합·공식 예보·해구 기상·선박사고 이력과 연안 분석을 구별하고 연안 합계 배수의 계산 과정을 설명한다.
  *         시트는 해양종합정보 바텀시트처럼 아래에서 올라오고 내려간다(0.3초 — hold 로 0.2초 뒤에 올리기, 2026-10-16).
  *         연안 시트는 날짜(KST)당 하나 — 그날 가장 높은 값(T24). 시각 막대 자리에 해양종합정보 바텀시트와 같은 날짜 넘기기(< '26. 10. 16.(금) >)와 「가장 높은 때 HH시 기준」.
+ *         특보·표류 안내는 그날 남은 칸 어느 칸이든 있으면 시각과 함께(설계서 §16.1 ②) — 특보는 기상청 발표·발효 예정·해제 예고 시각 그대로(「풍랑주의보 발효 중 — 17일 06~09시 해제 예고」, 결정 1 2026-10-16).
  *         연안 시트 끝에 「이 관광지 주변 연안사고(2020~2024년)」 카드(2026-10-16 T9 — 해상 사고 카드와 같은 꼴, RiskMarine 공용 함수). 경위도는 화면에 쓰지 않는다(같은 날).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈(RiskFormat·RiskMarine.accSort/accSummary/bindAcc/closePop) / OpenLayers(지도 모듈)
@@ -176,9 +177,53 @@
                 if(effective.length)s+=F.escape(effective.join(', '))+' 발효 상태입니다. 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 '+b('14%',1.14)+' 높습니다.';
                 return s?'<div class="rf-notice">⚠ '+s+'</div>':'';
             }
-            if(n.key==='drift')return '<div class="rf-notice">🛟 이 앞바다 바람 <b class="rf-t-y">'+Math.round(n.windMs)+'m/s</b> — 튜브·물놀이기구 표류 주의</div>';
+            if(n.key==='drift')return '<div class="rf-notice">🛟 '+(n.when?n.when+' ':'')+'이 앞바다 바람 <b class="rf-t-y">'+(n.most?'최대 ':'')+Math.round(n.windMs)+'m/s</b> — 튜브·물놀이기구 표류 주의</div>';
             return '';
         }).join('');
+    }
+    /**
+     * 기상청 시각 하나({start,end,range} KST ISO — 서버 marine_fusion.warnTime)를 시트 글자로 쓴다. 시트 날짜와 다른 날이면 「17일 」을 붙인다.
+     * 정시는 「HH시」, 분이 있으면 「HH:MM」, 범위는 「HH~HH시」(끝이 다음 날 자정이면 24), 범위가 이틀에 걸치면 「21시~18일 03시」.
+     * 예: kmaTime({start:'2026-10-17T06:00:00+09:00',end:'…T09:00…',range:true},'2026-10-16') → '17일 06~09시' · ({start:'…16T14:30…',range:false},'2026-10-16') → '14:30'
+     * @param {Object|null} x - 시각 @param {string} day - 시트 날짜(YYYY-MM-DD) @returns {string|null} 못 읽으면 null
+     * [연계] ← dayNotices(발표·발효 예정·해제 예고) — 사용자 2026-10-16 결정 1 「기상청 시각 그대로」
+     */
+    function kmaTime(x,day) {
+        var at=function(iso){var t=Date.parse(iso);if(!Number.isFinite(t))return null;var d=new Date(t+9*3600000);return {date:d.toISOString().slice(0,10),h:d.getUTCHours(),m:d.getUTCMinutes()};},p2=function(n){return String(n).padStart(2,'0');};
+        var a=x&&at(x.start);if(!a)return null;
+        var pre=a.date===day?'':Number(a.date.slice(8,10))+'일 ',b=x.range?at(x.end):null;
+        if(!b)return pre+(a.m?p2(a.h)+':'+p2(a.m):p2(a.h)+'시');
+        var next=new Date(Date.parse(a.date+'T00:00:00Z')+86400000).toISOString().slice(0,10);
+        if(b.date===a.date)return pre+p2(a.h)+'~'+p2(b.h)+'시';
+        if(b.date===next&&b.h===0&&b.m===0)return pre+p2(a.h)+'~24시';
+        return pre+p2(a.h)+'시~'+Number(b.date.slice(8,10))+'일 '+p2(b.h)+'시';
+    }
+    /**
+     * 연안 하루 값의 안내(특보·표류)를 그날 칸 전부에서 보여 준다(설계서 §16.1 ②, 사용자 2026-10-16 「모두 추천대로」).
+     * 특보 시각은 기상청이 준 것 그대로(결정 1, 2026-10-16 — 원문 *"발표, 발효, 해제의 시각은 이미 기상청으로부터 제공이 되는 거니까 그 시각에 맞춰서 그냥 표출해주면 되는 거 아니야?"*):
+     *   발효 중 = 「풍랑주의보 발효 중(14시 발표) — 17일 06~09시 해제 예고」 · 예비 = 「강풍주의보 예비특보(11시 발표) — 21~24시 발효 예정」.
+     *   그 시각을 못 읽었을 때만 칸 시각에 「칸 기준」 — 「풍랑주의보 발효 중 — 11시~(칸 기준)」(칸 묶음 「11시~15시」는 그 칸들에서 확인됐다는 뜻이라 실제 시각처럼 보이면 오해된다).
+     *   「더 일찍 풀릴 수 있음」 같은 말은 쓰지 않는다(사용자 「굳이 쓸 필요 없을 것 같애」).
+     * 칸 시각은 KST 시(지금 칸 13:25 는 13시). 그날 마지막 칸까지 이어지면 「HH시~」, 여러 칸이면 「HH시~HH시」(첫 칸~끝 칸), 한 칸이면 「HH시 무렵」 — 표류(칸마다 바람)는 그대로 칸 시각.
+     * 예: [{key:'warning',name:'풍랑주의보',state:'발효',from,to,issued:{start:'…14:00'},release:{start:'…17T06:00',end:'…09:00',range:true}}]
+     *     → 「⚠ 풍랑주의보 발효 중(14시 발표) — 17일 06~09시 해제 예고. 특보 중에는 사고는 평소보다 적지만, …」
+     *     [{key:'drift',windMs:9,from:'…T03:00…',to:'…T03:00…'}] → 「🛟 03시 무렵 이 앞바다 바람 9m/s — …」 · 여러 칸에 이어지면 그중 가장 센 바람 「최대 Nm/s」
+     * @param {Object} daily - 서버 risk_store.coastDayDetail 의 daily{date,times,notices:[{key,name,state,from,to,windMs,issued,effective,release}]} @returns {string} 안내 HTML
+     * [연계] ← create.show(연안 — daily.notices 가 있을 때. 없으면 종전 notices(d.notices)) → kmaTime·notices(표류 문구) / 서버 risk_store.dayNotices
+     */
+    function dayNotices(daily) {
+        var times=daily.times||[],end=times[times.length-1],day=daily.date||'',hh=function(at){var t=Date.parse(at);return Number.isFinite(t)?String(new Date(t+9*3600000).getUTCHours()).padStart(2,'0')+'시':'';};
+        var when=function(s){return s.to===end?hh(s.from)+'~':s.from===s.to?hh(s.from)+' 무렵':hh(s.from)+'~'+hh(s.to);};
+        var pre=[],eff=[],drift=[];
+        daily.notices.forEach(function(s){
+            if(s.key==='drift'){drift.push({key:'drift',windMs:s.windMs,when:when(s),most:s.from!==s.to});return;}
+            if(s.key!=='warning')return;
+            var issued=kmaTime(s.issued,day),head=s.name+(s.state==='발효'?' 발효 중':' 예비특보')+(issued?'('+issued+' 발표)':'');
+            var t=kmaTime(s.state==='발효'?s.release:s.effective,day);
+            (s.state==='발효'?eff:pre).push(head+' — '+(t?t+(s.state==='발효'?' 해제 예고':' 발효 예정'):when(s)+'(칸 기준)'));
+        });
+        var html=pre.length||eff.length?'<div class="rf-notice">⚠ '+F.escape(pre.concat(eff).join('. ')+'.')+(eff.length?' 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 '+b('14%',1.14)+' 높습니다.':'')+'</div>':'';
+        return html+notices(drift);
     }
     /**
      * 선택한 연안 시각의 실제 요소를 합친 과정을 펼쳐 보여 준다.
@@ -342,7 +387,8 @@
             else if(kind==='sea')body+=trafficRows(d,rows);
             else if(d.clickable===false)body+='<p class="rf-muted">이 시각에는 날씨 위험도 없고 배도 적은 칸입니다(지도에 색이 없음).</p>';
             // 연안: 위험지수 카드 → 계산 설명 → 안내 → 요소 줄 → 주변 연안사고(2026-10-16 T9 — 해상 시트가 「위 카드 → 교통량 → 과거 사고 → 날씨」로 지금 상황 뒤에 과거 사고를 두는 것과 같은 자리).
-            else body+=summary(d,kind)+coastCalculation(d)+notices(d.notices)+coastRows(rows)+(kind==='coast'&&Object.prototype.hasOwnProperty.call(d,'history')?coastHistory(d.history):'');
+            //   안내(특보·표류)는 연안 하루 값이면 그날 칸 전부의 것(daily.notices — 시각을 붙임, §16.1 ②), 아니면 종전대로 그 칸의 것.
+            else body+=summary(d,kind)+coastCalculation(d)+(d.daily&&Array.isArray(d.daily.notices)?dayNotices(d.daily):notices(d.notices))+coastRows(rows)+(kind==='coast'&&Object.prototype.hasOwnProperty.call(d,'history')?coastHistory(d.history):'');
             // 머리 [기준 상세]는 연안 요약(위험지수 카드)이 있을 때만. 옛 공식 사고·해상 칸 상세는 본문에 자기 버튼이 있다.
             basisFor(kind!=='accident'&&kind!=='sea'&&d.clickable!==false?kind:null);
             // 다른 관광지·시각을 그리면 열린 사고 목록 팝업을 닫는다(같은 관광지·시각의 60초 갱신은 그대로 — 내용이 같다).

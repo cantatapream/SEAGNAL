@@ -7,12 +7,13 @@
  *         칸·관광지를 누르면 선택 테두리는 즉시, 닫혀 있던 시트는 약 0.2초 뒤 아래에서 올라온다(2026-10-16). 시트가 열려 있는 동안 지도 클릭은 무시(T24 「나. 무시」).
  *         연안은 날짜(KST)당 하나 — 그날 가장 높은 값(T24). 연안만 켜면 하단 시간 바 대신 화면 가운데 위쪽 날짜 넘기기(항행경보 날짜 줄 모양),
  *         해상도 켜면 하단 시간 버튼 그대로·연안은 그 시각의 날짜. 연안 시트의 날짜 < > 와 함께 움직인다.
+ *         「활동지점 안전 브리핑」 바로가기용 RiskForecast.openAt·goTo(그 층·시각·칸/관광지로 이동, 2026-10-16 §11.4).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈) / style.css .spinner(기다림 표시) · risk_forecast.css .rf-map-wait
  *                    · index2.html 항행경보 날짜 줄 CSS(.navwarn-date-nav·.navwarn-nav-btn·.navwarn-date-label·.navwarn-date-tag — 연안 날짜 넘기기가 그대로 씀, T24)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js) — 해상 시트는 sea/analysis 뒤 sea/traffic-history?days=15
  *  - 마크업        : index2.html #risk-forecast-sheet / #risk-forecast-legend
- *  - 나를 쓰는 곳  : risk_forecast.js 또는 index2.html / risk_forecast_preview.html
+ *  - 나를 쓰는 곳  : risk_forecast.js 또는 index2.html / risk_forecast_preview.html · forecast/station-briefing/station_briefing.js(RiskForecast.openAt)
  * [로드 순서] risk_basis.js 다음 · life_safety.js 이전
  * ============================================================================
  */
@@ -195,8 +196,8 @@
             setMain(next);}
         /** 메인 시각을 바꾸고 지도·바·날짜 줄·토스트·열린 연안 시트를 함께 맞춘다. 연안 시트는 날짜가 바뀔 때만 회색 틀로 바꿔 그 날짜 값을 바로 요청한다(지도를 기다리지 않음).
          * 예: setMain('2026-10-17T00:00:00+09:00') → 토스트 「10월 17일 (토) 예보」·지도·시트 날짜 함께
-         * @param {string} next - 새 메인 시각 @returns {void} [연계] ← 시간 버튼·shiftDay / → marineTime·timeToast·waitStart·detail·refresh */
-        function setMain(next){var before=t||meta.now;t=next;marineLegend();marineTime();timeToast();waitStart();if(w.RiskMarine&&selected&&selected.kind==='coast'&&kstDay(before)!==kstDay(t)){sheet.loading();detail();}refresh();}
+         * @param {string} next - 새 메인 시각 @returns {Promise<void>} 지도 갱신(refresh) — 브리핑 바로가기(goTo)만 기다린다 [연계] ← 시간 버튼·shiftDay·goTo / → marineTime·timeToast·waitStart·detail·refresh */
+        function setMain(next){var before=t||meta.now;t=next;marineLegend();marineTime();timeToast();waitStart();if(w.RiskMarine&&selected&&selected.kind==='coast'&&kstDay(before)!==kstDay(t)){sheet.loading();detail();}return refresh();}
         /** 날짜 줄은 항행경보와 같은 자리(지도 가운데 위쪽 top 66px — index2.html .navwarn-date-nav)에 두되, 왼쪽 위 위험예측 토글 범례와 겹치면 범례 바로 아래(6px)로 내린다.
          * 예: 380px — 범례 12~175px·날짜 줄 82~298px 가 겹쳐 범례 아래로 · 1280px — 안 겹쳐 66px 그대로. 크기를 잴 수 없는 가짜 DOM 에서는 아무것도 하지 않는다.
          * @returns {void} [연계] ← marineTime(보일 때)·창 크기 변경 / 위치 기준(offsetParent)은 지도 감싸개(.ocean-map-wrapper) */
@@ -399,6 +400,28 @@
             })();
             return syncPending;
         }
+        /** 「활동지점 안전 브리핑」 바로가기(설계서 §11.4·U55, 2026-10-16) — 그 층을 켜고 그 시각(연안은 그 날짜)으로 옮긴 뒤 그 칸·관광지를 골라 시트를 열고 지도를 그 자리로 옮긴다.
+         * 시각 규칙은 지도 버튼과 같다: 해상은 지난 시각이면 지금, 아니면 그 시각을 넘지 않는 마지막 메인 시각 · 연안은 오늘이면 지금, 내일이면 그날 첫 칸(shiftDay 와 같음).
+         * 예: goTo({kind:'marine',id:'GR4_F4K23_P4',location:{lon:126.53,lat:33.56},t:'2026-10-17T15:00:00+09:00'}) → 해상 ON·15시·그 칸 시트
+         *     goTo({kind:'coast',id:'50110|협재해수욕장',date:'2026-10-17',location:{lon:126.239,lat:33.394}}) → 그 날짜·그 관광지 시트 / 관광지 표에 없는 id → false
+         * @param {Object} target - kind('marine'|'coast')·id·location{lon,lat}·t(해상 ISO)·date(연안 YYYY-MM-DD) @returns {Promise<boolean>} 골랐으면 true
+         * [연계] ← RiskForecast.openAt(bindApp) ← forecast/station-briefing/station_briefing.js / → 층 스위치 click·sync·setMain·select */
+        async function goTo(target){
+            if(!target||!enabled||disposed)return false;
+            await sync();var layerKey=target.kind==='coast'?'coast':'sea';
+            if(!state[layerKey]){var lb=legend.querySelector('[data-layer="'+layerKey+'"]');if(lb)lb.click();await sync();}
+            if(!meta||!enabled||disposed||!state[layerKey])return false;
+            var next=t||meta.now;
+            // 연안 날짜가 위험예측 표(coastDays)에 없으면 다른 날짜를 조용히 열지 않고 false(2단계 검토 A7 — 부른 쪽이 안내한다).
+            if(target.kind==='coast'&&target.date&&target.date!==kstDay(meta.now)&&coastDays().indexOf(target.date)<0)return false;
+            if(target.kind==='coast'&&target.date)next=target.date===kstDay(meta.now)?meta.now:coastT(target.date+'T00:00:00+09:00');
+            else if(target.t){var goal=Date.parse(target.t);next=!(goal>Date.parse(meta.now))?meta.now:(mainTimes().filter(function(at){return Date.parse(at)<=goal;}).pop()||meta.now);}
+            if(next!==t)await setMain(next);
+            if(target.kind==='coast'&&!table.coast.spots.some(function(p){return p.id===target.id;}))return false;
+            select(target.kind,target.id,target.location);
+            var loc=target.location;if(loc&&Number.isFinite(loc.lon)&&Number.isFinite(loc.lat)&&w.ol){var xy=ol.proj.fromLonLat([loc.lon,loc.lat]);map.getView().fit([xy[0]-1500,xy[1]-1500,xy[0]+1500,xy[1]+1500],{padding:visiblePadding(),maxZoom:13,duration:250});}
+            return !!selected&&selected.id===target.id;
+        }
         function setEnabled(value){enabled=!!value;seq++;if(!enabled){waitEnd(false);clearSelection();legend.hidden=true;layer.setActive(state,false);colorLegendSync();marineTime();restoreBasemap();message('');}else{satelliteOn();legend.hidden=false;colorLegendSync();marineTime();waitStart();sync();}}
         function escapeSheet(e){if(e.key==='Escape'&&enabled&&(selected||choosing)&&!document.querySelector('.rf-modal')&&!document.querySelector('.rf-acc-pop:not([hidden])')){e.preventDefault();clearSelection();}}
         document.addEventListener('keydown',escapeSheet);
@@ -406,7 +429,7 @@
         if(enabled)satelliteOn();
         var ready=enabled?sync():Promise.resolve();
         var timer=setInterval(function(){if(enabled&&!disposed)sync();},60000);
-        return {ready:ready,setEnabled:setEnabled,select:select,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id,location:selected.location}};},synced:function(){return syncPending||Promise.resolve();},destroy:function(){disposed=true;clearInterval(timer);document.removeEventListener('keydown',escapeSheet);seq++;waitEnd(false);if(waitEl)waitEl.remove();clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();dateNav.remove();if(w.removeEventListener)w.removeEventListener('resize',placeDateNav);clearTimeout(toastTimer);toastEl.remove();document.body.classList.remove('rf-sea-time-on');}}};
+        return {ready:ready,setEnabled:setEnabled,select:select,goTo:goTo,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id,location:selected.location}};},synced:function(){return syncPending||Promise.resolve();},destroy:function(){disposed=true;clearInterval(timer);document.removeEventListener('keydown',escapeSheet);seq++;waitEnd(false);if(waitEl)waitEl.remove();clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();dateNav.remove();if(w.removeEventListener)w.removeEventListener('resize',placeDateNav);clearTimeout(toastTimer);toastEl.remove();document.body.classList.remove('rf-sea-time-on');}}};
     }
     /**
      * 해양안전의 실제 위험예측 버튼과 지도 클릭 훅을 등록한다.
@@ -435,6 +458,20 @@
             finally{pending=false;}
         });
         w._riskForecastTryHandleClick=function(map,evt){return instance?instance.tryHandleClick(evt):false;};
+        /** 「활동지점 안전 브리핑」 카드의 [위험예측에서 보기 ›](설계서 §11.4) — 꺼져 있으면 버튼을 눌러 켠 뒤(해양안전 단독 표출 규칙 그대로) goTo.
+         * 미리보기 잠금(10번 누름)은 관리자 모드(seagnal_admin_mode)일 때만 푼다 — 일반 기기는 잠금을 그대로 두고 false(2단계 검토 A2: 바로가기가 잠금을 풀어 버렸다).
+         *   일반 공개 때 잠금을 어떻게 할지는 사용자가 따로 정한다(station-briefing/README.md · 설계서 §11.9).
+         * 예: await RiskForecast.openAt({kind:'coast',id:'S1',date:'2026-10-17'}) → true · 일반 기기 + 잠금 → false(잠금 그대로)
+         * @param {Object} target - goTo 와 같음 @returns {Promise<boolean>} [연계] ← station_briefing.js openInRisk / → btn click·instance.goTo */
+        w.RiskForecast.openAt=async function(target){
+            if(!unlocked){var admin=false;try{admin=localStorage.getItem('seagnal_admin_mode')==='true';}catch(e){admin=false;}if(!admin)return false;}
+            unlocked=true;btn.classList.remove('rf-preview-locked');btn.setAttribute('aria-disabled','false');
+            if(!enabled)btn.click();
+            for(var i=0;i<200&&!(instance&&instance.getState().enabled);i++)await new Promise(function(r){setTimeout(r,50);});   // 지도·모듈 준비(최대 10초)
+            return instance&&instance.getState().enabled?instance.goTo(target):false;
+        };
+        /** 위험예측 미리보기 잠금이 아직 걸려 있나(10번 누르기 전). 예: 처음 → true. @returns {boolean} [연계] ← station_briefing.js openInRisk(탭을 옮기기 전에 안내) */
+        w.RiskForecast.previewLocked=function(){return !unlocked;};
     }
     w.RiskForecast={mount:mount};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindApp);else bindApp();
