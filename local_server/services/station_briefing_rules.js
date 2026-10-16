@@ -17,7 +17,7 @@
 'use strict';
 const crypto = require('crypto');
 
-const RULES_VERSION = 'station-briefing-rules-v4'; // v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구 · v4(같은 날 *"모두 추천대로."*): 공식 사고예보 「경계」도 「주의」처럼 기상·혼잡이 겹칠 때만 총평
+const RULES_VERSION = 'station-briefing-rules-v5'; // v5(2026-10-16 2단계 화면 독립 검토 B1·B12): 틀 총평 「관심 이상 N개 해역」을 총평 기준 수로(공식 사고예보 단계만 있는 해역은 따로 셈) · 경계 카드 문장의 「공식」을 출처별로 · v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구 · v4(같은 날 *"모두 추천대로."*): 공식 사고예보 「경계」도 「주의」처럼 기상·혼잡이 겹칠 때만 총평
 const HOUR = 3600000, SLOT_H = 3;
 // 단계 말 — 사용자 확정(§11.6-8 Q1 「가」): 「관심 필요·주의 필요·경계 필요」. 해상의 주의·경계는 공식 자료(공식 사고예보·기상특보)가 그 단계일 때만.
 // 육상은 2026-10-16 결정 2(*"공식 단어 … 써도 상관없을 것 같다 … 어차피 판단은 사람들이 하는거잖아"*)로 연안 위험지수 단계도 주의·경계를 붙인다(landSpot).
@@ -326,7 +326,10 @@ function seaSection(input, win, wev) {
         for (const q of x.series) for (const s of q.sources) { const k = s.kind + s.label; if (seenLabel.has(k)) continue; seenLabel.add(k); todayLines.push(runsText(x.series.filter((z) => z.sources.some((y) => y.kind === s.kind && y.label === s.label)).map((z) => z.at), win.targetDate) + ' ' + s.label); }
         if (flow) todayLines.push(flow.text);
         const tops = hasHist ? h.topTypes || [] : [];
-        const sentence = (windowText ? windowText + ' ' : '') + '이 해역은 ' + (top ? top.label : '') + (x.rank === 3 ? ' 단계이므로 공식 경계 단계 확인과 운항 시 경계가 필요합니다.' : ' 근거로 운항 시 ' + SUBJECT[x.rank] + ' 필요합니다.') + (tops[0] ? ' 이 해역에서는 집계 기간 중 ' + tops[0].type + ' 사고가 가장 많이 기록되었습니다.' : '');
+        // 경계 문장(2026-10-16 2단계 검토 B12): 종전 「공식 경계 단계 확인」의 「공식」이 무엇인지 모호했다 — 출처별로 무엇을 확인할지 쓴다
+        //   공식 사고예보(한국해양교통안전공단 선박 사고위험 예보) '경계' → 「공단 사고위험 예보를 확인하고」 · 특보(풍랑·태풍 경보·예비 경보) → 「기상청 특보를 확인하고」.
+        const alert3 = top && top.kind === 'accident' ? ' 단계이므로 공단 사고위험 예보를 확인하고 운항 시 경계가 필요합니다.' : ' 근거로 기상청 특보를 확인하고 운항 시 경계가 필요합니다.';
+        const sentence = (windowText ? windowText + ' ' : '') + '이 해역은 ' + (top ? top.label : '') + (x.rank === 3 ? alert3 : ' 근거로 운항 시 ' + SUBJECT[x.rank] + ' 필요합니다.') + (tops[0] ? ' 이 해역에서는 집계 기간 중 ' + tops[0].type + ' 사고가 가장 많이 기록되었습니다.' : '');
         return {
             rid: x.r.rid, name: x.nm.name, nameBase: x.nm.base, nameBaseKind: x.nm.baseKind, rank: x.rank, word: WORD[x.rank], overviewRank: x.overviewRank,
             overview: x.oAts.length ? { rank: x.overviewRank, word: WORD[x.overviewRank], window: runsText(x.oAts, win.targetDate), label: runLabels(x.series.filter((q) => x.oAts.includes(q.at)), win.targetDate), at: x.oAts[0] } : null,
@@ -352,7 +355,9 @@ function seaSection(input, win, wev) {
         level: { rank, word: levelWord(rank, missing, 4), source: regions[0] ? regions[0].series[regions[0].first].sources[0].label : null, partial: missing.length > 0 },
         overviewLevel: { rank: oRank, word: levelWord(oRank, missing, 4) },
         overviewTop: oRegions.slice(0, 2).map((x) => cards.find((c) => c.rid === x.r.rid) || toCard(x)),
-        reviewedCells: sea.reviewedCells || 0, attentionRegions: regions.length, cards, timeBar, weather: worstFlow, weatherByHaegu: flows, missing: [...new Set(missing)],
+        // overviewRegions = 총평 기준(공식 사고예보 단계만 있는 칸을 거른 뒤) 관심 이상 해역 수 — 총평 단계(overviewLevel)와 같은 기준(2026-10-16 2단계 검토 B1).
+        //   attentionRegions(카드·시간 막대 기준)와 다르면 그 차이 = 공식 사고예보 단계만 있는 해역 수. 틀 총평·AI 입력은 overviewRegions 를 쓴다.
+        reviewedCells: sea.reviewedCells || 0, attentionRegions: regions.length, overviewRegions: oRegions.length, cards, timeBar, weather: worstFlow, weatherByHaegu: flows, missing: [...new Set(missing)],
         missingSlots: accGaps.size ? { accident: [...accGaps].sort() } : {},
     };
 }
@@ -434,7 +439,8 @@ function landSection(input, win) {
         level: { rank: top ? top.j.rank : 0, word: levelWord(top ? top.j.rank : 0, missing, 0), source: top ? top.j.sourceLabel : null, partial: missing.length > 0 },
         // 검토한 관광지 수 = 연안 하루 값을 실제로 받은 곳만(상세 실패 'detail' 은 셈에서 뺀다 — 독립 검토 낮음). 실패 수는 failedSpots.
         reviewedSpots: spots.filter((s) => !(s.missing || []).includes('detail')).length, failedSpots: spots.filter((s) => (s.missing || []).includes('detail')).length,
-        reviewedHazards: (land.hazardOnly || []).length, cards, constant, overviewTop: cards.slice(0, 3), missing,
+        // attentionSpots = 관심 이상 관광지 전체 수(카드는 단계 높은 순 MAX_LAND_CARDS 곳까지 — 화면이 「카드는 10곳까지」를 밝힌다, 2단계 검토 B5).
+        reviewedHazards: (land.hazardOnly || []).length, attentionSpots: cardsAll.length, cards, constant, overviewTop: cards.slice(0, 3), missing,
     };
 }
 /**
@@ -476,11 +482,15 @@ function templateOverview(b) {
     const st = b.station.name, dayWord = dayWordOf(b);
     const sea = b.sea, s = [], top = sea.overviewTop[0], miss = sea.missing.length ? sourceNames(sea.missing) : null;
     // 빠진 원천은 첫 문장에 밝힌다(A2) — 남은 자료로 0 이어도 「평소 수준」·「없습니다」라 쓰지 않는다.
-    const counts = '관할 안 ' + sea.reviewedCells + '칸 검토, ' + (miss ? '확인된 자료 기준 ' : '') + '관심 이상 ' + sea.attentionRegions + '개 해역';
+    // 「관심 이상 N개 해역」은 총평 단계와 같은 기준(overviewRegions) — 종전엔 카드 기준 수를 써서 「평소 수준입니다(… 관심 이상 1개 해역)」처럼 어긋났다(2026-10-16 2단계 검토 B1).
+    //   공식 사고예보 단계만 있는 해역은 따로 센다(해상 분석 카드·시간 막대에는 있다).
+    const oCount = Number.isFinite(sea.overviewRegions) ? sea.overviewRegions : sea.attentionRegions, accOnly = sea.attentionRegions - oCount;
+    const counts = '관할 안 ' + sea.reviewedCells + '칸 검토, ' + (miss ? '확인된 자료 기준 ' : '') + '관심 이상 ' + oCount + '개 해역' + (accOnly > 0 ? ', 공식 사고예보 단계만 있는 해역 ' + accOnly + '개' : '');
     s.push(dayWord + ' ' + st + ' 관할 해상은 ' + sea.overviewLevel.word + '입니다' + (miss ? ' — ' + miss + ' 자료를 확인하지 못해 그 근거는 판단에서 뺐습니다(' + counts + ').' : '(' + counts + ').'));
     s.push(sea.weather ? sea.weather.text + '.' : '해구 예보 자료를 확인하지 못했습니다.');
     if (top) s.push(top.overview.window + ' ' + top.name + '의 근거는 ' + top.overview.label + '입니다.');
-    else s.push(miss ? '확인된 자료에서는 기상·혼잡 근거가 겹치는 해역을 찾지 못했습니다(빠진 자료의 근거는 알 수 없습니다).' : '공식 사고예보 단계만 있고 기상·혼잡 근거가 함께 겹치는 해역은 없습니다.');
+    // 공식 사고예보 단계만 있는 해역이 없는데 「공식 사고예보 단계만 있고」라 쓰지 않는다(B1 — 관심 이상 해역이 아예 없는 날).
+    else s.push(miss ? '확인된 자료에서는 기상·혼잡 근거가 겹치는 해역을 찾지 못했습니다(빠진 자료의 근거는 알 수 없습니다).' : accOnly > 0 ? '공식 사고예보 단계만 있고 기상·혼잡 근거가 함께 겹치는 해역은 없습니다.' : '기상·혼잡·특보 근거가 있는 해역은 확인되지 않았습니다.');
     const rel = b.special.find((x) => x.kind === 'release' || x.kind === 'released'), pre = b.special.find((x) => x.kind === 'prewarn');
     if (rel) s.push(rel.title + ' — ' + RELEASE_LINES[0]);
     else if (pre) s.push(pre.title + '입니다.');

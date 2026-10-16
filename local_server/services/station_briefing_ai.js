@@ -130,7 +130,9 @@ function stationInput(b) {
     if (b.special.some((x) => x.kind === 'release' || x.kind === 'released')) for (const k of ['1.2|배', '1.3|배', '1.2~1.3|배']) mult.sea.add(k);
     if (sea.weather) facts.push(sea.weather.text);
     const missSea = sea.missing.map((k) => R.SOURCE_LABEL[k] || k);
-    const seaPart = { level: sea.overviewLevel.word, reviewed_cells: sea.reviewedCells, attention_regions: sea.attentionRegions, weather: sea.weather ? sea.weather.text : null, top: seaTop, timeline, missing_sources: [...new Set(missSea)] };
+    // attention_regions = 총평 기준 관심 이상 해역 수(overviewRegions — 총평 단계 level 과 같은 기준, 2단계 검토 B1). 공식 사고예보 단계만 있는 해역은 accident_only_regions 로 따로.
+    const oCount = Number.isFinite(sea.overviewRegions) ? sea.overviewRegions : sea.attentionRegions;
+    const seaPart = { level: sea.overviewLevel.word, reviewed_cells: sea.reviewedCells, attention_regions: oCount, accident_only_regions: Math.max(0, sea.attentionRegions - oCount), weather: sea.weather ? sea.weather.text : null, top: seaTop, timeline, missing_sources: [...new Set(missSea)] };
     let landPart = null, missLand = [];
     if (land) {
         // source = 단계 출처 꼬리표(결정 2 — 「연안 위험지수 72 '높음'」·「풍랑주의보」): 사실 목록에 넣어 그 숫자·따옴표 단계 이름을 AI 가 옮겨도 통과하게 한다.

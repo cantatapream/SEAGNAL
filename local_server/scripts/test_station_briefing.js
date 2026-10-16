@@ -919,6 +919,40 @@ const WIN = R.editionWindow('morning', T0);
         h2.observeSources({ stationBriefing: RHS.briefingSource(path.join(d, 'sb'), Date.parse(at(9))) });
         assert.equal(h2.list({ source: 'stationBriefing' }).data.length, 2, '1분 감시가 같은 판정이면 가짜 사건을 더 만들지 않음');
     });
+    // ── 2단계 화면 독립 검토(review_ui2, 2026-10-16) — 규칙 쪽 결함 1:1 ──
+    await check('[UI-B1] 총평 「관심 이상 N개 해역」은 총평 단계와 같은 기준 — 공식 사고예보 「경계」만 있는 날 「평소 수준입니다(… 관심 이상 1개 해역)」 자기모순 없음 · AI 입력 attention_regions 도 같은 기준', () => {
+        // 검토자 재현(review_ui2/t2.js): 15시 공식 사고예보 '경계'만, 기상 평온 → 카드 단계 경계, 총평 단계 평소 수준
+        const lone = R.buildBriefing(seaOnlyInput({ reviewedCells: 5, regions: [region(1, { [at(15)]: { accident: '경계' } })], weather: { 232: { label: '대해구 232', rows: WIN.slots.map((a) => ({ at: a, wh: 0.5, ws: 4 })) } } }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.deepStrictEqual([lone.sea.level.rank, lone.sea.overviewLevel.rank, lone.sea.attentionRegions, lone.sea.overviewRegions], [3, 0, 1, 0]);
+        assert.ok(lone.overview.sea.includes('평소 수준입니다(관할 안 5칸 검토, 관심 이상 0개 해역, 공식 사고예보 단계만 있는 해역 1개)'), lone.overview.sea);
+        assert.ok(!/관심 이상 1개 해역/.test(lone.overview.sea), '총평 단계와 다른 기준의 수를 쓰지 않음');
+        const si = AI.stationInput(lone);
+        assert.deepStrictEqual([si.sea.attention_regions, si.sea.accident_only_regions], [0, 1]);
+        const v = AI.validateOverview(lone.overview, si); assert.ok(v.ok, v.errors.join(','));
+        // 관심 이상 해역이 아예 없는 날 — 「공식 사고예보 단계만 있고」라 쓰지 않는다
+        const calm = R.buildBriefing(seaOnlyInput({ reviewedCells: 5 }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.ok(!calm.overview.sea.includes('공식 사고예보 단계만'), calm.overview.sea);
+        assert.ok(calm.overview.sea.includes('관심 이상 0개 해역)'), calm.overview.sea);
+        assert.ok(AI.validateOverview(calm.overview, AI.stationInput(calm)).ok);
+        // 둘 다 있는 날: 기상·혼잡이 겹친 해역 1 + 사고예보만 1 → 「관심 이상 1개 해역, 공식 사고예보 단계만 있는 해역 1개」
+        const cg = { level: '높음', index: 12, at: at(15) };
+        const mix = R.buildBriefing(seaOnlyInput({ reviewedCells: 2, regions: [region(1, { [at(9)]: { accident: '경계' } }), region(2, { [at(15)]: { accident: '주의', congestion: cg } })] }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.ok(mix.overview.sea.includes('관심 이상 1개 해역, 공식 사고예보 단계만 있는 해역 1개'), mix.overview.sea);
+        assert.ok(AI.validateOverview(mix.overview, AI.stationInput(mix)).ok);
+    });
+    await check('[UI-B12] 경계 카드 문장의 「공식」을 출처별로 — 공식 사고예보 경계는 공단 사고위험 예보, 특보 경계는 기상청 특보', () => {
+        const acc = R.buildBriefing(seaOnlyInput({ regions: [region(1, { [at(9)]: { accident: '경계' } })] }), WIN, { generatedAt: R.isoKst(T0) }).sea.cards[0];
+        assert.ok(acc.sentence.includes("공식 사고예보 '경계' 단계이므로 공단 사고위험 예보를 확인하고 운항 시 경계가 필요합니다."), acc.sentence);
+        const wz = { zone: '제주도서부앞바다', type: '풍랑', level: '경보', state: '발효', effective: { start: at(0), end: at(0), range: false }, release: null };
+        const wr = R.buildBriefing(seaOnlyInput({ regions: [region(1, {}, { zone: { name: '제주도서부앞바다', kind: 'main' } })], warnings: [wz] }), WIN, { generatedAt: R.isoKst(T0) }).sea.cards[0];
+        assert.ok(wr.sentence.includes('제주도서부앞바다 풍랑경보 근거로 기상청 특보를 확인하고 운항 시 경계가 필요합니다.'), wr.sentence);
+        assert.ok(!/공식 경계 단계 확인/.test(acc.sentence + wr.sentence));
+    });
+    await check('[UI-B5] 관심 이상 관광지 전체 수(attentionSpots)를 따로 준다 — 카드는 10곳까지', () => {
+        const spots = Array.from({ length: 12 }, (_, i) => ({ id: 's' + i, name: '관광지' + pad(i), lat: 33, lon: 126, index: 30, band: '다소 높음', people: { ratio: 1.5, score: 0.5 }, notices: {}, missing: [] }));
+        const b = R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots, hazardOnly: [] } }, WIN, { generatedAt: R.isoKst(T0) });
+        assert.deepStrictEqual([b.land.attentionSpots, b.land.cards.length], [12, 10]);
+    });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);

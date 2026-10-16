@@ -68,7 +68,7 @@
   "sea": {
     "level": { "rank": 2, "word": "주의 필요", "source": "공식 사고예보 '주의'", "partial": false },
     "overviewLevel": { "rank": 2, "word": "주의 필요" },
-    "reviewedCells": 52, "attentionRegions": 3, "missing": [], "missingSlots": {},
+    "reviewedCells": 52, "attentionRegions": 3, "overviewRegions": 2, "missing": [], "missingSlots": {},
     "weather": { "label": "대해구 232", "onsetAt": "…T15:00:00+09:00", "endAt": "…T21:00:00+09:00", "max": { "wh": 2.6, "ws": 14 }, "text": "대해구 232 예보는 15시부터 파고 2.4m·풍속 13m/s로 높아집니다(12시 파고 1.4m·풍속 9m/s), 21시부터 기준 아래로 내려갑니다" },
     "weatherByHaegu": { "232": { …weather 와 같은 꼴… } },
     "timeBar": [ { "at": "…T06:00:00+09:00", "label": "06시", "rank": 2, "word": "주의 필요", "region": "한림항 북동방 5.2해리 해역(232-3해구)",
@@ -88,7 +88,7 @@
     "overviewTop": [ …cards 중 총평 후보(최대 2)… ] },
   "land": {
     "level": { "rank": 2, "word": "주의 필요", "source": "연안 위험지수 72 '높음'" },
-    "reviewedSpots": 4, "failedSpots": 0, "reviewedHazards": 1, "missing": [],
+    "reviewedSpots": 4, "failedSpots": 0, "reviewedHazards": 1, "attentionSpots": 2, "missing": [],
     "cards": [ { "id": "50110|협재해수욕장", "name": "협재해수욕장", "rank": 2, "word": "주의 필요", "sourceLabel": "연안 위험지수 72 '높음'",
                  "index": 72, "band": "높음", "peakAt": "…T15:00:00+09:00",
                  "traits": { "hazard": { "count": 4, "byType": [ … ] }, "history": { "count": 6, "from": "2020-01-01", "to": "2024-12-31", "topTypes": [ … ] }, "beach": true, "text": "위험구역 4곳(…) · 2020~2024 연안사고 6건(표류 4) · 해수욕장" },
@@ -116,11 +116,13 @@
 | `special[]` | 특별 상황 칸: `release`(해제 예고 — 「… — 06~09시 해제 예고(10월 16일 21:00 발표)」, `lines` 두 줄을 그대로) · `prewarn`(예비특보 — 「… 예비특보 — 21~24시 발효 예정(05:00 발표)」) · `released`(이미 해제 — 특보 구간 기록의 실제 해제 시각, 「… — 07:30 해제」 + 해제 안내 두 줄). 시각은 기상청 것 그대로, 발표 시각이 있으면 괄호로(결정 1). 해제 예고·발효 예정 **범위가 창과 겹치면** 넣는다(창 시작 전에 시작해도 — 17:30 판의 「12~18시 해제 예고」). 특보 원천(`sources.warnings`)이 ok 가 아니면 만들지 않는다(시간 막대 사건도) | ② 특별 상황 |
 | `sea.level` | 해상 분석 단계(공식 사고예보 순위 「주의」 포함). 남은 자료로 0 인데 원천이 빠졌으면 `word` 가 「확인 불가(일부)」(넷 다 빠지면 「확인 불가」) — 「평소 수준」이라 쓰지 않는다(`partial:true`) | ③ 해상 분석 머리 |
 | `sea.overviewLevel` | 총평에 쓴 단계(공식 사고예보 「주의」·**「경계」**만 있고 같은 칸에 기상·혼잡 근거가 없는 칸 제외 — §11.6-17① 「주의」, 2026-10-16 *"모두 추천대로."* 로 「경계」도 — §11.8 추가 결정 A). 결측 규칙은 `sea.level` 과 같다 | 총평 옆 배지 |
+| `sea.attentionRegions` · `sea.overviewRegions` | 관심 이상 해역 수 — 카드·시간 막대 기준(`attentionRegions`) / 총평 기준(`overviewRegions`, 공식 사고예보 단계만 있는 해역 제외 — `overviewLevel` 과 같은 기준). 틀 총평 첫 문장과 AI 입력 `attention_regions` 는 `overviewRegions` 를 쓰고, 차이가 있으면 「공식 사고예보 단계만 있는 해역 N개」(`accident_only_regions`)로 따로 적는다(2026-10-16 2단계 검토 B1 — 종전엔 「평소 수준입니다(… 관심 이상 1개 해역)」처럼 어긋났다). 규칙 판 `station-briefing-rules-v5` | ① 총평 · ③ 해상 분석 머리 |
 | `sea.timeBar[]` | 3시간 칸마다 관할 최고 단계·그 해역·근거 이름·사건(`release`·`prewarn`·`released`·`warnStart`). 특보 해제 뒤 「관심」은 **해제 뒤 1시간이 걸친 칸만**(결정 4 — 「Z 풍랑주의보 해제 뒤」·이미 해제면 「…(07:30 해제)」) | 해상 시간 막대(칸 색 = `rank` 0~3, 사건은 ⚑) |
 | `sea.cards[]` | 해역 카드(최대 10, 순위 = 단계 > 지속 칸 > 기상·혼잡 겹침 > 과거 사고). `window`·`today.lines`·`overview.window` 는 이어진 칸 묶음별 — 끊기면 「06~09시·21~24시」(하나로 잇지 않는다), `peakAt` = 가장 높은 단계의 첫 칸. `traits.history` 가 `{count:0, available:false}` 면 「선박사고 이력 자료 없음(집계 불가)」, `available:true` 면 「…선박사고 기록 없음」(0건). `sea.overviewTop` 은 카드 상한과 상관없이 총평 단계 순위에서 고른다(카드 10개 밖이어도 총평 근거면 들어간다) | [특성] `traits.text` · [오늘 예상] `today.lines` · 틀 문장 `sentence` |
 | `card.link` | 위험예측 화면으로 바로가기 재료 — 교통 칸 `gridId`(없으면 `accidentGridId`)·좌표·시각 `t` | [위험예측에서 보기 ›] (§11.4, U55) |
 | `land.cards[]` | 관심 이상 관광지(최대 10). 단계(결정 2): **경계** = 풍랑·태풍·강풍 경보 발효 · 연안 위험지수 100('매우 높음') + 오늘 바뀐 요소 / **주의** = 주의보 발효 · 지수 '높음'(67+) + 바뀐 요소 / **관심** = '다소 높음' 이상 + 바뀐 요소 · 예비특보 · 떠밀림 · 행사 · 특보 해제 뒤 3시간(결정 4). `sourceLabel` = 무엇 때문인지(「연안 위험지수 72 '높음'」·「풍랑주의보」·「풍랑주의보 해제 뒤(07:30 해제)」). `today.changes` 의 특보는 기상청 시각째: 「풍랑주의보 발효(06~09시 해제 예고, 10월 16일 14:00 발표)」·「강풍주의보 예비특보(10월 18일 03:00 발효 예정)」 | ④ 육상 분석 |
-| `land.constant[]` | 상시 위험 장소(바뀐 요소 없음 + 관광지에 안 붙은 위험구역, 최대 12) | 「상시 위험 장소」 접힘 목록 |
+| `land.attentionSpots` | 관심 이상 관광지 전체 수(카드는 그중 단계 높은 순 10곳) — 화면이 「카드는 10곳까지」를 밝힐 때 쓴다(2단계 검토 B5) | ④ 육상 분석 머리 |
+| `land.constant[]` | 상시 위험 장소(단계 0 인 관광지 + 관광지에 안 붙은 위험구역 가운데 **설명 글이 있는 곳**, 최대 12) | 「상시 위험 장소」 접힘 목록 |
 | `land.card.link` | `spotId`·좌표·`date` — 연안 시트(`/coast/spot?id=…&t=그 날짜`)로 | 바로가기 |
 | `tide` | 서해·남해·**제주** 관할(아래 §2.2, 제주는 결정 5). 동해 등 그 밖은 `null` | 조석 게이지 |
 | `sources` · `sea.missing` · `sea.missingSlots` · `land.missing` · `land.failedSpots` | 원천 상태. ok 가 아닌 원천의 근거는 판단에서 뺐다. `sea.missingSlots.accident` = 공식 사고예보 원천은 ok 인데 프레임이 빠진 칸(그 칸 사고예보는 「없음」이 아니라 확인 불가 — `sea.missing` 에도 `accident`). `land.reviewedSpots` 는 연안 하루 값을 실제로 받은 곳만, 실패 수는 `failedSpots`(`land.missing` 에 `detail`). 빠진 원천은 총평 첫 문장에 이름으로 밝힌다 | 「일부 자료 확인 불가」 |
