@@ -43,9 +43,10 @@
         function rgba(rgb,a) { return rgb.replace('rgb(','rgba(').replace(')',','+a+')'); }
         /** 점수 색 면 스타일을 만든다. 예: 연안 colorStyle(2,true) → 점수 색 50% 채움만(테두리 없음).
          * 연안은 G안(사용자 2026-10-16 「연안테두리 g로 반영해보자」)으로 같은 색 불투명 2px 실선을 없앴다 — 경계는 흐림 뒤 따로 그리는 연한 흰 선(coastEdge)이 맡는다.
-         * @param {number|null} score - 점수 @param {boolean} coast - 연안 면인가 @returns {ol.style.Style} [연계] ← drawCoast / RiskFormat.col 색 */
+         * 연안 면 색은 단계 4색(RiskFormat.bandColor — 사용자 2026-10-16 (가), 시트 상자·슬라이더 칸과 같은 색). 해상 옛 점수 면만 연속 색(col) 그대로.
+         * @param {number|null} score - 점수 @param {boolean} coast - 연안 면인가 @returns {ol.style.Style} [연계] ← drawCoast / RiskFormat.bandColor·col 색 */
         function colorStyle(score,coast) {
-            var c=w.RiskFormat.col(score);
+            var c=coast?w.RiskFormat.bandColor(score):w.RiskFormat.col(score);
             if(coast)return new ol.style.Style({fill:new ol.style.Fill({color:rgba(c,score==null?0:0.5)})});
             return new ol.style.Style({fill:new ol.style.Fill({color:rgba(c,score==null?0:score>0?0.7:0)}),stroke:new ol.style.Stroke({color:'rgba(200,225,240,.12)',width:0.5})});
         }
@@ -179,7 +180,7 @@
                 // 빈 면도 중심점은 남긴다. 같은 좌표는 한 점과 선택 목록으로 표시한다.
                 var key=p.lon+','+p.lat,center=centers.get(key);
                 if(center)center.get('ids').push(p.id);
-                else {center=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([p.lon,p.lat])),kind:'coast',id:p.id,ids:[p.id]});center.setStyle(new ol.style.Style({image:new ol.style.Circle({radius:4,fill:new ol.style.Fill({color:'#fff'}),stroke:new ol.style.Stroke({color:w.RiskFormat.col(v[1]),width:2})})}));sources.points.addFeature(center);centers.set(key,center);}
+                else {center=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([p.lon,p.lat])),kind:'coast',id:p.id,ids:[p.id]});center.setStyle(new ol.style.Style({image:new ol.style.Circle({radius:4,fill:new ol.style.Fill({color:'#fff'}),stroke:new ol.style.Stroke({color:w.RiskFormat.bandColor(v[1]),width:2})})}));sources.points.addFeature(center);centers.set(key,center);}
             });
         }
         /**

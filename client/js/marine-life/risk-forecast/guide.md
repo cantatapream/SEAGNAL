@@ -246,3 +246,24 @@ bash scripts/refactor/verify_all.sh
 
 수정 시 주의: 버튼은 위아래 음수 여백으로 줄 높이(약 19.8px)보다 높게 잡히지 않는다 — 이 여백을 없애면 한 줄 부제에서 시각 줄이 약 3px 밀린다(`test_risk_sheet_ui` 「한 줄 부제에서 버튼이 시각 줄을 밀어냄」). 기준 상세 문안을 새로 쓸 때도 「닫기 버튼 → h3 → 본문」 순서를 지킨다(머리로 떼어 내는 규칙).
 
+
+## 연안 시트 주변 연안사고·표기·색·기준 상세 표 — 2026-10-16 (T9)
+
+사용자 원문은 [README.md](README.md)의 같은 이름 절, 결정 표는 설계서 §15. 바뀐 자리:
+
+| 위치 | 이전 | 지금 |
+|---|---|---|
+| `risk_store` 정적 표 | `risk_spots.json` 만 | + `coast_accidents.json`(`loadCoastAccidents` — 파일 변경 때만 다시 읽음). 해시 불일치 → `status:'stale'` + 로그, 없음 → `missing`, 손상 → `error` + 로그. `meta().coastAccidents`(화면용 저장소만, 감시용 metadataOnly 는 null — `sources()` 에 넣으면 감시 원천과 키가 달라져 `test_risk_history_sources` 가 깨진다) |
+| `risk_store.coastDetail` | 상세 + `outlook` | + `history`(`coastHistory(id)`): `{available:true,from,to,area,accidents}` / `{available:false}` |
+| `RiskMarine.accidents` | 도넛·범례·인명 줄을 함수 안에서 | `accSort`·`accSummary`(도넛·범례·인명 줄)·`bindAcc`(범례 → `openAcc`, 줄 글자 `line` 선택)·`closePop` 으로 나눠 내보냄 — 해상 모양·시험 그대로 |
+| `RiskSheet.show` 연안 본문 | 상자 → 계산 → 안내 → 요소 줄 | + 맨 끝 `coastHistory(d.history)`(응답에 `history` 가 있을 때만), 그린 뒤 `bindAcc`(줄 = 날짜), 다른 관광지·시각이면 `closePop` |
+| `RiskSheet.show` 부제 | 연안 「좌표 · 관할」, 옛 사고 격자 「격자 중심 좌표」 | 연안 관할만, 옛 사고 격자 빈칸. `syncSubRow` — 부제가 비고 버튼도 숨었으면 `.rf-sub-row` 숨김 |
+| `accidentRows` | 「선택 위치 좌표」 줄 | 없음 |
+| `summary` 상자 색 | `F.col(d.score)` | `F.bandColor(band 또는 점수)` |
+| `RiskMapLayer` 연안 면·점 테두리 | `RiskFormat.col(score)` | `RiskFormat.bandColor(score)`(해상 옛 점수 면은 `col` 그대로) |
+| `RiskFormat` | `BAND_COLORS` | + `scoreIndex`·`bandOf`(서버 `risk_points` 와 같은 식)·`bandColor` |
+| `RiskBasis.open` | 문안 그대로 | 본문 표를 `scrollTable` 로 감쌈 |
+| `RiskBasisContent` | 해상 제목 「공식 선박 …」, MTIS 밑줄 링크 「·」 이음, 연안 「떠밀림」·「연속 그라데이션」 | 「선박 사고위험·교통혼잡 예보」, `.rf-basis-links` 안 `.link-btn` 두 개, 「표류」·「주변 연안사고 목록」·「단계 말과 같은 4색」 |
+| `.rf-txt b.rf-cc` | `#f0c6ff` | `#ffa25e` |
+
+수정 시 주의: 지도 연안 색 경계를 바꿀 때는 서버 `risk_points.scoreBand` 와 `RiskFormat.bandOf` 를 같이 바꾼다(`test_risk_format` 이 −1~4점 전 구간을 대조한다). 집계표를 다시 만들면(`build_coast_accidents.py`) `riskSpotsHash` 가 지금 `risk_spots.json` 해시와 같은지 `/meta` 의 `coastAccidents.status` 로 확인한다.

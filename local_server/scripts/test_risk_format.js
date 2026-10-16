@@ -15,6 +15,13 @@ for(const [rr,expected] of [[1.54,'+54%'],[.58,'−42%'],[1,'±0%'],[2,'약 2배
 for(const [rr,expected] of [[1.49,'g'],[1.5,'y'],[3.99,'y'],[4,'o'],[7.99,'o'],[8,'r']])test('글자 경계 '+rr,()=>assert.equal(F.tone(rr),expected));
 for(const [s,expected] of [[-1,'rgb(47,179,107)'],[0,'rgb(47,179,107)'],[Math.log2(1.5),'rgb(242,194,48)'],[2,'rgb(251,146,60)'],[3,'rgb(224,50,44)'],[5,'rgb(224,50,44)']])test('표시색 경계 '+s,()=>assert.equal(F.col(s),expected));
 for(let i=0;i<=100;i++)test('상자 명암 '+i,()=>{const bg=F.col(i*.03),fg=F.ink(bg);const parse=x=>x.match(/\d+/g).slice(0,3).map(Number);const l=F.luminance(parse(bg)),f=fg==='#ffffff'?1:fg==='#000000'?0:F.luminance([16,21,31]);assert.ok((Math.max(l,f)+.05)/(Math.min(l,f)+.05)>=4.5);});
+// 2026-10-16 사용자 (가): 연안 상자·지도 색 = 단계 4색. 경계는 서버 risk_points.scoreToIndex·scoreBand 와 같아야 한다(같은 19 인데 상자 노랑·슬라이더 초록이던 어긋남).
+const P=require('../services/risk_points'),BANDRGB={'평소 수준':'rgb(47,179,107)','다소 높음':'rgb(242,194,48)','높음':'rgb(251,146,60)','매우 높음':'rgb(224,50,44)'};
+test('단계 경계: 클라 scoreIndex·bandOf = 서버 scoreToIndex·scoreBand (−1~4점, 0.0005 간격 전 구간)',()=>{for(let i=-2000;i<=8000;i++){const sc=i*.0005;assert.equal(F.scoreIndex(sc),P.scoreToIndex(sc),'지수 '+sc);assert.equal(F.bandOf(F.scoreIndex(sc)),P.scoreBand(P.scoreToIndex(sc)),'단계 '+sc);}});
+for(const [idx,band] of [[19,'평소 수준'],[20,'다소 높음'],[66,'다소 높음'],[67,'높음'],[99,'높음'],[100,'매우 높음']])test('지수 '+idx+' → '+band+' 색(점수로도 같은 색)',()=>{const sc=idx*.03;assert.equal(P.scoreBand(P.scoreToIndex(sc)),band);assert.equal(F.bandColor(sc),BANDRGB[band]);assert.equal(F.bandColor(band),BANDRGB[band]);});
+test('지수 19 는 종전 연속 색(거의 노랑)이 아니라 초록',()=>{assert.equal(F.col(.57),'rgb(237,194,50)');assert.equal(F.bandColor(.57),'rgb(47,179,107)');});
+test('band 색 = BAND_COLORS(슬라이더 칸·범례와 같은 값), 모르는 단계·null 은 회색',()=>{for(const [b,hex] of Object.entries(F.BAND_COLORS))assert.equal(F.bandColor(b),'rgb('+hex.slice(1).match(/../g).map(x=>parseInt(x,16)).join(',')+')');assert.equal(F.bandColor('없는 단계'),'rgb(120,130,145)');assert.equal(F.bandColor(null),'rgb(120,130,145)');});
+for(const band of Object.keys(BANDRGB))test('단계 상자 명암 4.5:1 이상 '+band,()=>{const bg=F.bandColor(band),fg=F.ink(bg),parse=x=>x.match(/\d+/g).slice(0,3).map(Number),l=F.luminance(parse(bg)),f=fg==='#ffffff'?1:fg==='#000000'?0:F.luminance([16,21,31]),r=(Math.max(l,f)+.05)/(Math.min(l,f)+.05);console.log('측정 상자 명암',band,bg,fg,r.toFixed(2));assert.ok(r>=4.5);});
 test('좌표 초 carry',()=>assert.equal(F.dms(35+59/60+59.9/3600,true),'36°00′00″N'));
 test('좌표 음수',()=>assert.equal(F.dms(-129.5,false),'129°30′00″W'));
 test('KST 날짜',()=>assert.equal(F.time('2026-10-09T15:42:00Z'),"'26. 10. 10.(토) 00:42"));

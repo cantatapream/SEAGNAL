@@ -77,9 +77,25 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-basis a,.rf-basis a:visited { color:#8fd3ff; text-decoration:underline; text-underline-offset:2px; } .rf-basis h4 { color:#ffe17a; font-size:.86rem; margin:12px 0 4px; } .rf-basis p { margin:6px 0; }
 .rf-basis table { border-collapse:collapse; width:100%; margin:8px 0; font-size:.78rem; } .rf-basis th,.rf-basis td { color:#e6edf8; border-bottom:1px solid rgba(255,255,255,.12); padding:5px 6px; background:transparent; }
 .rf-basis th { color:#ffe17a; }
+/* 기준 상세 표 — 가로 스크롤 상자(2026-10-16 사용자 「표는 오른쪽 왼쪽으로 스크롤하면서 … 화면에 맞게 적절하게」). risk_basis.js scrollTable 이 감싼다.
+   글자 칸은 읽기 좋은 최소 폭(9em, 칸이 셋 이상인 표의 첫 칸 16em ≈ 한 줄 15자 안팎)을 지키고 숫자 칸(.n)은 줄바꿈하지 않는다 — 좁은 화면에서는 표가 상자보다 넓어져 옆으로 밀고,
+   넓은 화면(본문 폭 ≥ 표 최소 폭)에서는 지금처럼 꽉 찬다. 더 볼 쪽 가장자리에 옅은 하늘색 그늘(.more-right/.more-left). */
+.rf-tbl { position:relative; margin:8px 0; }
+.rf-tbl-scroll { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; }
+.rf-basis .rf-tbl table { margin:0; }
+.rf-basis .rf-tbl td:not(.n),.rf-basis .rf-tbl th:not(.n) { min-width:9em; }
+.rf-basis .rf-tbl td:first-child:nth-last-child(n+3),.rf-basis .rf-tbl th:first-child:nth-last-child(n+3) { min-width:16em; }
+.rf-tbl::before,.rf-tbl::after { content:''; position:absolute; top:0; bottom:0; width:18px; pointer-events:none; opacity:0; transition:opacity .15s; }
+.rf-tbl::before { left:0; background:linear-gradient(to right,rgba(143,211,255,.3),rgba(143,211,255,0)); }
+.rf-tbl::after { right:0; background:linear-gradient(to left,rgba(143,211,255,.3),rgba(143,211,255,0)); }
+.rf-tbl.more-left::before,.rf-tbl.more-right::after { opacity:1; }
 .rf-basis .n { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; } .rf-basis .wrap { white-space:normal; }
 .rf-basis .mclose { flex:none; border:0; border-radius:999px; background:#ffffff22; color:#fff; padding:4px 10px; font-size:.78rem; font-weight:700; }
 .rf-basis .pdf-btn,.rf-basis .pdf-btn:visited { display:inline-block; border:1px solid #ffd74073; background:#ffd74024; color:#ffe17a; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:700; margin:6px 0 2px; }
+/* 해상 기준 상세 맨 아래 MTIS 두 링크 — 버튼 모양·가운데(2026-10-16 「버튼 형식으로 바꿔주고 각 버튼을 가운데 정렬해줘」). 한 줄에 안 들어가면 위아래로 쌓여 각각 가운데.
+   글자 #8fd3ff(종전 링크 색) — 반투명 하늘색 바탕을 창 바탕 두 끝에 덧칠해도 대비 4.5:1 이상(test_risk_sheet_ui). */
+.rf-basis .rf-basis-links { display:flex; flex-wrap:wrap; justify-content:center; gap:8px 10px; margin:14px 0 4px; }
+.rf-basis a.link-btn,.rf-basis a.link-btn:visited { display:inline-block; border:1px solid #8fd3ff73; background:#8fd3ff1f; color:#8fd3ff; border-radius:999px; padding:6px 14px; font-size:.78rem; font-weight:700; line-height:1.4; text-decoration:none; white-space:nowrap; }
 .rf-location-options { display:flex; flex-direction:column; gap:6px; }
 .rf-location-choice { text-align:left; padding:8px 10px; border:1px solid #ffffff40; border-radius:8px; background:#ffffff14; color:#e6edf8; font:inherit; }
 .rf-sheet :focus-visible,.rf-basis :focus-visible,.rf-legend :focus-visible { outline:2px solid #448aff; outline-offset:2px; }
@@ -175,7 +191,9 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-lvl strong.l4{font-size:1.02rem;line-height:1.56rem}
 .rf-txt{font-size:.84rem;line-height:1.5;color:#e6edf8}.rf-txt p{margin:0}
 .rf-txt .sub{font-size:.74rem;color:#cbd5e6;margin-top:2px}
-.rf-txt b.rf-cc{color:#f0c6ff;font-weight:800;white-space:nowrap}
+/* 「충돌·접촉사고 주의」 — 주황(2026-10-16 사용자 「주황계열로 변경.」, 종전 연보라 #f0c6ff). 위험 예측 「주의」(#e58b46)·연안 「높음」(#fb923c) 계열을 어두운 시트에서 읽히게 밝힌 색.
+   대비: 시트 바탕 두 끝 #0c1a3a 8.64:1·#162d5a 6.80:1, 카드(흰 5% 덧칠) 위 7.58:1·5.86:1 — 가장 낮은 값도 4.5:1 이상(test_risk_sea_sheet_ui). */
+.rf-txt b.rf-cc{color:#ffa25e;font-weight:800;white-space:nowrap}
 .rf-chip{display:inline-block;margin-left:3px;padding:0 6px;border-radius:6px;font-size:.7rem;font-weight:800;line-height:1.5;vertical-align:1px;white-space:nowrap}
 /* 위 카드 [?](2026-10-16): 글자 칸이 줄 끝까지 차지하고, 첫 줄 오른쪽 26px 만 비워(::before 띄움) 그 위에 32px 누르는 칸을 얹는다 — 배지·문장을 밀지도 덮지도 않는다.
    보이는 동그라미(18px)는 첫 줄 가운데 높이. 문장 자간 맞춤(risk_marine.js fitText)은 이 26px 를 읽어 첫 줄을 짧게 잡는다. */
@@ -207,6 +225,8 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-acc-leg .go{flex:none;width:10px;margin-left:2px;color:#8fa3c2;font-size:1rem;line-height:1;text-align:right}
 .rf-acc-cas{margin:8px 2px 0;font-size:.78rem;line-height:1.5;color:#cbd5e6}
 .rf-acc-cas b{color:#ff6b6b;font-weight:800}.rf-acc-cas.none{color:#98abc7}
+/* 연안 「이 관광지 주변 연안사고」(2026-10-16 T9) — 해상 사고 카드와 같은 틀, 제목 아래 영역 설명 한 줄만 더한다. */
+.rf-acc-area{margin:-4px 0 8px;font-size:.72rem;line-height:1.45;color:#98abc7}.rf-none .rf-acc-area{margin:4px 0 0}
 .rf-acc-pop{position:fixed;inset:0;z-index:11000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,10,22,.62)}
 .rf-acc-pop[hidden]{display:none}
 .rf-acc-pop .box{width:100%;max-width:340px;max-height:72vh;overflow-y:auto;border-radius:16px;background:#0f2242;border:1px solid #ffffff2e;box-shadow:0 12px 40px rgba(0,0,0,.5);padding:14px 14px 10px;color:#e6edf8}

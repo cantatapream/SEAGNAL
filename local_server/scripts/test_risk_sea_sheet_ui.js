@@ -114,6 +114,14 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   assert.deepEqual(r.map(x=>[x.small,x.strong]),[['위험 예측','보통'],['밀집도','높음']]);assert.equal(r[0].bg,'rgb(219, 199, 83)');assert.equal(r[1].bg,PAL.cong['높음']);
   const t=(await heroText()).replace(/\s+/g,' ');for(const s of [FIT_TEXT,'이 해역 선박 18척(밀집도 12.0%)','충돌·접촉사고 주의','16시 혼잡예보 높음'])assert.ok(t.includes(s),s+' / '+t);
   assert.equal(await page.locator(body+' .rf-hero .rf-chip').innerText(),'높음');assert.equal(await page.locator(body+' .rf-hero b.rf-cc').count(),1);});
+ // 2026-10-16 사용자 「주황계열로 변경.」 — 「충돌·접촉사고 주의」 글자색(종전 연보라 #f0c6ff). 시트 바탕 두 끝과 카드 덧칠(흰 5%) 모두에 4.5:1 이상.
+ await check('「충돌·접촉사고 주의」 글자색은 주황(#ffa25e) — 시트 바탕 두 끝·카드 위 대비 4.5:1 이상',async()=>{
+  const c=await page.evaluate(b=>{const e=document.querySelector(b+' .rf-hero b.rf-cc'),card=getComputedStyle(e.closest('.rf-card'));return{color:getComputedStyle(e).color,card:card.backgroundColor};},body);
+  const lum=x=>{const v=x.map(y=>{y/=255;return y<=.03928?y/12.92:Math.pow((y+.055)/1.055,2.4);});return .2126*v[0]+.7152*v[1]+.0722*v[2];},ratio=(a,b)=>{const x=lum(a),y=lum(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);},nums=t=>t.match(/[\d.]+/g).map(Number);
+  const fg=nums(c.color),cd=nums(c.card),ends=[[12,26,58],[22,45,90]],bgs=ends.concat(ends.map(e=>e.map((v,i)=>cd[i]*cd[3]+v*(1-cd[3])))),rs=bgs.map(b=>+ratio(fg,b).toFixed(2));
+  console.log('측정 충돌주의 대비(바탕 #0c1a3a·#162d5a·카드 위 두 끝)',c.color,c.card,JSON.stringify(rs));
+  assert.equal(c.color,'rgb(255, 162, 94)');for(const r of rs)assert.ok(r>=4.5,'대비 '+r);
+  await shot('sea_collision_orange_380',body+' .rf-hero');});
  // ── 위 카드 [?] 두 개·팝업·위험 예측 문장 자간 맞춤(사용자 2026-10-16) ──
  /** 위 카드 [?]·문장 배치를 잰다: 버튼(누르는 칸·보이는 동그라미)이 배지·글자 줄과 겹치는지, 문장 줄(span)마다 한 줄인지·폭 안인지·자간 하한. @returns {Promise<object>} */
  const heroLayout=()=>page.evaluate(b=>{const hero=document.querySelector(b+' .rf-hero'),hit=(a,c)=>a.left<c.right-.5&&c.left<a.right-.5&&a.top<c.bottom-.5&&c.top<a.bottom-.5,card=hero.getBoundingClientRect();
@@ -152,6 +160,15 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   await page.mouse.click(5,5);assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'바깥 누르면 닫힘');
   await page.locator(body+' [data-help="cong"]').click();await page.keyboard.press('Escape');assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'Escape');assert.equal(await page.locator('#risk-forecast-sheet').evaluate(e=>e.classList.contains('open')),true,'Escape 는 팝업만 닫는다');
   await page.locator(body+' [data-help="risk"]').click();await page.evaluate(()=>PopupStack.popLast());assert.equal(await page.locator('.rf-acc-pop').isVisible(),false,'뒤로가기는 팝업부터');assert.equal(await page.locator('#risk-forecast-sheet').evaluate(e=>e.classList.contains('open')),true);});
+ // 2026-10-16 사용자 「표는 … 과도하게 위아래로 켜지지 않도록」 — [?] 팝업 표(HELP)도 380·320px 에서 칸 줄 수가 과하지 않고 팝업이 옆으로 넘치지 않는지 잰다(필요하면 CSS 만 고친다).
+ await check('[?] 팝업 표(위험 예측·밀집도/혼잡도) 380px 칸 줄 수 ≤ 2·320px ≤ 3(2026-10-16 실측 2·3 — 기준 상세 표처럼 7~11줄로 늘지 않아 [?] 표는 그대로 둠), 팝업·표가 옆으로 넘치지 않음',async()=>{
+  for(const width of [380,320]){await page.setViewportSize({width,height:820});await page.waitForTimeout(80);
+   for(const kind of ['risk','cong']){await page.locator(body+' [data-help="'+kind+'"]').first().click();await page.waitForSelector('.rf-acc-pop:not([hidden]) [data-help-pop="'+kind+'"]');
+    const m=await page.evaluate(()=>{const box=document.querySelector('.rf-acc-pop .box'),t=box.querySelector('.rf-help-tbl');return{boxOver:box.scrollWidth-box.clientWidth,tblR:t.getBoundingClientRect().right,boxR:box.getBoundingClientRect().right,lines:[...t.querySelectorAll('td')].map(td=>{const c=getComputedStyle(td);return Math.round((td.getBoundingClientRect().height-parseFloat(c.paddingTop)-parseFloat(c.paddingBottom))/(parseFloat(c.lineHeight)||parseFloat(c.fontSize)*1.2));})};});
+    try{console.log('측정 [?] 표 '+kind+' '+width+'px',JSON.stringify({boxOver:m.boxOver,maxLines:Math.max(...m.lines)}));
+    assert.equal(m.boxOver,0);assert.ok(m.tblR<=m.boxR+.5);assert.ok(Math.max(...m.lines)<=(width===320?3:2),'줄 수 '+Math.max(...m.lines));
+    if(width===380&&kind==='cong')await shot('sea_help_cong_table_380');}finally{await page.keyboard.press('Escape');}}}
+  await page.setViewportSize({width:380,height:820});await page.waitForTimeout(80);});
  await check('넓은 화면(1024px)·회전 뒤 380px: 문장을 다시 맞춤(줄마다 한 줄·폭 안·자간 하한), [?] 겹침 없음',async()=>{
   await page.setViewportSize({width:1024,height:820});await page.waitForFunction(b=>{const p=document.querySelector(b+' [data-fit]');return p.querySelectorAll('span').length&&[...p.querySelectorAll('span')].every(s=>s.getBoundingClientRect().right<=p.getBoundingClientRect().right+.5);},body);await page.waitForTimeout(100);
   let r=await heroLayout();console.log('  1024px 줄 '+r.lines+'(자연 '+r.natLines+') · 최소 자간 '+r.minLs.toFixed(3)+'em · 줄 끝 남은 px '+r.gaps.join(','));
@@ -174,7 +191,7 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   assert.equal(m.subText,'부산해양경찰서 남항파출소 관할');assert.ok(Math.abs(m.btn.r-m.close.r)<=6,'오른쪽 끝 '+m.btn.r+' vs '+m.close.r);assert.ok(m.btn.t>=m.close.b-.5,'✕ 아래 '+m.btn.t+' < '+m.close.b);assert.ok(m.sub.r<=m.btn.l-4,'부제가 버튼 자리 침범');assert.ok(Math.abs(m.rowH-m.subH)<.5,'버튼이 부제 줄을 키움 '+m.rowH+' vs '+m.subH);
   assert.ok(m.keys[0].l>=m.now.r+1,'범례가 「지금」과 겹침 '+m.keys[0].l+' < '+m.now.r);assert.ok(m.keys.at(-1).r<=m.sheetR-4,'범례 끝이 시트 밖');
   await shot('sea_head_'+width,'#risk-forecast-sheet .rf-sheet-head');
-  if(width===320){await page.click('#risk-forecast-sheet .rf-head-basis');await page.waitForSelector('.rf-basis');assert.equal(await page.locator('.rf-basis-head h3').innerText(),'공식 선박 사고위험·교통혼잡 예보');await page.evaluate(()=>RiskBasis.close());}
+  if(width===320){await page.click('#risk-forecast-sheet .rf-head-basis');await page.waitForSelector('.rf-basis');assert.equal(await page.locator('.rf-basis-head h3').innerText(),'선박 사고위험·교통혼잡 예보');await page.evaluate(()=>RiskBasis.close());}
   await page.setViewportSize({width:380,height:820});});
  await check('시트 막대: 시각별 공식 사고 위험 색·「지금」 꼬리표·범례 4단계·눈금',async()=>{
   const r=await page.evaluate(()=>{const tl=document.querySelector('#risk-forecast-sheet .rf-timeline'),seg=[...tl.querySelectorAll('.rf-st-track span')];return{now:tl.querySelector('.rf-st-now')&&tl.querySelector('.rf-st-now').textContent,key:tl.querySelector('.rf-st-key').textContent,first:seg[0]&&seg[0].dataset.level,firstBg:seg[0]&&getComputedStyle(seg[0]).backgroundColor,levels:seg.map(s=>s.dataset.level||'-'),day:[...tl.querySelectorAll('.rf-st-lab em.day')].map(e=>e.textContent),label:tl.querySelector('.rf-time-label').textContent,nowMark:tl.querySelector('.rf-st-marks i.now').hidden};});

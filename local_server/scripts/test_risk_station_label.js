@@ -66,8 +66,9 @@ async function test(name,fn){try{await fn();pass++;console.log('✅',name);}catc
  const show=(d,kind,item)=>page.evaluate(([d,kind,item])=>{sheet.show(d,kind,item);return{title:document.querySelector('.rf-title').textContent,sub:document.querySelector('.rf-subtitle').textContent,body:document.querySelector('.rf-body').textContent};},[d,kind,item]);
  await test('해상 시트 머리: 「제주해양경찰서 한림파출소 관할」',async()=>{const r=await show({marine,t:at},'sea',{id:cell.id});assert.equal(r.title,'화순항 북북서방 11.8해리 해역(232-2해구)');assert.equal(r.sub,'제주해양경찰서 한림파출소 관할');});
  await test('해상 시트 머리: 경찰서를 모르면 「제주파출소 관할」·관할 없으면 빈칸',async()=>{assert.equal((await show({marine:{...marine,station:'제주파출소',office:null},t:at},'sea',{id:cell.id})).sub,'제주파출소 관할');assert.equal((await show({marine:{...marine,station:null,office:null},t:at},'sea',{id:cell.id})).sub,'');});
- await test('연안 시트 머리: 좌표 뒤 「제주해양경찰서 한림파출소 관할」',async()=>{const d=coast('한림'),r=await show(d,'coast',{id:'한림',lat:33.41,lon:126.26});assert.match(r.sub,/^33°24′36″N - 126°15′36″E · 제주해양경찰서 한림파출소 관할$/);});
- await test('연안 시트 머리: 경찰서를 모르면 파출소 이름만, 관할 없으면 좌표만',async()=>{assert.match((await show(coast('모름'),'coast',{id:'모름',lat:35,lon:129})).sub,/ · 없는파출소 관할$/);assert.doesNotMatch((await show(coast('밖'),'coast',{id:'밖',lat:37.24,lon:131.87})).sub,/관할/);});
+ // 2026-10-16 사용자 「그리고 경위도는 빼자. 표시하는 곳에서.」 — 연안 부제는 좌표 없이 관할만(종전 「33°24′36″N - 126°15′36″E · 제주해양경찰서 한림파출소 관할」).
+ await test('연안 시트 머리: 좌표 없이 「제주해양경찰서 한림파출소 관할」만',async()=>{const d=coast('한림'),r=await show(d,'coast',{id:'한림',lat:33.41,lon:126.26});assert.equal(r.sub,'제주해양경찰서 한림파출소 관할');});
+ await test('연안 시트 머리: 경찰서를 모르면 파출소 이름만, 관할 없으면 빈 부제(좌표도 없음)',async()=>{assert.equal((await show(coast('모름'),'coast',{id:'모름',lat:35,lon:129})).sub,'없는파출소 관할');const r=await show(coast('밖'),'coast',{id:'밖',lat:37.24,lon:131.87});assert.equal(r.sub,'');});
  await test('위험구역 아코디언: 「강릉해양경찰서 강릉파출소 관할」·소속서 없으면 이름만',async()=>{const r=await show(coast('한림'),'coast',{id:'한림',lat:33.41,lon:126.26});for(const t of ['강릉해양경찰서 강릉파출소 관할','목포해양경찰서 목포남항파출소 관할','부산해양경찰서 남항파출소 관할',' · 미상파출소 관할'])assert.ok(r.body.includes(t),t);});
 }catch(e){fail++;console.error('❌ 준비 실패',e.stack||e.message);}finally{if(browser)await browser.close();}
 console.log(`${pass} PASS / ${fail} FAIL`);process.exit(fail?1:0);})();

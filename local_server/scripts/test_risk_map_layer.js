@@ -142,6 +142,21 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
   test('T5 손을 뗀 뒤(moveend)에는 가리개를 새로 만듦',()=>assert.ok(moving.rebuilt>1000,'다시 만든 프레임 호출 '+moving.rebuilt));
   test('T5 옮겨 쓴 가리개와 새로 만든 가리개가 크게 어긋나지 않음(새로 드러난 띠 밖에서 연안 면 알파 128 넘게 다른 화소 1% 미만)',()=>{assert.ok(moving.coastPixels>1000,'연안 면이 그려졌다 '+moving.coastPixels);assert.ok(moving.big<moving.coastPixels*0.01,moving.big+'/'+moving.coastPixels);});
   test('T4 기다리는 동안 위험예측 색 층만 흐리게(0.35)·해안선은 그대로·풀면 모두 1',()=>{assert.equal(moving.dimmed.length,7);assert.ok(moving.dimmed.every(v=>v===0.35));assert.equal(moving.shoreDim,1);assert.ok(moving.restored.every(v=>v===1));});
+  // ── 2026-10-16 사용자 (가): 지도 연안 면·관광지 점 테두리 색 = 단계 4색(시트 상자·시각 막대와 같은 색). 경계 지수 19/20·66/67·99/100 을 점수로 넣어 확인한다. ──
+  const bandMap=await page.evaluate(async input=>{
+   const host=document.createElement('div');host.style.cssText='width:412px;height:915px';document.body.appendChild(host);
+   const map=new ol.Map({target:host,layers:[],view:new ol.View({center:ol.proj.fromLonLat([129.10,35.135]),zoom:12})}),layer=RiskMapLayer.create(map,()=>{}),spots=input.table.spots.map((p,i)=>({...p,i}));
+   window.fetch=async()=>({ok:true,json:async()=>input.land});await layer.boundaries({get:async()=>input.islands});layer.setTables({cells:[]},{spots});layer.setActive({coast:true,sea:false},true);
+   const idx=[19,20,66,67,99,100],withArea=spots.filter(p=>p.geometry&&p.geometry.coordinates&&p.geometry.coordinates.length).slice(0,idx.length);
+   layer.drawCoast({spots:withArea.map((p,k)=>[p.i,idx[k]*.03])});
+   const find=name=>map.getLayers().getArray().find(l=>l.getClassName()==='rf-'+name+'-canvas'),fills={},strokes={};
+   for(const f of find('coast').getSource().getFeatures())fills[f.get('id')]=f.getStyle().getFill().getColor();
+   for(const f of find('points').getSource().getFeatures())strokes[f.get('id')]=f.getStyle().getImage().getStroke().getColor();
+   const out=withArea.map((p,k)=>({index:idx[k],fill:fills[p.id],stroke:strokes[p.id]}));layer.destroy();map.dispose();host.remove();return out;
+  },{table,land,islands});
+  const BAND={19:'47,179,107',20:'242,194,48',66:'242,194,48',67:'251,146,60',99:'251,146,60',100:'224,50,44'};
+  test('(가) 연안 면 색은 단계 4색(지수 19 초록·20 노랑·66 노랑·67 주황·99 주황·100 빨강, 50% 채움)',()=>{assert.equal(bandMap.length,6);for(const r of bandMap)assert.equal(r.fill,'rgba('+BAND[r.index]+',0.5)','지수 '+r.index+' '+r.fill);});
+  test('(가) 관광지 점 테두리도 같은 단계 색',()=>{for(const r of bandMap)if(r.stroke)assert.equal(r.stroke,'rgb('+BAND[r.index]+')','지수 '+r.index+' '+r.stroke);assert.ok(bandMap.some(r=>r.stroke),'점 테두리를 하나 이상 읽음');});
   for(const file of ['style.css','js/marine-life/risk-forecast/risk_forecast.css'])await page.addStyleTag({path:path.join(root,'client',file)});
   const index=fs.readFileSync(path.join(root,'client/index2.html'),'utf8');await page.addStyleTag({content:index.slice(index.indexOf('        .ocean-legend-stack > .banzone-legend,'),index.indexOf('        /* 선택 초기화 버튼',index.indexOf('        .ocean-legend-stack > .banzone-legend,')))});
   for(const file of ['risk_slider.js','risk_sheet.js','risk_basis_content.js','risk_basis.js'])await page.addScriptTag({path:path.join(root,'client/js/marine-life/risk-forecast',file)});
@@ -157,7 +172,8 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
   });
   test('같은 위치 목록에서 다른 관광지 선택',()=>assert.deepEqual(ui.choices,[{kind:'coast',id:'b'}]));
   test('낡은 예보 기준은 파고·풍속줄에 남고 공통 원천 경고는 숨김',()=>{assert.equal((ui.staleText.match(/예보 기준/g)||[]).length,2);assert.ok(!ui.staleText.includes('해구 예보 자료가 오래되었습니다'));});
-  test('연안 기준상세 확정 색문안 복구',()=>{assert.match(ui.basis,/1배 초록 → 1.5배 노랑 → 4배 주황 → 8배 빨강의 연속 그라데이션/);assert.match(ui.basis,/이 관광지 주변 3km에서 이 날에/);});
+  // 2026-10-16 사용자 (가)로 지도·상자 색이 단계 4색이 되어 확정 문안(§12.2 「1배 초록 → … 연속 그라데이션」)의 이 문장만 바꿨다 — 설계서 §15.
+  test('연안 기준상세 색문안: 단계 4색(2026-10-16 (가)) — 0~100 막대만 이어진 색',()=>{assert.match(ui.basis,/단계 말과 같은 4색입니다: 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강/);assert.doesNotMatch(ui.basis,/연속 그라데이션/);assert.match(ui.basis,/이 관광지 주변 3km에서 이 날에/);});
   test('근거표 제목 색은 확정노랑',()=>assert.equal(ui.headerColor,'rgb(255, 225, 122)'));
   test('키보드 초점은 파랑2px·offset2px',()=>{assert.equal(ui.focusWidth,'2px');assert.equal(ui.focusColor,'rgb(68, 138, 255)');assert.equal(ui.focusOffset,'2px');});
   test('움직임줄이기 스위치 전환 중단',()=>assert.equal(ui.switchTransition,'0s'));

@@ -8,6 +8,7 @@
  * [연계] RiskFormat·RiskAPI → sea/analysis(marine.current·congestion·accident·collisionNotice·weather·history.accidents),
  *        sea/traffic-history(30분 척수·특보 구간), sea/briefing → RiskSheet.show·trafficHistory / RiskForecast.detail.
  *        지도 면색 RiskMapLayer ← color(위험 예측)·congestionColor(혼잡도·밀집도).
+ *        사고 도넛·범례 팝업(accSort·accSummary·bindAcc·closePop)은 연안 시트 「주변 연안사고」도 쓴다(RiskSheet, 2026-10-16 T9).
  * [로드 순서] risk_slider.js 다음 · risk_sheet.js 이전. 화면에서 외부 MTIS·AI 호출 없음.
  */
 (function(w){
@@ -132,8 +133,20 @@
      */
     function accidents(h){
         if(!h||h.available===false)return '<section class="rf-card"><h4>이 해역 과거 선박사고</h4><p class="rf-muted">선박사고 이력 자료를 확인할 수 없습니다.</p></section>';
-        var yrs=(h.from&&h.to?F.escape(String(h.from).slice(0,4))+'~'+F.escape(String(h.to).slice(0,4))+'년':''),L=(h.accidents||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
+        var yrs=(h.from&&h.to?F.escape(String(h.from).slice(0,4))+'~'+F.escape(String(h.to).slice(0,4))+'년':''),L=accSort(h.accidents);
         if(!L.length)return '<section class="rf-card rf-none" data-acc-none><h4>이 해역 선박사고 없음<span class="rf-src">'+yrs+'</span></h4></section>';
+        return '<section class="rf-card rf-acc"><h4>이 해역 과거 선박사고<span class="rf-src">'+yrs+'</span></h4>'+accSummary(L)+'</section>';
+    }
+    /** 사고 목록을 최신순으로 정렬한 사본을 만든다. 예: accSort([{date:'2021-…'},{date:'2024-…'}]) → 2024 먼저 @param {object[]|null} list @returns {object[]} [연계] ← accidents·attach·연안 시트(RiskSheet) */
+    function accSort(list){return (list||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));});}
+    /**
+     * 사고 도넛(가운데 총 건수)+누르는 유형 범례(› 팝업)+인명피해 한 줄을 만든다 — 해상 「이 해역 과거 선박사고」와 연안 「이 관광지 주변 연안사고」(2026-10-16 T9)가 같이 쓴다.
+     * 인명피해 줄: 「사망 1명(23년, 충돌), 실종 2명(21년, 전복)」(한 사고에 둘 다면 「사망 1명·실종 2명(23년, 충돌)」) / 없으면 「인명피해 없음」.
+     * 예: accSummary(accSort(list)) → '<div class="rf-acc-sum">…</div><p class="rf-acc-cas">…</p>'
+     * @param {object[]} L - 최신순 사고(빈 배열이면 부르지 않는다 — 0건 문구는 부르는 쪽이 쓴다) @returns {string} HTML
+     * [연계] ← accidents(해상)·RiskSheet 연안 카드 / 범례 버튼 [data-acc-group] 의 동작은 bindAcc 가 붙인다(같은 groups 순서).
+     */
+    function accSummary(L){
         var g=groups(L),D=112,rad=42,sw=15,C=2*Math.PI*rad,acc=0,arcs='';
         g.forEach(function(a){var len=a.n/L.length*C;arcs+='<circle cx="'+D/2+'" cy="'+D/2+'" r="'+rad+'" fill="none" stroke="'+a.col+'" stroke-width="'+sw+'" stroke-dasharray="'+Math.max(0,len-(g.length>1?2:0)).toFixed(2)+' '+C.toFixed(2)+'" stroke-dashoffset="'+(-acc).toFixed(2)+'" transform="rotate(-90 '+D/2+' '+D/2+')" data-arc="'+F.escape(a.name)+'"/>';acc+=len;});
         var donut='<svg width="'+D+'" height="'+D+'" viewBox="0 0 '+D+' '+D+'" role="img" aria-label="사고 종류별 건수, 전체 '+L.length+'건">'+arcs+'<text x="'+D/2+'" y="'+(D/2+7)+'" fill="#fff" font-size="21" font-weight="800" text-anchor="middle" data-acc-total>'+L.length+'<tspan font-size="12" font-weight="500" fill="#bfcbde">건</tspan></text></svg>';
@@ -141,8 +154,16 @@
         var hurt=L.filter(function(a){return hurtOf(a);});
         var cas=hurt.length?'<p class="rf-acc-cas" data-acc-cas>'+hurt.map(function(a){var x=[];if(a.death>0)x.push('<b>사망 '+a.death+'명</b>');if(a.missing>0)x.push('<b>실종 '+a.missing+'명</b>');return x.join('·')+'('+F.escape(String(a.year||String(a.date).slice(0,4)).slice(2,4))+'년, '+F.escape(a.type)+')';}).join(', ')+'</p>'
             :'<p class="rf-acc-cas none" data-acc-cas>인명피해 없음</p>';
-        return '<section class="rf-card rf-acc"><h4>이 해역 과거 선박사고<span class="rf-src">'+yrs+'</span></h4><div class="rf-acc-sum">'+donut+leg+'</div>'+cas+'</section>';
+        return '<div class="rf-acc-sum">'+donut+leg+'</div>'+cas;
     }
+    /**
+     * 그려 둔 사고 범례 버튼([data-acc-group])에 유형별 사고 목록 팝업을 붙인다(해상·연안 공용).
+     * 예: bindAcc(body,accSort(list)) — 해상 줄 「2025년 · 원인: 운항부주의」 / bindAcc(body,L,function(x){return '2024.07.26';}) — 연안(원인 칸이 없는 자료)
+     * @param {HTMLElement} body - 카드가 든 본문 @param {object[]} list - accSummary 에 넘긴 것과 같은 최신순 목록
+     * @param {function} [line] - 팝업 한 줄 왼쪽 글자(HTML, escape 해서 돌려줌). 없으면 해상 「YYYY년 · 원인: X」
+     * @returns {void} [연계] ← attach(해상)·RiskSheet.show(연안) → openAcc
+     */
+    function bindAcc(body,list,line){var g=groups(list);body.querySelectorAll('[data-acc-group]').forEach(function(b){b.addEventListener('click',function(){openAcc(body,g[+b.dataset.accGroup],list,b,line);});});}
     /** 날씨 방향 칸. 예: dirTile('파향',203.4) → 「203° 남남서」, null → 「-」 @param {string} lbl @param {number|null} d @returns {string} HTML [연계] ← weather */
     function dirTile(lbl,d){return '<div class="rf-tile"><small>'+lbl+'</small><b>'+(Number.isFinite(d)?Math.round(d)+'<em>°</em><em class="dir">'+F.direction(d)+'</em>':'-')+'</b></div>';}
     /** 값 칸. 예: tile('유의파고',1.2,'m') → 「1.2 m」, null → 「-」 @returns {string} HTML [연계] ← weather */
@@ -173,8 +194,7 @@
     function attach(body,m,ctx){
         body._rfMarine={m:m,ctx:ctx,cell:cellOf(m)};
         var wx=body.querySelector('[data-wx]');if(wx)wx.addEventListener('click',function(){ui.wxOpen=wx.getAttribute('aria-expanded')!=='true';wx.setAttribute('aria-expanded',String(ui.wxOpen));body.querySelector('[data-wx-body]').hidden=!ui.wxOpen;});
-        var list=((m.history&&m.history.accidents)||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));}),g=groups(list);
-        body.querySelectorAll('[data-acc-group]').forEach(function(b){b.addEventListener('click',function(){openAcc(body,g[+b.dataset.accGroup],list,b);});});
+        bindAcc(body,accSort(m.history&&m.history.accidents));
         body.querySelectorAll('[data-help]').forEach(function(b){b.addEventListener('click',function(){openHelp(b.dataset.help,b);});});
         var fit=body.querySelector('[data-fit]');if(fit)watchFit(fit);
         var cell=body._rfMarine.cell;
@@ -182,12 +202,13 @@
     }
     /** 사고 종류 팝업을 연다: 그 종류 사고 최신순 「YYYY년 · 원인: X」(기타는 종류 이름 앞에) + 오른쪽 인명피해.
      * 예: 충돌 5건 → 「2025년 · 원인: 운항부주의」, 「2023년 · 원인 기록 없음 … 사망 1명」(빨강 굵게). 사망·실종이 없거나 기록이 없으면 오른쪽은 비운다.
-     * @param {HTMLElement} body @param {object} grp - groups() 한 줄 @param {object[]} list - 최신순 사고 @param {HTMLElement} opener - 닫으면 돌아갈 버튼 @returns {void}
+     * @param {HTMLElement} body @param {object} grp - groups() 한 줄 @param {object[]} list - 최신순 사고 @param {HTMLElement} opener - 닫으면 돌아갈 버튼
+     * @param {function} [line] - 한 줄 왼쪽 글자(연안은 날짜 — 원인 칸이 없는 자료라 「원인 기록 없음」으로 쓰지 않는다) @returns {void}
      * [연계] ← attach / 휴대폰 뒤로가기(PopupStack)·Escape·바깥 누르기로 닫는다. 화면 전체를 덮도록 document.body 에 붙인다
      *        (앱에서 시트는 지도 구역의 쌓임 맥락 안에 있어, 시트 안에 두면 메인 탭이 팝업 위로 올라온다). RiskSheet.clear 가 시트를 닫을 때 함께 닫는다. */
-    function openAcc(body,grp,list,opener){
+    function openAcc(body,grp,list,opener,line){
         var rows=list.filter(function(x){return grp.types.indexOf(x.type)>=0;}).map(function(x){var hz=hurtOf(x);
-            return '<li><span class="t">'+(grp.etc?'<b>'+F.escape(x.type)+'</b> · ':'')+F.escape(x.year||String(x.date).slice(0,4))+'년 · '+(x.cause?'원인: '+F.escape(x.cause):'<span class="no">원인 기록 없음</span>')+'</span>'+(hz?'<span class="c hurt">'+F.escape(hz)+'</span>':'')+'</li>';}).join('');
+            return '<li><span class="t">'+(grp.etc?'<b>'+F.escape(x.type)+'</b> · ':'')+(line?line(x):F.escape(x.year||String(x.date).slice(0,4))+'년 · '+(x.cause?'원인: '+F.escape(x.cause):'<span class="no">원인 기록 없음</span>'))+'</span>'+(hz?'<span class="c hurt">'+F.escape(hz)+'</span>':'')+'</li>';}).join('');
         showPop('<div class="box" role="dialog" aria-modal="true" aria-label="'+F.escape(grp.name)+' 사고 목록"><div class="hd"><i style="background:'+grp.col+'"></i><h5>'+F.escape(grp.name)+' '+grp.n+'건<small>최신순</small></h5><button type="button" class="x" aria-label="닫기">×</button></div><ul>'+rows+'</ul></div>',opener);
     }
     /** 사고 팝업과 [?] 팝업이 함께 쓰는 화면 전체 팝업 틀(.rf-acc-pop 하나)을 내용만 바꿔 연다. 처음 한 번 만들고 닫기(×·바깥·Escape)를 붙인다.
@@ -385,5 +406,7 @@
      * @param {number} position - 서버 색상위치0..1 @returns {string} CSS RGB
      * [연계] ← RiskMapLayer(지도 [혼잡도] — 지금은 밀집도 mode current, 미래는 혼잡 예보 mode congestion) / 범례 .rf-pal-cong 과 같은 네 색(종전 혼잡 4색 #b8c5da→#74b9ff→#d47cff→#ff5fe3). */
     function congestionColor(position){return color(position);}
-    w.RiskMarine={HELP:HELP,render:render,attach:attach,fillTraffic:fillTraffic,cellOf:cellOf,zoom:zoom,briefing:briefing,history:history,color:color,congestionColor:congestionColor};
+    /** 열린 공용 팝업(사고 목록·[?])이 있으면 닫는다. 예: 연안 시트가 다른 관광지·시각을 그릴 때 @returns {void} [연계] ← RiskSheet.show(연안) → closeAcc */
+    function closePop(){var op=document.querySelector('.rf-acc-pop');if(op){op._opener=null;closeAcc(op);}}
+    w.RiskMarine={HELP:HELP,render:render,attach:attach,accSort:accSort,accSummary:accSummary,bindAcc:bindAcc,closePop:closePop,fillTraffic:fillTraffic,cellOf:cellOf,zoom:zoom,briefing:briefing,history:history,color:color,congestionColor:congestionColor};
 })(window);

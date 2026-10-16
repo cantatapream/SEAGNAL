@@ -24,7 +24,10 @@ const spots=[{i:0,id:'a',name:'광안리해수욕장',lat:35.153,lon:129.118},{i
 /** 지점 id와 시각이 본문에 드러나는 연안 상세를 만든다. 예: detail('a',later). @param {string} id 지점 @param {string} t 시트 시각 @returns {object} 상세 응답 [연계] ← 가짜 API */
 // T7(2026-10-16): 연안 상세는 연안 시간축 각 시각의 단계(outlook)를 함께 준다 — 시각 막대 칸 색. 칸마다 다른 단계를 넣어 색이 칸에 맞게 칠해지는지 본다.
 const OUTLOOK=[[now,'평소 수준',10],[later,'다소 높음',40],[latest,'높음',80],['2026-10-16T00:00:00+09:00','매우 높음',100]].map(([forecastAt,band,index])=>({forecastAt,score:index*.03,index,band}));
-function detail(id,t){const spot=spots.find(p=>p.id===id);return{t,title:spot.name,subtitle:{lat:spot.lat,lon:spot.lon,police:'광안리',office:'부산해양경찰서'},outlook:OUTLOOK,score:scored.score,index:scored.index,band:scored.band,rr:scored.rr,fatalRr:scored.fatalRr,notices:[{key:'warning',effective:['풍랑주의보'],prelim:[]},{key:'drift',windMs:9}],missing:[],inputs:{},rows:scoredRows.map(r=>r.key==='hazard'?{...r,zones}:r).concat([{key:'event',name:'행사 '+id+'@'+t,weekend:true,rr:1.2,events:[]}])};}
+// T9(2026-10-16): 연안 상세 history(주변 연안사고). a 는 5유형 7건(기타 포함·사망 1·실종 1), b 는 0건. FIX 로 시나리오마다 바꾼다(바꾼 뒤 fresh() — 응답 캐시).
+const ACC_A=[{date:'2024-07-26',year:2024,type:'익수',death:1,missing:0,rescue:0},{date:'2023-08-01',year:2023,type:'익수',death:0,missing:0,rescue:2},{date:'2022-05-03',year:2022,type:'추락',death:0,missing:1,rescue:0},{date:'2021-09-10',year:2021,type:'고립',death:0,missing:0,rescue:3},{date:'2020-07-15',year:2020,type:'표류',death:0,missing:0,rescue:1},{date:'2020-06-02',year:2020,type:'기타',death:0,missing:0,rescue:1},{date:'2022-08-20',year:2022,type:'익수',death:0,missing:0,rescue:1}];
+const FIX={history:{a:{available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:ACC_A},b:{available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:[]}},score:{}};
+function detail(id,t){const spot=spots.find(p=>p.id===id),sc=FIX.score[id]||{score:scored.score,index:scored.index,band:scored.band};return{t,title:spot.name,subtitle:{lat:spot.lat,lon:spot.lon,police:'광안리',office:'부산해양경찰서'},history:FIX.history[id],outlook:OUTLOOK,score:sc.score,index:sc.index,band:sc.band,rr:scored.rr,fatalRr:scored.fatalRr,notices:[{key:'warning',effective:['풍랑주의보'],prelim:[]},{key:'drift',windMs:9}],missing:[],inputs:{},rows:scoredRows.map(r=>r.key==='hazard'?{...r,zones}:r).concat([{key:'event',name:'행사 '+id+'@'+t,weekend:true,rr:1.2,events:[]}])};}
 /** 앱과 같은 층 구조의 휴대폰 화면 HTML을 만든다. 지도 섹션(z50)·하단 탭(z60)·서브탭을 같은 쌓임으로 둔다. @returns {string} HTML [연계] ← app.get('/') */
 function page(){return '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/assets/vendor/ol/ol.css"><link rel="stylesheet" href="/js/marine-life/risk-forecast/risk_forecast.css"><style>'+
  ':root{--main-tab-height:68px;--sub-tab-height:50px}body{margin:0;background:#10223d;color:white}'+chromeRules+
@@ -227,18 +230,99 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  const lum=c=>{const v=c.map(x=>{x/=255;return x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4);});return .2126*v[0]+.7152*v[1]+.0722*v[2];},ratio=(a,b)=>{const x=lum(a),y=lum(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
  const rgb=t=>t.match(/[\d.]+/g).map(Number),over=(fg,bg)=>fg.slice(0,3).map((v,i)=>v*(fg[3]??1)+bg[i]*(1-(fg[3]??1)));
  const ENDS=[[12,26,58],[22,45,90]];   // 창 바탕 그라데이션 두 끝 #0c1a3a·#162d5a — 어느 높이든 그 사이 색이다
- await check('T8 기준 상세 창 링크·PDF 버튼: 밝은 하늘색 밑줄 링크, 창 바탕 두 끝 모두에 글자 대비 4.5:1 이상(연안 PDF 버튼 포함)',async()=>{
+ // 2026-10-16 사용자 「맨 아래 mtis 공식 사고예보, mtis 공식 혼잡예보가 하이퍼링크 형식으로 있는데 이거는 디자인은 버튼 형식으로 바꿔주고 각 버튼을 가운데 정렬해줘.」
+ //   종전 단언(밑줄 하늘색 링크 · 「·」 로 이음)을 버튼 모양·가운데·「·」 없음으로 바꿨다. 같은 날 「여기 제목에 공식 텍스트는 빼줘.」 — 해상 제목 「선박 사고위험·교통혼잡 예보」.
+ await check('기준 상세 MTIS 두 링크는 버튼 모양(밑줄 없음·둥근 테두리)·가운데·「·」 없음·목적지 그대로, 창 바탕 두 끝 모두에 글자 대비 4.5:1 이상(연안 PDF 버튼 포함), 해상 제목에 「공식」 없음',async()=>{
   const pdf=await pg.evaluate(()=>{const a=document.querySelector('.rf-basis .pdf-btn'),cs=getComputedStyle(a);return{color:cs.color,bg:cs.backgroundColor};});
-  await pg.evaluate(()=>{RiskBasis.close();RiskBasis.open('sea');});
-  const links=await pg.evaluate(()=>[...document.querySelectorAll('.rf-basis a')].map(a=>{const cs=getComputedStyle(a);return{text:a.textContent,color:cs.color,line:cs.textDecorationLine};}));
-  const out={links:links.map(l=>({...l,min:+Math.min(...ENDS.map(e=>ratio(rgb(l.color),e))).toFixed(2)})),pdf:{...pdf,min:+Math.min(...ENDS.map(e=>ratio(rgb(pdf.color),over(rgb(pdf.bg),e)))).toFixed(2)}};console.log('측정 T8 링크 대비',JSON.stringify(out));
-  assert.deepEqual(links.map(l=>l.text),['MTIS 공식 사고예보','MTIS 공식 혼잡예보']);for(const l of out.links){assert.equal(l.color,'rgb(143, 211, 255)');assert.equal(l.line,'underline');assert.ok(l.min>=4.5,l.text+' '+l.min);}
-  assert.ok(out.pdf.min>=4.5,'PDF 버튼 '+out.pdf.min);
-  assert.equal(await pg.evaluate(()=>document.querySelector('.rf-basis-head h3').textContent),'공식 선박 사고위험·교통혼잡 예보');
+  for(const width of [380,320,1024]){
+   await pg.setViewportSize({width,height:820});await pg.evaluate(()=>{RiskBasis.close();RiskBasis.open('sea');});
+   const m=await pg.evaluate(()=>{const p=document.querySelector('.rf-basis .rf-basis-links'),pr=p.getBoundingClientRect(),cs=getComputedStyle(p);const inner={l:pr.left+parseFloat(cs.paddingLeft),r:pr.right-parseFloat(cs.paddingRight)};
+    const links=[...p.querySelectorAll('a')].map(a=>{const c=getComputedStyle(a),r=a.getBoundingClientRect();return{text:a.textContent,href:a.getAttribute('href'),target:a.target,rel:a.rel,cls:a.className,color:c.color,bg:c.backgroundColor,line:c.textDecorationLine,radius:parseFloat(c.borderTopLeftRadius),border:c.borderTopStyle,l:r.left,r:r.right,t:Math.round(r.top),h:r.height};});
+    const rows={};links.forEach(a=>{(rows[a.t]=rows[a.t]||[]).push(a);});
+    return{links,pText:p.textContent,rows:Object.values(rows).map(row=>({left:Math.min(...row.map(a=>a.l))-inner.l,right:inner.r-Math.max(...row.map(a=>a.r)),n:row.length})),aCount:document.querySelectorAll('.rf-basis a').length};});
+   const out={...m,links:m.links.map(l=>({text:l.text,min:+Math.min(...ENDS.map(e=>ratio(rgb(l.color),over(rgb(l.bg),e)))).toFixed(2),rows:undefined}))};console.log('측정 MTIS 버튼 '+width+'px',JSON.stringify({rows:m.rows,links:out.links}));
+   assert.deepEqual(m.links.map(l=>[l.text,l.href,l.target,l.rel]),[['MTIS 공식 사고예보','https://mtis.komsa.or.kr/traffic/focst/acdntRisk','_blank','noopener noreferrer'],['MTIS 공식 혼잡예보','https://mtis.komsa.or.kr/traffic/focst/density','_blank','noopener noreferrer']]);
+   assert.equal(m.pText,'MTIS 공식 사고예보MTIS 공식 혼잡예보','「·」 글자 없음');assert.equal(m.aCount,2);
+   for(const l of m.links){assert.equal(l.cls,'link-btn');assert.equal(l.line,'none');assert.equal(l.border,'solid');assert.ok(l.radius>=10,'둥근 모양 '+l.radius);assert.ok(l.h>=24,'누르는 곳 높이 '+l.h);}
+   for(const l of out.links)assert.ok(l.min>=4.5,l.text+' 대비 '+l.min);
+   for(const r of m.rows)assert.ok(Math.abs(r.left-r.right)<=1.5,'가운데 정렬 '+width+'px '+JSON.stringify(r));
+   if(width===1024)assert.equal(m.rows.length,1,'넓은 화면은 한 줄에 나란히');
+   if(SHOTS&&width===380){await pg.evaluate(()=>{const b=document.querySelector('.rf-basis-body');b.scrollTop=b.scrollHeight;});await pg.waitForTimeout(50);await pg.screenshot({path:path.join(SHOTS,'basis_sea_380_mtis_buttons.png')});}
+  }
+  const pmin=+Math.min(...ENDS.map(e=>ratio(rgb(pdf.color),over(rgb(pdf.bg),e)))).toFixed(2);console.log('측정 PDF 버튼 대비',pmin);assert.ok(pmin>=4.5,'PDF 버튼 '+pmin);
+  assert.equal(await pg.evaluate(()=>document.querySelector('.rf-basis-head h3').textContent),'선박 사고위험·교통혼잡 예보');
+  await pg.setViewportSize({width:380,height:820});
  });
  if(SHOTS)for(const width of [380,320])for(const kind of ['coast','sea']){await pg.setViewportSize({width,height:width===320?568:820});await pg.evaluate(k=>{RiskBasis.close();RiskBasis.open(k);},kind);await pg.waitForTimeout(100);
   await pg.screenshot({path:path.join(SHOTS,'basis_'+kind+'_'+width+'_top.png')});await pg.evaluate(()=>{const b=document.querySelector('.rf-basis-body');b.scrollTop=b.scrollHeight;});await pg.waitForTimeout(50);await pg.screenshot({path:path.join(SHOTS,'basis_'+kind+'_'+width+'_bottom.png')});}
  await pg.evaluate(()=>RiskBasis.close());await pg.setViewportSize({width:412,height:915});
+
+ // ── T9(2026-10-16): 연안 시트 「이 관광지 주변 연안사고」 — 해상 사고 카드와 같은 꼴(도넛·범례 팝업·인명피해 줄), 0건·자료 없음. 사용자 「500미터로 하자. 표류로 통일 넣지 말자. 주황계열로 변경.」 ──
+ const accCard=()=>pg.evaluate(()=>{const c=document.querySelector('#risk-forecast-sheet [data-coast-acc]');if(!c)return null;const r=e=>{const b=e.getBoundingClientRect();return{l:b.left,r:b.right,t:b.top,b:b.bottom};};const body=document.querySelector('#risk-forecast-sheet .rf-body');
+  return{kind:c.dataset.coastAcc,title:c.querySelector('h4').textContent,area:(c.querySelector('.rf-acc-area')||{}).textContent||null,total:(c.querySelector('[data-acc-total]')||{}).textContent||null,legend:[...c.querySelectorAll('.rf-acc-leg li')].map(li=>li.textContent.replace(/\s+/g,' ').trim()),cas:(c.querySelector('[data-acc-cas]')||{}).textContent||null,casBold:[...c.querySelectorAll('.rf-acc-cas b')].map(b=>[b.textContent,getComputedStyle(b).color,getComputedStyle(b).fontWeight]),
+   card:r(c),svg:c.querySelector('svg')&&r(c.querySelector('svg')),items:[...c.querySelectorAll('.rf-acc-leg li')].map(r),last:body.lastElementChild===c||body.lastElementChild.contains(c),bodyOverflow:body.scrollWidth-body.clientWidth,boxBg:getComputedStyle(document.querySelector('#risk-forecast-sheet .rf-score-box')).backgroundColor,sub:document.querySelector('#risk-forecast-sheet .rf-subtitle').textContent,text:body.textContent};});
+ await check('T9 연안 주변 연안사고: 제목(기간)·영역 한 줄·도넛 총 건수·유형 범례(기타(인명))·인명피해 줄(사망·실종만 빨강 굵게), 시트 맨 끝 · 380px 겹침 없음',async()=>{
+  await pg.setViewportSize({width:380,height:820});await fresh();await open('a');const m=await accCard();console.log('측정 T9 사고 카드 380px',JSON.stringify({...m,text:undefined}));
+  assert.equal(m.kind,'list');assert.equal(m.title,'이 관광지 주변 연안사고(2020~2024년)');assert.equal(m.area,'지도에 칠한 이 관광지 구역과 그 앞바다 500m');assert.equal(m.total,'7건');
+  assert.deepEqual(m.legend,['익수3건›','추락1건›','고립1건›','표류1건›','기타(인명)1건›']);
+  assert.equal(m.cas,'사망 1명(24년, 익수), 실종 1명(22년, 추락)');assert.deepEqual(m.casBold.map(x=>x[0]),['사망 1명','실종 1명']);for(const b of m.casBold){assert.equal(b[1],'rgb(255, 107, 107)');assert.ok(+b[2]>=700);}
+  assert.ok(m.last,'시트 맨 끝 카드');assert.equal(m.bodyOverflow,0,'본문 가로 넘침');
+  assert.ok(m.svg.r<=m.items[0].l,'도넛과 범례 겹침');for(const it of m.items)assert.ok(it.r<=m.card.r-1&&it.l>=m.card.l,'범례가 카드 밖 '+JSON.stringify(it));for(let i=1;i<m.items.length;i++)assert.ok(m.items[i].t>=m.items[i-1].b-.5,'범례 줄 겹침');
+  if(SHOTS){await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-coast-acc]').scrollIntoView({block:'end'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_acc_list_380.png')});}
+ });
+ await check('T9 범례를 누르면 그 유형 사고 목록 팝업(최신순 날짜·사망/실종 빨강 굵게·없으면 비움), ×·Escape 로 닫힘',async()=>{
+  await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-acc-group="0"]').click());await pg.waitForSelector('.rf-acc-pop:not([hidden]) .box');
+  const p=await pg.evaluate(()=>{const b=document.querySelector('.rf-acc-pop .box');return{title:b.querySelector('h5').textContent,rows:[...b.querySelectorAll('li')].map(li=>[li.querySelector('.t').textContent,(li.querySelector('.c')||{}).textContent||'']),hurt:[...b.querySelectorAll('.c.hurt')].map(x=>[getComputedStyle(x).color,getComputedStyle(x).fontWeight]),stack:Array.from(PopupStack.list())};});
+  console.log('측정 T9 팝업',JSON.stringify(p));
+  assert.equal(p.title,'익수 3건최신순');assert.deepEqual(p.rows,[['2024.07.26','사망 1명'],['2023.08.01',''],['2022.08.20','']]);assert.deepEqual(p.hurt,[['rgb(255, 107, 107)','800']]);assert.ok(p.stack.includes('risk-sea-accident-pop'));
+  if(SHOTS)await pg.screenshot({path:path.join(SHOTS,'coast_acc_popup_380.png')});
+  await pg.click('.rf-acc-pop .x');assert.equal(await pg.evaluate(()=>document.querySelector('.rf-acc-pop').hidden),true);
+  await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-acc-group="4"]').click());await pg.waitForSelector('.rf-acc-pop:not([hidden]) .box');
+  assert.deepEqual(await pg.evaluate(()=>[document.querySelector('.rf-acc-pop h5').textContent,[...document.querySelectorAll('.rf-acc-pop li .t')].map(x=>x.textContent)]),['기타(인명) 1건최신순',['2020.06.02']]);
+  await pg.keyboard.press('Escape');assert.equal(await pg.evaluate(()=>document.querySelector('.rf-acc-pop').hidden),true);assert.equal(await pg.evaluate(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')),true,'Escape 는 팝업만');
+ });
+ await check('T9 0건이면 「이 관광지 주변 연안사고 없음(2020~2024년)」+영역 한 줄, 자료 없음(available:false)이면 「이 관광지 주변 연안사고 자료 없음」',async()=>{
+  await pg.evaluate(()=>{app.select('coast','b');});await waitTitle('해운대해수욕장');let m=await accCard();console.log('측정 T9 0건',JSON.stringify({kind:m.kind,title:m.title,area:m.area}));
+  assert.equal(m.kind,'none');assert.equal(m.title,'이 관광지 주변 연안사고 없음(2020~2024년)');assert.equal(m.area,'지도에 칠한 이 관광지 구역과 그 앞바다 500m');assert.equal(m.total,null);assert.equal(m.bodyOverflow,0);
+  if(SHOTS){await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-coast-acc]').scrollIntoView({block:'end'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_acc_none_380.png')});}
+  FIX.history.b={available:false};await fresh();await open('b');m=await accCard();
+  assert.equal(m.kind,'nodata');assert.equal(m.title,'이 관광지 주변 연안사고 자료 없음');assert.equal(m.area,null);
+  if(SHOTS){await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-coast-acc]').scrollIntoView({block:'end'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_acc_nodata_380.png')});}
+  FIX.history.b.available=true;FIX.history.b={available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:[]};
+ });
+ await check('「표류」 통일(떠밀림 없음)·연안 부제는 경위도 없이 관할만·위험지수 상자 색 = 단계 색(지수 19 → 초록)',async()=>{
+  await fresh();await open('a');let m=await accCard();
+  assert.ok(m.text.includes('사고 종류 : 익수, 추락, 고립, 표류'));assert.ok(m.text.includes('튜브·물놀이기구 표류 주의'));assert.ok(!m.text.includes('떠밀림'));
+  assert.equal(m.sub,'부산해양경찰서 광안리파출소 관할');assert.ok(!/[°′″]/.test(m.sub));
+  const B={'평소 수준':'rgb(47, 179, 107)','다소 높음':'rgb(242, 194, 48)','높음':'rgb(251, 146, 60)','매우 높음':'rgb(224, 50, 44)'};assert.equal(m.boxBg,B[scored.band],'상자 색 '+scored.band);
+  for(const [idx,band] of [[19,'평소 수준'],[20,'다소 높음'],[67,'높음'],[100,'매우 높음']]){FIX.score.b={score:idx*.03,index:idx,band};await fresh();await open('b');m=await accCard();assert.equal(m.boxBg,B[band],'지수 '+idx);
+   if(SHOTS&&idx===19){await pg.evaluate(()=>{document.querySelector('#risk-forecast-sheet .rf-body').scrollTop=0;});await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_index19_380.png')});}}
+  delete FIX.score.b;
+  const basis=await pg.evaluate(()=>{RiskBasis.open('coast');const t=document.querySelector('.rf-basis-body').textContent;RiskBasis.close();return t;});
+  assert.ok(basis.includes('연안 사고(익수·추락·고립·표류)')&&!basis.includes('떠밀림'));
+  assert.ok(basis.includes('목록에는 익수·추락·고립·표류와 기타(인명)를 보여 줍니다. 위험지수 점수는 익수·추락·고립·표류 4유형으로 계산했습니다.'),'목록과 점수 유형 차이 한 줄');
+ });
+ // 2026-10-16 사용자 「표는 오른쪽 왼쪽으로 스크롤하면서 볼 수 있도록 해서 표가 과도하게 위아래로 켜지지 않도록 … 화면에 맞게 적절하게」
+ for(const kind of ['coast','sea'])await check('기준 상세 표('+kind+'): 380·320px 가로 스크롤 상자·줄 수 ≤ 4·숫자 칸 줄바꿈 없음·창 자체는 가로 스크롤 없음, 1024px 스크롤 없이 꽉 참',async()=>{
+  for(const width of [380,320,1024]){
+   await pg.setViewportSize({width,height:820});await pg.evaluate(k=>{RiskBasis.close();RiskBasis.open(k);},kind);await pg.waitForTimeout(80);
+   const m=await pg.evaluate(()=>{const body=document.querySelector('.rf-basis-body'),box=document.querySelector('.rf-basis');return{body:body.scrollWidth-body.clientWidth,box:box.scrollWidth-box.clientWidth,bare:[...body.querySelectorAll('table')].filter(t=>!t.closest('.rf-tbl-scroll')).length,
+    tables:[...document.querySelectorAll('.rf-basis .rf-tbl')].map(o=>{const sc=o.querySelector('.rf-tbl-scroll'),t=o.querySelector('table'),cs=getComputedStyle(sc);return{over:sc.scrollWidth-sc.clientWidth,ox:cs.overflowX,box:sc.clientWidth,table:Math.round(t.getBoundingClientRect().width),cls:o.className,
+     lines:[...t.querySelectorAll('tbody td')].map(td=>{const c=getComputedStyle(td);return Math.round((td.getBoundingClientRect().height-parseFloat(c.paddingTop)-parseFloat(c.paddingBottom))/parseFloat(c.lineHeight));}),
+     nWrap:[...t.querySelectorAll('.n')].filter(td=>getComputedStyle(td).whiteSpace!=='nowrap').length};})};});
+   console.log('측정 기준 상세 표 '+kind+' '+width+'px',JSON.stringify({...m,tables:m.tables.map(t=>({...t,lines:Math.max(...t.lines)}))}));
+   assert.ok(m.tables.length>=1);assert.equal(m.bare,0,'감싸지 않은 표');assert.equal(m.body,0,'창 본문 가로 스크롤');assert.equal(m.box,0,'창 가로 스크롤');
+   for(const t of m.tables){assert.equal(t.ox,'auto');assert.ok(Math.max(...t.lines)<=4,'줄 수 '+Math.max(...t.lines));assert.equal(t.nWrap,0);
+    if(width===1024){assert.equal(t.over,0,'넓은 화면 스크롤');assert.equal(t.table,t.box,'꽉 참');assert.ok(!/more-right/.test(t.cls));}
+    else if(t.over>0)assert.ok(/more-right/.test(t.cls),'오른쪽 그늘 단서');}
+   if(kind==='coast'&&width===380){assert.ok(m.tables[0].over>0,'380px 연안 요소 표는 옆으로 민다');
+    if(SHOTS){await pg.evaluate(()=>document.querySelector('.rf-tbl').scrollIntoView({block:'center'}));await pg.waitForTimeout(60);await pg.screenshot({path:path.join(SHOTS,'basis_coast_380_table_before.png')});
+     await pg.evaluate(()=>{const sc=document.querySelector('.rf-tbl-scroll');sc.scrollLeft=sc.scrollWidth;});await pg.waitForTimeout(120);
+     assert.ok(await pg.evaluate(()=>{const o=document.querySelector('.rf-tbl');return o.classList.contains('more-left')&&!o.classList.contains('more-right');}),'끝까지 밀면 왼쪽 그늘만');await pg.screenshot({path:path.join(SHOTS,'basis_coast_380_table_after.png')});}}
+   if(kind==='sea'&&width===380&&SHOTS){await pg.evaluate(()=>document.querySelector('.rf-tbl').scrollIntoView({block:'center'}));await pg.waitForTimeout(60);await pg.screenshot({path:path.join(SHOTS,'basis_sea_380_table.png')});}
+  }
+  await pg.evaluate(()=>RiskBasis.close());await pg.setViewportSize({width:380,height:820});
+ });
  await check('모바일 실행 오류 없음',()=>assert.deepEqual(errors,[]));
  void requests;void holds;void failures;void hold;
 }finally{if(browser)await browser.close();if(server)await new Promise(r=>server.close(r));console.log(`${pass} PASS / ${fail} FAIL`);if(fail)process.exitCode=1;}})().catch(e=>{console.error('❌ 브라우저 검사 실행 실패:',e.message);console.log('0 PASS / 1 FAIL');process.exitCode=1;});
