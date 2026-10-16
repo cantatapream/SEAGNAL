@@ -86,7 +86,7 @@
 |---|---|
 | 만드는 곳 | `scheduler.js` `collectZoneForecasts` (`:542`), 저장 `saveData('zone_forecasts.json', …)` (`:594`) |
 | 받는 것 | 기상청 API허브 `SEA_ZONE_LARGE`(`:555`·`:577`), 기준시각(UTC 00 또는 12) + **0~75시간, 3시간 간격 26개** (`:569~571`) |
-| 갱신 주기 | **09:30·21:30 KST** (`:2614`) + 서버 기동 때 1회(`:2478`) |
+| 갱신 주기 | **09:30·21:30 KST** (`:2614`) + 서버 기동 때 1회(`:2478`) · 2026-10-16부터 30분마다(:15·:45) 새 판 확인(기상청 답변 「생성에 6시간 이상 걸릴 수 있다」 — `client/js/admin/README.md`) |
 | 저장 구조 | `{ updatedAt, baseTmUtf, data: { "<대해구번호>": [ {tm, lzone, wh, wp, waveDir, ws, windDir}, … ] }, count }`. 필드 출처 `parseKmaTable` (`:515~537`): `wh`=WH_SIG(유의파고 m) · **`wp`=WVPRD_MAX(최대 파주기 s)** · `ws`=WS(풍속 m/s) · `windDir`=WD. **`tm` 은 UTC 10자리 `YYYYMMDDHH`** (`getUtcTm` `:268~274` — 주석 `:265` 은 12자리라 적었으나 코드는 10자리) |
 | 대해구 번호 | `data` 의 키 = `client/marine_zone_area.json` 의 `marine_zone_no`. 화면 `client/js/forecast/alerts/marine.js:71~98` 이 「123-4」에서 앞 번호만 떼어 `/api/marine-zone-forecasts/123` 을 부르는 것으로 확인 |
 | 메모리·API | `dataCache.zoneForecasts`(cache_manager `:86`). `GET /api/marine-zone-forecasts`(`weather.js:784`, 전체 약 5.86MB — 코드 주석 값) · `/:zoneId`(`:854`) |
