@@ -148,7 +148,7 @@ bash scripts/refactor/verify_all.sh
 
 ## 과제2 — 연안·해상 공통 메인 시각 (`risk_forecast.js`)
 
-해상 전용이던 하단 바(`.rf-marine-timebar`, 고정 output + 현재/+3H/+6H/+12H)를 연안·해상 공통 메인 시각으로 쓴다. 새 컨트롤을 따로 만들지 않았다.
+해상 전용이던 하단 바(`.rf-marine-timebar`, 고정 output + 현재/+3H/+6H/+12H)를 연안·해상 공통 메인 시각으로 쓴다. 새 컨트롤을 따로 만들지 않았다. (2026-10-16: output 을 없애고 7버튼으로 — 아래 「하단 시간 버튼 7개·시각 토스트·연안 색 범례」.)
 - `mainTimes()`: 연안 ON이면 `meta.timeline.coast.times`(지금 이후, 3시간 칸, 내일 21시까지 — 「가」 2026-10-15) 그대로, 해상만 ON이면 `seaTimes()`(내일 21시까지), 둘 다 ON이면 두 축의 합집합(실서버에서는 두 축의 끝이 같다). `nextTime(+3/6/12)`, 정기 `sync()`의 가까운 칸 맞춤, 층 스위치 변경 시 맞춤이 모두 이 목록을 쓴다. 칸이 없으면 버튼은 비활성이다.
 - `marineTime()`: 바는 연안 또는 해상이 켜져 있을 때 보인다(둘 다 OFF면 숨김). 해상 전용 `[data-marine-tools]`는 해상 ON일 때만 보인다. `body.rf-sea-time-on` 클래스 이름은 CSS 호환을 위해 그대로다.
 - `refreshMarine()`: 종전에는 연안만 제공되던 모레 구간에서 해상 지도를 비우고 `seaOutOfRange()`로 「해상 예보 범위 밖 (내일까지)」를 띄웠다. 「가」로 연안도 내일 21시에 끝나 이 구간이 없어졌으므로 그 분기와 함수를 삭제했다.
@@ -246,3 +246,22 @@ bash scripts/refactor/verify_all.sh
 
 수정 시 주의: 버튼은 위아래 음수 여백으로 줄 높이(약 19.8px)보다 높게 잡히지 않는다 — 이 여백을 없애면 한 줄 부제에서 시각 줄이 약 3px 밀린다(`test_risk_sheet_ui` 「한 줄 부제에서 버튼이 시각 줄을 밀어냄」). 기준 상세 문안을 새로 쓸 때도 「닫기 버튼 → h3 → 본문」 순서를 지킨다(머리로 떼어 내는 규칙).
 
+
+## 하단 시간 버튼 7개·시각 토스트·연안 색 범례 — 2026-10-16
+
+사용자 원문: 「하단에 시간대 설정이 있는데 -12 -6h - 3h 현재 +3h, +6h +12로 버튼을 만들고 처음에는 - 부분은 회색이었다가 +3으로 가면 -3 활성화 되어서 뒤로 갈 수 있도록 수정 필요(해상도 동일하게,) 그리고 왼쪽에 0월 0일 금요일 10:00은 빼도록 하고 현재 및 시간 이동 버튼 아래에 1.(금) 00:00 라고 버튼 내에 작은 글씨로 써지도록 하고 싶어. 물론 시간 이동에 따라 현재만 제외하고 해당 시간이 바뀌어야지. 더이상 미래로 갈 수 없는 경우에는 해당 시간 버튼은 비활성화 되도록 해주고. 해상도 동일하게 진행.」 · 「그러면 토스트 메시지로 하단에 뜨면 되는거 아니니 ?」 · 「그런데 지금 지도에 색상에 따른 범례가 안보이는데 ?」 (화면 설명은 README 같은 이름 절)
+
+| 위치 | 이전 | 지금 |
+|---|---|---|
+| 시간 줄 마크업 | `<output data-map-time aria-live>` + 현재/+3H/+6H/+12H | `<span class="rf-sr-only" data-map-time>`(aria-live 없음) + `data-time-step` = `-12`·`-6`·`-3`·`now`·`3`·`6`·`12`, 버튼 안 `<b>`라벨 + `<small data-time-at>`(두 `<span>`: 「16.(금)」「13:00」) |
+| `nextTime(hours)` | `+` 만: 선택 시각의 3시간 칸 + hours 이상인 첫 `mainTimes` | 음수도 받음. `-`: 칸(`floor(ms/3h)`)이 목표 칸 이하인 마지막 `mainTimes`. `mainTimes` 첫 칸이 `meta.now` 라 목표가 지금의 칸이면 지금, 그보다 앞이면 `null`(비활성) |
+| `marineTime()` | output 글자 + `disabled` | 숨김 글자 「조회 시각 …」 + 버튼마다 `disabled`·`aria-disabled`·작은 글씨(`buttonTime`←`dayTime`), [현재]는 늘 `meta.now`. 바를 숨기면 토스트도 숨김 |
+| `timeToast()` | (없음) | 시간 버튼 클릭마다 `.rf-time-toast`(role=status, aria-live=polite) 2초(`TOAST_MS`), 연타 시 마지막 것만 |
+| 연안 범례 | (없음 — 해상만) | `[data-coast-key]` 를 `.banzone-legend` 끝(토글·[혼잡도/위험 예측] 아래)에, `RiskFormat.BAND_COLORS` 4칸 막대. 층 토글 클릭 때 `hidden=!state.coast` |
+| CSS | `minmax(0,1.7fr) repeat(4,1fr)`, 버튼 34px, 비활성 opacity .35 | `repeat(7,1fr)`, 버튼 40px 세로 3줄, 비활성 회색 배경·글자, 바 46px 그대로 |
+
+수정 시 주의:
+- 가짜 DOM 시험(`test_risk_lifecycle.js`)의 버튼 흉내는 `querySelector` 가 있어야 한다(작은 글씨 칸을 찾는다). `test_risk_map_wait.js` 의 흉내는 `querySelectorAll` 이 빈 배열이라 영향 없다.
+- `risk_api.js` 의 60초 캐시 때문에 같은 시각으로 돌아오면 `sea/unified-frame` 요청이 다시 나가지 않는다 — 시험은 요청 기록 대신 지도에 다시 그려졌는지를 본다.
+- 토스트는 `--rf-bottom-chrome`·`--rf-time-height`(바가 보일 때 `body.rf-sea-time-on` 이 정함)로 높이를 잡는다. 해상 색 범례가 바 위 31px 부터라 토스트 높이(24px)+여백(4px)을 넘기면 겹친다.
+- 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_main_time.js` (선택 `RISK_SHOT_DIR=<폴더>` 로 380·320px 화면 PNG).

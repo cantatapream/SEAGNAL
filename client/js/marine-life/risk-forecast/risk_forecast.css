@@ -121,21 +121,32 @@ body.ls-mode.ls-safety.ls-mudflat-on .rf-color-legend{bottom:calc(var(--ls-botto
 
 .rf-legend-change{animation:rf-legend-change .65s ease-out 1}@keyframes rf-legend-change{0%,100%{opacity:1}35%{opacity:.45}}@media(prefers-reduced-motion:reduce){.rf-legend-change{animation:none}}
 
-/* 해상 시각: 메인 탭과 지도 출처 사이의 낮은 전폭 바. 날짜는 고정 output, 이동만 버튼. */
+/* 연안·해상 공통 시각: 메인 탭과 지도 출처 사이의 낮은 전폭 바. 7버튼(-12H·-6H·-3H·현재·+3H·+6H·+12H), 버튼마다 아래 두 줄 작은 글씨로 갈 시각(2026-10-16 — 종전 왼쪽 날짜 output 은 없앴고 선택 시각은 숨김 글자로 읽어 준다). 바 높이 46px 그대로. */
 body.rf-sea-time-on{--rf-time-height:46px;--rf-bottom-chrome:var(--main-tab-height,68px)}
 body.rf-sea-time-on.sub-tabs-open{--rf-bottom-chrome:calc(var(--main-tab-height,68px) + var(--sub-tab-height,50px))}
-.rf-marine-timebar{position:fixed;left:0;right:0;bottom:var(--rf-bottom-chrome,var(--main-tab-height,68px));z-index:151;height:46px;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1.7fr) repeat(4,minmax(0,1fr));align-items:center;gap:4px;padding:5px 8px;background:rgba(15,26,45,.96);border-top:1px solid #56708c;border-bottom:1px solid #56708c;box-shadow:0 -3px 10px rgba(0,0,0,.18);color:#eef4ff}
+.rf-marine-timebar{position:fixed;left:0;right:0;bottom:var(--rf-bottom-chrome,var(--main-tab-height,68px));z-index:151;height:46px;box-sizing:border-box;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:center;gap:4px;padding:3px 6px;background:rgba(15,26,45,.96);border-top:1px solid #56708c;border-bottom:1px solid #56708c;box-shadow:0 -3px 10px rgba(0,0,0,.18);color:#eef4ff}
 .rf-marine-timebar[hidden]{display:none}
-.rf-marine-timebar output{font-size:12px;text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums}
-.rf-marine-timebar button{height:34px;min-width:0;padding:0 3px;font-size:12px;color:inherit;background:#223752;border:1px solid #617b99;border-radius:6px;cursor:pointer}
+.rf-marine-timebar .rf-sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.rf-marine-timebar button{height:40px;min-width:0;padding:0 1px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;font-size:11px;line-height:12px;color:inherit;background:#223752;border:1px solid #617b99;border-radius:6px;cursor:pointer;font-variant-numeric:tabular-nums}
+.rf-marine-timebar button b{font-weight:700;white-space:nowrap}
+.rf-marine-timebar button small{display:flex;flex-direction:column;align-items:center;min-height:20px;font-size:9px;line-height:10px;color:#bcd0ea;white-space:nowrap}
 .rf-marine-timebar button[aria-pressed="true"]{background:#365fc0;border-color:#92afff}
-.rf-marine-timebar button:disabled{opacity:.35;cursor:default}
+.rf-marine-timebar button:disabled{background:#2b313b;border-color:#4a525e;color:#7b838f;cursor:default}.rf-marine-timebar button:disabled small{color:#7b838f}
 .rf-marine-timebar button:focus-visible{outline:2px solid #ffd740;outline-offset:1px}
 body.rf-sea-time-on .ol-attribution,body.rf-sea-time-on .ol-scale-line{position:fixed!important;bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 6px)!important}
 body.rf-sea-time-on .rf-color-legend{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 31px)!important}
 body.rf-sea-time-on.ls-mudflat-on .ol-attribution,body.rf-sea-time-on.ls-mudflat-on .ol-scale-line{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 2.25rem + 6px)!important}
 body.rf-sea-time-on.ls-mudflat-on .rf-color-legend{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 2.25rem + 31px)!important}
-@media(max-width:360px){.rf-marine-timebar{gap:3px;padding-left:5px;padding-right:5px}.rf-marine-timebar output,.rf-marine-timebar button{font-size:11px}}
+@media(max-width:360px){.rf-marine-timebar{gap:3px;padding-left:4px;padding-right:4px}.rf-marine-timebar button{font-size:10px}}
+/* 시각 토스트(2026-10-16 「토스트 메시지로 하단에」): 시간 바 바로 위 가운데, 약 2초. 해상 색 범례(바 위 31px 부터)보다 낮게 두어 겹치지 않고, 누름은 지도로 통과시킨다. */
+.rf-time-toast{position:fixed;left:50%;bottom:calc(var(--rf-bottom-chrome,var(--main-tab-height,68px)) + var(--rf-time-height,46px) + 4px);transform:translateX(-50%);z-index:152;box-sizing:border-box;height:24px;padding:0 12px;border-radius:12px;background:rgba(10,15,28,.92);border:1px solid #56708c;color:#eef4ff;font-size:12px;line-height:22px;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+.rf-time-toast[hidden]{display:none}
+body:not(.ls-safety) .rf-time-toast{display:none!important}
+/* 연안 색 범례(2026-10-16 「지도에 색상에 따른 범례가 안보이는데 ?」): 왼쪽 위 범례 상자 토글 아래, 해상 범례와 같은 막대·글자 모양을 촘촘히. */
+.rf-coast-key{display:flex;flex-direction:column;gap:3px;padding:5px 8px 6px;border-top:1px solid rgba(255,255,255,.1);font-size:10px;color:var(--text-sub,#94a3b8)}
+.rf-coast-key-title{font-size:11px;font-weight:700;color:var(--text-main,#eaf1fa)}
+.rf-coast-key .rf-gradient-labels{margin-top:0;gap:4px}
+.rf-coast-key .rf-gradient-labels span{white-space:nowrap}
 
 /* 위험지형과 같은 banzone/bzl 공통 디자인과 스위치를 그대로 사용한다. */
 #ocean-risk-forecast-toggle-btn.rf-preview-locked{opacity:.4;filter:grayscale(1);cursor:default}
