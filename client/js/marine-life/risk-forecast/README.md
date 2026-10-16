@@ -339,3 +339,9 @@
 - 바꾼 곳: 서버 `risk_store.js`·`routes/risk_forecast.js`, 화면 `risk_forecast.js`(`dateNav`·`shiftDay`·`setMain`·`coastT`·`placeDateNav`·`mapSelect`)·`risk_sheet.js`(`day`·`peakText`)·`risk_slider.js`(연안 색 옵션 `colors` 제거)·`risk_forecast.css`·`risk_basis_content.js`(연안 [기준 상세] 「하루 하나 — 그날 가장 높은 값」)·`index2.html` ?v=20261016t24. 공개 문서 `연안_위험지수_산출근거.md`(표지·1.1·6.6)·`.sources.md`·PDF(`40_public_report_pdf.js` 로 다시 만듦).
 - 시험: 새 `test_risk_coast_day`(실제 index2.html — 날짜 줄 모양 대조·비활성·토스트·상단↔시트·해상 함께·지도 클릭 무시와 예외·항행경보 단독), `test_risk_store`(하루 값 8칸·이른 칸·오늘 지금부터·KST 00/21시·모레/지난 400·missing 합침·지도 최댓값), `test_risk_routes`, `test_risk_main_time`·`test_risk_sheet_ui`·`test_risk_select_motion`·`test_life_safety_tab_keep`·`test_risk_lifecycle`(바꾼 단언은 guide 같은 절).
 
+
+## 활동지점 안전 브리핑 — 서버 1단계 (2026-10-16)
+파출소 관할 97곳 브리핑을 서버가 미리 만든다(08:00·17:30·23:00 KST + 특보 변경 때 그 구역 관할만). 판단은 서버 규칙, AI 는 총평 두 문단만(VM → Gemini → 틀). 해상 근거는 이 화면과 같은 저장소(`routes/risk_forecast.js` 의 `stores` — `risk_store`·`marine_fusion`)에서 읽는다.
+- 서버: `local_server/services/station_briefing{,_rules,_ai,_inputs}.js` · `routes/station_briefing.js` · 시험 `test_station_briefing`.
+- `marine_fusion` 에 `stationAt`·`cellHistory`(관할 배정·과거 사고 집계를 브리핑이 같은 계산으로 쓰게)를 더했다 — 이 화면 동작은 그대로.
+- API 계약·노출 판정·관리자 설정: [briefing.contract.md](../../ocean-map/coastal-risk/briefing.contract.md) · 설계 기록: [coastal_safety_forecast.design.md](../../ocean-map/coastal-risk/coastal_safety_forecast.design.md) §11.7.
