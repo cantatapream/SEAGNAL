@@ -10,7 +10,8 @@
  *  - 나를 쓰는 곳  : OS.fetchTideForSheet(ocean_bottom_sheet5.js loadAllForDate),
  *                    OS.refreshTideGaugeForTime(ocean_bottom_sheet2.js SheetTL.onRelease),
  *                    OS.prefetchFavoriteTides(이 파일의 load·visibilitychange 리스너 — 앱 시작·복귀 시
- *                    즐겨찾기 해점 오늘 조석을 미리 받아 영속 캐시에 넣음)
+ *                    즐겨찾기 해점 오늘 조석을 미리 받아 영속 캐시에 넣음),
+ *                    OS.tideGaugeHtml(forecast/station-briefing/station_briefing_render.js — 브리핑 조석 칸이 같은 게이지 디자인)
  * ============================================================================
  *
  * [표시 형식 (이미지 기반)]
@@ -914,115 +915,9 @@
         tPeaks.sort(function (a, b) { return a.minutes - b.minutes; });
 
         var todayMode = OS.isToday(dateObj);
-        // [시트 슬라이더 연계] dateObj 는 슬라이더가 가리키는 시각 (value=0 → real now,
-        // value=N≥3 → floor3(now)+N*h). 같은 날 안에서 시각만 변할 때 게이지/예상조위
-        // 라벨이 그 시각 기준으로 표기되어야 하므로 nowMin 은 실제 now() 가 아닌
-        // dateObj 의 minutes-of-day 사용.
-        var nowMin = dateObj.getHours() * 60 + dateObj.getMinutes();
-
-        // 직전·다음 피크 계산 — tide.js getTideProgress와 동일한 fallback 트리
-        // (1) 일반: 오늘 피크들 사이
-        // (2) 새벽: prev = 어제 마지막 피크 (-1440 보정)
-        // (3) 심야: next = 내일 첫 피크 (+1440 보정)
-        var prevPeak = null, nextPeak = null;
-        if (todayMode) {
-            for (var i = 0; i < peaks.length; i++) {
-                if (peaks[i].minutes > nowMin) {
-                    nextPeak = peaks[i];
-                    if (i > 0) {
-                        prevPeak = peaks[i - 1];
-                    } else if (yPeaks.length > 0) {
-                        var yLast = yPeaks[yPeaks.length - 1];
-                        prevPeak = { type: yLast.type, level: yLast.level, minutes: yLast.minutes - 1440 };
-                    }
-                    break;
-                }
-            }
-            // 다음 피크 없음 → 내일 첫 피크
-            if (!nextPeak) {
-                if (peaks.length > 0) prevPeak = peaks[peaks.length - 1];
-                if (tPeaks.length > 0) {
-                    var tFirst = tPeaks[0];
-                    nextPeak = { type: tFirst.type, level: tFirst.level, minutes: tFirst.minutes + 1440 };
-                }
-            }
-            // 게이지 길이 검증 (tide.js 2370행과 동일: >780 또는 ≤0이면 무효)
-            if (prevPeak && nextPeak) {
-                var dur = nextPeak.minutes - prevPeak.minutes;
-                if (dur > 780 || dur <= 0) {
-                    prevPeak = null;
-                    nextPeak = null;
-                }
-            } else {
-                prevPeak = null;
-                nextPeak = null;
-            }
-        }
-
-        // 4피크 리스트의 ±차이값: tide.js processCurrentDay와 동일
-        // - 첫 피크는 어제 마지막 반대 피크 기준
-        // - 마지막 피크는 내일 첫 반대 피크 기준 (오늘에 같은 종류 피크가 더 없을 때)
-        var yLastHigh = lastOfType(yPeaks, 'high');
-        var yLastLow  = lastOfType(yPeaks, 'low');
-        var tFirstHigh = firstOfType(tPeaks, 'high');
-        var tFirstLow  = firstOfType(tPeaks, 'low');
-        for (var j = 0; j < peaks.length; j++) {
-            var p = peaks[j];
-            var dprev = null;
-            // (a) 오늘 배열 안에서 직전 반대 피크
-            for (var k = j - 1; k >= 0; k--) {
-                if (peaks[k].type !== p.type) { dprev = peaks[k]; break; }
-            }
-            // (b) 없으면 어제 마지막 반대 피크
-            if (!dprev) {
-                dprev = (p.type === 'high') ? yLastLow : yLastHigh;
-            }
-            // (c) 그래도 없으면 내일 첫 반대 피크 (배열 양끝 보호)
-            if (!dprev) {
-                dprev = (p.type === 'high') ? tFirstLow : tFirstHigh;
-            }
-            p.diff = dprev ? (p.level - dprev.level) : null;
-        }
-
-        // ❸ 모든 피크 표시 (각 최대 4개) — slice(0,2) cap 제거
-        var highs = peaks.filter(function (p) { return p.type === 'high'; }).slice(0, 4);
-        var lows  = peaks.filter(function (p) { return p.type === 'low'; }).slice(0, 4);
-
-        // 현재 조위 (오늘만) — 게이지 바로 위 정 가운데에 삽입.
-        // [시트 슬라이더 연계] 라벨은 슬라이더 시각의 HH:MM 그대로 표기.
-        // 예: 슬라이더 value=0 (real now 07:42) → "07:42 예상 조위"
-        // 예: 슬라이더 value=3 (09:00) → "09:00 예상 조위"
-        var currentHtml = '';
-        if (todayMode && prevPeak && nextPeak) {
-            var curLevel = interpolateLevel(prevPeak, nextPeak, nowMin);
-            var rising = nextPeak.type === 'high';
-            var lblHH = String(dateObj.getHours()).padStart(2, '0');
-            var lblMM = String(dateObj.getMinutes()).padStart(2, '0');
-            var labelText = lblHH + ':' + lblMM + ' 예상 조위';
-            currentHtml =
-                '<div class="ocean-tide-current-top">' +
-                  '<span class="ocean-tide-current-label">' + labelText + '</span>' +
-                  '<span class="ocean-tide-current-val">' + Math.round(curLevel) + ' cm</span>' +
-                  '<span class="ocean-tide-current-arrow ' + (rising ? 'is-up' : 'is-down') + '">' +
-                    (rising ? '▲' : '▼') +
-                  '</span>' +
-                '</div>';
-        }
-
-        // 일조부등 판별: 하루에 고조 1회·저조 1회(총 2피크 이하)인 경우
-        // → 조석 게이지(진행 막대) 없이 고조/저조 목록만 표시
-        var isDiurnal = (peaks.length <= 2);
-
-        // 헤더: "다음" 피크 / "그 다음" 피크 (오늘 + 반일조 해역에서만 진행 막대 표시).
-        // nowMin 명시 전달 (dateObj 시각 기준) — 슬라이더 시간 변경 시 진행바 위치 일치.
-        var headHtml = isDiurnal ? '' : renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml, nowMin);
-
-        // 4피크 리스트
-        var peaksHtml =
-            '<div class="ocean-tide-peaks">' +
-              renderPeakGroup('고조', 'is-high', highs, '▲') +
-              renderPeakGroup('저조', 'is-low',  lows,  '▼') +
-            '</div>';
+        // 게이지(헤더)·고저조 목록 HTML — 활동지점 안전 브리핑도 같은 함수를 쓴다(OS.tideGaugeHtml, 2026-10-16 §11.6-11 「그 디자인이 같이」).
+        var gauge = buildTideGauge(peaks, yPeaks, tPeaks, dateObj, todayMode);
+        var headHtml = gauge.headHtml, peaksHtml = gauge.peaksHtml;
 
         var idwBadge = isIdw
             ? '<div class="ocean-tide-idw-badge">표준항 보간 결과</div>' : '';
@@ -1239,6 +1134,133 @@
                 (rising ? '고조까지' : '저조까지') + ' 남은시간 ' + remainStr;
         }
         return true;
+    };
+
+    /* --------------------------------------------------------------
+     * 게이지(헤더 진행 막대·예상 조위)와 고조·저조 목록 HTML 을 만든다 — renderTideData 에서 떼어 낸 것(내용 그대로).
+     * 활동지점 안전 브리핑(forecast/station-briefing)이 해양종합정보 조석 게이지 디자인을 그대로 쓰도록 OS.tideGaugeHtml 로도 연다
+     * (2026-10-16 설계서 §11.6-11, 사용자 원문 「조석이 게이지랑 함께 … 그 디자인이 같이 나왔으면 좋겠어.」).
+     * 예: buildTideGauge([{type:'low',minutes:372,level:-12},…], [어제 마지막 피크], [내일 첫 피크], 오늘 14:05, true) → {headHtml:'<div class="ocean-tide-head">…', peaksHtml:'<div class="ocean-tide-peaks">…'}
+     * @param {Array} peaks - 그날 [{type,minutes,level}] (분 오름차순, diff 를 이 함수가 채운다) @param {Array} yPeaks - 어제 @param {Array} tPeaks - 내일
+     * @param {Date} dateObj - 게이지 기준 시각(그 날의 시·분) @param {boolean} todayMode - 오늘이면 게이지, 아니면 목록만
+     * @returns {{headHtml:string, peaksHtml:string}} 숫자·시각만 담긴 HTML
+     * [연계] ← renderTideData · OS.tideGaugeHtml(station_briefing_render.js) / → renderHeadHtml·renderPeakGroup·interpolateLevel
+     * ------------------------------------------------------------ */
+    function buildTideGauge(peaks, yPeaks, tPeaks, dateObj, todayMode) {
+        // [시트 슬라이더 연계] dateObj 는 슬라이더가 가리키는 시각 (value=0 → real now,
+        // value=N≥3 → floor3(now)+N*h). 같은 날 안에서 시각만 변할 때 게이지/예상조위
+        // 라벨이 그 시각 기준으로 표기되어야 하므로 nowMin 은 실제 now() 가 아닌
+        // dateObj 의 minutes-of-day 사용.
+        var nowMin = dateObj.getHours() * 60 + dateObj.getMinutes();
+
+        // 직전·다음 피크 계산 — tide.js getTideProgress와 동일한 fallback 트리
+        // (1) 일반: 오늘 피크들 사이
+        // (2) 새벽: prev = 어제 마지막 피크 (-1440 보정)
+        // (3) 심야: next = 내일 첫 피크 (+1440 보정)
+        var prevPeak = null, nextPeak = null;
+        if (todayMode) {
+            for (var i = 0; i < peaks.length; i++) {
+                if (peaks[i].minutes > nowMin) {
+                    nextPeak = peaks[i];
+                    if (i > 0) {
+                        prevPeak = peaks[i - 1];
+                    } else if (yPeaks.length > 0) {
+                        var yLast = yPeaks[yPeaks.length - 1];
+                        prevPeak = { type: yLast.type, level: yLast.level, minutes: yLast.minutes - 1440 };
+                    }
+                    break;
+                }
+            }
+            // 다음 피크 없음 → 내일 첫 피크
+            if (!nextPeak) {
+                if (peaks.length > 0) prevPeak = peaks[peaks.length - 1];
+                if (tPeaks.length > 0) {
+                    var tFirst = tPeaks[0];
+                    nextPeak = { type: tFirst.type, level: tFirst.level, minutes: tFirst.minutes + 1440 };
+                }
+            }
+            // 게이지 길이 검증 (tide.js 2370행과 동일: >780 또는 ≤0이면 무효)
+            if (prevPeak && nextPeak) {
+                var dur = nextPeak.minutes - prevPeak.minutes;
+                if (dur > 780 || dur <= 0) {
+                    prevPeak = null;
+                    nextPeak = null;
+                }
+            } else {
+                prevPeak = null;
+                nextPeak = null;
+            }
+        }
+
+        // 4피크 리스트의 ±차이값: tide.js processCurrentDay와 동일
+        // - 첫 피크는 어제 마지막 반대 피크 기준
+        // - 마지막 피크는 내일 첫 반대 피크 기준 (오늘에 같은 종류 피크가 더 없을 때)
+        var yLastHigh = lastOfType(yPeaks, 'high');
+        var yLastLow  = lastOfType(yPeaks, 'low');
+        var tFirstHigh = firstOfType(tPeaks, 'high');
+        var tFirstLow  = firstOfType(tPeaks, 'low');
+        for (var j = 0; j < peaks.length; j++) {
+            var p = peaks[j];
+            var dprev = null;
+            // (a) 오늘 배열 안에서 직전 반대 피크
+            for (var k = j - 1; k >= 0; k--) {
+                if (peaks[k].type !== p.type) { dprev = peaks[k]; break; }
+            }
+            // (b) 없으면 어제 마지막 반대 피크
+            if (!dprev) {
+                dprev = (p.type === 'high') ? yLastLow : yLastHigh;
+            }
+            // (c) 그래도 없으면 내일 첫 반대 피크 (배열 양끝 보호)
+            if (!dprev) {
+                dprev = (p.type === 'high') ? tFirstLow : tFirstHigh;
+            }
+            p.diff = dprev ? (p.level - dprev.level) : null;
+        }
+
+        // ❸ 모든 피크 표시 (각 최대 4개) — slice(0,2) cap 제거
+        var highs = peaks.filter(function (p) { return p.type === 'high'; }).slice(0, 4);
+        var lows  = peaks.filter(function (p) { return p.type === 'low'; }).slice(0, 4);
+
+        // 현재 조위 (오늘만) — 게이지 바로 위 정 가운데에 삽입.
+        // [시트 슬라이더 연계] 라벨은 슬라이더 시각의 HH:MM 그대로 표기.
+        // 예: 슬라이더 value=0 (real now 07:42) → "07:42 예상 조위"
+        // 예: 슬라이더 value=3 (09:00) → "09:00 예상 조위"
+        var currentHtml = '';
+        if (todayMode && prevPeak && nextPeak) {
+            var curLevel = interpolateLevel(prevPeak, nextPeak, nowMin);
+            var rising = nextPeak.type === 'high';
+            var lblHH = String(dateObj.getHours()).padStart(2, '0');
+            var lblMM = String(dateObj.getMinutes()).padStart(2, '0');
+            var labelText = lblHH + ':' + lblMM + ' 예상 조위';
+            currentHtml =
+                '<div class="ocean-tide-current-top">' +
+                  '<span class="ocean-tide-current-label">' + labelText + '</span>' +
+                  '<span class="ocean-tide-current-val">' + Math.round(curLevel) + ' cm</span>' +
+                  '<span class="ocean-tide-current-arrow ' + (rising ? 'is-up' : 'is-down') + '">' +
+                    (rising ? '▲' : '▼') +
+                  '</span>' +
+                '</div>';
+        }
+
+        // 일조부등 판별: 하루에 고조 1회·저조 1회(총 2피크 이하)인 경우
+        // → 조석 게이지(진행 막대) 없이 고조/저조 목록만 표시
+        var isDiurnal = (peaks.length <= 2);
+
+        // 헤더: "다음" 피크 / "그 다음" 피크 (오늘 + 반일조 해역에서만 진행 막대 표시).
+        // nowMin 명시 전달 (dateObj 시각 기준) — 슬라이더 시간 변경 시 진행바 위치 일치.
+        var headHtml = isDiurnal ? '' : renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml, nowMin);
+
+        // 4피크 리스트
+        var peaksHtml =
+            '<div class="ocean-tide-peaks">' +
+              renderPeakGroup('고조', 'is-high', highs, '▲') +
+              renderPeakGroup('저조', 'is-low',  lows,  '▼') +
+            '</div>';
+        return { headHtml: headHtml, peaksHtml: peaksHtml };
+    }
+    OS.tideGaugeHtml = function (peaks, yPeaks, tPeaks, dateObj, todayMode) {
+        var g = buildTideGauge(peaks, yPeaks, tPeaks, dateObj, todayMode);
+        return g.headHtml + g.peaksHtml;
     };
 
     /* --------------------------------------------------------------

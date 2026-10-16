@@ -158,6 +158,8 @@
 | `GET /api/admin/station-briefing/config` | `{ok, config, choices}` |
 | `PUT /api/admin/station-briefing/config` | 본문 JSON 에 바꿀 칸만. 선택지 밖 값이면 400 `설정값 오류: {칸}`, 모르는 칸(`__proto__`·`constructor` 포함)이면 400 `설정 칸 오류: {칸}` |
 | `GET /api/admin/station-briefing/status` | `{ok, config, choices, lastRun:{at,kind,zones,results:[{date,stations,stats:{calls,reused,ai,template,retried,deadline},errors}],ms}, done:[판 열쇠], errors:[최근 50 — {at,stage:'call'|'parse'|'validate'|'deadline'|'run',provider,stations,reason,edition,date}], days:[저장된 날짜], running, failures:{판 열쇠 또는 warning → {count,lastAt,reason}}, pendingWarn:{zones,lastChangeAt}|null}` — `lastRun.aiDisabled` 가 있으면 개발 환경이라 틀 총평만 만든 것. `errors[].stage` 에 `run`(실행 실패)·`deadline`(데드라인 넘어 틀) 추가 |
+| `GET /api/admin/station-briefing/stations` | `{ok, stations}` — 공개 목록과 같은 꼴, **노출 범위와 무관**(관리자 「AI 브리핑」 탭 미리보기용, 화면 2단계 2026-10-16 추가) |
+| `GET /api/admin/station-briefing/preview?station=&day=` | `{ok, date, briefing, fallback, wanted?, nextExpectedAt?}` — 공개 `GET /api/station-briefing` 과 같은 검사(400·404)·같은 `pick`, 노출 범위와 무관(「노출 안 함」이어도 관리자는 본다). `now` 줄은 없다 |
 | `POST /api/admin/station-briefing/run` | 지금 바로 만든다(화면이 지금 보일 날짜 — 21시 전 오늘, 이후 내일). 202 `{ok, started}` 즉시 응답, 결과는 status 로. **이미 실행 중이면 409** `{ok:false, started:false, running:true, error, lastRun}`(예전에는 202 라고 답하고 건너뛰었다) |
 
 설정 칸(기본값 굵게):
@@ -216,6 +218,9 @@ AI 입력에는 기상청 해상 기상 전망(단기 통보문) 원문 발췌(`
 판정 함수는 `station_briefing.historyRow` 하나 — 실행 직후(`run`·`reportFailure`)와 1분 감시(`risk_history_sources.briefingSource`, 운영만)가 같은 판정이라 감시가 다른 상태로 덮어 가짜 사건을 만들지 않는다. 데이터 수집현황 목록표 1단계 「활동지점 안전 브리핑 (우리 서버 생성)」(출처 `seagnal` 「우리 서버 생성」, 일정 08:00·17:30·23:00), 관리자 원천 선택지 「활동지점 안전 브리핑」.
 
 ## 7. 화면 단계에 넘기는 메모
+
+> **화면 2단계 구현됨(2026-10-16)** — `client/js/forecast/station-briefing/`(아코디언·설정 흐름·본문·N 뱃지·바로가기·[기준 상세]) · `client/js/admin/admin_station_briefing.js`(AI → 「AI 브리핑」) · 시험 `local_server/scripts/test_station_briefing_ui.js`. 아래 메모는 그대로 지켰다.
+
 
 - 관할 고르기는 §11.6 Q3 「파출소 관할 하나만 고르면 해상·육상 둘 다」 — `stations` 의 `key` 를 저장한다.
 - 해상만 관할은 육상 칸 대신 `seaOnlyReason` 한 줄.
