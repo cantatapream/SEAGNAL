@@ -43,7 +43,9 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
   meta:()=>{log.meta++;const a=axes();return{now:T.isoKst(clock.now),versions:{spots:'v1',cells:1,accident:'v1'},timeline:{sea:{times:a.sea},accident:{times:a.coast},coast:{times:a.coast}},sources:inputs.sources};},
   spots:()=>({spots}),cells:()=>({cells:[cell]}),accidentCells:()=>({v:'v1',cells:[acc]}),accidentFrame:()=>({v:'v1',cells:[[0,.001,'경계']]}),
   frame:(sea)=>sea?{cells:[[0,0,1,'낮음']],spots:[],borders:[]}:{spots:spots.map(s=>[s.i,3]),borders:[]},
-  coastDetail:(id,t)=>{log.detail.push({id,t});return{title:'연안 '+id+' '+t,subtitle:{lat:33.5,lon:126.5},clickable:false,t};},islands:()=>({features:[]})};
+  // 연안 지도·상세 경로는 날짜당 하나(T24 — 라우터가 coastDayFrame·coastDayDetail 을 부른다).
+  coastDayFrame:()=>({spots:spots.map(s=>[s.i,3]),degraded:[]}),
+  coastDayDetail:(id,t)=>{log.detail.push({id,t});return{title:'연안 '+id+' '+t,subtitle:{lat:33.5,lon:126.5},clickable:false,t};},islands:()=>({features:[]})};
  const marine=M.createStore({risk:store,dir,clock:()=>clock.now,stations:[{properties:{name:'제주파출소'},geometry}],accidents:[],describe:()=>cell});
  const app=express();
  app.use((req,res,next)=>{if(req.path.endsWith('/sea/analysis'))log.analysis.push({lon:+req.query.lon,lat:+req.query.lat});next();});
@@ -73,7 +75,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
    view:m?{c:m.getView().getCenter().map(v=>Math.round(v)),z:Math.round(m.getView().getZoom()*100)/100}:null,base:window.oceanGetBasemap&&window.oceanGetBasemap(),
    stack:window.PopupStack&&window.PopupStack.list?window.PopupStack.list():null};});
  const fire60=()=>page.evaluate(()=>{window.__iv60.forEach(fn=>{try{fn();}catch(e){}});return window.__iv60.length;});
- const riskOnFirst=async()=>{await page.evaluate(()=>{const b=document.getElementById('ocean-risk-forecast-toggle-btn');for(let i=0;i<10;i++)b.click();});await page.waitForFunction(()=>window._riskForecastApp&&window._riskForecastApp.getState().enabled&&document.querySelector('.rf-marine-timebar')&&!document.querySelector('.rf-marine-timebar').hidden,null,{timeout:10000});await settle(500);};
+ const riskOnFirst=async()=>{await page.evaluate(()=>{const b=document.getElementById('ocean-risk-forecast-toggle-btn');for(let i=0;i<10;i++)b.click();});await page.waitForFunction(()=>window._riskForecastApp&&window._riskForecastApp.getState().enabled&&document.querySelector('.rf-date-nav')&&!document.querySelector('.rf-date-nav').hidden,null,{timeout:10000});await settle(500);};
  const step=h=>page.evaluate(h=>document.querySelector('[data-time-step="'+h+'"]').click(),String(h));
  const coastPlus3=()=>T.timeline(clock.now,3,2,21)[1];
 
@@ -283,6 +285,25 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
   assert.deepEqual(fv2,fv,'바다낚시 지도 위치 그대로');
   assert.equal(await page.evaluate(()=>document.getElementById('fishing-bottomsheet').classList.contains('active')),true,'열어 둔 지점 팝업 그대로');
   await page.evaluate(()=>{document.getElementById('fishing-bottomsheet').classList.remove('active');document.getElementById('fishing-bottomsheet-overlay').classList.remove('active');});
+ });
+
+ // T24(2026-10-16 「5-하루 하나로 합치기」 + 상단 날짜 넘기기): 연안만 켜고 내일로 넘긴 날짜와 연안 시트도 탭 왕복 뒤 그대로.
+ await check('T24 연안만·내일 날짜·연안 시트 — 메인탭·하위 탭 다녀와도 상단 날짜 줄 「내일」·메인 날짜 그대로, 시트도 내일 하루 값으로 다시 열림, 다른 탭에서는 날짜 줄 숨김',async()=>{
+  await load();await tab('ocean-life-group');await settle();await riskOnFirst();
+  const tmr=T.isoKst(Date.parse(T.dateKey(clock.now+86400000)+'T00:00:00+09:00')),sheetDate="'"+tmr.slice(2,4)+'. '+Number(tmr.slice(5,7))+'. '+Number(tmr.slice(8,10))+'.';
+  await page.evaluate(()=>document.querySelector('.rf-date-nav [data-day-step="1"]').click());await page.waitForFunction(t=>window._riskForecastApp.getState().t===t,tmr);
+  await page.evaluate(()=>window._riskForecastApp.select('coast','S1'));await page.waitForFunction(t=>document.getElementById('risk-forecast-sheet').classList.contains('open')&&document.querySelector('#risk-forecast-sheet .rf-title').textContent.includes(t),tmr,{timeout:8000});
+  const nav=()=>page.evaluate(()=>{const n=document.querySelector('.rf-date-nav');return{shown:!n.hidden&&n.getClientRects().length>0,label:n.querySelector('[data-day-label]').textContent,tag:n.querySelector('[data-day-tag]').textContent};});
+  const before=await nav();assert.deepEqual([before.shown,before.tag],[true,'내일'],'전제: 연안만·내일');
+  for(const trip of ['메인탭','하위 탭']){
+   if(trip==='메인탭'){await tab('weather-group');await settle();}else await toLife();
+   assert.equal((await nav()).shown,false,trip+' — 다른 탭에서는 날짜 줄 숨김');assert.equal((await S()).sheetOpen,false);
+   if(trip==='메인탭')await tab('ocean-life-group');else await toSafety();
+   await page.waitForFunction(t=>document.getElementById('risk-forecast-sheet').classList.contains('open')&&document.querySelector('#risk-forecast-sheet .rf-title').textContent.includes(t)&&!document.getElementById('risk-forecast-sheet').hasAttribute('aria-busy'),tmr,{timeout:8000});
+   const s=await S();assert.equal(s.app.t,tmr,trip+' — 메인 날짜(내일) 그대로');assert.deepEqual(await nav(),before,trip+' — 상단 날짜 줄 그대로');
+   assert.ok((await page.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-sheet-date]').textContent)).startsWith(sheetDate),trip+' — 시트 날짜 줄도 내일');
+  }
+  await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());await settle(400);
  });
 
  await check('새로고침(앱 다시 켜기)하면 처음 상태 — 해양안전 하위탭·위험예측 꺼짐·잠김',async()=>{

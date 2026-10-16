@@ -47,9 +47,12 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'select-motion-'));
   meta:()=>{const a=axes();return{now:T.isoKst(clock.now),versions:{spots:'v1',cells:1,accident:'v1'},timeline:{sea:{times:a.sea},accident:{times:a.coast},coast:{times:a.coast}},sources:inputs.sources};},
   spots:()=>({spots}),cells:()=>({cells:[cell]}),accidentCells:()=>({v:'v1',cells:[acc]}),accidentFrame:()=>({v:'v1',cells:[[0,.001,'경계']]}),
   frame:(sea)=>sea?{cells:[[0,0,1,'낮음']],spots:[],borders:[]}:{spots:spots.map(s=>[s.i,3]),borders:[]},
-  coastDetail:(id,t)=>({title:'가짜해변',subtitle:{police:'제주파출소',office:'제주해양경찰서'},clickable:false,t}),islands:()=>({features:[]})};
+  // 연안 지도·상세 경로는 날짜당 하나(T24 — 라우터가 coastDayFrame·coastDayDetail 을 부른다).
+  coastDayFrame:()=>({spots:spots.map(s=>[s.i,3]),degraded:[]}),coastDayDetail:(id,t)=>({title:'가짜해변',subtitle:{police:'제주파출소',office:'제주해양경찰서'},clickable:false,t}),islands:()=>({features:[]})};
  const marine=M.createStore({risk:store,dir,clock:()=>clock.now,stations:[{properties:{name:'제주파출소',station:'제주해양경찰서'},geometry}],accidents:[],describe:()=>cell});
- const app=express();
+ const app=express(),reqLog={analysis:0,spot:0};
+ // T24 「나. 무시」: 열린 시트에서 누른 다른 칸이 상세를 요청하지 않는지 세려고 상세 요청을 센다.
+ app.use((req,res,next)=>{if(req.path.endsWith('/sea/analysis'))reqLog.analysis++;if(req.path.endsWith('/coast/spot'))reqLog.spot++;next();});
  app.use(createRouter({store,marine}));
  app.get('/',(req,res)=>res.send(page()));
  app.use(express.static(path.join(root,'client')));
@@ -178,11 +181,24 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'select-motion-'));
   await waitUp();const r=await recRead(),opened=r.events.find(e=>e.open);assert.ok(opened.t-c.at>=190,'0.2초 대기 전에 올라옴: '+(opened.t-c.at));
   assert.equal(await pg.evaluate(s=>document.querySelector(s+' .rf-title').textContent,SHEET),'가짜해변');
  });
- await check('열린 시트에서 다른 칸 누르기: 내리지 않고 내용만 바꿈·테두리는 새 칸으로',async()=>{
+ // T24(2026-10-16 사용자 「나. 무시」): 종전 「열린 시트에서 다른 칸 → 내용만 바꿈」을 해양종합정보처럼 「무시」로 바꿨다(ocean_map.js 「시트 열림 가드 — 사용자 합의 Q3」).
+ await check('T24 「나. 무시」 열린 시트에서 지도의 다른 칸 누르기: 무시 — 테두리·제목·선택 그대로·상세 요청 없음·누름은 위험예측이 받음',async()=>{
+  const before=await pg.evaluate(()=>({sel:selStyles(),selected:app.getState().selected})),n={...reqLog};
   await rec();const [x,y]=await px(126.545,33.57);await pg.mouse.click(x,y);const c=await pg.evaluate(()=>window.__click);
-  assert.equal(c.open,true,'시트는 열린 그대로');assert.deepEqual(c.sel.map(s=>s.type),['Polygon']);
-  await pg.waitForFunction(s=>document.querySelector(s+' .rf-title').textContent!=='가짜해변'&&!document.querySelector(s).getAttribute('aria-busy'),SHEET);
-  const r=await recRead();assert.ok(!r.events.some(e=>!e.open),'.open 이 한 번도 떨어지지 않아야 함 '+JSON.stringify(r.events));assert.equal(await ty(),0);
+  assert.equal(c.handled,true,'누름은 위험예측이 받아 아래(해양종합정보 등)로 넘기지 않는다');assert.equal(c.open,true,'시트는 열린 그대로');
+  assert.deepEqual(c.sel,before.sel,'테두리도 그대로(연안 영역·중심 고리)');await pg.waitForTimeout(500);
+  assert.equal(await pg.evaluate(s=>document.querySelector(s+' .rf-title').textContent,SHEET),'가짜해변','제목 그대로');assert.deepEqual(await pg.evaluate(()=>app.getState().selected),before.selected,'선택 그대로');
+  assert.deepEqual(reqLog,n,'상세 요청 없음');const r=await recRead();assert.deepEqual(r.events,[],'시트가 내려가거나 다시 그려지지 않음');assert.equal(await ty(),0);
+  // 같은 관광지(이미 열린 것)를 다시 눌러도 마찬가지 — 같은 위치 관광지 선택 목록으로 바뀌지 않는다.
+  const [cx,cy]=await px(126.506,33.536);await pg.mouse.click(cx,cy);assert.deepEqual((await pg.evaluate(()=>window.__click)).sel,before.sel);await pg.waitForTimeout(300);assert.deepEqual(reqLog,n);
+ });
+ await check('T24 「나. 무시」 예외: 열린 동안에도 지도 끌기·확대는 그대로 된다',async()=>{
+  const v0=await pg.evaluate(()=>map.getView().getCenter().slice()),[x,y]=await px(126.52,33.47);
+  await pg.mouse.move(x,y);await pg.mouse.down();await pg.mouse.move(x-80,y-40,{steps:8});await pg.mouse.up();await pg.waitForTimeout(200);
+  const v1=await pg.evaluate(()=>map.getView().getCenter().slice());assert.ok(Math.hypot(v1[0]-v0[0],v1[1]-v0[1])>100,'끌어서 지도가 움직였다');
+  const z0=await pg.evaluate(()=>map.getView().getZoom());await pg.mouse.move(x,y);await pg.mouse.wheel(0,-400);await pg.waitForFunction(z=>Math.abs(map.getView().getZoom()-z)>.1,z0);
+  assert.equal(await pg.evaluate(s=>document.querySelector(s).classList.contains('open'),SHEET),true,'시트는 열린 그대로');
+  await pg.evaluate(()=>{map.getView().setCenter(ol.proj.fromLonLat([126.525,33.49]));map.getView().setZoom(12.4);});await pg.waitForTimeout(300);
  });
  await check('닫는 도중 다시 누르기: 내려가다 그 자리에서 다시 올라오고 정리(숨김·비움)가 일어나지 않음',async()=>{
   await rec();await closeBtn();await pg.waitForFunction(()=>window.__rec.samples.filter(s=>!s.open&&s.y>1).length>=2);// 실제로 내려가기 시작한 뒤
@@ -198,6 +214,14 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'select-motion-'));
   assert.deepEqual((await pg.evaluate(()=>window.__sel2)).map(s=>s.type),['Polygon'],'테두리는 마지막 칸 하나');
   await waitUp();await pg.waitForFunction(s=>!document.querySelector(s).getAttribute('aria-busy'),SHEET);const r=await recRead();
   assert.equal(r.events.filter(e=>e.open).length,1,'한 번만 올라와야 함');assert.notEqual(await pg.evaluate(s=>document.querySelector(s+' .rf-title').textContent,SHEET),'가짜해변');
+ });
+ await check('T24 「나. 무시」 예외: 0.2초 대기 중(아직 열리지 않음) 지도의 다른 칸 누르기는 받아들여 마지막 것만 올라옴',async()=>{
+  await closeBtn();await waitGone();await rec();
+  const [cx,cy]=await px(126.506,33.536),[sx,sy]=await px(126.545,33.57);await pg.mouse.click(cx,cy);const a=await pg.evaluate(()=>window.__click);await pg.mouse.click(sx,sy);const b=await pg.evaluate(()=>window.__click);
+  assert.equal(a.open,false,'첫 누름 뒤 아직 열리지 않음');assert.equal(b.handled,true);assert.deepEqual(b.sel.map(s=>s.type),['Polygon'],'둘째 누름(해상 칸)의 테두리로 바뀜');
+  await waitUp();await pg.waitForFunction(s=>!document.querySelector(s).getAttribute('aria-busy'),SHEET);const r=await recRead();
+  assert.equal(r.events.filter(e=>e.open).length,1,'한 번만 올라옴');assert.notEqual(await pg.evaluate(s=>document.querySelector(s+' .rf-title').textContent,SHEET),'가짜해변','마지막 누름(해상)의 시트');
+  assert.equal(await pg.evaluate(()=>app.getState().selected.kind),'marine');
  });
  await check('0.2초 대기 중 토글을 끄면 시트는 끝내 올라오지 않고 테두리도 지워짐',async()=>{
   await closeBtn();await waitGone();await rec();

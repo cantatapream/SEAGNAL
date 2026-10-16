@@ -1,7 +1,7 @@
 /**
  * 파일명: local_server/scripts/test_risk_sheet_ui.js
  * 역할  : 휴대폰 크기 Chromium에서 위험예측 바텀시트의 하단 탭 가림 방지·고정 머리/스크롤 본문·즉시 스켈레톤과 늦은 응답 보호·고정 일시 표시·위험구역 아코디언과 보이는 지도 중앙 이동을 검사한다.
- *         2026-10-16 T7·T8: 연안 시각 막대(연안 4단계 색·범례·「지금」·「· 예보」, 범례와 꼬리표 안 겹침 380·320px), 머리 부제 줄 오른쪽 끝 [기준 상세],
+ *         2026-10-16 T8: 머리 부제 줄 오른쪽 끝 [기준 상세], (T7 연안 시각 막대는 T24 로 없앰 — 대신 연안 날짜 줄: 해양종합정보 시트 같은 < 날짜 >·「가장 높은 때 HH시 기준」·시트↔메인 날짜 함께),
  *         기준 상세 창(제목·닫기 고정 머리, 「기준 상세 — 」 없음, 링크·PDF 버튼 글자 대비 4.5:1 이상). RISK_SHEET_SHOTS=<폴더> 를 주면 380·320px 사진을 남긴다.
  * [연계] 실제 risk_forecast/sheet/slider/map_layer/format/marine + risk_forecast.css + index2.html의 --ls-bottom-chrome 규칙 / HTTP 가짜 API → verify_all.
  * [로드 순서] 독립 검사; 외부 수집·운영 키 없음. 측정값은 「측정」 줄로 남긴다.
@@ -22,12 +22,12 @@ const scored=scorer.scoreCoast(coastInput),scoredRows=scored.factors.map(r=>({..
 const zones=Array.from({length:12},(_,i)=>({id:'z'+i,place:'위험구역'+i,shape:'갯바위',class:'연안사고 위험구역',addr:'부산 수영구 광안로 '+(100+i),police:'광안리'}));
 const spots=[{i:0,id:'a',name:'광안리해수욕장',lat:35.153,lon:129.118},{i:1,id:'b',name:'해운대해수욕장',lat:35.159,lon:129.16}].map(p=>({...p,sggName:'부산',police:{name:'광안리'},geometry:{type:'Polygon',coordinates:[[[p.lon-.004,p.lat-.004],[p.lon+.004,p.lat-.004],[p.lon+.004,p.lat+.004],[p.lon-.004,p.lat+.004],[p.lon-.004,p.lat-.004]]]}}));
 /** 지점 id와 시각이 본문에 드러나는 연안 상세를 만든다. 예: detail('a',later). @param {string} id 지점 @param {string} t 시트 시각 @returns {object} 상세 응답 [연계] ← 가짜 API */
-// T7(2026-10-16): 연안 상세는 연안 시간축 각 시각의 단계(outlook)를 함께 준다 — 시각 막대 칸 색. 칸마다 다른 단계를 넣어 색이 칸에 맞게 칠해지는지 본다.
-const OUTLOOK=[[now,'평소 수준',10],[later,'다소 높음',40],[latest,'높음',80],['2026-10-16T00:00:00+09:00','매우 높음',100]].map(([forecastAt,band,index])=>({forecastAt,score:index*.03,index,band}));
+// T24(2026-10-16): 연안 상세는 날짜당 하나 — 서버가 그날 가장 높은 칸(daily.peakAt)을 준다(종전 T7 outlook 은 없앰). 오늘(10-15)은 18시, 내일(10-16)은 03시가 가장 높은 칸.
+const TOMORROW='2026-10-16T00:00:00+09:00',DAILY={'2026-10-15':{date:'2026-10-15',peakAt:later,times:[now,later,latest]},'2026-10-16':{date:'2026-10-16',peakAt:'2026-10-16T03:00:00+09:00',times:[TOMORROW]}};
 // T9(2026-10-16): 연안 상세 history(주변 연안사고). a 는 5유형 7건(기타 포함·사망 1·실종 1), b 는 0건. FIX 로 시나리오마다 바꾼다(바꾼 뒤 fresh() — 응답 캐시).
 const ACC_A=[{date:'2024-07-26',year:2024,type:'익수',death:1,missing:0,rescue:0},{date:'2023-08-01',year:2023,type:'익수',death:0,missing:0,rescue:2},{date:'2022-05-03',year:2022,type:'추락',death:0,missing:1,rescue:0},{date:'2021-09-10',year:2021,type:'고립',death:0,missing:0,rescue:3},{date:'2020-07-15',year:2020,type:'표류',death:0,missing:0,rescue:1},{date:'2020-06-02',year:2020,type:'기타',death:0,missing:0,rescue:1},{date:'2022-08-20',year:2022,type:'익수',death:0,missing:0,rescue:1}];
 const FIX={history:{a:{available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:ACC_A},b:{available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:[]}},score:{}};
-function detail(id,t){const spot=spots.find(p=>p.id===id),sc=FIX.score[id]||{score:scored.score,index:scored.index,band:scored.band};return{t,title:spot.name,subtitle:{lat:spot.lat,lon:spot.lon,police:'광안리',office:'부산해양경찰서'},history:FIX.history[id],outlook:OUTLOOK,score:sc.score,index:sc.index,band:sc.band,rr:scored.rr,fatalRr:scored.fatalRr,notices:[{key:'warning',effective:['풍랑주의보'],prelim:[]},{key:'drift',windMs:9}],missing:[],inputs:{},rows:scoredRows.map(r=>r.key==='hazard'?{...r,zones}:r).concat([{key:'event',name:'행사 '+id+'@'+t,weekend:true,rr:1.2,events:[]}])};}
+function detail(id,t){const spot=spots.find(p=>p.id===id),sc=FIX.score[id]||{score:scored.score,index:scored.index,band:scored.band};return{t,title:spot.name,subtitle:{lat:spot.lat,lon:spot.lon,police:'광안리',office:'부산해양경찰서'},history:FIX.history[id],daily:DAILY[t.slice(0,10)],score:sc.score,index:sc.index,band:sc.band,rr:scored.rr,fatalRr:scored.fatalRr,notices:[{key:'warning',effective:['풍랑주의보'],prelim:[]},{key:'drift',windMs:9}],missing:[],inputs:{},rows:scoredRows.map(r=>r.key==='hazard'?{...r,zones}:r).concat([{key:'event',name:'행사 '+id+'@'+t,weekend:true,rr:1.2,events:[]}])};}
 /** 앱과 같은 층 구조의 휴대폰 화면 HTML을 만든다. 지도 섹션(z50)·하단 탭(z60)·서브탭을 같은 쌓임으로 둔다. @returns {string} HTML [연계] ← app.get('/') */
 function page(){return '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/assets/vendor/ol/ol.css"><link rel="stylesheet" href="/js/marine-life/risk-forecast/risk_forecast.css"><style>'+
  ':root{--main-tab-height:68px;--sub-tab-height:50px}body{margin:0;background:#10223d;color:white}'+chromeRules+
@@ -103,22 +103,24 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   assert.ok(m.scrollable&&m.headMoved===0&&m.closeMoved===0&&m.closeVisible);assert.ok(Math.abs(m.sheetBottom-m.tabTop)<=.5);assert.ok(!m.lastCovered);
   await pg.evaluate(()=>document.getElementById('long-sheet').remove());
  });
- /** 시트 슬라이더를 한 칸으로 옮긴다. 예: slide(1) → input 이벤트. @param {number} n 칸 번호 @returns {Promise<void>} [연계] ← 과제6·8 */
- const slide=n=>pg.evaluate(i=>{const el=document.querySelector('#risk-forecast-sheet input[type="range"]');el.value=String(i);el.dispatchEvent(new Event('input',{bubbles:true}));},n);
- const label=()=>pg.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-time-label').textContent);
- await check('슬라이더 말풍선 없이 위 빈칸에 「\'26.mm.dd(요일) HH:mm」 고정 표시',async()=>{
-  await open('a');
-  const m=await pg.evaluate(()=>{const l=document.querySelector('#risk-forecast-sheet .rf-time-label'),w=document.querySelector('#risk-forecast-sheet .rf-st-wrap'),lr=l.getBoundingClientRect(),wr=w.getBoundingClientRect(),input=w.querySelector('input');return{tag:l.tagName,text:l.textContent,bubbles:document.querySelectorAll('.ocean-sheet-tooltip').length,above:lr.bottom<=wr.top+.5,visible:lr.width>0&&lr.height>0,valuetext:input.getAttribute('aria-valuetext')};});
-  console.log('측정 고정 일시',JSON.stringify(m));
-  assert.equal(m.tag,'OUTPUT');assert.equal(m.text,"'26.10.15(목) 15:00");assert.equal(m.bubbles,0);assert.ok(m.above&&m.visible);assert.equal(m.valuetext,m.text);
-  // T7(2026-10-16): 연안도 미래 시각이면 「 · 예보」(해상과 같음)
-  await slide(1);assert.equal(await label(),"'26.10.15(목) 18:00 · 예보");await slide(3);assert.equal(await label(),"'26.10.16(금) 00:00 · 예보");
-  await pg.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-16T00:00:00+09:00'));
+ // T24(2026-10-16 「5-하루 하나로 합치기. 해당구역을 클릭하면 해양종합정보의 바텀시트처럼 일 시 왼쪽 오른쪽에 < > 버튼 만들어서 넘길 수 있도록.」):
+ //   종전 과제8(연안 시트 슬라이더 위 고정 일시)·시트 시각 격리 사례를 연안 날짜 줄 사례로 바꿨다 — 과제8·시각 격리는 해상 시트에 그대로(test_risk_main_time·test_risk_sea_sheet_ui).
+ /** 연안 시트 날짜 줄을 누른다. 예: day(1) → > . @param {number} d -1·1 @returns {Promise<void>} [연계] ← T24 사례 */
+ const day=d=>pg.evaluate(d=>document.querySelector('#risk-forecast-sheet [data-sheet-day="'+d+'"]').click(),String(d));
+ const dayRow=()=>pg.evaluate(()=>{const tl=document.querySelector('#risk-forecast-sheet .rf-timeline');return{hidden:tl.hidden,date:(tl.querySelector('[data-sheet-date]')||{}).textContent,peak:(tl.querySelector('[data-sheet-peak]')||{}).textContent,prev:tl.querySelector('[data-sheet-day="-1"]').disabled,next:tl.querySelector('[data-sheet-day="1"]').disabled,slider:tl.querySelectorAll('input[type="range"]').length,label:tl.querySelectorAll('.rf-time-label').length,stTrack:tl.querySelectorAll('.rf-st-track').length,bubbles:document.querySelectorAll('.ocean-sheet-tooltip').length,top:document.querySelector('.rf-date-nav [data-day-label]').textContent};});
+ await check('T24 연안 시트: 시각 막대 대신 날짜 줄 < \'26. 10. 15.(목) > ·둘째 줄 「가장 높은 때 18시 기준」·오늘이면 < 비활성, 연안 시각 막대·말풍선 없음',async()=>{
+  await open('a');const r=await dayRow();console.log('측정 T24 연안 날짜 줄',JSON.stringify(r));
+  assert.deepEqual(r,{hidden:false,date:"'26. 10. 15.(목)",peak:'가장 높은 때 18시 기준',prev:true,next:false,slider:0,label:0,stTrack:0,bubbles:0,top:'10월 15일 (목)'});
+  assert.ok(requests.filter(x=>x.name==='coast/spot').every(x=>x.q.t===now),'오늘은 지금(첫 칸) 시각으로 요청');
  });
- await check('시트 시각을 바꿔도 메인 시각은 그대로·닫고 다른 지점은 메인 시각(15시)으로 시작',async()=>{
-  assert.equal(await pg.evaluate(()=>app.getState().t),now);
+ await check('T24 시트 > → 내일(내일 00시로 요청)·상단 날짜 줄도 내일·> 비활성 — 시트 < → 오늘, 닫고 다른 지점도 메인 날짜로 시작',async()=>{
+  await day(1);await pg.waitForFunction(t=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@'+t),TOMORROW);
+  let r=await dayRow();assert.deepEqual([r.date,r.peak,r.prev,r.next,r.top],["'26. 10. 16.(금)",'가장 높은 때 03시 기준',false,true,'10월 16일 (금)'],'시트에서 넘기면 상단 날짜도 함께');
+  assert.equal(await pg.evaluate(()=>app.getState().t),TOMORROW,'메인 시각 = 내일 첫 칸(00시) — 연안만이면 항행경보처럼 「그 외 날짜는 00:00」');
   await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());await open('b');
-  assert.equal(await label(),"'26.10.15(목) 15:00");assert.equal(await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet input[type="range"]').value),'0');assert.equal(await pg.evaluate(()=>app.getState().t),now);
+  r=await dayRow();assert.deepEqual([r.date,r.prev,r.next],["'26. 10. 16.(금)",false,true],'다른 지점도 메인 날짜(내일)로 시작');assert.equal(requests.filter(x=>x.name==='coast/spot').at(-1).q.t,TOMORROW);
+  await day(-1);await pg.waitForFunction(t=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@'+t),now);
+  r=await dayRow();assert.deepEqual([r.date,r.peak,r.prev,r.next,r.top],["'26. 10. 15.(목)",'가장 높은 때 18시 기준',true,false,'10월 15일 (목)']);assert.equal(await pg.evaluate(()=>app.getState().t),now,'오늘로 돌아오면 지금');
  });
  // ── 과제6: 즉시 시트 열기(회색 틀)와 늦은 응답 보호. 응답 캐시(60초)를 피하려고 시나리오마다 새로 불러온다. ──
  /** 페이지를 새로 불러와 앱을 다시 올린다(API 응답 캐시 초기화). 예: await fresh(). @returns {Promise<void>} [연계] ← 과제6 시나리오 */
@@ -128,18 +130,19 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   await fresh();const release=hold('a|'+now);await pg.evaluate(()=>app.select('coast','a'));
   await waitUp();const st=await sheetState();console.log('측정 응답 대기 중 시트',JSON.stringify({open:st.open,skeleton:st.skeleton,title:st.title,bottom:st.bottom,stack:st.stack}));
   assert.ok(st.open&&st.skeleton&&st.busy==='true');assert.equal(st.title,'광안리해수욕장');assert.equal(st.rows,0);assert.ok(!st.index);assert.deepEqual(st.stack,['risk-forecast-sheet']);assert.equal(st.bottom,847);
-  assert.equal(await pg.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-time-label').length),1,'응답 전에도 시각 조작은 보임');
+  assert.deepEqual(await pg.evaluate(()=>[document.querySelectorAll('#risk-forecast-sheet [data-sheet-day]').length,document.querySelector('#risk-forecast-sheet [data-sheet-date]').textContent,document.querySelector('#risk-forecast-sheet [data-sheet-peak]').textContent]),[2,"'26. 10. 15.(목)",''],'응답 전에도 날짜 줄은 보이고(T24), 가장 높은 칸은 응답 뒤에');
   release();await waitTitle('광안리해수욕장');const done=await sheetState();assert.ok(!done.skeleton&&done.busy===null&&done.rows>3);
  });
  await check('응답을 기다리는 동안 다른 지점을 누르면 늦게 온 먼저 누른 지점의 응답은 화면에 나오지 않음',async()=>{
   await fresh();const release=hold('a|'+now);await pg.evaluate(()=>{app.select('coast','a');app.select('coast','b');});await waitTitle('해운대해수욕장');
   release();await pg.waitForTimeout(300);const st=await sheetState();assert.equal(st.title,'해운대해수욕장');assert.ok(st.body.includes('행사 b@'+now)&&!st.body.includes('행사 a@'),'엉뚱한 지점 내용');
  });
- await check('응답을 기다리는 동안 시트 시각을 바꾸면 회색 틀을 다시 보이고 이전 시각의 늦은 응답은 나오지 않음',async()=>{
-  await fresh();await open('a');const release=hold('a|'+later);await slide(1);
-  const st=await sheetState();assert.ok(st.skeleton&&st.title==='광안리해수욕장'&&st.rows===0,'시각 변경 직후 회색 틀 '+JSON.stringify({skeleton:st.skeleton,rows:st.rows}));assert.equal(await label(),"'26.10.15(목) 18:00 · 예보");
-  await slide(2);await pg.waitForFunction(t=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@'+t),latest);
-  release();await pg.waitForTimeout(300);const end=await sheetState();assert.ok(end.body.includes('@'+latest)&&!end.body.includes('@'+later),'이전 시각 내용 섞임');assert.equal(await pg.evaluate(()=>app.getState().t),now);
+ // T24: 종전 「시트 시각을 바꾸면 …」(연안 슬라이더)을 연안 날짜 넘기기로 바꿨다 — 같은 늦은 응답 보호(detail 의 세대·요청 시각 검사).
+ await check('응답을 기다리는 동안 날짜를 넘기면 회색 틀을 다시 보이고, 다시 돌아온 뒤 늦게 온 앞 날짜 응답은 나오지 않음',async()=>{
+  await fresh();await open('a');const release=hold('a|'+TOMORROW);await day(1);
+  const st=await sheetState();assert.ok(st.skeleton&&st.title==='광안리해수욕장'&&st.rows===0,'날짜 변경 직후 회색 틀 '+JSON.stringify({skeleton:st.skeleton,rows:st.rows}));assert.equal((await dayRow()).date,"'26. 10. 16.(금)");assert.equal((await dayRow()).peak,'','옛 날짜의 「가장 높은 때」를 남기지 않음');
+  await day(-1);await pg.waitForFunction(t=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@'+t),now);
+  release();await pg.waitForTimeout(300);const end=await sheetState();assert.ok(end.body.includes('@'+now)&&!end.body.includes('@'+TOMORROW),'늦게 온 내일 응답이 섞임');assert.equal(await pg.evaluate(()=>app.getState().t),now);assert.equal((await dayRow()).peak,'가장 높은 때 18시 기준');
  });
  await check('응답을 기다리는 동안 시트를 닫으면 늦은 응답이 시트를 다시 열지 않음',async()=>{
   await fresh();const release=hold('a|'+now);await pg.evaluate(()=>app.select('coast','a'));await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());
@@ -198,28 +201,33 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  // ── T7·T8(2026-10-16): 실제 앱처럼 공용 style.css 를 risk_forecast.css 앞에 얹고(✕ 크기·전역 여백 0) 연안 시각 막대·머리 [기준 상세]·기준 상세 창을 잰다.
  //    앞 검사들의 측정값을 바꾸지 않으려고 맨 끝에서 얹는다. ──
  const SHOTS=process.env.RISK_SHEET_SHOTS||'';if(SHOTS)fs.mkdirSync(SHOTS,{recursive:true});
- await pg.evaluate(()=>new Promise(res=>{const l=document.createElement('link');l.rel='stylesheet';l.href='/style.css';l.onload=res;l.onerror=res;document.head.insertBefore(l,document.querySelector('link[href*="risk_forecast.css"]'));const st=document.createElement('style');st.textContent='body{display:block}body::before{display:none!important}';document.head.appendChild(st);}));
+ /** 공용 style.css 를 risk_forecast.css 앞에 얹는다(실제 앱 순서). 새로 불러오면(fresh) 빠지므로 그 뒤에 다시 부른다. @returns {Promise<void>} [연계] ← T8·T24 */
+ const withStyle=()=>pg.evaluate(()=>new Promise(res=>{const l=document.createElement('link');l.rel='stylesheet';l.href='/style.css';l.onload=res;l.onerror=res;document.head.insertBefore(l,document.querySelector('link[href*="risk_forecast.css"]'));const st=document.createElement('style');st.textContent='body{display:block}body::before{display:none!important}';document.head.appendChild(st);}));
+ await withStyle();
  /** 시트 머리를 잰다: [기준 상세]·✕·부제·시각 줄, 「지금」 꼬리표와 범례 항목, 버튼을 숨겼을 때의 시각 줄 위치. @returns {Promise<object>} 측정값 [연계] ← T7·T8 */
  const headM=()=>pg.evaluate(()=>{const s=document.getElementById('risk-forecast-sheet'),q=x=>s.querySelector(x),r=e=>{const b=e.getBoundingClientRect();return{l:+b.left.toFixed(1),r:+b.right.toFixed(1),t:+b.top.toFixed(1),b:+b.bottom.toFixed(1)};};
   const btn=q('.rf-head-basis'),sub=q('.rf-subtitle'),tl=q('.rf-timeline'),now=q('.rf-st-now'),row=q('.rf-sub-row');
   // 버튼이 시각 줄을 밀지 않는지: 부제 줄 높이 = 부제 글자 높이(버튼이 줄을 키우지 않음), 그리고 한 줄짜리 짧은 부제로 바꿔 버튼 있을 때·없을 때 시각 줄 위치가 같은지.
   const text=sub.textContent;sub.textContent='광안리파출소 관할';const shortTop=tl.getBoundingClientRect().top;btn.hidden=true;const shortTopNoBtn=tl.getBoundingClientRect().top;btn.hidden=false;sub.textContent=text;
-  return{btn:r(btn),btnH:+btn.getBoundingClientRect().height.toFixed(1),hidden:btn.hidden,basis:btn.dataset.basis,close:r(q('.rf-close')),sub:r(sub),subLines:Math.round(sub.getBoundingClientRect().height/parseFloat(getComputedStyle(sub).lineHeight)),rowH:+row.getBoundingClientRect().height.toFixed(2),subH:+sub.getBoundingClientRect().height.toFixed(2),shortTop,shortTopNoBtn,now:now&&r(now),keys:[...q('.rf-st-key').children].map(r),key:q('.rf-st-key').textContent,sheet:r(s),cardBtn:s.querySelectorAll('.rf-body [data-basis]').length,cardPad:q('.rf-index')?getComputedStyle(q('.rf-index')).paddingTop:null};});
+  return{btn:r(btn),btnH:+btn.getBoundingClientRect().height.toFixed(1),hidden:btn.hidden,basis:btn.dataset.basis,close:r(q('.rf-close')),sub:r(sub),subLines:Math.round(sub.getBoundingClientRect().height/parseFloat(getComputedStyle(sub).lineHeight)),rowH:+row.getBoundingClientRect().height.toFixed(2),subH:+sub.getBoundingClientRect().height.toFixed(2),shortTop,shortTopNoBtn,now:now&&r(now),keys:q('.rf-st-key')?[...q('.rf-st-key').children].map(r):[],key:q('.rf-st-key')?q('.rf-st-key').textContent:null,day:q('.rf-sheet-day')&&{row:r(q('.rf-sheet-day')),btns:[...q('.rf-sheet-day').querySelectorAll('button')].map(b=>({...r(b),w:+b.getBoundingClientRect().width.toFixed(1),h:+b.getBoundingClientRect().height.toFixed(1),op:getComputedStyle(b).opacity,dis:b.disabled})),solar:r(q('.ocean-sheet-solar')),solarFont:getComputedStyle(q('.ocean-sheet-solar')).fontSize,peakFont:getComputedStyle(q('.ocean-sheet-lunar')).fontSize,sheetW:s.getBoundingClientRect().width,clip:[...q('.rf-sheet-day').querySelectorAll('*')].filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.className)},sheet:r(s),cardBtn:s.querySelectorAll('.rf-body [data-basis]').length,cardPad:q('.rf-index')?getComputedStyle(q('.rf-index')).paddingTop:null};});
  /** 머리 측정값을 판정한다. @param {object} m headM 결과 @param {string} kind 'coast' @returns {void} [연계] ← T7·T8 */
  const judgeHead=(m,kind)=>{assert.equal(m.hidden,false);assert.equal(m.basis,kind);assert.ok(Math.abs(m.btn.r-m.close.r)<=6,'버튼 오른쪽 끝이 ✕ 오른쪽 끝과 맞음 '+m.btn.r+' vs '+m.close.r);assert.ok(m.btn.t>=m.close.b-.5,'버튼이 ✕ 아래 '+m.btn.t+' < '+m.close.b);
   assert.ok(m.sub.r<=m.btn.l-4,'부제가 버튼 자리를 침범 '+m.sub.r+' > '+m.btn.l);assert.ok(Math.abs(m.rowH-m.subH)<.5,'버튼이 부제 줄을 키움 '+m.rowH+' vs '+m.subH);assert.ok(Math.abs(m.shortTop-m.shortTopNoBtn)<.5,'한 줄 부제에서 버튼이 시각 줄을 밀어냄 '+m.shortTop+' vs '+m.shortTopNoBtn);assert.ok(m.btnH>=24,'누르는 곳 높이 '+m.btnH);
-  assert.ok(m.now,'「지금」 꼬리표');assert.ok(m.keys[0].l>=m.now.r+1,'범례가 「지금」 꼬리표와 겹침 '+m.keys[0].l+' < '+m.now.r);assert.ok(m.keys.at(-1).r<=m.sheet.r-4,'범례 끝이 시트 밖 '+m.keys.at(-1).r);};
- await check('T7 연안 시각 막대: 연안 4단계 색·범례 「평소 수준·다소 높음·높음·매우 높음」·「지금」·칸 색은 outlook 단계',async()=>{
-  await pg.setViewportSize({width:380,height:820});await fresh();await open('a');
-  const r=await pg.evaluate(()=>{const tl=document.querySelector('#risk-forecast-sheet .rf-timeline'),seg=[...tl.querySelectorAll('.rf-st-track span')];return{risk:tl.classList.contains('rf-risk-time'),key:[...tl.querySelectorAll('.rf-st-key span')].map(s=>[s.textContent,getComputedStyle(s.querySelector('i')).backgroundColor]),levels:seg.map(x=>x.dataset.level||'-'),bg:seg.map(x=>getComputedStyle(x).backgroundColor),now:tl.querySelector('.rf-st-now')&&tl.querySelector('.rf-st-now').textContent,day:[...tl.querySelectorAll('.rf-st-lab em.day')].map(e=>e.textContent),label:tl.querySelector('.rf-time-label').textContent};});
-  console.log('측정 T7 연안 막대',JSON.stringify(r));
-  assert.equal(r.risk,true);assert.deepEqual(r.key,[['평소 수준','rgb(47, 179, 107)'],['다소 높음','rgb(242, 194, 48)'],['높음','rgb(251, 146, 60)'],['매우 높음','rgb(224, 50, 44)']]);
-  assert.deepEqual(r.levels,['평소 수준','다소 높음','높음']);assert.deepEqual(r.bg,['rgb(47, 179, 107)','rgb(242, 194, 48)','rgb(251, 146, 60)']);assert.equal(r.now,'지금');assert.deepEqual(r.day,['10.16(금)']);assert.equal(r.label,"'26.10.15(목) 15:00");
+  if(kind!=='coast'){assert.ok(m.now,'「지금」 꼬리표');assert.ok(m.keys[0].l>=m.now.r+1,'범례가 「지금」 꼬리표와 겹침 '+m.keys[0].l+' < '+m.now.r);assert.ok(m.keys.at(-1).r<=m.sheet.r-4,'범례 끝이 시트 밖 '+m.keys.at(-1).r);}
+  // T24: 연안은 시각 막대 대신 날짜 줄 — 시트 가운데, 버튼은 해양종합정보 시트와 같은 28px(style.css .ocean-date-nav-btn)·비활성 opacity .3, ✕·부제 줄 아래, 글자 안 잘림
+  else{const d=m.day;assert.ok(d,'연안 날짜 줄');assert.equal(m.now,null,'연안 「지금」 꼬리표(시각 막대) 없음');assert.ok(Math.abs((d.row.l+d.row.r)/2-(m.sheet.l+m.sheet.r)/2)<=2,'날짜 줄이 시트 가운데 '+JSON.stringify(d.row));assert.deepEqual(d.btns.map(b=>[b.w,b.h]),[[28,28],[28,28]],'해양종합정보 날짜 버튼과 같은 28px');
+   assert.deepEqual(d.btns.map(b=>[b.dis,b.op]),[[true,'0.3'],[false,'1']],'오늘: < 비활성(opacity .3 — 해양종합정보 :disabled 와 같음)');assert.ok(d.row.t>=m.close.b&&d.row.t>=m.sub.b,'날짜 줄은 ✕·부제 아래');assert.ok(d.btns.every(b=>b.l>=m.sheet.l&&b.r<=m.sheet.r),'버튼이 시트 안');assert.deepEqual(d.clip,[],'잘린 글자 없음');}};
+ // T24(2026-10-16): 종전 「T7 연안 시각 막대」 사례를 없앴다 — 연안은 시각 막대 대신 날짜 줄(아래 380·320px 머리 사례가 모양을 잰다).
+ await check('T24 연안 시트에 T7 시각 막대(연안 4단계 색 칸·범례·「지금」)가 없고, 날짜 줄은 해양종합정보 시트 날짜(.ocean-sheet-solar 글자 크기)와 같은 꼴',async()=>{
+  await pg.setViewportSize({width:380,height:820});await fresh();await withStyle();await open('a');   // 날짜 줄 모양은 style.css(해양종합정보 시트 규칙)에서 온다 — 새로 불러온 뒤 다시 얹는다
+  const r=await pg.evaluate(()=>{const tl=document.querySelector('#risk-forecast-sheet .rf-timeline');return{risk:tl.classList.contains('rf-risk-time'),track:tl.querySelectorAll('.rf-st-track,.rf-st-key,.rf-st-now').length,classes:[...tl.querySelectorAll('[class]')].map(e=>e.className),solar:getComputedStyle(tl.querySelector('.ocean-sheet-solar')).fontSize,ocean:(()=>{const o=document.createElement('div');o.className='ocean-sheet-solar';document.body.appendChild(o);const f=getComputedStyle(o).fontSize;o.remove();return f;})()};});
+  console.log('측정 T24 연안 날짜 줄',JSON.stringify(r));
+  assert.equal(r.risk,false);assert.equal(r.track,0);assert.ok(['ocean-date-nav-inline rf-sheet-day','ocean-date-nav-btn','ocean-sheet-date-stack','ocean-sheet-solar','ocean-sheet-lunar'].every(c=>r.classes.includes(c)),'해양종합정보 시트 날짜 줄 클래스 그대로 '+r.classes);assert.equal(r.solar,r.ocean,'날짜 글자 크기 = 해양종합정보 시트 날짜');
  });
- for(const width of [380,320])await check('T7·T8 연안 '+width+'px: [기준 상세]는 부제 줄 오른쪽 끝·✕ 아래, 시각 줄을 밀지 않음, 범례와 「지금」 꼬리표 안 겹침',async()=>{
+ for(const width of [380,320])await check('T8·T24 연안 '+width+'px: [기준 상세]는 부제 줄 오른쪽 끝·✕ 아래, 날짜 줄을 밀지 않음, 날짜 줄은 가운데·28px 버튼·잘림 없음',async()=>{
   await pg.setViewportSize({width,height:width===320?568:820});await pg.waitForTimeout(150);const m=await headM();console.log('측정 T8 연안 머리 '+width+'px',JSON.stringify(m));
   judgeHead(m,'coast');assert.equal(m.cardBtn,0,'위험지수 카드 안 [기준 상세] 없음');assert.equal(m.cardPad,'10px','버튼 자리 여백(34px) 없앰');
-  if(SHOTS)await pg.locator('#risk-forecast-sheet .rf-sheet-head').screenshot({path:path.join(SHOTS,'coast_head_slider_'+width+'.png')});
+  if(SHOTS)await pg.locator('#risk-forecast-sheet .rf-sheet-head').screenshot({path:path.join(SHOTS,'coast_head_day_'+width+'.png')});
  });
  await check('T8 [기준 상세] 누르면 기준 상세 창: 제목 「연안 위험지수」(「기준 상세 — 」 없음), 제목·닫기는 스크롤해도 제자리, 첫 초점 닫기',async()=>{
   await pg.setViewportSize({width:380,height:820});await pg.click('#risk-forecast-sheet .rf-head-basis');await pg.waitForSelector('.rf-basis');

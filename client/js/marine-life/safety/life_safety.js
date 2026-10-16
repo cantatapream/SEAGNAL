@@ -870,7 +870,21 @@
         //   관제구역→항로·해역)과 똑같이 맞춘다. 예전에는 물빠짐·CCTV·노출암간출암 본문을
         //   해양종합정보 안내(window.oceanInfoTabHtml)에서 빌려 썼는데, 두 화면의 동작이
         //   서로 달라(해양종합정보에는 그 버튼이 이제 아예 없다) 여기서 따로 쓴다.
+        //   [2026-10-16] 맨 앞에 위험예측 탭을 더했다 — 그 버튼이 이 화면 맨 위(risk_forecast.css order:0)라서.
         var items = [
+            // 위험예측[2026-10-16 사용자 「안내 버튼을 보면 매뉴별 내용이 있는데 그 내용에 위험예측에 관한
+            //   내용이 들어가도록 해줘. 내용은 기존에 작성되어있던 내용을 참고하여 반영해. 길게쓸 필요는 없어. 주요내용만.」]
+            //   ★문장은 risk_basis_content.js(기준 상세)·risk-forecast/README.md·공개 산출근거 보고서에서
+            //     확인한 것만 옮겼다. 연안은 「하루 하나·날짜 넘기기」로 바뀌는 중이라 시간 단위를 「날짜별」로만 적는다.
+            { id: 'riskforecast', label: '위험예측', html:
+                '<p><i class="fa-solid fa-circle-check"></i> 바다와 해안의 사고 위험을 <strong>오늘·내일</strong> 미리 보여 줍니다. 켜면 화면 왼쪽 위에 <strong>「연안 위험 예측·분석」</strong>·<strong>「해상 위험 예측·분석」</strong> 스위치가 생깁니다(처음에는 연안만 켜집니다). 배경지도는 <strong>위성지도로 자동 전환</strong>되고, 끄면 원래대로 돌아갑니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>해상</strong> — 한국해양교통안전공단(MTIS)의 공식 <strong>선박 사고위험 예보</strong>를 바다 칸에 색으로 칠합니다. 단계는 공단 것을 그대로 쓰는 <strong>낮음·보통·주의·경계</strong> 4단계(초록·노랑·주황·빨강)입니다. 해상 스위치 아래 <strong>[혼잡도]</strong>를 고르면 선박 <strong>교통혼잡</strong>(지금은 실시간 밀집도, 이후 시각은 공단 혼잡예보)을 같은 네 색으로 봅니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>연안</strong> — 해안 관광지마다 주변 3km에서 연안 사고(익수·추락·고립·표류)가 기준이 되는 평범한 날보다 몇 배 일어나기 쉬운지를 <strong>0~100 위험지수</strong>로 나타냅니다. 단계는 <strong>평소 수준·다소 높음·높음·매우 높음</strong> 4단계(초록·노랑·주황·빨강)입니다.</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> 지도에서 <strong>바다 칸</strong>이나 <strong>관광지</strong>를 누르면 아래에서 상세 시트가 올라와 단계와 그 근거·과거 사고 등을 보여 줍니다. 시트 위쪽 <strong>[기준 상세]</strong>에서 계산 기준을 확인할 수 있습니다(연안은 산출 근거 보고서 PDF도 받을 수 있습니다).</p>'
+              + '<p><i class="fa-solid fa-circle-check"></i> <strong>해상</strong>은 화면 아래 <strong>시간 버튼(-6H·-3H·현재·+3H·+6H)</strong>으로 3시간 간격 예보를 넘겨 보고, <strong>연안</strong>은 <strong>날짜별</strong>로 봅니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 과거 자료에 기반한 <strong>참고 정보</strong>이며 실제 상황과 차이가 날 수 있습니다. 해상 단계와 연안 위험지수 모두 <strong>사고 확률이 아니며</strong>, 연안 위험지수가 낮아도 「안전」이 아니라 <strong>「평소 수준」</strong>이라는 뜻입니다.</p>'
+              + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>연안 위험지수에는 기상특보가 들어 있지 않습니다.</strong> 특보 날에는 상세 시트에 문구로 따로 알립니다.</p>'
+              + '<div class="ocean-info-src">출처 · 한국해양교통안전공단 MTIS(선박 사고위험·혼잡 예보, 실시간 교통) · 한국관광공사 관광지 집중률 예측 · 해양경찰청 연안위험구역 · 국립해양조사원 개방海(연안 인명사고) · 기상청</div>' },
             // 위험지형[S28, 2026-09-09] — 옛 "노출암·간출암" 두 버튼이 하나로 합쳐졌고
             //   갯바위(면)가 새로 생겼으며 동해는 잠김경고에서 빠졌다.
             { id: 'hazardrock', label: '위험지형', html:
