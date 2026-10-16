@@ -8,6 +8,8 @@
  *         배경지도(기본맵·전자해도·해안도·세계지도)를 해양종합정보와 같은 방식으로 고른다.
  *         여기에 더해 위성지도(브이월드)는 시험 단계라 이 화면에서만 고를 수 있다.
  *         탭이 새로 생긴 것을 알리는 빨간 N 배지도 여기서 붙인다(배포일 포함 3일간만).
+ *         다른 메인탭에 다녀와도 마지막 화면(켜 둔 버튼·위험예측 상태·지도 위치·배경·시트)을 메모리로만
+ *         기억했다가 되살린다(2026-10-16 — 새로고침하면 처음 상태).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 해아름 WMS 레이어,
@@ -16,7 +18,8 @@
  *                    marine-life/*(fishing·surfing·scuba·mudflat·sea_parting·swimming — 활동 로직 그대로 재사용),
  *                    forecast/alerts/marine.js(TAB_GROUP_SUBTABS·SECTION_TO_GROUP·switchSubTab)
  *  - 서버 API      : 없음 (활동별 데이터 호출은 각 활동 모듈이 기존대로 담당)
- *                    risk-forecast/risk_forecast.js — 단독 오버레이 및 시트 가시성 조율
+ *                    risk-forecast/risk_forecast.js — 단독 오버레이 및 시트 가시성 조율,
+ *                    탭 왕복 시 window._riskForecastApp.getState()·synced()·select() 로 시트 다시 열기
  *  - 마크업        : index2.html 의 #ocean-safety-section, #ocean-safety-sub-tabs,
  *                    #ls-topleft-controls, #ls-rail,
  *                    .main-tabs .tab-btn[data-target="ocean-life-group"](N 배지를 붙이는 탭) ·
@@ -84,6 +87,8 @@
     var _lastView = null;       // 활동을 바꿔도 지도 위치가 이어지도록 기억 {center, zoom}
     var _decorated = [];        // 배경지도 레이어를 이미 끼워 넣은 지도 목록(중복 방지)
     var _suspended = [];        // 해양안전 진입 때 잠시 꺼둔 해양종합정보 오버레이 버튼들
+    var _parkedSafety = null;   // 해양안전에서 다른 메인탭으로 떠날 때 기억한 화면(_parkSafety) — 돌아오면 되살린다
+    var _keepOverlays = false;  // 해양안전을 보던 중 같은 탭을 다시 누른 경우 — 켜 둔 버튼을 끄지 않는다
 
     // ========================================================================
     // 1. 화면 준비 — 해양안전생활은 정식 탭이다
@@ -156,6 +161,10 @@
         document.body.classList.add('ocean-map-active', 'ls-safety');
         document.body.classList.remove('ls-life');
 
+        // 해양안전을 보던 중 같은 탭을 다시 누른 것이면(서브탭 바를 펼치려는 누름) 화면이 그대로여야
+        // 하므로 아래 정리(버튼 끄기·팝업 닫기)를 건너뛴다 — _wrapTabSwitchers() 의 _keepOverlays.
+        if (_keepOverlays) { _reviveOceanMap(); return; }
+
         // 해양종합정보에서 켜 둔 오버레이(특보구역·해구도 등)가 따라오지 않게 끈다
         _suspendOceanOverlays();
         // 해양종합정보에서 열어 둔 상세정보 팝업(#seagnal-custom-modal)도 같이 넘어오지
@@ -167,6 +176,9 @@
         setTimeout(function () {
             if (window.initOceanMap) window.initOceanMap();
             _reviveOceanMap();
+            // 다른 메인탭에 다녀온 것이면 떠날 때의 화면을 되살린다(2026-10-16) — 그 사이 다시
+            // 떠났으면(200ms 안) 되살리지 않고 기억을 그대로 둔다.
+            if (_isSafetyShown()) _unparkSafety();
         }, 200);
     }
 
@@ -273,6 +285,127 @@
         // 해양안전에서 열어 둔 팝업(#seagnal-custom-modal)이 진짜 해양종합정보로 그대로
         // 넘어오지 않게 닫는다 — _enterSafety() 의 반대 방향 누락분
         if (typeof window.closeSeagnalModal === 'function') window.closeSeagnalModal();
+    }
+
+    // ========================================================================
+    // 1-3. 다른 메인탭에 다녀와도 해양안전 화면 유지 (사용자 확정 2026-10-16)
+    // ========================================================================
+    //   사용자 원문: 「해양안전생활 탭에서 어떤 버튼을 클릭하여 화면을 표출해놓고 예를 들어 위험예측.
+    //   그 상태에서 해양종합정보나 다른 탭을 갔다오면 해양안전생활 화면이 초기화되는데 가장 마지막에
+    //   했던 화면 상태로 유지해줘. 단 앱을 껐다가 켜면 초기화상태로 시작.」
+    //   - 기억은 이 파일의 변수(_parkedSafety)에만 둔다 — localStorage 를 쓰지 않으므로 새로고침·앱
+    //     재시작이면 처음 상태로 시작한다.
+    //   - 떠날 때 켜 둔 버튼을 **실제로 끈다**(그 버튼을 대신 눌러 각 기능의 정리 절차를 그대로 쓴다).
+    //     그래야 위험예측 60초 갱신·잠김경고 폴링 같은 타이머가 다른 탭에서 돌지 않고, 같은 지도를
+    //     빌려 쓰는 해양종합정보에 층이 남지 않는다. 돌아오면 다시 눌러 켜므로 자료도 새로 받는다.
+
+    /**
+     * 지금 화면이 해양안전생활 > 해양안전(빌려 쓴 지도)인가.
+     * 예: 해양안전에서 위험예측을 보는 중 → true · 해양생활(바다낚시) · 특보정보 → false
+     * @returns {boolean}
+     * [연계] ← _parkSafety()·_enterSafety()·_wrapTabSwitchers() — body[data-active-tab](index2_patch.js)와
+     *          body.ls-safety(_enterSafety)를 함께 봐야 진짜 해양종합정보 탭과 구분된다.
+     */
+    function _isSafetyShown() {
+        var oceanSec = document.getElementById('ocean-map-section');
+        return document.body.getAttribute('data-active-tab') === 'ocean-life-group' &&
+               document.body.classList.contains('ls-safety') &&
+               !!(oceanSec && oceanSec.classList.contains('active'));
+    }
+
+    /**
+     * 해양안전을 떠나기 직전 화면(켜 둔 버튼·지도 위치·배경지도·위험예측 시트)을 기억하고 버튼을 끈다.
+     * 예: 위험예측(해상 ON·+6H)을 켠 채 특보정보 탭을 누름 → {btns:['ocean-risk-forecast-toggle-btn'],
+     *     view:{…}, shownBase:'vworld', preBase:'rltm', riskSel:null} 를 기억하고 위험예측을 끈다.
+     * 위험예측 안의 상태(연안/해상·[혼잡도/위험 예측]·조회 시각)는 위험예측 모듈이 끄고 켜는 동안에도
+     * 그대로 들고 있으므로(setEnabled 는 그 값을 지우지 않는다) 여기서 따로 적지 않는다.
+     * [연계] ← _wrapTabSwitchers() 의 switchMainTab 래퍼 — 해양안전 밖으로 나가는 탭 전환 직전
+     *          → 각 오버레이 버튼 click(끄기) · window._riskForecastApp.getState() (risk_forecast.js)
+     *          → _unparkSafety() 가 되살린다
+     */
+    function _parkSafety() {
+        if (!_isSafetyShown()) return;
+        // 되살리기(200ms 뒤) 전에 또 떠났으면 아직 아무것도 안 켰으므로 먼저 기억한 것을 그대로 둔다
+        if (_parkedSafety) return;
+        var snap = { btns: [], view: null, shownBase: null, preBase: null, riskSel: null };
+        var map = window.getOceanMap && window.getOceanMap();
+        if (map && map.getView) {
+            try {
+                var v = map.getView();
+                snap.view = { center: v.getCenter(), zoom: v.getZoom(), rotation: v.getRotation() };
+            } catch (e) { /* 지도가 아직 준비 전이면 위치는 기억하지 않는다 — 돌아와도 지금 위치 그대로 */ }
+        }
+        if (typeof window.oceanGetBasemap === 'function') snap.shownBase = window.oceanGetBasemap();
+        var app = window._riskForecastApp;
+        if (app && app.getState) {
+            var st = app.getState();
+            if (st.enabled && st.selected) snap.riskSel = st.selected;   // {kind,id,location}
+        }
+        var on = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
+        for (var i = 0; i < on.length; i++) { if (on[i].id) snap.btns.push(on[i].id); }
+        _silently(function () {
+            for (var j = 0; j < snap.btns.length; j++) {
+                var b = document.getElementById(snap.btns[j]);
+                // 앞 버튼을 끄면서 함께 꺼졌을 수 있다(위험지형 → 숨은 노출암·간출암 버튼)
+                if (b && b.classList.contains('active')) b.click();
+            }
+        });
+        // 버튼을 끄면 각 기능이 켜기 전 배경으로 되돌린다 — 그 배경이 "버튼을 켜기 전" 배경이다
+        if (typeof window.oceanGetBasemap === 'function') snap.preBase = window.oceanGetBasemap();
+        _parkedSafety = snap;
+    }
+
+    /**
+     * _parkSafety() 가 기억한 해양안전 화면을 되살린다.
+     * 예: 특보정보에 갔다가 해양안전생활로 돌아옴 → 배경을 켜기 전 배경(기본맵)으로 맞춘 뒤 위험예측을
+     *     다시 눌러 켜고(새 자료로 갱신), 떠날 때 보던 배경·지도 위치·열려 있던 위험예측 시트를 되살린다.
+     * [연계] ← _enterSafety() 의 200ms 뒤(지도 준비 후) — _isSafetyShown() 일 때만
+     *          → 각 오버레이 버튼 click(켜기) · window.oceanSetBasemap (ocean_map.js) ·
+     *            window._riskForecastApp.synced()/select() (risk_forecast.js — 시트 다시 열기)
+     */
+    function _unparkSafety() {
+        var snap = _parkedSafety;
+        _parkedSafety = null;
+        if (!snap) return;
+        var setBase = (typeof window.oceanSetBasemap === 'function' && typeof window.oceanGetBasemap === 'function')
+            ? function (b) { if (b && window.oceanGetBasemap() !== b) window.oceanSetBasemap(b); } : function () {};
+        // ① 켜기 전 배경부터 — 버튼이 켜질 때 "끄면 돌아갈 배경"으로 이 값을 기억해야 하므로
+        setBase(snap.preBase);
+        // ② 떠날 때 켜져 있던 버튼만 켜진 상태로 맞춘다(켤 것을 먼저 켜고, 그 김에 함께 켜졌지만
+        //    떠날 때는 꺼져 있던 것은 다시 끈다)
+        _silently(function () {
+            var i, b;
+            for (i = 0; i < snap.btns.length; i++) {
+                b = document.getElementById(snap.btns[i]);
+                if (b && !b.classList.contains('active')) b.click();
+            }
+            var on = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
+            for (i = 0; i < on.length; i++) {
+                if (snap.btns.indexOf(on[i].id) < 0 && on[i].classList.contains('active')) on[i].click();
+            }
+        });
+        // ③ 떠날 때 보던 배경(버튼을 켠 뒤 사용자가 바꿨을 수도 있다)
+        setBase(snap.shownBase);
+        // ④ 지도 위치 — 배경을 바꾼 뒤에 맞춘다(위성지도만 더 깊이 확대된다)
+        var map = window.getOceanMap && window.getOceanMap();
+        if (snap.view && snap.view.center && map && map.getView) {
+            try {
+                var v = map.getView();
+                v.setCenter(snap.view.center);
+                v.setZoom(snap.view.zoom);
+                v.setRotation(snap.view.rotation || 0);
+            } catch (e) { /* 줌 한계가 달라졌으면 OL 이 맞춘다 */ }
+        }
+        // ⑤ 위험예측 시트(관광지·해역) — 새 자료 동기화가 끝난 뒤 같은 곳을 다시 고른다.
+        //    시트 안 시각은 시트 규칙대로 메인 시각에서 다시 시작한다(README 「시트 고정 일시 표시」).
+        var app = window._riskForecastApp, sel = snap.riskSel;
+        if (sel && app && app.synced && app.select) {
+            app.synced().then(function () {
+                var st = app.getState();
+                if (!_isSafetyShown() || !st.enabled || st.selected) return;
+                app.select(sel.kind, sel.id, sel.location || undefined);
+            });
+        }
     }
 
     /**
@@ -872,11 +1005,33 @@
     function _wrapTabSwitchers() {
         var origMain = window.switchMainTab;
         window.switchMainTab = function (targetId) {
+            // [2026-10-16] 해양안전생활 화면을 떠나기 전에 지금 화면을 기억한다(1-3 절).
+            //   · 해양안전을 보다가 같은 탭/해양안전을 다시 누름 → 그대로 둔다(_keepOverlays)
+            //   · 해양안전을 보다가 다른 곳으로 → 켜 둔 버튼·지도 위치·배경을 기억하고 끈다
+            //   · 해양생활 활동을 보다가 떠남 → 지금 지도 위치를 기억(_prepareMap 이 되살린다)
+            //   어느 하위탭이었는지는 index2_patch.js 가 이 탭만 기본 하위탭으로 되돌리지 않아 유지된다.
+            var keep = false;
+            // 점검으로 막힌 탭이면 index2_patch.js 래퍼가 아무것도 바꾸지 않고 돌아가므로 기억·끄기도 하지 않는다
+            var blk = document.querySelector('.tab-btn[data-target="' + targetId + '"], .sub-tab-btn[data-target="' + targetId + '"]');
+            var blocked = !!(blk && blk.dataset.blocked === 'true' && localStorage.getItem('seagnal_admin_mode') !== 'true');
+            if (_unlocked && !blocked) {
+                var safeBtn = document.querySelector('#ocean-safety-sub-tabs .sub-tab-btn[data-target="ocean-safety-section"]');
+                keep = _isSafetyShown() && (targetId === 'ocean-life-group' || targetId === 'ocean-safety-section') &&
+                       !(safeBtn && safeBtn.dataset.blocked === 'true');
+                if (!keep) _parkSafety();
+                if (document.body.getAttribute('data-active-tab') === 'ocean-life-group' &&
+                    document.body.classList.contains('ls-life')) _rememberView();
+            }
             // 진짜 해양종합정보 탭으로 들어가는 길이면, 해양안전 때문에 꺼뒀던
             // 오버레이를 먼저 되살린다(그 화면의 원래 상태로 복귀)
             if (_unlocked && targetId === 'ocean-map-section') _restoreOceanOverlays();
-            origMain.apply(window, arguments);
-            _syncChrome();
+            _keepOverlays = keep;
+            try {
+                origMain.apply(window, arguments);
+                _syncChrome();
+            } finally {
+                _keepOverlays = false;
+            }
         };
 
         var origSub = window.switchSubTab;
