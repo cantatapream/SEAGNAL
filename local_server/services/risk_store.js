@@ -2,6 +2,7 @@
  * 역할: 연안 점수·공식 선박사고 예보·혼잡·해구 기상을 읽고 변경 없는 원천 객체를 재사용한다.
  * [연계] risk_points/time/score/geo, sea_accident_collector의 배열·경계 → routes/risk_forecast.
  *        정적 표: config/coastal_safety/risk_spots.json · coast_accidents.json(연안 시트 「주변 연안사고」 history, 2026-10-16 T9 — 관광지 표 해시가 다르면 쓰지 않음).
+ *        연안 지도·상세 응답은 날짜(KST)당 하나 — 그날 연안 칸 중 가장 높은 값(coastDayFrame·coastDayDetail, 2026-10-16 T24).
  * [로드 순서] 서버 require에 수집 부작용 없음. 기존 수집 파일은 절대로 쓰지 않는다.
  */
 'use strict';
@@ -27,7 +28,9 @@ function coastTimeline(now){return T.timeline(now,3,2,21);}
  * 폴더 안 실제 자료를 읽는 저장소를 만든다. 예: 검사에서는 임시자료만 읽는다. @param {object} options @returns {object} [연계] ← API/검사 */
 function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDir=path.join(ROOT,'config','coastal_safety'),clientDir=CLIENT,clock=Date.now,readData=io.read,metadataOnly=false}={}){
     let loadedAt=-Infinity,loadedDay=null,inputVersion=0,inputSignature=null,cache={},staticTable=null,landZones=null,coastAccidents=null;
-    const detailCache=new Map(),frameCache=new Map(),fileCache=new Map();
+    // coastSlots: 연안 한 칸(시각)의 관광지별 점수(Float64Array, 관광지 표 순서) — 하루 값(coastDayFrame, T24)이 오늘·내일을 오가도 칸마다 1,354곳을 다시 세지 않게.
+    //   오늘·내일 칸은 많아야 13개(지금 칸 + 오늘 남은 칸 + 내일 8칸)라 16개를 둔다(한 칸 약 11KB). 프레임 캐시(8개)로는 내일 8칸만으로 꽉 차 서로 밀어낸다.
+    const detailCache=new Map(),frameCache=new Map(),fileCache=new Map(),coastSlots=new Map();
     /** 최근 유한 개수의 결과만 보관한다. 예: 슬라이더 왕복은 같은 입력을 재계산하지 않는다. @param {Map} map @param {string} key @param {object} value @param {number} limit @returns {object} [연계] ← detail/frame */
     function remember(map,key,value,limit){if(map.has(key))map.delete(key);map.set(key,value);while(map.size>limit)map.delete(map.keys().next().value);return value;}
     let stationIndex=null;
@@ -71,7 +74,7 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
             if(previous?.signature===signature)return previous.result;
             const result={data:signature==='[null]'?null:readData(file),exists:signature!=='[null]'};
             fileCache.set(file,{signature,result});return result;};
-        const signature=JSON.stringify(version),changed=signature!==inputSignature;if(changed){inputSignature=signature;inputVersion++;detailCache.clear();frameCache.clear();staticTable=null;landZones=null;coastAccidents=null;}
+        const signature=JSON.stringify(version),changed=signature!==inputSignature;if(changed){inputSignature=signature;inputVersion++;detailCache.clear();frameCache.clear();coastSlots.clear();staticTable=null;landZones=null;coastAccidents=null;}
         loadedAt=now;loadedDay=today;cache.sourceInfo=null;if(!changed&&cache.warnings)return cache;cache.warningMap=null;
         const read=(name,filename)=>{cache[name]={...readFile(path.join(dataDir,filename))};};
         read('warnings','weather_alerts.json');read('gale','gale_warnings.json');read('zoneForecasts','zone_forecasts.json');read('ripCurrent','ripcurrent_index.json');read('swell','swell_smallzone.json.gz');
@@ -166,9 +169,9 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     function ripFor(name,t){const r=cache.ripCurrent.data?.places?.[name];if(!r)return null;const at=timestamp(r.obsrvnDt||cache.ripCurrent.data.updatedAt);if(!at||T.dateKey(at)!==T.dateKey(clock())||T.dateKey(t)!==T.dateKey(clock()))return null;return r;}
     /** 정적 관광지 표를 화면 계약으로 준다. 예: id와분할geometry는 빌드결과 그대로. @returns {object} [연계] ← /coast/spots */
     function spots(){refresh();if(!staticTable?.spots)throw Object.assign(new Error('관광지 표 준비 전'),{status:503});return{v:staticTable._about?.hash,spots:staticTable.spots.map((p,i)=>({i,id:p.id,name:p.name,lat:p.lat,lon:p.lon,sggName:p.sgg_name,addr:null,police:p.station?{name:p.station}:null,beach:p.beach,geometry:p.geometry}))};}
-    /** 한 연안 지점 설명을 같은 계산기로 만든다(시각 하나 — outlook 없음). 예: 집중률이 없어도 정적위험과달은계산 · 사람 혼잡은 그 날 집중률과 수집기가 저장한 30일 기하평균(avg30, U81③)을 함께 넘긴다.
+    /** 한 연안 지점 설명을 같은 계산기로 만든다(시각 하나). 예: 집중률이 없어도 정적위험과달은계산 · 사람 혼잡은 그 날 집중률과 수집기가 저장한 30일 기하평균(avg30, U81③)을 함께 넘긴다.
      * @param {string} id @param {string} t @returns {object} 한 시각 상세(detailCache 에 보관 — 같은 객체를 돌려준다)
-     * [연계] ← coastDetail(선택 시각·outlook 각 칸)·frame(연안 지도 — outlook 을 만들지 않으려고 이것을 직접 부른다) */
+     * [연계] ← coastDetail(한 칸)·coastDayDetail(그날 칸마다 — 가장 높은 칸 찾기, T24)·slotScores(연안 지도 칸 점수) */
     function coastScore(id,t){refresh();const p=staticTable?.spots?.find(p=>p.id===id);if(!p)throw Object.assign(new Error('관광지 없음'),{status:staticTable?404:503});t=validateTime(t,false);const memo=resultKey('coast',t,id);if(detailCache.has(memo))return detailCache.get(memo);const d=T.dateKey(t),f=forecast(p.major,t),src=sources(),cr=src.tourConcentration.status==='ok'?cache.tourConcentration.data?.values?.[id]?.[d]:null,crBase=src.tourConcentration.status==='ok'?cache.tourConcentration.data?.avg30?.[id]||null:null;const eventMonth=cache.events.months[d.slice(0,7)];const events=src.events.months[d.slice(0,7)]?.status==='ok'&&eventMonth?.month===d.slice(0,7)?eventMonth.events.filter(e=>e.spotId===id&&e.start<=d&&e.end>=d):null;
         const warning=warningsFor(p.warnZone,t,false).concat(galeFor(p,t));const r=S.scoreCoast({t,now:clock(),spot:p,concentration:typeof cr==='number'?cr:null,concentrationBase:crBase,events,swell:swell(p.coastCell,t),rip:ripFor(p.ripBeach,t),warnings:warning,...f});
         const notices=[];if(r.notices.effective.length||r.notices.prelim.length)notices.push({key:'warning',effective:r.notices.effective.map(w=>w.type+w.level),prelim:r.notices.prelim.map(w=>w.type+w.level)});if(r.notices.windMs!==null)notices.push({key:'drift',windMs:r.notices.windMs});
@@ -177,12 +180,27 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         // 이안류 비수기(offseason)는 정상 상태라 반환 직전에 missing 에서 뺀다.
         if(sources().events.months[d.slice(0,7)]?.status!=='ok')r.missing.push('events');if(sources().warnings.status!=='ok')r.missing.push('warnings');if(sources().gale.status!=='ok')r.missing.push('gale');if(f.wh===null||f.ws===null)r.missing.push('forecast');
         return remember(detailCache,memo,{t,title:p.name,subtitle:{addr:null,lat:p.lat,lon:p.lon,sggName:p.sgg_name,police:p.station||null,office:officeOf(p.station,{lat:p.lat,lon:p.lon})},score:r.score,index:r.index,band:r.band,rr:r.rr,fatalRr:r.fatalRr,notices,rows,missing:[...new Set(r.missing)].filter(k=>k!=='rip'||sources().ripCurrent.status!=='offseason'),inputs:{forecastAt:f.forecastAt}},6000);}
-    /** 연안 상세 응답: 선택 시각 상세 + 같은 관광지의 연안 시간축 각 시각 점수(outlook — 시트 시각 막대의 칸 색, 2026-10-16 T7).
-     * 예: coastDetail('one','2026-10-31T18:00:00+09:00').outlook → [{forecastAt:'2026-10-31T12:17:00+09:00',score:.4,index:13,band:'평소 수준'},{forecastAt:'…15:00…',…},…내일 21시]
-     * outlook 의 칸은 coastScore 로 구한다(그 칸 계산이 다시 outlook 을 부르지 않게). 지금 칸은 매 요청 새 시각이라 이 응답 자체는 보관하지 않고, 칸마다의 계산만 detailCache 를 쓴다.
-     * @param {string} id - 관광지 id @param {string} t - 선택 시각 @returns {object} 상세 + outlook + history(주변 연안사고 — coastHistory, 2026-10-16 T9)
-     * [연계] ← GET /coast/spot → RiskForecast.detail → RiskSlider levels(연안 4단계 색). 시간축은 meta.timeline.coast 와 같은 coastTimeline */
-    function coastDetail(id,t){const d=coastScore(id,t);return{...d,history:coastHistory(id),outlook:coastTimeline(clock()).map(at=>{const r=coastScore(id,at);return{forecastAt:at,score:r.score,index:r.index,band:r.band};})};}
+    /** 연안 한 칸 상세: 그 시각 상세 + 주변 연안사고(history — coastHistory, 2026-10-16 T9).
+     * 종전(T7)에는 시트 시각 막대 칸 색용 outlook(시각별 점수)도 붙였으나, T24(2026-10-16 「5-하루 하나로 합치기」)로 연안 시트 시각 막대를 없애 함께 뺐다.
+     * 예: coastDetail('one','2026-10-31T18:00:00+09:00') → {t,title,score,index,band,rows,missing,notices,history,…}
+     * @param {string} id - 관광지 id @param {string} t - 칸 시각 @returns {object} 한 칸 상세 [연계] ← coastDayDetail(가장 높은 칸)·검사 */
+    function coastDetail(id,t){return{...coastScore(id,t),history:coastHistory(id)};}
+    /** 연안 하루 값(T24)의 칸 — t 가 든 KST 날짜의 연안 시간축 칸들. 오늘은 지금 칸부터(지난 칸은 연안 시간축에 없다 — 서버는 지금−5분 앞 시각을 400 으로 거부), 내일은 00·03·…·21시 8칸.
+     * 지금 칸은 분 단위로 내린다 — 같은 1분 안의 요청이 같은 칸이 되어 칸 점수 보관(coastSlots)을 함께 쓴다(종전 연안 프레임은 요청 시각마다 새로 셌다).
+     * 예: 지금 10-31 12:17:40, t 가 10-31 의 어느 시각 → {date:'2026-10-31',times:['…T12:17:00+09:00','…T15:00…','…T18:00…','…T21:00…']}
+     *     t 가 11-01 → 11-01 00·03·…·21시 8칸 · 모레·지난 시각 → 400(validateTime) · 그 날짜 칸이 없으면(자정 직후 어제 날짜) 400
+     * @param {string} t - 그 날짜 안의 시각(화면은 그 날짜의 첫 칸 — 오늘은 meta.now, 내일은 00시 — 를 보낸다) @returns {{date:string,times:string[]}}
+     * [연계] ← coastDayFrame·coastDayDetail / → coastTimeline·validateTime */
+    function coastDay(t){t=validateTime(t,false);const date=T.dateKey(t),times=coastTimeline(Math.floor(clock()/60000)*60000).filter(at=>T.dateKey(at)===date);if(!times.length)throw Object.assign(new Error('잘못된 예보 시각'),{status:400});return{date,times};}
+    /** 연안 상세 하루 값(T24, 사용자 2026-10-16 「1. 가」 = 그날 3시간 칸 8개 중 가장 높은 값): 그날 칸마다 점수를 내 가장 높은 칸의 상세를 준다.
+     * 같은 최댓값이 여러 칸이면 이른 칸. 시트의 요소별 설명·안내(특보·표류)는 이 칸의 것이다.
+     * missing 은 그날 모든 칸의 빠진 요소를 합친다 — 한 칸이라도 요소를 확인하지 못했으면 그 하루 값은 「확인된 요소 기준」이다
+     * (기존 결측 관례: 칸 상세의 missing 이 있으면 시트 상자 「확인된 요소 기준의 상대 사고지표」·계산 설명 「현재 확인된 요소만 반영한 값」. 점수를 지어내지 않는다).
+     * 예: coastDayDetail('one','2026-11-01T00:00:00+09:00') → {…11-01 의 가장 높은 칸 상세, daily:{date:'2026-11-01',peakAt:'…T03:00:00+09:00',times:[8칸]}}
+     * @param {string} id - 관광지 id @param {string} t - 그 날짜 안의 시각 @returns {object} 가장 높은 칸 상세 + history + daily{date,peakAt,times}
+     * [연계] ← GET /coast/spot → RiskForecast.detail → RiskSheet.show(날짜 줄 아래 「가장 높은 때 HH시 기준」) */
+    function coastDayDetail(id,t){const {date,times}=coastDay(t),slots=times.map(at=>coastScore(id,at));let k=0;slots.forEach((r,i)=>{if(r.score>slots[k].score)k=i;});
+        return{...coastDetail(id,times[k]),missing:[...new Set(slots.flatMap(r=>r.missing))],daily:{date,peakAt:times[k],times}};}
     /** 위치표를 전달한다. 예: 아직수집전이면503. @returns {object} [연계] ← /sea/cells */
     function cells(){refresh();if(!cache.cells.data?.cells?.length)throw Object.assign(new Error('해양교통 칸 위치표 준비 전'),{status:503});return cache.cells.data;}
     /** 한 해상 칸 설명을 계산한다. 예: 수집실패시 null혼잡과날씨만 표시. @param {string} id @param {string} t @returns {object} [연계] ← /sea/cell/frame */
@@ -220,7 +238,17 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
     function frame(sea,t){refresh();t=validateTime(t,sea);const memo=resultKey(sea?'seaFrame':'coastFrame',t);if(frameCache.has(memo))return frameCache.get(memo);const src=sources(),degraded=Object.entries(src).filter(([k,v])=>(sea?['warnings','zoneForecasts','congestion']:['warnings','gale','zoneForecasts','swell','ripCurrent','tourConcentration','events']).includes(k)&&!['ok','offseason'].includes(v.status)).map(([k])=>k);
         if(sea){const n=new Date(timestamp(t)+9*T.HOUR),key=T.dateKey(t).replace(/-/g,'')+String(n.getUTCHours()).padStart(2,'0')+'00';const traffic=src.congestion.status==='ok'?cache.congestion.data?.frames?.[key]:null,active=traffic?new Set(traffic.map(r=>r.gridId)):null,trafficById=new Map((traffic||[]).map(r=>[r.gridId,r]));return remember(frameCache,memo,{t,cells:cells().cells.filter(c=>!active||active.has(c.id)).map(c=>{const r=seaDetail(c.id,t);return[c.i,r.score,r.rows[0]?.ci??null,trafficById.get(c.id)?.congestionLevel||null];}),degraded},8);}
         const eventStatus=src.events.months[T.dateKey(t).slice(0,7)]?.status;if(eventStatus==='ok'){const i=degraded.indexOf('events');if(i>=0)degraded.splice(i,1);}else if(!degraded.includes('events'))degraded.push('events');
-        const entries=(staticTable?.spots||[]).map((p,i)=>[i,coastScore(p.id,t).score]);if(!staticTable)throw Object.assign(new Error('관광지 표 준비 전'),{status:503});return remember(frameCache,memo,{t,day:T.dayOffset(t,clock()),spots:entries,degraded},8);}
+        if(!staticTable)throw Object.assign(new Error('관광지 표 준비 전'),{status:503});const entries=Array.from(slotScores(t),(s,i)=>[i,s]);return remember(frameCache,memo,{t,day:T.dayOffset(t,clock()),spots:entries,degraded},8);}
+    /** 연안 한 칸의 관광지별 점수를 관광지 표 순서로 준다(쓸 때마다 가장 최근으로 옮기는 보관 — 오늘·내일 칸이 서로 밀어내지 않게, 16칸).
+     * 예: slotScores('2026-11-01T12:00:00+09:00') → Float64Array(1354) [0.41, 1.2, …]
+     * @param {string} at - 검사한(validateTime) 칸 시각 @returns {Float64Array} [연계] ← frame(연안)·coastDayFrame / → coastScore */
+    function slotScores(at){const memo=resultKey('coastSlot',at);return remember(coastSlots,memo,coastSlots.get(memo)||Float64Array.from(staticTable.spots,p=>coastScore(p.id,at).score),16);}
+    /** 연안 지도 하루 값(T24, 사용자 2026-10-16 「1. 가」): 관광지마다 그날 칸(coastDay) 점수 중 가장 높은 값.
+     * 예: coastDayFrame('2026-11-01T00:00:00+09:00') → {t:'…11-01T00:00…',day:1,spots:[[0,1.7],…],degraded,daily:{date:'2026-11-01',times:[8칸]}}
+     * degraded 는 그 날짜 첫 칸 프레임의 것 — 원천 상태와 그 날짜 달의 행사 상태로 정해져 같은 날짜 안에서는 같다.
+     * @param {string} t - 그 날짜 안의 시각 @returns {object} 종전 연안 프레임과 같은 모양(spots [i,점수]) + daily
+     * [연계] ← GET /coast/frame → RiskMapLayer.drawCoast / → frame(첫 칸)·slotScores(칸마다 — 보관해 다시 세지 않는다) */
+    function coastDayFrame(t){const {date,times}=coastDay(t),base=frame(false,times[0]),slots=times.map(slotScores);return{...base,spots:base.spots.map(([i],k)=>[i,Math.max(...slots.map(s=>s[k]))]),daily:{date,times}};}
     /** 첫로드에 시간축·정적표버전·자료상태를 함께 준다. 예: 지금칸은 분유지; 연안은 내일 21시까지(「가」 — 3일째 시작 표시 day3From 없음); 공식 사고는 오늘00시~내일21시 16칸(A.slots, 2026-10-15 2일 제한). @returns {object} [연계] ← /meta */
     function meta(){refresh();const now=clock();return{now:T.isoKst(now),coastAccidents:coastAccidentsStatus(),timeline:{sea:{stepH:1,times:T.timeline(now,1,2,23)},accident:{stepH:3,times:A.slots(now).map(s=>s.at)},coast:{stepH:3,times:coastTimeline(now)}},versions:{spots:staticTable?._about?.hash||null,cells:cache.cells.data?.cells?.length||0,accident:cache.accident.data?.v||null},sources:sources()};}
     /** 클릭한 위험구역 원본을 준다. 예: 동일id의 폴리곤만. @param {string[]} ids @returns {object} [연계] ← /hazard-zones */
@@ -237,6 +265,6 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      */
     // warnings: 특보 크롤러 결과 파일(weather_alerts.json) 그대로 — 해상 상세 특보 상자(marine_fusion.warningsAt)가 current 트리를 읽는다. 상태는 sources().warnings(10분 넘으면 낡음).
     function marineInputs(){refresh();return{version:inputVersion,congestion:cache.congestion.data,accident:cache.accident.data,cells:cache.cells.data,warnings:cache.warnings.data,sources:sources(),weather:forecast};}
-    return{sourceFiles,meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,seaDetail,frame,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
+    return{sourceFiles,meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,coastDayDetail,seaDetail,frame,coastDayFrame,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
 }
 module.exports={createStore,zoneName,timestamp,utcForecast};
