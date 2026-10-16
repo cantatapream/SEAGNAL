@@ -700,9 +700,9 @@ const WIN = R.editionWindow('morning', T0);
         const st = I.loadStations(), byName = (n, o) => st.find((s) => s.name === n && (!o || s.office === o));
         const want = { 구룡포파출소: '호미로 210', 대산파출소: '삼길포1로 84', 고창파출소: '구시포해변길 51-129', 광양파출소: '항만9로 89', 통영파출소: '통영해안로 200', 성산파출소: '서귀포시 성산읍', 울릉파출소: '경상북도 울릉군' };
         for (const [n, frag] of Object.entries(want)) assert.ok(byName(n).address.includes(frag), n + ' ' + byName(n).address);
-        assert.ok(byName('남항파출소', '부산해양경찰서').address.includes('해양새벽시장길 91'));
+        assert.ok(byName('남항파출소', '부산해양경찰서').address.includes('해안새벽시장길 91')); // 2026-10-16 웹 확인으로 도로명 「해양→해안」 정정(station_addresses.md)
         const g = JSON.parse(fs.readFileSync(path.join(I.CONFIG, 'coastguard_stations.geojson'), 'utf8')), fixed = g.features.filter((f) => f.properties.address_raw);
-        assert.equal(fixed.length, 8); assert.ok(fixed.every((f) => f.properties.address_fix && f.properties.address_raw !== f.properties.address));
+        assert.equal(fixed.length, 18); // 1차 8곳 + 2026-10-16 웹 확인 표기 정정 11곳 중 새로 원문을 남긴 10곳(부산 남항은 1차와 겹침) assert.ok(fixed.every((f) => f.properties.address_fix && f.properties.address_raw !== f.properties.address));
         assert.equal(fixed.find((f) => f.properties.name === '울릉파출소').properties.address_raw, '강 원 특 별 자 치 도 울릉군 울릉읍 울릉순환 로 179');
         const { addressKey } = require('../services/coastal_events_collector');
         assert.equal(st.filter((s) => addressKey(I.normalizeAddress(s.address))).length, 97);
