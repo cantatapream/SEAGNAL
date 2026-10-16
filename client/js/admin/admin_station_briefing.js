@@ -27,7 +27,8 @@
         batchUnit: { station: '파출소(97회/판)', office: '해양경찰서(21회/판)', region: '지방청(5회/판)' },
         onlyChanged: { 'true': '켜기 — 입력이 같으면 지난 총평 재사용', 'false': '끄기 — 매번 새로' },
     };
-    var TITLES = { method: '생성 방식', chatgptModel: 'ChatGPT 모델', geminiModel: 'Gemini 모델', exposure: '노출 범위', batchUnit: '묶음 단위(AI 호출 한 번에 묶는 관할)', onlyChanged: '바뀐 곳만 다시 만들기' };
+    var TITLES = { method: '생성 방식', chatgptModel: 'ChatGPT 모델', geminiModel: 'Gemini 모델', exposure: '노출 범위', batchUnit: '묶음 단위(AI 호출 한 번에 묶는 관할)', onlyChanged: '바뀐 곳만 다시 만들기 — AI 총평을 입력이 바뀐 관할만 새로 씀(기상청 해상 전망이 바뀌면 전 관할을 다시 씁니다)' };
+    // ↑ onlyChanged 단서(2단계 검토 B13): 재사용 해시에 기상청 해상 전망(kma)이 들어 있어(station_briefing_ai.generate), 전망이 바뀌면 모든 관할의 해시가 바뀐다.
     var KIND = { morning: '08:00 판', evening: '17:30 판', night: '23:00 판', warning: '특보 변경 판', manual: '관리자 즉시 실행' };
     var BOX = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;';
 

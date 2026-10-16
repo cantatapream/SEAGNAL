@@ -281,7 +281,7 @@ function makeBriefings() {
             await tap(page, '#station-briefing-content .sb-basis-btn'); await page.waitForSelector('.rf-modal .rf-basis');
             const r = await page.evaluate(() => ({ title: document.querySelector('.rf-basis-head h3').textContent, body: document.querySelector('.rf-basis-body').innerText, tbl: document.querySelectorAll('.rf-basis-body .rf-tbl').length, close: !!document.querySelector('.rf-basis-head .mclose') }));
             assert.equal(r.title, '활동지점 안전 브리핑'); assert.ok(r.close); assert.equal(r.tbl, 3);
-            for (const k of ['08:00 · 17:30 · 23:00', '21시가 넘으면 다음 날', '오늘 밤~내일', '\'주의\'·\'경계\'는 공단 안내상 상대 순위 구간', '1.2~1.3배', '저조 뒤부터 물이 차오릅니다', '틀 문장', '참고 정보이며 안전을 보장하지 않습니다']) assert.ok(r.body.includes(k), k);
+            for (const k of ['08:00 · 17:30 · 23:00', '21시가 넘으면 다음 날', '오늘 밤~내일', '공단 안내로는 경계 상위 5%·주의 상위 5~15% 구간', '만드는 시각이 든 3시간 칸부터', '기상청 해제 시각', '해제 예고로만', '사고 확률이 아닙니다', '단계 높은 순 10곳까지', '최대 12곳', '이안류를 관측하는 해수욕장만', '8m/s 이상', '다음 정시 판에 반영', '최대 20분', '조석 칸이 없습니다', '「확인 불가」(회색)', '1.2~1.3배', '저조 뒤부터 물이 차오릅니다', '틀 문장', '참고 정보이며 안전을 보장하지 않습니다']) assert.ok(r.body.includes(k), k);
         });
         await clean(page); await page.screenshot({ path: path.join(SHOT, 'basis_380.png') });
         await page.setViewportSize({ width: 1280, height: 900 }); await page.waitForTimeout(200); await clean(page); await page.screenshot({ path: path.join(SHOT, 'basis_1280.png') });
@@ -398,6 +398,182 @@ function makeBriefings() {
         for (const [w, h] of [[380, 844], [1280, 900]]) { await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(250); await clean(page); await page.locator('#unified-admin-body').screenshot({ path: path.join(SHOT, 'admin_ai_briefing_' + w + '.png') }); }
         await page.context().close();
 
+        // ── 8. 2단계 화면 독립 검토(review_ui1·review_ui2, 2026-10-16) — 결함마다 1:1 ──
+        const toastText = (page) => page.evaluate(() => (document.getElementById('ocean-ui-toast') || {}).textContent || '');
+        page = await device({ admin: true, width: 360, height: 780 });
+        await pickStation(page, HALLIM); await page.waitForSelector('[data-sb-sec="overview"]'); await openAcc(page);
+        await check('[UI-A1] 카드 최대치(해역 10·관광지 10·상시 12)·360px — 아코디언 본문이 잘리지 않고 꼬리(출처·「안전을 보장하지 않습니다」)까지 보인다', async () => {
+            const r = await page.evaluate(async () => {
+                const S = window.StationBriefing._state, resp = JSON.parse(JSON.stringify(S.resp)), b = resp.briefing;
+                const dup = (arr, n) => Array.from({ length: n }, (_, i) => JSON.parse(JSON.stringify(arr[i % arr.length])));
+                b.sea.cards = dup(b.sea.cards, 10); b.land.cards = dup(b.land.cards, 10); b.land.constant = dup(b.land.constant, 12);
+                const box = document.getElementById('station-briefing-content');
+                window.StationBriefingRender.render(box, resp, { showSea: true, showLand: true, onLink: () => {} });
+                box.querySelectorAll('details').forEach((d) => { d.open = true; });
+                await new Promise((res) => setTimeout(res, 700));
+                const body = document.getElementById('station-briefing-accordion-body'), nb = box.querySelector('.sb-notice').getBoundingClientRect(), bb = body.getBoundingClientRect();
+                const secs = [...box.querySelectorAll('.sb-sec-body')].map((e) => e.scrollHeight - e.clientHeight);
+                return { content: box.scrollHeight, bodyClient: body.clientHeight, bodyScroll: body.scrollHeight, maxH: getComputedStyle(body).maxHeight, notice: nb.bottom, bodyBottom: bb.bottom, secs, cards: box.querySelectorAll('.sb-card').length };
+            });
+            assert.equal(r.cards, 20); assert.ok(r.content > 8000, '시험 자료가 옛 상한(8000px)을 넘어야 의미가 있다 — ' + r.content);
+            assert.equal(r.maxH, 'none'); assert.ok(r.bodyScroll <= r.bodyClient + 1, JSON.stringify(r)); assert.ok(r.notice <= r.bodyBottom + 1, JSON.stringify(r));
+            assert.ok(r.secs.every((d) => d <= 1), '안쪽 칸도 잘리지 않음 ' + r.secs.join(','));
+            // 접으면 기존처럼 0 으로
+            await page.evaluate(() => window.toggleStationBriefingAccordion()); await page.waitForTimeout(500);
+            assert.equal(await page.evaluate(() => document.getElementById('station-briefing-accordion-body').clientHeight), 0);
+            await openAcc(page);
+        });
+        await check('[UI-B1·B3·B5·B6·B10·B14] 총평 단계 < 해상 분석 단계면 한 줄 · 지난 칸 흐리게 · 「카드는 10곳까지」 · 내일 판 「내일」 · 출처 한 벌 · 지난 예정 시각은 「준비 중」', async () => {
+            const base = JSON.parse(JSON.stringify(B.h));
+            const r = await page.evaluate(({ base, now }) => {
+                const R = window.StationBriefingRender, out = {}, box = document.createElement('div'); box.className = 'sb-wrap'; document.body.appendChild(box);
+                const b1 = JSON.parse(JSON.stringify(base)); b1.sea.level = { rank: 3, word: '경계 필요' }; b1.sea.overviewLevel = { rank: 0, word: '평소 수준' };
+                b1.sea.attentionRegions = 12; b1.sea.overviewRegions = 11; b1.land.attentionSpots = 13;
+                R.render(box, { ok: true, briefing: b1 }, { now });
+                out.note = (box.querySelector('[data-sb-level-note]') || {}).textContent || '';
+                out.seaCount = box.querySelector('[data-sb-sea-count]').textContent; out.landCount = box.querySelector('[data-sb-land-count]').textContent;
+                out.past = [...box.querySelectorAll('.sb-slot')].map((x) => x.dataset.past === 'true'); out.pastOpacity = getComputedStyle(box.querySelector('.sb-slot-past')).opacity;
+                out.legend = box.querySelector('.sb-legend').textContent; out.labels = (b1.sea.timeBar || []).map((s) => s.label);
+                out.foot = box.querySelector('[data-sb-foot-source]').textContent;
+                const b2 = JSON.parse(JSON.stringify(base)); b2.sea.overviewLevel = { rank: b2.sea.level.rank, word: b2.sea.level.word };
+                R.render(box, { ok: true, briefing: b2 }, { now }); out.noNote = !box.querySelector('[data-sb-level-note]');
+                const b3 = JSON.parse(JSON.stringify(base)); b3.land.cards = []; b3.targetDate = '2026-10-18'; b3.generatedAt = '2026-10-17T23:00:00+09:00';
+                R.render(box, { ok: true, briefing: b3 }, { now }); out.tomorrow = box.querySelector('[data-sb-land-none]').textContent;
+                b3.targetDate = '2026-10-17'; b3.generatedAt = '2026-10-17T08:00:00+09:00'; R.render(box, { ok: true, briefing: b3 }, { now }); out.today = box.querySelector('[data-sb-land-none]').textContent;
+                R.render(box, { ok: true, briefing: null, nextExpectedAt: '2026-10-17T08:00:00+09:00' }, { now }); out.passed = box.textContent;
+                R.render(box, { ok: true, briefing: null, nextExpectedAt: '2026-10-17T17:30:00+09:00' }, { now }); out.ahead = box.textContent;
+                box.remove();
+                out.sources = R.SOURCES;
+                return out;
+            }, { base, now: clock.now });
+            assert.ok(r.note.includes('해상 분석에는 「경계 필요」 해역이 있습니다') && r.note.includes('아래 해상 분석을 보세요'), r.note);
+            assert.ok(r.noNote, '단계가 같으면 그 줄이 없다');
+            assert.ok(r.seaCount.includes('관심 이상 12개 해역(그중 공식 사고예보 단계만 있는 해역 1개 — 총평에는 올리지 않음)') && r.seaCount.includes('카드는 단계 높은 순 ' + base.sea.cards.length + '곳까지'), r.seaCount);
+            assert.ok(r.landCount.includes('관심 이상 13곳 중 카드는 단계 높은 순'), r.landCount);
+            // 10:05 에 본다 — 06~09시 칸은 끝났고 09~12시 칸은 아직(만드는 시각이 든 칸)
+            assert.deepEqual(r.past, r.labels.map((l) => l === '06시')); assert.equal(r.pastOpacity, '0.4'); assert.ok(r.legend.includes('흐린 칸 = 이미 지난 시간'));
+            assert.ok(r.tomorrow.startsWith('내일 평소와 달라진 요소'), r.tomorrow); assert.ok(r.today.startsWith('오늘 평소와 달라진 요소'), r.today);
+            assert.ok(r.passed.includes('다음 브리핑을 준비 중입니다(10월 17일(토) 08:00 시작)'), r.passed);
+            assert.ok(r.ahead.includes('다음 브리핑 예정: 10월 17일(토) 17:30'), r.ahead);
+            // 출처 한 벌 — 꼬리 출처 줄 = [기준 상세] 표(같은 SOURCES)
+            for (const [what, who] of r.sources) assert.ok(r.foot.includes(what + ' — ' + who), what);
+            assert.ok(r.sources.some((x) => x[1] === '해양경찰청 선박사고 기록(국립해양조사원 개방海 제공)' && x[0].includes('2021~2025')));
+            assert.ok(r.sources.some((x) => x[0].includes('익수·추락·고립·표류·기타') && x[0].includes('앞바다 500m') && x[0].includes('2020~2024')));
+            assert.ok(r.sources.some((x) => x[1].includes('Gemini 보충')));
+            await tap(page, '#station-briefing-content .sb-basis-btn'); await page.waitForSelector('.rf-modal .rf-basis');
+            const rows = await page.evaluate(() => { const t = [...document.querySelectorAll('.rf-basis-body table')].find((x) => x.textContent.includes('쓰는 곳')); return [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent)); });
+            assert.deepEqual(rows, r.sources, '[기준 상세] 출처 표 = 꼬리 출처 줄과 같은 목록');
+            await page.keyboard.press('Escape');
+        });
+        await check('[UI-A7] 바로가기 — 위험예측에 없는 연안 날짜면 다른 날짜를 열지 않고 안내(토스트), 실패는 false', async () => {
+            const r = await page.evaluate(() => window.StationBriefing.openInRisk({ kind: 'coast', id: '50110|협재해수욕장', date: '2026-10-25', location: { lon: 126.239, lat: 33.394 } }));
+            assert.equal(r, false);
+            const sel = await page.evaluate(() => { const a = window._riskForecastApp; return a && a.getState().selected; });
+            assert.equal(sel, null, '다른 날짜의 시트를 조용히 열지 않는다');
+            const t = await toastText(page); assert.ok(t.includes('이 관광지(10월 25일(일))') && t.includes('열지 못했습니다'), t);
+        });
+        await page.context().close();
+
+        await check('[UI-A4] 설정 팝업 [관할 설정] — 저장하지 않은 관심해역 변경이 있으면 묻는다: 취소 → 팝업에 남고 변경 그대로 · 확인 → 저장하고 이동', async () => {
+            const pg = await device({ admin: true });
+            await pg.evaluate(() => window.openSettingsModal()); await pg.waitForTimeout(500);
+            assert.equal(await pg.evaluate(() => window.settingsModalHasUnsaved()), false, '열자마자는 변경 없음(알림 칸 포함)');
+            const changed = await pg.evaluate(() => { const c = document.querySelector('#settings-list-container input[type=checkbox]'); c.click(); return JSON.stringify(UserSettings.settings); });
+            assert.equal(await pg.evaluate(() => window.settingsModalHasUnsaved()), true);
+            const asked = [];
+            pg.once('dialog', (d) => { asked.push(d.message()); d.dismiss(); });
+            await pg.evaluate(() => document.getElementById('station-briefing-settings-edit').click()); await pg.waitForTimeout(300);
+            assert.ok(asked[0] && asked[0].includes('저장하지 않은 변경'), String(asked[0]));
+            assert.deepEqual(await pg.evaluate(() => [document.getElementById('settings-modal').classList.contains('hidden'), JSON.stringify(UserSettings.settings), !!document.querySelector('[data-sb-setup]')]), [false, changed, false], '취소 — 팝업·변경 그대로, 관할 고르기로 가지 않음');
+            pg.once('dialog', (d) => d.accept());
+            await pg.evaluate(() => document.getElementById('station-briefing-settings-edit').click()); await pg.waitForSelector('[data-sb-setup]');
+            assert.deepEqual(await pg.evaluate(() => [document.getElementById('settings-modal').classList.contains('hidden'), localStorage.getItem('weatherAppSettings_v1')]), [true, changed], '확인 — 저장하고 관할 고르기');
+            await pg.context().close();
+        });
+
+        await check('[UI-A5] 관리자 기기에서 노출 판정 조회가 잠깐 실패해도 아코디언이 사라지지 않고, 처음부터 실패하면 짧게 다시 물어 보인다', async () => {
+            const pg = await device({ admin: true });
+            assert.equal(await vis(pg, 'station-briefing-accordion-header'), true);
+            let fails = 1;
+            await pg.route('**/api/station-briefing/stations*', (rt) => fails-- > 0 ? rt.fulfill({ status: 503, body: '{}' }) : rt.continue());
+            await pg.evaluate(() => window.StationBriefing.refresh()); await pg.waitForTimeout(300);
+            assert.equal(await vis(pg, 'station-briefing-accordion-header'), true, '직전 판정(보임) 유지');
+            await pg.context().close();
+            // 처음 조회가 실패하는 기기 — 5초 뒤 다시 물어 보인다
+            const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, timezoneId: 'Asia/Seoul' }), p2 = await ctx.newPage();
+            p2.on('pageerror', (e) => errors.push(e.message));
+            let first = 1;
+            await p2.route('**/*', (rt) => { const u = rt.request().url(); if (!u.startsWith(base)) return rt.abort(); if (u.includes('/api/station-briefing/stations') && first-- > 0) return rt.fulfill({ status: 503, body: '{}' }); return rt.continue(); });
+            await p2.clock.setFixedTime(new Date(clock.now));
+            await p2.addInitScript(() => { localStorage.setItem('seagnal_admin_mode', 'true'); localStorage.setItem('push_token', 'admin-push-token'); });
+            await p2.goto(base + '/'); await p2.waitForFunction(() => window.StationBriefing); await p2.waitForTimeout(800);
+            assert.equal(await vis(p2, 'station-briefing-accordion-header'), false, '처음 실패 — 아직 안 보임');
+            await p2.waitForFunction(() => getComputedStyle(document.getElementById('station-briefing-accordion-header')).display !== 'none', null, { timeout: 9000 });
+            await ctx.close();
+        });
+
+        await check('[UI-A8] 관리자 모드를 끄면 다음 갱신을 기다리지 않고 바로 아코디언이 사라진다(노출 「관리자에게만」)', async () => {
+            const pg = await device({ admin: true });
+            assert.equal(await vis(pg, 'station-briefing-accordion-header'), true);
+            await pg.evaluate(() => window._toggleAdminMode(false)); await pg.waitForTimeout(500);
+            assert.equal(await vis(pg, 'station-briefing-accordion-header'), false);
+            await pg.evaluate(() => window._toggleAdminMode(true)); await pg.waitForTimeout(500);
+            assert.equal(await vis(pg, 'station-briefing-accordion-header'), true, '다시 켜면 바로 보임');
+            await pg.context().close();
+        });
+
+        await check('[UI-A6] 점검 차단 — 「활동지점 안전 브리핑」 개별 차단: 일반 기기는 덮개 + 몸 숨김(정기 갱신에도 그대로), 관리자는 머리를 누르면 열림, 해제하면 노출 판정대로', async () => {
+            real.writeConfig({ exposure: 'user' });
+            const g = await device();
+            await g.evaluate(() => window.applyFeatureBlocks(['station-briefing'])); await g.waitForTimeout(100);
+            assert.ok(await g.$('#station-briefing-accordion-header .feature-block-overlay'), '머리에 점검 덮개');
+            await g.evaluate(() => window.StationBriefing.refresh()); await g.waitForTimeout(400);
+            assert.equal(await vis(g, 'station-briefing-accordion-body'), false, '정기 갱신이 몸을 되살리지 않는다');
+            await g.evaluate(() => window.applyFeatureBlocks([])); await g.waitForTimeout(100);
+            assert.deepEqual([!!(await g.$('#station-briefing-accordion-header .feature-block-overlay')), await vis(g, 'station-briefing-accordion-body')], [false, true]);
+            await g.context().close();
+            real.writeConfig({ exposure: 'admin' });
+            const n = await device();
+            await n.evaluate(() => { window.applyFeatureBlocks(['station-briefing']); window.applyFeatureBlocks([]); }); await n.waitForTimeout(100);
+            assert.equal(await vis(n, 'station-briefing-accordion-body'), false, '차단을 풀어도 노출 판정이 「안 보임」이면 몸은 숨김 그대로');
+            await n.context().close();
+            const a = await device({ admin: true });
+            await a.evaluate(() => window.applyFeatureBlocks(['station-briefing'])); await a.waitForTimeout(100);
+            assert.equal(await vis(a, 'station-briefing-accordion-body'), false);
+            await a.evaluate(() => document.getElementById('station-briefing-accordion-header').onclick(new MouseEvent('click'))); await a.waitForTimeout(400);
+            assert.deepEqual(await a.evaluate(() => { const b = document.getElementById('station-briefing-accordion-body'); return [getComputedStyle(b).display !== 'none', b.classList.contains('collapsed')]; }), [true, false], '관리자는 차단 외관이어도 열린다');
+            await a.context().close();
+        });
+
+        await check('[UI-A2] 일반 기기(노출 「사용자에게」) — [위험예측에서 보기 ›] 가 위험예측 미리보기 잠금을 풀지 않고, 탭도 옮기지 않고 안내', async () => {
+            real.writeConfig({ exposure: 'user' });
+            const g = await device();
+            await pickStation(g, HALLIM); await g.waitForSelector('[data-sb-sec="overview"]'); await openAcc(g);
+            const tab0 = await g.evaluate(() => document.body.getAttribute('data-active-tab'));
+            await g.evaluate(() => document.querySelector('[data-sb-card="land"] .sb-link').click()); await g.waitForTimeout(700);
+            const r = await g.evaluate(() => ({ locked: document.getElementById('ocean-risk-forecast-toggle-btn').classList.contains('rf-preview-locked'), tab: document.body.getAttribute('data-active-tab'), app: !!window._riskForecastApp }));
+            assert.deepEqual([r.locked, r.tab, r.app], [true, tab0, false]);
+            assert.ok((await toastText(g)).includes('미리보기'), await toastText(g));
+            assert.equal(await g.evaluate(() => window.RiskForecast.openAt({ kind: 'coast', id: '50110|협재해수욕장' })), false, 'openAt 도 일반 기기 잠금을 풀지 않는다');
+            assert.equal(await g.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').classList.contains('rf-preview-locked')), true);
+            await g.context().close();
+            real.writeConfig({ exposure: 'admin' });
+        });
+
+        await check('[UI-A3] 「노출 안 함」으로 바꾸면 열려 있는 기기(관할 미설정 포함)도 10분 정기 갱신에 사라진다', async () => {
+            real.writeConfig({ exposure: 'user' });
+            const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, timezoneId: 'Asia/Seoul' }), p3 = await ctx.newPage();
+            p3.on('pageerror', (e) => errors.push(e.message));
+            await p3.route('**/*', (rt) => rt.request().url().startsWith(base) ? rt.continue() : rt.abort());
+            await p3.clock.install({ time: new Date(clock.now) });
+            await p3.goto(base + '/'); await p3.waitForFunction(() => window.StationBriefing); await p3.clock.runFor(3000); await p3.waitForTimeout(800);
+            assert.equal(await vis(p3, 'station-briefing-accordion-header'), true, '관할 미설정 일반 기기에 보임');
+            real.writeConfig({ exposure: 'off' });
+            await p3.clock.runFor(11 * 60 * 1000); await p3.waitForTimeout(1200);
+            assert.equal(await vis(p3, 'station-briefing-accordion-header'), false, '10분 안에 사라짐');
+            await ctx.close();
+            real.writeConfig({ exposure: 'admin' });
+        });
         await check('실행 오류 없음', async () => { assert.deepEqual(errors, []); });
     } catch (e) { console.error('❌ 준비 실패', e && e.stack); fail++; }
     finally { if (browser) await browser.close(); if (server) server.close(); try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* 임시 폴더 */ } }

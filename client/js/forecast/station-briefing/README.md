@@ -12,8 +12,8 @@
 
 | 파일 | 역할 | 주요 함수 |
 |------|------|-----------|
-| `station_briefing.js` | 아코디언 본체 — 노출 판정·설정 흐름(관할 고르기·건너뛰기·숨김)·N 뱃지·바로가기·설정 팝업 칸 | `refreshDisplay`, `loadBriefing`, `renderSetup`, `finishSetup`, `renderConfirm`, `toggle`, `openSetup`, `updateBadge`, `openInRisk`, `renderSettings` |
-| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 | `render`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf` |
+| `station_briefing.js` | 아코디언 본체 — 노출 판정·설정 흐름(관할 고르기·건너뛰기·숨김)·N 뱃지·바로가기·설정 팝업 칸 | `refreshDisplay`, `loadBriefing`, `renderSetup`, `finishSetup`, `renderConfirm`, `toggle`, `openSetup`, `updateBadge`, `openInRisk`, `renderSettings`, `applyVisibility`, `toast` |
+| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` | `render`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
 | `station_briefing_basis.js` | [기준 상세] 문안(위험예측 기준 상세 창 `RiskBasis.open('briefing')` 으로 연다) | (문자열 `RiskBasisContent.briefing`) |
 | `station_briefing.css` | `.sb-*` 모양(바깥 아코디언·안쪽 칸·조석 게이지·기준 창은 기존 CSS 재사용) | — |
 
@@ -27,6 +27,16 @@
 `index2.html` 에서 `life_safety.js` 다음 — `station_briefing_render.js` → `station_briefing_basis.js` → `station_briefing.js`.
 `station_briefing_basis.js` 는 `risk_basis_content.js`(RiskBasisContent 를 새로 만드는 파일)보다 **뒤**여야 문안이 덮이지 않는다.
 CSS 는 `<head>` 의 `risk_forecast.css` 다음.
+
+## 2단계 독립 검토 반영(2026-10-16) — 알아 둘 동작
+
+- **위험예측 미리보기 잠금**: [위험예측에서 보기 ›]는 **관리자 모드일 때만** 위험예측 미리보기 잠금(10번 누름)을 푼다. 일반 기기는 잠금을 그대로 두고 「위험예측은 아직 미리보기 기능이라 이 기기에서는 바로 열 수 없습니다」 토스트만 띄운다.
+  ⚠**브리핑을 일반 사용자에게 공개할 때 이 잠금을 어떻게 할지는 사용자가 따로 정할 문제**다(설계서 §11.9.1 A2).
+- **노출 판정 다시 받기**: 10분마다(모든 기기) · 관리자 로그인·로그아웃·관리자 모드·관리자 기기 등록이 바뀔 때 바로(`admin.js` → `seagnal-admin-change` 사건) · 조회가 실패하면 직전 판정을 유지하고 5초·20초·60초 뒤 다시.
+- **점검 차단**: 통합관리자 점검 트리 「특보정보 > 특보 및 전망 > 활동지점 안전 브리핑」(`station-briefing`)으로 이 아코디언만 막을 수 있다(index2.html featureMap·bodyMap).
+- **설정 팝업 [관할 설정]**: 팝업에 저장하지 않은 다른 변경이 있으면 묻는다([확인] 저장하고 이동 / [취소] 팝업에 남기 — `settings.js settingsModalHasUnsaved`).
+- **출처 한 벌**: 본문 꼬리 「출처」 줄과 [기준 상세] 출처 표는 `StationBriefingRender.SOURCES` 하나를 같이 쓴다 — 출처를 고칠 때는 그 배열만.
+- **긴 본문**: 펼친 아코디언과 안쪽 칸은 높이 상한을 풀었다(`max-height:none` — 카드 최대치에서 아래가 잘리던 것).
 
 ## 시험
 

@@ -26,6 +26,24 @@
     var SOURCE_LABEL = { accident: '공식 사고예보', congestion: '혼잡 예보', zoneForecasts: '해구 예보', warnings: '기상특보', concentration: '관광지 사람 집중률', tourConcentration: '관광지 사람 집중률', hazard: '위험구역', events: '행사', rip: '이안류', gale: '강풍 자료', forecast: '해구 예보', detail: '관광지 상세' };
     var EDITION = { morning: '08:00 판', evening: '17:30 판', night: '23:00 판(오늘 밤~내일)', warning: '특보 변경 판', manual: '관리자 즉시 실행 판' };
     var DOW = ['일', '월', '화', '수', '목', '금', '토'];
+    // 쓰는 자료와 출처 — [기준 상세] 표(station_briefing_basis.js)와 본문 꼬리 「출처」 줄이 이 한 벌을 같이 쓴다(2단계 검토 B10 — 둘이 어긋나 있었다).
+    // [자료, 출처, 쓰는 곳]. 출처는 수집기·자료 파일 머리 주석으로 확인한 것만(build_accidents.js 개방海 「선박사고(해경)」·「인명사고」, build_coast_accidents.py 유형·500m·2020~2024,
+    // marine_fusion.js 선박사고 최근 5년(자료 마지막 해 2025), coastal_events_collector.js 관광공사+Gemini 보충, scheduler.js 이안류 KHOA+기상청, swell_smallzone.js 기상청 MMIS 너울).
+    var SOURCES = [
+        ['선박 사고위험 예보(3시간)', '한국해양교통안전공단 MTIS', '해상 단계'],
+        ['해양교통 혼잡 예보', '한국해양교통안전공단 MTIS', '해상 「충돌·접촉 주의」'],
+        ['실시간 선박 교통', '한국해양교통안전공단 MTIS', '「지금 밀집」 한 줄(오늘 브리핑만)'],
+        ['해상 특보(풍랑·태풍)·육상 강풍특보·특보 해제 기록', '기상청', '해상·육상 단계, 특별 상황'],
+        ['해구별 3시간 예보(파고·풍속)', '기상청', '해상 단계, 「몇 시부터 높아지는지」'],
+        ['해상 기상 전망(단기 통보문)', '기상청', '총평을 쓰는 AI 의 원인 참고(그 안의 숫자·지명은 옮기지 않음)'],
+        ['조석(고조·저조)·잠기는 바위', '국립해양조사원 조석 예측(앱이 매일 23:30 수집)', '조석 칸'],
+        ['관광지 사람 집중률 예측', '한국관광공사', '육상 「사람 평소의 N배」, 연안 위험지수'],
+        ['지역 행사', '한국관광공사(+ Gemini 보충 검색)', '육상 「오늘 바뀐 요소」'],
+        ['너울 · 이안류', '기상청 · 국립해양조사원', '육상 「오늘 바뀐 요소」'],
+        ['연안사고 위험구역', '해양경찰청', '육상 특성, 상시 위험 장소'],
+        ['과거 선박사고(2021~2025)', '해양경찰청 선박사고 기록(국립해양조사원 개방海 제공)', '해역 [특성]'],
+        ['과거 연안사고 — 연안 인명사고(익수·추락·고립·표류·기타), 관광지 구역 + 앞바다 500m, 2020~2024', '국립해양조사원 개방海 인명사고', '관광지 [특성]'],
+    ];
 
     /**
      * 단계 순위의 색을 고른다(위험예측 4색). 확인 불가(순위 0 이면서 말이 「확인 불가…」)는 회색.
@@ -75,6 +93,8 @@
     }
     /** 날짜만. 예: '2026-10-17' → '10월 17일(토)'. @param {string} date @returns {string} [연계] ← 머리 */
     function dateText(date) { var t = kstText(String(date || '') + 'T00:00'); return t === '—' ? '—' : t.slice(0, -6); }
+    /** 「오늘/내일」 — 대상 날짜가 만든 날짜보다 뒤면 내일(서버 rules.dayWordOf 와 같은 규칙, 23시 판). 예: {targetDate:'2026-10-18',generatedAt:'2026-10-17T23:00…'} → '내일'. @param {Object} b @returns {string} [연계] ← 육상 빈 칸 문구(B6) */
+    function dayWord(b) { return b && b.generatedAt && b.targetDate > String(b.generatedAt).slice(0, 10) ? '내일' : '오늘'; }
     /** 원천 열쇠들을 이름으로. 예: ['congestion','accident'] → '혼잡 예보·공식 사고예보'. @param {string[]} keys @returns {string} [연계] ← 분석 머리 */
     function sourceNames(keys) { var out = []; (keys || []).forEach(function (k) { var n = SOURCE_LABEL[k] || String(k); if (out.indexOf(n) < 0) out.push(n); }); return out.join('·'); }
 
@@ -167,10 +187,11 @@
      * 해상 시간 막대 — 3시간 칸마다 관할 최고 단계 색, 사건(특보 해제 예고·예비·해제·발효)이 있는 칸에 ⚑. 칸을 누르면 아래 줄에 그 칸 설명.
      * 처음 설명은 사건이 있는 첫 칸, 없으면 가장 높은 단계의 첫 칸.
      * 예: timeBar([{label:'06시',rank:2,word:'주의 필요',region:'…',labels:[…],events:[{kind:'release',text:'…'}]}, …]) → 칸 6개 + 설명 줄 + 범례
-     * @param {Object[]} slots - briefing.sea.timeBar @returns {HTMLElement}
+     * 보는 시각(nowMs)에 이미 끝난 칸은 흐리게(.sb-slot-past) — 만드는 시각이 든 칸부터 다루므로 열어 볼 때 지난 칸이 섞일 수 있다(2단계 검토 B3).
+     * @param {Object[]} slots - briefing.sea.timeBar @param {number} [nowMs] - 지금(ms) @returns {HTMLElement}
      * [연계] ← render(해상 분석)
      */
-    function timeBar(slots) {
+    function timeBar(slots, nowMs) {
         var wrap = el('div', 'sb-timebar-wrap'), bar = el('div', 'sb-timebar'), detail = el('p', 'sb-slot-detail');
         bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', '해상 시간 막대 — 3시간 칸별 관할 최고 단계');
         detail.setAttribute('aria-live', 'polite');
@@ -188,9 +209,10 @@
         slots.forEach(function (s, i) {
             var b = el('button', 'sb-slot'); b.type = 'button';
             var bg = colorOf(s.rank, s.word); b.style.background = bg;
+            var past = Number.isFinite(nowMs) && Date.parse(s.at) + 3 * 3600000 <= nowMs; if (past) { b.classList.add('sb-slot-past'); b.setAttribute('data-past', 'true'); }
             b.appendChild(el('span', 'sb-slot-h', String(s.label || '').replace(/시$/, '')));
             if (Array.isArray(s.events) && s.events.length) { var f = el('span', 'sb-slot-flag', '⚑'); f.setAttribute('aria-hidden', 'true'); b.appendChild(f); b.setAttribute('data-event', 'true'); }
-            b.setAttribute('aria-label', (s.label || '') + ' ' + (s.word || WORDS[s.rank] || '') + (s.events && s.events.length ? ' — 특보 사건 있음' : ''));
+            b.setAttribute('aria-label', (s.label || '') + ' ' + (s.word || WORDS[s.rank] || '') + (s.events && s.events.length ? ' — 특보 사건 있음' : '') + (past ? ' — 지난 시간' : ''));
             b.setAttribute('data-rank', String(s.rank));
             b.addEventListener('click', function () { show(i); });
             buttons.push(b); bar.appendChild(b);
@@ -199,6 +221,7 @@
         var legend = el('div', 'sb-legend');
         WORDS.forEach(function (word, r) { var k = el('span', 'sb-legend-k'); var sw = el('i'); sw.style.background = colorOf(r); k.appendChild(sw); k.appendChild(document.createTextNode(word)); legend.appendChild(k); });
         legend.appendChild(el('span', 'sb-legend-k', '⚑ 특보 사건'));
+        if (slots.some(function (s) { return Number.isFinite(nowMs) && Date.parse(s.at) + 3 * 3600000 <= nowMs; })) legend.appendChild(el('span', 'sb-legend-k', '흐린 칸 = 이미 지난 시간'));
         wrap.appendChild(legend); wrap.appendChild(detail);
         var first = -1, top = -1;
         slots.forEach(function (s, i) { if (first < 0 && s.events && s.events.length) first = i; if (top < 0 || Number(s.rank) > Number(slots[top].rank)) top = i; });
@@ -238,6 +261,12 @@
         return box;
     }
     /**
+     * 다음 판 안내 — 예정 시각이 아직이면 「다음 브리핑 예정: …」, 이미 지났으면 「다음 브리핑을 준비 중입니다(… 예정)」(만들기 시작 뒤 AI 총평에 최대 20분 — 2단계 검토 B14).
+     * 예: nextText('2026-10-17T23:00:00+09:00', 10-17 21:30) → '다음 브리핑 예정: 10월 17일(토) 23:00' · 23:05 → '다음 브리핑을 준비 중입니다(10월 17일(토) 23:00 시작)'
+     * @param {string} iso @param {number} nowMs @returns {string} [연계] ← render(브리핑 없음·fallback)
+     */
+    function nextText(iso, nowMs) { return Date.parse(iso) <= nowMs ? '다음 브리핑을 준비 중입니다(' + kstText(iso) + ' 시작)' : '다음 브리핑 예정: ' + kstText(iso); }
+    /**
      * 브리핑 응답 하나를 그린다(그릇 안을 비우고 새로). 브리핑이 없으면 안내(다음 예정 시각)만.
      * 예: render(document.getElementById('station-briefing-content'), {ok:true,display:true,date:'2026-10-17',briefing:{…},now:null}, {showSea:true,showLand:true,onLink:fn})
      * @param {HTMLElement} box @param {Object} resp - GET /api/station-briefing(또는 관리자 preview) 응답
@@ -262,11 +291,11 @@
         if (!b) {
             var empty = el('div', 'sb-empty');
             empty.appendChild(el('p', '', '아직 이 관할의 브리핑이 없습니다.'));
-            empty.appendChild(el('p', 'sb-small', resp && resp.nextExpectedAt ? '다음 브리핑 예정: ' + kstText(resp.nextExpectedAt) : '브리핑은 매일 08:00 · 17:30 · 23:00에 만들고, 특보가 바뀌면 다시 만듭니다.'));
+            empty.appendChild(el('p', 'sb-small', resp && resp.nextExpectedAt ? nextText(resp.nextExpectedAt, nowMs) : '브리핑은 매일 08:00 · 17:30 · 23:00에 만들기 시작하고(AI 총평을 쓰면 최대 20분 뒤 보입니다), 특보가 바뀌면 다시 만듭니다.'));
             box.appendChild(empty);
             return;
         }
-        if (resp.fallback) box.appendChild(el('p', 'sb-note', dateText(resp.wanted) + ' 브리핑(23:00 생성)이 아직 없어 ' + dateText(resp.date) + ' 브리핑을 보여 드립니다' + (resp.nextExpectedAt ? ' — 다음 예정 ' + kstText(resp.nextExpectedAt) : '') + '.'));
+        if (resp.fallback) box.appendChild(el('p', 'sb-note', dateText(resp.wanted) + ' 브리핑(23:00 생성)이 아직 없어 ' + dateText(resp.date) + ' 브리핑을 보여 드립니다' + (resp.nextExpectedAt ? ' — ' + nextText(resp.nextExpectedAt, nowMs) : '') + '.'));
 
         // ① 총평과 권고
         var ov = b.overview || {}, s1 = section('총평과 권고', 'overview');
@@ -274,6 +303,11 @@
         if (showLand && b.land && b.land.level) { levels.appendChild(el('span', 'sb-level-k', '육상')); levels.appendChild(chip(b.land.level.rank, b.land.level.word)); }
         if (showSea && b.sea && b.sea.overviewLevel) { levels.appendChild(el('span', 'sb-level-k', '해상')); levels.appendChild(chip(b.sea.overviewLevel.rank, b.sea.overviewLevel.word)); }
         if (levels.childNodes.length) s1.body.appendChild(levels);
+        // 총평 해상 단계(거른 뒤)가 해상 분석 단계보다 낮으면 한 줄 — 초록 「평소 수준」이 「안전」으로 읽히지 않게(2단계 검토 B1).
+        if (showSea && b.sea && b.sea.level && b.sea.overviewLevel && Number(b.sea.level.rank) > Number(b.sea.overviewLevel.rank)) {
+            var ln = el('p', 'sb-small sb-level-note', '해상 분석에는 「' + (b.sea.level.word || WORDS[b.sea.level.rank]) + '」 해역이 있습니다 — 공식 사고예보 단계만 있고 기상·혼잡 근거가 겹치지 않아 총평에는 올리지 않았습니다. 아래 해상 분석을 보세요.');
+            ln.setAttribute('data-sb-level-note', ''); s1.body.appendChild(ln);
+        }
         if (showLand && ov.land) { var pl = el('p', 'sb-overview'); pl.setAttribute('data-sb-overview', 'land'); pl.appendChild(el('b', 'sb-overview-k', '육상 ')); pl.appendChild(document.createTextNode(ov.land)); s1.body.appendChild(pl); }
         if (showSea && ov.sea) { var ps = el('p', 'sb-overview'); ps.setAttribute('data-sb-overview', 'sea'); ps.appendChild(el('b', 'sb-overview-k', '해상 ')); ps.appendChild(document.createTextNode(ov.sea)); s1.body.appendChild(ps); }
         if (showSea && resp.now && resp.now.text) s1.body.appendChild(el('p', 'sb-now', resp.now.text));
@@ -305,11 +339,13 @@
         if (showSea && b.sea) {
             var sea = b.sea, s3 = section('해상 분석', 'sea');
             var sh = el('div', 'sb-sec-head'); sh.appendChild(chip(sea.level && sea.level.rank, sea.level && sea.level.word)); if (sea.level && sea.level.source) sh.appendChild(el('span', 'sb-tag', sea.level.source)); s3.body.appendChild(sh);
-            s3.body.appendChild(el('p', 'sb-small', '관할 안 ' + (sea.reviewedCells || 0) + '칸 검토 · 관심 이상 ' + (sea.attentionRegions || 0) + '개 해역'));
+            var nAtt = sea.attentionRegions || 0, nCards = Array.isArray(sea.cards) ? sea.cards.length : 0, nAcc = Number.isFinite(sea.overviewRegions) ? Math.max(0, nAtt - sea.overviewRegions) : 0;
+            var cnt = el('p', 'sb-small', '관할 안 ' + (sea.reviewedCells || 0) + '칸 검토 · 관심 이상 ' + nAtt + '개 해역' + (nAcc ? '(그중 공식 사고예보 단계만 있는 해역 ' + nAcc + '개 — 총평에는 올리지 않음)' : '') + (nAtt > nCards ? ' · 카드는 단계 높은 순 ' + nCards + '곳까지' : ''));
+            cnt.setAttribute('data-sb-sea-count', ''); s3.body.appendChild(cnt);
             if (Array.isArray(sea.missing) && sea.missing.length) s3.body.appendChild(el('p', 'sb-miss', '확인하지 못한 자료: ' + sourceNames(sea.missing) + ' — 그 근거는 판단에서 뺐습니다.'));
             if (sea.missingSlots && Array.isArray(sea.missingSlots.accident) && sea.missingSlots.accident.length) s3.body.appendChild(el('p', 'sb-miss', '공식 사고예보를 받지 못한 시각: ' + sea.missingSlots.accident.map(function (a) { return String(a).slice(11, 13) + '시'; }).join('·')));
             if (sea.weather && sea.weather.text) s3.body.appendChild(el('p', 'sb-weather', sea.weather.text));
-            if (Array.isArray(sea.timeBar) && sea.timeBar.length) s3.body.appendChild(timeBar(sea.timeBar));
+            if (Array.isArray(sea.timeBar) && sea.timeBar.length) s3.body.appendChild(timeBar(sea.timeBar, nowMs));
             if (Array.isArray(sea.cards) && sea.cards.length) sea.cards.forEach(function (c) { s3.body.appendChild(seaCard(c, opts)); });
             else s3.body.appendChild(el('p', 'sb-small', (sea.missing && sea.missing.length ? '확인된 자료에서는 ' : '') + '관심 이상인 해역이 없습니다.'));
             box.appendChild(s3.root);
@@ -321,10 +357,12 @@
             if (!b.land) s4.body.appendChild(el('p', 'sb-small', b.seaOnlyReason || '이 관할은 해상 브리핑만 제공합니다.'));
             else {
                 var land = b.land, lh = el('div', 'sb-sec-head'); lh.appendChild(chip(land.level && land.level.rank, land.level && land.level.word)); if (land.level && land.level.source) lh.appendChild(el('span', 'sb-tag', land.level.source)); s4.body.appendChild(lh);
-                s4.body.appendChild(el('p', 'sb-small', '관광지 ' + (land.reviewedSpots || 0) + '곳 검토' + (land.reviewedHazards ? ' · 관광지에 붙지 않은 위험구역 ' + land.reviewedHazards + '곳' : '') + (land.failedSpots ? ' · 관광지 ' + land.failedSpots + '곳 자료 확인 불가' : '')));
+                var nLand = Array.isArray(land.cards) ? land.cards.length : 0;
+                var lc = el('p', 'sb-small', '관광지 ' + (land.reviewedSpots || 0) + '곳 검토' + (land.reviewedHazards ? ' · 관광지에 붙지 않은 위험구역 ' + land.reviewedHazards + '곳' : '') + (land.failedSpots ? ' · 관광지 ' + land.failedSpots + '곳 자료 확인 불가' : '') + (Number(land.attentionSpots) > nLand ? ' · 관심 이상 ' + land.attentionSpots + '곳 중 카드는 단계 높은 순 ' + nLand + '곳까지' : ''));
+                lc.setAttribute('data-sb-land-count', ''); s4.body.appendChild(lc);
                 if (Array.isArray(land.missing) && land.missing.length) s4.body.appendChild(el('p', 'sb-miss', '확인하지 못한 자료: ' + sourceNames(land.missing)));
                 if (Array.isArray(land.cards) && land.cards.length) land.cards.forEach(function (c) { s4.body.appendChild(landCard(c, opts)); });
-                else s4.body.appendChild(el('p', 'sb-small', '오늘 평소와 달라진 요소(사람·행사·너울·이안류·특보·바람)가 있는 관광지가 없습니다.'));
+                else { var ne = el('p', 'sb-small', dayWord(b) + ' 평소와 달라진 요소(사람·행사·너울·이안류·특보·바람)가 있는 관광지가 없습니다.'); ne.setAttribute('data-sb-land-none', ''); s4.body.appendChild(ne); }
                 if (Array.isArray(land.constant) && land.constant.length) {
                     var cd = el('details', 'sb-constant'); cd.appendChild(el('summary', '', '상시 위험 장소 (' + land.constant.length + ')'));
                     var cl = el('ul', 'sb-list');
@@ -341,9 +379,9 @@
         // ⑦ 기준 시각·출처·참고 정보
         var foot = el('div', 'sb-foot');
         foot.appendChild(el('p', '', '기준 시각 ' + kstText(b.generatedAt) + ' · ' + (EDITION[b.edition] || '') + (b.window ? ' · 다루는 시간 ' + kstText(b.window.from) + ' ~ ' + kstText(b.window.to) : '')));
-        foot.appendChild(el('p', '', '출처: 한국해양교통안전공단(사고예보·혼잡 예보·실시간 선박), 기상청(특보·해구 예보·해상 기상 전망), 국립해양조사원(조석·과거 선박사고), 한국관광공사(관광지 집중률·행사), 해양경찰청(연안사고 위험구역)'));
+        var fs = el('p', '', '출처: ' + SOURCES.map(function (r) { return r[0] + ' — ' + r[1]; }).join(' · ')); fs.setAttribute('data-sb-foot-source', ''); foot.appendChild(fs);
         foot.appendChild(el('p', 'sb-notice', b.notice || '참고 정보이며 안전을 보장하지 않습니다.'));
         box.appendChild(foot);
     }
-    w.StationBriefingRender = { render: render, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, WORDS: WORDS };
+    w.StationBriefingRender = { render: render, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, WORDS: WORDS, SOURCES: SOURCES };
 })(window);
