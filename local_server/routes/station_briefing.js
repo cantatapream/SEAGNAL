@@ -58,10 +58,15 @@ function createRouter({
     router.get(admin + '/config', (req, res) => { try { const s = svc().status(); res.set('Cache-Control', 'no-store').json({ ok: true, config: s.config, choices: s.choices }); } catch (e) { fail(res, e); } });
     router.put(admin + '/config', express.json({ limit: '8kb' }), (req, res) => { try { res.json({ ok: true, config: svc().writeConfig(req.body || {}) }); } catch (e) { fail(res, e); } });
     router.get(admin + '/status', (req, res) => { try { res.set('Cache-Control', 'no-store').json({ ok: true, ...svc().status() }); } catch (e) { fail(res, e); } });
+    // 실행 중이면 409 + 지금 상태(독립 검토 B11) — 예전에는 202 「시작함」이라고 답하고 실제로는 건너뛰었다.
     router.post(admin + '/run', (req, res) => {
-        const p = svc().run({ kind: 'manual' });
-        p.catch((e) => console.error('[station_briefing] 관리자 실행 실패:', e && e.message));
-        res.status(202).json({ ok: true, started: true });
+        try {
+            const st = svc().status();
+            if (st.running) return res.status(409).set('Cache-Control', 'no-store').json({ ok: false, started: false, running: true, error: '이미 실행 중', lastRun: st.lastRun || null });
+            const p = svc().run({ kind: 'manual' });
+            p.then((r) => { if (r && r.skipped) console.warn('[station_briefing] 관리자 실행 건너뜀: ' + r.skipped); }, (e) => console.error('[station_briefing] 관리자 실행 실패:', e && e.message));
+            res.status(202).json({ ok: true, started: true });
+        } catch (e) { fail(res, e); }
     });
     return router;
 }

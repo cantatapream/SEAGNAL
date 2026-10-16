@@ -3,6 +3,7 @@
  * 파일명: local_server/scripts/test_station_briefing.js
  * 역할  : 「활동지점 안전 브리핑」(파출소 관할) 서버 1단계 시험 — 고정 입력(가짜 자료)으로 규칙·AI 순서·검증·저장·일정·노출을 결정론적으로 확인한다.
  *         실제 AI·카카오·기상청 호출 없음(가짜 어댑터·가짜 fetch), 임시 폴더만 쓴다, 서버를 띄우지 않는다(라우터만 임시 포트).
+ *         끝부분 「[A1]…[C9]」 = 독립 검토 3건(규칙·AI·운영, 2026-10-16)의 결함마다 1:1 회귀 — 모두 고치기 전 코드에서 실패함을 확인했다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js · station_briefing.js · routes/station_briefing.js
@@ -197,7 +198,9 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(t.peaks.map((p) => p.type + p.t), ['high00:50', 'low06:12', 'high12:30', 'low18:40']);
         assert.deepStrictEqual(t.rocks, { count: 1, first: '07:10', last: '18:40' });
         const sec = R.tideSection(t, WIN);
-        assert.equal(sec.text[0], '저조 06:12·18:40 무렵 갯벌·고립 주의 — 물이 빠져 갯벌·바위가 드러나고, 물이 다시 차오를 때 고립될 수 있습니다(고조 00:50·12:30).');
+        // 문구는 창(아침 판 06~24시) 안의 고저조만 — 00:50 고조는 창 앞이라 빠진다(독립 검토 낮음, 게이지 peaks 에는 그대로 있다).
+        assert.equal(sec.text[0], '저조 06:12·18:40 무렵 갯벌·고립 주의 — 물이 빠져 갯벌·바위가 드러나고, 물이 다시 차오를 때 고립될 수 있습니다(고조 12:30).');
+        assert.equal(sec.gauge.peaks.length, 4);
         assert.ok(sec.text[1].startsWith('관할 안 잠기는 바위(간출암) 1곳이 07:10~18:40 사이 물에 잠깁니다'));
         assert.equal(I.collectTide({ lat: 33.41, lon: 126.26 }, '2026-10-17', geom, { anchors: [{ id: 'A7', lat: 33.41, lon: 126.26 }], readCurve: () => files['20261017'] }), null, '제주는 물빠짐 대상 밖');
         assert.equal(I.collectTide({ lat: 36.674, lon: 126.13 }, '2026-10-17', geom, { anchors: [{ id: 'A1', lat: 37.2, lon: 126.13 }], readCurve: () => files['20261017'] }), null, '25km 안 앵커가 없으면 없음');
@@ -269,7 +272,9 @@ const WIN = R.editionWindow('morning', T0);
         const so = { ...si, land: null, required: { sea: si.required.sea, land: null } };
         assert.ok(AI.validateOverview({ sea: good.sea, land: '육상 글입니다. 둘. 셋.' }, so).errors.includes('shape:land-not-allowed'));
         assert.ok(AI.validateOverview(good, si).ok);
-        assert.ok(si.allowed_multipliers.includes('1.2') && si.allowed_multipliers.includes('1.3') && si.allowed_multipliers.includes('1.8'));
+        // 배수는 문단별(독립 검토 B3): 해상 = 해제 칸 1.2·1.3, 육상 = 사람 배수 1.8 — 서로 섞이지 않는다.
+        assert.deepStrictEqual(si.allowed_multiplier_keys.sea, ['1.2_1.3|배', '1.2|배', '1.3|배'].map((k) => k.replace('_', '~')).sort());
+        assert.ok(si.allowed_multiplier_keys.land.includes('1.8|배') && !si.allowed_multiplier_keys.sea.includes('1.8|배') && !si.allowed_multiplier_keys.land.includes('1.2|배'));
         assert.ok(!si.allowed_places.some((p) => p.includes('모슬포')), '총평 후보가 아닌 해역 이름은 허용 지명에 없음');
     });
     const stationsFor = (n) => Array.from({ length: n }, (_, i) => { const x = hallim(); x.key = (i < 2 ? '제주해양경찰서' : '서귀포해양경찰서') + '|파출소' + i; x.office = i < 2 ? '제주해양경찰서' : '서귀포해양경찰서'; return R.buildBriefing(x, WIN, { generatedAt: R.isoKst(T0) }); });
@@ -364,6 +369,10 @@ const WIN = R.editionWindow('morning', T0);
         const first = await svc.tick(); assert.equal(first.warning, undefined, '처음 본 서명은 기록만');
         fs.writeFileSync(alerts, JSON.stringify({ current: tree('주의보') })); fs.utimesSync(alerts, new Date(), new Date(Date.now() + 5000));
         NOW = Date.parse('2026-10-17T10:05:00+09:00');
+        // 디바운스(독립 검토 C9): 마지막 변경 뒤 3분 조용할 때 한 번 — 10:05 · 10:07 은 대기, 10:08 에 만든다.
+        assert.deepStrictEqual(await svc.tick(), { pending: ['제주도서부앞바다'] });
+        NOW = Date.parse('2026-10-17T10:07:00+09:00'); assert.deepStrictEqual(await svc.tick(), { pending: ['제주도서부앞바다'] });
+        NOW = Date.parse('2026-10-17T10:08:00+09:00');
         const r = await svc.tick();
         assert.deepStrictEqual(r.warning, ['제주해양경찰서|한림파출소']); assert.deepStrictEqual(r.zones, ['제주도서부앞바다']);
         const day = I.readJson(path.join(tmp, 'sb', 'briefings_2026-10-17.json')), h = day.stations['제주해양경찰서|한림파출소'];
@@ -436,6 +445,310 @@ const WIN = R.editionWindow('morning', T0);
     await check('서버 시작 부작용 없음: start() 는 FLY_ALLOC_ID 없으면 false · require 만으로 타이머·파일 쓰기 없음', () => {
         const had = process.env.FLY_ALLOC_ID; delete process.env.FLY_ALLOC_ID;
         try { assert.equal(svc.start(), false); } finally { if (had) process.env.FLY_ALLOC_ID = had; }
+    });
+    // ── 독립 검토 3건(규칙·AI·운영, 2026-10-16) 회귀 — 결함마다 1:1. 재현 스크립트: scratchpad review_rules·review_ai·review_ops ──
+    const seaOnlyInput = (sea, sources = { accident: 'ok', congestion: 'ok', zoneForecasts: 'ok', warnings: 'ok' }) => ({ key: 'k|테스트파출소', name: '테스트파출소', office: 'o', seaOnly: true, sources, sea: { reviewedCells: 1, regions: [], weather: {}, warnings: [], ...sea }, places: [], land: null, tide: null });
+    const region = (i, slots, extra = {}) => ({ rid: 'A:' + i, lat: 33 + i * 0.01, lon: 126, haegu: { major: 232, sub: 1, label: '232-1' }, ref: { name: '제주', distNm: 3, bearingWord: '북' }, zone: null, zones: [], slots, history: { count: 0 }, ...extra });
+    await check('[A1] 육상 특보·떠밀림은 그날 칸 전부(daily.notices) — 가장 높은 칸 밖 18~21시 풍랑경보·바람 11m/s 도 「경계 필요」', () => {
+        const fake = { coastDayDetail: (id, t) => ({ t, index: 60, band: '높음', rows: [], notices: [], daily: { peakAt: at(12), notices: [{ key: 'warning', name: '풍랑경보', state: '발효', from: at(18), to: at(21) }, { key: 'warning', name: '강풍주의보', state: '예비', from: at(21), to: at(21) }, { key: 'drift', windMs: 9, from: at(9), to: at(9) }, { key: 'drift', windMs: 11, from: at(15), to: at(18) }] }, history: { available: false }, missing: [] }) };
+        const L = I.collectLand([{ id: 's1', name: '가나해수욕장', lat: 1, lon: 1, beach: true }], [], { risk: fake, t: at(8) });
+        assert.deepStrictEqual(L.spots[0].notices, { effective: ['풍랑경보'], prelim: ['강풍주의보'], windMs: 11 });
+        const j = R.landSpot(L.spots[0]); assert.equal(j.rank, 3); assert.equal(j.sourceLabel, '풍랑경보');
+    });
+    await check('[A2] 결측과 0 구분: 원천이 낡거나 없으면 「평소 수준」·「겹치는 해역은 없습니다」 대신 「확인 불가」 + 총평 첫머리에 빠진 원천 · AI 글도 빠진 원천을 밝혀야 통과', () => {
+        const all = R.buildBriefing(seaOnlyInput({ reviewedCells: 5 }, { accident: 'missing', congestion: 'missing', zoneForecasts: 'missing', warnings: 'missing' }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(all.sea.level.word, '확인 불가'); assert.equal(all.sea.overviewLevel.word, '확인 불가'); assert.ok(all.sea.timeBar.every((s) => s.word === '확인 불가'));
+        assert.ok(all.overview.sea.startsWith('오늘 테스트파출소 관할 해상은 확인 불가입니다 — 공식 사고예보·혼잡 예보·해구 예보·기상특보 자료를 확인하지 못해'), all.overview.sea);
+        assert.ok(!all.overview.sea.includes('평소 수준') && !all.overview.sea.includes('겹치는 해역은 없습니다'), all.overview.sea);
+        const part = R.buildBriefing(seaOnlyInput({}, { accident: 'ok', congestion: 'stale', zoneForecasts: 'ok', warnings: 'ok' }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(part.sea.level.word, '확인 불가(일부)'); assert.deepStrictEqual(part.sea.missing, ['congestion']);
+        const si2 = AI.stationInput(part); assert.deepStrictEqual(si2.required.missing.sea, ['혼잡 예보']);
+        const v = AI.validateOverview(part.overview, si2); assert.ok(v.ok, v.errors.join(','));
+        const silent = AI.validateOverview({ land: null, sea: '오늘 테스트파출소 관할 해상은 평소 수준입니다. 바람이 약합니다. 따라서 출항 전 기상 확인에 관심이 필요합니다.' }, si2);
+        assert.ok(silent.errors.includes('required:missing:혼잡 예보'), silent.errors.join(','));
+        const fine = R.buildBriefing(seaOnlyInput({}), WIN, { generatedAt: R.isoKst(T0) }); assert.equal(fine.sea.level.word, '평소 수준', '원천이 모두 ok 이고 근거가 없으면 평소 수준');
+    });
+    await check('[A3] 특보 원천이 ok 가 아니면(낡음) 해제 예고·예비 칸·시간 막대 사건을 만들지 않는다', () => {
+        const w = [{ zone: 'Z앞바다', type: '풍랑', level: '주의보', state: '발효', effective: null, release: { start: at(9), end: at(12), range: true } }, { zone: 'Z앞바다', type: '풍랑', level: '경보', state: '예비', effective: { start: at(18), end: at(21), range: true }, release: null }];
+        const stale = R.buildBriefing(seaOnlyInput({ warnings: w }, { accident: 'ok', congestion: 'ok', zoneForecasts: 'ok', warnings: 'stale' }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.deepStrictEqual(stale.special, []); assert.ok(stale.sea.timeBar.every((s) => !s.events.length)); assert.ok(!stale.overview.sea.includes('해제 예고'));
+        const ok = R.buildBriefing(seaOnlyInput({ warnings: w }), WIN, { generatedAt: R.isoKst(T0) }); assert.equal(ok.special.length, 2, '원천이 ok 면 그대로');
+    });
+    await check('[A4] 해제 예고·예비 범위가 창 시작 전에 시작해도 창과 겹치면 넣는다(17:30 판 12~18시 · 23시 판 18~24시), 사건은 첫 칸에', () => {
+        const ev = R.editionWindow('evening', Date.parse('2026-10-17T17:30:00+09:00'));
+        const r1 = R.warningEvents([{ zone: 'Z', type: '풍랑', level: '주의보', state: '발효', effective: null, release: { start: at(12), end: at(18), range: true } }], ev);
+        assert.equal(r1.special.length, 1); assert.equal(r1.special[0].title, 'Z 풍랑주의보 — 12~18시 해제 예고(더 일찍 풀릴 수 있음)'); assert.equal(r1.events[0].at, at(15));
+        const ng = R.editionWindow('night', Date.parse(at(23)));
+        const r2 = R.warningEvents([{ zone: 'Z', type: '풍랑', level: '주의보', state: '발효', effective: null, release: { start: at(18), end: '2026-10-18T00:00:00+09:00', range: true } }, { zone: 'Y', type: '풍랑', level: '경보', state: '예비', effective: { start: at(18), end: '2026-10-18T03:00:00+09:00', range: true }, release: null }], ng);
+        assert.deepStrictEqual(r2.special.map((x) => x.kind), ['release', 'prewarn']); assert.equal(r2.special[0].title, 'Z 풍랑주의보 — 10월 17일 18~24시 해제 예고(더 일찍 풀릴 수 있음)');
+        const gone = R.warningEvents([{ zone: 'Z', type: '풍랑', level: '주의보', state: '발효', effective: null, release: { start: at(9), end: at(12), range: true } }], ev);
+        assert.equal(gone.special.length, 0, '창 앞에서 끝난 해제 예고는 없음');
+    });
+    await check('[A5] 해역 카드 10개 상한 밖의 해역이 총평 근거여도 사라지지 않는다 — 총평 후보는 총평 단계 순위에서 바로, 단계 말과 총평 문장이 맞는다', () => {
+        const regions = []; for (let i = 0; i < 11; i++) { const s = {}; for (const h of [6, 9, 12, 15, 18, 21]) s[at(h)] = { accident: '주의' }; regions.push(region(i, s)); }
+        regions.push(region(99, { [at(15)]: { accident: '주의', congestion: { level: '높음', index: 12, at: at(15) } } }));
+        const x = R.buildBriefing(seaOnlyInput({ reviewedCells: 12, regions }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(x.sea.cards.length, 10); assert.ok(!x.sea.cards.some((c) => c.rid === 'A:99'), '카드 순위(지속 칸)로는 10개 밖');
+        assert.deepStrictEqual(x.sea.overviewTop.map((c) => c.rid), ['A:99']); assert.equal(x.sea.overviewLevel.word, '주의 필요');
+        assert.ok(x.overview.sea.startsWith('오늘 테스트파출소 관할 해상은 주의 필요입니다'), x.overview.sea); assert.ok(x.overview.sea.includes('따라서 15~18시경'), x.overview.sea);
+        assert.ok(AI.validateOverview(x.overview, AI.stationInput(x)).ok);
+    });
+    await check('[A6] 끊긴 시간대를 하나로 잇지 않는다: 06시·21시 경계 → 카드 창·오늘 예상·총평 창 모두 「06~09시·21~24시」, peakAt 06시', () => {
+        const x = R.buildBriefing(seaOnlyInput({ regions: [region(1, { [at(6)]: { accident: '경계' }, [at(21)]: { accident: '경계' } })] }), WIN, { generatedAt: R.isoKst(T0) });
+        const c = x.sea.cards[0];
+        assert.equal(c.window, '06~09시·21~24시'); assert.equal(c.peakAt, at(6));
+        assert.deepStrictEqual(c.today.lines, ["06~09시·21~24시 공식 사고예보 '경계'"]);
+        assert.equal(c.overview.window, '06~09시·21~24시'); assert.equal(c.overview.label, "공식 사고예보 '경계'(06~09시·21~24시)");
+        assert.equal(R.runsText([at(15), at(18)], '2026-10-17'), '15~21시');
+    });
+    await check('[A8] 특보 변경 판이 내일 판을 고칠 때 21시 전이면 내일 0시부터(오늘 칸 섞지 않음) · 21시부터는 night 판과 같은 「오늘 밤~내일」', () => {
+        const w = R.editionWindow('warning', Date.parse('2026-10-17T13:10:00+09:00'), '2026-10-18');
+        assert.equal(w.from, '2026-10-18T00:00:00+09:00'); assert.equal(w.slots.length, 8); assert.ok(w.slots.every((s) => s.startsWith('2026-10-18')));
+        assert.equal(R.editionWindow('warning', Date.parse('2026-10-17T23:10:00+09:00'), '2026-10-18').from, at(21));
+        assert.equal(R.editionWindow('warning', Date.parse('2026-10-17T13:10:00+09:00'), '2026-10-17').from, at(12), '오늘 판은 그대로 지금 칸부터');
+    });
+    await check('[낮음] 조석 문구는 창 안의 고조·저조만 — 17:30 판은 15시 뒤, 23시 판은 전날 곡선의 오늘 밤(날짜 붙임)도', () => {
+        const tide = { anchorId: 'A', distKm: 1, date: '2026-10-17', curve: [], peaks: [{ type: 'low', t: '06:12', cm: 0 }, { type: 'high', t: '12:30', cm: 600 }, { type: 'low', t: '18:40', cm: 0 }], rocks: null };
+        assert.deepStrictEqual(R.tideSection(tide, R.editionWindow('evening', Date.parse('2026-10-17T17:30:00+09:00'))).text, ['저조 18:40 무렵 갯벌·고립 주의 — 물이 빠져 갯벌·바위가 드러나고, 물이 다시 차오를 때 고립될 수 있습니다.']);
+        const night = { ...tide, date: '2026-10-18', peaks: [{ type: 'high', t: '01:10', cm: 600 }, { type: 'low', t: '07:20', cm: 0 }], prevDayPeaks: [{ type: 'low', t: '18:40', cm: 0 }, { type: 'high', t: '22:50', cm: 610 }] };
+        assert.equal(R.tideSection(night, R.editionWindow('night', Date.parse(at(23)))).text[0], '저조 07:20 무렵 갯벌·고립 주의 — 물이 빠져 갯벌·바위가 드러나고, 물이 다시 차오를 때 고립될 수 있습니다(고조 10월 17일 22:50·01:10).');
+        const files = { '20261018': { curve: [{ t: '00:00', h: 1 }], peaks: { lowTide1: { time: '07:20', height: 0 } } }, '20261017': { curve: [], peaks: { highTide2: { time: '22:50', height: 610 }, lowTide2: { time: '18:40', height: 0 } } } };
+        const t = I.collectTide({ lat: 36.674, lon: 126.13 }, '2026-10-18', { type: 'Polygon', coordinates: [[[126, 36.6], [126, 36.7], [126.2, 36.7], [126.2, 36.6], [126, 36.6]]] }, { anchors: [{ id: 'A7', lat: 36.68, lon: 126.14 }], readCurve: (id, ymd) => files[ymd] || null, rocks: [], crossings: {} });
+        assert.deepStrictEqual(t.prevDayPeaks.map((p) => p.t), ['18:40', '22:50']);
+    });
+    await check('[낮음] 육상 「관심」 근거 이름은 판정 이유와 맞게 — 평소 수준 지수 + 사람 + 예비특보면 근거는 예비특보', () => {
+        const j = R.landSpot({ band: '평소 수준', people: { ratio: 1.2, score: 0.2 }, notices: { prelim: ['풍랑주의보'] } });
+        assert.equal(j.rank, 1); assert.equal(j.sourceLabel, '풍랑주의보 예비특보');
+        assert.equal(R.landSpot({ band: '높음', people: { ratio: 1.8, score: 0.8 }, notices: { prelim: ['풍랑주의보'] } }).sourceLabel, '사람 평소의 1.8배', '지수가 평소 위면 첫 바뀐 요소');
+    });
+    await check('[낮음] 선박사고 「기록 없음」(0건)과 「이력 자료 없음」(집계 불가)을 가른다', () => {
+        const mk = (history) => R.buildBriefing(seaOnlyInput({ regions: [region(1, { [at(9)]: { accident: '경계' } }, { history })] }), WIN, { generatedAt: R.isoKst(T0) }).sea.cards[0].traits;
+        const none = mk({ count: 0, available: false, from: '2021-01-01', to: '2025-12-31' }); assert.ok(none.text.startsWith('선박사고 이력 자료 없음(집계 불가)'), none.text); assert.deepStrictEqual(none.history, { count: 0, available: false });
+        const zero = mk({ count: 0, available: true, from: '2021-01-01', to: '2025-12-31' }); assert.ok(zero.text.startsWith('2021~2025년 선박사고 기록 없음'), zero.text); assert.equal(zero.history.available, true);
+        assert.ok(mk(null).text.startsWith('선박사고 이력 자료 없음'));
+    });
+    await check('[낮음] 해역 이름 거리 0 가드: 기준점과 거의 같은 자리면 방위·0.0해리 대신 「○○ 인근 해역」', () => {
+        assert.equal(R.regionName({ lat: 33.4067, lon: 126.2275, ref: { name: '화순항', distNm: 13.3, bearingWord: '북' }, haegu: { label: '232-2' } }, [{ name: '비양도', lat: 33.4067, lon: 126.2275 }]).name, '비양도 인근 해역(232-2해구)');
+        assert.equal(R.regionName({ lat: 33.4, lon: 126.2, ref: { name: '한림항', distNm: 0, bearingWord: '북' }, haegu: { label: '232-2' } }, []).name, '한림항 인근 해역(232-2해구)');
+    });
+    await check('[낮음] 공식 사고예보 프레임이 빠진 칸은 「사고예보 없음」이 아니라 확인 불가 — sea.frameGaps → missing·missingSlots, 그 칸 근거 안 씀', () => {
+        const box = { type: 'Polygon', coordinates: [[[126.2, 33.4], [126.2, 33.45], [126.25, 33.45], [126.25, 33.4], [126.2, 33.4]]] };
+        const A = { i: 0, id: '9001', lat: 33.425, lon: 126.225, haegu: { major: 232, sub: 2, label: '232-2' }, ref: { name: '화순항', distNm: 13.3, bearingWord: '북북서' }, warnZone: null, warnSubZone: null, geometry: box };
+        const frames = Object.fromEntries(WIN.slots.filter((s) => s !== at(21)).map((s) => [I.forecastKey(s), [[0, 0.1, '보통']]]));
+        const risk = { marineInputs: () => ({ accident: { cells: [A], frames }, cells: { cells: [] }, congestion: null, warnings: null, sources: { accident: { status: 'ok' }, congestion: { status: 'ok' }, zoneForecasts: { status: 'ok' }, warnings: { status: 'ok' } }, weather: () => ({}) }) };
+        const s = I.collectSea([{ key: 'K', idx: '0' }], { risk, marine: { stationAt: () => ({ id: '0' }), cellHistory: () => ({ count: 0 }) }, win: WIN, now: T0 }).bySt.get('K');
+        assert.deepStrictEqual(s.frameGaps, { accident: [at(21)] });
+        const x = R.buildBriefing(seaOnlyInput({ regions: [region(1, { [at(21)]: { accident: '경계' }, [at(9)]: { accident: '주의' } })], frameGaps: { accident: [at(21)] } }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(x.sea.level.rank, 2, '빠진 칸(21시)의 값은 쓰지 않음'); assert.deepStrictEqual(x.sea.missing, ['accident']); assert.deepStrictEqual(x.sea.missingSlots, { accident: [at(21)] });
+    });
+    await check('[낮음] 검토한 관광지 수는 상세를 받은 곳만(실패 detail 은 빼고 failedSpots 로)', () => {
+        const x = R.buildBriefing({ ...hallim(), land: { spots: hallim().land.spots.concat([{ id: 'bad', name: '없는곳', missing: ['detail'] }]), hazardOnly: [] } }, WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(x.land.reviewedSpots, 4); assert.equal(x.land.failedSpots, 1); assert.ok(x.land.missing.includes('detail'));
+        assert.ok(x.overview.land.includes('관광지 4곳 검토') && x.overview.land.includes('확인하지 못한 자료: 관광지 상세'), x.overview.land);
+    });
+    // ── AI 검증(B) ──
+    // 멈춘 약속을 시험이 영원히 기다리지 않게(고치기 전 코드는 시간 제한이 없어 여기서 멈췄다) — 실제 시계와 무관한 상한.
+    const within = (p, ms, what) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(what + ' — ' + ms + 'ms 안에 끝나지 않음')), ms); })]).finally(() => clearTimeout(t)); };
+    const sea0 = (mid) => '비양도 해역에서 ' + mid + ' 15시부터 파고가 높아집니다. 풍속도 오릅니다. 따라서 비양도 해역에 주의가 필요합니다.';
+    const vErr = (sea, land = good.land) => AI.validateOverview({ land, sea }, si).errors;
+    await check('[B1] 숫자는 「숫자+단위」·범위째 대조 — 3m·7m/s·10m·24척·11건·15m·12~15m/s 는 막고, 서버 문장 꼴은 통과', () => {
+        for (const [mid, code] of [['파고 3m 풍속 7m/s 가 예상됩니다.', 'number:3m'], ['파고 10m 가 예상됩니다.', 'number:10m'], ['선박 24척 입니다.', 'number:24척'], ['최근 사고 11건 입니다.', 'number:11건'], ['파고 15m 가 예상됩니다.', 'number:15m'], ['풍속 12~15m/s 가 예상됩니다.', 'number:12~15m/s'], ['가능성 70% 입니다.', 'number:70%']]) assert.ok(vErr(sea0(mid)).includes(code), mid + ' → ' + vErr(sea0(mid)).join(','));
+        assert.deepStrictEqual(vErr(sea0('대해구 232 예보는 파고 2.4m·풍속 13m/s 입니다.')), [], '서버 문장에 있는 숫자+단위');
+        assert.ok(si.allowed_numbers.includes('2.4m') && si.allowed_numbers.includes('15~24시'));
+    });
+    await check('[B2] NFKC(전각 숫자)·한글 수사 차단 — ９９m · 구 미터 · 서른 미터 · 오후 세 시 · 두 척', () => {
+        assert.ok(vErr(sea0('파고 ９９m 가 예상됩니다.')).includes('number:99m'));
+        const h = vErr(sea0('파고 구 미터, 풍속 서른 미터 가 예상되고 오후 세 시에 선박 두 척이 있습니다.'));
+        for (const c of ['number:hangul:구 미터', 'number:hangul:서른 미터', 'number:hangul:세 시', 'number:hangul:두 척']) assert.ok(h.includes(c), c + ' / ' + h.join(','));
+        assert.deepStrictEqual(vErr(sea0('바람이 이 시각부터 셉니다.')), [], '「이 시각」은 수사가 아님');
+    });
+    await check('[B3] 해상 문단은 「사고 N배」·「두 배」 금지(해제 칸 1.2·1.3 만) — 육상 사람 배수(1.8)는 육상 문단에서만', () => {
+        assert.ok(vErr(sea0('해상 사고 1.8배 입니다.')).includes('multiplier:1.8배'));
+        assert.ok(vErr(sea0('사고가 두 배 늘 수 있습니다.')).includes('multiplier:두 배'));
+        assert.deepStrictEqual(vErr(sea0('해제 뒤 이틀 동안 사고가 약 1.2~1.3배 많았습니다.')), []);
+        assert.ok(vErr(good.sea, good.land.replace('1.8배', '1.2배')).includes('multiplier:1.2배'), '해제 배수는 육상 문단에 못 씀');
+    });
+    await check('[B4] 단계 말은 모든 서술 꼴(경계가 요구·경계하십시오·주의 단계) · 대상 이름 없는 문장은 그 문단 최저 단계까지', () => {
+        const base = '비양도 해역에서 파고가 높아집니다. 15시부터 바람이 셉니다. ';
+        for (const t of ['따라서 비양도 해역에 경계가 요구됩니다.', '따라서 비양도 해역에서는 경계하십시오.', '비양도 해역은 경계 단계입니다.']) assert.ok(vErr(base + t).includes('level:경계>2'), t + ' / ' + vErr(base + t).join(','));
+        assert.ok(vErr(base + '따라서 이 해역에 경계가 필요합니다.').includes('level:경계>2'));
+        // 문단 안 대상 단계가 2·1 로 갈리면 이름 없는 문장은 최저(1)까지 — 예전에는 문단 단계(2)까지 허용했다.
+        const si1 = { ...si, levels: { ...si.levels, sea: { ...si.levels.sea, '한림항 북동방 5.2해리 해역(232-3해구)': 1, 한림항: 1 } } };
+        const e1 = AI.validateOverview({ land: good.land, sea: base + '따라서 이 해역에 주의가 필요합니다.' }, si1).errors;
+        assert.ok(e1.includes('level:주의>1'), '이름 없는 문장 — 문단 최저(관심)까지 / ' + e1.join(','));
+        assert.deepStrictEqual(vErr(base + '따라서 비양도 해역에 주의가 필요합니다.'), []);
+        assert.deepStrictEqual(si.levels.sea['한림파출소'], 2); assert.equal(si.levels.land['한림파출소'], 1, '문단별 단계');
+    });
+    await check('[B5] 지명: 갯바위·섬·도·포 등 접미사·띄어쓰기도 대조, 부분 일치는 허용 이름이 글 쪽에 포함될 때만(「림항」 조각 금지)', () => {
+        for (const [mid, code] of [['차귀도 앞 갯바위 주변이 위험합니다.', 'place:차귀도'], ['제주도 동부 앞바다 에 풍랑이 있습니다.', 'place:제주도동부앞바다'], ['림항 이 위험합니다.', 'place:림항'], ['한림해수욕장 이 위험합니다.', 'place:한림해수욕장'], ['가로림만에서 물결이 높습니다.', 'place:가로림만']]) assert.ok(vErr(sea0(mid)).includes(code), mid + ' → ' + vErr(sea0(mid)).join(','));
+        assert.deepStrictEqual(vErr(sea0('제주도 서부 앞바다 와 한림 파출소 관할에서 바람도 셉니다.')), [], '띄어 쓴 허용 이름·조사 「도」');
+        assert.deepStrictEqual(vErr(sea0('정도의 차이는 있으나 운항 중 바람이 셉니다.')), []);
+    });
+    await check('[B6] 금지어는 공백·제로폭을 지우고 대조 · 「경비정 투입」 같은 직무 지시 · 안전 단정(안전한 상태·위험 요소가 없·이상 없·문제없)', () => {
+        assert.ok(vErr(sea0('해경이 순 찰 해야 합니다.')).includes('forbidden:순찰'));
+        assert.ok(vErr(sea0('해경이 순​찰 해야 합니다.')).includes('forbidden:순찰'));
+        assert.ok(vErr(sea0('경비정 투입이 필요합니다.')).includes('forbidden:경비정'));
+        for (const t of ['비양도 상태는 안전한 상태입니다.', '위험 요소가 전혀 없습니다.', '이상 없습니다.', '문제없습니다.']) assert.ok(vErr(sea0(t)).includes('forbidden:안전 단정'), t);
+        assert.deepStrictEqual(vErr(sea0('특별한 위험 요소는 확인되지 않았습니다.')), [], '§10.3 허용 문구');
+    });
+    await check('[B13] AI 글에 HTML·URL 금지', () => {
+        assert.ok(vErr(sea0('<script>alert(1)</script> 입니다.')).includes('markup'));
+        assert.ok(vErr(sea0('자세한 내용은 http://evil.example/x 입니다.')).includes('markup'));
+    });
+    await check('[B7] 호출 시간 제한(멈춘 VM → 시간초과 → Gemini) · 실행 데드라인(남은 관할 틀) · VM 연속 실패 차단기(3회 뒤 건너뜀)', async () => {
+        let aborted = false;
+        const hang = { available: () => true, call: ({ signal }) => new Promise(() => { signal.addEventListener('abort', () => { aborted = true; }); }) };
+        const gem = { available: () => true, call: async ({ prompt }) => respond(idsIn(prompt)) };
+        const r = await within(AI.generate({ briefings: stationsFor(1), config: cfg, adapters: { vm: hang, gemini: gem }, now: T0, timeouts: { vm: 30, gemini: 1000 } }), 3000, '멈춘 VM');
+        assert.equal(Object.values(r.overviews)[0].source, 'gemini'); assert.ok(aborted, 'signal 로 끊기 요청'); assert.ok(r.errors.some((e) => e.provider === 'vm' && /시간초과/.test(e.reason)));
+        let fake = 0; const slowGem = { available: () => true, call: async ({ prompt }) => { fake += 60000; return respond(idsIn(prompt)); } };
+        const r2 = await AI.generate({ briefings: stationsFor(3), config: { ...cfg, method: 'gemini', batchUnit: 'station' }, adapters: { gemini: slowGem }, now: T0, timer: () => fake, deadline: 60000 });
+        assert.equal(r2.stats.ai, 1); assert.equal(r2.stats.deadline, 2); assert.ok(r2.errors.some((e) => e.stage === 'deadline'));
+        let vmN = 0; const boom = { available: () => true, call: async () => { vmN++; throw new Error('codex 시간초과'); } };
+        const r3 = await AI.generate({ briefings: stationsFor(4), config: { ...cfg, batchUnit: 'station' }, adapters: { vm: boom, gemini: gem }, now: T0 });
+        assert.equal(vmN, 3, '연속 3번 실패 뒤 VM 을 부르지 않음'); assert.ok(r3.errors.some((e) => /VM 연속 실패 3회/.test(e.reason))); assert.ok(Object.values(r3.overviews).every((o) => o.source === 'gemini'));
+    });
+    await check('[B7] 실제 Gemini 어댑터: config.abortSignal 을 넘기고, signal 이 끊기면 응답 없이도 곧 실패(gemini_client 는 그대로)', async () => {
+        const G = require('../services/gemini_client'), orig = G.callGeminiRaw; let seen = null;
+        G.callGeminiRaw = (o) => { seen = o.config; return new Promise(() => {}); };
+        try {
+            const ac = new AbortController(), p = SB.realAdapters().gemini.call({ prompt: 'x', model: 'gemini-2.5-flash', signal: ac.signal });
+            ac.abort(); await assert.rejects(within(p, 3000, 'Gemini 어댑터'), /Gemini 시간초과/); assert.equal(seen.abortSignal, ac.signal); assert.equal(seen.responseMimeType, 'application/json');
+        } finally { G.callGeminiRaw = orig; }
+        assert.equal(SB.GEMINI_CALL_MS, 90000);
+    });
+    await check('[B10] 재사용 해시에 검증·지시문 판·Gemini 모델 포함 · 지난 글이 Gemini 산인데 VM 이 살아 있으면 다시 만든다(VM 꺼져 있으면 재사용)', async () => {
+        const gemOnly = { vm: { available: () => false }, gemini: { available: () => true, call: async ({ prompt }) => respond(idsIn(prompt)) } };
+        const first = await AI.generate({ briefings: stationsFor(1), config: cfg, adapters: gemOnly, now: T0 });
+        const prev = Object.fromEntries(Object.entries(first.overviews).map(([k, o]) => [k, { overview: o }])); assert.equal(Object.values(prev)[0].overview.source, 'gemini');
+        let n = 0; const vmUp = { vm: { available: () => true, call: async ({ prompt }) => { n++; return respond(idsIn(prompt)); } }, gemini: gemOnly.gemini };
+        const back = await AI.generate({ briefings: stationsFor(1), config: cfg, previous: prev, adapters: vmUp, now: T0 });
+        assert.equal(n, 1); assert.equal(back.stats.reused, 0); assert.equal(Object.values(back.overviews)[0].source, 'chatgpt');
+        const still = await AI.generate({ briefings: stationsFor(1), config: cfg, previous: prev, adapters: gemOnly, now: T0 }); assert.equal(still.stats.reused, 1, 'VM 이 여전히 꺼져 있으면 재사용');
+        const lite = await AI.generate({ briefings: stationsFor(1), config: { ...cfg, geminiModel: 'gemini-2.5-flash-lite' }, previous: prev, adapters: gemOnly, now: T0 }); assert.equal(lite.stats.reused, 0, 'Gemini 모델이 바뀌면 다시');
+        assert.ok(AI.VALIDATOR_VERSION && AI.PROMPT_VERSION);
+    });
+    await check('[B11·B12] 관리자 실행 중이면 POST /run 409(실제 상태) · 설정 PUT 의 __proto__·constructor·모르는 칸은 400', async () => {
+        const express = require('express'), { createRouter } = require('../routes/station_briefing');
+        let running = true, ran = 0;
+        const fake = { readConfig: () => ({ exposure: 'admin' }), stations: () => fakeStations, status: () => ({ running, lastRun: { at: 'x' }, config: {}, choices: SB.CHOICES }), run: async () => { ran++; return { ok: true }; }, writeConfig: (b) => svc.writeConfig(b) };
+        const app = express(); app.use(createRouter({ service: fake, isAdminDevice: () => false, verifyToken: () => false, authorize: (q, s, n) => n() }));
+        const server = http.createServer(app); await new Promise((r) => server.listen(0, '127.0.0.1', r)); const base = 'http://127.0.0.1:' + server.address().port;
+        try {
+            let r = await fetch(base + '/api/admin/station-briefing/run', { method: 'POST' }); assert.equal(r.status, 409); const j = await r.json(); assert.equal(j.running, true); assert.equal(ran, 0);
+            running = false; r = await fetch(base + '/api/admin/station-briefing/run', { method: 'POST' }); assert.equal(r.status, 202); assert.equal(ran, 1);
+            for (const body of ['{"__proto__":{"exposure":"user"}}', '{"constructor":"x"}', '{"nope":1}']) { r = await fetch(base + '/api/admin/station-briefing/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }); assert.equal(r.status, 400, body); }
+            assert.equal(svc.readConfig().exposure, 'admin');
+        } finally { server.close(); }
+    });
+    // ── 운영(C)·실행(B9) ──
+    await check('[B9·ops1] 실행이 던지면 실패 시각·횟수를 남기고 10분 백오프, 같은 판은 3번까지 — 매분 다시 모으고 AI 를 부르지 않는다', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'fail-')); let clock = Date.parse(at(8)), gathers = 0, ai = 0;
+        const s2 = SB.createService({ dir: d, clock: () => clock, risk: { spots: () => { gathers++; throw new Error('ENOSPC'); }, marineInputs: () => ({}) }, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: path.join(d, 'none.json'), hazardFeatures: () => [], kma: () => null, adapters: { vm: { available: () => true, call: async () => { ai++; return '{}'; } } } });
+        fs.writeFileSync(path.join(d, 'state.json'), JSON.stringify({ done: ['2026-10-16|night'] }));
+        assert.deepStrictEqual(await s2.tick(), { failed: '2026-10-17|morning' });
+        for (let m = 1; m < 10; m++) { clock = Date.parse(at(8)) + m * 60000; assert.deepStrictEqual(await s2.tick(), { backoff: '2026-10-17|morning' }); }
+        assert.equal(gathers, 1);
+        clock = Date.parse(at(8)) + 10 * 60000; await s2.tick(); clock += 10 * 60000; await s2.tick(); assert.equal(gathers, 3);
+        clock += 60 * 60000; assert.deepStrictEqual(await s2.tick(), { backoff: '2026-10-17|morning' }, '3번 실패 뒤엔 멈춤'); assert.equal(gathers, 3); assert.equal(ai, 0);
+        const st = s2.status(); assert.equal(st.failures['2026-10-17|morning'].count, 3); assert.ok(st.errors.some((e) => e.stage === 'run' && /ENOSPC/.test(e.reason)));
+    });
+    await check('[C2] 위치 찾기가 오래 걸려도 연안 하루 값 시각은 모으기 직전 시각(6분 늦어져도 risk_store 400 없음) · 위치 찾기 전체 상한·한 건 시간초과', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'late-')); let clock = Date.parse(at(8)); const asked = [];
+        const spot = { id: 'sp1', name: '협재해수욕장', lat: 33.39, lon: 126.24, police: { name: '한림파출소' } };
+        const risk = { ...fakeRisk, spots: () => ({ spots: [spot] }), coastDayDetail: (id, t) => { asked.push(t); if (Date.parse(t) < clock - 5 * 60000) throw Object.assign(new Error('잘못된 예보 시각'), { status: 400 }); return { t, index: 10, band: '평소 수준', rows: [], notices: [], daily: { peakAt: t, notices: [] }, history: { available: false }, missing: [] }; } };
+        const s2 = SB.createService({ dir: d, clock: () => clock, risk, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: path.join(d, 'none.json'), hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] }, adapters: { vm: { available: () => false }, gemini: { available: () => false } },
+            geocoder: async () => { clock += 6 * 60000; throw new Error('HTTP 500'); } });
+        await s2.run({ kind: 'morning' });
+        assert.equal(asked.length, 1); assert.equal(asked[0], R.isoKst(clock), '모으기 직전 시각');
+        const day = I.readJson(path.join(d, 'briefings_2026-10-17.json')); assert.equal(day.stations['제주해양경찰서|한림파출소'].land.reviewedSpots, 1);
+        let t = 0; const n = []; const L = await I.ensureLocations({ stations: fakeStations.concat([{ ...fakeStations[0], key: 'X|셋째' }]), file: path.join(d, 'loc2.json'), geocoder: async (a) => { n.push(a); t += 40000; return { lat: 1, lon: 2 }; }, now: T0, timer: () => t, budgetMs: 60000 });
+        assert.equal(n.length, 2, '전체 60초 상한 — 셋째는 이번엔 묻지 않음'); assert.equal(L['X|셋째'].geocode, 'not_tried');
+        const L2 = await I.ensureLocations({ stations: [fakeStations[0]], file: path.join(d, 'loc3.json'), geocoder: () => new Promise(() => {}), now: T0, callMs: 20 });
+        assert.equal(L2[fakeStations[0].key].estimated, true); assert.equal(I.readJson(path.join(d, 'loc3.json')).stations[fakeStations[0].key].reason, 'timeout');
+    });
+    await check('[C4] 주소 정리: 깨진 6곳·성산(서귀포시)·울릉(경상북도)을 고치고 원문은 address_raw — 97곳 모두 카카오 대조 키가 만들어진다', () => {
+        const st = I.loadStations(), byName = (n, o) => st.find((s) => s.name === n && (!o || s.office === o));
+        const want = { 구룡포파출소: '호미로 210', 대산파출소: '삼길포1로 84', 고창파출소: '구시포해변길 51-129', 광양파출소: '항만9로 89', 통영파출소: '통영해안로 200', 성산파출소: '서귀포시 성산읍', 울릉파출소: '경상북도 울릉군' };
+        for (const [n, frag] of Object.entries(want)) assert.ok(byName(n).address.includes(frag), n + ' ' + byName(n).address);
+        assert.ok(byName('남항파출소', '부산해양경찰서').address.includes('해양새벽시장길 91'));
+        const g = JSON.parse(fs.readFileSync(path.join(I.CONFIG, 'coastguard_stations.geojson'), 'utf8')), fixed = g.features.filter((f) => f.properties.address_raw);
+        assert.equal(fixed.length, 8); assert.ok(fixed.every((f) => f.properties.address_fix && f.properties.address_raw !== f.properties.address));
+        assert.equal(fixed.find((f) => f.properties.name === '울릉파출소').properties.address_raw, '강 원 특 별 자 치 도 울릉군 울릉읍 울릉순환 로 179');
+        const { addressKey } = require('../services/coastal_events_collector');
+        assert.equal(st.filter((s) => addressKey(I.normalizeAddress(s.address))).length, 97);
+        assert.equal(addressKey(I.normalizeAddress(byName('구룡포파출소').address)), '경북|포항시/남구|road|구룡포읍/호미로|210', '카카오 도로명(「호미로」)과 같은 키');
+    });
+    await check('[C4] 「일치 없음」 캐시는 주소나 정리된 질의가 바뀌면 다시 묻는다 · 카카오 영구 오류(키 없음)는 그 자리에서 멈추고 6시간 묻지 않으며 로그는 한 줄', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'geo-')), f = path.join(d, 'loc.json');
+        I.writeJson(f, { v: 1, stations: { [fakeStations[0].key]: { status: 'unmatched', address: fakeStations[0].address, query: '옛 정리 꼴', reason: 'unmatched event' } } });
+        let asked = []; await I.ensureLocations({ stations: [fakeStations[0]], file: f, geocoder: async (a) => { asked.push(a); throw new Error('unmatched event'); }, now: T0 });
+        assert.equal(asked.length, 1, '질의가 바뀌어 다시 물음');
+        asked = []; await I.ensureLocations({ stations: [fakeStations[0]], file: f, geocoder: async (a) => { asked.push(a); throw new Error('unmatched event'); }, now: T0 }); assert.equal(asked.length, 0, '같은 질의면 다시 안 물음');
+        const warns = [], ow = console.warn; console.warn = (m) => warns.push(String(m));
+        try {
+            const many = Array.from({ length: 5 }, (_, i) => ({ ...fakeStations[1], key: 'K|' + i, name: '파출소' + i, address: '제주특별자치도 제주시 어딘가로 ' + i }));
+            const g2 = path.join(d, 'g2.json'); let n = 0; const keyless = async () => { n++; throw new Error('missing key'); };
+            await I.ensureLocations({ stations: many, file: g2, geocoder: keyless, now: T0 }); assert.equal(n, 1, '키 없음이면 첫 곳에서 멈춤'); assert.equal(warns.length, 1, '로그 한 줄');
+            assert.equal(I.readJson(g2).backoff.reason, 'missing key');
+            await I.ensureLocations({ stations: many, file: g2, geocoder: keyless, now: T0 + 3600000 }); assert.equal(n, 1, '6시간 안에는 묻지 않음');
+            await I.ensureLocations({ stations: many, file: g2, geocoder: keyless, now: T0 + 7 * 3600000 }); assert.equal(n, 2, '6시간 뒤 다시');
+        } finally { console.warn = ow; }
+    });
+    await check('[C5] 브리핑용 과거 사고 집계(cellHistory)는 사고 목록을 만들지 않고 시트용 큰 캐시(historyCache)를 채우지 않는다', () => {
+        const M = require('../services/marine_fusion'), geom = { type: 'Polygon', coordinates: [[[126.5, 33.5], [126.6, 33.5], [126.6, 33.6], [126.5, 33.6], [126.5, 33.5]]] };
+        const rowA = (type, ymd) => [33.5625, 126.5375, ymd, '1300', '해역', type, null, null, null, 0, 0, 0, [], null, null, null];
+        const m = M.createStore({ risk: { marineInputs: () => ({}), sources: () => ({}) }, dir: fs.mkdtempSync(path.join(tmp, 'mf-')), clock: () => T0, stations: [{ properties: { name: '제주파출소' }, geometry: geom }], accidents: [rowA('ATY027', '20250101'), rowA('ATY028', '20240101')], describe: (r) => ({ id: String(r.gridId) }) });
+        const h = m.cellHistory(geom, 'grid:1');
+        assert.equal(h.count, 2); assert.equal(h.accidents, undefined); assert.deepStrictEqual(m.cacheSizes(), { history: 0, cellSummary: 1 });
+        m.cellHistory(geom, 'grid:1'); assert.deepStrictEqual(m.cacheSizes(), { history: 0, cellSummary: 1 }, '같은 칸은 작은 캐시에서');
+    });
+    await check('[C6] 날짜 파일 캐시는 오늘·내일만(최대 2) — 다른 날짜는 읽기만', () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'day-')); const s2 = SB.createService({ dir: d, clock: () => T0, risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations });
+        for (const dt of ['2026-10-16', '2026-10-17', '2026-10-18']) I.writeJson(path.join(d, 'briefings_' + dt + '.json'), { date: dt, stations: {} });
+        assert.equal(s2._readDay('2026-10-16').date, '2026-10-16'); assert.equal(s2._fileCacheSize(), 0);
+        s2._readDay('2026-10-17'); s2._readDay('2026-10-18'); s2._readDay('2026-10-16'); assert.equal(s2._fileCacheSize(), 2);
+    });
+    await check('[C9] 쓰기 실패 때 .tmp 잔재 없음 · 1시간 지난 .tmp 는 정리 · 개발 환경에서는 실제 AI 어댑터를 부르지 않고 틀(STATION_BRIEFING_DEV_AI=1 일 때만)', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'tmp-')), f = path.join(d, 'a.json'), orig = fs.renameSync;
+        fs.renameSync = () => { throw new Error('ENOSPC'); };
+        try { assert.throws(() => I.writeJson(f, { a: 1 }), /ENOSPC/); } finally { fs.renameSync = orig; }
+        assert.deepStrictEqual(fs.readdirSync(d), []);
+        const old = path.join(d, 'briefings_2026-10-17.json.99999.tmp'); fs.writeFileSync(old, 'x'); fs.utimesSync(old, new Date(Date.now() - 2 * 3600000), new Date(Date.now() - 2 * 3600000));
+        const hadFly = process.env.FLY_ALLOC_ID, hadDev = process.env.STATION_BRIEFING_DEV_AI; delete process.env.FLY_ALLOC_ID; delete process.env.STATION_BRIEFING_DEV_AI;
+        try {
+            const s2 = SB.createService({ dir: d, clock: () => T0, risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: path.join(d, 'none.json'), hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] } });
+            const r = await s2.run({ kind: 'manual' }); assert.equal(r.ok, true);
+            assert.ok(!fs.existsSync(old), '오래된 임시 파일 정리');
+            const day = I.readJson(path.join(d, 'briefings_2026-10-17.json')); assert.equal(day.stations['제주해양경찰서|한림파출소'].overview.source, 'template');
+            assert.ok(/개발 환경/.test(s2.status().lastRun.aiDisabled));
+        } finally { if (hadFly) process.env.FLY_ALLOC_ID = hadFly; if (hadDev) process.env.STATION_BRIEFING_DEV_AI = hadDev; }
+    });
+    await check('[C9] 특보 변경 디바운스: 같은 내용을 다시 써서 파일 시각만 바뀌면 대기를 늘리지 않고, 계속 바뀌어도 첫 변경 뒤 15분이면 만든다', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'deb-')), af = path.join(d, 'alerts.json'); let clock = Date.parse(at(10)), stamp = Date.now();
+        const put = (lvl) => { fs.writeFileSync(af, JSON.stringify({ current: tree(lvl) })); stamp += 1000; fs.utimesSync(af, new Date(stamp), new Date(stamp)); };
+        fs.mkdirSync(d, { recursive: true }); I.writeJson(path.join(d, 'briefings_2026-10-17.json'), { date: '2026-10-17', stations: {} });
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-17|morning'], warnSig: SB.warnSignatures(tree(null)), stationZones: { '제주해양경찰서|한림파출소': ['제주도서부앞바다'] } });
+        const s2 = SB.createService({ dir: d, clock: () => clock, risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: af, hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] }, adapters: { vm: { available: () => false }, gemini: { available: () => false } } });
+        put('주의보'); assert.deepStrictEqual(await s2.tick(), { pending: ['제주도서부앞바다'] });
+        clock += 2 * 60000; put('주의보'); assert.deepStrictEqual(await s2.tick(), { pending: ['제주도서부앞바다'] }, '같은 내용 다시 쓰기');
+        clock += 60000; const r = await s2.tick(); assert.deepStrictEqual(r.warning, ['제주해양경찰서|한림파출소'], '첫 변경 뒤 3분(다시 쓰기로 늘지 않음)');
+        let fired = null; const t0 = clock;
+        // 마지막으로 만든 상태(주의보)와 다른 두 상태(경보 ↔ 해제)를 2분마다 오간다 — 대기는 계속 늘지만 첫 변경(1분째) 뒤 15분인 16분째에 만든다.
+        for (let m = 1; m <= 20 && !fired; m++) { clock = t0 + m * 60000; if (m % 2) put(m % 4 === 1 ? '경보' : null); const x = await s2.tick(); if (x.warning) fired = m; }
+        assert.equal(fired, 16, '첫 변경 1분째 + 15분 → ' + fired);
+    });
+    await check('[B9] 특보 변경 판도 같게: 실행이 던지면 10분 백오프, 3번 실패하면 그 서명을 받아들이고 멈춘다(매분 재실행 없음)', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'wfail-')), af = path.join(d, 'alerts.json'); let clock = Date.parse(at(10)), gathers = 0;
+        fs.writeFileSync(af, JSON.stringify({ current: tree('경보') }));
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-17|morning'], warnSig: SB.warnSignatures(tree(null)), stationZones: { '제주해양경찰서|한림파출소': ['제주도서부앞바다'] } });
+        const s2 = SB.createService({ dir: d, clock: () => clock, risk: { spots: () => { gathers++; throw new Error('ENOSPC'); } }, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: af, hazardFeatures: () => [], kma: () => null });
+        assert.deepStrictEqual(await s2.tick(), { pending: ['제주도서부앞바다'] });
+        clock += 3 * 60000; assert.deepStrictEqual(await s2.tick(), { failed: 'warning' });
+        clock += 60000; assert.deepStrictEqual(await s2.tick(), { backoff: 'warning' }); assert.equal(gathers, 1);
+        clock += 10 * 60000; await s2.tick(); clock += 10 * 60000; await s2.tick(); assert.equal(gathers, 3);
+        clock += 10 * 60000; assert.deepStrictEqual(await s2.tick(), { warningGaveUp: ['제주도서부앞바다'] }); assert.equal(gathers, 3);
+        clock += 60000; assert.deepStrictEqual(await s2.tick(), {}, '받아들인 서명 — 다시 만들지 않음'); assert.equal(s2.status().pendingWarn, null);
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);

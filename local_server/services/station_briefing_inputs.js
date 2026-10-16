@@ -3,7 +3,8 @@
  * 파일명: local_server/services/station_briefing_inputs.js
  * 역할  : 관할 브리핑의 「입력 묶음」을 앱이 이미 가진 자료에서 모은다 — 파출소 관할 97곳(정리판), 해상(공식 사고예보·혼잡 예보·해구 예보·
  *         특보·과거 선박사고), 육상(연안 하루 값·위험구역), 조석(물빠짐 앵커 곡선·잠기는 바위), 기상청 해상 기상 전망, 파출소 대표 위치.
- *         새로 외부에서 수집하지 않는다(파출소 주소 → 좌표만 운영 서버가 처음 한 번 카카오 주소 검색, 실패하면 대체 위치 + 「대표 위치 추정」).
+ *         새로 외부에서 수집하지 않는다(파출소 주소 → 좌표만 운영 서버가 처음 한 번 카카오 주소 검색, 실패하면 대체 위치 + 「대표 위치 추정」 — 한 실행 60초 상한·영구 오류 6시간 쉼).
+ *         연안 특보·떠밀림 안내는 그날 칸 전부(coastDayDetail daily.notices), 공식 사고예보 프레임이 빠진 칸은 frameGaps 로 넘긴다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : config/coastal_safety/coastguard_stations.geojson(관할 97곳) · coastal_hazard_zones.wgs84.geojson(위험구역)
@@ -71,34 +72,60 @@ function estimateLocation(st, points) {
     if (p.length) return { lat: +(p.reduce((a, q) => a + q.lat, 0) / p.length).toFixed(5), lon: +(p.reduce((a, q) => a + q.lon, 0) / p.length).toFixed(5), method: '관할 관광지·위험구역 중심 평균(' + p.length + '점)' };
     const b = st.bounds; return { lat: +((b[1] + b[3]) / 2).toFixed(5), lon: +((b[0] + b[2]) / 2).toFixed(5), method: '관할 해역 상자 중심(바다)' };
 }
+// 대표 위치 카카오 묻기의 한도(독립 검토 C2·C4): 한 번 실행에서 위치 찾기 전체 60초, 한 건 15초(행사 위치 찾기 fetch 는 30초 — 그보다 먼저 끊는다).
+// 영구 오류(키 없음·401·403)는 6시간, 호출 고장이 3번 이어지면 30분 동안 묻지 않는다(매 실행 97곳 재시도·로그 97줄 방지).
+const GEO_BUDGET_MS = 60000, GEO_CALL_MS = 15000, GEO_PERM_BACKOFF_MS = 6 * HOUR, GEO_ERR_BACKOFF_MS = 30 * 60000, GEO_ERR_STREAK = 3;
 /**
- * 관할 대표 위치를 정한다(캐시 파일 + 처음 한 번 카카오). 다시 묻는 경우: 주소가 바뀜 · 지난번이 호출 고장(error — 네트워크·HTTP·키 없음).
- * 「일치 없음」(unmatched/invalid)은 같은 주소로 다시 묻지 않는다(답이 같다). 실패한 관할은 estimateLocation + estimated:true.
+ * 관할 대표 위치를 정한다(캐시 파일 + 처음 한 번 카카오). 다시 묻는 경우: 주소가 바뀜 · 카카오에 보낼 정리된 주소(normalizeAddress)가 바뀜 · 지난번이 호출 고장(error — 네트워크·HTTP·키 없음).
+ * 「일치 없음」(unmatched/invalid)은 같은 질의로 다시 묻지 않는다(답이 같다). 실패한 관할은 estimateLocation + estimated:true.
+ * 시간 상한: 위치 찾기 전체 budgetMs(기본 60초)·한 건 callMs(15초) — 넘으면 남은 관할은 이번엔 묻지 않고 추정(다음 실행에 다시).
+ * 영구 오류(missing key·HTTP 401/403)면 그 자리에서 멈추고 6시간 묻지 않는다, 호출 고장이 3번 이어지면 30분 — cache.backoff 에 남긴다. 실패 로그는 실행마다 한 줄로 모은다.
  * 예: await ensureLocations({stations, landPoints, file, geocoder:null}) → {'…|한림파출소': {lat,lon,source:'estimate',estimated:true,method,…}}
- * @param {object} o - stations·landPoints(key→점들)·file·geocoder(주소→Promise 좌표, 없으면 묻지 않음)·now
+ * @param {object} o - stations·landPoints(key→점들)·file·geocoder(주소→Promise 좌표, 없으면 묻지 않음)·now(기록 시각, 가짜 시계 가능)
+ *                     ·timer(경과 시간 재기 — 기본 Date.now)·budgetMs·callMs
  * @returns {Promise<object>} key → 위치 [연계] ← station_briefing.run / 운영(FLY)에서만 geocoder 를 넘긴다
  */
-async function ensureLocations({ stations, landPoints = {}, file = path.join(DATA, 'station_briefing', 'locations.json'), geocoder = null, now = Date.now() }) {
-    const cache = readJson(file) || { v: 1, stations: {} }, out = {};
-    let changed = false;
+async function ensureLocations({ stations, landPoints = {}, file = path.join(DATA, 'station_briefing', 'locations.json'), geocoder = null, now = Date.now(), timer = Date.now, budgetMs = GEO_BUDGET_MS, callMs = GEO_CALL_MS }) {
+    const cache = readJson(file) || { v: 1, stations: {} }, out = {}, t0 = timer(), geoErrors = [];
+    let changed = false, stop = null, streak = 0;
+    if (cache.backoff && Date.parse(cache.backoff.until) > now) stop = 'backoff';
     for (const st of stations) {
         let c = cache.stations[st.key];
-        const ask = geocoder && (!c || c.address !== st.address || c.status === 'error');
-        if (ask) {
-            try { const g = await geocoder(st.address); c = { status: 'ok', address: st.address, query: normalizeAddress(st.address), lat: g.lat, lon: g.lon, resolvedAddress: g.resolvedAddress || null, checkedAt: R.isoKst(now) }; }
-            catch (e) { const why = String(e.message || ''); c = { status: /^(unmatched event|invalid event)$/.test(why) ? 'unmatched' : 'error', address: st.address, query: normalizeAddress(st.address), reason: /^(unmatched event|invalid event|missing key|HTTP \d{3})$/.test(why) ? why : 'network or parse error', checkedAt: R.isoKst(now) }; console.warn('[station_briefing] 대표 위치 카카오 실패 — ' + st.name + ': ' + c.reason + ' (추정 위치를 쓴다)'); }
+        const query = normalizeAddress(st.address);
+        const want = geocoder && (!c || c.address !== st.address || (c.query && c.query !== query) || c.status === 'error');
+        if (want && !stop && timer() - t0 >= budgetMs) stop = 'budget';
+        if (want && !stop) {
+            let timeoutId = null;
+            try {
+                const left = Math.max(1, Math.min(callMs, budgetMs - (timer() - t0)));
+                const g = await Promise.race([geocoder(st.address), new Promise((_, rej) => { timeoutId = setTimeout(() => rej(new Error('timeout')), left); })]);
+                c = { status: 'ok', address: st.address, query, lat: g.lat, lon: g.lon, resolvedAddress: g.resolvedAddress || null, checkedAt: R.isoKst(now) }; streak = 0;
+            } catch (e) {
+                const why = String(e.message || '');
+                c = { status: /^(unmatched event|invalid event)$/.test(why) ? 'unmatched' : 'error', address: st.address, query, reason: /^(unmatched event|invalid event|missing key|timeout|HTTP \d{3})$/.test(why) ? why : 'network or parse error', checkedAt: R.isoKst(now) };
+                geoErrors.push(st.name + ':' + c.reason);
+                if (c.status === 'error') streak++; else streak = 0;
+                if (/^(missing key|HTTP 401|HTTP 403)$/.test(c.reason)) { stop = 'permanent'; cache.backoff = { until: R.isoKst(now + GEO_PERM_BACKOFF_MS), reason: c.reason, at: R.isoKst(now) }; }
+                else if (streak >= GEO_ERR_STREAK) { stop = 'errors'; cache.backoff = { until: R.isoKst(now + GEO_ERR_BACKOFF_MS), reason: c.reason + ' ' + streak + '번 연속', at: R.isoKst(now) }; }
+            } finally { clearTimeout(timeoutId); }
             cache.stations[st.key] = c; changed = true;
         }
         if (c && c.status === 'ok') out[st.key] = { lat: c.lat, lon: c.lon, source: 'kakao', estimated: false, address: st.address, resolvedAddress: c.resolvedAddress };
         else { const e = estimateLocation(st, landPoints[st.key]); out[st.key] = { lat: e.lat, lon: e.lon, source: 'estimate', estimated: true, method: e.method, address: st.address, geocode: c ? c.status : 'not_tried' }; }
     }
+    if (geoErrors.length || (stop && stop !== 'backoff')) console.warn('[station_briefing] 대표 위치 카카오 실패 ' + geoErrors.length + '곳(' + geoErrors.slice(0, 5).join(', ') + (geoErrors.length > 5 ? ' …' : '') + ')' + (stop ? ' — 이번 실행 묻기 멈춤: ' + stop + (cache.backoff && stop !== 'budget' ? '(다시 묻기 ' + cache.backoff.until + ')' : '') : '') + ' — 추정 위치를 쓴다');
     if (changed) writeJson(file, cache);
     return out;
 }
 /** JSON 파일 읽기(없거나 깨지면 null). @param {string} f @returns {object|null} [연계] ← 여러 곳 */
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (_) { return null; } }
-/** 원자적 JSON 쓰기(임시 파일 → 이름 바꾸기). @param {string} f @param {object} d @returns {void} [연계] ← ensureLocations·station_briefing */
-function writeJson(f, d) { fs.mkdirSync(path.dirname(f), { recursive: true }); const t = f + '.' + process.pid + '.tmp'; fs.writeFileSync(t, JSON.stringify(d)); fs.renameSync(t, f); }
+/** 원자적 JSON 쓰기(임시 파일 → 이름 바꾸기). 쓰기·이름 바꾸기가 실패하면 임시 파일을 지우고 오류를 그대로 던진다(.tmp 잔재 방지 — 독립 검토 C9).
+ * @param {string} f @param {object} d @returns {void} [연계] ← ensureLocations·station_briefing */
+function writeJson(f, d) {
+    fs.mkdirSync(path.dirname(f), { recursive: true }); const t = f + '.' + process.pid + '.tmp';
+    try { fs.writeFileSync(t, JSON.stringify(d)); fs.renameSync(t, f); }
+    catch (e) { try { fs.unlinkSync(t); } catch (_) { /* 임시 파일이 아직 안 생겼음 */ } throw e; }
+}
 
 /**
  * 관광지를 관할에 붙인다 — 관광지 표의 파출소 이름(10km 최근접 규칙으로 이미 정해진 것) 그대로, 같은 이름(남항파출소 부산·목포)은 가까운 폴리곤.
@@ -194,6 +221,8 @@ function collectSea(stations, { risk, marine, win, now }) {
     for (const c of inputs.cells?.cells || []) if (String(c.id).startsWith('GR4_')) visit(c, 'T');
     const ids = codec.cellIds(inputs.congestion), frames = inputs.accident?.frames || {}, rowCache = new Map();
     const accLevel = (key, i) => { if (!rowCache.has(key)) rowCache.set(key, new Map((frames[key] || []).map((r) => [r[0], r[2]]))); return rowCache.get(key).get(i) || null; };
+    // 공식 사고예보 원천은 ok 인데 창의 어떤 칸 프레임이 없으면(예보 범위 밖·수집 누락) 그 칸은 「사고예보 없음(0)」이 아니라 「확인 불가」 — 칸 목록을 넘긴다(독립 검토 낮음).
+    const accGaps = (src.accident?.status === 'ok' ? win.slots.filter((at) => !Array.isArray(frames[forecastKey(at)])) : []);
     const zonesWanted = new Set(), out = new Map();
     for (const s of stations) {
         const e = bySt.get(s.key), regions = [], majors = new Set();
@@ -215,14 +244,28 @@ function collectSea(stations, { risk, marine, win, now }) {
         }
         const weather = {};
         for (const major of majors) weather[major] = { label: '대해구 ' + major, rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
-        out.set(s.key, { reviewedCells: e.cells.size, regions, weather, zones: [...new Set(regions.flatMap((r) => r.zones))] });
+        out.set(s.key, { reviewedCells: e.cells.size, regions, weather, zones: [...new Set(regions.flatMap((r) => r.zones))], frameGaps: accGaps.length && regions.some((r) => r.accidentGridId) ? { accident: accGaps } : {} });
     }
     const all = warningsFromTree(inputs.warnings?.current, zonesWanted, now);
     for (const [, v] of out) { const ks = new Set(v.zones.map(R.zoneKey)); v.warnings = all.filter((w) => ks.has(R.zoneKey(w.zone))); }
     return { bySt: out, sources: { accident: src.accident?.status || 'missing', congestion: src.congestion?.status || 'missing', zoneForecasts: src.zoneForecasts?.status || 'missing', warnings: src.warnings?.status || 'missing', tourConcentration: src.tourConcentration?.status || 'missing', events: src.events?.status || 'missing' } };
 }
 /**
+ * 연안 하루 값의 안내(특보·떠밀림 바람)를 그날 칸 전부에서 모은다 — 맨 위 notices 는 「가장 높은 칸」 것뿐이라(risk_store.coastDayDetail),
+ * 그 칸 밖의 특보·바람이 빠진다(독립 검토 A1). daily.notices(risk_store.dayNotices — 그날 칸 전부)가 있으면 그것을, 없으면 종전 notices.
+ * 예: daily.notices [{key:'warning',name:'풍랑경보',state:'발효',from:'…18:00',to:'…21:00'},{key:'drift',windMs:11,…}] → {effective:['풍랑경보'],prelim:[],windMs:11}
+ * @param {object} d - coastDayDetail 결과 @returns {object} {effective:string[],prelim:string[],windMs:number|null} [연계] ← collectLand → rules.landSpot
+ */
+function dayNoticeSummary(d) {
+    const daily = d && d.daily && Array.isArray(d.daily.notices) ? d.daily.notices : null;
+    if (!daily) { const n = (k) => (d.notices || []).find((x) => x.key === k) || null, wn = n('warning'), dr = n('drift'); return { effective: wn?.effective || [], prelim: wn?.prelim || [], windMs: dr ? dr.windMs : null }; }
+    const pick = (state) => [...new Set(daily.filter((x) => x.key === 'warning' && x.state === state && x.name).map((x) => x.name))];
+    const winds = daily.filter((x) => x.key === 'drift' && Number.isFinite(x.windMs)).map((x) => x.windMs);
+    return { effective: pick('발효'), prelim: pick('예비'), windMs: winds.length ? Math.max(...winds) : null };
+}
+/**
  * 육상 입력: 관할에 붙은 관광지마다 연안 하루 값(coastDayDetail — 그날 3시간 칸 중 가장 높은 칸, T24)을 그대로 쓰고, 관광지에 안 붙은 위험구역은 상시 위험 장소로.
+ * 특보·떠밀림 안내는 그날 칸 전부(daily.notices — dayNoticeSummary).
  * 예: collectLand(spots, hazards, {risk, t:'2026-10-17T08:00:00+09:00'}) → {spots:[{id,name,index,band,people:{ratio,score},event,swell,rip,notices,hazard,history,missing}], hazardOnly:[…]}
  * @param {object[]} spots @param {object[]} hazards @param {object} o - risk·t @returns {object} [연계] ← gather / → risk_store.coastDayDetail(읽기만)
  */
@@ -231,7 +274,7 @@ function collectLand(spots, hazards, { risk, t }) {
     for (const p of spots) {
         let d; try { d = risk.coastDayDetail(p.id, t); } catch (e) { out.push({ id: p.id, name: p.name, lat: p.lat, lon: p.lon, beach: !!p.beach, missing: ['detail'], error: e.status || 500 }); continue; }
         const row = (k) => (d.rows || []).find((r) => r.key === k) || null, hz = row('hazard'), people = row('people'), ev = row('event'), sw = row('swell'), rip = row('rip');
-        const notice = (k) => (d.notices || []).find((n) => n.key === k) || null, wn = notice('warning'), dr = notice('drift');
+        const nt = dayNoticeSummary(d);
         for (const z of hz?.zones || []) linked.add(z.id);
         const acc = d.history?.available ? d.history.accidents || [] : null, types = {};
         for (const a of acc || []) types[a.type] = (types[a.type] || 0) + 1;
@@ -239,7 +282,7 @@ function collectLand(spots, hazards, { risk, t }) {
             id: p.id, name: p.name, lat: p.lat, lon: p.lon, beach: !!p.beach, index: d.index, band: d.band, peakAt: d.daily?.peakAt || d.t,
             people: people && !people.missing ? { ratio: people.ratio, score: people.score } : null, event: ev && ev.name ? { name: ev.name, weekend: !!ev.weekend } : null,
             swell: sw ? { periodS: sw.periodS } : null, rip: rip ? { level: rip.level } : null,
-            notices: { effective: wn?.effective || [], prelim: wn?.prelim || [], windMs: dr ? dr.windMs : null },
+            notices: nt,
             hazard: hz ? { count: hz.count || 0, byType: (hz.byType || []).map((x) => ({ class: x.class, count: x.count })) } : null,
             history: acc ? { count: acc.length, from: d.history.from, to: d.history.to, topTypes: Object.entries(types).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).slice(0, 3).map(([type, count]) => ({ type, count })) } : null,
             missing: d.missing || [],
@@ -265,7 +308,7 @@ function collectTide(loc, date, geometry, deps = {}) {
     const cur = read(near.a.id, ymd);
     if (!cur || !Array.isArray(cur.curve) || !cur.curve.length) return null;
     const peaksOf = (c) => c && c.peaks ? Object.entries(c.peaks).filter(([, v]) => v && v.time).map(([k, v]) => ({ type: k.startsWith('low') ? 'low' : 'high', t: v.time, cm: v.height })).sort((a, b) => a.t.localeCompare(b.t)) : [];
-    const peaks = peaksOf(cur), prev = peaksOf(read(near.a.id, shift(-1))).at(-1) || null, next = peaksOf(read(near.a.id, shift(1)))[0] || null;
+    const peaks = peaksOf(cur), prevDayPeaks = peaksOf(read(near.a.id, shift(-1))), prev = prevDayPeaks.at(-1) || null, next = peaksOf(read(near.a.id, shift(1)))[0] || null;
     const curve = cur.curve.filter((p) => /:[0-5]0$/.test(p.t)).map((p) => ({ t: p.t, cm: p.h }));
     let rocks = null;
     try {
@@ -274,7 +317,7 @@ function collectTide(loc, date, geometry, deps = {}) {
         for (const r of list) { if (!G.pointInGeometry([r.lon, r.lat], geometry)) continue; for (const iso of cr[String(r.id)] || []) { const k = R.isoKst(Date.parse(iso)); if (k.slice(0, 10) === date) times.push(k.slice(11, 16)); } }
         times.sort(); if (times.length) rocks = { count: new Set(list.filter((r) => (cr[String(r.id)] || []).some((iso) => R.isoKst(Date.parse(iso)).slice(0, 10) === date) && G.pointInGeometry([r.lon, r.lat], geometry)).map((r) => r.id)).size, first: times[0], last: times.at(-1) };
     } catch (_) { rocks = null; /* 간출암 자료 없음 — 문구만 빠진다 */ }
-    return { anchorId: near.a.id, distKm: +near.d.toFixed(1), date, status: cur.status || null, curve, peaks, prevPeak: prev, nextPeak: next, rocks };
+    return { anchorId: near.a.id, distKm: +near.d.toFixed(1), date, status: cur.status || null, curve, peaks, prevPeak: prev, prevDayPeaks, nextPeak: next, rocks };
 }
 /**
  * 기상청 해상 기상 전망(단기 통보문) 원문 발췌 — marine_forecast_processor 가 10분마다 저장한 data/marine_forecast.json 의 shortTerm.codeCategories(원문에서 코드로 잘라 낸 것, AI 가공본 아님).
@@ -302,7 +345,7 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
         return {
             key: st.key, name: st.name, office: st.office, region: st.region, seaOnly: st.seaOnly, seaOnlyReason: st.seaOnlyReason,
             location: locations[st.key] || null, sources: sea.sources,
-            sea: { reviewedCells: s.reviewedCells, regions: s.regions, weather: s.weather, warnings: s.warnings },
+            sea: { reviewedCells: s.reviewedCells, regions: s.regions, weather: s.weather, warnings: s.warnings, frameGaps: s.frameGaps },
             places: spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon })).concat(spots.length ? [] : hz.map((z) => ({ name: z.place, lat: z.lat, lon: z.lon }))),
             land: st.seaOnly ? null : collectLand(spots, hz, { risk, t: landT }),
             tide: collectTide(locations[st.key], win.targetDate, st.geometry, tideDeps),

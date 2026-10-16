@@ -13,6 +13,7 @@
  *  - 서버 API      : routes/station_briefing.js 가 이 모듈을 부른다
  *  - 나를 쓰는 곳  : routes/station_briefing.js · server.js(운영 start) · scripts/test_station_briefing.js(가짜 시계·어댑터)
  * [로드 순서] 서버 require 부작용 없음. start() 는 운영(FLY_ALLOC_ID)에서만 1분 점검을 켠다 — 서버 시작 때 계산·외부 호출을 하지 않는다(첫 점검은 1분 뒤).
+ *            실제 AI 어댑터는 운영 또는 STATION_BRIEFING_DEV_AI=1 일 때만 부른다(개발 환경 관리자 실행은 틀 총평). 실행 실패는 10분 백오프·3번까지, 특보 변경은 3분 디바운스.
  * ============================================================================
  */
 'use strict';
@@ -20,6 +21,14 @@ const fs = require('fs'), path = require('path');
 const R = require('./station_briefing_rules'), AI = require('./station_briefing_ai'), I = require('./station_briefing_inputs');
 const DATA = path.join(__dirname, '..', 'data');
 const MAX_ERRORS = 200;
+// 실행 실패 백오프(독립 검토 B9·ops1): 실행이 던지면 매분 다시 돌며 AI 를 다시 부르지 않게 — 실패 뒤 10분 기다리고, 같은 판은 3번까지만.
+const RUN_BACKOFF_MS = 10 * 60000, MAX_RUN_FAILS = 3;
+// 특보 변경 디바운스(독립 검토 C9): 특보가 잇달아 바뀌면 마지막 변경 뒤 3분 조용할 때 한 번만 다시 만든다.
+const WARN_DEBOUNCE_MS = 3 * 60000, WARN_MAX_WAIT_MS = 15 * 60000; // 계속 바뀌어도 첫 변경 뒤 15분이면 만든다(무한 대기 방지)
+// 한 번 실행의 AI 데드라인(독립 검토 B7): 넘으면 남은 관할은 틀 총평으로 저장한다.
+const RUN_DEADLINE_MS = 20 * 60000;
+// Gemini 한 번 호출 시간 제한(B7) — gemini_client 는 고치지 않고 어댑터에서 abortSignal + Promise.race.
+const GEMINI_CALL_MS = 90000;
 
 // 관리자 「AI 브리핑」 설정의 선택지와 기본값(§11.6-15·16·17). 기본 노출 = 관리자에게만.
 const CHOICES = Object.freeze({
@@ -86,7 +95,15 @@ function realAdapters() {
         },
         gemini: {
             available: () => require('./gemini_client').hasAnyKey(),
-            call: async ({ prompt, model }) => { const r = await require('./gemini_client').callGeminiRaw({ model, contents: prompt, config: { responseMimeType: 'application/json' }, caller: 'StationBriefing' }); if (!r.success) throw new Error(r.error || 'Gemini 실패'); const t = r.response && r.response.text; return typeof t === 'function' ? t.call(r.response) : t; },
+            // 시간 제한(B7): 부르는 쪽 signal 이 있으면 그것, 없으면 GEMINI_CALL_MS — @google/genai 의 config.abortSignal 로 요청을 끊고, 끊기지 않아도 Promise.race 로 기다림을 끝낸다.
+            call: async ({ prompt, model, signal }) => {
+                const sig = signal || AbortSignal.timeout(GEMINI_CALL_MS); let tid = null;
+                const stop = new Promise((_, rej) => { const fire = () => rej(new Error('Gemini 시간초과')); if (sig.aborted) fire(); else sig.addEventListener('abort', fire, { once: true }); tid = setTimeout(fire, GEMINI_CALL_MS + 5000); });
+                try {
+                    const r = await Promise.race([require('./gemini_client').callGeminiRaw({ model, contents: prompt, config: { responseMimeType: 'application/json', abortSignal: sig }, caller: 'StationBriefing' }), stop]);
+                    if (!r.success) throw new Error(r.error || 'Gemini 실패'); const t = r.response && r.response.text; return typeof t === 'function' ? t.call(r.response) : t;
+                } finally { clearTimeout(tid); }
+            },
         },
     };
 }
@@ -94,11 +111,13 @@ function realAdapters() {
 /**
  * 브리핑 서비스를 만든다(시험은 폴더·시계·저장소·어댑터·관할 목록을 주입).
  * 예: const svc = createService({dir, clock, risk, marine, adapters}); await svc.run({kind:'morning'}); svc.pick({key, day:'auto'})
- * @param {object} o - dir·clock·risk·marine·adapters·loadStations·alertsFile·geocoder·tideDeps·spotsOf·hazardFeatures
+ * @param {object} o - dir·clock·risk·marine·adapters·loadStations·alertsFile·geocoder·tideDeps·spotsOf·hazardFeatures·kma
+ *                     ·timer(경과 시간 — AI 데드라인, 기본 Date.now)·runDeadlineMs·aiOptions(generate 에 더 넘길 것 — timeouts 등)·allowRealAI(실제 AI 허용 여부)
  * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList
  * [연계] ← forDefault·시험 / → R·AI·I
  */
-function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook() } = {}) {
+function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
+    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1' } = {}) {
     let timer = null, running = null, stationsCache = null, ad = adapters;
     const fileCache = new Map();
     const p = (f) => path.join(dir, f);
@@ -108,22 +127,39 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     /** 설정 쓰기(선택지 밖 값이면 400). 예: writeConfig({exposure:'user'}) → 저장된 설정 @param {object} patch @returns {object} [연계] ← routes PUT */
     function writeConfig(patch) {
         const cur = readConfig(), next = { ...cur };
-        for (const [k, v] of Object.entries(patch || {})) { if (!CHOICES[k]) continue; if (!CHOICES[k].includes(v)) throw Object.assign(new Error('설정값 오류: ' + k), { status: 400 }); next[k] = v; }
+        // 모르는 칸(__proto__·constructor 포함)은 400 — CHOICES 자신의 칸만 받는다(독립 검토 B12).
+        for (const [k, v] of Object.entries(patch || {})) { if (!Object.hasOwn(CHOICES, k)) throw Object.assign(new Error('설정 칸 오류: ' + k), { status: 400 }); if (!CHOICES[k].includes(v)) throw Object.assign(new Error('설정값 오류: ' + k), { status: 400 }); next[k] = v; }
         I.writeJson(p('config.json'), { ...next, updatedAt: R.isoKst(clock()) }); return next;
     }
-    /** 상태 파일(만든 판·특보 서명·관할별 특보구역·마지막 실행·오류). @returns {object} [연계] ← run·tick·status */
-    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, errors: s.errors || [], alertsMtime: s.alertsMtime || null }; }
+    /** 상태 파일(만든 판·특보 서명·관할별 특보구역·마지막 실행·오류·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← run·tick·status */
+    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, errors: s.errors || [], alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
     function saveState(s) { I.writeJson(p('state.json'), s); }
-    /** 날짜별 브리핑 파일 읽기(mtime 캐시). @param {string} date @returns {object|null} [연계] ← pick·run */
+    /**
+     * 날짜별 브리핑 파일 읽기 — 늘 메모리에 두는 것은 오늘·내일 파일만(mtime 캐시, 최대 2개 — 독립 검토 C6). 다른 날짜는 읽기만 하고 두지 않는다.
+     * @param {string} date @returns {object|null} [연계] ← pick·run
+     */
     function readDay(date) {
         const f = p('briefings_' + date + '.json'); let st; try { st = fs.statSync(f); } catch (_) { return null; }
         const c = fileCache.get(f); if (c && c.mtime === st.mtimeMs) return c.data;
-        const data = I.readJson(f); fileCache.set(f, { mtime: st.mtimeMs, data }); while (fileCache.size > 4) fileCache.delete(fileCache.keys().next().value); return data;
+        const data = I.readJson(f), now = clock();
+        if ([R.kstDate(now), R.kstDate(now + 86400000)].includes(date)) { fileCache.set(f, { mtime: st.mtimeMs, data }); while (fileCache.size > 2) fileCache.delete(fileCache.keys().next().value); }
+        return data;
     }
-    /** 이틀 넘게 지난 날짜 파일을 지운다(오늘·내일·어제만 남김). @param {number} now [연계] ← run */
-    function prune(now) { const keep = new Set([-1, 0, 1].map((d) => R.kstDate(now + d * 86400000))); try { for (const f of fs.readdirSync(dir)) { const m = f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/); if (m && !keep.has(m[1])) fs.unlinkSync(p(f)); } } catch (_) { /* 폴더 없음 */ } }
+    /** 이틀 넘게 지난 날짜 파일을 지운다(오늘·내일·어제만 남김). 쓰다 남은 임시 파일(.tmp)도 1시간 지난 것은 지운다(C9). @param {number} now [연계] ← run */
+    function prune(now) {
+        const keep = new Set([-1, 0, 1].map((d) => R.kstDate(now + d * 86400000)));
+        try {
+            for (const f of fs.readdirSync(dir)) {
+                const m = f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/); if (m && !keep.has(m[1])) { fs.unlinkSync(p(f)); fileCache.delete(p(f)); continue; }
+                if (/\.\d+\.tmp$/.test(f)) { try { if (Date.now() - fs.statSync(p(f)).mtimeMs > 3600000) fs.unlinkSync(p(f)); } catch (_) { /* 그 사이 지워짐 */ } }
+            }
+        } catch (_) { /* 폴더 없음 */ }
+    }
     /**
      * 브리핑을 만든다. kind: morning|evening|night(정시) · warning(특보 변경 — keys 관할만, 이미 있는 오늘·내일 판의 남은 칸) · manual(관리자 실행 — 화면이 지금 보일 날짜).
+     * 실제 AI 어댑터는 운영(FLY_ALLOC_ID) 또는 STATION_BRIEFING_DEV_AI=1 일 때만 — 그 밖(개발 환경)에서 어댑터를 주입하지 않았으면 틀 총평만(C9).
+     * 시각: 창은 시작 시각으로 정하지만, 위치 찾기·AI 가 오래 걸려도 연안 하루 값 시각이 낡지 않게 모으기 직전에 시각을 다시 잡는다(C2 — risk_store 는 지금−5분보다 앞선 시각을 400 으로 거부).
+     * AI 데드라인 runDeadlineMs(기본 20분) — 넘으면 남은 관할은 틀(B7).
      * 예: await run({kind:'morning'}) → {ok:true, date:'2026-10-17', stations:97, stats:{…}, ms}
      * @param {object} o - kind·keys(대상 관할 열쇠, 없으면 전부)·zones(특보 변경 구역 — 기록용) @returns {Promise<object>}
      * [연계] ← tick·routes POST run / → I.gather·R.buildBriefing·AI.generate
@@ -131,7 +167,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     async function run({ kind, keys = null, zones = null } = {}) {
         if (running) return { ok: false, skipped: 'busy' };
         running = (async () => {
-            const t0 = Date.now(), now = clock(), config = readConfig(), all = stations(), st = state();
+            const t0 = elapsed(), now = clock(), config = readConfig(), all = stations(), st = state();
             const targets = keys ? all.filter((s) => keys.includes(s.key)) : all;
             const wins = [];
             if (kind === 'warning') { for (const d of [R.kstDate(now), R.kstDate(now + 86400000)]) { const day = readDay(d); if (!day) continue; const w = R.editionWindow('warning', now, d); if (w) wins.push(w); } }
@@ -141,12 +177,13 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             const hz = I.assignHazards(all, hazardFeatures ? hazardFeatures() : (I.readJson(path.join(I.CONFIG, 'coastal_hazard_zones.wgs84.geojson'))?.features || []));
             const landPoints = Object.fromEntries(all.map((s) => [s.key, (spotsBySt.get(s.key) || []).concat(hz.get(s.key) || [])]));
             const locations = await I.ensureLocations({ stations: all, landPoints, file: p('locations.json'), geocoder, now });
+            const aiOn = !!ad || allowRealAI(), cfg = aiOn ? config : { ...config, method: 'template' };
             const results = [];
             for (const win of wins) {
-                const inputs = I.gather({ stations: targets, risk, marine, win, now, locations, hazards: hz, spotsBySt, tideDeps });
+                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps });
                 const briefings = inputs.map((x) => R.buildBriefing(x, win, { generatedAt: R.isoKst(now) }));
                 const day = readDay(win.targetDate) || { date: win.targetDate, stations: {} };
-                const gen = await AI.generate({ briefings, config, previous: day.stations, adapters: ad || (ad = realAdapters()), kma: kma(), now });
+                const gen = await AI.generate({ briefings, config: cfg, previous: day.stations, adapters: ad || (aiOn ? (ad = realAdapters()) : {}), kma: kma(), now, timer: elapsed, deadline: t0 + runDeadlineMs, ...aiOptions });
                 for (const b of briefings) { b.overview = gen.overviews[b.key] || b.overview; b.trigger = kind === 'warning' ? { kind, zones } : { kind }; day.stations[b.key] = b; }
                 day.updatedAt = R.isoKst(now); I.writeJson(p('briefings_' + win.targetDate + '.json'), day); fileCache.delete(p('briefings_' + win.targetDate + '.json'));
                 for (const x of inputs) st.stationZones[x.key] = [...new Set((x.sea.warnings || []).map((w) => R.zoneKey(w.zone)).concat((x.sea.regions || []).flatMap((r) => r.zones.map(R.zoneKey))))];
@@ -154,31 +191,73 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 results.push({ date: win.targetDate, stations: briefings.length, stats: gen.stats, errors: gen.errors.length });
             }
             prune(now);
-            st.lastRun = { at: R.isoKst(now), kind, zones, results, ms: Date.now() - t0 };
+            st.lastRun = { at: R.isoKst(now), kind, zones, results, ms: elapsed() - t0, ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
             saveState(st);
-            return { ok: true, results, ms: Date.now() - t0 };
+            return { ok: true, results, ms: elapsed() - t0 };
         })();
         try { return await running; } finally { running = null; }
     }
+    /** 실행 실패를 상태에 남긴다(횟수·마지막 시각·이유) — 백오프 판단용. @param {string} key - 판 열쇠 또는 'warning' @param {Error} e @param {number} now [연계] ← tick */
+    function reportFailure(key, e, now) {
+        const s = state(), f = s.failures[key] || { count: 0 }, why = String((e && e.message) || e).slice(0, 160);
+        s.failures = Object.fromEntries(Object.entries({ ...s.failures, [key]: { count: f.count + 1, lastAt: R.isoKst(now), reason: why } }).slice(-12));
+        s.errors = s.errors.concat([{ at: R.isoKst(now), stage: 'run', provider: null, stations: [], reason: key + ' 실행 실패(' + (f.count + 1) + '번째): ' + why }]).slice(-MAX_ERRORS);
+        saveState(s); console.error('[station_briefing] 실행 실패 ' + key + ' (' + (f.count + 1) + '/' + MAX_RUN_FAILS + '): ' + why);
+    }
+    /** 백오프 중인가 — 실패 뒤 10분 안이거나 같은 판을 3번 실패했으면 true. 예: ({count:1,lastAt:10:00}, 10:05) → true · 10:10 → false. @param {object} f - failures[key] @param {number} now @returns {boolean} [연계] ← tick */
+    function inBackoff(f, now) { return !!f && (f.count >= MAX_RUN_FAILS || now - Date.parse(f.lastAt) < RUN_BACKOFF_MS); }
     /**
      * 1분 점검: ①지금 만들 정시 판(R.dueEdition)이 있으면 만든다 ②특보 크롤러 결과가 바뀌었으면 구역 서명을 비교해, 바뀐 구역에 걸친 관할만 다시 만든다.
-     * 처음 보는 서명(재시작 직후 상태 파일에 서명이 없음)은 기록만 하고 다시 만들지 않는다. 실행 중이면 이번 점검을 건너뛴다(서명은 다음에 다시 비교).
-     * 예: await tick() → {edition:'2026-10-17|morning'} · {warning:['…|한림파출소'], zones:['제주도서부앞바다']} · {}
+     * 처음 보는 서명(재시작 직후 상태 파일에 서명이 없음)은 기록만 하고 다시 만들지 않는다. 실행 중이면 이번 점검을 건너뛴다.
+     * 특보 변경은 마지막 변경 뒤 WARN_DEBOUNCE_MS(3분) 조용할 때 한 번 — 그 사이 바뀐 구역은 합친다(마지막으로 만든 서명과 비교하므로 누적, C9).
+     * 서명이 같은 채 파일 시각만 바뀌면 대기를 늘리지 않고, 계속 바뀌어도 첫 변경 뒤 WARN_MAX_WAIT_MS(15분)면 만든다.
+     * 실행이 던지면 실패 시각·횟수를 남기고 10분 기다린다, 같은 판(특보 변경은 'warning')은 3번까지 — 매분 AI 를 다시 부르지 않는다(B9·ops1). 3번 실패한 특보 변경은 그 서명을 받아들이고 멈춘다.
+     * 예: await tick() → {edition:'2026-10-17|morning'} · {warning:['…|한림파출소'], zones:['제주도서부앞바다']} · {pending:[…]}(디바운스 대기) · {backoff:'2026-10-17|morning'} · {}
      * @returns {Promise<object>} [연계] ← start(1분) · 시험(가짜 시계)
      */
     async function tick() {
         if (running) return { busy: true };
         const now = clock(), out = {};
         const st = state(), due = R.dueEdition(now, st.done);
-        if (due) { const r = await run({ kind: due.kind }); if (r.ok) { const s2 = state(); s2.done = s2.done.concat(due.key).slice(-12); saveState(s2); out.edition = due.key; } }
+        if (due) {
+            if (inBackoff(st.failures[due.key], now)) out.backoff = due.key;
+            else {
+                let r = null;
+                try { r = await run({ kind: due.kind }); } catch (e) { reportFailure(due.key, e, now); out.failed = due.key; }
+                if (r && r.ok) { const s2 = state(); s2.done = s2.done.concat(due.key).slice(-12); delete s2.failures[due.key]; saveState(s2); out.edition = due.key; }
+            }
+        }
         let mtime = null; try { mtime = fs.statSync(alertsFile).mtimeMs; } catch (_) { return out; }
-        const s3 = state(); if (s3.alertsMtime === mtime) return out;
-        const tree = I.readJson(alertsFile)?.current; if (!tree) return out;
-        const sig = warnSignatures(tree);
-        if (!s3.warnSig) { s3.warnSig = sig; s3.alertsMtime = mtime; saveState(s3); return out; }
-        const zs = changedZones(s3.warnSig, sig), hit = Object.entries(s3.stationZones).filter(([, z]) => z.some((k) => zs.includes(k))).map(([k]) => k);
-        if (hit.length) { const r = await run({ kind: 'warning', keys: hit, zones: zs }); if (!r.ok) return out; out.warning = hit; out.zones = zs; }
-        const s4 = state(); s4.warnSig = sig; s4.alertsMtime = mtime; saveState(s4);
+        const s3 = state();
+        if (s3.alertsMtime !== mtime) {
+            const tree = I.readJson(alertsFile)?.current;
+            if (tree) {
+                const sig = warnSignatures(tree);
+                s3.alertsMtime = mtime;
+                if (!s3.warnSig) s3.warnSig = sig;
+                else {
+                    // 서명이 실제로 달라졌을 때만 「마지막 변경」을 새로 잡는다 — 크롤러가 같은 내용을 다시 써서 파일 시각만 바뀌면 대기를 늘리지 않는다.
+                    const zs = changedZones(s3.warnSig, sig), pw0 = s3.pendingWarn;
+                    if (!zs.length) s3.pendingWarn = null;
+                    else if (!pw0 || changedZones(pw0.sig, sig).length) s3.pendingWarn = { sig, zones: zs, lastChangeAt: R.isoKst(now), since: pw0?.since || R.isoKst(now) };
+                }
+                saveState(s3);
+            }
+        }
+        const pw = state().pendingWarn;
+        if (!pw) return out;
+        if (now - Date.parse(pw.lastChangeAt) < WARN_DEBOUNCE_MS && now - Date.parse(pw.since || pw.lastChangeAt) < WARN_MAX_WAIT_MS) { out.pending = pw.zones; return out; }
+        const fw = state().failures.warning;
+        if (fw && fw.count >= MAX_RUN_FAILS) { const s4 = state(); s4.warnSig = pw.sig; s4.pendingWarn = null; delete s4.failures.warning; saveState(s4); out.warningGaveUp = pw.zones; return out; }
+        if (inBackoff(fw, now)) { out.backoff = (out.backoff ? out.backoff + ',' : '') + 'warning'; return out; }
+        const hit = Object.entries(state().stationZones).filter(([, z]) => z.some((k) => pw.zones.includes(k))).map(([k]) => k);
+        if (hit.length) {
+            let r = null;
+            try { r = await run({ kind: 'warning', keys: hit, zones: pw.zones }); } catch (e) { reportFailure('warning', e, now); out.failed = (out.failed ? out.failed + ',' : '') + 'warning'; return out; }
+            if (!r.ok) return out;
+            out.warning = hit; out.zones = pw.zones;
+        }
+        const s4 = state(); s4.warnSig = pw.sig; s4.pendingWarn = null; delete s4.failures.warning; saveState(s4);
         return out;
     }
     /** 운영(Fly)에서만 1분 점검을 켠다. @returns {boolean} [연계] ← server.js */
@@ -196,11 +275,11 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         if (wanted !== today && day === 'auto') { const t = readDay(today)?.stations?.[key] || null; return { date: today, briefing: t, fallback: !!t, wanted, nextExpectedAt: today + 'T23:00:00+09:00' }; }
         return { date: wanted, briefing: null, fallback: false };
     }
-    /** 관리자 상태(설정·마지막 실행·최근 오류 50개·있는 날짜). @returns {object} [연계] ← routes GET status */
-    function status() { const s = state(); let days = []; try { days = fs.readdirSync(dir).map((f) => (f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/) || [])[1]).filter(Boolean).sort(); } catch (_) { /* 폴더 없음 */ } return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, done: s.done, errors: s.errors.slice(-50).reverse(), days, running: !!running }; }
+    /** 관리자 상태(설정·마지막 실행·최근 오류 50개·있는 날짜·실행 중·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← routes GET status·POST run(실행 중이면 409) */
+    function status() { const s = state(); let days = []; try { days = fs.readdirSync(dir).map((f) => (f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/) || [])[1]).filter(Boolean).sort(); } catch (_) { /* 폴더 없음 */ } return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, done: s.done, errors: s.errors.slice(-50).reverse(), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null }; }
     /** 관할 목록(화면 설정용 — 폴리곤 없이). @returns {object[]} [연계] ← routes GET stations */
     function stationList() { const loc = I.readJson(p('locations.json'))?.stations || {}; return stations().map((s) => ({ key: s.key, name: s.name, office: s.office, region: s.region, seaOnly: s.seaOnly, location: loc[s.key]?.status === 'ok' ? { lat: loc[s.key].lat, lon: loc[s.key].lon, estimated: false } : { estimated: true } })); }
-    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, pick, readConfig, writeConfig, status, stationList, stations, _state: state };
+    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, pick, readConfig, writeConfig, status, stationList, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
 }
 let def = null;
 /**
@@ -215,4 +294,4 @@ function forDefault() {
     return def;
 }
 
-module.exports = { createService, forDefault, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, CHOICES, DEFAULT_CONFIG, start: () => forDefault().start() };
+module.exports = { createService, forDefault, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };

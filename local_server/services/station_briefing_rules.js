@@ -17,7 +17,7 @@
 'use strict';
 const crypto = require('crypto');
 
-const RULES_VERSION = 'station-briefing-rules-v1';
+const RULES_VERSION = 'station-briefing-rules-v2'; // v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등
 const HOUR = 3600000, SLOT_H = 3;
 // 단계 말 — 사용자 확정(§11.6-8 Q1 「가」): 「관심 필요·주의 필요·경계 필요」. 주의·경계는 공식 자료(공식 사고예보·기상특보)가 그 단계일 때만.
 const WORD = ['', '관심 필요', '주의 필요', '경계 필요'];
@@ -35,6 +35,16 @@ const RELEASE_LINES = Object.freeze([
 ]);
 const ACCIDENT_RANK = { '주의': 2, '경계': 3 }, CONGESTION_HIGH = new Set(['높음', '매우높음']);
 const MAX_SEA_CARDS = 10, MAX_LAND_CARDS = 10, MAX_CONSTANT = 12;
+// 결측과 0 구분(CLAUDE.md L-291 「조용한 것이 이상 없는 것처럼 보이면 안 된다」, 독립 검토 A2 — 2026-10-16):
+// 원천이 ok 가 아니면 그 근거는 판단에서 빠지므로, 남은 자료로 단계가 0 이어도 「평소 수준」이라 쓰지 않는다.
+const UNKNOWN_SOME = '확인 불가(일부)', UNKNOWN_ALL = '확인 불가';
+// 원천 열쇠 → 사람이 읽는 이름(해상 원천 4개 + 연안 하루 값 missing 열쇠 — risk_score·risk_store 가 넣는 것).
+const SOURCE_LABEL = Object.freeze({
+    accident: '공식 사고예보', congestion: '혼잡 예보', zoneForecasts: '해구 예보', warnings: '기상특보',
+    concentration: '관광지 사람 집중률', hazard: '위험구역', events: '행사', rip: '이안류', gale: '강풍 자료', forecast: '해구 예보', detail: '관광지 상세',
+});
+/** 원천 열쇠 목록을 사람이 읽는 이름으로(겹치면 하나). 예: ['accident','congestion'] → '공식 사고예보·혼잡 예보'. @param {string[]} keys @returns {string} [연계] ← templateOverview·station_briefing_ai */
+function sourceNames(keys) { return [...new Set((keys || []).map((k) => SOURCE_LABEL[k] || k))].join('·'); }
 
 /** 두 자리 숫자로 만든다. 예: 6 → '06'. @param {number} n @returns {string} [연계] ← 시각 문구들 */
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -70,15 +80,18 @@ function topicJosa(word) { const c = String(word).charCodeAt(String(word).length
  *     editionWindow('night', 10-16 23:00) → targetDate '2026-10-17'(「오늘 밤~내일」), from 10-16 21:00, to 10-18 00:00 → 9칸
  *     editionWindow('night', 10-17 01:10) → targetDate '2026-10-17'(23시 판을 놓쳐 자정 뒤 늦게 만든 경우), from 00:00 → 8칸
  *     editionWindow('warning', 10-17 13:10, '2026-10-17') → from 12:00 ~ 10-18 00:00(특보가 바뀌어 다시 만드는 판 — 그 날 판의 남은 칸)
+ *     editionWindow('warning', 10-17 13:10, '2026-10-18') → from 10-18 00:00(내일 판엔 오늘 칸을 섞지 않음) · 10-17 23:10 이면 from 21:00(night 판과 같은 「오늘 밤~내일」)
  * @param {string} kind - morning|evening|night|warning @param {number} now - ms @param {string} [targetDate] - warning 판의 대상 날짜
  * @returns {object|null} 창(남은 칸이 없으면 null)
  * [연계] ← station_briefing.run / 대상 날짜 = 화면이 고르는 날짜(displayDate)와 같은 규칙
  */
 function editionWindow(kind, now, targetDate) {
     const today = kstDate(now), midnight = Date.parse(today + 'T00:00:00+09:00');
-    const from = midnight + Math.floor((now - midnight) / (SLOT_H * HOUR)) * SLOT_H * HOUR;
+    let from = midnight + Math.floor((now - midnight) / (SLOT_H * HOUR)) * SLOT_H * HOUR;
     // night 판은 「오늘 밤~내일」 — 23시에 만들면 대상은 내일. 서버가 23시에 꺼져 있어 자정 뒤(정오 전)에 늦게 만들면 대상은 그날(이미 「내일」이 된 날).
     const target = kind === 'night' ? (now - midnight >= 12 * HOUR ? kstDate(midnight + 36 * HOUR) : today) : kind === 'warning' && targetDate ? targetDate : today;
+    // 특보 변경 판이 내일 판을 고칠 때(독립 검토 A8): 21시 전이면 내일 0시부터 — 오늘 칸을 섞지 않는다. 21시부터는 night 판과 같은 「오늘 밤~내일」(U58).
+    if (kind === 'warning' && target > today && now - midnight < 21 * HOUR) from = Date.parse(target + 'T00:00:00+09:00');
     const to = Date.parse(target + 'T00:00:00+09:00') + 24 * HOUR;
     if (from >= to) return null;
     const slots = []; for (let t = from; t < to; t += SLOT_H * HOUR) slots.push(isoKst(t));
@@ -172,11 +185,14 @@ function regionName(region, places) {
     const ref = region.ref, refKm = ref ? ref.distNm * 1.852 : Infinity;
     let best = null;
     if (refKm > 10) for (const p of places || []) { const d = haversineKm(p.lat, p.lon, region.lat, region.lon); if (!best || d < best.d) best = { p, d }; }
+    // 거리 0 가드(독립 검토 낮음): 0.1해리(약 185m)보다 가까우면 방위가 뜻이 없다 — 「○○ 인근 해역」.
     if (best && best.d < refKm) {
+        if (best.d / 1.852 < 0.1) return { name: best.p.name + ' 인근 해역' + label, base: best.p.name, baseKind: 'place', distKm: +best.d.toFixed(1) };
         const word = bearing16(bearingDeg(best.p.lat, best.p.lon, region.lat, region.lon));
         return { name: best.p.name + ' ' + word + '방 ' + (best.d / 1.852).toFixed(1) + '해리 해역' + label, base: best.p.name, baseKind: 'place', distKm: +best.d.toFixed(1) };
     }
     if (!ref) return { name: '관할 해역' + label, base: null, baseKind: 'none', distKm: null };
+    if (!(Number(ref.distNm) >= 0.1) || !ref.bearingWord) return { name: ref.name + ' 인근 해역' + label, base: ref.name, baseKind: 'ref', distKm: +refKm.toFixed(1) };
     return { name: ref.name + ' ' + ref.bearingWord + '방 ' + Number(ref.distNm).toFixed(1) + '해리 해역' + label, base: ref.name, baseKind: 'ref', distKm: +refKm.toFixed(1) };
 }
 /** 두 점 거리(km, 대권). risk_geo.haversine 과 같은 식(R=6371). @returns {number} [연계] ← regionName */
@@ -217,19 +233,22 @@ function weatherFlow(series, label, targetDate) {
 function warningEvents(warnings, win) {
     const from = Date.parse(win.from), to = Date.parse(win.to), events = [], special = [], seen = new Set();
     const inWin = (iso) => iso && Date.parse(iso) >= from && Date.parse(iso) < to;
+    // 범위 시각(해제 예고 「06~09시」·예비 발효 예정 범위)은 창과 겹치면 넣는다 — 창 시작 전에 시작해도 창 안에 걸치면 빠뜨리지 않는다(독립 검토 A4).
+    const overlaps = (t) => t && (t.range && t.end ? Date.parse(t.start) < to && Date.parse(t.end) > from : inWin(t.start));
+    const atIn = (iso) => isoKst(Math.max(Date.parse(iso), from)); // 시간 막대 칸에 붙일 시각 — 창 앞이면 첫 칸
     for (const w of warnings || []) {
         const name = w.zone + ' ' + w.type + w.level;
         if (w.state === '예비') {
             const k = 'pre|' + name; if (seen.has(k)) continue; seen.add(k);
             const when = w.effective ? warnTimeText(w.effective, win.targetDate) + ' 발효 예정' : '발효 시각 정보 없음';
-            if (!w.effective || inWin(w.effective.start)) { events.push({ kind: 'prewarn', at: w.effective?.start || win.from, zone: w.zone, text: name + ' 예비특보 — ' + when }); special.push({ kind: 'prewarn', zone: w.zone, title: name + ' 예비특보 — ' + when, lines: [] }); }
+            if (!w.effective || overlaps(w.effective)) { events.push({ kind: 'prewarn', at: w.effective ? atIn(w.effective.start) : win.from, zone: w.zone, text: name + ' 예비특보 — ' + when }); special.push({ kind: 'prewarn', zone: w.zone, title: name + ' 예비특보 — ' + when, lines: [] }); }
             continue;
         }
         if (w.effective && inWin(w.effective.start) && !seen.has('start|' + name)) { seen.add('start|' + name); events.push({ kind: 'warnStart', at: w.effective.start, zone: w.zone, text: name + ' 발효 ' + warnTimeText(w.effective, win.targetDate) }); }
-        if (w.release && inWin(w.release.start) && !seen.has('rel|' + name)) {
+        if (w.release && overlaps(w.release) && !seen.has('rel|' + name)) {
             seen.add('rel|' + name);
             const title = name + ' — ' + warnTimeText(w.release, win.targetDate) + ' 해제 예고(더 일찍 풀릴 수 있음)';
-            events.push({ kind: 'release', at: w.release.start, zone: w.zone, text: title });
+            events.push({ kind: 'release', at: atIn(w.release.start), zone: w.zone, text: title });
             special.push({ kind: 'release', zone: w.zone, title, lines: RELEASE_LINES.slice() });
         }
     }
@@ -237,74 +256,95 @@ function warningEvents(warnings, win) {
     return { events, special };
 }
 /**
+ * 칸 시각 목록(창 순서)을 이어진 묶음별 「HH~HH시」로 쓴다 — 끊긴 시간대를 하나로 잇지 않는다(독립 검토 A6).
+ * 예: [06시] → '06~09시' · [15,18시] → '15~21시' · [06,21시] → '06~09시·21~24시'
+ * @param {string[]} ats - 칸 시작 시각(오름차순) @param {string} targetDate @returns {string} [연계] ← seaSection(카드 창·오늘 예상)·runLabels
+ */
+function runsText(ats, targetDate) {
+    const out = []; let s = null, prev = null;
+    for (const at of ats) { const t = Date.parse(at); if (s !== null && t === prev + SLOT_H * HOUR) { prev = t; continue; } if (s !== null) out.push([s, prev]); s = t; prev = t; }
+    if (s !== null) out.push([s, prev]);
+    return out.map(([a, b]) => rangeText(isoKst(a), isoKst(b + SLOT_H * HOUR), targetDate)).join('·');
+}
+/** 원천 결측을 반영한 단계 말. 예: (0, []) → '평소 수준' · (0, ['congestion']) → '확인 불가(일부)' · (2, […]) → '주의 필요'. @param {number} rank @param {string[]} missing @param {number} total - 원천 수 @returns {string} [연계] ← seaSection·landSection */
+function levelWord(rank, missing, total) { return rank ? WORD[rank] : !missing.length ? '평소 수준' : total && missing.length >= total ? UNKNOWN_ALL : UNKNOWN_SOME; }
+/**
  * 해상 분석: 관할 안 모든 해역(같은 공식 사고 5km 칸은 하나 — 수집 단계에서 묶임)을 창의 모든 3시간 칸에서 판정하고,
  * 순위(단계 > 그 단계 지속 칸 수 > 기상·혼잡 근거 겹침 > 과거 사고 수)를 매겨 카드·시간 막대를 만든다.
+ * 원천이 ok 가 아니거나(sources) 공식 사고예보 프레임이 빠진 칸(sea.frameGaps.accident)은 그 근거를 쓰지 않고, 단계가 0 이면 「평소 수준」 대신 「확인 불가(일부)」(A2).
+ * 총평 후보(overviewTop)는 카드 상한(10)과 상관없이 총평 단계 순위에서 바로 고른다 — 단계 말과 총평 문장이 어긋나지 않게(A5).
  * 예: 한림 고정 자료 → {level:{rank:2,word:'주의 필요'}, reviewedCells:52, attentionRegions:4, cards:[{name:'비양도 북방 …', window:'15~18시', …}], timeBar:[6칸]}
  * @param {object} input - 관할 입력 묶음 @param {object} win - editionWindow @param {object} wev - warningEvents 결과
- * @returns {object} 해상 절 [연계] ← buildBriefing / → slotOf·regionName·weatherFlow
+ * @returns {object} 해상 절 [연계] ← buildBriefing / → slotOf·regionName·weatherFlow·runsText
  */
 function seaSection(input, win, wev) {
     const ok = Object.fromEntries(['accident', 'congestion', 'zoneForecasts', 'warnings'].map((k) => [k, input.sources?.[k] === 'ok']));
     const sea = input.sea || {}, warnings = sea.warnings || [], slots = win.slots;
+    const accGaps = new Set((sea.frameGaps?.accident || []).filter((at) => slots.includes(at)));
     const regions = (sea.regions || []).map((r) => {
         const zk = r.zone ? zoneKey(r.zone.name) : null, ws = warnings.filter((w) => zk && zoneKey(w.zone) === zk);
         const series = slots.map((at) => {
             const s = Date.parse(at), e = s + SLOT_H * HOUR, x = r.slots?.[at] || {}, wx = (sea.weather?.[r.haegu?.major]?.rows || []).find((q) => q.at === at) || {};
-            return { at, ...slotOf({ accident: x.accident, congestion: x.congestion, wh: wx.wh, ws: wx.ws, warnings: ws }, s, e, ok) };
+            return { at, ...slotOf({ accident: x.accident, congestion: x.congestion, wh: wx.wh, ws: wx.ws, warnings: ws }, s, e, accGaps.has(at) ? { ...ok, accident: false } : ok) };
         });
         const rank = Math.max(0, ...series.map((q) => q.rank)), overviewRank = Math.max(0, ...series.map((q) => q.overviewRank));
-        const first = series.findIndex((q) => q.rank === rank && rank > 0);
-        let last = first; while (last >= 0 && last + 1 < series.length && series[last + 1].rank === rank) last++;
-        const of = series.findIndex((q) => q.overviewRank === overviewRank && overviewRank > 0);
-        let ol = of; while (ol >= 0 && ol + 1 < series.length && series[ol + 1].overviewRank === overviewRank) ol++;
+        const topAts = series.filter((q) => q.rank === rank && rank > 0).map((q) => q.at), oAts = series.filter((q) => q.overviewRank === overviewRank && overviewRank > 0).map((q) => q.at);
         const nm = regionName(r, input.places);
-        return { r, nm, series, rank, overviewRank, first, last, of, ol, duration: series.filter((q) => q.rank === rank && rank > 0).length, basis: series.some((q) => q.rank === rank && (q.weatherBasis || q.congestionBasis)), accidents: r.history?.count || 0 };
+        return { r, nm, series, rank, overviewRank, first: series.findIndex((q) => q.rank === rank && rank > 0), topAts, oAts, duration: topAts.length, oDuration: oAts.length, basis: series.some((q) => q.rank === rank && (q.weatherBasis || q.congestionBasis)), accidents: r.history?.count || 0 };
     }).filter((x) => x.rank > 0);
     regions.sort((a, b) => b.rank - a.rank || b.duration - a.duration || Number(b.basis) - Number(a.basis) || b.accidents - a.accidents || a.nm.name.localeCompare(b.nm.name, 'ko'));
     const flows = {};
     for (const [major, w] of Object.entries(sea.weather || {})) flows[major] = ok.zoneForecasts ? weatherFlow(slots.map((at) => ({ at, ...((w.rows || []).find((q) => q.at === at) || {}) })), w.label || '대해구 ' + major, win.targetDate) : null;
-    const cards = regions.slice(0, MAX_SEA_CARDS).map((x) => {
-        const top = x.first >= 0 ? x.series[x.first].sources[0] : null, windowText = x.first >= 0 ? rangeText(x.series[x.first].at, isoKst(Date.parse(x.series[x.last].at) + SLOT_H * HOUR), win.targetDate) : null;
-        const h = x.r.history || {}, flow = flows[x.r.haegu?.major] || null;
-        const traits = [h.count ? (h.from || '').slice(0, 4) + '~' + (h.to || '').slice(0, 4) + '년 선박사고 ' + h.count + '건(' + (h.topTypes || []).map((t) => t.type + ' ' + t.count).join('·') + ')' + (h.death || h.missing ? ', 사망 ' + (h.death || 0) + '·실종 ' + (h.missing || 0) : '') : '최근 5년 선박사고 기록 없음', x.r.zone?.name || null, x.r.haegu?.label ? x.r.haegu.label + '해구' : null].filter(Boolean);
-        const todayLines = [];
-        const seenLabel = new Set();
-        for (const q of x.series) for (const s of q.sources) { const k = s.kind + s.label; if (seenLabel.has(k)) continue; seenLabel.add(k); const run = x.series.filter((z) => z.sources.some((y) => y.kind === s.kind && y.label === s.label)); todayLines.push(rangeText(run[0].at, isoKst(Date.parse(run[run.length - 1].at) + SLOT_H * HOUR), win.targetDate) + ' ' + s.label); }
+    /** 해역 하나를 카드로. 창(window)·「오늘 예상」은 이어진 칸 묶음별(끊긴 시간대를 잇지 않음), peakAt = 가장 높은 단계의 첫 칸. */
+    const toCard = (x) => {
+        const top = x.first >= 0 ? x.series[x.first].sources[0] : null, windowText = x.topAts.length ? runsText(x.topAts, win.targetDate) : null;
+        const h = x.r.history || null, flow = flows[x.r.haegu?.major] || null, hasHist = !!h && h.available !== false;
+        // 선박사고 이력: 자료 자체가 없음(집계 불가)과 0건을 가른다(독립 검토 낮음).
+        const histText = !hasHist ? '선박사고 이력 자료 없음(집계 불가)' : h.count ? (h.from || '').slice(0, 4) + '~' + (h.to || '').slice(0, 4) + '년 선박사고 ' + h.count + '건(' + (h.topTypes || []).map((t) => t.type + ' ' + t.count).join('·') + ')' + (h.death || h.missing ? ', 사망 ' + (h.death || 0) + '·실종 ' + (h.missing || 0) : '')
+            : (h.from && h.to ? h.from.slice(0, 4) + '~' + h.to.slice(0, 4) + '년' : '최근 5년') + ' 선박사고 기록 없음';
+        const traits = [histText, x.r.zone?.name || null, x.r.haegu?.label ? x.r.haegu.label + '해구' : null].filter(Boolean);
+        const todayLines = [], seenLabel = new Set();
+        for (const q of x.series) for (const s of q.sources) { const k = s.kind + s.label; if (seenLabel.has(k)) continue; seenLabel.add(k); todayLines.push(runsText(x.series.filter((z) => z.sources.some((y) => y.kind === s.kind && y.label === s.label)).map((z) => z.at), win.targetDate) + ' ' + s.label); }
         if (flow) todayLines.push(flow.text);
-        const sentence = (windowText ? windowText + ' ' : '') + '이 해역은 ' + (top ? top.label : '') + (x.rank === 3 ? ' 단계이므로 공식 경계 단계 확인과 운항 시 경계가 필요합니다.' : ' 근거로 운항 시 ' + SUBJECT[x.rank] + ' 필요합니다.') + ((h.topTypes || [])[0] ? ' 이 해역에서는 집계 기간 중 ' + h.topTypes[0].type + ' 사고가 가장 많이 기록되었습니다.' : '');
+        const tops = hasHist ? h.topTypes || [] : [];
+        const sentence = (windowText ? windowText + ' ' : '') + '이 해역은 ' + (top ? top.label : '') + (x.rank === 3 ? ' 단계이므로 공식 경계 단계 확인과 운항 시 경계가 필요합니다.' : ' 근거로 운항 시 ' + SUBJECT[x.rank] + ' 필요합니다.') + (tops[0] ? ' 이 해역에서는 집계 기간 중 ' + tops[0].type + ' 사고가 가장 많이 기록되었습니다.' : '');
         return {
             rid: x.r.rid, name: x.nm.name, nameBase: x.nm.base, nameBaseKind: x.nm.baseKind, rank: x.rank, word: WORD[x.rank], overviewRank: x.overviewRank,
-            overview: x.of >= 0 ? { rank: x.overviewRank, word: WORD[x.overviewRank], window: rangeText(x.series[x.of].at, isoKst(Date.parse(x.series[x.ol].at) + SLOT_H * HOUR), win.targetDate), label: runLabels(x.series.slice(x.of, x.ol + 1), win.targetDate), at: x.series[x.of].at } : null,
+            overview: x.oAts.length ? { rank: x.overviewRank, word: WORD[x.overviewRank], window: runsText(x.oAts, win.targetDate), label: runLabels(x.series.filter((q) => x.oAts.includes(q.at)), win.targetDate), at: x.oAts[0] } : null,
             sourceLabel: top ? top.label : null, window: windowText, peakAt: x.first >= 0 ? x.series[x.first].at : null,
-            traits: { history: h.count ? { from: h.from, to: h.to, count: h.count, topTypes: h.topTypes || [], death: h.death || 0, missing: h.missing || 0 } : { count: 0 }, zone: x.r.zone || null, haegu: x.r.haegu || null, text: traits.join(' · ') },
+            traits: { history: hasHist && h.count ? { from: h.from, to: h.to, count: h.count, topTypes: h.topTypes || [], death: h.death || 0, missing: h.missing || 0 } : { count: 0, available: hasHist }, zone: x.r.zone || null, haegu: x.r.haegu || null, text: traits.join(' · ') },
             today: { lines: todayLines, weather: flow, slots: x.series.map((q) => ({ at: q.at, rank: q.rank, labels: q.sources.map((s) => s.label) })) },
             sentence, link: { gridId: x.r.gridId || null, accidentGridId: x.r.accidentGridId || null, lat: x.r.lat, lon: x.r.lon, t: x.first >= 0 ? x.series[x.first].at : win.from },
         };
-    });
+    };
+    const cards = regions.slice(0, MAX_SEA_CARDS).map(toCard);
+    const missing = Object.entries(ok).filter(([, v]) => !v).map(([k]) => k).concat(ok.accident && accGaps.size ? ['accident'] : []);
+    const unknown = levelWord(0, missing, 4);
     const timeBar = slots.map((at, i) => {
         let best = null; for (const x of regions) { const q = x.series[i]; if (q.rank > 0 && (!best || q.rank > best.q.rank)) best = { x, q }; }
         const s = Date.parse(at), e = s + SLOT_H * HOUR;
-        return { at, label: dayPrefix(at, win.targetDate) + pad(Number(at.slice(11, 13))) + '시', rank: best ? best.q.rank : 0, word: best ? WORD[best.q.rank] : '평소 수준', region: best ? best.x.nm.name : null, labels: best ? best.q.sources.map((y) => y.label) : [], events: wev.events.filter((v) => Date.parse(v.at) >= s && Date.parse(v.at) < e).map((v) => ({ kind: v.kind, text: v.text })) };
+        return { at, label: dayPrefix(at, win.targetDate) + pad(Number(at.slice(11, 13))) + '시', rank: best ? best.q.rank : 0, word: best ? WORD[best.q.rank] : unknown, region: best ? best.x.nm.name : null, labels: best ? best.q.sources.map((y) => y.label) : [], events: wev.events.filter((v) => Date.parse(v.at) >= s && Date.parse(v.at) < e).map((v) => ({ kind: v.kind, text: v.text })) };
     });
-    const rank = regions.length ? regions[0].rank : 0, oRegions = regions.filter((x) => x.overviewRank > 0).sort((a, b) => b.overviewRank - a.overviewRank || b.duration - a.duration || b.accidents - a.accidents);
-    const missing = Object.entries(ok).filter(([, v]) => !v).map(([k]) => k);
+    const rank = regions.length ? regions[0].rank : 0, oRegions = regions.filter((x) => x.overviewRank > 0).sort((a, b) => b.overviewRank - a.overviewRank || b.oDuration - a.oDuration || b.accidents - a.accidents || a.nm.name.localeCompare(b.nm.name, 'ko'));
     const worstFlow = Object.values(flows).filter(Boolean).sort((a, b) => (a.onsetAt ? Date.parse(a.onsetAt) : Infinity) - (b.onsetAt ? Date.parse(b.onsetAt) : Infinity) || (b.max.wh - a.max.wh))[0] || null;
+    const oRank = oRegions[0]?.overviewRank || 0;
     return {
-        level: { rank, word: rank ? WORD[rank] : '평소 수준', source: regions[0] ? regions[0].series[regions[0].first].sources[0].label : null },
-        overviewLevel: { rank: oRegions[0]?.overviewRank || 0, word: oRegions[0] ? WORD[oRegions[0].overviewRank] : '평소 수준' },
-        overviewTop: oRegions.slice(0, 2).map((x) => cards.find((c) => c.rid === x.r.rid) || null).filter(Boolean),
-        reviewedCells: sea.reviewedCells || 0, attentionRegions: regions.length, cards, timeBar, weather: worstFlow, weatherByHaegu: flows, missing,
+        level: { rank, word: levelWord(rank, missing, 4), source: regions[0] ? regions[0].series[regions[0].first].sources[0].label : null, partial: missing.length > 0 },
+        overviewLevel: { rank: oRank, word: levelWord(oRank, missing, 4) },
+        overviewTop: oRegions.slice(0, 2).map((x) => cards.find((c) => c.rid === x.r.rid) || toCard(x)),
+        reviewedCells: sea.reviewedCells || 0, attentionRegions: regions.length, cards, timeBar, weather: worstFlow, weatherByHaegu: flows, missing: [...new Set(missing)],
+        missingSlots: accGaps.size ? { accident: [...accGaps].sort() } : {},
     };
 }
 /**
- * 총평용 근거 묶음 — 총평 창(같은 총평 단계가 이어진 칸들)에서 칸마다 가장 높은 근거 이름을 모아 근거별 시간대를 붙인다.
+ * 총평용 근거 묶음 — 총평 단계 칸들에서 칸마다 가장 높은 근거 이름을 모아 근거별 시간대(이어진 묶음별)를 붙인다.
  * 예: 15·18시 공식 사고예보 '주의', 21시 예비특보 → "공식 사고예보 '주의'(15~21시)·제주도서부앞바다 풍랑주의보 예비특보(발효 예정 시각 이후)(21~24시)"
  * @param {object[]} run - 칸 판정 묶음 @param {string} targetDate @returns {string} [연계] ← seaSection(카드 overview.label) → templateOverview
  */
 function runLabels(run, targetDate) {
     const by = new Map();
     for (const q of run) { const l = q.overviewSources[0]?.label; if (!l) continue; if (!by.has(l)) by.set(l, []); by.get(l).push(q.at); }
-    return [...by.entries()].slice(0, 3).map(([l, ats]) => l + '(' + rangeText(ats[0], isoKst(Date.parse(ats[ats.length - 1]) + SLOT_H * HOUR), targetDate) + ')').join('·');
+    return [...by.entries()].slice(0, 3).map(([l, ats]) => l + '(' + runsText(ats, targetDate) + ')').join('·');
 }
 /** 구역 이름 열쇠(띄어쓰기·가운뎃점·점 무시) — warn_zone_cells.zoneKey 와 같은 규칙. @param {string} s @returns {string} [연계] ← seaSection */
 function zoneKey(s) { return String(s || '').replace(/[\s·.]/g, ''); }
@@ -330,7 +370,11 @@ function landSpot(s) {
     let rank = 0, sourceLabel = null;
     const warnRank = Math.max(0, ...eff.map((w) => (/경보/.test(w) ? 3 : 2)));
     if (warnRank) { rank = warnRank; sourceLabel = eff.find((w) => (warnRank === 3 ? /경보/ : /주의보/).test(w)); }
-    else if ((changes.length && s.band && s.band !== '평소 수준') || pre.length || changes.some((c) => c.kind === 'drift' || c.kind === 'event')) { rank = 1; sourceLabel = changes[0].text; }
+    else {
+        // 「관심」 근거 이름은 판정 이유와 맞게(독립 검토 낮음): 지수가 평소 수준 위면 첫 바뀐 요소, 아니면 단독으로 관심이 되는 요소(예비특보·떠밀림·행사).
+        const byBand = changes.length && s.band && s.band !== '평소 수준', alone = changes.find((c) => c.kind === 'prewarn' || c.kind === 'drift' || c.kind === 'event');
+        if (byBand || alone) { rank = 1; sourceLabel = byBand ? changes[0].text : alone.text; }
+    }
     return { rank, word: rank ? WORD[rank] : null, sourceLabel, changes };
 }
 /**
@@ -356,25 +400,31 @@ function landSection(input, win) {
         .map(({ s, j }) => ({ kind: 'spot', id: s.id, name: s.name, text: traitText(s) || null, changedButLow: j.changes.length > 0 }))
         .concat((land.hazardOnly || []).map((z) => ({ kind: 'hazard', id: z.id, name: z.place, text: [z.class, z.shape].filter(Boolean).join(' · ') })))
         .filter((c) => c.text).slice(0, MAX_CONSTANT);
-    const top = cardsAll[0];
+    const top = cardsAll[0], missing = [...new Set(spots.flatMap((s) => s.missing || []))];
     return {
-        level: { rank: top ? top.j.rank : 0, word: top ? WORD[top.j.rank] : '평소 수준', source: top ? top.j.sourceLabel : null },
-        reviewedSpots: spots.length, reviewedHazards: (land.hazardOnly || []).length, cards, constant,
-        overviewTop: cards.slice(0, 3), missing: [...new Set(spots.flatMap((s) => s.missing || []))],
+        level: { rank: top ? top.j.rank : 0, word: levelWord(top ? top.j.rank : 0, missing, 0), source: top ? top.j.sourceLabel : null, partial: missing.length > 0 },
+        // 검토한 관광지 수 = 연안 하루 값을 실제로 받은 곳만(상세 실패 'detail' 은 셈에서 뺀다 — 독립 검토 낮음). 실패 수는 failedSpots.
+        reviewedSpots: spots.filter((s) => !(s.missing || []).includes('detail')).length, failedSpots: spots.filter((s) => (s.missing || []).includes('detail')).length,
+        reviewedHazards: (land.hazardOnly || []).length, cards, constant, overviewTop: cards.slice(0, 3), missing,
     };
 }
 /**
- * 조석(서해·남해 관할 — §11.6-8·11): 대표 위치에서 가장 가까운 물빠짐 앵커 곡선으로 그날 고조·저조와 문구를 만들고,
+ * 조석(서해·남해 관할 — §11.6-8·11): 대표 위치에서 가장 가까운 물빠짐 앵커 곡선으로 그 판의 창 안 고조·저조와 문구를 만들고,
  * 화면이 해양종합정보 조석 게이지를 그릴 수 있게 곡선(10분)·고저조(prev/next 포함)를 그대로 넘긴다. 점수에는 넣지 않는다(U45).
- * 예: 저조 06:12(-12cm)·18:40 → text ['저조 06:12·18:40 무렵 갯벌·고립 주의 — 물이 빠져 갯벌·바위가 드러나고, 물이 다시 차오를 때 고립될 수 있습니다.']
- * @param {object|null} tide - 수집 결과 {anchorId,distKm,date,curve,peaks,prevPeak,nextPeak,rocks} @param {object} win @returns {object|null}
+ * 문구에는 창(window) 안의 고조·저조만 쓴다(독립 검토 낮음) — 17:30 판은 15시 이후, 23시 판은 전날 곡선(prevDayPeaks)의 오늘 밤 21시 이후도 넣는다(날짜를 붙임).
+ * 예: 저조 06:12(-12cm)·18:40, 아침 판 → text ['저조 06:12·18:40 무렵 갯벌·고립 주의 — …'] · 저녁 판(15시~) → '저조 18:40 무렵 …'
+ * @param {object|null} tide - 수집 결과 {anchorId,distKm,date,curve,peaks,prevPeak,prevDayPeaks,nextPeak,rocks} @param {object} win @returns {object|null}
  * [연계] ← buildBriefing
  */
 function tideSection(tide, win) {
     if (!tide || !Array.isArray(tide.peaks)) return null;
-    const lows = tide.peaks.filter((p) => p.type === 'low').map((p) => p.t), highs = tide.peaks.filter((p) => p.type === 'high').map((p) => p.t);
+    const from = Date.parse(win.from), to = Date.parse(win.to), prevDate = kstDate(Date.parse(tide.date + 'T00:00:00+09:00') - HOUR);
+    const all = (tide.prevDayPeaks || []).map((p) => ({ ...p, date: prevDate })).concat(tide.peaks.map((p) => ({ ...p, date: tide.date })))
+        .map((p) => ({ ...p, ms: Date.parse(p.date + 'T' + p.t + ':00+09:00') })).filter((p) => p.ms >= from && p.ms < to);
+    const word = (p) => dayPrefix(p.date + 'T', win.targetDate) + p.t;
+    const lows = all.filter((p) => p.type === 'low').map(word), highs = all.filter((p) => p.type === 'high').map(word);
     const text = [];
-    if (lows.length) text.push((tide.date !== win.targetDate ? md(tide.date) + ' ' : '') + '저조 ' + lows.join('·') + ' 무렵 갯벌·고립 주의 — 물이 빠져 갯벌·바위가 드러나고, 물이 다시 차오를 때 고립될 수 있습니다' + (highs.length ? '(고조 ' + highs.join('·') + ').' : '.'));
+    if (lows.length) text.push('저조 ' + lows.join('·') + ' 무렵 갯벌·고립 주의 — 물이 빠져 갯벌·바위가 드러나고, 물이 다시 차오를 때 고립될 수 있습니다' + (highs.length ? '(고조 ' + highs.join('·') + ').' : '.'));
     const r = tide.rocks;
     if (r && r.count) text.push('관할 안 잠기는 바위(간출암) ' + r.count + '곳이 ' + (r.first === r.last ? r.first : r.first + '~' + r.last) + ' 사이 물에 잠깁니다 — 바위 위 낚시·채취 중 고립에 주의가 필요합니다.');
     return { anchor: { id: tide.anchorId, distKm: tide.distKm }, date: tide.date, gauge: { curve: tide.curve || [], peaks: tide.peaks, prevPeak: tide.prevPeak || null, nextPeak: tide.nextPeak || null, unit: 'cm' }, rocks: r || null, text };
@@ -388,25 +438,27 @@ function tideSection(tide, win) {
  */
 function templateOverview(b) {
     const st = b.station.name, dayWord = dayWordOf(b);
-    const sea = b.sea, s = [], top = sea.overviewTop[0];
-    s.push(dayWord + ' ' + st + ' 관할 해상은 ' + (top ? sea.overviewLevel.word : '평소 수준') + '입니다(관할 안 ' + sea.reviewedCells + '칸 검토, 관심 이상 ' + sea.attentionRegions + '개 해역).');
+    const sea = b.sea, s = [], top = sea.overviewTop[0], miss = sea.missing.length ? sourceNames(sea.missing) : null;
+    // 빠진 원천은 첫 문장에 밝힌다(A2) — 남은 자료로 0 이어도 「평소 수준」·「없습니다」라 쓰지 않는다.
+    const counts = '관할 안 ' + sea.reviewedCells + '칸 검토, ' + (miss ? '확인된 자료 기준 ' : '') + '관심 이상 ' + sea.attentionRegions + '개 해역';
+    s.push(dayWord + ' ' + st + ' 관할 해상은 ' + sea.overviewLevel.word + '입니다' + (miss ? ' — ' + miss + ' 자료를 확인하지 못해 그 근거는 판단에서 뺐습니다(' + counts + ').' : '(' + counts + ').'));
     s.push(sea.weather ? sea.weather.text + '.' : '해구 예보 자료를 확인하지 못했습니다.');
     if (top) s.push(top.overview.window + ' ' + top.name + '의 근거는 ' + top.overview.label + '입니다.');
-    else s.push('공식 사고예보 순위만으로 붙은 단계 외에 기상·혼잡 근거가 겹치는 해역은 없습니다.');
+    else s.push(miss ? '확인된 자료에서는 기상·혼잡 근거가 겹치는 해역을 찾지 못했습니다(빠진 자료의 근거는 알 수 없습니다).' : '공식 사고예보 순위만으로 붙은 단계 외에 기상·혼잡 근거가 겹치는 해역은 없습니다.');
     const rel = b.special.find((x) => x.kind === 'release'), pre = b.special.find((x) => x.kind === 'prewarn');
     if (rel) s.push(rel.title + ' — ' + RELEASE_LINES[0]);
     else if (pre) s.push(pre.title + '입니다.');
-    s.push(top ? '따라서 ' + top.overview.window + '경 ' + top.name + ' 운항에 ' + SUBJECT[top.overview.rank] + ' 필요합니다.' : '따라서 출항 전 기상 확인에 관심이 필요합니다.');
+    s.push(top ? '따라서 ' + top.overview.window + '경 ' + top.name + ' 운항에 ' + SUBJECT[top.overview.rank] + ' 필요합니다.' : miss ? '따라서 출항 전 기상청 특보·예보를 직접 확인하는 데 관심이 필요합니다.' : '따라서 출항 전 기상 확인에 관심이 필요합니다.');
     let land = null;
     if (b.land) {
-        const l = [], lt = b.land.overviewTop;
+        const l = [], lt = b.land.overviewTop, lm = b.land.missing.length ? sourceNames(b.land.missing) : null;
         if (lt.length) {
-            l.push(dayWord + ' ' + st + ' 관할 육상은 ' + b.land.level.word + '입니다(관광지 ' + b.land.reviewedSpots + '곳 검토, 오늘 바뀐 요소가 있는 곳 ' + b.land.cards.length + '곳).');
+            l.push(dayWord + ' ' + st + ' 관할 육상은 ' + b.land.level.word + '입니다(관광지 ' + b.land.reviewedSpots + '곳 검토, 오늘 바뀐 요소가 있는 곳 ' + b.land.cards.length + '곳' + (lm ? ', 확인하지 못한 자료: ' + lm : '') + ').');
             l.push(lt[0].name + topicJosa(lt[0].name) + ' ' + dayWord + ' ' + lt[0].today.changes.join(', ') + ' 요소가 있습니다.');
             if (lt[1]) l.push(lt[1].name + '도 ' + lt[1].today.changes.join(', ') + ' 요소가 있습니다.');
             l.push('따라서 ' + lt.map((c) => c.name).join('·') + ' 주변 물가 접근에 ' + SUBJECT[lt[0].rank] + ' 필요합니다.');
         } else {
-            l.push(dayWord + ' ' + st + ' 관할 육상은 평소와 달라진 요소(사람·행사·너울·이안류·특보·바람)가 확인되지 않았습니다.');
+            l.push(dayWord + ' ' + st + ' 관할 육상은 ' + (lm ? b.land.level.word + '입니다 — ' + lm + ' 자료를 확인하지 못했고, 확인된 자료에서는 ' : '') + '평소와 달라진 요소(사람·행사·너울·이안류·특보·바람)가 확인되지 않았습니다.');
             const c = b.land.constant.slice(0, 3).map((x) => x.name);
             l.push(c.length ? '상시 위험 장소로 ' + c.join('·') + ' 등이 있습니다.' : '관할에 연결된 관광지·위험구역 자료가 없습니다.');
             l.push('물가 접근 시 평소처럼 관심이 필요합니다.');
@@ -424,7 +476,8 @@ function templateOverview(b) {
  * [연계] ← station_briefing.run / → seaSection·landSection·tideSection·warningEvents·templateOverview
  */
 function buildBriefing(input, win, meta = {}) {
-    const wev = warningEvents(input.sea?.warnings, win);
+    // 특보 원천이 ok 가 아니면(낡음·없음) 해제 예고·예비 칸·사건도 만들지 않는다 — 단계 판정(slotOf ok.warnings)과 같은 규칙(독립 검토 A3, marine_fusion warningsAt 과 같게).
+    const wev = warningEvents(input.sources?.warnings === 'ok' ? input.sea?.warnings : [], win);
     const b = {
         schema: 'station-briefing-v1', rulesVersion: RULES_VERSION, key: input.key,
         station: { name: input.name, office: input.office, region: input.region || null },
@@ -447,7 +500,7 @@ function stable(v) { return Array.isArray(v) ? '[' + v.map(stable).join(',') + '
 function hash(v) { return crypto.createHash('sha256').update(stable(v)).digest('hex').slice(0, 16); }
 
 module.exports = {
-    RULES_VERSION, WORD, SEA_ONLY_OFFICES, RELEASE_LINES, WAVE_M, WIND_MS, EDITIONS,
-    isoKst, kstDate, editionWindow, dueEdition, displayDate, rangeText, warnTimeText, warnAtSlot, slotOf, regionName, weatherFlow,
+    RULES_VERSION, WORD, SEA_ONLY_OFFICES, RELEASE_LINES, WAVE_M, WIND_MS, EDITIONS, SOURCE_LABEL, UNKNOWN_SOME, UNKNOWN_ALL,
+    isoKst, kstDate, md, editionWindow, runsText, levelWord, sourceNames, dueEdition, displayDate, rangeText, warnTimeText, warnAtSlot, slotOf, regionName, weatherFlow,
     warningEvents, seaSection, landSpot, landSection, tideSection, templateOverview, buildBriefing, stable, hash, zoneKey, topicJosa, haversineKm, dayWordOf,
 };
