@@ -6,9 +6,13 @@
  *         사용자 원문(2026-10-16): 「해양안전생활 탭에서 어떤 버튼을 클릭하여 화면을 표출해놓고 예를 들어
  *         위험예측. 그 상태에서 해양종합정보나 다른 탭을 갔다오면 해양안전생활 화면이 초기화되는데 가장
  *         마지막에 했던 화면 상태로 유지해줘. 단 앱을 껐다가 켜면 초기화상태로 시작.」
+ *         둘째 결정(2026-10-16 「4-1, 2, 3 추천대로」): ①위험지형·금지구역 범례 스위치와 사고 「현황」 모드도 되살림
+ *         ②하위탭(해양안전 ↔ 해양생활)끼리 옮겨 다녀도 각 하위탭 상태 유지(해양안전 하위탭 다시 누름 포함, 해양생활
+ *         지도 위치·지점 팝업, 그 팝업 표시가 해양안전 버튼을 가리지 않음) ③탭 다시 누름은 그대로 — 항목마다 사례 하나.
  * [연계] → client/js/marine-life/safety/life_safety.js 1-3 절(_parkSafety·_unparkSafety·switchMainTab 래퍼)
  *        → client/js/core/index2_patch.js ③-2(해양안전생활은 기본 하위탭으로 되돌리지 않음)
  *        → client/js/marine-life/risk-forecast/risk_forecast.js (getState·setEnabled·synced·select)
+ *        → hazard_rocks.js·ban_zone.js 범례 줄(#tgl-row-*·#bzl-row-*), accident_info.js [분석·현황] 토글 — 둘째 결정 ①
  *        ← scripts/refactor/verify_all.sh SUITES
  * [로드 순서] 독립 검사. 3001 서버·외부 호출 없음 — 자체 express(임의 포트)가 client/ 를 내주고,
  *             위험예측 API 는 실제 라우터 + 가짜 저장소, 그 밖의 /api 는 404, 127.0.0.1 밖 요청은 모두 끊는다.
@@ -181,6 +185,104 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
   assert.equal((await S()).base,'coast','떠날 때 보던 배경(해안도)');
   await page.evaluate(()=>document.getElementById('ocean-vts-toggle-btn').click());await settle(300);
   assert.equal((await S()).base,pre,'끄면 관제구역을 켜기 전 배경으로 돌아간다');
+ });
+
+ // ── 2026-10-16 둘째 결정: ① 범례 스위치·사고 「현황」도 되살림 ② 하위 탭(해양안전 ↔ 해양생활) 사이에서도 유지 ──
+ //   사용자 결정 원문: 「4-1, 2, 3 추천대로」 — ①위험·금지구역 범례 스위치와 사고 「현황」 모드 되살리기
+ //   ②하위 탭끼리 옮겨 다녀도 각 하위 탭 상태 유지 ③해양안전생활 탭 다시 누름은 지금 동작 그대로.
+ const sub=t=>page.evaluate(t=>{const b=t==='life'?document.getElementById('ls-life-sub-btn'):document.querySelector('#ocean-safety-sub-tabs .sub-tab-btn[data-target="ocean-safety-section"]');b.click();},t);
+ const toLife=async()=>{await sub('life');await page.waitForFunction(()=>document.body.classList.contains('ls-life'));await settle(800);};
+ const toSafety=async()=>{await sub('safety');await page.waitForFunction(()=>document.body.classList.contains('ls-safety'));await settle(900);};
+ /** 해양종합정보 지도에서 지금 보이는 층(고유번호) 목록 — 떠날 때와 돌아왔을 때 같은 층이 보이는지 맞대어 본다. */
+ const vis=()=>page.evaluate(()=>window.getOceanMap().getLayers().getArray().filter(l=>l.getVisible()).map(l=>ol.util.getUid(l)).sort());
+ const rowsOn=()=>page.evaluate(()=>['tgl-row-exposed','tgl-row-rock','bzl-row-ac','bzl-row-fb'].map(id=>document.getElementById(id).classList.contains('on')));
+ const ctrlsShown=()=>page.evaluate(()=>getComputedStyle(document.getElementById('ocean-overlay-controls')).display!=='none');
+ /** 메인탭(특보정보) 한 번, 하위 탭(해양생활) 한 번 다녀온 뒤 매번 같은 검사를 돌린다. @param {function} ready - 돌아와 다 켜졌는지 @param {function} same - 같은지 검사 */
+ const bothTrips=async(ready,same)=>{
+  await tab('weather-group');await settle();await tab('ocean-life-group');await page.waitForFunction(ready,null,{timeout:8000});await settle(600);await same('메인탭 왕복');
+  await toLife();await toSafety();await page.waitForFunction(ready,null,{timeout:8000});await settle(600);await same('하위 탭 왕복');
+ };
+
+ await check('하위 탭: 위험예측(해상·[혼잡도]·+3H·지도 위치·시트) → 해양생활 → 해양안전 하면 그대로, 해양생활에 있는 동안 층·60초 갱신 멈춤',async()=>{
+  await load();await tab('ocean-life-group');await settle();await riskOnFirst();
+  await page.evaluate(()=>document.querySelector('[data-layer="sea"]').click());await settle(600);
+  await page.evaluate(()=>document.querySelector('[data-marine-mode="congestion"]').click());await settle(600);
+  await step(3);await page.waitForFunction(t=>window._riskForecastApp.getState().t===t,coastPlus3());
+  await page.evaluate(()=>{const v=window.getOceanMap().getView();v.setCenter(ol.proj.fromLonLat([126.7,34.3]));v.setZoom(9.25);});await settle(300);
+  await page.evaluate(()=>window._riskForecastApp.select('coast','S1'));await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-title').textContent.includes('S1'));
+  const b=await S();
+  await toLife();
+  let s=await S();
+  assert.deepEqual([s.btn,s.app.enabled,s.rfVisible,s.bar,s.sheetOpen],[false,false,false,false,false],'해양생활에서는 위험예측 버튼·층·시간 바·시트가 꺼져 있다');
+  const metaBefore=log.meta;await fire60();await settle(400);assert.equal(log.meta,metaBefore,'해양생활에 있는 동안 60초 주기가 돌아도 요청하지 않는다');
+  await toSafety();await page.waitForFunction(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')&&document.querySelector('#risk-forecast-sheet .rf-title').textContent.includes('S1'),null,{timeout:8000});
+  s=await S();
+  assert.deepEqual([s.btn,s.app.enabled,s.app.coast,s.app.sea,s.cong,s.app.t],[true,true,true,true,'true',coastPlus3()],'위험예측 안의 상태 그대로');
+  assert.deepEqual(s.view,b.view,'지도 위치 그대로');assert.equal(s.base,b.base,'배경 그대로');
+  assert.deepEqual(s.app.selected&&[s.app.selected.kind,s.app.selected.id],['coast','S1'],'열려 있던 시트를 다시 연다');
+  await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());await settle(300);
+ });
+
+ await check('하위 탭: 해양안전을 보던 중 해양안전 하위 탭을 다시 눌러도 꺼지지 않고, 해양종합정보로 새지도 않는다',async()=>{
+  const metaBefore=log.meta;await sub('safety');await settle(900);
+  let s=await S();assert.deepEqual([s.safety,s.btn,s.app.enabled,s.app.sea,s.app.t],[true,true,true,true,coastPlus3()]);assert.equal(log.meta,metaBefore,'다시 누름은 다시 받지 않는다');
+  await tab('ocean-map-section');await settle(900);
+  s=await S();assert.equal(s.btn,false,'해양종합정보에서 위험예측이 켜지지 않는다');assert.equal(s.rfVisible,false);
+  await tab('ocean-life-group');await page.waitForFunction(()=>window._riskForecastApp.getState().enabled,null,{timeout:8000});await settle(600);
+  await page.evaluate(()=>document.getElementById('ocean-risk-forecast-toggle-btn').click());await settle(400);   // 다음 사례를 위해 끈다
+ });
+
+ await check('위험지형 범례 스위치(「간출암, 암암 등」 끔) — 메인탭·하위 탭 다녀와도 스위치·보이는 층 그대로',async()=>{
+  await page.evaluate(()=>document.getElementById('ocean-terrain-toggle-btn').click());
+  await page.waitForFunction(()=>{const i=document.querySelector('#ocean-rock-toggle-btn i');return document.getElementById('ocean-rock-toggle-btn').classList.contains('active')&&!(i&&/fa-spin/.test(i.className));},null,{timeout:15000});await settle(400);
+  await page.evaluate(()=>document.getElementById('tgl-row-rock').click());await settle(300);
+  const r=await rowsOn(),v=await vis();assert.deepEqual(r.slice(0,2),[true,false],'전제: 노출암 켬·간출암 끔');
+  await bothTrips(()=>document.getElementById('ocean-terrain-toggle-btn').classList.contains('active'),async w=>{
+   assert.deepEqual((await rowsOn()).slice(0,2),[true,false],w+' — 스위치 그대로');assert.deepEqual(await vis(),v,w+' — 보이는 층 그대로');
+   assert.equal(await page.evaluate(()=>document.getElementById('terrain-legend').style.display),'flex',w+' — 범례가 떠 있다');});
+  await page.evaluate(()=>document.getElementById('ocean-terrain-toggle-btn').click());await settle(300);
+ });
+
+ await check('금지구역 범례 스위치(「낚시금지구역」 끔) — 메인탭·하위 탭 다녀와도 스위치·보이는 층 그대로',async()=>{
+  await page.evaluate(()=>document.getElementById('ocean-banzone-toggle-btn').click());
+  await page.waitForFunction(()=>['ocean-access-control-toggle-btn','ocean-fishing-ban-toggle-btn'].every(id=>document.getElementById(id).classList.contains('active')),null,{timeout:15000});await settle(1500);
+  await page.evaluate(()=>document.getElementById('bzl-row-fb').click());await settle(300);
+  const v=await vis();assert.deepEqual((await rowsOn()).slice(2),[true,false],'전제: 출입통제 켬·낚시금지 끔');
+  await bothTrips(()=>document.getElementById('ocean-banzone-toggle-btn').classList.contains('active'),async w=>{
+   assert.deepEqual((await rowsOn()).slice(2),[true,false],w+' — 스위치 그대로');assert.deepEqual(await vis(),v,w+' — 보이는 층 그대로');});
+  await page.evaluate(()=>document.getElementById('ocean-banzone-toggle-btn').click());await settle(300);
+ });
+
+ await check('사고정보 「현황」 — 메인탭·하위 탭 다녀오면 현황·배경 그대로, 끄면 켜기 전 배경',async()=>{
+  const pre=(await S()).base;
+  await page.evaluate(()=>document.getElementById('ocean-accident-toggle-btn').click());
+  await page.waitForFunction(()=>document.getElementById('ocean-accident-mode-toggle').style.display==='flex',null,{timeout:30000});await settle(300);
+  await page.evaluate(()=>document.querySelector('#ocean-accident-mode-toggle [data-mode="status"]').click());await settle(500);
+  await page.evaluate(()=>window.oceanSetBasemap('coast'));await settle(200);
+  const mode=()=>page.evaluate(()=>(document.querySelector('#ocean-accident-mode-toggle button.active')||{dataset:{}}).dataset.mode);
+  assert.equal(await mode(),'status','전제: 현황');const v=await vis();
+  await bothTrips(()=>document.getElementById('ocean-accident-mode-toggle').style.display==='flex'&&(document.querySelector('#ocean-accident-mode-toggle button.active')||{dataset:{}}).dataset.mode==='status',async w=>{
+   assert.equal(await mode(),'status',w+' — 현황 그대로');assert.equal((await S()).base,'coast',w+' — 떠날 때 보던 배경');assert.deepEqual(await vis(),v,w+' — 보이는 층 그대로');});
+  await page.evaluate(()=>document.getElementById('ocean-accident-toggle-btn').click());await settle(400);
+  assert.equal((await S()).base,pre,'끄면 사고정보를 켜기 전 배경으로 돌아간다');
+ });
+
+ await check('하위 탭: 해양생활(바다낚시) 지도 위치·열린 지점 팝업 유지, 그 팝업 표시가 해양안전 버튼을 가리지 않는다',async()=>{
+  await toLife();
+  await page.evaluate(()=>document.querySelector('#ls-rail .ls-act-btn[data-act="surfing-section"]').click());await settle(900);
+  await page.evaluate(()=>document.querySelector('#ls-rail .ls-act-btn[data-act="fishing-section"]').click());await page.waitForFunction(()=>window.getFishingMap&&window.getFishingMap()&&document.getElementById('fishing-section').classList.contains('active'));await settle(1800);
+  await page.evaluate(()=>{const v=window.getFishingMap().getView();v.setCenter(ol.proj.fromLonLat([126.2,34.6]));v.setZoom(10.5);});await settle(200);
+  const fv=await page.evaluate(()=>{const v=window.getFishingMap().getView();return{c:v.getCenter().map(Math.round),z:v.getZoom()};});
+  // 지점 팝업 열기 — fishing.js _openBottomSheet 가 하는 것과 같은 표시(시험 서버에는 낚시 자료가 없어 마커를 누를 수 없다)
+  await page.evaluate(()=>{document.getElementById('fishing-bottomsheet').classList.add('active');document.getElementById('fishing-bottomsheet-overlay').classList.add('active');});await settle(200);
+  await toSafety();
+  assert.equal(await ctrlsShown(),true,'해양안전 우측 버튼 묶음이 보인다(해양생활 팝업 표시가 남아 가리지 않는다)');
+  await toLife();await settle(1000);
+  const fv2=await page.evaluate(()=>{const v=window.getFishingMap().getView();return{c:v.getCenter().map(Math.round),z:v.getZoom()};});
+  assert.equal(await page.evaluate(()=>document.getElementById('fishing-section').classList.contains('active')),true,'바다낚시로 돌아왔다');
+  assert.deepEqual(fv2,fv,'바다낚시 지도 위치 그대로');
+  assert.equal(await page.evaluate(()=>document.getElementById('fishing-bottomsheet').classList.contains('active')),true,'열어 둔 지점 팝업 그대로');
+  await page.evaluate(()=>{document.getElementById('fishing-bottomsheet').classList.remove('active');document.getElementById('fishing-bottomsheet-overlay').classList.remove('active');});
  });
 
  await check('새로고침(앱 다시 켜기)하면 처음 상태 — 해양안전 하위탭·위험예측 꺼짐·잠김',async()=>{
