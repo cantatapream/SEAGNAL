@@ -50,7 +50,7 @@
 
 ```json
 {
-  "schema": "station-briefing-v1", "rulesVersion": "station-briefing-rules-v3",
+  "schema": "station-briefing-v1", "rulesVersion": "station-briefing-rules-v4",
   "key": "제주해양경찰서|한림파출소",
   "station": { "name": "한림파출소", "office": "제주해양경찰서", "region": "제주지방해양경찰청" },
   "edition": "morning", "targetDate": "2026-10-17",
@@ -115,7 +115,7 @@
 | `overview.source` | `chatgpt`·`gemini`·`template`(+`reused:true` 면 지난 판 재사용) · `model` | 관리자만 작은 글씨로(선택) |
 | `special[]` | 특별 상황 칸: `release`(해제 예고 — 「… — 06~09시 해제 예고(10월 16일 21:00 발표)」, `lines` 두 줄을 그대로) · `prewarn`(예비특보 — 「… 예비특보 — 21~24시 발효 예정(05:00 발표)」) · `released`(이미 해제 — 특보 구간 기록의 실제 해제 시각, 「… — 07:30 해제」 + 해제 안내 두 줄). 시각은 기상청 것 그대로, 발표 시각이 있으면 괄호로(결정 1). 해제 예고·발효 예정 **범위가 창과 겹치면** 넣는다(창 시작 전에 시작해도 — 17:30 판의 「12~18시 해제 예고」). 특보 원천(`sources.warnings`)이 ok 가 아니면 만들지 않는다(시간 막대 사건도) | ② 특별 상황 |
 | `sea.level` | 해상 분석 단계(공식 사고예보 순위 「주의」 포함). 남은 자료로 0 인데 원천이 빠졌으면 `word` 가 「확인 불가(일부)」(넷 다 빠지면 「확인 불가」) — 「평소 수준」이라 쓰지 않는다(`partial:true`) | ③ 해상 분석 머리 |
-| `sea.overviewLevel` | 총평에 쓴 단계(순위만 「주의」인 칸 제외 — §11.6-17①). 결측 규칙은 `sea.level` 과 같다 | 총평 옆 배지 |
+| `sea.overviewLevel` | 총평에 쓴 단계(공식 사고예보 「주의」·**「경계」**만 있고 같은 칸에 기상·혼잡 근거가 없는 칸 제외 — §11.6-17① 「주의」, 2026-10-16 *"모두 추천대로."* 로 「경계」도 — §11.8 추가 결정 A). 결측 규칙은 `sea.level` 과 같다 | 총평 옆 배지 |
 | `sea.timeBar[]` | 3시간 칸마다 관할 최고 단계·그 해역·근거 이름·사건(`release`·`prewarn`·`released`·`warnStart`). 특보 해제 뒤 「관심」은 **해제 뒤 1시간이 걸친 칸만**(결정 4 — 「Z 풍랑주의보 해제 뒤」·이미 해제면 「…(07:30 해제)」) | 해상 시간 막대(칸 색 = `rank` 0~3, 사건은 ⚑) |
 | `sea.cards[]` | 해역 카드(최대 10, 순위 = 단계 > 지속 칸 > 기상·혼잡 겹침 > 과거 사고). `window`·`today.lines`·`overview.window` 는 이어진 칸 묶음별 — 끊기면 「06~09시·21~24시」(하나로 잇지 않는다), `peakAt` = 가장 높은 단계의 첫 칸. `traits.history` 가 `{count:0, available:false}` 면 「선박사고 이력 자료 없음(집계 불가)」, `available:true` 면 「…선박사고 기록 없음」(0건). `sea.overviewTop` 은 카드 상한과 상관없이 총평 단계 순위에서 고른다(카드 10개 밖이어도 총평 근거면 들어간다) | [특성] `traits.text` · [오늘 예상] `today.lines` · 틀 문장 `sentence` |
 | `card.link` | 위험예측 화면으로 바로가기 재료 — 교통 칸 `gridId`(없으면 `accidentGridId`)·좌표·시각 `t` | [위험예측에서 보기 ›] (§11.4, U55) |
@@ -214,6 +214,13 @@ AI 입력에는 기상청 해상 기상 전망(단기 통보문) 원문 발췌(`
 | `ok` | 그 밖(VM 이 실패하고 Gemini 가 쓴 것처럼 결과가 AI 면 정상) | — |
 
 판정 함수는 `station_briefing.historyRow` 하나 — 실행 직후(`run`·`reportFailure`)와 1분 감시(`risk_history_sources.briefingSource`, 운영만)가 같은 판정이라 감시가 다른 상태로 덮어 가짜 사건을 만들지 않는다. 데이터 수집현황 목록표 1단계 「활동지점 안전 브리핑 (우리 서버 생성)」(출처 `seagnal` 「우리 서버 생성」, 일정 08:00·17:30·23:00), 관리자 원천 선택지 「활동지점 안전 브리핑」.
+
+## 6.2 2026-10-16 추가 결정 — 사용자 원문 *"모두 추천대로."* (설계서 §11.8 「추가 결정」)
+- **공식 사고예보 「경계」도 거른다**: 「주의」처럼 같은 3시간 칸에 기상(특보·해구 파고 2m·풍속 12m/s)이나 혼잡('높음' 이상) 근거가 겹칠 때만 총평(`overview`·`sea.overviewLevel`·`sea.overviewTop`·카드 `overview`/`overviewRank`)에. 거른 칸도 카드 `rank`·`word`·`today.lines` 와 시간 막대 `timeBar[].rank` 에는 그대로 「경계 필요」. AI 검증 단계 상한(`levels.sea`, §5)은 총평 단계에서 오므로 함께 바뀐다. 규칙 판 `station-briefing-rules-v4`.
+- **「특보 해제 뒤」는 「오늘 바뀐 요소」로 세지 않는다**(지금 규칙 확정).
+- **파출소 주소 번지 엇갈림 3곳**(부산 남항 91/89·임원 12-18/12-22·지도 68/70)은 정리판 그대로(`station_addresses.md`).
+- **「전남광주통합특별시」**: 대표 위치 카카오 대조(`coastal_events_collector.addressKey`)가 새 이름·옛 이름(전라남도·광주광역시)을 같은 시도로 본다 — 카카오가 어느 이름으로 답해도 목포·완도·여수서 관할 주소와 맞는다.
+- (브리핑 밖) 공식 사고예보 단계별 칸 수 기록 — 관리자 `GET /api/admin/risk-forecast/accident-level-stats?days=7`(관리자 토큰). 형식은 설계서 §11.8 추가 결정 B.
 
 ## 7. 화면 단계에 넘기는 메모
 

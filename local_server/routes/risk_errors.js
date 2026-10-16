@@ -1,6 +1,8 @@
 /**
  * 역할: 관리자에게만 위험예측 오류·누락·낡음·복구 이력을 제공한다.
+ *       + 공식 사고예보 단계별 칸 수 기록(GET /api/admin/risk-forecast/accident-level-stats, 2026-10-16 *"모두 추천대로."* — 공단 단계가 순위식인지 고정 기준값인지 가르는 자료).
  * [연계] 기존 admin_auth / risk_error_history → 관리자 점검 → 데이터 수집현황(현재 원천 상태·오류·복구 이력, 2026-10-15 전에는 AI → AI 사고예측).
+ *        · services/sea_accident_collector.readLevelStats(data/risk_forecast/accident_level_stats.json) — 화면 없음(관리자 API 만)
  * [로드 순서] server.js에서 기존 admin 라우터보다 먼저 등록해 중복 인증을 피한다.
  */
 'use strict';
@@ -11,10 +13,25 @@ const express = require('express'),
 function createRouter({
     history = historyDefault,
     authorize = adminAuth.requireAdminToken,
+    levelStats = (q) => require('../services/sea_accident_collector').readLevelStats(undefined, q),
 } = {}) {
     const router = express.Router(),
-        base = '/api/admin/risk-forecast/errors';
+        base = '/api/admin/risk-forecast/errors',
+        statsPath = '/api/admin/risk-forecast/accident-level-stats';
     router.use(base, authorize);
+    router.use(statsPath, authorize);
+    // 최근 days 일(기본 7, 1~366)의 생성 회차별·프레임별 단계 칸 수·지수 범위·특보 구역 수. 형식: sea_accident_collector.recordLevelStats.
+    router.get(statsPath, (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        const days = req.query.days === undefined ? 7 : Number(req.query.days);
+        if (!Number.isInteger(days) || days < 1 || days > 366)
+            return res.status(400).json({ ok: false, error: '잘못된 조회 기간' });
+        try {
+            res.json(levelStats({ days }));
+        } catch (_) {
+            res.status(503).json({ ok: false, error: '단계별 칸 수 기록을 읽지 못했습니다' });
+        }
+    });
     router.get(base, (req, res) => {
         res.set('Cache-Control', 'no-store');
         const q = req.query,

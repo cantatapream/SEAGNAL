@@ -62,3 +62,9 @@
 ## 수집 실패 관리자 푸시와의 관계 (2026-10-15)
 
 이안류·기상청 MMIS(특보·강풍·너울·시정 예측·관측 4종)를 **불렀는데 받아오지 못하면** 관리자 푸시를 보낸다(사용자 원문: 「이안류, mmis는 데이터를 호출했을 때 받아올 수 없다면 그 때 알려줘 보통 천기가 그런 경우가 많아.」). 이 오류현황의 전이(`opened`/`recovered`)를 재사용하지 않았다 — 이 감시는 파일 상태(낡음·없음)를 보므로 특보·너울은 호출이 실패해도 10분·24시간 동안 정상이고, 이안류는 받아오지 못해도 오류가 되지 않으며, MMIS 관측 4종은 원천 목록에 없다. 대신 각 수집기가 시도마다 `services/collect_fail_alert.js` 에 성공·실패를 알린다. 시정 예측의 기준 3회는 이 문서의 `VSBY_FAIL_STREAK` 와 같다(검사가 둘을 맞대 본다). 설계·대기 중 상태 변화 표: `00_docs/operations/collect-fail-alert.md`.
+
+## 공식 사고예보 단계별 칸 수 기록 (2026-10-16, 사용자 원문 *"모두 추천대로."*)
+
+같은 라우터(`routes/risk_errors.js`)에 관리자 읽기 경로 하나를 더했다 — `GET /api/admin/risk-forecast/accident-level-stats?days=7`(1~366, 기본 7). 인증은 오류현황과 같은 `requireAdminToken`(`X-Admin-Token`), 응답 `no-store`, 읽기 실패는 고정 503. 화면은 없다(관리자 API 만).
+
+원천은 `data/risk_forecast/accident_level_stats.json` — 사고예보 수집기(`sea_accident_collector`)가 새 생성본을 저장한 뒤와 같은 생성본을 다시 확인할 때마다 생성 회차·프레임별 단계 칸 수·지수 최소/최대·지수>0 칸 수·특보 구역 수를 남긴다(같은 회차·프레임은 덮어씀, 1년). 기록 실패는 로그 한 줄뿐이고 수집 결과·상태·오류현황에는 영향이 없다. 목적·형식은 `client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md` §11.8 「추가 결정」 B. 검사: `test_risk_accident` 「[결정 2026-10-16]」·`test_risk_errors` 「단계별 칸 수 기록 조회」.

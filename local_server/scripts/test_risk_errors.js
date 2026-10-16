@@ -638,8 +638,9 @@ async function check(name, fn) {
                 release();
             }
         });
-        const app = express();
-        app.use(createRouter({ history }));
+        const app = express(), statsAsked = [];
+        let statsFail = false;
+        app.use(createRouter({ history, levelStats: (q) => { statsAsked.push(q); if (statsFail) throw Error('/private/path SECRET'); return { ok: true, keepDays: 365, updatedAt: null, runs: [] }; } }));
         server = app.listen(0, '127.0.0.1');
         await new Promise((resolve) => server.once('listening', resolve));
         const url =
@@ -705,6 +706,22 @@ async function check(name, fn) {
             const r = await fetch(url, { headers: { 'X-Admin-Token': token } });
             assert.equal(r.status, 503);
             assert.ok(!(await r.text()).includes('SECRET'));
+        });
+        // 공식 사고예보 단계별 칸 수 기록 조회(2026-10-16 *"모두 추천대로."*) — 같은 관리자 토큰 관례
+        await check('단계별 칸 수 기록 조회: 토큰 없으면 401 · 기본 7일 · days 1~366 밖 400 · 읽기 실패는 고정 503', async () => {
+            const su = url.replace('/errors', '/accident-level-stats'), h = { headers: { 'X-Admin-Token': token } };
+            assert.equal((await fetch(su)).status, 401);
+            assert.equal((await fetch(su, { headers: { 'X-Admin-Token': 'wrong' } })).status, 401);
+            assert.equal(statsAsked.length, 0, '인증 전에는 읽지 않음');
+            const r = await fetch(su, h);
+            assert.equal(r.status, 200); assert.equal(r.headers.get('cache-control'), 'no-store');
+            assert.deepEqual(await r.json(), { ok: true, keepDays: 365, updatedAt: null, runs: [] });
+            assert.equal((await fetch(su + '?days=30', h)).status, 200);
+            assert.deepEqual(statsAsked, [{ days: 7 }, { days: 30 }]);
+            for (const q of ['days=0', 'days=367', 'days=abc', 'days=1.5']) assert.equal((await fetch(su + '?' + q, h)).status, 400, q);
+            statsFail = true;
+            const bad = await fetch(su, h);
+            assert.equal(bad.status, 503); assert.ok(!(await bad.text()).includes('SECRET'));
         });
     } finally {
         if (server) await new Promise((resolve) => server.close(resolve));

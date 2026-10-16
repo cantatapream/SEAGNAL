@@ -17,7 +17,7 @@
 'use strict';
 const crypto = require('crypto');
 
-const RULES_VERSION = 'station-briefing-rules-v3'; // v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구
+const RULES_VERSION = 'station-briefing-rules-v4'; // v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구 · v4(같은 날 *"모두 추천대로."*): 공식 사고예보 「경계」도 「주의」처럼 기상·혼잡이 겹칠 때만 총평
 const HOUR = 3600000, SLOT_H = 3;
 // 단계 말 — 사용자 확정(§11.6-8 Q1 「가」): 「관심 필요·주의 필요·경계 필요」. 해상의 주의·경계는 공식 자료(공식 사고예보·기상특보)가 그 단계일 때만.
 // 육상은 2026-10-16 결정 2(*"공식 단어 … 써도 상관없을 것 같다 … 어차피 판단은 사람들이 하는거잖아"*)로 연안 위험지수 단계도 주의·경계를 붙인다(landSpot).
@@ -151,8 +151,9 @@ function warnAtSlot(w, s, e) {
  *   주의 필요: 공식 사고예보 '주의' · 주의보 발효(같은 예비 규칙)
  *   관심 필요: 충돌·접촉 주의(혼잡 예보 '높음' 이상) · 특보 없이 해구 예보 파고 2m 또는 풍속 12m/s 이상 · 특보 해제 뒤 1시간(결정 4 — 그 1시간이 걸친 칸)
  * 자료 상태가 ok 가 아닌 원천은 쓰지 않는다(「확인 불가」 — 지어내지 않는다).
- * 「총평용 단계」(overviewRank): 공식 사고예보 '주의'는 전국 상대 순위라, 같은 칸에 기상(특보·파고·풍속) 또는 혼잡 근거가 겹칠 때만 총평에 올린다(§11.6-17①).
- * 예: {accident:'주의', congestion:{level:'높음',index:12.3}, wh:1.0, ws:6} → {rank:2, overviewRank:2, sources:[…]} · 사고예보 '주의'만 → {rank:2, overviewRank:0}
+ * 「총평용 단계」(overviewRank): 공식 사고예보 '주의'·'경계'는 공단 자체 단계라, 같은 칸에 기상(특보·파고·풍속) 또는 혼잡 근거가 겹칠 때만 총평에 올린다
+ *   (§11.6-17① 「주의」 + 2026-10-16 *"모두 추천대로."* 로 「경계」도 — §11.8 결정 3). 거른 칸도 해역 카드·시간 막대(rank)에는 그대로 남는다.
+ * 예: {accident:'주의', congestion:{level:'높음',index:12.3}, wh:1.0, ws:6} → {rank:2, overviewRank:2, sources:[…]} · 사고예보 '주의'만 → {rank:2, overviewRank:0} · '경계'만 → {rank:3, overviewRank:0}
  * @param {object} cell - {accident,congestion,wh,ws,warnings:[w…]} @param {number} s @param {number} e @param {object} ok - 원천별 사용 가능 여부
  * @returns {object} {rank,overviewRank,sources:[{kind,rank,label}],overviewSources(총평에 쓸 수 있는 근거만),weatherBasis,congestionBasis}
  * [연계] ← seaSection / → warnAtSlot
@@ -173,7 +174,7 @@ function slotOf(cell, s, e, ok) {
     const weatherBasis = warnActive || !!wx;
     sources.sort((a, b) => b.rank - a.rank);
     const rank = sources.length ? sources[0].rank : 0;
-    const overviewSources = sources.filter((x) => !(x.kind === 'accident' && x.rank === 2 && !weatherBasis && !congestionBasis));
+    const overviewSources = sources.filter((x) => !(x.kind === 'accident' && !weatherBasis && !congestionBasis));
     const overviewRank = overviewSources.length ? overviewSources[0].rank : 0;
     return { rank, overviewRank, sources, overviewSources, weatherBasis, congestionBasis };
 }

@@ -523,12 +523,41 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(AI.validateOverview(x.overview, AI.stationInput(x)).ok);
     });
     await check('[A6] 끊긴 시간대를 하나로 잇지 않는다: 06시·21시 경계 → 카드 창·오늘 예상·총평 창 모두 「06~09시·21~24시」, peakAt 06시', () => {
-        const x = R.buildBriefing(seaOnlyInput({ regions: [region(1, { [at(6)]: { accident: '경계' }, [at(21)]: { accident: '경계' } })] }), WIN, { generatedAt: R.isoKst(T0) });
+        // 2026-10-16 결정 3(「경계」도 기상·혼잡이 겹칠 때만 총평)으로 두 칸에 혼잡 '높음'을 겹쳐 총평 창도 보이게 했다.
+        const cg = { level: '높음', index: 12 };
+        const x = R.buildBriefing(seaOnlyInput({ regions: [region(1, { [at(6)]: { accident: '경계', congestion: cg }, [at(21)]: { accident: '경계', congestion: cg } })] }), WIN, { generatedAt: R.isoKst(T0) });
         const c = x.sea.cards[0];
         assert.equal(c.window, '06~09시·21~24시'); assert.equal(c.peakAt, at(6));
-        assert.deepStrictEqual(c.today.lines, ["06~09시·21~24시 공식 사고예보 '경계'"]);
+        assert.deepStrictEqual(c.today.lines, ["06~09시·21~24시 공식 사고예보 '경계'", "06~09시·21~24시 혼잡 예보 '높음'(혼잡지수 12) → 충돌·접촉 주의"]);
         assert.equal(c.overview.window, '06~09시·21~24시'); assert.equal(c.overview.label, "공식 사고예보 '경계'(06~09시·21~24시)");
         assert.equal(R.runsText([at(15), at(18)], '2026-10-17'), '15~21시');
+    });
+    await check('[결정3] 「경계」 거르기(2026-10-16 *"모두 추천대로."*): 공식 사고예보 「경계」만 있는 칸도 총평 단계 0 — 기상·혼잡이 겹친 칸만 총평에, 해역 카드·시간 막대는 그대로 경계 · AI 검증 상한도 총평 단계', () => {
+        const ok = { accident: true, congestion: true, zoneForecasts: true, warnings: true }, s = Date.parse(at(9)), e = s + 3 * 3600000;
+        const only = R.slotOf({ accident: '경계' }, s, e, ok);
+        assert.equal(only.rank, 3); assert.equal(only.overviewRank, 0); assert.deepStrictEqual(only.overviewSources, []);
+        assert.equal(R.slotOf({ accident: '경계', congestion: { level: '높음', index: 12 } }, s, e, ok).overviewRank, 3, '혼잡이 겹치면 총평 경계');
+        assert.equal(R.slotOf({ accident: '경계', ws: 12 }, s, e, ok).overviewRank, 3, '해구 풍속이 겹치면 총평 경계');
+        const wz = { zone: 'Z', type: '풍랑', level: '주의보', state: '발효', effective: { start: at(0), end: at(0), range: false }, release: null };
+        const withWarn = R.slotOf({ accident: '경계', warnings: [wz] }, s, e, ok);
+        assert.equal(withWarn.overviewRank, 3, '특보가 겹치면 총평 경계'); assert.equal(withWarn.overviewSources[0].kind, 'accident');
+        assert.equal(R.slotOf({ accident: '경계', congestion: { level: '높음', index: 12 } }, s, e, { ...ok, congestion: false }).overviewRank, 0, '낡은 혼잡은 겹침 근거가 아님');
+        // 브리핑 전체: 09시 경계만(A:1) · 15시 경계+혼잡(A:2) · 거른 칸도 카드·시간 막대에는 경계
+        const cg = { level: '높음', index: 12, at: at(15) };
+        const x = R.buildBriefing(seaOnlyInput({ reviewedCells: 2, regions: [region(1, { [at(9)]: { accident: '경계' } }, { ref: { name: '모슬포', distNm: 3, bearingWord: '남' } }), region(2, { [at(15)]: { accident: '경계', congestion: cg } })] }), WIN, { generatedAt: R.isoKst(T0) });
+        const c1 = x.sea.cards.find((c) => c.rid === 'A:1'), c2 = x.sea.cards.find((c) => c.rid === 'A:2');
+        assert.equal(c1.rank, 3); assert.equal(c1.word, '경계 필요'); assert.equal(c1.overviewRank, 0); assert.equal(c1.overview, null);
+        assert.equal(c2.overviewRank, 3); assert.equal(x.sea.level.rank, 3); assert.equal(x.sea.overviewLevel.rank, 3);
+        assert.deepStrictEqual(x.sea.overviewTop.map((c) => c.rid), ['A:2']);
+        assert.equal(x.sea.timeBar.find((q) => q.at === at(9)).rank, 3, '거른 칸도 시간 막대에는 경계');
+        assert.ok(!x.overview.sea.includes(c1.name), '순위만 경계인 해역은 틀 총평에 없음');
+        const lone = R.buildBriefing(seaOnlyInput({ reviewedCells: 1, regions: [region(1, { [at(9)]: { accident: '경계' } })] }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(lone.sea.level.word, '경계 필요'); assert.equal(lone.sea.overviewLevel.rank, 0); assert.deepStrictEqual(lone.sea.overviewTop, []);
+        const sl = AI.stationInput(lone);
+        assert.ok(Object.values(sl.levels.sea).every((r) => r < 3), JSON.stringify(sl.levels.sea));
+        assert.ok(AI.validateOverview(lone.overview, sl).ok, '틀 총평은 통과');
+        const up = AI.validateOverview({ land: null, sea: lone.overview.sea.replace(/관심이 필요합니다\.$/, '경계가 필요합니다.') }, sl);
+        assert.ok(up.errors.some((er) => er.startsWith('level:경계')), 'AI 가 거른 「경계」를 총평에 쓰면 검증 실패 — ' + up.errors.join(','));
     });
     await check('[A8] 특보 변경 판이 내일 판을 고칠 때 21시 전이면 내일 0시부터(오늘 칸 섞지 않음) · 21시부터는 night 판과 같은 「오늘 밤~내일」', () => {
         const w = R.editionWindow('warning', Date.parse('2026-10-17T13:10:00+09:00'), '2026-10-18');
