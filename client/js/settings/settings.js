@@ -11,6 +11,7 @@
  * - NotificationSettings: 푸시 알림 구독 설정
  * - FontSizeManager: 글꼴 크기 조절
  * - findSeaZone(), findNearestZone(): 위치 기반 해역 검색
+ * - openSettingsModal(): 관심해역 탭의 「활동지점 안전 브리핑」 칸을 forecast/station-briefing/station_briefing.js(StationBriefing.renderSettings)가 채운다(2026-10-16)
  *
  * [로딩 순서] 8번째 (marine.js 이후)
  * ============================================================================
@@ -591,6 +592,10 @@ function openSettingsModal() {
     renderSettingsList();
     initNotificationUI(); // [New] UI 초기화 (localStorage에서 최신 값 다시 읽음)
     if (typeof initLocationAlertUI === 'function') initLocationAlertUI(); // [위치기반 특보] 토글/관리자 게이트 초기화
+    // [활동지점 안전 브리핑] 관심해역 탭의 표시/숨김·관할 설정 칸(§11.2) — 노출 판정이 display:true 일 때만 보인다.
+    //   관리자 모드를 막 켰을 수 있으므로 판정을 다시 받는다(받으면 applyVisibility 가 이 칸을 다시 그린다). 이 칸은 누르는 즉시 적용 — 아래 스냅샷과 무관.
+    //   [연계] js/forecast/station-briefing/station_briefing.js renderSettings·refresh
+    if (window.StationBriefing) { window.StationBriefing.renderSettings(); window.StationBriefing.refresh(); }
 
     // 스냅샷 저장 (initNotificationUI 이후에 생성해야 localStorage 최신 값 기준)
     UserSettings._snapshot = JSON.parse(JSON.stringify(UserSettings.settings));

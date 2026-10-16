@@ -1,0 +1,88 @@
+/* ============================================================================
+ * 파일명: client/js/forecast/station-briefing/station_briefing.css
+ * 역할  : 「활동지점 안전 브리핑」 아코디언 본문·설정 흐름·설정 팝업 칸의 모양(.sb-*).
+ *         바깥 아코디언(.main-accordion-header·.gradient-slate)·안쪽 칸(.marine-forecast-sub-*)·조석 게이지(.ocean-tide-*)·
+ *         [기준 상세] 버튼·창(.rf-basis-btn·.rf-basis)은 기존 규칙(style.css·risk_forecast.css)을 그대로 쓰고 여기서는 다시 정하지 않는다.
+ * [연계] station_briefing_render.js · station_briefing.js · admin/admin_station_briefing.js(미리보기) · index2.html <link>
+ * ============================================================================ */
+.sb-wrap { display:flex; flex-direction:column; gap:12px; color:#e2e8f0; font-size:.86rem; line-height:1.55; word-break:keep-all; overflow-wrap:anywhere; }
+.sb-meta { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.sb-meta-text { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.sb-station { color:#f1f5f9; font-size:.92rem; }
+.sb-edition { color:#94a3b8; font-size:.76rem; }
+.sb-basis-btn { flex:none; }
+.sb-empty { background:rgba(255,255,255,.03); border:1px dashed rgba(148,163,184,.3); border-radius:10px; padding:14px; }
+.sb-empty p { margin:0 0 6px; }
+.sb-note { margin:0; padding:8px 10px; border-radius:8px; background:rgba(56,189,248,.08); border:1px solid rgba(56,189,248,.25); color:#bae6fd; font-size:.78rem; }
+.sb-small { margin:4px 0; color:#94a3b8; font-size:.76rem; }
+.sb-miss { margin:4px 0; color:#fbbf24; font-size:.76rem; }
+.sb-sec .sb-sec-body { padding-top:4px; }
+.sb-sec-head { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:4px 0; }
+.sb-levels { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:4px 0 8px; }
+.sb-level-k { color:#94a3b8; font-size:.76rem; font-weight:700; }
+.sb-chip { display:inline-block; padding:1px 8px; border-radius:999px; font-size:.74rem; font-weight:800; white-space:nowrap; }
+.sb-overview { margin:6px 0; color:#e2e8f0; }
+.sb-overview-k { color:#facc15; }
+.sb-now { margin:6px 0; padding:6px 9px; border-radius:8px; background:rgba(103,232,249,.08); color:#a5f3fc; font-size:.8rem; }
+.sb-basis, .sb-constant { margin-top:6px; }
+.sb-basis summary, .sb-constant summary { cursor:pointer; color:#93c5fd; font-size:.8rem; font-weight:700; }
+.sb-list { margin:4px 0; padding-left:18px; }
+.sb-list li { margin:2px 0; }
+.sb-source { font-size:.7rem; }
+.sb-special { padding:8px 10px; border-left:3px solid #f59e0b; background:rgba(245,158,11,.08); border-radius:6px; margin:6px 0; }
+.sb-special-title { margin:0; font-weight:700; color:#fde68a; }
+.sb-special-line { margin:3px 0 0; color:#e2e8f0; font-size:.8rem; }
+.sb-weather { margin:6px 0; color:#cbd5e1; font-size:.8rem; }
+.sb-tag { display:inline-block; padding:1px 7px; border-radius:6px; background:rgba(148,163,184,.14); border:1px solid rgba(148,163,184,.25); color:#cbd5e1; font-size:.72rem; }
+.sb-tag-time { color:#fde68a; }
+.sb-tags { display:flex; flex-wrap:wrap; gap:4px; margin:4px 0; }
+/* 해상 시간 막대 — 3시간 칸(6~9칸)이 한 줄에 다 들어가게 칸 폭을 나눈다. 칸을 누르면 아래 줄에 설명. */
+.sb-timebar-wrap { margin:8px 0; }
+.sb-timebar { display:flex; gap:3px; }
+.sb-slot { position:relative; flex:1 1 0; min-width:0; min-height:34px; border:1px solid rgba(255,255,255,.18); border-radius:6px; color:#111827; font-weight:800; font-size:.72rem; padding:2px 0; cursor:pointer; }
+.sb-slot[aria-pressed="true"] { outline:2px solid #67e8f9; outline-offset:1px; }
+.sb-slot-h { display:block; }
+.sb-slot-flag { position:absolute; top:-7px; right:-2px; font-size:.8rem; color:#fef08a; text-shadow:0 0 2px #000,0 0 2px #000; }
+.sb-legend { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:6px; color:#94a3b8; font-size:.7rem; }
+.sb-legend-k { display:inline-flex; align-items:center; gap:4px; }
+.sb-legend-k i { display:inline-block; width:10px; height:10px; border-radius:3px; }
+.sb-slot-detail { margin:6px 0 0; color:#e2e8f0; font-size:.78rem; }
+.sb-card { background:rgba(15,23,42,.55); border:1px solid rgba(148,163,184,.18); border-radius:10px; padding:10px 12px; margin:8px 0; }
+.sb-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.sb-card-name { color:#f8fafc; font-size:.88rem; min-width:0; }
+.sb-row { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px; margin:4px 0; font-size:.8rem; }
+.sb-row-k { color:#94a3b8; white-space:nowrap; font-weight:700; }
+.sb-row .sb-list { margin:0; }
+.sb-sentence { margin:6px 0 4px; color:#cbd5e1; font-size:.8rem; }
+.sb-link { margin-top:4px; padding:5px 10px; border-radius:999px; border:1px solid rgba(103,232,249,.45); background:rgba(103,232,249,.1); color:#a5f3fc; font-size:.76rem; font-weight:700; cursor:pointer; }
+.sb-tide-text { margin:6px 0; font-size:.8rem; }
+.sb-tide .ocean-tide-wrap { margin-bottom:6px; }
+.sb-foot { border-top:1px solid rgba(148,163,184,.18); padding-top:8px; color:#94a3b8; font-size:.72rem; }
+.sb-foot p { margin:3px 0; }
+.sb-notice { color:#fca5a5; font-weight:700; }
+/* 설정 흐름(설정 전 안내·관할 고르기·둘 다 건너뛸 때 묻기) */
+.sb-setup, .sb-unset, .sb-confirm { background:rgba(15,23,42,.6); border:1px solid rgba(148,163,184,.2); border-radius:12px; padding:14px; }
+.sb-setup h4, .sb-unset h4, .sb-confirm h4 { margin:0 0 6px; color:#f1f5f9; font-size:.92rem; }
+.sb-setup p, .sb-unset p, .sb-confirm p { margin:0 0 8px; color:#cbd5e1; font-size:.8rem; }
+.sb-search { width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.3); color:#e2e8f0; font-size:.85rem; margin-bottom:8px; }
+.sb-station-list { max-height:min(46vh,380px); overflow-y:auto; border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:6px 8px; }
+.sb-region { color:#facc15; font-size:.76rem; font-weight:800; margin:8px 0 2px; }
+.sb-office { color:#94a3b8; font-size:.74rem; font-weight:700; margin:6px 0 4px; }
+.sb-office-list { display:flex; flex-wrap:wrap; gap:5px; }
+.sb-station-btn { padding:5px 9px; border-radius:999px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.04); color:#e2e8f0; font-size:.78rem; cursor:pointer; }
+.sb-station-btn[aria-pressed="true"] { background:#2563eb; border-color:#60a5fa; color:#fff; }
+.sb-station-btn small { color:#fbbf24; margin-left:3px; }
+.sb-station-btn[aria-pressed="true"] small { color:#fde68a; }
+.sb-picked { margin:8px 0; color:#a5f3fc; font-size:.82rem; font-weight:700; }
+.sb-toggles { display:flex; flex-direction:column; gap:6px; margin:6px 0 10px; }
+.sb-toggle { display:flex; align-items:center; gap:8px; color:#e2e8f0; font-size:.82rem; }
+.sb-toggle input { width:18px; height:18px; }
+.sb-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.sb-btn { padding:8px 14px; border-radius:8px; border:none; font-weight:700; font-size:.82rem; cursor:pointer; background:rgba(255,255,255,.08); color:#e2e8f0; }
+.sb-btn-primary { background:#3b82f6; color:#fff; }
+.sb-btn:disabled { opacity:.45; cursor:default; }
+/* 설정 팝업(⚙ 오른쪽 위) 안 「활동지점 안전 브리핑」 칸 — 관심해역 카드와 같은 상자 */
+#station-briefing-settings { margin:15px; background:rgba(30,41,59,.4); border-radius:12px; border:1px solid rgba(255,255,255,.08); padding:16px 18px; }
+#station-briefing-settings .sb-set-title { font-size:1rem; color:#fff; font-weight:600; display:flex; align-items:center; gap:8px; }
+#station-briefing-settings .sb-set-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; color:#cbd5e1; font-size:.88rem; }
+#station-briefing-settings .sb-set-sub { color:#94a3b8; font-size:.76rem; margin-top:6px; line-height:1.5; }

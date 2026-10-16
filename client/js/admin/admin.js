@@ -4,7 +4,7 @@
  * 역할: 통합 관리자 시스템 (인증, 대시보드, 특보 관리)
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : admin_collect.js·admin_survey.js·admin_report.js·advisory_manage_admin.js·admin_location_status.js·admin_data_status.js (각 탭 렌더러), push/alert_push.js(특보 알림 모달), admin/pagination_helper.js
+ *  - 사용하는 파일 : admin_collect.js·admin_survey.js·admin_report.js·advisory_manage_admin.js·admin_location_status.js·admin_data_status.js·admin_station_briefing.js(AI → AI 브리핑) (각 탭 렌더러), push/alert_push.js(특보 알림 모달), admin/pagination_helper.js
  *  - 서버 API      : /api/admin/login·manual-alert(-release)·maintenance*·work-mode·device-status·weather-alerts-json 등 /api/admin/* 다수, /api/assistant/ask, /api/stats/*, /api/push-*
  *  - 마크업        : index2.html 관리자 센터 모달 (#admin-modal, #alert-admin-inner-content, #ait-* 등)
  *  - 나를 쓰는 곳  : admin_trigger.js·notice/board/promo.js(showUnifiedLoginModal 트리거), core/backbutton.js
@@ -697,7 +697,8 @@ window.SeagnalDebug = window.SeagnalDebug || (function () {
     };
 })();
 
-// AI 탭 호스트 — [AI 비서] / [테스트] / [AI 챗봇] 하위탭. 시연 탭과 동일한 하위탭 패턴.
+// AI 탭 호스트 — [AI 비서] / [테스트] / [AI 챗봇] / [AI 브리핑] 하위탭. 시연 탭과 동일한 하위탭 패턴.
+//   「AI 브리핑」(2026-10-16, 설계서 §11.6 결정 16 — U61 「사고 분석·예측」 이름 대체)은 admin_station_briefing.js 가 그린다.
 //   「AI 사고예측(오류현황)」은 2026-10-15 사용자 결정으로 점검 → 데이터 수집현황 아래로 옮겼다
 //   (원문 「빠져서 점검 탭 아래로 가는게 맞음」) — renderDataCollectionTab(admin_data_status.js).
 async function renderUnifiedAiTab(container) {
@@ -711,10 +712,10 @@ async function renderUnifiedAiTab(container) {
     container.innerHTML =
         '<div id="ai-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('chatbot', 'AI 챗봇')
+        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('chatbot', 'AI 챗봇') + mkTabBtn('briefing', 'AI 브리핑')
         + '</div>'
         + '<div id="ai-subtab-body"></div>';
-    switchAiSubTab(['test', 'chatbot'].includes(saved) ? saved : 'assistant');
+    switchAiSubTab(['test', 'chatbot', 'briefing'].includes(saved) ? saved : 'assistant');
 }
 
 window.switchAiSubTab = function (which) {
@@ -732,6 +733,12 @@ window.switchAiSubTab = function (which) {
     var _m = document.getElementById('unified-admin-modal');
     if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
     if (which === 'test') renderAiTestSubtab(sub);
+    else if (which === 'briefing') {
+        // [AI 브리핑] 활동지점 안전 브리핑 — 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만·상태·지금 다시 만들기·관할 미리보기
+        //   (설계서 §11.6 결정 16·17, js/admin/admin_station_briefing.js — /api/admin/station-briefing/*)
+        if (typeof window.renderStationBriefingAdmin === 'function') window.renderStationBriefingAdmin(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">AI 브리핑 모듈(js/admin/admin_station_briefing.js)이 로드되지 않았습니다.</div>';
+    }
     else if (which === 'chatbot') {
         // [AI 챗봇] 나리야 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)
         if (window.NariyaChat && window.NariyaChat.renderAdminInto) window.NariyaChat.renderAdminInto(sub);
