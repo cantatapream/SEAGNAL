@@ -9,7 +9,8 @@
  *         · 「그리고 연안위험 예측에서 하단의 시간대는 + - 해놓은 기획은 빼야겠지 ? 날짜별로 넘겨가며 볼 수 있도록 변경 필요.」
  *         · 「아직 이미지처럼 연안 위험에 시간 조정이 있네 ? 날짜 바꾸는 디자인을 적용해줘. 예를 들면, 우리 앱에서 항행경보가 반영된곳을 보면 화면 가운데 위쪽에 날짜 변경 기능이 있잖아? 그거처럼 말이야.」
  *         · 하루 값 「1. 가」(그날 3시간 칸 중 가장 높은 값) · 해상 함께 「2. 가」(해상 시간 버튼 그대로, 연안은 그 시각이 속한 KST 날짜) · 「나. 무시」.
- *         하루 값 계산 자체(8칸·이른 칸·KST 경계·결측 합침)는 test_risk_store 가 본다. 여기 가짜 저장소는 날짜마다 다른 값(오늘 1.2·내일 2.2)만 준다.
+ *         연안 시트 안내(특보·표류)는 그날 칸 전부의 것(daily.notices)에 시각을 붙여 — 설계서 §16.1 ②(2026-10-16 「모두 추천대로」).
+ *         하루 값 계산 자체(8칸·이른 칸·KST 경계·결측 합침·안내 묶음)는 test_risk_store 가 본다. 여기 가짜 저장소는 날짜마다 다른 값(오늘 1.2·내일 2.2)만 준다.
  *         RISK_DAY_SHOTS=<폴더> 를 주면 380·1280px 화면을 PNG 로 남긴다(판정에 쓰지 않음).
  * [연계] client/index2.html(항행경보 #navwarn-date-nav 규칙) · risk_forecast.js(dateNav·shiftDay·setMain·mapSelect) · risk_sheet.js(day) ·
  *        routes/risk_forecast.js(/coast/frame·/coast/spot → coastDayFrame·coastDayDetail) ← scripts/refactor/verify_all.sh SUITES
@@ -37,12 +38,14 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
  /** 서버 validateTime 과 같은 범위(지금-5분 ~ 연안 마지막 칸)만 받는다. @param {string} t @returns {string} KST ISO [연계] ← 가짜 coastDayFrame·coastDayDetail */
  function valid(t){const n=Date.parse(t);if(!Number.isFinite(n)||n<now-5*60000||n>Date.parse(coastTimes.at(-1))){log.bad.push(t);throw Object.assign(new Error('잘못된 예보 시각'),{status:400});}return T.isoKst(n);}
  const DAY={'2026-10-12':{score:1.2,index:40,band:'다소 높음',peak:'2026-10-12T18:00:00+09:00'},'2026-10-13':{score:2.2,index:73,band:'높음',peak:'2026-10-13T15:00:00+09:00'}};
+ // §16.1 ②(2026-10-16): 하루 안내 daily.notices — 오늘은 가장 높은 칸(18시) 밖에만 특보(11~15시 발효)·표류(12시), 18~21시 예비. 내일은 없음. 서버 묶음 규칙은 test_risk_store 가 본다.
+ const NOTES={'2026-10-12':[{key:'warning',name:'풍랑주의보',state:'발효',from:at,to:'2026-10-12T15:00:00+09:00'},{key:'drift',windMs:8.6,from:'2026-10-12T12:00:00+09:00',to:'2026-10-12T12:00:00+09:00'},{key:'warning',name:'강풍주의보',state:'예비',from:'2026-10-12T18:00:00+09:00',to:'2026-10-12T21:00:00+09:00'}],'2026-10-13':[]};
  const store={sources:()=>inputs.sources,marineInputs:()=>inputs,
   meta:()=>({now:at,versions:{spots:'v1',cells:1,accident:'v1'},timeline:{sea:{times:seaTimes},accident:{times:coastTimes},coast:{times:coastTimes}},sources:inputs.sources}),
   spots:()=>({spots}),cells:()=>({cells:[cell]}),accidentCells:()=>({v:'v1',cells:[acc]}),accidentFrame:()=>({v:'v1',cells:[[0,.001,'경계']]}),
   frame:()=>({cells:[[0,0,1,'낮음']],spots:[],borders:[]}),
   coastDayFrame:t=>{t=valid(t);log.coast.push(t);return{t,spots:spots.map(s=>[s.i,DAY[T.dateKey(t)].score]),degraded:[],daily:{date:T.dateKey(t),times:coastTimes.filter(x=>T.dateKey(x)===T.dateKey(t))}};},
-  coastDayDetail:(id,t)=>{t=valid(t);log.spot.push({id,t});const d=DAY[T.dateKey(t)],sp=spots.find(s=>s.id===id);return{t:d.peak,title:sp.name,subtitle:{police:'제주파출소',office:'제주해양경찰서'},score:d.score,index:d.index,band:d.band,rr:2**d.score,fatalRr:1.3,rows:[{key:'event',name:'행사 '+id+'@'+T.dateKey(t),weekend:true,rr:1.2,events:[]}],missing:[],notices:[],history:{available:false},daily:{date:T.dateKey(t),peakAt:d.peak,times:coastTimes.filter(x=>T.dateKey(x)===T.dateKey(t))}};},
+  coastDayDetail:(id,t)=>{t=valid(t);log.spot.push({id,t});const d=DAY[T.dateKey(t)],sp=spots.find(s=>s.id===id);return{t:d.peak,title:sp.name,subtitle:{police:'제주파출소',office:'제주해양경찰서'},score:d.score,index:d.index,band:d.band,rr:2**d.score,fatalRr:1.3,rows:[{key:'event',name:'행사 '+id+'@'+T.dateKey(t),weekend:true,rr:1.2,events:[]}],missing:[],notices:[],history:{available:false},daily:{date:T.dateKey(t),peakAt:d.peak,times:coastTimes.filter(x=>T.dateKey(x)===T.dateKey(t)),notices:NOTES[T.dateKey(t)]}};},
   islands:()=>({features:[]})};
  const marine=M.createStore({risk:store,dir,clock:()=>now,stations:[{properties:{name:'제주파출소',station:'제주해양경찰서'},geometry}],accidents:[],describe:()=>cell});
  const app=express();app.use(createRouter({store,marine}));
@@ -130,6 +133,16 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
   await sheetClick(-1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-12'));await ready();s=await S();
   assert.deepEqual([s.t,s.label,s.tag,s.sheetDate,s.peak],[at,'10월 12일 (월)','오늘',"'26. 10. 12.(월)",'가장 높은 때 18시 기준'],'시트 → 상단');assert.equal((await toast()).text,'오늘 10월 12일 (월)','시트에서 넘겨도 같은 토스트');
   if(SHOTS)await page.screenshot({path:path.join(SHOTS,'day-380-시트-오늘.png')});
+ });
+ await check('§16.1 ② 연안 시트 안내: 그날 남은 칸 어느 칸이든 특보·표류가 있으면 시각과 함께(가장 높은 칸 18시 밖의 11~15시 발효·12시 무렵 표류, 마지막 칸까지 이어진 예비는 「18시~」), 특보 없는 날은 안내 없음',async()=>{
+  const notes=()=>page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice')].map(e=>e.textContent));
+  assert.equal((await S()).peak,'가장 높은 때 18시 기준');
+  assert.deepEqual(await notes(),['⚠ 18시~ 강풍주의보 예비특보, 11시~15시 풍랑주의보 발효 상태입니다. 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 14% 높습니다.','🛟 12시 무렵 이 앞바다 바람 9m/s — 튜브·물놀이기구 표류 주의']);
+  if(SHOTS){await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-notice').scrollIntoView({block:'center'}));await page.screenshot({path:path.join(SHOTS,'day-380-시트-안내.png')});}
+  await sheetClick(1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-13'));await ready();
+  assert.deepEqual(await notes(),[],'내일(특보·표류 없음) → 안내 없음');
+  await sheetClick(-1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-12'));await ready();
+  assert.equal((await notes()).length,2,'오늘로 돌아오면 다시');
  });
  await check('T24 「나. 무시」 실제 앱 지도 누르기(ocean_map.js 경로): 연안 시트가 열린 동안 같은 위치 관광지·열린 그 관광지 누름은 무시 — 시트 다시 그림 없음·테두리·제목·요청 그대로',async()=>{
   const sel=()=>page.evaluate(()=>window.getOceanMap().getLayers().getArray().find(l=>l.getClassName()==='rf-selection-canvas').getSource().getFeatures().length);

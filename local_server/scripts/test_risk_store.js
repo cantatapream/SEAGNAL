@@ -52,16 +52,51 @@ try{run({
    write(trisk,'events_202610.json',{month:'2026-10',collectedAt:new Date(now).toISOString(),events:[]});write(trisk,'events_202611.json',{month:'2026-11',collectedAt:new Date(now).toISOString(),events:[]});
    try{const st=createStore({dir:trisk,dataDir:tdata,configDir,clientDir,clock:()=>now});
      const tomorrow=st.coastDayDetail('one','2026-11-01T00:00:00+09:00'),slots=[0,3,6,9,12,15,18,21].map(h=>'2026-11-01T'+String(h).padStart(2,'0')+':00:00+09:00');
-     a.deepEqual(tomorrow.daily,{date:'2026-11-01',peakAt:'2026-11-01T03:00:00+09:00',times:slots},'내일은 00~21시 8칸, 같은 최댓값(03·15시) 중 이른 03시');
+     a.deepEqual(tomorrow.daily,{date:'2026-11-01',peakAt:'2026-11-01T03:00:00+09:00',times:slots,notices:[]},'내일은 00~21시 8칸, 같은 최댓값(03·15시) 중 이른 03시 · 특보·표류 없으면 안내 빈 목록(§16.1 ②)');
      const one=slots.map(at=>st.coastDetail('one',at));a.equal(tomorrow.score,Math.max(...one.map(r=>r.score)));a.ok(one[1].score>one[0].score,'전제: 03시가 00시보다 높다(너울)');a.equal(one[1].score,one[5].score,'전제: 03·15시 같은 값');
      a.equal(tomorrow.t,'2026-11-01T03:00:00+09:00');a.ok(tomorrow.rows.some(r=>r.key==='swell'&&r.periodS===13),'요소 줄은 가장 높은 칸(03시)의 것 — 너울 13초');a.equal(Object.hasOwn(tomorrow,'outlook'),false);a.equal(Object.hasOwn(st.coastDetail('one','2026-11-01T03:00:00+09:00'),'outlook'),false,'칸 상세에도 outlook 없음');
      a.equal(one[1].missing.includes('forecast'),false,'전제: 03시는 해구 예보 범위 안');a.ok(one[5].missing.includes('forecast'),'전제: 15시는 해구 예보 끝 밖');a.ok(tomorrow.missing.includes('forecast'),'하루 값 missing 은 그날 칸을 합친다(한 칸이라도 빠지면 「확인된 요소 기준」)');a.deepEqual(tomorrow.history,{available:false},'주변 연안사고는 그대로 붙는다(집계표 없음)');
-     for(const at of ['2026-10-31T12:17:00+09:00','2026-10-31T21:00:00+09:00']){const today=st.coastDayDetail('one',at);a.deepEqual(today.daily,{date:'2026-10-31',peakAt:'2026-10-31T18:00:00+09:00',times:['2026-10-31T12:17:00+09:00','2026-10-31T15:00:00+09:00','2026-10-31T18:00:00+09:00','2026-10-31T21:00:00+09:00']},'오늘은 지금 칸(12:17)부터 21시까지 — 지난 00~12시 칸은 없음 ('+at+')');}
+     for(const at of ['2026-10-31T12:17:00+09:00','2026-10-31T21:00:00+09:00']){const today=st.coastDayDetail('one',at);a.deepEqual(today.daily,{date:'2026-10-31',peakAt:'2026-10-31T18:00:00+09:00',times:['2026-10-31T12:17:00+09:00','2026-10-31T15:00:00+09:00','2026-10-31T18:00:00+09:00','2026-10-31T21:00:00+09:00'],notices:[]},'오늘은 지금 칸(12:17)부터 21시까지 — 지난 00~12시 칸은 없음 ('+at+')');}
      a.equal(st.coastDayDetail('one','2026-11-01T21:00:00+09:00').daily.date,'2026-11-01','내일 21시는 내일');a.equal(st.coastDayDetail('one','2026-10-31T21:00:00+09:00').daily.date,'2026-10-31','오늘 21시는 오늘(KST 경계 — 00시는 다음 날)');
      for(const bad of ['2026-11-02T00:00:00+09:00','2026-10-31T09:00:00+09:00','2026-10-31T15:00:00'])for(const call of [()=>st.coastDayDetail('one',bad),()=>st.coastDayFrame(bad)])a.throws(call,e=>e.status===400,'모레·지난 시각·시간대 없는 시각은 400: '+bad);
      const fr=st.coastDayFrame('2026-11-01T00:00:00+09:00');a.deepEqual(fr.daily,{date:'2026-11-01',times:slots});a.deepEqual(fr.spots,[[0,tomorrow.score]],'지도도 관광지마다 그날 칸 최댓값');a.equal(fr.t,slots[0]);a.equal(fr.day,1);a.equal(Object.hasOwn(fr,'outlook'),false);
      a.deepEqual(st.coastDayFrame('2026-10-31T12:17:00+09:00').spots,[[0,st.coastDetail('one','2026-10-31T18:00:00+09:00').score]],'오늘 지도 = 오늘 남은 칸 최댓값(18시)');
      a.ok(st.coastDayFrame('2026-10-31T15:00:00+09:00').spots[0][1]>st.frame(false,'2026-10-31T15:00:00+09:00').spots[0][1],'하루 값은 한 칸 값과 다르다(15시 칸보다 18시 너울만큼 높음)');
+   }finally{fs.rmSync(td,{recursive:true,force:true});}},
+ // §16.1 ②(2026-10-16 사용자 「모두 추천대로」): 연안 특보·표류는 점수에 들지 않아 가장 높은 칸과 특보 칸이 다를 수 있다 — 안내는 그날 칸 전부에서 모은다(daily.notices).
+ //   오늘 칸 12:17·15·18·21시: 풍랑주의보 발효(31일 18시 해제 → 12:17·15시만), 풍랑 예비특보(연안은 예비를 가정하지 않아 모든 칸), 해수욕장 바람 15시 9·18시 10m/s, 너울 18시 13초(가장 높은 칸 18시).
+ //   내일 00~21시: 발효 없음(해제), 예비 모든 칸, 바람 03시 8 · 09시 9 · 12시 11m/s(끊겼다 다시 → 두 묶음).
+ 'T24 §16.1 ② 하루 안내: 특보가 가장 높은 칸이 아닌 칸에만 있어도 나오고, 이어진 칸은 하나로(시작~끝), 끊기면 따로, 표류는 묶음의 가장 센 바람, 점수는 그대로':a=>{
+   const td=fs.mkdtempSync(path.join(os.tmpdir(),'risk-day-notice-')),tdata=path.join(td,'data'),trisk=path.join(td,'risk'),tcfg=path.join(td,'config');
+   write(tcfg,'risk_spots.json',{_about:{hash:'test'},spots:[{id:'one',name:'해수욕장',lat:35,lon:129,sgg_name:'부산광역시 중구',major:92,warnZone:'부산앞바다',galeZone:null,beach:true,station:null,coastCell:'92-1',ripBeach:null,hazard:{count:0,zones:[]},geometry:{type:'Polygon',coordinates:[]}}]});
+   const alerts=current=>write(tdata,'weather_alerts.json',{updatedAt:new Date(now).toISOString(),current});
+   alerts({남해:{'부산앞바다':{current:{wrnTp:'풍랑',wrnLvl:'주의보',clrNtcTm:'31일 18시'},upcoming:{wrnTp:'풍랑',wrnLvl:'예비',tmEf:'1일 15시'},children:{}}}});write(tdata,'gale_warnings.json',{updatedAt:new Date(now).toISOString(),rows:[]});
+   // 해구 예보 tm 은 UTC — 2026103106 = 10-31 15시 KST.
+   const ws={'2026103103':5,'2026103106':9,'2026103109':10,'2026103112':5,'2026103115':5,'2026103118':8,'2026103121':5,'2026110100':9,'2026110103':11,'2026110106':5,'2026110109':5,'2026110112':5};
+   write(tdata,'zone_forecasts.json',{updatedAt:new Date(now).toISOString(),data:{92:Object.entries(ws).map(([tm,v])=>({tm,wh:1,ws:v}))}});
+   const fct=['2026.10.31 12:00','2026.10.31 15:00','2026.10.31 18:00','2026.10.31 21:00'].concat([0,3,6,9,12,15,18,21].map(h=>'2026.11.01 '+String(h).padStart(2,'0')+':00'));
+   write(tdata,'swell_smallzone.json.gz',{baseTm:'2026103100',fctTimes:fct,cells:{'92-1':{wp:[5,5,13,5, 5,5,5,5,5,5,5,5]}}});
+   write(trisk,'tour_concentration.json',{date:'2026-10-31',collectedAt:new Date(now).toISOString(),values:{one:{'2026-10-31':25,'2026-11-01':50}},avg30:{one:{gm:20,days:30}}});
+   write(trisk,'events_202610.json',{month:'2026-10',collectedAt:new Date(now).toISOString(),events:[]});write(trisk,'events_202611.json',{month:'2026-11',collectedAt:new Date(now).toISOString(),events:[]});
+   const K=h=>'2026-10-31T'+h+':00+09:00',N=h=>'2026-11-01T'+String(h).padStart(2,'0')+':00:00+09:00';
+   try{const st=createStore({dir:trisk,dataDir:tdata,configDir:tcfg,clientDir,clock:()=>now});
+     const today=st.coastDayDetail('one',K('12:17')),peak=st.coastDetail('one',K('18:00'));
+     a.equal(today.daily.peakAt,K('18:00'),'전제: 가장 높은 칸은 너울 18시');
+     a.deepEqual(peak.notices.find(n=>n.key==='warning').effective,[],'전제: 가장 높은 칸(18시)에는 발효 특보가 없다(18시 해제)');a.deepEqual(st.coastDetail('one',K('15:00')).notices.find(n=>n.key==='warning').effective,['풍랑주의보'],'전제: 15시 칸에는 발효');
+     a.deepEqual(today.daily.notices,[
+       {key:'warning',name:'풍랑주의보',state:'예비',from:K('12:17'),to:K('21:00')},
+       {key:'warning',name:'풍랑주의보',state:'발효',from:K('12:17'),to:K('15:00')},
+       {key:'drift',windMs:10,from:K('15:00'),to:K('18:00')}],'가장 높은 칸 밖(12:17·15시)의 발효 특보가 나오고, 이어진 칸은 하나로(예비 12:17~21시·발효 12:17~15시), 표류는 15~18시 가장 센 10m/s');
+     a.deepEqual(today.notices,peak.notices,'위의 notices 는 종전처럼 가장 높은 칸의 것(화면은 daily.notices 를 쓴다)');
+     const slots=today.daily.times.map(at=>st.coastDetail('one',at).score);a.equal(today.score,Math.max(...slots),'점수는 그대로 그날 칸 최댓값 — 특보·바람은 점수에 들지 않는다');
+     const t15=st.coastDetail('one',K('15:00')),t21=st.coastDetail('one',K('21:00'));a.equal(t15.score,t21.score,'특보·바람 9m/s 있는 15시와 없는 21시 점수가 같다(연안 특보·표류 바람은 점수 밖)');
+     const tomorrow=st.coastDayDetail('one',N(0));
+     a.deepEqual(tomorrow.daily.notices,[
+       {key:'warning',name:'풍랑주의보',state:'예비',from:N(0),to:N(21)},
+       {key:'drift',windMs:8,from:N(3),to:N(3)},
+       {key:'drift',windMs:11,from:N(9),to:N(12)}],'내일: 발효는 해제돼 없음, 표류는 끊겼다 다시 나오면 따로(03시 / 09~12시)');
+     alerts({});st.invalidate();
+     a.deepEqual(st.coastDayDetail('one',K('12:17')).daily.notices,[{key:'drift',windMs:10,from:K('15:00'),to:K('18:00')}],'특보 없음 → 특보 안내 없음(표류만)');
    }finally{fs.rmSync(td,{recursive:true,force:true});}},
  'U81 집중률 파일의 30일 기하평균(avg30)을 사람 점수에 넘기고, 없으면 사람 요소를 결측으로 둠':a=>{const at='2026-10-31T21:00:00+09:00';let people=store.coastDetail('one',at).rows.find(r=>r.key==='people');a.equal(people.base,20);a.equal(people.baseDays,30);a.equal(people.ratio,2.5);a.ok(Math.abs(people.score-.97*Math.log2(2.5))<1e-12);
    write(dir,'tour_concentration.json',{date:'2026-10-31',collectedAt:new Date(now).toISOString(),values:{one:{'2026-10-31':50}}});store.sources(true);const d=store.coastDetail('one',at);people=d.rows.find(r=>r.key==='people');a.equal(people.missing,true);a.equal(people.score,0);a.ok(d.missing.includes('concentration'));
