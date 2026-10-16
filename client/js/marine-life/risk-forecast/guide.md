@@ -161,7 +161,7 @@ bash scripts/refactor/verify_all.sh
 
 ## 과제2 — 연안·해상 공통 메인 시각 (`risk_forecast.js`)
 
-해상 전용이던 하단 바(`.rf-marine-timebar`, 고정 output + 현재/+3H/+6H/+12H)를 연안·해상 공통 메인 시각으로 쓴다. 새 컨트롤을 따로 만들지 않았다. (2026-10-16: output 을 없애고 5버튼으로 — 아래 「하단 시간 버튼 5개·시각 토스트·연안 색 범례·출처/축척 올림」.)
+해상 전용이던 하단 바(`.rf-marine-timebar`, 고정 output + 현재/+3H/+6H/+12H)를 연안·해상 공통 메인 시각으로 쓴다. 새 컨트롤을 따로 만들지 않았다. (2026-10-16: output 을 없애고 5버튼으로 — 아래 「하단 시간 버튼 5개·시각 토스트·연안 색 범례·출처/축척 올림」.) (2026-10-16 T24: 바는 해상이 켜져 있을 때만 — 연안만이면 상단 날짜 넘기기, 아래 「연안 하루 하나·날짜 넘기기」.)
 - `mainTimes()`: 연안 ON이면 `meta.timeline.coast.times`(지금 이후, 3시간 칸, 내일 21시까지 — 「가」 2026-10-15) 그대로, 해상만 ON이면 `seaTimes()`(내일 21시까지), 둘 다 ON이면 두 축의 합집합(실서버에서는 두 축의 끝이 같다). `nextTime(+3/6/12)`, 정기 `sync()`의 가까운 칸 맞춤, 층 스위치 변경 시 맞춤이 모두 이 목록을 쓴다. 칸이 없으면 버튼은 비활성이다.
 - `marineTime()`: 바는 연안 또는 해상이 켜져 있을 때 보인다(둘 다 OFF면 숨김). 해상 전용 `[data-marine-tools]`는 해상 ON일 때만 보인다. `body.rf-sea-time-on` 클래스 이름은 CSS 호환을 위해 그대로다.
 - `refreshMarine()`: 종전에는 연안만 제공되던 모레 구간에서 해상 지도를 비우고 `seaOutOfRange()`로 「해상 예보 범위 밖 (내일까지)」를 띄웠다. 「가」로 연안도 내일 21시에 끝나 이 구간이 없어졌으므로 그 분기와 함수를 삭제했다.
@@ -175,6 +175,7 @@ bash scripts/refactor/verify_all.sh
 
 ## 시트 고정 일시 — 과제8
 
+- (2026-10-16 T24) 연안 시트에는 슬라이더가 없다(날짜 줄) — 아래 규칙은 해상 시트에 그대로다.
 - `RiskSlider.mount(el,times,selected,change)`가 `.rf-time-label`(output)을 슬라이더 위에 만든다. 선택 시각이 새 시간축에 없으면 손잡이는 처음 칸이지만 표시는 `selected`(상세가 실제 보여 주는 시각)를 따른다.
 - 말풍선 표시/숨김 타이머와 위치 계산은 없다. 키보드·터치 모두 `input` 이벤트로 표시를 갱신하고 `aria-valuetext`에 같은 문구를 둔다.
 
@@ -313,10 +314,50 @@ bash scripts/refactor/verify_all.sh
 - **지도** (`risk_map_layer.js` `setSelection`): 해상 GR4 칸·연안 관광지 영역·연안 중심 고리 모두 위 값(`SELECTED`). 종전 흰 2.5px(연안·통합 해상)·흰 2px(옛 해상)·흰 고리를 대신한다. 층 순서(선택 136 — 해안선 137·관광지 점 138 아래)는 그대로.
 - **시트** (`risk_sheet.js`): `.rf-shown` = 그려져 있음(올라가는 중·열림·내려가는 중), `.open` = 열림(위). `present()` 가 `.rf-shown` → 다시 그림 계산 → `.open` 순서로 붙여 아래에서 올린다. `hold(ms)` 는 **시트가 안 보일 때만** 올리기를 ms 뒤로 미룬다(다시 부르면 처음부터 — 마지막 선택만). `clear()` 는 `.open` 을 바로 떼고(내려감) 300ms 뒤 `.rf-shown` 을 떼고 본문을 비운다 — 내려가는 동안 내용은 그대로 보인다. 그 사이 다시 열면 정리를 취소하고 그 자리에서 다시 올린다. 대기 중 `clear()` 면 예약을 취소하고 바로 비운다.
 - **조율** (`risk_forecast.js` `select`): 테두리(`layer.setSelection`)는 누르는 즉시, 이어서 `sheet.hold(OPEN_DELAY_MS=200)` → `loading()`(회색 틀)·상세 요청은 바로 시작. 0.2초 안에 응답이 와도 시트는 0.2초에 올라온다. 닫기(✕·뒤로가기·Escape)·층 토글 끔·`setEnabled(false)`(탭 떠남)·`destroy` 는 모두 `clearSelection` → `sheet.clear()` 로 테두리를 지우고 예약을 취소한다.
-- **이미 열린 시트에서 다른 칸**: 내리지 않고 내용만 바꾼다(대기 없음). 해양종합정보 시트는 열린 동안 다른 해점 클릭을 **무시**한다(`ocean_map.js` 「시트 열림 가드 — 사용자 합의 Q3」) — 위험예측은 종전대로 바꿔 보여 주되, 내려갔다 올라오지는 않는다는 점만 맞췄다.
+- **이미 열린 시트에서 다른 칸**: 내리지 않고 내용만 바꾼다(대기 없음). 해양종합정보 시트는 열린 동안 다른 해점 클릭을 **무시**한다(`ocean_map.js` 「시트 열림 가드 — 사용자 합의 Q3」) — 위험예측은 종전대로 바꿔 보여 주되, 내려갔다 올라오지는 않는다는 점만 맞췄다. **(2026-10-16 T24 「나. 무시」: 지도 클릭은 열린 동안 무시 — `mapSelect`. 내용만 바꾸는 경로는 시트 안 버튼·탭 복귀뿐이다.)**
 - **같은 위치 관광지 선택 목록**(`choose`)도 같은 규칙(닫혀 있었으면 0.2초 뒤).
 - **탭 복귀**(`life_safety.js` `_unparkSafety` → `select`): 다시 열 때도 테두리 즉시·0.2초 뒤 올라옴.
 - **움직임 줄이기**: `prefers-reduced-motion:reduce` 면 `.rf-sheet` transition 을 끈다(바로 제자리·바로 아래). 해양종합정보 시트에는 이 규칙이 없다(`style.css` 확인) — 위험예측에만 더했다. 0.2초 대기는 움직임이 아니라 그대로 둔다.
 - **지도 스피너(`waitStart`, 250ms)와는 따로다** — 그것은 지도 색 요청(`refresh`)을 기다릴 때만이고 `select` 는 부르지 않는다. 시트 안의 기다림은 회색 틀이다.
 - `visiblePadding()`(위험구역·관할 해역 이동 여백)은 `.open` 시트의 `getBoundingClientRect` 를 쓰는데 올라오는 0.3초 동안은 덜 올라온 위치를 잰다. 이 이동은 열린 시트 안 버튼에서만 시작돼 실제로는 다 올라온 뒤다.
 - 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_select_motion.js` (선택 `RISK_MOTION_SHOTS=<폴더>` — 누른 순간·올라오는 중 90/150ms·다 올라옴 380px PNG). 1부는 페이지 안 가짜 타이머로 0.2초·0.3초를 한 칸씩, 2부는 실제 지도 클릭과 계산된 transform(시간을 재지 않고 제자리까지 기다림). 다른 시트 시험(`test_risk_sheet_ui`)은 시트를 잴 때 다 올라오기를 기다린다(`waitUp`).
+
+## 연안 하루 하나·날짜 넘기기·시트 열림 중 지도 클릭 무시 — 2026-10-16 (T24)
+
+사용자 원문은 [README.md](README.md)의 같은 이름 절, 결정 표는 설계서 §16. 바뀐 자리:
+
+| 위치 | 이전 | 지금 |
+|---|---|---|
+| `routes/risk_forecast.js` `/coast/frame`·`/coast/spot` | `store.frame(false,t)`·`store.coastDetail(id,t)`(한 칸) | `store.coastDayFrame(t)`·`store.coastDayDetail(id,t)` — `t` 가 든 KST 날짜의 하루 값 |
+| `risk_store.coastDay(t)` | (없음) | `validateTime` 뒤 그 날짜의 연안 시간축 칸(`coastTimeline(분 단위로 내린 지금)` 중 같은 날짜). 칸이 없으면 400(자정 직후 어제 날짜) |
+| `risk_store.coastDayDetail` | (없음) | 칸마다 `coastScore` → 점수가 가장 높은(같으면 이른) 칸의 `coastDetail` + `missing`(그날 칸 합침) + `daily{date,peakAt,times}` |
+| `risk_store.coastDayFrame`·`slotScores` | (없음) | 첫 칸 `frame(false,…)`(degraded·day) + 칸마다 `slotScores`(관광지 표 순서 Float64Array, `coastSlots` 16칸 보관)의 관광지별 최댓값 + `daily` |
+| `risk_store.frame(false,t)` | 관광지마다 `coastScore(p.id,t).score` | `slotScores(t)` 를 그대로 — 같은 칸 점수를 하루 값과 함께 쓴다 |
+| `risk_store.coastDetail` | 한 칸 상세 + `history` + `outlook`(T7) | 한 칸 상세 + `history`(`outlook` 뺌 — 연안 시트 시각 막대 없앰) |
+| `RiskForecast` 하단 바 | 연안 또는 해상이 켜져 있으면 보임 | 해상이 켜져 있을 때만(`marineTime` — `shown=enabled&&state.sea`). `body.rf-sea-time-on` 도 같이 |
+| `RiskForecast` `dateNav` | (없음) | 지도 감싸개에 `.navwarn-date-nav.rf-date-nav`(항행경보 클래스) — 연안만 켜면 보임(`dated`). `dayInfo`(글자·꼬리표·앞뒤 가능)·`placeDateNav`(범례와 겹치면 아래로, 창 크기 변경 때도) |
+| `RiskForecast` 시간 바 클릭 | `t=…;marineLegend();marineTime();timeToast();waitStart();refresh();` | `setMain(next)` — 같은 순서 + 날짜가 바뀌었고 연안 시트가 열려 있으면 회색 틀·`detail()` 을 바로 |
+| `RiskForecast.shiftDay(dir)` | (없음) | 날짜 줄·시트 < > 공통. 연안만 → 그 날짜 첫 칸(`coastT`), 해상 켬 → 그 날짜의 같은 시각이 든 `mainTimes` 칸(지난 시각이면 지금) |
+| `RiskForecast.coastT(at)` | (없음) | `at` 이 든 날짜의 첫 연안 칸(오늘=`meta.now`, 내일=00시). `refresh` 의 `coast/frame` 과 `detail` 의 `coast/spot` 요청 시각 — 같은 날짜면 같은 주소(응답 캐시 공유) |
+| `RiskForecast.select('coast',…)` | `selected.at = nearest(연안 축, t)` + 연안 4단계 색 막대 | `selected.at = null`(메인 날짜를 따름) + `sheetDay()`(RiskSheet.day). 앱 경로(`RiskMarine` 있음)만 — 옛 경로는 종전대로 |
+| `RiskForecast.detail` 늦은 응답 검사 | `(s.at\|\|t)!==at` | `detailAt(s)!==at`(연안은 `coastT(t)` — 같은 날짜 안에서 메인 시각이 바뀌어도 버리지 않음) |
+| `RiskMapLayer.create(map, …)` | `select` | `mapSelect` — 시트 `.open` 이면 무시(「나. 무시」) |
+| `RiskSheet.day(info)` | (없음) | `.rf-timeline` 에 `.ocean-date-nav-inline.rf-sheet-day`(해양종합정보 시트 날짜 줄 클래스) 를 한 번 그리고 글자·비활성만 바꿈. 날짜가 바뀌면 둘째 줄을 비움 |
+| `RiskSheet.show` 연안 | — | 둘째 줄 `[data-sheet-peak]` = `peakText(d.daily)` 「가장 높은 때 HH시 기준」. 팝업 닫기 기준 키를 `d.t` 대신 `daily.date`(오늘 가장 높은 칸이 지금 칸이면 60초마다 `d.t` 가 바뀜) |
+| `RiskSlider` `opts.colors` | 연안 4단계 색(T7) | 없앰(해상 공식 사고 4색 고정) — 쓰던 곳(연안 시각 막대)이 없어졌다 |
+| `risk_forecast.css` | — | `.rf-date-nav[hidden]`·비활성(opacity .3)·해양안전 밖 숨김, `.rf-timeline .rf-sheet-day` 가운데, 바 없을 때 토스트 기본 자리(`body:not(.rf-sea-time-on) .rf-time-toast` — 탭 바로 위) |
+
+바꾼 기존 시험 단언(종전 → 지금):
+- `test_risk_main_time`: 「연안만 켠 기본 화면에도 공통 메인 시각 바」 → 「연안만: 바 없음·상단 날짜 줄, 해상을 켜면 5버튼」. 바 사례(+3H 이동·범위 끝·토스트·출처/축척)는 해상을 켠 상태에서. 「연안 지도가 그 시각의 프레임」 → 「그 시각이 든 날짜의 하루 값」(가짜 저장소 `dayScore`), 연안 요청은 날짜 첫 칸으로만(`coastCanonical`). 「둘 다 끔 → 출처·축척 원위치」 → 「연안만이어도 원위치」. 「시트 시각 격리」(연안 슬라이더) → 해상 시트로 옮김.
+- `test_risk_sheet_ui`: 과제8 「연안 슬라이더 위 고정 일시」·「시트 시각을 바꿔도 메인 그대로」 → 「연안 날짜 줄·가장 높은 때」·「시트 > 로 내일 → 상단도 내일·다른 지점도 내일」. 「응답 전에도 시각 조작」 → 「응답 전에도 날짜 줄」. 「시트 시각을 바꾸면 늦은 응답…」 → 「날짜를 넘겼다 돌아오면 늦게 온 내일 응답은 안 나옴」. 「T7 연안 시각 막대」 → 「T24 시각 막대 없음·해양종합정보 날짜 꼴」. 380·320px 머리: 범례·「지금」 꼬리표 대신 날짜 줄(가운데·28px·비활성 .3).
+- `test_risk_select_motion`: 「열린 시트에서 다른 칸 → 내용만 바꿈·테두리 새 칸」 → 「무시 — 테두리·제목·선택 그대로·요청 없음」 + 예외(끌기·확대, 0.2초 대기 중 다른 칸).
+- `test_risk_store`: 「T7 연안 outlook」 → 「T24 하루 값」. `test_risk_routes`: 「T7 outlook 전달」 → 「T24 daily 전달·outlook 없음」.
+- `test_risk_lifecycle`: 연안 시트 시각 변경(slide) → 해상 시트 시각 변경. `test_life_safety_tab_keep`: 켜짐 대기를 하단 바 → 상단 날짜 줄.
+
+수정 시 주의:
+- 날짜 줄 모양은 `index2.html` 의 항행경보 규칙에서 온다 — 항행경보 쪽 `.navwarn-date-nav` 를 바꾸면 위험예측도 같이 바뀐다(의도). `test_risk_coast_day` 가 두 줄의 계산된 모양을 대조한다. 미리보기(`risk_forecast_preview.html`)와 index2 밖 시험 화면에는 그 규칙이 없어 날짜 줄이 꾸밈 없이 보인다(시험은 필요한 규칙을 index2.html 에서 읽어 넣는다 — `test_risk_main_time`).
+- 연안 시트 날짜 줄 모양은 `style.css` 의 해양종합정보 시트 규칙에서 온다(`.ocean-date-nav-btn` 28px 등). style.css 가 없는 화면에서는 꾸밈이 빠진다.
+- 하루 값의 칸은 서버 연안 시간축 하나에서 정한다(`coastTimeline`). 오늘의 지난 칸을 넣으려면(설계서 §16.1 ①) `validateTime`·`coastDay` 를 함께 바꿔야 한다.
+- 지도 클릭 무시는 지도 경로(`mapSelect`)만이다. `select` 자체에 막기를 넣으면 시트 안 관광지 목록·관할 해역 이동·탭 복귀가 막힌다.
+- 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_coast_day.js` (선택 `RISK_DAY_SHOTS=<폴더>` — 380·1280px 화면 PNG).
+
