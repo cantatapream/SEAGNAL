@@ -126,13 +126,14 @@ function stationInput(b) {
     const timeline = sea.timeBar.filter((s) => s.rank > 0 || s.events.length).map((s) => ({ at: s.label, level: s.word, events: s.events.map((e) => e.text) }));
     timeline.forEach((s) => facts.push(s.at, ...s.events));
     const special = b.special.map((x) => { facts.push(x.title, ...x.lines); places.add(x.zone); return [x.title, ...x.lines].join(' '); });
-    if (b.special.some((x) => x.kind === 'release')) for (const k of ['1.2|배', '1.3|배', '1.2~1.3|배']) mult.sea.add(k);
+    if (b.special.some((x) => x.kind === 'release' || x.kind === 'released')) for (const k of ['1.2|배', '1.3|배', '1.2~1.3|배']) mult.sea.add(k);
     if (sea.weather) facts.push(sea.weather.text);
     const missSea = sea.missing.map((k) => R.SOURCE_LABEL[k] || k);
     const seaPart = { level: sea.overviewLevel.word, reviewed_cells: sea.reviewedCells, attention_regions: sea.attentionRegions, weather: sea.weather ? sea.weather.text : null, top: seaTop, timeline, missing_sources: [...new Set(missSea)] };
     let landPart = null, missLand = [];
     if (land) {
-        const top = land.overviewTop.map((c) => { facts.push(c.name, ...c.today.changes, c.traits.text); places.add(c.name); levels.land[c.name] = c.rank; for (const t of numTokens(c.today.changes.join(' '))) if (t.unit === '배') mult.land.add(t.key); return { name: c.name, level: c.word, changes: c.today.changes, traits: c.traits.text }; });
+        // source = 단계 출처 꼬리표(결정 2 — 「연안 위험지수 72 '높음'」·「풍랑주의보」): 사실 목록에 넣어 그 숫자·따옴표 단계 이름을 AI 가 옮겨도 통과하게 한다.
+        const top = land.overviewTop.map((c) => { facts.push(c.name, ...c.today.changes, c.traits.text, c.sourceLabel || ''); places.add(c.name); levels.land[c.name] = c.rank; for (const t of numTokens(c.today.changes.join(' '))) if (t.unit === '배') mult.land.add(t.key); return { name: c.name, level: c.word, source: c.sourceLabel || null, changes: c.today.changes, traits: c.traits.text }; });
         const constant = land.constant.slice(0, 5).map((c) => { places.add(c.name); facts.push(c.name, c.text || ''); return c.name; });
         missLand = [...new Set(land.missing.map((k) => R.SOURCE_LABEL[k] || k))];
         landPart = { level: land.level.word, reviewed_spots: land.reviewedSpots, changed_spots: land.cards.length, top, constant, missing_sources: missLand };

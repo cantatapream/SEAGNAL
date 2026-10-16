@@ -17,17 +17,19 @@
 'use strict';
 const crypto = require('crypto');
 
-const RULES_VERSION = 'station-briefing-rules-v2'; // v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등
+const RULES_VERSION = 'station-briefing-rules-v3'; // v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구
 const HOUR = 3600000, SLOT_H = 3;
-// 단계 말 — 사용자 확정(§11.6-8 Q1 「가」): 「관심 필요·주의 필요·경계 필요」. 주의·경계는 공식 자료(공식 사고예보·기상특보)가 그 단계일 때만.
+// 단계 말 — 사용자 확정(§11.6-8 Q1 「가」): 「관심 필요·주의 필요·경계 필요」. 해상의 주의·경계는 공식 자료(공식 사고예보·기상특보)가 그 단계일 때만.
+// 육상은 2026-10-16 결정 2(*"공식 단어 … 써도 상관없을 것 같다 … 어차피 판단은 사람들이 하는거잖아"*)로 연안 위험지수 단계도 주의·경계를 붙인다(landSpot).
 const WORD = ['', '관심 필요', '주의 필요', '경계 필요'];
 const SUBJECT = ['', '관심이', '주의가', '경계가'];
 // 전남광주특별시 쪽(목포·완도·여수서 19곳, 여수바다 포함)은 해상만 — 관광지 집중률 API 에 그 지역 자료가 아직 없다(§11.6, 결정 6).
 const SEA_ONLY_OFFICES = Object.freeze(['목포해양경찰서', '완도해양경찰서', '여수해양경찰서']);
 // 「관심」 기상 기준 — 해상 통합 서버와 같은 값(marine_fusion.js analyze: wh>=2||ws>=12).
 const WAVE_M = 2, WIND_MS = 12;
-// 특보 해제 뒤 「관심」 시간 — 구성안 §7 해상 표(사용자 「가」 확정): 해제 예정 시각 뒤 12시간.
-const AFTER_RELEASE_H = 12;
+// 특보 해제 뒤 「관심」 시간 — 2026-10-16 결정 4(원문 *"특보 해제후에는 관심필요는 육상은 3시간 해상은 1시간동안 붙일 수 있도록 하자."*): 해상 1시간·육상 3시간.
+// 종전 구성안 §7 해상 표의 「해제 예정 시각 뒤 12시간」을 대체한다. 해상 3시간 칸에서는 해제 뒤 1시간이 걸친 칸만(warnAtSlot).
+const AFTER_RELEASE_SEA_H = 1, AFTER_RELEASE_LAND_H = 3;
 // 특보 해제 칸 고정 문구(§11.6-7, 독립 검토 정정 반영). 「첫 아침 1.4배」·「0~6시간 1.31배」는 쓰지 않는다.
 const RELEASE_LINES = Object.freeze([
     '해제 뒤 출항이 이어질 수 있습니다.',
@@ -126,9 +128,12 @@ function displayDate(now) { const p = isoKst(now); return Number(p.slice(11, 13)
 
 /**
  * 특보 하나가 3시간 칸 하나에서 어떤 상태인지 본다.
- * 예: 발효 중 풍랑주의보(해제예고 06~09시) · 칸 03시 → {active:true,rank:2} / 칸 09시 → {active:false, after:true}(해제 뒤 12시간 안)
+ * 해제 뒤 「관심」(2026-10-16 결정 4): 해상은 해제(예고 범위면 범위 끝) 뒤 1시간 — 그 1시간이 걸친 칸만. 발효가 아직 이어지는 칸은 발효 단계 그대로.
+ * 이미 해제된 특보(state '해제' — 특보 구간 기록 sea_warning_history 의 실제 해제 시각)도 같은 규칙.
+ * 예: 발효 중 풍랑주의보(해제예고 06~09시) · 칸 06시 → {active:true,rank:2} / 칸 09시 → {active:false, after:true}(09~10시가 걸침) / 칸 12시 → {after:false}
+ *     해제예고 10:30(정확) · 칸 09시 → 발효(10:30 전) / 칸 12시 → after 없음(10:30~11:30 은 09시 칸 안 — 그 칸은 발효 단계)
  *     예비 풍랑경보(18시 발효 예정) · 칸 15시 → {} / 칸 18시 → {active:true,rank:3,prewarn:true}(U21 예비 가정)
- * @param {object} w - {zone,type,level:'주의보'|'경보',state:'발효'|'예비',effective,release} @param {number} s - 칸 시작(ms) @param {number} e - 칸 끝(ms)
+ * @param {object} w - {zone,type,level:'주의보'|'경보',state:'발효'|'예비'|'해제',effective,release} @param {number} s - 칸 시작(ms) @param {number} e - 칸 끝(ms)
  * @returns {object} {active,rank,prewarn,after}
  * [연계] ← slotOf
  */
@@ -136,15 +141,15 @@ function warnAtSlot(w, s, e) {
     const rank = w.level === '경보' ? 3 : 2, start = w.effective ? Date.parse(w.effective.start) : null;
     if (w.state === '예비') return start !== null && start < e ? { active: true, rank, prewarn: true } : { active: false };
     const relEnd = w.release ? Date.parse(w.release.end) : null;
-    const active = (start === null || start < e) && (relEnd === null || relEnd > s);
-    const after = !active && relEnd !== null && s >= relEnd - SLOT_H * HOUR && s < relEnd + AFTER_RELEASE_H * HOUR;
+    const active = w.state !== '해제' && (start === null || start < e) && (relEnd === null || relEnd > s);
+    const after = !active && relEnd !== null && relEnd < e && relEnd + AFTER_RELEASE_SEA_H * HOUR > s;
     return { active, rank: active ? rank : 0, prewarn: false, after };
 }
 /**
  * 해역 하나의 3시간 칸 하나를 판정한다(구성안 §7 해상 표, 모두 서버 계산).
  *   경계 필요: 공식 사고예보 '경계' · 풍랑·태풍 경보 발효(예비 경보는 발효 예정 시각부터 — U21)
  *   주의 필요: 공식 사고예보 '주의' · 주의보 발효(같은 예비 규칙)
- *   관심 필요: 충돌·접촉 주의(혼잡 예보 '높음' 이상) · 특보 없이 해구 예보 파고 2m 또는 풍속 12m/s 이상 · 특보 해제 예정 뒤 12시간
+ *   관심 필요: 충돌·접촉 주의(혼잡 예보 '높음' 이상) · 특보 없이 해구 예보 파고 2m 또는 풍속 12m/s 이상 · 특보 해제 뒤 1시간(결정 4 — 그 1시간이 걸친 칸)
  * 자료 상태가 ok 가 아닌 원천은 쓰지 않는다(「확인 불가」 — 지어내지 않는다).
  * 「총평용 단계」(overviewRank): 공식 사고예보 '주의'는 전국 상대 순위라, 같은 칸에 기상(특보·파고·풍속) 또는 혼잡 근거가 겹칠 때만 총평에 올린다(§11.6-17①).
  * 예: {accident:'주의', congestion:{level:'높음',index:12.3}, wh:1.0, ws:6} → {rank:2, overviewRank:2, sources:[…]} · 사고예보 '주의'만 → {rank:2, overviewRank:0}
@@ -158,7 +163,7 @@ function slotOf(cell, s, e, ok) {
     if (ok.warnings) for (const w of cell.warnings || []) {
         const st = warnAtSlot(w, s, e);
         if (st.active) { warnActive = true; sources.push({ kind: 'warning', rank: st.rank, label: w.zone + ' ' + w.type + w.level + (st.prewarn ? ' 예비특보(발효 예정 시각 이후)' : '') }); }
-        else if (st.after) sources.push({ kind: 'afterRelease', rank: 1, label: w.zone + ' ' + w.type + w.level + ' 해제 뒤' });
+        else if (st.after) sources.push({ kind: 'afterRelease', rank: 1, label: w.zone + ' ' + w.type + w.level + ' 해제 뒤' + (w.state === '해제' && w.release ? '(' + w.release.start.slice(11, 16) + ' 해제)' : '') });
     }
     if (ok.accident && ACCIDENT_RANK[cell.accident]) sources.push({ kind: 'accident', rank: ACCIDENT_RANK[cell.accident], label: "공식 사고예보 '" + cell.accident + "'" });
     const congestionBasis = !!(ok.congestion && cell.congestion && CONGESTION_HIGH.has(cell.congestion.level));
@@ -223,12 +228,18 @@ function weatherFlow(series, label, targetDate) {
     const tail = j > 0 ? ', ' + hh(rows[j]) + '부터 기준 아래로 내려갑니다' : '';
     return { label, onsetAt: rows[i].at, endAt: j > 0 ? rows[j].at : null, max, text: label + ' 예보는 ' + head + txt(rows[i]) + '로 높아집니다' + before + tail };
 }
+/** 발표 시각 꼬리. 예: {start:'2026-10-16T14:00…'} · 대상 10-17 → '(10월 16일 14:00 발표)' · 없음 → ''. @param {object} w @param {string} targetDate @returns {string} [연계] ← warningEvents·landSpot */
+function issuedText(w, targetDate) { return w && w.issued ? '(' + warnTimeText(w.issued, targetDate) + ' 발표)' : ''; }
 /**
- * 특보 원자료 목록에서 브리핑 창 안의 사건(발효 시작·예비특보·해제 예고)을 뽑고 특별 상황 칸을 만든다.
- * 해제 예고 칸(§11.6-7): 「{구역} {종류}{등급} — {HH~HH시} 해제 예고(더 일찍 풀릴 수 있음)」 + RELEASE_LINES 두 줄(숫자 없는 안내 + 2020~2025 해제 뒤 이틀 1.2~1.3배).
- * 예: [{zone:'제주도서부앞바다',type:'풍랑',level:'주의보',state:'발효',release:{start:'…06:00',end:'…09:00',range:true}}] → special[0].title '제주도서부앞바다 풍랑주의보 — 06~09시 해제 예고(더 일찍 풀릴 수 있음)'
+ * 특보 원자료 목록에서 브리핑 창 안의 사건(발효 시작·예비특보·해제 예고·이미 해제)을 뽑고 특별 상황 칸을 만든다.
+ * 시각은 기상청이 준 것 그대로(2026-10-16 결정 1, 원문 *"발표, 발효, 해제의 시각은 이미 기상청으로부터 제공이 되는 거니까 그 시각에 맞춰서 그냥 표출"*) — 발표 시각이 있으면 함께.
+ * 해제 예고 칸(§11.6-7): 「{구역} {종류}{등급} — {HH~HH시} 해제 예고({발표} 발표)」 + RELEASE_LINES 두 줄(숫자 없는 안내 + 2020~2025 해제 뒤 이틀 1.2~1.3배).
+ *   「더 일찍 풀릴 수 있음」은 쓰지 않는다(사용자 *"더 일찍 풀릴수 있음은 굳이 쓸 필요 없을 것 같애"*).
+ * 예비특보 칸: 「{구역} {종류}{등급} 예비특보 — {HH시·범위} 발효 예정({발표} 발표)」.
+ * 이미 해제된 특보(state '해제' — 특보 구간 기록의 실제 해제 시각, 입력 단계가 창 시작 3시간 전부터만 넘긴다): 「… — HH:MM 해제」 + RELEASE_LINES(kind 'released').
+ * 예: [{zone:'제주도서부앞바다',type:'풍랑',level:'주의보',state:'발효',issued:{start:'…16T14:00…'},release:{start:'…06:00',end:'…09:00',range:true}}] → special[0].title '제주도서부앞바다 풍랑주의보 — 06~09시 해제 예고(10월 16일 14:00 발표)'
  * @param {object[]} warnings @param {object} win - editionWindow 결과 @returns {object} {events:[{kind,at,text,zone}], special:[{kind,zone,title,lines}]}
- * [연계] ← buildBriefing / → warnTimeText
+ * [연계] ← buildBriefing / → warnTimeText·issuedText
  */
 function warningEvents(warnings, win) {
     const from = Date.parse(win.from), to = Date.parse(win.to), events = [], special = [], seen = new Set();
@@ -240,14 +251,21 @@ function warningEvents(warnings, win) {
         const name = w.zone + ' ' + w.type + w.level;
         if (w.state === '예비') {
             const k = 'pre|' + name; if (seen.has(k)) continue; seen.add(k);
-            const when = w.effective ? warnTimeText(w.effective, win.targetDate) + ' 발효 예정' : '발효 시각 정보 없음';
+            const when = (w.effective ? warnTimeText(w.effective, win.targetDate) + ' 발효 예정' : '발효 시각 정보 없음') + issuedText(w, win.targetDate);
             if (!w.effective || overlaps(w.effective)) { events.push({ kind: 'prewarn', at: w.effective ? atIn(w.effective.start) : win.from, zone: w.zone, text: name + ' 예비특보 — ' + when }); special.push({ kind: 'prewarn', zone: w.zone, title: name + ' 예비특보 — ' + when, lines: [] }); }
+            continue;
+        }
+        if (w.state === '해제') {
+            if (!w.release || seen.has('gone|' + name)) continue; seen.add('gone|' + name);
+            const title = name + ' — ' + warnTimeText(w.release, win.targetDate) + ' 해제';
+            events.push({ kind: 'released', at: atIn(w.release.start), zone: w.zone, text: title });
+            special.push({ kind: 'released', zone: w.zone, title, lines: RELEASE_LINES.slice() });
             continue;
         }
         if (w.effective && inWin(w.effective.start) && !seen.has('start|' + name)) { seen.add('start|' + name); events.push({ kind: 'warnStart', at: w.effective.start, zone: w.zone, text: name + ' 발효 ' + warnTimeText(w.effective, win.targetDate) }); }
         if (w.release && overlaps(w.release) && !seen.has('rel|' + name)) {
             seen.add('rel|' + name);
-            const title = name + ' — ' + warnTimeText(w.release, win.targetDate) + ' 해제 예고(더 일찍 풀릴 수 있음)';
+            const title = name + ' — ' + warnTimeText(w.release, win.targetDate) + ' 해제 예고' + issuedText(w, win.targetDate);
             events.push({ kind: 'release', at: atIn(w.release.start), zone: w.zone, text: title });
             special.push({ kind: 'release', zone: w.zone, title, lines: RELEASE_LINES.slice() });
         }
@@ -350,35 +368,44 @@ function runLabels(run, targetDate) {
 function zoneKey(s) { return String(s || '').replace(/[\s·.]/g, ''); }
 
 /**
- * 연안 관광지 하나의 「오늘 바뀐 요소」와 단계를 판정한다(구성안 §7 육상 표 + 이번 결정: 주의·경계는 기상특보가 그 단계일 때만).
+ * 연안 관광지 하나의 「오늘 바뀐 요소」와 단계를 판정한다 — 2026-10-16 결정 2(구성안 §7 육상 표 그대로, 원문 *"공식 단어 … 써도 상관없을 것 같다 … 어차피 판단은 사람들이 하는거잖아"*).
  *   오늘 바뀐 요소 = 사람 평소보다 많음(사람 점수>0) · 그날 행사 · 너울 12초 이상 · 이안류 '주의' 이상 · 특보·예비특보 · 떠밀림 바람
- *   경계 필요: 풍랑·태풍·강풍 경보 발효 / 주의 필요: 주의보 발효 / 관심 필요: (바뀐 요소 있음 + 지수 '다소 높음' 이상) · 예비특보 · 떠밀림 문구 · 행사
+ *   경계 필요: 풍랑·태풍·강풍 경보 발효 · 연안 위험지수 100('매우 높음')이면서 오늘 바뀐 요소 있음
+ *   주의 필요: 주의보 발효 · 지수 '높음'(67+)이면서 오늘 바뀐 요소
+ *   관심 필요: 지수 '다소 높음' 이상이면서 오늘 바뀐 요소 · 예비특보 · 떠밀림 문구 · 행사(평일 포함) · 특보 해제 뒤 3시간(결정 4 — released, 바뀐 요소로는 세지 않음)
  *   그 밖 = 「상시 위험 장소」(총평에 올리지 않음 — 10월 평소날에도 68%가 '다소 높음' 이상, 구성안 §5)
- * 예: {people:{ratio:1.8,score:0.8}, band:'높음', notices:{windMs:9}} → {rank:1, changes:['사람 평소의 1.8배','해안 바람 9m/s(튜브·물놀이기구 떠밀림 주의)']}
- * @param {object} s - 관광지 하루 값(coastDayDetail 에서 뽑은 것) @returns {object} {rank,word,sourceLabel,changes:[{kind,text}]}
- * [연계] ← landSection
+ *   출처 꼬리표 = 무엇 때문인지: 「풍랑주의보」·「연안 위험지수 72 '높음'」·(관심 단독 요소면 그 요소 글). 같은 단계면 특보 > 지수 > 단독 요소 순.
+ * 특보 문구는 기상청 시각 그대로(결정 1): 「풍랑주의보 발효(10월 17일 06~09시 해제 예고, 14:00 발표)」·「강풍주의보 예비특보(18시 발효 예정)」 — notices.detail(연안 하루 안내의 issued·effective·release).
+ * 예: {people:{ratio:1.8,score:0.8}, index:72, band:'높음', notices:{windMs:9}} → {rank:2, sourceLabel:"연안 위험지수 72 '높음'", changes:['사람 평소의 1.8배','해안 바람 9m/s(…)']}
+ *     {index:40, band:'다소 높음', notices:{effective:['풍랑경보']}} → {rank:3, sourceLabel:'풍랑경보'} · {index:100, band:'매우 높음'}(바뀐 요소 없음) → {rank:0}
+ * @param {object} s - 관광지 하루 값(coastDayDetail 에서 뽑은 것 + released) @param {string} [targetDate] - 시각 글자의 날짜 기준 @returns {object} {rank,word,sourceLabel,changes:[{kind,text}]}
+ * [연계] ← landSection / → warnTimeText·issuedText
  */
-function landSpot(s) {
-    const changes = [], eff = s.notices?.effective || [], pre = s.notices?.prelim || [];
+function landSpot(s, targetDate) {
+    const changes = [], eff = s.notices?.effective || [], pre = s.notices?.prelim || [], detail = s.notices?.detail || [];
+    const td = targetDate || (s.peakAt ? s.peakAt.slice(0, 10) : '');
+    const timeOf = (state, name) => detail.find((d) => d.state === state && d.name === name) || null;
     if (s.people && s.people.score > 0 && Number.isFinite(s.people.ratio)) changes.push({ kind: 'people', text: '사람 평소의 ' + s.people.ratio.toFixed(1) + '배', ratio: +s.people.ratio.toFixed(1) });
     if (s.event?.name) changes.push({ kind: 'event', text: '행사 「' + s.event.name + '」' });
     if (s.swell && s.swell.periodS >= 12) changes.push({ kind: 'swell', text: '너울(파주기 ' + s.swell.periodS + '초)' });
     if (s.rip && ['주의', '경계', '위험'].includes(s.rip.level)) changes.push({ kind: 'rip', text: "이안류 '" + s.rip.level + "'" });
-    for (const w of eff) changes.push({ kind: 'warning', text: w + ' 발효' });
-    for (const w of pre) changes.push({ kind: 'prewarn', text: w + ' 예비특보' });
+    for (const w of eff) { const d = timeOf('발효', w), tail = [d && d.release ? warnTimeText(d.release, td) + ' 해제 예고' : null, d && d.issued ? warnTimeText(d.issued, td) + ' 발표' : null].filter(Boolean).join(', '); changes.push({ kind: 'warning', text: w + ' 발효' + (tail ? '(' + tail + ')' : ''), name: w }); }
+    for (const w of pre) { const d = timeOf('예비', w), tail = [d && d.effective ? warnTimeText(d.effective, td) + ' 발효 예정' : null, d && d.issued ? warnTimeText(d.issued, td) + ' 발표' : null].filter(Boolean).join(', '); changes.push({ kind: 'prewarn', text: w + ' 예비특보' + (tail ? '(' + tail + ')' : ''), name: w }); }
     if (Number.isFinite(s.notices?.windMs)) changes.push({ kind: 'drift', text: '해안 바람 ' + s.notices.windMs + 'm/s(튜브·물놀이기구 떠밀림 주의)' });
-    let rank = 0, sourceLabel = null;
-    const warnRank = Math.max(0, ...eff.map((w) => (/경보/.test(w) ? 3 : 2)));
-    if (warnRank) { rank = warnRank; sourceLabel = eff.find((w) => (warnRank === 3 ? /경보/ : /주의보/).test(w)); }
-    else {
-        // 「관심」 근거 이름은 판정 이유와 맞게(독립 검토 낮음): 지수가 평소 수준 위면 첫 바뀐 요소, 아니면 단독으로 관심이 되는 요소(예비특보·떠밀림·행사).
-        const byBand = changes.length && s.band && s.band !== '평소 수준', alone = changes.find((c) => c.kind === 'prewarn' || c.kind === 'drift' || c.kind === 'event');
-        if (byBand || alone) { rank = 1; sourceLabel = byBand ? changes[0].text : alone.text; }
-    }
-    return { rank, word: rank ? WORD[rank] : null, sourceLabel, changes };
+    const changed = changes.length > 0;   // 「오늘 바뀐 요소」 — 해제 뒤(released)는 아래에서 더하며 세지 않는다
+    for (const r of s.released || []) if (!eff.includes(r.name)) changes.push({ kind: 'released', text: r.name + ' 해제 뒤(' + warnTimeText({ start: r.at, range: false }, td) + ' 해제)' });
+    const cands = [];
+    for (const w of eff) cands.push({ rank: /경보/.test(w) ? 3 : 2, order: 0, label: w });
+    const bandRank = { '다소 높음': 1, '높음': 2, '매우 높음': 3 }[s.band] || 0;
+    if (changed && bandRank) cands.push({ rank: bandRank, order: 1, label: '연안 위험지수 ' + (Number.isFinite(s.index) ? s.index + ' ' : '') + "'" + s.band + "'" });
+    const alone = changes.find((c) => ['prewarn', 'drift', 'event', 'released'].includes(c.kind));
+    if (alone) cands.push({ rank: 1, order: 2, label: alone.text });
+    cands.sort((a, b) => b.rank - a.rank || a.order - b.order);
+    const top = cands[0] || null;
+    return { rank: top ? top.rank : 0, word: top ? WORD[top.rank] : null, sourceLabel: top ? top.label : null, changes };
 }
 /**
- * 육상 분석: 관광지 카드(오늘 바뀐 요소가 있는 곳) + 상시 위험 장소 목록(바뀐 요소 없음 + 관광지에 붙지 않은 위험구역).
+ * 육상 분석: 관광지 카드(관심 이상 — 오늘 바뀐 요소·특보·해제 뒤) + 상시 위험 장소 목록(바뀐 요소 없음 + 관광지에 붙지 않은 위험구역).
  * 해상만 관할(전남 19곳·여수바다)은 null 이유와 함께. 해망처럼 관광지 0곳이면 위험구역만으로 상시 위험 장소(§11.6-8 Q8).
  * 예: 한림 고정 자료 → {level:{rank:1,…}, cards:[협재해수욕장…], constant:[{name:'한림항 방파제',…}]}
  * @param {object} input @param {object} win @returns {object|null} 육상 절 [연계] ← buildBriefing / → landSpot
@@ -386,7 +413,7 @@ function landSpot(s) {
 function landSection(input, win) {
     if (input.seaOnly) return null;
     const land = input.land || {}, spots = land.spots || [];
-    const judged = spots.map((s) => ({ s, j: landSpot(s) }));
+    const judged = spots.map((s) => ({ s, j: landSpot(s, win.targetDate) }));
     const cardsAll = judged.filter((x) => x.j.rank > 0).sort((a, b) => b.j.rank - a.j.rank || (b.s.index || 0) - (a.s.index || 0) || (b.s.history?.count || 0) - (a.s.history?.count || 0) || a.s.name.localeCompare(b.s.name, 'ko'));
     const traitText = (s) => [s.hazard?.count ? '위험구역 ' + s.hazard.count + '곳(' + (s.hazard.byType || []).filter((t) => t.count).map((t) => t.class + ' ' + t.count).join('·') + ')' : null, s.history?.count ? (s.history.from || '').slice(0, 4) + '~' + (s.history.to || '').slice(0, 4) + ' 연안사고 ' + s.history.count + '건(' + (s.history.topTypes || []).map((t) => t.type + ' ' + t.count).join('·') + ')' : null, s.beach ? '해수욕장' : null].filter(Boolean).join(' · ');
     const cards = cardsAll.slice(0, MAX_LAND_CARDS).map(({ s, j }) => ({
@@ -409,25 +436,32 @@ function landSection(input, win) {
     };
 }
 /**
- * 조석(서해·남해 관할 — §11.6-8·11): 대표 위치에서 가장 가까운 물빠짐 앵커 곡선으로 그 판의 창 안 고조·저조와 문구를 만들고,
+ * 조석(서해·남해·제주 관할 — §11.6-8·11, 제주는 2026-10-16 결정 5): 대표 위치에서 가장 가까운 앵커 곡선으로 그 판의 창에 걸친 밀물 시간과 문구를 만들고,
  * 화면이 해양종합정보 조석 게이지를 그릴 수 있게 곡선(10분)·고저조(prev/next 포함)를 그대로 넘긴다. 점수에는 넣지 않는다(U45).
- * 문구에는 창(window) 안의 고조·저조만 쓴다(독립 검토 낮음) — 17:30 판은 15시 이후, 23시 판은 전날 곡선(prevDayPeaks)의 오늘 밤 21시 이후도 넣는다(날짜를 붙임).
- * 예: 저조 06:12(-12cm)·18:40, 아침 판 → text ['저조 06:12·18:40 무렵 갯벌·고립 주의 — …'] · 저녁 판(15시~) → '저조 18:40 무렵 …'
- * @param {object|null} tide - 수집 결과 {anchorId,distKm,date,curve,peaks,prevPeak,prevDayPeaks,nextPeak,rocks} @param {object} win @returns {object|null}
+ * 문구는 밀물(저조 → 다음 고조) 중심(결정 5, 원문 *"저조가 아니라 고조지 않니? 물이 오르는시간이니까. 나 는 반영하자"*):
+ *   「06:12 저조 뒤부터 물이 차오릅니다(12:30 고조) · 18:40 저조 뒤부터 물이 차오릅니다(10월 18일 00:50 고조) — 갯벌·바위에 나가 있다면 물이 차오르기 전에 나오세요.」
+ *   창(window)과 겹치는 밀물만 쓴다 — 창 앞 저조에서 이미 차오르는 중이면 그 저조도(날짜를 붙임). 23시 판은 전날 곡선(prevDayPeaks)의 밤 저조도 본다. 다음 날 첫 고조는 nextPeak.
+ * 예: 저조 06:12·18:40, 고조 00:50·12:30, 다음 날 00:55 · 아침 판(06시~) → '06:12 저조 뒤부터 물이 차오릅니다(12:30 고조) · 18:40 저조 뒤부터 물이 차오릅니다(10월 18일 00:55 고조) — …'
+ * @param {object|null} tide - 수집 결과 {anchorId,distKm,date,curve,peaks,prevPeak,prevDayPeaks,nextPeak,rocks,region} @param {object} win @returns {object|null}
  * [연계] ← buildBriefing
  */
 function tideSection(tide, win) {
     if (!tide || !Array.isArray(tide.peaks)) return null;
-    const from = Date.parse(win.from), to = Date.parse(win.to), prevDate = kstDate(Date.parse(tide.date + 'T00:00:00+09:00') - HOUR);
-    const all = (tide.prevDayPeaks || []).map((p) => ({ ...p, date: prevDate })).concat(tide.peaks.map((p) => ({ ...p, date: tide.date })))
-        .map((p) => ({ ...p, ms: Date.parse(p.date + 'T' + p.t + ':00+09:00') })).filter((p) => p.ms >= from && p.ms < to);
+    const from = Date.parse(win.from), to = Date.parse(win.to), day = (n) => kstDate(Date.parse(tide.date + 'T00:00:00+09:00') + n * 24 * HOUR);
+    const all = (tide.prevDayPeaks || []).map((p) => ({ ...p, date: day(-1) })).concat(tide.peaks.map((p) => ({ ...p, date: tide.date })), tide.nextPeak ? [{ ...tide.nextPeak, date: day(1) }] : [])
+        .map((p) => ({ ...p, ms: Date.parse(p.date + 'T' + p.t + ':00+09:00') })).filter((p) => Number.isFinite(p.ms)).sort((a, b) => a.ms - b.ms);
     const word = (p) => dayPrefix(p.date + 'T', win.targetDate) + p.t;
-    const lows = all.filter((p) => p.type === 'low').map(word), highs = all.filter((p) => p.type === 'high').map(word);
+    const flood = [];
+    all.forEach((p, i) => {
+        if (p.type !== 'low') return;
+        const h = all.slice(i + 1).find((q) => q.type === 'high') || null, endMs = h ? h.ms : p.ms;
+        if (p.ms < to && endMs >= from && !(p.ms < from && !h)) flood.push(word(p) + ' 저조 뒤부터 물이 차오릅니다' + (h ? '(' + word(h) + ' 고조)' : ''));
+    });
     const text = [];
-    if (lows.length) text.push('저조 ' + lows.join('·') + ' 무렵 갯벌·고립 주의 — 물이 빠져 갯벌·바위가 드러나고, 물이 다시 차오를 때 고립될 수 있습니다' + (highs.length ? '(고조 ' + highs.join('·') + ').' : '.'));
+    if (flood.length) text.push(flood.join(' · ') + ' — 갯벌·바위에 나가 있다면 물이 차오르기 전에 나오세요.');
     const r = tide.rocks;
     if (r && r.count) text.push('관할 안 잠기는 바위(간출암) ' + r.count + '곳이 ' + (r.first === r.last ? r.first : r.first + '~' + r.last) + ' 사이 물에 잠깁니다 — 바위 위 낚시·채취 중 고립에 주의가 필요합니다.');
-    return { anchor: { id: tide.anchorId, distKm: tide.distKm }, date: tide.date, gauge: { curve: tide.curve || [], peaks: tide.peaks, prevPeak: tide.prevPeak || null, nextPeak: tide.nextPeak || null, unit: 'cm' }, rocks: r || null, text };
+    return { anchor: { id: tide.anchorId, distKm: tide.distKm }, region: tide.region || null, date: tide.date, gauge: { curve: tide.curve || [], peaks: tide.peaks, prevPeak: tide.prevPeak || null, nextPeak: tide.nextPeak || null, unit: 'cm' }, rocks: r || null, text };
 }
 
 /**
@@ -445,7 +479,7 @@ function templateOverview(b) {
     s.push(sea.weather ? sea.weather.text + '.' : '해구 예보 자료를 확인하지 못했습니다.');
     if (top) s.push(top.overview.window + ' ' + top.name + '의 근거는 ' + top.overview.label + '입니다.');
     else s.push(miss ? '확인된 자료에서는 기상·혼잡 근거가 겹치는 해역을 찾지 못했습니다(빠진 자료의 근거는 알 수 없습니다).' : '공식 사고예보 순위만으로 붙은 단계 외에 기상·혼잡 근거가 겹치는 해역은 없습니다.');
-    const rel = b.special.find((x) => x.kind === 'release'), pre = b.special.find((x) => x.kind === 'prewarn');
+    const rel = b.special.find((x) => x.kind === 'release' || x.kind === 'released'), pre = b.special.find((x) => x.kind === 'prewarn');
     if (rel) s.push(rel.title + ' — ' + RELEASE_LINES[0]);
     else if (pre) s.push(pre.title + '입니다.');
     s.push(top ? '따라서 ' + top.overview.window + '경 ' + top.name + ' 운항에 ' + SUBJECT[top.overview.rank] + ' 필요합니다.' : miss ? '따라서 출항 전 기상청 특보·예보를 직접 확인하는 데 관심이 필요합니다.' : '따라서 출항 전 기상 확인에 관심이 필요합니다.');
@@ -453,7 +487,7 @@ function templateOverview(b) {
     if (b.land) {
         const l = [], lt = b.land.overviewTop, lm = b.land.missing.length ? sourceNames(b.land.missing) : null;
         if (lt.length) {
-            l.push(dayWord + ' ' + st + ' 관할 육상은 ' + b.land.level.word + '입니다(관광지 ' + b.land.reviewedSpots + '곳 검토, 오늘 바뀐 요소가 있는 곳 ' + b.land.cards.length + '곳' + (lm ? ', 확인하지 못한 자료: ' + lm : '') + ').');
+            l.push(dayWord + ' ' + st + ' 관할 육상은 ' + b.land.level.word + '입니다(' + (b.land.level.source ? '근거 ' + b.land.level.source + ' — ' : '') + '관광지 ' + b.land.reviewedSpots + '곳 검토, 관심 이상인 곳 ' + b.land.cards.length + '곳' + (lm ? ', 확인하지 못한 자료: ' + lm : '') + ').');
             l.push(lt[0].name + topicJosa(lt[0].name) + ' ' + dayWord + ' ' + lt[0].today.changes.join(', ') + ' 요소가 있습니다.');
             if (lt[1]) l.push(lt[1].name + '도 ' + lt[1].today.changes.join(', ') + ' 요소가 있습니다.');
             l.push('따라서 ' + lt.map((c) => c.name).join('·') + ' 주변 물가 접근에 ' + SUBJECT[lt[0].rank] + ' 필요합니다.');
@@ -500,7 +534,7 @@ function stable(v) { return Array.isArray(v) ? '[' + v.map(stable).join(',') + '
 function hash(v) { return crypto.createHash('sha256').update(stable(v)).digest('hex').slice(0, 16); }
 
 module.exports = {
-    RULES_VERSION, WORD, SEA_ONLY_OFFICES, RELEASE_LINES, WAVE_M, WIND_MS, EDITIONS, SOURCE_LABEL, UNKNOWN_SOME, UNKNOWN_ALL,
-    isoKst, kstDate, md, editionWindow, runsText, levelWord, sourceNames, dueEdition, displayDate, rangeText, warnTimeText, warnAtSlot, slotOf, regionName, weatherFlow,
+    RULES_VERSION, WORD, SEA_ONLY_OFFICES, RELEASE_LINES, WAVE_M, WIND_MS, EDITIONS, SOURCE_LABEL, UNKNOWN_SOME, UNKNOWN_ALL, AFTER_RELEASE_SEA_H, AFTER_RELEASE_LAND_H,
+    isoKst, kstDate, md, editionWindow, runsText, levelWord, sourceNames, dueEdition, displayDate, rangeText, warnTimeText, issuedText, warnAtSlot, slotOf, regionName, weatherFlow,
     warningEvents, seaSection, landSpot, landSection, tideSection, templateOverview, buildBriefing, stable, hash, zoneKey, topicJosa, haversineKm, dayWordOf,
 };

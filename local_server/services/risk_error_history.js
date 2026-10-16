@@ -19,6 +19,7 @@ const SOURCES = [
     'events',
     'realtime',
     'visibility', // 해구별 시정 예측(RDPS 래스터) — risk_history_sources.visibilitySource
+    'stationBriefing', // 활동지점 안전 브리핑 생성(우리 서버) — station_briefing.historyRow(실행 실패·낡음·AI 총평 대신 틀), 2026-10-16 결정 6
 ];
 // partial(일부 실패): 수집은 성공해 자료는 쓰이지만 일부가 빠졌다 — 지금은 행사 수집에서 실패한 부분이 있을 때뿐이다
 //   (사용자 2026-10-15 「공식 행사는 저장해놔야지. 그리고 우리 앱에 저장실패했다는 내용을 알려야하겠지?」). 원천 상태 파일은 ok 로 두고
@@ -35,6 +36,8 @@ const STATES = ['ok', 'offseason', 'partial', 'missing', 'stale', 'error'],
         ...['Gemini', '카카오', '공식 목록', 'Gemini·카카오', 'Gemini·공식 목록', '카카오·공식 목록', 'Gemini·카카오·공식 목록'].map(
             (c) => PARTIAL_DEFAULT + ' — ' + c
         ),
+        // 활동지점 안전 브리핑: AI 방식인데 일부 관할이 틀 총평으로 대체됨(station_briefing.HISTORY_PARTIAL_CODE 와 같은 글자 — 2026-10-16 결정 6)
+        '브리핑 일부 실패 — AI 총평 대신 틀',
     ],
     // 1분 감시가 더 보지 않는 지난 달 행사의 문제 상태를 닫을 때의 상세(3차 검토 F2). 닫힌 달은 offseason(수집하지 않는 기간)으로 바뀐다.
     PAST_MONTH_NOTE = '지난 달 — 더 수집하지 않음';

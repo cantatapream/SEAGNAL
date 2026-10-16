@@ -346,6 +346,7 @@ bash scripts/refactor/verify_all.sh
 | `RiskSheet.day(info)` | (없음) | `.rf-timeline` 에 `.ocean-date-nav-inline.rf-sheet-day`(해양종합정보 시트 날짜 줄 클래스) 를 한 번 그리고 글자·비활성만 바꿈. 날짜가 바뀌면 둘째 줄을 비움 |
 | `RiskSheet.show` 연안 | — | 둘째 줄 `[data-sheet-peak]` = `peakText(d.daily)` 「가장 높은 때 HH시 기준」. 팝업 닫기 기준 키를 `d.t` 대신 `daily.date`(오늘 가장 높은 칸이 지금 칸이면 60초마다 `d.t` 가 바뀜) |
 | `RiskSheet.dayNotices(daily)` (§16.1 ②, 2026-10-16) | `notices(d.notices)`(가장 높은 칸) | `daily.notices` 가 있으면 시각을 붙여 같은 문구(`notices`)로 — 「HH시~」(그날 마지막 칸까지)·「HH시~HH시」(첫 칸~끝 칸)·「HH시 무렵」(한 칸), 표류 여러 칸이면 「최대 Nm/s」. 없으면 종전 `notices(d.notices)` |
+| `RiskSheet.kmaTime`·`dayNotices` 특보 (결정 1, 2026-10-16 — 설계서 §11.8) | 특보도 칸 시각(「11시~15시 풍랑주의보 발효」) | 기상청 시각 그대로 — 발효 「… 발효 중(14시 발표) — 17일 06~09시 해제 예고」 · 예비 「… 예비특보(10:30 발표) — 21~24시 발효 예정」, 못 읽은 것만 칸 시각+「(칸 기준)」. 서버 `daily.notices` 의 `issued`·`effective`·`release`(`risk_store.warnTimes`) |
 | `RiskSlider` `opts.colors` | 연안 4단계 색(T7) | 없앰(해상 공식 사고 4색 고정) — 쓰던 곳(연안 시각 막대)이 없어졌다 |
 | `risk_forecast.css` | — | `.rf-date-nav[hidden]`·비활성(opacity .3)·해양안전 밖 숨김, `.rf-timeline .rf-sheet-day` 가운데, 바 없을 때 토스트 기본 자리(`body:not(.rf-sea-time-on) .rf-time-toast` — 탭 바로 위) |
 

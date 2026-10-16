@@ -39,7 +39,8 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
  function valid(t){const n=Date.parse(t);if(!Number.isFinite(n)||n<now-5*60000||n>Date.parse(coastTimes.at(-1))){log.bad.push(t);throw Object.assign(new Error('잘못된 예보 시각'),{status:400});}return T.isoKst(n);}
  const DAY={'2026-10-12':{score:1.2,index:40,band:'다소 높음',peak:'2026-10-12T18:00:00+09:00'},'2026-10-13':{score:2.2,index:73,band:'높음',peak:'2026-10-13T15:00:00+09:00'}};
  // §16.1 ②(2026-10-16): 하루 안내 daily.notices — 오늘은 가장 높은 칸(18시) 밖에만 특보(11~15시 발효)·표류(12시), 18~21시 예비. 내일은 없음. 서버 묶음 규칙은 test_risk_store 가 본다.
- const NOTES={'2026-10-12':[{key:'warning',name:'풍랑주의보',state:'발효',from:at,to:'2026-10-12T15:00:00+09:00'},{key:'drift',windMs:8.6,from:'2026-10-12T12:00:00+09:00',to:'2026-10-12T12:00:00+09:00'},{key:'warning',name:'강풍주의보',state:'예비',from:'2026-10-12T18:00:00+09:00',to:'2026-10-12T21:00:00+09:00'}],'2026-10-13':[]};
+ // 결정 1(2026-10-16): 특보는 기상청 시각(발표 issued·발효 예정 effective·해제 예고 release — 서버 warnTimes 꼴)을 싣는다. 태풍 예비는 시각을 못 읽은 경우(칸 기준).
+ const NOTES={'2026-10-12':[{key:'warning',name:'풍랑주의보',state:'발효',from:at,to:'2026-10-12T21:00:00+09:00',issued:{start:'2026-10-12T05:00:00+09:00',end:'2026-10-12T05:00:00+09:00',range:false},effective:null,release:{start:'2026-10-13T03:00:00+09:00',end:'2026-10-13T06:00:00+09:00',range:true}},{key:'drift',windMs:8.6,from:'2026-10-12T12:00:00+09:00',to:'2026-10-12T12:00:00+09:00'},{key:'warning',name:'강풍주의보',state:'예비',from:'2026-10-12T18:00:00+09:00',to:'2026-10-12T21:00:00+09:00',issued:{start:'2026-10-12T10:30:00+09:00',end:'2026-10-12T10:30:00+09:00',range:false},effective:{start:'2026-10-12T21:00:00+09:00',end:'2026-10-13T00:00:00+09:00',range:true},release:null},{key:'warning',name:'태풍주의보',state:'예비',from:'2026-10-12T18:00:00+09:00',to:'2026-10-12T21:00:00+09:00',issued:null,effective:null,release:null}],'2026-10-13':[]};
  const store={sources:()=>inputs.sources,marineInputs:()=>inputs,
   meta:()=>({now:at,versions:{spots:'v1',cells:1,accident:'v1'},timeline:{sea:{times:seaTimes},accident:{times:coastTimes},coast:{times:coastTimes}},sources:inputs.sources}),
   spots:()=>({spots}),cells:()=>({cells:[cell]}),accidentCells:()=>({v:'v1',cells:[acc]}),accidentFrame:()=>({v:'v1',cells:[[0,.001,'경계']]}),
@@ -134,10 +135,11 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
   assert.deepEqual([s.t,s.label,s.tag,s.sheetDate,s.peak],[at,'10월 12일 (월)','오늘',"'26. 10. 12.(월)",'가장 높은 때 18시 기준'],'시트 → 상단');assert.equal((await toast()).text,'오늘 10월 12일 (월)','시트에서 넘겨도 같은 토스트');
   if(SHOTS)await page.screenshot({path:path.join(SHOTS,'day-380-시트-오늘.png')});
  });
- await check('§16.1 ② 연안 시트 안내: 그날 남은 칸 어느 칸이든 특보·표류가 있으면 시각과 함께(가장 높은 칸 18시 밖의 11~15시 발효·12시 무렵 표류, 마지막 칸까지 이어진 예비는 「18시~」), 특보 없는 날은 안내 없음',async()=>{
+ await check('§16.1 ② + 결정 1 연안 시트 안내: 그날 남은 칸 어느 칸이든 특보·표류가 있으면 — 특보는 기상청 시각(발표·발효 예정·해제 예고), 못 읽은 것만 칸 시각+「칸 기준」, 표류는 칸 시각(12시 무렵), 특보 없는 날은 안내 없음',async()=>{
   const notes=()=>page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice')].map(e=>e.textContent));
   assert.equal((await S()).peak,'가장 높은 때 18시 기준');
-  assert.deepEqual(await notes(),['⚠ 18시~ 강풍주의보 예비특보, 11시~15시 풍랑주의보 발효 상태입니다. 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 14% 높습니다.','🛟 12시 무렵 이 앞바다 바람 9m/s — 튜브·물놀이기구 표류 주의']);
+  assert.deepEqual(await notes(),['⚠ 강풍주의보 예비특보(10:30 발표) — 21~24시 발효 예정. 태풍주의보 예비특보 — 18시~(칸 기준). 풍랑주의보 발효 중(05시 발표) — 13일 03~06시 해제 예고. 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 14% 높습니다.','🛟 12시 무렵 이 앞바다 바람 9m/s — 튜브·물놀이기구 표류 주의'],'결정 1: 발효 = 해제 예고 시각(다른 날 「13일」)·발표 시각, 예비 = 발효 예정 시각(범위 21~24시), 시각 없으면 칸 시각+「칸 기준」, 「더 일찍 풀릴」 없음');
+  assert.ok(!/더 일찍/.test((await notes()).join('')),'「더 일찍 풀릴 수 있음」 없음');
   if(SHOTS){await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-notice').scrollIntoView({block:'center'}));await page.screenshot({path:path.join(SHOTS,'day-380-시트-안내.png')});}
   await sheetClick(1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-13'));await ready();
   assert.deepEqual(await notes(),[],'내일(특보·표류 없음) → 안내 없음');

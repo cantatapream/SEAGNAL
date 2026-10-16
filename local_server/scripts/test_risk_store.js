@@ -84,19 +84,39 @@ try{run({
      a.equal(today.daily.peakAt,K('18:00'),'전제: 가장 높은 칸은 너울 18시');
      a.deepEqual(peak.notices.find(n=>n.key==='warning').effective,[],'전제: 가장 높은 칸(18시)에는 발효 특보가 없다(18시 해제)');a.deepEqual(st.coastDetail('one',K('15:00')).notices.find(n=>n.key==='warning').effective,['풍랑주의보'],'전제: 15시 칸에는 발효');
      a.deepEqual(today.daily.notices,[
-       {key:'warning',name:'풍랑주의보',state:'예비',from:K('12:17'),to:K('21:00')},
-       {key:'warning',name:'풍랑주의보',state:'발효',from:K('12:17'),to:K('15:00')},
+       {key:'warning',name:'풍랑주의보',state:'예비',from:K('12:17'),to:K('21:00'),issued:null,effective:{start:N(15),end:N(15),range:false},release:null},
+       {key:'warning',name:'풍랑주의보',state:'발효',from:K('12:17'),to:K('15:00'),issued:null,effective:null,release:{start:K('18:00'),end:K('18:00'),range:false}},
        {key:'drift',windMs:10,from:K('15:00'),to:K('18:00')}],'가장 높은 칸 밖(12:17·15시)의 발효 특보가 나오고, 이어진 칸은 하나로(예비 12:17~21시·발효 12:17~15시), 표류는 15~18시 가장 센 10m/s');
      a.deepEqual(today.notices,peak.notices,'위의 notices 는 종전처럼 가장 높은 칸의 것(화면은 daily.notices 를 쓴다)');
      const slots=today.daily.times.map(at=>st.coastDetail('one',at).score);a.equal(today.score,Math.max(...slots),'점수는 그대로 그날 칸 최댓값 — 특보·바람은 점수에 들지 않는다');
      const t15=st.coastDetail('one',K('15:00')),t21=st.coastDetail('one',K('21:00'));a.equal(t15.score,t21.score,'특보·바람 9m/s 있는 15시와 없는 21시 점수가 같다(연안 특보·표류 바람은 점수 밖)');
      const tomorrow=st.coastDayDetail('one',N(0));
      a.deepEqual(tomorrow.daily.notices,[
-       {key:'warning',name:'풍랑주의보',state:'예비',from:N(0),to:N(21)},
+       {key:'warning',name:'풍랑주의보',state:'예비',from:N(0),to:N(21),issued:null,effective:{start:N(15),end:N(15),range:false},release:null},
        {key:'drift',windMs:8,from:N(3),to:N(3)},
        {key:'drift',windMs:11,from:N(9),to:N(12)}],'내일: 발효는 해제돼 없음, 표류는 끊겼다 다시 나오면 따로(03시 / 09~12시)');
      alerts({});st.invalidate();
      a.deepEqual(st.coastDayDetail('one',K('12:17')).daily.notices,[{key:'drift',windMs:10,from:K('15:00'),to:K('18:00')}],'특보 없음 → 특보 안내 없음(표류만)');
+   }finally{fs.rmSync(td,{recursive:true,force:true});}},
+ '결정1(2026-10-16) 연안 특보 시각은 기상청 것 그대로: 태풍(트리)·강풍(육상강풍 행) 모두 발표·발효 예정·해제 예고 시각을 하루 안내에 싣고, 발효 중이면 해제 예고 시각 전 칸은 모두 특보 있음 · coastWarnings 는 지금 걸린 특보와 특보구역':a=>{
+   const td=fs.mkdtempSync(path.join(os.tmpdir(),'risk-warn-times-')),tdata=path.join(td,'data'),trisk=path.join(td,'risk'),tcfg=path.join(td,'config');
+   write(tcfg,'risk_spots.json',{_about:{hash:'test'},spots:[{id:'one',name:'해수욕장',lat:35,lon:129,sgg_name:'부산광역시 중구',major:92,warnZone:'부산앞바다',galeZone:'부산',beach:false,station:null,coastCell:'92-1',ripBeach:null,hazard:{count:0,zones:[]},geometry:{type:'Polygon',coordinates:[]}}]});
+   write(tdata,'weather_alerts.json',{updatedAt:new Date(now).toISOString(),current:{남해:{'부산앞바다':{current:{wrnTp:'태풍',wrnLvl:'경보',tmFc:'2026.10.31 10:00',tmEf:'2026.10.31 09:00',clrNtcTm:'1일 새벽(03시~06시)'},upcoming:null,children:{}}}}});
+   write(tdata,'gale_warnings.json',{savedAt:new Date(now).toISOString(),rows:[{src:'warnReady',live:true,zoneCd:'L1',zoneNm:'부산',lvl:'예비',tmFc:'2026.10.31 11:00',tmEf:'31일 밤(21시~24시)',tmEd:'',clrNtcTm:''}]});
+   write(trisk,'gale_status.json',{checkedAt:new Date(now).toISOString()});
+   write(tdata,'zone_forecasts.json',{updatedAt:new Date(now).toISOString(),data:{92:[]}});
+   write(trisk,'events_202610.json',{month:'2026-10',collectedAt:new Date(now).toISOString(),events:[]});write(trisk,'events_202611.json',{month:'2026-11',collectedAt:new Date(now).toISOString(),events:[]});
+   const K=h=>'2026-10-31T'+h+':00+09:00',N=h=>'2026-11-01T'+String(h).padStart(2,'0')+':00:00+09:00';
+   try{const st=createStore({dir:trisk,dataDir:tdata,configDir:tcfg,clientDir,clock:()=>now});
+     const gale={key:'warning',name:'강풍주의보',state:'예비',issued:{start:K('11:00'),end:K('11:00'),range:false},effective:{start:K('21:00'),end:N(0),range:true},release:null};
+     const typhoon={key:'warning',name:'태풍경보',state:'발효',issued:{start:K('10:00'),end:K('10:00'),range:false},effective:{start:K('09:00'),end:K('09:00'),range:false},release:{start:N(3),end:N(6),range:true}};
+     a.deepEqual(st.coastDayDetail('one',K('12:17')).daily.notices,[{...gale,from:K('12:17'),to:K('21:00')},{...typhoon,from:K('12:17'),to:K('21:00')}],'오늘: 예비 강풍은 발효 예정 21~24시·발표 11시, 태풍경보는 해제 예고 1일 03~06시·발표 10시');
+     const tomorrow=st.coastDayDetail('one',N(0));
+     for(const at of tomorrow.daily.times.filter(x=>Date.parse(x)<Date.parse(N(6))))a.ok(st.coastDetail('one',at).notices.find(n=>n.key==='warning').effective.includes('태풍경보'),at+' — 해제 예고(03~06시) 전 칸은 특보 있음');
+     a.deepEqual(tomorrow.daily.notices.find(n=>n.state==='발효').release,{start:N(3),end:N(6),range:true},'내일 칸에도 같은 해제 예고 시각');
+     const cw=st.coastWarnings('one');a.deepEqual(cw.zones,{warn:'부산앞바다',gale:'부산'});
+     a.deepEqual(cw.warnings.map(w=>[w.name,w.state,w.source,w.release&&w.release.start,w.effective&&w.effective.start]),[['태풍경보','발효','mmis',N(3),K('09:00')],['강풍주의보','예비','gale',null,K('21:00')]]);
+     a.throws(()=>st.coastWarnings('없는곳'),e=>e.status===404);
    }finally{fs.rmSync(td,{recursive:true,force:true});}},
  'U81 집중률 파일의 30일 기하평균(avg30)을 사람 점수에 넘기고, 없으면 사람 요소를 결측으로 둠':a=>{const at='2026-10-31T21:00:00+09:00';let people=store.coastDetail('one',at).rows.find(r=>r.key==='people');a.equal(people.base,20);a.equal(people.baseDays,30);a.equal(people.ratio,2.5);a.ok(Math.abs(people.score-.97*Math.log2(2.5))<1e-12);
    write(dir,'tour_concentration.json',{date:'2026-10-31',collectedAt:new Date(now).toISOString(),values:{one:{'2026-10-31':50}}});store.sources(true);const d=store.coastDetail('one',at);people=d.rows.find(r=>r.key==='people');a.equal(people.missing,true);a.equal(people.score,0);a.ok(d.missing.includes('concentration'));

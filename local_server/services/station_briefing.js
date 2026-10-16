@@ -10,8 +10,9 @@
  *                    · routes/risk_forecast.js(stores — 위험예측 화면과 같은 risk_store·marine_fusion 저장소를 함께 쓴다, 메모리 중복 방지)
  *                    · services/codex_bridge.js(VM) · services/gemini_client.js(Gemini) — 실제 어댑터는 처음 부를 때 require
  *                    · data/weather_alerts.json(특보 변경 감지 — 크롤러 결과, 읽기만) · data/station_briefing/(설정·상태·날짜별 브리핑·대표 위치 캐시)
+ *                    · services/sea_warning_history.js(이미 해제된 특보 — 해제 뒤 관심, 2026-10-16 결정 4) · services/risk_error_history.js(관리자 오류현황 원천 stationBriefing — 결정 6, historyRow)
  *  - 서버 API      : routes/station_briefing.js 가 이 모듈을 부른다
- *  - 나를 쓰는 곳  : routes/station_briefing.js · server.js(운영 start) · scripts/test_station_briefing.js(가짜 시계·어댑터)
+ *  - 나를 쓰는 곳  : routes/station_briefing.js · server.js(운영 start) · services/risk_history_sources.js(historyRow — 1분 감시) · scripts/test_station_briefing.js(가짜 시계·어댑터)
  * [로드 순서] 서버 require 부작용 없음. start() 는 운영(FLY_ALLOC_ID)에서만 1분 점검을 켠다 — 서버 시작 때 계산·외부 호출을 하지 않는다(첫 점검은 1분 뒤).
  *            실제 AI 어댑터는 운영 또는 STATION_BRIEFING_DEV_AI=1 일 때만 부른다(개발 환경 관리자 실행은 틀 총평). 실행 실패는 10분 백오프·3번까지, 특보 변경은 3분 디바운스.
  * ============================================================================
@@ -108,16 +109,47 @@ function realAdapters() {
     };
 }
 
+// 관리자 오류현황(위험예측 오류현황 risk_error_history) 연결 — 2026-10-16 결정 6(원문 *"추천대로"*). 원천 이름·낡음 기준·일부 실패 분류.
+// 낡음 10시간: 정시 판 08:00·17:30·23:00 중 가장 긴 간격(23:00→08:00) 9시간 + 여유 1시간. 이것이 없으면 브리핑이 멈춰도 오류현황엔 「정상」이 남는다(L-291).
+const HISTORY_SOURCE = 'stationBriefing', HISTORY_STALE_MS = 10 * 3600000, HISTORY_PARTIAL_CODE = '브리핑 일부 실패 — AI 총평 대신 틀';
+/**
+ * 브리핑 상태 파일(state.json)을 오류현황 원천 한 행으로 바꾼다 — 1분 감시(risk_history_sources)와 실행 직후 기록(run·reportFailure)이 같은 판정을 쓰도록 한 곳에 둔다.
+ *   실행 실패가 마지막 실행보다 나중 → error(분류는 io.errorName — 자유 글자는 넘기지 않는다, 상세는 「브리핑 실행 실패(연속 N번)」)
+ *   실행 기록 없음 → missing · 마지막 실행이 10시간 넘음 → stale
+ *   마지막 실행에서 AI 방식인데(method ≠ template, 개발 환경 aiDisabled 아님) 틀 총평으로 대체된 관할이 있으면 → partial(분류 HISTORY_PARTIAL_CODE, 상세에 수·오류 단계) — VM 이 실패하고 Gemini 가 쓴 것처럼 결과가 AI 면 문제 아님 · 그 밖 ok
+ * 예: historyRow({lastRun:{at:'…T08:00…',method:'chatgpt',results:[{stats:{template:2}}]},errors:[{at:'…T08:00…',stage:'validate'},…]}, 08:05)
+ *     → {status:'partial',partialCode:'브리핑 일부 실패 — AI 총평 대신 틀',detail:'마지막 실행 AI 총평 대신 틀 2곳(validate 2) — 생성 방식 chatgpt',…}
+ * @param {object} s - state() 결과 @param {number} now - ms @returns {object} 원천 상태(risk_error_history.recordCollector·observeSources 행)
+ * [연계] ← run·reportFailure(실행 직후 기록)·risk_history_sources.createReader(1분 감시) → risk_error_history(관리자 → 점검 → 데이터 수집현황/오류현황)
+ */
+function historyRow(s, now) {
+    const io = require('./risk_collector_io'), last = s && s.lastRun ? s.lastRun : null, lastAt = last ? Date.parse(last.at) : NaN;
+    const fail = Object.values((s && s.failures) || {}).filter((f) => f && Number.isFinite(Date.parse(f.lastAt))).sort((a, b) => Date.parse(b.lastAt) - Date.parse(a.lastAt))[0] || null;
+    const base = { updatedAt: last ? last.at : null, lastSuccess: last ? last.at : null, checkedAt: R.isoKst(now) };
+    if (fail && (!Number.isFinite(lastAt) || Date.parse(fail.lastAt) > lastAt)) return { ...base, status: 'error', lastError: io.errorName({ message: String(fail.reason || '') }), detail: '브리핑 실행 실패(연속 ' + fail.count + '번, 마지막 ' + R.isoKst(Date.parse(fail.lastAt)).slice(5, 16).replace('T', ' ') + ' KST)' };
+    if (!Number.isFinite(lastAt)) return { ...base, status: 'missing', lastError: null };
+    if (now - lastAt > HISTORY_STALE_MS) return { ...base, status: 'stale', lastError: null, detail: '마지막 실행 ' + last.at.slice(5, 16).replace('T', ' ') + ' KST — 정시 판(08:00·17:30·23:00)이 10시간 넘게 없음' };
+    const n = last.method && last.method !== 'template' && !last.aiDisabled ? (last.results || []).reduce((a, r) => a + (Number(r.stats && r.stats.template) || 0), 0) : 0;
+    if (n > 0) {
+        const recent = ((s && s.errors) || []).filter((e) => e.at === last.at), by = {};
+        for (const e of recent) by[e.stage] = (by[e.stage] || 0) + 1;
+        return { ...base, status: 'partial', partialCode: HISTORY_PARTIAL_CODE, lastError: null, detail: '마지막 실행 AI 총평 대신 틀 ' + n + '곳' + (Object.keys(by).length ? '(' + Object.entries(by).map(([k, v]) => k + ' ' + v).join('·') + ')' : '') + ' — 생성 방식 ' + last.method };
+    }
+    return { ...base, status: 'ok', lastError: null, detail: null };
+}
+
 /**
  * 브리핑 서비스를 만든다(시험은 폴더·시계·저장소·어댑터·관할 목록을 주입).
  * 예: const svc = createService({dir, clock, risk, marine, adapters}); await svc.run({kind:'morning'}); svc.pick({key, day:'auto'})
  * @param {object} o - dir·clock·risk·marine·adapters·loadStations·alertsFile·geocoder·tideDeps·spotsOf·hazardFeatures·kma
  *                     ·timer(경과 시간 — AI 데드라인, 기본 Date.now)·runDeadlineMs·aiOptions(generate 에 더 넘길 것 — timeouts 등)·allowRealAI(실제 AI 허용 여부)
+ *                     ·warnHistory(특보 구간 기록 sea_warning_history 기록기 — 이미 해제된 특보, 결정 4. 기본 null = 보지 않음, forDefault 가 운영 기록기 forDir() 를 넘긴다)
+ *                     ·errorHistory(관리자 오류현황 risk_error_history — 결정 6. 기본 null = 기록 안 함, forDefault 가 운영 것을 넘긴다)
  * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
-    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1' } = {}) {
+    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null } = {}) {
     let timer = null, running = null, stationsCache = null, ad = adapters;
     const fileCache = new Map();
     const p = (f) => path.join(dir, f);
@@ -134,6 +166,8 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     /** 상태 파일(만든 판·특보 서명·관할별 특보구역·마지막 실행·오류·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← run·tick·status */
     function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, errors: s.errors || [], alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
     function saveState(s) { I.writeJson(p('state.json'), s); }
+    /** 관리자 오류현황에 지금 상태를 남긴다(결정 6). 기록 실패는 브리핑 결과를 바꾸지 않는다. @returns {void} [연계] ← run·reportFailure → historyRow·errorHistory.recordCollector */
+    function recordHistory() { if (!errorHistory) return; try { errorHistory.recordCollector(HISTORY_SOURCE, historyRow(state(), clock())); } catch (_) { console.warn('[station_briefing] 오류현황 기록 실패'); } }
     /**
      * 날짜별 브리핑 파일 읽기 — 늘 메모리에 두는 것은 오늘·내일 파일만(mtime 캐시, 최대 2개 — 독립 검토 C6). 다른 날짜는 읽기만 하고 두지 않는다.
      * @param {string} date @returns {object|null} [연계] ← pick·run
@@ -180,7 +214,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             const aiOn = !!ad || allowRealAI(), cfg = aiOn ? config : { ...config, method: 'template' };
             const results = [];
             for (const win of wins) {
-                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps });
+                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory });
                 const briefings = inputs.map((x) => R.buildBriefing(x, win, { generatedAt: R.isoKst(now) }));
                 const day = readDay(win.targetDate) || { date: win.targetDate, stations: {} };
                 const gen = await AI.generate({ briefings, config: cfg, previous: day.stations, adapters: ad || (aiOn ? (ad = realAdapters()) : {}), kma: kma(), now, timer: elapsed, deadline: t0 + runDeadlineMs, ...aiOptions });
@@ -191,8 +225,8 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 results.push({ date: win.targetDate, stations: briefings.length, stats: gen.stats, errors: gen.errors.length });
             }
             prune(now);
-            st.lastRun = { at: R.isoKst(now), kind, zones, results, ms: elapsed() - t0, ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
-            saveState(st);
+            st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, results, ms: elapsed() - t0, ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
+            saveState(st); recordHistory();
             return { ok: true, results, ms: elapsed() - t0 };
         })();
         try { return await running; } finally { running = null; }
@@ -202,7 +236,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         const s = state(), f = s.failures[key] || { count: 0 }, why = String((e && e.message) || e).slice(0, 160);
         s.failures = Object.fromEntries(Object.entries({ ...s.failures, [key]: { count: f.count + 1, lastAt: R.isoKst(now), reason: why } }).slice(-12));
         s.errors = s.errors.concat([{ at: R.isoKst(now), stage: 'run', provider: null, stations: [], reason: key + ' 실행 실패(' + (f.count + 1) + '번째): ' + why }]).slice(-MAX_ERRORS);
-        saveState(s); console.error('[station_briefing] 실행 실패 ' + key + ' (' + (f.count + 1) + '/' + MAX_RUN_FAILS + '): ' + why);
+        saveState(s); recordHistory(); console.error('[station_briefing] 실행 실패 ' + key + ' (' + (f.count + 1) + '/' + MAX_RUN_FAILS + '): ' + why);
     }
     /** 백오프 중인가 — 실패 뒤 10분 안이거나 같은 판을 3번 실패했으면 true. 예: ({count:1,lastAt:10:00}, 10:05) → true · 10:10 → false. @param {object} f - failures[key] @param {number} now @returns {boolean} [연계] ← tick */
     function inBackoff(f, now) { return !!f && (f.count >= MAX_RUN_FAILS || now - Date.parse(f.lastAt) < RUN_BACKOFF_MS); }
@@ -290,8 +324,8 @@ let def = null;
 function forDefault() {
     if (def) return def;
     const { stores } = require('../routes/risk_forecast');
-    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null });
+    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history') });
     return def;
 }
 
-module.exports = { createService, forDefault, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };
+module.exports = { createService, forDefault, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };

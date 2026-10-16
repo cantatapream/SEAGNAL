@@ -20,7 +20,8 @@
     { "id": "kma-dmdw", "name": "기상청 방재기상플랫폼" },
     { "id": "khoa", "name": "국립해양조사원" },
     { "id": "komsa", "name": "해양교통안전공단" },
-    { "id": "kto", "name": "한국관광공사" }
+    { "id": "kto", "name": "한국관광공사" },
+    { "id": "seagnal", "name": "우리 서버 생성" }
   ],
   "items": [
     {
@@ -343,6 +344,29 @@
       },
       "state": { "risk": "events", "file": "risk_forecast/events_{month}.json", "collectedField": "collectedAt", "collectedFormat": "iso", "basisField": "month", "basisFormat": "raw", "basisLabel": "자료 달" },
       "graceMinutes": 60
+    },
+    {
+      "id": "stationBriefing",
+      "stage": 1,
+      "name": "활동지점 안전 브리핑 (우리 서버 생성)",
+      "provider": "seagnal",
+      "endpoint": "외부 호출 없음 — 위험예측·특보·조석 자료를 모아 파출소 관할 97곳 브리핑을 만든다(services/station_briefing.js · AI 총평은 관리자 설정)",
+      "official": {
+        "kind": "doc",
+        "text": "외부 공식 갱신이 아니라 우리 생성 일정 — 매일 08:00·17:30·23:00 + 특보가 바뀔 때(사용자 확정)",
+        "evidence": [
+          { "file": "client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md", "quote": "**오후 생성 = 17:30 확정**" }
+        ]
+      },
+      "schedule": {
+        "text": "KST 08:00·17:30·23:00 + 특보 변경 뒤 3분 조용할 때(운영 서버에서만). 실행 실패·10시간 넘게 실행 없음·AI 총평 대신 틀은 오류현황에 남음",
+        "times": ["08:00", "17:30", "23:00"],
+        "evidence": [
+          { "file": "local_server/services/station_briefing_rules.js", "quote": "const EDITIONS = Object.freeze([{ kind: 'morning', h: 8, m: 0 }, { kind: 'evening', h: 17, m: 30 }, { kind: 'night', h: 23, m: 0 }]);" }
+        ]
+      },
+      "state": { "risk": "stationBriefing" },
+      "graceMinutes": 30
     },
     {
       "id": "buoys",

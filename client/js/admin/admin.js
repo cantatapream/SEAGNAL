@@ -752,7 +752,7 @@ window.switchAiSubTab = function (which) {
  */
 function renderAiForecastSubtab(container, opts) {
     const view = opts && (opts.view === 'current' || opts.view === 'history') ? opts.view : null;
-    const names = {warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측'};
+    const names = {warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측',stationBriefing:'활동지점 안전 브리핑'};
     // partial(일부 실패): 자료는 저장·사용 중이지만 일부가 빠졌다 — 예: 행사 수집의 Gemini·카카오·공식 목록 중 일부 실패(2026-10-15). 분류는 원인별 이름(예: 행사 일부 실패 — 카카오).
     const statuses = {ok:'정상',offseason:'비운영 기간',partial:'일부 실패',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
     // recovered 사건인데 상태가 offseason 이면 「복구」가 아니라 더 수집하지 않게 되어 닫힌 것이다(예: 지난 달 행사 — risk_error_history 3차 검토 F2).

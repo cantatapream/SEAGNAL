@@ -3,6 +3,7 @@
  * [연계] risk_points/time/score/geo, sea_accident_collector의 배열·경계 → routes/risk_forecast.
  *        정적 표: config/coastal_safety/risk_spots.json · coast_accidents.json(연안 시트 「주변 연안사고」 history, 2026-10-16 T9 — 관광지 표 해시가 다르면 쓰지 않음).
  *        연안 지도·상세 응답은 날짜(KST)당 하나 — 그날 연안 칸 중 가장 높은 값(coastDayFrame·coastDayDetail, 2026-10-16 T24). 안내(특보·표류)는 그날 칸 전부에서 모음(dayNotices, §16.1 ②).
+ *        특보 안내는 기상청 시각(발표·발효 예정·해제 예고)을 함께 싣는다(warnTimes → marine_fusion.warnTime, 2026-10-16 결정 1). coastWarnings 는 브리핑 육상 「해제 뒤」용(station_briefing_inputs).
  * [로드 순서] 서버 require에 수집 부작용 없음. 기존 수집 파일은 절대로 쓰지 않는다.
  */
 'use strict';
@@ -117,6 +118,22 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         const entry=map.get(zoneName(child||zone));if(!entry||!entry.block)return[];const b=entry.block;
         const blocks=(Object.hasOwn(b,'current')||Object.hasOwn(b,'upcoming'))?[b.current,b.upcoming?{...b.upcoming,preliminary:true}:null]:[b];
         return blocks.map(w=>T.warningAt(w,t,clock(),end,{assumePreliminary:assume})).filter(Boolean);}
+    /** 특보 한 건의 기상청 시각(발표 tmFc · 발효/발효 예정 tmEf · 해제 예고 clrNtcTm→tmCc→tmYn→tmEd)을 원문 글자에서 읽는다 — 못 읽으면 null(지어내지 않는다).
+     * 글자 해석은 해상 상세·브리핑과 같은 marine_fusion.warnTime(날짜가 없는 「21시」만의 글자는 null, 범위는 {range:true}). 해제 예고는 발효 중 특보만.
+     * 예: warnTimes({tmFc:'2026.10.16 14:00',clrNtcTm:'17일 새벽(03시~06시)'},'발효') → {issued:{start:'…16T14:00…',range:false},effective:null,release:{start:'…17T03:00…',end:'…17T06:00…',range:true}}
+     * @param {object} w - warningAt 결과(원자료 칸 그대로 든 것) @param {string} state - '발효'|'예비' @returns {{issued:object|null,effective:object|null,release:object|null}}
+     * [연계] ← coastScore(notices.times)·coastWarnings / → marine_fusion.warnTime(같은 시각 규칙 — 해상 날씨 상자·브리핑 warningsFromTree) */
+    function warnTimes(w,state){const W=require('./marine_fusion').warnTime,now=clock(),issued=W(w.tmFc,now),anchor=issued?Date.parse(issued.start):now;
+        return{issued,effective:W(w.tmEf,anchor),release:state==='발효'?W(w.clrNtcTm||w.tmCc||w.tmYn||w.tmEd,anchor):null};}
+    /** 관광지 하나에 지금 걸린 특보(풍랑·태풍 = 특보 크롤러 트리의 그 관광지 특보구역, 강풍 = 육상강풍 행)를 기상청 시각과 함께 준다.
+     * 브리핑 육상 「특보 해제 뒤 3시간 관심」(2026-10-16 결정 4)이 그날 칸 밖에서 해제되는 특보(예: 오늘 밤 22시 해제 → 내일 00~01시)를 보려고 쓴다. 특보구역 이름도 준다(지난 해제 기록 대조용).
+     * 예: coastWarnings('one') → {zones:{warn:'인천·경기남부앞바다',gale:'옹진군'},warnings:[{name:'풍랑주의보',type:'풍랑',level:'주의보',state:'발효',source:'mmis',issued,effective,release}]}
+     * @param {string} id - 관광지 id @returns {object} [연계] ← station_briefing_inputs.collectLand / → warningsFor·galeFor·warnTimes */
+    function coastWarnings(id){refresh();const p=staticTable?.spots?.find(p=>p.id===id);if(!p)throw Object.assign(new Error('관광지 없음'),{status:staticTable?404:503});const t=T.isoKst(clock()),out=[];
+        const add=(w,source)=>{const state=w.state==='발효'?'발효':'예비';out.push({name:w.type+w.level,type:w.type,level:w.level,state,source,...warnTimes(w,state)});};
+        if(sources().warnings.status==='ok')for(const w of warningsFor(p.warnZone,t,false))add(w,'mmis');
+        if(sources().gale.status==='ok')for(const w of galeFor(p,t))add(w,'gale');
+        return{zones:{warn:p.warnZone||null,gale:p.galeZone||null},warnings:out};}
     /** 관광지 육상강풍을 연결한다. 예: 이름 미일치는 status unmatched로 드러낸다. @param {object} spot @param {string} t @returns {array} [연계] ← coastDetail */
     function galeFor(spot,t){if(!spot.galeZone)return[];return(cache.gale.data?.rows||[]).filter(r=>r.live&&zoneName(r.zoneNm)===zoneName(spot.galeZone)).map(r=>T.warningAt({...r,type:'강풍',level:r.lvl.includes('경보')?'경보':r.lvl.includes('예비')?'예비':'주의보',preliminary:r.src.endsWith('Ready')||r.lvl.includes('예비')},t,clock(),coastTimeline(clock()).at(-1),{assumePreliminary:false})).filter(Boolean);}
     /** 자료별 성공·낡음·오류를 분리한다. 예: 파일이 있어도 마지막 요청실패는 error. @returns {object} [연계] ← API responses */
@@ -174,7 +191,8 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      * [연계] ← coastDetail(한 칸)·coastDayDetail(그날 칸마다 — 가장 높은 칸 찾기, T24)·slotScores(연안 지도 칸 점수) */
     function coastScore(id,t){refresh();const p=staticTable?.spots?.find(p=>p.id===id);if(!p)throw Object.assign(new Error('관광지 없음'),{status:staticTable?404:503});t=validateTime(t,false);const memo=resultKey('coast',t,id);if(detailCache.has(memo))return detailCache.get(memo);const d=T.dateKey(t),f=forecast(p.major,t),src=sources(),cr=src.tourConcentration.status==='ok'?cache.tourConcentration.data?.values?.[id]?.[d]:null,crBase=src.tourConcentration.status==='ok'?cache.tourConcentration.data?.avg30?.[id]||null:null;const eventMonth=cache.events.months[d.slice(0,7)];const events=src.events.months[d.slice(0,7)]?.status==='ok'&&eventMonth?.month===d.slice(0,7)?eventMonth.events.filter(e=>e.spotId===id&&e.start<=d&&e.end>=d):null;
         const warning=warningsFor(p.warnZone,t,false).concat(galeFor(p,t));const r=S.scoreCoast({t,now:clock(),spot:p,concentration:typeof cr==='number'?cr:null,concentrationBase:crBase,events,swell:swell(p.coastCell,t),rip:ripFor(p.ripBeach,t),warnings:warning,...f});
-        const notices=[];if(r.notices.effective.length||r.notices.prelim.length)notices.push({key:'warning',effective:r.notices.effective.map(w=>w.type+w.level),prelim:r.notices.prelim.map(w=>w.type+w.level)});if(r.notices.windMs!==null)notices.push({key:'drift',windMs:r.notices.windMs});
+        // times: 특보마다 기상청이 준 발표·발효(예정)·해제 예고 시각(warnTimes) — 시트·브리핑이 칸 대신 실제 시각을 쓴다(2026-10-16 결정 1).
+        const notices=[];if(r.notices.effective.length||r.notices.prelim.length)notices.push({key:'warning',effective:r.notices.effective.map(w=>w.type+w.level),prelim:r.notices.prelim.map(w=>w.type+w.level),times:r.notices.prelim.map(w=>({name:w.type+w.level,state:'예비',...warnTimes(w,'예비')})).concat(r.notices.effective.map(w=>({name:w.type+w.level,state:'발효',...warnTimes(w,'발효')})))});if(r.notices.windMs!==null)notices.push({key:'drift',windMs:r.notices.windMs});
         const rows=r.factors.map(x=>({...x,key:x.key==='concentration'?'people':x.key,used:x.applied, ...(x.key==='hazard'?{zones:(x.zones||[]).map(z=>({id:z.id,place:z['장소명'],shape:z['장소형태'],class:z['구역분류'],addr:z['주소'],police:z['관할파출소'],office:officeOf(z['관할파출소'],{office:z['소속서']})}))}:{}),...(x.key==='event'&&x.events?.length?{src:x.events[0].src,sourceType:x.events[0].sourceType||'gemini',contentId:x.events[0].contentId||null,dateRange:[x.events[0].start,x.events[0].end]}:{})}));
         // 과제4: 행사·특보가 '없음'이면 자료 파일은 정상(ok)+빈 목록이라 missing 에 들지 않는다. 받지 못했을 때(missing/stale/error)만 아래에서 들어간다.
         // 이안류 비수기(offseason)는 정상 상태라 반환 직전에 missing 에서 뺀다.
@@ -196,12 +214,15 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      * 연안 특보·표류 바람은 점수에 들지 않아(risk_score.scoreCoast 의 notices) 가장 높은 칸과 특보 칸이 다를 수 있다 — 가장 높은 칸 것만 보이면 그날 다른 칸의 특보가 시트에서 빠진다.
      * 같은 안내(특보는 이름+발효/예비, 표류는 하나)가 이어진 칸에 있으면 하나로 묶는다(from=첫 칸·to=끝 칸 시각). 끊겼다 다시 나오면 따로. 순서는 처음 나온 칸 → 그 칸 안 예비·발효·표류 순.
      * 표류 windMs 는 묶은 칸 중 가장 센 바람.
+     * 특보는 기상청 시각도 함께 준다(2026-10-16 결정 1, 사용자 *"발표, 발효, 해제의 시각은 이미 기상청으로부터 제공이 되는 거니까 그 시각에 맞춰서 그냥 표출"*):
+     *   issued(발표)·effective(발효/발효 예정 — 예비특보는 이것이 예정 시각)·release(해제 예고, 발효만) = 그 묶음 첫 칸 특보의 warnTimes. 못 읽은 시각은 null → 화면은 그때만 칸 시각(「칸 기준」).
      * 예: 칸 [12:17,15,18,21] 중 15·18시에 풍랑주의보 발효, 21시에 바람 9m/s →
-     *     [{key:'warning',name:'풍랑주의보',state:'발효',from:'…T15:00…',to:'…T18:00…'},{key:'drift',windMs:9,from:'…T21:00…',to:'…T21:00…'}]
+     *     [{key:'warning',name:'풍랑주의보',state:'발효',from:'…T15:00…',to:'…T18:00…',issued:{…},effective:null,release:{start,end,range}},{key:'drift',windMs:9,from:'…T21:00…',to:'…T21:00…'}]
      * @param {string[]} times - 그날 칸 시각(coastDay) @param {object[]} slots - 칸마다 coastScore 결과(같은 순서) @returns {object[]} 묶은 안내
      * [연계] ← coastDayDetail(daily.notices) → RiskSheet.dayNotices(「15시~ 풍랑주의보 발효」·「21시 무렵 이 앞바다 바람」) */
     function dayNotices(times,slots){const out=[],last=new Map();const add=(id,i,base,wind)=>{const s=last.get(id);if(s&&s.i===i)return;if(s&&s.i===i-1){s.i=i;s.v.to=times[i];if(wind!==undefined)s.v.windMs=Math.max(s.v.windMs,wind);return;}const v={...base,...(wind!==undefined?{windMs:wind}:{}),from:times[i],to:times[i]};out.push(v);last.set(id,{i,v});};
-        slots.forEach((r,i)=>{for(const n of r.notices||[]){if(n.key==='warning'){for(const name of n.prelim||[])add('예비|'+name,i,{key:'warning',name,state:'예비'});for(const name of n.effective||[])add('발효|'+name,i,{key:'warning',name,state:'발효'});}else if(n.key==='drift')add('drift',i,{key:'drift'},n.windMs);}});return out;}
+        const kma=(n,state,name)=>{const x=(n.times||[]).find(q=>q.state===state&&q.name===name)||{};return{issued:x.issued||null,effective:x.effective||null,release:x.release||null};};
+        slots.forEach((r,i)=>{for(const n of r.notices||[]){if(n.key==='warning'){for(const name of n.prelim||[])add('예비|'+name,i,{key:'warning',name,state:'예비',...kma(n,'예비',name)});for(const name of n.effective||[])add('발효|'+name,i,{key:'warning',name,state:'발효',...kma(n,'발효',name)});}else if(n.key==='drift')add('drift',i,{key:'drift'},n.windMs);}});return out;}
     /** 연안 상세 하루 값(T24, 사용자 2026-10-16 「1. 가」 = 그날 3시간 칸 8개 중 가장 높은 값): 그날 칸마다 점수를 내 가장 높은 칸의 상세를 준다.
      * 같은 최댓값이 여러 칸이면 이른 칸. 시트의 요소별 설명은 이 칸의 것이다. 안내(특보·표류)는 그날 칸 전부에서 모아 daily.notices 로 준다(dayNotices — §16.1 ②, 2026-10-16).
      * 위의 notices(가장 높은 칸 것)는 그대로 둔다 — 화면은 daily.notices 가 있으면 그것을 쓴다.
@@ -276,6 +297,6 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      */
     // warnings: 특보 크롤러 결과 파일(weather_alerts.json) 그대로 — 해상 상세 특보 상자(marine_fusion.warningsAt)가 current 트리를 읽는다. 상태는 sources().warnings(10분 넘으면 낡음).
     function marineInputs(){refresh();return{version:inputVersion,congestion:cache.congestion.data,accident:cache.accident.data,cells:cache.cells.data,warnings:cache.warnings.data,sources:sources(),weather:forecast};}
-    return{sourceFiles,meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,coastDayDetail,seaDetail,frame,coastDayFrame,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
+    return{sourceFiles,meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,coastDayDetail,coastWarnings,seaDetail,frame,coastDayFrame,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
 }
 module.exports={createStore,zoneName,timestamp,utcForecast};
