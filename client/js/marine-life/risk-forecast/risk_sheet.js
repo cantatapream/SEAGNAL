@@ -2,6 +2,7 @@
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_sheet.js
  * 역할  : 해역 종합·공식 예보·해구 기상·선박사고 이력과 연안 분석을 구별하고 연안 합계 배수의 계산 과정을 설명한다.
+ *         시트는 해양종합정보 바텀시트처럼 아래에서 올라오고 내려간다(0.3초 — hold 로 0.2초 뒤에 올리기, 2026-10-16).
  *         연안 시트 끝에 「이 관광지 주변 연안사고(2020~2024년)」 카드(2026-10-16 T9 — 해상 사고 카드와 같은 꼴, RiskMarine 공용 함수). 경위도는 화면에 쓰지 않는다(같은 날).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈(RiskFormat·RiskMarine.accSort/accSummary/bindAcc/closePop) / OpenLayers(지도 모듈)
@@ -241,7 +242,7 @@
      * 닫기·위험구역 이동·기준 상세·재시도 동작을 시트에 연결한다.
      * 예: RiskSheet.create(el,handlers)
      * @param {HTMLElement} el - 시트; handlers는 close·hazard·basis·retry·choose 콜백
-     * @returns {Object} show·loading·markZone·error·choose·trafficHistory·clear·timelineEl API
+     * @returns {Object} show·loading·markZone·error·choose·trafficHistory·hold·clear·timelineEl API
      * [연계] RiskForecast → 상세 응답 표시
      */
     function create(el,handlers) {
@@ -250,6 +251,22 @@
         // 부제 줄 오른쪽 끝(✕ 아래)에 [기준 상세](2026-10-16 T8 사용자 「x버튼 아래, 관할 오른쪽 끝」). 부제가 길면 부제만 줄바꿈하고 버튼 자리는 비워 둔다.
         el.innerHTML='<div class="rf-sheet-head"><div class="rf-sheet-handle"></div><button class="ocean-sheet-close rf-close" type="button" aria-label="위험예측 닫기">×</button><h3 class="rf-title"></h3><div class="rf-sub-row"><div class="rf-subtitle"></div><button type="button" class="rf-basis-btn rf-head-basis" hidden>기준 상세</button></div><div class="rf-timeline"></div></div><div class="rf-body" aria-live="polite"></div>';
         var headBasis=el.querySelector('.rf-head-basis'),subRow=el.querySelector('.rf-sub-row'),coastKey=null;
+        // 올라오기·내려가기(2026-10-16 사용자 「선택이후 약간의 딜레이(0.2초?) 정도 후 바텀시트가 나오도록 … 아래서 위로 올라오는 느낌의 애니메이션 … 닫을때도 마찬가지로」).
+        // CLOSE_MS 는 risk_forecast.css .rf-sheet 의 transition .3s 와 같다 — 해양종합정보 OS.closeSheet 도 300ms 뒤 display:none 으로 정리한다(ocean_bottom_sheet1.js).
+        var CLOSE_MS=300,upTimer=null,downTimer=null,wanted=false;
+        /**
+         * 시트를 올린다(내용은 부른 쪽이 이미 채웠다). 0.2초 기다리는 중(hold)이면 그때 올리도록 표시만 한다.
+         * 예: 닫혀 있음 → .rf-shown(그려짐, 아래에 숨음) → 다시 그림 계산 → .open(0.3초 동안 위로) / 내려가는 중 → 내려가기 정리를 취소하고 그 자리에서 다시 위로
+         * @returns {void} [연계] ← loading·show·error·choose / → risk_forecast.css .rf-sheet.rf-shown·.open transition
+         */
+        function present(){wanted=true;if(upTimer)return;clearTimeout(downTimer);downTimer=null;if(!el.classList.contains('rf-shown')){el.classList.add('rf-shown');void el.offsetHeight;/* 아래(translateY(100%))에서 한 번 그린 뒤 .open 을 붙여야 움직임이 보인다 */}el.classList.add('open');}
+        /**
+         * 시트가 안 보일 때만 ms 뒤에 올라오게 미룬다. 그 사이에 채운 내용(회색 틀·상세)은 그때 함께 보인다. 다시 부르면 처음부터 다시 잰다(마지막 선택만).
+         * 예: hold(200) → loading(...) → 0.2초 뒤 위로 / 이미 열렸거나 내려가는 중이면 아무것도 안 함 — 내용만 바꾸거나 그 자리에서 다시 올린다
+         * @param {number} ms - 기다릴 시간(위험예측은 200) @returns {void}
+         * [연계] ← RiskForecast.select(지도 테두리는 누르는 즉시) / clear 가 예약을 취소한다(닫기·토글 끔·탭 떠남·Escape·뒤로가기)
+         */
+        function hold(ms){if(el.classList.contains('rf-shown'))return;clearTimeout(upTimer);wanted=false;upTimer=setTimeout(function(){upTimer=null;if(wanted)present();},ms);}
         /**
          * 머리의 [기준 상세] 버튼을 보이거나 숨긴다. 누르면 위 클릭 위임([data-basis])이 handlers.basis(kind) 를 부른다.
          * 예: basisFor('coast') → 보임·data-basis="coast" / basisFor(null) → 숨김(data-basis 없음 — 숨은 버튼이 위임에 잡히지 않게)
@@ -275,7 +292,7 @@
         function loading(hint) {
             if(hint){el.querySelector('.rf-title').textContent=hint.title||'불러오는 중…';el.querySelector('.rf-subtitle').textContent=hint.subtitle||'';basisFor(null);}
             var body=el.querySelector('.rf-body');el.querySelector('.rf-timeline').hidden=false;
-            body.innerHTML=SKELETON;body.scrollTop=0;el.setAttribute('aria-busy','true');el.classList.add('open');
+            body.innerHTML=SKELETON;body.scrollTop=0;el.setAttribute('aria-busy','true');present();
         }
         /**
          * 서버 응답으로 시트 머리(제목·부제)와 본문을 채운다.
@@ -289,7 +306,7 @@
          */
         function show(d,kind,item,ctx) {
             el.removeAttribute('aria-busy');
-            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';basisFor(d.marine?'sea':null);el.querySelector('.rf-timeline').hidden=false;var mb=el.querySelector('.rf-body');mb.innerHTML=d.marine?w.RiskMarine.render(d.marine,ctx):w.RiskMarine.briefing(d);el.classList.add('open');if(d.marine&&w.RiskMarine.attach)w.RiskMarine.attach(mb,d.marine,ctx);return;}
+            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';basisFor(d.marine?'sea':null);el.querySelector('.rf-timeline').hidden=false;var mb=el.querySelector('.rf-body');mb.innerHTML=d.marine?w.RiskMarine.render(d.marine,ctx):w.RiskMarine.briefing(d);present();if(d.marine&&w.RiskMarine.attach)w.RiskMarine.attach(mb,d.marine,ctx);return;}
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='accident'?'선박 사고 위험예보 · 격자 '+d.gridId:kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
             // 경위도는 화면에 쓰지 않는다(사용자 2026-10-16 「그리고 경위도는 빼자. 표시하는 곳에서.」) — 연안은 관할만, 옛 공식 사고 격자는 부제 없음(제목에 격자 번호).
@@ -308,7 +325,7 @@
             basisFor(kind!=='accident'&&kind!=='sea'&&d.clickable!==false?kind:null);
             // 다른 관광지·시각을 그리면 열린 사고 목록 팝업을 닫는다(같은 관광지·시각의 60초 갱신은 그대로 — 내용이 같다).
             var key=kind+'|'+d.title+'|'+d.t;if(key!==coastKey){coastKey=key;if(w.RiskMarine&&w.RiskMarine.closePop)w.RiskMarine.closePop();}
-            var cb=el.querySelector('.rf-body');cb.innerHTML=body;el.classList.add('open');
+            var cb=el.querySelector('.rf-body');cb.innerHTML=body;present();
             if(kind==='coast'&&d.history&&d.history.available===true&&w.RiskMarine&&w.RiskMarine.bindAcc)w.RiskMarine.bindAcc(cb,coastAccList(d.history.accidents),function(x){return F.escape(String(x.date||'').replace(/-/g,'.'));});
         }
         /**
@@ -317,8 +334,8 @@
          * @param {string} id - 위험구역 id @returns {void} [연계] RiskForecast.hazard → 지도 이동에 성공한 뒤 호출
          */
         function markZone(id){el.querySelectorAll('[data-zone-id]').forEach(function(b){var on=b.dataset.zoneId===id;b.setAttribute('aria-pressed',String(on));var li=b.closest('li');if(li)li.classList.toggle('is-selected',on);});}
-        function error(message){el.removeAttribute('aria-busy');el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';el.classList.add('open');}
-        function choose(items){el.removeAttribute('aria-busy');el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';basisFor(null);el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';el.classList.add('open');}
+        function error(message){el.removeAttribute('aria-busy');el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';present();}
+        function choose(items){el.removeAttribute('aria-busy');el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';basisFor(null);el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';present();}
         /**
          * 해상 본문의 「과거 2주간 선박교통량」 카드를 받은 이력으로 채운다. 지금 본문이 다른 칸이면 버린다.
          * 예: trafficHistory('GR4_F4K23_P4',응답) / trafficHistory(cell,null,'error') → 「-」와 「기록을 불러오지 못했습니다.」
@@ -326,7 +343,16 @@
          * [연계] RiskForecast.detail → 여기 → RiskMarine.fillTraffic
          */
         function trafficHistory(cell,h,problem){if(w.RiskMarine&&w.RiskMarine.fillTraffic)w.RiskMarine.fillTraffic(el.querySelector('.rf-body'),cell,h,problem);}
-        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,trafficHistory:trafficHistory,clear:function(){el.removeAttribute('aria-busy');basisFor(null);el.classList.remove('open');el.querySelector('.rf-body').innerHTML='';var pop=document.querySelector('.rf-acc-pop');if(pop&&!pop.hidden){pop.hidden=true;if(w.PopupStack)w.PopupStack.remove('risk-sea-accident-pop');}},timelineEl:el.querySelector('.rf-timeline')};
+        /**
+         * 시트를 내린다. 열려 있었으면 0.3초 동안 아래로 내려간 뒤 숨기고 내용을 지운다(내려가는 동안은 내용이 그대로 보인다). 아직 안 올라왔으면(0.2초 대기 중) 예약을 취소하고 바로 지운다.
+         * 예: 열린 시트 ✕ → .open 뗌(내려감) → 0.3초 뒤 .rf-shown 뗌·본문 비움 / 그 0.3초 안에 다른 지점 → present 가 정리를 취소하고 다시 올린다
+         * @returns {void} [연계] ← RiskForecast.clearSelection / 열린 사고·[?] 팝업은 바로 닫는다
+         */
+        function clear(){clearTimeout(upTimer);upTimer=null;wanted=false;el.removeAttribute('aria-busy');el.classList.remove('open');var pop=document.querySelector('.rf-acc-pop');if(pop&&!pop.hidden){pop.hidden=true;if(w.PopupStack)w.PopupStack.remove('risk-sea-accident-pop');}
+            function wipe(){basisFor(null);el.querySelector('.rf-body').innerHTML='';}
+            if(!el.classList.contains('rf-shown')){wipe();return;}
+            clearTimeout(downTimer);downTimer=setTimeout(function(){downTimer=null;el.classList.remove('rf-shown');wipe();},CLOSE_MS);}
+        return {show:show,loading:loading,markZone:markZone,error:error,choose:choose,trafficHistory:trafficHistory,hold:hold,clear:clear,timelineEl:el.querySelector('.rf-timeline')};
     }
     /**
      * 서버 자료 키를 화면에서 읽을 수 있는 이름으로 바꾼다.

@@ -9,7 +9,12 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
    지도 박스 기준 absolute bottom은 서브탭이 닫히면 화면 끝까지 늘어나 시트 하단이 탭 아래로 가려졌다. */
 .rf-sheet { --rf-chrome:var(--ls-bottom-chrome,var(--main-tab-height,68px)); position:fixed; z-index:450; bottom:var(--rf-chrome); left:0; right:0; max-height:calc((100vh - var(--rf-chrome)) * .66); overflow:hidden; display:none; flex-direction:column; background:linear-gradient(180deg,#0c1a3a,#162d5a); border-radius:20px 20px 0 0; color:#e6edf8; font-size:.84rem; line-height:1.55; word-break:keep-all; overflow-wrap:break-word; box-shadow:0 -4px 25px #0007; }
 @supports (height:100dvh) { .rf-sheet { max-height:calc((100dvh - var(--rf-chrome)) * .66); } }
-.rf-sheet.open { display:flex; }
+/* 올라오고 내려가는 움직임은 해양종합정보 바텀시트(style.css .ocean-bottom-sheet)와 같은 값 — transform 0.3s cubic-bezier(0.22,1,0.36,1),
+   닫힘 translateY(100%) ↔ 열림 translateY(0). 사용자 2026-10-16 「현재 해양종합정보 바텀시트에는 애니메이션이 잘 반영되어있음. 그대로 하면될듯. 닫을때도 마찬가지로」.
+   .rf-shown = 그려져 있음(올라가는 중·열림·내려가는 중), .open = 열림(위로). 내려가기가 끝나면 risk_sheet.js 가 .rf-shown 을 뗀다(0.3초). */
+.rf-sheet { transform:translateY(100%); transition:transform .3s cubic-bezier(0.22,1,0.36,1); }
+.rf-sheet.rf-shown,.rf-sheet.open { display:flex; }
+.rf-sheet.open { transform:translateY(0); }
 /* 고정 머리: 손잡이·닫기·제목·시각 조작. 스크롤은 .rf-body 안에서만 일어난다. */
 .rf-sheet-head { flex:none; position:relative; padding:10px 16px 0; }
 .rf-body { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:0 16px 18px; }
@@ -99,7 +104,7 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-location-options { display:flex; flex-direction:column; gap:6px; }
 .rf-location-choice { text-align:left; padding:8px 10px; border:1px solid #ffffff40; border-radius:8px; background:#ffffff14; color:#e6edf8; font:inherit; }
 .rf-sheet :focus-visible,.rf-basis :focus-visible,.rf-legend :focus-visible { outline:2px solid #448aff; outline-offset:2px; }
-@media (prefers-reduced-motion:reduce) { .rf-sheet *,.rf-basis *,.rf-legend *,.rf-legend *::after { transition:none !important; } }
+@media (prefers-reduced-motion:reduce) { .rf-sheet,.rf-sheet *,.rf-basis *,.rf-legend *,.rf-legend *::after { transition:none !important; } }
 /* 해양종합정보에서는 안전 오버레이가 남지 않도록 화면 클래스에 묶는다. */
 body:not(.ls-safety) #risk-forecast-sheet,body:not(.ls-safety) #risk-forecast-legend,body:not(.ls-safety) #risk-forecast-banner,body:not(.ls-safety) .rf-marine-timebar,body:not(.ls-safety) .rf-color-legend { display:none !important; }
 

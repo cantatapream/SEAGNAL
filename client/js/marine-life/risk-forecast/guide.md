@@ -169,6 +169,7 @@ bash scripts/refactor/verify_all.sh
 
 - `RiskSheet.create(...).loading(hint)`가 시트를 열고 본문을 회색 틀로 채운다(`aria-busy`). `show`·`error`·`choose`·`clear`가 해제한다. 새 시트 종류를 추가해도 응답 처리 쪽에서 반드시 이 넷 중 하나로 끝나야 한다.
 - 호출 위치는 `RiskForecast.select`(지점 선택)와 `sliderChanged`(시트 시각 변경)뿐이다. `refresh`·60초 갱신에서 부르지 않는다(읽는 도중 내용이 깜빡이지 않게).
+- (2026-10-16) 「연다」는 이제 `present()` 를 거친다 — 시트가 닫혀 있었으면 `select` 가 먼저 부른 `hold(200)` 때문에 내용은 바로 채우되 약 0.2초 뒤에 올라온다. 아래 「선택 테두리·시트 올라오기/내려가기」 절.
 - 늦은 응답 보호는 `detail()`의 `n!==detailSeq || selected!==s || (s.at||t)!==at` 검사다. 이를 약화하지 않는다.
 
 ## 지도 이동 여백 — 과제10
@@ -289,3 +290,20 @@ bash scripts/refactor/verify_all.sh
 - 출처·축척 위치는 `index2.html` 안 `<style>` 규칙과 다툰다. 시험(`test_risk_main_time.js`)은 그 규칙을 index2.html 에서 읽어 시험 화면에 넣는다 — index2 쪽 선택자를 바꾸면 이 시험이 알려 준다.
 - `.rf-color-legend .rf-gradient-labels` 처럼 상자 전체를 잡는 선택자는 이제 연안·해상 두 개를 잡는다. 해상만 보려면 `[data-accident-legend]` 를 붙인다.
 - 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_main_time.js` (선택 `RISK_SHOT_DIR=<폴더>` 로 380·320px 화면 PNG).
+
+
+## 선택 테두리·시트 올라오기/내려가기 — 2026-10-16
+
+사용자 원문: 「격자를 클릭하면 격자가 선택되었다는 느낌으로 격자 테두리를 표시하고 싶어. 표시 방법은 해구기상에서 해구격자를 선택했을떄와 동일한 스타일로. 그리고 선택이후 약간의 딜레이(0.2초?) 정도 후 바텀시트가 나오도록 하고 바텀시트는 현재 동적 애니메이션은 없는 아래서 위로 올라오는 느낌의 애니메이션이 있으면 좋겠어. 현재 해양종합정보 바텀시트에는 애니메이션이 잘 반영되어있음. 그대로 하면될듯. 닫을때도 마찬가지로 말이야.」 · 「바텀시트 애니메이션 및 클릭 관련해서는 연안에도 적용해줘.」
+
+- **가져온 값**: 테두리 = `ocean-map/map/ocean_map.js` `_styleSelectedMainFeature`(해구도 대해구 첫 클릭) 시안 `#4fc3f7`·2.5px 실선(대시·그림자 없음). 움직임 = `style.css` `.ocean-bottom-sheet` `transform:translateY(100%)` ↔ `.open` `translateY(0)`, `transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)`, 닫기 정리 300ms(`ocean_bottom_sheet1.js` `OS.closeSheet`). 소해구(노랑 `#ffeb3b`·2px)는 쓰지 않았다.
+- **지도** (`risk_map_layer.js` `setSelection`): 해상 GR4 칸·연안 관광지 영역·연안 중심 고리 모두 위 값(`SELECTED`). 종전 흰 2.5px(연안·통합 해상)·흰 2px(옛 해상)·흰 고리를 대신한다. 층 순서(선택 136 — 해안선 137·관광지 점 138 아래)는 그대로.
+- **시트** (`risk_sheet.js`): `.rf-shown` = 그려져 있음(올라가는 중·열림·내려가는 중), `.open` = 열림(위). `present()` 가 `.rf-shown` → 다시 그림 계산 → `.open` 순서로 붙여 아래에서 올린다. `hold(ms)` 는 **시트가 안 보일 때만** 올리기를 ms 뒤로 미룬다(다시 부르면 처음부터 — 마지막 선택만). `clear()` 는 `.open` 을 바로 떼고(내려감) 300ms 뒤 `.rf-shown` 을 떼고 본문을 비운다 — 내려가는 동안 내용은 그대로 보인다. 그 사이 다시 열면 정리를 취소하고 그 자리에서 다시 올린다. 대기 중 `clear()` 면 예약을 취소하고 바로 비운다.
+- **조율** (`risk_forecast.js` `select`): 테두리(`layer.setSelection`)는 누르는 즉시, 이어서 `sheet.hold(OPEN_DELAY_MS=200)` → `loading()`(회색 틀)·상세 요청은 바로 시작. 0.2초 안에 응답이 와도 시트는 0.2초에 올라온다. 닫기(✕·뒤로가기·Escape)·층 토글 끔·`setEnabled(false)`(탭 떠남)·`destroy` 는 모두 `clearSelection` → `sheet.clear()` 로 테두리를 지우고 예약을 취소한다.
+- **이미 열린 시트에서 다른 칸**: 내리지 않고 내용만 바꾼다(대기 없음). 해양종합정보 시트는 열린 동안 다른 해점 클릭을 **무시**한다(`ocean_map.js` 「시트 열림 가드 — 사용자 합의 Q3」) — 위험예측은 종전대로 바꿔 보여 주되, 내려갔다 올라오지는 않는다는 점만 맞췄다.
+- **같은 위치 관광지 선택 목록**(`choose`)도 같은 규칙(닫혀 있었으면 0.2초 뒤).
+- **탭 복귀**(`life_safety.js` `_unparkSafety` → `select`): 다시 열 때도 테두리 즉시·0.2초 뒤 올라옴.
+- **움직임 줄이기**: `prefers-reduced-motion:reduce` 면 `.rf-sheet` transition 을 끈다(바로 제자리·바로 아래). 해양종합정보 시트에는 이 규칙이 없다(`style.css` 확인) — 위험예측에만 더했다. 0.2초 대기는 움직임이 아니라 그대로 둔다.
+- **지도 스피너(`waitStart`, 250ms)와는 따로다** — 그것은 지도 색 요청(`refresh`)을 기다릴 때만이고 `select` 는 부르지 않는다. 시트 안의 기다림은 회색 틀이다.
+- `visiblePadding()`(위험구역·관할 해역 이동 여백)은 `.open` 시트의 `getBoundingClientRect` 를 쓰는데 올라오는 0.3초 동안은 덜 올라온 위치를 잰다. 이 이동은 열린 시트 안 버튼에서만 시작돼 실제로는 다 올라온 뒤다.
+- 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_select_motion.js` (선택 `RISK_MOTION_SHOTS=<폴더>` — 누른 순간·올라오는 중 90/150ms·다 올라옴 380px PNG). 1부는 페이지 안 가짜 타이머로 0.2초·0.3초를 한 칸씩, 2부는 실제 지도 클릭과 계산된 transform(시간을 재지 않고 제자리까지 기다림). 다른 시트 시험(`test_risk_sheet_ui`)은 시트를 잴 때 다 올라오기를 기다린다(`waitUp`).

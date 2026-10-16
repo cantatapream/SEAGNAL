@@ -2,6 +2,7 @@
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_map_layer.js
  * 역할  : 해상은 단일 GR4의 연속 면색·확대 척수와 선택 경계로, 연안은 기존 분석으로 표시한다.
+ *           고른 해상 칸·연안 관광지의 선택 테두리는 해구기상 해구 칸 선택과 같은 시안 2.5px(2026-10-16).
  *           연안 면은 테두리 없이 6px 흐리고 해안선에서 다시 자른 뒤 아주 연한 흰 경계선을 따로 얹는다(G안, 사용자 2026-10-16 「연안테두리 g로 반영해보자」).
  *           특보 구역은 이 지도에 그리지 않는다(사용자 확정 2026-10-15 「지도에 특보 영역을 표시하지 말자」).
  * [연계]
@@ -22,6 +23,7 @@
      * [연계] RiskForecast → OpenLayers
      */
     function create(map, select) {
+        var SELECTED='#4fc3f7'; // 선택 테두리 색 — 해구기상 대해구 선택(ocean_map.js _styleSelectedMainFeature)과 같은 값
         var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], trafficCells=[], unifiedCells=[], unified=!!w.RiskMarine, unifiedMode=null, visible=false, active={coast:true,sea:false}, selection=null, land=[], maskKey='', maskCanvas=null, maskRef=null, maskStale=true, smoothCanvas=null, disposed=false, unifiedTable=null, unifiedIndex=new Map(), unifiedRows=new Map(), unifiedFeatures=new Map(), unifiedBins=new Map(), fillStyles=new Map(), numberStyles=new Map();
         ['accident','sea','marine','traffic','coast','hazard','selection','shore','points'].forEach(function (k,i) {
             sources[k]=new ol.source.Vector();
@@ -98,7 +100,7 @@
         // 격자마다 필터를 적용하지 않고 완성된 면색 canvas에 단 한 번 흐림을 적용한다.
         layers.marine.on('postrender',function(e){var ctx=e.context;if(ctx&&ctx.canvas){if(!smoothCanvas)smoothCanvas=document.createElement('canvas');if(smoothCanvas.width!==ctx.canvas.width||smoothCanvas.height!==ctx.canvas.height){smoothCanvas.width=ctx.canvas.width;smoothCanvas.height=ctx.canvas.height;}var sc=smoothCanvas.getContext('2d');sc.clearRect(0,0,smoothCanvas.width,smoothCanvas.height);sc.drawImage(ctx.canvas,0,0);ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);ctx.filter='blur(6px)';ctx.drawImage(smoothCanvas,0,0);ctx.restore();}mask(e,'sea');});
         // 연안 G안: 완성된 연안 면 canvas 전체를 6px 흐린 뒤(해상 marine 과 같은 방식, 단 해상 smoothCanvas 와 섞이지 않게 연안용 canvas 따로)
-        // 같은 육지 가리개로 다시 잘라 해안선은 날카롭게 둔다. 관광지 점(points)·선택 흰 테두리(selection)는 다른 층이라 흐려지지 않는다.
+        // 같은 육지 가리개로 다시 잘라 해안선은 날카롭게 둔다. 관광지 점(points)·선택 테두리(selection)는 다른 층이라 흐려지지 않는다.
         // 클릭 판정은 OL 의 도형 기준 hit(forEachFeatureAtPixel)이라 흐림과 무관하다.
         layers.coast.on('postrender',function (e) {var ctx=e.context;if(ctx&&ctx.canvas){if(!coastSmoothCanvas)coastSmoothCanvas=document.createElement('canvas');if(coastSmoothCanvas.width!==ctx.canvas.width||coastSmoothCanvas.height!==ctx.canvas.height){coastSmoothCanvas.width=ctx.canvas.width;coastSmoothCanvas.height=ctx.canvas.height;}var sc=coastSmoothCanvas.getContext('2d');sc.clearRect(0,0,coastSmoothCanvas.width,coastSmoothCanvas.height);sc.drawImage(ctx.canvas,0,0);ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);ctx.filter='blur(6px)';ctx.drawImage(coastSmoothCanvas,0,0);ctx.restore();} mask(e,'coast'); });
         layers.coastEdge.on('postrender',function (e) { mask(e,'coast'); });
@@ -213,14 +215,23 @@
                 f.setStyle(styles);
             });
         }
+        /**
+         * 지도에서 고른 해상 칸·연안 관광지에 선택 테두리를 그리거나(kind·id) 지운다(kind 없음).
+         * 예: setSelection('marine','GR4_F4K23_P4') → 그 칸 둘레 시안 2.5px / setSelection(null) → 테두리 없음
+         * @param {string|null} kind - 'marine'·'coast'·'accident'·'traffic'·'sea' 또는 null @param {string} [id] - 칸·관광지 id @returns {void}
+         * [연계] ← RiskForecast.select(누르는 즉시 — 시트는 약 0.2초 뒤)·clearSelection(닫기·토글 끔·탭 떠남)·refresh(다시 그린 뒤 같은 선택 복원)
+         */
         function setSelection(kind,id) {
             var changed=!selection||selection.kind!==kind||selection.id!==id;
             selection=kind?{kind:kind,id:id}:null; sources.selection.clear(); if(changed||!selection)sources.hazard.clear();
             if(!selection)return;
             var f=sources[kind]&&sources[kind].getFeatures().find(function(f){return f.get('id')===id;});
             if(kind==='marine'&&!f){var c=unifiedCells.find(function(c){return c.id===id;});if(c){var g=c.geometry||{type:'Polygon',coordinates:[[[c.lon-.0125,c.lat-.0125],[c.lon+.0125,c.lat-.0125],[c.lon+.0125,c.lat+.0125],[c.lon-.0125,c.lat+.0125],[c.lon-.0125,c.lat-.0125]]]};f=new ol.Feature(read(g));}}
-            if(f){var copy=f.clone();copy.setStyle(new ol.style.Style({stroke:new ol.style.Stroke({color:'#fff',width:kind==='sea'?2:2.5})}));sources.selection.addFeature(copy);}
-            if(kind==='coast'){var p=spots.find(function(p){return p.id===id;});if(p){var center=new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([p.lon,p.lat])));center.setStyle(new ol.style.Style({image:new ol.style.Circle({radius:6,stroke:new ol.style.Stroke({color:'#fff',width:2.5})})}));sources.selection.addFeature(center);}}
+            // 선택 테두리는 해양종합정보 「해구기상」에서 대해구 칸을 처음 눌렀을 때와 같은 값이다 — 시안 #4fc3f7·2.5px 실선·대시·그림자 없음
+            // (ocean-map/map/ocean_map.js _styleSelectedMainFeature). 사용자 2026-10-16 「해구기상에서 해구격자를 선택했을떄와 동일한 스타일로」 · 「연안에도 적용해줘」.
+            // 종전 흰 2.5px(연안·통합 해상)·흰 2px(옛 해상) 테두리와 연안 중심 흰 고리를 대신한다. 층 순서(선택 136 — 해안선·관광지 점 아래)는 그대로.
+            if(f){var copy=f.clone();copy.setStyle(new ol.style.Style({stroke:new ol.style.Stroke({color:SELECTED,width:2.5})}));sources.selection.addFeature(copy);}
+            if(kind==='coast'){var p=spots.find(function(p){return p.id===id;});if(p){var center=new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([p.lon,p.lat])));center.setStyle(new ol.style.Style({image:new ol.style.Circle({radius:6,stroke:new ol.style.Stroke({color:SELECTED,width:2.5})})}));sources.selection.addFeature(center);}}
         }
         /**
          * 선택한 위험구역을 그리고 시트에 가려지지 않은 지도 영역의 가운데에 오도록 이동한다.

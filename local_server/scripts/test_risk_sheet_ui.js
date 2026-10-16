@@ -61,7 +61,10 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  if(!await pg.evaluate(()=>!!window.app))throw Error('초기화 실패: '+errors.join(' / '));
  await pg.evaluate(()=>app.ready);
  const rect=sel=>pg.evaluate(s=>{const e=document.querySelector(s);if(!e)return null;const r=e.getBoundingClientRect();return{top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height};},sel);
- const waitTitle=title=>pg.waitForFunction(t=>document.querySelector('#risk-forecast-sheet .rf-title').textContent===t&&document.querySelector('#risk-forecast-sheet .rf-index'),title);
+ /** 시트가 다 올라왔는지 — .open 이고 계산된 transform 이 제자리(올라오는 0.3초 동안은 중간값). 시간을 재지 않고 실제 움직임이 끝나기를 기다린다(2026-10-16 시트 애니메이션).
+  * 예: await waitUp() · waitUp('#long-sheet'). @param {string} [sel] 시트 @returns {Promise<void>} [연계] ← waitTitle·브리핑 시나리오 */
+ const waitUp=(sel='#risk-forecast-sheet')=>pg.waitForFunction(s=>{const e=document.querySelector(s);if(!e||!e.classList.contains('open'))return false;const t=getComputedStyle(e).transform;return t==='none'||t==='matrix(1, 0, 0, 1, 0, 0)';},sel);
+ const waitTitle=async title=>{await pg.waitForFunction(t=>document.querySelector('#risk-forecast-sheet .rf-title').textContent===t&&document.querySelector('#risk-forecast-sheet .rf-index'),title);await waitUp();};
  /** 시트를 닫고 새로 연다. 예: open('a'). @param {string} id 지점 @returns {Promise<void>} [연계] ← 시나리오 */
  async function open(id){await pg.evaluate(i=>app.select('coast',i),id);await waitTitle(spots.find(p=>p.id===id).name);}
  /** 하단 탭 상태를 바꾼다. 예: tabs({sub:true}). @param {object} o sub=서브탭 열림, safe=아래 여백 포함 @returns {Promise<void>} [연계] ← 가림 시나리오 */
@@ -96,7 +99,7 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
    const regions=Array.from({length:20},(_,i)=>({location:'제주항 북서방 '+i+'해리 해역',attention:'주의',point:{lon:126.5,lat:33.5},reasons:[{text:'근거 '+i+' 문장입니다. 최근 선박 사고와 현재 교통량을 함께 본 설명입니다.',at:'2026-10-15T15:00:00+09:00'},{text:'두 번째 근거 '+i}]}));
    sheet.show({station:{name:'제주'},t:'2026-10-15T15:00:00+09:00',current:{count:120,gridCount:30,types:[{name:'어선',count:80}],status:'ok',collectedAt:'2026-10-15T14:50:00+09:00'},history:{available:true,from:'2023',to:'2026',count:10,death:1,missing:0,topTypes:[{type:'충돌',count:4}],weatherCause:2},method:'집계 방법',totalAttentionRegions:20,regions},'briefing',{});
    return true;});
-  assert.ok(r);const m=await scrollEnd('#long-sheet');console.log('측정 브리핑 20개 해역',JSON.stringify(m));
+  assert.ok(r);await waitUp('#long-sheet');const m=await scrollEnd('#long-sheet');console.log('측정 브리핑 20개 해역',JSON.stringify(m));
   assert.ok(m.scrollable&&m.headMoved===0&&m.closeMoved===0&&m.closeVisible);assert.ok(Math.abs(m.sheetBottom-m.tabTop)<=.5);assert.ok(!m.lastCovered);
   await pg.evaluate(()=>document.getElementById('long-sheet').remove());
  });
@@ -123,7 +126,7 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  const sheetState=()=>pg.evaluate(()=>{const el=document.getElementById('risk-forecast-sheet');return{open:el.classList.contains('open'),busy:el.getAttribute('aria-busy'),skeleton:!!el.querySelector('.rf-skeleton'),title:el.querySelector('.rf-title').textContent,body:el.querySelector('.rf-body').textContent,rows:el.querySelectorAll('.rf-row').length,index:!!el.querySelector('.rf-index'),stack:Array.from(PopupStack.list()),bottom:el.getBoundingClientRect().bottom};});
  await check('지점을 누르면 응답 전에 시트가 열리고 회색 틀과 그 지점 이름만 보임',async()=>{
   await fresh();const release=hold('a|'+now);await pg.evaluate(()=>app.select('coast','a'));
-  const st=await sheetState();console.log('측정 응답 대기 중 시트',JSON.stringify({open:st.open,skeleton:st.skeleton,title:st.title,bottom:st.bottom,stack:st.stack}));
+  await waitUp();const st=await sheetState();console.log('측정 응답 대기 중 시트',JSON.stringify({open:st.open,skeleton:st.skeleton,title:st.title,bottom:st.bottom,stack:st.stack}));
   assert.ok(st.open&&st.skeleton&&st.busy==='true');assert.equal(st.title,'광안리해수욕장');assert.equal(st.rows,0);assert.ok(!st.index);assert.deepEqual(st.stack,['risk-forecast-sheet']);assert.equal(st.bottom,847);
   assert.equal(await pg.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-time-label').length),1,'응답 전에도 시각 조작은 보임');
   release();await waitTitle('광안리해수욕장');const done=await sheetState();assert.ok(!done.skeleton&&done.busy===null&&done.rows>3);
@@ -140,7 +143,7 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  });
  await check('응답을 기다리는 동안 시트를 닫으면 늦은 응답이 시트를 다시 열지 않음',async()=>{
   await fresh();const release=hold('a|'+now);await pg.evaluate(()=>app.select('coast','a'));await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());
-  release();await pg.waitForTimeout(400);const st=await sheetState();assert.ok(!st.open&&st.body===''&&!st.busy);assert.deepEqual(st.stack,[]);assert.equal(await pg.evaluate(()=>app.getState().selected),null);
+  release();await pg.waitForTimeout(400);await pg.waitForFunction(()=>!document.getElementById('risk-forecast-sheet').classList.contains('rf-shown'));/* 내려가기(0.3초)가 끝나야 본문을 비운다 — 2026-10-16 */const st=await sheetState();assert.ok(!st.open&&st.body===''&&!st.busy);assert.deepEqual(st.stack,[]);assert.equal(await pg.evaluate(()=>app.getState().selected),null);
  });
  await check('상세 요청이 실패하면 회색 틀 대신 오류와 다시 시도(꾸미지 않음)',async()=>{
   await fresh();failures.add('a|'+now);await pg.evaluate(()=>app.select('coast','a'));

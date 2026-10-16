@@ -4,6 +4,7 @@
  * 역할  : 해상 지도 [위험 예측](공식 사고예보)·[혼잡도](지금 밀집도·미래 혼잡예보) 두 칸 선택을 단일 격자 지도와 상세와 연안·해상 공통 하단 시각 버튼(-6H~+6H 5개, 2026-10-16)에 연결하고 시트 시각과 뒤로가기를 조율한다.
  *         (2026-10-15 조작부 시안 — 「표시 항목」 접이식 폐지. 종합 관심단계는 같은 날 폐지.)
  *         사용자가 누른 동작이 250ms 넘게 걸리면 지도 가운데 스피너·이전 색 흐림, 실패면 「잠시 후 다시 시도해 주세요」 2초(2026-10-16 T4).
+ *         칸·관광지를 누르면 선택 테두리는 즉시, 닫혀 있던 시트는 약 0.2초 뒤 아래에서 올라온다(2026-10-16).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈) / style.css .spinner(기다림 표시) · risk_forecast.css .rf-map-wait
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js) — 해상 시트는 sea/analysis 뒤 sea/traffic-history?days=15
@@ -33,6 +34,7 @@
     function mount(options) {
         var map=options.map,api=w.RiskAPI.create(),enabled=options.enabled!==false,state={coast:true,sea:false},meta=null,t=null,selected=null,choosing=false,seq=0,detailSeq=0,table={coast:{spots:[]},sea:{cells:[]},accident:{cells:[]},traffic:{cells:[]}},oldBase=null,bannerText='',disposed=false,boundariesLoaded=false,syncPending=null,accidentFresh=false,marineMode='risk',coastVersion=null,boundaryPending=null;
         var legend=options.legendEl,sheetEl=options.sheetEl,banner=options.bannerEl;
+        var OPEN_DELAY_MS=200; // 선택 테두리를 먼저 보이고 시트를 올리기까지(사용자 2026-10-16 「약간의 딜레이(0.2초?)」). 지도 스피너의 250ms(waitStart)와는 따로다 — 그것은 지도 색 요청을 기다릴 때만.
         var layer=w.RiskMapLayer.create(map,select),sheet=w.RiskSheet.create(sheetEl,{close:clearSelection,hazard:hazard,basis:w.RiskBasis.open,choose:select,marinePoint:function(lon,lat){var pad=visiblePadding();select('marine','point',{lon:lon,lat:lat});var xy=ol.proj.fromLonLat([lon,lat]);map.getView().fit([xy[0]-50,xy[1]-50,xy[0]+50,xy[1]+50],{padding:pad,maxZoom:14,duration:250});},retry:function(){api.clear();refresh();}});
         legend.innerHTML='<div class="banzone-legend" role="group" aria-label="위험예측 보기"><button type="button" class="bzl-row on" data-layer="coast" aria-pressed="true"><span class="bzl-name">연안 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button><button type="button" class="bzl-row" data-layer="sea" aria-pressed="false"><span class="bzl-name">해상 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button></div><div class="rf-map-legend" hidden><div class="rf-accident-key" data-sea-legend hidden>점·점선 = 공단 선박 혼잡 (실제 선박 위치·척수 아님) <span><i style="border:2px dashed #b8c5da;background:transparent"></i>낮음</span> · <span><i style="border:2px dashed #74b9ff;background:transparent"></i>보통</span> · <span><i style="border:2px dashed #d47cff;background:transparent"></i>높음</span> · <span><i style="border:2px dashed #ff5fe3;background:transparent"></i>매우높음</span></div><div class="rf-accident-key" data-accident-legend hidden>면 = 공단 선박 사고예보 <span><i style="background:#2fb36b"></i>낮음</span> · <span><i style="background:#f2c230"></i>보통</span> · <span><i style="background:#fb923c"></i>주의</span> · <span><i style="background:#e0322c"></i>경계</span></div></div>';
         if(w.RiskMarine){legend.classList.add('rf-marine-compact');legend.querySelector('.rf-map-legend').innerHTML='<div data-sea-legend hidden><strong class="rf-marine-caption" data-marine-caption>공식 사고예보</strong><div data-accident-legend hidden class="rf-mini-key"></div></div>';}
@@ -187,14 +189,24 @@
          * [연계] ← 하단 버튼 nextTime·sync·층 스위치 / → meta.timeline.coast, seaTimes. 시트 시각과는 무관하다.
          */
         function mainTimes(){var coast=state.coast&&meta.timeline.coast&&meta.timeline.coast.times||[];coast=coast.filter(function(at){return Date.parse(at)>=Date.parse(meta.now);});return coast.length&&!state.sea?coast:Array.from(new Set(coast.concat(seaTimes()))).sort(function(a,b){return Date.parse(a)-Date.parse(b);});}
+        /**
+         * 지도에서 고른 해상 칸·연안 관광지를 선택하고 상세 시트를 연다(테두리는 즉시, 시트는 닫혀 있었으면 약 0.2초 뒤).
+         * 예: select('marine','GR4_F4K23_P4',{lon:126.53,lat:33.56}) · select('coast','S1') · select('coast',['a','c']) → 같은 위치 관광지 선택 목록
+         * @param {string} kind - marine/coast/accident/traffic/sea @param {string|string[]} id - 칸·관광지 id(배열이면 선택 목록) @param {Object} [location] - 해상 클릭 경위도
+         * @returns {void} [연계] ← RiskMapLayer.hit·시트 안 버튼·life_safety.js 탭 복귀 / → layer.setSelection·RiskSheet.hold/loading·detail
+         */
         function select(kind,id,location){
             if(kind==='briefing')return;
             if(!enabled||!state[seaKind(kind)]||disposed)return;
-            if(Array.isArray(id)){var choices=table.coast.spots.filter(function(p){return id.includes(p.id);});clearSelection();choosing=true;sheet.choose(choices);registerSheet();return;}
+            if(Array.isArray(id)){var choices=table.coast.spots.filter(function(p){return id.includes(p.id);});clearSelection();choosing=true;if(sheet.hold)sheet.hold(OPEN_DELAY_MS);sheet.choose(choices);registerSheet();return;}
             var item=kind==='marine'?{id:id,lon:location&&location.lon,lat:location&&location.lat}:kind==='briefing'?{id:id}:(kind==='coast'?table.coast.spots:table[kind].cells).find(function(p){return p.id===id;});if(!item)return;
             if(!selected||selected.id!==id||selected.kind!==kind)layer.setSelection(kind==='briefing'?null:kind,id);
             choosing=false;selected={kind:kind,id:id,item:item,at:t,location:seaKind(kind)==='sea'&&location&&Number.isFinite(location.lon)&&Number.isFinite(location.lat)?{lon:location.lon,lat:location.lat}:null};
-            // 누르는 즉시 시트를 열고 회색 틀을 보인다. 이전 지점의 제목은 남기지 않고 이 지점의 이름(연안만 알고 있음)만 쓴다.
+            // 누르는 즉시 회색 틀을 채우고 상세를 요청한다. 이전 지점의 제목은 남기지 않고 이 지점의 이름(연안만 알고 있음)만 쓴다.
+            // 시트가 닫혀 있으면 지도 선택 테두리(위 setSelection, 즉시)를 먼저 보이고 약 0.2초 뒤에 시트가 올라온다(사용자 2026-10-16
+            // 「선택이후 약간의 딜레이(0.2초?) 정도 후 바텀시트가 나오도록」). 그 안에 다른 곳을 누르면 마지막 것만, 닫기·토글 끔·탭 떠남이면 올리지 않는다(RiskSheet.hold·clear).
+            // 이미 열려 있으면(또는 내려가는 중이면) 내리지 않고 내용만 바꾼다 — 해양종합정보 시트도 열린 채로 내려갔다 올라오지 않는다.
+            if(sheet.hold)sheet.hold(OPEN_DELAY_MS);
             sheet.loading({title:kind==='coast'&&typeof item.name==='string'?item.name:'',subtitle:''});registerSheet();
             if(meta){selected.at=nearest(selectionTimes(kind),t||meta.now);mountSlider();}detail();
         }

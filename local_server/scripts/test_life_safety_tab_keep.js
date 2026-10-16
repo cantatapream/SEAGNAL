@@ -139,6 +139,10 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
   await tab('ocean-life-group');await page.waitForFunction(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')&&document.querySelector('#risk-forecast-sheet .rf-title').textContent.includes('S1'),null,{timeout:8000});
   s=await S();assert.deepEqual(s.app.selected&&[s.app.selected.kind,s.app.selected.id],['coast','S1']);
   assert.ok(s.title.includes(T.isoKst(clock.now)),'시트 시각은 메인 시각(현재)에서 시작 — '+s.title);assert.ok((s.stack||[]).includes('risk-forecast-sheet'),'다시 연 시트는 뒤로가기 목록에 있다');
+  // 2026-10-16 선택 테두리·시트 올라오기: 다시 연 관광지도 해구기상 선택과 같은 시안 2.5px 테두리, 시트는 아래에서 올라와 제자리(계산된 transform)에 선다.
+  await page.waitForFunction(()=>{const m=getComputedStyle(document.getElementById('risk-forecast-sheet')).transform;return m==='none'||m==='matrix(1, 0, 0, 1, 0, 0)';});
+  const sel=await page.evaluate(()=>{const l=window.getOceanMap().getLayers().getArray().find(l=>l.getClassName()==='rf-selection-canvas');return l.getSource().getFeatures().map(f=>{const st=f.getStyle(),k=st.getStroke()||st.getImage().getStroke();return[k.getColor(),k.getWidth()];});});
+  assert.ok(sel.length>0&&sel.every(([c,w])=>c==='#4fc3f7'&&w===2.5),'다시 연 선택 테두리 '+JSON.stringify(sel));
   await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());
  });
 
