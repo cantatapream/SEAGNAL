@@ -154,11 +154,12 @@ function handOut() {
  * gemini_client.callGeminiRaw 와 **같은 반환 모양**으로 codex 답을 받아 온다.
  * 예: callRaw({ contents: '…', config: { responseMimeType: 'application/json' }, caller: 'Legal-Clarify' })
  *     → { success: true, response: { text: '{"needed":false}' }, error: null, isRateLimited: false, keyLabel: 'codex' }
- * @param {{contents:any, config?:object, caller?:string}} args
+ * @param {{contents:any, config?:object, caller?:string, model?:string}} args
+ *   model: 요청 범위(withRequest) 밖에서 부르는 곳이 모델을 직접 고를 때만(관할 브리핑 — 관리자 「AI 브리핑」 설정). 없으면 종전대로 요청 범위의 모델 → 기본 모델.
  * @returns {Promise<{success:boolean, response:{text:string}|null, error:string|null, isRateLimited:boolean, keyLabel:string}>}
- * [연계] ← gemini_client.js. → 작업자(scripts/codex_worker.js)가 poll/result 로 처리.
+ * [연계] ← gemini_client.js · station_briefing_ai(관할 브리핑 총평, model 지정). → 작업자(scripts/codex_worker.js)가 poll/result 로 처리.
  */
-function callRaw({ contents, config, caller = 'unknown' }) {
+function callRaw({ contents, config, caller = 'unknown', model }) {
   const fail = (error) => ({ success: false, response: null, error, isRateLimited: false, keyLabel: 'codex' });
   if (!workerAlive()) {
     console.error(`[Codex] VM 작업자 연결 없음 caller=${caller} (마지막 접속 ${lastWorkerSeenAt ? Math.round((Date.now() - lastWorkerSeenAt) / 1000) + '초 전' : '없음'})`);
@@ -168,7 +169,7 @@ function callRaw({ contents, config, caller = 'unknown' }) {
   const json = !!(config && config.responseMimeType === 'application/json');
   return new Promise((resolve) => {
     const store = als.getStore() || {};
-    const job = { id, prompt: promptText(contents), json, caller, model: store.model || DEFAULT_MODEL, state: 'queued', createdAt: Date.now(), resolve: null, timer: null };
+    const job = { id, prompt: promptText(contents), json, caller, model: (ANSWER_MODELS.includes(model) && model !== 'gemini' ? model : null) || store.model || DEFAULT_MODEL, state: 'queued', createdAt: Date.now(), resolve: null, timer: null };
     job.resolve = (r) => { clearTimeout(job.timer); jobs.delete(id); resolve(r); };
     job.timer = setTimeout(() => {
       const i = queue.indexOf(id); if (i >= 0) queue.splice(i, 1);

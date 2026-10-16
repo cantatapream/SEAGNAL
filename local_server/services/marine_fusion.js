@@ -2,6 +2,7 @@
  * 파일명: local_server/services/marine_fusion.js
  * 역할  : 현재 교통·공식 예보·기존 선박사고를 같은 위치로 연결해 해역과 관할의 근거 있는 설명을 만든다.
  * [연계] risk_store.marineInputs → 본 저장소 → routes/risk_forecast → RiskMarine 화면.
+ *        관할 브리핑(station_briefing_inputs)이 stationAt·cellHistory 로 같은 관할 배정·과거 사고 집계를 쓴다(2026-10-16).
  *        특보 상자(marine.warnings): marineInputs.warnings(weather_alerts.json) · sea_warning_history.extract · warn_zone_cells(칸→특보구역).
  * [로드 순서] 요청에서 외부 수집·Gemini 호출 없음. 연안 관광객 사고는 읽지 않는다.
  */
@@ -232,6 +233,13 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const status=freshness(),result={station:{id:s.id,name:s.name},t:at,current:live?{count:rows.length?count:null,gridCount:rows.length,...status}:null,history:historySummary,regions:regions.slice(0,20).map(r=>r.history?{...r,history:{...r.history,accidents:undefined}}:r),totalAttentionRegions:regions.length,gridCount:candidates.size,method:'격자 중심이 속한 관할로 배정한 척수 집계. 경계·중복 관할은 이름순 1개에 배정하며 실제 선박 위치 기반 관할 척수가 아닙니다. 수신 격자가 없는 관할은 0척이 아닌 자료 없음으로 표시합니다.',baselineAvailable:false};
         briefCache.set(key,result);while(briefCache.size>8)briefCache.delete(briefCache.keys().next().value);return result;
     }
-    return{tables,current,unifiedCells,unifiedFrame,jurisdictionList,analysis,briefing};
+    /** 한 점이 든 관할을 준다(관할 브리핑 수집용 — 위 briefing 과 같은 규칙: 겹치면 이름순 1곳). 예: stationAt([126.2,33.45]) → {id:'88',name:'한림파출소',station:'제주해양경찰서'} · 관할 밖 → null
+     * @param {number[]} p - [경도,위도] @returns {object|null} [연계] ← station_briefing_inputs.collectSea / → stationFor */
+    function stationAt(p){const s=stationFor(p);return s?{id:s.id,name:s.name,station:s.station}:null;}
+    /** 한 칸(경계) 안 과거 선박사고 집계를 준다(관할 브리핑 해역 카드 「특성」 — 시트의 history 와 같은 계산, 사고 목록은 뺀다).
+     * 예: cellHistory(사고칸.geometry,'grid:12345') → {count:18,topTypes:[{type:'충돌',count:7}],death:1,missing:0,from:'2021-01-01',to:'2025-12-31',…}
+     * @param {object} geometry - GeoJSON Polygon @param {string} key - 캐시 열쇠(시트와 같은 'grid:'+id) @returns {object} [연계] ← station_briefing_inputs.collectSea / → history */
+    function cellHistory(geometry,key){const{accidents:_,...rest}=history(geometry,key);return rest;}
+    return{tables,current,unifiedCells,unifiedFrame,jurisdictionList,analysis,briefing,stationAt,cellHistory};
 }
 module.exports={createStore,location,trafficLevel,densityLevel,accidentList,collisionNotice,riskColors,summary,warningsAt,warnTime,INCIDENTS};

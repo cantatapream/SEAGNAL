@@ -271,6 +271,7 @@ app.use(require('./routes/push_test'));
 app.use(require('./routes/location_alert'));  // 위치기반 특보 경보 동의 기록 API (④)
 app.use(require('./routes/risk_errors'));  // 기존 관리자 토큰으로 보호된 사고예측 오류현황
 app.use(require('./routes/data_collection'));  // 관리자 점검 → 데이터 수집현황(수집 목록) — 같은 토큰 인증
+app.use(require('./routes/station_briefing'));  // 활동지점 안전 브리핑(파출소 관할) — 노출 판정·관리자 설정(같은 토큰 인증)
 app.use(require('./routes/admin'));
 app.use(require('./routes/survey'));
 app.use(require('./routes/report'));
@@ -511,6 +512,9 @@ app.listen(PORT, '0.0.0.0', () => {
             try { require('./services/' + name).start(); }
             catch (_) { console.error('[startup] 위험예측 수집기 시작 실패:', name); }
         }
+        // 활동지점 안전 브리핑 — 운영에서만 1분 점검(08:00·17:30·23:00 KST + 특보 변경). 시작 때 계산·외부 호출은 없다(첫 점검 1분 뒤).
+        try { require('./services/station_briefing').start(); }
+        catch (_) { console.error('[startup] 활동지점 안전 브리핑 시작 실패'); }
 
         // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
         try {
