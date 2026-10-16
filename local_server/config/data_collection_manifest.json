@@ -40,11 +40,10 @@
         ]
       },
       "schedule": {
-        "text": "매일 09:30·21:30 KST + 서버 기동 때 1회, 그리고 30분마다(:15·:45) 새 판 확인 — 가진 판이 최신이면 묻지 않고, 다 올라온 새 판만 받는다. 찾은 판이 가진 판보다 오래되면 덮어쓰지 않음",
-        "times": ["09:30", "21:30"],
+        "text": "30분마다(매시 00·30분 KST) + 서버 기동 때 1회. 찾은 판이 가진 판보다 오래되면 덮어쓰지 않음",
+        "minutes": [0, 30],
         "evidence": [
-          { "file": "local_server/scheduler.js", "quote": "if (['09:30', '21:30'].includes(hm)) collectZoneForecasts();" },
-          { "file": "local_server/scheduler.js", "quote": "if (min === 15 || min === 45) collectZoneForecasts({ poll: true });" },
+          { "file": "local_server/scheduler.js", "quote": "if (min === 0 || min === 30) collectZoneForecasts();" },
           { "file": "local_server/scheduler.js", "quote": "if (zoneVerdict === 'older' || zoneVerdict === 'none') {" }
         ]
       },
@@ -58,7 +57,7 @@
         "basisCycleHours": 12,
         "statusFile": "zone_forecasts_status.json"
       },
-      "graceMinutes": 30
+      "graceMinutes": 60
     },
     {
       "id": "warnings",

@@ -551,33 +551,10 @@ function parseKmaTable(text) {
     return rows;
 }
 /**
- * 해구 예보 판(tm)이 다 올라왔나 — 첫 시각(+0h)과 마지막 시각(+75h)이 둘 다 있어야 「올라옴」.
- * 예: await zoneRunReady('2026101612') → true/false
- * @param {string} tm - 판(UTC YYYYMMDDHH) @returns {Promise<boolean>}
- * [연계] ← collectZoneForecasts({poll:true}) — 덜 올라온 판을 받아 일부 시각이 빈 채로 저장하지 않으려고
- */
-async function zoneRunReady(tm) {
-    const base = Date.UTC(+tm.slice(0, 4), +tm.slice(4, 6) - 1, +tm.slice(6, 8), +tm.slice(8, 10));
-    for (const h of [0, 75]) {
-        const ef = getUtcTm(new Date(base + h * 60 * 60 * 1000));
-        try {
-            const response = await fetchWithTimeout(`${CONFIG.URLS.SEA_ZONE_LARGE}?tma_fc=${tm}&tma_ef=${ef}&Lzone=0&disp=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`, {}, 8000);
-            const text = new TextDecoder('euc-kr').decode(await response.arrayBuffer());
-            if (!response.ok || !text.includes('#START7777')) return false;
-        } catch (e) { return false; }
-    }
-    return true;
-}
-
-/**
  * 해상 zone 별 단기예보(파고/바람/날씨) 수집 — zone_forecasts.json 갱신.
  * 동시 실행 방지: isCollectingZone 플래그.
- * opts.poll = true: 「새 판 확인」(30분마다). 가진 판이 최신이면 기상청에 묻지 않고 끝, 가진 판보다 새 판만 찾고,
- *   다 올라온 판(+0h·+75h)만 받으며, 26개 시각을 다 받았을 때만 저장한다. 못 찾으면 「아직 미게시」만 기록.
- *   기상청 API허브 답변(2026-10-16): 「생성하는데 6시간 이상이 소요될 수 있습니다. 충분한 시간적 여유를 두고 호출」.
  */
-async function collectZoneForecasts(opts = {}) {
-    const poll = opts.poll === true;
+async function collectZoneForecasts() {
     if (isCollectingZone) return;
     isCollectingZone = true;
     try {
@@ -587,18 +564,7 @@ async function collectZoneForecasts(opts = {}) {
         else latestUtc.setUTCHours(12, 0, 0, 0);
 
         let validBaseTm = null;
-        if (poll) {
-            const stored = zoneGuard.storedBase(CONFIG.DATA_DIR), expected = getUtcTm(latestUtc);
-            const candidates = zoneGuard.pollCandidates(stored, expected);
-            if (!candidates.length) return;   // 가진 판이 이미 최신 — 기상청에 묻지 않는다
-            for (const tm of candidates) if (await zoneRunReady(tm)) { validBaseTm = tm; break; }
-            if (!validBaseTm) {
-                const kept = zoneGuard.record(CONFIG.DATA_DIR, { result: 'waiting', stored, found: null, expected });
-                lastRunStatus.zone = { lastRun: getNowStr(), status: '유지', message: kept ? kept.message : '새 판 아직 미게시, 기존 판 유지' };
-                return;
-            }
-        }
-        for (let i = 0; !poll && i <= 3; i++) {
+        for (let i = 0; i <= 3; i++) {
             const searchDate = new Date(latestUtc.getTime() - i * 12 * 60 * 60 * 1000);
             const tm = getUtcTm(searchDate);
             const url = `${CONFIG.URLS.SEA_ZONE_LARGE}?tma_fc=${tm}&tma_ef=${tm}&Lzone=0&disp=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
@@ -632,7 +598,6 @@ async function collectZoneForecasts(opts = {}) {
             const baseDate = new Date(Date.UTC(parseInt(validBaseTm.substring(0, 4)), parseInt(validBaseTm.substring(4, 6)) - 1, parseInt(validBaseTm.substring(6, 8)), parseInt(validBaseTm.substring(8, 10))));
 
             const zoneSteps = Math.floor(75 / 3) + 1; // 26 steps
-            let stepsOk = 0;
             for (let h = 0; h <= 75; h += 3) {
                 const stepIdx = h / 3 + 1;
                 collectProgress.emit('progress', { type: 'zone', step: '해구별 예보', current: stepIdx, total: zoneSteps, detail: `+${h}시간` });
@@ -644,7 +609,6 @@ async function collectZoneForecasts(opts = {}) {
                     const buffer = await response.arrayBuffer();
                     const text = new TextDecoder('euc-kr').decode(buffer);
                     if (text.includes('#START7777')) {
-                        stepsOk++;
                         const rows = parseKmaTable(text);
                         rows.forEach(row => {
                             row.tm = tm_ef;
@@ -655,11 +619,7 @@ async function collectZoneForecasts(opts = {}) {
                 } catch (e) { }
                 await new Promise(r => setTimeout(r, 200));
             }
-            if (poll && stepsOk < zoneSteps) {
-                // 새 판 확인: 시각 일부가 빈 판은 저장하지 않는다(다음 확인 때 다시 받는다)
-                const kept = zoneGuard.record(CONFIG.DATA_DIR, { result: 'partial', stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
-                lastRunStatus.zone = { lastRun: getNowStr(), status: '유지', message: kept ? kept.message : `새 판 ${validBaseTm} 일부만 받음(${stepsOk}/${zoneSteps}) — 저장 안 함` };
-            } else if (Object.keys(zoneDataMap).length > 0) {
+            if (Object.keys(zoneDataMap).length > 0) {
                 saveData('zone_forecasts.json', { updatedAt: getNowStr(), baseTmUtf: validBaseTm, data: zoneDataMap, count: Object.keys(zoneDataMap).length });
                 lastRunStatus.zone = { lastRun: getNowStr(), status: '성공', message: `${Object.keys(zoneDataMap).length}개 구역 저장` };
                 zoneGuard.record(CONFIG.DATA_DIR, { result: zoneVerdict, stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
@@ -2708,11 +2668,10 @@ async function init() {
         //   11시분을 17:15까지 못 받던 것 보완(사용자 2026-10-15 「해상단기통보문은 11시 15분 한번 더 넣고」)
         if (['05:15', '11:15', '17:15'].includes(hm)) collectGeneralForecasts();
 
-        // 해구별 기상전망: 하루 2회 (09:30, 21:30 KST)
-        if (['09:30', '21:30'].includes(hm)) collectZoneForecasts();
-        // 해구별 기상전망 새 판 확인: 30분마다(:15·:45) — 기상청 API허브 답변(2026-10-16) 「생성하는데 6시간 이상이 소요될 수 있습니다」.
-        //   가진 판이 최신이면 기상청에 묻지 않는다 — 새 판이 올라오기를 기다리는 몇 시간 동안만 30분마다 +0h·+75h 두 번 묻는다.
-        if (min === 15 || min === 45) collectZoneForecasts({ poll: true });
+        // 해구별 기상전망: 30분마다(매시 00·30분 KST — 종전 09:30·21:30 포함).
+        //   기상청 API허브 답변(2026-10-16) 「생성하는데 6시간 이상이 소요될 수 있습니다」 — 새 판이 늦게 올라와도 30분 안에 받는다.
+        //   사용자 2026-10-16: 「그냥 아무런 변화 없이 30분에 한번 점검하도록」(수집 방식은 그대로, 횟수만).
+        if (min === 0 || min === 30) collectZoneForecasts();
 
         // 중기해상예보: 하루 2회 (06:15, 18:15)
         if (['06:15', '18:15'].includes(hm)) collectMidTermSeaForecasts();
