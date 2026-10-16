@@ -26,7 +26,8 @@
      * API·지도·스위치·슬라이더·상세 시트의 상태를 조율한다.
      * 예: RiskForecast.mount({map,sheetEl,legendEl,bannerEl})
      * @param {Object} options - 지도·시트·범례·배너·초기 enabled
-     * @returns {Object} ready·setEnabled·select·refresh·getState·destroy API
+     * @returns {Object} ready·setEnabled·select·refresh·getState·synced·destroy API
+     *          (getState().selected.location·synced() — 2026-10-16 탭 왕복 시 시트 다시 열기용, life_safety.js 1-3 절)
      * [연계] index2·미리보기 → RiskAPI·RiskMapLayer·RiskSheet
      */
     function mount(options) {
@@ -283,7 +284,7 @@
         if(enabled)satelliteOn();
         var ready=enabled?sync():Promise.resolve();
         var timer=setInterval(function(){if(enabled&&!disposed)sync();},60000);
-        return {ready:ready,setEnabled:setEnabled,select:select,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id}};},destroy:function(){disposed=true;clearInterval(timer);document.removeEventListener('keydown',escapeSheet);seq++;waitEnd(false);if(waitEl)waitEl.remove();clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();document.body.classList.remove('rf-sea-time-on');}}};
+        return {ready:ready,setEnabled:setEnabled,select:select,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id,location:selected.location}};},synced:function(){return syncPending||Promise.resolve();},destroy:function(){disposed=true;clearInterval(timer);document.removeEventListener('keydown',escapeSheet);seq++;waitEnd(false);if(waitEl)waitEl.remove();clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();document.body.classList.remove('rf-sea-time-on');}}};
     }
     /**
      * 해양안전의 실제 위험예측 버튼과 지도 클릭 훅을 등록한다.
