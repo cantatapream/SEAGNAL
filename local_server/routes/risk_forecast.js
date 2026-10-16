@@ -2,6 +2,7 @@
  * 역할: 연안 분석·공식 선박사고와 혼잡 예보·자료 상태·원본 PDF를 수집 없이 제공한다.
  * [연계] risk_store → /api/risk-forecast/* → marine-life/risk-forecast 화면.
  *        sea/traffic-history 는 sea_traffic_history.createApi(칸별 2주 30분 척수 + 특보 발효 구간) — 화면은 디자인 확정 뒤.
+ *        기본 저장소(stores)는 관할 브리핑(services/station_briefing.js forDefault)이 함께 쓴다.
  * [로드 순서] server.js 라우트 등록. 요청에서는 수집·AI·푸시 호출이 없다.
  */
 'use strict';
@@ -37,4 +38,6 @@ function createRouter({store=createStore(),marine=require('../services/marine_fu
     router.get(base+'/report/:kind',(req,res)=>{const names={sea:'해상_위험지수_산출근거.pdf',coast:'연안_위험지수_산출근거.pdf'},name=names[req.params.kind];if(!name)return res.status(404).json({ok:false,error:'보고서 종류 없음'});const file=path.join(reportDir,name);if(!fs.existsSync(file))return res.status(503).json({ok:false,error:'보고서 준비 전'});res.set('Cache-Control','public, max-age=86400').set('Content-Type','application/pdf').set('Content-Disposition',"attachment; filename*=UTF-8''"+encodeURIComponent(name));res.sendFile(file,error=>{if(error&&!res.headersSent)res.status(503).json({ok:false,error:'보고서 읽기 실패'});});});
     return router;
 }
-const router=createRouter();module.exports=router;module.exports.createRouter=createRouter;
+// 기본 저장소는 여기서 한 벌만 만들어 관할 브리핑(services/station_briefing.forDefault)과 함께 쓴다 — 같은 원천 자료를 메모리에 두 번 들고 있지 않게(2026-10-16).
+const defaultStore=createStore(),defaultMarine=require('../services/marine_fusion').createStore({risk:defaultStore});
+const router=createRouter({store:defaultStore,marine:defaultMarine});module.exports=router;module.exports.createRouter=createRouter;module.exports.stores={risk:defaultStore,marine:defaultMarine};
