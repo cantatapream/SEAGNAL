@@ -153,7 +153,7 @@ app.get('/', (req, res) =>
         await test('근거 보기: 저장소 경로:줄과 인용', async () => {
             await page.locator('[data-ds-card="zoneForecasts"] summary').click();
             const t = await page.locator('[data-ds-card="zoneForecasts"] details').innerText();
-            assert.ok(/local_server\/scheduler\.js:\d+/.test(t) && t.includes("['09:30', '21:30']"), t.slice(0, 200));
+            assert.ok(/local_server\/scheduler\.js:\d+/.test(t) && t.includes('min === 0 || min === 30'), t.slice(0, 200));
         });
         await test('출처 거르기: 기상청 MMIS 만', async () => {
             await page.locator('[data-ds-provider]').selectOption('kma-mmis');

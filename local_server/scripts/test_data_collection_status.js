@@ -162,29 +162,31 @@ const { createRouter } = routeModule.exports;
             collectFails: () => fails, // 실제 data/collect_fail_alert.json 을 읽지 않게
         });
         const get = async (id) => (await status.list()).items.find((i) => i.id === id);
-        // 해구 예보: 00UTC 판(09시 KST)을 09:30 에 받음 → 새 판은 21:30 회차에 기대.
+        // 해구 예보: 00UTC 판(09시 KST)을 09:30 에 받음 → 새 판은 21:00 회차부터 기대(30분마다 수집, 2026-10-16), 여유 60분 → 22:00 KST 부터 노랑(종전과 같음).
         write('zone_forecasts.json', { updatedAt: '2026. 10. 15. 오전 9:30:40', baseTmUtf: '2026101500', data: { 1: [] } });
         write('zone_forecasts_status.json', { lastRun: '2026-10-15T21:31:00+09:00', result: 'same', message: '새 판 없음, 기존 판 유지 — 같은 판 2026101500 를 다시 받음 · 예정 판 2026101512 미게시' });
-        await check('해구 예보: 21:30 회차+여유 30분 전에는 정상, 기준 시각=판(KST 09시), 다음 기대=21:30', async () => {
+        await check('해구 예보: 21:00 회차+여유 60분 전에는 정상, 기준 시각=판(KST 09시), 다음 기대=21:00', async () => {
             const z = await get('zoneForecasts');
             assert.equal(z.status, 'ok');
             assert.equal(z.basis.at, '2026-10-15T09:00:00+09:00');
             assert.equal(z.collectedAt, '2026-10-15T09:30:40+09:00');
-            assert.equal(z.nextExpectedAt, '2026-10-15T21:30:00+09:00');
+            assert.equal(z.nextExpectedAt, '2026-10-15T21:00:00+09:00');
             assert.equal(z.nextFrom, 'basis');
             assert.ok(/새 판 없음, 기존 판 유지/.test(z.detail), z.detail);
         });
         await check('해구 예보: 12UTC 판이 22:00 KST 넘도록 없으면 노랑(자료 오래됨) — 사용자 실측 상황', async () => {
+            now = K('2026-10-15T21:59:00');
+            assert.equal((await get('zoneForecasts')).status, 'ok', '노랑이 켜지는 시각은 종전과 같은 22:00(30분마다 수집으로 바뀐 뒤에도)');
             now = K('2026-10-15T22:23:00');
             const z = await get('zoneForecasts');
             assert.equal(z.status, 'stale');
             assert.ok(/다음 기대 시각/.test(z.reason) && /판/.test(z.reason), z.reason);
         });
-        await check('해구 예보: 12UTC 판을 받으면 다음 기대는 다음 날 09:30', async () => {
+        await check('해구 예보: 12UTC 판을 받으면 다음 기대는 다음 날 09:00', async () => {
             write('zone_forecasts.json', { updatedAt: '2026. 10. 15. 오후 10:40:00', baseTmUtf: '2026101512', data: {} });
             const z = await get('zoneForecasts');
             assert.equal(z.status, 'ok');
-            assert.equal(z.nextExpectedAt, '2026-10-16T09:30:00+09:00');
+            assert.equal(z.nextExpectedAt, '2026-10-16T09:00:00+09:00');
         });
         await check('오류현황 원천 상태를 그대로 쓴다(수집 실패·분류·상세), 정상인데 기대 시각이 지나면 오래됨', async () => {
             rows = [
