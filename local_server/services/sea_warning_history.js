@@ -8,6 +8,7 @@
  *        → data/risk_forecast/warning_history.json · risk_time.parseMmisTime(글자 시각 해석)
  *        · warn_zone_cells.zoneKey·zoneKind(구역 이름 열쇠·앞바다/먼바다/연안바다/평수구역)
  *        · 나를 쓰는 곳: sea_traffic_history.createApi(조회 API) · server.js 위험예측 수집기 시작 목록(start)
+ *          · marine_fusion.warningsAt(extract — 해상 상세 날씨 아코디언의 발효 중 특보 상자, 2026-10-16)
  * [로드 순서] 서버 require 부작용 없음. start() 는 Fly 운영에서만 1분마다 결과 파일이 바뀌었는지 보고 기록한다.
  */
 'use strict';
@@ -28,7 +29,7 @@ function exactTime(text, anchor) { const r = T.parseMmisTime(text, anchor); retu
 /**
  * current 트리에서 지금 발효 중인 해상 특보를 꺼낸다(부모 구역 current + 자식 연안바다·평수구역).
  * 예: {동해:{…:{울산앞바다:{current:{wrnTp:'풍랑',wrnLvl:'주의보',tmEf:'…'},children:{'울산앞바다중연안바다':{…}}}}}}
- *     → [{zone:'울산앞바다',role:'main',kind:'앞바다',type:'풍랑',level:'주의보',tmEf,clr}, …]
+ *     → [{zone:'울산앞바다',role:'main',kind:'앞바다',type:'풍랑',level:'주의보',tmEf,clr,tmFc,tmYn}, …]
  * @param {object} tree - weather_alerts.json 의 current @returns {object[]} 발효 목록
  * [연계] ← observe / 크롤러가 이미 예비를 upcoming 으로 따로 두므로 current·자식의 주의보/경보만 본다
  */
@@ -37,7 +38,8 @@ function extract(tree) {
     const push = (zone, role, b) => {
         const level = b && levelOf(b.wrnLvlNm || b.wrnLvl);
         if (!level) return;
-        out.push({ zone, role, kind: zoneKind(zone, role === 'sub'), type: typeOf(b.wrnTpNm || b.wrnTp), level, tmEf: String(b.tmEf || ''), clr: String(b.clrNtcTm || b.tmCc || '') });
+        // tmFc(발표)·tmYn(통보문 해제예정)은 구간 기록에 쓰지 않는다 — 해상 상세의 특보 상자(marine_fusion.warningsAt)가 같은 목록을 읽어 쓴다.
+        out.push({ zone, role, kind: zoneKind(zone, role === 'sub'), type: typeOf(b.wrnTpNm || b.wrnTp), level, tmEf: String(b.tmEf || ''), clr: String(b.clrNtcTm || b.tmCc || ''), tmFc: String(b.tmFc || ''), tmYn: String(b.tmYn || '') });
     };
     (function walk(n) {
         if (!n || typeof n !== 'object') return;

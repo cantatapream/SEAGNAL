@@ -2,6 +2,7 @@
  * 파일명: local_server/services/marine_fusion.js
  * 역할  : 현재 교통·공식 예보·기존 선박사고를 같은 위치로 연결해 해역과 관할의 근거 있는 설명을 만든다.
  * [연계] risk_store.marineInputs → 본 저장소 → routes/risk_forecast → RiskMarine 화면.
+ *        특보 상자(marine.warnings): marineInputs.warnings(weather_alerts.json) · sea_warning_history.extract · warn_zone_cells(칸→특보구역).
  * [로드 순서] 요청에서 외부 수집·Gemini 호출 없음. 연안 관광객 사고는 읽지 않는다.
  */
 'use strict';
@@ -76,6 +77,49 @@ function collisionNotice(cf,live,now){const reasons=[],parts=[];
     if(cf&&cf.status==='ok'&&NOTICE_CONGESTION.has(cf.level)){reasons.push({kind:'congestion',level:cf.level,value:cf.index,at:cf.forecastAt});parts.push(`${hourText(cf.forecastAt,now)} 혼잡 예보 '${cf.level}'(혼잡지수 ${cf.index})`);}
     if(live&&Number.isFinite(live.count)&&live.count>=NOTICE_COUNT){const at=live.sourceAt||live.collectedAt;reasons.push({kind:'traffic',level:live.level,value:live.count,at});parts.push(`현재 이 해역 선박 ${live.count}척${at?`(${at.slice(11,16)} 기준)`:''}`);}
     return reasons.length?{on:true,reasons,text:`충돌·접촉 주의 — ${parts.join(' · ')}. 배가 붐벼 충돌·접촉에 주의가 필요하다는 앱 안내이며, 사고 확률이나 공식 사고 등급이 아닙니다.`}:{on:false,reasons:[],text:null};}
+// ── 발효 중 특보 상자(날씨 아코디언 「파도」 위) — 2026-10-16 사용자 원문:
+// 「여기 지금 이해역 날씨에 해당 해역에 특보가 있다면 파고 윗부분에 한줄로 테두리가 빨간 사각형 박스로 제주도북부앞바다 풍랑주의보 발효
+//  발표 : 0월 0일(금) 00:00 / 발효 : 0월 0일(금) 00:00 또는 0월 0일(금) 00시 ~ 00시 / 해제예정 : 0월 0일(금) 00:00 또는 0월 0일(금) 00시 ~ 00시 또는 정보없음 으로 표출
+//  이 내용은 특보로직을 보면 어떤식으로 특보가 접수되고 표출되는지 있으니 확인해볼 필요가 있어.」
+/** 특보 원자료의 글자 시각을 읽는다. 없음·'0'·'000000000000'·'일'(MMIS 빈 값 꼴 — 특보정보 탭 formatWarningTime 이 「정보 없음」으로 두는 것)은 null.
+ * 예: '2026년 10월 16일 09시 00분' → {start:'2026-10-16T09:00:00+09:00',end:같음,range:false} · '16일 밤(21시~24시)' → {start:'…16T21:00…',end:'…17T00:00…',range:true}
+ *     '202610160430'(12자리) → 04:30 · 시작=끝 범위 '23시~23시'(예비 6시간 단위 표기)는 특보정보 탭(utils.js formatWarningTime fmtRange)처럼 그 6시간 칸 18~24시로 넓힌다.
+ * 날짜 꼴(「N일」 또는 'YYYY.MM.DD')이 없으면 null — risk_time.parseMmisTime 은 날짜 꼴이 없으면 Date.parse 로 넘겨 '0' 을 2000-01-01 로 읽는다(2026-10-16 실행 확인).
+ * @param {string} text - 크롤러 결과 트리의 시각 글자(normalizeMmisTime 뒤) @param {number} anchor - 월이 빠진 글자의 기준 시각(ms)
+ * @returns {object|null} {start,end,range} KST ISO [연계] ← warningsAt / → risk_time.parseMmisTime
+ */
+function warnTime(text,anchor){let s=String(text||'').trim();if(!s||/^0+$/.test(s)||s==='일')return null;const d12=s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/);if(d12)s=`${d12[1]}.${d12[2]}.${d12[3]} ${d12[4]}:${d12[5]}`;
+    if(!/\d\s*일|\d{4}\s*[.\/-]\s*\d{1,2}\s*[.\/-]\s*\d{1,2}/.test(s))return null;const r=T.parseMmisTime(s,anchor);if(!r)return null;let start=r.start,end=r.end;
+    if(r.range&&start===end){const mid=Date.parse(T.dateKey(start)+'T00:00:00+09:00');start=mid+Math.floor((start-mid)/(6*T.HOUR))*6*T.HOUR;end=start+6*T.HOUR;}
+    return{start:T.isoKst(start),end:T.isoKst(end),range:r.range};}
+const WARN_RANK={'경보':0,'주의보':1};
+/**
+ * 그 해역에 선택 시각 기준 발효 중인 특보를 고른다(해상 시트 날씨 아코디언의 빨간 상자).
+ * 예: warningsAt(tree,{name:'제주도북부앞바다',kind:'앞바다'},'2026-10-16T09:00:00+09:00',{status:'ok'})
+ *     → {status:'ok',zone:{name,kind},items:[{zone:'제주도북부앞바다',kind:'앞바다',type:'풍랑',level:'주의보',issued:{start,…},effective:{…},release:null}]}
+ * 원천: 특보 크롤러 결과 data/weather_alerts.json 의 current 트리(marine_warning_crawler._writeWeatherAlertsJson — MMIS 실시간 특보, 1분).
+ *   발효만 = 부모 current·자식 블록의 주의보·경보(sea_warning_history.extract — 교통량 그래프 특보 띠와 같은 판정). 예비특보(부모 upcoming·자식 「예비」)는 뺀다.
+ *   크롤러 결과 트리에는 풍랑(V)·태풍(T)만 들어 있다(REALTIME_TARGET_TP) — 폭풍해일·강풍은 이 상자에도 나오지 않는다.
+ * 시각 규칙(t = 선택 시각, 지금이든 미래든 같다):
+ *   - 아직 발효 전이면 뺀다: 발효시각이 정확한 시각이고 t 보다 뒤, 범위면 범위 시작이 t 보다 뒤.
+ *   - 그 시각 전에 해제될 것으로 알려졌으면 뺀다: 해제예정이 정확한 시각이고 t 이하, 범위면 범위 끝이 t 이하.
+ *     범위 안(예: 해제예정 21~24시, t=22시)이면 아직 발효 중일 수 있어 남긴다. 해제예정이 없으면 남긴다(release:null → 화면 「정보없음」).
+ *     해제예정 = clrNtcTm(해제예고) → tmCc → tmYn 순 — 특보정보 탭 render.js 「해제예정」 줄과 같은 순서.
+ *   - 읽지 못한 시각은 null(지어내지 않는다) — 발효시각을 못 읽으면 발효 전 판정 없이 남긴다(크롤러가 current 로 둔 블록).
+ * 자료 상태(risk_store.sources().warnings — 파일 없음 missing·깨짐 error·updatedAt 10분 넘음 stale)가 ok 가 아니면 items 를 비운다(상자를 그리지 않음).
+ *   그 경우에도 status 를 돌려줘 화면·시험이 「특보 없음」과 「특보 자료 확인 불가」를 가를 수 있게 한다.
+ * @param {object|null} tree - weather_alerts.json 의 current @param {object|null} zone - {name,kind} 칸의 특보구역(세부구역 우선)
+ * @param {string} at - 선택 시각 KST ISO @param {object} source - {status,updatedAt} @param {number} now - 지금(ms, 월 없는 글자의 기준)
+ * @returns {object} {status,updatedAt,zone,items}
+ * [연계] ← analyze(marine.warnings) → risk_marine.js warnBoxes / → sea_warning_history.extract·warn_zone_cells.zoneKey·warnTime
+ */
+function warningsAt(tree,zone,at,source,now=Date.now()){const status=source?.status||'missing',out={status,updatedAt:source?.updatedAt||null,zone:zone?{name:zone.name,kind:zone.kind}:null,items:[]};
+    if(status!=='ok'||!zone||!tree||typeof tree!=='object')return out;const W=require('./warn_zone_cells'),key=W.zoneKey(zone.name),t=Date.parse(at);
+    for(const b of require('./sea_warning_history').extract(tree)){if(W.zoneKey(b.zone)!==key)continue;
+        const issued=warnTime(b.tmFc,now),anchor=issued?Date.parse(issued.start):now,effective=warnTime(b.tmEf,anchor),release=warnTime(b.clr||b.tmYn,anchor);
+        if(effective&&Date.parse(effective.start)>t)continue;if(release&&Date.parse(release.end)<=t)continue;
+        out.items.push({zone:b.zone,kind:b.kind,type:b.type,level:b.level,issued,effective,release});}
+    out.items.sort((a,b)=>WARN_RANK[a.level]-WARN_RANK[b.level]||(a.effective?Date.parse(a.effective.start):Infinity)-(b.effective?Date.parse(b.effective.start):Infinity));return out;}
 /** 공식 등급 안에서 원지수의 연속 위치를 구한다. 예: 같은 경계라도 지수가 커지면 더 붉음.
  * @param {array} rows - 공식[i,index,level] @returns {Map} i→0..1 색상위치
  * [연계] ← unifiedFrame / 지수의 큰 규모차만 로그로 표시하며 확률로 해석하지 않는다.
@@ -85,7 +129,9 @@ function riskColors(rows){const limits={};for(const r of rows||[]){if(RANK[r[2]]
  * @param {object} options - risk 저장소, 폴더·시계·정적자료 주입 @returns {object} 조회 API
  * [연계] ← routes/risk_forecast / 캐시는 자료 버전과 시간으로 제한한다.
  */
-function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.join(ROOT,'config','coastal_safety'),clock=Date.now,stations:injectedStations,accidents:injectedAccidents,describe=require('./risk_sea_cells').describe}={}){
+function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.join(ROOT,'config','coastal_safety'),clock=Date.now,stations:injectedStations,accidents:injectedAccidents,describe=require('./risk_sea_cells').describe,zonesFor}={}){
+    // 칸의 특보구역: GR4 칸이면 교통량 그래프(sea/traffic-history)와 같은 칸 중심 판정, 아니면 그 지점. 시험은 zonesFor 로 바꿔 넣는다.
+    const zonesOf=zonesFor||((id,p)=>{const W=require('./warn_zone_cells');return(typeof id==='string'&&id.startsWith('GR4_')&&W.zonesOfCell(id))||W.zonesAt(p);});
     if(typeof clock!=='function')throw TypeError('clock function required');
     let live=null,liveSignature='',staticLoaded=false,stations=[],accidents=[],buckets=new Map(),period=null,excludedCount=0,staticAvailable=false,unifiedCache=null,unifiedCacheKey=null,accidentMapping=new Map();
     const historyCache=new Map(),briefCache=new Map(),stationCache=new Map(),spatial=new WeakMap(),frameRows=new WeakMap(),congestionIds=new WeakMap();
@@ -155,6 +201,9 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const riskTimes=[];if(accidentCell)for(const [k,rows]of Object.entries(inputs.accident?.frames||{})){const r=findRow(rows,accidentCell.i,true);if(!r)continue;const date=k.slice(0,4)+'-'+k.slice(4,6)+'-'+k.slice(6,8)+'T'+k.slice(8,10)+':00:00+09:00';if(Date.parse(date)>=Date.parse(accAt)&&Date.parse(date)<end)riskTimes.push({forecastAt:date,level:r[2],index:r[1]});}riskTimes.sort((a,b)=>Date.parse(a.forecastAt)-Date.parse(b.forecastAt));
         const histCell=accidentCell||currentCell||traffic,stats=histCell?.geometry?{...history(histCell.geometry,'grid:'+histCell.id),gridId:histCell.id,scope:accidentCell?'공식 사고 예보 격자 전체':'선택 교통 격자'}:null;
         const weather=inputs.weather(cell.haegu?.major,at),reasons=[];
+        // 특보 상자: 세부구역(연안바다·평수구역)에 든 칸은 그 세부구역의 블록만 본다 — 부모 앞바다 특보가 「연안바다 제외」로 나올 수 있어서다
+        //   (child_confirm.design.md §1.1 제주도북부앞바다 6/2·6/19 「연안바다 제외」). 크롤러는 MMIS 가 준 자식만 트리에 넣는다(지어내지 않음).
+        const zs=zonesOf((currentCell||traffic)?.id,p),warnings=warningsAt(inputs.warnings?.current,zs&&(zs.sub||zs.main),at,inputs.sources?.warnings,clock());
         if(liveData&&status.status==='ok')reasons.push({key:'traffic',text:`현재 해당 교통 격자는 ${liveData.count}척, 교통량 단계 ${liveData.level}입니다.`,at:status.sourceAt||status.collectedAt});
         if(af)reasons.push({key:'accident',text:`${af.forecastAt.slice(11,16)} 공식 사고 예보는 ${af.level}입니다.`,at:af.forecastAt,status:af.status});
         if(cf)reasons.push({key:'congestion',text:`${cf.forecastAt.slice(11,16)} 공식 혼잡 예보는 ${cf.level}입니다.`,at:cf.forecastAt,status:cf.status});
@@ -166,7 +215,7 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const notice=collisionNotice(cf,Date.parse(at)<=clock()+60000&&liveData&&status.status==='ok'?liveData:null,clock());
         if(notice.on)reasons.unshift({key:'collision',text:notice.text,at:notice.reasons[0].at});
         const attention=Math.max(notice.on?1:0,af?.status==='ok'&&RANK[af.level]>=2?RANK[af.level]:0,cf?.status==='ok'&&RANK[cf.level]>=2?1:0,liveData&&status.status==='ok'&&liveData.count>=21?1:0,riskPeak&&inputs.sources.accident?.status==='ok'?(RANK[riskPeak.level]||0):0,inputs.sources.zoneForecasts?.status==='ok'&&(weather.wh>=2||weather.ws>=12)?1:0);
-        return{location:location(cell),point:{lon:p[0],lat:p[1]},t:at,station:stationFor(p)?.name||null,office:stationFor(p)?.station||null,current:liveData,currentStatus:status,congestion:cf,accident:af,collisionNotice:notice,weather:{...weather,source:'기상청 해구별 예보',status:inputs.sources.zoneForecasts?.status},history:stats,outlook:{congestion:upcoming,accident:riskTimes},attention:['정보 확인','관심 필요','주의 필요','경계 단계 확인 필요'][attention],attentionRank:attention,reasons,scopeNote:'사고 단계와 지도 색은 현재·미래 모두 공식 사고 예보 그대로입니다. 충돌·접촉 주의는 혼잡 예보 높음 이상 또는 현재 14척 이상일 때 붙이는 앱 안내이며 사고 확률이나 공단 등급이 아닙니다. 현재 교통이 누락·낡으면 현재 척수는 사유로 쓰지 않습니다. 앱 사고 통계는 해양오염·부유물감김을 제외합니다.'};
+        return{location:location(cell),point:{lon:p[0],lat:p[1]},t:at,station:stationFor(p)?.name||null,office:stationFor(p)?.station||null,current:liveData,currentStatus:status,congestion:cf,accident:af,collisionNotice:notice,weather:{...weather,source:'기상청 해구별 예보',status:inputs.sources.zoneForecasts?.status},warnings,history:stats,outlook:{congestion:upcoming,accident:riskTimes},attention:['정보 확인','관심 필요','주의 필요','경계 단계 확인 필요'][attention],attentionRank:attention,reasons,scopeNote:'사고 단계와 지도 색은 현재·미래 모두 공식 사고 예보 그대로입니다. 충돌·접촉 주의는 혼잡 예보 높음 이상 또는 현재 14척 이상일 때 붙이는 앱 안내이며 사고 확률이나 공단 등급이 아닙니다. 현재 교통이 누락·낡으면 현재 척수는 사유로 쓰지 않습니다. 앱 사고 통계는 해양오염·부유물감김을 제외합니다.'};
     }
     function analysis({id,lon,lat,t}={}){const inputs=input(),at=time(t);let p;if(lon!==undefined&&lat!==undefined){p=[Number(lon),Number(lat)];if(!p.every(Number.isFinite)||p[0]<115||p[0]>140||p[1]<20||p[1]>45)throw Object.assign(Error('좌표 범위 오류'),{status:400});}else{const c=[...(live?.cells||[]),...(inputs.cells?.cells||[]),...(inputs.accident?.cells||[])].find(c=>c.id===id);if(!c)throw Object.assign(Error('해상 격자 없음'),{status:404});p=[c.lon,c.lat];}const marine=analyze(p,at,inputs);return{t:at,marine,title:marine.location,subtitle:marine.station||'',gridId:id||null,lat:p[1],lon:p[0]};}
     function briefing(id,t){loadStatic();const inputs=input(),at=time(t),s=stations.find(s=>s.id===id);if(!s)throw Object.assign(Error('관할 없음'),{status:404});const key=[id,at,liveSignature,inputs.version,freshness().status].join('|');if(briefCache.has(key))return briefCache.get(key);
@@ -185,4 +234,4 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     }
     return{tables,current,unifiedCells,unifiedFrame,jurisdictionList,analysis,briefing};
 }
-module.exports={createStore,location,trafficLevel,densityLevel,accidentList,collisionNotice,riskColors,summary,INCIDENTS};
+module.exports={createStore,location,trafficLevel,densityLevel,accidentList,collisionNotice,riskColors,summary,warningsAt,warnTime,INCIDENTS};
