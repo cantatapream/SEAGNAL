@@ -86,7 +86,7 @@ async function ensureLocations({ stations, landPoints = {}, file = path.join(DAT
         const ask = geocoder && (!c || c.address !== st.address || c.status === 'error');
         if (ask) {
             try { const g = await geocoder(st.address); c = { status: 'ok', address: st.address, query: normalizeAddress(st.address), lat: g.lat, lon: g.lon, resolvedAddress: g.resolvedAddress || null, checkedAt: R.isoKst(now) }; }
-            catch (e) { const why = String(e.message || ''); c = { status: /^(unmatched event|invalid event)$/.test(why) ? 'unmatched' : 'error', address: st.address, query: normalizeAddress(st.address), reason: /^(unmatched event|invalid event|missing key|HTTP \d{3})$/.test(why) ? why : 'network or parse error', checkedAt: R.isoKst(now) }; }
+            catch (e) { const why = String(e.message || ''); c = { status: /^(unmatched event|invalid event)$/.test(why) ? 'unmatched' : 'error', address: st.address, query: normalizeAddress(st.address), reason: /^(unmatched event|invalid event|missing key|HTTP \d{3})$/.test(why) ? why : 'network or parse error', checkedAt: R.isoKst(now) }; console.warn('[station_briefing] 대표 위치 카카오 실패 — ' + st.name + ': ' + c.reason + ' (추정 위치를 쓴다)'); }
             cache.stations[st.key] = c; changed = true;
         }
         if (c && c.status === 'ok') out[st.key] = { lat: c.lat, lon: c.lon, source: 'kakao', estimated: false, address: st.address, resolvedAddress: c.resolvedAddress };
