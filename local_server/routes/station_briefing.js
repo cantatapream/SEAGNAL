@@ -10,8 +10,9 @@
  *                    · services/admin_auth.js(verifyToken·requireAdminToken — 관리자 API 인증, 쓸 때 require)
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing
  *                    GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status · POST /api/admin/station-briefing/run
- *  - 마크업        : 없음(화면은 다음 단계)
- *  - 나를 쓰는 곳  : server.js(app.use) · scripts/test_station_briefing.js(가짜 서비스·판정)
+ *                    GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview(관리자 미리보기 — 노출 범위와 무관)
+ *  - 마크업        : 없음(화면: client/js/forecast/station-briefing/ · client/js/admin/admin_station_briefing.js)
+ *  - 나를 쓰는 곳  : server.js(app.use) · scripts/test_station_briefing.js(가짜 서비스·판정) · scripts/test_station_briefing_ui.js(화면 시험)
  * [로드 순서] server.js 에서 routes/admin 보다 먼저 등록한다(관리자 경로 인증을 이 라우터가 직접 건다 — routes/risk_errors 와 같은 관례).
  * ============================================================================
  */
@@ -56,6 +57,18 @@ function createRouter({
     const admin = '/api/admin/station-briefing';
     router.use(admin, authorize);
     router.get(admin + '/config', (req, res) => { try { const s = svc().status(); res.set('Cache-Control', 'no-store').json({ ok: true, config: s.config, choices: s.choices }); } catch (e) { fail(res, e); } });
+    // 「AI 브리핑」 탭의 관할 하나 미리보기(화면 2단계, 2026-10-16) — 노출 범위가 「노출 안 함」이어도 관리자는 목록·브리핑을 본다(공개 경로는 노출 판정을 거친다).
+    router.get(admin + '/stations', (req, res) => { try { res.set('Cache-Control', 'no-store').json({ ok: true, stations: svc().stationList() }); } catch (e) { fail(res, e); } });
+    router.get(admin + '/preview', (req, res) => {
+        try {
+            const key = req.query.station, day = req.query.day || 'auto';
+            res.set('Cache-Control', 'no-store');
+            if (typeof key !== 'string' || !key) return res.status(400).json({ ok: false, error: '관할(station) 필요' });
+            if (!['auto', 'today', 'tomorrow'].includes(day)) return res.status(400).json({ ok: false, error: 'day 는 auto·today·tomorrow' });
+            if (!svc().stations().some((s) => s.key === key)) return res.status(404).json({ ok: false, error: '관할 없음' });
+            res.json({ ok: true, ...svc().pick({ key, day }) });
+        } catch (e) { fail(res, e); }
+    });
     router.put(admin + '/config', express.json({ limit: '8kb' }), (req, res) => { try { res.json({ ok: true, config: svc().writeConfig(req.body || {}) }); } catch (e) { fail(res, e); } });
     router.get(admin + '/status', (req, res) => { try { res.set('Cache-Control', 'no-store').json({ ok: true, ...svc().status() }); } catch (e) { fail(res, e); } });
     // 실행 중이면 409 + 지금 상태(독립 검토 B11) — 예전에는 202 「시작함」이라고 답하고 실제로는 건너뛰었다.

@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 121개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 125개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -31,30 +31,31 @@ client/js/
 │   ├── admin_data_status.js
 │   ├── admin_location_status.js
 │   ├── admin_report.js
+│   ├── admin_station_briefing.js
 │   ├── admin_survey.js
 │   ├── admin_trigger.js
 │   ├── admin_zone_editor.js
 │   ├── admin.js
 │   ├── advisory_manage_admin.js
 │   ├── cctv7.js
-│   ├── pagination_helper.js
+│   └── pagination_helper.js
 ├── ai-chat/
-│   ├── ai_chat.js
+│   └── ai_chat.js
 ├── assistant/  ← ⚡ AI 음성비서
 │   ├── memory/
 │   │   ├── user_memory_bridge.js
-│   │   ├── user_memory_web.js
+│   │   └── user_memory_web.js
 │   ├── assistant_deeplink.js
 │   ├── assistant_overlay.js
-│   ├── assistant.js
+│   └── assistant.js
 ├── core/  ← 앱 구동(부트스트랩·설정·네이티브 브리지)
 │   ├── app_init.js
 │   ├── backbutton.js
 │   ├── config.js
-│   ├── index2_patch.js
+│   └── index2_patch.js
 ├── engagement/  ← ⚡ 제보·설문
 │   ├── report_user.js
-│   ├── survey_user.js
+│   └── survey_user.js
 ├── forecast/  ← [탭1] 특보 및 전망
 │   ├── alerts/
 │   │   ├── alert_history.js
@@ -62,32 +63,36 @@ client/js/
 │   │   ├── marine.js
 │   │   ├── render_coastal.js
 │   │   ├── render.js
-│   │   ├── zone_avg.js
+│   │   └── zone_avg.js
 │   ├── marine-chart/
 │   │   ├── marine_chart1.js
 │   │   ├── marine_chart2.js
 │   │   ├── marine_chart3.js
 │   │   ├── marine_chart4.js
-│   │   ├── marine_chart5.js
+│   │   └── marine_chart5.js
 │   ├── outlook/
 │   │   ├── forecast.js
 │   │   ├── marine_forecast.js
-│   │   ├── windy.js
-│   └── prediction/
-│       ├── advisory_prediction.js
-│       ├── run_advisory_render_test.js
+│   │   └── windy.js
+│   ├── prediction/
+│   │   ├── advisory_prediction.js
+│   │   └── run_advisory_render_test.js
+│   └── station-briefing/
+│       ├── station_briefing_basis.js
+│       ├── station_briefing_render.js
+│       └── station_briefing.js
 ├── location-alert/  ← ⚡ 위치기반 경보
 │   ├── location_alert_background.js
 │   ├── location_alert_core.js
 │   ├── location_alert_runtime.js
-│   ├── location_alert_ui.js
+│   └── location_alert_ui.js
 ├── marine-life/  ← [탭3] 해양생활
 │   ├── fishing/
-│   │   ├── fishing.js
+│   │   └── fishing.js
 │   ├── mudflat/
-│   │   ├── mudflat.js
+│   │   └── mudflat.js
 │   ├── ripcurrent/
-│   │   ├── ripcurrent.js
+│   │   └── ripcurrent.js
 │   ├── risk-forecast/
 │   │   ├── risk_api.js
 │   │   ├── risk_basis_content.js
@@ -109,31 +114,31 @@ client/js/
 │   │   ├── life_safety.js
 │   │   ├── navigational_warning.js
 │   │   ├── seaway.js
-│   │   ├── vts_zone.js
+│   │   └── vts_zone.js
 │   ├── scuba/
-│   │   ├── scuba.js
+│   │   └── scuba.js
 │   ├── sea-parting/
-│   │   ├── sea_parting.js
+│   │   └── sea_parting.js
 │   ├── surfing/
 │   │   ├── surfing1.js
 │   │   ├── surfing2.js
 │   │   ├── surfing3.js
 │   │   ├── surfing4.js
-│   │   ├── surfing5.js
+│   │   └── surfing5.js
 │   ├── swell/
-│   │   ├── swell.js
+│   │   └── swell.js
 │   └── swimming/
-│       ├── swimming.js
+│       └── swimming.js
 ├── notice/  ← [탭4] 공지사항
 │   ├── board/
 │   │   ├── image_compress.js
-│   │   ├── promo.js
+│   │   └── promo.js
 │   └── comments/
 │       ├── promo_comment1.js
 │       ├── promo_comment2.js
 │       ├── promo_comment3.js
 │       ├── promo_comment4.js
-│       ├── promo_comment5.js
+│       └── promo_comment5.js
 ├── ocean-map/  ← [탭2] 해양종합정보
 │   ├── bottom-sheet/
 │   │   ├── ocean_bottom_sheet_vsby.js
@@ -143,26 +148,26 @@ client/js/
 │   │   ├── ocean_bottom_sheet3.js
 │   │   ├── ocean_bottom_sheet4.js
 │   │   ├── ocean_bottom_sheet5.js
-│   │   ├── ocean_sheet_timeline.js
+│   │   └── ocean_sheet_timeline.js
 │   ├── cctv/
 │   │   ├── cctv1.js
 │   │   ├── cctv4.js
-│   │   ├── ocean_cctv.js
+│   │   └── ocean_cctv.js
 │   ├── coastal-risk/
 │   │   ├── mock/
 │   ├── layers/
 │   │   ├── shrt_forecast_layer.js
 │   │   ├── tide_field.js
-│   │   ├── vsby_forecast_layer.js
+│   │   └── vsby_forecast_layer.js
 │   ├── map/
 │   │   ├── ocean_map.js
 │   │   ├── ocean_markers.js
 │   │   ├── ocean_northup.js
-│   │   ├── ocean_overlay.js
+│   │   └── ocean_overlay.js
 │   ├── observation/
-│   │   ├── ocean_buoy.js
+│   │   └── ocean_buoy.js
 │   ├── timeline/
-│   │   ├── ocean_timeline.js
+│   │   └── ocean_timeline.js
 │   └── warnings/
 │       ├── ocean_warn_active1.js
 │       ├── ocean_warn_active2.js
@@ -170,27 +175,27 @@ client/js/
 │       ├── ocean_warn_active4.js
 │       ├── ocean_warn_active5.js
 │       ├── ocean_warn_vsby.js
-│       ├── ocean_warn_zone.js
+│       └── ocean_warn_zone.js
 ├── onboarding/
-│   ├── zone_setup.js
+│   └── zone_setup.js
 ├── push/  ← ⚡ 푸시 알림
-│   ├── alert_push.js
+│   └── alert_push.js
 ├── settings/  ← ⚡ 설정
 │   ├── settings.js
-│   ├── zone_guide.js
+│   └── zone_guide.js
 ├── shared/  ← 공용 재료(유틸·UI·데이터)
 │   ├── ui/
-│   │   ├── ui_modal.js
+│   │   └── ui_modal.js
 │   └── utils/
 │       ├── accident_codes.js
 │       ├── mappings.js
 │       ├── usage_keys.js
-│       ├── utils.js
+│       └── utils.js
 ├── tutorial/
-│   ├── tutorial.js
+│   └── tutorial.js
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
-    ├── ocean_typhoon.js
+    └── ocean_typhoon.js
 ```
 
 ## 4. 전체 파일 인덱스
@@ -206,6 +211,7 @@ client/js/
 | `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
 | `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시 |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
+| `admin_station_briefing.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 활동지점 안전 브리핑의 |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
 | `admin_trigger.js` | 관리자 트리거(15회 클릭), 공지/점검/오류 팝업 |
 | `admin_zone_editor.js` | 출입통제구역(access_control_zones.json) 폴리곤 점 편집기 — 독립 페이지 |
@@ -285,6 +291,14 @@ client/js/
 |------|------|
 | `advisory_prediction.js` | "해역별 특보 예측" 아코디언 렌더러. |
 | `run_advisory_render_test.js` | node 렌더 테스트 하네스 — advisory_prediction(v6) 렌더 함수 검증 (브라우저 불필요) |
+
+### `client/js/forecast/station-briefing/`
+
+| 파일 | 역할 |
+|------|------|
+| `station_briefing.js` | 해양예보 탭 「🔭 기상청 해상 기상 전망」 바로 아래의 「활동지점 안전 브리핑」 아코디언(설계서 §11.1~§11.4). |
+| `station_briefing_basis.js` | 「활동지점 안전 브리핑」의 [기준 상세] 문안 — 브리핑이 어떤 기준으로 만들어지는지 일반 국민 눈높이로 적은 고정 글. |
+| `station_briefing_render.js` | 「활동지점 안전 브리핑」 본문을 그린다 — 서버가 만든 브리핑(총평·특별 상황·해상 시간 막대·해역 카드·육상 카드·조석·기준 |
 
 ### `client/js/location-alert/`
 

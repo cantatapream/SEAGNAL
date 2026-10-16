@@ -2703,6 +2703,7 @@
         };
     </script>
     <link rel="stylesheet" href="js/marine-life/risk-forecast/risk_forecast.css?v=20261016t24">
+    <link rel="stylesheet" href="js/forecast/station-briefing/station_briefing.css?v=20261016sb">
 </head>
 
 <body class="loading">
@@ -3195,6 +3196,26 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- 활동지점 안전 브리핑 아코디언(설계서 §11.1 — 「기상청 해상 기상 전망」 바로 아래, 같은 모양).
+                     처음에는 숨김(display:none) — 서버 노출 판정(GET /api/station-briefing/stations display:true, 기본 「관리자에게만」)일 때만
+                     station_briefing.js 가 보인다. 일반 사용자 화면은 지금과 같다.
+                     [연계] js/forecast/station-briefing/station_briefing.js · station_briefing_render.js · station_briefing.css -->
+                <div id="station-briefing-accordion-header" class="main-accordion-header gradient-slate collapsed-state"
+                    onclick="toggleStationBriefingAccordion()" style="display: none;">
+                    <div class="accordion-title-with-info">
+                        <h2 class="section-title" style="margin: 0;">🧭 활동지점 안전 브리핑</h2>
+                        <span id="station-briefing-badge-slot"></span>
+                    </div>
+                    <!-- 관할 설정 ⚙ — 종합 예보 ⚙(#regional-office-settings-btn)과 같은 모양. 관할을 고른 뒤에만 보인다. -->
+                    <button id="station-briefing-settings-btn" type="button" onclick="event.stopPropagation(); openStationBriefingSetup()" title="활동지점(관할) 설정"
+                        style="display:none;background:none;border:none;color:#64748b;font-size:1rem;cursor:pointer;padding:4px 8px;margin-left:auto;transition:color 0.2s;">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                </div>
+                <div id="station-briefing-accordion-body" class="main-accordion-body collapsed" style="display: none;">
+                    <div id="station-briefing-content" class="sb-wrap"></div>
                 </div>
 
                 <!-- Advisory Prediction Accordion Header -->
@@ -5620,7 +5641,7 @@
     <script src="js/forecast/alerts/alert_history.js"></script>
     <script src="js/forecast/alerts/render_coastal.js"></script>
     <script src="js/forecast/alerts/marine.js?v=Maint_20260910"></script>
-    <script src="js/settings/settings.js"></script>
+    <script src="js/settings/settings.js?v=20261016sb"></script>
     <script src="js/location-alert/location_alert_core.js"></script>
     <script src="js/location-alert/location_alert_background.js"></script>
     <script src="js/location-alert/location_alert_runtime.js"></script>
@@ -5664,7 +5685,7 @@
          OS.SheetTL 이 정의된 상태여야 함. (sheet1.js 가 OS 생성 → 여기서 OS.SheetTL 생성) -->
     <script src="js/ocean-map/bottom-sheet/ocean_sheet_timeline.js"></script>
     <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet2.js"></script>
-    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet3.js"></script>
+    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet3.js?v=20261016sb"></script>
     <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet4.js"></script>
     <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet5.js"></script>
     <!-- 천기 카드 (해점 클릭 시 KMA 단기예보 6 카테고리 종합 표시) — sheet1~5 의존 -->
@@ -5708,9 +5729,11 @@
     <script src="js/admin/pagination_helper.js"></script>
     <!-- 사용량 통계 기능 키 → 한글 이름표(화면·CSV 공용). admin_collect.js 보다 먼저 -->
     <script src="js/shared/utils/usage_keys.js"></script>
-    <script src="js/admin/admin.js?v=20261016brf"></script>
+    <script src="js/admin/admin.js?v=20261016sb"></script>
     <!-- [데이터 수집현황] 점검 탭 하위 화면(수집 목록·현재 원천 상태·오류·복구 이력). admin.js 의 renderAiForecastSubtab 을 쓰므로 그 뒤 -->
     <script src="js/admin/admin_data_status.js"></script>
+    <!-- [AI 브리핑] AI 탭 하위 탭(활동지점 안전 브리핑 생성 방식·모델·노출 범위·상태·미리보기). admin.js switchAiSubTab 이 부른다 -->
+    <script src="js/admin/admin_station_briefing.js?v=20261016sb"></script>
     <script src="js/admin/admin_collect.js?v=Usage_20260910"></script>
     <script src="js/admin/admin_survey.js"></script>
     <script src="js/admin/admin_report.js"></script>
@@ -5809,8 +5832,13 @@
     <script src="js/marine-life/risk-forecast/risk_sheet.js?v=20261016warn"></script>
     <script src="js/marine-life/risk-forecast/risk_basis_content.js?v=20261016t24"></script>
     <script src="js/marine-life/risk-forecast/risk_basis.js?v=20261016t9"></script>
-    <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261016t24"></script>
+    <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261016sb"></script>
     <script src="js/marine-life/safety/life_safety.js?v=TabKeep3_20261016"></script>
+    <!-- 활동지점 안전 브리핑(해양예보 탭 아코디언, 설계서 §11) — 바로가기가 위험예측(risk_forecast.js)·탭 전환(life_safety.js)을,
+         [기준 상세] 문안이 risk_basis_content.js 의 RiskBasisContent 를 쓰므로 그 뒤. 렌더 → 기준 문안 → 본체 순서. -->
+    <script src="js/forecast/station-briefing/station_briefing_render.js?v=20261016sb"></script>
+    <script src="js/forecast/station-briefing/station_briefing_basis.js?v=20261016sb"></script>
+    <script src="js/forecast/station-briefing/station_briefing.js?v=20261016sb"></script>
 
     <!-- 온보딩 튜토리얼 (공지사항 탭 3초 안에 5회 연타로만 열리는 시험 모드)
          아직 일반 사용자에게는 보이지 않는다. 앞으로 다른 화면의 아코디언·버튼을
@@ -6464,6 +6492,8 @@
                             <!-- 설정 목록이 여기에 생성됨 -->
                         </div>
                     </div>
+                    <!-- 활동지점 안전 브리핑 표시/숨김·관할 설정(설계서 §11.2) — 노출 판정이 display:true 일 때만 station_briefing.js renderSettings 가 채우고 보인다 -->
+                    <div id="station-briefing-settings" hidden></div>
                 </div>
 
                 <!-- 2. 푸시 알림 설정 탭 -->

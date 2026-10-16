@@ -677,6 +677,16 @@
 
 - 확인 못 한 것: 운영 자료로 돌려 보지 않았다(실제 프레임 5,406칸 기록 크기·실제 특보 파일 — 시험은 가짜 3칸) · 기록 파일 크기는 세지 않았다(어림: 하루 생성 회차 2번 × 16프레임 × 1년 — 프레임 한 줄 수백 바이트라 수 MB 안쪽으로 짐작, 재지 않음) · 전남광주통합특별시 주소가 실제로 「전남광주통합특별시 ○○시 …」 꼴인지(시·군·구가 바로 뒤에 오는지)는 카카오 실제 응답으로 확인하지 않았다 — 다른 꼴이면 키가 안 맞는다.
 
+### 11.9 2단계 구현 기록 — 화면 (2026-10-16)
+- **파일**: `client/js/forecast/station-briefing/`(`station_briefing.js` 본체 · `station_briefing_render.js` 본문 · `station_briefing_basis.js` [기준 상세] 문안 · `station_briefing.css` · README·guide) · `client/js/admin/admin_station_briefing.js`(AI → 「AI 브리핑」) · 시험 `local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES).
+- **고친 기존 파일(최소)**: `index2.html`(아코디언 마크업 · 설정 팝업 관심해역 탭 칸 `#station-briefing-settings` · CSS·스크립트 등록) · `settings.js`(`openSettingsModal` 이 칸을 그림) · `admin.js`(AI 하위 탭 하나) · `risk_forecast.js`(`goTo`·`RiskForecast.openAt` · `setMain` 이 refresh 약속을 돌려줌) · `ocean_bottom_sheet3.js`(게이지 HTML 을 `buildTideGauge` 로 떼어 `OS.tideGaugeHtml` 로 엶 — 바텀시트 출력 동일) · `routes/station_briefing.js`(관리자 `GET /stations`·`/preview` — 노출 범위가 「노출 안 함」이어도 관리자 미리보기). 규칙 파일(`station_briefing_rules.js`)은 건드리지 않았다.
+- **노출**: 서버 `display` 만 따른다. 관리자 정보는 특보 예측(`advisory_prediction.js _adminAuth`)과 같은 방식 — 관리자 모드일 때만 `push_token` → 쿼리 `adminToken`, 로그인 토큰 → `X-Admin-Token`. 마크업은 `display:none` 으로 시작(일반 화면 변화 없음).
+- **설정 흐름 해석(사용자 확인 필요)**: Q3 로 해상·연안 각각 고르기가 「관할 하나 + 해상/육상 보기 끄기」가 되어, §11.2 「둘 다 건너뛰면」을 ①[건너뛰기] 또는 ②관할을 골랐지만 해상·육상 보기를 모두 끈 경우로 보았다. 설정 팝업 칸은 관심해역 탭 맨 아래, **누르는 즉시 적용**(팝업 [저장]·[취소]와 따로).
+- **단계 색(결정)**: 위험예측 4색(`RiskFormat.BAND_COLORS`) — 평소 수준 초록 #2fb36b · 관심 필요 노랑 #f2c230 · 주의 필요 주황 #fb923c · 경계 필요 빨강 #e0322c, 확인 불가 회색 #64748b. 같은 노랑이 위험예측 지도의 공식 사고예보 「보통」과 겹친다(뜻이 다름) — 사용자 확인 필요.
+- **바로가기**: `switchMainTab('ocean-life-group')`(+해양안전 하위 탭) → 450ms → `RiskForecast.openAt` — 위험예측 미리보기 잠금(10번 누름)을 풀고 켠 뒤 그 칸(GR4 id·좌표)·시각 또는 관광지·날짜로 시트. ⚠잠금 해제는 브리핑을 일반 사용자에게 열 때 다시 볼 것.
+- **N 뱃지**: `trigger.kind === 'warning'` 판을 이 기기에서 아직 펼쳐 보지 않았을 때만(기기 저장 `seen`).
+- **[기준 상세]**: `RiskBasis.open('briefing')`(위험예측과 같은 창 — 고정 머리·표 가로 스크롤). 공식 사고예보 거르기는 지시대로 「'주의'·'경계' 둘 다」로 적었다(다른 에이전트가 「경계」 거르기를 구현 중 — 그 작업이 끝나기 전까지 문안과 코드가 어긋난다).
+
 ---
 
 ## § 12. [기준 상세] 확정 문안 (U67)

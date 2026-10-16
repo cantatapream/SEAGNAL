@@ -1,0 +1,71 @@
+# 활동지점 안전 브리핑 — 화면 가이드 (`station_briefing*.js`)
+
+## 이 기능은 무엇인가
+파출소 관할 하나의 바다(해상)와 해안 관광지·위험구역(육상)을 서버 규칙으로 판단한 브리핑을 보여 주는 아코디언이다.
+판단은 전부 서버(`local_server/services/station_briefing_rules.js`)가 하고, AI 는 총평 두 문단만 쓴다. 화면은 받은 것을 옮기기만 한다.
+
+## 화면에서 찾아가는 법
+- 해양예보 탭 → 「🔭 기상청 해상 기상 전망」 바로 아래 「🧭 활동지점 안전 브리핑」(노출 판정 display:true 일 때만).
+- 설정 팝업(오른쪽 위 ⚙) → 관심해역 탭 맨 아래 칸.
+- 통합관리자 → AI → 「AI 브리핑」(관리자 설정 — `client/js/admin/admin_station_briefing.js`).
+
+## 데이터 흐름
+1. 시작(DOMContentLoaded) → `GET /api/station-briefing/stations` — 관리자 정보는 특보 예측(`advisory_prediction.js _adminAuth`)과 같은 방식:
+   관리자 모드(`seagnal_admin_mode`)일 때만 `push_token` 을 쿼리 `adminToken` 으로, 로그인 토큰(`seagnal_admin_token`)을 `X-Admin-Token` 헤더로.
+2. `display:false` → 머리·몸 `display:none` 그대로(일반 화면 변화 없음). `display:true` → 보이고, 고른 관할이 있으면
+   `GET /api/station-briefing?station={key}&day=auto` → `StationBriefingRender.render`.
+3. 열어 둔 채면 10분마다, 접었다 펼 때 10분이 지났으면 다시 받는다(판은 하루 세 번 + 특보 변경 때만 바뀐다).
+
+## 저장(이 기기 — localStorage `seagnal_station_briefing_v1`)
+`{station, name, office, seaOnly, showSea, showLand, hidden, seen:{관할: 마지막으로 펼쳐 본 generatedAt}}` — 관심해역(`weatherAppSettings_v1`)·지방청(`officeManualSettings`)과 같은 관례.
+저장소가 막혀 있으면 기본값으로 동작한다(그때는 매번 설정 전 상태).
+
+## 설정 흐름(§11.2 + §11.6 Q3)
+| 상황 | 화면 |
+|---|---|
+| 관할 없음 | 「활동지점이 설정되지 않았습니다」 + [설정하기] |
+| [설정하기]·⚙ | 관할 목록(지방청 → 해양경찰서 → 파출소, 남항 두 곳은 경찰서로 구분, 「해상만」 표시) · 이름 찾기 · 해상/육상 보기 칸(해상만 관할은 육상 칸 끔) · [저장] [건너뛰기] ([취소] — 이미 설정했을 때) |
+| [건너뛰기] 또는 관할을 골랐지만 해상·육상 모두 끔 | 「해상·육상 모두 설정하지 않았습니다 — 이 아코디언을 더 이상 표시하지 않을까요?」 [예, 표시하지 않기] [아니요] |
+| 예 | 숨김(`hidden:true`) + 「오른쪽 위 설정(⚙) 버튼에서 언제든 다시 표시할 수 있습니다」(`showSeagnalModal`) |
+| 설정 팝업 칸 | 「해양예보 탭에 표시」 스위치 · 지금 관할 · [관할 설정](팝업을 닫고 해양예보 탭에서 고르기 화면) — **누르는 즉시 적용**(팝업 [저장]·[취소] 스냅샷과 따로) |
+
+## 본문 칸(§8 뼈대·안 A + 해상 시간 막대)
+| 칸 | 내용(서버 필드) |
+|---|---|
+| 머리 | 관할·경찰서, 「10월 17일(토) 브리핑 · 08:00 판 · 생성 시각」, [기준 상세] |
+| ① 총평과 권고 | 단계 배지(육상 `land.level`·해상 `sea.overviewLevel`) · 육상/해상 문단(`overview.land/sea`) · 지금 밀집(`now.text`, 오늘 판만) · 근거 ▸(`overviewTop`·해구 흐름) · 작게: 틀 문장/AI 작성 표시(`overview.source`) |
+| ② 특별 상황 | `special[]` 제목 + 두 줄(해제 예고·예비·이미 해제 — 기상청 시각 그대로) |
+| ③ 해상 분석 | 단계·출처, 검토 칸 수, 빠진 자료(`sea.missing`·`missingSlots`), 해구 흐름(`sea.weather.text`), **시간 막대**(`timeBar` — 칸 색 = 단계, ⚑ = 사건, 누르면 설명), 해역 카드(`cards` — [특성]·[오늘 예상]·틀 문장·[위험예측에서 보기 ›]) |
+| ④ 육상 분석 | 단계·출처, 검토 관광지 수, 관광지 카드(`land.cards`), 「상시 위험 장소」 접힘(`land.constant`). 해상만 관할은 `seaOnlyReason` 한 줄 |
+| ⑤ 조석 | 해양종합정보 조석 게이지(`OceanSheet.tideGaugeHtml` — 바텀시트 `renderTideData` 와 같은 함수) + 밀물·잠기는 바위 문구(`tide.text`) |
+| ⑥ 꼬리 | 기준 시각·다루는 시간·출처·「참고 정보이며 안전을 보장하지 않습니다」 |
+| 브리핑 없음 | 「아직 이 관할의 브리핑이 없습니다」 + `nextExpectedAt`(없으면 정시 안내) · `fallback` 이면 「내일 브리핑이 아직 없어 오늘 브리핑」 |
+
+**단계 색**: 위험예측 4색(`RiskFormat.BAND_COLORS` 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강)을 브리핑 단계 0~3(평소 수준·관심·주의·경계 필요)에 순서대로. 「확인 불가」는 회색 `#64748b`.
+
+## 바로가기([위험예측에서 보기 ›], §11.4)
+`openInRisk(target)` → `switchMainTab('ocean-life-group')` · 해양안전이 아니면 `switchSubTab('ocean-safety-section')` → 450ms 기다림
+(`life_safety.js _enterSafety` 의 200ms 뒤 지도 준비·`_unparkSafety` 가 끝나게) → `RiskForecast.openAt(target)`(risk_forecast.js — 미리보기 잠금 해제, 꺼져 있으면 위험예측 버튼 click, `goTo`).
+- 해역: `{kind:'marine', id: link.gridId||'point', location:{lon,lat}, t: link.t}` — 해상 층 켜고 그 시각(지난 시각이면 지금) → 칸 선택·시트·지도 이동.
+- 관광지: `{kind:'coast', id: link.spotId, date: link.date, location}` — 그 날짜(오늘이면 지금) → 관광지 시트.
+
+## N 뱃지(§11.3)
+`briefing.trigger.kind === 'warning'`(특보 변경 판)이고 이 관할의 `seen` 이 그 `generatedAt` 과 다르면 머리에 `.new-badge`(공지사항과 같은 것). 펼치면 `seen` 에 기록하고 지운다.
+
+## 주요 함수
+| 함수 | 파일 | 하는 일 |
+|---|---|---|
+| `refreshDisplay` | station_briefing.js | 노출 판정·관할 목록 → 보임 결정 → 본문 |
+| `loadBriefing` | station_briefing.js | 관할 브리핑 받기(day=auto) |
+| `renderSetup`·`finishSetup`·`renderConfirm` | station_briefing.js | 설정 흐름 |
+| `updateBadge`·`markSeen` | station_briefing.js | N 뱃지 |
+| `openInRisk` | station_briefing.js | 바로가기 |
+| `renderSettings` | station_briefing.js | 설정 팝업 칸(settings.js `openSettingsModal` 이 부름) |
+| `render` | station_briefing_render.js | 본문 전체(관리자 미리보기도) |
+
+## 수정 시 주의사항
+- **서버 글은 `textContent` 로만**(계약 §5). `innerHTML` 은 조석 게이지(숫자·시각만 — 모양 검사 뒤 `OS.tideGaugeHtml`)와 [기준 상세] 정적 문안뿐.
+- 노출 판정을 화면에서 하지 않는다 — `display` 는 서버가 정한다. 아코디언 머리·몸은 마크업에서 `display:none` 으로 시작한다.
+- 탭 이동은 기존 `switchMainTab`·`switchSubTab` 만 쓴다(life_safety.js 탭 상태 유지 규칙과 충돌하지 않게).
+- [기준 상세] 문안을 바꿀 때는 서버 규칙(`station_briefing_rules.js`·`station_briefing.js`·`station_briefing_ai.js`)과 설계서 §11.6~§11.8 를 대조한다 — 코드에 없는 규칙을 쓰지 않는다.
+- 시험: `local_server/scripts/test_station_briefing_ui.js`.
