@@ -331,6 +331,7 @@ bash scripts/refactor/verify_all.sh
 | `routes/risk_forecast.js` `/coast/frame`·`/coast/spot` | `store.frame(false,t)`·`store.coastDetail(id,t)`(한 칸) | `store.coastDayFrame(t)`·`store.coastDayDetail(id,t)` — `t` 가 든 KST 날짜의 하루 값 |
 | `risk_store.coastDay(t)` | (없음) | `validateTime` 뒤 그 날짜의 연안 시간축 칸(`coastTimeline(분 단위로 내린 지금)` 중 같은 날짜). 칸이 없으면 400(자정 직후 어제 날짜) |
 | `risk_store.coastDayDetail` | (없음) | 칸마다 `coastScore` → 점수가 가장 높은(같으면 이른) 칸의 `coastDetail` + `missing`(그날 칸 합침) + `daily{date,peakAt,times}` |
+| `risk_store.dayNotices` (§16.1 ②, 2026-10-16) | (없음 — 안내는 가장 높은 칸의 `notices` 만) | 그날 칸마다의 `notices` 를 묶어 `daily.notices` — 특보 `{key:'warning',name,state:'발효'\|'예비',from,to}`, 표류 `{key:'drift',windMs(묶음 최대),from,to}`. 이어진 칸은 하나, 끊기면 따로, 순서는 처음 나온 칸 → 예비·발효·표류. 맨 위 `notices` 는 그대로(가장 높은 칸) |
 | `risk_store.coastDayFrame`·`slotScores` | (없음) | 첫 칸 `frame(false,…)`(degraded·day) + 칸마다 `slotScores`(관광지 표 순서 Float64Array, `coastSlots` 16칸 보관)의 관광지별 최댓값 + `daily` |
 | `risk_store.frame(false,t)` | 관광지마다 `coastScore(p.id,t).score` | `slotScores(t)` 를 그대로 — 같은 칸 점수를 하루 값과 함께 쓴다 |
 | `risk_store.coastDetail` | 한 칸 상세 + `history` + `outlook`(T7) | 한 칸 상세 + `history`(`outlook` 뺌 — 연안 시트 시각 막대 없앰) |
@@ -344,6 +345,7 @@ bash scripts/refactor/verify_all.sh
 | `RiskMapLayer.create(map, …)` | `select` | `mapSelect` — 시트 `.open` 이면 무시(「나. 무시」) |
 | `RiskSheet.day(info)` | (없음) | `.rf-timeline` 에 `.ocean-date-nav-inline.rf-sheet-day`(해양종합정보 시트 날짜 줄 클래스) 를 한 번 그리고 글자·비활성만 바꿈. 날짜가 바뀌면 둘째 줄을 비움 |
 | `RiskSheet.show` 연안 | — | 둘째 줄 `[data-sheet-peak]` = `peakText(d.daily)` 「가장 높은 때 HH시 기준」. 팝업 닫기 기준 키를 `d.t` 대신 `daily.date`(오늘 가장 높은 칸이 지금 칸이면 60초마다 `d.t` 가 바뀜) |
+| `RiskSheet.dayNotices(daily)` (§16.1 ②, 2026-10-16) | `notices(d.notices)`(가장 높은 칸) | `daily.notices` 가 있으면 시각을 붙여 같은 문구(`notices`)로 — 「HH시~」(그날 마지막 칸까지)·「HH시~HH시」(첫 칸~끝 칸)·「HH시 무렵」(한 칸), 표류 여러 칸이면 「최대 Nm/s」. 없으면 종전 `notices(d.notices)` |
 | `RiskSlider` `opts.colors` | 연안 4단계 색(T7) | 없앰(해상 공식 사고 4색 고정) — 쓰던 곳(연안 시각 막대)이 없어졌다 |
 | `risk_forecast.css` | — | `.rf-date-nav[hidden]`·비활성(opacity .3)·해양안전 밖 숨김, `.rf-timeline .rf-sheet-day` 가운데, 바 없을 때 토스트 기본 자리(`body:not(.rf-sea-time-on) .rf-time-toast` — 탭 바로 위) |
 
@@ -357,6 +359,7 @@ bash scripts/refactor/verify_all.sh
 수정 시 주의:
 - 날짜 줄 모양은 `index2.html` 의 항행경보 규칙에서 온다 — 항행경보 쪽 `.navwarn-date-nav` 를 바꾸면 위험예측도 같이 바뀐다(의도). `test_risk_coast_day` 가 두 줄의 계산된 모양을 대조한다. 미리보기(`risk_forecast_preview.html`)와 index2 밖 시험 화면에는 그 규칙이 없어 날짜 줄이 꾸밈 없이 보인다(시험은 필요한 규칙을 index2.html 에서 읽어 넣는다 — `test_risk_main_time`).
 - 연안 시트 날짜 줄 모양은 `style.css` 의 해양종합정보 시트 규칙에서 온다(`.ocean-date-nav-btn` 28px 등). style.css 가 없는 화면에서는 꾸밈이 빠진다.
+- 시트 안내(특보·표류)는 `daily.notices`(그날 칸 전부, §16.1 ②)에서 온다 — 칸 상세 `notices` 의 꼴(`warning` 의 `effective`·`prelim` 이름 목록, `drift` 의 `windMs`)을 바꾸면 `risk_store.dayNotices` 도 함께 고친다. 시각 글자는 칸 시각(KST 시)이라 「11시~15시」는 11·12·15시 칸에서 확인됐다는 뜻이다(해제 시각 자체가 아님). 시험 `test_risk_store` 「T24 §16.1 ② 하루 안내」·`test_risk_coast_day` 「§16.1 ② 연안 시트 안내」.
 - 하루 값의 칸은 서버 연안 시간축 하나에서 정한다(`coastTimeline`). 오늘의 지난 칸을 넣으려면(설계서 §16.1 ①) `validateTime`·`coastDay` 를 함께 바꿔야 한다.
 - 지도 클릭 무시는 지도 경로(`mapSelect`)만이다. `select` 자체에 막기를 넣으면 시트 안 관광지 목록·관할 해역 이동·탭 복귀가 막힌다.
 - 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_coast_day.js` (선택 `RISK_DAY_SHOTS=<폴더>` — 380·1280px 화면 PNG).

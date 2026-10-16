@@ -2,7 +2,7 @@
  * 역할: 연안 점수·공식 선박사고 예보·혼잡·해구 기상을 읽고 변경 없는 원천 객체를 재사용한다.
  * [연계] risk_points/time/score/geo, sea_accident_collector의 배열·경계 → routes/risk_forecast.
  *        정적 표: config/coastal_safety/risk_spots.json · coast_accidents.json(연안 시트 「주변 연안사고」 history, 2026-10-16 T9 — 관광지 표 해시가 다르면 쓰지 않음).
- *        연안 지도·상세 응답은 날짜(KST)당 하나 — 그날 연안 칸 중 가장 높은 값(coastDayFrame·coastDayDetail, 2026-10-16 T24).
+ *        연안 지도·상세 응답은 날짜(KST)당 하나 — 그날 연안 칸 중 가장 높은 값(coastDayFrame·coastDayDetail, 2026-10-16 T24). 안내(특보·표류)는 그날 칸 전부에서 모음(dayNotices, §16.1 ②).
  * [로드 순서] 서버 require에 수집 부작용 없음. 기존 수집 파일은 절대로 쓰지 않는다.
  */
 'use strict';
@@ -192,15 +192,26 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      * @param {string} t - 그 날짜 안의 시각(화면은 그 날짜의 첫 칸 — 오늘은 meta.now, 내일은 00시 — 를 보낸다) @returns {{date:string,times:string[]}}
      * [연계] ← coastDayFrame·coastDayDetail / → coastTimeline·validateTime */
     function coastDay(t){t=validateTime(t,false);const date=T.dateKey(t),times=coastTimeline(Math.floor(clock()/60000)*60000).filter(at=>T.dateKey(at)===date);if(!times.length)throw Object.assign(new Error('잘못된 예보 시각'),{status:400});return{date,times};}
+    /** 연안 하루 값의 안내(특보·표류)를 그날 칸 전부에서 모은다(설계서 §16.1 ②, 사용자 2026-10-16 「모두 추천대로」).
+     * 연안 특보·표류 바람은 점수에 들지 않아(risk_score.scoreCoast 의 notices) 가장 높은 칸과 특보 칸이 다를 수 있다 — 가장 높은 칸 것만 보이면 그날 다른 칸의 특보가 시트에서 빠진다.
+     * 같은 안내(특보는 이름+발효/예비, 표류는 하나)가 이어진 칸에 있으면 하나로 묶는다(from=첫 칸·to=끝 칸 시각). 끊겼다 다시 나오면 따로. 순서는 처음 나온 칸 → 그 칸 안 예비·발효·표류 순.
+     * 표류 windMs 는 묶은 칸 중 가장 센 바람.
+     * 예: 칸 [12:17,15,18,21] 중 15·18시에 풍랑주의보 발효, 21시에 바람 9m/s →
+     *     [{key:'warning',name:'풍랑주의보',state:'발효',from:'…T15:00…',to:'…T18:00…'},{key:'drift',windMs:9,from:'…T21:00…',to:'…T21:00…'}]
+     * @param {string[]} times - 그날 칸 시각(coastDay) @param {object[]} slots - 칸마다 coastScore 결과(같은 순서) @returns {object[]} 묶은 안내
+     * [연계] ← coastDayDetail(daily.notices) → RiskSheet.dayNotices(「15시~ 풍랑주의보 발효」·「21시 무렵 이 앞바다 바람」) */
+    function dayNotices(times,slots){const out=[],last=new Map();const add=(id,i,base,wind)=>{const s=last.get(id);if(s&&s.i===i)return;if(s&&s.i===i-1){s.i=i;s.v.to=times[i];if(wind!==undefined)s.v.windMs=Math.max(s.v.windMs,wind);return;}const v={...base,...(wind!==undefined?{windMs:wind}:{}),from:times[i],to:times[i]};out.push(v);last.set(id,{i,v});};
+        slots.forEach((r,i)=>{for(const n of r.notices||[]){if(n.key==='warning'){for(const name of n.prelim||[])add('예비|'+name,i,{key:'warning',name,state:'예비'});for(const name of n.effective||[])add('발효|'+name,i,{key:'warning',name,state:'발효'});}else if(n.key==='drift')add('drift',i,{key:'drift'},n.windMs);}});return out;}
     /** 연안 상세 하루 값(T24, 사용자 2026-10-16 「1. 가」 = 그날 3시간 칸 8개 중 가장 높은 값): 그날 칸마다 점수를 내 가장 높은 칸의 상세를 준다.
-     * 같은 최댓값이 여러 칸이면 이른 칸. 시트의 요소별 설명·안내(특보·표류)는 이 칸의 것이다.
+     * 같은 최댓값이 여러 칸이면 이른 칸. 시트의 요소별 설명은 이 칸의 것이다. 안내(특보·표류)는 그날 칸 전부에서 모아 daily.notices 로 준다(dayNotices — §16.1 ②, 2026-10-16).
+     * 위의 notices(가장 높은 칸 것)는 그대로 둔다 — 화면은 daily.notices 가 있으면 그것을 쓴다.
      * missing 은 그날 모든 칸의 빠진 요소를 합친다 — 한 칸이라도 요소를 확인하지 못했으면 그 하루 값은 「확인된 요소 기준」이다
      * (기존 결측 관례: 칸 상세의 missing 이 있으면 시트 상자 「확인된 요소 기준의 상대 사고지표」·계산 설명 「현재 확인된 요소만 반영한 값」. 점수를 지어내지 않는다).
-     * 예: coastDayDetail('one','2026-11-01T00:00:00+09:00') → {…11-01 의 가장 높은 칸 상세, daily:{date:'2026-11-01',peakAt:'…T03:00:00+09:00',times:[8칸]}}
-     * @param {string} id - 관광지 id @param {string} t - 그 날짜 안의 시각 @returns {object} 가장 높은 칸 상세 + history + daily{date,peakAt,times}
-     * [연계] ← GET /coast/spot → RiskForecast.detail → RiskSheet.show(날짜 줄 아래 「가장 높은 때 HH시 기준」) */
+     * 예: coastDayDetail('one','2026-11-01T00:00:00+09:00') → {…11-01 의 가장 높은 칸 상세, daily:{date:'2026-11-01',peakAt:'…T03:00:00+09:00',times:[8칸],notices:[…]}}
+     * @param {string} id - 관광지 id @param {string} t - 그 날짜 안의 시각 @returns {object} 가장 높은 칸 상세 + history + daily{date,peakAt,times,notices}
+     * [연계] ← GET /coast/spot → RiskForecast.detail → RiskSheet.show(날짜 줄 아래 「가장 높은 때 HH시 기준」·안내는 dayNotices) */
     function coastDayDetail(id,t){const {date,times}=coastDay(t),slots=times.map(at=>coastScore(id,at));let k=0;slots.forEach((r,i)=>{if(r.score>slots[k].score)k=i;});
-        return{...coastDetail(id,times[k]),missing:[...new Set(slots.flatMap(r=>r.missing))],daily:{date,peakAt:times[k],times}};}
+        return{...coastDetail(id,times[k]),missing:[...new Set(slots.flatMap(r=>r.missing))],daily:{date,peakAt:times[k],times,notices:dayNotices(times,slots)}};}
     /** 위치표를 전달한다. 예: 아직수집전이면503. @returns {object} [연계] ← /sea/cells */
     function cells(){refresh();if(!cache.cells.data?.cells?.length)throw Object.assign(new Error('해양교통 칸 위치표 준비 전'),{status:503});return cache.cells.data;}
     /** 한 해상 칸 설명을 계산한다. 예: 수집실패시 null혼잡과날씨만 표시. @param {string} id @param {string} t @returns {object} [연계] ← /sea/cell/frame */
