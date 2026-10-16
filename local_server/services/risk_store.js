@@ -209,7 +209,8 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      * @returns {object} 예보·경계·상태·버전 @param 없음
      * [연계] ← marine_fusion / 원천 파일과 기상 캐시의 중복 상주를 막는다.
      */
-    function marineInputs(){refresh();return{version:inputVersion,congestion:cache.congestion.data,accident:cache.accident.data,cells:cache.cells.data,sources:sources(),weather:forecast};}
+    // warnings: 특보 크롤러 결과 파일(weather_alerts.json) 그대로 — 해상 상세 특보 상자(marine_fusion.warningsAt)가 current 트리를 읽는다. 상태는 sources().warnings(10분 넘으면 낡음).
+    function marineInputs(){refresh();return{version:inputVersion,congestion:cache.congestion.data,accident:cache.accident.data,cells:cache.cells.data,warnings:cache.warnings.data,sources:sources(),weather:forecast};}
     return{sourceFiles,meta,sources,spots,cells,accidentCells,accidentFrame,accidentDetail,coastDetail,seaDetail,frame,hazards,islands,marineInputs,invalidate(){loadedAt=-Infinity;}};
 }
 module.exports={createStore,zoneName,timestamp,utcForecast};

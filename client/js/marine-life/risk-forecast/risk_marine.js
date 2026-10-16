@@ -5,7 +5,7 @@
  *         위 카드 두 줄의 [?] 기준 설명 팝업·위험 예측 설명 문장 자간 맞춤은 2026-10-16 사용자 확정.
  *         선종·톤수 구성은 표시하지 않는다(사용자 결정 2026-10-15 「톤수, 선박 종류는 API에서 제공하지않는다고
  *         공식적으로 확인했어. 이용할 수 없을 것 같아.」 — 받던 MTIS 웹 수집도 이용약관 때문에 없앴다).
- * [연계] RiskFormat·RiskAPI → sea/analysis(marine.current·congestion·accident·collisionNotice·weather·history.accidents),
+ * [연계] RiskFormat·RiskAPI → sea/analysis(marine.current·congestion·accident·collisionNotice·weather·warnings·history.accidents),
  *        sea/traffic-history(30분 척수·특보 구간), sea/briefing → RiskSheet.show·trafficHistory / RiskForecast.detail.
  *        지도 면색 RiskMapLayer ← color(위험 예측)·congestionColor(혼잡도·밀집도).
  * [로드 순서] risk_slider.js 다음 · risk_sheet.js 이전. 화면에서 외부 MTIS·AI 호출 없음.
@@ -147,12 +147,25 @@
     function dirTile(lbl,d){return '<div class="rf-tile"><small>'+lbl+'</small><b>'+(Number.isFinite(d)?Math.round(d)+'<em>°</em><em class="dir">'+F.direction(d)+'</em>':'-')+'</b></div>';}
     /** 값 칸. 예: tile('유의파고',1.2,'m') → 「1.2 m」, null → 「-」 @returns {string} HTML [연계] ← weather */
     function tile(lbl,v,unit){return '<div class="rf-tile"><small>'+lbl+'</small><b>'+(Number.isFinite(v)?F.escape(v)+'<em>'+unit+'</em>':'-')+'</b></div>';}
+    /** 특보 상자의 시각 글자(사용자 2026-10-16 원문 꼴). 예: {start:'2026-10-16T09:00:00+09:00',range:false} → 「10월 16일(금) 09:00」,
+     *  범위 {start:'…16T21:00…',end:'…17T00:00…',range:true} → 「10월 16일(금) 21시 ~ 24시」, null → 「정보없음」.
+     *  범위 끝이 다음 날로 넘으면 그 시만 쓴다(21시~03시). 특보정보 탭(utils.js formatWarningTime 「10월 16일(오늘) 09시」)과 꼴이 다르다 — 사용자 원문 꼴을 따른다.
+     * @param {object|null} x - 서버 marine.warnings.items[].issued·effective·release @returns {string} 글자 [연계] ← warnBoxes */
+    function warnWhen(x){var s=x&&Date.parse(x.start);if(!Number.isFinite(s))return '정보없음';var q=k(s),head=q.m+'월 '+q.d+'일('+q.w+') ';if(!x.range)return head+p2(q.h)+':'+p2(q.mi);
+        var e=Date.parse(x.end),eh=Number.isFinite(e)?Math.round((e-Date.parse(q.day+'T00:00:00+09:00'))/HR):NaN;return head+p2(q.h)+'시 ~ '+(Number.isFinite(eh)?p2(eh>24?eh-24:eh)+'시':'');}
+    /** 그 해역에 선택 시각 기준 발효 중인 특보 상자(빨간 테두리, 「파도」 위). 경보 먼저(서버 정렬). 특보가 없거나 특보 자료가 낡거나 없으면 아무것도 그리지 않는다.
+     * 예: 「제주도북부앞바다 풍랑주의보 발효」 / 「발표 : 10월 16일(금) 04:30」 / 「발효 : 10월 16일(금) 06:00」 / 「해제예정 : 정보없음」
+     * 사용자 2026-10-16 「해당 해역에 특보가 있다면 파고 윗부분에 한줄로 테두리가 빨간 사각형 박스로 제주도북부앞바다 풍랑주의보 발효 …」
+     * @param {object} m - 서버 marine(warnings:{status,zone,items}) @returns {string} HTML [연계] ← weather / 서버 marine_fusion.warningsAt */
+    function warnBoxes(m){var w=m&&m.warnings;if(!w||w.status!=='ok'||!w.items||!w.items.length)return '';
+        return w.items.map(function(x){return '<div class="rf-warn-box" data-warn-box data-level="'+F.escape(x.level)+'"><b>'+F.escape(x.zone+' '+x.type+x.level+' 발효')+'</b><p>발표 : '+F.escape(warnWhen(x.issued))+'</p><p>발효 : '+F.escape(warnWhen(x.effective))+'</p><p>해제예정 : '+F.escape(warnWhen(x.release))+'</p></div>';}).join('');}
     /** 날씨 아코디언(처음 접힘). 지금이면 「지금 이 해역 날씨」, 미래면 「이 해역 내일 09시 예보」(오늘이면 「이 해역 18시 예보」).
      * 파도(유의파고·파주기·파향) / 바람(풍속·풍향). 예: 파향 203.4 → 「203° 남남서」.
-     * @param {object} m @param {object} ctx @returns {string} HTML [연계] ← render / 서버 marine.weather {wh,wp,wd,ws,windDir} */
+     * 펼친 몸통 맨 위(「파도」 위)에 그 해역 발효 중 특보 상자(warnBoxes)를 둔다(2026-10-16).
+     * @param {object} m @param {object} ctx @returns {string} HTML [연계] ← render / 서버 marine.weather {wh,wp,wd,ws,windDir}·marine.warnings */
     function weather(m,ctx){var x=m.weather||{},open=ui.wxOpen;
         return '<section class="rf-card rf-wx"><button type="button" class="rf-wx-head" aria-expanded="'+open+'" data-wx><h4>'+(isNow(m,ctx)?'지금 이 해역 날씨':'이 해역 '+whenText(m.t,ctx&&ctx.now)+' 예보')+'</h4><i class="chev" aria-hidden="true"></i></button>'
-            +'<div class="rf-wx-body" data-wx-body'+(open?'':' hidden')+'><p class="g">파도</p><div class="rf-grid rf-grid3">'+tile('유의파고',x.wh,'m')+tile('파주기',x.wp,'초')+dirTile('파향',x.wd)+'</div><p class="g">바람</p><div class="rf-grid">'+tile('풍속',x.ws,'m/s')+dirTile('풍향',x.windDir)+'</div></div></section>';}
+            +'<div class="rf-wx-body" data-wx-body'+(open?'':' hidden')+'>'+warnBoxes(m)+'<p class="g">파도</p><div class="rf-grid rf-grid3">'+tile('유의파고',x.wh,'m')+tile('파주기',x.wp,'초')+dirTile('파향',x.wd)+'</div><p class="g">바람</p><div class="rf-grid">'+tile('풍속',x.ws,'m/s')+dirTile('풍향',x.windDir)+'</div></div></section>';}
     /**
      * 해상 지점 시트 본문 HTML 을 만든다. 순서: 위 카드 → 과거 2주간 선박교통량 → 이 해역 과거 선박사고 → 날씨 → 출처([기준 상세]는 2026-10-16 시트 머리로).
      * 예: render(marine,{now:'2026-10-15T16:12:00+09:00'})

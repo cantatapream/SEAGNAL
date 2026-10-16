@@ -271,3 +271,7 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-map-wait .spinner{margin:0;background:rgba(10,15,28,.55)}
 .rf-map-wait p{margin:0;padding:8px 12px;border-radius:8px;background:rgba(10,15,28,.9);border:1px solid var(--border-color,#334155);color:var(--text-main,#eaf1fa);font-size:.8rem;white-space:nowrap}
 body:not(.ls-safety) .rf-map-wait{display:none !important}
+/* 해상 시트 날씨 아코디언 — 그 해역 발효 중 특보 상자(「파도」 위, 2026-10-16 사용자 「테두리가 빨간 사각형 박스로 제주도북부앞바다 풍랑주의보 발효」). 여러 개면 위아래로 쌓는다(경보 먼저). */
+.rf-warn-box{margin:2px 0 8px;padding:8px 10px;border:1.5px solid #ff4d4f;border-radius:4px;background:rgba(255,77,79,.08);overflow-wrap:anywhere}
+.rf-warn-box b{display:block;margin:0 0 4px;font-size:.84rem;font-weight:700;color:#fff;word-break:keep-all;overflow-wrap:anywhere}
+.rf-warn-box p{margin:0;font-size:.74rem;line-height:1.5;color:#dfe8f5}
