@@ -75,7 +75,7 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
  const lastMode=()=>log.frames.at(-1)&&log.frames.at(-1).mode;
  const marineMode=()=>page.evaluate(()=>{const l=map.getLayers().getArray().find(l=>l.getClassName()==='rf-marine-canvas');const f=l&&l.getSource().getFeatures()[0];return f?f.get('mode'):null;});
  const checked=()=>page.evaluate(()=>[...document.querySelectorAll('[data-marine-mode]')].filter(b=>b.getAttribute('aria-checked')==='true').map(b=>b.textContent));
- const labels=()=>page.locator('.rf-color-legend .rf-gradient-labels').evaluate(el=>el.textContent);
+ const labels=()=>page.locator('.rf-color-legend [data-accident-legend] .rf-gradient-labels').evaluate(el=>el.textContent);
  const waitMode=m=>page.waitForFunction(m=>{const l=map.getLayers().getArray().find(l=>l.getClassName()==='rf-marine-canvas');const f=l&&l.getSource().getFeatures()[0];return f&&f.get('mode')===m;},m);
 
  // ── 지도 조작부 ──
@@ -101,7 +101,7 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   await page.locator('[data-time-step="now"]').click();await waitMode('current');assert.equal(await caption(),'밀집도 (실시간)');assert.ok(log.frames.some(f=>f.mode==='current'));});
  await check('지도: 켜진 칸을 다시 눌러도 그대로(단일 선택)·해상 OFF→ON 이면 [위험 예측]으로',async()=>{
   const before=log.frames.length;await page.locator('[data-marine-mode="congestion"]').click();await page.waitForTimeout(150);assert.deepEqual(await checked(),['혼잡도']);assert.equal(log.frames.length,before,'같은 칸은 다시 요청하지 않는다');
-  await page.locator('[data-layer="sea"]').click();assert.equal(await page.locator('[data-marine-tools]').isVisible(),false);assert.equal(await page.locator('.rf-color-legend').isVisible(),false);
+  await page.locator('[data-layer="sea"]').click();assert.equal(await page.locator('[data-marine-tools]').isVisible(),false);assert.equal(await page.locator('.rf-color-legend [data-marine-caption]').isVisible(),false,'해상 범례는 숨김');assert.equal(await page.locator('.rf-color-legend [data-coast-key]').isVisible(),await page.evaluate(()=>app.getState().coast),'같은 상자의 연안 범례는 연안이 켜져 있을 때만(2026-10-16 「범례는 해상위험예측과 동일한 위치에」)');
   await page.locator('[data-layer="sea"]').click();await waitMode('accident');assert.equal(await caption(),'위험 예측');assert.deepEqual(await checked(),['위험 예측']);});
 
  // ── 해상 시트: 지금 붐빔 ──
