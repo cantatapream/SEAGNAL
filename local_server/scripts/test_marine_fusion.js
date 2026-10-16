@@ -111,5 +111,66 @@ const risk={marineInputs:()=>inputs,sources:()=>inputs.sources};
         assert.ok(h.accidents.every(a=>a.year>=2021&&a.year<=2025));
         const br=m.briefing(m.jurisdictionList().stations[0].id);assert.ok(br.regions.every(r=>!r.history||!('accidents' in JSON.parse(JSON.stringify(r.history)))),'관할 브리핑에는 사고 목록을 싣지 않음(독립 검토 지적)');
     });
+    // ── 발효 중 특보 상자(marine.warnings) — 2026-10-16 사용자 「해당 해역에 특보가 있다면 파고 윗부분에 … 빨간 사각형 박스로 제주도북부앞바다 풍랑주의보 발효 / 발표 / 발효 / 해제예정 … 정보없음」
+    // 원자료 꼴은 크롤러 결과 트리(weather_alerts.json current — marine_warning_crawler._buildZoneTreeFromSnapshot·normalizeMmisTime 뒤)를 그대로 흉내 낸다.
+    const W13=Date.parse('2026-10-12T13:05:00+09:00'),wdir=path.join(dir,'warn-empty');fs.mkdirSync(wdir);   // 실시간 교통 파일 없는 폴더(dir 정리 때 함께 지워짐)
+    const blk=(lvl,o={})=>({wrnTp:'풍랑',wrnTpNm:'풍랑',wrnLvl:lvl,wrnLvlNm:lvl,tmFc:'2026년 10월 12일 04시 30분',tmEf:'2026년 10월 12일 06시 00분',tmYn:'',tmCc:'',clrNtcTm:'',source:'MARINE_MMIS',...o});
+    const wtree=(parent,child,upcoming=null)=>({남해:{제주도해상:{제주도앞바다:{'제주도북부앞바다':{current:parent||null,upcoming,history:[],children:{'제주도북부앞바다중연안바다':child||null}}}}}});
+    const subCell={...trafficCell,id:'GR4_F4K23_R4',i:1,lon:126.6375,lat:33.5625,geometry:{type:'Polygon',coordinates:[[[126.625,33.55],[126.65,33.55],[126.65,33.575],[126.625,33.575],[126.625,33.55]]]}};
+    const wstore=(tree,status='ok')=>{const inp={...inputs,cells:{cells:[trafficCell,subCell]},warnings:tree===undefined?null:{updatedAt:'2026. 10. 12. PM 1:04:30',current:tree},sources:{...inputs.sources,warnings:{status,updatedAt:'2026-10-12T13:04:30+09:00'}}};return M.createStore({risk:{marineInputs:()=>inp},dir:wdir,clock:()=>W13,stations,accidents,describe});};
+    const wAt=(s,t,id=trafficCell.id)=>s.analysis({id,t}).marine.warnings;
+    await check('특보 상자: 발효 중(해제예정 없음) — 구역·종류·단계·발표·발효 시각, 해제예정 null(화면 「정보없음」)',()=>{
+        const w=wAt(wstore(wtree(blk('주의보'))),'2026-10-12T13:05:00+09:00');
+        assert.equal(w.status,'ok');assert.deepEqual(w.zone,{name:'제주도북부앞바다',kind:'앞바다'});assert.equal(w.items.length,1);
+        assert.deepEqual(w.items[0],{zone:'제주도북부앞바다',kind:'앞바다',type:'풍랑',level:'주의보',issued:{start:'2026-10-12T04:30:00+09:00',end:'2026-10-12T04:30:00+09:00',range:false},effective:{start:'2026-10-12T06:00:00+09:00',end:'2026-10-12T06:00:00+09:00',range:false},release:null});
+    });
+    await check('특보 상자: 해제예정이 이미 지났으면 뺌 · 남았으면 넣음 · 미래 시각에서 해제예정 이후면 뺌(정확 시각)',()=>{
+        assert.deepEqual(wAt(wstore(wtree(blk('주의보',{clrNtcTm:'2026년 10월 12일 12시 00분'}))),'2026-10-12T13:05:00+09:00').items,[],'12시 해제예정 → 13:05 에는 없음');
+        const s=wstore(wtree(blk('경보',{clrNtcTm:'2026년 10월 12일 15시 00분',tmCc:'2026년 10월 12일 15시 00분'})));
+        const now=wAt(s,'2026-10-12T13:05:00+09:00');assert.equal(now.items.length,1);assert.deepEqual(now.items[0].release,{start:'2026-10-12T15:00:00+09:00',end:'2026-10-12T15:00:00+09:00',range:false});
+        assert.equal(wAt(s,'2026-10-12T14:59:00+09:00').items.length,1,'14:59 미래 — 아직 발효 중');
+        assert.deepEqual(wAt(s,'2026-10-12T15:00:00+09:00').items,[],'해제예정 시각 그 자체부터는 뺌');
+        assert.deepEqual(wAt(s,'2026-10-13T09:00:00+09:00').items,[],'내일 09시 — 해제예정 뒤');
+    });
+    await check('특보 상자: 해제예정 범위(15~18시)는 범위 끝까지 남김 · 범위 끝 뒤 미래는 뺌 · 범위·발표 글자는 원문 꼴(월 없는 「12일 오후(15시~18시)」)도 읽음',()=>{
+        const s=wstore(wtree(blk('주의보',{clrNtcTm:'12일 오후(15시~18시)',tmCc:'12일 오후(15시~18시)'})));
+        const a=wAt(s,'2026-10-12T16:00:00+09:00');assert.equal(a.items.length,1);assert.deepEqual(a.items[0].release,{start:'2026-10-12T15:00:00+09:00',end:'2026-10-12T18:00:00+09:00',range:true});
+        assert.equal(wAt(s,'2026-10-12T17:59:00+09:00').items.length,1);assert.deepEqual(wAt(s,'2026-10-12T18:00:00+09:00').items,[]);
+    });
+    await check('특보 상자: 해제예고(clrNtcTm) 없으면 tmYn(통보문 해제예정, 58분 코드는 범위)으로 — 특보정보 탭 「해제예정」과 같은 순서',()=>{
+        const w=wAt(wstore(wtree(blk('주의보',{tmYn:'2026년 10월 12일 18시~24시'}))),'2026-10-12T13:05:00+09:00');
+        assert.deepEqual(w.items[0].release,{start:'2026-10-12T18:00:00+09:00',end:'2026-10-13T00:00:00+09:00',range:true});
+    });
+    await check('특보 상자: 발효시각이 선택 시각보다 뒤면(발표됐지만 아직 발효 전) 뺌 · 미래 시각이 발효 뒤면 넣음 · 발효 범위는 범위 시작부터',()=>{
+        const s=wstore(wtree(blk('주의보',{tmEf:'2026년 10월 12일 14시 00분'})));
+        assert.deepEqual(wAt(s,'2026-10-12T13:05:00+09:00').items,[]);const f=wAt(s,'2026-10-12T15:00:00+09:00');assert.equal(f.items.length,1);assert.equal(f.items[0].effective.start,'2026-10-12T14:00:00+09:00');
+        const r=wstore(wtree(blk('경보',{tmEf:'2026년 10월 12일 오후(15시~18시)'})));
+        assert.deepEqual(wAt(r,'2026-10-12T14:00:00+09:00').items,[]);const g=wAt(r,'2026-10-12T16:00:00+09:00').items[0];assert.deepEqual(g.effective,{start:'2026-10-12T15:00:00+09:00',end:'2026-10-12T18:00:00+09:00',range:true});
+        const d=wstore(wtree(blk('주의보',{tmEf:'2026년 10월 12일 밤(21시~21시)'})));assert.deepEqual(wAt(d,'2026-10-12T22:00:00+09:00').items[0].effective,{start:'2026-10-12T18:00:00+09:00',end:'2026-10-13T00:00:00+09:00',range:true},'시작=끝 범위는 특보정보 탭처럼 6시간 칸');
+    });
+    await check('특보 상자: 예비특보(부모 upcoming·자식 「예비」)는 발효가 아니라 뺌',()=>{
+        assert.deepEqual(wAt(wstore(wtree(null,null,blk('예비',{tmEf:'12일 오후(15시~18시)'}))),'2026-10-12T16:00:00+09:00').items,[]);
+        assert.deepEqual(wAt(wstore(wtree(null,blk('예비'))),'2026-10-12T13:05:00+09:00',subCell.id).items,[]);
+    });
+    await check('특보 상자: 특보 자료가 낡음·없음·깨짐이면 상자 없음(items 빈 배열)·상태는 그대로 알림 · 원자료 시각 빈 값(\'0\'·12자리 0·\'일\')은 null',()=>{
+        for(const st of ['stale','missing','error']){const w=wAt(wstore(wtree(blk('경보')),st),'2026-10-12T13:05:00+09:00');assert.equal(w.status,st);assert.deepEqual(w.items,[]);}
+        assert.equal(wAt(wstore(undefined),'2026-10-12T13:05:00+09:00').items.length,0,'파일 없음');
+        assert.equal(m.analysis({id:trafficCell.id,t:'2026-10-12T15:00:00+09:00'}).marine.warnings.status,'missing','특보 상태가 없는 입력 → missing');
+        const w=wAt(wstore(wtree(blk('주의보',{tmFc:'0',tmEf:'000000000000',clrNtcTm:'일'}))),'2026-10-12T13:05:00+09:00');assert.equal(w.items.length,1);assert.deepEqual([w.items[0].issued,w.items[0].effective,w.items[0].release],[null,null,null]);
+        assert.equal(M.warnTime('0',W13),null,'risk_time.parseMmisTime 은 \'0\' 을 2000-01-01 로 읽는다 — 날짜 꼴만 받는다');
+    });
+    await check('특보 상자: 연안바다 칸은 그 연안바다 블록만(부모 앞바다 「연안바다 제외」 대비) · 지점 조회(GR4 칸 밖)도 같은 구역 판정',()=>{
+        const only=wstore(wtree(blk('주의보'),null));assert.deepEqual(wAt(only,'2026-10-12T13:05:00+09:00',subCell.id).zone,{name:'제주도북부앞바다중 연안바다',kind:'연안바다'});
+        assert.deepEqual(wAt(only,'2026-10-12T13:05:00+09:00',subCell.id).items,[],'부모만 발효·자식 없음 → 연안바다 칸은 상자 없음');
+        assert.equal(wAt(only,'2026-10-12T13:05:00+09:00').items.length,1,'연안바다 밖 앞바다 칸은 부모 특보');
+        const both=wstore(wtree(blk('주의보'),blk('경보',{tmEf:'2026년 10월 12일 09시 00분'})));const w=wAt(both,'2026-10-12T13:05:00+09:00',subCell.id);
+        assert.deepEqual(w.items.map(x=>[x.zone,x.kind,x.level,x.effective.start]),[['제주도북부앞바다중연안바다','연안바다','경보','2026-10-12T09:00:00+09:00']]);
+        const pt=both.analysis({lon:126.64,lat:33.56,t:'2026-10-12T13:05:00+09:00'}).marine.warnings;assert.equal(pt.zone.kind,'연안바다');assert.equal(pt.items[0].level,'경보');
+    });
+    await check('특보 상자: 여러 개면 경보 먼저, 같은 단계는 발효 이른 순(정렬 규칙 — 인위적 두 블록)',()=>{
+        const tree={a:{'제주도북부앞바다':{current:blk('주의보',{tmEf:'2026년 10월 12일 03시 00분'}),children:{}}},b:{'제주도북부앞바다':{current:blk('경보',{tmEf:'2026년 10월 12일 10시 00분'}),children:{}}},c:{'제주도북부앞바다':{current:blk('주의보',{tmEf:'2026년 10월 12일 01시 00분',wrnTp:'T',wrnTpNm:'태풍'}),children:{}}}};
+        const w=M.warningsAt(tree,{name:'제주도북부앞바다',kind:'앞바다'},'2026-10-12T13:05:00+09:00',{status:'ok'},W13);
+        assert.deepEqual(w.items.map(x=>x.type+x.level+'@'+x.effective.start.slice(11,13)),['풍랑경보@10','태풍주의보@01','풍랑주의보@03']);
+    });
     await check('실제 HTTP 통합·관할 계약과 읽기전용 오류',async()=>{const app=express();app.use(createRouter({store:risk,marine:m}));server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const url='http://127.0.0.1:'+server.address().port+'/api/risk-forecast/sea/';const a=await fetch(url+'analysis?id='+trafficCell.id);assert.equal(a.status,200);assert.equal(a.headers.get('cache-control'),'no-store');assert.ok((await a.json()).marine);assert.equal((await fetch(url+'briefing?id=none')).status,404);assert.equal((await(await fetch(url+'jurisdictions')).json()).stations.length,2);});
 }finally{if(server)await new Promise(resolve=>server.close(resolve));fs.rmSync(dir,{recursive:true,force:true});console.log(`${pass} PASS / ${fail} FAIL`);if(fail)process.exitCode=1;}})();

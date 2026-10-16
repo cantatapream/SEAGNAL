@@ -5,9 +5,10 @@
  *         위 카드 두 줄의 [?] 기준 설명 팝업·위험 예측 설명 문장 자간 맞춤은 2026-10-16 사용자 확정.
  *         선종·톤수 구성은 표시하지 않는다(사용자 결정 2026-10-15 「톤수, 선박 종류는 API에서 제공하지않는다고
  *         공식적으로 확인했어. 이용할 수 없을 것 같아.」 — 받던 MTIS 웹 수집도 이용약관 때문에 없앴다).
- * [연계] RiskFormat·RiskAPI → sea/analysis(marine.current·congestion·accident·collisionNotice·weather·history.accidents),
+ * [연계] RiskFormat·RiskAPI → sea/analysis(marine.current·congestion·accident·collisionNotice·weather·warnings·history.accidents),
  *        sea/traffic-history(30분 척수·특보 구간), sea/briefing → RiskSheet.show·trafficHistory / RiskForecast.detail.
  *        지도 면색 RiskMapLayer ← color(위험 예측)·congestionColor(혼잡도·밀집도).
+ *        사고 도넛·범례 팝업(accSort·accSummary·bindAcc·closePop)은 연안 시트 「주변 연안사고」도 쓴다(RiskSheet, 2026-10-16 T9).
  * [로드 순서] risk_slider.js 다음 · risk_sheet.js 이전. 화면에서 외부 MTIS·AI 호출 없음.
  */
 (function(w){
@@ -132,8 +133,20 @@
      */
     function accidents(h){
         if(!h||h.available===false)return '<section class="rf-card"><h4>이 해역 과거 선박사고</h4><p class="rf-muted">선박사고 이력 자료를 확인할 수 없습니다.</p></section>';
-        var yrs=(h.from&&h.to?F.escape(String(h.from).slice(0,4))+'~'+F.escape(String(h.to).slice(0,4))+'년':''),L=(h.accidents||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
+        var yrs=(h.from&&h.to?F.escape(String(h.from).slice(0,4))+'~'+F.escape(String(h.to).slice(0,4))+'년':''),L=accSort(h.accidents);
         if(!L.length)return '<section class="rf-card rf-none" data-acc-none><h4>이 해역 선박사고 없음<span class="rf-src">'+yrs+'</span></h4></section>';
+        return '<section class="rf-card rf-acc"><h4>이 해역 과거 선박사고<span class="rf-src">'+yrs+'</span></h4>'+accSummary(L)+'</section>';
+    }
+    /** 사고 목록을 최신순으로 정렬한 사본을 만든다. 예: accSort([{date:'2021-…'},{date:'2024-…'}]) → 2024 먼저 @param {object[]|null} list @returns {object[]} [연계] ← accidents·attach·연안 시트(RiskSheet) */
+    function accSort(list){return (list||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));});}
+    /**
+     * 사고 도넛(가운데 총 건수)+누르는 유형 범례(› 팝업)+인명피해 한 줄을 만든다 — 해상 「이 해역 과거 선박사고」와 연안 「이 관광지 주변 연안사고」(2026-10-16 T9)가 같이 쓴다.
+     * 인명피해 줄: 「사망 1명(23년, 충돌), 실종 2명(21년, 전복)」(한 사고에 둘 다면 「사망 1명·실종 2명(23년, 충돌)」) / 없으면 「인명피해 없음」.
+     * 예: accSummary(accSort(list)) → '<div class="rf-acc-sum">…</div><p class="rf-acc-cas">…</p>'
+     * @param {object[]} L - 최신순 사고(빈 배열이면 부르지 않는다 — 0건 문구는 부르는 쪽이 쓴다) @returns {string} HTML
+     * [연계] ← accidents(해상)·RiskSheet 연안 카드 / 범례 버튼 [data-acc-group] 의 동작은 bindAcc 가 붙인다(같은 groups 순서).
+     */
+    function accSummary(L){
         var g=groups(L),D=112,rad=42,sw=15,C=2*Math.PI*rad,acc=0,arcs='';
         g.forEach(function(a){var len=a.n/L.length*C;arcs+='<circle cx="'+D/2+'" cy="'+D/2+'" r="'+rad+'" fill="none" stroke="'+a.col+'" stroke-width="'+sw+'" stroke-dasharray="'+Math.max(0,len-(g.length>1?2:0)).toFixed(2)+' '+C.toFixed(2)+'" stroke-dashoffset="'+(-acc).toFixed(2)+'" transform="rotate(-90 '+D/2+' '+D/2+')" data-arc="'+F.escape(a.name)+'"/>';acc+=len;});
         var donut='<svg width="'+D+'" height="'+D+'" viewBox="0 0 '+D+' '+D+'" role="img" aria-label="사고 종류별 건수, 전체 '+L.length+'건">'+arcs+'<text x="'+D/2+'" y="'+(D/2+7)+'" fill="#fff" font-size="21" font-weight="800" text-anchor="middle" data-acc-total>'+L.length+'<tspan font-size="12" font-weight="500" fill="#bfcbde">건</tspan></text></svg>';
@@ -141,18 +154,49 @@
         var hurt=L.filter(function(a){return hurtOf(a);});
         var cas=hurt.length?'<p class="rf-acc-cas" data-acc-cas>'+hurt.map(function(a){var x=[];if(a.death>0)x.push('<b>사망 '+a.death+'명</b>');if(a.missing>0)x.push('<b>실종 '+a.missing+'명</b>');return x.join('·')+'('+F.escape(String(a.year||String(a.date).slice(0,4)).slice(2,4))+'년, '+F.escape(a.type)+')';}).join(', ')+'</p>'
             :'<p class="rf-acc-cas none" data-acc-cas>인명피해 없음</p>';
-        return '<section class="rf-card rf-acc"><h4>이 해역 과거 선박사고<span class="rf-src">'+yrs+'</span></h4><div class="rf-acc-sum">'+donut+leg+'</div>'+cas+'</section>';
+        return '<div class="rf-acc-sum">'+donut+leg+'</div>'+cas;
     }
+    /**
+     * 그려 둔 사고 범례 버튼([data-acc-group])에 유형별 사고 목록 팝업을 붙인다(해상·연안 공용).
+     * 예: bindAcc(body,accSort(list)) — 해상 줄 「2025년 · 원인: 운항부주의」 / bindAcc(body,L,function(x){return '2024.07.26';}) — 연안(원인 칸이 없는 자료)
+     * @param {HTMLElement} body - 카드가 든 본문 @param {object[]} list - accSummary 에 넘긴 것과 같은 최신순 목록
+     * @param {function} [line] - 팝업 한 줄 왼쪽 글자(HTML, escape 해서 돌려줌). 없으면 해상 「YYYY년 · 원인: X」
+     * @returns {void} [연계] ← attach(해상)·RiskSheet.show(연안) → openAcc
+     */
+    function bindAcc(body,list,line){var g=groups(list);body.querySelectorAll('[data-acc-group]').forEach(function(b){b.addEventListener('click',function(){openAcc(body,g[+b.dataset.accGroup],list,b,line);});});}
     /** 날씨 방향 칸. 예: dirTile('파향',203.4) → 「203° 남남서」, null → 「-」 @param {string} lbl @param {number|null} d @returns {string} HTML [연계] ← weather */
     function dirTile(lbl,d){return '<div class="rf-tile"><small>'+lbl+'</small><b>'+(Number.isFinite(d)?Math.round(d)+'<em>°</em><em class="dir">'+F.direction(d)+'</em>':'-')+'</b></div>';}
     /** 값 칸. 예: tile('유의파고',1.2,'m') → 「1.2 m」, null → 「-」 @returns {string} HTML [연계] ← weather */
     function tile(lbl,v,unit){return '<div class="rf-tile"><small>'+lbl+'</small><b>'+(Number.isFinite(v)?F.escape(v)+'<em>'+unit+'</em>':'-')+'</b></div>';}
+    /** 특보 상자의 시각 글자(사용자 2026-10-16 원문 꼴). 예: {start:'2026-10-16T09:00:00+09:00',range:false} → 「10월 16일(금) 09:00」,
+     *  범위 {start:'…16T21:00…',end:'…17T00:00…',range:true} → 「10월 16일(금) 21시 ~ 24시」, null → 「정보없음」.
+     *  범위 끝이 다음 날로 넘으면 그 시만 쓴다(21시~03시). 특보정보 탭(utils.js formatWarningTime 「10월 16일(오늘) 09시」)과 꼴이 다르다 — 사용자 원문 꼴을 따른다.
+     * @param {object|null} x - 서버 marine.warnings.items[].issued·effective·release @returns {string} 글자 [연계] ← warnBoxes */
+    function warnWhen(x){var s=x&&Date.parse(x.start);if(!Number.isFinite(s))return '정보없음';var q=k(s),head=q.m+'월 '+q.d+'일('+q.w+') ';if(!x.range)return head+p2(q.h)+':'+p2(q.mi);
+        var e=Date.parse(x.end),eh=Number.isFinite(e)?Math.round((e-Date.parse(q.day+'T00:00:00+09:00'))/HR):NaN;return head+p2(q.h)+'시 ~ '+(Number.isFinite(eh)?p2(eh>24?eh-24:eh)+'시':'');}
+    /** 화면에 보일 발효 중 특보 목록을 고른다 — 특보 상자(warnBoxes)와 제목 줄 「특보」 표시(warnBadge)가 이 한 함수만 본다(두 곳이 어긋나지 않게).
+     * 특보 자료가 낡거나(stale)·없거나(missing)·깨지면(error) 빈 목록 — 「특보 정보 확인 불가」 같은 안내는 띄우지 않는다(사용자 2026-10-16 「3 띄우지마」).
+     * 예: activeWarns({warnings:{status:'ok',items:[a]}}) → [a] / {status:'stale',items:[a]} → [] / warnings 없음 → []
+     * @param {object} m - 서버 marine(warnings:{status,zone,items}) @returns {object[]} 서버 순서(경보 먼저) 그대로 [연계] ← warnBoxes·warnBadge / 서버 marine_fusion.warningsAt */
+    function activeWarns(m){var w=m&&m.warnings;return w&&w.status==='ok'&&w.items&&w.items.length?w.items:[];}
+    /** 날씨 아코디언 제목 줄의 작은 빨간 「특보」 표시(접혀 있어도 특보가 있는 줄 알게 — 사용자 2026-10-16 「2 추천대로」). 펼쳐도 그대로 둔다(제목 줄은 접힘·펼침에 같고 꺾쇠만 돈다).
+     * 예: 특보 1개 이상 → '<span class="rf-warn-badge" data-warn-badge>특보</span>' / 없음·자료 낡음 → ''
+     * @param {object} m @returns {string} HTML [연계] ← weather / → activeWarns(상자와 같은 조건) */
+    function warnBadge(m){return activeWarns(m).length?'<span class="rf-warn-badge" data-warn-badge>특보</span>':'';}
+    /** 그 해역에 선택 시각 기준 발효 중인 특보 상자(빨간 테두리, 「파도」 위). 경보 먼저(서버 정렬). 특보가 없거나 특보 자료가 낡거나 없으면 아무것도 그리지 않는다.
+     * 예: 「제주도북부앞바다 풍랑주의보 발효」 / 「발표 : 10월 16일(금) 04:30」 / 「발효 : 10월 16일(금) 06:00」 / 「해제예정 : 정보없음」
+     * 사용자 2026-10-16 「해당 해역에 특보가 있다면 파고 윗부분에 한줄로 테두리가 빨간 사각형 박스로 제주도북부앞바다 풍랑주의보 발효 …」
+     * @param {object} m - 서버 marine(warnings:{status,zone,items}) @returns {string} HTML [연계] ← weather / → activeWarns(제목 줄 warnBadge 와 같은 조건) / 서버 marine_fusion.warningsAt */
+    function warnBoxes(m){
+        return activeWarns(m).map(function(x){return '<div class="rf-warn-box" data-warn-box data-level="'+F.escape(x.level)+'"><b>'+F.escape(x.zone+' '+x.type+x.level+' 발효')+'</b><p>발표 : '+F.escape(warnWhen(x.issued))+'</p><p>발효 : '+F.escape(warnWhen(x.effective))+'</p><p>해제예정 : '+F.escape(warnWhen(x.release))+'</p></div>';}).join('');}
     /** 날씨 아코디언(처음 접힘). 지금이면 「지금 이 해역 날씨」, 미래면 「이 해역 내일 09시 예보」(오늘이면 「이 해역 18시 예보」).
      * 파도(유의파고·파주기·파향) / 바람(풍속·풍향). 예: 파향 203.4 → 「203° 남남서」.
-     * @param {object} m @param {object} ctx @returns {string} HTML [연계] ← render / 서버 marine.weather {wh,wp,wd,ws,windDir} */
+     * 펼친 몸통 맨 위(「파도」 위)에 그 해역 발효 중 특보 상자(warnBoxes)를 둔다(2026-10-16). 그런 특보가 있으면 제목 줄 꺾쇠 앞에 「특보」(warnBadge, 접혀도 보임).
+     * 시각을 바꾸면 render 가 본문을 통째로 다시 그려 상자·표시가 함께 바뀐다.
+     * @param {object} m @param {object} ctx @returns {string} HTML [연계] ← render / 서버 marine.weather {wh,wp,wd,ws,windDir}·marine.warnings */
     function weather(m,ctx){var x=m.weather||{},open=ui.wxOpen;
-        return '<section class="rf-card rf-wx"><button type="button" class="rf-wx-head" aria-expanded="'+open+'" data-wx><h4>'+(isNow(m,ctx)?'지금 이 해역 날씨':'이 해역 '+whenText(m.t,ctx&&ctx.now)+' 예보')+'</h4><i class="chev" aria-hidden="true"></i></button>'
-            +'<div class="rf-wx-body" data-wx-body'+(open?'':' hidden')+'><p class="g">파도</p><div class="rf-grid rf-grid3">'+tile('유의파고',x.wh,'m')+tile('파주기',x.wp,'초')+dirTile('파향',x.wd)+'</div><p class="g">바람</p><div class="rf-grid">'+tile('풍속',x.ws,'m/s')+dirTile('풍향',x.windDir)+'</div></div></section>';}
+        return '<section class="rf-card rf-wx"><button type="button" class="rf-wx-head" aria-expanded="'+open+'" data-wx><h4>'+(isNow(m,ctx)?'지금 이 해역 날씨':'이 해역 '+whenText(m.t,ctx&&ctx.now)+' 예보')+'</h4>'+warnBadge(m)+'<i class="chev" aria-hidden="true"></i></button>'
+            +'<div class="rf-wx-body" data-wx-body'+(open?'':' hidden')+'>'+warnBoxes(m)+'<p class="g">파도</p><div class="rf-grid rf-grid3">'+tile('유의파고',x.wh,'m')+tile('파주기',x.wp,'초')+dirTile('파향',x.wd)+'</div><p class="g">바람</p><div class="rf-grid">'+tile('풍속',x.ws,'m/s')+dirTile('풍향',x.windDir)+'</div></div></section>';}
     /**
      * 해상 지점 시트 본문 HTML 을 만든다. 순서: 위 카드 → 과거 2주간 선박교통량 → 이 해역 과거 선박사고 → 날씨 → 출처([기준 상세]는 2026-10-16 시트 머리로).
      * 예: render(marine,{now:'2026-10-15T16:12:00+09:00'})
@@ -173,8 +217,7 @@
     function attach(body,m,ctx){
         body._rfMarine={m:m,ctx:ctx,cell:cellOf(m)};
         var wx=body.querySelector('[data-wx]');if(wx)wx.addEventListener('click',function(){ui.wxOpen=wx.getAttribute('aria-expanded')!=='true';wx.setAttribute('aria-expanded',String(ui.wxOpen));body.querySelector('[data-wx-body]').hidden=!ui.wxOpen;});
-        var list=((m.history&&m.history.accidents)||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));}),g=groups(list);
-        body.querySelectorAll('[data-acc-group]').forEach(function(b){b.addEventListener('click',function(){openAcc(body,g[+b.dataset.accGroup],list,b);});});
+        bindAcc(body,accSort(m.history&&m.history.accidents));
         body.querySelectorAll('[data-help]').forEach(function(b){b.addEventListener('click',function(){openHelp(b.dataset.help,b);});});
         var fit=body.querySelector('[data-fit]');if(fit)watchFit(fit);
         var cell=body._rfMarine.cell;
@@ -182,12 +225,13 @@
     }
     /** 사고 종류 팝업을 연다: 그 종류 사고 최신순 「YYYY년 · 원인: X」(기타는 종류 이름 앞에) + 오른쪽 인명피해.
      * 예: 충돌 5건 → 「2025년 · 원인: 운항부주의」, 「2023년 · 원인 기록 없음 … 사망 1명」(빨강 굵게). 사망·실종이 없거나 기록이 없으면 오른쪽은 비운다.
-     * @param {HTMLElement} body @param {object} grp - groups() 한 줄 @param {object[]} list - 최신순 사고 @param {HTMLElement} opener - 닫으면 돌아갈 버튼 @returns {void}
+     * @param {HTMLElement} body @param {object} grp - groups() 한 줄 @param {object[]} list - 최신순 사고 @param {HTMLElement} opener - 닫으면 돌아갈 버튼
+     * @param {function} [line] - 한 줄 왼쪽 글자(연안은 날짜 — 원인 칸이 없는 자료라 「원인 기록 없음」으로 쓰지 않는다) @returns {void}
      * [연계] ← attach / 휴대폰 뒤로가기(PopupStack)·Escape·바깥 누르기로 닫는다. 화면 전체를 덮도록 document.body 에 붙인다
      *        (앱에서 시트는 지도 구역의 쌓임 맥락 안에 있어, 시트 안에 두면 메인 탭이 팝업 위로 올라온다). RiskSheet.clear 가 시트를 닫을 때 함께 닫는다. */
-    function openAcc(body,grp,list,opener){
+    function openAcc(body,grp,list,opener,line){
         var rows=list.filter(function(x){return grp.types.indexOf(x.type)>=0;}).map(function(x){var hz=hurtOf(x);
-            return '<li><span class="t">'+(grp.etc?'<b>'+F.escape(x.type)+'</b> · ':'')+F.escape(x.year||String(x.date).slice(0,4))+'년 · '+(x.cause?'원인: '+F.escape(x.cause):'<span class="no">원인 기록 없음</span>')+'</span>'+(hz?'<span class="c hurt">'+F.escape(hz)+'</span>':'')+'</li>';}).join('');
+            return '<li><span class="t">'+(grp.etc?'<b>'+F.escape(x.type)+'</b> · ':'')+(line?line(x):F.escape(x.year||String(x.date).slice(0,4))+'년 · '+(x.cause?'원인: '+F.escape(x.cause):'<span class="no">원인 기록 없음</span>'))+'</span>'+(hz?'<span class="c hurt">'+F.escape(hz)+'</span>':'')+'</li>';}).join('');
         showPop('<div class="box" role="dialog" aria-modal="true" aria-label="'+F.escape(grp.name)+' 사고 목록"><div class="hd"><i style="background:'+grp.col+'"></i><h5>'+F.escape(grp.name)+' '+grp.n+'건<small>최신순</small></h5><button type="button" class="x" aria-label="닫기">×</button></div><ul>'+rows+'</ul></div>',opener);
     }
     /** 사고 팝업과 [?] 팝업이 함께 쓰는 화면 전체 팝업 틀(.rf-acc-pop 하나)을 내용만 바꿔 연다. 처음 한 번 만들고 닫기(×·바깥·Escape)를 붙인다.
@@ -385,5 +429,7 @@
      * @param {number} position - 서버 색상위치0..1 @returns {string} CSS RGB
      * [연계] ← RiskMapLayer(지도 [혼잡도] — 지금은 밀집도 mode current, 미래는 혼잡 예보 mode congestion) / 범례 .rf-pal-cong 과 같은 네 색(종전 혼잡 4색 #b8c5da→#74b9ff→#d47cff→#ff5fe3). */
     function congestionColor(position){return color(position);}
-    w.RiskMarine={HELP:HELP,render:render,attach:attach,fillTraffic:fillTraffic,cellOf:cellOf,zoom:zoom,briefing:briefing,history:history,color:color,congestionColor:congestionColor};
+    /** 열린 공용 팝업(사고 목록·[?])이 있으면 닫는다. 예: 연안 시트가 다른 관광지·시각을 그릴 때 @returns {void} [연계] ← RiskSheet.show(연안) → closeAcc */
+    function closePop(){var op=document.querySelector('.rf-acc-pop');if(op){op._opener=null;closeAcc(op);}}
+    w.RiskMarine={HELP:HELP,render:render,attach:attach,accSort:accSort,accSummary:accSummary,bindAcc:bindAcc,closePop:closePop,fillTraffic:fillTraffic,cellOf:cellOf,zoom:zoom,briefing:briefing,history:history,color:color,congestionColor:congestionColor};
 })(window);

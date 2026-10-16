@@ -53,5 +53,28 @@ try{run({
  '지난 날짜 집중률은 stale로 분리하고 혼잡점수에 사용하지 않음':a=>{write(dir,'tourConcentration_status.json',{status:'ok'});write(dir,'tour_concentration.json',{date:'2026-10-30',collectedAt:new Date(now).toISOString(),values:{one:{'2026-10-31':90}}});store.sources(true);a.equal(store.sources().tourConcentration.status,'stale');a.equal(store.coastDetail('one',t).rows.find(r=>r.key==='people').score,0);},
  '첫주 집중률 관측 요약을 KST ISO로 상태에 노출':a=>{write(dir,'tourConcentration_status.json',{status:'ok',observation:{firstRun:new Date(now).toISOString(),windowEndsAt:new Date(now+7*86400000).toISOString(),samples:2,lastObservedAt:new Date(now).toISOString(),lastChangedAt:null}});const r=store.sources(true).tourConcentration.observation;a.equal(r.samples,2);a.equal(r.firstRun,'2026-10-31T12:17:00+09:00');a.equal(r.lastObservedAt,r.firstRun);a.equal(r.lastChangedAt,null);},
  '섬 외곽선 응답(/islands)은 섬 features 만 — 화면이 안 쓰는 공통 육지 geometry(landGeometry)는 싣지 않음(2026-10-16 T5)':a=>{write(configDir,'island_outlines.geojson',{type:'FeatureCollection',features:[{type:'Feature',properties:{name:'섬'},geometry:{type:'Polygon',coordinates:[[[129,35],[129.1,35],[129.1,35.1],[129,35]]]}}]});write(configDir,'risk_spots.json',{...io.read(path.join(configDir,'risk_spots.json')),landGeometry:{type:'Polygon',coordinates:[[[0,0],[1,0],[1,1],[0,0]]]}});store.invalidate();const r=store.islands();a.equal(r.features.length,1);a.equal('landGeometry' in r,false);},
+ // T9(2026-10-16): 연안 상세 history(주변 연안사고) — coast_accidents.json 을 정적 표처럼 읽는다. 관광지 표 해시가 다르면 쓰지 않고 상태 stale + 로그.
+ 'T9 연안 history 계약: 해시 같으면 목록 그대로·기간·영역 문구, null 관광지·표에 없는 id 는 available:false, 집계표 없으면 missing':a=>{
+   const cd=fs.mkdtempSync(path.join(os.tmpdir(),'risk-coast-acc-'));fs.copyFileSync(path.join(configDir,'risk_spots.json'),path.join(cd,'risk_spots.json'));
+   const one=[{date:'2024-07-26',year:2024,type:'익수',death:1,missing:0,rescue:0},{date:'2021-08-01',year:2021,type:'기타',death:0,missing:0,rescue:2}];
+   write(cd,'coast_accidents.json',{_about:{period:['2020-01-01','2024-12-31'],seaBufferM:500,riskSpotsHash:'test',hash:'h1'},spots:{one}});
+   const st=createStore({dir,dataDir,configDir:cd,clientDir,clock:()=>now}),d=st.coastDetail('one',t);
+   a.deepEqual(d.history,{available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:one});a.equal(st.meta().coastAccidents.status,'ok');a.equal(Object.hasOwn(st.sources(true),'coastAccidents'),false,'sources 에는 넣지 않음(감시 원천과 같은 키)');
+   write(cd,'coast_accidents.json',{_about:{period:['2020-01-01','2024-12-31'],seaBufferM:500,riskSpotsHash:'test'},spots:{one:null}});st.invalidate();
+   a.deepEqual(st.coastDetail('one',t).history,{available:false},'육지 몫이 빈 관광지(null)');
+   write(cd,'coast_accidents.json',{_about:{period:['2020-01-01','2024-12-31'],seaBufferM:500,riskSpotsHash:'test'},spots:{other:[]}});st.invalidate();
+   a.deepEqual(st.coastDetail('one',t).history,{available:false},'집계표에 없는 관광지');
+   a.deepEqual(store.coastDetail('one',t).history,{available:false},'집계표 파일 없음');a.equal(store.meta().coastAccidents.status,'missing');
+   fs.rmSync(cd,{recursive:true,force:true});},
+ 'T9 관광지 표 해시와 집계표 riskSpotsHash 가 다르면 목록을 쓰지 않고(available:false) /meta 상태 stale 과 서버 로그를 남김(조용히 넘기지 않음)':a=>{
+   const cd=fs.mkdtempSync(path.join(os.tmpdir(),'risk-coast-acc-'));fs.copyFileSync(path.join(configDir,'risk_spots.json'),path.join(cd,'risk_spots.json'));
+   write(cd,'coast_accidents.json',{_about:{period:['2020-01-01','2024-12-31'],seaBufferM:500,riskSpotsHash:'old-spots'},spots:{one:[{date:'2024-07-26',year:2024,type:'익수',death:0,missing:0,rescue:1}]}});
+   const logs=[],warn=console.warn;console.warn=(...x)=>logs.push(x.join(' '));let d,src;
+   try{const st=createStore({dir,dataDir,configDir:cd,clientDir,clock:()=>now});d=st.coastDetail('one',t);src=st.meta();st.coastDetail('one',t);}finally{console.warn=warn;}
+   a.deepEqual(d.history,{available:false});a.equal(src.coastAccidents.status,'stale');a.equal(src.coastAccidents.riskSpotsHash,'old-spots');a.equal(src.coastAccidents.spotsHash,'test');
+   a.equal(logs.filter(l=>l.includes('coast_accidents')&&l.includes('riskSpotsHash 불일치')).length,1,'로그 한 번: '+JSON.stringify(logs));
+   write(cd,'coast_accidents.json','{bad');const logs2=[];console.warn=(...x)=>logs2.push(x.join(' '));try{const st=createStore({dir,dataDir,configDir:cd,clientDir,clock:()=>now});a.deepEqual(st.coastDetail('one',t).history,{available:false});a.equal(st.meta().coastAccidents.status,'error');}finally{console.warn=warn;}
+   a.ok(logs2.some(l=>l.includes('coast_accidents')),'손상도 로그');
+   fs.rmSync(cd,{recursive:true,force:true});},
  '손상 JSON은 missing과 구별한 error':a=>{fs.writeFileSync(path.join(dataDir,'weather_alerts.json'),'{bad');store.invalidate();a.equal(store.sources().warnings.status,'error');}
 });}finally{fs.rmSync(root,{recursive:true,force:true});}

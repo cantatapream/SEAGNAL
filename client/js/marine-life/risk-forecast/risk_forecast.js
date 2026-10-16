@@ -1,9 +1,10 @@
 /**
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_forecast.js
- * 역할  : 해상 지도 [위험 예측](공식 사고예보)·[혼잡도](지금 밀집도·미래 혼잡예보) 두 칸 선택을 단일 격자 지도와 상세와 연안·해상 공통 하단 시각 버튼에 연결하고 시트 시각과 뒤로가기를 조율한다.
+ * 역할  : 해상 지도 [위험 예측](공식 사고예보)·[혼잡도](지금 밀집도·미래 혼잡예보) 두 칸 선택을 단일 격자 지도와 상세와 연안·해상 공통 하단 시각 버튼(-6H~+6H 5개, 2026-10-16)에 연결하고 시트 시각과 뒤로가기를 조율한다.
  *         (2026-10-15 조작부 시안 — 「표시 항목」 접이식 폐지. 종합 관심단계는 같은 날 폐지.)
  *         사용자가 누른 동작이 250ms 넘게 걸리면 지도 가운데 스피너·이전 색 흐림, 실패면 「잠시 후 다시 시도해 주세요」 2초(2026-10-16 T4).
+ *         칸·관광지를 누르면 선택 테두리는 즉시, 닫혀 있던 시트는 약 0.2초 뒤 아래에서 올라온다(2026-10-16).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈) / style.css .spinner(기다림 표시) · risk_forecast.css .rf-map-wait
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js) — 해상 시트는 sea/analysis 뒤 sea/traffic-history?days=15
@@ -26,12 +27,14 @@
      * API·지도·스위치·슬라이더·상세 시트의 상태를 조율한다.
      * 예: RiskForecast.mount({map,sheetEl,legendEl,bannerEl})
      * @param {Object} options - 지도·시트·범례·배너·초기 enabled
-     * @returns {Object} ready·setEnabled·select·refresh·getState·destroy API
+     * @returns {Object} ready·setEnabled·select·refresh·getState·synced·destroy API
+     *          (getState().selected.location·synced() — 2026-10-16 탭 왕복 시 시트 다시 열기용, life_safety.js 1-3 절)
      * [연계] index2·미리보기 → RiskAPI·RiskMapLayer·RiskSheet
      */
     function mount(options) {
         var map=options.map,api=w.RiskAPI.create(),enabled=options.enabled!==false,state={coast:true,sea:false},meta=null,t=null,selected=null,choosing=false,seq=0,detailSeq=0,table={coast:{spots:[]},sea:{cells:[]},accident:{cells:[]},traffic:{cells:[]}},oldBase=null,bannerText='',disposed=false,boundariesLoaded=false,syncPending=null,accidentFresh=false,marineMode='risk',coastVersion=null,boundaryPending=null;
         var legend=options.legendEl,sheetEl=options.sheetEl,banner=options.bannerEl;
+        var OPEN_DELAY_MS=200; // 선택 테두리를 먼저 보이고 시트를 올리기까지(사용자 2026-10-16 「약간의 딜레이(0.2초?)」). 지도 스피너의 250ms(waitStart)와는 따로다 — 그것은 지도 색 요청을 기다릴 때만.
         var layer=w.RiskMapLayer.create(map,select),sheet=w.RiskSheet.create(sheetEl,{close:clearSelection,hazard:hazard,basis:w.RiskBasis.open,choose:select,marinePoint:function(lon,lat){var pad=visiblePadding();select('marine','point',{lon:lon,lat:lat});var xy=ol.proj.fromLonLat([lon,lat]);map.getView().fit([xy[0]-50,xy[1]-50,xy[0]+50,xy[1]+50],{padding:pad,maxZoom:14,duration:250});},retry:function(){api.clear();refresh();}});
         legend.innerHTML='<div class="banzone-legend" role="group" aria-label="위험예측 보기"><button type="button" class="bzl-row on" data-layer="coast" aria-pressed="true"><span class="bzl-name">연안 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button><button type="button" class="bzl-row" data-layer="sea" aria-pressed="false"><span class="bzl-name">해상 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button></div><div class="rf-map-legend" hidden><div class="rf-accident-key" data-sea-legend hidden>점·점선 = 공단 선박 혼잡 (실제 선박 위치·척수 아님) <span><i style="border:2px dashed #b8c5da;background:transparent"></i>낮음</span> · <span><i style="border:2px dashed #74b9ff;background:transparent"></i>보통</span> · <span><i style="border:2px dashed #d47cff;background:transparent"></i>높음</span> · <span><i style="border:2px dashed #ff5fe3;background:transparent"></i>매우높음</span></div><div class="rf-accident-key" data-accident-legend hidden>면 = 공단 선박 사고예보 <span><i style="background:#2fb36b"></i>낮음</span> · <span><i style="background:#f2c230"></i>보통</span> · <span><i style="background:#fb923c"></i>주의</span> · <span><i style="background:#e0322c"></i>경계</span></div></div>';
         if(w.RiskMarine){legend.classList.add('rf-marine-compact');legend.querySelector('.rf-map-legend').innerHTML='<div data-sea-legend hidden><strong class="rf-marine-caption" data-marine-caption>공식 사고예보</strong><div data-accident-legend hidden class="rf-mini-key"></div></div>';}
@@ -40,7 +43,16 @@
             legend.querySelector('.banzone-legend').insertAdjacentHTML('beforeend','<div data-marine-tools hidden><div class="rf-seg" role="radiogroup" aria-label="해상 표시"><button type="button" role="radio" data-marine-mode="congestion" aria-checked="false">혼잡도</button><button type="button" role="radio" data-marine-mode="risk" aria-checked="true">위험 예측</button></div></div>');
             legend.querySelector('.rf-map-legend').hidden=true;
         }
-        if(w.RiskMarine){var colorLegend=document.createElement('div');colorLegend.className='rf-color-legend accident-grid-legend';colorLegend.setAttribute('aria-label','해상 위험 색상 범례');var caption=legend.querySelector('[data-marine-caption]'),key=legend.querySelector('[data-accident-legend]');caption.classList.add('agl-title');colorLegend.appendChild(caption);colorLegend.appendChild(key);colorLegend.hidden=true;map.getTargetElement().parentElement.appendChild(colorLegend);}
+        if(w.RiskMarine){var colorLegend=document.createElement('div');colorLegend.className='rf-color-legend accident-grid-legend';colorLegend.setAttribute('aria-label','위험예측 색상 범례');var caption=legend.querySelector('[data-marine-caption]'),key=legend.querySelector('[data-accident-legend]');caption.classList.add('agl-title');colorLegend.appendChild(caption);colorLegend.appendChild(key);colorLegend.hidden=true;map.getTargetElement().parentElement.appendChild(colorLegend);}
+        // 연안 색 범례(2026-10-16 사용자 「그런데 지금 지도에 색상에 따른 범례가 안보이는데 ?」) — 연안 원은 4단계 색인데 범례가 원래 없었다.
+        // 같은 날 「범례는 해상위험예측과 동일한 위치에 배치하도록 해줘」 → 왼쪽 위 토글 아래가 아니라 해상 색 범례와 같은 왼쪽 아래 상자(.rf-color-legend) 위쪽에 둔다.
+        // 「위험지수(연안)」 제목 + 4칸 색 막대(RiskFormat.BAND_COLORS) + 단계 이름. 보임은 colorLegendSync 가 정한다. 옛 경로(RiskMarine 없음)에는 이 상자가 없어 만들지 않는다.
+        var coastKey=null,bands=(w.RiskFormat||{}).BAND_COLORS;
+        if(colorLegend&&bands){var names=['평소 수준','다소 높음','높음','매우 높음'];coastKey=document.createElement('div');coastKey.className='rf-coast-key';coastKey.setAttribute('data-coast-key','');coastKey.innerHTML='<strong class="rf-coast-key-title">위험지수(연안)</strong><div class="rf-gradient-bar" aria-hidden="true" style="background:linear-gradient(to right,'+names.map(function(n,i){return bands[n]+' '+i*25+'% '+(i+1)*25+'%';}).join(',')+')"></div><div class="rf-gradient-labels">'+names.map(function(n){return '<span>'+n+'</span>';}).join('')+'</div>';colorLegend.insertBefore(coastKey,colorLegend.firstChild);}
+        /** 왼쪽 아래 색 범례 상자를 켠 층에 맞춘다. 연안만 → 연안 범례만, 해상만 → 해상만, 둘 다 → 위아래 둘 다(제목으로 구분), 둘 다 끔·위험예측 끔 → 상자 숨김.
+         * 예: state {coast:true,sea:false} → 상자 보임·[data-coast-key] 보임·해상 제목과 막대 숨김
+         * @returns {void} [연계] ← 층 토글 클릭·refresh·setEnabled. 해상 제목·막대 내용은 marineLegend 가 채운다. */
+        function colorLegendSync(){if(!colorLegend)return;var coast=!!coastKey&&state.coast;colorLegend.hidden=!enabled||!(state.sea||coast);if(coastKey)coastKey.hidden=!coast;colorLegend.querySelector('[data-marine-caption]').hidden=!state.sea;colorLegend.querySelector('[data-accident-legend]').hidden=!state.sea;}
         /** 해상 범례(왼쪽 아래 색 막대)와 두 칸 선택 상태를 갱신한다.
          * 예: 위험 예측 → 「위험 예측」 낮음·보통·주의·경계(위험 색) · 혼잡도+지금 → 「밀집도 (실시간)」 · 혼잡도+미래 → 「혼잡도 (예보)」(둘 다 낮음·보통·높음·매우높음, 혼잡 색)
          * @param {Object} [frame] - 서버 unified-frame(mode: accident·current·congestion). 없으면 지금 고른 항목·시각으로 정한다.
@@ -75,28 +87,58 @@
             var msg=waitEl.querySelector('[data-wait-msg]');msg.hidden=!failed;waitEl.hidden=!failed;
             if(failed)waitFailTimer=setTimeout(function(){msg.hidden=true;waitEl.hidden=true;},WAIT_FAIL_MS);}
         // 화면 하단은 지도 출처 위가 아니라 출처와 메인 탭 사이에 놓는다.
-        var timeBar=null;
+        var timeBar=null,toastEl=null,toastTimer=null,TOAST_MS=2000;
         if(w.RiskMarine){
             timeBar=document.createElement('div');timeBar.className='rf-marine-timebar';timeBar.hidden=true;
             timeBar.setAttribute('role','group');timeBar.setAttribute('aria-label','연안·해상 조회 시각');
-            timeBar.innerHTML='<output data-map-time aria-live="polite"></output><button type="button" data-time-step="now">현재</button><button type="button" data-time-step="3">+3H</button><button type="button" data-time-step="6">+6H</button><button type="button" data-time-step="12">+12H</button>';
+            // 2026-10-16 사용자 「-12 -6h - 3h 현재 +3h, +6h +12로 버튼을 만들고 … 왼쪽에 0월 0일 금요일 10:00은 빼도록 하고 … 버튼 내에 작은 글씨로」:
+            // 2026-10-16 사용자 후속 「이 시안을 보니까 버튼이 높아지네 ? +12 -12버튼은 빼도록 하자. 그리고 버튼을 좀더 넓게 사용하도록 하자.」 → 5버튼, 갈 시각은 한 줄.
+            // 왼쪽 날짜 output 을 없애고 5버튼, 각 버튼 아래 줄에 그 버튼을 누르면 갈 시각(현재 버튼은 지금 시각). 선택 시각은 화면에 안 보이는 글자(data-map-time)로 남기고,
+            // 바꿀 때 읽어 주는 일(종전 output 의 aria-live)은 아래 시각 토스트가 한다 — 둘 다 aria-live 면 두 번 읽힌다.
+            timeBar.innerHTML='<span class="rf-sr-only" data-map-time></span>'+['-6','-3','now','3','6'].map(function(h){return '<button type="button" data-time-step="'+h+'"><b>'+(h==='now'?'현재':(h.charAt(0)==='-'?h:'+'+h)+'H')+'</b><small data-time-at></small></button>';}).join('');
             map.getTargetElement().parentElement.appendChild(timeBar);
-            timeBar.addEventListener('click',function(e){var b=e.target.closest('[data-time-step]');if(!b||b.disabled||!meta)return;t=b.dataset.timeStep==='now'?meta.now:nextTime(Number(b.dataset.timeStep));marineLegend();marineTime();waitStart();refresh();});
+            // 2026-10-16 사용자 「그러면 토스트 메시지로 하단에 뜨면 되는거 아니니 ?」 — 왼쪽 날짜를 없애 지금 보는 시각을 알 길이 없어진 것을
+            // 시간 버튼을 누를 때마다 바 바로 위 가운데 토스트(약 2초)로 알린다. 스피너·실패 안내(.rf-map-wait)는 지도 가운데라 겹치지 않는다.
+            toastEl=document.createElement('div');toastEl.className='rf-time-toast';toastEl.hidden=true;toastEl.setAttribute('role','status');toastEl.setAttribute('aria-live','polite');
+            map.getTargetElement().parentElement.appendChild(toastEl);
+            timeBar.addEventListener('click',function(e){var b=e.target.closest('[data-time-step]');if(!b||b.disabled||!meta)return;t=b.dataset.timeStep==='now'?meta.now:nextTime(Number(b.dataset.timeStep));marineLegend();marineTime();timeToast();waitStart();refresh();});
         }
-        /** 선택 시각을 기준으로 다음 3시간 예보 칸으로 이동한다.
-         * 예: 11:00 +3H →12:00, 다시 +3H →15:00; +6H는 두 칸.
-         * @param {number} hours - 3·6·12 @returns {string|null} 공개 범위 안 KST ISO
-         * [연계] ← 하단 버튼 / → mainTimes; 실제 존재하는 예보 시각만 선택한다.
+        /** 시간 버튼으로 고른 시각을 바 위 토스트로 약 2초 보이고 스크린리더로 읽어 준다. 연타하면 글자를 바꿔 치우고 타이머를 새로 잡아 마지막 것만 남는다.
+         * 예: +3H → 「16.(금) 13:00 예보」 · 현재 → 「현재 16.(금) 10:00」
+         * @returns {void} [연계] ← 시간 버튼 클릭 / → dayTime. marineTime 이 바를 숨길 때·setEnabled(false)·destroy 에서 같이 숨긴다. */
+        function timeToast(){if(!toastEl||!meta)return;var d=dayTime(t);toastEl.textContent=t===meta.now?'현재 '+d[0]+' '+d[1]:d[0]+' '+d[1]+' 예보';toastEl.hidden=false;liftToast();clearTimeout(toastTimer);toastTimer=setTimeout(function(){toastEl.hidden=true;},TOAST_MS);}
+        /** 토스트가 지도 아래쪽의 출처(브이월드)·축척·색 범례 상자를 덮으면 그것들 위로 올린다(기본 자리는 시간 줄 바로 위 — CSS).
+         * 예: 320px 에서 가운데 토스트가 왼쪽 출처 글자와 겹침 → 출처 윗변 4px 위로; 그 자리가 다시 색 범례와 겹치면 범례 위로.
+         * @returns {void} [연계] ← timeToast / 화면에 안 보이는 요소(폭 0)는 건너뛴다. 가짜 DOM 시험(크기 재기 없음)에서는 아무것도 하지 않는다. */
+        function liftToast(){toastEl.style.bottom='';if(!toastEl.getBoundingClientRect||!document.querySelectorAll)return;var others=Array.from(document.querySelectorAll('.ol-attribution,.ol-scale-line,.rf-color-legend')).map(function(e){return e.getBoundingClientRect();}).filter(function(r){return r.width>0&&r.height>0;});
+            for(var moved=true,i=0;moved&&i<others.length;i++){moved=false;var me=toastEl.getBoundingClientRect();others.forEach(function(r){if(!moved&&r.left<me.right&&me.left<r.right&&r.top<me.bottom&&me.top<r.bottom){toastEl.style.bottom=(w.innerHeight-r.top+4)+'px';moved=true;}});}}
+        /** 선택 시각을 기준으로 앞·뒤 3시간 예보 칸으로 이동할 시각을 구한다(없으면 null = 버튼 비활성).
+         * 규칙(앞뒤 대칭): 시각마다 그 시각이 든 3시간 칸(00·03·06…시 시작)을 「칸」이라 한다. 지금(meta.now, 예 11:00)의 칸은 09시 칸이다.
+         *   목표 칸 = 선택 시각 t 의 칸 ± hours.
+         *   + : 목표 칸 이상인 첫 시각(mainTimes). 시간축 끝(내일 21시)을 넘으면 없음 → 비활성.
+         *   - : 칸이 목표 칸 이하인 마지막 시각. 목표 칸이 지금의 칸이면 지금(meta.now)으로 돌아가고, 지금의 칸보다 앞이면 없음 → 비활성.
+         * 예: 지금 11:00 → +3H 12:00, 다시 +3H 15:00 · 15:00 -3H → 12:00, 12:00 -3H → 11:00(지금) · 지금에서 -3/-6H 는 둘 다 비활성
+         *     12:00 에서 -6H 는 목표 06시 칸이 지금의 09시 칸보다 앞이라 비활성 · 15:00 에서 -6H 는 09시 칸 = 지금 · 내일 18:00 에서 +6H 는 비활성(끝 21시)
+         * @param {number} hours - -6·-3·3·6 @returns {string|null} 공개 범위 안 KST ISO
+         * [연계] ← 하단 버튼 클릭·marineTime(버튼 작은 글씨·비활성) / → mainTimes; 실제 존재하는 예보 시각만 선택한다.
          */
-        function nextTime(hours){var target=Math.floor(Date.parse(t||meta.now)/10800000)*10800000+hours*3600000;return mainTimes().find(function(at){return Date.parse(at)>=target;})||null;}
-        /** 고정 날짜 표시와 버튼 사용 가능 여부를 갱신한다.
-         * 예: 10.13.(화) 12:00은 버튼이 아닌 output이다.
-         * @returns {void} [연계] ← sync·시간버튼 / 현재 복귀는 서버 meta.now를 사용한다.
+        function nextTime(hours){var slot=function(at){return Math.floor(Date.parse(at)/10800000)*10800000;},target=slot(t||meta.now)+hours*3600000,times=mainTimes();if(hours>0)return times.find(function(at){return Date.parse(at)>=target;})||null;var back=null;times.forEach(function(at){if(slot(at)<=target)back=at;});return back;}
+        /** 시각을 버튼 작은 글씨 꼴로 만든다(KST). 예: '2026-10-16T13:00:00+09:00' → 「16.(금) 13:00」 한 줄(HTML, 두 <span> 사이 공백).
+         * @param {string} at - ISO 시각 @returns {string} <span> 두 개(숫자·요일만 들어가 이스케이프 불필요)
+         * [연계] ← marineTime / → dayTime / 2026-10-16 사용자 「1.(금) 00:00 라고 버튼 내에 작은 글씨로」 — 일(앞 0 없음).(요일) 시:분 */
+        function buttonTime(at){var d=dayTime(at);return '<span>'+d[0]+'</span> <span>'+d[1]+'</span>';}
+        /** 시각을 [「일.(요일)」, 「시:분」] 으로 나눈다(KST). 예: '2026-10-16T13:00:00+09:00' → ['16.(금)','13:00']
+         * @param {string} at - ISO 시각 @returns {string[]} 두 글자 [연계] ← buttonTime(버튼 작은 글씨)·timeToast(토스트) — 같은 꼴을 쓰게 한 곳에서 만든다 */
+        function dayTime(at){var local=new Date(Date.parse(at)+32400000),pad=function(n){return String(n).padStart(2,'0');};return [local.getUTCDate()+'.('+['일','월','화','수','목','금','토'][local.getUTCDay()]+')',pad(local.getUTCHours())+':'+pad(local.getUTCMinutes())];}
+        /** 버튼마다 갈 시각(작은 글씨)·사용 가능 여부와, 화면에 안 보이는 선택 시각 글자(스크린리더용)를 갱신한다.
+         * 예: 지금 11:00 → [현재] 아래 「12.(월) 11:00」(이동해도 그대로)·[+3H] 아래 「12.(월) 12:00」·[-3H] 회색(aria-disabled) 빈칸
+         *     숨김 글자 data-map-time = 「조회 시각 10.12.(월) 11:00」(aria-live 없음 — 바꿀 때 읽어 주기는 timeToast)
+         * @returns {void} [연계] ← sync·시간버튼·층 스위치 / → nextTime·buttonTime. 현재 복귀는 서버 meta.now를 사용한다.
          */
-        function marineTime(){if(!timeBar)return;var shown=enabled&&(state.coast||state.sea);timeBar.hidden=!shown;var tools=legend.querySelector('[data-marine-tools]');if(tools)tools.hidden=!(enabled&&state.sea);document.body.classList.toggle('rf-sea-time-on',shown);if(!meta)return;var local=new Date(Date.parse(t||meta.now)+32400000),pad=function(n){return String(n).padStart(2,'0');};timeBar.querySelector('[data-map-time]').textContent=pad(local.getUTCMonth()+1)+'.'+pad(local.getUTCDate())+'.('+['일','월','화','수','목','금','토'][local.getUTCDay()]+') '+pad(local.getUTCHours())+':'+pad(local.getUTCMinutes());timeBar.querySelectorAll('[data-time-step]').forEach(function(b){var current=b.dataset.timeStep==='now';b.disabled=!current&&!nextTime(Number(b.dataset.timeStep));if(current)b.setAttribute('aria-pressed',String(t===meta.now));});}
+        function marineTime(){if(!timeBar)return;var shown=enabled&&(state.coast||state.sea);timeBar.hidden=!shown;if(!shown){clearTimeout(toastTimer);toastEl.hidden=true;}var tools=legend.querySelector('[data-marine-tools]');if(tools)tools.hidden=!(enabled&&state.sea);document.body.classList.toggle('rf-sea-time-on',shown);if(!meta)return;var local=new Date(Date.parse(t||meta.now)+32400000),pad=function(n){return String(n).padStart(2,'0');};timeBar.querySelector('[data-map-time]').textContent='조회 시각 '+pad(local.getUTCMonth()+1)+'.'+pad(local.getUTCDate())+'.('+['일','월','화','수','목','금','토'][local.getUTCDay()]+') '+pad(local.getUTCHours())+':'+pad(local.getUTCMinutes());timeBar.querySelectorAll('[data-time-step]').forEach(function(b){var current=b.dataset.timeStep==='now',to=current?meta.now:nextTime(Number(b.dataset.timeStep));b.disabled=!to;b.setAttribute('aria-disabled',String(!to));b.querySelector('[data-time-at]').innerHTML=to?buttonTime(to):'';if(current)b.setAttribute('aria-pressed',String(t===meta.now));});}
         // 두 칸은 늘 하나만 켜진다: 이미 켜진 칸을 다시 눌러도 그대로다. 시각은 바꾸지 않는다.
         if(w.RiskMarine){marineLegend();legend.addEventListener('click',function(e){var b=e.target.closest('[data-marine-mode]');if(b&&b.dataset.marineMode!==marineMode){marineMode=b.dataset.marineMode;marineLegend();waitStart();refresh();}});}
-        legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));if(w.RiskMarine&&meta&&t)t=nearest(mainTimes(),t);var kindKey=legend.querySelector('[data-'+kind+'-legend]');if(kindKey)kindKey.hidden=!state[kind];if(!w.RiskMarine)legend.querySelector('.rf-map-legend').hidden=!state.sea;if(colorLegend)colorLegend.hidden=!state.sea;marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(state[kind])waitStart();if(!meta)sync();else refresh();});
+        legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));if(w.RiskMarine&&meta&&t)t=nearest(mainTimes(),t);var kindKey=legend.querySelector('[data-'+kind+'-legend]');if(kindKey)kindKey.hidden=!state[kind];if(!w.RiskMarine)legend.querySelector('.rf-map-legend').hidden=!state.sea;colorLegendSync();marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(state[kind])waitStart();if(!meta)sync();else refresh();});
         function seaKind(kind){return ['accident','traffic','marine','briefing'].includes(kind)?'sea':kind;}
         /** 일반 화면 배너는 띄우지 않는다. 자료 원천 안내는 과제16에 따라 관리자 오류현황으로 보내고,
          * 위성지도 실패도 안내 없이 기본맵으로 바꾼다(사용자 확정 2026-10-15 「마」).
@@ -147,14 +189,24 @@
          * [연계] ← 하단 버튼 nextTime·sync·층 스위치 / → meta.timeline.coast, seaTimes. 시트 시각과는 무관하다.
          */
         function mainTimes(){var coast=state.coast&&meta.timeline.coast&&meta.timeline.coast.times||[];coast=coast.filter(function(at){return Date.parse(at)>=Date.parse(meta.now);});return coast.length&&!state.sea?coast:Array.from(new Set(coast.concat(seaTimes()))).sort(function(a,b){return Date.parse(a)-Date.parse(b);});}
+        /**
+         * 지도에서 고른 해상 칸·연안 관광지를 선택하고 상세 시트를 연다(테두리는 즉시, 시트는 닫혀 있었으면 약 0.2초 뒤).
+         * 예: select('marine','GR4_F4K23_P4',{lon:126.53,lat:33.56}) · select('coast','S1') · select('coast',['a','c']) → 같은 위치 관광지 선택 목록
+         * @param {string} kind - marine/coast/accident/traffic/sea @param {string|string[]} id - 칸·관광지 id(배열이면 선택 목록) @param {Object} [location] - 해상 클릭 경위도
+         * @returns {void} [연계] ← RiskMapLayer.hit·시트 안 버튼·life_safety.js 탭 복귀 / → layer.setSelection·RiskSheet.hold/loading·detail
+         */
         function select(kind,id,location){
             if(kind==='briefing')return;
             if(!enabled||!state[seaKind(kind)]||disposed)return;
-            if(Array.isArray(id)){var choices=table.coast.spots.filter(function(p){return id.includes(p.id);});clearSelection();choosing=true;sheet.choose(choices);registerSheet();return;}
+            if(Array.isArray(id)){var choices=table.coast.spots.filter(function(p){return id.includes(p.id);});clearSelection();choosing=true;if(sheet.hold)sheet.hold(OPEN_DELAY_MS);sheet.choose(choices);registerSheet();return;}
             var item=kind==='marine'?{id:id,lon:location&&location.lon,lat:location&&location.lat}:kind==='briefing'?{id:id}:(kind==='coast'?table.coast.spots:table[kind].cells).find(function(p){return p.id===id;});if(!item)return;
             if(!selected||selected.id!==id||selected.kind!==kind)layer.setSelection(kind==='briefing'?null:kind,id);
             choosing=false;selected={kind:kind,id:id,item:item,at:t,location:seaKind(kind)==='sea'&&location&&Number.isFinite(location.lon)&&Number.isFinite(location.lat)?{lon:location.lon,lat:location.lat}:null};
-            // 누르는 즉시 시트를 열고 회색 틀을 보인다. 이전 지점의 제목은 남기지 않고 이 지점의 이름(연안만 알고 있음)만 쓴다.
+            // 누르는 즉시 회색 틀을 채우고 상세를 요청한다. 이전 지점의 제목은 남기지 않고 이 지점의 이름(연안만 알고 있음)만 쓴다.
+            // 시트가 닫혀 있으면 지도 선택 테두리(위 setSelection, 즉시)를 먼저 보이고 약 0.2초 뒤에 시트가 올라온다(사용자 2026-10-16
+            // 「선택이후 약간의 딜레이(0.2초?) 정도 후 바텀시트가 나오도록」). 그 안에 다른 곳을 누르면 마지막 것만, 닫기·토글 끔·탭 떠남이면 올리지 않는다(RiskSheet.hold·clear).
+            // 이미 열려 있으면(또는 내려가는 중이면) 내리지 않고 내용만 바꾼다 — 해양종합정보 시트도 열린 채로 내려갔다 올라오지 않는다.
+            if(sheet.hold)sheet.hold(OPEN_DELAY_MS);
             sheet.loading({title:kind==='coast'&&typeof item.name==='string'?item.name:'',subtitle:''});registerSheet();
             if(meta){selected.at=nearest(selectionTimes(kind),t||meta.now);mountSlider();}detail();
         }
@@ -206,7 +258,7 @@
             return {errors:errors,warnings:sourceWarnings};
         }
         async function refresh(){
-            if(!meta||disposed)return;var n=++seq,at=t,freshAccident=accidentFresh,drawn=false;if(waiting)waiting.n=n;layer.setActive(state,enabled);legend.hidden=!enabled;if(colorLegend)colorLegend.hidden=!enabled||!state.sea;
+            if(!meta||disposed)return;var n=++seq,at=t,freshAccident=accidentFresh,drawn=false;if(waiting)waiting.n=n;layer.setActive(state,enabled);legend.hidden=!enabled;colorLegendSync();
             if(!enabled){message('');return;}
             // 지도 기다림 표시는 이 try 의 finally 에서 끈다 — 중간 반환(n!==seq)·예외에도 빠짐없이, 상세(detail)를 기다리기 전에.
             try{
@@ -276,14 +328,14 @@
             })();
             return syncPending;
         }
-        function setEnabled(value){enabled=!!value;seq++;if(!enabled){waitEnd(false);clearSelection();legend.hidden=true;layer.setActive(state,false);if(colorLegend)colorLegend.hidden=true;marineTime();restoreBasemap();message('');}else{satelliteOn();legend.hidden=false;if(colorLegend)colorLegend.hidden=!state.sea;marineTime();waitStart();sync();}}
+        function setEnabled(value){enabled=!!value;seq++;if(!enabled){waitEnd(false);clearSelection();legend.hidden=true;layer.setActive(state,false);colorLegendSync();marineTime();restoreBasemap();message('');}else{satelliteOn();legend.hidden=false;colorLegendSync();marineTime();waitStart();sync();}}
         function escapeSheet(e){if(e.key==='Escape'&&enabled&&(selected||choosing)&&!document.querySelector('.rf-modal')&&!document.querySelector('.rf-acc-pop:not([hidden])')){e.preventDefault();clearSelection();}}
         document.addEventListener('keydown',escapeSheet);
         if(options.enabled===false){legend.hidden=true;if(colorLegend)colorLegend.hidden=true;layer.setActive(state,false);}
         if(enabled)satelliteOn();
         var ready=enabled?sync():Promise.resolve();
         var timer=setInterval(function(){if(enabled&&!disposed)sync();},60000);
-        return {ready:ready,setEnabled:setEnabled,select:select,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id}};},destroy:function(){disposed=true;clearInterval(timer);document.removeEventListener('keydown',escapeSheet);seq++;waitEnd(false);if(waitEl)waitEl.remove();clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();document.body.classList.remove('rf-sea-time-on');}}};
+        return {ready:ready,setEnabled:setEnabled,select:select,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id,location:selected.location}};},synced:function(){return syncPending||Promise.resolve();},destroy:function(){disposed=true;clearInterval(timer);document.removeEventListener('keydown',escapeSheet);seq++;waitEnd(false);if(waitEl)waitEl.remove();clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();clearTimeout(toastTimer);toastEl.remove();document.body.classList.remove('rf-sea-time-on');}}};
     }
     /**
      * 해양안전의 실제 위험예측 버튼과 지도 클릭 훅을 등록한다.

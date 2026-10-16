@@ -161,5 +161,29 @@
     // 같으므로 각 단계는 그 단계가 시작하는 기준점의 색이다: 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강. 키 순서 = 범례 순서.
     var BAND_COLORS = {};
     ['평소 수준','다소 높음','높음','매우 높음'].forEach(function (band, i) { BAND_COLORS[band] = '#' + RGB[i].map(function (v) { return (v < 16 ? '0' : '') + v.toString(16); }).join(''); });
-    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, stamp:stamp, direction:direction, luminance:luminance, stationLabel:stationLabel, BAND_COLORS:BAND_COLORS};
+    /**
+     * 연안 점수를 0~100 위험지수로, 위험지수를 단계 말로 바꾼다 — 서버 risk_points.scoreToIndex·scoreBand 와 **같은 식·같은 경계**(한 곳에만 둔다).
+     * 왜: 지도 연안 프레임은 점수만 보내 화면이 단계를 정해야 하는데, 경계를 여러 곳에 적으면 서버(슬라이더 칸·단계 글자)와 어긋난다.
+     *     test_risk_format 이 서버 함수와 0~3점 전 구간을 대조한다.
+     * 예: scoreIndex(0.57) → 19 · bandOf(19) → '평소 수준' · bandOf(20) → '다소 높음' · bandOf(67) → '높음' · bandOf(100) → '매우 높음'
+     * @param {number} s - 서버 점수 @returns {number} 0~100 정수 [연계] ← bandColor / 서버 local_server/services/risk_points.js
+     */
+    function scoreIndex(s) { return Math.round(Math.min(3, Math.max(0, Number(s) || 0)) / 3 * 100); }
+    /** @param {number} index - 0~100 위험지수 @returns {string} 단계 말(평소 수준·다소 높음·높음·매우 높음) [연계] ← bandColor — 경계는 서버 scoreBand 와 같다 */
+    function bandOf(index) { return index < 20 ? '평소 수준' : index < 67 ? '다소 높음' : index < 100 ? '높음' : '매우 높음'; }
+    /**
+     * 연안 위험지수 상자·지도 연안 면·관광지 점 테두리의 색 = 단계 4색(BAND_COLORS, 사용자 2026-10-16 (가) — 종전 col() 연속 색은 지수 19 가 거의 노랑이라
+     * 같은 19 인데 상자는 노랑·슬라이더 칸·단계 글자는 초록(평소 수준)으로 어긋났다).
+     * 예: bandColor('다소 높음') → 'rgb(242,194,48)' · bandColor(0.57)(지수 19) → 'rgb(47,179,107)' · bandColor(null) → 회색
+     * @param {string|number|null} v - 서버 단계 말(있으면 그대로) 또는 점수(지도 프레임 — scoreIndex·bandOf 로 단계를 정함)
+     * @returns {string} rgb(r,g,b) — col() 과 같은 꼴이라 rgba 변환·ink 에 그대로 쓴다
+     * [연계] ← RiskSheet.summary(상자)·RiskMapLayer colorStyle·drawCoast(지도) / 0~100 막대(.rf-ramp)는 위치 표시라 연속 색 그대로
+     */
+    function bandColor(v) {
+        var band = typeof v === 'string' && Object.prototype.hasOwnProperty.call(BAND_COLORS, v) ? v : typeof v === 'number' && Number.isFinite(v) ? bandOf(scoreIndex(v)) : null;
+        if (!band) return 'rgb(120,130,145)';
+        var i = Object.keys(BAND_COLORS).indexOf(band);
+        return 'rgb(' + RGB[i].join(',') + ')';
+    }
+    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, stamp:stamp, direction:direction, luminance:luminance, stationLabel:stationLabel, BAND_COLORS:BAND_COLORS, scoreIndex:scoreIndex, bandOf:bandOf, bandColor:bandColor};
 })(window);

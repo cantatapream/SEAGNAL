@@ -290,7 +290,10 @@ if (require.main === module) (async () => {
             if (ids.length !== 2) return false;
             const before = _riskForecastApp.getState().t;
             _riskForecastApp.select('coast', ids);
-            const opened = document.getElementById('risk-forecast-sheet').classList.contains('open') && PopupStack.list().includes('risk-forecast-sheet');
+            // 2026-10-16: 닫혀 있던 시트는 누른 뒤 약 0.2초 뒤에 올라온다(risk_sheet.js hold) — 열릴 때까지 기다린다(최대 약 3초).
+            const sheetEl = document.getElementById('risk-forecast-sheet');
+            for (let i = 0; i < 60 && !sheetEl.classList.contains('open'); i++) await new Promise(r => setTimeout(r, 50));
+            const opened = sheetEl.classList.contains('open') && PopupStack.list().includes('risk-forecast-sheet');
             const popped = PopupStack.popLast();
             return opened && popped && !document.getElementById('risk-forecast-sheet').classList.contains('open') && _riskForecastApp.getState().t === before && !PopupStack.list().includes('risk-forecast-sheet');
         });

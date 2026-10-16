@@ -2,7 +2,7 @@
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_basis.js
  * 역할  : 확정된 기준 상세 문안을 대화창으로 열고 휴대폰 뒤로가기·원본 PDF 다운로드를 연결한다.
- *         제목과 닫기는 스크롤 밖 고정 머리, 내용만 스크롤된다(2026-10-16 T8).
+ *         제목과 닫기는 스크롤 밖 고정 머리, 내용만 스크롤된다(2026-10-16 T8). 표는 가로 스크롤 상자로 감싼다(같은 날 — 좁은 휴대폰에서 표가 위아래로 길어지지 않게).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
@@ -36,7 +36,7 @@
     /**
      * 확정 문안과 PDF 링크를 기준 상세 대화창에 표시한다. 문안 앞머리의 닫기 버튼(.mclose)과 제목(h3)은 고정 머리(.rf-basis-head)로 옮기고
      * 나머지는 스크롤 칸(.rf-basis-body)에 둔다 — 사용자 2026-10-16 「제목과 닫기버튼을 스크롤에 관계없이 고정토록 해줘」(연안·해상 동일).
-     * 예: RiskBasis.open('sea',button) → 머리 「공식 선박 사고위험·교통혼잡 예보」 + [닫기], 아래 문안만 스크롤
+     * 예: RiskBasis.open('sea',button) → 머리 「선박 사고위험·교통혼잡 예보」 + [닫기], 아래 문안만 스크롤
      * @param {string} kind - sea 또는 coast; button은 초점 복원 대상
      * @returns {void}
      * [연계] RiskSheet(머리 [기준 상세] 위임) → RiskBasisContent / 초점 순환(key)은 닫기 버튼이 첫 초점이라 그대로다
@@ -49,7 +49,22 @@
         var html=(w.RiskBasisContent||{})[kind]||'<button class="mclose">닫기</button><p>기준 상세 문안을 불러오지 못했습니다.</p>',
             lead=/^(<button[^>]*class="mclose"[^>]*>[^<]*<\/button>)(<h3>[\s\S]*?<\/h3>)?/.exec(html)||['','',''];
         box.innerHTML='<div class="rf-basis-head">'+(lead[2]||'')+lead[1]+'</div><div class="rf-basis-body">'+html.slice(lead[0].length)+'</div>';
-        modal.appendChild(box);document.body.appendChild(modal);if(w.PopupStack)w.PopupStack.push('risk-forecast-basis',close);modal.addEventListener('click',function(e){if(e.target===modal||e.target.closest('.mclose'))close();});document.addEventListener('keydown',key);box.querySelector('.mclose').focus();
+        modal.appendChild(box);document.body.appendChild(modal);box.querySelectorAll('.rf-basis-body table').forEach(scrollTable);if(w.PopupStack)w.PopupStack.push('risk-forecast-basis',close);modal.addEventListener('click',function(e){if(e.target===modal||e.target.closest('.mclose'))close();});document.addEventListener('keydown',key);box.querySelector('.mclose').focus();
+    }
+    /**
+     * 기준 상세의 표 하나를 가로 스크롤 상자로 감싼다(사용자 2026-10-16 「표는 오른쪽 왼쪽으로 스크롤하면서 볼 수 있도록 해서 표가 과도하게 위아래로 켜지지 않도록」).
+     * 표 폭·칸 최소 폭은 CSS(.rf-tbl) — 좁은 휴대폰에서는 표가 상자보다 넓어져 옆으로 밀고, 넓은 화면에서는 지금처럼 꽉 찬다.
+     * 더 볼 쪽 가장자리에 옅은 그늘(.more-right/.more-left)을 켜서 밀 수 있다는 것을 알린다. 키보드로도 밀 수 있게 상자에 초점을 줄 수 있다.
+     * 예: 380px 연안 「요소마다 곱해서」 표 → 상자 348px · 표 약 500px, 오른쪽 그늘 켜짐 / 1024px → 그늘 없음·스크롤 없음
+     * @param {HTMLTableElement} table - 기준 상세 본문의 표 @returns {void}
+     * [연계] ← open(문안을 넣은 직후) / 문안(RiskBasisContent)은 손대지 않는다 — 해상·연안 모든 표에 같은 규칙.
+     */
+    function scrollTable(table){
+        if(!table.parentNode)return;   // 문안 밖(붙지 않은) 표는 감쌀 자리가 없다 — 생명주기 검사의 가짜 DOM 도 여기서 끝난다
+        var outer=document.createElement('div'),sc=document.createElement('div');outer.className='rf-tbl';sc.className='rf-tbl-scroll';sc.tabIndex=0;sc.setAttribute('role','region');sc.setAttribute('aria-label','표 — 옆으로 밀어 볼 수 있음');
+        table.parentNode.insertBefore(outer,table);sc.appendChild(table);outer.appendChild(sc);
+        var edge=function(){outer.classList.toggle('more-right',sc.scrollLeft+sc.clientWidth<sc.scrollWidth-1);outer.classList.toggle('more-left',sc.scrollLeft>1);};
+        sc.addEventListener('scroll',edge,{passive:true});if(w.ResizeObserver)new ResizeObserver(edge).observe(sc);edge();
     }
     w.RiskBasis={open:open,close:close};
 })(window);

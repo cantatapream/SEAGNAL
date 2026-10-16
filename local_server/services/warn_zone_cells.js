@@ -5,7 +5,7 @@
  *         사용자 2026-10-15: 「특보 구역은 알고 있지?(연안바다, 평수구역 구분 필요)」
  * [연계] client/assets/warn_zones.geojson(앞바다25·먼바다19) · warn_zones_sub.geojson(연안바다22·평수구역27)
  *        · sea_realtime_collector.cellBounds(칸 번호→경계) · risk_geo.pointInGeometry(안팎 판정)
- *        · 나를 쓰는 곳: sea_traffic_history.createApi(조회 API)
+ *        · 나를 쓰는 곳: sea_traffic_history.createApi(조회 API) · marine_fusion(해상 상세의 발효 중 특보 상자 — 2026-10-16)
  *        · 판정 규칙은 risk_sea_cells.describe(warnZone·warnSubZone)와 같다(중심점·원래 geometry·파일 순서 첫 일치).
  * [로드 순서] 서버 require 부작용 없음. 첫 호출 때 두 파일을 한 번 읽어 이름·코드·경계 좌표만 남기고(나머지 속성·
  *        구멍 뚫린 표시용 도형은 버린다), 칸별 결과는 캐시한다.
@@ -79,9 +79,7 @@ function zonesOfCell(id) {
     if (cache.has(id)) return cache.get(id);
     const b = cellBounds(id);
     if (!b) return null;
-    const { main, sub } = load(), p = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
-    const pick = (z) => z ? { name: z.name, code: z.code, kind: z.kind, key: z.key } : null;
-    const out = { center: p, main: pick(find(main, p)), sub: pick(find(sub, p)) };
+    const out = zonesAt([(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]);
     // 상한이 없으면 공개 API 로 서로 다른 번호를 계속 물을 때 캐시가 끝없이 커진다(번호 짜임상 범위 안 칸이 약 100만).
     // 실제 교통 칸은 위치표 상한 30,000칸 안이므로 그보다 넉넉한 40,000에서 비우고 다시 쌓는다.
     if (cache.size >= 40000) cache.clear();
@@ -89,4 +87,16 @@ function zonesOfCell(id) {
     return out;
 }
 
-module.exports = { zonesOfCell, zoneKey, zoneKind, _load: load };
+/**
+ * 한 점(경위도)이 드는 특보구역을 돌려준다(캐시 없음 — GR4 칸이 아닌 지점용). 예: zonesAt([126.6375,33.5625]) →
+ *   { center:[126.6375,33.5625], main:{name:'제주도북부앞바다',…,kind:'앞바다'}, sub:{name:'제주도북부앞바다중 연안바다',…,kind:'연안바다'} }
+ * @param {number[]} p - [경도,위도] @returns {object} {center, main, sub} — 안 들면 main·sub 가 null
+ * [연계] ← zonesOfCell(칸 중심) · marine_fusion(해상 상세 특보 상자 — GR4 칸이 없는 지점)
+ */
+function zonesAt(p) {
+    const { main, sub } = load();
+    const pick = (z) => z ? { name: z.name, code: z.code, kind: z.kind, key: z.key } : null;
+    return { center: p, main: pick(find(main, p)), sub: pick(find(sub, p)) };
+}
+
+module.exports = { zonesOfCell, zonesAt, zoneKey, zoneKind, _load: load };

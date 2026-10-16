@@ -101,6 +101,19 @@ bash scripts/refactor/verify_all.sh
 
 `risk_marine.js` `hero`가 두 줄(위험 예측 / 밀집도·혼잡도) 오른쪽 위에 [?](`helpBtn`)를 두고, `attach`가 `openHelp`로 사고 종류 팝업과 같은 틀(`showPop`, `.rf-acc-pop`)에 설명·표를 띄운다. 표 행은 `HELP` 상수 한 곳(혼잡도 표는 2026-10-16 실제 응답 경계 1·10·20 으로 바꿨다 — 사용자 「1-(나)」, 서버 밀집도 단계도 같은 경계 「그럼 ㄱ으로 하자」). 혼잡도·밀집도 색은 위험 예측과 같은 4색이다(「그냥 해양쪽과 같은 색상을 사용하자.」, 상세는 README 「혼잡도·밀집도 색 = 위험 예측 4색」). 위험 예측 설명 문장은 「최근 5년 간의 해양사고, 기상예보 등의 정보를 활용, 인공신경망의 한 종류인 MLP모델을 사용하여 사고위험도를 예측」이며 `fitText`가 어절 단위 줄바꿈 뒤 줄 끝이 많이 비면 자간을 -0.06em 까지 줄여 다음 어절을 당긴다(폭이 바뀌면 다시, 실패하면 원래 문장). 상세는 [README.md](README.md) 「위 카드 [?]·설명 문장 — 2026-10-16」.
 
+### 날씨 아코디언 특보 상자·접힌 제목 줄 「특보」 (2026-10-16)
+
+사용자 원문: 「3-1, 2 추천대로, 3 띄우지마」 (②접혀 있어도 제목 줄에 「특보」 표시 · ③자료가 낡았을 때 「특보 정보 확인 불가」 안내는 띄우지 않음).
+
+| 함수 | 하는 일 |
+|------|---------|
+| `activeWarns(m)` | `marine.warnings` 가 `status:'ok'` 이고 `items` 가 있으면 그 목록, 아니면 빈 목록. 아래 두 함수의 **유일한 조건** |
+| `warnBoxes(m)` | 펼친 몸통 「파도」 위 빨간 테두리 상자(`.rf-warn-box`) — `activeWarns` 각 항목 |
+| `warnBadge(m)` | 제목 줄 꺾쇠 앞 작은 「특보」(`.rf-warn-badge`, 흰 글자·#d32f2f·테두리 #ff4d4f) — `activeWarns` 가 하나라도 있으면 |
+
+- 표시는 펼쳐도 남긴다(제목 줄은 접힘·펼침에 같고 꺾쇠만 돈다). 시각을 바꾸면 `render` 가 다시 그려 함께 바뀐다.
+- 수정 시 주의: 상자·표시 조건을 따로 쓰지 말 것 — `activeWarns` 만 고친다. 자료 상태(stale·missing·error)를 화면 안내로 바꾸지 않는다(사용자 「3 띄우지마」). `test_risk_sea_sheet_ui` 가 「표시 있음 ⇔ 상자 1개 이상」·대비 4.5 이상·380px 제목 줄 넘침 없음·「확인 불가」 글자 없음을 잰다.
+
 ## 과제11: 월말 행사 수집과 프롬프트
 
 행사 수집은 KST 달력의 말일−3일03:20에 다음 달 누락/실패 자료를 수집한다. 정상 월 캐시는 유지하며 원래 예약과 재시도 로직은 변경하지 않았다. 기존 요약 검색 문구를 수상·해안 육상·낚시·야간·물때·지역/계절축제·해수욕장 개폐장·에어쇼·함정 공개로 확장하고 목표 월 범위를 명시했다. 전월 후보는 현재 공식 원문으로 재확인하며 실제 주소/기간과 HTTPS 원문을 요구한다. 실제 템플릿·검증 범위·grounding/공식 소유 도메인 확인의 한계는 [행사 수집 프롬프트](coastal_events_prompt.design.md)를 본다.
@@ -148,7 +161,7 @@ bash scripts/refactor/verify_all.sh
 
 ## 과제2 — 연안·해상 공통 메인 시각 (`risk_forecast.js`)
 
-해상 전용이던 하단 바(`.rf-marine-timebar`, 고정 output + 현재/+3H/+6H/+12H)를 연안·해상 공통 메인 시각으로 쓴다. 새 컨트롤을 따로 만들지 않았다.
+해상 전용이던 하단 바(`.rf-marine-timebar`, 고정 output + 현재/+3H/+6H/+12H)를 연안·해상 공통 메인 시각으로 쓴다. 새 컨트롤을 따로 만들지 않았다. (2026-10-16: output 을 없애고 5버튼으로 — 아래 「하단 시간 버튼 5개·시각 토스트·연안 색 범례·출처/축척 올림」.)
 - `mainTimes()`: 연안 ON이면 `meta.timeline.coast.times`(지금 이후, 3시간 칸, 내일 21시까지 — 「가」 2026-10-15) 그대로, 해상만 ON이면 `seaTimes()`(내일 21시까지), 둘 다 ON이면 두 축의 합집합(실서버에서는 두 축의 끝이 같다). `nextTime(+3/6/12)`, 정기 `sync()`의 가까운 칸 맞춤, 층 스위치 변경 시 맞춤이 모두 이 목록을 쓴다. 칸이 없으면 버튼은 비활성이다.
 - `marineTime()`: 바는 연안 또는 해상이 켜져 있을 때 보인다(둘 다 OFF면 숨김). 해상 전용 `[data-marine-tools]`는 해상 ON일 때만 보인다. `body.rf-sea-time-on` 클래스 이름은 CSS 호환을 위해 그대로다.
 - `refreshMarine()`: 종전에는 연안만 제공되던 모레 구간에서 해상 지도를 비우고 `seaOutOfRange()`로 「해상 예보 범위 밖 (내일까지)」를 띄웠다. 「가」로 연안도 내일 21시에 끝나 이 구간이 없어졌으므로 그 분기와 함수를 삭제했다.
@@ -169,6 +182,7 @@ bash scripts/refactor/verify_all.sh
 
 - `RiskSheet.create(...).loading(hint)`가 시트를 열고 본문을 회색 틀로 채운다(`aria-busy`). `show`·`error`·`choose`·`clear`가 해제한다. 새 시트 종류를 추가해도 응답 처리 쪽에서 반드시 이 넷 중 하나로 끝나야 한다.
 - 호출 위치는 `RiskForecast.select`(지점 선택)와 `sliderChanged`(시트 시각 변경)뿐이다. `refresh`·60초 갱신에서 부르지 않는다(읽는 도중 내용이 깜빡이지 않게).
+- (2026-10-16) 「연다」는 이제 `present()` 를 거친다 — 시트가 닫혀 있었으면 `select` 가 먼저 부른 `hold(200)` 때문에 내용은 바로 채우되 약 0.2초 뒤에 올라온다. 아래 「선택 테두리·시트 올라오기/내려가기」 절.
 - 늦은 응답 보호는 `detail()`의 `n!==detailSeq || selected!==s || (s.at||t)!==at` 검사다. 이를 약화하지 않는다.
 
 ## 지도 이동 여백 — 과제10
@@ -246,3 +260,63 @@ bash scripts/refactor/verify_all.sh
 
 수정 시 주의: 버튼은 위아래 음수 여백으로 줄 높이(약 19.8px)보다 높게 잡히지 않는다 — 이 여백을 없애면 한 줄 부제에서 시각 줄이 약 3px 밀린다(`test_risk_sheet_ui` 「한 줄 부제에서 버튼이 시각 줄을 밀어냄」). 기준 상세 문안을 새로 쓸 때도 「닫기 버튼 → h3 → 본문」 순서를 지킨다(머리로 떼어 내는 규칙).
 
+
+## 연안 시트 주변 연안사고·표기·색·기준 상세 표 — 2026-10-16 (T9)
+
+사용자 원문은 [README.md](README.md)의 같은 이름 절, 결정 표는 설계서 §15. 바뀐 자리:
+
+| 위치 | 이전 | 지금 |
+|---|---|---|
+| `risk_store` 정적 표 | `risk_spots.json` 만 | + `coast_accidents.json`(`loadCoastAccidents` — 파일 변경 때만 다시 읽음). 해시 불일치 → `status:'stale'` + 로그, 없음 → `missing`, 손상 → `error` + 로그. `meta().coastAccidents`(화면용 저장소만, 감시용 metadataOnly 는 null — `sources()` 에 넣으면 감시 원천과 키가 달라져 `test_risk_history_sources` 가 깨진다) |
+| `risk_store.coastDetail` | 상세 + `outlook` | + `history`(`coastHistory(id)`): `{available:true,from,to,area,accidents}` / `{available:false}` |
+| `RiskMarine.accidents` | 도넛·범례·인명 줄을 함수 안에서 | `accSort`·`accSummary`(도넛·범례·인명 줄)·`bindAcc`(범례 → `openAcc`, 줄 글자 `line` 선택)·`closePop` 으로 나눠 내보냄 — 해상 모양·시험 그대로 |
+| `RiskSheet.show` 연안 본문 | 상자 → 계산 → 안내 → 요소 줄 | + 맨 끝 `coastHistory(d.history)`(응답에 `history` 가 있을 때만), 그린 뒤 `bindAcc`(줄 = 날짜), 다른 관광지·시각이면 `closePop` |
+| `RiskSheet.show` 부제 | 연안 「좌표 · 관할」, 옛 사고 격자 「격자 중심 좌표」 | 연안 관할만, 옛 사고 격자 빈칸. `syncSubRow` — 부제가 비고 버튼도 숨었으면 `.rf-sub-row` 숨김 |
+| `accidentRows` | 「선택 위치 좌표」 줄 | 없음 |
+| `summary` 상자 색 | `F.col(d.score)` | `F.bandColor(band 또는 점수)` |
+| `RiskMapLayer` 연안 면·점 테두리 | `RiskFormat.col(score)` | `RiskFormat.bandColor(score)`(해상 옛 점수 면은 `col` 그대로) |
+| `RiskFormat` | `BAND_COLORS` | + `scoreIndex`·`bandOf`(서버 `risk_points` 와 같은 식)·`bandColor` |
+| `RiskBasis.open` | 문안 그대로 | 본문 표를 `scrollTable` 로 감쌈 |
+| `RiskBasisContent` | 해상 제목 「공식 선박 …」, MTIS 밑줄 링크 「·」 이음, 연안 「떠밀림」·「연속 그라데이션」 | 「선박 사고위험·교통혼잡 예보」, `.rf-basis-links` 안 `.link-btn` 두 개, 「표류」·「주변 연안사고 목록」·「단계 말과 같은 4색」 |
+| `.rf-txt b.rf-cc` | `#f0c6ff` | `#ffa25e` |
+
+수정 시 주의: 지도 연안 색 경계를 바꿀 때는 서버 `risk_points.scoreBand` 와 `RiskFormat.bandOf` 를 같이 바꾼다(`test_risk_format` 이 −1~4점 전 구간을 대조한다). 집계표를 다시 만들면(`build_coast_accidents.py`) `riskSpotsHash` 가 지금 `risk_spots.json` 해시와 같은지 `/meta` 의 `coastAccidents.status` 로 확인한다.
+
+## 하단 시간 버튼 5개·시각 토스트·연안 색 범례·출처/축척 올림 — 2026-10-16
+
+사용자 원문: 「하단에 시간대 설정이 있는데 -12 -6h - 3h 현재 +3h, +6h +12로 버튼을 만들고 처음에는 - 부분은 회색이었다가 +3으로 가면 -3 활성화 되어서 뒤로 갈 수 있도록 수정 필요(해상도 동일하게,) 그리고 왼쪽에 0월 0일 금요일 10:00은 빼도록 하고 현재 및 시간 이동 버튼 아래에 1.(금) 00:00 라고 버튼 내에 작은 글씨로 써지도록 하고 싶어. 물론 시간 이동에 따라 현재만 제외하고 해당 시간이 바뀌어야지. 더이상 미래로 갈 수 없는 경우에는 해당 시간 버튼은 비활성화 되도록 해주고. 해상도 동일하게 진행.」 · 「그러면 토스트 메시지로 하단에 뜨면 되는거 아니니 ?」 (왼쪽 날짜를 없애면 지금 보는 시각을 알 길이 없어지는 문제에 대한 답) · 「그런데 지금 지도에 색상에 따른 범례가 안보이는데 ?」 · 「이 시안을 보니까 버튼이 높아지네 ? +12 -12버튼은 빼도록 하자. 그리고 버튼을 좀더 넓게 사용하도록 하자.」 (7버튼 시안 화면을 보고) · 「범례는 해상위험예측과 동일한 위치에 배치하도록 해줘. 그리고 각 토글을 on 하면 국토교통부 브이월드가 시간 조정 부분으로 인해 가려지는데 브이월드가 시간 조정 버튼 높이만큼 위로 올라오도록 해줘(축척도 마찬가지로)」 (화면 설명은 README 같은 이름 절)
+
+| 위치 | 이전 | 지금 |
+|---|---|---|
+| 시간 줄 마크업 | `<output data-map-time aria-live>` + 현재/+3H/+6H/+12H | `<span class="rf-sr-only" data-map-time>`(aria-live 없음) + `data-time-step` = `-6`·`-3`·`now`·`3`·`6`, 버튼 안 `<b>`라벨 + `<small data-time-at>`(두 `<span>` 「16.(금)」「13:00」 사이 공백, 한 줄) |
+| `nextTime(hours)` | `+` 만: 선택 시각의 3시간 칸 + hours 이상인 첫 `mainTimes` | 음수도 받음. `-`: 칸(`floor(ms/3h)`)이 목표 칸 이하인 마지막 `mainTimes`. `mainTimes` 첫 칸이 `meta.now` 라 목표가 지금의 칸이면 지금, 그보다 앞이면 `null`(비활성) |
+| `marineTime()` | output 글자 + `disabled` | 숨김 글자 「조회 시각 …」 + 버튼마다 `disabled`·`aria-disabled`·작은 글씨(`buttonTime`←`dayTime`), [현재]는 늘 `meta.now`. 바를 숨기면 토스트도 숨김 |
+| `timeToast()`·`liftToast()` | (없음) | 시간 버튼 클릭마다 `.rf-time-toast`(role=status, aria-live=polite) 2초(`TOAST_MS`), 연타 시 마지막 것만. 출처·축척·`.rf-color-legend` 와 겹치면 인라인 `bottom` 으로 그 위로 |
+| 연안 범례 | (없음 — 해상만) | `[data-coast-key]` 를 `.rf-color-legend` 첫 자식으로, `RiskFormat.BAND_COLORS` 4칸 막대. 보임은 `colorLegendSync()`(층 토글·refresh·setEnabled) — 종전 `colorLegend.hidden=!state.sea` 자리를 모두 대신 |
+| CSS 바 | `minmax(0,1.7fr) repeat(4,1fr)`, `height:46px`, 버튼 34px, 비활성 opacity .35 | `repeat(5,1fr)`, `height:var(--rf-time-height,46px)`, 버튼 34px 2줄(라벨 12px·시각 10px, 360px 이하 9px), 비활성 회색 |
+| CSS 출처·축척 | `body.rf-sea-time-on .ol-attribution…`(0,2,1) — index2 `body.ls-mode.ls-safety …`(0,3,1) 에 짐 | `body.ls-mode.ls-safety.rf-sea-time-on …`(0,4,1)·물빠짐(0,5,1) 추가 |
+| CSS 범례 상자 | `width:150px`, 안의 `[hidden]` 이 `.rf-mini-key{display:block}` 에 져서 안 숨던 칸 있음 | `width:auto!important;min-width:150px`, `.rf-color-legend [hidden]{display:none!important}` |
+
+수정 시 주의:
+- 가짜 DOM 시험(`test_risk_lifecycle.js`)의 버튼 흉내는 `querySelector` 가 있어야 한다(작은 글씨 칸을 찾는다). `liftToast` 는 크기를 잴 수 없는 가짜 DOM 에서는 아무것도 하지 않는다.
+- `risk_api.js` 의 60초 캐시 때문에 같은 시각으로 돌아오면 `sea/unified-frame` 요청이 다시 나가지 않는다 — 시험은 요청 기록 대신 지도에 다시 그려졌는지를 본다.
+- 출처·축척 위치는 `index2.html` 안 `<style>` 규칙과 다툰다. 시험(`test_risk_main_time.js`)은 그 규칙을 index2.html 에서 읽어 시험 화면에 넣는다 — index2 쪽 선택자를 바꾸면 이 시험이 알려 준다.
+- `.rf-color-legend .rf-gradient-labels` 처럼 상자 전체를 잡는 선택자는 이제 연안·해상 두 개를 잡는다. 해상만 보려면 `[data-accident-legend]` 를 붙인다.
+- 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_main_time.js` (선택 `RISK_SHOT_DIR=<폴더>` 로 380·320px 화면 PNG).
+
+
+## 선택 테두리·시트 올라오기/내려가기 — 2026-10-16
+
+사용자 원문: 「격자를 클릭하면 격자가 선택되었다는 느낌으로 격자 테두리를 표시하고 싶어. 표시 방법은 해구기상에서 해구격자를 선택했을떄와 동일한 스타일로. 그리고 선택이후 약간의 딜레이(0.2초?) 정도 후 바텀시트가 나오도록 하고 바텀시트는 현재 동적 애니메이션은 없는 아래서 위로 올라오는 느낌의 애니메이션이 있으면 좋겠어. 현재 해양종합정보 바텀시트에는 애니메이션이 잘 반영되어있음. 그대로 하면될듯. 닫을때도 마찬가지로 말이야.」 · 「바텀시트 애니메이션 및 클릭 관련해서는 연안에도 적용해줘.」
+
+- **가져온 값**: 테두리 = `ocean-map/map/ocean_map.js` `_styleSelectedMainFeature`(해구도 대해구 첫 클릭) 시안 `#4fc3f7`·2.5px 실선(대시·그림자 없음). 움직임 = `style.css` `.ocean-bottom-sheet` `transform:translateY(100%)` ↔ `.open` `translateY(0)`, `transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)`, 닫기 정리 300ms(`ocean_bottom_sheet1.js` `OS.closeSheet`). 소해구(노랑 `#ffeb3b`·2px)는 쓰지 않았다.
+- **지도** (`risk_map_layer.js` `setSelection`): 해상 GR4 칸·연안 관광지 영역·연안 중심 고리 모두 위 값(`SELECTED`). 종전 흰 2.5px(연안·통합 해상)·흰 2px(옛 해상)·흰 고리를 대신한다. 층 순서(선택 136 — 해안선 137·관광지 점 138 아래)는 그대로.
+- **시트** (`risk_sheet.js`): `.rf-shown` = 그려져 있음(올라가는 중·열림·내려가는 중), `.open` = 열림(위). `present()` 가 `.rf-shown` → 다시 그림 계산 → `.open` 순서로 붙여 아래에서 올린다. `hold(ms)` 는 **시트가 안 보일 때만** 올리기를 ms 뒤로 미룬다(다시 부르면 처음부터 — 마지막 선택만). `clear()` 는 `.open` 을 바로 떼고(내려감) 300ms 뒤 `.rf-shown` 을 떼고 본문을 비운다 — 내려가는 동안 내용은 그대로 보인다. 그 사이 다시 열면 정리를 취소하고 그 자리에서 다시 올린다. 대기 중 `clear()` 면 예약을 취소하고 바로 비운다.
+- **조율** (`risk_forecast.js` `select`): 테두리(`layer.setSelection`)는 누르는 즉시, 이어서 `sheet.hold(OPEN_DELAY_MS=200)` → `loading()`(회색 틀)·상세 요청은 바로 시작. 0.2초 안에 응답이 와도 시트는 0.2초에 올라온다. 닫기(✕·뒤로가기·Escape)·층 토글 끔·`setEnabled(false)`(탭 떠남)·`destroy` 는 모두 `clearSelection` → `sheet.clear()` 로 테두리를 지우고 예약을 취소한다.
+- **이미 열린 시트에서 다른 칸**: 내리지 않고 내용만 바꾼다(대기 없음). 해양종합정보 시트는 열린 동안 다른 해점 클릭을 **무시**한다(`ocean_map.js` 「시트 열림 가드 — 사용자 합의 Q3」) — 위험예측은 종전대로 바꿔 보여 주되, 내려갔다 올라오지는 않는다는 점만 맞췄다.
+- **같은 위치 관광지 선택 목록**(`choose`)도 같은 규칙(닫혀 있었으면 0.2초 뒤).
+- **탭 복귀**(`life_safety.js` `_unparkSafety` → `select`): 다시 열 때도 테두리 즉시·0.2초 뒤 올라옴.
+- **움직임 줄이기**: `prefers-reduced-motion:reduce` 면 `.rf-sheet` transition 을 끈다(바로 제자리·바로 아래). 해양종합정보 시트에는 이 규칙이 없다(`style.css` 확인) — 위험예측에만 더했다. 0.2초 대기는 움직임이 아니라 그대로 둔다.
+- **지도 스피너(`waitStart`, 250ms)와는 따로다** — 그것은 지도 색 요청(`refresh`)을 기다릴 때만이고 `select` 는 부르지 않는다. 시트 안의 기다림은 회색 틀이다.
+- `visiblePadding()`(위험구역·관할 해역 이동 여백)은 `.open` 시트의 `getBoundingClientRect` 를 쓰는데 올라오는 0.3초 동안은 덜 올라온 위치를 잰다. 이 이동은 열린 시트 안 버튼에서만 시작돼 실제로는 다 올라온 뒤다.
+- 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_select_motion.js` (선택 `RISK_MOTION_SHOTS=<폴더>` — 누른 순간·올라오는 중 90/150ms·다 올라옴 380px PNG). 1부는 페이지 안 가짜 타이머로 0.2초·0.3초를 한 칸씩, 2부는 실제 지도 클릭과 계산된 transform(시간을 재지 않고 제자리까지 기다림). 다른 시트 시험(`test_risk_sheet_ui`)은 시트를 잴 때 다 올라오기를 기다린다(`waitUp`).
