@@ -123,7 +123,8 @@ function stationInput(b) {
         levels.sea[c.name] = c.overview.rank; if (c.nameBase) levels.sea[c.nameBase] = Math.max(levels.sea[c.nameBase] || 0, c.overview.rank);
         return { name: c.name, level: c.overview.word, window: c.overview.window, evidence: ev };
     });
-    const timeline = sea.timeBar.filter((s) => s.rank > 0 || s.events.length).map((s) => ({ at: s.label, level: s.word, events: s.events.map((e) => e.text) }));
+    // 2026-10-16: 총평에 쓰는 시간 흐름은 총평용 단계(공식 주의·경계는 기상·혼잡 근거가 겹칠 때만)로 — 걸러진 단계를 AI 가 보고 써서 검증 실패하는 일을 막는다
+    const timeline = sea.timeBar.filter((s) => (s.overviewRank ?? s.rank) > 0 || s.events.length).map((s) => ({ at: s.label, level: s.overviewWord ?? s.word, events: s.events.map((e) => e.text) }));
     timeline.forEach((s) => facts.push(s.at, ...s.events));
     const special = b.special.map((x) => { facts.push(x.title, ...x.lines); places.add(x.zone); return [x.title, ...x.lines].join(' '); });
     if (b.special.some((x) => x.kind === 'release' || x.kind === 'released')) for (const k of ['1.2|배', '1.3|배', '1.2~1.3|배']) mult.sea.add(k);

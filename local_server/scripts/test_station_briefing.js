@@ -556,6 +556,9 @@ const WIN = R.editionWindow('morning', T0);
         const sl = AI.stationInput(lone);
         assert.ok(Object.values(sl.levels.sea).every((r) => r < 3), JSON.stringify(sl.levels.sea));
         assert.ok(AI.validateOverview(lone.overview, sl).ok, '틀 총평은 통과');
+        // 2026-10-16: AI 입력 시간 흐름(timeline)도 총평용 단계 — 거른 「경계」가 AI 에 보이면 그대로 써서 틀로 떨어지므로
+        assert.equal(lone.sea.timeBar.find((q) => q.at === at(9)).overviewRank, 0); assert.ok(!JSON.stringify(sl.sea.timeline || []).includes('경계 필요'), JSON.stringify(sl.sea.timeline));
+        assert.ok(!lone.overview.sea.includes('순위만으로'), '틀 총평은 「순위」로 단정하지 않음(순위식인지 미확인)');
         const up = AI.validateOverview({ land: null, sea: lone.overview.sea.replace(/관심이 필요합니다\.$/, '경계가 필요합니다.') }, sl);
         assert.ok(up.errors.some((er) => er.startsWith('level:경계')), 'AI 가 거른 「경계」를 총평에 쓰면 검증 실패 — ' + up.errors.join(','));
     });

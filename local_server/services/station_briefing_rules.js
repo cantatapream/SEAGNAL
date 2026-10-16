@@ -341,8 +341,9 @@ function seaSection(input, win, wev) {
     const unknown = levelWord(0, missing, 4);
     const timeBar = slots.map((at, i) => {
         let best = null; for (const x of regions) { const q = x.series[i]; if (q.rank > 0 && (!best || q.rank > best.q.rank)) best = { x, q }; }
+        const oRankAt = Math.max(0, ...regions.map((x) => x.series[i].overviewRank || 0)); // 총평용 단계(공식 주의·경계 거르기 뒤) — AI 입력 시간 흐름에 쓴다
         const s = Date.parse(at), e = s + SLOT_H * HOUR;
-        return { at, label: dayPrefix(at, win.targetDate) + pad(Number(at.slice(11, 13))) + '시', rank: best ? best.q.rank : 0, word: best ? WORD[best.q.rank] : unknown, region: best ? best.x.nm.name : null, labels: best ? best.q.sources.map((y) => y.label) : [], events: wev.events.filter((v) => Date.parse(v.at) >= s && Date.parse(v.at) < e).map((v) => ({ kind: v.kind, text: v.text })) };
+        return { at, label: dayPrefix(at, win.targetDate) + pad(Number(at.slice(11, 13))) + '시', rank: best ? best.q.rank : 0, word: best ? WORD[best.q.rank] : unknown, overviewRank: oRankAt, overviewWord: oRankAt ? WORD[oRankAt] : unknown, region: best ? best.x.nm.name : null, labels: best ? best.q.sources.map((y) => y.label) : [], events: wev.events.filter((v) => Date.parse(v.at) >= s && Date.parse(v.at) < e).map((v) => ({ kind: v.kind, text: v.text })) };
     });
     const rank = regions.length ? regions[0].rank : 0, oRegions = regions.filter((x) => x.overviewRank > 0).sort((a, b) => b.overviewRank - a.overviewRank || b.oDuration - a.oDuration || b.accidents - a.accidents || a.nm.name.localeCompare(b.nm.name, 'ko'));
     const worstFlow = Object.values(flows).filter(Boolean).sort((a, b) => (a.onsetAt ? Date.parse(a.onsetAt) : Infinity) - (b.onsetAt ? Date.parse(b.onsetAt) : Infinity) || (b.max.wh - a.max.wh))[0] || null;
@@ -479,7 +480,7 @@ function templateOverview(b) {
     s.push(dayWord + ' ' + st + ' 관할 해상은 ' + sea.overviewLevel.word + '입니다' + (miss ? ' — ' + miss + ' 자료를 확인하지 못해 그 근거는 판단에서 뺐습니다(' + counts + ').' : '(' + counts + ').'));
     s.push(sea.weather ? sea.weather.text + '.' : '해구 예보 자료를 확인하지 못했습니다.');
     if (top) s.push(top.overview.window + ' ' + top.name + '의 근거는 ' + top.overview.label + '입니다.');
-    else s.push(miss ? '확인된 자료에서는 기상·혼잡 근거가 겹치는 해역을 찾지 못했습니다(빠진 자료의 근거는 알 수 없습니다).' : '공식 사고예보 순위만으로 붙은 단계 외에 기상·혼잡 근거가 겹치는 해역은 없습니다.');
+    else s.push(miss ? '확인된 자료에서는 기상·혼잡 근거가 겹치는 해역을 찾지 못했습니다(빠진 자료의 근거는 알 수 없습니다).' : '공식 사고예보 단계만 있고 기상·혼잡 근거가 함께 겹치는 해역은 없습니다.');
     const rel = b.special.find((x) => x.kind === 'release' || x.kind === 'released'), pre = b.special.find((x) => x.kind === 'prewarn');
     if (rel) s.push(rel.title + ' — ' + RELEASE_LINES[0]);
     else if (pre) s.push(pre.title + '입니다.');
