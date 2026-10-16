@@ -6,6 +6,7 @@
  *         시트 시각 이동 시 초기화), 이 해역 과거 선박사고(0건 한 줄·도넛·팝업·인명피해 줄·null 처리), 날씨 아코디언(접힘·5항목),
  *         시트 시각 막대(공식 사고 위험 색·「지금」), 지도 [혼잡도][위험 예측] 단일 선택·해상 OFF 숨김·혼잡도 지금/미래 mode·범례 제목,
  *         날씨 아코디언의 발효 중 특보 상자(2026-10-16 — 빨간 테두리·「파도」 위·문구·여러 개·없을 때·미래 시각·380px 줄바꿈).
+ *         접힌 제목 줄 「특보」 표시(2026-10-16 「2 추천대로」 — 상자와 같은 조건·펼쳐도 남김·시각 따라 바뀜·대비 4.5 이상·380px 넘침 없음·「확인 불가」 안내 없음).
  * [연계] 실제 risk_format/api/map_layer/slider/marine/sheet/basis/forecast + risk_forecast.css + client/style.css, 실제 routes/risk_forecast·
  *        marine_fusion 저장소(시계 주입)·sea_traffic_history.createApi(가짜 이력·특보) → verify_all SUITES.
  *        SEA_SHEET_SHOTS=<폴더> 를 주면 380px 폭 화면 사진을 남긴다(검사 판정에는 쓰지 않음).
@@ -244,6 +245,18 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
    return{lines:[t.textContent,...[...b.querySelectorAll('p')].map(p=>p.textContent)],level:b.dataset.level,color:cs.borderTopColor,style:cs.borderTopStyle,width:parseFloat(cs.borderTopWidth),sides:[cs.borderRightColor,cs.borderBottomColor,cs.borderLeftColor],bold:Number(getComputedStyle(t).fontWeight)>=700,
     w:r.width,aboveWave:!!(b.compareDocumentPosition(g)&Node.DOCUMENT_POSITION_FOLLOWING),inside:r.left>=wr.left-.5&&r.right<=wr.right+.5,fit:b.scrollWidth<=b.clientWidth+1,titleLines:Math.round(t.getBoundingClientRect().height/lh)};});},sel);
  const RED='rgb(255, 77, 79)';
+ // 제목 줄 「특보」 표시(사용자 2026-10-16 「3-1, 2 추천대로, 3 띄우지마」의 2) — 상자와 같은 함수(activeWarns)에서 나오므로 「표시 있음 ⇔ 상자 1개 이상」이어야 한다.
+ // 대비는 글자색·바탕색(불투명)의 WCAG 상대 휘도로 잰다. 제목 줄 넘침: 버튼 안에 들고(가로 스크롤 없음) 꺾쇠와 겹치지 않고 제목(h4)과도 겹치지 않는다.
+ const badgeInfo=sel=>page.evaluate(sel=>{const wx=document.querySelector(sel),h=wx.querySelector('[data-wx]'),bs=[...h.querySelectorAll('[data-warn-badge]')];if(!bs.length)return{n:0};const b=bs[0],cs=getComputedStyle(b),r=b.getBoundingClientRect(),hr=h.getBoundingClientRect(),cr=h.querySelector('.chev').getBoundingClientRect(),tr=h.querySelector('h4').getBoundingClientRect();
+  const lum=c=>{const v=c.match(/\d+(\.\d+)?/g).slice(0,3).map(Number).map(x=>{x/=255;return x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4);});return .2126*v[0]+.7152*v[1]+.0722*v[2];},L1=lum(cs.color),L2=lum(cs.backgroundColor);
+  return{n:bs.length,text:b.textContent,visible:r.width>0&&r.height>0&&cs.visibility!=='hidden',color:cs.color,bg:cs.backgroundColor,border:cs.borderTopColor,contrast:(Math.max(L1,L2)+.05)/(Math.min(L1,L2)+.05),
+   inHead:r.left>=hr.left-.5&&r.right<=hr.right+.5&&r.top>=hr.top-.5&&r.bottom<=hr.bottom+.5,beforeChev:r.right<=cr.left+.5,afterTitle:r.left>=tr.right-.5,oneLine:r.height<=parseFloat(cs.lineHeight)+parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom)+parseFloat(cs.borderTopWidth)*2+1,headFit:h.scrollWidth<=h.clientWidth+1,pageFit:document.documentElement.scrollWidth<=innerWidth};},sel);
+ /** 「특보」 표시 공통 단언. 예: badgeOk(await badgeInfo(sel)) @param {object} b - badgeInfo 결과 @returns {void} [연계] ← 아래 특보 장면들 */
+ const badgeOk=b=>{assert.equal(b.n,1,'표시 1개(특보가 여럿이어도 하나)');assert.equal(b.text,'특보');assert.equal(b.visible,true);assert.equal(b.color,'rgb(255, 255, 255)');assert.equal(b.bg,'rgb(211, 47, 47)');assert.equal(b.border,RED,'상자 테두리와 같은 빨강');
+  assert.ok(b.contrast>=4.5,'글자 대비 '+b.contrast.toFixed(2));assert.equal(b.inHead,true,'제목 줄 안');assert.equal(b.beforeChev,true,'꺾쇠와 안 겹침');assert.equal(b.afterTitle,true,'제목과 안 겹침');assert.equal(b.oneLine,true,'「특보」 한 줄');assert.equal(b.headFit,true,'제목 줄 가로 넘침 없음');assert.equal(b.pageFit,true,'화면 가로 넘침 없음');};
+ await check('「특보」 표시(지금, 접힘): 상자가 그려질 조건이면 접힌 제목 줄 꺾쇠 앞에 빨간 「특보」 — 흰 글자·#d32f2f·대비 4.5 이상·380px 제목 줄 안 / 펼쳐도 그대로',async()=>{
+  assert.equal(await page.locator(body+' [data-wx]').getAttribute('aria-expanded'),'false');const b=await badgeInfo('#risk-forecast-sheet .rf-wx');badgeOk(b);await page.waitForTimeout(250);await shot('warn_badge_collapsed_on','#risk-forecast-sheet .rf-wx');
+  await page.locator(body+' [data-wx]').click();assert.equal((await badgeInfo('#risk-forecast-sheet .rf-wx')).n,1,'펼쳐도 제목 줄에 남김');assert.equal(await page.locator(body+' [data-warn-box]').count(),1);await page.locator(body+' [data-wx]').click();});
  await check('특보 상자(지금): 날씨 아코디언을 펼치면 「파도」 위 빨간 테두리 상자 1개 — 「부산앞바다 풍랑주의보 발효」 굵게·발표/발효 「10월 15일(목) 08:30/09:00」·해제예정 범위 「10월 16일(금) 00시 ~ 06시」',async()=>{
   assert.equal(await page.locator(body+' [data-warn-box]').isVisible(),false,'접힌 아코디언에서는 안 보임');
   await page.locator(body+' [data-wx]').click();const r=await warnInfo(body.replace(' .rf-body','')+' .rf-wx');
@@ -294,10 +307,12 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   await setSlider('2026-10-15T18:00:00+09:00');await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-wx h4')&&document.querySelector('#risk-forecast-sheet .rf-wx h4').textContent==='이 해역 18시 예보');
   const r=await page.evaluate(b=>{const s=document.querySelectorAll(b+' .rf-hero .rf-lvl strong')[1];return{t:s.textContent,l4:s.classList.contains('l4'),fit:s.scrollWidth<=s.clientWidth+1};},body);assert.deepEqual(r,{t:'매우높음',l4:true,fit:true});});
 
- await check('특보 상자(미래): 오늘 18시는 해제예정(내일 00~06시) 전이라 그대로 · 내일 09시는 해제예정 범위 끝(06시) 뒤라 상자 없음',async()=>{
+ await check('특보 상자(미래): 오늘 18시는 해제예정(내일 00~06시) 전이라 그대로 · 내일 09시는 해제예정 범위 끝(06시) 뒤라 상자 없음 / 「특보」 표시도 시각을 따라 18시 있음·09시 없음',async()=>{
   const open=async()=>{if(await page.locator(body+' [data-wx]').getAttribute('aria-expanded')!=='true')await page.locator(body+' [data-wx]').click();};
+  assert.equal(await page.locator(body+' [data-wx]').getAttribute('aria-expanded'),'false','시각을 바꾸면 접힘');badgeOk(await badgeInfo('#risk-forecast-sheet .rf-wx'));
   await open();let r=await warnInfo('#risk-forecast-sheet .rf-wx');assert.equal(r.length,1);assert.equal(r[0].lines[0],'부산앞바다 풍랑주의보 발효');assert.equal(await page.locator(body+' .rf-wx h4').innerText(),'이 해역 18시 예보');await shot('warn_future_18',body+' .rf-wx');
-  await setSlider('2026-10-16T09:00:00+09:00');await page.waitForFunction(()=>{const h=document.querySelector('#risk-forecast-sheet .rf-wx h4');return h&&h.textContent==='이 해역 내일 09시 예보';});await open();
+  await setSlider('2026-10-16T09:00:00+09:00');await page.waitForFunction(()=>{const h=document.querySelector('#risk-forecast-sheet .rf-wx h4');return h&&h.textContent==='이 해역 내일 09시 예보';});
+  assert.equal((await badgeInfo('#risk-forecast-sheet .rf-wx')).n,0,'상자가 없을 시각이면 「특보」 표시도 없음');await page.waitForTimeout(250);await shot('warn_badge_collapsed_off','#risk-forecast-sheet .rf-wx');await open();
   r=await warnInfo('#risk-forecast-sheet .rf-wx');assert.equal(r.length,0);assert.equal(await page.locator(body+' [data-wx-body] .rf-tile').count(),5,'날씨 칸은 그대로');await page.waitForTimeout(250);await shot('warn_future_tomorrow09_none',body+' .rf-wx');
   await page.locator(body+' [data-wx]').click();});
 
@@ -347,15 +362,20 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   assert.equal(r.length,2);assert.deepEqual(r.map(x=>x.level),['경보','주의보']);
   assert.deepEqual(r[0].lines,['제주도북부앞바다 풍랑경보 발효','발표 : 10월 16일(금) 04:30','발효 : 10월 16일(금) 06:00','해제예정 : 10월 16일(금) 21시 ~ 03시']);
   assert.deepEqual(r[1].lines,['제주도북부앞바다 태풍주의보 발효','발표 : 정보없음','발효 : 10월 16일(금) 21시 ~ 24시','해제예정 : 정보없음']);
-  assert.ok(r.every(x=>x.color===RED&&x.aboveWave&&x.inside&&x.fit&&x.w>200),JSON.stringify(r));await shot('warn_two','#direct .rf-wx');});
+  assert.ok(r.every(x=>x.color===RED&&x.aboveWave&&x.inside&&x.fit&&x.w>200),JSON.stringify(r));badgeOk(await badgeInfo('#direct .rf-wx'));await shot('warn_two','#direct .rf-wx');});
  await check('특보 상자 없음: 특보 없음(items 빈)·특보 자료 낡음/없음/깨짐(status≠ok, items 가 있어도)·warnings 필드 없음 → 상자 0개, 날씨 칸은 그대로',async()=>{
-  for(const w of [{status:'ok',zone:{name:'부산앞바다',kind:'앞바다'},items:[]},{status:'stale',items:[wItem('부산앞바다','경보')]},{status:'missing',items:[]},{status:'error',items:[wItem('부산앞바다','주의보')]},undefined]){const r=await directWarn(w);assert.equal(r.length,0,JSON.stringify(w));}
+  for(const w of [{status:'ok',zone:{name:'부산앞바다',kind:'앞바다'},items:[]},{status:'stale',items:[wItem('부산앞바다','경보')]},{status:'missing',items:[]},{status:'error',items:[wItem('부산앞바다','주의보')]},undefined]){const r=await directWarn(w);assert.equal(r.length,0,JSON.stringify(w));
+   assert.equal((await badgeInfo('#direct .rf-wx')).n,0,'상자와 같은 조건 — 「특보」 표시도 없음 '+JSON.stringify(w));
+   assert.ok(!/확인 불가|확인불가|특보 정보/.test(await page.locator('#direct .rf-wx').innerText()),'자료가 낡아도 「특보 정보 확인 불가」 안내를 띄우지 않음(사용자 「3 띄우지마」)');}
   assert.equal(await page.locator('#direct [data-wx-body] .rf-tile').count(),5);await shot('warn_none','#direct .rf-wx');});
  await check('특보 상자 380px: 긴 구역 이름(「전남중부서해앞바다중먼평수구역 풍랑경보 발효」)은 상자 안에서 줄바꿈·가로 넘침 없음',async()=>{
   await page.setViewportSize({width:380,height:820});await page.evaluate(()=>{document.getElementById('direct')&&(document.getElementById('direct').style.width='364px');});
   const r=await directWarn({status:'ok',zone:{name:'전남중부서해앞바다중먼평수구역',kind:'평수구역'},items:[wItem('전남중부서해앞바다중먼평수구역','경보',{kind:'평수구역'})]});
   assert.equal(r.length,1);assert.ok(r[0].w>200,'폭 '+r[0].w);assert.equal(r[0].inside,true);assert.equal(r[0].fit,true);assert.ok(r[0].titleLines>=2,'제목 줄 수 '+r[0].titleLines);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=380),true,'화면 가로 넘침 없음');await shot('warn_long_380','#direct .rf-wx');
+  // 제목이 가장 긴 꼴(모레 이후 「이 해역 10.17 09시 예보」) + 「특보」 — 380px 에서 제목 줄이 넘치지 않음(접힘 상태로 잰다)
+  await direct({...base,t:'2026-10-17T09:00:00+09:00',current:null,warnings:{status:'ok',items:[wItem('부산앞바다','주의보')]}},at);
+  assert.equal(await page.locator('#direct .rf-wx h4').innerText(),'이 해역 10.17 09시 예보');assert.equal(await page.locator('#direct [data-wx]').getAttribute('aria-expanded'),'false');badgeOk(await badgeInfo('#direct .rf-wx'));await shot('warn_badge_longtitle_380','#direct .rf-wx');
   await page.evaluate(()=>{const h=document.getElementById('direct');h.style.cssText='width:352px;padding:8px';});});
  await check('독립 검토 지적 고정: 해상 막대 뒤 같은 칸에 연안 막대를 그리면 해상 전용 class(rf-risk-time)가 남지 않음',async()=>{
   const r=await page.evaluate(()=>{const el=document.createElement('div');document.body.appendChild(el);const times=['2026-10-15T16:12:00+09:00','2026-10-15T18:00:00+09:00'];
