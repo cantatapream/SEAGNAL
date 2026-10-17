@@ -8,6 +8,7 @@
  *         맨 끝 「[§11.10.8-1]…[§11.10.8-12]」 = 자동 실행 결과 관리자 푸시(사용자 「매번 보내기」) — 설계서 §11.10.8 「경우마다 보내나」 표의 행마다 1:1(가짜 발송 adminPush·가짜 시계).
  *           고치기 전 코드(5f37d50dd)에서 -1~-10 모두 실패함을 확인했다(-11 은 그 뒤 더한 행이라 고치기 전 코드로는 돌려 보지 않았다).
  *         맨 끝 「[§11.10.9-1]…[§11.10.9-8]」 = 2026-10-17 사용자 결정(설계서 §11.10.9 — 「평소보다 위험이 높아진 곳」 표 · 대해구 위치·바다 상태 말(「기준」 없음) · 지금 밀집 두 줄 · 분석 문단 강조 · 마지막 「따라서」 → (권고) · 팝업 지도 재료 · 머리 글).
+ *         「[§11.10.19-1]…[§11.10.19-6]」 = 브리핑이 소해구 예보를 쓴다(설계서 §11.10.19 — 시각 맞추기·수집·판정·AI 입력·만들기 직전 준비(가짜 smallZone)·실제 smallzone_forecast(가짜 fetch)). 기상청 호출 없음.
  *         「[§11.10.6-1]」 = 2026-10-17 16:16 운영 실행 검사 오판(조사 도·괄호 속 이름·하지만·연도 년) — 설계서 §11.10.6.
  *         맨 끝 「[§11.10.5-1]…[§11.10.5-8]」 = 62048b15c 독립 검토 8건(설계서 §11.10.5 — 단계 아래쪽·입력에 없는 말·이름 없는 대목·다시 시도 순서·캐시·단계 말 꼴·이유 글 자름·대기 표 ⑪·평소처럼 관심) 1:1 — 고치기 전 코드(bde907bdd)에서 8건 모두 실패.
  *         그 앞 「[§11.10.4-1]…[§11.10.4-9]」 = 같은 날 사용자 결정(§11.10.4). 「[§11.10.3-1]…[§11.10.3-5]」 = 2026-10-17 사용자 결정(설계서 §11.10.3 — (고립 주의) 지점 표·육상 권고·해상 근거 칸·해양사고 위험예보·해구 줄은 넘을 때만·지도 재료) 1:1 — 고치기 전 코드(6ec172ffa)에서 5건 모두 실패.
@@ -319,7 +320,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(S.advice.startsWith('15~24시 비양도 ') && S.advice.endsWith('해리 해역 운항에 주의가 요구됩니다.') && !/따라서/.test(S.advice + L.advice), S.advice);
         assert.ok(!JSON.stringify(b.summary).includes('관심 이상'), '「관심 이상」 용어를 쓰지 않음');
         assert.deepStrictEqual([b.overview.land, b.overview.sea, b.overview.source], [null, null, 'template'], '틀(AI 없음)이면 해설 없음');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v17'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v18'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
     });
     const si = AI.stationInput(b);
     // AI 분석 문단 견본(2026-10-17 §11.10.4 — 3~5문장, 마지막 「따라서 … 필요합니다」. 그 전 §11.10 해설은 1~2문장): 허용 숫자·지명·단계만 쓴 글. 아래 검사들이 이것을 조금씩 바꿔 실패를 만든다.
@@ -1459,7 +1460,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(so.summary.analysis.land, null); assert.ok(AI.sentences(so.summary.analysis.sea).length >= 3);
         // 조사: 괄호 덧말 앞 낱말로(「해역(232-2해구)은」) · 받침 ㄹ + 으로 → 로
         assert.equal(R.josa('비양도 북북서방 1.4해리 해역(232-2해구)', '은', '는'), '은'); assert.equal(R.josa("연안 위험지수 72 '높음'(예상)", '으로', '로'), '으로'); assert.equal(R.josa('바다물', '으로', '로'), '로');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v17');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v18');
     });
     // 사용자 예시 꼴(돝섬해상유원지·대해구 5099)을 한림 고정 자료 이름·숫자로 옮긴 AI 분석 문단
     const ex = {
@@ -2185,7 +2186,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual([c.badges[0].source, c.badges[0].name, c.badges[0].level, c.badges[0].agency, c.badges[0].window], ['accident', '해양사고 위험예보', '주의', 'KOMSA', '18~24시']);
         assert.deepStrictEqual([c.rank, c.word], [2, '주의'], '카드 딱지 그대로');
         assert.equal(c.advice, "18~24시 이 해역은 해양사고 위험예보 '주의'(KOMSA) 근거로 운항 시 주의가 요구됩니다.");
-        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v17');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v18');
     });
     await check('[§11.10.15-2] 섞인 경우(시안 C) — KOMSA 18시 \'주의\'·21시 \'경계\' + 혼잡 \'매우높음\' 두 칸: 배지 둘(위험예보 먼저) · 위험예보 창 = 경계 칸만 · 상세 줄 = 칸마다 등급 / 칸마다 혼잡지수(그 칸 가장 높은 시각) · 혼잡 글자 색 = 경계(3)', () => {
         const c = card15({ [at(18)]: { accident: '주의', congestion: { level: '매우높음', index: 45.14, at: at(18) } }, [at(21)]: { accident: '경계', congestion: { level: '매우높음', index: 32.91, at: at(22) } } });
@@ -2460,6 +2461,166 @@ const WIN = R.editionWindow('morning', T0);
         const mb = R.buildBriefing(many, WIN, { generatedAt: R.isoKst(T0) });
         assert.ok(/ 등 주변 연안사고에/.test(mb.summary.analysis.land), 'S10 — 셋 이상이면 「A·B 등」 ' + mb.summary.analysis.land);
         assert.ok(/로 주의 수준입니다/.test(R.buildBriefing(hallim(), WIN, { generatedAt: R.isoKst(T0) }).summary.analysis.sea) && /·풍랑주의보 예비특보로 주의 수준입니다/.test(R.buildBriefing(hallim(), WIN, { generatedAt: R.isoKst(T0) }).summary.analysis.sea), 'S5 — 해역 문장의 특보 근거는 종류만');
+    });
+    // ── §11.10.19(2026-10-17 사용자 *"소해구 기준으로 기상이 표출되어야 함."* · 추천안 「새 판이 나올 때 미리 받아 두고, 만들 때 저장본이 지난 판이면 한 번 더 받아 보고, 그래도 없으면 그 칸만 대해구로」에 *"진행."*) ──
+    //   해역마다 가장 많이 겹치는 소해구 예보로 판정·카드 [기상 예보]·해구 예보 배지·상세 표 · 없으면 그 해역만 대해구 · 실제 기상청 호출 없음(가짜 smallZone·가짜 fetch)
+    const tmAt = (ms) => { const d = new Date(ms); return '' + d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + pad(d.getUTCHours()); };
+    const szRows = (list) => list.map(([h, wh, ws, d]) => ({ tm: tmAt(Date.parse(at(h, d))), wh, wp: 5, waveDir: 90, ws, windDir: 180 }));
+    await check('[§11.10.19-1] 소해구 시각 맞추기 = 대해구 예보와 같은 규칙(실제 risk_store forecast 와 칸마다 같은 값 — 범위 ±1.5시간 · 가장 가까운 행 · 같으면 이른 행 · 빈 칸 null)', () => {
+        const rows = szRows([[6, 0.8, 5], [9, 1.0, null], [15, 2.4, 13], [18, 2.6, 14], [21, 1.8, 10]]);   // 12시 행 없음(빠진 발효시각) · 9시 풍속 null(-999)
+        const d = fs.mkdtempSync(path.join(tmp, 'rs-')), dd = path.join(d, 'data'); fs.mkdirSync(dd);
+        fs.writeFileSync(path.join(dd, 'zone_forecasts.json'), JSON.stringify({ updatedAt: '2026-10-17 07:00:00', baseTmUtf: '2026101621', data: { 232: rows } }));
+        const store = require('../services/risk_store').createStore({ dir: d, dataDir: dd, clock: () => T0 }), big = store.marineInputs().weather;
+        const times = [at(3), at(4), at(5), at(6), at(9), at(12), at(13), at(15), at(21), at(22), at(23), at(0, '2026-10-18')];
+        for (const t of times) assert.deepStrictEqual(I.smallRowAt(rows, t), (({ wh, ws, forecastAt }) => ({ wh, ws, forecastAt }))(big(232, t)), t);
+        assert.deepStrictEqual(I.smallRowAt(rows, at(12)), { wh: 1.0, ws: null, forecastAt: at(9) }, '12시 행이 없으면 가까운 행 중 이른 9시(대해구와 같음)');
+        assert.deepStrictEqual(I.smallRowAt(rows, at(3)), { wh: null, ws: null, forecastAt: null }, '범위 밖(06시 −1.5시간 앞)');
+    });
+    await check('[§11.10.19-2] 수집: 해역마다 가장 많이 겹치는 소해구(haegu.sub) 예보 행을 weatherSmall 에 · 육지 소해구(전부 null)·없는 대해구·찾기 함수 없음은 넣지 않음(→ 대해구)', () => {
+        const box = (x0, y0, dd) => ({ type: 'Polygon', coordinates: [[[x0, y0], [x0, y0 + dd], [x0 + dd, y0 + dd], [x0 + dd, y0], [x0, y0]]] });
+        const A = { i: 0, id: '9001', lat: 33.425, lon: 126.225, haegu: { major: 232, sub: 2, label: '232-2' }, ref: { name: '화순항', distNm: 13.3, bearingWord: '북북서' }, warnZone: '제주도서부앞바다', warnSubZone: null, geometry: box(126.2, 33.4, 0.05) };
+        const tb = { id: 'GR4_b', lon: 126.28, lat: 33.48, haegu: { major: 232, sub: 3, label: '232-3' }, ref: { name: '제주', distNm: 7, bearingWord: '서' }, warnZone: '제주도북부앞바다' };
+        const tc = { id: 'GR4_c', lon: 126.6, lat: 33.6, haegu: { major: 233, sub: 1, label: '233-1' }, ref: { name: '제주', distNm: 9, bearingWord: '북' }, warnZone: '제주도북부앞바다' };
+        const risk = { marineInputs: () => ({ accident: { cells: [A], frames: {} }, cells: { cells: [tb, tc] }, congestion: null, warnings: null, sources: { accident: { status: 'ok' }, congestion: { status: 'ok' }, zoneForecasts: { status: 'ok' }, warnings: { status: 'ok' } }, weather: () => ({ wh: 1, ws: 5, forecastAt: null }) }) };
+        const marine = { stationAt: () => ({ id: '0' }), cellHistory: () => ({ count: 0 }) }, st = [{ key: 'K', idx: '0' }];
+        const asked = [], small = (m) => { asked.push(String(m)); return String(m) === '232' ? { baseTm: '2026101621', data: { 2: szRows([[6, 2.1, 12.5], [9, 2.1, 12.5], [12, 2.1, 12.5], [15, 2.1, 12.5], [18, 2.1, 12.5], [21, 2.1, 12.5]]), 3: szRows([[6, null, null], [21, null, null]]) } } : null; };
+        const s = I.collectSea(st, { risk, marine, win: WIN, now: T0, smallZone: small }).bySt.get('K');
+        assert.deepStrictEqual(Object.keys(s.weatherSmall), ['232-2'], '232-3 은 육지(전부 null) · 233 은 찾기 함수가 주지 않음 → 넣지 않음');
+        const w = s.weatherSmall['232-2'];
+        assert.deepStrictEqual([w.label, w.major, w.sub, w.baseTm, w.rows.length], ['소해구 232-2', '232', 2, '2026101621', 6]);
+        assert.deepStrictEqual(w.rows.map((q) => q.at), WIN.slots, '대해구 weather[major].rows 와 같은 꼴(창 칸마다)');
+        assert.deepStrictEqual(w.rows[0], { at: at(6), wh: 2.1, ws: 12.5, forecastAt: at(6) });
+        assert.deepStrictEqual([...new Set(asked)].sort(), ['232', '233']);
+        assert.equal(s.weather[232].rows.length, 6, '대해구 행은 그대로(후퇴·관할 해구 문장용)');
+        assert.deepStrictEqual(I.collectSea(st, { risk, marine, win: WIN, now: T0 }).bySt.get('K').weatherSmall, {}, '찾기 함수 없음 → 빈 객체');
+    });
+    // 한림 고정 입력 — 대해구 232 와 해역 소해구 값을 바꿔 판정이 어느 값을 따르는지 본다. A:1003(232-6) = 다른 근거 없이 기상만 볼 해역.
+    const szIn = (major, small) => {
+        const x = hallim();
+        x.sea.regions.push({ rid: 'A:1003', gridId: null, accidentGridId: '1003', lat: 33.30, lon: 126.15, haegu: { major: 232, sub: 6, label: '232-6' }, ref: { name: '모슬포', distNm: 6.0, bearingWord: '서' }, zone: null, zones: [], slots: {}, history: { count: 0 } });
+        x.sea.weather = { 232: { label: '대해구 232', rows: major.map(([h, wh, ws]) => ({ at: at(h), wh, ws })) } };
+        x.sea.weatherSmall = Object.fromEntries(Object.entries(small).map(([k, list]) => [k, { label: '소해구 ' + k, major: '232', sub: Number(k.split('-')[1]), baseTm: '2026101621',
+            rows: WIN.slots.map((s) => { const r = list.find(([h]) => at(h) === s); return { at: s, wh: r ? r[1] : null, ws: r ? r[2] : null, forecastAt: r ? s : null }; }) }]));
+        return x;
+    };
+    const LOW = [[6, 0.8, 5], [9, 1.0, 6], [12, 1.4, 9], [15, 1.8, 10], [18, 1.9, 11], [21, 1.6, 9]], HIGH = [[6, 0.8, 5], [9, 1.0, 6], [12, 1.4, 9], [15, 2.4, 13], [18, 2.6, 14], [21, 1.8, 10]];
+    const cardOf = (b, sub) => b.sea.cards.find((c) => c.name.includes('(232-' + sub + '해구)'));
+    await check('[§11.10.19-3] 판정 — 대해구는 기준 미만인데 소해구는 넘음 → 그 해역만 관심(배지·표 「232-6해구 예보」·[기상 예보] 「(소해구 232-6 예보)」) · 반대(대해구는 넘는데 소해구는 미만) → 그 해역은 기상 근거 없음 · 소해구 없는 해역은 대해구(「232해구 예보」·「(대해구 232 예보)」)', () => {
+        // ① 대해구 LOW · 소해구 232-6 은 넘는 값 · 232-2 는 소해구 LOW
+        const b1 = R.buildBriefing(szIn(LOW, { '232-6': [[15, 2.7, 13], [18, 2.3, 12.4], [21, 1.5, 9]], '232-2': LOW }), WIN, { generatedAt: R.isoKst(T0) });
+        const c6 = cardOf(b1, 6);
+        assert.ok(c6, '대해구만이면 카드가 없을 해역이 소해구 값으로 관심 — ' + b1.sea.cards.map((c) => c.name).join(' / '));
+        assert.deepStrictEqual([c6.rank, c6.window, c6.badges.length, c6.badges[0].sub], [1, '15~21시', 1, 'zoneForecast']);
+        assert.equal(c6.badges[0].text, "15~21시 해구 예보 파고 '높음'·풍속 '강함'(기상청)");
+        assert.deepStrictEqual(c6.badges[0].detail, [{ title: '232-6해구 예보', head: ['시각', '파고', '풍속'], rows: [['15시', '2.7m (높음)', '13m/s (강함)'], ['18시', '2.3m (높음)', '12.4m/s (강함)']] }], '표 = 같은 소해구 값');
+        assert.ok(/, 소해구 232-6 예보\)\.$/.test(c6.today.forecast) && c6.today.forecast.includes('최대 파고 2.7m·풍속 13m/s'), c6.today.forecast);
+        assert.ok(c6.today.slots.find((q) => q.at === at(15)).labels.includes('해구 예보 파고 2.7m·풍속 13m/s'), '판정 근거(slotOf) = 소해구 값');
+        const c2 = cardOf(b1, 2);   // 232-2: 사고예보 주의 + 소해구 LOW → 기상 배지 없음 · 꼬리는 소해구
+        assert.ok(!c2.badges.some((g) => g.sub === 'zoneForecast') && /소해구 232-2 예보\)\.$/.test(c2.today.forecast), c2.today.forecast);
+        const c5 = cardOf(b1, 5);   // 232-5: 소해구 없음 → 대해구 LOW 로 후퇴(기상 근거 없음) · 꼬리 「(대해구 232 예보)」
+        assert.ok(!c5.badges.some((g) => g.sub === 'zoneForecast') && /대해구 232 예보\)\.$/.test(c5.today.forecast), c5.today.forecast);
+        // 관할 단위 해구 문장(해상 총평·AI haegu_forecasts)은 대해구 그대로
+        assert.equal(b1.sea.weather.label, '대해구 232'); assert.equal(b1.sea.weather.max.wh, 1.9);
+        assert.ok(b1.summary.analysis.sea.includes('(대해구 232)는 최대 파고 1.9m·풍속 11m/s'), b1.summary.analysis.sea);
+        // ② 반대 — 대해구 HIGH · 소해구 232-2·232-6 은 LOW → 그 두 해역은 기상 근거 없음(232-6 은 카드 없음) · 소해구 없는 232-5 는 대해구 HIGH 로 기상 근거
+        const b2 = R.buildBriefing(szIn(HIGH, { '232-2': LOW, '232-6': LOW }), WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(cardOf(b2, 6), undefined, '대해구만이면 관심일 해역이 소해구 값으로 평소 수준');
+        assert.ok(!cardOf(b2, 2).badges.some((g) => g.sub === 'zoneForecast'), JSON.stringify(cardOf(b2, 2).badges.map((g) => g.text)));
+        const f5 = cardOf(b2, 5).badges.find((g) => g.sub === 'zoneForecast');
+        assert.ok(f5 && f5.detail[0].title === '232해구 예보' && f5.detail[0].rows[0][1] === '2.4m (높음)', JSON.stringify(f5));
+        assert.ok(/, 대해구 232 예보\)\.$/.test(cardOf(b2, 5).today.forecast), cardOf(b2, 5).today.forecast);
+        // 대해구만(weatherSmall 없음 — 종전 입력)이면 232-6 도 대해구 HIGH 로 관심(바꾸기 전과 같은 판정)
+        const b3 = R.buildBriefing((() => { const x = szIn(HIGH, {}); delete x.sea.weatherSmall; return x; })(), WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(cardOf(b3, 6).rank, 1); assert.equal(cardOf(b3, 6).badges[0].detail[0].title, '232해구 예보');
+        // 해구 예보 원천이 낡으면 소해구 값도 쓰지 않는다(판 비교로 붙인 값)
+        const b4 = R.buildBriefing({ ...szIn(LOW, { '232-6': [[15, 2.7, 13]] }), sources: { accident: 'ok', congestion: 'ok', zoneForecasts: 'stale', warnings: 'ok' } }, WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(cardOf(b4, 6), undefined);
+    });
+    await check('[§11.10.19-4] AI 입력 — 해역 evidence·허용 숫자는 같은 소해구 값 · 관할 해구 문장(haegu_forecasts·sea.weather)은 대해구 · 숫자 검사가 소해구 숫자를 받아들임', () => {
+        const b = R.buildBriefing(szIn(LOW, { '232-2': [[15, 2.7, 13], [18, 2.3, 12.4]] }), WIN, { generatedAt: R.isoKst(T0) }), si = AI.stationInput(b);
+        const top = si.sea.top.find((t) => t.name.includes('(232-2해구)'));
+        assert.ok(top, JSON.stringify(si.sea.top.map((t) => t.name)));
+        assert.ok(top.evidence.some((e) => /소해구 232-2 예보\)\.$/.test(e) && e.includes('최대 파고 2.7m·풍속 13m/s')), top.evidence.join(' / '));
+        assert.ok(!top.evidence.some((e) => e.includes('대해구 232 예보')), '그 해역 evidence 에 대해구 값 없음');
+        for (const k of ['2.7|m', '13|m/s', '2.3|m', '12.4|m/s']) assert.ok(si.allowed_number_keys.includes(k), k);
+        assert.deepStrictEqual([si.sea.haegu_forecasts.length, si.sea.haegu_forecasts[0].haegu, si.sea.haegu_forecasts[0].max_wave], [1, '대해구 232', '1.9m'], '관할 해구 문장은 대해구');
+        assert.ok(si.sea.weather.includes('(대해구 232)는 최대 파고 1.9m'), si.sea.weather);
+        const o = { land: null, sea: '최대 파고 2.7m·풍속 13m/s로 물결이 높고 바람이 강할 것으로 예상됩니다.' };
+        assert.deepStrictEqual(vo(o, si).errors.filter((e) => e.startsWith('number:')), [], '소해구 숫자는 허용');
+        assert.ok(vo({ land: null, sea: '최대 파고 3.3m로 물결이 매우 높을 것으로 예상됩니다.' }, si).errors.some((e) => e.startsWith('number:')), '입력에 없는 숫자는 여전히 막음');
+    });
+    // 서비스 — 가짜 smallZone(peek·getStatus·prefetch). 관할 칸 9001 = 소해구 232-2, 대해구 예보 판 2026101621(가짜 risk 대해구 값 1m·5m/s — 낮음)
+    const ZB = '2026101621', szData = (wh, ws) => ({ 232: { 2: Array.from({ length: 26 }, (_, i) => ({ tm: tmAt(Date.UTC(2026, 9, 16, 21) + i * 3 * 3600000), wh, wp: 5, waveDir: 90, ws, windDir: 180 })) } });
+    const mkSZ = (base, data, prefetch) => {
+        const st = { base, data }, sz = { calls: [] };
+        sz.peek = (m) => (st.data && st.data[m] ? { baseTm: st.base, lzone: String(m), data: st.data[m], missingTimes: [] } : null);
+        sz.getStatus = () => ({ baseTm: st.base });
+        sz.prefetch = (l, b) => { sz.calls.push([l.slice(), b]); return prefetch ? prefetch(st, b) : Promise.resolve({ ok: true }); };
+        return sz;
+    };
+    const riskZB = (zb) => ({ ...fakeRisk, marineInputs: () => { const m = fakeRisk.marineInputs(); return { ...m, warnings: null, sources: { ...m.sources, zoneForecasts: { status: 'ok', ...(zb ? { base: zb } : {}) } } }; } });
+    const szRun = async (sz, zb = ZB, extra = {}) => {
+        const d = fs.mkdtempSync(path.join(tmp, 'sz-'));
+        const s2 = SB.createService({ dir: d, clock: () => Date.parse(at(10)), risk: riskZB(zb), marine: fakeMarine, loadStations: () => fakeStations.slice(0, 1), alertsFile: path.join(d, 'none.json'), hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] },
+            adapters: { vm: { available: () => false }, gemini: { available: () => false } }, smallZone: sz, smallZoneWaitMs: 80, ...extra });
+        const r = await s2.run({ kind: 'manual' }), b = I.readJson(path.join(d, 'briefings_2026-10-17.json')).stations['제주해양경찰서|한림파출소'];
+        return { r, b, card: b.sea.cards[0] || null, last: I.readJson(path.join(d, 'state.json')).lastRun };
+    };
+    await check('[§11.10.19-5] 서비스 — 저장 판 = 대해구 판이면 받지 않고 소해구 값 · 지난 판이면 그 실행에 필요한 대해구만 한 번 받아 씀 · 저장 판 없음도 받아 봄 · 실패·시간 초과여도 브리핑은 만들고 그 해역만 대해구', async () => {
+        const warn = console.warn; console.warn = () => {};
+        try {
+            // ① 저장 판이 대해구 판과 같다 → 받지 않음 · 소해구 2.7m·13m/s 로 관심 카드
+            let sz = mkSZ(ZB, szData(2.7, 13)), o = await szRun(sz);
+            assert.equal(o.r.ok, true); assert.deepStrictEqual(sz.calls, []);
+            assert.ok(o.card && o.card.rank === 1 && /소해구 232-2 예보\)\.$/.test(o.card.today.forecast), JSON.stringify(o.card && o.card.today));
+            assert.equal(o.card.badges[0].detail[0].title, '232-2해구 예보');
+            assert.deepStrictEqual([o.last.smallZone.result, o.last.smallZone.zoneBase, o.last.smallZone.regions, o.last.smallZone.small, o.last.smallZone.fetched], ['stored', ZB, 1, 1, 0]);
+            // ② 지난 판(2026101609) → 필요한 대해구(232)만 그 판으로 한 번 → 받은 값 사용
+            sz = mkSZ('2026101609', szData(0.5, 4), async (st, b) => { st.base = b; st.data = szData(2.7, 13); return { ok: true, got: 1 }; }); o = await szRun(sz);
+            assert.deepStrictEqual(sz.calls, [[['232'], ZB]]);
+            assert.ok(/소해구 232-2 예보\)\.$/.test(o.card.today.forecast) && o.card.today.forecast.includes('2.7m'), o.card.today.forecast);
+            assert.deepStrictEqual([o.last.smallZone.result, o.last.smallZone.baseTm, o.last.smallZone.small], ['fetched', ZB, 1]);
+            // ③ 저장 판 없음 → 받아 봄
+            sz = mkSZ(null, null, async (st, b) => { st.base = b; st.data = szData(2.7, 13); return { ok: true }; }); o = await szRun(sz);
+            assert.equal(sz.calls.length, 1); assert.ok(/소해구 232-2 예보/.test(o.card.today.forecast));
+            // ④ 받기가 던짐 → 브리핑은 만듦 · 지난 판은 쓰지 않고 대해구(1m·5m/s → 카드 없음)
+            sz = mkSZ('2026101609', szData(2.7, 13), async () => { throw new Error('ECONNRESET'); }); o = await szRun(sz);
+            assert.deepStrictEqual([o.r.ok, sz.calls.length, o.card, o.last.smallZone.result, o.last.smallZone.small], [true, 1, null, 'failed', 0], '지난 판 값(2.7m)으로 관심을 만들지 않는다');
+            // ⑤ 받기가 끝나지 않음 → smallZoneWaitMs(80ms) 뒤 대해구로 진행
+            sz = mkSZ('2026101609', szData(2.7, 13), () => new Promise(() => {})); const t = Date.now(); o = await szRun(sz);
+            assert.deepStrictEqual([o.r.ok, o.card, o.last.smallZone.result], [true, null, 'timeout']); assert.ok(Date.now() - t < 5000);
+            // ⑥ 받았지만 모두 실패(got 0) — 「failed」 · ⑦ 일부 실패(got 있음) — 「partial」(받은 것은 씀)
+            sz = mkSZ('2026101609', null, async () => ({ ok: false, got: 0 })); o = await szRun(sz); assert.equal(o.last.smallZone.result, 'failed');
+            sz = mkSZ('2026101609', null, async (st, b) => { st.base = b; st.data = szData(2.7, 13); return { ok: false, got: 1 }; }); o = await szRun(sz); assert.deepStrictEqual([o.last.smallZone.result, o.last.smallZone.small], ['partial', 1]);
+            // ⑧ 육지 소해구(232-2 값 전부 null) — 저장 판이 같아도 대해구로(받지 않음)
+            sz = mkSZ(ZB, { 232: { 2: [{ tm: ZB, wh: null, ws: null }, { tm: '2026101700', wh: null, ws: null }] } }); o = await szRun(sz);
+            assert.deepStrictEqual([sz.calls.length, o.card, o.last.smallZone.small], [0, null, 0]);
+            // ⑨ 대해구 판을 모름(원천 상태에 base 없음) → 받지 않고 모두 대해구
+            sz = mkSZ(ZB, szData(2.7, 13)); o = await szRun(sz, null);
+            assert.deepStrictEqual([sz.calls.length, o.card, o.last.smallZone.result], [0, null, 'no-zone-base']);
+            // ⑩ smallZone 을 넘기지 않음(종전·시험 기본) → 모두 대해구 · lastRun 에 smallZone 없음
+            o = await szRun(null); assert.deepStrictEqual([o.card, 'smallZone' in o.last], [null, false]);
+        } finally { console.warn = warn; }
+    });
+    await check('[§11.10.19-6] 실제 smallzone_forecast(가짜 fetch) — peek 은 기상청에 묻지 않음 · 서비스가 저장 판 없음이면 prefetch 로 26 요청 받아 소해구 값 · 다음 실행은 저장 판 그대로(요청 0)', async () => {
+        const S = require('../services/smallzone_forecast'), d = fs.mkdtempSync(path.join(tmp, 'szr-')), urls = [];
+        const head = '#START7777\n# TMA_FC TMA_EF LZONE SZONE LAT_LB LON_LB LAT_LT LON_LT LAT_RT LON_RT LAT_RB LON_RB WH_SIG WVPRD_MAX WVDR WS WD VS RAIN TW SWELL\n';
+        const fetchImpl = async (url) => {
+            urls.push(url); const q = new URL(url).searchParams; let t = head;
+            for (const z of q.get('Lzone').split(',')) for (let s = 1; s <= 9; s++) t += `${q.get('tma_fc')} ${q.get('tma_ef')} ${z} ${s} 33 126 33 126 33 126 33 126 ${s === 1 ? '-999.0' : '2.7'} 6 90 ${s === 1 ? '-999.0' : '13'} 180 -999 0 20 -999\n`;
+            return { ok: true, status: 200, arrayBuffer: async () => Buffer.from(t + '#7777END\n', 'utf8') };
+        };
+        S._reset(); S.configure({ fetchImpl, getKey: () => 'K', dataDir: d, wait: async () => {} });
+        const log = console.log, warn = console.warn; console.log = () => {}; console.warn = () => {};
+        try {
+            assert.equal(S.peek('232'), null); assert.equal(urls.length, 0, 'peek 은 요청하지 않는다');
+            let o = await szRun(S, ZB, { smallZoneWaitMs: 10000 });
+            assert.equal(urls.length, 26, '대해구 232 하나 × 발효시각 26');
+            assert.ok(urls.every((u) => /tma_fc=2026101621&/.test(u) && /Lzone=232&/.test(u)), urls[0].replace(/authKey=[^&]*/, 'authKey=***'));
+            assert.ok(o.card && /소해구 232-2 예보\)\.$/.test(o.card.today.forecast), JSON.stringify(o.card && o.card.today));
+            assert.equal(S.peek('232').baseTm, ZB);
+            o = await szRun(S, ZB, { smallZoneWaitMs: 10000 }); assert.equal(urls.length, 26, '저장 판이 같으면 다시 받지 않음'); assert.equal(o.last.smallZone.result, 'stored');
+        } finally { console.log = log; console.warn = warn; S._reset(); }
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);

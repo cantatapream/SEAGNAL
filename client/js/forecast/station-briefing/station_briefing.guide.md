@@ -101,6 +101,7 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 - 노출 판정을 화면에서 하지 않는다 — `display` 는 서버가 정한다. 아코디언 머리·몸은 마크업에서 `display:none` 으로 시작한다.
 - 탭 이동은 기존 `switchMainTab`·`switchSubTab` 만 쓴다(life_safety.js 탭 상태 유지 규칙과 충돌하지 않게).
 - [기준 상세] 문안을 바꿀 때는 서버 규칙(`station_briefing_rules.js`·`station_briefing.js`·`station_briefing_ai.js`)과 설계서 §11.6~§11.8 를 대조한다 — 코드에 없는 규칙을 쓰지 않는다.
+- 해역 카드의 해구 예보 상세 표 제목·[기상 예보] 꼬리(「232-5해구 예보」·「(소해구 232-5 예보)」, 소해구 예보가 없으면 「232해구 예보」·「(대해구 232 예보)」)는 **서버 글 그대로** 그린다 — 화면은 대해구·소해구를 가리지 않는다(§11.10.19, 서버 `seaSection`·`station_briefing_inputs.smallWeather`).
 - 점검 차단(`station-briefing` — index2.html featureMap·bodyMap)과 노출 판정이 둘 다 몸 보임을 만진다 — `applyVisibility` 가 차단을 보고(일반 기기 숨김·관리자는 열어 둔 것 유지), index2 는 차단을 바꾼 뒤 `StationBriefing.applyVisibility()` 를 부른다.
 - 펼친 아코디언·안쪽 칸은 `max-height:none`(station_briefing.css) — 기존 8000px 상한이 카드 최대치 본문을 잘랐다.
 - **지도 클래스 이름 두 벌(2026-10-17 합칠 때 겹침)**: 설정 화면 고르기 지도는 `.sb-map`(46vh), 총평 근거 줄 펼침 지도는 `.sb-minimap`(200px). 같은 이름을 쓰면 뒤 규칙이 앞 지도 높이를 덮는다 — 실제로 펼침 지도가 240px 로 커져 UI 시험이 잡았다.
