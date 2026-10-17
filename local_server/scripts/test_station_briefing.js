@@ -5,7 +5,7 @@
  *         실제 AI·카카오·기상청 호출 없음(가짜 어댑터·가짜 fetch), 임시 폴더만 쓴다, 서버를 띄우지 않는다(라우터만 임시 포트).
  *         끝부분 「[A1]…[C9]」 = 독립 검토 3건(규칙·AI·운영, 2026-10-16)의 결함마다 1:1 회귀 — 모두 고치기 전 코드에서 실패함을 확인했다.
  *         「[§11.10.6-2]」 = 같은 날 17:34 운영 오판(셈말·가리킴 말 + 해수욕장) · 지시문 셈말 금지.
- *         맨 끝 「[§11.10.8-1]…[§11.10.8-11]」 = 자동 실행 결과 관리자 푸시(사용자 「매번 보내기」) — 설계서 §11.10.8 「경우마다 보내나」 표의 행마다 1:1(가짜 발송 adminPush·가짜 시계).
+ *         맨 끝 「[§11.10.8-1]…[§11.10.8-12]」 = 자동 실행 결과 관리자 푸시(사용자 「매번 보내기」) — 설계서 §11.10.8 「경우마다 보내나」 표의 행마다 1:1(가짜 발송 adminPush·가짜 시계).
  *           고치기 전 코드(5f37d50dd)에서 -1~-10 모두 실패함을 확인했다(-11 은 그 뒤 더한 행이라 고치기 전 코드로는 돌려 보지 않았다).
  *         「[§11.10.6-1]」 = 2026-10-17 16:16 운영 실행 검사 오판(조사 도·괄호 속 이름·하지만·연도 년) — 설계서 §11.10.6.
  *         맨 끝 「[§11.10.5-1]…[§11.10.5-8]」 = 62048b15c 독립 검토 8건(설계서 §11.10.5 — 단계 아래쪽·입력에 없는 말·이름 없는 대목·다시 시도 순서·캐시·단계 말 꼴·이유 글 자름·대기 표 ⑪·평소처럼 관심) 1:1 — 고치기 전 코드(bde907bdd)에서 8건 모두 실패.
@@ -1756,7 +1756,7 @@ const WIN = R.editionWindow('morning', T0);
     await check('[§11.10.8-2] 글(표 ①②③⑦): 모두 AI 「N곳 모두 AI 분석 · 오류 0」(오류 0 도 적음) · 재사용 · 규칙 분석 이름 3곳까지 「외 N곳」 · 시간 초과·Gemini 는 있을 때만 · 규칙 분석만 설정 · 특보 변경 두 날짜 판 · 고칠 판 없음', () => {
         const one = (stats, errors = 0, rule = [], method = 'chatgpt', kind = 'morning') => SB.runPushText({ kind, method, results: [{ date: '2026-10-17', stations: 97, stats, errors, rule }] });
         assert.deepStrictEqual(one({ ai: 97, template: 0, reused: 0 }), { title: '연안 안전 브리핑 07:30 판 결과', body: '97곳 모두 AI 분석 · 오류 0' });
-        assert.equal(one({ ai: 67, template: 0, reused: 30 }, 4).body, '97곳 모두 AI 분석(재사용 30) · 오류 4');
+        assert.equal(one({ ai: 67, template: 0, reused: 30 }, 4).body, '97곳 모두 AI 분석(새로 67 · 재사용 30) · 오류 4');
         assert.equal(one({ ai: 96, template: 1, reused: 0 }, 22, ['고현파출소']).body, '97곳 — AI 96 · 규칙 분석 1(고현) · 오류 22');
         assert.equal(one({ ai: 90, template: 5, reused: 2, deadline: 3, gemini: 2 }, 30, ['고현파출소', '임원파출소', '진하파출소', '마검포파출소', '대산파출소']).body, '97곳 — AI 90 · 재사용 2 · 규칙 분석 5(고현·임원·진하 외 2곳) · 시간 초과 3 · Gemini 2회 · 오류 30');
         assert.equal(one({ template: 97 }, 0, [], 'template').body, '97곳 규칙 분석만(AI 안 부름) · 오류 0');
@@ -1894,6 +1894,16 @@ const WIN = R.editionWindow('morning', T0);
         await flush(); assert.equal(push.sent.length, 0);
         assert.deepStrictEqual(await s.tick(), { failed: '2026-10-17|morning' }, '저장이 되돌아오면 다음 점검이 실패를 기록하고');
         assert.equal(push.sent.length, 1, '그때 1통');
+    });
+    await check('[§11.10.8-12] 독립 검토: 정시 판은 성공했는데 done 기록이 던짐(표 ⑭) — 다음 점검들이 같은 판을 다시 만들어도 결과 푸시는 1통 · AI 를 부르지 않고 전부 재사용한 판은 「모두 AI 분석」이라 쓰지 않음', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'pushd-')); const push = pushSpy();
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-16|night'] });
+        let t = '07:10'; const s = mkSvc(d, () => kt(t), { adminPush: push });
+        const orig = I.writeJson; I.writeJson = (f, o) => { if (String(f).endsWith('state.json') && o && Array.isArray(o.done) && o.done.includes('2026-10-17|morning')) throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' }); return orig(f, o); };
+        try { for (const m of ['07:10', '07:11', '07:12', '07:13']) { t = m; await s.tick().catch(() => {}); } } finally { I.writeJson = orig; }
+        await flush();
+        assert.equal(push.sent.length, 1, '4번 다시 만들어도 같은 판 결과는 1통');
+        assert.equal(SB.runPushText({ kind: 'warning', results: [{ stations: 18, stats: { ai: 0, reused: 18, template: 0 }, errors: 0 }] }).body, '특보 변경 18곳 모두 지난 AI 분석 재사용(입력 변화 없음) · 오류 0');
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);

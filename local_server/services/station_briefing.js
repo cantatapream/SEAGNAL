@@ -225,7 +225,8 @@ function shortNames(names) {
 /**
  * 날짜 판 하나의 결과 한 줄. 규칙 분석이 없으면 「N곳 모두 AI 분석」, 있으면 「N곳 — AI a · 규칙 분석 t(이름)」. 시간 초과·Gemini 는 있을 때만, 오류는 늘(0 도).
  * 예: {stations:97, stats:{ai:96,template:1,reused:0}, errors:22, rule:['고현파출소']} → '97곳 — AI 96 · 규칙 분석 1(고현) · 오류 22'
- *     {stations:97, stats:{ai:67,reused:30,template:0}, errors:0} → '97곳 모두 AI 분석(재사용 30) · 오류 0'
+ *     {stations:97, stats:{ai:67,reused:30,template:0}, errors:0} → '97곳 모두 AI 분석(새로 67 · 재사용 30) · 오류 0'
+ *     {stations:18, stats:{ai:0,reused:18,template:0}, errors:0} → '18곳 모두 지난 AI 분석 재사용(입력 변화 없음) · 오류 0'
  *     method 'template'(관리자 설정 「규칙 분석만」·개발 환경) → '97곳 규칙 분석만(AI 안 부름) · 오류 0'
  * @param {object} x - run 결과 results[i] + rule(규칙 분석 관할 이름) @param {string} method - 그 실행의 생성 방식 @returns {string} [연계] ← runPushText
  */
@@ -233,7 +234,8 @@ function resultLine(x, method) {
     const st = x.stats || {}, n = x.stations || 0, e = x.errors || 0, rule = x.rule || [];
     if (method === 'template') return n + '곳 규칙 분석만(AI 안 부름) · 오류 ' + e;
     const parts = [];
-    if (!st.template) parts.push(n + '곳 모두 AI 분석' + (st.reused ? '(재사용 ' + st.reused + ')' : ''));
+    // AI 를 한 번도 부르지 않고 전부 지난 분석을 다시 쓴 판은 「모두 AI 분석」이라 하지 않는다(§11.10.8 독립 검토 — 이번에 AI 가 분석한 것으로 읽힌다)
+    if (!st.template) parts.push(st.reused && !st.ai ? n + '곳 모두 지난 AI 분석 재사용(입력 변화 없음)' : n + '곳 모두 AI 분석' + (st.reused ? '(새로 ' + (st.ai || 0) + ' · 재사용 ' + st.reused + ')' : ''));
     else {
         parts.push(n + '곳 — AI ' + (st.ai || 0));
         if (st.reused) parts.push('재사용 ' + st.reused);
@@ -359,7 +361,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush } = {}) {
     let timer = null, running = null, stationsCache = null, areasCache = null, ad = adapters;
     // 실행 번호(§11.10.8 — 관리자 푸시는 실행 하나에 1통). run 이 하나씩 늘려 결과에 싣고, pushResult 는 이미 보낸 번호 이하를 다시 보내지 않는다(같은 결과를 두 번 처리해도 1통).
-    let runSeq = 0, pushedSeq = 0;
+    let runSeq = 0, pushedSeq = 0; const pushedKey = {};
     // 실행 진행(§11.10.7 — 관리자 「AI 브리핑」 진행 게이지). 메모리에만 두고 실행이 끝나면 null — 서버가 다시 켜지면 진행 중 실행도 없다.
     let progress = null;
     const fileCache = new Map();
@@ -489,11 +491,13 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     /**
      * 자동 실행(정시 판·특보 변경) 하나가 끝났을 때 결과 푸시 1통(§11.10.8 — 오류가 없어도). 같은 실행 결과(seq)를 두 번 받으면 두 번째는 보내지 않는다.
      * 예: pushResult('morning', {ok:true, seq:3, method:'chatgpt', results:[…], rule:[['고현파출소']]}) → '연안 안전 브리핑 07:30 판 결과' 1통 · 같은 것을 다시 → 없음(false)
-     * @param {string} kind - morning|evening|night|warning @param {object} r - run 반환값 @returns {boolean} 보냈으면 true [연계] ← tick / → runPushText·notifyAdmin
+     * @param {string} kind - morning|evening|night|warning @param {object} r - run 반환값 @param {string|null} [key] - 판 열쇠(정시 '날짜|판' · 특보 변경 'warning|마지막 변경 시각') — 같은 열쇠는 두 번 보내지 않음 @returns {boolean} 보냈으면 true [연계] ← tick / → runPushText·notifyAdmin
      */
-    function pushResult(kind, r) {
+    function pushResult(kind, r, key = null) {
         if (!r || !r.ok || !(r.seq > pushedSeq)) return false;
-        pushedSeq = r.seq;
+        // 같은 판(key)을 다시 만들어도 1통(§11.10.8 독립 검토 — done·warnSig 기록이 던지면 다음 점검이 같은 판을 다시 만들고 seq 는 새로 오른다 → 매분 같은 결과 푸시). 종류마다 마지막 열쇠 하나만.
+        if (key && pushedKey[kind] === key) return false;
+        pushedSeq = r.seq; if (key) pushedKey[kind] = key;
         notifyAdmin(runPushText({ kind, method: r.method, results: (r.results || []).map((x, i) => ({ ...x, rule: (r.rule || [])[i] || [] })) }), { kind: 'station_briefing', run: kind, phase: 'result' });
         return true;
     }
@@ -519,7 +523,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             else {
                 let r = null;
                 try { r = await run({ kind: due.kind }); } catch (e) { const n = reportFailure(due.key, e, now); out.failed = due.key; notifyAdmin(failPushText({ kind: due.kind, error: e, count: n }), { kind: 'station_briefing', run: due.kind, phase: 'fail' }); }
-                pushResult(due.kind, r);   // 판을 다 만든 때(공개 시각 07:30·17:30·23:00 전) — done 기록보다 먼저: 기록이 실패해도 실제로 끝난 실행은 알린다
+                pushResult(due.kind, r, due.key);   // 판을 다 만든 때(공개 시각 07:30·17:30·23:00 전) — done 기록보다 먼저: 기록이 실패해도 실제로 끝난 실행은 알린다
                 if (r && r.ok) { const s2 = state(); s2.done = s2.done.concat(due.key).slice(-12); delete s2.failures[due.key]; saveState(s2); out.edition = due.key; }
             }
         }
@@ -551,7 +555,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             let r = null;
             try { r = await run({ kind: 'warning', keys: hit, zones: pw.zones }); } catch (e) { const n = reportFailure('warning', e, now); out.failed = (out.failed ? out.failed + ',' : '') + 'warning'; notifyAdmin(failPushText({ kind: 'warning', error: e, count: n }), { kind: 'station_briefing', run: 'warning', phase: 'fail' }); return out; }
             if (!r.ok) return out;   // 실행 중(busy)이라 건너뜀 — 결과가 아니다(푸시 없음), 대기가 남아 다음 점검에 다시
-            pushResult('warning', r);
+            pushResult('warning', r, 'warning|' + pw.lastChangeAt);
             out.warning = hit; out.zones = pw.zones;
         }
         const s4 = state(); s4.warnSig = pw.sig; s4.pendingWarn = null; delete s4.failures.warning; saveState(s4);
