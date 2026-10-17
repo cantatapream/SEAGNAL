@@ -54,9 +54,6 @@
 .sb-list { margin:4px 0; padding-left:18px; }
 .sb-list li { margin:2px 0; }
 .sb-source { font-size:.7rem; }
-.sb-special { padding:8px 10px; border-left:3px solid #f59e0b; background:rgba(245,158,11,.08); border-radius:6px; margin:6px 0; }
-.sb-special-title { margin:0; font-weight:700; color:#fde68a; }
-.sb-special-line { margin:3px 0 0; color:#e2e8f0; font-size:.8rem; }
 .sb-weather { margin:6px 0; color:#cbd5e1; font-size:.8rem; }
 .sb-tag { display:inline-block; padding:1px 7px; border-radius:6px; background:rgba(148,163,184,.14); border:1px solid rgba(148,163,184,.25); color:#cbd5e1; font-size:.72rem; }
 .sb-tag-time { color:#fde68a; }

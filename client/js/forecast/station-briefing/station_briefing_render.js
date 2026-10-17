@@ -16,6 +16,7 @@
  *                    시안 ④판(규칙 v17): 상세는 제목 + 표(srcbTable — 「시각 | 등급」 등, 등급 칸 = 그 등급 색), v16 판의 글 줄 상세는 종전 한 줄.
  *         §11.10.16: 단계 이름에서 「필요」를 뺌(「주의」 — 옛 판의 「주의 필요」도 levelWord 로 줄여 보임) · 배지·단추 「경계 1 · 주의 5 · 관심 1」(단위 없음) · 「관할 해역 N칸 검토 …」·「관광지 N곳 검토 …」 줄 없음
  *                    · 「다.」로 끝난 문장 뒤는 줄바꿈(appendText — 글은 그대로 두고 <br> 만 끼움, textContent 는 서버 글과 같다).
+ *                    · 같은 날 추가 결정: 「관광지 N곳 자료 확인 불가」 줄 없음 · 카드 상한 없음(서버) · 처음엔 「총평과 권고」만 펼침 · 「특별 상황」 칸 없음.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/bottom-sheet/ocean_bottom_sheet3.js(OceanSheet.tideGaugeHtml — 조석 게이지 디자인 그대로)
@@ -172,18 +173,21 @@
 
     /**
      * 접히는 칸 하나(종합 예보의 하위 아코디언과 같은 모양 .marine-forecast-sub-accordion). 머리를 누르면 펼침/접힘.
-     * 예: section('총평과 권고', 'overview') → {root, body} — body 에 내용을 붙인다
-     * @param {string} title @param {string} key - data-sb-sec(시험·스크린샷이 찾는 이름) @returns {{root:HTMLElement, body:HTMLElement, head:HTMLElement}}
+     * 처음 상태(2026-10-17 사용자 *"기본적으로 총평과 권고만 아코디언이 펼쳐진 상태로 시작하고, 나머지는 접힌 상태로 시작하도록 해."* — 설계서 §11.10.16 소절):
+     *   「총평과 권고」만 펼침(open true), 해상 분석·연안 분석·조석은 접힘. 펼친 상태를 기억하는 곳은 없다 — 본문을 다시 그리면(판이 바뀌면) 다시 이 처음 상태다(종전에도 다시 그리면 모두 펼침으로 돌아왔다).
+     * 예: section('총평과 권고', 'overview', true) → {root, body} — body 에 내용을 붙인다 · section('해상 분석', 'sea') → 접힌 칸(aria-expanded="false")
+     * @param {string} title @param {string} key - data-sb-sec(시험·스크린샷이 찾는 이름) @param {boolean} [open] - 처음 펼침(없으면 접힘)
+     * @returns {{root:HTMLElement, body:HTMLElement, head:HTMLElement}}
      * [연계] ← render / 모양: style.css .marine-forecast-sub-*(해상 기상 전망 아코디언 안 칸)
      */
-    function section(title, key) {
-        var root = el('div', 'marine-forecast-sub-accordion open sb-sec'), head = el('div', 'marine-forecast-sub-header'), body = el('div', 'marine-forecast-sub-body sb-sec-body');
+    function section(title, key, open) {
+        var root = el('div', 'marine-forecast-sub-accordion sb-sec' + (open ? ' open' : '')), head = el('div', 'marine-forecast-sub-header'), body = el('div', 'marine-forecast-sub-body sb-sec-body');
         root.setAttribute('data-sb-sec', key);
         head.setAttribute('role', 'button'); head.tabIndex = 0;
         head.appendChild(el('span', 'marine-forecast-sub-title', title));
         var icon = el('i', 'fa-solid fa-chevron-down marine-forecast-sub-icon'); icon.setAttribute('aria-hidden', 'true'); head.appendChild(icon);
         var flip = function () { root.classList.toggle('open'); head.setAttribute('aria-expanded', String(root.classList.contains('open'))); };
-        head.setAttribute('aria-expanded', 'true');
+        head.setAttribute('aria-expanded', String(!!open));
         head.addEventListener('click', flip);
         head.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
         root.appendChild(head); root.appendChild(body);
@@ -442,7 +446,7 @@
 
         // ① 총평과 권고 — summary.weather 칸이 있으면(§11.10.1) 결론 → (기상) → (물때) → 근거·권고 → AI 해설,
         //   summary 만 있으면(§11.10 판 — 10-17 낮에 저장된 파일) 육상·해상 덩어리 모양, 없으면(그 전) 종전 문단 모양
-        var ov = b.overview || {}, s1 = section('총평과 권고', 'overview');
+        var ov = b.overview || {}, s1 = section('총평과 권고', 'overview', true);   // 처음 펼친 칸은 이것뿐(§11.10.16 소절 — 나머지 칸은 접힘)
         if (b.summary && b.summary.analysis) summaryBodyV3(s1.body, b, resp, ov, showSea, showLand);
         else if (b.summary && Object.prototype.hasOwnProperty.call(b.summary, 'weather')) summaryBodyV2(s1.body, b, resp, ov, showSea, showLand);
         else if (b.summary) summaryBody(s1.body, b, resp, ov, showSea, showLand); else legacyOverview(s1.body, b, resp, ov, showSea, showLand);
@@ -1086,7 +1090,7 @@
     /**
      * 카드를 단계별로 묶는다 — 높은 단계부터(경계 → 주의 → 관심), 한 단계 안의 카드 순서는 서버가 준 순서 그대로.
      * 예: levelGroups([{rank:2,word:'주의'},{rank:1,word:'관심'},{rank:2,word:'주의'}]) → [{rank:2,word:'주의',cards:[첫째,셋째]},{rank:1,word:'관심',cards:[둘째]}] (옛 판 「주의 필요」도 「주의」)
-     * @param {Object[]} cards - briefing.sea.cards·land.cards(서버가 단계 높은 순 10곳까지 자른 것 — 개수도 보이는 카드 수다) @returns {{rank:number, word:string, cards:Object[]}[]}
+     * @param {Object[]} cards - briefing.sea.cards·land.cards(관심 이상 전부 — 2026-10-17 부터 상한 없음. 그 전 판은 서버가 10곳까지 자른 것이라 개수도 보이는 카드 수다) @returns {{rank:number, word:string, cards:Object[]}[]}
      * [연계] ← renderRest(해상·연안 분석) / → levelBadges·levelTabs
      */
     function levelGroups(cards) {
@@ -1141,26 +1145,19 @@
         pick(0);
     }
     /**
-     * 총평 아래 나머지 칸(특별 상황·해상 분석·육상 분석·조석·꼬리)을 그린다 — 종전 render 뒷부분 그대로.
+     * 총평 아래 나머지 칸(해상 분석·육상 분석·조석·꼬리)을 그린다 — 종전 render 뒷부분 그대로. 「특별 상황」 칸은 없앴다(아래 ② 주석).
+     * 처음에는 모두 접힘(§11.10.16 소절 — 「총평과 권고」만 펼침).
      * @param {HTMLElement} box @param {Object} b @param {Object} opts @param {boolean} showSea @param {boolean} showLand @param {number} nowMs @returns {void}
      * [연계] ← render / → section·timeBar·seaCard·landCard·tide · levelGroups·levelBadges·levelTabs(§11.10.14 — 해상·연안 분석 머리 배지·단계 단추)
      */
     function renderRest(box, b, opts, showSea, showLand, nowMs) {
-        // ② 특별 상황(특보 해제 예고·예비·이미 해제 — 기상청 시각 그대로)
-        if (Array.isArray(b.special) && b.special.length) {
-            var s2 = section('특별 상황', 'special');
-            b.special.forEach(function (x) {
-                var it = el('div', 'sb-special'); it.setAttribute('data-kind', x.kind || '');
-                it.appendChild(el('p', 'sb-special-title', '⚑ ' + (x.title || '')));
-                (x.lines || []).forEach(function (l) { it.appendChild(el('p', 'sb-special-line', l)); });
-                s2.body.appendChild(it);
-            });
-            box.appendChild(s2.root);
-        }
+        // ② 「특별 상황」 칸(특보 해제 예고·예비·이미 해제)은 그리지 않는다 — 2026-10-17 사용자 *"특별상황은 굳이 들어갈 필요가 있겠나 싶은게, 어차피 특보정보가 총평 내용에 녹아들어가고,
+        //   또 해상분석에 해상특보 내용이 녹는거 아니니 ? 그래서 필요가 없을 것 같은데."*(설계서 §11.10.16 소절). 이미 저장된 판도 그리지 않는다.
+        //   그 제목(해제 예고·예비특보·해제)은 전부 총평 「해상 분석 근거 상세 보기」 (근거) 줄에 있다(서버 rules.seaSummary — 규칙 v17). 서버 b.special 은 AI 입력용으로 그대로.
 
         // ③④ 해상 분석 — 시간 막대 + 해역 카드
         if (showSea && b.sea) {
-            var sea = b.sea, s3 = section('해상 분석', 'sea');
+            var sea = b.sea, s3 = section('해상 분석', 'sea');   // 처음 접힘(§11.10.16 소절)
             var seaGroups = levelGroups(sea.cards); levelBadges(s3.head, seaGroups);   // 머리 오른쪽 단계별 개수(§11.10.14 — §11.10.16 「주의 5」)
             var sh = el('div', 'sb-sec-head'); sh.appendChild(chip(sea.level && sea.level.rank, sea.level && sea.level.word)); if (sea.level && sea.level.source) sh.appendChild(el('span', 'sb-tag', sea.level.source)); s3.body.appendChild(sh);
             // 「관할 해역 N칸 검토 · 관심 이상 M칸 (카드는 단계 높은 순 10곳까지)」 줄은 없앴다 — 2026-10-17 사용자 *"이 문구 굳이 넣을 필요없음"*(설계서 §11.10.16).
@@ -1181,8 +1178,8 @@
             if (!b.land) s4.body.appendChild(el('p', 'sb-small', b.seaOnlyReason || '이 관할은 해상 브리핑만 제공합니다.'));
             else {
                 var land = b.land, lh = el('div', 'sb-sec-head'); lh.appendChild(chip(land.level && land.level.rank, land.level && land.level.word)); if (land.level && land.level.source) lh.appendChild(el('span', 'sb-tag', land.level.source)); s4.body.appendChild(lh);
-                // 「관광지 N곳 검토 · …」 줄도 해상과 같이 없앴다(§11.10.16 — 같은 꼴의 줄). 다만 그 줄에 있던 「관광지 N곳 자료 확인 불가」는 실패를 숨기지 않게 따로 남긴다(L-291).
-                if (land.failedSpots) { var lf = el('p', 'sb-miss', '관광지 ' + land.failedSpots + '곳 자료 확인 불가'); lf.setAttribute('data-sb-land-failed', ''); s4.body.appendChild(lf); }
+                // 「관광지 N곳 검토 · …」 줄도 해상과 같이 없앴다(§11.10.16 — 같은 꼴의 줄). 그 줄에 있던 「관광지 N곳 자료 확인 불가」도 그리지 않는다 —
+                //   2026-10-17 사용자 *"아예 확인 불가도 빼."*(설계서 §11.10.16 소절). 서버 land.failedSpots 값은 그대로 저장된다(화면에만 없음).
                 if (Array.isArray(land.missing) && land.missing.length) s4.body.appendChild(el('p', 'sb-miss', '확인하지 못한 자료: ' + sourceNames(land.missing)));
                 var landGroups = levelGroups(land.cards); levelBadges(s4.head, landGroups);   // 머리 오른쪽 단계별 개수(§11.10.14 — §11.10.16 「주의 2」)
                 if (Array.isArray(land.cards) && land.cards.length) levelTabs(s4.body, landGroups, function (c) { return landCard(c, opts); }, 'land');

@@ -564,11 +564,11 @@ const WIN = R.editionWindow('morning', T0);
         const gone = R.warningEvents([{ zone: 'Z', type: '풍랑', level: '주의보', state: '발효', effective: null, release: { start: at(9), end: at(12), range: true } }], ev);
         assert.equal(gone.special.length, 0, '창 앞에서 끝난 해제 예고는 없음');
     });
-    await check('[A5] 해역 카드 10개 상한 밖의 해역이 총평 근거여도 사라지지 않는다 — 총평 후보는 총평 단계 순위에서 바로, 단계 말과 총평 문장이 맞는다', () => {
+    await check('[A5] 카드 순위 아래쪽 해역이 총평 근거여도 사라지지 않는다 — 총평 후보는 총평 단계 순위에서 바로, 단계 말과 총평 문장이 맞는다(2026-10-17 부터 카드 상한 없음 — 12곳 모두 카드)', () => {
         const regions = []; for (let i = 0; i < 11; i++) { const s = {}; for (const h of [6, 9, 12, 15, 18, 21]) s[at(h)] = { accident: '주의' }; regions.push(region(i, s)); }
         regions.push(region(99, { [at(15)]: { accident: '주의', congestion: { level: '높음', index: 12, at: at(15) } } }));
         const x = R.buildBriefing(seaOnlyInput({ reviewedCells: 12, regions }), WIN, { generatedAt: R.isoKst(T0) });
-        assert.equal(x.sea.cards.length, 10); assert.ok(!x.sea.cards.some((c) => c.rid === 'A:99'), '카드 순위(지속 칸)로는 10개 밖');
+        assert.equal(x.sea.cards.length, 12, '카드 상한 없음(종전 10)'); assert.equal(x.sea.cards[11].rid, 'A:99', '카드 순위(지속 칸)로는 맨 끝 — 종전에는 10개 밖이라 카드가 없었다');
         assert.deepStrictEqual(x.sea.overviewTop.map((c) => c.rid), ['A:99']); assert.equal(x.sea.overviewLevel.word, '주의');
         assert.equal(x.summary.sea.headline, '오늘 테스트파출소 관할 해상의 단계는 "주의"입니다.'); assert.ok(x.summary.sea.advice.startsWith('15~18시 ') && !x.summary.sea.advice.includes('시경'), x.summary.sea.advice);
     });
@@ -1002,17 +1002,17 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(wr.sentence.includes('풍랑경보(기상청) 근거로 기상청 특보를 확인하고 운항 시 경계가 요구됩니다.'), wr.sentence);   // §11.10.15: 근거 = 배지 꼴(특보구역은 배지 상세 표) · 특보 등급 말 없음(시안 ④판 사용자 확정)
         assert.ok(!/공식 경계 단계 확인/.test(acc.sentence + wr.sentence));
     });
-    await check('[UI-B5] 관심 이상 관광지 전체 수(attentionSpots)를 따로 준다 — 카드는 10곳까지', () => {
+    await check('[UI-B5] 관심 이상 관광지 전체 수(attentionSpots)를 따로 준다 — 2026-10-17 부터 카드도 전부(종전 10곳까지)', () => {
         const spots = Array.from({ length: 12 }, (_, i) => ({ id: 's' + i, name: '관광지' + pad(i), lat: 33, lon: 126, index: 30, band: '다소 높음', people: { ratio: 1.5, score: 0.5 }, notices: {}, missing: [] }));
         const b = R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots, hazardOnly: [] } }, WIN, { generatedAt: R.isoKst(T0) });
-        assert.deepStrictEqual([b.land.attentionSpots, b.land.cards.length], [12, 10]);
+        assert.deepStrictEqual([b.land.attentionSpots, b.land.cards.length], [12, 12]);
     });
     // ── 2026-10-17 사용자 결정(설계서 §11.10) — 결정마다 1:1. 고치기 전 코드(origin/main 7800fbfb0)에서 실패함을 확인했다(보고서 참고) ──
     await check('[§11.10] 육상 근거 수는 관심 이상 관광지 전체(카드 상한 10 아님) · 여러 곳 공통 예비특보는 한 줄로 한 번만 · 너울 결측은 「너울」', () => {
         const spots = Array.from({ length: 12 }, (_, i) => ({ id: 's' + i, name: '관광지' + pad(i), lat: 33, lon: 126, index: i < 3 ? 80 : 30, band: i < 3 ? '높음' : '다소 높음', people: { ratio: 1.5, score: 0.5 }, missing: i === 5 ? ['swell'] : [],
             notices: { effective: [], prelim: ['풍랑주의보'], detail: [{ name: '풍랑주의보', state: '예비', issued: { start: at(4), end: at(4), range: false }, effective: { start: '2026-10-18T00:00:00+09:00', end: '2026-10-18T06:00:00+09:00', range: true }, release: null }] } }));
         const x = R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots, hazardOnly: [] } }, WIN, { generatedAt: R.isoKst(T0) });
-        assert.deepStrictEqual([x.land.attentionSpots, x.land.cards.length], [12, 10]); assert.deepStrictEqual(x.land.attentionByRank, { 1: 9, 2: 3, 3: 0 });
+        assert.deepStrictEqual([x.land.attentionSpots, x.land.cards.length], [12, 12]); assert.deepStrictEqual(x.land.attentionByRank, { 1: 9, 2: 3, 3: 0 });   // 카드 12(2026-10-17 상한 없앰 — 종전 10)
         const L = x.summary.land, pre = '풍랑주의보 예비특보(10월 18일 00~06시 발효 예정, 04:00 발표)';
         assert.equal(L.basis[0], '관할 관광지 12곳 중 평소보다 위험이 높아진 곳 12곳 (주의 3곳 · 관심 9곳)', '카드 상한(10)이 아니라 전체 12곳');
         assert.deepStrictEqual(L.basis.slice(1, 4), ['관광지00 — 연안 위험지수 80(높음, 예상), 방문객 평소의 1.5배(예상)', '관광지01 — 연안 위험지수 80(높음, 예상), 방문객 평소의 1.5배(예상)', '관광지02 — 연안 위험지수 80(높음, 예상), 방문객 평소의 1.5배(예상)']);
@@ -1985,7 +1985,7 @@ const WIN = R.editionWindow('morning', T0);
         const y = hallim(), base = y.land.spots[0];
         for (let i = 0; i < 12; i++) y.land.spots.push({ ...base, id: '50110|가상' + i, name: '가상관광지' + String(i).padStart(2, '0'), index: 70 + i });
         const bb = R.buildBriefing(y, WIN, { generatedAt: R.isoKst(T0) }), L = bb.summary.land, rz = L.raised;
-        assert.equal(bb.land.attentionSpots, 14); assert.equal(bb.land.cards.length, 10, '카드는 10곳까지(그대로)'); assert.equal(rz.rows.length, 14, '표는 전부');
+        assert.equal(bb.land.attentionSpots, 14); assert.equal(bb.land.cards.length, 14, '카드도 전부(2026-10-17 상한 없앰 — 종전 10)'); assert.equal(rz.rows.length, 14, '표는 전부');
         assert.equal(rz.line, 0); assert.equal(rz.link, '평소보다 위험이 높아진 곳 14곳'); assert.ok(L.basis[0].includes(rz.link), L.basis[0]);
         assert.deepStrictEqual(rz.head, ['관광지', '평소', '오늘(예상)']);
         assert.deepStrictEqual(rz.rows.map((r) => r.name), [...Array(12)].map((_, i) => '가상관광지' + String(i).padStart(2, '0')).concat(['협재해수욕장', '금능해수욕장']), '주의(이름 순) → 관심');
@@ -2315,6 +2315,42 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(old, ['shape:sea-no-conclusion']);
         assert.equal(AI.explainError('shape:sea-no-conclusion'), 'shape:sea-no-conclusion — 해상 분석의 마지막 문장이 「따라서 … 요구됩니다.」 꼴이 아니다');
         assert.ok(AI.validateOverview({ ...good, sea: good.sea.replace(/주의가 요구됩니다\.$/, '경계가 요구됩니다.') }, si).errors.some((e) => /^level/.test(e)), '경계로 높여 쓰면 실패');
+    });
+    // ── §11.10.16 추가 결정(2026-10-17 사용자 — 원문은 설계서 §11.10.16 소절): A 「관광지 N곳 자료 확인 불가」 화면 줄 뺌 · B 카드 상한 10 없앰 · D 「특별 상황」 칸 없앰(근거 줄에 전부) ──
+    await check('[§11.10.16-A] 「관광지 N곳 자료 확인 불가」 — 서버 자료(land.failedSpots)는 그대로 남는다(화면 줄만 뺌 — UI 시험이 본다) · AI 입력에는 원래 없음(reviewed_spots 는 받은 곳만)', () => {
+        const x = hallim(); x.land.spots[1] = { ...x.land.spots[1], missing: ['detail'] };
+        const fb = R.buildBriefing(x, WIN, { generatedAt: R.isoKst(T0) });
+        assert.deepStrictEqual([fb.land.failedSpots, fb.land.reviewedSpots], [1, 3]);
+        const si = AI.stationInput(fb); assert.ok(!/확인 불가|failed/.test(JSON.stringify(si.land)), JSON.stringify(si.land));
+    });
+    await check('[§11.10.16-B] 카드 상한 없음 — 관심 이상 해역 13·관광지 12 → 카드 13·12(단계별 수 = 전체 수) · AI 입력은 카드 수와 무관(총평 후보 3곳까지만 — 카드 10장으로 자른 판과 같은 입력)', () => {
+        const x = hallim(), r0 = x.sea.regions[0], s0 = x.land.spots[0];
+        x.sea.regions = Array.from({ length: 13 }, (_, i) => ({ ...JSON.parse(JSON.stringify(r0)), rid: 'A:' + (3000 + i), accidentGridId: String(3000 + i), lat: 33.30 + i * 0.004, slots: i % 2 ? { [at(9)]: { accident: '주의' } } : r0.slots }));
+        x.land.spots = Array.from({ length: 12 }, (_, i) => ({ ...JSON.parse(JSON.stringify(s0)), id: '50110|가상' + i, name: '가상관광지' + pad(i), index: i < 4 ? 72 : 41, band: i < 4 ? '높음' : '다소 높음' }));
+        const bb = R.buildBriefing(x, WIN, { generatedAt: R.isoKst(T0) });
+        assert.deepStrictEqual([bb.sea.attentionRegions, bb.sea.cards.length, bb.land.attentionSpots, bb.land.cards.length], [13, 13, 12, 12]);
+        const by = (cards) => [1, 2, 3].map((k) => cards.filter((c) => c.rank === k).length);
+        assert.deepStrictEqual(by(bb.land.cards), [bb.land.attentionByRank[1], bb.land.attentionByRank[2], bb.land.attentionByRank[3]], '관광지 단계별 카드 수 = 단계별 전체 수');
+        assert.equal(by(bb.sea.cards).reduce((a, n) => a + n, 0), 13);
+        const cut = { ...bb, sea: { ...bb.sea, cards: bb.sea.cards.slice(0, 10) }, land: { ...bb.land, cards: bb.land.cards.slice(0, 10) } };
+        assert.deepStrictEqual(AI.stationInput(bb), AI.stationInput(cut), 'AI 입력은 카드 10장으로 자른 판과 같다');
+    });
+    await check('[§11.10.16-D] 「특별 상황」 칸 없앰 — 해제 예고·이미 해제·예비특보가 2건 이상이어도 해상 근거 줄에 전부(해제 쪽 → 예비특보) · 규칙 분석은 첫 건씩 + 「외 N건」 · 서버 b.special(RELEASE_LINES 포함)은 AI 입력용으로 그대로', () => {
+        const x = hallim();
+        x.sea.warnings.push(
+            { zone: '제주도남부앞바다', kind: '앞바다', type: '강풍', level: '주의보', state: '발효', effective: { start: '2026-10-16T20:00:00+09:00', end: '2026-10-16T20:00:00+09:00', range: false }, release: { start: at(12), end: at(12), range: false } },
+            { zone: '제주도남쪽먼바다', kind: '먼바다', type: '풍랑', level: '주의보', state: '예비', effective: { start: at(18), end: at(18), range: false }, release: null });
+        const bb = R.buildBriefing(x, WIN, { generatedAt: R.isoKst(T0) }), sp = bb.special;
+        const rel = sp.filter((y) => y.kind === 'release' || y.kind === 'released'), pre = sp.filter((y) => y.kind === 'prewarn');
+        assert.deepStrictEqual([rel.length, pre.length], [2, 2], sp.map((y) => y.title).join(' / '));
+        const tail = bb.summary.sea.basis.filter((t) => sp.some((y) => y.title === t));
+        assert.deepStrictEqual(tail, rel.concat(pre).map((y) => y.title), '근거 줄에 4건 전부 · 해제 쪽 먼저');
+        const one = bb.summary.analysis.sea.match(/기상특보 소식: ([^]*?)\./);
+        assert.ok(one && one[1] === rel[0].title + ', ' + pre[0].title + ' 외 2건', bb.summary.analysis.sea);
+        assert.ok(sp.every((y) => y.kind === 'prewarn' || y.lines.length === 2), '서버 special 은 그대로(해제 쪽은 RELEASE_LINES 두 줄)');
+        const si = AI.stationInput(bb); assert.equal(si.special.length, 4, 'AI 입력 special 그대로');
+        // 한 건씩이면 「외 N건」 없음(종전 문장 그대로)
+        assert.ok(/기상특보 소식: [^.]*예비특보[^.]*\./.test(b.summary.analysis.sea) && !/ 외 \d+건/.test(b.summary.analysis.sea), b.summary.analysis.sea);
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);

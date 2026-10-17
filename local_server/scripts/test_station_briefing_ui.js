@@ -204,6 +204,13 @@ function makeBriefings() {
             await page.route('**/*', (r) => r.request().url().startsWith(base) ? r.continue() : r.abort());
             await page.clock.setFixedTime(new Date(clock.now));
             await page.addInitScript(({ admin, login }) => { try { if (!sessionStorage.getItem('__sb_init')) { sessionStorage.setItem('__sb_init', '1'); if (admin) { localStorage.setItem('seagnal_admin_mode', 'true'); localStorage.setItem('push_token', 'admin-push-token'); } if (login) localStorage.setItem('seagnal_admin_token', 'admin-login'); } } catch (e) { /* 저장소 없음 */ } }, { admin, login });
+            // §11.10.16 소절(C): 화면은 「총평과 권고」만 펼친 채 시작한다. 기존 시험들은 칸 안 내용의 위치·크기·넘침을 재므로, 그린 직후 칸을 모두 펼쳐 둔다
+            //   (닫힌 칸은 max-height 0·overflow hidden 이라 가로 넘침 같은 검사가 헛돌 수 있다). 처음 상태 자체는 window.__sbKeepDefault = true 로 끄고 [§11.10.16-C] 가 본다.
+            await page.addInitScript(() => {
+                Object.defineProperty(window, 'StationBriefingRender', { configurable: true, get() { return undefined; }, set(v) {
+                    const orig = v.render; v.render = function (box) { const r = orig.apply(this, arguments); if (!window.__sbKeepDefault && box) box.querySelectorAll('.sb-sec:not(.open)').forEach((x) => { x.classList.add('open'); x.querySelector('.marine-forecast-sub-header').setAttribute('aria-expanded', 'true'); }); return r; };
+                    Object.defineProperty(window, 'StationBriefingRender', { value: v, writable: true, configurable: true }); } });
+            });
             await page.goto(base + '/'); await page.waitForFunction(() => window.StationBriefing && typeof window.switchMainTab === 'function'); await page.waitForTimeout(900);
             await clean(page);
             return page;
@@ -411,7 +418,7 @@ function makeBriefings() {
         // ── 3. 본문 ──
         // 「가」 모양(§11.10.4) — 결론 → 분석 문단 → 접힌 분석 근거(연안·해상) → (기상) → (물때). 근거·권고는 펼쳐야 보인다.
         const openBasis = (pg, kind) => pg.evaluate((k) => { const x = document.querySelector('#station-briefing-content button[data-sb-x="basis-' + k + '"]'); if (x && x.getAttribute('aria-expanded') !== 'true') x.click(); }, kind);
-        await check('본문 — 총평 「가」 모양(칩 「연안/해상 ○○」 — §11.10.16 부터 「필요」 없음·결론·AI 분석 문단·접힌 분석 근거(누르면 (근거)·(권고))·지금 밀집은 해상 분석 아래·(기상)·(물때)) · 특별 상황 · 해상 시간 막대(⚑) · 해역 카드 · 연안 카드 · 상시 위험 장소 · 조석 게이지 · 기준 시각·참고 정보', async () => {
+        await check('본문 — 총평 「가」 모양(칩 「연안/해상 ○○」 — §11.10.16 부터 「필요」 없음·결론·AI 분석 문단·접힌 분석 근거(누르면 (근거)·(권고))·지금 밀집은 해상 분석 아래·(기상)·(물때)) · 「특별 상황」 칸 없음(§11.10.16 소절) · 해상 시간 막대(⚑) · 해역 카드 · 연안 카드 · 상시 위험 장소 · 조석 게이지 · 기준 시각·참고 정보', async () => {
             const grab = () => page.evaluate(() => {
                 const q = (s) => document.querySelector('#station-briefing-content ' + s), qa = (s) => [...document.querySelectorAll('#station-briefing-content ' + s)];
                 const line = (li) => { const c = li.cloneNode(true); c.querySelectorAll('.sb-x-arrow, .sb-basis-note, .sb-x-panel').forEach((x) => x.remove()); return c.textContent; };
@@ -432,7 +439,7 @@ function makeBriefings() {
                     foot: (q('.sb-foot') || {}).textContent || '', edition: (q('.sb-edition') || {}).textContent || '', title: document.getElementById('station-briefing-title').textContent };
             });
             const s0 = await grab();
-            assert.deepEqual(s0.secs, ['overview', 'special', 'sea', 'land', 'tide']);
+            assert.deepEqual(s0.secs, ['overview', 'sea', 'land', 'tide'], '「특별 상황」 칸 없음(§11.10.16 소절 D)');
             assert.deepEqual(s0.parts, ['land', 'sea', 'weather', 'tide'], '연안 덩어리 → 해상 덩어리 → (기상) → (물때)'); assert.equal(s0.oldPara, 0, '새 브리핑은 옛 문단을 그리지 않음'); assert.equal(s0.cms, 0, '종전 「해설」 칸 없음');
             assert.deepEqual(s0.land.kids, ['conclusion', 'analysis', 'sb-sum-advice', 'basis-btn', 'basis-panel']); assert.deepEqual(s0.sea.kids, ['conclusion', 'analysis', 'sb-sum-advice', 'now', 'basis-btn', 'basis-panel'], '분석 문단 → (권고) → 지금 밀집 → 근거 배지(§11.10.9 ⑤)');
             assert.deepEqual(s0.con.map((x) => x.chip + '|' + x.head), ['연안 주의|' + B.h.summary.land.headline, '해상 주의|오늘 한림파출소 관할 해상의 단계는 "주의"입니다.']);   // §11.10.16 — 「필요」 없음 assert.ok(s0.con.every((x) => Number(x.w) >= 700), '결론은 굵게');
@@ -454,7 +461,8 @@ function makeBriefings() {
             assert.ok(s.land.basis.some((x) => x.includes('방문객 평소의 1.8배(예상)')), '예상 표기 — ' + s.land.basis.join(' / '));
             assert.deepEqual(s.sea.ks, ['(근거)']); assert.deepEqual(s.sea.basis, B.h.summary.sea.basis);
             assert.ok(!s.basisOld, '옛 「근거 ▸」(details) 없음'); assert.equal(s.source, null, '§11.10.9 — 맨 아래 「분석 문단은 ChatGPT가 썼습니다 …」 줄 없음(이름표만)');
-            assert.ok(s.special.some((t) => t.includes('해제 예고')) && s.special.some((t) => t.includes('예비특보')), s.special.join('|'));
+            assert.equal(s.special.length, 0, '「특별 상황」 칸 없음(§11.10.16 소절 D)');
+            assert.ok(B.h.special.length >= 2 && B.h.special.every((x) => s.sea.basis.includes(x.title)), '해제 예고·예비특보는 해상 근거 줄에 — ' + s.sea.basis.join(' | '));
             assert.equal(s.slots, B.h.sea.timeBar.length); assert.equal(s.flags, B.h.sea.timeBar.filter((x) => x.events.length).length); assert.ok(s.flags >= 1);
             assert.equal(s.seaCards, B.h.sea.cards.length); assert.equal(s.landCards, B.h.land.cards.length); assert.equal(s.links, s.seaCards + s.landCards);
             assert.ok(s.constant.startsWith('상시 위험 장소'));
@@ -783,7 +791,7 @@ function makeBriefings() {
             await tap(page, '#station-briefing-content .sb-basis-btn'); await page.waitForSelector('.rf-modal .rf-basis');
             const r = await page.evaluate(() => ({ title: document.querySelector('.rf-basis-head h3').textContent, body: document.querySelector('.rf-basis-body').innerText, tbl: document.querySelectorAll('.rf-basis-body .rf-tbl').length, close: !!document.querySelector('.rf-basis-head .mclose') }));
             assert.equal(r.title, '연안 안전 브리핑'); assert.ok(r.close); assert.equal(r.tbl, 3);
-            for (const k of ['07:30 · 17:30 · 23:00', '20분 전(07:10 · 17:10 · 22:40)', '그때까지는 이전 판', '덮지 않습니다', '21시가 넘으면 다음 날', '오늘 밤~내일', '공단 안내로는 경계 상위 5%·주의 상위 5~15% 구간', '만들기 시작한 시각이 든 3시간 칸부터', '기상청 해제 시각', '해제 예고로만', '사고 확률이 아닙니다', '단계 높은 순 10곳까지', '최대 12곳', '이안류를 관측하는 해수욕장만', '8m/s 이상', '다음 정시 판에 반영', '조석 칸이 없습니다', '「확인 불가」(회색)', '1.2~1.3배', '저조 뒤부터 물이 차오릅니다',
+            for (const k of ['07:30 · 17:30 · 23:00', '20분 전(07:10 · 17:10 · 22:40)', '그때까지는 이전 판', '덮지 않습니다', '21시가 넘으면 다음 날', '오늘 밤~내일', '공단 안내로는 경계 상위 5%·주의 상위 5~15% 구간', '만들기 시작한 시각이 든 3시간 칸부터', '기상청 해제 시각', '해제 예고로만', '사고 확률이 아닙니다', '관심 이상인 곳을 모두', '최대 12곳', '이안류를 관측하는 해수욕장만', '8m/s 이상', '다음 정시 판에 반영', '조석 칸이 없습니다', '「확인 불가」(회색)', '1.2~1.3배', '저조 뒤부터 물이 차오릅니다',
                 '연안 분석·해상 분석', '3~5문장', '최대 3번', 'Gemini 로 한 번', '규칙 분석', '「AI 분석 · ChatGPT」', '「연안 분석 근거 상세 보기」', '선박이 있는 해역 격자', '관광지 | 평소 | 오늘(예상)', '잔잔한 바다일 것으로 예상됩니다', '14m/s 이상 매우 강함', '07:30 판은 오늘 오전·오후', '참고 정보이며 안전을 보장하지 않습니다']) assert.ok(r.body.includes(k), k);
             for (const no of ['활동지점', '최대 20분', '틀 문장', '해설(육상']) assert.ok(!r.body.includes(no), no);
         });
@@ -1015,7 +1023,7 @@ function makeBriefings() {
         const toastText = (page) => page.evaluate(() => (document.getElementById('ocean-ui-toast') || {}).textContent || '');
         page = await device({ admin: true, width: 360, height: 780 });
         await pickStation(page, HALLIM); await page.waitForSelector('[data-sb-sec="overview"]'); await openAcc(page);
-        await check('[UI-A1] 카드 최대치(해역 10·관광지 10·상시 12)·360px — 아코디언 본문이 잘리지 않고 꼬리(출처·「안전을 보장하지 않습니다」)까지 보인다', async () => {
+        await check('[UI-A1] 카드가 많은 관할(해역 10·관광지 10·상시 12 — 2026-10-17 부터 카드 상한 없음)·360px — 아코디언 본문이 잘리지 않고 꼬리(출처·「안전을 보장하지 않습니다」)까지 보인다', async () => {
             const r = await page.evaluate(async () => {
                 const S = window.StationBriefing._state, resp = JSON.parse(JSON.stringify(S.resp)), b = resp.briefing;
                 const dup = (arr, n) => Array.from({ length: n }, (_, i) => JSON.parse(JSON.stringify(arr[i % arr.length])));
@@ -1182,7 +1190,75 @@ function makeBriefings() {
             await page.evaluate(() => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), JSON.parse(JSON.stringify(window.StationBriefing._state.resp)), { showSea: true, showLand: true, onLink: () => {} }));
             await page.setViewportSize({ width: 412, height: 915 });
         });
-        await check('[UI-B1·B3·B5·B6·B10·B14] 총평 단계 < 해상 분석 단계면 한 줄 · 지난 칸 흐리게 · 검토 줄 없음(§11.10.16 — 종전 「카드는 10곳까지」) · 내일 판 「내일」 · 출처 한 벌 · 지난 예정 시각은 「준비 중」', async () => {
+        // ── §11.10.16 소절 추가 결정(2026-10-17): B 카드 상한 없음 · C 처음 펼침은 「총평과 권고」만 · D 「특별 상황」 칸 없음 ──
+        await check('[§11.10.16-B] 카드 상한 없음 — 서버 규칙으로 해역 13·관광지 12(관심 이상) → 카드 13·12 · 머리 배지 수 = 단계 단추 수 = 그 단계 카드 수 = 단계별 전체 수 · 단추마다 그 단계 카드 전부', async () => {
+            const inp = mapInputs(hallimInput()), r0 = inp.sea.regions[0], s0 = inp.land.spots[0];
+            inp.sea.regions = Array.from({ length: 13 }, (_, i) => ({ ...JSON.parse(JSON.stringify(r0)), rid: 'A:' + (3000 + i), accidentGridId: String(3000 + i), lat: 33.30 + i * 0.004, slots: i % 3 ? { [at(9)]: { accident: '주의' } } : { [at(9)]: { congestion: { level: '높음', index: 11, at: at(9) } } } }));
+            inp.land.spots = Array.from({ length: 12 }, (_, i) => ({ ...JSON.parse(JSON.stringify(s0)), id: '50110|가상' + i, name: '가상관광지' + String(i).padStart(2, '0'), index: i < 4 ? 72 : 41, band: i < 4 ? '높음' : '다소 높음' }));
+            const bb = R.buildBriefing(inp, WIN, { generatedAt: '2026-10-17T13:10:00+09:00' });
+            assert.deepEqual([bb.sea.attentionRegions, bb.sea.cards.length, bb.land.attentionSpots, bb.land.cards.length], [13, 13, 12, 12]);
+            const want = (cards) => [3, 2, 1].map((k) => [k, cards.filter((c) => c.rank === k).length]).filter(([, n]) => n);
+            const r = await page.evaluate(async ({ bb, now }) => {
+                const R = window.StationBriefingRender, box = document.getElementById('station-briefing-content');
+                R.render(box, { ok: true, briefing: bb }, { now, showSea: true, showLand: true, onLink: () => {} });
+                const one = (k) => { const sec = box.querySelector('[data-sb-sec="' + k + '"]'), tabs = [...sec.querySelectorAll('[role="tab"]')];
+                    const badges = [...sec.querySelectorAll('[data-sb-sec-badges] .sb-chip')].map((c) => [Number(c.dataset.rank), c.textContent]);
+                    const per = tabs.length ? tabs.map((t) => { t.click(); return [t.textContent, [...sec.querySelectorAll('.sb-card')].filter((c) => c.offsetParent !== null).length]; }) : [['', [...sec.querySelectorAll('.sb-card')].length]];
+                    return { badges, per, all: sec.querySelectorAll('.sb-card').length }; };
+                return { sea: one('sea'), land: one('land') };
+            }, { bb, now: clock.now });
+            for (const [k, cards] of [['sea', bb.sea.cards], ['land', bb.land.cards]]) {
+                const w = want(cards), word = { 1: '관심', 2: '주의', 3: '경계' };
+                assert.equal(r[k].all, cards.length, k + ' 카드 전부 ' + r[k].all);
+                assert.deepEqual(r[k].badges, w.map(([rk, n]) => [rk, word[rk] + ' ' + n]), k + ' 머리 배지 수 = 단계별 카드 수');
+                if (w.length > 1) assert.deepEqual(r[k].per, w.map(([rk, n]) => [word[rk] + ' ' + n, n]), k + ' 단추마다 그 단계 카드 전부');
+            }
+            assert.equal(r.land.badges.reduce((a, [, t]) => a + Number(t.split(' ')[1]), 0), bb.land.attentionSpots, '연안 배지 합 = 관심 이상 전체 수');
+            await page.evaluate(() => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), JSON.parse(JSON.stringify(window.StationBriefing._state.resp)), { showSea: true, showLand: true, onLink: () => {} }));   // 되돌려 놓기(지금 밀집 now 포함 실제 응답)
+        });
+        await check('[§11.10.16-C] 처음 상태 — 「총평과 권고」만 펼침(aria-expanded true), 해상 분석·연안 분석·조석은 접힘(aria-expanded false·본문 높이 0) · 머리를 누르면 펼침 · 다시 그리면 다시 처음 상태(펼친 것을 기억하지 않음 — 종전과 같음)', async () => {
+            const r = await page.evaluate(async ({ b, now }) => {
+                window.__sbKeepDefault = true;
+                const R = window.StationBriefingRender, box = document.getElementById('station-briefing-content');
+                const st = () => [...box.querySelectorAll('[data-sb-sec]')].map((x) => [x.dataset.sbSec, x.classList.contains('open'), x.querySelector('.marine-forecast-sub-header').getAttribute('aria-expanded'), x.querySelector('.sb-sec-body').clientHeight > 4]);   // 접힌 칸은 위 여백(4px)만 남는다
+                R.render(box, { ok: true, briefing: b }, { now, showSea: true, showLand: true, onLink: () => {} }); await new Promise((res) => setTimeout(res, 500));
+                const out = { first: st() };
+                box.querySelector('[data-sb-sec="sea"] .marine-forecast-sub-header').click(); await new Promise((res) => setTimeout(res, 500)); out.clicked = st();
+                R.render(box, { ok: true, briefing: b }, { now, showSea: true, showLand: true, onLink: () => {} }); await new Promise((res) => setTimeout(res, 500)); out.again = st();
+                window.__sbKeepDefault = false;
+                return out;
+            }, { b: B.h, now: clock.now });
+            const first = [['overview', true, 'true', true], ['sea', false, 'false', false], ['land', false, 'false', false], ['tide', false, 'false', false]];
+            assert.deepEqual(r.first, first, JSON.stringify(r.first));
+            assert.deepEqual(r.clicked[1], ['sea', true, 'true', true], '머리를 누르면 펼침');
+            assert.deepEqual(r.again, first, '다시 그리면 처음 상태');
+            await page.evaluate(() => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), JSON.parse(JSON.stringify(window.StationBriefing._state.resp)), { showSea: true, showLand: true, onLink: () => {} }));   // 되돌려 놓기(지금 밀집 now 포함 실제 응답)
+        });
+        await check('[§11.10.16-D] 「특별 상황」 칸 없음 — 해제 예고·예비특보 4건(2건씩)이면 해상 근거 줄에 4건 전부 · 해제 뒤 안내 두 문장(RELEASE_LINES)은 화면에 없음 · 옛 판(§11.10.1 결론 칸 모양)도 칸 없음', async () => {
+            const inp = mapInputs(hallimInput());
+            inp.sea.warnings = (inp.sea.warnings || []).concat([
+                { zone: '제주도남부앞바다', kind: '앞바다', type: '강풍', level: '주의보', state: '발효', effective: { start: '2026-10-16T20:00:00+09:00', end: '2026-10-16T20:00:00+09:00', range: false }, release: { start: at(12), end: at(12), range: false } },
+                { zone: '제주도남쪽먼바다', kind: '먼바다', type: '풍랑', level: '주의보', state: '예비', effective: { start: at(18), end: at(18), range: false }, release: null }]);
+            const bb = R.buildBriefing(inp, WIN, { generatedAt: '2026-10-17T13:10:00+09:00' });
+            assert.ok(bb.special.length >= 4, bb.special.map((x) => x.title).join(' / '));
+            const old = JSON.parse(JSON.stringify(bb)); delete old.summary.analysis;   // §11.10.1 판(결론 칸 — summaryBodyV2)
+            const r = await page.evaluate(async ({ bb, old, now }) => {
+                const R = window.StationBriefingRender, box = document.getElementById('station-briefing-content'), out = {};
+                R.render(box, { ok: true, briefing: bb }, { now, showSea: true, showLand: true, onLink: () => {} });
+                const x = box.querySelector('button[data-sb-x="basis-sea"]'); if (x && x.getAttribute('aria-expanded') !== 'true') x.click();
+                out.secs = [...box.querySelectorAll('[data-sb-sec]')].map((e) => e.dataset.sbSec); out.special = box.querySelectorAll('.sb-special, [data-sb-sec="special"]').length;
+                out.basis = [...box.querySelectorAll('[data-sb-summary="sea"] .sb-sum-basis > li')].map((li) => { const c = li.cloneNode(true); c.querySelectorAll('.sb-x-arrow, .sb-basis-note, .sb-x-panel').forEach((y) => y.remove()); return c.textContent; });
+                out.text = box.textContent;
+                R.render(box, { ok: true, briefing: old }, { now, showSea: true, showLand: true, onLink: () => {} });
+                out.oldSecs = [...box.querySelectorAll('[data-sb-sec]')].map((e) => e.dataset.sbSec); out.oldSpecial = box.querySelectorAll('.sb-special').length;
+                return out;
+            }, { bb, old, now: clock.now });
+            assert.deepEqual([r.secs.includes('special'), r.special, r.oldSecs.includes('special'), r.oldSpecial], [false, 0, false, 0]);
+            assert.ok(bb.special.every((x) => r.basis.includes(x.title)), '근거 줄에 전부 — ' + r.basis.join(' | '));
+            for (const l of R.RELEASE_LINES) assert.ok(!r.text.includes(l), '해제 뒤 안내 문장은 화면에 없음 — ' + l);
+            await page.evaluate(() => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), JSON.parse(JSON.stringify(window.StationBriefing._state.resp)), { showSea: true, showLand: true, onLink: () => {} }));   // 되돌려 놓기(지금 밀집 now 포함 실제 응답)
+        });
+        await check('[UI-B1·B3·B5·B6·B10·B14] 총평 단계 < 해상 분석 단계면 한 줄 · 지난 칸 흐리게 · 검토 줄·「자료 확인 불가」 줄 없음(§11.10.16 — 종전 「카드는 10곳까지」) · 내일 판 「내일」 · 출처 한 벌 · 지난 예정 시각은 「준비 중」', async () => {
             const base = JSON.parse(JSON.stringify(B.h));
             const r = await page.evaluate(({ base, now }) => {
                 const R = window.StationBriefingRender, out = {}, box = document.createElement('div'); box.className = 'sb-wrap'; document.body.appendChild(box);
@@ -1194,7 +1270,7 @@ function makeBriefings() {
                 out.badges = [...box.querySelectorAll('[data-sb-summary="sea"] .sb-conclusion [data-sb-komsa]')].map((x) => x.dataset.sbKomsa + ':' + x.textContent + ':' + x.style.background);
                 out.badgeNext = (() => { const x = box.querySelector('[data-sb-summary="sea"] .sb-conclusion [data-sb-komsa]'); return !!x && x.previousElementSibling.classList.contains('sb-chip') && x.previousElementSibling.textContent.startsWith('해상 ') && x.nextElementSibling.classList.contains('sb-headline'); })();
                 out.counts = box.querySelectorAll('[data-sb-sea-count], [data-sb-land-count]').length; out.secText = box.querySelector('[data-sb-sec="sea"]').textContent + box.querySelector('[data-sb-sec="land"]').textContent;
-                const f1 = JSON.parse(JSON.stringify(b1)); f1.land.failedSpots = 2; R.render(box, { ok: true, briefing: f1 }, { now }); out.failed = (box.querySelector('[data-sb-land-failed]') || {}).textContent || null;
+                const f1 = JSON.parse(JSON.stringify(b1)); f1.land.failedSpots = 2; R.render(box, { ok: true, briefing: f1 }, { now }); out.failed = (box.querySelector('[data-sb-land-failed]') || {}).textContent || null; out.failedText = box.querySelector('[data-sb-sec="land"]').textContent;
                 R.render(box, { ok: true, briefing: b1 }, { now }); out.noFailed = !box.querySelector('[data-sb-land-failed]');
                 out.past = [...box.querySelectorAll('.sb-slot')].map((x) => x.dataset.past === 'true'); out.pastOpacity = getComputedStyle(box.querySelector('.sb-slot-past')).opacity;
                 out.legend = box.querySelector('.sb-legend').textContent; out.labels = (b1.sea.timeBar || []).map((s) => s.label);
@@ -1241,9 +1317,10 @@ function makeBriefings() {
             assert.deepEqual(r.v2Badges, ['1개 해역 주의(KOMSA 예보)'], '§11.10.1 판(결론 칸)에도 배지');
             assert.ok(r.noNote, '위험예보만 해역이 없으면 배지·줄 없음');
             assert.deepEqual([r.oldNoteLine, r.oldNote], [true, ''], '옛 판 note 가 있어도 위험예보만 해역 줄 풀이는 보이지 않음');
-            // §11.10.16(사용자 *"이 문구 굳이 넣을 필요없음"*): 「관할 해역 N칸 검토 · 관심 이상 …」·「관광지 N곳 검토 …」 줄 없음 — 「관광지 N곳 자료 확인 불가」만 실패를 숨기지 않게 따로 남는다
+            // §11.10.16(사용자 *"이 문구 굳이 넣을 필요없음"*): 「관할 해역 N칸 검토 · 관심 이상 …」·「관광지 N곳 검토 …」 줄 없음
             assert.deepEqual([r.counts, /칸 검토|곳 검토|카드는 단계 높은 순/.test(r.secText)], [0, false], r.secText.slice(0, 200));
-            assert.deepEqual([r.failed, r.noFailed], ['관광지 2곳 자료 확인 불가', true]);
+            // §11.10.16 소절 A(사용자 *"아예 확인 불가도 빼."*): 「관광지 N곳 자료 확인 불가」 줄도 없음(종전 [data-sb-land-failed] 줄) — failedSpots 가 있어도
+            assert.deepEqual([r.failed, r.noFailed, /자료 확인 불가/.test(r.failedText)], [null, true, false], r.failedText.slice(0, 200));
             // 10:05 에 본다 — 06~09시 칸은 끝났고 09~12시 칸은 아직(만드는 시각이 든 칸)
             assert.deepEqual(r.past, r.labels.map((l) => l === '06시')); assert.equal(r.pastOpacity, '0.4'); assert.ok(r.legend.includes('흐린 칸 = 이미 지난 시간'));
             assert.ok(r.tomorrow.startsWith('내일 평소와 달라진 요소'), r.tomorrow); assert.ok(r.today.startsWith('오늘 평소와 달라진 요소'), r.today);

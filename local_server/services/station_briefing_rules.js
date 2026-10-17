@@ -18,7 +18,7 @@
 'use strict';
 const crypto = require('crypto');
 
-const RULES_VERSION = 'station-briefing-rules-v17'; // v17(2026-10-17 사용자 결정 — 설계서 §11.10.16): 단계 말 「필요」 뺌(WORD 「관심·주의·경계」 — 결론 「단계는 "주의"입니다」·카드 딱지·근거 표·시간 막대·규칙 분석 「주의 수준」) · [권고]·(권고)·규칙 분석 마지막 「따라서」 문장 끝 「요구됩니다」 · (물때) 간출암 줄 「…물에 잠깁니다. 바위 위 …」(「—」 뺌) · 해상 규칙 분석 「다만,」 · (같은 v17 — 설계서 §11.10.15 「2026-10-17 사용자 확정(시안 ④판)」) 해역 카드 배지: 특보 등급 말 뺌(「21~24시 풍랑주의보(기상청)」 — [권고] 근거도) · 해구 예보 배지 = 넘은 축의 바다 상태 말(「파고 '높음'·풍속 '매우 강함'」, 숫자·「기준」 없음) · 상세 detail = 표 {title, head, rows}(「KOMSA 해양사고 위험예보」 시각|등급 · 「KOMSA 혼잡 예보」 시각|혼잡지수 · 「기상청 {구역} {특보}」 시각|상태 · 「232해구 예보」 시각|파고|풍속) · 배지 순서 = 글자 색(rank) 순 · v16(2026-10-17 사용자 결정 — 설계서 §11.10.15): 해역 카드 출처별 배지 badges(「18~24시 해양사고 위험예보 '주의'(KOMSA)」·「18~21시 혼잡 예보 '매우높음'(KOMSA)」·「21~24시 풍랑주의보 '주의'(기상청)」 + 상세 줄 detail — seaBadges) · [권고] 근거 = 배지 꼴 · v15(2026-10-17 사용자 결정 — 설계서 §11.10.13): 해역 카드 [특성] → [사고현황('21~'25년)](유형 전부 「충돌 5건, 전복 2건」 | 「인명피해 사망 N명, 실종 M명」 — traits.label·accidents·casualty·text, 특보구역·해구는 뺌) · 「… 사고가 많이 기록되었습니다」(historyNote) · [오늘 예상] → [기상 예보](tags 와 같은 줄을 빼고 특보 줄 + 바다 상태 흐름 문장 today.forecast — weatherFlow.stateText, 「기준」 없음) · 그 밖의 근거(today.otherLines) · [권고](advice) · v14(2026-10-17 사용자 결정 — 설계서 §11.10.12): 해양사고 위험예보만 위험 단계인 해역 근거 줄을 단계별로 「해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 N칸」(풀이 줄 ACC_ONLY_NOTE 뺌) · summary.sea.accidentOnly(단계별 수 — 화면 배지 「N개 해역 주의 필요(KOMSA 예보)」) · AI 입력 문구 「해양사고 위험예보(KOMSA 기준)만 '주의'인 해역」(komsaPhrase) · v13(2026-10-17 사용자 결정 — 설계서 §11.10.10): (물때) 「관할 내 잠기는 바위(간출암) N곳」(「관할 안」이 「안 잠기는」으로 읽힘) + 그 바위 목록(tide.rocks.items·summary.rocks — 지도·위험지형 팝업 재료) · (고립 주의) 「과거 고립 사고(N개소 M건)으로 확인 및 주의가 필요합니다.」 · 지점 표 「지점명 | 발생 현황」(연도별 「22년(1건), 23년(2건)」) · v12(2026-10-17 사용자 결정 — 설계서 §11.10.9): 연안 근거 「평소보다 위험이 높아진 곳 N곳」 표(summary.land.raised — 관심 이상 관광지 전부 · 평소 → 오늘(예상) · 이유, land.attentionAll) · 해상 규칙 분석의 해구 문장 = 특보구역 이름(「경북북부앞바다(대해구 75)」 — weatherFlow.where) + 최대값 + 바다 상태 말(SEA_STATE 표 — 「잔잔한 바다일 것으로 예상됩니다」 등, 「기준」이라는 말 없음 — haeguSentence) · v11(2026-10-17 §11.10.5 독립 검토 8): 해상 규칙 분석 문단 — 결론 「평소 수준」이면 마지막 문장 「… 변화에 평소처럼 관심이 필요합니다」(연안과 같은 꼴) · v10(2026-10-17 사용자 결정 — 설계서 §11.10.4): 규칙 분석 문단(summary.analysis — 연안·해상 각 3~5문장, AI 분석이 실패하면 화면이 「규칙 분석」 이름표로 보인다) · 판 일정 = 만들기 시작 07:10·17:10·22:40 → 공개 07:30·17:30·23:00(publishAtFor) · v9(2026-10-17 사용자 결정 — 설계서 §11.10.3): (물때) 아래 「(고립 주의) 저조 시간 전후 사고 지점(N개소)」(관할 관광지 중 2020~2024 고립 사고 지점 표) · 「물이 차오르기 전에 나오세요」 뺌 · 육상 공통 줄의 「— A·B 공통」 뺌 · 육상 권고 「… 주변 연안사고에 …가 필요합니다」 · 해상 근거 「관할 해역 N칸 중 위험이 높아진 해역 M칸」(칸 = 해역 묶음)·「해양사고 위험예보만 '주의·경계'인 해역 K칸」+풀이 · 해구 예보 줄은 기준을 넘을 때만 · 근거 줄 지도 펼침 재료(summary.sea.area·detail) · 「공식 사고예보」 → 「해양사고 위험예보」 · 해상 권고에서 「경」·해구 꼬리 뺌 · v8(2026-10-17 §11.10.1 독립 검토 1~5·12 — 설계서 §11.10.2): 단기 전망 특이사항 방향(높아짐·낮아짐)은 원문대로·구역은 「에서는·에서·에는·에도·에」 앞까지·지역·「곳에 따라」·「…가능성」 단서·「뽑지 못함」(notesFound)·가장 가까운 구역 줄 먼저·같은 구역 예비특보+해상 한 줄·「18일부터」 표지·앞바다 30km 넘으면 먼바다 예보 또는 거리 안내 · v7(2026-10-17 사용자 후속 결정 §11.10.1): 총평에 (기상)(가장 가까운 앞바다 단기 해상예보 오전·오후 + 지방기상청 단기 전망 특이사항)·(물때) 공용 칸 · 예보에서 온 근거에 「예상」 · v6(2026-10-17 사용자 결정 §11.10): 총평을 서버가 만드는 결론·근거·권고(summary)로 — 틀 총평 문단(templateOverview) 폐지 · 육상 「관심 이상인 곳」 수를 카드 상한(10) 대신 전체 수로 · 해상 총평 후보 3곳 · SOURCE_LABEL 에 너울(swell) · v5(2026-10-16 2단계 화면 독립 검토 B1·B12): 틀 총평 「관심 이상 N개 해역」을 총평 기준 수로(공식 사고예보 단계만 있는 해역은 따로 셈) · 경계 카드 문장의 「공식」을 출처별로 · v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구 · v4(같은 날 *"모두 추천대로."*): 공식 사고예보 「경계」도 「주의」처럼 기상·혼잡이 겹칠 때만 총평
+const RULES_VERSION = 'station-briefing-rules-v17'; // v17(2026-10-17 사용자 결정 — 설계서 §11.10.16): 단계 말 「필요」 뺌(WORD 「관심·주의·경계」 — 결론 「단계는 "주의"입니다」·카드 딱지·근거 표·시간 막대·규칙 분석 「주의 수준」) · [권고]·(권고)·규칙 분석 마지막 「따라서」 문장 끝 「요구됩니다」 · (물때) 간출암 줄 「…물에 잠깁니다. 바위 위 …」(「—」 뺌) · 해상 규칙 분석 「다만,」 · (같은 v17 — 설계서 §11.10.15 「2026-10-17 사용자 확정(시안 ④판)」) 해역 카드 배지: 특보 등급 말 뺌(「21~24시 풍랑주의보(기상청)」 — [권고] 근거도) · 해구 예보 배지 = 넘은 축의 바다 상태 말(「파고 '높음'·풍속 '매우 강함'」, 숫자·「기준」 없음) · 상세 detail = 표 {title, head, rows}(「KOMSA 해양사고 위험예보」 시각|등급 · 「KOMSA 혼잡 예보」 시각|혼잡지수 · 「기상청 {구역} {특보}」 시각|상태 · 「232해구 예보」 시각|파고|풍속) · 배지 순서 = 글자 색(rank) 순 · (같은 v17 — §11.10.16 추가 결정) 해역·관광지 카드 상한 10 없앰(MAX_SEA_CARDS·MAX_LAND_CARDS — 관심 이상 전부) · 해상 근거에 해제 예고·해제·예비특보 전부(종전 첫 1건씩 — 화면 「특별 상황」 칸 없앰) · 해상 규칙 분석 「기상특보 소식: … 외 N건」 · v16(2026-10-17 사용자 결정 — 설계서 §11.10.15): 해역 카드 출처별 배지 badges(「18~24시 해양사고 위험예보 '주의'(KOMSA)」·「18~21시 혼잡 예보 '매우높음'(KOMSA)」·「21~24시 풍랑주의보 '주의'(기상청)」 + 상세 줄 detail — seaBadges) · [권고] 근거 = 배지 꼴 · v15(2026-10-17 사용자 결정 — 설계서 §11.10.13): 해역 카드 [특성] → [사고현황('21~'25년)](유형 전부 「충돌 5건, 전복 2건」 | 「인명피해 사망 N명, 실종 M명」 — traits.label·accidents·casualty·text, 특보구역·해구는 뺌) · 「… 사고가 많이 기록되었습니다」(historyNote) · [오늘 예상] → [기상 예보](tags 와 같은 줄을 빼고 특보 줄 + 바다 상태 흐름 문장 today.forecast — weatherFlow.stateText, 「기준」 없음) · 그 밖의 근거(today.otherLines) · [권고](advice) · v14(2026-10-17 사용자 결정 — 설계서 §11.10.12): 해양사고 위험예보만 위험 단계인 해역 근거 줄을 단계별로 「해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 N칸」(풀이 줄 ACC_ONLY_NOTE 뺌) · summary.sea.accidentOnly(단계별 수 — 화면 배지 「N개 해역 주의 필요(KOMSA 예보)」) · AI 입력 문구 「해양사고 위험예보(KOMSA 기준)만 '주의'인 해역」(komsaPhrase) · v13(2026-10-17 사용자 결정 — 설계서 §11.10.10): (물때) 「관할 내 잠기는 바위(간출암) N곳」(「관할 안」이 「안 잠기는」으로 읽힘) + 그 바위 목록(tide.rocks.items·summary.rocks — 지도·위험지형 팝업 재료) · (고립 주의) 「과거 고립 사고(N개소 M건)으로 확인 및 주의가 필요합니다.」 · 지점 표 「지점명 | 발생 현황」(연도별 「22년(1건), 23년(2건)」) · v12(2026-10-17 사용자 결정 — 설계서 §11.10.9): 연안 근거 「평소보다 위험이 높아진 곳 N곳」 표(summary.land.raised — 관심 이상 관광지 전부 · 평소 → 오늘(예상) · 이유, land.attentionAll) · 해상 규칙 분석의 해구 문장 = 특보구역 이름(「경북북부앞바다(대해구 75)」 — weatherFlow.where) + 최대값 + 바다 상태 말(SEA_STATE 표 — 「잔잔한 바다일 것으로 예상됩니다」 등, 「기준」이라는 말 없음 — haeguSentence) · v11(2026-10-17 §11.10.5 독립 검토 8): 해상 규칙 분석 문단 — 결론 「평소 수준」이면 마지막 문장 「… 변화에 평소처럼 관심이 필요합니다」(연안과 같은 꼴) · v10(2026-10-17 사용자 결정 — 설계서 §11.10.4): 규칙 분석 문단(summary.analysis — 연안·해상 각 3~5문장, AI 분석이 실패하면 화면이 「규칙 분석」 이름표로 보인다) · 판 일정 = 만들기 시작 07:10·17:10·22:40 → 공개 07:30·17:30·23:00(publishAtFor) · v9(2026-10-17 사용자 결정 — 설계서 §11.10.3): (물때) 아래 「(고립 주의) 저조 시간 전후 사고 지점(N개소)」(관할 관광지 중 2020~2024 고립 사고 지점 표) · 「물이 차오르기 전에 나오세요」 뺌 · 육상 공통 줄의 「— A·B 공통」 뺌 · 육상 권고 「… 주변 연안사고에 …가 필요합니다」 · 해상 근거 「관할 해역 N칸 중 위험이 높아진 해역 M칸」(칸 = 해역 묶음)·「해양사고 위험예보만 '주의·경계'인 해역 K칸」+풀이 · 해구 예보 줄은 기준을 넘을 때만 · 근거 줄 지도 펼침 재료(summary.sea.area·detail) · 「공식 사고예보」 → 「해양사고 위험예보」 · 해상 권고에서 「경」·해구 꼬리 뺌 · v8(2026-10-17 §11.10.1 독립 검토 1~5·12 — 설계서 §11.10.2): 단기 전망 특이사항 방향(높아짐·낮아짐)은 원문대로·구역은 「에서는·에서·에는·에도·에」 앞까지·지역·「곳에 따라」·「…가능성」 단서·「뽑지 못함」(notesFound)·가장 가까운 구역 줄 먼저·같은 구역 예비특보+해상 한 줄·「18일부터」 표지·앞바다 30km 넘으면 먼바다 예보 또는 거리 안내 · v7(2026-10-17 사용자 후속 결정 §11.10.1): 총평에 (기상)(가장 가까운 앞바다 단기 해상예보 오전·오후 + 지방기상청 단기 전망 특이사항)·(물때) 공용 칸 · 예보에서 온 근거에 「예상」 · v6(2026-10-17 사용자 결정 §11.10): 총평을 서버가 만드는 결론·근거·권고(summary)로 — 틀 총평 문단(templateOverview) 폐지 · 육상 「관심 이상인 곳」 수를 카드 상한(10) 대신 전체 수로 · 해상 총평 후보 3곳 · SOURCE_LABEL 에 너울(swell) · v5(2026-10-16 2단계 화면 독립 검토 B1·B12): 틀 총평 「관심 이상 N개 해역」을 총평 기준 수로(공식 사고예보 단계만 있는 해역은 따로 셈) · 경계 카드 문장의 「공식」을 출처별로 · v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구 · v4(같은 날 *"모두 추천대로."*): 공식 사고예보 「경계」도 「주의」처럼 기상·혼잡이 겹칠 때만 총평
 const HOUR = 3600000, SLOT_H = 3;
 // 단계 말 — 사용자 확정(§11.6-8 Q1 「가」): 「관심 필요·주의 필요·경계 필요」. 해상의 주의·경계는 공식 자료(공식 사고예보·기상특보)가 그 단계일 때만.
 // → 2026-10-17 「필요」를 뺀 「관심·주의·경계」(설계서 §11.10.16 — 사용자 *"경계 필요, 주의 필요 이렇게 하지말고 경계 1, 주의 5, 관심 1 처럼 표출"* · *"전체적으로 필요라는 텍스트는 빼도 될 것 같은데"*).
@@ -39,7 +39,9 @@ const RELEASE_LINES = Object.freeze([
     '2020~2025년 특보 해제 뒤 이틀 동안 전복·침몰·침수·표류 사고가 평소보다 약 1.2~1.3배 많았습니다.',
 ]);
 const ACCIDENT_RANK = { '주의': 2, '경계': 3 }, CONGESTION_HIGH = new Set(['높음', '매우높음']);
-const MAX_SEA_CARDS = 10, MAX_LAND_CARDS = 10, MAX_CONSTANT = 12;
+// 해역·관광지 카드 상한(종전 10곳)은 없앴다 — 관심 이상이면 전부 카드(2026-10-17 사용자 *"카드를 왜 10장만 만들지 ? 더 있다면 더 만들어줘."* — 설계서 §11.10.16 소절).
+//   AI 입력은 카드 전부가 아니라 총평 후보(overviewTop — 3곳까지)만 쓰므로 카드 수와 무관하다(설계서 같은 소절의 측정). 상시 위험 장소(MAX_CONSTANT)는 그대로.
+const MAX_CONSTANT = 12;
 // 결측과 0 구분(CLAUDE.md L-291 「조용한 것이 이상 없는 것처럼 보이면 안 된다」, 독립 검토 A2 — 2026-10-16):
 // 원천이 ok 가 아니면 그 근거는 판단에서 빠지므로, 남은 자료로 단계가 0 이어도 「평소 수준」이라 쓰지 않는다.
 const UNKNOWN_SOME = '확인 불가(일부)', UNKNOWN_ALL = '확인 불가';
@@ -416,7 +418,7 @@ function seaBadges(series, targetDate, zoneTitle) {
  * 해상 분석: 관할 안 모든 해역(같은 공식 사고 5km 칸은 하나 — 수집 단계에서 묶임)을 창의 모든 3시간 칸에서 판정하고,
  * 순위(단계 > 그 단계 지속 칸 수 > 기상·혼잡 근거 겹침 > 과거 사고 수)를 매겨 카드·시간 막대를 만든다.
  * 원천이 ok 가 아니거나(sources) 공식 사고예보 프레임이 빠진 칸(sea.frameGaps.accident)은 그 근거를 쓰지 않고, 단계가 0 이면 「평소 수준」 대신 「확인 불가(일부)」(A2).
- * 총평 후보(overviewTop)는 카드 상한(10)과 상관없이 총평 단계 순위에서 바로 고른다 — 단계 말과 총평 문장이 어긋나지 않게(A5).
+ * 총평 후보(overviewTop)는 총평 단계 순위에서 바로 고른다 — 단계 말과 총평 문장이 어긋나지 않게(A5). 카드는 관심 이상 해역 전부(2026-10-17 — 종전 상한 10).
  * 예: 한림 고정 자료 → {level:{rank:2,word:'주의'}, reviewedCells:52, attentionRegions:4, cards:[{name:'비양도 북방 …', window:'15~18시', …}], timeBar:[6칸]}
  * @param {object} input - 관할 입력 묶음 @param {object} win - editionWindow @param {object} wev - warningEvents 결과
  * @returns {object} 해상 절 [연계] ← buildBriefing / → slotOf·regionName·weatherFlow·runsText
@@ -487,7 +489,7 @@ function seaSection(input, win, wev) {
             badges, sentence, advice, historyNote, link: { gridId: x.r.gridId || null, accidentGridId: x.r.accidentGridId || null, lat: x.r.lat, lon: x.r.lon, t: x.first >= 0 ? x.series[x.first].at : win.from },
         };
     };
-    const cards = regions.slice(0, MAX_SEA_CARDS).map(toCard);
+    const cards = regions.map(toCard);   // 관심 이상 해역 전부(종전 상위 10 — 2026-10-17 사용자 결정으로 상한 없앰)
     const missing = Object.entries(ok).filter(([, v]) => !v).map(([k]) => k).concat(ok.accident && accGaps.size ? ['accident'] : []);
     const unknown = levelWord(0, missing, 4);
     const timeBar = slots.map((at, i) => {
@@ -592,7 +594,7 @@ function landSection(input, win) {
     const judged = spots.map((s) => ({ s, j: landSpot(s, win.targetDate) }));
     const cardsAll = judged.filter((x) => x.j.rank > 0).sort((a, b) => b.j.rank - a.j.rank || (b.s.index || 0) - (a.s.index || 0) || (b.s.history?.count || 0) - (a.s.history?.count || 0) || a.s.name.localeCompare(b.s.name, 'ko'));
     const traitText = (s) => [s.hazard?.count ? '위험구역 ' + s.hazard.count + '곳(' + (s.hazard.byType || []).filter((t) => t.count).map((t) => t.class + ' ' + t.count).join('·') + ')' : null, s.history?.count ? (s.history.from || '').slice(0, 4) + '~' + (s.history.to || '').slice(0, 4) + ' 연안사고 ' + s.history.count + '건(' + (s.history.topTypes || []).map((t) => t.type + ' ' + t.count).join('·') + ')' : null, s.beach ? '해수욕장' : null].filter(Boolean).join(' · ');
-    const cards = cardsAll.slice(0, MAX_LAND_CARDS).map(({ s, j }) => ({
+    const cards = cardsAll.map(({ s, j }) => ({   // 관심 이상 관광지 전부(종전 상위 10 — 2026-10-17 사용자 결정으로 상한 없앰)
         id: s.id, name: s.name, rank: j.rank, word: j.word, sourceLabel: j.sourceLabel, index: s.index ?? null, band: s.band || null, peakAt: s.peakAt || null,
         traits: { hazard: s.hazard || null, history: s.history || null, beach: !!s.beach, text: traitText(s) || '기록된 위험구역·연안사고 없음' },
         // kinds = changes 와 같은 순서의 요소 종류(people·event·swell·rip·warning·prewarn·drift·released) — 총평 근거 줄이 여러 곳 공통 특보·바람을 한 번만 쓰는 데 쓴다(§11.10).
@@ -609,7 +611,7 @@ function landSection(input, win) {
         level: { rank: top ? top.j.rank : 0, word: levelWord(top ? top.j.rank : 0, missing, 0), source: top ? top.j.sourceLabel : null, partial: missing.length > 0 },
         // 검토한 관광지 수 = 연안 하루 값을 실제로 받은 곳만(상세 실패 'detail' 은 셈에서 뺀다 — 독립 검토 낮음). 실패 수는 failedSpots.
         reviewedSpots: spots.filter((s) => !(s.missing || []).includes('detail')).length, failedSpots: spots.filter((s) => (s.missing || []).includes('detail')).length,
-        // attentionSpots = 관심 이상 관광지 전체 수(카드는 단계 높은 순 MAX_LAND_CARDS 곳까지 — 화면이 「카드는 10곳까지」를 밝힌다, 2단계 검토 B5).
+        // attentionSpots = 관심 이상 관광지 전체 수(2단계 검토 B5 — 그때는 카드가 10곳까지였다. 2026-10-17 부터 카드도 전부라 cards.length 와 같다).
         // attentionByRank = 관심 이상 관광지 전체를 단계별로 센 것({1:관심,2:주의,3:경계}) — 총평 근거 「주의 3곳 · 관심 9곳」은 카드 상한과 상관없이 이 수(§11.10).
         reviewedHazards: (land.hazardOnly || []).length, attentionSpots: cardsAll.length, attentionByRank: { 1: cardsAll.filter((x) => x.j.rank === 1).length, 2: cardsAll.filter((x) => x.j.rank === 2).length, 3: cardsAll.filter((x) => x.j.rank === 3).length },
         // attentionAll = 관심 이상 관광지 전부(카드 상한 없음 — attentionSpots 와 같은 수). 총평 근거 「평소보다 위험이 높아진 곳 N곳」을 누르면 펼치는 표(summary.land.raised)의 재료
@@ -807,8 +809,9 @@ function seaSummary(b, dayWord) {
         add(w.label + ' 예보 ' + (w.onsetText || '') + '로 높아짐(예상)' + (w.downText ? ', ' + w.downText + ' 낮아짐' : ''), { key: 'haegu', ...(h ? { major: h.major, ...(h.box ? { boxes: [h.box] } : {}) } : {}) });
     } else if (!sea.weather && !sea.missing.includes('zoneForecasts')) basis.push('해구 예보 자료를 확인하지 못했습니다');
     for (const c of top) basis.push(c.overview.window + ' ' + c.name + ' — ' + overviewLabelText(c.overview));
-    const rel = b.special.find((x) => x.kind === 'release' || x.kind === 'released'), pre = b.special.find((x) => x.kind === 'prewarn');
-    for (const x of [rel, pre]) if (x) basis.push(x.title);
+    // 특보 해제 예고·이미 해제·예비특보 — 전부(종전 각 첫 1건). 화면 「특별 상황」 칸을 없애(2026-10-17 사용자 결정 — 설계서 §11.10.16 소절) 2건째부터는
+    //   화면 어디에도 없게 되므로 근거 줄에 모두 둔다. 순서 = 해제 쪽 먼저 → 예비특보(종전과 같음), 그 안은 warningEvents 순서.
+    for (const x of b.special.filter((y) => y.kind === 'release' || y.kind === 'released').concat(b.special.filter((y) => y.kind === 'prewarn'))) basis.push(x.title);
     if (miss) basis.push('확인하지 못한 자료: ' + miss + ' — 그 근거는 판단에서 뺐습니다');
     // 권고(§11.10.3): 「06~24시 한림매일시장 북방 0.6해리 해역 운항에 경계가 필요합니다.」 — 종전 「…시경」의 「경」과 해역 이름 꼬리 「(232-2해구)」를 뺐다(근거 줄에는 그대로).
     const advice = top[0] ? top[0].overview.window + ' ' + String(top[0].name).replace(/\([^()]*해구\)$/, '') + ' 운항에 ' + SUBJECT[top[0].overview.rank] + ' 요구됩니다.' : miss ? '출항 전 기상청 특보·예보를 직접 확인하는 데 관심이 요구됩니다.' : '출항 전 기상 확인에 관심이 요구됩니다.';   // §11.10.16 「요구됩니다」
@@ -1255,8 +1258,10 @@ function seaAnalysis(b, S, dw) {
     if (note) c.push({ t: (below ? '다만,' : '또한') + ' 기상청 단기 전망에 「' + note + '」 내용이 있어 해상 상황의 변화를 살펴야 합니다.', pri: 3 });
     if (top[0]) { const nm = top[0].overview.window + ' ' + top[0].name, lbl = overviewLabelText(top[0].overview); c.push({ t: nm + josa(nm, '은', '는') + ' ' + lbl + josa(lbl, '으로', '로') + ' ' + top[0].overview.word + ' 수준입니다.', pri: 2 }); }
     if (oCount > 1) c.push({ t: '그 밖에 위험이 높아진 해역이 ' + (oCount - 1) + '칸 더 있습니다.', pri: 6 });
-    const sp = [b.special.find((x) => x.kind === 'release' || x.kind === 'released'), b.special.find((x) => x.kind === 'prewarn')].filter(Boolean).map((x) => x.title);
-    if (sp.length) c.push({ t: '기상특보 소식: ' + sp.join(', ') + '.', pri: 5 });
+    // 기상특보 소식 — 해제 쪽 첫 건·예비특보 첫 건(종전 그대로), 그 밖에 더 있으면 「외 N건」(§11.10.16 소절 — 전부는 근거 줄에 있다. 문장이 길어지지 않게)
+    const spAll = b.special.filter((x) => x.kind === 'release' || x.kind === 'released' || x.kind === 'prewarn');
+    const sp = [b.special.find((x) => x.kind === 'release' || x.kind === 'released'), b.special.find((x) => x.kind === 'prewarn')].filter(Boolean).map((x) => x.title), spRest = spAll.length - sp.length;
+    if (sp.length) c.push({ t: '기상특보 소식: ' + sp.join(', ') + (spRest > 0 ? ' 외 ' + spRest + '건' : '') + '.', pri: 5 });
     if (miss) c.push({ t: '확인하지 못한 자료(' + miss + ')는 판단에서 뺐습니다.', pri: 4 });
     // 「다만,」(쉼표 — §11.10.16 사용자 *"다만 다음에는 ,를 붙여줘"*) · 마지막 문장(화면 (권고) 줄) 끝 「요구됩니다」(§11.10.16)
     const fin = top[0] ? top[0].overview.window + ' ' + String(top[0].name).replace(/\([^()]*해구\)$/, '') + ' 운항에 ' + SUBJECT[top[0].overview.rank] + ' 요구됩니다.'
