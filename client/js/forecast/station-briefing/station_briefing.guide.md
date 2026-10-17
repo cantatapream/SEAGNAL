@@ -28,7 +28,8 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 | 상황 | 화면 |
 |---|---|
 | 관할 없음 | 「연안 안전 브리핑 지역이 설정되지 않았습니다」 + [설정하기] |
-| [설정하기]·⚙ | 고르기 탭 두 개(`station_briefing_picker.js` — 2026-10-17): 「지도에서 선택하기」(해역 단추 4개 → 그 해역 관할 폴리곤 지도, 눌러 고르기) · 「파출소로 선택하기」(지방청 → 해양경찰서 → 파출소 아코디언, 남항 두 곳은 경찰서로 구분, 「해상만」 표시, 이름 찾기 — 찾으면 맞는 묶음 저절로 펼침) · 「선택: …」 줄 · 해상/연안 보기 칸(「연안 브리핑 보기」 — §11.10.4 전 「육상」)(해상만 관할은 육상 칸 끔) · [저장] [건너뛰기] ([취소] — 이미 설정했을 때) |
+| [설정하기]·⚙ | 고르기 탭 두 개(`station_briefing_picker.js` — 2026-10-17): 「지도에서 선택하기」(해역 단추 4개 → 그 해역 관할 폴리곤 지도, 눌러 고르기) · 「파출소로 선택하기」(지방청 → 해양경찰서 → 파출소 아코디언, 남항 두 곳은 경찰서로 구분, 「해상만」 표시, 이름 찾기 — 찾으면 맞는 묶음 저절로 펼침) · 해상/연안 보기 칸(고르기 칸 위 한 줄 · 「연안 브리핑 보기」 — §11.10.4 전 「육상」)(해상만 관할은 연안 칸 끔) · 「선택: …」 줄 · 머리 오른쪽 [건너뛰기](관할 없을 때) / [취소](이미 설정했을 때 — 바꾸지 않고 브리핑으로). 아래 단추 줄은 없다(2026-10-17 §11.9.2) |
+| 관할을 누름(지도 폴리곤·칩) | 칠하고 가운데 확인 창 「○○해양경찰서 ○○파출소 — 이 관할을 선택하셨습니까? 저장하시겠습니까?」 [취소] [저장](`StationBriefingPicker.confirm`). [저장] = 곧바로 저장 → 브리핑 · [취소]·Esc·바깥·뒤로가기 = 누르기 전으로(다른 관할을 누를 수 있다) |
 | [건너뛰기] 또는 관할을 골랐지만 해상·육상 모두 끔 | 「해상·연안 모두 설정하지 않았습니다 — 이 아코디언을 더 이상 표시하지 않을까요?」 [예, 표시하지 않기] [아니요] |
 | 예 | 숨김(`hidden:true`) + 「오른쪽 위 설정(⚙) 버튼에서 언제든 다시 표시할 수 있습니다」(`showSeagnalModal`) |
 | 설정 팝업 칸 | 「해양예보 탭에 표시」 스위치 · 지금 관할 · [관할 설정](팝업을 닫고 해양예보 탭에서 고르기 화면) — **누르는 즉시 적용**(팝업 [저장]·[취소] 스냅샷과 따로). 팝업에 저장하지 않은 다른 변경이 있으면 [관할 설정]이 묻는다([확인] 저장하고 이동 / [취소] 남기 — `settings.js settingsModalHasUnsaved`) |
@@ -63,7 +64,8 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 | `refreshDisplay` | station_briefing.js | 노출 판정·관할 목록 → 보임 결정 → 본문 |
 | `loadBriefing` | station_briefing.js | 관할 브리핑 받기(day=auto) |
 | `renderSetup`·`finishSetup`·`renderConfirm` | station_briefing.js | 설정 흐름(고르기 칸은 picker 에 맡기고 `choose`·`sync` 로 선택을 받는다) |
-| `mount`·`destroy` | station_briefing_picker.js | 고르기 탭 두 개 만들기 · 지도 정리(`renderBody` 가 화면을 바꿀 때마다 부름) |
+| `mount`·`destroy` | station_briefing_picker.js | 고르기 탭 두 개 만들기 · 지도·확인 창 정리(`renderBody` 가 화면을 바꿀 때마다 부름) |
+| `confirmPick`(`confirm`)·`closeDialog` | station_briefing_picker.js | 관할을 누르면 뜨는 가운데 확인 창(`role=dialog`·`aria-modal`·초점·Esc·바깥·`PopupStack`·늦은 click 거르기) |
 | `mapPanel`·`drawMap`·`zoneStyle`·`loadAreas` | station_briefing_picker.js | 해역 단추 → 관할 폴리곤 지도(온보딩 `zone_setup.js` `_makeMap`·`_zoneStyle` 과 같은 방식·같은 색) · 구역 한 번 받기 |
 | `listPanel` | station_briefing_picker.js | 지방청 → 해양경찰서 → 파출소 아코디언 + 찾기(맞는 묶음 펼침) |
 | `updateBadge`·`markSeen` | station_briefing.js | N 뱃지 |

@@ -3,7 +3,7 @@
  * 역할  : 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 아코디언 본문·설정 흐름(관할 고르기 탭 두 개·해역 단추·관할 지도·아코디언 포함)·설정 팝업 칸의 모양(.sb-*).
  *         바깥 아코디언(.main-accordion-header·.gradient-slate)·안쪽 칸(.marine-forecast-sub-*)·조석 게이지(.ocean-tide-*)·
  *         [기준 상세] 버튼·창(.rf-basis-btn·.rf-basis)은 기존 규칙(style.css·risk_forecast.css)을 그대로 쓰고 여기서는 다시 정하지 않는다.
- * [연계] station_briefing_render.js · station_briefing.js · station_briefing_picker.js(고르기 탭) · admin/admin_station_briefing.js(미리보기) · index2.html <link>
+ * [연계] station_briefing_render.js · station_briefing.js · station_briefing_picker.js(고르기 탭·가운데 확인 창 .sb-dlg*) · admin/admin_station_briefing.js(미리보기) · index2.html <link>
  * ============================================================================ */
 .sb-wrap { display:flex; flex-direction:column; gap:12px; color:#e2e8f0; font-size:.86rem; line-height:1.55; word-break:keep-all; overflow-wrap:anywhere; }
 .sb-meta { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
@@ -89,6 +89,10 @@
 /* 설정 흐름(설정 전 안내·관할 고르기·둘 다 건너뛸 때 묻기) */
 .sb-setup, .sb-unset, .sb-confirm { background:rgba(15,23,42,.6); border:1px solid rgba(148,163,184,.2); border-radius:12px; padding:14px; }
 .sb-setup h4, .sb-unset h4, .sb-confirm h4 { margin:0 0 6px; color:#f1f5f9; font-size:.92rem; }
+/* 설정 화면 머리 — 제목 + 오른쪽 [건너뛰기]/[취소](고르지 않고 나가기 — 아래 단추 줄을 없애며 옮김, 2026-10-17) */
+.sb-setup-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin:0 0 6px; }
+.sb-setup .sb-setup-head h4 { margin:2px 0 0; min-width:0; }
+.sb-setup-out { flex:none; padding:5px 10px; font-size:.76rem; }
 .sb-setup p, .sb-unset p, .sb-confirm p { margin:0 0 8px; color:#cbd5e1; font-size:.8rem; }
 .sb-search { width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.3); color:#e2e8f0; font-size:.85rem; margin-bottom:8px; }
 .sb-station-list { max-height:min(46vh,380px); overflow-y:auto; border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:6px 8px; }
@@ -126,8 +130,12 @@
 .sb-station-btn small { color:#fbbf24; margin-left:3px; }
 .sb-station-btn[aria-pressed="true"] small { color:#fde68a; }
 .sb-picked { margin:8px 0; color:#a5f3fc; font-size:.82rem; font-weight:700; }
-.sb-toggles { display:flex; flex-direction:column; gap:6px; margin:6px 0 10px; }
-.sb-toggle { display:flex; align-items:center; gap:8px; color:#e2e8f0; font-size:.82rem; }
+/* 해상·연안 보기 두 칸은 한 줄(사용자 2026-10-17 「한 줄로 표시」) — 종전 flex-direction:column 이 두 줄로 세웠다.
+   정말 자리가 없을 때만 다음 줄로 넘긴다(flex-wrap). 해상만 관할 안내(.sb-small)는 칸 아래 줄 전체, 비면 자리를 차지하지 않는다. */
+.sb-toggles { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; margin:6px 0 10px; }
+.sb-toggle { display:flex; align-items:center; gap:8px; color:#e2e8f0; font-size:.82rem; white-space:nowrap; }
+.sb-toggles .sb-small { flex:1 0 100%; margin:0; }
+.sb-toggles .sb-small:empty { display:none; }
 .sb-toggle input { width:18px; height:18px; }
 .sb-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .sb-btn { padding:8px 14px; border-radius:8px; border:none; font-weight:700; font-size:.82rem; cursor:pointer; background:rgba(255,255,255,.08); color:#e2e8f0; }
@@ -160,3 +168,14 @@
 .sb-an-tag.sb-an-rule { background:rgba(148,163,184,.14); border-color:rgba(148,163,184,.45); color:#cbd5e1; }
 .sb-basis-x { margin:2px 0 0; font-size:.8rem; }
 .sb-pending { background:rgba(250,204,21,.08); border-color:rgba(250,204,21,.35); color:#fde68a; }
+/* 관할을 누르면 뜨는 가운데 확인 창(2026-10-17 사용자 「팝업이 가운데 하나 뜨고 저장 또는 취소」 — station_briefing_picker.js confirmPick).
+   공용 알림 창(style.css .seagnal-modal)과 같은 층(z-index 40000)·같은 어두운 바탕, 색은 앱 :root 변수(없으면 같은 값). 360px 에서도 좌우 16px 여백. */
+.sb-dlg { position:fixed; top:0; right:0; bottom:0; left:0; z-index:40000; display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
+.sb-dlg-dim { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(0,0,0,.6); touch-action:none; }
+.sb-dlg-box { position:relative; width:100%; max-width:320px; box-sizing:border-box; padding:20px 18px 16px; border-radius:16px; background:var(--card-bg, #161b2d); border:1px solid var(--border-color, rgba(255,255,255,.1)); box-shadow:0 20px 40px rgba(0,0,0,.4); color:var(--text-main, #fff); text-align:center; word-break:keep-all; overflow-wrap:anywhere; }
+.sb-dlg-title { margin:0 0 8px; font-size:1rem; font-weight:800; color:var(--text-main, #fff); }
+.sb-dlg-text { margin:0 0 14px; font-size:.88rem; line-height:1.55; color:var(--text-sub, #94a3b8); }
+.sb-dlg-note { margin:-6px 0 14px; font-size:.76rem; color:#fbbf24; }
+.sb-dlg-actions { display:flex; gap:8px; }
+.sb-dlg-actions .sb-btn { flex:1 1 0; min-width:0; padding:11px 8px; font-size:.9rem; }
+.sb-dlg-actions .sb-btn:focus-visible { outline:2px solid #67e8f9; outline-offset:2px; }

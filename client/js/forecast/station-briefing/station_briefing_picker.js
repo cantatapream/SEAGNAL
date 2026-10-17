@@ -5,7 +5,9 @@
  *         ①「지도에서 선택하기」: 해역 단추(동해·서해·남해·제주 — 온보딩 「관심해역을 클릭해보세요」와 같은 모양·같은 SEA_REGIONS)
  *            → 그 해역의 파출소 관할 폴리곤 지도(온보딩 「○○ 특보구역을 선택해주세요」와 같은 방식 — 눌러 고르기·확대·이동)
  *         ②「파출소로 선택하기」: 지방청 → 해양경찰서 → 파출소 아코디언 + 이름 찾기(찾으면 맞는 묶음을 저절로 펼침).
- *         고른 결과·저장·해상/육상 칸·[저장]·[건너뛰기]는 station_briefing.js renderSetup 이 그대로 맡는다(이 파일은 고르기만).
+ *         ③관할을 누르면(두 탭 모두) 가운데 확인 창 「○○해양경찰서 ○○파출소 — 이 관할을 선택하셨습니까? 저장하시겠습니까?」 [취소] [저장]
+ *            (confirmPick — 사용자 2026-10-17 「팝업이 가운데 하나 뜨고 저장 또는 취소」). 창만 이 파일이 그리고,
+ *         고른 결과·저장·해상/연안 칸·[건너뛰기]/[취소](머리 오른쪽)는 station_briefing.js renderSetup 이 그대로 맡는다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : core/config.js(SEA_REGIONS — 해역 이름·아이콘·표시 이름) · assets/vendor/ol/ol.js(지도)
@@ -13,7 +15,8 @@
  *                    · station_briefing.css(.sb-tabs·.sb-sea-*·.sb-map·.sb-acc-* 모양)
  *  - 서버 API      : GET /api/station-briefing/areas(관할 구역 — 부르는 일은 station_briefing.js 의 get 이 맡아 opts.loadAreas 로 넘긴다)
  *  - 마크업        : 없음 — renderSetup 이 넘겨 준 칸 안에 만든다
- *  - 나를 쓰는 곳  : station_briefing.js renderSetup(mount) · renderBody(destroy — 다른 화면으로 바뀔 때 지도 정리)
+ *                    · core/backbutton.js(window.PopupStack — 확인 창이 떠 있으면 하드웨어 뒤로가기 = [취소])
+ *  - 나를 쓰는 곳  : station_briefing.js renderSetup(mount · confirm — 관할을 누를 때) · renderBody(destroy — 다른 화면으로 바뀔 때 지도·확인 창 정리)
  *  - 계약          : client/js/ocean-map/coastal-risk/briefing.contract.md §1.1b(areas — 해역 규칙)
  * [로드 순서] station_briefing_basis.js 다음, station_briefing.js 앞(station_briefing.js 가 이 파일을 부른다)
  * ============================================================================
@@ -21,7 +24,7 @@
 (function (w) {
     'use strict';
     // 지도 상태 — 화면에 지도는 한 번에 하나(설정 화면은 하나뿐). areas 는 한 번 받으면 이 화면을 다시 열어도 그대로 쓴다.
-    var P = { map: null, layer: null, areas: null, areasP: null, missing: 0 };
+    var P = { map: null, layer: null, areas: null, areasP: null, missing: 0, dlg: null };
     var C_ACCENT = '#448aff';   // 온보딩 zone_setup.js 와 같은 강조색(고른 구역)
 
     /** 해역 목록(SEA_REGIONS 차례 그대로 — 없으면 네 이름). 예: seas() → [{name:'동해', label:'🌅 동해 해역'}, …]. @returns {Object[]} [연계] ← mapPanel */
@@ -34,8 +37,8 @@
     /** 요소 하나. 예: el('button','sb-btn','저장'). @param {string} tag @param {string} [cls] @param {string} [text] @returns {HTMLElement} */
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
-    /** 지도를 치운다(해역을 다시 고르거나 화면이 바뀔 때). 예: destroy(). @returns {void} [연계] ← mount·showSeas·station_briefing.js renderBody */
-    function destroy() { if (P.map) { P.map.setTarget(null); P.map = null; } P.layer = null; }
+    /** 지도를 치운다(해역을 다시 고르거나 화면이 바뀔 때). 떠 있는 확인 창도 닫는다(고르기 화면이 사라지면 그 창의 [저장]은 갈 곳이 없다). 예: destroy(). @returns {void} [연계] ← mount·showSeas·station_briefing.js renderBody / → closeDialog */
+    function destroy() { if (P.map) { P.map.setTarget(null); P.map = null; } P.layer = null; closeDialog(); }
 
     /**
      * 관할 고르기 칸을 만든다(탭 두 개). 고르면 opts.onPick(관할) — 선택 표시는 refresh() 로 다시 맞춘다.
@@ -235,5 +238,60 @@
         return { shown: function () { if (!q.value.trim()) { openSelected(); draw(); } }, refresh: refresh };
     }
 
-    w.StationBriefingPicker = { mount: mount, destroy: destroy, _map: function () { return P.map; }, _layer: function () { return P.layer; } };
+    /**
+     * 관할을 누르면 뜨는 가운데 확인 창(사용자 2026-10-17 *"○○파출소를 선택하셨습니까? 저장하시겠습니까? 라는 식으로 팝업이 가운데 하나 뜨고 저장 또는 취소"*).
+     * [저장] → h.onSave() · [취소]·바깥(어두운 곳)·Esc·하드웨어 뒤로가기 → h.onCancel(). 창은 하나만(새로 열면 앞 창은 [취소] 없이 닫는다).
+     * 접근성: role=dialog·aria-modal·제목/설명 연결, 열리면 [저장]에 초점, Tab 은 두 단추 사이만 돈다, 닫히면 연 곳으로 초점을 돌린다.
+     * 지도를 누른 그 손가락의 늦은 click(하이브리드 웹뷰 — ui_modal.js showSeagnalModal 주석과 같은 현상)이 창 단추에 떨어져
+     * 저절로 저장·취소되지 않게, 단추는 이 창 안에서 손가락·마우스를 눌렀거나(pointerdown) 키보드로 누른 것(click detail 0)만 받는다.
+     * 바깥 누름도 같은 이유로 click 이 아니라 pointerdown 에 건다(showSeagnalModal 과 같음).
+     * 예: confirmPick({name:'한림파출소', office:'제주해양경찰서'}, {onSave:저장, onCancel:되돌리기}) → 「제주해양경찰서 한림파출소 / 이 관할을 선택하셨습니까? 저장하시겠습니까?」 [취소] [저장]
+     * @param {Object} st - 관할 목록 한 줄({name, office, seaOnly}) @param {{onSave:function():void, onCancel:function():void}} h
+     * @returns {void} [연계] ← station_briefing.js renderSetup choose / → closeDialog · core/backbutton.js PopupStack
+     */
+    function confirmPick(st, h) {
+        closeDialog();
+        var back = document.activeElement, armed = false, done = false;
+        var wrap = el('div', 'sb-dlg'); wrap.setAttribute('data-sb-pick-dialog', '');
+        var dim = el('div', 'sb-dlg-dim'), box = el('div', 'sb-dlg-box');
+        box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'sb-dlg-title'); box.setAttribute('aria-describedby', 'sb-dlg-text');
+        var t = el('p', 'sb-dlg-title', ((st.office || '') + ' ' + (st.name || '')).trim()); t.id = 'sb-dlg-title'; box.appendChild(t);
+        var q = el('p', 'sb-dlg-text', '이 관할을 선택하셨습니까? 저장하시겠습니까?'); q.id = 'sb-dlg-text'; box.appendChild(q);
+        if (st.seaOnly) box.appendChild(el('p', 'sb-dlg-note', '이 관할은 관광지 자료가 없어 해상 브리핑만 제공합니다.'));
+        var acts = el('div', 'sb-dlg-actions');
+        var no = el('button', 'sb-btn', '취소'); no.type = 'button'; no.setAttribute('data-sb-pick-cancel', '');
+        var ok = el('button', 'sb-btn sb-btn-primary', '저장'); ok.type = 'button'; ok.setAttribute('data-sb-save', '');
+        acts.appendChild(no); acts.appendChild(ok); box.appendChild(acts);
+        wrap.appendChild(dim); wrap.appendChild(box);
+        /** 창을 닫고 한쪽을 부른다(두 번 부르지 않는다). @param {function} fn */
+        function finish(fn) {
+            if (done) return; done = true; closeDialog();
+            if (back && back.isConnected && back.focus) back.focus({ preventScroll: true });   // 연 곳(칩 등)으로 초점을 돌린다 — 저장해 화면이 바뀌었으면 없다
+            fn();
+        }
+        var cancel = function () { finish(h.onCancel); };
+        /** 단추 누름 — 이 창에서 시작한 누름이나 키보드만(늦은 click 거르기). */
+        var tapOnly = function (fn) { return function (e) { e.stopPropagation(); if (e.detail !== 0 && !armed) return; fn(); }; };
+        box.addEventListener('pointerdown', function () { armed = true; });
+        no.addEventListener('click', tapOnly(cancel));
+        ok.addEventListener('click', tapOnly(function () { finish(h.onSave); }));
+        dim.addEventListener('pointerdown', function (e) { e.preventDefault(); cancel(); });
+        wrap.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { e.preventDefault(); cancel(); return; }
+            if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === ok ? no : ok).focus(); }   // 두 단추 사이만
+        });
+        document.body.appendChild(wrap);
+        P.dlg = wrap;
+        if (w.PopupStack) w.PopupStack.push('sb-pick-dialog', cancel);   // 하드웨어 뒤로가기 = [취소]
+        ok.focus();
+    }
+    /** 확인 창을 닫는다(부를 것 없이 — 있으면). 예: closeDialog(). @returns {void} [연계] ← confirmPick·destroy */
+    function closeDialog() {
+        if (!P.dlg) return;
+        var d = P.dlg; P.dlg = null;
+        if (w.PopupStack) w.PopupStack.remove('sb-pick-dialog');
+        if (d.parentNode) d.parentNode.removeChild(d);
+    }
+
+    w.StationBriefingPicker = { mount: mount, destroy: destroy, confirm: confirmPick, _map: function () { return P.map; }, _layer: function () { return P.layer; } };
 })(window);
