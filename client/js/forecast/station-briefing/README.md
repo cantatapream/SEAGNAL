@@ -14,7 +14,7 @@
 |------|------|-----------|
 | `station_briefing.js` | 아코디언 본체 — 노출 판정·설정 흐름(관할 고르기·건너뛰기·숨김)·N 뱃지·바로가기·설정 팝업 칸·제목 「HH:MM AI 연안 안전 브리핑」 | `refreshDisplay`, `loadBriefing`, `setTitle`, `renderSetup`, `finishSetup`, `renderConfirm`, `toggle`, `openSetup`, `updateBadge`, `openInRisk`, `renderSettings`, `applyVisibility`, `toast` |
 | `station_briefing_picker.js` | 설정 화면의 관할 고르기 칸 — 탭 두 개 「지도에서 선택하기」(해역 단추 → 관할 폴리곤 지도) · 「파출소로 선택하기」(지방청 → 해양경찰서 → 파출소 아코디언 + 이름 찾기) · 관할을 누르면 가운데 확인 창 | `mount`, `destroy`, `mapPanel`, `drawMap`, `zoneStyle`, `listPanel`, `loadAreas`, `confirmPick`, `closeDialog` |
-| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` · 근거 줄 지도 펼침(OpenLayers) · 제목 글 | `render`, `titleText`·`editionTime`·`editionLabel`(§11.10.4 제목·판 이름), `summaryBodyV3`(§11.10.4 「가」 모양), `weatherPart`·`tidePart`((기상)·(물때) 공용), `summaryBodyV2`(§11.10.1 총평), `basisList`·`expander`·`miniMap`·`isolationLine`(§11.10.3), `summaryBody`(§11.10 판), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
+| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` · 근거 줄 지도 펼침(OpenLayers) · 제목 글 | `render`, `titleText`·`editionTime`·`editionLabel`(§11.10.4 제목·판 이름), `summaryBodyV3`(§11.10.4 「가」 모양), `weatherPart`·`tidePart`((기상)·(물때) 공용), `summaryBodyV2`(§11.10.1 총평), `basisList`·`expander`·`miniMap`·`isolationLine`(§11.10.3), `summaryBody`(§11.10 판), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`(§11.10.15 배지 카드 `seaCardBadged`·`seaBadges`·`seaCardLink`), `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
 | `station_briefing_basis.js` | [기준 상세] 문안(위험예측 기준 상세 창 `RiskBasis.open('briefing')` 으로 연다) | (문자열 `RiskBasisContent.briefing`) |
 | `station_briefing.css` | `.sb-*` 모양(바깥 아코디언·안쪽 칸·조석 게이지·기준 창은 기존 CSS 재사용) | — |
 
@@ -146,6 +146,18 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - **단계 단추**: 펼친 칸 안 카드 목록 위(검토 줄·빠진 자료·시간 막대 같은 공통 줄은 그대로 그 위)에 단계 단추(`role=tablist`·`tab`·`aria-selected`, 좌우 화살표·Home·End). 처음 = 가장 높은 단계, 누르면 그 단계 카드만 보인다(카드는 모두 만들고 단계 묶음 `role=tabpanel` 만 숨김).
   단계가 하나뿐이면 단추 없이 카드만. 다시 그리면(판이 바뀌면) 가장 높은 단계로 돌아온다(기억하지 않음). 고른 단추 = 단계 색 채움, 나머지 = 단계 색 테두리, 좁으면 단추 줄 가로 스크롤(`.sb-lvl-tabs`).
 - 코드: `station_briefing_render.js` `levelGroups`·`levelBadges`·`levelTabs`(renderRest 가 부름) · `station_briefing.css` `.sb-sec-badges`·`.sb-lvl-tabs`·`.sb-lvl-tab`. 카드 안(`seaCard`·`landCard`)은 바꾸지 않았다.
+
+## 해역 카드 출처별 배지(2026-10-17 사용자 결정 — 설계서 §11.10.15)
+
+> 사용자 원문: *"KOMSA 단독인 경우에는 이미지 1 딱지는 그대로 유지. 이미지 2는 ##~##시 해양사고 위험예보 '주의'(KOMSA) 라고 표출하고, 색상은 주의 수준의 색상으로 반영(텍스트)"* · *"혼합인 경우 … 그 아래 상세사항으로 혼잡예보와 해양사고 위험예보 정보를 넣어주면"* · *"혼잡예보도 매우 높음에 해당되는 색상이 노란색이니 ? 뭔가 빨간색으로 반영되어야 할 것 같은데"* · *"이 문구는 사고현황 아래쪽으로 가야함"*
+
+- **카드 오른쪽 위 딱지**(앱이 매긴 카드 단계)는 그대로. 종전 꼬리표 두 개(가장 높은 근거 하나 `sourceLabel` + 노란 시간 칩 `window`)를 없애고, **단계를 올린 출처마다 배지 하나**: 「18~24시 해양사고 위험예보 '주의'(KOMSA)」·「18~21시 혼잡 예보 '매우높음'(KOMSA)」·「21~24시 풍랑주의보 '주의'(기상청)」·「15~21시 해구 예보 최대 파고 2.6m·풍속 14m/s(기상청)」(서버 `card.badges[].text`).
+- **색은 글자에**(어두운 바탕·테두리 + 색 글자 — 승인 시안 `.sb`): 그 예보 자체 등급의 색. 혼잡은 위험예측 지도와 같은 대응(높음 → 주의 주황 · 매우높음 → 경계 빨강) — 카드가 관심이어도 배지는 빨강일 수 있다. 경계 빨강 글자는 `#e34842`(바탕 `#0b1324` 위 대비 약 4.66, §11.10.11 분석 문단과 같은 밝힌 빨강).
+- **상세 줄**(배지 바로 아래, `.sb-srcb-det`): 위험예보 「KOMSA 해양사고 위험예보 — 18시 '주의' · 21시 '경계'」, 혼잡 「혼잡지수 — 18시 45.14 · 21시 32.91」, 특보 「기상청 ○○앞바다 풍랑주의보 — 21시 발효 중」, 해구 예보 칸마다 파고·풍속. 위험예보·특보는 배지가 하나뿐이고 칸마다 같은 등급이면 넣지 않는다(시안 카드 A·B).
+- **줄 순서**: 배지들 → [사고현황('21~'25년)] → 「이 해역에서는 집계 기간 중 … 많이 기록되었습니다.」 → [기상 예보](바다 상태 흐름 문장) → [권고] → [위험예측에서 보기 ›]. 특보 줄·[그 밖의 근거]는 배지 카드에서 그리지 않는다(같은 출처가 배지·상세 줄에 있다 — 서버 `today.*` 는 AI 입력용으로 그대로).
+- **[권고] 근거**는 배지 꼴(「… 이 해역은 해양사고 위험예보 '주의'(KOMSA) 근거로 …」 — 서버 `advice`).
+- **옛 판**(규칙 v15 이전 — `badges` 없음)은 종전 꼬리표·줄 순서 그대로(§11.10.13).
+- 코드: 서버 `station_briefing_rules.js` `seaBadges`(규칙 판 v16) · 화면 `station_briefing_render.js` `seaCard` → `seaCardBadged`·`seaBadges`·`seaCardLink` · `station_briefing.css` `.sb-srcbs`·`.sb-srcb`·`.sb-srcb-det`.
 
 ## 시험
 
