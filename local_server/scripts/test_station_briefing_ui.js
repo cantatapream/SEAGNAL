@@ -106,7 +106,7 @@ function makeBriefings() {
     h.trigger = { kind: 'warning', zones: ['제주도서부앞바다'] }; h.edition = 'warning';
     // AI 분석 문단(§11.10.4 — 3~5문장). 해상 분석에 HTML 문자열을 넣어 textContent 로만 들어가는지 본다.
     h.overview = { land: '협재해수욕장은 방문객이 평소의 1.8배로 예상돼 주의 필요 수준입니다. 해안 바람 9m/s로 튜브가 떠밀릴 수 있습니다. 따라서 협재해수욕장 주변 연안사고에 주의가 필요합니다.', sea: XSS + ' 15시부터 파고가 높아집니다. 21시부터 예비특보 구역에 들어갑니다. 따라서 비양도 주변 해역 운항에 주의가 필요합니다.', source: 'chatgpt', model: 'gpt-6-luna' };
-    h.sea.cards[0].sentence = XSS + h.sea.cards[0].sentence;
+    h.sea.cards[0].advice = XSS + h.sea.cards[0].advice;   // §11.10.13: 규칙 v14 카드는 sentence 대신 [권고](advice)를 그린다
     const busanIn = { ...hallimInput(), zoneWeather: null, key: BUSAN, name: '남항파출소', office: '부산해양경찰서', region: '남해지방해양경찰청', sources: { accident: 'ok', congestion: 'stale', zoneForecasts: 'stale', warnings: 'ok' }, tide: null,
         sea: { reviewedCells: 30, regions: [], weather: {}, warnings: [] }, land: { spots: [], hazardOnly: [{ id: '남항-1', place: '남항 물양장', class: '연안사고 위험구역', shape: '항포구' }] }, places: [] };
     const b = R.buildBriefing(busanIn, WIN, { generatedAt: '2026-10-17T07:10:00+09:00' }); b.trigger = { kind: 'morning' }; b.publishAt = '2026-10-17T07:30:00+09:00';   // §11.10.4 새 판 꼴(07:10 만들기 → 07:30 공개)
@@ -465,8 +465,8 @@ function makeBriefings() {
             await page.evaluate(() => { document.querySelectorAll('#station-briefing-content button[data-sb-x^="basis-"]').forEach((x) => { if (x.getAttribute('aria-expanded') === 'true') x.click(); }); });
         });
         await check('서버 글은 textContent — HTML 문자열이 글자로 보이고 img 가 생기지 않는다', async () => {
-            const r = await page.evaluate(() => ({ imgs: document.querySelectorAll('#station-briefing-content img').length, xss: window.__xss || null, sea: document.querySelector('[data-sb-analysis="sea"]').textContent, card: document.querySelector('[data-sb-card="sea"] .sb-sentence').textContent }));
-            assert.equal(r.imgs, 0); assert.equal(r.xss, null); assert.ok(r.sea.includes('<img src=x onerror=')); assert.ok(r.card.startsWith('<img'));
+            const r = await page.evaluate(() => ({ imgs: document.querySelectorAll('#station-briefing-content img').length, xss: window.__xss || null, sea: document.querySelector('[data-sb-analysis="sea"]').textContent, card: [...document.querySelector('[data-sb-card="sea"]').querySelectorAll(':scope > .sb-row')].pop().querySelector('.sb-row-v').textContent }));
+            assert.equal(r.imgs, 0); assert.equal(r.xss, null); assert.ok(r.sea.includes('<img src=x onerror=')); assert.ok(r.card.startsWith('<img'), r.card);
         });
         await check('[§11.10.4] 제목·순서·이름표 — 「HH:MM AI 연안 안전 브리핑」(정시 판 = 공개 시각, 특보·관리자 판 = 만든 시각) · 화면 순서 결론→분석→근거(연안)→결론→분석→지금→근거(해상)→(기상)→(물때) · 「AI 분석 · Gemini」·「규칙 분석」', async () => {
             const base = JSON.parse(JSON.stringify(B.h));
@@ -624,12 +624,42 @@ function makeBriefings() {
             await page.evaluate(({ base, now }) => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), { ok: true, briefing: base, now: null }, { now }), { base, now: clock.now });
             await page.setViewportSize({ width: 412, height: 915 });
         });
-        await check('시간 막대 칸 색 = 위험예측 4색(단계 순위), 칸을 누르면 설명 줄', async () => {
+        // §11.10.13(2026-10-17 사용자 *"이 텍스트는 아래 또 나오니까 필요없는거 아니니? 개별로 나오잖아"*): 칸 아래 설명 줄과 칸 누르기를 없앴다 — 칸은 그림(role=img)과 aria-label 만
+        await check('시간 막대 칸 색 = 위험예측 4색(단계 순위) · 칸 아래 설명 줄 없음 · 칸은 누르는 단추가 아님(role=img·aria-label 「HH시 단계」) — §11.10.13', async () => {
             const r = await page.evaluate(() => { const bs = [...document.querySelectorAll('.sb-slot')]; return bs.map((b) => [b.dataset.rank, getComputedStyle(b).backgroundColor]); });
             const want = { 0: 'rgb(47, 179, 107)', 1: 'rgb(242, 194, 48)', 2: 'rgb(251, 146, 60)', 3: 'rgb(224, 50, 44)' };
             r.forEach(([rank, bg]) => assert.equal(bg, want[rank], rank + ' 칸 색'));
             await page.evaluate(() => document.querySelectorAll('.sb-slot')[3].click());
-            const d = await page.$eval('.sb-slot-detail', (e) => e.textContent); assert.ok(d.startsWith(B.h.sea.timeBar[3].label), d);
+            const d = await page.evaluate(() => { const bs = [...document.querySelectorAll('.sb-slot')], b = bs[3], sr = b.getBoundingClientRect(), h = b.querySelector('.sb-slot-h').getBoundingClientRect();
+                return { detail: document.querySelectorAll('.sb-slot-detail').length, buttons: document.querySelectorAll('.sb-timebar button').length, roles: [...new Set(bs.map((x) => x.getAttribute('role')))], labels: bs.map((x) => x.getAttribute('aria-label')), pressed: bs.filter((x) => x.hasAttribute('aria-pressed')).length, cursor: getComputedStyle(b).cursor,
+                    group: document.querySelector('.sb-timebar').getAttribute('aria-label'), dx: Math.abs((sr.left + sr.right) / 2 - (h.left + h.right) / 2), dy: Math.abs((sr.top + sr.bottom) / 2 - (h.top + h.bottom) / 2), legend: !!document.querySelector('.sb-timebar-wrap .sb-legend') }; });
+            assert.equal(d.detail, 0, '설명 줄 없음'); assert.equal(d.buttons, 0, '칸은 단추가 아님'); assert.deepEqual(d.roles, ['img']); assert.equal(d.pressed, 0); assert.notEqual(d.cursor, 'pointer');
+            d.labels.forEach((l, i) => assert.ok(l.startsWith(B.h.sea.timeBar[i].label + ' ' + B.h.sea.timeBar[i].word), l));
+            assert.ok(d.labels.some((l) => l.includes('특보 사건 있음')), '⚑ 칸은 aria-label 에 「특보 사건 있음」'); assert.equal(d.group, '해상 시간 막대 — 3시간 칸별 관할 최고 단계'); assert.ok(d.legend, '범례는 그대로');
+            assert.ok(d.dx <= 1 && d.dy <= 1, '칸 글자는 가운데(종전 button 모양) — ' + d.dx + '/' + d.dy);
+        });
+        // §11.10.13: 해역 카드 줄 순서·이름 — 사용자 *"[사고현황('21~'25년)] 충돌 5건, 전복 2건, 좌초 1건 | 인명피해 사망 0명, 실종 0명"* · *"오늘 예상보다는 [기상 예보] 라고 표현"* · *"[권고] … 이렇게 마지막에 표현"*
+        await check('[§11.10.13] 해역 카드 — [사고현황(\'21~\'25년)] → [기상 예보] → [그 밖의 근거] → 「… 많이 기록되었습니다」 → 맨 끝 [권고] · 「기준」·[특성]·[오늘 예상] 없음 · 옛 판(규칙 v13 전) 카드는 종전 모양', async () => {
+            const grabCard = () => page.evaluate(() => { const card = document.querySelector('[data-sb-card="sea"]');
+                // 바로가기 단추(sb-link)는 render 옵션(onLink)이 있을 때만 — 이 자리(앞 사례가 옵션 없이 다시 그림)에서는 없으므로 빼고 견준다
+                return { kids: [...card.children].map((e) => e.classList.contains('sb-row') ? 'row:' + e.querySelector('.sb-row-k').textContent : e.classList[0]).filter((k) => k !== 'sb-link'),
+                    rows: [...card.querySelectorAll(':scope > .sb-row')].map((e) => [e.querySelector('.sb-row-k').textContent, e.querySelector(':scope > :not(.sb-row-k)').textContent, [...e.querySelectorAll('li')].map((x) => x.textContent)]),
+                    note: (card.querySelector(':scope > .sb-sentence') || {}).textContent || null }; });
+            const c0 = B.h.sea.cards[0], r = await grabCard();
+            const wx = c0.today.weatherLines.concat(c0.today.forecast ? [c0.today.forecast] : []);
+            assert.deepEqual(r.kids, ['sb-card-head', 'sb-tags', 'row:[' + c0.traits.label + ']', 'row:[기상 예보]'].concat(c0.today.otherLines.length ? ['row:[그 밖의 근거]'] : []).concat(c0.historyNote ? ['sb-sentence'] : []).concat(['row:[권고]']));
+            assert.equal(c0.traits.label, "사고현황('21~'25년)"); assert.equal(r.rows[0][1], c0.traits.text); assert.ok(/인명피해 사망 \d+명, 실종 \d+명$/.test(r.rows[0][1]), r.rows[0][1]);
+            assert.deepEqual(r.rows[1][2].length ? r.rows[1][2] : [r.rows[1][1]], wx); assert.ok(wx.length >= 1);
+            assert.ok(!/기준/.test(r.rows[0][1] + r.rows[1][1]), '사고현황·기상 예보 줄에 「기준」 없음');
+            assert.ok(!r.rows.some((x) => x[1].includes(c0.sourceLabel) && !x[0].startsWith('[권고')), '꼬리표(sourceLabel)와 같은 근거 줄은 되풀이하지 않음');
+            assert.equal(r.note, c0.historyNote); assert.ok(/^이 해역에서는 집계 기간 중 .+ 사고가 많이 기록되었습니다\.$/.test(r.note), r.note);
+            assert.equal(r.rows[r.rows.length - 1][0], '[권고]'); assert.equal(r.rows[r.rows.length - 1][1], c0.advice);
+            // 옛 판 카드(advice 없음) — 종전 [특성]·[오늘 예상]·문장
+            const old = JSON.parse(JSON.stringify(B.h)); for (const c of old.sea.cards) { delete c.advice; delete c.historyNote; c.traits.text = '2021~2025년 선박사고 18건(충돌 7·침수 5) · 제주도서부앞바다 · 232-2해구'; c.sentence = '옛 문장'; }
+            await page.evaluate(({ b, now }) => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), { ok: true, briefing: b, now: null }, { now }), { b: old, now: clock.now });
+            const o = await grabCard();
+            assert.deepEqual(o.kids, ['sb-card-head', 'sb-tags', 'row:[특성]', 'row:[오늘 예상]', 'sb-sentence']); assert.equal(o.note, '옛 문장');
+            await page.evaluate(({ b, now }) => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), { ok: true, briefing: b, now: null }, { now }), { b: B.h, now: clock.now });
         });
         await openAcc(page); await page.evaluate(() => document.getElementById('station-briefing-accordion-header').scrollIntoView());
         for (const [w, h] of [[380, 844], [1280, 900]]) { await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(250); await clean(page); await page.screenshot({ path: path.join(SHOT, 'briefing_top_' + w + '.png') }); await page.locator('#station-briefing-content').screenshot({ path: path.join(SHOT, 'briefing_' + w + '.png') }); }
