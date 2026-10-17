@@ -4,6 +4,7 @@
  * 역할  : 「활동지점 안전 브리핑」(파출소 관할) 서버 1단계 시험 — 고정 입력(가짜 자료)으로 규칙·AI 순서·검증·저장·일정·노출을 결정론적으로 확인한다.
  *         실제 AI·카카오·기상청 호출 없음(가짜 어댑터·가짜 fetch), 임시 폴더만 쓴다, 서버를 띄우지 않는다(라우터만 임시 포트).
  *         끝부분 「[A1]…[C9]」 = 독립 검토 3건(규칙·AI·운영, 2026-10-16)의 결함마다 1:1 회귀 — 모두 고치기 전 코드에서 실패함을 확인했다.
+ *         「[§11.10.6-2]」 = 같은 날 17:34 운영 오판(셈말·가리킴 말 + 해수욕장) · 지시문 셈말 금지.
  *         「[§11.10.6-1]」 = 2026-10-17 16:16 운영 실행 검사 오판(조사 도·괄호 속 이름·하지만·연도 년) — 설계서 §11.10.6.
  *         맨 끝 「[§11.10.5-1]…[§11.10.5-8]」 = 62048b15c 독립 검토 8건(설계서 §11.10.5 — 단계 아래쪽·입력에 없는 말·이름 없는 대목·다시 시도 순서·캐시·단계 말 꼴·이유 글 자름·대기 표 ⑪·평소처럼 관심) 1:1 — 고치기 전 코드(bde907bdd)에서 8건 모두 실패.
  *         그 앞 「[§11.10.4-1]…[§11.10.4-9]」 = 같은 날 사용자 결정(§11.10.4). 「[§11.10.3-1]…[§11.10.3-5]」 = 2026-10-17 사용자 결정(설계서 §11.10.3 — (고립 주의) 지점 표·육상 권고·해상 근거 칸·해양사고 위험예보·해구 줄은 넘을 때만·지도 재료) 1:1 — 고치기 전 코드(6ec172ffa)에서 5건 모두 실패.
@@ -1041,7 +1042,7 @@ const WIN = R.editionWindow('morning', T0);
         const batch = AI.batchInput([siK], null); assert.deepStrictEqual(batch.rules.sentences_per_paragraph, [3, 5]); assert.ok(batch.stations[0].kma_zones.includes('제주도남쪽바깥먼바다'), '해역 이름 목록은 관할마다(독립 검토 8)');
         assert.ok(batch.stations[0].shown.land.headline.startsWith('오늘 한림파출소 관할 연안의 단계는'), '이미 보이는 결론을 AI 에 알려 되풀이하지 않게');
         const pr = AI.buildPrompt(batch); assert.ok(pr.includes('3~5문장') && !pr.includes('1~2문장') && !pr.includes('required.'), '지시문도 분석 3~5문장(§11.10.4)');
-        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v7', 'sb-prompt-v7']);
+        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v8', 'sb-prompt-v8']);
     });
     await check('[§11.10] 관리자 오류 목록: 최근 3일(KST 날짜) 오류는 모두 남기고(종전 200개 상한 없음) 더 오래된 것만 지운다 · 안전 상한 5,000 은 지운 수를 남긴다 · status 가 전부(최근 것부터)', async () => {
         const mk = (iso, i) => ({ at: iso, stage: 'validate', provider: 'chatgpt', stations: ['k|' + i], reason: 'r' + i });
@@ -1618,6 +1619,13 @@ const WIN = R.editionWindow('morning', T0);
         // 독립 검토: 조사는 하나만(「한림공원도로」는 지어낸 길) · 괄호 속 쉼표 나열 별칭(장호항)은 허용.
         //   「정자해변도로를」은 종전부터 통과(placeCandidates 가 「…해변도」의 도를 조사로 떼어 「정자해변」으로 본다 — 이번 변경 밖, 설계서 §11.10.6 남은 빈칸)
         assert.deepStrictEqual(errs('한림공원도로 바람이 붑니다. 장호항에서 사람이 많고 삼양해안도로로 이어집니다. 따라서 평소처럼 관심이 필요합니다.'), ['place:한림공원도']);
+    });
+    await check('[§11.10.6-2] 17:34 운영 오판 — 셈말·가리킴 말(「세 해수욕장」·「이들 해수욕장」)과 접미사만 있는 낱말(「해수욕장 앞바다」)을 지명 앞 낱말로 붙이지 않음 · 지어낸 이름은 그대로 실패 · 지시문은 장소 수를 세지 말고 이름만 나열', () => {
+        const si = { name: 'x', allowed_places: ['꽃지해수욕장', '삼봉해수욕장', '기지포해수욕장'], place_stems: [], kma_zones: [], allowed_number_keys: [], levels: { sea: { x: 0 }, land: {} }, land: null };
+        const errs = (sea) => AI.validateOverview({ land: null, sea }, si).errors.filter((e) => !e.startsWith('shape'));
+        assert.deepStrictEqual(errs('꽃지해수욕장, 삼봉해수욕장, 기지포해수욕장 세 해수욕장에 사람이 많습니다. 이들 해수욕장은 물결 변화를 살펴야 합니다. 두 해수욕장 앞바다도 그렇습니다. 따라서 평소처럼 관심이 필요합니다.'), []);
+        assert.deepStrictEqual(errs('세 가짜해수욕장과 이들 만리포해수욕장. 따라서 평소처럼 관심이 필요합니다.'), ['place:가짜해수욕장', 'place:만리포해수욕장']);
+        assert.ok(AI.buildPrompt(AI.batchInput([], null)).includes('장소·해역 수를 세어 쓰지 않는다'));
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
