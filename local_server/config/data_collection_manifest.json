@@ -387,17 +387,17 @@
       "endpoint": "외부 호출 없음 — 위험예측·특보·조석 자료를 모아 파출소 관할 97곳 브리핑을 만든다(services/station_briefing.js · AI 총평은 관리자 설정)",
       "official": {
         "kind": "doc",
-        "text": "외부 공식 갱신이 아니라 우리 생성 일정 — 매일 07:30·17:30·23:00 공개(각 20분 전 07:10·17:10·22:40 에 만들기 시작) + 특보가 바뀔 때(사용자 확정 — 2026-10-17 아침 공개 07:30)",
+        "text": "외부 공식 갱신이 아니라 우리 생성 일정 — 매일 07:30·17:30·23:00 공개(각 40분 전 06:50·16:50·22:20 에 만들기 시작 — 2026-10-18 사용자 「40분전으로」) + 특보가 바뀔 때(사용자 확정 — 2026-10-17 아침 공개 07:30)",
         "evidence": [
           { "file": "client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md", "quote": "**오후 생성 = 17:30 확정**" },
           { "file": "client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md", "quote": "아침 보이는 시각은 07시 30분으로 변경함." }
         ]
       },
       "schedule": {
-        "text": "KST 07:10·17:10·22:40 만들기 시작(공개 07:30·17:30·23:00 — 그때까지는 이전 판) + 특보 변경 뒤 3분 조용할 때 곧바로(운영 서버에서만). 실행 실패·10시간 넘게 실행 없음·AI 분석 대신 규칙 분석은 오류현황에 남음",
-        "times": ["07:10", "17:10", "22:40"],
+        "text": "KST 06:50·16:50·22:20 만들기 시작(공개 07:30·17:30·23:00 — 공개 40분 전, §11.10.22 — 그때까지는 이전 판) + 특보 변경 뒤 3분 조용할 때 곧바로(운영 서버에서만). 실행 실패·10시간 넘게 실행 없음·AI 분석 대신 규칙 분석은 오류현황에 남음",
+        "times": ["06:50", "16:50", "22:20"],
         "evidence": [
-          { "file": "local_server/services/station_briefing_rules.js", "quote": "const EDITIONS = Object.freeze([{ kind: 'morning', h: 7, m: 10, ph: 7, pm: 30 }, { kind: 'evening', h: 17, m: 10, ph: 17, pm: 30 }, { kind: 'night', h: 22, m: 40, ph: 23, pm: 0 }]);" }
+          { "file": "local_server/services/station_briefing_rules.js", "quote": "const EDITIONS = Object.freeze([{ kind: 'morning', h: 6, m: 50, ph: 7, pm: 30 }, { kind: 'evening', h: 16, m: 50, ph: 17, pm: 30 }, { kind: 'night', h: 22, m: 20, ph: 23, pm: 0 }]);" }
         ]
       },
       "state": { "risk": "stationBriefing" },
