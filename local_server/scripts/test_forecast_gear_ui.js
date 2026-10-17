@@ -5,6 +5,8 @@
  *         ① 「기상청 해상 기상 전망」 관심 기상청 — 처음엔 7곳을 다 보이지 않고 「관심 기상청이 설정되지 않았습니다.」+[설정하기] ·
  *            설정 팝업은 한 곳만(라디오) · [초기화] 없음 · [완료] 저장 · [취소]·Esc·뒤로가기는 저장 없이 닫기 · ⚙ 로 다시 열기 ·
  *            여러 곳을 저장해 둔 옛 설정은 팝업 차례에서 첫 곳 하나로 · 한 곳 저장은 그대로 · 관심해역이 있으면 가장 많은 지방청.
+ *            ①-2 옛 기기 표시(officeLegacyZoneFallback) — 새 설치는 온보딩으로 관심해역을 골라도 안내 칸 · 이 판 전부터 관심해역을
+ *            쓰던 기기는 가장 많은 지방청 그대로 · 표시는 처음 한 번만(온보딩 함수가 생기기 전에) 정함.
  *         ② 「해역별 특보현황」 관심해역 ⚙ — 관심해역을 안 골랐을 때만 보임 · 누르면 온보딩 관심해역 화면(안내 → 해역 → 지도)
  *            · 마치면 안내 띠 + ⚙ 가 흐려지며 사라짐 · [건너뛰기]는 닫기만 · 첫 실행 흐름(딱지 있음)은 그대로.
  *         ③ 두 ⚙ 모두 머리 안 오른쪽 끝, 「활동지점 안전 브리핑」 ⚙ 와 같은 모양.
@@ -56,17 +58,36 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
          * 새 기기(새 브라우저 문맥). store 에 준 값을 처음 한 번만 localStorage 에 넣는다.
          * @param {Object} [o] - { store:{키:문자열}, width, reducedMotion } @returns {Promise<Page>}
          */
-        const device = async ({ store = {}, width = 412, reducedMotion = 'no-preference' } = {}) => {
+        const device = async ({ store = {}, width = 412, reducedMotion = 'no-preference', initScript = null } = {}) => {
             const ctx = await browser.newContext({ viewport: { width, height: 915 }, timezoneId: 'Asia/Seoul', reducedMotion }), page = await ctx.newPage();
             page.on('pageerror', (e) => errors.push(e.message));
             await page.route('**/*', (r) => r.request().url().startsWith(base) ? r.continue() : r.abort());
             await page.addInitScript((store) => { try { if (!sessionStorage.getItem('__g_init')) { sessionStorage.setItem('__g_init', '1'); Object.keys(store).forEach((k) => localStorage.setItem(k, store[k])); } } catch (e) { /* 저장소 없음 */ } }, store);
+            if (initScript) await page.addInitScript(initScript);
             await page.goto(base + '/');
+            await settle(page);
+            return page;
+        };
+        /** 페이지가 다 뜨고 종합 예보를 그릴 때까지 기다린 뒤 덮개를 치운다(처음 열 때·새로고침 뒤 공용). */
+        const settle = async (page) => {
             await page.waitForFunction(() => typeof window.toggleOfficeSettingsPanel === 'function' && typeof UserSettings !== 'undefined');
             await page.waitForTimeout(1500);   // marine_forecast.js 가 1.2초 뒤 종합 예보를 그린다
             await clean(page);
-            return page;
         };
+        /** 같은 기기에서 앱을 다시 연다(새로고침 — 저장소는 그대로, 시험용 처음 값은 다시 넣지 않는다). */
+        const reopen = async (page) => { await page.reload(); await settle(page); };
+        /**
+         * 온보딩 관심해역 화면에서 [설정 마치기]를 누른 것과 같은 저장·뒷정리를 한다
+         * (onboarding/zone_setup.js _save: UserSettings.set … → UserSettings.save() → loadRegionalForecast()).
+         * 지도 클릭으로 끝까지 가는 실제 흐름은 아래 ② 시나리오가 따로 시험한다.
+         * @param {Page} page @param {Object} zones - {구역·해역 이름: true|false}
+         */
+        const saveZonesLikeOnboarding = (page, zones) => page.evaluate(async (z) => {
+            Object.keys(z).forEach((k) => UserSettings.set(k, z[k])); UserSettings.save();
+            await window.loadRegionalForecast();
+        }, zones);
+        const JEJU_ONLY = { 동해: false, 서해: false, 남해: false, 제주: true };
+        const LEGACY_KEY = 'officeLegacyZoneFallback';
         /** 화면 위 덮개에 가려지지 않게 DOM click. */
         const tap = async (page, sel) => { await page.waitForSelector(sel, { state: 'attached' }); await page.evaluate((s) => document.querySelector(s).click(), sel); };
         const openMarine = async (page) => { await page.evaluate(() => { const b = document.getElementById('marine-forecast-accordion-body'); if (b.classList.contains('collapsed')) window.toggleMarineForecastAccordion(); }); await page.waitForTimeout(200); };
@@ -188,6 +209,88 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             await tap(q, '#regional-office-settings-btn'); await q.waitForSelector('#office-settings-panel');
             assert.deepEqual(await checkedCodes(q), ['184']);
             await q.context().close();
+        });
+
+        // ── ①-2 새로 설치한 사람 vs 이 판 전부터 관심해역을 쓰던 기기 (2026-10-17 사용자 확정) ──
+        //   원문: 「지금처럼 두자. 그렇지만 새롭게 설정하는 사람, 최초 설치한 사람 등에 대해서는 뜨도록 해야해.」
+        await check('새 설치: 첫 실행에서 옛 기기 표시를 한 번 정한다 — officeLegacyZoneFallback="0"(옛 기기 아님) · 안내 칸', async () => {
+            const q = await device();
+            assert.equal(await stored(q, LEGACY_KEY), '0');
+            await openMarine(q); assert.ok((await regionalText(q)).includes('관심 기상청이 설정되지 않았습니다.'));
+            await q.context().close();
+        });
+        await check('새 설치 → 바로 온보딩으로 관심해역(제주만) 저장 → 그래도 「설정되지 않았습니다」+[설정하기](관심해역으로 지방청을 고르지 않음)', async () => {
+            const q = await device();
+            await openMarine(q);
+            await saveZonesLikeOnboarding(q, JEJU_ONLY);
+            assert.equal(await q.evaluate(() => UserSettings.hasInterestZones()), true, '관심해역이 저장돼 있어야 시험이 뜻이 있다');
+            assert.ok((await regionalText(q)).includes('관심 기상청이 설정되지 않았습니다.'), await regionalText(q));
+            assert.equal(await q.locator('#regional-forecast-body button', { hasText: '설정하기' }).count(), 1);
+            assert.deepEqual(await officeCards(q), []);
+            // 같은 기기를 다시 열어도 그대로 — 관심해역이 생겼다고 다음 실행에 옛 기기로 바뀌지 않는다(한 번만 정함)
+            await reopen(q); await openMarine(q);
+            assert.equal(await stored(q, LEGACY_KEY), '0');
+            assert.ok((await regionalText(q)).includes('관심 기상청이 설정되지 않았습니다.'));
+            assert.deepEqual(await officeCards(q), []);
+            // 팝업 처음 선택도 비어 있다(관심해역에서 고른 곳을 미리 고르지 않음) → 제주를 고르면 제주
+            await tap(q, '.regional-office-unset-btn'); await q.waitForSelector('#office-settings-panel');
+            assert.deepEqual(await checkedCodes(q), []);
+            await pickRow(q, '184'); await tap(q, '[data-office-action=done]');
+            await q.waitForFunction(() => document.querySelectorAll('#regional-forecast-body .regional-forecast-office').length === 1);
+            assert.deepEqual(await officeCards(q), ['제주지방기상청 단기 전망']);
+            await q.context().close();
+        });
+        await check('순서: 옛 기기 표시는 온보딩(zone_setup.js 의 window.openZoneSetup)이 생기기 전에 이미 정해져 있다', async () => {
+            const q = await device({ initScript: () => {
+                // zone_setup.js 가 window.openZoneSetup 을 다는 순간의 표시 값을 적어 둔다
+                let fn; Object.defineProperty(window, 'openZoneSetup', { configurable: true, get: () => fn, set: (v) => { window.__legacyAtZoneSetup = localStorage.getItem('officeLegacyZoneFallback'); fn = v; } });
+            } });
+            assert.equal(await q.evaluate(() => window.__legacyAtZoneSetup), '0');
+            assert.equal(await q.evaluate(() => typeof window.openZoneSetup), 'function');
+            await q.context().close();
+        });
+        await check('옛 기기(관심해역을 새 판 전에 저장, 제주만) → 관심해역이 가장 많은 지방청(제주) · 표시 "1" · 다시 열어도 제주', async () => {
+            const q = await device({ store: { weatherAppSettings_v1: JSON.stringify(JEJU_ONLY) } });
+            assert.equal(await stored(q, LEGACY_KEY), '1');
+            await openMarine(q); assert.deepEqual(await officeCards(q), ['제주지방기상청 단기 전망']);
+            await reopen(q); await openMarine(q);
+            assert.equal(await stored(q, LEGACY_KEY), '1');
+            assert.deepEqual(await officeCards(q), ['제주지방기상청 단기 전망']);
+            await q.context().close();
+        });
+        await check('옛 기기 + 관심 기상청(부산)을 고르면 → 부산(고른 곳이 앞선다) · 다시 열어도 부산', async () => {
+            const q = await device({ store: { weatherAppSettings_v1: JSON.stringify(JEJU_ONLY) } });
+            await openMarine(q);
+            await tap(q, '#regional-office-settings-btn'); await q.waitForSelector('#office-settings-panel');
+            await pickRow(q, '159'); await tap(q, '[data-office-action=done]');
+            await q.waitForFunction(() => (document.querySelector('#regional-forecast-body .regional-forecast-office-name') || {}).textContent === '부산지방기상청 단기 전망');
+            await reopen(q); await openMarine(q);
+            assert.deepEqual(await officeCards(q), ['부산지방기상청 단기 전망']);
+            await q.context().close();
+        });
+        await check('옛 기기가 관심해역을 모두 지우면 → 안내 칸(기댈 관심해역이 없음) · 다시 고르면 관심해역 기준이 돌아온다', async () => {
+            const q = await device({ store: { weatherAppSettings_v1: JSON.stringify(JEJU_ONLY) } });
+            await openMarine(q);
+            await q.evaluate(async () => { UserSettings.settings = {}; UserSettings.save(); await window.loadRegionalForecast(); });
+            assert.ok((await regionalText(q)).includes('관심 기상청이 설정되지 않았습니다.'));
+            assert.equal(await stored(q, LEGACY_KEY), '1', '표시는 한 번 정하면 그대로');
+            await saveZonesLikeOnboarding(q, JEJU_ONLY);
+            assert.deepEqual(await officeCards(q), ['제주지방기상청 단기 전망']);
+            await q.context().close();
+        });
+        await check('관심 기상청을 이미 고른 채 새 판을 처음 연 기기(관심해역도 있음) → 표시 "0" · 고른 곳(대전) 그대로', async () => {
+            const q = await device({ store: { weatherAppSettings_v1: JSON.stringify(JEJU_ONLY), officeManualSettings: JSON.stringify({ 133: true }) } });
+            assert.equal(await stored(q, LEGACY_KEY), '0');
+            await openMarine(q); assert.deepEqual(await officeCards(q), ['대전지방기상청 단기 전망']);
+            await q.context().close();
+        });
+        await check('표시가 이미 정해진 기기는 다시 정하지 않는다 — 표시 "0"+관심해역 → 안내 칸 · 표시 "1"+관심해역 없음 → 안내 칸 · 표시 그대로', async () => {
+            const a = await device({ store: { weatherAppSettings_v1: JSON.stringify(JEJU_ONLY), [LEGACY_KEY]: '0' } });
+            await openMarine(a); assert.deepEqual(await officeCards(a), []); assert.equal(await stored(a, LEGACY_KEY), '0');
+            await a.context().close();
+            const b = await device({ store: { [LEGACY_KEY]: '1' } });
+            await openMarine(b); assert.ok((await regionalText(b)).includes('관심 기상청이 설정되지 않았습니다.')); assert.equal(await stored(b, LEGACY_KEY), '1');
+            await b.context().close();
         });
 
         // ── ③ 두 ⚙ 모양·자리 ────────────────────────────────────────
