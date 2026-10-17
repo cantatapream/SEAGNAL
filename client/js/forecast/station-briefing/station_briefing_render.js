@@ -22,7 +22,7 @@
  *         §11.10.20(시안 Land.dc.html ⑥판, 서버 규칙 v19): 연안 카드 — 배지 줄(연안 위험지수·해수욕장) · [위험구역] 「N개소」 → 표 「구역 종류 | 개소 수」 → [위치 보기] 지도(그 종류 위험구역 폴리곤 깜빡임 + 관광지 점)
  *         §11.10.23(서버 규칙 v21): 해역 카드 [최근 14일 선박 동향] 한 줄(「…많이 기록되었습니다」 다음 · [기상 예보] 앞 — 서버 card.traffic, 없으면 줄 없음) · 데이터 출처 한 줄.
  *         §11.10.22(서버 규칙 v20): 해구 표기 「75해구」·「223-9해구」(지도 풀이·링크 경계) · [기상 예보]·분석 문단 「유의파고 …」 굵게(옛 판 「최대 파고 …」도) · 해역 카드 [사고현황('21~'25년)] 내용은 이름표 다음 줄(연안 카드와 같은 모양).
- *                    · [사고현황('20~'24년)] 「총 N건」 → 표 「연도 | 사고 종류 | 건수」 · [오늘 예상] 하나면 점 없이 · [권고]. 맨 아래 「데이터 출처 보기」 접힌 표 「구분 | 자료 | 제공」 + 노란 두 줄 안내(기준 시각·다루는 시간 줄 없음).
+ *                    · [사고현황('20~'24년)] 「총 N건」 → 표 「연도 | 사고 종류 | 건수」 · [오늘 예상] 하나면 점 없이 · [권고]. 맨 아래 노란 안내 한 문장(기준 시각·다루는 시간 줄 없음 · 출처 표는 [기준 상세]에만 — 2026-10-18).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/bottom-sheet/ocean_bottom_sheet3.js(OceanSheet.tideGaugeHtml — 조석 게이지 디자인 그대로)
@@ -88,7 +88,7 @@
     function titleText(b) { var t = editionTime(b); return (t ? t + ' ' : '') + 'AI 연안 안전 브리핑'; }
     var DOW = ['일', '월', '화', '수', '목', '금', '토'];
     // 쓰는 자료와 출처 — [기준 상세] 표(station_briefing_basis.js)와 본문 꼬리 「출처」 줄이 이 한 벌을 같이 쓴다(2단계 검토 B10 — 둘이 어긋나 있었다).
-    // [자료, 출처, 쓰는 곳, 구분]. 구분(해상·기상·연안·물때 — 2026-10-18 「데이터 출처 보기」 표의 첫 칸, 설계서 §11.10.20)으로 묶어 그 순서대로 둔다. 출처는 수집기·자료 파일 머리 주석으로 확인한 것만(build_accidents.js 개방海 「선박사고(해경)」·「인명사고」, build_coast_accidents.py 유형·500m·2020~2024,
+    // [자료, 출처, 쓰는 곳, 구분]. 구분(해상·기상·연안·물때 — 2026-10-18 [기준 상세] 출처 표의 첫 칸, 설계서 §11.10.20)으로 묶어 그 순서대로 둔다. 출처는 수집기·자료 파일 머리 주석으로 확인한 것만(build_accidents.js 개방海 「선박사고(해경)」·「인명사고」, build_coast_accidents.py 유형·500m·2020~2024,
     // marine_fusion.js 선박사고 최근 5년(자료 마지막 해 2025), coastal_events_collector.js 관광공사+Gemini 보충, scheduler.js 이안류 KHOA+기상청, swell_smallzone.js 기상청 MMIS 너울).
     var SOURCES = [
         ['해양사고 위험예보(선박 사고위험 예보, 3시간)', '한국해양교통안전공단 MTIS', '해상 단계', '해상'],
@@ -1555,27 +1555,15 @@
         // ⑥ 조석(서해·남해·제주 관할)
         if (b.tide) { var s5 = section('조석', 'tide'); s5.body.appendChild(tide(b.tide, nowMs, b)); box.appendChild(s5.root); }
 
-        // ⑦ 데이터 출처 보기(접힘) · 안내 두 줄 — 2026-10-18 사용자 결정(설계서 §11.10.20, 시안 ⑥판) 원문 *"출처 이런 게 나오는데 너무 보기가 지저분한데 … 데이터 출처 보기 … 아코디언 … 체계적으로"*
+        // ⑦ 안내(종전 「데이터 출처 보기」 접힘은 2026-10-18 삭제) — 2026-10-18 사용자 결정(설계서 §11.10.20, 시안 ⑥판) 원문 *"출처 이런 게 나오는데 너무 보기가 지저분한데 … 데이터 출처 보기 … 아코디언 … 체계적으로"*
         //   · 기준 시각 줄 *"이걸 굳이 명시해야할까 ?"* → 다루는 시간도 *"아예 빼자."* · 안내 *"노란색 텍스트 … 출처 아코디언 밖으로"* · *"결과로, 다음 줄바꿔서 … 실제 현장상황과 다를 수 있습니다."*
-        //   안내는 저장된 판의 b.notice(옛 판은 「참고 정보이며 안전을 보장하지 않습니다.」)가 아니라 이 고정 두 줄 — 옛 판도 새 안내로 보인다.
-        var foot = el('div', 'sb-foot'), src = el('div', 'sb-src'); src.setAttribute('data-sb-sources', '');
-        var sx = expander('데이터 출처 보기', function (panel) { panel.appendChild(sourcesTable()); }, 'sources', true);
-        sx.btn.classList.add('sb-src-acc'); src.appendChild(sx.btn); src.appendChild(sx.panel); foot.appendChild(src);
+        //   안내는 저장된 판의 b.notice(옛 판은 「참고 정보이며 안전을 보장하지 않습니다.」)가 아니라 이 고정 글 — 옛 판도 새 안내로 보인다.
+        //   2026-10-18 「데이터 출처 보기」 아코디언 삭제 *"데이터 출처보기 버튼을 별도 아코디언으로 한다기보다 뺴줘. 어차피 기준 상세에 들어가 있잖아."* — 같은 SOURCES 표가 [기준 상세](station_briefing_basis.js)에 있다.
+        var foot = el('div', 'sb-foot');
         var nt = el('p', 'sb-notice'); nt.setAttribute('data-sb-notice', '');
-        nt.appendChild(document.createTextNode('각종 정보(API, 기상정보 등) 기반 AI 분석 결과로,')); nt.appendChild(document.createElement('br')); nt.appendChild(document.createTextNode('실제 현장상황과 다를 수 있습니다.'));
+        nt.textContent = '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.';   // 2026-10-18 *"한줄로 표출해주되, 어절단위로 줄바꿔줘"* — 강제 줄바꿈(br) 없이 한 문장, 넘치면 어절에서(.sb-notice keep-all)
         foot.appendChild(nt);
         box.appendChild(foot);
-    }
-    /**
-     * 「데이터 출처 보기」 안 표 「구분 | 자료 | 제공」 — SOURCES 한 벌(해상·기상·연안·물때 순, [기준 상세] 표와 같은 자료) 그대로. 좁으면 표 상자 안에서만 가로 스크롤(cellsTable).
-     * 예: sourcesTable() → <div class="sb-srcb-tblw"><table class="sb-srcb-tbl sb-src-tbl">… 13줄</table></div>
-     * @returns {HTMLElement} [연계] ← renderRest(⑦ expander build) / → cellsTable·SOURCES
-     */
-    function sourcesTable() {
-        var t = cellsTable(['구분', '자료', '제공'], SOURCES.map(function (r) { return [r[3] || '', r[0], r[1]]; }));
-        t.querySelector('table').classList.add('sb-src-tbl');
-        [].forEach.call(t.querySelectorAll('tbody tr'), function (tr) { tr.firstChild.classList.add('sb-src-grp'); });
-        return t;
     }
     // blinking() = 지금 깜빡이는 지도 수(시험이 접기·다시 그리기 뒤 0 인지 본다 — §11.10.3)
     w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, subtitleText: subtitleText, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, highlightSegments: highlightSegments, highlightNames: highlightNames, splitAdvice: splitAdvice, closeMapPopup: closeMapPopup, WORDS: WORDS, levelWord: levelWord, appendText: appendText, SOURCES: SOURCES, blinking: function () { return blinking; } };
