@@ -19,14 +19,14 @@
  * ============================================================================
  */
 'use strict';
-const express = require('express'), crypto = require('crypto');
+const express = require('express'), crypto = require('crypto'), R = require('../services/station_briefing_rules');   // R.nextPublishAt(§11.10.9 ⑦)
 // 앱 안(Capacitor WebView)용 md 내려받기 중계(§11.10.7) — admin_collect 의 PNG·CSV 저장(routes/usage.js /api/stats/usage/image)과 같은 원리: 맡기고 → 열쇠 → 시스템 브라우저가 GET.
 // 메모리에만 5분, 한 번 받으면 지운다. 크기 상한: 오류 보관 상한 5,000건 × 한 줄 수백 바이트 ≈ 수 MB 라 5MB(전역 express.json 상한과 같다).
 const DOWNLOAD_TTL_MS = 5 * 60000, DOWNLOAD_MAX = 20;
 
 /**
  * 라우터를 만든다(시험은 서비스·기기 판정·토큰 확인·인증 미들웨어를 바꿔 넣는다).
- * 예: createRouter({service: 가짜, isAdminDevice: id=>id==='t1', verifyToken: ()=>false, authorize: (q,s,n)=>n()})
+ * 예: createRouter({service: 가짜, isAdminDevice: id=>id==='t1', verifyToken: ()=>false, authorize: (q,s,n)=>n()}) · clock = 지금(ms — 시험이 가짜 시계로, nextPublishAt)
  * @param {object} o @returns {Router} [연계] ← server.js / → station_briefing.decideExposure·pick
  */
 function createRouter({
@@ -35,6 +35,7 @@ function createRouter({
     verifyToken = (t) => require('../services/admin_auth').verifyToken(t),
     authorize = (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next),
     nowLine = null,
+    clock = () => Date.now(),
 } = {}) {
     const router = express.Router(), SB = require('../services/station_briefing'), downloads = new Map();   // token → {name, text, exp}
     const svc = () => service || SB.forDefault();
@@ -60,7 +61,8 @@ function createRouter({
             if (!svc().stations().some((s) => s.key === key)) return res.status(404).json({ ok: false, error: '관할 없음' });
             const r = svc().pick({ key, day });
             let now = null; try { now = nowLine ? nowLine(key, r) : null; } catch (_) { now = null; }
-            res.json({ ok: true, audience: g.audience, display: true, ...r, now });
+            // nextPublishAt(§11.10.9 ⑦) = 다음 정시 판 공개 시각 — 화면 머리 「(다음 브리핑 갱신 HH:MM 또는 특보 변경 시)」
+            res.json({ ok: true, audience: g.audience, display: true, ...r, now, nextPublishAt: R.nextPublishAt(clock()) });
         } catch (e) { fail(res, e); }
     });
     // 오류 md 한 번 받기(§11.10.7 — 앱 안에서 [md로 저장]). 열쇠가 없거나 지났으면 404 글.
@@ -84,7 +86,7 @@ function createRouter({
             if (typeof key !== 'string' || !key) return res.status(400).json({ ok: false, error: '관할(station) 필요' });
             if (!['auto', 'today', 'tomorrow'].includes(day)) return res.status(400).json({ ok: false, error: 'day 는 auto·today·tomorrow' });
             if (!svc().stations().some((s) => s.key === key)) return res.status(404).json({ ok: false, error: '관할 없음' });
-            res.json({ ok: true, ...svc().pick({ key, day, withPending: true }) });   // 공개 예정 판(§11.10.4)이 있으면 그것을 「예정」으로(pending·publishAt)
+            res.json({ ok: true, ...svc().pick({ key, day, withPending: true }), nextPublishAt: R.nextPublishAt(clock()) });   // 공개 예정 판(§11.10.4)이 있으면 그것을 「예정」으로(pending·publishAt)
         } catch (e) { fail(res, e); }
     });
     router.put(admin + '/config', express.json({ limit: '8kb' }), (req, res) => { try { res.json({ ok: true, config: svc().writeConfig(req.body || {}) }); } catch (e) { fail(res, e); } });
@@ -131,7 +133,7 @@ function nowLineText({ at, count, gridCount, busiest }) {
  * @param {string} key @param {object} r - pick 결과 @returns {object|null} [연계] ← 기본 라우터 / → marine_fusion.briefing·nowLineText
  */
 function defaultNowLine(key, r) {
-    const SB = require('../services/station_briefing'), R = require('../services/station_briefing_rules');
+    const SB = require('../services/station_briefing');
     const now = Date.now(); if (!r.briefing || r.date !== R.kstDate(now)) return null;
     const st = SB.forDefault().stations().find((s) => s.key === key); if (!st) return null;
     const { stores } = require('./risk_forecast');

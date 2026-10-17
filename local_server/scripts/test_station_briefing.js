@@ -5,7 +5,7 @@
  *         실제 AI·카카오·기상청 호출 없음(가짜 어댑터·가짜 fetch), 임시 폴더만 쓴다, 서버를 띄우지 않는다(라우터만 임시 포트).
  *         끝부분 「[A1]…[C9]」 = 독립 검토 3건(규칙·AI·운영, 2026-10-16)의 결함마다 1:1 회귀 — 모두 고치기 전 코드에서 실패함을 확인했다.
  *         「[§11.10.6-2]」 = 같은 날 17:34 운영 오판(셈말·가리킴 말 + 해수욕장) · 지시문 셈말 금지.
- *         맨 끝 「[§11.10.9-1]…[§11.10.9-7]」 = 2026-10-17 사용자 결정(설계서 §11.10.9 — 「평소보다 위험이 높아진 곳」 표 · 대해구 위치·바다 상태 말(「기준」 없음) · 지금 밀집 두 줄 · 분석 문단 강조 · 마지막 「따라서」 → (권고) · 팝업 지도 재료).
+ *         맨 끝 「[§11.10.9-1]…[§11.10.9-8]」 = 2026-10-17 사용자 결정(설계서 §11.10.9 — 「평소보다 위험이 높아진 곳」 표 · 대해구 위치·바다 상태 말(「기준」 없음) · 지금 밀집 두 줄 · 분석 문단 강조 · 마지막 「따라서」 → (권고) · 팝업 지도 재료 · 머리 글).
  *         「[§11.10.6-1]」 = 2026-10-17 16:16 운영 실행 검사 오판(조사 도·괄호 속 이름·하지만·연도 년) — 설계서 §11.10.6.
  *         맨 끝 「[§11.10.5-1]…[§11.10.5-8]」 = 62048b15c 독립 검토 8건(설계서 §11.10.5 — 단계 아래쪽·입력에 없는 말·이름 없는 대목·다시 시도 순서·캐시·단계 말 꼴·이유 글 자름·대기 표 ⑪·평소처럼 관심) 1:1 — 고치기 전 코드(bde907bdd)에서 8건 모두 실패.
  *         그 앞 「[§11.10.4-1]…[§11.10.4-9]」 = 같은 날 사용자 결정(§11.10.4). 「[§11.10.3-1]…[§11.10.3-5]」 = 2026-10-17 사용자 결정(설계서 §11.10.3 — (고립 주의) 지점 표·육상 권고·해상 근거 칸·해양사고 위험예보·해구 줄은 넘을 때만·지도 재료) 1:1 — 고치기 전 코드(6ec172ffa)에서 5건 모두 실패.
@@ -1843,6 +1843,25 @@ const WIN = R.editionWindow('morning', T0);
         const sb = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing_render.js'), 'utf8'), sb);
         const segs = JSON.parse(JSON.stringify(sb.window.StationBriefingRender.highlightSegments('경북북부앞바다(대해구 75)는 잔잔합니다. 대해구 75 와 대해구 750 은 다릅니다.', ['경북북부앞바다'], [{ text: '경북북부앞바다(대해구 75)', key: '75' }, { text: '대해구 75', key: '75' }])));
         assert.deepStrictEqual(segs.filter((x) => x.cls).map((x) => x.cls + ':' + x.text + ':' + (x.key || '')), ['link:경북북부앞바다(대해구 75):75', 'link:대해구 75:75']);
+    });
+    await check('[§11.10.9-8] 머리 글 「10월 17일 17:30 기준 브리핑 (다음 브리핑 갱신 23:00 또는 특보 변경 시)」 — 시각은 제목과 같은 판 시각 · 다음 갱신 = 다음 정시 판 공개 시각(nextPublishAt, 오늘이 아니면 「내일」) · 판 종류·생성 시각 없음 · 라우터가 nextPublishAt 을 준다', async () => {
+        const t = (h) => Date.parse('2026-10-17T' + h + ':00+09:00');
+        assert.deepStrictEqual(['06:00', '07:30', '17:40', '22:59', '23:00', '23:30'].map((h) => R.nextPublishAt(t(h))), ['2026-10-17T07:30:00+09:00', '2026-10-17T17:30:00+09:00', '2026-10-17T23:00:00+09:00', '2026-10-17T23:00:00+09:00', '2026-10-18T07:30:00+09:00', '2026-10-18T07:30:00+09:00']);
+        const sb = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing_render.js'), 'utf8'), sb);
+        const SR = sb.window.StationBriefingRender, ev = { edition: 'evening', publishAt: '2026-10-17T17:30:00+09:00', generatedAt: '2026-10-17T17:10:05+09:00', targetDate: '2026-10-17' };
+        assert.equal(SR.subtitleText(ev, R.nextPublishAt(t('18:00')), t('18:00')), '10월 17일 17:30 기준 브리핑 (다음 브리핑 갱신 23:00 또는 특보 변경 시)');
+        assert.equal(SR.titleText(ev), '17:30 AI 연안 안전 브리핑', '제목과 같은 시각');
+        const mn = { edition: 'manual', generatedAt: '2026-10-17T18:31:20+09:00', targetDate: '2026-10-17' };
+        assert.equal(SR.subtitleText(mn, R.nextPublishAt(t('18:40')), t('18:40')), '10월 17일 18:31 기준 브리핑 (다음 브리핑 갱신 23:00 또는 특보 변경 시)', '관리자 판 — 「관리자 즉시 실행 판」·「생성」 없음');
+        const nt = { edition: 'night', publishAt: '2026-10-17T23:00:00+09:00', generatedAt: '2026-10-17T22:40:00+09:00', targetDate: '2026-10-18' };
+        assert.equal(SR.subtitleText(nt, R.nextPublishAt(t('23:05')), t('23:05')), '10월 17일 23:00 기준 브리핑 (다음 브리핑 갱신 내일 07:30 또는 특보 변경 시)');
+        assert.equal(SR.subtitleText(ev, null, t('18:00')), '10월 17일 17:30 기준 브리핑', 'nextPublishAt 이 없으면 괄호 없음');
+        // 라우터 — GET /api/station-briefing 응답에 nextPublishAt(가짜 시계)
+        const express = require('express'), { createRouter } = require('../routes/station_briefing');
+        const fake = { readConfig: () => ({ exposure: 'user' }), stations: () => [{ key: 'k' }], pick: () => ({ date: '2026-10-17', briefing: null }) };
+        const app = express(); app.use(createRouter({ service: fake, isAdminDevice: () => false, verifyToken: () => false, clock: () => t('17:40') }));
+        const server = http.createServer(app); await new Promise((r) => server.listen(0, '127.0.0.1', r));
+        try { const j = await (await fetch('http://127.0.0.1:' + server.address().port + '/api/station-briefing?station=k')).json(); assert.equal(j.nextPublishAt, '2026-10-17T23:00:00+09:00', JSON.stringify(j)); } finally { server.close(); }
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);

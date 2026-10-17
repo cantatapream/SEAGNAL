@@ -36,11 +36,25 @@
      * 판 시각 「HH:MM」 — 정시 판은 공개 시각(publishAt — 07:30·17:30·23:00), 특보 변경·관리자 판은 만든 시각(generatedAt).
      * publishAt 이 없는 옛 판(§11.10.4 전)은 만든 시각 — 그때는 만든 시각이 곧 판 시각(08:00·17:30·23:00)이었다.
      * 예: {edition:'morning',publishAt:'…T07:30:00+09:00',generatedAt:'…T07:10:05+09:00'} → '07:30' · {edition:'warning',generatedAt:'…T13:12:40+09:00'} → '13:12' · null → ''
-     * @param {Object} b - briefing @returns {string} [연계] ← titleText·editionLabel
+     * @param {Object} b - briefing @returns {string} [연계] ← titleText·editionLabel·subtitleText(editionIso 를 같이 쓴다 — 제목과 머리 글의 시각이 어긋나지 않게)
      */
-    function editionTime(b) {
-        var iso = b && SCHEDULED[b.edition] && b.publishAt ? b.publishAt : b && b.generatedAt, m = /T(\d{2}):(\d{2})/.exec(String(iso || ''));
-        return m ? m[1] + ':' + m[2] : '';
+    function editionTime(b) { var m = /T(\d{2}):(\d{2})/.exec(editionIso(b)); return m ? m[1] + ':' + m[2] : ''; }
+    /** 판 시각을 정하는 ISO 한 곳(제목·머리 글 공용). 예: 정시 판 → publishAt · 특보·관리자·옛 판 → generatedAt · null → ''. @param {Object} b @returns {string} [연계] ← editionTime·subtitleText */
+    function editionIso(b) { return String((b && SCHEDULED[b.edition] && b.publishAt ? b.publishAt : b && b.generatedAt) || ''); }
+    /**
+     * 본문 머리 글 — 2026-10-17 사용자 결정(설계서 §11.10.9 ⑦) 원문 *"10월 17일 몇시 브리핑, 몇시 기준 브리핑 이렇게 나왔으면 좋겠고 관리자 즉시 실행판이라고 그런 종류를 써놓을 필요는 없을 것 같아 그리고 몇 시에 생성됐는지도 적힐 필요 없을 것 같아
+     * 단 그 오른쪽에 괄호로서 다음 브리핑 갱신 시점 몇 시 … 또는 특보 변경 시 라고 하고 괄호를 닫았으면 좋겠거든."*
+     * 날짜·시각 = 제목 「HH:MM AI 연안 안전 브리핑」과 같은 판 시각(editionIso). 다음 갱신 = 서버 nextPublishAt(다음 정시 판 공개 시각) — 오늘이 아니면 「내일 HH:MM」. 없으면 괄호 없이.
+     * 예: subtitleText({edition:'evening',publishAt:'2026-10-17T17:30:00+09:00'}, '2026-10-17T23:00:00+09:00', 10-17 18:00) → '10월 17일 17:30 기준 브리핑 (다음 브리핑 갱신 23:00 또는 특보 변경 시)'
+     *     밤 23:05 · next '2026-10-18T07:30…' → '… (다음 브리핑 갱신 내일 07:30 또는 특보 변경 시)'
+     * @param {Object} b @param {string} [nextIso] - resp.nextPublishAt @param {number} nowMs @returns {string} [연계] ← render(.sb-edition)
+     */
+    function subtitleText(b, nextIso, nowMs) {
+        var iso = editionIso(b), d = /^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso), n = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(String(nextIso || ''));
+        var head = d ? (+d[1]) + '월 ' + (+d[2]) + '일 ' + d[3] + ':' + d[4] + ' 기준 브리핑' : dateText(b && b.targetDate) + ' 브리핑';
+        if (!n) return head;
+        var today = new Date(nowMs + 9 * 3600000).toISOString().slice(0, 10);
+        return head + ' (다음 브리핑 갱신 ' + (n[1] === today ? '' : '내일 ') + n[2] + ':' + n[3] + ' 또는 특보 변경 시)';
     }
     /**
      * 아코디언 제목 — 2026-10-17 사용자 *"연안 안전 브리핑 아코디언을 hh:mm AI 연안 안전 브리핑으로 변경해줘."*. 보이는 판의 시각을 앞에, 판이 없으면 시각 없이.
@@ -48,7 +62,7 @@
      * @param {Object|null} b @returns {string} [연계] ← station_briefing.js setTitle(#station-briefing-title)
      */
     function titleText(b) { var t = editionTime(b); return (t ? t + ' ' : '') + 'AI 연안 안전 브리핑'; }
-    /** 머리·꼬리의 판 이름. 예: 아침 판 → '07:30 판' · 밤 판 → '23:00 판(오늘 밤~내일)' · 특보 → '특보 변경 판'. @param {Object} b @returns {string} [연계] ← render·renderRest */
+    /** 머리·꼬리의 판 이름. 예: 아침 판 → '07:30 판' · 밤 판 → '23:00 판(오늘 밤~내일)' · 특보 → '특보 변경 판'. @param {Object} b @returns {string} [연계] ← renderRest(꼬리 — §11.10.9 ⑦ 부터 머리 글은 subtitleText) */
     function editionLabel(b) { if (!b) return ''; if (SCHEDULED[b.edition]) return editionTime(b) + ' ' + (EDITION[b.edition] || '판'); return EDITION[b.edition] || ''; }
     var DOW = ['일', '월', '화', '수', '목', '금', '토'];
     // 쓰는 자료와 출처 — [기준 상세] 표(station_briefing_basis.js)와 본문 꼬리 「출처」 줄이 이 한 벌을 같이 쓴다(2단계 검토 B10 — 둘이 어긋나 있었다).
@@ -288,7 +302,7 @@
     /**
      * 다음 판 안내 — 공개 시각(§11.10.4 — 20분 전부터 만들어 두었다가 이 시각에 보임)이 아직이면 「다음 브리핑 공개: …」, 이미 지났으면(서버가 늦게 켜진 경우 등) 「다음 브리핑을 준비 중입니다(… 공개 예정)」.
      * 예: nextText('2026-10-17T23:00:00+09:00', 10-17 21:30) → '다음 브리핑 공개: 10월 17일(토) 23:00' · 23:05 → '다음 브리핑을 준비 중입니다(10월 17일(토) 23:00 공개 예정)'
-     * @param {string} iso @param {number} nowMs @returns {string} [연계] ← render(브리핑 없음·fallback)
+     * @param {string} iso @param {number} nowMs @returns {string} [연계] ← render(브리핑 없음 — §11.10.9 ⑦ 부터 fallback 상자는 없음)
      */
     function nextText(iso, nowMs) { return Date.parse(iso) <= nowMs ? '다음 브리핑을 준비 중입니다(' + kstText(iso) + ' 공개 예정)' : '다음 브리핑 공개: ' + kstText(iso); }
     /**
@@ -308,7 +322,7 @@
         var top = el('div', 'sb-meta');
         var left = el('div', 'sb-meta-text');
         if (b && b.station) left.appendChild(el('strong', 'sb-station', (b.station.name || '') + (b.station.office ? ' · ' + b.station.office : '')));
-        if (b) left.appendChild(el('span', 'sb-edition', dateText(b.targetDate) + ' 브리핑 · ' + editionLabel(b) + ' · ' + kstText(b.generatedAt) + ' 생성'));
+        if (b) left.appendChild(el('span', 'sb-edition', subtitleText(b, resp && resp.nextPublishAt, nowMs)));   // §11.10.9 ⑦ — 판 종류·생성 시각 없음
         top.appendChild(left);
         var basis = el('button', 'rf-basis-btn sb-basis-btn', '기준 상세'); basis.type = 'button';
         basis.addEventListener('click', function (e) { e.stopPropagation(); if (w.RiskBasis) w.RiskBasis.open('briefing', basis); });
@@ -321,7 +335,7 @@
             box.appendChild(empty);
             return;
         }
-        if (resp.fallback) box.appendChild(el('p', 'sb-note', dateText(resp.wanted) + ' 브리핑(23:00 공개)이 아직 없어 ' + dateText(resp.date) + ' 브리핑을 보여 드립니다' + (resp.nextExpectedAt ? ' — ' + nextText(resp.nextExpectedAt, nowMs) : '') + '.'));
+        // 「○○ 브리핑(23:00 공개)이 아직 없어 ○○ 브리핑을 보여 드립니다 — 다음 브리핑 공개 …」 상자는 없앴다(§11.10.9 ⑦ — 사용자 *"그 박스 자체가"* 필요 없다). 다음 갱신 시각은 머리 글 괄호에 있다.
         // 관리자 미리보기의 공개 예정 판(§11.10.4 — 사용자 화면에는 공개 시각까지 이전 판)
         if (resp.pending) { var pn = el('p', 'sb-note sb-pending', '예정 — ' + kstText(resp.publishAt) + '에 공개될 판입니다. 지금 사용자 화면에는 ' + (resp.current ? '이전 판(' + kstText(resp.current.generatedAt) + ' 생성)' : '이 관할 브리핑 없음') + '이 보입니다.'); pn.setAttribute('data-sb-pending', ''); box.appendChild(pn); }
 
@@ -951,5 +965,5 @@
         box.appendChild(foot);
     }
     // blinking() = 지금 깜빡이는 지도 수(시험이 접기·다시 그리기 뒤 0 인지 본다 — §11.10.3)
-    w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, notesEmptyText: notesEmptyText, highlightSegments: highlightSegments, highlightNames: highlightNames, splitAdvice: splitAdvice, closeMapPopup: closeMapPopup, WORDS: WORDS, SOURCES: SOURCES, blinking: function () { return blinking; } };
+    w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, subtitleText: subtitleText, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, notesEmptyText: notesEmptyText, highlightSegments: highlightSegments, highlightNames: highlightNames, splitAdvice: splitAdvice, closeMapPopup: closeMapPopup, WORDS: WORDS, SOURCES: SOURCES, blinking: function () { return blinking; } };
 })(window);

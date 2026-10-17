@@ -122,6 +122,15 @@ function publishAtFor(kind, now) {
     return day + 'T' + pad(e.ph) + ':' + pad(e.pm) + ':00+09:00';
 }
 /**
+ * 지금 다음에 오는 정시 판 공개 시각(07:30·17:30·23:00 — EDITIONS ph:pm) — 화면 머리 「(다음 브리핑 갱신 23:00 또는 특보 변경 시)」(2026-10-17 사용자 결정 §11.10.9 ⑦).
+ * 예: 10-17 17:40 → '2026-10-17T23:00:00+09:00' · 23:00 정각 → '2026-10-18T07:30:00+09:00'(지난 것 말고 그다음) · 06:00 → 같은 날 07:30
+ * @param {number} now - ms @returns {string} KST ISO [연계] ← routes/station_briefing(GET /api/station-briefing·관리자 preview 의 nextPublishAt)
+ */
+function nextPublishAt(now) {
+    for (const d of [kstDate(now), kstDate(now + 24 * HOUR)]) for (const e of EDITIONS) { const iso = d + 'T' + pad(e.ph) + ':' + pad(e.pm) + ':00+09:00'; if (Date.parse(iso) > now) return iso; }
+    return null;
+}
+/**
  * 지금 만들기 시작해야 할 정시 판을 고른다 — 오늘 시작 시각이 지난 판 중 가장 늦은 것이 아직 없으면 그것 하나(시작 시각 = EDITIONS h:m, 공개는 publishAtFor).
  * 서버가 그 시각에 꺼져 있었으면 다음 판 시작 시각 전까지 늦게라도 만든다(같은 판을 두 번 만들지 않게 done 열쇠로 막는다).
  * 예: 07:10 → {kind:'morning',key:'2026-10-17|morning'} · 07:09 → 어제 night 가 done 이면 null · 17:09(아침 판 있음) → null · 17:10 → evening · 22:40 → night
@@ -1155,6 +1164,6 @@ function hash(v) { return crypto.createHash('sha256').update(stable(v)).digest('
 
 module.exports = {
     RULES_VERSION, WORD, SEA_ONLY_OFFICES, RELEASE_LINES, WAVE_M, WIND_MS, EDITIONS, SOURCE_LABEL, UNKNOWN_SOME, UNKNOWN_ALL, AFTER_RELEASE_SEA_H, AFTER_RELEASE_LAND_H,
-    isoKst, kstDate, md, editionWindow, publishAtFor, ruleAnalysis, landAnalysis, seaAnalysis, josa, SEA_STATE, seaStateOf, haeguPlace, haeguSentence, raisedTable, MIN_ANALYSIS_S, MAX_ANALYSIS_S, runsText, levelWord, sourceNames, dueEdition, displayDate, rangeText, warnTimeText, issuedText, warnAtSlot, slotOf, regionName, weatherFlow,
+    isoKst, kstDate, md, editionWindow, publishAtFor, nextPublishAt, ruleAnalysis, landAnalysis, seaAnalysis, josa, SEA_STATE, seaStateOf, haeguPlace, haeguSentence, raisedTable, MIN_ANALYSIS_S, MAX_ANALYSIS_S, runsText, levelWord, sourceNames, dueEdition, displayDate, rangeText, warnTimeText, issuedText, warnAtSlot, slotOf, regionName, weatherFlow,
     warningEvents, seaSection, landSpot, landSection, tideSection, buildSummary, isolationSummary, ACC_ONLY_NOTE, summaryLines, weatherSlotsFor, bulletinNotes, bulletinScan, pickNotes, zoneHit, shortList, weatherSummary, periodText, stripMarkup, expectText, buildBriefing, stable, hash, zoneKey, topicJosa, haversineKm, dayWordOf,
 };
