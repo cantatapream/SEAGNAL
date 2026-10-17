@@ -352,6 +352,8 @@ function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory
             people: people && !people.missing ? { ratio: people.ratio, score: people.score } : null, event: ev && ev.name ? { name: ev.name, weekend: !!ev.weekend } : null,
             swell: sw ? { periodS: sw.periodS } : null, rip: rip ? { level: rip.level } : null,
             notices: nt, released: released.filter((r) => !nt.effective.includes(r.name)),
+            // warnZone = 이 관광지가 든 특보구역(risk.coastWarnings zones.warn) — 브리핑 「기상특보 현황」 표의 특보구역 칸(rules.landWarnRows, 설계서 §11.10.16 소절 E1). 모르면 null
+            warnZone: (() => { if (typeof risk.coastWarnings !== 'function') return null; try { const cw = risk.coastWarnings(p.id); return (cw && cw.zones && cw.zones.warn) || null; } catch (_) { return null; } })(),
             hazard: hz ? { count: hz.count || 0, byType: (hz.byType || []).map((x) => ({ class: x.class, count: x.count })) } : null,
             // isolation = 고립 사고 수(총평 (고립 주의) 지점 표 — 2026-10-17 §11.10.3). 기록을 못 쓰면(available 아님) null — 0 과 가른다.
             isolation: acc ? acc.filter((a) => a.type === '고립').length : null,
