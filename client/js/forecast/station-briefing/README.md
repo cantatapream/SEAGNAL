@@ -13,7 +13,7 @@
 | 파일 | 역할 | 주요 함수 |
 |------|------|-----------|
 | `station_briefing.js` | 아코디언 본체 — 노출 판정·설정 흐름(관할 고르기·건너뛰기·숨김)·N 뱃지·바로가기·설정 팝업 칸 | `refreshDisplay`, `loadBriefing`, `renderSetup`, `finishSetup`, `renderConfirm`, `toggle`, `openSetup`, `updateBadge`, `openInRisk`, `renderSettings`, `applyVisibility`, `toast` |
-| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` | `render`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
+| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` | `render`, `summaryBody`(새 총평), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
 | `station_briefing_basis.js` | [기준 상세] 문안(위험예측 기준 상세 창 `RiskBasis.open('briefing')` 으로 연다) | (문자열 `RiskBasisContent.briefing`) |
 | `station_briefing.css` | `.sb-*` 모양(바깥 아코디언·안쪽 칸·조석 게이지·기준 창은 기존 CSS 재사용) | — |
 
@@ -38,6 +38,14 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - **출처 한 벌**: 본문 꼬리 「출처」 줄과 [기준 상세] 출처 표는 `StationBriefingRender.SOURCES` 하나를 같이 쓴다 — 출처를 고칠 때는 그 배열만.
 - **긴 본문**: 펼친 아코디언과 안쪽 칸은 높이 상한을 풀었다(`max-height:none` — 카드 최대치에서 아래가 잘리던 것).
 
+## 「총평과 권고」 새 모양(2026-10-17 사용자 결정 — 설계서 §11.10)
+
+- 육상(보일 때)·해상마다 **단계 배지 → 결론 한 줄(굵게) → (근거) 목록 → (권고) → (물때, 육상만) → AI 해설(있으면 「해설 · ChatGPT」)**.
+  결론·근거·권고·물때는 서버가 만든 `briefing.summary`, 해설만 AI(`overview.land/sea`, 1~2문장). 종전 「근거 ▸」 접힘은 없앴다(근거가 늘 보인다).
+- 틀(AI 없음·AI 실패)이면 해설 칸이 없고 작게 「AI 해설 없음 — 결론·근거·권고는 서버가 계산한 값입니다.」
+- `summary` 가 없는 브리핑(이 바꿈 전에 저장된 파일)은 종전 문단·「근거 ▸」 모양 그대로(`legacyOverview`).
+- 관리자 「AI 브리핑」 탭(`client/js/admin/admin_station_briefing.js`)은 최근 3일 오류를 모두 목록으로 보이고 [복사](마크다운)·[md로 저장](`station_briefing_errors_YYYYMMDD_HHmm.md`)을 준다.
+
 ## 시험
 
-`local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES) — 실제 Chromium 으로 index2.html 전체를 띄워 일반·관리자 기기, 설정 흐름, 본문 상태, textContent, 바로가기, N 뱃지, [기준 상세], 관리자 「AI 브리핑」 탭을 본다.
+`local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES) — 실제 Chromium 으로 index2.html 전체를 띄워 일반·관리자 기기, 설정 흐름, 본문 상태(새 총평 모양·옛 브리핑 대체·「AI 해설 없음」), textContent, 바로가기, N 뱃지, [기준 상세], 관리자 「AI 브리핑」 탭(오류 목록 [복사]·[md로 저장] 포함)을 본다.

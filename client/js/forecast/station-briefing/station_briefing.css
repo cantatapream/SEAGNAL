@@ -23,6 +23,16 @@
 .sb-chip { display:inline-block; padding:1px 8px; border-radius:999px; font-size:.74rem; font-weight:800; white-space:nowrap; }
 .sb-overview { margin:6px 0; color:#e2e8f0; }
 .sb-overview-k { color:#facc15; }
+/* 「총평과 권고」 새 모양(2026-10-17 §11.10) — 육상·해상마다 단계 배지 → 결론(굵게) → (근거) 목록 → (권고) → (물때) → AI 해설(작은 이름표) */
+.sb-sum { margin:4px 0 12px; }
+.sb-sum + .sb-sum { padding-top:10px; border-top:1px solid rgba(148,163,184,.18); }
+.sb-headline { margin:2px 0 6px; color:#f8fafc; font-weight:800; font-size:.9rem; }
+.sb-sum-k { margin:6px 0 2px; color:#94a3b8; font-size:.76rem; font-weight:700; }
+.sb-sum-advice { margin:6px 0; color:#fde68a; font-weight:700; }
+.sb-sum-advice .sb-sum-k { color:#94a3b8; }
+.sb-sum-tide { margin:2px 0; font-size:.8rem; }
+.sb-commentary { margin:8px 0 0; padding:6px 9px; border-left:3px solid rgba(103,232,249,.5); background:rgba(103,232,249,.06); border-radius:6px; color:#e2e8f0; font-size:.82rem; }
+.sb-commentary-k { color:#67e8f9; font-size:.7rem; font-weight:700; }
 .sb-now { margin:6px 0; padding:6px 9px; border-radius:8px; background:rgba(103,232,249,.08); color:#a5f3fc; font-size:.8rem; }
 .sb-basis, .sb-constant { margin-top:6px; }
 .sb-basis summary, .sb-constant summary { cursor:pointer; color:#93c5fd; font-size:.8rem; font-weight:700; }

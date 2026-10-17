@@ -2,22 +2,22 @@
  * ============================================================================
  * 파일명: local_server/services/station_briefing_rules.js
  * 역할  : 「활동지점 안전 브리핑」(파출소 관할 단위)의 판단 규칙 — 관할 하나의 입력 묶음(가짜 자료로도 만들 수 있는 평범한 객체)을 받아
- *         단계 말(관심·주의·경계 필요)·해역 카드·육상 카드·특별 상황(특보 해제 예고 등)·해상 시간 막대·조석 문구·틀 총평을 만든다.
- *         파일·네트워크·시계를 건드리지 않는 순수 함수만 둔다(같은 입력 → 같은 출력). AI 는 이 결과를 받아 총평 문장만 쓴다.
+ *         단계 말(관심·주의·경계 필요)·해역 카드·육상 카드·특별 상황(특보 해제 예고 등)·해상 시간 막대·조석 문구·「총평과 권고」 결론·근거·권고(summary)를 만든다.
+ *         파일·네트워크·시계를 건드리지 않는 순수 함수만 둔다(같은 입력 → 같은 출력). AI 는 이 결과를 받아 짧은 해설(1~2문장)만 쓴다(2026-10-17 결정 — 설계서 §11.10).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : 없음(Node 내장 crypto 만 — 입력 해시)
  *  - 서버 API      : 없음(routes/station_briefing.js 가 station_briefing.js 를 거쳐 결과를 낸다)
  *  - 마크업        : 없음(화면은 다음 단계 — 계약: client/js/ocean-map/coastal-risk/briefing.contract.md)
  *  - 나를 쓰는 곳  : services/station_briefing.js(생성) · services/station_briefing_ai.js(AI 입력·검증) · scripts/test_station_briefing.js
- *  - 설계 근거     : coastal_safety_forecast.design.md §11.6 결정 1~17 · scratchpad 구성안 §7(단계 말)·§8(뼈대)·§9 안 A·부록 A
+ *  - 설계 근거     : coastal_safety_forecast.design.md §11.6 결정 1~17 · §11.10(총평과 권고 구조 — 2026-10-17) · scratchpad 구성안 §7(단계 말)·§8(뼈대)·§9 안 A·부록 A
  * [로드 순서] 서버 require 부작용 없음.
  * ============================================================================
  */
 'use strict';
 const crypto = require('crypto');
 
-const RULES_VERSION = 'station-briefing-rules-v5'; // v5(2026-10-16 2단계 화면 독립 검토 B1·B12): 틀 총평 「관심 이상 N개 해역」을 총평 기준 수로(공식 사고예보 단계만 있는 해역은 따로 셈) · 경계 카드 문장의 「공식」을 출처별로 · v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구 · v4(같은 날 *"모두 추천대로."*): 공식 사고예보 「경계」도 「주의」처럼 기상·혼잡이 겹칠 때만 총평
+const RULES_VERSION = 'station-briefing-rules-v6'; // v6(2026-10-17 사용자 결정 §11.10): 총평을 서버가 만드는 결론·근거·권고(summary)로 — 틀 총평 문단(templateOverview) 폐지 · 육상 「관심 이상인 곳」 수를 카드 상한(10) 대신 전체 수로 · 해상 총평 후보 3곳 · SOURCE_LABEL 에 너울(swell) · v5(2026-10-16 2단계 화면 독립 검토 B1·B12): 틀 총평 「관심 이상 N개 해역」을 총평 기준 수로(공식 사고예보 단계만 있는 해역은 따로 셈) · 경계 카드 문장의 「공식」을 출처별로 · v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구 · v4(같은 날 *"모두 추천대로."*): 공식 사고예보 「경계」도 「주의」처럼 기상·혼잡이 겹칠 때만 총평
 const HOUR = 3600000, SLOT_H = 3;
 // 단계 말 — 사용자 확정(§11.6-8 Q1 「가」): 「관심 필요·주의 필요·경계 필요」. 해상의 주의·경계는 공식 자료(공식 사고예보·기상특보)가 그 단계일 때만.
 // 육상은 2026-10-16 결정 2(*"공식 단어 … 써도 상관없을 것 같다 … 어차피 판단은 사람들이 하는거잖아"*)로 연안 위험지수 단계도 주의·경계를 붙인다(landSpot).
@@ -44,8 +44,10 @@ const UNKNOWN_SOME = '확인 불가(일부)', UNKNOWN_ALL = '확인 불가';
 const SOURCE_LABEL = Object.freeze({
     accident: '공식 사고예보', congestion: '혼잡 예보', zoneForecasts: '해구 예보', warnings: '기상특보',
     concentration: '관광지 사람 집중률', hazard: '위험구역', events: '행사', rip: '이안류', gale: '강풍 자료', forecast: '해구 예보', detail: '관광지 상세',
+    // swell — risk_score.js 가 연안 하루 값 missing 에 넣는 열쇠(너울 자료 없음). 종전엔 이 표에 없어 영어 그대로 「swell」이 화면·AI 검증(required:missing:swell)에 나갔다(2026-10-17).
+    swell: '너울',
 });
-/** 원천 열쇠 목록을 사람이 읽는 이름으로(겹치면 하나). 예: ['accident','congestion'] → '공식 사고예보·혼잡 예보'. @param {string[]} keys @returns {string} [연계] ← templateOverview·station_briefing_ai */
+/** 원천 열쇠 목록을 사람이 읽는 이름으로(겹치면 하나). 예: ['accident','congestion'] → '공식 사고예보·혼잡 예보'. @param {string[]} keys @returns {string} [연계] ← landSummary·seaSummary·station_briefing_ai */
 function sourceNames(keys) { return [...new Set((keys || []).map((k) => SOURCE_LABEL[k] || k))].join('·'); }
 
 /** 두 자리 숫자로 만든다. 예: 6 → '06'. @param {number} n @returns {string} [연계] ← 시각 문구들 */
@@ -332,7 +334,7 @@ function seaSection(input, win, wev) {
         const sentence = (windowText ? windowText + ' ' : '') + '이 해역은 ' + (top ? top.label : '') + (x.rank === 3 ? alert3 : ' 근거로 운항 시 ' + SUBJECT[x.rank] + ' 필요합니다.') + (tops[0] ? ' 이 해역에서는 집계 기간 중 ' + tops[0].type + ' 사고가 가장 많이 기록되었습니다.' : '');
         return {
             rid: x.r.rid, name: x.nm.name, nameBase: x.nm.base, nameBaseKind: x.nm.baseKind, rank: x.rank, word: WORD[x.rank], overviewRank: x.overviewRank,
-            overview: x.oAts.length ? { rank: x.overviewRank, word: WORD[x.overviewRank], window: runsText(x.oAts, win.targetDate), label: runLabels(x.series.filter((q) => x.oAts.includes(q.at)), win.targetDate), at: x.oAts[0] } : null,
+            overview: x.oAts.length ? { rank: x.overviewRank, word: WORD[x.overviewRank], window: runsText(x.oAts, win.targetDate), label: runLabels(x.series.filter((q) => x.oAts.includes(q.at)), win.targetDate), labels: runLabelList(x.series.filter((q) => x.oAts.includes(q.at)), win.targetDate), at: x.oAts[0] } : null,
             sourceLabel: top ? top.label : null, window: windowText, peakAt: x.first >= 0 ? x.series[x.first].at : null,
             traits: { history: hasHist && h.count ? { from: h.from, to: h.to, count: h.count, topTypes: h.topTypes || [], death: h.death || 0, missing: h.missing || 0 } : { count: 0, available: hasHist }, zone: x.r.zone || null, haegu: x.r.haegu || null, text: traits.join(' · ') },
             today: { lines: todayLines, weather: flow, slots: x.series.map((q) => ({ at: q.at, rank: q.rank, labels: q.sources.map((s) => s.label) })) },
@@ -354,7 +356,8 @@ function seaSection(input, win, wev) {
     return {
         level: { rank, word: levelWord(rank, missing, 4), source: regions[0] ? regions[0].series[regions[0].first].sources[0].label : null, partial: missing.length > 0 },
         overviewLevel: { rank: oRank, word: levelWord(oRank, missing, 4) },
-        overviewTop: oRegions.slice(0, 2).map((x) => cards.find((c) => c.rid === x.r.rid) || toCard(x)),
+        // 총평 후보 3곳까지(2026-10-17 §11.10 — 근거 줄에 해역 3곳까지. 종전 2곳). 단계·거르기 규칙은 그대로.
+        overviewTop: oRegions.slice(0, 3).map((x) => cards.find((c) => c.rid === x.r.rid) || toCard(x)),
         // overviewRegions = 총평 기준(공식 사고예보 단계만 있는 칸을 거른 뒤) 관심 이상 해역 수 — 총평 단계(overviewLevel)와 같은 기준(2026-10-16 2단계 검토 B1).
         //   attentionRegions(카드·시간 막대 기준)와 다르면 그 차이 = 공식 사고예보 단계만 있는 해역 수. 틀 총평·AI 입력은 overviewRegions 를 쓴다.
         reviewedCells: sea.reviewedCells || 0, attentionRegions: regions.length, overviewRegions: oRegions.length, cards, timeBar, weather: worstFlow, weatherByHaegu: flows, missing: [...new Set(missing)],
@@ -364,12 +367,18 @@ function seaSection(input, win, wev) {
 /**
  * 총평용 근거 묶음 — 총평 단계 칸들에서 칸마다 가장 높은 근거 이름을 모아 근거별 시간대(이어진 묶음별)를 붙인다.
  * 예: 15·18시 공식 사고예보 '주의', 21시 예비특보 → "공식 사고예보 '주의'(15~21시)·제주도서부앞바다 풍랑주의보 예비특보(발효 예정 시각 이후)(21~24시)"
- * @param {object[]} run - 칸 판정 묶음 @param {string} targetDate @returns {string} [연계] ← seaSection(카드 overview.label) → templateOverview
+ * @param {object[]} run - 칸 판정 묶음 @param {string} targetDate @returns {string} [연계] ← seaSection(카드 overview.label) → AI 입력(stationInput) · 근거 줄(overviewLabelText)
  */
-function runLabels(run, targetDate) {
+function runLabels(run, targetDate) { return runLabelList(run, targetDate).map((x) => x.label + '(' + x.window + ')').join('·'); }
+/**
+ * runLabels 의 묶음을 글로 잇지 않고 [{label, window}] 로 — 총평 근거 줄(seaSummary)이 근거가 하나이고 시간대가 해역 창과 같으면 시간대를 되풀이하지 않게.
+ * 예: 15·18시 공식 사고예보 '주의' → [{label:"공식 사고예보 '주의'", window:'15~21시'}]
+ * @param {object[]} run @param {string} targetDate @returns {object[]} [연계] ← runLabels · seaSection(카드 overview.labels)
+ */
+function runLabelList(run, targetDate) {
     const by = new Map();
     for (const q of run) { const l = q.overviewSources[0]?.label; if (!l) continue; if (!by.has(l)) by.set(l, []); by.get(l).push(q.at); }
-    return [...by.entries()].slice(0, 3).map(([l, ats]) => l + '(' + runsText(ats, targetDate) + ')').join('·');
+    return [...by.entries()].slice(0, 3).map(([label, ats]) => ({ label, window: runsText(ats, targetDate) }));
 }
 /** 구역 이름 열쇠(띄어쓰기·가운뎃점·점 무시) — warn_zone_cells.zoneKey 와 같은 규칙. @param {string} s @returns {string} [연계] ← seaSection */
 function zoneKey(s) { return String(s || '').replace(/[\s·.]/g, ''); }
@@ -426,7 +435,8 @@ function landSection(input, win) {
     const cards = cardsAll.slice(0, MAX_LAND_CARDS).map(({ s, j }) => ({
         id: s.id, name: s.name, rank: j.rank, word: j.word, sourceLabel: j.sourceLabel, index: s.index ?? null, band: s.band || null, peakAt: s.peakAt || null,
         traits: { hazard: s.hazard || null, history: s.history || null, beach: !!s.beach, text: traitText(s) || '기록된 위험구역·연안사고 없음' },
-        today: { changes: j.changes.map((c) => c.text), text: j.changes.map((c) => c.text).join(' · ') },
+        // kinds = changes 와 같은 순서의 요소 종류(people·event·swell·rip·warning·prewarn·drift·released) — 총평 근거 줄이 여러 곳 공통 특보·바람을 한 번만 쓰는 데 쓴다(§11.10).
+        today: { changes: j.changes.map((c) => c.text), kinds: j.changes.map((c) => c.kind), text: j.changes.map((c) => c.text).join(' · ') },
         sentence: s.name + ' — ' + j.changes.map((c) => c.text).join(', ') + '. 물가 접근에 ' + SUBJECT[j.rank] + ' 필요합니다.',
         missing: s.missing || [], link: { spotId: s.id, lat: s.lat, lon: s.lon, date: win.targetDate },
     }));
@@ -440,7 +450,9 @@ function landSection(input, win) {
         // 검토한 관광지 수 = 연안 하루 값을 실제로 받은 곳만(상세 실패 'detail' 은 셈에서 뺀다 — 독립 검토 낮음). 실패 수는 failedSpots.
         reviewedSpots: spots.filter((s) => !(s.missing || []).includes('detail')).length, failedSpots: spots.filter((s) => (s.missing || []).includes('detail')).length,
         // attentionSpots = 관심 이상 관광지 전체 수(카드는 단계 높은 순 MAX_LAND_CARDS 곳까지 — 화면이 「카드는 10곳까지」를 밝힌다, 2단계 검토 B5).
-        reviewedHazards: (land.hazardOnly || []).length, attentionSpots: cardsAll.length, cards, constant, overviewTop: cards.slice(0, 3), missing,
+        // attentionByRank = 관심 이상 관광지 전체를 단계별로 센 것({1:관심,2:주의,3:경계}) — 총평 근거 「주의 3곳 · 관심 9곳」은 카드 상한과 상관없이 이 수(§11.10).
+        reviewedHazards: (land.hazardOnly || []).length, attentionSpots: cardsAll.length, attentionByRank: { 1: cardsAll.filter((x) => x.j.rank === 1).length, 2: cardsAll.filter((x) => x.j.rank === 2).length, 3: cardsAll.filter((x) => x.j.rank === 3).length },
+        cards, constant, overviewTop: cards.slice(0, 3), missing,
     };
 }
 /**
@@ -472,54 +484,90 @@ function tideSection(tide, win) {
     return { anchor: { id: tide.anchorId, distKm: tide.distKm }, region: tide.region || null, date: tide.date, gauge: { curve: tide.curve || [], peaks: tide.peaks, prevPeak: tide.prevPeak || null, nextPeak: tide.nextPeak || null, unit: 'cm' }, rocks: r || null, text };
 }
 
+// 「총평과 권고」 서버 결론 — 2026-10-17 사용자 결정(설계서 §11.10, 원문 *"오늘 한림파출소 관할 연안의 단계는 "주의 필요" 입니다. (줄바꿈) (근거)가 나오도록하고 싶고 … 처음보는 사람 입장에서 근거가 이해가 안되지 않겠어?"* → *"위 추천대로 결정."*).
+// 결론 한 줄(headline) · 근거 목록(basis) · 권고 한 줄(advice) · 물때(tide, 육상만)를 서버가 서버 값만으로 만든다. AI 는 그 아래 짧은 해설(1~2문장)만 쓴다(station_briefing_ai).
+// 종전 틀 총평 문단(templateOverview — 3~5문장 한 덩어리)은 없앴다: 결론 줄이 없고 「관심 이상」 같은 용어·지수가 장소와 따로 놀고 같은 이유가 장소마다 되풀이됐다.
+const RANK_SHORT = ['', '관심', '주의', '경계'];
+// 여러 장소에 같은 글로 붙는 요소(특보·예비특보·해제 뒤·해안 바람) — 근거 목록에서 장소마다 되풀이하지 않고 한 줄로 모은다.
+const SHARED_KINDS = new Set(['warning', 'prewarn', 'released', 'drift']);
 /**
- * 틀 총평(AI 없음·AI 실패 때) — 육상 한 문단 + 해상 한 문단, 각 3~5문장, 원인·시간 흐름 포함(§11.6-9). 숫자·지명은 서버가 정한 값만 쓴다.
- * 예: 해상 '오늘 한림파출소 관할 해상은 주의 필요입니다(관할 안 52칸 검토, 관심 이상 4개 해역). 232 해구 15시부터 파고 2.4m·… . 15~18시 비양도 … 따라서 …'
- * @param {object} b - buildBriefing 의 중간 결과(station·sea·land·special·tide) @returns {object} {land:string|null, sea:string}
- * [연계] ← buildBriefing · station_briefing_ai(실패 시 대체) / 검증(validateOverview)을 통과해야 한다(시험)
+ * 육상 「총평과 권고」. 근거 첫 줄의 수는 관심 이상 관광지 **전체**(attentionSpots·attentionByRank — 카드 상한 10곳이 아니다, 2026-10-17 버그 수정).
+ * 예: 한림(관심 이상 12곳) → {headline:'오늘 한림파출소 관할 연안의 단계는 "주의 필요"입니다.',
+ *       basis:['관할 관광지 30곳 중 평소보다 위험이 높아진 곳 12곳 (주의 3곳 · 관심 9곳)', '금능석물원 — 연안 위험지수 92(높음), 사람 평소의 2.2배', '월령포구 — 사람 평소의 1.8배',
+ *              '풍랑주의보 예비특보(10월 18일 00~06시 발효 예정, 04:00 발표) — 금능석물원·월령포구 공통'],
+ *       advice:'금능석물원·월령포구·한림공원 주변 물가 접근에 주의가 필요합니다.', tide:['08:16 저조 뒤부터 …']}
+ *     관심 이상 없음 → basis ['관할 관광지 4곳 — 평소와 달라진 요소(…)가 확인되지 않았습니다', '상시 위험 장소: …'], advice '물가 접근 시 평소처럼 관심이 필요합니다.'
+ * @param {object} b - buildBriefing 의 중간 결과 @param {string} dayWord - 오늘|내일 @returns {object|null} 해상만 관할이면 null
+ * [연계] ← buildSummary / 화면: station_briefing_render.js 「총평과 권고」 / AI 허용 숫자: station_briefing_ai.stationInput(summaryLines)
  */
-function templateOverview(b) {
-    const st = b.station.name, dayWord = dayWordOf(b);
-    const sea = b.sea, s = [], top = sea.overviewTop[0], miss = sea.missing.length ? sourceNames(sea.missing) : null;
-    // 빠진 원천은 첫 문장에 밝힌다(A2) — 남은 자료로 0 이어도 「평소 수준」·「없습니다」라 쓰지 않는다.
-    // 「관심 이상 N개 해역」은 총평 단계와 같은 기준(overviewRegions) — 종전엔 카드 기준 수를 써서 「평소 수준입니다(… 관심 이상 1개 해역)」처럼 어긋났다(2026-10-16 2단계 검토 B1).
-    //   공식 사고예보 단계만 있는 해역은 따로 센다(해상 분석 카드·시간 막대에는 있다).
-    const oCount = Number.isFinite(sea.overviewRegions) ? sea.overviewRegions : sea.attentionRegions, accOnly = sea.attentionRegions - oCount;
-    const counts = '관할 안 ' + sea.reviewedCells + '칸 검토, ' + (miss ? '확인된 자료 기준 ' : '') + '관심 이상 ' + oCount + '개 해역' + (accOnly > 0 ? ', 공식 사고예보 단계만 있는 해역 ' + accOnly + '개' : '');
-    s.push(dayWord + ' ' + st + ' 관할 해상은 ' + sea.overviewLevel.word + '입니다' + (miss ? ' — ' + miss + ' 자료를 확인하지 못해 그 근거는 판단에서 뺐습니다(' + counts + ').' : '(' + counts + ').'));
-    s.push(sea.weather ? sea.weather.text + '.' : '해구 예보 자료를 확인하지 못했습니다.');
-    if (top) s.push(top.overview.window + ' ' + top.name + '의 근거는 ' + top.overview.label + '입니다.');
-    // 공식 사고예보 단계만 있는 해역이 없는데 「공식 사고예보 단계만 있고」라 쓰지 않는다(B1 — 관심 이상 해역이 아예 없는 날).
-    else s.push(miss ? '확인된 자료에서는 기상·혼잡 근거가 겹치는 해역을 찾지 못했습니다(빠진 자료의 근거는 알 수 없습니다).' : accOnly > 0 ? '공식 사고예보 단계만 있고 기상·혼잡 근거가 함께 겹치는 해역은 없습니다.' : '기상·혼잡·특보 근거가 있는 해역은 확인되지 않았습니다.');
-    const rel = b.special.find((x) => x.kind === 'release' || x.kind === 'released'), pre = b.special.find((x) => x.kind === 'prewarn');
-    if (rel) s.push(rel.title + ' — ' + RELEASE_LINES[0]);
-    else if (pre) s.push(pre.title + '입니다.');
-    s.push(top ? '따라서 ' + top.overview.window + '경 ' + top.name + ' 운항에 ' + SUBJECT[top.overview.rank] + ' 필요합니다.' : miss ? '따라서 출항 전 기상청 특보·예보를 직접 확인하는 데 관심이 필요합니다.' : '따라서 출항 전 기상 확인에 관심이 필요합니다.');
-    let land = null;
-    if (b.land) {
-        const l = [], lt = b.land.overviewTop, lm = b.land.missing.length ? sourceNames(b.land.missing) : null;
-        if (lt.length) {
-            l.push(dayWord + ' ' + st + ' 관할 육상은 ' + b.land.level.word + '입니다(' + (b.land.level.source ? '근거 ' + b.land.level.source + ' — ' : '') + '관광지 ' + b.land.reviewedSpots + '곳 검토, 관심 이상인 곳 ' + b.land.cards.length + '곳' + (lm ? ', 확인하지 못한 자료: ' + lm : '') + ').');
-            l.push(lt[0].name + topicJosa(lt[0].name) + ' ' + dayWord + ' ' + lt[0].today.changes.join(', ') + ' 요소가 있습니다.');
-            if (lt[1]) l.push(lt[1].name + '도 ' + lt[1].today.changes.join(', ') + ' 요소가 있습니다.');
-            l.push('따라서 ' + lt.map((c) => c.name).join('·') + ' 주변 물가 접근에 ' + SUBJECT[lt[0].rank] + ' 필요합니다.');
-        } else {
-            l.push(dayWord + ' ' + st + ' 관할 육상은 ' + (lm ? b.land.level.word + '입니다 — ' + lm + ' 자료를 확인하지 못했고, 확인된 자료에서는 ' : '') + '평소와 달라진 요소(사람·행사·너울·이안류·특보·바람)가 확인되지 않았습니다.');
-            const c = b.land.constant.slice(0, 3).map((x) => x.name);
-            l.push(c.length ? '상시 위험 장소로 ' + c.join('·') + ' 등이 있습니다.' : '관할에 연결된 관광지·위험구역 자료가 없습니다.');
-            l.push('물가 접근 시 평소처럼 관심이 필요합니다.');
+function landSummary(b, dayWord) {
+    const land = b.land; if (!land) return null;
+    const lt = land.overviewTop || [], miss = land.missing.length ? sourceNames(land.missing) : null, basis = [];
+    const headline = dayWord + ' ' + b.station.name + ' 관할 연안의 단계는 "' + land.level.word + '"입니다.';
+    if (lt.length) {
+        const by = land.attentionByRank || {}, parts = [3, 2, 1].filter((r) => by[r] > 0).map((r) => RANK_SHORT[r] + ' ' + by[r] + '곳');
+        basis.push('관할 관광지 ' + land.reviewedSpots + '곳 중 평소보다 위험이 높아진 곳 ' + land.attentionSpots + '곳' + (parts.length ? ' (' + parts.join(' · ') + ')' : ''));
+        // 공통 요소: 상위 장소 두 곳 이상에 같은 글로 붙은 특보·예비특보·해제 뒤·해안 바람.
+        const who = new Map();
+        for (const c of lt) {
+            const kinds = c.today.kinds || [];
+            [...new Set((c.today.changes || []).filter((t, i) => SHARED_KINDS.has(kinds[i])))].forEach((t) => who.set(t, (who.get(t) || []).concat(c.name)));
         }
-        if (b.tide && b.tide.text[0]) l.push(b.tide.text[0]);
-        land = l.slice(0, 5).join(' ');
+        const shared = [...who.entries()].filter(([, names]) => names.length >= 2), sharedSet = new Set(shared.map(([t]) => t));
+        for (const c of lt) {
+            // 단계 출처가 연안 위험지수면 그 장소 줄에 지수를 붙인다(종전엔 첫 문장에 따로 있어 어느 장소 값인지 알 수 없었다).
+            const idx = /^연안 위험지수/.test(c.sourceLabel || '') ? '연안 위험지수' + (Number.isFinite(c.index) ? ' ' + c.index : '') + (c.band ? '(' + c.band + ')' : '') : null;
+            const own = [idx].concat((c.today.changes || []).filter((t) => !sharedSet.has(t))).filter(Boolean);
+            basis.push(c.name + ' — ' + (own.length ? own.join(', ') : '아래 공통 요소'));
+        }
+        for (const [t, names] of shared) basis.push(t + ' — ' + names.join('·') + ' 공통');
+    } else {
+        basis.push('관할 관광지 ' + land.reviewedSpots + '곳 — ' + (miss ? '확인된 자료에서는 ' : '') + '평소와 달라진 요소(사람·행사·너울·이안류·특보·바람)가 확인되지 않았습니다');
+        const c = land.constant.slice(0, 3).map((x) => x.name);
+        basis.push(c.length ? '상시 위험 장소: ' + c.join('·') + (land.constant.length > 3 ? ' 등' : '') : '관할에 연결된 관광지·위험구역 자료가 없습니다');
     }
-    return { land, sea: s.slice(0, 5).join(' ') };
+    if (miss) basis.push('확인하지 못한 자료: ' + miss);
+    const advice = lt.length ? lt.map((c) => c.name).join('·') + ' 주변 물가 접근에 ' + SUBJECT[lt[0].rank] + ' 필요합니다.' : '물가 접근 시 평소처럼 관심이 필요합니다.';
+    return { headline, basis, advice, tide: b.tide ? b.tide.text.slice() : [] };
+}
+/** 해역 총평 근거 꼬리 — 근거가 하나이고 그 시간대가 해역 창과 같으면 시간대를 되풀이하지 않는다. 예: {window:'06~24시', labels:[{label:"공식 사고예보 '경계'",window:'06~24시'}]} → "공식 사고예보 '경계'". @param {object} ov - 카드 overview @returns {string} [연계] ← seaSummary */
+function overviewLabelText(ov) { const l = ov.labels; return Array.isArray(l) && l.length === 1 && l[0].window === ov.window ? l[0].label : ov.label; }
+/**
+ * 해상 「총평과 권고」. 근거 = 검토 칸·위험이 높아진 해역 수(총평 기준 overviewRegions) · 공식 사고예보 단계만 있는 해역 수 · 해구 예보 흐름 · 해역 3곳까지 · 해제 예고/예비특보 한 번 · 확인하지 못한 자료.
+ * 예: → {headline:'오늘 한림파출소 관할 해상의 단계는 "경계 필요"입니다.', basis:['관할 해역 52칸 검토 — 평소보다 위험이 높아진 해역 2개', '대해구 232 예보는 15시부터 …',
+ *       "06~24시 한림매일시장 북방 0.6해리 해역(232-2해구) — 공식 사고예보 '경계'", '제주도북부앞바다 풍랑주의보 — 06~09시 해제 예고(…)'], advice:'06~24시경 한림매일시장 북방 0.6해리 해역(232-2해구) 운항에 경계가 필요합니다.'}
+ * @param {object} b @param {string} dayWord @returns {object} [연계] ← buildSummary
+ */
+function seaSummary(b, dayWord) {
+    const sea = b.sea, top = sea.overviewTop || [], miss = sea.missing.length ? sourceNames(sea.missing) : null, basis = [];
+    const oCount = Number.isFinite(sea.overviewRegions) ? sea.overviewRegions : sea.attentionRegions, accOnly = Math.max(0, sea.attentionRegions - oCount);
+    const headline = dayWord + ' ' + b.station.name + ' 관할 해상의 단계는 "' + sea.overviewLevel.word + '"입니다.';
+    basis.push('관할 해역 ' + sea.reviewedCells + '칸 검토 — ' + (miss ? '확인된 자료 기준 ' : '') + '평소보다 위험이 높아진 해역 ' + oCount + '개');
+    if (accOnly > 0) basis.push('공식 사고예보 단계만 있는 해역 ' + accOnly + '개는 기상·혼잡 근거가 겹치지 않아 총평에 넣지 않았습니다');
+    if (sea.weather) basis.push(sea.weather.text);
+    else if (!sea.missing.includes('zoneForecasts')) basis.push('해구 예보 자료를 확인하지 못했습니다');
+    for (const c of top) basis.push(c.overview.window + ' ' + c.name + ' — ' + overviewLabelText(c.overview));
+    const rel = b.special.find((x) => x.kind === 'release' || x.kind === 'released'), pre = b.special.find((x) => x.kind === 'prewarn');
+    for (const x of [rel, pre]) if (x) basis.push(x.title);
+    if (miss) basis.push('확인하지 못한 자료: ' + miss + ' — 그 근거는 판단에서 뺐습니다');
+    const advice = top[0] ? top[0].overview.window + '경 ' + top[0].name + ' 운항에 ' + SUBJECT[top[0].overview.rank] + ' 필요합니다.' : miss ? '출항 전 기상청 특보·예보를 직접 확인하는 데 관심이 필요합니다.' : '출항 전 기상 확인에 관심이 필요합니다.';
+    return { headline, basis, advice };
 }
 /**
- * 관할 하나의 브리핑 요소 전체를 만든다(AI 총평 제외 — overview 는 틀로 채워 두고 AI 가 성공하면 바꾼다).
- * 예: buildBriefing(한림 입력, editionWindow('morning',…), {generatedAt}) → {schema,key,station,sea,land,special,tide,overview:{source:'template',…},…}
+ * 브리핑의 「총평과 권고」 서버 결론 묶음. 예: buildSummary(b) → {land:{headline,basis,advice,tide}|null, sea:{headline,basis,advice}}
+ * @param {object} b - buildBriefing 중간 결과(station·sea·land·special·tide·generatedAt·targetDate) @returns {object}
+ * [연계] ← buildBriefing · station_briefing_ai.stationInput(옛 브리핑에 summary 가 없을 때)
+ */
+function buildSummary(b) { const dw = dayWordOf(b); return { land: landSummary(b, dw), sea: seaSummary(b, dw) }; }
+/** summary 의 글을 한 줄씩 모은다(AI 허용 숫자·사실 문장). 예: summaryLines({sea:{headline:'…',basis:['a'],advice:'b'}}) → ['…','a','b']. @param {object} s @returns {string[]} [연계] ← station_briefing_ai.stationInput */
+function summaryLines(s) { return [s && s.land, s && s.sea].filter(Boolean).flatMap((x) => [x.headline, ...(x.basis || []), x.advice, ...(x.tide || [])]).filter(Boolean); }
+/**
+ * 관할 하나의 브리핑 요소 전체를 만든다. 「총평과 권고」의 결론·근거·권고(summary)는 서버가 만들고, AI 해설(overview.land·sea)은 비워 둔다 —
+ * AI 가 성공하면 station_briefing.run 이 해설을 채운다(실패·틀 방식이면 해설 없음, source 'template').
+ * 예: buildBriefing(한림 입력, editionWindow('morning',…), {generatedAt}) → {schema,key,station,sea,land,special,tide,summary:{land,sea},overview:{land:null,sea:null,source:'template'},…}
  * @param {object} input - 관할 입력 묶음(station_briefing_inputs.gather 또는 시험 고정 자료) @param {object} win - editionWindow @param {object} meta - {generatedAt}
  * @returns {object} 브리핑(저장·API 응답 본문)
- * [연계] ← station_briefing.run / → seaSection·landSection·tideSection·warningEvents·templateOverview
+ * [연계] ← station_briefing.run / → seaSection·landSection·tideSection·warningEvents·buildSummary
  */
 function buildBriefing(input, win, meta = {}) {
     // 특보 원천이 ok 가 아니면(낡음·없음) 해제 예고·예비 칸·사건도 만들지 않는다 — 단계 판정(slotOf ok.warnings)과 같은 규칙(독립 검토 A3, marine_fusion warningsAt 과 같게).
@@ -534,11 +582,11 @@ function buildBriefing(input, win, meta = {}) {
         kmaOutlook: input.kmaOutlook ? { title: input.kmaOutlook.title || null, publishTime: input.kmaOutlook.publishTime || null } : null,
         notice: '참고 정보이며 안전을 보장하지 않습니다.',
     };
-    const t = templateOverview(b);
-    b.overview = { land: t.land, sea: t.sea, source: 'template', model: null };
+    b.summary = buildSummary(b);
+    b.overview = { land: null, sea: null, source: 'template', model: null };
     return b;
 }
-/** 총평의 「오늘/내일」 — 대상 날짜가 만든 날짜보다 뒤면 내일. 예: 23시 판(대상 다음 날) → '내일'. @param {object} b @returns {string} [연계] ← templateOverview·station_briefing_ai.stationInput */
+/** 총평의 「오늘/내일」 — 대상 날짜가 만든 날짜보다 뒤면 내일. 예: 23시 판(대상 다음 날) → '내일'. @param {object} b @returns {string} [연계] ← buildSummary·station_briefing_ai.stationInput */
 function dayWordOf(b) { return b.generatedAt && b.targetDate > b.generatedAt.slice(0, 10) ? '내일' : '오늘'; }
 /** 안정된 JSON(열쇠 정렬). 예: {b:1,a:2} → '{"a":2,"b":1}'. @param {any} v @returns {string} [연계] ← hash */
 function stable(v) { return Array.isArray(v) ? '[' + v.map(stable).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + stable(v[k])).join(',') + '}' : JSON.stringify(v === undefined ? null : v); }
@@ -548,5 +596,5 @@ function hash(v) { return crypto.createHash('sha256').update(stable(v)).digest('
 module.exports = {
     RULES_VERSION, WORD, SEA_ONLY_OFFICES, RELEASE_LINES, WAVE_M, WIND_MS, EDITIONS, SOURCE_LABEL, UNKNOWN_SOME, UNKNOWN_ALL, AFTER_RELEASE_SEA_H, AFTER_RELEASE_LAND_H,
     isoKst, kstDate, md, editionWindow, runsText, levelWord, sourceNames, dueEdition, displayDate, rangeText, warnTimeText, issuedText, warnAtSlot, slotOf, regionName, weatherFlow,
-    warningEvents, seaSection, landSpot, landSection, tideSection, templateOverview, buildBriefing, stable, hash, zoneKey, topicJosa, haversineKm, dayWordOf,
+    warningEvents, seaSection, landSpot, landSection, tideSection, buildSummary, summaryLines, buildBriefing, stable, hash, zoneKey, topicJosa, haversineKm, dayWordOf,
 };

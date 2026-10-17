@@ -2,7 +2,7 @@
  * ============================================================================
  * 파일명: local_server/services/station_briefing.js
  * 역할  : 「활동지점 안전 브리핑」 생성·저장·일정·설정을 맡는다. 정해진 시각(08:00·17:30·23:00 KST)과 특보가 바뀔 때(그 특보구역에 걸친 관할만)
- *         관할 입력을 모아(station_briefing_inputs) 규칙으로 판단하고(station_briefing_rules) 총평만 AI 로 쓴 뒤(station_briefing_ai) 날짜별 파일에 저장한다.
+ *         관할 입력을 모아(station_briefing_inputs) 규칙으로 판단하고(station_briefing_rules — 「총평과 권고」 결론·근거·권고 포함) 짧은 해설만 AI 로 쓴 뒤(station_briefing_ai) 날짜별 파일에 저장한다.
  *         관리자 설정(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만)과 노출 판정(관리자 기기에만 등)도 여기서 정한다.
  * ----------------------------------------------------------------------------
  * [연계]
@@ -14,19 +14,35 @@
  *  - 서버 API      : routes/station_briefing.js 가 이 모듈을 부른다
  *  - 나를 쓰는 곳  : routes/station_briefing.js · server.js(운영 start) · services/risk_history_sources.js(historyRow — 1분 감시) · scripts/test_station_briefing.js(가짜 시계·어댑터)
  * [로드 순서] 서버 require 부작용 없음. start() 는 운영(FLY_ALLOC_ID)에서만 1분 점검을 켠다 — 서버 시작 때 계산·외부 호출을 하지 않는다(첫 점검은 1분 뒤).
- *            실제 AI 어댑터는 운영 또는 STATION_BRIEFING_DEV_AI=1 일 때만 부른다(개발 환경 관리자 실행은 틀 총평). 실행 실패는 10분 백오프·3번까지, 특보 변경은 3분 디바운스.
+ *            실제 AI 어댑터는 운영 또는 STATION_BRIEFING_DEV_AI=1 일 때만 부른다(개발 환경 관리자 실행은 틀 — AI 해설 없음). 실행 실패는 10분 백오프·3번까지, 특보 변경은 3분 디바운스.
  * ============================================================================
  */
 'use strict';
 const fs = require('fs'), path = require('path');
 const R = require('./station_briefing_rules'), AI = require('./station_briefing_ai'), I = require('./station_briefing_inputs');
 const DATA = path.join(__dirname, '..', 'data');
-const MAX_ERRORS = 200;
+// 관리자 「AI 브리핑」 오류 목록 보관 — 2026-10-17 사용자 결정(원문 *"ai탭에서 최근 오류 관련, 모든 최근 3일치의 오류가 다 남아있기를 바라고 이를 복사, md파일로 저장 할 수 있도록 기능도 추가 필요."*).
+// 최근 3일치(KST 오늘·어제·그제 — 오류 `at` 의 KST 날짜)는 모두 남기고 그보다 오래된 것만 지운다. 종전 200개 상한(slice(-200))은 나쁜 실행 몇 번(관할 97곳 × 검증·재시도)만으로 하루 치를 밀어냈다.
+// 안전 상한 ERROR_HARD_CAP: state.json 은 1분 점검마다 여러 번 읽고 쓰므로 끝없이 커지면 안 된다. 운영 10-17 08:00 판 오류가 67건 — 정시 3판에 특보 변경·관리자 실행까지
+// 하루 10번 그만큼 나도 3일 2천 건 남짓이라 5,000건은 그 두 배 넘는 여유이고, 한 건 수백 바이트라 파일은 수 MB 안이다. 상한에 걸려 지운 것은 errorsCapped 로 남겨
+// 관리자 화면이 「상한 때문에 지움」을 밝힌다(조용히 사라지지 않게 — CLAUDE.md L-291).
+const ERROR_KEEP_DAYS = 3, ERROR_HARD_CAP = 5000;
+/**
+ * 오류 목록을 보관 규칙대로 자른다 — 최근 ERROR_KEEP_DAYS 일(KST 날짜)만, 그래도 ERROR_HARD_CAP 을 넘으면 오래된 것부터.
+ * 예: now 10-17 08:00 → at 10-15 00:00 은 남김 · 10-14 23:59 는 지움 · 6,000건이면 최근 5,000건 + dropped 1000
+ * @param {object[]} list - {at:KST ISO,…} @param {number} now - ms @returns {object} {errors, dropped(상한으로 지운 수)}
+ * [연계] ← run·reportFailure(쓰기) · status(읽기 — 실행이 며칠 없어도 오래된 것을 보이지 않게)
+ */
+function keepErrors(list, now) {
+    const from = R.kstDate(now - (ERROR_KEEP_DAYS - 1) * 86400000);
+    const recent = (list || []).filter((e) => e && typeof e.at === 'string' && e.at.slice(0, 10) >= from);
+    return { errors: recent.slice(-ERROR_HARD_CAP), dropped: Math.max(0, recent.length - ERROR_HARD_CAP) };
+}
 // 실행 실패 백오프(독립 검토 B9·ops1): 실행이 던지면 매분 다시 돌며 AI 를 다시 부르지 않게 — 실패 뒤 10분 기다리고, 같은 판은 3번까지만.
 const RUN_BACKOFF_MS = 10 * 60000, MAX_RUN_FAILS = 3;
 // 특보 변경 디바운스(독립 검토 C9): 특보가 잇달아 바뀌면 마지막 변경 뒤 3분 조용할 때 한 번만 다시 만든다.
 const WARN_DEBOUNCE_MS = 3 * 60000, WARN_MAX_WAIT_MS = 15 * 60000; // 계속 바뀌어도 첫 변경 뒤 15분이면 만든다(무한 대기 방지)
-// 한 번 실행의 AI 데드라인(독립 검토 B7): 넘으면 남은 관할은 틀 총평으로 저장한다.
+// 한 번 실행의 AI 데드라인(독립 검토 B7): 넘으면 남은 관할은 틀(AI 해설 없음)로 저장한다.
 const RUN_DEADLINE_MS = 20 * 60000;
 // Gemini 한 번 호출 시간 제한(B7) — gemini_client 는 고치지 않고 어댑터에서 abortSignal + Promise.race.
 const GEMINI_CALL_MS = 90000;
@@ -164,7 +180,9 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         I.writeJson(p('config.json'), { ...next, updatedAt: R.isoKst(clock()) }); return next;
     }
     /** 상태 파일(만든 판·특보 서명·관할별 특보구역·마지막 실행·오류·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← run·tick·status */
-    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, errors: s.errors || [], alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
+    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, errors: s.errors || [], errorsCapped: s.errorsCapped || null, alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
+    /** 오류를 보관 규칙(최근 3일·안전 상한)대로 더한다. 상한으로 지운 것이 있으면 errorsCapped 에 시각·수. @param {object} s - state() @param {object[]} add @param {number} now [연계] ← run·reportFailure → keepErrors */
+    function addErrors(s, add, now) { const k = keepErrors(s.errors.concat(add), now); s.errors = k.errors; if (k.dropped) s.errorsCapped = { at: R.isoKst(now), dropped: k.dropped, cap: ERROR_HARD_CAP }; }
     function saveState(s) { I.writeJson(p('state.json'), s); }
     /** 관리자 오류현황에 지금 상태를 남긴다(결정 6). 기록 실패는 브리핑 결과를 바꾸지 않는다. @returns {void} [연계] ← run·reportFailure → historyRow·errorHistory.recordCollector */
     function recordHistory() { if (!errorHistory) return; try { errorHistory.recordCollector(HISTORY_SOURCE, historyRow(state(), clock())); } catch (_) { console.warn('[station_briefing] 오류현황 기록 실패'); } }
@@ -191,7 +209,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     }
     /**
      * 브리핑을 만든다. kind: morning|evening|night(정시) · warning(특보 변경 — keys 관할만, 이미 있는 오늘·내일 판의 남은 칸) · manual(관리자 실행 — 화면이 지금 보일 날짜).
-     * 실제 AI 어댑터는 운영(FLY_ALLOC_ID) 또는 STATION_BRIEFING_DEV_AI=1 일 때만 — 그 밖(개발 환경)에서 어댑터를 주입하지 않았으면 틀 총평만(C9).
+     * 실제 AI 어댑터는 운영(FLY_ALLOC_ID) 또는 STATION_BRIEFING_DEV_AI=1 일 때만 — 그 밖(개발 환경)에서 어댑터를 주입하지 않았으면 틀만 — AI 해설 없음(C9).
      * 시각: 창은 시작 시각으로 정하지만, 위치 찾기·AI 가 오래 걸려도 연안 하루 값 시각이 낡지 않게 모으기 직전에 시각을 다시 잡는다(C2 — risk_store 는 지금−5분보다 앞선 시각을 400 으로 거부).
      * AI 데드라인 runDeadlineMs(기본 20분) — 넘으면 남은 관할은 틀(B7).
      * 예: await run({kind:'morning'}) → {ok:true, date:'2026-10-17', stations:97, stats:{…}, ms}
@@ -221,7 +239,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 for (const b of briefings) { b.overview = gen.overviews[b.key] || b.overview; b.trigger = kind === 'warning' ? { kind, zones } : { kind }; day.stations[b.key] = b; }
                 day.updatedAt = R.isoKst(now); I.writeJson(p('briefings_' + win.targetDate + '.json'), day); fileCache.delete(p('briefings_' + win.targetDate + '.json'));
                 for (const x of inputs) st.stationZones[x.key] = [...new Set((x.sea.warnings || []).map((w) => R.zoneKey(w.zone)).concat((x.sea.regions || []).flatMap((r) => r.zones.map(R.zoneKey))))];
-                st.errors = st.errors.concat(gen.errors.map((e) => ({ ...e, edition: win.kind, date: win.targetDate }))).slice(-MAX_ERRORS);
+                addErrors(st, gen.errors.map((e) => ({ ...e, edition: win.kind, date: win.targetDate })), now);
                 results.push({ date: win.targetDate, stations: briefings.length, stats: gen.stats, errors: gen.errors.length });
             }
             prune(now);
@@ -235,7 +253,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     function reportFailure(key, e, now) {
         const s = state(), f = s.failures[key] || { count: 0 }, why = String((e && e.message) || e).slice(0, 160);
         s.failures = Object.fromEntries(Object.entries({ ...s.failures, [key]: { count: f.count + 1, lastAt: R.isoKst(now), reason: why } }).slice(-12));
-        s.errors = s.errors.concat([{ at: R.isoKst(now), stage: 'run', provider: null, stations: [], reason: key + ' 실행 실패(' + (f.count + 1) + '번째): ' + why }]).slice(-MAX_ERRORS);
+        addErrors(s, [{ at: R.isoKst(now), stage: 'run', provider: null, stations: [], reason: key + ' 실행 실패(' + (f.count + 1) + '번째): ' + why }], now);
         saveState(s); recordHistory(); console.error('[station_briefing] 실행 실패 ' + key + ' (' + (f.count + 1) + '/' + MAX_RUN_FAILS + '): ' + why);
     }
     /** 백오프 중인가 — 실패 뒤 10분 안이거나 같은 판을 3번 실패했으면 true. 예: ({count:1,lastAt:10:00}, 10:05) → true · 10:10 → false. @param {object} f - failures[key] @param {number} now @returns {boolean} [연계] ← tick */
@@ -309,8 +327,14 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         if (wanted !== today && day === 'auto') { const t = readDay(today)?.stations?.[key] || null; return { date: today, briefing: t, fallback: !!t, wanted, nextExpectedAt: today + 'T23:00:00+09:00' }; }
         return { date: wanted, briefing: null, fallback: false };
     }
-    /** 관리자 상태(설정·마지막 실행·최근 오류 50개·있는 날짜·실행 중·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← routes GET status·POST run(실행 중이면 409) */
-    function status() { const s = state(); let days = []; try { days = fs.readdirSync(dir).map((f) => (f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/) || [])[1]).filter(Boolean).sort(); } catch (_) { /* 폴더 없음 */ } return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, done: s.done, errors: s.errors.slice(-50).reverse(), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null }; }
+    /**
+     * 관리자 상태(설정·마지막 실행·최근 3일 오류 전부(최근 것부터 — 2026-10-17 결정)·보관 규칙·상한으로 지운 기록·있는 날짜·실행 중·실행 실패 백오프·특보 변경 대기).
+     * @returns {object} [연계] ← routes GET status·POST run(실행 중이면 409) · admin_station_briefing.js(오류 목록·복사·md 저장)
+     */
+    function status() {
+        const s = state(); let days = []; try { days = fs.readdirSync(dir).map((f) => (f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/) || [])[1]).filter(Boolean).sort(); } catch (_) { /* 폴더 없음 */ }
+        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, done: s.done, errors: keepErrors(s.errors, clock()).errors.reverse(), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorsCapped: s.errorsCapped, days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
+    }
     /** 관할 목록(화면 설정용 — 폴리곤 없이). @returns {object[]} [연계] ← routes GET stations */
     function stationList() { const loc = I.readJson(p('locations.json'))?.stations || {}; return stations().map((s) => ({ key: s.key, name: s.name, office: s.office, region: s.region, seaOnly: s.seaOnly, location: loc[s.key]?.status === 'ok' ? { lat: loc[s.key].lat, lon: loc[s.key].lon, estimated: false } : { estimated: true } })); }
     return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, pick, readConfig, writeConfig, status, stationList, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
@@ -328,4 +352,4 @@ function forDefault() {
     return def;
 }
 
-module.exports = { createService, forDefault, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };
+module.exports = { createService, forDefault, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };

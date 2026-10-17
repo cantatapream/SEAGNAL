@@ -12,8 +12,8 @@
 | 단위 | 파출소 관할 97곳(`config/coastal_safety/coastguard_stations.geojson`). 열쇠 `key` = `"{해양경찰서}|{파출소}"`(남항파출소가 부산·목포 둘이라 이름만으로는 안 된다) |
 | 해상만 | 목포·완도·여수해양경찰서 19곳(여수바다 포함) — `seaOnly:true`, `land:null` |
 | 생성 | 08:00 · 17:30 · 23:00 KST(23시 판 = 「오늘 밤~내일」, 대상 날짜 = 내일) + 특보가 바뀔 때(바뀐 특보구역에 걸친 관할만). 운영 서버(FLY)에서만 · 특보 변경은 마지막 변경 뒤 3분 조용할 때 한 번(계속 바뀌어도 첫 변경 뒤 15분이면) · 실행이 실패하면 10분 쉬고 같은 판은 3번까지 |
-| 판단 | 전부 서버 규칙. AI 는 **총평 두 문단(육상·해상, 각 3~5문장)만**. 카드·근거·특별 상황은 서버 틀 문장 |
-| AI 순서 | ChatGPT(관리자 정액제 VM) → 꺼짐·실패면 Gemini → 둘 다 실패면 틀 총평. 해양경찰서별 묶음(21회/판), 입력이 같으면 재사용 |
+| 판단 | 전부 서버 규칙. 「총평과 권고」의 **결론·근거·권고·물때(`summary`)도 서버**가 만들고, AI 는 그 아래 **짧은 해설(육상·해상 각 1~2문장 — `overview.land/sea`)만**(2026-10-17 결정, 설계서 §11.10 — 종전 「총평 두 문단 3~5문장」 대체). 카드·특별 상황은 서버 틀 문장 |
+| AI 순서 | ChatGPT(관리자 정액제 VM) → 꺼짐·실패면 Gemini → 둘 다 실패면 틀(AI 해설 없음). 해양경찰서별 묶음(21회/판), 입력이 같으면 재사용 |
 | 노출 기본값 | **관리자에게만** — 관리자 등록 기기 또는 관리자 로그인 토큰일 때만 내용을 준다 |
 | 특보 시각 | 기상청이 준 발표·발효(예정)·해제 예고 시각 그대로(2026-10-16 결정 1 — 「더 일찍 풀릴 수 있음」 같은 꼬리 없음). 시각 종류·출처 표는 설계서 §11.8 |
 | 오류 | 관리자 오류현황(위험예측 오류현황) 원천 `stationBriefing` — 실행 실패·10시간 넘게 실행 없음·AI 총평 대신 틀(결정 6, §6.1) |
@@ -50,7 +50,7 @@
 
 ```json
 {
-  "schema": "station-briefing-v1", "rulesVersion": "station-briefing-rules-v4",
+  "schema": "station-briefing-v1", "rulesVersion": "station-briefing-rules-v6",
   "key": "제주해양경찰서|한림파출소",
   "station": { "name": "한림파출소", "office": "제주해양경찰서", "region": "제주지방해양경찰청" },
   "edition": "morning", "targetDate": "2026-10-17",
@@ -60,7 +60,14 @@
   "seaOnly": false, "seaOnlyReason": null,
   "location": { "lat": 33.41, "lon": 126.26, "source": "estimate", "estimated": true, "method": "관할 관광지·위험구역 중심 평균(45점)", "address": "…" },
   "sources": { "accident": "ok", "congestion": "ok", "zoneForecasts": "ok", "warnings": "ok", "tourConcentration": "ok", "events": "ok" },
-  "overview": { "land": "오늘 한림파출소 관할 육상은 관심 필요입니다(…). …", "sea": "오늘 한림파출소 관할 해상은 주의 필요입니다(관할 안 52칸 검토, 관심 이상 3개 해역). 대해구 232 예보는 15시부터 파고 2.4m·풍속 13m/s로 높아집니다(…). …", "source": "template", "model": null, "hash": "…" },
+  "summary": {
+    "land": { "headline": "오늘 한림파출소 관할 연안의 단계는 \"주의 필요\"입니다.",
+              "basis": ["관할 관광지 4곳 중 평소보다 위험이 높아진 곳 2곳 (주의 1곳 · 관심 1곳)", "협재해수욕장 — 연안 위험지수 72(높음), 사람 평소의 1.8배, 해안 바람 9m/s(튜브·물놀이기구 떠밀림 주의)", "금능해수욕장 — 연안 위험지수 41(다소 높음), 사람 평소의 1.3배"],
+              "advice": "협재해수욕장·금능해수욕장 주변 물가 접근에 주의가 필요합니다.", "tide": [ …tide.text 그대로… ] },
+    "sea": { "headline": "오늘 한림파출소 관할 해상의 단계는 \"주의 필요\"입니다.",
+             "basis": ["관할 해역 52칸 검토 — 평소보다 위험이 높아진 해역 3개", "대해구 232 예보는 15시부터 파고 2.4m·풍속 13m/s로 높아집니다(…)", "15~24시 비양도 북북서방 1.4해리 해역(232-2해구) — 공식 사고예보 '주의'(15~21시)·…", …, "제주도북부앞바다 풍랑주의보 — 06~09시 해제 예고", "제주도서부앞바다 풍랑주의보 예비특보 — 21~24시 발효 예정"],
+             "advice": "15~24시경 비양도 북북서방 1.4해리 해역(232-2해구) 운항에 주의가 필요합니다." } },
+  "overview": { "land": "협재해수욕장은 사람이 평소의 1.8배로 붐벼 …(AI 해설 1~2문장)", "sea": "15시부터 파고가 높아져 …(AI 해설 1~2문장)", "source": "chatgpt", "model": "gpt-6-luna", "hash": "…" },
   "special": [
     { "kind": "release", "zone": "제주도북부앞바다", "title": "제주도북부앞바다 풍랑주의보 — 06~09시 해제 예고(10월 16일 21:00 발표)",
       "lines": ["해제 뒤 출항이 이어질 수 있습니다.", "2020~2025년 특보 해제 뒤 이틀 동안 전복·침몰·침수·표류 사고가 평소보다 약 1.2~1.3배 많았습니다."] },
@@ -76,7 +83,8 @@
     "cards": [ {
       "rid": "A:1001", "name": "비양도 북북서방 1.4해리 해역(232-2해구)", "nameBase": "비양도", "nameBaseKind": "place",
       "rank": 2, "word": "주의 필요", "sourceLabel": "공식 사고예보 '주의'", "window": "15~24시", "peakAt": "…T15:00:00+09:00",
-      "overviewRank": 2, "overview": { "rank": 2, "word": "주의 필요", "window": "15~24시", "label": "공식 사고예보 '주의'(15~21시)·제주도서부앞바다 풍랑주의보 예비특보(발효 예정 시각 이후)(21~24시)", "at": "…" },
+      "overviewRank": 2, "overview": { "rank": 2, "word": "주의 필요", "window": "15~24시", "label": "공식 사고예보 '주의'(15~21시)·제주도서부앞바다 풍랑주의보 예비특보(발효 예정 시각 이후)(21~24시)",
+                                     "labels": [ { "label": "공식 사고예보 '주의'", "window": "15~21시" }, { "label": "제주도서부앞바다 풍랑주의보 예비특보(발효 예정 시각 이후)", "window": "21~24시" } ], "at": "…" },
       "traits": { "history": { "from": "2021-01-01", "to": "2025-12-31", "count": 18, "topTypes": [ { "type": "충돌", "count": 7 } ], "death": 1, "missing": 0 },
                   "zone": { "name": "제주도서부앞바다", "kind": "main" }, "haegu": { "major": 232, "sub": 2, "label": "232-2" },
                   "text": "2021~2025년 선박사고 18건(충돌 7·침수 5), 사망 1·실종 0 · 제주도서부앞바다 · 232-2해구" },
@@ -85,14 +93,14 @@
                  "slots": [ { "at": "…T15:00:00+09:00", "rank": 2, "labels": ["공식 사고예보 '주의'", "혼잡 예보 '높음'(…) → 충돌·접촉 주의", "해구 예보 파고 2.4m·풍속 13m/s"] }, … ] },
       "sentence": "15~24시 이 해역은 공식 사고예보 '주의' 근거로 운항 시 주의가 필요합니다. 이 해역에서는 집계 기간 중 충돌 사고가 가장 많이 기록되었습니다.",
       "link": { "gridId": "GR4_1", "accidentGridId": "1001", "lat": 33.43, "lon": 126.22, "t": "…T15:00:00+09:00" } }, … ],
-    "overviewTop": [ …cards 중 총평 후보(최대 2)… ] },
+    "overviewTop": [ …cards 중 총평 후보(최대 3 — 2026-10-17 전 2)… ] },
   "land": {
     "level": { "rank": 2, "word": "주의 필요", "source": "연안 위험지수 72 '높음'" },
-    "reviewedSpots": 4, "failedSpots": 0, "reviewedHazards": 1, "attentionSpots": 2, "missing": [],
+    "reviewedSpots": 4, "failedSpots": 0, "reviewedHazards": 1, "attentionSpots": 2, "attentionByRank": { "1": 1, "2": 1, "3": 0 }, "missing": [],
     "cards": [ { "id": "50110|협재해수욕장", "name": "협재해수욕장", "rank": 2, "word": "주의 필요", "sourceLabel": "연안 위험지수 72 '높음'",
                  "index": 72, "band": "높음", "peakAt": "…T15:00:00+09:00",
                  "traits": { "hazard": { "count": 4, "byType": [ … ] }, "history": { "count": 6, "from": "2020-01-01", "to": "2024-12-31", "topTypes": [ … ] }, "beach": true, "text": "위험구역 4곳(…) · 2020~2024 연안사고 6건(표류 4) · 해수욕장" },
-                 "today": { "changes": ["사람 평소의 1.8배", "해안 바람 9m/s(튜브·물놀이기구 떠밀림 주의)"], "text": "…" },
+                 "today": { "changes": ["사람 평소의 1.8배", "해안 바람 9m/s(튜브·물놀이기구 떠밀림 주의)"], "kinds": ["people", "drift"], "text": "…" },
                  "sentence": "협재해수욕장 — 사람 평소의 1.8배, 해안 바람 9m/s(튜브·물놀이기구 떠밀림 주의). 물가 접근에 주의가 필요합니다.",
                  "missing": [], "link": { "spotId": "50110|협재해수욕장", "lat": 33.394, "lon": 126.239, "date": "2026-10-17" } } ],
     "constant": [ { "kind": "spot", "id": "50110|한림항", "name": "한림항", "text": "위험구역 3곳(사망사고 발생구역 3) · 2020~2024 연안사고 2건(추락 2)", "changedButLow": false },
@@ -111,21 +119,23 @@
 | `edition` | `morning`(08:00)·`evening`(17:30)·`night`(23:00)·`warning`(특보 변경)·`manual`(관리자 즉시 실행) | 머리 「기준 시각」 |
 | `generatedAt` · `trigger` | 만든 시각 · 왜 만들었나(`{kind:'warning', zones:[바뀐 특보구역 열쇠]}`) | **N 뱃지**: 화면이 마지막으로 본 `generatedAt` 보다 새로우면 표시(§11.3 — 기존 `.new-badge`) |
 | `window` | 이 판이 다루는 3시간 칸 범위(지난 칸 제외) | 시간 막대 범위 |
-| `overview.land/sea` | 총평 두 문단. `land` 는 해상만 관할이면 `null` | ① 총평 |
-| `overview.source` | `chatgpt`·`gemini`·`template`(+`reused:true` 면 지난 판 재사용) · `model` | 관리자만 작은 글씨로(선택) |
+| `summary.land/sea` | **「총평과 권고」 서버 결론**(2026-10-17 §11.10): `headline` 결론 한 줄(「오늘 ○○파출소 관할 연안(해상)의 단계는 "주의 필요"입니다.」 — 오늘/내일·단계 말 그대로) · `basis[]` 근거(육상: 「관할 관광지 N곳 중 평소보다 위험이 높아진 곳 M곳 (주의 a곳 · 관심 b곳)」 — **M 은 관심 이상 전체**(`attentionSpots`, 카드 상한 아님), 상위 장소 3곳까지 「장소 — 연안 위험지수 92(높음), 사람 평소의 2.2배」(지수는 단계 출처가 지수일 때만), 두 곳 이상 공통인 특보·예비특보·해제 뒤·해안 바람은 「… — A·B 공통」 한 줄, 확인하지 못한 자료 / 해상: 검토 칸·위험이 높아진 해역 수(`overviewRegions`)·공식 사고예보 단계만 있는 해역 수·해구 흐름·해역 3곳·해제 예고/예비특보 제목·확인하지 못한 자료) · `advice` 권고 한 줄(「따라서」 없음) · `tide[]`(육상만, `tide.text`). `land` 는 해상만 관할이면 `null`. **없으면(그 전에 저장된 브리핑) 화면은 종전 `overview` 문단 모양** | ① 총평 — 단계 배지 → 결론(굵게) → (근거) → (권고) → (물때) |
+| `overview.land/sea` | **AI 해설**(육상·해상 각 1~2문장 — 원인·시간 흐름). 틀 방식·AI 실패면 `null`(해설 없음). `land` 는 해상만 관할이면 `null`. ⚠2026-10-17 전 브리핑(`summary` 없음)에서는 총평 문단(3~5문장) | ① 총평 — 「해설 · ChatGPT」 작은 이름표 |
+| `overview.source` | `chatgpt`·`gemini`·`template`(+`reused:true` 면 지난 판 재사용) · `model`. `template` = AI 해설 없음 | 작은 글씨 「AI 해설 없음 — 결론·근거·권고는 서버가 계산한 값입니다.」 |
 | `special[]` | 특별 상황 칸: `release`(해제 예고 — 「… — 06~09시 해제 예고(10월 16일 21:00 발표)」, `lines` 두 줄을 그대로) · `prewarn`(예비특보 — 「… 예비특보 — 21~24시 발효 예정(05:00 발표)」) · `released`(이미 해제 — 특보 구간 기록의 실제 해제 시각, 「… — 07:30 해제」 + 해제 안내 두 줄). 시각은 기상청 것 그대로, 발표 시각이 있으면 괄호로(결정 1). 해제 예고·발효 예정 **범위가 창과 겹치면** 넣는다(창 시작 전에 시작해도 — 17:30 판의 「12~18시 해제 예고」). 특보 원천(`sources.warnings`)이 ok 가 아니면 만들지 않는다(시간 막대 사건도) | ② 특별 상황 |
 | `sea.level` | 해상 분석 단계(공식 사고예보 순위 「주의」 포함). 남은 자료로 0 인데 원천이 빠졌으면 `word` 가 「확인 불가(일부)」(넷 다 빠지면 「확인 불가」) — 「평소 수준」이라 쓰지 않는다(`partial:true`) | ③ 해상 분석 머리 |
 | `sea.overviewLevel` | 총평에 쓴 단계(공식 사고예보 「주의」·**「경계」**만 있고 같은 칸에 기상·혼잡 근거가 없는 칸 제외 — §11.6-17① 「주의」, 2026-10-16 *"모두 추천대로."* 로 「경계」도 — §11.8 추가 결정 A). 결측 규칙은 `sea.level` 과 같다 | 총평 옆 배지 |
-| `sea.attentionRegions` · `sea.overviewRegions` | 관심 이상 해역 수 — 카드·시간 막대 기준(`attentionRegions`) / 총평 기준(`overviewRegions`, 공식 사고예보 단계만 있는 해역 제외 — `overviewLevel` 과 같은 기준). 틀 총평 첫 문장과 AI 입력 `attention_regions` 는 `overviewRegions` 를 쓰고, 차이가 있으면 「공식 사고예보 단계만 있는 해역 N개」(`accident_only_regions`)로 따로 적는다(2026-10-16 2단계 검토 B1 — 종전엔 「평소 수준입니다(… 관심 이상 1개 해역)」처럼 어긋났다). 규칙 판 `station-briefing-rules-v5` | ① 총평 · ③ 해상 분석 머리 |
+| `sea.attentionRegions` · `sea.overviewRegions` | 관심 이상 해역 수 — 카드·시간 막대 기준(`attentionRegions`) / 총평 기준(`overviewRegions`, 공식 사고예보 단계만 있는 해역 제외 — `overviewLevel` 과 같은 기준). 총평 근거 「평소보다 위험이 높아진 해역 N개」(2026-10-17 전 틀 총평 첫 문장)와 AI 입력 `attention_regions` 는 `overviewRegions` 를 쓰고, 차이가 있으면 「공식 사고예보 단계만 있는 해역 N개」(`accident_only_regions`)로 따로 적는다(2026-10-16 2단계 검토 B1 — 종전엔 「평소 수준입니다(… 관심 이상 1개 해역)」처럼 어긋났다). 규칙 판 `station-briefing-rules-v5` | ① 총평 · ③ 해상 분석 머리 |
 | `sea.timeBar[]` | 3시간 칸마다 관할 최고 단계·그 해역·근거 이름·사건(`release`·`prewarn`·`released`·`warnStart`). 특보 해제 뒤 「관심」은 **해제 뒤 1시간이 걸친 칸만**(결정 4 — 「Z 풍랑주의보 해제 뒤」·이미 해제면 「…(07:30 해제)」) | 해상 시간 막대(칸 색 = `rank` 0~3, 사건은 ⚑) |
 | `sea.cards[]` | 해역 카드(최대 10, 순위 = 단계 > 지속 칸 > 기상·혼잡 겹침 > 과거 사고). `window`·`today.lines`·`overview.window` 는 이어진 칸 묶음별 — 끊기면 「06~09시·21~24시」(하나로 잇지 않는다), `peakAt` = 가장 높은 단계의 첫 칸. `traits.history` 가 `{count:0, available:false}` 면 「선박사고 이력 자료 없음(집계 불가)」, `available:true` 면 「…선박사고 기록 없음」(0건). `sea.overviewTop` 은 카드 상한과 상관없이 총평 단계 순위에서 고른다(카드 10개 밖이어도 총평 근거면 들어간다) | [특성] `traits.text` · [오늘 예상] `today.lines` · 틀 문장 `sentence` |
 | `card.link` | 위험예측 화면으로 바로가기 재료 — 교통 칸 `gridId`(없으면 `accidentGridId`)·좌표·시각 `t` | [위험예측에서 보기 ›] (§11.4, U55) |
 | `land.cards[]` | 관심 이상 관광지(최대 10). 단계(결정 2): **경계** = 풍랑·태풍·강풍 경보 발효 · 연안 위험지수 100('매우 높음') + 오늘 바뀐 요소 / **주의** = 주의보 발효 · 지수 '높음'(67+) + 바뀐 요소 / **관심** = '다소 높음' 이상 + 바뀐 요소 · 예비특보 · 떠밀림 · 행사 · 특보 해제 뒤 3시간(결정 4). `sourceLabel` = 무엇 때문인지(「연안 위험지수 72 '높음'」·「풍랑주의보」·「풍랑주의보 해제 뒤(07:30 해제)」). `today.changes` 의 특보는 기상청 시각째: 「풍랑주의보 발효(06~09시 해제 예고, 10월 16일 14:00 발표)」·「강풍주의보 예비특보(10월 18일 03:00 발효 예정)」 | ④ 육상 분석 |
-| `land.attentionSpots` | 관심 이상 관광지 전체 수(카드는 그중 단계 높은 순 10곳) — 화면이 「카드는 10곳까지」를 밝힐 때 쓴다(2단계 검토 B5) | ④ 육상 분석 머리 |
+| `land.attentionSpots` · `land.attentionByRank` | 관심 이상 관광지 전체 수(카드는 그중 단계 높은 순 10곳) — 화면이 「카드는 10곳까지」를 밝힐 때 쓴다(2단계 검토 B5) · 단계별 전체 수 `{1:관심,2:주의,3:경계}`(총평 근거 「주의 a곳 · 관심 b곳」, 2026-10-17) | ④ 육상 분석 머리 · ① 총평 근거 |
+| `card.today.kinds` · `card.overview.labels` | 육상 카드 `today.changes` 와 같은 순서의 요소 종류(people·event·swell·rip·warning·prewarn·drift·released — 공통 요소를 한 줄로 모으는 데) · 해역 카드 총평 근거를 `[{label, window}]` 로(근거 하나이고 시간대가 창과 같으면 시간대를 되풀이하지 않는 데) — 2026-10-17 | ① 총평 근거 |
 | `land.constant[]` | 상시 위험 장소(단계 0 인 관광지 + 관광지에 안 붙은 위험구역 가운데 **설명 글이 있는 곳**, 최대 12) | 「상시 위험 장소」 접힘 목록 |
 | `land.card.link` | `spotId`·좌표·`date` — 연안 시트(`/coast/spot?id=…&t=그 날짜`)로 | 바로가기 |
 | `tide` | 서해·남해·**제주** 관할(아래 §2.2, 제주는 결정 5). 동해 등 그 밖은 `null` | 조석 게이지 |
-| `sources` · `sea.missing` · `sea.missingSlots` · `land.missing` · `land.failedSpots` | 원천 상태. ok 가 아닌 원천의 근거는 판단에서 뺐다. `sea.missingSlots.accident` = 공식 사고예보 원천은 ok 인데 프레임이 빠진 칸(그 칸 사고예보는 「없음」이 아니라 확인 불가 — `sea.missing` 에도 `accident`). `land.reviewedSpots` 는 연안 하루 값을 실제로 받은 곳만, 실패 수는 `failedSpots`(`land.missing` 에 `detail`). 빠진 원천은 총평 첫 문장에 이름으로 밝힌다 | 「일부 자료 확인 불가」 |
+| `sources` · `sea.missing` · `sea.missingSlots` · `land.missing` · `land.failedSpots` | 원천 상태. ok 가 아닌 원천의 근거는 판단에서 뺐다. `sea.missingSlots.accident` = 공식 사고예보 원천은 ok 인데 프레임이 빠진 칸(그 칸 사고예보는 「없음」이 아니라 확인 불가 — `sea.missing` 에도 `accident`). `land.reviewedSpots` 는 연안 하루 값을 실제로 받은 곳만, 실패 수는 `failedSpots`(`land.missing` 에 `detail`). 빠진 원천은 총평 근거의 「확인하지 못한 자료: …」 줄에 이름으로 밝힌다(2026-10-17 전엔 틀 총평 첫 문장) | 「일부 자료 확인 불가」 |
 | `rank` | 0 평소 수준 · 1 관심 필요 · 2 주의 필요 · 3 경계 필요 (`word` 가 그 말) | 색 |
 
 ### 2.2 조석(`tide`) — 해양종합정보 바텀시트 조석 게이지와 같은 재료
@@ -159,7 +169,7 @@
 |---|---|
 | `GET /api/admin/station-briefing/config` | `{ok, config, choices}` |
 | `PUT /api/admin/station-briefing/config` | 본문 JSON 에 바꿀 칸만. 선택지 밖 값이면 400 `설정값 오류: {칸}`, 모르는 칸(`__proto__`·`constructor` 포함)이면 400 `설정 칸 오류: {칸}` |
-| `GET /api/admin/station-briefing/status` | `{ok, config, choices, lastRun:{at,kind,zones,results:[{date,stations,stats:{calls,reused,ai,template,retried,deadline},errors}],ms}, done:[판 열쇠], errors:[최근 50 — {at,stage:'call'|'parse'|'validate'|'deadline'|'run',provider,stations,reason,edition,date}], days:[저장된 날짜], running, failures:{판 열쇠 또는 warning → {count,lastAt,reason}}, pendingWarn:{zones,lastChangeAt}|null}` — `lastRun.aiDisabled` 가 있으면 개발 환경이라 틀 총평만 만든 것. `errors[].stage` 에 `run`(실행 실패)·`deadline`(데드라인 넘어 틀) 추가 |
+| `GET /api/admin/station-briefing/status` | `{ok, config, choices, lastRun:{at,kind,zones,results:[{date,stations,stats:{calls,reused,ai,template,retried,deadline},errors}],ms}, done:[판 열쇠], errors:[**최근 3일(KST 오늘·어제·그제) 전부, 최근 것부터** — {at,stage:'call'|'parse'|'validate'|'deadline'|'run',provider,stations,reason,edition,date}], errorKeep:{days:3,cap:5000}, errorsCapped:{at,dropped,cap}|null, days:[저장된 날짜], running, failures:{판 열쇠 또는 warning → {count,lastAt,reason}}, pendingWarn:{zones,lastChangeAt}|null}` — `lastRun.aiDisabled` 가 있으면 개발 환경이라 틀(AI 해설 없음)만 만든 것. `errors[].stage` 에 `run`(실행 실패)·`deadline`(데드라인 넘어 틀) 추가. 오류 보관은 2026-10-17 결정(§11.10 — 종전 「최근 50·저장 200개」) — 안전 상한 5,000건을 넘으면 오래된 것부터 지우고 `errorsCapped` 에 남긴다. 관리자 화면이 전부를 목록으로 보이고 [복사](마크다운)·[md로 저장] |
 | `GET /api/admin/station-briefing/stations` | `{ok, stations}` — 공개 목록과 같은 꼴, **노출 범위와 무관**(관리자 「AI 브리핑」 탭 미리보기용, 화면 2단계 2026-10-16 추가) |
 | `GET /api/admin/station-briefing/preview?station=&day=` | `{ok, date, briefing, fallback, wanted?, nextExpectedAt?}` — 공개 `GET /api/station-briefing` 과 같은 검사(400·404)·같은 `pick`, 노출 범위와 무관(「노출 안 함」이어도 관리자는 본다). `now` 줄은 없다 |
 | `POST /api/admin/station-briefing/run` | 지금 바로 만든다(화면이 지금 보일 날짜 — 21시 전 오늘, 이후 내일). 202 `{ok, started}` 즉시 응답, 결과는 status 로. **이미 실행 중이면 409** `{ok:false, started:false, running:true, error, lastRun}`(예전에는 202 라고 답하고 건너뛰었다) |
@@ -175,37 +185,37 @@
 | `batchUnit` 묶음 단위 | `station`(파출소, 97회) · **`office`**(해양경찰서, 21회) · `region`(지방청, 5회) |
 | `onlyChanged` 바뀐 곳만 다시 | **`true`**(입력 해시가 지난 판과 같으면 AI 총평 재사용) · `false` |
 
-## 5. AI 총평 검증(서버) — 실패한 관할만 1회 재시도, 그래도 실패면 틀
+## 5. AI 해설 검증(서버) — 실패한 관할만 1회 재시도, 그래도 실패면 틀(해설 없음)
 
-관할마다 따로 검사(`station_briefing_ai.validateOverview`, 2026-10-16 독립 검토 반영 — 판 `sb-validate-v2`). 모든 대조는 **NFKC 정규화**한 글로(전각 「９９m」 → 「99m」):
-- 모양: 문단 문장 수 3~5 · 해상만 관할의 육상 문단 금지 · **HTML 태그·URL·마크다운 링크 금지**(`markup`).
-- 숫자: **「숫자+단위」째**(m·m/s·km·cm·해리·해구·시·시간·분·초·칸·척·건·곳·명·개·배·%·년·월·일, 시각 HH:MM) 서버 사실 문장(틀 총평 포함)에 있는 꼴만 — 「3m」는 「232-3해구」의 3 으로 통과하지 못한다. 범위(「12~15m/s」)는 **범위 자체**가 입력에 있어야 한다(입력 범위의 양 끝은 낱으로도 허용). 단위 없는 숫자도 입력에 단위 없이 있어야. **한글 수사**(「세 시」·「두 척」·「서른 미터」·「구 미터」)는 대조할 수 없어 막는다.
+관할마다 따로 검사(`station_briefing_ai.validateOverview`, 2026-10-16 독립 검토 반영 · 2026-10-17 §11.10 — 판 `sb-validate-v3`·지시문 `sb-prompt-v3`). 모든 대조는 **NFKC 정규화**한 글로(전각 「９９m」 → 「99m」):
+- 모양: 해설 문장 수 **1~2**(2026-10-17 전 총평 문단 3~5) · 해상만 관할의 육상 해설 금지 · **HTML 태그·URL·마크다운 링크 금지**(`markup`).
+- 숫자: **「숫자+단위」째**(m·m/s·km·cm·해리·해구·시·시간·분·초·칸·척·건·곳·명·개·배·%·년·월·일, 시각 HH:MM) 서버 사실 문장(서버 결론·근거 줄 `summary` 포함)에 있는 꼴만 — 「3m」는 「232-3해구」의 3 으로 통과하지 못한다. 범위(「12~15m/s」)는 **범위 자체**가 입력에 있어야 한다(입력 범위의 양 끝은 낱으로도 허용). 단위 없는 숫자도 입력에 단위 없이 있어야. 허용 숫자는 서버 사실 문장 + 서버 결론·근거 줄(`summary`)에서 뽑는다(종전 틀 총평 문단 대신). **한글 수사**(「세 시」·「두 척」·「서른 미터」·「구 미터」)는 대조할 수 없어 막는다 — 다만 **곳·개를 세는 「두 곳」·「세 개」는 그 수가 같은 단위로 허용 숫자(`2|곳`)에 있을 때만 통과**(2026-10-17).
 - 배수: **문단별** — 해상은 해제 칸이 있을 때 1.2·1.3·1.2~1.3 만(「사고 1.8배」·「두 배」 금지), 육상은 그 관할 사람 혼잡 배수만.
-- 지명: 항·포구·해수욕장·해변·앞바다·먼바다·연안바다·해구·파출소·해양경찰서·방파제·**갯바위·부두·등대·섬·곶·만·포·도** 접미사, 띄어 쓴 지명(「제주도 동부 앞바다」)도 앞 낱말을 붙여 대조. 허용 = 허용 이름이 후보의 **끝에 오는** 경우(「한림항 방파제」 ⊃ 「한림항」은 되지만 「림항」·「한림해수욕장」은 안 됨) 또는 이름 줄기(파출소 이름에서 「파출소」를 뗀 「한림」, 특보구역 줄기 「제주도」, 띄어 쓴 허용 이름의 앞 낱말)와 정확히 같을 때. 「바람도」·「정도」·「운항」 같은 낱말은 지명으로 보지 않는다.
+- 지명: 항·포구·해수욕장·해변·앞바다·먼바다·연안바다·해구·파출소·해양경찰서·방파제·**갯바위·부두·등대·섬·곶·만·포·도** 접미사, 띄어 쓴 지명(「제주도 동부 앞바다」)도 앞 낱말을 붙여 대조. 허용 이름 = 관할·해역·구역·관광지 이름 + **기상청 해역 이름 전부(`config/zone_group_map.js` 묶음·앞바다·먼바다)와 「제주도」**(2026-10-17 — 「오후부터 제주도남쪽바깥먼바다에서」 통과). 허용 = 허용 이름이 후보의 **끝에 오는** 경우(「한림항 방파제」 ⊃ 「한림항」은 되지만 「림항」·「한림해수욕장」은 안 됨) 또는 이름 줄기(파출소 이름에서 「파출소」를 뗀 「한림」, 특보구역 줄기 「제주도」, 띄어 쓴 허용 이름의 앞 낱말)와 정확히 같을 때. 「바람도」·「정도」·「운항」 같은 낱말은 지명으로 보지 않는다.
 - 단계 말: 「관심/주의/경계」 + **필요·요구·요망·단계·수준·하십시오·하세요·해야·바랍니다·기울·태세·강화** 등 모든 서술 꼴. 문단별 대상 단계(`levels.sea`·`levels.land` — 관할 이름은 그 문단 단계, 육상 관광지는 결정 2 의 카드 단계 그대로 — 지수 '높음'이면 주의까지)를 넘지 못하고, **대상 이름이 없는 문장은 그 문단의 가장 낮은 단계까지**(「관심」은 늘 허용). 서버 사실 문장(조석·해제 안내)을 그대로 옮긴 문장은 제외.
-- 공식 단계 이름(`'주의'` 등)은 서버 문장에 있는 것만 · 해상 첫 해역·육상 첫 장소 이름 필수 · **빠진 원천 이름 필수**(`required.missing` — 그 문단에 「…자료를 확인하지 못했다」).
+- 공식 단계 이름(`'주의'` 등)은 서버 문장에 있는 것만. ~~해상 첫 해역·육상 첫 장소 이름 필수 · 빠진 원천 이름 필수(`required`)~~ — 2026-10-17 없앰(결론·근거·빠진 자료 줄은 서버 `summary` 가 늘 보인다. 운영 `required:missing:swell` 오탐의 원인이기도 했다).
 - 금지어: **공백·제로폭 문자를 지우고** 대조(「순 찰」·「순​찰」도) — 순찰·배치·출동·단속·통제·**투입·경비정·검문·감시 강화·집중 감시·근무**·사고 확률·확률. 안전 단정: 「안전합니다」·**「안전한 상태」·「이상 없」·「문제없」·「위험 요소가 (전혀) 없」·「걱정 없」·「우려 없」**(「특별한 위험 요소는 확인되지 않았습니다」는 허용 — coastal_risk §10.3).
 - **화면은 총평·카드 문장을 `textContent` 로만 넣는다**(innerHTML 금지) — 검증이 HTML 을 거르더라도 화면이 한 번 더 막는다.
 
 실패는 `status.errors` 에 남는다.
-AI 입력에는 기상청 해상 기상 전망(단기 통보문) 원문 발췌(`marine_forecast.json` shortTerm `codeCategories` — 해상·강풍·너울·바다안개, 각 600자)를 원인·흐름 참고용으로 넣는다. 그 안의 숫자·지명은 허용 목록에 넣지 않는다(옮기면 검증 실패).
+AI 입력에는 기상청 해상 기상 전망(단기 통보문) 원문 발췌(`marine_forecast.json` shortTerm `codeCategories` — 해상·강풍·너울·바다안개, 각 600자)를 원인·흐름 참고용으로 넣는다. 그 안의 숫자는 허용 목록에 넣지 않는다(옮기면 검증 실패). 해역 이름은 위 기상청 해역 이름 목록(`rules.kma_zones`)에 있으면 쓸 수 있다. 관할마다 화면에 이미 보이는 결론·근거·권고(`shown`)를 함께 보내 수·결론을 되풀이하지 않게 한다.
 
 ### 5.1 AI 호출·실행의 시간·재시도 규칙 (2026-10-16 독립 검토 반영)
 | 무엇 | 규칙 |
 |---|---|
 | 호출 시간 제한 | 호출마다 VM 320초(codex_bridge 자체 300초 뒤)·Gemini 100초 — 넘으면 끊기 요청(`signal`)과 함께 다음 공급자로. 실제 Gemini 어댑터는 `config.abortSignal`(90초, @google/genai)로 요청을 끊는다(gemini_client 는 고치지 않음) |
-| 실행 데드라인 | 한 번 실행에 AI 20분 — 넘으면 남은 관할은 틀 총평(`errors[].stage:'deadline'`, `stats.deadline`) |
+| 실행 데드라인 | 한 번 실행에 AI 20분 — 넘으면 남은 관할은 틀(AI 해설 없음 — `errors[].stage:'deadline'`, `stats.deadline`) |
 | VM 차단기 | VM 이 잇달아 3번 실패(호출·시간초과·해석)하면 그 실행 동안 VM 을 건너뛰고 Gemini 로 |
 | 재사용 해시 | 관할 입력 + 규칙 판(`rulesVersion`)·검증 판·지시문 판 + 생성 방식 + ChatGPT·Gemini 모델 + 기상청 전망. 같은 해시라도 지난 글이 ChatGPT 방식인데 Gemini 가 쓴 것이면 VM 이 살아 있을 때 다시 만든다 |
 | 실행 실패 | 실행이 던지면(파일 쓰기 실패 등) `status.failures` 에 횟수·시각을 남기고 10분 뒤 다시, 같은 판은 3번까지(특보 변경도 같게 — 3번 실패하면 그 특보 서명을 받아들이고 멈춤). 매분 다시 모으거나 AI 를 다시 부르지 않는다 |
 | 특보 변경 | 마지막 변경 뒤 3분 조용할 때 한 번(그 사이 바뀐 구역은 합침). 내용이 같은 채 파일 시각만 바뀌면 기다림을 늘리지 않고, 계속 바뀌어도 첫 변경 뒤 15분이면 만든다. 내일 판을 고칠 때 21시 전이면 내일 0시부터(오늘 칸을 섞지 않음) |
-| 개발 환경 | 실제 AI 는 운영(`FLY_ALLOC_ID`) 또는 `STATION_BRIEFING_DEV_AI=1` 일 때만 — 그 밖의 관리자 실행은 틀 총평(`lastRun.aiDisabled`) |
+| 개발 환경 | 실제 AI 는 운영(`FLY_ALLOC_ID`) 또는 `STATION_BRIEFING_DEV_AI=1` 일 때만 — 그 밖의 관리자 실행은 틀(AI 해설 없음, `lastRun.aiDisabled`) |
 | 대표 위치 | 카카오 묻기는 한 실행 60초·한 건 15초 상한. 키 없음·401·403 이면 그 자리에서 멈추고 6시간, 호출 고장이 3번 이어지면 30분 묻지 않는다(`locations.json` 의 `backoff`). 실패 로그는 실행마다 한 줄. 주소나 정리된 질의가 바뀌면 「일치 없음」이었던 곳도 다시 묻는다 |
 | 시각 | 연안 하루 값은 모으기 직전 시각으로 묻는다(위치 찾기·AI 가 오래 걸려도 risk_store 의 「지금−5분」 거부에 걸리지 않게) |
 
 ## 6. 저장 위치(운영 볼륨 `local_server/data/station_briefing/`)
 
-`config.json`(설정) · `state.json`(만든 판·특보 서명·관할별 특보구역·마지막 실행(`lastRun.method` 포함)·오류 200개) · `briefings_YYYY-MM-DD.json`(어제·오늘·내일만 남김) · `locations.json`(대표 위치 — 카카오 결과·실패 사유).
+`config.json`(설정) · `state.json`(만든 판·특보 서명·관할별 특보구역·마지막 실행(`lastRun.method` 포함)·오류 최근 3일 전부(안전 상한 5,000 — `errorsCapped`, 2026-10-17 전 200개)) · `briefings_YYYY-MM-DD.json`(어제·오늘·내일만 남김) · `locations.json`(대표 위치 — 카카오 결과·실패 사유).
 읽기만 하는 것: `data/risk_forecast/warning_history.json`(특보 구간 기록 `sea_warning_history` — 이미 해제된 특보의 실제 해제 시각, 결정 4. 해제 뒤 기간이 가장 긴 육상 3시간에 맞춰 창 시작 3시간 전부터).
 
 ### 6.1 관리자 오류현황 원천 `stationBriefing` (결정 6)
@@ -214,7 +224,7 @@ AI 입력에는 기상청 해상 기상 전망(단기 통보문) 원문 발췌(`
 | `error` | 실행 실패(`state.failures`)가 마지막 실행보다 나중 | 분류 = 고정 이름(`io.errorName`, 원문은 넘기지 않음) · 상세 「브리핑 실행 실패(연속 N번, 마지막 MM-DD HH:MM KST)」 |
 | `missing` | 실행 기록 없음 | — |
 | `stale` | 마지막 실행이 10시간 넘음(정시 판 최장 간격 23:00→08:00 9시간 + 1시간) | 상세 「마지막 실행 … — 정시 판이 10시간 넘게 없음」 |
-| `partial` | AI 방식(`method` ≠ template, 개발 환경 아님)인데 마지막 실행에서 틀 총평으로 대체된 관할이 있음 | 분류 「브리핑 일부 실패 — AI 총평 대신 틀」 · 상세 「마지막 실행 AI 총평 대신 틀 N곳(validate n·call n) — 생성 방식 chatgpt」 |
+| `partial` | AI 방식(`method` ≠ template, 개발 환경 아님)인데 마지막 실행에서 틀(AI 해설 없음)로 대체된 관할이 있음 | 분류 「브리핑 일부 실패 — AI 총평 대신 틀」 · 상세 「마지막 실행 AI 총평 대신 틀 N곳(validate n·call n) — 생성 방식 chatgpt」 |
 | `ok` | 그 밖(VM 이 실패하고 Gemini 가 쓴 것처럼 결과가 AI 면 정상) | — |
 
 판정 함수는 `station_briefing.historyRow` 하나 — 실행 직후(`run`·`reportFailure`)와 1분 감시(`risk_history_sources.briefingSource`, 운영만)가 같은 판정이라 감시가 다른 상태로 덮어 가짜 사건을 만들지 않는다. 데이터 수집현황 목록표 1단계 「활동지점 안전 브리핑 (우리 서버 생성)」(출처 `seagnal` 「우리 서버 생성」, 일정 08:00·17:30·23:00), 관리자 원천 선택지 「활동지점 안전 브리핑」.

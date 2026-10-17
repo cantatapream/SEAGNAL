@@ -2,7 +2,7 @@
 
 ## 이 기능은 무엇인가
 파출소 관할 하나의 바다(해상)와 해안 관광지·위험구역(육상)을 서버 규칙으로 판단한 브리핑을 보여 주는 아코디언이다.
-판단은 전부 서버(`local_server/services/station_briefing_rules.js`)가 하고, AI 는 총평 두 문단만 쓴다. 화면은 받은 것을 옮기기만 한다.
+판단은 전부 서버(`local_server/services/station_briefing_rules.js`)가 하고, 「총평과 권고」의 결론·근거·권고·물때(`summary`)도 서버가 만든다. AI 는 그 아래 짧은 해설(육상·해상 각 1~2문장)만 쓴다(2026-10-17 — 설계서 §11.10). 화면은 받은 것을 옮기기만 한다.
 
 ## 화면에서 찾아가는 법
 - 해양예보 탭 → 「🔭 기상청 해상 기상 전망」 바로 아래 「🧭 활동지점 안전 브리핑」(노출 판정 display:true 일 때만).
@@ -34,7 +34,7 @@
 | 칸 | 내용(서버 필드) |
 |---|---|
 | 머리 | 관할·경찰서, 「10월 17일(토) 브리핑 · 08:00 판 · 생성 시각」, [기준 상세] |
-| ① 총평과 권고 | 단계 배지(육상 `land.level`·해상 `sea.overviewLevel`) · 해상 분석 단계(`sea.level`)가 더 높으면 「공식 사고예보 단계만 있는 해역은 아래 해상 분석을 보세요」 한 줄(`[data-sb-level-note]`) · 육상/해상 문단(`overview.land/sea`) · 지금 밀집(`now.text`, 오늘 판만) · 근거 ▸(`overviewTop`·해구 흐름) · 작게: 틀 문장/AI 작성 표시(`overview.source`) |
+| ① 총평과 권고 | 육상(보일 때)·해상마다 `[data-sb-summary]` 덩어리: 단계 배지(육상 `land.level`·해상 `sea.overviewLevel`) → 결론 `summary.*.headline`(굵게 `.sb-headline`) → 「(근거)」 `basis[]`(`.sb-sum-basis`) → 「(권고)」 `advice` → 「(물때)」 `tide[]`(육상만) → AI 해설 `overview.land/sea`(`[data-sb-commentary]`, 이름표 「해설 · ChatGPT/Gemini」 — 틀이면 없음). 해상 분석 단계(`sea.level`)가 더 높으면 해상 덩어리에 「공식 사고예보 단계만 있는 해역은 아래 해상 분석을 보세요」 한 줄(`[data-sb-level-note]`) · 지금 밀집(`now.text`, 오늘 판만) · 작게(`[data-sb-source]`): AI 해설 표시 또는 「AI 해설 없음 — 결론·근거·권고는 서버가 계산한 값입니다.」. **`summary` 가 없는 옛 브리핑**은 종전 모양(육상/해상 문단 `[data-sb-overview]` · 근거 ▸ · 틀 문장 표시) — `legacyOverview` |
 | ② 특별 상황 | `special[]` 제목 + 두 줄(해제 예고·예비·이미 해제 — 기상청 시각 그대로) |
 | ③ 해상 분석 | 단계·출처, 검토 칸 수·관심 이상 해역 수(공식 사고예보 단계만 있는 해역 수 · 카드 10곳 넘으면 「카드는 단계 높은 순 10곳까지」), 빠진 자료(`sea.missing`·`missingSlots`), 해구 흐름(`sea.weather.text`), **시간 막대**(`timeBar` — 칸 색 = 단계, ⚑ = 사건, 누르면 설명, 보는 시각에 끝난 칸은 흐리게 `.sb-slot-past`), 해역 카드(`cards` — [특성]·[오늘 예상]·틀 문장·[위험예측에서 보기 ›]) |
 | ④ 육상 분석 | 단계·출처, 검토 관광지 수, 관광지 카드(`land.cards`), 「상시 위험 장소」 접힘(`land.constant`). 해상만 관할은 `seaOnlyReason` 한 줄 |
@@ -64,6 +64,7 @@
 | `openInRisk` | station_briefing.js | 바로가기 |
 | `renderSettings` | station_briefing.js | 설정 팝업 칸(settings.js `openSettingsModal` 이 부름) |
 | `render` | station_briefing_render.js | 본문 전체(관리자 미리보기도) |
+| `summaryBody`·`legacyOverview`·`renderRest` | station_briefing_render.js | 「총평과 권고」 새 모양(summary) · 옛 브리핑 문단 모양 · 그 아래 칸들 |
 
 ## 수정 시 주의사항
 - **서버 글은 `textContent` 로만**(계약 §5). `innerHTML` 은 조석 게이지(숫자·시각만 — 모양 검사 뒤 `OS.tideGaugeHtml`)와 [기준 상세] 정적 문안뿐.

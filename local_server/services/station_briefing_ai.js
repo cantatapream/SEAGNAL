@@ -1,13 +1,15 @@
 /**
  * ============================================================================
  * 파일명: local_server/services/station_briefing_ai.js
- * 역할  : 관할 브리핑의 「총평」만 AI 에게 맡기는 부분 — 서버가 정한 사실(단계·해역·시각·숫자)을 묶어 AI 에게 보내고,
- *         돌아온 글을 관할별로 대조 검사(숫자+단위·한글 수사·배수·지명·단계 말·금지어·안전 단정·HTML/링크·필수 포함·문장 수, NFKC 정규화)해 통과한 것만 쓴다.
- *         순서: ChatGPT(관리자 정액제 VM) → 꺼져 있거나 실패하면 Gemini → 둘 다 실패하면 틀 총평. 실패한 관할만 한 번 더, 그래도 실패면 틀.
+ * 역할  : 관할 브리핑 「총평과 권고」의 **AI 해설**(육상·해상 각 1~2문장 — 원인·시간 흐름)만 AI 에게 맡기는 부분. 결론·근거·권고는 서버가 만든다
+ *         (station_briefing_rules.buildSummary — 2026-10-17 사용자 결정, 설계서 §11.10). 서버가 정한 사실(단계·해역·시각·숫자)을 묶어 AI 에게 보내고,
+ *         돌아온 글을 관할별로 대조 검사(숫자+단위·한글 수사·배수·지명·단계 말·금지어·안전 단정·HTML/링크·문장 수, NFKC 정규화)해 통과한 것만 쓴다.
+ *         순서: ChatGPT(관리자 정액제 VM) → 꺼져 있거나 실패하면 Gemini → 둘 다 실패하면 해설 없음(source 'template'). 실패한 관할만 한 번 더, 그래도 실패면 해설 없음.
  *         묶음 단위(파출소·해양경찰서·지방청)와 「입력이 지난번과 같으면 재사용」을 설정으로 고른다(§11.6-17). 호출마다 시간 제한·실행 데드라인·VM 연속 실패 차단기.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : services/station_briefing_rules.js(hash·RULES_VERSION·templateOverview — 틀 총평 숫자를 허용 목록에·SOURCE_LABEL·md·dayWordOf)
+ *  - 사용하는 파일 : services/station_briefing_rules.js(hash·RULES_VERSION·buildSummary·summaryLines — 서버 결론·근거 숫자를 허용 목록에·SOURCE_LABEL·md·dayWordOf)
+ *                    · config/zone_group_map.js(ZONE_GROUP_MAP — 기상청 해역 이름 전부: 묶음 이름 + 앞바다·먼바다. 해설이 기상청 전망의 해역 이름을 써도 통과하게)
  *  - 서버 API      : 없음 — AI 호출은 넘겨받은 어댑터로만(실제: codex_bridge.callRaw · gemini_client.callGeminiRaw — station_briefing.js 가 만든다)
  *  - 나를 쓰는 곳  : services/station_briefing.js(run) · scripts/test_station_briefing.js(가짜 어댑터)
  *  - 설계 근거     : 구성안 부록 A(입력 묶음·검증 순서) · coastal_risk.design.md §9.2(환각 방지) · handoff_marine_fusion.md 29~33행(직무 지시·해상 배수 금지)
@@ -19,7 +21,19 @@ const R = require('./station_briefing_rules');
 
 const SCHEMA = 'station-briefing-input-v2';
 // 재사용 해시에 들어가는 판(독립 검토 B10) — 검증 규칙·지시문이 바뀌면 지난 AI 총평을 재사용하지 않는다.
-const VALIDATOR_VERSION = 'sb-validate-v2', PROMPT_VERSION = 'sb-prompt-v2';
+// v3(2026-10-17 §11.10): 해설 1~2문장 · 필수 포함(required) 검사 없앰 · 기상청 해역 이름·「제주도」 허용 · 「두 곳」처럼 곳·개를 세는 한글 수사는 그 수가 허용 숫자에 있을 때만.
+const VALIDATOR_VERSION = 'sb-validate-v3', PROMPT_VERSION = 'sb-prompt-v3';
+// 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
+// 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
+// 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
+const KMA_ZONE_NAMES = Object.freeze((() => {
+    const { ZONE_GROUP_MAP } = require('../config/zone_group_map'), out = new Set(['제주도']);
+    for (const [k, v] of Object.entries(ZONE_GROUP_MAP)) for (const n of [k, ...v]) { out.add(n); if (n.includes('·')) out.add(n.split('·').pop()); }
+    return [...out].sort();
+})());
+// 곳·개를 세는 한글 수사(2026-10-17 결정 — 운영 실패 「number:hangul:두 곳」·「세 곳」). 그 수가 같은 단위로 허용 숫자에 있을 때만(예: 「두 곳」 ← 허용 열쇠 '2|곳').
+// 그 밖(두 척·세 시·서른 미터 등)은 종전대로 막는다.
+const COUNT_WORD = Object.freeze({ '한': 1, '두': 2, '세': 3, '네': 4, '다섯': 5, '여섯': 6, '일곱': 7, '여덟': 8, '아홉': 9, '열': 10, '열한': 11, '열두': 12, '스무': 20 });
 // 쓰지 않는 말 — 직무 지시(handoff_marine_fusion.md:29 — 「경비정 투입」 같은 지시도, 독립 검토 B6)·「안전」 단정(coastal_risk.design.md 「안전합니다」 금지)·확률 표현.
 // 대조는 NFKC 정규화 + 공백·제로폭 문자를 지운 꼴끼리(「순 찰」·「순​찰」도 잡는다).
 const FORBIDDEN = Object.freeze(['순찰', '배치', '출동', '단속', '통제', '투입', '경비정', '검문', '감시 강화', '집중 감시', '근무', '사고 확률', '확률', '사고가 납니다']);
@@ -45,7 +59,8 @@ const MAN_CONTEXT = /^(?:에서|에서는|에서도|앞|쪽|부근|인근|주변
 const NEXT_CONTEXT = /^(?:해역|일대|주변|인근|부근|근처|앞|앞바다|연안|해안|쪽|방면|북|남|동|서|갯바위|방파제|포구|해상|바깥|안쪽|입구|부두|등대|섬)/;
 const STOP_WORD = new Set(['관할', '인근', '주변', '부근', '해당', '같은', '모든', '각', '일부', '전체', '오늘', '내일', '따라서', '특히', '다만', '또', '및', '등', '해상', '육상', '연안', '이', '그', '저', '이번', '이곳', '그곳', '평소', '현재', '지금', '오전', '오후', '새벽', '밤', '낮', '앞', '뒤', '옆', '안', '밖', '근처', '여러', '주요']);
 const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면|다|요|게|께|죠)$/;
-const MIN_S = 3, MAX_S = 5;
+// 해설 문장 수(2026-10-17 §11.10 — 결론·근거·권고는 서버가 쓰므로 AI 는 1~2문장). 종전 총평 문단은 3~5.
+const MIN_S = 1, MAX_S = 2;
 
 /** NFKC 정규화(전각 숫자·호환 문자 → 보통 꼴, B2). 예: '９９m' → '99m'. @param {string} t @returns {string} [연계] ← 검증 전부 */
 function norm(t) { return String(t || '').normalize('NFKC'); }
@@ -107,11 +122,12 @@ function placeCandidates(t) {
 }
 
 /**
- * 브리핑 하나에서 AI 에게 보낼 관할 입력을 만든다(부록 A — 관할 배열의 한 칸). 총평에 올릴 것만 넣는다:
+ * 브리핑 하나에서 AI 에게 보낼 관할 입력을 만든다(부록 A — 관할 배열의 한 칸). 해설에 쓸 것만 넣는다:
  * 해상은 overviewTop(기상·혼잡 근거가 겹친 해역 — §11.6-17①), 육상은 오늘 바뀐 요소가 있는 곳(overviewTop) + 상시 위험 장소 이름.
- * 허용 숫자 = 서버가 만든 사실 문장들(+ 틀 총평) 안의 「숫자+단위」, 허용 지명 = 관할·해역·구역·관광지 이름(+ 이름 줄기: 파출소 이름에서 「파출소」를 뗀 것 등 — 정확히 같을 때만).
+ * shown = 화면에 이미 보이는 서버 결론·근거·권고(summary — §11.10) — AI 가 그 수·결론을 되풀이하지 않게 알려 준다.
+ * 허용 숫자 = 서버가 만든 사실 문장들(+ 서버 결론·근거 줄) 안의 「숫자+단위」, 허용 지명 = 관할·해역·구역·관광지 이름(+ 이름 줄기: 파출소 이름에서 「파출소」를 뗀 것 등 — 정확히 같을 때만).
  * 단계(levels)는 문단별(sea·land) — 이름 없는 문장의 단계는 그 문단 최저 단계까지(B4). 배수는 문단별(B3 — 해상 = 해제 칸 1.2·1.3, 육상 = 사람 배수).
- * 예: stationInput(한림 브리핑) → {id:'제주해양경찰서|한림파출소', sea:{level:'주의 필요',top:[…]}, land:{…}, allowed_numbers:['15~18시','2.4m',…], allowed_places:[…], levels:{sea:{…},land:{…}}}
+ * 예: stationInput(한림 브리핑) → {id:'제주해양경찰서|한림파출소', shown:{land:{headline,basis,advice},sea:{…}}, sea:{level:'주의 필요',top:[…]}, land:{…}, allowed_numbers:['15~18시','2.4m',…], allowed_places:[…], levels:{sea:{…},land:{…}}}
  * @param {object} b - rules.buildBriefing 결과 @returns {object} [연계] ← batchInput·validateOverview / hash 의 대상
  */
 function stationInput(b) {
@@ -139,12 +155,15 @@ function stationInput(b) {
         const top = land.overviewTop.map((c) => { facts.push(c.name, ...c.today.changes, c.traits.text, c.sourceLabel || ''); places.add(c.name); levels.land[c.name] = c.rank; for (const t of numTokens(c.today.changes.join(' '))) if (t.unit === '배') mult.land.add(t.key); return { name: c.name, level: c.word, source: c.sourceLabel || null, changes: c.today.changes, traits: c.traits.text }; });
         const constant = land.constant.slice(0, 5).map((c) => { places.add(c.name); facts.push(c.name, c.text || ''); return c.name; });
         missLand = [...new Set(land.missing.map((k) => R.SOURCE_LABEL[k] || k))];
-        landPart = { level: land.level.word, reviewed_spots: land.reviewedSpots, changed_spots: land.cards.length, top, constant, missing_sources: missLand };
+        // changed_spots = 관심 이상 관광지 전체 수(attentionSpots) — 종전엔 카드 상한(10)으로 잘린 cards.length 였다(2026-10-17 §11.10 버그 수정).
+        landPart = { level: land.level.word, reviewed_spots: land.reviewedSpots, changed_spots: Number.isFinite(land.attentionSpots) ? land.attentionSpots : land.cards.length, top, constant, missing_sources: missLand };
     }
     const tide = b.tide ? b.tide.text : [];
     facts.push(...tide);
-    // 틀 총평 문장(서버가 서버 값만으로 만든 것)도 사실로 넣는다 — 「관할 안 52칸」·「관심 이상 3개 해역」·「관광지 4곳」 같은 숫자+단위 꼴이 허용 목록에 들어간다.
-    const tpl = R.templateOverview(b); facts.push(tpl.sea, tpl.land || '');
+    // 서버 결론·근거·권고 줄(summary — 서버가 서버 값만으로 만든 것)도 사실로 넣는다 — 「관할 해역 52칸」·「해역 3개」·「관광지 30곳」·「12곳」 같은 숫자+단위 꼴이 허용 목록에 들어간다.
+    // (종전엔 틀 총평 문단 templateOverview 를 넣었다 — §11.10 으로 없앰.) summary 가 없는 옛 브리핑이면 지금 규칙으로 만든다.
+    const summary = b.summary || R.buildSummary(b); facts.push(...R.summaryLines(summary));
+    const shown = (x) => x ? { headline: x.headline, basis: x.basis, advice: x.advice } : null;
     facts.push(R.md(b.targetDate)); if (b.generatedAt) facts.push(R.md(b.generatedAt.slice(0, 10)));
     const labels = new Set(); for (const f of facts) for (const m of norm(f).matchAll(LABEL_RE)) labels.add(m[0]);
     const nums = new Set(); for (const f of facts) for (const t of numTokens(f)) { nums.add(t.key); t.ends.forEach((k) => nums.add(k)); }
@@ -155,17 +174,17 @@ function stationInput(b) {
     for (const pl of places) { const ws = String(pl).split(/\s+/); for (let i = 1; i < ws.length; i++) stems.add(ws.slice(0, i).join('')); }
     return {
         id: b.key, name: b.station.name, office: b.station.office, date: b.targetDate, day_word: R.dayWordOf(b),
-        sea: seaPart, land: landPart, special, tide,
+        shown: { land: shown(summary.land), sea: shown(summary.sea) }, sea: seaPart, land: landPart, special, tide,
         allowed_numbers: [...nums].sort().map(showNum), allowed_number_keys: [...nums].sort(),
         allowed_places: [...places].filter(Boolean).sort(), place_stems: [...stems].sort(), levels,
         allowed_multipliers: { sea: [...mult.sea].sort().map(showNum), land: [...mult.land].sort().map(showNum) }, allowed_multiplier_keys: { sea: [...mult.sea].sort(), land: [...mult.land].sort() },
         allowed_labels: [...labels].sort(), fact_sentences: [...new Set([...tide, ...b.special.flatMap((x) => x.lines)])],
-        required: { sea: sea.overviewTop[0] ? (sea.overviewTop[0].nameBase || sea.overviewTop[0].name) : null, land: land?.overviewTop[0]?.name || null, missing: { sea: seaPart.missing_sources, land: missLand } },
+        // required(첫 해역·첫 장소·빠진 자료 이름 필수)는 없앴다(§11.10) — 결론·근거(빠진 자료 줄 포함)는 서버 summary 가 화면에 늘 보인다. 운영 실패 「required:missing:swell」의 원인이기도 했다.
     };
 }
 /**
  * 여러 관할을 한 번에 보낼 묶음을 만든다(부록 A schema). kma_outlook = 기상청 해상 기상 전망(단기 통보문) 원문 발췌 — 원인·흐름 이해용이며
- * 그 안의 숫자·지명은 총평에 쓰지 않는다(허용 목록에 넣지 않는다).
+ * 그 안의 숫자는 해설에 쓰지 않는다(허용 목록에 넣지 않는다). 해역 이름은 rules.kma_zones(기상청 해역 이름 전부 + 「제주도」)에 있는 것만 쓸 수 있다(§11.10).
  * 예: batchInput([한림, 애월], kma) → {schema:'station-briefing-input-v2', stations:[2], kma_outlook:{…}, rules:{…}}
  * @param {object[]} inputs - stationInput 결과들 @param {object|null} kma - {title,publishTime,forecastPeriod,excerpt:{해상,강풍,너울,바다안개}}
  * @returns {object} [연계] ← generate / → buildPrompt
@@ -175,22 +194,23 @@ function batchInput(inputs, kma) {
     const strip = (si) => { const { allowed_number_keys: _a, allowed_multiplier_keys: _b, fact_sentences: _c, ...rest } = si; return rest; };
     return {
         schema: SCHEMA, stations: inputs.map(strip), kma_outlook: kma || null,
-        rules: { sentences_per_paragraph: [MIN_S, MAX_S], forbidden: FORBIDDEN.concat(['안전합니다', '이상 없음', '문제없음', "해상 '사고 N배'", '한글 수사(세 시·두 척 등)', 'HTML·링크']), level_words: ['관심 필요', '주의 필요', '경계 필요'] },
+        rules: { sentences_per_paragraph: [MIN_S, MAX_S], forbidden: FORBIDDEN.concat(['안전합니다', '이상 없음', '문제없음', "해상 '사고 N배'", '한글 수사(세 시·두 척 등 — 곳·개를 세는 말은 그 수가 allowed_numbers 에 있을 때만)', 'HTML·링크']), level_words: ['관심 필요', '주의 필요', '경계 필요'], kma_zones: KMA_ZONE_NAMES },
     };
 }
 /** AI 지시문 + 묶음 JSON. 예: buildPrompt(batch) → '너는 …\n\n{"schema":…}'. @param {object} batch @returns {string} [연계] ← generate */
 function buildPrompt(batch) {
     return [
-        '너는 해양 안전 「활동지점 안전 브리핑」의 총평만 쓰는 작성자다. 아래 JSON 의 stations 마다 육상 한 문단(land)과 해상 한 문단(sea)을 쓴다.',
-        '각 문단은 3~5문장. 단순 나열이 아니라 원인과 시간 흐름을 엮는다(예: 「오전에는 바람이 약하지만 15시부터 파고가 높아져 …」). 마지막 문장은 「따라서 … 에 관심/주의/경계가 필요합니다」 꼴.',
+        '너는 해양 안전 「활동지점 안전 브리핑」의 「총평과 권고」 아래에 붙는 짧은 해설만 쓰는 작성자다. 화면에는 서버가 만든 결론(단계)·근거 목록·권고가 이미 보인다(각 관할의 shown).',
+        '아래 JSON 의 stations 마다 육상 해설(land)과 해상 해설(sea)을 쓴다. 각 해설은 1~2문장.',
+        'shown 의 수(검토 칸·관광지·해역 수)·결론 문장·권고 문장을 되풀이하지 말고, 왜 높아졌는지(원인 — 바람·파도·특보·사람·행사 등)와 시간 흐름(언제부터 언제까지, 언제 나아지는지)을 쉬운 말로 설명한다(예: 「오전에는 바람이 약하지만 15시부터 파고가 높아지고, 21시부터는 풍랑 예비특보 구역에 들어갑니다.」).',
         '규칙(어기면 그 관할 글은 버려진다):',
-        '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로만 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다.',
-        '2) 지명(항·포구·해수욕장·앞바다·해구·섬·갯바위·파출소 등)은 allowed_places 이름(또는 place_stems)을 그대로만 쓴다.',
-        '3) 단계 말(관심·주의·경계 + 필요·요구·단계·하십시오 등 모든 꼴)은 levels.sea(해상 문단)·levels.land(육상 문단)에 적힌 그 대상의 단계보다 높이지 않는다. 단계 말이 있는 문장에는 대상 이름을 함께 쓴다 — 이름이 없으면 그 문단의 가장 낮은 단계까지만. 따옴표로 쓰는 공식 단계 이름(\'주의\' 등)은 allowed_labels 에 있는 것만.',
-        '4) 해상 문단에는 required.sea, 육상 문단에는 required.land 이름을 반드시 넣는다(null 이면 생략). required.missing.sea·land 에 적힌 자료 이름(확인하지 못한 자료)은 그 문단 첫머리에 「…자료를 확인하지 못했다」고 밝힌다 — 그때는 「평소 수준」·「없습니다」로 단정하지 않는다.',
-        '5) 쓰지 않는 말: 순찰·배치·출동·단속·통제·투입·경비정·검문·근무(직무 지시), 「안전합니다」·「이상 없음」·「문제없음」·「위험 요소가 없습니다」(안전 단정), 「사고 확률」. 배수(N배)는 allowed_multipliers.sea(해상)·land(육상)에 있는 것만 — 해상의 「사고 N배」·「두 배」는 쓰지 않는다. 지시(「~하라」)가 아니라 「~에 관심/주의/경계가 필요합니다」.',
+        '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로 쓴다 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다. 다만 「두 곳」·「세 개」처럼 곳·개를 세는 말은 그 수가 allowed_numbers 에 「2곳」·「3개」 꼴로 있을 때만 쓸 수 있다.',
+        '2) 지명(항·포구·해수욕장·앞바다·해구·섬·갯바위·파출소 등)은 allowed_places 이름(또는 place_stems), 그리고 rules.kma_zones 의 기상청 해역 이름(「제주도남쪽바깥먼바다」 등)과 「제주도」만 그대로 쓴다.',
+        '3) 단계 말(관심·주의·경계 + 필요·요구·단계·하십시오 등 모든 꼴)은 levels.sea(해상 해설)·levels.land(육상 해설)에 적힌 그 대상의 단계보다 높이지 않는다. 단계 말이 있는 문장에는 대상 이름을 함께 쓴다 — 이름이 없으면 그 해설의 가장 낮은 단계까지만. 따옴표로 쓰는 공식 단계 이름(\'주의\' 등)은 allowed_labels 에 있는 것만.',
+        '4) 확인하지 못한 자료(missing_sources)는 화면 근거 목록에 이미 적혀 있다 — 그 자료가 빠졌는데 「평소 수준」·「없습니다」로 단정하지 않는다.',
+        '5) 쓰지 않는 말: 순찰·배치·출동·단속·통제·투입·경비정·검문·근무(직무 지시), 「안전합니다」·「이상 없음」·「문제없음」·「위험 요소가 없습니다」(안전 단정), 「사고 확률」. 배수(N배)는 allowed_multipliers.sea(해상)·land(육상)에 있는 것만 — 해상의 「사고 N배」·「두 배」는 쓰지 않는다. 지시(「~하라」)를 쓰지 않는다.',
         '6) land 가 null 인 관할(해상만 제공)은 land 를 null 로 둔다.',
-        '7) kma_outlook 은 기상청 해상 기상 전망 원문 발췌다 — 원인(저기압·바람 방향 등)과 흐름을 이해하는 데만 쓰고, 그 안의 숫자·지명은 옮기지 않는다.',
+        '7) kma_outlook 은 기상청 해상 기상 전망 원문 발췌다 — 원인(저기압·바람 방향 등)과 흐름을 이해하는 데 쓰고, 그 안의 숫자는 옮기지 않는다(해역 이름은 2)의 kma_zones 에 있는 것만).',
         '8) 입력에 없는 사실을 지어내지 않는다. 글은 평문만 — HTML 태그·링크(URL)·마크다운을 쓰지 않는다.',
         '응답은 JSON 하나만: {"stations":[{"id":"<입력 id 그대로>","land":"…"|null,"sea":"…"}]}',
         '',
@@ -198,7 +218,7 @@ function buildPrompt(batch) {
     ].join('\n');
 }
 /**
- * AI 응답 글에서 관할별 총평을 꺼낸다(앞뒤 ``` 표시 허용). 모양이 틀리면 throw.
+ * AI 응답 글에서 관할별 해설(land·sea)을 꺼낸다(앞뒤 ``` 표시 허용). 모양이 틀리면 throw.
  * 예: '{"stations":[{"id":"a","land":null,"sea":"…"}]}' → Map{'a' → {land:null,sea:'…'}}
  * @param {string} text @returns {Map<string,object>} [연계] ← generate
  */
@@ -211,18 +231,19 @@ function parseResponse(text) {
     return out;
 }
 /**
- * 관할 하나의 총평을 입력과 대조한다(부록 A 검증 순서 + 독립 검토 B1~B6·B13). 하나라도 어기면 ok:false 와 이유 목록. 모든 대조는 NFKC 정규화한 글로.
- *   모양(문단·문장 수 3~5, 해상만 관할은 land 없음) · HTML·링크 금지 · 숫자(「숫자+단위」·범위째 allowed_number_keys) · 한글 수사 금지
- *   · N배(문단별 allowed_multiplier_keys — 해상 「사고 N배」·「두 배」 금지) · 지명(allowed_places 가 후보 끝에 오거나 place_stems 와 같을 때만)
+ * 관할 하나의 AI 해설(육상·해상 각 1~2문장 — §11.10)을 입력과 대조한다(부록 A 검증 순서 + 독립 검토 B1~B6·B13). 하나라도 어기면 ok:false 와 이유 목록. 모든 대조는 NFKC 정규화한 글로.
+ *   모양(해설 문장 수 1~2, 해상만 관할은 land 없음) · HTML·링크 금지 · 숫자(「숫자+단위」·범위째 allowed_number_keys)
+ *   · 한글 수사 금지(곳·개를 세는 「두 곳」은 같은 단위의 그 수가 허용 숫자에 있을 때만 — 2026-10-17)
+ *   · N배(문단별 allowed_multiplier_keys — 해상 「사고 N배」·「두 배」 금지) · 지명(allowed_places·기상청 해역 이름·「제주도」가 후보 끝에 오거나 place_stems 와 같을 때만)
  *   · 단계 말(모든 서술 꼴 — 문장 속 대상의 문단별 단계를 넘으면 실패, 대상 없는 문장은 문단 최저 단계까지, 「관심」은 늘 허용, 서버 사실 문장 그대로는 제외)
- *   · 필수 포함(required — 첫 해역·첫 장소·빠진 자료 이름) · 금지어(공백·제로폭 무시) · 안전 단정
+ *   · 금지어(공백·제로폭 무시) · 안전 단정. 필수 포함(required — 첫 해역·첫 장소·빠진 자료 이름) 검사는 없앴다(§11.10 — 서버 결론·근거가 늘 보인다).
  * 예: validateOverview({land:null, sea:'…한림항 순찰…'}, si) → {ok:false, errors:['forbidden:순찰']}
  * @param {object} o - {land,sea} @param {object} si - stationInput @returns {object} {ok,errors}
- * [연계] ← generate · 시험(틀 총평도 이 검사를 통과해야 한다)
+ * [연계] ← generate · 시험
  */
 function validateOverview(o, si) {
     const errors = [], allowedN = new Set(si.allowed_number_keys || []), mk = si.allowed_multiplier_keys || { sea: [], land: [] };
-    const names = (si.allowed_places || []).map(compact).filter((x) => x.length >= 2), stems = new Set((si.place_stems || []).map(compact));
+    const names = (si.allowed_places || []).concat(KMA_ZONE_NAMES).map(compact).filter((x) => x.length >= 2), stems = new Set((si.place_stems || []).map(compact));
     const factS = (si.fact_sentences || []).map(compact).filter(Boolean);
     const paras = [['sea', o?.sea], ['land', o?.land]];
     if (!si.land && o?.land) errors.push('shape:land-not-allowed');
@@ -238,7 +259,7 @@ function validateOverview(o, si) {
             if (n.unit === '배') { if (!multSet.has(n.key)) errors.push('multiplier:' + n.text); continue; }
             if (!allowedN.has(n.key)) errors.push('number:' + n.text);
         }
-        for (const m of t.matchAll(HNUM_RE)) errors.push('number:hangul:' + m[1].replace(/\s+/g, ' '));
+        for (const m of t.matchAll(HNUM_RE)) { const w = m[1].replace(/\s+/g, ' '); if (!countWordOk(w, allowedN)) errors.push('number:hangul:' + w); }
         for (const m of t.matchAll(HMULT_RE)) errors.push('multiplier:' + m[1].replace(/\s+/g, ' '));
         for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || names.some((a) => x.endsWith(a)))) errors.push('place:' + pc.cands[pc.cands.length - 1]);
         for (const w of FORBIDDEN) if (c.includes(compact(w))) errors.push('forbidden:' + w);
@@ -252,13 +273,15 @@ function validateOverview(o, si) {
             const cap = Math.max(1, named.length ? Math.max(...named) : floor);
             for (const lm of s.matchAll(LEVEL_RE)) if (LEVEL_RANK[lm[1]] > cap) errors.push('level:' + lm[1] + '>' + cap);
         }
-        for (const miss of (si.required?.missing?.[k] || [])) if (!c.includes(compact(miss))) errors.push('required:missing:' + miss);
     }
-    if (si.required?.sea && o?.sea && !compact(o.sea).includes(compact(si.required.sea))) errors.push('required:sea');
-    if (si.required?.land && o?.land && !compact(o.land).includes(compact(si.required.land))) errors.push('required:land');
     return { ok: errors.length === 0, errors: [...new Set(errors)] };
 }
 
+/**
+ * 곳·개를 세는 한글 수사가 허용 숫자와 맞는지(2026-10-17 결정). 예: ('두 곳', Set{'2|곳'}) → true · ('세 곳', Set{'2|곳'}) → false · ('두 척', …) → false(곳·개만)
+ * @param {string} w - HNUM_RE 가 잡은 글(공백 하나로 정리) @param {Set<string>} allowedN - allowed_number_keys @returns {boolean} [연계] ← validateOverview
+ */
+function countWordOk(w, allowedN) { const m = /^(\S+) ?(곳|개)$/.exec(w), n = m ? COUNT_WORD[m[1]] : undefined; return !!n && allowedN.has(n + '|' + m[2]); }
 /** 묶음 단위대로 나눈다. 예: unit 'office' → 해양경찰서마다 한 묶음(21개). @param {object[]} items @param {string} unit - station|office|region @returns {object[][]} [연계] ← generate */
 function groupBy(items, unit) {
     const m = new Map();
@@ -268,7 +291,7 @@ function groupBy(items, unit) {
 // 호출 시간 제한 기본값(B7) — VM 은 codex_bridge 자체 300초 뒤 조금 더, Gemini 는 어댑터 90초 뒤 조금 더(어댑터가 먼저 끊는다). VM 이 이 횟수만큼 잇달아 실패하면 그 실행 동안 VM 을 건너뛴다.
 const DEFAULT_TIMEOUTS = Object.freeze({ vm: 320000, gemini: 100000 }), VM_FAIL_LIMIT = 3;
 /**
- * 관할 브리핑들의 총평을 만든다(AI 또는 틀). 재사용 → 묶음 호출(VM→Gemini) → 관할별 검증 → 실패 관할만 1회 재시도 → 틀.
+ * 관할 브리핑들의 AI 해설을 만든다(AI 또는 틀 = 해설 없음). 재사용 → 묶음 호출(VM→Gemini) → 관할별 검증 → 실패 관할만 1회 재시도 → 틀.
  * 재사용(B10): 해시 = 관할 입력 + 규칙·검증·지시문 판 + 방식 + 모델(ChatGPT·Gemini 둘 다 — VM 이 꺼지면 Gemini 로 가므로) + 기상청 전망.
  *   같은 해시라도 지난 글의 출처가 고른 방식의 첫 공급자가 아니면(ChatGPT 방식인데 Gemini 가 쓴 글) VM 이 지금 살아 있으면 다시 만든다.
  * 시간(B7): 호출마다 시간 제한(timeouts, signal 로 끊기 요청 + Promise.race) · 실행 데드라인(deadline — timer 로 잼, 넘으면 남은 관할은 틀) · VM 연속 실패 차단기(vmFailLimit).
@@ -284,7 +307,8 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     let vmFails = 0, vmBroken = false;
     const vmUp = method === 'chatgpt' && up(adapters.vm);
     const items = briefings.map((b) => { const si = stationInput(b); return { b, si, hash: R.hash({ si, rules: R.RULES_VERSION, validator: VALIDATOR_VERSION, prompt: PROMPT_VERSION, method, chatgptModel: method === 'chatgpt' ? config.chatgptModel : null, geminiModel: method !== 'template' ? config.geminiModel : null, kma: kma ? R.hash(kma) : null }) }; });
-    const template = (it) => { overviews[it.b.key] = { land: it.b.overview.land, sea: it.b.overview.sea, source: 'template', model: null, hash: it.hash }; stats.template++; };
+    // AI 가 못 쓰면(틀 방식·실패·데드라인) 해설 없음 — 결론·근거·권고는 서버 summary 가 늘 보인다(§11.10, 종전 틀 총평 문단 대체).
+    const template = (it) => { overviews[it.b.key] = { land: null, sea: null, source: 'template', model: null, hash: it.hash }; stats.template++; };
     const pending = [];
     for (const it of items) {
         const prev = previous[it.b.key]?.overview;
@@ -333,7 +357,7 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     const past = () => timer() >= deadline;
     const groups = groupBy(pending, config.batchUnit || 'office');
     for (let gi = 0; gi < groups.length; gi++) {
-        if (past()) { const rest = groups.slice(gi).flat(); errors.push({ at, stage: 'deadline', provider: null, stations: rest.map((it) => it.b.key), reason: '실행 데드라인 넘음 — 남은 ' + rest.length + '곳은 틀 총평' }); for (const it of rest) template(it); stats.deadline += rest.length; break; }
+        if (past()) { const rest = groups.slice(gi).flat(); errors.push({ at, stage: 'deadline', provider: null, stations: rest.map((it) => it.b.key), reason: '실행 데드라인 넘음 — 남은 ' + rest.length + '곳은 AI 해설 없음(틀)' }); for (const it of rest) template(it); stats.deadline += rest.length; break; }
         const group = groups[gi];
         const failed = accept(group, await callChain(group));
         if (!failed.length) continue;
@@ -345,4 +369,4 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     return { overviews, stats, errors };
 }
 
-module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, FORBIDDEN, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
+module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, FORBIDDEN, KMA_ZONE_NAMES, MIN_S, MAX_S, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
