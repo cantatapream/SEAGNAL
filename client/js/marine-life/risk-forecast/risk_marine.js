@@ -240,7 +240,7 @@
     function showPop(html,opener){
         var pop=document.querySelector('.rf-acc-pop');
         if(!pop){pop=document.createElement('div');pop.className='rf-acc-pop';pop.hidden=true;document.body.appendChild(pop);pop.addEventListener('click',function(e){if(e.target===pop||e.target.closest('.x'))closeAcc(pop);});document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!pop.hidden&&pop.isConnected)closeAcc(pop);});}
-        pop.innerHTML=html;pop._opener=opener;pop.hidden=false;if(w.PopupStack)w.PopupStack.push('risk-sea-accident-pop',function(){closeAcc(pop,true);});pop.querySelector('.x').focus();
+        pop.innerHTML=html;pop._opener=opener;pop._helpKey=opener&&opener.getAttribute?opener.getAttribute('data-help'):null;pop.hidden=false;if(w.PopupStack)w.PopupStack.push('risk-sea-accident-pop',function(){closeAcc(pop,true);});pop.querySelector('.x').focus();
     }
     /** [?] 설명 표 한 개. 예: helpTable(HELP.risk,RISK) → 단계(지도와 같은 색 점)·기준 2열 4행 @param {array} rows - HELP.* @param {object} pal - RISK|CONG @returns {string} HTML [연계] ← openHelp */
     function helpTable(rows,pal){return '<table class="rf-help-tbl"><thead><tr><th scope="col">단계</th><th scope="col">기준</th></tr></thead><tbody>'+rows.map(function(r){return '<tr data-level="'+r[0]+'"><td><i style="background:'+pal[r[0]]+'"></i>'+r[1]+'</td><td>'+r[2]+'</td></tr>';}).join('')+'</tbody></table>';}
@@ -256,8 +256,9 @@
                 :'<p>밀집도/혼잡도는 KOMSA의 실시간·예측 결과이며, 유효선박면적 비율 기준입니다.</p><p>(혼잡도는 공단 안내 기준, 밀집도는 같은 기준 추정).</p><p>혼잡도는 과거 5년간의 선박 운항이력 데이터를 활용하여 딥러닝 기법의 한 종류인 GAN 모델을 통해 예측합니다.</p><p>유효선박면적 비율이란 다음과 같습니다.</p>'
                  +'<p class="gi"><b>가.</b>큰 배는 1척이어도 넓은 면적을 차지</p><p class="gi"><b>나.</b>육지가 많이 섞여 바다 면적이 작은 칸은 배 한두 척으로도 비율 증가</p><p class="gi"><b>다.</b>4단계 혼잡도 격자 기준</p><div class="gt">'+helpTable(HELP.cong,CONG)+'</div>')+'</div>',opener);
     }
-    /** 공용 팝업(사고·[?])을 닫는다. @param {HTMLElement} pop @param {boolean} [fromBack] - 뒤로가기가 이미 목록에서 뺐으면 true @returns {void} [연계] ← showPop·render */
-    function closeAcc(pop,fromBack){if(pop.hidden)return;pop.hidden=true;if(!fromBack&&w.PopupStack)w.PopupStack.remove('risk-sea-accident-pop');if(pop._opener&&pop._opener.isConnected)pop._opener.focus();}
+    /** 공용 팝업(사고·[?])을 닫는다. 연 버튼이 그사이 시트를 다시 그려 바뀌었으면 같은 [?](data-help)로 초점을 돌린다(2026-10-17 — CI 에서 한 번 초점이 비었다).
+     * @param {HTMLElement} pop @param {boolean} [fromBack] - 뒤로가기가 이미 목록에서 뺐으면 true @returns {void} [연계] ← showPop·render */
+    function closeAcc(pop,fromBack){if(pop.hidden)return;pop.hidden=true;if(!fromBack&&w.PopupStack)w.PopupStack.remove('risk-sea-accident-pop');var back=pop._opener&&pop._opener.isConnected?pop._opener:(pop._helpKey?document.querySelector('#risk-forecast-sheet [data-help="'+pop._helpKey+'"]'):null);if(back)back.focus();}
 
     /**
      * 위험 예측 설명 문장을 어절 단위로 줄을 나누고, 줄 끝이 많이 비어 다음 어절이 자간 FIT_MIN(-0.06em)까지 줄이면 들어가면 당겨서 그 줄을 꽉 채운다.
