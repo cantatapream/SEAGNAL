@@ -122,7 +122,7 @@ function makeBriefings() {
         assert.deepEqual(stationsFx.filter((s) => !s.geometry).map((s) => s.key), [AEWOL]);
         const real = SB.createService({ dir, clock: () => clock.now, loadStations: () => stationsFx });
         const ctl = { running: false, runs: 0 };
-        const service = { ...real, run: async () => { ctl.runs++; return { ok: true }; }, status: () => ({ ...real.status(), running: ctl.running }) };
+        const service = { ...real, run: async () => { ctl.runs++; return { ok: true }; }, status: () => ({ ...real.status(), running: ctl.running, progress: ctl.running ? ctl.progress || null : null }), progressNow: () => ({ running: ctl.running, progress: ctl.running ? ctl.progress || null : null }) };
         const reqLog = [];
         const sbRouter = createRouter({ service, isAdminDevice: (id) => id === 'admin-push-token', verifyToken: (t) => t === 'admin-login',
             authorize: (req, res, next) => req.get('X-Admin-Token') === 'admin-login' ? next() : res.status(401).json({ ok: false, error: '관리자 인증 필요' }),
@@ -555,30 +555,74 @@ function makeBriefings() {
             assert.equal(await page.$eval('#ai-subtab-bar button[data-aisub="briefing"]', (e) => e.textContent), 'AI 브리핑', '하위 탭 이름은 그대로(옛 이름을 보이지 않음)');
             assert.equal(await page.evaluate(() => localStorage.getItem('seagnal_ai_subtab')), 'briefing');
         });
-        await check('[§11.10] 오류 목록 — 최근 3일 전부(최근 것부터) · [복사]는 마크다운을 클립보드로(실패하면 보이는 안내) · [md로 저장]은 .md 내려받기', async () => {
-            await page.waitForSelector('[data-sb-errors] [data-sb-err-list]');
+        await check('[§11.10.7] 오류 — 실행마다 드롭다운(기본 = 가장 최근 실행, 3일 전 것 없음) · 고른 실행만 관할별·한글 풀이 · [복사]·[md로 저장]은 고른 실행만(실패하면 보이는 안내)', async () => {
+            await page.waitForSelector('[data-sb-errors] [data-sb-err-run]');
+            const opts = await page.$$eval('[data-sb-err-run] option', (e) => e.map((x) => x.textContent));
+            assert.deepEqual(opts, ['10-17 08:02 · 07:30 판 · 오류 1', '10-16 17:31 · 17:30 판 · 오류 1', '10-15 08:01 · 07:30 판 · 오류 1'], opts.join(' / '));
             const li = await page.$$eval('[data-sb-err-list] li', (e) => e.map((x) => x.textContent));
-            assert.equal(li.length, 3, li.join(' / ')); assert.ok(li[0].startsWith('10-17 08:02 · 07:30 판 · 2026-10-17 · validate · 4번째/gemini · 제주해양경찰서 애월파출소'), li[0]);
-            assert.ok(li[1].includes('외 1곳'), '관할이 많으면 3곳까지 + 외 N곳 — ' + li[1]); assert.ok(!li.join('').includes('오래된 오류'), '3일 전은 없음');
-            assert.ok((await page.$eval('[data-sb-errors]', (e) => e.textContent)).includes('최근 3일 오류 3건(최근 것부터)'));
-            // 복사 — 클립보드를 가짜로 바꿔 받은 글을 본다
+            assert.equal(li.length, 1, li.join(' / ')); assert.ok(li[0].startsWith('4번째 시도(Gemini) — 한글 셈말 「두 곳|x'), li[0]);
+            assert.ok((await page.$eval('[data-sb-err-station]', (e) => e.textContent)).startsWith('애월파출소제주해양경찰서오류 1'));
+            assert.ok((await page.$eval('[data-sb-err-scope]', (e) => e.textContent)).includes('고른 실행(10-17 08:02 · 07:30 판)의 오류 1건만'));
+            // 복사 — 클립보드를 가짜로 바꿔 받은 글을 본다(고른 실행 1건만)
             await page.evaluate(() => { window.__copied = null; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t) => { window.__copied = t; } } }); });
             await tap(page, '[data-sb-err-copy]'); await page.waitForFunction(() => document.querySelector('[data-sb-err-msg]').textContent.startsWith('복사했습니다'));
-            const md = await page.evaluate(() => window.__copied), lines = md.split('\n');
-            assert.equal(lines[0], '# 연안 안전 브리핑 — AI 브리핑 오류(최근 3일)'); assert.ok(lines.includes('- 건수: 3건') && lines.some((l) => /^- 만든 시각: 2026-10-17 \d\d:\d\d KST$/.test(l)), md);
-            assert.ok(lines.includes('| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 |'));
-            assert.ok(lines.includes('| 2026-10-17 08:02:00 | 07:30 판 · 2026-10-17 | validate · 4번째 | gemini | 제주해양경찰서 애월파출소 | number:hangul:두 곳\\|x 둘째 줄 |'), '「|」·줄바꿈은 표를 깨지 않게 · 시도 번호(§11.10.4) — ' + md);
-            assert.ok(md.includes('| 2026-10-16 17:31:00 | 17:30 판 · 2026-10-16 | call | vm | 제주해양경찰서 한림파출소, 제주해양경찰서 애월파출소, 부산해양경찰서 남항파출소, 목포해양경찰서 남항파출소 | VM 작업자 연결 없음 |'), 'md 에는 관할 전부');
+            let md = await page.evaluate(() => window.__copied), lines = md.split('\n');
+            assert.equal(lines[0], '# 연안 안전 브리핑 — AI 브리핑 오류(10-17 08:02 시작 · 07:30 판)'); assert.ok(lines.includes('- 건수: 1건') && lines.some((l) => /^- 만든 시각: 2026-10-17 \d\d:\d\d KST$/.test(l)), md);
+            assert.ok(lines.includes('| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 | 풀이 |'));
+            assert.ok(lines.some((l) => l.startsWith('| 2026-10-17 08:02:00 | 07:30 판 · 2026-10-17 | validate · 4번째 | gemini | 제주해양경찰서 애월파출소 | number:hangul:두 곳\\|x 둘째 줄 | 4번째 시도(Gemini) — 한글 셈말 「두 곳\\|x 둘째 줄」')), '「|」·줄바꿈은 표를 깨지 않게 · 시도 번호(§11.10.4) · 풀이 — ' + md);
+            // 다른 실행 고르기 — 여러 관할에 걸친 호출 오류는 「여러 관할 4곳」으로
+            await page.selectOption('[data-sb-err-run]', '2026-10-16T17:31:00+09:00');
+            assert.ok((await page.$eval('[data-sb-err-list]', (e) => e.textContent)).includes('여러 관할 4곳'));
+            assert.ok((await page.$eval('[data-sb-err-list] li', (e) => e.textContent)).startsWith('AI 호출 실패 — ChatGPT(VM) 작업자 연결이 없어 건너뜀'));
+            await tap(page, '[data-sb-err-copy]'); await page.waitForFunction(() => document.querySelector('[data-sb-err-msg]').textContent.startsWith('복사했습니다'));
+            md = await page.evaluate(() => window.__copied);
+            assert.ok(md.includes('| 2026-10-16 17:31:00 | 17:30 판 · 2026-10-16 | call | vm | 제주해양경찰서 한림파출소, 제주해양경찰서 애월파출소, 부산해양경찰서 남항파출소, 목포해양경찰서 남항파출소 | VM 작업자 연결 없음 |'), 'md 에는 관할 전부 — ' + md);
+            assert.ok(!md.includes('2026-10-17 08:02'), '고른 실행만');
             // 복사 실패(클립보드 거부 + 옛 방식도 실패) → 보이는 안내
             await page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('권한 없음'); } } }); document.execCommand = () => false; });
             await tap(page, '[data-sb-err-copy]'); await page.waitForFunction(() => document.querySelector('[data-sb-err-msg]').textContent.startsWith('복사하지 못했습니다'));
             assert.ok((await page.$eval('[data-sb-err-msg]', (e) => e.textContent)).includes('[md로 저장]'));
-            // md 로 저장 — Blob·a[download] 를 가로채 본다
+            // md 로 저장(브라우저) — Blob·a[download] 를 가로채 본다. 파일 이름은 그 실행 시작 시각
             await page.evaluate(() => { window.__blobs = []; URL.createObjectURL = (b) => { window.__blobs.push(b); return 'blob:sb-test'; }; const oc = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.hasAttribute('data-sb-err-download')) { window.__dl = { name: this.download, href: this.href }; return; } return oc.call(this); }; });
-            await tap(page, '[data-sb-err-md]'); await page.waitForFunction(() => document.querySelector('[data-sb-err-msg]').textContent.startsWith('저장했습니다'));
+            await tap(page, '[data-sb-err-md]'); await page.waitForFunction(() => document.querySelector('[data-sb-err-msg]').textContent.startsWith('내려받기를 시작했습니다'));
             const dl = await page.evaluate(async () => ({ ...window.__dl, type: window.__blobs[0].type, text: await window.__blobs[0].text() }));
-            assert.ok(/^station_briefing_errors_\d{8}_\d{4}\.md$/.test(dl.name), dl.name); assert.equal(dl.href, 'blob:sb-test'); assert.equal(dl.type, 'text/markdown;charset=utf-8');
-            assert.equal(dl.text.split('\n').filter((l) => l.startsWith('| 2026-')).length, 3); assert.ok(dl.text.startsWith('# 연안 안전 브리핑 — AI 브리핑 오류(최근 3일)'));
+            assert.equal(dl.name, 'station_briefing_errors_20261016_1731.md'); assert.equal(dl.href, 'blob:sb-test'); assert.equal(dl.type, 'text/markdown;charset=utf-8');
+            assert.equal(dl.text.split('\n').filter((l) => l.startsWith('| 2026-')).length, 1); assert.ok(dl.text.startsWith('# 연안 안전 브리핑 — AI 브리핑 오류(10-16 17:31 시작 · 17:30 판)'));
+            // md 로 저장(앱 안 — Capacitor) — 서버에 맡기고 시스템 브라우저로 그 주소를 연다. 그 주소는 한 번 받으면 끝
+            await page.evaluate(() => { window.__opened = null; window.__capOrig = window.Capacitor; window.Capacitor = { isNativePlatform: () => true, Plugins: { Browser: { open: async ({ url }) => { window.__opened = url; } } } }; });
+            await tap(page, '[data-sb-err-md]'); await page.waitForFunction(() => document.querySelector('[data-sb-err-msg]').textContent.startsWith('휴대폰 브라우저를 열어'));
+            const opened = await page.evaluate(() => window.__opened); assert.ok(/\/api\/station-briefing\/download\/[0-9a-f]{32}$/.test(opened), opened);
+            const got = await page.evaluate(async (u) => { const r = await fetch(u); return { status: r.status, cd: r.headers.get('content-disposition'), text: await r.text() }; }, opened);
+            assert.equal(got.status, 200); assert.ok(got.cd.includes('station_briefing_errors_20261016_1731.md')); assert.ok(got.text.startsWith('# 연안 안전 브리핑 — AI 브리핑 오류(10-16 17:31 시작 · 17:30 판)'));
+            // 앱 안인데 브라우저 플러그인이 없으면 — 저장했다고 하지 않고 글을 띄운다
+            await page.evaluate(() => { window.Capacitor = { isNativePlatform: () => true, Plugins: {} }; });
+            await tap(page, '[data-sb-err-md]'); await page.waitForFunction(() => document.querySelector('[data-sb-err-msg]').textContent.startsWith('이 앱 화면에서는 파일로 바로 저장할 수 없습니다'));
+            assert.ok((await page.$eval('[data-sb-err-text]', (e) => e.value)).startsWith('# 연안 안전 브리핑'));
+            await page.evaluate(() => { window.Capacitor = window.__capOrig; if (window.Capacitor === undefined) delete window.Capacitor; });   // 원래 것(웹 Capacitor 코어가 만든 것일 수 있음)으로 되돌림
+        });
+        await check('[§11.10.7] 진행 게이지 — 실행 중이면 전체 막대(가운데 = 지금 하는 곳)·단계·묶음 칩·관할 칩, 끝나면 저절로 상태를 다시 그림 · 설정 칸 이름 흰색', async () => {
+            const pr = SB.newProgress({ at: '2026-10-17T10:00:00+09:00', kind: 'manual', unit: 'office', stations: 3, windows: ['2026-10-17'] });
+            SB.stepProgress(pr, 'locate-done'); SB.stepProgress(pr, 'gather', { window: 0 }); SB.stepProgress(pr, 'ai', { window: 0, method: 'chatgpt' });
+            SB.onAiProgress(pr, { type: 'plan', batches: [{ name: '제주해양경찰서', stations: [{ key: HALLIM, name: '한림파출소', state: 'waiting' }, { key: AEWOL, name: '애월파출소', state: 'waiting' }] }, { name: '부산해양경찰서', stations: [{ key: BUSAN, name: '남항파출소', state: 'done' }] }] });
+            SB.onAiProgress(pr, { type: 'call', batch: '제주해양경찰서', keys: [HALLIM, AEWOL], provider: 'chatgpt', attempt: 1 });
+            SB.onAiProgress(pr, { type: 'station', key: HALLIM, state: 'done', attempt: 1 });
+            ctl.progress = pr; ctl.running = true;
+            await page.evaluate(() => [...document.querySelectorAll('[data-sb-status] button')].find((b) => b.textContent === '새로고침').click());
+            await page.waitForSelector('[data-sb-progress-now]');
+            const r = await page.evaluate(() => ({ now: document.querySelector('[data-sb-progress-now]').textContent, pct: document.querySelector('[data-sb-progress-pct]').textContent, pill: document.querySelector('[data-sb-running]').textContent,
+                batches: [...document.querySelectorAll('[data-sb-progress-batches] button')].map((b) => [b.textContent, b.dataset.state, b.getAttribute('aria-pressed')]),
+                sts: [...document.querySelectorAll('[data-sb-progress-stations] .sba-st')].map((x) => [x.textContent.trim(), x.dataset.state]) }));
+            assert.equal(r.now, '제주해양경찰서 · 한림파출소·애월파출소 — ChatGPT 1번째 시도'); assert.equal(r.pct, '80% (4/5)'); assert.equal(r.pill, '실행 중');
+            assert.deepEqual(r.batches, [['제주 1/2', 'running', 'true'], ['부산 1/1', 'done', 'false']]);
+            assert.deepEqual(r.sts, [['✓ 한림', 'done'], ['애월', 'running']]);
+            await page.setViewportSize({ width: 360, height: 780 }); await page.waitForTimeout(200);
+            assert.ok(await page.evaluate(() => document.querySelector('[data-sb-progress]').scrollWidth <= document.querySelector('[data-sb-progress]').clientWidth + 1), '360px 에서 가로 넘침 없음');
+            await page.locator('[data-sb-status]').screenshot({ path: path.join(SHOT, 'admin_ai_briefing_progress_360.png') });
+            assert.equal(await page.$eval('[data-sb-config] [data-field="method"] .sba-label', (e) => getComputedStyle(e).color), 'rgb(248, 250, 252)', '칸 이름 흰색(#f8fafc)');
+            ctl.running = false; ctl.progress = null;
+            await page.waitForFunction(() => document.querySelector('[data-sb-running]').textContent === '대기 중', null, { timeout: 8000 });
+            assert.equal(await page.evaluate(() => document.querySelector('[data-sb-progress]').hidden), true, '끝나면 게이지 숨김');
+            await page.setViewportSize({ width: 1280, height: 900 });
         });
         await check('설정 저장 — 방식 「틀」·묶음 「지방청」·바뀐 곳만 끄기 → 서버 config 에 저장', async () => {
             await tap(page, '[data-field="method"] [data-value="template"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.startsWith('저장됨'));

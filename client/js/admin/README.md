@@ -9,7 +9,7 @@
 |------|------|-----------|
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) | `getStoredAdminToken`, `saveAdminToken`, `clearAdminToken`, `setAdminAuthState`, `_getDeviceToken`, `renderUnifiedAiTab`, `renderAiForecastSubtab` |
 | `admin_data_status.js` | 관리자 → 점검 → 데이터 수집현황 화면(수집 목록·현재 원천 상태·오류·복구 이력) | `renderDataCollectionTab`, `renderDataCollectionList` |
-| `admin_station_briefing.js` | 관리자 → AI → 「AI 브리핑」 하위 탭 — 활동지점 안전 브리핑 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만·상태·[지금 다시 만들기](409)·관할 미리보기(`/api/admin/station-briefing/*`) | `renderStationBriefingAdmin`, `drawConfig`, `drawStatus`, `drawPreview`, `nextEdition` |
+| `admin_station_briefing.js` | 관리자 → AI → 「AI 브리핑」 하위 탭 — 연안 안전 브리핑 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만(칸 이름 흰색·고른 버튼 청록+✓) · 상태 카드(실행 중/대기 알약·통계 칩) · 실행 중 진행 게이지(전체 막대 가운데 = 지금 하는 곳 · 단계 4칸 · 묶음 칩 · 관할 칩, 2.5초마다 `status?only=progress`) · 최근 3일 오류를 실행마다 드롭다운 → 관할별·시도별 한글 풀이 · [복사]·[md로 저장](고른 실행만 — 앱 안에서는 서버에 맡기고 시스템 브라우저로 내려받기) · [지금 다시 만들기](409) · 관할 미리보기(`/api/admin/station-briefing/*`, 설계서 §11.10.7) | `renderStationBriefingAdmin`, `drawConfig`, `drawStatus`, `drawProgress`, `startPoll`, `drawRunErrors`, `runGroups`, `errorsByStation`, `codeText`, `reasonTexts`, `errorsMarkdown`, `saveMarkdown`, `drawPreview`, `nextEdition` |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 | `isAdminTestMode`, `getAdminToken`, `getTestModeParams`, `renderATMStatus`, `renderATMCollect`, `renderATMForecast` |
 | `admin_location_status.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `readPrefFirst`, `readPos`, `fmtAgo`, `fmtAbs`, `esc`, `seaLandOf` |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI | `escapeHTML`, `_reportDisplayName`, `loadReportList`, `renderReportList`, `_loadCommentReportList`, `_renderCommentReportList` |

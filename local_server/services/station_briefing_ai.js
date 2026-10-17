@@ -421,12 +421,16 @@ const DEFAULT_TIMEOUTS = Object.freeze({ vm: 320000, gemini: 100000 }), VM_FAIL_
  *   시도마다 오류를 errors 에 attempt(몇 번째)와 함께 남긴다. VM 연속 실패 차단기(vmFailLimit — 호출·시간초과·해석 실패가 잇달아 3번이면 그 실행 동안 VM 건너뜀)·데드라인(deadline — 넘으면 남은 관할은 규칙 분석)은 종전 그대로.
  * 재사용(B10): 해시 = 관할 입력 + 규칙·검증·지시문 판 + 방식 + 모델(ChatGPT·Gemini 둘 다 — VM 이 꺼지면 Gemini 로 가므로) + 기상청 전망.
  *   같은 해시라도 지난 글의 출처가 고른 방식의 첫 공급자가 아니면(ChatGPT 방식인데 Gemini 가 쓴 글) VM 이 지금 살아 있으면 다시 만든다.
+ * 진행 알림(2026-10-17 사용자 결정 §11.10.7 — 관리자 진행 게이지): onProgress 가 있으면 ①plan(묶음 이름·관할·처음 상태 — 재사용 done·틀 rule·나머지 waiting) ②call(묶음 b 의 남은 관할을 공급자 p 로 attempt 번째 부름)
+ *   ③station(관할 하나가 done 통과 / retry 떨어져 다음 시도 대기) ④station rule(시도를 다 쓰거나 데드라인 — 규칙 분석)을 차례로 부른다. 알림 함수가 던져도 생성은 계속한다(게이지는 덤).
  * 예: await generate({briefings:[…97], config:{method:'chatgpt',chatgptModel:'gpt-6-luna',geminiModel:'gemini-2.5-flash',batchUnit:'office',onlyChanged:true}, previous, adapters, kma})
  *     → {overviews:{key:{land,sea,source:'chatgpt'|'gemini'|'template',model,hash,attempts,reused?}}, stats:{calls,reused,ai,template,retried,deadline,gemini}, errors:[{…,attempt}]}
- * @param {object} o - briefings·config·previous(key→지난 브리핑)·adapters{vm,gemini}·kma·now·timer·deadline·timeouts·vmFailLimit·vmAttempts
+ * @param {object} o - briefings·config·previous(key→지난 브리핑)·adapters{vm,gemini}·kma·now·timer·deadline·timeouts·vmFailLimit·vmAttempts·onProgress(진행 알림, 없어도 됨)
  * @returns {Promise<object>} [연계] ← station_briefing.run / → stationInput·batchInput·buildPrompt·parseResponse·validateOverview·explainError
  */
-async function generate({ briefings, config, previous = {}, adapters = {}, kma = null, now = Date.now(), timer = Date.now, deadline = Infinity, timeouts = DEFAULT_TIMEOUTS, vmFailLimit = VM_FAIL_LIMIT, vmAttempts = VM_ATTEMPTS }) {
+async function generate({ briefings, config, previous = {}, adapters = {}, kma = null, now = Date.now(), timer = Date.now, deadline = Infinity, timeouts = DEFAULT_TIMEOUTS, vmFailLimit = VM_FAIL_LIMIT, vmAttempts = VM_ATTEMPTS, onProgress = null }) {
+    // 진행 알림(§11.10.7) — 받는 쪽(관리자 게이지)이 던져도 생성은 멈추지 않는다
+    const tell = (ev) => { if (!onProgress) return; try { onProgress(ev); } catch (e) { console.warn('[station_briefing_ai] 진행 알림 실패(생성은 계속):', e && e.message); } };
     const method = config.method || 'template', overviews = {}, errors = [], stats = { calls: 0, reused: 0, ai: 0, template: 0, retried: 0, deadline: 0, gemini: 0 };
     const at = R.isoKst(now), preferred = method === 'chatgpt' ? 'chatgpt' : 'gemini';
     const up = (a) => !!a && (typeof a.available !== 'function' || a.available());
@@ -434,7 +438,7 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     const vmUp = method === 'chatgpt' && up(adapters.vm);
     const items = briefings.map((b) => { const si = stationInput(b, kma); return { b, si, hash: R.hash({ si, rules: R.RULES_VERSION, validator: VALIDATOR_VERSION, prompt: PROMPT_VERSION, method, chatgptModel: method === 'chatgpt' ? config.chatgptModel : null, geminiModel: method !== 'template' ? config.geminiModel : null, kma: kma ? R.hash(kma) : null }) }; });
     // AI 가 못 쓰면(틀 방식·실패·데드라인) AI 분석 없음 — 화면은 서버 규칙 분석 문단(summary.analysis)을 「규칙 분석」으로 보인다(§11.10.4).
-    const template = (it) => { overviews[it.b.key] = { land: null, sea: null, source: 'template', model: null, hash: it.hash }; stats.template++; };
+    const template = (it) => { overviews[it.b.key] = { land: null, sea: null, source: 'template', model: null, hash: it.hash }; stats.template++; tell({ type: 'station', key: it.b.key, state: 'rule' }); };
     const pending = [];
     for (const it of items) {
         const prev = previous[it.b.key]?.overview;
@@ -443,6 +447,10 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
         if (config.onlyChanged !== false && prev && prev.hash === it.hash && sameSource) { overviews[it.b.key] = { ...prev, reused: true }; stats.reused++; continue; }
         pending.push(it);
     }
+    // 진행 계획 — 묶음 단위대로(재사용·틀 관할도 같은 묶음에 넣어 그 묶음이 몇 곳 중 몇 곳 끝났는지 보이게). 묶음 이름 = 해양경찰서·지방청 이름, 파출소 단위면 그 파출소 이름.
+    const unit = config.batchUnit || 'office', bname = (g) => unit === 'station' ? g[0].b.station.name : unit === 'region' ? (g[0].b.station.region || g[0].b.station.office) : g[0].b.station.office;
+    const firstState = (k) => overviews[k] ? (overviews[k].source === 'template' ? 'rule' : 'done') : 'waiting';
+    tell({ type: 'plan', unit, batches: groupBy(items, unit).map((g) => ({ name: bname(g), stations: g.map((it) => ({ key: it.b.key, name: it.b.station.name, state: firstState(it.b.key) })) })) });
     const feedback = new Map(), retried = new Set();
     /**
      * 공급자 하나로 한 번 부른다(그 묶음의 남은 관할). 꺼짐·차단이면 {skip}, 데드라인이 지났으면 {late}, 호출·해석 실패면 {res:null}(시도로 셈), 성공이면 {res}.
@@ -478,10 +486,10 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     function accept(group, res, attempt) {
         const failed = [];
         for (const it of group) {
-            if (!res) { failed.push(it); continue; }
+            if (!res) { failed.push(it); tell({ type: 'station', key: it.b.key, state: 'retry', attempt }); continue; }
             const o = res.map.get(it.b.key), v = o ? validateOverview(o, it.si) : { ok: false, errors: ['missing:station'] };
-            if (v.ok) { overviews[it.b.key] = { land: o.land || null, sea: o.sea, source: res.provider, model: res.model, hash: it.hash, attempts: attempt }; stats.ai++; feedback.delete(it.b.key); }
-            else { errors.push({ at, stage: 'validate', provider: res.provider, stations: [it.b.key], attempt, reason: v.errors.slice(0, 6).join(',') }); feedback.set(it.b.key, v.errors.slice(0, 8).map(explainError)); failed.push(it); }
+            if (v.ok) { overviews[it.b.key] = { land: o.land || null, sea: o.sea, source: res.provider, model: res.model, hash: it.hash, attempts: attempt }; stats.ai++; feedback.delete(it.b.key); tell({ type: 'station', key: it.b.key, state: 'done', attempt }); }
+            else { errors.push({ at, stage: 'validate', provider: res.provider, stations: [it.b.key], attempt, reason: v.errors.slice(0, 6).join(',') }); feedback.set(it.b.key, v.errors.slice(0, 8).map(explainError)); failed.push(it); tell({ type: 'station', key: it.b.key, state: 'retry', attempt }); }
         }
         return failed;
     }
@@ -489,13 +497,14 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     // 묶음마다 상태 — 시도 사슬(VM 최대 vmAttempts 번 → Gemini 1번, VM 을 한 번도 못 불렀으면 Gemini 2번)은 종전 그대로.
     // 순서만 바꿨다(§11.10.5 독립 검토 3): 종전엔 앞 묶음이 다시 시도를 다 쓴 뒤에야 다음 묶음의 첫 시도를 해, 데드라인에 뒤쪽 해양경찰서들이 첫 시도도 못 하고 규칙 분석이 됐다.
     // 이제 한 바퀴마다 모든 묶음이 한 걸음씩 — ①모든 묶음 첫 시도 ②떨어진 관할 2번째 ③3번째 ④Gemini … (묶음 안의 시도 번호·통계·차단기는 같다).
-    const states = groupBy(pending, config.batchUnit || 'office').map((g) => ({ left: g, attempt: 0, vmTried: false, late: false, p: method === 'chatgpt' ? 'vm' : 'gemini', n: method === 'chatgpt' ? vmAttempts : 2 }));
+    const states = groupBy(pending, unit).map((g) => ({ name: bname(g), left: g, attempt: 0, vmTried: false, late: false, p: method === 'chatgpt' ? 'vm' : 'gemini', n: method === 'chatgpt' ? vmAttempts : 2 }));
     /** 묶음 g 를 한 걸음(호출 한 번) 진행한다. 공급자를 건너뛰면(꺼짐·차단) 같은 걸음에서 다음 공급자로. @param {object} g @returns {Promise<void>} */
     const step = async (g) => {
         while (g.p !== 'done') {
             if (!g.left.length) { g.p = 'done'; return; }
-            if (g.n <= 0) { if (g.p === 'vm') { g.p = 'gemini'; g.n = g.vmTried ? 1 : 2; continue; } g.p = 'done'; return; }
+            if (g.n <= 0) { if (g.p === 'vm') { g.p = 'gemini'; g.n = g.vmTried ? 1 : 2; continue; } g.p = 'done'; for (const it of g.left) tell({ type: 'station', key: it.b.key, state: 'rule' }); return; }
             if (past()) { g.late = true; g.p = 'done'; return; }
+            tell({ type: 'call', batch: g.name, keys: g.left.map((it) => it.b.key), provider: g.p === 'vm' ? 'chatgpt' : 'gemini', attempt: g.attempt + 1 });
             const r = await callOne(g.p, g.left, g.attempt + 1);
             if (r.late) { g.late = true; g.p = 'done'; return; }
             if (r.skip) { g.n = 0; continue; }

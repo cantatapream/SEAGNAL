@@ -5,6 +5,7 @@
  *         특보가 바뀔 때(그 특보구역에 걸친 관할만 — 곧바로 공개) 관할 입력을 모아(station_briefing_inputs) 규칙으로 판단하고(station_briefing_rules — 「총평과 권고」 결론·근거·권고·규칙 분석 문단 포함)
  *         연안·해상 분석 문단만 AI 로 쓴 뒤(station_briefing_ai — VM 최대 3번 → Gemini → 규칙 분석) 날짜별 파일에 저장한다. 공개 시각 전의 판은 pending 에 두고 그동안 화면에는 이전 판을 준다(visibleOf).
  *         관리자 설정(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만)과 노출 판정(관리자 기기에만 등)도 여기서 정한다.
+ *         관리자 「AI 브리핑」 탭용으로 실행 중 진행(메모리 progress — 단계·묶음·관할, progressNow)과 최근 3일 실행 기록(state.runs — 실행마다 오류 드롭다운)도 준다(§11.10.7).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js
@@ -46,6 +47,19 @@ function keepErrors(list, now) {
  * @param {object|null} c - state.errorsCapped @param {number} now - ms @returns {object|null} [연계] ← addErrors·status
  */
 function freshCapped(c, now) { return c && typeof c.at === 'string' && c.at.slice(0, 10) >= R.kstDate(now - (ERROR_KEEP_DAYS - 1) * 86400000) ? c : null; }
+// 실행 기록(2026-10-17 사용자 결정 §11.10.7 — 관리자 오류를 「실행마다」 드롭다운으로). 오류가 0건인 실행도 고를 수 있게 남긴다 — 오류 목록만으로 고르면
+// 깨끗하게 끝난 마지막 실행이 목록에 없어, 드롭다운 첫 칸이 그 전 실행의 오류를 「최근 실행」처럼 보이게 된다(CLAUDE.md L-291 「조용한 것이 이상 없는 것처럼」의 반대 꼴).
+// 오류와 같은 3일만 남긴다. 한 실행은 한 줄(시작 시각 at = 그 실행 오류들의 at 과 같은 값 — generate 가 run 의 now 로 찍는다)이라 하루 수십 줄, 상한 RUN_LOG_CAP 은 안전망.
+const RUN_LOG_CAP = 500;
+/**
+ * 실행 기록을 보관 규칙대로 자른다 — 오류와 같은 최근 ERROR_KEEP_DAYS 일(KST 날짜), 넘으면 오래된 것부터 RUN_LOG_CAP 까지.
+ * 예: keepRuns([{at:'2026-10-14T23:00:00+09:00'},{at:'2026-10-17T07:10:00+09:00'}], 10-17 08:00) → [{at:'2026-10-17T07:10…'}]
+ * @param {object[]} list - {at,kind,method,ms,publishAt,results} @param {number} now - ms @returns {object[]} [연계] ← run(쓰기)·status(읽기)
+ */
+function keepRuns(list, now) {
+    const from = R.kstDate(now - (ERROR_KEEP_DAYS - 1) * 86400000);
+    return (list || []).filter((r) => r && typeof r.at === 'string' && r.at.slice(0, 10) >= from).slice(-RUN_LOG_CAP);
+}
 // 실행 실패 백오프(독립 검토 B9·ops1): 실행이 던지면 매분 다시 돌며 AI 를 다시 부르지 않게 — 실패 뒤 10분 기다리고, 같은 판은 3번까지만.
 const RUN_BACKOFF_MS = 10 * 60000, MAX_RUN_FAILS = 3;
 // 특보 변경 디바운스(독립 검토 C9): 특보가 잇달아 바뀌면 마지막 변경 뒤 3분 조용할 때 한 번만 다시 만든다.
@@ -183,6 +197,61 @@ function historyRow(s, now) {
     return { ...base, status: 'ok', lastError: null, detail: null };
 }
 
+// ── 실행 진행(§11.10.7) ── 사용자 원문 *"분석이 시작되면 게이지로서 알려줬으면 … 묶음 단위별로 어디 묶음이 완료되었는지 그리고 그 묶음 안에서 어느 파출소 부분이 완료되었는지
+//    게이지에서 표출 … 전체 게이지로서 전체적으로 얼마나 진행됐는지 … 게이지의 가운데에는 텍스트로 어디가 진행되고 있는지"*.
+// 전체 칸 = 위치 확인 1 + 날짜(창)마다 (입력 모으기 1 + 관할 수). AI 앞 단계도 세어 게이지가 0 에 조용히 멈춰 있지 않게 한다. 관할 하나는 AI 통과·재사용·규칙 분석 중 하나로 끝날 때 1칸.
+const PROVIDER_NAME = { chatgpt: 'ChatGPT', gemini: 'Gemini' };
+/**
+ * 실행 하나의 진행 상태를 새로 만든다.
+ * 예: newProgress({at:'2026-10-17T18:31:00+09:00', kind:'manual', unit:'office', stations:97, windows:['2026-10-17']}) → {phase:'locate', done:0, total:99, current:'관할 대표 위치 확인 중', batches:[]…}
+ * @param {object} o - at·kind·unit·stations(관할 수)·windows(대상 날짜들) @returns {object} [연계] ← run / → 관리자 게이지(admin_station_briefing.js drawProgress)
+ */
+function newProgress({ at, kind, unit, stations, windows }) {
+    return { at, kind, unit, phase: 'locate', window: 0, windows, date: windows[0] || null, stations, done: 0, total: 1 + windows.length * (1 + stations), base: 0, batches: [], current: '관할 대표 위치 확인 중', method: null };
+}
+/**
+ * 단계 하나를 넘긴다(위치 확인 끝 · 날짜 w 의 입력 모으기 · AI · 저장). 관할 칸은 onAiProgress 가 센다 — 여기서는 단계 칸과, 저장 때 남은 관할 칸을 맞춘다.
+ * 예: stepProgress(p, 'gather', {window:0}) → p.phase 'gather', p.done 1, current '입력 자료 모으는 중 — 관할 97곳'
+ * @param {object|null} pr @param {string} phase - locate-done|gather|ai|save @param {object} [o] - window·method @returns {void} [연계] ← run
+ */
+function stepProgress(pr, phase, o = {}) {
+    if (!pr) return;
+    if (phase === 'locate-done') { pr.done = 1; return; }
+    const w = o.window || 0, dayNote = pr.windows.length > 1 ? ' (' + pr.windows.length + '개 날짜 중 ' + (w + 1) + '번째 · ' + String(pr.windows[w]).slice(5) + ')' : '';
+    pr.window = w; pr.date = pr.windows[w] || null; pr.phase = phase;
+    const base = 1 + w * (1 + pr.stations);   // 이 날짜 앞까지 끝난 칸
+    if (phase === 'gather') { pr.done = base; pr.batches = []; pr.current = '입력 자료 모으는 중 — 관할 ' + pr.stations + '곳' + dayNote; }
+    else if (phase === 'ai') { pr.done = base + 1; pr.base = base + 1; pr.method = o.method || null; pr.current = (o.method === 'template' ? '규칙 분석 쓰는 중(AI 없음)' : 'AI 분석 시작') + dayNote; }
+    else if (phase === 'save') {
+        for (const b of pr.batches) for (const x of b.stations) if (x.state !== 'done' && x.state !== 'rule') x.state = 'rule';   // 남은 관할은 generate 가 규칙 분석으로 끝냈다
+        batchStates(pr); pr.done = base + 1 + pr.stations; pr.current = '저장 중' + dayNote;
+    }
+}
+/** 묶음마다 상태(done 모두 끝 · running 부르는 중 · waiting 시작 전·다시 시도 대기)와 끝난 관할 수를 다시 센다. 예: 묶음 6곳 중 4곳 done → b.done 4, b.state 'waiting'. @param {object} pr @returns {void} [연계] ← stepProgress·onAiProgress */
+function batchStates(pr) {
+    let fin = 0;
+    for (const b of pr.batches) {
+        const f = b.stations.filter((x) => x.state === 'done' || x.state === 'rule').length; fin += f; b.done = f;
+        b.state = f === b.stations.length ? 'done' : b.stations.some((x) => x.state === 'running') ? 'running' : 'waiting';
+    }
+    pr.done = pr.base + fin;
+}
+/**
+ * AI.generate 의 진행 알림을 진행 상태에 반영한다 — plan(묶음·관할) · call(지금 부르는 묶음 → running, 가운데 글) · station(done·retry·rule).
+ * 예: onAiProgress(p, {type:'call', batch:'통영해양경찰서', keys:['통영해양경찰서|고현파출소'], provider:'gemini', attempt:4}) → p.current '통영해양경찰서 · 고현파출소 — Gemini 4번째 시도'
+ * @param {object|null} pr @param {object} ev - generate 의 onProgress 알림 @returns {void} [연계] ← run(AI.generate onProgress)
+ */
+function onAiProgress(pr, ev) {
+    if (!pr || !ev) return;
+    const find = (k) => { for (const b of pr.batches) { const x = b.stations.find((y) => y.key === k); if (x) return x; } return null; };
+    if (ev.type === 'plan') pr.batches = (ev.batches || []).map((b) => ({ name: b.name, state: 'waiting', done: 0, stations: b.stations.map((x) => ({ key: x.key, name: x.name, state: x.state })) }));
+    else if (ev.type === 'call') {
+        for (const b of pr.batches) for (const x of b.stations) if (x.state === 'running') x.state = 'retry';   // 앞 호출이 답 없이 끝난 관할(호출 실패 — station 알림 없이 넘어감)은 다시 시도 대기
+        const names = []; for (const k of ev.keys || []) { const x = find(k); if (x) { x.state = 'running'; x.attempt = ev.attempt; names.push(x.name); } }
+        pr.current = ev.batch + ' · ' + (names.slice(0, 2).join('·') || '—') + (names.length > 2 ? ' 외 ' + (names.length - 2) + '곳' : '') + ' — ' + (PROVIDER_NAME[ev.provider] || ev.provider || '') + ' ' + ev.attempt + '번째 시도';
+    } else if (ev.type === 'station') { const x = find(ev.key); if (x) { x.state = ev.state; if (ev.attempt) x.attempt = ev.attempt; } }
+    batchStates(pr);
+}
 /**
  * 브리핑 서비스를 만든다(시험은 폴더·시계·저장소·어댑터·관할 목록을 주입).
  * 예: const svc = createService({dir, clock, risk, marine, adapters}); await svc.run({kind:'morning'}); svc.pick({key, day:'auto'})
@@ -197,6 +266,8 @@ function historyRow(s, now) {
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
     timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast() } = {}) {
     let timer = null, running = null, stationsCache = null, areasCache = null, ad = adapters;
+    // 실행 진행(§11.10.7 — 관리자 「AI 브리핑」 진행 게이지). 메모리에만 두고 실행이 끝나면 null — 서버가 다시 켜지면 진행 중 실행도 없다.
+    let progress = null;
     const fileCache = new Map();
     const p = (f) => path.join(dir, f);
     const stations = () => stationsCache || (stationsCache = loadStations());
@@ -210,7 +281,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         I.writeJson(p('config.json'), { ...next, updatedAt: R.isoKst(clock()) }); return next;
     }
     /** 상태 파일(만든 판·특보 서명·관할별 특보구역·마지막 실행·오류·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← run·tick·status */
-    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, errors: s.errors || [], errorsCapped: s.errorsCapped || null, alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
+    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, runs: s.runs || [], errors: s.errors || [], errorsCapped: s.errorsCapped || null, alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
     /** 오류를 보관 규칙(최근 3일·안전 상한)대로 더한다. 상한으로 지운 것이 있으면 errorsCapped 에 시각·수. @param {object} s - state() @param {object[]} add @param {number} now [연계] ← run·reportFailure → keepErrors */
     function addErrors(s, add, now) { const k = keepErrors(s.errors.concat(add), now); s.errors = k.errors; if (k.dropped) s.errorsCapped = { at: R.isoKst(now), dropped: k.dropped, cap: ERROR_HARD_CAP }; else s.errorsCapped = freshCapped(s.errorsCapped, now); }
     function saveState(s) { I.writeJson(p('state.json'), s); }
@@ -255,17 +326,20 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             if (kind === 'warning') { for (const d of [R.kstDate(now), R.kstDate(now + 86400000)]) { const day = readDay(d); if (!day) continue; const w = R.editionWindow('warning', now, d); if (w) wins.push(w); } }
             else if (kind === 'manual') { const d = R.displayDate(now), w = R.editionWindow(d === R.kstDate(now) ? 'morning' : 'night', now); wins.push({ ...w, kind: 'manual' }); }
             else wins.push(R.editionWindow(kind, now));
+            progress = newProgress({ at: R.isoKst(now), kind, unit: config.batchUnit, stations: targets.length, windows: wins.map((w) => w.targetDate) });
             const spots = spotsOf ? spotsOf() : risk.spots().spots, spotsBySt = I.assignSpots(all, spots);
             const hz = I.assignHazards(all, hazardFeatures ? hazardFeatures() : (I.readJson(path.join(I.CONFIG, 'coastal_hazard_zones.wgs84.geojson'))?.features || []));
             const landPoints = Object.fromEntries(all.map((s) => [s.key, (spotsBySt.get(s.key) || []).concat(hz.get(s.key) || [])]));
             const locations = await I.ensureLocations({ stations: all, landPoints, file: p('locations.json'), geocoder, now });
+            stepProgress(progress, 'locate-done');
             const aiOn = !!ad || allowRealAI(), cfg = aiOn ? config : { ...config, method: 'template' }, rg = regional ? regional() : null;
             // 공개 시각(§11.10.4): 정시 판은 EDITIONS 공개 시각(07:30·17:30·23:00) — 그 전에는 pending 에 두고 화면은 이전 판. 특보 변경·관리자 실행은 곧바로(publishAt = 만든 시각).
             //   데드라인 = 20분과 「공개 시각까지」 중 이른 것 — 공개 시각에 된 만큼(AI 분석 + 나머지는 규칙 분석) 보이고 늦추지 않는다. 공개 시각이 이미 지난 늦은 실행은 20분 그대로(곧바로 공개).
             const publishAt = R.publishAtFor(kind, now) || R.isoKst(now), untilPublish = Date.parse(publishAt) - now;
             const deadline = t0 + (untilPublish > 0 ? Math.min(runDeadlineMs, untilPublish) : runDeadlineMs);
             const results = [];
-            for (const win of wins) {
+            for (const [wi, win] of wins.entries()) {
+                stepProgress(progress, 'gather', { window: wi });
                 const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg });
                 const briefings = inputs.map((x) => R.buildBriefing(x, win, { generatedAt: R.isoKst(now) }));
                 // 읽은 날짜 파일은 캐시(pick 이 그대로 쓰는 객체)라 복사해 고친다 — 쓰기가 실패해도 사용자에게 저장 안 된 판이 보이거나 대기 판이 메모리에서 사라지지 않게(§11.10.5 독립 검토 4).
@@ -273,7 +347,9 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 day.stations = day.stations || {}; day.pending = day.pending || {};
                 // 재사용 바탕 = 관할마다 가장 나중에 만든 판(공개 대기 포함)
                 const latest = Object.fromEntries([...new Set(Object.keys(day.stations).concat(Object.keys(day.pending)))].map((k) => { const a = day.stations[k], b = day.pending[k]; return [k, !a ? b : !b ? a : Date.parse(b.generatedAt) > Date.parse(a.generatedAt) ? b : a]; }));
-                const gen = await AI.generate({ briefings, config: cfg, previous: latest, adapters: ad || (aiOn ? (ad = realAdapters()) : {}), kma: kma(), now, timer: elapsed, deadline, ...aiOptions });
+                stepProgress(progress, 'ai', { window: wi, method: cfg.method });
+                const gen = await AI.generate({ briefings, config: cfg, previous: latest, adapters: ad || (aiOn ? (ad = realAdapters()) : {}), kma: kma(), now, timer: elapsed, deadline, onProgress: (ev) => onAiProgress(progress, ev), ...aiOptions });
+                stepProgress(progress, 'save', { window: wi });
                 const wNow = clock(); settle(day, wNow);
                 for (const b of briefings) {
                     b.overview = gen.overviews[b.key] || b.overview; b.trigger = kind === 'warning' ? { kind, zones } : { kind }; b.publishAt = publishAt;
@@ -289,10 +365,11 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             }
             prune(now);
             st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, publishAt, results, ms: elapsed() - t0, ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
+            st.runs = keepRuns(st.runs.concat({ at: st.lastRun.at, kind, method: cfg.method, ms: st.lastRun.ms, publishAt, results }), now);   // §11.10.7 실행마다 오류 드롭다운
             saveState(st); recordHistory();
             return { ok: true, results, ms: elapsed() - t0 };
         })();
-        try { return await running; } finally { running = null; }
+        try { return await running; } finally { running = null; progress = null; }
     }
     /** 실행 실패를 상태에 남긴다(횟수·마지막 시각·이유) — 백오프 판단용. @param {string} key - 판 열쇠 또는 'warning' @param {Error} e @param {number} now [연계] ← tick */
     function reportFailure(key, e, now) {
@@ -386,7 +463,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         // 공개 대기(§11.10.4) — 날짜 파일마다 아직 공개 시각이 안 된 판 수·공개 시각(관리자 상태 「공개 예정」)
         const now = clock(), pending = [];
         for (const d of days) { const dd = readDay(d), at = {}; for (const b of Object.values((dd && dd.pending) || {})) if (Date.parse(b.publishAt) > now) at[b.publishAt] = (at[b.publishAt] || 0) + 1; for (const [pa, n] of Object.entries(at)) pending.push({ date: d, publishAt: pa, stations: n }); }
-        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, done: s.done, pending, errors: keepErrors(s.errors, clock()).errors.reverse(), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorsCapped: freshCapped(s.errorsCapped, clock()), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
+        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, runs: keepRuns(s.runs, now).reverse(), progress: running ? progress : null, done: s.done, pending, errors: keepErrors(s.errors, clock()).errors.reverse(), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorsCapped: freshCapped(s.errorsCapped, clock()), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
     }
     /** 관할 목록(화면 설정용 — 폴리곤 없이). @returns {object[]} [연계] ← routes GET stations */
     function stationList() { const loc = I.readJson(p('locations.json'))?.stations || {}; return stations().map((s) => ({ key: s.key, name: s.name, office: s.office, region: s.region, seaOnly: s.seaOnly, location: loc[s.key]?.status === 'ok' ? { lat: loc[s.key].lat, lon: loc[s.key].lon, estimated: false } : { estimated: true } })); }
@@ -395,7 +472,13 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * 예: stationAreas() → [{key:'제주해양경찰서|한림파출소', seas:['제주'], geometry:{…}}, …] @returns {object[]} [연계] ← routes GET areas / → I.stationAreas
      */
     function stationAreas() { return areasCache || (areasCache = I.stationAreas(stations())); }
-    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, pick, readConfig, writeConfig, status, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
+    /**
+     * 진행만(관리자 게이지가 2.5초마다 부른다 — status() 는 최근 3일 오류 전부를 실어 무겁다). 실행 중이 아니면 progress null.
+     * 예: progressNow() → {running:true, progress:{at,kind,unit,phase:'ai',done:40,total:99,current:'통영해양경찰서 · 고현파출소 외 2곳 — ChatGPT 2번째 시도',batches:[…]}}
+     * @returns {object} [연계] ← routes GET status?only=progress
+     */
+    function progressNow() { return { running: !!running, progress: running ? progress : null }; }
+    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, pick, readConfig, writeConfig, status, progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
 }
 let def = null;
 /**
@@ -410,4 +493,4 @@ function forDefault() {
     return def;
 }
 
-module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };
+module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, keepRuns, newProgress, stepProgress, onAiProgress, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };
