@@ -312,6 +312,19 @@ const UserSettings = {
         return true;
     },
 
+    /**
+     * 관심해역을 골라 둔 상태인지 알려준다 — 꺼 둔(false) 구역·해역이 하나라도 있으면 true.
+     * 예: {} 또는 전부 true → false(아직 안 고름 = 전 해역) · {'서해': false} → true
+     * @returns {boolean}
+     * [연계] ← forecast/alerts/render.js syncAlertZoneGear(「해역별 특보현황」 ⚙ 보이기) ·
+     *          forecast/outlook/marine_forecast.js getRelevantOfficeCodes(관심해역으로 지방청 고르기)
+     *          규칙은 render.js renderApp 의 「관심해역별 특보현황」 제목 판정(isFiltered)·
+     *          settings/zone_guide.js isAllZonesOn 과 같다 — 셋이 같은 상태를 같게 보게 하려고.
+     */
+    hasInterestZones() {
+        return Object.values(this.settings).includes(false);
+    },
+
     // 설정 값 가져오기 (기본값 true)
     get(key) {
         return this.settings[key] !== false;

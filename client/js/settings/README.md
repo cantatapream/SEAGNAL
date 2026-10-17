@@ -7,7 +7,7 @@
 
 | 파일 | 역할 | 주요 함수 |
 |------|------|-----------|
-| `settings.js` | 탭 시스템, 스타일 주입, 사용자 설정, 알림 설정, 위치 기반 검색 | `initTabs`, `injectTabStyles`, `injectGlobalStyles`, `initNotificationUI`, `updateRadioVisual`, `updateMasterState` |
+| `settings.js` | 탭 시스템, 스타일 주입, 사용자 설정, 알림 설정, 위치 기반 검색 | `initTabs`, `injectTabStyles`, `injectGlobalStyles`, `initNotificationUI`, `updateRadioVisual`, `updateMasterState`, `UserSettings.hasInterestZones`(관심해역 골랐나 — 꺼 둔 구역이 하나라도 있으면 참. 특보현황 ⚙·관심 기상청이 씀, 2026-10-17) |
 | `zone_guide.js` | 관심 해역 설정 유도 팝업 (1회성 넛지) | `checkZoneGuide`, `isAllZonesOn`, `showZoneGuideModal`, `showZoneGuideToast` |
 
 ## 로드 순서

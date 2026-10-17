@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 116 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 117 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -387,6 +387,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_station_briefing` | 「활동지점 안전 브리핑」(파출소 관할) 서버 1단계 시험 — 고정 입력(가짜 자료)으로 규칙·AI 순서·검증·저장·일정·노출을 결정론적으로 확인한다. |
 | `test_station_briefing_ui` | 「활동지점 안전 브리핑」 2단계(화면)를 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다 — |
 | `test_location_dispatch_reliability` | 위치기반 깨우기(특보·태풍) 발송 신뢰성 + 스냅샷 축약 회귀검사 |
+| `test_forecast_gear_ui` | 해양예보 탭 아코디언 ⚙ 두 개를 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다(2026-10-17 사용자 확정). |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

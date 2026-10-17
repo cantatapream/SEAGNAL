@@ -2573,7 +2573,7 @@
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=FilterPolish4_20260831">
+    <link rel="stylesheet" href="style.css?v=OfficePick_20261017">
     <link rel="stylesheet" href="splash.css?v=Lifevest_20260624">
 
 
@@ -3152,21 +3152,22 @@
                         <h2 class="section-title" style="margin: 0;">🔭
                             기상청 해상 기상 전망</h2>
                     </div>
+                    <!-- 관심 기상청 설정 ⚙ — 머리 오른쪽 끝(활동지점 안전 브리핑 ⚙ 와 같은 모양, 2026-10-17). 늘 보인다. -->
+                    <button id="regional-office-settings-btn" type="button" class="accordion-gear-btn" onclick="event.stopPropagation(); toggleOfficeSettingsPanel()"
+                        title="관심 기상청 설정" aria-label="관심 기상청 설정">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
                 </div>
 
                 <div id="marine-forecast-accordion-body" class="main-accordion-body collapsed">
                     <div id="marine-forecast-content" class="marine-forecast-container">
                         <!-- 종합 예보 (지방기상청 단기예보) -->
                         <!-- 종합 예보: 지방청별 단기예보를 표시하는 섹션
-                             ⚙ 설정 버튼으로 표시할 지방청을 수동 선택 가능
-                             수동 선택은 관심해역 설정보다 우선 적용됨 -->
+                             머리 ⚙ 로 관심 기상청 한 곳을 고른다(없으면 안내 + [설정하기])
+                             고른 곳은 관심해역 설정보다 우선 적용됨 -->
                         <div class="marine-forecast-sub-accordion open" id="regional-forecast-section">
                             <div class="marine-forecast-sub-header" onclick="toggleMarineForecastSub('regional-forecast-body')">
                                 <span class="marine-forecast-sub-title" id="regional-forecast-title">종합 예보</span>
-                                <button id="regional-office-settings-btn" onclick="event.stopPropagation(); toggleOfficeSettingsPanel()" title="지방청 표시 설정"
-                                    style="background:none;border:none;color:#64748b;font-size:1rem;cursor:pointer;padding:4px 8px;margin-left:auto;transition:color 0.2s;">
-                                    <i class="fa-solid fa-gear"></i>
-                                </button>
                                 <i class="fa-solid fa-chevron-down marine-forecast-sub-icon"></i>
                             </div>
                             <div class="marine-forecast-sub-body" id="regional-forecast-body">
@@ -3278,12 +3279,20 @@
                         <h2 class="section-title" style="margin: 0;"><i class="fa-solid fa-triangle-exclamation"></i>
                             해역별 특보현황</h2>
                     </div>
+                    <div class="accordion-head-right">
                     <div class="header-status">
                         <!-- Initial Loading State -->
                         <span style="color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-right: 8px;">
                             <i class="fa-solid fa-spinner fa-spin"></i>
                         </span>
 
+                    </div>
+                    <!-- 관심해역 설정 ⚙ (2026-10-17) — 관심해역을 아직 안 골랐을 때만 보인다(render.js syncAlertZoneGear).
+                         누르면 온보딩 관심해역 설정(zone_setup.js)을 연다. -->
+                    <button id="alert-zone-settings-btn" type="button" class="accordion-gear-btn" hidden
+                        onclick="event.stopPropagation(); openAlertZoneSetup()" title="관심해역 설정" aria-label="관심해역 설정">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
                     </div>
                 </div>
 
@@ -5637,11 +5646,11 @@
     <script src="js/shared/utils/utils.js?v=Usage_20260910"></script>
     <script src="js/forecast/alerts/data.js"></script>
     <script src="js/forecast/alerts/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
-    <script src="js/forecast/alerts/render.js?v=BuoyClip_20260612"></script>
+    <script src="js/forecast/alerts/render.js?v=ZoneGear_20261017"></script>
     <script src="js/forecast/alerts/alert_history.js"></script>
     <script src="js/forecast/alerts/render_coastal.js"></script>
     <script src="js/forecast/alerts/marine.js?v=Maint_20260910"></script>
-    <script src="js/settings/settings.js?v=20261016sb2"></script>
+    <script src="js/settings/settings.js?v=ZoneGear_20261017"></script>
     <script src="js/location-alert/location_alert_core.js"></script>
     <script src="js/location-alert/location_alert_background.js"></script>
     <script src="js/location-alert/location_alert_runtime.js"></script>
@@ -5654,7 +5663,7 @@
     <script src="js/typhoon/location_alert_typhoon_runtime.js"></script>
     <script src="js/forecast/outlook/forecast.js"></script>
     <script src="js/forecast/outlook/windy.js?v=BuoyClip_20260612"></script>
-    <script src="js/forecast/outlook/marine_forecast.js"></script>
+    <script src="js/forecast/outlook/marine_forecast.js?v=OfficePick_20261017"></script>
     <script src="js/forecast/prediction/advisory_prediction.js"></script>
     <!-- 해상일기도 (KMA 날씨누리 GIF 차트) — 5개 파일 분할
          1: 카탈로그/상태/init/드롭다운/즐겨찾기  2: fetch/render/슬라이더/재생
@@ -5848,7 +5857,7 @@
 
          zone_setup.js(관심해역 설정)는 tutorial.js 가 불러 쓰므로 반드시 그 앞에 둔다 —
          연타로 열면 「관심해역 설정 → 튜토리얼」 순서로 이어진다. -->
-    <script src="js/onboarding/zone_setup.js"></script>
+    <script src="js/onboarding/zone_setup.js?v=ZoneGear_20261017"></script>
     <script src="js/tutorial/tutorial.js"></script>
 
     <!-- 선택적 차단 표시용 스타일 (버튼 자물쇠 배지 / 해상일기도·바텀시트 점검중) -->
