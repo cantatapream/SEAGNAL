@@ -82,8 +82,8 @@ const PLACE_TAIL_RE = /(?:에서는|에서도|에서|으로는|으로|까지|부
 const MAN_CONTEXT = /^(?:에서|에서는|에서도|앞|쪽|부근|인근|주변|일대|근처|해역|바다|방면|의|에)$/;
 const NEXT_CONTEXT = /^(?:해역|일대|주변|인근|부근|근처|앞|앞바다|연안|해안|쪽|방면|북|남|동|서|갯바위|방파제|포구|해상|바깥|안쪽|입구|부두|등대|섬)/;
 const STOP_WORD = new Set(['관할', '인근', '주변', '부근', '해당', '같은', '모든', '각', '일부', '전체', '오늘', '내일', '따라서', '특히', '다만', '또', '및', '등', '해상', '육상', '연안', '이', '그', '저', '이번', '이곳', '그곳', '평소', '현재', '지금', '오전', '오후', '새벽', '밤', '낮', '앞', '뒤', '옆', '안', '밖', '근처', '여러', '주요']);
-// 지명 뒤에 붙을 수 있는 조사만으로 된 꼬리(빈 꼬리 포함) — validateOverview 의 조사 붙은 지명 대조
-const PARTICLE_ONLY_RE = /^(?:에서는|에서도|에서|으로는|으로|까지|부터|보다|처럼|에는|에도|의|에|은|는|이|가|을|를|과|와|로|도|만)*$/;
+// 지명 뒤에 붙을 수 있는 조사 하나로 된 꼬리(빈 꼬리 포함) — 하나만: 「한림공원도로」(도+로)·「삼양해안도로도로」는 조사가 아니다(§11.10.6 독립 검토) — validateOverview 의 조사 붙은 지명 대조
+const PARTICLE_ONLY_RE = /^(?:에서는|에서도|에서|으로는|으로|까지|부터|보다|처럼|에는|에도|의|에|은|는|이|가|을|를|과|와|로|도|만)?$/;
 const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면|다|요|게|께|죠)$/;
 // 분석 문단 문장 수(2026-10-17 사용자 결정 §11.10.4 — 연안·해상 각 3~5문장, 사용자 예시가 4문장·3문장). §11.10 의 해설은 1~2문장이었다.
 const MIN_S = 3, MAX_S = 5;
@@ -302,8 +302,8 @@ function parseResponse(text) {
 function validateOverview(o, si) {
     const errors = [], allowedN = new Set(si.allowed_number_keys || []), mk = si.allowed_multiplier_keys || { sea: [], land: [] };
     // 허용 지명은 끝말 일치(「한림 협재해수욕장」 같은 앞 낱말 붙은 후보), 기상청 해역 이름은 그 관할 kma_zones 와 정확히 같을 때만(독립 검토 8).
-    // 허용 이름은 괄호·가운뎃점으로 묶인 다른 이름도 따로(「하평해변(강릉)」→하평해변 · 「신명·정자해변」→정자해변 · 「하저해수욕장 (하저리 해수욕장)」→하저리해수욕장 — 2026-10-17 운영 오판, 3글자 이상만).
-    const names = [...new Set((si.allowed_places || []).flatMap((x) => [compact(x), ...norm(x).split(/[()（）·]/).map(compact).filter((y) => y.length >= 3)]))].filter((x) => x.length >= 2), kz = new Set((si.kma_zones || []).map(compact)), stems = new Set((si.place_stems || []).map(compact));
+    // 허용 이름은 괄호·가운뎃점·쉼표로 묶인 다른 이름도 따로(「장호해수욕장(장호항, 장호해변)」→장호항 · 「하평해변(강릉)」→하평해변 · 「신명·정자해변」→정자해변 · 「하저해수욕장 (하저리 해수욕장)」→하저리해수욕장 — 2026-10-17 운영 오판, 3글자 이상만).
+    const names = [...new Set((si.allowed_places || []).flatMap((x) => [compact(x), ...norm(x).split(/[()（）·ㆍ,，]/).map(compact).filter((y) => y.length >= 3)]))].filter((x) => x.length >= 2), kz = new Set((si.kma_zones || []).map(compact)), stems = new Set((si.place_stems || []).map(compact));
     const factS = (si.fact_sentences || []).map(compact).filter(Boolean);
     const paras = [['sea', o?.sea], ['land', o?.land]];
     if (!si.land && o?.land) errors.push('shape:land-not-allowed');
