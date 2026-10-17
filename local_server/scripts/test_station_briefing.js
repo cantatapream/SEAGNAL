@@ -4,7 +4,8 @@
  * 역할  : 「활동지점 안전 브리핑」(파출소 관할) 서버 1단계 시험 — 고정 입력(가짜 자료)으로 규칙·AI 순서·검증·저장·일정·노출을 결정론적으로 확인한다.
  *         실제 AI·카카오·기상청 호출 없음(가짜 어댑터·가짜 fetch), 임시 폴더만 쓴다, 서버를 띄우지 않는다(라우터만 임시 포트).
  *         끝부분 「[A1]…[C9]」 = 독립 검토 3건(규칙·AI·운영, 2026-10-16)의 결함마다 1:1 회귀 — 모두 고치기 전 코드에서 실패함을 확인했다.
- *         맨 끝 「[§11.10.3-1]…[§11.10.3-5]」 = 2026-10-17 사용자 결정(설계서 §11.10.3 — (고립 주의) 지점 표·육상 권고·해상 근거 칸·해양사고 위험예보·해구 줄은 넘을 때만·지도 재료) 1:1 — 고치기 전 코드(6ec172ffa)에서 5건 모두 실패.
+ *         맨 끝 「[§11.10.5-1]…[§11.10.5-8]」 = 62048b15c 독립 검토 8건(설계서 §11.10.5 — 단계 아래쪽·입력에 없는 말·이름 없는 대목·다시 시도 순서·캐시·단계 말 꼴·이유 글 자름·대기 표 ⑪·평소처럼 관심) 1:1 — 고치기 전 코드(bde907bdd)에서 8건 모두 실패.
+ *         그 앞 「[§11.10.4-1]…[§11.10.4-9]」 = 같은 날 사용자 결정(§11.10.4). 「[§11.10.3-1]…[§11.10.3-5]」 = 2026-10-17 사용자 결정(설계서 §11.10.3 — (고립 주의) 지점 표·육상 권고·해상 근거 칸·해양사고 위험예보·해구 줄은 넘을 때만·지도 재료) 1:1 — 고치기 전 코드(6ec172ffa)에서 5건 모두 실패.
  *         그 앞 「[§11.10.2-1]…[§11.10.2-12]」 = §11.10·§11.10.1 독립 검토 12건(설계서 §11.10.2) 1:1 — 고치기 전 코드(cebb4cbe0)에서 12건 모두 실패함을 확인했다.
  *         그 앞 「[§11.10.1]」 = 같은 날 후속 결정((기상) 칸 — 가장 가까운 앞바다 단기 해상예보 오전·오후, 단기 전망 대상일 특이사항(사용자가 붙여 준 통보문 fixtures/station_briefing/), 물때 공용, 「예상」) 1:1 — 고치기 전 코드(8afdce39f)에서 6건 모두 실패.
  *         그 앞 「[§11.10]」 = 2026-10-17 사용자 결정(총평 = 서버 결론·근거·권고 + AI 해설 1~2문장 · 개수 버그 · 너울 · 해역 이름·셈말 허용 · 관리자 오류 3일 보관) 1:1 — 고치기 전 코드에서 4건 모두 실패함을 확인했다.
@@ -24,7 +25,9 @@ let pass = 0, fail = 0;
 async function check(name, fn) { try { await fn(); pass++; console.log('✅ ' + name); } catch (e) { fail++; console.log('❌ ' + name + ' — ' + (e && e.message)); } }
 // 문단 모양(문장 수 3~5·마지막 「따라서 … 필요합니다」 — 2026-10-17 §11.10.4)을 뺀 검증 결과. 숫자·지명·단계·금지어 같은 다른 규칙을 짧은 글로 보는 기존 사례가 쓴다
 // (그 사례들은 1~2문장 해설 시절에 쓰여 모양만 바뀐 규칙에 걸린다 — 모양 자체는 「AI 응답 검증」·[§11.10.2-9]·[§11.10.4-*] 가 AI.validateOverview 로 직접 본다).
-const vo = (o, si) => { const errors = AI.validateOverview(o, si).errors.filter((e) => !/^shape:(?:land|sea)-(?:sentences-\d+|no-conclusion)$/.test(e)); return { ok: errors.length === 0, errors }; };
+// 1~2문장 해설 시절의 짧은 글로 숫자·지명·단계 상한·금지어를 보는 기존 사례용: 모양 규칙(문장 수·마지막 「따라서」)과, 그 「따라서」 결론 문장에 걸린 단계 아래쪽 검사(level-last·level-max — §11.10.5)는 뺀다.
+// 아래쪽 검사는 「[§11.10.5-1]」이 3~5문장 문단으로 따로 본다.
+const vo = (o, si) => { const errors = AI.validateOverview(o, si).errors.filter((e) => !/^shape:(?:land|sea)-(?:sentences-\d+|no-conclusion)$/.test(e) && !/^level-(?:last|max):/.test(e)); return { ok: errors.length === 0, errors }; };
 const pad = (n) => String(n).padStart(2, '0'), at = (h, d = '2026-10-17') => `${d}T${pad(h)}:00:00+09:00`;
 const T0 = Date.parse(at(8)); // 2026-10-17(토) 08:00 KST
 
@@ -306,7 +309,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(S.advice.startsWith('15~24시 비양도 ') && S.advice.endsWith('해리 해역 운항에 주의가 필요합니다.') && !/따라서/.test(S.advice + L.advice), S.advice);
         assert.ok(!JSON.stringify(b.summary).includes('관심 이상'), '「관심 이상」 용어를 쓰지 않음');
         assert.deepStrictEqual([b.overview.land, b.overview.sea, b.overview.source], [null, null, 'template'], '틀(AI 없음)이면 해설 없음');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v10'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v11'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
     });
     const si = AI.stationInput(b);
     // AI 분석 문단 견본(2026-10-17 §11.10.4 — 3~5문장, 마지막 「따라서 … 필요합니다」. 그 전 §11.10 해설은 1~2문장): 허용 숫자·지명·단계만 쓴 글. 아래 검사들이 이것을 조금씩 바꿔 실패를 만든다.
@@ -327,7 +330,8 @@ const WIN = R.editionWindow('morning', T0);
         const so = { ...si, land: null };
         assert.ok(vo({ sea: good.sea, land: '육상 글입니다.' }, so).errors.includes('shape:land-not-allowed'));
         assert.ok(AI.validateOverview(good, si).ok, AI.validateOverview(good, si).errors.join(','));
-        assert.deepStrictEqual(AI.validateOverview({ ...good, sea: '오후에는 바람이 강해집니다. 저녁에는 물결이 높아집니다. 따라서 해상 변화에 관심이 필요합니다.' }, si).errors, [], '첫 해역 이름 없어도 통과(필수 포함 검사 없앰)');
+        // §11.10.5: 마지막 문장 단계 말은 결론 단계(해상 주의)와 같아야 해 「관심」 → 「주의」로 바꿨다(관심이면 level-last — [§11.10.5-1])
+        assert.deepStrictEqual(AI.validateOverview({ ...good, sea: '오후에는 바람이 강해집니다. 저녁에는 물결이 높아집니다. 따라서 해상 변화에 주의가 필요합니다.' }, si).errors, [], '첫 해역 이름 없어도 통과(필수 포함 검사 없앰)');
         assert.equal(si.required, undefined); assert.deepStrictEqual([AI.MIN_S, AI.MAX_S, AI.MAX_CHARS], [3, 5, 420]);
         // 배수는 문단별(독립 검토 B3): 해상 = 해제 칸 1.2·1.3, 육상 = 사람 배수 1.8 — 서로 섞이지 않는다.
         assert.deepStrictEqual(si.allowed_multiplier_keys.sea, ['1.2_1.3|배', '1.2|배', '1.3|배'].map((k) => k.replace('_', '~')).sort());
@@ -599,7 +603,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(!JSON.stringify(lone.summary).includes('순위만으로'), '총평은 「순위」로 단정하지 않음(순위식인지 미확인)');
         assert.deepStrictEqual(vo({ land: null, sea: '출항 전 기상 확인에 관심이 필요합니다.' }, sl).errors, []);
         const up = vo({ land: null, sea: '출항 전 기상 확인에 경계가 필요합니다.' }, sl);
-        assert.ok(up.errors.some((er) => er.startsWith('level:경계')), 'AI 가 거른 「경계」를 총평에 쓰면 검증 실패 — ' + up.errors.join(','));
+        assert.ok(up.errors.some((er) => er.startsWith('level-para:경계')), 'AI 가 거른 「경계」를 총평에 쓰면 검증 실패(이름 없는 대목 — §11.10.5 부터 level-para) — ' + up.errors.join(','));
     });
     await check('[A8] 특보 변경 판이 내일 판을 고칠 때 21시 전이면 내일 0시부터(오늘 칸 섞지 않음) · 21시부터는 night 판과 같은 「오늘 밤~내일」', () => {
         const w = R.editionWindow('warning', Date.parse('2026-10-17T13:10:00+09:00'), '2026-10-18');
@@ -668,15 +672,15 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(vErr(sea0('해제 뒤 이틀 동안 사고가 약 1.2~1.3배 많았습니다.')), []);
         assert.ok(vErr(good.sea, good.land.replace('1.8배', '1.2배')).includes('multiplier:1.2배'), '해제 배수는 육상 문단에 못 씀');
     });
-    await check('[B4] 단계 말은 모든 서술 꼴(경계가 요구·경계하십시오·주의 단계) · 대상 이름 없는 문장은 그 문단 최저 단계까지', () => {
+    await check('[B4] 단계 말은 모든 서술 꼴(경계가 요구·경계하십시오·주의 단계) · 대상 이름 없는 문장은 그 문단 결론 단계까지(§11.10.5 독립 검토 2 — 종전 최저)', () => {
         const base = '비양도 해역에서 15시부터 파고가 높아집니다. ';
         for (const t of ['따라서 비양도 해역에 경계가 요구됩니다.', '따라서 비양도 해역에서는 경계하십시오.', '비양도 해역은 경계 단계입니다.']) assert.ok(vErr(base + t).includes('level:경계>2'), t + ' / ' + vErr(base + t).join(','));
-        // 2026-10-17: 총평 후보에 관심(1) 해역(모슬포)이 들어 문단 최저가 1 — 이름 없는 문장의 「경계」는 그 최저를 넘는다.
-        assert.ok(vErr(base + '따라서 이 해역에 경계가 필요합니다.').includes('level:경계>1'), vErr(base + '따라서 이 해역에 경계가 필요합니다.').join(','));
-        // 문단 안 대상 단계가 2·1 로 갈리면 이름 없는 문장은 최저(1)까지 — 예전에는 문단 단계(2)까지 허용했다.
+        // §11.10.5 독립 검토 2: 이름 없는 대목은 문단 결론 단계(관할 이름의 단계 = 2)까지 — 「경계」는 넘는다(오류 열쇠 level-para). 종전(최저 1)엔 level:경계>1.
+        assert.ok(vErr(base + '따라서 이 해역에 경계가 필요합니다.').includes('level-para:경계>2'), vErr(base + '따라서 이 해역에 경계가 필요합니다.').join(','));
+        // 문단 안 대상 단계가 2·1 로 갈려도 이름 없는 문장의 「주의」는 결론 단계(2)까지라 통과 — 종전엔 최저(1)로 막아 AI 에게 결론보다 낮춰 쓰라고 밀었다.
         const si1 = { ...si, levels: { ...si.levels, sea: { ...si.levels.sea, '한림항 북동방 5.2해리 해역(232-3해구)': 1, 한림항: 1 } } };
         const e1 = vo({ land: good.land, sea: base + '따라서 이 해역에 주의가 필요합니다.' }, si1).errors;
-        assert.ok(e1.includes('level:주의>1'), '이름 없는 문장 — 문단 최저(관심)까지 / ' + e1.join(','));
+        assert.deepStrictEqual(e1, [], '이름 없는 문장 — 문단 결론 단계(주의)까지');
         assert.deepStrictEqual(vErr(base + '따라서 비양도 해역에 주의가 필요합니다.'), []);
         assert.deepStrictEqual(si.levels.sea['한림파출소'], 2); assert.equal(si.levels.land['한림파출소'], 2, '문단별 단계(육상 = 협재 지수 72 높음 → 주의, 결정 2)');
     });
@@ -1034,7 +1038,7 @@ const WIN = R.editionWindow('morning', T0);
         const batch = AI.batchInput([siK], null); assert.deepStrictEqual(batch.rules.sentences_per_paragraph, [3, 5]); assert.ok(batch.stations[0].kma_zones.includes('제주도남쪽바깥먼바다'), '해역 이름 목록은 관할마다(독립 검토 8)');
         assert.ok(batch.stations[0].shown.land.headline.startsWith('오늘 한림파출소 관할 연안의 단계는'), '이미 보이는 결론을 AI 에 알려 되풀이하지 않게');
         const pr = AI.buildPrompt(batch); assert.ok(pr.includes('3~5문장') && !pr.includes('1~2문장') && !pr.includes('required.'), '지시문도 분석 3~5문장(§11.10.4)');
-        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v5', 'sb-prompt-v6']);
+        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v6', 'sb-prompt-v7']);
     });
     await check('[§11.10] 관리자 오류 목록: 최근 3일(KST 날짜) 오류는 모두 남기고(종전 200개 상한 없음) 더 오래된 것만 지운다 · 안전 상한 5,000 은 지운 수를 남긴다 · status 가 전부(최근 것부터)', async () => {
         const mk = (iso, i) => ({ at: iso, stage: 'validate', provider: 'chatgpt', stations: ['k|' + i], reason: 'r' + i });
@@ -1367,12 +1371,12 @@ const WIN = R.editionWindow('morning', T0);
         x.sea.weather = { 5099: { label: '대해구 5099', rows: [{ at: at(9), wh: 0.4, ws: 6.9 }, { at: at(12), wh: 0.3, ws: 5 }] } };
         const c = R.buildBriefing(x, WIN, { generatedAt: R.isoKst(T0) }).summary.analysis;
         assert.ok(c.land.endsWith('따라서 관할 연안사고에 평소처럼 관심이 필요합니다.') && AI.sentences(c.land).length >= 3, c.land);
-        assert.ok(c.sea.includes('대해구 5099 예보의 최대 파고는 0.4m, 풍속은 6.9m/s로 기준(파고 2m·풍속 12m/s)보다 낮을 것으로 예상됩니다.') && c.sea.endsWith('따라서 한림파출소 관할 해상의 바람과 물결 변화에 관심이 필요합니다.') && AI.sentences(c.sea).length >= 3, c.sea);
+        assert.ok(c.sea.includes('대해구 5099 예보의 최대 파고는 0.4m, 풍속은 6.9m/s로 기준(파고 2m·풍속 12m/s)보다 낮을 것으로 예상됩니다.') && c.sea.endsWith('따라서 한림파출소 관할 해상의 바람과 물결 변화에 평소처럼 관심이 필요합니다.') && AI.sentences(c.sea).length >= 3, c.sea);
         const so = R.buildBriefing({ ...hallim(), seaOnly: true, land: null }, WIN, { generatedAt: R.isoKst(T0) });
         assert.equal(so.summary.analysis.land, null); assert.ok(AI.sentences(so.summary.analysis.sea).length >= 3);
         // 조사: 괄호 덧말 앞 낱말로(「해역(232-2해구)은」) · 받침 ㄹ + 으로 → 로
         assert.equal(R.josa('비양도 북북서방 1.4해리 해역(232-2해구)', '은', '는'), '은'); assert.equal(R.josa("연안 위험지수 72 '높음'(예상)", '으로', '로'), '으로'); assert.equal(R.josa('바다물', '으로', '로'), '로');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v10');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v11');
     });
     // 사용자 예시 꼴(돝섬해상유원지·대해구 5099)을 한림 고정 자료 이름·숫자로 옮긴 AI 분석 문단
     const ex = {
@@ -1489,6 +1493,115 @@ const WIN = R.editionWindow('morning', T0);
     await check('[§11.10.4-9] 관리자 상태 오류·이름 — 시도 번호가 오류에 남고 「다음 예정」 시각표는 07:30·17:30·23:00 · 오류현황 낡음 상세도 07:30', async () => {
         const row = SB.historyRow({ lastRun: { at: '2026-10-16T07:10:00+09:00', method: 'chatgpt', results: [] }, errors: [], failures: {} }, kt('08:00'));
         assert.ok(row.status === 'stale' && row.detail.includes('07:30·17:30·23:00'), row.detail);
+    });
+    // ── 2026-10-17 독립 검토(62048b15c — 설계서 §11.10.5) 결함마다 1:1 회귀 「[§11.10.5-1]…[§11.10.5-8]」 — 고치기 전 코드(bde907bdd)에서 8건 모두 실패함을 확인했다 ──
+    const calmInput = () => { const x = hallim(); x.land.spots.forEach((s) => { s.people.score = 0; s.notices.windMs = null; s.index = 5; s.band = '평소 수준'; }); x.sea.regions = []; x.sea.warnings = []; x.sea.weather = { 5099: { label: '대해구 5099', rows: [{ at: at(9), wh: 0.4, ws: 6.9 }, { at: at(12), wh: 0.3, ws: 5 }] } }; return x; };
+    const lvOnly = (errs) => errs.filter((e) => /^(?:level|fact)/.test(e));
+    await check('[§11.10.5-1] 단계 아래쪽·입력에 없는 말 — 해상 결론 「주의」인데 「…관심이 필요합니다」로 끝내면 실패 · 풍랑경보(입력엔 풍랑주의보)·태풍·사망자·대규모·임박·「아무 일도 없을 것」·「반드시 사고」 실패 · 사용자 예시 두 문단·규칙 분석 문단은 통과', () => {
+        const e = (o, s2 = si) => AI.validateOverview({ ...ex, ...o }, s2).errors;
+        assert.deepStrictEqual(e({}), [], '사용자 연안 예시(한림 자료로 옮김)·해상 예시 꼴');
+        // ① 아래쪽: 결론 단계(해상 2 = 주의)보다 낮춰 끝냄 · 문단 전체를 관심으로
+        const under = ex.sea.replace("해양사고 위험예보 '주의'로 주의 필요 수준입니다.", '관심 필요 수준입니다.').replace(/따라서.*$/, '따라서 해상 상황의 변화에 관심이 필요합니다.');
+        assert.deepStrictEqual(e({ sea: under }), ['level-last:관심≠2']);
+        assert.ok(e({ land: ex.land.replace(/따라서.*$/, '따라서 협재해수욕장과 금능해수욕장 모두에 관심이 필요합니다.') }).includes('level-last:관심≠2'));
+        assert.ok(e({ land: ex.land.replace(/따라서.*$/, '따라서 오늘은 이용자의 안전 확인이 필요합니다.') }).includes('level-last:없음≠2'));
+        assert.equal(AI.explainError('level-last:관심≠2'), 'level-last:관심≠2 — 마지막 「따라서」 문장의 가장 높은 단계 말이 「관심」이다 — 결론 단계 「주의」와 같게 쓴다');
+        // ② 입력에 없는 말
+        for (const [o, code] of [[{ sea: ex.sea.replace('풍랑주의보', '풍랑경보') }, 'fact:경보'], [{ sea: ex.sea.replace('21시부터는', '태풍 영향으로 21시부터는') }, 'fact:태풍'],
+            [{ land: ex.land.replace('금능해수욕장은 관심 필요 수준입니다.', '금능해수욕장은 관심 필요 수준이며, 최근 익수 사고로 사망자가 발생한 이력이 있습니다.') }, 'fact:사망자'],
+            [{ land: ex.land.replace('금능해수욕장은 관심 필요 수준입니다.', '금능해수욕장에서는 오늘 대규모 불꽃축제가 열립니다.') }, 'fact:대규모'],
+            [{ sea: ex.sea.replace('비양도 주변 해역은', '비양도 주변 해역은 사고가 임박했고') }, 'fact:임박'],
+            [{ land: ex.land.replace(/따라서.*$/, '따라서 오늘은 아무 일도 없을 것이며 협재해수욕장에는 주의가 필요합니다.') }, 'fact:아무 일도·문제도 없'],
+            [{ sea: ex.sea.replace('21시부터는', '반드시 사고가 나는 21시부터는') }, 'fact:반드시 사고']]) assert.ok(e(o).includes(code), code + ' / ' + e(o).join(','));
+        // 입력에 있으면 허용: 한림 협재 「사망사고 발생구역」(그 말 「사망」) · 기상청 전망 발췌에 「풍랑경보」가 있는 관할
+        assert.ok(si.fact_terms.includes('사망') && !si.fact_terms.includes('사망자') && !si.fact_terms.includes('경보'), JSON.stringify(si.fact_terms));
+        assert.deepStrictEqual(e({ land: ex.land.replace('위험구역과', '사망사고 발생구역을 포함한 위험구역과') }), []);
+        const siW = AI.stationInput(b, { excerpt: { 해상: '제주도서부앞바다에 풍랑경보가 내려질 수 있습니다.' } });
+        assert.deepStrictEqual(e({ sea: ex.sea.replace('풍랑주의보 예비특보', '풍랑경보 가능성') }, siW).filter((x) => x.startsWith('fact:')), []);
+        assert.ok(!('fact_terms' in AI.batchInput([si], null).stations[0]), 'fact_terms 는 서버 검증용 — AI 에 보내지 않음');
+        // 남은 빈칸(설계서 §11.10.5): 시제 바꿈(「높아졌습니다」)·원인 바꿈은 검사하지 못한다 — 통과하는 것을 그대로 적어 둔다
+        assert.deepStrictEqual(e({ sea: ex.sea.replace('높아질 것으로 예상됩니다', '높아졌습니다') }), [], '알려진 빈칸: 시제');
+        // 사용자 해상 예시(원문 그대로, 관할 이름만 한림) — 기준 미만·해역 없음(결론 「평소 수준」) 고정 자료에서 통과
+        const cb = R.buildBriefing(calmInput(), WIN, { generatedAt: R.isoKst(T0) }), cs = AI.stationInput(cb);
+        assert.ok(cb.summary.sea.headline.includes('"평소 수준"'), cb.summary.sea.headline);
+        const userSea = '대해구 5099 예보의 최대 파고는 0.4m, 풍속은 6.9m/s로 기준보다 낮습니다. 다만 오늘 오후부터 바람이 강해지고 물결이 높아질 수 있다는 기상 전망이 있어 해상 상황의 변화를 살펴야 합니다. 따라서 한림파출소 관할 해상의 바람과 물결 변화에 관심이 필요합니다.';
+        assert.deepStrictEqual(AI.validateOverview({ land: cb.summary.analysis.land, sea: userSea }, cs).errors.filter((x) => !x.startsWith('number:')), [], '사용자 해상 예시(평소 수준 결론)');
+        // 규칙 분석 문단(서버가 만든 글)도 단계·입력에 없는 말 검사에 걸리지 않는다(숫자 「2칸」 등은 서버 결론 줄의 꼴 차이라 여기서 보지 않음)
+        const variants = [hallim(), calmInput(), { ...hallim(), seaOnly: true, land: null }, { ...hallim(), sources: { accident: 'error', congestion: 'error', zoneForecasts: 'error', warnings: 'error' } }];
+        for (const x of variants) { const bb = R.buildBriefing(x, WIN, { generatedAt: R.isoKst(T0) }); assert.deepStrictEqual(lvOnly(AI.validateOverview(bb.summary.analysis, AI.stationInput(bb)).errors), [], bb.summary.analysis.sea); }
+    });
+    await check('[§11.10.5-2] 이름 없는 대목은 문단 결론 단계까지 — 관심 해역(모슬포)이 섞여도 「따라서 해상 상황의 변화에 주의가 필요합니다」 통과 · 「경계」는 level-para · 이유 글 「대상 이름을 쓰거나 문단 단계(「주의」)까지」', () => {
+        assert.equal(si.levels.sea['모슬포'], 1);
+        assert.deepStrictEqual(AI.validateOverview({ ...ex, sea: ex.sea.replace(/따라서.*$/, '따라서 해상 상황의 변화에 주의가 필요합니다.') }, si).errors, []);
+        assert.deepStrictEqual(AI.validateOverview({ ...ex, land: ex.land.replace(/따라서.*$/, '따라서 연안 상황 변화에 주의가 필요합니다.') }, si).errors, []);
+        const er = AI.validateOverview({ ...ex, sea: ex.sea.replace(/따라서.*$/, '따라서 해상 상황의 변화에 경계가 필요합니다.') }, si).errors;
+        assert.ok(er.includes('level-para:경계>2'), er.join(','));
+        assert.equal(AI.explainError('level-para:경계>2'), 'level-para:경계>2 — 그 대목에 대상 이름이 없다 — 대상 이름을 쓰거나 문단 단계(「주의」)까지');
+    });
+    await check('[§11.10.5-3] 다시 시도가 뒤쪽 묶음을 굶기지 않음 — 해양경찰서 4곳×2관할, 호출마다 1분(가짜 시계)·데드라인 5분, 해양경찰서마다 한 관할이 첫 시도에 떨어짐 → 첫 바퀴에 4곳 모두 첫 시도, 남은 1분은 1번째 묶음 다시 시도', async () => {
+        const mk = () => Array.from({ length: 8 }, (_, i) => { const x = hallim(); const off = '해경서' + Math.floor(i / 2); x.key = off + '|파출소' + i; x.office = off; return R.buildBriefing(x, WIN, { generatedAt: R.isoKst(T0) }); });
+        let fake = 0; const seen = new Set(), order = [];
+        const vm = { available: () => true, call: async ({ prompt }) => { fake += 60000; const ids = idsIn(prompt); order.push(ids[0].id.split('|')[0]); return JSON.stringify({ stations: ids.map((s) => { const first = !seen.has(s.id); seen.add(s.id); return { id: s.id, ...(first && /[0246]$/.test(s.id) ? bad1 : ex) }; }) }); } };
+        const r = await AI.generate({ briefings: mk(), config: cfg, adapters: { vm, gemini: { available: () => false } }, now: T0, timer: () => fake, deadline: 5 * 60000 });
+        assert.deepStrictEqual(order, ['해경서0', '해경서1', '해경서2', '해경서3', '해경서0'], '첫 바퀴에 모든 묶음 → 그다음 다시 시도');
+        for (let o = 0; o < 4; o++) assert.equal(r.overviews['해경서' + o + '|파출소' + (o * 2 + 1)].source, 'chatgpt', '해경서' + o + ' 의 통과 관할은 AI');
+        assert.deepStrictEqual([r.overviews['해경서0|파출소0'].source, r.overviews['해경서0|파출소0'].attempts], ['chatgpt', 2]);
+        assert.deepStrictEqual([r.stats.calls, r.stats.ai, r.stats.template, r.stats.deadline, r.stats.retried], [5, 5, 3, 3, 1]);
+        assert.deepStrictEqual(r.errors.filter((x) => x.stage === 'deadline').map((x) => x.stations), [['해경서1|파출소2', '해경서2|파출소4', '해경서3|파출소6']]);
+    });
+    await check('[§11.10.5-4] 날짜 파일 쓰기가 실패해도 메모리 캐시는 그대로 — 사용자에게 저장 안 된 특보 판이 보이지 않고, 대기 중인 아침 판이 07:30 에 공개된다', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'wfail-')); let clock = kt('23:00', '2026-10-16');
+        const s = mkSvc(d, () => clock);
+        await s.run({ kind: 'night' }); clock = kt('07:10'); await s.run({ kind: 'morning' });
+        clock = kt('07:25'); assert.equal(s.pick({ key: HL, day: 'auto' }).briefing.edition, 'night');   // 캐시에 올림
+        const orig = I.writeJson; let err = null;
+        I.writeJson = (f, v) => { if (/briefings_/.test(f)) throw new Error('ENOSPC-시험'); return orig(f, v); };
+        try { await s.run({ kind: 'warning', keys: [HL], zones: ['제주도서부앞바다'] }); } catch (e2) { err = e2.message; } finally { I.writeJson = orig; }
+        assert.equal(err, 'ENOSPC-시험');
+        assert.equal(s.pick({ key: HL, day: 'auto' }).briefing.edition, 'night', '저장 못 한 특보 판은 보이지 않음');
+        clock = kt('07:30'); assert.equal(s.pick({ key: HL, day: 'auto' }).briefing.edition, 'morning', '대기 아침 판은 메모리에서도 사라지지 않음');
+    });
+    await check('[§11.10.5-5] 단계 말 꼴 — 「금능해수욕장은 주의, 협재해수욕장은 관심이」·쉼표 없는 「금능해수욕장에는 주의가 협재해수욕장에는」·「주의를 요합니다」·「경계 상태입니다」도 대상 단계로 · 바른 문장은 통과', () => {
+        const e = (land) => AI.validateOverview({ ...ex, land }, si).errors;
+        const L = (last) => ex.land.replace(/따라서.*$/, last);
+        for (const t of [L('따라서 금능해수욕장은 주의, 협재해수욕장은 관심이 필요합니다.'), L('따라서 금능해수욕장에는 주의가 협재해수욕장에는 관심이 필요합니다.'),
+            ex.land.replace('금능해수욕장은 관심 필요 수준입니다.', '금능해수욕장도 주의를 요합니다.')]) assert.ok(e(t).includes('level:주의>1'), t + ' / ' + e(t).join(','));
+        assert.ok(e(ex.land.replace('금능해수욕장은 관심 필요 수준입니다.', '금능해수욕장은 경계 상태입니다.')).includes('level:경계>1'));
+        for (const t of [L('따라서 협재해수욕장은 주의, 금능해수욕장은 관심이 필요합니다.'), L('따라서 협재해수욕장에는 주의가 금능해수욕장에는 관심이 필요합니다.'), ex.land.replace('금능해수욕장은 관심 필요 수준입니다.', '협재해수욕장은 주의를 요합니다.')]) assert.deepStrictEqual(e(t), [], t);
+    });
+    await check('[§11.10.5-6] 다시 시도 이유 글에 AI 글 조각은 20자까지만(긴 지명 후보를 그대로 다음 지시문에 넣지 않음)', () => {
+        const long = 'place:' + '가'.repeat(40) + '섬';
+        assert.equal(AI.explainError(long), 'place:' + '가'.repeat(20) + '… — 그 지명은 입력에 없다');
+        assert.equal(AI.explainError('place:하저리해수욕장'), 'place:하저리해수욕장 — 그 지명은 입력에 없다');
+    });
+    await check('[§11.10.5-7] 대기 표 ⑪ — 관리자 실행 중엔 07:10·07:30 점검이 busy, 끝난 뒤 아침 판은 공개 시각(07:30)이 지나 곧바로 공개 · 데드라인 1초 안 남아 끊긴 VM 시간초과는 차단기에 세지 않음(설정 시간 제한으로 끊긴 것은 셈)', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'busy-')); let clock = kt('07:05'), release; const gate = new Promise((r0) => { release = r0; });
+        const s = mkSvc(d, () => clock, { adapters: { vm: { available: () => true, call: async ({ prompt }) => { await gate; return JSON.stringify({ stations: idsIn(prompt).map((x) => ({ id: x.id, land: null, sea: 'x' })) }); } }, gemini: { available: () => false } } });
+        const pr = s.run({ kind: 'manual' }); await new Promise((r0) => setTimeout(r0, 100));
+        clock = kt('07:10'); assert.deepStrictEqual(await s.tick(), { busy: true });
+        clock = kt('07:30'); assert.deepStrictEqual(await s.tick(), { busy: true });
+        release(); await pr; clock = kt('07:31'); assert.equal((await s.tick()).edition, '2026-10-17|morning');
+        const day = I.readJson(path.join(d, 'briefings_2026-10-17.json'));
+        assert.deepStrictEqual([day.stations[HL].edition, day.stations[HL].publishAt, day.pending], ['morning', '2026-10-17T07:30:00+09:00', undefined], '공개 시각이 지난 아침 판 — 곧바로');
+        // 차단기: 남은 시간 300ms(시계 고정)로 끊긴 시간초과 두 번 — vmFailLimit 1 이어도 두 번째 관할에 VM 을 다시 부른다
+        let vmCalls = 0; const slowVm = { available: () => true, call: () => { vmCalls++; return new Promise((r0) => setTimeout(() => r0('{"stations":[]}'), 1000)); } };
+        const r = await AI.generate({ briefings: stationsFor(2), config: { ...cfg, batchUnit: 'station' }, adapters: { vm: slowVm, gemini: { available: () => false } }, now: T0, timer: () => 0, deadline: 300, vmAttempts: 1, vmFailLimit: 1 });
+        assert.equal(vmCalls, 2); assert.ok(!r.errors.some((x) => /VM 연속 실패/.test(x.reason)), r.errors.map((x) => x.reason).join(' / '));
+        // 설정한 호출 시간 제한(50ms)으로 끊긴 것은 종전처럼 센다
+        vmCalls = 0; const r2 = await AI.generate({ briefings: stationsFor(2), config: { ...cfg, batchUnit: 'station' }, adapters: { vm: slowVm, gemini: { available: () => false } }, now: T0, timeouts: { vm: 50, gemini: 50 }, vmAttempts: 1, vmFailLimit: 1 });
+        assert.equal(vmCalls, 1); assert.ok(r2.errors.some((x) => /VM 연속 실패 1회/.test(x.reason)));
+    });
+    await check('[§11.10.5-8] 해상 결론 「평소 수준」이면 규칙 분석도 「평소처럼 관심」 · 시도를 다 쓰고 실패한 관할은 마지막 시도 뒤 데드라인이 지나도 deadline 이 아니라 규칙 분석 · VM 을 못 부른 관할은 Gemini 2번(사용자 확정 「2번」)', async () => {
+        const cb = R.buildBriefing(calmInput(), WIN, { generatedAt: R.isoKst(T0) });
+        assert.ok(cb.summary.analysis.sea.endsWith('따라서 한림파출소 관할 해상의 바람과 물결 변화에 평소처럼 관심이 필요합니다.'), cb.summary.analysis.sea);
+        let fake = 0; const gem = { available: () => true, call: async ({ prompt }) => { fake += 60000; return JSON.stringify({ stations: idsIn(prompt).map((s) => ({ id: s.id, ...bad1 })) }); } };
+        const r = await AI.generate({ briefings: stationsFor(1), config: cfg, adapters: { vm: { available: () => false }, gemini: gem }, now: T0, timer: () => fake, deadline: 2 * 60000 });
+        assert.deepStrictEqual([r.stats.gemini, r.stats.template, r.stats.deadline], [2, 1, 0]); assert.ok(!r.errors.some((x) => x.stage === 'deadline'));
+        // 차단기로 VM 을 한 번도 못 부른 관할도 Gemini 2번, VM 을 부른 관할은 1번
+        const per = {}; const vmBad = { available: () => true, call: async () => { throw new Error('codex 연결 끊김'); } };
+        const gem2 = { available: () => true, call: async ({ prompt }) => { for (const s of idsIn(prompt)) per[s.id] = (per[s.id] || 0) + 1; return JSON.stringify({ stations: idsIn(prompt).map((s) => ({ id: s.id, ...bad1 })) }); } };
+        await AI.generate({ briefings: stationsFor(4), config: { ...cfg, batchUnit: 'station' }, adapters: { vm: vmBad, gemini: gem2 }, now: T0 });
+        assert.deepStrictEqual([0, 1, 2, 3].map((i) => per[(i < 2 ? '제주해양경찰서' : '서귀포해양경찰서') + '|파출소' + i]), [1, 1, 1, 2], JSON.stringify(per));   // 파출소3 = 차단기가 걸린 뒤라 VM 을 못 부름
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);

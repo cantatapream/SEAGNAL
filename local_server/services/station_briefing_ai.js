@@ -29,7 +29,9 @@ const SCHEMA = 'station-briefing-input-v2';
 //   지시문 v5: 해역 이름 목록이 관할마다(stations[].kma_zones)로 바뀌었다.
 // v5·v6(2026-10-17 사용자 결정 — 설계서 §11.10.4): 해설 1~2문장 → 분석 문단 3~5문장(장소·단계·원인·시간 흐름, 예보 값은 「예상」), 글자 상한 220 → 420, 마지막 문장 「따라서 … 필요합니다」,
 //   「A에는 주의가, B에는 관심이 필요합니다」 나열 꼴의 단계 말도 쉼표로 나뉜 대목의 대상 단계로 검사 · 지시문에 지난 시도가 버려진 이유(retry_feedback).
-const VALIDATOR_VERSION = 'sb-validate-v5', PROMPT_VERSION = 'sb-prompt-v6';
+// v6·v7(2026-10-17 §11.10.5 독립 검토): 단계 아래쪽 검사(마지막 「따라서」 문장·문단 최고 단계 말 = 결론 단계, 평소 수준은 「평소처럼 관심」까지 허용) · 이름 없는 대목은 결론 단계까지(종전 문단 최저)
+//   · 입력에 없는 말(경보·태풍·사망·사망자·임박·대규모·「아무 일도 없」·「반드시 사고」) · 나열 꼴 조사 「은·는·를·을」·쉼표 없는 「주의가 B에는」·「요하·상태」 꼴. 지시문 v7: 위 규칙과 이유 글 20자 자름.
+const VALIDATOR_VERSION = 'sb-validate-v6', PROMPT_VERSION = 'sb-prompt-v7';
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -55,10 +57,15 @@ const CALM_RE = /(?:평온|잔잔|양호)(?:합니다|하겠습니다|해요|하
 const ORDER_RE = /출항(?:을|은)?(?:금지|하지마|하지말|삼가|자제하)/;
 // 단계 말 — 「관심/주의/경계」 + 서술(필요·요구·요망·단계·수준·하십시오·해야·바랍니다·기울·태세·강화 등) 모든 꼴(B4).
 // 「갯벌·고립 주의」·「떠밀림 주의」·「충돌·접촉 주의」 같은 앱 안내 이름과 「풍랑주의보」·따옴표 「'주의'」는 단계 말이 아니다.
-const LEVEL_RE = /(관심|주의|경계)\s*(?:이|가|를|을|은|는|의)?\s*(?:필요|요구|요망|요청|단계|수준|등급|하십시오|하세요|하시기|하셔야|해야|하여야|해\s*주십시오|바랍니다|기울|태세|강화)/g, LEVEL_RANK = { '관심': 1, '주의': 2, '경계': 3 };
+// 「주의를 요합니다」·「경계 상태입니다」(요하·요합·요함·상태)도 단계 말(§11.10.5 독립 검토 5).
+const LEVEL_RE = /(관심|주의|경계)\s*(?:이|가|를|을|은|는|의)?\s*(?:필요|요구|요망|요청|요하|요합|요함|상태|단계|수준|등급|하십시오|하세요|하시기|하셔야|해야|하여야|해\s*주십시오|바랍니다|기울|태세|강화)/g, LEVEL_RANK = { '관심': 1, '주의': 2, '경계': 3 }, LEVEL_WORD = ['없음', '관심', '주의', '경계'];
 // 나열 꼴 단계 말(§11.10.4 — 분석 문단 마지막 「따라서 돝섬해상유원지에는 주의가, 마산로봇랜드와 실리도에는 관심이 필요합니다」): 「주의가,」처럼 쉼표 앞에서 끊긴 단계 말은
 // 같은 문장에 필요·요구·요망이 있을 때 단계 말로 본다(종전 LEVEL_RE 는 「관심이 필요」만 잡아 「주의가,」가 검사를 빠져나갔다).
-const LEVEL_LIST_RE = /(관심|주의|경계)\s*(?:이|가)\s*[,，]/g, NEED_RE = /필요|요구|요망|요청/;
+// §11.10.5 독립 검토 5: 조사가 없거나 은·는·를·을이어도(「금능해수욕장은 주의, 협재해수욕장은 관심이 필요합니다」), 쉼표 없이 「주의가 B에는 …」처럼 이/가 뒤에 띄어 다음 대목이 이어져도 단계 말로 본다.
+const LEVEL_LIST_RE = /(관심|주의|경계)\s*(?:(?:이|가|은|는|를|을)?\s*[,，]|(?:이|가)(?=\s))/g, NEED_RE = /필요|요구|요망|요청/;
+// 입력에 없는 사실·과장 말(§11.10.5 독립 검토 1b) — 그 관할 입력(서버 사실·결론·근거·기상청 전망 발췌·(기상) 칸)에 같은 말이 있을 때만 허용. 공백을 지운 글에 건다.
+// 「풍랑주의보」만 있는데 「풍랑경보」, 없는 「태풍」·「사망자」, 「임박」·「대규모」·「아무 일도 없을 것」·「반드시 사고」. 원인·시제(「높아졌습니다」)·「예상」 표기는 검사하지 못한다(설계서 §11.10.5 남은 빈칸).
+const FACT_WORDS = Object.freeze([['경보', /경보/], ['태풍', /태풍/], ['사망자', /사망자/], ['사망', /사망/], ['임박', /임박/], ['대규모', /대규모/], ['아무 일도·문제도 없', /아무(?:일도|문제도)없/], ['반드시 사고', /반드시사고/]]);
 // 따옴표로 인용한 공식 단계 이름(예: 공식 사고예보 '주의', 혼잡 예보 '높음')은 서버 사실 문장에 같은 꼴로 있어야 한다.
 const LABEL_RE = /'(낮음|보통|주의|경계|높음|매우높음|위험)'/g;
 // 숫자 + 단위(B1) — 단위까지 묶어 대조한다(「3m」와 「232-3해구」의 3은 다른 사실). 범위(「12~15m/s」)는 범위 자체가 입력에 있어야 한다.
@@ -152,7 +159,7 @@ function placeCandidates(t) {
  * 해상은 overviewTop(기상·혼잡 근거가 겹친 해역 — §11.6-17①), 육상은 오늘 바뀐 요소가 있는 곳(overviewTop) + 상시 위험 장소 이름.
  * shown = 화면에 이미 보이는 서버 결론·근거·권고(summary — §11.10) — AI 가 그 수·결론을 되풀이하지 않게 알려 준다.
  * 허용 숫자 = 서버가 만든 사실 문장들(+ 서버 결론·근거 줄) 안의 「숫자+단위」, 허용 지명 = 관할·해역·구역·관광지 이름(+ 이름 줄기: 파출소 이름에서 「파출소」를 뗀 것 등 — 정확히 같을 때만).
- * 단계(levels)는 문단별(sea·land) — 이름 없는 문장의 단계는 그 문단 최저 단계까지(B4). 배수는 문단별(B3 — 해상 = 해제 칸 1.2·1.3, 육상 = 사람 배수).
+ * 단계(levels)는 문단별(sea·land) — 이름 없는 대목의 단계는 그 문단 결론 단계(관할 이름의 단계)까지(§11.10.5 독립 검토 2 — 종전 B4 는 문단 최저). 배수는 문단별(B3 — 해상 = 해제 칸 1.2·1.3, 육상 = 사람 배수).
  * 예: stationInput(한림 브리핑) → {id:'제주해양경찰서|한림파출소', shown:{land:{headline,basis,advice},sea:{…}}, sea:{level:'주의 필요',top:[…]}, land:{…}, allowed_numbers:['15~18시','2.4m',…], allowed_places:[…], levels:{sea:{…},land:{…}}}
  * kma_zones(독립 검토 8) = 이 관할이 쓸 수 있는 기상청 해역 이름 — 기상청 전망 발췌(kma.excerpt)·(기상) 칸 구역·특이사항에 나온 이름만, 「제주도」는 제주 관할이거나 그 글에 있을 때만.
  * count_keys(독립 검토 7) = 문단(육상·해상)별 서버 결론·근거·권고 줄의 곳·개 수 — 「두 곳」은 그 문단 줄에 2곳이 있을 때만.
@@ -204,6 +211,9 @@ function stationInput(b, kma = null) {
     const zoneText = R.zoneKey([kma && kma.excerpt ? Object.values(kma.excerpt).join(' ') : '', summary.weather ? [summary.weather.zone, ...(summary.weather.notes || [])].join(' ') : ''].join(' '));
     const kmaZones = KMA_ZONE_NAMES.filter((n) => n !== '제주도' && zoneText.includes(R.zoneKey(n)));
     if (/제주/.test(String(b.station.region || '')) || /^(?:제주|서귀포)해양경찰서$/.test(String(b.station.office || '')) || zoneText.includes('제주도')) kmaZones.push('제주도');
+    // fact_terms(§11.10.5 독립 검토 1b) = FACT_WORDS 중 이 관할 입력 글(사실 목록·서버 결론·근거·기상청 전망 발췌·(기상) 칸)에 나온 말 — 그 밖의 말은 분석 문단에 쓸 수 없다.
+    const termSrc = compact([...facts, kma && kma.excerpt ? Object.values(kma.excerpt).join(' ') : '', summary.weather ? [summary.weather.zone, ...(summary.weather.rows || []).map((r) => r.label + ' ' + r.text), ...(summary.weather.notes || [])].join(' ') : ''].join(' '));
+    const factTerms = FACT_WORDS.filter(([, re]) => re.test(termSrc)).map(([w]) => w);
     const countKeys = (x) => x ? [...new Set([x.headline, ...(x.basis || []), x.advice].filter(Boolean).flatMap((l) => numTokens(l).filter((t) => t.unit === '곳' || t.unit === '개').map((t) => t.key)))].sort() : [];
     return {
         id: b.key, name: b.station.name, office: b.station.office, date: b.targetDate, day_word: R.dayWordOf(b),
@@ -213,7 +223,7 @@ function stationInput(b, kma = null) {
         allowed_places: [...places].filter(Boolean).sort(), place_stems: [...stems].sort(), levels,
         allowed_multipliers: { sea: [...mult.sea].sort().map(showNum), land: [...mult.land].sort().map(showNum) }, allowed_multiplier_keys: { sea: [...mult.sea].sort(), land: [...mult.land].sort() },
         kma_zones: kmaZones.sort(), count_keys: { sea: countKeys(summary.sea), land: countKeys(summary.land) },
-        allowed_labels: [...labels].sort(), fact_sentences: [...new Set([...tide, ...b.special.flatMap((x) => x.lines)])],
+        allowed_labels: [...labels].sort(), fact_terms: factTerms, fact_sentences: [...new Set([...tide, ...b.special.flatMap((x) => x.lines)])],
         // required(첫 해역·첫 장소·빠진 자료 이름 필수)는 없앴다(§11.10) — 결론·근거(빠진 자료 줄 포함)는 서버 summary 가 화면에 늘 보인다. 운영 실패 「required:missing:swell」의 원인이기도 했다.
     };
 }
@@ -228,7 +238,7 @@ function stationInput(b, kma = null) {
 function batchInput(inputs, kma, feedback = null) {
     // AI 에게는 사람이 읽는 꼴만 보낸다(대조용 열쇠·사실 문장 목록은 서버 검증에만 쓴다).
     // retry_feedback(§11.10.4) = 지난 시도에서 이 관할 글이 버려진 이유(explainError 로 풀어 쓴 것) — 다시 시도할 때만.
-    const strip = (si) => { const { allowed_number_keys: _a, allowed_multiplier_keys: _b, fact_sentences: _c, count_keys: _d, ...rest } = si; const fb = feedback && feedback.get(si.id); return fb ? { ...rest, retry_feedback: fb } : rest; };
+    const strip = (si) => { const { allowed_number_keys: _a, allowed_multiplier_keys: _b, fact_sentences: _c, count_keys: _d, fact_terms: _e, ...rest } = si; const fb = feedback && feedback.get(si.id); return fb ? { ...rest, retry_feedback: fb } : rest; };
     return {
         schema: SCHEMA, stations: inputs.map(strip), kma_outlook: kma || null,
         rules: { sentences_per_paragraph: [MIN_S, MAX_S], max_chars: MAX_CHARS, last_sentence: '따라서 … 필요합니다.', forbidden: FORBIDDEN.concat(['안전합니다', '이상 없음', '문제없음', '평온합니다·위험하지 않습니다·위험이 낮습니다·안심(결론과 다른 단정)', '출항하지 마십시오·출항 금지(지시)', "해상 '사고 N배'", '한글 수사(세 시·두 척 등 — 곳·개를 세는 말은 그 수가 allowed_numbers 에 있을 때만)', 'HTML·링크']), level_words: ['관심 필요', '주의 필요', '경계 필요'] },
@@ -248,12 +258,12 @@ function buildPrompt(batch) {
         '0) 각 분석은 ' + MAX_CHARS + '자 이내, 3~5문장, 마지막 문장은 「따라서」로 시작해 「필요합니다.」로 끝난다.',
         '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로 쓴다 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다. 다만 「두 곳」·「세 개」처럼 곳·개를 세는 말은 그 수가 allowed_numbers 에 「2곳」·「3개」 꼴로 있고 그 분석(연안·해상)의 shown 결론·근거·권고에도 그 수가 있을 때만 쓸 수 있다.',
         '2) 지명(항·포구·해수욕장·앞바다·해구·섬·갯바위·파출소 등)은 allowed_places 이름(또는 place_stems), 그리고 그 관할의 kma_zones 에 있는 기상청 해역 이름(「제주도남쪽바깥먼바다」 등)만 그대로 쓴다.',
-        '3) 단계 말(관심·주의·경계 + 필요·요구·단계·수준·하십시오 등 모든 꼴, 「A에는 주의가, B에는 관심이 필요합니다」의 「주의가,」도)은 levels.sea(해상 분석)·levels.land(연안 분석)에 적힌 그 대상의 단계보다 높이지 않는다. 단계 말 바로 앞(같은 문장, 쉼표로 나뉜 같은 대목)에 대상 이름을 쓴다 — 이름이 없으면 그 분석의 가장 낮은 단계까지만. 따옴표로 쓰는 공식 단계 이름(\'주의\'·\'높음\' 등)은 allowed_labels 에 있는 것만.',
+        '3) 단계 말(관심·주의·경계 + 필요·요구·단계·수준·하십시오 등 모든 꼴, 「A에는 주의가, B에는 관심이 필요합니다」의 「주의가,」도)은 levels.sea(해상 분석)·levels.land(연안 분석)에 적힌 그 대상의 단계보다 높이지 않는다. 단계 말 바로 앞(같은 문장, 쉼표로 나뉜 같은 대목)에 대상 이름을 쓴다 — 이름이 없으면 그 분석의 결론 단계(shown 결론 문장의 단계)까지만. 낮추지도 않는다: 마지막 「따라서」 문장의 단계 말(여럿이면 가장 높은 것)과 문단에서 가장 높은 단계 말은 그 분석의 결론 단계와 같아야 한다(결론이 「평소 수준」이면 「평소처럼 관심이 필요합니다」). 따옴표로 쓰는 공식 단계 이름(\'주의\'·\'높음\' 등)은 allowed_labels 에 있는 것만.',
         '4) 확인하지 못한 자료(missing_sources)가 있으면 그 자료가 빠졌는데 「평소 수준」·「없습니다」로 단정하지 않는다.',
         '5) 쓰지 않는 말: 순찰·배치·출동·단속·통제·투입·경비정·검문·근무(직무 지시), 「안전합니다」·「이상 없음」·「문제없음」·「위험 요소가 없습니다」(안전 단정), 「평온합니다」·「위험하지 않습니다」·「위험이 낮습니다」·「안심하고」(화면 결론과 다른 단정 — 시간 흐름의 「오전에는 잔잔하지만 오후부터 …」는 된다), 「출항하지 마십시오」·「출항 금지」(지시), 「사고 확률」. 「두세 곳」「세 군데」 같은 어림 수사도 쓰지 않는다. 배수(N배)는 allowed_multipliers.sea(해상)·land(연안)에 있는 것만 — 해상의 「사고 N배」·「두 배」는 쓰지 않는다. 지시(「~하라」)를 쓰지 않는다.',
         '6) land 가 null 인 관할(해상만 제공)은 land 를 null 로 둔다.',
         '7) kma_outlook 은 기상청 해상 기상 전망 원문 발췌다 — 원인(저기압·바람 방향 등)과 흐름을 이해하는 데 쓰고, 그 안의 숫자는 옮기지 않는다(해역 이름은 2)의 kma_zones 에 있는 것만).',
-        '8) 입력에 없는 사실을 지어내지 않는다. 글은 평문만 — HTML 태그·링크(URL)·마크다운을 쓰지 않는다.',
+        '8) 입력에 없는 사실을 지어내지 않는다 — 「경보」·「태풍」·「사망」·「사망자」·「임박」·「대규모」·「아무 일도 없」·「반드시 사고」 같은 말은 그 관할 입력에 같은 말이 있을 때만 쓴다(「풍랑주의보」를 「풍랑경보」로 쓰지 않는다). 글은 평문만 — HTML 태그·링크(URL)·마크다운을 쓰지 않는다.',
         '9) retry_feedback 이 있는 관할은 지난 시도의 글이 reasons 의 이유로 버려졌다 — 그 이유를 모두 고쳐 다시 쓴다(같은 지명·숫자·단계 말을 다시 쓰지 않는다).',
         '응답은 JSON 하나만: {"stations":[{"id":"<입력 id 그대로>","land":"…"|null,"sea":"…"}]}',
         '',
@@ -278,7 +288,10 @@ function parseResponse(text) {
  *   모양(해설 문장 수 1~2, 해상만 관할은 land 없음) · HTML·링크 금지 · 숫자(「숫자+단위」·범위째 allowed_number_keys)
  *   · 한글 수사 금지(곳·개를 세는 「두 곳」은 같은 단위의 그 수가 허용 숫자에 있을 때만 — 2026-10-17)
  *   · N배(문단별 allowed_multiplier_keys — 해상 「사고 N배」·「두 배」 금지) · 지명(allowed_places·기상청 해역 이름·「제주도」가 후보 끝에 오거나 place_stems 와 같을 때만)
- *   · 단계 말(모든 서술 꼴 — 문장 속 대상의 문단별 단계를 넘으면 실패, 대상 없는 문장은 문단 최저 단계까지, 「관심」은 늘 허용, 서버 사실 문장 그대로는 제외)
+ *   · 단계 말(모든 서술 꼴 — 대목 속 대상의 문단별 단계를 넘으면 실패, 대상 없는 대목은 문단 결론 단계까지 `level-para:`, 「관심」은 늘 허용, 서버 사실 문장 그대로는 제외)
+ *   · 단계 아래쪽(§11.10.5 독립 검토 1a — 결론 단계가 관심 이상이면 마지막 「따라서」 문장의 가장 높은 단계 말 `level-last:`·문단의 가장 높은 단계 말 `level-max:` 이 결론 단계와 같아야 한다.
+ *     결론이 「평소 수준」·「확인 불가」(단계 0)면 아래쪽 검사 없음 — 「평소처럼 관심」 등 관심까지)
+ *   · 입력에 없는 말(FACT_WORDS — 그 관할 fact_terms 에 없으면 `fact:`)
  *   · 금지어(공백·제로폭 무시) · 안전 단정. 필수 포함(required — 첫 해역·첫 장소·빠진 자료 이름) 검사는 없앴다(§11.10 — 서버 결론·근거가 늘 보인다).
  * 예: validateOverview({land:null, sea:'…한림항 순찰…'}, si) → {ok:false, errors:['forbidden:순찰']}
  * @param {object} o - {land,sea} @param {object} si - stationInput @returns {object} {ok,errors}
@@ -316,19 +329,31 @@ function validateOverview(o, si) {
         if (SAFE_RE.test(c)) errors.push('forbidden:안전 단정');
         if (SOFTEN_RE.test(c) || ss.some((x) => CALM_RE.test(compact(x)) && !CHANGE_RE.test(compact(x)))) errors.push('forbidden:결론과 다른 단정');
         if (ORDER_RE.test(c)) errors.push('forbidden:출항 지시');
-        const lv = (si.levels && si.levels[k]) || {}, floor = Math.min(...Object.values(lv), 3);
-        for (const s of ss) {
+        for (const [w, re] of FACT_WORDS) if (re.test(c) && !(si.fact_terms || []).includes(w)) errors.push('fact:' + w);
+        // 단계 말 검사. head = 그 문단 결론 단계(관할 이름의 단계 — 화면 결론 「… 단계는 "주의 필요"」와 같은 값).
+        const lv = (si.levels && si.levels[k]) || {}, head = Number.isFinite(lv[si.name]) ? lv[si.name] : Math.max(0, ...Object.values(lv));
+        const namedIn = (x) => { const cx = compact(x); return Object.entries(lv).filter(([name]) => cx.includes(compact(name))).map(([, r]) => r); };
+        let paraMax = 0, lastMax = 0;
+        ss.forEach((s, si2) => {
             const cs = compact(s);
-            if (cs.length >= 12 && factS.some((f) => f.includes(cs))) continue;   // 서버 사실 문장(조석·해제 안내)을 그대로 옮긴 것
-            const namedIn = (x) => { const cx = compact(x); return Object.entries(lv).filter(([name]) => cx.includes(compact(name))).map(([, r]) => r); };
-            const named = namedIn(s), cap = Math.max(1, named.length ? Math.max(...named) : floor);
-            // 쉼표로 나뉜 대목에 대상 이름이 있으면 그 대목의 단계로(「A에는 주의가, B에는 관심이 필요합니다」 — §11.10.4), 없으면 종전처럼 문장 전체로
-            const hits = [...s.matchAll(LEVEL_RE)].map((m) => ({ w: m[1], i: m.index })).concat(NEED_RE.test(s) ? [...s.matchAll(LEVEL_LIST_RE)].map((m) => ({ w: m[1], i: m.index })) : []);
-            for (const h of hits) {
-                const a = Math.max(s.lastIndexOf(',', h.i), s.lastIndexOf('，', h.i)) + 1, z0 = s.slice(h.i).search(/[,，]/), z = z0 < 0 ? s.length : h.i + Math.max(z0, 1);
-                const cn = namedIn(s.slice(a, z)), c2 = cn.length ? Math.max(1, ...cn) : cap;
-                if (LEVEL_RANK[h.w] > c2) errors.push('level:' + h.w + '>' + c2);
-            }
+            if (cs.length >= 12 && factS.some((f) => f.includes(cs))) return;   // 서버 사실 문장(조석·해제 안내)을 그대로 옮긴 것
+            const named = namedIn(s), cap = Math.max(1, named.length ? Math.max(...named) : head);
+            // 단계 말마다 대상 대목: ①앞 쉼표(또는 앞 단계 말 끝) ~ 그 단계 말 ②없으면 그 단계 말 ~ 다음 쉼표(또는 다음 단계 말) ③없으면 문장 전체 — 「A에는 주의가, B에는 관심이」·「A에는 주의가 B에는 관심이」
+            const all = [...s.matchAll(LEVEL_RE)].map((m) => ({ w: m[1], i: m.index, e: m.index + m[0].length })).concat(NEED_RE.test(s) ? [...s.matchAll(LEVEL_LIST_RE)].map((m) => ({ w: m[1], i: m.index, e: m.index + m[0].length })) : []);
+            const hits = [...new Map(all.sort((a, b) => a.i - b.i || b.e - a.e).map((h) => [h.i, h])).values()];
+            hits.forEach((h, j) => {
+                const comma = Math.max(s.lastIndexOf(',', h.i), s.lastIndexOf('，', h.i)) + 1, a = Math.max(comma, j ? hits[j - 1].e : 0);
+                const z0 = s.slice(h.e).search(/[,，]/), z = Math.min(z0 < 0 ? s.length : h.e + z0, hits[j + 1] ? hits[j + 1].i : s.length);
+                const before = namedIn(s.slice(a, h.e)), after = before.length ? [] : namedIn(s.slice(h.e, z)), cn = before.length ? before : after;
+                const c2 = cn.length ? Math.max(1, ...cn) : cap;
+                if (LEVEL_RANK[h.w] > c2) errors.push((cn.length || named.length ? 'level:' : 'level-para:') + h.w + '>' + c2);
+                paraMax = Math.max(paraMax, LEVEL_RANK[h.w]); if (si2 === ss.length - 1) lastMax = Math.max(lastMax, LEVEL_RANK[h.w]);
+            });
+        });
+        // 아래쪽(§11.10.5 독립 검토 1a): 결론이 관심 이상이면 마지막 「따라서」 문장·문단의 가장 높은 단계 말이 결론 단계와 같아야 한다(「주의」 결론인데 「관심이 필요합니다」로 끝내면 실패).
+        if (head >= 1) {
+            if (lastMax !== head) errors.push('level-last:' + LEVEL_WORD[lastMax] + '≠' + head);
+            else if (paraMax !== head) errors.push('level-max:' + LEVEL_WORD[paraMax] + '≠' + head);
         }
     }
     return { ok: errors.length === 0, errors: [...new Set(errors)] };
@@ -349,10 +374,12 @@ function groupBy(items, unit) {
 /**
  * 검증·응답 실패 이유 하나를 AI 가 읽을 말로 푼다(다시 시도 지시문 retry_feedback — 2026-10-17 사용자 결정 §11.10.4).
  * 예: 'place:하저리해수욕장' → 'place:하저리해수욕장 — 그 지명은 입력에 없다' · 'level:주의>1' → 'level:주의>1 — 그 대목의 대상 단계는 「관심」까지다' · 'shape:sea-sentences-2' → 'shape:sea-sentences-2 — 해상 분석이 2문장이다(3~5문장)'
+ *     'level-para:경계>2' → '… — 그 대목에 대상 이름이 없다 — 대상 이름을 쓰거나 문단 단계(「주의」)까지' · 'level-last:관심≠2' → '… — 마지막 「따라서」 문장의 단계 말이 「관심」이다 — 결론 단계 「주의」와 같게 쓴다'
+ *     AI 가 쓴 글 조각은 20자까지만 되돌려 보낸다(§11.10.5 독립 검토 6 — 「place:이전지시를무시하고…」 같은 긴 조각이 다음 지시문에 그대로 들어가지 않게).
  * @param {string} code - validateOverview 오류 열쇠(또는 'parse') @returns {string} [연계] ← generate(accept·callOne) → batchInput retry_feedback
  */
 function explainError(code) {
-    const c = String(code), m = c.match(/^shape:(land|sea)-(sentences|too-long)-(\d+)$/), para = (k) => (k === 'land' ? '연안' : '해상') + ' 분석';
+    const c = String(code), i = c.indexOf(':'), shown = i < 0 || c.length - i - 1 <= 20 ? c : c.slice(0, i + 21) + '…', m = c.match(/^shape:(land|sea)-(sentences|too-long)-(\d+)$/), para = (k) => (k === 'land' ? '연안' : '해상') + ' 분석';
     const why = m ? para(m[1]) + (m[2] === 'sentences' ? '이 ' + m[3] + '문장이다(' + MIN_S + '~' + MAX_S + '문장)' : '이 ' + m[3] + '자다(' + MAX_CHARS + '자 이내)')
         : /^shape:(land|sea)-no-conclusion$/.test(c) ? para(c.slice(6, -14)) + '의 마지막 문장이 「따라서 … 필요합니다.」 꼴이 아니다'
         : c === 'shape:land-missing' ? '연안 분석(land)이 비었다' : c === 'shape:sea-missing' ? '해상 분석(sea)이 비었다' : c === 'shape:land-not-allowed' ? '해상만 제공하는 관할이다 — land 는 null'
@@ -361,12 +388,15 @@ function explainError(code) {
         : c.startsWith('multiplier:') ? '그 배수는 allowed_multipliers 에 없다'
         : c.startsWith('place:') ? '그 지명은 입력에 없다'
         : /^level:/.test(c) ? '그 대목의 대상 단계는 「' + (['', '관심', '주의', '경계'][Number(c.split('>')[1])] || '관심') + '」까지다'
+        : /^level-para:/.test(c) ? '그 대목에 대상 이름이 없다 — 대상 이름을 쓰거나 문단 단계(「' + (['', '관심', '주의', '경계'][Number(c.split('>')[1])] || '관심') + '」)까지'
+        : /^level-(?:last|max):/.test(c) ? (c.startsWith('level-last:') ? '마지막 「따라서」 문장' : '문단') + '의 가장 높은 단계 말이 「' + c.slice(c.indexOf(':') + 1, c.indexOf('≠')) + '」이다 — 결론 단계 「' + (['', '관심', '주의', '경계'][Number(c.split('≠')[1])] || '관심') + '」와 같게 쓴다'
+        : c.startsWith('fact:') ? '그 말은 이 관할 입력에 없다 — 입력에 없는 사실·과장을 쓰지 않는다'
         : c.startsWith('label:') ? '따옴표 단계 이름은 allowed_labels 에 있는 것만 쓴다'
         : c.startsWith('forbidden:') ? '쓰지 않는 말이다'
         : c === 'markup' ? 'HTML·링크·마크다운을 썼다'
         : c === 'missing:station' ? '응답에 이 관할(id)이 없었다'
         : c === 'parse' ? '응답이 정해진 JSON 꼴이 아니었다' : '규칙에 어긋났다';
-    return c + ' — ' + why;
+    return shown + ' — ' + why;
 }
 // 호출 시간 제한 기본값(B7) — VM 은 codex_bridge 자체 300초 뒤 조금 더, Gemini 는 어댑터 90초 뒤 조금 더(어댑터가 먼저 끊는다). VM 이 이 횟수만큼 잇달아 실패하면 그 실행 동안 VM 을 건너뛴다.
 const DEFAULT_TIMEOUTS = Object.freeze({ vm: 320000, gemini: 100000 }), VM_FAIL_LIMIT = 3;
@@ -376,6 +406,7 @@ const DEFAULT_TIMEOUTS = Object.freeze({ vm: 320000, gemini: 100000 }), VM_FAIL_
  *   ① VM(그 묶음 전부) → 검증·호출·해석에 떨어진 관할만 VM 으로 다시(지시문에 버려진 이유 retry_feedback) — 관할마다 VM 최대 vmAttempts(3)번
  *   ② 그래도 실패면 Gemini 한 번(같은 이유 포함) — VM 이 꺼져 있거나 차단기로 VM 을 한 번도 못 부른 관할은 Gemini 두 번(종전 「VM 꺼짐 → Gemini → 실패 관할 1회 재시도」와 같은 횟수)
  *   ③ 그래도 실패면 규칙 분석(source 'template' — 글은 서버 summary.analysis, 화면 「규칙 분석」). 방식 'gemini' 는 Gemini 두 번 → 규칙 분석.
+ *   순서(§11.10.5 독립 검토 3): 한 바퀴마다 모든 묶음이 한 걸음씩(모든 묶음 첫 시도 → 떨어진 관할 2번째 → 3번째 → Gemini) — 데드라인에 뒤쪽 묶음이 굶지 않게.
  *   시도마다 오류를 errors 에 attempt(몇 번째)와 함께 남긴다. VM 연속 실패 차단기(vmFailLimit — 호출·시간초과·해석 실패가 잇달아 3번이면 그 실행 동안 VM 건너뜀)·데드라인(deadline — 넘으면 남은 관할은 규칙 분석)은 종전 그대로.
  * 재사용(B10): 해시 = 관할 입력 + 규칙·검증·지시문 판 + 방식 + 모델(ChatGPT·Gemini 둘 다 — VM 이 꺼지면 Gemini 로 가므로) + 기상청 전망.
  *   같은 해시라도 지난 글의 출처가 고른 방식의 첫 공급자가 아니면(ChatGPT 방식인데 Gemini 가 쓴 글) VM 이 지금 살아 있으면 다시 만든다.
@@ -415,10 +446,10 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
         const fb = new Map(group.filter((it) => feedback.has(it.b.key)).map((it) => [it.b.key, { attempt, reasons: feedback.get(it.b.key) }]));
         const prompt = buildPrompt(batchInput(group.map((it) => it.si), kma, fb.size ? fb : null));
         const model = p === 'vm' ? config.chatgptModel : config.geminiModel, ms = Math.max(1, Math.min(timeouts[p] || DEFAULT_TIMEOUTS.gemini, left)), ac = new AbortController();
-        let tid = null;
+        let tid = null, timedOut = false;
         try {
             stats.calls++; if (p === 'gemini') stats.gemini++;
-            const text = await Promise.race([a.call({ prompt, model, signal: ac.signal }), new Promise((_, rej) => { tid = setTimeout(() => { ac.abort(); rej(new Error(p + ' 시간초과(' + Math.round(ms / 1000) + '초)')); }, ms); })]);
+            const text = await Promise.race([a.call({ prompt, model, signal: ac.signal }), new Promise((_, rej) => { tid = setTimeout(() => { timedOut = true; ac.abort(); rej(new Error(p + ' 시간초과(' + Math.round(ms / 1000) + '초)')); }, ms); })]);
             const map = parseResponse(text);
             if (p === 'vm') vmFails = 0;
             return { res: { provider: p === 'vm' ? 'chatgpt' : 'gemini', model, map } };
@@ -426,7 +457,9 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
             const parse = e.message === 'invalid response' || e instanceof SyntaxError;
             errors.push({ at, stage: parse ? 'parse' : 'call', provider: p, stations: keys, attempt, reason: String(e.message || e).slice(0, 120) });
             if (parse) for (const k of keys) feedback.set(k, [explainError('parse')]);
-            if (p === 'vm' && ++vmFails >= vmFailLimit) vmBroken = true;
+            // 데드라인까지 남은 시간이 1초도 안 돼(설정한 호출 시간 제한보다 짧게) 끊긴 시간초과는 VM 고장이 아니다 — 차단기에 세지 않는다(§11.10.5 독립 검토 7).
+            const budgetCut = timedOut && ms < 1000 && left < (timeouts[p] || DEFAULT_TIMEOUTS.gemini);
+            if (p === 'vm' && !budgetCut && ++vmFails >= vmFailLimit) vmBroken = true;
             return { res: null };
         } finally { clearTimeout(tid); }
     }
@@ -442,27 +475,30 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
         return failed;
     }
     const past = () => timer() >= deadline;
-    const groups = groupBy(pending, config.batchUnit || 'office');
-    for (let gi = 0; gi < groups.length; gi++) {
-        if (past()) { const rest = groups.slice(gi).flat(); errors.push({ at, stage: 'deadline', provider: null, stations: rest.map((it) => it.b.key), reason: '실행 데드라인 넘음 — 남은 ' + rest.length + '곳은 규칙 분석(AI 분석 없음)' }); for (const it of rest) template(it); stats.deadline += rest.length; break; }
-        let left = groups[gi], attempt = 0, vmTried = false, late = false;
-        /** 공급자 p 로 최대 n 번 — 남은 관할만, 시도마다 이유를 다음 지시문에. */
-        const tries = async (p, n) => {
-            for (let k = 0; k < n && left.length; k++) {
-                if (past()) { late = true; return; }
-                const r = await callOne(p, left, attempt + 1);
-                if (r.late) { late = true; return; }
-                if (r.skip) return;
-                attempt++; if (p === 'vm') vmTried = true;
-                if (attempt > 1) for (const it of left) retried.add(it.b.key);
-                left = accept(left, r.res, attempt);
-            }
-        };
-        if (method === 'chatgpt') await tries('vm', vmAttempts);
-        if (left.length && !late) await tries('gemini', method === 'gemini' || !vmTried ? 2 : 1);
-        if (left.length && (late || past())) { errors.push({ at, stage: 'deadline', provider: null, stations: left.map((it) => it.b.key), reason: '실행 데드라인 넘음 — ' + left.length + '곳은 규칙 분석(AI 분석 없음)' }); stats.deadline += left.length; }
-        for (const it of left) template(it);
-    }
+    // 묶음마다 상태 — 시도 사슬(VM 최대 vmAttempts 번 → Gemini 1번, VM 을 한 번도 못 불렀으면 Gemini 2번)은 종전 그대로.
+    // 순서만 바꿨다(§11.10.5 독립 검토 3): 종전엔 앞 묶음이 다시 시도를 다 쓴 뒤에야 다음 묶음의 첫 시도를 해, 데드라인에 뒤쪽 해양경찰서들이 첫 시도도 못 하고 규칙 분석이 됐다.
+    // 이제 한 바퀴마다 모든 묶음이 한 걸음씩 — ①모든 묶음 첫 시도 ②떨어진 관할 2번째 ③3번째 ④Gemini … (묶음 안의 시도 번호·통계·차단기는 같다).
+    const states = groupBy(pending, config.batchUnit || 'office').map((g) => ({ left: g, attempt: 0, vmTried: false, late: false, p: method === 'chatgpt' ? 'vm' : 'gemini', n: method === 'chatgpt' ? vmAttempts : 2 }));
+    /** 묶음 g 를 한 걸음(호출 한 번) 진행한다. 공급자를 건너뛰면(꺼짐·차단) 같은 걸음에서 다음 공급자로. @param {object} g @returns {Promise<void>} */
+    const step = async (g) => {
+        while (g.p !== 'done') {
+            if (!g.left.length) { g.p = 'done'; return; }
+            if (g.n <= 0) { if (g.p === 'vm') { g.p = 'gemini'; g.n = g.vmTried ? 1 : 2; continue; } g.p = 'done'; return; }
+            if (past()) { g.late = true; g.p = 'done'; return; }
+            const r = await callOne(g.p, g.left, g.attempt + 1);
+            if (r.late) { g.late = true; g.p = 'done'; return; }
+            if (r.skip) { g.n = 0; continue; }
+            g.n--; g.attempt++; if (g.p === 'vm') g.vmTried = true;
+            if (g.attempt > 1) for (const it of g.left) retried.add(it.b.key);
+            g.left = accept(g.left, r.res, g.attempt);
+            return;
+        }
+    };
+    while (states.some((g) => g.p !== 'done')) for (const g of states) if (g.p !== 'done') await step(g);
+    // 데드라인 때문에 시도가 남은 채 멈춘 관할만 deadline 으로 센다. 시도를 다 쓰고 실패한 관할은 마지막 시도 뒤 시계가 데드라인을 넘었어도 규칙 분석(template)만(§11.10.5 독립 검토 8).
+    const lateKeys = states.filter((g) => g.late && g.left.length).flatMap((g) => g.left.map((it) => it.b.key));
+    if (lateKeys.length) { errors.push({ at, stage: 'deadline', provider: null, stations: lateKeys, reason: '실행 데드라인 넘음 — ' + lateKeys.length + '곳은 규칙 분석(AI 분석 없음)' }); stats.deadline += lateKeys.length; }
+    for (const g of states) for (const it of g.left) template(it);
     stats.retried = retried.size;
     return { overviews, stats, errors };
 }

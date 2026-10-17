@@ -268,7 +268,8 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             for (const win of wins) {
                 const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg });
                 const briefings = inputs.map((x) => R.buildBriefing(x, win, { generatedAt: R.isoKst(now) }));
-                const day = readDay(win.targetDate) || { date: win.targetDate, stations: {} };
+                // 읽은 날짜 파일은 캐시(pick 이 그대로 쓰는 객체)라 복사해 고친다 — 쓰기가 실패해도 사용자에게 저장 안 된 판이 보이거나 대기 판이 메모리에서 사라지지 않게(§11.10.5 독립 검토 4).
+                const day = structuredClone(readDay(win.targetDate) || { date: win.targetDate, stations: {} });
                 day.stations = day.stations || {}; day.pending = day.pending || {};
                 // 재사용 바탕 = 관할마다 가장 나중에 만든 판(공개 대기 포함)
                 const latest = Object.fromEntries([...new Set(Object.keys(day.stations).concat(Object.keys(day.pending)))].map((k) => { const a = day.stations[k], b = day.pending[k]; return [k, !a ? b : !b ? a : Date.parse(b.generatedAt) > Date.parse(a.generatedAt) ? b : a]; }));
