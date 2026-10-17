@@ -902,13 +902,26 @@ function makeBriefings() {
                 const b1 = JSON.parse(JSON.stringify(base)); b1.sea.level = { rank: 3, word: '경계 필요' }; b1.sea.overviewLevel = { rank: 0, word: '평소 수준' };
                 b1.sea.attentionRegions = 12; b1.sea.overviewRegions = 11; b1.land.attentionSpots = 13;
                 R.render(box, { ok: true, briefing: b1 }, { now });
-                out.note = (box.querySelector('[data-sb-level-note]') || {}).textContent || '';
+                // §11.10.12: 노란 안내 한 줄([data-sb-level-note])은 없어지고 해상 칩 오른쪽 KOMSA 배지(summary.sea.accidentOnly 수)
+                out.note = !!box.querySelector('[data-sb-level-note]');
+                out.badges = [...box.querySelectorAll('[data-sb-summary="sea"] .sb-conclusion [data-sb-komsa]')].map((x) => x.dataset.sbKomsa + ':' + x.textContent + ':' + x.style.background);
+                out.badgeNext = (() => { const x = box.querySelector('[data-sb-summary="sea"] .sb-conclusion [data-sb-komsa]'); return !!x && x.previousElementSibling.classList.contains('sb-chip') && x.previousElementSibling.textContent.startsWith('해상 ') && x.nextElementSibling.classList.contains('sb-headline'); })();
                 out.seaCount = box.querySelector('[data-sb-sea-count]').textContent; out.landCount = box.querySelector('[data-sb-land-count]').textContent;
                 out.past = [...box.querySelectorAll('.sb-slot')].map((x) => x.dataset.past === 'true'); out.pastOpacity = getComputedStyle(box.querySelector('.sb-slot-past')).opacity;
                 out.legend = box.querySelector('.sb-legend').textContent; out.labels = (b1.sea.timeBar || []).map((s) => s.label);
                 out.foot = box.querySelector('[data-sb-foot-source]').textContent;
+                // 옛 판(summary.sea.accidentOnly 없음) — 카드에 위험예보만 해역이 모두 있을 때만 카드로 센다 · 모자라면 배지 없음
+                const o1 = JSON.parse(JSON.stringify(base)); delete o1.summary.sea.accidentOnly; R.render(box, { ok: true, briefing: o1 }, { now });
+                out.oldBadges = [...box.querySelectorAll('[data-sb-komsa]')].map((x) => x.textContent);
+                const o2 = JSON.parse(JSON.stringify(o1)); o2.sea.attentionRegions += 1; R.render(box, { ok: true, briefing: o2 }, { now });
+                out.oldShort = box.querySelectorAll('[data-sb-komsa]').length;
+                const o3 = JSON.parse(JSON.stringify(o1)); delete o3.summary.analysis; R.render(box, { ok: true, briefing: o3 }, { now });
+                out.v2Badges = [...box.querySelectorAll('[data-sb-part="conclusion"] .sb-levels [data-sb-komsa]')].map((x) => x.textContent);
+                // 옛 판 근거 줄에 풀이(note)가 있어도 위험예보만 해역 줄 풀이는 보이지 않는다(§11.10.12)
+                const o4 = JSON.parse(JSON.stringify(base)); o4.summary.sea.detail.forEach((d) => { if (d.key === 'accidentOnly') d.note = '(한국해양교통안전공단 예보에서는 …)'; }); R.render(box, { ok: true, briefing: o4 }, { now });
+                box.querySelector('[data-sb-x="basis-sea"]').click(); out.oldNote = (box.querySelector('[data-sb-basis="accidentOnly"] .sb-basis-note') || {}).textContent || ''; out.oldNoteLine = !!box.querySelector('[data-sb-basis="accidentOnly"]');
                 const b2 = JSON.parse(JSON.stringify(base)); b2.sea.overviewLevel = { rank: b2.sea.level.rank, word: b2.sea.level.word };
-                R.render(box, { ok: true, briefing: b2 }, { now }); out.noNote = !box.querySelector('[data-sb-level-note]');
+                b2.summary.sea.accidentOnly = []; R.render(box, { ok: true, briefing: b2 }, { now }); out.noNote = !box.querySelector('[data-sb-level-note]') && !box.querySelector('[data-sb-komsa]');
                 const b3 = JSON.parse(JSON.stringify(base)); b3.land.cards = []; b3.targetDate = '2026-10-18'; b3.generatedAt = '2026-10-17T23:00:00+09:00';
                 R.render(box, { ok: true, briefing: b3 }, { now }); out.tomorrow = box.querySelector('[data-sb-land-none]').textContent;
                 b3.targetDate = '2026-10-17'; b3.generatedAt = '2026-10-17T08:00:00+09:00'; R.render(box, { ok: true, briefing: b3 }, { now }); out.today = box.querySelector('[data-sb-land-none]').textContent;
@@ -930,8 +943,15 @@ function makeBriefings() {
                 out.sources = R.SOURCES;
                 return out;
             }, { base, now: clock.now });
-            assert.ok(r.note.includes('해상 분석에는 「경계 필요」 해역이 있습니다') && r.note.includes('해양사고 위험예보만 위험 단계인 해역') && !r.note.includes('겹치지 않아'), r.note);
-            assert.ok(r.noNote, '단계가 같으면 그 줄이 없다');
+            assert.equal(r.note, false, '노란 안내 한 줄은 없다(§11.10.12)');
+            assert.deepEqual(r.badges.map((x) => x.split(':').slice(0, 2).join(':')), ["2:1개 해역 주의 필요(KOMSA 예보)"], '배지 수 = summary.sea.accidentOnly(근거 줄과 같은 수) ' + r.badges.join(' / '));
+            assert.equal(B.h.summary.sea.accidentOnly.reduce((a, g) => a + g.count, 0), B.h.sea.attentionRegions - B.h.sea.overviewRegions, '배지 수 합 = 위험예보만 해역 수');
+            assert.ok(r.badgeNext, '배지는 「해상 ○○」 칩 바로 오른쪽, 결론 글 앞');
+            assert.deepEqual(r.oldBadges, ['1개 해역 주의 필요(KOMSA 예보)'], '옛 판 — 카드로 셈');
+            assert.equal(r.oldShort, 0, '옛 판에 카드가 모자라면 배지 없음(지어내지 않음)');
+            assert.deepEqual(r.v2Badges, ['1개 해역 주의 필요(KOMSA 예보)'], '§11.10.1 판(결론 칸)에도 배지');
+            assert.ok(r.noNote, '위험예보만 해역이 없으면 배지·줄 없음');
+            assert.deepEqual([r.oldNoteLine, r.oldNote], [true, ''], '옛 판 note 가 있어도 위험예보만 해역 줄 풀이는 보이지 않음');
             assert.ok(r.seaCount.includes('관할 해역 ' + base.sea.reviewedRegions + '칸 검토 · 관심 이상 12칸(그중 해양사고 위험예보만 위험 단계인 해역 1칸 — 총평에는 올리지 않음)') && r.seaCount.includes('카드는 단계 높은 순 ' + base.sea.cards.length + '곳까지'), r.seaCount);
             assert.ok(r.landCount.includes('관심 이상 13곳 중 카드는 단계 높은 순'), r.landCount);
             // 10:05 에 본다 — 06~09시 칸은 끝났고 09~12시 칸은 아직(만드는 시각이 든 칸)
@@ -976,7 +996,7 @@ function makeBriefings() {
             assert.equal(r.caption, '2020~2024 연안사고 기록 중 고립(관광지 구역 + 앞바다 500m)');
             for (const no of ['차오르기 전에', '공통', '공식 사고예보', '겹치지 않아']) assert.ok(!r.text.includes(no), no);
             for (const no of ['물가 접근', '시경 ']) assert.ok(!r.sum.includes(no), no + ' — 총평에는 없음(해역·관광지 카드 문장은 그대로)');
-            assert.ok(r.text.includes('관할 해역 3칸 중 위험이 높아진 해역 2칸') && r.text.includes("해양사고 위험예보만 '주의'인 해역 1칸") && r.text.includes('주변 연안사고에 주의가 필요합니다.'), r.text.slice(0, 600));
+            assert.ok(r.text.includes('관할 해역 3칸 중 위험이 높아진 해역 2칸') && r.text.includes("해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 1칸") && r.text.includes('주변 연안사고에 주의가 필요합니다.'), r.text.slice(0, 600));
         });
         await check('[§11.10.3] 해상 근거 ▸ — 위험이 높아진 해역·해양사고 위험예보만·대해구 232 줄이 버튼, 누르면 바로 아래 지도(관할 경계 + 그 칸 테두리 깜빡임), 접거나 다시 그리면 깜빡임이 멈춘다', async () => {
             const r = await page.evaluate(async () => {
@@ -1004,8 +1024,10 @@ function makeBriefings() {
             });
             assert.deepEqual(r.keys, ['map-overview', 'map-accidentOnly', 'map-haegu'], r.texts.join(' / '));
             assert.deepEqual(r.texts.map((t) => t.replace(/ ▸$/, '')), [B.h.summary.sea.basis[0], B.h.summary.sea.basis[1], B.h.summary.sea.basis[2]]);
+            // §11.10.12: 위험예보만 해역 줄 = 「해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 1칸」, 화살표 없음(다른 두 줄은 ▸ 그대로)
+            assert.deepEqual([r.texts[1], r.texts[0].endsWith(' ▸'), r.texts[2].endsWith(' ▸')], ["해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 1칸", true, true]);
             assert.ok(r.texts[2].startsWith('대해구 232 예보 15시부터 파고 2.4m·풍속 13m/s로 높아짐(예상)'), r.texts[2]);
-            assert.equal(r.note, '(한국해양교통안전공단 예보에서는 위험 단계지만, 같은 시간대에 높은 파도·강한 바람이나 선박 몰림은 예상되지 않은 해역)');
+            assert.equal(r.note, '', '풀이 줄 「(한국해양교통안전공단 예보에서는 …)」 없음(§11.10.12)');
             assert.ok(r.now, '「지금 … 선박 N척」은 해상 분석 문단 바로 아래(분석 근거 칸 위 — §11.10.4)');
             const hl = [2, 1, 1];
             r.each.forEach((o, i) => {
@@ -1015,6 +1037,7 @@ function makeBriefings() {
                 assert.ok(/^[01]>[01]$/.test(o.phases) && o.phases !== '1>', '깜빡임 진행 ' + o.phases); assert.ok(o.cap.includes('한림파출소 관할 해역'), o.cap);
             });
             assert.ok(r.each[2].cap.includes('대해구 232'), r.each[2].cap);
+            assert.equal(r.each[1].cap, "빨간 테두리(깜빡임) = KOMSA 기준 등급 '주의' 해역 · 파란 선 = 한림파출소 관할 해역", '§11.10.12 캡션');
             assert.deepEqual([r.before, r.afterDetach, r.detachBlink, r.afterClose], [1, 0, 'off', 0], '떼어 낸 지도는 다음 깜빡임에서 스스로 멈춘다');
         });
         await check('[§11.10.3] 움직임 줄이기 설정이면 깜빡이지 않고 굵은 테두리로만(static) · 380px 펼친 지도 스크린샷', async () => {
@@ -1031,6 +1054,10 @@ function makeBriefings() {
             await page.waitForTimeout(600); await clean(page);
             const wide = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, vw: innerWidth })); assert.ok(wide.doc <= wide.vw + 1, JSON.stringify(wide));
             await page.locator('#station-briefing-content [data-sb-summary="sea"]').screenshot({ path: path.join(SHOT, 'briefing_sea_map_380.png') });
+            // §11.10.12 — 「해상 ○○」 칩 오른쪽 KOMSA 배지가 380px 에서 화면 안(넘치면 다음 줄로)
+            const kb = await page.evaluate(() => { const x = document.querySelector('#station-briefing-content [data-sb-summary="sea"] .sb-conclusion [data-sb-komsa]'); x.scrollIntoView({ block: 'center' }); const r = x.getBoundingClientRect(); return { right: r.right, vw: innerWidth, text: x.textContent }; });
+            assert.ok(kb.right <= kb.vw && kb.text === '1개 해역 주의 필요(KOMSA 예보)', JSON.stringify(kb));
+            await page.locator('#station-briefing-content [data-sb-summary="sea"] .sb-conclusion').screenshot({ path: path.join(SHOT, 'briefing_komsa_badge_380.png') });
             await page.evaluate(() => { document.querySelector('#station-briefing-content button[data-sb-x="map-accidentOnly"]').click(); const i = document.querySelector('#station-briefing-content button[data-sb-x="iso"]'); i.click(); i.scrollIntoView({ block: 'center' }); });
             await page.waitForTimeout(200); await clean(page);
             await page.locator('#station-briefing-content [data-sb-part="tide"]').screenshot({ path: path.join(SHOT, 'briefing_isolation_380.png') });

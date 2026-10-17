@@ -316,7 +316,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(S.advice.startsWith('15~24시 비양도 ') && S.advice.endsWith('해리 해역 운항에 주의가 필요합니다.') && !/따라서/.test(S.advice + L.advice), S.advice);
         assert.ok(!JSON.stringify(b.summary).includes('관심 이상'), '「관심 이상」 용어를 쓰지 않음');
         assert.deepStrictEqual([b.overview.land, b.overview.sea, b.overview.source], [null, null, 'template'], '틀(AI 없음)이면 해설 없음');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v13'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v14'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
     });
     const si = AI.stationInput(b);
     // AI 분석 문단 견본(2026-10-17 §11.10.4 — 3~5문장, 마지막 「따라서 … 필요합니다」. 그 전 §11.10 해설은 1~2문장): 허용 숫자·지명·단계만 쓴 글. 아래 검사들이 이것을 조금씩 바꿔 실패를 만든다.
@@ -604,7 +604,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(lone.sea.level.word, '경계 필요'); assert.equal(lone.sea.overviewLevel.rank, 0); assert.deepStrictEqual(lone.sea.overviewTop, []);
         const sl = AI.stationInput(lone);
         assert.ok(Object.values(sl.levels.sea).every((r) => r < 3), JSON.stringify(sl.levels.sea));
-        assert.ok(lone.summary.sea.basis.includes("해양사고 위험예보만 '경계'인 해역 1칸"), lone.summary.sea.basis.join(' / '));
+        assert.ok(lone.summary.sea.basis.includes("해양사고 위험예보(KOMSA) 기준 등급 '경계'인 해역 1칸"), lone.summary.sea.basis.join(' / '));
         // 2026-10-16: AI 입력 시간 흐름(timeline)도 총평용 단계 — 거른 「경계」가 AI 에 보이면 그대로 써서 틀로 떨어지므로
         assert.equal(lone.sea.timeBar.find((q) => q.at === at(9)).overviewRank, 0); assert.ok(!JSON.stringify(sl.sea.timeline || []).includes('경계 필요'), JSON.stringify(sl.sea.timeline));
         assert.ok(!JSON.stringify(lone.summary).includes('순위만으로'), '총평은 「순위」로 단정하지 않음(순위식인지 미확인)');
@@ -979,19 +979,19 @@ const WIN = R.editionWindow('morning', T0);
         const lone = R.buildBriefing(seaOnlyInput({ reviewedCells: 5, regions: [region(1, { [at(15)]: { accident: '경계' } })], weather: { 232: { label: '대해구 232', rows: WIN.slots.map((a) => ({ at: a, wh: 0.5, ws: 4 })) } } }), WIN, { generatedAt: R.isoKst(T0) });
         assert.deepStrictEqual([lone.sea.level.rank, lone.sea.overviewLevel.rank, lone.sea.attentionRegions, lone.sea.overviewRegions], [3, 0, 1, 0]);
         assert.equal(lone.summary.sea.headline, '오늘 테스트파출소 관할 해상의 단계는 "평소 수준"입니다.');
-        assert.deepStrictEqual(lone.summary.sea.basis.slice(0, 2), ['관할 해역 1칸 중 위험이 높아진 해역 0칸', "해양사고 위험예보만 '경계'인 해역 1칸"]);
+        assert.deepStrictEqual(lone.summary.sea.basis.slice(0, 2), ['관할 해역 1칸 중 위험이 높아진 해역 0칸', "해양사고 위험예보(KOMSA) 기준 등급 '경계'인 해역 1칸"]);
         assert.ok(!/해역 1칸$/.test(lone.summary.sea.basis[0]), '총평 단계와 다른 기준의 수를 쓰지 않음');
         const si = AI.stationInput(lone);
         assert.deepStrictEqual([si.sea.attention_regions, si.sea.accident_only_regions], [0, 1]);
         // 관심 이상 해역이 아예 없는 날 — 「공식 사고예보 단계만 있고」라 쓰지 않는다
         const calm = R.buildBriefing(seaOnlyInput({ reviewedCells: 5 }), WIN, { generatedAt: R.isoKst(T0) });
-        assert.ok(!JSON.stringify(calm.summary).includes('해양사고 위험예보만'), calm.summary.sea.basis.join(' / '));
+        assert.ok(!JSON.stringify(calm.summary).includes('KOMSA'), calm.summary.sea.basis.join(' / '));
         assert.equal(calm.summary.sea.basis[0], '관할 해역 0칸 중 위험이 높아진 해역 0칸');
         assert.equal(calm.summary.sea.advice, '출항 전 기상 확인에 관심이 필요합니다.');
         // 둘 다 있는 날: 기상·혼잡이 겹친 해역 1 + 사고예보만 1 → 「관심 이상 1개 해역, 공식 사고예보 단계만 있는 해역 1개」
         const cg = { level: '높음', index: 12, at: at(15) };
         const mix = R.buildBriefing(seaOnlyInput({ reviewedCells: 2, regions: [region(1, { [at(9)]: { accident: '경계' } }), region(2, { [at(15)]: { accident: '주의', congestion: cg } })] }), WIN, { generatedAt: R.isoKst(T0) });
-        assert.deepStrictEqual(mix.summary.sea.basis.slice(0, 2), ['관할 해역 2칸 중 위험이 높아진 해역 1칸', "해양사고 위험예보만 '경계'인 해역 1칸"]);
+        assert.deepStrictEqual(mix.summary.sea.basis.slice(0, 2), ['관할 해역 2칸 중 위험이 높아진 해역 1칸', "해양사고 위험예보(KOMSA) 기준 등급 '경계'인 해역 1칸"]);
     });
     await check('[UI-B12] 경계 카드 문장의 「공식」을 출처별로 — 공식 사고예보 경계는 공단 사고위험 예보, 특보 경계는 기상청 특보', () => {
         const acc = R.buildBriefing(seaOnlyInput({ regions: [region(1, { [at(9)]: { accident: '경계' } })] }), WIN, { generatedAt: R.isoKst(T0) }).sea.cards[0];
@@ -1045,7 +1045,7 @@ const WIN = R.editionWindow('morning', T0);
         const batch = AI.batchInput([siK], null); assert.deepStrictEqual(batch.rules.sentences_per_paragraph, [3, 5]); assert.ok(batch.stations[0].kma_zones.includes('제주도남쪽바깥먼바다'), '해역 이름 목록은 관할마다(독립 검토 8)');
         assert.ok(batch.stations[0].shown.land.headline.startsWith('오늘 한림파출소 관할 연안의 단계는'), '이미 보이는 결론을 AI 에 알려 되풀이하지 않게');
         const pr = AI.buildPrompt(batch); assert.ok(pr.includes('3~5문장') && !pr.includes('1~2문장') && !pr.includes('required.'), '지시문도 분석 3~5문장(§11.10.4)');
-        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v9', 'sb-prompt-v9']);
+        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v9', 'sb-prompt-v10']);
     });
     await check('[§11.10] 관리자 오류 목록: 최근 3일(KST 날짜) 오류는 모두 남기고(종전 200개 상한 없음) 더 오래된 것만 지운다 · 안전 상한 5,000 은 지운 수를 남긴다 · status 가 전부(최근 것부터)', async () => {
         const mk = (iso, i) => ({ at: iso, stage: 'validate', provider: 'chatgpt', stations: ['k|' + i], reason: 'r' + i });
@@ -1341,17 +1341,16 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(x.summary.land.advice, '금능석물원·월령포구·한림공원 주변 연안사고에 주의가 필요합니다.');
         assert.ok(!JSON.stringify(x.summary).includes('물가 접근'));
     });
-    await check('[§11.10.3-3] 해상 근거 — 「관할 해역 N칸 중 위험이 높아진 해역 M칸」(같은 단위) · 「해양사고 위험예보만 \'주의·경계\'인 해역 K칸」+풀이 · 지도 재료(관할 경계·칸 상자) · 권고에 「경」·해구 꼬리 없음 · 「공식 사고예보」 없음', () => {
+    await check('[§11.10.3-3] 해상 근거 — 「관할 해역 N칸 중 위험이 높아진 해역 M칸」(같은 단위) · 위험예보만 해역 줄(§11.10.12 부터 단계별·풀이 없음 — [§11.10.12-1]) · 지도 재료(관할 경계·칸 상자) · 권고에 「경」·해구 꼬리 없음 · 「공식 사고예보」 없음', () => {
         const cg = { level: '높음', index: 12, at: at(15) }, box = (i) => [126, 33 + i * 0.01, 126.04, 33.04 + i * 0.01];
         const area = [[[[125.9, 32.9], [125.9, 33.3], [126.3, 33.3], [126.3, 32.9], [125.9, 32.9]]]];
         const regions = [region(1, { [at(9)]: { accident: '경계' } }, { box: box(1) }), region(2, { [at(12)]: { accident: '주의' } }, { box: box(2) }), region(3, { [at(15)]: { accident: '경계', congestion: cg } }, { box: box(3), haegu: { major: 232, sub: 2, label: '232-2' } }), region(4, {}, { box: box(4) })];
         const x = R.buildBriefing({ ...seaOnlyInput({ reviewedCells: 9, regions }), area }, WIN, { generatedAt: R.isoKst(T0) });
         const S = x.summary.sea;
         assert.equal(S.basis[0], '관할 해역 4칸 중 위험이 높아진 해역 1칸', '분모 = 검토한 해역 수(사고·혼잡 칸을 따로 센 reviewedCells 9 아님)');
-        assert.equal(S.basis[1], "해양사고 위험예보만 '주의·경계'인 해역 2칸");
+        assert.deepStrictEqual(S.basis.slice(1, 3), ["해양사고 위험예보(KOMSA) 기준 등급 '경계'인 해역 1칸", "해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 1칸"]);
         assert.deepStrictEqual(S.area, area);
-        assert.deepStrictEqual(S.detail, [{ line: 0, key: 'overview', boxes: [box(3)] }, { line: 1, key: 'accidentOnly', note: R.ACC_ONLY_NOTE, boxes: [box(1), box(2)] }]);
-        assert.equal(R.ACC_ONLY_NOTE, '(한국해양교통안전공단 예보에서는 위험 단계지만, 같은 시간대에 높은 파도·강한 바람이나 선박 몰림은 예상되지 않은 해역)');
+        assert.deepStrictEqual(S.detail, [{ line: 0, key: 'overview', boxes: [box(3)] }, { line: 1, key: 'accidentOnly', boxes: [box(1)] }, { line: 2, key: 'accidentOnly', boxes: [box(2)] }]);
         assert.ok(S.basis.some((t) => t.endsWith("— 해양사고 위험예보 '경계'(예상)")), S.basis.join(' / '));
         assert.equal(S.advice, '15~18시 제주 북방 3.0해리 해역 운항에 경계가 필요합니다.');
         assert.ok(!JSON.stringify(x).includes('공식 사고예보'), '브리핑 안 이름은 「해양사고 위험예보」');
@@ -1360,7 +1359,41 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(!JSON.stringify(x.sea).includes('125.9'));
         // 경계만 있으면 「'경계'」 · 지도 재료가 없으면(관할 도형 없음) detail 은 있으나 상자·경계 없음 → 화면은 글만
         const y = R.buildBriefing(seaOnlyInput({ regions: [region(1, { [at(9)]: { accident: '경계' } })] }), WIN, { generatedAt: R.isoKst(T0) });
-        assert.deepStrictEqual([y.summary.sea.basis[1], y.summary.sea.area, y.summary.sea.detail], ["해양사고 위험예보만 '경계'인 해역 1칸", null, [{ line: 1, key: 'accidentOnly', note: R.ACC_ONLY_NOTE }]]);
+        assert.deepStrictEqual([y.summary.sea.basis[1], y.summary.sea.area, y.summary.sea.detail], ["해양사고 위험예보(KOMSA) 기준 등급 '경계'인 해역 1칸", null, [{ line: 1, key: 'accidentOnly' }]]);
+    });
+    // ── §11.10.12(2026-10-17 사용자 결정 — 영목파출소 화면) — KOMSA 배지 수·근거 줄 문구·AI 입력 문구·검증 ──
+    await check('[§11.10.12-1] 위험예보만 해역 — 단계별 근거 줄 「해양사고 위험예보(KOMSA) 기준 등급 \'경계\'/\'주의\'인 해역 N칸」(높은 단계 먼저, 풀이 줄 없음) · summary.sea.accidentOnly 수 = 근거 줄 수 = attentionRegions − overviewRegions · AI 입력 accident_only_phrases 「해양사고 위험예보(KOMSA 기준)만 \'주의\'인 해역」 · 단계를 모르는 옛 브리핑은 「\'주의·경계\'」 한 줄', () => {
+        const cg = { level: '높음', index: 12, at: at(15) }, box = (i) => [126, 33 + i * 0.01, 126.04, 33.04 + i * 0.01];
+        const regions = [region(1, { [at(9)]: { accident: '주의' } }, { box: box(1) }), region(2, { [at(12)]: { accident: '주의' } }, { box: box(2) }), region(3, { [at(9)]: { accident: '경계' }, [at(12)]: { accident: '주의' } }, { box: box(3) }),
+            region(4, { [at(15)]: { accident: '주의', congestion: cg } }, { box: box(4) }), region(5, {}, { box: box(5) })];
+        const area = [[[[125.9, 32.9], [125.9, 33.3], [126.3, 33.3], [126.3, 32.9], [125.9, 32.9]]]];
+        const x = R.buildBriefing({ ...seaOnlyInput({ reviewedCells: 5, regions }), area }, WIN, { generatedAt: R.isoKst(T0) }), S = x.summary.sea;
+        assert.deepStrictEqual(S.basis.slice(0, 3), ['관할 해역 5칸 중 위험이 높아진 해역 1칸', "해양사고 위험예보(KOMSA) 기준 등급 '경계'인 해역 1칸", "해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 2칸"]);
+        assert.deepStrictEqual(S.accidentOnly, [{ rank: 3, word: '경계', count: 1 }, { rank: 2, word: '주의', count: 2 }]);
+        assert.equal(S.accidentOnly.reduce((a, g) => a + g.count, 0), x.sea.attentionRegions - x.sea.overviewRegions, '배지 수 합 = 위험예보만 해역 수');
+        assert.deepStrictEqual(S.detail.filter((d) => d.key === 'accidentOnly'), [{ line: 1, key: 'accidentOnly', boxes: [box(3)] }, { line: 2, key: 'accidentOnly', boxes: [box(1), box(2)] }], '경계·주의가 둘 다 있던 해역은 가장 높은 단계(경계)로 한 번');
+        assert.ok(!JSON.stringify(x.summary).includes('한국해양교통안전공단') && !S.detail.some((d) => 'note' in d), '풀이 줄 없음');
+        assert.equal(typeof R.ACC_ONLY_NOTE, 'undefined');
+        const si = AI.stationInput(x);
+        assert.deepStrictEqual(si.sea.accident_only_phrases, ["해양사고 위험예보(KOMSA 기준)만 '경계'인 해역", "해양사고 위험예보(KOMSA 기준)만 '주의'인 해역"]);
+        assert.equal(si.sea.accident_only_regions, 3);
+        const pr = AI.buildPrompt(AI.batchInput([si], null));
+        assert.ok(pr.includes('accident_only_phrases') && pr.includes("해양사고 위험예보(KOMSA 기준)만 '주의'인 해역이 있지만"), '지시문에 그 문구를 그대로 쓰라는 규칙');
+        // 위험예보만 해역이 없으면 빈 목록 · 단계를 모르는 옛 브리핑(저장 뒤 summary 없이 다시 계산 — 도형·단계 없음)은 「'주의·경계'」 한 줄
+        assert.deepStrictEqual(AI.stationInput(R.buildBriefing(seaOnlyInput({ reviewedCells: 5 }), WIN, { generatedAt: R.isoKst(T0) })).sea.accident_only_phrases, []);
+        const old = JSON.parse(JSON.stringify(x)); delete old.summary;
+        const os2 = R.buildSummary(old).sea;
+        assert.deepStrictEqual([os2.basis[1], os2.accidentOnly], ["해양사고 위험예보(KOMSA) 기준 등급 '주의·경계'인 해역 3칸", [{ rank: 0, word: '주의·경계', count: 3 }]]);
+        assert.deepStrictEqual(AI.stationInput(old).sea.accident_only_phrases, ["해양사고 위험예보(KOMSA 기준)만 '주의·경계'인 해역"]);
+    });
+    await check('[§11.10.12-2] 검증 — 「해양사고 위험예보(KOMSA 기준)만 \'주의\'인 해역이 있지만 …」 문단과 근거 줄 꼴 「(KOMSA) 기준 등급 \'주의\'」 문단이 지명·사실·숫자·단계 검사를 통과 · 대조: 같은 문단의 「KOMSA항」(지명)·없는 단계 \'경계\'는 막힌다', () => {
+        const b = R.buildBriefing(seaOnlyInput({ reviewedCells: 3, regions: [region(1, { [at(9)]: { accident: '주의' } }), region(2, { [at(12)]: { accident: '주의' } }), region(3, {})], weather: { 232: { label: '대해구 232', rows: WIN.slots.map((a) => ({ at: a, wh: 0.5, ws: 4 })) } } }), WIN, { generatedAt: R.isoKst(T0) });
+        const si = AI.stationInput(b), v = (sea) => AI.validateOverview({ land: null, sea }, si).errors;
+        assert.equal(b.sea.overviewLevel.rank, 0);
+        const tail = ' 대해구 232는 잔잔한 바다일 것으로 예상됩니다. 따라서 테스트파출소 관할 해상의 바람과 물결 변화에 평소처럼 관심이 필요합니다.';
+        assert.deepStrictEqual(v("오늘 테스트파출소 관할 해역에는 해양사고 위험예보(KOMSA 기준)만 '주의'인 해역이 있지만, 위험이 높아진 해역은 없는 것으로 나타났습니다." + tail), []);
+        assert.deepStrictEqual(v("오늘 테스트파출소 관할 해역에는 해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역이 2칸 있지만, 위험이 높아진 해역은 0칸입니다." + tail), []);
+        assert.deepStrictEqual(v("오늘 KOMSA항 해역에는 해양사고 위험예보(KOMSA 기준)만 '경계'인 해역이 있지만, 위험이 높아진 해역은 없는 것으로 나타났습니다." + tail), ['place:KOMSA항', "label:'경계'"]);
     });
     await check('[§11.10.3-4] 해구 예보 줄은 기준(파고 2m·풍속 12m/s)을 넘을 때만(사용자 「(가)로 진행하자」) — 넘으면 「대해구 232 예보 15시부터 …로 높아짐(예상)」+해구 상자, 넘지 않으면 줄 없음', () => {
         const rows = (list) => list.map(([h, wh, ws]) => ({ at: at(h), wh, ws }));
@@ -1423,7 +1456,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(so.summary.analysis.land, null); assert.ok(AI.sentences(so.summary.analysis.sea).length >= 3);
         // 조사: 괄호 덧말 앞 낱말로(「해역(232-2해구)은」) · 받침 ㄹ + 으로 → 로
         assert.equal(R.josa('비양도 북북서방 1.4해리 해역(232-2해구)', '은', '는'), '은'); assert.equal(R.josa("연안 위험지수 72 '높음'(예상)", '으로', '로'), '으로'); assert.equal(R.josa('바다물', '으로', '로'), '로');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v13');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v14');
     });
     // 사용자 예시 꼴(돝섬해상유원지·대해구 5099)을 한림 고정 자료 이름·숫자로 옮긴 AI 분석 문단
     const ex = {
@@ -1995,7 +2028,8 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual([hf.name, hf.max_wave, hf.max_wind, hf.wave_state, hf.wind_state, hf.sea_state], ['제주도북부앞바다·제주도서부앞바다(대해구 232)', '0.8m', '4.8m/s', '낮음', '약함', '잔잔한 바다일 것으로 예상됩니다']);
         assert.equal(calmSi.sea.weather, hf.sentence);
         assert.ok(calmSi.allowed_places.includes('제주도북부앞바다') && calmSi.allowed_places.includes('제주도서부앞바다'));
-        for (const s of [calmSi, si]) assert.ok(!/기준/.test(JSON.stringify(AI.batchInput([s], null).stations[0])), '보내는 관할 입력에 「기준」 없음');
+        // §11.10.12(사용자 결정): 위험예보만 해역 문구의 「(KOMSA 기준)」·「(KOMSA) 기준 등급」은 사용자가 정한 말이라 뺀 뒤 본다(이 검사는 해구 파고·풍속 「기준」 말)
+        for (const s of [calmSi, si]) assert.ok(!/기준/.test(JSON.stringify(AI.batchInput([s], null).stations[0]).replace(/\(KOMSA 기준\)|\(KOMSA\) 기준 등급/g, '')), '보내는 관할 입력에 「기준」 없음');
         const prompt = AI.buildPrompt(AI.batchInput([si], null));
         assert.ok(prompt.includes('「○○앞바다(대해구 5099)는 최대 파고 0.4m·풍속 6.9m/s로 잔잔한 바다일 것으로 예상됩니다.') && !prompt.includes('기준보다 낮을 것으로 예상됩니다') && prompt.includes('sea_state'), '해상 예시·규칙');
         const sea = (h) => h + ' 비양도 북북서방 1.4해리 해역(232-2해구)은 해양사고 위험예보 \'주의\'로 주의 필요 수준입니다. 따라서 비양도 주변 해역 운항에 주의가 필요합니다.';
