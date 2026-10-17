@@ -31,7 +31,7 @@ const SCHEMA = 'station-briefing-input-v2';
 //   「A에는 주의가, B에는 관심이 필요합니다」 나열 꼴의 단계 말도 쉼표로 나뉜 대목의 대상 단계로 검사 · 지시문에 지난 시도가 버려진 이유(retry_feedback).
 // v6·v7(2026-10-17 §11.10.5 독립 검토): 단계 아래쪽 검사(마지막 「따라서」 문장·문단 최고 단계 말 = 결론 단계, 평소 수준은 「평소처럼 관심」까지 허용) · 이름 없는 대목은 결론 단계까지(종전 문단 최저)
 //   · 입력에 없는 말(경보·태풍·사망·사망자·임박·대규모·「아무 일도 없」·「반드시 사고」) · 나열 꼴 조사 「은·는·를·을」·쉼표 없는 「주의가 B에는」·「요하·상태」 꼴. 지시문 v7: 위 규칙과 이유 글 20자 자름.
-const VALIDATOR_VERSION = 'sb-validate-v6', PROMPT_VERSION = 'sb-prompt-v7';
+const VALIDATOR_VERSION = 'sb-validate-v7', PROMPT_VERSION = 'sb-prompt-v7';
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -82,6 +82,8 @@ const PLACE_TAIL_RE = /(?:에서는|에서도|에서|으로는|으로|까지|부
 const MAN_CONTEXT = /^(?:에서|에서는|에서도|앞|쪽|부근|인근|주변|일대|근처|해역|바다|방면|의|에)$/;
 const NEXT_CONTEXT = /^(?:해역|일대|주변|인근|부근|근처|앞|앞바다|연안|해안|쪽|방면|북|남|동|서|갯바위|방파제|포구|해상|바깥|안쪽|입구|부두|등대|섬)/;
 const STOP_WORD = new Set(['관할', '인근', '주변', '부근', '해당', '같은', '모든', '각', '일부', '전체', '오늘', '내일', '따라서', '특히', '다만', '또', '및', '등', '해상', '육상', '연안', '이', '그', '저', '이번', '이곳', '그곳', '평소', '현재', '지금', '오전', '오후', '새벽', '밤', '낮', '앞', '뒤', '옆', '안', '밖', '근처', '여러', '주요']);
+// 지명 뒤에 붙을 수 있는 조사 하나로 된 꼬리(빈 꼬리 포함) — 하나만: 「한림공원도로」(도+로)·「삼양해안도로도로」는 조사가 아니다(§11.10.6 독립 검토) — validateOverview 의 조사 붙은 지명 대조
+const PARTICLE_ONLY_RE = /^(?:에서는|에서도|에서|으로는|으로|까지|부터|보다|처럼|에는|에도|의|에|은|는|이|가|을|를|과|와|로|도|만)?$/;
 const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면|다|요|게|께|죠)$/;
 // 분석 문단 문장 수(2026-10-17 사용자 결정 §11.10.4 — 연안·해상 각 3~5문장, 사용자 예시가 4문장·3문장). §11.10 의 해설은 1~2문장이었다.
 const MIN_S = 3, MAX_S = 5;
@@ -142,14 +144,14 @@ function placeCandidates(t) {
         if (sf === '항' && pre.length < 1) return;
         if (['섬', '곶', '포', '도', '만'].includes(sf) && pre.length < 2) return;
         const next = words[k + 1] && /^\s+$/.test(src.slice(x.end, words[k + 1].i)) ? words[k + 1].w : '';
-        if (sf === '만' && !MAN_CONTEXT.test(tail) && !NEXT_CONTEXT.test(next)) return;
+        if (sf === '만' && (/지만$/.test(w) || (!MAN_CONTEXT.test(tail) && !NEXT_CONTEXT.test(next)))) return;   // 「하지만·있지만」은 어미(운영 오판 place:하지만 — 2026-10-17)
         // 「바람도 셉니다」의 도는 조사 — 뒤에 조사(는·에·의…)가 붙었거나(「흑산도는」) 다음 낱말이 장소 말(앞·해역·북방…)일 때만 지명 후보.
         if (sf === '도' && !tail && !NEXT_CONTEXT.test(next)) return;
         const prev = (j) => { const a = words[j], b = words[j + 1]; return a && b && /^\s+$/.test(src.slice(a.end, b.i)) && nameish(a) ? a.w : null; };
         const p1 = prev(k - 1), p2 = p1 ? prev(k - 2) : null;
         if (!pre && !p1) return;                           // 「앞바다」·「방파제」만 — 일반 낱말
         const cands = [w]; if (p1) cands.push(p1 + w); if (p2) cands.push(p2 + p1 + w);
-        out.push({ text: (p2 ? p2 + ' ' : '') + (p1 ? p1 + ' ' : '') + w, cands: pre ? cands : cands.slice(1) });
+        out.push({ text: (p2 ? p2 + ' ' : '') + (p1 ? p1 + ' ' : '') + w, cands: pre ? cands : cands.slice(1), raw: (p2 || '') + (p1 || '') + x.w });
     });
     return out;
 }
@@ -300,7 +302,8 @@ function parseResponse(text) {
 function validateOverview(o, si) {
     const errors = [], allowedN = new Set(si.allowed_number_keys || []), mk = si.allowed_multiplier_keys || { sea: [], land: [] };
     // 허용 지명은 끝말 일치(「한림 협재해수욕장」 같은 앞 낱말 붙은 후보), 기상청 해역 이름은 그 관할 kma_zones 와 정확히 같을 때만(독립 검토 8).
-    const names = (si.allowed_places || []).map(compact).filter((x) => x.length >= 2), kz = new Set((si.kma_zones || []).map(compact)), stems = new Set((si.place_stems || []).map(compact));
+    // 허용 이름은 괄호·가운뎃점·쉼표로 묶인 다른 이름도 따로(「장호해수욕장(장호항, 장호해변)」→장호항 · 「하평해변(강릉)」→하평해변 · 「신명·정자해변」→정자해변 · 「하저해수욕장 (하저리 해수욕장)」→하저리해수욕장 — 2026-10-17 운영 오판, 3글자 이상만).
+    const names = [...new Set((si.allowed_places || []).flatMap((x) => [compact(x), ...norm(x).split(/[()（）·ㆍ,，]/).map(compact).filter((y) => y.length >= 3)]))].filter((x) => x.length >= 2), kz = new Set((si.kma_zones || []).map(compact)), stems = new Set((si.place_stems || []).map(compact));
     const factS = (si.fact_sentences || []).map(compact).filter(Boolean);
     const paras = [['sea', o?.sea], ['land', o?.land]];
     if (!si.land && o?.land) errors.push('shape:land-not-allowed');
@@ -318,12 +321,16 @@ function validateOverview(o, si) {
         const multSet = new Set(mk[k] || []);
         for (const n of numTokens(t)) {
             if (n.unit === '배') { if (!multSet.has(n.key)) errors.push('multiplier:' + n.text); continue; }
-            if (!allowedN.has(n.key)) errors.push('number:' + n.text);
+            // 연도에 붙은 「년」: 입력이 「2020~2024 연안사고」처럼 년 없이 적은 같은 수면 통과(2026-10-17 운영 오판 number:2020~2024년)
+            const yearOk = n.unit === '년' && /^(?:19|20)\d\d(?:~(?:19|20)\d\d)?$/.test(n.key.split('|')[0]) && allowedN.has(n.key.split('|')[0] + '|');
+            if (!allowedN.has(n.key) && !yearOk) errors.push('number:' + n.text);
         }
         const paraCount = si.count_keys ? new Set(si.count_keys[k] || []) : allowedN;   // 셈말은 그 문단 결론·근거에 있는 수만(독립 검토 7)
         for (const m of t.matchAll(HNUM_RE)) { const w = m[1].replace(/\s+/g, ' '); if (!countWordOk(w, allowedN, paraCount)) errors.push('number:hangul:' + w); }
         for (const m of t.matchAll(HMULT_RE)) errors.push('multiplier:' + m[1].replace(/\s+/g, ' '));
-        for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || kz.has(x) || names.some((a) => x.endsWith(a)))) errors.push('place:' + pc.cands[pc.cands.length - 1]);
+        // 조사가 붙은 원래 낱말도 본다 — 허용 이름 뒤에 조사만 남으면 통과(「한림공원도」·「삼양해안도로를」 — 조사 도·로를 지명 끝 「도」로 잘못 자르던 2026-10-17 운영 오판)
+        const withParticle = (raw) => names.some((a) => { const i = raw.lastIndexOf(a); return i >= 0 && PARTICLE_ONLY_RE.test(raw.slice(i + a.length)); });
+        for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || kz.has(x) || names.some((a) => x.endsWith(a))) && !withParticle(compact(pc.raw || ''))) errors.push('place:' + pc.cands[pc.cands.length - 1]);
         for (const w of FORBIDDEN) if (c.includes(compact(w))) errors.push('forbidden:' + w);
         for (const lm of t.matchAll(LABEL_RE)) if (!(si.allowed_labels || []).includes(lm[0])) errors.push('label:' + lm[0]);
         if (SAFE_RE.test(c)) errors.push('forbidden:안전 단정');
