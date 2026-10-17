@@ -4,10 +4,17 @@
  * 역할  : 이안류·기상청 MMIS 자료를 불렀는데 받아오지 못하면 관리자 휴대폰에 푸시를 보낸다.
  *         실패가 시작될 때 1번, 다시 받아지면 「복구」 1번. 같은 실패가 이어지는 동안은 다시 보내지 않는다.
  *         시정 예측(visibility)만 연속 3번 실패해야 보낸다(사용자 확정 2026-10-15, 아래 [사용자 결정]).
+ *         특보(warnings)는 실패가 5분 이상 이어져야 보낸다(사용자 확정 2026-10-17, 아래 [사용자 결정]).
  * ----------------------------------------------------------------------------
  * [사용자 결정 2026-10-15 원문]
  *   「이안류, mmis는 데이터를 호출했을 때 받아올 수 없다면 그 때 알려줘 보통 천기가 그런 경우가 많아.」
  *   「추천하는 방식으로 하고. 고르는건 나로 하자.」 → 천기(시정 예측)는 (나) 연속 3번 실패하면.
+ * [사용자 결정 2026-10-17 원문]
+ *   「이 이미지에서 리스트를 보면 알림이 오고 있는데 특히 특보의 경우에는문제가 1분안에 문제가 해결되는 부분이
+ *    대다수임 특보의 경우 5분이상 수집이 되지 않는 경우에만 푸시알림을 보내줄 수 있도록 해줘.」
+ *   → 특보는 이번 연속 실패의 「처음 실패 시각」(since)부터 5분이 지난 뒤의 첫 실패 보고 때 1통.
+ *     시도 횟수가 아니라 시각으로 잰다(주기가 바뀌어도 「5분」이 그대로 5분이게). 그 전에 한 번이라도 성공하면
+ *     연속이 끊기고 처음부터 다시 잰다 — 실패 알림을 보내지 않았으니 「복구」도 보내지 않는다.
  *
  * [어떻게 「한 번만」을 지키나 — 상태(state)이지 사건(event)이 아니다 (CLAUDE.md 결정로그 ①)]
  *   항목마다 「관리자가 지금 무엇을 알고 있나」(notified)를 파일에 남긴다. 보고가 올 때마다
@@ -43,11 +50,15 @@ const DATA_DIR = path.join(__dirname, '..', 'data'),
 // 알림 대상과 규칙. 열쇠 = 데이터 수집현황 목록표(manifest) 의 id.
 //   threshold: 연속 몇 번 실패하면 알리나(없으면 1 = 첫 실패). visibility 의 3 은
 //     risk_history_sources.VSBY_FAIL_STREAK(오류현황이 「수집 실패」로 보는 기준)와 같아야 한다 — 검사가 둘을 맞대 본다.
+//   minFailMs: 연속 실패가 처음 실패 시각(since)부터 이만큼(ms) 이어져야 알린다(없으면 0 = 기다리지 않음).
+//     특보의 5분은 사용자 확정 2026-10-17 — 1분 안에 풀리는 순간 장애마다 실패·복구 2통이 가던 것을 막는다.
+//     따로 깨우는 타이머는 없다 — 특보 크롤러가 1분마다 보고하므로(scheduler.js 1분 마스터 setInterval) 5분이 지난 뒤
+//     첫 실패 보고 때 보낸다. 보고가 끊기면(크롤러 일시정지·서버 중단) 보내지 않는다 — 그건 수집현황 「다음 기대 시각」이 잡는다.
 //   push:false: 기록만 하고 푸시는 보내지 않는다. 강풍(gale)은 특보(warnings)와 **같은 호출**에서 나오므로
 //     (marine_client.fetchAllRealtimeEndpoints 한 번) 같은 장애에 푸시 2통이 가지 않게 특보 알림 한 통에 담는다(label).
 const ITEMS = {
     ripCurrent: {},
-    warnings: { label: '해상 특보·육상 강풍특보 (기상청 MMIS)' },
+    warnings: { label: '해상 특보·육상 강풍특보 (기상청 MMIS)', minFailMs: 5 * 60 * 1000 },
     gale: { push: false },
     swell: {},
     visibility: { threshold: 3 },
@@ -189,6 +200,7 @@ function createAlerter({ file = DEFAULT_FILE, clock = Date.now, send = defaultSe
         return st.items[id];
     }
     const threshold = (id) => ITEMS[id].threshold || 1;
+    const minFailMs = (id) => ITEMS[id].minFailMs || 0;
 
     /** 보낼 푸시 문장. 예: '시정 예측 (기상청 MMIS) 수집 실패 — 빈 응답, 10/16 03:00부터' */
     function message(id, s, failing) {
@@ -200,6 +212,8 @@ function createAlerter({ file = DEFAULT_FILE, clock = Date.now, send = defaultSe
 
     /**
      * 지금 관리자에게 「실패 중」이라고 알려 둬야 하나. 예: 알린 뒤 성공 보고(okSince)가 왔으면 false.
+     *   아직 안 알렸으면 연속 실패 수가 기준 이상이고, minFailMs 가 있는 항목(특보 5분)은 처음 실패 시각부터
+     *   그만큼 지났을 때만 true. 예: 특보 since 13:28:00 → 지금 13:32:59 false · 13:33:00 true.
      * ★「복구」는 성공 보고로만 일어난다(검토 1, 2026-10-15): 알린 뒤에는 연속 실패 수가 줄어 보고돼도
      *   (시정 예측 vsby_check_state 손상·저장 실패로 failStreak 가 0 부터 다시 셈) 실패 중으로 둔다.
      *   그래서 복구 문장에는 늘 「다시 받은 시각」(okSince)이 있다 — 「시각 모름」 복구는 나가지 않는다.
@@ -207,7 +221,10 @@ function createAlerter({ file = DEFAULT_FILE, clock = Date.now, send = defaultSe
      * [연계] ← settle
      */
     function wantFailing(id, s) {
-        return s.notified ? !s.okSince : s.streak >= threshold(id);
+        if (s.notified) return !s.okSince;
+        if (s.streak < threshold(id)) return false;
+        const wait = minFailMs(id);
+        return !wait || clock() - Date.parse(s.since) >= wait; // since 가 없으면 NaN → false(다음 실패 보고가 채운다)
     }
 
     /**
@@ -262,6 +279,7 @@ function createAlerter({ file = DEFAULT_FILE, clock = Date.now, send = defaultSe
      * 수집 시도 한 번의 결과를 받는다. 절대 던지지 않는다(수집을 막지 않게).
      * 예: report('marineBuoys', {ok:false, error}) → 첫 실패면 푸시 '기상부이 관측 (기상청 MMIS) 수집 실패 — HTTP 503, 10/16 03:03부터'
      *     report('visibility', {ok:false, error, streak:3, since}) → 3번째에 푸시. streak/since 는 vsby 의 영속 failStreak/failSince.
+     *     report('warnings', {ok:false, error}) → 처음 실패에서 5분이 지난 뒤의 실패 보고 때 푸시(그 전에 성공하면 푸시 없음).
      * @param {string} id - ITEMS 열쇠
      * @param {{ok:boolean, error?:*, streak?:number, since?:string}} outcome
      * @returns {Promise<{sent:string[]}>}
@@ -291,6 +309,9 @@ function createAlerter({ file = DEFAULT_FILE, clock = Date.now, send = defaultSe
             } else {
                 s.streak = Number.isInteger(streak) && streak > 0 ? streak : s.streak + 1;
                 s.since = isIso(since) ? since : s.since || at;
+                // 기다리는 항목(특보): 처음 실패 시각이 지금보다 뒤면(시계가 뒤로 감) 지금부터 다시 잰다 —
+                //   그대로 두면 시계가 그 시각을 따라잡을 때까지 실패 알림이 묶인다. 늦어져도 최대 5분 더.
+                if (minFailMs(id) && Date.parse(s.since) > clock()) s.since = at;
                 s.reason = reasonOf(error);
                 s.lastFailAt = at;
                 s.okSince = null; // 복구 알림이 아직 안 나갔는데 다시 실패 → 관리자가 아는 「실패 중」이 그대로 맞다
