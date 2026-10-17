@@ -14,7 +14,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js · station_briefing.js · routes/station_briefing.js
- *                    · client/js/forecast/station-briefing/station_briefing_render.js(notesEmptyText)·client/js/admin/admin_station_briefing.js(errorsMarkdown) — vm 으로 읽어 순수 함수만
+ *                    · client/js/forecast/station-briefing/station_briefing_render.js(notesEmptyText)·client/js/admin/admin_station_briefing.js(errorsMarkdown·codeText·reasonTexts·runGroups·errorsByStation — §11.10.7) — vm 으로 읽어 순수 함수만
  *                    · config/coastal_safety/coastguard_stations.geojson(관할 97곳 — 해상만 19곳 셈)
  *  - 나를 쓰는 곳  : scripts/refactor/verify_all.sh SUITES
  * [로드 순서] 독립 실행: node local_server/scripts/test_station_briefing.js
@@ -1626,6 +1626,111 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(errs('꽃지해수욕장, 삼봉해수욕장, 기지포해수욕장 세 해수욕장에 사람이 많습니다. 이들 해수욕장은 물결 변화를 살펴야 합니다. 두 해수욕장 앞바다도 그렇습니다. 따라서 평소처럼 관심이 필요합니다.'), []);
         assert.deepStrictEqual(errs('세 가짜해수욕장과 이들 만리포해수욕장. 따라서 평소처럼 관심이 필요합니다.'), ['place:가짜해수욕장', 'place:만리포해수욕장']);
         assert.ok(AI.buildPrompt(AI.batchInput([], null)).includes('장소·해역 수를 세어 쓰지 않는다'));
+    });
+    // ── 2026-10-17 사용자 결정(설계서 §11.10.7) — 관리자 「AI 브리핑」 진행 게이지 · 실행마다 오류 · 한글 풀이 · 앱 안 md 저장 ──
+    await check('[§11.10.7-1] 진행 알림 — generate 가 plan(해양경찰서 묶음·처음 상태) → call(묶음·공급자·시도) → station(done·retry) 순서로 알리고, 알림이 던져도 결과는 같다 · 진행 상태(onAiProgress)가 묶음·관할 수를 맞게 센다', async () => {
+        const three = stationsFor(3), ev = [];
+        const mk = () => { let n = 0; return { vm: { available: () => true, call: async ({ prompt }) => { n++; return JSON.stringify({ stations: idsIn(prompt).map((s) => ({ id: s.id, ...(s.id.endsWith('파출소0') && n === 1 ? bad1 : ex) })) }); } }, gemini: { available: () => false } }; };
+        const r = await AI.generate({ briefings: three, config: cfg, adapters: mk(), now: T0, onProgress: (e) => ev.push(JSON.parse(JSON.stringify(e))) });
+        assert.equal(ev[0].type, 'plan');
+        assert.deepStrictEqual(ev[0].batches.map((b) => [b.name, b.stations.map((x) => x.state)]), [['제주해양경찰서', ['waiting', 'waiting']], ['서귀포해양경찰서', ['waiting']]]);
+        const calls = ev.filter((e) => e.type === 'call').map((e) => [e.batch, e.keys.length, e.provider, e.attempt]);
+        assert.deepStrictEqual(calls, [['제주해양경찰서', 2, 'chatgpt', 1], ['서귀포해양경찰서', 1, 'chatgpt', 1], ['제주해양경찰서', 1, 'chatgpt', 2]], '한 바퀴마다 모든 묶음 한 걸음(§11.10.5-3) — 떨어진 파출소0 만 2번째');
+        const k0 = three[0].key, st0 = ev.filter((e) => e.type === 'station' && e.key === k0).map((e) => [e.state, e.attempt]);
+        assert.deepStrictEqual(st0, [['retry', 1], ['done', 2]]);
+        // 진행 상태: 1(위치) + 1(입력) + 3(관할) = 5칸, 끝나면 5/5 · 묶음 둘 다 done
+        const pr = SB.newProgress({ at: R.isoKst(T0), kind: 'manual', unit: 'office', stations: 3, windows: ['2026-10-17'] });
+        assert.deepStrictEqual([pr.done, pr.total, pr.phase], [0, 5, 'locate']);
+        SB.stepProgress(pr, 'locate-done'); SB.stepProgress(pr, 'gather', { window: 0 }); assert.equal(pr.done, 1); assert.ok(pr.current.startsWith('입력 자료 모으는 중 — 관할 3곳'));
+        SB.stepProgress(pr, 'ai', { window: 0, method: 'chatgpt' }); assert.equal(pr.done, 2);
+        const seen = [];
+        for (const e of ev) { SB.onAiProgress(pr, e); seen.push([pr.done, pr.current]); }
+        assert.ok(seen.some(([, c]) => c === '제주해양경찰서 · 한림파출소·한림파출소 — ChatGPT 1번째 시도'), JSON.stringify(seen));
+        assert.ok(seen.some(([, c]) => c.endsWith('— ChatGPT 2번째 시도')));
+        assert.deepStrictEqual([pr.done, pr.batches.map((b) => [b.state, b.done])], [5, [['done', 2], ['done', 1]]]);
+        SB.stepProgress(pr, 'save', { window: 0 }); assert.deepStrictEqual([pr.done, pr.total, pr.current], [5, 5, '저장 중']);
+        // 알림 함수가 던져도 생성은 그대로
+        const r2 = await AI.generate({ briefings: three, config: cfg, adapters: mk(), now: T0, onProgress: () => { throw new Error('게이지 고장'); } });
+        assert.deepStrictEqual(r2.stats, r.stats);
+        // 방식 「규칙 분석만」 — plan 에서 이미 모두 rule, 호출 없음
+        const ev3 = []; await AI.generate({ briefings: three, config: { ...cfg, method: 'template' }, adapters: mk(), now: T0, onProgress: (e) => ev3.push(e) });
+        assert.deepStrictEqual(ev3.filter((e) => e.type === 'plan')[0].batches.flatMap((b) => b.stations.map((x) => x.state)), ['rule', 'rule', 'rule']); assert.equal(ev3.filter((e) => e.type === 'call').length, 0);
+    });
+    await check('[§11.10.7-2] 서비스 — 실행 중에만 progress(단계·가운데 글·묶음) · 끝나면 null · 실행 기록 runs(오류 0 인 실행도, 오류 at = 실행 시작 시각) · 3일 지난 실행은 지움', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'prog-')); let snap = null, s2 = null;
+        const vm = { available: () => true, call: async ({ prompt }) => { if (!snap) snap = JSON.parse(JSON.stringify(s2.progressNow())); return JSON.stringify({ stations: idsIn(prompt).map((s) => ({ id: s.id, ...bad1 })) }); } };
+        s2 = mkSvc(d, () => kt('18:31'), { adapters: { vm, gemini: { available: () => false } } });
+        assert.deepStrictEqual(s2.progressNow(), { running: false, progress: null }); assert.equal(s2.status().progress, null);
+        const r = await s2.run({ kind: 'manual' });
+        assert.ok(r.ok);
+        assert.equal(snap.running, true); assert.equal(snap.progress.phase, 'ai'); assert.equal(snap.progress.kind, 'manual');
+        assert.deepStrictEqual([snap.progress.total, snap.progress.batches.map((b) => b.name)], [1 + 1 + fakeStations.length, ['제주해양경찰서']]);
+        assert.ok(snap.progress.current.startsWith('제주해양경찰서 · 한림파출소·애월파출소') && snap.progress.current.endsWith('ChatGPT 1번째 시도'), snap.progress.current);
+        assert.ok(snap.progress.batches[0].stations.every((x) => x.state === 'running'));
+        assert.deepStrictEqual(s2.progressNow(), { running: false, progress: null }, '끝나면 진행 없음');
+        const st = s2.status();
+        assert.equal(st.runs.length, 1); assert.deepStrictEqual([st.runs[0].at, st.runs[0].kind], ['2026-10-17T18:31:00+09:00', 'manual']);
+        assert.ok(st.errors.length > 0 && st.errors.every((e) => e.at === st.runs[0].at && e.edition === 'manual'), '오류 at = 실행 시작 시각(드롭다운 묶기 열쇠)');
+        // 오류 없는 실행도 남는다(방식 「규칙 분석만」)
+        const s3 = mkSvc(d, () => kt('19:00')); s3.writeConfig({ method: 'template' }); await s3.run({ kind: 'manual' });
+        assert.deepStrictEqual(s3.status().runs.map((x) => x.at), ['2026-10-17T19:00:00+09:00', '2026-10-17T18:31:00+09:00'], '최근 것부터');
+        assert.equal(s3.status().runs[0].results[0].errors, 0);
+        assert.deepStrictEqual(SB.keepRuns([{ at: '2026-10-14T23:59:00+09:00' }, { at: '2026-10-15T00:00:00+09:00' }], kt('08:00')).map((x) => x.at), ['2026-10-15T00:00:00+09:00'], '오류와 같은 3일');
+    });
+    await check('[§11.10.7-3] 관리자 오류 풀이 — 서버가 남기는 열쇠 전부를 한글로(모르는 열쇠만 원래 글) · 실행마다 묶기(오류 0 실행 포함·옛 오류·실행 실패) · 관할별·시도 순 · 고른 실행 마크다운', () => {
+        const sandbox = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/admin/admin_station_briefing.js'), 'utf8'), sandbox);
+        const A = sandbox.window.renderStationBriefingAdmin, J = (x) => JSON.parse(JSON.stringify(x));   // vm 안 배열은 원형이 달라 deepStrictEqual 전에 옮긴다
+        assert.deepStrictEqual([A.SHAPE.minS, A.SHAPE.maxS, A.SHAPE.maxChars], [AI.MIN_S, AI.MAX_S, AI.MAX_CHARS], '풀이 글의 3~5문장·420자 = 서버 값');
+        // validateOverview 가 실제로 내는 열쇠 — 엉터리 문단으로 뽑는다(+ 서버 밖에서 생기는 missing:station·parse·옛 required)
+        const si = AI.stationInput(stationsFor(1)[0], null);
+        const real = AI.validateOverview({ land: '가짜해수욕장에는 경계가 필요합니다. 순찰을 강화합니다. 사고 9건과 세 척, 두 배. <b>x</b> 경보가 났습니다. \'매우높음\' 안전합니다.', sea: null }, { ...si, land: true }).errors
+            .concat(AI.validateOverview({ land: 'a', sea: 'b' }, { ...si, land: null }).errors, AI.validateOverview({ land: null, sea: '오늘은 바다가 평온합니다. 출항하지 마십시오. 위험이 낮습니다. ' + 'x'.repeat(430) + '. 따라서 관심이 필요합니다.' }, { ...si, land: true }).errors);
+        const codes = [...new Set(real.concat(['missing:station', 'parse', 'required:missing:swell', 'required:land', 'required:sea', 'level-para:경계>2', 'level-last:관심≠2', 'level-last:없음≠2', 'level-max:관심≠3', 'shape:land-too-long-500', 'shape:sea-no-conclusion', 'shape:land-missing', 'shape:sea-missing', 'shape:land-not-allowed', 'label:\'주의\'', 'forbidden:출항 지시', 'forbidden:결론과 다른 단정', 'forbidden:안전 단정', 'fact:태풍', 'multiplier:1.8배', 'number:hangul:세 곳', 'number:0.5m', 'place:장승포', 'level:주의>1', 'markup']))];
+        for (const p of ['shape:', 'place:', 'number:', 'level', 'forbidden:', 'fact:', 'label:', 'multiplier:', 'markup', 'missing:', 'parse', 'required:']) assert.ok(codes.some((c) => c.startsWith(p)), '열쇠 종류 ' + p + ' 가 시험에 있다 — ' + codes.join(','));
+        for (const c of codes) { const t = A.codeText(c); assert.ok(t !== c && /[가-힣]/.test(t) && !/^(shape|place|number|level|forbidden|fact|label|multiplier|missing|required):/.test(t), c + ' → ' + t); }
+        assert.equal(A.codeText('xyz:모름'), 'xyz:모름', '모르는 열쇠는 원래 글');
+        assert.deepStrictEqual(J(A.reasonTexts({ stage: 'validate', reason: 'place:장승포,number:0.5m,number:4~8m/s,level:주의>1' })), ['입력 자료에 없는 지명 「장승포」', '허용되지 않은 숫자 「0.5m」·「4~8m/s」 — 입력 자료에 없거나 (기상) 칸 숫자(AI 분석엔 쓰지 않음)', '단계를 높여 씀 — 「주의」라고 썼지만 그 대상의 단계는 「관심」까지']);
+        assert.deepStrictEqual(J([A.reasonTexts({ stage: 'call', reason: 'vm 시간초과(320초)' }), A.reasonTexts({ stage: 'parse', reason: 'invalid response' }), A.reasonTexts({ stage: 'call', reason: 'fetch failed' }), A.reasonTexts({ stage: 'deadline', reason: '실행 데드라인 넘음 — 2곳은 규칙 분석(AI 분석 없음)' })]),
+            [['AI 응답 시간 초과(320초)'], ['AI 응답을 읽지 못함(정해진 꼴이 아님)'], ['AI 호출 실패 — fetch failed'], ['실행 데드라인 넘음 — 2곳은 규칙 분석(AI 분석 없음)']]);
+        // 실행마다 — 실행 기록(오류 0 실행 포함) + 옛 오류(기록 없음) + 1분 점검 실행 실패
+        const RA = '2026-10-17T18:31:00+09:00', RB = '2026-10-17T19:00:00+09:00', OLD = '2026-10-16T17:10:00+09:00', FAIL = '2026-10-17T07:10:00+09:00';
+        const errs = [{ at: RA, stage: 'validate', provider: 'gemini', stations: ['통영해양경찰서|고현파출소'], attempt: 4, reason: 'place:장승포', edition: 'manual' },
+            { at: RA, stage: 'validate', provider: 'chatgpt', stations: ['통영해양경찰서|고현파출소'], attempt: 1, reason: 'number:hangul:세 곳', edition: 'manual' },
+            { at: RA, stage: 'call', provider: 'vm', stations: ['통영해양경찰서|고현파출소', '통영해양경찰서|옥포파출소'], attempt: 2, reason: 'vm 시간초과(320초)', edition: 'manual' },
+            { at: RA, stage: 'validate', provider: 'chatgpt', stations: ['부산해양경찰서|남항파출소'], attempt: 1, reason: 'level:주의>1', edition: 'manual' },
+            { at: OLD, stage: 'validate', provider: 'chatgpt', stations: ['제주해양경찰서|한림파출소'], reason: 'place:x', edition: 'evening' },
+            { at: FAIL, stage: 'run', provider: null, stations: [], reason: '2026-10-17|morning 실행 실패(1번째): ENOSPC' }];
+        const g = A.runGroups(errs, [{ at: RB, kind: 'manual', results: [] }, { at: RA, kind: 'manual', ms: 797000, results: [] }], { at: RB, kind: 'manual' });
+        assert.deepStrictEqual(J(g.map((x) => [x.at, x.kind, x.errors.length])), [[RB, 'manual', 0], [RA, 'manual', 4], [FAIL, 'failure', 1], [OLD, 'evening', 1]], '최근 실행부터 · 오류 0 실행도');
+        const parts = A.errorsByStation(g[1].errors);
+        assert.deepStrictEqual(J(parts.stations.map((s) => [s.name, s.office, s.errors.map((e) => e.attempt)])), [['남항파출소', '부산해양경찰서', [1]], ['고현파출소', '통영해양경찰서', [1, 4]]]);
+        assert.equal(parts.shared.length, 1);
+        const md = A.errorsMarkdown(g[1].errors, Date.parse('2026-10-17T19:05:00+09:00'), { days: 3 }, g[1]);
+        assert.ok(md.startsWith('# 연안 안전 브리핑 — AI 브리핑 오류(10-17 18:31 시작 · 관리자 즉시 실행)\n'), md);
+        assert.ok(md.includes('- 실행: 2026-10-17 18:31 시작 · 관리자 즉시 실행 · 방식 — · 797초') && md.includes('- 건수: 4건') && md.includes('| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 | 풀이 |'), md);
+        assert.ok(md.includes('| place:장승포 | 4번째 시도(Gemini) — 입력 자료에 없는 지명 「장승포」 |'), md);
+    });
+    await check('[§11.10.7-4] 앱 안 md 저장 중계 — POST download(관리자) → 열쇠 · GET 열쇠 한 번(text/markdown·attachment) · 두 번째·모르는 열쇠 404 · 이상한 파일 이름은 기본 이름 · status?only=progress 는 진행만', async () => {
+        const express = require('express'), { createRouter } = require('../routes/station_briefing');
+        const fake = { readConfig: () => ({ exposure: 'admin' }), status: () => ({ running: false, errors: [1, 2, 3] }), progressNow: () => ({ running: true, progress: { done: 3, total: 9 } }), stations: () => [] };
+        const app = express(); app.use(createRouter({ service: fake, isAdminDevice: () => false, verifyToken: () => false, authorize: (req, res, next) => req.get('X-Admin-Token') === 'tok-ok' ? next() : res.status(401).json({ ok: false }) }));
+        const server = http.createServer(app); await new Promise((r) => server.listen(0, '127.0.0.1', r)); const base = 'http://127.0.0.1:' + server.address().port;
+        try {
+            const post = (body, tok = 'tok-ok') => fetch(base + '/api/admin/station-briefing/download', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': tok }, body: JSON.stringify(body) });
+            assert.equal((await post({ name: 'a.md', text: 'x' }, 'bad')).status, 401, '관리자만 맡긴다');
+            assert.equal((await post({ name: 'a.md' })).status, 400);
+            const j = await (await post({ name: 'station_briefing_errors_20261017_1831.md', text: '# 오류\n| a |\n' })).json();
+            assert.ok(/^[0-9a-f]{32}$/.test(j.token) && j.path === '/api/station-briefing/download/' + j.token, JSON.stringify(j));
+            const g1 = await fetch(base + j.path);
+            assert.equal(g1.status, 200); assert.ok(g1.headers.get('content-type').startsWith('text/markdown')); assert.ok(g1.headers.get('content-disposition').startsWith('attachment; filename="station_briefing_errors_20261017_1831.md"'));
+            assert.equal(await g1.text(), '# 오류\n| a |\n');
+            assert.equal((await fetch(base + j.path)).status, 404, '한 번만');
+            assert.equal((await fetch(base + '/api/station-briefing/download/nope')).status, 404);
+            const j2 = await (await post({ name: '../evil".md', text: 'y' })).json(); const g2 = await fetch(base + j2.path);
+            assert.ok(g2.headers.get('content-disposition').startsWith('attachment; filename="station_briefing_errors.md"'));
+            const pg = await (await fetch(base + '/api/admin/station-briefing/status?only=progress', { headers: { 'X-Admin-Token': 'tok-ok' } })).json();
+            assert.deepStrictEqual(pg, { ok: true, running: true, progress: { done: 3, total: 9 } }, '진행만(오류 목록 없음)');
+        } finally { server.close(); }
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
