@@ -146,7 +146,10 @@ function createCollector({dir=io.DEFAULT_DIR,fetchImpl,key,clock=Date.now,geomet
      * @returns {boolean} 시작여부 [연계] ← server.js / 자동수집기생명주기
      */
     function start(){if(!process.env.FLY_ALLOC_ID||timer)return false;const current=io.read(file),attempt=io.read(path.join(dir,'accident_status.json')),now=clock(),hour=new Date(now+9*T.HOUR).getUTCHours(),base=Date.parse(io.day(now)+'T00:00:00+09:00'),window=base+(hour>=15?15:hour>=3?3:-9)*T.HOUR;
-        if(!complete(current,slots(now))||current.date!==io.day(now)||attempt?.status!=='ok'||!attempt?.checkedAt||Date.parse(attempt.checkedAt)<window)collect().catch(e=>io.reportError('accident startup',e));timer=setInterval(()=>tick().catch(e=>io.reportError('accident tick',e)),60000);timer.unref();return true;}
+        // 03시 전에는 가장 새 판이 전날 15시 판(날짜=어제, 칸=어제 00시~오늘 21시)이라 어제 날짜·어제 정시로 본다 — 오늘과만 비교하면
+        //   00:00~03:10 재시작·배포마다 멀쩡한 판을 두고 외부 API 를 다시 불렀다(사용자 2026-10-18 *"#28은 고쳐"*, risk_store.sources() 와 같은 규칙). 03시 이후는 종전대로 오늘 판만.
+        const boardAt=hour>=3?now:base-T.HOUR;
+        if(!complete(current,slots(boardAt))||current.date!==io.day(boardAt)||attempt?.status!=='ok'||!attempt?.checkedAt||Date.parse(attempt.checkedAt)<window)collect().catch(e=>io.reportError('accident startup',e));timer=setInterval(()=>tick().catch(e=>io.reportError('accident tick',e)),60000);timer.unref();return true;}
     return{collect,tick,start,stop(){if(timer)clearInterval(timer);timer=null;}};
 }
 module.exports={...createCollector(),createCollector,normalize,slots,items,accidentKey,LEVELS,frameLevelStats,recordLevelStats,readLevelStats,STATS_FILE};
