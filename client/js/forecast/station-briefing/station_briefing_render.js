@@ -12,6 +12,7 @@
  *                   (HazardRockTidePanel — hazard_rocks.js 의 같은 함수) · (고립 주의) 「과거 고립 사고(N개소 M건)」 링크(화살표 없음) → 「지점명 | 발생 현황」 표.
  *         §11.10.13: 해상 시간 막대 아래 설명 줄·칸 누르기 없음(칸 = role=img) · 해역 카드 [사고현황('21~'25년)] → [기상 예보] → [그 밖의 근거] → 한 줄 → 맨 끝 [권고](서버 규칙 v14 카드 — 옛 판은 [특성]·[오늘 예상]).
  *         §11.10.14: 「해상 분석」·「연안 분석」 칸 머리 오른쪽 단계별 개수 배지(「주의 필요 5개 해역」·「관심 필요 2곳」) · 펼친 칸 안 단계 단추(하나만 고름 — 처음 = 가장 높은 단계)로 그 단계 카드만.
+ *         §11.10.15: 해역 카드 출처별 배지(「18~24시 해양사고 위험예보 '주의'(KOMSA)」 — 글자 색 = 그 예보 등급 색) + 상세 줄 → [사고현황] → 「… 많이 기록되었습니다」 → [기상 예보] → [권고](서버 규칙 v16 badges — 옛 판은 종전 꼬리표·줄 순서).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/bottom-sheet/ocean_bottom_sheet3.js(OceanSheet.tideGaugeHtml — 조석 게이지 디자인 그대로)
@@ -191,14 +192,16 @@
      *   → [그 밖의 근거](today.otherLines — 꼬리표와 같은 줄은 서버가 이미 뺌) → 「… 사고가 많이 기록되었습니다」(historyNote) → 맨 끝 [권고](advice).
      *   사용자 원문 *"[사고현황('21~'25년)] 충돌 5건, 전복 2건, 좌초 1건 | 인명피해 사망 0명, 실종 0명"* · *"오늘 예상보다는 [기상 예보] 라고 표현"* · *"[권고] … 이렇게 마지막에 표현"*.
      * 그 전 판(advice 없음)은 종전 [특성]·[오늘 예상]·문장 그대로.
+     * 규칙 v16 카드(badges 있음 — §11.10.15)는 seaCardBadged(출처별 배지 → [사고현황] → 한 줄 → [기상 예보] → [권고]), v14·v15 카드는 아래 종전 꼬리표·줄 순서 그대로.
      * 예: seaCard({name:'보령 서방 4.1해리 해역(174-3해구)',rank:2,word:'주의 필요',sourceLabel:"해양사고 위험예보 '주의'",window:'18~24시',traits:{label:"사고현황('21~'25년)",text:'충돌 5건, … | 인명피해 사망 0명, 실종 0명'},
      *            today:{forecast:'최대 파고 0.1m·풍속 7.5m/s로 잔잔한 바다일 것으로 예상됩니다(대해구 174 예보).',weatherLines:[],otherLines:[]},historyNote:'…',advice:'18~24시 이 해역은 …'}, opts)
      * @param {Object} c - briefing.sea.cards[] @param {Object} opts @returns {HTMLElement}
-     * [연계] ← render / → linkBtn(GR4 칸 id·좌표·시각) / 서버: station_briefing_rules.seaSection toCard
+     * [연계] ← render / → seaCardBadged·seaCardLink / 서버: station_briefing_rules.seaSection toCard
      */
     function seaCard(c, opts) {
         var card = el('div', 'sb-card'); card.setAttribute('data-sb-card', 'sea');
         var head = el('div', 'sb-card-head'); head.appendChild(el('strong', 'sb-card-name', c.name || '이름 없는 해역')); head.appendChild(chip(c.rank, c.word)); card.appendChild(head);
+        if (Array.isArray(c.badges) && c.badges.length && typeof c.advice === 'string') { seaCardBadged(card, c); return seaCardLink(card, c, opts); }   // §11.10.15 규칙 v16 카드
         var tags = el('div', 'sb-tags');
         if (c.sourceLabel) tags.appendChild(el('span', 'sb-tag', c.sourceLabel));
         if (c.window) tags.appendChild(el('span', 'sb-tag sb-tag-time', c.window));
@@ -217,10 +220,52 @@
             if (lines.length) card.appendChild(row('[오늘 예상]', list(lines)));
             if (c.sentence) card.appendChild(el('p', 'sb-sentence', c.sentence));
         }
+        return seaCardLink(card, c, opts);
+    }
+    /**
+     * 해역 카드 맨 끝 [위험예측에서 보기 ›] 단추를 붙인다(옛 판·배지 판 공용 — §11.10.15 에서 seaCard 끝부분을 떼어 냄, 동작은 그대로).
+     * 예: seaCardLink(card, {link:{gridId:'GR4_1',lon:126.2,lat:33.4,t:'…'}}, opts) → 단추가 붙은 card
+     * @param {HTMLElement} card @param {Object} c - 해역 카드 @param {Object} opts @returns {HTMLElement} card [연계] ← seaCard / → linkBtn(GR4 칸 id·좌표·시각)
+     */
+    function seaCardLink(card, c, opts) {
         var lk = c.link || {}, lon = Number(lk.lon), lat = Number(lk.lat);
         var b = linkBtn(Number.isFinite(lon) && Number.isFinite(lat) ? { kind: 'marine', id: lk.gridId || 'point', location: { lon: lon, lat: lat }, t: lk.t || null } : null, opts);
         if (b) card.appendChild(b);
         return card;
+    }
+    /**
+     * 출처별 배지 묶음 — 배지마다 「18~24시 해양사고 위험예보 '주의'(KOMSA)」(글자 색 = 그 예보 자체 등급의 색) + 바로 아래 상세 줄(서버 detail, 없으면 없음).
+     * 2026-10-17 사용자 결정(설계서 §11.10.15) 원문 *"이미지 2는 ##~##시 해양사고 위험예보 '주의'(KOMSA) 라고 표출하고, 색상은 주의 수준의 색상으로 반영(텍스트)"*
+     *   · *"혼잡예보도 매우 높음에 해당되는 색상이 노란색이니 ? 뭔가 빨간색으로 반영되어야 할 것 같은데"* — 색 단계(rank)는 서버가 정한다(혼잡 높음 → 주의 색 · 매우높음 → 경계 색 — 위험예측 지도와 같은 대응).
+     * 글자 색: 관심·주의 = colorOf(rank) 를 글자에, 경계 = .sb-srcb[data-rank="3"](station_briefing.css — 어두운 바탕 위 대비 4.5 이상 밝은 빨강, §11.10.11 분석 문단과 같은 색). 서버 글은 textContent 로만.
+     * 예: seaBadges([{source:'accident',text:"18~24시 해양사고 위험예보 '주의'(KOMSA)",rank:2,detail:[]}]) → <div class="sb-srcbs"><span class="sb-srcb" data-rank="2" style="color:#fb923c">18~24시 …</span></div>
+     * @param {Object[]} badges - 해역 카드 badges(서버 station_briefing_rules.seaBadges) @returns {HTMLElement} [연계] ← seaCardBadged / → colorOf
+     */
+    function seaBadges(badges) {
+        var box = el('div', 'sb-srcbs'); box.setAttribute('data-sb-badges', String(badges.length));
+        badges.forEach(function (g) {
+            var r = Number(g.rank), s = el('span', 'sb-srcb', g.text || '');
+            s.setAttribute('data-rank', String(r)); s.setAttribute('data-sb-src', String(g.source || ''));
+            if (r !== 3) s.style.color = colorOf(r);
+            box.appendChild(s);
+            (Array.isArray(g.detail) ? g.detail : []).forEach(function (d) { box.appendChild(el('p', 'sb-srcb-det', d)); });
+        });
+        return box;
+    }
+    /**
+     * 규칙 v16 해역 카드 본문(2026-10-17 사용자 결정 — 설계서 §11.10.15): 출처별 배지(+상세 줄) → [사고현황('21~'25년)] → 「… 많이 기록되었습니다」(사용자 *"이 문구는 사고현황 아래쪽으로 가야함"*)
+     *   → [기상 예보](바다 상태 흐름 문장 today.forecast) → [권고]. 종전 꼬리표 두 개(sourceLabel·노란 시간 칩)는 배지가 대신한다.
+     *   특보 줄(today.weatherLines)·[그 밖의 근거](today.otherLines — 해양사고 위험예보·혼잡 줄)는 그리지 않는다 — 같은 출처가 모두 배지·상세 줄에 있다(서버는 AI 입력용으로 그대로 둔다).
+     * 예: seaCardBadged(card, {badges:[…], traits:{label:"사고현황('21~'25년)",text:'충돌 2건, …'}, historyNote:'…', today:{forecast:'…'}, advice:'18~24시 …'})
+     * @param {HTMLElement} card @param {Object} c - briefing.sea.cards[] (badges 있음) @returns {void} [연계] ← seaCard / → seaBadges·row
+     */
+    function seaCardBadged(card, c) {
+        var t = c.traits || {}, td = c.today || {};
+        card.appendChild(seaBadges(c.badges));
+        if (t.text) card.appendChild(row('[' + (t.label || '사고현황') + ']', t.text));
+        if (c.historyNote) card.appendChild(el('p', 'sb-sentence', c.historyNote));
+        if (td.forecast) card.appendChild(row('[기상 예보]', td.forecast));
+        card.appendChild(row('[권고]', c.advice));
     }
     /**
      * 육상(관광지) 카드 하나 — 이름·단계·출처, [특성]·[오늘 예상](오늘 바뀐 요소), 틀 문장, 일부 자료 확인 불가, 바로가기.
