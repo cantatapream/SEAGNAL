@@ -13,6 +13,7 @@
  * - GET/POST /api/config → API 인증키 설정
  * - GET /api/forecasts → 일반 기상 전망
  * - GET /api/marine-zone-forecasts → 해구별 기상 전망
+ * - GET /api/marine-small-zone-forecasts/:lzone → 대해구 하나의 소해구 9칸 예보(services/smallzone_forecast.js)
  * - GET /api/bulletin-cache/:reportId → 통보문 캐시 조회 (특보 히스토리 팝업용)
  *
  * [연계 파일]
@@ -877,6 +878,36 @@ router.get('/api/marine-zone-forecasts/:zoneId', (req, res) => {
         updatedAt: dataCache.zoneForecasts.updatedAt,
         data: { [zoneId]: zoneSeries }
     });
+});
+
+// ============================================================================
+// 4-β. 소해구 예보 — 대해구 하나의 소해구 9칸 (해구 기상전망 창에서 「233-5」 같은 소해구를 눌렀을 때)
+// ----------------------------------------------------------------------------
+//   GET /api/marine-small-zone-forecasts/:lzone
+//     → { baseTmUtf, lzone, data:{ '1':[{tm,wh,wp,waveDir,ws,windDir}…], … '9':[…] }, missingTimes:[] }
+//   판은 지금 대해구 예보 판(dataCache.zoneForecasts.baseTmUtf)과 같게 맞춘다 — 창이 먼저 그린 대해구 값과 같은 판.
+//   브리핑용으로 미리 받은 대해구는 그 판에서, 아니면 그때 기상청 API허브에서 받아 판이 바뀔 때까지 둔다
+//   (services/smallzone_forecast.js — 인증키는 서버 안에서만 쓰고 응답·로그에 넣지 않는다).
+//   없으면 404, 기상청 요청이 모두 실패하면 502 — 둘 다 한국어 message. 값 -999(결측)는 null.
+//   설계서 coastal_safety_forecast.design.md §11.10.17
+// ============================================================================
+const smallZoneForecast = require('../services/smallzone_forecast');
+router.get('/api/marine-small-zone-forecasts/:lzone', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const lzone = String(req.params.lzone || '');
+    if (!/^\d{1,4}$/.test(lzone)) return res.status(404).json({ error: 'not_found', message: '대해구 번호가 아닙니다.' });
+    const baseTm = dataCache.zoneForecasts && dataCache.zoneForecasts.baseTmUtf;
+    if (!baseTm) return res.status(404).json({ error: 'not_ready', message: '대해구 예보가 아직 준비되지 않았습니다.' });
+    try {
+        const r = await smallZoneForecast.get(lzone, String(baseTm));
+        if (!r) return res.status(404).json({ error: 'not_found', message: `대해구 ${lzone} 의 소해구 예보가 없습니다.` });
+        // 시각이 빠짐없이 온 것만 브라우저가 30분 둔다(빠진 것은 다음에 다시 받게).
+        if (!r.missingTimes.length) res.setHeader('Cache-Control', 'public, max-age=1800');
+        res.json({ baseTmUtf: r.baseTm, lzone, data: r.data, missingTimes: r.missingTimes });
+    } catch (e) {
+        console.warn(`[smallzone] 소해구 예보 ${lzone} 502:`, smallZoneForecast.mask(e.message));
+        res.status(502).json({ error: 'upstream', message: '기상청 소해구 예보를 받지 못했습니다.' });
+    }
 });
 
 // 4-1. 중기해상예보

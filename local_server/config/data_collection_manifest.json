@@ -60,6 +60,39 @@
       "graceMinutes": 60
     },
     {
+      "id": "smallZoneForecasts",
+      "stage": 1,
+      "name": "소해구 예보 — 브리핑용 대해구 미리 받기 (기상청 API허브)",
+      "provider": "kma-apihub",
+      "endpoint": "apihub.kma.go.kr /api/typ06/url/marine_small_zone.php",
+      "official": {
+        "kind": "measured",
+        "text": "해구별 기상예보와 같은 판(00·12 UTC). 실측 2026-10-17 00:08 KST: 12UTC 판은 대해구(marine_large_zone)·소해구 둘 다 아직 없음(소해구는 「해구번호를 확인하여 주시기 바랍니다.」)",
+        "evidence": [
+          { "note": "실측 2026-10-17 00:08 KST(§11.10.17 작업) — 2026101712 판 요청에 대해구는 「파일이 존재하지 않습니다」, 소해구는 「해구번호를 확인하여 주시기 바랍니다.」. 같은 시각 2026101700 판은 둘 다 받음" }
+        ]
+      },
+      "schedule": {
+        "text": "해구별 기상예보가 판을 저장한 직후(30분마다 그 수집이 돌 때) 같은 판으로 — 이미 빠짐없이 받은 판이면 요청하지 않음. 창에서 누른 대해구는 그때 받음",
+        "minutes": [0, 30],
+        "evidence": [
+          { "file": "local_server/scheduler.js", "quote": "smallZoneForecast.prefetch(smallZoneForecast.briefingLzones(), validBaseTm)" },
+          { "file": "local_server/services/smallzone_forecast.js", "quote": "if (brief && brief.baseTm === baseTm && !brief.failed && list.every((z) => brief.lzones.includes(z))) {" }
+        ]
+      },
+      "state": {
+        "file": "smallzone_forecast.json.gz",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "baseTm",
+        "basisFormat": "utcYmdh",
+        "basisCycleHours": 12,
+        "statusFile": "smallzone_forecast_status.json",
+        "scheduler": "smallZone"
+      },
+      "graceMinutes": 60
+    },
+    {
       "id": "warnings",
       "stage": 1,
       "name": "해상 특보 (기상청 MMIS)",

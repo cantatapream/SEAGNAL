@@ -9,7 +9,7 @@
 |------|------|-----------|
 | `alert_history.js` | 특보 히스토리 팝업 모달 (해역별 통보문 이력 조회) | `createZoneBulletinItem`, `formatBulletinTime`, `createHistoryItem`, `loadBulletinContent`, `renderBulletinContent`, `renderFallbackContent` |
 | `data.js` | 데이터 수집(fetchAllData), 부이 데이터, API 상태 관리 | `fetchAllData`, `loadBackgroundData`, `refreshAlertData`, `flattenAlertsData`, `recursiveFind`, `_isExactSingleTime` |
-| `marine.js` | 해구별 기상정보 모달, 해양 차트 렌더링 | `parseMarineZoneData`, `_tmKst`, `formatMarineTime`, `trimPastMarineRows`, `_mmisFctTmToUtcKey`, `_kstTmToMs` |
+| `marine.js` | 해구별 기상정보 모달, 해양 차트 렌더링 · 소해구(「233-5」)는 소해구 예보 값으로 바꿔 그림 | `parseMarineZoneData`, `_tmKst`, `formatMarineTime`, `trimPastMarineRows`, `_mmisFctTmToUtcKey`, `_kstTmToMs`, `applySmallZoneForecast` |
 | `render.js` | 메인 UI 렌더링 (renderApp, createAlertElement) · 「해역별 특보현황」 관심해역 ⚙ | `renderApp`, `createAlertElement`, `syncAlertZoneGear`, `openAlertZoneSetup` |
 | `render_coastal.js` | 연안 구역 렌더링, 부이 데이터 표시, 로딩/시간 업데이트 | `displayBuoyInfo`, `createDataBox`, `formatBuoyTime`, `createCoastalElement`, `updateLoading`, `toggleSection` |
 | `zone_avg.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `onReady`, `_flushReady`, `_normalizeName`, `_buildNameIndex`, `init`, `_parseTm` |
@@ -25,6 +25,21 @@
 - 마치면(구역을 하나라도 골라 저장됐을 때): zone_setup 이 설정 [저장]과 같은 뒷정리(푸시 대상·특보·기상현황·예보 다시 그리기)를 하고, 아래쪽 안내 띠 4초 「관심해역은 언제든 메인 화면 설정 ⚙ → 관심해역 탭에서 바꿀 수 있습니다.」(설정 창 제목 「설정」·탭 「관심해역」 그대로) → ⚙ 가 0.4초 흐려지며 사라짐(움직임 줄이기 설정이면 바로).
 - 「지금처럼」 확인: 종전 온보딩 저장 뒤에는 안내 띠가 **없었다**(zone_setup `_save` 는 다시 그리기만). 이번 안내 띠는 새로 넣은 것이고, 모양은 `settings/zone_guide.js` 의 「언제든 설정에서 해역을 변경할 수 있어요」 띠와 같다.
 - 시험: `local_server/scripts/test_forecast_gear_ui.js`.
+
+## 해구 기상전망 창 — 소해구 예보 (2026-10-17, 설계서 `ocean-map/coastal-risk/coastal_safety_forecast.design.md` §11.10.17)
+
+> 사용자 원문: *"사용자가 확대해서 소해구를 클릭했을 때는 … 이 API를 통해서 해당 소해구의 정보를 요청해서 받아오면 될것 같거든"*
+
+- 대해구(「233」)를 누르면 종전 그대로 — `/api/marine-zone-forecasts/233` 한 번.
+- 소해구(「233-5」)를 누르면 ① 종전처럼 대해구 233 값으로 바로 그리고 표 위에 안내 한 줄 「대해구 233 예보로 표시 중」
+  ② `applySmallZoneForecast` 가 `/api/marine-small-zone-forecasts/233` 의 `data['5']` 를 받아 **풍속·유의파고·파주기·파향·풍향** 칸과 그래프를
+  시각(`tm`)마다 소해구 값으로 바꿔 다시 그리고 안내 줄을 지운다(옆으로 밀어 둔 자리는 유지). **시정은 지금 처리 그대로**(시정 API).
+- 받지 못하면(404·502·끊김) 값은 대해구 그대로, 안내 줄 「소해구 예보를 받지 못해 대해구 233 예보로 표시합니다」.
+  그 소해구 값이 모두 비었으면(육지 소해구 — 기상청이 -999 를 준다, 예: 233-1·233-2) 「소해구 233-1 예보 값이 없어 대해구 233 예보로 표시합니다」.
+  어느 한 시각만 비면 그 칸은 「-」(대해구 값과 섞지 않는다).
+- 창이 닫히거나 다른 해구로 바뀐 뒤 늦게 온 응답은 버린다(`window._marineZoneRequestId` — 시정 병합과 같은 방식).
+- 서버: `local_server/services/smallzone_forecast.js`(기상청 API허브 `marine_small_zone.php`) · 라우트 `routes/weather.js`.
+- 시험: `local_server/scripts/test_marine_smallzone_ui.js`(이 창) · `test_smallzone_forecast.js`(서버).
 
 ## 설계 문서 (이 폴더의 `.design.md`)
 

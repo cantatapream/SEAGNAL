@@ -8,6 +8,7 @@
  *                   marine-chart/marine_chart1.js(window.MarineChart.init 호출) ·
  *                   외부 Chart.js(해양 기상 차트 렌더)
  *  - 서버 API      : GET /api/marine-zone-forecasts/{zoneId} ·
+ *                   /api/marine-small-zone-forecasts/{대해구} (소해구 「233-5」를 누르면 그 소해구 값으로 바꿔 그림, §11.10.17) ·
  *                   /api/vsby-smallzone/major · /api/vsby-smallzone/cell (시정)
  *  - 마크업        : #sea-zone-modal · #zone-modal-title · #zone-modal-body ·
  *                   #marineChart(canvas) · #zone-windy-modal
@@ -17,6 +18,7 @@
  *
  * [설명]
  * - showMarineZoneModal(): 해구별 기상 상세 모달 표시
+ * - applySmallZoneForecast(): 소해구를 눌렀을 때 대해구 값으로 먼저 그린 표·그래프를 소해구 예보 값으로 바꿈
  * - parseMarineZoneData(): API 데이터 파싱
  * - renderMarineChart(): Chart.js 기반 해양 기상 차트
  * - getZoneCoordinatesByZoneId(): 해구 좌표 조회
@@ -119,6 +121,8 @@ window.getMarineZoneData = async function (zoneId) {
             }));
             formattedData.baseTime = json.baseTmUtf;
             formattedData._visLoading = true;
+            // [소해구 — §11.10.17] 소해구(「233-5」)는 대해구 값으로 먼저 그리고, 소해구 값이 오면 바꿔 그린다 — 그동안은 안내 한 줄.
+            if (isSmallZone) formattedData._sourceNote = `대해구 ${lZone} 예보로 표시 중`;
 
             showMarineZoneModal(zoneId, formattedData, false, null, json.baseTmUtf);
 
@@ -129,11 +133,15 @@ window.getMarineZoneData = async function (zoneId) {
                     const vs = visMap[d.tm];
                     d.vs = (typeof vs === 'number') ? vs : null;
                 });
+                formattedData._visLoading = false;  // 소해구 값으로 다시 그릴 때 시정 줄이 「불러오는 중」으로 돌아가지 않게
                 applyMarineVisibility(formattedData);
             }).catch(() => {
                 if (requestId !== window._marineZoneRequestId) return;
+                formattedData._visLoading = false;
                 applyMarineVisibility(formattedData);  // vs 전부 null → '시정 정보 없음' 처리
             });
+
+            if (isSmallZone) applySmallZoneForecast(zoneId, lZone, String(zoneId).split('-')[1], formattedData, requestId, json.baseTmUtf);
         } else {
             showMarineZoneModal(zoneId, null, false,
                 `해당 해구(${zoneId})의 데이터가 없습니다.<br>스케줄러가 데이터를 수집할 때까지 기다려주세요.`);
@@ -146,6 +154,58 @@ window.getMarineZoneData = async function (zoneId) {
         showMarineZoneModal(zoneId, null, false, `데이터 조회 중 오류: ${error.message}`);
     }
 };
+
+// 소해구 예보로 바꾸는 칸(시정 vs 는 지금처럼 시정 API 값 그대로).
+const SMALL_ZONE_FIELDS = ['ws', 'wh', 'wp', 'waveDir', 'windDir'];
+
+/**
+ * 소해구 예보를 받아 이미 그린 대해구 값(풍속·파고·파주기·파향·풍향)을 소해구 값으로 바꿔 다시 그린다(§11.10.17).
+ * 예: applySmallZoneForecast('233-5','233','5',formattedData,reqId,'2026101700')
+ *     → /api/marine-small-zone-forecasts/233 의 data['5'] 를 시각(tm)마다 맞춰 넣고 표·그래프를 다시 그림, 안내 줄 지움
+ *     → 실패(서버 404·502·끊김)면 값은 그대로, 안내 줄을 「소해구 예보를 받지 못해 대해구 233 예보로 표시합니다」로
+ *     → 그 소해구 값이 모두 비었으면(육지 소해구 — 기상청이 -999 를 준다) 값은 그대로, 「… 예보 값이 없어 …」
+ * @param {string} zoneId - 누른 소해구 「233-5」 @param {string} lZone - 대해구 「233」 @param {string} szone - 「5」
+ * @param {object[]} data - 화면이 그린 행 배열(formattedData — 시정 병합과 같은 배열을 그 자리에서 고친다)
+ * @param {string} requestId - 창을 연 요청 ID(창이 닫히거나 다른 해구로 바뀌면 늦은 응답을 버린다)
+ * @param {string} baseTime - 대해구 예보 발표시각(창 아래 「… 발표」)
+ * [연계] ← getMarineZoneData(소해구일 때) / → 서버 routes/weather.js GET /api/marine-small-zone-forecasts/:lzone · showMarineZoneModal(다시 그림)
+ */
+async function applySmallZoneForecast(zoneId, lZone, szone, data, requestId, baseTime) {
+    let rows = null;
+    try {
+        const r = await fetch(`/api/marine-small-zone-forecasts/${encodeURIComponent(lZone)}`);
+        if (r.ok) {
+            const j = await r.json();
+            rows = (j && j.data && Array.isArray(j.data[szone])) ? j.data[szone] : null;
+        } else {
+            console.warn('[해구] 소해구 예보 응답 ' + r.status + ' — 대해구 값으로 둔다');
+        }
+    } catch (e) {
+        // ★조용히 넘어가지 않는다 (3-44) — 창 안 안내 줄이 「받지 못해 대해구 예보로 표시」로 바뀐다.
+        console.warn('[해구] 소해구 예보 조회 실패 — 대해구 값으로 둔다:', e && e.message);
+    }
+    if (requestId !== window._marineZoneRequestId) return;   // 창이 닫혔거나 다른 해구로 바뀜 — 늦은 응답은 버린다
+    const hasValue = !!rows && rows.some(x => SMALL_ZONE_FIELDS.some(k => x[k] != null));
+    if (!hasValue) {
+        data._sourceNote = rows
+            ? `소해구 ${zoneId} 예보 값이 없어 대해구 ${lZone} 예보로 표시합니다`
+            : `소해구 예보를 받지 못해 대해구 ${lZone} 예보로 표시합니다`;
+        const note = document.getElementById('marine-zone-source-note');
+        if (note) note.textContent = data._sourceNote;
+        return;
+    }
+    const byTm = new Map(rows.map(x => [x.tm, x]));
+    data.forEach(d => {
+        const x = byTm.get(d.tm);
+        SMALL_ZONE_FIELDS.forEach(k => { d[k] = (x && x[k] != null) ? x[k] : null; });  // 그 시각이 비면 「-」 — 대해구 값과 섞지 않는다
+    });
+    delete data._sourceNote;
+    const box = document.getElementById('marine-table-container');
+    const left = box ? box.scrollLeft : 0;
+    showMarineZoneModal(zoneId, data, false, null, baseTime);
+    const box2 = document.getElementById('marine-table-container');
+    if (box2) box2.scrollLeft = left;   // 사용자가 옆으로 밀어 둔 자리 유지
+}
 
 // 데이터 파싱 함수
 function parseMarineZoneData(text) {
@@ -821,7 +881,8 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     tableHTML += '<tr style="background:#1e1e1e; border-bottom:1px solid #333;">';
     tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#4fc3f7; font-size:10px;"> 풍향<br><span style="font-size:9px; font-weight:normal; color:#888;">(deg)</span></th>';
     data.forEach(row => {
-        tableHTML += `<td style="${cellStyle}"><i class="fas fa-arrow-up" style="transform:rotate(${row.windDir}deg); color:#4fc3f7; font-size:14px;"></i></td>`;
+        tableHTML += (row.windDir == null) ? `<td style="${cellStyle} color:#555;">-</td>`
+            : `<td style="${cellStyle}"><i class="fas fa-arrow-up" style="transform:rotate(${row.windDir}deg); color:#4fc3f7; font-size:14px;"></i></td>`;
     });
     tableHTML += '</tr>';
 
@@ -830,7 +891,7 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#ff7043; font-size:10px;"> 풍속<br><span style="font-size:9px; font-weight:normal; color:#888;">(m/s)</span></th>';
     data.forEach(row => {
         const color = getMarineWindColor(row.ws);
-        tableHTML += `<td style="${cellStyle} color:${color}; font-weight:bold; font-size:11px;">${row.ws.toFixed(1)}</td>`;
+        tableHTML += `<td style="${cellStyle} color:${row.ws == null ? '#555' : color}; font-weight:bold; font-size:11px;">${row.ws == null ? '-' : row.ws.toFixed(1)}</td>`;
     });
     tableHTML += '</tr>';
 
@@ -839,7 +900,7 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#26c6da; font-size:10px;"> 유의<br>파고<br><span style="font-size:9px; font-weight:normal; color:#888;">(m)</span></th>';
     data.forEach(row => {
         const color = getMarineWaveColor(row.wh);
-        tableHTML += `<td style="${cellStyle} color:${color}; font-weight:bold; font-size:11px;">${row.wh.toFixed(1)}</td>`;
+        tableHTML += `<td style="${cellStyle} color:${row.wh == null ? '#555' : color}; font-weight:bold; font-size:11px;">${row.wh == null ? '-' : row.wh.toFixed(1)}</td>`;
     });
     tableHTML += '</tr>';
 
@@ -847,7 +908,8 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     tableHTML += '<tr style="background:#1e1e1e; border-bottom:1px solid #333;">';
     tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#81c784; font-size:10px;"> 파향<br><span style="font-size:9px; font-weight:normal; color:#888;">(deg)</span></th>';
     data.forEach(row => {
-        tableHTML += `<td style="${cellStyle}"><i class="fas fa-location-arrow" style="transform:rotate(${row.waveDir}deg); color:#81c784; font-size:14px;"></i></td>`;
+        tableHTML += (row.waveDir == null) ? `<td style="${cellStyle} color:#555;">-</td>`
+            : `<td style="${cellStyle}"><i class="fas fa-location-arrow" style="transform:rotate(${row.waveDir}deg); color:#81c784; font-size:14px;"></i></td>`;
     });
     tableHTML += '</tr>';
 
@@ -855,7 +917,7 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     tableHTML += '<tr style="background:#1a1a1a;">';
     tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#9575cd; font-size:10px;"> 파주기<br><span style="font-size:9px; font-weight:normal; color:#888;">(sec)</span></th>';
     data.forEach(row => {
-        tableHTML += `<td style="${cellStyle} color:#ccc; font-size:12px;">${row.wp.toFixed(1)}</td>`;
+        tableHTML += `<td style="${cellStyle} color:#ccc; font-size:12px;">${row.wp == null ? '-' : row.wp.toFixed(1)}</td>`;
     });
     tableHTML += '</tr>';
 
@@ -875,7 +937,14 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
         tableHTML += `<div style="text-align:right; font-size:11px; color:#8899aa; padding:4px 10px 5px;">${baseTimeFormatted}</div>`;
     }
 
+    // [소해구 — §11.10.17] 대해구 값으로 그리는 중이면 표 위에 안내 한 줄(글은 textContent 로 넣는다).
+    if (data._sourceNote) {
+        tableHTML = '<div id="marine-zone-source-note" style="font-size:11px; color:#ffd54f; padding:0 2px 6px;"></div>' + tableHTML;
+    }
+
     body.innerHTML = tableHTML;
+    const sourceNote = document.getElementById('marine-zone-source-note');
+    if (sourceNote) sourceNote.textContent = data._sourceNote;
 
     // 차트 그리기 (시정 라인은 vs 가 채워지면 합본으로 함께 그려짐)
     setTimeout(() => renderMarineChart(data), 100);
@@ -1159,7 +1228,7 @@ function renderMarineChart(data) {
                         // [가독성] 겹치는 라인/막대 위에서도 숫자가 읽히도록 어두운 외곽선
                         textStrokeColor: 'rgba(0,0,0,0.85)',
                         textStrokeWidth: 3,
-                        formatter: (value) => value.toFixed(1)
+                        formatter: (value) => (value == null ? '' : value.toFixed(1))
                     }
                 },
                 {
@@ -1189,7 +1258,7 @@ function renderMarineChart(data) {
                         // [가독성] 막대/라인 위에서도 숫자가 읽히도록 어두운 외곽선
                         textStrokeColor: 'rgba(0,0,0,0.85)',
                         textStrokeWidth: 3,
-                        formatter: (value) => value.toFixed(1)
+                        formatter: (value) => (value == null ? '' : value.toFixed(1))
                     }
                 },
                 {
