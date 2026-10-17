@@ -5,6 +5,8 @@
  *         실제 AI·카카오·기상청 호출 없음(가짜 어댑터·가짜 fetch), 임시 폴더만 쓴다, 서버를 띄우지 않는다(라우터만 임시 포트).
  *         끝부분 「[A1]…[C9]」 = 독립 검토 3건(규칙·AI·운영, 2026-10-16)의 결함마다 1:1 회귀 — 모두 고치기 전 코드에서 실패함을 확인했다.
  *         「[§11.10.6-2]」 = 같은 날 17:34 운영 오판(셈말·가리킴 말 + 해수욕장) · 지시문 셈말 금지.
+ *         맨 끝 「[§11.10.8-1]…[§11.10.8-11]」 = 자동 실행 결과 관리자 푸시(사용자 「매번 보내기」) — 설계서 §11.10.8 「경우마다 보내나」 표의 행마다 1:1(가짜 발송 adminPush·가짜 시계).
+ *           고치기 전 코드(5f37d50dd)에서 -1~-10 모두 실패함을 확인했다(-11 은 그 뒤 더한 행이라 고치기 전 코드로는 돌려 보지 않았다).
  *         「[§11.10.6-1]」 = 2026-10-17 16:16 운영 실행 검사 오판(조사 도·괄호 속 이름·하지만·연도 년) — 설계서 §11.10.6.
  *         맨 끝 「[§11.10.5-1]…[§11.10.5-8]」 = 62048b15c 독립 검토 8건(설계서 §11.10.5 — 단계 아래쪽·입력에 없는 말·이름 없는 대목·다시 시도 순서·캐시·단계 말 꼴·이유 글 자름·대기 표 ⑪·평소처럼 관심) 1:1 — 고치기 전 코드(bde907bdd)에서 8건 모두 실패.
  *         그 앞 「[§11.10.4-1]…[§11.10.4-9]」 = 같은 날 사용자 결정(§11.10.4). 「[§11.10.3-1]…[§11.10.3-5]」 = 2026-10-17 사용자 결정(설계서 §11.10.3 — (고립 주의) 지점 표·육상 권고·해상 근거 칸·해양사고 위험예보·해구 줄은 넘을 때만·지도 재료) 1:1 — 고치기 전 코드(6ec172ffa)에서 5건 모두 실패.
@@ -1731,6 +1733,167 @@ const WIN = R.editionWindow('morning', T0);
             const pg = await (await fetch(base + '/api/admin/station-briefing/status?only=progress', { headers: { 'X-Admin-Token': 'tok-ok' } })).json();
             assert.deepStrictEqual(pg, { ok: true, running: true, progress: { done: 3, total: 9 } }, '진행만(오류 목록 없음)');
         } finally { server.close(); }
+    });
+    // ── 자동 실행 결과 관리자 푸시(§11.10.8 — 사용자 「매번 보내기」) — 설계서 표의 행마다 1:1 ──
+    const pushSpy = () => { const sent = []; const f = async (title, body, data) => { sent.push({ title, body, data }); return { delivered: true }; }; f.sent = sent; return f; };
+    const flush = () => new Promise((r0) => setImmediate(r0));
+    const strVals = (o) => Object.values(o).every((v) => typeof v === 'string');
+    await check('[§11.10.8-1] 정시 판(표 ①②): 07:10 점검이 판을 다 만들면 결과 푸시 1통(공개 07:30 전) — 숫자는 그 실행 stats(관리자 탭 칩과 같은 값) · 규칙 분석 관할 이름 · 다음 점검 0통 · 관리자 즉시 실행 0통(표 ④)', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'push-')); let clock = kt('07:10'); const push = pushSpy();
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-16|night'] });
+        const s = mkSvc(d, () => clock, { adminPush: push });
+        assert.equal((await s.tick()).edition, '2026-10-17|morning');
+        assert.equal(push.sent.length, 1);
+        const lr = s.status().lastRun.results[0];
+        assert.deepStrictEqual([lr.stations, lr.stats.ai, lr.stats.template, lr.stats.reused], [2, 0, 2, 0], 'VM·Gemini 꺼짐 → 둘 다 규칙 분석');
+        assert.ok(lr.errors > 0);
+        assert.deepStrictEqual([push.sent[0].title, push.sent[0].body], ['연안 안전 브리핑 07:30 판 결과', '2곳 — AI 0 · 규칙 분석 2(한림·애월) · 오류 ' + lr.errors]);
+        assert.deepStrictEqual(push.sent[0].data, { kind: 'station_briefing', run: 'morning', phase: 'result' }); assert.ok(strVals(push.sent[0].data), 'FCM data 는 문자열만');
+        assert.ok(Date.parse(lr.publishAt) > clock, '공개 시각(07:30) 전에 — 만들기를 마친 때 보낸다');
+        clock = kt('07:11'); assert.deepStrictEqual(await s.tick(), {}); assert.equal(push.sent.length, 1, '판이 없는 점검은 0통');
+        await s.run({ kind: 'manual' }); assert.equal(push.sent.length, 1, '관리자 즉시 실행(manual)은 보내지 않음');
+    });
+    await check('[§11.10.8-2] 글(표 ①②③⑦): 모두 AI 「N곳 모두 AI 분석 · 오류 0」(오류 0 도 적음) · 재사용 · 규칙 분석 이름 3곳까지 「외 N곳」 · 시간 초과·Gemini 는 있을 때만 · 규칙 분석만 설정 · 특보 변경 두 날짜 판 · 고칠 판 없음', () => {
+        const one = (stats, errors = 0, rule = [], method = 'chatgpt', kind = 'morning') => SB.runPushText({ kind, method, results: [{ date: '2026-10-17', stations: 97, stats, errors, rule }] });
+        assert.deepStrictEqual(one({ ai: 97, template: 0, reused: 0 }), { title: '연안 안전 브리핑 07:30 판 결과', body: '97곳 모두 AI 분석 · 오류 0' });
+        assert.equal(one({ ai: 67, template: 0, reused: 30 }, 4).body, '97곳 모두 AI 분석(재사용 30) · 오류 4');
+        assert.equal(one({ ai: 96, template: 1, reused: 0 }, 22, ['고현파출소']).body, '97곳 — AI 96 · 규칙 분석 1(고현) · 오류 22');
+        assert.equal(one({ ai: 90, template: 5, reused: 2, deadline: 3, gemini: 2 }, 30, ['고현파출소', '임원파출소', '진하파출소', '마검포파출소', '대산파출소']).body, '97곳 — AI 90 · 재사용 2 · 규칙 분석 5(고현·임원·진하 외 2곳) · 시간 초과 3 · Gemini 2회 · 오류 30');
+        assert.equal(one({ template: 97 }, 0, [], 'template').body, '97곳 규칙 분석만(AI 안 부름) · 오류 0');
+        assert.equal(one({ ai: 97 }, 0, [], 'chatgpt', 'evening').title, '연안 안전 브리핑 17:30 판 결과');
+        assert.equal(one({ ai: 97 }, 0, [], 'chatgpt', 'night').title, '연안 안전 브리핑 23:00 판 결과');
+        const w1 = SB.runPushText({ kind: 'warning', method: 'chatgpt', results: [{ date: '2026-10-17', stations: 18, stats: { ai: 17, template: 1 }, errors: 3, rule: ['고현파출소'] }] });
+        assert.deepStrictEqual(w1, { title: '연안 안전 브리핑 특보 변경 판 결과', body: '특보 변경 18곳 — AI 17 · 규칙 분석 1(고현) · 오류 3' });
+        const w2 = SB.runPushText({ kind: 'warning', method: 'chatgpt', results: [{ date: '2026-10-17', stations: 18, stats: { ai: 18 }, errors: 0 }, { date: '2026-10-18', stations: 18, stats: { ai: 17, template: 1 }, errors: 2, rule: ['고현파출소'] }] });
+        assert.equal(w2.body, '특보 변경 10-17 판 18곳 모두 AI 분석 · 오류 0\n10-18 판 18곳 — AI 17 · 규칙 분석 1(고현) · 오류 2');
+        assert.equal(SB.runPushText({ kind: 'warning', method: 'chatgpt', results: [] }).body, '특보 변경 — 다시 만든 판 없음(오늘·내일 브리핑이 아직 없음)');
+    });
+    await check('[§11.10.8-3] 특보 변경 판(표 ③): 디바운스 뒤 다시 만들면 결과 푸시 1통 · 대기 중 점검 0통 · 걸치는 관할이 없는 특보 변경은 실행이 아니라 0통', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'pushw-')), af = path.join(d, 'alerts.json'); let clock = Date.parse(at(10)), stamp = Date.now(); const push = pushSpy();
+        const put = (lvl) => { fs.writeFileSync(af, JSON.stringify({ current: tree(lvl) })); stamp += 1000; fs.utimesSync(af, new Date(stamp), new Date(stamp)); };
+        I.writeJson(path.join(d, 'briefings_2026-10-17.json'), { date: '2026-10-17', stations: {} });
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-17|morning'], warnSig: SB.warnSignatures(tree(null)), stationZones: { [HL]: ['제주도서부앞바다'] } });
+        const s = mkSvc(d, () => clock, { alertsFile: af, adminPush: push });
+        put('주의보'); assert.deepStrictEqual(await s.tick(), { pending: ['제주도서부앞바다'] }); assert.equal(push.sent.length, 0, '디바운스 대기는 0통');
+        clock += 3 * 60000; const r = await s.tick(); assert.deepStrictEqual(r.warning, [HL]);
+        assert.equal(push.sent.length, 1);
+        const lr = s.status().lastRun.results[0];
+        assert.deepStrictEqual([push.sent[0].title, push.sent[0].body, push.sent[0].data.run], ['연안 안전 브리핑 특보 변경 판 결과', '특보 변경 1곳 — AI 0 · 규칙 분석 1(한림) · 오류 ' + lr.errors, 'warning']);
+        // 걸치는 관할이 없음 — 실행 없이 서명만 받아들인다
+        const d2 = fs.mkdtempSync(path.join(tmp, 'pushw0-')), af2 = path.join(d2, 'alerts.json'); fs.writeFileSync(af2, JSON.stringify({ current: tree('경보') }));
+        I.writeJson(path.join(d2, 'state.json'), { done: ['2026-10-17|morning'], warnSig: SB.warnSignatures(tree(null)), stationZones: {} });
+        const push2 = pushSpy(), s2 = mkSvc(d2, () => clock, { alertsFile: af2, adminPush: push2 });
+        assert.deepStrictEqual(await s2.tick(), { pending: ['제주도서부앞바다'] }); clock += 3 * 60000; assert.deepStrictEqual(await s2.tick(), {});
+        assert.equal(push2.sent.length, 0, '실행이 아니면 0통');
+    });
+    await check('[§11.10.8-4] 실행이 던짐(표 ⑤): 정시 판 「분석 실패(N번째) — 짧은 분류」 1통씩 · 원문(경로)은 넣지 않음 · 백오프 점검 0통 · 3번째는 「더 만들지 않음」 · 특보 변경도 같고 포기 점검은 0통', async () => {
+        const boom = () => { throw Object.assign(new Error("ENOSPC: no space left on device, write '/data/station_briefing/state.json'"), { code: 'ENOSPC' }); };
+        const d = fs.mkdtempSync(path.join(tmp, 'pushf-')); let clock = kt('07:10'); const push = pushSpy();
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-16|night'] });
+        const s = mkSvc(d, () => clock, { adminPush: push, risk: { spots: boom } });
+        assert.deepStrictEqual(await s.tick(), { failed: '2026-10-17|morning' });
+        assert.deepStrictEqual([push.sent[0].title, push.sent[0].body], ['연안 안전 브리핑 07:30 판 분석 실패', '분석 실패(1번째) — ENOSPC · 10분 뒤 다시 시도 · 자세한 이유는 관리자 → AI 브리핑']);
+        assert.deepStrictEqual(push.sent[0].data, { kind: 'station_briefing', run: 'morning', phase: 'fail' });
+        assert.ok(!push.sent[0].body.includes('/data'), '원문 경로 없음');
+        for (let m = 1; m < 10; m++) { clock = kt('07:10') + m * 60000; assert.deepStrictEqual(await s.tick(), { backoff: '2026-10-17|morning' }); }
+        assert.equal(push.sent.length, 1, '백오프 점검은 실행이 아니라 0통');
+        clock = kt('07:20'); await s.tick(); clock = kt('07:30'); await s.tick();
+        assert.equal(push.sent.length, 3);
+        assert.equal(push.sent[2].body, '분석 실패(3번째) — ENOSPC · 이 판은 더 만들지 않음(화면은 이전 판) · 자세한 이유는 관리자 → AI 브리핑');
+        clock = kt('08:30'); await s.tick(); assert.equal(push.sent.length, 3, '3번 실패 뒤 멈춘 판은 0통');
+        assert.equal(SB.failPushText({ kind: 'morning', error: new Error('HTTP 503'), count: 2 }).body, '분석 실패(2번째) — HTTP 503 · 10분 뒤 다시 시도 · 자세한 이유는 관리자 → AI 브리핑', '코드가 없으면 collect_fail_alert.reasonOf 분류');
+        // 특보 변경
+        const d2 = fs.mkdtempSync(path.join(tmp, 'pushwf-')), af = path.join(d2, 'alerts.json'); let c2 = Date.parse(at(10)); const pw = pushSpy();
+        fs.writeFileSync(af, JSON.stringify({ current: tree('경보') }));
+        I.writeJson(path.join(d2, 'state.json'), { done: ['2026-10-17|morning'], warnSig: SB.warnSignatures(tree(null)), stationZones: { [HL]: ['제주도서부앞바다'] } });
+        const s2 = mkSvc(d2, () => c2, { alertsFile: af, adminPush: pw, risk: { spots: boom } });
+        await s2.tick(); c2 += 3 * 60000; assert.deepStrictEqual(await s2.tick(), { failed: 'warning' });
+        assert.deepStrictEqual([pw.sent.length, pw.sent[0].title, pw.sent[0].data.phase], [1, '연안 안전 브리핑 특보 변경 판 분석 실패', 'fail']);
+        c2 += 10 * 60000; await s2.tick(); c2 += 10 * 60000; await s2.tick();
+        assert.equal(pw.sent[2].body, '분석 실패(3번째) — ENOSPC · 이 특보 변경은 더 다시 만들지 않음 · 자세한 이유는 관리자 → AI 브리핑');
+        c2 += 10 * 60000; assert.deepStrictEqual(await s2.tick(), { warningGaveUp: ['제주도서부앞바다'] }); assert.equal(pw.sent.length, 3, '포기 점검은 0통');
+    });
+    await check('[§11.10.8-5] 실행 중이라 건너뜀(표 ⑥): 관리자 실행 중 07:10 점검은 busy — 0통, 끝난 뒤 점검이 아침 판을 만들면 그때 1통', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'pushb-')); let clock = kt('07:05'), release; const gate = new Promise((r0) => { release = r0; }); const push = pushSpy();
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-16|night'] });
+        const s = mkSvc(d, () => clock, { adminPush: push, adapters: { vm: { available: () => true, call: async ({ prompt }) => { await gate; return JSON.stringify({ stations: idsIn(prompt).map((x) => ({ id: x.id, land: null, sea: 'x' })) }); } }, gemini: { available: () => false } } });
+        const pr = s.run({ kind: 'manual' }); await new Promise((r0) => setTimeout(r0, 100));
+        clock = kt('07:10'); assert.deepStrictEqual(await s.tick(), { busy: true });
+        assert.equal(push.sent.length, 0, 'busy 는 결과가 아님');
+        release(); await pr; assert.equal(push.sent.length, 0, '관리자 실행 끝 — 0통');
+        clock = kt('07:11'); assert.equal((await s.tick()).edition, '2026-10-17|morning');
+        assert.deepStrictEqual([push.sent.length, push.sent[0].title], [1, '연안 안전 브리핑 07:30 판 결과']);
+    });
+    await check('[§11.10.8-6] 데드라인에 잘림(표 ⑦): 남은 관할은 규칙 분석 — 결과 푸시에 「시간 초과 N」', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'pushd-')); const clock = kt('07:10'); const push = pushSpy();
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-16|night'] });
+        const s = mkSvc(d, () => clock, { adminPush: push, runDeadlineMs: 0, adapters: { vm: { available: () => true, call: async () => '{}' }, gemini: { available: () => false } } });
+        assert.equal((await s.tick()).edition, '2026-10-17|morning');
+        const lr = s.status().lastRun.results[0];
+        assert.equal(lr.stats.deadline, 2);
+        assert.equal(push.sent[0].body, '2곳 — AI 0 · 규칙 분석 2(한림·애월) · 시간 초과 2 · 오류 ' + lr.errors);
+    });
+    await check('[§11.10.8-7] 푸시가 실패해도(던짐·거절·0건 전달·멈춤) 실행·저장·공개 대기는 그대로 — 콘솔 한 줄씩, tick 은 푸시를 기다리지 않는다', async () => {
+        const logs = [], ow = console.warn, oe = console.error; console.warn = (...a) => logs.push(a.join(' ')); console.error = (...a) => logs.push(a.join(' '));
+        try {
+            const cases = [() => { throw new Error('동기 예외'); }, async () => { throw new Error('비동기 거절'); }, async () => ({ delivered: false, error: '전달 0건' }), () => new Promise(() => {})];
+            for (const [i, f] of cases.entries()) {
+                const d = fs.mkdtempSync(path.join(tmp, 'pushx' + i + '-')); I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-16|night'] });
+                const s = mkSvc(d, () => kt('07:10'), { adminPush: f });
+                assert.equal((await s.tick()).edition, '2026-10-17|morning', '사례 ' + i + ' — 멈춘 푸시(영원히 대기)도 tick 은 끝난다');
+                await flush();
+                assert.ok(s._state().done.includes('2026-10-17|morning'));
+                assert.deepStrictEqual(Object.keys(I.readJson(path.join(d, 'briefings_2026-10-17.json')).pending).sort(), [AW, HL]);
+            }
+            const pushLogs = logs.filter((l) => l.includes('관리자 푸시'));
+            assert.equal(pushLogs.length, 3, pushLogs.join(' / '));
+            assert.ok(pushLogs.some((l) => l.includes('동기 예외')) && pushLogs.some((l) => l.includes('비동기 거절')) && pushLogs.some((l) => l.includes('전달 0건')), pushLogs.join(' / '));
+        } finally { console.warn = ow; console.error = oe; }
+    });
+    await check('[§11.10.8-8] 실행 하나에 1통: 같은 실행 결과(seq)를 두 번 처리해도 두 번째는 보내지 않음 · 다음 실행은 보냄 · busy 결과는 0통', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'pushs-')); const push = pushSpy();
+        const s = mkSvc(d, () => kt('07:10'), { adminPush: push });
+        const r = await s.run({ kind: 'morning' });
+        assert.equal(r.seq, 1); assert.equal(s._pushResult('morning', r), true); assert.equal(s._pushResult('morning', r), false);
+        assert.equal(push.sent.length, 1);
+        const r2 = await s.run({ kind: 'morning' }); assert.equal(r2.seq, 2); assert.equal(s._pushResult('morning', r2), true); assert.equal(push.sent.length, 2);
+        assert.equal(s._pushResult('morning', { ok: false, skipped: 'busy' }), false);
+        assert.equal(push.sent.length, 2);
+    });
+    await check('[§11.10.8-9] 개발 환경(표 ⑧): FLY_ALLOC_ID 없으면 admin_push 를 부르지 않고 콘솔 한 줄 · 운영이면 sendAdminPush(전달 수로 성공·실패)', async () => {
+        const AP = require('../services/admin_push'), orig = AP.sendAdminPush, env = process.env.FLY_ALLOC_ID, ol = console.log, logs = []; const calls = [];
+        AP.sendAdminPush = async (...a) => { calls.push(a); return calls.length === 1 ? { sent: 2, failed: 0 } : { sent: 0, failed: 1 }; };
+        console.log = (...a) => logs.push(a.join(' '));
+        try {
+            delete process.env.FLY_ALLOC_ID;
+            assert.deepStrictEqual(await SB.defaultAdminPush('제목', '본문\n둘째 줄', { kind: 'station_briefing' }), { delivered: false, error: '개발 환경 — 푸시 생략' });
+            assert.equal(calls.length, 0); assert.deepStrictEqual(logs, ['[station_briefing] 개발 환경 — 관리자 푸시 생략: 제목 / 본문 / 둘째 줄']);
+            process.env.FLY_ALLOC_ID = 'test-alloc';
+            assert.deepStrictEqual(await SB.defaultAdminPush('제목', '본문', { kind: 'station_briefing' }), { delivered: true });
+            assert.deepStrictEqual(calls[0], ['제목', '본문', { kind: 'station_briefing' }]);
+            assert.deepStrictEqual(await SB.defaultAdminPush('제목', '본문', {}), { delivered: false, error: '발송 실패 1건' });
+        } finally { AP.sendAdminPush = orig; console.log = ol; if (env === undefined) delete process.env.FLY_ALLOC_ID; else process.env.FLY_ALLOC_ID = env; }
+    });
+    await check('[§11.10.8-10] 푸시 크기: 가장 긴 글(특보 변경 두 날짜 · 관할 전부 규칙 분석 · 큰 수)도 본문 1KB·FCM 메시지(알림+data, admin_push 가 붙이는 url·type 포함) 4096바이트 아래', () => {
+        const names = I.loadStations().map((x) => x.name), big = { ai: 9999, reused: 9999, template: 9999, deadline: 9999, gemini: 9999 };
+        const res = (date) => ({ date, stations: 9999, stats: big, errors: 99999, rule: names });
+        const msgs = [SB.runPushText({ kind: 'warning', method: 'chatgpt', results: [res('2026-10-17'), res('2026-10-18')] }), SB.failPushText({ kind: 'warning', error: new Error('x'.repeat(5000)), count: 3 }), SB.failPushText({ kind: 'morning', error: new Error('빈 응답 또는 잘린 응답'), count: 1 })];
+        for (const m of msgs) {
+            const fcm = { notification: { title: m.title, body: m.body }, data: { url: 'https://seagnal-server.fly.dev/?tab=admin', type: 'admin_alert', kind: 'station_briefing', run: 'warning', phase: 'result' } };
+            assert.ok(Buffer.byteLength(m.body) < 1024, Buffer.byteLength(m.body) + 'B ' + m.body);
+            assert.ok(Buffer.byteLength(JSON.stringify(fcm)) < 4096, String(Buffer.byteLength(JSON.stringify(fcm))));
+        }
+        assert.ok(msgs[0].body.includes('외 ' + (names.length - 3) + '곳'), '이름은 3곳까지');
+    });
+    await check('[§11.10.8-11] 실패 기록 저장도 실패(표 ⑫ — 디스크 가득 등, reportFailure 가 던짐): 푸시 없음 — tick 은 종전대로 던지고 다음 점검이 다시 돈다(매분 1통이 되지 않게)', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'pushe-')); const push = pushSpy();
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-16|night'] });
+        const s = mkSvc(d, () => kt('07:10'), { adminPush: push, risk: { spots: () => { throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' }); } } });
+        const orig = I.writeJson; I.writeJson = (f, o) => { if (String(f).endsWith('state.json')) throw Object.assign(new Error('ENOSPC: 상태 저장 실패'), { code: 'ENOSPC' }); return orig(f, o); };
+        try { await assert.rejects(s.tick(), /ENOSPC/); } finally { I.writeJson = orig; }
+        await flush(); assert.equal(push.sent.length, 0);
+        assert.deepStrictEqual(await s.tick(), { failed: '2026-10-17|morning' }, '저장이 되돌아오면 다음 점검이 실패를 기록하고');
+        assert.equal(push.sent.length, 1, '그때 1통');
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);

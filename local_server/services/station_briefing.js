@@ -6,6 +6,7 @@
  *         연안·해상 분석 문단만 AI 로 쓴 뒤(station_briefing_ai — VM 최대 3번 → Gemini → 규칙 분석) 날짜별 파일에 저장한다. 공개 시각 전의 판은 pending 에 두고 그동안 화면에는 이전 판을 준다(visibleOf).
  *         관리자 설정(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만)과 노출 판정(관리자 기기에만 등)도 여기서 정한다.
  *         관리자 「AI 브리핑」 탭용으로 실행 중 진행(메모리 progress — 단계·묶음·관할, progressNow)과 최근 3일 실행 기록(state.runs — 실행마다 오류 드롭다운)도 준다(§11.10.7).
+ *         자동 실행(정시 판·특보 변경 판)이 끝날 때마다 관리자 휴대폰에 결과 푸시 1통(오류가 없어도), 던지면 「분석 실패」 1통(§11.10.8 — 관리자 즉시 실행은 보내지 않음).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js
@@ -13,6 +14,7 @@
  *                    · services/codex_bridge.js(VM) · services/gemini_client.js(Gemini) — 실제 어댑터는 처음 부를 때 require
  *                    · data/weather_alerts.json(특보 변경 감지 — 크롤러 결과, 읽기만) · data/station_briefing/(설정·상태·날짜별 브리핑·대표 위치 캐시)
  *                    · services/sea_warning_history.js(이미 해제된 특보 — 해제 뒤 관심, 2026-10-16 결정 4) · services/risk_error_history.js(관리자 오류현황 원천 stationBriefing — 결정 6, historyRow)
+ *                    · services/admin_push.js sendAdminPush(자동 실행 결과 관리자 푸시 — 운영 FLY_ALLOC_ID 일 때만, 개발은 콘솔 한 줄 · §11.10.8) · services/collect_fail_alert.js reasonOf(실패 푸시의 짧은 분류)
  *  - 서버 API      : routes/station_briefing.js 가 이 모듈을 부른다
  *  - 나를 쓰는 곳  : routes/station_briefing.js · server.js(운영 start) · services/risk_history_sources.js(historyRow — 1분 감시) · scripts/test_station_briefing.js(가짜 시계·어댑터)
  * [로드 순서] 서버 require 부작용 없음. start() 는 운영(FLY_ALLOC_ID)에서만 1분 점검을 켠다 — 서버 시작 때 계산·외부 호출을 하지 않는다(첫 점검은 1분 뒤).
@@ -197,6 +199,95 @@ function historyRow(s, now) {
     return { ...base, status: 'ok', lastError: null, detail: null };
 }
 
+// ── 자동 실행 결과 관리자 푸시(§11.10.8) ── 사용자 원문 *"고정적으로는 하루에 세 번을 분석하게 되어 있잖아. 그리고 고정적이 아닌 것은 특보 내용이 변경됐을 때 … 그 분석을 자동으로 했을 때
+//    관리자에게 분석 결과가 푸시 알림으로 왔으면 좋겠거든. 예를 들면 몇시 분석 결과 해서 오류 그 분석 도구 오류 몇번 뭐 이런 내용이 조금 정리돼서 간략하게"* · 언제 → *"매번 보내기"*(오류가 없어도).
+//    정시 판(morning·evening·night)·특보 변경 판(warning)을 1분 점검(tick)이 만들고 끝날 때마다 1통, 던지면 「분석 실패」 1통. 관리자 즉시 실행(manual)은 보내지 않는다(관리자가 화면을 보고 있다).
+//    숫자는 그 실행의 results[].stats·errors — 관리자 「AI 브리핑」 상태 카드 칩(AI·재사용·규칙 분석·시간 초과·Gemini·오류)과 같은 값이다.
+/**
+ * 판 이름. 정시 판은 공개 시각(EDITIONS — 관리자 탭 「07:30 판」과 같은 이름), 특보 변경은 「특보 변경 판」.
+ * 예: editionName('morning') → '07:30 판' · ('night') → '23:00 판' · ('warning') → '특보 변경 판'
+ * @param {string} kind @returns {string} [연계] ← runPushText·failPushText
+ */
+function editionName(kind) {
+    if (kind === 'warning') return '특보 변경 판';
+    const e = R.EDITIONS.find((x) => x.kind === kind);
+    return e ? String(e.ph).padStart(2, '0') + ':' + String(e.pm).padStart(2, '0') + ' 판' : kind + ' 판';
+}
+/**
+ * 규칙 분석으로 끝난 관할 이름 — 「파출소」를 떼고 3곳까지, 넘으면 「외 N곳」.
+ * 예: ['고현파출소'] → '고현' · ['고현파출소','임원파출소','진하파출소','마검포파출소','대산파출소'] → '고현·임원·진하 외 2곳'
+ * @param {string[]} names @returns {string} [연계] ← resultLine
+ */
+function shortNames(names) {
+    const n = names.map((x) => String(x).replace(/파출소$/, ''));
+    return n.slice(0, 3).join('·') + (n.length > 3 ? ' 외 ' + (n.length - 3) + '곳' : '');
+}
+/**
+ * 날짜 판 하나의 결과 한 줄. 규칙 분석이 없으면 「N곳 모두 AI 분석」, 있으면 「N곳 — AI a · 규칙 분석 t(이름)」. 시간 초과·Gemini 는 있을 때만, 오류는 늘(0 도).
+ * 예: {stations:97, stats:{ai:96,template:1,reused:0}, errors:22, rule:['고현파출소']} → '97곳 — AI 96 · 규칙 분석 1(고현) · 오류 22'
+ *     {stations:97, stats:{ai:67,reused:30,template:0}, errors:0} → '97곳 모두 AI 분석(재사용 30) · 오류 0'
+ *     method 'template'(관리자 설정 「규칙 분석만」·개발 환경) → '97곳 규칙 분석만(AI 안 부름) · 오류 0'
+ * @param {object} x - run 결과 results[i] + rule(규칙 분석 관할 이름) @param {string} method - 그 실행의 생성 방식 @returns {string} [연계] ← runPushText
+ */
+function resultLine(x, method) {
+    const st = x.stats || {}, n = x.stations || 0, e = x.errors || 0, rule = x.rule || [];
+    if (method === 'template') return n + '곳 규칙 분석만(AI 안 부름) · 오류 ' + e;
+    const parts = [];
+    if (!st.template) parts.push(n + '곳 모두 AI 분석' + (st.reused ? '(재사용 ' + st.reused + ')' : ''));
+    else {
+        parts.push(n + '곳 — AI ' + (st.ai || 0));
+        if (st.reused) parts.push('재사용 ' + st.reused);
+        parts.push('규칙 분석 ' + st.template + (rule.length ? '(' + shortNames(rule) + ')' : ''));
+    }
+    if (st.deadline) parts.push('시간 초과 ' + st.deadline);
+    if (st.gemini) parts.push('Gemini ' + st.gemini + '회');
+    parts.push('오류 ' + e);
+    return parts.join(' · ');
+}
+/**
+ * 자동 실행 하나가 끝났을 때의 푸시 글. 특보 변경이 오늘·내일 두 날짜 판을 고쳤으면 날짜마다 한 줄.
+ * 예: ({kind:'morning', method:'chatgpt', results:[{date:'2026-10-17',stations:97,stats:{ai:96,template:1},errors:22,rule:['고현파출소']}]})
+ *     → {title:'연안 안전 브리핑 07:30 판 결과', body:'97곳 — AI 96 · 규칙 분석 1(고현) · 오류 22'}
+ *     ({kind:'warning', …results 하나 18곳}) → {title:'연안 안전 브리핑 특보 변경 판 결과', body:'특보 변경 18곳 — AI 17 · 규칙 분석 1(고현) · 오류 3'}
+ *     ({kind:'warning', results:[]}) → body '특보 변경 — 다시 만든 판 없음(오늘·내일 브리핑이 아직 없음)'
+ * @param {object} o - kind·method·results(run 반환값) @returns {{title:string, body:string}} [연계] ← createService.pushResult
+ */
+function runPushText({ kind, method, results }) {
+    const head = kind === 'warning' ? '특보 변경 ' : '', list = results || [];
+    let body;
+    if (!list.length) body = head + '— 다시 만든 판 없음(오늘·내일 브리핑이 아직 없음)';
+    else if (list.length === 1) body = head + resultLine(list[0], method);
+    else body = head + list.map((x) => String(x.date || '').slice(5) + ' 판 ' + resultLine(x, method)).join('\n');
+    return { title: '연안 안전 브리핑 ' + editionName(kind) + ' 결과', body };
+}
+/**
+ * 자동 실행이 던졌을 때의 푸시 글. 오류 원문(파일 경로·주소가 섞일 수 있다)은 넣지 않고 짧은 분류만 — 시스템 오류 코드(ENOSPC 등)가 있으면 그것,
+ * 없으면 collect_fail_alert.reasonOf(빈 응답·HTTP 503·시간초과·연결 실패·응답 해석 실패·기타 오류). 원문은 관리자 「AI 브리핑」 탭 「실행 실패」에 있다.
+ * 예: ({kind:'morning', error:Object.assign(Error('…'),{code:'ENOSPC'}), count:1}) → {title:'연안 안전 브리핑 07:30 판 분석 실패', body:'분석 실패(1번째) — ENOSPC · 10분 뒤 다시 시도 · 자세한 이유는 관리자 → AI 브리핑'}
+ *     count 3(MAX_RUN_FAILS) → '… · 이 판은 더 만들지 않음(화면은 이전 판) · …' · 특보 변경 → '… · 이 특보 변경은 더 다시 만들지 않음 · …'
+ * @param {object} o - kind·error·count(이번이 몇 번째 실패 — reportFailure 반환값) @returns {{title:string, body:string}} [연계] ← createService.tick
+ */
+function failPushText({ kind, error, count }) {
+    const code = error && /^E[A-Z0-9]+$/.test(String(error.code || '')) ? error.code : require('./collect_fail_alert').reasonOf(error);
+    const next = count < MAX_RUN_FAILS ? Math.round(RUN_BACKOFF_MS / 60000) + '분 뒤 다시 시도' : kind === 'warning' ? '이 특보 변경은 더 다시 만들지 않음' : '이 판은 더 만들지 않음(화면은 이전 판)';
+    return { title: '연안 안전 브리핑 ' + editionName(kind) + ' 분석 실패', body: '분석 실패(' + count + '번째) — ' + code + ' · ' + next + ' · 자세한 이유는 관리자 → AI 브리핑' };
+}
+/**
+ * 운영 기본 발송: 운영(FLY_ALLOC_ID)에서만 admin_push.sendAdminPush(등록된 관리자 FCM 기기 전부). 개발은 보내지 않고 콘솔 한 줄 — collect_fail_alert.defaultSend 와 같은 방식.
+ * 예: 운영·기기 2대 → {delivered:true} / 개발 → {delivered:false, error:'개발 환경 — 푸시 생략'}
+ * @param {string} title @param {string} body @param {object} data - 문자열 값만(FCM data 규칙) @returns {Promise<{delivered:boolean, error?:string}>}
+ * [연계] ← createService({adminPush}) 기본값 / → services/admin_push.js sendAdminPush(Firebase 미초기화·기기 없음·발송 오류를 모두 {sent:0} 으로 돌려준다)
+ */
+async function defaultAdminPush(title, body, data) {
+    if (!process.env.FLY_ALLOC_ID) {
+        console.log('[station_briefing] 개발 환경 — 관리자 푸시 생략: ' + title + ' / ' + body.replace(/\n/g, ' / '));
+        return { delivered: false, error: '개발 환경 — 푸시 생략' };
+    }
+    const r = await require('./admin_push').sendAdminPush(title, body, data);
+    if (r && r.sent > 0) return { delivered: true };
+    return { delivered: false, error: r && r.failed > 0 ? '발송 실패 ' + r.failed + '건' : '전달 0건(기기 없음·Firebase 미초기화·발송 오류)' };
+}
+
 // ── 실행 진행(§11.10.7) ── 사용자 원문 *"분석이 시작되면 게이지로서 알려줬으면 … 묶음 단위별로 어디 묶음이 완료되었는지 그리고 그 묶음 안에서 어느 파출소 부분이 완료되었는지
 //    게이지에서 표출 … 전체 게이지로서 전체적으로 얼마나 진행됐는지 … 게이지의 가운데에는 텍스트로 어디가 진행되고 있는지"*.
 // 전체 칸 = 위치 확인 1 + 날짜(창)마다 (입력 모으기 1 + 관할 수). AI 앞 단계도 세어 게이지가 0 에 조용히 멈춰 있지 않게 한다. 관할 하나는 AI 통과·재사용·규칙 분석 중 하나로 끝날 때 1칸.
@@ -260,12 +351,15 @@ function onAiProgress(pr, ev) {
  *                     ·warnHistory(특보 구간 기록 sea_warning_history 기록기 — 이미 해제된 특보, 결정 4. 기본 null = 보지 않음, forDefault 가 운영 기록기 forDir() 를 넘긴다)
  *                     ·errorHistory(관리자 오류현황 risk_error_history — 결정 6. 기본 null = 기록 안 함, forDefault 가 운영 것을 넘긴다)
  *                     ·regional(지방기상청 단기 해상예보·단기 전망 — 기본 I.regionalForecast(), 실행마다 한 번 읽음. §11.10.1 (기상) 칸)
- * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList·stationAreas
+ *                     ·adminPush(관리자 푸시 발송 (title, body, data) → Promise<{delivered, error?}> — 기본 defaultAdminPush, 시험은 가짜. §11.10.8)
+ * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList·stationAreas (+ 시험용 _pushResult)
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
-    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast() } = {}) {
+    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush } = {}) {
     let timer = null, running = null, stationsCache = null, areasCache = null, ad = adapters;
+    // 실행 번호(§11.10.8 — 관리자 푸시는 실행 하나에 1통). run 이 하나씩 늘려 결과에 싣고, pushResult 는 이미 보낸 번호 이하를 다시 보내지 않는다(같은 결과를 두 번 처리해도 1통).
+    let runSeq = 0, pushedSeq = 0;
     // 실행 진행(§11.10.7 — 관리자 「AI 브리핑」 진행 게이지). 메모리에만 두고 실행이 끝나면 null — 서버가 다시 켜지면 진행 중 실행도 없다.
     let progress = null;
     const fileCache = new Map();
@@ -313,7 +407,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * 실제 AI 어댑터는 운영(FLY_ALLOC_ID) 또는 STATION_BRIEFING_DEV_AI=1 일 때만 — 그 밖(개발 환경)에서 어댑터를 주입하지 않았으면 틀만 — AI 해설 없음(C9).
      * 시각: 창은 시작 시각으로 정하지만, 위치 찾기·AI 가 오래 걸려도 연안 하루 값 시각이 낡지 않게 모으기 직전에 시각을 다시 잡는다(C2 — risk_store 는 지금−5분보다 앞선 시각을 400 으로 거부).
      * AI 데드라인 runDeadlineMs(기본 20분)과 공개 시각 중 이른 것 — 넘으면 남은 관할은 규칙 분석(B7·§11.10.4).
-     * 예: await run({kind:'morning'}) → {ok:true, date:'2026-10-17', stations:97, stats:{…}, ms}
+     * 예: await run({kind:'morning'}) → {ok:true, results:[{date:'2026-10-17', stations:97, stats:{…}, errors, publishAt}], ms, seq:1(실행 번호), method:'chatgpt', rule:[['고현파출소']](날짜 판마다 규칙 분석 관할 — §11.10.8 푸시 글용)}
      * @param {object} o - kind·keys(대상 관할 열쇠, 없으면 전부)·zones(특보 변경 구역 — 기록용) @returns {Promise<object>}
      * [연계] ← tick·routes POST run / → I.gather·R.buildBriefing·AI.generate
      */
@@ -337,7 +431,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             //   데드라인 = 20분과 「공개 시각까지」 중 이른 것 — 공개 시각에 된 만큼(AI 분석 + 나머지는 규칙 분석) 보이고 늦추지 않는다. 공개 시각이 이미 지난 늦은 실행은 20분 그대로(곧바로 공개).
             const publishAt = R.publishAtFor(kind, now) || R.isoKst(now), untilPublish = Date.parse(publishAt) - now;
             const deadline = t0 + (untilPublish > 0 ? Math.min(runDeadlineMs, untilPublish) : runDeadlineMs);
-            const results = [];
+            const results = [], rule = [];
             for (const [wi, win] of wins.entries()) {
                 stepProgress(progress, 'gather', { window: wi });
                 const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg });
@@ -362,21 +456,46 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 for (const x of inputs) st.stationZones[x.key] = [...new Set((x.sea.warnings || []).map((w) => R.zoneKey(w.zone)).concat((x.sea.regions || []).flatMap((r) => r.zones.map(R.zoneKey))))];
                 addErrors(st, gen.errors.map((e) => ({ ...e, edition: win.kind, date: win.targetDate })), now);
                 results.push({ date: win.targetDate, stations: briefings.length, stats: gen.stats, errors: gen.errors.length, publishAt });
+                rule.push(briefings.filter((b) => b.overview && b.overview.source === 'template').map((b) => b.station.name));   // 관리자 푸시 글(§11.10.8)용 — 상태 파일에는 넣지 않는다
             }
             prune(now);
             st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, publishAt, results, ms: elapsed() - t0, ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
             st.runs = keepRuns(st.runs.concat({ at: st.lastRun.at, kind, method: cfg.method, ms: st.lastRun.ms, publishAt, results }), now);   // §11.10.7 실행마다 오류 드롭다운
             saveState(st); recordHistory();
-            return { ok: true, results, ms: elapsed() - t0 };
+            return { ok: true, results, ms: elapsed() - t0, seq: ++runSeq, method: cfg.method, rule };
         })();
         try { return await running; } finally { running = null; progress = null; }
     }
-    /** 실행 실패를 상태에 남긴다(횟수·마지막 시각·이유) — 백오프 판단용. @param {string} key - 판 열쇠 또는 'warning' @param {Error} e @param {number} now [연계] ← tick */
+    /** 실행 실패를 상태에 남긴다(횟수·마지막 시각·이유) — 백오프 판단용. @param {string} key - 판 열쇠 또는 'warning' @param {Error} e @param {number} now @returns {number} 이번이 몇 번째 실패인가(관리자 푸시 글 — §11.10.8) [연계] ← tick */
     function reportFailure(key, e, now) {
         const s = state(), f = s.failures[key] || { count: 0 }, why = String((e && e.message) || e).slice(0, 160);
         s.failures = Object.fromEntries(Object.entries({ ...s.failures, [key]: { count: f.count + 1, lastAt: R.isoKst(now), reason: why } }).slice(-12));
         addErrors(s, [{ at: R.isoKst(now), stage: 'run', provider: null, stations: [], reason: key + ' 실행 실패(' + (f.count + 1) + '번째): ' + why }], now);
         saveState(s); recordHistory(); console.error('[station_briefing] 실행 실패 ' + key + ' (' + (f.count + 1) + '/' + MAX_RUN_FAILS + '): ' + why);
+        return f.count + 1;
+    }
+    /**
+     * 관리자 푸시 한 통을 보낸다 — 기다리지 않고(tick 은 곧바로 다음 일 — FCM 이 늦거나 멈춰도 같은 점검의 특보 변경 실행이 밀리지 않게) 절대 던지지 않는다.
+     * 전달이 안 되면(개발 환경·기기 없음·발송 오류·예외) 콘솔 한 줄 — 다시 보내지 않는다(결과는 관리자 「AI 브리핑」 탭에 그대로 있다).
+     * 예: notifyAdmin({title:'연안 안전 브리핑 07:30 판 결과', body:'97곳 — …'}, {kind:'station_briefing', run:'morning', phase:'result'})
+     * @param {{title:string, body:string}} msg @param {object} data - 문자열 값만 @returns {void} [연계] ← pushResult·tick(실패) / → adminPush(기본 defaultAdminPush)
+     */
+    function notifyAdmin(msg, data) {
+        let p;
+        try { p = Promise.resolve(adminPush(msg.title, msg.body, data)); } catch (e) { p = Promise.reject(e); }
+        p.then((r) => { if (!r || !r.delivered) console.warn('[station_briefing] 관리자 푸시 미전달 — ' + msg.title + ': ' + ((r && r.error) || '전달 안 됨')); },
+            (e) => console.error('[station_briefing] 관리자 푸시 발송 예외 — ' + msg.title + ':', e && e.message));
+    }
+    /**
+     * 자동 실행(정시 판·특보 변경) 하나가 끝났을 때 결과 푸시 1통(§11.10.8 — 오류가 없어도). 같은 실행 결과(seq)를 두 번 받으면 두 번째는 보내지 않는다.
+     * 예: pushResult('morning', {ok:true, seq:3, method:'chatgpt', results:[…], rule:[['고현파출소']]}) → '연안 안전 브리핑 07:30 판 결과' 1통 · 같은 것을 다시 → 없음(false)
+     * @param {string} kind - morning|evening|night|warning @param {object} r - run 반환값 @returns {boolean} 보냈으면 true [연계] ← tick / → runPushText·notifyAdmin
+     */
+    function pushResult(kind, r) {
+        if (!r || !r.ok || !(r.seq > pushedSeq)) return false;
+        pushedSeq = r.seq;
+        notifyAdmin(runPushText({ kind, method: r.method, results: (r.results || []).map((x, i) => ({ ...x, rule: (r.rule || [])[i] || [] })) }), { kind: 'station_briefing', run: kind, phase: 'result' });
+        return true;
     }
     /** 백오프 중인가 — 실패 뒤 10분 안이거나 같은 판을 3번 실패했으면 true. 예: ({count:1,lastAt:10:00}, 10:05) → true · 10:10 → false. @param {object} f - failures[key] @param {number} now @returns {boolean} [연계] ← tick */
     function inBackoff(f, now) { return !!f && (f.count >= MAX_RUN_FAILS || now - Date.parse(f.lastAt) < RUN_BACKOFF_MS); }
@@ -386,6 +505,8 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * 특보 변경은 마지막 변경 뒤 WARN_DEBOUNCE_MS(3분) 조용할 때 한 번 — 그 사이 바뀐 구역은 합친다(마지막으로 만든 서명과 비교하므로 누적, C9).
      * 서명이 같은 채 파일 시각만 바뀌면 대기를 늘리지 않고, 계속 바뀌어도 첫 변경 뒤 WARN_MAX_WAIT_MS(15분)면 만든다.
      * 실행이 던지면 실패 시각·횟수를 남기고 10분 기다린다, 같은 판(특보 변경은 'warning')은 3번까지 — 매분 AI 를 다시 부르지 않는다(B9·ops1). 3번 실패한 특보 변경은 그 서명을 받아들이고 멈춘다.
+     * 관리자 푸시(§11.10.8): 정시 판·특보 변경 실행이 끝나면 결과 1통(pushResult), 던지면 실패를 기록한 뒤 「분석 실패」 1통. 실행 중이라 건너뛴 점검·백오프·디바운스 대기·
+     * 걸리는 관할이 없는 특보 변경·3번 실패 뒤 포기는 실행이 아니라 보내지 않는다. 푸시는 기다리지 않는다(notifyAdmin).
      * 예: await tick() → {edition:'2026-10-17|morning'} · {warning:['…|한림파출소'], zones:['제주도서부앞바다']} · {pending:[…]}(디바운스 대기) · {backoff:'2026-10-17|morning'} · {}
      * @returns {Promise<object>} [연계] ← start(1분) · 시험(가짜 시계)
      */
@@ -397,7 +518,8 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             if (inBackoff(st.failures[due.key], now)) out.backoff = due.key;
             else {
                 let r = null;
-                try { r = await run({ kind: due.kind }); } catch (e) { reportFailure(due.key, e, now); out.failed = due.key; }
+                try { r = await run({ kind: due.kind }); } catch (e) { const n = reportFailure(due.key, e, now); out.failed = due.key; notifyAdmin(failPushText({ kind: due.kind, error: e, count: n }), { kind: 'station_briefing', run: due.kind, phase: 'fail' }); }
+                pushResult(due.kind, r);   // 판을 다 만든 때(공개 시각 07:30·17:30·23:00 전) — done 기록보다 먼저: 기록이 실패해도 실제로 끝난 실행은 알린다
                 if (r && r.ok) { const s2 = state(); s2.done = s2.done.concat(due.key).slice(-12); delete s2.failures[due.key]; saveState(s2); out.edition = due.key; }
             }
         }
@@ -427,8 +549,9 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         const hit = Object.entries(state().stationZones).filter(([, z]) => z.some((k) => pw.zones.includes(k))).map(([k]) => k);
         if (hit.length) {
             let r = null;
-            try { r = await run({ kind: 'warning', keys: hit, zones: pw.zones }); } catch (e) { reportFailure('warning', e, now); out.failed = (out.failed ? out.failed + ',' : '') + 'warning'; return out; }
-            if (!r.ok) return out;
+            try { r = await run({ kind: 'warning', keys: hit, zones: pw.zones }); } catch (e) { const n = reportFailure('warning', e, now); out.failed = (out.failed ? out.failed + ',' : '') + 'warning'; notifyAdmin(failPushText({ kind: 'warning', error: e, count: n }), { kind: 'station_briefing', run: 'warning', phase: 'fail' }); return out; }
+            if (!r.ok) return out;   // 실행 중(busy)이라 건너뜀 — 결과가 아니다(푸시 없음), 대기가 남아 다음 점검에 다시
+            pushResult('warning', r);
             out.warning = hit; out.zones = pw.zones;
         }
         const s4 = state(); s4.warnSig = pw.sig; s4.pendingWarn = null; delete s4.failures.warning; saveState(s4);
@@ -478,7 +601,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * @returns {object} [연계] ← routes GET status?only=progress
      */
     function progressNow() { return { running: !!running, progress: running ? progress : null }; }
-    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, pick, readConfig, writeConfig, status, progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
+    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
 }
 let def = null;
 /**
@@ -493,4 +616,4 @@ function forDefault() {
     return def;
 }
 
-module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, keepRuns, newProgress, stepProgress, onAiProgress, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };
+module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, keepRuns, newProgress, stepProgress, onAiProgress, editionName, shortNames, runPushText, failPushText, defaultAdminPush, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };
