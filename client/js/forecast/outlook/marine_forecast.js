@@ -10,7 +10,8 @@
  *  - 마크업        : #marine-forecast-accordion-header/body · #regional-office-settings-btn(머리 오른쪽 ⚙) ·
  *                   #ultra-short-forecast-body · #short-term-forecast-body · #regional-forecast-title/body ·
  *                   #office-settings-panel(관심 기상청 설정 팝업 — 이 파일이 만든다)
- *  - 저장          : localStorage 'officeManualSettings' {지방청코드: true|false} — 관심 기상청 한 곳(2026-10-17부터 하나만 true)
+ *  - 저장          : localStorage 'officeManualSettings' {지방청코드: true|false} — 관심 기상청 한 곳(2026-10-17부터 하나만 true) ·
+ *                   localStorage 'officeLegacyZoneFallback' '1'|'0' — 이 판 전부터 관심해역을 쓰던 기기인가(처음 한 번만 정함)
  *  - 나를 쓰는 곳  : forecast/alerts/data.js(fetchAllData → loadMarineForecast) ·
  *                   settings/settings.js·onboarding/zone_setup.js(관심해역 저장 뒤 loadRegionalForecast) ·
  *                   index2.html(아코디언 토글·⚙ onclick)
@@ -410,9 +411,11 @@ const OFFICE_LIST = [
  *
  * [우선순위]
  * 1. 사용자가 고른 관심 기상청 하나(localStorage 'officeManualSettings' — getChosenOfficeCode)
- * 2. 안 골랐으면, 관심해역을 골라 둔 경우에만 관심해역이 **가장 많은 지방청 하나**
- *    (config.js getTopOffice — 사용자 확정 2026-09-27).
- * 3. 둘 다 없으면 [] → 화면에 「관심 기상청이 설정되지 않았습니다」와 [설정하기]를 띄운다.
+ * 2. 안 골랐으면, **이 판 전부터 관심해역을 쓰던 기기**(_officeLegacyZoneFallback)가 관심해역을 골라 둔
+ *    경우에만 관심해역이 **가장 많은 지방청 하나**(config.js getTopOffice — 사용자 확정 2026-09-27).
+ *    새로 설치한 기기는 관심해역을 골라도 여기로 오지 않는다(2026-10-17 사용자 확정 —
+ *    「지금처럼 두자. 그렇지만 새롭게 설정하는 사람, 최초 설치한 사람 등에 대해서는 뜨도록 해야해.」).
+ * 3. 그 밖에는 [] → 화면에 「관심 기상청이 설정되지 않았습니다」와 [설정하기]를 띄운다.
  *    (2026-10-17 사용자 확정 — 종전에는 이때 7개 지방청을 모두 보여 줬다.)
  *
  * @returns {string[]} 지방청 코드 배열(0~1개)
@@ -424,9 +427,11 @@ function getRelevantOfficeCodes() {
     var chosen = getChosenOfficeCode();
     if (chosen) return [chosen];
 
-    // 2순위: 관심해역을 골라 둔 사람만 — 관심해역이 가장 많은 지방청 하나
+    // 2순위: 이 판 전부터 관심해역을 쓰던 기기가 관심해역을 골라 둔 경우만 — 관심해역이 가장 많은 지방청 하나
     //   관심해역을 안 고른 상태(전 해역)는 판단 근거가 없으므로 고르지 않는다.
-    if (typeof UserSettings !== 'undefined' && typeof UserSettings.hasInterestZones === 'function'
+    //   새로 설치한 기기는 관심해역이 있어도 관심 기상청을 고를 때까지 안내 칸을 본다.
+    if (_officeLegacyZoneFallback
+        && typeof UserSettings !== 'undefined' && typeof UserSettings.hasInterestZones === 'function'
         && UserSettings.hasInterestZones() && typeof getTopOffice === 'function') {
         return getTopOffice(UserSettings.settings);
     }
@@ -487,6 +492,53 @@ function saveChosenOffice(code) {
     OFFICE_LIST.forEach(function (o) { settings[o.code] = (o.code === code); });
     localStorage.setItem('officeManualSettings', JSON.stringify(settings));
 }
+
+/** 옛 기기 표시를 담는 localStorage 키 — '1' 옛 기기(관심해역 기준 유지) · '0' 아님 · 없음 = 아직 안 정함 */
+var OFFICE_LEGACY_KEY = 'officeLegacyZoneFallback';
+
+/**
+ * 이 기기가 「관심 기상청」 판(2026-10-17) 전부터 관심해역을 쓰던 기기인지 **처음 한 번만** 정하고 기억한다.
+ *
+ * 왜: 사용자 확정(2026-10-17) — 「지금처럼 두자. 그렇지만 새롭게 설정하는 사람, 최초 설치한 사람 등에
+ *   대해서는 뜨도록 해야해.」 이미 관심해역을 쓰던 사람은 종합 예보가 갑자기 안내 칸으로 바뀌지 않게
+ *   관심해역 기준(가장 많은 지방청)을 그대로 두고, 새로 설치·새로 설정하는 사람은 관심 기상청을 고를 때까지
+ *   「관심 기상청이 설정되지 않았습니다」+[설정하기]를 보게 한다.
+ *
+ * 예: 새 판을 처음 연 순간 관심해역이 저장돼 있고 관심 기상청은 없음 → '1' 저장 · true
+ *     처음 연 순간 관심해역이 없음(처음 설치·앱 데이터 지움·아직 안 고름) → '0' 저장 · false
+ *     처음 연 순간 관심 기상청을 이미 골라 둠 → '0'(고른 곳이 늘 앞서므로 기댈 일이 없다)
+ *     이미 '1'·'0' 이 있으면 그 값 그대로 — 그 뒤 관심해역을 새로 골라도 다시 정하지 않는다.
+ *
+ * [순서 — 2026-10-17 코드로 확인] 이 파일 맨 위(스크립트를 읽는 순간)에서 한 번 부른다.
+ *   index2.html 에서 settings/settings.js(UserSettings.init() 이 그 자리에서 저장값을 읽음)가 이 파일보다 앞이고,
+ *   관심해역을 저장하는 곳(onboarding/zone_setup.js _save · settings.js saveSettingsAndClose ·
+ *   tutorial.js 숨은 진입로 → zone_setup)은 모두 이 파일 뒤에 실리거나 사용자가 눌러야 돈다.
+ *   그래서 처음 설치한 기기에서 온보딩이 관심해역을 저장하기 전에 판정이 끝난다.
+ *
+ * 정한 뒤의 경우:
+ *   - 옛 기기가 나중에 관심해역을 모두 지움 → 기댈 관심해역이 없으니 안내 칸. 다시 고르면 관심해역 기준이 돌아온다.
+ *   - 옛 기기가 관심 기상청을 고름 → 고른 곳이 앞선다(1순위).
+ *   - 앱 데이터를 지움 → 표시도 지워지므로 새로 설치한 것과 같다.
+ *   - 저장소를 못 읽으면 처음 보는 기기로 보고 판정, 못 쓰면 이번 실행에만 그 판정을 쓴다.
+ *
+ * @returns {boolean} 옛 기기면 true(관심해역 기준 지방청을 보여 줌)
+ * [연계] ← 이 파일 맨 위 _officeLegacyZoneFallback(한 번) / → getChosenOfficeCode() ·
+ *          settings/settings.js UserSettings.hasInterestZones() · getRelevantOfficeCodes()(2순위 조건)
+ */
+function decideOfficeLegacyZoneFallback() {
+    var saved = null;
+    try { saved = localStorage.getItem(OFFICE_LEGACY_KEY); } catch (e) { /* 못 읽으면 처음 보는 기기로 판정한다 */ }
+    if (saved === '1') return true;
+    if (saved === '0') return false;
+    var legacy = !getChosenOfficeCode()
+        && typeof UserSettings !== 'undefined' && typeof UserSettings.hasInterestZones === 'function'
+        && UserSettings.hasInterestZones();
+    try { localStorage.setItem(OFFICE_LEGACY_KEY, legacy ? '1' : '0'); } catch (e) { /* 못 쓰면 이번 실행에만 이 판정을 쓴다 */ }
+    return legacy;
+}
+
+// 스크립트를 읽는 순간 한 번 정한다 — 온보딩이 관심해역을 저장하기 전(위 [순서])
+var _officeLegacyZoneFallback = decideOfficeLegacyZoneFallback();
 
 /**
  * 「기상청 해상 기상 전망」 아코디언이 닫혀 있으면 연다(설정 팝업·안내가 보이게).
