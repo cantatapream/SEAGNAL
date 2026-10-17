@@ -93,6 +93,15 @@
 .sb-srcb { display:block; max-width:100%; box-sizing:border-box; padding:2px 9px; border-radius:7px; background:#0b1324; border:1px solid rgba(148,163,184,.3); font-size:.76rem; font-weight:800; line-height:1.45; }
 .sb-srcb[data-rank="3"] { color:#e34842; }
 .sb-srcb-det { margin:0 0 2px; padding-left:9px; border-left:2px solid rgba(148,163,184,.3); color:#cbd5e1; font-size:.74rem; line-height:1.5; }
+/* 배지 상세 표(2026-10-17 사용자 확정 시안 ④판 — 설계서 §11.10.15): 제목 + 「시각 | 등급」 표. 좁으면 표 상자 안에서만 가로 스크롤(페이지는 넘치지 않음). */
+.sb-srcb-tab { align-self:stretch; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.sb-srcb-dt { margin:0; font-weight:800; color:#cbd5e1; }
+.sb-srcb-tblw { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.sb-srcb-tbl { width:100%; border-collapse:collapse; font-size:.74rem; }
+.sb-srcb-tbl th, .sb-srcb-tbl td { padding:3px 6px; border-bottom:1px solid rgba(148,163,184,.2); text-align:left; white-space:nowrap; }
+.sb-srcb-tbl th { color:#94a3b8; font-weight:700; }
+.sb-srcb-tbl .sb-srcb-grade { font-weight:800; }
+.sb-srcb-tbl td[data-rank="3"] { color:#e34842; }
 .sb-link { margin-top:4px; padding:5px 10px; border-radius:999px; border:1px solid rgba(103,232,249,.45); background:rgba(103,232,249,.1); color:#a5f3fc; font-size:.76rem; font-weight:700; cursor:pointer; }
 .sb-tide-text { margin:6px 0; font-size:.8rem; }
 .sb-tide .ocean-tide-wrap { margin-bottom:6px; }

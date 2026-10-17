@@ -13,6 +13,7 @@
  *         §11.10.13: 해상 시간 막대 아래 설명 줄·칸 누르기 없음(칸 = role=img) · 해역 카드 [사고현황('21~'25년)] → [기상 예보] → [그 밖의 근거] → 한 줄 → 맨 끝 [권고](서버 규칙 v14 카드 — 옛 판은 [특성]·[오늘 예상]).
  *         §11.10.14: 「해상 분석」·「연안 분석」 칸 머리 오른쪽 단계별 개수 배지 · 펼친 칸 안 단계 단추(하나만 고름 — 처음 = 가장 높은 단계)로 그 단계 카드만.
  *         §11.10.15: 해역 카드 출처별 배지(「18~24시 해양사고 위험예보 '주의'(KOMSA)」 — 글자 색 = 그 예보 등급 색) + 상세 줄 → [사고현황] → 「… 많이 기록되었습니다」 → [기상 예보] → [권고](서버 규칙 v16 badges — 옛 판은 종전 꼬리표·줄 순서).
+ *                    시안 ④판(규칙 v17): 상세는 제목 + 표(srcbTable — 「시각 | 등급」 등, 등급 칸 = 그 등급 색), v16 판의 글 줄 상세는 종전 한 줄.
  *         §11.10.16: 단계 이름에서 「필요」를 뺌(「주의」 — 옛 판의 「주의 필요」도 levelWord 로 줄여 보임) · 배지·단추 「경계 1 · 주의 5 · 관심 1」(단위 없음) · 「관할 해역 N칸 검토 …」·「관광지 N곳 검토 …」 줄 없음
  *                    · 「다.」로 끝난 문장 뒤는 줄바꿈(appendText — 글은 그대로 두고 <br> 만 끼움, textContent 는 서버 글과 같다).
  * ----------------------------------------------------------------------------
@@ -260,12 +261,13 @@
         return card;
     }
     /**
-     * 출처별 배지 묶음 — 배지마다 「18~24시 해양사고 위험예보 '주의'(KOMSA)」(글자 색 = 그 예보 자체 등급의 색) + 바로 아래 상세 줄(서버 detail, 없으면 없음).
+     * 출처별 배지 묶음 — 배지마다 「18~24시 해양사고 위험예보 '주의'(KOMSA)」(글자 색 = 그 예보 자체 등급의 색) + 바로 아래 상세(서버 detail, 없으면 없음).
      * 2026-10-17 사용자 결정(설계서 §11.10.15) 원문 *"이미지 2는 ##~##시 해양사고 위험예보 '주의'(KOMSA) 라고 표출하고, 색상은 주의 수준의 색상으로 반영(텍스트)"*
      *   · *"혼잡예보도 매우 높음에 해당되는 색상이 노란색이니 ? 뭔가 빨간색으로 반영되어야 할 것 같은데"* — 색 단계(rank)는 서버가 정한다(혼잡 높음 → 주의 색 · 매우높음 → 경계 색 — 위험예측 지도와 같은 대응).
+     * 상세는 표(같은 날 시안 ④판 사용자 확정 *"여기도 표로 정리하면 좋겠어. 시간대별로"*): 서버 detail[] = {title, head, rows} → 제목 줄 + 표(srcbTable). 규칙 v16 판의 글 줄(string)은 종전 한 줄 그대로.
      * 글자 색: 관심·주의 = colorOf(rank) 를 글자에, 경계 = .sb-srcb[data-rank="3"](station_briefing.css — 어두운 바탕 위 대비 4.5 이상 밝은 빨강, §11.10.11 분석 문단과 같은 색). 서버 글은 textContent 로만.
      * 예: seaBadges([{source:'accident',text:"18~24시 해양사고 위험예보 '주의'(KOMSA)",rank:2,detail:[]}]) → <div class="sb-srcbs"><span class="sb-srcb" data-rank="2" style="color:#fb923c">18~24시 …</span></div>
-     * @param {Object[]} badges - 해역 카드 badges(서버 station_briefing_rules.seaBadges) @returns {HTMLElement} [연계] ← seaCardBadged / → colorOf
+     * @param {Object[]} badges - 해역 카드 badges(서버 station_briefing_rules.seaBadges) @returns {HTMLElement} [연계] ← seaCardBadged / → colorOf·srcbTable
      */
     function seaBadges(badges) {
         var box = el('div', 'sb-srcbs'); box.setAttribute('data-sb-badges', String(badges.length));
@@ -274,9 +276,32 @@
             s.setAttribute('data-rank', String(r)); s.setAttribute('data-sb-src', String(g.source || ''));
             if (r !== 3) s.style.color = colorOf(r);
             box.appendChild(s);
-            (Array.isArray(g.detail) ? g.detail : []).forEach(function (d) { box.appendChild(el('p', 'sb-srcb-det', d)); });
+            (Array.isArray(g.detail) ? g.detail : []).forEach(function (d) { box.appendChild(d && typeof d === 'object' ? srcbTable(d) : el('p', 'sb-srcb-det', d)); });
         });
         return box;
+    }
+    /**
+     * 배지 상세 표 — 제목(서버 글 「KOMSA 해양사고 위험예보」·「232해구 예보」 등) + 표 「시각 | 등급」 같은 꼴(설계서 §11.10.15 「2026-10-17 사용자 확정(시안 ④판)」).
+     * 칸은 서버 글 그대로(textContent), {text, rank} 칸은 그 등급 색 굵게(관심·주의 = colorOf, 경계 = CSS [data-rank="3"] 밝은 빨강 — 배지와 같은 규칙). 좁은 화면에서는 표 상자 안 가로 스크롤.
+     * 예: srcbTable({title:'KOMSA 해양사고 위험예보', head:['시각','등급'], rows:[['18시',{text:"'주의'",rank:2}]]}) → <div class="sb-srcb-det sb-srcb-tab"><p class="sb-srcb-dt">KOMSA …</p><div class="sb-srcb-tblw"><table class="sb-srcb-tbl">…</table></div></div>
+     * @param {Object} d - badges[].detail[] 하나 @returns {HTMLElement} [연계] ← seaBadges / → colorOf
+     */
+    function srcbTable(d) {
+        var wrap = el('div', 'sb-srcb-det sb-srcb-tab');
+        if (d.title) wrap.appendChild(el('p', 'sb-srcb-dt', d.title));
+        var sc = el('div', 'sb-srcb-tblw'), t = el('table', 'sb-srcb-tbl'), hr = el('tr'), th = el('thead'), tb = el('tbody');
+        (Array.isArray(d.head) ? d.head : []).forEach(function (h) { hr.appendChild(el('th', '', h)); }); th.appendChild(hr); t.appendChild(th);
+        (Array.isArray(d.rows) ? d.rows : []).forEach(function (r) {
+            var tr = el('tr');
+            (Array.isArray(r) ? r : []).forEach(function (c) {
+                var o = c && typeof c === 'object', td = el('td', o ? 'sb-srcb-grade' : '', o ? c.text : c);
+                if (o && Number.isFinite(Number(c.rank))) { td.setAttribute('data-rank', String(Number(c.rank))); if (Number(c.rank) !== 3) td.style.color = colorOf(Number(c.rank)); }
+                tr.appendChild(td);
+            });
+            tb.appendChild(tr);
+        });
+        t.appendChild(tb); sc.appendChild(t); wrap.appendChild(sc);
+        return wrap;
     }
     /**
      * 규칙 v16 해역 카드 본문(2026-10-17 사용자 결정 — 설계서 §11.10.15): 출처별 배지(+상세 줄) → [사고현황('21~'25년)] → 「… 많이 기록되었습니다」(사용자 *"이 문구는 사고현황 아래쪽으로 가야함"*)

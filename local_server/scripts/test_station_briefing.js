@@ -999,7 +999,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(acc.sentence.includes("해양사고 위험예보 '경계'(KOMSA) 단계이므로 공단 사고위험 예보를 확인하고 운항 시 경계가 요구됩니다."), acc.sentence);   // §11.10.15: 근거 = 배지 꼴
         const wz = { zone: '제주도서부앞바다', type: '풍랑', level: '경보', state: '발효', effective: { start: at(0), end: at(0), range: false }, release: null };
         const wr = R.buildBriefing(seaOnlyInput({ regions: [region(1, {}, { zone: { name: '제주도서부앞바다', kind: 'main' } })], warnings: [wz] }), WIN, { generatedAt: R.isoKst(T0) }).sea.cards[0];
-        assert.ok(wr.sentence.includes("풍랑경보 '경계'(기상청) 근거로 기상청 특보를 확인하고 운항 시 경계가 요구됩니다."), wr.sentence);   // §11.10.15: 근거 = 배지 꼴(특보구역은 배지 상세 줄)
+        assert.ok(wr.sentence.includes('풍랑경보(기상청) 근거로 기상청 특보를 확인하고 운항 시 경계가 요구됩니다.'), wr.sentence);   // §11.10.15: 근거 = 배지 꼴(특보구역은 배지 상세 표) · 특보 등급 말 없음(시안 ④판 사용자 확정)
         assert.ok(!/공식 경계 단계 확인/.test(acc.sentence + wr.sentence));
     });
     await check('[UI-B5] 관심 이상 관광지 전체 수(attentionSpots)를 따로 준다 — 카드는 10곳까지', () => {
@@ -2172,7 +2172,9 @@ const WIN = R.editionWindow('morning', T0);
     });
     // ── §11.10.15(2026-10-17 사용자 결정 — 승인 시안 Sea.dc.html 카드 A~D): 해역 카드 출처별 배지 「{창} {예보 이름} '{등급}'({기관})」 + 상세 줄 · [권고] 근거 = 배지 꼴 ──
     const card15 = (slots, extra = {}, sea = {}, w = yWin) => R.buildBriefing(seaOnlyInput({ regions: [region(1, slots, { history: yHist, ...extra })], ...sea }), w, { generatedAt: '2026-10-17T17:10:00+09:00' }).sea.cards[0];
-    const pick15 = (c) => c.badges.map((g) => [g.text, g.rank, g.detail]);
+    // 상세 표(시안 ④판 사용자 확정 — {title, head, rows})를 한 줄 글로 줄여 비교: 「제목 — 칸 칸 · 칸 칸」, 등급 칸은 「'주의'#2」(글#색 단계)
+    const dt15 = (d) => typeof d === 'string' ? d : d.title + ' — ' + d.rows.map((r) => r.map((c) => c && typeof c === 'object' ? c.text + '#' + c.rank : c).join(' ')).join(' · ');
+    const pick15 = (c) => c.badges.map((g) => [g.text, g.rank, g.detail.map(dt15)]);
     await check('[§11.10.15-1] KOMSA 단독(시안 A) — 배지 하나 「18~24시 해양사고 위험예보 \'주의\'(KOMSA)」 · 글자 색 단계 = 주의(2) · 칸마다 같은 등급이면 상세 줄 없음 · 카드 딱지(rank·word)는 그대로 · [권고] 근거 = 배지 꼴', () => {
         const c = R.buildBriefing(yIn(yHist), yWin, { generatedAt: '2026-10-17T17:10:00+09:00' }).sea.cards[0];
         assert.deepStrictEqual(pick15(c), [["18~24시 해양사고 위험예보 '주의'(KOMSA)", 2, []]]);
@@ -2184,21 +2186,21 @@ const WIN = R.editionWindow('morning', T0);
     await check('[§11.10.15-2] 섞인 경우(시안 C) — KOMSA 18시 \'주의\'·21시 \'경계\' + 혼잡 \'매우높음\' 두 칸: 배지 둘(위험예보 먼저) · 위험예보 창 = 경계 칸만 · 상세 줄 = 칸마다 등급 / 칸마다 혼잡지수(그 칸 가장 높은 시각) · 혼잡 글자 색 = 경계(3)', () => {
         const c = card15({ [at(18)]: { accident: '주의', congestion: { level: '매우높음', index: 45.14, at: at(18) } }, [at(21)]: { accident: '경계', congestion: { level: '매우높음', index: 32.91, at: at(22) } } });
         assert.deepStrictEqual(pick15(c), [
-            ["21~24시 해양사고 위험예보 '경계'(KOMSA)", 3, ["KOMSA 해양사고 위험예보 — 18시 '주의' · 21시 '경계'"]],
-            ["18~24시 혼잡 예보 '매우높음'(KOMSA)", 3, ['혼잡지수 — 18시 45.14 · 22시 32.91']],
+            ["21~24시 해양사고 위험예보 '경계'(KOMSA)", 3, ["KOMSA 해양사고 위험예보 — 18시 '주의'#2 · 21시 '경계'#3"]],
+            ["18~24시 혼잡 예보 '매우높음'(KOMSA)", 3, ['KOMSA 혼잡 예보 — 18시 45.14 · 22시 32.91']],
         ]);
         assert.deepStrictEqual([c.rank, c.word], [3, '경계']);
         assert.ok(c.advice.startsWith("21~24시 이 해역은 해양사고 위험예보 '경계'(KOMSA) 단계이므로"), c.advice);
         // 같은 등급만 있어도 배지가 둘 이상이면 위험예보 상세 줄을 넣는다(사용자 「그 아래 상세사항으로 혼잡예보와 해양사고 위험예보 정보를 넣어주면」)
         const d = card15({ [at(18)]: { accident: '주의', congestion: { level: '높음', index: 12.5, at: at(19) } }, [at(21)]: { accident: '주의' } });
-        assert.deepStrictEqual(pick15(d), [["18~24시 해양사고 위험예보 '주의'(KOMSA)", 2, ["KOMSA 해양사고 위험예보 — 18시 '주의' · 21시 '주의'"]], ["18~21시 혼잡 예보 '높음'(KOMSA)", 2, ['혼잡지수 — 19시 12.5']]]);
+        assert.deepStrictEqual(pick15(d), [["18~24시 해양사고 위험예보 '주의'(KOMSA)", 2, ["KOMSA 해양사고 위험예보 — 18시 '주의'#2 · 21시 '주의'#2"]], ["18~21시 혼잡 예보 '높음'(KOMSA)", 2, ['KOMSA 혼잡 예보 — 19시 12.5']]]);
         // KOMSA 단독이라도 칸마다 등급이 다르면 상세 줄(배지에 없는 「18시 '주의'」를 알린다)
-        assert.deepStrictEqual(pick15(card15({ [at(18)]: { accident: '주의' }, [at(21)]: { accident: '경계' } }))[0][2], ["KOMSA 해양사고 위험예보 — 18시 '주의' · 21시 '경계'"]);
+        assert.deepStrictEqual(pick15(card15({ [at(18)]: { accident: '주의' }, [at(21)]: { accident: '경계' } }))[0][2], ["KOMSA 해양사고 위험예보 — 18시 '주의'#2 · 21시 '경계'#3"]);
     });
     await check('[§11.10.15-3] 혼잡만(시안 D) — 카드는 관심(1)인데 배지 글자 색은 그 예보 등급(매우높음 → 경계 3 · 높음 → 주의 2, 위험예측 지도 CONG 대응) · [권고] 「혼잡 예보 \'매우높음\'(KOMSA) 근거로 … 관심이」', () => {
         const c = card15({ [at(18)]: { congestion: { level: '매우높음', index: 45.14, at: at(18) } }, [at(21)]: { congestion: { level: '높음', index: 32.91, at: at(21) } } });
         assert.deepStrictEqual([c.rank, c.word], [1, '관심']);
-        assert.deepStrictEqual(pick15(c), [["18~21시 혼잡 예보 '매우높음'(KOMSA)", 3, ['혼잡지수 — 18시 45.14 · 21시 32.91']]], '창 = 매우높음 칸 · 상세 = 높음 이상 칸 전부');
+        assert.deepStrictEqual(pick15(c), [["18~21시 혼잡 예보 '매우높음'(KOMSA)", 3, ['KOMSA 혼잡 예보 — 18시 45.14 · 21시 32.91']]], '창 = 매우높음 칸 · 상세 = 높음 이상 칸 전부');
         assert.equal(c.advice, "18~24시 이 해역은 혼잡 예보 '매우높음'(KOMSA) 근거로 운항 시 관심이 요구됩니다.");
         assert.deepStrictEqual(R.CONG_COLOR_RANK, { '높음': 2, '매우높음': 3 });
         assert.deepStrictEqual(card15({ [at(18)]: { congestion: { level: '보통', index: 5, at: at(18) } } }), undefined, '보통은 근거가 아니라 카드 없음');
@@ -2206,24 +2208,24 @@ const WIN = R.editionWindow('morning', T0);
     await check('[§11.10.15-4] 기상 출처(시안 B) — 특보 「풍랑주의보 \'주의\'(기상청)」·경보 \'경계\'·예비특보·해제 뒤(등급 없음) · 해구 예보 「최대 파고 …(기상청)」(기상청 해구 예보엔 등급이 없음) · 상세 = 특보구역·칸마다 상태 / 칸마다 파고·풍속', () => {
         const Z = { zone: { name: '안면도 서쪽 평수구역', kind: 'sub' } }, w = (o) => ({ warnings: [{ zone: '안면도 서쪽 평수구역', kind: '앞바다', type: '풍랑', level: '주의보', state: '발효', effective: { start: at(21), end: at(21), range: false }, release: null, ...o }] });
         const a = card15({}, Z, w({}));
-        assert.deepStrictEqual(pick15(a), [["21~24시 풍랑주의보 '주의'(기상청)", 2, []]], '단독·한결같음이면 상세 줄 없음(시안 B)');
+        assert.deepStrictEqual(pick15(a), [['21~24시 풍랑주의보(기상청)', 2, []]], '단독·한결같음이면 상세 없음(시안 B) · 특보 등급 말 없음(시안 ④판 1)');
         assert.deepStrictEqual([a.badges[0].source, a.badges[0].sub, a.badges[0].agency], ['weather', 'warning', '기상청']);
-        assert.equal(a.advice, "21~24시 이 해역은 풍랑주의보 '주의'(기상청) 근거로 운항 시 주의가 요구됩니다.");
-        assert.deepStrictEqual(pick15(card15({}, Z, w({ level: '경보' })))[0].slice(0, 2), ["21~24시 풍랑경보 '경계'(기상청)", 3]);
-        assert.deepStrictEqual(pick15(card15({}, Z, w({ state: '예비' })))[0].slice(0, 2), ["21~24시 풍랑주의보 예비특보 '주의'(기상청)", 2]);
+        assert.equal(a.advice, '21~24시 이 해역은 풍랑주의보(기상청) 근거로 운항 시 주의가 요구됩니다.');
+        assert.deepStrictEqual(pick15(card15({}, Z, w({ level: '경보' })))[0].slice(0, 2), ['21~24시 풍랑경보(기상청)', 3]);
+        assert.deepStrictEqual(pick15(card15({}, Z, w({ state: '예비' })))[0].slice(0, 2), ['21~24시 풍랑주의보 예비특보(기상청)', 2]);
         // 발효 중 → 해제 예고 19:00 끝: 18시 칸 발효 중, 21시 칸은 해제 뒤 1시간(19~20시)이 걸치지 않아 단계 없음 · 15시 발효 시작 → 15·18시 「발효 중」
         const rel = card15({}, Z, w({ effective: { start: at(15), end: at(15), range: false }, release: { start: at(19), end: at(19), range: false } }));
-        assert.deepStrictEqual(pick15(rel), [["15~21시 풍랑주의보 '주의'(기상청)", 2, []]]);
+        assert.deepStrictEqual(pick15(rel), [['15~21시 풍랑주의보(기상청)', 2, []]]);
         // 해제 뒤만(관심) — 등급 말 없음, 이름에 「해제 뒤」, 상세에 그 상태
         const gone = card15({ [at(21)]: { accident: '주의' } }, Z, w({ state: '해제', effective: null, release: { start: '2026-10-17T15:30:00+09:00', end: '2026-10-17T15:30:00+09:00', range: false } }));
-        assert.deepStrictEqual(pick15(gone), [["21~24시 해양사고 위험예보 '주의'(KOMSA)", 2, ["KOMSA 해양사고 위험예보 — 21시 '주의'"]], ['15~18시 풍랑주의보 해제 뒤(기상청)', 1, ['기상청 안면도 서쪽 평수구역 풍랑주의보 — 15시 해제 뒤']]]);
+        assert.deepStrictEqual(pick15(gone), [["21~24시 해양사고 위험예보 '주의'(KOMSA)", 2, ["KOMSA 해양사고 위험예보 — 21시 '주의'#2"]], ['15~18시 풍랑주의보 해제 뒤(기상청)', 1, ['기상청 안면도 서쪽 평수구역 풍랑주의보 — 15시 해제 뒤']]]);
         // 해구 예보(파고 2m·풍속 12m/s 이상 칸) — 넘은 축의 최대값, 상세는 칸마다 두 값
         const hz = card15({}, {}, { weather: { 232: { label: '대해구 232', rows: [[15, 2.4, 9], [18, 1.2, 13], [21, 0.8, 6]].map(([h, wh, ws]) => ({ at: at(h), wh, ws })) } } });
-        assert.deepStrictEqual(pick15(hz), [['15~21시 해구 예보 최대 파고 2.4m·풍속 13m/s(기상청)', 1, ['기상청 대해구 232 예보 — 15시 파고 2.4m·풍속 9m/s · 18시 파고 1.2m·풍속 13m/s']]]);
+        assert.deepStrictEqual(pick15(hz), [["15~21시 해구 예보 파고 '높음'·풍속 '강함'(기상청)", 1, ['232해구 예보 — 15시 2.4m (높음) 9m/s (다소 강함) · 18시 1.2m (다소 높음) 13m/s (강함)']]]);
         assert.equal(hz.badges[0].level, null);
     });
-    await check('[§11.10.15-5] 순서 = 카드 단계에 기여한 단계 높은 것 먼저, 같으면 위험예보 → 혼잡 → 기상 · 한림 고정 자료(주의 + 예비특보 + 혼잡 + 해구) · 끊긴 시간대는 「06~09시·21~24시」 · 낡은 원천은 배지 없음', () => {
-        assert.deepStrictEqual(b.sea.cards[0].badges.map((g) => g.text), ["15~21시 해양사고 위험예보 '주의'(KOMSA)", "21~24시 풍랑주의보 예비특보 '주의'(기상청)", "15~18시 혼잡 예보 '높음'(KOMSA)", '15~21시 해구 예보 최대 파고 2.6m·풍속 14m/s(기상청)']);
+    await check('[§11.10.15-5] 순서 = 글자 색 단계 높은 것 먼저(시안 ④판 「나.」 — 종전 기여 단계 순), 같으면 위험예보 → 혼잡 → 기상 · 한림 고정 자료(주의 + 예비특보 + 혼잡 + 해구) · 끊긴 시간대는 「06~09시·21~24시」 · 낡은 원천은 배지 없음', () => {
+        assert.deepStrictEqual(b.sea.cards[0].badges.map((g) => g.text), ["15~21시 해양사고 위험예보 '주의'(KOMSA)", "15~18시 혼잡 예보 '높음'(KOMSA)", '21~24시 풍랑주의보 예비특보(기상청)', "15~21시 해구 예보 파고 '높음'·풍속 '매우 강함'(기상청)"], '글자 색 순(주황 셋 → 노랑) · 같은 색이면 위험예보 → 혼잡 → 기상(시안 ④판 「나.」)');
         assert.deepStrictEqual(b.sea.cards[0].badges.map((g) => g.rank), [2, 2, 2, 1]);
         const gap = R.buildBriefing(seaOnlyInput({ regions: [region(1, { [at(6)]: { accident: '주의' }, [at(21)]: { accident: '주의' } })] }), WIN, { generatedAt: R.isoKst(T0) }).sea.cards[0];
         assert.equal(gap.badges[0].text, "06~09시·21~24시 해양사고 위험예보 '주의'(KOMSA)");
@@ -2231,6 +2233,40 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(stale.badges.map((g) => g.source), ['accident'], '낡은 혼잡 원천은 배지도 없음');
         // 종전 필드(sourceLabel·window·today.*)는 그대로 — AI 입력·옛 화면이 쓴다
         assert.deepStrictEqual([b.sea.cards[0].sourceLabel, b.sea.cards[0].window], ["해양사고 위험예보 '주의'", '15~24시']);
+    });
+    // ── §11.10.15 「2026-10-17 사용자 확정(시안 ④판)」: 특보 등급 말 없음 · 해구 예보 = 바다 상태 말(숫자는 표) · 상세 = 표 · 순서 = 글자 색 ──
+    await check('[§11.10.15-6] 시안 ④판 — ①특보 「풍랑주의보(기상청)」(등급 말·따옴표 없음, 색 단계는 그대로) ②해구 예보 「파고 \'높음\'·풍속 \'매우 강함\'」(넘은 축만·숫자·「기준」 없음 · 제목 = 서버 「{대해구}해구 예보」 · 표 칸 「2.4m (높음)」) ④상세 표 머리·등급 칸 색 ⑤혼잡 \'매우높음\'(빨강)이 위험예보 \'주의\'(주황)보다 먼저 · [권고] 근거는 카드 단계 근거 그대로', () => {
+        const Z = { zone: { name: '안면도 서쪽 평수구역', kind: 'sub' } }, w = (o) => ({ warnings: [{ zone: '안면도 서쪽 평수구역', kind: '앞바다', type: '풍랑', level: '주의보', state: '발효', effective: { start: at(21), end: at(21), range: false }, release: null, ...o }] });
+        // ① 특보 — 배지·basis 어디에도 따옴표 등급 없음, level 필드 null, 글자 색 단계(rank)는 주의보 2·경보 3 그대로
+        for (const [lv, rk] of [['주의보', 2], ['경보', 3]]) {
+            const g = card15({}, Z, w({ level: lv })).badges[0];
+            assert.deepStrictEqual([g.text, g.basis, g.level, g.rank], ['21~24시 풍랑' + lv + '(기상청)', '풍랑' + lv + '(기상청)', null, rk]);
+            assert.ok(!/'/.test(g.text + g.basis), g.text);
+        }
+        // ② 해구 예보 — 한 축만 넘으면 그 축만 · 숫자·단위·「기준」 없음 · 상세 제목은 서버가 대해구 번호로(「75해구 예보」) · 칸 = 숫자 + 말(SEA_STATE 경계 그대로)
+        const wave = card15({}, { haegu: { major: 75, sub: 1, label: '75-1' } }, { weather: { 75: { label: '대해구 75', rows: [[15, 2.4, 9], [18, 3.1, 10]].map(([h, wh, ws]) => ({ at: at(h), wh, ws })) } } }).badges[0];
+        assert.equal(wave.text, "15~21시 해구 예보 파고 '매우 높음'(기상청)");
+        assert.ok(!/\d|기준/.test(wave.text.replace(/^[\d~·시]+ /, '')), '배지에 숫자·「기준」 없음(앞 시간대 빼고) — ' + wave.text);
+        assert.deepStrictEqual([wave.detail[0].title, wave.detail[0].head, wave.detail[0].rows], ['75해구 예보', ['시각', '파고', '풍속'], [['15시', '2.4m (높음)', '9m/s (다소 강함)'], ['18시', '3.1m (매우 높음)', '10m/s (다소 강함)']]]);
+        const wind = card15({}, {}, { weather: { 232: { label: '대해구 232', rows: [{ at: at(15), wh: 0.6, ws: 14 }] } } }).badges[0];
+        assert.deepStrictEqual([wind.text, wind.detail[0].rows], ["15~18시 해구 예보 풍속 '매우 강함'(기상청)", [['15시', '0.6m (낮음)', '14m/s (매우 강함)']]]);
+        // 경계값 — 2.0m 「높음」(2.0~3.0 미만) · 3.0m 「매우 높음」 · 12m/s 「강함」(11~14 미만) · 11.9m/s 는 기준(12) 미만이라 풍속 축 없음
+        assert.deepStrictEqual([[2.0, 12], [3.0, 11.9]].map(([wh, ws]) => card15({}, {}, { weather: { 232: { label: '대해구 232', rows: [{ at: at(15), wh, ws }] } } }).badges[0].text),
+            ["15~18시 해구 예보 파고 '높음'·풍속 '강함'(기상청)", "15~18시 해구 예보 파고 '매우 높음'(기상청)"]);
+        // ④ 상세 표 — 해양사고 위험예보 「시각 | 등급」(등급 칸 = 글 + 그 등급 색 단계) · 혼잡 「시각 | 혼잡지수」 · 특보 「시각 | 상태」(제목에 특보구역)
+        const mix = card15({ [at(18)]: { accident: '주의', congestion: { level: '매우높음', index: 45.14, at: at(18) } }, [at(21)]: { accident: '경계', congestion: { level: '높음', index: 32.91, at: at(21) } } });
+        const acc = mix.badges.find((g) => g.source === 'accident').detail[0], cg = mix.badges.find((g) => g.source === 'congestion').detail[0];
+        assert.deepStrictEqual(acc, { title: 'KOMSA 해양사고 위험예보', head: ['시각', '등급'], rows: [['18시', { text: "'주의'", rank: 2 }], ['21시', { text: "'경계'", rank: 3 }]] });
+        assert.deepStrictEqual(cg, { title: 'KOMSA 혼잡 예보', head: ['시각', '혼잡지수'], rows: [['18시', '45.14'], ['21시', '32.91']] });
+        const wd = card15({ [at(21)]: { accident: '주의' } }, Z, w({ effective: { start: at(18), end: at(18), range: false } })).badges.find((g) => g.sub === 'warning').detail[0];
+        assert.deepStrictEqual(wd, { title: '기상청 안면도 서쪽 평수구역 풍랑주의보', head: ['시각', '상태'], rows: [['18시', '발효 중'], ['21시', '발효 중']] });
+        // ⑤ 순서 = 글자 색 — 혼잡 '매우높음'(빨강 3)이 위험예보 '주의'(주황 2)보다 먼저(시안 「나.」) · [권고] 근거는 카드 단계를 정한 위험예보 그대로
+        const nb = card15({ [at(18)]: { accident: '주의', congestion: { level: '매우높음', index: 45.14, at: at(18) } }, [at(21)]: { accident: '주의' } });
+        assert.deepStrictEqual(nb.badges.map((g) => [g.source, g.rank]), [['congestion', 3], ['accident', 2]]);
+        assert.equal(nb.advice, "18~24시 이 해역은 해양사고 위험예보 '주의'(KOMSA) 근거로 운항 시 주의가 요구됩니다.");
+        // 빨강 → 주황 → 노랑: 위험예보 '경계'(3) · 특보 주의보(2) · 해구 예보(1 — 특보가 발효 중인 칸은 해구 예보 근거가 아니어서 다른 칸)
+        const tri = card15({ [at(15)]: { accident: '경계' } }, Z, { ...w({}), weather: { 232: { label: '대해구 232', rows: [{ at: at(15), wh: 2.4, ws: 9 }] } } });
+        assert.deepStrictEqual(tri.badges.map((g) => [g.sub, g.rank]), [['accident', 3], ['warning', 2], ['zoneForecast', 1]]);
     });
     // ── §11.10.16(2026-10-17 사용자 결정 — 시안 댓글): 단계 이름 「필요」 없음 · [권고]·(권고) 「요구됩니다」 · 간출암 줄 두 문장 · 「다만,」 ──
     await check('[§11.10.16-1] 단계 이름에서 「필요」를 뺐다 — WORD 「관심·주의·경계」(평소 수준 그대로) · 결론 「단계는 "주의"입니다」 · 카드·시간 막대·관광지·근거 표·KOMSA 단계 · 규칙 분석 「주의 수준」 · 브리핑 어디에도 「주의 필요」 꼴 없음', () => {
