@@ -540,8 +540,8 @@ function makeBriefings() {
                 box.remove(); return out;
             }, { base, now: clock.now });
             assert.deepEqual(v.none.heads, ['제주도서부앞바다 기상 현황'], '특이사항이 없으면 칸째 없음'); assert.ok(!v.none.text.includes('특이사항') && !v.none.text.includes('없습니다') && !v.none.text.includes('단기 전망 ('), v.none.text);
-            assert.deepEqual(v.unparsed.heads, ['제주도서부앞바다 기상 현황', '특이사항']); assert.ok(v.unparsed.text.includes('뽑지 못했습니다'), '뽑지 못한 것은 「없음」처럼 숨기지 않음(L-291)');
-            assert.deepEqual(v.missing.heads, ['제주도서부앞바다 기상 현황', '특이사항']); assert.ok(v.missing.text.includes('단기 전망 자료를 확인하지 못했습니다'));
+            // §11.10.11 사용자 결정 「아예 빼 받지 못함 안내 넣지 말고」 — 뽑지 못함·못 받음도 칸째 없음(머리·안내·출처 줄 없음)
+            for (const k of ['unparsed', 'missing']) { assert.deepEqual(v[k].heads, ['제주도서부앞바다 기상 현황'], k + ' — 특이사항 칸째 없음'); assert.ok(!v[k].text.includes('특이사항') && !v[k].text.includes('뽑지 못했') && !v[k].text.includes('확인하지 못했') && !v[k].text.includes('단기 전망 ('), k + ' — ' + v[k].text); }
             assert.deepEqual(v.far.heads[0], '동해중부안쪽먼바다 기상 현황'); assert.ok(!v.far.text.includes('115.9km') && !v.far.text.includes('떨어져'), '먼 구역 거리 안내 없음 — ' + v.far.text);
             assert.ok(!v.dist.text.includes('약 0.1km') && !v.dist.text.includes('대표 위치'), v.dist.text);
             await page.setViewportSize({ width: 412, height: 915 });
@@ -556,8 +556,8 @@ function makeBriefings() {
                 b.land.attentionAll = (b.land.attentionAll || []).concat(['하트해변', '봉평해수욕장', '후정해수욕장'].map((n) => ({ name: n, rank: 2 })));
                 R.render(box, { ok: true, briefing: b }, { now });
                 const an = box.querySelector('[data-sb-analysis="land"]'), sea = box.querySelector('[data-sb-analysis="sea"]');
-                const spans = (e) => [...e.querySelectorAll('.sb-hl')].map((x) => ({ t: x.textContent, c: x.className.replace('sb-hl sb-hl-', ''), color: getComputedStyle(x).color, w: getComputedStyle(x).fontWeight }));
-                out.land = spans(an); out.sea = spans(sea); out.landText = an.textContent; out.html = an.innerHTML.includes('<img');
+                const spans = (e) => [...e.querySelectorAll('.sb-hl')].map((x) => ({ t: x.textContent, c: x.className.replace('sb-hl sb-hl-', '').replace(' sb-hl-red', ''), red: x.classList.contains('sb-hl-red'), color: getComputedStyle(x).color, w: getComputedStyle(x).fontWeight }));
+                out.land = spans(an); out.sea = spans(sea); out.landText = an.textContent; out.html = an.innerHTML.includes('<img'); out.band4 = window.RiskFormat.BAND_COLORS['매우 높음'];
                 let e = an; while (e && !/rgb\(|rgba\([^)]*, 1\)/.test(getComputedStyle(e).backgroundColor === 'rgba(0, 0, 0, 0)' ? '' : getComputedStyle(e).backgroundColor)) e = e.parentElement; out.bg = e ? getComputedStyle(e).backgroundColor : null;   // 글자 뒤 첫 불투명 바탕(대비 보고용)
                 const adv = box.querySelector('[data-sb-summary="land"] > [data-sb-advice]'), basisAdv = box.querySelector('[data-sb-summary="land"] .sb-x-panel .sb-sum-advice');
                 out.adv = adv.textContent; out.advSpans = adv.querySelectorAll('.sb-hl').length;
@@ -576,9 +576,10 @@ function makeBriefings() {
             assert.deepEqual(pick(r.land), ['b:하트해변은', "lv:'매우 높음'", 'lv:경계 필요', 'b:방문객이 평소의 2.4배로 예상', 'warn-pre:풍랑주의보 예비특보가 10월 18일 06~12시에 발효될 예정', 'b:봉평해수욕장과 후정해수욕장은', "lv:'높음'", 'lv:주의 필요', 'b:방문객이 각각 평소의 2.2배와 2.8배로 예상']);
             const col = (c) => 'rgb(' + c.join(', ') + ')';
             assert.equal(r.land.find((x) => x.c === 'warn-pre').color, col([242, 194, 48]), '예비특보·예정 = 노랑(위험예측 4색의 「다소 높음」)');
-            assert.equal(r.land.find((x) => x.t === "'매우 높음'").color, col([224, 50, 44])); assert.equal(r.land.find((x) => x.t === "'높음'").color, col([251, 146, 60]));
+            // §11.10.11: 문단 글자의 빨강만 #e34842(227,72,66 — 대비 4.5 이상), 노랑·주황은 4색 그대로
+            assert.equal(r.land.find((x) => x.t === "'매우 높음'").color, col([227, 72, 66])); assert.equal(r.land.find((x) => x.t === "'높음'").color, col([251, 146, 60]));
             assert.ok(r.land.every((x) => Number(x.w) >= 700), '모두 굵게');
-            assert.deepEqual(pick(r.sea), ['warn-on:풍랑주의보가 발효 중'], '발효 = 빨강'); assert.equal(r.sea[0].color, col([224, 50, 44]));
+            assert.deepEqual(pick(r.sea), ['warn-on:풍랑주의보가 발효 중'], '발효 = 빨강'); assert.equal(r.sea[0].color, col([227, 72, 66]));
             assert.ok(!r.landText.includes('따라서'), '마지막 「따라서」 문장은 문단에서 빠진다');
             assert.equal(r.adv, '(권고) 하트해변에는 경계가, 봉평해수욕장과 후정해수욕장에는 주의가 필요합니다.'); assert.equal(r.advSpans, 0, '(권고) 줄 안은 강조 없음(근거 칸 (권고) 모양 그대로)');
             assert.equal(r.basisAdv, false, '근거 칸 (권고) 없음');
@@ -587,7 +588,11 @@ function makeBriefings() {
             assert.deepEqual(r.none, ['summary', '(권고) ' + B.h.summary.land.advice], '문단이 없으면 서버 권고를 결론 아래에');
             const lum = (c) => { const v = (c.match(/\d+/g) || []).slice(0, 3).map(Number).map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
             const cr = (fg) => { const a = lum(fg), b = lum(r.bg); return +((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toFixed(2); };
-            console.log('   [대비] 바탕 ' + r.bg + ' — 노랑 ' + cr('rgb(242, 194, 48)') + ' · 주황 ' + cr('rgb(251, 146, 60)') + ' · 빨강 ' + cr('rgb(224, 50, 44)') + ' · 굵은 흰 글 ' + cr('rgb(248, 250, 252)'));
+            console.log('   [대비] 바탕 ' + r.bg + ' — 노랑 ' + cr('rgb(242, 194, 48)') + ' · 주황 ' + cr('rgb(251, 146, 60)') + ' · 빨강(문단) ' + cr(r.sea[0].color) + '(4색 빨강 ' + cr('rgb(224, 50, 44)') + ') · 굵은 흰 글 ' + cr('rgb(248, 250, 252)'));
+            // §11.10.11 고정: 문단 빨강(발효·경계)은 그 카드 바탕 위 WCAG AA 4.5 이상 · 앱 전체 4색(지도·배지)은 바꾸지 않음
+            assert.deepEqual(r.land.concat(r.sea).filter((x) => x.red).map((x) => x.t), ["'매우 높음'", '경계 필요', '풍랑주의보가 발효 중'], '.sb-hl-red = 경계 단계·발효만');
+            assert.equal(r.bg, 'rgb(10, 16, 31)', '대비를 잰 바탕(어두운 카드)'); assert.ok(cr(r.sea[0].color) >= 4.5 && cr(r.land.find((x) => x.t === "'매우 높음'").color) >= 4.5, '빨강 대비 ' + cr(r.sea[0].color));
+            assert.equal(r.band4, '#e0322c', '위험예측 4색 「매우 높음」 그대로');
         });
         await check('[§11.10.9 ⑥] 팝업 지도 — 분석 문단의 대해구 이름·「관할 해역 선박 N척」·붐비는 해역 이름이 링크 · 누르면 가운데 창(role=dialog·aria-modal) 지도(관할 경계 + 대해구 테두리 / 선박 격자 + 칸 안 척수 / 그 격자 깜빡임) · ✕·Esc·바깥으로 닫힘 · 360px', async () => {
             await page.setViewportSize({ width: 360, height: 780 }); await openAcc(page);

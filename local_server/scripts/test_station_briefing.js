@@ -17,7 +17,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js · station_briefing.js · routes/station_briefing.js
- *                    · client/js/forecast/station-briefing/station_briefing_render.js(notesEmptyText)·client/js/admin/admin_station_briefing.js(errorsMarkdown·codeText·reasonTexts·runGroups·errorsByStation — §11.10.7) — vm 으로 읽어 순수 함수만
+ *                    · client/js/forecast/station-briefing/station_briefing_render.js(highlightSegments 등)·client/js/admin/admin_station_briefing.js(errorsMarkdown·codeText·reasonTexts·runGroups·errorsByStation — §11.10.7) — vm 으로 읽어 순수 함수만
  *                    · config/coastal_safety/coastguard_stations.geojson(관할 97곳 — 해상만 19곳 셈)
  *  - 나를 쓰는 곳  : scripts/refactor/verify_all.sh SUITES
  * [로드 순서] 독립 실행: node local_server/scripts/test_station_briefing.js
@@ -1172,7 +1172,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(!all.includes('내일 비'), '강수 강도·강수량 차이 안내는 특이사항 아님');
         assert.equal(R.shortList('제주도산지와 제주시(북부, 중산간), 서귀포시중산간, 추자도', 24), '제주도산지와 제주시(북부, 중산간) 등', '괄호 안에서 끊지 않음');
     });
-    await check('[§11.10.2-3] 그날 토막이 있는데 뽑지 못하면 「없습니다」가 아니라 「뽑지 못했습니다 — 원문 확인」 · 「물결이 최대 4m」·km/h 만 있는 순간풍속도 뽑는다', () => {
+    await check('[§11.10.2-3] 그날 토막이 있는데 뽑지 못하면 notesFound 참(화면 안내는 §11.10.11 부터 없음 — 칸째 뺌, UI 시험) · 「물결이 최대 4m」·km/h 만 있는 순간풍속도 뽑는다', () => {
         assert.deepStrictEqual(R.bulletinNotes(SEA('○ (해상) 내일(18일) 제주도앞바다에 물결이 최대 4m로 매우 높게 일겠습니다.\n○ (강풍) 내일(18일) 제주도에는 순간풍속 90km/h 안팎으로 매우 강하게 불겠습니다.'), '2026-10-17', '2026-10-18', '내일'),
             ['내일 제주도에 순간풍속 90km/h 안팎의 매우 강한 바람', '내일 제주도앞바다 물결 최대 4m로 높아짐']);
         assert.deepStrictEqual(R.bulletinScan(SEA('○ (해상) 내일(18일)은 제주도앞바다의 물결이 점차 낮아지겠습니다.'), '2026-10-17', '2026-10-18', '내일'), { found: true, notes: [] });
@@ -1180,10 +1180,6 @@ const WIN = R.editionWindow('morning', T0);
         const rg = REGIONAL(); rg.offices['184'].summary = SEA('○ (해상) 오늘(17일)은 제주도앞바다의 물결이 점차 낮아지겠습니다.');
         const w = R.buildBriefing({ ...hallim(), zoneWeather: I.collectZoneWeather({ lat: 33.41, lon: 126.26 }, rg) }, WIN, { generatedAt: R.isoKst(T0) }).summary.weather;
         assert.deepStrictEqual([w.notes, w.notesFound, w.bulletinMissing], [[], true, false]);
-        const sandbox = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing_render.js'), 'utf8'), sandbox);
-        const txt = sandbox.window.StationBriefingRender.notesEmptyText;
-        assert.equal(txt(w), '단기 전망에서 항목을 뽑지 못했습니다 — 원문(제주지방기상청 단기 전망 (10.17 04:40 발표))을 확인하세요.');
-        assert.equal(txt({ notesFound: false }), '이 날에 해당하는 특보·강풍·해상 특이사항이 단기 전망에 없습니다.'); assert.equal(txt({}), '이 날에 해당하는 특보·강풍·해상 특이사항이 단기 전망에 없습니다.', 'notesFound 없는 옛 브리핑');
     });
     await check('[§11.10.2-4] 가장 가까운 특보구역 줄을 먼저(상한 3줄에 그 구역 줄이 남음) · 「(북부앞바다 제외)」는 맞음이 아님 · 같은 구역의 풍랑 예비특보 줄과 해상 줄은 한 줄', () => {
         const north = R.bulletinNotes(BULLETIN, '2026-10-17', '2026-10-18', '내일', '제주도북부앞바다');

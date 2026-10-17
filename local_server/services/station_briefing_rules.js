@@ -938,7 +938,7 @@ function bulletinNotes(text, issuedDate, targetDate, dayWord, nearZone) { return
  * (기상) 칸 — 파출소 위치에서 가장 가까운 앞바다(특보구역)의 지방기상청 단기 해상예보 오전·오후 두 칸 + 그 지방청 단기 전망의 대상일 특이사항.
  * 앞바다가 30km 넘게 떨어져 더 가까운 먼바다 예보를 쓰거나 먼 앞바다를 그대로 쓰면 note 에 그 사실(collectZoneWeather — 독립 검토 5).
  * 자료가 없으면 지어내지 않고 missing·bulletinMissing 으로 밝힌다(화면 「기상예보 자료를 확인하지 못했습니다」).
- * notesFound(독립 검토 3): 통보문에 대상일 토막이 있었는지 — notes 가 비었는데 참이면 화면은 「없습니다」가 아니라 「뽑지 못했습니다 — 원문을 확인하세요」.
+ * notesFound(독립 검토 3): 통보문에 대상일 토막이 있었는지(자료로만 남긴다). 화면은 §11.10.11(2026-10-17 사용자 결정)부터 notes 가 비면 이유(없음·bulletinMissing·notesFound)와 상관없이 특이사항 칸째 그리지 않는다.
  * 예: weatherSummary(b, {zone:'제주도서부앞바다', distKm:0.5, office:'184', coastal:{officeName:'제주지방기상청',publishTime:'10.17. 05:00',periods:[…]}, bulletin:{officeName,publishTime:'2026.10.17 04:40',text}}, win)
  *     → {zone:'제주도서부앞바다', kind:'coastal', note:null, rows:[{label:'오늘 오전',text:'구름많음 · 파고 0.5~1.5m · …'},{label:'오늘 오후',…}], source:'제주지방기상청 단기 해상예보 (10.17 05:00 발표)', notes:[…], notesFound:true, notesSource:'제주지방기상청 단기 전망 (10.17 04:40 발표)', missing:false, bulletinMissing:false}
  * @param {object} b @param {object|null} wx - station_briefing_inputs.collectZoneWeather 결과 @param {object} win @returns {object}
