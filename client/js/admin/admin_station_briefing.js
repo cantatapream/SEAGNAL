@@ -4,6 +4,7 @@
  * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 연안 안전 브리핑(종전 「활동지점 안전 브리핑」 — §11.10.4)의
  *         생성 방식(ChatGPT VM / Gemini / 규칙 분석만)·모델·노출 범위(사용자에게 / 관리자에게만 / 노출 안 함)·묶음 단위·「바뀐 곳만 다시 만들기」를 고르고,
  *         상태 카드(실행 중·대기 표시 · 마지막 실행 · 판별 AI/다시 시도/규칙 분석/오류 수 · 공개 예정 · 다음 예정)와 실행 중 진행 게이지(전체 막대 + 묶음별·관할별 — §11.10.7),
+ *         상태 카드 안 「관광지 자료 확인 불가」(판별 N관할 · 관광지 M곳, 0이면 「없음」, 펼치면 이름)와 정시 판 소요 시간 작은 표(최근 6회 — 시작·분:초·결과·마감, §11.10.21),
  *         최근 3일 오류를 실행마다 드롭다운으로 골라 관할별·시도별 한글 풀이로 보고 [복사]·[md로 저장](고른 실행만 — 앱 안에서는 시스템 브라우저로 내려받기)을 하고,
  *         [지금 다시 만들기](곧바로 공개 · 실행 중이면 409 안내)와 관할 하나 미리보기(공개 예정 판은 「예정」)를 한다.
  * ----------------------------------------------------------------------------
@@ -141,6 +142,15 @@
             '[data-sb-admin] .sba-errst ol{margin:4px 0 0;padding-left:0;list-style:none;}',
             '[data-sb-admin] .sba-errst li{color:#e2e8f0;font-size:.78rem;line-height:1.5;padding:3px 0 3px 10px;border-left:2px solid rgba(248,113,113,.5);margin-top:3px;word-break:keep-all;overflow-wrap:anywhere;}',
             '[data-sb-admin] .sba-errst li b{color:#fda4af;font-weight:700;}',
+            // §11.10.21 관광지 자료 확인 불가(펼침 목록) · 정시 판 소요 표(360px 에서 넘치지 않게 고정 칸·줄바꿈)
+            '[data-sb-admin] .sba-sf summary{cursor:pointer;color:#fcd34d;font-size:.84rem;font-weight:600;line-height:1.45;}',
+            '[data-sb-admin] .sba-sf ul{margin:4px 0 0;padding-left:16px;}',
+            '[data-sb-admin] .sba-sf li{color:#e2e8f0;font-size:.76rem;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere;}',
+            '[data-sb-admin] .sba-tt{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:4px;font-size:.72rem;}',
+            '[data-sb-admin] .sba-tt th{color:#94a3b8;font-weight:600;text-align:left;padding:4px 3px;border-bottom:1px solid rgba(255,255,255,.14);}',
+            '[data-sb-admin] .sba-tt td{color:#e2e8f0;padding:5px 3px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere;}',
+            '[data-sb-admin] .sba-tt td small{display:block;color:#94a3b8;font-size:.66rem;}',
+            '[data-sb-admin] .sba-tt td.bad{color:#fca5a5;font-weight:700;}',
             '[data-sb-admin] .sba-mdview{width:100%;min-height:180px;margin-top:6px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#0b1426;color:#e2e8f0;font-size:.72rem;font-family:monospace;}',
         ].join('\n');
         document.head.appendChild(s);
@@ -216,10 +226,10 @@
     function chip(parent, text, tone) { var c = elc('span', 'sba-chip' + (tone ? ' ' + tone : ''), text); parent.appendChild(c); return c; }
     /**
      * 상태 카드 — 실행 중/대기 표시 · 실행 중이면 진행 게이지(drawProgress, 2.5초마다 다시 받음) · 마지막 실행(시각·판·방식·걸린 시간·공개 시각) · 판별 통계 칩
-     * · 공개 예정 · 특보 변경 대기 · 실행 실패 · 다음 예정 · 저장된 날짜 · 최근 3일 오류(drawRunErrors) · [지금 다시 만들기](202 시작 / 409 실행 중)·[새로고침].
+     * · 관광지 자료 확인 불가(drawSpotFail) · 공개 예정 · 특보 변경 대기 · 실행 실패 · 다음 예정 · 저장된 날짜 · 정시 판 소요 표(drawEditionTimes) · 최근 3일 오류(drawRunErrors) · [지금 다시 만들기](202 시작 / 409 실행 중)·[새로고침].
      * 2026-10-17 사용자 *"실행 중 · 마지막 실행 · 몇 판 … 보기 좋게 … 깔끔하게"* — 줄글 대신 상태 알약·통계 칩·흐린 보조 글(정보는 종전 그대로 다).
      * 예: [● 실행 중] 진행 게이지 … · 마지막 실행 「10-17 07:10 · 07:30 판」 「ChatGPT · 412초 · 공개 10-17 07:30」 · 「10-17 판 97곳」 [AI 90] [다시 시도 5곳] [Gemini 1회] [재사용 3] [규칙 분석 4] [오류 2]
-     * @param {HTMLElement} box @returns {Promise<void>} [연계] ← renderStationBriefingAdmin·버튼·진행이 끝날 때 / → drawProgress·startPoll·drawRunErrors
+     * @param {HTMLElement} box @returns {Promise<void>} [연계] ← renderStationBriefingAdmin·버튼·진행이 끝날 때 / → drawProgress·startPoll·drawSpotFail·drawEditionTimes·drawRunErrors
      */
     async function drawStatus(box) {
         box.textContent = '';
@@ -269,12 +279,79 @@
             });
             if (lr.aiDisabled) last.appendChild(elc('div', 'sba-sub', '참고: ' + lr.aiDisabled));
         } else { var lm0 = elc('div', 'sba-sub', '기록 없음'); lm0.setAttribute('data-sb-lastrun', ''); last.appendChild(lm0); }
+        drawSpotFail(sec('관광지 자료 확인 불가', 'data-sb-spotfail'), s);
         (s.pending || []).forEach(function (x) { var d = sec('공개 예정', 'data-sb-pending-status'); d.appendChild(elc('div', 'sba-main', at(x.publishAt) + ' — ' + x.stations + '곳(그때까지 사용자에게는 이전 판)')); });
         if (s.pendingWarn) sec('특보 변경 대기').appendChild(elc('div', 'sba-main', (s.pendingWarn.zones || []).join(', ') + ' — 마지막 변경 ' + at(s.pendingWarn.lastChangeAt)));
         Object.keys(s.failures || {}).forEach(function (k) { var f = s.failures[k], d = sec('실행 실패'); d.appendChild(el('div', 'color:#fca5a5;font-size:.8rem;', k + ' ' + f.count + '번 · 마지막 ' + at(f.lastAt) + ' · ' + (f.reason || ''))); });
         var nx = sec('다음 예정', 'data-sb-next'); nx.appendChild(elc('div', 'sba-main', nextEdition(Date.now()))); nx.appendChild(elc('div', 'sba-sub', '07:30·17:30·23:00 공개, 각 20분 전부터 만들기 · 특보가 바뀌면 그 관할만 곧바로'));
         if (Array.isArray(s.days) && s.days.length) sec('저장된 날짜').appendChild(elc('div', 'sba-sub', s.days.join(', ')));
+        drawEditionTimes(sec('정시 판 소요 시간 — 최근 ' + EDITION_ROWS + '회까지', 'data-sb-edition-times'), s);
         drawRunErrors(body, s);
+    }
+    /** 밀리초 → 「분:초」. 예: 754000 → '12:34' · 59000 → '0:59' · 숫자 아님 → '—'. @param {number} ms @returns {string} [연계] ← drawEditionTimes */
+    function mmss(ms) { if (!Number.isFinite(ms) || ms < 0) return '—'; var t = Math.round(ms / 1000); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+    /**
+     * 「관광지 자료 확인 불가」 줄 — 판별로 「관광지 자료 확인 불가: 2관할 · 관광지 3곳」(누르면 관할·관광지 이름), 0이면 「없음」(§11.10.21 — 사용자 화면에서는 뺐다).
+     * 마지막 실행과, 그것이 특보 변경·관리자 실행이면 마지막 정시 판(lastEdition)도 따로 보인다. 이 기록 전 실행(spotFail 없음)은 「기록 없음」 — 0 으로 보이지 않게(CLAUDE.md L-291).
+     * 예: drawSpotFail(sec, {lastRun:{at,kind:'morning',results:[{date:'2026-10-17',spotFail:{stations:1,spots:2,list:[{office:'제주해양경찰서',station:'한림파출소',spots:['협재해수욕장','한림항']}]}}]}})
+     *     → 「마지막 실행 · 10-17 07:10 · 07:30 판 · 10-17 판」 ▸「관광지 자료 확인 불가: 1관할 · 관광지 2곳」 → 「제주해양경찰서 한림파출소 — 협재해수욕장, 한림항」
+     * @param {HTMLElement} box @param {Object} s - status 응답 @returns {void} [연계] ← drawStatus · 서버 station_briefing.spotFailOf(lastRun·lastEdition results[].spotFail)
+     */
+    function drawSpotFail(box, s) {
+        var runs = [];
+        if (s.lastRun) runs.push(['마지막 실행', s.lastRun]);
+        if (s.lastEdition && (!s.lastRun || s.lastEdition.at !== s.lastRun.at)) runs.push(['마지막 정시 판', s.lastEdition]);
+        if (!runs.length) { box.appendChild(elc('div', 'sba-sub', '실행 기록 없음')); return; }
+        runs.forEach(function (pair) {
+            var r = pair[1], res = r.results || [];
+            if (!res.length) { box.appendChild(elc('div', 'sba-sub', pair[0] + ' · ' + at(r.at) + ' · 만든 판 없음')); return; }
+            res.forEach(function (x) {
+                var row = el('div', 'margin-top:4px;'); row.setAttribute('data-sb-spotfail-row', '');
+                row.appendChild(elc('div', 'sba-sub', pair[0] + ' · ' + at(r.at) + ' · ' + (KIND[r.kind] || r.kind || '') + ' · ' + String(x.date || '').slice(5) + ' 판'));
+                var f = x.spotFail;
+                if (!f) row.appendChild(elc('div', 'sba-sub', '관광지 자료 확인 불가: 기록 없음(이 기능 전 실행)'));
+                else if (!f.stations) row.appendChild(elc('div', 'sba-main', '관광지 자료 확인 불가: 없음'));
+                else {
+                    var d = elc('details', 'sba-sf'); d.appendChild(el('summary', '', '관광지 자료 확인 불가: ' + f.stations + '관할 · 관광지 ' + f.spots + '곳'));
+                    var ul = el('ul'); (f.list || []).forEach(function (g) { ul.appendChild(el('li', '', [g.office, g.station].filter(Boolean).join(' ') + ' — ' + (g.spots || []).join(', '))); });
+                    if (!(f.list || []).length) ul.appendChild(el('li', '', '이름 목록은 마지막 실행·마지막 정시 판에만 남깁니다'));
+                    d.appendChild(ul); row.appendChild(d);
+                }
+                box.appendChild(row);
+            });
+        });
+        box.appendChild(elc('div', 'sba-sub', '연안 하루 값 상세를 받지 못한 관광지 — 그 관광지는 브리핑 연안 판단에서 빠집니다.'));
+    }
+    var EDITION_ROWS = 6;
+    /**
+     * 정시 판(07:30·17:30·23:00) 소요 시간 작은 표 — 최근 EDITION_ROWS 회(서버 실행 기록 status.runs, 최근 3일). 사용자가 「만들기 시작 시각을 앞당길지」 판단하는 데 쓴다(§11.10.21).
+     * 칸: 판(시작 시각) · 소요(분:초, 공개 몇 분 전/뒤 끝남) · 결과(관할·AI·재사용·규칙 분석·오류) · 마감(실행 마감에 걸려 규칙 분석으로 넘긴 관할 수).
+     * 예: drawEditionTimes(sec, {runs:[{at:'2026-10-17T07:10:00+09:00',kind:'morning',ms:754000,publishAt:'…T07:30:00+09:00',results:[{stations:97,stats:{ai:90,reused:3,template:4,deadline:0},errors:2}]}], runDeadlineMs:1200000})
+     *     → | 07:30 판 / 10-17 07:10 | 12:34 / 공개 7:26 전 끝남 | 97곳 · AI 90 · 재사용 3 · 규칙 4 · 오류 2 | 안 걸림 |
+     * @param {HTMLElement} box @param {Object} s - status 응답 @returns {void} [연계] ← drawStatus · 서버 station_briefing.run(runs[].ms·results[].stats.deadline)·status(runDeadlineMs)
+     */
+    function drawEditionTimes(box, s) {
+        var rows = (s.runs || []).filter(function (r) { return r && ['morning', 'evening', 'night'].indexOf(r.kind) >= 0; }).slice(0, EDITION_ROWS);
+        if (!rows.length) { box.appendChild(elc('div', 'sba-sub', '최근 3일 정시 판 기록 없음')); return; }
+        var t = elc('table', 'sba-tt'), cg = el('colgroup');
+        ['24%', '24%', '34%', '18%'].forEach(function (w) { var c = el('col'); c.style.width = w; cg.appendChild(c); }); t.appendChild(cg);
+        var hr = el('tr'); ['판(시작)', '소요(분:초)', '결과', '마감'].forEach(function (h) { hr.appendChild(el('th', '', h)); }); var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+        var tb = el('tbody'); t.appendChild(tb);
+        var cell = function (tr, main, sub, cls) { var td = el('td', '', main); if (cls) td.className = cls; if (sub) td.appendChild(el('small', '', sub)); tr.appendChild(td); return td; };
+        rows.forEach(function (r) {
+            var n = { stations: 0, ai: 0, reused: 0, template: 0, errors: 0, deadline: 0 };
+            (r.results || []).forEach(function (x) { var st = x.stats || {}; n.stations += x.stations || 0; n.ai += st.ai || 0; n.reused += st.reused || 0; n.template += st.template || 0; n.deadline += st.deadline || 0; n.errors += x.errors || 0; });
+            var end = Date.parse(r.at) + r.ms, gap = r.publishAt && Number.isFinite(end) ? Date.parse(r.publishAt) - end : NaN;
+            var tr = el('tr'); tr.setAttribute('data-sb-edition-row', '');
+            cell(tr, KIND[r.kind], at(r.at));
+            cell(tr, mmss(r.ms), Number.isFinite(gap) ? '공개 ' + mmss(Math.abs(gap)) + (gap >= 0 ? ' 전 끝남' : ' 뒤 끝남') : null);
+            cell(tr, n.stations + '곳 · AI ' + n.ai + ' · 재사용 ' + n.reused + ' · 규칙 ' + n.template + ' · 오류 ' + n.errors);
+            if (n.deadline) cell(tr, '걸림', '규칙으로 ' + n.deadline + '곳', 'bad'); else cell(tr, '안 걸림');
+            tb.appendChild(tr);
+        });
+        box.appendChild(t);
+        var dl = Number.isFinite(s.runDeadlineMs) ? Math.round(s.runDeadlineMs / 60000) + '분' : '정한 시간';
+        box.appendChild(elc('div', 'sba-sub', '소요 = 위치 확인부터 저장까지 전체. 마감 = 시작 뒤 ' + dl + '과 공개 시각 중 이른 때 — 넘으면 남은 관할은 규칙 분석(AI 없음). 특보 변경·관리자 실행은 이 표에 없습니다.'));
     }
     /** 상태 알약을 실행 중/대기로. 예: setPill(p, true) → 「● 실행 중」. @param {HTMLElement} pill @param {boolean|null} on - null 이면 「알 수 없음」 @returns {void} [연계] ← drawStatus·startPoll */
     function setPill(pill, on) {
@@ -679,4 +756,5 @@
     renderStationBriefingAdmin.runGroups = runGroups;
     renderStationBriefingAdmin.errorsByStation = errorsByStation;
     renderStationBriefingAdmin.SHAPE = SHAPE;
+    renderStationBriefingAdmin.mmss = mmss;   // §11.10.21 정시 판 소요 표
 })(window);

@@ -1759,7 +1759,33 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(s3.status().runs[0].results[0].errors, 0);
         assert.deepStrictEqual(SB.keepRuns([{ at: '2026-10-14T23:59:00+09:00' }, { at: '2026-10-15T00:00:00+09:00' }], kt('08:00')).map((x) => x.at), ['2026-10-15T00:00:00+09:00'], '오류와 같은 3일');
     });
-    await check('[§11.10.7-3] 관리자 오류 풀이 — 서버가 남기는 열쇠 전부를 한글로(모르는 열쇠만 원래 글) · 실행마다 묶기(오류 0 실행 포함·옛 오류·실행 실패) · 관할별·시도 순 · 고른 실행 마크다운', () => {
+    await check('[§11.10.21] 실행 요약 — 관광지 자료 확인 불가(마지막 실행·마지막 정시 판은 관할·관광지 이름, 실행 기록 runs 는 수만) · 특보 변경·관리자 실행이 마지막 정시 판을 덮지 않음 · 0곳이면 0 · status runDeadlineMs · 화면 분:초', async () => {
+        assert.deepStrictEqual(SB.spotFailOf([{ name: '한림파출소', office: '제주해양경찰서', land: { spots: [{ name: '협재', missing: ['detail'] }, { name: '한림항', missing: ['swell'] }] } }, { name: '해상만', land: null }]),
+            { stations: 1, spots: 1, list: [{ office: '제주해양경찰서', station: '한림파출소', spots: ['협재'] }] }, '상세 실패(detail)만 · 해상만 관할은 뺌');
+        const d = fs.mkdtempSync(path.join(tmp, 'spotfail-')); let clock = kt('07:10'), broken = true;
+        const sp = (id, name) => ({ id, name, lat: 33.39, lon: 126.24, police: { name: '한림파출소' } });
+        const risk = { ...fakeRisk, spots: () => ({ spots: [sp('ok1', '협재해수욕장'), sp('bad1', '금능해수욕장'), sp('bad2', '한림항')] }),
+            coastDayDetail: (id, t) => { if (broken && id.startsWith('bad')) throw Object.assign(new Error('관광지 없음'), { status: 404 }); return { t, index: 10, band: '평소 수준', rows: [], notices: [], daily: { peakAt: t, notices: [] }, history: { available: false }, missing: [] }; } };
+        const s = mkSvc(d, () => clock, { risk, runDeadlineMs: 20 * 60000 });
+        await s.run({ kind: 'morning' });
+        let st = s.status();
+        const want = { stations: 1, spots: 2, list: [{ office: '제주해양경찰서', station: '한림파출소', spots: ['금능해수욕장', '한림항'] }] };
+        assert.deepStrictEqual(st.lastRun.results[0].spotFail, want, '마지막 실행 — 이름까지');
+        assert.equal(st.lastEdition.at, st.lastRun.at, '정시 판이면 lastEdition = lastRun');
+        assert.deepStrictEqual(st.runs[0].results[0].spotFail, { stations: 1, spots: 2 }, '실행 기록은 수만(이름 없음 — state.json 크기)');
+        assert.equal(st.runDeadlineMs, 20 * 60000);
+        const day = I.readJson(path.join(d, 'briefings_2026-10-17.json')); assert.equal(day.pending['제주해양경찰서|한림파출소'].land.failedSpots, 2, '브리핑 파일(07:30 공개 대기 판)의 수와 같다');
+        // 관리자 즉시 실행(관광지 자료 회복) — 마지막 실행은 「없음」(0), 마지막 정시 판(07:10)의 이름 목록은 그대로
+        broken = false; clock = kt('09:00'); await s.run({ kind: 'manual' });
+        st = s.status();
+        assert.deepStrictEqual(st.lastRun.results[0].spotFail, { stations: 0, spots: 0, list: [] });
+        assert.deepStrictEqual([st.lastEdition.at, st.lastEdition.kind, st.lastEdition.results[0].spotFail], ['2026-10-17T07:10:00+09:00', 'morning', want]);
+        assert.deepStrictEqual(st.runs.map((x) => [x.kind, x.results[0].spotFail.spots, Number.isFinite(x.ms)]), [['manual', 0, true], ['morning', 2, true]], '정시 판 소요 표 재료 — kind·ms·결과 수');
+        const sandbox = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/admin/admin_station_briefing.js'), 'utf8'), sandbox);
+        const mmss = sandbox.window.renderStationBriefingAdmin.mmss;
+        assert.deepStrictEqual([mmss(754000), mmss(59000), mmss(1200000), mmss(NaN)], ['12:34', '0:59', '20:00', '—']);
+    });
+    await check('[§11.10.7-3] 관리자 오류 풀이 —서버가 남기는 열쇠 전부를 한글로(모르는 열쇠만 원래 글) · 실행마다 묶기(오류 0 실행 포함·옛 오류·실행 실패) · 관할별·시도 순 · 고른 실행 마크다운', () => {
         const sandbox = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/admin/admin_station_briefing.js'), 'utf8'), sandbox);
         const A = sandbox.window.renderStationBriefingAdmin, J = (x) => JSON.parse(JSON.stringify(x));   // vm 안 배열은 원형이 달라 deepStrictEqual 전에 옮긴다
         assert.deepStrictEqual([A.SHAPE.minS, A.SHAPE.maxS, A.SHAPE.maxChars], [AI.MIN_S, AI.MAX_S, AI.MAX_CHARS], '풀이 글의 3~5문장·420자 = 서버 값');

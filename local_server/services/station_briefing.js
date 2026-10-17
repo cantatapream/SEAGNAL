@@ -6,6 +6,7 @@
  *         연안·해상 분석 문단만 AI 로 쓴 뒤(station_briefing_ai — VM 최대 3번 → Gemini → 규칙 분석) 날짜별 파일에 저장한다. 공개 시각 전의 판은 pending 에 두고 그동안 화면에는 이전 판을 준다(visibleOf).
  *         관리자 설정(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만)과 노출 판정(관리자 기기에만 등)도 여기서 정한다.
  *         관리자 「AI 브리핑」 탭용으로 실행 중 진행(메모리 progress — 단계·묶음·관할, progressNow)과 최근 3일 실행 기록(state.runs — 실행마다 오류 드롭다운)도 준다(§11.10.7).
+ *         실행 요약에는 관광지 자료 확인 불가(spotFailOf — 실행 기록은 수만, 마지막 실행·마지막 정시 판(lastEdition)은 관할·관광지 이름까지)도 남긴다(§11.10.21 — 관리자 「상태」 상자·정시 판 소요 표).
  *         자동 실행(정시 판·특보 변경 판)이 끝날 때마다 관리자 휴대폰에 결과 푸시 1통(오류가 없어도), 던지면 「분석 실패」 1통(§11.10.8 — 관리자 즉시 실행은 보내지 않음).
  *         해역 기상은 소해구 예보(§11.10.19): 모으기 전에 저장된 소해구 판(smallzone_forecast — 대해구 예보가 새 판을 받을 때 미리 받아 둠)을 찾기 함수로 넘기고,
  *         저장 판이 대해구 예보 판보다 옛것이면 그 실행에서 필요한 대해구만 한 번 받아 본다(실패·시간 초과여도 계속 — 그 해역만 대해구 예보로).
@@ -65,6 +66,18 @@ function keepRuns(list, now) {
     const from = R.kstDate(now - (ERROR_KEEP_DAYS - 1) * 86400000);
     return (list || []).filter((r) => r && typeof r.at === 'string' && r.at.slice(0, 10) >= from).slice(-RUN_LOG_CAP);
 }
+/**
+ * 관광지 자료 확인 불가(연안 하루 값 상세를 못 받은 관광지 — collectLand 의 missing:['detail'])를 관할별로 모은다(§11.10.21 — 사용자 화면에서는 뺐고 관리자 「상태」에서 본다).
+ * 브리핑 파일에는 관할마다 수(land.failedSpots)만 남고 이름은 없어, 실행 때 입력에서 이름을 뽑아 실행 요약에 남긴다.
+ * 예: spotFailOf([{name:'한림파출소',office:'제주해양경찰서',land:{spots:[{name:'협재',missing:['detail']},{name:'한림항',missing:[]}]}}, {land:null}])
+ *     → {stations:1, spots:1, list:[{office:'제주해양경찰서', station:'한림파출소', spots:['협재']}]}
+ * @param {object[]} inputs - I.gather 결과 @returns {{stations:number, spots:number, list:object[]}} [연계] ← run(실행 요약 lastRun·lastEdition·runs)
+ */
+function spotFailOf(inputs) {
+    const list = (inputs || []).filter((x) => x && x.land).map((x) => ({ office: x.office || null, station: x.name, spots: (x.land.spots || []).filter((s) => (s.missing || []).includes('detail')).map((s) => s.name) })).filter((x) => x.spots.length);
+    return { stations: list.length, spots: list.reduce((a, x) => a + x.spots.length, 0), list };
+}
+const EDITION_KINDS = ['morning', 'evening', 'night'];   // 정시 판(§11.10.21 lastEdition — 특보 변경·관리자 실행이 마지막 정시 판의 이름 목록을 덮지 않게)
 // 실행 실패 백오프(독립 검토 B9·ops1): 실행이 던지면 매분 다시 돌며 AI 를 다시 부르지 않게 — 실패 뒤 10분 기다리고, 같은 판은 3번까지만.
 const RUN_BACKOFF_MS = 10 * 60000, MAX_RUN_FAILS = 3;
 // 특보 변경 디바운스(독립 검토 C9): 특보가 잇달아 바뀌면 마지막 변경 뒤 3분 조용할 때 한 번만 다시 만든다.
@@ -398,7 +411,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         I.writeJson(p('config.json'), { ...next, updatedAt: R.isoKst(clock()) }); return next;
     }
     /** 상태 파일(만든 판·특보 서명·관할별 특보구역·마지막 실행·오류·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← run·tick·status */
-    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, runs: s.runs || [], errors: s.errors || [], errorsCapped: s.errorsCapped || null, alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
+    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, lastEdition: s.lastEdition || null, runs: s.runs || [], errors: s.errors || [], errorsCapped: s.errorsCapped || null, alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
     /** 오류를 보관 규칙(최근 3일·안전 상한)대로 더한다. 상한으로 지운 것이 있으면 errorsCapped 에 시각·수. @param {object} s - state() @param {object[]} add @param {number} now [연계] ← run·reportFailure → keepErrors */
     function addErrors(s, add, now) { const k = keepErrors(s.errors.concat(add), now); s.errors = k.errors; if (k.dropped) s.errorsCapped = { at: R.isoKst(now), dropped: k.dropped, cap: ERROR_HARD_CAP }; else s.errorsCapped = freshCapped(s.errorsCapped, now); }
     function saveState(s) { I.writeJson(p('state.json'), s); }
@@ -516,12 +529,14 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 day.updatedAt = R.isoKst(now); I.writeJson(p('briefings_' + win.targetDate + '.json'), day); fileCache.delete(p('briefings_' + win.targetDate + '.json'));
                 for (const x of inputs) st.stationZones[x.key] = [...new Set((x.sea.warnings || []).map((w) => R.zoneKey(w.zone)).concat((x.sea.regions || []).flatMap((r) => r.zones.map(R.zoneKey))))];
                 addErrors(st, gen.errors.map((e) => ({ ...e, edition: win.kind, date: win.targetDate })), now);
-                results.push({ date: win.targetDate, stations: briefings.length, stats: gen.stats, errors: gen.errors.length, publishAt });
+                results.push({ date: win.targetDate, stations: briefings.length, stats: gen.stats, errors: gen.errors.length, publishAt, spotFail: spotFailOf(inputs) });   // §11.10.21 관광지 자료 확인 불가(이름 목록은 lastRun·lastEdition 에만)
                 rule.push(briefings.filter((b) => b.overview && b.overview.source === 'template').map((b) => b.station.name));   // 관리자 푸시 글(§11.10.8)용 — 상태 파일에는 넣지 않는다
             }
             prune(now);
             st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, publishAt, results, ms: elapsed() - t0, ...(szInfo ? { smallZone: szInfo } : {}), ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
-            st.runs = keepRuns(st.runs.concat({ at: st.lastRun.at, kind, method: cfg.method, ms: st.lastRun.ms, publishAt, results }), now);   // §11.10.7 실행마다 오류 드롭다운
+            if (EDITION_KINDS.includes(kind)) st.lastEdition = st.lastRun;   // §11.10.21 마지막 정시 판(관광지 확인 불가 이름 목록)
+            // §11.10.7 실행마다 오류 드롭다운 · §11.10.21 정시 판 소요 표 — 실행 기록에는 관광지 확인 불가 수만(이름 목록 없이 — state.json 크기)
+            st.runs = keepRuns(st.runs.concat({ at: st.lastRun.at, kind, method: cfg.method, ms: st.lastRun.ms, publishAt, results: results.map((x) => ({ ...x, spotFail: { stations: x.spotFail.stations, spots: x.spotFail.spots } })) }), now);
             saveState(st); recordHistory();
             return { ok: true, results, ms: elapsed() - t0, seq: ++runSeq, method: cfg.method, rule };
         })();
@@ -649,7 +664,8 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         // 공개 대기(§11.10.4) — 날짜 파일마다 아직 공개 시각이 안 된 판 수·공개 시각(관리자 상태 「공개 예정」)
         const now = clock(), pending = [];
         for (const d of days) { const dd = readDay(d), at = {}; for (const b of Object.values((dd && dd.pending) || {})) if (Date.parse(b.publishAt) > now) at[b.publishAt] = (at[b.publishAt] || 0) + 1; for (const [pa, n] of Object.entries(at)) pending.push({ date: d, publishAt: pa, stations: n }); }
-        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, runs: keepRuns(s.runs, now).reverse(), progress: running ? progress : null, done: s.done, pending, errors: keepErrors(s.errors, clock()).errors.reverse(), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorsCapped: freshCapped(s.errorsCapped, clock()), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
+        // lastEdition = 마지막 정시 판 실행(관광지 확인 불가 이름 목록 — §11.10.21) · runDeadlineMs = 한 실행 AI 마감(정시 판 소요 표의 「마감」 설명)
+        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, lastEdition: s.lastEdition, runDeadlineMs, runs: keepRuns(s.runs, now).reverse(), progress: running ? progress : null, done: s.done, pending, errors: keepErrors(s.errors, clock()).errors.reverse(), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorsCapped: freshCapped(s.errorsCapped, clock()), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
     }
     /** 관할 목록(화면 설정용 — 폴리곤 없이). @returns {object[]} [연계] ← routes GET stations */
     function stationList() { const loc = I.readJson(p('locations.json'))?.stations || {}; return stations().map((s) => ({ key: s.key, name: s.name, office: s.office, region: s.region, seaOnly: s.seaOnly, location: loc[s.key]?.status === 'ok' ? { lat: loc[s.key].lat, lon: loc[s.key].lon, estimated: false } : { estimated: true } })); }
@@ -679,4 +695,4 @@ function forDefault() {
     return def;
 }
 
-module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, keepRuns, newProgress, stepProgress, onAiProgress, editionName, shortNames, runPushText, failPushText, defaultAdminPush, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, SMALLZONE_WAIT_MS, zoneBaseOf, smallFinder, start: () => forDefault().start() };
+module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, keepRuns, spotFailOf, newProgress, stepProgress, onAiProgress, editionName, shortNames, runPushText, failPushText, defaultAdminPush, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, SMALLZONE_WAIT_MS, zoneBaseOf, smallFinder, start: () => forDefault().start() };

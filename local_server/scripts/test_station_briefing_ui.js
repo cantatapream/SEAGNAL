@@ -1002,6 +1002,51 @@ function makeBriefings() {
             assert.equal(await page.evaluate(() => document.querySelector('[data-sb-progress]').hidden), true, '끝나면 게이지 숨김');
             await page.setViewportSize({ width: 1280, height: 900 });
         });
+        await check('[§11.10.21] 상태 상자 — 「관광지 자료 확인 불가」 판별(0이면 「없음」 · 펼치면 관할·관광지 이름 · 옛 실행은 「기록 없음」) · 정시 판 소요 표(최근 6회 · 분:초 · 공개 전/뒤 · 마감 · 특보·관리자 실행 뺌) · 360px 넘침 없음', async () => {
+            const run = (at0, kind, ms, pub, res) => ({ at: at0, kind, method: 'chatgpt', ms, publishAt: pub, results: res });
+            const r1 = (o) => [{ date: '2026-10-17', stations: 4, stats: { ai: 4, reused: 0, template: 0, deadline: 0, ...o.stats }, errors: o.errors || 0, ...(o.spotFail ? { spotFail: o.spotFail } : {}) }];
+            const failList = { stations: 2, spots: 3, list: [{ office: '제주해양경찰서', station: '한림파출소', spots: ['금능해수욕장', '협재해수욕장'] }, { office: '부산해양경찰서', station: '남항파출소', spots: ['자갈치'] }] };
+            const edition = run('2026-10-17T07:10:00+09:00', 'morning', 754000, '2026-10-17T07:30:00+09:00', r1({ stats: { ai: 2, reused: 1, template: 1, deadline: 1 }, errors: 2, spotFail: failList }));
+            const manual = run('2026-10-17T09:40:00+09:00', 'manual', 300000, '2026-10-17T09:40:00+09:00', r1({ spotFail: { stations: 0, spots: 0, list: [] } }));
+            const cnt = (f) => ({ stations: f.stations, spots: f.spots });
+            const runs = [run('2026-10-15T07:10:00+09:00', 'morning', 500000, '2026-10-15T07:30:00+09:00', r1({})), run('2026-10-15T17:10:00+09:00', 'evening', 610000, '2026-10-15T17:30:00+09:00', r1({})),
+                run('2026-10-15T22:40:00+09:00', 'night', 905000, '2026-10-15T23:00:00+09:00', r1({})), run('2026-10-16T07:10:00+09:00', 'morning', 1260000, '2026-10-16T07:30:00+09:00', r1({ stats: { deadline: 2, template: 2, ai: 2 } })),
+                run('2026-10-16T17:10:00+09:00', 'evening', 600000, '2026-10-16T17:30:00+09:00', r1({})), run('2026-10-16T18:00:00+09:00', 'warning', 90000, '2026-10-16T18:00:00+09:00', r1({})),
+                run('2026-10-16T22:40:00+09:00', 'night', 700000, '2026-10-16T23:00:00+09:00', r1({})), { ...edition, results: edition.results.map((x) => ({ ...x, spotFail: cnt(x.spotFail) })) }, { ...manual, results: manual.results.map((x) => ({ ...x, spotFail: cnt(x.spotFail) })) }];
+            fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ errors: ERRS, lastRun: manual, lastEdition: edition, runs }));
+            const refresh = () => page.evaluate(() => [...document.querySelectorAll('[data-sb-status] button')].find((b) => b.textContent === '새로고침').click());
+            await refresh(); await page.waitForSelector('[data-sb-edition-row]');
+            const r = await page.evaluate(() => ({
+                sf: [...document.querySelectorAll('[data-sb-spotfail-row]')].map((x) => x.textContent),
+                sum: document.querySelector('[data-sb-spotfail] details summary').textContent, open: document.querySelector('[data-sb-spotfail] details').open,
+                rows: [...document.querySelectorAll('[data-sb-edition-row]')].map((tr) => [...tr.children].map((td) => td.textContent)),
+                head: [...document.querySelectorAll('[data-sb-edition-times] th')].map((x) => x.textContent), title: document.querySelector('[data-sb-edition-times] .sba-k').textContent,
+                note: document.querySelector('[data-sb-edition-times]').textContent }));
+            assert.equal(r.sf.length, 2, r.sf.join(' / '));
+            assert.equal(r.sf[0], '마지막 실행 · 10-17 09:40 · 관리자 즉시 실행 · 10-17 판관광지 자료 확인 불가: 없음', '0이면 「없음」(조용히 빠지지 않게)');
+            assert.ok(r.sf[1].startsWith('마지막 정시 판 · 10-17 07:10 · 07:30 판 · 10-17 판'), r.sf[1]);
+            assert.deepStrictEqual([r.sum, r.open], ['관광지 자료 확인 불가: 2관할 · 관광지 3곳', false]);
+            await tap(page, '[data-sb-spotfail] details summary');
+            assert.deepStrictEqual(await page.$$eval('[data-sb-spotfail] details li', (e) => e.map((x) => x.textContent)), ['제주해양경찰서 한림파출소 — 금능해수욕장, 협재해수욕장', '부산해양경찰서 남항파출소 — 자갈치']);
+            assert.deepStrictEqual(r.head, ['판(시작)', '소요(분:초)', '결과', '마감']); assert.equal(r.title, '정시 판 소요 시간 — 최근 6회까지');
+            assert.equal(r.rows.length, 6, '정시 판만 최근 6회(특보 변경·관리자 실행·7번째 옛 판 뺌)');
+            assert.deepStrictEqual(r.rows[0], ['07:30 판10-17 07:10', '12:34공개 7:26 전 끝남', '4곳 · AI 2 · 재사용 1 · 규칙 1 · 오류 2', '걸림규칙으로 1곳']);
+            assert.deepStrictEqual(r.rows[3], ['07:30 판10-16 07:10', '21:00공개 1:00 뒤 끝남', '4곳 · AI 2 · 재사용 0 · 규칙 2 · 오류 0', '걸림규칙으로 2곳']);
+            assert.deepStrictEqual(r.rows.map((x) => x[0].slice(-11)), ['10-17 07:10', '10-16 22:40', '10-16 17:10', '10-16 07:10', '10-15 22:40', '10-15 17:10'], '최근 것부터');
+            assert.equal(r.rows[1][3], '안 걸림'); assert.ok(r.note.includes('마감 = 시작 뒤 20분과 공개 시각 중 이른 때'), r.note);
+            await page.setViewportSize({ width: 360, height: 780 }); await page.waitForTimeout(200);
+            const ov = await page.evaluate(() => ['[data-sb-status]', '[data-sb-spotfail]', '[data-sb-edition-times]'].map((q) => { const e = document.querySelector(q); return [q, e.scrollWidth, e.clientWidth]; }).concat([['table', document.querySelector('[data-sb-edition-times] table').getBoundingClientRect().right, document.querySelector('[data-sb-edition-times]').getBoundingClientRect().right], ['page', document.documentElement.scrollWidth, document.documentElement.clientWidth]]));
+            for (const [q, a, b] of ov) assert.ok(a <= b + 1, '360px 가로 넘침 없음 ' + q + ' ' + a + '>' + b);
+            for (const [q, f] of [['[data-sb-spotfail]', 'admin_ai_briefing_spotfail_360.png'], ['[data-sb-edition-times]', 'admin_ai_briefing_times_360.png']]) { await page.locator(q).scrollIntoViewIfNeeded(); await page.locator(q).screenshot({ path: path.join(SHOT, f) }); }
+            await page.setViewportSize({ width: 1280, height: 900 });
+            // 이 기록 전 실행(spotFail 없음) — 0 으로 보이지 않고 「기록 없음」, 정시 판 기록이 없으면 표 대신 안내
+            fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ errors: ERRS, lastRun: { ...manual, results: r1({}) } }));
+            await refresh(); await page.waitForFunction(() => !document.querySelector('[data-sb-edition-row]') && document.querySelector('[data-sb-edition-times]'));
+            assert.ok((await page.$eval('[data-sb-spotfail]', (e) => e.textContent)).includes('관광지 자료 확인 불가: 기록 없음(이 기능 전 실행)'));
+            assert.ok((await page.$eval('[data-sb-edition-times]', (e) => e.textContent)).includes('최근 3일 정시 판 기록 없음'));
+            fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ errors: ERRS }));
+            await refresh(); await page.waitForFunction(() => (document.querySelector('[data-sb-lastrun]') || {}).textContent === '기록 없음');
+        });
         await check('설정 저장 — 방식 「틀」·묶음 「지방청」·바뀐 곳만 끄기 → 서버 config 에 저장', async () => {
             await tap(page, '[data-field="method"] [data-value="template"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.startsWith('저장됨'));
             await tap(page, '[data-field="batchUnit"] [data-value="region"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.includes('지방청'));
