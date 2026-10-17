@@ -780,6 +780,34 @@ function makeBriefings() {
             await page.setViewportSize({ width: 412, height: 915 });
             await page.evaluate(({ b, now }) => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), { ok: true, briefing: b, now: null }, { now }), { b: B.h, now: clock.now });
         });
+        // ── §11.10.19(2026-10-17 사용자 *"소해구 기준으로 기상이 표출되어야 함."*): 해역 카드의 해구 예보 배지·상세 표 제목·[기상 예보] 꼬리가 소해구 값 · 소해구 예보가 없는 해역은 대해구 ──
+        await check('[§11.10.19] 해역 카드 — 소해구 값이면 표 제목 「232-5해구 예보」·[기상 예보] 「(소해구 232-5 예보)」 · 소해구 없는 해역은 「(대해구 232 예보)」 · 대해구만 넘는 해역(소해구는 미만)은 카드 없음', async () => {
+            const yWin = R.editionWindow('evening', Date.parse('2026-10-17T17:10:00+09:00'));
+            const reg = (i, slots) => ({ rid: 'A:' + i, lat: 33.4 + i * 0.01, lon: 126.2, haegu: { major: 232, sub: i, label: '232-' + i }, ref: { name: '모슬포', distNm: i + 1, bearingWord: '서' }, zone: null, zones: [], slots, history: { count: 0 } });
+            const sw = (k, list) => ({ label: '소해구 ' + k, major: '232', sub: Number(k.split('-')[1]), baseTm: '2026101700', rows: yWin.slots.map((s) => { const r = list.find(([h]) => at(h) === s); return { at: s, wh: r ? r[1] : null, ws: r ? r[2] : null, forecastAt: r ? s : null }; }) });
+            const fxIn = { key: 'k|소해구시험', name: '소해구시험파출소', office: 'o', region: 'r', seaOnly: true, sources: { accident: 'ok', congestion: 'ok', zoneForecasts: 'ok', warnings: 'ok' }, places: [], land: null, tide: null,
+                sea: { reviewedCells: 3, regions: [reg(5, {}), reg(6, { [at(18)]: { accident: '주의' } }), reg(7, {})],
+                    weather: { 232: { label: '대해구 232', rows: [[15, 1.2, 9], [18, 2.2, 12.5], [21, 1.5, 10]].map(([h, wh, ws]) => ({ at: at(h), wh, ws })) } },
+                    weatherSmall: { '232-5': sw('232-5', [[15, 2.4, 13], [18, 2.6, 14], [21, 2.2, 12]]), '232-7': sw('232-7', [[15, 1.1, 8], [18, 1.6, 10], [21, 1.4, 9]]) }, warnings: [] } };
+            const fx = R.buildBriefing(fxIn, yWin, { generatedAt: '2026-10-17T17:10:00+09:00' });
+            await page.setViewportSize({ width: 360, height: 780 }); await openAcc(page);
+            const r = await page.evaluate(async ({ fx, now }) => {
+                const box = document.getElementById('station-briefing-content');
+                window.StationBriefingRender.render(box, { ok: true, briefing: fx }, { now, showSea: true, showLand: false, onLink: () => {} }); await new Promise((res) => setTimeout(res, 200));
+                return [...box.querySelectorAll('[data-sb-sec="sea"] [data-sb-card="sea"]')].map((card) => ({
+                    name: card.querySelector('.sb-card-name').textContent,
+                    seq: [...card.querySelectorAll('.sb-srcbs > *')].map((e) => e.classList.contains('sb-srcb') ? 'B:' + e.textContent : e.querySelector('table') ? 'T:' + e.querySelector('.sb-srcb-dt').textContent + '|' + [...e.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((x) => x.textContent).join(',')).join('/') : 'D:' + e.textContent),
+                    wx: ([...card.querySelectorAll('.sb-row')].find((x) => x.querySelector('.sb-row-k').textContent === '[기상 예보]') || { querySelector: () => ({ textContent: null }) }).querySelector('.sb-row-v').textContent }));
+            }, { fx, now: clock.now });
+            const by = (n) => r.find((c) => c.name.includes('(232-' + n + '해구)'));
+            assert.deepEqual(r.map((c) => c.name.match(/\((232-\d)해구\)/)[1]).sort(), ['232-5', '232-6'], '232-7 은 대해구(18시 2.2m·12.5m/s)로는 관심이지만 소해구 값이 미만 — 카드 없음');
+            assert.deepEqual(by(5).seq, ["B:15~24시 해구 예보 파고 '높음'·풍속 '매우 강함'(기상청)", 'T:232-5해구 예보|15시,2.4m (높음),13m/s (강함)/18시,2.6m (높음),14m/s (매우 강함)/21시,2.2m (높음),12m/s (강함)'], '배지·표 = 소해구 값');
+            assert.ok(/\(최대 파고 2\.6m·풍속 14m\/s, 소해구 232-5 예보\)\.$|최대 파고 2\.6m·풍속 14m\/s로 .*\(소해구 232-5 예보\)\.$/.test(by(5).wx), by(5).wx);
+            assert.ok(/대해구 232 예보\)\.$/.test(by(6).wx), '소해구 예보가 없는 해역은 대해구 — ' + by(6).wx);
+            assert.ok(by(6).seq.some((x) => x.startsWith('T:232해구 예보|18시,2.2m (높음),12.5m/s (강함)')), '대해구 값의 배지 표 제목 「232해구 예보」 — ' + by(6).seq.join(' / '));
+            await page.setViewportSize({ width: 412, height: 915 });
+            await page.evaluate(({ b, now }) => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), { ok: true, briefing: b, now: null }, { now }), { b: B.h, now: clock.now });
+        });
         await openAcc(page); await page.evaluate(() => document.getElementById('station-briefing-accordion-header').scrollIntoView());
         for (const [w, h] of [[380, 844], [1280, 900]]) { await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(250); await clean(page); await page.screenshot({ path: path.join(SHOT, 'briefing_top_' + w + '.png') }); await page.locator('#station-briefing-content').screenshot({ path: path.join(SHOT, 'briefing_' + w + '.png') }); }
         await page.setViewportSize({ width: 380, height: 844 });

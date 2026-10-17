@@ -27,6 +27,7 @@
  *  - 서버 API      : routes/weather.js GET /api/marine-small-zone-forecasts/:lzone (get)
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : scheduler.js(configure·대해구 예보 저장 직후 prefetch) · routes/weather.js(get)
+ *                    · services/station_briefing.js(run — 브리핑 만들기 직전 peek·getStatus, 저장 판이 대해구 판보다 옛것이면 prefetch 한 번 — §11.10.19)
  *                    · 시험 local_server/scripts/test_smallzone_forecast.js
  * [로드 순서] require 부작용 없음. 디스크 판은 처음 쓸 때 한 번 읽는다.
  * ============================================================================
@@ -362,6 +363,19 @@ async function get(lzone, baseTm) {
 }
 
 /**
+ * 브리핑용 저장 판에서 대해구 하나를 요청 없이 꺼낸다 — 판이 대해구 예보와 같은지는 부르는 쪽이 baseTm 으로 본다(설계서 §11.10.19).
+ * get 과 달리 저장 판에 없거나 판이 달라도 기상청에 묻지 않는다(브리핑이 관할마다 26 요청씩 보내지 않게).
+ * 예: peek('232') → { baseTm:'2026101700', lzone:'232', data:{'1':[…26행],…'9':[…]}, missingTimes:[] } · 저장 판에 없으면 null
+ * @param {string} lzone @returns {object|null}
+ * [연계] ← services/station_briefing.js run(소해구 예보 붙이기 — station_briefing_inputs.smallWeather 가 쓰는 찾기 함수)
+ */
+function peek(lzone) {
+    ensureLoaded();
+    lzone = String(lzone);
+    return brief && brief.data[lzone] ? { baseTm: brief.baseTm, lzone, data: brief.data[lzone], missingTimes: brief.missingTimes || [] } : null;
+}
+
+/**
  * 상태 요약 — 판·받은 시각·대해구 수·빠진 시각 수·마지막 오류(키 가림).
  * 예: getStatus() → { baseTm:'2026101700', collectedAt:'…', lzones:61, withData:61, requests:52, failed:0, missingTimes:0, lastError:null, click:{baseTm,cached:3}, running:false }
  * @returns {object} [연계] ← scheduler.js lastRunStatus.smallZone 의 메시지 · 시험
@@ -383,4 +397,4 @@ function getStatus() {
     };
 }
 
-module.exports = { configure, prefetch, get, getStatus, briefingLzones, parseTable, efTimes, mask, _reset, CHUNK, CLICK_MAX, MARGIN_DEG };
+module.exports = { configure, prefetch, get, peek, getStatus, briefingLzones, parseTable, efTimes, mask, _reset, CHUNK, CLICK_MAX, MARGIN_DEG };

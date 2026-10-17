@@ -7,6 +7,8 @@
  *         관리자 설정(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만)과 노출 판정(관리자 기기에만 등)도 여기서 정한다.
  *         관리자 「AI 브리핑」 탭용으로 실행 중 진행(메모리 progress — 단계·묶음·관할, progressNow)과 최근 3일 실행 기록(state.runs — 실행마다 오류 드롭다운)도 준다(§11.10.7).
  *         자동 실행(정시 판·특보 변경 판)이 끝날 때마다 관리자 휴대폰에 결과 푸시 1통(오류가 없어도), 던지면 「분석 실패」 1통(§11.10.8 — 관리자 즉시 실행은 보내지 않음).
+ *         해역 기상은 소해구 예보(§11.10.19): 모으기 전에 저장된 소해구 판(smallzone_forecast — 대해구 예보가 새 판을 받을 때 미리 받아 둠)을 찾기 함수로 넘기고,
+ *         저장 판이 대해구 예보 판보다 옛것이면 그 실행에서 필요한 대해구만 한 번 받아 본다(실패·시간 초과여도 계속 — 그 해역만 대해구 예보로).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js
@@ -14,6 +16,7 @@
  *                    · services/codex_bridge.js(VM) · services/gemini_client.js(Gemini) — 실제 어댑터는 처음 부를 때 require
  *                    · data/weather_alerts.json(특보 변경 감지 — 크롤러 결과, 읽기만) · data/station_briefing/(설정·상태·날짜별 브리핑·대표 위치 캐시)
  *                    · services/sea_warning_history.js(이미 해제된 특보 — 해제 뒤 관심, 2026-10-16 결정 4) · services/risk_error_history.js(관리자 오류현황 원천 stationBriefing — 결정 6, historyRow)
+ *                    · services/smallzone_forecast.js(peek·getStatus·prefetch — 브리핑 해역의 소해구 예보, §11.10.19 · forDefault 가 넘김)
  *                    · services/admin_push.js sendAdminPush(자동 실행 결과 관리자 푸시 — 운영 FLY_ALLOC_ID 일 때만, 개발은 콘솔 한 줄 · §11.10.8) · services/collect_fail_alert.js reasonOf(실패 푸시의 짧은 분류)
  *  - 서버 API      : routes/station_briefing.js 가 이 모듈을 부른다
  *  - 나를 쓰는 곳  : routes/station_briefing.js · server.js(운영 start) · services/risk_history_sources.js(historyRow — 1분 감시) · scripts/test_station_briefing.js(가짜 시계·어댑터)
@@ -68,6 +71,10 @@ const RUN_BACKOFF_MS = 10 * 60000, MAX_RUN_FAILS = 3;
 const WARN_DEBOUNCE_MS = 3 * 60000, WARN_MAX_WAIT_MS = 15 * 60000; // 계속 바뀌어도 첫 변경 뒤 15분이면 만든다(무한 대기 방지)
 // 한 번 실행의 AI 데드라인(독립 검토 B7): 넘으면 남은 관할은 규칙 분석으로 저장한다. 정시 판은 공개 시각도 넘지 않는다(§11.10.4 — 공개 시각에 된 만큼 보인다, 늦추지 않음).
 const RUN_DEADLINE_MS = 20 * 60000;
+// 소해구 예보 다시 받기 기다림 상한(§11.10.19). 없으면: 기상청이 응답하지 않을 때 요청마다 15초 × 3번 + 쉼(smallzone_forecast TIMEOUT_MS·RETRIES)이 26 요청에 걸려
+// 브리핑이 수 분 늦게 시작되고, 그만큼 공개 시각까지의 AI 시간(위 데드라인)이 줄어든다. 넘으면 기다리지 않고 대해구 예보로 만든다(받기는 뒤에서 계속 — 저장되면 다음 실행이 쓴다).
+// 정상 시간은 대해구 69개 52 요청 32.7초(§11.10.18 실측, 프록시 경유) — 40개 이하 26 요청이면 그 절반쯤으로 어림(재지 않았다). 60초는 그 몇 배 여유.
+const SMALLZONE_WAIT_MS = 60000;
 /**
  * 날짜 파일에서 관할 하나의 「지금 보일」 판을 고른다 — 공개된 판(stations)과 공개 대기 판(pending) 중 공개 시각(publishAt)이 지난 것들 가운데 **더 나중에 만든 것**(generatedAt).
  * 공개 시각 순이 아니라 만든 시각 순인 이유(§11.10.4 대기 표 ③): 07:10 에 만든 아침 판(07:30 공개)이 07:20 특보 변경 판보다 오래된 자료라 07:30 에 그것을 덮으면 안 된다.
@@ -346,6 +353,18 @@ function onAiProgress(pr, ev) {
     batchStates(pr);
 }
 /**
+ * 대해구 예보 판(risk_store 원천 상태 zoneForecasts.base — "YYYYMMDDHH" UTC). 못 읽으면 null(그 실행은 모든 해역이 대해구 예보 — §11.10.19).
+ * 예: zoneBaseOf(stores.risk) → '2026101700' · marineInputs 가 던지거나 base 가 없으면 null
+ * @param {object} risk - risk_store @returns {string|null} [연계] ← run
+ */
+function zoneBaseOf(risk) { try { const z = risk.marineInputs()?.sources?.zoneForecasts; return z && z.base ? String(z.base) : null; } catch (_) { return null; } }
+/**
+ * 소해구 찾기 함수(station_briefing_inputs.smallWeather 에 넘김) — 저장 판이 대해구 예보 판과 같거나 새것일 때만 그 대해구를 준다. 지난 판·저장 판 없음은 null(그 해역은 대해구로 후퇴).
+ * 예: smallFinder(sz, '2026101700')('232') → sz.peek('232')(baseTm '2026101700') · 저장 판 '2026101612' → null · zb 없음 → 함수 대신 null
+ * @param {object|null} sz - smallzone_forecast(peek) @param {string|null} zb - 대해구 예보 판 @returns {Function|null} [연계] ← run / → sz.peek
+ */
+function smallFinder(sz, zb) { return sz && zb ? (major) => { const p = sz.peek(major); return p && String(p.baseTm) >= zb ? p : null; } : null; }
+/**
  * 브리핑 서비스를 만든다(시험은 폴더·시계·저장소·어댑터·관할 목록을 주입).
  * 예: const svc = createService({dir, clock, risk, marine, adapters}); await svc.run({kind:'morning'}); svc.pick({key, day:'auto'})
  * @param {object} o - dir·clock·risk·marine·adapters·loadStations·alertsFile·geocoder·tideDeps·spotsOf·hazardFeatures·kma
@@ -354,11 +373,13 @@ function onAiProgress(pr, ev) {
  *                     ·errorHistory(관리자 오류현황 risk_error_history — 결정 6. 기본 null = 기록 안 함, forDefault 가 운영 것을 넘긴다)
  *                     ·regional(지방기상청 단기 해상예보·단기 전망 — 기본 I.regionalForecast(), 실행마다 한 번 읽음. §11.10.1 (기상) 칸)
  *                     ·adminPush(관리자 푸시 발송 (title, body, data) → Promise<{delivered, error?}> — 기본 defaultAdminPush, 시험은 가짜. §11.10.8)
+ *                     ·smallZone(소해구 예보 — peek·getStatus·prefetch, 기본 null = 모든 해역 대해구 예보. forDefault 가 smallzone_forecast 를 넘긴다 — 시험은 가짜. §11.10.19)
+ *                     ·smallZoneWaitMs(소해구 다시 받기 기다림 상한 — 기본 SMALLZONE_WAIT_MS)
  * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList·stationAreas (+ 시험용 _pushResult)
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
-    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush } = {}) {
+    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush, smallZone = null, smallZoneWaitMs = SMALLZONE_WAIT_MS } = {}) {
     let timer = null, running = null, stationsCache = null, areasCache = null, ad = adapters;
     // 실행 번호(§11.10.8 — 관리자 푸시는 실행 하나에 1통). run 이 하나씩 늘려 결과에 싣고, pushResult 는 이미 보낸 번호 이하를 다시 보내지 않는다(같은 결과를 두 번 처리해도 1통).
     let runSeq = 0, pushedSeq = 0; const pushedKey = {};
@@ -405,6 +426,40 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         } catch (_) { /* 폴더 없음 */ }
     }
     /**
+     * 소해구 예보 준비(§11.10.19 — 사용자 *"격자에 대한 소해구 매칭이 먼저 돼 있어야 되고 … 그 해당 소해구의 정보를 가져와서 … 준비된 다음부터 이제 브리핑을 만드는 작업"*,
+     * 오케스트레이터 추천안 「새 판이 나올 때 미리 받아 두고, 만들 때 저장본이 지난 판이면 한 번 더 받아 보고, 그래도 없으면 그 칸만 대해구로」에 *"진행."*).
+     * 저장 판(smallZone.getStatus().baseTm)이 대해구 예보 판(zb)보다 옛것(또는 없음)이면 이 실행의 해역들이 쓰는 대해구만 prefetch 한 번(실행 안에서 같은 대해구는 다시 묻지 않음 — tried),
+     * smallZoneWaitMs 까지만 기다린다. 던지거나 실패·시간 초과여도 브리핑은 계속한다. 받은 뒤 입력 묶음의 sea.weatherSmall 을 다시 붙인다(찾기 함수가 새 판을 본다).
+     * 저장 판이 대해구 판과 같은데 그 대해구만 없으면 받지 않는다(그 해역은 대해구 — 다음 미리 받기가 채운다).
+     * 예: 저장 '2026101612' · 대해구 '2026101700' · 해역 대해구 232·233 → prefetch(['232','233'], '2026101700') → {result:'fetched', fetched:2, regions:5, small:4, …}
+     * @param {object[]} inputs - I.gather 결과(고친다) @param {object} win @param {string|null} zb @param {Function|null} find - smallFinder @param {Set<string>} tried
+     * @returns {Promise<object>} 상태 요약(lastRun.smallZone) — result: stored(받을 것 없음)·fetched·partial·failed·timeout·no-zone-base
+     * [연계] ← run / → smallZone.getStatus·prefetch · I.smallWeather
+     */
+    async function prepareSmallZone(inputs, win, zb, find, tried) {
+        const majors = [...new Set(inputs.flatMap((x) => (x.sea.regions || []).map((r) => (r.haegu && r.haegu.major != null ? String(r.haegu.major) : null))).filter(Boolean))];
+        const info = { zoneBase: zb, baseTm: null, result: zb ? 'stored' : 'no-zone-base', fetched: 0 };
+        let stored = null; try { stored = smallZone.getStatus().baseTm; } catch (_) { /* 상태를 못 읽으면 옛것으로 보고 받아 본다 */ }
+        const need = zb && !(stored && String(stored) >= zb) ? majors.filter((m) => !tried.has(m)) : [];
+        if (need.length) {
+            need.forEach((m) => tried.add(m)); info.fetched = need.length;
+            let timer = null;
+            try {
+                const r = await Promise.race([Promise.resolve().then(() => smallZone.prefetch(need, zb)), new Promise((res) => { timer = setTimeout(() => res({ timeout: true }), smallZoneWaitMs); })]);
+                info.result = r && r.timeout ? 'timeout' : r && r.ok ? 'fetched' : r && r.got ? 'partial' : 'failed';
+            } catch (e) {
+                info.result = 'failed'; info.error = String((e && e.message) || e).slice(0, 160);
+                console.warn('[station_briefing] 소해구 예보 ' + zb + ' 판 받기 실패 — 받지 못한 해역은 대해구 예보로: ' + info.error);
+            } finally { clearTimeout(timer); }
+            if (info.result !== 'fetched' && !info.error) console.warn('[station_briefing] 소해구 예보 ' + zb + ' 판 받기 ' + info.result + ' — 받지 못한 해역은 대해구 예보로');
+            for (const x of inputs) x.sea.weatherSmall = I.smallWeather(x.sea.regions, win, find);
+        }
+        try { info.baseTm = smallZone.getStatus().baseTm || null; } catch (_) { /* 요약에만 쓰는 값 */ }
+        let regions = 0, small = 0;
+        for (const x of inputs) for (const r of x.sea.regions || []) if (r.haegu && r.haegu.major != null) { regions++; if ((x.sea.weatherSmall || {})[r.haegu.major + '-' + r.haegu.sub]) small++; }
+        return { ...info, regions, small };
+    }
+    /**
      * 브리핑을 만든다. kind: morning|evening|night(정시 — 공개 시각 전이면 pending 에 저장) · warning(특보 변경 — keys 관할만, 이미 있는 오늘·내일 판의 남은 칸, 곧바로 공개) · manual(관리자 실행 — 화면이 지금 보일 날짜, 곧바로 공개).
      * 실제 AI 어댑터는 운영(FLY_ALLOC_ID) 또는 STATION_BRIEFING_DEV_AI=1 일 때만 — 그 밖(개발 환경)에서 어댑터를 주입하지 않았으면 틀만 — AI 해설 없음(C9).
      * 시각: 창은 시작 시각으로 정하지만, 위치 찾기·AI 가 오래 걸려도 연안 하루 값 시각이 낡지 않게 모으기 직전에 시각을 다시 잡는다(C2 — risk_store 는 지금−5분보다 앞선 시각을 400 으로 거부).
@@ -433,10 +488,14 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             //   데드라인 = 20분과 「공개 시각까지」 중 이른 것 — 공개 시각에 된 만큼(AI 분석 + 나머지는 규칙 분석) 보이고 늦추지 않는다. 공개 시각이 이미 지난 늦은 실행은 20분 그대로(곧바로 공개).
             const publishAt = R.publishAtFor(kind, now) || R.isoKst(now), untilPublish = Date.parse(publishAt) - now;
             const deadline = t0 + (untilPublish > 0 ? Math.min(runDeadlineMs, untilPublish) : runDeadlineMs);
-            const results = [], rule = [];
+            const results = [], rule = [], szTried = new Set();
+            let szInfo = null;
             for (const [wi, win] of wins.entries()) {
                 stepProgress(progress, 'gather', { window: wi });
-                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg });
+                // 소해구 예보(§11.10.19): 저장 판을 찾기 함수로 넘겨 모으고, 저장 판이 대해구 판보다 옛것이면 필요한 대해구만 한 번 받아 다시 붙인다
+                const zb = smallZone ? zoneBaseOf(risk) : null, szFind = smallFinder(smallZone, zb);
+                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg, smallZone: szFind });
+                if (smallZone) szInfo = await prepareSmallZone(inputs, win, zb, szFind, szTried);
                 const briefings = inputs.map((x) => R.buildBriefing(x, win, { generatedAt: R.isoKst(now) }));
                 // 읽은 날짜 파일은 캐시(pick 이 그대로 쓰는 객체)라 복사해 고친다 — 쓰기가 실패해도 사용자에게 저장 안 된 판이 보이거나 대기 판이 메모리에서 사라지지 않게(§11.10.5 독립 검토 4).
                 const day = structuredClone(readDay(win.targetDate) || { date: win.targetDate, stations: {} });
@@ -461,7 +520,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 rule.push(briefings.filter((b) => b.overview && b.overview.source === 'template').map((b) => b.station.name));   // 관리자 푸시 글(§11.10.8)용 — 상태 파일에는 넣지 않는다
             }
             prune(now);
-            st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, publishAt, results, ms: elapsed() - t0, ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
+            st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, publishAt, results, ms: elapsed() - t0, ...(szInfo ? { smallZone: szInfo } : {}), ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
             st.runs = keepRuns(st.runs.concat({ at: st.lastRun.at, kind, method: cfg.method, ms: st.lastRun.ms, publishAt, results }), now);   // §11.10.7 실행마다 오류 드롭다운
             saveState(st); recordHistory();
             return { ok: true, results, ms: elapsed() - t0, seq: ++runSeq, method: cfg.method, rule };
@@ -616,8 +675,8 @@ let def = null;
 function forDefault() {
     if (def) return def;
     const { stores } = require('../routes/risk_forecast');
-    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history') });
+    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast') });
     return def;
 }
 
-module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, keepRuns, newProgress, stepProgress, onAiProgress, editionName, shortNames, runPushText, failPushText, defaultAdminPush, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };
+module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, keepRuns, newProgress, stepProgress, onAiProgress, editionName, shortNames, runPushText, failPushText, defaultAdminPush, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, SMALLZONE_WAIT_MS, zoneBaseOf, smallFinder, start: () => forDefault().start() };
