@@ -1673,6 +1673,26 @@
 
 **확인 못 한 것·남은 것**: 실제 VM·Gemini 가 새 지시문대로 「75해구」·「유의파고」로 쓰는지(가짜 응답·검증 함수로만). **AI 가 옛 꼴 「대해구 232」로 쓰면 그 글은 `number:232` 로 버려진다**(단위 없는 「232」가 입력에 없다 — 시험 [§11.10.22-A] 가 고정. 지시문이 새 꼴을 알리므로 드물 것으로 보지만 재지 않았다 — 다시 시도가 늘면 관리자 오류 목록의 `number:` 열쇠로 보인다) · 운영 판으로 다시 만든 화면 · 「…전해상」을 지명 검사에 넣을지(지금은 검사 밖 — 사용자 판단 거리) · 시안의 0건 글은 「기록된 선박사고 없음」인데 서버 글은 「선박사고 기록 없음」(§11.10.13) 그대로 두었다(이 묶음 범위 밖 — 사용자 확인 필요) · 이미 저장된 판(v19 이전)은 다음 판부터 새 꼴.
 
+### 11.10.23 해역 카드 [최근 14일 선박 동향] 한 줄 — 2단계 브리핑 연결 (2026-10-18 사용자 확정 — 시안 `Traffic.dc.html` ⑦판, 규칙 판 v21)
+
+**사용자 원문**(작업 지시서 `spec_H_traffic_line.md` 가 전한 말 — 대화 원문을 이 작업에서 직접 보지는 못했다): 시안 ⑦판에 *"좋아 이렇게 하자."* 계산 규칙(1단계 — `sea_traffic_profile.js`)의 사용자 원문은 `client/js/marine-life/risk-forecast/traffic_history.design.md` 「브리핑 해역별 최근 14일 동향」 절에 있다(「나도 카드별 한줄로 사용하고자 하는거야.」 등). 시안 `Traffic.dc.html` 마크업은 직접 읽었다(설명용 요소가 지워진 최종 모양 — 카드 셋: 가장 많은 시간대 있음 · 없음 · 줄 없음).
+
+| 항목 | 구현(코드로 확인한 것) |
+|---|---|
+| 계산 | 1단계 그대로 — `sea_traffic_profile` 의 해역별 결과(하루 평균·3시간 묶음 8개·`peak`). 이 작업은 계산 규칙을 바꾸지 않았다 |
+| 수집 연결 | `station_briefing_inputs.collectSea(…, {traffic})` — 모든 관할의 해역을 모아 `traffic.profiles([{key: rid, geometry: 반올림 전 도형 geom, zones}])` 한 번(traffic_history.design.md 「2단계 때 쓰는 법」 그대로 — `region.box` 는 소수 4자리 상자라 쓰지 않는다), 해역마다 `region.traffic = 결과|null`. 계산이 던지면 모든 해역 `null` + 콘솔 경고 한 줄(브리핑은 계속). `gather`·`station_briefing.createService` 가 `traffic` 을 넘기고, 운영 연결 `forDefault` 가 `sea_traffic_profile.forDir()`(수집기·조회 API 와 같은 이력 인스턴스)을 준다. 계산기가 없으면(시험 기본·옛 연결) `region.traffic` 필드 자체가 없다 |
+| 카드 | `rules.trafficRow` → `card.traffic = {label:'최근 14일 선박 동향', text}` — 「이 해역 하루 평균 5척 · 06~09시 가장 많음(평균 12척)」 / `peak` 없음 「이 해역 하루 평균 9척 · 뚜렷하게 붐비는 시간대 없음」. 수치는 정수(`Math.round` — 계산기의 0.1척 값을 반올림). 결과 `null`(하루 평균 1척 미만·선박 칸 0·6주 거슬러도 14일 미달) → `card.traffic = null`(줄 없음). 수집에 필드가 없으면 카드에도 필드를 두지 않는다(옛 판과 같은 꼴) |
+| AI 입력 | 넣지 않았다 — `stationInput` 은 `card.traffic` 을 읽지 않고, `today.lines` 에도 넣지 않았다. 시험: traffic 이 붙은 판과 없는 판의 `stationInput` JSON·지시문 전체가 같다 |
+| 화면 | `seaCardBadged` — 「… 많이 기록되었습니다」 다음, [기상 예보] 앞에 `row('[최근 14일 선박 동향]', span.sb-row-v.sb-traffic)`(`[data-sb-traffic]`). 글은 textContent(`appendText`). 글자 색 `#9ee3f2`(시안 값 — `.sb-row-v.sb-traffic`), 이름표는 다른 줄과 같은 회색. 이름표가 길어 360px 에서 글이 두 줄이 되는데 `.sb-row` 두 칸 그리드라 둘째 줄이 글 칸 시작에서 시작한다(걸린 들여쓰기 — CSS 는 색만 더함). `card.traffic` 이 없거나 `null` 이면 줄 없음. 배지 없는 옛 카드 모양(`seaCard` v14·v15 갈래)에는 넣지 않았다 — 지금 규칙의 카드는 늘 배지가 있다(단계가 있는 카드만 만들어지고 단계를 올린 출처가 배지다) |
+| 데이터 출처 | 화면 `SOURCES` 에 한 줄 「최근 14일 선박 동향 \| 한국해양교통안전공단 MTIS 실시간(앱이 30분 단위로 쌓음) \| 해역 [최근 14일 선박 동향] \| 해상」(지시서 문구 그대로) — 맨 아래 「데이터 출처 보기」 표와 [기준 상세] 표가 같은 한 벌이라 둘 다 14줄 |
+| 판 번호 | 규칙 `station-briefing-rules-v21`(재사용 해시에 규칙 판이 들어 있어 다음 판에서 AI 문단을 한 번 다시 만든다 — AI 입력 자체는 같다). 지시문·검증 판은 그대로(v15·v12). `index2.html` `station_briefing.css`·`station_briefing_render.js`·`station_briefing_basis.js` `?v=20261018sb21` |
+
+**시험**: `test_station_briefing.js` 「[§11.10.23-1]」(글 두 꼴·정수 반올림·1.0척·null·「필요」·따옴표·소수점 없음) · 「[§11.10.23-2]」(진짜 `createProfile` + 가짜 칸 위치표·30분 기록으로 서비스 실행 → 카드 「이 해역 하루 평균 5척 · 06~09시 가장 많음(평균 20척)」 · 넘긴 열쇠·특보구역·**반올림 전 도형** · 1척 미만·먼바다(칸 0) → `null` · 계산기 없음 → 필드 없음 · 던짐 → `null` + 경고·브리핑 계속) · 「[§11.10.23-3]」(AI 입력 JSON·지시문 같음 · `today.lines` 같음 · 판 v21). 세 사례 모두 1단계 커밋(f1883a7b0) 소스로 돌리면 실패한다.
+`test_station_briefing_ui.js` 「[§11.10.23-UI]」(360px — 자리 `sb-sentence → [최근 14일 선박 동향] → [기상 예보] → [권고]`·[사고현황] 아래 · 글 두 꼴 · 색 `rgb(158, 227, 242)`·이름표 회색 · 두 줄 이상이고 줄마다 첫 글자 = 글 칸 시작(이름표 오른쪽) · 카드 안 · null·필드 없음 → 줄 없음 · 출처 한 줄 · 가로 넘침 없음 · HTML 문자열은 글자로 · 스크린샷 `sea_traffic_line_360.png`) + 기대값 바꿈 「[§11.10.20-UI3]」 출처 표 13 → 14줄.
+결과(2026-10-18 이 커밋): `test_station_briefing.js` 198 PASS / 0 FAIL(전 195) · `test_station_briefing_ui.js` 79/0(전 78) · `test_sea_traffic_profile.js` 17/0 · `test_smallzone_forecast.js` 16/0 · `test_marine_smallzone_ui.js` 8/0 · `test_usage_keys.js` 85/0 · `test_silent_catch.js` 22/0 · `check_paths` 통과 · `check_order` 139↔139. `verify_all.sh` 는 돌리지 않았다(3001 서버 — 작업 규칙상 금지).
+
+**확인 못 한 것**: 운영 이력으로 만든 실제 줄 — traffic_history.design.md 에 적힌 대로 운영 기록은 2026-10-16 부터라 **어제 기준 14일이 처음 차는 것은 2026-10-30 무렵**이고, 그 전에는 모든 해역이 `null` 이라 줄이 보이지 않는다(계산기 규칙 그대로 — 이 작업이 운영 자료로 재지는 않았다) · 운영(Fly)에서 브리핑 한 실행당 계산 시간(1단계 실측은 이 컨테이너 2,070 해역 첫 계산 278ms~1,317ms) · 실제 휴대폰(사람 눈)에서 색·두 줄 모양.
+
 ---
 
 ## § 12. [기준 상세] 확정 문안 (U67)

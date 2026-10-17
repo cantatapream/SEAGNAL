@@ -251,4 +251,6 @@ byKey.get(r.rid)   // → 위 결과 | null(줄 숨김)
 ```
 
 `collectSea` 의 `regions[].box` 는 소수 4자리로 줄인 상자라 칸 경계에서 결과가 달라질 수 있다 — 반올림 전 도형(`collectSea` 안의 `geom`)을 넘긴다.
+
+> **2026-10-18 2단계 연결됨**(사용자 확정 *"좋아 이렇게 하자."* — 시안 `Traffic.dc.html` ⑦판, `coastal_safety_forecast.design.md` §11.10.23): `station_briefing_inputs.collectSea` 가 위 그대로(열쇠 `rid`·반올림 전 `geom`·`zones`) 부르고 해역마다 `region.traffic` 을 붙인다 → 규칙 `trafficRow` → 해역 카드 [최근 14일 선박 동향] 「이 해역 하루 평균 N척 · HH~HH시 가장 많음(평균 N척)」(정수). 운영 연결은 `station_briefing.forDefault` 의 `forDir()`. AI 입력에는 넣지 않는다.
 시험: `local_server/scripts/test_sea_traffic_profile.js`(`verify_all.sh` SUITES).

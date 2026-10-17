@@ -234,6 +234,14 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - **F**: 분석 문단 글자 상한 420 → 460(관리자 풀이 글 값도).
 - `index2.html` `station_briefing_render.js`·`station_briefing_basis.js`·`admin_station_briefing.js`·`marine.js` `?v=20261018sb20`.
 
+## 해역 카드 [최근 14일 선박 동향] (2026-10-18 — 설계서 §11.10.23, 규칙 v21)
+
+> 사용자 원문: 시안 `Traffic.dc.html` ⑦판에 *"좋아 이렇게 하자."* (계산 규칙 원문은 `marine-life/risk-forecast/traffic_history.design.md`)
+
+- 서버: `collectSea` 가 `sea_traffic_profile` 결과를 해역마다 붙이고(`region.traffic`) 규칙 `trafficRow` 가 `card.traffic = {label, text}` — 「이 해역 하루 평균 5척 · 06~09시 가장 많음(평균 12척)」 / 「… · 뚜렷하게 붐비는 시간대 없음」(정수). 결과 null 이면 `null`. AI 입력·`today.lines` 에는 넣지 않는다.
+- 화면: 해역 카드 「… 많이 기록되었습니다」 → **[최근 14일 선박 동향]**(글 `#9ee3f2`, 걸린 들여쓰기) → [기상 예보] → [권고]. 서버 `null`·옛 판(필드 없음)은 줄 없음. 데이터 출처 표에 한 줄(14줄).
+- 운영 이력이 14일 차기 전(2026-10-30 무렵까지)에는 모든 해역이 `null` 이라 줄이 보이지 않는다(traffic_history.design.md 「확인하지 못한 것」).
+
 ## 시험
 
 `local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES) — 실제 Chromium 으로 index2.html 전체를 띄워 일반·관리자 기기, 설정 흐름, 본문 상태(「가」 모양·제목 시각·규칙 분석·옛 브리핑 대체(§11.10.1·§11.10·그 전)), textContent, 바로가기, N 뱃지, [기준 상세], 관리자 「AI 브리핑」 탭(오류 목록 [복사]·[md로 저장] 포함), 관할 확인 창(취소·Esc·바깥·뒤로가기·늦은 click 무시)·해상/연안 칸 한 줄(360px)을 본다.

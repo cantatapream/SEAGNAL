@@ -18,6 +18,7 @@
  *                    · data/weather_alerts.json(특보 변경 감지 — 크롤러 결과, 읽기만) · data/station_briefing/(설정·상태·날짜별 브리핑·대표 위치 캐시)
  *                    · services/sea_warning_history.js(이미 해제된 특보 — 해제 뒤 관심, 2026-10-16 결정 4) · services/risk_error_history.js(관리자 오류현황 원천 stationBriefing — 결정 6, historyRow)
  *                    · services/smallzone_forecast.js(peek·getStatus·prefetch — 브리핑 해역의 소해구 예보, §11.10.19 · forDefault 가 넘김)
+ *                    · services/sea_traffic_profile.js(forDir().profiles — 해역 카드 「최근 14일 선박 동향」, §11.10.23 · forDefault 가 넘김)
  *                    · services/admin_push.js sendAdminPush(자동 실행 결과 관리자 푸시 — 운영 FLY_ALLOC_ID 일 때만, 개발은 콘솔 한 줄 · §11.10.8) · services/collect_fail_alert.js reasonOf(실패 푸시의 짧은 분류)
  *  - 서버 API      : routes/station_briefing.js 가 이 모듈을 부른다
  *  - 나를 쓰는 곳  : routes/station_briefing.js · server.js(운영 start) · services/risk_history_sources.js(historyRow — 1분 감시) · scripts/test_station_briefing.js(가짜 시계·어댑터)
@@ -388,11 +389,12 @@ function smallFinder(sz, zb) { return sz && zb ? (major) => { const p = sz.peek(
  *                     ·adminPush(관리자 푸시 발송 (title, body, data) → Promise<{delivered, error?}> — 기본 defaultAdminPush, 시험은 가짜. §11.10.8)
  *                     ·smallZone(소해구 예보 — peek·getStatus·prefetch, 기본 null = 모든 해역 대해구 예보. forDefault 가 smallzone_forecast 를 넘긴다 — 시험은 가짜. §11.10.19)
  *                     ·smallZoneWaitMs(소해구 다시 받기 기다림 상한 — 기본 SMALLZONE_WAIT_MS)
+ *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 기본 null = 「최근 14일 선박 동향」 줄 없음. forDefault 가 forDir() 를 넘긴다 — 시험은 가짜·주입. §11.10.23)
  * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList·stationAreas (+ 시험용 _pushResult)
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
-    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush, smallZone = null, smallZoneWaitMs = SMALLZONE_WAIT_MS } = {}) {
+    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush, smallZone = null, smallZoneWaitMs = SMALLZONE_WAIT_MS, traffic = null } = {}) {
     let timer = null, running = null, stationsCache = null, areasCache = null, ad = adapters;
     // 실행 번호(§11.10.8 — 관리자 푸시는 실행 하나에 1통). run 이 하나씩 늘려 결과에 싣고, pushResult 는 이미 보낸 번호 이하를 다시 보내지 않는다(같은 결과를 두 번 처리해도 1통).
     let runSeq = 0, pushedSeq = 0; const pushedKey = {};
@@ -508,7 +510,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 stepProgress(progress, 'gather', { window: wi });
                 // 소해구 예보(§11.10.19): 저장 판을 찾기 함수로 넘겨 모으고, 저장 판이 대해구 판보다 옛것이면 필요한 대해구만 한 번 받아 다시 붙인다
                 const zb = smallZone ? zoneBaseOf(risk) : null, szFind = smallFinder(smallZone, zb);
-                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg, smallZone: szFind });
+                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg, smallZone: szFind, traffic });
                 if (smallZone) szInfo = await prepareSmallZone(inputs, win, zb, szFind, szTried);
                 const briefings = inputs.map((x) => R.buildBriefing(x, win, { generatedAt: R.isoKst(now) }));
                 // 읽은 날짜 파일은 캐시(pick 이 그대로 쓰는 객체)라 복사해 고친다 — 쓰기가 실패해도 사용자에게 저장 안 된 판이 보이거나 대기 판이 메모리에서 사라지지 않게(§11.10.5 독립 검토 4).
@@ -692,7 +694,7 @@ let def = null;
 function forDefault() {
     if (def) return def;
     const { stores } = require('../routes/risk_forecast');
-    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast') });
+    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast'), traffic: require('./sea_traffic_profile').forDir() });
     return def;
 }
 

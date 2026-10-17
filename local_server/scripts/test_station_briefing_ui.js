@@ -1909,7 +1909,7 @@ function makeBriefings() {
             assert.deepEqual([r.exp0, r.btn, r.kids], ['false', '데이터 출처 보기', ['sb-src', 'sb-notice']], '출처 상자 → 안내(상자 밖)');
             assert.deepEqual([r.noteBr, r.note, r.color, r.w, r.inSrc], [1, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로,실제 현장상황과 다를 수 있습니다.', 'rgb(255, 210, 63)', '700', false], '노란 두 줄(옛 판 b.notice 대신)');
             assert.ok(!/기준 시각|다루는 시간|참고 정보이며|출처:/.test(r.text), r.text);
-            assert.deepEqual([r.exp1, r.head, r.rows, r.grp, r.over], ['true', ['구분', '자료', '제공'], 13, 'nowrap', 0]); assert.ok(r.page <= r.vw + 1);
+            assert.deepEqual([r.exp1, r.head, r.rows, r.grp, r.over], ['true', ['구분', '자료', '제공'], 14, 'nowrap', 0]);   // §11.10.23 「최근 14일 선박 동향」 한 줄 더(종전 13) assert.ok(r.page <= r.vw + 1);
             await L20.evaluate(() => document.querySelector('#sb20 .sb-foot').scrollIntoView({ block: 'center' })); await clean(L20);
             await L20.locator('#sb20 .sb-foot').screenshot({ path: path.join(SHOT, 'land_sources_360.png') });
         });
@@ -2034,6 +2034,54 @@ function makeBriefings() {
             assert.deepEqual(r.src, ['해구별 3시간 예보(유의파고·풍속)']); assert.ok(r.page <= r.vw + 1, '360px 가로 넘침 없음 ' + r.page);
             await L20.evaluate(() => document.querySelector('#sb20 [data-sb-card="sea"]').scrollIntoView({ block: 'start' })); await clean(L20);
             await L20.locator('#sb20 [data-sb-card="sea"]').first().screenshot({ path: path.join(SHOT, 'sea_acc_line_360.png') });
+        });
+        // ── §11.10.23(2026-10-18 사용자 확정 「좋아 이렇게 하자.」 — 시안 Traffic.dc.html ⑦판): 해역 카드 [최근 14일 선박 동향] ──
+        await check('[§11.10.23-UI] 해역 카드 [최근 14일 선박 동향] — 자리(…많이 기록되었습니다 → 이 줄 → [기상 예보] → [권고]) · 글 그대로(textContent) · 글자 색 #9ee3f2 · 둘째 줄은 글 칸 시작(걸린 들여쓰기) · 360px 넘침 없음 · 서버 null·옛 판(필드 없음)은 줄 없음 · 데이터 출처 한 줄', async () => {
+            const g3 = JSON.parse(JSON.stringify(G)), cs = g3.sea.cards;
+            cs.forEach((c, i) => { c.traffic = i === 0 ? R.trafficRow({ dailyAvg: 5.2, peak: { from: '06', to: '09', avg: 12.4 } }) : i === 1 ? R.trafficRow({ dailyAvg: 9.1, peak: null }) : i === 2 ? null : undefined; if (c.traffic === undefined) delete c.traffic; });
+            cs[0].historyNote = cs[0].historyNote || '이 해역에서는 집계 기간 중 충돌 사고가 많이 기록되었습니다.';
+            await draw20(g3);
+            const r = await L20.evaluate(() => {
+                const box = document.getElementById('sb20'), out = {};
+                box.querySelectorAll('[data-sb-sec="sea"] [role="tabpanel"]').forEach((p) => { p.hidden = false; });
+                const cards = [...box.querySelectorAll('[data-sb-card="sea"]')];
+                out.cards = cards.map((c) => {
+                    const tr = c.querySelector('[data-sb-traffic]');
+                    const o = { kids: [...c.children].map((e) => e.classList.contains('sb-row') ? 'row:' + e.querySelector('.sb-row-k').textContent : e.classList[0]).filter((k) => k !== 'sb-link'), has: !!tr };
+                    if (tr) {
+                        const k = tr.querySelector('.sb-row-k'), v = tr.querySelector('.sb-traffic'), rg = document.createRange(); rg.selectNodeContents(v);
+                        const lines = [...rg.getClientRects()].map((x) => [Math.round(x.left), Math.round(x.top)]), tops = [...new Set(lines.map((x) => x[1]))];
+                        o.text = v.textContent; o.color = getComputedStyle(v).color; o.kColor = getComputedStyle(k).color; o.vLeft = Math.round(v.getBoundingClientRect().left); o.kRight = Math.round(k.getBoundingClientRect().right);
+                        o.lefts = tops.map((tp) => Math.min(...lines.filter((x) => x[1] === tp).map((x) => x[0]))); o.inCard = tr.getBoundingClientRect().right <= c.getBoundingClientRect().right + 0.5;
+                    }
+                    return o;
+                });
+                box.querySelectorAll('button[data-sb-x="sources"]').forEach((b) => b.click());
+                out.src = [...box.querySelectorAll('.sb-src-tbl tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent).join('|')).filter((x) => x.includes('선박 동향'));
+                out.page = document.documentElement.scrollWidth; out.vw = innerWidth;
+                return out;
+            });
+            const [c0, c1, c2, c3] = r.cards;
+            assert.ok(c0.has && c1.has && !c2.has && (!c3 || !c3.has), '서버 null(c2)·필드 없음(c3, 옛 판)은 줄 없음 ' + JSON.stringify(r.cards.map((c) => c.has)));
+            const i = c0.kids.indexOf('row:[최근 14일 선박 동향]');
+            assert.deepEqual(c0.kids.slice(i - 1, i + 3), ['sb-sentence', 'row:[최근 14일 선박 동향]', 'row:[기상 예보]', 'row:[권고]'], '자리 ' + c0.kids.join());
+            assert.ok(c0.kids.indexOf('sb-acc-line') < i, '[사고현황] 아래');
+            assert.equal(c0.text, '이 해역 하루 평균 5척 · 06~09시 가장 많음(평균 12척)'); assert.equal(c1.text, '이 해역 하루 평균 9척 · 뚜렷하게 붐비는 시간대 없음');
+            assert.deepEqual([c0.color, c0.kColor], ['rgb(158, 227, 242)', 'rgb(148, 163, 184)'], '글 #9ee3f2 · 이름표는 다른 줄과 같은 회색');
+            for (const c of [c0, c1]) {
+                assert.ok(c.lefts.length >= 2, '360px 에서 두 줄 이상(걸린 들여쓰기를 볼 수 있게) ' + JSON.stringify(c.lefts));
+                assert.ok(c.lefts.every((x) => Math.abs(x - c.vLeft) <= 1) && c.vLeft > c.kRight, '둘째 줄도 글 칸 첫 글자 위치(이름표 오른쪽) ' + JSON.stringify(c));
+                assert.ok(c.inCard, '카드 안');
+                assert.ok(!/필요|'/.test(c.text));
+            }
+            assert.deepEqual(r.src, ['해상|최근 14일 선박 동향|한국해양교통안전공단 MTIS 실시간(앱이 30분 단위로 쌓음)'], '데이터 출처 한 줄');
+            assert.ok(r.page <= r.vw + 1, '360px 가로 넘침 없음 ' + r.page);
+            // 서버 글은 textContent 로만(계약 §5)
+            const x = JSON.parse(JSON.stringify(g3)); x.sea.cards[0].traffic.text = XSS + '이 해역'; await draw20(x);
+            const xs = await L20.evaluate(() => ({ imgs: document.querySelectorAll('#sb20 img').length, flag: window.__xss || null, t: (document.querySelector('#sb20 [data-sb-traffic] .sb-traffic') || {}).textContent }));
+            assert.deepEqual([xs.imgs, xs.flag, xs.t.startsWith('<img')], [0, null, true]);
+            await draw20(g3); await L20.evaluate(() => { document.querySelectorAll('#sb20 [data-sb-sec="sea"] [role="tabpanel"]').forEach((p) => { p.hidden = false; }); document.querySelector('#sb20 [data-sb-traffic]').closest('[data-sb-card]').scrollIntoView({ block: 'start' }); }); await clean(L20);
+            await L20.locator('#sb20 [data-sb-card="sea"]').first().screenshot({ path: path.join(SHOT, 'sea_traffic_line_360.png') });
         });
         await check('[§11.10.20-UI5] 옛 판 후퇴 — 규칙 v17 연안 카드(advice·accidents 없음)는 종전 꼬리표·[특성]·문장 그대로([오늘 예상] 하나면 점 없음) · 해역 카드 [권고]도 같은 상자(덧붙임 9 — 글자 크기 카드 그대로, 특보 이름 속 글자는 칠하지 않음)', async () => {
             const old = JSON.parse(JSON.stringify(G)); old.rulesVersion = 'station-briefing-rules-v17';

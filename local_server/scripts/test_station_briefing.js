@@ -322,7 +322,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(S.advice.startsWith('15~24시 비양도 ') && S.advice.endsWith('해리 해역 운항에 주의가 요구됩니다.') && !/따라서/.test(S.advice + L.advice), S.advice);
         assert.ok(!JSON.stringify(b.summary).includes('관심 이상'), '「관심 이상」 용어를 쓰지 않음');
         assert.deepStrictEqual([b.overview.land, b.overview.sea, b.overview.source], [null, null, 'template'], '틀(AI 없음)이면 해설 없음');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v20'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v21'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
     });
     const si = AI.stationInput(b);
     // AI 분석 문단 견본(2026-10-17 §11.10.4 — 3~5문장, 마지막 「따라서 … 필요합니다」. 그 전 §11.10 해설은 1~2문장): 허용 숫자·지명·단계만 쓴 글. 아래 검사들이 이것을 조금씩 바꿔 실패를 만든다.
@@ -1463,7 +1463,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(so.summary.analysis.land, null); assert.ok(AI.sentences(so.summary.analysis.sea).length >= 3);
         // 조사: 괄호 덧말 앞 낱말로(「해역(232-2해구)은」) · 받침 ㄹ + 으로 → 로
         assert.equal(R.josa('비양도 북북서방 1.4해리 해역(232-2해구)', '은', '는'), '은'); assert.equal(R.josa("연안 위험지수 72 '높음'(예상)", '으로', '로'), '으로'); assert.equal(R.josa('바다물', '으로', '로'), '로');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v20');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v21');
     });
     // 사용자 예시 꼴(돝섬해상유원지·5099해구)을 한림 고정 자료 이름·숫자로 옮긴 AI 분석 문단
     const ex = {
@@ -2216,7 +2216,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual([c.badges[0].source, c.badges[0].name, c.badges[0].level, c.badges[0].agency, c.badges[0].window], ['accident', '해양사고 위험예보', '주의', 'KOMSA', '18~24시']);
         assert.deepStrictEqual([c.rank, c.word], [2, '주의'], '카드 딱지 그대로');
         assert.equal(c.advice, "18~24시 이 해역은 해양사고 위험예보 '주의'(KOMSA) 근거로 운항 시 주의가 요구됩니다.");
-        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v20');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v21');
     });
     await check('[§11.10.15-2] 섞인 경우(시안 C) — KOMSA 18시 \'주의\'·21시 \'경계\' + 혼잡 \'매우높음\' 두 칸: 배지 둘(위험예보 먼저) · 위험예보 창 = 경계 칸만 · 상세 줄 = 칸마다 등급 / 칸마다 혼잡지수(그 칸 가장 높은 시각) · 혼잡 글자 색 = 경계(3)', () => {
         const c = card15({ [at(18)]: { accident: '주의', congestion: { level: '매우높음', index: 45.14, at: at(18) } }, [at(21)]: { accident: '경계', congestion: { level: '매우높음', index: 32.91, at: at(22) } } });
@@ -2727,7 +2727,7 @@ const WIN = R.editionWindow('morning', T0);
     await check('[§11.10.20-5] 맨 아래 안내 · 규칙 판 v19 · 지시문 v14(S14 「연안 활동」·S15 배수 되풀이 금지) · 브리핑 JSON 어디에도 「물가 접근」·「참고 정보이며」 없음 · (물때)·(고립 주의) 「요구됩니다」', () => {
         const b = realLand.b, h = R.buildBriefing(hallim(), WIN, { generatedAt: R.isoKst(T0) });
         assert.equal(b.notice, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.');
-        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v20');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v21');
         for (const x of [b, h]) { const j = JSON.stringify(x); assert.ok(!j.includes('물가 접근') && !j.includes('참고 정보이며') && !j.includes('필요합니다'), '「물가 접근」·옛 안내·「필요합니다」 없음'); }
         assert.equal(AI.PROMPT_VERSION, 'sb-prompt-v15'); assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v12', '§11.10.22 에서 v12(이 사례 때는 그대로 v11)');
         const pr = AI.buildPrompt(AI.batchInput([AI.stationInput(h, null)], null));
@@ -2865,6 +2865,54 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(AI.validateOverview({ ...ex, land: l460 }, si).errors, [], '460자 통과');
         assert.deepStrictEqual(AI.validateOverview({ ...ex, land: l461 }, si).errors, ['shape:land-too-long-461'], '461자 탈락');
         assert.ok(AI.buildPrompt(AI.batchInput([si], null)).includes('0) 각 분석은 460자 이내'));
+    });
+    // ── §11.10.23(2026-10-18 사용자 확정 「좋아 이렇게 하자.」 — 시안 Traffic.dc.html ⑦판): 해역 카드 [최근 14일 선박 동향] 한 줄 ──
+    await check('[§11.10.23-1] [최근 14일 선박 동향] 글 — 「이 해역 하루 평균 N척 · HH~HH시 가장 많음(평균 N척)」 / 가장 많은 시간대 없음 「… · 뚜렷하게 붐비는 시간대 없음」 · 정수 · null → 줄 없음 · 「필요」·따옴표 없음', () => {
+        const T = R.trafficRow;
+        assert.deepStrictEqual(T({ dailyAvg: 5.2, peak: { from: '06', to: '09', avg: 12.4 } }), { label: '최근 14일 선박 동향', text: '이 해역 하루 평균 5척 · 06~09시 가장 많음(평균 12척)' });
+        assert.deepStrictEqual(T({ dailyAvg: 9.1, peak: null }), { label: '최근 14일 선박 동향', text: '이 해역 하루 평균 9척 · 뚜렷하게 붐비는 시간대 없음' });
+        assert.equal(T({ dailyAvg: 1.0, peak: null }).text, '이 해역 하루 평균 1척 · 뚜렷하게 붐비는 시간대 없음', '하루 평균 1.0척(보이는 가장 작은 값)');
+        assert.equal(T({ dailyAvg: 4.5, peak: { from: '21', to: '24', avg: 7.5 } }).text, '이 해역 하루 평균 5척 · 21~24시 가장 많음(평균 8척)', '반올림 — 정수');
+        assert.equal(T(null), null); assert.equal(T(undefined), null); assert.equal(T({ dailyAvg: null }), null);
+        for (const x of [T({ dailyAvg: 5.2, peak: { from: '06', to: '09', avg: 12.4 } }), T({ dailyAvg: 9.1, peak: null })]) assert.ok(!/필요|['"‘’“”]|\d\.\d/.test(x.text), x.text);
+    });
+    // 진짜 계산기(sea_traffic_profile.createProfile) + 가짜 칸 위치표·기록 — 서비스 실행(szRun)으로 수집 → 규칙 → 저장 판까지
+    const trafficOf = (f, { cells = [{ id: 'GR4_T1', lon: 126.3, lat: 33.5 }], warn = [] } = {}) => {
+        const seen = [], prof = require('../services/sea_traffic_profile').createProfile({ clock: () => Date.parse(at(10)), cells: () => cells, warnings: () => ({ intervals: warn }),
+            readDay: (date) => { const slots = []; for (let s = 0; s < 48; s++) { const v = f(date, s); if (v === null) continue; slots.push({ s, n: 6, idx: [0], tenths: [Math.round(v * 10)] }); } return { date, ids: ['GR4_T1'], slots }; } });
+        return { seen, profiles: (regions) => { seen.push(JSON.parse(JSON.stringify(regions))); return prof.profiles(regions); } };
+    };
+    await check('[§11.10.23-2] 수집 연결 — collectSea 가 해역마다 sea_traffic_profile 결과를 붙임(반올림 전 도형·특보구역) → 카드 traffic · 결과 null 이면 null · 계산기 없으면 필드 없음 · 계산이 던져도 브리핑은 만듦', async () => {
+        const warn = console.warn, warns = []; console.warn = (m) => warns.push(String(m));
+        try {
+            // 06~09시(30분 칸 12~17)만 20척, 나머지 3척 → 하루 평균 (20+3×7)/8 = 5.1 → 5척 · 06~09시 20척(7척 이상·하루 평균 1.5배 이상)
+            const tf = trafficOf((d, s) => (s >= 12 && s < 18 ? 20 : 3));
+            let o = await szRun(mkSZ(ZB, szData(2.7, 13)), ZB, { traffic: tf });
+            assert.deepStrictEqual(o.card.traffic, { label: '최근 14일 선박 동향', text: '이 해역 하루 평균 5척 · 06~09시 가장 많음(평균 20척)' });
+            assert.equal(tf.seen.length, 1); assert.deepStrictEqual(tf.seen[0].map((r) => [r.key, r.zones]), [['A:9001', ['제주도서부앞바다']]]);
+            assert.deepStrictEqual(tf.seen[0][0].geometry, poly(126.22, 33.42), '반올림 전 도형 그대로(region.box 아님)');
+            // 하루 평균 1척 미만 → null(줄 없음) — 카드 필드는 null
+            o = await szRun(mkSZ(ZB, szData(2.7, 13)), ZB, { traffic: trafficOf(() => 0.5) }); assert.equal(o.card.traffic, null);
+            // 선박 칸 0(먼바다 — 위치표에 칸 없음) → null
+            o = await szRun(mkSZ(ZB, szData(2.7, 13)), ZB, { traffic: trafficOf(() => 5, { cells: [{ id: 'GR4_FAR', lon: 124, lat: 32 }] }) }); assert.equal(o.card.traffic, null);
+            // 계산기 없음(옛 연결·시험 기본) → 필드 없음 · 계산이 던짐 → null + 경고 한 줄, 브리핑은 그대로
+            o = await szRun(mkSZ(ZB, szData(2.7, 13))); assert.ok(o.card && !('traffic' in o.card));
+            o = await szRun(mkSZ(ZB, szData(2.7, 13)), ZB, { traffic: { profiles: () => { throw new Error('ENOENT 위치표'); } } });
+            assert.ok(o.r.ok && o.card.rank === 1 && o.card.traffic === null); assert.ok(warns.some((m) => m.includes('최근 14일 선박 동향 계산 실패') && m.includes('ENOENT')), warns.join(' / '));
+        } finally { console.warn = warn; }
+    });
+    await check('[§11.10.23-3] AI 입력에는 넣지 않음 — traffic 이 붙어도 stationInput·지시문 JSON 이 같다 · today.lines 그대로 · 규칙 판 v21', () => {
+        const plain = hallim(), withT = hallim();
+        withT.sea.regions.forEach((r, i) => { r.traffic = i === 1 ? null : { days: 14, oldest: '2026-10-03', dailyAvg: 5.2 + i, blocks: [], peak: i ? null : { from: '06', to: '09', avg: 12.4 }, cells: 2 }; });
+        const a = R.buildBriefing(plain, WIN, { generatedAt: R.isoKst(T0) }), b2 = R.buildBriefing(withT, WIN, { generatedAt: R.isoKst(T0) });
+        assert.ok(b2.sea.cards.some((c) => c.traffic && c.traffic.text.startsWith('이 해역 하루 평균 ')) && b2.sea.cards.some((c) => c.traffic === null), JSON.stringify(b2.sea.cards.map((c) => c.traffic)));
+        assert.ok(a.sea.cards.every((c) => !('traffic' in c)), '수집에 traffic 이 없으면 카드에도 필드 없음(옛 판과 같은 꼴)');
+        const ia = AI.stationInput(a), ib = AI.stationInput(b2);
+        assert.equal(JSON.stringify(ib), JSON.stringify(ia), 'AI 입력 JSON 같음');
+        assert.equal(AI.buildPrompt(AI.batchInput([ib], null)), AI.buildPrompt(AI.batchInput([ia], null)));
+        assert.ok(!JSON.stringify(ib).includes('하루 평균'));
+        assert.deepStrictEqual(b2.sea.cards.map((c) => c.today.lines), a.sea.cards.map((c) => c.today.lines), 'today.lines 그대로');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v21');
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
