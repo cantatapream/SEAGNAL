@@ -24,6 +24,7 @@
 [해상 통합 설계·수집 계약·보류 작업 목록](marine_fusion.design.md)
 
 [교통량 2주 그래프 — 서버 쪽(30분 척수 이력·특보 발효 구간·조회 API)](traffic_history.design.md): 2026-10-15 사용자 「교통량 그래프를 2주 단위로 표출하도록 하자. 그리고 배경에 특보도 표출하고.」 서버(`sea_traffic_history`·`sea_warning_history`·`warn_zone_cells`, `GET /api/risk-forecast/sea/traffic-history`)만 만들었고 화면은 디자인 확정 뒤 따로 한다.
+같은 문서 「브리핑 해역별 최근 14일 동향」(2026-10-18): 관할 브리핑 해역마다 하루 평균·가장 많은 3시간대를 계산하는 `local_server/services/sea_traffic_profile.js`(1단계 — 계산·시험만, 브리핑 연결 전).
 
 작업의 사용자 취지·검토 과정·운영 확인·보류 과제 재개 순서는 루트 [handoff_marine_fusion.md](../../../../handoff_marine_fusion.md)에 정리했다.
 
