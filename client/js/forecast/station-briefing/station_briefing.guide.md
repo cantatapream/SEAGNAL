@@ -98,6 +98,7 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 | `levelGroups`·`levelBadges`·`levelTabs` | station_briefing_render.js | §11.10.14: 「해상 분석」·「연안 분석」 카드를 단계별로 묶어(경계 → 주의 → 관심, 단계 안 순서는 서버 그대로) 칸 머리 오른쪽에 개수 배지(`[data-sb-sec-badges]` — §11.10.16 부터 「주의 5」·「관심 1」(종전 「주의 필요 5개 해역」), `chip` 색) · 카드 목록 위 단계 단추(`[data-sb-tabs="sea|land"]` role=tablist, 처음 = 가장 높은 단계, 단계 하나면 단추 없음) — 개수는 보이는 카드 수(서버 10곳 상한 안) |
 | `appendText`·`levelWord` | station_briefing_render.js | §11.10.16: `appendText(node, text)` — 「다.」로 끝난 문장 뒤(빈칸·한글 이어짐)에 `<br>`(숫자의 점·「다.」」·글 끝은 안 자름, textContent 그대로) · `levelWord('주의 필요')` → 「주의」(옛 판 단계 말). 둘 다 `StationBriefingRender` 로 내보내 UI 시험이 직접 부른다 |
 
+| `seaAccRows` | station_briefing_render.js | §11.10.22 B: 해역 카드 [사고현황('21~'25년)] — 이름표 한 줄(`row` 값 칸 빈칸) + 그 아래 `p.sb-acc-line[data-sb-acc-line="sea"]`(연안 카드 [사고현황] 아래 줄과 같은 클래스, `accText` 칠하기) — v14·v15 판(`seaCard`)·v16 이후 판(`seaCardBadged`) 모두 |
 | `seaCardBadged`·`seaBadges`·`seaCardLink` | station_briefing_render.js | §11.10.15: 규칙 v16 해역 카드(`badges` 있음) — 출처별 배지 `.sb-srcb`(`data-rank` = 글자 색 단계 · `data-sb-src` = accident·congestion·weather, 글은 서버 `text` 그대로 textContent) + 상세 줄 `.sb-srcb-det`(서버 `detail`) → [사고현황] → 사고 한 줄 → [기상 예보] → [권고]. 경계 글자 색은 CSS `.sb-srcb[data-rank="3"]`(#e34842), 관심·주의는 `colorOf`. `badges` 없는 옛 판은 `seaCard` 의 종전 길. `seaCardLink` = 맨 끝 [위험예측에서 보기 ›](두 길 공용). 시안 ④판(규칙 v17): `detail[]` 이 `{title, head, rows}` 면 `srcbTable` 이 제목 `.sb-srcb-dt` + 표 `.sb-srcb-tbl`(상자 `.sb-srcb-tblw` 가로 스크롤, `{text, rank}` 칸 = `.sb-srcb-grade` 그 등급 색), 글 줄(v16 판)이면 종전 한 줄 |
 
 ## 수정 시 주의사항
@@ -105,7 +106,7 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 - 노출 판정을 화면에서 하지 않는다 — `display` 는 서버가 정한다. 아코디언 머리·몸은 마크업에서 `display:none` 으로 시작한다.
 - 탭 이동은 기존 `switchMainTab`·`switchSubTab` 만 쓴다(life_safety.js 탭 상태 유지 규칙과 충돌하지 않게).
 - [기준 상세] 문안을 바꿀 때는 서버 규칙(`station_briefing_rules.js`·`station_briefing.js`·`station_briefing_ai.js`)과 설계서 §11.6~§11.8 를 대조한다 — 코드에 없는 규칙을 쓰지 않는다.
-- 해역 카드의 해구 예보 상세 표 제목·[기상 예보] 꼬리(「232-5해구 예보」·「(소해구 232-5 예보)」, 소해구 예보가 없으면 「232해구 예보」·「(대해구 232 예보)」)는 **서버 글 그대로** 그린다 — 화면은 대해구·소해구를 가리지 않는다(§11.10.19, 서버 `seaSection`·`station_briefing_inputs.smallWeather`).
+- (§11.10.22 A 부터 꼬리는 「(232-5해구 예보)」·「(232해구 예보)」 — 서버 이름표 「232-5해구」·「232해구」) 해역 카드의 해구 예보 상세 표 제목·[기상 예보] 꼬리(「232-5해구 예보」·「(소해구 232-5 예보)」, 소해구 예보가 없으면 「232해구 예보」·「(대해구 232 예보)」)는 **서버 글 그대로** 그린다 — 화면은 대해구·소해구를 가리지 않는다(§11.10.19, 서버 `seaSection`·`station_briefing_inputs.smallWeather`).
 - 점검 차단(`station-briefing` — index2.html featureMap·bodyMap)과 노출 판정이 둘 다 몸 보임을 만진다 — `applyVisibility` 가 차단을 보고(일반 기기 숨김·관리자는 열어 둔 것 유지), index2 는 차단을 바꾼 뒤 `StationBriefing.applyVisibility()` 를 부른다.
 - 펼친 아코디언·안쪽 칸은 `max-height:none`(station_briefing.css) — 기존 8000px 상한이 카드 최대치 본문을 잘랐다.
 - **지도 클래스 이름 두 벌(2026-10-17 합칠 때 겹침)**: 설정 화면 고르기 지도는 `.sb-map`(46vh), 총평 근거 줄 펼침 지도는 `.sb-minimap`(200px). 같은 이름을 쓰면 뒤 규칙이 앞 지도 높이를 덮는다 — 실제로 펼침 지도가 240px 로 커져 UI 시험이 잡았다.

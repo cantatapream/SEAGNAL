@@ -122,7 +122,8 @@ window.getMarineZoneData = async function (zoneId) {
             formattedData.baseTime = json.baseTmUtf;
             formattedData._visLoading = true;
             // [소해구 — §11.10.18] 소해구(「233-5」)는 대해구 값으로 먼저 그리고, 소해구 값이 오면 바꿔 그린다 — 그동안은 안내 한 줄.
-            if (isSmallZone) formattedData._sourceNote = `대해구 ${lZone} 예보로 표시 중`;
+            //   안내 글의 해구 표기는 「233해구」(2026-10-18 사용자 *"전체적으로 대해구 ## 이렇게 표현하지말고 ##해구 이런식으로 … 소해구는 ##-#해구"* — coastal_safety_forecast.design.md §11.10.22 A, 종전 「대해구 233」)
+            if (isSmallZone) formattedData._sourceNote = `${lZone}해구 예보로 표시 중`;
 
             showMarineZoneModal(zoneId, formattedData, false, null, json.baseTmUtf);
 
@@ -162,7 +163,7 @@ const SMALL_ZONE_FIELDS = ['ws', 'wh', 'wp', 'waveDir', 'windDir'];
  * 소해구 예보를 받아 이미 그린 대해구 값(풍속·파고·파주기·파향·풍향)을 소해구 값으로 바꿔 다시 그린다(§11.10.18).
  * 예: applySmallZoneForecast('233-5','233','5',formattedData,reqId,'2026101700')
  *     → /api/marine-small-zone-forecasts/233 의 data['5'] 를 시각(tm)마다 맞춰 넣고 표·그래프를 다시 그림, 안내 줄 지움
- *     → 실패(서버 404·502·끊김)면 값은 그대로, 안내 줄을 「소해구 예보를 받지 못해 대해구 233 예보로 표시합니다」로
+ *     → 실패(서버 404·502·끊김)면 값은 그대로, 안내 줄을 「소해구 예보를 받지 못해 233해구 예보로 표시합니다」로(§11.10.22 A — 종전 「대해구 233」)
  *     → 그 소해구 값이 모두 비었으면(육지 소해구 — 기상청이 -999 를 준다) 값은 그대로, 「… 예보 값이 없어 …」
  * @param {string} zoneId - 누른 소해구 「233-5」 @param {string} lZone - 대해구 「233」 @param {string} szone - 「5」
  * @param {object[]} data - 화면이 그린 행 배열(formattedData — 시정 병합과 같은 배열을 그 자리에서 고친다)
@@ -188,8 +189,8 @@ async function applySmallZoneForecast(zoneId, lZone, szone, data, requestId, bas
     const hasValue = !!rows && rows.some(x => SMALL_ZONE_FIELDS.some(k => x[k] != null));
     if (!hasValue) {
         data._sourceNote = rows
-            ? `소해구 ${zoneId} 예보 값이 없어 대해구 ${lZone} 예보로 표시합니다`
-            : `소해구 예보를 받지 못해 대해구 ${lZone} 예보로 표시합니다`;
+            ? `${zoneId}해구 예보 값이 없어 ${lZone}해구 예보로 표시합니다`        // §11.10.22 A(종전 「소해구 233-1 … 대해구 233 …」)
+            : `소해구 예보를 받지 못해 ${lZone}해구 예보로 표시합니다`;
         const note = document.getElementById('marine-zone-source-note');
         if (note) note.textContent = data._sourceNote;
         return;

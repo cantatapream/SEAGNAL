@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: local_server/services/station_briefing.js
- * 역할  : 「연안 안전 브리핑」(종전 이름 「활동지점 안전 브리핑」) 생성·저장·일정·설정을 맡는다. 정해진 판(만들기 시작 07:10·17:10·22:40 → 공개 07:30·17:30·23:00 KST — 2026-10-17 §11.10.4)과
+ * 역할  : 「연안 안전 브리핑」(종전 이름 「활동지점 안전 브리핑」) 생성·저장·일정·설정을 맡는다. 정해진 판(만들기 시작 06:50·16:50·22:20 → 공개 07:30·17:30·23:00 KST — 2026-10-17 §11.10.4, 2026-10-18 §11.10.22 D 사용자 *"시각 앞당기자 40분전으로."* — 종전 07:10·17:10·22:40)과
  *         특보가 바뀔 때(그 특보구역에 걸친 관할만 — 곧바로 공개) 관할 입력을 모아(station_briefing_inputs) 규칙으로 판단하고(station_briefing_rules — 「총평과 권고」 결론·근거·권고·규칙 분석 문단 포함)
  *         연안·해상 분석 문단만 AI 로 쓴 뒤(station_briefing_ai — VM 최대 3번 → Gemini → 규칙 분석) 날짜별 파일에 저장한다. 공개 시각 전의 판은 pending 에 두고 그동안 화면에는 이전 판을 준다(visibleOf).
  *         관리자 설정(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만)과 노출 판정(관리자 기기에만 등)도 여기서 정한다.
@@ -191,7 +191,7 @@ function realAdapters() {
 }
 
 // 관리자 오류현황(위험예측 오류현황 risk_error_history) 연결 — 2026-10-16 결정 6(원문 *"추천대로"*). 원천 이름·낡음 기준·일부 실패 분류.
-// 낡음 10시간: 정시 판 실행 간격 중 가장 긴 것(밤 22:40 → 아침 07:10) 8시간 30분 + 여유(§11.10.4 전에는 23:00→08:00 9시간 + 1시간). 이것이 없으면 브리핑이 멈춰도 오류현황엔 「정상」이 남는다(L-291).
+// 낡음 10시간: 정시 판 실행 간격 중 가장 긴 것(밤 22:20 → 아침 06:50 — §11.10.22 D, 종전 22:40 → 07:10 도 같은) 8시간 30분 + 여유(§11.10.4 전에는 23:00→08:00 9시간 + 1시간). 이것이 없으면 브리핑이 멈춰도 오류현황엔 「정상」이 남는다(L-291).
 const HISTORY_SOURCE = 'stationBriefing', HISTORY_STALE_MS = 10 * 3600000, HISTORY_PARTIAL_CODE = '브리핑 일부 실패 — AI 총평 대신 틀';
 /**
  * 브리핑 상태 파일(state.json)을 오류현황 원천 한 행으로 바꾼다 — 1분 감시(risk_history_sources)와 실행 직후 기록(run·reportFailure)이 같은 판정을 쓰도록 한 곳에 둔다.
@@ -499,6 +499,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             const aiOn = !!ad || allowRealAI(), cfg = aiOn ? config : { ...config, method: 'template' }, rg = regional ? regional() : null;
             // 공개 시각(§11.10.4): 정시 판은 EDITIONS 공개 시각(07:30·17:30·23:00) — 그 전에는 pending 에 두고 화면은 이전 판. 특보 변경·관리자 실행은 곧바로(publishAt = 만든 시각).
             //   데드라인 = 20분과 「공개 시각까지」 중 이른 것 — 공개 시각에 된 만큼(AI 분석 + 나머지는 규칙 분석) 보이고 늦추지 않는다. 공개 시각이 이미 지난 늦은 실행은 20분 그대로(곧바로 공개).
+            //   §11.10.22 D(2026-10-18 — 공개 40분 전 시작): 제때 시작한 정시 판은 20분 쪽이 걸려, 다 쓰지 못해도 공개 시각보다 20분 앞서 끝난다(데드라인 규칙은 그대로 — 작업 지시서 「여유 20분 생김」).
             const publishAt = R.publishAtFor(kind, now) || R.isoKst(now), untilPublish = Date.parse(publishAt) - now;
             const deadline = t0 + (untilPublish > 0 ? Math.min(runDeadlineMs, untilPublish) : runDeadlineMs);
             const results = [], rule = [], szTried = new Set();

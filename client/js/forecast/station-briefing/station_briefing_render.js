@@ -20,6 +20,7 @@
  *                    · E(시안 ⑤판): 분석 문단의 특보 말(「풍랑주의보 해제 예고」·「예비특보」 등) → 「기상특보 현황」 창 링크(openWarnPopup — 표 「특보구역 | 특보 | 시각」·발표·해제 뒤 한 문장),
  *                      특보 말이 없으면 문단 아래 「(특보) …」 한 줄 · 해상 근거 안 같은 상자(warnBox) · 표 칸에는 따옴표 없음(서버).
  *         §11.10.20(시안 Land.dc.html ⑥판, 서버 규칙 v19): 연안 카드 — 배지 줄(연안 위험지수·해수욕장) · [위험구역] 「N개소」 → 표 「구역 종류 | 개소 수」 → [위치 보기] 지도(그 종류 위험구역 폴리곤 깜빡임 + 관광지 점)
+ *         §11.10.22(서버 규칙 v20): 해구 표기 「75해구」·「223-9해구」(지도 풀이·링크 경계) · [기상 예보]·분석 문단 「유의파고 …」 굵게(옛 판 「최대 파고 …」도) · 해역 카드 [사고현황('21~'25년)] 내용은 이름표 다음 줄(연안 카드와 같은 모양).
  *                    · [사고현황('20~'24년)] 「총 N건」 → 표 「연도 | 사고 종류 | 건수」 · [오늘 예상] 하나면 점 없이 · [권고]. 맨 아래 「데이터 출처 보기」 접힌 표 「구분 | 자료 | 제공」 + 노란 두 줄 안내(기준 시각·다루는 시간 줄 없음).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -92,7 +93,7 @@
         ['해양사고 위험예보(선박 사고위험 예보, 3시간)', '한국해양교통안전공단 MTIS', '해상 단계', '해상'],
         ['해양교통 혼잡 예보', '한국해양교통안전공단 MTIS', '해상 「충돌·접촉 주의」', '해상'],
         ['실시간 선박 교통', '한국해양교통안전공단 MTIS', '「지금 밀집」 한 줄(오늘 브리핑만)', '해상'],
-        ['해구별 3시간 예보(파고·풍속)', '기상청', '해상 단계, 「몇 시부터 높아지는지」', '해상'],
+        ['해구별 3시간 예보(유의파고·풍속)', '기상청', '해상 단계, 「몇 시부터 높아지는지」', '해상'],
         ['과거 선박사고(2021~2025)', '해양경찰청 선박사고 기록(국립해양조사원 개방海 제공)', '해역 [사고현황]', '해상'], // §11.10.13 — 종전 「해역 [특성]」
         ['해상 특보(풍랑·태풍)·육상 강풍특보·특보 해제 기록', '기상청', '해상·육상 단계, 특별 상황', '기상'],
         ['해상 기상 전망(단기 통보문)', '기상청', '총평을 쓰는 AI 의 원인 참고(그 안의 숫자·지명은 옮기지 않음)', '기상'],
@@ -236,6 +237,16 @@
     var ACC_RE = /사망 \d+명|실종 \d+명|[^\s,|]+ \d+건/g;
     /** [사고현황] 글 칠하기. 예: accText(span, '충돌 5건, 전복 2건 | 인명피해 사망 0명, 실종 0명') @param {HTMLElement} node @param {string} text @returns {HTMLElement} [연계] ← seaCard·seaCardBadged·landCardV19 */
     function accText(node, text) { return boldText(node, text, ACC_RE, function (x) { return /^사망/.test(x) ? 'sb-hl-red sb-acc-death' : /^실종/.test(x) ? 'sb-acc-missing' : 'sb-hl-b sb-acc-n'; }); }
+    /**
+     * 해역 카드 [사고현황('21~'25년)] — 이름표 한 줄, 그 아래 내용 줄(「충돌 2건, 좌초 1건 | 인명피해 사망 0명, 실종 0명」 — 연안 카드 [사고현황] 아래 줄과 같은 .sb-acc-line).
+     *   2026-10-18 사용자 결정(설계서 §11.10.22 B — #39 「해역 카드 [사고현황('21~'25년)] 내용을 다음 줄로, 연안 카드 사고현황과 같은 모양」, 시안 Sea.dc.html·Traffic.dc.html 의 두 줄 모양).
+     * 예: seaAccRows(card, {label:"사고현황('21~'25년)", text:'충돌 2건, 좌초 1건 | 인명피해 사망 0명, 실종 0명'}) → [사고현황('21~'25년)] / 충돌 2건, …
+     * @param {HTMLElement} card @param {Object} t - card.traits(label·text) @returns {void} [연계] ← seaCard(v14·v15 판)·seaCardBadged / → row·accText
+     */
+    function seaAccRows(card, t) {
+        card.appendChild(row('[' + (t.label || '사고현황') + ']', el('span', 'sb-row-v')));
+        var line = accText(el('p', 'sb-acc-line'), t.text); line.setAttribute('data-sb-acc-line', 'sea'); card.appendChild(line);   // 「유형 N건」·사망·실종 칠하기(§11.10.20 덧붙임 26·27)
+    }
     /** 글 목록. 예: list(['15~21시 공식 사고예보 \'주의\'']) → <ul class="sb-list"><li>…</li></ul>. @param {string[]} items @returns {HTMLElement} */
     function list(items) { var u = el('ul', 'sb-list'); (items || []).forEach(function (x) { u.appendChild(el('li', '', x)); }); return u; }
 
@@ -273,7 +284,7 @@
         if (tags.childNodes.length) card.appendChild(tags);
         if (typeof c.advice === 'string') {
             var t = c.traits || {}, td = c.today || {}, one = function (xs) { return xs.length === 1 ? xs[0] : list(xs); };
-            if (t.text) card.appendChild(row('[' + (t.label || '사고현황') + ']', accText(el('span', 'sb-row-v'), t.text)));   // 「유형 N건」·사망·실종 칠하기(§11.10.20 덧붙임 26·27)
+            if (t.text) seaAccRows(card, t);   // 이름표 다음 줄에 내용(§11.10.22 B)
             var wx = (Array.isArray(td.weatherLines) ? td.weatherLines : []).concat(td.forecast ? [td.forecast] : []), other = Array.isArray(td.otherLines) ? td.otherLines : [];
             if (wx.length) card.appendChild(row('[기상 예보]', one(wx)));
             if (other.length) card.appendChild(row('[그 밖의 근거]', one(other)));
@@ -393,7 +404,7 @@
     function seaCardBadged(card, c) {
         var t = c.traits || {}, td = c.today || {};
         card.appendChild(seaBadges(c.badges));
-        if (t.text) card.appendChild(row('[' + (t.label || '사고현황') + ']', accText(el('span', 'sb-row-v'), t.text)));   // 「유형 N건」·사망·실종 칠하기(§11.10.20 덧붙임 26·27)
+        if (t.text) seaAccRows(card, t);   // 이름표 다음 줄에 내용(§11.10.22 B)
         if (c.historyNote) card.appendChild(historyNoteNode(c.historyNote));   // 사고 유형 흰 굵게(§11.10.20 덧붙임 25)
         if (td.forecast) { var fv = el('span', 'sb-row-v'); forecastNodes(fv, td.forecast); card.appendChild(row('[기상 예보]', fv)); }   // §11.10.20 덧붙임 19 — 수치·바다 상태 말·특보 구절 굵게
         card.appendChild(adviceRow(c.advice));   // §11.10.20 덧붙임 9 — 총평 (권고)와 같은 상자(글자 크기는 카드 그대로)
@@ -580,7 +591,7 @@
         return box;
     }
     /**
-     * 다음 판 안내 — 공개 시각(§11.10.4 — 20분 전부터 만들어 두었다가 이 시각에 보임)이 아직이면 「다음 브리핑 공개: …」, 이미 지났으면(서버가 늦게 켜진 경우 등) 「다음 브리핑을 준비 중입니다(… 공개 예정)」.
+     * 다음 판 안내 — 공개 시각(§11.10.4 — 40분 전(§11.10.22 D, 종전 20분 전)부터 만들어 두었다가 이 시각에 보임)이 아직이면 「다음 브리핑 공개: …」, 이미 지났으면(서버가 늦게 켜진 경우 등) 「다음 브리핑을 준비 중입니다(… 공개 예정)」.
      * 예: nextText('2026-10-17T23:00:00+09:00', 10-17 21:30) → '다음 브리핑 공개: 10월 17일(토) 23:00' · 23:05 → '다음 브리핑을 준비 중입니다(10월 17일(토) 23:00 공개 예정)'
      * @param {string} iso @param {number} nowMs @returns {string} [연계] ← render(브리핑 없음 — §11.10.9 ⑦ 부터 fallback 상자는 없음)
      */
@@ -612,7 +623,7 @@
             // 「아직 이 관할의 브리핑이 없습니다.」 줄은 뺐다(§11.10.10 F — 2026-10-17 사용자 *"오류나 자료 없음처럼 다른 내용을 알리는 안내는 남깁니다 <- 이 작업 할 필요 없어"*).
             //   빼도 칸이 비지 않는다 — 머리 줄([기준 상세])과 아래 다음 공개 안내(「다음 브리핑 공개: …」 또는 공개 시각 설명)가 남는다(UI 시험 「브리핑 없음」이 잰다).
             var empty = el('div', 'sb-empty'); empty.setAttribute('data-sb-empty', '');
-            empty.appendChild(el('p', 'sb-small', resp && resp.nextExpectedAt ? nextText(resp.nextExpectedAt, nowMs) : '브리핑은 매일 07:30 · 17:30 · 23:00에 보입니다 — 각 20분 전(07:10 · 17:10 · 22:40)부터 만들어 두었다가 그 시각에 보여 드리고, 특보가 바뀌면 그 관할을 곧바로 다시 만듭니다.'));
+            empty.appendChild(el('p', 'sb-small', resp && resp.nextExpectedAt ? nextText(resp.nextExpectedAt, nowMs) : '브리핑은 매일 07:30 · 17:30 · 23:00에 보입니다 — 각 40분 전(06:50 · 16:50 · 22:20)부터 만들어 두었다가 그 시각에 보여 드리고, 특보가 바뀌면 그 관할을 곧바로 다시 만듭니다.'));
             box.appendChild(empty);
             return;
         }
@@ -800,13 +811,13 @@
         return stop;
     }
     /**
-     * 지도 아래 한 줄 풀이. 예: ({key:'haegu',major:'232'}, {name:'한림파출소'}) → '빨간 테두리(깜빡임) = 대해구 232 · 파란 선 = 한림파출소 관할 해역'
+     * 지도 아래 한 줄 풀이. 예: ({key:'haegu',major:'232'}, {name:'한림파출소'}) → '빨간 테두리(깜빡임) = 232해구 · 파란 선 = 한림파출소 관할 해역'(§11.10.22 A — 종전 「대해구 232」)
      *   · ({key:'accidentOnly'}, {name:'영목파출소'}, "해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 3칸") → "빨간 테두리(깜빡임) = KOMSA 기준 등급 '주의' 해역 · 파란 선 = 영목파출소 관할 해역"(§11.10.12 — 단계는 그 근거 줄의 따옴표 말)
      * @param {Object} d - detail @param {Object} station @param {string} [text] - 그 근거 줄 @returns {string} [연계] ← basisList
      */
     function mapCaption(d, station, text) {
         var q = /'([^']+)'/.exec(String(text || ''));
-        var what = d.key === 'haegu' ? '대해구 ' + (d.major || '') : d.key === 'accidentOnly' ? 'KOMSA 기준 등급 ' + (q ? "'" + q[1] + "' " : '') + '해역' : '위험이 높아진 해역';
+        var what = d.key === 'haegu' ? (d.major || '') + '해구' : d.key === 'accidentOnly' ? 'KOMSA 기준 등급 ' + (q ? "'" + q[1] + "' " : '') + '해역' : '위험이 높아진 해역';
         return '빨간 테두리(깜빡임) = ' + what + ' · 파란 선 = ' + ((station && station.name) || '') + ' 관할 해역';
     }
 
@@ -990,14 +1001,15 @@
      * 해역 카드 [기상 예보] 글 칠하기(2026-10-18 사용자 *"여기서도 주요 수치, 단어 등은 볼드 처리해줘. 색상도 필요 시 넣어주고"* — 설계서 §11.10.20 덧붙임 19, 시안 Sea.dc.html):
      *   「최대 파고 1.7m·풍속 11.1m/s」·바다 상태 말(「물결이 다소 높고 바람이 강할」·「잔잔한 바다일」 — 「 것으로」 앞까지) 흰 굵게 · 「21시부터 풍랑주의보 발효」 같은 특보 구절 = 주의보 주황·경보 빨강 굵게
      *   (예비특보 구절은 노랑). 「(223-9해구 예보)」 꼬리는 그대로. 서버 글(today.forecast)을 화면이 칠한다 — 글은 textContent 로만.
-     * 예: forecastNodes(span, '최대 파고 1.7m·풍속 11.1m/s로 물결이 다소 높고 바람이 강할 것으로 예상됩니다(223-9해구 예보).')
+     *   §11.10.22 C: 서버 글이 「유의파고 1.7m·풍속 11.1m/s」(종전 「최대 파고 …」)로 바뀌어 둘 다 굵게(옛 판 저장 글).
+     * 예: forecastNodes(span, '유의파고 1.7m·풍속 11.1m/s로 물결이 다소 높고 바람이 강할 것으로 예상됩니다(223-9해구 예보).')
      * @param {HTMLElement} node @param {string} text @returns {void} [연계] ← seaCardBadged / → colorOf·appendText
      */
     function forecastNodes(node, text) {
         var t = String(text), marks = [], m, add = function (a, z, cls, r) { if (z > a && marks.every(function (k) { return z <= k.a || a >= k.b; })) marks.push({ a: a, b: z, cls: cls, r: r }); };
         var wr = new RegExp('(?:\\d{1,2}시(?:부터|까지)? )?(?:' + HL_KINDS + ')(?:주의보|경보)(?: 예비특보)?(?: 발효(?: 중| 예정)?| 해제(?: 예고)?)?', 'g');
         while ((m = wr.exec(t))) add(m.index, m.index + m[0].length, 'warn', /예비특보|해제/.test(m[0]) ? 1 : /경보/.test(m[0]) ? 3 : 2);
-        var mx = /최대 (?:파고 \d+(?:\.\d+)?m(?:·풍속 \d+(?:\.\d+)?m\/s)?|풍속 \d+(?:\.\d+)?m\/s)/g;
+        var mx = SEA_VALS_RE; mx.lastIndex = 0;
         while ((m = mx.exec(t))) add(m.index, m.index + m[0].length, 'b');
         var st = /(?:잔잔한 바다일|잔잔해질|(?:물결|바람)이 [^.,()]*?)(?= 것으로)|잔잔하다가/g;
         while ((m = st.exec(t))) add(m.index, m.index + m[0].length, 'b');
@@ -1193,6 +1205,8 @@
     // 따옴표 단계 이름 → 단계 순위(색 = colorOf — 위험예측 4색). 연안 위험지수 단계(BAND_ORDER)와 해양사고 위험예보 '주의'·'경계'(브리핑 주의 필요·경계 필요와 같은 순위).
     //   '보통'·'낮음'·'매우높음'(혼잡 예보)은 앱에 그 말의 색이 없어 굵게만(색을 새로 만들지 않는다).
     //   §11.10.20 덧붙임 5(2026-10-18 사용자 *"'주의' 부분을 해당 등급에 맞는 색상과 볼드처리해줘."*): '관심'(노랑)·'심각'(빨강 — 우리 자료에는 없는 말이나 사용자가 등급 말로 들었다, 가장 높은 색) 추가.
+    // 해구 예보 값 토막 — 새 글 「유의파고 1.7m·풍속 11.1m/s」·「풍속 7.5m/s」(§11.10.22 C 사용자 *"유의파고로만 반영"*) · 옛 판 글 「최대 파고 …」·「최대 풍속 …」. [연계] ← forecastNodes·highlightSegments ⑤
+    var SEA_VALS_RE = /최대 (?:파고 \d+(?:\.\d+)?m(?:·풍속 \d+(?:\.\d+)?m\/s)?|풍속 \d+(?:\.\d+)?m\/s)|유의파고 \d+(?:\.\d+)?m(?:·풍속 \d+(?:\.\d+)?m\/s)?|풍속 \d+(?:\.\d+)?m\/s(?=로 )/g;
     var HL_LABEL = { '평소 수준': 0, '다소 높음': 1, '높음': 2, '매우 높음': 3, '관심': 1, '주의': 2, '경계': 3, '심각': 3 }, HL_STEP = { '관심': 1, '주의': 2, '경계': 3 };
     /** 정규식 글자 이스케이프. 예: '경북북부앞바다(대해구 75)' → '경북북부앞바다\(대해구 75\)'. @param {string} t @returns {string} [연계] ← highlightSegments */
     function reEsc(t) { return String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -1205,7 +1219,7 @@
      *   ④ 따옴표 단계 이름('매우 높음' 등 — 따옴표 포함, 곧은 ' 와 굽은 ‘ ’ 둘 다)·「경계 수준」의 「경계」(§11.10.16)·옛 글 「경계 필요」「주의 필요」「관심 필요」
      *      ·「경계가,」「주의가 요구됩니다」「관심이」처럼 이/가 가 붙은 단계 말(§11.10.20 덧붙임 8 — (권고) 상자 속 등급 말) → 'lv'(굵게, rank 있으면 그 단계 색).
      *   ⑤(§11.10.20 덧붙임 4 — 사용자 *"동해상에 바람이 강하게 불고 물결이 높아질 수 있어 이 부분과 같이 중요한 부분은 볼드처리해줘."*) 핵심 구절 → 'b'(굵게):
-     *      바다 상태 결론 「최대 파고 0.8m·풍속 4.8m/s로 잔잔한 바다」(「일 것으로」·「 것으로」 앞까지) · 기상 전망 위험 구절(바람이 강·물결이 높·파도가 높·너울이 … 「수 있어/있다는/있습니다」까지,
+     *      바다 상태 결론 「유의파고 0.8m·풍속 4.8m/s로 잔잔한 바다」(「일 것으로」·「 것으로」 앞까지 — §11.10.22 C, 옛 글 「최대 파고 …」도) · 기상 전망 위험 구절(바람이 강·물결이 높·파도가 높·너울이 … 「수 있어/있다는/있습니다」까지,
      *      그 절 첫머리부터 — 「…에 따르면 」 뒤) · 규칙 분석의 「기상청 단기 전망에 「…」」 따옴표 안 · 「위험이 높아진 해역은 없는」·「… 0칸」.
      * 예: highlightSegments("하트해변은 연안 위험지수 '매우 높음'으로 …", ['하트해변']) → [{text:'하트해변은',cls:'b'},{text:' 연안 위험지수 ',cls:null},{text:"'매우 높음'",cls:'lv',rank:3},…]
      *   ⓪(§11.10.9 ⑥) links — 대해구 이름(「경북북부앞바다(대해구 75)」·「대해구 75」, 서버 summary.sea.haegu) → 'link'(key = 대해구 번호) — 화면이 팝업 지도 단추로. 다른 규칙보다 먼저.
@@ -1217,9 +1231,10 @@
         var t = String(text || ''), marks = [];
         var free = function (a, b) { return marks.every(function (m) { return b <= m.a || a >= m.b; }); };
         var add = function (a, b, cls, rank) { if (b > a && free(a, b)) marks.push(rank === undefined ? { a: a, b: b, cls: cls } : { a: a, b: b, cls: cls, rank: rank }); };
-        // ⓪ 링크(대해구) — 긴 글 먼저(「…(대해구 75)」가 「대해구 75」보다 먼저). 「대해구 75」 뒤에 숫자가 이어지면(대해구 750) 링크가 아니다
+        // ⓪ 링크(대해구) — 긴 글 먼저(「…(75해구)」가 「75해구」보다 먼저). 「대해구 75」 뒤에 숫자가 이어지면(대해구 750) 링크가 아니다.
+        //   §11.10.22 A(「75해구」 꼴): 앞 글자가 숫자·「-」면(「175해구」·「232-75해구」) 링크가 아니다.
         (links || []).filter(function (l) { return l && l.text; }).sort(function (x, y) { return y.text.length - x.text.length; }).forEach(function (l) {
-            var i = -1; while ((i = t.indexOf(l.text, i + 1)) >= 0) if (!/\d/.test(t.charAt(i + l.text.length)) && free(i, i + l.text.length)) marks.push({ a: i, b: i + l.text.length, cls: 'link', key: String(l.key) });
+            var i = -1; while ((i = t.indexOf(l.text, i + 1)) >= 0) if (!/\d/.test(t.charAt(i + l.text.length)) && !(i > 0 && /[\d-]/.test(t.charAt(i - 1))) && free(i, i + l.text.length)) marks.push({ a: i, b: i + l.text.length, cls: 'link', key: String(l.key) });
         });
         var clauseEnd = function (i) { var m = /[,，.。!?]/.exec(t.slice(i)); return m ? i + m.index : t.length; };
         // ① 특보
@@ -1251,7 +1266,7 @@
         var lr = /['‘](매우 높음|다소 높음|평소 수준|높음|보통|낮음|매우높음|관심|주의|경계|심각)['’]|(경계|주의|관심)(?: 필요|(?= 수준)|(?=[이가](?:[,\s.]|$)))/g;
         while ((m = lr.exec(t))) { var rk = m[1] !== undefined ? HL_LABEL[m[1]] : HL_STEP[m[2]]; add(m.index, m.index + m[0].length, 'lv', rk); }
         // ⑤ 핵심 구절(§11.10.20 덧붙임 4) — 바다 상태 결론 · 기상 전망 위험 구절 · 규칙 분석의 전망 인용 · 「위험이 높아진 … 없는」
-        var st = /최대 (?:파고 \d+(?:\.\d+)?m(?:·풍속 \d+(?:\.\d+)?m\/s)?|풍속 \d+(?:\.\d+)?m\/s)로 [^.,]*?(?=일 것으로| 것으로)/g;
+        var st = new RegExp('(?:' + SEA_VALS_RE.source + ')로 [^.,]*?(?=일 것으로| 것으로)', 'g');
         while ((m = st.exec(t))) add(m.index, m.index + m[0].length, 'b');
         var wx = /(?:바람이 (?:매우 )?강|물결이 (?:매우 )?높|파도가 (?:매우 )?높|너울이 )[^.,]*?수 있(?:어|다는|습니다|겠습니다)/g;
         while ((m = wx.exec(t))) {

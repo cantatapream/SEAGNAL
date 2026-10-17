@@ -262,7 +262,7 @@ function smallRowAt(rows, at) {
  * 소해구마다 한 벌 — 열쇠 「232-5」. 대해구 weather[major].rows 와 같은 꼴(창의 3시간 칸마다 {at, wh, ws, forecastAt}).
  * 못 붙이는 소해구는 넣지 않는다 → 그 해역은 규칙(seaSection)이 대해구 예보로 후퇴한다: 찾기 함수가 그 대해구를 주지 않음(저장 판 없음·지난 판) · 그 소해구 줄 없음 ·
  * 창의 칸이 모두 파고·풍속 null(육지 소해구 — 기상청 -999).
- * 예: smallWeather([{haegu:{major:232,sub:5}}], win, (m) => ({baseTm:'2026101700', data:{'5':[…]}})) → {'232-5':{label:'소해구 232-5', major:'232', sub:5, baseTm:'2026101700', rows:[{at,wh,ws,forecastAt}…]}}
+ * 예: smallWeather([{haegu:{major:232,sub:5}}], win, (m) => ({baseTm:'2026101700', data:{'5':[…]}})) → {'232-5':{label:'232-5해구', major:'232', sub:5, baseTm:'2026101700', rows:[{at,wh,ws,forecastAt}…]}}
  * @param {object[]} regions - collectSea 해역 @param {object} win - editionWindow(slots) @param {Function|null} small - (대해구 번호) → {baseTm, data:{소해구:[행]}} | null
  * @returns {object} 소해구 열쇠 → 예보 [연계] ← collectSea · services/station_briefing.js run(저장 판을 다시 받은 뒤 다시 붙임) / → smallRowAt
  */
@@ -276,7 +276,8 @@ function smallWeather(regions, win, small) {
         if (!Array.isArray(all) || !all.length) continue;
         const rows = win.slots.map((at) => { const f = smallRowAt(all, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; });
         if (!rows.some((q) => q.wh !== null || q.ws !== null)) continue;   // 육지 소해구(값이 모두 -999 → null) — 대해구로 후퇴
-        out[key] = { label: '소해구 ' + key, major: String(h.major), sub: Number(h.sub), baseTm: z.baseTm || null, rows };
+        // 이름표 「232-5해구」(2026-10-18 사용자 *"전체적으로 대해구 ## 이렇게 표현하지말고 ##해구 이런식으로 … 소해구는 ##-#해구"* — 설계서 §11.10.22 A, 종전 「소해구 232-5」)
+        out[key] = { label: key + '해구', major: String(h.major), sub: Number(h.sub), baseTm: z.baseTm || null, rows };
     }
     return out;
 }
@@ -324,7 +325,8 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null, smal
             regions.push({ rid: gid, gridId: g.traffic[0] || null, accidentGridId: g.accident?.id || null, lat: b.lat, lon: b.lon, box: boxOf(geom), haegu: b.haegu || null, ref: b.ref || null, zone, zones: [b.warnZone, b.warnSubZone].filter(Boolean), cellCount: g.traffic.length + (g.accident ? 1 : 0), slots, history: marine.cellHistory(geom, 'grid:' + (g.accident?.id || b.id)) });
         }
         const weather = {};
-        for (const major of majors) weather[major] = { label: '대해구 ' + major, box: haeguBox(major), rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
+        // 이름표 「232해구」(§11.10.22 A — 종전 「대해구 232」). [기상 예보] 꼬리 「(232해구 예보)」·해구 문장 「경북북부앞바다(75해구)」가 이 글을 쓴다.
+        for (const major of majors) weather[major] = { label: major + '해구', box: haeguBox(major), rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
         // weatherSmall(§11.10.19 — 사용자 *"소해구 기준으로 기상이 표출되어야 함."*): 해역마다 가장 많이 겹치는 소해구 예보. 없으면 그 해역만 대해구 weather 로(규칙 seaSection)
         out.set(s.key, { reviewedCells: e.cells.size, regions, weather, weatherSmall: smallWeather(regions, win, smallZone), zones: [...new Set(regions.flatMap((r) => r.zones))], frameGaps: accGaps.length && regions.some((r) => r.accidentGridId) ? { accident: accGaps } : {} });
     }

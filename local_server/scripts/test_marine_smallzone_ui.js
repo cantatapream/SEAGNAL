@@ -1,8 +1,8 @@
 /**
  * 역할: 실제 Chromium 에서 해구 기상전망 창(client/js/forecast/alerts/marine.js)의 소해구 표시를 검사한다(§11.10.18).
  *       대해구를 누르면 지금 그대로(소해구 요청 없음) · 소해구 「233-5」를 누르면 ① 대해구 값으로 먼저 그리고 안내 줄
- *       「대해구 233 예보로 표시 중」 ② 소해구 값이 오면 풍속·파고·파주기·파향·풍향 칸과 그래프를 소해구 값으로 바꾸고 안내 줄을 지움 ·
- *       실패하면 「소해구 예보를 받지 못해 대해구 233 예보로 표시합니다」 · 육지 소해구(값 전부 없음)는 「… 예보 값이 없어 …」 ·
+ *       「233해구 예보로 표시 중」(§11.10.22 A — 종전 「대해구 233 …」) ② 소해구 값이 오면 풍속·파고·파주기·파향·풍향 칸과 그래프를 소해구 값으로 바꾸고 안내 줄을 지움 ·
+ *       실패하면 「소해구 예보를 받지 못해 233해구 예보로 표시합니다」 · 육지 소해구(값 전부 없음)는 「… 예보 값이 없어 …」 ·
  *       창이 닫히거나 다른 해구로 바뀐 뒤 늦게 온 응답은 버림 · 시정 줄은 그대로 · 빈 시각은 「-」.
  * [연계] client/js/forecast/alerts/marine.js · client/assets/vendor/chartjs(실제 Chart.js) · API 는 가짜(page.route) — 서버·외부 호출 없음.
  *        예보 시각은 지금 시각에서 만든다(창이 지난 칸을 잘라 내므로) — 기준일 고정이 아니라 「늘 지금부터 26칸」이라 시각에 따라 실패하지 않는다.
@@ -82,7 +82,7 @@ const SMALL1 = TMS.map((tm) => ({ tm, wh: null, wp: null, waveDir: null, ws: nul
             await page.evaluate(() => getMarineZoneData('233-5'));
             await page.waitForSelector('#marine-zone-table');
             assert.equal((await row('(m/s)'))[0], '10.0', '먼저 대해구 풍속');
-            assert.equal(await note(), '대해구 233 예보로 표시 중');
+            assert.equal(await note(), '233해구 예보로 표시 중');   // §11.10.22 A 해구 표기
             await page.waitForFunction(() => window.currentMarineChart);
             assert.equal((await chartWind())[0], 10);
             release(h); smallHold = null;
@@ -97,20 +97,20 @@ const SMALL1 = TMS.map((tm) => ({ tm, wh: null, wp: null, waveDir: null, ws: nul
             await page.evaluate(() => closeSeaZoneModal());
         });
 
-        await check('소해구 예보를 받지 못하면 대해구 값 그대로 + 「소해구 예보를 받지 못해 대해구 233 예보로 표시합니다」', async () => {
+        await check('소해구 예보를 받지 못하면 대해구 값 그대로 + 「소해구 예보를 받지 못해 233해구 예보로 표시합니다」', async () => {
             smallMode = 'fail';
             await page.evaluate(() => getMarineZoneData('233-5'));
             await page.waitForFunction(() => { const n = document.getElementById('marine-zone-source-note'); return n && /받지 못해/.test(n.textContent); });
-            assert.equal(await note(), '소해구 예보를 받지 못해 대해구 233 예보로 표시합니다');
+            assert.equal(await note(), '소해구 예보를 받지 못해 233해구 예보로 표시합니다');
             assert.equal((await row('(m/s)'))[0], '10.0');
             smallMode = 'ok';
             await page.evaluate(() => closeSeaZoneModal());
         });
 
-        await check('육지 소해구(값이 모두 없음)는 대해구 값 그대로 + 「소해구 233-1 예보 값이 없어 …」', async () => {
+        await check('육지 소해구(값이 모두 없음)는 대해구 값 그대로 + 「233-1해구 예보 값이 없어 …」', async () => {
             await page.evaluate(() => getMarineZoneData('233-1'));
             await page.waitForFunction(() => { const n = document.getElementById('marine-zone-source-note'); return n && /값이 없어/.test(n.textContent); });
-            assert.equal(await note(), '소해구 233-1 예보 값이 없어 대해구 233 예보로 표시합니다');
+            assert.equal(await note(), '233-1해구 예보 값이 없어 233해구 예보로 표시합니다');
             assert.equal((await row('(m/s)'))[0], '10.0');
             await page.evaluate(() => closeSeaZoneModal());
         });
@@ -138,7 +138,7 @@ const SMALL1 = TMS.map((tm) => ({ tm, wh: null, wp: null, waveDir: null, ws: nul
             await page.waitForFunction(() => { const n = document.getElementById('marine-zone-source-note'); return n && /값이 없어/.test(n.textContent); });
             release(h2);
             await page.waitForTimeout(400);
-            assert.equal(await note(), '소해구 233-1 예보 값이 없어 대해구 233 예보로 표시합니다');
+            assert.equal(await note(), '233-1해구 예보 값이 없어 233해구 예보로 표시합니다');
             assert.equal((await row('(m/s)'))[0], '10.0', '233-5 값이 끼어들지 않음');
             await page.evaluate(() => closeSeaZoneModal());
         });
