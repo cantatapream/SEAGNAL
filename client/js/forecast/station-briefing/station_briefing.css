@@ -116,7 +116,7 @@
 .sb-tide .ocean-tide-wrap { margin-bottom:6px; }
 .sb-foot { border-top:1px solid rgba(148,163,184,.18); padding-top:8px; color:#94a3b8; font-size:.72rem; }
 .sb-foot p { margin:3px 0; }
-.sb-notice { color:#fca5a5; font-weight:700; }
+.sb-notice { color:#ffd23f; font-weight:700; font-size:.78rem; line-height:1.55; margin:8px 2px 0; }   /* §11.10.20 — 노란 두 줄 안내(종전 분홍 「참고 정보이며 …」) */
 /* 설정 흐름(설정 전 안내·관할 고르기·둘 다 건너뛸 때 묻기) */
 .sb-setup, .sb-unset, .sb-confirm { background:rgba(15,23,42,.6); border:1px solid rgba(148,163,184,.2); border-radius:12px; padding:14px; }
 .sb-setup h4, .sb-unset h4, .sb-confirm h4 { margin:0 0 6px; color:#f1f5f9; font-size:.92rem; }
@@ -243,3 +243,48 @@
    너비 21rem·최대 88vw·높이 80vh 안 스크롤), 여기서는 팝업 지도 창(.sb-dlg) 위 화면 가운데 자리만 정한다(창 상자보다 위 층). */
 .sb-dlg .sb-rockbox { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); z-index:2; box-sizing:border-box; }
 .sb-rockbox .rtp-close:focus-visible, .sb-rockbox .rtp-daynav button:focus-visible { outline:2px solid #67e8f9; outline-offset:2px; }
+/* 연안 카드(2026-10-18 사용자 결정 — 설계서 §11.10.20, 시안 Land.dc.html ⑥판): 배지 줄(연안 위험지수·해수욕장 — 해역 배지 .sb-srcb 와 같은 모양, 한 줄에 나란히) ·
+   [위험구역]·[사고현황] 링크(굵게) · 「총 N건」(0건 = 굵은 흰 글자) · 유형 한 줄 · 위험구역 표 [위치 보기] 알약 · [권고] 노랑 굵게 */
+.sb-srcbs.sb-landbs { flex-direction:row; flex-wrap:wrap; gap:6px; }
+.sb-srcb.sb-landb-beach { color:#cbd5e1; }
+.sb-x-btn.sb-card-lnk { font-weight:800; }
+.sb-acc-total { color:#fff; font-weight:800; }
+.sb-acc-line { margin:0 0 4px; font-size:.8rem; color:#e2e8f0; }
+.sb-hzbox .sb-srcb-tbl td { vertical-align:middle; }
+.sb-hz-loc-td { text-align:right; width:1%; }
+.sb-x-btn.sb-hz-loc { padding:3px 9px; border:1px solid #3d5a86; border-radius:999px; background:#15233d; color:#bcd6ff; font-size:.72rem; font-weight:700; text-decoration:none; white-space:nowrap; }
+.sb-x-btn.sb-hz-loc[aria-expanded="true"] { background:#1d3157; color:#e0f2fe; }
+.sb-hz-maprow > td { padding:4px 0 8px !important; white-space:normal !important; }
+.sb-hz-maprow .sb-x-panel { margin:0; }
+/* 맨 아래 「데이터 출처 보기」(§11.10.20) — 처음 접힘, 펼치면 표 「구분 | 자료 | 제공」(칸 안 어절 단위 줄바꿈) */
+.sb-src { display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:12px; background:#0e1628; border:1px solid #1f2b45; }
+.sb-x-btn.sb-x-pill.sb-src-acc { display:flex; width:100%; box-sizing:border-box; justify-content:space-between; padding:11px 14px; border-radius:10px; border:1px solid #1f2b45; background:#111b31; color:#f3f6fc; font-size:.86rem; font-weight:800; }
+.sb-src .sb-x-panel { margin:0; }
+.sb-src-tbl th, .sb-src-tbl td { white-space:normal; color:#e2e8f0; vertical-align:top; }
+.sb-src-tbl td.sb-src-grp { white-space:nowrap; color:#94a3b8; }
+/* (권고) 상자(2026-10-18 사용자 결정 — 설계서 §11.10.20 덧붙임 2·6·7·8·9, 시안 .adv): 총평 (권고)·해역·연안 카드 [권고] 같은 모양 — 노란 엷은 바탕·테두리,
+   머리 「(권고)」·「[권고]」 노랑 굵게(줄지 않는 칸), 본문 흰색 굵게(둘째 줄은 본문 첫 글자 위치에서), 본문 속 등급 말은 등급 색(render.js adviceBox). 글자 크기는 자리마다 그대로. */
+.sb-adv { box-sizing:border-box; max-width:100%; margin:6px 0; padding:10px 12px; border-radius:12px; background:rgba(255,200,60,.10); border:1px solid rgba(255,200,60,.38); font-weight:800; }
+p.sb-sum-advice.sb-adv { display:flex; gap:4px; }
+.sb-adv .sb-advk { flex-shrink:0; margin:0; color:#ffd75e; font-weight:800; white-space:nowrap; }
+.sb-adv .sb-adv-v { min-width:0; color:#fff; font-weight:800; }
+.sb-adv .sb-hl-red { color:#e34842; }
+.sb-row.sb-adv { gap:4px; padding:8px 10px; border-radius:10px; margin:6px 0; }
+/* 분석 문단 — 이름표 자기 줄 + 문장마다 「•」 줄(§11.10.20 덧붙임 3, 근거 목록과 같은 걸린 들여쓰기 — 표지가 글 밖) */
+.sb-analysis .sb-an-list { margin:4px 0 0; }
+.sb-analysis .sb-an-list li { margin:2px 0; }
+/* 연안 근거 「이름 — 내용」 줄(§11.10.20 덧붙임 12): 이름 칸은 줄지 않고 내용 칸의 둘째 줄이 내용 첫 글자에서(목록 「•」 표지는 li 에 그대로) */
+.sb-basis-kv { display:flex; gap:4px; }
+.sb-basis-kv .sb-basis-k { flex-shrink:0; white-space:nowrap; }
+.sb-basis-kv .sb-basis-v { min-width:0; }
+/* 카드 「위험예측에서 보기 ›」 오른쪽 끝(§11.10.20 덧붙임 13 — 사용자 *"위험 예측에서 보기 이 버튼 오른쪽 정렬해줘"*, 해역·연안 카드 같은 .sb-link) */
+.sb-card > .sb-link { display:block; margin-left:auto; }
+.sb-now .sb-now-list { margin:0; padding-left:16px; white-space:normal; }   /* 선박 상자 두 줄 이상 — 「•」 줄(§11.10.20 덧붙임 14), 글자색은 상자 하늘색 그대로 */
+.sb-now .sb-now-list li { margin:1px 0; }
+/* §11.10.20 덧붙임 17·19·22 — 근거 줄 지명 흰 굵게 · 수치·등급·특보 굵게(색은 render.js) · 브리핑 안 표 머리 칸 흰 굵게(모든 표 — 배지 상세·기상특보 현황·위험이 높아진 곳·고립 지점·위험구역·사고 현황·데이터 출처) */
+.sb-basis-kv .sb-basis-k { color:#fff; font-weight:800; }
+.sb-bv, .sb-fv { font-weight:800; }
+.sb-wrap table th, .sb-dlg table th { color:#fff; font-weight:800; }
+.sb-paren { display:inline-block; max-width:100%; }   /* 긴 괄호 묶음 한 덩어리(§11.10.20 덧붙임 24 — render.js parenText) */
+.sb-acc-missing { color:#fb923c; }   /* 실종 N명 주황(§11.10.20 덧붙임 27 — 사망은 .sb-hl-red) */
+.sb-wrap .sb-hl-red { color:#e34842; }   /* 문단 밖(카드 [사고현황]·근거 줄)에서도 같은 밝힌 빨강 */

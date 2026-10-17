@@ -354,13 +354,18 @@ function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory
             notices: nt, released: released.filter((r) => !nt.effective.includes(r.name)),
             // warnZone = 이 관광지가 든 특보구역(risk.coastWarnings zones.warn) — 브리핑 「기상특보 현황」 표의 특보구역 칸(rules.landWarnRows, 설계서 §11.10.16 소절 E1). 모르면 null
             warnZone: (() => { if (typeof risk.coastWarnings !== 'function') return null; try { const cw = risk.coastWarnings(p.id); return (cw && cw.zones && cw.zones.warn) || null; } catch (_) { return null; } })(),
-            hazard: hz ? { count: hz.count || 0, byType: (hz.byType || []).map((x) => ({ class: x.class, count: x.count })) } : null,
+            // zones = 위험구역 id·종류(2026-10-18 사용자 결정 — 설계서 §11.10.20: 카드 [위험구역] 표의 [위치 보기] 지도가 /api/risk-forecast/hazard-zones?ids= 로 폴리곤을 받는다. id = 위험구역 자료의 name)
+            hazard: hz ? { count: hz.count || 0, byType: (hz.byType || []).map((x) => ({ class: x.class, count: x.count })), zones: (hz.zones || []).filter((z) => z && z.id).map((z) => ({ id: z.id, class: z.class || null })) } : null,
             // isolation = 고립 사고 수(총평 (고립 주의) 지점 표 — 2026-10-17 §11.10.3). 기록을 못 쓰면(available 아님) null — 0 과 가른다.
             isolation: acc ? acc.filter((a) => a.type === '고립').length : null,
             // isolationYears = 같은 고립 사고 기록의 연도별 수({2022:1, 2023:2} — 2026-10-17 사용자 결정 §11.10.10 「발생 현황」 칸). 연도는 기록의 year(없으면 date 앞 4자리),
             //   둘 다 없으면 '미상'으로 센다(합이 isolation 과 늘 같게 — 조용히 빠지지 않게). 기록을 못 쓰면 null.
             isolationYears: acc ? acc.filter((a) => a.type === '고립').reduce((m, a) => { const y = Number.isInteger(a.year) ? String(a.year) : /^\d{4}/.test(String(a.date || '')) ? String(a.date).slice(0, 4) : '미상'; m[y] = (m[y] || 0) + 1; return m; }, {}) : null,
-            history: acc ? { count: acc.length, from: d.history.from, to: d.history.to, topTypes: Object.entries(types).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).slice(0, 3).map(([type, count]) => ({ type, count })) } : null,
+            // types·death·missing·byYear(2026-10-18 사용자 결정 — 설계서 §11.10.20 카드 [사고현황('20~'24년)]): 유형 전부 · 사망·실종 인원 합(기록의 death·missing — 숫자가 아니면 0 으로 더한다) ·
+            //   연도·유형별 건수 [{year:'2020', type:'익수', count:2}](연도 = 기록의 year, 없으면 date 앞 4자리, 둘 다 없으면 '미상' — isolationYears 와 같은 규칙)
+            history: acc ? { count: acc.length, from: d.history.from, to: d.history.to, topTypes: Object.entries(types).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).slice(0, 3).map(([type, count]) => ({ type, count })),
+                types, death: acc.reduce((n, a) => n + (Number(a.death) || 0), 0), missing: acc.reduce((n, a) => n + (Number(a.missing) || 0), 0),
+                byYear: Object.values(acc.reduce((m, a) => { const y = Number.isInteger(a.year) ? String(a.year) : /^\d{4}/.test(String(a.date || '')) ? String(a.date).slice(0, 4) : '미상', k = y + '|' + a.type; (m[k] = m[k] || { year: y, type: a.type, count: 0 }).count++; return m; }, {})) } : null,
             missing: d.missing || [],
         });
     }
