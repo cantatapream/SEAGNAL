@@ -114,20 +114,44 @@ function createRouter({
     return router;
 }
 /**
- * 「지금 밀집」 한 줄(§11.6-8 Q6 — 브리핑을 열 때 규칙 문장, AI 없음, 오늘 판에서만). 해상 통합 briefing() 의 지금 척수를 쓴다.
- * 예: '지금(14:05 기준) 관할 해역 선박 37척(교통 칸 12개) — 한림항 북서방 1.2해리 해역(232-2해구) 18척으로 충돌·접촉 주의'
- * @param {string} key @param {object} r - pick 결과 @returns {object|null} [연계] ← 기본 라우터 / → marine_fusion.briefing
+ * 「지금 밀집」 글 — 두 줄(줄바꿈 \n, 화면 .sb-now 는 white-space:pre-line). 2026-10-17 사용자 결정(설계서 §11.10.9): 원문 *"교통칸 6개는 … 이해가 잘 안 되잖아 … 해역 격자 6개라고 하면 안 될까?
+ * 적절한 표현이 있으면 그렇게 해도 돼"* → 「선박이 있는 해역 격자 N개」. gridCount = 실시간 선박 교통 응답(MTIS, sea_realtime_collector)에서 이 관할에 든 격자(GR4 칸, 0.025° — 약 2.3×2.8km) 줄 수
+ * (marine_fusion.briefing current.gridCount = rows.length). 공단 응답은 배가 없는 칸을 보내지 않는다 — 2026-10-15 운영 응답 3,890칸 중 0척 칸 0개(traffic_history.design.md 정정 기록).
+ * 둘째 줄은 14척 이상인 가장 붐비는 해역(있을 때만). 종전 「지금(20:45 기준) … 35척(교통 칸 7개) — … 27척으로 충돌·접촉 주의」 한 줄.
+ * 예: nowLineText({at:'20:45', count:35, gridCount:7, busiest:{name:'죽변항 북서방 0.7해리 해역(69-9해구)', count:27}})
+ *     → '20:45 기준 관할 해역 선박 35척 · 선박이 있는 해역 격자 7개\n죽변항 북서방 0.7해리 해역(69-9해구) 27척 — 충돌·접촉 주의' · 시각 없음 → '지금 관할 해역 선박 …'
+ * @param {object} o - {at:'HH:MM'|'', count, gridCount, busiest:{name,count}|null} @returns {string} [연계] ← defaultNowLine · scripts/test_station_briefing.js
+ */
+function nowLineText({ at, count, gridCount, busiest }) {
+    return (at ? at + ' 기준' : '지금') + ' 관할 해역 선박 ' + count + '척 · 선박이 있는 해역 격자 ' + gridCount + '개' + (busiest ? '\n' + busiest.name + ' ' + busiest.count + '척 — 충돌·접촉 주의' : '');
+}
+/**
+ * 「지금 밀집」 한 줄(§11.6-8 Q6 — 브리핑을 열 때 규칙 문장, AI 없음, 오늘 판에서만). 해상 통합 briefing() 의 지금 척수를 쓴다. 글은 nowLineText(§11.10.9 — 두 줄).
+ * 예: '14:05 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 12개\n한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의'
+ * @param {string} key @param {object} r - pick 결과 @returns {object|null} [연계] ← 기본 라우터 / → marine_fusion.briefing·nowLineText
  */
 function defaultNowLine(key, r) {
     const SB = require('../services/station_briefing'), R = require('../services/station_briefing_rules');
     const now = Date.now(); if (!r.briefing || r.date !== R.kstDate(now)) return null;
     const st = SB.forDefault().stations().find((s) => s.key === key); if (!st) return null;
-    const { stores } = require('./risk_forecast'), b = stores.marine.briefing(st.idx, R.isoKst(now));
-    if (!b.current || b.current.status !== 'ok' || b.current.count === null) return null;
+    const { stores } = require('./risk_forecast');
+    return nowLineFrom(stores.marine.briefing(st.idx, R.isoKst(now)));
+}
+/**
+ * 해상 통합 관할 브리핑(marine_fusion.briefing) 결과 하나로 「지금 밀집」 객체를 만든다(순수 — 시험이 가짜 결과로 부른다).
+ * §11.10.9 ⑥(2026-10-17 사용자 *"관할 해역 선박 27척 이렇게 나오는 부분에 하이퍼링크 처리해서 팝업으로 해당 관할이 나오고, 그 지도의 선박이 있는 격자를 표시한 뒤 그 격자 안에 선박수를 표출"*):
+ *   cells = 같은 스냅숏의 선박이 있는 격자 [{id, box, count}](current.cells — 합 = count, 수 = gridCount), busiest.id = 가장 붐비는 해역 위치(point)가 든 격자 — 화면 팝업 지도가 그 격자를 깜빡인다.
+ * 예: nowLineFrom({current:{status:'ok',count:35,gridCount:7,cells:[…],sourceAt:'2026-10-17T20:45:00+09:00'}, regions:[{location:'죽변항 북서방 0.7해리 해역(69-9해구)', point:{lon,lat}, current:{count:27}}]})
+ *     → {at:'2026-10-17T20:45:00+09:00', count:35, gridCount:7, cells:[…], busiest:{name:'죽변항 …', count:27, id:'GR4_…'}, text:'20:45 기준 …\n죽변항 … 27척 — 충돌·접촉 주의'}
+ * @param {object} b - marine_fusion.briefing 결과 @returns {object|null} 실시간 자료가 낡거나 없으면 null [연계] ← defaultNowLine / → nowLineText
+ */
+function nowLineFrom(b) {
+    if (!b || !b.current || b.current.status !== 'ok' || b.current.count === null) return null;
     const busy = (b.regions || []).filter((x) => x.current && x.current.count >= 14).sort((a, c) => c.current.count - a.current.count)[0];
-    const at = (b.current.sourceAt || b.current.collectedAt || '').slice(11, 16);
-    return { at: b.current.sourceAt || b.current.collectedAt || null, count: b.current.count, gridCount: b.current.gridCount, busiest: busy ? { name: busy.location, count: busy.current.count } : null,
-        text: '지금' + (at ? '(' + at + ' 기준)' : '') + ' 관할 해역 선박 ' + b.current.count + '척(교통 칸 ' + b.current.gridCount + '개)' + (busy ? ' — ' + busy.location + ' ' + busy.current.count + '척으로 충돌·접촉 주의' : '') };
+    const at = (b.current.sourceAt || b.current.collectedAt || '').slice(11, 16), cells = Array.isArray(b.current.cells) ? b.current.cells : [];
+    const p = busy && busy.point, cell = p ? cells.find((c) => p.lon >= c.box[0] && p.lon <= c.box[2] && p.lat >= c.box[1] && p.lat <= c.box[3]) : null;
+    const busiest = busy ? { name: busy.location, count: busy.current.count, id: cell ? cell.id : null } : null;
+    return { at: b.current.sourceAt || b.current.collectedAt || null, count: b.current.count, gridCount: b.current.gridCount, cells, busiest, text: nowLineText({ at, count: b.current.count, gridCount: b.current.gridCount, busiest }) };
 }
 const router = createRouter({ nowLine: defaultNowLine });
-module.exports = router; module.exports.createRouter = createRouter;
+module.exports = router; module.exports.createRouter = createRouter; module.exports.nowLineText = nowLineText; module.exports.nowLineFrom = nowLineFrom;
