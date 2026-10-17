@@ -149,12 +149,15 @@ function makeBriefings() {
         const inputs = { version: 1, cells: { cells: [cell] }, congestion: { frames: {} }, accident: { cells: [acc], frames }, sources: { accident: { status: 'ok' }, congestion: { status: 'ok' }, zoneForecasts: { status: 'ok' } }, weather: () => ({ wh: 2, ws: 12, wp: 4, wd: 241, forecastAt: at0 }) };
         const ring = (x, y) => [[x, y], [x + .01, y], [x + .01, y + .01], [x, y + .01], [x, y]];
         const spots = [{ id: '50110|협재해수욕장', i: 0, lat: 33.394, lon: 126.239, name: '협재해수욕장', cell: ring(126.234, 33.389) }];
+        const hzReq = [], HZ = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'coastal_safety', 'coastal_hazard_zones.wgs84.geojson'), 'utf8'));
         const store = { sources: () => inputs.sources, marineInputs: () => inputs,
             meta: () => { const a = { coast: T.timeline(clock.now, 3, 2, 21), sea: T.timeline(clock.now, 1, 2, 23) }; return { now: T.isoKst(clock.now), versions: { spots: 'v1', cells: 1, accident: 'v1' }, timeline: { sea: { times: a.sea }, accident: { times: a.coast }, coast: { times: a.coast } }, sources: inputs.sources }; },
             spots: () => ({ spots }), cells: () => ({ cells: [cell] }), accidentCells: () => ({ v: 'v1', cells: [acc] }), accidentFrame: () => ({ v: 'v1', cells: [[0, .001, '주의']] }),
             frame: (sea) => sea ? { cells: [[0, 0, 1, '낮음']], spots: [], borders: [] } : { spots: spots.map((s) => [s.i, 3]), borders: [] },
             coastDayFrame: () => ({ spots: spots.map((s) => [s.i, 3]), degraded: [] }),
-            coastDayDetail: (id, t) => ({ title: '연안 ' + id, subtitle: { lat: 33.394, lon: 126.239 }, clickable: false, t }), islands: () => ({ features: [] }) };
+            coastDayDetail: (id, t) => ({ title: '연안 ' + id, subtitle: { lat: 33.394, lon: 126.239 }, clickable: false, t }), islands: () => ({ features: [] }),
+            // §11.10.20 연안 카드 [위치 보기] — 실제 위험구역 자료(coastal_hazard_zones.wgs84.geojson)에서 그 id(name)만(risk_store.hazards 와 같은 거르기), 요청 ids 를 남긴다
+            hazards: (ids) => { hzReq.push(ids.join(',')); return { type: 'FeatureCollection', features: HZ.features.filter((f) => ids.includes(f.properties.name)) }; } };
         const marine = M.createStore({ risk: store, dir, clock: () => clock.now, stations: [{ properties: { name: '한림파출소' }, geometry }], accidents: [], describe: () => cell });
 
         const app = express();
@@ -441,12 +444,12 @@ function makeBriefings() {
             const s0 = await grab();
             assert.deepEqual(s0.secs, ['overview', 'sea', 'land', 'tide'], '「특별 상황」 칸 없음(§11.10.16 소절 D)');
             assert.deepEqual(s0.parts, ['land', 'sea', 'weather', 'tide'], '연안 덩어리 → 해상 덩어리 → (기상) → (물때)'); assert.equal(s0.oldPara, 0, '새 브리핑은 옛 문단을 그리지 않음'); assert.equal(s0.cms, 0, '종전 「해설」 칸 없음');
-            assert.deepEqual(s0.land.kids, ['conclusion', 'analysis', 'sb-sum-advice', 'basis-btn', 'basis-panel']); assert.deepEqual(s0.sea.kids, ['conclusion', 'analysis', 'sb-sum-advice', 'now', 'basis-btn', 'basis-panel'], '분석 문단 → (권고) → 지금 밀집 → 근거 배지(§11.10.9 ⑤)');
+            assert.deepEqual(s0.land.kids, ['conclusion', 'analysis', 'sb-sum-advice sb-adv', 'basis-btn', 'basis-panel']); assert.deepEqual(s0.sea.kids, ['conclusion', 'analysis', 'sb-sum-advice sb-adv', 'now', 'basis-btn', 'basis-panel'], '분석 문단 → (권고) → 지금 밀집 → 근거 배지(§11.10.9 ⑤)');
             assert.deepEqual(s0.con.map((x) => x.chip + '|' + x.head), ['연안 주의|' + B.h.summary.land.headline, '해상 주의|오늘 한림파출소 관할 해상의 단계는 "주의"입니다.']);   // §11.10.16 — 「필요」 없음 assert.ok(s0.con.every((x) => Number(x.w) >= 700), '결론은 굵게');
             assert.deepEqual([s0.land.btn, s0.land.exp, s0.land.hidden, s0.land.basis.length, s0.sea.btn, s0.sea.exp, s0.sea.hidden], ['연안 분석 근거 상세 보기', 'false', true, 0, '해상 분석 근거 상세 보기', 'false', true], '분석 근거는 처음에 접혀 있다(§11.10.9 — 알약 배지 「… 상세 보기」)');
             assert.deepEqual([s0.land.tag, s0.land.anSrc, s0.sea.tag, s0.sea.anSrc], ['AI 분석 · ChatGPT', 'chatgpt', 'AI 분석 · ChatGPT', 'chatgpt']);
             const spL = SPLIT(B.h.overview.land); assert.ok(spL, '고정 AI 문단은 「따라서」로 끝난다');
-            assert.equal(s0.land.an, 'AI 분석 · ChatGPT ' + spL.body); assert.deepEqual([s0.land.adv, s0.land.advSrc], ['(권고) ' + spL.advice, 'analysis'], '마지막 「따라서 …」는 (권고) 줄 — 「따라서」 없이'); assert.ok(s0.now.includes('37척'));
+            assert.equal(s0.land.an, 'AI 분석 · ChatGPT ' + spL.body); assert.deepEqual([s0.land.adv, s0.land.advSrc], ['[권고] ' + spL.advice, 'analysis'], '마지막 「따라서 …」는 (권고) 줄 — 「따라서」 없이'); assert.ok(s0.now.includes('37척'));
             assert.equal(s0.title, '13:10 AI 연안 안전 브리핑', '특보 변경 판 = 만든 시각'); assert.equal(s0.landSecTitle, '연안 분석');
             await openBasis(page, 'land'); await openBasis(page, 'sea');
             const s = await grab();
@@ -457,9 +460,9 @@ function makeBriefings() {
             assert.ok(s.wx.text.includes('제주지방기상청 단기 해상예보 (10.17 05:00 발표)') && s.wx.text.includes('제주지방기상청 단기 전망 (10.17 04:40 발표)'), s.wx.text);
             assert.ok(!s.wx.text.includes('(기상)') && !s.wx.text.includes('(특이사항)') && !s.wx.text.includes('가장 가까운 특보구역'), '§11.10.9 — 「(기상)」·거리 줄 없음: ' + s.wx.text);
             assert.deepEqual(s.tideLines, B.h.tide.text, '물때는 공용 칸');
-            assert.deepEqual(s.land.ks, ['(근거)'], '근거 칸에서는 (권고)를 뺐다(§11.10.9 ⑤)'); assert.deepEqual(s.land.basis, B.h.summary.land.basis); assert.equal(s.land.advice, undefined);
+            assert.deepEqual(s.land.ks, [], '근거 칸에서는 (권고)를 뺐다(§11.10.9 ⑤) · 맨 위 「(근거)」 제목 줄도 없음(§11.10.20 덧붙임 — 사용자 「(근거) 빼자」)'); assert.deepEqual(s.land.basis, B.h.summary.land.basis); assert.equal(s.land.advice, undefined);
             assert.ok(s.land.basis.some((x) => x.includes('방문객 평소의 1.8배(예상)')), '예상 표기 — ' + s.land.basis.join(' / '));
-            assert.deepEqual(s.sea.ks, ['(근거)']); assert.deepEqual(s.sea.basis, B.h.summary.sea.basis);
+            assert.deepEqual(s.sea.ks, [], '「(근거)」 제목 줄 없음(§11.10.20 덧붙임)'); assert.deepEqual(s.sea.basis, B.h.summary.sea.basis);
             assert.ok(!s.basisOld, '옛 「근거 ▸」(details) 없음'); assert.equal(s.source, null, '§11.10.9 — 맨 아래 「분석 문단은 ChatGPT가 썼습니다 …」 줄 없음(이름표만)');
             assert.equal(s.special.length, 0, '「특별 상황」 칸 없음(§11.10.16 소절 D)');
             assert.ok(B.h.special.length >= 2 && s.wxbox && s.wxbox.rows === B.h.summary.sea.warnings.rows.length, '해제 예고·예비특보는 해상 근거 안 「기상특보 현황」 상자(§11.10.16 소절 E2) ' + JSON.stringify(s.wxbox));
@@ -467,8 +470,9 @@ function makeBriefings() {
             assert.equal(s.seaCards, B.h.sea.cards.length); assert.equal(s.landCards, B.h.land.cards.length); assert.equal(s.links, s.seaCards + s.landCards);
             assert.ok(s.constant.startsWith('상시 위험 장소'));
             assert.ok(s.gauge, '오늘 판이라 해양종합정보와 같은 진행 게이지'); assert.equal(s.peaks, 4); assert.ok(s.tideText[0].includes('저조 뒤부터 물이 차오릅니다'), s.tideText[0]);
-            assert.ok(s.foot.includes('참고 정보이며 안전을 보장하지 않습니다') && s.foot.includes('기준 시각 10월 17일(토) 13:10'), s.foot);
-            assert.equal(s.edition, '10월 17일 13:10 기준 브리핑 (다음 브리핑 갱신 17:30 또는 특보 변경 시)', '§11.10.9 ⑦ — 판 종류·생성 시각 없이, 제목과 같은 시각 + 다음 갱신');
+            // §11.10.20: 「기준 시각 … 판」·「다루는 시간」 줄 없음 · 출처는 「데이터 출처 보기」(접힘) · 노란 두 줄 안내(옛 「참고 정보이며 …」 대체)
+            assert.ok(s.foot.startsWith('데이터 출처 보기') && s.foot.endsWith('각종 정보(API, 기상정보 등) 기반 AI 분석 결과로,실제 현장상황과 다를 수 있습니다.') && !/기준 시각|다루는 시간|참고 정보이며|출처:/.test(s.foot), s.foot);
+            assert.equal(s.edition, '10월 17일 13:10 기준 브리핑 (다음 갱신 17:30 또는 특보 변경 시)', '§11.10.9 ⑦ — 판 종류·생성 시각 없이, 제목과 같은 시각 + 다음 갱신');
             assert.ok(s.title.startsWith(/\d{2}:\d{2}/.exec(s.edition)[0] + ' '), '제목 시각 = 머리 글 시각 — ' + s.title);
             await page.evaluate(() => { document.querySelectorAll('#station-briefing-content button[data-sb-x^="basis-"]').forEach((x) => { if (x.getAttribute('aria-expanded') === 'true') x.click(); }); });
         });
@@ -589,11 +593,12 @@ function makeBriefings() {
             assert.ok(r.land.every((x) => Number(x.w) >= 700), '모두 굵게');
             assert.deepEqual(pick(r.sea), ['warn-on:풍랑주의보가 발효 중'], '발효 = 빨강'); assert.equal(r.sea[0].color, col([227, 72, 66]));
             assert.ok(!r.landText.includes('따라서'), '마지막 「따라서」 문장은 문단에서 빠진다');
-            assert.equal(r.adv, '(권고) 하트해변에는 경계가, 봉평해수욕장과 후정해수욕장에는 주의가 요구됩니다.'); assert.equal(r.advSpans, 0, '(권고) 줄 안은 강조 없음(근거 칸 (권고) 모양 그대로)');
+            // §11.10.20 덧붙임 8·11: 머리 「[권고]」 · 본문 속 등급 말만 등급 색(경계 빨강·주의 주황) — 그 밖(장소 이름)은 강조 없음
+            assert.equal(r.adv, '[권고] 하트해변에는 경계가, 봉평해수욕장과 후정해수욕장에는 주의가 요구됩니다.'); assert.equal(r.advSpans, 2, '[권고] 상자 안 강조 = 등급 말 둘');
             assert.equal(r.basisAdv, false, '근거 칸 (권고) 없음');
-            assert.deepEqual([r.old.inline, r.old.basis], [false, '(권고) ' + B.h.summary.land.advice], '「따라서」가 없는 옛 문단 — 문단 그대로·근거 칸 (권고) 그대로');
+            assert.deepEqual([r.old.inline, r.old.basis], [false, '[권고] ' + B.h.summary.land.advice], '「따라서」가 없는 옛 문단 — 문단 그대로·근거 칸 (권고) 그대로');
             assert.deepEqual(r.newStyle, r.old.style, '본문 (권고) = 근거 칸 (권고)와 같은 색·굵기');
-            assert.deepEqual(r.none, ['summary', '(권고) ' + B.h.summary.land.advice], '문단이 없으면 서버 권고를 결론 아래에');
+            assert.deepEqual(r.none, ['summary', '[권고] ' + B.h.summary.land.advice], '문단이 없으면 서버 권고를 결론 아래에');
             const lum = (c) => { const v = (c.match(/\d+/g) || []).slice(0, 3).map(Number).map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
             const cr = (fg) => { const a = lum(fg), b = lum(r.bg); return +((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toFixed(2); };
             console.log('   [대비] 바탕 ' + r.bg + ' — 노랑 ' + cr('rgb(242, 194, 48)') + ' · 주황 ' + cr('rgb(251, 146, 60)') + ' · 빨강(문단) ' + cr(r.sea[0].color) + '(4색 빨강 ' + cr('rgb(224, 50, 44)') + ') · 굵은 흰 글 ' + cr('rgb(248, 250, 252)'));
@@ -748,11 +753,11 @@ function makeBriefings() {
             assert.deepEqual([1, 2, 3, 4, 5].map((n) => by(n).chip), ['주의', '주의', '경계', '관심', '관심']);
             assert.deepEqual(by(1).seq, ["B:18~24시 해양사고 위험예보 '주의'(KOMSA)"], 'A — KOMSA 단독, 상세 없음(시안 A · ④판 3 「가. 되풀이면 빼기」)');
             assert.deepEqual(by(2).seq, ['B:21~24시 풍랑주의보(기상청)'], 'B — 기상 출처 · 특보 등급 말 없음(④판 1)');
-            assert.deepEqual(by(3).seq, ["B:21~24시 해양사고 위험예보 '경계'(KOMSA)", 'T:KOMSA 해양사고 위험예보|시각,등급|18시,주의/21시,경계', "B:18~24시 혼잡 예보 '매우높음'(KOMSA)", 'T:KOMSA 혼잡 예보|시각,혼잡지수|18시,45.14/21시,32.91'], 'C — 섞임: 배지마다 바로 아래 상세 표(④판 4)');
-            assert.deepEqual(by(4).seq, ["B:18~24시 혼잡 예보 '매우높음'(KOMSA)", 'T:KOMSA 혼잡 예보|시각,혼잡지수|18시,45.14/21시,32.91'], 'D — 혼잡만');
+            assert.deepEqual(by(3).seq, ["B:21~24시 해양사고 위험예보 '경계'(KOMSA)", 'T:KOMSA 해양사고 위험예보|시각,등급|18시,주의/21시,경계', "B:18~24시 혼잡 예보 '매우높음'(KOMSA)", 'T:KOMSA 혼잡 예보|시각,혼잡지수|18시,45.14 (매우높음)/21시,32.91 (매우높음)'], 'C — 섞임: 배지마다 바로 아래 상세 표(④판 4)');
+            assert.deepEqual(by(4).seq, ["B:18~24시 혼잡 예보 '매우높음'(KOMSA)", 'T:KOMSA 혼잡 예보|시각,혼잡지수|18시,45.14 (매우높음)/21시,32.91 (매우높음)'], 'D — 혼잡만');
             assert.deepEqual(by(5).seq, ["B:15~24시 해구 예보 파고 '높음'·풍속 '매우 강함'(기상청)", 'T:232해구 예보|시각,파고,풍속|15시,2.4m (높음),13m/s (강함)/18시,2.6m (높음),14m/s (매우 강함)/21시,2.2m (높음),12m/s (강함)'], 'E — 해구 예보: 배지는 바다 상태 말, 숫자는 표(④판 2)');
             // 등급 칸 = 그 등급 색 굵게(주의 주황 · 경계 빨강 — 배지와 같은 규칙)
-            assert.deepEqual(by(3).grades.map((g) => g.slice(0, 3)), [['주의', '2', c2], ['경계', '3', RED]], '표 칸 따옴표 없음(사용자 「표 안에서는 \'와 같은 것은 빼도록 해줘.」)'); assert.ok(by(3).grades.every((g) => Number(g[3]) >= 700), '등급 칸 굵게');
+            assert.deepEqual(by(3).grades.map((g) => g.slice(0, 3)), [['주의', '2', c2], ['경계', '3', RED], ['45.14 (매우높음)', '3', RED], ['32.91 (매우높음)', '3', RED]], '혼잡지수 칸도 단계 말·색(§11.10.20 덧붙임 21) · 표 칸 따옴표 없음(사용자 「표 안에서는 \'와 같은 것은 빼도록 해줘.」)'); assert.ok(by(3).grades.every((g) => Number(g[3]) >= 700), '등급 칸 굵게');
             // 글자 색 = 그 예보 등급(주의 주황 · 경계·혼잡 매우높음 빨강 — 카드 D 는 관심인데 배지 빨강) · 바탕은 어두운 한 색(등급 색 바탕 아님)
             assert.deepEqual([by(1), by(2), by(3), by(4), by(5)].map((c) => c.badges.map((b) => b.color)), [[c2], [c2], [RED, RED], [RED], [r.c[1]]]);
             assert.deepEqual([...new Set(r.cards.flatMap((c) => c.badges.map((b) => b.bg + '|' + b.bgImg)))], ['rgb(11, 19, 36)|none']);
@@ -773,7 +778,7 @@ function makeBriefings() {
             assert.ok(r.fit1.length === 2 && r.fit1.every(Boolean) && r.page1 <= r.vw + 1, '360px 관심 단추 — 해구 예보 표가 카드 안 ' + JSON.stringify([r.fit1, r.page1]));
             assert.ok(r.tblw.length === 2 && r.tblw.every(([sw, cw]) => sw <= cw + 1), '360px 표 상자 안 넘침 없음 ' + JSON.stringify(r.tblw));
             assert.deepEqual([r2.imgs, r2.xss, r2.xtext.length], [0, null, 3], '배지·상세 표 제목·칸의 HTML 문자열은 글자로');
-            assert.deepEqual(r2.v16, { tables: 0, lines: ['KOMSA 해양사고 위험예보 — 18시 주의 · 21시 경계', 'KOMSA 혼잡 예보 — 18시 45.14 · 21시 32.91'] }, '규칙 v16 판(상세가 글 줄)은 종전 한 줄');
+            assert.deepEqual(r2.v16, { tables: 0, lines: ['KOMSA 해양사고 위험예보 — 18시 주의 · 21시 경계', 'KOMSA 혼잡 예보 — 18시 45.14 (매우높음) · 21시 32.91 (매우높음)'] }, '규칙 v16 판(상세가 글 줄)은 종전 한 줄');
             assert.equal(r2.old.srcbs, 0, '옛 판 — 배지 없음');
             assert.deepEqual(r2.old.kids, ['sb-card-head', 'sb-tags', "row:[사고현황('21~'25년)]", 'row:[기상 예보]', 'row:[그 밖의 근거]', 'sb-sentence', 'row:[권고]'], '옛 판 — 종전 줄 순서(§11.10.13)');
             assert.deepEqual(r2.old.tags, [byHaegu(3).sourceLabel, byHaegu(3).window], '옛 판 — 꼬리표·시간 칩');
@@ -909,7 +914,7 @@ function makeBriefings() {
             assert.ok((await content(page)).includes('다음 브리핑 공개: 10월 17일(토) 23:00'));
             await pickStation(page, HALLIM); await page.waitForSelector('[data-sb-sec="overview"]');
             const t = await content(page); assert.ok(!t.includes('아직 없어') && !t.includes('보여 드립니다'), '§11.10.9 ⑦ — 「…아직 없어 … 보여 드립니다」 상자 없음: ' + t.slice(0, 200));
-            assert.equal(await page.$eval('#station-briefing-content .sb-edition', (e) => e.textContent), '10월 17일 13:10 기준 브리핑 (다음 브리핑 갱신 23:00 또는 특보 변경 시)');
+            assert.equal(await page.$eval('#station-briefing-content .sb-edition', (e) => e.textContent), '10월 17일 13:10 기준 브리핑 (다음 갱신 23:00 또는 특보 변경 시)');
             clock.now = Date.parse('2026-10-17T10:05:00+09:00');
         });
         await page.context().close();
@@ -1084,7 +1089,7 @@ function makeBriefings() {
             assert.deepEqual([user.body.briefing.edition, user.body.pending], ['warning', undefined], '사용자에게는 공개 시각까지 지금 판');
             await tap(page, '[data-sb-preview-go]'); await page.waitForFunction(() => { const e = document.querySelector('[data-sb-preview-out] .sb-edition'); return e && e.textContent.startsWith('10월 17일 17:30'); });
             const r = await page.evaluate(() => ({ note: !!document.querySelector('[data-sb-preview-out] [data-sb-pending]'), text: document.querySelector('[data-sb-preview-out]').textContent, ed: document.querySelector('[data-sb-preview-out] .sb-edition').textContent }));
-            assert.ok(!r.note && !r.text.includes('예정 — ') && !r.text.includes('공개될 판입니다'), '§11.10.10 F — 「예정 — …」 안내 없음'); assert.ok(r.ed.startsWith('10월 17일 17:30 기준 브리핑 (다음 브리핑 갱신 '), r.ed);
+            assert.ok(!r.note && !r.text.includes('예정 — ') && !r.text.includes('공개될 판입니다'), '§11.10.10 F — 「예정 — …」 안내 없음'); assert.ok(r.ed.startsWith('10월 17일 17:30 기준 브리핑 (다음 갱신 '), r.ed);
             await page.evaluate(() => [...document.querySelectorAll('[data-sb-status] button')].find((b) => b.textContent === '새로고침').click()); await page.waitForSelector('[data-sb-pending-status]');
             assert.ok((await page.$eval('[data-sb-pending-status]', (e) => e.textContent)).includes('10-17 17:30 — 1곳(그때까지 사용자에게는 이전 판)'));
             writeDay('2026-10-17', { [HALLIM]: B.h, [BUSAN]: B.b, [MOKPO]: B.m });
@@ -1206,7 +1211,7 @@ function makeBriefings() {
                 // ① appendText 단위 — textContent 는 그대로, <br> 수
                 const t = (s) => { const d = document.createElement('p'); R.appendText(d, s); return { same: d.textContent === s, br: d.querySelectorAll('br').length, parts: [...d.childNodes].map((n) => n.nodeName === 'BR' ? '|' : n.textContent) }; };
                 out.unit = {
-                    two: t('물에 잠깁니다. 바위 위 낚시·채취 중 고립에 주의가 필요합니다.'), num: t('방문객이 평소의 2.4배로 예상됩니다.'), range: t('파고 1.5~3.0m로 높아집니다. 다음 문장입니다.'),
+                    two: t('물에 잠깁니다. 바위 위 낚시·채취 중 고립에 주의가 요구됩니다.'), num: t('방문객이 평소의 2.4배로 예상됩니다.'), range: t('파고 1.5~3.0m로 높아집니다. 다음 문장입니다.'),
                     glued: t('바람이 셉니다.두번째 문장입니다.'), quote: t('「물결이 높겠습니다.」 내용이 있습니다.'), paren: t('(예상됩니다.) 그다음'), end: t('끝 문장입니다.'), empty: t(''),
                 };
                 // ② 화면 — 분석 문단·(물때)·카드에 긴 URL
@@ -1218,10 +1223,12 @@ function makeBriefings() {
                 R.render(box, { ok: true, briefing: fx }, { now, showSea: true, showLand: true, onLink: () => {} });
                 await new Promise((res) => setTimeout(res, 200));
                 const an = box.querySelector('[data-sb-analysis="land"]');
-                out.an = { br: an.querySelectorAll('br').length, lines: an.innerText.split('\n').map((x) => x.trim()).filter(Boolean), text: an.textContent };
-                // 줄 첫 글자 위치: 각 <br> 다음 글자의 왼쪽 = 문단 글 시작 왼쪽(새 줄 첫머리)
+                // §11.10.20 덧붙임 3: 이름표는 자기 줄 · 문장마다 「•」 줄(li) — 줄마다 첫 글자 왼쪽이 같고(새 줄 첫머리), 이름표보다 아래
+                const lis = [...an.querySelectorAll('li')], tg = an.querySelector('.sb-an-tag');
+                out.an = { br: an.querySelectorAll('br').length, li: lis.length, lines: an.innerText.split('\n').map((x) => x.trim()).filter(Boolean), text: an.textContent, bullet: lis.length ? getComputedStyle(lis[0]).listStyleType : null,
+                    tagAbove: !!tg && lis.length > 0 && tg.getBoundingClientRect().bottom <= lis[0].getBoundingClientRect().top + 1 };
                 const leftOf = (node, off) => { const rg = document.createRange(); rg.setStart(node, off); rg.setEnd(node, off + 1); return rg.getClientRects()[0].left; };
-                out.an.starts = [...an.querySelectorAll('br')].map((b) => { let n = b.nextSibling; while (n && !(n.nodeType === 3 && n.textContent.trim()) && !(n.nodeType === 1 && n.textContent.trim())) n = n.nextSibling; const tn = n.nodeType === 3 ? n : document.createTreeWalker(n, NodeFilter.SHOW_TEXT).nextNode(); return Math.round(leftOf(tn, 0) - an.getBoundingClientRect().left - parseFloat(getComputedStyle(an).paddingLeft)); });
+                out.an.starts = lis.map((li) => { const tn = document.createTreeWalker(li, NodeFilter.SHOW_TEXT, { acceptNode: (n) => n.textContent.trim() ? 1 : 3 }).nextNode(); return Math.round(leftOf(tn, 0) - lis[0].getBoundingClientRect().left); });
                 const tideP = [...box.querySelectorAll('[data-sb-part="tide"] .sb-sum-tide')].find((p) => p.hasAttribute('data-sb-rocks'));
                 out.tide = { lines: tideP.innerText.split('\n').map((x) => x.trim()), link: (tideP.querySelector('[data-sb-maplink="rocks"]') || {}).textContent || null, text: tideP.textContent };
                 // keep-all — 브리핑 안 글이 든 모든 요소
@@ -1243,15 +1250,16 @@ function makeBriefings() {
                 return out;
             }, { base, now: clock.now, URL });
             const U = r.unit;
-            assert.deepEqual([U.two.same, U.two.br, U.two.parts], [true, 1, ['물에 잠깁니다. ', '|', '바위 위 낚시·채취 중 고립에 주의가 필요합니다.']], '「다. 」 뒤 <br> — 빈칸은 <br> 앞에 남아 글은 그대로');
+            assert.deepEqual([U.two.same, U.two.br, U.two.parts], [true, 1, ['물에 잠깁니다. ', '|', '바위 위 낚시·채취 중 고립에 주의가 요구됩니다.']], '「다. 」 뒤 <br> — 빈칸은 <br> 앞에 남아 글은 그대로');
             assert.deepEqual([U.num.br, U.range.br, U.range.parts[0]], [0, 1, '파고 1.5~3.0m로 높아집니다. '], '숫자의 점(2.4배·1.5~3.0m)은 자르지 않음');
             assert.deepEqual([U.glued.br, U.glued.parts], [1, ['바람이 셉니다.', '|', '두번째 문장입니다.']], '「다.」 뒤에 한글이 바로 붙어도 자름(검증 sentences 와 같은 규칙)');
             assert.deepEqual([U.quote.br, U.paren.br, U.end.br, U.empty.br, U.end.same, U.empty.same], [0, 0, 0, 0, true, true], '「다.」 뒤 닫는 따옴표·괄호·글 끝은 자르지 않음');
-            assert.equal(r.an.br, 2, '분석 문단 세 문장 → <br> 둘(마지막 「따라서」는 (권고) 줄로 빠짐)');
-            assert.deepEqual(r.an.lines, ['AI 분석 · ChatGPT 협재해수욕장은 방문객이 평소의 1.8배로 예상돼 주의 수준입니다.', '해안 바람 9m/s로 튜브가 떠밀릴 수 있습니다.', '위험구역 기록이 있습니다.'], '문장마다 새 줄');
+            // §11.10.20 덧붙임 3(사용자 *"AI 분석 CHAT GPT 다음줄부터 본문이 시작되도록 하고, 각 문장마다 근거에 들어간것처럼 점으로 시작되도록"*) — <br> 대신 문장마다 「•」 줄
+            assert.deepEqual([r.an.br, r.an.li, r.an.bullet, r.an.tagAbove], [0, 3, 'disc', true], '분석 문단 세 문장 → 「•」 줄 셋(마지막 「따라서」는 [권고] 상자로 빠짐) · 이름표는 자기 줄');
+            assert.deepEqual(r.an.lines, ['AI 분석 · ChatGPT', '협재해수욕장은 방문객이 평소의 1.8배로 예상돼 주의 수준입니다.', '해안 바람 9m/s로 튜브가 떠밀릴 수 있습니다.', '위험구역 기록이 있습니다.'], '이름표 줄 + 문장마다 새 줄');
             assert.ok(r.an.starts.every((x) => Math.abs(x) <= 1), '새 문장은 줄 첫머리에서 시작 ' + JSON.stringify(r.an.starts));
             assert.equal(r.an.text, 'AI 분석 · ChatGPT 협재해수욕장은 방문객이 평소의 1.8배로 예상돼 주의 수준입니다. 해안 바람 9m/s로 튜브가 떠밀릴 수 있습니다. 위험구역 기록이 있습니다.', '글(textContent)은 그대로');
-            assert.deepEqual([r.tide.lines, r.tide.link], [['관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 물에 잠깁니다.', '바위 위 낚시·채취 중 고립에 주의가 필요합니다.'], '잠기는 바위(간출암) 2곳'], '(물때) 간출암 두 줄 · 링크 그대로');
+            assert.deepEqual([r.tide.lines, r.tide.link], [['관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 물에 잠깁니다.', '바위 위 낚시·채취 중 고립에 주의가 요구됩니다.'], '잠기는 바위(간출암) 2곳'], '(물때) 간출암 두 줄 · 링크 그대로');
             assert.deepEqual([r.wb, r.ow], [['keep-all'], ['anywhere']], '브리핑 안 모든 글 — 어절 단위(keep-all)·긴 낱말만 아무 데서나(anywhere)');
             assert.deepEqual(r.w, { page: 360, card: true, box: true }, '360px — 긴 URL 이 있어도 가로로 넘치지 않음');
             assert.ok(r.lists.length >= 2, '두 줄 넘는 목록 줄이 있어야 잰다 — ' + r.lists.length);
@@ -1431,7 +1439,9 @@ function makeBriefings() {
                 R.render(box, { ok: true, briefing: b1 }, { now }); out.noFailed = !box.querySelector('[data-sb-land-failed]');
                 out.past = [...box.querySelectorAll('.sb-slot')].map((x) => x.dataset.past === 'true'); out.pastOpacity = getComputedStyle(box.querySelector('.sb-slot-past')).opacity;
                 out.legend = box.querySelector('.sb-legend').textContent; out.labels = (b1.sea.timeBar || []).map((s) => s.label);
-                out.foot = box.querySelector('[data-sb-foot-source]').textContent;
+                // §11.10.20: 꼬리 출처 줄 → 「데이터 출처 보기」(접힘) 표 — 펼쳐 줄마다 [구분, 자료, 제공]
+                const sx = box.querySelector('button[data-sb-x="sources"]'); out.srcExp0 = sx.getAttribute('aria-expanded'); sx.click();
+                out.srcRows = [...box.querySelectorAll('.sb-src-tbl tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent)); out.srcHead = [...box.querySelectorAll('.sb-src-tbl thead th')].map((x) => x.textContent);
                 // 옛 판(summary.sea.accidentOnly 없음) — 카드에 위험예보만 해역이 모두 있을 때만 카드로 센다 · 모자라면 배지 없음
                 const o1 = JSON.parse(JSON.stringify(base)); delete o1.summary.sea.accidentOnly; R.render(box, { ok: true, briefing: o1 }, { now });
                 out.oldBadges = [...box.querySelectorAll('[data-sb-komsa]')].map((x) => x.textContent);
@@ -1488,14 +1498,16 @@ function makeBriefings() {
             assert.deepEqual([r.v1.parts, r.v1.landHead, r.v1.landTide], [0, base.summary.land.headline, ['06:12 저조 뒤부터 물이 차오릅니다']], '§11.10 판 브리핑은 그 모양(육상 덩어리 안 물때) 그대로');
             assert.ok(r.old.paras[0].startsWith('land:연안 오늘 한림파출소 관할 육상은') && r.old.paras[1].startsWith('sea:해상 '), r.old.paras.join(' / ')); assert.ok(r.old.src.includes('기본 문장(틀)'), r.old.src);
             assert.ok(r.ahead.includes('다음 브리핑 공개: 10월 17일(토) 17:30'), r.ahead);
-            // 출처 한 벌 — 꼬리 출처 줄 = [기준 상세] 표(같은 SOURCES)
-            for (const [what, who] of r.sources) assert.ok(r.foot.includes(what + ' — ' + who), what);
+            // 출처 한 벌 — 꼬리 「데이터 출처 보기」 표 = [기준 상세] 표(같은 SOURCES) — 줄마다 구분·자료·제공(§11.10.20)
+            assert.equal(r.srcExp0, 'false', '처음 접힘'); assert.deepEqual(r.srcHead, ['구분', '자료', '제공']);
+            assert.deepEqual(r.srcRows, r.sources.map((x) => [x[3], x[0], x[1]]), '출처 글 전부 그대로');
+            assert.deepEqual([...new Set(r.sources.map((x) => x[3]))], ['해상', '기상', '연안', '물때'], '해상·기상·연안·물때 묶음 순서');
             assert.ok(r.sources.some((x) => x[1] === '해양경찰청 선박사고 기록(국립해양조사원 개방海 제공)' && x[0].includes('2021~2025')));
             assert.ok(r.sources.some((x) => x[0].includes('익수·추락·고립·표류·기타') && x[0].includes('앞바다 500m') && x[0].includes('2020~2024')));
             assert.ok(r.sources.some((x) => x[1].includes('Gemini 보충')));
             await tap(page, '#station-briefing-content .sb-basis-btn'); await page.waitForSelector('.rf-modal .rf-basis');
             const rows = await page.evaluate(() => { const t = [...document.querySelectorAll('.rf-basis-body table')].find((x) => x.textContent.includes('쓰는 곳')); return [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent)); });
-            assert.deepEqual(rows, r.sources, '[기준 상세] 출처 표 = 꼬리 출처 줄과 같은 목록');
+            assert.deepEqual(rows, r.sources.map((x) => [x[3], x[0], x[1], x[2]]), '[기준 상세] 출처 표 = 꼬리 「데이터 출처 보기」와 같은 목록(첫 칸 구분 — §11.10.20)');
             await page.keyboard.press('Escape');
         });
         // ── §11.10.3(2026-10-17 사용자 결정) — (고립 주의) 지점 표 · 해상 근거 칸·이름 · 근거 줄 ▸ 미니 지도(관할 + 깜빡이는 칸) · [기준 상세] ──
@@ -1513,8 +1525,8 @@ function makeBriefings() {
                 out.text = c.textContent; out.sum = c.querySelector('[data-sb-sec="overview"]').textContent;
                 return out;
             });
-            assert.equal(B.h.summary.isolation.text, '(고립 주의) 저조 시간(06:12·18:40) 전후 과거 고립 사고(2개소 3건)으로 확인 및 주의가 필요합니다.');
-            assert.equal(r.line, '(고립 주의) 저조 시간(06:12·18:40) 전후 과거 고립 사고(2개소 3건)으로 확인 및 주의가 필요합니다.', '버튼은 문장 안 그 자리 · 화살표 없음(§11.10.10 D)');
+            assert.equal(B.h.summary.isolation.text, '[고립 주의] 저조 시간(06:12·18:40) 전후 과거 고립 사고(2개소 3건)으로 확인 및 주의가 요구됩니다.');
+            assert.equal(r.line, '[고립 주의] 저조 시간(06:12·18:40) 전후 과거 고립 사고(2개소 3건)으로 확인 및 주의가 요구됩니다.', '버튼은 문장 안 그 자리 · 화살표 없음(§11.10.10 D)');
             assert.deepEqual([r.btn, r.arrow, r.exp0, r.exp1, r.hidden1, r.exp2, r.hidden2, r.empty2], ['과거 고립 사고(2개소 3건)', 0, 'false', 'true', false, 'false', true, true]);
             assert.deepEqual(r.head, ['지점명', '발생 현황']); assert.deepEqual(r.rows, ['협재해수욕장|22년(1건), 24년(1건)', '한림항|23년(1건)']);
             assert.equal(r.caption, '2020~2024 연안사고 기록 중 고립(관광지 구역 + 앞바다 500m)');
@@ -1593,7 +1605,7 @@ function makeBriefings() {
             const seen = [];
             const curve = (day) => ({ success: true, ready: true, date: 20261017 + day, region: 'jeju', valsouCm: 90, points: Array.from({ length: 145 }, (_, i) => ({ t: String(Math.floor(i / 6) % 24).padStart(2, '0') + ':' + String((i % 6) * 10).padStart(2, '0'), cm: Math.round(150 + 120 * Math.cos(i / 145 * 4 * Math.PI)) })), peaks: [{ t: '06:12', cm: 30, type: 'low' }, { t: '12:30', cm: 270, type: 'high' }], prevPeaks: [], submergedAt: ['02:40'] });
             await page.route('**/api/hazard-rocks/tide-curve*', (rt) => { const u = new URL(rt.request().url()); seen.push(u.searchParams.get('id') + ':' + u.searchParams.get('day')); return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(curve(Number(u.searchParams.get('day')))) }); });
-            assert.equal(B.h.summary.tide[1], '관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 물에 잠깁니다. 바위 위 낚시·채취 중 고립에 주의가 필요합니다.');
+            assert.equal(B.h.summary.tide[1], '관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 물에 잠깁니다. 바위 위 낚시·채취 중 고립에 주의가 요구됩니다.');
             assert.deepEqual(B.h.summary.rocks.rows.map((x) => x.id), [812, 77]);
             const r1 = await page.evaluate(() => {
                 const c = document.getElementById('station-briefing-content'), p = c.querySelector('[data-sb-part="tide"] [data-sb-rocks]'), lk = p && p.querySelector('[data-sb-maplink="rocks"]');
@@ -1791,6 +1803,217 @@ function makeBriefings() {
             assert.deepEqual(await g.evaluate(() => [...document.querySelectorAll('.sb-acc-btn')].filter((b) => b.getAttribute('aria-expanded') === 'true').map((b) => b.textContent)), ['제주지방해양경찰청', '제주해양경찰서'], '목록 탭에는 지금 관할 묶음이 펼쳐져 있다');
             await tap(g, '[data-sb-cancel]'); await g.waitForSelector('[data-sb-sec="overview"]');
             await g.context().close();
+        });
+        // ── §11.10.20(2026-10-18 사용자 결정 — 시안 Land.dc.html ⑥판, 원문 「좋아. 이대로 반영토록 하자.」 + 같은 날 덧붙임 2~15) ──
+        //   실제 자료로 만든 관광지 둘(위험구역 id·종류 = risk_spots.json, 사고 = coast_accidents.json): 모충사(위험구역 3 · 사고 0건 · 항목 하나) · 이호테우해변(해수욕장 · 위험구역 4 · 사고 6건 · 항목 둘)
+        const G = (() => {
+            const cfg = path.join(__dirname, '..', 'config', 'coastal_safety'), spotsJ = JSON.parse(fs.readFileSync(path.join(cfg, 'risk_spots.json'), 'utf8')), accJ = JSON.parse(fs.readFileSync(path.join(cfg, 'coast_accidents.json'), 'utf8'));
+            const HT = ['연안사고 위험구역', '사망사고 발생구역', '연안사고 다발구역'];
+            const detailOf = (id, top, rows, notices) => { const p = spotsJ.spots.find((x) => x.id === id), zones = p.hazard.zones.map((z) => ({ id: z.id, class: z['구역분류'] }));
+                return { t: at(15), daily: { peakAt: at(15) }, missing: [], ...top, rows: [{ key: 'hazard', count: zones.length, byType: HT.map((c) => ({ class: c, count: zones.filter((z) => z.class === c).length })), zones }].concat(rows), notices, history: { available: true, from: accJ._about.period[0], to: accJ._about.period[1], accidents: accJ.spots[id] || [] } }; };
+            const D = { '50110|모충사': detailOf('50110|모충사', { index: 69, band: '높음' }, [{ key: 'people', ratio: 1.6, score: 0.5, missing: false }], []),
+                '50110|이호테우해변': detailOf('50110|이호테우해변', { index: 56, band: '다소 높음' }, [{ key: 'people', ratio: 1.2, score: 0.2, missing: false }], [{ key: 'drift', windMs: 11 }]) };
+            const L = I.collectLand([{ id: '50110|모충사', name: '모충사', lat: 33.5161, lon: 126.5455, beach: false }, { id: '50110|이호테우해변', name: '이호테우해변', lat: 33.4974, lon: 126.4531, beach: true }], [], { risk: { coastDayDetail: (id) => D[id] }, t: at(8) });
+            const g = R.buildBriefing({ ...mapInputs(hallimInput()), zoneWeather: I.collectZoneWeather({ lat: 33.41, lon: 126.26 }, REGIONAL), land: L }, WIN, { generatedAt: '2026-10-17T13:10:00+09:00' });
+            // 총평 문단(시안 Main.dc.html 해상 문단 + 「따라서」) — 문장마다 「•」·핵심 구절 굵게·등급 말 색·[권고] 상자를 본다
+            g.overview = { source: 'chatgpt', model: 'x', land: '모충사는 방문객이 평소의 1.6배로 예상돼 주의 수준입니다. 위험구역 기록이 있습니다. 이호테우해변은 관심 수준입니다. 따라서 모충사에는 주의가, 이호테우해변에는 관심이 요구됩니다.',
+                sea: "경북북부앞바다(대해구 75)는 최대 파고 0.8m·풍속 4.8m/s로 잔잔한 바다일 것으로 예상됩니다. 다만, 기상청 전망에 따르면 오늘 밤부터 동해상에 바람이 강하게 불고 물결이 높아질 수 있어 상황 변화에 유의해야 합니다. 해양사고 위험예보(KOMSA 기준)만 '주의'인 해역이 있지만, 위험이 높아진 해역은 없는 것으로 나타났습니다. 따라서 한림파출소 관할 해역 운항에는 주의가 요구됩니다." };
+            return g;
+        })();
+        const L20 = await device({ admin: true, width: 360, height: 780 }); await pickStation(L20, HALLIM); await openAcc(L20);
+        /** G 를 새 상자에 그린다(실제 index2 CSS 아래 — 아코디언 본문 안). */
+        const draw20 = (bb, extra) => L20.evaluate(({ bb, now, extra }) => { const R = window.StationBriefingRender, c = document.getElementById('station-briefing-content'); c.textContent = ''; const box = document.createElement('div'); box.className = 'sb-wrap'; box.id = 'sb20'; c.appendChild(box);
+            R.render(box, { ok: true, briefing: bb, now: extra || null }, { now, onLink: () => {} }); box.querySelectorAll('.sb-sec:not(.open)').forEach((x) => x.classList.add('open')); box.querySelectorAll('[role="tabpanel"][hidden]').forEach((x) => { x.hidden = false; }); }, { bb, now: clock.now, extra });   // 단계 묶음 숨김도 풀어 두 카드를 함께 잰다
+        await check('[§11.10.20-UI1] 연안 카드(모충사형·이호테우형, 360px) — 줄 순서 배지 → [위험구역] 「N개소」 → [사고현황(\'20~\'24년)] 「총 N건」 → 한 줄 → (많이 기록) → [오늘 예상](하나면 점 없음) → [권고] 상자 → 오른쪽 「위험예측에서 보기 ›」 · 배지 색 · 「총 0건」 글자·「총 6건」 링크 → 표 · 「물가 접근」 없음 · 넘침 없음', async () => {
+            await draw20(G);
+            const r = await L20.evaluate(() => {
+                const box = document.getElementById('sb20'), cards = [...box.querySelectorAll('[data-sb-card="land"]')], card = (n) => cards.find((c) => c.querySelector('.sb-card-name').textContent === n);
+                const kids = (c) => [...c.children].map((e) => e.classList.contains('sb-card-head') ? 'head' : e.classList.contains('sb-landbs') ? 'badges' : e.classList.contains('sb-adv') ? 'advice' : e.classList.contains('sb-row') ? 'row:' + e.querySelector('.sb-row-k').textContent : e.classList.contains('sb-x-panel') ? 'panel' : e.hasAttribute('data-sb-acc-line') ? 'line' : e.classList.contains('sb-link') ? 'link' : e.className);
+                const one = (c) => { const adv = c.querySelector('.sb-adv'), k = adv.querySelector('.sb-advk'), v = adv.querySelector('.sb-adv-v'), cs = getComputedStyle(adv), today = [...c.querySelectorAll('.sb-row')].find((x) => x.querySelector('.sb-row-k').textContent === '[오늘 예상]');
+                    const tot = [...c.querySelectorAll('.sb-row')].find((x) => /^\[사고현황/.test(x.querySelector('.sb-row-k').textContent)), lk = c.querySelector('.sb-link'), cr = c.getBoundingClientRect();
+                    const rg = document.createRange(); rg.selectNodeContents(v); const lines = []; [...rg.getClientRects()].filter((q) => q.width > 0.5).forEach((q) => { const l = lines.find((x) => Math.abs(x.top - q.top) < 3); if (l) l.left = Math.min(l.left, q.left); else lines.push({ top: q.top, left: q.left }); });
+                    return { kids: kids(c), badges: [...c.querySelectorAll('.sb-landbs .sb-srcb')].map((x) => x.textContent + '|' + getComputedStyle(x).color), today: today && { ul: !!today.querySelector('ul'), text: today.children[1].textContent },
+                        total: tot && { tag: tot.children[1].tagName, text: tot.children[1].textContent, exp: tot.children[1].getAttribute('aria-expanded') }, line: (c.querySelector('[data-sb-acc-line]') || {}).textContent, note: [...c.querySelectorAll(':scope > .sb-sentence')].map((x) => x.textContent),
+                        adv: { text: adv.textContent, bg: cs.backgroundColor, border: cs.borderTopColor, radius: cs.borderTopLeftRadius, k: getComputedStyle(k).color, kShrink: getComputedStyle(k).flexShrink, v: getComputedStyle(v).color, w: getComputedStyle(v).fontWeight, lvs: [...v.querySelectorAll('.sb-hl-lv')].map((x) => x.textContent + '|' + getComputedStyle(x).color), lefts: lines.map((x) => Math.round(x.left)), vLeft: Math.round(v.getBoundingClientRect().left), fs: getComputedStyle(adv).fontSize, rowFs: getComputedStyle(tot).fontSize },
+                        linkRight: lk ? Math.round(cr.right - lk.getBoundingClientRect().right) : null, linkLeft: lk ? Math.round(lk.getBoundingClientRect().left - cr.left) : null, overflow: c.scrollWidth - c.clientWidth };
+                };
+                const out = { m: one(card('모충사')), i: one(card('이호테우해변')), text: box.textContent, page: document.documentElement.scrollWidth, vw: innerWidth };
+                // 이호테우 「총 6건」 → 표 열고 닫기
+                const ib = [...card('이호테우해변').querySelectorAll('button[data-sb-x="land-acc"]')][0]; ib.click(); const pn = document.getElementById(ib.getAttribute('aria-controls'));
+                out.accTable = { exp: ib.getAttribute('aria-expanded'), title: (pn.querySelector('.sb-wxbox-t') || {}).textContent, head: [...pn.querySelectorAll('thead th')].map((x) => x.textContent), rows: [...pn.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((x) => x.textContent).join('|')), over: pn.scrollWidth - pn.clientWidth };
+                ib.click(); out.accClosed = [ib.getAttribute('aria-expanded'), pn.hidden];
+                ib.click(); return out;
+            });
+            assert.deepEqual(r.m.kids, ['head', 'badges', 'row:[위험구역]', 'panel', "row:[사고현황('20~'24년)]", 'line', 'row:[오늘 예상]', 'advice', 'link'], '모충사 줄 순서(사고 0건 → 한 줄 「많이 기록」 없음)');
+            assert.deepEqual(r.i.kids, ['head', 'badges', 'row:[위험구역]', 'panel', "row:[사고현황('20~'24년)]", 'line', 'panel', 'sb-sentence', 'row:[오늘 예상]', 'advice', 'link'], '이호테우 줄 순서(표 → 「이곳에서는 … 많이 기록」)');
+            assert.deepEqual(r.m.badges, ["연안 위험지수 69 '높음'|rgb(251, 146, 60)"], '배지 글자 = 띠 색(높음 주황) · 해수욕장 아님');
+            assert.deepEqual(r.i.badges, ["연안 위험지수 56 '다소 높음'|rgb(242, 194, 48)", '해수욕장|rgb(203, 213, 225)'], '다소 높음 노랑 + 「해수욕장」 배지([특성] 끝에서 옮김)');
+            assert.deepEqual(r.m.today, { ul: false, text: '사람 평소의 1.6배' }, '항목 하나면 점 없이');
+            assert.deepEqual([r.i.today.ul, r.i.today.text], [true, '사람 평소의 1.2배해안 바람 11m/s(튜브·물놀이기구 떠밀림 주의)'], '둘 이상이면 「•」 목록');
+            assert.deepEqual(r.m.total, { tag: 'B', text: '총 0건', exp: null }, '0건이면 링크 아닌 굵은 글자'); assert.equal(r.m.line, '기록된 연안사고 없음'); assert.deepEqual(r.m.note, []);
+            assert.deepEqual(r.i.total, { tag: 'BUTTON', text: '총 6건', exp: 'false' }, 'N>0 이면 링크(처음 닫힘)'); assert.equal(r.i.line, '익수 3건, 표류 2건, 추락 1건 | 인명피해 사망 2명, 실종 0명');
+            assert.deepEqual(r.i.note, ['이곳에서는 집계 기간 중 익수 사고가 많이 기록되었습니다.']);
+            assert.deepEqual(r.accTable, { exp: 'true', title: '연안사고 발생 현황', head: ['연도', '사고 종류', '건수'], rows: ['2020년|익수|2건', '2020년|추락|1건', '2020년|표류|1건', '2021년|익수|1건', '2024년|표류|1건'], over: 0 });
+            assert.deepEqual(r.accClosed, ['false', true], '다시 누르면 닫힘');
+            assert.equal(r.m.adv.text, '[권고]방문객이 평소보다 많을 것으로 예상되어 연안 활동 시 주의가 요구됩니다.');
+            assert.equal(r.i.adv.text, '[권고]방문객이 늘고 바람이 강해 튜브·물놀이기구가 떠밀릴 수 있으므로, 연안 활동 시 관심이 요구됩니다.');
+            for (const c of [r.m, r.i]) {
+                assert.deepEqual([c.adv.bg, c.adv.border, c.adv.radius, c.adv.k, c.adv.kShrink, c.adv.v, c.adv.w], ['rgba(255, 200, 60, 0.1)', 'rgba(255, 200, 60, 0.38)', '10px', 'rgb(255, 215, 94)', '0', 'rgb(255, 255, 255)', '800'], '[권고] 상자(덧붙임 9) — 머리 노랑·본문 흰색 굵게');
+                assert.equal(c.adv.fs, c.adv.rowFs, '글자 크기는 카드 줄 그대로'); assert.ok(c.adv.lefts.every((x) => Math.abs(x - c.adv.vLeft) <= 1), '둘째 줄 = 본문 첫 글자 위치 ' + JSON.stringify(c.adv));
+                assert.ok(c.linkRight <= 13 && c.linkLeft > 60, '「위험예측에서 보기 ›」 오른쪽 끝(덧붙임 13) ' + c.linkRight + '/' + c.linkLeft); assert.equal(c.overflow, 0);
+            }
+            assert.ok(r.i.adv.lefts.length >= 2, '이호테우 [권고]는 360px 에서 두 줄 이상(들여쓰기를 잴 수 있음)');
+            assert.deepEqual([r.m.adv.lvs, r.i.adv.lvs], [['주의|rgb(251, 146, 60)'], ['관심|rgb(242, 194, 48)']], '[권고] 속 등급 말 = 등급 색');
+            assert.ok(!r.text.includes('물가 접근') && !r.text.includes('[특성]'), '「물가 접근」·[특성] 없음');
+            assert.ok(r.page <= r.vw + 1, '360px 가로 넘침 없음 ' + r.page);
+            for (const [n, f] of [['모충사', 'land_mochungsa_360.png'], ['이호테우해변', 'land_ihotaewoo_360.png']]) {
+                const loc = L20.locator('#sb20 [data-sb-card="land"]', { hasText: n }); await loc.scrollIntoViewIfNeeded(); await clean(L20); await loc.screenshot({ path: path.join(SHOT, f) });
+            }
+        });
+        await check('[§11.10.20-UI2] [위험구역] 「3개소」 → 표 「구역 종류 | 개소 수 | [위치 보기]」 → 그 줄 아래 지도(GET /api/risk-forecast/hazard-zones?ids= — 그 종류 폴리곤 전부 깜빡임 + 관광지 점) · 다시 누르면 닫히고 깜빡임 멈춤 · 움직임 줄이기면 깜빡임 없음 · 자료 없는 id 는 안내', async () => {
+            hzReq.length = 0;
+            const open = await L20.evaluate(() => { const c = [...document.querySelectorAll('#sb20 [data-sb-card="land"]')].find((x) => x.querySelector('.sb-card-name').textContent === '모충사'), b = c.querySelector('button[data-sb-x="land-hazard"]');
+                const o = { link: b.textContent, exp0: b.getAttribute('aria-expanded'), w: getComputedStyle(b).fontWeight }; b.click(); const pn = document.getElementById(b.getAttribute('aria-controls'));
+                o.title = pn.querySelector('.sb-wxbox-t').textContent; o.head = [...pn.querySelectorAll('thead th')].map((x) => x.textContent); o.rows = [...pn.querySelectorAll('tbody tr[data-sb-hz-row]')].map((tr) => [...tr.children].map((x) => x.textContent).join('|'));
+                o.mapRows = [...pn.querySelectorAll('tr.sb-hz-maprow')].map((x) => x.hidden); pn.querySelector('button[data-sb-x="land-hazard-map"]').click(); o.mapRows2 = [...pn.querySelectorAll('tr.sb-hz-maprow')].map((x) => x.hidden); return o; });
+            assert.deepEqual([open.link, open.exp0, open.w], ['3개소', 'false', '800']);
+            assert.deepEqual([open.title, open.head, open.rows], ['위험구역', ['구역 종류', '개소 수', ''], ['연안사고 위험구역|1개소|위치 보기', '사망사고 발생구역|1개소|위치 보기', '연안사고 다발구역|1개소|위치 보기']], '표 칸 따옴표 없음');
+            assert.deepEqual([open.mapRows, open.mapRows2], [[true, true, true], [false, true, true]], '누른 줄 바로 아래만 펼침');
+            await L20.waitForSelector('#sb20 [data-sb-x-panel="land-hazard-map"] .sb-minimap[data-sb-map="ol"]');
+            await L20.waitForTimeout(700);
+            const m = await L20.evaluate(() => { const mm = document.querySelector('#sb20 [data-sb-x-panel="land-hazard-map"] .sb-minimap'), r = mm.getBoundingClientRect(); return { hl: mm.dataset.sbMapHl, area: mm.dataset.sbMapArea, spot: mm.dataset.sbMapSpot, blink: mm.dataset.sbBlink, phase: mm.dataset.sbBlinkPhase || null, h: Math.round(r.height), cap: mm.parentElement.querySelector('.sb-minimap-cap').textContent, n: window.StationBriefingRender.blinking(), page: document.documentElement.scrollWidth, vw: innerWidth }; });
+            assert.deepEqual(hzReq, ['제주-2'], '그 종류 id 로 받는다(연안사고 위험구역 = 제주-2)');
+            assert.deepEqual([m.hl, m.area, m.spot, m.blink, m.n], ['1', '0', '1', 'on', 1], '폴리곤 1 · 관할 선 없음 · 관광지 점 · 깜빡임 ' + JSON.stringify(m));
+            assert.ok(m.h >= 190 && m.h <= 210 && m.cap === '빨간 테두리(깜빡임) = 연안사고 위험구역 1개소 · 흰 점 = 모충사' && m.page <= m.vw + 1, JSON.stringify(m));
+            await L20.evaluate(() => document.querySelector('#sb20 [data-sb-x-panel="land-hazard-map"] .sb-minimap').scrollIntoView({ block: 'center' })); await clean(L20);
+            await L20.locator('#sb20 [data-sb-card="land"]', { hasText: '모충사' }).screenshot({ path: path.join(SHOT, 'land_hazard_map_360.png') });
+            const closed = await L20.evaluate(() => { const b = document.querySelector('#sb20 button[data-sb-x="land-hazard-map"]'); b.click(); return { row: b.closest('tbody').querySelector('tr.sb-hz-maprow').hidden, n: window.StationBriefingRender.blinking() }; });
+            assert.deepEqual(closed, { row: true, n: 0 }, '닫으면 지도 줄 숨김·깜빡임 멈춤');
+            // 이호테우 연안사고 위험구역 2개소 = 폴리곤 2(다수 함께) · 움직임 줄이기 → static
+            await L20.emulateMedia({ reducedMotion: 'reduce' }); hzReq.length = 0;
+            await L20.evaluate(() => { const c = [...document.querySelectorAll('#sb20 [data-sb-card="land"]')].find((x) => x.querySelector('.sb-card-name').textContent === '이호테우해변'); c.querySelector('button[data-sb-x="land-hazard"]').click(); c.querySelector('button[data-sb-x="land-hazard-map"]').click(); });
+            await L20.waitForFunction(() => [...document.querySelectorAll('#sb20 .sb-minimap[data-sb-map="ol"]')].some((x) => x.dataset.sbMapHl === '2'));
+            const st = await L20.evaluate(() => { const mm = [...document.querySelectorAll('#sb20 .sb-minimap[data-sb-map="ol"]')].find((x) => x.dataset.sbMapHl === '2'); return { blink: mm.dataset.sbBlink, n: window.StationBriefingRender.blinking() }; });
+            assert.deepEqual([hzReq, st], [['제주-12,제주-15'], { blink: 'static', n: 0 }], '같은 종류 여럿 함께 · 움직임 줄이기면 깜빡임 없음');
+            await L20.emulateMedia({ reducedMotion: 'no-preference' });
+            // 자료 없는 id — 조용히 비우지 않고 안내
+            const bad = JSON.parse(JSON.stringify(G)); bad.land.cards[0].hazardTable.rows[0].ids = ['없는구역-1']; await draw20(bad);
+            await L20.evaluate(() => { const c = document.querySelector('#sb20 [data-sb-card="land"]'); c.querySelector('button[data-sb-x="land-hazard"]').click(); c.querySelector('button[data-sb-x="land-hazard-map"]').click(); });
+            await L20.waitForFunction(() => /위험구역 위치 자료가 없습니다/.test((document.querySelector('#sb20 [data-sb-zone-wait]') || {}).textContent || ''));
+        });
+        await check('[§11.10.20-UI3] 맨 아래 — 「기준 시각」·「다루는 시간」 줄 없음 · 「데이터 출처 보기」(처음 접힘) → 표 「구분 | 자료 | 제공」 · 그 밖 노란 두 줄 「각종 정보(API, 기상정보 등) 기반 AI 분석 결과로,」/「실제 현장상황과 다를 수 있습니다.」 · 옛 판(b.notice 옛 글)도 새 안내 · 360px 넘침 없음', async () => {
+            const old = JSON.parse(JSON.stringify(G)); old.notice = '참고 정보이며 안전을 보장하지 않습니다.'; await draw20(old);
+            const r = await L20.evaluate(() => { const f = document.querySelector('#sb20 .sb-foot'), b = f.querySelector('button[data-sb-x="sources"]'), nt = f.querySelector('[data-sb-notice]'), o = { exp0: b.getAttribute('aria-expanded'), btn: b.textContent, kids: [...f.children].map((x) => x.className), noteBr: nt.querySelectorAll('br').length, note: nt.textContent, color: getComputedStyle(nt).color, w: getComputedStyle(nt).fontWeight, inSrc: !!nt.closest('.sb-src'), text: f.textContent };
+                b.click(); o.exp1 = b.getAttribute('aria-expanded'); o.head = [...f.querySelectorAll('.sb-src-tbl thead th')].map((x) => x.textContent); o.rows = f.querySelectorAll('.sb-src-tbl tbody tr').length; o.grp = getComputedStyle(f.querySelector('.sb-src-grp')).whiteSpace; o.over = f.scrollWidth - f.clientWidth; o.page = document.documentElement.scrollWidth; o.vw = innerWidth; return o; });
+            assert.deepEqual([r.exp0, r.btn, r.kids], ['false', '데이터 출처 보기', ['sb-src', 'sb-notice']], '출처 상자 → 안내(상자 밖)');
+            assert.deepEqual([r.noteBr, r.note, r.color, r.w, r.inSrc], [1, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로,실제 현장상황과 다를 수 있습니다.', 'rgb(255, 210, 63)', '700', false], '노란 두 줄(옛 판 b.notice 대신)');
+            assert.ok(!/기준 시각|다루는 시간|참고 정보이며|출처:/.test(r.text), r.text);
+            assert.deepEqual([r.exp1, r.head, r.rows, r.grp, r.over], ['true', ['구분', '자료', '제공'], 13, 'nowrap', 0]); assert.ok(r.page <= r.vw + 1);
+            await L20.evaluate(() => document.querySelector('#sb20 .sb-foot').scrollIntoView({ block: 'center' })); await clean(L20);
+            await L20.locator('#sb20 .sb-foot').screenshot({ path: path.join(SHOT, 'land_sources_360.png') });
+        });
+        await check('[§11.10.20-UI4] 총평 덧붙임 — 분석 문단 이름표 자기 줄·문장마다 「•」 · 핵심 구절 굵게(바다 상태·전망 위험 구절·「위험이 높아진 해역은 없는」) · 「\'주의\'」 주황 굵게 · [권고] 상자(머리 「[권고]」 노랑·본문 흰색·등급 말 색·두 칸 — 둘째 줄 본문 첫 글자) · 「물때」 괄호 없음 · 근거 「이름 — 내용」 두 칸 · 「(근거)」 제목 없음 · 선박 상자 두 줄 「•」/한 줄 점 없음 · 글 링크 단추 text-align left', async () => {
+            await draw20(G, { text: '10:00 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 12개\n한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의', count: 37, cells: [{ id: 'GR4_A', box: [126.2, 33.4, 126.225, 33.425], count: 18 }], busiest: { name: '한림항 북서방 1.2해리 해역(232-2해구)', count: 18, id: 'GR4_A' } });
+            const r = await L20.evaluate(() => {
+                const box = document.getElementById('sb20'), sea = box.querySelector('[data-sb-analysis="sea"]'), lis = [...sea.querySelectorAll('li')], tag = sea.querySelector('.sb-an-tag');
+                const adv = box.querySelector('[data-sb-summary="land"] > [data-sb-advice]'), k = adv.querySelector('.sb-advk'), v = adv.querySelector('.sb-adv-v'), cs = getComputedStyle(adv);
+                const rg = document.createRange(); rg.selectNodeContents(v); const lines = []; [...rg.getClientRects()].filter((q) => q.width > 0.5).forEach((q) => { const l = lines.find((x) => Math.abs(x.top - q.top) < 3); if (l) l.left = Math.min(l.left, q.left); else lines.push({ top: q.top, left: q.left }); });
+                const xb = box.querySelector('button[data-sb-x="basis-land"]'); xb.click(); const pn = document.getElementById(xb.getAttribute('aria-controls'));
+                const kv = [...pn.querySelectorAll('.sb-basis-kv')].map((x) => { const vv = x.querySelector('.sb-basis-v'), r2 = document.createRange(); r2.selectNodeContents(vv); const ls = []; [...r2.getClientRects()].filter((q) => q.width > 0.5).forEach((q) => { const l = ls.find((y) => Math.abs(y.top - q.top) < 3); if (l) l.left = Math.min(l.left, q.left); else ls.push({ top: q.top, left: q.left }); });
+                    return { k: x.querySelector('.sb-basis-k').textContent, shrink: getComputedStyle(x.querySelector('.sb-basis-k')).flexShrink, lefts: ls.map((y) => Math.round(y.left)), vLeft: Math.round(vv.getBoundingClientRect().left) }; });
+                const now = box.querySelector('[data-sb-now]');
+                const btns = [...box.querySelectorAll('button.sb-x-btn, button.sb-maplink')].filter((b) => !b.classList.contains('sb-x-pill') && !b.classList.contains('sb-hz-loc'));
+                return { tagAbove: tag.getBoundingClientRect().bottom <= lis[0].getBoundingClientRect().top + 1, li: lis.length, bullet: getComputedStyle(lis[0]).listStyleType, liText: lis.map((x) => x.textContent.trim()),
+                    bold: [...sea.querySelectorAll('.sb-hl-b')].map((x) => x.textContent), lv: [...sea.querySelectorAll('.sb-hl-lv')].map((x) => x.textContent + '|' + getComputedStyle(x).color + '|' + getComputedStyle(x).fontWeight),
+                    adv: { text: adv.textContent, disp: cs.display, gap: cs.columnGap, pad: cs.padding, radius: cs.borderTopLeftRadius, bg: cs.backgroundColor, border: cs.borderTopColor, k: getComputedStyle(k).color, kw: getComputedStyle(k).fontWeight, shrink: getComputedStyle(k).flexShrink, v: getComputedStyle(v).color, vmin: getComputedStyle(v).minWidth, lv: [...v.querySelectorAll('.sb-hl-lv')].map((x) => x.textContent + '|' + getComputedStyle(x).color), lefts: lines.map((x) => Math.round(x.left)), vLeft: Math.round(v.getBoundingClientRect().left) },
+                    tideHead: (box.querySelector('[data-sb-part="tide"] > .sb-sum-k') || {}).textContent, basisK: [...pn.querySelectorAll('.sb-sum-k')].map((x) => x.textContent), kv,
+                    now: { ul: !!now.querySelector('ul.sb-now-list'), li: now.querySelectorAll('li').length, color: getComputedStyle(now.querySelector('li')).color, links: [...now.querySelectorAll('[data-sb-maplink]')].map((x) => x.textContent) },
+                    align: [...new Set(btns.map((b) => getComputedStyle(b).textAlign))], nBtn: btns.length, page: document.documentElement.scrollWidth, vw: innerWidth };
+            });
+            assert.ok(r.tagAbove && r.li === 3 && r.bullet === 'disc', '이름표 자기 줄 + 「•」 세 줄(마지막 「따라서」는 [권고]) ' + JSON.stringify(r.liText));
+            assert.deepEqual(r.bold, ['최대 파고 0.8m·풍속 4.8m/s로 잔잔한 바다', '오늘 밤부터 동해상에 바람이 강하게 불고 물결이 높아질 수 있어', '위험이 높아진 해역은 없는'], '핵심 구절 굵게(덧붙임 4)');
+            assert.deepEqual(r.lv, ["'주의'|rgb(251, 146, 60)|800"], "「'주의'」 주황 굵게(덧붙임 5)");
+            assert.equal(r.adv.text, '[권고] 모충사에는 주의가, 이호테우해변에는 관심이 요구됩니다.');
+            assert.deepEqual([r.adv.disp, r.adv.gap, r.adv.pad, r.adv.radius, r.adv.bg, r.adv.border, r.adv.k, r.adv.kw, r.adv.shrink, r.adv.v, r.adv.vmin], ['flex', '4px', '10px 12px', '12px', 'rgba(255, 200, 60, 0.1)', 'rgba(255, 200, 60, 0.38)', 'rgb(255, 215, 94)', '800', '0', 'rgb(255, 255, 255)', '0px'], '[권고] 상자(덧붙임 6·7·8·11)');
+            assert.deepEqual(r.adv.lv, ['주의|rgb(251, 146, 60)', '관심|rgb(242, 194, 48)'], '[권고] 속 등급 말 색');
+            assert.ok(r.adv.lefts.length >= 2 && r.adv.lefts.every((x) => Math.abs(x - r.adv.vLeft) <= 1), '둘째 줄 = 본문 첫 글자(「모」) 위치 ' + JSON.stringify(r.adv));
+            assert.equal(r.tideHead, '물때', '덧붙임 10 — 괄호 없음'); assert.deepEqual(r.basisK, [], '「(근거)」 제목 줄 없음(덧붙임 2)');
+            assert.ok(r.kv.length >= 2 && r.kv.every((x) => x.shrink === '0' && x.lefts.every((l) => Math.abs(l - x.vLeft) <= 1)) && r.kv.some((x) => x.lefts.length >= 2), '근거 「이름 — 내용」 두 칸(덧붙임 12) ' + JSON.stringify(r.kv));
+            assert.deepEqual([r.now.ul, r.now.li, r.now.color, r.now.links], [true, 2, 'rgb(165, 243, 252)', ['관할 해역 선박 37척', '한림항 북서방 1.2해리 해역(232-2해구)']], '선박 상자 두 줄 → 「•」(덧붙임 14), 하늘색·링크 그대로');
+            assert.ok(r.nBtn >= 4 && r.align.length === 1 && r.align[0] === 'left', '글 링크 단추 text-align left(덧붙임 15) ' + JSON.stringify(r.align)); assert.ok(r.page <= r.vw + 1);
+            await L20.evaluate(() => document.querySelector('#sb20 [data-sb-summary="sea"]').scrollIntoView({ block: 'start' })); await clean(L20);
+            await L20.locator('#sb20 [data-sb-sec="overview"]').screenshot({ path: path.join(SHOT, 'summary_overview_360.png') });
+            // 선박 상자 한 줄이면 점 없음
+            await draw20(G, { text: '10:00 기준 관할 해역 선박 3척 · 선박이 있는 해역 격자 2개', count: 3, cells: [], busiest: null });
+            assert.deepEqual(await L20.evaluate(() => { const n = document.querySelector('#sb20 [data-sb-now]'); return [n.querySelectorAll('ul, li').length, n.textContent]; }), [0, '10:00 기준 관할 해역 선박 3척 · 선박이 있는 해역 격자 2개'], '단독이면 점 없음');
+        });
+        await check('[§11.10.20-UI6] 덧붙임 17·19·20·21·22·23·24 — 근거 「이름 —」 흰 굵게·수치·등급 = 관광지 단계 색·예비특보 노랑 · 해역 [기상 예보] 수치·바다 상태 말 흰 굵게 · 배지 상세 표 등급 칸·혼잡지수 칸 단계 색 굵게 · 표 머리 칸 흰 굵게 · 결론 「"주의"」 단계 색 · 긴 괄호 묶음은 통째로 다음 줄(360px)', async () => {
+            const g2 = JSON.parse(JSON.stringify(G)); g2.summary.land.basis.push('풍랑주의보 예비특보(10월 18일 06~12시 발효 예정)');
+            g2.land.cards.push({ ...JSON.parse(JSON.stringify(g2.land.cards[0])), name: '옛판관광지', advice: undefined, accidents: undefined, indexBadge: undefined, hazardTable: undefined, sourceLabel: "연안 위험지수 69 '높음'", traits: { text: '위험구역 3곳(연안사고 위험구역 1·사망사고 발생구역 1·연안사고 다발구역 1)' }, sentence: '옛 문장' });
+            g2.sea.cards[0].historyNote = '이 해역에서는 집계 기간 중 충돌·전복 사고가 많이 기록되었습니다.';   // 유형 둘(덧붙임 25 보충)
+            assert.ok(B.h.summary.isolation.text.startsWith('[고립 주의] '), '서버 글 머리 「[고립 주의]」(덧붙임 29) ' + B.h.summary.isolation.text);
+            g2.summary.isolation = { ...JSON.parse(JSON.stringify(B.h.summary.isolation)), text: B.h.summary.isolation.text.replace('[고립 주의]', '(고립 주의)') };   // 옛 판 글 — 화면이 같은 꼴로
+            await draw20(g2);
+            const r = await L20.evaluate(() => {
+                const box = document.getElementById('sb20'), out = {};
+                out.head = [...box.querySelectorAll('.sb-conclusion .sb-headline .sb-hl-lv')].map((x) => x.textContent + '|' + getComputedStyle(x).color + '|' + getComputedStyle(x).fontWeight);
+                const xb = box.querySelector('button[data-sb-x="basis-land"]'); xb.click(); const pn = document.getElementById(xb.getAttribute('aria-controls'));
+                out.kv = [...pn.querySelectorAll('.sb-basis-kv')].map((x) => ({ k: x.querySelector('.sb-basis-k').textContent, kc: getComputedStyle(x.querySelector('.sb-basis-k')).color, kw: getComputedStyle(x.querySelector('.sb-basis-k')).fontWeight, v: [...x.querySelectorAll('.sb-bv')].map((b) => b.textContent + '|' + getComputedStyle(b).color) }));
+                out.warnLine = [...pn.querySelectorAll('li > .sb-bv')].map((b) => b.textContent + '|' + getComputedStyle(b).color);
+                const rz = pn.querySelector('button[data-sb-x="raised"]'); if (rz) rz.click();
+                box.querySelectorAll('button[data-sb-x="land-acc"], button[data-sb-x="land-hazard"], button[data-sb-x="sources"]').forEach((b) => b.click());
+                const sea = [...box.querySelectorAll('[data-sb-card="sea"]')];
+                out.fv = sea.flatMap((c) => [...c.querySelectorAll('.sb-fv')].map((b) => b.textContent + '|' + getComputedStyle(b).color + '|' + getComputedStyle(b).fontWeight));
+                out.fvText = sea.map((c) => { const rw = [...c.querySelectorAll('.sb-row')].find((x) => x.querySelector('.sb-row-k').textContent === '[기상 예보]'); return rw ? rw.children[1].textContent : null; }).filter(Boolean);
+                out.grade = [...box.querySelectorAll('[data-sb-card="sea"] .sb-srcb-tbl td[data-rank]')].map((td) => td.closest('.sb-srcb-tab').querySelector('.sb-srcb-dt').textContent + '|' + td.textContent + '|' + td.dataset.rank + '|' + getComputedStyle(td).color + '|' + getComputedStyle(td).fontWeight);
+                out.th = [...new Set([...box.querySelectorAll('th')].filter((x) => x.offsetParent).map((x) => getComputedStyle(x).color + '|' + getComputedStyle(x).fontWeight))]; out.thN = [...box.querySelectorAll('th')].filter((x) => x.offsetParent).length;
+                const oc = [...box.querySelectorAll('[data-sb-card="land"]')].find((c) => c.querySelector('.sb-card-name').textContent === '옛판관광지'), tr = [...oc.querySelectorAll('.sb-row')].find((x) => x.querySelector('.sb-row-k').textContent === '[특성]'), pr = tr.querySelector('.sb-paren'), vv = tr.children[1];
+                const first = document.createRange(); first.setStart(vv.firstChild, 0); first.setEnd(vv.firstChild, 1);
+                out.paren = { text: pr.textContent, disp: getComputedStyle(pr).display, left: Math.round(pr.getBoundingClientRect().left), vLeft: Math.round(vv.getBoundingClientRect().left), below: pr.getBoundingClientRect().top > first.getBoundingClientRect().top + 2 };
+                out.notes = [...box.querySelectorAll('[data-sb-card] > .sb-sentence')].filter((x) => x.querySelector('.sb-acc-type')).map((x) => [...x.querySelectorAll('.sb-acc-type')].map((b) => b.textContent + '|' + getComputedStyle(b).color + '|' + getComputedStyle(b).fontWeight).join(' / ') + ' :: ' + x.textContent);
+                // 덧붙임 26·27·28·29 — [사고현황] 「유형 N건」 흰·사망 빨강·실종 주황(0명도) · [오늘 예상] 수치 흰 · [고립 주의]
+                out.acc = [...box.querySelectorAll('[data-sb-card] .sb-acc-n, [data-sb-card] .sb-acc-death, [data-sb-card] .sb-acc-missing')].map((b) => b.textContent + '|' + getComputedStyle(b).color + '|' + getComputedStyle(b).fontWeight);
+                out.num = [...box.querySelectorAll('[data-sb-card="land"] .sb-row')].filter((x) => x.querySelector('.sb-row-k').textContent === '[오늘 예상]').flatMap((x) => [...x.querySelectorAll('b.sb-hl-b')].map((b) => b.textContent + '|' + getComputedStyle(b).color));
+                out.iso = (box.querySelector('[data-sb-isolation] .sb-iso-line') || {}).textContent || null;
+                out.page = document.documentElement.scrollWidth; out.vw = innerWidth;
+                return out;
+            });
+            assert.deepEqual(r.head, ['"주의"|rgb(251, 146, 60)|800', '"주의"|rgb(251, 146, 60)|800'], '결론 단계 말 = 단계 색 굵게(덧붙임 23) — 연안·해상');
+            const mo = r.kv.find((x) => x.k === '모충사 — '), ih = r.kv.find((x) => x.k === '이호테우해변 — ');
+            assert.ok(mo && ih && mo.kc === 'rgb(255, 255, 255)' && mo.kw === '800', '지명 흰 굵게(덧붙임 17) ' + JSON.stringify(r.kv));
+            assert.deepEqual(mo.v, ['69(높음, 예상)|rgb(251, 146, 60)', '1.6배|rgb(251, 146, 60)'], '모충사(주의) 수치·등급 = 주황');
+            assert.deepEqual(ih.v, ['56(다소 높음, 예상)|rgb(242, 194, 48)', '1.2배|rgb(242, 194, 48)', '11m/s|rgb(242, 194, 48)'], '이호테우(관심) = 노랑');
+            assert.deepEqual(r.warnLine, ['풍랑주의보 예비특보|rgb(242, 194, 48)'], '공통 예비특보 줄 — 특보 이름만 노랑');
+            assert.ok(r.fv.some((x) => /^최대 파고 [\d.]+m·풍속 [\d.]+m\/s\|rgb\(248, 250, 252\)\|800$/.test(x)) && r.fv.some((x) => /^물결이 높아지고 바람이 매우 강해질\|rgb\(248, 250, 252\)\|800$/.test(x)) && r.fv.some((x) => /^잔잔하다가\|/.test(x)), '해역 [기상 예보] 수치·바다 상태 말 흰 굵게(덧붙임 19) ' + JSON.stringify(r.fv) + ' / ' + JSON.stringify(r.fvText));
+            const want = { 1: 'rgb(242, 194, 48)', 2: 'rgb(251, 146, 60)', 3: 'rgb(227, 72, 66)' };
+            assert.ok(r.grade.length >= 2 && r.grade.every((x) => { const [, , rk, col, w] = x.split('|'); return col === want[rk] && Number(w) >= 700; }), '배지 상세 표 등급·혼잡지수 칸 = 단계 색 굵게(덧붙임 20·21) ' + JSON.stringify(r.grade));
+            assert.ok(r.grade.some((x) => /^KOMSA 혼잡 예보\|12\.3 \(높음\)\|2\|/.test(x)) && r.grade.some((x) => /^KOMSA 해양사고 위험예보\|주의\|2\|/.test(x)), '혼잡지수 「12.3 (높음)」 주황 · 위험예보 「주의」 주황 ' + JSON.stringify(r.grade));
+            assert.ok(r.thN >= 8 && r.th.length === 1 && r.th[0] === 'rgb(255, 255, 255)|800', '표 머리 칸 흰 굵게(덧붙임 22) ' + JSON.stringify(r.th) + ' ' + r.thN);
+            assert.deepEqual([r.paren.text, r.paren.disp, r.paren.below], ['(연안사고 위험구역 1·사망사고 발생구역 1·연안사고 다발구역 1)', 'inline-block', true], '긴 괄호 묶음 통째로 다음 줄(덧붙임 24)');
+            assert.ok(r.notes.includes('익수 사고|rgb(248, 250, 252)|800 :: 이곳에서는 집계 기간 중 익수 사고가 많이 기록되었습니다.'), '유형 하나 — 「익수 사고」 흰 굵게(덧붙임 25) ' + JSON.stringify(r.notes));
+            assert.ok(r.notes.includes('충돌|rgb(248, 250, 252)|800 / 전복 사고|rgb(248, 250, 252)|800 :: 이 해역에서는 집계 기간 중 충돌·전복 사고가 많이 기록되었습니다.'), '유형 둘 — 각각 흰 굵게 ' + JSON.stringify(r.notes));
+            const W = 'rgb(248, 250, 252)';
+            assert.ok(r.acc.includes('익수 3건|' + W + '|800') && r.acc.includes('사망 2명|rgb(227, 72, 66)|800') && r.acc.includes('실종 0명|rgb(251, 146, 60)|800'), '이호테우 [사고현황] 한 줄 — 유형 흰·사망(2명) 빨강·실종(0명) 주황(덧붙임 26·27) ' + JSON.stringify(r.acc));
+            assert.ok(r.acc.some((x) => /^충돌 \d+건\|/.test(x)) && r.acc.includes('사망 1명|rgb(227, 72, 66)|800') && r.acc.filter((x) => /^실종 0명\|rgb\(251, 146, 60\)/.test(x)).length >= 2, '해역 카드 [사고현황](한림 사망 1명·실종 0명) ' + JSON.stringify(r.acc));
+            assert.ok(r.num.includes('1.6배|' + W) && r.num.includes('1.2배|' + W) && r.num.includes('11m/s|' + W) && !r.num.some((x) => /사람|바람/.test(x)), '[오늘 예상] 수치만 흰 굵게(덧붙임 28) ' + JSON.stringify(r.num));
+            assert.ok(r.iso && r.iso.startsWith('[고립 주의] ') && !r.iso.includes('(고립 주의)'), '옛 판 「(고립 주의)」도 화면은 「[고립 주의]」(덧붙임 29) ' + r.iso);
+            assert.ok(Math.abs(r.paren.left - r.paren.vLeft) <= 1, '다음 줄은 글 칸 첫 글자 위치에서 ' + JSON.stringify(r.paren)); assert.ok(r.page <= r.vw + 1);
+            await L20.evaluate(() => { const c = [...document.querySelectorAll('#sb20 [data-sb-card="land"]')].find((x) => x.querySelector('.sb-card-name').textContent === '옛판관광지'); c.scrollIntoView({ block: 'center' }); }); await clean(L20);
+            await L20.locator('#sb20 [data-sb-card="land"]', { hasText: '옛판관광지' }).screenshot({ path: path.join(SHOT, 'land_paren_wrap_360.png') });
+            await L20.evaluate(() => document.querySelector('#sb20 [data-sb-card="sea"]').scrollIntoView({ block: 'start' })); await clean(L20);
+            await L20.locator('#sb20 [data-sb-card="sea"]').first().screenshot({ path: path.join(SHOT, 'sea_card_colors_360.png') });
+        });
+        await check('[§11.10.20-UI5] 옛 판 후퇴 — 규칙 v17 연안 카드(advice·accidents 없음)는 종전 꼬리표·[특성]·문장 그대로([오늘 예상] 하나면 점 없음) · 해역 카드 [권고]도 같은 상자(덧붙임 9 — 글자 크기 카드 그대로, 특보 이름 속 글자는 칠하지 않음)', async () => {
+            const old = JSON.parse(JSON.stringify(G)); old.rulesVersion = 'station-briefing-rules-v17';
+            old.land.cards.forEach((c) => { delete c.indexBadge; delete c.hazardTable; delete c.accidents; delete c.advice; c.sentence = c.name + ' — ' + c.today.changes.join(', ') + '. 물가 접근에 주의가 필요합니다.'; });
+            await draw20(old);
+            const r = await L20.evaluate(() => { const c = document.querySelector('#sb20 [data-sb-card="land"]'), sea = document.querySelector('#sb20 [data-sb-card="sea"]'), sa = sea && sea.querySelector('.sb-adv');
+                return { kids: [...c.children].map((e) => e.className), tag: (c.querySelector('.sb-tag') || {}).textContent, ul: !!c.querySelector('.sb-row ul'), sentence: (c.querySelector('.sb-sentence') || {}).textContent,
+                    seaAdv: sa && { k: sa.querySelector('.sb-advk').textContent, kc: getComputedStyle(sa.querySelector('.sb-advk')).color, bg: getComputedStyle(sa).backgroundColor, fs: getComputedStyle(sa).fontSize, rowFs: getComputedStyle(sea.querySelector('.sb-row:not(.sb-adv)')).fontSize, lv: [...sa.querySelectorAll('.sb-hl-lv')].map((x) => x.textContent), last: sa === [...sea.querySelectorAll(':scope > .sb-row')].pop() } }; });
+            assert.deepEqual(r.kids.slice(0, 5), ['sb-card-head', 'sb-tags', 'sb-row', 'sb-row', 'sb-sentence'], '옛 판: 꼬리표 → [특성] → [오늘 예상] → 문장'); assert.ok(r.tag && !r.ul && r.sentence.includes('물가 접근'), JSON.stringify(r));
+            assert.deepEqual([r.seaAdv.k, r.seaAdv.kc, r.seaAdv.bg, r.seaAdv.fs === r.seaAdv.rowFs, r.seaAdv.last], ['[권고]', 'rgb(255, 215, 94)', 'rgba(255, 200, 60, 0.1)', true, true], '해역 카드 [권고] 상자 ' + JSON.stringify(r.seaAdv));
+            assert.ok(r.seaAdv.lv.every((x) => /^(경계|주의|관심|'[^']+')$/.test(x)), '특보 이름 속 글자는 칠하지 않음 ' + JSON.stringify(r.seaAdv.lv));
+            await L20.context().close();
         });
         await check('실행 오류 없음', async () => { assert.deepEqual(errors, []); });
     } catch (e) { console.error('❌ 준비 실패', e && e.stack); fail++; }
