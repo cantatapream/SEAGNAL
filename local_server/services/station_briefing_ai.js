@@ -185,8 +185,15 @@ function stationInput(b, kma = null) {
     const sea = b.sea, land = b.land, facts = [], places = new Set([b.station.name, b.station.office, b.station.region].filter(Boolean)), levels = { sea: {}, land: {} }, mult = { sea: new Set(), land: new Set() };
     levels.sea[b.station.name] = sea.overviewLevel.rank; if (land) levels.land[b.station.name] = land.level.rank;
     // 해역 evidence 의 해구 흐름 줄(weatherFlow.text — 「…로 기준(파고 2m·풍속 12m/s) 미만입니다」)은 서버 해구 문장(rules.haeguSentence — 기준 말 없음, §11.10.9)으로 바꿔 보낸다. 원래 글은 사실 목록에만(숫자 허용).
+    // §11.10.13(규칙 v14 카드): evidence = 화면 카드 줄과 같은 글 — [기상 예보](특보 줄 + 바다 상태 흐름 문장 today.forecast, 「기준」 없음)·[그 밖의 근거]·[사고현황('21~'25년)].
+    //   사고현황의 「인명피해 사망 0명, 실종 0명」은 둘 다 0 이면 보내지 않는다 — 「사망」이 입력에 있으면 FACT_WORDS 검사가 그 말을 풀어 버린다(종전 [특성] 도 사망·실종이 있을 때만 「사망 N·실종 M」을 붙였다).
+    const seaEvidence = (c, wf, raw) => {
+        if (c.today.forecast === undefined) return [...raw.map((l) => (wf && l === wf.text && R.haeguSentence(wf)) || l), c.traits.text];   // 규칙 v13 전 카드
+        const tr = c.traits, hist = '[' + tr.label + '] ' + (tr.accidents ? tr.accidents + (tr.history && (tr.history.death || tr.history.missing) ? ' | ' + tr.casualty : '') : tr.text);
+        return [...[...(c.today.weatherLines || []), c.today.forecast, ...(c.today.otherLines || [])].filter(Boolean).slice(0, 4), hist];
+    };
     const seaTop = sea.overviewTop.map((c) => {
-        const wf = c.today.weather || null, raw = c.today.lines.slice(0, 4), ev = [c.overview.window + ' ' + c.overview.label, ...raw.map((l) => (wf && l === wf.text && R.haeguSentence(wf)) || l), c.traits.text];
+        const wf = c.today.weather || null, raw = c.today.lines.slice(0, 4), ev = [c.overview.window + ' ' + c.overview.label, ...seaEvidence(c, wf, raw)];
         facts.push(c.name, ...raw, ...ev); places.add(c.name); if (c.nameBase) places.add(c.nameBase); if (c.traits.zone?.name) places.add(c.traits.zone.name);
         levels.sea[c.name] = c.overview.rank; if (c.nameBase) levels.sea[c.nameBase] = Math.max(levels.sea[c.nameBase] || 0, c.overview.rank);
         return { name: c.name, level: c.overview.word, window: c.overview.window, evidence: ev };

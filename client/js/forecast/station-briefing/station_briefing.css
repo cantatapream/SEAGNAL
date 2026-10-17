@@ -53,17 +53,16 @@
 .sb-tag { display:inline-block; padding:1px 7px; border-radius:6px; background:rgba(148,163,184,.14); border:1px solid rgba(148,163,184,.25); color:#cbd5e1; font-size:.72rem; }
 .sb-tag-time { color:#fde68a; }
 .sb-tags { display:flex; flex-wrap:wrap; gap:4px; margin:4px 0; }
-/* 해상 시간 막대 — 3시간 칸(6~9칸)이 한 줄에 다 들어가게 칸 폭을 나눈다. 칸을 누르면 아래 줄에 설명. */
+/* 해상 시간 막대 — 3시간 칸(6~9칸)이 한 줄에 다 들어가게 칸 폭을 나눈다(칸 아래 설명 줄은 §11.10.13 에 없앰). */
 .sb-timebar-wrap { margin:8px 0; }
 .sb-timebar { display:flex; gap:3px; }
-.sb-slot { position:relative; flex:1 1 0; min-width:0; min-height:34px; border:1px solid rgba(255,255,255,.18); border-radius:6px; color:#111827; font-weight:800; font-size:.72rem; padding:2px 0; cursor:pointer; }
-.sb-slot[aria-pressed="true"] { outline:2px solid #67e8f9; outline-offset:1px; }
+/* 칸은 누르는 단추가 아니다(§11.10.13 — 칸 아래 설명 줄을 없애며 누르기도 뺐다). 가운데 정렬은 종전 button 모양 그대로 */
+.sb-slot { position:relative; flex:1 1 0; min-width:0; min-height:34px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,.18); border-radius:6px; color:#111827; font-weight:800; font-size:.72rem; padding:2px 0; }
 .sb-slot-h { display:block; }
 .sb-slot-flag { position:absolute; top:-7px; right:-2px; font-size:.8rem; color:#fef08a; text-shadow:0 0 2px #000,0 0 2px #000; }
 .sb-legend { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:6px; color:#94a3b8; font-size:.7rem; }
 .sb-legend-k { display:inline-flex; align-items:center; gap:4px; }
 .sb-legend-k i { display:inline-block; width:10px; height:10px; border-radius:3px; }
-.sb-slot-detail { margin:6px 0 0; color:#e2e8f0; font-size:.78rem; }
 /* 보는 시각에 이미 끝난 3시간 칸 — 흐리게(2단계 검토 B3). 색(단계)은 그대로 두어 무엇이었는지는 읽힌다. */
 .sb-slot-past { opacity:.4; }
 /* 해상 결론 칩 오른쪽 「N개 해역 주의 필요(KOMSA 예보)」 배지(§11.10.12 — 종전 노란 안내 한 줄 .sb-level-note 대신) */

@@ -10,6 +10,7 @@
  *                   · 대해구 이름·「관할 해역 선박 N척」·붐비는 해역 링크 → 가운데 팝업 지도(openMapPopup — 서버 summary.sea.haegu·now.cells).
  *         §11.10.10: (물때) 「잠기는 바위(간출암) N곳」 링크 → 팝업 지도(관할 경계 + 그 바위 마커 — 서버 summary.rocks) → 마커를 누르면 해양안전 「위험지형」과 같은 간출암 조석 곡선 상자
  *                   (HazardRockTidePanel — hazard_rocks.js 의 같은 함수) · (고립 주의) 「과거 고립 사고(N개소 M건)」 링크(화살표 없음) → 「지점명 | 발생 현황」 표.
+ *         §11.10.13: 해상 시간 막대 아래 설명 줄·칸 누르기 없음(칸 = role=img) · 해역 카드 [사고현황('21~'25년)] → [기상 예보] → [그 밖의 근거] → 한 줄 → 맨 끝 [권고](서버 규칙 v14 카드 — 옛 판은 [특성]·[오늘 예상]).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/bottom-sheet/ocean_bottom_sheet3.js(OceanSheet.tideGaugeHtml — 조석 게이지 디자인 그대로)
@@ -83,7 +84,7 @@
         ['지역 행사', '한국관광공사(+ Gemini 보충 검색)', '육상 「오늘 바뀐 요소」'],
         ['너울 · 이안류', '기상청 · 국립해양조사원', '육상 「오늘 바뀐 요소」'],
         ['연안사고 위험구역', '해양경찰청', '육상 특성, 상시 위험 장소'],
-        ['과거 선박사고(2021~2025)', '해양경찰청 선박사고 기록(국립해양조사원 개방海 제공)', '해역 [특성]'],
+        ['과거 선박사고(2021~2025)', '해양경찰청 선박사고 기록(국립해양조사원 개방海 제공)', '해역 [사고현황]'], // §11.10.13 — 종전 「해역 [특성]」
         ['과거 연안사고 — 연안 인명사고(익수·추락·고립·표류·기타), 관광지 구역 + 앞바다 500m, 2020~2024', '국립해양조사원 개방海 인명사고', '관광지 [특성]'],
     ];
 
@@ -184,10 +185,15 @@
         return b;
     }
     /**
-     * 해역 카드 하나 — 「○○ 방위 N해리 해역(해구)」, 단계·출처 꼬리표, [특성]·[오늘 예상], 틀 문장, 바로가기.
-     * 예: seaCard({name:'비양도 북북서방 1.4해리 해역(232-2해구)',rank:2,word:'주의 필요',sourceLabel:"공식 사고예보 '주의'",window:'15~24시',…}, opts)
+     * 해역 카드 하나 — 「○○ 방위 N해리 해역(해구)」, 단계·출처 꼬리표, 줄들, 바로가기.
+     * 규칙 v14 카드(서버 advice 가 있음 — 2026-10-17 사용자 결정, 설계서 §11.10.13): [사고현황('21~'25년)](traits.label·text) → [기상 예보](today.weatherLines + today.forecast)
+     *   → [그 밖의 근거](today.otherLines — 꼬리표와 같은 줄은 서버가 이미 뺌) → 「… 사고가 많이 기록되었습니다」(historyNote) → 맨 끝 [권고](advice).
+     *   사용자 원문 *"[사고현황('21~'25년)] 충돌 5건, 전복 2건, 좌초 1건 | 인명피해 사망 0명, 실종 0명"* · *"오늘 예상보다는 [기상 예보] 라고 표현"* · *"[권고] … 이렇게 마지막에 표현"*.
+     * 그 전 판(advice 없음)은 종전 [특성]·[오늘 예상]·문장 그대로.
+     * 예: seaCard({name:'보령 서방 4.1해리 해역(174-3해구)',rank:2,word:'주의 필요',sourceLabel:"해양사고 위험예보 '주의'",window:'18~24시',traits:{label:"사고현황('21~'25년)",text:'충돌 5건, … | 인명피해 사망 0명, 실종 0명'},
+     *            today:{forecast:'최대 파고 0.1m·풍속 7.5m/s로 잔잔한 바다일 것으로 예상됩니다(대해구 174 예보).',weatherLines:[],otherLines:[]},historyNote:'…',advice:'18~24시 이 해역은 …'}, opts)
      * @param {Object} c - briefing.sea.cards[] @param {Object} opts @returns {HTMLElement}
-     * [연계] ← render / → linkBtn(GR4 칸 id·좌표·시각)
+     * [연계] ← render / → linkBtn(GR4 칸 id·좌표·시각) / 서버: station_briefing_rules.seaSection toCard
      */
     function seaCard(c, opts) {
         var card = el('div', 'sb-card'); card.setAttribute('data-sb-card', 'sea');
@@ -196,10 +202,20 @@
         if (c.sourceLabel) tags.appendChild(el('span', 'sb-tag', c.sourceLabel));
         if (c.window) tags.appendChild(el('span', 'sb-tag sb-tag-time', c.window));
         if (tags.childNodes.length) card.appendChild(tags);
-        if (c.traits && c.traits.text) card.appendChild(row('[특성]', c.traits.text));
-        var lines = c.today && Array.isArray(c.today.lines) ? c.today.lines : [];
-        if (lines.length) card.appendChild(row('[오늘 예상]', list(lines)));
-        if (c.sentence) card.appendChild(el('p', 'sb-sentence', c.sentence));
+        if (typeof c.advice === 'string') {
+            var t = c.traits || {}, td = c.today || {}, one = function (xs) { return xs.length === 1 ? xs[0] : list(xs); };
+            if (t.text) card.appendChild(row('[' + (t.label || '사고현황') + ']', t.text));
+            var wx = (Array.isArray(td.weatherLines) ? td.weatherLines : []).concat(td.forecast ? [td.forecast] : []), other = Array.isArray(td.otherLines) ? td.otherLines : [];
+            if (wx.length) card.appendChild(row('[기상 예보]', one(wx)));
+            if (other.length) card.appendChild(row('[그 밖의 근거]', one(other)));
+            if (c.historyNote) card.appendChild(el('p', 'sb-sentence', c.historyNote));
+            card.appendChild(row('[권고]', c.advice));
+        } else {
+            if (c.traits && c.traits.text) card.appendChild(row('[특성]', c.traits.text));
+            var lines = c.today && Array.isArray(c.today.lines) ? c.today.lines : [];
+            if (lines.length) card.appendChild(row('[오늘 예상]', list(lines)));
+            if (c.sentence) card.appendChild(el('p', 'sb-sentence', c.sentence));
+        }
         var lk = c.link || {}, lon = Number(lk.lon), lat = Number(lk.lat);
         var b = linkBtn(Number.isFinite(lon) && Number.isFinite(lat) ? { kind: 'marine', id: lk.gridId || 'point', location: { lon: lon, lat: lat }, t: lk.t || null } : null, opts);
         if (b) card.appendChild(b);
@@ -226,48 +242,33 @@
         return card;
     }
     /**
-     * 해상 시간 막대 — 3시간 칸마다 관할 최고 단계 색, 사건(특보 해제 예고·예비·해제·발효)이 있는 칸에 ⚑. 칸을 누르면 아래 줄에 그 칸 설명.
-     * 처음 설명은 사건이 있는 첫 칸, 없으면 가장 높은 단계의 첫 칸.
-     * 예: timeBar([{label:'06시',rank:2,word:'주의 필요',region:'…',labels:[…],events:[{kind:'release',text:'…'}]}, …]) → 칸 6개 + 설명 줄 + 범례
+     * 해상 시간 막대 — 3시간 칸마다 관할 최고 단계 색, 사건(특보 해제 예고·예비·해제·발효)이 있는 칸에 ⚑ + 범례.
+     * 칸 아래 설명 줄(「18시 · 주의 필요 · ○○ 해역 · 근거 …」)과 그 줄을 채우던 칸 누르기는 없앴다(2026-10-17 사용자 결정 — 설계서 §11.10.13,
+     * 원문 *"이 텍스트는 아래 또 나오니까 필요없는거 아니니? 개별로 나오잖아"* — 같은 내용이 해역 카드·특별 상황에 따로 있다). 칸은 누르는 단추가 아니라 그림(role=img + aria-label 「18시 주의 필요 …」).
+     * 예: timeBar([{label:'06시',rank:2,word:'주의 필요',events:[{kind:'release',text:'…'}]}, …]) → 칸 6개 + 범례
      * 보는 시각(nowMs)에 이미 끝난 칸은 흐리게(.sb-slot-past) — 만드는 시각이 든 칸부터 다루므로 열어 볼 때 지난 칸이 섞일 수 있다(2단계 검토 B3).
      * @param {Object[]} slots - briefing.sea.timeBar @param {number} [nowMs] - 지금(ms) @returns {HTMLElement}
      * [연계] ← render(해상 분석)
      */
     function timeBar(slots, nowMs) {
-        var wrap = el('div', 'sb-timebar-wrap'), bar = el('div', 'sb-timebar'), detail = el('p', 'sb-slot-detail');
+        var wrap = el('div', 'sb-timebar-wrap'), bar = el('div', 'sb-timebar');
         bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', '해상 시간 막대 — 3시간 칸별 관할 최고 단계');
-        detail.setAttribute('aria-live', 'polite');
-        var buttons = [];
-        /** 칸 하나의 설명을 아래 줄에 쓴다. 예: '06시 · 주의 필요 · 한림항 북동방 5.2해리 해역(232-3해구) · 근거 … · ⚑ …' */
-        var show = function (i) {
-            var s = slots[i] || {};
-            var parts = [s.label || '', s.word || WORDS[s.rank] || ''];
-            if (s.region) parts.push(s.region);
-            if (Array.isArray(s.labels) && s.labels.length) parts.push('근거 ' + s.labels.join(', '));
-            (s.events || []).forEach(function (e) { if (e && e.text) parts.push('⚑ ' + e.text); });
-            detail.textContent = parts.filter(Boolean).join(' · ');
-            buttons.forEach(function (b, k) { b.setAttribute('aria-pressed', String(k === i)); });
-        };
-        slots.forEach(function (s, i) {
-            var b = el('button', 'sb-slot'); b.type = 'button';
+        slots.forEach(function (s) {
+            var b = el('span', 'sb-slot'); b.setAttribute('role', 'img');
             var bg = colorOf(s.rank, s.word); b.style.background = bg;
             var past = Number.isFinite(nowMs) && Date.parse(s.at) + 3 * 3600000 <= nowMs; if (past) { b.classList.add('sb-slot-past'); b.setAttribute('data-past', 'true'); }
             b.appendChild(el('span', 'sb-slot-h', String(s.label || '').replace(/시$/, '')));
             if (Array.isArray(s.events) && s.events.length) { var f = el('span', 'sb-slot-flag', '⚑'); f.setAttribute('aria-hidden', 'true'); b.appendChild(f); b.setAttribute('data-event', 'true'); }
             b.setAttribute('aria-label', (s.label || '') + ' ' + (s.word || WORDS[s.rank] || '') + (s.events && s.events.length ? ' — 특보 사건 있음' : '') + (past ? ' — 지난 시간' : ''));
             b.setAttribute('data-rank', String(s.rank));
-            b.addEventListener('click', function () { show(i); });
-            buttons.push(b); bar.appendChild(b);
+            bar.appendChild(b);
         });
         wrap.appendChild(bar);
         var legend = el('div', 'sb-legend');
         WORDS.forEach(function (word, r) { var k = el('span', 'sb-legend-k'); var sw = el('i'); sw.style.background = colorOf(r); k.appendChild(sw); k.appendChild(document.createTextNode(word)); legend.appendChild(k); });
         legend.appendChild(el('span', 'sb-legend-k', '⚑ 특보 사건'));
         if (slots.some(function (s) { return Number.isFinite(nowMs) && Date.parse(s.at) + 3 * 3600000 <= nowMs; })) legend.appendChild(el('span', 'sb-legend-k', '흐린 칸 = 이미 지난 시간'));
-        wrap.appendChild(legend); wrap.appendChild(detail);
-        var first = -1, top = -1;
-        slots.forEach(function (s, i) { if (first < 0 && s.events && s.events.length) first = i; if (top < 0 || Number(s.rank) > Number(slots[top].rank)) top = i; });
-        if (slots.length) show(first >= 0 ? first : top);
+        wrap.appendChild(legend);
         return wrap;
     }
     /**
