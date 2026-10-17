@@ -325,6 +325,11 @@
 - `bindApp()` 이 `RiskForecast.openAt(target)` 을 연다 — 미리보기 잠금(10번 누름)을 풀고, 꺼져 있으면 위험예측 버튼을 실제로 눌러 켠 뒤(해양안전 단독 표출 규칙 그대로) `goTo`. 부르는 곳: `client/js/forecast/station-briefing/station_briefing.js openInRisk`(탭 이동은 거기서 `switchMainTab`·`switchSubTab`).
 - ⚠잠금 해제: 브리핑 바로가기를 누르면 그 기기에서는 위험예측 미리보기 잠금이 풀린다(브리핑이 지금은 관리자 기기에만 보이므로). 브리핑을 일반 사용자에게 열 때 다시 볼 것.
 - 검사: `local_server/scripts/test_station_briefing_ui.js` 「[위험예측에서 보기 ›]」 두 사례.
+- **바로가기로 고른 칸은 시트 위 지도 띠 가운데로 — 2026-10-17**. 사용자 원문(휴대폰): *「위험 예측에서 보기를 눌렀을 때 이렇게 이동되는데 바텀시트 위쪽으로 해당 격자가 가운데 와서 바텀시트에 가려지지 않도록 조치해줘.」*
+  - 원인: `goTo` 가 `select()` 바로 뒤에 `visiblePadding()` 을 불렀는데, 그때 시트는 0.2초 대기(`RiskSheet.hold`) 중이라 `.open` 이 아직 없어 아래 여백이 기본 30px 였다 — 화면 전체의 가운데로 옮겨진 칸이 곧 올라온 시트(화면의 66%) 뒤에 숨었다. 범위도 칸이 아니라 좌표 둘레 3km 였다.
+  - 고침(`risk_forecast.js` `frameTo`·`fitFrame`·`sheetTop`·`framed`, `risk_map_layer.js` `selectionExtent`): 선택 테두리 범위(해상 칸·연안 관광지 영역, 없으면 종전처럼 좌표 둘레 3km)를 시트 위로 보이는 지도 띠의 가운데에 두고 그 범위가 다 들어오게 맞춘다(최대 확대 13). 시트 높이는 숫자로 박지 않고 잰다 — 처음에는 시트가 가장 높이 올라올 때(CSS `max-height`)를 기준으로 곧바로 옮겨 칸이 절대 가리지 않게 하고, 상세가 그려져 시트 높이가 정해지면 실제 높이(`offsetHeight`, 올라오는 움직임은 뺀 제자리)로 **한 번** 고친다(8px 넘게 다를 때만 다시 움직임 — `ResizeObserver` 와 `detail` 뒤). 그 뒤의 시트 높이 변화·사용자가 지도를 끈 뒤에는 지도를 다시 옮기지 않는다. 움직임 줄이기(`prefers-reduced-motion`)면 애니메이션 없이 바로.
+  - 그대로인 것: 지도에서 칸을 직접 누르는 경로(`mapSelect`→`select`)는 지금도 지도를 옮기지 않는다(이번에 바꾸지 않음). 시트 안 관할 해역 이동(`marinePoint`)·연안 위험구역(`hazard`)은 같은 `visiblePadding` 을 쓰며, 열린 시트에서는 종전과 같은 값을 낸다.
+  - 검사: 새 `local_server/scripts/test_risk_goto_frame.js` — 실제 `bindApp` 의 `RiskForecast.openAt` 으로 열어 390×844·1280×800 에서 해상 칸·연안 관광지(·칸 id 없는 해상 지점)의 가운데가 시트 위 띠 가운데(±5%)이고 칸 전체가 띠 안인지, 움직임 줄이기면 돌아온 순간 이미 제자리인지. 고치기 전 코드로는 6건 모두 실패(휴대폰 해상 칸 가운데 402px, 띠 0~264px).
 
 ## 선택 테두리·시트 올라오기/내려가기 — 2026-10-16
 

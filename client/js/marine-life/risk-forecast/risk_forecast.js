@@ -8,6 +8,7 @@
  *         연안은 날짜(KST)당 하나 — 그날 가장 높은 값(T24). 연안만 켜면 하단 시간 바 대신 화면 가운데 위쪽 날짜 넘기기(항행경보 날짜 줄 모양),
  *         해상도 켜면 하단 시간 버튼 그대로·연안은 그 시각의 날짜. 연안 시트의 날짜 < > 와 함께 움직인다.
  *         「활동지점 안전 브리핑」 바로가기용 RiskForecast.openAt·goTo(그 층·시각·칸/관광지로 이동, 2026-10-16 §11.4).
+ *         바로가기로 고른 칸·관광지는 시트 위로 보이는 지도 띠의 가운데로 옮기고 칸 전체가 그 띠에 들어오게 맞춘다(시트 높이는 재서 — 2026-10-17 frameTo).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈) / style.css .spinner(기다림 표시) · risk_forecast.css .rf-map-wait
  *                    · index2.html 항행경보 날짜 줄 CSS(.navwarn-date-nav·.navwarn-nav-btn·.navwarn-date-label·.navwarn-date-tag — 연안 날짜 넘기기가 그대로 씀, T24)
@@ -38,6 +39,9 @@
     function mount(options) {
         var map=options.map,api=w.RiskAPI.create(),enabled=options.enabled!==false,state={coast:true,sea:false},meta=null,t=null,selected=null,choosing=false,seq=0,detailSeq=0,table={coast:{spots:[]},sea:{cells:[]},accident:{cells:[]},traffic:{cells:[]}},oldBase=null,bannerText='',disposed=false,boundariesLoaded=false,syncPending=null,accidentFresh=false,marineMode='risk',coastVersion=null,boundaryPending=null;
         var legend=options.legendEl,sheetEl=options.sheetEl,banner=options.bannerEl;
+        // goTo(브리핑 바로가기)로 고른 칸을 시트 위 지도 띠 가운데에 맞추는 중인 상태 — {s:그 선택, extent:맞출 범위, bottom:마지막에 쓴 아래 여백, rendered:상세가 그려졌나}.
+        // 상세가 그려진 뒤 실제 시트 높이로 한 번 고치거나, 다른 칸을 고르거나 닫거나 사용자가 지도를 끌면 null(그 뒤로는 지도를 다시 움직이지 않는다). [연계] frameTo·fitFrame·framed·clearSelection
+        var framing=null;
         var OPEN_DELAY_MS=200; // 선택 테두리를 먼저 보이고 시트를 올리기까지(사용자 2026-10-16 「약간의 딜레이(0.2초?)」). 지도 스피너의 250ms(waitStart)와는 따로다 — 그것은 지도 색 요청을 기다릴 때만.
         /** 시트 열림 가드(T24 「나. 무시」, 2026-10-16): 시트가 열려 있는 동안 지도에서 누른 다른 해상 칸·연안 관광지(같은 위치 관광지 목록 포함)는 무시한다 — 테두리도 그대로.
          * 해양종합정보와 같은 판정이다: ocean_map.js 「시트 열림 가드 — 사용자 합의 Q3」·ocean_bottom_sheet1.js showOceanBottomSheet 는 .open 이면 조용히 return(토스트 없음).
@@ -230,7 +234,7 @@
          * 예: 위성지도 → 해안도. 켠 적이 없으면(oldBase 없음) 아무것도 바꾸지 않는다.
          * @returns {void} [연계] ← setEnabled(false)·destroy / → oceanSetBasemap */
         function restoreBasemap(){if(oldBase&&w.oceanSetBasemap)w.oceanSetBasemap(oldBase);oldBase=null;}
-        function clearSelection(){if(w.PopupStack)w.PopupStack.remove('risk-forecast-sheet');detailSeq++;selected=null;choosing=false;sheet.clear();layer.setSelection(null);w.RiskBasis.close();}
+        function clearSelection(){framing=null;if(w.PopupStack)w.PopupStack.remove('risk-forecast-sheet');detailSeq++;selected=null;choosing=false;sheet.clear();layer.setSelection(null);w.RiskBasis.close();}
         /**
          * 열린 시트를 기존 휴대폰 뒤로가기 관리자에 등록한다.
          * 예: 기준창이 열려도 기존 시트 항목은 다시 쌓지 않는다.
@@ -290,19 +294,57 @@
         function sliderChanged(value){if(selected){selected.at=value;sheet.loading();detail();}}
         /** 시트가 가린 아래쪽을 뺀 지도 영역의 가운데로 이동하기 위한 fit 여백을 구한다.
          * 예: 지도 0~915px, 시트 윗변 340px → [30,40,605,40] (남은 0~340px의 가운데로)
+         *     visiblePadding(true) — 막 고른 직후(시트가 0.2초 뒤에 올라올 참·아직 회색 틀): 시트가 다 올라왔을 때의 높이로 셈한다(sheetTop)
+         * @param {boolean} [opening] - 시트가 곧 열릴 참이면 true(아직 .open 이 없어도 가릴 높이를 미리 뺀다)
          * @returns {number[]} [위,오른쪽,아래,왼쪽] px
-         * [연계] ← hazard·marinePoint / 연안 위험구역과 해상 관할 해역 이동이 같은 계산을 써서 선택 동작이 어긋나지 않는다.
+         * [연계] ← hazard·marinePoint·fitFrame(goTo) / 연안 위험구역과 해상 관할 해역 이동·브리핑 바로가기가 같은 계산을 써서 선택 동작이 어긋나지 않는다.
          */
-        function visiblePadding(){var pad=[30,40,30,40];try{var size=map.getSize(),el=map.getTargetElement();if(size&&el&&sheetEl.classList&&sheetEl.classList.contains('open')){var m=el.getBoundingClientRect(),s=sheetEl.getBoundingClientRect(),cover=Math.max(0,m.bottom-s.top);pad[2]=Math.min(cover,Math.max(0,size[1]-pad[0]-60))+30;}}catch(e){/* 지도·시트 크기를 못 재는 환경(미리보기·시험 틀)은 기본 여백으로 이동한다 — 이동만 덜 정확할 뿐 선택은 그대로 된다 */}return pad;}
+        function visiblePadding(opening){var pad=[30,40,30,40];try{var size=map.getSize(),el=map.getTargetElement();if(size&&el&&sheetEl.classList&&(opening||sheetEl.classList.contains('open'))){var top=sheetTop(opening);if(top!==null){var m=el.getBoundingClientRect(),cover=Math.max(0,m.bottom-top);pad[2]=Math.min(cover,Math.max(0,size[1]-pad[0]-60))+30;}}}catch(e){/* 지도·시트 크기를 못 재는 환경(미리보기·시험 틀)은 기본 여백으로 이동한다 — 이동만 덜 정확할 뿐 선택은 그대로 된다 */}return pad;}
+        /** 시트가 다 올라왔을 때 시트 윗변의 화면(창) 세로 위치를 잰다 — 올라오는 움직임(transform) 중이어도 움직임을 뺀 제자리로 잰다.
+         * 시트 높이는 숫자로 박지 않고 실제 값을 잰다: 그려져 있으면 offsetHeight, 곧 열릴 참(opening)이거나 아직 숨어 있으면 CSS max-height(risk_forecast.css .rf-sheet — 화면의 66%)와 견줘 큰 쪽.
+         *   막 고른 직후의 회색 틀은 다 그려진 내용보다 낮을 수 있어서, 처음에는 가장 높이 올라올 때를 기준으로 잡아 칸이 절대 가리지 않게 하고 내용이 그려진 뒤 실제 높이로 한 번 고친다(fitFrame).
+         * 예: 390×844 휴대폰·하단 탭 68px·max-height 512px → 844-68-512 = 264 / 그려진 연안 시트 176px(opening 아님) → 600
+         * @param {boolean} [opening] - 곧 열릴 참이면 true @returns {number|null} 창 좌표 px(못 재면 null)
+         * [연계] ← visiblePadding / .rf-sheet 는 position:fixed·bottom:하단 탭 높이 — 숨어 있을 때(display:none)는 창 높이에서 bottom 을 빼서 아랫변을 잡는다 */
+        function sheetTop(opening){
+            var cs=getComputedStyle(sheetEl),shown=cs.display!=='none',bottom,h=0;
+            if(shown){var r=sheetEl.getBoundingClientRect(),ty=cs.transform&&cs.transform!=='none'&&w.DOMMatrixReadOnly?new w.DOMMatrixReadOnly(cs.transform).m42:0;bottom=r.bottom-ty;h=sheetEl.offsetHeight;}
+            else bottom=w.innerHeight-parseFloat(cs.bottom);
+            if(opening||!shown){var max=parseFloat(cs.maxHeight);if(Number.isFinite(max))h=Math.max(h,max);}
+            return Number.isFinite(bottom)&&h>0?bottom-h:null;
+        }
+        /** 브리핑 바로가기로 고른 칸·관광지를 시트 위로 보이는 지도 띠의 가운데에 두고, 그 범위 전체가 띠 안에 들어오게 확대한다(최대 13).
+         * 처음에는 시트가 가장 높이 올라올 때를 기준으로 곧바로 옮기고(fitFrame(true)), 상세가 그려져 시트 높이가 정해지면 실제 높이로 한 번 고친다(detail·sheetResize).
+         * 예: frameTo([x0,y0,x1,y1]) — 해상 칸 사각형 범위 / 연안 관광지 영역 범위 / 칸 테두리가 없으면 그 좌표 둘레 3km
+         * @param {number[]} extent - 지도 좌표 범위 @returns {void}
+         * [연계] ← goTo / → fitFrame. 사용자 2026-10-17 「바텀시트 위쪽으로 해당 격자가 가운데 와서 바텀시트에 가려지지 않도록」 */
+        function frameTo(extent){if(!selected)return;framing={s:selected,extent:extent,bottom:null,rendered:false};fitFrame(true);}
+        /** framing 범위로 지도를 옮긴다. 시트가 가릴 높이가 지난번과 8px 안쪽으로 같으면 다시 움직이지 않는다. 움직임 줄이기(prefers-reduced-motion)면 애니메이션 없이 바로.
+         * 예: fitFrame(true) → 시트 최대 높이 기준 0.25초 이동 / fitFrame(false) → 그려진 시트 높이 기준(달라졌을 때만 움직임) — 그 뒤 framing 끝
+         * @param {boolean} opening - visiblePadding 에 그대로 @returns {void} [연계] ← frameTo·detail·sheetResize / → visiblePadding·ol View.fit */
+        function fitFrame(opening){
+            if(!framing||framing.s!==selected||!w.ol)return;var f=framing;if(!opening)framing=null;/* 실제 높이로 고치는 것은 한 번뿐 — 그 뒤 시각 넘기기 등으로 시트 내용이 바뀌어도 지도를 따라 흔들지 않는다 */
+            var pad=visiblePadding(opening);if(f.bottom!==null&&Math.abs(pad[2]-f.bottom)<8)return;f.bottom=pad[2];
+            var reduce=false;try{reduce=!!(w.matchMedia&&w.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(e){reduce=false;/* matchMedia 없는 틀 — 움직임 있는 쪽으로 */}
+            var view=map.getView(),opt={padding:pad,maxZoom:13};if(!reduce)opt.duration=250;view.cancelAnimations();view.fit(f.extent,opt);
+        }
+        // 사용자가 지도를 끌면 그 뒤로는 시트 높이가 바뀌어도 지도를 다시 옮기지 않는다(끌어 놓은 자리를 빼앗지 않음).
+        function stopFraming(){framing=null;}
+        if(map.on)map.on('pointerdrag',stopFraming);   // 시험 틀의 가짜 지도(on 없음)에서도 mount 가 되게
+        // 상세가 그려진 뒤 시트 높이가 바뀌면(0.2초 뒤 처음 나타남·내용 채움) 실제 높이로 한 번 고친다. ResizeObserver 없는 브라우저는 detail 의 직접 호출만.
+        var sheetResize=w.ResizeObserver&&sheetEl.nodeType===1?new w.ResizeObserver(function(){if(framing&&framing.rendered&&sheetEl.classList.contains('rf-shown'))fitFrame(false);}):null;if(sheetResize)sheetResize.observe(sheetEl);
         async function hazard(id){var snapshot=selected;try{var fc=await api.get('hazard-zones',{ids:id});if(enabled&&selected===snapshot&&selected&&state.coast){layer.showHazards(fc,visiblePadding());sheet.markZone(id);}}catch(e){console.warn('[위험예측] 위험구역 요청 실패',failureInfo(e));if(enabled&&!disposed&&selected===snapshot)message('위험구역 자료를 불러오지 못했습니다 — '+e.message);}}
         /** 상세 요청 시각. 연안(앱)은 메인 날짜의 첫 연안 칸(coastT — 서버가 그 날짜 하루 값을 준다, T24), 나머지는 시트 시각(없으면 메인 시각).
          * 예: 연안·메인 내일 15:00 → 내일 00:00 · 해상 시트 18:00 → 18:00 @param {Object} s - 선택 @returns {string} ISO [연계] ← detail(요청·늦은 응답 검사) */
         function detailAt(s){return w.RiskMarine&&s.kind==='coast'&&meta?coastT(t||meta.now):(s.at||t);}
+        /** 상세(또는 오류)가 시트에 그려졌다 — goTo 로 맞추던 칸이면 이제 시트 높이가 정해졌으니 실제 높이로 한 번 고친다(시트가 아직 0.2초 대기 중이면 나타날 때 sheetResize 가).
+         * 예: 연안 시트가 최대 높이보다 낮게 그려짐 → 칸을 그만큼 아래(띠 가운데)로 @param {Object} s - 그린 선택 @returns {void} [연계] ← detail / → fitFrame */
+        function framed(s){if(framing&&framing.s===s){framing.rendered=true;if(sheetEl.classList.contains('rf-shown'))fitFrame(false);}}
         async function detail(){
             if(!selected||!enabled)return;var n=++detailSeq,s=selected,at=detailAt(s);
-            try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;}var d=await api.get(s.kind==='briefing'?'sea/briefing':w.RiskMarine&&seaKind(s.kind)==='sea'?'sea/analysis':s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||detailAt(s)!==at)return;sheet.show(d,s.kind,s.item,meta?{now:meta.now}:undefined);registerSheet();
+            try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;}var d=await api.get(s.kind==='briefing'?'sea/briefing':w.RiskMarine&&seaKind(s.kind)==='sea'?'sea/analysis':s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||detailAt(s)!==at)return;sheet.show(d,s.kind,s.item,meta?{now:meta.now}:undefined);registerSheet();framed(s);
                 var out=d&&d.marine&&d.marine.outlook&&d.marine.outlook.accident;if(out&&out.length){s.levels=s.levels||{};out.forEach(function(r){if(r&&r.forecastAt)s.levels[r.forecastAt]=r;});if(s.slider&&s.slider.levels)s.slider.levels(out);}if(d&&d.marine)trafficHistory(n,s,at,d.marine);}   // 시각 막대 칸 색: 해상 outlook.accident(연안 시각 막대는 T24 로 없앰)
-            catch(e){console.warn('[위험예측] 상세 요청 실패',failureInfo(e));if(n===detailSeq&&enabled&&selected===s&&detailAt(s)===at){sheet.error(e.message);registerSheet();}}
+            catch(e){console.warn('[위험예측] 상세 요청 실패',failureInfo(e));if(n===detailSeq&&enabled&&selected===s&&detailAt(s)===at){sheet.error(e.message);registerSheet();framed(s);}}
         }
         /** 해상 시트의 「지난 2주간 선박교통량」 이력을 받아 카드를 채운다. 칸이 없으면 요청하지 않는다(카드는 「-」).
          * 예: GR4_F4K23_P4 → GET sea/traffic-history?cell=GR4_F4K23_P4&days=15 — 지금 30분 칸을 끝으로 하는 14일(672칸)과
@@ -419,7 +461,11 @@
             if(next!==t)await setMain(next);
             if(target.kind==='coast'&&!table.coast.spots.some(function(p){return p.id===target.id;}))return false;
             select(target.kind,target.id,target.location);
-            var loc=target.location;if(loc&&Number.isFinite(loc.lon)&&Number.isFinite(loc.lat)&&w.ol){var xy=ol.proj.fromLonLat([loc.lon,loc.lat]);map.getView().fit([xy[0]-1500,xy[1]-1500,xy[0]+1500,xy[1]+1500],{padding:visiblePadding(),maxZoom:13,duration:250});}
+            // 선택 테두리(해상 칸·연안 관광지 영역)가 있으면 그 범위를, 없으면(칸 id 없는 해상 지점 'point') 그 좌표 둘레 3km 를 시트 위 지도 띠 가운데로(frameTo).
+            // 종전에는 select 직후(시트가 0.2초 대기 중이라 .open 이 아직 없음) visiblePadding() 을 불러 시트를 빼지 않은 화면 전체의 가운데로 옮겼다 — 칸이 시트 뒤에 숨었다(2026-10-17 사용자 화면).
+            var loc=target.location,extent=selected&&selected.id===target.id&&layer.selectionExtent?layer.selectionExtent():null;
+            if(!extent&&loc&&Number.isFinite(loc.lon)&&Number.isFinite(loc.lat)&&w.ol){var xy=ol.proj.fromLonLat([loc.lon,loc.lat]);extent=[xy[0]-1500,xy[1]-1500,xy[0]+1500,xy[1]+1500];}
+            if(extent)frameTo(extent);
             return !!selected&&selected.id===target.id;
         }
         function setEnabled(value){enabled=!!value;seq++;if(!enabled){waitEnd(false);clearSelection();legend.hidden=true;layer.setActive(state,false);colorLegendSync();marineTime();restoreBasemap();message('');}else{satelliteOn();legend.hidden=false;colorLegendSync();marineTime();waitStart();sync();}}
@@ -429,7 +475,7 @@
         if(enabled)satelliteOn();
         var ready=enabled?sync():Promise.resolve();
         var timer=setInterval(function(){if(enabled&&!disposed)sync();},60000);
-        return {ready:ready,setEnabled:setEnabled,select:select,goTo:goTo,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id,location:selected.location}};},synced:function(){return syncPending||Promise.resolve();},destroy:function(){disposed=true;clearInterval(timer);document.removeEventListener('keydown',escapeSheet);seq++;waitEnd(false);if(waitEl)waitEl.remove();clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();dateNav.remove();if(w.removeEventListener)w.removeEventListener('resize',placeDateNav);clearTimeout(toastTimer);toastEl.remove();document.body.classList.remove('rf-sea-time-on');}}};
+        return {ready:ready,setEnabled:setEnabled,select:select,goTo:goTo,refresh:refresh,tryHandleClick:function(evt){return enabled?layer.hit(evt):false;},getState:function(){return {enabled:enabled,coast:state.coast,sea:state.sea,t:t,selected:selected&&{kind:selected.kind,id:selected.id,location:selected.location}};},synced:function(){return syncPending||Promise.resolve();},destroy:function(){disposed=true;clearInterval(timer);framing=null;if(map.un)map.un('pointerdrag',stopFraming);if(sheetResize)sheetResize.disconnect();document.removeEventListener('keydown',escapeSheet);seq++;waitEnd(false);if(waitEl)waitEl.remove();clearSelection();restoreBasemap();layer.destroy();if(colorLegend)colorLegend.remove();if(timeBar){timeBar.remove();dateNav.remove();if(w.removeEventListener)w.removeEventListener('resize',placeDateNav);clearTimeout(toastTimer);toastEl.remove();document.body.classList.remove('rf-sea-time-on');}}};
     }
     /**
      * 해양안전의 실제 위험예측 버튼과 지도 클릭 훅을 등록한다.
