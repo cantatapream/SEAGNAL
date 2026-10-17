@@ -6,6 +6,7 @@
  *         새로 외부에서 수집하지 않는다(파출소 주소 → 좌표만 운영 서버가 처음 한 번 카카오 주소 검색, 실패하면 대체 위치 + 「대표 위치 추정」 — 한 실행 60초 상한·영구 오류 6시간 쉼).
  *         연안 특보·떠밀림 안내는 그날 칸 전부(coastDayDetail daily.notices), 공식 사고예보 프레임이 빠진 칸은 frameGaps 로 넘긴다.
  *         해역마다 가장 많이 겹치는 소해구(region.haegu.sub)의 예보 행도 붙인다(sea.weatherSmall — §11.10.19, 소해구 예보는 station_briefing.run 이 넘긴 찾기 함수로만 읽는다).
+ *         해역마다 「최근 14일 선박 동향」(region.traffic — §11.10.23, 넘겨받은 sea_traffic_profile 계산기로만, 반올림 전 도형)도 붙인다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : config/coastal_safety/coastguard_stations.geojson(관할 97곳) · coastal_hazard_zones.wgs84.geojson(위험구역)
@@ -20,6 +21,7 @@
  *                    · regional_forecast_collector.js(loadCoastalForecasts·loadRegionalForecasts·ZONE_TO_OFFICE_MAP — 인덱스 「○○앞바다 기상예보」 표와 같은
  *                      data/regional_forecast.json 의 지방기상청 단기 해상예보·단기 전망 통보문, 처음 쓸 때 require)
  *                    · services/risk_time.js(nearest — 소해구 예보 시각 맞추기, risk_store 대해구 forecast 와 같은 규칙) · 소해구 예보는 smallzone_forecast.peek 결과를 찾기 함수로 받는다(직접 require 하지 않음)
+                    · services/sea_traffic_profile.js(profiles — 해역별 최근 14일 선박 동향, station_briefing.run 이 계산기를 넘긴다 · 직접 require 하지 않음)
  *  - 서버 API      : 없음
  *  - 나를 쓰는 곳  : services/station_briefing.js(run) · scripts/test_station_briefing.js(순수 부분)
  * [로드 순서] 서버 require 부작용 없음. 무거운 정적 자료는 처음 쓸 때 읽는다.
@@ -262,7 +264,7 @@ function smallRowAt(rows, at) {
  * 소해구마다 한 벌 — 열쇠 「232-5」. 대해구 weather[major].rows 와 같은 꼴(창의 3시간 칸마다 {at, wh, ws, forecastAt}).
  * 못 붙이는 소해구는 넣지 않는다 → 그 해역은 규칙(seaSection)이 대해구 예보로 후퇴한다: 찾기 함수가 그 대해구를 주지 않음(저장 판 없음·지난 판) · 그 소해구 줄 없음 ·
  * 창의 칸이 모두 파고·풍속 null(육지 소해구 — 기상청 -999).
- * 예: smallWeather([{haegu:{major:232,sub:5}}], win, (m) => ({baseTm:'2026101700', data:{'5':[…]}})) → {'232-5':{label:'소해구 232-5', major:'232', sub:5, baseTm:'2026101700', rows:[{at,wh,ws,forecastAt}…]}}
+ * 예: smallWeather([{haegu:{major:232,sub:5}}], win, (m) => ({baseTm:'2026101700', data:{'5':[…]}})) → {'232-5':{label:'232-5해구', major:'232', sub:5, baseTm:'2026101700', rows:[{at,wh,ws,forecastAt}…]}}
  * @param {object[]} regions - collectSea 해역 @param {object} win - editionWindow(slots) @param {Function|null} small - (대해구 번호) → {baseTm, data:{소해구:[행]}} | null
  * @returns {object} 소해구 열쇠 → 예보 [연계] ← collectSea · services/station_briefing.js run(저장 판을 다시 받은 뒤 다시 붙임) / → smallRowAt
  */
@@ -276,7 +278,8 @@ function smallWeather(regions, win, small) {
         if (!Array.isArray(all) || !all.length) continue;
         const rows = win.slots.map((at) => { const f = smallRowAt(all, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; });
         if (!rows.some((q) => q.wh !== null || q.ws !== null)) continue;   // 육지 소해구(값이 모두 -999 → null) — 대해구로 후퇴
-        out[key] = { label: '소해구 ' + key, major: String(h.major), sub: Number(h.sub), baseTm: z.baseTm || null, rows };
+        // 이름표 「232-5해구」(2026-10-18 사용자 *"전체적으로 대해구 ## 이렇게 표현하지말고 ##해구 이런식으로 … 소해구는 ##-#해구"* — 설계서 §11.10.22 A, 종전 「소해구 232-5」)
+        out[key] = { label: key + '해구', major: String(h.major), sub: Number(h.sub), baseTm: z.baseTm || null, rows };
     }
     return out;
 }
@@ -284,10 +287,11 @@ function smallWeather(regions, win, small) {
  * 해상 입력을 관할마다 모은다 — 관할 안 모든 칸(공식 사고 5km 칸 + 혼잡 교통 칸, 칸 중심이 든 관할 — marine_fusion.briefing 과 같은 규칙)을
  * 해역으로 묶고(같은 공식 사고 칸에 든 교통 칸은 하나), 창의 3시간 칸마다 공식 사고 단계·그 3시간 중 가장 높은 혼잡 예보를 붙인다.
  * 예: collectSea(stations, {risk, marine, win, now}) → Map{key → {reviewedCells, regions:[{rid,lat,lon,haegu,ref,zone,slots:{at:{accident,congestion}},history}], weather:{major:{label,rows}}, weatherSmall:{'232-5':{label,rows}}, warnings:[…]}}
- * @param {object[]} stations @param {object} o - risk(risk_store)·marine(marine_fusion 저장소)·win·now·smallZone(소해구 찾기 함수 — smallWeather, 없으면 weatherSmall 은 빈 객체) @returns {object} {bySt:Map, sources}
- * [연계] ← gather / → marine.stationAt·cellHistory·codec.rowAt·warningsFromTree·smallWeather
+ * @param {object[]} stations @param {object} o - risk(risk_store)·marine(marine_fusion 저장소)·win·now·smallZone(소해구 찾기 함수 — smallWeather, 없으면 weatherSmall 은 빈 객체)
+ *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 있으면 해역마다 region.traffic = 결과|null, 없으면 필드 없음 — §11.10.23) @returns {object} {bySt:Map, sources}
+ * [연계] ← gather / → marine.stationAt·cellHistory·codec.rowAt·warningsFromTree·smallWeather·traffic.profiles
  */
-function collectSea(stations, { risk, marine, win, now, warnHistory = null, smallZone = null }) {
+function collectSea(stations, { risk, marine, win, now, warnHistory = null, smallZone = null, traffic = null }) {
     const codec = require('./marine_congestion_codec'), inputs = risk.marineInputs(), src = inputs.sources || {};
     const byIdx = new Map(stations.map((s) => [s.idx, s])), bySt = new Map(stations.map((s) => [s.key, { cells: new Set(), groups: new Map() }]));
     const acc = inputs.accident?.cells || [], idx = cellIndex(acc), accById = new Map(acc.map((c) => [c.id, c]));
@@ -304,7 +308,7 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null, smal
     const accLevel = (key, i) => { if (!rowCache.has(key)) rowCache.set(key, new Map((frames[key] || []).map((r) => [r[0], r[2]]))); return rowCache.get(key).get(i) || null; };
     // 공식 사고예보 원천은 ok 인데 창의 어떤 칸 프레임이 없으면(예보 범위 밖·수집 누락) 그 칸은 「사고예보 없음(0)」이 아니라 「확인 불가」 — 칸 목록을 넘긴다(독립 검토 낮음).
     const accGaps = (src.accident?.status === 'ok' ? win.slots.filter((at) => !Array.isArray(frames[forecastKey(at)])) : []);
-    const zonesWanted = new Set(), out = new Map();
+    const zonesWanted = new Set(), out = new Map(), geomOf = new Map();   // geomOf = 해역 열쇠 → 반올림 전 도형(최근 14일 선박 동향 — box 는 소수 4자리로 줄인 상자라 쓰지 않는다)
     for (const s of stations) {
         const e = bySt.get(s.key), regions = [], majors = new Set();
         for (const [gid, g] of e.groups) {
@@ -321,12 +325,22 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null, smal
             const zone = b.warnSubZone ? { name: b.warnSubZone, kind: 'sub' } : b.warnZone ? { name: b.warnZone, kind: 'main' } : null;
             if (b.warnZone) zonesWanted.add(R.zoneKey(b.warnZone)); if (b.warnSubZone) zonesWanted.add(R.zoneKey(b.warnSubZone));
             if (b.haegu?.major) majors.add(b.haegu.major);
+            geomOf.set(gid, geom);
             regions.push({ rid: gid, gridId: g.traffic[0] || null, accidentGridId: g.accident?.id || null, lat: b.lat, lon: b.lon, box: boxOf(geom), haegu: b.haegu || null, ref: b.ref || null, zone, zones: [b.warnZone, b.warnSubZone].filter(Boolean), cellCount: g.traffic.length + (g.accident ? 1 : 0), slots, history: marine.cellHistory(geom, 'grid:' + (g.accident?.id || b.id)) });
         }
         const weather = {};
-        for (const major of majors) weather[major] = { label: '대해구 ' + major, box: haeguBox(major), rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
+        // 이름표 「232해구」(§11.10.22 A — 종전 「대해구 232」). [기상 예보] 꼬리 「(232해구 예보)」·해구 문장 「경북북부앞바다(75해구)」가 이 글을 쓴다.
+        for (const major of majors) weather[major] = { label: major + '해구', box: haeguBox(major), rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
         // weatherSmall(§11.10.19 — 사용자 *"소해구 기준으로 기상이 표출되어야 함."*): 해역마다 가장 많이 겹치는 소해구 예보. 없으면 그 해역만 대해구 weather 로(규칙 seaSection)
         out.set(s.key, { reviewedCells: e.cells.size, regions, weather, weatherSmall: smallWeather(regions, win, smallZone), zones: [...new Set(regions.flatMap((r) => r.zones))], frameGaps: accGaps.length && regions.some((r) => r.accidentGridId) ? { accident: accGaps } : {} });
+    }
+    // 최근 14일 선박 동향(2026-10-18 사용자 확정 *"좋아 이렇게 하자."* — 설계서 §11.10.23): sea_traffic_profile 의 해역별 결과를 해역마다 붙인다.
+    //   넘기는 것 = 해역 열쇠(rid)·반올림 전 도형(geom — traffic_history.design.md 「2단계 때 쓰는 법」)·특보구역(zones — 풍랑·태풍 주의보·경보 시간을 뺀다). 계산이 던지면 줄만 없다(경고 한 줄, 브리핑은 계속).
+    if (traffic) {
+        const list = [...out.values()].flatMap((v) => v.regions);
+        let res = null;
+        try { res = traffic.profiles(list.map((r) => ({ key: r.rid, geometry: geomOf.get(r.rid), zones: r.zones }))); } catch (e) { console.warn('[station_briefing] 최근 14일 선박 동향 계산 실패 — 그 줄 없이 만든다: ' + (e && e.message)); }
+        for (const r of list) r.traffic = (res && res.get(r.rid)) || null;
     }
     const all = warningsFromTree(inputs.warnings?.current, zonesWanted, now);
     // 이미 해제된 특보(결정 4): 창 시작 3시간 전(육상 해제 뒤 기간 — 해상 1시간보다 길다)부터 지금까지. 같은 구역·종류가 지금 발효 중이면 다시 발효된 것이라 뺀다.
@@ -597,10 +611,11 @@ function collectZoneWeather(loc, regional) {
  *                     ·warnHistory(특보 구간 기록 — sea_warning_history 기록기, 없으면 이미 해제된 특보는 보지 않는다)
  *                     ·regional(regionalForecast() 결과 — 없으면 (기상) 칸은 「자료를 확인하지 못했습니다」)
  *                     ·smallZone(소해구 예보 찾기 함수 (대해구) → {baseTm, data}|null — station_briefing.run 이 저장 판·판 비교로 만든다, §11.10.19. 없으면 모든 해역이 대해구 예보)
+ *                     ·traffic(sea_traffic_profile 계산기 — collectSea 가 해역마다 최근 14일 선박 동향을 붙인다, §11.10.23. 없으면 그 줄 없음)
  * @returns {object[]} [연계] ← station_briefing.run / → collectSea·collectLand·collectTide·collectZoneWeather
  */
-function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null, regional = null, smallZone = null }) {
-    const sea = collectSea(stations, { risk, marine, win, now, warnHistory, smallZone });
+function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null, regional = null, smallZone = null, traffic = null }) {
+    const sea = collectSea(stations, { risk, marine, win, now, warnHistory, smallZone, traffic });
     const landT = win.targetDate === R.kstDate(now) ? R.isoKst(Math.floor(now / 60000) * 60000) : win.targetDate + 'T00:00:00+09:00';
     return stations.map((st) => {
         const spots = spotsBySt.get(st.key) || [], hz = hazards.get(st.key) || [], s = sea.bySt.get(st.key);

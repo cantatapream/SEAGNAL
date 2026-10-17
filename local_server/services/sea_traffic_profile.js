@@ -12,8 +12,8 @@
  *  - 사용하는 파일 : services/sea_traffic_history.js(dayRows — 날짜별 30분 척수, 메모리 15일·디스크 365일)
  *                    · services/sea_warning_history.js(list — 특보 발효 구간) · services/warn_zone_cells.js(zoneKey — 구역 이름 표기 차이 흡수)
  *                    · services/risk_geo.js(pointInGeometry) · data/risk_forecast/sea_realtime.json.gz(실시간 칸 위치표 — sea_realtime_collector 가 씀)
- *  - 서버 API      : 없음(1단계 — 계산만. 브리핑 연결은 2단계)
- *  - 나를 쓰는 곳  : scripts/test_sea_traffic_profile.js (2단계에서 station_briefing_inputs.collectSea 가 profiles 를 부를 예정)
+ *  - 서버 API      : 없음
+ *  - 나를 쓰는 곳  : services/station_briefing.js(forDefault — forDir() 를 브리핑 서비스에 넘김) → station_briefing_inputs.collectSea(profiles — 해역 카드 [최근 14일 선박 동향], 2단계 §11.10.23) · scripts/test_sea_traffic_profile.js
  * [로드 순서] 서버 require 부작용 없음. 첫 profiles 호출 때 칸 위치표·특보 구간·필요한 날짜만 읽는다.
  * ============================================================================
  */

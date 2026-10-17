@@ -39,9 +39,10 @@
     var PROVIDER = { vm: 'ChatGPT', chatgpt: 'ChatGPT', gemini: 'Gemini' };
     var LEVEL = ['없음', '관심', '주의', '경계'];
     // 서버 station_briefing_ai 의 MIN_S·MAX_S·MAX_CHARS 와 같은 값(시험 test_station_briefing.js 가 같은지 본다) — 오류 풀이 글에만 쓴다.
-    var SHAPE = { minS: 3, maxS: 5, maxChars: 420 };
+    var SHAPE = { minS: 3, maxS: 5, maxChars: 460 };   // 460(2026-10-18 사용자 *"460자로 올리자."* — 설계서 §11.10.22 F, 종전 420)
     // 정시 판 일정(KST 분) — 서버 station_briefing_rules.EDITIONS 와 같은 표(2026-10-17 §11.10.4): 만들기 시작 start → 공개 pub
-    var SLOTS = [{ start: 430, pub: 450 }, { start: 1030, pub: 1050 }, { start: 1360, pub: 1380 }];
+    //   2026-10-18 사용자 *"시각 앞당기자 40분전으로."*(설계서 §11.10.22 D): 06:50·16:50·22:20 시작(종전 07:10·17:10·22:40)
+    var SLOTS = [{ start: 410, pub: 450 }, { start: 1010, pub: 1050 }, { start: 1340, pub: 1380 }];
     var POLL_MS = 2500;
     // 화면에 남겨 둘 고른 값 — 진행 게이지가 다시 그려도(2.5초마다) 사용자가 고른 묶음·실행을 잃지 않게
     var ui = { batch: null, run: null, poll: null };
@@ -58,7 +59,7 @@
     function fullLabel(field, v) { var x = (LABELS[field] || {})[String(v)]; return x ? x[0] + (x[1] ? '(' + x[1] + ')' : '') : String(v); }
     /**
      * 다음 정시 판 — 공개 시각과 만들기 시작 시각(KST — SLOTS, 서버 EDITIONS 와 같은 표). 이미 만들기 시작한 판(시작 ≤ 지금 < 공개)이면 그 판.
-     * 예: 10-17 14:05 KST → '10-17 17:30 공개(17:10부터 만들기)' · 17:20 → '10-17 17:30 공개(17:10부터 만들기)' · 23:10 → '10-18 07:30 공개(07:10부터 만들기)'
+     * 예: 10-17 14:05 KST → '10-17 17:30 공개(16:50부터 만들기)' · 17:20 → '10-17 17:30 공개(16:50부터 만들기)' · 23:10 → '10-18 07:30 공개(06:50부터 만들기)'
      * @param {number} nowMs @returns {string} [연계] ← 상태 칸 「다음 예정」
      */
     function nextEdition(nowMs) {
@@ -167,7 +168,7 @@
         container.textContent = '';
         var host = el('div'); host.setAttribute('data-sb-admin', ''); container.appendChild(host);
         var title = el('div'); title.className = 'admin-section-title'; var ts = el('span'); var ic = el('i'); ic.className = 'fa-solid fa-compass'; ic.style.color = '#22d3ee'; ts.appendChild(ic); ts.appendChild(document.createTextNode(' AI 브리핑 — 연안 안전 브리핑')); title.appendChild(ts); host.appendChild(title);
-        host.appendChild(el('div', 'color:#94a3b8;font-size:0.78rem;margin-bottom:10px;line-height:1.5;', '파출소 관할 97곳의 브리핑을 07:30·17:30·23:00 에 보이도록 각 20분 전(07:10·17:10·22:40)부터 만들어 두고, 특보가 바뀌면 그 관할을 곧바로 다시 만듭니다. AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓰고(VM 최대 3번 → Gemini → 그래도 안 되면 서버 규칙 분석), 결론·근거·권고·단계·카드는 서버 규칙입니다. 바꾼 값은 누르는 즉시 저장됩니다.'));
+        host.appendChild(el('div', 'color:#94a3b8;font-size:0.78rem;margin-bottom:10px;line-height:1.5;', '파출소 관할 97곳의 브리핑을 07:30·17:30·23:00 에 보이도록 각 40분 전(06:50·16:50·22:20)부터 만들어 두고, 특보가 바뀌면 그 관할을 곧바로 다시 만듭니다. AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓰고(VM 최대 3번 → Gemini → 그래도 안 되면 서버 규칙 분석), 결론·근거·권고·단계·카드는 서버 규칙입니다. 바꾼 값은 누르는 즉시 저장됩니다.'));
         var cfgBox = elc('div', 'sba-box'); cfgBox.setAttribute('data-sb-config', ''); host.appendChild(cfgBox);
         var stBox = elc('div', 'sba-box'); stBox.setAttribute('data-sb-status', ''); host.appendChild(stBox);
         var pvBox = elc('div', 'sba-box'); pvBox.setAttribute('data-sb-preview', ''); host.appendChild(pvBox);
@@ -283,7 +284,7 @@
         (s.pending || []).forEach(function (x) { var d = sec('공개 예정', 'data-sb-pending-status'); d.appendChild(elc('div', 'sba-main', at(x.publishAt) + ' — ' + x.stations + '곳(그때까지 사용자에게는 이전 판)')); });
         if (s.pendingWarn) sec('특보 변경 대기').appendChild(elc('div', 'sba-main', (s.pendingWarn.zones || []).join(', ') + ' — 마지막 변경 ' + at(s.pendingWarn.lastChangeAt)));
         Object.keys(s.failures || {}).forEach(function (k) { var f = s.failures[k], d = sec('실행 실패'); d.appendChild(el('div', 'color:#fca5a5;font-size:.8rem;', k + ' ' + f.count + '번 · 마지막 ' + at(f.lastAt) + ' · ' + (f.reason || ''))); });
-        var nx = sec('다음 예정', 'data-sb-next'); nx.appendChild(elc('div', 'sba-main', nextEdition(Date.now()))); nx.appendChild(elc('div', 'sba-sub', '07:30·17:30·23:00 공개, 각 20분 전부터 만들기 · 특보가 바뀌면 그 관할만 곧바로'));
+        var nx = sec('다음 예정', 'data-sb-next'); nx.appendChild(elc('div', 'sba-main', nextEdition(Date.now()))); nx.appendChild(elc('div', 'sba-sub', '07:30·17:30·23:00 공개, 각 40분 전부터 만들기 · 특보가 바뀌면 그 관할만 곧바로'));
         if (Array.isArray(s.days) && s.days.length) sec('저장된 날짜').appendChild(elc('div', 'sba-sub', s.days.join(', ')));
         drawEditionTimes(sec('정시 판 소요 시간 — 최근 ' + EDITION_ROWS + '회까지', 'data-sb-edition-times'), s);
         drawRunErrors(body, s);

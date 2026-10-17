@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: local_server/services/station_briefing.js
- * 역할  : 「연안 안전 브리핑」(종전 이름 「활동지점 안전 브리핑」) 생성·저장·일정·설정을 맡는다. 정해진 판(만들기 시작 07:10·17:10·22:40 → 공개 07:30·17:30·23:00 KST — 2026-10-17 §11.10.4)과
+ * 역할  : 「연안 안전 브리핑」(종전 이름 「활동지점 안전 브리핑」) 생성·저장·일정·설정을 맡는다. 정해진 판(만들기 시작 06:50·16:50·22:20 → 공개 07:30·17:30·23:00 KST — 2026-10-17 §11.10.4, 2026-10-18 §11.10.22 D 사용자 *"시각 앞당기자 40분전으로."* — 종전 07:10·17:10·22:40)과
  *         특보가 바뀔 때(그 특보구역에 걸친 관할만 — 곧바로 공개) 관할 입력을 모아(station_briefing_inputs) 규칙으로 판단하고(station_briefing_rules — 「총평과 권고」 결론·근거·권고·규칙 분석 문단 포함)
  *         연안·해상 분석 문단만 AI 로 쓴 뒤(station_briefing_ai — VM 최대 3번 → Gemini → 규칙 분석) 날짜별 파일에 저장한다. 공개 시각 전의 판은 pending 에 두고 그동안 화면에는 이전 판을 준다(visibleOf).
  *         관리자 설정(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만)과 노출 판정(관리자 기기에만 등)도 여기서 정한다.
@@ -18,6 +18,7 @@
  *                    · data/weather_alerts.json(특보 변경 감지 — 크롤러 결과, 읽기만) · data/station_briefing/(설정·상태·날짜별 브리핑·대표 위치 캐시)
  *                    · services/sea_warning_history.js(이미 해제된 특보 — 해제 뒤 관심, 2026-10-16 결정 4) · services/risk_error_history.js(관리자 오류현황 원천 stationBriefing — 결정 6, historyRow)
  *                    · services/smallzone_forecast.js(peek·getStatus·prefetch — 브리핑 해역의 소해구 예보, §11.10.19 · forDefault 가 넘김)
+ *                    · services/sea_traffic_profile.js(forDir().profiles — 해역 카드 「최근 14일 선박 동향」, §11.10.23 · forDefault 가 넘김)
  *                    · services/admin_push.js sendAdminPush(자동 실행 결과 관리자 푸시 — 운영 FLY_ALLOC_ID 일 때만, 개발은 콘솔 한 줄 · §11.10.8) · services/collect_fail_alert.js reasonOf(실패 푸시의 짧은 분류)
  *  - 서버 API      : routes/station_briefing.js 가 이 모듈을 부른다
  *  - 나를 쓰는 곳  : routes/station_briefing.js · server.js(운영 start) · services/risk_history_sources.js(historyRow — 1분 감시) · scripts/test_station_briefing.js(가짜 시계·어댑터)
@@ -191,7 +192,7 @@ function realAdapters() {
 }
 
 // 관리자 오류현황(위험예측 오류현황 risk_error_history) 연결 — 2026-10-16 결정 6(원문 *"추천대로"*). 원천 이름·낡음 기준·일부 실패 분류.
-// 낡음 10시간: 정시 판 실행 간격 중 가장 긴 것(밤 22:40 → 아침 07:10) 8시간 30분 + 여유(§11.10.4 전에는 23:00→08:00 9시간 + 1시간). 이것이 없으면 브리핑이 멈춰도 오류현황엔 「정상」이 남는다(L-291).
+// 낡음 10시간: 정시 판 실행 간격 중 가장 긴 것(밤 22:20 → 아침 06:50 — §11.10.22 D, 종전 22:40 → 07:10 도 같은) 8시간 30분 + 여유(§11.10.4 전에는 23:00→08:00 9시간 + 1시간). 이것이 없으면 브리핑이 멈춰도 오류현황엔 「정상」이 남는다(L-291).
 const HISTORY_SOURCE = 'stationBriefing', HISTORY_STALE_MS = 10 * 3600000, HISTORY_PARTIAL_CODE = '브리핑 일부 실패 — AI 총평 대신 틀';
 /**
  * 브리핑 상태 파일(state.json)을 오류현황 원천 한 행으로 바꾼다 — 1분 감시(risk_history_sources)와 실행 직후 기록(run·reportFailure)이 같은 판정을 쓰도록 한 곳에 둔다.
@@ -388,11 +389,12 @@ function smallFinder(sz, zb) { return sz && zb ? (major) => { const p = sz.peek(
  *                     ·adminPush(관리자 푸시 발송 (title, body, data) → Promise<{delivered, error?}> — 기본 defaultAdminPush, 시험은 가짜. §11.10.8)
  *                     ·smallZone(소해구 예보 — peek·getStatus·prefetch, 기본 null = 모든 해역 대해구 예보. forDefault 가 smallzone_forecast 를 넘긴다 — 시험은 가짜. §11.10.19)
  *                     ·smallZoneWaitMs(소해구 다시 받기 기다림 상한 — 기본 SMALLZONE_WAIT_MS)
+ *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 기본 null = 「최근 14일 선박 동향」 줄 없음. forDefault 가 forDir() 를 넘긴다 — 시험은 가짜·주입. §11.10.23)
  * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList·stationAreas (+ 시험용 _pushResult)
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
-    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush, smallZone = null, smallZoneWaitMs = SMALLZONE_WAIT_MS } = {}) {
+    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush, smallZone = null, smallZoneWaitMs = SMALLZONE_WAIT_MS, traffic = null } = {}) {
     let timer = null, running = null, stationsCache = null, areasCache = null, ad = adapters;
     // 실행 번호(§11.10.8 — 관리자 푸시는 실행 하나에 1통). run 이 하나씩 늘려 결과에 싣고, pushResult 는 이미 보낸 번호 이하를 다시 보내지 않는다(같은 결과를 두 번 처리해도 1통).
     let runSeq = 0, pushedSeq = 0; const pushedKey = {};
@@ -499,6 +501,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             const aiOn = !!ad || allowRealAI(), cfg = aiOn ? config : { ...config, method: 'template' }, rg = regional ? regional() : null;
             // 공개 시각(§11.10.4): 정시 판은 EDITIONS 공개 시각(07:30·17:30·23:00) — 그 전에는 pending 에 두고 화면은 이전 판. 특보 변경·관리자 실행은 곧바로(publishAt = 만든 시각).
             //   데드라인 = 20분과 「공개 시각까지」 중 이른 것 — 공개 시각에 된 만큼(AI 분석 + 나머지는 규칙 분석) 보이고 늦추지 않는다. 공개 시각이 이미 지난 늦은 실행은 20분 그대로(곧바로 공개).
+            //   §11.10.22 D(2026-10-18 — 공개 40분 전 시작): 제때 시작한 정시 판은 20분 쪽이 걸려, 다 쓰지 못해도 공개 시각보다 20분 앞서 끝난다(데드라인 규칙은 그대로 — 작업 지시서 「여유 20분 생김」).
             const publishAt = R.publishAtFor(kind, now) || R.isoKst(now), untilPublish = Date.parse(publishAt) - now;
             const deadline = t0 + (untilPublish > 0 ? Math.min(runDeadlineMs, untilPublish) : runDeadlineMs);
             const results = [], rule = [], szTried = new Set();
@@ -507,7 +510,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 stepProgress(progress, 'gather', { window: wi });
                 // 소해구 예보(§11.10.19): 저장 판을 찾기 함수로 넘겨 모으고, 저장 판이 대해구 판보다 옛것이면 필요한 대해구만 한 번 받아 다시 붙인다
                 const zb = smallZone ? zoneBaseOf(risk) : null, szFind = smallFinder(smallZone, zb);
-                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg, smallZone: szFind });
+                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg, smallZone: szFind, traffic });
                 if (smallZone) szInfo = await prepareSmallZone(inputs, win, zb, szFind, szTried);
                 const briefings = inputs.map((x) => R.buildBriefing(x, win, { generatedAt: R.isoKst(now) }));
                 // 읽은 날짜 파일은 캐시(pick 이 그대로 쓰는 객체)라 복사해 고친다 — 쓰기가 실패해도 사용자에게 저장 안 된 판이 보이거나 대기 판이 메모리에서 사라지지 않게(§11.10.5 독립 검토 4).
@@ -691,7 +694,7 @@ let def = null;
 function forDefault() {
     if (def) return def;
     const { stores } = require('../routes/risk_forecast');
-    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast') });
+    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast'), traffic: require('./sea_traffic_profile').forDir() });
     return def;
 }
 
