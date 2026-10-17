@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: local_server/routes/station_briefing.js
- * 역할  : 「활동지점 안전 브리핑」 API — 관할 목록·관할 브리핑(노출 판정 거침)과 관리자 설정·상태·즉시 실행.
+ * 역할  : 「연안 안전 브리핑」(종전 이름 「활동지점 안전 브리핑」) API — 관할 목록·관할 브리핑(노출 판정 거침 · 공개 시각 전 판은 숨김)과 관리자 설정·상태·즉시 실행·미리보기(공개 예정 판 포함).
  *         노출 기본값은 「관리자에게만」: 관리자로 등록된 기기(admin_devices.json)나 관리자 로그인 토큰일 때만 내용을 준다.
  *         계약(응답 필드·예시)은 client/js/ocean-map/coastal-risk/briefing.contract.md.
  * ----------------------------------------------------------------------------
@@ -70,7 +70,7 @@ function createRouter({
             if (typeof key !== 'string' || !key) return res.status(400).json({ ok: false, error: '관할(station) 필요' });
             if (!['auto', 'today', 'tomorrow'].includes(day)) return res.status(400).json({ ok: false, error: 'day 는 auto·today·tomorrow' });
             if (!svc().stations().some((s) => s.key === key)) return res.status(404).json({ ok: false, error: '관할 없음' });
-            res.json({ ok: true, ...svc().pick({ key, day }) });
+            res.json({ ok: true, ...svc().pick({ key, day, withPending: true }) });   // 공개 예정 판(§11.10.4)이 있으면 그것을 「예정」으로(pending·publishAt)
         } catch (e) { fail(res, e); }
     });
     router.put(admin + '/config', express.json({ limit: '8kb' }), (req, res) => { try { res.json({ ok: true, config: svc().writeConfig(req.body || {}) }); } catch (e) { fail(res, e); } });

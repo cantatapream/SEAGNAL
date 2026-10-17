@@ -1,8 +1,9 @@
 /**
  * ============================================================================
  * 파일명: client/js/forecast/station-briefing/station_briefing_render.js
- * 역할  : 「활동지점 안전 브리핑」 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론·(기상)·(물때)·근거·권고 + AI 해설 · 특별 상황·해상 시간 막대·해역 카드·육상 카드·조석·기준 시각)을
- *         화면 칸으로 옮긴다. 서버 글은 모두 textContent 로만 넣는다(계약서 §5 「화면은 textContent 로만」 — HTML 삽입 금지).
+ * 역할  : 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론 + 연안·해상 분석 문단(AI 또는 규칙) + 접힌 「분석 근거」(근거·권고) + (기상)·(물때)
+ *         · 특별 상황·해상 시간 막대·해역 카드·연안 카드·조석·기준 시각)을 화면 칸으로 옮긴다(2026-10-17 사용자 결정 「가」 모양 — 설계서 §11.10.4).
+ *         아코디언 제목 글 「HH:MM AI 연안 안전 브리핑」(titleText)도 여기서 만든다. 서버 글은 모두 textContent 로만 넣는다(계약서 §5 「화면은 textContent 로만」 — HTML 삽입 금지).
  *         HTML 로 넣는 것은 조석 게이지(해양종합정보 OS.tideGaugeHtml 이 숫자·시각만으로 만든 것)뿐이다.
  *         근거 줄 ▸ 펼침(2026-10-17 §11.10.3): 고립 사고 지점 표 · 관할 해역 미니 지도(해당 칸·대해구 테두리 깜빡임 — 접거나 다시 그리면 멈춤).
  * ----------------------------------------------------------------------------
@@ -27,7 +28,26 @@
     // 원천 열쇠 → 사람이 읽는 이름(서버 station_briefing_rules.SOURCE_LABEL 과 같은 표 + sources 의 tourConcentration).
     // accident = 「해양사고 위험예보」(2026-10-17 사용자 결정 §11.10.3 — 브리핑 안 이름만, 종전 「공식 사고예보」)
     var SOURCE_LABEL = { accident: '해양사고 위험예보', congestion: '혼잡 예보', zoneForecasts: '해구 예보', warnings: '기상특보', concentration: '관광지 사람 집중률', tourConcentration: '관광지 사람 집중률', hazard: '위험구역', events: '행사', rip: '이안류', gale: '강풍 자료', forecast: '해구 예보', detail: '관광지 상세', swell: '너울' };
-    var EDITION = { morning: '08:00 판', evening: '17:30 판', night: '23:00 판(오늘 밤~내일)', warning: '특보 변경 판', manual: '관리자 즉시 실행 판' };
+    // 판 이름 — 정시 판은 그 판의 시각(editionTime — 07:30·17:30·23:00, 2026-10-17 §11.10.4 전에 만든 판은 만든 시각 08:00 등) + 「판」, 나머지는 이 표.
+    var EDITION = { night: '판(오늘 밤~내일)', warning: '특보 변경 판', manual: '관리자 즉시 실행 판' }, SCHEDULED = { morning: 1, evening: 1, night: 1 };
+    /**
+     * 판 시각 「HH:MM」 — 정시 판은 공개 시각(publishAt — 07:30·17:30·23:00), 특보 변경·관리자 판은 만든 시각(generatedAt).
+     * publishAt 이 없는 옛 판(§11.10.4 전)은 만든 시각 — 그때는 만든 시각이 곧 판 시각(08:00·17:30·23:00)이었다.
+     * 예: {edition:'morning',publishAt:'…T07:30:00+09:00',generatedAt:'…T07:10:05+09:00'} → '07:30' · {edition:'warning',generatedAt:'…T13:12:40+09:00'} → '13:12' · null → ''
+     * @param {Object} b - briefing @returns {string} [연계] ← titleText·editionLabel
+     */
+    function editionTime(b) {
+        var iso = b && SCHEDULED[b.edition] && b.publishAt ? b.publishAt : b && b.generatedAt, m = /T(\d{2}):(\d{2})/.exec(String(iso || ''));
+        return m ? m[1] + ':' + m[2] : '';
+    }
+    /**
+     * 아코디언 제목 — 2026-10-17 사용자 *"연안 안전 브리핑 아코디언을 hh:mm AI 연안 안전 브리핑으로 변경해줘."*. 보이는 판의 시각을 앞에, 판이 없으면 시각 없이.
+     * 예: titleText({edition:'morning',publishAt:'2026-10-17T07:30:00+09:00'}) → '07:30 AI 연안 안전 브리핑' · titleText(null) → 'AI 연안 안전 브리핑'
+     * @param {Object|null} b @returns {string} [연계] ← station_briefing.js setTitle(#station-briefing-title)
+     */
+    function titleText(b) { var t = editionTime(b); return (t ? t + ' ' : '') + 'AI 연안 안전 브리핑'; }
+    /** 머리·꼬리의 판 이름. 예: 아침 판 → '07:30 판' · 밤 판 → '23:00 판(오늘 밤~내일)' · 특보 → '특보 변경 판'. @param {Object} b @returns {string} [연계] ← render·renderRest */
+    function editionLabel(b) { if (!b) return ''; if (SCHEDULED[b.edition]) return editionTime(b) + ' ' + (EDITION[b.edition] || '판'); return EDITION[b.edition] || ''; }
     var DOW = ['일', '월', '화', '수', '목', '금', '토'];
     // 쓰는 자료와 출처 — [기준 상세] 표(station_briefing_basis.js)와 본문 꼬리 「출처」 줄이 이 한 벌을 같이 쓴다(2단계 검토 B10 — 둘이 어긋나 있었다).
     // [자료, 출처, 쓰는 곳]. 출처는 수집기·자료 파일 머리 주석으로 확인한 것만(build_accidents.js 개방海 「선박사고(해경)」·「인명사고」, build_coast_accidents.py 유형·500m·2020~2024,
@@ -73,12 +93,12 @@
         return e;
     }
     /**
-     * 단계 배지(색 상자 + 단계 말). 노랑·주황 위에는 어두운 글자.
-     * 예: chip(2,'주의 필요') → <span class="sb-chip" style="background:#fb923c;color:#111">주의 필요</span>
-     * @param {number} rank @param {string} word @returns {HTMLElement} [연계] ← 총평·카드·분석 머리
+     * 단계 배지(색 상자 + 단계 말). 노랑·주황 위에는 어두운 글자. prefix 가 있으면 배지 글 앞에(「연안 주의 필요」 — 2026-10-17 사용자 *"육상 주의 필요가 아니라 연안 주의 필요라고 명시되도록 해줘."*).
+     * 예: chip(2,'주의 필요') → <span class="sb-chip" style="background:#fb923c;color:#111">주의 필요</span> · chip(2,'주의 필요','연안') → 「연안 주의 필요」
+     * @param {number} rank @param {string} word @param {string} [prefix] @returns {HTMLElement} [연계] ← 총평·카드·분석 머리
      */
-    function chip(rank, word) {
-        var c = el('span', 'sb-chip', word || WORDS[rank] || '—'), bg = colorOf(rank, word);
+    function chip(rank, word, prefix) {
+        var c = el('span', 'sb-chip', (prefix ? prefix + ' ' : '') + (word || WORDS[rank] || '—')), bg = colorOf(rank, word);
         c.style.background = bg; c.style.color = bg !== GREY && (Number(rank) === 1 || Number(rank) === 2) ? '#111827' : '#fff';
         c.setAttribute('data-rank', String(rank));
         return c;
@@ -264,18 +284,18 @@
         return box;
     }
     /**
-     * 다음 판 안내 — 예정 시각이 아직이면 「다음 브리핑 예정: …」, 이미 지났으면 「다음 브리핑을 준비 중입니다(… 예정)」(만들기 시작 뒤 AI 총평에 최대 20분 — 2단계 검토 B14).
-     * 예: nextText('2026-10-17T23:00:00+09:00', 10-17 21:30) → '다음 브리핑 예정: 10월 17일(토) 23:00' · 23:05 → '다음 브리핑을 준비 중입니다(10월 17일(토) 23:00 시작)'
+     * 다음 판 안내 — 공개 시각(§11.10.4 — 20분 전부터 만들어 두었다가 이 시각에 보임)이 아직이면 「다음 브리핑 공개: …」, 이미 지났으면(서버가 늦게 켜진 경우 등) 「다음 브리핑을 준비 중입니다(… 공개 예정)」.
+     * 예: nextText('2026-10-17T23:00:00+09:00', 10-17 21:30) → '다음 브리핑 공개: 10월 17일(토) 23:00' · 23:05 → '다음 브리핑을 준비 중입니다(10월 17일(토) 23:00 공개 예정)'
      * @param {string} iso @param {number} nowMs @returns {string} [연계] ← render(브리핑 없음·fallback)
      */
-    function nextText(iso, nowMs) { return Date.parse(iso) <= nowMs ? '다음 브리핑을 준비 중입니다(' + kstText(iso) + ' 시작)' : '다음 브리핑 예정: ' + kstText(iso); }
+    function nextText(iso, nowMs) { return Date.parse(iso) <= nowMs ? '다음 브리핑을 준비 중입니다(' + kstText(iso) + ' 공개 예정)' : '다음 브리핑 공개: ' + kstText(iso); }
     /**
      * 브리핑 응답 하나를 그린다(그릇 안을 비우고 새로). 브리핑이 없으면 안내(다음 예정 시각)만.
      * 예: render(document.getElementById('station-briefing-content'), {ok:true,display:true,date:'2026-10-17',briefing:{…},now:null}, {showSea:true,showLand:true,onLink:fn})
      * @param {HTMLElement} box @param {Object} resp - GET /api/station-briefing(또는 관리자 preview) 응답
      * @param {Object} [opts] - showSea·showLand(기본 true)·links(false 면 바로가기 없음)·onLink(target,btn)·now(ms, 시험용)
      * @returns {void}
-     * [연계] ← station_briefing.js renderBody · admin_station_briefing.js 미리보기 / → summaryBodyV2(§11.10.1 총평)·summaryBody(§11.10 판)·legacyOverview(그 전)·renderRest·RiskBasis.open
+     * [연계] ← station_briefing.js renderBody · admin_station_briefing.js 미리보기 / → summaryBodyV3(§11.10.4 「가」 모양 — summary.analysis 있음)·summaryBodyV2(§11.10.1 총평)·summaryBody(§11.10 판)·legacyOverview(그 전)·renderRest·RiskBasis.open
      */
     function render(box, resp, opts) {
         opts = opts || {};
@@ -285,7 +305,7 @@
         var top = el('div', 'sb-meta');
         var left = el('div', 'sb-meta-text');
         if (b && b.station) left.appendChild(el('strong', 'sb-station', (b.station.name || '') + (b.station.office ? ' · ' + b.station.office : '')));
-        if (b) left.appendChild(el('span', 'sb-edition', dateText(b.targetDate) + ' 브리핑 · ' + (EDITION[b.edition] || '') + ' · ' + kstText(b.generatedAt) + ' 생성'));
+        if (b) left.appendChild(el('span', 'sb-edition', dateText(b.targetDate) + ' 브리핑 · ' + editionLabel(b) + ' · ' + kstText(b.generatedAt) + ' 생성'));
         top.appendChild(left);
         var basis = el('button', 'rf-basis-btn sb-basis-btn', '기준 상세'); basis.type = 'button';
         basis.addEventListener('click', function (e) { e.stopPropagation(); if (w.RiskBasis) w.RiskBasis.open('briefing', basis); });
@@ -294,16 +314,19 @@
         if (!b) {
             var empty = el('div', 'sb-empty');
             empty.appendChild(el('p', '', '아직 이 관할의 브리핑이 없습니다.'));
-            empty.appendChild(el('p', 'sb-small', resp && resp.nextExpectedAt ? nextText(resp.nextExpectedAt, nowMs) : '브리핑은 매일 08:00 · 17:30 · 23:00에 만들기 시작하고(AI 총평을 쓰면 최대 20분 뒤 보입니다), 특보가 바뀌면 다시 만듭니다.'));
+            empty.appendChild(el('p', 'sb-small', resp && resp.nextExpectedAt ? nextText(resp.nextExpectedAt, nowMs) : '브리핑은 매일 07:30 · 17:30 · 23:00에 보입니다 — 각 20분 전(07:10 · 17:10 · 22:40)부터 만들어 두었다가 그 시각에 보여 드리고, 특보가 바뀌면 그 관할을 곧바로 다시 만듭니다.'));
             box.appendChild(empty);
             return;
         }
-        if (resp.fallback) box.appendChild(el('p', 'sb-note', dateText(resp.wanted) + ' 브리핑(23:00 생성)이 아직 없어 ' + dateText(resp.date) + ' 브리핑을 보여 드립니다' + (resp.nextExpectedAt ? ' — ' + nextText(resp.nextExpectedAt, nowMs) : '') + '.'));
+        if (resp.fallback) box.appendChild(el('p', 'sb-note', dateText(resp.wanted) + ' 브리핑(23:00 공개)이 아직 없어 ' + dateText(resp.date) + ' 브리핑을 보여 드립니다' + (resp.nextExpectedAt ? ' — ' + nextText(resp.nextExpectedAt, nowMs) : '') + '.'));
+        // 관리자 미리보기의 공개 예정 판(§11.10.4 — 사용자 화면에는 공개 시각까지 이전 판)
+        if (resp.pending) { var pn = el('p', 'sb-note sb-pending', '예정 — ' + kstText(resp.publishAt) + '에 공개될 판입니다. 지금 사용자 화면에는 ' + (resp.current ? '이전 판(' + kstText(resp.current.generatedAt) + ' 생성)' : '이 관할 브리핑 없음') + '이 보입니다.'); pn.setAttribute('data-sb-pending', ''); box.appendChild(pn); }
 
         // ① 총평과 권고 — summary.weather 칸이 있으면(§11.10.1) 결론 → (기상) → (물때) → 근거·권고 → AI 해설,
         //   summary 만 있으면(§11.10 판 — 10-17 낮에 저장된 파일) 육상·해상 덩어리 모양, 없으면(그 전) 종전 문단 모양
         var ov = b.overview || {}, s1 = section('총평과 권고', 'overview');
-        if (b.summary && Object.prototype.hasOwnProperty.call(b.summary, 'weather')) summaryBodyV2(s1.body, b, resp, ov, showSea, showLand);
+        if (b.summary && b.summary.analysis) summaryBodyV3(s1.body, b, resp, ov, showSea, showLand);
+        else if (b.summary && Object.prototype.hasOwnProperty.call(b.summary, 'weather')) summaryBodyV2(s1.body, b, resp, ov, showSea, showLand);
         else if (b.summary) summaryBody(s1.body, b, resp, ov, showSea, showLand); else legacyOverview(s1.body, b, resp, ov, showSea, showLand);
         box.appendChild(s1.root);
         renderRest(box, b, opts, showSea, showLand, nowMs);
@@ -460,7 +483,7 @@
             }
             body.appendChild(wrap);
         };
-        if (showLand && b.land && b.summary.land) block('land', '육상', b.land.level.rank, b.land.level.word, b.summary.land, ov.land);
+        if (showLand && b.land && b.summary.land) block('land', '연안', b.land.level.rank, b.land.level.word, b.summary.land, ov.land);
         if (showSea && b.sea && b.summary.sea) block('sea', '해상', b.sea.overviewLevel.rank, b.sea.overviewLevel.word, b.summary.sea, ov.sea);
         if (showSea && resp.now && resp.now.text) body.appendChild(el('p', 'sb-now', resp.now.text));
         var note = ai && (ov.land || ov.sea) ? '해설은 ' + who + '가 썼습니다 — 숫자·지명·단계는 서버가 계산한 값만 씁니다' + (ov.reused ? '(지난 판과 입력이 같아 재사용)' : '') + '. 결론·근거·권고는 서버가 계산한 값입니다.'
@@ -474,6 +497,35 @@
      */
     function notesEmptyText(W) {
         return W && W.notesFound ? '단기 전망에서 항목을 뽑지 못했습니다 — 원문(' + (W.notesSource || '지방기상청 단기 전망') + ')을 확인하세요.' : '이 날에 해당하는 특보·강풍·해상 특이사항이 단기 전망에 없습니다.';
+    }
+    /**
+     * (기상) 칸 — 가장 가까운 앞바다 단기 해상예보 오전·오후 두 줄 + 출처 + (특이사항)(§11.10.1·§11.10.2). summaryBodyV2(§11.10.1)·summaryBodyV3(§11.10.4) 공용.
+     * 예: weatherPart(part, {weather:{zone:'제주도서부앞바다',rows:[{label:'오늘 오전',text:'…'}],source:'…',notes:[…]}}) → <div data-sb-part="weather">…</div>
+     * @param {function(string,string):HTMLElement} part - 이름표 칸 만들기 @param {Object} S - summary @returns {void} [연계] ← summaryBodyV2·summaryBodyV3 / → notesEmptyText
+     */
+    function weatherPart(part, S) {
+        var W = S.weather || {}, wp = part('weather', '(기상)' + (W.zone ? ' ' + W.zone : ''));
+        // 앞바다가 30km 넘게 멀면 서버가 note 로 밝힌다(먼바다 예보로 바꿈 또는 먼 앞바다 그대로 — 독립 검토 5)
+        if (W.note) { var wn = el('p', 'sb-small', W.note); wn.setAttribute('data-sb-wx-note', ''); wp.appendChild(wn); }
+        else if (W.zone && Number.isFinite(Number(W.distKm))) wp.appendChild(el('p', 'sb-small', '파출소 대표 위치에서 가장 가까운 특보구역(약 ' + Number(W.distKm) + 'km)'));
+        if (!W.missing && Array.isArray(W.rows) && W.rows.length) {
+            var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); li.appendChild(document.createTextNode(r.text)); wl.appendChild(li); }); wp.appendChild(wl);
+            if (W.source) wp.appendChild(el('p', 'sb-small', W.source));
+        } else { var wm = el('p', 'sb-miss', '기상예보 자료를 확인하지 못했습니다.'); wm.setAttribute('data-sb-wx-missing', ''); wp.appendChild(wm); }
+        wp.appendChild(el('p', 'sb-sum-k', '(특이사항)'));
+        if (W.bulletinMissing) wp.appendChild(el('p', 'sb-miss', '지방기상청 단기 전망 자료를 확인하지 못했습니다.'));
+        else if (Array.isArray(W.notes) && W.notes.length) { var nl = list(W.notes); nl.classList.add('sb-wx-notes'); wp.appendChild(nl); }
+        else { var ne = el('p', W.notesFound ? 'sb-miss' : 'sb-small', notesEmptyText(W)); ne.setAttribute('data-sb-wx-notes-empty', W.notesFound ? 'unparsed' : 'none'); wp.appendChild(ne); }
+        if (!W.bulletinMissing && W.notesSource) wp.appendChild(el('p', 'sb-small', W.notesSource));
+    }
+    /**
+     * (물때) 칸 — 서버 물때 줄 + (고립 주의) 줄(§11.10.3 — 연안을 보일 때만). 줄이 없으면 칸도 없다. summaryBodyV2·summaryBodyV3 공용.
+     * @param {function(string,string):HTMLElement} part @param {Object} S - summary @param {*} land - 연안을 보이나(summary.land) @returns {void} [연계] ← summaryBodyV2·summaryBodyV3 / → isolationLine
+     */
+    function tidePart(part, S, land) {
+        // (고립 주의) 줄(§11.10.3)은 물때 줄 아래 — 「사고 지점(N개소)」를 누르면 지점 표
+        var iso = land && S.isolation && Array.isArray(S.isolation.rows) && S.isolation.rows.length ? S.isolation : null;
+        if ((Array.isArray(S.tide) && S.tide.length) || iso) { var tp = part('tide', '(물때)'); (S.tide || []).forEach(function (t) { tp.appendChild(el('p', 'sb-sum-tide', t)); }); if (iso) tp.appendChild(isolationLine(iso)); }
     }
     /**
      * 「총평과 권고」 §11.10.1 모양(2026-10-17 사용자 후속 결정 — *"결론 한줄 -> 기상(…가장 가까운 특보구역…오전, 오후…) … / 물때 / 연안의 안전 등급 분석에 근거…"*):
@@ -492,7 +544,7 @@
         // ① 결론
         var c = part('conclusion', null);
         var head = function (label, rank, word, text) { var r = el('div', 'sb-conclusion'); var lv = el('span', 'sb-levels'); lv.appendChild(el('span', 'sb-level-k', label)); lv.appendChild(chip(rank, word)); r.appendChild(lv); r.appendChild(el('p', 'sb-headline', text || '')); c.appendChild(r); };
-        if (land) head('육상', b.land.level.rank, b.land.level.word, S.land.headline);
+        if (land) head('연안', b.land.level.rank, b.land.level.word, S.land.headline);
         if (sea) {
             head('해상', b.sea.overviewLevel.rank, b.sea.overviewLevel.word, S.sea.headline);
             if (b.sea.level && Number(b.sea.level.rank) > Number(b.sea.overviewLevel.rank)) {
@@ -500,25 +552,9 @@
                 ln.setAttribute('data-sb-level-note', ''); c.appendChild(ln);
             }
         }
-        // ② (기상)
-        var W = S.weather || {}, wp = part('weather', '(기상)' + (W.zone ? ' ' + W.zone : ''));
-        // 앞바다가 30km 넘게 멀면 서버가 note 로 밝힌다(먼바다 예보로 바꿈 또는 먼 앞바다 그대로 — 독립 검토 5)
-        if (W.note) { var wn = el('p', 'sb-small', W.note); wn.setAttribute('data-sb-wx-note', ''); wp.appendChild(wn); }
-        else if (W.zone && Number.isFinite(Number(W.distKm))) wp.appendChild(el('p', 'sb-small', '파출소 대표 위치에서 가장 가까운 특보구역(약 ' + Number(W.distKm) + 'km)'));
-        if (!W.missing && Array.isArray(W.rows) && W.rows.length) {
-            var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); li.appendChild(document.createTextNode(r.text)); wl.appendChild(li); }); wp.appendChild(wl);
-            if (W.source) wp.appendChild(el('p', 'sb-small', W.source));
-        } else { var wm = el('p', 'sb-miss', '기상예보 자료를 확인하지 못했습니다.'); wm.setAttribute('data-sb-wx-missing', ''); wp.appendChild(wm); }
-        wp.appendChild(el('p', 'sb-sum-k', '(특이사항)'));
-        if (W.bulletinMissing) wp.appendChild(el('p', 'sb-miss', '지방기상청 단기 전망 자료를 확인하지 못했습니다.'));
-        else if (Array.isArray(W.notes) && W.notes.length) { var nl = list(W.notes); nl.classList.add('sb-wx-notes'); wp.appendChild(nl); }
-        else { var ne = el('p', W.notesFound ? 'sb-miss' : 'sb-small', notesEmptyText(W)); ne.setAttribute('data-sb-wx-notes-empty', W.notesFound ? 'unparsed' : 'none'); wp.appendChild(ne); }
-        if (!W.bulletinMissing && W.notesSource) wp.appendChild(el('p', 'sb-small', W.notesSource));
-        // ③ (물때)
-        // (고립 주의) 줄(§11.10.3)은 물때 줄 아래 — 「사고 지점(N개소)」를 누르면 지점 표
-        var iso = land && S.isolation && Array.isArray(S.isolation.rows) && S.isolation.rows.length ? S.isolation : null;
-        if ((Array.isArray(S.tide) && S.tide.length) || iso) { var tp = part('tide', '(물때)'); (S.tide || []).forEach(function (t) { tp.appendChild(el('p', 'sb-sum-tide', t)); }); if (iso) tp.appendChild(isolationLine(iso)); }
-        // ④⑤ 육상·해상 근거·권고
+        weatherPart(part, S);
+        tidePart(part, S, land);
+        // ④⑤ 연안·해상 근거·권고
         var nowText = showSea && resp.now && resp.now.text ? resp.now.text : null;
         var basis = function (kind, label, sum) {
             var d = part(kind, null); d.setAttribute('data-sb-summary', kind); d.classList.add('sb-sum');
@@ -532,12 +568,12 @@
             }
             if (sum.advice) { var ad = el('p', 'sb-sum-advice'); ad.appendChild(el('span', 'sb-sum-k', '(권고) ')); ad.appendChild(document.createTextNode(sum.advice)); d.appendChild(ad); }
         };
-        if (land) basis('land', '육상', S.land);
+        if (land) basis('land', '연안', S.land);
         if (sea) basis('sea', '해상', S.sea);
         // ⑥ AI 해설
         if (ai && ((land && ov.land) || (sea && ov.sea))) {
             var cp = part('commentary', null);
-            [['land', '육상', land && ov.land], ['sea', '해상', sea && ov.sea]].forEach(function (x) {
+            [['land', '연안', land && ov.land], ['sea', '해상', sea && ov.sea]].forEach(function (x) {
                 if (!x[2]) return;
                 var cm = el('p', 'sb-commentary'); cm.setAttribute('data-sb-commentary', x[0]);
                 cm.appendChild(el('span', 'sb-commentary-k', '해설 · ' + who + ' · ' + x[1] + ' ')); cm.appendChild(document.createTextNode(x[2])); cp.appendChild(cm);
@@ -549,6 +585,50 @@
         var sn = el('p', 'sb-small sb-source', note); sn.setAttribute('data-sb-source', ai ? ov.source : 'template'); body.appendChild(sn);
     }
     /**
+     * 「총평과 권고」 §11.10.4 「가」 모양(2026-10-17 사용자 *"가.로 진행하고"* — 설계서 §11.10.4):
+     *   ① [연안 ○○ 필요] 결론 → 연안 분석 문단(AI 3~5문장, 실패면 서버 규칙 분석 — 작은 이름표 「AI 분석 · ChatGPT」/「규칙 분석」) → ▸ 연안 분석 근거(접힘 — (근거)·(권고))
+     *   ② [해상 ○○ 필요] 결론(+ 해상 분석 단계가 더 높으면 한 줄) → 해상 분석 문단 → 지금 밀집 줄 → ▸ 해상 분석 근거(접힘 — (근거)(▸ 지도 펼침 그대로)·(권고))
+     *   ③ (기상) ④ (물때)·(고립 주의) ⑤ 작은 출처 줄. 사용자 원문: *"그 분석 아래에 (연안 분석 근거) <- 이 아코디언이 있어서 누르면 육상 분석 근거가 나오고 해상 분석 아래에 (해상 분석 근거) <- 이 아코디언이 있어서 누르면 … 분석 근거가 나오도록"*
+     * 예: summaryBodyV3(body, {summary:{analysis:{land:'…',sea:'…'},land:{headline,basis,advice},sea:{…},weather:{…},tide:[…]},…}, resp, {source:'chatgpt',land:'…',sea:'…'}, true, true)
+     * @param {HTMLElement} body @param {Object} b @param {Object} resp @param {Object} ov - b.overview @param {boolean} showSea @param {boolean} showLand @returns {void}
+     * [연계] ← render / → chip·expander·basisList·weatherPart·tidePart
+     */
+    function summaryBodyV3(body, b, resp, ov, showSea, showLand) {
+        var S = b.summary, A = S.analysis || {}, ai = ov.source === 'chatgpt' || ov.source === 'gemini', who = ov.source === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+        var land = showLand && b.land && S.land, sea = showSea && b.sea && S.sea, nowText = showSea && resp.now && resp.now.text ? resp.now.text : null, usedAi = false;
+        /** 이름표가 붙은 칸. 예: part('weather','(기상)') → <div class="sb-part" data-sb-part="weather"><p class="sb-sum-k">(기상)</p></div> */
+        var part = function (key, label) { var d = el('div', 'sb-part'); d.setAttribute('data-sb-part', key); if (label) d.appendChild(el('p', 'sb-sum-k', label)); body.appendChild(d); return d; };
+        /** 연안·해상 한 덩어리 — 결론 → 분석 문단 → (해상이면 지금 밀집) → ▸ 분석 근거. */
+        var block = function (kind, label, rank, word, sum, aiText, ruleText) {
+            var d = part(kind, null); d.classList.add('sb-sum'); d.setAttribute('data-sb-summary', kind);
+            var c = el('div', 'sb-conclusion'); c.appendChild(chip(rank, word, label)); c.appendChild(el('p', 'sb-headline', sum.headline || '')); d.appendChild(c);
+            if (kind === 'sea' && b.sea.level && Number(b.sea.level.rank) > Number(b.sea.overviewLevel.rank)) { var ln = el('p', 'sb-small sb-level-note', levelNoteText(b)); ln.setAttribute('data-sb-level-note', ''); d.appendChild(ln); }
+            var useAi = !!(ai && aiText), text = useAi ? aiText : ruleText;
+            if (text) {
+                var p = el('p', 'sb-analysis'); p.setAttribute('data-sb-analysis', kind); p.setAttribute('data-sb-analysis-source', useAi ? ov.source : 'rule');
+                var tag = el('span', 'sb-an-tag' + (useAi ? '' : ' sb-an-rule'), useAi ? 'AI 분석 · ' + who : '규칙 분석'); p.appendChild(tag); p.appendChild(document.createTextNode(' ' + text)); d.appendChild(p);
+                if (useAi) usedAi = true;
+            }
+            if (kind === 'sea' && nowText) { var nl = el('p', 'sb-now', nowText); nl.setAttribute('data-sb-now', ''); d.appendChild(nl); nowText = null; }
+            var rows = Array.isArray(sum.basis) ? sum.basis : [];
+            if (rows.length || sum.advice) {
+                var x = expander(label + ' 분석 근거', function (panel) {
+                    if (rows.length) { panel.appendChild(el('p', 'sb-sum-k', '(근거)')); panel.appendChild(basisList({ basis: rows, area: sum.area, detail: sum.detail }, b)); }
+                    if (sum.advice) { var ad = el('p', 'sb-sum-advice'); ad.appendChild(el('span', 'sb-sum-k', '(권고) ')); ad.appendChild(document.createTextNode(sum.advice)); panel.appendChild(ad); }
+                }, 'basis-' + kind);
+                var row = el('p', 'sb-basis-x'); row.appendChild(x.btn); d.appendChild(row); d.appendChild(x.panel);
+            }
+        };
+        if (land) block('land', '연안', b.land.level.rank, b.land.level.word, S.land, ov.land, A.land);
+        if (sea) block('sea', '해상', b.sea.overviewLevel.rank, b.sea.overviewLevel.word, S.sea, ov.sea, A.sea);
+        if (nowText) { var nw = el('p', 'sb-now', nowText); nw.setAttribute('data-sb-now', ''); body.appendChild(nw); }
+        weatherPart(part, S);
+        tidePart(part, S, land);
+        var note = usedAi ? '분석 문단은 ' + who + '가 썼습니다 — 숫자·지명·단계는 서버가 계산한 값만 쓰도록 서버가 검사합니다' + (ov.reused ? '(지난 판과 입력이 같아 재사용)' : '') + '. 결론·기상·근거·권고는 서버가 모은·계산한 값입니다.'
+            : '규칙 분석 — AI 분석을 쓰지 못해(또는 AI 를 쓰지 않는 설정) 서버 규칙으로 만든 문단입니다. 결론·기상·근거·권고는 서버가 모은·계산한 값입니다.';
+        var sn = el('p', 'sb-small sb-source', note); sn.setAttribute('data-sb-source', usedAi ? ov.source : 'rule'); body.appendChild(sn);
+    }
+    /**
      * 「총평과 권고」 종전 모양 — summary 가 없는 브리핑(2026-10-17 전에 저장된 10-16·10-17 파일 등)용: 단계 배지 · 육상/해상 문단(overview.land/sea) · 근거 ▸ 접힘 · 출처 작은 글씨.
      * @param {HTMLElement} body @param {Object} b @param {Object} resp @param {Object} ov @param {boolean} showSea @param {boolean} showLand @returns {void}
      * [연계] ← render
@@ -556,7 +636,7 @@
     function legacyOverview(body, b, resp, ov, showSea, showLand) {
         var s1 = { body: body };   // 종전 render 안의 코드를 그대로 옮겨 s1.body 이름을 유지
         var levels = el('div', 'sb-levels');
-        if (showLand && b.land && b.land.level) { levels.appendChild(el('span', 'sb-level-k', '육상')); levels.appendChild(chip(b.land.level.rank, b.land.level.word)); }
+        if (showLand && b.land && b.land.level) { levels.appendChild(el('span', 'sb-level-k', '연안')); levels.appendChild(chip(b.land.level.rank, b.land.level.word)); }
         if (showSea && b.sea && b.sea.overviewLevel) { levels.appendChild(el('span', 'sb-level-k', '해상')); levels.appendChild(chip(b.sea.overviewLevel.rank, b.sea.overviewLevel.word)); }
         if (levels.childNodes.length) s1.body.appendChild(levels);
         // 총평 해상 단계(거른 뒤)가 해상 분석 단계보다 낮으면 한 줄 — 초록 「평소 수준」이 「안전」으로 읽히지 않게(2단계 검토 B1).
@@ -564,7 +644,7 @@
             var ln = el('p', 'sb-small sb-level-note', levelNoteText(b));
             ln.setAttribute('data-sb-level-note', ''); s1.body.appendChild(ln);
         }
-        if (showLand && ov.land) { var pl = el('p', 'sb-overview'); pl.setAttribute('data-sb-overview', 'land'); pl.appendChild(el('b', 'sb-overview-k', '육상 ')); pl.appendChild(document.createTextNode(ov.land)); s1.body.appendChild(pl); }
+        if (showLand && ov.land) { var pl = el('p', 'sb-overview'); pl.setAttribute('data-sb-overview', 'land'); pl.appendChild(el('b', 'sb-overview-k', '연안 ')); pl.appendChild(document.createTextNode(ov.land)); s1.body.appendChild(pl); }
         if (showSea && ov.sea) { var ps = el('p', 'sb-overview'); ps.setAttribute('data-sb-overview', 'sea'); ps.appendChild(el('b', 'sb-overview-k', '해상 ')); ps.appendChild(document.createTextNode(ov.sea)); s1.body.appendChild(ps); }
         if (showSea && resp.now && resp.now.text) s1.body.appendChild(el('p', 'sb-now', resp.now.text));
         // 근거 ▸ (접힘) — 총평에 쓴 해역·관광지와 그 근거
@@ -573,7 +653,7 @@
             (b.sea.overviewTop || []).forEach(function (c) { if (c && c.overview) basisItems.push('해상 · ' + (c.overview.window ? c.overview.window + ' ' : '') + c.name + ' — ' + (c.overview.label || c.sourceLabel || '')); });
             if (b.sea.weather && b.sea.weather.text) basisItems.push('해상 · ' + b.sea.weather.text);
         }
-        if (showLand && b.land) (b.land.overviewTop || []).forEach(function (c) { basisItems.push('육상 · ' + c.name + ' — ' + (c.sourceLabel || '') + (c.today && c.today.text ? ' (' + c.today.text + ')' : '')); });
+        if (showLand && b.land) (b.land.overviewTop || []).forEach(function (c) { basisItems.push('연안 · ' + c.name + ' — ' + (c.sourceLabel || '') + (c.today && c.today.text ? ' (' + c.today.text + ')' : '')); });
         if (basisItems.length) { var d = el('details', 'sb-basis'); d.appendChild(el('summary', '', '근거')); d.appendChild(list(basisItems)); s1.body.appendChild(d); }
         var srcNote = ov.source === 'template' ? '기본 문장(틀) — AI 총평 대신 서버 규칙으로 만든 문장입니다.' : ov.source === 'chatgpt' || ov.source === 'gemini' ? (ov.source === 'chatgpt' ? 'ChatGPT' : 'Gemini') + '가 쓴 총평 — 숫자·지명·단계는 서버가 계산한 값만 씁니다' + (ov.reused ? '(지난 판과 입력이 같아 재사용)' : '') + '.' : null;
         if (srcNote) { var sn = el('p', 'sb-small sb-source'); sn.setAttribute('data-sb-source', ov.source); sn.textContent = srcNote; s1.body.appendChild(sn); }
@@ -616,7 +696,7 @@
 
         // ⑤ 육상 분석 — 관광지 카드 + 상시 위험 장소. 해상만 관할(land null)은 육상 보기를 꺼 두었어도 이유 한 줄을 보인다(계약 §7).
         if (showLand || !b.land) {
-            var s4 = section('육상 분석', 'land');
+            var s4 = section('연안 분석', 'land');
             if (!b.land) s4.body.appendChild(el('p', 'sb-small', b.seaOnlyReason || '이 관할은 해상 브리핑만 제공합니다.'));
             else {
                 var land = b.land, lh = el('div', 'sb-sec-head'); lh.appendChild(chip(land.level && land.level.rank, land.level && land.level.word)); if (land.level && land.level.source) lh.appendChild(el('span', 'sb-tag', land.level.source)); s4.body.appendChild(lh);
@@ -641,11 +721,11 @@
 
         // ⑦ 기준 시각·출처·참고 정보
         var foot = el('div', 'sb-foot');
-        foot.appendChild(el('p', '', '기준 시각 ' + kstText(b.generatedAt) + ' · ' + (EDITION[b.edition] || '') + (b.window ? ' · 다루는 시간 ' + kstText(b.window.from) + ' ~ ' + kstText(b.window.to) : '')));
+        foot.appendChild(el('p', '', '기준 시각 ' + kstText(b.generatedAt) + ' · ' + editionLabel(b) + (b.window ? ' · 다루는 시간 ' + kstText(b.window.from) + ' ~ ' + kstText(b.window.to) : '')));
         var fs = el('p', '', '출처: ' + SOURCES.map(function (r) { return r[0] + ' — ' + r[1]; }).join(' · ')); fs.setAttribute('data-sb-foot-source', ''); foot.appendChild(fs);
         foot.appendChild(el('p', 'sb-notice', b.notice || '참고 정보이며 안전을 보장하지 않습니다.'));
         box.appendChild(foot);
     }
     // blinking() = 지금 깜빡이는 지도 수(시험이 접기·다시 그리기 뒤 0 인지 본다 — §11.10.3)
-    w.StationBriefingRender = { render: render, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, notesEmptyText: notesEmptyText, WORDS: WORDS, SOURCES: SOURCES, blinking: function () { return blinking; } };
+    w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, notesEmptyText: notesEmptyText, WORDS: WORDS, SOURCES: SOURCES, blinking: function () { return blinking; } };
 })(window);

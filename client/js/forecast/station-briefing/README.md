@@ -1,7 +1,7 @@
 # station-briefing  `client/js/forecast/station-briefing/`
 
-해양예보 탭(기상정보 > 특보 및 전망) 「🔭 기상청 해상 기상 전망」 바로 아래의 **「🧭 활동지점 안전 브리핑」 아코디언**이다.
-파출소 관할 하나를 고르면 서버가 하루 세 번(08:00·17:30·23:00) + 특보가 바뀔 때 만든 그 관할의 해상·육상 안전 브리핑을 보여 준다.
+해양예보 탭(기상정보 > 특보 및 전망) 「🔭 기상청 해상 기상 전망」 바로 아래의 **「🧭 HH:MM AI 연안 안전 브리핑」 아코디언**이다(2026-10-17 이름 바꿈 — 종전 「활동지점 안전 브리핑」, 설계서 §11.10.4).
+파출소 관할 하나를 고르면 서버가 하루 세 번(07:30·17:30·23:00 에 보이도록 각 20분 전 07:10·17:10·22:40 부터 만들어 둠) + 특보가 바뀔 때(곧바로) 만든 그 관할의 해상·연안 안전 브리핑을 보여 준다. 제목의 HH:MM = 보이는 판의 시각.
 요구사항은 `client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md` §11, 서버 계약은 같은 폴더 `briefing.contract.md`.
 파일별 상세(함수·데이터 흐름·주의사항)는 [station_briefing.guide.md](station_briefing.guide.md).
 
@@ -12,16 +12,16 @@
 
 | 파일 | 역할 | 주요 함수 |
 |------|------|-----------|
-| `station_briefing.js` | 아코디언 본체 — 노출 판정·설정 흐름(관할 고르기·건너뛰기·숨김)·N 뱃지·바로가기·설정 팝업 칸 | `refreshDisplay`, `loadBriefing`, `renderSetup`, `finishSetup`, `renderConfirm`, `toggle`, `openSetup`, `updateBadge`, `openInRisk`, `renderSettings`, `applyVisibility`, `toast` |
+| `station_briefing.js` | 아코디언 본체 — 노출 판정·설정 흐름(관할 고르기·건너뛰기·숨김)·N 뱃지·바로가기·설정 팝업 칸·제목 「HH:MM AI 연안 안전 브리핑」 | `refreshDisplay`, `loadBriefing`, `setTitle`, `renderSetup`, `finishSetup`, `renderConfirm`, `toggle`, `openSetup`, `updateBadge`, `openInRisk`, `renderSettings`, `applyVisibility`, `toast` |
 | `station_briefing_picker.js` | 설정 화면의 관할 고르기 칸 — 탭 두 개 「지도에서 선택하기」(해역 단추 → 관할 폴리곤 지도) · 「파출소로 선택하기」(지방청 → 해양경찰서 → 파출소 아코디언 + 이름 찾기) | `mount`, `destroy`, `mapPanel`, `drawMap`, `zoneStyle`, `listPanel`, `loadAreas` |
-| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` · 근거 줄 지도 펼침(OpenLayers) | `render`, `summaryBodyV2`(§11.10.1 총평), `basisList`·`expander`·`miniMap`·`isolationLine`(§11.10.3), `summaryBody`(§11.10 판), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
+| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` · 근거 줄 지도 펼침(OpenLayers) · 제목 글 | `render`, `titleText`·`editionTime`·`editionLabel`(§11.10.4 제목·판 이름), `summaryBodyV3`(§11.10.4 「가」 모양), `weatherPart`·`tidePart`((기상)·(물때) 공용), `summaryBodyV2`(§11.10.1 총평), `basisList`·`expander`·`miniMap`·`isolationLine`(§11.10.3), `summaryBody`(§11.10 판), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
 | `station_briefing_basis.js` | [기준 상세] 문안(위험예측 기준 상세 창 `RiskBasis.open('briefing')` 으로 연다) | (문자열 `RiskBasisContent.briefing`) |
 | `station_briefing.css` | `.sb-*` 모양(바깥 아코디언·안쪽 칸·조석 게이지·기준 창은 기존 CSS 재사용) | — |
 
 ## 화면에서 찾아가는 법
 
-해양예보 탭 → 「기상청 해상 기상 전망」 아래 「활동지점 안전 브리핑」(관리자 기기: 통합관리자 센터에서 관리자 모드 체크 + 관리자 기기 등록, 또는 관리자 로그인 토큰).
-설정 팝업(오른쪽 위 ⚙) → 관심해역 탭 아래 「활동지점 안전 브리핑」 칸에서 표시/숨김·관할 설정.
+해양예보 탭 → 「기상청 해상 기상 전망」 아래 「HH:MM AI 연안 안전 브리핑」(관리자 기기: 통합관리자 센터에서 관리자 모드 체크 + 관리자 기기 등록, 또는 관리자 로그인 토큰).
+설정 팝업(오른쪽 위 ⚙) → 관심해역 탭 아래 「연안 안전 브리핑」 칸에서 표시/숨김·관할 설정.
 
 ## 로드 순서
 
@@ -34,7 +34,7 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - **위험예측 미리보기 잠금**: [위험예측에서 보기 ›]는 **관리자 모드일 때만** 위험예측 미리보기 잠금(10번 누름)을 푼다. 일반 기기는 잠금을 그대로 두고 「위험예측은 아직 미리보기 기능이라 이 기기에서는 바로 열 수 없습니다」 토스트만 띄운다.
   ⚠**브리핑을 일반 사용자에게 공개할 때 이 잠금을 어떻게 할지는 사용자가 따로 정할 문제**다(설계서 §11.9.1 A2).
 - **노출 판정 다시 받기**: 10분마다(모든 기기) · 관리자 로그인·로그아웃·관리자 모드·관리자 기기 등록이 바뀔 때 바로(`admin.js` → `seagnal-admin-change` 사건) · 조회가 실패하면 직전 판정을 유지하고 5초·20초·60초 뒤 다시.
-- **점검 차단**: 통합관리자 점검 트리 「특보정보 > 특보 및 전망 > 활동지점 안전 브리핑」(`station-briefing`)으로 이 아코디언만 막을 수 있다(index2.html featureMap·bodyMap).
+- **점검 차단**: 통합관리자 점검 트리 「특보정보 > 특보 및 전망 > 연안 안전 브리핑」(`station-briefing`)으로 이 아코디언만 막을 수 있다(index2.html featureMap·bodyMap).
 - **설정 팝업 [관할 설정]**: 팝업에 저장하지 않은 다른 변경이 있으면 묻는다([확인] 저장하고 이동 / [취소] 팝업에 남기 — `settings.js settingsModalHasUnsaved`).
 - **출처 한 벌**: 본문 꼬리 「출처」 줄과 [기준 상세] 출처 표는 `StationBriefingRender.SOURCES` 하나를 같이 쓴다 — 출처를 고칠 때는 그 배열만.
 - **긴 본문**: 펼친 아코디언과 안쪽 칸은 높이 상한을 풀었다(`max-height:none` — 카드 최대치에서 아래가 잘리던 것).
@@ -79,6 +79,18 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - ▸ 를 누르면 그 줄 바로 아래 높이 200px 지도: 관할 해역 전체(파란 선)에 맞추고 그 칸·대해구 테두리(빨강)를 600ms 마다 깜빡인다. 접으면·다시 그리면 멈추고, 움직임 줄이기 설정이면 깜빡이지 않는다. 바탕은 관심해역 고르기 지도와 같은 해아름 바다지도(`oceanCreateKhoaLayer`), 없으면 선만. 도형은 서버가 브리핑 `summary.sea.area`·`detail[].boxes` 로 보낸다(소수 4자리·단순화).
 - [기준 상세]에 「해상 근거 읽는 법」(해양사고 위험예보·칸 크기·결론에 넣지 않는 이유·「특보 가능성 기준」은 풍랑주의보 기준이 아님·지도·고립 표)을 더했다.
 
+## 「연안 안전 브리핑」·미리 만들어 정해진 시각 공개·「가」 모양(2026-10-17 사용자 결정 — 설계서 §11.10.4)
+
+> 사용자 원문: 「연안 안전 브리핑으로 하자.」 · 「연안 안전 브리핑 아코디언을 hh:mm AI 연안 안전 브리핑으로 변경해줘.」 · 「07:10분에 만들기 시작, 보이는 시각 08:00시 오후는 그대로, 밤은 그대로.」 → 「아침 보이는 시각은 07시 30분으로 변경함.」 · 「가.로 진행하고」 · 「육상 주의 필요가 아니라 연안 주의 필요라고 명시되도록 해줘.」 · 「vm 최대 3번 후 제미나이로 가자.」
+
+- **제목** `#station-briefing-title` = 「07:30 AI 연안 안전 브리핑」(정시 판은 공개 시각 `publishAt`, 특보 변경·관리자 판은 만든 시각 — `StationBriefingRender.titleText`, `station_briefing.js setTitle`). 판이 없으면 「AI 연안 안전 브리핑」.
+- **공개 시각**: 서버가 07:10·17:10·22:40 에 만들기 시작해 07:30·17:30·23:00 까지는 이전 판을 준다(화면은 받은 것만 그린다 — 10분 갱신 주기라 공개 뒤 최대 10분 안에 바뀐다). 브리핑 없음 안내 「브리핑은 매일 07:30 · 17:30 · 23:00에 보입니다 — 각 20분 전(07:10 · 17:10 · 22:40)부터 …」 · 다음 판 「다음 브리핑 공개: …」.
+- **「가」 모양**(`summary.analysis` 가 있는 판 — `summaryBodyV3`): [연안 ○○ 필요] 결론 → 연안 분석 문단(이름표 「AI 분석 · ChatGPT」/「AI 분석 · Gemini」/「규칙 분석」) → ▸ 연안 분석 근거(처음 접힘 — (근거)·(권고)) → [해상 ○○ 필요] 결론 → 해상 분석 문단 → 지금 밀집 한 줄 → ▸ 해상 분석 근거(근거 줄 ▸ 지도 펼침 그대로) → (기상) → (물때)·(고립 주의). `[data-sb-part]` = land·sea·weather·tide, `[data-sb-analysis="land|sea"]`·`data-sb-analysis-source`(chatgpt·gemini·rule), 펼침 단추 `[data-sb-x="basis-land|basis-sea"]`, 지금 밀집 `[data-sb-now]`(해상 덩어리 안).
+- AI 가 실패하면(VM 3번 → Gemini 한 번 → 실패) 서버 규칙 분석 문단(`summary.analysis`)을 「규칙 분석」 이름표로 보인다. 제목은 그대로.
+- **「육상」 → 「연안」**: 결론 칩·분석 근거·아래 카드 칸 제목(「연안 분석」)·설정 칸(「연안 브리핑 보기」)·옛 판 이름표. 설정 화면 제목 「연안 안전 브리핑 지역 설정」.
+- **옛 판**: `summary.analysis` 가 없으면 종전 모양 그대로(§11.10.1 → `summaryBodyV2`, §11.10 → `summaryBody`, 그 전 → `legacyOverview`).
+- 관리자 「AI 브리핑」: 다음 예정 「10-17 17:30 공개(17:10부터 만들기)」 · 「공개 예정 … — N곳」 · 미리보기의 공개 전 판은 「예정 — … 에 공개될 판입니다」(`[data-sb-pending]`) · 오류 「validate · 2번째」(몇 번째 시도) · 통계 「AI n(다시 시도 m곳 · Gemini k회) · 규칙 분석 r」.
+
 ## 시험
 
-`local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES) — 실제 Chromium 으로 index2.html 전체를 띄워 일반·관리자 기기, 설정 흐름, 본문 상태(새 총평 모양·옛 브리핑 대체·「AI 해설 없음」), textContent, 바로가기, N 뱃지, [기준 상세], 관리자 「AI 브리핑」 탭(오류 목록 [복사]·[md로 저장] 포함)을 본다.
+`local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES) — 실제 Chromium 으로 index2.html 전체를 띄워 일반·관리자 기기, 설정 흐름, 본문 상태(「가」 모양·제목 시각·규칙 분석·옛 브리핑 대체(§11.10.1·§11.10·그 전)), textContent, 바로가기, N 뱃지, [기준 상세], 관리자 「AI 브리핑」 탭(오류 목록 [복사]·[md로 저장] 포함)을 본다.

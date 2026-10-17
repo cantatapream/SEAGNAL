@@ -1,14 +1,15 @@
 /**
  * ============================================================================
  * 파일명: local_server/services/station_briefing_ai.js
- * 역할  : 관할 브리핑 「총평과 권고」의 **AI 해설**(육상·해상 각 1~2문장 — 원인·시간 흐름)만 AI 에게 맡기는 부분. 결론·근거·권고는 서버가 만든다
- *         (station_briefing_rules.buildSummary — 2026-10-17 사용자 결정, 설계서 §11.10). 서버가 정한 사실(단계·해역·시각·숫자)을 묶어 AI 에게 보내고,
- *         돌아온 글을 관할별로 대조 검사(숫자+단위·한글 수사·배수·지명·단계 말·금지어·안전 단정·결론과 다른 단정·출항 지시·HTML/링크·문장 수·글자 수, NFKC 정규화)해 통과한 것만 쓴다.
- *         순서: ChatGPT(관리자 정액제 VM) → 꺼져 있거나 실패하면 Gemini → 둘 다 실패하면 해설 없음(source 'template'). 실패한 관할만 한 번 더, 그래도 실패면 해설 없음.
+ * 역할  : 「연안 안전 브리핑」 관할마다 **AI 분석 문단**(연안·해상 각 3~5문장 — 장소·단계·원인·시간 흐름, 마지막 「따라서 … 필요합니다」)만 AI 에게 맡기는 부분.
+ *         결론·근거·권고는 서버가 만든다(station_briefing_rules.buildSummary — 설계서 §11.10·§11.10.4). 서버가 정한 사실(단계·해역·시각·숫자)을 묶어 AI 에게 보내고,
+ *         돌아온 글을 관할별로 대조 검사(숫자+단위·한글 수사·배수·지명·단계 말·금지어·안전 단정·결론과 다른 단정·출항 지시·HTML/링크·문장 수·글자 수·마지막 「따라서」, NFKC 정규화)해 통과한 것만 쓴다.
+ *         다시 시도(2026-10-17 사용자 *"vm 최대 3번 후 제미나이로 가자."*): 해양경찰서 묶음마다 VM → 검증·호출에 떨어진 관할만 버려진 이유를 지시문에 넣어 VM 으로 다시(관할마다 VM 최대 3번)
+ *         → 그래도 실패면 Gemini 한 번(같은 이유 포함) → 그래도 실패면 서버 규칙 분석 문단(source 'template' — 화면 「규칙 분석」, summary.analysis).
  *         묶음 단위(파출소·해양경찰서·지방청)와 「입력이 지난번과 같으면 재사용」을 설정으로 고른다(§11.6-17). 호출마다 시간 제한·실행 데드라인·VM 연속 실패 차단기.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : services/station_briefing_rules.js(hash·RULES_VERSION·buildSummary·summaryLines — 서버 결론·근거 숫자를 허용 목록에·SOURCE_LABEL·md·dayWordOf)
+ *  - 사용하는 파일 : services/station_briefing_rules.js(hash·RULES_VERSION·buildSummary·summaryLines — 서버 결론·근거 숫자를 허용 목록에·SOURCE_LABEL·md·dayWordOf · AI 가 실패하면 summary.analysis 규칙 문단이 보인다)
  *                    · config/zone_group_map.js(ZONE_GROUP_MAP — 기상청 해역 이름 전부: 묶음 이름 + 앞바다·먼바다. 그중 그 관할의 기상청 전망·(기상) 칸에 나온 이름만 해설에 허용 — §11.10.2)
  *  - 서버 API      : 없음 — AI 호출은 넘겨받은 어댑터로만(실제: codex_bridge.callRaw · gemini_client.callGeminiRaw — station_briefing.js 가 만든다)
  *  - 나를 쓰는 곳  : services/station_briefing.js(run) · scripts/test_station_briefing.js(가짜 어댑터)
@@ -26,7 +27,9 @@ const SCHEMA = 'station-briefing-input-v2';
 // v4·v5(2026-10-17 독립 검토 6~9 — 설계서 §11.10.2): 결론을 뒤집거나 누그러뜨리는 말(평온·위험하지 않·위험이 낮·가능성 낮·안심)·출항 지시 금지 · 「두세 곳」「세 군데」「세 번」 · 셈말은 문단(육상·해상) 결론·근거에 있는 수만
 //   · 기상청 해역 이름은 그 관할에 관련된 것만(기상청 전망 발췌·(기상) 칸 구역·특이사항에 나온 이름, 「제주도」는 제주 관할이거나 그 글에 있을 때) 정확히 같을 때만 · 문장 나누기(「…다.다음」·줄바꿈)·문단 220자 상한.
 //   지시문 v5: 해역 이름 목록이 관할마다(stations[].kma_zones)로 바뀌었다.
-const VALIDATOR_VERSION = 'sb-validate-v4', PROMPT_VERSION = 'sb-prompt-v5';
+// v5·v6(2026-10-17 사용자 결정 — 설계서 §11.10.4): 해설 1~2문장 → 분석 문단 3~5문장(장소·단계·원인·시간 흐름, 예보 값은 「예상」), 글자 상한 220 → 420, 마지막 문장 「따라서 … 필요합니다」,
+//   「A에는 주의가, B에는 관심이 필요합니다」 나열 꼴의 단계 말도 쉼표로 나뉜 대목의 대상 단계로 검사 · 지시문에 지난 시도가 버려진 이유(retry_feedback).
+const VALIDATOR_VERSION = 'sb-validate-v5', PROMPT_VERSION = 'sb-prompt-v6';
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -53,6 +56,9 @@ const ORDER_RE = /출항(?:을|은)?(?:금지|하지마|하지말|삼가|자제�
 // 단계 말 — 「관심/주의/경계」 + 서술(필요·요구·요망·단계·수준·하십시오·해야·바랍니다·기울·태세·강화 등) 모든 꼴(B4).
 // 「갯벌·고립 주의」·「떠밀림 주의」·「충돌·접촉 주의」 같은 앱 안내 이름과 「풍랑주의보」·따옴표 「'주의'」는 단계 말이 아니다.
 const LEVEL_RE = /(관심|주의|경계)\s*(?:이|가|를|을|은|는|의)?\s*(?:필요|요구|요망|요청|단계|수준|등급|하십시오|하세요|하시기|하셔야|해야|하여야|해\s*주십시오|바랍니다|기울|태세|강화)/g, LEVEL_RANK = { '관심': 1, '주의': 2, '경계': 3 };
+// 나열 꼴 단계 말(§11.10.4 — 분석 문단 마지막 「따라서 돝섬해상유원지에는 주의가, 마산로봇랜드와 실리도에는 관심이 필요합니다」): 「주의가,」처럼 쉼표 앞에서 끊긴 단계 말은
+// 같은 문장에 필요·요구·요망이 있을 때 단계 말로 본다(종전 LEVEL_RE 는 「관심이 필요」만 잡아 「주의가,」가 검사를 빠져나갔다).
+const LEVEL_LIST_RE = /(관심|주의|경계)\s*(?:이|가)\s*[,，]/g, NEED_RE = /필요|요구|요망|요청/;
 // 따옴표로 인용한 공식 단계 이름(예: 공식 사고예보 '주의', 혼잡 예보 '높음')은 서버 사실 문장에 같은 꼴로 있어야 한다.
 const LABEL_RE = /'(낮음|보통|주의|경계|높음|매우높음|위험)'/g;
 // 숫자 + 단위(B1) — 단위까지 묶어 대조한다(「3m」와 「232-3해구」의 3은 다른 사실). 범위(「12~15m/s」)는 범위 자체가 입력에 있어야 한다.
@@ -70,10 +76,14 @@ const MAN_CONTEXT = /^(?:에서|에서는|에서도|앞|쪽|부근|인근|주변
 const NEXT_CONTEXT = /^(?:해역|일대|주변|인근|부근|근처|앞|앞바다|연안|해안|쪽|방면|북|남|동|서|갯바위|방파제|포구|해상|바깥|안쪽|입구|부두|등대|섬)/;
 const STOP_WORD = new Set(['관할', '인근', '주변', '부근', '해당', '같은', '모든', '각', '일부', '전체', '오늘', '내일', '따라서', '특히', '다만', '또', '및', '등', '해상', '육상', '연안', '이', '그', '저', '이번', '이곳', '그곳', '평소', '현재', '지금', '오전', '오후', '새벽', '밤', '낮', '앞', '뒤', '옆', '안', '밖', '근처', '여러', '주요']);
 const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면|다|요|게|께|죠)$/;
-// 해설 문장 수(2026-10-17 §11.10 — 결론·근거·권고는 서버가 쓰므로 AI 는 1~2문장). 종전 총평 문단은 3~5.
-const MIN_S = 1, MAX_S = 2;
-// 해설 문단 글자 상한(독립 검토 9) — 1~2문장 해설에 넉넉한 값. 문장 수 검사를 마침표 없이 이어 쓴 긴 글이 빠져나가지 않게.
-const MAX_CHARS = 220;
+// 분석 문단 문장 수(2026-10-17 사용자 결정 §11.10.4 — 연안·해상 각 3~5문장, 사용자 예시가 4문장·3문장). §11.10 의 해설은 1~2문장이었다.
+const MIN_S = 3, MAX_S = 5;
+// 분석 문단 글자 상한(독립 검토 9 — 문장 수 검사를 마침표 없이 이어 쓴 긴 글이 빠져나가지 않게). 사용자 예시 연안 205자(4문장)·해상 151자(3문장, 「지금」 줄 빼고 —
+// 2026-10-17 node 로 셈) — 문장당 약 50자. 5문장에 이름이 긴 해역(「비양도 북북서방 1.4해리 해역(232-2해구)」 약 25자)·「(예상)」 표기가 붙어도 들어가고(5 × 84자),
+// 예시의 두 배를 넘는 긴 글은 막도록 420자. 종전 1~2문장 해설은 220자.
+const MAX_CHARS = 420;
+// 관할마다 VM 시도 횟수(사용자 *"vm 최대 3번 후 제미나이로 가자."*) — 그 뒤 Gemini 한 번, 그래도 실패면 규칙 분석 문단.
+const VM_ATTEMPTS = 3;
 
 /** NFKC 정규화(전각 숫자·호환 문자 → 보통 꼴, B2). 예: '９９m' → '99m'. @param {string} t @returns {string} [연계] ← 검증 전부 */
 function norm(t) { return String(t || '').normalize('NFKC'); }
@@ -211,33 +221,40 @@ function stationInput(b, kma = null) {
  * 여러 관할을 한 번에 보낼 묶음을 만든다(부록 A schema). kma_outlook = 기상청 해상 기상 전망(단기 통보문) 원문 발췌 — 원인·흐름 이해용이며
  * 그 안의 숫자는 해설에 쓰지 않는다(허용 목록에 넣지 않는다). 해역 이름은 관할마다의 kma_zones(그 관할에 관련된 기상청 해역 이름 — 독립 검토 8)에 있는 것만 쓸 수 있다.
  * 예: batchInput([한림, 애월], kma) → {schema:'station-briefing-input-v2', stations:[2], kma_outlook:{…}, rules:{…}}
- * @param {object[]} inputs - stationInput 결과들 @param {object|null} kma - {title,publishTime,forecastPeriod,excerpt:{해상,강풍,너울,바다안개}}
+ *     다시 시도: batchInput([한림], kma, Map{한림 → {attempt:2, reasons:['place:하저리해수욕장 — 그 지명은 입력에 없다']}}) → stations[0].retry_feedback
+ * @param {object[]} inputs - stationInput 결과들 @param {object|null} kma - {title,publishTime,forecastPeriod,excerpt:{해상,강풍,너울,바다안개}} @param {Map|null} [feedback] - 관할 id → {attempt, reasons}
  * @returns {object} [연계] ← generate / → buildPrompt
  */
-function batchInput(inputs, kma) {
+function batchInput(inputs, kma, feedback = null) {
     // AI 에게는 사람이 읽는 꼴만 보낸다(대조용 열쇠·사실 문장 목록은 서버 검증에만 쓴다).
-    const strip = (si) => { const { allowed_number_keys: _a, allowed_multiplier_keys: _b, fact_sentences: _c, count_keys: _d, ...rest } = si; return rest; };
+    // retry_feedback(§11.10.4) = 지난 시도에서 이 관할 글이 버려진 이유(explainError 로 풀어 쓴 것) — 다시 시도할 때만.
+    const strip = (si) => { const { allowed_number_keys: _a, allowed_multiplier_keys: _b, fact_sentences: _c, count_keys: _d, ...rest } = si; const fb = feedback && feedback.get(si.id); return fb ? { ...rest, retry_feedback: fb } : rest; };
     return {
         schema: SCHEMA, stations: inputs.map(strip), kma_outlook: kma || null,
-        rules: { sentences_per_paragraph: [MIN_S, MAX_S], forbidden: FORBIDDEN.concat(['안전합니다', '이상 없음', '문제없음', '평온합니다·위험하지 않습니다·위험이 낮습니다·안심(결론과 다른 단정)', '출항하지 마십시오·출항 금지(지시)', "해상 '사고 N배'", '한글 수사(세 시·두 척 등 — 곳·개를 세는 말은 그 수가 allowed_numbers 에 있을 때만)', 'HTML·링크']), level_words: ['관심 필요', '주의 필요', '경계 필요'] },
+        rules: { sentences_per_paragraph: [MIN_S, MAX_S], max_chars: MAX_CHARS, last_sentence: '따라서 … 필요합니다.', forbidden: FORBIDDEN.concat(['안전합니다', '이상 없음', '문제없음', '평온합니다·위험하지 않습니다·위험이 낮습니다·안심(결론과 다른 단정)', '출항하지 마십시오·출항 금지(지시)', "해상 '사고 N배'", '한글 수사(세 시·두 척 등 — 곳·개를 세는 말은 그 수가 allowed_numbers 에 있을 때만)', 'HTML·링크']), level_words: ['관심 필요', '주의 필요', '경계 필요'] },
     };
 }
-/** AI 지시문 + 묶음 JSON. 예: buildPrompt(batch) → '너는 …\n\n{"schema":…}'. @param {object} batch @returns {string} [연계] ← generate */
+/** AI 지시문 + 묶음 JSON — 분석 문단 3~5문장(§11.10.4)·예시 두 개·규칙·다시 시도 이유(retry_feedback). 예: buildPrompt(batch) → '너는 …\n\n{"schema":…}'. @param {object} batch @returns {string} [연계] ← generate */
 function buildPrompt(batch) {
     return [
-        '너는 해양 안전 「활동지점 안전 브리핑」의 「총평과 권고」 아래에 붙는 짧은 해설만 쓰는 작성자다. 화면에는 서버가 만든 결론(단계)·근거 목록·권고가 이미 보인다(각 관할의 shown).',
-        '아래 JSON 의 stations 마다 육상 해설(land)과 해상 해설(sea)을 쓴다. 각 해설은 1~2문장.',
-        'shown 의 기상(오전·오후 예보·특이사항)·물때·수(검토 칸·관광지·해역 수)·결론 문장·권고 문장을 되풀이하지 말고(shown.weather 의 숫자는 allowed_numbers 에 없으면 옮기지 않는다), 왜 높아졌는지(원인 — 바람·파도·특보·사람·행사 등)와 시간 흐름(언제부터 언제까지, 언제 나아지는지)을 쉬운 말로 설명한다(예: 「오전에는 바람이 약하지만 15시부터 파고가 높아지고, 21시부터는 풍랑 예비특보 구역에 들어갑니다.」).',
+        '너는 해양 안전 「연안 안전 브리핑」의 분석 문단 작성자다. 화면에는 관할마다 서버가 만든 결론 한 줄(「오늘 ○○파출소 관할 연안(해상)의 단계는 "주의 필요"입니다.」)이 있고, 그 바로 아래에 네 분석 문단이 놓인다. 근거 목록·권고(각 관할의 shown)는 그 아래 접힌 「분석 근거」 칸에 있다.',
+        '아래 JSON 의 stations 마다 연안 분석(land)과 해상 분석(sea)을 쓴다. 각 분석은 3~5문장의 한 문단이다.',
+        '내용: 어느 장소(관광지·해역)가 어떤 단계인지, 왜 그런지(원인 — 연안 위험지수·방문객·행사·너울·이안류·바람·파도·특보·혼잡·과거 사고 이력)와 시간 흐름(언제부터 언제까지, 언제 나아지는지)을 쉬운 말로 잇고, 마지막 문장은 「따라서 …에 주의가(관심이·경계가) 필요합니다.」 꼴로 끝낸다.',
+        '예보·예측에서 온 값(방문객 배수·연안 위험지수·해구 파고·풍속·너울·해양사고 위험예보·혼잡 예보)은 「방문객이 평소의 2배로 예상」처럼 예상임을 자연스럽게 밝힌다.',
+        '연안 예시: 「돝섬해상유원지는 연안 위험지수 \'높음\'으로 주의 필요 수준이고, 방문객이 평소의 2배로 예상됩니다. 위험구역과 과거 익수·표류 사고 이력이 있어 사람이 늘어나는 오늘은 연안 상황 변화에 유의해야 합니다. 마산로봇랜드와 실리도는 관심 필요 수준이며, 실리도에는 과거 연안사고 이력이 있습니다. 따라서 돝섬해상유원지에는 주의가, 마산로봇랜드와 실리도에는 관심이 필요합니다.」',
+        '해상 예시: 「대해구 5099 예보의 최대 파고는 0.4m, 풍속은 6.9m/s로 기준보다 낮을 것으로 예상됩니다. 다만 오늘 오후부터 바람이 강해지고 물결이 높아질 수 있다는 기상 전망이 있어 해상 상황의 변화를 살펴야 합니다. 따라서 마산파출소 관할 해상의 바람과 물결 변화에 관심이 필요합니다.」 (예시의 지명·숫자는 꼴만 보인 것 — 실제로는 그 관할의 입력에 있는 것만 쓴다.)',
+        'shown 의 결론 문장을 그대로 되풀이하지 않는다. shown.weather 의 숫자는(오전·오후 예보·특이사항) allowed_numbers 에 없으면 옮기지 않는다 — 흐름(「오후부터 바람이 강해질 수 있다」)만 말로 쓴다.',
         '규칙(어기면 그 관할 글은 버려진다):',
-        '0) 각 해설은 220자 이내.',
-        '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로 쓴다 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다. 다만 「두 곳」·「세 개」처럼 곳·개를 세는 말은 그 수가 allowed_numbers 에 「2곳」·「3개」 꼴로 있고 그 해설(육상·해상)의 shown 결론·근거·권고에도 그 수가 있을 때만 쓸 수 있다.',
+        '0) 각 분석은 ' + MAX_CHARS + '자 이내, 3~5문장, 마지막 문장은 「따라서」로 시작해 「필요합니다.」로 끝난다.',
+        '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로 쓴다 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다. 다만 「두 곳」·「세 개」처럼 곳·개를 세는 말은 그 수가 allowed_numbers 에 「2곳」·「3개」 꼴로 있고 그 분석(연안·해상)의 shown 결론·근거·권고에도 그 수가 있을 때만 쓸 수 있다.',
         '2) 지명(항·포구·해수욕장·앞바다·해구·섬·갯바위·파출소 등)은 allowed_places 이름(또는 place_stems), 그리고 그 관할의 kma_zones 에 있는 기상청 해역 이름(「제주도남쪽바깥먼바다」 등)만 그대로 쓴다.',
-        '3) 단계 말(관심·주의·경계 + 필요·요구·단계·하십시오 등 모든 꼴)은 levels.sea(해상 해설)·levels.land(육상 해설)에 적힌 그 대상의 단계보다 높이지 않는다. 단계 말이 있는 문장에는 대상 이름을 함께 쓴다 — 이름이 없으면 그 해설의 가장 낮은 단계까지만. 따옴표로 쓰는 공식 단계 이름(\'주의\' 등)은 allowed_labels 에 있는 것만.',
-        '4) 확인하지 못한 자료(missing_sources)는 화면 근거 목록에 이미 적혀 있다 — 그 자료가 빠졌는데 「평소 수준」·「없습니다」로 단정하지 않는다.',
-        '5) 쓰지 않는 말: 순찰·배치·출동·단속·통제·투입·경비정·검문·근무(직무 지시), 「안전합니다」·「이상 없음」·「문제없음」·「위험 요소가 없습니다」(안전 단정), 「평온합니다」·「위험하지 않습니다」·「위험이 낮습니다」·「안심하고」(화면 결론과 다른 단정 — 시간 흐름의 「오전에는 잔잔하지만 오후부터 …」는 된다), 「출항하지 마십시오」·「출항 금지」(지시), 「사고 확률」. 「두세 곳」「세 군데」 같은 어림 수사도 쓰지 않는다. 배수(N배)는 allowed_multipliers.sea(해상)·land(육상)에 있는 것만 — 해상의 「사고 N배」·「두 배」는 쓰지 않는다. 지시(「~하라」)를 쓰지 않는다.',
+        '3) 단계 말(관심·주의·경계 + 필요·요구·단계·수준·하십시오 등 모든 꼴, 「A에는 주의가, B에는 관심이 필요합니다」의 「주의가,」도)은 levels.sea(해상 분석)·levels.land(연안 분석)에 적힌 그 대상의 단계보다 높이지 않는다. 단계 말 바로 앞(같은 문장, 쉼표로 나뉜 같은 대목)에 대상 이름을 쓴다 — 이름이 없으면 그 분석의 가장 낮은 단계까지만. 따옴표로 쓰는 공식 단계 이름(\'주의\'·\'높음\' 등)은 allowed_labels 에 있는 것만.',
+        '4) 확인하지 못한 자료(missing_sources)가 있으면 그 자료가 빠졌는데 「평소 수준」·「없습니다」로 단정하지 않는다.',
+        '5) 쓰지 않는 말: 순찰·배치·출동·단속·통제·투입·경비정·검문·근무(직무 지시), 「안전합니다」·「이상 없음」·「문제없음」·「위험 요소가 없습니다」(안전 단정), 「평온합니다」·「위험하지 않습니다」·「위험이 낮습니다」·「안심하고」(화면 결론과 다른 단정 — 시간 흐름의 「오전에는 잔잔하지만 오후부터 …」는 된다), 「출항하지 마십시오」·「출항 금지」(지시), 「사고 확률」. 「두세 곳」「세 군데」 같은 어림 수사도 쓰지 않는다. 배수(N배)는 allowed_multipliers.sea(해상)·land(연안)에 있는 것만 — 해상의 「사고 N배」·「두 배」는 쓰지 않는다. 지시(「~하라」)를 쓰지 않는다.',
         '6) land 가 null 인 관할(해상만 제공)은 land 를 null 로 둔다.',
         '7) kma_outlook 은 기상청 해상 기상 전망 원문 발췌다 — 원인(저기압·바람 방향 등)과 흐름을 이해하는 데 쓰고, 그 안의 숫자는 옮기지 않는다(해역 이름은 2)의 kma_zones 에 있는 것만).',
         '8) 입력에 없는 사실을 지어내지 않는다. 글은 평문만 — HTML 태그·링크(URL)·마크다운을 쓰지 않는다.',
+        '9) retry_feedback 이 있는 관할은 지난 시도의 글이 reasons 의 이유로 버려졌다 — 그 이유를 모두 고쳐 다시 쓴다(같은 지명·숫자·단계 말을 다시 쓰지 않는다).',
         '응답은 JSON 하나만: {"stations":[{"id":"<입력 id 그대로>","land":"…"|null,"sea":"…"}]}',
         '',
         JSON.stringify(batch),
@@ -281,6 +298,9 @@ function validateOverview(o, si) {
         const t = norm(raw), c = compact(raw), ss = sentences(t);
         if (ss.length < MIN_S || ss.length > MAX_S) errors.push('shape:' + k + '-sentences-' + ss.length);
         if (t.length > MAX_CHARS) errors.push('shape:' + k + '-too-long-' + t.length);
+        // 마지막 문장 「따라서 … 필요합니다.」(§11.10.4 — 화면 결론 아래 문단이 권고로 끝나게)
+        const last = compact(ss[ss.length - 1] || '');
+        if (!/^따라서/.test(last) || !/필요합니다[.!]?$/.test(last)) errors.push('shape:' + k + '-no-conclusion');
         if (/[<>]|https?:|www\.|javascript:|&[a-z]+;|\]\(/i.test(t)) errors.push('markup');
         const multSet = new Set(mk[k] || []);
         for (const n of numTokens(t)) {
@@ -300,9 +320,15 @@ function validateOverview(o, si) {
         for (const s of ss) {
             const cs = compact(s);
             if (cs.length >= 12 && factS.some((f) => f.includes(cs))) continue;   // 서버 사실 문장(조석·해제 안내)을 그대로 옮긴 것
-            const named = Object.entries(lv).filter(([name]) => cs.includes(compact(name))).map(([, r]) => r);
-            const cap = Math.max(1, named.length ? Math.max(...named) : floor);
-            for (const lm of s.matchAll(LEVEL_RE)) if (LEVEL_RANK[lm[1]] > cap) errors.push('level:' + lm[1] + '>' + cap);
+            const namedIn = (x) => { const cx = compact(x); return Object.entries(lv).filter(([name]) => cx.includes(compact(name))).map(([, r]) => r); };
+            const named = namedIn(s), cap = Math.max(1, named.length ? Math.max(...named) : floor);
+            // 쉼표로 나뉜 대목에 대상 이름이 있으면 그 대목의 단계로(「A에는 주의가, B에는 관심이 필요합니다」 — §11.10.4), 없으면 종전처럼 문장 전체로
+            const hits = [...s.matchAll(LEVEL_RE)].map((m) => ({ w: m[1], i: m.index })).concat(NEED_RE.test(s) ? [...s.matchAll(LEVEL_LIST_RE)].map((m) => ({ w: m[1], i: m.index })) : []);
+            for (const h of hits) {
+                const a = Math.max(s.lastIndexOf(',', h.i), s.lastIndexOf('，', h.i)) + 1, z0 = s.slice(h.i).search(/[,，]/), z = z0 < 0 ? s.length : h.i + Math.max(z0, 1);
+                const cn = namedIn(s.slice(a, z)), c2 = cn.length ? Math.max(1, ...cn) : cap;
+                if (LEVEL_RANK[h.w] > c2) errors.push('level:' + h.w + '>' + c2);
+            }
         }
     }
     return { ok: errors.length === 0, errors: [...new Set(errors)] };
@@ -320,26 +346,52 @@ function groupBy(items, unit) {
     for (const it of items) { const k = unit === 'station' ? it.b.key : unit === 'region' ? (it.b.station.region || it.b.station.office) : it.b.station.office; if (!m.has(k)) m.set(k, []); m.get(k).push(it); }
     return [...m.values()];
 }
+/**
+ * 검증·응답 실패 이유 하나를 AI 가 읽을 말로 푼다(다시 시도 지시문 retry_feedback — 2026-10-17 사용자 결정 §11.10.4).
+ * 예: 'place:하저리해수욕장' → 'place:하저리해수욕장 — 그 지명은 입력에 없다' · 'level:주의>1' → 'level:주의>1 — 그 대목의 대상 단계는 「관심」까지다' · 'shape:sea-sentences-2' → 'shape:sea-sentences-2 — 해상 분석이 2문장이다(3~5문장)'
+ * @param {string} code - validateOverview 오류 열쇠(또는 'parse') @returns {string} [연계] ← generate(accept·callOne) → batchInput retry_feedback
+ */
+function explainError(code) {
+    const c = String(code), m = c.match(/^shape:(land|sea)-(sentences|too-long)-(\d+)$/), para = (k) => (k === 'land' ? '연안' : '해상') + ' 분석';
+    const why = m ? para(m[1]) + (m[2] === 'sentences' ? '이 ' + m[3] + '문장이다(' + MIN_S + '~' + MAX_S + '문장)' : '이 ' + m[3] + '자다(' + MAX_CHARS + '자 이내)')
+        : /^shape:(land|sea)-no-conclusion$/.test(c) ? para(c.slice(6, -14)) + '의 마지막 문장이 「따라서 … 필요합니다.」 꼴이 아니다'
+        : c === 'shape:land-missing' ? '연안 분석(land)이 비었다' : c === 'shape:sea-missing' ? '해상 분석(sea)이 비었다' : c === 'shape:land-not-allowed' ? '해상만 제공하는 관할이다 — land 는 null'
+        : c.startsWith('number:hangul:') ? '한글 수사는 쓰지 않는다(아라비아 숫자, allowed_numbers 에 있는 꼴만)'
+        : c.startsWith('number:') ? '그 숫자(단위 포함)는 allowed_numbers 에 없다'
+        : c.startsWith('multiplier:') ? '그 배수는 allowed_multipliers 에 없다'
+        : c.startsWith('place:') ? '그 지명은 입력에 없다'
+        : /^level:/.test(c) ? '그 대목의 대상 단계는 「' + (['', '관심', '주의', '경계'][Number(c.split('>')[1])] || '관심') + '」까지다'
+        : c.startsWith('label:') ? '따옴표 단계 이름은 allowed_labels 에 있는 것만 쓴다'
+        : c.startsWith('forbidden:') ? '쓰지 않는 말이다'
+        : c === 'markup' ? 'HTML·링크·마크다운을 썼다'
+        : c === 'missing:station' ? '응답에 이 관할(id)이 없었다'
+        : c === 'parse' ? '응답이 정해진 JSON 꼴이 아니었다' : '규칙에 어긋났다';
+    return c + ' — ' + why;
+}
 // 호출 시간 제한 기본값(B7) — VM 은 codex_bridge 자체 300초 뒤 조금 더, Gemini 는 어댑터 90초 뒤 조금 더(어댑터가 먼저 끊는다). VM 이 이 횟수만큼 잇달아 실패하면 그 실행 동안 VM 을 건너뛴다.
 const DEFAULT_TIMEOUTS = Object.freeze({ vm: 320000, gemini: 100000 }), VM_FAIL_LIMIT = 3;
 /**
- * 관할 브리핑들의 AI 해설을 만든다(AI 또는 틀 = 해설 없음). 재사용 → 묶음 호출(VM→Gemini) → 관할별 검증 → 실패 관할만 1회 재시도 → 틀.
+ * 관할 브리핑들의 AI 분석 문단을 만든다(AI 또는 규칙 분석). 재사용 → 해양경찰서 묶음마다 다시 시도 사슬 → 규칙 분석.
+ * 다시 시도(2026-10-17 사용자 *"vm 최대 3번 후 제미나이로 가자."* — 설계서 §11.10.4):
+ *   ① VM(그 묶음 전부) → 검증·호출·해석에 떨어진 관할만 VM 으로 다시(지시문에 버려진 이유 retry_feedback) — 관할마다 VM 최대 vmAttempts(3)번
+ *   ② 그래도 실패면 Gemini 한 번(같은 이유 포함) — VM 이 꺼져 있거나 차단기로 VM 을 한 번도 못 부른 관할은 Gemini 두 번(종전 「VM 꺼짐 → Gemini → 실패 관할 1회 재시도」와 같은 횟수)
+ *   ③ 그래도 실패면 규칙 분석(source 'template' — 글은 서버 summary.analysis, 화면 「규칙 분석」). 방식 'gemini' 는 Gemini 두 번 → 규칙 분석.
+ *   시도마다 오류를 errors 에 attempt(몇 번째)와 함께 남긴다. VM 연속 실패 차단기(vmFailLimit — 호출·시간초과·해석 실패가 잇달아 3번이면 그 실행 동안 VM 건너뜀)·데드라인(deadline — 넘으면 남은 관할은 규칙 분석)은 종전 그대로.
  * 재사용(B10): 해시 = 관할 입력 + 규칙·검증·지시문 판 + 방식 + 모델(ChatGPT·Gemini 둘 다 — VM 이 꺼지면 Gemini 로 가므로) + 기상청 전망.
  *   같은 해시라도 지난 글의 출처가 고른 방식의 첫 공급자가 아니면(ChatGPT 방식인데 Gemini 가 쓴 글) VM 이 지금 살아 있으면 다시 만든다.
- * 시간(B7): 호출마다 시간 제한(timeouts, signal 로 끊기 요청 + Promise.race) · 실행 데드라인(deadline — timer 로 잼, 넘으면 남은 관할은 틀) · VM 연속 실패 차단기(vmFailLimit).
  * 예: await generate({briefings:[…97], config:{method:'chatgpt',chatgptModel:'gpt-6-luna',geminiModel:'gemini-2.5-flash',batchUnit:'office',onlyChanged:true}, previous, adapters, kma})
- *     → {overviews:{key:{land,sea,source:'chatgpt'|'gemini'|'template',model,hash,reused?}}, stats:{calls,reused,ai,template,retried,deadline}, errors:[…]}
- * @param {object} o - briefings·config·previous(key→지난 브리핑)·adapters{vm,gemini}·kma·now·timer·deadline·timeouts·vmFailLimit
- * @returns {Promise<object>} [연계] ← station_briefing.run / → stationInput·batchInput·buildPrompt·parseResponse·validateOverview
+ *     → {overviews:{key:{land,sea,source:'chatgpt'|'gemini'|'template',model,hash,attempts,reused?}}, stats:{calls,reused,ai,template,retried,deadline,gemini}, errors:[{…,attempt}]}
+ * @param {object} o - briefings·config·previous(key→지난 브리핑)·adapters{vm,gemini}·kma·now·timer·deadline·timeouts·vmFailLimit·vmAttempts
+ * @returns {Promise<object>} [연계] ← station_briefing.run / → stationInput·batchInput·buildPrompt·parseResponse·validateOverview·explainError
  */
-async function generate({ briefings, config, previous = {}, adapters = {}, kma = null, now = Date.now(), timer = Date.now, deadline = Infinity, timeouts = DEFAULT_TIMEOUTS, vmFailLimit = VM_FAIL_LIMIT }) {
-    const method = config.method || 'template', overviews = {}, errors = [], stats = { calls: 0, reused: 0, ai: 0, template: 0, retried: 0, deadline: 0 };
+async function generate({ briefings, config, previous = {}, adapters = {}, kma = null, now = Date.now(), timer = Date.now, deadline = Infinity, timeouts = DEFAULT_TIMEOUTS, vmFailLimit = VM_FAIL_LIMIT, vmAttempts = VM_ATTEMPTS }) {
+    const method = config.method || 'template', overviews = {}, errors = [], stats = { calls: 0, reused: 0, ai: 0, template: 0, retried: 0, deadline: 0, gemini: 0 };
     const at = R.isoKst(now), preferred = method === 'chatgpt' ? 'chatgpt' : 'gemini';
     const up = (a) => !!a && (typeof a.available !== 'function' || a.available());
     let vmFails = 0, vmBroken = false;
     const vmUp = method === 'chatgpt' && up(adapters.vm);
     const items = briefings.map((b) => { const si = stationInput(b, kma); return { b, si, hash: R.hash({ si, rules: R.RULES_VERSION, validator: VALIDATOR_VERSION, prompt: PROMPT_VERSION, method, chatgptModel: method === 'chatgpt' ? config.chatgptModel : null, geminiModel: method !== 'template' ? config.geminiModel : null, kma: kma ? R.hash(kma) : null }) }; });
-    // AI 가 못 쓰면(틀 방식·실패·데드라인) 해설 없음 — 결론·근거·권고는 서버 summary 가 늘 보인다(§11.10, 종전 틀 총평 문단 대체).
+    // AI 가 못 쓰면(틀 방식·실패·데드라인) AI 분석 없음 — 화면은 서버 규칙 분석 문단(summary.analysis)을 「규칙 분석」으로 보인다(§11.10.4).
     const template = (it) => { overviews[it.b.key] = { land: null, sea: null, source: 'template', model: null, hash: it.hash }; stats.template++; };
     const pending = [];
     for (const it of items) {
@@ -349,56 +401,70 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
         if (config.onlyChanged !== false && prev && prev.hash === it.hash && sameSource) { overviews[it.b.key] = { ...prev, reused: true }; stats.reused++; continue; }
         pending.push(it);
     }
-    const chain = method === 'chatgpt' ? ['vm', 'gemini'] : ['gemini'];
-    /** 한 묶음을 사슬(VM → Gemini) 순서로 보낸다 — 앞이 꺼져 있거나 실패·시간초과·해석 실패면 다음. 데드라인이 지났으면 부르지 않는다. @returns {Promise<object|null>} {provider,model,map} */
-    async function callChain(group) {
-        const prompt = buildPrompt(batchInput(group.map((it) => it.si), kma)), keys = group.map((it) => it.b.key);
-        for (const p of chain) {
-            const a = adapters[p];
-            if (p === 'vm' && vmBroken) { errors.push({ at, stage: 'call', provider: p, stations: keys, reason: 'VM 연속 실패 ' + vmFails + '회 — 이번 실행은 건너뜀' }); continue; }
-            if (!up(a)) { errors.push({ at, stage: 'call', provider: p, stations: keys, reason: p === 'vm' ? 'VM 작업자 연결 없음' : '사용 불가' }); continue; }
-            const left = deadline - timer();
-            if (left <= 0) return null;
-            const model = p === 'vm' ? config.chatgptModel : config.geminiModel, ms = Math.max(1, Math.min(timeouts[p] || DEFAULT_TIMEOUTS.gemini, left)), ac = new AbortController();
-            let tid = null;
-            try {
-                stats.calls++;
-                const text = await Promise.race([a.call({ prompt, model, signal: ac.signal }), new Promise((_, rej) => { tid = setTimeout(() => { ac.abort(); rej(new Error(p + ' 시간초과(' + Math.round(ms / 1000) + '초)')); }, ms); })]);
-                const map = parseResponse(text);
-                if (p === 'vm') vmFails = 0;
-                return { provider: p === 'vm' ? 'chatgpt' : 'gemini', model, map };
-            } catch (e) {
-                errors.push({ at, stage: e.message === 'invalid response' || e instanceof SyntaxError ? 'parse' : 'call', provider: p, stations: keys, reason: String(e.message || e).slice(0, 120) });
-                if (p === 'vm' && ++vmFails >= vmFailLimit) vmBroken = true;
-            } finally { clearTimeout(tid); }
-        }
-        return null;
+    const feedback = new Map(), retried = new Set();
+    /**
+     * 공급자 하나로 한 번 부른다(그 묶음의 남은 관할). 꺼짐·차단이면 {skip}, 데드라인이 지났으면 {late}, 호출·해석 실패면 {res:null}(시도로 셈), 성공이면 {res}.
+     * @param {string} p - vm|gemini @param {object[]} group @param {number} attempt - 몇 번째 시도 @returns {Promise<object>}
+     */
+    async function callOne(p, group, attempt) {
+        const keys = group.map((it) => it.b.key), a = adapters[p];
+        if (p === 'vm' && vmBroken) { errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: 'VM 연속 실패 ' + vmFails + '회 — 이번 실행은 건너뜀' }); return { skip: true }; }
+        if (!up(a)) { errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: p === 'vm' ? 'VM 작업자 연결 없음' : '사용 불가' }); return { skip: true }; }
+        const left = deadline - timer();
+        if (left <= 0) return { late: true };
+        const fb = new Map(group.filter((it) => feedback.has(it.b.key)).map((it) => [it.b.key, { attempt, reasons: feedback.get(it.b.key) }]));
+        const prompt = buildPrompt(batchInput(group.map((it) => it.si), kma, fb.size ? fb : null));
+        const model = p === 'vm' ? config.chatgptModel : config.geminiModel, ms = Math.max(1, Math.min(timeouts[p] || DEFAULT_TIMEOUTS.gemini, left)), ac = new AbortController();
+        let tid = null;
+        try {
+            stats.calls++; if (p === 'gemini') stats.gemini++;
+            const text = await Promise.race([a.call({ prompt, model, signal: ac.signal }), new Promise((_, rej) => { tid = setTimeout(() => { ac.abort(); rej(new Error(p + ' 시간초과(' + Math.round(ms / 1000) + '초)')); }, ms); })]);
+            const map = parseResponse(text);
+            if (p === 'vm') vmFails = 0;
+            return { res: { provider: p === 'vm' ? 'chatgpt' : 'gemini', model, map } };
+        } catch (e) {
+            const parse = e.message === 'invalid response' || e instanceof SyntaxError;
+            errors.push({ at, stage: parse ? 'parse' : 'call', provider: p, stations: keys, attempt, reason: String(e.message || e).slice(0, 120) });
+            if (parse) for (const k of keys) feedback.set(k, [explainError('parse')]);
+            if (p === 'vm' && ++vmFails >= vmFailLimit) vmBroken = true;
+            return { res: null };
+        } finally { clearTimeout(tid); }
     }
-    /** 한 묶음 결과를 관할별로 검증해 통과는 받아들이고 실패 목록을 돌려준다. @returns {object[]} 실패 항목 */
-    function accept(group, res) {
+    /** 한 번 결과를 관할별로 검증해 통과는 받아들이고 실패 목록을 돌려준다(실패 이유는 다음 시도 retry_feedback 으로). @returns {object[]} 실패 항목 */
+    function accept(group, res, attempt) {
         const failed = [];
         for (const it of group) {
-            const o = res?.map.get(it.b.key);
             if (!res) { failed.push(it); continue; }
-            const v = o ? validateOverview(o, it.si) : { ok: false, errors: ['missing:station'] };
-            if (v.ok) { overviews[it.b.key] = { land: o.land || null, sea: o.sea, source: res.provider, model: res.model, hash: it.hash }; stats.ai++; }
-            else { errors.push({ at, stage: 'validate', provider: res.provider, stations: [it.b.key], reason: v.errors.slice(0, 6).join(',') }); failed.push(it); }
+            const o = res.map.get(it.b.key), v = o ? validateOverview(o, it.si) : { ok: false, errors: ['missing:station'] };
+            if (v.ok) { overviews[it.b.key] = { land: o.land || null, sea: o.sea, source: res.provider, model: res.model, hash: it.hash, attempts: attempt }; stats.ai++; feedback.delete(it.b.key); }
+            else { errors.push({ at, stage: 'validate', provider: res.provider, stations: [it.b.key], attempt, reason: v.errors.slice(0, 6).join(',') }); feedback.set(it.b.key, v.errors.slice(0, 8).map(explainError)); failed.push(it); }
         }
         return failed;
     }
     const past = () => timer() >= deadline;
     const groups = groupBy(pending, config.batchUnit || 'office');
     for (let gi = 0; gi < groups.length; gi++) {
-        if (past()) { const rest = groups.slice(gi).flat(); errors.push({ at, stage: 'deadline', provider: null, stations: rest.map((it) => it.b.key), reason: '실행 데드라인 넘음 — 남은 ' + rest.length + '곳은 AI 해설 없음(틀)' }); for (const it of rest) template(it); stats.deadline += rest.length; break; }
-        const group = groups[gi];
-        const failed = accept(group, await callChain(group));
-        if (!failed.length) continue;
-        if (past()) { for (const it of failed) template(it); stats.deadline += failed.length; continue; }
-        stats.retried += failed.length;
-        const again = accept(failed, await callChain(failed));
-        for (const it of again) template(it);
+        if (past()) { const rest = groups.slice(gi).flat(); errors.push({ at, stage: 'deadline', provider: null, stations: rest.map((it) => it.b.key), reason: '실행 데드라인 넘음 — 남은 ' + rest.length + '곳은 규칙 분석(AI 분석 없음)' }); for (const it of rest) template(it); stats.deadline += rest.length; break; }
+        let left = groups[gi], attempt = 0, vmTried = false, late = false;
+        /** 공급자 p 로 최대 n 번 — 남은 관할만, 시도마다 이유를 다음 지시문에. */
+        const tries = async (p, n) => {
+            for (let k = 0; k < n && left.length; k++) {
+                if (past()) { late = true; return; }
+                const r = await callOne(p, left, attempt + 1);
+                if (r.late) { late = true; return; }
+                if (r.skip) return;
+                attempt++; if (p === 'vm') vmTried = true;
+                if (attempt > 1) for (const it of left) retried.add(it.b.key);
+                left = accept(left, r.res, attempt);
+            }
+        };
+        if (method === 'chatgpt') await tries('vm', vmAttempts);
+        if (left.length && !late) await tries('gemini', method === 'gemini' || !vmTried ? 2 : 1);
+        if (left.length && (late || past())) { errors.push({ at, stage: 'deadline', provider: null, stations: left.map((it) => it.b.key), reason: '실행 데드라인 넘음 — ' + left.length + '곳은 규칙 분석(AI 분석 없음)' }); stats.deadline += left.length; }
+        for (const it of left) template(it);
     }
+    stats.retried = retried.size;
     return { overviews, stats, errors };
 }
 
-module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, FORBIDDEN, KMA_ZONE_NAMES, MIN_S, MAX_S, MAX_CHARS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
+module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, FORBIDDEN, KMA_ZONE_NAMES, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };

@@ -751,7 +751,7 @@ window.switchAiSubTab = function (which) {
     if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
     if (which === 'test') renderAiTestSubtab(sub);
     else if (which === 'briefing') {
-        // [AI 브리핑] 활동지점 안전 브리핑 — 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만·상태·지금 다시 만들기·관할 미리보기
+        // [AI 브리핑] 연안 안전 브리핑(종전 「활동지점 안전 브리핑」) — 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만·상태·지금 다시 만들기·관할 미리보기
         //   (설계서 §11.6 결정 16·17, js/admin/admin_station_briefing.js — /api/admin/station-briefing/*)
         if (typeof window.renderStationBriefingAdmin === 'function') window.renderStationBriefingAdmin(sub);
         else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">AI 브리핑 모듈(js/admin/admin_station_briefing.js)이 로드되지 않았습니다.</div>';
@@ -776,7 +776,7 @@ window.switchAiSubTab = function (which) {
  */
 function renderAiForecastSubtab(container, opts) {
     const view = opts && (opts.view === 'current' || opts.view === 'history') ? opts.view : null;
-    const names = {warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측',stationBriefing:'활동지점 안전 브리핑'};
+    const names = {warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측',stationBriefing:'연안 안전 브리핑'};
     // partial(일부 실패): 자료는 저장·사용 중이지만 일부가 빠졌다 — 예: 행사 수집의 Gemini·카카오·공식 목록 중 일부 실패(2026-10-15). 분류는 원인별 이름(예: 행사 일부 실패 — 카카오).
     const statuses = {ok:'정상',offseason:'비운영 기간',partial:'일부 실패',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
     // recovered 사건인데 상태가 offseason 이면 「복구」가 아니라 더 수집하지 않게 되어 닫힌 것이다(예: 지난 달 행사 — risk_error_history 3차 검토 F2).
@@ -4764,7 +4764,7 @@ async function renderMaintenanceFullTab(container) {
             { id: 'weather-alert-tab', label: '특보 및 전망', children: [
                 { id: 'report-btn', label: '오류 제보 버튼' },
                 { id: 'marine-forecast', label: '기상청 해상 기상 전망' },
-                { id: 'station-briefing', label: '활동지점 안전 브리핑' },
+                { id: 'station-briefing', label: '연안 안전 브리핑' },
                 { id: 'advisory-prediction', label: '특보 예측' },
                 { id: 'weather-alert', label: '해역별 특보현황', linked: ['ov-warn-zone'] },
                 { id: 'weather-buoy', label: '해역별 기상현황', linked: ['ov-buoy'], children: [

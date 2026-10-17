@@ -212,7 +212,7 @@ client/js/
 | `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
 | `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시 |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
-| `admin_station_briefing.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 활동지점 안전 브리핑의 |
+| `admin_station_briefing.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 연안 안전 브리핑(종전 「활동지점  |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
 | `admin_trigger.js` | 관리자 트리거(15회 클릭), 공지/점검/오류 팝업 |
 | `admin_zone_editor.js` | 출입통제구역(access_control_zones.json) 폴리곤 점 편집기 — 독립 페이지 |
@@ -297,10 +297,10 @@ client/js/
 
 | 파일 | 역할 |
 |------|------|
-| `station_briefing.js` | 해양예보 탭 「🔭 기상청 해상 기상 전망」 바로 아래의 「활동지점 안전 브리핑」 아코디언(설계서 §11.1~§11.4). |
-| `station_briefing_basis.js` | 「활동지점 안전 브리핑」의 [기준 상세] 문안 — 브리핑이 어떤 기준으로 만들어지는지 일반 국민 눈높이로 적은 고정 글. |
-| `station_briefing_picker.js` | 「활동지점(파출소 관할) 설정」 화면의 관할 고르기 칸 — 탭 두 개(사용자 2026-10-17). |
-| `station_briefing_render.js` | 「활동지점 안전 브리핑」 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론·(기상)·(물때)·근거·권고 + AI |
+| `station_briefing.js` | 해양예보 탭 「🔭 기상청 해상 기상 전망」 바로 아래의 「HH:MM AI 연안 안전 브리핑」 아코디언(설계서 §11.1~§1 |
+| `station_briefing_basis.js` | 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」 — 2026-10-17 §11.10.4)의 [기준 상세] 문안 — 브리핑이 |
+| `station_briefing_picker.js` | 「연안 안전 브리핑 지역 설정」(종전 「활동지점(파출소 관할) 설정」) 화면의 관할 고르기 칸 — 탭 두 개(사용자 2026- |
+| `station_briefing_render.js` | 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론 + 연안 |
 
 ### `client/js/location-alert/`
 
