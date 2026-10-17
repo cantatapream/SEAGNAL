@@ -349,12 +349,25 @@
         renderRest(box, b, opts, showSea, showLand, nowMs);
     }
     /**
-     * 총평 해상 단계가 해상 분석 단계보다 낮을 때 결론 아래 한 줄(2단계 검토 B1 — 초록 「평소 수준」이 「안전」으로 읽히지 않게).
-     * 2026-10-17 사용자 *"날씨 혼잡이 겹치지 않아 결론에는 넣지 않았습니다라는 텍스트는 빼줘"*(§11.10.3) — 그 이유 글을 빼고 어디를 보면 되는지만.
-     * 예: {sea:{level:{rank:3,word:'경계 필요'}}} → '해상 분석에는 「경계 필요」 해역이 있습니다 — 해양사고 위험예보만 위험 단계인 해역입니다(아래 근거·해상 분석).'
-     * @param {Object} b @returns {string} [연계] ← summaryBodyV2·summaryBody·legacyOverview
+     * 해상 결론 배지 오른쪽 「N개 해역 주의 필요(KOMSA 예보)」 — 해양사고 위험예보만 위험 단계인 해역 수(결론에는 넣지 않은 해역), 단계마다 하나·그 단계 색(높은 단계 먼저).
+     * 2026-10-17 사용자 *"해상 평소 수준 그 오른쪽에 배지로서 "#개 해역 주의 필요(KOMSA예보)"라고 표현하고 아래 해상 분석에는 주의 필요 해역이 있습니다. 그 부분을 아예 없애는 건 어떨까?"*(설계서 §11.10.12)
+     *   — 종전 결론 아래 노란 안내 한 줄(levelNoteText 「해상 분석에는 「주의 필요」 해역이 있습니다 — …」, 2단계 검토 B1)은 없앴다. 초록 「평소 수준」이 「안전」으로 읽히지 않게 하는 일은 이 배지가 한다.
+     * 수 = 서버 summary.sea.accidentOnly(근거 줄 「해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 N칸」과 같은 수). 그 칸이 없는 옛 판은 해역 카드(단계 높은 순 10곳까지)에
+     *   위험예보만 해역(overviewRank 0)이 모두 들어 있을 때만 카드로 센다 — 모자라면 셀 수 없어 배지 없음(지어내지 않는다).
+     * 예: {summary:{sea:{accidentOnly:[{rank:3,word:'경계',count:1},{rank:2,word:'주의',count:3}]}}} → [chip(3,'1개 해역 경계 필요(KOMSA 예보)'), chip(2,'3개 해역 주의 필요(KOMSA 예보)')] · 없으면 []
+     * @param {Object} b - briefing @returns {HTMLElement[]} [연계] ← summaryBodyV3·summaryBodyV2·summaryBody·legacyOverview / → chip
      */
-    function levelNoteText(b) { return '해상 분석에는 「' + (b.sea.level.word || WORDS[b.sea.level.rank]) + '」 해역이 있습니다 — 해양사고 위험예보만 위험 단계인 해역입니다(아래 근거·해상 분석).'; }
+    function komsaBadges(b) {
+        var S = b.summary && b.summary.sea, sea = b.sea || {}, SHORT = ['', '관심', '주의', '경계'], groups = [];
+        if (S && Array.isArray(S.accidentOnly)) groups = S.accidentOnly;
+        else {
+            var k = Number(sea.attentionRegions) - Number(sea.overviewRegions), only = (sea.cards || []).filter(function (c) { return c && Number(c.overviewRank) === 0 && Number(c.rank) > 0; });
+            if (k > 0 && only.length === k) [3, 2, 1].forEach(function (r) { var n = only.filter(function (c) { return Number(c.rank) === r; }).length; if (n) groups.push({ rank: r, word: SHORT[r], count: n }); });
+        }
+        return groups.filter(function (g) { return g && Number(g.count) > 0 && Number(g.rank) >= 1; }).map(function (g) {
+            var c = chip(g.rank, g.count + '개 해역 ' + g.word + ' 필요(KOMSA 예보)'); c.classList.add('sb-komsa'); c.setAttribute('data-sb-komsa', String(g.rank)); return c;
+        });
+    }
 
     // ── 근거 줄 펼침(2026-10-17 사용자 결정 §11.10.3) — 고립 사고 지점 표 · 해역·해구 미니 지도(테두리 깜빡임) ──
     var xSeq = 0, BLINK_MS = 600, blinking = 0;
@@ -365,19 +378,20 @@
      *     expander('연안 분석 근거 상세 보기', fn, 'basis-land', true) → 알약 배지 버튼(.sb-x-pill — 글 + 작은 꺾쇠 .sb-x-chev, 펼치면 CSS 가 꺾쇠를 뒤집는다 — 2026-10-17 사용자 *"배지 모양으로 … 오른쪽으로 정렬"*, 설계서 §11.10.9)
      * @param {string} text - 버튼 글(textContent) @param {function(HTMLElement):(Function|void)} build - 펼칠 때 panel 을 채움, 정리 함수를 돌려줄 수 있음 @param {string} key - data-sb-x(시험이 찾는 이름)
      * @param {boolean} [pill] - 참이면 알약 배지 모양(글 화살표 ▸/▾ 대신 꺾쇠)
+     * @param {boolean} [bare] - 참이면 화살표 없이 글만(§11.10.12 — 위험예보만 해역 줄, 사용자 *"화살표는 빼주고"*)
      * @returns {{btn:HTMLButtonElement, panel:HTMLElement}} [연계] ← isolationLine·basisList·summaryBodyV3 / → isoTable·raisedTable·miniMap
      */
-    function expander(text, build, key, pill) {
-        var id = 'sb-x-' + (++xSeq), btn = el('button', 'sb-x-btn' + (pill ? ' sb-x-pill' : '')), panel = el('div', 'sb-x-panel'), arrow = pill ? el('span', 'sb-x-chev') : el('span', 'sb-x-arrow', ' ▸'), stop = null;
+    function expander(text, build, key, pill, bare) {
+        var id = 'sb-x-' + (++xSeq), btn = el('button', 'sb-x-btn' + (pill ? ' sb-x-pill' : '')), panel = el('div', 'sb-x-panel'), arrow = pill ? el('span', 'sb-x-chev') : bare ? null : el('span', 'sb-x-arrow', ' ▸'), stop = null;
         btn.type = 'button'; btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-controls', id); btn.setAttribute('data-sb-x', key);
-        btn.appendChild(document.createTextNode(text)); arrow.setAttribute('aria-hidden', 'true'); btn.appendChild(arrow);
+        btn.appendChild(document.createTextNode(text)); if (arrow) { arrow.setAttribute('aria-hidden', 'true'); btn.appendChild(arrow); }
         panel.id = id; panel.hidden = true; panel.setAttribute('data-sb-x-panel', key);
         btn.addEventListener('click', function (e) {
             e.stopPropagation();
             var open = btn.getAttribute('aria-expanded') !== 'true';
             if (typeof stop === 'function') stop();
             stop = null; panel.textContent = ''; panel.hidden = !open;
-            btn.setAttribute('aria-expanded', String(open)); if (!pill) arrow.textContent = open ? ' ▾' : ' ▸';
+            btn.setAttribute('aria-expanded', String(open)); if (!pill && arrow) arrow.textContent = open ? ' ▾' : ' ▸';
             if (open) stop = build(panel) || null;
         });
         return { btn: btn, panel: panel };
@@ -476,9 +490,14 @@
         }
         return stop;
     }
-    /** 지도 아래 한 줄 풀이. 예: ({key:'haegu',major:'232'}, {name:'한림파출소'}) → '빨간 테두리(깜빡임) = 대해구 232 · 파란 선 = 한림파출소 관할 해역'. @param {Object} d - detail @param {Object} station @returns {string} [연계] ← basisList */
-    function mapCaption(d, station) {
-        var what = d.key === 'haegu' ? '대해구 ' + (d.major || '') : d.key === 'accidentOnly' ? '해양사고 위험예보만 위험 단계인 해역' : '위험이 높아진 해역';
+    /**
+     * 지도 아래 한 줄 풀이. 예: ({key:'haegu',major:'232'}, {name:'한림파출소'}) → '빨간 테두리(깜빡임) = 대해구 232 · 파란 선 = 한림파출소 관할 해역'
+     *   · ({key:'accidentOnly'}, {name:'영목파출소'}, "해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 3칸") → "빨간 테두리(깜빡임) = KOMSA 기준 등급 '주의' 해역 · 파란 선 = 영목파출소 관할 해역"(§11.10.12 — 단계는 그 근거 줄의 따옴표 말)
+     * @param {Object} d - detail @param {Object} station @param {string} [text] - 그 근거 줄 @returns {string} [연계] ← basisList
+     */
+    function mapCaption(d, station, text) {
+        var q = /'([^']+)'/.exec(String(text || ''));
+        var what = d.key === 'haegu' ? '대해구 ' + (d.major || '') : d.key === 'accidentOnly' ? 'KOMSA 기준 등급 ' + (q ? "'" + q[1] + "' " : '') + '해역' : '위험이 높아진 해역';
         return '빨간 테두리(깜빡임) = ' + what + ' · 파란 선 = ' + ((station && station.name) || '') + ' 관할 해역';
     }
 
@@ -564,14 +583,15 @@
         var rz = sum.raised && Array.isArray(sum.raised.rows) && sum.raised.rows.length ? sum.raised : null;
         (Array.isArray(sum.detail) ? sum.detail : []).forEach(function (d) { if (d && Number.isFinite(Number(d.line))) det[Number(d.line)] = d; });
         sum.basis.forEach(function (text, i) {
-            var li = el('li'), d = det[i], note = d && d.note ? el('p', 'sb-small sb-basis-note', d.note) : null;
+            // 위험예보만 해역 줄의 풀이(옛 판 note 「(한국해양교통안전공단 예보에서는 …)」)는 보이지 않는다 — §11.10.12 사용자 *"이 텍스트는 그냥 빼는게 좋겠어"*
+            var li = el('li'), d = det[i], note = d && d.note && d.key !== 'accidentOnly' ? el('p', 'sb-small sb-basis-note', d.note) : null;
             if (rz && Number(rz.line) === i) {
                 var link = String(rz.link || ''), at = link ? text.indexOf(link) : -1, rx = expander(link || '위험이 높아진 곳', function (panel) { raisedTable(panel, rz); }, 'raised');
                 if (at >= 0) { li.appendChild(document.createTextNode(text.slice(0, at))); li.appendChild(rx.btn); li.appendChild(document.createTextNode(text.slice(at + link.length))); }
                 else { li.appendChild(document.createTextNode(text + ' ')); li.appendChild(rx.btn); }
                 li.appendChild(rx.panel);
             } else if (d && area && Array.isArray(d.boxes) && d.boxes.length) {
-                var x = expander(text, function (panel) { return miniMap(panel, area, d.boxes, mapCaption(d, b.station)); }, 'map-' + (d.key || ''));
+                var x = expander(text, function (panel) { return miniMap(panel, area, d.boxes, mapCaption(d, b.station, text)); }, 'map-' + (d.key || ''), false, d.key === 'accidentOnly');
                 li.appendChild(x.btn); if (note) li.appendChild(note); li.appendChild(x.panel);
             } else { li.appendChild(document.createTextNode(text)); if (note) li.appendChild(note); }
             if (d && d.key) li.setAttribute('data-sb-basis', d.key);
@@ -593,11 +613,7 @@
         var block = function (kind, label, rank, word, sum, commentary) {
             var wrap = el('div', 'sb-sum'); wrap.setAttribute('data-sb-summary', kind);
             var lv = el('div', 'sb-levels'); lv.appendChild(el('span', 'sb-level-k', label)); lv.appendChild(chip(rank, word)); wrap.appendChild(lv);
-            if (kind === 'sea' && b.sea.level && Number(b.sea.level.rank) > Number(b.sea.overviewLevel.rank)) {
-                // 총평 해상 단계(거른 뒤)가 해상 분석 단계보다 낮으면 한 줄 — 초록 「평소 수준」이 「안전」으로 읽히지 않게(2단계 검토 B1).
-                var ln = el('p', 'sb-small sb-level-note', levelNoteText(b));
-                ln.setAttribute('data-sb-level-note', ''); wrap.appendChild(ln);
-            }
+            if (kind === 'sea') komsaBadges(b).forEach(function (x) { lv.appendChild(x); });   // §11.10.12 — 종전 노란 안내 한 줄 대신 결론 배지 오른쪽 KOMSA 배지
             wrap.appendChild(el('p', 'sb-headline', sum.headline || ''));
             if (Array.isArray(sum.basis) && sum.basis.length) { wrap.appendChild(el('p', 'sb-sum-k', '(근거)')); var ul = list(sum.basis); ul.classList.add('sb-sum-basis'); wrap.appendChild(ul); }
             if (sum.advice) { var ad = el('p', 'sb-sum-advice'); ad.appendChild(el('span', 'sb-sum-k', '(권고) ')); ad.appendChild(document.createTextNode(sum.advice)); wrap.appendChild(ad); }
@@ -671,15 +687,9 @@
         var part = function (key, label) { var d = el('div', 'sb-part'); d.setAttribute('data-sb-part', key); if (label) d.appendChild(el('p', 'sb-sum-k', label)); body.appendChild(d); return d; };
         // ① 결론
         var c = part('conclusion', null);
-        var head = function (label, rank, word, text) { var r = el('div', 'sb-conclusion'); var lv = el('span', 'sb-levels'); lv.appendChild(el('span', 'sb-level-k', label)); lv.appendChild(chip(rank, word)); r.appendChild(lv); r.appendChild(el('p', 'sb-headline', text || '')); c.appendChild(r); };
+        var head = function (label, rank, word, text, extra) { var r = el('div', 'sb-conclusion'); var lv = el('span', 'sb-levels'); lv.appendChild(el('span', 'sb-level-k', label)); lv.appendChild(chip(rank, word)); (extra || []).forEach(function (x) { lv.appendChild(x); }); r.appendChild(lv); r.appendChild(el('p', 'sb-headline', text || '')); c.appendChild(r); };
         if (land) head('연안', b.land.level.rank, b.land.level.word, S.land.headline);
-        if (sea) {
-            head('해상', b.sea.overviewLevel.rank, b.sea.overviewLevel.word, S.sea.headline);
-            if (b.sea.level && Number(b.sea.level.rank) > Number(b.sea.overviewLevel.rank)) {
-                var ln = el('p', 'sb-small sb-level-note', levelNoteText(b));
-                ln.setAttribute('data-sb-level-note', ''); c.appendChild(ln);
-            }
-        }
+        if (sea) head('해상', b.sea.overviewLevel.rank, b.sea.overviewLevel.word, S.sea.headline, komsaBadges(b));   // §11.10.12 — 노란 안내 한 줄 대신 KOMSA 배지
         weatherPart(part, S);
         tidePart(part, S, land);
         // ④⑤ 연안·해상 근거·권고
@@ -835,8 +845,9 @@
         /** 연안·해상 한 덩어리 — 결론 → 분석 문단 → (해상이면 지금 밀집) → ▸ 분석 근거. */
         var block = function (kind, label, rank, word, sum, aiText, ruleText) {
             var d = part(kind, null); d.classList.add('sb-sum'); d.setAttribute('data-sb-summary', kind);
-            var c = el('div', 'sb-conclusion'); c.appendChild(chip(rank, word, label)); c.appendChild(el('p', 'sb-headline', sum.headline || '')); d.appendChild(c);
-            if (kind === 'sea' && b.sea.level && Number(b.sea.level.rank) > Number(b.sea.overviewLevel.rank)) { var ln = el('p', 'sb-small sb-level-note', levelNoteText(b)); ln.setAttribute('data-sb-level-note', ''); d.appendChild(ln); }
+            var c = el('div', 'sb-conclusion'); c.appendChild(chip(rank, word, label));
+            if (kind === 'sea') komsaBadges(b).forEach(function (x) { c.appendChild(x); });   // §11.10.12 — 「해상 평소 수준」 오른쪽 「N개 해역 주의 필요(KOMSA 예보)」(종전 노란 안내 한 줄은 없앰)
+            c.appendChild(el('p', 'sb-headline', sum.headline || '')); d.appendChild(c);
             var useAi = !!(ai && aiText), text = useAi ? aiText : ruleText, sp = text ? splitAdvice(text) : null;
             /** (권고) 한 줄 — 근거 칸의 (권고)와 같은 모양(.sb-sum-advice 노랑 굵게, 이름표 .sb-sum-k). */
             var adviceLine = function (txt, src) { var ad = el('p', 'sb-sum-advice'); ad.setAttribute('data-sb-advice', src); ad.appendChild(el('span', 'sb-sum-k', '(권고) ')); ad.appendChild(document.createTextNode(txt)); return ad; };
@@ -875,13 +886,8 @@
         var s1 = { body: body };   // 종전 render 안의 코드를 그대로 옮겨 s1.body 이름을 유지
         var levels = el('div', 'sb-levels');
         if (showLand && b.land && b.land.level) { levels.appendChild(el('span', 'sb-level-k', '연안')); levels.appendChild(chip(b.land.level.rank, b.land.level.word)); }
-        if (showSea && b.sea && b.sea.overviewLevel) { levels.appendChild(el('span', 'sb-level-k', '해상')); levels.appendChild(chip(b.sea.overviewLevel.rank, b.sea.overviewLevel.word)); }
+        if (showSea && b.sea && b.sea.overviewLevel) { levels.appendChild(el('span', 'sb-level-k', '해상')); levels.appendChild(chip(b.sea.overviewLevel.rank, b.sea.overviewLevel.word)); komsaBadges(b).forEach(function (x) { levels.appendChild(x); }); }   // §11.10.12 KOMSA 배지(종전 노란 안내 한 줄 대신)
         if (levels.childNodes.length) s1.body.appendChild(levels);
-        // 총평 해상 단계(거른 뒤)가 해상 분석 단계보다 낮으면 한 줄 — 초록 「평소 수준」이 「안전」으로 읽히지 않게(2단계 검토 B1).
-        if (showSea && b.sea && b.sea.level && b.sea.overviewLevel && Number(b.sea.level.rank) > Number(b.sea.overviewLevel.rank)) {
-            var ln = el('p', 'sb-small sb-level-note', levelNoteText(b));
-            ln.setAttribute('data-sb-level-note', ''); s1.body.appendChild(ln);
-        }
         if (showLand && ov.land) { var pl = el('p', 'sb-overview'); pl.setAttribute('data-sb-overview', 'land'); pl.appendChild(el('b', 'sb-overview-k', '연안 ')); pl.appendChild(document.createTextNode(ov.land)); s1.body.appendChild(pl); }
         if (showSea && ov.sea) { var ps = el('p', 'sb-overview'); ps.setAttribute('data-sb-overview', 'sea'); ps.appendChild(el('b', 'sb-overview-k', '해상 ')); ps.appendChild(document.createTextNode(ov.sea)); s1.body.appendChild(ps); }
         if (showSea && resp.now && resp.now.text) s1.body.appendChild(el('p', 'sb-now', resp.now.text));
