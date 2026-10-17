@@ -3,13 +3,13 @@
  * 파일명: local_server/services/station_briefing_ai.js
  * 역할  : 관할 브리핑 「총평과 권고」의 **AI 해설**(육상·해상 각 1~2문장 — 원인·시간 흐름)만 AI 에게 맡기는 부분. 결론·근거·권고는 서버가 만든다
  *         (station_briefing_rules.buildSummary — 2026-10-17 사용자 결정, 설계서 §11.10). 서버가 정한 사실(단계·해역·시각·숫자)을 묶어 AI 에게 보내고,
- *         돌아온 글을 관할별로 대조 검사(숫자+단위·한글 수사·배수·지명·단계 말·금지어·안전 단정·HTML/링크·문장 수, NFKC 정규화)해 통과한 것만 쓴다.
+ *         돌아온 글을 관할별로 대조 검사(숫자+단위·한글 수사·배수·지명·단계 말·금지어·안전 단정·결론과 다른 단정·출항 지시·HTML/링크·문장 수·글자 수, NFKC 정규화)해 통과한 것만 쓴다.
  *         순서: ChatGPT(관리자 정액제 VM) → 꺼져 있거나 실패하면 Gemini → 둘 다 실패하면 해설 없음(source 'template'). 실패한 관할만 한 번 더, 그래도 실패면 해설 없음.
  *         묶음 단위(파출소·해양경찰서·지방청)와 「입력이 지난번과 같으면 재사용」을 설정으로 고른다(§11.6-17). 호출마다 시간 제한·실행 데드라인·VM 연속 실패 차단기.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/station_briefing_rules.js(hash·RULES_VERSION·buildSummary·summaryLines — 서버 결론·근거 숫자를 허용 목록에·SOURCE_LABEL·md·dayWordOf)
- *                    · config/zone_group_map.js(ZONE_GROUP_MAP — 기상청 해역 이름 전부: 묶음 이름 + 앞바다·먼바다. 해설이 기상청 전망의 해역 이름을 써도 통과하게)
+ *                    · config/zone_group_map.js(ZONE_GROUP_MAP — 기상청 해역 이름 전부: 묶음 이름 + 앞바다·먼바다. 그중 그 관할의 기상청 전망·(기상) 칸에 나온 이름만 해설에 허용 — §11.10.2)
  *  - 서버 API      : 없음 — AI 호출은 넘겨받은 어댑터로만(실제: codex_bridge.callRaw · gemini_client.callGeminiRaw — station_briefing.js 가 만든다)
  *  - 나를 쓰는 곳  : services/station_briefing.js(run) · scripts/test_station_briefing.js(가짜 어댑터)
  *  - 설계 근거     : 구성안 부록 A(입력 묶음·검증 순서) · coastal_risk.design.md §9.2(환각 방지) · handoff_marine_fusion.md 29~33행(직무 지시·해상 배수 금지)
@@ -23,7 +23,10 @@ const SCHEMA = 'station-briefing-input-v2';
 // 재사용 해시에 들어가는 판(독립 검토 B10) — 검증 규칙·지시문이 바뀌면 지난 AI 총평을 재사용하지 않는다.
 // v3(2026-10-17 §11.10): 해설 1~2문장 · 필수 포함(required) 검사 없앰 · 기상청 해역 이름·「제주도」 허용 · 「두 곳」처럼 곳·개를 세는 한글 수사는 그 수가 허용 숫자에 있을 때만.
 // 지시문 v4(§11.10.1): shown 에 (기상)·(물때) 칸이 더해져 「되풀이하지 말고 그 숫자도 옮기지 말라」를 더했다. 검증 규칙은 그대로(v3).
-const VALIDATOR_VERSION = 'sb-validate-v3', PROMPT_VERSION = 'sb-prompt-v4';
+// v4·v5(2026-10-17 독립 검토 6~9 — 설계서 §11.10.2): 결론을 뒤집거나 누그러뜨리는 말(평온·위험하지 않·위험이 낮·가능성 낮·안심)·출항 지시 금지 · 「두세 곳」「세 군데」「세 번」 · 셈말은 문단(육상·해상) 결론·근거에 있는 수만
+//   · 기상청 해역 이름은 그 관할에 관련된 것만(기상청 전망 발췌·(기상) 칸 구역·특이사항에 나온 이름, 「제주도」는 제주 관할이거나 그 글에 있을 때) 정확히 같을 때만 · 문장 나누기(「…다.다음」·줄바꿈)·문단 220자 상한.
+//   지시문 v5: 해역 이름 목록이 관할마다(stations[].kma_zones)로 바뀌었다.
+const VALIDATOR_VERSION = 'sb-validate-v4', PROMPT_VERSION = 'sb-prompt-v5';
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -33,13 +36,20 @@ const KMA_ZONE_NAMES = Object.freeze((() => {
     return [...out].sort();
 })());
 // 곳·개를 세는 한글 수사(2026-10-17 결정 — 운영 실패 「number:hangul:두 곳」·「세 곳」). 그 수가 같은 단위로 허용 숫자에 있을 때만(예: 「두 곳」 ← 허용 열쇠 '2|곳').
-// 그 밖(두 척·세 시·서른 미터 등)은 종전대로 막는다.
+// 그 밖(두 척·세 시·서른 미터 등)은 종전대로 막는다. 「세 군데」는 곳과 같이 센다. 「두세 곳」「서너 곳」처럼 어림 수사는 대조할 수 없어 늘 막는다(독립 검토 7).
 const COUNT_WORD = Object.freeze({ '한': 1, '두': 2, '세': 3, '네': 4, '다섯': 5, '여섯': 6, '일곱': 7, '여덟': 8, '아홉': 9, '열': 10, '열한': 11, '열두': 12, '스무': 20 });
 // 쓰지 않는 말 — 직무 지시(handoff_marine_fusion.md:29 — 「경비정 투입」 같은 지시도, 독립 검토 B6)·「안전」 단정(coastal_risk.design.md 「안전합니다」 금지)·확률 표현.
 // 대조는 NFKC 정규화 + 공백·제로폭 문자를 지운 꼴끼리(「순 찰」·「순​찰」도 잡는다).
 const FORBIDDEN = Object.freeze(['순찰', '배치', '출동', '단속', '통제', '투입', '경비정', '검문', '감시 강화', '집중 감시', '근무', '사고 확률', '확률', '사고가 납니다']);
 // 「안전」 단정 — 공백을 지운 글에 건다. 「안전한 상태」·「이상 없음」·「문제없음」·「위험 요소가 없습니다」·「걱정 없」 등(B6). 「위험 요소는 확인되지 않았습니다」(§10.3 허용 문구)는 걸리지 않는다.
 const SAFE_RE = /안전(?:합니다|하다|해요|한편|할것|하니|하므로|한상태|한상황|한수준|권|이보장|을보장)|이상(?:이|은|도)?(?:전혀)?없|문제(?:가|는|도)?(?:전혀)?없|위험(?:요소|요인)?(?:가|는|이|은|도)?(?:전혀)?없|걱정(?:이|은|도|할필요가?|할필요는)?(?:전혀)?없|우려(?:가|는|도)?(?:전혀)?없/;
+// 서버 결론을 뒤집거나 누그러뜨리는 말(2026-10-17 독립 검토 6) — 공백을 지운 글에 건다. 「위험하지 않」·「위험이 크지 않」·「위험도가 낮」·「사고가 날 가능성은 낮」·「안심」·「출항하셔도 됩니다」.
+// 「낮아집니다」(언제 나아지는지 — 지시문이 쓰라고 한 시간 흐름)는 막지 않는다(낮(?!아)).
+const SOFTEN_RE = /위험(?:도|성)?(?:가|이|은|는|도)?(?:하지|크지|높지|많지)않|위험(?:도|성)?(?:가|이|은|는)?(?:매우|비교적|다소)?낮(?!아)|가능성(?:은|이|도)?(?:매우|비교적|다소)?낮(?!아)|안심|출항(?:하셔도|해도)(?:됩|괜찮|좋)/;
+// 평온·잔잔·양호 서술 — 대비·변화 말(지만·으나·다가·부터·이후…)이 같은 문장에 있으면 시간 흐름 설명(「오전에는 잔잔하지만 오후부터 …」)이라 허용, 없으면 결론과 다른 단정으로 본다.
+const CALM_RE = /(?:평온|잔잔|양호)(?:합니다|하겠습니다|해요|하다(?!가)|할것|한편|한상태|한수준|하니|하므로|하여|해서|하고)/, CHANGE_RE = /지만|으나|다가|부터|이후|뒤에|후에|까지는|전까지/;
+// 출항 지시(「출항하지 마십시오」·「출항 금지」·「출항을 자제하」) — 지시문 「지시를 쓰지 않는다」의 검사.
+const ORDER_RE = /출항(?:을|은)?(?:금지|하지마|하지말|삼가|자제하)/;
 // 단계 말 — 「관심/주의/경계」 + 서술(필요·요구·요망·단계·수준·하십시오·해야·바랍니다·기울·태세·강화 등) 모든 꼴(B4).
 // 「갯벌·고립 주의」·「떠밀림 주의」·「충돌·접촉 주의」 같은 앱 안내 이름과 「풍랑주의보」·따옴표 「'주의'」는 단계 말이 아니다.
 const LEVEL_RE = /(관심|주의|경계)\s*(?:이|가|를|을|은|는|의)?\s*(?:필요|요구|요망|요청|단계|수준|등급|하십시오|하세요|하시기|하셔야|해야|하여야|해\s*주십시오|바랍니다|기울|태세|강화)/g, LEVEL_RANK = { '관심': 1, '주의': 2, '경계': 3 };
@@ -49,7 +59,7 @@ const LABEL_RE = /'(낮음|보통|주의|경계|높음|매우높음|위험)'/g;
 const UNIT_SRC = 'm\\/s|km|cm|mm|해리|해구|시간|시|분|초|칸|척|건|곳|명|개|배|%|년|월|일|m';
 const NUM_RE = new RegExp('(\\d{1,2}):(\\d{2})|(\\d+(?:\\.\\d+)?)\\s*(' + UNIT_SRC + ')?(?:\\s*[~∼〜–-]\\s*(\\d+(?:\\.\\d+)?)\\s*(' + UNIT_SRC + ')?)?', 'g');
 // 한글 수사(B2) — 「세 시」·「두 척」·「서른 미터」·「구 미터」·「삼십 m」 등 숫자를 한글로 쓴 꼴은 대조할 수 없으니 막는다(지시문: 숫자는 아라비아 숫자로).
-const HNUM_RE = new RegExp('(?:^|[^가-힣])((?:열한|열두|하나|둘|셋|넷|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|스물|서른|마흔|쉰|예순|일흔|여든|아흔|[일이삼사오육칠팔구]?십[일이삼사오육칠팔구]?|[일이삼사오육칠팔구]?백)\\s*(?:미터|m|시간|시|분|초|척|건|곳|명|해리|노트|킬로|칸|개|퍼센트|프로|센티)|[일이삼사오육칠팔구]\\s*(?:미터|해리|노트|킬로|퍼센트|프로|센티))(?=$|[^가-힣]|에|부터|까지|의|이|가|을|를|은|는|로|으로|쯤|경|께|씩|만|정도|이상|이하|동안|무렵|전|후|째)', 'g');
+const HNUM_RE = new RegExp('(?:^|[^가-힣])((?:두서너|한두|두세|서너|너덧|네댓|대여섯|예닐곱|열한|열두|하나|둘|셋|넷|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스무|스물|서른|마흔|쉰|예순|일흔|여든|아흔|[일이삼사오육칠팔구]?십[일이삼사오육칠팔구]?|[일이삼사오육칠팔구]?백)\\s*(?:미터|m|시간|시|분|초|척|건|곳|명|해리|노트|킬로|칸|개|퍼센트|프로|센티|군데|번(?!째)|차례)|[일이삼사오육칠팔구]\\s*(?:미터|해리|노트|킬로|퍼센트|프로|센티))(?=$|[^가-힣]|에|부터|까지|의|이|가|을|를|은|는|로|으로|쯤|경|께|씩|만|정도|이상|이하|동안|무렵|전|후|째)', 'g');
 const HMULT_RE = /(?:^|[^가-힣])((?:한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|몇|수십|여러)\s*배)(?=$|[^가-힣]|로|나|가량|이상|정도|쯤|씩|만큼|가|는|에)/g;
 // 지명(B5) — 접미사로 지명 후보를 찾는다. 한 글자 접미사(항·섬·곶·만·포·도)는 흔한 낱말(정도·운항·오늘만)과 겹쳐 따로 거른다.
 const PLACE_SUFFIX = ['해양경찰서', '해수욕장', '연안바다', '앞바다', '먼바다', '파출소', '출장소', '방파제', '갯바위', '해변', '포구', '부두', '등대', '해구', '해협', '항', '섬', '곶', '만', '포', '도'];
@@ -62,6 +72,8 @@ const STOP_WORD = new Set(['관할', '인근', '주변', '부근', '해당', '�
 const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면|다|요|게|께|죠)$/;
 // 해설 문장 수(2026-10-17 §11.10 — 결론·근거·권고는 서버가 쓰므로 AI 는 1~2문장). 종전 총평 문단은 3~5.
 const MIN_S = 1, MAX_S = 2;
+// 해설 문단 글자 상한(독립 검토 9) — 1~2문장 해설에 넉넉한 값. 문장 수 검사를 마침표 없이 이어 쓴 긴 글이 빠져나가지 않게.
+const MAX_CHARS = 220;
 
 /** NFKC 정규화(전각 숫자·호환 문자 → 보통 꼴, B2). 예: '９９m' → '99m'. @param {string} t @returns {string} [연계] ← 검증 전부 */
 function norm(t) { return String(t || '').normalize('NFKC'); }
@@ -87,8 +99,11 @@ function numTokens(t) {
 }
 /** 허용 숫자 열쇠를 사람이 읽는 꼴로. 예: '15~18|시' → '15~18시' · '6:12|:' → '6:12' · '52|' → '52'. @param {string} k @returns {string} [연계] ← stationInput(AI 입력 allowed_numbers) */
 function showNum(k) { const [n, u] = k.split('|'); return u === ':' ? n : n + u; }
-/** 문장으로 나눈다(마침표·물음표·느낌표 뒤 공백, 「다.」 끝). 예: 'A입니다. B입니다.' → 2. @param {string} t @returns {string[]} [연계] ← validateOverview */
-function sentences(t) { return norm(t).split(/(?<=[.!?。])\s+/).map((x) => x.trim()).filter(Boolean); }
+/**
+ * 문장으로 나눈다 — 마침표·물음표·느낌표 뒤 공백, 「다.」「요.」 뒤에 바로 한글이 붙은 것(「셉니다.두번째」), 줄바꿈(독립 검토 9). 「2.4m」·「천둥.번개」는 나누지 않는다.
+ * 예: 'A입니다. B입니다.' → 2 · '바람이 셉니다.두번째 문장입니다.세번째입니다.' → 3 · 'A입니다\nB입니다' → 2. @param {string} t @returns {string[]} [연계] ← validateOverview
+ */
+function sentences(t) { return norm(t).split(/(?<=[.!?。])\s+|(?<=[다요까죠][.!?])(?=[가-힣])|\s*\n+\s*/).map((x) => x.trim()).filter(Boolean); }
 /**
  * 글에서 지명 후보를 뽑는다(B5). 낱말(조사 떼고)이 지명 접미사로 끝나면 후보, 접미사만 있는 낱말(「앞바다」)·띄어 쓴 지명(「제주도 서부 앞바다」)은
  * 앞 낱말 한두 개를 붙여 본다(공백으로만 떨어진 이름다운 낱말일 때). 한 글자 접미사: 항은 앞 1글자 이상, 섬·곶·포·도는 2글자 이상, 만은 뒤에 장소 말(에서·앞·해역…)이 올 때만,
@@ -129,9 +144,11 @@ function placeCandidates(t) {
  * 허용 숫자 = 서버가 만든 사실 문장들(+ 서버 결론·근거 줄) 안의 「숫자+단위」, 허용 지명 = 관할·해역·구역·관광지 이름(+ 이름 줄기: 파출소 이름에서 「파출소」를 뗀 것 등 — 정확히 같을 때만).
  * 단계(levels)는 문단별(sea·land) — 이름 없는 문장의 단계는 그 문단 최저 단계까지(B4). 배수는 문단별(B3 — 해상 = 해제 칸 1.2·1.3, 육상 = 사람 배수).
  * 예: stationInput(한림 브리핑) → {id:'제주해양경찰서|한림파출소', shown:{land:{headline,basis,advice},sea:{…}}, sea:{level:'주의 필요',top:[…]}, land:{…}, allowed_numbers:['15~18시','2.4m',…], allowed_places:[…], levels:{sea:{…},land:{…}}}
- * @param {object} b - rules.buildBriefing 결과 @returns {object} [연계] ← batchInput·validateOverview / hash 의 대상
+ * kma_zones(독립 검토 8) = 이 관할이 쓸 수 있는 기상청 해역 이름 — 기상청 전망 발췌(kma.excerpt)·(기상) 칸 구역·특이사항에 나온 이름만, 「제주도」는 제주 관할이거나 그 글에 있을 때만.
+ * count_keys(독립 검토 7) = 문단(육상·해상)별 서버 결론·근거·권고 줄의 곳·개 수 — 「두 곳」은 그 문단 줄에 2곳이 있을 때만.
+ * @param {object} b - rules.buildBriefing 결과 @param {object|null} [kma] - 기상청 해상 전망 발췌(station_briefing_inputs.kmaOutlook) @returns {object} [연계] ← batchInput·validateOverview / hash 의 대상
  */
-function stationInput(b) {
+function stationInput(b, kma = null) {
     const sea = b.sea, land = b.land, facts = [], places = new Set([b.station.name, b.station.office, b.station.region].filter(Boolean)), levels = { sea: {}, land: {} }, mult = { sea: new Set(), land: new Set() };
     levels.sea[b.station.name] = sea.overviewLevel.rank; if (land) levels.land[b.station.name] = land.level.rank;
     const seaTop = sea.overviewTop.map((c) => {
@@ -173,6 +190,11 @@ function stationInput(b) {
     for (const pl of places) { const m = String(pl).match(/^(.+?)(?:북부|남부|동부|서부|중부|북동|북서|남동|남서)?(?:앞바다|먼바다|연안바다|평수구역)/); if (m && m[1].length >= 2) stems.add(m[1]); }
     // 띄어 쓴 허용 이름의 앞 낱말들(「비응항 방파제」 → 「비응항」) — 낱말 단위라 「림항」 같은 조각은 들어가지 않는다.
     for (const pl of places) { const ws = String(pl).split(/\s+/); for (let i = 1; i < ws.length; i++) stems.add(ws.slice(0, i).join('')); }
+    // 이 관할에 관련된 기상청 해역 이름만(독립 검토 8 — 종전엔 전국 이름 전부를 끝말 일치로 허용해 「가짜제주도남쪽바깥먼바다」·인천 관할의 「제주도」가 통과했다)
+    const zoneText = R.zoneKey([kma && kma.excerpt ? Object.values(kma.excerpt).join(' ') : '', summary.weather ? [summary.weather.zone, ...(summary.weather.notes || [])].join(' ') : ''].join(' '));
+    const kmaZones = KMA_ZONE_NAMES.filter((n) => n !== '제주도' && zoneText.includes(R.zoneKey(n)));
+    if (/제주/.test(String(b.station.region || '')) || /^(?:제주|서귀포)해양경찰서$/.test(String(b.station.office || '')) || zoneText.includes('제주도')) kmaZones.push('제주도');
+    const countKeys = (x) => x ? [...new Set([x.headline, ...(x.basis || []), x.advice].filter(Boolean).flatMap((l) => numTokens(l).filter((t) => t.unit === '곳' || t.unit === '개').map((t) => t.key)))].sort() : [];
     return {
         id: b.key, name: b.station.name, office: b.station.office, date: b.targetDate, day_word: R.dayWordOf(b),
         // shown.weather = (기상) 칸(단기 해상예보 오전·오후·단기 전망 특이사항) — 되풀이하지 않게 보여 주기만 하고 그 숫자는 허용 목록에 넣지 않는다(summaryLines 가 빼고 모은다 — §11.10.1).
@@ -180,23 +202,24 @@ function stationInput(b) {
         allowed_numbers: [...nums].sort().map(showNum), allowed_number_keys: [...nums].sort(),
         allowed_places: [...places].filter(Boolean).sort(), place_stems: [...stems].sort(), levels,
         allowed_multipliers: { sea: [...mult.sea].sort().map(showNum), land: [...mult.land].sort().map(showNum) }, allowed_multiplier_keys: { sea: [...mult.sea].sort(), land: [...mult.land].sort() },
+        kma_zones: kmaZones.sort(), count_keys: { sea: countKeys(summary.sea), land: countKeys(summary.land) },
         allowed_labels: [...labels].sort(), fact_sentences: [...new Set([...tide, ...b.special.flatMap((x) => x.lines)])],
         // required(첫 해역·첫 장소·빠진 자료 이름 필수)는 없앴다(§11.10) — 결론·근거(빠진 자료 줄 포함)는 서버 summary 가 화면에 늘 보인다. 운영 실패 「required:missing:swell」의 원인이기도 했다.
     };
 }
 /**
  * 여러 관할을 한 번에 보낼 묶음을 만든다(부록 A schema). kma_outlook = 기상청 해상 기상 전망(단기 통보문) 원문 발췌 — 원인·흐름 이해용이며
- * 그 안의 숫자는 해설에 쓰지 않는다(허용 목록에 넣지 않는다). 해역 이름은 rules.kma_zones(기상청 해역 이름 전부 + 「제주도」)에 있는 것만 쓸 수 있다(§11.10).
+ * 그 안의 숫자는 해설에 쓰지 않는다(허용 목록에 넣지 않는다). 해역 이름은 관할마다의 kma_zones(그 관할에 관련된 기상청 해역 이름 — 독립 검토 8)에 있는 것만 쓸 수 있다.
  * 예: batchInput([한림, 애월], kma) → {schema:'station-briefing-input-v2', stations:[2], kma_outlook:{…}, rules:{…}}
  * @param {object[]} inputs - stationInput 결과들 @param {object|null} kma - {title,publishTime,forecastPeriod,excerpt:{해상,강풍,너울,바다안개}}
  * @returns {object} [연계] ← generate / → buildPrompt
  */
 function batchInput(inputs, kma) {
     // AI 에게는 사람이 읽는 꼴만 보낸다(대조용 열쇠·사실 문장 목록은 서버 검증에만 쓴다).
-    const strip = (si) => { const { allowed_number_keys: _a, allowed_multiplier_keys: _b, fact_sentences: _c, ...rest } = si; return rest; };
+    const strip = (si) => { const { allowed_number_keys: _a, allowed_multiplier_keys: _b, fact_sentences: _c, count_keys: _d, ...rest } = si; return rest; };
     return {
         schema: SCHEMA, stations: inputs.map(strip), kma_outlook: kma || null,
-        rules: { sentences_per_paragraph: [MIN_S, MAX_S], forbidden: FORBIDDEN.concat(['안전합니다', '이상 없음', '문제없음', "해상 '사고 N배'", '한글 수사(세 시·두 척 등 — 곳·개를 세는 말은 그 수가 allowed_numbers 에 있을 때만)', 'HTML·링크']), level_words: ['관심 필요', '주의 필요', '경계 필요'], kma_zones: KMA_ZONE_NAMES },
+        rules: { sentences_per_paragraph: [MIN_S, MAX_S], forbidden: FORBIDDEN.concat(['안전합니다', '이상 없음', '문제없음', '평온합니다·위험하지 않습니다·위험이 낮습니다·안심(결론과 다른 단정)', '출항하지 마십시오·출항 금지(지시)', "해상 '사고 N배'", '한글 수사(세 시·두 척 등 — 곳·개를 세는 말은 그 수가 allowed_numbers 에 있을 때만)', 'HTML·링크']), level_words: ['관심 필요', '주의 필요', '경계 필요'] },
     };
 }
 /** AI 지시문 + 묶음 JSON. 예: buildPrompt(batch) → '너는 …\n\n{"schema":…}'. @param {object} batch @returns {string} [연계] ← generate */
@@ -206,11 +229,12 @@ function buildPrompt(batch) {
         '아래 JSON 의 stations 마다 육상 해설(land)과 해상 해설(sea)을 쓴다. 각 해설은 1~2문장.',
         'shown 의 기상(오전·오후 예보·특이사항)·물때·수(검토 칸·관광지·해역 수)·결론 문장·권고 문장을 되풀이하지 말고(shown.weather 의 숫자는 allowed_numbers 에 없으면 옮기지 않는다), 왜 높아졌는지(원인 — 바람·파도·특보·사람·행사 등)와 시간 흐름(언제부터 언제까지, 언제 나아지는지)을 쉬운 말로 설명한다(예: 「오전에는 바람이 약하지만 15시부터 파고가 높아지고, 21시부터는 풍랑 예비특보 구역에 들어갑니다.」).',
         '규칙(어기면 그 관할 글은 버려진다):',
-        '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로 쓴다 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다. 다만 「두 곳」·「세 개」처럼 곳·개를 세는 말은 그 수가 allowed_numbers 에 「2곳」·「3개」 꼴로 있을 때만 쓸 수 있다.',
-        '2) 지명(항·포구·해수욕장·앞바다·해구·섬·갯바위·파출소 등)은 allowed_places 이름(또는 place_stems), 그리고 rules.kma_zones 의 기상청 해역 이름(「제주도남쪽바깥먼바다」 등)과 「제주도」만 그대로 쓴다.',
+        '0) 각 해설은 220자 이내.',
+        '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로 쓴다 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다. 다만 「두 곳」·「세 개」처럼 곳·개를 세는 말은 그 수가 allowed_numbers 에 「2곳」·「3개」 꼴로 있고 그 해설(육상·해상)의 shown 결론·근거·권고에도 그 수가 있을 때만 쓸 수 있다.',
+        '2) 지명(항·포구·해수욕장·앞바다·해구·섬·갯바위·파출소 등)은 allowed_places 이름(또는 place_stems), 그리고 그 관할의 kma_zones 에 있는 기상청 해역 이름(「제주도남쪽바깥먼바다」 등)만 그대로 쓴다.',
         '3) 단계 말(관심·주의·경계 + 필요·요구·단계·하십시오 등 모든 꼴)은 levels.sea(해상 해설)·levels.land(육상 해설)에 적힌 그 대상의 단계보다 높이지 않는다. 단계 말이 있는 문장에는 대상 이름을 함께 쓴다 — 이름이 없으면 그 해설의 가장 낮은 단계까지만. 따옴표로 쓰는 공식 단계 이름(\'주의\' 등)은 allowed_labels 에 있는 것만.',
         '4) 확인하지 못한 자료(missing_sources)는 화면 근거 목록에 이미 적혀 있다 — 그 자료가 빠졌는데 「평소 수준」·「없습니다」로 단정하지 않는다.',
-        '5) 쓰지 않는 말: 순찰·배치·출동·단속·통제·투입·경비정·검문·근무(직무 지시), 「안전합니다」·「이상 없음」·「문제없음」·「위험 요소가 없습니다」(안전 단정), 「사고 확률」. 배수(N배)는 allowed_multipliers.sea(해상)·land(육상)에 있는 것만 — 해상의 「사고 N배」·「두 배」는 쓰지 않는다. 지시(「~하라」)를 쓰지 않는다.',
+        '5) 쓰지 않는 말: 순찰·배치·출동·단속·통제·투입·경비정·검문·근무(직무 지시), 「안전합니다」·「이상 없음」·「문제없음」·「위험 요소가 없습니다」(안전 단정), 「평온합니다」·「위험하지 않습니다」·「위험이 낮습니다」·「안심하고」(화면 결론과 다른 단정 — 시간 흐름의 「오전에는 잔잔하지만 오후부터 …」는 된다), 「출항하지 마십시오」·「출항 금지」(지시), 「사고 확률」. 「두세 곳」「세 군데」 같은 어림 수사도 쓰지 않는다. 배수(N배)는 allowed_multipliers.sea(해상)·land(육상)에 있는 것만 — 해상의 「사고 N배」·「두 배」는 쓰지 않는다. 지시(「~하라」)를 쓰지 않는다.',
         '6) land 가 null 인 관할(해상만 제공)은 land 를 null 로 둔다.',
         '7) kma_outlook 은 기상청 해상 기상 전망 원문 발췌다 — 원인(저기압·바람 방향 등)과 흐름을 이해하는 데 쓰고, 그 안의 숫자는 옮기지 않는다(해역 이름은 2)의 kma_zones 에 있는 것만).',
         '8) 입력에 없는 사실을 지어내지 않는다. 글은 평문만 — HTML 태그·링크(URL)·마크다운을 쓰지 않는다.',
@@ -245,7 +269,8 @@ function parseResponse(text) {
  */
 function validateOverview(o, si) {
     const errors = [], allowedN = new Set(si.allowed_number_keys || []), mk = si.allowed_multiplier_keys || { sea: [], land: [] };
-    const names = (si.allowed_places || []).concat(KMA_ZONE_NAMES).map(compact).filter((x) => x.length >= 2), stems = new Set((si.place_stems || []).map(compact));
+    // 허용 지명은 끝말 일치(「한림 협재해수욕장」 같은 앞 낱말 붙은 후보), 기상청 해역 이름은 그 관할 kma_zones 와 정확히 같을 때만(독립 검토 8).
+    const names = (si.allowed_places || []).map(compact).filter((x) => x.length >= 2), kz = new Set((si.kma_zones || []).map(compact)), stems = new Set((si.place_stems || []).map(compact));
     const factS = (si.fact_sentences || []).map(compact).filter(Boolean);
     const paras = [['sea', o?.sea], ['land', o?.land]];
     if (!si.land && o?.land) errors.push('shape:land-not-allowed');
@@ -255,18 +280,22 @@ function validateOverview(o, si) {
         if (!raw) continue;
         const t = norm(raw), c = compact(raw), ss = sentences(t);
         if (ss.length < MIN_S || ss.length > MAX_S) errors.push('shape:' + k + '-sentences-' + ss.length);
+        if (t.length > MAX_CHARS) errors.push('shape:' + k + '-too-long-' + t.length);
         if (/[<>]|https?:|www\.|javascript:|&[a-z]+;|\]\(/i.test(t)) errors.push('markup');
         const multSet = new Set(mk[k] || []);
         for (const n of numTokens(t)) {
             if (n.unit === '배') { if (!multSet.has(n.key)) errors.push('multiplier:' + n.text); continue; }
             if (!allowedN.has(n.key)) errors.push('number:' + n.text);
         }
-        for (const m of t.matchAll(HNUM_RE)) { const w = m[1].replace(/\s+/g, ' '); if (!countWordOk(w, allowedN)) errors.push('number:hangul:' + w); }
+        const paraCount = si.count_keys ? new Set(si.count_keys[k] || []) : allowedN;   // 셈말은 그 문단 결론·근거에 있는 수만(독립 검토 7)
+        for (const m of t.matchAll(HNUM_RE)) { const w = m[1].replace(/\s+/g, ' '); if (!countWordOk(w, allowedN, paraCount)) errors.push('number:hangul:' + w); }
         for (const m of t.matchAll(HMULT_RE)) errors.push('multiplier:' + m[1].replace(/\s+/g, ' '));
-        for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || names.some((a) => x.endsWith(a)))) errors.push('place:' + pc.cands[pc.cands.length - 1]);
+        for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || kz.has(x) || names.some((a) => x.endsWith(a)))) errors.push('place:' + pc.cands[pc.cands.length - 1]);
         for (const w of FORBIDDEN) if (c.includes(compact(w))) errors.push('forbidden:' + w);
         for (const lm of t.matchAll(LABEL_RE)) if (!(si.allowed_labels || []).includes(lm[0])) errors.push('label:' + lm[0]);
         if (SAFE_RE.test(c)) errors.push('forbidden:안전 단정');
+        if (SOFTEN_RE.test(c) || ss.some((x) => CALM_RE.test(compact(x)) && !CHANGE_RE.test(compact(x)))) errors.push('forbidden:결론과 다른 단정');
+        if (ORDER_RE.test(c)) errors.push('forbidden:출항 지시');
         const lv = (si.levels && si.levels[k]) || {}, floor = Math.min(...Object.values(lv), 3);
         for (const s of ss) {
             const cs = compact(s);
@@ -280,10 +309,11 @@ function validateOverview(o, si) {
 }
 
 /**
- * 곳·개를 세는 한글 수사가 허용 숫자와 맞는지(2026-10-17 결정). 예: ('두 곳', Set{'2|곳'}) → true · ('세 곳', Set{'2|곳'}) → false · ('두 척', …) → false(곳·개만)
- * @param {string} w - HNUM_RE 가 잡은 글(공백 하나로 정리) @param {Set<string>} allowedN - allowed_number_keys @returns {boolean} [연계] ← validateOverview
+ * 곳·개를 세는 한글 수사가 허용 숫자와 맞는지(2026-10-17 결정). 「군데」는 곳으로 센다. 어림 수사(두세·서너…)는 표에 없어 늘 거짓(독립 검토 7).
+ * 예: ('두 곳', Set{'2|곳'}, Set{'2|곳'}) → true · ('세 곳', Set{'2|곳'}) → false · ('세 군데', Set{'3|곳'}, Set{'3|곳'}) → true · ('두세 곳', …) → false · ('두 척', …) → false(곳·개만)
+ * @param {string} w - HNUM_RE 가 잡은 글(공백 하나로 정리) @param {Set<string>} allowedN - allowed_number_keys @param {Set<string>} [para] - 그 문단 count_keys(없으면 allowedN) @returns {boolean} [연계] ← validateOverview
  */
-function countWordOk(w, allowedN) { const m = /^(\S+) ?(곳|개)$/.exec(w), n = m ? COUNT_WORD[m[1]] : undefined; return !!n && allowedN.has(n + '|' + m[2]); }
+function countWordOk(w, allowedN, para = allowedN) { const m = /^(\S+) ?(곳|개|군데)$/.exec(w), n = m ? COUNT_WORD[m[1]] : undefined, key = m ? n + '|' + (m[2] === '군데' ? '곳' : m[2]) : null; return !!n && allowedN.has(key) && para.has(key); }
 /** 묶음 단위대로 나눈다. 예: unit 'office' → 해양경찰서마다 한 묶음(21개). @param {object[]} items @param {string} unit - station|office|region @returns {object[][]} [연계] ← generate */
 function groupBy(items, unit) {
     const m = new Map();
@@ -308,7 +338,7 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     const up = (a) => !!a && (typeof a.available !== 'function' || a.available());
     let vmFails = 0, vmBroken = false;
     const vmUp = method === 'chatgpt' && up(adapters.vm);
-    const items = briefings.map((b) => { const si = stationInput(b); return { b, si, hash: R.hash({ si, rules: R.RULES_VERSION, validator: VALIDATOR_VERSION, prompt: PROMPT_VERSION, method, chatgptModel: method === 'chatgpt' ? config.chatgptModel : null, geminiModel: method !== 'template' ? config.geminiModel : null, kma: kma ? R.hash(kma) : null }) }; });
+    const items = briefings.map((b) => { const si = stationInput(b, kma); return { b, si, hash: R.hash({ si, rules: R.RULES_VERSION, validator: VALIDATOR_VERSION, prompt: PROMPT_VERSION, method, chatgptModel: method === 'chatgpt' ? config.chatgptModel : null, geminiModel: method !== 'template' ? config.geminiModel : null, kma: kma ? R.hash(kma) : null }) }; });
     // AI 가 못 쓰면(틀 방식·실패·데드라인) 해설 없음 — 결론·근거·권고는 서버 summary 가 늘 보인다(§11.10, 종전 틀 총평 문단 대체).
     const template = (it) => { overviews[it.b.key] = { land: null, sea: null, source: 'template', model: null, hash: it.hash }; stats.template++; };
     const pending = [];
@@ -371,4 +401,4 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     return { overviews, stats, errors };
 }
 
-module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, FORBIDDEN, KMA_ZONE_NAMES, MIN_S, MAX_S, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
+module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, FORBIDDEN, KMA_ZONE_NAMES, MIN_S, MAX_S, MAX_CHARS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };

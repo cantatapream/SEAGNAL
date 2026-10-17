@@ -342,6 +342,14 @@
         var sn = el('p', 'sb-small sb-source', note); sn.setAttribute('data-sb-source', ai ? ov.source : 'template'); body.appendChild(sn);
     }
     /**
+     * (특이사항)이 비었을 때의 글(2026-10-17 독립 검토 3). 통보문에 그날 토막이 있었는데 뽑지 못했으면(notesFound) 「없습니다」라고 하지 않고 원문을 보라고 한다 — 조용한 것이 이상 없는 것처럼 보이면 안 된다(CLAUDE.md L-291).
+     * 예: {notesFound:true, notesSource:'제주지방기상청 단기 전망 (10.17 04:40 발표)'} → '단기 전망에서 항목을 뽑지 못했습니다 — 원문(제주지방기상청 단기 전망 (10.17 04:40 발표))을 확인하세요.' · {notesFound:false} → '이 날에 해당하는 특보·강풍·해상 특이사항이 단기 전망에 없습니다.'(notesFound 가 없는 옛 브리핑도)
+     * @param {Object} W - summary.weather @returns {string} [연계] ← summaryBodyV2 · 시험 test_station_briefing.js
+     */
+    function notesEmptyText(W) {
+        return W && W.notesFound ? '단기 전망에서 항목을 뽑지 못했습니다 — 원문(' + (W.notesSource || '지방기상청 단기 전망') + ')을 확인하세요.' : '이 날에 해당하는 특보·강풍·해상 특이사항이 단기 전망에 없습니다.';
+    }
+    /**
      * 「총평과 권고」 §11.10.1 모양(2026-10-17 사용자 후속 결정 — *"결론 한줄 -> 기상(…가장 가까운 특보구역…오전, 오후…) … / 물때 / 연안의 안전 등급 분석에 근거…"*):
      *   ① 결론(육상·해상 단계 배지 + 결론 한 줄씩) ② (기상) 가장 가까운 앞바다 단기 해상예보 오전·오후 두 줄 + 출처 + (특이사항) 지방기상청 단기 전망 대상일 것
      *   ③ (물때) 공용 ④ 육상 (근거)·(권고) ⑤ 해상 (근거)·(권고) ⑥ AI 해설(있으면). 자료가 없으면 「기상예보 자료를 확인하지 못했습니다」. 글은 모두 textContent.
@@ -367,7 +375,9 @@
         }
         // ② (기상)
         var W = S.weather || {}, wp = part('weather', '(기상)' + (W.zone ? ' ' + W.zone : ''));
-        if (W.zone && Number.isFinite(Number(W.distKm))) wp.appendChild(el('p', 'sb-small', '파출소 대표 위치에서 가장 가까운 특보구역(약 ' + Number(W.distKm) + 'km)'));
+        // 앞바다가 30km 넘게 멀면 서버가 note 로 밝힌다(먼바다 예보로 바꿈 또는 먼 앞바다 그대로 — 독립 검토 5)
+        if (W.note) { var wn = el('p', 'sb-small', W.note); wn.setAttribute('data-sb-wx-note', ''); wp.appendChild(wn); }
+        else if (W.zone && Number.isFinite(Number(W.distKm))) wp.appendChild(el('p', 'sb-small', '파출소 대표 위치에서 가장 가까운 특보구역(약 ' + Number(W.distKm) + 'km)'));
         if (!W.missing && Array.isArray(W.rows) && W.rows.length) {
             var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); li.appendChild(document.createTextNode(r.text)); wl.appendChild(li); }); wp.appendChild(wl);
             if (W.source) wp.appendChild(el('p', 'sb-small', W.source));
@@ -375,7 +385,7 @@
         wp.appendChild(el('p', 'sb-sum-k', '(특이사항)'));
         if (W.bulletinMissing) wp.appendChild(el('p', 'sb-miss', '지방기상청 단기 전망 자료를 확인하지 못했습니다.'));
         else if (Array.isArray(W.notes) && W.notes.length) { var nl = list(W.notes); nl.classList.add('sb-wx-notes'); wp.appendChild(nl); }
-        else wp.appendChild(el('p', 'sb-small', '이 날에 해당하는 특보·강풍·해상 특이사항이 단기 전망에 없습니다.'));
+        else { var ne = el('p', W.notesFound ? 'sb-miss' : 'sb-small', notesEmptyText(W)); ne.setAttribute('data-sb-wx-notes-empty', W.notesFound ? 'unparsed' : 'none'); wp.appendChild(ne); }
         if (!W.bulletinMissing && W.notesSource) wp.appendChild(el('p', 'sb-small', W.notesSource));
         // ③ (물때)
         if (Array.isArray(S.tide) && S.tide.length) { var tp = part('tide', '(물때)'); S.tide.forEach(function (t) { tp.appendChild(el('p', 'sb-sum-tide', t)); }); }
@@ -498,5 +508,5 @@
         foot.appendChild(el('p', 'sb-notice', b.notice || '참고 정보이며 안전을 보장하지 않습니다.'));
         box.appendChild(foot);
     }
-    w.StationBriefingRender = { render: render, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, WORDS: WORDS, SOURCES: SOURCES };
+    w.StationBriefingRender = { render: render, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, notesEmptyText: notesEmptyText, WORDS: WORDS, SOURCES: SOURCES };
 })(window);

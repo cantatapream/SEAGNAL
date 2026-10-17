@@ -265,7 +265,7 @@ function makeBriefings() {
             assert.deepEqual(s.con.map((x) => x.chip + '|' + x.head), ['주의 필요|' + B.h.summary.land.headline, '주의 필요|오늘 한림파출소 관할 해상의 단계는 "주의 필요"입니다.']); assert.ok(s.con.every((x) => Number(x.w) >= 700), '결론은 굵게');
             assert.equal(s.wx.title, '(기상) 제주도서부앞바다');
             assert.deepEqual(s.wx.rows, ['오늘 오전 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 동→남동', '오늘 오후 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 남동']);
-            assert.deepEqual(s.wx.notes, ['오늘 오후부터 순간풍속 15m/s 안팎의 강한 바람', '풍랑 예비특보: 오늘 밤(18~24시) 제주도남쪽바깥먼바다', '오늘 밤부터 제주도남쪽바깥먼바다 물결 1.5~3.0m로 높아짐']);
+            assert.deepEqual(s.wx.notes, B.h.summary.weather.notes); assert.ok(s.wx.notes.length >= 1, '특이사항 글은 서버 규칙 값 그대로(§11.10.2 — 문구는 test_station_briefing.js 가 고정)');
             assert.ok(s.wx.text.includes('제주지방기상청 단기 해상예보 (10.17 05:00 발표)') && s.wx.text.includes('(특이사항)') && s.wx.text.includes('제주지방기상청 단기 전망 (10.17 04:40 발표)'), s.wx.text);
             assert.deepEqual(s.tideLines, B.h.tide.text, '물때는 공용 칸');
             assert.deepEqual(s.land.ks, ['(근거)', '(권고)'], '육상 덩어리에 물때 없음'); assert.deepEqual(s.land.basis, B.h.summary.land.basis); assert.equal(s.land.advice, '(권고) ' + B.h.summary.land.advice);

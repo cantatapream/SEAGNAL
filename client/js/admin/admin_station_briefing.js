@@ -177,14 +177,15 @@
     /** KST 날짜·시각 글. 예: (ms, true) → '2026-10-17 08:05' · (ms, false) → '20261017_0805'(파일 이름용). @param {number} ms @param {boolean} human @returns {string} [연계] ← errorsMarkdown·저장 파일 이름 */
     function kstStamp(ms, human) { var s = new Date(ms + 9 * 3600000).toISOString(); return human ? s.slice(0, 10) + ' ' + s.slice(11, 16) : s.slice(0, 10).replace(/-/g, '') + '_' + s.slice(11, 16).replace(':', ''); }
     /**
-     * 오류 목록을 마크다운으로(복사·md 저장이 같은 글을 쓴다). 표 칸의 「|」·줄바꿈은 글자로 바꾼다.
+     * 오류 목록을 마크다운으로(복사·md 저장이 같은 글을 쓴다). 표 칸의 줄바꿈은 빈칸으로, 「\」「|」「`」「<」「>」는 앞에 역슬래시를 붙여 글자 그대로 보이게 한다
+     * (2026-10-17 독립 검토 11 — 이유 글의 `·<·> 가 마크다운 미리보기에서 코드·HTML 로 읽히지 않게 — CommonMark 문장부호 이스케이프).
      * 예: errorsMarkdown([{at:'2026-10-17T08:03:10+09:00',edition:'morning',date:'2026-10-17',stage:'validate',provider:'chatgpt',stations:['제주해양경찰서|한림파출소'],reason:'place:제주도'}], ms, {days:3})
      *     → '# 활동지점 안전 브리핑 — AI 브리핑 오류(최근 3일)\n\n- 만든 시각: 2026-10-17 10:05 KST\n- 건수: 1건\n\n| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 |\n|---|…|\n| 2026-10-17 08:03:10 | 08:00 판 · 2026-10-17 | validate | chatgpt | 제주해양경찰서 한림파출소 | place:제주도 |'
      * @param {Object[]} errs - status.errors(최근 것부터) @param {number} nowMs @param {Object} keep - status.errorKeep {days,cap} @returns {string}
      * [연계] ← drawErrors(복사·md로 저장)
      */
     function errorsMarkdown(errs, nowMs, keep) {
-        var cell = function (v) { return String(v === undefined || v === null || v === '' ? '—' : v).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|'); };
+        var cell = function (v) { return String(v === undefined || v === null || v === '' ? '—' : v).replace(/\r?\n/g, ' ').replace(/([\\|`<>])/g, '\\$1'); };
         var out = ['# 활동지점 안전 브리핑 — AI 브리핑 오류(최근 ' + ((keep && keep.days) || 3) + '일)', '', '- 만든 시각: ' + kstStamp(nowMs, true) + ' KST', '- 건수: ' + errs.length + '건', '',
             '| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 |', '|---|---|---|---|---|---|'];
         errs.forEach(function (e) { out.push('| ' + [String(e.at || '').slice(0, 19).replace('T', ' '), editionText(e), e.stage, e.provider, stationsText(e.stations), e.reason].map(cell).join(' | ') + ' |'); });
@@ -268,4 +269,5 @@
         });
     }
     w.renderStationBriefingAdmin = renderStationBriefingAdmin;
+    renderStationBriefingAdmin.errorsMarkdown = errorsMarkdown;   // 시험용(test_station_briefing.js 가 vm 으로 읽어 이스케이프를 본다)
 })(window);

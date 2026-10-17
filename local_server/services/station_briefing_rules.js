@@ -17,7 +17,7 @@
 'use strict';
 const crypto = require('crypto');
 
-const RULES_VERSION = 'station-briefing-rules-v7'; // v7(2026-10-17 사용자 후속 결정 §11.10.1): 총평에 (기상)(가장 가까운 앞바다 단기 해상예보 오전·오후 + 지방기상청 단기 전망 특이사항)·(물때) 공용 칸 · 예보에서 온 근거에 「예상」 · v6(2026-10-17 사용자 결정 §11.10): 총평을 서버가 만드는 결론·근거·권고(summary)로 — 틀 총평 문단(templateOverview) 폐지 · 육상 「관심 이상인 곳」 수를 카드 상한(10) 대신 전체 수로 · 해상 총평 후보 3곳 · SOURCE_LABEL 에 너울(swell) · v5(2026-10-16 2단계 화면 독립 검토 B1·B12): 틀 총평 「관심 이상 N개 해역」을 총평 기준 수로(공식 사고예보 단계만 있는 해역은 따로 셈) · 경계 카드 문장의 「공식」을 출처별로 · v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구 · v4(같은 날 *"모두 추천대로."*): 공식 사고예보 「경계」도 「주의」처럼 기상·혼잡이 겹칠 때만 총평
+const RULES_VERSION = 'station-briefing-rules-v8'; // v8(2026-10-17 §11.10.1 독립 검토 1~5·12 — 설계서 §11.10.2): 단기 전망 특이사항 방향(높아짐·낮아짐)은 원문대로·구역은 「에서는·에서·에는·에도·에」 앞까지·지역·「곳에 따라」·「…가능성」 단서·「뽑지 못함」(notesFound)·가장 가까운 구역 줄 먼저·같은 구역 예비특보+해상 한 줄·「18일부터」 표지·앞바다 30km 넘으면 먼바다 예보 또는 거리 안내 · v7(2026-10-17 사용자 후속 결정 §11.10.1): 총평에 (기상)(가장 가까운 앞바다 단기 해상예보 오전·오후 + 지방기상청 단기 전망 특이사항)·(물때) 공용 칸 · 예보에서 온 근거에 「예상」 · v6(2026-10-17 사용자 결정 §11.10): 총평을 서버가 만드는 결론·근거·권고(summary)로 — 틀 총평 문단(templateOverview) 폐지 · 육상 「관심 이상인 곳」 수를 카드 상한(10) 대신 전체 수로 · 해상 총평 후보 3곳 · SOURCE_LABEL 에 너울(swell) · v5(2026-10-16 2단계 화면 독립 검토 B1·B12): 틀 총평 「관심 이상 N개 해역」을 총평 기준 수로(공식 사고예보 단계만 있는 해역은 따로 셈) · 경계 카드 문장의 「공식」을 출처별로 · v2(2026-10-16): 독립 검토 반영 — 결측 「확인 불가」·창 겹침·끊긴 시간대·총평 후보 상한 분리 등 · v3(같은 날 사용자 결정 1·2·4·5): 특보 기상청 시각 그대로·육상 지수 단계·해제 뒤 관심 1/3시간·밀물 조석 문구 · v4(같은 날 *"모두 추천대로."*): 공식 사고예보 「경계」도 「주의」처럼 기상·혼잡이 겹칠 때만 총평
 const HOUR = 3600000, SLOT_H = 3;
 // 단계 말 — 사용자 확정(§11.6-8 Q1 「가」): 「관심 필요·주의 필요·경계 필요」. 해상의 주의·경계는 공식 자료(공식 사고예보·기상특보)가 그 단계일 때만.
 // 육상은 2026-10-16 결정 2(*"공식 단어 … 써도 상관없을 것 같다 … 어차피 판단은 사람들이 하는거잖아"*)로 연안 위험지수 단계도 주의·경계를 붙인다(landSpot).
@@ -617,10 +617,41 @@ function periodText(p) {
 }
 /** 통보문 마크업({{loc:…}}·{{num:…}}·{{warn:…}} — regional_bulletin_collector 의 AI 색칠)을 벗긴다. 예: '{{loc:제주도}}에는' → '제주도에는'. @param {string} t @returns {string} [연계] ← bulletinNotes */
 function stripMarkup(t) { return String(t || '').replace(/\{\{(?:loc|num|warn):([^}]*)\}\}/g, '$1'); }
-/** 긴 지역 나열을 줄인다(쉼표 경계에서 자르고 「 등」). 예: 45자 넘는 'A, B, C …' → 'A, B 등'. @param {string} s @param {number} [max] @returns {string} [연계] ← bulletinNotes */
-function shortList(s, max = 40) { s = String(s).trim(); if (s.length <= max) return s; const i = s.lastIndexOf(',', max); return (i > 0 ? s.slice(0, i) : s.slice(0, max)) + ' 등'; }
+/** 괄호 밖 쉼표로 나눈다(「제주시(북부, 중산간)」의 쉼표는 나누지 않음). 예: 'A, B(c, d), E' → ['A','B(c, d)','E']. @param {string} s @returns {string[]} [연계] ← shortList·zoneHit */
+function topItems(s) {
+    const out = []; let depth = 0, cur = '';
+    for (const ch of String(s)) { if (ch === '(') depth++; else if (ch === ')') depth = Math.max(0, depth - 1); if (ch === ',' && !depth) { out.push(cur.trim()); cur = ''; } else cur += ch; }
+    out.push(cur.trim()); return out.filter(Boolean);
+}
+/** 긴 지역 나열을 줄인다(괄호 밖 쉼표 경계에서 자르고 「 등」 — 괄호 안에서 끊지 않는다, 2026-10-17 독립 검토 2). 예: 45자 넘는 'A, B, C …' → 'A, B 등' · ('제주도산지와 제주시(북부, 중산간), 서귀포시중산간', 24) → '제주도산지와 제주시(북부, 중산간) 등'. @param {string} s @param {number} [max] @returns {string} [연계] ← bulletinScan */
+function shortList(s, max = 40) {
+    let out = '';
+    for (const it of topItems(s)) { const next = out ? out + ', ' + it : it; if (next.length > max && out) return out + ' 등'; out = next; }
+    return out;
+}
+/**
+ * 통보문의 구역 나열이 파출소의 가장 가까운 특보구역을 가리키는지(2026-10-17 독립 검토 4). 같은 이름이거나 상위 이름(「제주도앞바다」 ⊃ 「제주도서부앞바다」, 「제주도해상」 ⊃ 제주도 구역 전부)이면 참.
+ * 「(북부앞바다 제외)」처럼 괄호 안 제외 구역은 거꾸로 — 그 구역이면 거짓(제외를 맞음으로 세지 않는다).
+ * 예: ('제주도앞바다(북부앞바다 제외), 남해서부서쪽먼바다', '제주도서부앞바다') → true · (같은 글, '제주도북부앞바다') → false · ('제주도해상와 남해서부서쪽먼바다', '제주도북부앞바다') → true
+ * @param {string} raw - 통보문 구역 나열 @param {string|null} near - 가장 가까운 특보구역 @returns {boolean} [연계] ← bulletinScan
+ */
+function zoneHit(raw, near) {
+    if (!raw || !near) return false;
+    const nk = zoneKey(near);
+    return topItems(String(raw).replace(/([가-힣])[와과]\s/g, '$1, ')).some((it) => {
+        const ex = [...it.matchAll(/\(([^)]*)제외\)/g)].flatMap((m) => m[1].split(/[,·\s]+/)).map(zoneKey).filter(Boolean);
+        if (ex.some((e) => nk.endsWith(e))) return false;
+        const k = zoneKey(it.replace(/\([^)]*\)/g, ''));
+        if (!k) return false;
+        if (k === nk) return true;
+        const m = k.match(/^(.+?)(앞바다|먼바다|해상)$/);
+        return !!m && nk.startsWith(m[1]) && (m[2] === '해상' || nk.endsWith(m[2]));
+    });
+}
 // 통보문의 날짜 표지 — 「오늘(17일)」·「내일(18일)」 꼴, 날짜 없는 「오늘/내일/모레/글피」, 「18일」 꼴.
-const DAY_RE = /(오늘|내일|모레|글피)\((\d{1,2})일\)|(오늘|내일|모레|글피)(?![(가-힣])|(?<![\d~])(\d{1,2})일(?![\d가-힣])/g;
+// 2026-10-17 독립 검토 12: 「18일부터」·「1일부터 3일까지」·「내일부터」처럼 조사가 바로 붙은 꼴도 받는다(종전엔 뒤에 한글이 오면 버려 그날 항목이 빠졌다). 「15일간」 같은 꼴은 그대로 뺀다.
+const DAY_TAIL = '(?=부터|까지|은|는|에|도|과|와|께|경|$|[^가-힣(])';
+const DAY_RE = new RegExp('(오늘|내일|모레|글피)\\((\\d{1,2})일\\)|(오늘|내일|모레|글피)' + DAY_TAIL + '|(?<![\\d~])(\\d{1,2})일' + DAY_TAIL.replace('[^가-힣(]', '[^\\d가-힣]'), 'g');
 const REL_DAY = { 오늘: 0, 내일: 1, 모레: 2, 글피: 3 };
 // 표지 바로 뒤 때 말(「이른 새벽(00~03시)」·「밤(18~24시)」)과 부터/까지.
 const TOD_RE = /^\s*((?:이른 |늦은 )?(?:새벽|아침|오전|낮|오후|저녁|밤)(?:\(\d{2}(?:~\d{2})?시\))?)?\s*(부터|까지)?/;
@@ -639,30 +670,90 @@ function daySegments(line, issuedMs) {
     const segs = [];
     for (let k = 0; k < marks.length; k++) {
         const days = [marks[k].day]; let j = k;
-        while (j + 1 < marks.length && /^\s*[과와·]\s*$/.test(line.slice(marks[j].end, marks[j + 1].i))) { j++; days.push(marks[j].day); }
+        for (;;) {
+            if (j + 1 >= marks.length) break;
+            const gap = line.slice(marks[j].end, marks[j + 1].i), a = marks[j].day, b = marks[j + 1].day;
+            if (/^\s*[과와·]\s*$/.test(gap)) { j++; days.push(b); continue; }
+            // 「1일부터 3일까지」 — 사이 날(2일)도 그 토막의 날로(독립 검토 12)
+            if (/^\s*부터\s*$/.test(gap) && /^\s*까지/.test(line.slice(marks[j + 1].end))) { j++; for (let d = a + 1; d <= b; d++) days.push(d); if (b < a) days.push(b); continue; }
+            break;
+        }
         const stop = j + 1 < marks.length ? marks[j + 1].i : line.length;
         segs.push({ days, head: line.slice(marks[k].i, marks[j].end), text: line.slice(marks[j].end, stop), rest: line.slice(stop) });
         k = j;
     }
     return segs;
 }
+// 특이사항 묶음 순서(강풍 → 풍랑 예비특보 → 해상 → 그 밖 예비특보 → 강수·유의)와 다루는 섹션.
+const NOTE_CATS = ['gale', 'waveWarn', 'sea', 'otherWarn', 'rain'], NOTE_SECTIONS = new Set(['예비특보현황', '강풍및해상', '강수및유의사항']);
+/** 첫 문장까지(「천둥.번개」처럼 마침표 뒤에 바로 글자가 붙은 것은 문장 끝이 아니다). 예: 'A 있겠으니. B' → 'A 있겠으니'. @param {string} s @returns {string} [연계] ← bulletinScan */
+function firstSentence(s) { return String(s).split(/\.(?=\s|$)/)[0]; }
 /**
- * 지방기상청 단기 전망 통보문에서 브리핑 대상일의 특이사항만 짧게 뽑는다(결정론 — AI 없음, 이유는 설계서 §11.10.1).
- *   <예비특보 현황> 「○ 풍랑 예비특보(17일 밤(18~24시)): 구역」 → 「풍랑 예비특보: 오늘 밤(18~24시) 구역」(날짜가 대상일일 때만)
- *   <강풍 및 해상> (강풍) 대상일 토막 → 「오늘 오후부터 순간풍속 15m/s 안팎의 강한 바람」 · (해상) 대상일 토막 → 「오늘 밤부터 구역 물결 1.5~3.0m로 높아짐」
- *     (구역 뒤 풀이말이 다음 날 토막에 함께 있으면 — 「오늘 밤부터 A, 내일 새벽부터 B에 … 물결이 1.5~3.0m」 — 그 풀이말의 수치를 쓴다)
- *   <강수 및 유의 사항> 대상일 토막의 비·강한 비(시간당)·천둥번개·짙은 안개
- *   순서: 강풍 → 풍랑 예비특보 → 해상 → 그 밖 예비특보 → 강수·유의, 같은 글은 한 번, 최대 MAX_NOTES(3)줄. 다른 날 정보·그 밖 섹션(<유의 사항> 등 타 지역 안내)은 넣지 않는다.
- * 예: 10-17 제주 통보문 · 대상 10-17 · '오늘' → ['오늘 오후부터 순간풍속 15m/s 안팎의 강한 바람', '풍랑 예비특보: 오늘 밤(18~24시) 제주도남쪽바깥먼바다', '오늘 밤부터 제주도남쪽바깥먼바다 물결 1.5~3.0m로 높아짐']
- * @param {string} text - 통보문 본문(마크업 있어도 됨) @param {string} issuedDate - 발표일 YYYY-MM-DD @param {string} targetDate @param {string} dayWord - 대상일의 오늘/내일
- * @returns {string[]} [연계] ← weatherSummary / 시험: test_station_briefing.js(사용자가 붙여 준 10-17 제주 통보문 고정 자료)
+ * 원문 단서를 괄호로(독립 검토 2 — 종전엔 버렸다). 「곳에 따라」·「…는 곳이 있겠」 → 곳에 따라 · 「풍랑특보가 발표될 가능성」 → 풍랑특보 가능성 · 그 밖 「가능성」 → 가능성.
+ * 예: '…강하게 부는 곳이 있겠으니' → '(곳에 따라)' · '…강풍특보를 발표할 가능성이 있겠으니' → '(강풍특보 가능성)' · 단서 없음 → ''. @param {string} src @returns {string} [연계] ← bulletinScan
  */
-function bulletinNotes(text, issuedDate, targetDate, dayWord) {
+function noteQuals(src) {
+    const q = [];
+    if (/곳에\s*따라|[는은]\s*곳이\s*있/.test(src)) q.push('곳에 따라');
+    const p = src.match(/([가-힣]*특보)[를을가이]?\s*(?:발표될|발표할|발효될|내려질)?\s*가능성/);
+    if (p) q.push(p[1] + ' 가능성'); else if (/가능성/.test(src)) q.push('가능성');
+    return q.length ? '(' + q.join('·') + ')' : '';
+}
+/**
+ * 물결 수치 + 원문이 그 수치 바로 뒤(문장 끝·40자 안)에 쓴 방향 말(독립 검토 1 — 종전엔 방향과 상관없이 「높아짐」). 방향 말이 없으면 수치만, 둘 다 있으면 원문 순서대로.
+ * 예: '물결이 0.5~1.0m로 낮게 일겠습니다' → '물결 0.5~1.0m로 낮아짐' · '물결이 2.0~3.0m로 높게 일겠으나 오후에는 낮아지겠으니' → '물결 2.0~3.0m로 높게 일다가 낮아짐' · '물결이 최대 4m로 매우 높게' → '물결 최대 4m로 높아짐' · '물결이 1.0~2.0m로 일겠습니다' → '물결 1.0~2.0m'
+ * @param {string} src @returns {string|null} [연계] ← bulletinScan
+ */
+function waveNote(src) {
+    const m = src.match(/물결[이가은는도]?\s*(최대\s*)?(\d+(?:\.\d+)?(?:\s*~\s*\d+(?:\.\d+)?)?)\s*m(?![/a-z])/);
+    if (!m) return null;
+    const fig = (m[1] ? '최대 ' : '') + m[2].replace(/\s+/g, '') + 'm', w = firstSentence(src.slice(m.index + m[0].length)).slice(0, 40);
+    const iu = w.search(/높게|높아|높은|높이/), id = w.search(/낮게|낮아|잦아/);
+    if (iu >= 0 && id >= 0) return '물결 ' + fig + (iu < id ? '로 높게 일다가 낮아짐' : '로 낮게 일다가 높아짐');
+    return '물결 ' + fig + (iu >= 0 ? '로 높아짐' : id >= 0 ? '로 낮아짐' : '');
+}
+/** 바람 수치(m/s, 없으면 km/h 그대로) + 원문 방향 말(강하게/약하게 — 없으면 수치만). 예: '바람이 30~55km/h(9~15m/s)로 매우 강하게' → '바람 9~15m/s로 강해짐'. @param {string} src @returns {string|null} [연계] ← bulletinScan */
+function windNote(src) {
+    const m = src.match(/\((\d+~\d+)\s*m\/s\)|(\d+~\d+)\s*m\/s|(\d+~\d+)\s*km\/h(?!\s*\()/);
+    if (!m) return null;
+    const fig = m[1] ? m[1] + 'm/s' : m[2] ? m[2] + 'm/s' : m[3] + 'km/h', w = firstSentence(src.slice(m.index + m[0].length)).slice(0, 40);
+    const iu = w.search(/강하게|강해/), id = w.search(/약하게|약해|잦아/);
+    return '바람 ' + fig + (iu >= 0 && (id < 0 || iu < id) ? '로 강해짐' : id >= 0 ? '로 약해짐' : '');
+}
+/** 순간풍속(m/s, 괄호 m/s 가 없으면 km/h 그대로 — 독립 검토 3). 예: '순간풍속 55km/h(15m/s) … 안팎으로 강하게' → '순간풍속 15m/s 안팎의 강한 바람' · '순간풍속 90km/h 안팎으로 매우 강하게' → '순간풍속 90km/h 안팎의 매우 강한 바람'. @param {string} src @returns {string|null} [연계] ← bulletinScan */
+function gustNote(src) {
+    const g = src.match(/순간풍속\s*(\d+)\s*km\/h(?:\s*\((\d+)\s*m\/s\))?|순간풍속\s*(\d+)\s*m\/s/);
+    if (!g) return null;
+    const v = g[2] ? g[2] + 'm/s' : g[1] ? g[1] + 'km/h' : g[3] + 'm/s';
+    return '순간풍속 ' + v + (/안팎/.test(src.slice(g.index, g.index + 40)) ? ' 안팎' : '') + '의 ' + (/매우 강하게/.test(src) ? '매우 강한' : '강한') + ' 바람';
+}
+/** 해상 토막의 구역 나열(「에서는·에서도·에서·에는·에도·에」 앞까지 — 독립 검토 1). 구역 이름으로 끝나지 않으면 ''. 예: ' 새벽부터 제주도앞바다에서는 물결이' → '제주도앞바다'. @param {string} t @returns {string} [연계] ← bulletinScan */
+function zonePart(t) {
+    const z = t.replace(TOD_RE, '').split(/(?:에서는|에서도|에서|에는|에도|에)(?=\s|$)/)[0].replace(/^\s*[은는]\s+/, '').replace(/[,\s]+$/, '').trim();
+    return z.length <= 80 && /(?:앞바다|먼바다|해상|바다)(?:\([^)]*\))?$/.test(z) ? z : '';
+}
+/**
+ * 지방기상청 단기 전망 통보문에서 브리핑 대상일의 특이사항을 모두 뽑는다(결정론 — AI 없음, 이유는 설계서 §11.10.1) + 대상일 토막이 있었는지(found).
+ *   <예비특보 현황> 「○ 풍랑 예비특보(17일 밤(18~24시)): 구역」 → 「풍랑 예비특보: 오늘 밤(18~24시) 구역」(날짜가 대상일일 때만)
+ *   <강풍 및 해상> (강풍) → 「오늘 오후부터 제주도에 순간풍속 15m/s 안팎의 강한 바람(곳에 따라)」(지역 짧게 — 괄호 안에서 끊지 않음)
+ *     (해상) → 「내일 새벽부터 제주도북부앞바다 물결 1.0~2.5m로 높아짐」 — 방향(높아짐·낮아짐)은 원문이 수치 바로 뒤에 쓴 말로만(waveNote), 구역은 zonePart.
+ *     구역 뒤 풀이말이 다음 날 토막에 함께 있으면(「오늘 밤부터 A, 내일 새벽부터 B에 … 물결이 1.5~3.0m」) 그 풀이말을 쓴다.
+ *   <강수 및 유의 사항> 대상일 토막의 비(지역·확대 — 「산지에 비, 오후(12~18시)부터 그 밖의 지역으로 확대」)·시간당 강한 비·천둥번개·짙은 안개(「중산간 이상 지역에」).
+ *     「한편 … 강수 강도와 강수량의 차이가 있겠으니」 같은 일반 안내는 넣지 않는다.
+ *   단서(noteQuals — 곳에 따라·○○특보 가능성·가능성)를 괄호로 붙인다(독립 검토 2). 같은 구역 나열의 풍랑 예비특보 줄과 해상 줄은 한 줄로 합친다(독립 검토 4).
+ *   found(독립 검토 3): 다루는 섹션에 대상일 토막이 있었거나 날짜 표지가 없는 ○ 줄이 있었으면 참 — 뽑은 것이 없을 때 화면이 「없습니다」 대신 「뽑지 못했습니다 — 원문을 확인하세요」.
+ * 예: (10-17 제주 통보문, '2026-10-17', '2026-10-17', '오늘') → {found:true, notes:[{cat:'gale',text:'오늘 오후부터 제주도에 순간풍속 15m/s 안팎의 강한 바람(곳에 따라)',zones:null}, {cat:'waveWarn',text:'풍랑 예비특보: 오늘 밤(18~24시) 제주도남쪽바깥먼바다 — 물결 1.5~3.0m로 높아짐',zones:'제주도남쪽바깥먼바다'}]}
+ * @param {string} text - 통보문 본문(마크업 있어도 됨) @param {string} issuedDate - 발표일 YYYY-MM-DD @param {string} targetDate @param {string} dayWord - 대상일의 오늘/내일
+ * @returns {object} {found, notes:[{cat,text,zones}]}(묶음 순서 NOTE_CATS) [연계] ← bulletinNotes·weatherSummary / 시험: test_station_briefing.js
+ */
+function bulletinScan(text, issuedDate, targetDate, dayWord) {
     const issuedMs = Date.parse(issuedDate + 'T00:00:00+09:00'), tDay = Number(targetDate.slice(8, 10));
     const off = Math.round((Date.parse(targetDate + 'T00:00:00+09:00') - issuedMs) / (24 * HOUR));
-    if (!Number.isFinite(off) || off < 0 || off > 3) return [];
-    const when = (seg) => { const m = seg.text.match(TOD_RE) || []; return [dayWord, m[1] || null].filter(Boolean).join(' ') + (m[2] || ''); };
-    const pick = { gale: [], waveWarn: [], sea: [], otherWarn: [], rain: [] };
+    const res = { found: false, notes: [] };
+    if (!Number.isFinite(off) || off < 0 || off > 3) return res;
+    // 여러 날 토막(「내일(18일)과 모레(19일)」·「1일부터 3일까지」)은 때 말을 붙이지 않는다 — 그 때 말이 어느 날 것인지 모른다.
+    const when = (seg) => { if (seg.days.length > 1) return dayWord; const m = seg.text.match(TOD_RE) || []; return [dayWord, m[1] || null].filter(Boolean).join(' ') + (m[2] || ''); };
+    const add = (cat, t, zones = null, what = null) => res.notes.push({ cat, text: t.replace(/\s+/g, ' ').trim(), zones, what });
     let section = '', tag = '';
     for (const raw of stripMarkup(text).split(/\r?\n/)) {
         const line = raw.replace(/\s+/g, ' ').trim(); if (!line) continue;
@@ -671,39 +762,81 @@ function bulletinNotes(text, issuedDate, targetDate, dayWord) {
         const t = line.match(/^○\s*\(([^)]+)\)/); if (t) tag = t[1]; else if (/^○/.test(line)) tag = '';
         if (section === '예비특보현황') {
             const m = line.match(/^○\s*(\S+)\s*예비특보\((\d{1,2})일\s*([^:]*?)\)\s*:\s*(.+)$/);
-            if (m && Number(m[2]) === tDay) (m[1] === '풍랑' ? pick.waveWarn : pick.otherWarn).push(m[1] + ' 예비특보: ' + [dayWord, m[3].trim()].filter(Boolean).join(' ') + ' ' + shortList(m[4]));
+            if (m && Number(m[2]) === tDay) { res.found = true; add(m[1] === '풍랑' ? 'waveWarn' : 'otherWarn', m[1] + ' 예비특보: ' + [dayWord, m[3].trim()].filter(Boolean).join(' ') + ' ' + shortList(m[4]), m[4]); }
             continue;
         }
+        if (!NOTE_SECTIONS.has(section)) continue;
         const body = line.replace(/^○\s*(\([^)]+\))?\s*/, '').replace(/^-\s*(?:한편|또한)?,?\s*/, '');
-        for (const seg of daySegments(body, issuedMs).filter((x) => x.days.includes(tDay))) {
+        const segs = daySegments(body, issuedMs);
+        if (!segs.length && /^○/.test(line)) res.found = true;            // 날짜 없는 ○ 줄 — 어느 날 것인지 몰라 넣지 않지만 「없다」고 하지도 않는다
+        for (const seg of segs.filter((x) => x.days.includes(tDay))) {
+            res.found = true;
             const all = seg.text + seg.rest, w = when(seg);
             if (section === '강풍및해상' && tag === '강풍') {
-                const g = all.match(/순간풍속\s*\d+km\/h\((\d+)m\/s\)/);
-                if (g) pick.gale.push(w + ' 순간풍속 ' + g[1] + 'm/s' + (/안팎/.test(all.slice(g.index, g.index + 40)) ? ' 안팎' : '') + '의 ' + (/매우 강하게/.test(all) ? '매우 강한' : '강한') + ' 바람');
+                const src = firstSentence(/순간풍속/.test(seg.text) ? seg.text : all), g = gustNote(src); if (!g) continue;
+                const am = seg.text.replace(TOD_RE, '').match(/^\s*([^\d]+?)(?:에서는|에서|에는|에도|에)\s+(?:바람|순간풍속)/);
+                add('gale', w + ' ' + (am ? shortList(am[1], 24) + '에 ' : '') + g + noteQuals(src));
             } else if (section === '강풍및해상' && tag === '해상') {
-                const zones = shortList(seg.text.replace(TOD_RE, '').split(/에(?:는|도)?\s/)[0].replace(/[,\s]+$/, ''));
-                const wave = all.match(/물결[이가]?\s*(?:최대\s*)?(\d+(?:\.\d+)?~\d+(?:\.\d+)?)m/), wind = all.match(/\((\d+~\d+)m\/s\)/);
-                const what = wave ? '물결 ' + wave[1] + 'm로 높아짐' : wind ? '바람 ' + wind[1] + 'm/s로 강해짐' : /천둥/.test(seg.text) ? '돌풍과 천둥·번개' : null;
-                if (what && zones) pick.sea.push(w + ' ' + zones + ' ' + what);
+                const zones = zonePart(seg.text); if (!zones) continue;
+                const src = firstSentence(/물결|m\/s|km\/h|천둥/.test(seg.text) ? seg.text : all);
+                const what = waveNote(src) || windNote(src) || (/천둥/.test(src) ? '돌풍과 천둥·번개' : null);
+                if (what) add('sea', w + ' ' + shortList(zones) + ' ' + what + noteQuals(src), zones, what);
             } else if (section === '강수및유의사항') {
-                const hr = seg.text.match(/시간당\s*(\d+~\d+mm)/);
-                const what = hr ? '시간당 ' + hr[1] + ' 강한 비' : /짙은 안개/.test(seg.text) ? '짙은 안개' : /천둥/.test(seg.text) ? '돌풍과 천둥·번개' : tag === '강수' && /비/.test(seg.text) ? '비' : null;
-                if (what) pick.rain.push(w + ' ' + what);
+                const s = seg.text;
+                if (/강수\s*강도|강수량의\s*차이/.test(s)) continue;          // 일반 안내(「지역에 따라 강수 강도와 강수량의 차이」) — 특이사항 아님
+                const hr = s.match(/시간당\s*(\d+~\d+\s*mm)/);
+                const what = hr ? '시간당 ' + hr[1].replace(/\s+/g, '') + ' 강한 비' : /짙은 안개/.test(s) ? '짙은 안개' : /천둥/.test(s) ? '돌풍과 천둥·번개' : tag === '강수' && /비/.test(s) ? '비' : null;
+                if (!what) continue;
+                const rest = s.replace(TOD_RE, '');
+                const area = (what === '비' && rest.match(/^\s*([가-힣]+)에\s*비/)) || rest.match(/([가-힣]+(?:\s이상|\s이하)?\s지역|[가-힣]+)을\s*중심으로/);
+                const grow = what === '비' ? s.slice(s.indexOf('비') + 1).match(/((?:이른 |늦은 )?(?:새벽|아침|오전|낮|오후|저녁|밤)(?:\(\d{2}(?:~\d{2})?시\))?)부터\s*([^\d,.]{1,20}?)(으로|로)\s*(?:점차\s*)?(?:확대|확산)/) : null;
+                add('rain', w + ' ' + (area ? area[1] + '에 ' : '') + what + (grow ? ', ' + grow[1] + '부터 ' + grow[2] + grow[3] + ' 확대' : '') + noteQuals(s));
             }
         }
     }
-    return [...new Set([].concat(pick.gale.slice(0, 1), pick.waveWarn, pick.sea, pick.otherWarn, pick.rain))].slice(0, MAX_NOTES);
+    // 같은 구역 나열의 풍랑 예비특보 줄 + 해상 줄은 한 줄로(예비특보 줄에 「 — 물결 …」, 해상 줄은 뺀다)
+    const zk = (z) => topItems(z).map(zoneKey).join(',');
+    for (const ww of res.notes.filter((n) => n.cat === 'waveWarn')) {
+        const s = res.notes.find((n) => n.cat === 'sea' && !n.merged && zk(n.zones) === zk(ww.zones));
+        if (s) { ww.text += ' — ' + s.what; s.merged = true; }
+    }
+    const seen = new Set();
+    res.notes = res.notes.filter((n) => !n.merged && !seen.has(n.text) && seen.add(n.text)).filter((n, i, a) => n.cat !== 'gale' || a.findIndex((x) => x.cat === 'gale') === i)
+        .map((n, i) => ({ ...n, i })).sort((a, b) => NOTE_CATS.indexOf(a.cat) - NOTE_CATS.indexOf(b.cat) || a.i - b.i).map(({ cat, text: tx, zones }) => ({ cat, text: tx, zones }));
+    return res;
 }
 /**
+ * 특이사항을 최대 MAX_NOTES(3)줄로 고른다 — 파출소의 가장 가까운 특보구역(또는 그 상위 구역 — zoneHit, 「(…제외)」는 맞음이 아님)을 가리키는 줄을 먼저 넣고(독립 검토 4 — 종전엔 상한에 그 구역 줄이 잘릴 수 있었다),
+ * 남은 자리를 묶음 순서대로 채운다. 같은 묶음 안에서는 그 구역 줄이 앞.
+ * 예: (18일 제주 통보문 줄들, '제주도북부앞바다') → 강풍 · 북부앞바다 해상 줄 · 제주도해상 천둥 줄(「제주도앞바다(북부앞바다 제외)」 예비특보 줄은 뒤로)
+ * @param {object[]} notes - bulletinScan().notes @param {string|null} near @returns {string[]} [연계] ← bulletinNotes·weatherSummary
+ */
+function pickNotes(notes, near) {
+    const hit = notes.map((n) => zoneHit(n.zones, near)), order = notes.map((n, i) => i).sort((a, b) => NOTE_CATS.indexOf(notes[a].cat) - NOTE_CATS.indexOf(notes[b].cat) || hit[b] - hit[a] || a - b);
+    const keep = new Set();
+    for (const i of order) if (hit[i] && keep.size < MAX_NOTES) keep.add(i);
+    for (const i of order) if (keep.size < MAX_NOTES) keep.add(i);
+    return order.filter((i) => keep.has(i)).map((i) => notes[i].text);
+}
+/**
+ * 단기 전망 통보문의 대상일 특이사항(최대 3줄). bulletinScan + pickNotes.
+ * 예: 10-17 제주 통보문 · 대상 10-17 · '오늘' → ['오늘 오후부터 제주도에 순간풍속 15m/s 안팎의 강한 바람(곳에 따라)', '풍랑 예비특보: 오늘 밤(18~24시) 제주도남쪽바깥먼바다 — 물결 1.5~3.0m로 높아짐']
+ * @param {string} text @param {string} issuedDate @param {string} targetDate @param {string} dayWord @param {string} [nearZone] - 파출소의 가장 가까운 특보구역(그 구역 줄을 먼저)
+ * @returns {string[]} [연계] ← 시험 · weatherSummary 는 found 도 쓰려고 bulletinScan·pickNotes 를 직접 부른다
+ */
+function bulletinNotes(text, issuedDate, targetDate, dayWord, nearZone) { return pickNotes(bulletinScan(text, issuedDate, targetDate, dayWord).notes, nearZone || null); }
+/**
  * (기상) 칸 — 파출소 위치에서 가장 가까운 앞바다(특보구역)의 지방기상청 단기 해상예보 오전·오후 두 칸 + 그 지방청 단기 전망의 대상일 특이사항.
+ * 앞바다가 30km 넘게 떨어져 더 가까운 먼바다 예보를 쓰거나 먼 앞바다를 그대로 쓰면 note 에 그 사실(collectZoneWeather — 독립 검토 5).
  * 자료가 없으면 지어내지 않고 missing·bulletinMissing 으로 밝힌다(화면 「기상예보 자료를 확인하지 못했습니다」).
+ * notesFound(독립 검토 3): 통보문에 대상일 토막이 있었는지 — notes 가 비었는데 참이면 화면은 「없습니다」가 아니라 「뽑지 못했습니다 — 원문을 확인하세요」.
  * 예: weatherSummary(b, {zone:'제주도서부앞바다', distKm:0.5, office:'184', coastal:{officeName:'제주지방기상청',publishTime:'10.17. 05:00',periods:[…]}, bulletin:{officeName,publishTime:'2026.10.17 04:40',text}}, win)
- *     → {zone:'제주도서부앞바다', rows:[{label:'오늘 오전',text:'구름많음 · 파고 0.5~1.5m · …'},{label:'오늘 오후',…}], source:'제주지방기상청 단기 해상예보 (10.17 05:00 발표)', notes:[…], notesSource:'제주지방기상청 단기 전망 (10.17 04:40 발표)', missing:false, bulletinMissing:false}
+ *     → {zone:'제주도서부앞바다', kind:'coastal', note:null, rows:[{label:'오늘 오전',text:'구름많음 · 파고 0.5~1.5m · …'},{label:'오늘 오후',…}], source:'제주지방기상청 단기 해상예보 (10.17 05:00 발표)', notes:[…], notesFound:true, notesSource:'제주지방기상청 단기 전망 (10.17 04:40 발표)', missing:false, bulletinMissing:false}
  * @param {object} b @param {object|null} wx - station_briefing_inputs.collectZoneWeather 결과 @param {object} win @returns {object}
- * [연계] ← buildSummary / → weatherSlotsFor·periodText·bulletinNotes
+ * [연계] ← buildSummary / → weatherSlotsFor·periodText·bulletinScan·pickNotes
  */
 function weatherSummary(b, wx, win) {
-    const out = { zone: wx?.zone || null, distKm: wx?.distKm ?? null, rows: [], source: null, notes: [], notesSource: null, missing: true, bulletinMissing: true };
+    const out = { zone: wx?.zone || null, distKm: wx?.distKm ?? null, kind: wx?.kind || (wx ? 'coastal' : null), note: wx?.note || null, rows: [], source: null, notes: [], notesFound: false, notesSource: null, missing: true, bulletinMissing: true };
     const periods = wx?.coastal?.periods || [];
     if (wx?.coastal && periods.length) {
         out.rows = weatherSlotsFor(win).map((s) => { const p = periods.find((q) => q.date === s.date && q.period === s.period); return { label: dayLabel(s.date, b.generatedAt) + ' ' + PERIOD_WORD[s.period], text: p ? periodText(p) : '자료 없음', ok: !!p }; });
@@ -713,7 +846,10 @@ function weatherSummary(b, wx, win) {
     const bt = wx?.bulletin, iss = bt && String(bt.publishTime || '').match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}:\d{2})/);
     if (bt && bt.text && iss) {
         const issued = iss[1] + '-' + iss[2] + '-' + iss[3], off = (Date.parse(win.targetDate) - Date.parse(issued)) / (24 * HOUR);
-        if (off >= 0 && off <= 2) { out.bulletinMissing = false; out.notes = bulletinNotes(bt.text, issued, win.targetDate, dayWordOf(b)); out.notesSource = (bt.officeName || '지방기상청') + ' 단기 전망 (' + iss[2] + '.' + iss[3] + ' ' + iss[4] + ' 발표)'; }
+        if (off >= 0 && off <= 2) {
+            const scan = bulletinScan(bt.text, issued, win.targetDate, dayWordOf(b));
+            out.bulletinMissing = false; out.notes = pickNotes(scan.notes, wx.zone); out.notesFound = scan.found; out.notesSource = (bt.officeName || '지방기상청') + ' 단기 전망 (' + iss[2] + '.' + iss[3] + ' ' + iss[4] + ' 발표)';
+        }
     }
     return out;
 }
@@ -764,5 +900,5 @@ function hash(v) { return crypto.createHash('sha256').update(stable(v)).digest('
 module.exports = {
     RULES_VERSION, WORD, SEA_ONLY_OFFICES, RELEASE_LINES, WAVE_M, WIND_MS, EDITIONS, SOURCE_LABEL, UNKNOWN_SOME, UNKNOWN_ALL, AFTER_RELEASE_SEA_H, AFTER_RELEASE_LAND_H,
     isoKst, kstDate, md, editionWindow, runsText, levelWord, sourceNames, dueEdition, displayDate, rangeText, warnTimeText, issuedText, warnAtSlot, slotOf, regionName, weatherFlow,
-    warningEvents, seaSection, landSpot, landSection, tideSection, buildSummary, summaryLines, weatherSlotsFor, bulletinNotes, weatherSummary, periodText, stripMarkup, expectText, buildBriefing, stable, hash, zoneKey, topicJosa, haversineKm, dayWordOf,
+    warningEvents, seaSection, landSpot, landSection, tideSection, buildSummary, summaryLines, weatherSlotsFor, bulletinNotes, bulletinScan, pickNotes, zoneHit, shortList, weatherSummary, periodText, stripMarkup, expectText, buildBriefing, stable, hash, zoneKey, topicJosa, haversineKm, dayWordOf,
 };

@@ -13,7 +13,8 @@
  *                    · services/jeju_isolation_tide_collector.js·hazard_rocks_tide_collector.js(제주 앵커·곡선 — 결정 5) · services/sea_warning_history.js(이미 해제된 특보 — 결정 4, 기록기를 주입받음)
  *                    · services/hazard_rocks_submersion.js(간출암 목록) · data/hazard_rocks/submersion.json · data/marine_forecast.json(기상청 단기 해상 전망)
  *                    · services/coastal_events_collector.js(geocode — 행사 위치 찾기와 같은 카카오 호출·KAKAO_REST_API_KEY)
- *                    · client/assets/warn_zones.geojson(특보구역 — services/warn_zone_cells._load 로 읽음: 파출소에서 가장 가까운 앞바다, §11.10.1)
+ *                    · client/assets/warn_zones.geojson(특보구역 — services/warn_zone_cells._load 로 읽음: 파출소에서 가장 가까운 앞바다, §11.10.1 · 30km 넘으면 가장 가까운 먼바다 — §11.10.2)
+ *                    · regional_forecast.json[지방청].marineForecast(먼바다 단기 해상예보 — 앞바다가 30km 넘게 멀 때, regional_forecast_collector 가 저장)
  *                    · regional_forecast_collector.js(loadCoastalForecasts·loadRegionalForecasts·ZONE_TO_OFFICE_MAP — 인덱스 「○○앞바다 기상예보」 표와 같은
  *                      data/regional_forecast.json 의 지방기상청 단기 해상예보·단기 전망 통보문, 처음 쓸 때 require)
  *  - 서버 API      : 없음
@@ -402,22 +403,48 @@ function nearestCoastalZone(loc) {
     for (const z of zones) { const d = G.distanceToGeometry([loc.lon, loc.lat], z.geometry); if (!best || d < best.d) best = { z, d }; }
     return best ? { zone: best.z.name, key: best.z.key, distKm: +best.d.toFixed(1) } : null;
 }
+// 가장 가까운 앞바다가 이보다 멀면(km) 그 앞바다 예보는 파출소 바다라고 보기 어렵다 — 더 가까운 먼바다 예보가 있으면 그것을, 없으면 거리를 밝힌다(2026-10-17 독립 검토 5).
+// 30km 근거: 관할 97곳 추정 위치(estimateLocation — 관광지·위험구역 중심, 카카오 좌표 없이)로 재 보니 30km 를 넘는 곳은 울릉(강원남부앞바다 115.9km)·흑산(전남중부서해앞바다 44.2km) 두 곳,
+// 그다음이 추자(26.5km)·거문(11.2km)이고 나머지 93곳은 3km 안이었다. 섬 관할 두 곳만 걸러지는 값이다(운영 카카오 좌표로는 다시 재지 않았다).
+const COASTAL_MAX_KM = 30;
+/**
+ * 파출소 대표 위치에서 가장 가까운 먼바다(특보구역 도형 kind 「먼바다」). 예: 울릉 추정 위치(37.504, 130.875) → {zone:'동해중부 안쪽먼바다', distKm:0}. @param {object|null} loc @returns {object|null} [연계] ← collectZoneWeather
+ */
+function nearestFarZone(loc) {
+    if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon)) return null;
+    const G = require('./risk_geo'), zones = require('./warn_zone_cells')._load().main.filter((z) => z.kind === '먼바다');
+    let best = null;
+    for (const z of zones) { const d = G.distanceToGeometry([loc.lon, loc.lat], z.geometry); if (!best || d < best.d) best = { z, d }; }
+    return best ? { zone: best.z.name, key: best.z.key, distKm: +best.d.toFixed(1) } : null;
+}
 /**
  * 관할 하나의 (기상) 입력 — 가장 가까운 앞바다 · 그 구역 단기 해상예보 · 그 구역 관할 지방청(ZONE_TO_OFFICE_MAP)의 단기 전망 통보문.
  * 구역 이름은 도형 파일(「인천.경기북부앞바다」)과 예보 자료(「인천·경기북부앞바다」) 표기가 달라 열쇠(띄어쓰기·가운뎃점·점 무시)로 맞춘다.
  * 통보문은 regional_bulletin_collector 가 저장한 summary(AI 색칠 마크업이 있을 수 있음 — 규칙이 벗긴다)·bulletinPublishTime('2026.10.17 04:40').
- * 예: collectZoneWeather({lat:33.41,lon:126.26}, regionalForecast()) → {zone:'제주도서부앞바다', distKm:0.5, office:'184', coastal:{…}|null, bulletin:{officeName,publishTime,text}|null}
+ * 가장 가까운 앞바다가 COASTAL_MAX_KM(30km)보다 멀면(독립 검토 5): 그보다 가까운 먼바다의 단기 해상예보(같은 지방청 PDF 의 marineForecast)가 있으면 그 먼바다를 쓰고(kind 'far'),
+ * 없으면 그 앞바다를 그대로 쓰되 note 「가장 가까운 앞바다 특보구역(약 N km 떨어짐) 예보입니다」를 단다(화면에 보인다).
+ * 예: collectZoneWeather({lat:33.41,lon:126.26}, regionalForecast()) → {zone:'제주도서부앞바다', kind:'coastal', distKm:0.5, note:null, office:'184', coastal:{…}|null, bulletin:{officeName,publishTime,text}|null}
+ *     울릉(먼바다 예보 있음) → {zone:'동해중부안쪽먼바다', kind:'far', distKm:0, note:'가장 가까운 앞바다 특보구역(강원남부앞바다)이 약 115.9km 떨어져 있어 파출소가 있는 먼바다 특보구역 예보입니다', …}
  * @param {object|null} loc @param {object|null} regional - regionalForecast() 결과 @returns {object|null} [연계] ← gather → rules.weatherSummary
  */
 function collectZoneWeather(loc, regional) {
     const nz = nearestCoastalZone(loc);
     if (!nz) return null;
     const rg = regional || { coastal: {}, offices: {}, zoneOffice: {} }, k = (n) => R.zoneKey(n);
-    const coastalName = Object.keys(rg.coastal || {}).find((n) => k(n) === nz.key) || null;
-    const officeEntry = Object.entries(rg.zoneOffice || {}).find(([n]) => k(n) === nz.key), office = officeEntry ? officeEntry[1] : null;
-    const o = office && rg.offices ? rg.offices[office] : null;
-    return { zone: coastalName || nz.zone, distKm: nz.distKm, office, coastal: coastalName ? rg.coastal[coastalName] : null,
-        bulletin: o && o.summary ? { officeName: o.officeName || null, publishTime: o.bulletinPublishTime || null, text: o.summary } : null };
+    const officeOf = (key) => { const e = Object.entries(rg.zoneOffice || {}).find(([n]) => k(n) === key); return e ? e[1] : null; };
+    const bulletinOf = (office) => { const o = office && rg.offices ? rg.offices[office] : null; return o && o.summary ? { officeName: o.officeName || null, publishTime: o.bulletinPublishTime || null, text: o.summary } : null; };
+    if (nz.distKm > COASTAL_MAX_KM) {
+        const fz = nearestFarZone(loc), office = fz && fz.distKm < nz.distKm ? officeOf(fz.key) : null, o = office && rg.offices ? rg.offices[office] : null;
+        const name = o && o.marineForecast ? Object.keys(o.marineForecast).find((n) => k(n) === fz.key) : null;
+        if (name && (o.marineForecast[name].periods || []).length) {
+            const where = fz.distKm > 0 ? '가장 가까운 먼바다 특보구역(약 ' + fz.distKm + 'km)' : '파출소가 있는 먼바다 특보구역';
+            return { zone: name, kind: 'far', distKm: fz.distKm, note: '가장 가까운 앞바다 특보구역(' + nz.zone + ')이 약 ' + nz.distKm + 'km 떨어져 있어 ' + where + ' 예보입니다', office,
+                coastal: { officeName: o.officeName || null, publishTime: o.publishTime || null, collectedAt: o.collectedAt || null, ...o.marineForecast[name] }, bulletin: bulletinOf(office) };
+        }
+    }
+    const coastalName = Object.keys(rg.coastal || {}).find((n) => k(n) === nz.key) || null, office = officeOf(nz.key);
+    return { zone: coastalName || nz.zone, kind: 'coastal', distKm: nz.distKm, note: nz.distKm > COASTAL_MAX_KM ? '가장 가까운 앞바다 특보구역(약 ' + nz.distKm + 'km 떨어짐) 예보입니다' : null, office,
+        coastal: coastalName ? rg.coastal[coastalName] : null, bulletin: bulletinOf(office) };
 }
 /**
  * 관할들의 입력 묶음을 만든다(rules.buildBriefing 에 그대로 넣을 수 있는 꼴).
@@ -444,4 +471,4 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
     });
 }
 
-module.exports = { loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, collectZoneWeather, gather, forecastKey, readJson, writeJson, CONFIG, DATA };
+module.exports = { loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA };

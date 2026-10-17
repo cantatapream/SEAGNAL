@@ -38,6 +38,12 @@ function keepErrors(list, now) {
     const recent = (list || []).filter((e) => e && typeof e.at === 'string' && e.at.slice(0, 10) >= from);
     return { errors: recent.slice(-ERROR_HARD_CAP), dropped: Math.max(0, recent.length - ERROR_HARD_CAP) };
 }
+/**
+ * 상한 기록(errorsCapped)도 보관 기간(ERROR_KEEP_DAYS, KST 날짜)이 지나면 버린다(2026-10-17 독립 검토 10 — 종전엔 한 번 걸리면 지워지지 않아 관리자 화면이 계속 「상한 때문에 지움」을 밝혔다).
+ * 예: ({at:'2026-10-14T09:00:00+09:00',…}, 10-17 08:00) → null · ({at:'2026-10-15T…'}, 같은 때) → 그대로 · null → null
+ * @param {object|null} c - state.errorsCapped @param {number} now - ms @returns {object|null} [연계] ← addErrors·status
+ */
+function freshCapped(c, now) { return c && typeof c.at === 'string' && c.at.slice(0, 10) >= R.kstDate(now - (ERROR_KEEP_DAYS - 1) * 86400000) ? c : null; }
 // 실행 실패 백오프(독립 검토 B9·ops1): 실행이 던지면 매분 다시 돌며 AI 를 다시 부르지 않게 — 실패 뒤 10분 기다리고, 같은 판은 3번까지만.
 const RUN_BACKOFF_MS = 10 * 60000, MAX_RUN_FAILS = 3;
 // 특보 변경 디바운스(독립 검토 C9): 특보가 잇달아 바뀌면 마지막 변경 뒤 3분 조용할 때 한 번만 다시 만든다.
@@ -183,7 +189,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     /** 상태 파일(만든 판·특보 서명·관할별 특보구역·마지막 실행·오류·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← run·tick·status */
     function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, errors: s.errors || [], errorsCapped: s.errorsCapped || null, alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
     /** 오류를 보관 규칙(최근 3일·안전 상한)대로 더한다. 상한으로 지운 것이 있으면 errorsCapped 에 시각·수. @param {object} s - state() @param {object[]} add @param {number} now [연계] ← run·reportFailure → keepErrors */
-    function addErrors(s, add, now) { const k = keepErrors(s.errors.concat(add), now); s.errors = k.errors; if (k.dropped) s.errorsCapped = { at: R.isoKst(now), dropped: k.dropped, cap: ERROR_HARD_CAP }; }
+    function addErrors(s, add, now) { const k = keepErrors(s.errors.concat(add), now); s.errors = k.errors; if (k.dropped) s.errorsCapped = { at: R.isoKst(now), dropped: k.dropped, cap: ERROR_HARD_CAP }; else s.errorsCapped = freshCapped(s.errorsCapped, now); }
     function saveState(s) { I.writeJson(p('state.json'), s); }
     /** 관리자 오류현황에 지금 상태를 남긴다(결정 6). 기록 실패는 브리핑 결과를 바꾸지 않는다. @returns {void} [연계] ← run·reportFailure → historyRow·errorHistory.recordCollector */
     function recordHistory() { if (!errorHistory) return; try { errorHistory.recordCollector(HISTORY_SOURCE, historyRow(state(), clock())); } catch (_) { console.warn('[station_briefing] 오류현황 기록 실패'); } }
@@ -334,7 +340,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      */
     function status() {
         const s = state(); let days = []; try { days = fs.readdirSync(dir).map((f) => (f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/) || [])[1]).filter(Boolean).sort(); } catch (_) { /* 폴더 없음 */ }
-        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, done: s.done, errors: keepErrors(s.errors, clock()).errors.reverse(), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorsCapped: s.errorsCapped, days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
+        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, done: s.done, errors: keepErrors(s.errors, clock()).errors.reverse(), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorsCapped: freshCapped(s.errorsCapped, clock()), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
     }
     /** 관할 목록(화면 설정용 — 폴리곤 없이). @returns {object[]} [연계] ← routes GET stations */
     function stationList() { const loc = I.readJson(p('locations.json'))?.stations || {}; return stations().map((s) => ({ key: s.key, name: s.name, office: s.office, region: s.region, seaOnly: s.seaOnly, location: loc[s.key]?.status === 'ok' ? { lat: loc[s.key].lat, lon: loc[s.key].lon, estimated: false } : { estimated: true } })); }
@@ -353,4 +359,4 @@ function forDefault() {
     return def;
 }
 
-module.exports = { createService, forDefault, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };
+module.exports = { createService, forDefault, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, start: () => forDefault().start() };
