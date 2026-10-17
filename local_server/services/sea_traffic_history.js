@@ -9,6 +9,7 @@
  *        → data/risk_forecast/traffic_history/YYYY-MM-DD.json.gz (완성된 30분) · open.json.gz (진행 중인 30분 합계)
  *        · routes/risk_forecast.js GET /api/risk-forecast/sea/traffic-history → createApi().query
  *        · warn_zone_cells.zonesOfCell(칸→특보구역) · sea_warning_history.list(특보 발효 구간)
+ *        · sea_traffic_profile → dayRows(브리핑 해역별 최근 14일 동향, 2026-10-18 — 메모리 밖 날짜는 파일을 읽기만)
  *        · 설계·응답 형식: client/js/marine-life/risk-forecast/traffic_history.design.md
  * [로드 순서] 서버 require 부작용 없음. 첫 사용(add·조회) 때 디스크에서 최근 15일과 진행 중 합계를 읽는다(재시작 복구).
  */
@@ -160,9 +161,31 @@ function createHistory({ dir = io.DEFAULT_DIR, clock = Date.now } = {}) {
         }
         return { values, samples };
     }
+    /**
+     * 한 날짜(KST)의 확정된 30분 기록을 통째로 꺼낸다 — 메모리(최근 15일)에 있으면 메모리에서, 없으면 날짜 파일을 읽기만 한다
+     * (메모리에 올리지 않는다 — 메모리는 15일만이라는 약속을 지키려고). 칸이 목록에 없으면 그 30분 0척(series 와 같은 뜻).
+     * 예: dayRows('2026-10-02') → {date, ids:['GR4_…',…], slots:[{s:0,n:6,idx:[0,3,…],tenths:[23,4,…]}, …]} (tenths = 0.1척 단위) · 파일 없음 → null
+     * @param {string} date - 'YYYY-MM-DD' @returns {object|null} idx[k] 는 ids 의 번호, n 은 그 30분 5분 표본 수
+     * [연계] ← sea_traffic_profile(브리핑 해역별 최근 14일 동향 — 최대 42일 전까지 거슬러 읽는다)
+     */
+    function dayRows(date) {
+        flush();
+        const m = days.get(date);
+        if (m) return { date, ids, slots: [...m].map(([s, r]) => ({ s, n: r.n, idx: r.idx, tenths: r.val })) };
+        const d = io.read(path.join(folder, date + '.json.gz'));
+        if (!d || d.v !== 2 || d.date !== date || !Array.isArray(d.ids) || !Array.isArray(d.slots)) return null;
+        const slots = [];
+        for (const sl of d.slots) {
+            if (!Number.isInteger(sl?.s) || sl.s < 0 || sl.s >= SLOTS_PER_DAY || !Array.isArray(sl.c)) continue;
+            const idx = [], tenths = [];
+            sl.c.forEach((v, j) => { if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && j < d.ids.length) { idx.push(j); tenths.push(Math.min(MAX_TENTHS, Math.round(v * 10))); } });
+            slots.push({ s: sl.s, n: Number.isInteger(sl.n) ? sl.n : 0, idx, tenths });
+        }
+        return { date, ids: d.ids.map(String), slots };
+    }
     /** 시험·실측용: 메모리에 든 날짜 목록과 진행 중 30분. @returns {object} [연계] ← test_traffic_history·measure_traffic_history */
     function _memory() { load(); return { days: [...days.keys()].sort(), open: open && { slot: open.slot, samples: open.at.length }, cells: ids.length }; }
-    return { add, flush, series, prune: () => { load(); return prune(); }, _memory };
+    return { add, flush, series, dayRows, prune: () => { load(); return prune(); }, _memory };
 }
 
 const instances = new Map();
