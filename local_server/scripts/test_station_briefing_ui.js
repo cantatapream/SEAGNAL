@@ -9,6 +9,9 @@
  *         관할을 누르면 가운데 확인 창(「○○해양경찰서 ○○파출소 — 이 관할을 선택하셨습니까? 저장하시겠습니까?」 [취소]·[저장] — 취소·Esc·바깥·뒤로가기는 되돌림, 늦은 click 무시, 2026-10-17) ·
  *         아래 단추 줄 없음 · 머리 오른쪽 [건너뛰기]/[취소] · 해상·연안 보기 두 칸 한 줄(360px) ·
  *         [위험예측에서 보기 ›] 로 위험예측 시트 열림 · N 뱃지 · [기준 상세] 창 · 관리자 「AI 브리핑」 탭(설정 저장·노출 범위 전환·지금 다시 만들기 409·미리보기·최근 3일 오류 목록 [복사]·[md로 저장]).
+ *         §11.10.10(2026-10-17): 「관할 내 잠기는 바위(간출암) N곳」 링크 → 팝업 지도(관할 경계 + 바위 마커) → 마커 → 해양안전 「위험지형」과 같은 간출암 조석 곡선 상자(HazardRockTidePanel,
+ *                                /api/hazard-rocks/tide-curve 는 시험값으로 가로챔) · 해양안전 위험지형 팝업도 같은 함수로 그대로 뜨는지 · (고립 주의) 「과거 고립 사고(N개소 M건)」 화살표 없음 · 「지점명 | 발생 현황」
+ *                                · 「아직 이 관할의 브리핑이 없습니다」·관리자 미리보기 「예정 — …」 안내 없음(briefing_rocks_popup_360.png).
  *         §11.10.3(2026-10-17): (물때) 아래 (고립 주의) 「사고 지점(N개소)」 표 펼침 · 해상 근거 ▸ 미니 지도(관할 경계 + 칸·해구 테두리 깜빡임 — 접기·떼기·움직임 줄이기) · [기준 상세] 「해상 근거 읽는 법」.
  *         §11.10.4(2026-10-17): 제목 「HH:MM AI 연안 안전 브리핑」 · 「가」 모양(결론 → 분석 문단(이름표 AI 분석·규칙 분석) → 접힌 「연안/해상 분석 근거」 → (기상) → (물때)) · 칩 「연안 ○○ 필요」 ·
  *         지금 밀집 줄은 해상 분석 아래 · 관리자 미리보기 공개 예정 판 「예정」 · 오류 시도 번호 · 이름 바꿈.
@@ -89,9 +92,11 @@ function mapInputs(inp) {
     const hl = I.loadStations().find((s) => s.name === '한림파출소'), sq = (lon, lat) => [lon - 0.0125, lat - 0.0125, lon + 0.0125, lat + 0.0125];
     const regions = inp.sea.regions.map((r) => ({ ...r, box: r.rid === 'A:1001' ? [126.525, 33.55, 126.55, 33.575] : sq(r.lon, r.lat) }))
         .concat([{ rid: 'A:1003', gridId: null, accidentGridId: '1003', lat: 33.35, lon: 126.2, box: [126.18, 33.33, 126.22, 33.37], haegu: { major: 231, sub: 6, label: '231-6' }, ref: { name: '모슬포', distNm: 6.0, bearingWord: '북서' }, zone: null, zones: [], slots: { [at(9)]: { accident: '주의' } }, history: { count: 0 } }]);
-    const iso = { '50110|협재해수욕장': 2, '50110|한림항': 1 };
-    return { ...inp, area: I.areaOf(hl.geometry), sea: { ...inp.sea, regions, weather: { 232: { ...inp.sea.weather[232], box: I.haeguBox(232) } } },
-        land: { ...inp.land, spots: inp.land.spots.map((x) => ({ ...x, isolation: iso[x.id] || 0 })) } };
+    const iso = { '50110|협재해수욕장': 2, '50110|한림항': 1 }, years = { '50110|협재해수욕장': { 2022: 1, 2024: 1 }, '50110|한림항': { 2023: 1 } };
+    // §11.10.10 — 잠기는 바위 2곳(collectTide 꼴 items: hazard_rocks.json id·위치·간출 높이·그날 잠기는 시각 — 시험값, 한림항 앞)
+    const rocks = { count: 2, first: '02:40', last: '16:41', items: [{ id: 812, lat: 33.4205, lon: 126.2560, v: 0.9, times: ['02:40'] }, { id: 77, lat: 33.4105, lon: 126.2350, v: 1.4, times: ['03:10', '16:41'] }] };
+    return { ...inp, area: I.areaOf(hl.geometry), sea: { ...inp.sea, regions, weather: { 232: { ...inp.sea.weather[232], box: I.haeguBox(232) } } }, tide: { ...inp.tide, rocks },
+        land: { ...inp.land, spots: inp.land.spots.map((x) => ({ ...x, isolation: iso[x.id] || 0, isolationYears: years[x.id] || {} })) } };
 }
 const WIN = R.editionWindow('morning', Date.parse(at(8)));
 /** 날짜 파일 하나를 쓴다(실제 서비스가 pick 으로 읽는다). @param {string} date @param {Object} stations [연계] ← 준비 */
@@ -602,7 +607,7 @@ function makeBriefings() {
                 box.querySelector('[data-sb-maplink="now-busiest"]').click(); out.busiest = pop();
                 return out;
             }, { base, now: clock.now, hgName: hg[0].name, nowObj: { at: '2026-10-17T10:00:00+09:00', count: 37, gridCount: 3, text: '10:00 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 3개\n한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의', ...NOW_CELLS } });
-            assert.deepEqual(r.links, ['haegu:' + hg[0].name, 'now-all:관할 해역 선박 37척', 'now-busiest:한림항 북서방 1.2해리 해역(232-2해구)'], '대해구 2320 은 링크가 아님');
+            assert.deepEqual(r.links, ['haegu:' + hg[0].name, 'now-all:관할 해역 선박 37척', 'now-busiest:한림항 북서방 1.2해리 해역(232-2해구)', 'rocks:잠기는 바위(간출암) 2곳', 'rocks:잠기는 바위(간출암) 2곳'], '대해구 2320 은 링크가 아님 · (물때)·조석 칸의 잠기는 바위 링크(§11.10.10)');
             assert.deepEqual([r.haegu.key, r.haegu.role, r.haegu.modal, r.haegu.title, r.haegu.map, r.haegu.area, r.haegu.hl, r.haegu.cells, r.haegu.focus], ['haegu', 'dialog', 'true', hg[0].name, 'ol', '1', '1', '0', true]);
             assert.ok(r.haegu.h >= r.haegu.vh * 0.55 && r.haegu.h <= r.haegu.vh * 0.7, '지도 높이 약 62vh — ' + r.haegu.h + '/' + r.haegu.vh); assert.ok(r.haegu.left >= 16 && r.haegu.right >= 16, '360px 좌우 여백 ' + r.haegu.left + '/' + r.haegu.right);
             assert.equal(r.afterEsc, false, 'Esc 로 닫힘'); assert.equal(r.blinkAfter, 0, '닫으면 깜빡임 멈춤');
@@ -709,9 +714,11 @@ function makeBriefings() {
             const r = await page.evaluate(() => ({ sec: [...document.querySelectorAll('[data-sb-sec]')].map((e) => e.dataset.sbSec), land: !!document.querySelector('[data-sb-summary="land"]') }));
             assert.deepEqual([r.sec.includes('land'), r.land, r.sec.includes('sea')], [false, false, true]);
         });
-        await check('브리핑 없음 — 「아직 이 관할의 브리핑이 없습니다」 + 공개 시각 안내(07:30·17:30·23:00, 20분 전부터 만들기) · 제목 시각 없음', async () => {
-            await pickStation(page, AEWOL); await page.waitForFunction(() => document.getElementById('station-briefing-content').innerText.includes('아직 이 관할의 브리핑이 없습니다'));
+        await check('브리핑 없음 — 공개 시각 안내(07:30·17:30·23:00, 20분 전부터 만들기)만 · 「아직 이 관할의 브리핑이 없습니다」 줄 없음(§11.10.10 F) — 칸은 비지 않음 · 제목 시각 없음', async () => {
+            await pickStation(page, AEWOL); await page.waitForSelector('#station-briefing-content [data-sb-empty]');
             assert.ok((await content(page)).includes('07:30 · 17:30 · 23:00에 보입니다') && (await content(page)).includes('20분 전(07:10 · 17:10 · 22:40)'), await content(page));
+            assert.ok(!(await content(page)).includes('아직 이 관할의 브리핑이 없습니다'), '§11.10.10 F');
+            const e = await page.$eval('#station-briefing-content [data-sb-empty]', (x) => ({ t: x.innerText.trim().length, h: x.getBoundingClientRect().height })); assert.ok(e.t > 20 && e.h > 20, '빈 칸이 아님 ' + JSON.stringify(e));
             assert.equal(await page.$eval('#station-briefing-title', (e) => e.textContent), 'AI 연안 안전 브리핑', '판이 없으면 시각 없이');
         });
         await check('21시 넘음 — 내일 판이 없으면 다음 예정 시각(nextExpectedAt) 안내 · 오늘 판이 있으면 오늘 판(§11.10.9 ⑦ 부터 「아직 없어」 상자 없이 머리 글 괄호에 다음 갱신)', async () => {
@@ -843,14 +850,14 @@ function makeBriefings() {
             assert.ok(r.st.startsWith('한림파출소')); assert.equal(r.links, 0); assert.equal(r.pending, false);
             real.writeConfig({ exposure: 'admin' });
         });
-        await check('[§11.10.4] 관리자 미리보기 — 공개 시각 전 판(pending)은 「예정 — … 17:30에 공개될 판」으로 보이고, 같은 때 사용자 경로는 지금 판 그대로 · 상태 「공개 예정」', async () => {
+        await check('[§11.10.4] 관리자 미리보기 — 공개 시각 전 판(pending)은 머리 글 「… 17:30 기준 브리핑」으로 보이고(§11.10.10 F — 「예정 — …」 안내 상자 없음), 같은 때 사용자 경로는 지금 판 그대로 · 상태 「공개 예정」', async () => {
             const ev = JSON.parse(JSON.stringify(B.h)); ev.edition = 'evening'; ev.trigger = { kind: 'evening' }; ev.generatedAt = '2026-10-17T17:10:00+09:00'; ev.publishAt = '2026-10-17T17:30:00+09:00';
             fs.writeFileSync(path.join(dir, 'briefings_2026-10-17.json'), JSON.stringify({ date: '2026-10-17', stations: { [HALLIM]: B.h, [BUSAN]: B.b, [MOKPO]: B.m }, pending: { [HALLIM]: ev } }));
             const user = await http('/api/station-briefing?station=' + encodeURIComponent(HALLIM) + '&adminToken=admin-push-token');
             assert.deepEqual([user.body.briefing.edition, user.body.pending], ['warning', undefined], '사용자에게는 공개 시각까지 지금 판');
-            await tap(page, '[data-sb-preview-go]'); await page.waitForSelector('[data-sb-preview-out] [data-sb-pending]');
-            const r = await page.evaluate(() => ({ note: document.querySelector('[data-sb-preview-out] [data-sb-pending]').textContent, ed: document.querySelector('[data-sb-preview-out] .sb-edition').textContent }));
-            assert.ok(r.note.startsWith('예정 — 10월 17일(토) 17:30에 공개될 판입니다') && r.note.includes('이전 판(10월 17일(토) 13:10 생성)'), r.note); assert.ok(r.ed.startsWith('10월 17일 17:30 기준 브리핑 (다음 브리핑 갱신 '), r.ed);
+            await tap(page, '[data-sb-preview-go]'); await page.waitForFunction(() => { const e = document.querySelector('[data-sb-preview-out] .sb-edition'); return e && e.textContent.startsWith('10월 17일 17:30'); });
+            const r = await page.evaluate(() => ({ note: !!document.querySelector('[data-sb-preview-out] [data-sb-pending]'), text: document.querySelector('[data-sb-preview-out]').textContent, ed: document.querySelector('[data-sb-preview-out] .sb-edition').textContent }));
+            assert.ok(!r.note && !r.text.includes('예정 — ') && !r.text.includes('공개될 판입니다'), '§11.10.10 F — 「예정 — …」 안내 없음'); assert.ok(r.ed.startsWith('10월 17일 17:30 기준 브리핑 (다음 브리핑 갱신 '), r.ed);
             await page.evaluate(() => [...document.querySelectorAll('[data-sb-status] button')].find((b) => b.textContent === '새로고침').click()); await page.waitForSelector('[data-sb-pending-status]');
             assert.ok((await page.$eval('[data-sb-pending-status]', (e) => e.textContent)).includes('10-17 17:30 — 1곳(그때까지 사용자에게는 이전 판)'));
             writeDay('2026-10-17', { [HALLIM]: B.h, [BUSAN]: B.b, [MOKPO]: B.m });
@@ -943,11 +950,11 @@ function makeBriefings() {
             await page.keyboard.press('Escape');
         });
         // ── §11.10.3(2026-10-17 사용자 결정) — (고립 주의) 지점 표 · 해상 근거 칸·이름 · 근거 줄 ▸ 미니 지도(관할 + 깜빡이는 칸) · [기준 상세] ──
-        await check('[§11.10.3] (물때) 아래 (고립 주의) — 「사고 지점(N개소)」 버튼(aria-expanded·aria-controls) → 「지점명 | 발생 건수」 표 전부(건수 많은 순) · 다시 누르면 접힘 · 「물이 차오르기 전에」·「공통」·「공식 사고예보」 없음 · 단위 칸', async () => {
+        await check('[§11.10.3 → §11.10.10] (물때) 아래 (고립 주의) — 「과거 고립 사고(N개소 M건)」 버튼(화살표 없음 · aria-expanded·aria-controls) → 「지점명 | 발생 현황」 표 전부(합 많은 순 · 연도별) · 다시 누르면 접힘 · 「물이 차오르기 전에」·「공통」·「공식 사고예보」 없음 · 단위 칸', async () => {
             await openAcc(page); await openBasis(page, 'land'); await openBasis(page, 'sea');   // 근거·권고 글은 접힌 「분석 근거」 안(§11.10.4)
             const r = await page.evaluate(() => {
                 const c = document.getElementById('station-briefing-content'), iso = c.querySelector('[data-sb-part="tide"] [data-sb-isolation]'), btn = iso && iso.querySelector('button[data-sb-x="iso"]');
-                const out = { line: iso ? iso.querySelector('.sb-iso-line').textContent : '', btn: btn ? btn.textContent : '', exp0: btn && btn.getAttribute('aria-expanded'), ctl: btn && btn.getAttribute('aria-controls') };
+                const out = { line: iso ? iso.querySelector('.sb-iso-line').textContent : '', btn: btn ? btn.textContent : '', arrow: btn ? btn.querySelectorAll('.sb-x-arrow, .sb-x-chev').length : -1, exp0: btn && btn.getAttribute('aria-expanded'), ctl: btn && btn.getAttribute('aria-controls') };
                 btn.click();
                 const panel = document.getElementById(out.ctl);
                 out.exp1 = btn.getAttribute('aria-expanded'); out.hidden1 = panel.hidden;
@@ -957,10 +964,10 @@ function makeBriefings() {
                 out.text = c.textContent; out.sum = c.querySelector('[data-sb-sec="overview"]').textContent;
                 return out;
             });
-            assert.equal(B.h.summary.isolation.text, '(고립 주의) 저조 시간(06:12·18:40) 전후 사고 지점(2개소) 확인 및 주의가 필요합니다.');
-            assert.equal(r.line, '(고립 주의) 저조 시간(06:12·18:40) 전후 사고 지점(2개소) ▸ 확인 및 주의가 필요합니다.', '버튼(▸)은 문장 안 그 자리');
-            assert.deepEqual([r.btn, r.exp0, r.exp1, r.hidden1, r.exp2, r.hidden2, r.empty2], ['사고 지점(2개소) ▸', 'false', 'true', false, 'false', true, true]);
-            assert.deepEqual(r.head, ['지점명', '발생 건수']); assert.deepEqual(r.rows, ['협재해수욕장|2건', '한림항|1건']);
+            assert.equal(B.h.summary.isolation.text, '(고립 주의) 저조 시간(06:12·18:40) 전후 과거 고립 사고(2개소 3건)으로 확인 및 주의가 필요합니다.');
+            assert.equal(r.line, '(고립 주의) 저조 시간(06:12·18:40) 전후 과거 고립 사고(2개소 3건)으로 확인 및 주의가 필요합니다.', '버튼은 문장 안 그 자리 · 화살표 없음(§11.10.10 D)');
+            assert.deepEqual([r.btn, r.arrow, r.exp0, r.exp1, r.hidden1, r.exp2, r.hidden2, r.empty2], ['과거 고립 사고(2개소 3건)', 0, 'false', 'true', false, 'false', true, true]);
+            assert.deepEqual(r.head, ['지점명', '발생 현황']); assert.deepEqual(r.rows, ['협재해수욕장|22년(1건), 24년(1건)', '한림항|23년(1건)']);
             assert.equal(r.caption, '2020~2024 연안사고 기록 중 고립(관광지 구역 + 앞바다 500m)');
             for (const no of ['차오르기 전에', '공통', '공식 사고예보', '겹치지 않아']) assert.ok(!r.text.includes(no), no);
             for (const no of ['물가 접근', '시경 ']) assert.ok(!r.sum.includes(no), no + ' — 총평에는 없음(해역·관광지 카드 문장은 그대로)');
@@ -1025,10 +1032,80 @@ function makeBriefings() {
             await page.evaluate(() => document.querySelector('#station-briefing-content button[data-sb-x="iso"]').click());
             await page.setViewportSize({ width: 412, height: 915 });
         });
+        await check('[§11.10.10 ABC] 「관할 내 잠기는 바위(간출암) 2곳」 — 그 글만 링크 → 가운데 팝업 지도(관할 경계 + 바위 2개, 위험지형과 같은 간출암 그림) → 마커를 누르면 해양안전 「위험지형」과 같은 간출암 조석 곡선 상자(같은 id 로 /api/hazard-rocks/tide-curve) · Esc 는 상자 먼저 · ✕ · 360px', async () => {
+            await page.setViewportSize({ width: 360, height: 780 }); await openAcc(page);
+            const seen = [];
+            const curve = (day) => ({ success: true, ready: true, date: 20261017 + day, region: 'jeju', valsouCm: 90, points: Array.from({ length: 145 }, (_, i) => ({ t: String(Math.floor(i / 6) % 24).padStart(2, '0') + ':' + String((i % 6) * 10).padStart(2, '0'), cm: Math.round(150 + 120 * Math.cos(i / 145 * 4 * Math.PI)) })), peaks: [{ t: '06:12', cm: 30, type: 'low' }, { t: '12:30', cm: 270, type: 'high' }], prevPeaks: [], submergedAt: ['02:40'] });
+            await page.route('**/api/hazard-rocks/tide-curve*', (rt) => { const u = new URL(rt.request().url()); seen.push(u.searchParams.get('id') + ':' + u.searchParams.get('day')); return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(curve(Number(u.searchParams.get('day')))) }); });
+            assert.equal(B.h.summary.tide[1], '관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 물에 잠깁니다 — 바위 위 낚시·채취 중 고립에 주의가 필요합니다.');
+            assert.deepEqual(B.h.summary.rocks.rows.map((x) => x.id), [812, 77]);
+            const r1 = await page.evaluate(() => {
+                const c = document.getElementById('station-briefing-content'), p = c.querySelector('[data-sb-part="tide"] [data-sb-rocks]'), lk = p && p.querySelector('[data-sb-maplink="rocks"]');
+                const t = c.querySelector('.sb-tide [data-sb-rocks] [data-sb-maplink="rocks"]');
+                const out = { line: p ? p.textContent : '', link: lk ? lk.textContent : '', haspopup: lk && lk.getAttribute('aria-haspopup'), tideSec: !!t, api: typeof window.HazardRockTidePanel };
+                lk.click();
+                const d = document.querySelector('[data-sb-map-popup="rocks"]'), m = d && d.querySelector('.sb-minimap');
+                out.title = d ? d.querySelector('.sb-dlg-title').textContent : ''; out.points = m && m.dataset.sbMapPoints; out.icon = m && m.dataset.sbMapIcon; out.area = m && m.dataset.sbMapArea; out.cap = d ? d.querySelector('.sb-minimap-cap').textContent : '';
+                return out;
+            });
+            assert.equal(r1.line, B.h.summary.tide[1]); assert.equal(r1.link, '잠기는 바위(간출암) 2곳'); assert.equal(r1.haspopup, 'dialog'); assert.ok(r1.tideSec, '아래 조석 칸의 같은 줄도 링크'); assert.equal(r1.api, 'object');
+            assert.deepEqual([r1.title, r1.points, r1.icon, r1.area], ['한림파출소 관할 내 잠기는 바위(간출암) 2곳', '2', 'hazard-rocks', '1']); assert.ok(r1.cap.includes('바위 그림') && r1.cap.includes('한림파출소 관할 해역'), r1.cap);
+            await page.waitForTimeout(400);
+            // 마커(id 812)의 화면 위치를 지도에서 재서 실제로 누른다(OL 클릭)
+            const pt = await page.evaluate(() => { const m = document.querySelector('[data-sb-map-popup="rocks"] .sb-minimap'), H = m._sbMap, f = H.points.getFeatures().find((x) => x.get('row').id === 812), px = H.map.getPixelFromCoordinate(f.getGeometry().getCoordinates()), rc = m.getBoundingClientRect(); return { x: rc.left + px[0], y: rc.top + px[1], inside: px[0] > 0 && px[1] > 0 && px[0] < rc.width && px[1] < rc.height }; });
+            assert.ok(pt.inside, '마커가 지도 안에 보임 ' + JSON.stringify(pt));
+            await page.mouse.click(pt.x, pt.y); await page.waitForSelector('[data-sb-map-popup="rocks"] .sb-rockbox'); await page.waitForFunction(() => { const b = document.querySelector('.sb-rockbox .rtp-body'); return b && b.style.display !== 'none' && document.querySelector('.sb-rockbox .rtp-svg').childElementCount > 0; });
+            await page.waitForTimeout(200);
+            const r2 = await page.evaluate(() => {
+                const b = document.querySelector('.sb-rockbox'), rc = b.getBoundingClientRect(), m = document.querySelector('[data-sb-map-popup="rocks"] .sb-minimap');
+                const struct = (e) => [...e.children].map((x) => x.className.baseVal !== undefined ? 'svg' : x.className).join('|');
+                return { id: b.dataset.sbRockbox, cls: b.className, title: b.querySelector('.rtp-title').textContent, day: b.querySelector('.rtp-daylabel').textContent, prevDis: b.querySelector('.rtp-prev').disabled, struct: struct(b), card: b.querySelector('.rtp-tidecard').textContent.includes('조석'), sel: m.dataset.sbMapSel,
+                    left: Math.round(rc.left), right: Math.round(innerWidth - rc.right), top: Math.round(rc.top), bottom: Math.round(innerHeight - rc.bottom), focus: document.activeElement && document.activeElement.classList.contains('rtp-close'), pe: getComputedStyle(b).pointerEvents };
+            });
+            assert.deepEqual([r2.id, r2.title, r2.day, r2.prevDis, r2.sel, r2.focus, r2.pe], ['812', '간출암 · 저조 시 0.9m 노출', '오늘 (10/17)', true, '812', true, 'auto']);
+            assert.ok(r2.cls.includes('hazard-rock-popup') && r2.cls.includes('rock-tide-popup'), '해양안전 위험지형 팝업과 같은 모양 클래스');
+            assert.equal(r2.struct, 'rtp-header|rtp-daynav|rtp-loading ocean-tide-loading|rtp-body', '해양안전 팝업과 같은 상자 짜임(mountTidePanel)'); assert.ok(r2.card, '아래 조석 카드');
+            assert.deepEqual(seen.slice().sort(), ['812:0', '812:1', '812:2'], '같은 바위 id 로 오늘·내일·모레를 받는다');
+            assert.ok(r2.left >= 0 && r2.right >= 0 && r2.top >= 0 && r2.bottom >= 0, '360px 화면 안 ' + JSON.stringify(r2));
+            await clean(page); await page.screenshot({ path: path.join(SHOT, 'briefing_rocks_popup_360.png') });
+            // 다음 날짜 · Esc 는 상자만 · 다른 마커 · ✕ · 창 닫으면 상자도
+            const r3 = await page.evaluate(async () => {
+                const sleep = (ms) => new Promise((res) => setTimeout(res, ms)), out = {};
+                document.querySelector('.sb-rockbox .rtp-next').click(); out.day1 = document.querySelector('.sb-rockbox .rtp-daylabel').textContent;
+                document.querySelector('[data-sb-map-popup]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                out.boxAfterEsc = !!document.querySelector('.sb-rockbox'); out.popAfterEsc = !!document.querySelector('[data-sb-map-popup="rocks"]'); out.selAfter = document.querySelector('[data-sb-map-popup="rocks"] .sb-minimap').dataset.sbMapSel || null;
+                return out;
+            });
+            assert.deepEqual(r3, { day1: '내일 (10/18)', boxAfterEsc: false, popAfterEsc: true, selAfter: null }, 'Esc 는 상자만 닫고 지도 창은 남는다 · 마커 고리 지움');
+            const pt2 = await page.evaluate(() => { const m = document.querySelector('[data-sb-map-popup="rocks"] .sb-minimap'), H = m._sbMap, f = H.points.getFeatures().find((x) => x.get('row').id === 77), px = H.map.getPixelFromCoordinate(f.getGeometry().getCoordinates()), rc = m.getBoundingClientRect(); return { x: rc.left + px[0], y: rc.top + px[1] }; });
+            await page.mouse.click(pt2.x, pt2.y); await page.waitForSelector('.sb-rockbox[data-sb-rockbox="77"]');
+            const r4 = await page.evaluate(() => {
+                const out = { title: document.querySelector('.sb-rockbox .rtp-title').textContent, n: document.querySelectorAll('.sb-rockbox').length };
+                document.querySelector('.sb-rockbox .rtp-close').click(); out.afterX = !!document.querySelector('.sb-rockbox'); out.pop = !!document.querySelector('[data-sb-map-popup="rocks"]');
+                return out;
+            });
+            assert.deepEqual(r4, { title: '간출암 · 저조 시 1.4m 노출', n: 1, afterX: false, pop: true });
+            await page.mouse.click(pt.x, pt.y); await page.waitForSelector('.sb-rockbox');
+            const r5 = await page.evaluate(() => { document.querySelector('[data-sb-map-close]').click(); return { box: !!document.querySelector('.sb-rockbox'), pop: !!document.querySelector('[data-sb-map-popup]'), blink: window.StationBriefingRender.blinking() }; });
+            assert.deepEqual(r5, { box: false, pop: false, blink: 0 }, '창을 닫으면 상자도 닫힌다');
+            // 해양안전 「위험지형」 팝업 경로도 같은 함수(mountTidePanel)로 그대로 — ol.Overlay 요소 안에 같은 짜임·제목, 같은 API
+            seen.length = 0;
+            const r6 = await page.evaluate(async () => {
+                const sleep = (ms) => new Promise((res) => setTimeout(res, ms)), host = document.createElement('div'); host.style.cssText = 'position:fixed;left:0;top:0;width:360px;height:600px'; document.body.appendChild(host);
+                const ol = window.ol, map = new ol.Map({ target: host, layers: [], view: new ol.View({ center: ol.proj.fromLonLat([126.256, 33.4205]), zoom: 15 }) });
+                const el = document.createElement('div'); el.className = 'hazard-rock-popup rock-tide-popup';
+                const p = window.HazardRockTidePanel.mount(el, { rockId: 812, v: 0.9, lon: 126.256, lat: 33.4205, onClose: function () {} }); await sleep(300);
+                const struct = [...el.children].map((x) => x.className).join('|'), t = el.querySelector('.rtp-title').textContent; p.close(); map.setTarget(null); host.remove();
+                return { struct, t };
+            });
+            assert.deepEqual(r6, { struct: 'rtp-header|rtp-daynav|rtp-loading ocean-tide-loading|rtp-body', t: '간출암 · 저조 시 0.9m 노출' });
+            await page.unroute('**/api/hazard-rocks/tide-curve*');
+            await page.setViewportSize({ width: 412, height: 915 });
+        });
         await check('[§11.10.3] [기준 상세] — 해양사고 위험예보(공단·3시간·단계)·칸 크기·결론에 넣지 않는 이유·「특보 가능성 기준」은 풍랑주의보 기준이 아님·지도 펼침·고립 지점 표', async () => {
             await tap(page, '#station-briefing-content .sb-basis-btn'); await page.waitForSelector('.rf-modal .rf-basis');
             const body = await page.evaluate(() => document.querySelector('.rf-basis-body').innerText);
-            for (const k of ['해양사고 위험예보는 한국해양교통안전공단', '칸마다 3시간 간격', '낮음·보통·주의·경계', '약 3.9~4.2km', '혼잡 예보 칸(약 2.3×2.8km)', '같은 3시간 칸에', '선박 몰림', '특보 가능성 기준(파고 2m·풍속 12m/s)', '기상청 풍랑주의보 기준이 아닙니다', '풍속 14m/s 이상이 3시간 이상 지속되거나 유의파고가 3m를 초과', '이 기준을 넘을 때만', '깜빡이는 빨간 테두리', '고립', '지점명 | 발생 건수']) assert.ok(body.includes(k), k);
+            for (const k of ['해양사고 위험예보는 한국해양교통안전공단', '칸마다 3시간 간격', '낮음·보통·주의·경계', '약 3.9~4.2km', '혼잡 예보 칸(약 2.3×2.8km)', '같은 3시간 칸에', '선박 몰림', '특보 가능성 기준(파고 2m·풍속 12m/s)', '기상청 풍랑주의보 기준이 아닙니다', '풍속 14m/s 이상이 3시간 이상 지속되거나 유의파고가 3m를 초과', '이 기준을 넘을 때만', '깜빡이는 빨간 테두리', '고립', '지점명 | 발생 현황']) assert.ok(body.includes(k), k);
             assert.ok(!body.includes('공식 사고예보'), '[기준 상세]도 「해양사고 위험예보」');
             await page.keyboard.press('Escape');
         });

@@ -327,7 +327,7 @@ function releasedFrom(rec, zones, from, to) {
 /**
  * 육상 입력: 관할에 붙은 관광지마다 연안 하루 값(coastDayDetail — 그날 3시간 칸 중 가장 높은 칸, T24)을 그대로 쓰고, 관광지에 안 붙은 위험구역은 상시 위험 장소로.
  * 특보·떠밀림 안내는 그날 칸 전부(daily.notices — dayNoticeSummary).
- * 예: collectLand(spots, hazards, {risk, t:'2026-10-17T08:00:00+09:00'}) → {spots:[{id,name,index,band,people:{ratio,score},event,swell,rip,notices,hazard,history,missing}], hazardOnly:[…]}
+ * 예: collectLand(spots, hazards, {risk, t:'2026-10-17T08:00:00+09:00'}) → {spots:[{id,name,index,band,people:{ratio,score},event,swell,rip,notices,hazard,history,isolation,isolationYears,missing}], hazardOnly:[…]}
  * @param {object[]} spots @param {object[]} hazards @param {object} o - risk·t @returns {object} [연계] ← gather / → risk_store.coastDayDetail(읽기만)
  */
 function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory = null }) {
@@ -355,6 +355,9 @@ function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory
             hazard: hz ? { count: hz.count || 0, byType: (hz.byType || []).map((x) => ({ class: x.class, count: x.count })) } : null,
             // isolation = 고립 사고 수(총평 (고립 주의) 지점 표 — 2026-10-17 §11.10.3). 기록을 못 쓰면(available 아님) null — 0 과 가른다.
             isolation: acc ? acc.filter((a) => a.type === '고립').length : null,
+            // isolationYears = 같은 고립 사고 기록의 연도별 수({2022:1, 2023:2} — 2026-10-17 사용자 결정 §11.10.10 「발생 현황」 칸). 연도는 기록의 year(없으면 date 앞 4자리),
+            //   둘 다 없으면 '미상'으로 센다(합이 isolation 과 늘 같게 — 조용히 빠지지 않게). 기록을 못 쓰면 null.
+            isolationYears: acc ? acc.filter((a) => a.type === '고립').reduce((m, a) => { const y = Number.isInteger(a.year) ? String(a.year) : /^\d{4}/.test(String(a.date || '')) ? String(a.date).slice(0, 4) : '미상'; m[y] = (m[y] || 0) + 1; return m; }, {}) : null,
             history: acc ? { count: acc.length, from: d.history.from, to: d.history.to, topTypes: Object.entries(types).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).slice(0, 3).map(([type, count]) => ({ type, count })) } : null,
             missing: d.missing || [],
         });
@@ -366,7 +369,8 @@ function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory
  * 제주(tide_field_common.JEJU_BBOX — 추자도는 남해 쪽)이면 제주 고립판정 촘촘 격자 앵커(jeju_isolation_tide_collector, data/tide_field/curves_jeju)의 곡선으로
  * (그 격자가 없으면 제주 간출암 잠김경고 앵커 hazard_rocks_tide_collector, data/hazard_rocks/curves — 둘 다 매일 KST 23:30 자동 수집, 같은 꼴 {curve:[{t,h}],peaks:{lowTide1…}})
  * 고조·저조와 게이지용 곡선(10분 간격)을 만든다(2026-10-16 결정 5 — 원문 *"나 는 반영하자"*: 제주 관할도 조석·고립 문구). 잠기는 바위(간출암)는 관할 폴리곤 안의 것만, 그날 잠기는 시각.
- * 예: collectTide(태안 위치, '2026-10-17', geometry) → {region:'westsouth',anchorId:'A12',distKm:3.2,date:'2026-10-17',curve:[{t:'00:00',cm:312},…144],peaks:[{type:'low',t:'06:12',cm:-12},…],prevPeak,nextPeak,rocks:{count:3,first:'05:40',last:'07:10'}}
+ * 예: collectTide(태안 위치, '2026-10-17', geometry) → {region:'westsouth',anchorId:'A12',distKm:3.2,date:'2026-10-17',curve:[{t:'00:00',cm:312},…144],peaks:[{type:'low',t:'06:12',cm:-12},…],prevPeak,nextPeak,
+ *       rocks:{count:3,first:'05:40',last:'07:10',items:[{id:5,lat:36.66,lon:126.12,v:1.2,times:['05:40']},…]}}
  *     collectTide(한림 위치, …) → {region:'jeju',anchorId:'J0',…} · 동해·앵커 없음·곡선 없음 → null
  * @param {object} loc - {lat,lon} @param {string} date - YYYY-MM-DD @param {object} geometry - 관할 폴리곤
  * @param {object} [deps] - 시험용 주입(anchors·jejuAnchors·hrAnchors·readCurve(id,ymd,source)·rocks·crossings)
@@ -398,9 +402,18 @@ function collectTide(loc, date, geometry, deps = {}) {
     let rocks = null;
     try {
         const G = require('./risk_geo'), list = deps.rocks || require('./hazard_rocks_submersion').loadRocks(), cr = deps.crossings || readJson(path.join(require('./hazard_rocks_tide_common').HAZARD_ROCKS_TIDE_DIR, 'submersion.json'))?.crossings || {};
-        const times = [];
-        for (const r of list) { if (!G.pointInGeometry([r.lon, r.lat], geometry)) continue; for (const iso of cr[String(r.id)] || []) { const k = R.isoKst(Date.parse(iso)); if (k.slice(0, 10) === date) times.push(k.slice(11, 16)); } }
-        times.sort(); if (times.length) rocks = { count: new Set(list.filter((r) => (cr[String(r.id)] || []).some((iso) => R.isoKst(Date.parse(iso)).slice(0, 10) === date) && G.pointInGeometry([r.lon, r.lat], geometry)).map((r) => r.id)).size, first: times[0], last: times.at(-1) };
+        // items = 그날 잠기는 관할 안 간출암 하나하나(id·위치·간출 높이 v(m)·그날 잠기는 시각) — 총평 「잠기는 바위(간출암) N곳」을 누르면 여는 지도와
+        //   해양안전 「위험지형」 간출암 팝업(같은 id 로 /api/hazard-rocks/tide-curve)의 재료(2026-10-17 사용자 결정 — 설계서 §11.10.10). id 는 hazard_rocks.json 의 properties.id
+        //   (해양안전 위험지형 레이어 feature.get('id') 와 같은 번호 — hazard_rocks_submersion.loadRocks 주석). 첫 잠김 시각 순 → id 순.
+        const items = [];
+        for (const r of list) {
+            if (!G.pointInGeometry([r.lon, r.lat], geometry)) continue;
+            const at = (cr[String(r.id)] || []).map((iso) => R.isoKst(Date.parse(iso))).filter((k) => k.slice(0, 10) === date).map((k) => k.slice(11, 16)).sort();
+            if (at.length) items.push({ id: r.id, lat: r.lat, lon: r.lon, v: r.v, times: at });
+        }
+        items.sort((a, b) => a.times[0].localeCompare(b.times[0]) || String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
+        const times = items.flatMap((x) => x.times).sort();
+        if (times.length) rocks = { count: items.length, first: times[0], last: times.at(-1), items };
     } catch (_) { rocks = null; /* 간출암 자료 없음 — 문구만 빠진다 */ }
     return { region, anchorSource: source, anchorId: near.a.id, distKm: +near.d.toFixed(1), date, status: cur.status || null, curve, peaks, prevPeak: prev, prevDayPeaks, nextPeak: next, rocks };
 }

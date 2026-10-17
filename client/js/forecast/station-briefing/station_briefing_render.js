@@ -8,13 +8,16 @@
  *         근거 줄 ▸ 펼침(2026-10-17 §11.10.3): 고립 사고 지점 표 · 관할 해역 미니 지도(해당 칸·대해구 테두리 깜빡임 — 접거나 다시 그리면 멈춤).
  *         §11.10.9: 분석 근거 알약 배지 · 「평소보다 위험이 높아진 곳」 표 · 「{구역} 기상 현황」 머리 · 분석 문단 강조 토막(highlightSegments — span textContent 로만) · 마지막 「따라서 …」 → (권고) 줄
  *                   · 대해구 이름·「관할 해역 선박 N척」·붐비는 해역 링크 → 가운데 팝업 지도(openMapPopup — 서버 summary.sea.haegu·now.cells).
+ *         §11.10.10: (물때) 「잠기는 바위(간출암) N곳」 링크 → 팝업 지도(관할 경계 + 그 바위 마커 — 서버 summary.rocks) → 마커를 누르면 해양안전 「위험지형」과 같은 간출암 조석 곡선 상자
+ *                   (HazardRockTidePanel — hazard_rocks.js 의 같은 함수) · (고립 주의) 「과거 고립 사고(N개소 M건)」 링크(화살표 없음) → 「지점명 | 발생 현황」 표.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/bottom-sheet/ocean_bottom_sheet3.js(OceanSheet.tideGaugeHtml — 조석 게이지 디자인 그대로)
  *                    · marine-life/risk-forecast/risk_format.js(RiskFormat.BAND_COLORS — 위험예측 4색) · risk_basis.js(RiskBasis.open('briefing') — [기준 상세])
  *                    · style.css(.marine-forecast-sub-accordion·.ocean-tide-*) · station_briefing.css(.sb-*)
  *                    · ol.js(index2 <head> 전역 ol — 미니 지도) · ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 바탕 해아름 바다지도, 관심해역 고르기 지도와 같은 방식, 없으면 선만)
- *  - 서버 API      : 없음(받은 응답만 그린다 — 받기는 station_briefing.js · admin_station_briefing.js)
+ *                    · marine-life/safety/hazard_rocks.js(window.HazardRockTidePanel — 간출암 조석 곡선 상자·마커 그림, §11.10.10) · index2.html <style>(.hazard-rock-popup.rock-tide-popup 모양)
+ *  - 서버 API      : 없음(받은 응답만 그린다 — 받기는 station_briefing.js · admin_station_briefing.js). 간출암 상자는 HazardRockTidePanel 이 /api/hazard-rocks/tide-curve 를 받는다
  *  - 마크업        : index2.html #station-briefing-content(그 안을 통째로 만든다) · 관리자 미리보기 상자
  *  - 나를 쓰는 곳  : station_briefing.js(아코디언 본문) · admin/admin_station_briefing.js(관할 하나 미리보기)
  *  - 계약          : client/js/ocean-map/coastal-risk/briefing.contract.md §1.2·§2
@@ -272,10 +275,10 @@
      * 계약 §2.2: peaks {type,t:'HH:MM',cm} → {type, minutes, level}. prevPeak 는 전날 자신의 시각이라 1440 을 빼서 앞날로 민다.
      * 게이지(진행 막대)는 그 날이 오늘(KST)일 때만 — 바텀시트와 같은 규칙. 시각·cm 가 모양에 맞지 않는 피크는 버린다(HTML 에 숫자만 들어가게).
      * 예: tide({date:'2026-10-17',gauge:{peaks:[{type:'low',t:'06:12',cm:-12},…],prevPeak:{type:'high',t:'23:59',cm:600}},text:['06:12 저조 뒤부터 …']}, now)
-     * @param {Object} t - briefing.tide @param {number} nowMs - 지금(ms) @returns {HTMLElement}
-     * [연계] ← render / → OceanSheet.tideGaugeHtml(ocean_bottom_sheet3.js buildTideGauge)
+     * @param {Object} t - briefing.tide @param {number} nowMs - 지금(ms) @param {Object} [b] - briefing(바위 링크 — §11.10.10) @returns {HTMLElement}
+     * [연계] ← render / → OceanSheet.tideGaugeHtml(ocean_bottom_sheet3.js buildTideGauge)·rocksLine
      */
-    function tide(t, nowMs) {
+    function tide(t, nowMs, b) {
         var box = el('div', 'sb-tide');
         var conv = function (p, shift) {
             var m = p && /^(\d{2}):(\d{2})$/.exec(String(p.t || '')), cm = p ? Number(p.cm) : NaN;
@@ -295,7 +298,7 @@
             var gauge = el('div', 'sb-tide-gauge'); gauge.innerHTML = OS.tideGaugeHtml(peaks, y, n, kst, today); wrap.appendChild(gauge);
             box.appendChild(wrap);
         }
-        (t.text || []).forEach(function (line) { box.appendChild(el('p', 'sb-tide-text', line)); });
+        (t.text || []).forEach(function (line) { box.appendChild(rocksLine('sb-tide-text', line, b)); });   // 「잠기는 바위(간출암) N곳」은 (물때) 칸과 같은 지도 링크(§11.10.10)
         if (t.anchor && Number.isFinite(Number(t.anchor.distKm))) box.appendChild(el('p', 'sb-small', '관할 대표 위치에서 ' + Number(t.anchor.distKm) + 'km 떨어진 조석 지점 기준'));
         return box;
     }
@@ -329,15 +332,15 @@
         top.appendChild(basis);
         box.appendChild(top);
         if (!b) {
-            var empty = el('div', 'sb-empty');
-            empty.appendChild(el('p', '', '아직 이 관할의 브리핑이 없습니다.'));
+            // 「아직 이 관할의 브리핑이 없습니다.」 줄은 뺐다(§11.10.10 F — 2026-10-17 사용자 *"오류나 자료 없음처럼 다른 내용을 알리는 안내는 남깁니다 <- 이 작업 할 필요 없어"*).
+            //   빼도 칸이 비지 않는다 — 머리 줄([기준 상세])과 아래 다음 공개 안내(「다음 브리핑 공개: …」 또는 공개 시각 설명)가 남는다(UI 시험 「브리핑 없음」이 잰다).
+            var empty = el('div', 'sb-empty'); empty.setAttribute('data-sb-empty', '');
             empty.appendChild(el('p', 'sb-small', resp && resp.nextExpectedAt ? nextText(resp.nextExpectedAt, nowMs) : '브리핑은 매일 07:30 · 17:30 · 23:00에 보입니다 — 각 20분 전(07:10 · 17:10 · 22:40)부터 만들어 두었다가 그 시각에 보여 드리고, 특보가 바뀌면 그 관할을 곧바로 다시 만듭니다.'));
             box.appendChild(empty);
             return;
         }
         // 「○○ 브리핑(23:00 공개)이 아직 없어 ○○ 브리핑을 보여 드립니다 — 다음 브리핑 공개 …」 상자는 없앴다(§11.10.9 ⑦ — 사용자 *"그 박스 자체가"* 필요 없다). 다음 갱신 시각은 머리 글 괄호에 있다.
-        // 관리자 미리보기의 공개 예정 판(§11.10.4 — 사용자 화면에는 공개 시각까지 이전 판)
-        if (resp.pending) { var pn = el('p', 'sb-note sb-pending', '예정 — ' + kstText(resp.publishAt) + '에 공개될 판입니다. 지금 사용자 화면에는 ' + (resp.current ? '이전 판(' + kstText(resp.current.generatedAt) + ' 생성)' : '이 관할 브리핑 없음') + '이 보입니다.'); pn.setAttribute('data-sb-pending', ''); box.appendChild(pn); }
+        // 관리자 미리보기의 공개 예정 판 안내 「예정 — … 에 공개될 판입니다 …」 상자도 없앴다(§11.10.10 F — 같은 사용자 말). 공개 예정 판인지는 관리자 「AI 브리핑」 상태의 「공개 예정」 줄과 머리 글 시각이 보인다.
 
         // ① 총평과 권고 — summary.weather 칸이 있으면(§11.10.1) 결론 → (기상) → (물때) → 근거·권고 → AI 해설,
         //   summary 만 있으면(§11.10 판 — 10-17 낮에 저장된 파일) 육상·해상 덩어리 모양, 없으면(그 전) 종전 문단 모양
@@ -365,12 +368,13 @@
      *     expander('연안 분석 근거 상세 보기', fn, 'basis-land', true) → 알약 배지 버튼(.sb-x-pill — 글 + 작은 꺾쇠 .sb-x-chev, 펼치면 CSS 가 꺾쇠를 뒤집는다 — 2026-10-17 사용자 *"배지 모양으로 … 오른쪽으로 정렬"*, 설계서 §11.10.9)
      * @param {string} text - 버튼 글(textContent) @param {function(HTMLElement):(Function|void)} build - 펼칠 때 panel 을 채움, 정리 함수를 돌려줄 수 있음 @param {string} key - data-sb-x(시험이 찾는 이름)
      * @param {boolean} [pill] - 참이면 알약 배지 모양(글 화살표 ▸/▾ 대신 꺾쇠)
+     * @param {boolean} [noArrow] - 참이면 화살표 없이 밑줄 글만(§11.10.10 D — (고립 주의) 링크, 사용자 *"화살표 … 그냥 없애줘"*). 펼침 상태는 aria-expanded 로 그대로 알린다
      * @returns {{btn:HTMLButtonElement, panel:HTMLElement}} [연계] ← isolationLine·basisList·summaryBodyV3 / → isoTable·raisedTable·miniMap
      */
-    function expander(text, build, key, pill) {
+    function expander(text, build, key, pill, noArrow) {
         var id = 'sb-x-' + (++xSeq), btn = el('button', 'sb-x-btn' + (pill ? ' sb-x-pill' : '')), panel = el('div', 'sb-x-panel'), arrow = pill ? el('span', 'sb-x-chev') : el('span', 'sb-x-arrow', ' ▸'), stop = null;
         btn.type = 'button'; btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-controls', id); btn.setAttribute('data-sb-x', key);
-        btn.appendChild(document.createTextNode(text)); arrow.setAttribute('aria-hidden', 'true'); btn.appendChild(arrow);
+        btn.appendChild(document.createTextNode(text)); arrow.setAttribute('aria-hidden', 'true'); if (!noArrow) btn.appendChild(arrow);
         panel.id = id; panel.hidden = true; panel.setAttribute('data-sb-x-panel', key);
         btn.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -383,16 +387,18 @@
         return { btn: btn, panel: panel };
     }
     /**
-     * 고립 사고 지점 표 「지점명 | 발생 건수」(서버 summary.isolation.rows — 건수 많은 순, 모두). 글은 textContent.
-     * 예: isoTable(panel, {rows:[{name:'도시해녀',count:1}], caption:'2020~2024 연안사고 기록 중 고립(관광지 구역 + 앞바다 500m)'})
+     * 고립 사고 지점 표 「지점명 | 발생 현황」(서버 summary.isolation — head·rows[].status 「22년(1건), 23년(2건), 24년(1건)」, 합 많은 순·이름 순, 모두). 글은 textContent.
+     * 2026-10-17 사용자 *"22년 괄호 열고 몇 건, 컴마 23년 괄호 열고 몇 건 …"*(§11.10.10 E). status 가 없는 옛 판(§11.10.3 — 「지점명 | 발생 건수」)은 그 판 그대로 「N건」.
+     * 예: isoTable(panel, {head:['지점명','발생 현황'], rows:[{name:'도시해녀',count:2,status:'22년(1건), 23년(1건)'}], caption:'2020~2024 연안사고 기록 중 고립(관광지 구역 + 앞바다 500m)'})
      * @param {HTMLElement} panel @param {Object} iso @returns {void} [연계] ← isolationLine(expander build)
      */
     function isoTable(panel, iso) {
         var t = el('table', 'sb-iso-table'); t.setAttribute('data-sb-iso-table', '');
         if (iso.caption) t.appendChild(el('caption', '', iso.caption));
-        var hr = el('tr'); hr.appendChild(el('th', '', '지점명')); hr.appendChild(el('th', '', '발생 건수')); var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+        var head = Array.isArray(iso.head) && iso.head.length === 2 ? iso.head : ['지점명', '발생 건수'];
+        var hr = el('tr'); hr.appendChild(el('th', '', head[0])); hr.appendChild(el('th', '', head[1])); var th = el('thead'); th.appendChild(hr); t.appendChild(th);
         var tb = el('tbody');
-        (iso.rows || []).forEach(function (r) { var tr = el('tr'); tr.appendChild(el('td', '', r.name)); tr.appendChild(el('td', 'sb-num', Number(r.count) + '건')); tb.appendChild(tr); });
+        (iso.rows || []).forEach(function (r) { var tr = el('tr'); tr.appendChild(el('td', '', r.name)); tr.appendChild(el('td', 'sb-num', r.status ? String(r.status) : Number(r.count) + '건')); tb.appendChild(tr); });
         t.appendChild(tb); panel.appendChild(t);
     }
     /**
@@ -416,14 +422,14 @@
         t.appendChild(tb); panel.appendChild(t);
     }
     /**
-     * (물때) 아래 「(고립 주의) 저조 시간(…) 전후 사고 지점(N개소) 확인 및 주의가 필요합니다.」 — 「사고 지점(N개소)」가 버튼, 누르면 지점 표.
-     * 예: isolationLine({text:'(고립 주의) 저조 시간(08:16·22:09) 전후 사고 지점(5개소) 확인 및 주의가 필요합니다.', link:'사고 지점(5개소)', rows:[…]}) → <div data-sb-isolation><p>…<button>…</button>…</p><div panel></div></div>
-     * @param {Object} iso - summary.isolation @returns {HTMLElement} [연계] ← summaryBodyV2 / → expander·isoTable
+     * (물때) 아래 「(고립 주의) 저조 시간(…) 전후 과거 고립 사고(N개소 M건)으로 확인 및 주의가 필요합니다.」 — 서버 link(「과거 고립 사고(N개소 M건)」)가 버튼(화살표 없음 — §11.10.10 D), 누르면 지점 표.
+     * 예: isolationLine({text:'(고립 주의) 저조 시간(08:16·22:09) 전후 과거 고립 사고(5개소 6건)으로 확인 및 주의가 필요합니다.', link:'과거 고립 사고(5개소 6건)', rows:[…]}) → <div data-sb-isolation><p>…<button>…</button>…</p><div panel></div></div>
+     * @param {Object} iso - summary.isolation @returns {HTMLElement} [연계] ← tidePart / → expander·isoTable
      */
     function isolationLine(iso) {
         var wrap = el('div', 'sb-iso'); wrap.setAttribute('data-sb-isolation', '');
         var p = el('p', 'sb-iso-line'), text = String(iso.text || ''), link = String(iso.link || ''), i = link ? text.indexOf(link) : -1;
-        var x = expander(link || '사고 지점', function (panel) { isoTable(panel, iso); }, 'iso');
+        var x = expander(link || '과거 고립 사고', function (panel) { isoTable(panel, iso); }, 'iso', false, true);
         if (i >= 0) { p.appendChild(document.createTextNode(text.slice(0, i))); p.appendChild(x.btn); p.appendChild(document.createTextNode(text.slice(i + link.length))); }
         else { p.appendChild(document.createTextNode(text + ' ')); p.appendChild(x.btn); }
         wrap.appendChild(p); wrap.appendChild(x.panel);
@@ -438,7 +444,9 @@
      * 지도는 그림처럼 고정(끌기·확대 없음) — 페이지를 쓸어 내릴 때 지도가 손가락을 가로채지 않게.
      * 예: miniMap(panel, [[[[126.1,33.3],…]]], [[126.2,33.4,126.25,33.44]], '빨간 테두리(깜빡임) = …') → 정리 함수(깜빡임 멈춤·지도 떼기)
      * §11.10.9 ⑥: opt.big = 팝업용 큰 지도(.sb-minimap-lg) · opt.cells = [{id, box, count}] 선박이 있는 격자 — 테두리 + 격자 가운데 척수 글(ol Text) · opt.dim = 깜빡이는 격자 말고 나머지 격자를 흐리게.
-     * @param {HTMLElement} panel @param {Array} area - 관할 폴리곤 목록(경위도) @param {number[][]} boxes - [서,남,동,북] 목록 @param {string} caption @param {Object} [opt] - {big, cells, dim}
+     * §11.10.10: opt.points = [{id, lat, lon, v, times}] 간출암 — 해양안전 「위험지형」과 같은 간출암 그림(HazardRockTidePanel.icon, 없으면 주황 점) · opt.onPoint(row, unselect) = 마커를 눌렀을 때
+     *            (누른 마커에 빨간 고리, unselect() 를 부르면 고리를 지운다). 지도는 끌기·확대 없이도 누름(click)은 받는다.
+     * @param {HTMLElement} panel @param {Array} area - 관할 폴리곤 목록(경위도) @param {number[][]} boxes - [서,남,동,북] 목록 @param {string} caption @param {Object} [opt] - {big, cells, dim, points, onPoint}
      * @returns {Function|null} 정리 함수 [연계] ← basisList(expander build)·openMapPopup(대해구·지금 밀집 팝업) / ol.js(index2 전역)·ocean_map.js oceanCreateKhoaLayer
      */
     function miniMap(panel, area, boxes, caption, opt) {
@@ -457,16 +465,31 @@
         var cellSrc = new ol.source.Vector({ features: (Array.isArray(opt.cells) ? opt.cells : []).map(function (c) { var b = c.box, f = new ol.Feature(new ol.geom.Polygon([[[b[0], b[1]], [b[0], b[3]], [b[2], b[3]], [b[2], b[1]], [b[0], b[1]]].map(proj)])); f.set('label', String(c.count)); f.set('id', c.id); return f; }) });
         var cellLayer = new ol.layer.Vector({ source: cellSrc, style: function (f) { return new ol.style.Style({ stroke: new ol.style.Stroke({ color: opt.dim ? 'rgba(8,145,178,0.45)' : '#0891b2', width: 1.5 }), fill: new ol.style.Fill({ color: opt.dim ? 'rgba(8,145,178,0.06)' : 'rgba(8,145,178,0.14)' }),
             text: new ol.style.Text({ text: f.get('label'), font: '700 13px sans-serif', fill: new ol.style.Fill({ color: opt.dim ? 'rgba(15,23,42,0.6)' : '#0f172a' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 3 }), overflow: true }) }); } });
+        // 간출암 마커(§11.10.10) — 위치는 서버 summary.rocks.rows 그대로(화면이 바위를 찾지 않는다). 그림은 해양안전 「위험지형」 간출암과 같은 것(hazard_rocks.js 가 내보냄)
+        var RP = w.HazardRockTidePanel, sel = null;
+        var ptSrc = new ol.source.Vector({ features: (Array.isArray(opt.points) ? opt.points : []).filter(function (r) { return r && Number.isFinite(Number(r.lon)) && Number.isFinite(Number(r.lat)); }).map(function (r) { var f = new ol.Feature(new ol.geom.Point(proj([r.lon, r.lat]))); f.set('row', r); return f; }) });
+        var ptImg = RP && RP.icon ? new ol.style.Icon({ src: RP.icon, scale: RP.iconScale || 0.3 }) : new ol.style.Circle({ radius: 7, fill: new ol.style.Fill({ color: '#f59e0b' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 2 }) });
+        var ptStyle = new ol.style.Style({ image: ptImg }), ring = new ol.style.Style({ image: new ol.style.Circle({ radius: 17, stroke: new ol.style.Stroke({ color: '#ef4444', width: 3 }), fill: new ol.style.Fill({ color: 'rgba(239,68,68,0.15)' }) }) });
+        var ptLayer = new ol.layer.Vector({ source: ptSrc, style: function (f) { return f === sel ? [ring, ptStyle] : ptStyle; } });
         var layers = [];
         if (typeof w.oceanCreateKhoaLayer === 'function') { try { var base = w.oceanCreateKhoaLayer('BASEMAP_RLTM3857'); base.setVisible(true); layers.push(base); } catch (e) { console.warn('[station-briefing] 바탕 지도 없이 선만 그립니다', e); } }
-        layers.push(areaLayer, cellLayer, hlLayer);
+        layers.push(areaLayer, cellLayer, hlLayer, ptLayer);
         var map = new ol.Map({ target: box, layers: layers, view: new ol.View({ center: proj([127.5, 36]), zoom: 7 }), controls: [], interactions: [] });
-        var ext = areaSrc.getExtent().slice(); if (hlSrc.getFeatures().length) ol.extent.extend(ext, hlSrc.getExtent()); if (cellSrc.getFeatures().length) ol.extent.extend(ext, cellSrc.getExtent());
+        var ext = areaSrc.getExtent().slice(); if (hlSrc.getFeatures().length) ol.extent.extend(ext, hlSrc.getExtent()); if (cellSrc.getFeatures().length) ol.extent.extend(ext, cellSrc.getExtent()); if (ptSrc.getFeatures().length) ol.extent.extend(ext, ptSrc.getExtent());
+        if (ptSrc.getFeatures().length && typeof opt.onPoint === 'function') {
+            map.on('click', function (evt) {
+                var hit = null; map.forEachFeatureAtPixel(evt.pixel, function (f) { hit = f; return true; }, { layerFilter: function (l) { return l === ptLayer; }, hitTolerance: 6 });
+                if (!hit) return;
+                sel = hit; ptLayer.changed(); box.setAttribute('data-sb-map-sel', String(hit.get('row').id));
+                opt.onPoint(hit.get('row'), function () { if (sel === hit) { sel = null; ptLayer.changed(); box.removeAttribute('data-sb-map-sel'); } });
+            });
+        }
         map.updateSize(); map.getView().fit(ext, { size: map.getSize(), padding: [10, 10, 10, 10] });
         box.setAttribute('data-sb-map', 'ol'); box.setAttribute('data-sb-map-base', layers.length > 3 ? 'khoa' : 'none');
         box.setAttribute('data-sb-map-cells', String(cellSrc.getFeatures().length)); box.setAttribute('data-sb-map-labels', cellSrc.getFeatures().map(function (f) { return f.get('label'); }).join(','));
+        box.setAttribute('data-sb-map-points', String(ptSrc.getFeatures().length)); box.setAttribute('data-sb-map-icon', RP && RP.icon ? 'hazard-rocks' : 'dot');
         box.setAttribute('data-sb-map-area', String(areaSrc.getFeatures().length)); box.setAttribute('data-sb-map-hl', String(hlSrc.getFeatures().length));
-        box._sbMap = { map: map, area: areaSrc, hl: hlSrc, hlLayer: hlLayer, cells: cellSrc };   // 시험용 손잡이(OL 지형지물 수 확인)
+        box._sbMap = { map: map, area: areaSrc, hl: hlSrc, hlLayer: hlLayer, cells: cellSrc, points: ptSrc };   // 시험용 손잡이(OL 지형지물 수 확인 · 마커 화면 위치)
         var timer = null;
         var stop = function () { if (timer) { clearInterval(timer); timer = null; blinking--; } box.setAttribute('data-sb-blink', still ? 'static' : 'off'); map.setTarget(null); };
         if (still) box.setAttribute('data-sb-blink', 'static');
@@ -489,6 +512,7 @@
     var popup = null;
     /** 팝업 지도를 닫는다(깜빡임 멈춤·지도 떼기·연 곳으로 초점). 예: closeMapPopup(). @returns {void} [연계] ← openMapPopup(✕·바깥·Esc·뒤로가기)·render(본문을 다시 그릴 때) */
     function closeMapPopup() {
+        closeRockPanel();   // 간출암 상자(§11.10.10)가 떠 있으면 같이 닫는다
         if (!popup) return;
         var p = popup; popup = null;
         if (w.PopupStack) w.PopupStack.remove('sb-map-popup');
@@ -515,7 +539,15 @@
         x.addEventListener('click', function (e) { e.stopPropagation(); closeMapPopup(); });
         dim.addEventListener('pointerdown', function (e) { e.preventDefault(); closeMapPopup(); });
         wrap.addEventListener('click', function (e) { e.stopPropagation(); });   // 바깥 아코디언 머리로 번지지 않게
-        wrap.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); closeMapPopup(); } else if (e.key === 'Tab') { e.preventDefault(); x.focus(); } });
+        // Esc = 간출암 상자(§11.10.10)가 떠 있으면 그것만, 아니면 창 · Tab = 창 안에서만 돈다(상자가 떠 있으면 ✕ ↔ 상자 단추들)
+        wrap.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { e.preventDefault(); if (rockPanel) closeRockPanel(); else closeMapPopup(); }
+            else if (e.key === 'Tab') {
+                e.preventDefault();
+                var f = [x].concat(rockPanel ? [].slice.call(rockPanel.el.querySelectorAll('button')).filter(function (b) { return !b.disabled; }) : []), k = f.indexOf(document.activeElement);
+                f[(k + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
+            }
+        });
         if (w.PopupStack) w.PopupStack.push('sb-map-popup', closeMapPopup);
         var p = popup; p.stop = build(body) || null;   // 붙인 뒤에 그려야 지도가 크기를 잰다
         x.focus();
@@ -528,6 +560,63 @@
         var b = el('button', 'sb-x-btn sb-maplink', text); b.type = 'button'; b.setAttribute('aria-haspopup', 'dialog'); b.setAttribute('data-sb-maplink', key);
         b.addEventListener('click', function (e) { e.stopPropagation(); onOpen(b); });
         return b;
+    }
+    // ── 잠기는 바위(간출암) — 링크 → 팝업 지도 → 마커 → 간출암 조석 곡선 상자(2026-10-17 사용자 결정 — 설계서 §11.10.10) ──
+    // 원문: *"그 간출암 두 곳 그 부분에 하이퍼링크를 걸어서 누르면 그 바위 두 곳이 어디에 있는지 지도에 표출 … 그 바위 마커를 누르면 우리 해양안전생활에서 위험지형에
+    //       저 간출암을 누르면 시간대에 따라 팝업으로 언제 잠기고 뭐 이런 게 별도의 박스로 정보를 제공하잖아. 거기까지 제공될 수 있도록"*.
+    // 상자는 새로 만들지 않고 해양안전 「위험지형」의 것을 그대로 쓴다(hazard_rocks.js mountTidePanel → window.HazardRockTidePanel). 바위 번호(id)는 서버가 준 hazard_rocks.json id.
+    var rockPanel = null;
+    /** 간출암 상자를 닫는다(받기 멈춤·떼기·마커 고리 지움). 예: closeRockPanel(). @returns {void} [연계] ← openRockPanel(✕·뒤로가기)·openMapPopup(Esc)·closeMapPopup */
+    function closeRockPanel() {
+        if (!rockPanel) return;
+        var r = rockPanel; rockPanel = null;
+        if (w.PopupStack) w.PopupStack.remove('sb-rock-panel');
+        if (r.ctl) r.ctl.close();
+        if (r.el.parentNode) r.el.parentNode.removeChild(r.el);
+        if (typeof r.done === 'function') r.done();
+    }
+    /**
+     * 팝업 지도 창 위 가운데에 간출암 조석 곡선 상자를 띄운다 — 해양안전 「위험지형」 간출암 팝업과 같은 함수(HazardRockTidePanel.mount)·같은 모양(.hazard-rock-popup.rock-tide-popup).
+     * 다른 마커를 누르면 상자를 바꾼다. hazard_rocks.js 가 없으면(그 화면에 안 실렸으면) 아무것도 띄우지 않고 거짓.
+     * 예: openRockPanel({id:812, lat:33.4, lon:126.2, v:0.9, times:['02:40']}, unselectFn) → true
+     * @param {Object} row - summary.rocks.rows 한 줄 @param {Function} done - 상자가 닫힐 때(마커 고리 지움) @returns {boolean}
+     * [연계] ← rocksLine(miniMap onPoint) / → HazardRockTidePanel.mount(hazard_rocks.js)·closeRockPanel
+     */
+    function openRockPanel(row, done) {
+        closeRockPanel();
+        var RP = w.HazardRockTidePanel;
+        if (!popup || !RP || typeof RP.mount !== 'function') { if (typeof done === 'function') done(); return false; }
+        var el = document.createElement('div'); el.className = 'hazard-rock-popup rock-tide-popup sb-rockbox';
+        el.setAttribute('data-sb-rockbox', String(row.id)); el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', RP.title(row.v));
+        el.addEventListener('click', function (e) { e.stopPropagation(); });
+        popup.wrap.appendChild(el);
+        rockPanel = { el: el, ctl: null, done: done };
+        rockPanel.ctl = RP.mount(el, { rockId: row.id, v: row.v, lon: Number(row.lon), lat: Number(row.lat), onClose: function () { closeRockPanel(); } });
+        if (w.PopupStack) w.PopupStack.push('sb-rock-panel', closeRockPanel);
+        var c = el.querySelector('.rtp-close'); if (c && c.focus) c.focus({ preventScroll: true });
+        return true;
+    }
+    /**
+     * (물때)·조석 칸의 서버 물때 줄 하나 — 그 줄에 summary.rocks.link(「잠기는 바위(간출암) N곳」)가 있고 관할 경계(summary.sea.area)가 있으면 그 글만 팝업 지도 링크로.
+     * 지도 = 관할 경계(파란 선) + 그 N곳 간출암 마커 — 마커를 누르면 openRockPanel. 그 밖은 글만(옛 판·바위 목록 없음).
+     * 예: rocksLine('sb-sum-tide', '관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 …', b) → <p class="sb-sum-tide" data-sb-rocks>관할 내 <button data-sb-maplink="rocks">잠기는 바위(간출암) 2곳</button>이 …</p>
+     * @param {string} cls - p 의 class @param {string} line - 서버 글 @param {Object} b - briefing(summary.rocks·summary.sea.area·station) @returns {HTMLElement}
+     * [연계] ← tidePart·tide / → mapLink·openMapPopup·miniMap(points)·openRockPanel
+     */
+    function rocksLine(cls, line, b) {
+        var p = el('p', cls), S = (b && b.summary) || {}, R = S.rocks, text = String(line || ''), i = R && R.link ? text.indexOf(R.link) : -1;
+        var area = S.sea && Array.isArray(S.sea.area) && S.sea.area.length ? S.sea.area : null;
+        if (i < 0 || !area || !Array.isArray(R.rows) || !R.rows.length) { p.textContent = text; return p; }
+        var stName = (b.station && b.station.name) || '';
+        p.setAttribute('data-sb-rocks', '');
+        p.appendChild(document.createTextNode(text.slice(0, i)));
+        p.appendChild(mapLink(R.link, function () {
+            openMapPopup(stName + ' 관할 내 ' + R.link, function (body) {
+                return miniMap(body, area, [], '바위 그림 = 이 날 물에 잠기는 간출암(누르면 오늘·내일·모레 조석 곡선과 잠기는 시각) · 파란 선 = ' + stName + ' 관할 해역', { big: true, points: R.rows, onPoint: openRockPanel });
+            }, 'rocks');
+        }, 'rocks'));
+        p.appendChild(document.createTextNode(text.slice(i + R.link.length)));
+        return p;
     }
     /**
      * 「지금 밀집」 줄 — 「관할 해역 선박 N척」과 가장 붐비는 해역 이름을 팝업 지도 링크로(§11.10.9 ⑥). 관할 경계(summary.sea.area)나 격자(now.cells)가 없으면 글만.
@@ -648,12 +737,12 @@
     }
     /**
      * (물때) 칸 — 서버 물때 줄 + (고립 주의) 줄(§11.10.3 — 연안을 보일 때만). 줄이 없으면 칸도 없다. summaryBodyV2·summaryBodyV3 공용.
-     * @param {function(string,string):HTMLElement} part @param {Object} S - summary @param {*} land - 연안을 보이나(summary.land) @returns {void} [연계] ← summaryBodyV2·summaryBodyV3 / → isolationLine
+     * @param {function(string,string):HTMLElement} part @param {Object} S - summary @param {*} land - 연안을 보이나(summary.land) @param {Object} b - briefing(바위 링크 — §11.10.10) @returns {void} [연계] ← summaryBodyV2·summaryBodyV3 / → isolationLine·rocksLine
      */
-    function tidePart(part, S, land) {
-        // (고립 주의) 줄(§11.10.3)은 물때 줄 아래 — 「사고 지점(N개소)」를 누르면 지점 표
+    function tidePart(part, S, land, b) {
+        // (고립 주의) 줄(§11.10.3)은 물때 줄 아래 — 「과거 고립 사고(N개소 M건)」를 누르면 지점 표(§11.10.10). 「잠기는 바위(간출암) N곳」은 팝업 지도 링크(rocksLine)
         var iso = land && S.isolation && Array.isArray(S.isolation.rows) && S.isolation.rows.length ? S.isolation : null;
-        if ((Array.isArray(S.tide) && S.tide.length) || iso) { var tp = part('tide', '(물때)'); (S.tide || []).forEach(function (t) { tp.appendChild(el('p', 'sb-sum-tide', t)); }); if (iso) tp.appendChild(isolationLine(iso)); }
+        if ((Array.isArray(S.tide) && S.tide.length) || iso) { var tp = part('tide', '(물때)'); (S.tide || []).forEach(function (t) { tp.appendChild(rocksLine('sb-sum-tide', t, b)); }); if (iso) tp.appendChild(isolationLine(iso)); }
     }
     /**
      * 「총평과 권고」 §11.10.1 모양(2026-10-17 사용자 후속 결정 — *"결론 한줄 -> 기상(…가장 가까운 특보구역…오전, 오후…) … / 물때 / 연안의 안전 등급 분석에 근거…"*):
@@ -681,7 +770,7 @@
             }
         }
         weatherPart(part, S);
-        tidePart(part, S, land);
+        tidePart(part, S, land, b);
         // ④⑤ 연안·해상 근거·권고
         var nowText = showSea && resp.now && resp.now.text ? resp.now.text : null;
         var basis = function (kind, label, sum) {
@@ -862,7 +951,7 @@
         if (sea) block('sea', '해상', b.sea.overviewLevel.rank, b.sea.overviewLevel.word, S.sea, ov.sea, A.sea);
         if (nowText) { var nw = el('p', 'sb-now', nowText); nw.setAttribute('data-sb-now', ''); body.appendChild(nw); }
         weatherPart(part, S);
-        tidePart(part, S, land);
+        tidePart(part, S, land, b);
         // 맨 아래 작은 출처 줄(「분석 문단은 ChatGPT가 썼습니다 — 숫자·지명·단계는 …」/「규칙 분석 — …」)은 없앴다 — 2026-10-17 사용자 *"굳이 필요가 없어 … 아예 다 빼줘"*(§11.10.9).
         //   누가 썼는지는 분석 문단 앞 이름표(「AI 분석 · ChatGPT」/「규칙 분석」 — data-sb-analysis-source)가 그대로 보인다.
     }
@@ -955,7 +1044,7 @@
         }
 
         // ⑥ 조석(서해·남해·제주 관할)
-        if (b.tide) { var s5 = section('조석', 'tide'); s5.body.appendChild(tide(b.tide, nowMs)); box.appendChild(s5.root); }
+        if (b.tide) { var s5 = section('조석', 'tide'); s5.body.appendChild(tide(b.tide, nowMs, b)); box.appendChild(s5.root); }
 
         // ⑦ 기준 시각·출처·참고 정보
         var foot = el('div', 'sb-foot');

@@ -238,13 +238,13 @@ const WIN = R.editionWindow('morning', T0);
         const t = I.collectTide({ lat: 36.674, lon: 126.13 }, '2026-10-17', geom, { anchors: [{ id: 'A9', lat: 36.9, lon: 126.0 }, { id: 'A7', lat: 36.68, lon: 126.14 }], readCurve: (id, ymd) => id === 'A7' ? files[ymd] || null : null, rocks: [{ id: 5, lat: 36.66, lon: 126.12, v: 1.2 }, { id: 6, lat: 37.5, lon: 126.12, v: 1 }], crossings: { '5': ['2026-10-16T22:10:00.000Z', '2026-10-17T09:40:00.000Z'], '6': ['2026-10-16T22:00:00.000Z'] } });
         assert.equal(t.anchorId, 'A7'); assert.equal(t.curve.length, 144); assert.equal(t.prevPeak.t, '23:59'); assert.equal(t.nextPeak, null);
         assert.deepStrictEqual(t.peaks.map((p) => p.type + p.t), ['high00:50', 'low06:12', 'high12:30', 'low18:40']);
-        assert.deepStrictEqual(t.rocks, { count: 1, first: '07:10', last: '18:40' });
+        assert.deepStrictEqual(t.rocks, { count: 1, first: '07:10', last: '18:40', items: [{ id: 5, lat: 36.66, lon: 126.12, v: 1.2, times: ['07:10', '18:40'] }] }, '§11.10.10 — 바위 하나하나(id·위치·간출 높이·그날 잠기는 시각)');
         const sec = R.tideSection(t, WIN);
         // 문구는 창(아침 판 06~24시)에 걸친 밀물(저조 → 다음 고조)만 — 00:50 고조는 창 앞이라 빠진다(게이지 peaks 에는 그대로). 18:40 저조 뒤 고조는 다음 날 곡선이 없어 시각 없이.
         assert.equal(sec.text[0], '06:12 저조 뒤부터 물이 차오릅니다(12:30 고조) · 18:40 저조 뒤부터 물이 차오릅니다.');
         assert.equal(R.tideSection({ ...t, nextPeak: { type: 'high', t: '00:55', cm: 600 } }, WIN).text[0], '06:12 저조 뒤부터 물이 차오릅니다(12:30 고조) · 18:40 저조 뒤부터 물이 차오릅니다(10월 18일 00:55 고조).', '다음 날 첫 고조는 nextPeak(날짜 붙임)');
         assert.equal(sec.gauge.peaks.length, 4);
-        assert.ok(sec.text[1].startsWith('관할 안 잠기는 바위(간출암) 1곳이 07:10~18:40 사이 물에 잠깁니다'));
+        assert.equal(sec.text[1], '관할 내 잠기는 바위(간출암) 1곳이 07:10~18:40 사이 물에 잠깁니다 — 바위 위 낚시·채취 중 고립에 주의가 필요합니다.', '§11.10.10 — 「관할 안」 → 「관할 내」'); assert.equal(sec.rocks.link, '잠기는 바위(간출암) 1곳');
         // 결정 5: 제주 관할도 — 제주 촘촘 격자 앵커(jeju_isolation) 곡선, 없으면 간출암 앵커(hazard_rocks). 물빠짐 앵커(서해·남해)는 쓰지 않는다.
         const jg = { type: 'Polygon', coordinates: [[[126.15, 33.3], [126.15, 33.5], [126.35, 33.5], [126.35, 33.3], [126.15, 33.3]]] }, seen = [];
         const jt = I.collectTide({ lat: 33.41, lon: 126.26 }, '2026-10-17', jg, { anchors: [{ id: 'A7', lat: 33.41, lon: 126.26 }], jejuAnchors: [{ id: 'J9', lat: 33.6, lon: 126.6 }, { id: 'J1', lat: 33.42, lon: 126.27 }], readCurve: (id, ymd, src) => { seen.push(src + ':' + id); return files[ymd] || null; }, rocks: [], crossings: {} });
@@ -316,7 +316,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(S.advice.startsWith('15~24시 비양도 ') && S.advice.endsWith('해리 해역 운항에 주의가 필요합니다.') && !/따라서/.test(S.advice + L.advice), S.advice);
         assert.ok(!JSON.stringify(b.summary).includes('관심 이상'), '「관심 이상」 용어를 쓰지 않음');
         assert.deepStrictEqual([b.overview.land, b.overview.sea, b.overview.source], [null, null, 'template'], '틀(AI 없음)이면 해설 없음');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v12'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v13'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
     });
     const si = AI.stationInput(b);
     // AI 분석 문단 견본(2026-10-17 §11.10.4 — 3~5문장, 마지막 「따라서 … 필요합니다」. 그 전 §11.10 해설은 1~2문장): 허용 숫자·지명·단계만 쓴 글. 아래 검사들이 이것을 조금씩 바꿔 실패를 만든다.
@@ -1276,23 +1276,65 @@ const WIN = R.editionWindow('morning', T0);
         const risk = { coastDayDetail: (id) => id === 'na' ? { ...hist([]), history: { available: false } } : hist(id === 'a' ? ['고립', '익수', '고립'] : id === 'b' ? ['추락'] : ['고립']) };
         const L = I.collectLand([{ id: 'a', name: '가' }, { id: 'b', name: '나' }, { id: 'c', name: '다' }, { id: 'na', name: '라' }], [], { risk, t: at(8) });
         assert.deepStrictEqual(L.spots.map((s) => s.isolation), [2, 0, 1, null]);
+        assert.deepStrictEqual(L.spots.map((s) => s.isolationYears), [{ 미상: 2 }, {}, { 미상: 1 }, null], '연도가 없는 기록은 「미상」으로 — 합이 isolation 과 같게');
         // 규칙: 12곳(카드 상한 10 넘음)이 모두 표에 — 건수 많은 순, 같으면 이름 순
         const spots = Array.from({ length: 12 }, (_, i) => ({ id: 's' + i, name: '지점' + pad(11 - i), lat: 33, lon: 126, index: 10, band: '평소 수준', notices: {}, missing: [], isolation: i < 2 ? 3 : 1, history: { count: 3, from: '2020-01-01', to: '2024-12-31', topTypes: [] } }))
             .concat([{ id: 'z', name: '고립없음', lat: 33, lon: 126, index: 10, band: '평소 수준', notices: {}, missing: [], isolation: 0, history: null }]);
         const x = R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots, hazardOnly: [] }, tide: tideFx }, WIN, { generatedAt: R.isoKst(T0) });
         const iso = x.summary.isolation;
-        assert.equal(iso.rows.length, 12, '모두(카드 상한 없음)'); assert.deepStrictEqual(iso.rows.slice(0, 3), [{ name: '지점10', count: 3 }, { name: '지점11', count: 3 }, { name: '지점00', count: 1 }]);
+        assert.equal(iso.rows.length, 12, '모두(카드 상한 없음)'); assert.deepStrictEqual(iso.rows.slice(0, 3).map((r) => [r.name, r.count, r.status]), [['지점10', 3, '3건'], ['지점11', 3, '3건'], ['지점00', 1, '1건']], '연도별 수가 없는 입력이면 합만');
         assert.ok(!iso.rows.some((r) => r.name === '고립없음'));
-        assert.equal(iso.text, '(고립 주의) 저조 시간(08:16·22:09) 전후 사고 지점(12개소) 확인 및 주의가 필요합니다.'); assert.equal(iso.link, '사고 지점(12개소)');
+        assert.equal(iso.text, '(고립 주의) 저조 시간(08:16·22:09) 전후 과거 고립 사고(12개소 16건)으로 확인 및 주의가 필요합니다.'); assert.equal(iso.link, '과거 고립 사고(12개소 16건)');   // §11.10.10
         assert.equal(iso.caption, '2020~2024 연안사고 기록 중 고립(관광지 구역 + 앞바다 500m)');
         assert.deepStrictEqual(x.tide.lows, ['08:16', '22:09']); assert.ok(!JSON.stringify(x).includes('차오르기 전에'), '「물이 차오르기 전에 나오세요」는 어디에도 없음');
         assert.equal(x.summary.tide[0], '08:16 저조 뒤부터 물이 차오릅니다(14:30 고조) · 22:09 저조 뒤부터 물이 차오릅니다.');
         // 17:30 판(15시~) — 그 창 안 저조만
-        assert.equal(R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots, hazardOnly: [] }, tide: tideFx }, R.editionWindow('evening', Date.parse('2026-10-17T17:30:00+09:00')), { generatedAt: '2026-10-17T17:30:00+09:00' }).summary.isolation.text, '(고립 주의) 저조 시간(22:09) 전후 사고 지점(12개소) 확인 및 주의가 필요합니다.');
+        assert.equal(R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots, hazardOnly: [] }, tide: tideFx }, R.editionWindow('evening', Date.parse('2026-10-17T17:30:00+09:00')), { generatedAt: '2026-10-17T17:30:00+09:00' }).summary.isolation.text, '(고립 주의) 저조 시간(22:09) 전후 과거 고립 사고(12개소 16건)으로 확인 및 주의가 필요합니다.');
         // 없을 때 — 고립 지점 0 · 해상만 관할 · 조석 칸 없는 관할(동해 등)은 줄을 넣지 않는다
         assert.equal(R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots: spots.slice(-1), hazardOnly: [] }, tide: tideFx }, WIN, { generatedAt: R.isoKst(T0) }).summary.isolation, null);
         assert.equal(R.buildBriefing({ ...seaOnlyInput({}), tide: tideFx }, WIN, { generatedAt: R.isoKst(T0) }).summary.isolation, null);
         assert.equal(R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots, hazardOnly: [] }, tide: null }, WIN, { generatedAt: R.isoKst(T0) }).summary.isolation, null);
+    });
+    // ── 2026-10-17 사용자 결정(설계서 §11.10.10) — 「관할 내 잠기는 바위」 링크 재료 · 「과거 고립 사고(N개소 M건)으로」 · 「발생 현황」 연도별. 고치기 전 코드(4d3ac79a9)에서는 모두 실패한다 ──
+    await check('[§11.10.10-1] (물때) 「관할 내 잠기는 바위(간출암) N곳이 …」 · summary.rocks = {line, link, rows:[{id,lat,lon,v,times}]} — 위험지형 팝업과 같은 id · 바위 목록이 없으면(옛 수집) 링크 없이 글만', () => {
+        const items = [{ id: 812, lat: 33.4, lon: 126.2, v: 0.9, times: ['02:40'] }, { id: 77, lat: 33.41, lon: 126.21, v: 1.4, times: ['03:10', '16:41'] }];
+        const tide = { ...tideFx, rocks: { count: 2, first: '02:40', last: '16:41', items } };
+        const x = R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots: [], hazardOnly: [] }, tide }, WIN, { generatedAt: R.isoKst(T0) });
+        assert.equal(x.summary.tide[1], '관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 물에 잠깁니다 — 바위 위 낚시·채취 중 고립에 주의가 필요합니다.');
+        assert.ok(!JSON.stringify(x).includes('관할 안 잠기는'), '「관할 안 잠기는」은 어디에도 없음');
+        assert.deepStrictEqual(x.summary.rocks, { line: 1, link: '잠기는 바위(간출암) 2곳', rows: items });
+        assert.equal(x.summary.rocks.rows[0] === items[0], false, '복사본(입력을 그대로 물지 않음)');
+        // 옛 수집 결과(items 없음) — 글은 그대로 「관할 내 …」, 링크 재료 없음
+        const old = R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots: [], hazardOnly: [] }, tide: { ...tideFx, rocks: { count: 2, first: '02:40', last: '16:41' } } }, WIN, { generatedAt: R.isoKst(T0) });
+        assert.deepStrictEqual([old.summary.tide[1].startsWith('관할 내 잠기는 바위(간출암) 2곳이'), old.summary.rocks, old.tide.rocks.link], [true, null, undefined]);
+        assert.equal(R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots: [], hazardOnly: [] }, tide: tideFx }, WIN, { generatedAt: R.isoKst(T0) }).summary.rocks, null, '잠기는 바위 없음');
+        // 수집: hazard_rocks_submersion.loadRocks 꼴({id,lon,lat,v}) + submersion.json crossings → 관할 안·그날만, 첫 잠김 시각 순
+        const curve = Array.from({ length: 144 }, (_, i) => ({ t: pad(Math.floor(i / 6)) + ':' + pad((i % 6) * 10), h: 100 }));
+        const file = { curve, peaks: { lowTide1: { time: '06:12', height: 0 }, highTide1: { time: '12:30', height: 600 } } };
+        const geom = { type: 'Polygon', coordinates: [[[126.0, 36.6], [126.0, 36.75], [126.2, 36.75], [126.2, 36.6], [126.0, 36.6]]] };
+        const t = I.collectTide({ lat: 36.674, lon: 126.13 }, '2026-10-17', geom, { anchors: [{ id: 'A7', lat: 36.68, lon: 126.14 }], readCurve: (id, ymd) => ymd === '20261017' ? file : null,
+            rocks: [{ id: 9, lat: 36.70, lon: 126.10, v: 0.5 }, { id: 5, lat: 36.66, lon: 126.12, v: 1.2 }, { id: 6, lat: 37.5, lon: 126.12, v: 1 }, { id: 7, lat: 36.65, lon: 126.11, v: 2 }],
+            crossings: { 9: ['2026-10-17T07:41:00.000Z'], 5: ['2026-10-16T17:40:00.000Z', '2026-10-17T22:00:00.000Z'], 6: ['2026-10-16T20:00:00.000Z'], 7: ['2026-10-18T01:00:00.000Z'] } });
+        assert.deepStrictEqual(t.rocks, { count: 2, first: '02:40', last: '16:41', items: [{ id: 5, lat: 36.66, lon: 126.12, v: 1.2, times: ['02:40'] }, { id: 9, lat: 36.70, lon: 126.10, v: 0.5, times: ['16:41'] }] }, '관할 밖(6)·다른 날(7, 5의 18일 07:00) 제외');
+    });
+    await check('[§11.10.10-2] (고립 주의) 「과거 고립 사고(N개소 M건)으로 확인 및 주의가 필요합니다.」 · 표 「지점명 | 발생 현황」 = 「22년(1건), 23년(2건), 24년(1건)」(오름차순·1건 이상만) · 순서는 합 많은 순 → 이름 순 · 기록의 year/date 로 센다', () => {
+        // 수집: 실제 기록 꼴(risk_store.coastHistory — {date, year, type, …})
+        const rec = (date, type) => ({ date, year: +date.slice(0, 4), type, death: 0, missing: 0, rescue: 1 });
+        const hist = (acc) => ({ t: at(8), index: 10, band: '평소 수준', rows: [], notices: [], daily: { peakAt: at(8), notices: [] }, history: { available: true, from: '2020-01-01', to: '2024-12-31', accidents: acc }, missing: [] });
+        const data = { a: [rec('2024-07-01', '고립'), rec('2022-05-03', '고립'), rec('2023-08-08', '고립'), rec('2023-09-09', '고립'), rec('2021-01-01', '익수')], b: [rec('2020-06-06', '고립'), { date: '2021-02-02', type: '고립' }], c: [rec('2024-01-01', '고립'), rec('2022-02-02', '고립'), rec('2023-03-03', '고립'), rec('2020-04-04', '고립')] };
+        const L = I.collectLand([{ id: 'a', name: '하나' }, { id: 'b', name: '둘' }, { id: 'c', name: '가나' }], [], { risk: { coastDayDetail: (id) => hist(data[id]) }, t: at(8) });
+        assert.deepStrictEqual(L.spots.map((s) => [s.isolation, s.isolationYears]), [[4, { 2024: 1, 2022: 1, 2023: 2 }], [2, { 2020: 1, 2021: 1 }], [4, { 2024: 1, 2022: 1, 2023: 1, 2020: 1 }]], 'year 가 없으면 date 앞 4자리');
+        const spots = L.spots.map((s) => ({ ...s, lat: 33, lon: 126 }));
+        const x = R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots, hazardOnly: [] }, tide: tideFx }, WIN, { generatedAt: R.isoKst(T0) });
+        const iso = x.summary.isolation;
+        assert.equal(iso.text, '(고립 주의) 저조 시간(08:16·22:09) 전후 과거 고립 사고(3개소 10건)으로 확인 및 주의가 필요합니다.');
+        assert.deepStrictEqual([iso.link, iso.total, iso.head], ['과거 고립 사고(3개소 10건)', 10, ['지점명', '발생 현황']]);
+        assert.deepStrictEqual(iso.rows.map((r) => [r.name, r.count, r.status]), [['가나', 4, '20년(1건), 22년(1건), 23년(1건), 24년(1건)'], ['하나', 4, '22년(1건), 23년(2건), 24년(1건)'], ['둘', 2, '20년(1건), 21년(1건)']], '합 많은 순 → 이름 순 · 연도 오름차순');
+        // 저조가 창 안에 없으면 「저조 시간(…) 전후」 없이
+        assert.equal(R.buildBriefing({ ...seaOnlyInput({}), seaOnly: false, land: { spots, hazardOnly: [] }, tide: { ...tideFx, peaks: [{ type: 'high', t: '12:00', cm: 200 }] } }, WIN, { generatedAt: R.isoKst(T0) }).summary.isolation.text, '(고립 주의) 과거 고립 사고(3개소 10건)으로 확인 및 주의가 필요합니다.');
+        // yearStatus 경계 — 0건 해는 빼고, 연도 모름은 끝에, 연도별 수가 없으면 합만
+        assert.equal(R.yearStatus({ count: 3, years: { 2023: 0, 2021: 2, 미상: 1 } }), '21년(2건), 연도 미상(1건)');
+        assert.equal(R.yearStatus({ count: 2, years: null }), '2건');
     });
     await check('[§11.10.3-2] 육상 — 공통 이유 줄에 「— A·B 공통」 꼬리 없음 · 권고 「… 주변 연안사고에 …가 필요합니다」 · 관심 없으면 「관할 연안사고에 평소처럼 관심이 필요합니다」', () => {
         const spots = Array.from({ length: 3 }, (_, i) => ({ id: 's' + i, name: ['금능석물원', '월령포구', '한림공원'][i], lat: 33, lon: 126, index: 80, band: '높음', people: { ratio: 1.5, score: 0.5 }, missing: [],
@@ -1385,7 +1427,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(so.summary.analysis.land, null); assert.ok(AI.sentences(so.summary.analysis.sea).length >= 3);
         // 조사: 괄호 덧말 앞 낱말로(「해역(232-2해구)은」) · 받침 ㄹ + 으로 → 로
         assert.equal(R.josa('비양도 북북서방 1.4해리 해역(232-2해구)', '은', '는'), '은'); assert.equal(R.josa("연안 위험지수 72 '높음'(예상)", '으로', '로'), '으로'); assert.equal(R.josa('바다물', '으로', '로'), '로');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v12');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v13');
     });
     // 사용자 예시 꼴(돝섬해상유원지·대해구 5099)을 한림 고정 자료 이름·숫자로 옮긴 AI 분석 문단
     const ex = {

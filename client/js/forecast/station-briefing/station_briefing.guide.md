@@ -42,9 +42,9 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 | ② 특별 상황 | `special[]` 제목 + 두 줄(해제 예고·예비·이미 해제 — 기상청 시각 그대로) |
 | ③ 해상 분석 | 단계·출처, 검토 칸 수·관심 이상 칸 수(§11.10.3 부터 칸 = 해역 묶음 `reviewedRegions`, 해양사고 위험예보만 위험 단계인 해역 수 · 카드 10곳 넘으면 「카드는 단계 높은 순 10곳까지」), 빠진 자료(`sea.missing`·`missingSlots`), 해구 흐름(`sea.weather.text`), **시간 막대**(`timeBar` — 칸 색 = 단계, ⚑ = 사건, 누르면 설명, 보는 시각에 끝난 칸은 흐리게 `.sb-slot-past`), 해역 카드(`cards` — [특성]·[오늘 예상]·틀 문장·[위험예측에서 보기 ›]) |
 | ④ 육상 분석 | 단계·출처, 검토 관광지 수, 관광지 카드(`land.cards`), 「상시 위험 장소」 접힘(`land.constant`). 해상만 관할은 `seaOnlyReason` 한 줄 |
-| ⑤ 조석 | 해양종합정보 조석 게이지(`OceanSheet.tideGaugeHtml` — 바텀시트 `renderTideData` 와 같은 함수) + 밀물·잠기는 바위 문구(`tide.text`) |
+| ⑤ 조석 | 해양종합정보 조석 게이지(`OceanSheet.tideGaugeHtml` — 바텀시트 `renderTideData` 와 같은 함수) + 밀물·잠기는 바위 문구(`tide.text` — 「잠기는 바위(간출암) N곳」은 (물때) 칸과 같은 지도 링크, §11.10.10) |
 | ⑥ 꼬리 | 기준 시각·다루는 시간·출처(`SOURCES` — [기준 상세] 출처 표와 같은 배열)·「참고 정보이며 안전을 보장하지 않습니다」 |
-| 브리핑 없음 | 「아직 이 관할의 브리핑이 없습니다」 + `nextExpectedAt`(공개 시각 — 「다음 브리핑 공개: …」, 이미 지났으면 「다음 브리핑을 준비 중입니다(… 공개 예정)」, 없으면 「07:30 · 17:30 · 23:00에 보입니다 — 각 20분 전부터 …」) · `fallback` 이면 오늘 판을 그대로(§11.10.9 ⑦ 부터 「…아직 없어 오늘 브리핑」 상자 없음) · 관리자 미리보기의 공개 전 판은 `[data-sb-pending]` 「예정 — … 에 공개될 판입니다」 |
+| 브리핑 없음 | (§11.10.10 F 부터 「아직 이 관할의 브리핑이 없습니다」 줄 없음 — `[data-sb-empty]` 안에 다음 공개 안내만) `nextExpectedAt`(공개 시각 — 「다음 브리핑 공개: …」, 이미 지났으면 「다음 브리핑을 준비 중입니다(… 공개 예정)」, 없으면 「07:30 · 17:30 · 23:00에 보입니다 — 각 20분 전부터 …」) · `fallback` 이면 오늘 판을 그대로(§11.10.9 ⑦ 부터 「…아직 없어 오늘 브리핑」 상자 없음) · 관리자 미리보기의 공개 전 판 안내 상자(`[data-sb-pending]` 「예정 — …」)는 §11.10.10 F 로 없앰(머리 글 시각만) |
 
 **단계 색**: 위험예측 4색(`RiskFormat.BAND_COLORS` 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강)을 브리핑 단계 0~3(평소 수준·관심·주의·경계 필요)에 순서대로. 「확인 불가」는 회색 `#64748b`.
 
@@ -80,7 +80,8 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 | `raisedTable` | station_briefing_render.js | 연안 근거 「평소보다 위험이 높아진 곳 N곳」 버튼 → 「관광지 \| 평소 \| 오늘(예상)」 표(`summary.land.raised` 전부 — 오늘 칸은 단계 배지 + 작은 이유, §11.10.9) |
 | `summaryBodyV3`·`weatherPart`·`tidePart` | station_briefing_render.js | §11.10.9: 분석 근거는 오른쪽 알약 배지 「연안/해상 분석 근거 상세 보기」(`expander` 넷째 인자 pill) · (기상) 머리 「{구역} 기상 현황」(`.sb-headline`, `[data-sb-wx-head]`)·거리 줄/먼 구역 안내 없음·특이사항 없으면 칸째 없음 · 맨 아래 `[data-sb-source]` 줄 없음(V3) · 지금 밀집 두 줄(`.sb-now` pre-line). 「가」 모양(결론 → 분석 문단·이름표 → 접힌 분석 근거, 지금 밀집은 해상 분석 아래) · (기상)·(물때) 칸(V2·V3 공용) |
 | `summaryBodyV2`·`summaryBody`·`legacyOverview`·`renderRest` | station_briefing_render.js | 「총평과 권고」 §11.10.1 모양(기상·물때 공용 칸) · §11.10 판 모양 · 옛 브리핑 문단 모양 · 그 아래 칸들 |
-| `isolationLine`·`isoTable` | station_briefing_render.js | (물때) 아래 「(고립 주의) 저조 시간(…) 전후 사고 지점(N개소) 확인 및 주의가 필요합니다.」 — 「사고 지점(N개소)」 버튼 → 「지점명 \| 발생 건수」 표 전부(`summary.isolation`, §11.10.3) |
+| `isolationLine`·`isoTable` | station_briefing_render.js | (물때) 아래 「(고립 주의) 저조 시간(…) 전후 과거 고립 사고(N개소 M건)으로 확인 및 주의가 필요합니다.」 — 「과거 고립 사고(N개소 M건)」 버튼(화살표 없음 — `expander` noArrow) → 「지점명 \| 발생 현황」 표 전부(`summary.isolation` head·rows[].status 「22년(1건), 23년(2건)」, §11.10.10 — 옛 판은 §11.10.3 「발생 건수」 그대로) |
+| `rocksLine`·`openRockPanel`·`closeRockPanel` | station_briefing_render.js | §11.10.10: 물때 줄의 「잠기는 바위(간출암) N곳」(`summary.rocks.link`) → 팝업 지도(관할 경계 + 바위 마커 `miniMap` opt.points — 서버 `summary.rocks.rows` 위치) → 마커 → 창 위 가운데 간출암 조석 곡선 상자 `.hazard-rock-popup.rock-tide-popup.sb-rockbox`(`window.HazardRockTidePanel.mount` — hazard_rocks.js 의 해양안전 위험지형 팝업과 같은 함수, PopupStack 'sb-rock-panel', Esc 는 상자 먼저) |
 | `basisList`·`expander`·`miniMap`·`mapCaption` | station_briefing_render.js | (근거) 목록 — 서버 `summary.sea.detail[line]` 에 상자(`boxes`)와 관할 경계(`area`)가 있으면 그 줄을 ▸ 버튼(`aria-expanded`·`aria-controls`)으로, 누르면 바로 아래 높이 200px 지도(OpenLayers 전역 `ol` · 바탕 해아름 바다지도 `oceanCreateKhoaLayer` — 관심해역 고르기 지도와 같은 방식, 없으면 선만) — 관할 전체에 맞추고 그 칸·대해구 테두리를 600ms 마다 깜빡임. 움직임 줄이기면 깜빡이지 않음(`data-sb-blink="static"`). 풀이(`note`)는 줄 아래 작게(§11.10.3) |
 | `levelNoteText` | station_briefing_render.js | 총평 해상 단계 < 해상 분석 단계일 때 결론 아래 한 줄(세 모양 공용 — §11.10.3 부터 「기상·혼잡이 겹치지 않아 … 넣지 않았습니다」 이유 글 없음) |
 | `notesEmptyText` | station_briefing_render.js | (특이사항)이 비었을 때의 글 — `notesFound` 면 「뽑지 못했습니다 — 원문 확인」, 아니면 「없습니다」(§11.10.2 독립 검토 3 · `StationBriefingRender.notesEmptyText` 로 내보내 node 시험이 vm 으로 확인) |
