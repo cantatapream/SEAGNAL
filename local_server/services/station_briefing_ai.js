@@ -41,7 +41,7 @@ const SCHEMA = 'station-briefing-input-v2';
 //   (그 문구의 「(KOMSA 기준)」은 해구 예보의 「기준」 금지와 별개). 검증은 그대로(v9) — 그 꼴의 문단이 통과하는지 시험 [§11.10.12-2].
 // 검증 v10 · 지시문 v11(2026-10-17 사용자 결정 — 설계서 §11.10.16): 단계 말에서 「필요」를 뺐다(결론 「단계는 "주의"입니다」·「주의 수준」) · 마지막 「따라서」 문장(화면 (권고) 줄)은
 //   「…가 요구됩니다.」로 끝난다(사용자 *"필요합니다 보다는 요구됩니다. 라고 표현하는게 좋을 것 같아."* — 검증도 「요구됩니다」만 통과) · 지시문에 「다만」 뒤 쉼표(*"다만 다음에는 ,를 붙여줘"* — 검사는 하지 않음).
-const VALIDATOR_VERSION = 'sb-validate-v10', PROMPT_VERSION = 'sb-prompt-v12';   // v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지)
+const VALIDATOR_VERSION = 'sb-validate-v11', PROMPT_VERSION = 'sb-prompt-v13';   // v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -298,6 +298,20 @@ function buildPrompt(batch) {
         '해양사고 위험예보만 위험 단계인 해역(결론 단계에 넣지 않은 해역 — sea.accident_only_regions)을 말할 때는 sea.accident_only_phrases 의 문구를 그대로 쓴다(예: 「해양사고 위험예보(KOMSA 기준)만 \'주의\'인 해역이 있지만, …」). 그 문구의 「(KOMSA 기준)」은 그대로 둔다(아래 해구 예보의 「기준」 말과 별개).',
         '특보(해제 예고·이미 해제·예비특보·발효 중)는 종류만 짧게 한 구절로 쓴다(예: 「풍랑주의보 해제 예고와 예비특보가 있어 상황 변화에 유의해야 합니다.」) — 특보구역 이름·발효/해제/발표 시각을 나열하지 않는다(그 상세는 화면 「기상특보 현황」 표가 맡는다).',
         'shown 의 결론 문장을 그대로 되풀이하지 않는다. shown.weather 의 숫자는(오전·오후 예보·특이사항) allowed_numbers 에 없으면 옮기지 않는다 — 흐름(「오후부터 바람이 강해질 수 있다」)만 말로 쓴다.',
+        '문장 규칙(사용자 지적 누적 — 설계서 §11.10.17 표와 같은 번호, 모두 지킨다):',
+        'S1 단계 말 뒤에 「필요」를 붙이지 않는다 — 「경계」·「주의」·「관심」, 「경계 수준」으로 쓴다(「주의가 요구됩니다」의 「주의가」는 그대로).',
+        'S2 마지막 「따라서」 문장(화면의 (권고) 줄)은 「…가 요구됩니다.」로 끝낸다(「필요합니다」 아님).',
+        'S3 바다 상태는 「기준」·기준값(파고 2m·풍속 12m/s)을 말하지 않고 sea_state 말로 쓴다(「잔잔한 바다일 것으로 예상됩니다」·「물결이 높고 바람이 강할 것으로 예상됩니다」).',
+        'S4 「다만」으로 시작하는 문장은 「다만,」(쉼표).',
+        'S5 특보는 종류만 짧게 한 구절로(「풍랑주의보 해제 예고와 예비특보가 있어 상황 변화에 유의해야 합니다.」) — 특보구역 이름·발효/해제/발표 시각을 나열하지 않는다(상세는 화면 「기상특보 현황」 표).',
+        'S6 권고에서 이유를 두 번 겹쳐 말하지 않는다 — 「○○ 근거로, … 이므로」 같은 겹침 금지. 「(기상청) 근거로」·「(KOMSA) 근거로」 같은 근거 꼬리표를 문장 속 이유처럼 쓰지 않는다.',
+        'S7 특보 해제 직후를 말할 때는 「…가 풀린 직후로 출항이 몰려 사고가 늘어날 수 있는 시간대」처럼 이유를 말한다.',
+        'S8 마지막 문장에서 해역 이름 꼬리 「(232-2해구)」와 「15~24시경」의 「경」을 쓰지 않는다(「15~24시 한림항 북방 0.6해리 해역 운항에 주의가 요구됩니다.」).',
+        'S9 해양사고 위험예보만 위험 단계인 해역은 sea.accident_only_phrases 의 꼴(「해양사고 위험예보(KOMSA 기준)만 \'주의\'인 해역」) 그대로.',
+        'S10 앞 문장에 이미 나열한 긴 해역·관광지 이름 목록을 마지막 문장에서 그대로 되풀이해 문단을 길게 만들지 않는다(셋 이상이면 「A·B 등」).',
+        'S11 해구는 sea.haegu_forecasts 의 name(「경북북부앞바다(대해구 75)」 꼴)으로, 대해구 번호만 쓰지 않는다.',
+        'S12 이름은 「해양사고 위험예보」(「공식 사고예보」 아님)·「선박이 있는 해역 격자」(「교통 칸」 아님)로 쓴다.',
+        'S13 「물이 차오르기 전에 나오세요」 같은 행동 지시 문구를 쓰지 않는다.',
         '규칙(어기면 그 관할 글은 버려진다):',
         '0) 각 분석은 ' + MAX_CHARS + '자 이내, 3~5문장, 마지막 문장은 「따라서」로 시작해 「요구됩니다.」로 끝난다.',
         '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로 쓴다 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다. 장소·해역 수를 세어 쓰지 않는다(「세 곳」·「3곳」·「두 해수욕장」 — 수는 shown 근거 줄에 이미 있다) — 장소는 이름만 나열한다(「A·B·C에는」).',
@@ -341,6 +355,22 @@ function parseResponse(text) {
  * @param {object} o - {land,sea} @param {object} si - stationInput @returns {object} {ok,errors}
  * [연계] ← generate · 시험
  */
+// §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 기계 검사·보정 재료
+//   LEVEL_NEED_RE = S1 「경계 필요」·「주의 필요 수준」(뒤가 「합니다·하·한…」인 서술 「필요합니다」는 아님) · STD_OK_RE = S3 에서 허용하는 「기준」(KOMSA 등급 문구·「HH:MM 기준」)
+const LEVEL_NEED_RE = /(?:관심|주의|경계)\s*필요(?!합|하|한|할|해|했|함|성)/g, STD_OK_RE = /\(KOMSA 기준\)|\(KOMSA\) 기준 등급|\d{1,2}:\d{2} 기준|확인된 자료 기준/g;   // 「확인된 자료 기준」 = 서버 결론·근거 줄의 꼴(빠진 자료가 있을 때 — 바다 상태 기준이 아님)
+/**
+ * AI 문단을 검증 전에 고칠 수 있는 것만 고친다(§11.10.17 — 다시 시도·규칙 문단 대체를 늘리지 않으려고 버리는 대신 보정):
+ *   S1 「주의 필요 수준」 → 「주의 수준」(단계 말 뒤 「필요」 뺌) · S2 마지막 「따라서 …필요합니다.」 → 「…요구됩니다.」 · S4 문장 첫 「다만 」 → 「다만, 」.
+ * 그 밖(「기준」·이유 겹침·근거 꼬리표)은 뜻이 바뀔 수 있어 고치지 않고 validateOverview 가 버린다.
+ * 예: polishOverview({land:null, sea:'다만 오후에는 … 주의 필요 수준입니다. 따라서 … 주의가 필요합니다.'}) → {land:null, sea:'다만, 오후에는 … 주의 수준입니다. 따라서 … 주의가 요구됩니다.'}
+ * @param {object} o - {land, sea} @returns {object} 고친 새 객체(원본은 그대로) [연계] ← generate(accept — 검증 전) · 시험
+ */
+function polishOverview(o) {
+    const fix = (t) => typeof t !== 'string' ? t : t.replace(LEVEL_NEED_RE, (m) => m.replace(/\s*필요$/, ''))
+        .replace(/(^|[.!?]\s+)다만\s+(?![,，])/g, '$1다만, ')
+        .replace(/((?:^|[.!?]\s+)따라서\s[^.!?]*?)필요합니다([.!]?)\s*$/, '$1요구됩니다$2');
+    return o ? { ...o, land: fix(o.land), sea: fix(o.sea) } : o;
+}
 function validateOverview(o, si) {
     const errors = [], allowedN = new Set(si.allowed_number_keys || []), mk = si.allowed_multiplier_keys || { sea: [], land: [] };
     // 허용 지명은 끝말 일치(「한림 협재해수욕장」 같은 앞 낱말 붙은 후보), 기상청 해역 이름은 그 관할 kma_zones 와 정확히 같을 때만(독립 검토 8).
@@ -359,6 +389,12 @@ function validateOverview(o, si) {
         // 마지막 문장 「따라서 … 요구됩니다.」(§11.10.4 — 화면 결론 아래 문단이 권고로 끝나게 · §11.10.16 부터 「필요합니다」 → 「요구됩니다」 — 화면 (권고) 줄이 이 문장이다)
         const last = compact(ss[ss.length - 1] || '');
         if (!/^따라서/.test(last) || !/요구됩니다[.!]?$/.test(last)) errors.push('shape:' + k + '-no-conclusion');
+        // §11.10.17 표(sb-validate-v11): S1 단계 말 「필요」(generate 는 polishOverview 로 먼저 고쳐 이 검사에 걸리지 않게 한다) · S3 「기준」(허용: 「(KOMSA 기준)」·「(KOMSA) 기준 등급」·「10:00 기준」·「확인된 자료 기준」)
+        //   · S6 한 문장 안 「근거로 … 이므로/때문에」 겹침 · 근거 꼬리표 「(기상청)·(KOMSA) 근거로」
+        for (const m of t.matchAll(LEVEL_NEED_RE)) errors.push('word:level-need:' + m[0].replace(/\s+/g, ' '));
+        if (/기준/.test(t.replace(STD_OK_RE, ''))) errors.push('word:기준');
+        if (ss.some((x) => { const i = x.indexOf('근거로'); return i >= 0 && /므로|때문에/.test(x.slice(i)); })) errors.push('word:reason-twice');
+        if (/\((?:KOMSA|기상청)\)\s*근거로/.test(t)) errors.push('word:tag-reason');
         if (/[<>]|https?:|www\.|javascript:|&[a-z]+;|\]\(/i.test(t)) errors.push('markup');
         const multSet = new Set(mk[k] || []);
         for (const n of numTokens(t)) {
@@ -442,6 +478,10 @@ function explainError(code) {
         : c.startsWith('fact:') ? '그 말은 이 관할 입력에 없다 — 입력에 없는 사실·과장을 쓰지 않는다'
         : c.startsWith('label:') ? '따옴표 단계 이름은 allowed_labels 에 있는 것만 쓴다'
         : c.startsWith('forbidden:') ? '쓰지 않는 말이다'
+        : c.startsWith('word:level-need:') ? '단계 말에 「필요」를 붙이지 않는다 — 「경계」·「주의」·「관심」, 「주의 수준」(S1)'
+        : c === 'word:기준' ? '「기준」이라는 말을 쓰지 않는다 — 바다 상태는 sea_state 말로(S3)'
+        : c === 'word:reason-twice' ? '한 문장에 「… 근거로」와 「… 이므로」로 이유를 두 번 겹쳐 썼다(S6)'
+        : c === 'word:tag-reason' ? '「(기상청) 근거로」·「(KOMSA) 근거로」 같은 근거 꼬리표를 문장 속 이유로 썼다(S6)'
         : c === 'markup' ? 'HTML·링크·마크다운을 썼다'
         : c === 'missing:station' ? '응답에 이 관할(id)이 없었다'
         : c === 'parse' ? '응답이 정해진 JSON 꼴이 아니었다' : '규칙에 어긋났다';
@@ -525,7 +565,7 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
         const failed = [];
         for (const it of group) {
             if (!res) { failed.push(it); tell({ type: 'station', key: it.b.key, state: 'retry', attempt }); continue; }
-            const o = res.map.get(it.b.key), v = o ? validateOverview(o, it.si) : { ok: false, errors: ['missing:station'] };
+            const o = polishOverview(res.map.get(it.b.key)), v = o ? validateOverview(o, it.si) : { ok: false, errors: ['missing:station'] };   // §11.10.17 — 고칠 수 있는 것은 먼저 고친다
             if (v.ok) { overviews[it.b.key] = { land: o.land || null, sea: o.sea, source: res.provider, model: res.model, hash: it.hash, attempts: attempt }; stats.ai++; feedback.delete(it.b.key); tell({ type: 'station', key: it.b.key, state: 'done', attempt }); }
             else { errors.push({ at, stage: 'validate', provider: res.provider, stations: [it.b.key], attempt, reason: v.errors.slice(0, 6).join(',') }); feedback.set(it.b.key, v.errors.slice(0, 8).map(explainError)); failed.push(it); tell({ type: 'station', key: it.b.key, state: 'retry', attempt }); }
         }
@@ -561,4 +601,4 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     return { overviews, stats, errors };
 }
 
-module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, FORBIDDEN, KMA_ZONE_NAMES, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
+module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, polishOverview, LEVEL_NEED_RE, FORBIDDEN, KMA_ZONE_NAMES, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
