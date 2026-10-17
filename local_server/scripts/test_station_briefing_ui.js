@@ -30,6 +30,8 @@ const fs = require('fs'), os = require('os'), path = require('path'), assert = r
 const root = path.join(__dirname, '../..'), R = require('../services/station_briefing_rules'), SB = require('../services/station_briefing'), { createRouter } = require('../routes/station_briefing');
 const RF = require('../routes/risk_forecast'), M = require('../services/marine_fusion'), T = require('../services/risk_time'), io = require('../services/risk_collector_io');
 const I = require('../services/station_briefing_inputs');
+// 화면의 splitAdvice(§11.10.9 ⑤)를 vm 으로 읽어 기대값을 만든다(마지막 「따라서 …」 → (권고) 줄)
+const SPLIT = (() => { const sb = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing_render.js'), 'utf8'), sb); return sb.window.StationBriefingRender.splitAdvice; })();
 // (기상) 칸 입력(§11.10.1) — 단기 해상예보는 loadCoastalForecasts 꼴(시험값), 단기 전망은 사용자가 붙여 준 10-17 제주 통보문(고정 자료 그대로)
 const REGIONAL = { coastal: { 제주도서부앞바다: { officeName: '제주지방기상청', publishTime: '10.17. 05:00', periods: [
     { date: '20261017', period: 'am', weather: '구름많음', waveHeight: '0.5~1.5', wind: '동~남동 / 7~11' }, { date: '20261017', period: 'pm', weather: '구름많음', waveHeight: '0.5~1.5', wind: '남동 / 7~11' }] } },
@@ -122,13 +124,16 @@ function makeBriefings() {
         //   애월파출소는 정리판에 없는 시험용 관할이라 도형이 없다 → 「지도에 구역이 없는 관할」 경로(목록 탭으로만 고름)를 함께 본다.
         const realSt = I.loadStations(); stationsFx.forEach((s) => { const r = realSt.find((x) => x.key === s.key); if (r) s.geometry = r.geometry; });
         assert.deepEqual(stationsFx.filter((s) => !s.geometry).map((s) => s.key), [AEWOL]);
+        // 지금 밀집 격자(§11.10.9 ⑥ — routes nowLineFrom 꼴: 같은 스냅숏의 선박이 있는 격자, 합 37척) — 한림 앞바다 근처 상자(시험값)
+        const NOW_CELLS = { cells: [{ id: 'GR4_A', box: [126.2, 33.4, 126.225, 33.425], count: 18 }, { id: 'GR4_B', box: [126.225, 33.4, 126.25, 33.425], count: 12 }, { id: 'GR4_C', box: [126.15, 33.375, 126.175, 33.4], count: 7 }], busiest: { name: '한림항 북서방 1.2해리 해역(232-2해구)', count: 18, id: 'GR4_A' } };
         const real = SB.createService({ dir, clock: () => clock.now, loadStations: () => stationsFx });
         const ctl = { running: false, runs: 0 };
         const service = { ...real, run: async () => { ctl.runs++; return { ok: true }; }, status: () => ({ ...real.status(), running: ctl.running, progress: ctl.running ? ctl.progress || null : null }), progressNow: () => ({ running: ctl.running, progress: ctl.running ? ctl.progress || null : null }) };
         const reqLog = [];
         const sbRouter = createRouter({ service, isAdminDevice: (id) => id === 'admin-push-token', verifyToken: (t) => t === 'admin-login',
             authorize: (req, res, next) => req.get('X-Admin-Token') === 'admin-login' ? next() : res.status(401).json({ ok: false, error: '관리자 인증 필요' }),
-            nowLine: (key, r) => key === HALLIM && r.briefing ? { at: '2026-10-17T10:00:00+09:00', count: 37, gridCount: 12, busiest: null, text: '지금(10:00 기준) 관할 해역 선박 37척(교통 칸 12개)' } : null });
+            clock: () => clock.now,   // nextPublishAt(§11.10.9 ⑦)도 가짜 시계로
+            nowLine: (key, r) => key === HALLIM && r.briefing ? { at: '2026-10-17T10:00:00+09:00', count: 37, gridCount: 12, busiest: null, text: '10:00 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 12개\n한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의', ...NOW_CELLS } : null });
 
         // ── 위험예측 가짜 저장소(test_life_safety_tab_keep.js 와 같은 꼴) — 바로가기가 실제 위험예측 화면·시트를 연다 ──
         const geometry = { type: 'Polygon', coordinates: [[[126.525, 33.55], [126.55, 33.55], [126.55, 33.575], [126.525, 33.575], [126.525, 33.55]]] };
@@ -408,11 +413,12 @@ function makeBriefings() {
                 const blk = (k) => { const e = q('[data-sb-summary="' + k + '"]'); if (!e) return null; const x = e.querySelector('button[data-sb-x="basis-' + k + '"]'), pn = x && document.getElementById(x.getAttribute('aria-controls'));
                     return { kids: [...e.children].map((c) => c.getAttribute('data-sb-analysis') ? 'analysis' : c.hasAttribute('data-sb-now') ? 'now' : c.classList.contains('sb-conclusion') ? 'conclusion' : c.classList.contains('sb-basis-x') ? 'basis-btn' : c.classList.contains('sb-x-panel') ? 'basis-panel' : c.className),
                         btn: x ? x.textContent : null, exp: x && x.getAttribute('aria-expanded'), hidden: pn && pn.hidden, ks: pn ? [...pn.querySelectorAll('.sb-sum-k')].map((y) => y.textContent.trim()) : [], basis: pn ? [...pn.querySelectorAll('.sb-sum-basis > li')].map(line) : [], advice: pn ? (pn.querySelector('.sb-sum-advice') || {}).textContent : null,
+                        adv: (e.querySelector(':scope > [data-sb-advice]') || {}).textContent || null, advSrc: (e.querySelector(':scope > [data-sb-advice]') || { dataset: {} }).dataset.sbAdvice || null,
                         an: (e.querySelector('[data-sb-analysis]') || {}).textContent, anSrc: e.querySelector('[data-sb-analysis]') && e.querySelector('[data-sb-analysis]').dataset.sbAnalysisSource, tag: (e.querySelector('.sb-an-tag') || {}).textContent }; };
                 const con = qa('.sb-conclusion').map((e) => ({ chip: e.querySelector('.sb-chip').textContent, head: e.querySelector('.sb-headline').textContent, w: getComputedStyle(e.querySelector('.sb-headline')).fontWeight }));
                 const wx = q('[data-sb-part="weather"]');
                 return { secs: qa('[data-sb-sec]').map((e) => e.dataset.sbSec), land: blk('land'), sea: blk('sea'), parts: qa('[data-sb-part]').map((e) => e.dataset.sbPart), con, oldPara: qa('[data-sb-overview]').length, cms: qa('[data-sb-commentary]').length,
-                    wx: { title: wx.querySelector('.sb-sum-k').textContent, rows: [...wx.querySelectorAll('.sb-wx-rows li')].map((x) => x.textContent), notes: [...wx.querySelectorAll('.sb-wx-notes li')].map((x) => x.textContent), text: wx.textContent },
+                    wx: { title: wx.querySelector('[data-sb-wx-head="weather"]').textContent, notesHead: (wx.querySelector('[data-sb-wx-head="notes"]') || {}).textContent || null, rows: [...wx.querySelectorAll('.sb-wx-rows li')].map((x) => x.textContent), notes: [...wx.querySelectorAll('.sb-wx-notes li')].map((x) => x.textContent), text: wx.textContent },
                     tideLines: qa('[data-sb-part="tide"] .sb-sum-tide').map((x) => x.textContent),
                     now: (q('[data-sb-summary="sea"] [data-sb-now]') || {}).textContent || '', basisOld: !!q('details.sb-basis'), source: (q('[data-sb-source]') || {}).dataset ? q('[data-sb-source]').dataset.sbSource : null,
                     special: qa('.sb-special-title').map((e) => e.textContent), slots: qa('.sb-slot').length, flags: qa('.sb-slot[data-event]').length, seaCards: qa('[data-sb-card="sea"]').length,
@@ -423,31 +429,34 @@ function makeBriefings() {
             const s0 = await grab();
             assert.deepEqual(s0.secs, ['overview', 'special', 'sea', 'land', 'tide']);
             assert.deepEqual(s0.parts, ['land', 'sea', 'weather', 'tide'], '연안 덩어리 → 해상 덩어리 → (기상) → (물때)'); assert.equal(s0.oldPara, 0, '새 브리핑은 옛 문단을 그리지 않음'); assert.equal(s0.cms, 0, '종전 「해설」 칸 없음');
-            assert.deepEqual(s0.land.kids, ['conclusion', 'analysis', 'basis-btn', 'basis-panel']); assert.deepEqual(s0.sea.kids, ['conclusion', 'analysis', 'now', 'basis-btn', 'basis-panel'], '지금 밀집 줄은 해상 분석 아래 · 근거 칸 위');
+            assert.deepEqual(s0.land.kids, ['conclusion', 'analysis', 'sb-sum-advice', 'basis-btn', 'basis-panel']); assert.deepEqual(s0.sea.kids, ['conclusion', 'analysis', 'sb-sum-advice', 'now', 'basis-btn', 'basis-panel'], '분석 문단 → (권고) → 지금 밀집 → 근거 배지(§11.10.9 ⑤)');
             assert.deepEqual(s0.con.map((x) => x.chip + '|' + x.head), ['연안 주의 필요|' + B.h.summary.land.headline, '해상 주의 필요|오늘 한림파출소 관할 해상의 단계는 "주의 필요"입니다.']); assert.ok(s0.con.every((x) => Number(x.w) >= 700), '결론은 굵게');
-            assert.deepEqual([s0.land.btn, s0.land.exp, s0.land.hidden, s0.land.basis.length, s0.sea.btn, s0.sea.exp, s0.sea.hidden], ['연안 분석 근거 ▸', 'false', true, 0, '해상 분석 근거 ▸', 'false', true], '분석 근거는 처음에 접혀 있다');
+            assert.deepEqual([s0.land.btn, s0.land.exp, s0.land.hidden, s0.land.basis.length, s0.sea.btn, s0.sea.exp, s0.sea.hidden], ['연안 분석 근거 상세 보기', 'false', true, 0, '해상 분석 근거 상세 보기', 'false', true], '분석 근거는 처음에 접혀 있다(§11.10.9 — 알약 배지 「… 상세 보기」)');
             assert.deepEqual([s0.land.tag, s0.land.anSrc, s0.sea.tag, s0.sea.anSrc], ['AI 분석 · ChatGPT', 'chatgpt', 'AI 분석 · ChatGPT', 'chatgpt']);
-            assert.equal(s0.land.an, 'AI 분석 · ChatGPT ' + B.h.overview.land); assert.ok(s0.now.includes('37척'));
+            const spL = SPLIT(B.h.overview.land); assert.ok(spL, '고정 AI 문단은 「따라서」로 끝난다');
+            assert.equal(s0.land.an, 'AI 분석 · ChatGPT ' + spL.body); assert.deepEqual([s0.land.adv, s0.land.advSrc], ['(권고) ' + spL.advice, 'analysis'], '마지막 「따라서 …」는 (권고) 줄 — 「따라서」 없이'); assert.ok(s0.now.includes('37척'));
             assert.equal(s0.title, '13:10 AI 연안 안전 브리핑', '특보 변경 판 = 만든 시각'); assert.equal(s0.landSecTitle, '연안 분석');
             await openBasis(page, 'land'); await openBasis(page, 'sea');
             const s = await grab();
             assert.deepEqual([s.land.exp, s.land.hidden, s.sea.exp, s.sea.hidden], ['true', false, 'true', false]);
-            assert.equal(s.wx.title, '(기상) 제주도서부앞바다');
+            assert.equal(s.wx.title, '제주도서부앞바다 기상 현황'); assert.equal(s.wx.notesHead, '특이사항');
             assert.deepEqual(s.wx.rows, ['오늘 오전 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 동→남동', '오늘 오후 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 남동']);
             assert.deepEqual(s.wx.notes, B.h.summary.weather.notes); assert.ok(s.wx.notes.length >= 1, '특이사항 글은 서버 규칙 값 그대로(§11.10.2 — 문구는 test_station_briefing.js 가 고정)');
-            assert.ok(s.wx.text.includes('제주지방기상청 단기 해상예보 (10.17 05:00 발표)') && s.wx.text.includes('(특이사항)') && s.wx.text.includes('제주지방기상청 단기 전망 (10.17 04:40 발표)'), s.wx.text);
+            assert.ok(s.wx.text.includes('제주지방기상청 단기 해상예보 (10.17 05:00 발표)') && s.wx.text.includes('제주지방기상청 단기 전망 (10.17 04:40 발표)'), s.wx.text);
+            assert.ok(!s.wx.text.includes('(기상)') && !s.wx.text.includes('(특이사항)') && !s.wx.text.includes('가장 가까운 특보구역'), '§11.10.9 — 「(기상)」·거리 줄 없음: ' + s.wx.text);
             assert.deepEqual(s.tideLines, B.h.tide.text, '물때는 공용 칸');
-            assert.deepEqual(s.land.ks, ['(근거)', '(권고)']); assert.deepEqual(s.land.basis, B.h.summary.land.basis); assert.equal(s.land.advice, '(권고) ' + B.h.summary.land.advice);
+            assert.deepEqual(s.land.ks, ['(근거)'], '근거 칸에서는 (권고)를 뺐다(§11.10.9 ⑤)'); assert.deepEqual(s.land.basis, B.h.summary.land.basis); assert.equal(s.land.advice, undefined);
             assert.ok(s.land.basis.some((x) => x.includes('방문객 평소의 1.8배(예상)')), '예상 표기 — ' + s.land.basis.join(' / '));
-            assert.deepEqual(s.sea.ks, ['(근거)', '(권고)']); assert.deepEqual(s.sea.basis, B.h.summary.sea.basis);
-            assert.ok(!s.basisOld, '옛 「근거 ▸」(details) 없음'); assert.equal(s.source, 'chatgpt');
+            assert.deepEqual(s.sea.ks, ['(근거)']); assert.deepEqual(s.sea.basis, B.h.summary.sea.basis);
+            assert.ok(!s.basisOld, '옛 「근거 ▸」(details) 없음'); assert.equal(s.source, null, '§11.10.9 — 맨 아래 「분석 문단은 ChatGPT가 썼습니다 …」 줄 없음(이름표만)');
             assert.ok(s.special.some((t) => t.includes('해제 예고')) && s.special.some((t) => t.includes('예비특보')), s.special.join('|'));
             assert.equal(s.slots, B.h.sea.timeBar.length); assert.equal(s.flags, B.h.sea.timeBar.filter((x) => x.events.length).length); assert.ok(s.flags >= 1);
             assert.equal(s.seaCards, B.h.sea.cards.length); assert.equal(s.landCards, B.h.land.cards.length); assert.equal(s.links, s.seaCards + s.landCards);
             assert.ok(s.constant.startsWith('상시 위험 장소'));
             assert.ok(s.gauge, '오늘 판이라 해양종합정보와 같은 진행 게이지'); assert.equal(s.peaks, 4); assert.ok(s.tideText[0].includes('저조 뒤부터 물이 차오릅니다'), s.tideText[0]);
             assert.ok(s.foot.includes('참고 정보이며 안전을 보장하지 않습니다') && s.foot.includes('기준 시각 10월 17일(토) 13:10'), s.foot);
-            assert.ok(s.edition.includes('특보 변경 판'), s.edition);
+            assert.equal(s.edition, '10월 17일 13:10 기준 브리핑 (다음 브리핑 갱신 17:30 또는 특보 변경 시)', '§11.10.9 ⑦ — 판 종류·생성 시각 없이, 제목과 같은 시각 + 다음 갱신');
+            assert.ok(s.title.startsWith(/\d{2}:\d{2}/.exec(s.edition)[0] + ' '), '제목 시각 = 머리 글 시각 — ' + s.title);
             await page.evaluate(() => { document.querySelectorAll('#station-briefing-content button[data-sb-x^="basis-"]').forEach((x) => { if (x.getAttribute('aria-expanded') === 'true') x.click(); }); });
         });
         await check('서버 글은 textContent — HTML 문자열이 글자로 보이고 img 가 생기지 않는다', async () => {
@@ -464,15 +473,15 @@ function makeBriefings() {
                 const order = ['[data-sb-summary="land"] .sb-conclusion', '[data-sb-analysis="land"]', '[data-sb-x="basis-land"]', '[data-sb-summary="sea"] .sb-conclusion', '[data-sb-analysis="sea"]', '[data-sb-now]', '[data-sb-x="basis-sea"]', '[data-sb-part="weather"]', '[data-sb-part="tide"]'].map((s) => box.querySelector(s));
                 out.found = order.map((e) => !!e); out.inOrder = order.every((e, i) => i === 0 || (order[i - 1] && e && (order[i - 1].compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING)));
                 const g = JSON.parse(JSON.stringify(base)); g.overview = { ...g.overview, source: 'gemini', model: 'gemini-2.5-flash' }; R.render(box, { ok: true, briefing: g }, { now });
-                out.gem = [...box.querySelectorAll('.sb-an-tag')].map((e) => e.textContent); out.gemSrc = box.querySelector('[data-sb-source]').dataset.sbSource;
+                out.gem = [...box.querySelectorAll('.sb-an-tag')].map((e) => e.textContent); out.gemSrc = box.querySelector('[data-sb-analysis]').dataset.sbAnalysisSource + '|' + box.querySelectorAll('[data-sb-source]').length;
                 const tp = JSON.parse(JSON.stringify(base)); tp.overview = { land: null, sea: null, source: 'template', model: null }; R.render(box, { ok: true, briefing: tp }, { now });
                 out.rule = [...box.querySelectorAll('[data-sb-analysis]')].map((e) => e.dataset.sbAnalysisSource + '|' + e.textContent);
                 box.remove(); return out;
             }, { base, now: clock.now });
             assert.deepEqual(r.titles, ['07:30 AI 연안 안전 브리핑', '17:30 AI 연안 안전 브리핑', '23:00 AI 연안 안전 브리핑', '13:12 AI 연안 안전 브리핑', '09:41 AI 연안 안전 브리핑', 'AI 연안 안전 브리핑']);
             assert.ok(r.found.every(Boolean) && r.inOrder, JSON.stringify(r.found));
-            assert.deepEqual([r.gem, r.gemSrc], [['AI 분석 · Gemini', 'AI 분석 · Gemini'], 'gemini']);
-            assert.deepEqual(r.rule, ['rule|규칙 분석 ' + base.summary.analysis.land, 'rule|규칙 분석 ' + base.summary.analysis.sea], 'AI 실패 → 서버 규칙 분석 문단(제목은 그대로)');
+            assert.deepEqual([r.gem, r.gemSrc], [['AI 분석 · Gemini', 'AI 분석 · Gemini'], 'gemini|0']);
+            assert.deepEqual(r.rule, ['rule|규칙 분석 ' + SPLIT(base.summary.analysis.land).body, 'rule|규칙 분석 ' + SPLIT(base.summary.analysis.sea).body], 'AI 실패 → 서버 규칙 분석 문단(제목은 그대로 — 마지막 「따라서」 문장은 (권고) 줄)');
             // 380px 새 모양 스크린샷 — 처음(근거 접힘)과 해상 분석 근거를 편 모습
             await page.setViewportSize({ width: 380, height: 844 }); await openAcc(page); await page.waitForTimeout(250); await clean(page);
             await page.evaluate(() => { document.getElementById('station-briefing-accordion-header').scrollIntoView(); window.scrollBy(0, -150); document.querySelectorAll('*').forEach((e) => { if (e.scrollTop && e.contains(document.getElementById('station-briefing-accordion-header'))) e.scrollTop -= 150; }); });
@@ -482,6 +491,127 @@ function makeBriefings() {
             await page.locator('#station-briefing-content [data-sb-sec="overview"]').screenshot({ path: path.join(SHOT, 'briefing_layout_open_380.png') });
             const wide = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, vw: innerWidth })); assert.ok(wide.doc <= wide.vw + 1, JSON.stringify(wide));
             await page.evaluate(() => { const x = document.querySelector('#station-briefing-content button[data-sb-x="basis-sea"]'); if (x.getAttribute('aria-expanded') === 'true') x.click(); });
+            await page.setViewportSize({ width: 412, height: 915 });
+        });
+        await check('[§11.10.9] 사용자 결정 — 분석 근거 알약 배지(오른쪽·꺾쇠 뒤집힘·aria-expanded) · 「평소보다 위험이 높아진 곳 N곳」 표(전부) · 「○○ 기상 현황」 머리 = 결론 줄 모양 · 거리 줄 없음 · 특이사항 없으면 칸째 없음 · 맨 아래 출처 줄 없음 · 지금 밀집 두 줄', async () => {
+            await page.setViewportSize({ width: 380, height: 844 }); await openAcc(page);
+            const r = await page.evaluate(() => {
+                const c = document.getElementById('station-briefing-content'), out = {}, x = c.querySelector('button[data-sb-x="basis-land"]'), row = x.parentElement, chev = x.querySelector('.sb-x-chev');
+                const br = x.getBoundingClientRect(), rr = row.getBoundingClientRect(), cs = getComputedStyle(x);
+                out.pill = { cls: x.classList.contains('sb-x-pill'), right: Math.abs(br.right - rr.right) <= 1, left: br.left - rr.left, radius: parseFloat(cs.borderTopLeftRadius), deco: cs.textDecorationLine, chev: !!chev, arrow: !!x.querySelector('.sb-x-arrow') };
+                chev.style.transition = 'none'; out.t0 = getComputedStyle(chev).transform; x.click(); out.t1 = getComputedStyle(chev).transform; out.exp = x.getAttribute('aria-expanded');   // 전환을 끄고 바로 잰다(시험만)
+                const rb = c.querySelector('button[data-sb-x="raised"]'); out.rb = rb ? rb.childNodes[0].textContent : null; out.rbExp0 = rb && rb.getAttribute('aria-expanded'); rb.click();
+                const t = c.querySelector('[data-sb-raised-table]'); out.rbExp1 = rb.getAttribute('aria-expanded'); out.panelFor = rb.getAttribute('aria-controls') === t.parentElement.id;
+                out.head = [...t.querySelectorAll('th')].map((e) => e.textContent); out.rows = [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent));
+                out.li = rb.parentElement.firstChild.textContent + rb.textContent; out.cap = t.querySelector('caption').textContent;
+                const wh = c.querySelector('[data-sb-wx-head="weather"]'), hl = c.querySelector('[data-sb-summary="sea"] .sb-headline'), g = (e) => { const z = getComputedStyle(e); return [z.fontSize, z.fontWeight, z.color]; };
+                out.wxStyle = [g(wh), g(hl), wh.className.includes('sb-headline')]; out.notesHead = g(c.querySelector('[data-sb-wx-head="notes"]'));
+                const now = c.querySelector('[data-sb-now]'); out.now = now.innerText; out.nowWs = getComputedStyle(now).whiteSpace;
+                out.src = c.querySelectorAll('[data-sb-source]').length;
+                return out;
+            });
+            assert.deepEqual([r.pill.cls, r.pill.right, r.pill.radius >= 10, r.pill.deco, r.pill.chev, r.pill.arrow], [true, true, true, 'none', true, false], JSON.stringify(r.pill));
+            assert.ok(r.pill.left > 40, '오른쪽 정렬(왼쪽에 빈자리) ' + r.pill.left); assert.notEqual(r.t0, r.t1, '펼치면 꺾쇠가 뒤집힌다'); assert.equal(r.exp, 'true');
+            const rz = B.h.summary.land.raised;
+            assert.equal(r.rb, rz.link); assert.deepEqual([r.rbExp0, r.rbExp1, r.panelFor], ['false', 'true', true]);
+            assert.deepEqual(r.head, ['관광지', '평소', '오늘(예상)']); assert.equal(r.rows.length, rz.rows.length); assert.equal(rz.rows.length, B.h.land.attentionSpots, '관심 이상 관광지 전부');
+            assert.deepEqual(r.rows, rz.rows.map((x) => [x.name, '평소 수준', x.word + x.reason])); assert.ok(r.li.startsWith(B.h.summary.land.basis[0].slice(0, 20)), r.li); assert.ok(r.cap.includes('평소 수준'), r.cap);
+            await page.locator('#station-briefing-content [data-sb-summary="land"]').screenshot({ path: path.join(SHOT, 'briefing_raised_380.png') });
+            assert.deepEqual(r.wxStyle[0], r.wxStyle[1], '「기상 현황」 머리 = 결론 줄과 같은 크기·굵기·색'); assert.ok(r.wxStyle[2]); assert.deepEqual(r.notesHead, r.wxStyle[1]);
+            assert.deepEqual(r.now.split('\n'), ['10:00 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 12개', '한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의'], '두 줄'); assert.equal(r.nowWs, 'pre-line');
+            assert.equal(r.src, 0);
+            await page.locator('#station-briefing-content [data-sb-sec="overview"]').screenshot({ path: path.join(SHOT, 'briefing_919_380.png') });
+            await page.evaluate(() => document.querySelectorAll('#station-briefing-content button[data-sb-x="basis-land"]').forEach((x) => { if (x.getAttribute('aria-expanded') === 'true') x.click(); }));
+            // 특이사항 세 경우 + 먼 구역 안내(울릉 등) — 같은 렌더러로
+            const base = JSON.parse(JSON.stringify(B.h));
+            const v = await page.evaluate(({ base, now }) => {
+                const R = window.StationBriefingRender, box = document.createElement('div'), out = {}; box.className = 'sb-wrap'; document.body.appendChild(box);
+                const wx = (W) => { const b = JSON.parse(JSON.stringify(base)); Object.assign(b.summary.weather, W); R.render(box, { ok: true, briefing: b }, { now }); const p = box.querySelector('[data-sb-part="weather"]'); return { heads: [...p.querySelectorAll('[data-sb-wx-head]')].map((e) => e.textContent), text: p.textContent }; };
+                out.none = wx({ notes: [], notesFound: false });
+                out.unparsed = wx({ notes: [], notesFound: true });
+                out.missing = wx({ notes: [], bulletinMissing: true, notesSource: null });
+                out.far = wx({ zone: '동해중부안쪽먼바다', kind: 'far', distKm: 0, note: '가장 가까운 앞바다 특보구역(강원남부앞바다)이 약 115.9km 떨어져 있어 파출소가 있는 먼바다 특보구역 예보입니다' });
+                out.dist = wx({ distKm: 0.1, note: null });
+                box.remove(); return out;
+            }, { base, now: clock.now });
+            assert.deepEqual(v.none.heads, ['제주도서부앞바다 기상 현황'], '특이사항이 없으면 칸째 없음'); assert.ok(!v.none.text.includes('특이사항') && !v.none.text.includes('없습니다') && !v.none.text.includes('단기 전망 ('), v.none.text);
+            assert.deepEqual(v.unparsed.heads, ['제주도서부앞바다 기상 현황', '특이사항']); assert.ok(v.unparsed.text.includes('뽑지 못했습니다'), '뽑지 못한 것은 「없음」처럼 숨기지 않음(L-291)');
+            assert.deepEqual(v.missing.heads, ['제주도서부앞바다 기상 현황', '특이사항']); assert.ok(v.missing.text.includes('단기 전망 자료를 확인하지 못했습니다'));
+            assert.deepEqual(v.far.heads[0], '동해중부안쪽먼바다 기상 현황'); assert.ok(!v.far.text.includes('115.9km') && !v.far.text.includes('떨어져'), '먼 구역 거리 안내 없음 — ' + v.far.text);
+            assert.ok(!v.dist.text.includes('약 0.1km') && !v.dist.text.includes('대표 위치'), v.dist.text);
+            await page.setViewportSize({ width: 412, height: 915 });
+        });
+        await check('[§11.10.9 ④⑤] 분석 문단 강조(특보 예정 = 굵게 노랑 · 발효 = 굵게 빨강 · 장소 주어·방문객 배수 굵게 · 단계 말 = 그 단계 색) · 마지막 「따라서 …」 → (권고) 줄(근거 칸 (권고)와 같은 모양) · 근거 칸 (권고) 없음 · 문단이 없으면 서버 권고 · 「따라서」가 없는 옛 문단은 근거 칸 (권고) 그대로', async () => {
+            const base = JSON.parse(JSON.stringify(B.h));
+            const r = await page.evaluate(({ base, now }) => {
+                const R = window.StationBriefingRender, box = document.createElement('div'), out = {}; box.className = 'sb-wrap'; document.getElementById('station-briefing-content').appendChild(box);
+                const b = JSON.parse(JSON.stringify(base));
+                b.overview.land = "하트해변은 연안 위험지수 '매우 높음'으로 경계 필요 수준이며, 방문객이 평소의 2.4배로 예상됩니다. 위험구역이 있고, 풍랑주의보 예비특보가 10월 18일 06~12시에 발효될 예정이어서 연안 상황 변화에 유의해야 합니다. 봉평해수욕장과 후정해수욕장은 연안 위험지수 '높음'으로 주의 필요 수준이며, 방문객이 각각 평소의 2.2배와 2.8배로 예상됩니다. 따라서 하트해변에는 경계가, 봉평해수욕장과 후정해수욕장에는 주의가 필요합니다.";
+                b.overview.sea = '제주도북부앞바다에는 풍랑주의보가 발효 중이어서 물결이 높습니다. 둘째 문장입니다. 따라서 비양도 주변 해역 운항에 주의가 필요합니다.';
+                b.land.attentionAll = (b.land.attentionAll || []).concat(['하트해변', '봉평해수욕장', '후정해수욕장'].map((n) => ({ name: n, rank: 2 })));
+                R.render(box, { ok: true, briefing: b }, { now });
+                const an = box.querySelector('[data-sb-analysis="land"]'), sea = box.querySelector('[data-sb-analysis="sea"]');
+                const spans = (e) => [...e.querySelectorAll('.sb-hl')].map((x) => ({ t: x.textContent, c: x.className.replace('sb-hl sb-hl-', ''), color: getComputedStyle(x).color, w: getComputedStyle(x).fontWeight }));
+                out.land = spans(an); out.sea = spans(sea); out.landText = an.textContent; out.html = an.innerHTML.includes('<img');
+                let e = an; while (e && !/rgb\(|rgba\([^)]*, 1\)/.test(getComputedStyle(e).backgroundColor === 'rgba(0, 0, 0, 0)' ? '' : getComputedStyle(e).backgroundColor)) e = e.parentElement; out.bg = e ? getComputedStyle(e).backgroundColor : null;   // 글자 뒤 첫 불투명 바탕(대비 보고용)
+                const adv = box.querySelector('[data-sb-summary="land"] > [data-sb-advice]'), basisAdv = box.querySelector('[data-sb-summary="land"] .sb-x-panel .sb-sum-advice');
+                out.adv = adv.textContent; out.advSpans = adv.querySelectorAll('.sb-hl').length;
+                const x = box.querySelector('button[data-sb-x="basis-land"]'); x.click(); const pAdv = document.getElementById(x.getAttribute('aria-controls')).querySelector('.sb-sum-advice'); out.basisAdv = !!pAdv; x.click();
+                // 근거 칸의 (권고)와 같은 모양: 옛 문단(「따라서」로 끝나지 않음)이면 근거 칸 (권고)가 남는다 — 그 둘의 글 색·굵기 비교
+                const o = JSON.parse(JSON.stringify(base)); o.overview.land = '옛 문단입니다. 셋째도 없습니다.'; R.render(box, { ok: true, briefing: o }, { now });
+                const ox = box.querySelector('button[data-sb-x="basis-land"]'); ox.click(); const oAdv = document.getElementById(ox.getAttribute('aria-controls')).querySelector('.sb-sum-advice');
+                out.old = { inline: !!box.querySelector('[data-sb-summary="land"] > [data-sb-advice]'), basis: oAdv ? oAdv.textContent : null, style: oAdv ? [getComputedStyle(oAdv).color, getComputedStyle(oAdv).fontWeight] : null };
+                R.render(box, { ok: true, briefing: b }, { now }); const nAdv = box.querySelector('[data-sb-summary="land"] > [data-sb-advice]'); out.newStyle = [getComputedStyle(nAdv).color, getComputedStyle(nAdv).fontWeight];
+                // 문단이 아예 없으면(AI·규칙 둘 다 없음) 서버 권고를 결론 아래에
+                const z = JSON.parse(JSON.stringify(base)); z.overview = { land: null, sea: null, source: 'template', model: null }; z.summary.analysis = { land: null, sea: null }; R.render(box, { ok: true, briefing: z }, { now });
+                const zAdv = box.querySelector('[data-sb-summary="land"] > [data-sb-advice]'); out.none = zAdv ? [zAdv.dataset.sbAdvice, zAdv.textContent] : null;
+                box.remove(); return out;
+            }, { base, now: clock.now });
+            const pick = (arr) => arr.map((x) => x.c + ':' + x.t);
+            assert.deepEqual(pick(r.land), ['b:하트해변은', "lv:'매우 높음'", 'lv:경계 필요', 'b:방문객이 평소의 2.4배로 예상', 'warn-pre:풍랑주의보 예비특보가 10월 18일 06~12시에 발효될 예정', 'b:봉평해수욕장과 후정해수욕장은', "lv:'높음'", 'lv:주의 필요', 'b:방문객이 각각 평소의 2.2배와 2.8배로 예상']);
+            const col = (c) => 'rgb(' + c.join(', ') + ')';
+            assert.equal(r.land.find((x) => x.c === 'warn-pre').color, col([242, 194, 48]), '예비특보·예정 = 노랑(위험예측 4색의 「다소 높음」)');
+            assert.equal(r.land.find((x) => x.t === "'매우 높음'").color, col([224, 50, 44])); assert.equal(r.land.find((x) => x.t === "'높음'").color, col([251, 146, 60]));
+            assert.ok(r.land.every((x) => Number(x.w) >= 700), '모두 굵게');
+            assert.deepEqual(pick(r.sea), ['warn-on:풍랑주의보가 발효 중'], '발효 = 빨강'); assert.equal(r.sea[0].color, col([224, 50, 44]));
+            assert.ok(!r.landText.includes('따라서'), '마지막 「따라서」 문장은 문단에서 빠진다');
+            assert.equal(r.adv, '(권고) 하트해변에는 경계가, 봉평해수욕장과 후정해수욕장에는 주의가 필요합니다.'); assert.equal(r.advSpans, 0, '(권고) 줄 안은 강조 없음(근거 칸 (권고) 모양 그대로)');
+            assert.equal(r.basisAdv, false, '근거 칸 (권고) 없음');
+            assert.deepEqual([r.old.inline, r.old.basis], [false, '(권고) ' + B.h.summary.land.advice], '「따라서」가 없는 옛 문단 — 문단 그대로·근거 칸 (권고) 그대로');
+            assert.deepEqual(r.newStyle, r.old.style, '본문 (권고) = 근거 칸 (권고)와 같은 색·굵기');
+            assert.deepEqual(r.none, ['summary', '(권고) ' + B.h.summary.land.advice], '문단이 없으면 서버 권고를 결론 아래에');
+            const lum = (c) => { const v = (c.match(/\d+/g) || []).slice(0, 3).map(Number).map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+            const cr = (fg) => { const a = lum(fg), b = lum(r.bg); return +((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toFixed(2); };
+            console.log('   [대비] 바탕 ' + r.bg + ' — 노랑 ' + cr('rgb(242, 194, 48)') + ' · 주황 ' + cr('rgb(251, 146, 60)') + ' · 빨강 ' + cr('rgb(224, 50, 44)') + ' · 굵은 흰 글 ' + cr('rgb(248, 250, 252)'));
+        });
+        await check('[§11.10.9 ⑥] 팝업 지도 — 분석 문단의 대해구 이름·「관할 해역 선박 N척」·붐비는 해역 이름이 링크 · 누르면 가운데 창(role=dialog·aria-modal) 지도(관할 경계 + 대해구 테두리 / 선박 격자 + 칸 안 척수 / 그 격자 깜빡임) · ✕·Esc·바깥으로 닫힘 · 360px', async () => {
+            await page.setViewportSize({ width: 360, height: 780 }); await openAcc(page);
+            const hg = B.h.summary.sea.haegu; assert.ok(Array.isArray(hg) && hg.length === 1 && hg[0].major === '232' && hg[0].box.length === 4, JSON.stringify(hg));
+            const base = JSON.parse(JSON.stringify(B.h));
+            const r = await page.evaluate(({ base, now, hgName, nowObj }) => {
+                const R = window.StationBriefingRender, box = document.getElementById('station-briefing-content'), out = {};
+                const b = JSON.parse(JSON.stringify(base)); b.overview.sea = hgName + '는 최대 파고 2.6m·풍속 14m/s로 물결이 높고 바람이 매우 강할 것으로 예상됩니다. 대해구 2320 같은 다른 번호는 링크가 아닙니다. 따라서 비양도 주변 해역 운항에 주의가 필요합니다.';
+                R.render(box, { ok: true, briefing: b, now: nowObj }, { now });
+                out.links = [...box.querySelectorAll('[data-sb-maplink]')].map((x) => x.dataset.sbMaplink + ':' + x.textContent);
+                const pop = () => { const d = document.querySelector('[data-sb-map-popup]'); if (!d) return null; const m = d.querySelector('.sb-minimap'), bx = d.querySelector('.sb-dlg-box'), rr = bx.getBoundingClientRect();
+                    return { key: d.dataset.sbMapPopup, role: bx.getAttribute('role'), modal: bx.getAttribute('aria-modal'), title: d.querySelector('.sb-dlg-title').textContent, map: m.dataset.sbMap, area: m.dataset.sbMapArea, hl: m.dataset.sbMapHl, cells: m.dataset.sbMapCells, labels: m.dataset.sbMapLabels, blink: m.dataset.sbBlink,
+                        h: Math.round(m.getBoundingClientRect().height), vh: innerHeight, left: Math.round(rr.left), right: Math.round(innerWidth - rr.right), focus: document.activeElement && document.activeElement.hasAttribute('data-sb-map-close') }; };
+                box.querySelector('[data-sb-maplink="haegu"]').click(); out.haegu = pop();
+                document.querySelector('[data-sb-map-popup]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); out.afterEsc = !!document.querySelector('[data-sb-map-popup]'); out.blinkAfter = R.blinking();
+                box.querySelector('[data-sb-maplink="now-all"]').click(); out.all = pop(); document.querySelector('[data-sb-map-close]').click(); out.afterX = !!document.querySelector('[data-sb-map-popup]');
+                box.querySelector('[data-sb-maplink="now-busiest"]').click(); out.busiest = pop();
+                return out;
+            }, { base, now: clock.now, hgName: hg[0].name, nowObj: { at: '2026-10-17T10:00:00+09:00', count: 37, gridCount: 3, text: '10:00 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 3개\n한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의', ...NOW_CELLS } });
+            assert.deepEqual(r.links, ['haegu:' + hg[0].name, 'now-all:관할 해역 선박 37척', 'now-busiest:한림항 북서방 1.2해리 해역(232-2해구)'], '대해구 2320 은 링크가 아님');
+            assert.deepEqual([r.haegu.key, r.haegu.role, r.haegu.modal, r.haegu.title, r.haegu.map, r.haegu.area, r.haegu.hl, r.haegu.cells, r.haegu.focus], ['haegu', 'dialog', 'true', hg[0].name, 'ol', '1', '1', '0', true]);
+            assert.ok(r.haegu.h >= r.haegu.vh * 0.55 && r.haegu.h <= r.haegu.vh * 0.7, '지도 높이 약 62vh — ' + r.haegu.h + '/' + r.haegu.vh); assert.ok(r.haegu.left >= 16 && r.haegu.right >= 16, '360px 좌우 여백 ' + r.haegu.left + '/' + r.haegu.right);
+            assert.equal(r.afterEsc, false, 'Esc 로 닫힘'); assert.equal(r.blinkAfter, 0, '닫으면 깜빡임 멈춤');
+            assert.deepEqual([r.all.key, r.all.hl, r.all.cells, r.all.labels], ['now-all', '0', '3', '18,12,7'], '선박이 있는 격자마다 칸 안 척수'); assert.equal(r.afterX, false, '✕ 로 닫힘');
+            assert.deepEqual([r.busiest.key, r.busiest.hl, r.busiest.cells, r.busiest.labels, r.busiest.blink], ['now-busiest', '1', '3', '18,12,7', 'on'], '그 격자는 깜빡이고 다른 격자도 숫자와 함께(흐리게)');
+            await page.waitForTimeout(400); await clean(page); await page.screenshot({ path: path.join(SHOT, 'briefing_now_popup_360.png') });
+            await page.evaluate(() => { const d = document.querySelector('[data-sb-map-popup] .sb-dlg-dim'); d.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })); });
+            assert.equal(await page.evaluate(() => !!document.querySelector('[data-sb-map-popup]')), false, '바깥(어두운 바탕)을 누르면 닫힘');
+            await page.evaluate(({ base, now }) => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), { ok: true, briefing: base, now: null }, { now }), { base, now: clock.now });
             await page.setViewportSize({ width: 412, height: 915 });
         });
         await check('시간 막대 칸 색 = 위험예측 4색(단계 순위), 칸을 누르면 설명 줄', async () => {
@@ -503,7 +633,7 @@ function makeBriefings() {
             const r = await page.evaluate(() => ({ title: document.querySelector('.rf-basis-head h3').textContent, body: document.querySelector('.rf-basis-body').innerText, tbl: document.querySelectorAll('.rf-basis-body .rf-tbl').length, close: !!document.querySelector('.rf-basis-head .mclose') }));
             assert.equal(r.title, '연안 안전 브리핑'); assert.ok(r.close); assert.equal(r.tbl, 3);
             for (const k of ['07:30 · 17:30 · 23:00', '20분 전(07:10 · 17:10 · 22:40)', '그때까지는 이전 판', '덮지 않습니다', '21시가 넘으면 다음 날', '오늘 밤~내일', '공단 안내로는 경계 상위 5%·주의 상위 5~15% 구간', '만들기 시작한 시각이 든 3시간 칸부터', '기상청 해제 시각', '해제 예고로만', '사고 확률이 아닙니다', '단계 높은 순 10곳까지', '최대 12곳', '이안류를 관측하는 해수욕장만', '8m/s 이상', '다음 정시 판에 반영', '조석 칸이 없습니다', '「확인 불가」(회색)', '1.2~1.3배', '저조 뒤부터 물이 차오릅니다',
-                '연안 분석·해상 분석', '3~5문장', '최대 3번', 'Gemini 로 한 번', '규칙 분석', '「AI 분석 · ChatGPT」', '▸ 연안 분석 근거', '07:30 판은 오늘 오전·오후', '참고 정보이며 안전을 보장하지 않습니다']) assert.ok(r.body.includes(k), k);
+                '연안 분석·해상 분석', '3~5문장', '최대 3번', 'Gemini 로 한 번', '규칙 분석', '「AI 분석 · ChatGPT」', '「연안 분석 근거 상세 보기」', '선박이 있는 해역 격자', '관광지 | 평소 | 오늘(예상)', '잔잔한 바다일 것으로 예상됩니다', '14m/s 이상 매우 강함', '07:30 판은 오늘 오전·오후', '참고 정보이며 안전을 보장하지 않습니다']) assert.ok(r.body.includes(k), k);
             for (const no of ['활동지점', '최대 20분', '틀 문장', '해설(육상']) assert.ok(!r.body.includes(no), no);
         });
         await clean(page); await page.screenshot({ path: path.join(SHOT, 'basis_380.png') });
@@ -566,10 +696,10 @@ function makeBriefings() {
         await check('자료 확인 불가(부산 남항) — 해상 단계 「확인 불가(일부)」(회색)·빠진 자료 이름 · AI 실패(틀)면 서버 규칙 분석 문단 + 이름표 「규칙 분석」 · 제목 「07:30 AI 연안 안전 브리핑」', async () => {
             await pickStation(page, BUSAN); await page.waitForSelector('[data-sb-sec="sea"]');
             await openBasis(page, 'sea');
-            const r = await page.evaluate(() => { const c = document.querySelector('[data-sb-sec="sea"] .sb-sec-head .sb-chip'), an = document.querySelector('[data-sb-analysis="sea"]'); return { word: c.textContent, bg: getComputedStyle(c).backgroundColor, miss: document.querySelector('[data-sb-sec="sea"] .sb-miss').textContent, src: document.querySelector('[data-sb-source]').dataset.sbSource, srcText: document.querySelector('[data-sb-source]').textContent, fs: parseFloat(getComputedStyle(document.querySelector('[data-sb-source]')).fontSize), body: parseFloat(getComputedStyle(document.querySelector('[data-sb-summary="sea"] .sb-headline')).fontSize), wxMiss: (document.querySelector('[data-sb-wx-missing]') || {}).textContent || null, cm: document.querySelectorAll('[data-sb-commentary]').length, basis: [...document.querySelectorAll('[data-sb-summary="sea"] .sb-sum-basis li')].map((x) => x.textContent), an: an.textContent, anSrc: an.dataset.sbAnalysisSource, tag: an.querySelector('.sb-an-tag').textContent, title: document.getElementById('station-briefing-title').textContent, chip: document.querySelector('[data-sb-summary="sea"] .sb-conclusion .sb-chip').textContent }; });
+            const r = await page.evaluate(() => { const c = document.querySelector('[data-sb-sec="sea"] .sb-sec-head .sb-chip'), an = document.querySelector('[data-sb-analysis="sea"]'); return { word: c.textContent, bg: getComputedStyle(c).backgroundColor, miss: document.querySelector('[data-sb-sec="sea"] .sb-miss').textContent, src: document.querySelectorAll('[data-sb-source]').length, fs: parseFloat(getComputedStyle(document.querySelector('[data-sb-wx-missing]')).fontSize), body: parseFloat(getComputedStyle(document.querySelector('[data-sb-summary="sea"] .sb-headline')).fontSize), wxMiss: (document.querySelector('[data-sb-wx-missing]') || {}).textContent || null, cm: document.querySelectorAll('[data-sb-commentary]').length, basis: [...document.querySelectorAll('[data-sb-summary="sea"] .sb-sum-basis li')].map((x) => x.textContent), an: an.textContent, anSrc: an.dataset.sbAnalysisSource, tag: an.querySelector('.sb-an-tag').textContent, title: document.getElementById('station-briefing-title').textContent, chip: document.querySelector('[data-sb-summary="sea"] .sb-conclusion .sb-chip').textContent }; });
             assert.equal(r.word, '확인 불가(일부)'); assert.equal(r.bg, 'rgb(100, 116, 139)'); assert.ok(r.miss.includes('혼잡 예보') && r.miss.includes('해구 예보'), r.miss);
-            assert.equal(r.src, 'rule'); assert.equal(r.srcText, '규칙 분석 — AI 분석을 쓰지 못해(또는 AI 를 쓰지 않는 설정) 서버 규칙으로 만든 문단입니다. 결론·기상·근거·권고는 서버가 모은·계산한 값입니다.');
-            assert.deepEqual([r.tag, r.anSrc, r.an], ['규칙 분석', 'rule', '규칙 분석 ' + B.b.summary.analysis.sea]); assert.ok(r.an.includes('확인하지 못한 자료(혼잡 예보·해구 예보)'), r.an);
+            assert.equal(r.src, 0, '§11.10.9 — 맨 아래 「규칙 분석 — …」 줄 없음(문단 앞 이름표 「규칙 분석」만)');
+            assert.deepEqual([r.tag, r.anSrc, r.an], ['규칙 분석', 'rule', '규칙 분석 ' + SPLIT(B.b.summary.analysis.sea).body]); assert.ok(r.an.includes('확인하지 못한 자료(혼잡 예보·해구 예보)'), r.an);
             assert.equal(r.title, '07:30 AI 연안 안전 브리핑', '정시 판 = 공개 시각(만든 시각 07:10 이 아님)'); assert.equal(r.chip, '해상 확인 불가(일부)');
             assert.equal(r.wxMiss, '기상예보 자료를 확인하지 못했습니다.', '기상 자료가 없으면 지어내지 않고 밝힘'); assert.ok(r.fs < r.body, '작은 글씨'); assert.equal(r.cm, 0, '해설 칸 없음');
             assert.ok(r.basis.some((x) => x.startsWith('확인하지 못한 자료: 혼잡 예보·해구 예보')), r.basis.join(' / '));
@@ -584,12 +714,13 @@ function makeBriefings() {
             assert.ok((await content(page)).includes('07:30 · 17:30 · 23:00에 보입니다') && (await content(page)).includes('20분 전(07:10 · 17:10 · 22:40)'), await content(page));
             assert.equal(await page.$eval('#station-briefing-title', (e) => e.textContent), 'AI 연안 안전 브리핑', '판이 없으면 시각 없이');
         });
-        await check('21시 넘음 — 내일 판이 없으면 다음 예정 시각(nextExpectedAt) 안내 · 오늘 판이 있으면 오늘 판 + 「내일 브리핑이 아직 없어」', async () => {
+        await check('21시 넘음 — 내일 판이 없으면 다음 예정 시각(nextExpectedAt) 안내 · 오늘 판이 있으면 오늘 판(§11.10.9 ⑦ 부터 「아직 없어」 상자 없이 머리 글 괄호에 다음 갱신)', async () => {
             clock.now = Date.parse('2026-10-17T21:30:00+09:00');
             await page.evaluate(() => window.StationBriefing.load()); await page.waitForFunction(() => document.getElementById('station-briefing-content').innerText.includes('다음 브리핑 공개'));
             assert.ok((await content(page)).includes('다음 브리핑 공개: 10월 17일(토) 23:00'));
             await pickStation(page, HALLIM); await page.waitForSelector('[data-sb-sec="overview"]');
-            const t = await content(page); assert.ok(t.includes('10월 18일(일) 브리핑(23:00 공개)이 아직 없어 10월 17일(토) 브리핑을 보여 드립니다'), t);
+            const t = await content(page); assert.ok(!t.includes('아직 없어') && !t.includes('보여 드립니다'), '§11.10.9 ⑦ — 「…아직 없어 … 보여 드립니다」 상자 없음: ' + t.slice(0, 200));
+            assert.equal(await page.$eval('#station-briefing-content .sb-edition', (e) => e.textContent), '10월 17일 13:10 기준 브리핑 (다음 브리핑 갱신 23:00 또는 특보 변경 시)');
             clock.now = Date.parse('2026-10-17T10:05:00+09:00');
         });
         await page.context().close();
@@ -719,7 +850,7 @@ function makeBriefings() {
             assert.deepEqual([user.body.briefing.edition, user.body.pending], ['warning', undefined], '사용자에게는 공개 시각까지 지금 판');
             await tap(page, '[data-sb-preview-go]'); await page.waitForSelector('[data-sb-preview-out] [data-sb-pending]');
             const r = await page.evaluate(() => ({ note: document.querySelector('[data-sb-preview-out] [data-sb-pending]').textContent, ed: document.querySelector('[data-sb-preview-out] .sb-edition').textContent }));
-            assert.ok(r.note.startsWith('예정 — 10월 17일(토) 17:30에 공개될 판입니다') && r.note.includes('이전 판(10월 17일(토) 13:10 생성)'), r.note); assert.ok(r.ed.includes('17:30 판'), r.ed);
+            assert.ok(r.note.startsWith('예정 — 10월 17일(토) 17:30에 공개될 판입니다') && r.note.includes('이전 판(10월 17일(토) 13:10 생성)'), r.note); assert.ok(r.ed.startsWith('10월 17일 17:30 기준 브리핑 (다음 브리핑 갱신 '), r.ed);
             await page.evaluate(() => [...document.querySelectorAll('[data-sb-status] button')].find((b) => b.textContent === '새로고침').click()); await page.waitForSelector('[data-sb-pending-status]');
             assert.ok((await page.$eval('[data-sb-pending-status]', (e) => e.textContent)).includes('10-17 17:30 — 1곳(그때까지 사용자에게는 이전 판)'));
             writeDay('2026-10-17', { [HALLIM]: B.h, [BUSAN]: B.b, [MOKPO]: B.m });
@@ -796,7 +927,7 @@ function makeBriefings() {
             assert.ok(r.tomorrow.startsWith('내일 평소와 달라진 요소'), r.tomorrow); assert.ok(r.today.startsWith('오늘 평소와 달라진 요소'), r.today);
             assert.ok(r.passed.includes('다음 브리핑을 준비 중입니다(10월 17일(토) 08:00 공개 예정)'), r.passed);
             assert.deepEqual([r.v2.parts, r.v2.label, r.v2.cm, r.v2.analysis, r.v2.title], [['conclusion', 'weather', 'tide', 'land', 'sea', 'commentary'], '연안', 2, 0, '08:00 AI 연안 안전 브리핑'], '§11.10.1 판(분석 문단 없음)은 그 모양 그대로 · 옛 정시 판 제목 시각 = 만든 시각');
-            assert.ok(r.v2.edition.includes('08:00 판'), r.v2.edition);
+            assert.equal(r.v2.edition, '10월 17일 08:00 기준 브리핑', '옛 정시 판(공개 시각 없음) = 만든 시각 · nextPublishAt 없으면 괄호 없음');
             assert.deepEqual([r.old.sum, r.old.basis], [0, true], '옛 브리핑은 새 모양 대신 종전 문단 + 근거 접힘');
             assert.deepEqual([r.v1.parts, r.v1.landHead, r.v1.landTide], [0, base.summary.land.headline, ['06:12 저조 뒤부터 물이 차오릅니다']], '§11.10 판 브리핑은 그 모양(육상 덩어리 안 물때) 그대로');
             assert.ok(r.old.paras[0].startsWith('land:연안 오늘 한림파출소 관할 육상은') && r.old.paras[1].startsWith('sea:해상 '), r.old.paras.join(' / ')); assert.ok(r.old.src.includes('기본 문장(틀)'), r.old.src);
@@ -840,7 +971,7 @@ function makeBriefings() {
                 const sleep = (ms) => new Promise((res) => setTimeout(res, ms)), R = window.StationBriefingRender, c = document.getElementById('station-briefing-content');
                 const btns = [...c.querySelectorAll('[data-sb-summary="sea"] button.sb-x-btn[data-sb-x^="map-"]')], out = { keys: btns.map((b) => b.dataset.sbX), texts: btns.map((b) => b.textContent) };
                 out.note = (c.querySelector('[data-sb-basis="accidentOnly"] .sb-basis-note') || {}).textContent || '';
-                const nowEl = c.querySelector('[data-sb-summary="sea"] > [data-sb-now]'); out.now = !!nowEl && nowEl.previousElementSibling.hasAttribute('data-sb-analysis') && nowEl.nextElementSibling.classList.contains('sb-basis-x');
+                const nowEl = c.querySelector('[data-sb-summary="sea"] > [data-sb-now]'); out.now = !!nowEl && nowEl.previousElementSibling.hasAttribute('data-sb-advice') && nowEl.previousElementSibling.previousElementSibling.hasAttribute('data-sb-analysis') && nowEl.nextElementSibling.classList.contains('sb-basis-x');   // §11.10.9 ⑤ — 분석 문단 → (권고) → 지금
                 const one = async (b) => {
                     b.click(); await sleep(50);
                     const panel = document.getElementById(b.getAttribute('aria-controls')), m = panel.querySelector('.sb-minimap'), sb = m && m._sbMap;

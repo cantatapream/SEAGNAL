@@ -33,7 +33,11 @@ const SCHEMA = 'station-briefing-input-v2';
 //   · 입력에 없는 말(경보·태풍·사망·사망자·임박·대규모·「아무 일도 없」·「반드시 사고」) · 나열 꼴 조사 「은·는·를·을」·쉼표 없는 「주의가 B에는」·「요하·상태」 꼴. 지시문 v7: 위 규칙과 이유 글 20자 자름.
 // v7(2026-10-17 §11.10.6 운영 오판): 조사 붙은 허용 이름·괄호/가운뎃점/쉼표 속 다른 이름·「하지만」·연도 「년」 · v8(같은 날 17:34 실행): 셈말·가리킴 말(「세 해수욕장」·「이들 해수욕장」)과 접미사만 있는 낱말을 지명 앞 낱말로 붙이지 않는다.
 //   지시문 v8: 장소·해역 수를 세어 쓰지 말고 이름만 나열(운영 실패의 절반이 「세 곳」·「두 곳」 셈말).
-const VALIDATOR_VERSION = 'sb-validate-v8', PROMPT_VERSION = 'sb-prompt-v8';
+// 지시문 v9(2026-10-17 사용자 *"대해구 75가 어딘지 모르겠고"* · *"그냥 기준내용 빼고 잔잔한 바다일것으로 예상된다는 식으로"* — 설계서 §11.10.9): 해구는 특보구역 이름을 붙인 꼴
+//   (sea.haegu_forecasts[].name)과 서버가 정한 바다 상태 말(sea.haegu_forecasts[].sea_state — rules.SEA_STATE)을 그대로 · 「기준」이라는 말을 쓰지 않는다 — 해상 예시 문장도 그 꼴.
+//   AI 입력의 해구 글(sea.weather·해역 evidence)도 「기준(파고 2m·풍속 12m/s) 미만」 대신 rules.haeguSentence.
+// 검증 v9(같은 결정): 「잔잔한 바다」는 그 관할 입력(서버 해구 문장)에 같은 말이 있을 때만(FACT_WORDS — 서버가 둘 다 낮음·약함으로 정한 해구가 있을 때만 통과).
+const VALIDATOR_VERSION = 'sb-validate-v9', PROMPT_VERSION = 'sb-prompt-v9';
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -67,7 +71,8 @@ const LEVEL_RE = /(관심|주의|경계)\s*(?:이|가|를|을|은|는|의)?\s*(?
 const LEVEL_LIST_RE = /(관심|주의|경계)\s*(?:(?:이|가|은|는|를|을)?\s*[,，]|(?:이|가)(?=\s))/g, NEED_RE = /필요|요구|요망|요청/;
 // 입력에 없는 사실·과장 말(§11.10.5 독립 검토 1b) — 그 관할 입력(서버 사실·결론·근거·기상청 전망 발췌·(기상) 칸)에 같은 말이 있을 때만 허용. 공백을 지운 글에 건다.
 // 「풍랑주의보」만 있는데 「풍랑경보」, 없는 「태풍」·「사망자」, 「임박」·「대규모」·「아무 일도 없을 것」·「반드시 사고」. 원인·시제(「높아졌습니다」)·「예상」 표기는 검사하지 못한다(설계서 §11.10.5 남은 빈칸).
-const FACT_WORDS = Object.freeze([['경보', /경보/], ['태풍', /태풍/], ['사망자', /사망자/], ['사망', /사망/], ['임박', /임박/], ['대규모', /대규모/], ['아무 일도·문제도 없', /아무(?:일도|문제도)없/], ['반드시 사고', /반드시사고/]]);
+// 「잔잔한 바다」(§11.10.9) — 서버 바다 상태 말(rules.SEA_STATE.calm)이 그 관할 입력에 있을 때만. AI 가 스스로 「잔잔한 바다」로 판단해 쓰는 것은 막는다.
+const FACT_WORDS = Object.freeze([['잔잔한 바다', /잔잔한바다/], ['경보', /경보/], ['태풍', /태풍/], ['사망자', /사망자/], ['사망', /사망/], ['임박', /임박/], ['대규모', /대규모/], ['아무 일도·문제도 없', /아무(?:일도|문제도)없/], ['반드시 사고', /반드시사고/]]);
 // 따옴표로 인용한 공식 단계 이름(예: 공식 사고예보 '주의', 혼잡 예보 '높음')은 서버 사실 문장에 같은 꼴로 있어야 한다.
 const LABEL_RE = /'(낮음|보통|주의|경계|높음|매우높음|위험)'/g;
 // 숫자 + 단위(B1) — 단위까지 묶어 대조한다(「3m」와 「232-3해구」의 3은 다른 사실). 범위(「12~15m/s」)는 범위 자체가 입력에 있어야 한다.
@@ -169,14 +174,18 @@ function placeCandidates(t) {
  * 예: stationInput(한림 브리핑) → {id:'제주해양경찰서|한림파출소', shown:{land:{headline,basis,advice},sea:{…}}, sea:{level:'주의 필요',top:[…]}, land:{…}, allowed_numbers:['15~18시','2.4m',…], allowed_places:[…], levels:{sea:{…},land:{…}}}
  * kma_zones(독립 검토 8) = 이 관할이 쓸 수 있는 기상청 해역 이름 — 기상청 전망 발췌(kma.excerpt)·(기상) 칸 구역·특이사항에 나온 이름만, 「제주도」는 제주 관할이거나 그 글에 있을 때만.
  * count_keys(독립 검토 7) = 문단(육상·해상)별 서버 결론·근거·권고 줄의 곳·개 수 — 「두 곳」은 그 문단 줄에 2곳이 있을 때만.
+ * sea.haegu_forecasts(§11.10.9) = 대해구마다 {haegu:'대해구 75', where:'경북북부앞바다', name:'경북북부앞바다(대해구 75)', max_wave:'0.8m', max_wind:'4.8m/s', wave_state:'낮음', wind_state:'약함',
+ *   sea_state:'잔잔한 바다일 것으로 예상됩니다', sentence:'경북북부앞바다(대해구 75)는 최대 파고 0.8m·풍속 4.8m/s로 잔잔한 바다일 것으로 예상됩니다.'} — 「기준」이라는 말·값은 넣지 않는다.
+ *   특보구역 이름은 allowed_places 에, 서버 해구 글은 사실 목록에(그 숫자가 allowed_numbers 에, 「잔잔한 바다」가 fact_terms 에) 들어간다.
  * @param {object} b - rules.buildBriefing 결과 @param {object|null} [kma] - 기상청 해상 전망 발췌(station_briefing_inputs.kmaOutlook) @returns {object} [연계] ← batchInput·validateOverview / hash 의 대상
  */
 function stationInput(b, kma = null) {
     const sea = b.sea, land = b.land, facts = [], places = new Set([b.station.name, b.station.office, b.station.region].filter(Boolean)), levels = { sea: {}, land: {} }, mult = { sea: new Set(), land: new Set() };
     levels.sea[b.station.name] = sea.overviewLevel.rank; if (land) levels.land[b.station.name] = land.level.rank;
+    // 해역 evidence 의 해구 흐름 줄(weatherFlow.text — 「…로 기준(파고 2m·풍속 12m/s) 미만입니다」)은 서버 해구 문장(rules.haeguSentence — 기준 말 없음, §11.10.9)으로 바꿔 보낸다. 원래 글은 사실 목록에만(숫자 허용).
     const seaTop = sea.overviewTop.map((c) => {
-        const ev = [c.overview.window + ' ' + c.overview.label, ...c.today.lines.slice(0, 4), c.traits.text];
-        facts.push(c.name, ...ev); places.add(c.name); if (c.nameBase) places.add(c.nameBase); if (c.traits.zone?.name) places.add(c.traits.zone.name);
+        const wf = c.today.weather || null, raw = c.today.lines.slice(0, 4), ev = [c.overview.window + ' ' + c.overview.label, ...raw.map((l) => (wf && l === wf.text && R.haeguSentence(wf)) || l), c.traits.text];
+        facts.push(c.name, ...raw, ...ev); places.add(c.name); if (c.nameBase) places.add(c.nameBase); if (c.traits.zone?.name) places.add(c.traits.zone.name);
         levels.sea[c.name] = c.overview.rank; if (c.nameBase) levels.sea[c.nameBase] = Math.max(levels.sea[c.nameBase] || 0, c.overview.rank);
         return { name: c.name, level: c.overview.word, window: c.overview.window, evidence: ev };
     });
@@ -189,7 +198,18 @@ function stationInput(b, kma = null) {
     const missSea = sea.missing.map((k) => R.SOURCE_LABEL[k] || k);
     // attention_regions = 총평 기준 관심 이상 해역 수(overviewRegions — 총평 단계 level 과 같은 기준, 2단계 검토 B1). 공식 사고예보 단계만 있는 해역은 accident_only_regions 로 따로.
     const oCount = Number.isFinite(sea.overviewRegions) ? sea.overviewRegions : sea.attentionRegions;
-    const seaPart = { level: sea.overviewLevel.word, reviewed_cells: sea.reviewedCells, attention_regions: oCount, accident_only_regions: Math.max(0, sea.attentionRegions - oCount), weather: sea.weather ? sea.weather.text : null, top: seaTop, timeline, missing_sources: [...new Set(missSea)] };
+    // haegu_forecasts(2026-10-17 사용자 *"대해구 75가 어딘지 모르겠고"* · *"그냥 기준내용 빼고 잔잔한 바다일것으로 예상된다는 식으로 … 풍속, 파고별 어떤식으로 표출될지 기준마련 필요"* — 설계서 §11.10.9):
+    //   대해구마다 사람이 아는 위치(그 대해구에 든 이 관할 해역의 특보구역 이름 — rules weatherFlow.where)와 서버가 정한 바다 상태 말(rules.seaStateOf — SEA_STATE 표)·서버 문장(haeguSentence).
+    //   「기준」이라는 말·값은 보내지 않는다. 특보구역 이름은 허용 지명, 서버 문장은 사실(숫자·「잔잔한 바다」 허용).
+    const flows = Object.values(sea.weatherByHaegu || {}).filter(Boolean);
+    const haeguForecasts = flows.map((f) => {
+        const st = R.seaStateOf(f.max && f.max.wh >= 0 ? f.max.wh : null, f.max && f.max.ws >= 0 ? f.max.ws : null), sent = R.haeguSentence(f);
+        facts.push(f.text, R.haeguPlace(f)); if (sent) facts.push(sent); for (const z of String(f.where || '').split('·').filter(Boolean)) places.add(z);
+        return { haegu: f.label, where: f.where || null, name: R.haeguPlace(f), max_wave: f.max && f.max.wh >= 0 ? f.max.wh + 'm' : null, max_wind: f.max && f.max.ws >= 0 ? f.max.ws + 'm/s' : null,
+            wave_state: st ? st.wave : null, wind_state: st ? st.wind : null, sea_state: st ? st.phrase : null, rises: f.onsetAt ? (f.onsetText || '') + '로 높아짐' + (f.downText ? ', ' + f.downText + ' 낮아짐' : '') : null, sentence: sent };
+    });
+    const seaPart = { level: sea.overviewLevel.word, reviewed_cells: sea.reviewedCells, attention_regions: oCount, accident_only_regions: Math.max(0, sea.attentionRegions - oCount), weather: sea.weather ? R.haeguSentence(sea.weather) : null,
+        haegu_forecasts: haeguForecasts, top: seaTop, timeline, missing_sources: [...new Set(missSea)] };
     let landPart = null, missLand = [];
     if (land) {
         // source = 단계 출처 꼬리표(결정 2 — 「연안 위험지수 72 '높음'」·「풍랑주의보」): 사실 목록에 넣어 그 숫자·따옴표 단계 이름을 AI 가 옮겨도 통과하게 한다.
@@ -258,7 +278,8 @@ function buildPrompt(batch) {
         '내용: 어느 장소(관광지·해역)가 어떤 단계인지, 왜 그런지(원인 — 연안 위험지수·방문객·행사·너울·이안류·바람·파도·특보·혼잡·과거 사고 이력)와 시간 흐름(언제부터 언제까지, 언제 나아지는지)을 쉬운 말로 잇고, 마지막 문장은 「따라서 …에 주의가(관심이·경계가) 필요합니다.」 꼴로 끝낸다.',
         '예보·예측에서 온 값(방문객 배수·연안 위험지수·해구 파고·풍속·너울·해양사고 위험예보·혼잡 예보)은 「방문객이 평소의 2배로 예상」처럼 예상임을 자연스럽게 밝힌다.',
         '연안 예시: 「돝섬해상유원지는 연안 위험지수 \'높음\'으로 주의 필요 수준이고, 방문객이 평소의 2배로 예상됩니다. 위험구역과 과거 익수·표류 사고 이력이 있어 사람이 늘어나는 오늘은 연안 상황 변화에 유의해야 합니다. 마산로봇랜드와 실리도는 관심 필요 수준이며, 실리도에는 과거 연안사고 이력이 있습니다. 따라서 돝섬해상유원지에는 주의가, 마산로봇랜드와 실리도에는 관심이 필요합니다.」',
-        '해상 예시: 「대해구 5099 예보의 최대 파고는 0.4m, 풍속은 6.9m/s로 기준보다 낮을 것으로 예상됩니다. 다만 오늘 오후부터 바람이 강해지고 물결이 높아질 수 있다는 기상 전망이 있어 해상 상황의 변화를 살펴야 합니다. 따라서 마산파출소 관할 해상의 바람과 물결 변화에 관심이 필요합니다.」 (예시의 지명·숫자는 꼴만 보인 것 — 실제로는 그 관할의 입력에 있는 것만 쓴다.)',
+        '해상 예시: 「○○앞바다(대해구 5099)는 최대 파고 0.4m·풍속 6.9m/s로 잔잔한 바다일 것으로 예상됩니다. 다만 오늘 오후부터 바람이 강해지고 물결이 높아질 수 있다는 기상 전망이 있어 해상 상황의 변화를 살펴야 합니다. 따라서 마산파출소 관할 해상의 바람과 물결 변화에 관심이 필요합니다.」 (예시의 지명·숫자는 꼴만 보인 것 — 실제로는 그 관할의 입력에 있는 것만 쓴다.)',
+        '해구 예보를 말할 때는 「대해구 75」만 쓰지 말고 sea.haegu_forecasts 의 name(「경북북부앞바다(대해구 75)」처럼 특보구역 이름을 앞에 붙인 꼴)을 그대로 쓴다(where 가 null 이면 해구 번호만). 바다 상태는 그 항목의 sea_state(서버가 최대 파고·풍속으로 정한 말 — 「잔잔한 바다일 것으로 예상됩니다」·「물결이 다소 높을 것으로 예상됩니다」 등)를 그대로 쓰고, 스스로 다른 판단(「잔잔한」·「높은」 등)을 만들지 않는다. 「기준」이라는 말(「기준보다 낮다」 등)은 쓰지 않는다. sentence 는 그 꼴의 견본 문장이다.',
         'shown 의 결론 문장을 그대로 되풀이하지 않는다. shown.weather 의 숫자는(오전·오후 예보·특이사항) allowed_numbers 에 없으면 옮기지 않는다 — 흐름(「오후부터 바람이 강해질 수 있다」)만 말로 쓴다.',
         '규칙(어기면 그 관할 글은 버려진다):',
         '0) 각 분석은 ' + MAX_CHARS + '자 이내, 3~5문장, 마지막 문장은 「따라서」로 시작해 「필요합니다.」로 끝난다.',
