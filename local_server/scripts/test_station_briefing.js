@@ -248,6 +248,8 @@ const WIN = R.editionWindow('morning', T0);
         const hr = I.collectTide({ lat: 33.41, lon: 126.26 }, '2026-10-17', jg, { jejuAnchors: [], hrAnchors: [{ id: 'H3', lat: 33.40, lon: 126.25 }], readCurve: (id, ymd, src) => src === 'hr' ? files[ymd] || null : null, rocks: [], crossings: {} });
         assert.deepStrictEqual([hr.region, hr.anchorSource, hr.anchorId], ['jeju', 'hr', 'H3'], '제주 격자가 없으면 간출암 앵커');
         assert.equal(I.collectTide({ lat: 37.5, lon: 129.1 }, '2026-10-17', geom, { anchors: [{ id: 'E', lat: 37.5, lon: 129.1 }], jejuAnchors: [], hrAnchors: [], readCurve: () => files['20261017'] }), null, '동해는 없음');
+        // 동해 남쪽(울산·포항·감포 — 경도 129.2 넘으면 동해) — 조석 칸이 없어 (고립 주의) 줄도 없다(2026-10-17 사용자 「동해쪽 관할은 고립 주의 쓰지마」 — 설계서 §11.10.5)
+        for (const [lat, lon] of [[35.54, 129.31], [36.03, 129.37], [35.80, 129.50]]) assert.equal(I.collectTide({ lat, lon }, '2026-10-17', geom, { anchors: [{ id: 'E', lat, lon }], jejuAnchors: [], hrAnchors: [], readCurve: () => files['20261017'] }), null, '동해 남쪽도 없음 ' + lat + ',' + lon);
         assert.equal(I.collectTide({ lat: 36.674, lon: 126.13 }, '2026-10-17', geom, { anchors: [{ id: 'A1', lat: 37.2, lon: 126.13 }], readCurve: () => files['20261017'] }), null, '25km 안 앵커가 없으면 없음');
     });
 
