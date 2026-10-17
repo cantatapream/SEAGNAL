@@ -925,6 +925,86 @@ function makeBriefings() {
             assert.equal(await page.evaluate(() => document.getElementById('station-briefing-accordion-body').clientHeight), 0);
             await openAcc(page);
         });
+        // ── §11.10.14(2026-10-17 사용자 결정) — 「해상 분석」·「연안 분석」 머리 오른쪽 단계별 개수 배지 + 칸 안 단계 단추(하나만 고름) ──
+        await check('[§11.10.14] 해상·연안 분석 — 머리 배지 「주의 필요 5개 해역」「관심 필요 1개 해역」(경계→주의→관심 · 단계 색 · 접어도 보임 · 꺾쇠와 안 겹침) · 단계 단추(처음 = 가장 높은 단계 · 누르면 그 단계 카드만 · 화살표 키) · 공통 줄은 그대로 · 단계 하나면 단추 없음 · 다시 그리면 처음으로 · 360px', async () => {
+            await page.setViewportSize({ width: 360, height: 780 }); await openAcc(page);
+            const base = JSON.parse(JSON.stringify(B.h));
+            const r = await page.evaluate(async ({ base, now }) => {
+                const R = window.StationBriefingRender, box = document.getElementById('station-briefing-content'), out = {};
+                const one = (src, rank, word, name) => Object.assign(JSON.parse(JSON.stringify(src)), { rank, word, name });
+                const fx = JSON.parse(JSON.stringify(base)), s0 = base.sea.cards[0], l0 = base.land.cards[0];
+                // 서버 순서(단계 높은 순)를 일부러 섞어 둔다 — 단계 안 순서는 받은 순서 그대로여야 한다
+                fx.sea.cards = [one(s0, 2, '주의 필요', '주의해역1'), one(s0, 2, '주의 필요', '주의해역2'), one(s0, 1, '관심 필요', '관심해역1'), one(s0, 2, '주의 필요', '주의해역3'), one(s0, 2, '주의 필요', '주의해역4'), one(s0, 2, '주의 필요', '주의해역5')];
+                fx.land.cards = [one(l0, 1, '관심 필요', '관심곳1'), one(l0, 2, '주의 필요', '주의곳1'), one(l0, 3, '경계 필요', '경계곳1'), one(l0, 2, '주의 필요', '주의곳2')];
+                R.render(box, { ok: true, briefing: fx }, { now, showSea: true, showLand: true, onLink: () => {} });
+                await new Promise((res) => setTimeout(res, 300));
+                const rgb = (c) => { const e = document.createElement('i'); e.style.background = c; document.body.appendChild(e); const v = getComputedStyle(e).backgroundColor; e.remove(); return v; };
+                const sec = (k) => box.querySelector('[data-sb-sec="' + k + '"]');
+                const head = (k) => { const h = sec(k).querySelector('.marine-forecast-sub-header'), bd = h.querySelector('[data-sb-sec-badges]'), ic = h.querySelector('.marine-forecast-sub-icon'), t = h.querySelector('.marine-forecast-sub-title');
+                    const hb = h.getBoundingClientRect(), bb = bd.getBoundingClientRect(), ib = ic.getBoundingClientRect(), tb = t.getBoundingClientRect();
+                    return { kids: [...h.children].map((c) => c.classList.contains('sb-sec-badges') ? 'badges' : c.classList.contains('marine-forecast-sub-title') ? 'title' : 'icon'),
+                        badges: [...bd.children].map((c) => c.textContent), bg: [...bd.children].map((c) => getComputedStyle(c).backgroundColor), ranks: [...bd.children].map((c) => Number(c.dataset.rank)),
+                        noOverlap: bb.right <= ib.left + 0.5 && tb.right <= bb.left + 0.5, inside: bb.top >= hb.top - 0.5 && bb.bottom <= hb.bottom + 0.5 && bb.width > 0 }; };
+                const tabs = (k) => { const bar = sec(k).querySelector('[data-sb-tabs="' + k + '"]'); if (!bar) return null;
+                    const ts = [...bar.querySelectorAll('[role="tab"]')];
+                    return { role: bar.getAttribute('role'), text: ts.map((t) => t.textContent), sel: ts.map((t) => t.getAttribute('aria-selected')), tabIndex: ts.map((t) => t.tabIndex),
+                        bg: ts.map((t) => getComputedStyle(t).backgroundColor), border: ts.map((t) => getComputedStyle(t).borderTopColor),
+                        shown: [...sec(k).querySelectorAll('.sb-card')].filter((c) => c.offsetParent !== null).map((c) => c.querySelector('.sb-card-name').textContent),
+                        all: sec(k).querySelectorAll('.sb-card').length, panels: [...sec(k).querySelectorAll('[role="tabpanel"]')].map((p) => p.getAttribute('aria-labelledby') === document.getElementById(p.id.replace(/-p(\d+)$/, '-t$1')).id && document.getElementById(p.id.replace(/-p(\d+)$/, '-t$1')).getAttribute('aria-controls') === p.id),
+                        overflowX: getComputedStyle(bar).overflowX, below: (() => { const cnt = sec(k).querySelector(k === 'sea' ? '[data-sb-sea-count]' : '[data-sb-land-count]'); return !!(cnt.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING); })() }; };
+                out.colors = [0, 1, 2, 3].map((x) => rgb(R.colorOf(x)));
+                out.seaHead = head('sea'); out.landHead = head('land'); out.sea0 = tabs('sea'); out.land0 = tabs('land');
+                out.common = { count: !!sec('sea').querySelector('[data-sb-sea-count]').offsetParent, bar: sec('sea').querySelectorAll('.sb-slot').length, barShown: !!(sec('sea').querySelector('.sb-timebar') || {}).offsetParent };
+                // 누르기 — 관심 단추 → 관심 카드만(공통 줄·막대는 그대로)
+                sec('sea').querySelectorAll('[role="tab"]')[1].click(); out.sea1 = tabs('sea');
+                out.common1 = { count: !!sec('sea').querySelector('[data-sb-sea-count]').offsetParent, barShown: !!(sec('sea').querySelector('.sb-timebar') || {}).offsetParent, open: sec('sea').classList.contains('open') };
+                // 화살표 키(연안: 경계 → 오른쪽 → 주의, End → 관심, Home → 경계, 왼쪽 → 맨 끝으로 돈다)
+                const lt = () => [...sec('land').querySelectorAll('[role="tab"]')], key = (k) => document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+                lt()[0].focus(); key('ArrowRight'); out.kRight = [tabs('land').sel, document.activeElement === lt()[1], tabs('land').shown];
+                key('End'); out.kEnd = tabs('land').shown; key('Home'); out.kHome = tabs('land').shown; key('ArrowLeft'); out.kLeft = tabs('land').shown;
+                // 360px — 페이지 가로 넘침 없음 · 단추 줄은 넘치면 가로 스크롤(줄 자체는 칸 안)
+                const lb = sec('land').querySelector('[data-sb-tabs]').getBoundingClientRect(), sb = sec('land').querySelector('.sb-sec-body').getBoundingClientRect();
+                out.w360 = { page: document.documentElement.scrollWidth, inside: lb.left >= sb.left - 0.5 && lb.right <= sb.right + 0.5 };
+                // 접은 머리에도 배지(사용자 — 「접혀 있을 때도」)
+                sec('sea').querySelector('.marine-forecast-sub-header').click(); await new Promise((res) => setTimeout(res, 450));
+                out.closed = { open: sec('sea').classList.contains('open'), head: head('sea') }; sec('sea').querySelector('.marine-forecast-sub-header').click();
+                // 다시 그리기(판 바뀜) → 가장 높은 단계로 돌아온다
+                R.render(box, { ok: true, briefing: fx }, { now, showSea: true, showLand: true, onLink: () => {} }); out.reSea = tabs('sea').sel; out.reLand = tabs('land').sel;
+                // 단계 하나(주의만) → 단추 없음·카드 모두 · 카드 없음 → 배지 없음
+                const f2 = JSON.parse(JSON.stringify(fx)); f2.sea.cards = f2.sea.cards.filter((c) => c.rank === 2); f2.land.cards = [];
+                R.render(box, { ok: true, briefing: f2 }, { now, showSea: true, showLand: true, onLink: () => {} });
+                out.single = { tabs: !!sec('sea').querySelector('[data-sb-tabs]'), badges: [...sec('sea').querySelectorAll('[data-sb-sec-badges] .sb-chip')].map((c) => c.textContent), cards: [...sec('sea').querySelectorAll('.sb-card')].filter((c) => c.offsetParent !== null).length,
+                    landBadges: !!sec('land').querySelector('[data-sb-sec-badges]'), landTabs: !!sec('land').querySelector('[data-sb-tabs]') };
+                // 해상만 관할(land 없음) — 연안 칸은 이유 한 줄, 배지 없음
+                const f3 = JSON.parse(JSON.stringify(fx)); f3.land = null; f3.seaOnlyReason = '해상만';
+                R.render(box, { ok: true, briefing: f3 }, { now, showSea: true, showLand: false, onLink: () => {} }); out.seaOnly = { landBadges: !!sec('land').querySelector('[data-sb-sec-badges]'), seaTabs: !!sec('sea').querySelector('[data-sb-tabs]') };
+                R.render(box, { ok: true, briefing: fx }, { now, showSea: true, showLand: true, onLink: () => {} });   // 스크린샷용(아래)
+                return out;
+            }, { base, now: clock.now });
+            const [, c1, c2, c3] = r.colors;
+            assert.deepEqual(r.seaHead.kids, ['title', 'badges', 'icon'], '배지는 제목과 꺾쇠 사이(오른쪽)');
+            assert.deepEqual(r.seaHead.badges, ['주의 필요 5개 해역', '관심 필요 1개 해역']); assert.deepEqual(r.seaHead.bg, [c2, c1], '배지 색 = 단계 색(chip)');
+            assert.deepEqual(r.landHead.badges, ['경계 필요 1곳', '주의 필요 2곳', '관심 필요 1곳'], '연안 — 경계 → 주의 → 관심, 단위 「곳」'); assert.deepEqual(r.landHead.bg, [c3, c2, c1]);
+            assert.ok(r.seaHead.noOverlap && r.seaHead.inside && r.landHead.noOverlap && r.landHead.inside, '360px 머리 — 제목·배지·꺾쇠 안 겹침 ' + JSON.stringify([r.seaHead, r.landHead]));
+            assert.deepEqual([r.sea0.role, r.sea0.text, r.sea0.sel, r.sea0.tabIndex], ['tablist', ['주의 필요 5개 해역', '관심 필요 1개 해역'], ['true', 'false'], [0, -1]], '처음 = 가장 높은 단계(주의)');
+            assert.deepEqual(r.sea0.shown, ['주의해역1', '주의해역2', '주의해역3', '주의해역4', '주의해역5'], '주의 카드만 · 받은 순서 그대로'); assert.equal(r.sea0.all, 6, '카드는 모두 만들어 둔다(숨김만)');
+            assert.deepEqual([r.sea0.bg, r.sea0.border], [[c2, 'rgba(0, 0, 0, 0)'], [c2, c1]], '고른 단추 = 단계 색 채움, 나머지 = 단계 색 테두리'); assert.ok(r.sea0.panels.every(Boolean) && r.sea0.below, 'tab↔tabpanel 연결 · 단추는 검토 줄 아래');
+            assert.deepEqual([r.common.count, r.common.barShown, r.common.bar > 0], [true, true, true]);
+            assert.deepEqual([r.sea1.sel, r.sea1.shown, r.sea1.bg], [['false', 'true'], ['관심해역1'], ['rgba(0, 0, 0, 0)', c1]], '관심 단추 → 관심 카드만');
+            assert.deepEqual([r.common1.count, r.common1.barShown, r.common1.open], [true, true, true], '공통 줄·시간 막대는 단계와 무관 · 단추를 눌러도 칸이 접히지 않음');
+            assert.deepEqual(r.land0.shown, ['경계곳1']); assert.deepEqual(r.kRight, [['false', 'true', 'false'], true, ['주의곳1', '주의곳2']], '→ 다음 단계 + 초점 이동');
+            assert.deepEqual([r.kEnd, r.kHome, r.kLeft], [['관심곳1'], ['경계곳1'], ['관심곳1']]);
+            assert.ok(r.w360.page <= 360 && r.w360.inside && r.land0.overflowX === 'auto', '360px 가로 넘침 없음 · 단추 줄은 가로 스크롤 ' + JSON.stringify(r.w360));
+            assert.deepEqual([r.closed.open, r.closed.head.badges, r.closed.head.noOverlap], [false, ['주의 필요 5개 해역', '관심 필요 1개 해역'], true], '접은 머리에도 배지');
+            assert.deepEqual([r.reSea, r.reLand], [['true', 'false'], ['true', 'false', 'false']], '다시 그리면 가장 높은 단계로');
+            assert.deepEqual(r.single, { tabs: false, badges: ['주의 필요 5개 해역'], cards: 5, landBadges: false, landTabs: false }, '단계 하나 → 단추 없음 · 카드 없음 → 배지 없음');
+            assert.deepEqual(r.seaOnly, { landBadges: false, seaTabs: true });
+            await page.locator('#station-briefing-content [data-sb-sec="sea"]').screenshot({ path: path.join(SHOT, 'briefing_levels_sea_360.png') });
+            await page.locator('#station-briefing-content [data-sb-sec="land"]').screenshot({ path: path.join(SHOT, 'briefing_levels_land_360.png') });
+            // 되돌려 놓기 — 뒤 시험들이 보는 본문(지금 밀집 now 포함한 실제 응답)으로 다시 그린다([UI-A1] 과 같은 방식)
+            await page.evaluate(() => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), JSON.parse(JSON.stringify(window.StationBriefing._state.resp)), { showSea: true, showLand: true, onLink: () => {} }));
+            await page.setViewportSize({ width: 412, height: 915 });
+        });
         await check('[UI-B1·B3·B5·B6·B10·B14] 총평 단계 < 해상 분석 단계면 한 줄 · 지난 칸 흐리게 · 「카드는 10곳까지」 · 내일 판 「내일」 · 출처 한 벌 · 지난 예정 시각은 「준비 중」', async () => {
             const base = JSON.parse(JSON.stringify(B.h));
             const r = await page.evaluate(({ base, now }) => {

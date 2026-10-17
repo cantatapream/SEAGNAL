@@ -18,6 +18,14 @@
 .sb-miss { margin:4px 0; color:#fbbf24; font-size:.76rem; }
 .sb-sec .sb-sec-body { padding-top:4px; }
 .sb-sec-head { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:4px 0; }
+/* §11.10.14 「해상 분석」·「연안 분석」 칸 머리 오른쪽 단계별 개수 배지 — 제목·꺾쇠는 줄지 않고, 좁으면 배지끼리 오른쪽 정렬로 줄바꿈(꺾쇠와 겹치지 않음) */
+.sb-sec > .marine-forecast-sub-header { gap:8px; }
+.sb-sec > .marine-forecast-sub-header > .marine-forecast-sub-title, .sb-sec > .marine-forecast-sub-header > .marine-forecast-sub-icon { flex:none; }
+.sb-sec-badges { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:4px; margin-left:auto; min-width:0; }
+/* §11.10.14 펼친 칸 안 단계 단추(하나만 고름) — 고른 것 = 단계 색 채움, 나머지 = 단계 색 테두리(색은 render 가 칠함) · 다 안 들어가면 가로 스크롤 */
+.sb-lvl-tabs { display:flex; gap:6px; margin:8px 0 2px; padding:3px 2px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+.sb-lvl-tab { flex:none; min-height:32px; padding:4px 12px; border:1.5px solid rgba(148,163,184,.5); border-radius:999px; background:transparent; color:#e2e8f0; font-size:.76rem; font-weight:800; white-space:nowrap; cursor:pointer; }
+.sb-lvl-tab:focus-visible { outline:2px solid #67e8f9; outline-offset:2px; }
 .sb-levels { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:4px 0 8px; }
 .sb-level-k { color:#94a3b8; font-size:.76rem; font-weight:700; }
 .sb-chip { display:inline-block; padding:1px 8px; border-radius:999px; font-size:.74rem; font-weight:800; white-space:nowrap; }
