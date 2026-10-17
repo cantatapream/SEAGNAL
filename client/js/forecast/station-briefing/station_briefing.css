@@ -197,6 +197,9 @@
 /* 분석 문단 강조(§11.10.9 ④) — 굵게만 여기서, 색은 station_briefing_render.js analysisNodes 가 위험예측 4색(colorOf)으로 넣는다. 문단 끝 (권고) 줄(⑤)은 근거 칸 (권고)와 같은 .sb-sum-advice */
 .sb-hl { font-weight:800; }
 .sb-hl-b { color:#f8fafc; }
+/* 분석 문단 글자의 빨강(발효 특보 · 「경계」 단계 — §11.10.11, 사용자 「추천대로」). 위험예측 4색 빨강 #e0322c 는 어두운 카드 rgb(10,16,31) 위 대비 4.21(WCAG AA 4.5 미만)이라
+   이 문단 글자에만 같은 색상(H≈2°·S≈74%)을 밝기만 52.5% → 57.5% 로 올린 #e34842(대비 4.76)를 쓴다. 지도 면·배지·막대의 4색(RiskFormat.BAND_COLORS)은 그대로. */
+.sb-analysis .sb-hl-red { color:#e34842; }
 .sb-analysis + .sb-sum-advice { margin:2px 0 6px; }
 /* 팝업 지도(§11.10.9 ⑥ — 대해구 링크·지금 밀집 링크): 관할 확인 창(.sb-dlg)과 같은 틀, 상자만 넓게(360px 에서도 좌우 16px 여백) · 지도 높이 약 62vh */
 .sb-mapdlg .sb-mapdlg-box { max-width:640px; padding:12px 12px 10px; text-align:left; }

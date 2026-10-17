@@ -616,21 +616,13 @@
         var sn = el('p', 'sb-small sb-source', note); sn.setAttribute('data-sb-source', ai ? ov.source : 'template'); body.appendChild(sn);
     }
     /**
-     * (특이사항)이 비었을 때의 글(2026-10-17 독립 검토 3). 통보문에 그날 토막이 있었는데 뽑지 못했으면(notesFound) 「없습니다」라고 하지 않고 원문을 보라고 한다 — 조용한 것이 이상 없는 것처럼 보이면 안 된다(CLAUDE.md L-291).
-     * 예: {notesFound:true, notesSource:'제주지방기상청 단기 전망 (10.17 04:40 발표)'} → '단기 전망에서 항목을 뽑지 못했습니다 — 원문(제주지방기상청 단기 전망 (10.17 04:40 발표))을 확인하세요.' · {notesFound:false} → '이 날에 해당하는 특보·강풍·해상 특이사항이 단기 전망에 없습니다.'(notesFound 가 없는 옛 브리핑도)
-     * @param {Object} W - summary.weather @returns {string} [연계] ← summaryBodyV2 · 시험 test_station_briefing.js
-     */
-    function notesEmptyText(W) {
-        return W && W.notesFound ? '단기 전망에서 항목을 뽑지 못했습니다 — 원문(' + (W.notesSource || '지방기상청 단기 전망') + ')을 확인하세요.' : '이 날에 해당하는 특보·강풍·해상 특이사항이 단기 전망에 없습니다.';
-    }
-    /**
      * (기상) 칸 — 가장 가까운 앞바다 단기 해상예보 오전·오후 두 줄 + 출처 + 특이사항(§11.10.1·§11.10.2). summaryBodyV2(§11.10.1)·summaryBodyV3(§11.10.4) 공용.
      * 2026-10-17 사용자 결정(§11.10.9): 머리 「{구역} 기상 현황」을 결론 줄(.sb-headline 「… 해상의 단계는 "평소 수준"입니다」)과 같은 모양으로 — 원문 *"그 텍스트 크기와 스타일과 동일한 크기로 그 헤더 … 경북북부앞바다 기상 현황"*.
      *   「파출소 대표 위치에서 가장 가까운 특보구역(약 0.1km)」 줄과 먼 구역 안내(서버 weather.note — 울릉·흑산처럼 앞바다가 30km 넘게 먼 곳)는 그리지 않는다 — *"아예 삭제 … 필요가 없는 내용"*. 구역 이름은 머리에 남는다.
-     *   특이사항: 항목이 있으면 머리 「특이사항」(같은 모양) + 목록 + 출처 · 항목이 없으면(단기 전망에 그날 특이사항 없음) 칸째 없음 · 자료를 못 받았거나(bulletinMissing) 뽑지 못했으면(notesFound)
-     *   실패를 「없음」처럼 숨기지 않으려고(CLAUDE.md L-291) 머리 + 그 안내 한 줄은 남긴다.
+     *   특이사항: 항목이 있으면 머리 「특이사항」(같은 모양) + 목록 + 출처 · 항목이 없으면 이유와 상관없이(그날 특이사항 없음 · 단기 전망을 못 받음(bulletinMissing) · 뽑지 못함(notesFound)) 칸째 없음 —
+     *   머리·안내·출처 줄 모두 없음(§11.10.11 사용자 결정 *"아예 빼 받지 못함 안내 넣지 말고"* — 이 자리만 L-291 「조용한 것이 이상 없는 것처럼 보이면 안 된다」보다 사용자 결정이 우선).
      * 예: weatherPart(part, {weather:{zone:'제주도서부앞바다',rows:[{label:'오늘 오전',text:'…'}],source:'…',notes:[…]}}) → <div data-sb-part="weather"><p class="sb-headline sb-wx-head">제주도서부앞바다 기상 현황</p>…</div>
-     * @param {function(string,string):HTMLElement} part - 이름표 칸 만들기 @param {Object} S - summary @returns {void} [연계] ← summaryBodyV2·summaryBodyV3 / → notesEmptyText
+     * @param {function(string,string):HTMLElement} part - 이름표 칸 만들기 @param {Object} S - summary @returns {void} [연계] ← summaryBodyV2·summaryBodyV3
      */
     function weatherPart(part, S) {
         var W = S.weather || {}, wp = part('weather', null), head = function (text, key) { var h = el('p', 'sb-headline sb-wx-head', text); h.setAttribute('data-sb-wx-head', key); wp.appendChild(h); };
@@ -639,12 +631,11 @@
             var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); li.appendChild(document.createTextNode(r.text)); wl.appendChild(li); }); wp.appendChild(wl);
             if (W.source) wp.appendChild(el('p', 'sb-small', W.source));
         } else { var wm = el('p', 'sb-miss', '기상예보 자료를 확인하지 못했습니다.'); wm.setAttribute('data-sb-wx-missing', ''); wp.appendChild(wm); }
-        if (W.bulletinMissing) { head('특이사항', 'notes'); wp.appendChild(el('p', 'sb-miss', '지방기상청 단기 전망 자료를 확인하지 못했습니다.')); return; }
-        if (Array.isArray(W.notes) && W.notes.length) {
+        if (!W.bulletinMissing && Array.isArray(W.notes) && W.notes.length) {
             head('특이사항', 'notes'); var nl = list(W.notes); nl.classList.add('sb-wx-notes'); wp.appendChild(nl);
             if (W.notesSource) wp.appendChild(el('p', 'sb-small', W.notesSource));
-        } else if (W.notesFound) { head('특이사항', 'notes'); var ne = el('p', 'sb-miss', notesEmptyText(W)); ne.setAttribute('data-sb-wx-notes-empty', 'unparsed'); wp.appendChild(ne); }
-        // 그 밖(항목 없음) — 칸째 없음: 「없습니다」 줄·출처 줄도 없다
+        }
+        // 그 밖(항목 없음·못 받음·뽑지 못함) — 칸째 없음: 머리·안내·출처 줄 모두 없다(§11.10.11)
     }
     /**
      * (물때) 칸 — 서버 물때 줄 + (고립 주의) 줄(§11.10.3 — 연안을 보일 때만). 줄이 없으면 칸도 없다. summaryBodyV2·summaryBodyV3 공용.
@@ -797,7 +788,7 @@
         return out;
     }
     /**
-     * 강조 토막을 DOM 으로(글은 textContent 로만). 'b' 굵게 · 'warn-pre' 굵게 노랑(colorOf(1)) · 'warn-on' 굵게 빨강(colorOf(3)) · 'lv' 굵게 + 그 단계 색(rank 없으면 굵게만).
+     * 강조 토막을 DOM 으로(글은 textContent 로만). 'b' 굵게 · 'warn-pre' 굵게 노랑(colorOf(1)) · 'warn-on' 굵게 빨강(.sb-hl-red — §11.10.11 대비용 밝은 빨강) · 'lv' 굵게 + 그 단계 색(경계 = .sb-hl-red, rank 없으면 굵게만).
      * 예: analysisNodes(p, '하트해변은 …', ['하트해변']) → p 에 텍스트·<span class="sb-hl sb-hl-b">하트해변은</span>… 를 붙인다
      * §11.10.9 ⑥: hg = {list:[{major,label,name,box}], area, station} 이 있으면 대해구 이름을 팝업 지도 단추로(관할 경계 + 그 대해구 테두리 깜빡임).
      * @param {HTMLElement} p @param {string} text @param {string[]} names @param {Object} [hg] @returns {void} [연계] ← summaryBodyV3 / → highlightSegments·colorOf·mapLink·openMapPopup
@@ -813,7 +804,8 @@
             }
             if (!sg.cls) { p.appendChild(document.createTextNode(sg.text)); return; }
             var sp = el('span', 'sb-hl sb-hl-' + sg.cls, sg.text);
-            if (sg.cls === 'warn-pre') sp.style.color = colorOf(1); else if (sg.cls === 'warn-on') sp.style.color = colorOf(3); else if (sg.cls === 'lv' && sg.rank !== undefined) { sp.style.color = colorOf(sg.rank); sp.setAttribute('data-rank', String(sg.rank)); }
+            // 빨강(발효 · 「경계」 단계)은 인라인 색 대신 .sb-hl-red(station_briefing.css — 이 문단 글자에만 쓰는 조금 밝은 빨강, 어두운 카드 위 대비 4.5 이상 · §11.10.11). 지도·배지의 4색은 그대로.
+            if (sg.cls === 'warn-pre') sp.style.color = colorOf(1); else if (sg.cls === 'warn-on') sp.classList.add('sb-hl-red'); else if (sg.cls === 'lv' && sg.rank !== undefined) { if (Number(sg.rank) === 3) sp.classList.add('sb-hl-red'); else sp.style.color = colorOf(sg.rank); sp.setAttribute('data-rank', String(sg.rank)); }
             p.appendChild(sp);
         });
     }
@@ -965,5 +957,5 @@
         box.appendChild(foot);
     }
     // blinking() = 지금 깜빡이는 지도 수(시험이 접기·다시 그리기 뒤 0 인지 본다 — §11.10.3)
-    w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, subtitleText: subtitleText, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, notesEmptyText: notesEmptyText, highlightSegments: highlightSegments, highlightNames: highlightNames, splitAdvice: splitAdvice, closeMapPopup: closeMapPopup, WORDS: WORDS, SOURCES: SOURCES, blinking: function () { return blinking; } };
+    w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, subtitleText: subtitleText, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, highlightSegments: highlightSegments, highlightNames: highlightNames, splitAdvice: splitAdvice, closeMapPopup: closeMapPopup, WORDS: WORDS, SOURCES: SOURCES, blinking: function () { return blinking; } };
 })(window);
