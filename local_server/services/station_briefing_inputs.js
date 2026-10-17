@@ -5,6 +5,8 @@
  *         특보·과거 선박사고), 육상(연안 하루 값·위험구역), 조석(물빠짐 앵커 곡선·잠기는 바위), 기상청 해상 기상 전망, 파출소 대표 위치.
  *         새로 외부에서 수집하지 않는다(파출소 주소 → 좌표만 운영 서버가 처음 한 번 카카오 주소 검색, 실패하면 대체 위치 + 「대표 위치 추정」 — 한 실행 60초 상한·영구 오류 6시간 쉼).
  *         연안 특보·떠밀림 안내는 그날 칸 전부(coastDayDetail daily.notices), 공식 사고예보 프레임이 빠진 칸은 frameGaps 로 넘긴다.
+ *         해역마다 가장 많이 겹치는 소해구(region.haegu.sub)의 예보 행도 붙인다(sea.weatherSmall — §11.10.19, 소해구 예보는 station_briefing.run 이 넘긴 찾기 함수로만 읽는다).
+ *         해역마다 「최근 14일 선박 동향」(region.traffic — §11.10.23, 넘겨받은 sea_traffic_profile 계산기로만, 반올림 전 도형)도 붙인다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : config/coastal_safety/coastguard_stations.geojson(관할 97곳) · coastal_hazard_zones.wgs84.geojson(위험구역)
@@ -18,6 +20,8 @@
  *                    · client/marine_zone_area.json(대해구 도형 — 총평 해구 줄 지도 펼침의 해구 상자, §11.10.3 · haeguBox) · 관할 도형(areaOf)·칸 상자(boxOf)·관광지 고립 사고 수(isolation)도 여기서 넘긴다
  *                    · regional_forecast_collector.js(loadCoastalForecasts·loadRegionalForecasts·ZONE_TO_OFFICE_MAP — 인덱스 「○○앞바다 기상예보」 표와 같은
  *                      data/regional_forecast.json 의 지방기상청 단기 해상예보·단기 전망 통보문, 처음 쓸 때 require)
+ *                    · services/risk_time.js(nearest — 소해구 예보 시각 맞추기, risk_store 대해구 forecast 와 같은 규칙) · 소해구 예보는 smallzone_forecast.peek 결과를 찾기 함수로 받는다(직접 require 하지 않음)
+                    · services/sea_traffic_profile.js(profiles — 해역별 최근 14일 선박 동향, station_briefing.run 이 계산기를 넘긴다 · 직접 require 하지 않음)
  *  - 서버 API      : 없음
  *  - 나를 쓰는 곳  : services/station_briefing.js(run) · scripts/test_station_briefing.js(순수 부분)
  * [로드 순서] 서버 require 부작용 없음. 무거운 정적 자료는 처음 쓸 때 읽는다.
@@ -241,13 +245,53 @@ function cellIndex(cells) {
     return { find(p) { return (map.get(Math.floor(p[0] * 10) + ',' + Math.floor(p[1] * 10)) || []).filter(({ c, b }) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3] && G.pointInGeometry(p, c.geometry)).map((x) => x.c).sort((a, b) => a.id.localeCompare(b.id))[0] || null; } };
 }
 /**
+ * 소해구 예보 행에서 그 3시간 칸의 값을 고른다 — 대해구 예보(risk_store forecast)와 같은 규칙: 칸 시각이 행 시각 범위(맨 앞 −1.5시간 ~ 맨 뒤 +1.5시간) 안이면
+ * 가장 가까운 행(같으면 이른 행 — risk_time.nearest), 값은 0 이상 숫자만(그 밖·null 은 null). 행 시각 tm 은 발효시각 UTC "YYYYMMDDHH"(대해구 행과 같은 꼴).
+ * 예: rows [{tm:'2026101706',wh:2.4,ws:13}] · at '2026-10-17T15:00:00+09:00' → {wh:2.4, ws:13, forecastAt:'2026-10-17T15:00:00+09:00'} · 범위 밖 → {wh:null, ws:null, forecastAt:null}
+ * @param {object[]} rows - smallzone_forecast 행 [{tm,wh,ws,…}] @param {string} at - 칸 시작(KST ISO) @returns {object} {wh, ws, forecastAt}
+ * [연계] ← smallWeather / → risk_time.nearest
+ */
+function smallRowAt(rows, at) {
+    const T = require('./risk_time'), utc = (tm) => { const m = /^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(String(tm)); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4]) : NaN; };
+    const times = (rows || []).map((r) => utc(r.tm)).filter(Number.isFinite), t = Date.parse(at);
+    const inside = times.length && t >= Math.min(...times) - 1.5 * HOUR && t <= Math.max(...times) + 1.5 * HOUR;
+    const r = inside ? T.nearest(rows, at, (x) => utc(x.tm)) : null;
+    const n = (x) => (x !== null && x !== '' && x !== undefined && Number.isFinite(Number(x)) && Number(x) >= 0 ? Number(x) : null);
+    return { wh: n(r && r.wh), ws: n(r && r.ws), forecastAt: r ? R.isoKst(utc(r.tm)) : null };
+}
+/**
+ * 해역마다 가장 많이 겹치는 소해구(region.haegu {major, sub} — risk_sea_cells.describe 가 칸 사각형과 겹친 넓이로 고른 것)의 예보 행을 붙인다(설계서 §11.10.19).
+ * 소해구마다 한 벌 — 열쇠 「232-5」. 대해구 weather[major].rows 와 같은 꼴(창의 3시간 칸마다 {at, wh, ws, forecastAt}).
+ * 못 붙이는 소해구는 넣지 않는다 → 그 해역은 규칙(seaSection)이 대해구 예보로 후퇴한다: 찾기 함수가 그 대해구를 주지 않음(저장 판 없음·지난 판) · 그 소해구 줄 없음 ·
+ * 창의 칸이 모두 파고·풍속 null(육지 소해구 — 기상청 -999).
+ * 예: smallWeather([{haegu:{major:232,sub:5}}], win, (m) => ({baseTm:'2026101700', data:{'5':[…]}})) → {'232-5':{label:'232-5해구', major:'232', sub:5, baseTm:'2026101700', rows:[{at,wh,ws,forecastAt}…]}}
+ * @param {object[]} regions - collectSea 해역 @param {object} win - editionWindow(slots) @param {Function|null} small - (대해구 번호) → {baseTm, data:{소해구:[행]}} | null
+ * @returns {object} 소해구 열쇠 → 예보 [연계] ← collectSea · services/station_briefing.js run(저장 판을 다시 받은 뒤 다시 붙임) / → smallRowAt
+ */
+function smallWeather(regions, win, small) {
+    const out = {}, seen = new Set();
+    if (typeof small !== 'function') return out;
+    for (const r of regions || []) {
+        const h = r.haegu; if (!h || h.major == null || h.sub == null) continue;
+        const key = h.major + '-' + h.sub; if (seen.has(key)) continue; seen.add(key);
+        const z = small(h.major), all = z && z.data && z.data[String(h.sub)];
+        if (!Array.isArray(all) || !all.length) continue;
+        const rows = win.slots.map((at) => { const f = smallRowAt(all, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; });
+        if (!rows.some((q) => q.wh !== null || q.ws !== null)) continue;   // 육지 소해구(값이 모두 -999 → null) — 대해구로 후퇴
+        // 이름표 「232-5해구」(2026-10-18 사용자 *"전체적으로 대해구 ## 이렇게 표현하지말고 ##해구 이런식으로 … 소해구는 ##-#해구"* — 설계서 §11.10.22 A, 종전 「소해구 232-5」)
+        out[key] = { label: key + '해구', major: String(h.major), sub: Number(h.sub), baseTm: z.baseTm || null, rows };
+    }
+    return out;
+}
+/**
  * 해상 입력을 관할마다 모은다 — 관할 안 모든 칸(공식 사고 5km 칸 + 혼잡 교통 칸, 칸 중심이 든 관할 — marine_fusion.briefing 과 같은 규칙)을
  * 해역으로 묶고(같은 공식 사고 칸에 든 교통 칸은 하나), 창의 3시간 칸마다 공식 사고 단계·그 3시간 중 가장 높은 혼잡 예보를 붙인다.
- * 예: collectSea(stations, {risk, marine, win, now}) → Map{key → {reviewedCells, regions:[{rid,lat,lon,haegu,ref,zone,slots:{at:{accident,congestion}},history}], weather:{major:{label,rows}}, warnings:[…]}}
- * @param {object[]} stations @param {object} o - risk(risk_store)·marine(marine_fusion 저장소)·win·now @returns {object} {bySt:Map, sources}
- * [연계] ← gather / → marine.stationAt·cellHistory·codec.rowAt·warningsFromTree
+ * 예: collectSea(stations, {risk, marine, win, now}) → Map{key → {reviewedCells, regions:[{rid,lat,lon,haegu,ref,zone,slots:{at:{accident,congestion}},history}], weather:{major:{label,rows}}, weatherSmall:{'232-5':{label,rows}}, warnings:[…]}}
+ * @param {object[]} stations @param {object} o - risk(risk_store)·marine(marine_fusion 저장소)·win·now·smallZone(소해구 찾기 함수 — smallWeather, 없으면 weatherSmall 은 빈 객체)
+ *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 있으면 해역마다 region.traffic = 결과|null, 없으면 필드 없음 — §11.10.23) @returns {object} {bySt:Map, sources}
+ * [연계] ← gather / → marine.stationAt·cellHistory·codec.rowAt·warningsFromTree·smallWeather·traffic.profiles
  */
-function collectSea(stations, { risk, marine, win, now, warnHistory = null }) {
+function collectSea(stations, { risk, marine, win, now, warnHistory = null, smallZone = null, traffic = null }) {
     const codec = require('./marine_congestion_codec'), inputs = risk.marineInputs(), src = inputs.sources || {};
     const byIdx = new Map(stations.map((s) => [s.idx, s])), bySt = new Map(stations.map((s) => [s.key, { cells: new Set(), groups: new Map() }]));
     const acc = inputs.accident?.cells || [], idx = cellIndex(acc), accById = new Map(acc.map((c) => [c.id, c]));
@@ -264,7 +308,7 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null }) {
     const accLevel = (key, i) => { if (!rowCache.has(key)) rowCache.set(key, new Map((frames[key] || []).map((r) => [r[0], r[2]]))); return rowCache.get(key).get(i) || null; };
     // 공식 사고예보 원천은 ok 인데 창의 어떤 칸 프레임이 없으면(예보 범위 밖·수집 누락) 그 칸은 「사고예보 없음(0)」이 아니라 「확인 불가」 — 칸 목록을 넘긴다(독립 검토 낮음).
     const accGaps = (src.accident?.status === 'ok' ? win.slots.filter((at) => !Array.isArray(frames[forecastKey(at)])) : []);
-    const zonesWanted = new Set(), out = new Map();
+    const zonesWanted = new Set(), out = new Map(), geomOf = new Map();   // geomOf = 해역 열쇠 → 반올림 전 도형(최근 14일 선박 동향 — box 는 소수 4자리로 줄인 상자라 쓰지 않는다)
     for (const s of stations) {
         const e = bySt.get(s.key), regions = [], majors = new Set();
         for (const [gid, g] of e.groups) {
@@ -281,11 +325,22 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null }) {
             const zone = b.warnSubZone ? { name: b.warnSubZone, kind: 'sub' } : b.warnZone ? { name: b.warnZone, kind: 'main' } : null;
             if (b.warnZone) zonesWanted.add(R.zoneKey(b.warnZone)); if (b.warnSubZone) zonesWanted.add(R.zoneKey(b.warnSubZone));
             if (b.haegu?.major) majors.add(b.haegu.major);
+            geomOf.set(gid, geom);
             regions.push({ rid: gid, gridId: g.traffic[0] || null, accidentGridId: g.accident?.id || null, lat: b.lat, lon: b.lon, box: boxOf(geom), haegu: b.haegu || null, ref: b.ref || null, zone, zones: [b.warnZone, b.warnSubZone].filter(Boolean), cellCount: g.traffic.length + (g.accident ? 1 : 0), slots, history: marine.cellHistory(geom, 'grid:' + (g.accident?.id || b.id)) });
         }
         const weather = {};
-        for (const major of majors) weather[major] = { label: '대해구 ' + major, box: haeguBox(major), rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
-        out.set(s.key, { reviewedCells: e.cells.size, regions, weather, zones: [...new Set(regions.flatMap((r) => r.zones))], frameGaps: accGaps.length && regions.some((r) => r.accidentGridId) ? { accident: accGaps } : {} });
+        // 이름표 「232해구」(§11.10.22 A — 종전 「대해구 232」). [기상 예보] 꼬리 「(232해구 예보)」·해구 문장 「경북북부앞바다(75해구)」가 이 글을 쓴다.
+        for (const major of majors) weather[major] = { label: major + '해구', box: haeguBox(major), rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
+        // weatherSmall(§11.10.19 — 사용자 *"소해구 기준으로 기상이 표출되어야 함."*): 해역마다 가장 많이 겹치는 소해구 예보. 없으면 그 해역만 대해구 weather 로(규칙 seaSection)
+        out.set(s.key, { reviewedCells: e.cells.size, regions, weather, weatherSmall: smallWeather(regions, win, smallZone), zones: [...new Set(regions.flatMap((r) => r.zones))], frameGaps: accGaps.length && regions.some((r) => r.accidentGridId) ? { accident: accGaps } : {} });
+    }
+    // 최근 14일 선박 동향(2026-10-18 사용자 확정 *"좋아 이렇게 하자."* — 설계서 §11.10.23): sea_traffic_profile 의 해역별 결과를 해역마다 붙인다.
+    //   넘기는 것 = 해역 열쇠(rid)·반올림 전 도형(geom — traffic_history.design.md 「2단계 때 쓰는 법」)·특보구역(zones — 풍랑·태풍 주의보·경보 시간을 뺀다). 계산이 던지면 줄만 없다(경고 한 줄, 브리핑은 계속).
+    if (traffic) {
+        const list = [...out.values()].flatMap((v) => v.regions);
+        let res = null;
+        try { res = traffic.profiles(list.map((r) => ({ key: r.rid, geometry: geomOf.get(r.rid), zones: r.zones }))); } catch (e) { console.warn('[station_briefing] 최근 14일 선박 동향 계산 실패 — 그 줄 없이 만든다: ' + (e && e.message)); }
+        for (const r of list) r.traffic = (res && res.get(r.rid)) || null;
     }
     const all = warningsFromTree(inputs.warnings?.current, zonesWanted, now);
     // 이미 해제된 특보(결정 4): 창 시작 3시간 전(육상 해제 뒤 기간 — 해상 1시간보다 길다)부터 지금까지. 같은 구역·종류가 지금 발효 중이면 다시 발효된 것이라 뺀다.
@@ -327,7 +382,7 @@ function releasedFrom(rec, zones, from, to) {
 /**
  * 육상 입력: 관할에 붙은 관광지마다 연안 하루 값(coastDayDetail — 그날 3시간 칸 중 가장 높은 칸, T24)을 그대로 쓰고, 관광지에 안 붙은 위험구역은 상시 위험 장소로.
  * 특보·떠밀림 안내는 그날 칸 전부(daily.notices — dayNoticeSummary).
- * 예: collectLand(spots, hazards, {risk, t:'2026-10-17T08:00:00+09:00'}) → {spots:[{id,name,index,band,people:{ratio,score},event,swell,rip,notices,hazard,history,missing}], hazardOnly:[…]}
+ * 예: collectLand(spots, hazards, {risk, t:'2026-10-17T08:00:00+09:00'}) → {spots:[{id,name,index,band,people:{ratio,score},event,swell,rip,notices,hazard,history,isolation,isolationYears,missing}], hazardOnly:[…]}
  * @param {object[]} spots @param {object[]} hazards @param {object} o - risk·t @returns {object} [연계] ← gather / → risk_store.coastDayDetail(읽기만)
  */
 function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory = null }) {
@@ -352,10 +407,20 @@ function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory
             people: people && !people.missing ? { ratio: people.ratio, score: people.score } : null, event: ev && ev.name ? { name: ev.name, weekend: !!ev.weekend } : null,
             swell: sw ? { periodS: sw.periodS } : null, rip: rip ? { level: rip.level } : null,
             notices: nt, released: released.filter((r) => !nt.effective.includes(r.name)),
-            hazard: hz ? { count: hz.count || 0, byType: (hz.byType || []).map((x) => ({ class: x.class, count: x.count })) } : null,
+            // warnZone = 이 관광지가 든 특보구역(risk.coastWarnings zones.warn) — 브리핑 「기상특보 현황」 표의 특보구역 칸(rules.landWarnRows, 설계서 §11.10.16 소절 E1). 모르면 null
+            warnZone: (() => { if (typeof risk.coastWarnings !== 'function') return null; try { const cw = risk.coastWarnings(p.id); return (cw && cw.zones && cw.zones.warn) || null; } catch (_) { return null; } })(),
+            // zones = 위험구역 id·종류(2026-10-18 사용자 결정 — 설계서 §11.10.20: 카드 [위험구역] 표의 [위치 보기] 지도가 /api/risk-forecast/hazard-zones?ids= 로 폴리곤을 받는다. id = 위험구역 자료의 name)
+            hazard: hz ? { count: hz.count || 0, byType: (hz.byType || []).map((x) => ({ class: x.class, count: x.count })), zones: (hz.zones || []).filter((z) => z && z.id).map((z) => ({ id: z.id, class: z.class || null })) } : null,
             // isolation = 고립 사고 수(총평 (고립 주의) 지점 표 — 2026-10-17 §11.10.3). 기록을 못 쓰면(available 아님) null — 0 과 가른다.
             isolation: acc ? acc.filter((a) => a.type === '고립').length : null,
-            history: acc ? { count: acc.length, from: d.history.from, to: d.history.to, topTypes: Object.entries(types).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).slice(0, 3).map(([type, count]) => ({ type, count })) } : null,
+            // isolationYears = 같은 고립 사고 기록의 연도별 수({2022:1, 2023:2} — 2026-10-17 사용자 결정 §11.10.10 「발생 현황」 칸). 연도는 기록의 year(없으면 date 앞 4자리),
+            //   둘 다 없으면 '미상'으로 센다(합이 isolation 과 늘 같게 — 조용히 빠지지 않게). 기록을 못 쓰면 null.
+            isolationYears: acc ? acc.filter((a) => a.type === '고립').reduce((m, a) => { const y = Number.isInteger(a.year) ? String(a.year) : /^\d{4}/.test(String(a.date || '')) ? String(a.date).slice(0, 4) : '미상'; m[y] = (m[y] || 0) + 1; return m; }, {}) : null,
+            // types·death·missing·byYear(2026-10-18 사용자 결정 — 설계서 §11.10.20 카드 [사고현황('20~'24년)]): 유형 전부 · 사망·실종 인원 합(기록의 death·missing — 숫자가 아니면 0 으로 더한다) ·
+            //   연도·유형별 건수 [{year:'2020', type:'익수', count:2}](연도 = 기록의 year, 없으면 date 앞 4자리, 둘 다 없으면 '미상' — isolationYears 와 같은 규칙)
+            history: acc ? { count: acc.length, from: d.history.from, to: d.history.to, topTypes: Object.entries(types).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).slice(0, 3).map(([type, count]) => ({ type, count })),
+                types, death: acc.reduce((n, a) => n + (Number(a.death) || 0), 0), missing: acc.reduce((n, a) => n + (Number(a.missing) || 0), 0),
+                byYear: Object.values(acc.reduce((m, a) => { const y = Number.isInteger(a.year) ? String(a.year) : /^\d{4}/.test(String(a.date || '')) ? String(a.date).slice(0, 4) : '미상', k = y + '|' + a.type; (m[k] = m[k] || { year: y, type: a.type, count: 0 }).count++; return m; }, {})) } : null,
             missing: d.missing || [],
         });
     }
@@ -366,7 +431,8 @@ function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory
  * 제주(tide_field_common.JEJU_BBOX — 추자도는 남해 쪽)이면 제주 고립판정 촘촘 격자 앵커(jeju_isolation_tide_collector, data/tide_field/curves_jeju)의 곡선으로
  * (그 격자가 없으면 제주 간출암 잠김경고 앵커 hazard_rocks_tide_collector, data/hazard_rocks/curves — 둘 다 매일 KST 23:30 자동 수집, 같은 꼴 {curve:[{t,h}],peaks:{lowTide1…}})
  * 고조·저조와 게이지용 곡선(10분 간격)을 만든다(2026-10-16 결정 5 — 원문 *"나 는 반영하자"*: 제주 관할도 조석·고립 문구). 잠기는 바위(간출암)는 관할 폴리곤 안의 것만, 그날 잠기는 시각.
- * 예: collectTide(태안 위치, '2026-10-17', geometry) → {region:'westsouth',anchorId:'A12',distKm:3.2,date:'2026-10-17',curve:[{t:'00:00',cm:312},…144],peaks:[{type:'low',t:'06:12',cm:-12},…],prevPeak,nextPeak,rocks:{count:3,first:'05:40',last:'07:10'}}
+ * 예: collectTide(태안 위치, '2026-10-17', geometry) → {region:'westsouth',anchorId:'A12',distKm:3.2,date:'2026-10-17',curve:[{t:'00:00',cm:312},…144],peaks:[{type:'low',t:'06:12',cm:-12},…],prevPeak,nextPeak,
+ *       rocks:{count:3,first:'05:40',last:'07:10',items:[{id:5,lat:36.66,lon:126.12,v:1.2,times:['05:40']},…]}}
  *     collectTide(한림 위치, …) → {region:'jeju',anchorId:'J0',…} · 동해·앵커 없음·곡선 없음 → null
  * @param {object} loc - {lat,lon} @param {string} date - YYYY-MM-DD @param {object} geometry - 관할 폴리곤
  * @param {object} [deps] - 시험용 주입(anchors·jejuAnchors·hrAnchors·readCurve(id,ymd,source)·rocks·crossings)
@@ -398,9 +464,18 @@ function collectTide(loc, date, geometry, deps = {}) {
     let rocks = null;
     try {
         const G = require('./risk_geo'), list = deps.rocks || require('./hazard_rocks_submersion').loadRocks(), cr = deps.crossings || readJson(path.join(require('./hazard_rocks_tide_common').HAZARD_ROCKS_TIDE_DIR, 'submersion.json'))?.crossings || {};
-        const times = [];
-        for (const r of list) { if (!G.pointInGeometry([r.lon, r.lat], geometry)) continue; for (const iso of cr[String(r.id)] || []) { const k = R.isoKst(Date.parse(iso)); if (k.slice(0, 10) === date) times.push(k.slice(11, 16)); } }
-        times.sort(); if (times.length) rocks = { count: new Set(list.filter((r) => (cr[String(r.id)] || []).some((iso) => R.isoKst(Date.parse(iso)).slice(0, 10) === date) && G.pointInGeometry([r.lon, r.lat], geometry)).map((r) => r.id)).size, first: times[0], last: times.at(-1) };
+        // items = 그날 잠기는 관할 안 간출암 하나하나(id·위치·간출 높이 v(m)·그날 잠기는 시각) — 총평 「잠기는 바위(간출암) N곳」을 누르면 여는 지도와
+        //   해양안전 「위험지형」 간출암 팝업(같은 id 로 /api/hazard-rocks/tide-curve)의 재료(2026-10-17 사용자 결정 — 설계서 §11.10.10). id 는 hazard_rocks.json 의 properties.id
+        //   (해양안전 위험지형 레이어 feature.get('id') 와 같은 번호 — hazard_rocks_submersion.loadRocks 주석). 첫 잠김 시각 순 → id 순.
+        const items = [];
+        for (const r of list) {
+            if (!G.pointInGeometry([r.lon, r.lat], geometry)) continue;
+            const at = (cr[String(r.id)] || []).map((iso) => R.isoKst(Date.parse(iso))).filter((k) => k.slice(0, 10) === date).map((k) => k.slice(11, 16)).sort();
+            if (at.length) items.push({ id: r.id, lat: r.lat, lon: r.lon, v: r.v, times: at });
+        }
+        items.sort((a, b) => a.times[0].localeCompare(b.times[0]) || String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
+        const times = items.flatMap((x) => x.times).sort();
+        if (times.length) rocks = { count: items.length, first: times[0], last: times.at(-1), items };
     } catch (_) { rocks = null; /* 간출암 자료 없음 — 문구만 빠진다 */ }
     return { region, anchorSource: source, anchorId: near.a.id, distKm: +near.d.toFixed(1), date, status: cur.status || null, curve, peaks, prevPeak: prev, prevDayPeaks, nextPeak: next, rocks };
 }
@@ -535,17 +610,19 @@ function collectZoneWeather(loc, regional) {
  * @param {object} o - stations(대상 관할만)·allStations·risk·marine·win·now·locations(key→위치)·hazards(Map)·spotsBySt(Map)·tideDeps
  *                     ·warnHistory(특보 구간 기록 — sea_warning_history 기록기, 없으면 이미 해제된 특보는 보지 않는다)
  *                     ·regional(regionalForecast() 결과 — 없으면 (기상) 칸은 「자료를 확인하지 못했습니다」)
+ *                     ·smallZone(소해구 예보 찾기 함수 (대해구) → {baseTm, data}|null — station_briefing.run 이 저장 판·판 비교로 만든다, §11.10.19. 없으면 모든 해역이 대해구 예보)
+ *                     ·traffic(sea_traffic_profile 계산기 — collectSea 가 해역마다 최근 14일 선박 동향을 붙인다, §11.10.23. 없으면 그 줄 없음)
  * @returns {object[]} [연계] ← station_briefing.run / → collectSea·collectLand·collectTide·collectZoneWeather
  */
-function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null, regional = null }) {
-    const sea = collectSea(stations, { risk, marine, win, now, warnHistory });
+function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null, regional = null, smallZone = null, traffic = null }) {
+    const sea = collectSea(stations, { risk, marine, win, now, warnHistory, smallZone, traffic });
     const landT = win.targetDate === R.kstDate(now) ? R.isoKst(Math.floor(now / 60000) * 60000) : win.targetDate + 'T00:00:00+09:00';
     return stations.map((st) => {
         const spots = spotsBySt.get(st.key) || [], hz = hazards.get(st.key) || [], s = sea.bySt.get(st.key);
         return {
             key: st.key, name: st.name, office: st.office, region: st.region, seaOnly: st.seaOnly, seaOnlyReason: st.seaOnlyReason,
             location: locations[st.key] || null, sources: sea.sources, area: areaOf(st.geometry),
-            sea: { reviewedCells: s.reviewedCells, regions: s.regions, weather: s.weather, warnings: s.warnings, frameGaps: s.frameGaps },
+            sea: { reviewedCells: s.reviewedCells, regions: s.regions, weather: s.weather, weatherSmall: s.weatherSmall, warnings: s.warnings, frameGaps: s.frameGaps },
             places: spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon })).concat(spots.length ? [] : hz.map((z) => ({ name: z.place, lat: z.lat, lon: z.lon }))),
             land: st.seaOnly ? null : collectLand(spots, hz, { risk, t: landT, now, warnHistory }),
             tide: collectTide(locations[st.key], win.targetDate, st.geometry, tideDeps),
@@ -554,4 +631,4 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
     });
 }
 
-module.exports = { areaOf, boxOf, haeguBox, loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };
+module.exports = { areaOf, boxOf, haeguBox, loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, smallWeather, smallRowAt, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };

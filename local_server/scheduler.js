@@ -158,6 +158,7 @@ const lastRunStatus = {
     scuba: { lastRun: null, status: '대기 중', message: '' },    // 스킨스쿠버 지수
     ripcurrent: { lastRun: null, status: '대기 중', message: '' }, // 이안류 지수 (실시간)
     swimming: { lastRun: null, status: '대기 중', message: '' }, // 해수욕 지수
+    smallZone: { lastRun: null, status: '대기 중', message: '' }, // 소해구 예보(브리핑용 미리 받기, §11.10.18)
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -209,6 +210,10 @@ const regionalBulletinCollector = require('./regional_bulletin_collector');
 const khoaStreamCache = require('./services/khoa_stream_cache');
 // [해구 예보 판 비교 — 2026-10-15] 찾은 판이 가진 판보다 오래되면 덮어쓰지 않고, 결과를 data/zone_forecasts_status.json 에 남긴다.
 const zoneGuard = require('./services/zone_forecast_guard');
+// [소해구 예보 — 2026-10-17 §11.10.18] 대해구 예보가 판을 저장한 직후 브리핑용 대해구의 소해구 예보를 같은 판으로 미리 받는다.
+//   키는 여기서 넘긴다(모듈은 키를 저장·로그하지 않는다). 창 클릭용 조회는 routes/weather.js 가 같은 모듈의 get 을 부른다.
+const smallZoneForecast = require('./services/smallzone_forecast');
+smallZoneForecast.configure({ getKey: () => CONFIG.KMA_HUB_KEY });
 
 // [물빠짐 예측 — Phase 1] 서해·남해 앵커 1분 조위곡선 배치 수집기.
 //   anchors.json(build_tide_field.js 산출) 을 순회하며 오늘~+2일(KST) TideBED
@@ -625,6 +630,16 @@ async function collectZoneForecasts() {
                 saveData('zone_forecasts.json', { updatedAt: getNowStr(), baseTmUtf: validBaseTm, data: zoneDataMap, count: Object.keys(zoneDataMap).length });
                 lastRunStatus.zone = { lastRun: getNowStr(), status: '성공', message: `${Object.keys(zoneDataMap).length}개 구역 저장` };
                 zoneGuard.record(CONFIG.DATA_DIR, { result: zoneVerdict, stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
+                // [소해구 예보 미리 받기 — §11.10.18] 같은 판으로 브리핑용 대해구만. 기다리지 않는다 — 실패해도 대해구 수집 결과·흐름은 그대로.
+                //   같은 판을 이미 빠짐없이 받았으면 모듈이 요청 없이 돌아온다(30분마다 여기를 지나도 판당 한 번).
+                //   Promise.resolve().then 안에서 부른다 — 목록 계산이 던져도 이 try 의 catch(프로덕션 프록시로 대해구를 덮어씀)로 가지 않게.
+                Promise.resolve().then(() => smallZoneForecast.prefetch(smallZoneForecast.briefingLzones(), validBaseTm)).then((r) => {
+                    if (r.skipped) return;
+                    lastRunStatus.smallZone = { lastRun: getNowStr(), status: r.failed === 0 ? '성공' : (r.got ? '일부 실패' : '실패'),
+                        message: `${r.baseTm} 판 · 대해구 ${r.lzones}개 · 요청 ${r.requests}번 중 실패 ${r.failed}` };
+                }).catch((e) => {
+                    lastRunStatus.smallZone = { lastRun: getNowStr(), status: '실패', message: smallZoneForecast.mask(e.message) };
+                });
             } else {
                 zoneGuard.record(CONFIG.DATA_DIR, { result: 'empty', stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
             }

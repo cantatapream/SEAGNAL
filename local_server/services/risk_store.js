@@ -160,7 +160,11 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         out.swell.baseTm=cache.swell.data?.baseTm||null;out.swell.frames=cache.swell.data?.fctTimes?.length||0;
         const accident=cache.accident.data,attempt=cache.accident.attempt,local=new Date(now+9*T.HOUR),hour=local.getUTCHours(),base=Date.parse(date+'T00:00:00+09:00');
         const latestWindow=base+(hour>=15?15:hour>=3?3:-9)*T.HOUR,checked=timestamp(attempt?.checkedAt);
-        if(accident&&out.accident.status==='ok'&&(accident.date!==date||!checked||checked<latestWindow))out.accident.status='stale';
+        // 03시 전에는 가장 새 판이 전날 15시 판(latestWindow 도 전날 15시)이라 그 판의 날짜는 어제다 — 오늘 날짜와만 비교하면
+        //   그 판이 오늘 00~21시 칸을 다 담고 있는데도 매일 00:00~03:10 낡음이 되어 위험 예측 지도 칸이 사라졌다
+        //   (사용자 2026-10-18 01:12 「지금 시간 기준으로 위험예측을 눌러도 격자가 안나오는데」). 03시 이후는 종전대로 오늘 판만.
+        const expectedDate=hour>=3?date:io.day(base-T.HOUR);
+        if(accident&&out.accident.status==='ok'&&(accident.date!==expectedDate||!checked||checked<latestWindow))out.accident.status='stale';
         Object.assign(out.accident,{createdAt:accident?.createdAt||null,checkedAt:attempt?.checkedAt||null,frames:Object.keys(accident?.frames||{}).length,date:accident?.date||null,source:'한국해양교통안전공단 MTIS 선박사고 위험예보',callCap:attempt?.callCap??90});
         const tour=cache.tourConcentration.data;out.tourConcentration.date=tour?.date||null;out.tourConcentration.spotsMatched=Object.keys(tour?.values||{}).length;out.tourConcentration.spotsTotal=staticTable?.spots?.length||0;
         const observation=cache.tourConcentration.attempt?.observation;if(observation)out.tourConcentration.observation={samples:observation.samples??0,...Object.fromEntries(['firstRun','windowEndsAt','lastObservedAt','lastChangedAt'].map(key=>[key,timestamp(observation[key])?T.isoKst(timestamp(observation[key])):null]))};

@@ -191,6 +191,7 @@ bash scripts/refactor/verify_all.sh
 - `RiskForecast.visiblePadding()`이 [위 30, 오른쪽 40, 아래 (지도 아래 − 시트 윗변) + 30, 왼쪽 40]px를 돌려준다. 지도에 `fit`할 때 이 값을 `padding`으로 쓰면 대상이 시트 위 남은 영역의 정확히 가운데에 온다. 시트가 닫혀 있으면 아래 여백은 30px다.
 - 이동 직전에 계산한다(`marinePoint`는 시트가 회색 틀로 바뀌기 전의 높이). 시트 높이는 서브탭 열림 여부에 따라 달라지므로 고정 비율(예전 50%·60%)을 쓰지 않는다.
 - 위험구역 이동 뒤 `RiskSheet.markZone(id)`가 목록 표시를 맞춘다.
+- **브리핑 바로가기(`goTo`) — 2026-10-17**: `visiblePadding(true)`(opening) 는 시트가 아직 0.2초 대기 중(`.open` 없음)이어도 시트가 다 올라왔을 때의 높이를 뺀다 — 높이는 `sheetTop` 이 잰다(그려져 있으면 `offsetHeight`, 곧 열릴 참이거나 숨어 있으면 CSS `max-height` 와 견줘 큰 쪽, 올라오는 transform 은 뺀 제자리). `frameTo` 가 선택 테두리 범위(`RiskMapLayer.selectionExtent`)를 이 여백으로 맞추고, 상세가 그려진 뒤 실제 높이로 한 번 고친다(`framed`·`ResizeObserver`, 8px 넘게 다를 때만). 종전 `goTo` 는 `.open` 전 `visiblePadding()` 을 불러 아래 여백 30px 로 옮겨 칸이 시트 뒤에 숨었다. 검사 `test_risk_goto_frame`.
 
 ## 가 연안 2일 제한 — 2026-10-15
 
@@ -319,7 +320,7 @@ bash scripts/refactor/verify_all.sh
 - **탭 복귀**(`life_safety.js` `_unparkSafety` → `select`): 다시 열 때도 테두리 즉시·0.2초 뒤 올라옴.
 - **움직임 줄이기**: `prefers-reduced-motion:reduce` 면 `.rf-sheet` transition 을 끈다(바로 제자리·바로 아래). 해양종합정보 시트에는 이 규칙이 없다(`style.css` 확인) — 위험예측에만 더했다. 0.2초 대기는 움직임이 아니라 그대로 둔다.
 - **지도 스피너(`waitStart`, 250ms)와는 따로다** — 그것은 지도 색 요청(`refresh`)을 기다릴 때만이고 `select` 는 부르지 않는다. 시트 안의 기다림은 회색 틀이다.
-- `visiblePadding()`(위험구역·관할 해역 이동 여백)은 `.open` 시트의 `getBoundingClientRect` 를 쓰는데 올라오는 0.3초 동안은 덜 올라온 위치를 잰다. 이 이동은 열린 시트 안 버튼에서만 시작돼 실제로는 다 올라온 뒤다.
+- `visiblePadding()`(위험구역·관할 해역 이동 여백)은 `.open` 시트의 `getBoundingClientRect` 를 쓰는데 올라오는 0.3초 동안은 덜 올라온 위치를 잰다. 이 이동은 열린 시트 안 버튼에서만 시작돼 실제로는 다 올라온 뒤다. (2026-10-17 고침: 이제 `sheetTop` 이 transform 을 뺀 제자리로 잰다 — 올라오는 중이어도 같은 값.)
 - 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_select_motion.js` (선택 `RISK_MOTION_SHOTS=<폴더>` — 누른 순간·올라오는 중 90/150ms·다 올라옴 380px PNG). 1부는 페이지 안 가짜 타이머로 0.2초·0.3초를 한 칸씩, 2부는 실제 지도 클릭과 계산된 transform(시간을 재지 않고 제자리까지 기다림). 다른 시트 시험(`test_risk_sheet_ui`)은 시트를 잴 때 다 올라오기를 기다린다(`waitUp`).
 
 ## 연안 하루 하나·날짜 넘기기·시트 열림 중 지도 클릭 무시 — 2026-10-16 (T24)

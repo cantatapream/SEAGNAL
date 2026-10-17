@@ -28,6 +28,8 @@
  *                    .rock-tide-popup(조석 곡선 팝업 CSS)
  *  - 나를 쓰는 곳  : ocean_map.js buildMap() → window.initHazardRocksLayer(oceanMap)
  *                    ocean_map.js handleMapClick → window._hazardRocksTryHandleClick
+ *                    forecast/station-briefing/station_briefing_render.js → window.HazardRockTidePanel
+ *                      (연안 안전 브리핑 「잠기는 바위(간출암) N곳」 지도의 마커를 누르면 이 파일의 같은 조석 곡선 상자 — 설계서 §11.10.10)
  * [로드 순서] ocean_map.js 다음 · life_safety.js 바로 앞 (marine-life/safety 그룹)
  * [데이터 출처] 국립해양조사원 개방海 전자해도 TL_UWTROC_P_LV5(간출암·세암·암암)·
  *              TL_LNDARE_P_LV5(노출암), local_server/scripts/build_hazard_rocks.js 로 생성.
@@ -77,7 +79,7 @@
     //   아래 "조석" 카드는 ocean_bottom_sheet3.js(해양종합정보 해점 클릭 카드)와 똑같은
     //   .ocean-tide-* 클래스(style.css 에 이미 정의됨)를 그대로 재사용한다.
     var tideCurveOverlay = null;  // 위 bubbleOverlay 와 별개(버튼이 있어 pointer-events 필요)
-    var _tideCurveState = null;   // { rockId, day(0~2) }
+    var _tideCurveState = null;   // 해양안전 지도 팝업의 { rockId, day(0~2), cache, lon, lat, el } — 같은 상자 그리기(mountTidePanel)를 브리핑도 쓴다(§11.10.10)
     var TIDE_CURVE_URL = '/api/hazard-rocks/tide-curve';
     var DAY_LABELS = ['오늘', '내일', '모레'];
     // 팝업 예상 높이(px) — 실제 DOM 측정 대신 고정값(CSS 레이아웃과 대략 맞춤). 날짜를
@@ -301,6 +303,7 @@
 
     function hideTideCurveOverlay() {
         if (tideCurveOverlay) tideCurveOverlay.setPosition(undefined);
+        if (_tideCurveState) _tideCurveState.closed = true;   // 늦게 도착한 응답을 버린다(prefetchAllTideDays)
         _tideCurveState = null;
         // 하드웨어/제스처 뒤로가기가 이 팝업부터 닫도록 스택에서 제거(PopupStack.popLast
         // 가 부른 경우엔 이미 pop 되었지만 remove 는 없는 id에 대해 안전 — backbutton.js).
@@ -331,13 +334,13 @@
         view.animate({ center: target, duration: 300 });
     }
 
-    /** 날짜 전환(-1/+1, 0~2 범위 밖이면 무시) 후 다시 렌더링. */
-    function changeTideCurveDay(delta) {
-        if (!_tideCurveState) return;
-        var next = _tideCurveState.day + delta;
+    /** 날짜 전환(-1/+1, 0~2 범위 밖이면 무시) 후 다시 렌더링. state = 그 상자의 상태(해양안전 팝업·브리핑 상자가 각자 — §11.10.10). */
+    function changeTideCurveDay(state, delta) {
+        if (!state || state.closed) return;
+        var next = state.day + delta;
         if (next < 0 || next > 2) return;
-        _tideCurveState.day = next;
-        renderTideCurveDay();
+        state.day = next;
+        renderTideCurveDay(state);
     }
 
     // ── 조석 곡선 팝업 렌더링 보조 함수 ──────────────────────────────────────
@@ -628,9 +631,9 @@
      * state.cache[day] 에 저장한다 — 서버가 이미 매일 밤 3일치 원본 곡선을 다
      * 모아두므로(§HAZARD_ROCKS_HANDOFF §6.10) 굳이 날짜 넘길 때마다 새로 기다릴
      * 필요가 없다(사용자 피드백: "이미 데이터가 있는데 왜 딜레이가 있냐").
-     * 팝업이 닫히거나 다른 암초로 바뀌면(state 객체 자체가 교체됨) 늦게 도착한
-     * 응답은 무시한다.
-     * @param {Object} state - _tideCurveState 그 객체(참조 비교로 최신성 판별)
+     * 팝업이 닫히거나 다른 암초로 바뀌면(state.closed — 같은 상자에 새 state 가 들어오면
+     * 옛 state 를 닫는다) 늦게 도착한 응답은 무시한다.
+     * @param {Object} state - mountTidePanel 이 만든 그 상자의 상태
      */
     function prefetchAllTideDays(state) {
         [0, 1, 2].forEach(function (day) {
@@ -638,25 +641,25 @@
                 .then(function (r) { return r.json(); })
                 .catch(function () { return { success: false }; })
                 .then(function (data) {
-                    if (_tideCurveState !== state) return; // 팝업이 닫혔거나 다른 암초로 전환됨
+                    if (state.closed) return; // 팝업이 닫혔거나 다른 암초로 전환됨
                     state.cache[day] = data;
                     // 지금 보는 날짜 자신이 막 도착했거나, 그 바로 옆날(전날/다음날)이 막
                     // 도착한 경우도 다시 그린다 — 게이지가 자정 경계를 넘길 때 옆날 첫/마지막
                     // 극값을 빌려써야 하는데, 3일 요청이 병렬이라 옆날이 조금 늦게 올 수 있다.
-                    if (Math.abs(state.day - day) <= 1) renderTideCurveDay();
+                    if (Math.abs(state.day - day) <= 1) renderTideCurveDay(state);
                 });
         });
     }
 
     /**
-     * _tideCurveState.cache[day] 를 그려 보여준다(이미 prefetchAllTideDays 로
+     * state.cache[day] 를 그 상자(state.el)에 그려 보여준다(이미 prefetchAllTideDays 로
      * 받아둔 데이터가 있으면 즉시, 아직 안 왔으면 로딩 스피너 — 해양종합정보
      * 해점 클릭 카드와 같은 스피너 스타일(.ocean-tide-spinner)을 재사용한다).
+     * @param {Object} state - mountTidePanel 이 만든 상태 {rockId, day, cache, lon, lat, el}
      */
-    function renderTideCurveDay() {
-        if (!_tideCurveState || !tideCurveOverlay) return;
-        var state = _tideCurveState;
-        var el = tideCurveOverlay.getElement();
+    function renderTideCurveDay(state) {
+        if (!state || state.closed) return;
+        var el = state.el;
         var dayLabelEl = el.querySelector('.rtp-daylabel');
         var loadingEl = el.querySelector('.rtp-loading');
         var bodyEl = el.querySelector('.rtp-body');
@@ -707,19 +710,25 @@
     }
 
     /**
-     * 간출암(k=1) 낱개 마커 탭 시 조석 곡선 팝업을 연다 — 팝업이 화면 가운데 오고
-     * 마커가 그 바로 아래(팝업 꼬리 위치)에 오도록 지도를 이동시킨 뒤, 3일치를
-     * 한꺼번에 미리 받아온다(이후 날짜 전환은 changeTideCurveDay 가 캐시에서 즉시 표시).
-     * @param {ol.Map} map
-     * @param {ol.Feature} feature - 간출암 포인트 feature(k===1)
+     * 간출암 조석 곡선 상자의 제목. 예: 1.0 → '간출암 · 저조 시 1.0m 노출' · 높이 없음 → '간출암'.
+     * @param {number|null} v - 간출 높이(m) @returns {string} [연계] ← openTideCurvePopup·window.HazardRockTidePanel(브리핑 — §11.10.10)
      */
-    function openTideCurvePopup(map, feature) {
-        if (bubbleOverlay) bubbleOverlay.setPosition(undefined);
-        var overlay = ensureTideCurveOverlay(map);
-        var v = feature.get('v');
-        var title = (typeof v === 'number') ? ('간출암 · 저조 시 ' + v.toFixed(1) + 'm 노출') : '간출암';
+    function tidePanelTitle(v) {
+        return (typeof v === 'number') ? ('간출암 · 저조 시 ' + v.toFixed(1) + 'm 노출') : '간출암';
+    }
 
-        var el = overlay.getElement();
+    /**
+     * 간출암 조석 곡선 상자의 속(제목·닫기·오늘/내일/모레·곡선·조석 카드)을 el 안에 그리고 3일치를 받는다.
+     * 해양안전 「위험지형」 팝업(openTideCurvePopup — ol.Overlay 의 요소)과 연안 안전 브리핑의 바위 지도(§11.10.10 —
+     * window.HazardRockTidePanel.mount)가 이 한 함수를 같이 쓴다 — 같은 마크업·같은 API(/api/hazard-rocks/tide-curve)·같은 그리기.
+     * 같은 el 에 다시 그리면 그 el 의 옛 상태를 닫는다(늦은 응답 무시).
+     * 예: mountTidePanel(div, {rockId:812, v:0.9, lon:126.2, lat:33.4, onClose:fn}) → {rockId:812, day:0, cache:{}, lon, lat, el:div}
+     * @param {HTMLElement} el - 상자 요소(.hazard-rock-popup.rock-tide-popup 이어야 index2.html 의 모양이 붙는다)
+     * @param {{rockId:(number|string), v:(number|null), lon:number, lat:number, onClose:Function}} o
+     * @returns {Object} 상태 [연계] ← openTideCurvePopup·HazardRockTidePanel.mount / → renderTideCurveDay·prefetchAllTideDays·changeTideCurveDay
+     */
+    function mountTidePanel(el, o) {
+        if (el._rtpState) el._rtpState.closed = true;
         el.innerHTML =
             '<div class="rtp-header"><span class="rtp-title"></span>' +
             '<button type="button" class="rtp-close" aria-label="닫기">×</button></div>' +
@@ -737,20 +746,34 @@
             '<hr class="rtp-divider" />' +
             '<div class="rtp-tidecard ocean-tide-wrap"></div>' +
             '</div>';
-        el.querySelector('.rtp-title').textContent = title;
-        el.querySelector('.rtp-close').addEventListener('click', hideTideCurveOverlay);
-        el.querySelector('.rtp-prev').addEventListener('click', function () { changeTideCurveDay(-1); });
-        el.querySelector('.rtp-next').addEventListener('click', function () { changeTideCurveDay(1); });
+        var state = { rockId: o.rockId, day: 0, cache: {}, lon: o.lon, lat: o.lat, el: el };
+        el._rtpState = state;
+        el.querySelector('.rtp-title').textContent = tidePanelTitle(o.v);
+        el.querySelector('.rtp-close').addEventListener('click', o.onClose);
+        el.querySelector('.rtp-prev').addEventListener('click', function () { changeTideCurveDay(state, -1); });
+        el.querySelector('.rtp-next').addEventListener('click', function () { changeTideCurveDay(state, 1); });
+        renderTideCurveDay(state);
+        prefetchAllTideDays(state);
+        return state;
+    }
 
+    /**
+     * 간출암(k=1) 낱개 마커 탭 시 조석 곡선 팝업을 연다 — 팝업이 화면 가운데 오고
+     * 마커가 그 바로 아래(팝업 꼬리 위치)에 오도록 지도를 이동시킨 뒤, 3일치를
+     * 한꺼번에 미리 받아온다(이후 날짜 전환은 changeTideCurveDay 가 캐시에서 즉시 표시).
+     * 상자 속은 mountTidePanel(브리핑 바위 지도와 같은 함수 — §11.10.10).
+     * @param {ol.Map} map
+     * @param {ol.Feature} feature - 간출암 포인트 feature(k===1)
+     */
+    function openTideCurvePopup(map, feature) {
+        if (bubbleOverlay) bubbleOverlay.setPosition(undefined);
+        var overlay = ensureTideCurveOverlay(map);
         var coord = feature.getGeometry().getCoordinates();
         overlay.setPosition(coord);
         centerViewOnPopupAnchor(map, coord, TIDE_POPUP_EST_HEIGHT_PX);
 
         var lonLat = ol.proj.toLonLat(coord);
-        var state = { rockId: feature.get('id'), day: 0, cache: {}, lon: lonLat[0], lat: lonLat[1] };
-        _tideCurveState = state;
-        renderTideCurveDay();
-        prefetchAllTideDays(state);
+        _tideCurveState = mountTidePanel(overlay.getElement(), { rockId: feature.get('id'), v: feature.get('v'), lon: lonLat[0], lat: lonLat[1], onClose: hideTideCurveOverlay });
 
         // 하드웨어/제스처 뒤로가기 버튼을 눌렀을 때 이 팝업부터 닫히도록 등록.
         if (window.PopupStack) window.PopupStack.push('rock-tide-popup', hideTideCurveOverlay);
@@ -1164,6 +1187,25 @@
         bindToggle(map, 'ocean-exposed-toggle-btn', function () { return exposedLayer; });
         bindToggle(map, 'ocean-rock-toggle-btn', function () { return rockLayer; });
         bindTerrainToggle(map);
+    };
+
+    /**
+     * [외부 API — 2026-10-17 사용자 결정, 설계서 §11.10.10] 연안 안전 브리핑의 「잠기는 바위(간출암) N곳」 지도가 이 파일의
+     * 간출암 조석 곡선 상자를 **그대로** 쓰게 내보낸다(복제하지 않는다). 해양안전 「위험지형」 팝업도 같은 mountTidePanel 을 쓴다.
+     *  - mount(el, {rockId, v, lon, lat, onClose}) → {close()} : el(.hazard-rock-popup.rock-tide-popup)에 상자를 그리고 3일치를 받는다.
+     *    rockId = hazard_rocks.json 의 properties.id(서버 hazard_rocks_submersion.loadRocks 의 id — 브리핑 서버가 그 값을 그대로 준다).
+     *  - title(v) : 상자 제목('간출암 · 저조 시 1.0m 노출') · icon : 낱개 간출암 마커 그림(위험지형과 같은 그림) · iconScale : 그 배율.
+     * 예: var p = HazardRockTidePanel.mount(div, {rockId:812, v:0.9, lon:126.2, lat:33.4, onClose:closeFn}); … p.close();
+     * [연계] ← client/js/forecast/station-briefing/station_briefing_render.js(rocksLine·miniMap·openRockPanel) / → mountTidePanel·tidePanelTitle
+     */
+    window.HazardRockTidePanel = {
+        mount: function (el, o) {
+            var state = mountTidePanel(el, o);
+            return { close: function () { state.closed = true; } };
+        },
+        title: tidePanelTitle,
+        icon: ICON_TIDAL,
+        iconScale: ICON_SCALE
     };
 
     /**

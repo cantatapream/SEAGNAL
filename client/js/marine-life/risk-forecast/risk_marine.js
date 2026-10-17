@@ -1,6 +1,6 @@
 /**
  * 파일명: client/js/marine-life/risk-forecast/risk_marine.js
- * 역할  : 해상 지점 시트 본문(위 카드 위험 예측·밀집도/혼잡도, 과거 2주간 선박교통량 그래프, 이 해역 과거 선박사고 도넛·팝업,
+ * 역할  : 해상 지점 시트 본문(위 카드 위험 예측·밀집도/혼잡도, 지난 2주간 선박교통량 그래프, 이 해역 과거 선박사고 도넛·팝업,
  *         날씨 아코디언, 출처)과 관할 브리핑을 그린다. 화면 모양은 2026-10-15 확정 시안 8차(+추가 확정 5가지)를 따른다.
  *         위 카드 두 줄의 [?] 기준 설명 팝업·위험 예측 설명 문장 자간 맞춤은 2026-10-16 사용자 확정.
  *         선종·톤수 구성은 표시하지 않는다(사용자 결정 2026-10-15 「톤수, 선박 종류는 API에서 제공하지않는다고
@@ -107,12 +107,12 @@
     /** 이 지점의 교통량 이력 칸 번호(GR4)를 고른다. 예: current.gridId 우선, 없으면 그 시각 혼잡 예보 칸. 없으면 null.
      * @param {object} m - marine @returns {string|null} [연계] ← RiskForecast.detail(sea/traffic-history?cell=) · fillTraffic */
     function cellOf(m){var id=(m&&m.current&&m.current.gridId)||(m&&m.congestion&&m.congestion.gridId)||null;return typeof id==='string'&&/^GR4_/.test(id)?id:null;}
-    /** 「과거 2주간 선박교통량」 카드의 틀(머리·평균 칸·그래프 자리·범례). 값은 fillTraffic 이 채운다.
+    /** 「지난 2주간 선박교통량」 카드의 틀(머리·평균 칸·그래프 자리·범례). 값은 fillTraffic 이 채운다.
      * 예: 지금 → 「16:10 기준 · 2분 전」, 미래 → 「지금 16:10 기준」(평균 칸 노란 테두리)
      * @param {object} m @param {object} ctx @returns {string} HTML [연계] ← render */
     function trafficCard(m,ctx){var c=m.current,live=c&&c.status==='ok'&&Number.isFinite(c.count),at=live&&(c.sourceAt||c.collectedAt),ago=at&&ctx&&ctx.now?Math.max(0,Math.round((Date.parse(ctx.now)-Date.parse(at))/60000)):null,now=isNow(m,ctx);
         var src=at&&hm(at)?(now?hm(at)+' 기준'+(ago===null?'':ago?' · '+ago+'분 전':' · 방금'):'지금 '+hm(at)+' 기준'):'';
-        return '<section class="rf-card rf-traffic" data-traffic-card><h4>과거 2주간 선박교통량<span class="rf-src">'+src+'</span></h4><div class="rf-tile rf-avg'+(now?'':' fut')+'"><small data-avg-name>2주 평균</small><b class="none" data-avg-value>-</b></div><div class="rf-chart" data-chart aria-busy="true"></div><div class="rf-leg" data-chart-leg><span><i class="ln"></i>선박 수</span><span class="zh" data-zoom></span></div><p class="rf-muted rf-chart-msg" data-chart-msg hidden></p></section>';}
+        return '<section class="rf-card rf-traffic" data-traffic-card><h4>지난 2주간 선박교통량<span class="rf-src">'+src+'</span></h4><div class="rf-tile rf-avg'+(now?'':' fut')+'"><small data-avg-name>2주 평균</small><b class="none" data-avg-value>-</b></div><div class="rf-chart" data-chart aria-busy="true"></div><div class="rf-leg" data-chart-leg><span><i class="ln"></i>선박 수</span><span class="zh" data-zoom></span></div><p class="rf-muted rf-chart-msg" data-chart-msg hidden></p></section>';}
     /** 사고 한 건의 인명피해 글자 — 사망·실종이 있을 때만. 예: {death:1,missing:2} → '사망 1명·실종 2명', 0·0 이나 기록 없음(null) → ''
      * 사용자 2026-10-15 「사망, 실종이 기록되지 않은 사고는 그냥 인명피해 관련 내용을 넣지 말아. 기록없다고 표기하지말고. 사망, 실종 만 표기해.」
      * @param {object} a - 사고 @returns {string} [연계] ← 팝업·인명피해 줄 */
@@ -198,7 +198,7 @@
         return '<section class="rf-card rf-wx"><button type="button" class="rf-wx-head" aria-expanded="'+open+'" data-wx><h4>'+(isNow(m,ctx)?'지금 이 해역 날씨':'이 해역 '+whenText(m.t,ctx&&ctx.now)+' 예보')+'</h4>'+warnBadge(m)+'<i class="chev" aria-hidden="true"></i></button>'
             +'<div class="rf-wx-body" data-wx-body'+(open?'':' hidden')+'>'+warnBoxes(m)+'<p class="g">파도</p><div class="rf-grid rf-grid3">'+tile('유의파고',x.wh,'m')+tile('파주기',x.wp,'초')+dirTile('파향',x.wd)+'</div><p class="g">바람</p><div class="rf-grid">'+tile('풍속',x.ws,'m/s')+dirTile('풍향',x.windDir)+'</div></div></section>';}
     /**
-     * 해상 지점 시트 본문 HTML 을 만든다. 순서: 위 카드 → 과거 2주간 선박교통량 → 이 해역 과거 선박사고 → 날씨 → 출처([기준 상세]는 2026-10-16 시트 머리로).
+     * 해상 지점 시트 본문 HTML 을 만든다. 순서: 위 카드 → 지난 2주간 선박교통량 → 이 해역 과거 선박사고 → 날씨 → 출처([기준 상세]는 2026-10-16 시트 머리로).
      * 예: render(marine,{now:'2026-10-15T16:12:00+09:00'})
      * @param {object} m - marine 분석 @param {object} [ctx] - {now: 서버 meta.now} @returns {string} HTML
      * [연계] ← RiskSheet.show → 이어서 attach(이벤트) / 공식 단계에 자체 가중치를 더하지 않는다. 서버 문자열은 전부 escape.
@@ -207,7 +207,7 @@
     function render(m,ctx){
         var key=[m.location,m.point&&m.point.lon,m.point&&m.point.lat,m.t].join('|');if(key!==ui.key){ui.key=key;ui.z={s:1,off:0,tap:null};ui.wxOpen=false;var op=document.querySelector('.rf-acc-pop');if(op){op._opener=null;closeAcc(op);}}   // 다른 지점·시각을 그리면 열린 팝업(사고·[?])을 닫는다
         return hero(m,ctx)+trafficCard(m,ctx)+accidents(m.history)+weather(m,ctx)
-            +'<div class="rf-cite"><dl><dt>출처</dt><dd>위험 예측·혼잡도·과거 2주간 선박교통량: 해양교통안전공단 API</dd><dt></dt><dd>이 해역 날씨: 기상청 해구별 예보</dd><dt></dt><dd>이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋</dd></dl></div>';   // [기준 상세]는 시트 머리 부제 줄 오른쪽 끝으로 옮겼다(2026-10-16 T8, risk_sheet.js)
+            +'<div class="rf-cite"><dl><dt>출처</dt><dd>위험 예측·혼잡도·지난 2주간 선박교통량: 해양교통안전공단 API</dd><dt></dt><dd>이 해역 날씨: 기상청 해구별 예보</dd><dt></dt><dd>이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋</dd></dl></div>';   // [기준 상세]는 시트 머리 부제 줄 오른쪽 끝으로 옮겼다(2026-10-16 T8, risk_sheet.js)
     }
     /**
      * 그려 둔 본문에 동작을 붙인다: 날씨 펼침, 사고 종류 팝업, 위 카드 [?] 설명 팝업, 위험 예측 문장 자간 맞춤, 교통량 카드(같은 칸 이력을 이미 받았으면 바로 그림).

@@ -60,6 +60,39 @@
       "graceMinutes": 60
     },
     {
+      "id": "smallZoneForecasts",
+      "stage": 1,
+      "name": "소해구 예보 — 브리핑용 대해구 미리 받기 (기상청 API허브)",
+      "provider": "kma-apihub",
+      "endpoint": "apihub.kma.go.kr /api/typ06/url/marine_small_zone.php",
+      "official": {
+        "kind": "measured",
+        "text": "해구별 기상예보와 같은 판(00·12 UTC). 실측 2026-10-17 00:08 KST: 12UTC 판은 대해구(marine_large_zone)·소해구 둘 다 아직 없음(소해구는 「해구번호를 확인하여 주시기 바랍니다.」)",
+        "evidence": [
+          { "note": "실측 2026-10-17 00:08 KST(§11.10.18 작업) — 2026101712 판 요청에 대해구는 「파일이 존재하지 않습니다」, 소해구는 「해구번호를 확인하여 주시기 바랍니다.」. 같은 시각 2026101700 판은 둘 다 받음" }
+        ]
+      },
+      "schedule": {
+        "text": "해구별 기상예보가 판을 저장한 직후(30분마다 그 수집이 돌 때) 같은 판으로 — 이미 빠짐없이 받은 판이면 요청하지 않음. 창에서 누른 대해구는 그때 받음",
+        "minutes": [0, 30],
+        "evidence": [
+          { "file": "local_server/scheduler.js", "quote": "smallZoneForecast.prefetch(smallZoneForecast.briefingLzones(), validBaseTm)" },
+          { "file": "local_server/services/smallzone_forecast.js", "quote": "if (brief && brief.baseTm === baseTm && !brief.failed && list.every((z) => brief.lzones.includes(z))) {" }
+        ]
+      },
+      "state": {
+        "file": "smallzone_forecast.json.gz",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "baseTm",
+        "basisFormat": "utcYmdh",
+        "basisCycleHours": 12,
+        "statusFile": "smallzone_forecast_status.json",
+        "scheduler": "smallZone"
+      },
+      "graceMinutes": 60
+    },
+    {
       "id": "warnings",
       "stage": 1,
       "name": "해상 특보 (기상청 MMIS)",
@@ -354,17 +387,17 @@
       "endpoint": "외부 호출 없음 — 위험예측·특보·조석 자료를 모아 파출소 관할 97곳 브리핑을 만든다(services/station_briefing.js · AI 총평은 관리자 설정)",
       "official": {
         "kind": "doc",
-        "text": "외부 공식 갱신이 아니라 우리 생성 일정 — 매일 07:30·17:30·23:00 공개(각 20분 전 07:10·17:10·22:40 에 만들기 시작) + 특보가 바뀔 때(사용자 확정 — 2026-10-17 아침 공개 07:30)",
+        "text": "외부 공식 갱신이 아니라 우리 생성 일정 — 매일 07:30·17:30·23:00 공개(각 40분 전 06:50·16:50·22:20 에 만들기 시작 — 2026-10-18 사용자 「40분전으로」) + 특보가 바뀔 때(사용자 확정 — 2026-10-17 아침 공개 07:30)",
         "evidence": [
           { "file": "client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md", "quote": "**오후 생성 = 17:30 확정**" },
           { "file": "client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md", "quote": "아침 보이는 시각은 07시 30분으로 변경함." }
         ]
       },
       "schedule": {
-        "text": "KST 07:10·17:10·22:40 만들기 시작(공개 07:30·17:30·23:00 — 그때까지는 이전 판) + 특보 변경 뒤 3분 조용할 때 곧바로(운영 서버에서만). 실행 실패·10시간 넘게 실행 없음·AI 분석 대신 규칙 분석은 오류현황에 남음",
-        "times": ["07:10", "17:10", "22:40"],
+        "text": "KST 06:50·16:50·22:20 만들기 시작(공개 07:30·17:30·23:00 — 공개 40분 전, §11.10.22 — 그때까지는 이전 판) + 특보 변경 뒤 3분 조용할 때 곧바로(운영 서버에서만). 실행 실패·10시간 넘게 실행 없음·AI 분석 대신 규칙 분석은 오류현황에 남음",
+        "times": ["06:50", "16:50", "22:20"],
         "evidence": [
-          { "file": "local_server/services/station_briefing_rules.js", "quote": "const EDITIONS = Object.freeze([{ kind: 'morning', h: 7, m: 10, ph: 7, pm: 30 }, { kind: 'evening', h: 17, m: 10, ph: 17, pm: 30 }, { kind: 'night', h: 22, m: 40, ph: 23, pm: 0 }]);" }
+          { "file": "local_server/services/station_briefing_rules.js", "quote": "const EDITIONS = Object.freeze([{ kind: 'morning', h: 6, m: 50, ph: 7, pm: 30 }, { kind: 'evening', h: 16, m: 50, ph: 17, pm: 30 }, { kind: 'night', h: 22, m: 20, ph: 23, pm: 0 }]);" }
         ]
       },
       "state": { "risk": "stationBriefing" },

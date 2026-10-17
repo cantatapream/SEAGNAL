@@ -233,6 +233,10 @@
             if(f){var copy=f.clone();copy.setStyle(new ol.style.Style({stroke:new ol.style.Stroke({color:SELECTED,width:2.5})}));sources.selection.addFeature(copy);}
             if(kind==='coast'){var p=spots.find(function(p){return p.id===id;});if(p){var center=new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([p.lon,p.lat])));center.setStyle(new ol.style.Style({image:new ol.style.Circle({radius:6,stroke:new ol.style.Stroke({color:SELECTED,width:2.5})})}));sources.selection.addFeature(center);}}
         }
+        /** 지금 선택 테두리(해상 칸 둘레·연안 관광지 영역과 중심 고리)의 지도 범위.
+         * 예: setSelection('marine','GR4_F4K23_P4') 뒤 → 그 칸 사각형의 [minx,miny,maxx,maxy] / 테두리 없음(칸 id 'point' 등) → null
+         * @returns {number[]|null} 지도 좌표(EPSG:3857) 범위 [연계] ← RiskForecast.goTo(frameTo — 브리핑 바로가기로 고른 칸을 시트 위 지도 띠 가운데로) */
+        function selectionExtent(){return sources.selection.getFeatures().length?sources.selection.getExtent().slice():null;}
         /**
          * 선택한 위험구역을 그리고 시트에 가려지지 않은 지도 영역의 가운데에 오도록 이동한다.
          * 예: showHazards(fc,[30,40,330,40]) — 아래 330px는 시트가 가린 높이
@@ -266,7 +270,7 @@
          * [연계] ← RiskForecast waitStart(250ms 뒤)·waitEnd / 「글자는 새 시각, 색은 옛 시각」 혼동 방지(2026-10-16 T4) */
         function dim(on){['coast','coastEdge','points','marine','traffic','sea','accident'].forEach(function(k){layers[k].setOpacity(on?0.35:1);});}
         function destroy(){disposed=true;map.un('moveend',renderUnified);map.un('moveend',maskMoveEnd);maskCanvas=null;coastSmoothCanvas=null;unifiedFeatures.clear();smoothCanvas=null;Object.keys(layers).forEach(function(k){map.removeLayer(layers[k]);});}
-        return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawCurrent:drawCurrent,drawUnified:drawUnified,setSelection:setSelection,showHazards:showHazards,setActive:setActive,hit:hit,dim:dim,destroy:destroy};
+        return {boundaries:boundaries,setTables:setTables,drawCoast:drawCoast,drawSea:drawSea,drawAccident:drawAccident,drawCurrent:drawCurrent,drawUnified:drawUnified,setSelection:setSelection,selectionExtent:selectionExtent,showHazards:showHazards,setActive:setActive,hit:hit,dim:dim,destroy:destroy};
     }
     w.RiskMapLayer={create:create};
 })(window);

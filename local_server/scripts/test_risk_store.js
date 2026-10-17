@@ -153,5 +153,19 @@ try{run({
    write(cd,'coast_accidents.json','{bad');const logs2=[];console.warn=(...x)=>logs2.push(x.join(' '));try{const st=createStore({dir,dataDir,configDir:cd,clientDir,clock:()=>now});a.deepEqual(st.coastDetail('one',t).history,{available:false});a.equal(st.meta().coastAccidents.status,'error');}finally{console.warn=warn;}
    a.ok(logs2.some(l=>l.includes('coast_accidents')),'손상도 로그');
    fs.rmSync(cd,{recursive:true,force:true});},
+ // 2026-10-18 01:12 KST 사용자 「지금 시간 기준으로 위험예측을 눌러도 격자가 안나오는데」 — 03시 전에는 가장 새 판이 전날 15시 판(날짜=어제)이라
+ //   오늘 날짜와만 비교하면 낡음이 되어 해상 위험 예측 지도(unifiedFrame accident)가 빈 목록이었다. 03시가 지나도 오늘 판이 없으면 종전대로 낡음.
+ '사고 예보: 00~03시에는 전날 15시 이후 확인한 어제 판이 정상 — 지도 칸이 나옴, 03시 이후 어제 판·03시 전 전날 오전 확인은 낡음':a=>{
+   const A=require('../services/sea_accident_collector'),M=require('../services/marine_fusion'),ad=fs.mkdtempSync(path.join(os.tmpdir(),'risk-acc-night-'));
+   const checkedAt='2026-10-17T16:10:00+09:00',slots=A.slots(Date.parse(checkedAt)),geometry={type:'Polygon',coordinates:[[[126.5,33.5],[126.6,33.5],[126.6,33.6],[126.5,33.6],[126.5,33.5]]]};
+   write(ad,'sea_accident.json.gz',{date:'2026-10-17',createdAt:'2026-10-17T15:00:00+09:00',collectedAt:checkedAt,v:'grid-v1',cells:[{i:0,id:'100',lat:33.55,lon:126.55,geometry}],frames:Object.fromEntries(slots.map(x=>[x.key,[[0,.001,'경계']]]))});
+   const at=(clockIso,checked)=>{write(ad,'accident_status.json',{status:'ok',checkedAt:checked});const clock=()=>Date.parse(clockIso),st=createStore({dir:ad,dataDir,configDir,clientDir,clock});
+     const m=M.createStore({risk:st,dir:ad,clock,stations:[],accidents:[],describe:()=>null});return{status:st.sources(true).accident.status,cells:m.unifiedFrame('accident',clockIso).cells.length};};
+   try{
+     const night=at('2026-10-18T01:12:00+09:00',checkedAt);a.equal(night.status,'ok','01:12 어제 16:10 확인 → 정상');a.ok(night.cells>0,'01:12 위험 예측 지도 칸이 비지 않음');
+     a.deepEqual(at('2026-10-18T03:30:00+09:00',checkedAt),{status:'stale',cells:0},'03:30 오늘 판 없음 → 낡음 유지·칸 없음');
+     a.equal(at('2026-10-18T01:12:00+09:00','2026-10-17T04:10:00+09:00').status,'stale','01:12 인데 어제 오전 판만 확인(15시 판 못 받음) → 낡음');
+     a.equal(at('2026-10-17T16:30:00+09:00',checkedAt).status,'ok','당일 16:30 오늘 판 → 정상(종전 동작)');
+   }finally{fs.rmSync(ad,{recursive:true,force:true});}},
  '손상 JSON은 missing과 구별한 error':a=>{fs.writeFileSync(path.join(dataDir,'weather_alerts.json'),'{bad');store.invalidate();a.equal(store.sources().warnings.status,'error');}
 });}finally{fs.rmSync(root,{recursive:true,force:true});}

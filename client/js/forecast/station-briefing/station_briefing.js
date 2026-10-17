@@ -4,12 +4,12 @@
  * 역할  : 해양예보 탭 「🔭 기상청 해상 기상 전망」 바로 아래의 「HH:MM AI 연안 안전 브리핑」 아코디언(설계서 §11.1~§11.4 · 이름·제목 §11.10.4 — 종전 「활동지점 안전 브리핑」).
  *         제목의 HH:MM 은 보이는 판의 시각(07:30·17:30·23:00, 특보 변경 판은 만든 시각 — StationBriefingRender.titleText).
  *         ①서버 노출 판정이 display:true 일 때만 아코디언을 보인다(처음에는 관리자 기기에만 — 일반 사용자 화면은 그대로)
- *         ②설정 흐름: 설정 전 안내 → [설정하기] → 파출소 관할 하나(해상·육상 함께, 각각 끄기 가능) · 건너뛰기 → 「더 이상 표시하지 않을까요?」
+ *         ②설정 흐름: 설정 전 안내 → [설정하기] → 파출소 관할 하나를 누르면 가운데 확인 창 [취소]/[저장](해상·육상 함께, 각각 끄기 가능) · 건너뛰기 → 「더 이상 표시하지 않을까요?」
  *         ③본문(station_briefing_render.js) ④카드의 [위험예측에서 보기 ›] ⑤특보 변경 판 N 뱃지 ⑥설정 팝업(⚙ 오른쪽 위)의 표시/숨김·관할 설정 칸.
  *         선택은 이 기기에만 저장한다(localStorage — 관심해역 설정 weatherAppSettings_v1·지방청 설정 officeManualSettings 와 같은 관례).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : station_briefing_render.js(StationBriefingRender.render) · station_briefing_picker.js(StationBriefingPicker — 관할 고르기 탭 두 개)
+ *  - 사용하는 파일 : station_briefing_render.js(StationBriefingRender.render) · station_briefing_picker.js(StationBriefingPicker — 관할 고르기 탭 두 개 · 관할을 누르면 뜨는 가운데 확인 창 confirm)
  *                    · marine-life/risk-forecast/risk_forecast.js(RiskForecast.openAt — 바로가기)
  *                    · forecast/alerts/marine.js·core/index2_patch.js·marine-life/safety/life_safety.js(switchMainTab·switchSubTab — 탭 이동)
  *                    · settings/settings.js(openSettingsModal 이 renderSettings 를 부름 · closeSettingsModal) · shared/ui/ui_modal.js(showSeagnalModal — 숨김 안내)
@@ -191,19 +191,27 @@
     /**
      * 관할 고르기 화면(§11.2·Q3 「파출소 관할 하나만 고르면 해상·육상 둘 다」). 고르는 칸은 탭 두 개(2026-10-17 사용자 요청 — station_briefing_picker.js):
      * 「지도에서 선택하기」(해역 단추 → 관할 폴리곤 지도) · 「파출소로 선택하기」(지방청 → 해양경찰서 → 파출소 아코디언 + 이름 찾기, 남항 두 곳은 경찰서로 구분).
-     * 해상·육상은 각각 끌 수 있다(해상만 관할은 육상 칸을 끄고 이유를 보인다). [저장]·[건너뛰기](이미 설정했으면 [취소]도).
-     * 예: 한림파출소 누름(지도 폴리곤 또는 칩) → 「선택: 한림파출소 · 제주해양경찰서」 → [저장] → 브리핑
-     * @param {HTMLElement} box @returns {void} [연계] ← renderBody(mode setup) / → StationBriefingPicker.mount·finishSetup·askHide
+     * 관할을 누르면(두 탭 모두) 가운데 확인 창 [취소] [저장](StationBriefingPicker.confirm — 사용자 2026-10-17 *"저장하면 그대로 바로 반영"*):
+     * [저장] = 종전 아래 [저장]과 같음(finishSetup) · [취소] = 누르기 전 선택(칠·「선택: …」·연안 칸)으로 되돌려 다른 관할을 누를 수 있다.
+     * 아래 [저장]·[건너뛰기]·[취소] 줄은 없앴다 — 고르지 않고 나가는 단추 하나만 머리 오른쪽에 남긴다:
+     * 관할이 없으면 [건너뛰기](종전과 같이 「더 이상 표시하지 않을까요?」로) · 이미 설정했으면 [취소](종전과 같이 바꾸지 않고 브리핑으로).
+     * 해상·연안 보기 칸은 누르기 전에 정하도록 고르기 칸 위로 옮겼다(누르면 곧 저장되므로). 해상만 관할은 연안 칸을 끄고 이유를 보인다.
+     * 예: 한림 폴리곤(또는 칩) 누름 → 「제주해양경찰서 한림파출소 / 이 관할을 선택하셨습니까? 저장하시겠습니까?」 → [저장] → 브리핑
+     * @param {HTMLElement} box @returns {void} [연계] ← renderBody(mode setup) / → StationBriefingPicker.mount·confirm · finishSetup·askHide
      */
     function renderSetup(box) {
         var p = prefs();
         if (!S.pick) S.pick = { station: p.station, showSea: p.showSea !== false, showLand: p.showLand !== false };
         box.textContent = '';
         var wrap = document.createElement('div'); wrap.className = 'sb-setup'; wrap.setAttribute('data-sb-setup', '');
-        var h = document.createElement('h4'); h.textContent = '연안 안전 브리핑 지역 설정'; wrap.appendChild(h);
+        var head = document.createElement('div'); head.className = 'sb-setup-head';
+        var h = document.createElement('h4'); h.textContent = '연안 안전 브리핑 지역 설정'; head.appendChild(h);
+        // 고르지 않고 나가기 — 관할이 없으면 [건너뛰기](finishSetup(true) → 묻기 화면, 종전 [건너뛰기]와 같음) · 있으면 [취소](종전 [취소]와 같음)
+        var out = document.createElement('button'); out.type = 'button'; out.className = 'sb-btn sb-setup-out';
+        if (p.station) { out.textContent = '취소'; out.setAttribute('data-sb-cancel', ''); out.addEventListener('click', function (e) { e.stopPropagation(); S.mode = 'view'; S.pick = null; renderBody(); }); }
+        else { out.textContent = '건너뛰기'; out.setAttribute('data-sb-skip', ''); out.addEventListener('click', function (e) { e.stopPropagation(); finishSetup(true); }); }
+        head.appendChild(out); wrap.appendChild(head);
         var d = document.createElement('p'); d.textContent = '파출소 관할 하나를 고르면 그 관할의 해상과 연안 브리핑을 함께 보여 드립니다. 이 기기에만 저장됩니다.'; wrap.appendChild(d);
-        var pickBox = document.createElement('div'); pickBox.className = 'sb-picker'; wrap.appendChild(pickBox);
-        var picked = document.createElement('p'); picked.className = 'sb-picked'; wrap.appendChild(picked);
         var toggles = document.createElement('div'); toggles.className = 'sb-toggles';
         var mk = function (label, key) {
             var l = document.createElement('label'); l.className = 'sb-toggle'; var c = document.createElement('input'); c.type = 'checkbox'; c.setAttribute('data-sb-show', key);
@@ -213,15 +221,11 @@
         var cSea = mk('해상 브리핑 보기', 'showSea'), cLand = mk('연안 브리핑 보기', 'showLand');
         var landNote = document.createElement('p'); landNote.className = 'sb-small'; toggles.appendChild(landNote);
         wrap.appendChild(toggles);
-        var acts = document.createElement('div'); acts.className = 'sb-actions';
-        var ok = document.createElement('button'); ok.type = 'button'; ok.className = 'sb-btn sb-btn-primary'; ok.textContent = '저장'; ok.setAttribute('data-sb-save', '');
-        var skip = document.createElement('button'); skip.type = 'button'; skip.className = 'sb-btn'; skip.textContent = '건너뛰기'; skip.setAttribute('data-sb-skip', '');
-        acts.appendChild(ok); acts.appendChild(skip);
-        if (p.station) { var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'sb-btn'; cancel.textContent = '취소'; cancel.setAttribute('data-sb-cancel', ''); cancel.addEventListener('click', function (e) { e.stopPropagation(); S.mode = 'view'; S.pick = null; renderBody(); }); acts.appendChild(cancel); }
-        wrap.appendChild(acts);
+        var pickBox = document.createElement('div'); pickBox.className = 'sb-picker'; wrap.appendChild(pickBox);
+        var picked = document.createElement('p'); picked.className = 'sb-picked'; wrap.appendChild(picked);
         box.appendChild(wrap);
         var stations = S.stations || [], picker = null;
-        /** 고른 관할 줄·육상 칸(해상만이면 끔)·고르기 칸의 선택 표시(칩 눌림·지도 폴리곤 색)를 맞춘다. */
+        /** 고른 관할 줄·연안 칸(해상만이면 끔)·고르기 칸의 선택 표시(칩 눌림·지도 폴리곤 색)를 맞춘다. */
         var sync = function () {
             var st = stations.filter(function (s) { return s.key === S.pick.station; })[0] || null;
             picked.textContent = st ? '선택: ' + st.name + ' · ' + st.office : '선택한 관할 없음';
@@ -229,12 +233,22 @@
             if (st && st.seaOnly) cLand.checked = false;
             if (picker) picker.refresh();
         };
-        /** 관할 하나를 고른다(지도 폴리곤·칩 어느 쪽이든). 해상만이 아닌 관할로 바꾸면 꺼 둔 육상 칸을 다시 켠다(종전과 같음). @param {Object} s - 관할 목록 한 줄 */
-        var choose = function (s) { S.pick.station = s.key; if (!s.seaOnly && !cLand.checked) { cLand.checked = true; S.pick.showLand = true; } sync(); };
+        /**
+         * 관할 하나를 누른다(지도 폴리곤·칩 어느 쪽이든) → 칠하고 확인 창. [저장] = 종전 [저장] · [취소] = 누르기 전으로 되돌림.
+         * 해상만 관할 때문에 꺼졌던 연안 칸(잠김)은 해상만이 아닌 관할로 바꾸면 다시 켠다. 사람이 끈 연안 칸은 그대로 둔다
+         * (칸을 먼저 정하고 누르는 흐름이라 — 종전 「끈 칸이면 다시 켬」은 사람이 끈 것까지 켰다).
+         * @param {Object} s - 관할 목록 한 줄
+         */
+        var choose = function (s) {
+            var before = { station: S.pick.station, land: cLand.checked, showLand: S.pick.showLand };
+            S.pick.station = s.key; if (!s.seaOnly && cLand.disabled) { cLand.checked = true; S.pick.showLand = true; } sync();
+            w.StationBriefingPicker.confirm(s, {
+                onSave: function () { S.pick.showSea = cSea.checked; S.pick.showLand = cLand.checked && !cLand.disabled; finishSetup(false); },
+                onCancel: function () { S.pick.station = before.station; cLand.checked = before.land; S.pick.showLand = before.showLand; sync(); }
+            });
+        };
         if (w.StationBriefingPicker) picker = w.StationBriefingPicker.mount(pickBox, { stations: stations, selected: function () { return S.pick && S.pick.station; }, onPick: choose, loadAreas: function () { return get('/api/station-briefing/areas'); } });
         else { var none = document.createElement('p'); none.className = 'sb-small'; none.textContent = '관할 고르기 화면을 불러오지 못했습니다.'; pickBox.appendChild(none); }
-        ok.addEventListener('click', function (e) { e.stopPropagation(); S.pick.showSea = cSea.checked; S.pick.showLand = cLand.checked && !cLand.disabled; finishSetup(false); });
-        skip.addEventListener('click', function (e) { e.stopPropagation(); finishSetup(true); });
         sync();
     }
     /**
