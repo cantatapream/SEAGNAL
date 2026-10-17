@@ -111,6 +111,8 @@ async function syncTime() {
             }
             resolve();
         });
+        // timeout 옵션만으로는 요청이 끊기지 않는다 — 응답 없는 소켓이면 이 약속이 영영 안 끝나 1분 주기 전체(특보 수집 포함)가 멈춘다(독립 검토 2, 2026-10-17).
+        req.on('timeout', () => req.destroy(new Error('timeout')));
         req.on('error', (e) => {
             log(`🕒 시각 동기화 실패: ${e.message}`);
             resolve();

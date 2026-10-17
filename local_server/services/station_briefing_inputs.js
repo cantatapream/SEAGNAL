@@ -13,6 +13,11 @@
  *                    · services/jeju_isolation_tide_collector.js·hazard_rocks_tide_collector.js(제주 앵커·곡선 — 결정 5) · services/sea_warning_history.js(이미 해제된 특보 — 결정 4, 기록기를 주입받음)
  *                    · services/hazard_rocks_submersion.js(간출암 목록) · data/hazard_rocks/submersion.json · data/marine_forecast.json(기상청 단기 해상 전망)
  *                    · services/coastal_events_collector.js(geocode — 행사 위치 찾기와 같은 카카오 호출·KAKAO_REST_API_KEY)
+ *                    · client/assets/warn_zones.geojson(특보구역 — services/warn_zone_cells._load 로 읽음: 파출소에서 가장 가까운 앞바다, §11.10.1 · 30km 넘으면 가장 가까운 먼바다 — §11.10.2)
+ *                    · regional_forecast.json[지방청].marineForecast(먼바다 단기 해상예보 — 앞바다가 30km 넘게 멀 때, regional_forecast_collector 가 저장)
+ *                    · client/marine_zone_area.json(대해구 도형 — 총평 해구 줄 지도 펼침의 해구 상자, §11.10.3 · haeguBox) · 관할 도형(areaOf)·칸 상자(boxOf)·관광지 고립 사고 수(isolation)도 여기서 넘긴다
+ *                    · regional_forecast_collector.js(loadCoastalForecasts·loadRegionalForecasts·ZONE_TO_OFFICE_MAP — 인덱스 「○○앞바다 기상예보」 표와 같은
+ *                      data/regional_forecast.json 의 지방기상청 단기 해상예보·단기 전망 통보문, 처음 쓸 때 require)
  *  - 서버 API      : 없음
  *  - 나를 쓰는 곳  : services/station_briefing.js(run) · scripts/test_station_briefing.js(순수 부분)
  * [로드 순서] 서버 require 부작용 없음. 무거운 정적 자료는 처음 쓸 때 읽는다.
@@ -26,6 +31,41 @@ const HOUR = 3600000;
 
 /** 경위도 상자. 예: Polygon → [minLon,minLat,maxLon,maxLat]. @param {object} g @returns {number[]} [연계] ← loadStations */
 function bounds(g) { const a = g.coordinates.flat(Infinity), xs = a.filter((_, i) => i % 2 === 0), ys = a.filter((_, i) => i % 2 === 1); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; }
+// ── 총평 근거 지도 펼침 재료(2026-10-17 사용자 결정 §11.10.3) — 브리핑 파일에 들어가므로 소수 4자리(약 11m)로 줄인다 ──
+/** 경위도 소수 4자리. 예: 126.234567 → 126.2346. @param {number} v @returns {number} [연계] ← boxOf·areaOf·haeguBox */
+function r4(v) { return Math.round(v * 1e4) / 1e4; }
+/** 도형의 상자를 4자리로. 사고 칸(웹 메르카토르 5km 사각형)·혼잡 칸(±0.0125도)·해구(0.5도)는 모두 경위도 축에 맞은 사각형이라 상자가 곧 그 칸이다.
+ * 예: 사고 칸 Polygon → [126.2187,33.4007,126.2636,33.4383]. @param {object} g @returns {number[]} [서,남,동,북] [연계] ← collectSea */
+function boxOf(g) { return bounds(g).map(r4); }
+/** 꺾은선 단순화(Douglas–Peucker, 경위도 그대로). 지도 펼침은 높이 약 200px(관할 30km 면 1px ≈ 150m)라 약 100m(0.001도) 안쪽 굴곡은 보이지 않는다 — 해안선을 따라 그린 관할(여호 3,106점 등)이 브리핑 파일을 키우지 않게.
+ * 예: 거의 곧은 세 점 → 양 끝 두 점. @param {number[][]} pts @param {number} tol - 도 @returns {number[][]} [연계] ← areaOf */
+function simplify(pts, tol) {
+    if (pts.length < 3) return pts;
+    const keep = new Uint8Array(pts.length), stack = [[0, pts.length - 1]]; keep[0] = keep[pts.length - 1] = 1;
+    while (stack.length) {
+        const [a, b] = stack.pop(), [x1, y1] = pts[a], [x2, y2] = pts[b], dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+        let far = -1, fd = tol;
+        for (let i = a + 1; i < b; i++) { const d = len ? Math.abs(dy * pts[i][0] - dx * pts[i][1] + x2 * y1 - y2 * x1) / len : Math.hypot(pts[i][0] - x1, pts[i][1] - y1); if (d > fd) { fd = d; far = i; } }
+        if (far > 0) { keep[far] = 1; stack.push([a, far], [far, b]); }
+    }
+    return pts.filter((_, i) => keep[i]);
+}
+/** 관할 폴리곤을 단순화(약 100m)·4자리로(Polygon·MultiPolygon → 폴리곤 목록). 안쪽 고리(관할에서 뺀 섬) 중 가로·세로 모두 0.01도(약 1km) 안 되는 것은 뺀다 —
+ * 약 200px 지도에서 몇 px 점이라 보이지 않고, 여호(안쪽 고리 419개)처럼 수백 개가 파일만 키운다. 바깥 고리는 모두 둔다.
+ * 예: Polygon → [[[[126.1,33.3],…]]]. @param {object} g @returns {number[][][][]|null} [연계] ← gather(input.area) */
+function areaOf(g) {
+    if (!g || !Array.isArray(g.coordinates)) return null;
+    const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+    const big = (ring) => { const b = bounds({ coordinates: ring }); return b[2] - b[0] >= 0.01 || b[3] - b[1] >= 0.01; };
+    return polys.map((rings) => rings.filter((ring, i) => i === 0 || big(ring)).map((ring) => simplify(ring, 0.001).map((p) => [r4(p[0]), r4(p[1])])));
+}
+let HAEGU_BOXES = null;
+/** 대해구 번호의 상자 — client/marine_zone_area.json(해구 지도 도형, risk_sea_cells 가 대표 해구를 정하는 같은 파일)을 처음 쓸 때 한 번 읽는다. 없으면 null.
+ * 예: haeguBox(232) → [126,33,126.5,33.5]. @param {number|string} major @returns {number[]|null} [연계] ← collectSea(weather[major].box) */
+function haeguBox(major) {
+    if (!HAEGU_BOXES) { const d = readJson(path.join(ROOT, '..', 'client', 'marine_zone_area.json')); HAEGU_BOXES = new Map(((d && d.features) || []).filter((f) => f.geometry).map((f) => [String(f.properties?.marine_zone_no), boxOf(f.geometry)])); }
+    return HAEGU_BOXES.get(String(major)) || null;
+}
 /**
  * 관할 정리판을 읽어 관할 목록을 만든다. idx 는 marine_fusion 의 관할 id(폴리곤 순번)와 같다.
  * 예: loadStations() → 97개 [{key:'제주해양경찰서|한림파출소', idx:'88', name:'한림파출소', office:'제주해양경찰서', region:'제주지방해양경찰청', address:'…', seaOnly:false}]
@@ -241,10 +281,10 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null }) {
             const zone = b.warnSubZone ? { name: b.warnSubZone, kind: 'sub' } : b.warnZone ? { name: b.warnZone, kind: 'main' } : null;
             if (b.warnZone) zonesWanted.add(R.zoneKey(b.warnZone)); if (b.warnSubZone) zonesWanted.add(R.zoneKey(b.warnSubZone));
             if (b.haegu?.major) majors.add(b.haegu.major);
-            regions.push({ rid: gid, gridId: g.traffic[0] || null, accidentGridId: g.accident?.id || null, lat: b.lat, lon: b.lon, haegu: b.haegu || null, ref: b.ref || null, zone, zones: [b.warnZone, b.warnSubZone].filter(Boolean), cellCount: g.traffic.length + (g.accident ? 1 : 0), slots, history: marine.cellHistory(geom, 'grid:' + (g.accident?.id || b.id)) });
+            regions.push({ rid: gid, gridId: g.traffic[0] || null, accidentGridId: g.accident?.id || null, lat: b.lat, lon: b.lon, box: boxOf(geom), haegu: b.haegu || null, ref: b.ref || null, zone, zones: [b.warnZone, b.warnSubZone].filter(Boolean), cellCount: g.traffic.length + (g.accident ? 1 : 0), slots, history: marine.cellHistory(geom, 'grid:' + (g.accident?.id || b.id)) });
         }
         const weather = {};
-        for (const major of majors) weather[major] = { label: '대해구 ' + major, rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
+        for (const major of majors) weather[major] = { label: '대해구 ' + major, box: haeguBox(major), rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
         out.set(s.key, { reviewedCells: e.cells.size, regions, weather, zones: [...new Set(regions.flatMap((r) => r.zones))], frameGaps: accGaps.length && regions.some((r) => r.accidentGridId) ? { accident: accGaps } : {} });
     }
     const all = warningsFromTree(inputs.warnings?.current, zonesWanted, now);
@@ -313,6 +353,8 @@ function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory
             swell: sw ? { periodS: sw.periodS } : null, rip: rip ? { level: rip.level } : null,
             notices: nt, released: released.filter((r) => !nt.effective.includes(r.name)),
             hazard: hz ? { count: hz.count || 0, byType: (hz.byType || []).map((x) => ({ class: x.class, count: x.count })) } : null,
+            // isolation = 고립 사고 수(총평 (고립 주의) 지점 표 — 2026-10-17 §11.10.3). 기록을 못 쓰면(available 아님) null — 0 과 가른다.
+            isolation: acc ? acc.filter((a) => a.type === '고립').length : null,
             history: acc ? { count: acc.length, from: d.history.from, to: d.history.to, topTypes: Object.entries(types).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).slice(0, 3).map(([type, count]) => ({ type, count })) } : null,
             missing: d.missing || [],
         });
@@ -375,26 +417,141 @@ function kmaOutlook(dataDir = DATA) {
     return { title: s.title || null, publishTime: s.publishTime || null, forecastPeriod: s.forecastPeriod || null, excerpt };
 }
 /**
+ * 지방기상청 단기 해상예보(앞바다 PDF)·단기 전망 통보문을 한 번 읽는다 — 인덱스 「○○앞바다 기상예보」 팝업(/api/regional-coastal-forecast)과
+ * 같은 함수(regional_forecast_collector.loadCoastalForecasts — 구역의 관할 지방청 자료만)를 그대로 쓴다. 읽기 실패·파일 없음이면 빈 묶음(지어내지 않음).
+ * 예: regionalForecast() → {coastal:{'제주도서부앞바다':{officeName:'제주지방기상청',publishTime:'10.17. 05:00',periods:[…]}}, offices:{'184':{officeName,bulletinPublishTime,summary,…}}, zoneOffice:{…}}
+ * @returns {object} [연계] ← station_briefing.run(실행마다 한 번) → gather → collectZoneWeather
+ */
+function regionalForecast() {
+    try {
+        const C = require('../regional_forecast_collector');
+        return { coastal: C.loadCoastalForecasts() || {}, offices: C.loadRegionalForecasts() || {}, zoneOffice: C.ZONE_TO_OFFICE_MAP || {} };
+    } catch (e) { console.warn('[station_briefing] 지방기상청 예보 읽기 실패:', e && e.message); return { coastal: {}, offices: {}, zoneOffice: {} }; }
+}
+/**
+ * 파출소 대표 위치에서 가장 가까운 앞바다(특보구역)를 찾는다 — 특보구역 도형(client/assets/warn_zones.geojson, warn_zone_cells 가 읽는 같은 파일)의
+ * 경계까지 거리(안에 들면 0)로. 인덱스 「내 위치 → 가장 가까운 예보 구역」과 같은 뜻이지만 화면의 점 좌표(ZONE_COORDINATES — Windy 지도 중심) 대신 실제 구역 도형을 쓴다.
+ * 예: nearestCoastalZone({lat:33.41, lon:126.26}) → {zone:'제주도서부앞바다', distKm:0.5} · 위치 없음 → null
+ * @param {object|null} loc - {lat,lon} @returns {object|null} [연계] ← collectZoneWeather · 시험(한림 → 제주도서부앞바다, 실제 도형)
+ */
+function nearestCoastalZone(loc) {
+    if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon)) return null;
+    const G = require('./risk_geo'), zones = require('./warn_zone_cells')._load().main.filter((z) => z.kind === '앞바다');
+    let best = null;
+    for (const z of zones) { const d = G.distanceToGeometry([loc.lon, loc.lat], z.geometry); if (!best || d < best.d) best = { z, d }; }
+    return best ? { zone: best.z.name, key: best.z.key, distKm: +best.d.toFixed(1) } : null;
+}
+// 가장 가까운 앞바다가 이보다 멀면(km) 그 앞바다 예보는 파출소 바다라고 보기 어렵다 — 더 가까운 먼바다 예보가 있으면 그것을, 없으면 거리를 밝힌다(2026-10-17 독립 검토 5).
+// 30km 근거: 관할 97곳 추정 위치(estimateLocation — 관광지·위험구역 중심, 카카오 좌표 없이)로 재 보니 30km 를 넘는 곳은 울릉(강원남부앞바다 115.9km)·흑산(전남중부서해앞바다 44.2km) 두 곳,
+// 그다음이 추자(26.5km)·거문(11.2km)이고 나머지 93곳은 3km 안이었다. 섬 관할 두 곳만 걸러지는 값이다(운영 카카오 좌표로는 다시 재지 않았다).
+const COASTAL_MAX_KM = 30;
+/**
+ * 파출소 대표 위치에서 가장 가까운 먼바다(특보구역 도형 kind 「먼바다」). 예: 울릉 추정 위치(37.504, 130.875) → {zone:'동해중부 안쪽먼바다', distKm:0}. @param {object|null} loc @returns {object|null} [연계] ← collectZoneWeather
+ */
+function nearestFarZone(loc) {
+    if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon)) return null;
+    const G = require('./risk_geo'), zones = require('./warn_zone_cells')._load().main.filter((z) => z.kind === '먼바다');
+    let best = null;
+    for (const z of zones) { const d = G.distanceToGeometry([loc.lon, loc.lat], z.geometry); if (!best || d < best.d) best = { z, d }; }
+    return best ? { zone: best.z.name, key: best.z.key, distKm: +best.d.toFixed(1) } : null;
+}
+/** 해역 이름 차례(앱 SEA_REGIONS 와 같은 네 이름) — 표본 수가 같으면 앞의 것. [연계] ← stationSeas */
+const SEAS = ['동해', '서해', '남해', '제주'];
+/**
+ * 관할 폴리곤 하나가 동해·서해·남해·제주 중 어느 해역(들)에 걸치는지 정한다(설정 화면 「지도에서 선택하기」의 해역 단추 — 2026-10-17).
+ * 규칙: 관할 상자를 12×12 로 나눈 점 중 관할 안에 드는 점마다 그 점을 품는 특보구역(앞바다·먼바다 44곳, warn_zone_cells 표)을 찾고,
+ *       그 구역이 속한 해역(push_helpers.ZONE_HIERARCHY — 앱 SEA_REGIONS·SUB_REGION_ZONES 와 같은 계층)에 한 표.
+ *       표를 하나라도 받은 해역을 모두, 표가 많은 차례로 돌려준다(첫째 = 주 해역). 그래서 경계 관할은 두 해역 지도에 다 나온다
+ *       (2026-10-17 실측: 추자 남해81·제주3, 땅끝 서해47·남해16, 기장 남해55·동해14 — 나머지 94곳은 한 해역).
+ *       관할 안 점이 하나도 없으면(아주 작은 관할) 꼭짓점으로, 어느 구역에도 안 들면(항만 안쪽 등 특보구역 밖) 가장 가까운 구역의 해역 하나.
+ * 지방청(region)으로 정하지 않는 이유: 서해지방청 여수·완도서와 남해지방청 울산서처럼 지방청과 바다가 다른 관할이 있다(실측 — 여수·완도 11곳 남해, 울산 4곳 동해).
+ * 예: stationSeas(한림 폴리곤) → ['제주'] · stationSeas(추자 폴리곤) → ['남해','제주'] · stationSeas(울산항 폴리곤) → ['동해']
+ * @param {object} geometry - Polygon·MultiPolygon(경위도) @param {object[]} [zones] - {sea,box,geometry} 목록(시험용, 기본 seaZones())
+ * @returns {string[]} 해역 이름들(구역 표가 비면 빈 배열) [연계] ← stationAreas / → risk_geo.pointInGeometry·distanceToGeometry
+ */
+function stationSeas(geometry, zones = seaZones()) {
+    const G = require('./risk_geo'), b = bounds(geometry), N = 12, tally = {};
+    let pts = [];
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const p = [b[0] + (i + 0.5) / N * (b[2] - b[0]), b[1] + (j + 0.5) / N * (b[3] - b[1])]; if (G.pointInGeometry(p, geometry)) pts.push(p); }
+    if (!pts.length) pts = (geometry.type === 'Polygon' ? geometry.coordinates[0] : geometry.coordinates[0][0]).slice();
+    for (const p of pts) { const z = zones.find((z) => p[0] >= z.box[0] && p[0] <= z.box[2] && p[1] >= z.box[1] && p[1] <= z.box[3] && G.pointInGeometry(p, z.geometry)); if (z) tally[z.sea] = (tally[z.sea] || 0) + 1; }
+    const seas = SEAS.filter((s) => tally[s]).sort((a, c) => tally[c] - tally[a]);
+    if (seas.length) return seas;
+    let near = null; const p = pts[Math.floor(pts.length / 2)];
+    for (const z of zones) { const d = G.distanceToGeometry(p, z.geometry); if (!near || d < near.d) near = { sea: z.sea, d }; }
+    return near ? [near.sea] : [];
+}
+/**
+ * 특보구역(앞바다·먼바다) 표에 해역 이름을 붙인다 — 이름 열쇠(warn_zone_cells.zoneKey)로 ZONE_HIERARCHY 소분류와 맞춘다.
+ * 예: seaZones() → [{sea:'동해', name:'울산앞바다', box:[…], geometry}, …](44곳)
+ * @returns {object[]} [연계] ← stationSeas / warn_zone_cells._load(client/assets/warn_zones.geojson) · push_helpers.ZONE_HIERARCHY
+ */
+function seaZones() {
+    const W = require('./warn_zone_cells'), H = require('./push_helpers').ZONE_HIERARCHY, seaOf = {};
+    for (const sea of Object.keys(H)) for (const list of Object.values(H[sea])) for (const n of list) seaOf[W.zoneKey(n)] = sea;
+    return W._load().main.filter((z) => seaOf[z.key]).map((z) => ({ sea: seaOf[z.key], name: z.name, box: z.box, geometry: z.geometry }));
+}
+/**
+ * 설정 화면 지도용 관할 구역 — 관할마다 열쇠·해역들(stationSeas)·폴리곤(좌표 소수 넷째 자리 ≈ 11m 로 반올림, 꼭짓점은 그대로 — 단순화 안 함).
+ * 예: stationAreas(loadStations()) → [{key:'제주해양경찰서|한림파출소', seas:['제주'], geometry:{type:'Polygon', coordinates:[[[126.2,33.4],…]]}}, …]
+ * @param {object[]} stations - loadStations() 꼴(geometry 있음) @param {object[]} [zones] @returns {object[]} [연계] ← station_briefing.stationAreas → GET /api/station-briefing/areas
+ */
+function stationAreas(stations, zones = seaZones()) {
+    const r4 = (c) => Array.isArray(c[0]) ? c.map(r4) : [Math.round(c[0] * 1e4) / 1e4, Math.round(c[1] * 1e4) / 1e4];
+    return stations.filter((s) => s.geometry).map((s) => ({ key: s.key, seas: stationSeas(s.geometry, zones), geometry: { type: s.geometry.type, coordinates: r4(s.geometry.coordinates) } }));
+}
+/**
+ * 관할 하나의 (기상) 입력 — 가장 가까운 앞바다 · 그 구역 단기 해상예보 · 그 구역 관할 지방청(ZONE_TO_OFFICE_MAP)의 단기 전망 통보문.
+ * 구역 이름은 도형 파일(「인천.경기북부앞바다」)과 예보 자료(「인천·경기북부앞바다」) 표기가 달라 열쇠(띄어쓰기·가운뎃점·점 무시)로 맞춘다.
+ * 통보문은 regional_bulletin_collector 가 저장한 summary(AI 색칠 마크업이 있을 수 있음 — 규칙이 벗긴다)·bulletinPublishTime('2026.10.17 04:40').
+ * 가장 가까운 앞바다가 COASTAL_MAX_KM(30km)보다 멀면(독립 검토 5): 그보다 가까운 먼바다의 단기 해상예보(같은 지방청 PDF 의 marineForecast)가 있으면 그 먼바다를 쓰고(kind 'far'),
+ * 없으면 그 앞바다를 그대로 쓰되 note 「가장 가까운 앞바다 특보구역(약 N km 떨어짐) 예보입니다」를 단다(화면에 보인다).
+ * 예: collectZoneWeather({lat:33.41,lon:126.26}, regionalForecast()) → {zone:'제주도서부앞바다', kind:'coastal', distKm:0.5, note:null, office:'184', coastal:{…}|null, bulletin:{officeName,publishTime,text}|null}
+ *     울릉(먼바다 예보 있음) → {zone:'동해중부안쪽먼바다', kind:'far', distKm:0, note:'가장 가까운 앞바다 특보구역(강원남부앞바다)이 약 115.9km 떨어져 있어 파출소가 있는 먼바다 특보구역 예보입니다', …}
+ * @param {object|null} loc @param {object|null} regional - regionalForecast() 결과 @returns {object|null} [연계] ← gather → rules.weatherSummary
+ */
+function collectZoneWeather(loc, regional) {
+    const nz = nearestCoastalZone(loc);
+    if (!nz) return null;
+    const rg = regional || { coastal: {}, offices: {}, zoneOffice: {} }, k = (n) => R.zoneKey(n);
+    const officeOf = (key) => { const e = Object.entries(rg.zoneOffice || {}).find(([n]) => k(n) === key); return e ? e[1] : null; };
+    const bulletinOf = (office) => { const o = office && rg.offices ? rg.offices[office] : null; return o && o.summary ? { officeName: o.officeName || null, publishTime: o.bulletinPublishTime || null, text: o.summary } : null; };
+    if (nz.distKm > COASTAL_MAX_KM) {
+        const fz = nearestFarZone(loc), office = fz && fz.distKm < nz.distKm ? officeOf(fz.key) : null, o = office && rg.offices ? rg.offices[office] : null;
+        const name = o && o.marineForecast ? Object.keys(o.marineForecast).find((n) => k(n) === fz.key) : null;
+        if (name && (o.marineForecast[name].periods || []).length) {
+            const where = fz.distKm > 0 ? '가장 가까운 먼바다 특보구역(약 ' + fz.distKm + 'km)' : '파출소가 있는 먼바다 특보구역';
+            return { zone: name, kind: 'far', distKm: fz.distKm, note: '가장 가까운 앞바다 특보구역(' + nz.zone + ')이 약 ' + nz.distKm + 'km 떨어져 있어 ' + where + ' 예보입니다', office,
+                coastal: { officeName: o.officeName || null, publishTime: o.publishTime || null, collectedAt: o.collectedAt || null, ...o.marineForecast[name] }, bulletin: bulletinOf(office) };
+        }
+    }
+    const coastalName = Object.keys(rg.coastal || {}).find((n) => k(n) === nz.key) || null, office = officeOf(nz.key);
+    return { zone: coastalName || nz.zone, kind: 'coastal', distKm: nz.distKm, note: nz.distKm > COASTAL_MAX_KM ? '가장 가까운 앞바다 특보구역(약 ' + nz.distKm + 'km 떨어짐) 예보입니다' : null, office,
+        coastal: coastalName ? rg.coastal[coastalName] : null, bulletin: bulletinOf(office) };
+}
+/**
  * 관할들의 입력 묶음을 만든다(rules.buildBriefing 에 그대로 넣을 수 있는 꼴).
  * 예: await gather({stations, risk, marine, win, now, locations}) → [{key,name,office,region,seaOnly,location,sources,sea,places,land,tide}]
  * @param {object} o - stations(대상 관할만)·allStations·risk·marine·win·now·locations(key→위치)·hazards(Map)·spotsBySt(Map)·tideDeps
  *                     ·warnHistory(특보 구간 기록 — sea_warning_history 기록기, 없으면 이미 해제된 특보는 보지 않는다)
- * @returns {object[]} [연계] ← station_briefing.run / → collectSea·collectLand·collectTide
+ *                     ·regional(regionalForecast() 결과 — 없으면 (기상) 칸은 「자료를 확인하지 못했습니다」)
+ * @returns {object[]} [연계] ← station_briefing.run / → collectSea·collectLand·collectTide·collectZoneWeather
  */
-function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null }) {
+function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null, regional = null }) {
     const sea = collectSea(stations, { risk, marine, win, now, warnHistory });
     const landT = win.targetDate === R.kstDate(now) ? R.isoKst(Math.floor(now / 60000) * 60000) : win.targetDate + 'T00:00:00+09:00';
     return stations.map((st) => {
         const spots = spotsBySt.get(st.key) || [], hz = hazards.get(st.key) || [], s = sea.bySt.get(st.key);
         return {
             key: st.key, name: st.name, office: st.office, region: st.region, seaOnly: st.seaOnly, seaOnlyReason: st.seaOnlyReason,
-            location: locations[st.key] || null, sources: sea.sources,
+            location: locations[st.key] || null, sources: sea.sources, area: areaOf(st.geometry),
             sea: { reviewedCells: s.reviewedCells, regions: s.regions, weather: s.weather, warnings: s.warnings, frameGaps: s.frameGaps },
             places: spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon })).concat(spots.length ? [] : hz.map((z) => ({ name: z.place, lat: z.lat, lon: z.lon }))),
             land: st.seaOnly ? null : collectLand(spots, hz, { risk, t: landT, now, warnHistory }),
             tide: collectTide(locations[st.key], win.targetDate, st.geometry, tideDeps),
+            zoneWeather: collectZoneWeather(locations[st.key], regional),
         };
     });
 }
 
-module.exports = { loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, gather, forecastKey, readJson, writeJson, CONFIG, DATA };
+module.exports = { areaOf, boxOf, haeguBox, loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };

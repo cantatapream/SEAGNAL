@@ -140,9 +140,9 @@ app.get('/', (req, res) =>
             assert.ok(r > g + 60, '빨강 계열');
             assert.equal(await page.locator('[data-ds-card="visibility"] [data-ds-needcheck]').count(), 1);
         });
-        await test('결정 6: 활동지점 안전 브리핑 카드 — 오류현황 일부 실패(주황)·분류·상세', async () => {
+        await test('결정 6: 연안 안전 브리핑 카드(2026-10-17 이름 바꿈) — 오류현황 일부 실패(주황)·분류·상세', async () => {
             const t = await page.locator('[data-ds-card="stationBriefing"]').innerText();
-            for (const w of ['활동지점 안전 브리핑 (우리 서버 생성)', '일부 실패', '브리핑 일부 실패 — AI 총평 대신 틀', 'AI 총평 대신 틀 3곳']) assert.ok(t.includes(w), w + ' / ' + t);
+            for (const w of ['연안 안전 브리핑 (우리 서버 생성)', '일부 실패', '브리핑 일부 실패 — AI 총평 대신 틀', 'AI 총평 대신 틀 3곳']) assert.ok(t.includes(w), w + ' / ' + t);
             const [r, g, b] = rgb(await color('[data-ds-card="stationBriefing"] [data-ds-badge]'));
             assert.ok(r > b + 60 && r > g, '주황 계열');
         });

@@ -9,6 +9,7 @@
  *   A. 오류 분류(수집기들이 실제로 만드는 오류문 꼴)
  *   B. 알림 규칙 표 — 언제 보내고 언제 안 보내나
  *   C. 대기 중 상태 변화 표(설계 문서 00_docs/operations/collect-fail-alert.md §4) — 행마다 1:1
+ *   W. 특보 5분 대기 표(설계 문서 §4-2, 사용자 확정 2026-10-17) — 행마다 1:1. 시각은 주입(벽시계 없음)
  *   D. 개발 환경에서는 실제 푸시를 부르지 않는다 / 운영에서는 sendAdminPush 결과로 전달 여부를 정한다
  *   E. 수집기 연결 — 너울·시정은 가짜 node-fetch 로 실제 함수를 돌려 기록을 확인, 나머지는 소스에 보고 호출이 있는지
  *
@@ -182,11 +183,15 @@ function make(opts = {}) {
             ok('B10 이 경로에서 「시각 모름」 문장이 한 번도 나가지 않았다', !s.calls.some((c) => /시각 모름/.test(c.body)));
         }
         {
-            const { al, s } = make();
-            await al.report('gale', { ok: false, error: new Error('timeout') });
+            const { al, s, clock } = make();
             await al.report('warnings', { ok: false, error: new Error('timeout') });
+            await al.report('gale', { ok: false, error: new Error('timeout') });
+            clock.now = KST('2026-10-16T03:05:00'); // 특보는 5분 이어져야 보낸다(W 표)
+            await al.report('warnings', { ok: false, error: new Error('timeout') });
+            await al.report('gale', { ok: false, error: new Error('timeout') });
             ok('B7 특보·강풍은 같은 호출 — 푸시는 특보 1통에 둘을 담는다', s.calls.length === 1 && s.calls[0].body.startsWith('해상 특보·육상 강풍특보 (기상청 MMIS) 수집 실패 — 시간초과'), s.calls.map((c) => c.body).join(' / '));
-            ok('B7 강풍은 기록만 남는다(수집현황 카드용)', al.records().gale.streak === 1 && al.records().gale.notified === false);
+            ok('B7 강풍은 기록만 남는다(수집현황 카드용)', al.records().gale.streak === 2 && al.records().gale.notified === false);
+            clock.now = KST('2026-10-16T03:00:00');
             await al.report('ripCurrent', { ok: false, error: new Error('API 결과코드=30') });
             ok('B8 이안류 이름은 목록표 그대로', s.calls[1].body === '이안류 지수 (국립해양조사원·공공데이터포털) 수집 실패 — API 오류 코드 30, 10/16 03:00부터', s.calls[1] && s.calls[1].body);
             const r = await al.report('없는항목', { ok: false });
@@ -221,10 +226,15 @@ function make(opts = {}) {
             const { al, s, clock } = make();
             await al.report('warnings', { ok: false, error: new Error('timeout') });
             clock.now = KST('2026-10-16T03:05:00');
-            await al.report('warnings', { ok: true });
+            await al.report('warnings', { ok: false, error: new Error('timeout') }); // 특보: 5분 이어져 실패 1통
             clock.now = KST('2026-10-16T03:06:00');
+            await al.report('warnings', { ok: true });
+            clock.now = KST('2026-10-16T03:07:00');
             await al.report('warnings', { ok: false, error: new Error('HTTP 503') });
-            ok('C3 복구 직후 재실패 → 다시 실패 1통(상태를 사건처럼 지우지 않는다)', s.calls.length === 3 && /수집 실패 — HTTP 503, 10\/16 03:06부터/.test(s.calls[2].body), s.calls.map((c) => c.body).join(' / '));
+            ok('C3 복구 직후 재실패 → 특보는 새 연속 실패를 처음부터 잰다(아직 2통)', s.calls.length === 2, s.calls.map((c) => c.body).join(' / '));
+            clock.now = KST('2026-10-16T03:12:00');
+            await al.report('warnings', { ok: false, error: new Error('HTTP 503') });
+            ok('C3 복구 직후 재실패 → 다시 실패 1통(상태를 사건처럼 지우지 않는다)', s.calls.length === 3 && /수집 실패 — HTTP 503, 10\/16 03:07부터/.test(s.calls[2].body), s.calls.map((c) => c.body).join(' / '));
         }
         {   // C4 푸시 발송 자체 실패(전달 0건) → 다음 보고 때 다시
             const { al, s } = make();
@@ -318,8 +328,137 @@ function make(opts = {}) {
             const blocker = path.join(tmp, 'not-a-dir');
             fs.writeFileSync(blocker, 'x');
             const { al, s } = make({ file: path.join(blocker, 'state.json') });
-            await al.report('warnings', { ok: false, error: new Error('timeout') });
+            await al.report('marineBuoys', { ok: false, error: new Error('timeout') });
             ok('C9 저장 실패해도 알림은 간다 · 저장 실패가 콘솔에 남는다', s.calls.length === 1 && logs.some((l) => /상태 저장 실패/.test(l)));
+        }
+
+        console.log('\n── W. 특보 5분 대기 표(설계 문서 §4-2) ──');
+        const T = (hm) => KST('2026-10-17T' + hm);
+        const TO = () => new Error('marine endpoint 부분 실패: warnList: GET /mmis/warn/list timeout');
+        /** 특보 크롤러처럼 특보·강풍을 나란히 보고한다(marine_warning_crawler.run). */
+        const both = async (al, o) => { const r = await al.report('warnings', o); await al.report('gale', o); return r; };
+        const bodies = (s) => s.calls.map((c) => c.data.phase + ':' + c.body).join(' / ');
+        {   // W1 5분 안에 풀림(사용자 실측 「실패 13:28 / 복구 13:28」 꼴)
+            const { al, s, clock } = make();
+            for (const hm of ['13:28:00', '13:29:00', '13:30:00']) { clock.now = T(hm); await both(al, { ok: false, error: TO() }); }
+            clock.now = T('13:31:00');
+            await both(al, { ok: true });
+            ok('W1 실패가 5분 안에 풀림 → 실패·복구 모두 0통', s.calls.length === 0, bodies(s));
+            ok('W1 연속이 끊겨 기록은 정상(연속 0)', al.records().warnings.streak === 0 && al.records().warnings.since === null && al.records().warnings.notified === false);
+        }
+        {   // W2 5분 넘게 이어짐 → 5분이 된 첫 실패 보고 때 1통, 이어져도 더 없음, 성공하면 복구 1통
+            const { al, s, clock } = make();
+            for (const hm of ['13:28:00', '13:29:00', '13:30:00', '13:31:00', '13:32:00']) { clock.now = T(hm); await both(al, { ok: false, error: TO() }); }
+            ok('W2 4분째(13:32)까지는 안 보냄(13:28~13:32 실패 5번)', s.calls.length === 0, bodies(s));
+            clock.now = T('13:33:00');
+            const r = await both(al, { ok: false, error: TO() });
+            ok('W2 처음 실패에서 5분 되는 13:33 실패 보고 → 실패 1통 「… 시간초과, 10/17 13:28부터」',
+                eq(r.sent, ['fail']) && s.calls.length === 1 && s.calls[0].body === '해상 특보·육상 강풍특보 (기상청 MMIS) 수집 실패 — 시간초과, 10/17 13:28부터', bodies(s));
+            clock.now = T('13:34:00');
+            await both(al, { ok: false, error: TO() });
+            ok('W2 그 뒤 실패가 이어져도 더 안 보냄', s.calls.length === 1);
+            clock.now = T('13:40:00');
+            await both(al, { ok: true });
+            ok('W2 실패 알림을 보냈으니 성공하면 복구 1통 「… 수집 복구 — 10/17 13:40」', s.calls.length === 2 && s.calls[1].body === '해상 특보·육상 강풍특보 (기상청 MMIS) 수집 복구 — 10/17 13:40', bodies(s));
+        }
+        {   // W3 5분이 시도 사이에서 지남(주기가 정확히 60초가 아님) → 5분 지난 뒤 첫 실패 보고 때
+            const { al, s, clock } = make();
+            for (const hm of ['13:28:10', '13:29:09', '13:30:09', '13:31:09', '13:32:09', '13:33:09']) { clock.now = T(hm); await both(al, { ok: false, error: TO() }); }
+            ok('W3 4분 59초째(13:33:09) 실패 → 아직 안 보냄', s.calls.length === 0, bodies(s));
+            clock.now = T('13:34:10');
+            await both(al, { ok: false, error: TO() });
+            ok('W3 5분 넘긴 다음 실패(13:34:10, 6분째)에 1통 — 처음 실패 시각은 13:28', s.calls.length === 1 && /13:28부터$/.test(s.calls[0].body), bodies(s));
+        }
+        {   // W4 대기 중 재기동 → 상태 파일의 처음 실패 시각을 이어 잰다
+            const m = make();
+            for (const hm of ['13:28:00', '13:29:00', '13:30:00']) { m.clock.now = T(hm); await both(m.al, { ok: false, error: TO() }); }
+            const s2 = fakeSender();
+            const al2 = A.createAlerter({ file: m.file, clock: () => m.clock.now, send: s2.send });
+            m.clock.now = T('13:32:00');
+            await both(al2, { ok: false, error: TO() });
+            ok('W4 재기동 뒤 4분째 실패 → 아직 안 보냄', m.s.calls.length === 0 && s2.calls.length === 0);
+            m.clock.now = T('13:33:00');
+            await both(al2, { ok: false, error: TO() });
+            ok('W4 재기동 뒤에도 처음 실패(13:28)부터 5분 되는 13:33 에 1통', s2.calls.length === 1 && /13:28부터$/.test(s2.calls[0].body), bodies(s2));
+            const s3 = fakeSender();
+            const al3 = A.createAlerter({ file: m.file, clock: () => m.clock.now, send: s3.send });
+            m.clock.now = T('13:36:00');
+            await both(al3, { ok: true });
+            ok('W4 알린 뒤 또 재기동 → 복구 1통(알렸던 것을 기억)', s3.calls.length === 1 && s3.calls[0].data.phase === 'recover', bodies(s3));
+        }
+        {   // W11 실패 보고 뒤 보고가 15분 넘게 끊겼다가(재기동·수집 일시정지) 다시 실패 1번 → 옛 처음 실패 시각으로 재지 않는다(독립 검토 1, 2026-10-17)
+            const m = make();
+            m.clock.now = T('10:00:00');
+            await both(m.al, { ok: false, error: TO() });
+            const s2 = fakeSender();
+            const al2 = A.createAlerter({ file: m.file, clock: () => m.clock.now, send: s2.send });
+            m.clock.now = T('13:28:00');
+            await both(al2, { ok: false, error: TO() });
+            ok('W11 끊김 뒤 첫 실패 → 바로 보내지 않음(새로 5분)', s2.calls.length === 0, bodies(s2));
+            for (const hm of ['13:29:00', '13:30:00', '13:31:00', '13:32:00', '13:33:00']) { m.clock.now = T(hm); await both(al2, { ok: false, error: TO() }); }
+            ok('W11 그 뒤 5분 이어지면 1통 — 「13:28부터」(10:00 이 아님)', s2.calls.length === 1 && /13:28부터$/.test(s2.calls[0].body), bodies(s2));
+        }
+        {   // W5 정확히 5분 되는 시도가 성공 → 아무것도 안 보냄, 다음 실패는 새로 잰다
+            const { al, s, clock } = make();
+            for (const hm of ['13:28:00', '13:29:00', '13:30:00', '13:31:00', '13:32:00']) { clock.now = T(hm); await both(al, { ok: false, error: TO() }); }
+            clock.now = T('13:33:00');
+            await both(al, { ok: true });
+            clock.now = T('13:34:00');
+            await both(al, { ok: false, error: TO() });
+            ok('W5 5분 되는 시도(13:33)가 성공 → 실패·복구 0통 · 13:34 실패는 새 연속(1회, 13:34부터)', s.calls.length === 0 && al.records().warnings.streak === 1 && al.records().warnings.since === new Date(T('13:34:00')).toISOString(), bodies(s) + ' ' + JSON.stringify(al.records().warnings));
+            clock.now = T('13:38:59');
+            await both(al, { ok: false, error: TO() });
+            ok('W5 새 연속은 13:34 부터 잰다(13:38:59 → 안 보냄)', s.calls.length === 0);
+            clock.now = T('13:39:00');
+            await both(al, { ok: false, error: TO() });
+            ok('W5 새 연속 5분(13:39) → 1통 「13:34부터」', s.calls.length === 1 && /13:34부터$/.test(s.calls[0].body), bodies(s));
+        }
+        {   // W6 짧은 끊김 둘 — 합치면 5분이 넘어도 사이에 성공이 있으면 따로 잰다(사용자 실측 11:02·12:19·13:28 꼴)
+            const { al, s, clock } = make();
+            const seq = [['13:28:00', false], ['13:29:00', true], ['13:31:00', false], ['13:32:00', false], ['13:33:00', false], ['13:34:00', true]];
+            for (const [hm, good] of seq) { clock.now = T(hm); await both(al, good ? { ok: true } : { ok: false, error: TO() }); }
+            ok('W6 13:28 끊김(1분) + 13:31~13:33 끊김(3분) → 0통(13:33 은 첫 끊김에서 5분이지만 사이에 성공)', s.calls.length === 0, bodies(s));
+        }
+        {   // W7 실패 알림이 5분 때 전달되지 않음 → 다음 실패 보고 때 다시
+            const { al, s, clock } = make();
+            clock.now = T('13:28:00');
+            await both(al, { ok: false, error: TO() });
+            clock.now = T('13:33:00');
+            s.plan.push({ delivered: false, error: '전달 0건' });
+            await both(al, { ok: false, error: TO() });
+            ok('W7 5분 때 미전달 → 알린 것으로 치지 않음', s.calls.length === 1 && al.records().warnings.notified === false && /전달 0건/.test(al.records().warnings.pushError || ''));
+            clock.now = T('13:34:00');
+            await both(al, { ok: false, error: TO() });
+            ok('W7 다음 실패(13:34)에 다시 보내 전달 — 처음 실패 시각 13:28 그대로', s.calls.length === 2 && al.records().warnings.notified === true && /13:28부터$/.test(s.calls[1].body), bodies(s));
+        }
+        {   // W8 시계가 뒤로 감 — 저장된 처음 실패 시각이 지금보다 뒤
+            const { al, s, clock, file } = make();
+            fs.writeFileSync(file, JSON.stringify({ v: 1, items: { warnings: { streak: 2, since: new Date(T('13:40:00')).toISOString(), reason: '시간초과', notified: false } } }));
+            clock.now = T('13:30:00');
+            await both(al, { ok: false, error: TO() });
+            ok('W8 처음 실패 시각(13:40)이 지금(13:30)보다 뒤 → 지금부터 다시 잰다', al.records().warnings.since === new Date(T('13:30:00')).toISOString() && s.calls.length === 0, JSON.stringify(al.records().warnings));
+            clock.now = T('13:35:00');
+            await both(al, { ok: false, error: TO() });
+            ok('W8 그로부터 5분(13:35)에 1통 — 13:45 까지 묶이지 않는다', s.calls.length === 1 && /13:30부터$/.test(s.calls[0].body), bodies(s));
+        }
+        {   // W9 시계가 앞으로 뜀 — 실제로는 1분 끊김이어도 시각상 5분이 지나 보낸다(한계, 설계 문서 §4-2)
+            const { al, s, clock } = make();
+            clock.now = T('13:28:00');
+            await both(al, { ok: false, error: TO() });
+            clock.now = T('13:40:00');
+            await both(al, { ok: false, error: TO() });
+            ok('W9 시계가 13:28 → 13:40 으로 뛰고 실패 → 1통(시각으로 재므로 — 한계)', s.calls.length === 1, bodies(s));
+        }
+        {   // W10 특보만 바뀐다 — 강풍은 여전히 기록만, 다른 항목(시정계 관측 등)은 첫 실패에 그대로
+            const { al, s, clock } = make();
+            clock.now = T('13:28:00');
+            await al.report('gale', { ok: false, error: TO() });
+            clock.now = T('13:40:00');
+            await al.report('gale', { ok: false, error: TO() });
+            ok('W10 강풍은 5분이 지나도 푸시 없음(특보 1통에 담김)', s.calls.length === 0);
+            await al.report('marineVs', { ok: false, error: new Error('HTTP 503') });
+            ok('W10 시정계 관측은 종전처럼 첫 실패에 1통', s.calls.length === 1 && /^시정계 관측 \(기상청 MMIS\) 수집 실패/.test(s.calls[0].body), bodies(s));
+            ok('W10 5분 대기는 특보에만 걸려 있다', Object.keys(A.ITEMS).filter((id) => A.ITEMS[id].minFailMs).join() === 'warnings' && A.ITEMS.warnings.minFailMs === 5 * 60 * 1000);
         }
 
         console.log('\n── D. 개발/운영 발송 경로 ──');

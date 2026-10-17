@@ -1,9 +1,9 @@
 /* ============================================================================
  * 파일명: client/js/forecast/station-briefing/station_briefing.css
- * 역할  : 「활동지점 안전 브리핑」 아코디언 본문·설정 흐름·설정 팝업 칸의 모양(.sb-*).
+ * 역할  : 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 아코디언 본문·설정 흐름(관할 고르기 탭 두 개·해역 단추·관할 지도·아코디언 포함)·설정 팝업 칸의 모양(.sb-*).
  *         바깥 아코디언(.main-accordion-header·.gradient-slate)·안쪽 칸(.marine-forecast-sub-*)·조석 게이지(.ocean-tide-*)·
  *         [기준 상세] 버튼·창(.rf-basis-btn·.rf-basis)은 기존 규칙(style.css·risk_forecast.css)을 그대로 쓰고 여기서는 다시 정하지 않는다.
- * [연계] station_briefing_render.js · station_briefing.js · admin/admin_station_briefing.js(미리보기) · index2.html <link>
+ * [연계] station_briefing_render.js · station_briefing.js · station_briefing_picker.js(고르기 탭) · admin/admin_station_briefing.js(미리보기) · index2.html <link>
  * ============================================================================ */
 .sb-wrap { display:flex; flex-direction:column; gap:12px; color:#e2e8f0; font-size:.86rem; line-height:1.55; word-break:keep-all; overflow-wrap:anywhere; }
 .sb-meta { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
@@ -23,6 +23,23 @@
 .sb-chip { display:inline-block; padding:1px 8px; border-radius:999px; font-size:.74rem; font-weight:800; white-space:nowrap; }
 .sb-overview { margin:6px 0; color:#e2e8f0; }
 .sb-overview-k { color:#facc15; }
+/* 「총평과 권고」 새 모양(2026-10-17 §11.10) — 육상·해상마다 단계 배지 → 결론(굵게) → (근거) 목록 → (권고) → (물때) → AI 해설(작은 이름표) */
+.sb-sum { margin:4px 0 12px; }
+.sb-sum + .sb-sum { padding-top:10px; border-top:1px solid rgba(148,163,184,.18); }
+.sb-headline { margin:2px 0 6px; color:#f8fafc; font-weight:800; font-size:.9rem; }
+.sb-sum-k { margin:6px 0 2px; color:#94a3b8; font-size:.76rem; font-weight:700; }
+.sb-sum-advice { margin:6px 0; color:#fde68a; font-weight:700; }
+.sb-sum-advice .sb-sum-k { color:#94a3b8; }
+.sb-sum-tide { margin:2px 0; font-size:.8rem; }
+.sb-commentary { margin:8px 0 0; padding:6px 9px; border-left:3px solid rgba(103,232,249,.5); background:rgba(103,232,249,.06); border-radius:6px; color:#e2e8f0; font-size:.82rem; }
+.sb-commentary-k { color:#67e8f9; font-size:.7rem; font-weight:700; }
+/* §11.10.1 모양 — 결론 → (기상) → (물때) → 육상·해상 근거·권고 → AI 해설, 칸 사이 가는 줄 */
+.sb-part { margin:4px 0 10px; }
+.sb-part + .sb-part { padding-top:8px; border-top:1px solid rgba(148,163,184,.18); }
+.sb-conclusion { margin:2px 0 6px; }
+.sb-conclusion .sb-levels { margin:0 0 2px; }
+.sb-part-title { margin:0 0 2px; color:#facc15; font-size:.78rem; font-weight:800; }
+.sb-wx-rows li, .sb-wx-notes li { font-size:.8rem; }
 .sb-now { margin:6px 0; padding:6px 9px; border-radius:8px; background:rgba(103,232,249,.08); color:#a5f3fc; font-size:.8rem; }
 .sb-basis, .sb-constant { margin-top:6px; }
 .sb-basis summary, .sb-constant summary { cursor:pointer; color:#93c5fd; font-size:.8rem; font-weight:700; }
@@ -75,9 +92,35 @@
 .sb-setup p, .sb-unset p, .sb-confirm p { margin:0 0 8px; color:#cbd5e1; font-size:.8rem; }
 .sb-search { width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.3); color:#e2e8f0; font-size:.85rem; margin-bottom:8px; }
 .sb-station-list { max-height:min(46vh,380px); overflow-y:auto; border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:6px 8px; }
-.sb-region { color:#facc15; font-size:.76rem; font-weight:800; margin:8px 0 2px; }
-.sb-office { color:#94a3b8; font-size:.74rem; font-weight:700; margin:6px 0 4px; }
-.sb-office-list { display:flex; flex-wrap:wrap; gap:5px; }
+/* 관할 고르기 탭 두 개(2026-10-17 — station_briefing_picker.js): 「지도에서 선택하기」·「파출소로 선택하기」 */
+.sb-tabs { display:flex; gap:4px; margin:4px 0 10px; padding:3px; border-radius:10px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); }
+.sb-tab { flex:1 1 0; min-width:0; padding:8px 6px; border:none; border-radius:8px; background:transparent; color:#94a3b8; font-size:.82rem; font-weight:700; cursor:pointer; }
+.sb-tab[aria-selected="true"] { background:rgba(68,138,255,.18); color:#fff; box-shadow:inset 0 0 0 1.5px #448aff; }
+.sb-tab:focus-visible { outline:2px solid #67e8f9; outline-offset:1px; }
+.sb-setup .sb-pick-title { margin:0 0 4px; color:#fff; font-size:.9rem; font-weight:700; }
+.sb-setup .sb-pick-sub { margin:0 0 10px; color:#94a3b8; font-size:.78rem; }
+.sb-pick-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:2px; }
+.sb-pick-head .sb-pick-title { margin:0; min-width:0; }
+.sb-sea-back { flex:none; padding:5px 10px; font-size:.74rem; }
+/* 해역 단추 — 온보딩 「관심해역을 클릭해보세요」(onboarding/zone_setup.js _paintChip 안 고른 모양)와 같은 모양 */
+.sb-sea-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:6px; }
+.sb-sea-btn { padding:14px 8px; border-radius:12px; font-size:.9rem; font-weight:600; cursor:pointer; background:rgba(255,255,255,.04); border:1.5px solid rgba(255,255,255,.12); color:#cbd5e1; }
+.sb-sea-btn:active { background:rgba(68,138,255,.18); border-color:#448aff; color:#fff; }
+/* 관할 지도 — 온보딩 지도와 같이 높이를 화면 비율로 못박는다(부모 높이가 풀리면 ol 지도가 터치를 못 받는다 — zone_setup.js 주석) */
+.sb-map { position:relative; width:100%; height:46vh; min-height:240px; max-height:460px; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,.12); background:#0d1830; color:#94a3b8; font-size:.8rem; text-align:center; line-height:1.6; box-sizing:border-box; }
+.sb-map:not(.sb-map-ready) { padding:24px 16px; }
+/* 지도가 들어오면 밝은 바다색 바탕 — 배경 바다지도(해아름) 타일이 늦거나 못 와도 어두운 선·글자(zoneStyle — 밝은 지도용)가 보이게 */
+.sb-map.sb-map-ready { background:#d6e6f5; }
+.sb-setup .sb-map-hint { margin:8px 0 0; color:#94a3b8; font-size:.76rem; }
+/* 지방청 → 해양경찰서 → 파출소 아코디언 */
+.sb-acc-btn { display:flex; align-items:center; justify-content:space-between; width:100%; border:none; background:transparent; text-align:left; cursor:pointer; }
+.sb-acc-btn::after { content:'▾'; flex:none; margin-left:8px; transition:transform .15s; transform:rotate(-90deg); }
+.sb-acc-btn[aria-expanded="true"]::after { transform:none; }
+.sb-region { color:#facc15; font-size:.8rem; font-weight:800; padding:8px 2px; border-bottom:1px solid rgba(148,163,184,.14); }
+.sb-acc-region > .sb-acc-body { padding:2px 0 4px 10px; }
+.sb-office { color:#cbd5e1; font-size:.78rem; font-weight:700; padding:7px 2px; }
+.sb-office-list { display:flex; flex-wrap:wrap; gap:5px; padding:0 0 6px 8px; }
+.sb-acc-body[hidden] { display:none; }
 .sb-station-btn { padding:5px 9px; border-radius:999px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.04); color:#e2e8f0; font-size:.78rem; cursor:pointer; }
 .sb-station-btn[aria-pressed="true"] { background:#2563eb; border-color:#60a5fa; color:#fff; }
 .sb-station-btn small { color:#fbbf24; margin-left:3px; }
@@ -95,3 +138,25 @@
 #station-briefing-settings .sb-set-title { font-size:1rem; color:#fff; font-weight:600; display:flex; align-items:center; gap:8px; }
 #station-briefing-settings .sb-set-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; color:#cbd5e1; font-size:.88rem; }
 #station-briefing-settings .sb-set-sub { color:#94a3b8; font-size:.76rem; margin-top:6px; line-height:1.5; }
+/* 근거 줄 펼침(2026-10-17 사용자 결정 §11.10.3) — 「사고 지점(N개소)」 표 · 해역·해구 미니 지도(높이 200px, 테두리 깜빡임은 station_briefing_render.js miniMap) */
+.sb-x-btn { display:inline; padding:0; border:0; background:none; color:#93c5fd; font:inherit; text-align:left; text-decoration:underline; text-underline-offset:2px; cursor:pointer; word-break:keep-all; }
+.sb-x-btn[aria-expanded="true"] { color:#bfdbfe; }
+.sb-x-btn:focus-visible { outline:2px solid #67e8f9; outline-offset:2px; border-radius:3px; }
+.sb-x-arrow { text-decoration:none; display:inline-block; }
+.sb-x-panel { margin:6px 0 8px; }
+.sb-basis-note { margin:2px 0 0; }
+.sb-minimap { width:100%; height:200px; border-radius:8px; overflow:hidden; border:1px solid rgba(148,163,184,.3); background:#dbeafe; }
+.sb-minimap-cap { margin:4px 0 0; }
+.sb-iso-table { width:100%; border-collapse:collapse; font-size:.78rem; }
+.sb-iso-table caption { caption-side:bottom; text-align:left; padding-top:4px; color:#94a3b8; font-size:.72rem; }
+.sb-iso-table th, .sb-iso-table td { padding:4px 8px; border-bottom:1px solid rgba(148,163,184,.2); text-align:left; }
+.sb-iso-table th { color:#94a3b8; font-weight:700; }
+.sb-iso-table .sb-num { text-align:right; white-space:nowrap; }
+.sb-iso-table th:last-child { text-align:right; }
+.sb-iso-line { margin:4px 0 2px; font-size:.8rem; }
+/* 「가」 모양(2026-10-17 사용자 결정 §11.10.4) — 결론 아래 분석 문단(이름표 「AI 분석 · ChatGPT」/「규칙 분석」) · 그 아래 접힌 「연안/해상 분석 근거」 */
+.sb-analysis { margin:4px 0 6px; color:#e2e8f0; font-size:.84rem; line-height:1.65; }
+.sb-an-tag { display:inline-block; margin-right:2px; padding:0 6px; border-radius:999px; background:rgba(103,232,249,.14); border:1px solid rgba(103,232,249,.4); color:#67e8f9; font-size:.68rem; font-weight:700; vertical-align:1px; white-space:nowrap; }
+.sb-an-tag.sb-an-rule { background:rgba(148,163,184,.14); border-color:rgba(148,163,184,.45); color:#cbd5e1; }
+.sb-basis-x { margin:2px 0 0; font-size:.8rem; }
+.sb-pending { background:rgba(250,204,21,.08); border-color:rgba(250,204,21,.35); color:#fde68a; }

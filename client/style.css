@@ -5230,6 +5230,123 @@ line-height: 1.1;
 }
 
 /* ============================================================================
+ * 아코디언 머리 오른쪽 끝 ⚙ (2026-10-17)
+ *   「활동지점 안전 브리핑」 ⚙(#station-briefing-settings-btn 의 인라인 값)과 같은 모양 —
+ *   그 파일은 다른 작업 중이라 손대지 않고 값만 옮겨 왔다. 브리핑 ⚙ 모양을 바꾸면 여기도 같이 본다.
+ *   [쓰는 곳] #regional-office-settings-btn(기상청 해상 기상 전망 — 늘 보임) ·
+ *            #alert-zone-settings-btn(해역별 특보현황 — 관심해역 안 골랐을 때만, render.js syncAlertZoneGear)
+ * ============================================================================ */
+.accordion-gear-btn {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-left: auto;
+    flex: 0 0 auto;
+    transition: color 0.2s, opacity 0.4s ease;   /* opacity 0.4s = render.js ALERT_ZONE_GEAR_FADE_MS */
+}
+.accordion-gear-btn[hidden] { display: none; }
+/* 관심해역을 고른 뒤 흐려지며 사라지는 중 */
+.accordion-gear-btn.is-fading { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+    .accordion-gear-btn { transition: none; }
+}
+/* 「해역별 특보현황」 머리 오른쪽 묶음 — 상태 배지(.header-status)와 ⚙ 를 한 덩어리로 오른쪽 끝에 붙인다
+   (둘 다 margin-left:auto 면 빈 자리를 나눠 가져 배지가 가운데로 뜬다) */
+.accordion-head-right {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    gap: 2px;
+}
+.accordion-head-right .accordion-gear-btn { margin-left: 0; }
+
+/* 관심해역 설정을 마쳤을 때 아래쪽 안내 띠(render.js showZoneSetupDoneToast — settings/zone_guide.js 알림 띠와 같은 모양) */
+.zone-setup-done-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(30, 41, 59, 0.95);
+    color: #e2e8f0;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    z-index: 10200;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+    width: max-content;
+    max-width: calc(100% - 32px);
+    box-sizing: border-box;
+    line-height: 1.5;
+}
+.zone-setup-done-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+    .zone-setup-done-toast { transition: none; }
+}
+
+/* ============================================================================
+ * 관심 기상청 — 안 골랐을 때 안내 칸 · 설정 팝업(#office-settings-panel) (2026-10-17)
+ *   팝업 모양은 종전 인라인 값(어두운 카드·📋 제목·회색 안내)을 그대로 옮겼다.
+ *   바뀐 것: 켬/끔 스위치 → 라디오(한 곳만), [초기화] 없앰, [취소]·[완료].
+ * ============================================================================ */
+.regional-office-unset { text-align: center; padding: 14px 8px 10px; }
+.regional-office-unset-title { color: #e2e8f0; font-size: 0.9rem; font-weight: 600; margin: 0 0 6px; }
+.regional-office-unset-sub { color: #94a3b8; font-size: 0.78rem; margin: 0 0 14px; line-height: 1.5; }
+.regional-office-unset-btn,
+.office-settings-btn.primary {
+    background: rgba(59, 130, 246, 0.6);
+    border: 1px solid rgba(59, 130, 246, 0.8);
+    color: #fff;
+    padding: 8px 22px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.office-settings-panel {
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 0 0 4px;
+}
+.office-settings-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.office-settings-title { color: #fff; font-size: 0.9rem; font-weight: 600; }
+.office-settings-x { background: none; border: none; color: #64748b; cursor: pointer; font-size: 1.1rem; padding: 2px 6px; }
+.office-settings-note { color: #94a3b8; font-size: 0.75rem; margin: 0 0 6px; }
+.office-settings-list { margin-top: 8px; }
+.office-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.office-settings-row.checked { color: #fff; font-weight: 600; }
+.office-settings-row input[type="radio"] { width: 20px; height: 20px; margin: 0; accent-color: #3b82f6; cursor: pointer; }
+.office-settings-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.office-settings-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.office-settings-btn.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ============================================================================
  * 종합 예보 (지방기상청 단기예보)
  * ============================================================================ */
 

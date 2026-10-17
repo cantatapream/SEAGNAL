@@ -2573,7 +2573,7 @@
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=FilterPolish4_20260831">
+    <link rel="stylesheet" href="style.css?v=OfficePick_20261017">
     <link rel="stylesheet" href="splash.css?v=Lifevest_20260624">
 
 
@@ -2703,7 +2703,7 @@
         };
     </script>
     <link rel="stylesheet" href="js/marine-life/risk-forecast/risk_forecast.css?v=20261016t24">
-    <link rel="stylesheet" href="js/forecast/station-briefing/station_briefing.css?v=20261016sb2">
+    <link rel="stylesheet" href="js/forecast/station-briefing/station_briefing.css?v=20261017sb8">
 </head>
 
 <body class="loading">
@@ -3152,21 +3152,22 @@
                         <h2 class="section-title" style="margin: 0;">🔭
                             기상청 해상 기상 전망</h2>
                     </div>
+                    <!-- 관심 기상청 설정 ⚙ — 머리 오른쪽 끝(활동지점 안전 브리핑 ⚙ 와 같은 모양, 2026-10-17). 늘 보인다. -->
+                    <button id="regional-office-settings-btn" type="button" class="accordion-gear-btn" onclick="event.stopPropagation(); toggleOfficeSettingsPanel()"
+                        title="관심 기상청 설정" aria-label="관심 기상청 설정">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
                 </div>
 
                 <div id="marine-forecast-accordion-body" class="main-accordion-body collapsed">
                     <div id="marine-forecast-content" class="marine-forecast-container">
                         <!-- 종합 예보 (지방기상청 단기예보) -->
                         <!-- 종합 예보: 지방청별 단기예보를 표시하는 섹션
-                             ⚙ 설정 버튼으로 표시할 지방청을 수동 선택 가능
-                             수동 선택은 관심해역 설정보다 우선 적용됨 -->
+                             머리 ⚙ 로 관심 기상청 한 곳을 고른다(없으면 안내 + [설정하기])
+                             고른 곳은 관심해역 설정보다 우선 적용됨 -->
                         <div class="marine-forecast-sub-accordion open" id="regional-forecast-section">
                             <div class="marine-forecast-sub-header" onclick="toggleMarineForecastSub('regional-forecast-body')">
                                 <span class="marine-forecast-sub-title" id="regional-forecast-title">종합 예보</span>
-                                <button id="regional-office-settings-btn" onclick="event.stopPropagation(); toggleOfficeSettingsPanel()" title="지방청 표시 설정"
-                                    style="background:none;border:none;color:#64748b;font-size:1rem;cursor:pointer;padding:4px 8px;margin-left:auto;transition:color 0.2s;">
-                                    <i class="fa-solid fa-gear"></i>
-                                </button>
                                 <i class="fa-solid fa-chevron-down marine-forecast-sub-icon"></i>
                             </div>
                             <div class="marine-forecast-sub-body" id="regional-forecast-body">
@@ -3198,18 +3199,19 @@
                     </div>
                 </div>
 
-                <!-- 활동지점 안전 브리핑 아코디언(설계서 §11.1 — 「기상청 해상 기상 전망」 바로 아래, 같은 모양).
+                <!-- 연안 안전 브리핑 아코디언(설계서 §11.1 — 「기상청 해상 기상 전망」 바로 아래, 같은 모양. 이름·제목 「HH:MM AI 연안 안전 브리핑」은 §11.10.4 — 종전 「활동지점 안전 브리핑」).
+                     제목 글(#station-briefing-title)은 station_briefing.js setTitle 이 보이는 판의 시각으로 바꾼다.
                      처음에는 숨김(display:none) — 서버 노출 판정(GET /api/station-briefing/stations display:true, 기본 「관리자에게만」)일 때만
                      station_briefing.js 가 보인다. 일반 사용자 화면은 지금과 같다.
                      [연계] js/forecast/station-briefing/station_briefing.js · station_briefing_render.js · station_briefing.css -->
                 <div id="station-briefing-accordion-header" class="main-accordion-header gradient-slate collapsed-state"
                     onclick="toggleStationBriefingAccordion()" style="display: none;">
                     <div class="accordion-title-with-info">
-                        <h2 class="section-title" style="margin: 0;">🧭 활동지점 안전 브리핑</h2>
+                        <h2 class="section-title" style="margin: 0;"><span aria-hidden="true">🧭 </span><span id="station-briefing-title">AI 연안 안전 브리핑</span></h2>
                         <span id="station-briefing-badge-slot"></span>
                     </div>
                     <!-- 관할 설정 ⚙ — 종합 예보 ⚙(#regional-office-settings-btn)과 같은 모양. 관할을 고른 뒤에만 보인다. -->
-                    <button id="station-briefing-settings-btn" type="button" onclick="event.stopPropagation(); openStationBriefingSetup()" title="활동지점(관할) 설정"
+                    <button id="station-briefing-settings-btn" type="button" onclick="event.stopPropagation(); openStationBriefingSetup()" title="연안 안전 브리핑 지역 설정"
                         style="display:none;background:none;border:none;color:#64748b;font-size:1rem;cursor:pointer;padding:4px 8px;margin-left:auto;transition:color 0.2s;">
                         <i class="fa-solid fa-gear"></i>
                     </button>
@@ -3278,12 +3280,20 @@
                         <h2 class="section-title" style="margin: 0;"><i class="fa-solid fa-triangle-exclamation"></i>
                             해역별 특보현황</h2>
                     </div>
+                    <div class="accordion-head-right">
                     <div class="header-status">
                         <!-- Initial Loading State -->
                         <span style="color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-right: 8px;">
                             <i class="fa-solid fa-spinner fa-spin"></i>
                         </span>
 
+                    </div>
+                    <!-- 관심해역 설정 ⚙ (2026-10-17) — 관심해역을 아직 안 골랐을 때만 보인다(render.js syncAlertZoneGear).
+                         누르면 온보딩 관심해역 설정(zone_setup.js)을 연다. -->
+                    <button id="alert-zone-settings-btn" type="button" class="accordion-gear-btn" hidden
+                        onclick="event.stopPropagation(); openAlertZoneSetup()" title="관심해역 설정" aria-label="관심해역 설정">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
                     </div>
                 </div>
 
@@ -5637,11 +5647,11 @@
     <script src="js/shared/utils/utils.js?v=Usage_20260910"></script>
     <script src="js/forecast/alerts/data.js"></script>
     <script src="js/forecast/alerts/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
-    <script src="js/forecast/alerts/render.js?v=BuoyClip_20260612"></script>
+    <script src="js/forecast/alerts/render.js?v=ZoneGear_20261017"></script>
     <script src="js/forecast/alerts/alert_history.js"></script>
     <script src="js/forecast/alerts/render_coastal.js"></script>
     <script src="js/forecast/alerts/marine.js?v=Maint_20260910"></script>
-    <script src="js/settings/settings.js?v=20261016sb2"></script>
+    <script src="js/settings/settings.js?v=ZoneGear_20261017"></script>
     <script src="js/location-alert/location_alert_core.js"></script>
     <script src="js/location-alert/location_alert_background.js"></script>
     <script src="js/location-alert/location_alert_runtime.js"></script>
@@ -5654,7 +5664,7 @@
     <script src="js/typhoon/location_alert_typhoon_runtime.js"></script>
     <script src="js/forecast/outlook/forecast.js"></script>
     <script src="js/forecast/outlook/windy.js?v=BuoyClip_20260612"></script>
-    <script src="js/forecast/outlook/marine_forecast.js"></script>
+    <script src="js/forecast/outlook/marine_forecast.js?v=OfficeLegacy_20261017"></script>
     <script src="js/forecast/prediction/advisory_prediction.js"></script>
     <!-- 해상일기도 (KMA 날씨누리 GIF 차트) — 5개 파일 분할
          1: 카탈로그/상태/init/드롭다운/즐겨찾기  2: fetch/render/슬라이더/재생
@@ -5729,11 +5739,11 @@
     <script src="js/admin/pagination_helper.js"></script>
     <!-- 사용량 통계 기능 키 → 한글 이름표(화면·CSV 공용). admin_collect.js 보다 먼저 -->
     <script src="js/shared/utils/usage_keys.js"></script>
-    <script src="js/admin/admin.js?v=20261016sb2"></script>
+    <script src="js/admin/admin.js?v=20261017sb3"></script>
     <!-- [데이터 수집현황] 점검 탭 하위 화면(수집 목록·현재 원천 상태·오류·복구 이력). admin.js 의 renderAiForecastSubtab 을 쓰므로 그 뒤 -->
     <script src="js/admin/admin_data_status.js"></script>
     <!-- [AI 브리핑] AI 탭 하위 탭(활동지점 안전 브리핑 생성 방식·모델·노출 범위·상태·미리보기). admin.js switchAiSubTab 이 부른다 -->
-    <script src="js/admin/admin_station_briefing.js?v=20261016sb2"></script>
+    <script src="js/admin/admin_station_briefing.js?v=20261017sb6"></script>
     <script src="js/admin/admin_collect.js?v=Usage_20260910"></script>
     <script src="js/admin/admin_survey.js"></script>
     <script src="js/admin/admin_report.js"></script>
@@ -5828,17 +5838,18 @@
     <script src="js/marine-life/risk-forecast/risk_api.js?v=20261010"></script>
     <script src="js/marine-life/risk-forecast/risk_map_layer.js?v=20261016t20"></script>
     <script src="js/marine-life/risk-forecast/risk_slider.js?v=20261016t24"></script>
-    <script src="js/marine-life/risk-forecast/risk_marine.js?v=20261016t20"></script>
+    <script src="js/marine-life/risk-forecast/risk_marine.js?v=20261017f1"></script>
     <script src="js/marine-life/risk-forecast/risk_sheet.js?v=20261016warn"></script>
     <script src="js/marine-life/risk-forecast/risk_basis_content.js?v=20261016t24"></script>
     <script src="js/marine-life/risk-forecast/risk_basis.js?v=20261016t9"></script>
     <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261016sb2"></script>
     <script src="js/marine-life/safety/life_safety.js?v=TabKeep3_20261016"></script>
     <!-- 활동지점 안전 브리핑(해양예보 탭 아코디언, 설계서 §11) — 바로가기가 위험예측(risk_forecast.js)·탭 전환(life_safety.js)을,
-         [기준 상세] 문안이 risk_basis_content.js 의 RiskBasisContent 를 쓰므로 그 뒤. 렌더 → 기준 문안 → 본체 순서. -->
-    <script src="js/forecast/station-briefing/station_briefing_render.js?v=20261016sb2"></script>
-    <script src="js/forecast/station-briefing/station_briefing_basis.js?v=20261016sb2"></script>
-    <script src="js/forecast/station-briefing/station_briefing.js?v=20261016sb2"></script>
+         [기준 상세] 문안이 risk_basis_content.js 의 RiskBasisContent 를 쓰므로 그 뒤. 렌더 → 기준 문안 → 관할 고르기 탭(picker) → 본체 순서. -->
+    <script src="js/forecast/station-briefing/station_briefing_render.js?v=20261017sb8"></script>
+    <script src="js/forecast/station-briefing/station_briefing_basis.js?v=20261017sb8"></script>
+    <script src="js/forecast/station-briefing/station_briefing_picker.js?v=20261017sb7"></script>
+    <script src="js/forecast/station-briefing/station_briefing.js?v=20261017sb7"></script>
 
     <!-- 온보딩 튜토리얼 (공지사항 탭 3초 안에 5회 연타로만 열리는 시험 모드)
          아직 일반 사용자에게는 보이지 않는다. 앞으로 다른 화면의 아코디언·버튼을
@@ -5847,7 +5858,7 @@
 
          zone_setup.js(관심해역 설정)는 tutorial.js 가 불러 쓰므로 반드시 그 앞에 둔다 —
          연타로 열면 「관심해역 설정 → 튜토리얼」 순서로 이어진다. -->
-    <script src="js/onboarding/zone_setup.js"></script>
+    <script src="js/onboarding/zone_setup.js?v=ZoneGear_20261017"></script>
     <script src="js/tutorial/tutorial.js"></script>
 
     <!-- 선택적 차단 표시용 스타일 (버튼 자물쇠 배지 / 해상일기도·바텀시트 점검중) -->

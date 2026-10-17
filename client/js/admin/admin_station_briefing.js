@@ -1,9 +1,10 @@
 /**
  * ============================================================================
  * 파일명: client/js/admin/admin_station_briefing.js
- * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 활동지점 안전 브리핑의
+ * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 연안 안전 브리핑(종전 「활동지점 안전 브리핑」 — §11.10.4)의
  *         생성 방식(ChatGPT VM / Gemini / 틀)·모델·노출 범위(사용자에게 / 관리자에게만 / 노출 안 함)·묶음 단위·「바뀐 곳만 다시 만들기」를 고르고,
- *         상태(마지막 실행·판·성공/틀 대체/실패 수·다음 예정)를 보고, [지금 다시 만들기](실행 중이면 409 안내)와 관할 하나 미리보기를 한다.
+ *         상태(마지막 실행·판·AI/다시 시도/규칙 분석 수·공개 예정·다음 예정(만들기 시작·공개 시각)·최근 3일 오류 전부(몇 번째 시도인지) + [복사]·[md로 저장])를 보고,
+ *         [지금 다시 만들기](곧바로 공개 · 실행 중이면 409 안내)와 관할 하나 미리보기(공개 예정 판은 「예정」)를 한다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : admin/admin.js(window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부 · switchAiSubTab 이 나를 부름)
@@ -25,11 +26,13 @@
         geminiModel: { 'gemini-2.5-flash': 'Gemini 2.5 Flash', 'gemini-2.5-flash-lite': 'Gemini 2.5 Flash-Lite' },
         exposure: { user: '사용자에게', admin: '관리자에게만', off: '노출 안 함' },
         batchUnit: { station: '파출소(97회/판)', office: '해양경찰서(21회/판)', region: '지방청(5회/판)' },
-        onlyChanged: { 'true': '켜기 — 입력이 같으면 지난 총평 재사용', 'false': '끄기 — 매번 새로' },
+        onlyChanged: { 'true': '켜기 — 입력이 같으면 지난 분석 재사용', 'false': '끄기 — 매번 새로' },
     };
-    var TITLES = { method: '생성 방식', chatgptModel: 'ChatGPT 모델', geminiModel: 'Gemini 모델', exposure: '노출 범위', batchUnit: '묶음 단위(AI 호출 한 번에 묶는 관할)', onlyChanged: '바뀐 곳만 다시 만들기 — AI 총평을 입력이 바뀐 관할만 새로 씀(기상청 해상 전망이 바뀌면 전 관할을 다시 씁니다)' };
+    var TITLES = { method: '생성 방식', chatgptModel: 'ChatGPT 모델', geminiModel: 'Gemini 모델', exposure: '노출 범위', batchUnit: '묶음 단위(AI 호출 한 번에 묶는 관할)', onlyChanged: '바뀐 곳만 다시 만들기 — AI 분석을 입력이 바뀐 관할만 새로 씀(기상청 해상 전망이 바뀌면 전 관할을 다시 씁니다)' };
     // ↑ onlyChanged 단서(2단계 검토 B13): 재사용 해시에 기상청 해상 전망(kma)이 들어 있어(station_briefing_ai.generate), 전망이 바뀌면 모든 관할의 해시가 바뀐다.
-    var KIND = { morning: '08:00 판', evening: '17:30 판', night: '23:00 판', warning: '특보 변경 판', manual: '관리자 즉시 실행' };
+    var KIND = { morning: '07:30 판', evening: '17:30 판', night: '23:00 판', warning: '특보 변경 판', manual: '관리자 즉시 실행' };
+    // 정시 판 일정(KST 분) — 서버 station_briefing_rules.EDITIONS 와 같은 표(2026-10-17 §11.10.4): 만들기 시작 start → 공개 pub
+    var SLOTS = [{ start: 430, pub: 450 }, { start: 1030, pub: 1050 }, { start: 1360, pub: 1380 }];
     var BOX = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;';
 
     /** 요소 하나(글은 textContent). 예: el('div','', '저장됨'). @returns {HTMLElement} [연계] ← 이 파일 */
@@ -37,16 +40,16 @@
     /** KST 시각 글자. 예: '2026-10-17T08:00:12+09:00' → '10-17 08:00'. @param {string} iso @returns {string} */
     function at(iso) { var m = /^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(iso || '')); return m ? m[1] + '-' + m[2] + ' ' + m[3] + ':' + m[4] : '—'; }
     /**
-     * 다음 정시 판 시각(KST 08:00·17:30·23:00 — 서버 station_briefing_rules.EDITIONS 와 같은 표).
-     * 예: 10-17 14:05 KST → '10-17 17:30' · 23:10 → '10-18 08:00'
+     * 다음 정시 판 — 공개 시각과 만들기 시작 시각(KST — SLOTS, 서버 EDITIONS 와 같은 표). 이미 만들기 시작한 판(시작 ≤ 지금 < 공개)이면 그 판.
+     * 예: 10-17 14:05 KST → '10-17 17:30 공개(17:10부터 만들기)' · 17:20 → '10-17 17:30 공개(17:10부터 만들기)' · 23:10 → '10-18 07:30 공개(07:10부터 만들기)'
      * @param {number} nowMs @returns {string} [연계] ← 상태 칸 「다음 예정」
      */
     function nextEdition(nowMs) {
-        var k = new Date(nowMs + 9 * 3600000), mins = k.getUTCHours() * 60 + k.getUTCMinutes(), slots = [480, 1050, 1380], day = 0, pick = null;
-        for (var i = 0; i < slots.length; i++) if (slots[i] > mins) { pick = slots[i]; break; }
-        if (pick === null) { pick = slots[0]; day = 1; }
-        var d = new Date(Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() + day));
-        return String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0') + ' ' + String(Math.floor(pick / 60)).padStart(2, '0') + ':' + String(pick % 60).padStart(2, '0');
+        var k = new Date(nowMs + 9 * 3600000), mins = k.getUTCHours() * 60 + k.getUTCMinutes(), day = 0, pick = null;
+        for (var i = 0; i < SLOTS.length; i++) if (SLOTS[i].pub > mins) { pick = SLOTS[i]; break; }
+        if (pick === null) { pick = SLOTS[0]; day = 1; }
+        var d = new Date(Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() + day)), hm = function (x) { return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); };
+        return String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0') + ' ' + hm(pick.pub) + ' 공개(' + hm(pick.start) + '부터 만들기)';
     }
     /** JSON 요청(관리자 토큰은 admin.js 래퍼가 붙인다). 실패면 {status, error}. @returns {Promise<{status:number, body:Object}>} */
     async function call(path, init) {
@@ -64,8 +67,8 @@
     async function renderStationBriefingAdmin(container) {
         container.textContent = '';
         var host = el('div'); host.setAttribute('data-sb-admin', ''); container.appendChild(host);
-        var title = el('div'); title.className = 'admin-section-title'; var ts = el('span'); var ic = el('i'); ic.className = 'fa-solid fa-compass'; ic.style.color = '#22d3ee'; ts.appendChild(ic); ts.appendChild(document.createTextNode(' AI 브리핑 — 활동지점 안전 브리핑')); title.appendChild(ts); host.appendChild(title);
-        host.appendChild(el('div', 'color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;', '파출소 관할 97곳의 브리핑을 08:00·17:30·23:00 과 특보가 바뀔 때 서버가 만듭니다. AI 는 총평 두 문단만 쓰고, 단계·카드는 서버 규칙입니다. 바꾼 값은 누르는 즉시 저장됩니다.'));
+        var title = el('div'); title.className = 'admin-section-title'; var ts = el('span'); var ic = el('i'); ic.className = 'fa-solid fa-compass'; ic.style.color = '#22d3ee'; ts.appendChild(ic); ts.appendChild(document.createTextNode(' AI 브리핑 — 연안 안전 브리핑')); title.appendChild(ts); host.appendChild(title);
+        host.appendChild(el('div', 'color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;', '파출소 관할 97곳의 브리핑을 07:30·17:30·23:00 에 보이도록 각 20분 전(07:10·17:10·22:40)부터 만들어 두고, 특보가 바뀌면 그 관할을 곧바로 다시 만듭니다. AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓰고(VM 최대 3번 → Gemini → 그래도 안 되면 서버 규칙 분석), 결론·근거·권고·단계·카드는 서버 규칙입니다. 바꾼 값은 누르는 즉시 저장됩니다.'));
         var cfgBox = el('div', BOX); cfgBox.setAttribute('data-sb-config', ''); host.appendChild(cfgBox);
         var stBox = el('div', BOX); stBox.setAttribute('data-sb-status', ''); host.appendChild(stBox);
         var pvBox = el('div', BOX); pvBox.setAttribute('data-sb-preview', ''); host.appendChild(pvBox);
@@ -122,10 +125,10 @@
         paint();
     }
     /**
-     * 상태 칸 — 마지막 실행(시각·판·방식·걸린 시간·날짜별 관할 수·AI·재사용·틀 대체·오류)·실행 중·특보 변경 대기·실행 실패·다음 예정·최근 오류 5개,
+     * 상태 칸 — 마지막 실행(시각·판·방식·걸린 시간·날짜별 관할 수·AI·재사용·틀 대체·오류)·실행 중·특보 변경 대기·실행 실패·다음 예정·최근 3일 오류 전부(drawErrors),
      * [지금 다시 만들기](202 시작 / 409 실행 중)·[새로고침].
-     * 예: 「마지막 실행 10-17 08:00 · 08:00 판 · chatgpt · 412초」 「10월 17일 97곳 — AI 90 · 재사용 3 · 틀 대체 4 · 오류 2」
-     * @param {HTMLElement} box @returns {Promise<void>} [연계] ← renderStationBriefingAdmin·버튼
+     * 예: 「마지막 실행 10-17 07:10 · 07:30 판 · chatgpt · 412초 · 공개 10-17 07:30」 「10-17 판 97곳 — AI 90(다시 시도 5 · Gemini 1회) · 재사용 3 · 규칙 분석 4 · 오류 2」 「공개 예정 10-17 07:30 — 97곳(그때까지 사용자에게는 이전 판)」
+     * @param {HTMLElement} box @returns {Promise<void>} [연계] ← renderStationBriefingAdmin·버튼 / → drawErrors
      */
     async function drawStatus(box) {
         box.textContent = '';
@@ -141,7 +144,7 @@
             run.disabled = true; msg.style.color = '#94a3b8'; msg.textContent = '요청 중…';
             try {
                 var r = await call('/run', { method: 'POST' });
-                if (r.status === 202) { msg.style.color = '#34d399'; msg.textContent = '시작했습니다 — 21시 전이면 오늘 판, 이후면 내일 판을 다시 만듭니다. 끝나면 [새로고침]으로 결과를 보세요.'; }
+                if (r.status === 202) { msg.style.color = '#34d399'; msg.textContent = '시작했습니다 — 21시 전이면 오늘 판, 이후면 내일 판을 다시 만들어 끝나는 대로 곧바로 보입니다(공개 시각을 기다리지 않음). 끝나면 [새로고침]으로 결과를 보세요.'; }
                 else if (r.status === 409) { msg.style.color = '#fbbf24'; msg.textContent = '이미 실행 중입니다 — 끝난 뒤 다시 눌러 주세요.'; }
                 else { msg.style.color = '#fca5a5'; msg.textContent = '시작하지 못했습니다: ' + (r.body.error || ('HTTP ' + r.status)); }
             } catch (e) { console.warn('[AI 브리핑 관리] 지금 다시 만들기 요청 실패:', e && e.message); msg.style.color = '#fca5a5'; msg.textContent = '요청 실패: ' + (e && e.message); }
@@ -153,26 +156,97 @@
         var line = function (k, v, mark) { var d = el('div'); if (mark) d.setAttribute(mark, ''); d.appendChild(el('span', 'color:#64748b;', k + ' ')); d.appendChild(document.createTextNode(v)); body.appendChild(d); };
         line('실행 중', s.running ? '예 — 지금 만드는 중' : '아니요', 'data-sb-running');
         if (lr) {
-            line('마지막 실행', at(lr.at) + ' · ' + (KIND[lr.kind] || lr.kind || '') + ' · 방식 ' + (lr.method || '—') + (Number.isFinite(lr.ms) ? ' · ' + Math.round(lr.ms / 1000) + '초' : ''), 'data-sb-lastrun');
+            line('마지막 실행', at(lr.at) + ' · ' + (KIND[lr.kind] || lr.kind || '') + ' · 방식 ' + (lr.method || '—') + (Number.isFinite(lr.ms) ? ' · ' + Math.round(lr.ms / 1000) + '초' : '') + (lr.publishAt ? ' · 공개 ' + at(lr.publishAt) : ''), 'data-sb-lastrun');
             (lr.results || []).forEach(function (x) {
                 var st = x.stats || {};
-                line(String(x.date || '').slice(5) + ' 판', (x.stations || 0) + '곳 — AI ' + (st.ai || 0) + ' · 재사용 ' + (st.reused || 0) + ' · 틀 대체 ' + (st.template || 0) + ' · 오류 ' + (x.errors || 0) + (st.deadline ? ' · 시간 초과 ' + st.deadline : ''), 'data-sb-result');
+                line(String(x.date || '').slice(5) + ' 판', (x.stations || 0) + '곳 — AI ' + (st.ai || 0) + (st.retried || st.gemini ? '(다시 시도 ' + (st.retried || 0) + '곳 · Gemini ' + (st.gemini || 0) + '회)' : '') + ' · 재사용 ' + (st.reused || 0) + ' · 규칙 분석 ' + (st.template || 0) + ' · 오류 ' + (x.errors || 0) + (st.deadline ? ' · 시간 초과(데드라인·공개 시각) ' + st.deadline : ''), 'data-sb-result');
             });
             if (lr.aiDisabled) line('참고', lr.aiDisabled);
         } else line('마지막 실행', '기록 없음');
-        line('다음 예정', nextEdition(Date.now()) + ' (08:00·17:30·23:00, 특보가 바뀌면 그 관할만 추가)', 'data-sb-next');
+        (s.pending || []).forEach(function (x) { line('공개 예정', at(x.publishAt) + ' — ' + x.stations + '곳(그때까지 사용자에게는 이전 판)', 'data-sb-pending-status'); });
+        line('다음 예정', nextEdition(Date.now()) + ' (07:30·17:30·23:00 공개, 각 20분 전부터 만들기 · 특보가 바뀌면 그 관할만 곧바로)', 'data-sb-next');
         if (s.pendingWarn) line('특보 변경 대기', (s.pendingWarn.zones || []).join(', ') + ' — 마지막 변경 ' + at(s.pendingWarn.lastChangeAt));
         Object.keys(s.failures || {}).forEach(function (k) { var f = s.failures[k]; line('실행 실패', k + ' ' + f.count + '번 · 마지막 ' + at(f.lastAt) + ' · ' + (f.reason || '')); });
         if (Array.isArray(s.days) && s.days.length) line('저장된 날짜', s.days.join(', '));
-        if (Array.isArray(s.errors) && s.errors.length) {
-            var d = el('details', 'margin-top:6px;'); d.appendChild(el('summary', 'cursor:pointer;color:#93c5fd;', '최근 오류 ' + s.errors.length + '건(최근 것부터)'));
-            var ul = el('ul', 'margin:4px 0;padding-left:18px;');
-            s.errors.slice(0, 20).forEach(function (e) { ul.appendChild(el('li', '', at(e.at) + ' · ' + (e.stage || '') + (e.provider ? '/' + e.provider : '') + ' · ' + (e.reason || ''))); });
-            d.appendChild(ul); body.appendChild(d);
-        }
+        drawErrors(body, s);
+    }
+    /** 관할 열쇠 목록을 읽는 글로. 예: ['제주해양경찰서|한림파출소'] → '제주해양경찰서 한림파출소' · 5곳·max 3 → '… 외 2곳'. @param {string[]} keys @param {number} [max] @returns {string} [연계] ← drawErrors·errorsMarkdown */
+    function stationsText(keys, max) {
+        var a = (Array.isArray(keys) ? keys : []).map(function (k) { return String(k).replace('|', ' '); });
+        if (!a.length) return '—';
+        return max && a.length > max ? a.slice(0, max).join(', ') + ' 외 ' + (a.length - max) + '곳' : a.join(', ');
+    }
+    /** 오류 한 건의 판 글. 예: {edition:'morning',date:'2026-10-17'} → '07:30 판 · 2026-10-17' · 없음 → '—'. @param {Object} e @returns {string} [연계] ← drawErrors·errorsMarkdown */
+    function editionText(e) { return [e.edition ? (KIND[e.edition] || e.edition) : null, e.date || null].filter(Boolean).join(' · ') || '—'; }
+    /** KST 날짜·시각 글. 예: (ms, true) → '2026-10-17 08:05' · (ms, false) → '20261017_0805'(파일 이름용). @param {number} ms @param {boolean} human @returns {string} [연계] ← errorsMarkdown·저장 파일 이름 */
+    /** 오류 단계 글 — 시도 번호가 있으면 붙인다(§11.10.4). 예: {stage:'validate',attempt:2} → 'validate · 2번째' · {stage:'deadline'} → 'deadline'. @param {Object} e @returns {string} [연계] ← drawErrors·errorsMarkdown */
+    function stageText(e) { return (e.stage || '') + (Number(e.attempt) > 0 ? ' · ' + Number(e.attempt) + '번째' : ''); }
+    function kstStamp(ms, human) { var s = new Date(ms + 9 * 3600000).toISOString(); return human ? s.slice(0, 10) + ' ' + s.slice(11, 16) : s.slice(0, 10).replace(/-/g, '') + '_' + s.slice(11, 16).replace(':', ''); }
+    /**
+     * 오류 목록을 마크다운으로(복사·md 저장이 같은 글을 쓴다). 표 칸의 줄바꿈은 빈칸으로, 「\」「|」「`」「<」「>」는 앞에 역슬래시를 붙여 글자 그대로 보이게 한다
+     * (2026-10-17 독립 검토 11 — 이유 글의 `·<·> 가 마크다운 미리보기에서 코드·HTML 로 읽히지 않게 — CommonMark 문장부호 이스케이프).
+     * 예: errorsMarkdown([{at:'2026-10-17T08:03:10+09:00',edition:'morning',date:'2026-10-17',stage:'validate',provider:'chatgpt',stations:['제주해양경찰서|한림파출소'],reason:'place:제주도'}], ms, {days:3})
+     *     → '# 연안 안전 브리핑 — AI 브리핑 오류(최근 3일)\n\n- 만든 시각: 2026-10-17 10:05 KST\n- 건수: 1건\n\n| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 |\n|---|…|\n| 2026-10-17 07:13:10 | 07:30 판 · 2026-10-17 | validate · 2번째 | chatgpt | 제주해양경찰서 한림파출소 | place:제주도 |'
+     *     단계 칸의 「· N번째」 = 몇 번째 시도였는지(e.attempt — §11.10.4 VM 최대 3번 → Gemini)
+     * @param {Object[]} errs - status.errors(최근 것부터) @param {number} nowMs @param {Object} keep - status.errorKeep {days,cap} @returns {string}
+     * [연계] ← drawErrors(복사·md로 저장)
+     */
+    function errorsMarkdown(errs, nowMs, keep) {
+        var cell = function (v) { return String(v === undefined || v === null || v === '' ? '—' : v).replace(/\r?\n/g, ' ').replace(/([\\|`<>])/g, '\\$1'); };
+        var out = ['# 연안 안전 브리핑 — AI 브리핑 오류(최근 ' + ((keep && keep.days) || 3) + '일)', '', '- 만든 시각: ' + kstStamp(nowMs, true) + ' KST', '- 건수: ' + errs.length + '건', '',
+            '| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 |', '|---|---|---|---|---|---|'];
+        errs.forEach(function (e) { out.push('| ' + [String(e.at || '').slice(0, 19).replace('T', ' '), editionText(e), stageText(e), e.provider, stationsText(e.stations), e.reason].map(cell).join(' | ') + ' |'); });
+        return out.join('\n') + '\n';
+    }
+    /**
+     * 오류 칸 — 최근 3일 오류 전부(서버 보관 규칙, 최근 것부터)를 목록으로 보이고 [복사](마크다운을 클립보드로)·[md로 저장](.md 내려받기) — 2026-10-17 사용자 결정
+     * (원문 *"ai탭에서 최근 오류 관련, 모든 최근 3일치의 오류가 다 남아있기를 바라고 이를 복사, md파일로 저장 할 수 있도록 기능도 추가 필요."*).
+     * 서버 안전 상한으로 지운 것이 있으면(errorsCapped) 그 사실을 한 줄로. 복사가 안 되면(권한·http 등) 보이는 안내로 알린다.
+     * 예: 「최근 3일 오류 67건(최근 것부터)」 [복사] [md로 저장] → station_briefing_errors_20261017_1005.md
+     * @param {HTMLElement} body @param {Object} s - status 응답 @returns {void} [연계] ← drawStatus / → errorsMarkdown
+     */
+    function drawErrors(body, s) {
+        var errs = Array.isArray(s.errors) ? s.errors : [], keep = s.errorKeep || { days: 3 };
+        var box = el('div', 'margin-top:8px;'); box.setAttribute('data-sb-errors', '');
+        var head = el('div', 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;');
+        head.appendChild(el('span', 'color:#93c5fd;font-weight:700;', '최근 ' + (keep.days || 3) + '일 오류 ' + errs.length + '건' + (errs.length ? '(최근 것부터)' : '')));
+        var bs = 'padding:5px 10px;background:rgba(255,255,255,.08);color:#e2e8f0;border:1px solid rgba(255,255,255,.15);border-radius:7px;font-size:0.76rem;font-weight:700;cursor:pointer;';
+        var copy = el('button', bs, '복사'); copy.type = 'button'; copy.setAttribute('data-sb-err-copy', '');
+        var save = el('button', bs, 'md로 저장'); save.type = 'button'; save.setAttribute('data-sb-err-md', '');
+        head.appendChild(copy); head.appendChild(save); box.appendChild(head);
+        var msg = el('div', 'font-size:0.76rem;min-height:1.1em;margin-top:4px;'); msg.setAttribute('data-sb-err-msg', ''); msg.setAttribute('aria-live', 'polite'); box.appendChild(msg);
+        if (s.errorsCapped) box.appendChild(el('div', 'color:#fbbf24;font-size:0.76rem;', '보관 상한(' + (s.errorsCapped.cap || keep.cap || '') + '건)을 넘어 오래된 오류 ' + s.errorsCapped.dropped + '건을 지웠습니다(' + at(s.errorsCapped.at) + ').'));
+        if (!errs.length) { copy.disabled = true; save.disabled = true; box.appendChild(el('div', 'color:#64748b;', '최근 ' + (keep.days || 3) + '일 동안 오류가 없습니다.')); body.appendChild(box); return; }
+        var ul = el('ul', 'margin:4px 0;padding-left:18px;max-height:320px;overflow:auto;'); ul.setAttribute('data-sb-err-list', '');
+        errs.forEach(function (e) { ul.appendChild(el('li', '', at(e.at) + ' · ' + editionText(e) + ' · ' + stageText(e) + (e.provider ? '/' + e.provider : '') + ' · ' + stationsText(e.stations, 3) + ' · ' + (e.reason || ''))); });
+        box.appendChild(ul); body.appendChild(box);
+        var say = function (ok, t) { msg.style.color = ok ? '#34d399' : '#fca5a5'; msg.textContent = t; };
+        copy.addEventListener('click', async function () {
+            var md = errorsMarkdown(errs, Date.now(), keep);
+            try {
+                if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') throw new Error('이 브라우저(또는 http 주소)에서는 클립보드를 쓸 수 없음');
+                await navigator.clipboard.writeText(md); say(true, '복사했습니다 — 오류 ' + errs.length + '건(마크다운).');
+            } catch (e) {
+                console.warn('[AI 브리핑 관리] 오류 목록 클립보드 복사 실패 — 옛 방식으로 다시 시도:', e && e.message);
+                // 옛 방식(execCommand) — 권한이 막힌 기기용. 그것도 안 되면 [md로 저장]을 안내한다.
+                var ta = document.createElement('textarea'); ta.value = md; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0;'; document.body.appendChild(ta); ta.select();
+                var ok = false; try { ok = document.execCommand('copy'); } catch (e2) { console.warn('[AI 브리핑 관리] execCommand 복사 실패:', e2 && e2.message); }
+                ta.remove();
+                say(ok, ok ? '복사했습니다 — 오류 ' + errs.length + '건(마크다운).' : '복사하지 못했습니다(' + ((e && e.message) || '클립보드 사용 불가') + ') — [md로 저장]으로 파일을 받으세요.');
+            }
+        });
+        save.addEventListener('click', function () {
+            try {
+                var now = Date.now(), url = URL.createObjectURL(new Blob([errorsMarkdown(errs, now, keep)], { type: 'text/markdown;charset=utf-8' }));
+                var a = document.createElement('a'); a.href = url; a.download = 'station_briefing_errors_' + kstStamp(now, false) + '.md'; a.setAttribute('data-sb-err-download', '');
+                document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+                say(true, '저장했습니다 — ' + a.download);
+            } catch (e) { console.warn('[AI 브리핑 관리] 오류 목록 md 저장 실패:', e && e.message); say(false, 'md 파일을 만들지 못했습니다: ' + (e && e.message)); }
+        });
     }
     /**
      * 관할 하나 미리보기 — 관할 목록(경찰서별 묶음)·날짜(자동·오늘·내일)를 골라 사용자 화면과 같은 렌더러로 그린다. 노출 범위와 무관(관리자 경로).
+     * 공개 시각 전의 판(§11.10.4)이 있으면 그 판을 「예정 — HH:MM 에 공개될 판」 안내와 함께 보인다(서버 preview 가 pending·publishAt 을 준다).
      * 예: 한림파출소 · 자동 → GET /api/admin/station-briefing/preview?station=…&day=auto → StationBriefingRender.render(…, {links:false})
      * @param {HTMLElement} box @returns {Promise<void>} [연계] ← renderStationBriefingAdmin / → StationBriefingRender.render
      */
@@ -203,4 +277,5 @@
         });
     }
     w.renderStationBriefingAdmin = renderStationBriefingAdmin;
+    renderStationBriefingAdmin.errorsMarkdown = errorsMarkdown;   // 시험용(test_station_briefing.js 가 vm 으로 읽어 이스케이프를 본다)
 })(window);

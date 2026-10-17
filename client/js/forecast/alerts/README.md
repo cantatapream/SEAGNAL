@@ -10,9 +10,21 @@
 | `alert_history.js` | 특보 히스토리 팝업 모달 (해역별 통보문 이력 조회) | `createZoneBulletinItem`, `formatBulletinTime`, `createHistoryItem`, `loadBulletinContent`, `renderBulletinContent`, `renderFallbackContent` |
 | `data.js` | 데이터 수집(fetchAllData), 부이 데이터, API 상태 관리 | `fetchAllData`, `loadBackgroundData`, `refreshAlertData`, `flattenAlertsData`, `recursiveFind`, `_isExactSingleTime` |
 | `marine.js` | 해구별 기상정보 모달, 해양 차트 렌더링 | `parseMarineZoneData`, `_tmKst`, `formatMarineTime`, `trimPastMarineRows`, `_mmisFctTmToUtcKey`, `_kstTmToMs` |
-| `render.js` | 메인 UI 렌더링 (renderApp, createAlertElement) | `renderApp`, `createAlertElement` |
+| `render.js` | 메인 UI 렌더링 (renderApp, createAlertElement) · 「해역별 특보현황」 관심해역 ⚙ | `renderApp`, `createAlertElement`, `syncAlertZoneGear`, `openAlertZoneSetup` |
 | `render_coastal.js` | 연안 구역 렌더링, 부이 데이터 표시, 로딩/시간 업데이트 | `displayBuoyInfo`, `createDataBox`, `formatBuoyTime`, `createCoastalElement`, `updateLoading`, `toggleSection` |
 | `zone_avg.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `onReady`, `_flushReady`, `_normalizeName`, `_buildNameIndex`, `init`, `_parseTm` |
+
+## 「해역별 특보현황」 관심해역 ⚙ (2026-10-17 사용자 확정)
+
+> 사용자 원문: *"해역별 특보현황에서도 동일하게 오른쪽 끝에 설정버튼을 두고, 그 설정 버튼을 누르면 팝업으로 2, 3, 4 이미지 순으로 이게 나오고 선택될 수 있도록 하자. 그리고 그 설정 완료 후 언제 든 메인화면의 설정버튼 - 관심해역 탭에서 변경할 수 있다고 남겨두고 해역별 특보현황 아코디언 오른쪽에 있던 설정버튼은 자연스럽게 사라질 수 있도록 해줘. 지금처럼. 아코디언에 설정버튼 반영방법은 이미지 5처럼 반영해줘(기상청 해상 기상 전망도 마찬가지로)"*
+> (이미지 2·3·4 = 온보딩 `onboarding/zone_setup.js` 의 안내 → 해역 고르기 → 지도에서 구역 고르기, 이미지 5 = 「활동지점 안전 브리핑」 머리 오른쪽 끝 ⚙)
+
+- 자리: `#main-accordion-header` 오른쪽 끝(`.accordion-head-right` 묶음 = 상태 배지 `.header-status` + ⚙ `#alert-zone-settings-btn`). 모양은 `style.css .accordion-gear-btn`(브리핑 ⚙ 인라인 값을 옮김).
+- 보이는 때: **관심해역을 아직 안 골랐을 때만** — `UserSettings.hasInterestZones()` 가 거짓(제목이 「관심해역별」로 바뀌는 규칙과 같음). `renderApp()` 이 그릴 때마다 `syncAlertZoneGear()` 로 맞춘다(설정 [저장]·온보딩 저장 뒤 모두 `renderApp` 이 불린다).
+- 누르면 `window.openZoneSetup(끝나면, {testFlag:false})` — 온보딩 화면을 「시험 모드」 딱지 없이 그대로 연다. [건너뛰기] = 닫기만(⚙ 그대로).
+- 마치면(구역을 하나라도 골라 저장됐을 때): zone_setup 이 설정 [저장]과 같은 뒷정리(푸시 대상·특보·기상현황·예보 다시 그리기)를 하고, 아래쪽 안내 띠 4초 「관심해역은 언제든 메인 화면 설정 ⚙ → 관심해역 탭에서 바꿀 수 있습니다.」(설정 창 제목 「설정」·탭 「관심해역」 그대로) → ⚙ 가 0.4초 흐려지며 사라짐(움직임 줄이기 설정이면 바로).
+- 「지금처럼」 확인: 종전 온보딩 저장 뒤에는 안내 띠가 **없었다**(zone_setup `_save` 는 다시 그리기만). 이번 안내 띠는 새로 넣은 것이고, 모양은 `settings/zone_guide.js` 의 「언제든 설정에서 해역을 변경할 수 있어요」 띠와 같다.
+- 시험: `local_server/scripts/test_forecast_gear_ui.js`.
 
 ## 설계 문서 (이 폴더의 `.design.md`)
 

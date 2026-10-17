@@ -122,12 +122,12 @@ async function test(name, fn) {
                 '해구별 시정 예측'
             );
         });
-        await test('결정 6(2026-10-16): 활동지점 안전 브리핑도 관리자 원천 필터에 포함', async () => {
+        await test('결정 6(2026-10-16): 연안 안전 브리핑(종전 활동지점 안전 브리핑 — 2026-10-17 이름 바꿈)도 관리자 원천 필터에 포함', async () => {
             assert.equal(
                 await page
                     .locator('[data-risk-source] option[value="stationBriefing"]')
                     .innerText(),
-                '활동지점 안전 브리핑'
+                '연안 안전 브리핑'
             );
         });
         await test('모바일 390px에서 관리자 오류 목록 가로 넘침 없음', async () => {

@@ -11,8 +11,9 @@
  *  - 서버 API      : 없음 (appState 데이터를 렌더만 — 수집은 data.js가 담당)
  *  - 마크업        : #east-sea-list·#west-sea-list·#south-sea-list·#jeju-sea-list ·
  *                   #east-count 등 카운트 · #main-accordion-* · #marine-status-accordion-* ·
- *                   #alert-item-template · #alert-content
- *  - 나를 쓰는 곳  : forecast/alerts/data.js · settings/settings.js 가 renderApp() 호출
+ *                   #alert-item-template · #alert-content · #alert-zone-settings-btn(관심해역 ⚙)
+ *  - 나를 쓰는 곳  : forecast/alerts/data.js · settings/settings.js 가 renderApp() 호출 ·
+ *                   index2.html #alert-zone-settings-btn → openAlertZoneSetup() → onboarding/zone_setup.js(openZoneSetup)
  * ============================================================================
  *
  * [설명]
@@ -22,6 +23,94 @@
  * [로딩 순서] 5번째 (data.js 이후)
  * ============================================================================
  */
+
+// ============================================================================
+// 「해역별 특보현황」 머리 ⚙ — 관심해역을 아직 안 고른 사람에게만 (사용자 확정 2026-10-17)
+//   사용자 원문: 「해역별 특보현황에서도 동일하게 오른쪽 끝에 설정버튼을 두고, 그 설정 버튼을 누르면
+//   팝업으로 2, 3, 4 이미지 순으로 이게 나오고 선택될 수 있도록 하자. 그리고 그 설정 완료 후 언제 든
+//   메인화면의 설정버튼 - 관심해역 탭에서 변경할 수 있다고 남겨두고 해역별 특보현황 아코디언 오른쪽에
+//   있던 설정버튼은 자연스럽게 사라질 수 있도록 해줘.」
+// ============================================================================
+
+const ALERT_ZONE_GEAR_FADE_MS = 400;   // ⚙ 가 흐려지며 사라지는 시간(style.css .accordion-gear-btn transition 과 같게)
+let _alertZoneGearTimer = null;
+
+/**
+ * 「해역별 특보현황」 머리 ⚙ 를 관심해역 상태에 맞춰 보이거나 숨긴다.
+ *
+ * 예: 관심해역 안 고름({}·전부 켬) → ⚙ 보임 · 관심해역을 고른 뒤 → ⚙ 가 0.4초 동안 흐려지며 사라짐
+ *     (움직임 줄이기 설정(prefers-reduced-motion)이면 바로 사라짐)
+ * @returns {void}
+ * [연계] ← renderApp()(특보를 다시 그릴 때마다 — 설정 [저장]·온보딩 저장 뒤에도 renderApp 이 불린다) ·
+ *          처음 화면(DOMContentLoaded) · openAlertZoneSetup() 마친 뒤
+ *        → settings/settings.js UserSettings.hasInterestZones()(관심해역 골랐나 — 제목 「관심해역별」 판정과 같은 규칙)
+ */
+function syncAlertZoneGear() {
+    const gear = document.getElementById('alert-zone-settings-btn');
+    if (!gear || typeof UserSettings === 'undefined') return;
+    const show = !UserSettings.hasInterestZones();
+    clearTimeout(_alertZoneGearTimer);
+    if (show) {
+        gear.classList.remove('is-fading');
+        gear.hidden = false;
+        return;
+    }
+    if (gear.hidden) return;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { gear.hidden = true; return; }
+    gear.classList.add('is-fading');
+    _alertZoneGearTimer = setTimeout(function () {
+        gear.hidden = true;
+        gear.classList.remove('is-fading');
+    }, ALERT_ZONE_GEAR_FADE_MS);
+}
+
+/**
+ * 관심해역 설정 안내를 잠깐 띄운다(아래쪽 알림 띠, 4초).
+ *
+ * 예: 「관심해역은 언제든 메인 화면 설정 ⚙ → 관심해역 탭에서 바꿀 수 있습니다.」
+ *     (설정 창 제목 「설정」·탭 이름 「관심해역」 — index2.html #settings-modal · #btn-tab-zones 그대로)
+ * @returns {void}
+ * [연계] ← openAlertZoneSetup()(관심해역을 고르고 마쳤을 때) — 모양은 settings/zone_guide.js 의 알림 띠와 같다
+ */
+function showZoneSetupDoneToast() {
+    const old = document.getElementById('zone-setup-done-toast');
+    if (old) old.remove();
+    const toast = document.createElement('div');
+    toast.id = 'zone-setup-done-toast';
+    toast.className = 'zone-setup-done-toast';
+    toast.setAttribute('role', 'status');
+    toast.textContent = '관심해역은 언제든 메인 화면 설정 ⚙ → 관심해역 탭에서 바꿀 수 있습니다.';
+    document.body.appendChild(toast);
+    requestAnimationFrame(function () { requestAnimationFrame(function () { toast.classList.add('show'); }); });
+    setTimeout(function () {
+        toast.classList.remove('show');
+        setTimeout(function () { if (toast.parentNode) toast.remove(); }, 300);
+    }, 4000);
+}
+
+/**
+ * ⚙ 를 누르면 온보딩의 관심해역 설정(안내 → 해역 고르기 → 지도에서 구역 고르기)을 연다.
+ *
+ * 예: [관심 해역 설정하기] → 제주 → 지도에서 구역 → [확인 (설정 마치기)]
+ *     → 저장·특보 다시 그리기(zone_setup.js 가 설정 [저장]과 같은 뒷정리를 한다) → 안내 띠 → ⚙ 사라짐
+ *     [건너뛰기] → 닫기만(⚙ 그대로)
+ * @returns {void}
+ * [연계] ← index2.html #alert-zone-settings-btn onclick
+ *        → onboarding/zone_setup.js window.openZoneSetup(끝나면 부를 함수, {testFlag:false} — 「시험 모드」 딱지 없이)
+ *        → showZoneSetupDoneToast() · syncAlertZoneGear()
+ */
+function openAlertZoneSetup() {
+    if (typeof window.openZoneSetup !== 'function') return;
+    window.openZoneSetup(function (skipped) {
+        // 다 마쳤어도 한 구역도 안 골랐으면 저장되지 않는다(zone_setup.js _save) — 그때는 안내도 없다
+        if (skipped || typeof UserSettings === 'undefined' || !UserSettings.hasInterestZones()) return;
+        showZoneSetupDoneToast();
+        syncAlertZoneGear();
+    }, { testFlag: false });
+}
+window.openAlertZoneSetup = openAlertZoneSetup;
+document.addEventListener('DOMContentLoaded', syncAlertZoneGear);
 
 function renderApp() {
     const seaSections = {
@@ -361,6 +450,9 @@ function renderApp() {
             isFiltered = true;
         }
     }
+
+    // 관심해역 ⚙ — 관심해역을 아직 안 골랐을 때만(골랐으면 흐리게 사라진다)
+    syncAlertZoneGear();
 
     // 1. 특보 현황 헤더
     const sectionTitle = document.querySelector('#main-accordion-header .section-title');

@@ -1,14 +1,14 @@
 /**
  * ============================================================================
  * 파일명: local_server/routes/station_briefing.js
- * 역할  : 「활동지점 안전 브리핑」 API — 관할 목록·관할 브리핑(노출 판정 거침)과 관리자 설정·상태·즉시 실행.
+ * 역할  : 「연안 안전 브리핑」(종전 이름 「활동지점 안전 브리핑」) API — 관할 목록·관할 브리핑(노출 판정 거침 · 공개 시각 전 판은 숨김)과 관리자 설정·상태·즉시 실행·미리보기(공개 예정 판 포함).
  *         노출 기본값은 「관리자에게만」: 관리자로 등록된 기기(admin_devices.json)나 관리자 로그인 토큰일 때만 내용을 준다.
  *         계약(응답 필드·예시)은 client/js/ocean-map/coastal-risk/briefing.contract.md.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/station_briefing.js(forDefault — 생성·저장·설정) · advisory/displayControl.js(isAdminDevice — 특보 예측 표출 제어와 같은 기기 판정)
  *                    · services/admin_auth.js(verifyToken·requireAdminToken — 관리자 API 인증, 쓸 때 require)
- *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing
+ *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(관할 구역 — 설정 화면 지도) · GET /api/station-briefing
  *                    GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status · POST /api/admin/station-briefing/run
  *                    GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview(관리자 미리보기 — 노출 범위와 무관)
  *  - 마크업        : 없음(화면: client/js/forecast/station-briefing/ · client/js/admin/admin_station_briefing.js)
@@ -41,6 +41,10 @@ function createRouter({
     router.get('/api/station-briefing/stations', (req, res) => {
         try { const g = gate(req); res.set('Cache-Control', 'no-store').json({ ok: true, audience: g.audience, display: g.display, stations: g.display ? svc().stationList() : [] }); } catch (e) { fail(res, e); }
     });
+    // 설정 화면 「지도에서 선택하기」의 관할 구역(2026-10-17) — 관할 목록과 같은 노출 판정. 지도 탭을 열 때만 부른다(약 158KB, 압축 약 33KB).
+    router.get('/api/station-briefing/areas', (req, res) => {
+        try { const g = gate(req); res.set('Cache-Control', 'no-store').json({ ok: true, audience: g.audience, display: g.display, areas: g.display ? svc().stationAreas() : [] }); } catch (e) { fail(res, e); }
+    });
     router.get('/api/station-briefing', (req, res) => {
         try {
             const g = gate(req), key = req.query.station, day = req.query.day || 'auto';
@@ -66,7 +70,7 @@ function createRouter({
             if (typeof key !== 'string' || !key) return res.status(400).json({ ok: false, error: '관할(station) 필요' });
             if (!['auto', 'today', 'tomorrow'].includes(day)) return res.status(400).json({ ok: false, error: 'day 는 auto·today·tomorrow' });
             if (!svc().stations().some((s) => s.key === key)) return res.status(404).json({ ok: false, error: '관할 없음' });
-            res.json({ ok: true, ...svc().pick({ key, day }) });
+            res.json({ ok: true, ...svc().pick({ key, day, withPending: true }) });   // 공개 예정 판(§11.10.4)이 있으면 그것을 「예정」으로(pending·publishAt)
         } catch (e) { fail(res, e); }
     });
     router.put(admin + '/config', express.json({ limit: '8kb' }), (req, res) => { try { res.json({ ok: true, config: svc().writeConfig(req.body || {}) }); } catch (e) { fail(res, e); } });

@@ -251,6 +251,15 @@ const { createRouter } = routeModule.exports;
             assert.ok(/관리자 푸시 미전달: 발송 실패 2건 \(10-15 12:00 KST\)/.test((await get('visibility')).detail), (await get('visibility')).detail);
             fails = {};
         });
+        await check('특보: 관리자 푸시는 5분 기다리지만(2026-10-17) 화면은 첫 실패부터 빨강 — 「수집 실패 중」 뜻은 그대로', async () => {
+            now = K('2026-10-15T12:30:00');
+            fails = { warnings: { streak: 1, since: '2026-10-15T03:29:00.000Z', reason: '시간초과', notified: false } };
+            const w = await get('warnings');
+            assert.equal(w.status, 'error', '푸시를 아직 안 보냈어도(notified=false) 지금 실패 중이면 빨강');
+            assert.equal(w.reason, '수집 실패 중(연속 1회)');
+            assert.ok(/마지막 수집 실패: 시간초과 \(연속 1회, 10-15 12:29 KST부터\)/.test(w.detail), w.detail);
+            fails = {};
+        });
         await check('하루 1번 자료(혼잡예보): 04:00 에 받으면 다음 기대는 다음 날 04:00', async () => {
             write('risk_forecast/sea_traffic.json.gz', { date: '2026-10-15', collectedAt: '2026-10-15T04:00:12+09:00', frames: { a: [1] } });
             now = K('2026-10-15T12:00:00');
