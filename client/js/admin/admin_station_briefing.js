@@ -391,7 +391,7 @@
         var c = String(code || '').trim(), m, after = function (p) { return c.slice(p.length); };
         if ((m = /^shape:(land|sea)-sentences-(\d+)$/.exec(c))) return para(m[1]) + '이 ' + m[2] + '문장(' + SHAPE.minS + '~' + SHAPE.maxS + '문장이어야 함)';
         if ((m = /^shape:(land|sea)-too-long-(\d+)$/.exec(c))) return para(m[1]) + '이 ' + m[2] + '자(' + SHAPE.maxChars + '자 이내여야 함)';
-        if ((m = /^shape:(land|sea)-no-conclusion$/.exec(c))) return para(m[1]) + ' 마지막 문장이 「따라서 … 필요합니다.」 꼴이 아님';
+        if ((m = /^shape:(land|sea)-no-conclusion$/.exec(c))) return para(m[1]) + ' 마지막 문장이 「따라서 … 요구됩니다.」 꼴이 아님(§11.10.16 전 실행은 「필요합니다.」)';
         if (c === 'shape:land-missing') return '연안 분석 문단이 비었음';
         if (c === 'shape:sea-missing') return '해상 분석 문단이 비었음';
         if (c === 'shape:land-not-allowed') return '해상만 맡는 관할인데 연안 분석을 씀';
