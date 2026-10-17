@@ -4,6 +4,7 @@
  * 역할  : 「활동지점 안전 브리핑」(파출소 관할) 서버 1단계 시험 — 고정 입력(가짜 자료)으로 규칙·AI 순서·검증·저장·일정·노출을 결정론적으로 확인한다.
  *         실제 AI·카카오·기상청 호출 없음(가짜 어댑터·가짜 fetch), 임시 폴더만 쓴다, 서버를 띄우지 않는다(라우터만 임시 포트).
  *         끝부분 「[A1]…[C9]」 = 독립 검토 3건(규칙·AI·운영, 2026-10-16)의 결함마다 1:1 회귀 — 모두 고치기 전 코드에서 실패함을 확인했다.
+ *         「[§11.10.6-1]」 = 2026-10-17 16:16 운영 실행 검사 오판(조사 도·괄호 속 이름·하지만·연도 년) — 설계서 §11.10.6.
  *         맨 끝 「[§11.10.5-1]…[§11.10.5-8]」 = 62048b15c 독립 검토 8건(설계서 §11.10.5 — 단계 아래쪽·입력에 없는 말·이름 없는 대목·다시 시도 순서·캐시·단계 말 꼴·이유 글 자름·대기 표 ⑪·평소처럼 관심) 1:1 — 고치기 전 코드(bde907bdd)에서 8건 모두 실패.
  *         그 앞 「[§11.10.4-1]…[§11.10.4-9]」 = 같은 날 사용자 결정(§11.10.4). 「[§11.10.3-1]…[§11.10.3-5]」 = 2026-10-17 사용자 결정(설계서 §11.10.3 — (고립 주의) 지점 표·육상 권고·해상 근거 칸·해양사고 위험예보·해구 줄은 넘을 때만·지도 재료) 1:1 — 고치기 전 코드(6ec172ffa)에서 5건 모두 실패.
  *         그 앞 「[§11.10.2-1]…[§11.10.2-12]」 = §11.10·§11.10.1 독립 검토 12건(설계서 §11.10.2) 1:1 — 고치기 전 코드(cebb4cbe0)에서 12건 모두 실패함을 확인했다.
@@ -1040,7 +1041,7 @@ const WIN = R.editionWindow('morning', T0);
         const batch = AI.batchInput([siK], null); assert.deepStrictEqual(batch.rules.sentences_per_paragraph, [3, 5]); assert.ok(batch.stations[0].kma_zones.includes('제주도남쪽바깥먼바다'), '해역 이름 목록은 관할마다(독립 검토 8)');
         assert.ok(batch.stations[0].shown.land.headline.startsWith('오늘 한림파출소 관할 연안의 단계는'), '이미 보이는 결론을 AI 에 알려 되풀이하지 않게');
         const pr = AI.buildPrompt(batch); assert.ok(pr.includes('3~5문장') && !pr.includes('1~2문장') && !pr.includes('required.'), '지시문도 분석 3~5문장(§11.10.4)');
-        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v6', 'sb-prompt-v7']);
+        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v7', 'sb-prompt-v7']);
     });
     await check('[§11.10] 관리자 오류 목록: 최근 3일(KST 날짜) 오류는 모두 남기고(종전 200개 상한 없음) 더 오래된 것만 지운다 · 안전 상한 5,000 은 지운 수를 남긴다 · status 가 전부(최근 것부터)', async () => {
         const mk = (iso, i) => ({ at: iso, stage: 'validate', provider: 'chatgpt', stations: ['k|' + i], reason: 'r' + i });
@@ -1604,6 +1605,16 @@ const WIN = R.editionWindow('morning', T0);
         const gem2 = { available: () => true, call: async ({ prompt }) => { for (const s of idsIn(prompt)) per[s.id] = (per[s.id] || 0) + 1; return JSON.stringify({ stations: idsIn(prompt).map((s) => ({ id: s.id, ...bad1 })) }); } };
         await AI.generate({ briefings: stationsFor(4), config: { ...cfg, batchUnit: 'station' }, adapters: { vm: vmBad, gemini: gem2 }, now: T0 });
         assert.deepStrictEqual([0, 1, 2, 3].map((i) => per[(i < 2 ? '제주해양경찰서' : '서귀포해양경찰서') + '|파출소' + i]), [1, 1, 1, 2], JSON.stringify(per));   // 파출소3 = 차단기가 걸린 뒤라 VM 을 못 부름
+    });
+    // ── 2026-10-17 16:16 관리자 실행(97곳 — AI 77·규칙 20·오류 106) 운영 오판: 검사가 맞는 지명·숫자를 떨어뜨렸다(106건 중 36건이 이것만으로) ──
+    await check('[§11.10.6-1] 검사 오판 — 조사 「도」·「로를」 붙은 허용 이름 · 괄호·가운뎃점 속 다른 이름 · 「하지만」 · 년 없이 적힌 연도에 「년」 붙인 것은 통과, 지어낸 지명·연도는 그대로 실패', () => {
+        const si = { name: '강릉파출소', allowed_places: ['강릉파출소', '하평해변(강릉)', '한림공원', '삼양해안도로', '신명·정자해변', '도동등대(행남등대)', '오이도 음식문화거리', '하저해수욕장 (하저리 해수욕장)'], place_stems: [], kma_zones: [],
+            allowed_number_keys: ['2020~2024|', '2020|', '2024|'], levels: { sea: { 강릉파출소: 0 }, land: {} }, land: null };
+        const errs = (sea) => AI.validateOverview({ land: null, sea }, si).errors;
+        assert.deepStrictEqual(errs('하평해변 주변 바다를 살펴야 합니다. 한림공원도 해안에 가깝고 삼양해안도로를 따라 바람이 붑니다. 정자해변과 행남등대 일대, 오이도 음식문화거리도 해안입니다. 따라서 평소처럼 관심이 필요합니다.'), []);
+        assert.deepStrictEqual(errs('하저리해수욕장과 도동등대에는 2020~2024년 연안사고 기록이 있습니다. 하지만 해상은 조용할 것으로 예상됩니다. 2020년부터 사고가 이어졌습니다. 따라서 평소처럼 관심이 필요합니다.'), []);
+        assert.deepStrictEqual(errs('가짜해수욕장과 한림공원해수욕장, 하평해수욕장을 봅니다. 2019~2024년 기록이 있습니다. 2025년에도 사고가 있습니다. 따라서 평소처럼 관심이 필요합니다.').sort(),
+            ['number:2019~2024년', 'number:2025년', 'place:가짜해수욕장', 'place:하평해수욕장', 'place:한림공원해수욕장']);
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
