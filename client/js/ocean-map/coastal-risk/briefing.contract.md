@@ -30,6 +30,19 @@
 ```
 `display:false` 이면 `stations: []`. `location` 은 카카오로 좌표를 얻었으면 `{lat,lon,estimated:false}`, 아니면 `{estimated:true}`.
 
+### 1.1b `GET /api/station-briefing/areas` — 관할 구역(설정 화면 「지도에서 선택하기」, 2026-10-17 추가)
+노출 판정·헤더는 1.1 과 같다. 지도 탭을 처음 열 때만 부른다(97곳 약 158KB, 서버 압축 약 33KB — `compression()`).
+```json
+{ "ok": true, "audience": "admin", "display": true,
+  "areas": [ { "key": "제주해양경찰서|한림파출소", "seas": ["제주"],
+               "geometry": { "type": "Polygon", "coordinates": [[[126.2, 33.4], …]] } } ] }
+```
+- `geometry` = 정리판(`coastguard_stations.geojson`) 관할 폴리곤, 좌표만 소수 넷째 자리(약 11m)로 반올림 — 꼭짓점을 줄이지(단순화) 않는다.
+- `seas` = 관할이 걸치는 해역(앱 `SEA_REGIONS` 의 `동해`·`서해`·`남해`·`제주`), 많이 걸친 차례(첫째 = 주 해역). 규칙은 `station_briefing_inputs.stationSeas` —
+  관할 안 표본점(상자 12×12)이 드는 특보구역(앞바다·먼바다 44곳)의 해역(`push_helpers.ZONE_HIERARCHY`)을 센다. 지방청(`region`)과 다를 수 있다
+  (여수·완도서 11곳 남해 · 울산서 4곳 동해 · 추자 남해+제주 · 땅끝 서해+남해 · 기장 남해+동해 — 2026-10-17 실측).
+- `display:false` 이면 `areas: []`.
+
 ### 1.2 `GET /api/station-briefing?station={key}&day=auto|today|tomorrow` — 관할 브리핑
 - `day=auto`(기본) — U58: 21시 전이면 오늘 판, **21시부터 내일 판**. 내일 판(23:00 생성)이 아직 없으면 오늘 판을 주고 `fallback:true, wanted, nextExpectedAt:"…T23:00:00+09:00"`.
 - 오류: `station` 없음 400 · `day` 이상 400 · 없는 관할 404(노출된 경우에만 검사). 노출 안 되면 언제나 200 + `display:false, briefing:null`.

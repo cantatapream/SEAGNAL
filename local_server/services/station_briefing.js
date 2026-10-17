@@ -168,12 +168,12 @@ function historyRow(s, now) {
  *                     ·warnHistory(특보 구간 기록 sea_warning_history 기록기 — 이미 해제된 특보, 결정 4. 기본 null = 보지 않음, forDefault 가 운영 기록기 forDir() 를 넘긴다)
  *                     ·errorHistory(관리자 오류현황 risk_error_history — 결정 6. 기본 null = 기록 안 함, forDefault 가 운영 것을 넘긴다)
  *                     ·regional(지방기상청 단기 해상예보·단기 전망 — 기본 I.regionalForecast(), 실행마다 한 번 읽음. §11.10.1 (기상) 칸)
- * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList
+ * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList·stationAreas
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
     timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast() } = {}) {
-    let timer = null, running = null, stationsCache = null, ad = adapters;
+    let timer = null, running = null, stationsCache = null, areasCache = null, ad = adapters;
     const fileCache = new Map();
     const p = (f) => path.join(dir, f);
     const stations = () => stationsCache || (stationsCache = loadStations());
@@ -344,7 +344,12 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     }
     /** 관할 목록(화면 설정용 — 폴리곤 없이). @returns {object[]} [연계] ← routes GET stations */
     function stationList() { const loc = I.readJson(p('locations.json'))?.stations || {}; return stations().map((s) => ({ key: s.key, name: s.name, office: s.office, region: s.region, seaOnly: s.seaOnly, location: loc[s.key]?.status === 'ok' ? { lat: loc[s.key].lat, lon: loc[s.key].lon, estimated: false } : { estimated: true } })); }
-    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, pick, readConfig, writeConfig, status, stationList, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
+    /**
+     * 관할 구역(설정 화면 「지도에서 선택하기」 — 2026-10-17) — 열쇠·해역들·폴리곤(소수 넷째 자리). 관할 목록·특보구역 도형은 바뀌지 않으므로 처음 한 번 만들어 둔다.
+     * 예: stationAreas() → [{key:'제주해양경찰서|한림파출소', seas:['제주'], geometry:{…}}, …] @returns {object[]} [연계] ← routes GET areas / → I.stationAreas
+     */
+    function stationAreas() { return areasCache || (areasCache = I.stationAreas(stations())); }
+    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, pick, readConfig, writeConfig, status, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
 }
 let def = null;
 /**

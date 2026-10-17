@@ -417,6 +417,51 @@ function nearestFarZone(loc) {
     for (const z of zones) { const d = G.distanceToGeometry([loc.lon, loc.lat], z.geometry); if (!best || d < best.d) best = { z, d }; }
     return best ? { zone: best.z.name, key: best.z.key, distKm: +best.d.toFixed(1) } : null;
 }
+/** 해역 이름 차례(앱 SEA_REGIONS 와 같은 네 이름) — 표본 수가 같으면 앞의 것. [연계] ← stationSeas */
+const SEAS = ['동해', '서해', '남해', '제주'];
+/**
+ * 관할 폴리곤 하나가 동해·서해·남해·제주 중 어느 해역(들)에 걸치는지 정한다(설정 화면 「지도에서 선택하기」의 해역 단추 — 2026-10-17).
+ * 규칙: 관할 상자를 12×12 로 나눈 점 중 관할 안에 드는 점마다 그 점을 품는 특보구역(앞바다·먼바다 44곳, warn_zone_cells 표)을 찾고,
+ *       그 구역이 속한 해역(push_helpers.ZONE_HIERARCHY — 앱 SEA_REGIONS·SUB_REGION_ZONES 와 같은 계층)에 한 표.
+ *       표를 하나라도 받은 해역을 모두, 표가 많은 차례로 돌려준다(첫째 = 주 해역). 그래서 경계 관할은 두 해역 지도에 다 나온다
+ *       (2026-10-17 실측: 추자 남해81·제주3, 땅끝 서해47·남해16, 기장 남해55·동해14 — 나머지 94곳은 한 해역).
+ *       관할 안 점이 하나도 없으면(아주 작은 관할) 꼭짓점으로, 어느 구역에도 안 들면(항만 안쪽 등 특보구역 밖) 가장 가까운 구역의 해역 하나.
+ * 지방청(region)으로 정하지 않는 이유: 서해지방청 여수·완도서와 남해지방청 울산서처럼 지방청과 바다가 다른 관할이 있다(실측 — 여수·완도 11곳 남해, 울산 4곳 동해).
+ * 예: stationSeas(한림 폴리곤) → ['제주'] · stationSeas(추자 폴리곤) → ['남해','제주'] · stationSeas(울산항 폴리곤) → ['동해']
+ * @param {object} geometry - Polygon·MultiPolygon(경위도) @param {object[]} [zones] - {sea,box,geometry} 목록(시험용, 기본 seaZones())
+ * @returns {string[]} 해역 이름들(구역 표가 비면 빈 배열) [연계] ← stationAreas / → risk_geo.pointInGeometry·distanceToGeometry
+ */
+function stationSeas(geometry, zones = seaZones()) {
+    const G = require('./risk_geo'), b = bounds(geometry), N = 12, tally = {};
+    let pts = [];
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const p = [b[0] + (i + 0.5) / N * (b[2] - b[0]), b[1] + (j + 0.5) / N * (b[3] - b[1])]; if (G.pointInGeometry(p, geometry)) pts.push(p); }
+    if (!pts.length) pts = (geometry.type === 'Polygon' ? geometry.coordinates[0] : geometry.coordinates[0][0]).slice();
+    for (const p of pts) { const z = zones.find((z) => p[0] >= z.box[0] && p[0] <= z.box[2] && p[1] >= z.box[1] && p[1] <= z.box[3] && G.pointInGeometry(p, z.geometry)); if (z) tally[z.sea] = (tally[z.sea] || 0) + 1; }
+    const seas = SEAS.filter((s) => tally[s]).sort((a, c) => tally[c] - tally[a]);
+    if (seas.length) return seas;
+    let near = null; const p = pts[Math.floor(pts.length / 2)];
+    for (const z of zones) { const d = G.distanceToGeometry(p, z.geometry); if (!near || d < near.d) near = { sea: z.sea, d }; }
+    return near ? [near.sea] : [];
+}
+/**
+ * 특보구역(앞바다·먼바다) 표에 해역 이름을 붙인다 — 이름 열쇠(warn_zone_cells.zoneKey)로 ZONE_HIERARCHY 소분류와 맞춘다.
+ * 예: seaZones() → [{sea:'동해', name:'울산앞바다', box:[…], geometry}, …](44곳)
+ * @returns {object[]} [연계] ← stationSeas / warn_zone_cells._load(client/assets/warn_zones.geojson) · push_helpers.ZONE_HIERARCHY
+ */
+function seaZones() {
+    const W = require('./warn_zone_cells'), H = require('./push_helpers').ZONE_HIERARCHY, seaOf = {};
+    for (const sea of Object.keys(H)) for (const list of Object.values(H[sea])) for (const n of list) seaOf[W.zoneKey(n)] = sea;
+    return W._load().main.filter((z) => seaOf[z.key]).map((z) => ({ sea: seaOf[z.key], name: z.name, box: z.box, geometry: z.geometry }));
+}
+/**
+ * 설정 화면 지도용 관할 구역 — 관할마다 열쇠·해역들(stationSeas)·폴리곤(좌표 소수 넷째 자리 ≈ 11m 로 반올림, 꼭짓점은 그대로 — 단순화 안 함).
+ * 예: stationAreas(loadStations()) → [{key:'제주해양경찰서|한림파출소', seas:['제주'], geometry:{type:'Polygon', coordinates:[[[126.2,33.4],…]]}}, …]
+ * @param {object[]} stations - loadStations() 꼴(geometry 있음) @param {object[]} [zones] @returns {object[]} [연계] ← station_briefing.stationAreas → GET /api/station-briefing/areas
+ */
+function stationAreas(stations, zones = seaZones()) {
+    const r4 = (c) => Array.isArray(c[0]) ? c.map(r4) : [Math.round(c[0] * 1e4) / 1e4, Math.round(c[1] * 1e4) / 1e4];
+    return stations.filter((s) => s.geometry).map((s) => ({ key: s.key, seas: stationSeas(s.geometry, zones), geometry: { type: s.geometry.type, coordinates: r4(s.geometry.coordinates) } }));
+}
 /**
  * 관할 하나의 (기상) 입력 — 가장 가까운 앞바다 · 그 구역 단기 해상예보 · 그 구역 관할 지방청(ZONE_TO_OFFICE_MAP)의 단기 전망 통보문.
  * 구역 이름은 도형 파일(「인천.경기북부앞바다」)과 예보 자료(「인천·경기북부앞바다」) 표기가 달라 열쇠(띄어쓰기·가운뎃점·점 무시)로 맞춘다.
@@ -471,4 +516,4 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
     });
 }
 
-module.exports = { loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA };
+module.exports = { loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };

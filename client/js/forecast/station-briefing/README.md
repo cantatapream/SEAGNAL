@@ -13,6 +13,7 @@
 | 파일 | 역할 | 주요 함수 |
 |------|------|-----------|
 | `station_briefing.js` | 아코디언 본체 — 노출 판정·설정 흐름(관할 고르기·건너뛰기·숨김)·N 뱃지·바로가기·설정 팝업 칸 | `refreshDisplay`, `loadBriefing`, `renderSetup`, `finishSetup`, `renderConfirm`, `toggle`, `openSetup`, `updateBadge`, `openInRisk`, `renderSettings`, `applyVisibility`, `toast` |
+| `station_briefing_picker.js` | 설정 화면의 관할 고르기 칸 — 탭 두 개 「지도에서 선택하기」(해역 단추 → 관할 폴리곤 지도) · 「파출소로 선택하기」(지방청 → 해양경찰서 → 파출소 아코디언 + 이름 찾기) | `mount`, `destroy`, `mapPanel`, `drawMap`, `zoneStyle`, `listPanel`, `loadAreas` |
 | `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` | `render`, `summaryBodyV2`(§11.10.1 총평), `summaryBody`(§11.10 판), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
 | `station_briefing_basis.js` | [기준 상세] 문안(위험예측 기준 상세 창 `RiskBasis.open('briefing')` 으로 연다) | (문자열 `RiskBasisContent.briefing`) |
 | `station_briefing.css` | `.sb-*` 모양(바깥 아코디언·안쪽 칸·조석 게이지·기준 창은 기존 CSS 재사용) | — |
@@ -24,7 +25,7 @@
 
 ## 로드 순서
 
-`index2.html` 에서 `life_safety.js` 다음 — `station_briefing_render.js` → `station_briefing_basis.js` → `station_briefing.js`.
+`index2.html` 에서 `life_safety.js` 다음 — `station_briefing_render.js` → `station_briefing_basis.js` → `station_briefing_picker.js` → `station_briefing.js`.
 `station_briefing_basis.js` 는 `risk_basis_content.js`(RiskBasisContent 를 새로 만드는 파일)보다 **뒤**여야 문안이 덮이지 않는다.
 CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 
@@ -52,6 +53,23 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
   그날 토막이 있었는데 뽑지 못하면 「없습니다」 대신 「단기 전망에서 항목을 뽑지 못했습니다 — 원문(…)을 확인하세요」(`notesEmptyText`).
   가장 가까운 앞바다가 30km 넘게 멀면(울릉·흑산) 서버가 먼바다 예보로 바꾸거나 「가장 가까운 앞바다 특보구역(약 N km 떨어짐) 예보입니다」를 `weather.note` 로 주고 화면이 그대로 보인다(`[data-sb-wx-note]`).
   관리자 오류 마크다운은 이유 글의 역슬래시·세로줄·백틱·꺾쇠(< >)를 이스케이프한다(`admin_station_briefing.js errorsMarkdown`).
+
+## 관할 고르기 탭 두 개(2026-10-17 사용자 요청)
+
+> 사용자 원문: 「지도에서 선택하기와 파출소로 선택하기 2개의 탭을 두어서 지도에서 선택하기를 누르면 지역이 이미지 2처럼 나오고 해역을 누르면 그 해역에 따라 연안의 파출소 폴리곤이 이미지3처럼 나와서 선택할 수 있도록 했으면 좋겠고 파출소로 선택하기를 누르면 지방청 아코디언이 나오고 지방청 아코디언을 누르면 소속 해양경찰서 아코디언, 이후 소속 파출소가 아코디언으로 나와서 선택할 수 있도록 하면 좋겠어.」
+> (이미지 2 = 온보딩 「관심해역을 클릭해보세요」 해역 단추 4개, 이미지 3 = 온보딩 「제주 특보구역을 선택해주세요」 지도 — `client/js/onboarding/zone_setup.js`)
+
+- **「지도에서 선택하기」(처음 열리는 탭)**: 해역 단추 4개(`SEA_REGIONS` — 온보딩과 같은 이름·아이콘·모양) → 누르면 그 해역 관할 폴리곤 지도(배경 해아름 바다지도·이름표 「한림」처럼 「파출소」를 뗌·겹치는 이름표는 숨김·확대/이동)
+  → 폴리곤을 누르면 그 관할이 골라지고 파랗게 칠해진다. 지도 아래 「고른 관할: …」 / 「아직 이 지도에서 고른 관할이 없습니다. 지도를 눌러 고르세요.」 · [‹ 해역 다시 고르기].
+  온보딩과 달리 해역은 하나씩(누르면 바로 지도) — 관할은 하나만 고르기 때문이다. [확인] 대신 기존 [저장]이 그대로 아래에 있다.
+- **해역 규칙(서버 `station_briefing_inputs.stationSeas`)**: 관할 폴리곤 안 표본점(상자 12×12)이 드는 특보구역(앞바다·먼바다 44곳)을 세어 그 구역의 해역(`push_helpers.ZONE_HIERARCHY` = 앱 `SEA_REGIONS`·`SUB_REGION_ZONES` 계층)에 넣는다.
+  한 표라도 받은 해역 지도에는 모두 나온다 — 경계 관할 3곳은 두 해역에 다 나온다(추자 남해·제주, 땅끝 서해·남해, 기장 남해·동해). 지방청으로 나누지 않는다: 여수·완도서 11곳은 남해, 울산서 4곳은 동해(2026-10-17 실측).
+  2026-10-17 현재 해역별 관할 수: 동해 23 · 서해 38 · 남해 33 · 제주 6(겹침 포함, 97곳 모두 폴리곤이 있어 지도에 없는 관할은 0곳 — 생기면 지도 아래에 「파출소로 선택하기」 안내).
+- **자료**: `GET /api/station-briefing/areas`(관할 목록과 같은 노출 판정, 지도 탭에서 해역을 처음 누를 때 한 번 — 약 158KB·압축 약 33KB, 좌표만 소수 넷째 자리로 반올림·꼭짓점은 그대로). 계약 §1.1b.
+- **「파출소로 선택하기」**: 지방청 → 해양경찰서 → 파출소 칩(남항 두 곳은 경찰서로 구분 · 「해상만」 표시). 처음에는 고른 관할이 든 묶음만 펼쳐 있다.
+  이름 찾기에 글자를 넣으면 맞는 관할만 남기고 그 지방청·경찰서를 모두 펼친다. 지도에서 고르고 이 탭으로 오면 그 관할 묶음이 펼쳐진다.
+- **접근성**: 탭 `role=tab`·`aria-selected`·`aria-controls`(좌우 화살표로 옮김) · 패널 `role=tabpanel` · 아코디언 단추 `aria-expanded`·`aria-controls` · 칩 `aria-pressed`. 서버 글은 `textContent` 로만.
+- **뒤로가기·Escape**: 고르기 화면은 팝업이 아니라 아코디언 안 화면이라(종전과 같이) `PopupStack` 에 올리지 않는다 — 지도 단계도 같다.
 
 ## 시험
 

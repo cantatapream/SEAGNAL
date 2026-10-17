@@ -471,7 +471,7 @@ const WIN = R.editionWindow('morning', T0);
     await check('노출 판정: 관리자에게만(기본) — 일반 요청 내용 없음 · 등록 기기·관리자 토큰이면 내용 · 사용자에게 · 노출 안 함', async () => {
         const express = require('express'), { createRouter } = require('../routes/station_briefing');
         let exposure = 'admin';
-        const fake = { readConfig: () => ({ exposure }), stations: () => fakeStations, stationList: () => fakeStations.map((s) => ({ key: s.key })), pick: () => ({ date: '2026-10-17', briefing: { key: 'k' }, fallback: false }), status: () => ({ config: { exposure }, choices: SB.CHOICES }), writeConfig: (b) => { if (b.exposure === 'x') throw Object.assign(new Error('설정값 오류: exposure'), { status: 400 }); return b; }, run: async () => ({ ok: true }) };
+        const fake = { readConfig: () => ({ exposure }), stations: () => fakeStations, stationList: () => fakeStations.map((s) => ({ key: s.key })), stationAreas: () => [{ key: 'k', seas: ['제주'], geometry: null }], pick: () => ({ date: '2026-10-17', briefing: { key: 'k' }, fallback: false }), status: () => ({ config: { exposure }, choices: SB.CHOICES }), writeConfig: (b) => { if (b.exposure === 'x') throw Object.assign(new Error('설정값 오류: exposure'), { status: 400 }); return b; }, run: async () => ({ ok: true }) };
         const app = express(); app.use(createRouter({ service: fake, isAdminDevice: (id) => id === 'fcm-admin-1', verifyToken: (t) => t === 'tok-ok', authorize: (req, res, next) => req.get('X-Admin-Token') === 'tok-ok' ? next() : res.status(401).json({ ok: false }) }));
         const server = http.createServer(app); await new Promise((r) => server.listen(0, '127.0.0.1', r));
         const base = 'http://127.0.0.1:' + server.address().port, q = '/api/station-briefing?station=' + encodeURIComponent('제주해양경찰서|한림파출소');
@@ -479,6 +479,8 @@ const WIN = R.editionWindow('morning', T0);
             const get = async (u, h = {}) => { const r = await fetch(base + u, { headers: h }); return { status: r.status, body: await r.json() }; };
             let r = await get(q); assert.equal(r.body.display, false); assert.equal(r.body.briefing, null); assert.equal(r.body.audience, 'admin');
             r = await get('/api/station-briefing/stations'); assert.deepStrictEqual(r.body.stations, []);
+            r = await get('/api/station-briefing/areas'); assert.deepStrictEqual([r.body.display, r.body.areas], [false, []], '관할 구역도 같은 노출 판정');
+            r = await get('/api/station-briefing/areas', { 'X-Admin-Device': 'fcm-admin-1' }); assert.deepStrictEqual([r.body.display, r.body.areas.length], [true, 1]);
             r = await get(q, { 'X-Admin-Device': 'fcm-admin-1' }); assert.equal(r.body.display, true); assert.deepStrictEqual(r.body.briefing, { key: 'k' });
             r = await get(q + '&adminToken=fcm-admin-1'); assert.equal(r.body.display, true, '특보 예측과 같은 쿼리 이름');
             r = await get(q, { 'X-Admin-Device': 'other' }); assert.equal(r.body.display, false);
@@ -1046,6 +1048,18 @@ const WIN = R.editionWindow('morning', T0);
     const P = (date, period, weather, wave, wind) => ({ date, period, weather, waveHeight: wave, wind });
     const jejuWest = coastal('10.17. 05:00', [P('20261017', 'am', '구름많음', '0.5~1.5', '동~남동 / 7~11'), P('20261017', 'pm', '구름많음', '0.5~1.5', '남동 / 7~11'), P('20261018', 'am', '흐리고 비', '1.5~2.5', '남동~남 / 9~13'), P('20261018', 'pm', '흐리고 비', '2.0~3.0', '남 / 11~16')]);
     const REGIONAL = () => ({ coastal: { 제주도서부앞바다: jejuWest }, offices: { 184: { officeName: '제주지방기상청', bulletinPublishTime: '2026.10.17 04:40', summary: BULLETIN } }, zoneOffice: require('../regional_forecast_collector').ZONE_TO_OFFICE_MAP });
+    await check('[고르기 지도 2026-10-17] 관할 해역(stationSeas) — 실제 정리판 97곳·특보구역 도형: 지방청과 다른 관할·경계 관할 · 해역별 수 · 좌표 넷째 자리', () => {
+        const st = I.loadStations(), areas = I.stationAreas(st), by = Object.fromEntries(areas.map((a) => [a.key, a.seas]));
+        assert.equal(areas.length, 97, '정리판 97곳 모두 폴리곤');
+        assert.deepStrictEqual([by['제주해양경찰서|한림파출소'], by['울산해양경찰서|울산항파출소'], by['여수해양경찰서|돌산파출소'], by['인천해양경찰서|영흥파출소'], by['강릉해양경찰서|강릉파출소']], [['제주'], ['동해'], ['남해'], ['서해'], ['동해']]);
+        assert.deepStrictEqual(areas.filter((a) => a.seas.length > 1).map((a) => a.key + ':' + a.seas.join('·')).sort(), ['완도해양경찰서|땅끝파출소:서해·남해', '울산해양경찰서|기장파출소:남해·동해', '제주해양경찰서|추자파출소:남해·제주'].sort());
+        const cnt = {}; areas.forEach((a) => a.seas.forEach((x) => { cnt[x] = (cnt[x] || 0) + 1; })); assert.deepStrictEqual(cnt, { 서해: 38, 남해: 33, 동해: 23, 제주: 6 });
+        assert.ok(areas.every((a) => a.seas.length >= 1));
+        assert.ok(areas[0].geometry.coordinates.flat(Infinity).every((v) => Math.round(v * 1e4) / 1e4 === v));
+        const sq = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] }, far = { type: 'Polygon', coordinates: [[[5, 5], [6, 5], [6, 6], [5, 6], [5, 5]]] };
+        assert.deepStrictEqual(I.stationSeas(sq, [{ sea: '서해', box: [5, 5, 6, 6], geometry: far }]), ['서해'], '어느 구역에도 안 들면 가장 가까운 구역의 해역');
+        assert.deepStrictEqual(I.stationSeas(sq, []), [], '구역 표가 비면 빈 배열');
+    });
     await check('[§11.10.1] 가장 가까운 특보구역(앞바다) — 실제 특보구역 도형(client/assets/warn_zones.geojson): 한림 → 제주도서부앞바다 · 애월 → 제주도북부앞바다 · 위치 없음 → null', () => {
         assert.deepStrictEqual(I.nearestCoastalZone({ lat: 33.41, lon: 126.26 }).zone, '제주도서부앞바다', '한림파출소 시험 위치(한림 고정 자료와 같은 좌표)');
         assert.equal(I.nearestCoastalZone({ lat: 33.46, lon: 126.33 }).zone, '제주도북부앞바다');
