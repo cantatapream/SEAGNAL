@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 125개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 126개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -79,6 +79,7 @@ client/js/
 │   │   └── run_advisory_render_test.js
 │   └── station-briefing/
 │       ├── station_briefing_basis.js
+│       ├── station_briefing_picker.js
 │       ├── station_briefing_render.js
 │       └── station_briefing.js
 ├── location-alert/  ← ⚡ 위치기반 경보
@@ -298,7 +299,8 @@ client/js/
 |------|------|
 | `station_briefing.js` | 해양예보 탭 「🔭 기상청 해상 기상 전망」 바로 아래의 「활동지점 안전 브리핑」 아코디언(설계서 §11.1~§11.4). |
 | `station_briefing_basis.js` | 「활동지점 안전 브리핑」의 [기준 상세] 문안 — 브리핑이 어떤 기준으로 만들어지는지 일반 국민 눈높이로 적은 고정 글. |
-| `station_briefing_render.js` | 「활동지점 안전 브리핑」 본문을 그린다 — 서버가 만든 브리핑(총평·특별 상황·해상 시간 막대·해역 카드·육상 카드·조석·기준 |
+| `station_briefing_picker.js` | 「활동지점(파출소 관할) 설정」 화면의 관할 고르기 칸 — 탭 두 개(사용자 2026-10-17). |
+| `station_briefing_render.js` | 「활동지점 안전 브리핑」 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론·(기상)·(물때)·근거·권고 + AI |
 
 ### `client/js/location-alert/`
 

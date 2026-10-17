@@ -8,7 +8,7 @@
  * [연계]
  *  - 사용하는 파일 : services/station_briefing.js(forDefault — 생성·저장·설정) · advisory/displayControl.js(isAdminDevice — 특보 예측 표출 제어와 같은 기기 판정)
  *                    · services/admin_auth.js(verifyToken·requireAdminToken — 관리자 API 인증, 쓸 때 require)
- *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing
+ *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(관할 구역 — 설정 화면 지도) · GET /api/station-briefing
  *                    GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status · POST /api/admin/station-briefing/run
  *                    GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview(관리자 미리보기 — 노출 범위와 무관)
  *  - 마크업        : 없음(화면: client/js/forecast/station-briefing/ · client/js/admin/admin_station_briefing.js)
@@ -40,6 +40,10 @@ function createRouter({
 
     router.get('/api/station-briefing/stations', (req, res) => {
         try { const g = gate(req); res.set('Cache-Control', 'no-store').json({ ok: true, audience: g.audience, display: g.display, stations: g.display ? svc().stationList() : [] }); } catch (e) { fail(res, e); }
+    });
+    // 설정 화면 「지도에서 선택하기」의 관할 구역(2026-10-17) — 관할 목록과 같은 노출 판정. 지도 탭을 열 때만 부른다(약 158KB, 압축 약 33KB).
+    router.get('/api/station-briefing/areas', (req, res) => {
+        try { const g = gate(req); res.set('Cache-Control', 'no-store').json({ ok: true, audience: g.audience, display: g.display, areas: g.display ? svc().stationAreas() : [] }); } catch (e) { fail(res, e); }
     });
     router.get('/api/station-briefing', (req, res) => {
         try {

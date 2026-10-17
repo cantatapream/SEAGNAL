@@ -136,6 +136,7 @@
     "life_safety.js",
     "station_briefing_render.js",
     "station_briefing_basis.js",
+    "station_briefing_picker.js",
     "station_briefing.js",
     "zone_setup.js",
     "tutorial.js"

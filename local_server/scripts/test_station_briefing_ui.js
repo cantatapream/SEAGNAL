@@ -4,11 +4,12 @@
  * 역할  : 「활동지점 안전 브리핑」 2단계(화면)를 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다 —
  *         일반 기기(아코디언 없음 = 지금 화면) · 관리자 기기(아코디언·설정 흐름: 선택·건너뛰기·숨김·설정 팝업 재표시) ·
  *         본문 각 칸과 상태(해상만·자료 확인 불가·틀(AI 해설 없음)·브리핑 없음·다음 판 예정) · 「총평과 권고」 새 모양(결론·근거·권고·물때·AI 해설 — §11.10)과 옛 브리핑 문단 대체 · 서버 글은 textContent(HTML 문자열이 글자로) ·
+ *         관할 고르기 탭 두 개(지도에서 선택하기 — 해역 단추·관할 폴리곤 지도 실제 클릭 · 파출소로 선택하기 — 지방청→경찰서→파출소 아코디언·찾기 펼침, 2026-10-17) ·
  *         [위험예측에서 보기 ›] 로 위험예측 시트 열림 · N 뱃지 · [기준 상세] 창 · 관리자 「AI 브리핑」 탭(설정 저장·노출 범위 전환·지금 다시 만들기 409·미리보기·최근 3일 오류 목록 [복사]·[md로 저장]).
  *         380px·1280px 스크린샷을 SB_SHOT_DIR(없으면 임시 폴더)에 남긴다.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 시험 대상     : client/js/forecast/station-briefing/*.js · client/js/admin/admin_station_briefing.js · admin.js(AI 하위 탭) · settings.js(설정 팝업 칸)
+ *  - 시험 대상     : client/js/forecast/station-briefing/*.js(station_briefing_picker.js 고르기 탭 포함) · client/js/admin/admin_station_briefing.js · admin.js(AI 하위 탭) · settings.js(설정 팝업 칸)
  *                    · marine-life/risk-forecast/risk_forecast.js(RiskForecast.openAt·goTo) · ocean-map/bottom-sheet/ocean_bottom_sheet3.js(OS.tideGaugeHtml)
  *  - 서버          : 실제 routes/station_briefing.js(createRouter) + 실제 services/station_briefing.js(createService — 임시 폴더, 실행만 가짜)
  *                    · 실제 routes/risk_forecast.js + 가짜 위험예측 저장소. 브리핑 본문은 실제 규칙(station_briefing_rules.buildBriefing)으로 만든다.
@@ -97,6 +98,10 @@ function makeBriefings() {
             { key: BUSAN, name: '남항파출소', office: '부산해양경찰서', region: '남해지방해양경찰청', seaOnly: false, idx: 2 },
             { key: MOKPO, name: '남항파출소', office: '목포해양경찰서', region: '서해지방해양경찰청', seaOnly: true, idx: 3 },
         ];
+        // 고르기 지도(2026-10-17)용 관할 폴리곤 — 실제 정리판(coastguard_stations.geojson)의 같은 관할 도형을 붙인다(해역 규칙도 실제 특보구역 도형으로 돈다).
+        //   애월파출소는 정리판에 없는 시험용 관할이라 도형이 없다 → 「지도에 구역이 없는 관할」 경로(목록 탭으로만 고름)를 함께 본다.
+        const realSt = I.loadStations(); stationsFx.forEach((s) => { const r = realSt.find((x) => x.key === s.key); if (r) s.geometry = r.geometry; });
+        assert.deepEqual(stationsFx.filter((s) => !s.geometry).map((s) => s.key), [AEWOL]);
         const real = SB.createService({ dir, clock: () => clock.now, loadStations: () => stationsFx });
         const ctl = { running: false, runs: 0 };
         const service = { ...real, run: async () => { ctl.runs++; return { ok: true }; }, status: () => ({ ...real.status(), running: ctl.running }) };
@@ -139,6 +144,13 @@ function makeBriefings() {
             r = await http('/api/station-briefing/stations', { headers: { 'X-Admin-Token': 'admin-login' } }); assert.equal(r.body.display, true);
             r = await http('/api/station-briefing?station=' + encodeURIComponent(HALLIM)); assert.deepEqual([r.body.display, r.body.briefing], [false, null]);
         });
+        await check('서버: 관할 구역(/areas) — 일반 요청은 빈 목록, 관리자 기기는 관할마다 해역(seas)·폴리곤(소수 넷째 자리)', async () => {
+            let r = await http('/api/station-briefing/areas'); assert.deepEqual([r.status, r.body.display, r.body.areas.length], [200, false, 0]);
+            r = await http('/api/station-briefing/areas?adminToken=admin-push-token'); assert.equal(r.body.display, true);
+            const seas = Object.fromEntries(r.body.areas.map((a) => [a.key, a.seas]));
+            assert.deepEqual(seas, { [HALLIM]: ['제주'], [BUSAN]: ['남해'], [MOKPO]: ['서해'] }, JSON.stringify(seas) + ' — 도형 없는 애월은 빠짐');
+            const flat = r.body.areas.flatMap((a) => a.geometry.coordinates.flat(Infinity)); assert.ok(flat.length > 8 && flat.every((v) => Math.round(v * 1e4) / 1e4 === v), '좌표 소수 넷째 자리');
+        });
         await check('서버: 관리자 /stations·/preview — 토큰 없으면 401, 노출 「노출 안 함」이어도 관리자는 미리보기', async () => {
             assert.equal((await http('/api/admin/station-briefing/preview?station=' + encodeURIComponent(HALLIM))).status, 401);
             real.writeConfig({ exposure: 'off' });
@@ -168,6 +180,16 @@ function makeBriefings() {
         };
         /** 요소를 눌러 본다 — 화면 위 안내 팝업(점검·스플래시 등 이 시험이 띄우지 않는 덮개)에 가려지지 않게 DOM click(test_life_safety_tab_keep 과 같은 방식). */
         const tap = async (page, sel) => { await page.waitForSelector(sel); await page.evaluate((sel) => document.querySelector(sel).click(), sel); };
+        /** 고르기 지도에서 관할 폴리곤 안쪽 점의 화면 좌표(지도를 화면 가운데로 스크롤한 뒤) — 실제 마우스로 누르기 위해. @returns {Promise<number[]>} */
+        const polyPoint = async (pg, key) => {
+            await pg.waitForFunction((k) => { const P = window.StationBriefingPicker, m = P && P._map(), l = P && P._layer(); return m && l && l.getSource().getFeatureById(k) && m.getSize() && m.getSize()[1] > 0; }, key, { timeout: 8000 });
+            return pg.evaluate((k) => {
+                const m = window.StationBriefingPicker._map(), g = window.StationBriefingPicker._layer().getSource().getFeatureById(k).getGeometry();
+                m.getTargetElement().scrollIntoView({ block: 'center' }); m.renderSync();
+                const c = g.getType() === 'Polygon' ? g.getInteriorPoint().getCoordinates() : g.getInteriorPoints().getCoordinates()[0], px = m.getPixelFromCoordinate([c[0], c[1]]), r = m.getTargetElement().getBoundingClientRect();
+                return [r.left + px[0], r.top + px[1]];
+            }, key);
+        };
         const vis = (page, id) => page.evaluate((id) => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none' && !e.hidden; }, id);
         const content = (page) => page.evaluate(() => document.getElementById('station-briefing-content').innerText);
         const openAcc = async (page) => { await page.evaluate(() => { const b = document.getElementById('station-briefing-accordion-body'); if (b.classList.contains('collapsed')) window.toggleStationBriefingAccordion(); }); await page.waitForTimeout(400); };
@@ -204,11 +226,79 @@ function makeBriefings() {
         });
         await check('설정 → 관할 목록이 경찰서별 묶음, 남항 두 곳은 경찰서로 구분, 해상만 표시 · 이름으로 찾기', async () => {
             await tap(page, '#station-briefing-setup-btn'); await page.waitForSelector('[data-sb-setup]');
+            await tap(page, '[data-sb-tab="list"]');
             const offices = await page.$$eval('.sb-office', (e) => e.map((x) => x.textContent)); assert.deepEqual(offices, ['제주해양경찰서', '부산해양경찰서', '목포해양경찰서']);
             const namhang = await page.$$eval('.sb-station-btn', (e) => e.filter((x) => x.textContent.startsWith('남항파출소')).map((x) => x.dataset.key)); assert.deepEqual(namhang.sort(), [BUSAN, MOKPO].sort());
             assert.ok((await page.$eval('.sb-station-btn[data-key="' + MOKPO + '"]', (e) => e.textContent)).includes('해상만'));
             await page.fill('.sb-search', '애월'); assert.deepEqual(await page.$$eval('.sb-station-btn', (e) => e.map((x) => x.dataset.key)), [AEWOL]); await page.fill('.sb-search', '');
         });
+        // ── 2-1. 관할 고르기 탭 두 개(2026-10-17 사용자 요청 — station_briefing_picker.js) ──
+        const tabState = (pg) => pg.evaluate(() => [...document.querySelectorAll('[data-sb-setup] [role="tab"]')].map((t) => ({ k: t.dataset.sbTab, text: t.textContent, sel: t.getAttribute('aria-selected'), panelHidden: document.getElementById(t.getAttribute('aria-controls')).hidden, role: document.getElementById(t.getAttribute('aria-controls')).getAttribute('role') })));
+        await check('고르기 탭 두 개 — role=tab·aria-selected, 처음은 「지도에서 선택하기」, 누르면 패널이 바뀐다', async () => {
+            await page.evaluate(() => window.openStationBriefingSetup()); await page.waitForSelector('[data-sb-setup]');
+            assert.equal(await page.$eval('[data-sb-setup] [role="tablist"]', (e) => e.getAttribute('aria-label')), '관할 고르는 방법');
+            assert.deepEqual(await tabState(page), [{ k: 'map', text: '지도에서 선택하기', sel: 'true', panelHidden: false, role: 'tabpanel' }, { k: 'list', text: '파출소로 선택하기', sel: 'false', panelHidden: true, role: 'tabpanel' }]);
+            await tap(page, '[data-sb-tab="list"]');
+            assert.deepEqual((await tabState(page)).map((t) => [t.k, t.sel, t.panelHidden]), [['map', 'false', true], ['list', 'true', false]]);
+            await tap(page, '[data-sb-tab="map"]');
+            assert.deepEqual((await tabState(page)).map((t) => [t.k, t.sel, t.panelHidden]), [['map', 'true', false], ['list', 'false', true]]);
+        });
+        await check('「파출소로 선택하기」 — 지방청 아코디언(접힘) → 누르면 소속 해양경찰서 → 누르면 파출소 칩 → 칩을 눌러 고름', async () => {
+            await tap(page, '[data-sb-tab="list"]');
+            const st = () => page.evaluate(() => ({ regions: [...document.querySelectorAll('.sb-region')].map((b) => [b.textContent, b.getAttribute('aria-expanded'), document.getElementById(b.getAttribute('aria-controls')).hidden]),
+                offices: [...document.querySelectorAll('.sb-office')].filter((b) => b.offsetParent).map((b) => [b.textContent, b.getAttribute('aria-expanded')]), chips: [...document.querySelectorAll('.sb-station-btn')].filter((b) => b.offsetParent).map((b) => b.dataset.key) }));
+            let s = await st();
+            assert.deepEqual(s.regions, [['제주지방해양경찰청', 'false', true], ['남해지방해양경찰청', 'false', true], ['서해지방해양경찰청', 'false', true]]); assert.deepEqual([s.offices, s.chips], [[], []], '처음엔 모두 접힘(고른 관할 없음)');
+            await tap(page, '.sb-region[data-sb-acc="r|제주지방해양경찰청"]'); s = await st();
+            assert.equal(s.regions[0][1], 'true'); assert.deepEqual(s.offices, [['제주해양경찰서', 'false']]); assert.deepEqual(s.chips, []);
+            await tap(page, '.sb-office[data-sb-acc="o|제주지방해양경찰청|제주해양경찰서"]'); s = await st();
+            assert.deepEqual(s.offices, [['제주해양경찰서', 'true']]); assert.deepEqual(s.chips, [HALLIM, AEWOL]);
+            await tap(page, '.sb-station-btn[data-key="' + AEWOL + '"]');
+            assert.equal(await page.$eval('.sb-picked', (e) => e.textContent), '선택: 애월파출소 · 제주해양경찰서');
+            assert.equal(await page.$eval('.sb-station-btn[data-key="' + AEWOL + '"]', (e) => e.getAttribute('aria-pressed')), 'true');
+            await tap(page, '.sb-region[data-sb-acc="r|제주지방해양경찰청"]'); s = await st(); assert.deepEqual([s.regions[0][1], s.chips], ['false', []], '다시 누르면 접힘');
+        });
+        await check('찾기 — 글자를 넣으면 맞는 지방청·경찰서가 저절로 펼쳐지고, 지우면 고른 관할 묶음만 펼친다', async () => {
+            await page.fill('.sb-search', '남항');
+            const r = await page.evaluate(() => ({ exp: [...document.querySelectorAll('.sb-acc-btn')].map((b) => [b.textContent, b.getAttribute('aria-expanded')]), chips: [...document.querySelectorAll('.sb-station-btn')].filter((b) => b.offsetParent).map((b) => b.dataset.key) }));
+            assert.deepEqual(r.exp, [['남해지방해양경찰청', 'true'], ['부산해양경찰서', 'true'], ['서해지방해양경찰청', 'true'], ['목포해양경찰서', 'true']]); assert.deepEqual(r.chips, [BUSAN, MOKPO]);
+            await page.fill('.sb-search', '');
+            const e2 = await page.evaluate(() => [...document.querySelectorAll('.sb-acc-btn')].filter((b) => b.getAttribute('aria-expanded') === 'true').map((b) => b.textContent));
+            assert.deepEqual(e2, ['제주지방해양경찰청', '제주해양경찰서'], '고른 애월의 묶음');
+        });
+        await page.setViewportSize({ width: 380, height: 844 }); await page.evaluate(() => document.querySelector('[data-sb-setup]').scrollIntoView()); await clean(page); await page.screenshot({ path: path.join(SHOT, 'picker_list_380.png') });
+        await page.setViewportSize({ width: 412, height: 915 });
+        await check('「지도에서 선택하기」 — 해역 단추 4개(온보딩과 같은 이름) → 제주 → 지도에 제주 관할 폴리곤(한림, 이름표 「한림」) · 도형 없는 애월은 목록 탭 안내', async () => {
+            await tap(page, '[data-sb-tab="map"]');
+            assert.deepEqual(await page.$$eval('.sb-sea-btn', (e) => e.map((x) => [x.dataset.sea, x.textContent])), [['동해', '🌅 동해 해역'], ['서해', '🌊 서해 해역'], ['남해', '🏖️ 남해 해역'], ['제주', '🍊 제주 해역']]);
+            await tap(page, '.sb-sea-btn[data-sea="제주"]');
+            await page.waitForFunction(() => { const l = window.StationBriefingPicker._layer(); return l && l.getSource().getFeatures().length; }, null, { timeout: 8000 });
+            const r = await page.evaluate(() => ({ title: document.querySelector('[data-sb-panel="map"] .sb-pick-title').textContent, keys: window.StationBriefingPicker._layer().getSource().getFeatures().map((f) => f.get('key')).sort(), labels: window.StationBriefingPicker._layer().getSource().getFeatures().map((f) => f.get('label')).sort(), hint: document.querySelector('[data-sb-map-hint]').textContent, h: document.querySelector('[data-sb-map]').getBoundingClientRect().height }));
+            assert.equal(r.title, '제주 파출소 관할을 선택해주세요'); assert.deepEqual(r.keys, [HALLIM]); assert.deepEqual(r.labels, ['한림']);
+            assert.ok(r.h >= 240, '지도 높이 ' + r.h);
+            assert.equal(r.hint, '아직 이 지도에서 고른 관할이 없습니다. 지도를 눌러 고르세요. (지도에 구역이 없는 관할 1곳은 「파출소로 선택하기」에서 고를 수 있습니다.)', '목록에서 고른 애월은 도형이 없어 지도에 없다');
+        });
+        await check('지도 폴리곤을 누르면(실제 지도 클릭) 그 관할이 골라진다 — 「선택: 한림파출소」·지도 아래 줄·목록 칩 눌림·파란 칠', async () => {
+            const [x, y] = await polyPoint(page, HALLIM); await page.mouse.click(x, y);
+            await page.waitForFunction(() => document.querySelector('.sb-picked').textContent === '선택: 한림파출소 · 제주해양경찰서', null, { timeout: 3000 });
+            const r = await page.evaluate((k) => { const l = window.StationBriefingPicker._layer(), f = l.getSource().getFeatureById(k), st = l.getStyleFunction()(f); return { hint: document.querySelector('[data-sb-map-hint]').textContent, chip: document.querySelector('.sb-station-btn[data-key="' + k + '"]').getAttribute('aria-pressed'), fill: st.getFill().getColor() }; }, HALLIM);
+            assert.deepEqual(r, { hint: '고른 관할: 한림파출소 · 제주해양경찰서 (지도에 구역이 없는 관할 1곳은 「파출소로 선택하기」에서 고를 수 있습니다.)', chip: 'true', fill: 'rgba(68,138,255,0.45)' });
+            await tap(page, '[data-sb-tab="list"]');
+            assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.sb-acc-btn')].filter((b) => b.getAttribute('aria-expanded') === 'true').map((b) => b.textContent)), ['제주지방해양경찰청', '제주해양경찰서'], '목록 탭으로 오면 고른 관할 묶음이 펼쳐져 있다');
+            await tap(page, '[data-sb-tab="map"]');
+        });
+        await page.setViewportSize({ width: 380, height: 844 }); await page.waitForTimeout(300); await page.evaluate(() => document.querySelector('[data-sb-setup]').scrollIntoView()); await clean(page); await page.screenshot({ path: path.join(SHOT, 'picker_map_380.png') });
+        await check('[‹ 해역 다시 고르기] → 해역 단추 · 남해 → 부산 남항만(목포 남항은 서해) · 380px 가로 넘침 없음', async () => {
+            await tap(page, '[data-sb-sea-back]'); assert.equal(await page.$$eval('.sb-sea-btn', (e) => e.length), 4);
+            assert.equal(await page.evaluate(() => window.StationBriefingPicker._map()), null, '지도 정리');
+            await clean(page); await page.screenshot({ path: path.join(SHOT, 'picker_seas_380.png') });
+            await tap(page, '.sb-sea-btn[data-sea="남해"]');
+            await page.waitForFunction(() => { const l = window.StationBriefingPicker._layer(); return l && l.getSource().getFeatures().length; }, null, { timeout: 8000 });
+            assert.deepEqual(await page.evaluate(() => window.StationBriefingPicker._layer().getSource().getFeatures().map((f) => f.get('key'))), [BUSAN]);
+            const w = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, vw: innerWidth })); assert.ok(w.doc <= w.vw + 1, JSON.stringify(w));
+            await tap(page, '[data-sb-sea-back]');
+        });
+        await page.setViewportSize({ width: 412, height: 915 });
         await page.setViewportSize({ width: 380, height: 844 }); await clean(page); await page.screenshot({ path: path.join(SHOT, 'setup_380.png'), fullPage: false });
         await page.evaluate(() => document.getElementById('station-briefing-accordion-header').scrollIntoView()); await clean(page); await page.screenshot({ path: path.join(SHOT, 'setup_380.png') });
         await page.setViewportSize({ width: 412, height: 915 });
@@ -639,6 +729,21 @@ function makeBriefings() {
             assert.equal(await vis(p3, 'station-briefing-accordion-header'), false, '10분 안에 사라짐');
             await ctx.close();
             real.writeConfig({ exposure: 'admin' });
+        });
+        await check('지도에서 고른 관할이 저장되고(이 기기) 다시 열어도 그대로 — 지도 탭으로 고르고 [저장] → 새로고침 → 브리핑·설정 화면에 선택 유지', async () => {
+            const g = await device({ admin: true }); await openAcc(g);
+            await g.evaluate(() => window.openStationBriefingSetup()); await g.waitForSelector('[data-sb-setup]');
+            await tap(g, '.sb-sea-btn[data-sea="제주"]'); const [x, y] = await polyPoint(g, HALLIM); await g.mouse.click(x, y);
+            await g.waitForFunction(() => document.querySelector('.sb-picked').textContent.startsWith('선택: 한림파출소'), null, { timeout: 3000 });
+            await tap(g, '[data-sb-save]'); await g.waitForSelector('[data-sb-sec="overview"]');
+            assert.equal(await g.evaluate(() => JSON.parse(localStorage.getItem('seagnal_station_briefing_v1')).station), HALLIM);
+            await g.reload(); await g.waitForFunction(() => window.StationBriefing); await g.waitForTimeout(900); await clean(g); await openAcc(g);
+            await g.waitForSelector('[data-sb-sec="overview"]');
+            await g.evaluate(() => window.openStationBriefingSetup()); await g.waitForSelector('[data-sb-setup]');
+            assert.equal(await g.$eval('.sb-picked', (e) => e.textContent), '선택: 한림파출소 · 제주해양경찰서');
+            assert.equal(await g.$eval('.sb-station-btn[data-key="' + HALLIM + '"]', (e) => e.getAttribute('aria-pressed')), 'true');
+            await tap(g, '[data-sb-cancel]'); await g.waitForSelector('[data-sb-sec="overview"]');
+            await g.context().close();
         });
         await check('실행 오류 없음', async () => { assert.deepEqual(errors, []); });
     } catch (e) { console.error('❌ 준비 실패', e && e.stack); fail++; }

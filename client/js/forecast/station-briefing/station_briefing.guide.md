@@ -10,6 +10,7 @@
 - 통합관리자 → AI → 「AI 브리핑」(관리자 설정 — `client/js/admin/admin_station_briefing.js`).
 
 ## 데이터 흐름
+0. 설정 화면 「지도에서 선택하기」에서 해역을 처음 누르면 `GET /api/station-briefing/areas`(관할 폴리곤·해역 — 같은 노출 판정·같은 관리자 정보, 한 번 받으면 다시 묻지 않음). 해역 규칙은 README 「관할 고르기 탭 두 개」·계약 §1.1b.
 1. 시작(DOMContentLoaded) → `GET /api/station-briefing/stations` — 관리자 정보는 특보 예측(`advisory_prediction.js _adminAuth`)과 같은 방식:
    관리자 모드(`seagnal_admin_mode`)일 때만 `push_token` 을 쿼리 `adminToken` 으로, 로그인 토큰(`seagnal_admin_token`)을 `X-Admin-Token` 헤더로.
 2. `display:false` → 머리·몸 `display:none` 그대로(일반 화면 변화 없음). `display:true` → 보이고, 고른 관할이 있으면
@@ -25,7 +26,7 @@
 | 상황 | 화면 |
 |---|---|
 | 관할 없음 | 「활동지점이 설정되지 않았습니다」 + [설정하기] |
-| [설정하기]·⚙ | 관할 목록(지방청 → 해양경찰서 → 파출소, 남항 두 곳은 경찰서로 구분, 「해상만」 표시) · 이름 찾기 · 해상/육상 보기 칸(해상만 관할은 육상 칸 끔) · [저장] [건너뛰기] ([취소] — 이미 설정했을 때) |
+| [설정하기]·⚙ | 고르기 탭 두 개(`station_briefing_picker.js` — 2026-10-17): 「지도에서 선택하기」(해역 단추 4개 → 그 해역 관할 폴리곤 지도, 눌러 고르기) · 「파출소로 선택하기」(지방청 → 해양경찰서 → 파출소 아코디언, 남항 두 곳은 경찰서로 구분, 「해상만」 표시, 이름 찾기 — 찾으면 맞는 묶음 저절로 펼침) · 「선택: …」 줄 · 해상/육상 보기 칸(해상만 관할은 육상 칸 끔) · [저장] [건너뛰기] ([취소] — 이미 설정했을 때) |
 | [건너뛰기] 또는 관할을 골랐지만 해상·육상 모두 끔 | 「해상·육상 모두 설정하지 않았습니다 — 이 아코디언을 더 이상 표시하지 않을까요?」 [예, 표시하지 않기] [아니요] |
 | 예 | 숨김(`hidden:true`) + 「오른쪽 위 설정(⚙) 버튼에서 언제든 다시 표시할 수 있습니다」(`showSeagnalModal`) |
 | 설정 팝업 칸 | 「해양예보 탭에 표시」 스위치 · 지금 관할 · [관할 설정](팝업을 닫고 해양예보 탭에서 고르기 화면) — **누르는 즉시 적용**(팝업 [저장]·[취소] 스냅샷과 따로). 팝업에 저장하지 않은 다른 변경이 있으면 [관할 설정]이 묻는다([확인] 저장하고 이동 / [취소] 남기 — `settings.js settingsModalHasUnsaved`) |
@@ -59,7 +60,10 @@
 |---|---|---|
 | `refreshDisplay` | station_briefing.js | 노출 판정·관할 목록 → 보임 결정 → 본문 |
 | `loadBriefing` | station_briefing.js | 관할 브리핑 받기(day=auto) |
-| `renderSetup`·`finishSetup`·`renderConfirm` | station_briefing.js | 설정 흐름 |
+| `renderSetup`·`finishSetup`·`renderConfirm` | station_briefing.js | 설정 흐름(고르기 칸은 picker 에 맡기고 `choose`·`sync` 로 선택을 받는다) |
+| `mount`·`destroy` | station_briefing_picker.js | 고르기 탭 두 개 만들기 · 지도 정리(`renderBody` 가 화면을 바꿀 때마다 부름) |
+| `mapPanel`·`drawMap`·`zoneStyle`·`loadAreas` | station_briefing_picker.js | 해역 단추 → 관할 폴리곤 지도(온보딩 `zone_setup.js` `_makeMap`·`_zoneStyle` 과 같은 방식·같은 색) · 구역 한 번 받기 |
+| `listPanel` | station_briefing_picker.js | 지방청 → 해양경찰서 → 파출소 아코디언 + 찾기(맞는 묶음 펼침) |
 | `updateBadge`·`markSeen` | station_briefing.js | N 뱃지 |
 | `openInRisk` | station_briefing.js | 바로가기 |
 | `renderSettings` | station_briefing.js | 설정 팝업 칸(settings.js `openSettingsModal` 이 부름) |
@@ -73,4 +77,7 @@
 - [기준 상세] 문안을 바꿀 때는 서버 규칙(`station_briefing_rules.js`·`station_briefing.js`·`station_briefing_ai.js`)과 설계서 §11.6~§11.8 를 대조한다 — 코드에 없는 규칙을 쓰지 않는다.
 - 점검 차단(`station-briefing` — index2.html featureMap·bodyMap)과 노출 판정이 둘 다 몸 보임을 만진다 — `applyVisibility` 가 차단을 보고(일반 기기 숨김·관리자는 열어 둔 것 유지), index2 는 차단을 바꾼 뒤 `StationBriefing.applyVisibility()` 를 부른다.
 - 펼친 아코디언·안쪽 칸은 `max-height:none`(station_briefing.css) — 기존 8000px 상한이 카드 최대치 본문을 잘랐다.
+- 고르기 지도는 높이를 화면 비율(`.sb-map` 46vh)로 못박는다 — 부모 높이가 풀리면 ol 지도가 그려져도 터치를 못 받는다(온보딩 zone_setup.js 와 같은 주의).
+  다른 탭에 갔다 오면 `updateSize()` 로 크기를 다시 잰다. 지도 이벤트(singleclick)는 바깥(아코디언 머리)으로 번지지 않게 막는다.
+- 온보딩(`zone_setup.js`)의 해역 단추·지도 모양을 **복사하지 않고 같은 값으로 다시 썼다**(그 파일은 함수가 밖으로 나와 있지 않다 — 온보딩 동작을 바꾸지 않으려고 손대지 않음). 온보딩 모양을 바꾸면 `.sb-sea-btn`·`zoneStyle` 도 같이 본다.
 - 시험: `local_server/scripts/test_station_briefing_ui.js`.
