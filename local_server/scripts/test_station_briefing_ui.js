@@ -22,6 +22,11 @@
 const fs = require('fs'), os = require('os'), path = require('path'), assert = require('assert'), express = require('express'), { chromium } = require('playwright-core');
 const root = path.join(__dirname, '../..'), R = require('../services/station_briefing_rules'), SB = require('../services/station_briefing'), { createRouter } = require('../routes/station_briefing');
 const RF = require('../routes/risk_forecast'), M = require('../services/marine_fusion'), T = require('../services/risk_time'), io = require('../services/risk_collector_io');
+const I = require('../services/station_briefing_inputs');
+// (기상) 칸 입력(§11.10.1) — 단기 해상예보는 loadCoastalForecasts 꼴(시험값), 단기 전망은 사용자가 붙여 준 10-17 제주 통보문(고정 자료 그대로)
+const REGIONAL = { coastal: { 제주도서부앞바다: { officeName: '제주지방기상청', publishTime: '10.17. 05:00', periods: [
+    { date: '20261017', period: 'am', weather: '구름많음', waveHeight: '0.5~1.5', wind: '동~남동 / 7~11' }, { date: '20261017', period: 'pm', weather: '구름많음', waveHeight: '0.5~1.5', wind: '남동 / 7~11' }] } },
+offices: { 184: { officeName: '제주지방기상청', bulletinPublishTime: '2026.10.17 04:40', summary: fs.readFileSync(path.join(__dirname, 'fixtures', 'station_briefing', 'jeju_bulletin_20261017.txt'), 'utf8') } }, zoneOffice: { 제주도서부앞바다: '184' } };
 let pass = 0, fail = 0;
 /** 사례 하나. 실패도 모두 찍고 끝에 요약. @param {string} name @param {function} fn [연계] ← 아래 시나리오 */
 async function check(name, fn) { try { await fn(); console.log('✅', name); pass++; } catch (e) { console.error('❌', name, e && e.message); fail++; } }
@@ -69,12 +74,12 @@ const WIN = R.editionWindow('morning', Date.parse(at(8)));
 /** 날짜 파일 하나를 쓴다(실제 서비스가 pick 으로 읽는다). @param {string} date @param {Object} stations [연계] ← 준비 */
 function writeDay(date, stations) { fs.writeFileSync(path.join(dir, 'briefings_' + date + '.json'), JSON.stringify({ date, stations })); }
 function makeBriefings() {
-    const h = R.buildBriefing(hallimInput(), WIN, { generatedAt: '2026-10-17T13:10:00+09:00' });
+    const h = R.buildBriefing({ ...hallimInput(), zoneWeather: I.collectZoneWeather({ lat: 33.41, lon: 126.26 }, REGIONAL) }, WIN, { generatedAt: '2026-10-17T13:10:00+09:00' });
     h.trigger = { kind: 'warning', zones: ['제주도서부앞바다'] }; h.edition = 'warning';
     // AI 해설(1~2문장 — §11.10). 해상 해설에 HTML 문자열을 넣어 textContent 로만 들어가는지 본다.
     h.overview = { land: '협재해수욕장은 사람이 평소의 1.8배로 붐빕니다.', sea: XSS + ' 15시부터 파고가 높아집니다.', source: 'chatgpt', model: 'gpt-6-luna' };
     h.sea.cards[0].sentence = XSS + h.sea.cards[0].sentence;
-    const busanIn = { ...hallimInput(), key: BUSAN, name: '남항파출소', office: '부산해양경찰서', region: '남해지방해양경찰청', sources: { accident: 'ok', congestion: 'stale', zoneForecasts: 'stale', warnings: 'ok' }, tide: null,
+    const busanIn = { ...hallimInput(), zoneWeather: null, key: BUSAN, name: '남항파출소', office: '부산해양경찰서', region: '남해지방해양경찰청', sources: { accident: 'ok', congestion: 'stale', zoneForecasts: 'stale', warnings: 'ok' }, tide: null,
         sea: { reviewedCells: 30, regions: [], weather: {}, warnings: [] }, land: { spots: [], hazardOnly: [{ id: '남항-1', place: '남항 물양장', class: '연안사고 위험구역', shape: '항포구' }] }, places: [] };
     const b = R.buildBriefing(busanIn, WIN, { generatedAt: at(8) }); b.trigger = { kind: 'morning' };
     const mokpoIn = { ...hallimInput(), key: MOKPO, name: '남항파출소', office: '목포해양경찰서', region: '서해지방해양경찰청', seaOnly: true, land: null, tide: null };
@@ -242,8 +247,12 @@ function makeBriefings() {
         await check('본문 — 총평(육상·해상마다 단계·결론·(근거)·(권고)·(물때)·AI 해설 · 지금 밀집 · 「근거 ▸」 접힘 없음) · 특별 상황 · 해상 시간 막대(⚑) · 해역 카드 · 육상 카드 · 상시 위험 장소 · 조석 게이지 · 기준 시각·참고 정보', async () => {
             const s = await page.evaluate(() => {
                 const q = (s) => document.querySelector('#station-briefing-content ' + s), qa = (s) => [...document.querySelectorAll('#station-briefing-content ' + s)];
-                const blk = (k) => { const e = q('[data-sb-summary="' + k + '"]'); return e ? { text: e.textContent, chip: (e.querySelector('.sb-chip') || {}).textContent, head: (e.querySelector('.sb-headline') || {}).textContent, headW: getComputedStyle(e.querySelector('.sb-headline')).fontWeight, ks: [...e.querySelectorAll('.sb-sum-k')].map((x) => x.textContent.trim()), basis: [...e.querySelectorAll('.sb-sum-basis li')].map((x) => x.textContent), advice: (e.querySelector('.sb-sum-advice') || {}).textContent, tide: [...e.querySelectorAll('.sb-sum-tide')].map((x) => x.textContent), cm: (e.querySelector('[data-sb-commentary]') || {}).textContent || '' } : null; };
-                return { secs: qa('[data-sb-sec]').map((e) => e.dataset.sbSec), land: blk('land'), sea: blk('sea'), order: qa('[data-sb-summary]').map((e) => e.dataset.sbSummary), oldPara: qa('[data-sb-overview]').length,
+                const blk = (k) => { const e = q('[data-sb-summary="' + k + '"]'); return e ? { text: e.textContent, ks: [...e.querySelectorAll('.sb-sum-k')].map((x) => x.textContent.trim()), basis: [...e.querySelectorAll('.sb-sum-basis li')].map((x) => x.textContent), advice: (e.querySelector('.sb-sum-advice') || {}).textContent } : null; };
+                const con = [...document.querySelectorAll('#station-briefing-content .sb-conclusion')].map((e) => ({ chip: e.querySelector('.sb-chip').textContent, head: e.querySelector('.sb-headline').textContent, w: getComputedStyle(e.querySelector('.sb-headline')).fontWeight }));
+                const wx = q('[data-sb-part="weather"]');
+                return { secs: qa('[data-sb-sec]').map((e) => e.dataset.sbSec), land: blk('land'), sea: blk('sea'), parts: qa('[data-sb-part]').map((e) => e.dataset.sbPart), con, oldPara: qa('[data-sb-overview]').length,
+                    wx: { title: wx.querySelector('.sb-sum-k').textContent, rows: [...wx.querySelectorAll('.sb-wx-rows li')].map((x) => x.textContent), notes: [...wx.querySelectorAll('.sb-wx-notes li')].map((x) => x.textContent), text: wx.textContent },
+                    tideLines: qa('[data-sb-part="tide"] .sb-sum-tide').map((x) => x.textContent), cms: qa('[data-sb-commentary]').map((x) => x.textContent),
                     now: (q('.sb-now') || {}).textContent || '', basis: !!q('details.sb-basis'), source: (q('[data-sb-source]') || {}).dataset ? q('[data-sb-source]').dataset.sbSource : null,
                     special: qa('.sb-special-title').map((e) => e.textContent), slots: qa('.sb-slot').length, flags: qa('.sb-slot[data-event]').length, seaCards: qa('[data-sb-card="sea"]').length,
                     landCards: qa('[data-sb-card="land"]').length, links: qa('.sb-link').length, constant: (q('details.sb-constant summary') || {}).textContent || '',
@@ -251,12 +260,18 @@ function makeBriefings() {
                     foot: (q('.sb-foot') || {}).textContent || '', edition: (q('.sb-edition') || {}).textContent || '' };
             });
             assert.deepEqual(s.secs, ['overview', 'special', 'sea', 'land', 'tide']);
-            assert.deepEqual(s.order, ['land', 'sea']); assert.equal(s.oldPara, 0, '새 브리핑은 옛 문단을 그리지 않음');
-            assert.ok(s.land.text.startsWith('육상') && s.land.chip === '주의 필요', s.land.text);
-            assert.equal(s.land.head, B.h.summary.land.headline); assert.ok(Number(s.land.headW) >= 700, '결론은 굵게');
-            assert.deepEqual(s.land.ks, ['(근거)', '(권고)', '(물때)']); assert.deepEqual(s.land.basis, B.h.summary.land.basis); assert.equal(s.land.advice, '(권고) ' + B.h.summary.land.advice);
-            assert.deepEqual(s.land.tide, B.h.tide.text); assert.ok(s.land.cm.startsWith('해설 · ChatGPT') && s.land.cm.includes('1.8배'), s.land.cm);
-            assert.equal(s.sea.head, '오늘 한림파출소 관할 해상의 단계는 "주의 필요"입니다.'); assert.deepEqual(s.sea.ks, ['(근거)', '(권고)'], '물때는 육상만'); assert.deepEqual(s.sea.basis, B.h.summary.sea.basis);
+            // §11.10.1 순서: 결론 → (기상) → (물때) → 육상 근거·권고 → 해상 근거·권고 → AI 해설
+            assert.deepEqual(s.parts, ['conclusion', 'weather', 'tide', 'land', 'sea', 'commentary']); assert.equal(s.oldPara, 0, '새 브리핑은 옛 문단을 그리지 않음');
+            assert.deepEqual(s.con.map((x) => x.chip + '|' + x.head), ['주의 필요|' + B.h.summary.land.headline, '주의 필요|오늘 한림파출소 관할 해상의 단계는 "주의 필요"입니다.']); assert.ok(s.con.every((x) => Number(x.w) >= 700), '결론은 굵게');
+            assert.equal(s.wx.title, '(기상) 제주도서부앞바다');
+            assert.deepEqual(s.wx.rows, ['오늘 오전 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 동→남동', '오늘 오후 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 남동']);
+            assert.deepEqual(s.wx.notes, ['오늘 오후부터 순간풍속 15m/s 안팎의 강한 바람', '풍랑 예비특보: 오늘 밤(18~24시) 제주도남쪽바깥먼바다', '오늘 밤부터 제주도남쪽바깥먼바다 물결 1.5~3.0m로 높아짐']);
+            assert.ok(s.wx.text.includes('제주지방기상청 단기 해상예보 (10.17 05:00 발표)') && s.wx.text.includes('(특이사항)') && s.wx.text.includes('제주지방기상청 단기 전망 (10.17 04:40 발표)'), s.wx.text);
+            assert.deepEqual(s.tideLines, B.h.tide.text, '물때는 공용 칸');
+            assert.deepEqual(s.land.ks, ['(근거)', '(권고)'], '육상 덩어리에 물때 없음'); assert.deepEqual(s.land.basis, B.h.summary.land.basis); assert.equal(s.land.advice, '(권고) ' + B.h.summary.land.advice);
+            assert.ok(s.land.basis.some((x) => x.includes('방문객 평소의 1.8배(예상)')), '예상 표기 — ' + s.land.basis.join(' / '));
+            assert.deepEqual(s.sea.ks, ['(근거)', '(권고)']); assert.deepEqual(s.sea.basis, B.h.summary.sea.basis);
+            assert.ok(s.cms[0].startsWith('해설 · ChatGPT · 육상') && s.cms[0].includes('1.8배') && s.cms[1].startsWith('해설 · ChatGPT · 해상'), s.cms.join(' / '));
             assert.ok(s.now.includes('37척')); assert.ok(!s.basis, '「근거 ▸」 접힘은 없앰(근거 목록이 늘 보임)'); assert.equal(s.source, 'chatgpt');
             assert.ok(s.special.some((t) => t.includes('해제 예고')) && s.special.some((t) => t.includes('예비특보')), s.special.join('|'));
             assert.equal(s.slots, B.h.sea.timeBar.length); assert.equal(s.flags, B.h.sea.timeBar.filter((x) => x.events.length).length); assert.ok(s.flags >= 1);
@@ -338,9 +353,10 @@ function makeBriefings() {
         });
         await check('자료 확인 불가(부산 남항) — 해상 단계 「확인 불가(일부)」(회색)·빠진 자료 이름 · 틀이면 「AI 해설 없음」 작게 표시 · 해설 칸 없음', async () => {
             await pickStation(page, BUSAN); await page.waitForSelector('[data-sb-sec="sea"]');
-            const r = await page.evaluate(() => { const c = document.querySelector('[data-sb-sec="sea"] .sb-sec-head .sb-chip'); return { word: c.textContent, bg: getComputedStyle(c).backgroundColor, miss: document.querySelector('[data-sb-sec="sea"] .sb-miss').textContent, src: document.querySelector('[data-sb-source]').dataset.sbSource, srcText: document.querySelector('[data-sb-source]').textContent, fs: parseFloat(getComputedStyle(document.querySelector('[data-sb-source]')).fontSize), body: parseFloat(getComputedStyle(document.querySelector('[data-sb-summary="sea"] .sb-headline')).fontSize), cm: document.querySelectorAll('[data-sb-commentary]').length, basis: [...document.querySelectorAll('[data-sb-summary="sea"] .sb-sum-basis li')].map((x) => x.textContent) }; });
+            const r = await page.evaluate(() => { const c = document.querySelector('[data-sb-sec="sea"] .sb-sec-head .sb-chip'); return { word: c.textContent, bg: getComputedStyle(c).backgroundColor, miss: document.querySelector('[data-sb-sec="sea"] .sb-miss').textContent, src: document.querySelector('[data-sb-source]').dataset.sbSource, srcText: document.querySelector('[data-sb-source]').textContent, fs: parseFloat(getComputedStyle(document.querySelector('[data-sb-source]')).fontSize), body: parseFloat(getComputedStyle(document.querySelector('[data-sb-part="conclusion"] .sb-headline')).fontSize), wxMiss: (document.querySelector('[data-sb-wx-missing]') || {}).textContent || null, cm: document.querySelectorAll('[data-sb-commentary]').length, basis: [...document.querySelectorAll('[data-sb-summary="sea"] .sb-sum-basis li')].map((x) => x.textContent) }; });
             assert.equal(r.word, '확인 불가(일부)'); assert.equal(r.bg, 'rgb(100, 116, 139)'); assert.ok(r.miss.includes('혼잡 예보') && r.miss.includes('해구 예보'), r.miss);
-            assert.equal(r.src, 'template'); assert.equal(r.srcText, 'AI 해설 없음 — 결론·근거·권고는 서버가 계산한 값입니다.'); assert.ok(r.fs < r.body, '작은 글씨'); assert.equal(r.cm, 0, '해설 칸 없음');
+            assert.equal(r.src, 'template'); assert.equal(r.srcText, 'AI 해설 없음 — 결론·기상·근거·권고는 서버가 모은·계산한 값입니다.');
+            assert.equal(r.wxMiss, '기상예보 자료를 확인하지 못했습니다.', '기상 자료가 없으면 지어내지 않고 밝힘'); assert.ok(r.fs < r.body, '작은 글씨'); assert.equal(r.cm, 0, '해설 칸 없음');
             assert.ok(r.basis.some((x) => x.startsWith('확인하지 못한 자료: 혼잡 예보·해구 예보')), r.basis.join(' / '));
         });
         await check('육상 끄기 — 해상만 보이게 저장하면 육상 문단·육상 분석 칸이 없다', async () => {
@@ -483,6 +499,10 @@ function makeBriefings() {
                 const old = JSON.parse(JSON.stringify(base)); delete old.summary; old.overview = { land: '오늘 한림파출소 관할 육상은 주의 필요입니다. 따라서 협재해수욕장 주변 물가 접근에 주의가 필요합니다. 셋째 문장입니다.', sea: '오늘 한림파출소 관할 해상은 주의 필요입니다. 둘째. 셋째.', source: 'template', model: null };
                 R.render(box, { ok: true, briefing: old }, { now });
                 out.old = { paras: [...box.querySelectorAll('[data-sb-overview]')].map((e) => e.dataset.sbOverview + ':' + e.textContent), sum: box.querySelectorAll('[data-sb-summary]').length, basis: !!box.querySelector('details.sb-basis'), src: (box.querySelector('[data-sb-source]') || {}).textContent };
+                // §11.10 판(10-17 낮에 저장 — summary 는 있지만 weather 칸이 없고 물때는 육상 덩어리 안) — 그 모양 그대로
+                const v1 = JSON.parse(JSON.stringify(base)); delete v1.summary.weather; delete v1.summary.tide; v1.summary.land.tide = ['06:12 저조 뒤부터 물이 차오릅니다'];
+                R.render(box, { ok: true, briefing: v1 }, { now });
+                out.v1 = { parts: box.querySelectorAll('[data-sb-part]').length, landHead: (box.querySelector('[data-sb-summary="land"] .sb-headline') || {}).textContent || '', landTide: [...box.querySelectorAll('[data-sb-summary="land"] .sb-sum-tide')].map((x) => x.textContent) };
                 R.render(box, { ok: true, briefing: null, nextExpectedAt: '2026-10-17T08:00:00+09:00' }, { now }); out.passed = box.textContent;
                 R.render(box, { ok: true, briefing: null, nextExpectedAt: '2026-10-17T17:30:00+09:00' }, { now }); out.ahead = box.textContent;
                 box.remove();
@@ -498,6 +518,7 @@ function makeBriefings() {
             assert.ok(r.tomorrow.startsWith('내일 평소와 달라진 요소'), r.tomorrow); assert.ok(r.today.startsWith('오늘 평소와 달라진 요소'), r.today);
             assert.ok(r.passed.includes('다음 브리핑을 준비 중입니다(10월 17일(토) 08:00 시작)'), r.passed);
             assert.deepEqual([r.old.sum, r.old.basis], [0, true], '옛 브리핑은 새 모양 대신 종전 문단 + 근거 접힘');
+            assert.deepEqual([r.v1.parts, r.v1.landHead, r.v1.landTide], [0, base.summary.land.headline, ['06:12 저조 뒤부터 물이 차오릅니다']], '§11.10 판 브리핑은 그 모양(육상 덩어리 안 물때) 그대로');
             assert.ok(r.old.paras[0].startsWith('land:육상 오늘 한림파출소 관할 육상은') && r.old.paras[1].startsWith('sea:해상 '), r.old.paras.join(' / ')); assert.ok(r.old.src.includes('기본 문장(틀)'), r.old.src);
             assert.ok(r.ahead.includes('다음 브리핑 예정: 10월 17일(토) 17:30'), r.ahead);
             // 출처 한 벌 — 꼬리 출처 줄 = [기준 상세] 표(같은 SOURCES)

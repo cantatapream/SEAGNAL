@@ -33,6 +33,13 @@
 .sb-sum-tide { margin:2px 0; font-size:.8rem; }
 .sb-commentary { margin:8px 0 0; padding:6px 9px; border-left:3px solid rgba(103,232,249,.5); background:rgba(103,232,249,.06); border-radius:6px; color:#e2e8f0; font-size:.82rem; }
 .sb-commentary-k { color:#67e8f9; font-size:.7rem; font-weight:700; }
+/* §11.10.1 모양 — 결론 → (기상) → (물때) → 육상·해상 근거·권고 → AI 해설, 칸 사이 가는 줄 */
+.sb-part { margin:4px 0 10px; }
+.sb-part + .sb-part { padding-top:8px; border-top:1px solid rgba(148,163,184,.18); }
+.sb-conclusion { margin:2px 0 6px; }
+.sb-conclusion .sb-levels { margin:0 0 2px; }
+.sb-part-title { margin:0 0 2px; color:#facc15; font-size:.78rem; font-weight:800; }
+.sb-wx-rows li, .sb-wx-notes li { font-size:.8rem; }
 .sb-now { margin:6px 0; padding:6px 9px; border-radius:8px; background:rgba(103,232,249,.08); color:#a5f3fc; font-size:.8rem; }
 .sb-basis, .sb-constant { margin-top:6px; }
 .sb-basis summary, .sb-constant summary { cursor:pointer; color:#93c5fd; font-size:.8rem; font-weight:700; }

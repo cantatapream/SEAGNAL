@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: client/js/forecast/station-briefing/station_briefing_render.js
- * 역할  : 「활동지점 안전 브리핑」 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론·근거·권고 + AI 해설 · 특별 상황·해상 시간 막대·해역 카드·육상 카드·조석·기준 시각)을
+ * 역할  : 「활동지점 안전 브리핑」 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론·(기상)·(물때)·근거·권고 + AI 해설 · 특별 상황·해상 시간 막대·해역 카드·육상 카드·조석·기준 시각)을
  *         화면 칸으로 옮긴다. 서버 글은 모두 textContent 로만 넣는다(계약서 §5 「화면은 textContent 로만」 — HTML 삽입 금지).
  *         HTML 로 넣는 것은 조석 게이지(해양종합정보 OS.tideGaugeHtml 이 숫자·시각만으로 만든 것)뿐이다.
  * ----------------------------------------------------------------------------
@@ -272,7 +272,7 @@
      * @param {HTMLElement} box @param {Object} resp - GET /api/station-briefing(또는 관리자 preview) 응답
      * @param {Object} [opts] - showSea·showLand(기본 true)·links(false 면 바로가기 없음)·onLink(target,btn)·now(ms, 시험용)
      * @returns {void}
-     * [연계] ← station_briefing.js renderBody · admin_station_briefing.js 미리보기 / → summaryBody(새 총평)·legacyOverview(옛 브리핑)·renderRest·RiskBasis.open
+     * [연계] ← station_briefing.js renderBody · admin_station_briefing.js 미리보기 / → summaryBodyV2(§11.10.1 총평)·summaryBody(§11.10 판)·legacyOverview(그 전)·renderRest·RiskBasis.open
      */
     function render(box, resp, opts) {
         opts = opts || {};
@@ -297,9 +297,11 @@
         }
         if (resp.fallback) box.appendChild(el('p', 'sb-note', dateText(resp.wanted) + ' 브리핑(23:00 생성)이 아직 없어 ' + dateText(resp.date) + ' 브리핑을 보여 드립니다' + (resp.nextExpectedAt ? ' — ' + nextText(resp.nextExpectedAt, nowMs) : '') + '.'));
 
-        // ① 총평과 권고 — summary(서버 결론·근거·권고, 2026-10-17 §11.10)가 있으면 새 모양, 없으면(그 전에 저장된 브리핑) 종전 문단 모양
+        // ① 총평과 권고 — summary.weather 칸이 있으면(§11.10.1) 결론 → (기상) → (물때) → 근거·권고 → AI 해설,
+        //   summary 만 있으면(§11.10 판 — 10-17 낮에 저장된 파일) 육상·해상 덩어리 모양, 없으면(그 전) 종전 문단 모양
         var ov = b.overview || {}, s1 = section('총평과 권고', 'overview');
-        if (b.summary) summaryBody(s1.body, b, resp, ov, showSea, showLand); else legacyOverview(s1.body, b, resp, ov, showSea, showLand);
+        if (b.summary && Object.prototype.hasOwnProperty.call(b.summary, 'weather')) summaryBodyV2(s1.body, b, resp, ov, showSea, showLand);
+        else if (b.summary) summaryBody(s1.body, b, resp, ov, showSea, showLand); else legacyOverview(s1.body, b, resp, ov, showSea, showLand);
         box.appendChild(s1.root);
         renderRest(box, b, opts, showSea, showLand, nowMs);
     }
@@ -337,6 +339,67 @@
         if (showSea && resp.now && resp.now.text) body.appendChild(el('p', 'sb-now', resp.now.text));
         var note = ai && (ov.land || ov.sea) ? '해설은 ' + who + '가 썼습니다 — 숫자·지명·단계는 서버가 계산한 값만 씁니다' + (ov.reused ? '(지난 판과 입력이 같아 재사용)' : '') + '. 결론·근거·권고는 서버가 계산한 값입니다.'
             : 'AI 해설 없음 — 결론·근거·권고는 서버가 계산한 값입니다.';
+        var sn = el('p', 'sb-small sb-source', note); sn.setAttribute('data-sb-source', ai ? ov.source : 'template'); body.appendChild(sn);
+    }
+    /**
+     * 「총평과 권고」 §11.10.1 모양(2026-10-17 사용자 후속 결정 — *"결론 한줄 -> 기상(…가장 가까운 특보구역…오전, 오후…) … / 물때 / 연안의 안전 등급 분석에 근거…"*):
+     *   ① 결론(육상·해상 단계 배지 + 결론 한 줄씩) ② (기상) 가장 가까운 앞바다 단기 해상예보 오전·오후 두 줄 + 출처 + (특이사항) 지방기상청 단기 전망 대상일 것
+     *   ③ (물때) 공용 ④ 육상 (근거)·(권고) ⑤ 해상 (근거)·(권고) ⑥ AI 해설(있으면). 자료가 없으면 「기상예보 자료를 확인하지 못했습니다」. 글은 모두 textContent.
+     * 예: summaryBodyV2(body, {summary:{weather:{zone:'제주도서부앞바다',rows:[{label:'오늘 오전',text:'…'}],source:'…',notes:[…]},tide:[…],land:{…},sea:{…}},…}, resp, ov, true, true)
+     * @param {HTMLElement} body @param {Object} b @param {Object} resp @param {Object} ov @param {boolean} showSea @param {boolean} showLand @returns {void}
+     * [연계] ← render / → chip·list
+     */
+    function summaryBodyV2(body, b, resp, ov, showSea, showLand) {
+        var S = b.summary, ai = ov.source === 'chatgpt' || ov.source === 'gemini', who = ov.source === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+        var land = showLand && b.land && S.land, sea = showSea && b.sea && S.sea;
+        /** 이름표가 붙은 칸. 예: part('weather','(기상)') → <div class="sb-part" data-sb-part="weather"><p class="sb-sum-k">(기상)</p></div> */
+        var part = function (key, label) { var d = el('div', 'sb-part'); d.setAttribute('data-sb-part', key); if (label) d.appendChild(el('p', 'sb-sum-k', label)); body.appendChild(d); return d; };
+        // ① 결론
+        var c = part('conclusion', null);
+        var head = function (label, rank, word, text) { var r = el('div', 'sb-conclusion'); var lv = el('span', 'sb-levels'); lv.appendChild(el('span', 'sb-level-k', label)); lv.appendChild(chip(rank, word)); r.appendChild(lv); r.appendChild(el('p', 'sb-headline', text || '')); c.appendChild(r); };
+        if (land) head('육상', b.land.level.rank, b.land.level.word, S.land.headline);
+        if (sea) {
+            head('해상', b.sea.overviewLevel.rank, b.sea.overviewLevel.word, S.sea.headline);
+            if (b.sea.level && Number(b.sea.level.rank) > Number(b.sea.overviewLevel.rank)) {
+                var ln = el('p', 'sb-small sb-level-note', '해상 분석에는 「' + (b.sea.level.word || WORDS[b.sea.level.rank]) + '」 해역이 있습니다 — 공식 사고예보 단계만 있고 기상·혼잡 근거가 겹치지 않아 총평에는 올리지 않았습니다. 아래 해상 분석을 보세요.');
+                ln.setAttribute('data-sb-level-note', ''); c.appendChild(ln);
+            }
+        }
+        // ② (기상)
+        var W = S.weather || {}, wp = part('weather', '(기상)' + (W.zone ? ' ' + W.zone : ''));
+        if (W.zone && Number.isFinite(Number(W.distKm))) wp.appendChild(el('p', 'sb-small', '파출소 대표 위치에서 가장 가까운 특보구역(약 ' + Number(W.distKm) + 'km)'));
+        if (!W.missing && Array.isArray(W.rows) && W.rows.length) {
+            var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); li.appendChild(document.createTextNode(r.text)); wl.appendChild(li); }); wp.appendChild(wl);
+            if (W.source) wp.appendChild(el('p', 'sb-small', W.source));
+        } else { var wm = el('p', 'sb-miss', '기상예보 자료를 확인하지 못했습니다.'); wm.setAttribute('data-sb-wx-missing', ''); wp.appendChild(wm); }
+        wp.appendChild(el('p', 'sb-sum-k', '(특이사항)'));
+        if (W.bulletinMissing) wp.appendChild(el('p', 'sb-miss', '지방기상청 단기 전망 자료를 확인하지 못했습니다.'));
+        else if (Array.isArray(W.notes) && W.notes.length) { var nl = list(W.notes); nl.classList.add('sb-wx-notes'); wp.appendChild(nl); }
+        else wp.appendChild(el('p', 'sb-small', '이 날에 해당하는 특보·강풍·해상 특이사항이 단기 전망에 없습니다.'));
+        if (!W.bulletinMissing && W.notesSource) wp.appendChild(el('p', 'sb-small', W.notesSource));
+        // ③ (물때)
+        if (Array.isArray(S.tide) && S.tide.length) { var tp = part('tide', '(물때)'); S.tide.forEach(function (t) { tp.appendChild(el('p', 'sb-sum-tide', t)); }); }
+        // ④⑤ 육상·해상 근거·권고
+        var basis = function (kind, label, sum) {
+            var d = part(kind, null); d.setAttribute('data-sb-summary', kind); d.classList.add('sb-sum');
+            d.appendChild(el('p', 'sb-part-title', label));
+            if (Array.isArray(sum.basis) && sum.basis.length) { d.appendChild(el('p', 'sb-sum-k', '(근거)')); var ul = list(sum.basis); ul.classList.add('sb-sum-basis'); d.appendChild(ul); }
+            if (sum.advice) { var ad = el('p', 'sb-sum-advice'); ad.appendChild(el('span', 'sb-sum-k', '(권고) ')); ad.appendChild(document.createTextNode(sum.advice)); d.appendChild(ad); }
+        };
+        if (land) basis('land', '육상', S.land);
+        if (sea) basis('sea', '해상', S.sea);
+        // ⑥ AI 해설
+        if (ai && ((land && ov.land) || (sea && ov.sea))) {
+            var cp = part('commentary', null);
+            [['land', '육상', land && ov.land], ['sea', '해상', sea && ov.sea]].forEach(function (x) {
+                if (!x[2]) return;
+                var cm = el('p', 'sb-commentary'); cm.setAttribute('data-sb-commentary', x[0]);
+                cm.appendChild(el('span', 'sb-commentary-k', '해설 · ' + who + ' · ' + x[1] + ' ')); cm.appendChild(document.createTextNode(x[2])); cp.appendChild(cm);
+            });
+        }
+        if (showSea && resp.now && resp.now.text) body.appendChild(el('p', 'sb-now', resp.now.text));
+        var note = ai && (ov.land || ov.sea) ? '해설은 ' + who + '가 썼습니다 — 숫자·지명·단계는 서버가 계산한 값만 씁니다' + (ov.reused ? '(지난 판과 입력이 같아 재사용)' : '') + '. 결론·기상·근거·권고는 서버가 모은·계산한 값입니다.'
+            : 'AI 해설 없음 — 결론·기상·근거·권고는 서버가 모은·계산한 값입니다.';
         var sn = el('p', 'sb-small sb-source', note); sn.setAttribute('data-sb-source', ai ? ov.source : 'template'); body.appendChild(sn);
     }
     /**

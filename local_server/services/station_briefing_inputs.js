@@ -13,6 +13,9 @@
  *                    · services/jeju_isolation_tide_collector.js·hazard_rocks_tide_collector.js(제주 앵커·곡선 — 결정 5) · services/sea_warning_history.js(이미 해제된 특보 — 결정 4, 기록기를 주입받음)
  *                    · services/hazard_rocks_submersion.js(간출암 목록) · data/hazard_rocks/submersion.json · data/marine_forecast.json(기상청 단기 해상 전망)
  *                    · services/coastal_events_collector.js(geocode — 행사 위치 찾기와 같은 카카오 호출·KAKAO_REST_API_KEY)
+ *                    · client/assets/warn_zones.geojson(특보구역 — services/warn_zone_cells._load 로 읽음: 파출소에서 가장 가까운 앞바다, §11.10.1)
+ *                    · regional_forecast_collector.js(loadCoastalForecasts·loadRegionalForecasts·ZONE_TO_OFFICE_MAP — 인덱스 「○○앞바다 기상예보」 표와 같은
+ *                      data/regional_forecast.json 의 지방기상청 단기 해상예보·단기 전망 통보문, 처음 쓸 때 require)
  *  - 서버 API      : 없음
  *  - 나를 쓰는 곳  : services/station_briefing.js(run) · scripts/test_station_briefing.js(순수 부분)
  * [로드 순서] 서버 require 부작용 없음. 무거운 정적 자료는 처음 쓸 때 읽는다.
@@ -375,13 +378,56 @@ function kmaOutlook(dataDir = DATA) {
     return { title: s.title || null, publishTime: s.publishTime || null, forecastPeriod: s.forecastPeriod || null, excerpt };
 }
 /**
+ * 지방기상청 단기 해상예보(앞바다 PDF)·단기 전망 통보문을 한 번 읽는다 — 인덱스 「○○앞바다 기상예보」 팝업(/api/regional-coastal-forecast)과
+ * 같은 함수(regional_forecast_collector.loadCoastalForecasts — 구역의 관할 지방청 자료만)를 그대로 쓴다. 읽기 실패·파일 없음이면 빈 묶음(지어내지 않음).
+ * 예: regionalForecast() → {coastal:{'제주도서부앞바다':{officeName:'제주지방기상청',publishTime:'10.17. 05:00',periods:[…]}}, offices:{'184':{officeName,bulletinPublishTime,summary,…}}, zoneOffice:{…}}
+ * @returns {object} [연계] ← station_briefing.run(실행마다 한 번) → gather → collectZoneWeather
+ */
+function regionalForecast() {
+    try {
+        const C = require('../regional_forecast_collector');
+        return { coastal: C.loadCoastalForecasts() || {}, offices: C.loadRegionalForecasts() || {}, zoneOffice: C.ZONE_TO_OFFICE_MAP || {} };
+    } catch (e) { console.warn('[station_briefing] 지방기상청 예보 읽기 실패:', e && e.message); return { coastal: {}, offices: {}, zoneOffice: {} }; }
+}
+/**
+ * 파출소 대표 위치에서 가장 가까운 앞바다(특보구역)를 찾는다 — 특보구역 도형(client/assets/warn_zones.geojson, warn_zone_cells 가 읽는 같은 파일)의
+ * 경계까지 거리(안에 들면 0)로. 인덱스 「내 위치 → 가장 가까운 예보 구역」과 같은 뜻이지만 화면의 점 좌표(ZONE_COORDINATES — Windy 지도 중심) 대신 실제 구역 도형을 쓴다.
+ * 예: nearestCoastalZone({lat:33.41, lon:126.26}) → {zone:'제주도서부앞바다', distKm:0.5} · 위치 없음 → null
+ * @param {object|null} loc - {lat,lon} @returns {object|null} [연계] ← collectZoneWeather · 시험(한림 → 제주도서부앞바다, 실제 도형)
+ */
+function nearestCoastalZone(loc) {
+    if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon)) return null;
+    const G = require('./risk_geo'), zones = require('./warn_zone_cells')._load().main.filter((z) => z.kind === '앞바다');
+    let best = null;
+    for (const z of zones) { const d = G.distanceToGeometry([loc.lon, loc.lat], z.geometry); if (!best || d < best.d) best = { z, d }; }
+    return best ? { zone: best.z.name, key: best.z.key, distKm: +best.d.toFixed(1) } : null;
+}
+/**
+ * 관할 하나의 (기상) 입력 — 가장 가까운 앞바다 · 그 구역 단기 해상예보 · 그 구역 관할 지방청(ZONE_TO_OFFICE_MAP)의 단기 전망 통보문.
+ * 구역 이름은 도형 파일(「인천.경기북부앞바다」)과 예보 자료(「인천·경기북부앞바다」) 표기가 달라 열쇠(띄어쓰기·가운뎃점·점 무시)로 맞춘다.
+ * 통보문은 regional_bulletin_collector 가 저장한 summary(AI 색칠 마크업이 있을 수 있음 — 규칙이 벗긴다)·bulletinPublishTime('2026.10.17 04:40').
+ * 예: collectZoneWeather({lat:33.41,lon:126.26}, regionalForecast()) → {zone:'제주도서부앞바다', distKm:0.5, office:'184', coastal:{…}|null, bulletin:{officeName,publishTime,text}|null}
+ * @param {object|null} loc @param {object|null} regional - regionalForecast() 결과 @returns {object|null} [연계] ← gather → rules.weatherSummary
+ */
+function collectZoneWeather(loc, regional) {
+    const nz = nearestCoastalZone(loc);
+    if (!nz) return null;
+    const rg = regional || { coastal: {}, offices: {}, zoneOffice: {} }, k = (n) => R.zoneKey(n);
+    const coastalName = Object.keys(rg.coastal || {}).find((n) => k(n) === nz.key) || null;
+    const officeEntry = Object.entries(rg.zoneOffice || {}).find(([n]) => k(n) === nz.key), office = officeEntry ? officeEntry[1] : null;
+    const o = office && rg.offices ? rg.offices[office] : null;
+    return { zone: coastalName || nz.zone, distKm: nz.distKm, office, coastal: coastalName ? rg.coastal[coastalName] : null,
+        bulletin: o && o.summary ? { officeName: o.officeName || null, publishTime: o.bulletinPublishTime || null, text: o.summary } : null };
+}
+/**
  * 관할들의 입력 묶음을 만든다(rules.buildBriefing 에 그대로 넣을 수 있는 꼴).
  * 예: await gather({stations, risk, marine, win, now, locations}) → [{key,name,office,region,seaOnly,location,sources,sea,places,land,tide}]
  * @param {object} o - stations(대상 관할만)·allStations·risk·marine·win·now·locations(key→위치)·hazards(Map)·spotsBySt(Map)·tideDeps
  *                     ·warnHistory(특보 구간 기록 — sea_warning_history 기록기, 없으면 이미 해제된 특보는 보지 않는다)
- * @returns {object[]} [연계] ← station_briefing.run / → collectSea·collectLand·collectTide
+ *                     ·regional(regionalForecast() 결과 — 없으면 (기상) 칸은 「자료를 확인하지 못했습니다」)
+ * @returns {object[]} [연계] ← station_briefing.run / → collectSea·collectLand·collectTide·collectZoneWeather
  */
-function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null }) {
+function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null, regional = null }) {
     const sea = collectSea(stations, { risk, marine, win, now, warnHistory });
     const landT = win.targetDate === R.kstDate(now) ? R.isoKst(Math.floor(now / 60000) * 60000) : win.targetDate + 'T00:00:00+09:00';
     return stations.map((st) => {
@@ -393,8 +439,9 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
             places: spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon })).concat(spots.length ? [] : hz.map((z) => ({ name: z.place, lat: z.lat, lon: z.lon }))),
             land: st.seaOnly ? null : collectLand(spots, hz, { risk, t: landT, now, warnHistory }),
             tide: collectTide(locations[st.key], win.targetDate, st.geometry, tideDeps),
+            zoneWeather: collectZoneWeather(locations[st.key], regional),
         };
     });
 }
 
-module.exports = { loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, gather, forecastKey, readJson, writeJson, CONFIG, DATA };
+module.exports = { loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, collectZoneWeather, gather, forecastKey, readJson, writeJson, CONFIG, DATA };

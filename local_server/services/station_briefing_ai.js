@@ -22,7 +22,8 @@ const R = require('./station_briefing_rules');
 const SCHEMA = 'station-briefing-input-v2';
 // 재사용 해시에 들어가는 판(독립 검토 B10) — 검증 규칙·지시문이 바뀌면 지난 AI 총평을 재사용하지 않는다.
 // v3(2026-10-17 §11.10): 해설 1~2문장 · 필수 포함(required) 검사 없앰 · 기상청 해역 이름·「제주도」 허용 · 「두 곳」처럼 곳·개를 세는 한글 수사는 그 수가 허용 숫자에 있을 때만.
-const VALIDATOR_VERSION = 'sb-validate-v3', PROMPT_VERSION = 'sb-prompt-v3';
+// 지시문 v4(§11.10.1): shown 에 (기상)·(물때) 칸이 더해져 「되풀이하지 말고 그 숫자도 옮기지 말라」를 더했다. 검증 규칙은 그대로(v3).
+const VALIDATOR_VERSION = 'sb-validate-v3', PROMPT_VERSION = 'sb-prompt-v4';
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -174,7 +175,8 @@ function stationInput(b) {
     for (const pl of places) { const ws = String(pl).split(/\s+/); for (let i = 1; i < ws.length; i++) stems.add(ws.slice(0, i).join('')); }
     return {
         id: b.key, name: b.station.name, office: b.station.office, date: b.targetDate, day_word: R.dayWordOf(b),
-        shown: { land: shown(summary.land), sea: shown(summary.sea) }, sea: seaPart, land: landPart, special, tide,
+        // shown.weather = (기상) 칸(단기 해상예보 오전·오후·단기 전망 특이사항) — 되풀이하지 않게 보여 주기만 하고 그 숫자는 허용 목록에 넣지 않는다(summaryLines 가 빼고 모은다 — §11.10.1).
+        shown: { weather: summary.weather ? { zone: summary.weather.zone, rows: (summary.weather.rows || []).map((r) => r.label + ' ' + r.text), notes: summary.weather.notes || [] } : null, tide: summary.tide || [], land: shown(summary.land), sea: shown(summary.sea) }, sea: seaPart, land: landPart, special, tide,
         allowed_numbers: [...nums].sort().map(showNum), allowed_number_keys: [...nums].sort(),
         allowed_places: [...places].filter(Boolean).sort(), place_stems: [...stems].sort(), levels,
         allowed_multipliers: { sea: [...mult.sea].sort().map(showNum), land: [...mult.land].sort().map(showNum) }, allowed_multiplier_keys: { sea: [...mult.sea].sort(), land: [...mult.land].sort() },
@@ -202,7 +204,7 @@ function buildPrompt(batch) {
     return [
         '너는 해양 안전 「활동지점 안전 브리핑」의 「총평과 권고」 아래에 붙는 짧은 해설만 쓰는 작성자다. 화면에는 서버가 만든 결론(단계)·근거 목록·권고가 이미 보인다(각 관할의 shown).',
         '아래 JSON 의 stations 마다 육상 해설(land)과 해상 해설(sea)을 쓴다. 각 해설은 1~2문장.',
-        'shown 의 수(검토 칸·관광지·해역 수)·결론 문장·권고 문장을 되풀이하지 말고, 왜 높아졌는지(원인 — 바람·파도·특보·사람·행사 등)와 시간 흐름(언제부터 언제까지, 언제 나아지는지)을 쉬운 말로 설명한다(예: 「오전에는 바람이 약하지만 15시부터 파고가 높아지고, 21시부터는 풍랑 예비특보 구역에 들어갑니다.」).',
+        'shown 의 기상(오전·오후 예보·특이사항)·물때·수(검토 칸·관광지·해역 수)·결론 문장·권고 문장을 되풀이하지 말고(shown.weather 의 숫자는 allowed_numbers 에 없으면 옮기지 않는다), 왜 높아졌는지(원인 — 바람·파도·특보·사람·행사 등)와 시간 흐름(언제부터 언제까지, 언제 나아지는지)을 쉬운 말로 설명한다(예: 「오전에는 바람이 약하지만 15시부터 파고가 높아지고, 21시부터는 풍랑 예비특보 구역에 들어갑니다.」).',
         '규칙(어기면 그 관할 글은 버려진다):',
         '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로 쓴다 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다. 다만 「두 곳」·「세 개」처럼 곳·개를 세는 말은 그 수가 allowed_numbers 에 「2곳」·「3개」 꼴로 있을 때만 쓸 수 있다.',
         '2) 지명(항·포구·해수욕장·앞바다·해구·섬·갯바위·파출소 등)은 allowed_places 이름(또는 place_stems), 그리고 rules.kma_zones 의 기상청 해역 이름(「제주도남쪽바깥먼바다」 등)과 「제주도」만 그대로 쓴다.',

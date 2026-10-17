@@ -161,11 +161,12 @@ function historyRow(s, now) {
  *                     ·timer(경과 시간 — AI 데드라인, 기본 Date.now)·runDeadlineMs·aiOptions(generate 에 더 넘길 것 — timeouts 등)·allowRealAI(실제 AI 허용 여부)
  *                     ·warnHistory(특보 구간 기록 sea_warning_history 기록기 — 이미 해제된 특보, 결정 4. 기본 null = 보지 않음, forDefault 가 운영 기록기 forDir() 를 넘긴다)
  *                     ·errorHistory(관리자 오류현황 risk_error_history — 결정 6. 기본 null = 기록 안 함, forDefault 가 운영 것을 넘긴다)
+ *                     ·regional(지방기상청 단기 해상예보·단기 전망 — 기본 I.regionalForecast(), 실행마다 한 번 읽음. §11.10.1 (기상) 칸)
  * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
-    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null } = {}) {
+    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast() } = {}) {
     let timer = null, running = null, stationsCache = null, ad = adapters;
     const fileCache = new Map();
     const p = (f) => path.join(dir, f);
@@ -229,10 +230,10 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             const hz = I.assignHazards(all, hazardFeatures ? hazardFeatures() : (I.readJson(path.join(I.CONFIG, 'coastal_hazard_zones.wgs84.geojson'))?.features || []));
             const landPoints = Object.fromEntries(all.map((s) => [s.key, (spotsBySt.get(s.key) || []).concat(hz.get(s.key) || [])]));
             const locations = await I.ensureLocations({ stations: all, landPoints, file: p('locations.json'), geocoder, now });
-            const aiOn = !!ad || allowRealAI(), cfg = aiOn ? config : { ...config, method: 'template' };
+            const aiOn = !!ad || allowRealAI(), cfg = aiOn ? config : { ...config, method: 'template' }, rg = regional ? regional() : null;
             const results = [];
             for (const win of wins) {
-                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory });
+                const inputs = I.gather({ stations: targets, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg });
                 const briefings = inputs.map((x) => R.buildBriefing(x, win, { generatedAt: R.isoKst(now) }));
                 const day = readDay(win.targetDate) || { date: win.targetDate, stations: {} };
                 const gen = await AI.generate({ briefings, config: cfg, previous: day.stations, adapters: ad || (aiOn ? (ad = realAdapters()) : {}), kma: kma(), now, timer: elapsed, deadline: t0 + runDeadlineMs, ...aiOptions });
