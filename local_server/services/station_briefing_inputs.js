@@ -15,6 +15,7 @@
  *                    · services/coastal_events_collector.js(geocode — 행사 위치 찾기와 같은 카카오 호출·KAKAO_REST_API_KEY)
  *                    · client/assets/warn_zones.geojson(특보구역 — services/warn_zone_cells._load 로 읽음: 파출소에서 가장 가까운 앞바다, §11.10.1 · 30km 넘으면 가장 가까운 먼바다 — §11.10.2)
  *                    · regional_forecast.json[지방청].marineForecast(먼바다 단기 해상예보 — 앞바다가 30km 넘게 멀 때, regional_forecast_collector 가 저장)
+ *                    · client/marine_zone_area.json(대해구 도형 — 총평 해구 줄 지도 펼침의 해구 상자, §11.10.3 · haeguBox) · 관할 도형(areaOf)·칸 상자(boxOf)·관광지 고립 사고 수(isolation)도 여기서 넘긴다
  *                    · regional_forecast_collector.js(loadCoastalForecasts·loadRegionalForecasts·ZONE_TO_OFFICE_MAP — 인덱스 「○○앞바다 기상예보」 표와 같은
  *                      data/regional_forecast.json 의 지방기상청 단기 해상예보·단기 전망 통보문, 처음 쓸 때 require)
  *  - 서버 API      : 없음
@@ -30,6 +31,41 @@ const HOUR = 3600000;
 
 /** 경위도 상자. 예: Polygon → [minLon,minLat,maxLon,maxLat]. @param {object} g @returns {number[]} [연계] ← loadStations */
 function bounds(g) { const a = g.coordinates.flat(Infinity), xs = a.filter((_, i) => i % 2 === 0), ys = a.filter((_, i) => i % 2 === 1); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; }
+// ── 총평 근거 지도 펼침 재료(2026-10-17 사용자 결정 §11.10.3) — 브리핑 파일에 들어가므로 소수 4자리(약 11m)로 줄인다 ──
+/** 경위도 소수 4자리. 예: 126.234567 → 126.2346. @param {number} v @returns {number} [연계] ← boxOf·areaOf·haeguBox */
+function r4(v) { return Math.round(v * 1e4) / 1e4; }
+/** 도형의 상자를 4자리로. 사고 칸(웹 메르카토르 5km 사각형)·혼잡 칸(±0.0125도)·해구(0.5도)는 모두 경위도 축에 맞은 사각형이라 상자가 곧 그 칸이다.
+ * 예: 사고 칸 Polygon → [126.2187,33.4007,126.2636,33.4383]. @param {object} g @returns {number[]} [서,남,동,북] [연계] ← collectSea */
+function boxOf(g) { return bounds(g).map(r4); }
+/** 꺾은선 단순화(Douglas–Peucker, 경위도 그대로). 지도 펼침은 높이 약 200px(관할 30km 면 1px ≈ 150m)라 약 100m(0.001도) 안쪽 굴곡은 보이지 않는다 — 해안선을 따라 그린 관할(여호 3,106점 등)이 브리핑 파일을 키우지 않게.
+ * 예: 거의 곧은 세 점 → 양 끝 두 점. @param {number[][]} pts @param {number} tol - 도 @returns {number[][]} [연계] ← areaOf */
+function simplify(pts, tol) {
+    if (pts.length < 3) return pts;
+    const keep = new Uint8Array(pts.length), stack = [[0, pts.length - 1]]; keep[0] = keep[pts.length - 1] = 1;
+    while (stack.length) {
+        const [a, b] = stack.pop(), [x1, y1] = pts[a], [x2, y2] = pts[b], dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+        let far = -1, fd = tol;
+        for (let i = a + 1; i < b; i++) { const d = len ? Math.abs(dy * pts[i][0] - dx * pts[i][1] + x2 * y1 - y2 * x1) / len : Math.hypot(pts[i][0] - x1, pts[i][1] - y1); if (d > fd) { fd = d; far = i; } }
+        if (far > 0) { keep[far] = 1; stack.push([a, far], [far, b]); }
+    }
+    return pts.filter((_, i) => keep[i]);
+}
+/** 관할 폴리곤을 단순화(약 100m)·4자리로(Polygon·MultiPolygon → 폴리곤 목록). 안쪽 고리(관할에서 뺀 섬) 중 가로·세로 모두 0.01도(약 1km) 안 되는 것은 뺀다 —
+ * 약 200px 지도에서 몇 px 점이라 보이지 않고, 여호(안쪽 고리 419개)처럼 수백 개가 파일만 키운다. 바깥 고리는 모두 둔다.
+ * 예: Polygon → [[[[126.1,33.3],…]]]. @param {object} g @returns {number[][][][]|null} [연계] ← gather(input.area) */
+function areaOf(g) {
+    if (!g || !Array.isArray(g.coordinates)) return null;
+    const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+    const big = (ring) => { const b = bounds({ coordinates: ring }); return b[2] - b[0] >= 0.01 || b[3] - b[1] >= 0.01; };
+    return polys.map((rings) => rings.filter((ring, i) => i === 0 || big(ring)).map((ring) => simplify(ring, 0.001).map((p) => [r4(p[0]), r4(p[1])])));
+}
+let HAEGU_BOXES = null;
+/** 대해구 번호의 상자 — client/marine_zone_area.json(해구 지도 도형, risk_sea_cells 가 대표 해구를 정하는 같은 파일)을 처음 쓸 때 한 번 읽는다. 없으면 null.
+ * 예: haeguBox(232) → [126,33,126.5,33.5]. @param {number|string} major @returns {number[]|null} [연계] ← collectSea(weather[major].box) */
+function haeguBox(major) {
+    if (!HAEGU_BOXES) { const d = readJson(path.join(ROOT, '..', 'client', 'marine_zone_area.json')); HAEGU_BOXES = new Map(((d && d.features) || []).filter((f) => f.geometry).map((f) => [String(f.properties?.marine_zone_no), boxOf(f.geometry)])); }
+    return HAEGU_BOXES.get(String(major)) || null;
+}
 /**
  * 관할 정리판을 읽어 관할 목록을 만든다. idx 는 marine_fusion 의 관할 id(폴리곤 순번)와 같다.
  * 예: loadStations() → 97개 [{key:'제주해양경찰서|한림파출소', idx:'88', name:'한림파출소', office:'제주해양경찰서', region:'제주지방해양경찰청', address:'…', seaOnly:false}]
@@ -245,10 +281,10 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null }) {
             const zone = b.warnSubZone ? { name: b.warnSubZone, kind: 'sub' } : b.warnZone ? { name: b.warnZone, kind: 'main' } : null;
             if (b.warnZone) zonesWanted.add(R.zoneKey(b.warnZone)); if (b.warnSubZone) zonesWanted.add(R.zoneKey(b.warnSubZone));
             if (b.haegu?.major) majors.add(b.haegu.major);
-            regions.push({ rid: gid, gridId: g.traffic[0] || null, accidentGridId: g.accident?.id || null, lat: b.lat, lon: b.lon, haegu: b.haegu || null, ref: b.ref || null, zone, zones: [b.warnZone, b.warnSubZone].filter(Boolean), cellCount: g.traffic.length + (g.accident ? 1 : 0), slots, history: marine.cellHistory(geom, 'grid:' + (g.accident?.id || b.id)) });
+            regions.push({ rid: gid, gridId: g.traffic[0] || null, accidentGridId: g.accident?.id || null, lat: b.lat, lon: b.lon, box: boxOf(geom), haegu: b.haegu || null, ref: b.ref || null, zone, zones: [b.warnZone, b.warnSubZone].filter(Boolean), cellCount: g.traffic.length + (g.accident ? 1 : 0), slots, history: marine.cellHistory(geom, 'grid:' + (g.accident?.id || b.id)) });
         }
         const weather = {};
-        for (const major of majors) weather[major] = { label: '대해구 ' + major, rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
+        for (const major of majors) weather[major] = { label: '대해구 ' + major, box: haeguBox(major), rows: win.slots.map((at) => { const f = inputs.weather(major, at); return { at, wh: f.wh, ws: f.ws, forecastAt: f.forecastAt }; }) };
         out.set(s.key, { reviewedCells: e.cells.size, regions, weather, zones: [...new Set(regions.flatMap((r) => r.zones))], frameGaps: accGaps.length && regions.some((r) => r.accidentGridId) ? { accident: accGaps } : {} });
     }
     const all = warningsFromTree(inputs.warnings?.current, zonesWanted, now);
@@ -317,6 +353,8 @@ function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory
             swell: sw ? { periodS: sw.periodS } : null, rip: rip ? { level: rip.level } : null,
             notices: nt, released: released.filter((r) => !nt.effective.includes(r.name)),
             hazard: hz ? { count: hz.count || 0, byType: (hz.byType || []).map((x) => ({ class: x.class, count: x.count })) } : null,
+            // isolation = 고립 사고 수(총평 (고립 주의) 지점 표 — 2026-10-17 §11.10.3). 기록을 못 쓰면(available 아님) null — 0 과 가른다.
+            isolation: acc ? acc.filter((a) => a.type === '고립').length : null,
             history: acc ? { count: acc.length, from: d.history.from, to: d.history.to, topTypes: Object.entries(types).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).slice(0, 3).map(([type, count]) => ({ type, count })) } : null,
             missing: d.missing || [],
         });
@@ -506,7 +544,7 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
         const spots = spotsBySt.get(st.key) || [], hz = hazards.get(st.key) || [], s = sea.bySt.get(st.key);
         return {
             key: st.key, name: st.name, office: st.office, region: st.region, seaOnly: st.seaOnly, seaOnlyReason: st.seaOnlyReason,
-            location: locations[st.key] || null, sources: sea.sources,
+            location: locations[st.key] || null, sources: sea.sources, area: areaOf(st.geometry),
             sea: { reviewedCells: s.reviewedCells, regions: s.regions, weather: s.weather, warnings: s.warnings, frameGaps: s.frameGaps },
             places: spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon })).concat(spots.length ? [] : hz.map((z) => ({ name: z.place, lat: z.lat, lon: z.lon }))),
             land: st.seaOnly ? null : collectLand(spots, hz, { risk, t: landT, now, warnHistory }),
@@ -516,4 +554,4 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
     });
 }
 
-module.exports = { loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };
+module.exports = { areaOf, boxOf, haeguBox, loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };

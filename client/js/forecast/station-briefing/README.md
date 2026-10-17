@@ -14,7 +14,7 @@
 |------|------|-----------|
 | `station_briefing.js` | 아코디언 본체 — 노출 판정·설정 흐름(관할 고르기·건너뛰기·숨김)·N 뱃지·바로가기·설정 팝업 칸 | `refreshDisplay`, `loadBriefing`, `renderSetup`, `finishSetup`, `renderConfirm`, `toggle`, `openSetup`, `updateBadge`, `openInRisk`, `renderSettings`, `applyVisibility`, `toast` |
 | `station_briefing_picker.js` | 설정 화면의 관할 고르기 칸 — 탭 두 개 「지도에서 선택하기」(해역 단추 → 관할 폴리곤 지도) · 「파출소로 선택하기」(지방청 → 해양경찰서 → 파출소 아코디언 + 이름 찾기) | `mount`, `destroy`, `mapPanel`, `drawMap`, `zoneStyle`, `listPanel`, `loadAreas` |
-| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` | `render`, `summaryBodyV2`(§11.10.1 총평), `summaryBody`(§11.10 판), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
+| `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` · 근거 줄 지도 펼침(OpenLayers) | `render`, `summaryBodyV2`(§11.10.1 총평), `basisList`·`expander`·`miniMap`·`isolationLine`(§11.10.3), `summaryBody`(§11.10 판), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`, `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
 | `station_briefing_basis.js` | [기준 상세] 문안(위험예측 기준 상세 창 `RiskBasis.open('briefing')` 으로 연다) | (문자열 `RiskBasisContent.briefing`) |
 | `station_briefing.css` | `.sb-*` 모양(바깥 아코디언·안쪽 칸·조석 게이지·기준 창은 기존 CSS 재사용) | — |
 
@@ -70,6 +70,14 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
   이름 찾기에 글자를 넣으면 맞는 관할만 남기고 그 지방청·경찰서를 모두 펼친다. 지도에서 고르고 이 탭으로 오면 그 관할 묶음이 펼쳐진다.
 - **접근성**: 탭 `role=tab`·`aria-selected`·`aria-controls`(좌우 화살표로 옮김) · 패널 `role=tabpanel` · 아코디언 단추 `aria-expanded`·`aria-controls` · 칩 `aria-pressed`. 서버 글은 `textContent` 로만.
 - **뒤로가기·Escape**: 고르기 화면은 팝업이 아니라 아코디언 안 화면이라(종전과 같이) `PopupStack` 에 올리지 않는다 — 지도 단계도 같다.
+
+## 고립 주의·근거 줄 지도 펼침(2026-10-17 사용자 결정 — 설계서 §11.10.3)
+
+- **(물때)** 아래 「(고립 주의) 저조 시간(08:16·22:09) 전후 사고 지점(N개소) 확인 및 주의가 필요합니다.」 — 「사고 지점(N개소)」를 누르면 바로 아래 「지점명 | 발생 건수」 표가 펼쳐진다(관할 관광지 중 2020~2024 연안사고 기록에 **고립**이 있는 곳 **전부**, 건수 많은 순). 고립 지점이 없거나 해상만·조석 칸이 없는 관할이면 줄이 없다. 「갯벌·바위에 나가 있다면 물이 차오르기 전에 나오세요」는 뺐다.
+- **육상** 공통 이유 줄의 「— A·B 공통」 꼬리를 뺐고, 권고는 「… 주변 연안사고에 주의가 필요합니다.」(없으면 「관할 연안사고에 평소처럼 관심이 필요합니다.」).
+- **해상** 근거: 「관할 해역 N칸 중 위험이 높아진 해역 M칸 ▸」 · 「해양사고 위험예보만 '주의·경계'인 해역 K칸 ▸」 + 풀이 한 줄 · 「대해구 232 예보 15시부터 …로 높아짐(예상) ▸」(**기준을 넘을 때만** — 사용자 「(가)로 진행하자」) · 해역 줄 · 해제 예고/예비특보 · 지금 밀집 → (권고). 「공식 사고예보」는 브리핑 안에서 「해양사고 위험예보」로 부른다(다른 화면은 그대로).
+- ▸ 를 누르면 그 줄 바로 아래 높이 200px 지도: 관할 해역 전체(파란 선)에 맞추고 그 칸·대해구 테두리(빨강)를 600ms 마다 깜빡인다. 접으면·다시 그리면 멈추고, 움직임 줄이기 설정이면 깜빡이지 않는다. 바탕은 관심해역 고르기 지도와 같은 해아름 바다지도(`oceanCreateKhoaLayer`), 없으면 선만. 도형은 서버가 브리핑 `summary.sea.area`·`detail[].boxes` 로 보낸다(소수 4자리·단순화).
+- [기준 상세]에 「해상 근거 읽는 법」(해양사고 위험예보·칸 크기·결론에 넣지 않는 이유·「특보 가능성 기준」은 풍랑주의보 기준이 아님·지도·고립 표)을 더했다.
 
 ## 시험
 
