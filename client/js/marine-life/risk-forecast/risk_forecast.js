@@ -304,7 +304,7 @@
                 var out=d&&d.marine&&d.marine.outlook&&d.marine.outlook.accident;if(out&&out.length){s.levels=s.levels||{};out.forEach(function(r){if(r&&r.forecastAt)s.levels[r.forecastAt]=r;});if(s.slider&&s.slider.levels)s.slider.levels(out);}if(d&&d.marine)trafficHistory(n,s,at,d.marine);}   // 시각 막대 칸 색: 해상 outlook.accident(연안 시각 막대는 T24 로 없앰)
             catch(e){console.warn('[위험예측] 상세 요청 실패',failureInfo(e));if(n===detailSeq&&enabled&&selected===s&&detailAt(s)===at){sheet.error(e.message);registerSheet();}}
         }
-        /** 해상 시트의 「과거 2주간 선박교통량」 이력을 받아 카드를 채운다. 칸이 없으면 요청하지 않는다(카드는 「-」).
+        /** 해상 시트의 「지난 2주간 선박교통량」 이력을 받아 카드를 채운다. 칸이 없으면 요청하지 않는다(카드는 「-」).
          * 예: GR4_F4K23_P4 → GET sea/traffic-history?cell=GR4_F4K23_P4&days=15 — 지금 30분 칸을 끝으로 하는 14일(672칸)과
          *     「평균 HH:MM」의 최근 14번을 다 덮으려면 오늘 포함 달력일 15일이 필요하다(서버 days 는 오늘 포함 달력일).
          * @param {number} n - 상세 세대 @param {Object} s - 선택 @param {string} at - 시트 시각 @param {Object} m - marine

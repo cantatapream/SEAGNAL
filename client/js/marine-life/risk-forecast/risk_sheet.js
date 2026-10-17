@@ -408,7 +408,7 @@
         function error(message){el.removeAttribute('aria-busy');el.querySelector('.rf-body').innerHTML='<p class="rf-missing">위험예측 자료를 불러오지 못했습니다 — '+F.escape(message)+'</p><button type="button" data-retry>다시 시도</button>';present();}
         function choose(items){el.removeAttribute('aria-busy');el.querySelector('.rf-title').textContent='관광지 선택';el.querySelector('.rf-subtitle').textContent='같은 위치에 있는 관광지입니다.';basisFor(null);el.querySelector('.rf-timeline').hidden=true;el.querySelector('.rf-body').innerHTML='<div class="rf-location-options">'+items.map(function(p){return '<button type="button" class="rf-location-choice" data-spot-id="'+F.escape(p.id)+'">'+F.escape(p.name)+'</button>';}).join('')+'</div>';present();}
         /**
-         * 해상 본문의 「과거 2주간 선박교통량」 카드를 받은 이력으로 채운다. 지금 본문이 다른 칸이면 버린다.
+         * 해상 본문의 「지난 2주간 선박교통량」 카드를 받은 이력으로 채운다. 지금 본문이 다른 칸이면 버린다.
          * 예: trafficHistory('GR4_F4K23_P4',응답) / trafficHistory(cell,null,'error') → 「-」와 「기록을 불러오지 못했습니다.」
          * @param {string} cell - 요청한 GR4 칸 @param {Object|null} h - sea/traffic-history 응답 @param {string} [problem] - 'error' @returns {void}
          * [연계] RiskForecast.detail → 여기 → RiskMarine.fillTraffic

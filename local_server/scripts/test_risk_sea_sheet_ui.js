@@ -2,7 +2,7 @@
  * 파일명: local_server/scripts/test_risk_sea_sheet_ui.js
  * 역할  : 해상 위험 예측·분석 화면(2026-10-15 확정 시안 8차 + 추가 확정 5가지, 지도 조작부 시안)을 실제 Chromium 에서 검사한다.
  *         위 카드(지금: 밀집도 뱃지·척수·충돌주의·혼잡예보 / 미래: 혼잡도 뱃지·혼잡 지수, [?] 두 개·설명 팝업·MLP 문장 자간 맞춤), 「15~18시 예보」 줄 없음, 출처 「해양교통안전공단 API」,
- *         과거 2주간 선박교통량(기록 0일 「-」·「평균 16:00 (3일)」·「2주 평균」, 확대 문턱 아래 점 0개·위 점>0·글자 안 겹침, 핀치·누르기·×50,
+ *         지난 2주간 선박교통량(기록 0일 「-」·「평균 16:00 (3일)」·「2주 평균」, 확대 문턱 아래 점 0개·위 점>0·글자 안 겹침, 핀치·누르기·×50,
  *         시트 시각 이동 시 초기화), 이 해역 과거 선박사고(0건 한 줄·도넛·팝업·인명피해 줄·null 처리), 날씨 아코디언(접힘·5항목),
  *         시트 시각 막대(공식 사고 위험 색·「지금」), 지도 [혼잡도][위험 예측] 단일 선택·해상 OFF 숨김·혼잡도 지금/미래 mode·범례 제목,
  *         날씨 아코디언의 발효 중 특보 상자(2026-10-16 — 빨간 테두리·「파도」 위·문구·여러 개·없을 때·미래 시각·380px 줄바꿈).
@@ -186,7 +186,7 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
  await check('시트: 순서 위 카드→교통량→선박사고→날씨→출처, 출처 「해양교통안전공단 API」, [기준 상세]는 출처 칸이 아니라 머리에',async()=>{
   const order=await page.evaluate(b=>[...document.querySelector(b).children].map(e=>e.matches('.rf-hero')?'hero':e.matches('[data-traffic-card]')?'traffic':e.matches('.rf-acc,.rf-none')?'acc':e.matches('.rf-wx')?'wx':e.matches('.rf-cite')?'cite':e.className),body);
   assert.deepEqual(order,['hero','traffic','acc','wx','cite']);const cite=(await page.locator(body+' .rf-cite').innerText()).replace(/\s+/g,' ');
-  for(const s of ['위험 예측·혼잡도·과거 2주간 선박교통량: 해양교통안전공단 API','이 해역 날씨: 기상청 해구별 예보','이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋'])assert.ok(cite.includes(s),s);assert.ok(!cite.includes('기준 상세'),'출처 칸에 [기준 상세]가 남음');assert.ok(!cite.includes('공식 제공 데이터'));
+  for(const s of ['위험 예측·혼잡도·지난 2주간 선박교통량: 해양교통안전공단 API','이 해역 날씨: 기상청 해구별 예보','이 해역 과거 선박사고: 국립해양조사원 개방海 데이터셋'])assert.ok(cite.includes(s),s);assert.ok(!cite.includes('기준 상세'),'출처 칸에 [기준 상세]가 남음');assert.ok(!cite.includes('공식 제공 데이터'));
   assert.equal(await page.locator(body+' [data-basis]').count(),0);assert.equal(await page.locator('#risk-forecast-sheet .rf-sheet-head .rf-head-basis[data-basis="sea"]').isVisible(),true);});
  for(const width of [380,320])await check('T7·T8 해상 '+width+'px: 머리 [기준 상세]는 부제(관할) 줄 오른쪽 끝·✕ 아래·시각 줄을 밀지 않음, 범례와 「지금」 꼬리표 안 겹침',async()=>{
   await page.setViewportSize({width,height:width===320?568:820});await page.waitForTimeout(150);
