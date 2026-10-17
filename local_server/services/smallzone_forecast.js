@@ -4,7 +4,7 @@
  * 역할: 기상청 API허브 소해구 예보(marine_small_zone.php — 대해구 하나를 3×3 으로 나눈 소해구마다
  *       파고·파주기·파향·풍속·풍향)를 받아 두고 내준다. 브리핑용 대해구는 새 판이 나오면 미리 받아
  *       디스크에도 두고, 해구 기상전망 창에서 누른 대해구는 그때 받아 판이 바뀔 때까지 메모리에 둔다.
- *       (설계서 client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md §11.10.17)
+ *       (설계서 client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md §11.10.18)
  * ----------------------------------------------------------------------------
  * [출처 — 2026-10-17 실측]
  *   GET https://apihub.kma.go.kr/api/typ06/url/marine_small_zone.php

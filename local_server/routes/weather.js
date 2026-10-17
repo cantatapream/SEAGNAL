@@ -889,7 +889,7 @@ router.get('/api/marine-zone-forecasts/:zoneId', (req, res) => {
 //   브리핑용으로 미리 받은 대해구는 그 판에서, 아니면 그때 기상청 API허브에서 받아 판이 바뀔 때까지 둔다
 //   (services/smallzone_forecast.js — 인증키는 서버 안에서만 쓰고 응답·로그에 넣지 않는다).
 //   없으면 404, 기상청 요청이 모두 실패하면 502 — 둘 다 한국어 message. 값 -999(결측)는 null.
-//   설계서 coastal_safety_forecast.design.md §11.10.17
+//   설계서 coastal_safety_forecast.design.md §11.10.18
 // ============================================================================
 const smallZoneForecast = require('../services/smallzone_forecast');
 router.get('/api/marine-small-zone-forecasts/:lzone', async (req, res) => {

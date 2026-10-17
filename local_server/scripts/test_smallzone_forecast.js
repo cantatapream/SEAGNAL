@@ -2,7 +2,7 @@
  * 역할: 소해구 예보 수집 서비스(services/smallzone_forecast.js)와 그 API(routes/weather.js GET /api/marine-small-zone-forecasts/:lzone)를
  *       가짜 fetch 로 검사한다 — 40개 나눔·26시각·-999→null·재시도·일부 실패 상태·같은 대해구 동시 요청 합침·판 바뀌면 비움·상한 100·
  *       브리핑 목록에 브리핑 칸 대해구(risk_sea_cells.describe 가 고르는 major) 포함·인증키가 응답/로그/파일에 안 나옴.
- *       (설계서 client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md §11.10.17)
+ *       (설계서 client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md §11.10.18)
  * [연계] services/smallzone_forecast.js · services/risk_sea_cells.js(브리핑 칸 대해구 고르기) · routes/weather.js(scheduler 는 가짜로 끼운다 —
  *        진짜 scheduler.js 는 require 하면 수집이 시작된다). 외부 API 호출 없음, 임시 폴더만 쓴다.
  * [로드 순서] 시험 스크립트 — node local_server/scripts/test_smallzone_forecast.js · verify_all.sh SUITES

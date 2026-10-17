@@ -8,7 +8,7 @@
  *                   marine-chart/marine_chart1.js(window.MarineChart.init 호출) ·
  *                   외부 Chart.js(해양 기상 차트 렌더)
  *  - 서버 API      : GET /api/marine-zone-forecasts/{zoneId} ·
- *                   /api/marine-small-zone-forecasts/{대해구} (소해구 「233-5」를 누르면 그 소해구 값으로 바꿔 그림, §11.10.17) ·
+ *                   /api/marine-small-zone-forecasts/{대해구} (소해구 「233-5」를 누르면 그 소해구 값으로 바꿔 그림, §11.10.18) ·
  *                   /api/vsby-smallzone/major · /api/vsby-smallzone/cell (시정)
  *  - 마크업        : #sea-zone-modal · #zone-modal-title · #zone-modal-body ·
  *                   #marineChart(canvas) · #zone-windy-modal
@@ -121,7 +121,7 @@ window.getMarineZoneData = async function (zoneId) {
             }));
             formattedData.baseTime = json.baseTmUtf;
             formattedData._visLoading = true;
-            // [소해구 — §11.10.17] 소해구(「233-5」)는 대해구 값으로 먼저 그리고, 소해구 값이 오면 바꿔 그린다 — 그동안은 안내 한 줄.
+            // [소해구 — §11.10.18] 소해구(「233-5」)는 대해구 값으로 먼저 그리고, 소해구 값이 오면 바꿔 그린다 — 그동안은 안내 한 줄.
             if (isSmallZone) formattedData._sourceNote = `대해구 ${lZone} 예보로 표시 중`;
 
             showMarineZoneModal(zoneId, formattedData, false, null, json.baseTmUtf);
@@ -159,7 +159,7 @@ window.getMarineZoneData = async function (zoneId) {
 const SMALL_ZONE_FIELDS = ['ws', 'wh', 'wp', 'waveDir', 'windDir'];
 
 /**
- * 소해구 예보를 받아 이미 그린 대해구 값(풍속·파고·파주기·파향·풍향)을 소해구 값으로 바꿔 다시 그린다(§11.10.17).
+ * 소해구 예보를 받아 이미 그린 대해구 값(풍속·파고·파주기·파향·풍향)을 소해구 값으로 바꿔 다시 그린다(§11.10.18).
  * 예: applySmallZoneForecast('233-5','233','5',formattedData,reqId,'2026101700')
  *     → /api/marine-small-zone-forecasts/233 의 data['5'] 를 시각(tm)마다 맞춰 넣고 표·그래프를 다시 그림, 안내 줄 지움
  *     → 실패(서버 404·502·끊김)면 값은 그대로, 안내 줄을 「소해구 예보를 받지 못해 대해구 233 예보로 표시합니다」로
@@ -937,7 +937,7 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
         tableHTML += `<div style="text-align:right; font-size:11px; color:#8899aa; padding:4px 10px 5px;">${baseTimeFormatted}</div>`;
     }
 
-    // [소해구 — §11.10.17] 대해구 값으로 그리는 중이면 표 위에 안내 한 줄(글은 textContent 로 넣는다).
+    // [소해구 — §11.10.18] 대해구 값으로 그리는 중이면 표 위에 안내 한 줄(글은 textContent 로 넣는다).
     if (data._sourceNote) {
         tableHTML = '<div id="marine-zone-source-note" style="font-size:11px; color:#ffd54f; padding:0 2px 6px;"></div>' + tableHTML;
     }

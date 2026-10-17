@@ -391,10 +391,14 @@
         var c = String(code || '').trim(), m, after = function (p) { return c.slice(p.length); };
         if ((m = /^shape:(land|sea)-sentences-(\d+)$/.exec(c))) return para(m[1]) + '이 ' + m[2] + '문장(' + SHAPE.minS + '~' + SHAPE.maxS + '문장이어야 함)';
         if ((m = /^shape:(land|sea)-too-long-(\d+)$/.exec(c))) return para(m[1]) + '이 ' + m[2] + '자(' + SHAPE.maxChars + '자 이내여야 함)';
-        if ((m = /^shape:(land|sea)-no-conclusion$/.exec(c))) return para(m[1]) + ' 마지막 문장이 「따라서 … 필요합니다.」 꼴이 아님';
+        if ((m = /^shape:(land|sea)-no-conclusion$/.exec(c))) return para(m[1]) + ' 마지막 문장이 「따라서 … 요구됩니다.」 꼴이 아님(§11.10.16 전 실행은 「필요합니다.」)';
         if (c === 'shape:land-missing') return '연안 분석 문단이 비었음';
         if (c === 'shape:sea-missing') return '해상 분석 문단이 비었음';
         if (c === 'shape:land-not-allowed') return '해상만 맡는 관할인데 연안 분석을 씀';
+        if (c.indexOf('word:level-need:') === 0) return '단계 말에 「필요」를 붙임 「' + after('word:level-need:') + '」(「주의」·「주의 수준」으로 — 설계서 §11.10.17 S1)';
+        if (c === 'word:기준') return '「기준」이라는 말을 씀(바다 상태 말로 — §11.10.17 S3)';
+        if (c === 'word:reason-twice') return '권고에서 이유를 두 번 겹쳐 씀(「… 근거로, … 이므로」 — §11.10.17 S6)';
+        if (c === 'word:tag-reason') return '근거 꼬리표 「(기상청)·(KOMSA) 근거로」를 문장 속 이유로 씀(§11.10.17 S6)';
         if (c === 'markup') return 'HTML·링크 같은 표시 글자를 씀';
         if (c === 'missing:station') return 'AI 응답에 이 관할이 빠짐';
         if (c === 'parse') return 'AI 응답이 정해진 꼴(JSON)이 아님';

@@ -26,7 +26,7 @@
 - 「지금처럼」 확인: 종전 온보딩 저장 뒤에는 안내 띠가 **없었다**(zone_setup `_save` 는 다시 그리기만). 이번 안내 띠는 새로 넣은 것이고, 모양은 `settings/zone_guide.js` 의 「언제든 설정에서 해역을 변경할 수 있어요」 띠와 같다.
 - 시험: `local_server/scripts/test_forecast_gear_ui.js`.
 
-## 해구 기상전망 창 — 소해구 예보 (2026-10-17, 설계서 `ocean-map/coastal-risk/coastal_safety_forecast.design.md` §11.10.17)
+## 해구 기상전망 창 — 소해구 예보 (2026-10-17, 설계서 `ocean-map/coastal-risk/coastal_safety_forecast.design.md` §11.10.18)
 
 > 사용자 원문: *"사용자가 확대해서 소해구를 클릭했을 때는 … 이 API를 통해서 해당 소해구의 정보를 요청해서 받아오면 될것 같거든"*
 
