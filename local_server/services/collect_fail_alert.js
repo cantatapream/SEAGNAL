@@ -308,6 +308,9 @@ function createAlerter({ file = DEFAULT_FILE, clock = Date.now, send = defaultSe
                 }
             } else {
                 s.streak = Number.isInteger(streak) && streak > 0 ? streak : s.streak + 1;
+                // 기다리는 항목(특보): 아직 안 알렸는데 지난 실패 보고가 기다림의 3배(15분)보다 오래전이면 그 사이 보고가 끊긴 것
+                //   (재기동·수집 일시정지) — 옛 since 로 재면 한 번의 끊김에도 바로 푸시가 나간다(독립 검토 1, 2026-10-17). 새로 잰다.
+                if (minFailMs(id) && !s.notified && s.lastFailAt && Date.parse(at) - Date.parse(s.lastFailAt) > 3 * minFailMs(id)) { s.since = null; s.streak = 1; }
                 s.since = isIso(since) ? since : s.since || at;
                 // 기다리는 항목(특보): 처음 실패 시각이 지금보다 뒤면(시계가 뒤로 감) 지금부터 다시 잰다 —
                 //   그대로 두면 시계가 그 시각을 따라잡을 때까지 실패 알림이 묶인다. 늦어져도 최대 5분 더.

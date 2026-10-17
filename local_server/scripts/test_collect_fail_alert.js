@@ -386,6 +386,18 @@ function make(opts = {}) {
             await both(al3, { ok: true });
             ok('W4 알린 뒤 또 재기동 → 복구 1통(알렸던 것을 기억)', s3.calls.length === 1 && s3.calls[0].data.phase === 'recover', bodies(s3));
         }
+        {   // W11 실패 보고 뒤 보고가 15분 넘게 끊겼다가(재기동·수집 일시정지) 다시 실패 1번 → 옛 처음 실패 시각으로 재지 않는다(독립 검토 1, 2026-10-17)
+            const m = make();
+            m.clock.now = T('10:00:00');
+            await both(m.al, { ok: false, error: TO() });
+            const s2 = fakeSender();
+            const al2 = A.createAlerter({ file: m.file, clock: () => m.clock.now, send: s2.send });
+            m.clock.now = T('13:28:00');
+            await both(al2, { ok: false, error: TO() });
+            ok('W11 끊김 뒤 첫 실패 → 바로 보내지 않음(새로 5분)', s2.calls.length === 0, bodies(s2));
+            for (const hm of ['13:29:00', '13:30:00', '13:31:00', '13:32:00', '13:33:00']) { m.clock.now = T(hm); await both(al2, { ok: false, error: TO() }); }
+            ok('W11 그 뒤 5분 이어지면 1통 — 「13:28부터」(10:00 이 아님)', s2.calls.length === 1 && /13:28부터$/.test(s2.calls[0].body), bodies(s2));
+        }
         {   // W5 정확히 5분 되는 시도가 성공 → 아무것도 안 보냄, 다음 실패는 새로 잰다
             const { al, s, clock } = make();
             for (const hm of ['13:28:00', '13:29:00', '13:30:00', '13:31:00', '13:32:00']) { clock.now = T(hm); await both(al, { ok: false, error: TO() }); }
