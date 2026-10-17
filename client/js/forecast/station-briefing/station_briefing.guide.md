@@ -48,6 +48,8 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 
 **단계 색**: 위험예측 4색(`RiskFormat.BAND_COLORS` 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강)을 브리핑 단계 0~3(평소 수준·관심·주의·경계 필요)에 순서대로. 「확인 불가」는 회색 `#64748b`. 분석 문단 강조 글자의 빨강(발효 특보·「경계」 단계)만 `.sb-analysis .sb-hl-red` = `#e34842`(§11.10.11 — 어두운 카드 위 대비 4.76, 4색 빨강은 4.21). 지도·배지는 4색 그대로.
 
+**단계 나누기(§11.10.14)**: ③ 해상 분석·④ 연안 분석의 카드는 칸 머리 오른쪽 단계별 개수 배지(접어도 보임)와, 펼친 칸 안 카드 위 단계 단추(하나만 고름 — 처음 = 가장 높은 단계)로 나뉜다. 검토 줄·빠진 자료·시간 막대·「상시 위험 장소」는 단추와 무관하게 늘 보인다. 단계가 하나면 단추 없음.
+
 ## 바로가기([위험예측에서 보기 ›], §11.4)
 `openInRisk(target)` → (위험예측 미리보기 잠금이 걸려 있고 관리자 모드가 아니면 탭을 옮기지 않고 토스트로 끝) → `switchMainTab('ocean-life-group')` · 해양안전이 아니면 `switchSubTab('ocean-safety-section')` → 450ms 기다림
 (`life_safety.js _enterSafety` 의 200ms 뒤 지도 준비·`_unparkSafety` 가 끝나게) → `RiskForecast.openAt(target)`(risk_forecast.js — 관리자 모드일 때만 미리보기 잠금 해제, 꺼져 있으면 위험예측 버튼 click, `goTo`).
@@ -84,6 +86,7 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 | `rocksLine`·`openRockPanel`·`closeRockPanel` | station_briefing_render.js | §11.10.10: 물때 줄의 「잠기는 바위(간출암) N곳」(`summary.rocks.link`) → 팝업 지도(관할 경계 + 바위 마커 `miniMap` opt.points — 서버 `summary.rocks.rows` 위치) → 마커 → 창 위 가운데 간출암 조석 곡선 상자 `.hazard-rock-popup.rock-tide-popup.sb-rockbox`(`window.HazardRockTidePanel.mount` — hazard_rocks.js 의 해양안전 위험지형 팝업과 같은 함수, PopupStack 'sb-rock-panel', Esc 는 상자 먼저) |
 | `basisList`·`expander`·`miniMap`·`mapCaption` | station_briefing_render.js | (근거) 목록 — 서버 `summary.sea.detail[line]` 에 상자(`boxes`)와 관할 경계(`area`)가 있으면 그 줄을 ▸ 버튼(`aria-expanded`·`aria-controls`)으로, 누르면 바로 아래 높이 200px 지도(OpenLayers 전역 `ol` · 바탕 해아름 바다지도 `oceanCreateKhoaLayer` — 관심해역 고르기 지도와 같은 방식, 없으면 선만) — 관할 전체에 맞추고 그 칸·대해구 테두리를 600ms 마다 깜빡임. 움직임 줄이기면 깜빡이지 않음(`data-sb-blink="static"`). 풀이(`note`)는 줄 아래 작게(§11.10.3) |
 | `levelNoteText` | station_briefing_render.js | 총평 해상 단계 < 해상 분석 단계일 때 결론 아래 한 줄(세 모양 공용 — §11.10.3 부터 「기상·혼잡이 겹치지 않아 … 넣지 않았습니다」 이유 글 없음) |
+| `levelGroups`·`levelBadges`·`levelTabs` | station_briefing_render.js | §11.10.14: 「해상 분석」·「연안 분석」 카드를 단계별로 묶어(경계 → 주의 → 관심, 단계 안 순서는 서버 그대로) 칸 머리 오른쪽에 개수 배지(`[data-sb-sec-badges]` — 「주의 필요 5개 해역」·「관심 필요 1곳」, `chip` 색) · 카드 목록 위 단계 단추(`[data-sb-tabs="sea|land"]` role=tablist, 처음 = 가장 높은 단계, 단계 하나면 단추 없음) — 개수는 보이는 카드 수(서버 10곳 상한 안) |
 
 ## 수정 시 주의사항
 - **서버 글은 `textContent` 로만**(계약 §5). `innerHTML` 은 조석 게이지(숫자·시각만 — 모양 검사 뒤 `OS.tideGaugeHtml`)와 [기준 상세] 정적 문안뿐.

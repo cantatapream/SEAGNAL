@@ -10,6 +10,7 @@
  *                   · 대해구 이름·「관할 해역 선박 N척」·붐비는 해역 링크 → 가운데 팝업 지도(openMapPopup — 서버 summary.sea.haegu·now.cells).
  *         §11.10.10: (물때) 「잠기는 바위(간출암) N곳」 링크 → 팝업 지도(관할 경계 + 그 바위 마커 — 서버 summary.rocks) → 마커를 누르면 해양안전 「위험지형」과 같은 간출암 조석 곡선 상자
  *                   (HazardRockTidePanel — hazard_rocks.js 의 같은 함수) · (고립 주의) 「과거 고립 사고(N개소 M건)」 링크(화살표 없음) → 「지점명 | 발생 현황」 표.
+ *         §11.10.14: 「해상 분석」·「연안 분석」 칸 머리 오른쪽 단계별 개수 배지(「주의 필요 5개 해역」·「관심 필요 2곳」) · 펼친 칸 안 단계 단추(하나만 고름 — 처음 = 가장 높은 단계)로 그 단계 카드만.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/bottom-sheet/ocean_bottom_sheet3.js(OceanSheet.tideGaugeHtml — 조석 게이지 디자인 그대로)
@@ -977,10 +978,68 @@
         var srcNote = ov.source === 'template' ? '기본 문장(틀) — AI 총평 대신 서버 규칙으로 만든 문장입니다.' : ov.source === 'chatgpt' || ov.source === 'gemini' ? (ov.source === 'chatgpt' ? 'ChatGPT' : 'Gemini') + '가 쓴 총평 — 숫자·지명·단계는 서버가 계산한 값만 씁니다' + (ov.reused ? '(지난 판과 입력이 같아 재사용)' : '') + '.' : null;
         if (srcNote) { var sn = el('p', 'sb-small sb-source'); sn.setAttribute('data-sb-source', ov.source); sn.textContent = srcNote; s1.body.appendChild(sn); }
     }
+    // ── 「해상 분석」·「연안 분석」 단계 나누기(2026-10-17 사용자 결정 — 설계서 §11.10.14): 칸 머리 오른쪽 단계별 개수 배지 + 펼친 칸 안 단계 단추(하나만 고름) ──
+    var tabSeq = 0;   // 단추·패널 id 가 겹치지 않게(사용자 아코디언과 관리자 미리보기가 한 화면에 함께 있을 수 있다)
+    /**
+     * 카드를 단계별로 묶는다 — 높은 단계부터(경계 → 주의 → 관심), 한 단계 안의 카드 순서는 서버가 준 순서 그대로.
+     * 예: levelGroups([{rank:2,word:'주의 필요'},{rank:1,word:'관심 필요'},{rank:2,word:'주의 필요'}]) → [{rank:2,word:'주의 필요',cards:[첫째,셋째]},{rank:1,word:'관심 필요',cards:[둘째]}]
+     * @param {Object[]} cards - briefing.sea.cards·land.cards(서버가 단계 높은 순 10곳까지 자른 것 — 개수도 보이는 카드 수다) @returns {{rank:number, word:string, cards:Object[]}[]}
+     * [연계] ← renderRest(해상·연안 분석) / → levelBadges·levelTabs
+     */
+    function levelGroups(cards) {
+        var by = {};
+        (cards || []).forEach(function (c) { var r = Number(c && c.rank); if (!by[r]) by[r] = { rank: r, word: (c && c.word) || WORDS[r] || '', cards: [] }; by[r].cards.push(c); });
+        return Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, c) { return c.rank - a.rank; });
+    }
+    /**
+     * 칸 머리 오른쪽(꺾쇠 바로 앞)에 단계별 개수 배지를 붙인다 — 카드가 있는 단계만, 색·글자색은 chip(위험예측 4색) 그대로. 카드가 없으면 아무것도 붙이지 않는다.
+     * 예: levelBadges(s3.head, groups, '개 해역') → 머리 「해상 분석 … [주의 필요 5개 해역][관심 필요 1개 해역] ⌄」
+     * @param {HTMLElement} head - section().head @param {Object[]} groups - levelGroups 결과 @param {string} unit - '개 해역'(해상)·'곳'(연안) @returns {void}
+     * [연계] ← renderRest / → chip / 모양: station_briefing.css .sb-sec-badges(좁으면 배지끼리 줄바꿈 — 꺾쇠와 겹치지 않음)
+     */
+    function levelBadges(head, groups, unit) {
+        if (!groups.length) return;
+        var wrap = el('span', 'sb-sec-badges'); wrap.setAttribute('data-sb-sec-badges', '');
+        groups.forEach(function (g) { var c = chip(g.rank, g.word); c.textContent = g.word + ' ' + g.cards.length + unit; wrap.appendChild(c); });
+        head.insertBefore(wrap, head.querySelector('.marine-forecast-sub-icon'));
+    }
+    /**
+     * 카드 목록을 그린다 — 단계가 둘 이상이면 위에 단계 단추(role=tablist · 하나만 고름 · 처음 = 가장 높은 단계)를 두고 고른 단계의 카드만 보인다. 단계가 하나면 단추 없이 카드만.
+     * 카드는 모두 만들어 두고 단계 묶음(tabpanel)만 숨긴다. 다시 그리면(판이 바뀌면) 늘 가장 높은 단계로 돌아온다(고른 것을 기억하지 않음 — 사용자 결정).
+     * 단추: 고른 것 = 그 단계 색으로 채움(chip 과 같은 글자색), 나머지 = 그 단계 색 테두리 · 좌우 화살표·Home·End 로 옮김 · 좁으면 가로 스크롤.
+     * 예: levelTabs(s3.body, groups, '개 해역', function (c) { return seaCard(c, opts); }, 'sea') → [주의 필요 5개 해역][관심 필요 1개 해역] + 주의 카드 5장(관심 카드 1장은 숨김)
+     * @param {HTMLElement} body @param {Object[]} groups - levelGroups 결과 @param {string} unit @param {function(Object):HTMLElement} make - 카드 하나 그리기(seaCard·landCard)
+     * @param {string} key - 'sea'|'land'(data-sb-tabs — 시험이 찾는 이름) @returns {void}
+     * [연계] ← renderRest / → chip(단계 색) / 모양: station_briefing.css .sb-lvl-tabs·.sb-lvl-tab
+     */
+    function levelTabs(body, groups, unit, make, key) {
+        if (groups.length < 2) { groups.forEach(function (g) { g.cards.forEach(function (c) { body.appendChild(make(c)); }); }); return; }
+        var id = 'sb-lv-' + key + '-' + (++tabSeq), bar = el('div', 'sb-lvl-tabs'), tabs = [], panels = [], paint = [];
+        bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', (key === 'sea' ? '해상' : '연안') + ' 분석 단계'); bar.setAttribute('data-sb-tabs', key);
+        var pick = function (i, focus) {
+            tabs.forEach(function (t, k) { var on = k === i; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; t.style.background = on ? paint[k].bg : 'transparent'; t.style.color = on ? paint[k].fg : '#e2e8f0'; panels[k].hidden = !on; });
+            if (focus) tabs[i].focus();
+        };
+        groups.forEach(function (g, i) {
+            var ref = chip(g.rank, g.word), t = el('button', 'sb-lvl-tab', g.word + ' ' + g.cards.length + unit), p = el('div', 'sb-lvl-panel');
+            paint.push({ bg: ref.style.background, fg: ref.style.color });
+            t.type = 'button'; t.id = id + '-t' + i; t.setAttribute('role', 'tab'); t.setAttribute('aria-controls', id + '-p' + i); t.setAttribute('data-rank', String(g.rank)); t.style.borderColor = ref.style.background;
+            t.addEventListener('click', function (e) { e.stopPropagation(); pick(i); });
+            t.addEventListener('keydown', function (e) {
+                var n = tabs.length, j = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i + n - 1) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
+                if (j < 0) return; e.preventDefault(); pick(j, true);
+            });
+            p.id = id + '-p' + i; p.setAttribute('role', 'tabpanel'); p.setAttribute('aria-labelledby', t.id); p.setAttribute('data-rank', String(g.rank));
+            g.cards.forEach(function (c) { p.appendChild(make(c)); });
+            tabs.push(t); panels.push(p); bar.appendChild(t);
+        });
+        body.appendChild(bar); panels.forEach(function (p) { body.appendChild(p); });
+        pick(0);
+    }
     /**
      * 총평 아래 나머지 칸(특별 상황·해상 분석·육상 분석·조석·꼬리)을 그린다 — 종전 render 뒷부분 그대로.
      * @param {HTMLElement} box @param {Object} b @param {Object} opts @param {boolean} showSea @param {boolean} showLand @param {number} nowMs @returns {void}
-     * [연계] ← render / → section·timeBar·seaCard·landCard·tide
+     * [연계] ← render / → section·timeBar·seaCard·landCard·tide · levelGroups·levelBadges·levelTabs(§11.10.14 — 해상·연안 분석 머리 배지·단계 단추)
      */
     function renderRest(box, b, opts, showSea, showLand, nowMs) {
         // ② 특별 상황(특보 해제 예고·예비·이미 해제 — 기상청 시각 그대로)
@@ -998,6 +1057,7 @@
         // ③④ 해상 분석 — 시간 막대 + 해역 카드
         if (showSea && b.sea) {
             var sea = b.sea, s3 = section('해상 분석', 'sea');
+            var seaGroups = levelGroups(sea.cards); levelBadges(s3.head, seaGroups, '개 해역');   // 머리 오른쪽 단계별 개수(§11.10.14)
             var sh = el('div', 'sb-sec-head'); sh.appendChild(chip(sea.level && sea.level.rank, sea.level && sea.level.word)); if (sea.level && sea.level.source) sh.appendChild(el('span', 'sb-tag', sea.level.source)); s3.body.appendChild(sh);
             var nAtt = sea.attentionRegions || 0, nCards = Array.isArray(sea.cards) ? sea.cards.length : 0, nAcc = Number.isFinite(sea.overviewRegions) ? Math.max(0, nAtt - sea.overviewRegions) : 0;
             // 칸 = 해역 묶음(reviewedRegions — 총평 근거와 같은 단위, §11.10.3). 그 전 브리핑은 reviewedCells.
@@ -1008,7 +1068,8 @@
             if (sea.missingSlots && Array.isArray(sea.missingSlots.accident) && sea.missingSlots.accident.length) s3.body.appendChild(el('p', 'sb-miss', '해양사고 위험예보를 받지 못한 시각: ' + sea.missingSlots.accident.map(function (a) { return String(a).slice(11, 13) + '시'; }).join('·')));
             if (sea.weather && sea.weather.text) s3.body.appendChild(el('p', 'sb-weather', sea.weather.text));
             if (Array.isArray(sea.timeBar) && sea.timeBar.length) s3.body.appendChild(timeBar(sea.timeBar, nowMs));
-            if (Array.isArray(sea.cards) && sea.cards.length) sea.cards.forEach(function (c) { s3.body.appendChild(seaCard(c, opts)); });
+            // 카드: 머리 배지는 위에서(seaGroups) · 여기서는 단계 단추 + 고른 단계 카드(§11.10.14). 막대·검토 줄 등 공통 줄은 단추 위라 고른 단계와 무관하다.
+            if (Array.isArray(sea.cards) && sea.cards.length) levelTabs(s3.body, seaGroups, '개 해역', function (c) { return seaCard(c, opts); }, 'sea');
             else s3.body.appendChild(el('p', 'sb-small', (sea.missing && sea.missing.length ? '확인된 자료에서는 ' : '') + '관심 이상인 해역이 없습니다.'));
             box.appendChild(s3.root);
         }
@@ -1023,7 +1084,8 @@
                 var lc = el('p', 'sb-small', '관광지 ' + (land.reviewedSpots || 0) + '곳 검토' + (land.reviewedHazards ? ' · 관광지에 붙지 않은 위험구역 ' + land.reviewedHazards + '곳' : '') + (land.failedSpots ? ' · 관광지 ' + land.failedSpots + '곳 자료 확인 불가' : '') + (Number(land.attentionSpots) > nLand ? ' · 관심 이상 ' + land.attentionSpots + '곳 중 카드는 단계 높은 순 ' + nLand + '곳까지' : ''));
                 lc.setAttribute('data-sb-land-count', ''); s4.body.appendChild(lc);
                 if (Array.isArray(land.missing) && land.missing.length) s4.body.appendChild(el('p', 'sb-miss', '확인하지 못한 자료: ' + sourceNames(land.missing)));
-                if (Array.isArray(land.cards) && land.cards.length) land.cards.forEach(function (c) { s4.body.appendChild(landCard(c, opts)); });
+                var landGroups = levelGroups(land.cards); levelBadges(s4.head, landGroups, '곳');   // 머리 오른쪽 단계별 개수(§11.10.14 — 연안은 검토 줄과 같은 단위 「곳」)
+                if (Array.isArray(land.cards) && land.cards.length) levelTabs(s4.body, landGroups, '곳', function (c) { return landCard(c, opts); }, 'land');
                 else { var ne = el('p', 'sb-small', dayWord(b) + ' 평소와 달라진 요소(사람·행사·너울·이안류·특보·바람)가 있는 관광지가 없습니다.'); ne.setAttribute('data-sb-land-none', ''); s4.body.appendChild(ne); }
                 if (Array.isArray(land.constant) && land.constant.length) {
                     var cd = el('details', 'sb-constant'); cd.appendChild(el('summary', '', '상시 위험 장소 (' + land.constant.length + ')'));
