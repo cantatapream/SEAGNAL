@@ -1,7 +1,8 @@
 /**
  * ============================================================================
  * 파일명: client/js/forecast/station-briefing/station_briefing.js
- * 역할  : 해양예보 탭 「🔭 기상청 해상 기상 전망」 바로 아래의 「활동지점 안전 브리핑」 아코디언(설계서 §11.1~§11.4).
+ * 역할  : 해양예보 탭 「🔭 기상청 해상 기상 전망」 바로 아래의 「HH:MM AI 연안 안전 브리핑」 아코디언(설계서 §11.1~§11.4 · 이름·제목 §11.10.4 — 종전 「활동지점 안전 브리핑」).
+ *         제목의 HH:MM 은 보이는 판의 시각(07:30·17:30·23:00, 특보 변경 판은 만든 시각 — StationBriefingRender.titleText).
  *         ①서버 노출 판정이 display:true 일 때만 아코디언을 보인다(처음에는 관리자 기기에만 — 일반 사용자 화면은 그대로)
  *         ②설정 흐름: 설정 전 안내 → [설정하기] → 파출소 관할 하나(해상·육상 함께, 각각 끄기 가능) · 건너뛰기 → 「더 이상 표시하지 않을까요?」
  *         ③본문(station_briefing_render.js) ④카드의 [위험예측에서 보기 ›] ⑤특보 변경 판 N 뱃지 ⑥설정 팝업(⚙ 오른쪽 위)의 표시/숨김·관할 설정 칸.
@@ -18,7 +19,7 @@
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(고르기 지도 — picker 가 처음 지도를 열 때) · GET /api/station-briefing?station=&day=auto (routes/station_briefing.js — 노출 판정)
  *                    관리자 기기 판정 정보는 특보 예측 표출 제어(forecast/prediction/advisory_prediction.js _adminAuth)와 같은 방식:
  *                    관리자 모드(seagnal_admin_mode)일 때만 push_token → 쿼리 adminToken · 로그인 토큰 → X-Admin-Token 헤더
- *  - 마크업        : index2.html #station-briefing-accordion-header/body · #station-briefing-content · #station-briefing-badge-slot
+ *  - 마크업        : index2.html #station-briefing-accordion-header/body · #station-briefing-title(제목 글) · #station-briefing-content · #station-briefing-badge-slot
  *                    · #station-briefing-settings-btn · 설정 팝업 #station-briefing-settings(관심해역 탭)
  *  - 나를 쓰는 곳  : index2.html(아코디언 onclick) · settings.js(openSettingsModal) · 스스로 DOMContentLoaded 에 init
  *  - 계약          : client/js/ocean-map/coastal-risk/briefing.contract.md
@@ -47,7 +48,7 @@
         return out;
     }
     /** 선택을 저장한다. 예: save(Object.assign(prefs(), {hidden:true})). @param {Object} p @returns {void} [연계] ← 설정 흐름·뱃지 */
-    function save(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { console.warn('[활동지점 브리핑] 설정 저장 실패 — 이 기기에서 다음에 다시 물을 수 있다'); } }
+    function save(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { console.warn('[연안 안전 브리핑] 설정 저장 실패 — 이 기기에서 다음에 다시 물을 수 있다'); } }
 
     /**
      * 노출 판정용 관리자 정보 — 특보 예측(advisory_prediction.js _adminAuth)과 같은 방식.
@@ -115,7 +116,7 @@
             if (n !== S.seq) return;
             // 일시 실패로 아코디언을 지우지 않는다(2단계 검토 A5) — 직전 판정(처음이면 「안 보임」)을 그대로 두고 짧게 다시 묻는다.
             var wait = RETRY_MS[S.retry];
-            console.warn('[활동지점 브리핑] 노출 판정 조회 실패 — 직전 판정 유지(' + (S.display ? '보임' : '안 보임') + ')' + (wait ? ', ' + wait / 1000 + '초 뒤 다시' : ', 다음 정기 갱신에 다시') + ':', e && e.message);
+            console.warn('[연안 안전 브리핑] 노출 판정 조회 실패 — 직전 판정 유지(' + (S.display ? '보임' : '안 보임') + ')' + (wait ? ', ' + wait / 1000 + '초 뒤 다시' : ', 다음 정기 갱신에 다시') + ':', e && e.message);
             if (wait) { S.retry++; S.retryTimer = setTimeout(refreshDisplay, wait); }
             return;
         }
@@ -141,11 +142,21 @@
             S.resp = r; S.fetchedAt = Date.now();
         } catch (e) {
             if (n !== S.seq) return;
-            console.warn('[활동지점 브리핑] 브리핑 조회 실패:', e && e.message);
+            console.warn('[연안 안전 브리핑] 브리핑 조회 실패:', e && e.message);
             S.resp = { error: true }; S.fetchedAt = 0;
         }
         if (S.mode === 'view') renderBody();
-        updateBadge();
+        updateBadge(); setTitle();
+    }
+    /**
+     * 아코디언 제목 글을 보이는 판의 시각으로 맞춘다 — 「07:30 AI 연안 안전 브리핑」(2026-10-17 사용자 *"연안 안전 브리핑 아코디언을 hh:mm AI 연안 안전 브리핑으로 변경해줘."*). 판이 없으면 「AI 연안 안전 브리핑」.
+     * 예: S.resp.briefing = {edition:'morning',publishAt:'…T07:30…'} → '07:30 AI 연안 안전 브리핑'
+     * @returns {void} [연계] ← loadBriefing·renderBody·finishSetup / → StationBriefingRender.titleText / 마크업 #station-briefing-title
+     */
+    function setTitle() {
+        var t = $('station-briefing-title'); if (!t) return;
+        var b = S.resp && S.resp.briefing && prefs().station ? S.resp.briefing : null;
+        t.textContent = w.StationBriefingRender && w.StationBriefingRender.titleText ? w.StationBriefingRender.titleText(b) : 'AI 연안 안전 브리핑';
     }
 
     /**
@@ -159,11 +170,12 @@
         if (S.mode === 'setup') return renderSetup(box);
         if (S.mode === 'confirm') return renderConfirm(box);
         var p = prefs();
+        setTitle();   // 관할이 없거나(지움) 브리핑을 아직 못 받았으면 시각 없는 제목
         box.textContent = '';
         if (!p.station) {
             var u = document.createElement('div'); u.className = 'sb-unset';
-            var h = document.createElement('h4'); h.textContent = '활동지점이 설정되지 않았습니다'; u.appendChild(h);
-            var t = document.createElement('p'); t.textContent = '파출소 관할 하나를 고르면 그 관할의 해상·육상 안전 브리핑을 보여 드립니다.'; u.appendChild(t);
+            var h = document.createElement('h4'); h.textContent = '연안 안전 브리핑 지역이 설정되지 않았습니다'; u.appendChild(h);
+            var t = document.createElement('p'); t.textContent = '파출소 관할 하나를 고르면 그 관할의 해상·연안 안전 브리핑을 보여 드립니다.'; u.appendChild(t);
             var acts = document.createElement('div'); acts.className = 'sb-actions';
             var go = document.createElement('button'); go.type = 'button'; go.className = 'sb-btn sb-btn-primary'; go.id = 'station-briefing-setup-btn'; go.textContent = '설정하기';
             go.addEventListener('click', function (e) { e.stopPropagation(); openSetup(); });
@@ -188,8 +200,8 @@
         if (!S.pick) S.pick = { station: p.station, showSea: p.showSea !== false, showLand: p.showLand !== false };
         box.textContent = '';
         var wrap = document.createElement('div'); wrap.className = 'sb-setup'; wrap.setAttribute('data-sb-setup', '');
-        var h = document.createElement('h4'); h.textContent = '활동지점(파출소 관할) 설정'; wrap.appendChild(h);
-        var d = document.createElement('p'); d.textContent = '파출소 관할 하나를 고르면 그 관할의 해상과 육상 브리핑을 함께 보여 드립니다. 이 기기에만 저장됩니다.'; wrap.appendChild(d);
+        var h = document.createElement('h4'); h.textContent = '연안 안전 브리핑 지역 설정'; wrap.appendChild(h);
+        var d = document.createElement('p'); d.textContent = '파출소 관할 하나를 고르면 그 관할의 해상과 연안 브리핑을 함께 보여 드립니다. 이 기기에만 저장됩니다.'; wrap.appendChild(d);
         var pickBox = document.createElement('div'); pickBox.className = 'sb-picker'; wrap.appendChild(pickBox);
         var picked = document.createElement('p'); picked.className = 'sb-picked'; wrap.appendChild(picked);
         var toggles = document.createElement('div'); toggles.className = 'sb-toggles';
@@ -198,7 +210,7 @@
             c.checked = S.pick[key] !== false; c.addEventListener('change', function () { S.pick[key] = c.checked; });
             l.appendChild(c); l.appendChild(document.createTextNode(label)); toggles.appendChild(l); return c;
         };
-        var cSea = mk('해상 브리핑 보기', 'showSea'), cLand = mk('육상 브리핑 보기', 'showLand');
+        var cSea = mk('해상 브리핑 보기', 'showSea'), cLand = mk('연안 브리핑 보기', 'showLand');
         var landNote = document.createElement('p'); landNote.className = 'sb-small'; toggles.appendChild(landNote);
         wrap.appendChild(toggles);
         var acts = document.createElement('div'); acts.className = 'sb-actions';
@@ -235,7 +247,7 @@
         var noSea = pk.showSea === false, noLand = pk.showLand === false || (st && st.seaOnly);
         if (skipped || !st || (noSea && noLand)) { S.mode = 'confirm'; renderBody(); return; }
         var p = prefs();
-        if (p.station !== st.key) { S.resp = null; p.seen = {}; }
+        if (p.station !== st.key) { S.resp = null; p.seen = {}; setTitle(); }
         p.station = st.key; p.name = st.name; p.office = st.office; p.seaOnly = !!st.seaOnly; p.showSea = !noSea; p.showLand = !noLand; p.hidden = false;
         save(p); S.mode = 'view'; S.pick = null;
         applyVisibility(); renderBody(); loadBriefing();
@@ -248,15 +260,15 @@
     function renderConfirm(box) {
         box.textContent = '';
         var c = document.createElement('div'); c.className = 'sb-confirm'; c.setAttribute('data-sb-confirm', '');
-        var h = document.createElement('h4'); h.textContent = '해상·육상 모두 설정하지 않았습니다'; c.appendChild(h);
+        var h = document.createElement('h4'); h.textContent = '해상·연안 모두 설정하지 않았습니다'; c.appendChild(h);
         var t = document.createElement('p'); t.textContent = '이 아코디언을 더 이상 표시하지 않을까요?'; c.appendChild(t);
         var acts = document.createElement('div'); acts.className = 'sb-actions';
         var yes = document.createElement('button'); yes.type = 'button'; yes.className = 'sb-btn sb-btn-primary'; yes.textContent = '예, 표시하지 않기'; yes.setAttribute('data-sb-hide-yes', '');
         var no = document.createElement('button'); no.type = 'button'; no.className = 'sb-btn'; no.textContent = '아니요'; no.setAttribute('data-sb-hide-no', '');
         yes.addEventListener('click', function (e) {
             e.stopPropagation(); var p = prefs(); p.hidden = true; save(p); S.mode = 'view'; S.pick = null; applyVisibility(); renderBody();
-            var msg = '「활동지점 안전 브리핑」을 더 이상 표시하지 않습니다.\n오른쪽 위 설정(⚙) 버튼에서 언제든 다시 표시할 수 있습니다.';
-            if (typeof w.showSeagnalModal === 'function') w.showSeagnalModal('활동지점 안전 브리핑', msg, 'info'); else console.info(msg);
+            var msg = '「연안 안전 브리핑」을 더 이상 표시하지 않습니다.\n오른쪽 위 설정(⚙) 버튼에서 언제든 다시 표시할 수 있습니다.';
+            if (typeof w.showSeagnalModal === 'function') w.showSeagnalModal('연안 안전 브리핑', msg, 'info'); else console.info(msg);
         });
         no.addEventListener('click', function (e) { e.stopPropagation(); S.mode = 'view'; S.pick = null; renderBody(); });
         acts.appendChild(yes); acts.appendChild(no); c.appendChild(acts); box.appendChild(c);
@@ -328,7 +340,7 @@
      */
     async function openInRisk(target, btn) {
         var what = target && target.kind === 'coast' ? '이 관광지' + (target.date ? '(' + (w.StationBriefingRender ? w.StationBriefingRender.dateText(target.date) : target.date) + ')' : '') : '이 해역';
-        if (!w.RiskForecast || typeof w.RiskForecast.openAt !== 'function') { console.warn('[활동지점 브리핑] 위험예측 모듈이 없어 바로가기를 열지 못함'); toast('위험예측을 열지 못했습니다 — 위험예측 화면을 불러오지 못했습니다.'); return false; }
+        if (!w.RiskForecast || typeof w.RiskForecast.openAt !== 'function') { console.warn('[연안 안전 브리핑] 위험예측 모듈이 없어 바로가기를 열지 못함'); toast('위험예측을 열지 못했습니다 — 위험예측 화면을 불러오지 못했습니다.'); return false; }
         // 위험예측은 아직 미리보기(버튼 10번 눌러 잠금 해제)다. 바로가기가 일반 기기의 잠금을 풀지 않게 — 관리자 모드만 연다(2단계 검토 A2).
         //   일반 공개 때 이 잠금을 어떻게 할지는 사용자가 따로 정할 문제(README·설계서 §11.9).
         if (typeof w.RiskForecast.previewLocked === 'function' && w.RiskForecast.previewLocked() && !adminMode()) {
@@ -340,23 +352,23 @@
             if (!document.body.classList.contains('ls-safety') && typeof w.switchSubTab === 'function') w.switchSubTab('ocean-safety-section');
             await new Promise(function (r) { setTimeout(r, 450); });
             var shown = document.body.getAttribute('data-active-tab') === 'ocean-life-group' && document.body.classList.contains('ls-safety');
-            if (!shown) { console.warn('[활동지점 브리핑] 해양안전 화면으로 옮기지 못함(점검 차단 등) — 바로가기 중단'); toast('해양안전 화면으로 옮기지 못해 ' + what + '를 열지 못했습니다.'); return false; }
+            if (!shown) { console.warn('[연안 안전 브리핑] 해양안전 화면으로 옮기지 못함(점검 차단 등) — 바로가기 중단'); toast('해양안전 화면으로 옮기지 못해 ' + what + '를 열지 못했습니다.'); return false; }
             var ok = await w.RiskForecast.openAt(target);
             // 실패를 조용히 넘기지 않는다(2단계 검토 A7) — 위험예측 표에 그 날짜·장소가 없거나(내일 자료 전 등) 화면 준비 실패.
-            if (ok !== true) { console.warn('[활동지점 브리핑] 위험예측에서 대상을 열지 못함:', JSON.stringify(target)); toast('위험예측에서 ' + what + '를 열지 못했습니다 — 그 날짜·시각 자료가 아직 없거나 위험예측 표에 없는 곳입니다.'); }
+            if (ok !== true) { console.warn('[연안 안전 브리핑] 위험예측에서 대상을 열지 못함:', JSON.stringify(target)); toast('위험예측에서 ' + what + '를 열지 못했습니다 — 그 날짜·시각 자료가 아직 없거나 위험예측 표에 없는 곳입니다.'); }
             return ok === true;
-        } catch (e) { console.warn('[활동지점 브리핑] 바로가기 실패:', e && e.message); toast('위험예측에서 ' + what + '를 열지 못했습니다.'); return false; }
+        } catch (e) { console.warn('[연안 안전 브리핑] 바로가기 실패:', e && e.message); toast('위험예측에서 ' + what + '를 열지 못했습니다.'); return false; }
         finally { if (btn) btn.disabled = false; }
     }
     /** 짧은 안내(해양종합정보 토스트 index2_patch.js _showOceanToast — 없으면 콘솔). 예: toast('…열지 못했습니다'). @param {string} msg @returns {void} [연계] ← openInRisk */
-    function toast(msg) { if (typeof w._showOceanToast === 'function') w._showOceanToast(msg, 'bottom', 3500, true); else console.info('[활동지점 브리핑] ' + msg); }
+    function toast(msg) { if (typeof w._showOceanToast === 'function') w._showOceanToast(msg, 'bottom', 3500, true); else console.info('[연안 안전 브리핑] ' + msg); }
     /** 관리자 모드인가(localStorage seagnal_admin_mode — admin.js _toggleAdminMode). @returns {boolean} [연계] ← openInRisk·applyVisibility */
     function adminMode() { try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; } }
     /** 점검 차단 목록에 이 아코디언이 있나(index2.html applyFeatureBlocks 가 window._blockedFeatures 에 둔다 — admin.js featureTree id 'station-briefing'). @returns {boolean} [연계] ← applyVisibility */
     function blocked() { return (w._blockedFeatures || []).indexOf('station-briefing') >= 0; }
 
     /**
-     * 설정 팝업(오른쪽 위 ⚙ — settings.js) 관심해역 탭의 「활동지점 안전 브리핑」 칸(§11.2 「설정 팝업에 해당 부분이 반영」).
+     * 설정 팝업(오른쪽 위 ⚙ — settings.js) 관심해역 탭의 「연안 안전 브리핑」 칸(§11.2 「설정 팝업에 해당 부분이 반영」).
      * 노출 판정이 display:true 일 때만 보인다(일반 사용자 설정 팝업은 지금과 같다). 스위치·[관할 설정]은 누르는 즉시 적용된다(팝업 [저장]과 따로).
      * 예: 숨김 상태 → 스위치 꺼짐 · 켬 → 아코디언 다시 보임
      * @returns {void} [연계] ← settings.js openSettingsModal · applyVisibility / 마크업 #station-briefing-settings(index2.html #tab-zones)
@@ -365,8 +377,8 @@
         var host = $('station-briefing-settings'); if (!host) return;
         if (!S.display) { host.hidden = true; host.textContent = ''; return; }
         var p = prefs(); host.hidden = false; host.textContent = '';
-        var t = document.createElement('div'); t.className = 'sb-set-title'; var ic = document.createElement('i'); ic.className = 'fa-solid fa-compass'; ic.style.color = '#67e8f9'; t.appendChild(ic); t.appendChild(document.createTextNode('활동지점 안전 브리핑')); host.appendChild(t);
-        var sub = document.createElement('div'); sub.className = 'sb-set-sub'; sub.textContent = '해양예보 탭에 파출소 관할 하나의 해상·육상 안전 브리핑을 보여 줍니다.' + (S.audience === 'admin' ? ' 지금은 관리자 기기에만 보이는 기능입니다.' : '') + ' 이 칸은 누르는 즉시 적용됩니다.'; host.appendChild(sub);
+        var t = document.createElement('div'); t.className = 'sb-set-title'; var ic = document.createElement('i'); ic.className = 'fa-solid fa-compass'; ic.style.color = '#67e8f9'; t.appendChild(ic); t.appendChild(document.createTextNode('연안 안전 브리핑')); host.appendChild(t);
+        var sub = document.createElement('div'); sub.className = 'sb-set-sub'; sub.textContent = '해양예보 탭에 파출소 관할 하나의 해상·연안 안전 브리핑을 보여 줍니다.' + (S.audience === 'admin' ? ' 지금은 관리자 기기에만 보이는 기능입니다.' : '') + ' 이 칸은 누르는 즉시 적용됩니다.'; host.appendChild(sub);
         var r1 = document.createElement('div'); r1.className = 'sb-set-row';
         var l1 = document.createElement('span'); l1.textContent = '해양예보 탭에 표시'; r1.appendChild(l1);
         var sw = document.createElement('label'); sw.className = 'switch'; var cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'opt-station-briefing-show'; cb.checked = !p.hidden; var sl = document.createElement('span'); sl.className = 'slider'; sw.appendChild(cb); sw.appendChild(sl); r1.appendChild(sw);
@@ -374,7 +386,7 @@
         host.appendChild(r1);
         var r2 = document.createElement('div'); r2.className = 'sb-set-row';
         var l2 = document.createElement('span'); l2.id = 'station-briefing-settings-current';
-        l2.textContent = p.station ? '관할: ' + (p.name || '') + ' · ' + (p.office || '') + ' (' + [p.showSea !== false ? '해상' : null, p.showLand !== false && !p.seaOnly ? '육상' : null].filter(Boolean).join('·') + ')' : '관할: 설정되지 않음';
+        l2.textContent = p.station ? '관할: ' + (p.name || '') + ' · ' + (p.office || '') + ' (' + [p.showSea !== false ? '해상' : null, p.showLand !== false && !p.seaOnly ? '연안' : null].filter(Boolean).join('·') + ')' : '관할: 설정되지 않음';
         r2.appendChild(l2);
         var go = document.createElement('button'); go.type = 'button'; go.className = 'sb-btn sb-btn-primary'; go.id = 'station-briefing-settings-edit'; go.textContent = '관할 설정';
         go.addEventListener('click', function () {

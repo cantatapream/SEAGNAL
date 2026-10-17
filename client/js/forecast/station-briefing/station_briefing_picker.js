@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: client/js/forecast/station-briefing/station_briefing_picker.js
- * 역할  : 「활동지점(파출소 관할) 설정」 화면의 관할 고르기 칸 — 탭 두 개(사용자 2026-10-17).
+ * 역할  : 「연안 안전 브리핑 지역 설정」(종전 「활동지점(파출소 관할) 설정」) 화면의 관할 고르기 칸 — 탭 두 개(사용자 2026-10-17).
  *         ①「지도에서 선택하기」: 해역 단추(동해·서해·남해·제주 — 온보딩 「관심해역을 클릭해보세요」와 같은 모양·같은 SEA_REGIONS)
  *            → 그 해역의 파출소 관할 폴리곤 지도(온보딩 「○○ 특보구역을 선택해주세요」와 같은 방식 — 눌러 고르기·확대·이동)
  *         ②「파출소로 선택하기」: 지방청 → 해양경찰서 → 파출소 아코디언 + 이름 찾기(찾으면 맞는 묶음을 저절로 펼침).
@@ -134,7 +134,7 @@
                 P.areasP = null;
                 if (!r || r.display !== true || !Array.isArray(r.areas)) return null;
                 P.areas = r.areas; return P.areas;
-            }, function (e) { P.areasP = null; console.warn('[활동지점 브리핑] 관할 구역을 받지 못함:', e && e.message); throw e; });
+            }, function (e) { P.areasP = null; console.warn('[연안 안전 브리핑] 관할 구역을 받지 못함:', e && e.message); throw e; });
         }
         return P.areasP;
     }

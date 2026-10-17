@@ -1,6 +1,6 @@
 /* ============================================================================
  * 파일명: client/js/forecast/station-briefing/station_briefing.css
- * 역할  : 「활동지점 안전 브리핑」 아코디언 본문·설정 흐름(관할 고르기 탭 두 개·해역 단추·관할 지도·아코디언 포함)·설정 팝업 칸의 모양(.sb-*).
+ * 역할  : 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 아코디언 본문·설정 흐름(관할 고르기 탭 두 개·해역 단추·관할 지도·아코디언 포함)·설정 팝업 칸의 모양(.sb-*).
  *         바깥 아코디언(.main-accordion-header·.gradient-slate)·안쪽 칸(.marine-forecast-sub-*)·조석 게이지(.ocean-tide-*)·
  *         [기준 상세] 버튼·창(.rf-basis-btn·.rf-basis)은 기존 규칙(style.css·risk_forecast.css)을 그대로 쓰고 여기서는 다시 정하지 않는다.
  * [연계] station_briefing_render.js · station_briefing.js · station_briefing_picker.js(고르기 탭) · admin/admin_station_briefing.js(미리보기) · index2.html <link>
@@ -154,3 +154,9 @@
 .sb-iso-table .sb-num { text-align:right; white-space:nowrap; }
 .sb-iso-table th:last-child { text-align:right; }
 .sb-iso-line { margin:4px 0 2px; font-size:.8rem; }
+/* 「가」 모양(2026-10-17 사용자 결정 §11.10.4) — 결론 아래 분석 문단(이름표 「AI 분석 · ChatGPT」/「규칙 분석」) · 그 아래 접힌 「연안/해상 분석 근거」 */
+.sb-analysis { margin:4px 0 6px; color:#e2e8f0; font-size:.84rem; line-height:1.65; }
+.sb-an-tag { display:inline-block; margin-right:2px; padding:0 6px; border-radius:999px; background:rgba(103,232,249,.14); border:1px solid rgba(103,232,249,.4); color:#67e8f9; font-size:.68rem; font-weight:700; vertical-align:1px; white-space:nowrap; }
+.sb-an-tag.sb-an-rule { background:rgba(148,163,184,.14); border-color:rgba(148,163,184,.45); color:#cbd5e1; }
+.sb-basis-x { margin:2px 0 0; font-size:.8rem; }
+.sb-pending { background:rgba(250,204,21,.08); border-color:rgba(250,204,21,.35); color:#fde68a; }
