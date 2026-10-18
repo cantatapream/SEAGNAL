@@ -35,11 +35,18 @@ factors.push({...wave,key:'wave',kind:'wave',value:wh,wh,score:wave?.score||0,rr
 factors.push({...wind,key:'wind',kind:'wind',value:ws,ws,score:wind?.score||0,rr:wind?.rr??null,missing:!numeric(ws),applied:!!wind&&picked===wind});
 const ciLevel=!numeric(ci)?null:ci<1?0:ci<10?1:ci<20?2:3;
 return{...result(picked.score,factors,missing),rr:picked.rr,picked:picked.key,candidate:picked,collisionRr:picked.collisionRr,ci:numeric(ci)?ci:null,ciLevel,clickable:picked.score>0||(ciLevel!==null&&ciLevel>=1),warning:warn};}
+/** 연안 표류 안내의 대상 말을 그 안내가 가리키는 예보 시각의 KST 달로 정한다(사용자 2026-10-18 *"6월 ~ 9월이 좋겠어. 튜브, 물놀이기구. 나머지는 소형보트, 레저기구 등이라고 표현 하자."*).
+ * 오늘이 아니라 예보 시각의 달 — 5/31 밤에 본 6/1 예보는 6월 말. 연안 시트(risk_sheet.driftText)·관할 브리핑(station_briefing_rules.landSpot·landAdvice)이 이 값을 그대로 쓴다(설계서 §11.10.36).
+ * 예: driftTarget('2026-06-01T00:00:00+09:00') → '튜브·물놀이기구' · driftTarget('2026-05-31T21:00:00+09:00') → '소형 보트·레저기구' · driftTarget('2026-05-31T15:00:00Z')(= 6/1 00시 KST) → '튜브·물놀이기구'
+ * @param {string|number} t - 예보 시각(ISO 또는 ms) @returns {string} 대상 말(「등 표류 주의」·「표류 주의」 앞에 붙는다)
+ * [연계] ← scoreCoast(notices.driftTarget) → risk_store(표류 안내 target) / 바람 기준·표시 조건·점수와 무관
+ */
+function driftTarget(t){const month=Number(T.dateKey(t).slice(5,7));return month>=6&&month<=9?'튜브·물놀이기구':'소형 보트·레저기구';}
 /** 연안 요소별 점수를 합산한다. 예: 8월 토요일 행사+평소의 4배 붐빔+위험구역(위험2·사망1·다발1)→1.94+(.696+.439+.439)+1.09+.74≈5.34.
  * 사람 혼잡 = .97×max(0,log2(오늘 집중률÷30일 기하평균)) — 30일 평균이 없으면 지어내지 않고 결측(U81①).
  * 위험구역 = 종류마다 coef×log2(min(개수,3)+1) 합(후보 A, U81②) — 구역 종류를 확인할 수 없으면 결측.
  * @param {object} input - {t,now,spot,concentration,concentrationBase:{gm,days}|null,events,swell,rip,warnings,ws}
- * @returns {object} 공통 점수·사망배수·안내(특보·떠밀림 — 3일째 특보급 안내는 연안 2일 제한 「가」 2026-10-15로 없앰)
+ * @returns {object} 공통 점수·사망배수·안내(특보·떠밀림 — 3일째 특보급 안내는 연안 2일 제한 「가」 2026-10-15로 없앰 · 표류 대상 말 driftTarget = t 의 KST 달, 2026-10-18 §11.10.36)
  * [연계] ← risk_store.js / 정책값과 분석배수를 구분한다.
  */
 function scoreCoast({t,now,spot,concentration=null,concentrationBase=null,events=null,swell=null,rip=null,warnings=[],ws=null}){
@@ -59,5 +66,5 @@ if(swell&&numeric(swell.periodS)){const on=swell.periodS>=12;factors.push({key:'
 if(spot.ripBeach&&T.dayOffset(t,now)===0){if(rip&&rip.hasData!==false&&rip.level){const on=['주의','경계','위험'].includes(rip.level);factors.push({key:'rip',kind:'rip',...rip,score:on?P.COAST.policyScore:0});}else missing.push('rip');}
 const score=factors.reduce((sum,f)=>sum+f.score,0),fatalRr=factors.reduce((prod,f)=>prod*(f.fatalRr??1),1);
 const order=w=>(w.type==='태풍'?0:w.type==='풍랑'?1:2)*2+(w.level==='경보'?0:1);const sorted=warnings.slice().sort((a,b)=>order(a)-order(b));
-return{...result(score,factors,missing),fatalRr,notices:{effective:sorted.filter(w=>w.state==='발효'),prelim:sorted.filter(w=>w.state!=='발효'),windMs:spot.beach&&numeric(ws)&&ws>=8?Math.round(ws):null}};}
-module.exports={scoreSea,scoreCoast};
+return{...result(score,factors,missing),fatalRr,notices:{effective:sorted.filter(w=>w.state==='발효'),prelim:sorted.filter(w=>w.state!=='발효'),windMs:spot.beach&&numeric(ws)&&ws>=8?Math.round(ws):null,driftTarget:driftTarget(t)}};}
+module.exports={scoreSea,scoreCoast,driftTarget};

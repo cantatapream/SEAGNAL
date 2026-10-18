@@ -74,8 +74,9 @@ function hallimInput() {
         },
         places: [{ name: '비양도', lat: 33.4067, lon: 126.2275 }, { name: '협재해수욕장', lat: 33.394, lon: 126.239 }, { name: '한림항', lat: 33.414, lon: 126.264 }],
         land: {
+            // driftTarget = 서버 표류 대상 말(risk_score.driftTarget — 예보 시각의 KST 달, §11.10.36). 규칙은 받은 말을 쓴다 — 이 고정 자료는 시안 예시 글(여름 말)을 그대로 보려고 여름 말.
             spots: [
-                { id: '50110|협재해수욕장', name: '협재해수욕장', lat: 33.394, lon: 126.239, beach: true, index: 72, band: '높음', peakAt: at(15), people: { ratio: 1.8, score: 0.82 }, event: null, swell: null, rip: null, notices: { effective: [], prelim: [], windMs: 9 }, hazard: { count: 4, byType: [{ class: '사망사고 발생구역', count: 1 }, { class: '연안사고 위험구역', count: 3 }] }, history: { count: 6, from: '2020-01-01', to: '2024-12-31', topTypes: [{ type: '표류', count: 4 }] }, missing: [] },
+                { id: '50110|협재해수욕장', name: '협재해수욕장', lat: 33.394, lon: 126.239, beach: true, index: 72, band: '높음', peakAt: at(15), people: { ratio: 1.8, score: 0.82 }, event: null, swell: null, rip: null, notices: { effective: [], prelim: [], windMs: 9, driftTarget: '튜브·물놀이기구' }, hazard: { count: 4, byType: [{ class: '사망사고 발생구역', count: 1 }, { class: '연안사고 위험구역', count: 3 }] }, history: { count: 6, from: '2020-01-01', to: '2024-12-31', topTypes: [{ type: '표류', count: 4 }] }, missing: [] },
                 { id: '50110|한림항', name: '한림항', lat: 33.414, lon: 126.264, beach: false, index: 30, band: '다소 높음', peakAt: at(6), people: { ratio: 0.9, score: 0 }, event: null, swell: null, rip: null, notices: { effective: [], prelim: [], windMs: null }, hazard: { count: 3, byType: [{ class: '사망사고 발생구역', count: 3 }] }, history: { count: 2, from: '2020-01-01', to: '2024-12-31', topTypes: [{ type: '추락', count: 2 }] }, missing: [] },
             ],
             hazardOnly: [{ id: '한림-9', place: '한림항 방파제', class: '사망사고 발생구역', shape: '방파제', lat: 33.415, lon: 126.262 }],
@@ -2152,7 +2153,7 @@ function makeBriefings() {
             const detailOf = (id, top, rows, notices) => { const p = spotsJ.spots.find((x) => x.id === id), zones = p.hazard.zones.map((z) => ({ id: z.id, class: z['구역분류'] }));
                 return { t: at(15), daily: { peakAt: at(15) }, missing: [], ...top, rows: [{ key: 'hazard', count: zones.length, byType: HT.map((c) => ({ class: c, count: zones.filter((z) => z.class === c).length })), zones }].concat(rows), notices, history: { available: true, from: accJ._about.period[0], to: accJ._about.period[1], accidents: accJ.spots[id] || [] } }; };
             const D = { '50110|모충사': detailOf('50110|모충사', { index: 69, band: '높음' }, [{ key: 'people', ratio: 1.6, score: 0.5, missing: false }], []),
-                '50110|이호테우해변': detailOf('50110|이호테우해변', { index: 56, band: '다소 높음' }, [{ key: 'people', ratio: 1.2, score: 0.2, missing: false }], [{ key: 'drift', windMs: 11 }]) };
+                '50110|이호테우해변': detailOf('50110|이호테우해변', { index: 56, band: '다소 높음' }, [{ key: 'people', ratio: 1.2, score: 0.2, missing: false }], [{ key: 'drift', windMs: 11, target: '튜브·물놀이기구' }]) };   // target = 서버 표류 대상 말(§11.10.36) — 시안 예시 글(여름 말) 그대로 보려고
             const L = I.collectLand([{ id: '50110|모충사', name: '모충사', lat: 33.5161, lon: 126.5455, beach: false }, { id: '50110|이호테우해변', name: '이호테우해변', lat: 33.4974, lon: 126.4531, beach: true }], [], { risk: { coastDayDetail: (id) => D[id] }, t: at(8) });
             const g = R.buildBriefing({ ...mapInputs(hallimInput()), zoneWeather: I.collectZoneWeather({ lat: 33.41, lon: 126.26 }, REGIONAL), land: L }, WIN, { generatedAt: '2026-10-17T13:10:00+09:00' });
             // 총평 문단(시안 Main.dc.html 해상 문단 + 「따라서」) — 문장마다 「•」·핵심 구절 굵게·등급 말 색·[권고] 상자를 본다

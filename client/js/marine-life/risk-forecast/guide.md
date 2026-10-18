@@ -402,3 +402,13 @@ README 「해상 시트 시안 반영」 절의 확정 사항을 코드로 옮�
 | 시트 제목(해상) | `risk_sheet.js` `show` 가 `.rf-title.textContent = marine.location` | `RiskMarine.title(h3,location)` — 끝 「(…해구)」만 `<span class="rf-haegu">`(textContent), CSS `.rf-title .rf-haegu{font-size:calc(1em - 2pt);font-weight:400}` |
 | `.rf-warn-box` | 1.5px solid #ff4d4f | 1.5px dashed #ff4d4f, `[data-state="예비"]` #ffd740·바탕 rgba(255,215,64,.08) |
 
+
+## 연안 표류 안내 대상 말 — 2026-10-18 (설계서 §11.10.36)
+
+사용자 원문: *"6월 ~ 9월이 좋겠어. 튜브, 물놀이기구. 나머지는 소형보트, 레저기구 등이라고 표현 하자."*
+
+| 무엇 | 전 | 후 |
+|------|----|----|
+| `risk_score.driftTarget(t)`(서버, 새 함수) | — | `t` 의 KST 달이 6~9월이면 「튜브·물놀이기구」, 그 밖 「소형 보트·레저기구」. `scoreCoast` 의 `notices.driftTarget` |
+| `risk_store.coastScore` 표류 안내 | `{key:'drift',windMs}` | `{key:'drift',windMs,target}` — `dayNotices` 묶음에도 `target`(그날 칸은 같은 달) |
+| `RiskSheet` `driftText(n)` | 「… 튜브·물놀이기구 등 표류 주의」 고정 | `n.target` + 「 등 표류 주의」(없으면 「표류 주의」) · `dayNotices` 가 `target` 을 넘김 |
