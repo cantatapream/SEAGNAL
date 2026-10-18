@@ -310,7 +310,7 @@ if (require.main === module) (async () => {
         await page.waitForFunction(() => { const s = document.querySelector('#risk-forecast-sheet.open'); return s && !s.hasAttribute('aria-busy') && s.textContent.includes('전체 사고'); }, null, {timeout:15000});
         const coastExplanation = await page.evaluate(() => {
             const sheet = document.getElementById('risk-forecast-sheet');
-            const shown = !sheet.querySelector('.rf-calculation') && !sheet.textContent.includes('어떻게 합쳤나요') && /평소만큼 붐비고|확인된 요소 기준/.test(sheet.textContent);
+            const shown = !sheet.querySelector('.rf-calculation') && !sheet.textContent.includes('어떻게 합쳤나요') && /평소 정도로 붐비고|확인된 요소 기준/.test(sheet.textContent);
             return shown && PopupStack.popLast() && !document.getElementById('risk-forecast-sheet').classList.contains('open');
         });
         scenarios.push({label:'연안위험:실제 API 위험지수 카드(합계 설명 아코디언 없음)',target:'risk-forecast-sheet',ok:!!coastExplanation,required:true});
