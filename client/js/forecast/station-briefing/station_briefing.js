@@ -14,7 +14,7 @@
  *                    · marine-life/risk-forecast/risk_forecast.js(RiskForecast.openAt — 바로가기)
  *                    · forecast/alerts/marine.js·core/index2_patch.js·marine-life/safety/life_safety.js(switchMainTab·switchSubTab — 탭 이동)
  *                    · settings/settings.js(openSettingsModal 이 renderSettings 를 부름 · closeSettingsModal) · shared/ui/ui_modal.js(showSeagnalModal — 숨김 안내)
- *                    · style.css .new-badge(공지사항과 같은 N 뱃지) · core/index2_patch.js(_showOceanToast — 바로가기 실패·잠금 안내)
+ *                    · style.css .new-badge(공지사항과 같은 N 뱃지) · core/index2_patch.js(_showOceanToast — 바로가기 실패 안내)
  *                    · admin/admin.js('seagnal-admin-change' 사건 — 관리자 상태가 바뀌면 노출 판정 다시) · settings.js settingsModalHasUnsaved·saveSettingsAndClose([관할 설정])
  *                    · index2.html applyFeatureBlocks(점검 차단 'station-briefing' — window._blockedFeatures, 차단을 바꾼 뒤 applyVisibility 를 부름)
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(고르기 지도 — picker 가 처음 지도를 열 때) · GET /api/station-briefing?station=&day=auto (routes/station_briefing.js — 노출 판정)
@@ -398,11 +398,7 @@
     async function openInRisk(target, btn) {
         var what = target && target.kind === 'coast' ? '이 관광지' + (target.date ? '(' + (w.StationBriefingRender ? w.StationBriefingRender.dateText(target.date) : target.date) + ')' : '') : '이 해역';
         if (!w.RiskForecast || typeof w.RiskForecast.openAt !== 'function') { console.warn('[연안 안전 브리핑] 위험예측 모듈이 없어 바로가기를 열지 못함'); toast('위험예측을 열지 못했습니다 — 위험예측 화면을 불러오지 못했습니다.'); return false; }
-        // 위험예측은 아직 미리보기(버튼 10번 눌러 잠금 해제)다. 바로가기가 일반 기기의 잠금을 풀지 않게 — 관리자 모드만 연다(2단계 검토 A2).
-        //   일반 공개 때 이 잠금을 어떻게 할지는 사용자가 따로 정할 문제(README·설계서 §11.9).
-        if (typeof w.RiskForecast.previewLocked === 'function' && w.RiskForecast.previewLocked() && !adminMode()) {
-            toast('위험예측은 아직 미리보기 기능이라 이 기기에서는 바로 열 수 없습니다.'); return false;
-        }
+        // 2026-10-18 위험예측 일반 공개 — 미리보기 잠금이 없어져 일반 기기도 관리자와 같이 바로 연다(종전 「아직 미리보기 기능이라…」 안내는 뺐다).
         if (btn) btn.disabled = true;
         try {
             if (typeof w.switchMainTab === 'function') w.switchMainTab('ocean-life-group');
@@ -419,7 +415,7 @@
     }
     /** 짧은 안내(해양종합정보 토스트 index2_patch.js _showOceanToast — 없으면 콘솔). 예: toast('…열지 못했습니다'). @param {string} msg @returns {void} [연계] ← openInRisk */
     function toast(msg) { if (typeof w._showOceanToast === 'function') w._showOceanToast(msg, 'bottom', 3500, true); else console.info('[연안 안전 브리핑] ' + msg); }
-    /** 관리자 모드인가(localStorage seagnal_admin_mode — admin.js _toggleAdminMode). @returns {boolean} [연계] ← openInRisk·applyVisibility */
+    /** 관리자 모드인가(localStorage seagnal_admin_mode — admin.js _toggleAdminMode). @returns {boolean} [연계] ← applyVisibility */
     function adminMode() { try { return localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { return false; } }
     /** 점검 차단 목록에 이 아코디언이 있나(index2.html applyFeatureBlocks 가 window._blockedFeatures 에 둔다 — admin.js featureTree id 'station-briefing'). @returns {boolean} [연계] ← applyVisibility */
     function blocked() { return (w._blockedFeatures || []).indexOf('station-briefing') >= 0; }

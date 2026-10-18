@@ -487,10 +487,8 @@
      */
     function bindApp(){
         var btn=document.getElementById('ocean-risk-forecast-toggle-btn');if(!btn)return;
-        var instance=null,pending=false,enabled=false,unlockCount=0,unlocked=false;
-        btn.classList.add('rf-preview-locked');btn.setAttribute('aria-disabled','true');
-        // disabled 속성은 클릭을 받지 못하므로 첫9회는 캡처 단계에서 막는다.
-        btn.addEventListener('click',function(e){if(unlocked)return;if(++unlockCount<10){e.preventDefault();e.stopImmediatePropagation();return;}unlocked=true;btn.classList.remove('rf-preview-locked');btn.setAttribute('aria-disabled','false');},true);
+        // 2026-10-18 일반 공개: 미리보기 잠금(10번 눌러야 풀림)을 없앴다 — 처음 누르면 바로 열린다(사용자 「해양안전생활에서 위험예측을 이제 트리거를 제거해줘.」).
+        var instance=null,pending=false,enabled=false;
         btn.addEventListener('click',async function(){
             enabled=!enabled;btn.classList.toggle('active',enabled);btn.setAttribute('aria-pressed',String(enabled));
             if(instance){instance.setEnabled(enabled);return;}if(!enabled||pending)return;pending=true;
@@ -506,19 +504,14 @@
         });
         w._riskForecastTryHandleClick=function(map,evt){return instance?instance.tryHandleClick(evt):false;};
         /** 「활동지점 안전 브리핑」 카드의 [위험예측에서 보기 ›](설계서 §11.4) — 꺼져 있으면 버튼을 눌러 켠 뒤(해양안전 단독 표출 규칙 그대로) goTo.
-         * 미리보기 잠금(10번 누름)은 관리자 모드(seagnal_admin_mode)일 때만 푼다 — 일반 기기는 잠금을 그대로 두고 false(2단계 검토 A2: 바로가기가 잠금을 풀어 버렸다).
-         *   일반 공개 때 잠금을 어떻게 할지는 사용자가 따로 정한다(station-briefing/README.md · 설계서 §11.9).
-         * 예: await RiskForecast.openAt({kind:'coast',id:'S1',date:'2026-10-17'}) → true · 일반 기기 + 잠금 → false(잠금 그대로)
+         * 2026-10-18 일반 공개로 미리보기 잠금이 없어져 관리자·일반 기기 모두 같은 길로 연다(종전: 관리자 모드만 — 2단계 검토 A2).
+         * 예: await RiskForecast.openAt({kind:'coast',id:'S1',date:'2026-10-17'}) → true · 표에 없는 id → false
          * @param {Object} target - goTo 와 같음 @returns {Promise<boolean>} [연계] ← station_briefing.js openInRisk / → btn click·instance.goTo */
         w.RiskForecast.openAt=async function(target){
-            if(!unlocked){var admin=false;try{admin=localStorage.getItem('seagnal_admin_mode')==='true';}catch(e){admin=false;}if(!admin)return false;}
-            unlocked=true;btn.classList.remove('rf-preview-locked');btn.setAttribute('aria-disabled','false');
             if(!enabled)btn.click();
             for(var i=0;i<200&&!(instance&&instance.getState().enabled);i++)await new Promise(function(r){setTimeout(r,50);});   // 지도·모듈 준비(최대 10초)
             return instance&&instance.getState().enabled?instance.goTo(target):false;
         };
-        /** 위험예측 미리보기 잠금이 아직 걸려 있나(10번 누르기 전). 예: 처음 → true. @returns {boolean} [연계] ← station_briefing.js openInRisk(탭을 옮기기 전에 안내) */
-        w.RiskForecast.previewLocked=function(){return !unlocked;};
     }
     w.RiskForecast={mount:mount};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindApp);else bindApp();

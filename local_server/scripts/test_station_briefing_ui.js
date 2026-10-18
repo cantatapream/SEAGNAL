@@ -2091,18 +2091,24 @@ function makeBriefings() {
             await a.context().close();
         });
 
-        await check('[UI-A2] 일반 기기(노출 「사용자에게」) — [위험예측에서 보기 ›] 가 위험예측 미리보기 잠금을 풀지 않고, 탭도 옮기지 않고 안내', async () => {
+        // 2026-10-18 위험예측 일반 공개(사용자 「해양안전생활에서 위험예측을 이제 트리거를 제거해줘.」) — 미리보기 잠금이 없어져
+        //   일반 기기도 바로가기·openAt 으로 바로 연다(종전 A2: 일반 기기는 잠금 그대로·탭 안 옮기고 「아직 미리보기」 안내).
+        await check('[UI-A2] 일반 기기(노출 「사용자에게」) — [위험예측에서 보기 ›] 가 해양안전 · 위험예측을 바로 열고 그 관광지 시트(잠금 없음)', async () => {
             real.writeConfig({ exposure: 'user' });
             const g = await device();
             await pickStation(g, HALLIM); await g.waitForSelector('[data-sb-sec="overview"]'); await openAcc(g);
-            const tab0 = await g.evaluate(() => document.body.getAttribute('data-active-tab'));
-            await g.evaluate(() => document.querySelector('[data-sb-card="land"] .sb-link').click()); await g.waitForTimeout(700);
-            const r = await g.evaluate(() => ({ locked: document.getElementById('ocean-risk-forecast-toggle-btn').classList.contains('rf-preview-locked'), tab: document.body.getAttribute('data-active-tab'), app: !!window._riskForecastApp }));
-            assert.deepEqual([r.locked, r.tab, r.app], [true, tab0, false]);
-            assert.ok((await toastText(g)).includes('미리보기'), await toastText(g));
-            assert.equal(await g.evaluate(() => window.RiskForecast.openAt({ kind: 'coast', id: '50110|협재해수욕장' })), false, 'openAt 도 일반 기기 잠금을 풀지 않는다');
-            assert.equal(await g.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').classList.contains('rf-preview-locked')), true);
+            assert.equal(await g.evaluate(() => typeof window.RiskForecast.previewLocked), 'undefined', '잠금 조회 함수 없음');
+            await g.evaluate(() => document.querySelector('[data-sb-card="land"] .sb-link').click());
+            await g.waitForFunction(() => { const a = window._riskForecastApp; return a && a.getState().selected && a.getState().selected.id === '50110|협재해수욕장'; }, null, { timeout: 15000 });
+            const r = await g.evaluate(() => { const b = document.getElementById('ocean-risk-forecast-toggle-btn'); return { tab: document.body.getAttribute('data-active-tab'), safety: document.body.classList.contains('ls-safety'), btn: b.classList.contains('active'), locked: b.classList.contains('rf-preview-locked'), aria: b.getAttribute('aria-disabled'), on: window._riskForecastApp.getState().enabled }; });
+            assert.deepEqual([r.tab, r.safety, r.btn, r.locked, r.aria, r.on], ['ocean-life-group', true, true, false, null, true]);
+            assert.ok(!(await toastText(g)).includes('미리보기'), await toastText(g));
             await g.context().close();
+            const n = await device();   // 새 일반 기기 — 위험예측을 한 번도 안 켠 상태에서 openAt 이 바로 연다
+            await n.evaluate(() => window.switchMainTab('ocean-life-group')); await n.waitForTimeout(600);
+            assert.equal(await n.evaluate(() => window.RiskForecast.openAt({ kind: 'coast', id: '50110|협재해수욕장' })), true, '일반 기기에서 openAt 이 연다');
+            assert.deepEqual(await n.evaluate(() => { const a = window._riskForecastApp.getState(); return [a.enabled, a.selected && a.selected.id]; }), [true, '50110|협재해수욕장']);
+            await n.context().close();
             real.writeConfig({ exposure: 'admin' });
         });
 
