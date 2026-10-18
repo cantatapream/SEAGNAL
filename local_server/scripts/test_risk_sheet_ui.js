@@ -2,7 +2,8 @@
  * 파일명: local_server/scripts/test_risk_sheet_ui.js
  * 역할  : 휴대폰 크기 Chromium에서 위험예측 바텀시트의 하단 탭 가림 방지·고정 머리/스크롤 본문·즉시 스켈레톤과 늦은 응답 보호·고정 일시 표시·위험구역 아코디언과 보이는 지도 중앙 이동을 검사한다.
  *         2026-10-16 T8: 머리 부제 줄 오른쪽 끝 [기준 상세], (T7 연안 시각 막대는 T24 로 없앰 — 대신 연안 날짜 줄: 해양종합정보 시트 같은 < 날짜 >·「가장 높은 때 HH시 기준」·시트↔메인 날짜 함께),
- *         기준 상세 창(제목·닫기 고정 머리, 「기준 상세 — 」 없음, 링크·PDF 버튼 글자 대비 4.5:1 이상). RISK_SHEET_SHOTS=<폴더> 를 주면 380·320px 사진을 남긴다.
+ *         기준 상세 창(제목·닫기 고정 머리, 「기준 상세 — 」 없음, 링크·PDF 버튼 글자 대비 4.5:1 이상).
+ *         2026-10-18: 기준 상세 「•」 글머리 줄·넘친 줄만 자간 줄임(RiskFormat.fitLines)·연안 위험 단계 표 4색·PDF 버튼 보통 굵기. RISK_SHEET_SHOTS=<폴더> 를 주면 380·320px 사진을 남긴다.
  * [연계] 실제 risk_forecast/sheet/slider/map_layer/format/marine + risk_forecast.css + index2.html의 --ls-bottom-chrome 규칙 / HTTP 가짜 API → verify_all.
  * [로드 순서] 독립 검사; 외부 수집·운영 키 없음. 측정값은 「측정」 줄로 남긴다.
  */
@@ -153,20 +154,31 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   await pg.waitForFunction(()=>document.querySelector('#risk-forecast-sheet [data-retry]'),null,{timeout:20000});const st=await sheetState();assert.ok(!st.skeleton&&st.busy===null&&st.body.includes('서버 오류')&&!st.index);assert.deepEqual(st.stack,['risk-forecast-sheet']);
   failures.delete('a|'+now);await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-retry]').click());await waitTitle('광안리해수욕장');
  });
- await check('열린 상세는 과제15 접힌 설명을 유지',async()=>{
-  const m=await pg.evaluate(()=>{const d=document.querySelector('#risk-forecast-sheet .rf-calculation');return{has:!!d,open:d&&d.open,summary:d&&d.querySelector('summary').textContent};});assert.equal(m.has,true);assert.equal(m.open,false);assert.equal(m.summary,'사고 배수는 어떻게 합쳤나요?');
+ await check('열린 연안 상세에 「사고 배수는 어떻게 합쳤나요?」 없음(2026-10-18 사용자 「빼자.」 — 과제15 설명 삭제, 같은 방법은 [기준 상세]·PDF)',async()=>{
+  const m=await pg.evaluate(()=>{const s=document.querySelector('#risk-forecast-sheet');return{has:!!s.querySelector('.rf-calculation'),text:s.textContent};});assert.equal(m.has,false);assert.doesNotMatch(m.text,/어떻게 합쳤나요/);
  });
  // ── 과제10: 위험구역 아코디언과 시트에 가려지지 않은 지도 영역의 가운데 이동 ──
  /** 지도가 움직임(애니메이션)을 끝낼 때까지 기다린다. 예: await settleMap(). @returns {Promise<void>} [연계] ← 과제10 */
  const settleMap=async()=>{await pg.waitForFunction(()=>!map.getView().getAnimating()&&!map.getView().getInteracting());await pg.waitForTimeout(600);};
  /** 위험구역 폴리곤(또는 한 점)의 지도 화면 위치를 시트 윗변과 함께 잰다. @param {string} what 'hazard'|'point' @param {number[]} [lonlat] 점 좌표 @returns {Promise<object>} cx·cy·top·bottom·visibleCenterY·sheetTop [연계] ← 과제10 */
  const placed=(what,lonlat)=>pg.evaluate(([w,ll])=>{const el=document.getElementById('risk-forecast-sheet'),m=document.getElementById('map').getBoundingClientRect(),sr=el.getBoundingClientRect();let x0,y0,x1,y1;if(w==='hazard'){const ex=map.getLayers().getArray().find(l=>l.getClassName()==='rf-hazard-canvas').getSource().getExtent();const a=map.getPixelFromCoordinate([ex[0],ex[3]]),b=map.getPixelFromCoordinate([ex[2],ex[1]]);x0=a[0];y0=a[1];x1=b[0];y1=b[1];}else{const a=map.getPixelFromCoordinate(ol.proj.fromLonLat(ll));x0=x1=a[0];y0=y1=a[1];}return{cx:(x0+x1)/2,cy:(y0+y1)/2,top:y0,bottom:y1,mapWidth:m.width,visibleCenterY:(sr.top-m.top)/2,sheetTop:sr.top-m.top};},[what,lonlat||null]);
- await check('위험구역 N곳 현황은 버튼 모양 아코디언(접힘→펼침)이고 구역마다 정보·주소 버튼',async()=>{
+ // 2026-10-18 연안 시트 시안 ②-2(CoastSheetOpen.dc.html): 종전 「위험구역 N곳 현황」 아코디언(목록·주소·관할) → 종류별 밑줄 버튼을 누르면 테두리 상자 안 표(위치·종류·구분·지도).
+ await check('위험구역 표(시안 ②-2): 처음 접힘 → 종류 밑줄 버튼(종류색)을 누르면 상자 안 표 펼침(머리 흰색 굵게·칸 위치/종류/구분/지도·연번·주소·관할 없음) → 다시 누르면 접힘, [위치보기] 24px 이상·보통 굵기',async()=>{
   await fresh();await open('a');
-  const m=await pg.evaluate(()=>{const d=document.querySelector('#risk-forecast-sheet .rf-hazards'),sm=d.querySelector('summary'),r=sm.getBoundingClientRect();const closed=!d.open;sm.scrollIntoView();sm.click();return{closed,opened:d.open,text:sm.textContent,height:r.height,items:d.querySelectorAll('li').length,buttons:d.querySelectorAll('button[data-zone-id]').length,minBtn:Math.min(...Array.from(d.querySelectorAll('button')).map(b=>b.getBoundingClientRect().height)),first:d.querySelector('li').textContent};});
-  console.log('측정 아코디언',JSON.stringify({height:m.height,items:m.items,minBtn:m.minBtn}));
-  assert.ok(m.closed&&m.opened);assert.equal(m.text,'위험구역 12곳 현황');assert.ok(m.height>=40);assert.equal(m.items,12);assert.equal(m.buttons,12);assert.ok(m.minBtn>=24,'누르는 곳 높이 '+m.minBtn);
-  for(const t of ['위험구역0','갯바위','연안사고 위험구역','부산 수영구 광안로 100','광안리파출소 관할'])assert.ok(m.first.includes(t),t);
+  const m=await pg.evaluate(()=>{const s=document.querySelector('#risk-forecast-sheet'),box=s.querySelector('[data-hz-box]'),tg=s.querySelector('[data-hz-toggle]');const closed=box.hidden&&box.getBoundingClientRect().height===0;tg.scrollIntoView();tg.click();const cs=getComputedStyle(box),btn=box.querySelector('button[data-zone-id]');
+   return{closed,opened:!box.hidden&&box.getBoundingClientRect().height>0,exp:tg.getAttribute('aria-expanded'),toggles:[...s.querySelectorAll('[data-hz-toggle]')].map(b=>[b.textContent,getComputedStyle(b).color,getComputedStyle(b).textDecorationLine]),head:[...box.querySelectorAll('th')].map(t=>[t.textContent,getComputedStyle(t).color,getComputedStyle(t).fontWeight]),rows:box.querySelectorAll('tbody tr').length,buttons:box.querySelectorAll('button[data-zone-id]').length,minBtn:Math.min(...[...box.querySelectorAll('button')].map(b=>b.getBoundingClientRect().height)),btnWeight:getComputedStyle(btn).fontWeight,btnColor:getComputedStyle(btn).color,first:[...box.querySelector('tbody tr').cells].map(c=>c.textContent),kindColor:getComputedStyle(box.querySelector('.rf-hz-class')).color,border:cs.borderTopWidth+' '+cs.borderTopColor,radius:cs.borderTopLeftRadius,pad:cs.padding,bg:cs.backgroundColor,text:box.textContent,head2:s.querySelector('.rf-coast-rows .rf-row:nth-child(2) .rf-row-head').textContent};});
+  console.log('측정 위험구역 표',JSON.stringify({...m,text:undefined}));
+  assert.ok(m.closed&&m.opened,'접힘 → 펼침');assert.equal(m.exp,'true');
+  assert.deepEqual(m.toggles,[['연안사고 위험구역 12개소','rgb(45, 212, 191)','underline']]);assert.equal(m.head2,'위험구역(3km 안)12개소');
+  assert.deepEqual(m.head,[['위치','rgb(255, 255, 255)','800'],['종류','rgb(255, 255, 255)','800'],['구분','rgb(255, 255, 255)','800'],['지도','rgb(255, 255, 255)','800']]);
+  assert.equal(m.rows,12);assert.equal(m.buttons,12);assert.ok(m.minBtn>=24,'누르는 곳 높이 '+m.minBtn);assert.equal(m.btnWeight,'400','[위치보기] 보통 굵기(사용자 「여기서도 볼드 빼줘」)');assert.equal(m.btnColor,'rgb(143, 195, 255)');
+  assert.deepEqual(m.first,['위험구역0','갯바위','위험구역','위치보기']);assert.equal(m.kindColor,'rgb(45, 212, 191)');
+  assert.equal(m.border,'1px rgba(255, 255, 255, 0.18)');assert.equal(m.radius,'10px');assert.equal(m.pad,'4px 8px 2px');assert.equal(m.bg,'rgba(255, 255, 255, 0.04)');
+  for(const t of ['광안로','관할','연안사고 위험구역'])assert.ok(!m.text.includes(t),'표에 없어야 함 '+t);
+  const shots=process.env.RISK_SHEET_SHOTS;if(shots){fs.mkdirSync(shots,{recursive:true});await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-hz-box]').scrollIntoView({block:'center'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(shots,'coast_hazard_table_412.png')});}
+  const again=await pg.evaluate(()=>{const s=document.querySelector('#risk-forecast-sheet');s.querySelector('[data-hz-toggle]').click();return[s.querySelector('[data-hz-box]').hidden,s.querySelector('[data-hz-toggle]').getAttribute('aria-expanded')];});
+  assert.deepEqual(again,[true,'false'],'다시 누르면 접힘');
+  await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-hz-toggle]').click());
  });
  await check('위험구역을 누르면 시트에 가려지지 않은 지도 영역의 가운데로 이동(서브탭 닫힘·열림)',async()=>{
   for(const sub of [false,true]){
@@ -244,7 +256,8 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  // 2026-10-16 사용자 「맨 아래 mtis 공식 사고예보, mtis 공식 혼잡예보가 하이퍼링크 형식으로 있는데 이거는 디자인은 버튼 형식으로 바꿔주고 각 버튼을 가운데 정렬해줘.」
  //   종전 단언(밑줄 하늘색 링크 · 「·」 로 이음)을 버튼 모양·가운데·「·」 없음으로 바꿨다. 같은 날 「여기 제목에 공식 텍스트는 빼줘.」 — 해상 제목 「선박 사고위험·교통혼잡 예보」.
  await check('기준 상세 MTIS 두 링크는 버튼 모양(밑줄 없음·둥근 테두리)·가운데·「·」 없음·새 창, 창 바탕 두 끝 모두에 글자 대비 4.5:1 이상(연안 PDF 버튼 포함), 해상 제목에 「공식」 없음',async()=>{
-  const pdf=await pg.evaluate(()=>{const a=document.querySelector('.rf-basis .pdf-btn'),cs=getComputedStyle(a);return{color:cs.color,bg:cs.backgroundColor};});
+  const pdf=await pg.evaluate(()=>{const a=document.querySelector('.rf-basis .pdf-btn'),cs=getComputedStyle(a);return{color:cs.color,bg:cs.backgroundColor,weight:cs.fontWeight};});
+  assert.equal(pdf.weight,'400','PDF 버튼 글자 보통 굵기(2026-10-18 「여기도 볼드 빼」)');
   for(const width of [380,320,1024]){
    await pg.setViewportSize({width,height:820});await pg.evaluate(()=>{RiskBasis.close();RiskBasis.open('sea');});
    const m=await pg.evaluate(()=>{const p=document.querySelector('.rf-basis .rf-basis-links'),pr=p.getBoundingClientRect(),cs=getComputedStyle(p);const inner={l:pr.left+parseFloat(cs.paddingLeft),r:pr.right-parseFloat(cs.paddingRight)};
@@ -273,9 +286,12 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  const accCard=()=>pg.evaluate(()=>{const c=document.querySelector('#risk-forecast-sheet [data-coast-acc]');if(!c)return null;const r=e=>{const b=e.getBoundingClientRect();return{l:b.left,r:b.right,t:b.top,b:b.bottom};};const body=document.querySelector('#risk-forecast-sheet .rf-body');
   return{kind:c.dataset.coastAcc,title:c.querySelector('h4').textContent,area:(c.querySelector('.rf-acc-area')||{}).textContent||null,total:(c.querySelector('[data-acc-total]')||{}).textContent||null,legend:[...c.querySelectorAll('.rf-acc-leg li')].map(li=>li.textContent.replace(/\s+/g,' ').trim()),cas:(c.querySelector('[data-acc-cas]')||{}).textContent||null,casBold:[...c.querySelectorAll('.rf-acc-cas b')].map(b=>[b.textContent,getComputedStyle(b).color,getComputedStyle(b).fontWeight]),
    card:r(c),svg:c.querySelector('svg')&&r(c.querySelector('svg')),items:[...c.querySelectorAll('.rf-acc-leg li')].map(r),last:body.lastElementChild===c||body.lastElementChild.contains(c),bodyOverflow:body.scrollWidth-body.clientWidth,boxBg:getComputedStyle(document.querySelector('#risk-forecast-sheet .rf-score-box')).backgroundColor,sub:document.querySelector('#risk-forecast-sheet .rf-subtitle').textContent,text:body.textContent};});
- await check('T9 연안 주변 연안사고: 제목(기간)·영역 한 줄·도넛 총 건수·유형 범례(기타(인명))·인명피해 줄(사망·실종만 빨강 굵게), 시트 맨 끝 · 380px 겹침 없음',async()=>{
+ await check('T9 연안 주변 연안사고: 제목(기간, 2026-10-18 시안 흰색·영역 줄 없음)·도넛 총 건수·유형 범례(기타(인명))·인명피해 줄(사망·실종만 빨강 굵게), 시트 맨 끝 · 380px 겹침 없음',async()=>{
   await pg.setViewportSize({width:380,height:820});await fresh();await open('a');const m=await accCard();console.log('측정 T9 사고 카드 380px',JSON.stringify({...m,text:undefined}));
-  assert.equal(m.kind,'list');assert.equal(m.title,'이 관광지 주변 연안사고(2020~2024년)');assert.equal(m.area,'지도에 칠한 이 관광지 구역과 그 앞바다 500m');assert.equal(m.total,'7건');
+  // 2026-10-18 시안: 제목 「주변 연안사고('20년 ~ '24년)」(흰색, 연도만 종전 제목색) · 영역 한 줄은 뺐다 · 마지막 요소 줄 구분선 없음, 상자와 18px.
+  assert.equal(m.kind,'list');assert.equal(m.title,"주변 연안사고('20년 ~ '24년)");assert.equal(m.area,null);assert.equal(m.total,'7건');
+  const hc=await pg.evaluate(()=>{const c=document.querySelector('#risk-forecast-sheet [data-coast-acc]'),rows=[...document.querySelectorAll('#risk-forecast-sheet .rf-coast-rows>.rf-row')],last=rows[rows.length-1];return{h4:getComputedStyle(c.querySelector('h4')).color,yrs:getComputedStyle(c.querySelector('.rf-coast-yrs')).color,lastBorder:getComputedStyle(last).borderBottomWidth,otherBorder:getComputedStyle(rows[0]).borderBottomWidth,gap:c.getBoundingClientRect().top-last.getBoundingClientRect().bottom+parseFloat(getComputedStyle(last).paddingBottom)};});
+  assert.deepEqual([hc.h4,hc.yrs],['rgb(255, 255, 255)','rgb(207, 224, 255)'],'제목 흰색·연도 범위 종전 제목색');assert.equal(hc.lastBorder,'0px','마지막 요소 줄 구분선 없음');assert.equal(hc.otherBorder,'1px');assert.ok(Math.abs(hc.gap-18)<=.5,'마지막 줄 글 끝 ↔ 상자 '+hc.gap);
   assert.deepEqual(m.legend,['익수3건›','추락1건›','고립1건›','표류1건›','기타(인명)1건›']);
   assert.equal(m.cas,'사망 1명(24년, 익수), 실종 1명(22년, 추락)');assert.deepEqual(m.casBold.map(x=>x[0]),['사망 1명','실종 1명']);for(const b of m.casBold){assert.equal(b[1],'rgb(255, 107, 107)');assert.ok(+b[2]>=700);}
   assert.ok(m.last,'시트 맨 끝 카드');assert.equal(m.bodyOverflow,0,'본문 가로 넘침');
@@ -293,26 +309,46 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   assert.deepEqual(await pg.evaluate(()=>[document.querySelector('.rf-acc-pop h5').textContent,[...document.querySelectorAll('.rf-acc-pop li .t')].map(x=>x.textContent)]),['기타(인명) 1건최신순',['2020.06.02']]);
   await pg.keyboard.press('Escape');assert.equal(await pg.evaluate(()=>document.querySelector('.rf-acc-pop').hidden),true);assert.equal(await pg.evaluate(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')),true,'Escape 는 팝업만');
  });
- await check('T9 0건이면 「이 관광지 주변 연안사고 없음(2020~2024년)」+영역 한 줄, 자료 없음(available:false)이면 「이 관광지 주변 연안사고 자료 없음」',async()=>{
+ await check('T9 0건이면 「주변 연안사고 없음(\'20년 ~ \'24년)」(2026-10-18 시안 — 영역 줄 없음), 자료 없음(available:false)이면 「주변 연안사고 자료 없음」',async()=>{
   await pg.evaluate(()=>{app.select('coast','b');});await waitTitle('해운대해수욕장');let m=await accCard();console.log('측정 T9 0건',JSON.stringify({kind:m.kind,title:m.title,area:m.area}));
-  assert.equal(m.kind,'none');assert.equal(m.title,'이 관광지 주변 연안사고 없음(2020~2024년)');assert.equal(m.area,'지도에 칠한 이 관광지 구역과 그 앞바다 500m');assert.equal(m.total,null);assert.equal(m.bodyOverflow,0);
+  assert.equal(m.kind,'none');assert.equal(m.title,"주변 연안사고 없음('20년 ~ '24년)");assert.equal(m.area,null);assert.equal(m.total,null);assert.equal(m.bodyOverflow,0);
   if(SHOTS){await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-coast-acc]').scrollIntoView({block:'end'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_acc_none_380.png')});}
   FIX.history.b={available:false};await fresh();await open('b');m=await accCard();
-  assert.equal(m.kind,'nodata');assert.equal(m.title,'이 관광지 주변 연안사고 자료 없음');assert.equal(m.area,null);
+  assert.equal(m.kind,'nodata');assert.equal(m.title,'주변 연안사고 자료 없음');assert.equal(m.area,null);
   if(SHOTS){await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-coast-acc]').scrollIntoView({block:'end'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_acc_nodata_380.png')});}
   FIX.history.b.available=true;FIX.history.b={available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:[]};
  });
  await check('「표류」 통일(떠밀림 없음)·연안 부제는 경위도 없이 관할만·위험지수 상자 색 = 단계 색(지수 19 → 초록)',async()=>{
   await fresh();await open('a');let m=await accCard();
-  assert.ok(m.text.includes('사고 종류 : 익수, 추락, 고립, 표류'));assert.ok(m.text.includes('튜브·물놀이기구 표류 주의'));assert.ok(!m.text.includes('떠밀림'));
+  assert.ok(m.text.includes('사고 종류 : 익수, 추락, 고립, 표류'));assert.ok(m.text.includes('튜브·물놀이기구 등 표류 주의'));assert.ok(!m.text.includes('떠밀림'));
   assert.equal(m.sub,'부산해양경찰서 광안리파출소 관할');assert.ok(!/[°′″]/.test(m.sub));
   const B={'평소 수준':'rgb(47, 179, 107)','다소 높음':'rgb(242, 194, 48)','높음':'rgb(251, 146, 60)','매우 높음':'rgb(224, 50, 44)'};assert.equal(m.boxBg,B[scored.band],'상자 색 '+scored.band);
   for(const [idx,band] of [[19,'평소 수준'],[20,'다소 높음'],[67,'높음'],[100,'매우 높음']]){FIX.score.b={score:idx*.03,index:idx,band};await fresh();await open('b');m=await accCard();assert.equal(m.boxBg,B[band],'지수 '+idx);
+   // 2026-10-18 시안: 등급 글자는 칸 안 남색 알약 배지(글자색 = 칸 색, 15.2px·800·자간 0.06em), 오른쪽 글은 등급 없이 「평소 정도로 붐비고…」부터, 막대 위 지수 위치 눈금(A안).
+   const g=await pg.evaluate(()=>{const s=document.querySelector('#risk-forecast-sheet'),bd=s.querySelector('.rf-band-badge'),cs=getComputedStyle(bd),ramp=s.querySelector('.rf-ramp').getBoundingClientRect(),tick=s.querySelector('.rf-ramp-tick').getBoundingClientRect(),val=s.querySelector('.rf-ramp-val'),tri=s.querySelector('.rf-ramp-tri').getBoundingClientRect(),card=s.querySelector('.rf-index').getBoundingClientRect(),tcs=getComputedStyle(s.querySelector('.rf-ramp-tick'));
+    return{text:bd.textContent,color:cs.color,bg:cs.backgroundColor,size:cs.fontSize,weight:cs.fontWeight,ls:cs.letterSpacing,radius:cs.borderTopLeftRadius,prose:s.querySelector('.rf-index-prose').textContent,pos:(tick.left+tick.width/2-ramp.left)/ramp.width*100,tickW:tick.width,tickBg:tcs.backgroundColor,tickShadow:tcs.boxShadow,val:val.textContent,valBg:getComputedStyle(val).backgroundColor,triAbove:tri.bottom<=tick.top+.5&&tri.top>=val.getBoundingClientRect().bottom-.5,inside:val.getBoundingClientRect().top>=card.top,gap:ramp.top-s.querySelector('.rf-index-main').getBoundingClientRect().bottom};});
+   assert.equal(g.text,band);assert.equal(g.color,B[band],'배지 글자 = 칸 색');assert.equal(g.bg,'rgb(16, 21, 31)');assert.equal(g.size,'15.2px');assert.equal(g.weight,'800');assert.equal(g.ls,(15.2*.06).toFixed(3).replace(/0+$/,'')+'px');assert.equal(g.radius,'999px');
+   assert.ok(g.prose.startsWith('평소 정도로 붐비고 위험구역 없는 곳의평범한 날과 비교 시전체 사고 '),'오른쪽 글 '+g.prose);assert.ok(!g.prose.includes(band+'평소'),'오른쪽 글에 등급 없음');assert.match(g.prose,/날 수 있는 조건사망·실종 사고 .* 날 수 있는 조건사고 종류/);
+   assert.ok(Math.abs(g.pos-idx)<=0.6,'눈금 위치 '+g.pos+' vs 지수 '+idx);assert.equal(g.tickW,3);assert.equal(g.tickBg,'rgb(255, 255, 255)');assert.match(g.tickShadow,/rgb\(16, 21, 31\) 0px 0px 0px 1.5px/);assert.equal(g.val,String(idx));assert.equal(g.valBg,'rgb(255, 255, 255)');assert.ok(g.triAbove,'말풍선 → ▼ → 눈금 순서');assert.ok(g.inside,'말풍선이 카드 안');assert.ok(g.gap>=22,'막대 위 표시 자리 '+g.gap);
    if(SHOTS&&idx===19){await pg.evaluate(()=>{document.querySelector('#risk-forecast-sheet .rf-body').scrollTop=0;});await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_index19_380.png')});}}
   delete FIX.score.b;
   const basis=await pg.evaluate(()=>{RiskBasis.open('coast');const t=document.querySelector('.rf-basis-body').textContent;RiskBasis.close();return t;});
   assert.ok(basis.includes('연안 사고(익수·추락·고립·표류)')&&!basis.includes('떠밀림'));
   assert.ok(basis.includes('목록에는 익수·추락·고립·표류와 기타(인명)를 보여 줍니다. 위험지수 점수는 익수·추락·고립·표류 4유형으로 계산했습니다.'),'목록과 점수 유형 차이 한 줄');
+ });
+ // 2026-10-18 시안 댓글: 한 줄을 몇 글자 넘쳐 두 줄이 되는 「그 줄만」 자간을 -0.02 → -0.035 → -0.05em 순으로 줄여 한 줄이 되는 최소값만, 그래도 안 되면 원래대로. 전체 일괄 축소 금지.
+ // 글꼴마다 폭이 달라, 첫 「•」 줄의 실제 한 줄 폭을 자간별로 재고 그 사이 폭으로 줄을 좁혀(max-width) 기대값을 정한다.
+ await check('자간 맞춤(시안 댓글): 넘치는 줄만 -0.02/-0.035/-0.05em 중 한 줄이 되는 최소값, 안 되면 원래대로 두 줄 · 다른 줄은 그대로',async()=>{
+  await pg.setViewportSize({width:412,height:915});await fresh();await open('a');
+  const W=await pg.evaluate(()=>{const f=document.querySelector('#risk-forecast-sheet .rf-coast-rows .rf-fit'),c=f.cloneNode(true);c.style.cssText='position:absolute;visibility:hidden;white-space:nowrap;width:auto;max-width:none';f.parentNode.appendChild(c);const out=[0,-0.02,-0.035,-0.05].map(v=>{c.style.letterSpacing=v+'em';return c.getBoundingClientRect().width;});c.remove();return out;});
+  console.log('측정 자간별 한 줄 폭',JSON.stringify(W));
+  const cases=[[Math.ceil(W[0])+2,''],[(W[0]+W[1])/2,'-0.02em'],[(W[1]+W[2])/2,'-0.035em'],[(W[2]+W[3])/2,'-0.05em'],[W[3]-15,'']];
+  for(const [width,want] of cases){
+   await fresh();await pg.addStyleTag({content:'#risk-forecast-sheet .rf-coast-rows>.rf-row:first-child .rf-bullet:first-child .rf-fit{max-width:'+width.toFixed(2)+'px}'});await open('a');
+   const r=await pg.evaluate(()=>{const fs=[...document.querySelectorAll('#risk-forecast-sheet .rf-coast-rows .rf-fit')],f=fs[0],lh=parseFloat(getComputedStyle(f).lineHeight);return{ls:f.style.letterSpacing,lines:Math.round(f.getBoundingClientRect().height/lh),second:fs[1].style.letterSpacing};});
+   console.log('측정 자간 맞춤 폭 '+width.toFixed(1),JSON.stringify(r));
+   assert.equal(r.ls,want,'폭 '+width+' → '+want);assert.equal(r.lines,want||width>W[0]?1:2,'줄 수');assert.equal(r.second,'','다른 줄은 그대로');
+  }
  });
  // 2026-10-16 사용자 「표는 오른쪽 왼쪽으로 스크롤하면서 볼 수 있도록 해서 표가 과도하게 위아래로 켜지지 않도록 … 화면에 맞게 적절하게」
  for(const kind of ['coast','sea'])await check('기준 상세 표('+kind+'): 380·320px 가로 스크롤 상자·줄 수 ≤ 4·숫자 칸 줄바꿈 없음·창 자체는 가로 스크롤 없음, 1024px 스크롤 없이 꽉 참',async()=>{
@@ -333,6 +369,38 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
      assert.ok(await pg.evaluate(()=>{const o=document.querySelector('.rf-tbl');return o.classList.contains('more-left')&&!o.classList.contains('more-right');}),'끝까지 밀면 왼쪽 그늘만');await pg.screenshot({path:path.join(SHOTS,'basis_coast_380_table_after.png')});}}
    if(kind==='sea'&&width===380&&SHOTS){await pg.evaluate(()=>document.querySelector('.rf-tbl').scrollIntoView({block:'center'}));await pg.waitForTimeout(60);await pg.screenshot({path:path.join(SHOTS,'basis_sea_380_table.png')});}
   }
+  await pg.evaluate(()=>RiskBasis.close());await pg.setViewportSize({width:380,height:820});
+ });
+ // 2026-10-18 사용자 「공통적으로 어절단위로 끊어서 다음줄로 보내주고 문장단위로 줄바꿈을 해주고 여러 내용이 들어있으면 문장의 시작에 점으로 반영해줘」 ·
+ // 「텍스트 한 두개 때문에 다음줄로 넘어가는 경우에는 자간을 조금 줄여서 한줄에 표시」 · 「이건 표로 만드는게 좋지 않겠니 ?」(연안 위험 단계 표)
+ for(const kind of ['coast','sea'])await check('기준 상세 글('+kind+'): 문장 여럿 = 「•」 글머리 줄(내어쓰기)·어절 줄바꿈·넘친 줄만 자간 줄임(-0.02→-0.035→-0.05em 중 첫 값)'+(kind==='coast'?'·위험 단계 표 4색':''),async()=>{
+  for(const width of [380,320]){
+   await pg.setViewportSize({width,height:820});await pg.evaluate(k=>{RiskBasis.close();RiskBasis.open(k);},kind);await pg.waitForTimeout(80);
+   const m=await pg.evaluate(()=>{const body=document.querySelector('.rf-basis-body'),lis=[...body.querySelectorAll('.rf-pts li')],li=lis[0],lb=getComputedStyle(li,'::before');
+    const blocks=[...body.querySelectorAll('p:not(.rf-basis-links),.rf-pts li')],steps=RiskFormat.FIT_STEPS;
+    const lines=el=>Math.round(el.getBoundingClientRect().height/parseFloat(getComputedStyle(el).lineHeight));
+    // 자간을 줄인 줄마다: 원래(자간 0)로 되돌리면 한 줄 늘고, 앞 단계 값으로는 줄지 않았는지(가장 작게 줄인 값인지) 다시 잰다.
+    const fitted=blocks.filter(el=>el.style.letterSpacing).map(el=>{const ls=el.style.letterSpacing,i=steps.indexOf(ls),now=lines(el);el.style.letterSpacing='';const base=lines(el),earlier=steps.slice(0,Math.max(0,i)).map(s=>{el.style.letterSpacing=s;return lines(el);});el.style.letterSpacing=ls;return{ls,i,now,base,earlier};});
+    const bands=[...body.querySelectorAll('table.rf-bands tbody tr')].map(tr=>({name:tr.cells[0].textContent,dot:getComputedStyle(tr.cells[0].querySelector('i')).backgroundColor,ink:getComputedStyle(tr.cells[0].querySelector('b')).color,range:tr.cells[1].textContent,times:tr.cells[2].textContent}));
+    return{n:lis.length,bullet:lb.content,pos:lb.position,pad:parseFloat(getComputedStyle(li).paddingLeft),listStyle:getComputedStyle(li.parentNode).listStyleType,wordBreak:getComputedStyle(li).wordBreak,
+     multiP:[...body.querySelectorAll('p:not(.rf-basis-links)')].filter(p=>(p.textContent.match(/다\.(\s|$)/g)||[]).length>1).map(p=>p.textContent.slice(0,30)),
+     liText:lis[0].textContent,fitted,bad:blocks.filter(el=>el.style.letterSpacing&&!steps.includes(el.style.letterSpacing)).length,bands,BC:RiskFormat.BAND_COLORS,over:body.scrollWidth-body.clientWidth};});
+   console.log('측정 기준 상세 글 '+kind+' '+width+'px',JSON.stringify({n:m.n,fitted:m.fitted.length,bands:m.bands.length}));
+   assert.ok(m.n>=10,'글머리 줄 수 '+m.n);assert.equal(m.bullet,'"•"');assert.equal(m.pos,'absolute');assert.ok(m.pad>=10&&m.pad<=16,'내어쓰기 '+m.pad);assert.equal(m.listStyle,'none');assert.equal(m.wordBreak,'keep-all');
+   assert.ok(!m.liText.includes('•'),'점은 글자가 아니다(::before)');assert.deepEqual(m.multiP,[],'문장 여럿인 <p>가 남지 않음');assert.equal(m.over,0);assert.equal(m.bad,0);
+   for(const f of m.fitted){assert.ok(f.i>=0);assert.equal(f.now,f.base-1,'자간 줄여 한 줄 줄어듦 '+JSON.stringify(f));assert.ok(f.earlier.every(x=>x===f.base),'더 작게 줄인 값으로는 안 줄어야 '+JSON.stringify(f));}
+   if(kind==='coast'){const B={'평소 수준':'rgb(47, 179, 107)','다소 높음':'rgb(242, 194, 48)','높음':'rgb(251, 146, 60)','매우 높음':'rgb(224, 50, 44)'};
+    assert.deepEqual(m.bands.map(b=>[b.name,b.range,b.times]),[['평소 수준','0~19','1.5배 미만'],['다소 높음','20~66','약 1.5~4배'],['높음','67~99','약 4~8배'],['매우 높음','100','8배 이상']]);
+    for(const b of m.bands){assert.equal(b.dot,B[b.name],b.name+' 네모');assert.equal(b.ink,B[b.name],b.name+' 글자');}}
+   if(SHOTS&&width===380){await pg.screenshot({path:path.join(SHOTS,'basis_'+kind+'_380_points.png')});}
+  }
+  // 자간 줄이기 도우미 단독: 한두 글자 넘친 줄은 줄이고, 많이 넘친 줄은 그대로(전체 일괄 금지).
+  const u=await pg.evaluate(()=>{const host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;width:400px;font-size:13px;line-height:20px;word-break:keep-all';document.body.appendChild(host);
+   const mk=t=>{const p=document.createElement('p');p.style.margin='0';p.textContent=t;host.appendChild(p);return p;},w=t=>{const s=document.createElement('span');s.style.whiteSpace='nowrap';s.textContent=t;host.appendChild(s);const r=s.getBoundingClientRect().width;s.remove();return r;};
+   let t='가';while(w(t+' 가')<=400)t+=' 가';const exact=t;  // 400px 에 꼭 맞는 한 줄(한 글자 어절을 빈칸으로 이음 — keep-all 은 어절 사이에서만 줄을 바꾼다. 약 45자라 -0.05em 이면 어절 하나 폭 넘게 줄어든다)
+   const small=mk(exact+' 가'),big=mk(exact+' '+exact.slice(0,Math.ceil(exact.length/2))),one=mk('가나');RiskFormat.fitLines([small,big,one]);
+   const r={small:small.style.letterSpacing,big:big.style.letterSpacing,one:one.style.letterSpacing,smallH:small.getBoundingClientRect().height};host.remove();return r;});
+  assert.ok(['-0.02em','-0.035em','-0.05em'].includes(u.small),'한 글자 넘친 줄 '+u.small);assert.equal(u.smallH,20,'한 줄로');assert.equal(u.big,'','많이 넘친 줄은 그대로');assert.equal(u.one,'','한 줄은 그대로');
   await pg.evaluate(()=>RiskBasis.close());await pg.setViewportSize({width:380,height:820});
  });
  await check('모바일 실행 오류 없음',()=>assert.deepEqual(errors,[]));

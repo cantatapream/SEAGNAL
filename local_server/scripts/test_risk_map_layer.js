@@ -173,7 +173,8 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
   test('같은 위치 목록에서 다른 관광지 선택',()=>assert.deepEqual(ui.choices,[{kind:'coast',id:'b'}]));
   test('낡은 예보 기준은 파고·풍속줄에 남고 공통 원천 경고는 숨김',()=>{assert.equal((ui.staleText.match(/예보 기준/g)||[]).length,2);assert.ok(!ui.staleText.includes('해구 예보 자료가 오래되었습니다'));});
   // 2026-10-16 사용자 (가)로 지도·상자 색이 단계 4색이 되어 확정 문안(§12.2 「1배 초록 → … 연속 그라데이션」)의 이 문장만 바꿨다 — 설계서 §15.
-  test('연안 기준상세 색문안: 단계 4색(2026-10-16 (가)) — 0~100 막대만 이어진 색',()=>{assert.match(ui.basis,/단계 말과 같은 4색입니다: 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강/);assert.doesNotMatch(ui.basis,/연속 그라데이션/);assert.match(ui.basis,/이 관광지 주변 3km에서 이 날에/);});
+  // 2026-10-18 사용자 「전체적으로 "말"이라는 용어가 잘 이해가 안되는데 다른 단어로 치환할 수 있니 ?」 — 「단계 말」 → 「위험 단계」.
+  test('연안 기준상세 색문안: 단계 4색(2026-10-16 (가)) — 0~100 막대만 이어진 색 · 「단계 말」 없이 「위험 단계」',()=>{assert.doesNotMatch(ui.basis,/단계 말/);assert.match(ui.basis,/위험 단계와 같은 4색입니다: 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강/);assert.doesNotMatch(ui.basis,/연속 그라데이션/);assert.match(ui.basis,/이 관광지 주변 3km에서 이 날에/);});
   test('근거표 제목 색은 확정노랑',()=>assert.equal(ui.headerColor,'rgb(255, 225, 122)'));
   test('키보드 초점은 파랑2px·offset2px',()=>{assert.equal(ui.focusWidth,'2px');assert.equal(ui.focusColor,'rgb(68, 138, 255)');assert.equal(ui.focusOffset,'2px');});
   test('움직임줄이기 스위치 전환 중단',()=>assert.equal(ui.switchTransition,'0s'));
@@ -198,19 +199,14 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
   const scored=scorer.scoreCoast(coastInput);scored.rows=scored.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
   const incomplete=scorer.scoreCoast({...coastInput,concentration:null,events:null,swell:null});incomplete.rows=incomplete.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
   const policy=scorer.scoreCoast({...coastInput,swell:{periodS:12},spot:{hazard:{count:11,zones:typedZones},ripBeach:'fixture'},rip:{level:'주의',hasData:true}});policy.rows=policy.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
-  const calculation=await page.evaluate(({scored,incomplete,policy})=>{
+  // 2026-10-18 사용자 「빼자.」 — 연안 시트의 「사고 배수는 어떻게 합쳤나요?」 아코디언 삭제(같은 계산 방법은 [기준 상세]·PDF). 시트에 그 칸이 없고 함수도 내보내지 않는다.
+  const calculation=await page.evaluate(({scored})=>{
    const host=document.createElement('div');host.className='rf-sheet';document.body.appendChild(host);const sheet=RiskSheet.create(host,{close(){},hazard(){},basis(){},retry(){},choose(){}});
-   const show=d=>{sheet.show({...d,title:'영도 흰여울해안터널',subtitle:{lat:35,lon:129},notices:[]},'coast',{});return host.textContent;};
-   const complete=show(scored),closed=!host.querySelector('.rf-calculation').open;host.querySelector('.rf-calculation summary').click();const opened=host.querySelector('.rf-calculation').open;
-   const partial=show(incomplete),policyText=show(policy),mismatch=RiskSheet.coastCalculation({...scored,score:99}),unsafe=RiskSheet.coastCalculation({...scored,rows:scored.rows.map(r=>r.key==='month'?{...r,month:'<img onerror=alert(1)>'}:r)});
-   return{complete,closed,opened,partial,policyText,mismatch,unsafe};
-  },{scored,incomplete,policy});
-  test('U81 연안43배 사례는 실제 점수(사람 8배·위험구역 종류별 합)와10월을 합쳐 설명',()=>{assert.match(calculation.complete,/2.91 \+ 2.452601 \+ 0.07 = 5.432601점/);assert.match(calculation.complete,/43.2배/);assert.match(calculation.complete,/사람 혼잡\(평소의 8.0배\)/);assert.match(calculation.complete,/10월 분석/);assert.match(calculation.complete,/상대 비교 지표/);});
-  test('U81 사망실종22배는 반올림전 계수(사람·위험구역 종류별 곱)와10월 계수 곱',()=>{assert.match(calculation.complete,/3.652264 × 5.646016 × 1.06 ≈ 21.9배/);assert.match(calculation.complete,/반올림한 표시값/);assert.ok(Math.abs(scored.fatalRr-21.857984648808593)<1e-8);});
-  test('배수 설명은 선택적으로 펼치고 접는 접근가능한details',()=>{assert.equal(calculation.closed,true);assert.equal(calculation.opened,true);});
-  test('입력누락 배수를 전체사고 가능성으로 확정하지 않음',()=>{assert.match(calculation.partial,/확인된 요소 기준의 상대 사고지표/);assert.match(calculation.partial,/전체 요소를 반영한 비교 배수는 확인되지 않았습니다/);assert.doesNotMatch(calculation.partial,/평소만큼 붐비고 위험구역 없는 곳의 평범한 날과 비교/);assert.match(calculation.complete,/평소만큼 붐비고 위험구역 없는 곳의 평범한 날과 비교/);});
-  test('너울·이안류 정책점수는 사망배수에 중복하지 않음',()=>{assert.match(calculation.policyText,/너울 정책 점수/);assert.match(calculation.policyText,/이안류 정책 점수/);assert.match(calculation.policyText,/사망·실종 계수는 없어 그 배수에는 추가하지 않습니다/);assert.equal(policy.fatalRr,scored.fatalRr);});
-  test('불일치 합계와 HTML 입력은 추측·실행하지 않음',()=>{assert.match(calculation.mismatch,/계산에 필요한 상세 요소를 확인하지 못했습니다/);assert.doesNotMatch(calculation.mismatch,/2<sup>/);assert.doesNotMatch(calculation.unsafe,/<img/);assert.match(calculation.unsafe,/&lt;img/);});
+   sheet.show({...scored,title:'영도 흰여울해안터널',subtitle:{lat:35,lon:129},notices:[]},'coast',{});
+   return{has:!!host.querySelector('.rf-calculation'),text:host.textContent,fn:typeof RiskSheet.coastCalculation};
+  },{scored});
+  test('연안 시트에 「사고 배수는 어떻게 합쳤나요?」 아코디언 없음(2026-10-18 삭제)',()=>{assert.equal(calculation.has,false);assert.doesNotMatch(calculation.text,/어떻게 합쳤나요/);assert.equal(calculation.fn,'undefined');});
+  test('U81 사망실종 계수(반올림 전) — 서버 점수 계산은 그대로',()=>{assert.ok(Math.abs(scored.fatalRr-21.857984648808593)<1e-8);assert.equal(policy.fatalRr,scored.fatalRr,'너울·이안류 정책점수는 사망배수에 넣지 않음');assert.ok(incomplete.factors.some(r=>r.missing),'입력 누락은 missing');});
 
 
  }finally{await browser.close();}

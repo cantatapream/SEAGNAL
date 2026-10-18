@@ -222,7 +222,8 @@ const rm = (f) => fs.rmSync(f, { force: true });
             const body = await render(detail(make(OCT)));
             for (const bad of ['자료 없음', '일부 요소', '확인된 요소', '특보, ', '행사 정보'])
                 assert.ok(!body.includes(bad), bad + ' / ' + body);
-            assert.ok(body.includes('평소만큼 붐비고 위험구역 없는 곳'));
+            // 2026-10-18 연안 시트 시안: 「평소만큼 붐비고 … 비교」 → 「평소 정도로 붐비고 위험구역 없는 곳의 / 평범한 날과 비교 시」
+            assert.ok(body.includes('평소 정도로 붐비고 위험구역 없는 곳'));
         });
         await test('시트: 행사 수집 실패 → 행사 행에 자료 없음 + 확인된 요소 기준 안내(전역 경고 목록은 숨김)', async () => {
             const c = make(OCT);
@@ -231,7 +232,8 @@ const rm = (f) => fs.rmSync(f, { force: true });
             const body = await render(detail(c));
             assert.ok(/행사 정보\s*자료 없음/.test(body.replace(/\n/g, ' ')), body);
             assert.ok(body.includes('확인된 요소 기준'));
-            assert.ok(body.includes('현재 확인된 요소만 반영한 값입니다'));
+            // 2026-10-18 「사고 배수는 어떻게 합쳤나요?」 아코디언 삭제(사용자 「빼자.」) — 그 안의 「현재 확인된 요소만 반영한 값입니다」 문단도 함께 없어졌다. 위험지수 카드의 「확인된 요소 기준」 안내(위)는 그대로.
+            assert.ok(!body.includes('어떻게 합쳤나요'));
             assert.ok(!body.includes('일부 요소 자료 없음'));
         });
         await test('시트: 특보 수집 실패 → 행사 행은 없고(일부 실패) 확인된 요소 기준 안내만 정상 없음과 구분된다', async () => {

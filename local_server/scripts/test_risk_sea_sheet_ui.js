@@ -7,6 +7,7 @@
  *         시트 시각 막대(공식 사고 위험 색·「지금」), 지도 [혼잡도][위험 예측] 단일 선택·해상 OFF 숨김·혼잡도 지금/미래 mode·범례 제목,
  *         날씨 아코디언의 발효 중 특보 상자(2026-10-16 — 빨간 테두리·「파도」 위·문구·여러 개·없을 때·미래 시각·380px 줄바꿈).
  *         접힌 제목 줄 「특보」 표시(2026-10-16 「2 추천대로」 — 상자와 같은 조건·펼쳐도 남김·시각 따라 바뀜·대비 4.5 이상·380px 넘침 없음·「확인 불가」 안내 없음).
+ *         시안 2026-10-18 ⑤·⑤-2: 단계 글자 남색 알약(글자색 = 칸 색)·척수 밀집도 색·섹션 제목 흰색·사고 제목 기간·범례 가운데·「파도」「바람」·칸 제목 굵기·시각 막대 가운데·특보 상자 점선(발효 빨강·예비 노랑).
  * [연계] 실제 risk_format/api/map_layer/slider/marine/sheet/basis/forecast + risk_forecast.css + client/style.css, 실제 routes/risk_forecast·
  *        marine_fusion 저장소(시계 주입)·sea_traffic_history.createApi(가짜 이력·특보) → verify_all SUITES.
  *        SEA_SHEET_SHOTS=<폴더> 를 주면 380px 폭 화면 사진을 남긴다(검사 판정에는 쓰지 않음).
@@ -239,6 +240,42 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   assert.equal(await page.locator(body+' [data-wx]').getAttribute('aria-expanded'),'false');assert.equal(await page.locator(body+' [data-wx-body]').isVisible(),false);assert.equal(await page.locator(body+' .rf-wx h4').innerText(),'지금 이 해역 날씨');
   await page.locator(body+' [data-wx]').click();const tiles=await page.locator(body+' [data-wx-body] .rf-tile').evaluateAll(t=>t.map(e=>e.innerText.replace(/\s+/g,' ').trim()));
   assert.deepEqual(tiles.map(t=>t.replace(/\s/g,'')),['유의파고1.2m','파주기6.1초','파향203°남남서','풍속6.4m/s','풍향215°남서'],JSON.stringify(tiles));await shot('sheet_now_wx_open',body+' .rf-wx');await page.locator(body+' [data-wx]').click();});
+ // 시안 2026-10-18 ⑤·⑤-2(사용자 시안 댓글 확정): 위 카드 단계 글자 = 남색 알약(글자색 = 그 칸 단계색), 척수 16px·800·밀집도 단계색, 섹션 제목 흰색(시각 글자는 흐린 색 그대로),
+ // 사고 제목 괄호 기간 = 원래 제목색, 교통량 범례 가운데, 날씨 묶음 제목 흰색·800·12.21px, 칸 제목 색 그대로·800, 시트 시각 막대가 시트 가로 가운데·위 범례와 같은 가로 범위.
+ await check('시안 2026-10-18: 단계 알약·척수 색·제목 흰색·사고 기간 색·범례 가운데·「파도」「바람」·칸 제목 굵기·시각 막대 가운데',async()=>{
+  await page.evaluate(b=>RiskMarine.zoom(document.querySelector(b),1),body);   // 앞 검사가 ×50 으로 둔 확대를 푼다(확대율 칸이 비어야 범례 3개)
+  await page.locator(body+' [data-wx]').click();
+  const r=await page.evaluate(b=>{const q=s=>document.querySelector(b+' '+s),cs=e=>getComputedStyle(e),box=e=>e.getBoundingClientRect();
+   const lv=[...document.querySelectorAll(b+' .rf-hero .rf-lvl')].map(d=>{const s=d.querySelector('strong'),c=cs(s),sb=box(s),db=box(d);return{t:s.textContent,cell:cs(d).backgroundColor,color:c.color,bg:c.backgroundColor,fs:c.fontSize,fw:c.fontWeight,ls:parseFloat(c.letterSpacing),m:[c.marginTop,c.marginBottom],pad:c.padding,rad:c.borderTopLeftRadius,disp:c.display,inside:sb.left>=db.left-.5&&sb.right<=db.right+.5};});
+   const cnt=q('.rf-hero .rf-cnt'),cc=cs(cnt);
+   const leg=q('[data-chart-leg]'),lr=box(leg),items=[...leg.children].filter(e=>e.getClientRects().length),il=Math.min(...items.map(e=>box(e).left)),ir=Math.max(...items.map(e=>box(e).right));
+   const g=[...document.querySelectorAll(b+' [data-wx-body] p.g')].map(p=>{const c=cs(p);return[p.textContent,c.color,c.fontWeight,Math.round(parseFloat(c.fontSize)*100)/100];});
+   const sm=[...document.querySelectorAll(b+' [data-wx-body] .rf-tile small')].map(e=>cs(e).color+'/'+cs(e).fontWeight);
+   const tl=document.querySelector('#risk-forecast-sheet .rf-timeline'),sh=box(document.querySelector('#risk-forecast-sheet')),x=e=>{const r=box(e);return[r.left,r.right];};
+   return{lv,cnt:{t:cnt.textContent,color:cc.color,fs:cc.fontSize,fw:cc.fontWeight},leg:{gapL:il-lr.left,gapR:lr.right-ir,jc:cs(leg).justifyContent,n:items.length},g,sm,
+    h4:['[data-traffic-card] h4','.rf-acc h4','.rf-wx h4'].map(s=>cs(q(s)).color),src:cs(q('[data-traffic-card] .rf-src')).color,yrs:cs(q('.rf-acc .rf-yrs')).color,
+    mid:(sh.left+sh.right)/2,key:x(tl.querySelector('.rf-st-top')),wrap:x(tl.querySelector('.rf-st-wrap')),track:x(tl.querySelector('.rf-st-track'))};},body);
+  await page.locator(body+' [data-wx]').click();
+  assert.equal(r.lv.length,2);
+  for(const l of r.lv){assert.equal(l.bg,'rgb(16, 21, 31)',JSON.stringify(l));assert.equal(l.color,l.cell,'알약 글자색 = 칸 단계색 '+JSON.stringify(l));assert.equal(l.fs,'20.8px');assert.equal(l.fw,'800');assert.ok(Math.abs(l.ls-20.8*.06)<.01,'자간 .06em '+l.ls);
+   assert.deepEqual(l.m,['3px','1px']);assert.equal(l.pad,'1px 12px 2px');assert.equal(l.rad,'999px');assert.equal(l.disp,'inline-block');assert.equal(l.inside,true,'알약이 칸 안에');}
+  assert.deepEqual(r.lv.map(l=>[l.t,l.cell]),[['보통',RISK_RGB['보통']],['높음',PAL.cong['높음']]]);
+  assert.deepEqual(r.cnt,{t:'18척',color:PAL.cong['높음'],fs:'16px',fw:'800'},'척수 = 밀집도 단계색');
+  assert.deepEqual(r.h4,['rgb(255, 255, 255)','rgb(255, 255, 255)','rgb(255, 255, 255)']);assert.equal(r.src,'rgb(152, 171, 199)','시각 글자는 흐린 색 그대로');assert.equal(r.yrs,'rgb(207, 224, 255)','괄호 기간 = 원래 제목색');
+  assert.equal(r.leg.jc,'center');assert.equal(r.leg.n,3,'선박 수·주의보·경보(확대 안 했으면 확대율 칸 숨김)');assert.ok(Math.abs(r.leg.gapL-r.leg.gapR)<=1,'범례 가운데 '+JSON.stringify(r.leg));
+  assert.deepEqual(r.g,[['파도','rgb(255, 255, 255)','800',12.21],['바람','rgb(255, 255, 255)','800',12.21]]);
+  assert.deepEqual([...new Set(r.sm)],['rgb(143, 180, 230)/800'],'칸 제목 색 그대로·굵기 800');
+  assert.ok(Math.abs((r.wrap[0]+r.wrap[1])/2-r.mid)<=.5&&Math.abs((r.key[0]+r.key[1])/2-r.mid)<=.5,'시각 막대·범례 줄 시트 가운데 '+JSON.stringify(r));
+  assert.ok(Math.abs(r.track[0]-r.key[0])<=.5&&Math.abs(r.track[1]-r.key[1])<=.5,'막대 색 띠 = 위 범례 줄과 같은 가로 범위 '+JSON.stringify(r));
+  await shot('sheet_now_mock1018',body);});
+ // 사용자 2026-10-18 「해구를 표현하는 괄호는 2포인트 줄여서 볼드 없이 표출」 — 제목 이름 부분은 그대로(16.8px·700), 「(99-4해구)」만 2pt 작게·400.
+ await check('시안 2026-10-18: 시트 제목 해구 괄호만 2pt 작게·굵기 없이(이름 부분 그대로, 글자 전체는 그대로)',async()=>{
+  const r=await page.evaluate(()=>{const h=document.querySelector('#risk-forecast-sheet .rf-title'),sp=h.querySelector('.rf-haegu'),c=getComputedStyle(h),cs=sp&&getComputedStyle(sp);
+   return{text:h.textContent,name:h.firstChild.textContent,hg:sp&&sp.textContent,fs:c.fontSize,fw:c.fontWeight,sfs:cs&&Math.round(parseFloat(cs.fontSize)*100)/100,sfw:cs&&cs.fontWeight,html:h.innerHTML};});
+  assert.equal(r.text,'생도 남남동방 1.6해리 해역(99-4해구)');assert.equal(r.name,'생도 남남동방 1.6해리 해역');assert.equal(r.hg,'(99-4해구)');
+  assert.equal(r.fs,'16.8px');assert.equal(r.fw,'700');assert.equal(r.sfs,Math.round((16.8-2*4/3)*100)/100,JSON.stringify(r));assert.equal(r.sfw,'400');
+  const t=await page.evaluate(()=>{const h=document.createElement('h3');RiskMarine.title(h,'<b>x</b> 해역');const g=document.createElement('h3');RiskMarine.title(g,'가 해역(1-2해구)');return[h.innerHTML,h.children.length,g.innerHTML];});
+  assert.deepEqual(t,['&lt;b&gt;x&lt;/b&gt; 해역',0,'가 해역<span class="rf-haegu">(1-2해구)</span>'],'괄호 없으면 통째로 글자, 서버 문자열은 HTML 로 해석하지 않음');});
  // 사용자 2026-10-16 「해당 해역에 특보가 있다면 파고 윗부분에 한줄로 테두리가 빨간 사각형 박스로 제주도북부앞바다 풍랑주의보 발효 / 발표 : 0월 0일(금) 00:00 / 발효 : … / 해제예정 : … 또는 정보없음」
  const warnInfo=sel=>page.evaluate(sel=>{const wx=document.querySelector(sel);const bx=[...wx.querySelectorAll('[data-wx-body] [data-warn-box]')];const g=wx.querySelector('[data-wx-body] p.g');
   return bx.map(b=>{const cs=getComputedStyle(b),r=b.getBoundingClientRect(),wr=wx.getBoundingClientRect(),t=b.querySelector('b'),lh=parseFloat(getComputedStyle(t).lineHeight)||parseFloat(getComputedStyle(t).fontSize)*1.2;
@@ -261,11 +298,11 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   assert.equal(await page.locator(body+' [data-warn-box]').isVisible(),false,'접힌 아코디언에서는 안 보임');
   await page.locator(body+' [data-wx]').click();const r=await warnInfo(body.replace(' .rf-body','')+' .rf-wx');
   assert.equal(r.length,1);assert.deepEqual(r[0].lines,['부산앞바다 풍랑주의보 발효','발표 : 10월 15일(목) 08:30','발효 : 10월 15일(목) 09:00','해제예정 : 10월 16일(금) 00시 ~ 06시']);
-  assert.equal(r[0].color,RED);assert.equal(r[0].style,'solid');assert.ok(r[0].width>=1);assert.deepEqual(r[0].sides,[RED,RED,RED]);assert.equal(r[0].bold,true);assert.equal(r[0].aboveWave,true,'「파도」 위');assert.ok(r[0].w>200,'보이는 상자 폭 '+r[0].w);assert.equal(r[0].inside,true);assert.equal(r[0].fit,true);
+  assert.equal(r[0].color,RED);assert.equal(r[0].style,'dashed','발효 = 빨강 점선(시안 2026-10-18 ⑤-2)');assert.ok(r[0].width>=1);assert.deepEqual(r[0].sides,[RED,RED,RED]);assert.equal(r[0].bold,true);assert.equal(r[0].aboveWave,true,'「파도」 위');assert.ok(r[0].w>200,'보이는 상자 폭 '+r[0].w);assert.equal(r[0].inside,true);assert.equal(r[0].fit,true);
   await shot('warn_now_one',body+' .rf-wx');await page.locator(body+' [data-wx]').click();});
  await check('선박사고: 도넛 14건·범례 상위 4종+기타(화재·전복)·인명피해 줄(사망·실종 빨강 굵게, 기록 없는 사고는 적지 않음 — 사용자 「기록없다고 표기하지말고」)',async()=>{
-  const r=await page.evaluate(b=>{const s=document.querySelector(b+' .rf-acc');return{total:s.querySelector('[data-acc-total]').textContent,rows:[...s.querySelectorAll('[data-acc-group]')].map(x=>x.innerText.replace(/\s+/g,'')),cas:s.querySelector('[data-acc-cas]').textContent,red:[...s.querySelectorAll('[data-acc-cas] b')].map(x=>[x.textContent,getComputedStyle(x).color,getComputedStyle(x).fontWeight]),arcs:s.querySelectorAll('[data-arc]').length,yrs:s.querySelector('h4 .rf-src').textContent};},body);
-  assert.equal(r.total,'14건');assert.deepEqual(r.rows,['충돌5건›','접촉3건›','표류2건›','침수2건›','기타(화재·전복)2건›']);assert.equal(r.arcs,5);assert.equal(r.yrs,'2021~2025년');
+  const r=await page.evaluate(b=>{const s=document.querySelector(b+' .rf-acc');return{total:s.querySelector('[data-acc-total]').textContent,rows:[...s.querySelectorAll('[data-acc-group]')].map(x=>x.innerText.replace(/\s+/g,'')),cas:s.querySelector('[data-acc-cas]').textContent,red:[...s.querySelectorAll('[data-acc-cas] b')].map(x=>[x.textContent,getComputedStyle(x).color,getComputedStyle(x).fontWeight]),arcs:s.querySelectorAll('[data-arc]').length,yrs:s.querySelector('h4 .rf-yrs').textContent,src:s.querySelectorAll('h4 .rf-src').length,title:s.querySelector('h4').textContent};},body);
+  assert.equal(r.total,'14건');assert.deepEqual(r.rows,['충돌5건›','접촉3건›','표류2건›','침수2건›','기타(화재·전복)2건›']);assert.equal(r.arcs,5);assert.equal(r.yrs,"('21년 ~ '25년)");assert.equal(r.src,0,'제목 오른쪽 따로 붙던 기간 글자 없음');assert.equal(r.title,"이 해역 과거 선박사고('21년 ~ '25년)");
   assert.equal(r.cas,'사망 1명(23년, 충돌), 실종 2명(21년, 전복)');assert.deepEqual(r.red.map(x=>x[0]),['사망 1명','실종 2명']);assert.ok(r.red.every(x=>x[1]==='rgb(255, 107, 107)'&&Number(x[2])>=700));});
  await check('선박사고 팝업: 충돌 최신순 「YYYY년 · 원인: X」/「원인 기록 없음」+「사망 1명」 빨강, 기타는 종류 이름 앞에, 사망·실종 없거나 미기록이면 오른쪽 비움(사용자 「사망, 실종 만 표기해」)',async()=>{
   await page.locator(body+' [data-acc-group="0"]').click();await page.waitForSelector('.rf-acc-pop:not([hidden])');
@@ -319,9 +356,9 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
  // ── 조용한 해역·기록 0일·3일 ──
  // 화면 쪽 API 캐시(60초)를 비우려고 페이지를 새로 연다 — 자료를 바꾼 장면마다 새 응답을 받는다.
  const reopen=async()=>{await page.reload();await page.evaluate(()=>app.ready);await page.locator('[data-layer="sea"]').click();await waitMode('accident');await openSheet();};
- await check('선박사고 0건: 한 줄 「이 해역 선박사고 없음 2021~2025년」 / 교통 기록 0일: 「2주 평균 16:00」 값 「-」·그래프 가운데 「-」',async()=>{
+ await check('선박사고 0건: 한 줄 「이 해역 선박사고 없음(\'21년 ~ \'25년)」 / 교통 기록 0일: 「2주 평균 16:00」 값 「-」·그래프 가운데 「-」',async()=>{
   fx.accidents=farAccidents;fx.days=0;fx.warnings=false;writeLive({count:4,density:2.4,sourceAt:'2026-10-15T16:10:00+09:00'});await reopen();
-  const t=await page.locator(body+' [data-acc-none]').evaluate(e=>[e.querySelector('h4').firstChild.textContent,e.querySelector('.rf-src').textContent]);assert.deepEqual(t,['이 해역 선박사고 없음','2021~2025년']);assert.equal(await page.locator(body+' .rf-acc').count(),0);
+  const t=await page.locator(body+' [data-acc-none]').evaluate(e=>[e.querySelector('h4').firstChild.textContent,e.querySelector('.rf-yrs').textContent]);assert.deepEqual(t,['이 해역 선박사고 없음',"('21년 ~ '25년)"]);assert.equal(await page.locator(body+' .rf-acc').count(),0);
   const r=await page.evaluate(b=>{const c=document.querySelector(b+' [data-traffic-card]');return{name:c.querySelector('[data-avg-name]').textContent,val:c.querySelector('[data-avg-value]').textContent,dash:c.querySelector('[data-empty]')&&c.querySelector('[data-empty]').textContent,lines:c.querySelectorAll('polyline').length,warn:c.querySelectorAll('rect[data-warn]').length,leg:c.querySelector('[data-chart-leg]').textContent};},body);
   assert.deepEqual(r,{name:'2주 평균 16:00',val:'-',dash:'-',lines:0,warn:0,leg:'선박 수'});
   const lv=await page.evaluate(b=>[...document.querySelectorAll(b+' .rf-hero .rf-lvl strong')].map(s=>s.textContent),body);assert.deepEqual(lv,['보통','보통'],'밀집도 2.4% → 보통(1 초과~10 미만, 2026-10-16 경계 1·10·20)');assert.equal(await page.locator(body+' .rf-hero b.rf-cc').count(),1,'4척이어도 16시 혼잡 예보 높음이면 충돌·접촉 주의(서버 조건A)');
@@ -377,6 +414,20 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
   await direct({...base,t:'2026-10-17T09:00:00+09:00',current:null,warnings:{status:'ok',items:[wItem('부산앞바다','주의보')]}},at);
   assert.equal(await page.locator('#direct .rf-wx h4').innerText(),'이 해역 10.17 09시 예보');assert.equal(await page.locator('#direct [data-wx]').getAttribute('aria-expanded'),'false');badgeOk(await badgeInfo('#direct .rf-wx'));await shot('warn_badge_longtitle_380','#direct .rf-wx');
   await page.evaluate(()=>{const h=document.getElementById('direct');h.style.cssText='width:352px;padding:8px';});});
+ // 시안 2026-10-18 ⑤-2 추가 확정: 특보 상자 테두리 점선 — 발효 빨강 점선, 예비특보 발표 노랑 점선(앱 예비특보 노랑 #ffd740). 지금 서버는 예비특보를 보내지 않아 직접 렌더로만 확인한다.
+ await check('시안 2026-10-18: 특보 상자 발효 = 빨강 점선 / 예비(state 예비) = 노랑 점선 「… 예비특보 발표」',async()=>{
+  const r=await directWarn({status:'ok',zone:{name:'부산앞바다',kind:'앞바다'},items:[wItem('부산앞바다','주의보'),wItem('부산앞바다','주의보',{state:'예비'})]});
+  assert.equal(r.length,2);assert.deepEqual(r.map(x=>[x.lines[0],x.color,x.style]),[['부산앞바다 풍랑주의보 발효',RED,'dashed'],['부산앞바다 풍랑주의보 예비특보 발표','rgb(255, 215, 64)','dashed']]);
+  assert.ok(r.every(x=>x.inside&&x.fit),JSON.stringify(r));await shot('warn_effective_prelim','#direct .rf-wx');
+  await page.evaluate(()=>{const h=document.getElementById('direct');h.style.cssText='width:352px;padding:8px';});});
+ await check('시안 2026-10-18: 4글자 「매우높음」 알약도 칸 안 · 밀집도를 모르면 척수 색 없음 · 사고 자료 없음 카드 제목도 흰색',async()=>{
+  await direct({...base,t:'2026-10-15T18:00:00+09:00',current:null,congestion:{...base.congestion,level:'매우높음',index:21.7,forecastAt:'2026-10-15T18:00:00+09:00'}},at);
+  const r=await page.evaluate(()=>{const host=document.getElementById('direct');host.style.display='block';const d=[...host.querySelectorAll('.rf-hero .rf-lvl')].find(x=>x.dataset.level==='매우높음'),s=d.querySelector('strong'),sb=s.getBoundingClientRect(),db=d.getBoundingClientRect();
+   const out={t:s.textContent,color:getComputedStyle(s).color,inside:sb.left>=db.left-.5&&sb.right<=db.right+.5,lines:Math.round(sb.height/parseFloat(getComputedStyle(s).lineHeight))};host.style.display='';return out;});
+  assert.deepEqual(r,{t:'매우높음',color:PAL.cong['매우높음'],inside:true,lines:1},JSON.stringify(r));
+  const n=await direct({...base,current:{gridId:'GR4_F4K23_P4',count:7,density:null,status:'ok',sourceAt:'2026-10-15T16:10:00+09:00'},history:{available:false}},at);
+  assert.ok(n.hero.includes('이 해역 선박 7척(밀집도 -)'),n.hero);assert.ok(!/rf-cnt" style=/.test(n.html),'밀집도 모르면 척수에 색을 칠하지 않음');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('#direct .rf-sea-acc h4')).color),'rgb(255, 255, 255)');});
  await check('독립 검토 지적 고정: 해상 막대 뒤 같은 칸에 연안 막대를 그리면 해상 전용 class(rf-risk-time)가 남지 않음',async()=>{
   const r=await page.evaluate(()=>{const el=document.createElement('div');document.body.appendChild(el);const times=['2026-10-15T16:12:00+09:00','2026-10-15T18:00:00+09:00'];
    RiskSlider.mount(el,times,times[0],()=>{},{risk:true,now:times[0]});const a=el.classList.contains('rf-risk-time');RiskSlider.mount(el,times,times[0],()=>{});const b=el.classList.contains('rf-risk-time');el.remove();return[a,b];});

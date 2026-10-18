@@ -3,8 +3,9 @@
  * 파일명: client/js/marine-life/risk-forecast/risk_basis.js
  * 역할  : 확정된 기준 상세 문안을 대화창으로 열고 휴대폰 뒤로가기·원본 PDF 다운로드를 연결한다.
  *         제목과 닫기는 스크롤 밖 고정 머리, 내용만 스크롤된다(2026-10-16 T8). 표는 가로 스크롤 상자로 감싼다(같은 날 — 좁은 휴대폰에서 표가 위아래로 길어지지 않게).
+ *         몇 글자 넘쳐 한 줄이 더 생긴 문단·글머리 줄은 그 줄만 자간을 줄인다(2026-10-18, fit → RiskFormat.fitLines).
  * [연계]
- *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
+ *  - 사용하는 파일 : 같은 폴더 위험예측 모듈(risk_basis_content.js 문안 · risk_format.js fitLines) / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
  *  - 마크업        : index2.html #risk-forecast-sheet / #risk-forecast-legend
  *  - 나를 쓰는 곳  : risk_forecast.js 또는 index2.html / risk_forecast_preview.html
@@ -21,7 +22,7 @@
      * @returns {void}
      * [연계] RiskForecast·대화창 이벤트 → DOM 정리
      */
-    function close() { if(w.PopupStack)w.PopupStack.remove('risk-forecast-basis');if(modal){modal.remove();modal=null;}document.removeEventListener('keydown',key);if(trigger&&trigger.isConnected)trigger.focus(); }
+    function close() { if(w.removeEventListener)w.removeEventListener('resize',fit);if(w.PopupStack)w.PopupStack.remove('risk-forecast-basis');if(modal){modal.remove();modal=null;}document.removeEventListener('keydown',key);if(trigger&&trigger.isConnected)trigger.focus(); }
     /**
      * Escape 닫기와 Tab 초점 순환을 처리한다.
      * 예: keydown 이벤트에서 key(event)
@@ -33,6 +34,14 @@
         if(e.key==='Escape'){e.preventDefault();close();return;}
         if(e.key==='Tab'&&modal){var f=modal.querySelectorAll('button,a[href]'),first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
     }
+    /**
+     * 열린 기준 상세의 문단·글머리 줄 가운데 몇 글자 넘쳐 한 줄이 더 생긴 것만 자간을 줄인다(RiskFormat.fitLines — -0.02·-0.035·-0.05em 중 한 줄 줄어드는 첫 값).
+     * 사용자 2026-10-18 「텍스트 한 두개 때문에 다음줄로 넘어가는 경우에는 자간을 조금 줄여서 한줄에 표시」. 표 칸·제목·MTIS 버튼 줄은 대상이 아니다.
+     * 예: 창 폭이 바뀌면(회전) 다시 잰다 · 글꼴이 늦게 들어와도 다시 잰다
+     * @param 없음 @returns {void}
+     * [연계] ← open(문안을 넣은 직후)·창 크기 바뀜·document.fonts.ready / → RiskFormat.fitLines(risk_format.js)
+     */
+    function fit() { if(modal&&w.RiskFormat&&w.RiskFormat.fitLines)w.RiskFormat.fitLines(modal.querySelectorAll('.rf-basis-body p:not(.rf-basis-links),.rf-basis-body .rf-pts li')); }
     /**
      * 확정 문안과 PDF 링크를 기준 상세 대화창에 표시한다. 문안 앞머리의 닫기 버튼(.mclose)과 제목(h3)은 고정 머리(.rf-basis-head)로 옮기고
      * 나머지는 스크롤 칸(.rf-basis-body)에 둔다 — 사용자 2026-10-16 「제목과 닫기버튼을 스크롤에 관계없이 고정토록 해줘」(연안·해상 동일).
@@ -50,6 +59,8 @@
             lead=/^(<button[^>]*class="mclose"[^>]*>[^<]*<\/button>)(<h3>[\s\S]*?<\/h3>)?/.exec(html)||['','',''];
         box.innerHTML='<div class="rf-basis-head">'+(lead[2]||'')+lead[1]+'</div><div class="rf-basis-body">'+html.slice(lead[0].length)+'</div>';
         modal.appendChild(box);document.body.appendChild(modal);box.querySelectorAll('.rf-basis-body table').forEach(scrollTable);if(w.PopupStack)w.PopupStack.push('risk-forecast-basis',close);modal.addEventListener('click',function(e){if(e.target===modal||e.target.closest('.mclose'))close();});document.addEventListener('keydown',key);box.querySelector('.mclose').focus();
+        // 넘친 줄 자간(fit)은 창을 다 연 뒤에 — 모양 손질이라 실패해도 창 열기·닫기·뒤로가기 등록에 영향이 없게 맨 끝. 실제 브라우저가 아닌 곳(생명주기 검사의 가짜 DOM)은 건너뛴다.
+        if(w.addEventListener&&typeof w.getComputedStyle==='function'){fit();w.addEventListener('resize',fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);}
     }
     /**
      * 기준 상세의 표 하나를 가로 스크롤 상자로 감싼다(사용자 2026-10-16 「표는 오른쪽 왼쪽으로 스크롤하면서 볼 수 있도록 해서 표가 과도하게 위아래로 켜지지 않도록」).

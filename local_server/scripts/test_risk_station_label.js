@@ -2,7 +2,7 @@
  * 파일명: local_server/scripts/test_risk_station_label.js
  * 역할  : 위험예측 시트(해상·연안 부제, 위험구역 목록)의 관할 문구가 「제주해양경찰서 한림파출소 관할」 꼴인지 검사한다.
  *         사용자 요청 2026-10-15 — 종전에는 「한림파출소」처럼 파출소 이름만 나왔다.
- * [연계] 제품 risk_format.stationLabel · risk_sheet.js(해상·연안 부제, 위험구역 아코디언) ·
+ * [연계] 제품 risk_format.stationLabel · risk_sheet.js(해상·연안 부제, 위험구역 표 — 2026-10-18 시안부터 구역별 관할 문구 없음) ·
  *        marine_fusion.analyze(office) · risk_store.coastDetail(subtitle.office, zones[].office) /
  *        대응표 = config/coastal_safety/coastguard_stations.geojson 의 name→station · verify_all.sh SUITES
  * [로드 순서] 독립 검사 — 임시 폴더·실제 Chromium(PW_CHROME)만 쓰고 운영 수집·3001 포트를 쓰지 않는다.
@@ -58,7 +58,7 @@ async function test(name,fn){try{await fn();pass++;console.log('✅',name);}catc
  await test('위험구역: 같은 이름 남항은 구역 자료의 소속서로 가른다',()=>assert.equal(officeOf('남항-1'),'부산해양경찰서'));
  await test('위험구역: 어디에도 없으면 null',()=>assert.equal(officeOf('미상-1'),null));
 
- // 4) 실제 시트 렌더 — 머리 부제와 아코디언 문구.
+ // 4) 실제 시트 렌더 — 머리 부제와 위험구역 표 문구.
  browser=await chromium.launch({...(process.env.PW_CHROME?{executablePath:process.env.PW_CHROME}:{}),headless:true,args:['--no-sandbox']});
  const page=await browser.newPage();await page.setContent('<!doctype html><html><body><div id="sheet"></div></body></html>');
  for(const file of ['risk_format.js','risk_sheet.js','risk_marine.js'])await page.addScriptTag({content:fs.readFileSync(path.join(ui,file),'utf8')});
@@ -69,6 +69,7 @@ async function test(name,fn){try{await fn();pass++;console.log('✅',name);}catc
  // 2026-10-16 사용자 「그리고 경위도는 빼자. 표시하는 곳에서.」 — 연안 부제는 좌표 없이 관할만(종전 「33°24′36″N - 126°15′36″E · 제주해양경찰서 한림파출소 관할」).
  await test('연안 시트 머리: 좌표 없이 「제주해양경찰서 한림파출소 관할」만',async()=>{const d=coast('한림'),r=await show(d,'coast',{id:'한림',lat:33.41,lon:126.26});assert.equal(r.sub,'제주해양경찰서 한림파출소 관할');});
  await test('연안 시트 머리: 경찰서를 모르면 파출소 이름만, 관할 없으면 빈 부제(좌표도 없음)',async()=>{assert.equal((await show(coast('모름'),'coast',{id:'모름',lat:35,lon:129})).sub,'없는파출소 관할');const r=await show(coast('밖'),'coast',{id:'밖',lat:37.24,lon:131.87});assert.equal(r.sub,'');});
- await test('위험구역 아코디언: 「강릉해양경찰서 강릉파출소 관할」·소속서 없으면 이름만',async()=>{const r=await show(coast('한림'),'coast',{id:'한림',lat:33.41,lon:126.26});for(const t of ['강릉해양경찰서 강릉파출소 관할','목포해양경찰서 목포남항파출소 관할','부산해양경찰서 남항파출소 관할',' · 미상파출소 관할'])assert.ok(r.body.includes(t),t);});
+ // 2026-10-18 연안 시트 시안 ②-2: 위험구역 목록은 표(위치·종류·구분·지도)로 바뀌고 구역마다 붙던 「…파출소 관할」·주소는 뺐다 — 관할 문구는 시트 머리 부제(위)만.
+ await test('위험구역 표(2026-10-18 시안): 구역 이름은 있고 구역별 「…파출소 관할」 문구는 없음(관할은 머리 부제만)',async()=>{const r=await show(coast('한림'),'coast',{id:'한림',lat:33.41,lon:126.26});for(const t of ['강릉-1 장소','목포남항-1 장소','남항-1 장소','미상-1 장소'])assert.ok(r.body.includes(t),t);for(const t of ['강릉해양경찰서 강릉파출소 관할','목포해양경찰서 목포남항파출소 관할','부산해양경찰서 남항파출소 관할','미상파출소 관할','강릉-1 주소'])assert.ok(!r.body.includes(t),t);assert.equal(r.sub,'제주해양경찰서 한림파출소 관할');});
 }catch(e){fail++;console.error('❌ 준비 실패',e.stack||e.message);}finally{if(browser)await browser.close();}
 console.log(`${pass} PASS / ${fail} FAIL`);process.exit(fail?1:0);})();

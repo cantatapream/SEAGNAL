@@ -9,6 +9,7 @@
  *  - 사용하는 파일 : services/station_briefing.js(forDefault — 생성·저장·설정) · advisory/displayControl.js(isAdminDevice — 특보 예측 표출 제어와 같은 기기 판정)
  *                    · services/admin_auth.js(verifyToken·requireAdminToken — 관리자 API 인증, 쓸 때 require)
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(관할 구역 — 설정 화면 지도) · GET /api/station-briefing
+ *                    GET /api/station-briefing/now(「지금 밀집」만 — 화면이 1분마다, since 가 같으면 unchanged, §11.10.24)
  *                    GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status(?only=progress — 진행 게이지용 가벼운 응답) · POST /api/admin/station-briefing/run
  *                    GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview(관리자 미리보기 — 노출 범위와 무관)
  *                    POST /api/admin/station-briefing/download(오류 md 를 잠깐 맡기고 한 번 쓰는 열쇠를 받음) · GET /api/station-briefing/download/:token(그 열쇠로 파일 한 번 받기 — 앱 안 WebView 는
@@ -63,6 +64,21 @@ function createRouter({
             let now = null; try { now = nowLine ? nowLine(key, r) : null; } catch (_) { now = null; }
             // nextPublishAt(§11.10.9 ⑦) = 다음 정시 판 공개 시각 — 화면 머리 「(다음 브리핑 갱신 HH:MM 또는 특보 변경 시)」
             res.json({ ok: true, audience: g.audience, display: true, ...r, now, nextPublishAt: R.nextPublishAt(clock()) });
+        } catch (e) { fail(res, e); }
+    });
+    // 「지금 밀집」만 다시(§11.10.24 — 2026-10-18 사용자 *"실시간으로 데이터를 업데이트 시킬 수 있는 거 아닌가? … 시간도 계속 바뀌어가면서"*).
+    //   화면이 브리핑을 보고 있는 동안 1분마다 부른다 — 브리핑 본문 없이 now 만. since = 화면이 가진 now.at(실시간 선박 자료 시각).
+    //   실시간 자료 시각이 그대로면 {unchanged:true}(관할 척수 계산을 하지 않는다), 바뀌었으면 브리핑 GET 과 같은 now(nowLine 같은 함수), 낡았거나 오늘 판이 아니면 null.
+    router.get('/api/station-briefing/now', (req, res) => {
+        try {
+            const g = gate(req), key = req.query.station, day = req.query.day || 'auto', since = typeof req.query.since === 'string' ? req.query.since : '';
+            res.set('Cache-Control', 'no-store');
+            if (!g.display) return res.json({ ok: true, audience: g.audience, display: false, now: null });
+            if (typeof key !== 'string' || !key) return res.status(400).json({ ok: false, error: '관할(station) 필요' });
+            if (!['auto', 'today', 'tomorrow'].includes(day)) return res.status(400).json({ ok: false, error: 'day 는 auto·today·tomorrow' });
+            if (!svc().stations().some((s) => s.key === key)) return res.status(404).json({ ok: false, error: '관할 없음' });
+            let now = null; try { now = nowLine ? nowLine(key, svc().pick({ key, day }), { since }) : null; } catch (_) { now = null; }
+            res.json({ ok: true, audience: g.audience, display: true, now });
         } catch (e) { fail(res, e); }
     });
     // 오류 md 한 번 받기(§11.10.7 — 앱 안에서 [md로 저장]). 열쇠가 없거나 지났으면 404 글.
@@ -130,13 +146,16 @@ function nowLineText({ at, count, gridCount, busiest }) {
 /**
  * 「지금 밀집」 한 줄(§11.6-8 Q6 — 브리핑을 열 때 규칙 문장, AI 없음, 오늘 판에서만). 해상 통합 briefing() 의 지금 척수를 쓴다. 글은 nowLineText(§11.10.9 — 두 줄).
  * 예: '14:05 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 12개\n한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의'
- * @param {string} key @param {object} r - pick 결과 @returns {object|null} [연계] ← 기본 라우터 / → marine_fusion.briefing·nowLineText
+ * §11.10.24: o.since(화면이 가진 now.at)가 지금 실시간 자료 시각과 같고 자료가 정상이면 {unchanged:true, at} — GET /now 가 1분마다 불러도 관할 척수 계산은 새 자료 때만.
+ * @param {string} key @param {object} r - pick 결과 @param {object} [o] - {since} @returns {object|null} [연계] ← 기본 라우터(GET 브리핑·GET /now) / → marine_fusion.tables(자료 시각)·briefing·nowLineText
  */
-function defaultNowLine(key, r) {
+function defaultNowLine(key, r, o) {
     const SB = require('../services/station_briefing');
     const now = Date.now(); if (!r.briefing || r.date !== R.kstDate(now)) return null;
     const st = SB.forDefault().stations().find((s) => s.key === key); if (!st) return null;
     const { stores } = require('./risk_forecast');
+    // §11.10.24 가벼운 다시 묻기(GET /now): 화면이 가진 자료 시각(since)과 실시간 자료 시각이 같고 자료가 정상이면 관할 척수를 다시 세지 않는다
+    if (o && o.since) { const s = stores.marine.tables().status; if (s && s.status === 'ok' && (s.sourceAt || s.collectedAt) === o.since) return { unchanged: true, at: o.since }; }
     return nowLineFrom(stores.marine.briefing(st.idx, R.isoKst(now)));
 }
 /**

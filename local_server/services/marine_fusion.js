@@ -177,6 +177,18 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         for(const c of table.cells){let level=null,n=null,color=null;if(mode==='current'){const r=liveById.get(c.id);if(!r&&status.status==='ok'){level='낮음';n=0;color=0;}   // 최신 응답에 없는 칸 = 배 없음 → 「낮음」(사용자 2026-10-15 「혼잡도에서 배가없는 칸을 낮음으로 색칠해줘」)
             else if(r&&status.status==='ok'){level=densityLevel(r[2]);if(level){n=r[1];const rank=DENSITY_LEVELS.indexOf(level);color=Math.min(.999999,(rank+Math.max(0,Math.min(1,(r[2]-DENSITY_CUTS[rank])/(DENSITY_CUTS[rank+1]-DENSITY_CUTS[rank]))))/4);}}}else if(mode==='congestion'){const r=congestionAt(inputs.congestion,forecastKey(at),c.id);if(r&&inputs.sources.congestion?.status==='ok'){level=r.congestionLevel;n=r.congestionIndex;const cuts=[0,1,10,20,100],rank=RANK[level];color=(rank+Math.max(0,Math.min(1,(n-cuts[rank])/(cuts[rank+1]-cuts[rank]))))/4;}}else{const accidentIndex=accidentMapping.get(c.i),r=accidentIndex!==undefined&&findRow(accRows,accidentIndex,true);if(r&&inputs.sources.accident?.status==='ok'){level=r[2];n=r[1];color=colorById.get(accidentIndex);}}if(level&&Number.isFinite(n)&&Number.isFinite(color))result.push([c.i,n,level,color]);}
         return{v:table.v,cells:result,mode:mode==='risk'?'accident':mode,t:at,forecastAt:mode==='accident'||mode==='risk'?accAt:mode==='congestion'?T.isoKst(Math.floor(Date.parse(at)/3600000)*3600000):null,currentStatus:status,grid:table.grid,accidentResolution:table.accidentResolution};}
+    /** 경위도 상자 한 구역의 해상 칸 색·숫자를 칸 위치와 함께 준다 — unifiedFrame 과 같은 값(같은 함수)을 그 상자 안 칸만.
+     * 연안 안전 브리핑 팝업 지도(설계서 §11.10.24 — 「관할 해역 선박 N척」·붐비는 해역 = 혼잡도 지금(current), 근거 「위험이 높아진 해역」 = 위험 예측(risk))가 쓴다.
+     * 전국 표(unified-cells 약 2.5MB)와 전국 프레임을 받지 않고 관할 하나만 그리려고 둔다. 상자가 4°×4° 보다 크거나 한국 범위(115~140°E·20~45°N) 밖이면 400.
+     * 예: areaFrame('current',undefined,'126.0,33.2,126.5,33.6') → {t,mode:'current',currentStatus,bbox:[126,33.2,126.5,33.6],cells:[{id:'GR4_…',lon,lat,n:18,level:'보통',color:0.31}]}
+     * @param {string} mode - risk|accident|congestion|current @param {string} [t] - 선택 시각 @param {string|number[]} bbox - '서,남,동,북' @returns {object}
+     * [연계] ← routes/risk_forecast GET /sea/area-frame ← station_briefing_render.js gridMap / → unifiedFrame·unifiedCells(색 위치·숫자를 새로 계산하지 않는다)
+     */
+    function areaFrame(mode,t,bbox){const b=(Array.isArray(bbox)?bbox:String(bbox||'').split(',')).map(Number);
+        if(b.length!==4||!b.every(Number.isFinite)||b[0]>=b[2]||b[1]>=b[3]||b[2]-b[0]>4||b[3]-b[1]>4||b[0]<115||b[2]>140||b[1]<20||b[3]>45)throw Object.assign(Error('구역 상자 오류'),{status:400});
+        const f=unifiedFrame(mode,t),byI=new Map(unifiedCells().cells.map(c=>[c.i,c])),cells=[];
+        for(const r of f.cells){const c=byI.get(r[0]);if(c&&c.lon>=b[0]&&c.lon<=b[2]&&c.lat>=b[1]&&c.lat<=b[3])cells.push({id:c.id,lon:c.lon,lat:c.lat,n:r[1],level:r[2],color:r[3]});}
+        return{t:f.t,mode:f.mode,forecastAt:f.forecastAt,currentStatus:f.currentStatus,bbox:b,cells};}
     function jurisdictionList(){loadStatic();return{stations:stations.map(({id,name,station})=>({id,name,station}))};}
     /** 해상 통합 조회 시각을 검사한다. 예: 지금-3시간~내일 23:59는 통과, 모레 00시는 400.
      * 끝은 오늘 00시+48시간(앞으로 보기 outlook 의 end 와 같다 — 「해상 공식 사고예보는 2일까지만」 2026-10-15; 종전 지금+72시간).
@@ -248,6 +260,6 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const result={...summary(historyRows(geometry)),...period,excludedCount};cellSummaryCache.set(key,result);if(cellSummaryCache.size>5000)cellSummaryCache.delete(cellSummaryCache.keys().next().value);return result;}
     /** 캐시 크기(시험·점검용). 예: cacheSizes() → {history:0,cellSummary:12}. @returns {object} [연계] ← test_station_briefing */
     function cacheSizes(){return{history:historyCache.size,cellSummary:cellSummaryCache.size};}
-    return{tables,current,unifiedCells,unifiedFrame,jurisdictionList,analysis,briefing,stationAt,cellHistory,cacheSizes};
+    return{tables,current,unifiedCells,unifiedFrame,areaFrame,jurisdictionList,analysis,briefing,stationAt,cellHistory,cacheSizes};
 }
 module.exports={createStore,location,trafficLevel,densityLevel,accidentList,collisionNotice,riskColors,summary,warningsAt,warnTime,INCIDENTS};

@@ -128,17 +128,23 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
  await check('T24 상단에서 넘기면 열린 연안 시트도 함께(날짜 줄·「가장 높은 때」·내용), 시트 < > 로 넘기면 상단도 함께',async()=>{
   await page.evaluate(()=>window._riskForecastApp.select('coast','S1'));await ready();let s=await S();
   assert.deepEqual([s.title,s.sheetDate,s.peak,s.sheetPrev,s.sheetNext],['가짜해변',"'26. 10. 12.(월)",'가장 높은 때 18시 기준',true,false]);assert.ok(s.body.includes('행사 S1@2026-10-12'));
+  assert.equal(s.nav,false,'2026-10-18 「바텀시트 자체에서 넘길 수 있으니」 — 연안 시트가 열린 동안 상단 날짜 줄 숨김');
   await navClick(1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-13'));await ready();s=await S();
   assert.deepEqual([s.sheetDate,s.peak,s.sheetPrev,s.sheetNext,s.label],["'26. 10. 13.(화)",'가장 높은 때 15시 기준',false,true,'10월 13일 (화)'],'상단 → 시트');assert.equal(log.spot.at(-1).t,TOMORROW);
   if(SHOTS)await page.screenshot({path:path.join(SHOTS,'day-380-시트-내일.png')});
   await sheetClick(-1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-12'));await ready();s=await S();
-  assert.deepEqual([s.t,s.label,s.tag,s.sheetDate,s.peak],[at,'10월 12일 (월)','오늘',"'26. 10. 12.(월)",'가장 높은 때 18시 기준'],'시트 → 상단');assert.equal((await toast()).text,'오늘 10월 12일 (월)','시트에서 넘겨도 같은 토스트');
+  assert.deepEqual([s.t,s.label,s.tag,s.sheetDate,s.peak,s.nav],[at,'10월 12일 (월)','오늘',"'26. 10. 12.(월)",'가장 높은 때 18시 기준',false],'시트 → 상단(숨긴 채 값만)');assert.equal((await toast()).text,'오늘 10월 12일 (월)','시트에서 넘겨도 같은 토스트');
   if(SHOTS)await page.screenshot({path:path.join(SHOTS,'day-380-시트-오늘.png')});
  });
  await check('§16.1 ② + 결정 1 연안 시트 안내: 그날 남은 칸 어느 칸이든 특보·표류가 있으면 — 특보는 기상청 시각(발표·발효 예정·해제 예고), 못 읽은 것만 칸 시각+「칸 기준」, 표류는 칸 시각(12시 무렵), 특보 없는 날은 안내 없음',async()=>{
-  const notes=()=>page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice')].map(e=>e.textContent));
+  // 2026-10-18 연안 시트 시안: 특보·표류는 주황 상자(.rf-notice) 하나 안의 줄(.rf-notice-line) — 글자 ⚠·🛟 대신 그림(SVG), 특보 이름·상태는 빨강 굵게, 「특보 중에는…」은 다음 줄.
+  const notes=()=>page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice-line')].map(e=>e.textContent));
+  const boxes=()=>page.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice').length);
   assert.equal((await S()).peak,'가장 높은 때 18시 기준');
-  assert.deepEqual(await notes(),['⚠ 강풍주의보 예비특보(10:30 발표) — 21~24시 발효 예정. 태풍주의보 예비특보 — 18시~(칸 기준). 풍랑주의보 발효 중(05시 발표) — 13일 03~06시 해제 예고. 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 14% 높습니다.','🛟 12시 무렵 이 앞바다 바람 9m/s — 튜브·물놀이기구 표류 주의'],'결정 1: 발효 = 해제 예고 시각(다른 날 「13일」)·발표 시각, 예비 = 발효 예정 시각(범위 21~24시), 시각 없으면 칸 시각+「칸 기준」, 「더 일찍 풀릴」 없음');
+  assert.equal(await boxes(),1,'특보·표류가 한 상자');
+  assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-notice .rf-warn-name')].map(b=>[b.textContent,getComputedStyle(b).color])),[['강풍주의보 예비특보','rgb(239, 68, 68)'],['태풍주의보 예비특보','rgb(239, 68, 68)'],['풍랑주의보 발효 중','rgb(239, 68, 68)']],'특보 이름·상태 빨강 굵게');
+  assert.equal(await page.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-notice-line svg').length),2,'줄마다 그림');
+  assert.deepEqual(await notes(),['강풍주의보 예비특보 — 21~24시 발효 예정. 태풍주의보 예비특보 — 18시~(칸 기준). 풍랑주의보 발효 중 — 13일 03~06시 해제 예고.특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 14% 높습니다.','12시 무렵 바람 9m/s로 튜브·물놀이기구 등 표류 주의'],'결정 1: 발효 = 해제 예고 시각(다른 날 「13일」)·발표 시각, 예비 = 발효 예정 시각(범위 21~24시), 시각 없으면 칸 시각+「칸 기준」, 「더 일찍 풀릴」 없음');
   assert.ok(!/더 일찍/.test((await notes()).join('')),'「더 일찍 풀릴 수 있음」 없음');
   if(SHOTS){await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-notice').scrollIntoView({block:'center'}));await page.screenshot({path:path.join(SHOTS,'day-380-시트-안내.png')});}
   await sheetClick(1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-13'));await ready();
@@ -162,7 +168,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
   await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('.rf-basis'));assert.equal((await S()).open,true,'Escape 는 기준 상세만 닫는다');
   await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.getElementById('risk-forecast-sheet').classList.contains('open'));assert.equal((await S()).selected,null,'Escape 로 시트 닫힘');
   await page.waitForFunction(()=>!document.getElementById('risk-forecast-sheet').classList.contains('rf-shown'));
-  await page.evaluate(()=>window._riskForecastApp.select('coast','S1'));await ready();await closeSheet();assert.equal((await S()).selected,null,'✕ 로 닫힘');
+  await page.evaluate(()=>window._riskForecastApp.select('coast','S1'));await ready();await closeSheet();assert.equal((await S()).selected,null,'✕ 로 닫힘');assert.equal((await S()).nav,true,'닫으면 상단 날짜 줄이 다시 보인다(2026-10-18)');
  });
  await check('T24 같은 위치 관광지: 닫힌 상태에서 지도 누름 → 선택 목록, 목록이 열린 동안 지도 누름은 무시, 목록 안 관광지 버튼(시트 안)은 동작',async()=>{
   const [x,y]=await px(126.62,33.53);await page.mouse.click(x,y);await page.waitForFunction(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')&&document.querySelectorAll('#risk-forecast-sheet [data-spot-id]').length===2);
@@ -196,8 +202,8 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
   await page.waitForFunction(t=>window._riskForecastApp.getState().t===t,at);
   for(const h of [6,6,6,6])await step(h);await page.waitForFunction(()=>window._riskForecastApp.getState().t==='2026-10-13T09:00:00+09:00');
   await page.evaluate(()=>document.querySelector('[data-layer="sea"]').click());await page.waitForFunction(()=>!window._riskForecastApp.getState().sea);
-  const s=await S();assert.deepEqual([s.nav,s.bar,s.seaTimeOn,s.label,s.tag,s.t,s.sheetDate,s.open],[true,false,false,'10월 13일 (화)','내일','2026-10-13T09:00:00+09:00',"'26. 10. 13.(화)",true],'열린 연안 시트·상단 날짜가 그 시각의 날짜');
-  await closeSheet();await navClick(-1);await page.waitForFunction(t=>window._riskForecastApp.getState().t===t,at);
+  const s=await S();assert.deepEqual([s.nav,s.bar,s.seaTimeOn,s.label,s.tag,s.t,s.sheetDate,s.open],[false,false,false,'10월 13일 (화)','내일','2026-10-13T09:00:00+09:00',"'26. 10. 13.(화)",true],'열린 연안 시트·상단 날짜가 그 시각의 날짜(시트가 열려 있어 상단 줄은 숨김 — 2026-10-18)');
+  await closeSheet();assert.equal((await S()).nav,true,'닫으면 상단 날짜 줄');await navClick(-1);await page.waitForFunction(t=>window._riskForecastApp.getState().t===t,at);
  });
  await boot(1280);
  await check('T24 1280px: 상단 날짜 줄은 항행경보와 같은 자리(top 66px·가운데)·같은 모양 — 범례와 안 겹침',async()=>{
