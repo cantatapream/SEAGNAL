@@ -1207,12 +1207,16 @@
     /** 아무 팝업 지도나 열려 있나(10분 정기 갱신이 같은 판이면 본문을 다시 그리지 않게 — 열린 창이 닫히지 않게). 예: popupOpen() → false @returns {boolean} [연계] ← station_briefing.js loadBriefing */
     function popupOpen() { return !!popup; }
     /**
-     * 글 안의 링크 단추(밑줄 글 — 근거 줄 펼침 단추와 같은 .sb-x-btn 모양). 예: mapLink('대해구 75', fn, 'haegu') → <button class="sb-x-btn sb-maplink" data-sb-maplink="haegu" aria-haspopup="dialog">
-     * @param {string} text @param {function(HTMLElement)} onOpen - 눌렀을 때(단추를 넘긴다) @param {string} key @returns {HTMLButtonElement} [연계] ← analysisNodes·nowNode
+     * 글 안의 링크 단추(밑줄 글 — 근거 줄 펼침 단추와 같은 .sb-x-btn 모양). 예: mapLink('대해구 75', fn, 'haegu') → <span role="button" tabindex="0" class="sb-x-btn sb-maplink" data-sb-maplink="haegu" aria-haspopup="dialog">
+     *   <button> 이 아니라 <span role="button"> 이다(2026-10-18 사용자 휴대폰 화면 — 「제주도서부앞바다·…북서연안바다(232해구)」 다음 「는」이 다음 줄로 내려가 어색함):
+     *   <button> 은 CSS 에서 display:inline 을 줘도 브라우저가 inline-block 으로 그려(Chromium 실측 — getComputedStyle 이 inline-block) 한 줄보다 긴 링크가 통째 상자가 되고,
+     *   목록 점은 상자 마지막 줄에 붙고 뒷말은 다음 줄로 밀린다. span 은 글처럼 흘러 뒷말이 바로 이어진다. 키보드: Enter·Space 로 누름(tabindex 0).
+     * @param {string} text @param {function(HTMLElement)} onOpen - 눌렀을 때(링크 요소를 넘긴다) @param {string} key @returns {HTMLElement} [연계] ← analysisNodes·nowNode·rocksLine
      */
     function mapLink(text, onOpen, key) {
-        var b = el('button', 'sb-x-btn sb-maplink', text); b.type = 'button'; b.setAttribute('aria-haspopup', 'dialog'); b.setAttribute('data-sb-maplink', key);
+        var b = el('span', 'sb-x-btn sb-maplink', text); b.setAttribute('role', 'button'); b.tabIndex = 0; b.setAttribute('aria-haspopup', 'dialog'); b.setAttribute('data-sb-maplink', key);
         b.addEventListener('click', function (e) { e.stopPropagation(); onOpen(b); });
+        b.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onOpen(b); } });
         return b;
     }
     // ── 잠기는 바위(간출암) — 링크 → 팝업 지도 → 마커 → 간출암 조석 곡선 상자(2026-10-17 사용자 결정 — 설계서 §11.10.10) ──
@@ -1254,7 +1258,7 @@
      * (물때)·조석 칸의 서버 물때 줄 하나 — 그 줄에 summary.rocks.link(「잠기는 바위(간출암) N곳」)가 있고 관할 경계(summary.sea.area)가 있으면 그 글만 팝업 지도 링크로.
      * 지도 = 관할 경계(파란 선) + 그 N곳 간출암 마커 — 마커를 누르면 openRockPanel. 그 밖은 글만(옛 판·바위 목록 없음).
  *   §11.10.32(사용자 *"이거 배경을 위성지도로 해주고"* · *"해당 지도에서 확대 축소도 가능토록 해줘."*): 바탕 = 위성지도(miniMap opt.sat) · 끌기·핀치·휠·더블탭 + +/− 단추(opt.zoom).
-     * 예: rocksLine('sb-sum-tide', '관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 …', b) → <p class="sb-sum-tide" data-sb-rocks>관할 내 <button data-sb-maplink="rocks">잠기는 바위(간출암) 2곳</button>이 …</p>
+     * 예: rocksLine('sb-sum-tide', '관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 …', b) → <p class="sb-sum-tide" data-sb-rocks>관할 내 <span role="button" data-sb-maplink="rocks">잠기는 바위(간출암) 2곳</span>이 …</p>
      * @param {string} cls - p 의 class @param {string} line - 서버 글 @param {Object} b - briefing(summary.rocks·summary.sea.area·station) @returns {HTMLElement}
      * [연계] ← tidePart·tide / → mapLink·openMapPopup·miniMap(points)·openRockPanel
      */

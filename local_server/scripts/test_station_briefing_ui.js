@@ -622,9 +622,13 @@ function makeBriefings() {
                 const b = JSON.parse(JSON.stringify(base)); b.overview.sea = hgName + '는 유의파고 2.6m·풍속 14m/s로 물결이 높고 바람이 매우 강할 것으로 예상됩니다. 2320해구 같은 다른 번호는 링크가 아닙니다. 따라서 비양도 주변 해역 운항에 주의가 필요합니다.';
                 R.render(box, { ok: true, briefing: b, now: nowObj }, { now });
                 out.links = [...box.querySelectorAll('[data-sb-maplink]')].map((x) => x.dataset.sbMaplink + ':' + x.textContent);
+                // 2026-10-18 휴대폰: <button> 은 display:inline 이어도 inline-block 으로 그려져 긴 해역 링크 뒤 「는」이 다음 줄로 밀렸다 → <span role="button"> 이어야 글처럼 흐른다
+                out.linkKind = [...new Set([...box.querySelectorAll('[data-sb-maplink]')].map((x) => x.tagName + '/' + getComputedStyle(x).display + '/' + x.getAttribute('role') + '/' + x.tabIndex))];
                 const pop = () => { const d = document.querySelector('[data-sb-map-popup]'); if (!d) return null; const m = d.querySelector('.sb-minimap'), bx = d.querySelector('.sb-dlg-box'), rr = bx.getBoundingClientRect();
                     return { key: d.dataset.sbMapPopup, role: bx.getAttribute('role'), modal: bx.getAttribute('aria-modal'), title: d.querySelector('.sb-dlg-title').textContent, map: m.dataset.sbMap, area: m.dataset.sbMapArea, hl: m.dataset.sbMapHl, cells: m.dataset.sbMapCells, labels: m.dataset.sbMapLabels, blink: m.dataset.sbBlink,
                         h: Math.round(m.getBoundingClientRect().height), vh: innerHeight, left: Math.round(rr.left), right: Math.round(innerWidth - rr.right), focus: document.activeElement && document.activeElement.hasAttribute('data-sb-map-close') }; };
+                box.querySelector('[data-sb-maplink="haegu"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); out.enterOpens = !!document.querySelector('[data-sb-map-popup]');
+                if (out.enterOpens) document.querySelector('[data-sb-map-close]').click();
                 box.querySelector('[data-sb-maplink="haegu"]').click(); out.haegu = pop();
                 document.querySelector('[data-sb-map-popup]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); out.afterEsc = !!document.querySelector('[data-sb-map-popup]'); out.blinkAfter = R.blinking();
                 box.querySelector('[data-sb-maplink="now-all"]').click(); out.all = pop(); document.querySelector('[data-sb-map-close]').click(); out.afterX = !!document.querySelector('[data-sb-map-popup]');
@@ -634,6 +638,8 @@ function makeBriefings() {
             assert.deepEqual(r.links.filter((l) => !l.startsWith('warn:')), ['haegu:' + hg[0].name, 'now-all:관할 해역 선박 37척', 'now-busiest:한림항 북서방 1.2해리 해역(232-2해구)', 'rocks:잠기는 바위(간출암) 2곳', 'rocks:잠기는 바위(간출암) 2곳'], '2320해구 은 링크가 아님 · (물때)·조석 칸의 잠기는 바위 링크(§11.10.10)');
             assert.deepEqual([r.haegu.key, r.haegu.role, r.haegu.modal, r.haegu.title, r.haegu.map, r.haegu.area, r.haegu.hl, r.haegu.cells, r.haegu.focus], ['haegu', 'dialog', 'true', hg[0].name, 'ol', '1', '1', '0', true]);
             assert.ok(r.haegu.h >= r.haegu.vh * 0.55 && r.haegu.h <= r.haegu.vh * 0.7, '지도 높이 약 62vh — ' + r.haegu.h + '/' + r.haegu.vh); assert.ok(r.haegu.left >= 16 && r.haegu.right >= 16, '360px 좌우 여백 ' + r.haegu.left + '/' + r.haegu.right);
+            assert.deepEqual(r.linkKind, ['SPAN/inline/button/0'], '링크는 글처럼 흐르는 span(role=button, Tab 으로 닿음) — ' + JSON.stringify(r.linkKind));
+            assert.equal(r.enterOpens, true, 'Enter 로도 열림(키보드)');
             assert.equal(r.afterEsc, false, 'Esc 로 닫힘'); assert.equal(r.blinkAfter, 0, '닫으면 깜빡임 멈춤');
             // §11.10.24(2026-10-18): 선박 팝업은 위험예측 배경(위성지도 + 혼잡도 지금 칸 색·선박 수 — RiskMapLayer)으로 바뀌었다 — 종전 청록 칸 층(cells)은 쓰지 않는다.
             //   칸 색·숫자·누르기·실시간 갱신은 아래 [§11.10.24-UI] 가 본다(자료를 받은 뒤라 기다려야 한다).
