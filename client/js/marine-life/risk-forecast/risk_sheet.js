@@ -5,6 +5,7 @@
  *         시트는 해양종합정보 바텀시트처럼 아래에서 올라오고 내려간다(0.3초 — hold 로 0.2초 뒤에 올리기, 2026-10-16).
  *         연안 시트는 날짜(KST)당 하나 — 그날 가장 높은 값(T24). 시각 막대 자리에 해양종합정보 바텀시트와 같은 날짜 넘기기(< '26. 10. 16.(금) >)와 「가장 높은 때 HH시 기준」.
  *         특보·표류 안내는 그날 남은 칸 어느 칸이든 있으면 시각과 함께(설계서 §16.1 ②) — 특보는 기상청 발표·발효 예정·해제 예고 시각 그대로(「풍랑주의보 발효 중 — 17일 06~09시 해제 예고」, 결정 1 2026-10-16).
+ *         표류 대상 말은 서버 target(예보 시각의 KST 달 — 6~9월 「튜브·물놀이기구」, 그 밖 「소형 보트·레저기구」, 2026-10-18 설계서 §11.10.36).
  *         연안 시트 끝에 「이 관광지 주변 연안사고(2020~2024년)」 카드(2026-10-16 T9 — 해상 사고 카드와 같은 꼴, RiskMarine 공용 함수). 경위도는 화면에 쓰지 않는다(같은 날).
  *         2026-10-18 연안 시트 시안(CoastSheet.dc.html·CoastSheetOpen.dc.html): 등급 배지·막대 눈금·「…날 수 있는 조건」·「•」 줄과 넘치는 줄만 자간 맞춤·
  *         위험구역 종류 밑줄 버튼 → 표(위치·종류·구분·지도)·특보/표류 한 상자·「주변 연안사고('20년 ~ '24년)」(설계서 §15.2).
@@ -231,13 +232,16 @@
     function noticeBox(lines) { lines=lines.filter(Boolean); return lines.length?'<div class="rf-notice">'+lines.join('')+'</div>':''; }
     /**
      * 표류 안내 글(2026-10-18 시안 「09시부터 바람 최대 10m/s로 튜브·물놀이기구 등 표류 주의」). 칸 시각이 「09시~」(그날 끝까지)이면 「09시부터」.
-     * 예: driftText({when:'09시~',most:true,windMs:9.6}) → '09시부터 바람 <b class="rf-t-y">최대 10m/s</b>로 <b class="rf-notice-em">튜브·물놀이기구 등 표류 주의</b>'
-     * @param {Object} n - {when,most,windMs} @returns {string} HTML [연계] noticeLines
+     * 대상 말은 서버 target 그대로(risk_score.driftTarget — 그 예보 시각의 KST 달: 6~9월 「튜브·물놀이기구」, 그 밖 「소형 보트·레저기구」 — 사용자 2026-10-18
+     *   *"6월 ~ 9월이 좋겠어. 튜브, 물놀이기구. 나머지는 소형보트, 레저기구 등이라고 표현 하자."*, 설계서 §11.10.36 · 관할 브리핑과 같은 값). target 이 없으면 대상 말 없이 「표류 주의」(화면이 달을 짐작하지 않는다).
+     * 예: driftText({when:'09시~',most:true,windMs:9.6,target:'튜브·물놀이기구'}) → '09시부터 바람 <b class="rf-t-y">최대 10m/s</b>로 <b class="rf-notice-em">튜브·물놀이기구 등 표류 주의</b>'
+     *     driftText({windMs:9,target:'소형 보트·레저기구'}) → '바람 <b class="rf-t-y">9m/s</b>로 <b class="rf-notice-em">소형 보트·레저기구 등 표류 주의</b>'
+     * @param {Object} n - {when,most,windMs,target} @returns {string} HTML [연계] noticeLines
      */
-    function driftText(n) { return (n.when?F.escape(String(n.when).replace(/~$/,'부터'))+' ':'')+'바람 <b class="rf-t-y">'+(n.most?'최대 ':'')+Math.round(n.windMs)+'m/s</b>로 <b class="rf-notice-em">튜브·물놀이기구 등 표류 주의</b>'; }
+    function driftText(n) { return (n.when?F.escape(String(n.when).replace(/~$/,'부터'))+' ':'')+'바람 <b class="rf-t-y">'+(n.most?'최대 ':'')+Math.round(n.windMs)+'m/s</b>로 <b class="rf-notice-em">'+(n.target?F.escape(n.target)+' 등 ':'')+'표류 주의</b>'; }
     /**
      * 서버 안내 목록을 안내 줄들로 바꾼다(하루 값이 없는 응답의 종전 길 — 특보 「… 발효 상태입니다」·표류).
-     * 예: noticeLines([{key:'drift',windMs:9}]) → [표류 줄] @param {Object[]} list - 서버 안내 목록 @returns {string[]} 줄 HTML [연계] notices·dayNotices(표류)
+     * 예: noticeLines([{key:'drift',windMs:9,target:'소형 보트·레저기구'}]) → [표류 줄] @param {Object[]} list - 서버 안내 목록 @returns {string[]} 줄 HTML [연계] notices·dayNotices(표류)
      */
     function noticeLines(list) {
         return (list||[]).map(function(n){
@@ -277,9 +281,9 @@
      * 칸 시각은 KST 시(지금 칸 13:25 는 13시). 그날 마지막 칸까지 이어지면 「HH시~」, 여러 칸이면 「HH시~HH시」(첫 칸~끝 칸), 한 칸이면 「HH시 무렵」 — 표류(칸마다 바람)는 그대로 칸 시각.
      * 예: [{key:'warning',name:'풍랑주의보',state:'발효',from,to,issued:{start:'…14:00'},release:{start:'…17T06:00',end:'…09:00',range:true}}]
      *     → 「[세모] <빨강 굵게>풍랑주의보 발효 중</>(14시 발표) — 17일 06~09시 해제 예고.<br>특보 중에는 사고는 평소보다 적지만, …」(2026-10-18 시안)
-     *     [{key:'drift',windMs:9,from:'…T03:00…',to:'…T03:00…'}] → 「[구명환] 03시 무렵 바람 9m/s로 튜브·물놀이기구 등 표류 주의」 · 여러 칸에 이어지면 그중 가장 센 바람 「최대 Nm/s」, 그날 끝까지면 「09시부터」
+     *     [{key:'drift',windMs:9,target:'튜브·물놀이기구',from:'…T03:00…',to:'…T03:00…'}] → 「[구명환] 03시 무렵 바람 9m/s로 튜브·물놀이기구 등 표류 주의」(10~5월이면 서버 target 「소형 보트·레저기구」) · 여러 칸에 이어지면 그중 가장 센 바람 「최대 Nm/s」, 그날 끝까지면 「09시부터」
      *     특보·표류 줄은 한 상자(.rf-notice) 안 줄(.rf-notice-line)
-     * @param {Object} daily - 서버 risk_store.coastDayDetail 의 daily{date,times,notices:[{key,name,state,from,to,windMs,issued,effective,release}]} @returns {string} 안내 HTML
+     * @param {Object} daily - 서버 risk_store.coastDayDetail 의 daily{date,times,notices:[{key,name,state,from,to,windMs,target,issued,effective,release}]} @returns {string} 안내 HTML
      * [연계] ← create.show(연안 — daily.notices 가 있을 때. 없으면 종전 notices(d.notices)) → kmaTime·notices(표류 문구) / 서버 risk_store.dayNotices
      */
     function dayNotices(daily) {
@@ -287,7 +291,7 @@
         var when=function(s){return s.to===end?hh(s.from)+'~':s.from===s.to?hh(s.from)+' 무렵':hh(s.from)+'~'+hh(s.to);};
         var pre=[],eff=[],drift=[];
         daily.notices.forEach(function(s){
-            if(s.key==='drift'){drift.push({key:'drift',windMs:s.windMs,when:when(s),most:s.from!==s.to});return;}
+            if(s.key==='drift'){drift.push({key:'drift',windMs:s.windMs,target:s.target,when:when(s),most:s.from!==s.to});return;}
             if(s.key!=='warning')return;
             // 특보 이름·상태는 빨강 굵게(2026-10-18 시안 「<b>풍랑주의보 발효 중</b> — 19일 03~06시 해제 예고.」), 발표·예고 시각은 보통 글자.
             // 「(HH시 발표)」는 뺀다 — 사용자 2026-10-18 *"2번빼고"*(시안에서 「(05시 발표)」 지운 것과 같게).

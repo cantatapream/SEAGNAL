@@ -3,7 +3,7 @@
  * [연계] risk_score.js · 개발검사 전용
  */
 'use strict';
-const {scoreCoast}=require('../services/risk_score'),P=require('../services/risk_points'),fixture=require('./fixtures/risk_forecast/core_score.json'),run=require('./risk_test_helpers');
+const {scoreCoast,driftTarget}=require('../services/risk_score'),P=require('../services/risk_points'),fixture=require('./fixtures/risk_forecast/core_score.json'),run=require('./risk_test_helpers');
 const base={...fixture.coast,now:fixture.now};
 /** 종류별 위험구역 목록을 만든다. 예: zonesOf(2,1,0) → 위험 2·사망 1. @param {number} r @param {number} f @param {number} q @returns {object[]} [연계] ← 아래 검사 */
 const zonesOf=(r,f,q)=>[['연안사고 위험구역',r],['사망사고 발생구역',f],['연안사고 다발구역',q]].flatMap(([c,n])=>Array.from({length:n},(_,i)=>({id:c+i,'구역분류':c})));
@@ -28,6 +28,15 @@ run({
  '이안류 관심은 줄은 있고0점':a=>{const o=scoreCoast({...base,spot:{...base.spot,ripBeach:'검증'},rip:{hasData:true,level:'관심'}}).factors.find(f=>f.key==='rip');a.equal(o.score,0);},
  '특보 점수제외와 태풍풍랑강풍정렬':a=>{const w=['강풍','풍랑','태풍'].map(type=>({type,level:'주의보',state:'발효'}));const o=scoreCoast({...base,warnings:w});a.equal(o.score,scoreCoast(base).score);a.deepEqual(o.notices.effective.map(w=>w.type),['태풍','풍랑','강풍']);},
  '해수욕장 떠밀림8 경계':a=>{a.equal(scoreCoast({...base,ws:8}).notices.windMs,8);a.equal(scoreCoast({...base,ws:7.99}).notices.windMs,null);},
- '가(2026-10-15) 연안 2일 제한: 3일째 특보급 안내(day3)는 더 이상 만들지 않음':a=>{const n=scoreCoast({...base,t:'2024-08-05T12:00:00+09:00',dayMax:{wh:2,ws:12}}).notices;a.equal(Object.hasOwn(n,'day3'),false);a.deepEqual(Object.keys(n).sort(),['effective','prelim','windMs']);},
+ '가(2026-10-15) 연안 2일 제한: 3일째 특보급 안내(day3)는 더 이상 만들지 않음':a=>{const n=scoreCoast({...base,t:'2024-08-05T12:00:00+09:00',dayMax:{wh:2,ws:12}}).notices;a.equal(Object.hasOwn(n,'day3'),false);a.deepEqual(Object.keys(n).sort(),['driftTarget','effective','prelim','windMs']);},
+ // §11.10.36(2026-10-18 사용자 *"6월 ~ 9월이 좋겠어. 튜브, 물놀이기구. 나머지는 소형보트, 레저기구 등이라고 표현 하자."*): 표류 대상 말은 그 예보 시각(t)의 KST 달 — 오늘(now) 달이 아니다. 바람 기준·점수는 그대로.
+ '§11.10.36 표류 대상 말: 예보 시각의 KST 달 — 5/31·6/1·9/30·10/1 경계, UTC 로 적힌 시각도 KST 달, 오늘이 5월이어도 6/1 예보는 6월 말, 점수·바람 기준 그대로':a=>{
+   const S='튜브·물놀이기구',W='소형 보트·레저기구';
+   for(const [t,want] of [['2026-05-31T21:00:00+09:00',W],['2026-05-31T23:59:00+09:00',W],['2026-06-01T00:00:00+09:00',S],['2026-09-30T21:00:00+09:00',S],['2026-10-01T00:00:00+09:00',W],['2026-01-15T12:00:00+09:00',W],['2026-08-15T12:00:00+09:00',S],
+     ['2026-05-31T15:00:00Z',S],['2026-05-31T14:59:00Z',W],['2026-09-30T15:00:00Z',W],['2026-09-30T14:59:00Z',S]])a.equal(driftTarget(t),want,t);
+   const late=scoreCoast({...base,now:'2026-05-31T22:00:00+09:00',t:'2026-06-01T00:00:00+09:00',ws:9}),may=scoreCoast({...base,now:'2026-05-31T22:00:00+09:00',t:'2026-05-31T21:00:00+09:00',ws:9});
+   a.equal(late.notices.driftTarget,S,'5/31 밤에 본 6/1 예보 → 6월 말');a.equal(may.notices.driftTarget,W);a.equal(late.notices.windMs,9);
+   a.equal(scoreCoast({...base,t:'2026-10-01T03:00:00+09:00',ws:7.99}).notices.windMs,null,'바람 기준 8m/s 그대로');
+   const s9=scoreCoast({...base,t:'2026-09-30T21:00:00+09:00',ws:9}),s10=scoreCoast({...base,t:'2026-09-30T21:00:00+09:00',ws:3});a.equal(s9.score,s10.score,'표류 바람은 점수 밖 그대로');},
  '자료없음을 정상0과 구분':a=>{const o=scoreCoast({...base,concentration:null,events:null});a.ok(o.missing.includes('concentration'));a.ok(o.missing.includes('events'));a.equal(o.factors[0].score,0);}
 });

@@ -75,8 +75,9 @@ function hallimInput() {
         },
         places: [{ name: '비양도', lat: 33.4067, lon: 126.2275 }, { name: '협재해수욕장', lat: 33.394, lon: 126.239 }, { name: '한림항', lat: 33.414, lon: 126.264 }],
         land: {
+            // driftTarget = 서버 표류 대상 말(risk_score.driftTarget — 예보 시각의 KST 달, §11.10.36). 규칙은 받은 말을 쓴다 — 이 고정 자료는 시안 예시 글(여름 말)을 그대로 보려고 여름 말.
             spots: [
-                { id: '50110|협재해수욕장', name: '협재해수욕장', lat: 33.394, lon: 126.239, beach: true, index: 72, band: '높음', peakAt: at(15), people: { ratio: 1.8, score: 0.82 }, event: null, swell: null, rip: null, notices: { effective: [], prelim: [], windMs: 9 }, hazard: { count: 4, byType: [{ class: '사망사고 발생구역', count: 1 }, { class: '연안사고 위험구역', count: 3 }] }, history: { count: 6, from: '2020-01-01', to: '2024-12-31', topTypes: [{ type: '표류', count: 4 }] }, missing: [] },
+                { id: '50110|협재해수욕장', name: '협재해수욕장', lat: 33.394, lon: 126.239, beach: true, index: 72, band: '높음', peakAt: at(15), people: { ratio: 1.8, score: 0.82 }, event: null, swell: null, rip: null, notices: { effective: [], prelim: [], windMs: 9, driftTarget: '튜브·물놀이기구' }, hazard: { count: 4, byType: [{ class: '사망사고 발생구역', count: 1 }, { class: '연안사고 위험구역', count: 3 }] }, history: { count: 6, from: '2020-01-01', to: '2024-12-31', topTypes: [{ type: '표류', count: 4 }] }, missing: [] },
                 { id: '50110|한림항', name: '한림항', lat: 33.414, lon: 126.264, beach: false, index: 30, band: '다소 높음', peakAt: at(6), people: { ratio: 0.9, score: 0 }, event: null, swell: null, rip: null, notices: { effective: [], prelim: [], windMs: null }, hazard: { count: 3, byType: [{ class: '사망사고 발생구역', count: 3 }] }, history: { count: 2, from: '2020-01-01', to: '2024-12-31', topTypes: [{ type: '추락', count: 2 }] }, missing: [] },
             ],
             hazardOnly: [{ id: '한림-9', place: '한림항 방파제', class: '사망사고 발생구역', shape: '방파제', lat: 33.415, lon: 126.262 }],
@@ -277,6 +278,19 @@ function makeBriefings() {
             const last = reqLog.filter((r) => r.path === '/api/station-briefing/stations').pop(); assert.equal(last.q.adminToken, 'admin-push-token', '특보 예측과 같은 adminToken 쿼리');
             assert.equal(await vis(page, 'station-briefing-settings-btn'), false);
             await openAcc(page); const t = await content(page); assert.ok(t.includes('연안 안전 브리핑 지역이 설정되지 않았습니다'), t); assert.ok(await page.$('#station-briefing-setup-btn'));
+        });
+        await check('[§11.10.35] 머리 색 청록(기상 전망 회색과 다름) · 제목 오른쪽 beta 뱃지(특보 예측 .adv-beta-badge 그대로)', async () => {
+            const r = await page.evaluate(() => {
+                const h = document.getElementById('station-briefing-accordion-header'), m = document.getElementById('marine-forecast-accordion-header');
+                const t = document.getElementById('station-briefing-title'), b = h.querySelector('h2 .adv-beta-badge'), cs = b && getComputedStyle(b);
+                return { bg: getComputedStyle(h).backgroundImage, mbg: getComputedStyle(m).backgroundImage, has: !!b, txt: b && b.textContent,
+                    color: cs && cs.color, right: b ? b.getBoundingClientRect().left - t.getBoundingClientRect().right : null, inTitle: t.contains(b) };
+            });
+            assert.ok(r.bg.includes('rgb(16, 41, 43)') && r.bg.includes('rgb(15, 110, 106)'), r.bg); assert.notEqual(r.bg, r.mbg, '기상 전망 회색과 다른 색');
+            assert.ok(r.has && r.txt === 'beta', 'beta 뱃지'); assert.equal(r.color, 'rgb(255, 225, 77)', '특보 예측 뱃지와 같은 노란 글자');
+            assert.ok(r.right >= 0 && r.right <= 6, '제목 바로 오른쪽(간격 ' + r.right + 'px)'); assert.equal(r.inTitle, false, '제목 글 칸 밖 — setTitle 이 글을 바꿔도 남는다');
+            await page.evaluate(() => document.getElementById('station-briefing-accordion-header').scrollIntoView()); await clean(page);
+            await (await page.$('#station-briefing-accordion-header')).screenshot({ path: path.join(SHOT, 'header_beta.png') });
         });
         await check('설정 → 관할 목록이 경찰서별 묶음, 남항 두 곳은 경찰서로 구분, 해상만 표시 · 이름으로 찾기', async () => {
             await tap(page, '#station-briefing-setup-btn'); await page.waitForSelector('[data-sb-setup]');
@@ -2079,18 +2093,24 @@ function makeBriefings() {
             await a.context().close();
         });
 
-        await check('[UI-A2] 일반 기기(노출 「사용자에게」) — [위험예측에서 보기 ›] 가 위험예측 미리보기 잠금을 풀지 않고, 탭도 옮기지 않고 안내', async () => {
+        // 2026-10-18 위험예측 일반 공개(사용자 「해양안전생활에서 위험예측을 이제 트리거를 제거해줘.」) — 미리보기 잠금이 없어져
+        //   일반 기기도 바로가기·openAt 으로 바로 연다(종전 A2: 일반 기기는 잠금 그대로·탭 안 옮기고 「아직 미리보기」 안내).
+        await check('[UI-A2] 일반 기기(노출 「사용자에게」) — [위험예측에서 보기 ›] 가 해양안전 · 위험예측을 바로 열고 그 관광지 시트(잠금 없음)', async () => {
             real.writeConfig({ exposure: 'user' });
             const g = await device();
             await pickStation(g, HALLIM); await g.waitForSelector('[data-sb-sec="overview"]'); await openAcc(g);
-            const tab0 = await g.evaluate(() => document.body.getAttribute('data-active-tab'));
-            await g.evaluate(() => document.querySelector('[data-sb-card="land"] .sb-link').click()); await g.waitForTimeout(700);
-            const r = await g.evaluate(() => ({ locked: document.getElementById('ocean-risk-forecast-toggle-btn').classList.contains('rf-preview-locked'), tab: document.body.getAttribute('data-active-tab'), app: !!window._riskForecastApp }));
-            assert.deepEqual([r.locked, r.tab, r.app], [true, tab0, false]);
-            assert.ok((await toastText(g)).includes('미리보기'), await toastText(g));
-            assert.equal(await g.evaluate(() => window.RiskForecast.openAt({ kind: 'coast', id: '50110|협재해수욕장' })), false, 'openAt 도 일반 기기 잠금을 풀지 않는다');
-            assert.equal(await g.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').classList.contains('rf-preview-locked')), true);
+            assert.equal(await g.evaluate(() => typeof window.RiskForecast.previewLocked), 'undefined', '잠금 조회 함수 없음');
+            await g.evaluate(() => document.querySelector('[data-sb-card="land"] .sb-link').click());
+            await g.waitForFunction(() => { const a = window._riskForecastApp; return a && a.getState().selected && a.getState().selected.id === '50110|협재해수욕장'; }, null, { timeout: 15000 });
+            const r = await g.evaluate(() => { const b = document.getElementById('ocean-risk-forecast-toggle-btn'); return { tab: document.body.getAttribute('data-active-tab'), safety: document.body.classList.contains('ls-safety'), btn: b.classList.contains('active'), locked: b.classList.contains('rf-preview-locked'), aria: b.getAttribute('aria-disabled'), on: window._riskForecastApp.getState().enabled }; });
+            assert.deepEqual([r.tab, r.safety, r.btn, r.locked, r.aria, r.on], ['ocean-life-group', true, true, false, null, true]);
+            assert.ok(!(await toastText(g)).includes('미리보기'), await toastText(g));
             await g.context().close();
+            const n = await device();   // 새 일반 기기 — 위험예측을 한 번도 안 켠 상태에서 openAt 이 바로 연다
+            await n.evaluate(() => window.switchMainTab('ocean-life-group')); await n.waitForTimeout(600);
+            assert.equal(await n.evaluate(() => window.RiskForecast.openAt({ kind: 'coast', id: '50110|협재해수욕장' })), true, '일반 기기에서 openAt 이 연다');
+            assert.deepEqual(await n.evaluate(() => { const a = window._riskForecastApp.getState(); return [a.enabled, a.selected && a.selected.id]; }), [true, '50110|협재해수욕장']);
+            await n.context().close();
             real.writeConfig({ exposure: 'admin' });
         });
 
@@ -2134,7 +2154,7 @@ function makeBriefings() {
             const detailOf = (id, top, rows, notices) => { const p = spotsJ.spots.find((x) => x.id === id), zones = p.hazard.zones.map((z) => ({ id: z.id, class: z['구역분류'] }));
                 return { t: at(15), daily: { peakAt: at(15) }, missing: [], ...top, rows: [{ key: 'hazard', count: zones.length, byType: HT.map((c) => ({ class: c, count: zones.filter((z) => z.class === c).length })), zones }].concat(rows), notices, history: { available: true, from: accJ._about.period[0], to: accJ._about.period[1], accidents: accJ.spots[id] || [] } }; };
             const D = { '50110|모충사': detailOf('50110|모충사', { index: 69, band: '높음' }, [{ key: 'people', ratio: 1.6, score: 0.5, missing: false }], []),
-                '50110|이호테우해변': detailOf('50110|이호테우해변', { index: 56, band: '다소 높음' }, [{ key: 'people', ratio: 1.2, score: 0.2, missing: false }], [{ key: 'drift', windMs: 11 }]) };
+                '50110|이호테우해변': detailOf('50110|이호테우해변', { index: 56, band: '다소 높음' }, [{ key: 'people', ratio: 1.2, score: 0.2, missing: false }], [{ key: 'drift', windMs: 11, target: '튜브·물놀이기구' }]) };   // target = 서버 표류 대상 말(§11.10.36) — 시안 예시 글(여름 말) 그대로 보려고
             const L = I.collectLand([{ id: '50110|모충사', name: '모충사', lat: 33.5161, lon: 126.5455, beach: false }, { id: '50110|이호테우해변', name: '이호테우해변', lat: 33.4974, lon: 126.4531, beach: true }], [], { risk: { coastDayDetail: (id) => D[id] }, t: at(8) });
             const g = R.buildBriefing({ ...mapInputs(hallimInput()), zoneWeather: I.collectZoneWeather({ lat: 33.41, lon: 126.26 }, REGIONAL), land: L }, WIN, { generatedAt: '2026-10-17T13:10:00+09:00' });
             // 총평 문단(시안 Main.dc.html 해상 문단 + 「따라서」) — 문장마다 「•」·핵심 구절 굵게·등급 말 색·[권고] 상자를 본다

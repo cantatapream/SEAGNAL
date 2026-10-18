@@ -84,13 +84,14 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
    view:m?{c:m.getView().getCenter().map(v=>Math.round(v)),z:Math.round(m.getView().getZoom()*100)/100}:null,base:window.oceanGetBasemap&&window.oceanGetBasemap(),
    stack:window.PopupStack&&window.PopupStack.list?window.PopupStack.list():null};});
  const fire60=()=>page.evaluate(()=>{window.__iv60.forEach(fn=>{try{fn();}catch(e){}});return window.__iv60.length;});
- const riskOnFirst=async()=>{await page.evaluate(()=>{const b=document.getElementById('ocean-risk-forecast-toggle-btn');for(let i=0;i<10;i++)b.click();});await page.waitForFunction(()=>window._riskForecastApp&&window._riskForecastApp.getState().enabled&&document.querySelector('.rf-date-nav')&&!document.querySelector('.rf-date-nav').hidden,null,{timeout:10000});await settle(500);};
+ // 2026-10-18 일반 공개 — 잠금(10번 누름) 없이 한 번 눌러 켠다
+ const riskOnFirst=async()=>{await page.evaluate(()=>document.getElementById('ocean-risk-forecast-toggle-btn').click());await page.waitForFunction(()=>window._riskForecastApp&&window._riskForecastApp.getState().enabled&&document.querySelector('.rf-date-nav')&&!document.querySelector('.rf-date-nav').hidden,null,{timeout:10000});await settle(500);};
  const step=h=>page.evaluate(h=>document.querySelector('[data-time-step="'+h+'"]').click(),String(h));
  const coastPlus3=()=>T.timeline(clock.now,3,2,21)[1];
 
- await check('새로고침 직후 처음 상태 — 해양안전 하위탭, 위험예측 꺼짐·잠김',async()=>{
+ await check('새로고침 직후 처음 상태 — 해양안전 하위탭, 위험예측 꺼짐(잠금 없음 — 2026-10-18 일반 공개)',async()=>{
   await tab('ocean-life-group');await settle();const s=await S();
-  assert.equal(s.tab,'ocean-life-group');assert.equal(s.safety,true);assert.equal(s.btn,false);assert.equal(s.locked,true);assert.equal(s.app,null);assert.equal(s.bar,false);
+  assert.equal(s.tab,'ocean-life-group');assert.equal(s.safety,true);assert.equal(s.btn,false);assert.equal(s.locked,false);assert.equal(s.app,null);assert.equal(s.bar,false);
  });
 
  let before;
@@ -442,9 +443,9 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
   await back();assert.equal(await fishOpen(),false,'돌아온 뒤 뒤로가기는 바다낚시 팝업을 닫는다');
  });
 
- await check('새로고침(앱 다시 켜기)하면 처음 상태 — 해양안전 하위탭·위험예측 꺼짐·잠김',async()=>{
+ await check('새로고침(앱 다시 켜기)하면 처음 상태 — 해양안전 하위탭·위험예측 꺼짐(잠금 없음)',async()=>{
   await load();await tab('ocean-life-group');await settle();const s=await S();
-  assert.equal(s.safety,true);assert.equal(s.life,false);assert.equal(s.btn,false);assert.equal(s.locked,true);assert.equal(s.app,null);
+  assert.equal(s.safety,true);assert.equal(s.life,false);assert.equal(s.btn,false);assert.equal(s.locked,false);assert.equal(s.app,null);
   assert.equal(await page.evaluate(()=>{try{return Object.keys(localStorage).filter(k=>/park|tab.?keep|life.?safety/i.test(k)).length;}catch(e){return 0;}}),0,'기억을 localStorage 에 남기지 않는다');
  });
 

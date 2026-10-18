@@ -57,8 +57,8 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 **단계 나누기(§11.10.14)**: ③ 해상 분석·④ 연안 분석의 카드는 칸 머리 오른쪽 단계별 개수 배지(접어도 보임 · §11.10.16 부터 글 「주의 5」)와, 펼친 칸 안 카드 위 단계 단추(하나만 고름 — 처음 = 가장 높은 단계)로 나뉜다. 검토 줄·빠진 자료·시간 막대·「상시 위험 장소」는 단추와 무관하게 늘 보인다. 단계가 하나면 단추 없음.
 
 ## 바로가기([위험예측에서 보기 ›], §11.4)
-`openInRisk(target)` → (위험예측 미리보기 잠금이 걸려 있고 관리자 모드가 아니면 탭을 옮기지 않고 토스트로 끝) → `switchMainTab('ocean-life-group')` · 해양안전이 아니면 `switchSubTab('ocean-safety-section')` → 450ms 기다림
-(`life_safety.js _enterSafety` 의 200ms 뒤 지도 준비·`_unparkSafety` 가 끝나게) → `RiskForecast.openAt(target)`(risk_forecast.js — 관리자 모드일 때만 미리보기 잠금 해제, 꺼져 있으면 위험예측 버튼 click, `goTo`).
+`openInRisk(target)` → (~2026-10-17: 위험예측 미리보기 잠금이 걸려 있고 관리자 모드가 아니면 탭을 옮기지 않고 토스트로 끝 — **2026-10-18 잠금 제거로 이 분기 없음**) → `switchMainTab('ocean-life-group')` · 해양안전이 아니면 `switchSubTab('ocean-safety-section')` → 450ms 기다림
+(`life_safety.js _enterSafety` 의 200ms 뒤 지도 준비·`_unparkSafety` 가 끝나게) → `RiskForecast.openAt(target)`(risk_forecast.js — ~2026-10-17 관리자 모드일 때만 미리보기 잠금 해제 · 2026-10-18부터 잠금 없음, 꺼져 있으면 위험예측 버튼 click, `goTo`).
 실패(해양안전으로 못 옮김·연안 날짜가 위험예측 날짜 목록에 없음·관광지 표에 없음)는 토스트(`_showOceanToast`)로 알린다 — 다른 날짜를 조용히 열지 않는다.
 - 해역: `{kind:'marine', id: link.gridId||'point', location:{lon,lat}, t: link.t}` — 해상 층 켜고 그 시각(지난 시각이면 지금) → 칸 선택·시트·지도 이동.
 - 관광지: `{kind:'coast', id: link.spotId, date: link.date, location}` — 그 날짜(오늘이면 지금) → 관광지 시트.

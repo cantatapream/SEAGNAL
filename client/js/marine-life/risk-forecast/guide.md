@@ -133,7 +133,7 @@ bash scripts/refactor/verify_all.sh
 
 ## 2026-10-13 해상 지도 조작·성능·실패 복구
 
-`bindApp`의10회 트리거는 현재 페이지에서만 유효하다. `nextTime`은 선택시각을3시간 정시에 내린 뒤3/6/12시간을 더하고 공개48시간 조회축 안에서 선택한다. 예보 없는 시각을 가짜 데이터로 보충하지 않는다. `marineTime`은 고정output과 끝 범위 버튼·전체OFF 가시성을 갱신한다. `modeBadge`는3개 배타적인 하위 스위치·뱃지·아코디언을 연결한다. 기존 위험지형과 동일한 공통 클래스이며 모드별 임의의 중복 색층이 없다.
+`bindApp`의10회 트리거는 현재 페이지에서만 유효하다(**2026-10-18 제거 — 처음 한 번 누르면 바로 열린다, README 「일반 공개」 절**). `nextTime`은 선택시각을3시간 정시에 내린 뒤3/6/12시간을 더하고 공개48시간 조회축 안에서 선택한다. 예보 없는 시각을 가짜 데이터로 보충하지 않는다. `marineTime`은 고정output과 끝 범위 버튼·전체OFF 가시성을 갱신한다. `modeBadge`는3개 배타적인 하위 스위치·뱃지·아코디언을 연결한다. 기존 위험지형과 동일한 공통 클래스이며 모드별 임의의 중복 색층이 없다.
 
 `refreshMarine`은 연안 frame과 병렬로 실행되어 먼저 완성되는 정상 해상값을 그린다. 부가 경계는 초기 표시의 필수 의존성이 아니고, 일시 fetch 연결 중단/5xx는 API 클라이언트가300/900ms 간격으로 최대3회 시도한다. 영구4xx나 잘못된JSON은 반복하지 않는다. 정상 캐시만 유지한다. 서비스워커는 API를 계속 캐시하지 않고 정적 파일 실패 promise를error Response로 처리한다.
 
@@ -402,3 +402,13 @@ README 「해상 시트 시안 반영」 절의 확정 사항을 코드로 옮�
 | 시트 제목(해상) | `risk_sheet.js` `show` 가 `.rf-title.textContent = marine.location` | `RiskMarine.title(h3,location)` — 끝 「(…해구)」만 `<span class="rf-haegu">`(textContent), CSS `.rf-title .rf-haegu{font-size:calc(1em - 2pt);font-weight:400}` |
 | `.rf-warn-box` | 1.5px solid #ff4d4f | 1.5px dashed #ff4d4f, `[data-state="예비"]` #ffd740·바탕 rgba(255,215,64,.08) |
 
+
+## 연안 표류 안내 대상 말 — 2026-10-18 (설계서 §11.10.36)
+
+사용자 원문: *"6월 ~ 9월이 좋겠어. 튜브, 물놀이기구. 나머지는 소형보트, 레저기구 등이라고 표현 하자."*
+
+| 무엇 | 전 | 후 |
+|------|----|----|
+| `risk_score.driftTarget(t)`(서버, 새 함수) | — | `t` 의 KST 달이 6~9월이면 「튜브·물놀이기구」, 그 밖 「소형 보트·레저기구」. `scoreCoast` 의 `notices.driftTarget` |
+| `risk_store.coastScore` 표류 안내 | `{key:'drift',windMs}` | `{key:'drift',windMs,target}` — `dayNotices` 묶음에도 `target`(그날 칸은 같은 달) |
+| `RiskSheet` `driftText(n)` | 「… 튜브·물놀이기구 등 표류 주의」 고정 | `n.target` + 「 등 표류 주의」(없으면 「표류 주의」) · `dayNotices` 가 `target` 을 넘김 |

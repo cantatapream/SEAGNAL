@@ -27,8 +27,9 @@ const spots=[{i:0,id:'a',name:'광안리해수욕장',lat:35.153,lon:129.118},{i
 const TOMORROW='2026-10-16T00:00:00+09:00',DAILY={'2026-10-15':{date:'2026-10-15',peakAt:later,times:[now,later,latest]},'2026-10-16':{date:'2026-10-16',peakAt:'2026-10-16T03:00:00+09:00',times:[TOMORROW]}};
 // T9(2026-10-16): 연안 상세 history(주변 연안사고). a 는 5유형 7건(기타 포함·사망 1·실종 1), b 는 0건. FIX 로 시나리오마다 바꾼다(바꾼 뒤 fresh() — 응답 캐시).
 const ACC_A=[{date:'2024-07-26',year:2024,type:'익수',death:1,missing:0,rescue:0},{date:'2023-08-01',year:2023,type:'익수',death:0,missing:0,rescue:2},{date:'2022-05-03',year:2022,type:'추락',death:0,missing:1,rescue:0},{date:'2021-09-10',year:2021,type:'고립',death:0,missing:0,rescue:3},{date:'2020-07-15',year:2020,type:'표류',death:0,missing:0,rescue:1},{date:'2020-06-02',year:2020,type:'기타',death:0,missing:0,rescue:1},{date:'2022-08-20',year:2022,type:'익수',death:0,missing:0,rescue:1}];
+// FIX.drift(§11.10.36): 표류 대상 말 — 없으면(undefined) 서버와 같은 risk_score.driftTarget(시트 시각 10-15 → 「소형 보트·레저기구」), 글이면 그 말, null 이면 target 없는 응답.
 const FIX={history:{a:{available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:ACC_A},b:{available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:[]}},score:{}};
-function detail(id,t){const spot=spots.find(p=>p.id===id),sc=FIX.score[id]||{score:scored.score,index:scored.index,band:scored.band};return{t,title:spot.name,subtitle:{lat:spot.lat,lon:spot.lon,police:'광안리',office:'부산해양경찰서'},history:FIX.history[id],daily:DAILY[t.slice(0,10)],score:sc.score,index:sc.index,band:sc.band,rr:scored.rr,fatalRr:scored.fatalRr,notices:[{key:'warning',effective:['풍랑주의보'],prelim:[]},{key:'drift',windMs:9}],missing:[],inputs:{},rows:scoredRows.map(r=>r.key==='hazard'?{...r,zones}:r).concat([{key:'event',name:'행사 '+id+'@'+t,weekend:true,rr:1.2,events:[]}])};}
+function detail(id,t){const spot=spots.find(p=>p.id===id),sc=FIX.score[id]||{score:scored.score,index:scored.index,band:scored.band};return{t,title:spot.name,subtitle:{lat:spot.lat,lon:spot.lon,police:'광안리',office:'부산해양경찰서'},history:FIX.history[id],daily:DAILY[t.slice(0,10)],score:sc.score,index:sc.index,band:sc.band,rr:scored.rr,fatalRr:scored.fatalRr,notices:[{key:'warning',effective:['풍랑주의보'],prelim:[]},{key:'drift',windMs:9,...(FIX.drift===null?{}:{target:FIX.drift||scorer.driftTarget(t)})}],missing:[],inputs:{},rows:scoredRows.map(r=>r.key==='hazard'?{...r,zones}:r).concat([{key:'event',name:'행사 '+id+'@'+t,weekend:true,rr:1.2,events:[]}])};}
 /** 앱과 같은 층 구조의 휴대폰 화면 HTML을 만든다. 지도 섹션(z50)·하단 탭(z60)·서브탭을 같은 쌓임으로 둔다. @returns {string} HTML [연계] ← app.get('/') */
 function page(){return '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/assets/vendor/ol/ol.css"><link rel="stylesheet" href="/js/marine-life/risk-forecast/risk_forecast.css"><style>'+
  ':root{--main-tab-height:68px;--sub-tab-height:50px}body{margin:0;background:#10223d;color:white}'+chromeRules+
@@ -249,6 +250,13 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   assert.equal(m.title,'연안 위험지수');assert.ok(!m.text.includes('기준 상세 —'));assert.deepEqual(m.headKids,['H3','BUTTON']);assert.equal(m.bodyH3,0);assert.equal(m.boxOverflow,'hidden');
   assert.ok(m.scrolled>0,'내용이 스크롤되어야 함');assert.equal(m.headMoved,0);assert.equal(m.closeMoved,0);assert.equal(m.closeHit,true,'닫기 버튼이 가려짐');assert.equal(m.focus,'mclose');
  });
+ await check('§11.10.35 기준 상세 창은 가운데 떠 있는 창 — 아래 끝이 화면 끝에서 떨어져 보인다(380×820·1280×900), 사방 둥근 모서리',async()=>{
+  for(const [w,h] of [[1280,900],[380,820]]){await pg.setViewportSize({width:w,height:h});await pg.waitForTimeout(50);
+   const m=await pg.evaluate(()=>{const b=document.querySelector('.rf-basis'),r=b.getBoundingClientRect(),cs=getComputedStyle(b);return{top:r.top,bottom:window.innerHeight-r.bottom,radius:cs.borderBottomLeftRadius,h:r.height,vh:window.innerHeight};});
+   console.log('측정 기준 상세 창 위치',w,JSON.stringify(m));
+   assert.ok(m.bottom>=16,'아래 여백 '+m.bottom+'px');assert.ok(m.top>=16,'위 여백 '+m.top+'px');assert.ok(m.h<=m.vh*0.8+1,'높이 80vh 이하');assert.equal(m.radius,'20px','아래 모서리도 둥글게');}
+  await pg.setViewportSize({width:380,height:820});
+ });
  /** 두 색의 명암비(WCAG). 예: ratio([143,211,255],[22,45,90]) → 약 8.3 @param {number[]} a @param {number[]} b RGB @returns {number} [연계] ← T8 링크 색 */
  const lum=c=>{const v=c.map(x=>{x/=255;return x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4);});return .2126*v[0]+.7152*v[1]+.0722*v[2];},ratio=(a,b)=>{const x=lum(a),y=lum(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
  const rgb=t=>t.match(/[\d.]+/g).map(Number),over=(fg,bg)=>fg.slice(0,3).map((v,i)=>v*(fg[3]??1)+bg[i]*(1-(fg[3]??1)));
@@ -318,9 +326,20 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   if(SHOTS){await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-coast-acc]').scrollIntoView({block:'end'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_acc_nodata_380.png')});}
   FIX.history.b.available=true;FIX.history.b={available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:[]};
  });
+ // §11.10.36(2026-10-18 사용자 *"6월 ~ 9월이 좋겠어. 튜브, 물놀이기구. 나머지는 소형보트, 레저기구 등이라고 표현 하자."*): 시트는 서버 target 을 그대로 — 같은 안내로 관할 브리핑 규칙이 내는 말과 같다.
+ await check('§11.10.36 표류 대상 말: 시트는 서버 target 그대로(여름 「튜브·물놀이기구 등」 · 겨울 「소형 보트·레저기구 등」) · 같은 안내로 브리핑 요소 글도 같은 말 · target 이 없으면 대상 말 없이 「표류 주의」',async()=>{
+  const R=require('../services/station_briefing_rules'),drift=()=>pg.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-notice-line')].map(e=>e.textContent).find(x=>x.includes('표류'))||null);
+  try{
+   for(const [who,label] of [['튜브·물놀이기구','6~9월'],['소형 보트·레저기구','10~5월']]){FIX.drift=who;await fresh();await open('a');
+    const line=await drift(),brief=R.landSpot({notices:{effective:[],prelim:[],windMs:9,driftTarget:who}}).changes.find(c=>c.kind==='drift').text;
+    assert.equal(line,'바람 9m/s로 '+who+' 등 표류 주의',label+' 시트');assert.equal(brief,'해안 바람 9m/s('+who+' 표류 주의)',label+' 브리핑');
+    assert.equal(await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-notice-em:last-of-type')&&[...document.querySelectorAll('#risk-forecast-sheet .rf-notice-em')].pop().textContent),who+' 등 표류 주의','강조 글자 = 대상 말 + 「등 표류 주의」');}
+   FIX.drift=null;await fresh();await open('a');assert.equal(await drift(),'바람 9m/s로 표류 주의','target 없는 응답 → 화면이 달을 짐작하지 않음');
+  }finally{FIX.drift=undefined;}
+ });
  await check('「표류」 통일(떠밀림 없음)·연안 부제는 경위도 없이 관할만·위험지수 상자 색 = 단계 색(지수 19 → 초록)',async()=>{
   await fresh();await open('a');let m=await accCard();
-  assert.ok(m.text.includes('사고 종류 : 익수, 추락, 고립, 표류'));assert.ok(m.text.includes('튜브·물놀이기구 등 표류 주의'));assert.ok(!m.text.includes('떠밀림'));
+  assert.ok(m.text.includes('사고 종류 : 익수, 추락, 고립, 표류'));assert.ok(m.text.includes('소형 보트·레저기구 등 표류 주의'),'10월 시트 → 서버 대상 말(§11.10.36)');assert.ok(!m.text.includes('튜브'));assert.ok(!m.text.includes('떠밀림'));
   assert.equal(m.sub,'부산해양경찰서 광안리파출소 관할');assert.ok(!/[°′″]/.test(m.sub));
   const B={'평소 수준':'rgb(47, 179, 107)','다소 높음':'rgb(242, 194, 48)','높음':'rgb(251, 146, 60)','매우 높음':'rgb(224, 50, 44)'};assert.equal(m.boxBg,B[scored.band],'상자 색 '+scored.band);
   for(const [idx,band] of [[19,'평소 수준'],[20,'다소 높음'],[67,'높음'],[100,'매우 높음']]){FIX.score.b={score:idx*.03,index:idx,band};await fresh();await open('b');m=await accCard();assert.equal(m.boxBg,B[band],'지수 '+idx);

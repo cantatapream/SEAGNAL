@@ -353,17 +353,18 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null, smal
  * 연안 하루 값의 안내(특보·떠밀림 바람)를 그날 칸 전부에서 모은다 — 맨 위 notices 는 「가장 높은 칸」 것뿐이라(risk_store.coastDayDetail),
  * 그 칸 밖의 특보·바람이 빠진다(독립 검토 A1). daily.notices(risk_store.dayNotices — 그날 칸 전부)가 있으면 그것을, 없으면 종전 notices.
  * detail = 특보마다 기상청 시각(발표 issued·발효 예정 effective·해제 예고 release — risk_store.dayNotices, 2026-10-16 결정 1). 같은 특보가 끊겨 두 번 나오면 첫 것.
+ * driftTarget = 표류 안내의 대상 말(서버 risk_score.driftTarget — 그 예보 시각의 KST 달, 6~9월 「튜브·물놀이기구」·그 밖 「소형 보트·레저기구」, 설계서 §11.10.36). 연안 시트와 같은 값을 그대로 넘긴다. 표류가 없으면 null.
  * 예: daily.notices [{key:'warning',name:'풍랑경보',state:'발효',from:'…18:00',to:'…21:00',issued,effective,release},{key:'drift',windMs:11,…}]
- *     → {effective:['풍랑경보'],prelim:[],windMs:11,detail:[{name:'풍랑경보',state:'발효',issued,effective,release}]}
- * @param {object} d - coastDayDetail 결과 @returns {object} {effective:string[],prelim:string[],windMs:number|null,detail:object[]} [연계] ← collectLand → rules.landSpot
+ *     → {effective:['풍랑경보'],prelim:[],windMs:11,driftTarget:'소형 보트·레저기구',detail:[{name:'풍랑경보',state:'발효',issued,effective,release}]}
+ * @param {object} d - coastDayDetail 결과 @returns {object} {effective:string[],prelim:string[],windMs:number|null,driftTarget:string|null,detail:object[]} [연계] ← collectLand → rules.landSpot
  */
 function dayNoticeSummary(d) {
     const daily = d && d.daily && Array.isArray(d.daily.notices) ? d.daily.notices : null;
-    if (!daily) { const n = (k) => (d.notices || []).find((x) => x.key === k) || null, wn = n('warning'), dr = n('drift'); return { effective: wn?.effective || [], prelim: wn?.prelim || [], windMs: dr ? dr.windMs : null, detail: (wn?.times || []).map((x) => ({ name: x.name, state: x.state, issued: x.issued || null, effective: x.effective || null, release: x.release || null })) }; }
+    if (!daily) { const n = (k) => (d.notices || []).find((x) => x.key === k) || null, wn = n('warning'), dr = n('drift'); return { effective: wn?.effective || [], prelim: wn?.prelim || [], windMs: dr ? dr.windMs : null, driftTarget: dr?.target || null, detail: (wn?.times || []).map((x) => ({ name: x.name, state: x.state, issued: x.issued || null, effective: x.effective || null, release: x.release || null })) }; }
     const pick = (state) => [...new Set(daily.filter((x) => x.key === 'warning' && x.state === state && x.name).map((x) => x.name))];
-    const winds = daily.filter((x) => x.key === 'drift' && Number.isFinite(x.windMs)).map((x) => x.windMs), detail = [], seen = new Set();
+    const drifts = daily.filter((x) => x.key === 'drift' && Number.isFinite(x.windMs)), winds = drifts.map((x) => x.windMs), detail = [], seen = new Set();
     for (const x of daily) if (x.key === 'warning' && x.name && !seen.has(x.state + '|' + x.name)) { seen.add(x.state + '|' + x.name); detail.push({ name: x.name, state: x.state, issued: x.issued || null, effective: x.effective || null, release: x.release || null }); }
-    return { effective: pick('발효'), prelim: pick('예비'), windMs: winds.length ? Math.max(...winds) : null, detail };
+    return { effective: pick('발효'), prelim: pick('예비'), windMs: winds.length ? Math.max(...winds) : null, driftTarget: drifts.find((x) => x.target)?.target || null, detail };
 }
 /**
  * 특보 구간 기록(sea_warning_history — 특보 크롤러 결과를 1분마다 「발효 시작~해제」로 남긴 것)에서 [from, to] 사이에 실제로 해제된 구간을 꺼낸다.
