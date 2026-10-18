@@ -16,7 +16,8 @@
  *
  * [저장]
  *   브리핑용 판: 메모리 + data/smallzone_forecast.json.gz(지난 판은 덮어씀 — swell_smallzone.json.gz 와 같은 방식).
- *     + tw: 소해구마다 날짜별 낮 수온 최솟값 하나(해수욕장 수온 대체 — 설계서 §18, 2026-10-18). 행(data)에는 TW 를 넣지 않는다(응답·시험 그대로).
+ *     + tw: 소해구마다 날짜별 낮 수온 최댓값 하나(해수욕장 수온 대체 — 설계서 §18, 2026-10-18). 행(data)에는 TW 를 넣지 않는다(응답·시험 그대로).
+ *       새 판에 없는 날짜(오늘 이후)는 직전 판 값을 이어받는다(12UTC 판은 그날 낮 칸이 없다 — twCarry).
  *   창 클릭용: 메모리만. 판이 바뀌면 비우고, 대해구 100개를 넘으면 오래 안 쓴 것부터 버린다.
  *   상태 한 줄: data/smallzone_forecast_status.json(관리자 「데이터 수집현황」 카드가 읽는다).
  *
@@ -227,18 +228,35 @@ async function fetchAll(baseTm, lzones) {
 }
 
 // 해수욕장 수온 대체(설계서 §18 — 사용자 2026-10-18 *"수온 관측 없는 해수욕장이 있다면 소해구 예보 수온으로 대신해도 돼. 필요한 것만 남기는 방식으로 설계해."*).
-//   소해구 표의 TW(℃) 중 「낮(KST 09·12·15·18시 = UTC 00·03·06·09시) 가장 낮은 값」 하나만 날짜마다 남긴다 — 행 26개 × 9 소해구를 다 들고 있지 않게.
-//   가장 낮은 값 = 「물놀이하기 좋다」를 쉽게 말하지 않는 쪽(보수적). 육지 소해구(-999)는 남지 않는다.
+//   소해구 표의 TW(℃) 중 「낮(KST 09·12·15·18시 = UTC 00·03·06·09시) 가장 높은 값」 하나만 날짜마다 남긴다 — 행 26개 × 9 소해구를 다 들고 있지 않게.
+//   가장 높은 값 = 「물에 들어가는 사람이 있을 수 있다」 경고를 더 내는 쪽(안전 앱 목적 — 2026-10-18 독립 검토 지적으로 종전 「가장 낮은 값」에서 바꿈, 오케스트레이터 결정·사용자에게 알림).
+//   육지 소해구(-999)는 남지 않는다.
 const TW_DAY_UTC_HOURS = ['00', '03', '06', '09'];
 const TW_MAX_KM = 20;            // 해수욕장에서 소해구 칸 가운데까지 이보다 멀면 쓰지 않는다(칸 한 변 1/6° ≈ 15~18km — 해안 칸이 육지(-999)여도 바로 옆 바다 칸까지)
 const TW_MAX_AGE_MS = 48 * 3600000;   // 소해구 판(발표 UTC)이 이보다 오래되면 쓰지 않는다(판은 12시간마다 — 4판 넘게 못 받음)
 
-/** fetchAll 행 하나의 TW 를 날짜별 낮 최솟값으로 접어 둔다. 예: twKeep(acc, {lzone:'233',szone:'5',tm:'2026101803',tw:21.4,lat,lon}) [연계] ← fetchAll */
+/** fetchAll 행 하나의 TW 를 날짜별 낮 최댓값으로 접어 둔다. 예: twKeep(acc, {lzone:'233',szone:'5',tm:'2026101803',tw:21.4,lat,lon}) [연계] ← fetchAll */
 function twKeep(acc, r) {
     if (r.tw == null || r.lat == null || r.lon == null || !TW_DAY_UTC_HOURS.includes(r.tm.slice(8, 10))) return;
     const k = r.lzone + '-' + r.szone, d = r.tm.slice(0, 4) + '-' + r.tm.slice(4, 6) + '-' + r.tm.slice(6, 8);
     const c = acc[k] || (acc[k] = { z: k, lat: Math.round(r.lat * 1e4) / 1e4, lon: Math.round(r.lon * 1e4) / 1e4, d: {} });
-    c.d[d] = c.d[d] == null ? r.tw : Math.min(c.d[d], r.tw);
+    c.d[d] = c.d[d] == null ? r.tw : Math.max(c.d[d], r.tw);
+}
+
+/**
+ * 새 판의 수온 표에 없는 날짜(오늘 이후)를 직전 판 값으로 채운다(검토 A③ — 12UTC 판(21시 KST 발표)은 발효 시각이 그날 21시부터라
+ * 「오늘 낮」 칸이 없어, 그대로 바꾸면 자정까지 오늘 수온이 사라졌다). 새 판에 있는 날짜는 새 값. 지난 날짜는 버린다.
+ * 예: twCarry([{z:'233-5',d:{'2026-10-18':21.4}}], [{z:'233-5',d:{'2026-10-19':21}}], '2026-10-18') → [{z:'233-5',d:{'2026-10-19':21,'2026-10-18':21.4}}]
+ * @param {object[]|null} prev @param {object[]} next @param {string} today - KST YYYY-MM-DD @returns {object[]} [연계] ← prefetch
+ */
+function twCarry(prev, next, today) {
+    const out = new Map((next || []).map((c) => [c.z, { ...c, d: { ...c.d } }]));
+    for (const c of prev || []) {
+        const o = out.get(c.z) || { z: c.z, lat: c.lat, lon: c.lon, d: {} };
+        for (const [d, v] of Object.entries(c.d || {})) if (d >= today && o.d[d] == null) o.d[d] = v;
+        if (Object.keys(o.d).length) out.set(c.z, o);
+    }
+    return [...out.values()];
 }
 
 /**
@@ -370,7 +388,9 @@ function prefetch(lzones, baseTm) {
             writeStatus('실패: ' + baseTm + ' 판 요청 ' + r.requests + '번 모두 실패 — ' + (r.firstError || '') + (brief ? ' (저장된 ' + brief.baseTm + ' 판 유지)' : ''));
             return summary;
         }
-        brief = { baseTm, collectedAt: new Date().toISOString(), lzones: list, requests: r.requests, failed: r.failed, missingTimes: r.missingTimes, data: r.data, tw: r.tw };
+        // 「지난 날짜」 기준 = 이 판 발표 시각의 KST 날짜(12UTC 판 = 그날 21시 KST — 그날 낮 값은 이어받고, 그 전날 값은 버린다)
+        const today = new Date(Date.UTC(+baseTm.slice(0, 4), +baseTm.slice(4, 6) - 1, +baseTm.slice(6, 8), +baseTm.slice(8, 10)) + 9 * 3600000).toISOString().slice(0, 10);
+        brief = { baseTm, collectedAt: new Date().toISOString(), lzones: list, requests: r.requests, failed: r.failed, missingTimes: r.missingTimes, data: r.data, tw: twCarry(brief && brief.tw, r.tw, today) };
         try {
             fs.mkdirSync(opts.dataDir, { recursive: true });
             const gz = zlib.gzipSync(Buffer.from(JSON.stringify({ fmt: 1, ...brief }), 'utf8'));
@@ -457,4 +477,4 @@ function getStatus() {
     };
 }
 
-module.exports = { configure, prefetch, get, peek, getStatus, briefingLzones, parseTable, efTimes, mask, _reset, twNear, CHUNK, CLICK_MAX, MARGIN_DEG, TW_MAX_KM, TW_MAX_AGE_MS };
+module.exports = { configure, prefetch, get, peek, getStatus, briefingLzones, parseTable, efTimes, mask, _reset, twNear, twCarry, CHUNK, CLICK_MAX, MARGIN_DEG, TW_MAX_KM, TW_MAX_AGE_MS };

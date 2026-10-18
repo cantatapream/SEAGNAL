@@ -29,7 +29,7 @@
  *  - 사용하는 파일 : services/admin_push.js sendAdminPush (운영 FLY_ALLOC_ID 일 때만 — 개발은 보내지 않고 콘솔 한 줄)
  *                    config/data_collection_manifest.json (항목 이름 — 데이터 수집현황 카드와 같은 이름)
  *  - 저장          : data/collect_fail_alert.json (검사는 COLLECT_FAIL_ALERT_FILE 또는 createAlerter({file}) 로 임시 경로)
- *  - 나를 부르는 곳 : scheduler.js(이안류·MMIS 관측 4종) · marine_warning_crawler.js(특보·강풍) · services/beach_weather_collector.js(해수욕장 예보·수온 — 기록만)
+ *  - 나를 부르는 곳 : scheduler.js(이안류·MMIS 관측 4종) · marine_warning_crawler.js(특보·강풍) · services/beach_weather_collector.js(해수욕장 예보·수온 — 회차마다)
  *                    services/swell_smallzone.js(너울) · services/vsby_smallzone.js(시정 예측)
  *  - 나를 읽는 곳  : services/data_collection_status.js (수집 목록 카드의 「마지막 수집 실패」 한 줄)
  *  - 검사          : scripts/test_collect_fail_alert.js
@@ -66,10 +66,10 @@ const ITEMS = {
     marineWhBuoys: {},
     marineLhBuoys: {},
     marineVs: {},
-    // 기상청 해수욕장 단기예보·수온(services/beach_weather_collector — 설계서 §18, 2026-10-18). 푸시는 보내지 않고 기록만(데이터 수집현황 카드 빨강·「마지막 수집 실패」 줄).
-    //   푸시 여부는 사용자가 정하지 않았다 — 새 알림을 함부로 늘리지 않으려고 기록만 둔다(설계서 §18 미결).
-    beachForecast: { push: false },
-    beachWaterTemp: { push: false },
+    // 기상청 해수욕장 단기예보·수온(services/beach_weather_collector — 설계서 §18). 회차마다 한 번 보고 — 회차 실패(중단·전부 실패·실패 10% 초과)면 첫 실패에 푸시,
+    //   다시 받으면 「복구」 1통(이안류·MMIS 와 같은 규칙). 사용자 확정 2026-10-18 *"푸시보내"*.
+    beachForecast: {},
+    beachWaterTemp: {},
 };
 
 /** ms → 'MM/DD HH:mm' (KST). 예: 2026-10-15T18:00Z → '10/16 03:00'. @param {number} ms @returns {string} */

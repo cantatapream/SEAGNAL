@@ -68,9 +68,42 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             assert.equal(STATIC.beaches.find((b) => b.n === s[1].n).name, '협재해수욕장');
             const mof = JSON.parse(fs.readFileSync(path.join(CONFIG, 'beach_sources', 'mof_open_2026.json'), 'utf8')).schedule;
             assert.equal(mof.length, 283); assert.equal(mof.filter((r) => r.status === '개장').length, 252);
-            for (const [n, o] of Object.entries(STATIC.open)) for (const no of o.mof) { const r = mof.find((x) => x.no === no); assert.equal(r.status, '개장'); assert.equal(String(r.beach_num), n); }
+            for (const [n, o] of Object.entries(STATIC.open)) for (const no of o.mof) { const r = mof.find((x) => x.no === no); assert.equal(r.status, '개장'); assert.ok(String(r.beach_num) === n || (r.beach_num === null && (o.manual || []).includes(no)), n + '/' + no); }
             const hj = STATIC.open[String(s[1].n)];
             assert.deepEqual([hj.open, hj.close], [mof.find((r) => r.name === '협재').open, mof.find((r) => r.name === '협재').close]);
+        });
+
+        const REVIEW = fs.readFileSync(path.join(CONFIG, 'beach_links_review.csv'), 'utf8').replace(/^\uFEFF/, '').trim().split('\n').slice(1).map((l) => l.split(','));
+        await check('[검토 B②] 해수부 개장인데 기상청 대조가 안 된 줄 — 표기 차이만 있는 두 곳(때뿌루↔떼뿌루·난지섬↔난지도)은 근거 거리 300m 안으로 손으로 잇고, 나머지 19줄은 확인 목록에', () => {
+            assert.deepEqual(STATIC.open['15'].manual, [161]); assert.deepEqual(STATIC.open['78'].manual, [259]);
+            const hand = REVIEW.filter((r) => r[0].startsWith('해수부 개장 연결(표기 차이'));
+            assert.equal(hand.length, 2); assert.ok(hand.every((r) => +r[5] <= 300), JSON.stringify(hand));
+            const none = REVIEW.filter((r) => r[0] === '해수부 개장인데 기상청 연결 없음');
+            assert.equal(none.length, 19); assert.ok(none.some((r) => /송지호오토캠핑장/.test(r[4])) && !none.some((r) => /때뿌루|난지섬/.test(r[4])));
+        });
+        await check('[검토 B③] 좌표 맞바뀜(금진↔옥계)은 자기 이름 관광지 좌표로 고침 · 이름 같은 관광지와 1km 넘게 떨어진 나머지는 「좌표 의심」 목록만', () => {
+            const sp = (id) => SPOTS.find((x) => x.id === id), b = (n) => STATIC.beaches.find((x) => x.n === n);
+            assert.deepEqual([b(185).lat, b(185).lon, b(185).coord], [sp('51150|옥계해변').lat, sp('51150|옥계해변').lon, 'spot:51150|옥계해변']);
+            assert.deepEqual([b(186).lat, b(186).lon, b(186).coord], [sp('51150|금진해변').lat, sp('51150|금진해변').lon, 'spot:51150|금진해변']);
+            assert.deepEqual(STATIC.links['51150|금진해변'], { n: 186, m: 0, self: true });
+            assert.equal(REVIEW.filter((r) => r[0] === '좌표 맞바뀜 고침').length, 2);
+            const sus = REVIEW.filter((r) => r[0].startsWith('좌표 의심'));
+            assert.equal(sus.length, 15); assert.ok(sus.every((r) => +r[5] > 1000 && +r[5] <= 10000));
+            assert.ok(!sus.some((r) => r[1] === '185' || r[1] === '186'), '고친 두 곳은 의심 목록에 없음');
+        });
+        await check('[검토 B④] 바다 건너 3km 연결은 규칙대로 두고 「시군구 다름」 확인 목록에', () => {
+            const x = REVIEW.filter((r) => r[0].startsWith('시군구 다름'));
+            assert.ok(x.length > 0);
+            for (const r of x) assert.equal(STATIC.links[r[3]].n, +r[1], r[3]);
+        });
+        await check('[검토 B⑤] 거리 괄호를 빼는 「그 해수욕장 자체」 = 이름이 정말 같고(꼬리 해수욕장·해변·해안 차이만) 500m 안 — 쏠비치 삼척 → 삼척해수욕장은 괄호 있음', () => {
+            const k = Object.keys(STATIC.links).find((id) => /쏠비치 삼척/.test(id));
+            assert.ok(k, '쏠비치 삼척 관광지'); assert.equal(STATIC.links[k].self, undefined);
+            const norm = (x) => x.replace(/\([^)]*\)/g, '').replace(/[\s·.,\-_/]/g, '').replace(/(해수욕장|해변|해안)$/, '');
+            for (const [id, l] of Object.entries(STATIC.links)) if (l.self) {
+                const b = STATIC.beaches.find((x) => x.n === l.n);
+                assert.ok(l.m <= 500 && norm(id.split('|')[1]) === norm(b.kma), id + ' → ' + b.kma + ' ' + l.m);
+            }
         });
 
         // ── 판단 경계값·문구 ─────────────────────────────────────────────────
@@ -85,7 +118,8 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             assert.equal(g({ wsd: 7.4 }).kind, 'good');
             assert.deepEqual(g({ wsd: 7.5 }).bad, ['wind']);
             assert.deepEqual(g({ rain: true, wav: 2, wsd: 9 }).bad, ['wave', 'wind', 'rain']);
-            assert.equal(W.decide({ tw: 18, tmax: 23, wav: 3, wsd: 12, rain: true }).kind, 'maybe', '있을 수 있음은 파도·바람과 무관(확정 규칙)');
+            assert.equal(W.decide({ tw: 18, tmax: 23, wav: 3, wsd: 12, rain: true }).kind, 'warn', '18~19℃·23~24℃ 범위도 나쁜 항목이 있으면 경고(2026-10-18 사용자 결정)');
+            assert.equal(W.decide({ tw: 18, tmax: 23, wav: 1, wsd: 7, rain: false }).kind, 'maybe');
             assert.equal(W.decide({ tw: 17.4, tmax: 30, wav: 0.5, wsd: 2, rain: false }), null);
             assert.equal(W.decide({ tw: 25, tmax: 22.4, wav: 0.5, wsd: 2, rain: false }), null);
         });
@@ -95,14 +129,25 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             assert.equal(W.swimText('협재해수욕장(1.2km)', W.decide({ tw: 19, tmax: 24, wav: 0.5, wsd: 3, rain: false })),
                 '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃로 물놀이하기에 아주 좋은 날씨는 아니지만, 바닷물에 들어가는 사람이 있을 수 있습니다.');
             assert.equal(W.swimText('협재해수욕장(1.2km)', W.decide({ tw: 22, tmax: 27, wav: 1.8, wsd: 3, rain: false })),
-                '협재해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높아 물에 들어가기에 적절하지 않습니다. 그래도 물에 들어가는 사람이 있을 수 있습니다.');
+                '협재해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높아 물에 들어가기에 적절하지 않습니다.');
+        });
+        await check('[사용자 2026-10-18 「경고문구로 넣어야지 파고가 3m인데」] 수온 18~19℃·낮 최고 23~24℃ 에서 나쁜 항목이 있으면 경고 문구(「이고」·끝 문장 없음) · 하나씩 · 경계 1.0m·7m/s 는 아님 · 없으면 종전 「있을 수 있음」', () => {
+            const t = (o) => W.swimText('협재해수욕장(1.2km)', W.decide({ tw: 19, tmax: 24, wav: 0.5, wsd: 3, rain: false, ...o }));
+            assert.equal(t({ wav: 3.5, wsd: 14, rain: true }).replace('3.5m', '3m').replace('14m', '13m'), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 파도가 3m로 높고 바람이 초속 13m로 강하고 비가 예보되어 물에 들어가기에 적절하지 않습니다.', '사용자 예시 꼴');
+            assert.equal(t({ wav: 3.5, wsd: 14, rain: true }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 파도가 3.5m로 높고 바람이 초속 14m로 강하고 비가 예보되어 물에 들어가기에 적절하지 않습니다.', '운영 재현 꼴');
+            assert.equal(t({ wav: 3 }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 파도가 3m로 높아 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(t({ wsd: 13 }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 바람이 초속 13m로 강해 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(t({ rain: true }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 비가 예보되어 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(t({ wav: 1.0, wsd: 7 }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃로 물놀이하기에 아주 좋은 날씨는 아니지만, 바닷물에 들어가는 사람이 있을 수 있습니다.', '경계(1.0m·7m/s)는 나쁜 항목 아님');
+            assert.ok(!/따뜻하지만|그래도/.test(t({ wav: 3 })));
+            assert.equal(W.swimText('협재해수욕장', W.decide({ tw: 19, tmax: 24, wav: 3, wsd: 3, rain: false })), '협재해수욕장 — 수온 19℃ · 낮 최고 24℃이고 파도가 3m로 높아 물에 들어가기에 적절하지 않습니다.', '자체 관광지는 괄호 없음');
         });
         await check('거친 날 나쁜 항목만 바꿔 넣기 · 여럿이면 「-고」로 이음(파도 → 바람 → 비)', () => {
             const t = (o) => W.swimText('A', W.decide({ tw: 22, tmax: 27, wav: 0.5, wsd: 3, rain: false, ...o }));
-            assert.equal(t({ wsd: 9 }), 'A — 수온 22℃로 따뜻하지만 바람이 초속 9m로 강해 물에 들어가기에 적절하지 않습니다. 그래도 물에 들어가는 사람이 있을 수 있습니다.');
-            assert.equal(t({ rain: true }), 'A — 수온 22℃로 따뜻하지만 비가 예보되어 물에 들어가기에 적절하지 않습니다. 그래도 물에 들어가는 사람이 있을 수 있습니다.');
-            assert.equal(t({ wav: 1.8, wsd: 9 }), 'A — 수온 22℃로 따뜻하지만 파도가 1.8m로 높고 바람이 초속 9m로 강해 물에 들어가기에 적절하지 않습니다. 그래도 물에 들어가는 사람이 있을 수 있습니다.');
-            assert.equal(t({ wav: 2, wsd: 9, rain: true }), 'A — 수온 22℃로 따뜻하지만 파도가 2m로 높고 바람이 초속 9m로 강하고 비가 예보되어 물에 들어가기에 적절하지 않습니다. 그래도 물에 들어가는 사람이 있을 수 있습니다.');
+            assert.equal(t({ wsd: 9 }), 'A — 수온 22℃로 따뜻하지만 바람이 초속 9m로 강해 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(t({ rain: true }), 'A — 수온 22℃로 따뜻하지만 비가 예보되어 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(t({ wav: 1.8, wsd: 9 }), 'A — 수온 22℃로 따뜻하지만 파도가 1.8m로 높고 바람이 초속 9m로 강해 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(t({ wav: 2, wsd: 9, rain: true }), 'A — 수온 22℃로 따뜻하지만 파도가 2m로 높고 바람이 초속 9m로 강하고 비가 예보되어 물에 들어가기에 적절하지 않습니다.');
         });
         await check('개장 줄: 5일 전부터 예정(6일 전은 없음) · 당일(오늘 보기) · 당일(내일 보기 = 예정) · 기간 · 폐장일 포함 · 폐장 뒤 없음 · 받침', () => {
             const o = { open: '2026-07-10', close: '2026-08-23' }, N = '협재해수욕장';
@@ -127,10 +172,13 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             const mins = [];
             for (let t = kst('2026-10-18T00:00:00'); t < kst('2026-10-19T00:00:00'); t += 60000) if (C.isCollectMinute(t)) mins.push(C.kstParts(t).hm);
             assert.deepEqual(mins, ['0215', '0515', '0815', '1115', '1415', '1715', '2015', '2315']);
+            const due = (x) => C.kstParts(C.dueIssue(kst(x))).hm;
+            assert.deepEqual([due('2026-10-18T14:14:59'), due('2026-10-18T14:15:00'), due('2026-10-18T16:59:00'), due('2026-10-18T02:14:00')], ['1100', '1400', '1400', '2300']);
         });
 
         // ── 이틀치 덮어쓰기·창 옮기기 ─────────────────────────────────────────
-        await check('이틀치: 새 판은 준 칸만 덮고 지난 칸(앞 판)은 남김 · 결측(+900) → 없음 · 다음 날 창을 하루 옮김', () => {
+        await check('창(사흘 72칸 — 검토 A⑤): 새 판은 준 칸만 덮고 지난 칸(앞 판)은 남김 · 결측(+900) → 없음 · 다음 날 창을 하루 옮김', () => {
+            assert.equal(C.HOURS, 72);
             const e = C.blank();
             C.merge(e, items('2026-07-12', 0, 23, { TMP: 20, WAV: 0.3 }).concat(items('2026-07-13', 0, 23, { TMP: 21 })), '2026-07-12');
             C.merge(e, items('2026-07-12', 15, 23, { TMP: 25, WAV: 900 }), '2026-07-12');
@@ -138,7 +186,9 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             assert.equal(get(9, 'TMP'), 20, '지난 칸 앞 판 값'); assert.equal(get(15, 'TMP'), 25, '새 판 칸'); assert.equal(get(15, 'WAV'), null, '900 → 결측'); assert.equal(get(24 + 10, 'TMP'), 21);
             C.merge(e, [{ category: 'TMX', fcstDate: '20260713', fcstTime: '1500', fcstValue: '29.0' }], '2026-07-12');
             C.shift(e, 1);
-            assert.equal(get(10, 'TMP'), 21, '어제의 내일 = 오늘'); assert.equal(get(24 + 10, 'TMP'), null); assert.deepEqual(e.tmx, [29, null]);
+            assert.equal(get(10, 'TMP'), 21, '어제의 내일 = 오늘'); assert.equal(get(24 + 10, 'TMP'), null); assert.deepEqual(e.tmx, [29, null, null]);
+            C.merge(e, items('2026-07-15', 9, 9, { TMP: 30 }), '2026-07-13'); assert.equal(get(48 + 9, 'TMP'), 30, '셋째 날 칸');
+            C.shift(e, 2); assert.equal(get(9, 'TMP'), 30, '이틀 옮김'); C.shift(e, 3); assert.equal(get(9, 'TMP'), null, '사흘 이상 → 비움');
         });
 
         // ── 판단 통합(가짜 수집기·소해구) ───────────────────────────────────────
@@ -156,7 +206,7 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             assert.ok(svc.linesFor('s2', '2026-07-12')[1].startsWith('협재해수욕장 — 수온'));
         });
         await check('내일: 내일 낮 예보 + 오늘 수온(사용자 확정 「내일 판단도 오늘 수온값」) · 모레·어제·연결 없는 관광지는 줄 없음', () => {
-            assert.equal(svc.linesFor('s1', '2026-07-13')[1], '협재해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높아 물에 들어가기에 적절하지 않습니다. 그래도 물에 들어가는 사람이 있을 수 있습니다.');
+            assert.equal(svc.linesFor('s1', '2026-07-13')[1], '협재해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높아 물에 들어가기에 적절하지 않습니다.');
             assert.deepEqual(svc.linesFor('s1', '2026-07-14'), []); assert.deepEqual(svc.linesFor('s1', '2026-07-11'), []); assert.deepEqual(svc.linesFor('없음', '2026-07-12'), []);
             assert.deepEqual(svc.linesForSpots(['s1', 's3', '없음'], '2026-07-12'), { s1: svc.linesFor('s1', '2026-07-12') });
         });
@@ -192,8 +242,47 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             assert.deepEqual(svc.linesFor('s3', '2026-07-12'), []);
         });
 
+        await check('[검토 B⑥] 오늘은 지금 이후 낮 칸만 — 14:20 이면 10시 높은 파도·비는 빼고, 19시가 되면 오늘 입수 줄 없음(내일 줄은 그대로)', () => {
+            const t = { v: kst('2026-07-12T14:20:00') };
+            const c = C.createCollector({ dir: path.join(tmp, 'b6'), clock: () => t.v, beachNums: [1], alert: async () => ({}) });
+            c._put(1, '202607121400', '2026-07-12', items('2026-07-12', 0, 23, CALM).concat(items('2026-07-12', 10, 10, { WAV: 3, PTY: 1 }), items('2026-07-13', 0, 23, CALM)));
+            c._putTw(1, '202607121300', 22);
+            const sv = W.createBeachWeather({ table, collector: c, clock: () => t.v, smallTw: () => null });
+            assert.match(sv.linesFor('s1', '2026-07-12')[1], /좋은 날씨/, '지난 10시 칸은 빼고 봄');
+            t.v = kst('2026-07-12T18:40:00'); assert.equal(sv.linesFor('s1', '2026-07-12').length, 2, '18시 칸까지는 오늘');
+            t.v = kst('2026-07-12T19:00:00');
+            assert.deepEqual(sv.linesFor('s1', '2026-07-12'), ['협재해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.'], '오늘 낮이 지나면 입수 줄 없음');
+            assert.equal(sv.linesFor('s1', '2026-07-13').length, 2, '내일 줄은 그대로');
+        });
+        await check('[검토 A④] 낮 최고: TMX 가 없으면 낮 10칸(09~18시) 기온이 모두 있을 때만 그 최댓값 — 빈 상태에서 늦은 판(17시)만 받으면 오늘 입수 줄 없음', () => {
+            const t = { v: kst('2026-07-12T17:20:00') };
+            const c = C.createCollector({ dir: path.join(tmp, 'a4'), clock: () => t.v, beachNums: [1], alert: async () => ({}) });
+            c._put(1, '202607121700', '2026-07-12', items('2026-07-12', 18, 23, { ...CALM, TMX: undefined, TMP: 24 }));
+            c._putTw(1, '202607121700', 22);
+            const sv = W.createBeachWeather({ table, collector: c, clock: () => t.v, smallTw: () => null });
+            assert.equal(W.dayWeather(c.forecast(1), '2026-07-12', t.v), null);
+            assert.equal(sv.linesFor('s1', '2026-07-12').length, 1, '개장 줄만');
+            c._put(1, '202607121700', '2026-07-12', items('2026-07-12', 9, 17, { ...CALM, TMX: undefined, TMP: 26 }));
+            assert.equal(W.dayWeather(c.forecast(1), '2026-07-12', t.v).tmax, 26, '10칸 다 있으면 최댓값');
+        });
+        await check('[검토 A⑤] 자정 ~ 02:15(새 날 첫 발표 전) 에도 「내일」 줄 — 23시 판의 셋째 날 칸', () => {
+            const t = { v: kst('2026-07-12T23:20:00') };
+            const c = C.createCollector({ dir: path.join(tmp, 'a5'), clock: () => t.v, beachNums: [1], alert: async () => ({}) });
+            c._put(1, '202607122300', '2026-07-12', items('2026-07-13', 0, 23, CALM).concat(items('2026-07-14', 0, 23, { ...CALM, WAV: 1.8 })));
+            c._putTw(1, '202607122200', 22);
+            const sv = W.createBeachWeather({ table, collector: c, clock: () => t.v, smallTw: () => null });
+            t.v = kst('2026-07-13T00:30:00');
+            assert.match(sv.linesFor('s1', '2026-07-13')[1], /좋은 날씨/, '오늘(7-13)');
+            assert.match(sv.linesFor('s1', '2026-07-14')[1], /파도가 1.8m로 높아/, '내일(7-14) — 종전 48칸이면 없음');
+        });
+        await check('비 판정선 강수확률 60%(사용자 「통상적인 수준」) — 실측 표본(을왕리 2026-10-18 11시 판 25시간): POP 60 이상 칸은 모두 PTY≥1, 30 이하 칸은 모두 PTY 0', () => {
+            const v = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'beach_weather', 'vilage_sample_pop_pty.json'), 'utf8'));
+            assert.equal(W.RAIN_POP, 60);
+            for (const [pop, pty] of v.pairs) assert.equal(pty > 0, pop >= W.RAIN_POP, pop + '/' + pty);
+        });
+
         // ── 소해구 수온(twNear) ─────────────────────────────────────────────────
-        await check('소해구 예보 수온: 낮(UTC 00·03·06·09) 최솟값만 날짜별로 남김 · 위치가 든 칸 → 20km 안 가장 가까운 칸 · 판 48시간 넘으면 없음 · 기존 행에는 TW 없음', async () => {
+        await check('소해구 예보 수온: 낮(UTC 00·03·06·09) 최댓값만 날짜별로 남김(경고를 더 내는 쪽) · 위치가 든 칸 → 20km 안 가장 가까운 칸 · 판 48시간 넘으면 없음 · 기존 행에는 TW 없음 · [검토 A③] 12UTC 판이 와도 오늘 값 이어받음', async () => {
             const sd = path.join(tmp, 'sz'); fs.mkdirSync(sd);
             const HEAD = '#START7777\n#   TMA_FC     TMA_EF LZONE SZONE   LAT_LB    LON_LB    LAT_LT    LON_LT    LAT_RT    LON_RT    LAT_RB    LON_RB       WH_SIG     WVPRD_MAX          WVDR            WS            WD            VS          RAIN            TW         SWELL\n';
             const cells = { 1: [33.333, 126.167, -999], 2: [33.333, 126.333, 0], 3: [33.5, 126.5, 0] };   // 칸 1 = 육지(-999) · 2·3 = 바다
@@ -204,7 +293,7 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             assert.deepEqual(Object.keys(b.data['2'][0]), ['tm', 'wh', 'wp', 'waveDir', 'ws', 'windDir'], '행에 TW 없음');
             const t0 = Date.UTC(2026, 6, 12, 6);
             const r = S.twNear(33.42, 126.42, '2026-07-12', t0);   // 칸 2 가운데(33.4165,126.4165) 안
-            assert.equal(r.zone, '233-2'); assert.equal(r.tw, 22, '낮 최솟값 = 00UTC 값 20+0+2');
+            assert.equal(r.zone, '233-2'); assert.equal(r.tw, 22.9, '낮 최댓값 = 09UTC 값 20+0.9+2');
             const land = S.twNear(33.41, 126.25, '2026-07-12', t0);   // 칸 1(육지) 안 → 옆 바다 칸
             assert.equal(land.zone, '233-2');
             assert.equal(S.twNear(34.5, 128.5, '2026-07-12', t0), null, '20km 밖');
@@ -212,6 +301,13 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             const disk = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(sd, 'smallzone_forecast.json.gz'))).toString());
             assert.ok(Array.isArray(disk.tw) && disk.tw.length === 2, '육지 칸은 tw 표에 없음');
             assert.ok(JSON.stringify(disk.tw).length < 400, '소해구 수온은 날짜별 숫자 하나씩만 ' + JSON.stringify(disk.tw).length);
+            // 12UTC 판(21시 KST): 발효 시각이 그날 12UTC 부터라 오늘 낮 칸이 없다 → 직전 판의 오늘 값을 이어받는다
+            await S.prefetch(['233'], '2026071212');
+            const late = Date.UTC(2026, 6, 12, 14);   // 23시 KST
+            assert.equal(S.getStatus().baseTm, '2026071212');
+            assert.equal(S.twNear(33.42, 126.42, '2026-07-12', late).tw, 22.9, '오늘 값 이어받음');
+            assert.ok(S.twNear(33.42, 126.42, '2026-07-13', late), '내일 값은 새 판');
+            assert.deepEqual(S.twCarry([{ z: 'a', lat: 1, lon: 2, d: { '2026-07-11': 1, '2026-07-12': 2 } }], [{ z: 'a', lat: 1, lon: 2, d: { '2026-07-13': 3 } }], '2026-07-12'), [{ z: 'a', lat: 1, lon: 2, d: { '2026-07-13': 3, '2026-07-12': 2 } }], '지난 날짜는 버림');
             S._reset();
         });
 
@@ -249,6 +345,53 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             t = now + 30 * 60000; const p = c.tick(); assert.ok(p, '30분 뒤 다시'); await p;
             t = kst('2026-07-12T17:15:00'); assert.ok(c.tick(), '다음 정기 시각');
         });
+        await check('[검토 A①] 띄엄띄엄 실패(4곳 중 3곳 — 연속 3번)도 실패율 10% 초과면 회차 실패·실패 보고 · 5% 는 정상 · 회차 요약 줄(status.json message)', async () => {
+            const run = async (bad) => { const d = fs.mkdtempSync(path.join(tmp, 'a1-')), alerts = [];
+                const c = C.createCollector({ dir: d, clock: () => now, beachNums: Array.from({ length: 40 }, (_, i) => i + 1), getKey: () => KEY, gapMs: 0, alert: async (id, o) => alerts.push([id, o.ok]),
+                    fetchText: async (u) => { const n = +new URL(u).searchParams.get('beach_num'); if (bad(n)) throw new Error('HTTP 500'); return u.includes('getTwBuoyBeach') ? body([{ tm: '202607121300', tw: '22' }]) : body(items('2026-07-12', 9, 18, CALM)); } });
+                const origW = console.warn; console.warn = () => { }; const r = await c.collect(); console.warn = origW;
+                return { r, alerts, st: JSON.parse(fs.readFileSync(path.join(d, 'status.json'), 'utf8')) }; };
+            const a = await run((n) => n % 4 !== 0);
+            assert.equal(a.r.forecast.broken, false); assert.equal(a.r.ok, false); assert.deepEqual(a.alerts, [['beachForecast', false], ['beachWaterTemp', false]]);
+            assert.match(a.st.message, /예보 성공 10·실패 30\(75%\)/); assert.match(a.st.message, /실패\(10% 초과/);
+            const b = await run((n) => n === 7 || n === 8);   // 2/40 = 5%
+            assert.equal(b.r.ok, true); assert.deepEqual(b.alerts, [['beachForecast', true], ['beachWaterTemp', true]]);
+        });
+        await check('[검토 A②] 재시도는 이번 판을 이미 받은 곳을 건너뛰고, 수온은 수온 단계가 실패했을 때만 — 실패 곳만 다시 묻는다', async () => {
+            let t = now, bad = (n) => n > 30, urls = [];
+            const c = C.createCollector({ dir: path.join(tmp, 'a2'), clock: () => t, beachNums: Array.from({ length: 40 }, (_, i) => i + 1), getKey: () => KEY, gapMs: 0, alert: async () => ({}),
+                fetchText: async (u) => { urls.push(u); const n = +new URL(u).searchParams.get('beach_num'); if (!u.includes('getTwBuoyBeach') && bad(n)) throw new Error('HTTP 500'); return u.includes('getTwBuoyBeach') ? body([{ tm: '202607121300', tw: '22' }]) : body(items('2026-07-12', 9, 18, CALM)); } });
+            const origW = console.warn; console.warn = () => { };
+            await c.collect(); console.warn = origW;   // 예보 30 성공·10 실패(25%) → 실패, 수온 40 성공
+            assert.equal(c.meta().status.ok, false); assert.equal(c.meta().status.twOk, true);
+            urls = []; bad = () => false; t = now + 30 * 60000;
+            const r = await c.tick();
+            assert.equal(urls.length, 10, '실패한 예보 10곳만 다시(수온 다시 안 물음)');
+            assert.ok(urls.every((u) => u.includes('getVilageFcstBeach') && +new URL(u).searchParams.get('beach_num') > 30));
+            assert.equal(r.ok, true); assert.equal(r.forecast.skip, 30); assert.equal(r.tw.skipped, true);
+        });
+        await check('[검토 A⑥·⑦] 기동 직후(14:12 — 14시 판 제공 뒤)에 받으면 14:15 정기 점검은 같은 판을 다시 안 받음 · 점검이 17:15 를 놓쳐도 17:16 에 따라잡음 · 회차 중 점검은 겹치지 않음', async () => {
+            let t = kst('2026-07-12T14:12:00'), n = 0;
+            const c = C.createCollector({ dir: path.join(tmp, 'a6'), clock: () => t, beachNums: [1], getKey: () => KEY, gapMs: 0, alert: async () => ({}),
+                fetchText: async (u) => { n++; return u.includes('getTwBuoyBeach') ? body([{ tm: '202607121400', tw: '22' }]) : body(items('2026-07-12', 9, 18, CALM)); } });
+            const p0 = c.tick(); assert.ok(p0, '기동 — 받은 기록 없음'); assert.strictEqual(c.tick(), p0, '회차 중 다시 불러도 같은 회차'); await p0;
+            assert.equal(c.meta().status.issue, '202607121400');
+            const n0 = n; t = kst('2026-07-12T14:15:00'); assert.equal(c.tick(), null, '14:15 — 같은 판 다시 안 받음'); assert.equal(n, n0);
+            t = kst('2026-07-12T17:14:00'); assert.equal(c.tick(), null, '17:14 — 17시 판은 15분 뒤부터');
+            t = kst('2026-07-12T17:16:30'); const p1 = c.tick(); assert.ok(p1, '17:15 를 놓쳐도 17:16 에 받음'); await p1;
+            assert.equal(c.meta().status.issue, '202607121700');
+            const n1 = n; t = kst('2026-07-12T17:47:00'); assert.equal(c.tick(), null); assert.equal(n, n1, '같은 판 다시 안 받음');
+        });
+        await check('수온 지금 정시가 자료 없음(03)이면 1시간 앞 정시로 한 번 더(호출 2회) — 그것도 없으면 자료 없음', async () => {
+            const q = [];
+            const c = C.createCollector({ dir: path.join(tmp, 'tw03'), clock: () => now, beachNums: [1, 2], getKey: () => KEY, gapMs: 0, alert: async () => ({}),
+                fetchText: async (u) => { const sp = new URL(u).searchParams; if (!u.includes('getTwBuoyBeach')) return body(items('2026-07-12', 9, 18, CALM));
+                    q.push(sp.get('beach_num') + '@' + sp.get('searchTime')); if (sp.get('searchTime') === '202607121400' || sp.get('beach_num') === '2') return JSON.stringify({ response: { header: { resultCode: '03', resultMsg: 'NO_DATA' } } });
+                    return body([{ tm: '202607121300', tw: '21.5' }]); } });
+            const r = await c.collect();
+            assert.deepEqual(q, ['1@202607121400', '1@202607121300', '2@202607121400', '2@202607121300']);
+            assert.deepEqual(c.waterTemp(1), { tm: '202607121300', tw: 21.5 }); assert.equal(r.tw.nodata, 1);
+        });
         await check('자료 없음(resultCode 03)·키 오류(XML)는 고정 분류로 · 오류 글에 주소·키 없음', () => {
             assert.equal(C.parseBody(JSON.stringify({ response: { header: { resultCode: '03', resultMsg: 'NO_DATA' } } })), null);
             assert.throws(() => C.parseBody('<OpenAPI_ServiceResponse><cmmMsgHeader><returnReasonCode>30</returnReasonCode></cmmMsgHeader></OpenAPI_ServiceResponse>'), /^Error: API 오류 코드 30$/);
@@ -278,11 +421,11 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
         });
 
         // ── 메모리 ───────────────────────────────────────────────────────────────
-        await check('메모리: 419곳 × 48시간 × 6항목을 다 채워도 heap+ArrayBuffer(Int16Array 칸은 heap 밖) 증가 1.5MB 아래(원본 응답을 쌓지 않음)', () => {
+        await check('메모리: 419곳 × 72시간 × 6항목을 다 채워도 heap+ArrayBuffer(Int16Array 칸은 heap 밖) 증가 1.5MB 아래(원본 응답을 쌓지 않음)', () => {
             const d = path.join(tmp, 'mem');
             const out = execFileSync(process.execPath, ['--expose-gc', '-e', `
                 const C=require(${JSON.stringify(path.join(__dirname, '..', 'services', 'beach_weather_collector.js'))});
-                const its=[];for(const day of ['20260712','20260713'])for(let h=0;h<24;h++)for(const c of C.CATS)its.push({category:c,fcstDate:day,fcstTime:String(h).padStart(2,'0')+'00',fcstValue:'12.3'});
+                const its=[];for(const day of ['20260712','20260713','20260714'])for(let h=0;h<24;h++)for(const c of C.CATS)its.push({category:c,fcstDate:day,fcstTime:String(h).padStart(2,'0')+'00',fcstValue:'12.3'});
                 const col=C.createCollector({dir:${JSON.stringify(d)},clock:()=>${now},beachNums:[]});col.meta();
                 global.gc();global.gc();const m0=process.memoryUsage(),h0=m0.heapUsed+m0.arrayBuffers;
                 for(let n=1;n<=419;n++)col._put(n,'202607121400','2026-07-12',its);
@@ -294,7 +437,7 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
         });
         await check('보관 파일 크기: 419곳 가득 찬 예보 파일 < 1MB(실측 원본 1곳 835항목 ≈ 45KB/300행 — 원본이면 수십 MB)', async () => {
             const d = path.join(tmp, 'size'), nums = STATIC.beaches.map((b) => b.n);
-            const full = []; for (const day of ['2026-07-12', '2026-07-13']) full.push(...items(day, 0, 23, { ...CALM, REH: 80, UUU: 1, VVV: 2, VEC: 180, PCP: '강수없음', SNO: '적설없음' }));
+            const full = []; for (const day of ['2026-07-12', '2026-07-13', '2026-07-14']) full.push(...items(day, 0, 23, { ...CALM, REH: 80, UUU: 1, VVV: 2, VEC: 180, PCP: '강수없음', SNO: '적설없음' }));
             const c = C.createCollector({ dir: d, clock: () => now, beachNums: nums, getKey: () => KEY, gapMs: 0, alert: async () => ({}), fetchText: async (u) => u.includes('getTwBuoyBeach') ? body([]) : body(full) });
             await c.collect();
             const size = fs.statSync(path.join(d, 'forecast.json')).size;
@@ -334,13 +477,21 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
         });
 
         // ── 관리자 수집현황·수집 실패 기록 ────────────────────────────────────────
-        await check('관리자: 데이터 수집현황 목록에 단기예보·수온 두 줄(02:15~23:15 여덟 번) · 수집 실패 기록 항목(푸시 없음)', () => {
+        await check('관리자: 데이터 수집현황 목록에 단기예보·수온 두 줄(02:15~23:15 여덟 번) · 회차 요약 줄(statusFile) · 수집 실패 푸시(사용자 「푸시보내」) · statusFile 만 있는 항목도 실패 기록이면 빨강', async () => {
             const m = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'data_collection_manifest.json'), 'utf8')).items;
             const f = m.find((i) => i.id === 'beachForecast'), t = m.find((i) => i.id === 'beachWaterTemp');
             assert.deepEqual(f.schedule.times, ['02:15', '05:15', '08:15', '11:15', '14:15', '17:15', '20:15', '23:15']);
             assert.equal(f.state.file, 'beach_weather/forecast.json'); assert.equal(t.state.file, 'beach_weather/watertemp.json');
+            assert.equal(f.state.statusFile, 'beach_weather/status.json'); assert.equal(t.state.statusFile, 'beach_weather/status.json');
             const A = require('../services/collect_fail_alert');
-            assert.equal(A.ITEMS.beachForecast.push, false); assert.equal(A.ITEMS.beachWaterTemp.push, false);
+            assert.ok(A.ITEMS.beachForecast.push !== false && A.ITEMS.beachWaterTemp.push !== false, '푸시 보냄');
+            const dd = path.join(tmp, 'dcs'); fs.mkdirSync(path.join(dd, 'beach_weather'), { recursive: true });
+            fs.writeFileSync(path.join(dd, 'beach_weather', 'forecast.json'), JSON.stringify({ fmt: 2, collectedAt: '2026-07-12T14:16:00+09:00', issueAt: '2026-07-12T14:00:00+09:00' }));
+            fs.writeFileSync(path.join(dd, 'beach_weather', 'status.json'), JSON.stringify({ message: '발표 14시 · 예보 성공 10·실패 30(75%) — 실패' }));
+            const DS = require('../services/data_collection_status').createStatus({ dataDir: dd, clock: () => kst('2026-07-12T14:30:00'), riskCurrent: () => [], schedulerStatus: () => null,
+                collectFails: () => ({ beachForecast: { streak: 1, since: '2026-07-12T05:16:00.000Z', reason: 'HTTP 500' } }) });
+            const it = (await DS.list()).items.find((i) => i.id === 'beachForecast');
+            assert.equal(it.status, 'error'); assert.ok(/예보 성공 10·실패 30/.test(it.detail) && /마지막 수집 실패: HTTP 500/.test(it.detail), it.detail);
         });
     } catch (e) {
         fail++; console.error('❌ 실행 실패', e && e.stack);

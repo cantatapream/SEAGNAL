@@ -51,7 +51,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
   islands:()=>({features:[]})};
  const marine=M.createStore({risk:store,dir,clock:()=>now,stations:[{properties:{name:'제주파출소',station:'제주해양경찰서'},geometry}],accidents:[],describe:()=>cell});
  // §18(2026-10-18) 해수욕장 안내 줄 — 가짜(S1 만, 날짜마다 다른 줄). 판단·문구 자체는 test_beach_weather 가 본다.
- const BEACH={'S1@2026-10-12':['가짜해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.','가짜해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높고 바람이 초속 9m로 강해 물에 들어가기에 적절하지 않습니다. 그래도 물에 들어가는 사람이 있을 수 있습니다.'],'S1@2026-10-13':['가짜해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 0.5m로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.']};
+ const BEACH={'S1@2026-10-12':['가짜해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.','가짜해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높고 바람이 초속 9m로 강해 물에 들어가기에 적절하지 않습니다.'],'S1@2026-10-13':['가짜해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 0.5m로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.']};
  const app=express();app.use(createRouter({store,marine,beach:(id,date)=>BEACH[id+'@'+date]||[]}));
  app.get('/',(req,res)=>res.sendFile(path.join(root,'client/index2.html')));
  app.use(express.static(path.join(root,'client')));

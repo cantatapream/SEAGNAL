@@ -10,8 +10,9 @@
  *   *"나머지는 개장 정보 없음으로 표시하지 말고 … 개장 정보가 있다 없다를 이야기하지 말고"* · 문구 *"네가 맞춰놓은 문구로"* ·
  *   *"개장 예정은 5일 전부터 표시하면 될 것 같고, 내일 판단도 오늘 수온값을 쓴다고 하면 그렇게 해야 될 것 같아.
  *    수온 관측 없는 해수욕장이 있다면 소해구 예보 수온으로 대신해도 돼. 필요한 것만 남기는 방식으로 설계해."*
- * [판단] 그날(오늘·내일 각각) 낮 09~18시 칸 — 파고·풍속은 그중 최댓값, 비는 한 칸이라도 있으면, 낮 최고 = 기상청 TMX(없으면 그 칸 기온 최댓값).
- *        수온 = 해수욕장 부이 관측(12시간 안) → 없으면 소해구 예보 수온(그날 낮 최솟값) → 없으면 줄 없음. 내일도 오늘 수온을 쓴다.
+ * [판단] 그날(오늘·내일 각각) 낮 09~18시 칸(오늘은 지금 이후 칸만 — 18시가 지나면 오늘 입수 줄 없음) — 파고·풍속은 그중 최댓값, 비는 한 칸이라도 있으면,
+ *        낮 최고 = 기상청 TMX(없으면 낮 10칸 기온이 모두 있을 때만 그 최댓값).
+ *        수온 = 해수욕장 부이 관측(12시간 안) → 없으면 소해구 예보 수온(그날 낮 최댓값 — 경고를 더 내는 쪽) → 없으면 줄 없음. 내일도 오늘 수온을 쓴다.
  *        비교는 화면에 쓰는 숫자(수온·기온·풍속 정수, 파고 소수 한 자리)로 한다 — 문장과 판정이 어긋나지 않게.
  * [연계]
  *  - 사용하는 파일 : config/coastal_safety/beach_weather_static.json(해수욕장·관광지 연결·해수부 개장 — build_beach_weather_static.py)
@@ -29,7 +30,7 @@ const C = require('./beach_weather_collector');
 const DAY_FROM = 9, DAY_TO = 18;               // 낮 판단 칸(KST, 끝 포함)
 const STALE_ISSUES_MS = 6 * 3600000;           // 기대 발표보다 6시간 넘게 옛 판(= 2 발표 넘게 못 받음)이면 쓰지 않는다
 const TW_MAX_AGE_MS = 12 * 3600000;            // 부이 수온 관측이 이보다 오래되면 소해구 예보로 넘어간다
-const RAIN_POP = 60;                           // 강수확률 이 이상인 칸도 「비」로 본다(보수적 기본값 — 설계서 §18)
+const RAIN_POP = 60;                           // 강수확률 이 이상인 칸도 「비」로 본다(사용자 2026-10-18 「통상적인 수준에서 판단」 — 표본에서 기상청 강수형태 판정선과 같음, 설계서 §18.4)
 const OPEN_SOON_DAYS = 5;                      // 사용자 확정 *"개장 예정은 5일 전부터 표시하면 될 것 같고"*
 const GOOD = { tw: 20, tmax: 25, wav: 1, wsd: 7 }, MAYBE = { tw: 18, tmax: 23 };
 
@@ -48,27 +49,34 @@ function mdKo(d) { return +d.slice(5, 7) + '월 ' + +d.slice(8, 10) + '일'; }
 function dayDiff(a, b) { return Math.round((Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 86400000); }
 
 /**
- * 그날 낮 날씨를 접는다. 예보 창(d0~d0+1)에 그날이 없거나, 판이 낡았거나, 항목이 하나라도 없으면 null.
- * 예: dayWeather(f, '2026-10-18', now) → { tmax:27, wav:0.5, wsd:4, rain:false }
+ * 그날 낮 날씨를 접는다. 예보 창(d0~d0+2)에 그날이 없거나, 판이 낡았거나, 항목이 하나라도 없으면 null.
+ * 오늘은 **지금 이후의 낮 칸만** 본다(파고·풍속·비 — 검토 B⑥): 오늘 낮(18시 칸)이 지났으면 null(오늘 입수 줄 없음).
+ * 낮 최고는 그날 하루 값이라 TMX(기상청 낮 최고)를 쓰고, TMX 가 없으면 **낮 10칸(09~18시) 기온이 모두 있을 때만** 그 최댓값(검토 A④ — 늦은 판만
+ * 받은 빈 상태에서 18시 기온 하나가 「낮 최고」가 되지 않게). 둘 다 안 되면 null.
+ * 예: dayWeather(f, '2026-10-18', 10-18 14:20) → 14~18시 칸으로 { tmax:27, wav:0.5, wsd:4, rain:false } · (…, 10-18 19:00) → null
  * @param {object|null} f - collector.forecast(n) @param {string} date @param {number} now @returns {object|null}
- * [연계] ← lines / 시험 「오래된 값 숨김」·「낮 최댓값」
+ * [연계] ← lines / 시험 「오래된 값 숨김」·「낮 최댓값」·「오늘 남은 칸」·「낮 최고 대체」
  */
 function dayWeather(f, date, now) {
     if (!f || !f.base) return null;
     const baseMs = C.kstMs(f.base.slice(0, 8), f.base.slice(8, 12));
     if (!Number.isFinite(baseMs) || C.issueAt(now) - baseMs > STALE_ISSUES_MS) return null;
     const d = dayDiff(date, f.d0);
-    if (d !== 0 && d !== 1) return null;
-    let wav = null, wsd = null, tmp = null, ptySeen = false, rain = false;
+    if (!(d >= 0 && d < C.DAYS)) return null;
+    const p = C.kstParts(now), from = date === p.date ? Math.max(DAY_FROM, p.h) : DAY_FROM;
+    if (date < p.date || from > DAY_TO) return null;
+    let wav = null, wsd = null, ptySeen = false, rain = false, tmp = null, tmpN = 0;
     for (let h = DAY_FROM; h <= DAY_TO; h++) {
-        const i = d * 24 + h, w = f.at(i, 'WAV'), s = f.at(i, 'WSD'), t = f.at(i, 'TMP'), p = f.at(i, 'PTY'), pop = f.at(i, 'POP');
+        const i = d * 24 + h, t = f.at(i, 'TMP');
+        if (t !== null) { tmp = tmp === null ? t : Math.max(tmp, t); tmpN++; }
+        if (h < from) continue;
+        const w = f.at(i, 'WAV'), s = f.at(i, 'WSD'), pt = f.at(i, 'PTY'), pop = f.at(i, 'POP');
         if (w !== null) wav = wav === null ? w : Math.max(wav, w);
         if (s !== null) wsd = wsd === null ? s : Math.max(wsd, s);
-        if (t !== null) tmp = tmp === null ? t : Math.max(tmp, t);
-        if (p !== null) { ptySeen = true; if (p > 0) rain = true; }
+        if (pt !== null) { ptySeen = true; if (pt > 0) rain = true; }
         if (pop !== null && pop >= RAIN_POP) rain = true;
     }
-    const tmax = Number.isFinite(f.tmx[d]) ? f.tmx[d] : tmp;
+    const tmax = Number.isFinite(f.tmx[d]) ? f.tmx[d] : tmpN === DAY_TO - DAY_FROM + 1 ? tmp : null;
     if (wav === null || wsd === null || tmax === null || !ptySeen) return null;
     return { tmax, wav, wsd, rain };
 }
@@ -76,7 +84,7 @@ function dayWeather(f, date, now) {
 /**
  * 입수 판단. 화면 숫자로 반올림한 값으로 비교한다.
  * 좋음 = 수온 20↑·낮 최고 25↑·비 없음·파고 1m↓·풍속 7m/s↓ / 거친 날 = 수온·기온은 좋음 기준 이상인데 파고 1m 초과·풍속 7m/s 초과·비 중 하나↑ /
- * 있을 수 있음 = 수온 18↑·낮 최고 23↑ 이고 위 둘이 아님 / 그 밖 null.
+ * 있을 수 있음 = 수온 18↑·낮 최고 23↑ 이고 위 둘이 아니며 나쁜 항목 없음 / 경고(warn) = 같은 범위인데 파고 1m 초과·풍속 7m/s 초과·비 중 하나↑(2026-10-18 사용자 결정) / 그 밖 null.
  * 예: decide({tw:22,tmax:27,wav:0.5,wsd:4,rain:false}) → {kind:'good',…} · ({tw:22,tmax:27,wav:1.8,…}) → {kind:'rough', bad:['wave']}
  * @param {object} x - {tw,tmax,wav,wsd,rain} @returns {object|null} {kind, tw, tmax, wav, wsd, bad} [연계] ← lines / 시험 「경계값」
  */
@@ -91,13 +99,14 @@ function decide(x) {
     const r = { tw, tmax, wav, wsd, bad };
     if (warm && !bad.length) return { kind: 'good', ...r };
     if (warm) return { kind: 'rough', ...r };
-    if (tw >= MAYBE.tw && tmax >= MAYBE.tmax) return { kind: 'maybe', ...r };
+    // 수온 18↑·낮 최고 23↑ 인데 좋음 기준 미달 — 나쁜 항목이 있으면 경고(사용자 2026-10-18 *"경고문구로 넣어야지 파고가 3m인데"*), 없으면 「있을 수 있음」
+    if (tw >= MAYBE.tw && tmax >= MAYBE.tmax) return { kind: bad.length ? 'warn' : 'maybe', ...r };
     return null;
 }
 
 /**
  * 판단 결과를 확정 문구로 쓴다(사용자 확정 — 이 글자 그대로, 숫자만 바뀜). 거친 날의 나쁜 항목이 여럿이면 앞 항목은 「-고」로 잇는다
- *   (「파도가 1.8m로 높고 바람이 초속 9m로 강해」·「바람이 초속 9m로 강하고 비가 예보되어」). 순서 = 파도 → 바람 → 비.
+ *   (「파도가 1.8m로 높고 바람이 초속 9m로 강해」·「바람이 초속 9m로 강하고 비가 예보되어」). 순서 = 파도 → 바람 → 비. 경고(warn)는 「수온 19℃ · 낮 최고 24℃이고 …」.
  * 예: swimText('협재해수욕장(1.2km)', {kind:'good',tw:22,tmax:27,wav:0.5}) → '협재해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 0.5m로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.'
  * @param {string} label - 「이름(거리)」 @param {object} r - decide 결과 @returns {string} [연계] ← lines / 시험 「문구」
  */
@@ -106,7 +115,9 @@ function swimText(label, r) {
     if (r.kind === 'maybe') return `${label} — 수온 ${r.tw}℃ · 낮 최고 ${r.tmax}℃로 물놀이하기에 아주 좋은 날씨는 아니지만, 바닷물에 들어가는 사람이 있을 수 있습니다.`;
     const part = { wave: [`파도가 ${mText(r.wav)}로 높고`, `파도가 ${mText(r.wav)}로 높아`], wind: [`바람이 초속 ${r.wsd}m로 강하고`, `바람이 초속 ${r.wsd}m로 강해`], rain: ['비가 예보되고', '비가 예보되어'] };
     const why = r.bad.map((k, i) => part[k][i === r.bad.length - 1 ? 1 : 0]).join(' ');
-    return `${label} — 수온 ${r.tw}℃로 따뜻하지만 ${why} 물에 들어가기에 적절하지 않습니다. 그래도 물에 들어가는 사람이 있을 수 있습니다.`;
+    // 끝 문장 「그래도 물에 들어가는 사람이 있을 수 있습니다.」는 뺐다(사용자 2026-10-18 *"들어가는사람이 있을수있다는 빼줘 파고가 3미터인데 어떻게 들어가니"*)
+    if (r.kind === 'warn') return `${label} — 수온 ${r.tw}℃ · 낮 최고 ${r.tmax}℃이고 ${why} 물에 들어가기에 적절하지 않습니다.`;
+    return `${label} — 수온 ${r.tw}℃로 따뜻하지만 ${why} 물에 들어가기에 적절하지 않습니다.`;
 }
 
 /**
@@ -144,7 +155,7 @@ function createBeachWeather(o = {}) {
         return table;
     }
     /**
-     * 그 해수욕장의 오늘 수온. 순서: 부이 관측(12시간 안) → 소해구 예보 수온(오늘 낮 최솟값, 20km 안) → null.
+     * 그 해수욕장의 오늘 수온. 순서: 부이 관측(12시간 안) → 소해구 예보 수온(오늘 낮 최댓값, 20km 안) → null.
      * 예: waterTemp(b, now) → { tw:21.4, from:'buoy' } · { tw:20.8, from:'smallzone', zone:'233-5' } · null
      * @param {object} b - 정적 표 해수욕장 @param {number} now @returns {object|null} [연계] ← linesFor
      */

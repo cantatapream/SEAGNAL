@@ -396,7 +396,7 @@
         ]
       },
       "schedule": {
-        "text": "발표 15분 뒤 02:15·05:15·08:15·11:15·14:15·17:15·20:15·23:15 KST(운영 서버) + 회차 실패 시 같은 발표 안에서 30분마다 + 기동 때 이번 발표를 아직 못 받았으면",
+        "text": "발표 15분 뒤 02:15·05:15·08:15·11:15·14:15·17:15·20:15·23:15 KST(운영 서버 1분 점검 — 놓치면 다음 점검에서 따라잡음) + 회차 실패(중단·전부 실패·실패 10% 초과) 시 같은 발표 안에서 30분마다(이미 받은 곳은 건너뜀)",
         "times": ["02:15", "05:15", "08:15", "11:15", "14:15", "17:15", "20:15", "23:15"],
         "evidence": [
           { "file": "local_server/services/beach_weather_collector.js", "quote": "const ISSUE_HOURS = [2, 5, 8, 11, 14, 17, 20, 23];" },
@@ -405,6 +405,7 @@
       },
       "state": {
         "file": "beach_weather/forecast.json",
+        "statusFile": "beach_weather/status.json",
         "collectedField": "collectedAt",
         "collectedFormat": "iso",
         "basisField": "issueAt",
@@ -428,11 +429,12 @@
         "text": "단기예보와 같은 회차(02:15·05:15·…·23:15 KST) 바로 뒤에 이어서",
         "times": ["02:15", "05:15", "08:15", "11:15", "14:15", "17:15", "20:15", "23:15"],
         "evidence": [
-          { "file": "local_server/services/beach_weather_collector.js", "quote": "const w = await run('tw', async (n) => {" }
+          { "file": "local_server/services/beach_weather_collector.js", "quote": "await run('tw', async (n) => {" }
         ]
       },
       "state": {
         "file": "beach_weather/watertemp.json",
+        "statusFile": "beach_weather/status.json",
         "collectedField": "collectedAt",
         "collectedFormat": "iso",
         "basisField": "latestTm",

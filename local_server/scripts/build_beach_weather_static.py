@@ -29,6 +29,15 @@ SRC = CONFIG / 'beach_sources'
 LINK_M = 3000            # 사용자 *"3km로 하면 될것 같고"*
 NAME_FIX_M = 6000        # 좌표가 부정확한 기상청 해수욕장을 같은 이름 관광지 좌표로 고칠 때 찾는 반경(5km 격자 중심 오차 ≈ 3.5km + 여유)
 TIE_M = 300              # 둘째 후보가 첫째보다 이만큼 안쪽이면 확인 목록에 올린다
+SELF_M = 500             # 거리 괄호를 빼는 「그 해수욕장 자체」 관광지 — 이름이 정말 같고(strict_same) 이 거리 안(2026-10-18 검토 B⑤)
+SUSPECT_M = 1000         # 이름이 정말 같은 관광지(10km 안)와 이보다 멀면 「좌표 의심」(검토 B③)
+SWAP_M = 200             # 두 해수욕장 좌표가 서로 상대 이름 관광지에 이 거리 안이면 맞바뀜으로 보고 관광지 좌표로 고친다(검토 B③ — 금진·옥계 실측 82m·164m)
+# 해수부 개장인데 기상청 번호 대조가 안 된 줄 중, 이름 표기만 다르고 같은 섬·같은 시군구 관광지 좌표로 근거가 서는 것만 손으로 잇는다(검토 B②).
+#   (해수부 연번, 기상청 번호, 근거로 쓸 관광지 id) — 근거 거리는 build 가 매번 다시 잰다(300m 넘으면 멈춤).
+MOF_MANUAL = [
+    (161, 15, '28720|소야도 떼뿌리 해변'),   # 해수부 「옹진군 때뿌루(덕적면 소야리)」 ↔ 기상청 「떼뿌루 해수욕장」 — 「때/떼」 표기 차이
+    (259, 78, '44270|난지섬해수욕장'),        # 해수부 「당진시 난지섬(석문면 난지1길)」 ↔ 기상청 「난지도 해수욕장」 — 「섬/도」 표기 차이
+]
 EXCLUDE = {164: '사용자 *"몰운대는 빼도록 하자"* (2026-10-18) — 국가지질공원이라 물놀이 해수욕장이 아님'}
 
 # ── 기상청 단기예보 격자(LCC, 5km) — 기상청 활용가이드 「단기예보 지점 좌표(X,Y)위치와 위경도 간의 전환」 C 예제와 같은 상수 ──
@@ -78,6 +87,20 @@ def norm(name):
     s = re.sub(r'\([^)]*\)', '', name)
     s = re.sub(r'[\s·.,\-_/]', '', s)
     return re.sub(r'(해수욕장|해변|해안|비치)$', '', s)
+
+
+def strict_norm(name):
+    """「그 해수욕장 자체」 판정용 — 괄호·공백·구두점과 꼬리 「해수욕장·해변·해안」만 뺀다(「비치」·지역 머리말은 그대로).
+    예: '협재 해수욕장' → '협재' · '쏠비치 삼척' → '쏠비치삼척'. 호출: strict_same."""
+    s = re.sub(r'\([^)]*\)', '', name)
+    s = re.sub(r'[\s·.,\-_/]', '', s)
+    return re.sub(r'(해수욕장|해변|해안)$', '', s)
+
+
+def strict_same(spot_name, kma_name):
+    """이름이 정말 같은가(꼬리 해수욕장·해변·해안 차이만 허용). 예: ('협재해수욕장','협재 해수욕장') → True · ('쏠비치 삼척','삼척 해수욕장') → False. 호출: build(self·좌표 의심)."""
+    a, b = strict_norm(spot_name), strict_norm(kma_name)
+    return bool(a) and a == b
 
 
 def same_name(spot_name, kma_name):
@@ -159,6 +182,38 @@ def build():
             b.update({'lat': s['lat'], 'lon': s['lon'], 'coord': 'spot:' + s['id'], 'moved_m': round(c[0][0])})
         else:
             review.append(['좌표 부정확(고치지 못함)', b['n'], b['name'], '', '', '', ','.join(b['flags']), '같은 이름 관광지 없음 — 거리로만 연결하지 않음(이름이 같은 관광지만 연결)'])
+    # ①-2 좌표 맞바뀜(검토 B③): 두 해수욕장 A·B 의 기상청 좌표가 서로 상대 이름 관광지에 SWAP_M 안이면 각자 자기 이름 관광지 좌표로 고친다.
+    def own_spot(b):
+        c = [(dist_m(b['lat'], b['lon'], x['lat'], x['lon']), x) for x in beach_spots if strict_same(x['name'], b['kma'])]
+        c = [y for y in c if y[0] <= 10000]
+        return min(c, key=lambda y: y[0]) if c else None
+    plain = [b for b in beaches if b['coord'] == 'kma']
+    owns = {b['n']: own_spot(b) for b in plain}
+    swaps = []
+    for a in plain:
+        for b in plain:
+            if a['n'] >= b['n']:
+                continue
+            oa, ob = owns[a['n']], owns[b['n']]
+            if not oa or not ob or oa[0] <= SUSPECT_M or ob[0] <= SUSPECT_M:
+                continue
+            ab, ba = dist_m(a['lat'], a['lon'], ob[1]['lat'], ob[1]['lon']), dist_m(b['lat'], b['lon'], oa[1]['lat'], oa[1]['lon'])
+            if ab <= SWAP_M and ba <= SWAP_M:
+                swaps.append((a, oa[1], ab, b, ob[1], ba))
+    for a, sa, ab, b, sb, ba in swaps:
+        for x, sx, d in ((a, sa, ab), (b, sb, ba)):
+            review.append(['좌표 맞바뀜 고침', x['n'], x['name'], sx['id'], sx['name'], round(dist_m(x['lat'], x['lon'], sx['lat'], sx['lon'])), '',
+                           '기상청 좌표가 상대 해수욕장 이름 관광지에 %dm — 자기 이름 관광지 좌표로' % round(d)])
+            moved = round(dist_m(x['lat'], x['lon'], sx['lat'], sx['lon']))
+            x.update({'lat': sx['lat'], 'lon': sx['lon'], 'coord': 'spot:' + sx['id'], 'moved_m': moved, 'swap': True})
+    # 좌표 의심(검토 B③): 같은 이름 관광지(넓은 same_name, 해수욕장 표지 무관)가 10km 안에서 가장 가까운 것도 1km 넘게 떨어진 해수욕장 — 목록만(좌표는 그대로)
+    for b in beaches:
+        if b['coord'] != 'kma':
+            continue
+        c = [(dist_m(b['lat'], b['lon'], x['lat'], x['lon']), x) for x in spots if same_name(x['name'], b['kma'])]
+        o = min(c, key=lambda y: y[0]) if c else None
+        if o and SUSPECT_M < o[0] <= 10000:
+            review.append(['좌표 의심(이름 같은 관광지와 1km 넘게)', b['n'], b['name'], o[1]['id'], o[1]['name'], round(o[0]), ','.join(b['flags']), '좌표는 그대로 둠'])
     # ② 관광지마다 3km 안 해수욕장 — 이름이 같은 곳이 3km 안에 있으면 그것, 아니면 가장 가까운 곳. 좌표를 못 고친 부정확 해수욕장은 이름이 같을 때만.
     links = {}
     for s in spots:
@@ -179,7 +234,9 @@ def build():
         cand.sort(key=lambda x: (x[0], x[1]))
         pick = cand[0]
         b = pick[2]
-        links[s['id']] = {'n': b['n'], 'm': round(pick[1]), **({'self': True} if pick[0] == 0 else {})}
+        # self(화면이 거리 괄호를 뺌) = 이름이 정말 같고(꼬리 해수욕장·해변·해안 차이만) SELF_M 안 — 검토 B⑤(종전엔 넓은 same_name 이면 거리와 무관하게 뺐다)
+        own = strict_same(s['name'], b['kma']) and pick[1] <= SELF_M
+        links[s['id']] = {'n': b['n'], 'm': round(pick[1]), **({'self': True} if own else {})}
         near = sorted(cand, key=lambda x: x[1])
         if pick[0] == 1 and len(near) > 1 and near[1][1] - near[0][1] < TIE_M:
             review.append(['가까운 후보 둘(300m 안 차이)', b['n'], b['name'], s['id'], s['name'], round(pick[1]), '', '둘째 %s %dm' % (near[1][2]['name'], round(near[1][1]))])
@@ -187,25 +244,51 @@ def build():
             review.append(['이름 같은 곳을 골랐지만 더 가까운 해수욕장 있음', b['n'], b['name'], s['id'], s['name'], round(pick[1]), '', '더 가까운 %s %dm' % (near[0][2]['name'], round(near[0][1]))])
         if s.get('beach') and pick[0] == 1:
             review.append(['해수욕장 관광지인데 이름이 다른 해수욕장에 연결', b['n'], b['name'], s['id'], s['name'], round(pick[1]), ','.join(b['flags']), ''])
+    # 시군구 다름(검토 B④): 연결은 규칙(3km)대로 두고, 해수욕장에서 가장 가까운 관광지의 시군구가 연결 관광지와 다르면 목록에(바다 건너 연결 확인용)
+    home = {b['n']: min(spots, key=lambda x: dist_m(b['lat'], b['lon'], x['lat'], x['lon']))['sgg'] for b in beaches}
+    sgg_of = {x['id']: x['sgg'] for x in spots}
+    for sid, l in links.items():
+        if home[l['n']] != sgg_of[sid]:
+            bn = next(b for b in beaches if b['n'] == l['n'])
+            review.append(['시군구 다름(해수욕장 가장 가까운 관광지 기준)', l['n'], bn['name'], sid, next(x['name'] for x in spots if x['id'] == sid), l['m'], '', '해수욕장 쪽 시군구 %s · 관광지 %s' % (home[l['n']], sgg_of[sid])])
     # ③ 해수부 개장 일정 — 개장(미개장 제외) + 기상청 번호에 연결된 것만. 같은 번호에 줄이 둘이면 이른 개장·늦은 폐장(2026 표에서는 넷 다 날짜가 같다).
     nums = {b['n'] for b in beaches}
     opens = {}
+    by_id = {x['id']: x for x in spots}
+    manual = {}
+    for no, n, sid in MOF_MANUAL:
+        r = next(x for x in mof if x['no'] == no)
+        b = next(x for x in beaches if x['n'] == n)
+        d = dist_m(b['lat'], b['lon'], by_id[sid]['lat'], by_id[sid]['lon'])
+        assert not r['beach_num'] and r['status'] == '개장' and d <= 300, (no, n, round(d))
+        manual[no] = n
+        review.append(['해수부 개장 연결(표기 차이 — 손으로 이음)', n, b['name'], 'MOF#%d' % no, r['sgg'] + ' ' + r['name'], round(d), '',
+                       '근거: 같은 시군구 관광지 「%s」 좌표와 기상청 좌표 거리 %dm' % (by_id[sid]['name'], round(d))])
     for r in mof:
+        if r['status'] == '개장' and not r['beach_num'] and r['no'] not in manual:
+            cand = [b['name'] for b in beaches if len(strict_norm(r['name'])) >= 2 and (strict_norm(r['name'])[-2:] in strict_norm(b['kma']))][:4]
+            review.append(['해수부 개장인데 기상청 연결 없음', '', '', 'MOF#%d' % r['no'], r['sgg'] + ' ' + r['name'], '', '', '대조 %s · 이름 비슷한 기상청 해수욕장: %s' % (r['link_cls'] or '없음', ', '.join(cand) or '없음')])
+    for r in mof:
+        if r['no'] in manual:
+            r = {**r, 'beach_num': manual[r['no']], 'link_cls': '손으로 이음'}
         if r['status'] != '개장' or not r['beach_num'] or r['beach_num'] not in nums or not r['open'] or not r['close']:
             continue
         k = str(r['beach_num'])
         o = opens.get(k)
         opens[k] = {'open': min(o['open'], r['open']) if o else r['open'], 'close': max(o['close'], r['close']) if o else r['close'],
                     'mof': (o['mof'] + [r['no']]) if o else [r['no']]}
-        if r['link_cls'] != '확실':
+        if r['no'] in manual:
+            opens[k]['manual'] = (o or {}).get('manual', []) + [r['no']]
+        if r['link_cls'] not in ('확실', '손으로 이음'):
             review.append(['해수부 일정 연결 확인(%s)' % r['link_cls'], r['beach_num'], next(b['name'] for b in beaches if b['n'] == r['beach_num']), 'MOF#%d' % r['no'], r['sgg'] + ' ' + r['name'], '', '', r.get('link_method') or ''])
     out = {
         '_about': {
             'built_by': 'local_server/scripts/build_beach_weather_static.py',
             'design': 'client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md §18',
             'beaches': '기상청 해수욕장(몰운대 제외). name = 화면 이름, kma = 기상청 이름, coord = kma(기상청 좌표) 또는 spot:<관광지 id>(좌표 부정확 → 같은 이름 관광지 좌표로 고침), flags = 좌표 정확도 표지',
-            'open': '해수부 2026 개장 일정 — 기상청 번호 → {open, close, mof:[해수부 연번]}. 미개장·기상청에 없는 곳은 없다(사용자 「해수부 기준에 없는 것은 별도로 표시할 필요는 없을 것 같아」)',
-            'links': '관광지 id → {n: 기상청 번호, m: 거리(m), self: 관광지 이름이 그 해수욕장 이름이면 true(화면은 거리 괄호를 뺀다)}. 3km 안 이름이 같은 곳 → 없으면 가장 가까운 곳',
+            'open': '해수부 2026 개장 일정 — 기상청 번호 → {open, close, mof:[해수부 연번], manual:[손으로 이은 연번]}. 미개장·기상청에 없는 곳은 없다(사용자 「해수부 기준에 없는 것은 별도로 표시할 필요는 없을 것 같아」)',
+            'links': '관광지 id → {n: 기상청 번호, m: 거리(m), self: 이름이 정말 같고(꼬리 해수욕장·해변·해안 차이만) 500m 안이면 true(화면은 거리 괄호를 뺀다)}. 3km 안 이름이 같은 곳 → 없으면 가장 가까운 곳',
+            'open_manual': '해수부 개장인데 대조가 안 된 줄 중 표기 차이만 있는 것을 손으로 이음(MOF_MANUAL — 근거 관광지 좌표 거리는 확인 목록)',
             'link_m': LINK_M, 'excluded': {str(k): v for k, v in EXCLUDE.items()},
         },
         'beaches': beaches, 'open': opens, 'links': links,
@@ -218,8 +301,8 @@ def build():
     kinds = {}
     for r in review:
         kinds[r[0]] = kinds.get(r[0], 0) + 1
-    print('해수욕장 %d곳(제외 %d) · 좌표 부정확 %d곳 중 고침 %d · 연결 관광지 %d/%d(이름 같음 %d) · 개장 일정 %d곳' % (
-        len(beaches), len(EXCLUDE), sum(1 for b in beaches if b['flags']), sum(1 for b in beaches if b['coord'] != 'kma'),
+    print('해수욕장 %d곳(제외 %d) · 좌표 부정확 %d곳 중 이름 대조로 고침 %d · 맞바뀜 고침 %d · 연결 관광지 %d/%d(거리 괄호 뺌 %d) · 개장 일정 %d곳' % (
+        len(beaches), len(EXCLUDE), sum(1 for b in beaches if b['flags']), sum(1 for b in beaches if b['flags'] and b['coord'] != 'kma'), sum(1 for b in beaches if b.get('swap')),
         len(links), len(spots), sum(1 for v in links.values() if v.get('self')), len(opens)))
     for k, v in kinds.items():
         print('  확인 목록 — %s: %d' % (k, v))
