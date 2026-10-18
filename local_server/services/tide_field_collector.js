@@ -261,20 +261,23 @@ async function resolveNudge(anchor, yyyymmdd, log) {
     }
     cand.sort((a, b) => a.dKm - b.dKm);
 
-    const { getGridHash } = getTideCollector();
+    const { lookupGridHash } = getTideCollector();
     let found = null;
     const n = Math.min(maxProbes, cand.length);
     for (let i = 0; i < n; i++) {
         const qLat = Math.round(cand[i].lat * 100000) / 100000;
         const qLon = Math.round(cand[i].lon * 100000) / 100000;
-        let hash = null;
-        try { hash = await getGridHash(qLat, qLon, yyyymmdd); } catch (e) {
-        // ★조용히 넘어가지 않는다 (3-44). 격자 조회가 죽으면 **「그 해역엔 조석 격자가 없다」와
-        //   똑같이** 처리된다 — 미제공 해역과 조회 실패가 구분되지 않았다.
-        console.warn('[조석] 격자 조회 실패 — 「격자 미제공」과 같이 처리된다:', qLat, qLon, e && e.message);
-        hash = null;
-    }
-        if (hash) { found = { lon: qLon, lat: qLat, distKm: Math.round(cand[i].dKm * 100) / 100 }; break; }
+        let g = { hash: null, error: true };
+        try { g = await lookupGridHash(qLat, qLon, yyyymmdd); } catch (e) {
+            console.warn('[조석] 인근 격자 조회 실패:', qLat, qLon, e && e.message);
+        }
+        // [조회 실패는 「못 찾음」으로 세지 않는다 — 2026-10-18 독립 검토 C-1] 장애 중에 시도 횟수(tries)를
+        //   올리면 3번이면 그 앵커를 영구 포기했다. 실패가 나면 탐색을 멈추고 캐시를 건드리지 않는다.
+        if (g.error) {
+            if (log) log(`  ↳ 보정: ${anchor.id} 인근 격자 조회 실패(장애) — 시도로 세지 않고 다음 수집 때 다시`);
+            return { error: true };
+        }
+        if (g.hash) { found = { lon: qLon, lat: qLat, distKm: Math.round(cand[i].dKm * 100) / 100 }; break; }
     }
 
     if (found) {
@@ -301,7 +304,7 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     const qLat = Math.round(anchor.lat * 100000) / 100000;
     const qLon = Math.round(anchor.lon * 100000) / 100000;
 
-    const { collectTideBedPages, getGridHash } = getTideCollector();
+    const { collectTideBedPages, lookupGridHash } = getTideCollector();
     const log = opts.log;
 
     // 수집에 사용할 좌표(기본=앵커). no_grid 보정(nudge) 시 인근 격자 좌표로 교체.
@@ -311,7 +314,8 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     //   (services/tide_curve_edges.js). 옆날 페이지도 하루치와 같은 좌표(보정됐으면 보정 좌표)로 받는다.
     const edgeIo = (lat, lon) => ({
         readNeighbor: (ymd) => Edges.readJson(curvePath(anchor.id, ymd)),
-        fetchPage: (reqYmd, page) => collectTideBedPages(lat, lon, String(reqYmd), [page]).then(r => r && r.items)
+        // 못 받았으면 null(빈 배열과 구분 — fillEdges 가 장애로 센다)
+        fetchPage: (reqYmd, page) => collectTideBedPages(lat, lon, String(reqYmd), [page]).then(r => (r && r.loadedPages && r.loadedPages.length) ? r.items : null)
     });
     // 하루치는 이미 받았고 가장자리만 빈 파일이면(예: 이 수정 전에 받은 파일) 하루치를 다시 받지 않는다.
     const reuse = opts.force ? null : Edges.reusableOwnDay(Edges.readJson(curvePath(anchor.id, yyyymmdd)));
@@ -321,22 +325,28 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
         const rec = { ...reuse, curve: filled.curve, count: filled.curve.length };
         const complete = Edges.isFullDay(rec);
         writeCurve(anchor, yyyymmdd, { ...rec, status: complete ? 'complete' : 'partial' });
-        return { anchorId: anchor.id, date: yyyymmdd, status: complete ? 'complete' : 'partial', count: rec.count, edgeOnly: true };
+        return { anchorId: anchor.id, date: yyyymmdd, status: complete ? 'complete' : 'partial', count: rec.count, edgeOnly: true, edgeFailed: !complete && filled.fetchFailed > 0 };
     }
 
     // (선택) 격자 제공 해역 검증 — TideBED 미제공이면 인근 격자로 보정, 실패 시 skip.
     if (verifyGrid) {
-        let hash = null;
-        try { hash = await getGridHash(qLat, qLon, yyyymmdd); }
-        catch (e) {
-            // ★조용히 넘어가지 않는다 (3-44). 막지는 않지만, **미제공 해역과 조회 실패가 같아 보인다.**
-            console.warn('[조석] 격자 검증 조회 실패 — 인근 격자 보정으로 넘어간다:', e && e.message);
-            hash = null;
-        }
-        if (!hash) {
+        // [격자 조회 실패 ≠ 격자 미제공 — 2026-10-18 독립 검토 C-1] 일시 장애면 파일을 건드리지 않고 'failed'
+        //   (연속 실패 차단기가 센다). 예전엔 둘이 같아서 곡선이 있던 파일(4·3페이지 부분 파일 포함)을
+        //   no_grid 빈 파일로 덮고, 인근 격자 탐색 시도 횟수까지 올렸다.
+        let g = { hash: null, error: true };
+        try { g = await lookupGridHash(qLat, qLon, yyyymmdd); }
+        catch (e) { console.warn('[조석] 격자 검증 조회 실패 — 파일을 그대로 두고 다음에 다시:', e && e.message); }
+        if (g.error) return { anchorId: anchor.id, date: yyyymmdd, status: 'failed', reason: 'grid_lookup_failed' };
+        if (!g.hash) {
             // 앵커 자체는 격자 미제공 → 인근 격자 셀로 보정 시도(캐시·자가복구).
             nudged = (opts.nudge !== false) ? await resolveNudge(anchor, yyyymmdd, log) : null;
+            if (nudged && nudged.error) return { anchorId: anchor.id, date: yyyymmdd, status: 'failed', reason: 'grid_lookup_failed' };
             if (!nudged) {
+                // 이미 곡선이 있는 파일은 빈 파일로 덮지 않는다.
+                const prevRec = Edges.readJson(curvePath(anchor.id, yyyymmdd));
+                if (prevRec && Array.isArray(prevRec.curve) && prevRec.curve.length) {
+                    return { anchorId: anchor.id, date: yyyymmdd, status: 'no_grid', kept: true };
+                }
                 writeCurve(anchor, yyyymmdd, {
                     status: 'no_grid', curve: [], loadedPages: [], failedPages: [],
                     note: 'TideBED 격자 미제공 해역(인근 보정 실패)'
@@ -360,7 +370,8 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     // 해당 날짜 레코드만 추출 + 1분 곡선 [{t:'HH:MM', h(cm)}] 으로 경량화.
     //   옆날 몫(조시차만큼 넘친 꼬리)은 버리지 않고 spill 로 남겨 옆날 파일의 새벽·밤 빈칸을 메운다.
     const split = Edges.splitByDay(items, yyyymmdd);
-    const curve = (await Edges.fillEdges(split.curve, yyyymmdd, edgeIo(cLat, cLon))).curve;
+    const filled = await Edges.fillEdges(split.curve, yyyymmdd, edgeIo(cLat, cLon));
+    const curve = filled.curve;
 
     const peaks = findTidePeaks(items || [], isoDate);
 
@@ -380,7 +391,7 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
         curve
     };
     writeCurve(anchor, yyyymmdd, rec);
-    return { anchorId: anchor.id, date: yyyymmdd, status: rec.status, count: curve.length };
+    return { anchorId: anchor.id, date: yyyymmdd, status: rec.status, count: curve.length, edgeFailed: rec.status !== 'complete' && filled.fetchFailed > 0 };
 }
 
 function writeCurve(anchor, yyyymmdd, rec) {
@@ -420,7 +431,8 @@ async function runPool(tasks, concurrency, worker) {
             results[myIdx] = r;
             // 회로 차단기: 연속 하드 실패 누적 시 중단 (게이트웨이 점검/차단 추정).
             //   no_grid(정상적 미제공)·complete·partial 은 실패로 세지 않는다.
-            if (r && r.status === 'failed') {
+            //   가장자리 페이지를 못 받은 것(edgeFailed)도 장애로 센다(2026-10-18 독립 검토 B-D1).
+            if (r && (r.status === 'failed' || r.edgeFailed)) {
                 consecFail++;
                 if (consecFail >= FAIL_ABORT_THRESHOLD) aborted = true;
             } else {

@@ -480,23 +480,48 @@ function buildAnchorDayCurve(refs, curvePathFn, yyyymmdd) {
 }
 
 /**
- * 그날 표본 앞뒤에 전날 뒤쪽 12시간·다음날 앞쪽 12시간 표본을 이어 붙인다 — 자정 근처 고조·저조를 놓치지 않게.
+ * 그날 고조·저조를 찾는다 — 앞뒤 날 표본(전날 뒤쪽 12시간·다음날 앞쪽 12시간)을 이어 붙여 자정 근처 물때도 잡는다.
  * 예: 오늘 00:05 고조 → 그날 표본만으로는 "오르다 내림"을 못 봐 빠지지만, 전날 23:00~ 표본을 붙이면 잡힌다.
- * @param {Array<{m:number,cm:number}>} samples - 그날 표본(m=0~1430)
+ * @param {Array<{m:number,cm:number}>} samples - 그날 표본(m=0~1430, 화면에 그리는 곡선 그대로)
  * @param {Array<{id:string,distKm:number}>} refs - 가까운 앵커
  * @param {function(string, number): string} curvePathFn - 앵커 곡선 경로 함수
  * @param {number} ymd - 그날(YYYYMMDD)
- * @returns {Array<{m:number,cm:number}>} 전날은 음수 분, 다음날은 1440 이상 분 — 옆날 곡선 파일이 없으면 그 쪽은 안 붙인다
+ * @returns {Array<{m:number,cm:number,type:'high'|'low'}>} 그날(0~1439분) 극값
  * [연계] ← getTideCurve → peak_finder.findPeaksInSamples(그날 0~1440 에 가운데가 든 극값만 남긴다)
  *   바텀시트(routes/tide.js analyzeAndSave)가 앞뒤 12시간을 붙여 찾는 것과 같은 뜻이다.
  *   ⚠옆날 곡선은 매일 밤 지워지므로(purgeStaleCurves — 오늘~모레만 남김) 오늘의 전날은 밤 23:30 수집 뒤
- *     자정까지, 모레의 다음날은 늘 없다. 그때는 붙이지 않고 그날 표본만으로 찾는다(종전과 같음).
+ *     자정까지, 모레의 다음날은 늘 없다. 그때는 그 쪽을 붙이지 않는다(종전과 같음).
+ *   [이음매 단차 막기 — 2026-10-18 독립 검토 C-2·A-F2] 처음엔 옆날을 따로 IDW 해 붙였다. 옆날에 일부 앵커
+ *     파일이 없으면 자정에서 섞는 앵커가 바뀌어 곡선이 끊기고(앵커끼리 수 cm~15cm 차이), 그 단차가 진짜 자정
+ *     근처 극값을 지우거나(암초 2532 저조 00:20 누락) 가짜 극값을 만들었다(1250 저조 23:50 등).
+ *     지금은 이어 붙이는 구간 전체(전날·그날·다음날)를 **세 쪽 모두 곡선이 있는 같은 앵커 묶음**으로만 섞는다.
+ *     ①그날 곡선이 있는 앵커가 다 옆날도 있으면 → 화면 곡선(samples) 그대로에 옆날을 붙인다(평소).
+ *     ②일부만 있으면 → 그 일부 앵커만으로 세 날을 다시 섞어 극값 **시각**을 찾고, 높이는 화면 곡선 값으로 적는다
+ *       (목록 숫자가 그려진 곡선과 어긋나지 않게).
+ *     ③한 곳도 없으면 그 쪽은 붙이지 않는다.
  */
-function padWithNeighborDays(samples, refs, curvePathFn, ymd) {
-    const prev = buildAnchorDayCurve(refs, curvePathFn, addDaysToYmd(ymd, -1)) || [];
-    const next = buildAnchorDayCurve(refs, curvePathFn, addDaysToYmd(ymd, 1)) || [];
-    return prev.filter(p => p.m >= 720).map(p => ({ m: p.m - 1440, cm: p.cm }))
-        .concat(samples, next.filter(p => p.m < 720).map(p => ({ m: p.m + 1440, cm: p.cm })));
+function peaksWithNeighborDays(samples, refs, curvePathFn, ymd) {
+    const has = (r, d) => !!loadCurveByMinute(curvePathFn, r.id, addDaysToYmd(ymd, d));
+    const used = refs.filter(r => has(r, 0));
+    // 붙일 쪽과 앵커 묶음 — 양쪽 다 있는 앵커 → 전날만 → 다음날만 순으로 처음 비지 않은 것
+    let group = [], usePrev = false, useNext = false;
+    for (const [p, n] of [[true, true], [true, false], [false, true]]) {
+        const g = used.filter(r => (!p || has(r, -1)) && (!n || has(r, 1)));
+        if (g.length) { group = g; usePrev = p; useNext = n; break; }
+    }
+    if (!group.length) group = used;
+    const own = group.length === used.length ? samples : (buildAnchorDayCurve(group, curvePathFn, ymd) || samples);
+    const side = (d) => (buildAnchorDayCurve(group, curvePathFn, addDaysToYmd(ymd, d)) || []);
+    const seq = (usePrev ? side(-1).filter(p => p.m >= 720).map(p => ({ m: p.m - 1440, cm: p.cm })) : [])
+        .concat(own, useNext ? side(1).filter(p => p.m < 720).map(p => ({ m: p.m + 1440, cm: p.cm })) : []);
+    const peaks = findPeaksInSamples(seq);
+    if (own === samples) return peaks;
+    // ② — 높이는 화면 곡선(samples) 값으로(가장 가까운 표본)
+    return peaks.map(p => {
+        let best = samples[0];
+        for (const s2 of samples) if (Math.abs(s2.m - p.m) < Math.abs(best.m - p.m)) best = s2;
+        return { m: p.m, cm: best.cm, type: p.type };
+    });
 }
 
 /** YYYYMMDD(정수) 에 delta일을 더한 YYYYMMDD(정수). 연간 조석표는 window_days 제약과
@@ -682,7 +707,7 @@ function getTideCurve(rockId, dayOffset) {
         refs = nearestRefs(rock.lat, rock.lon, anchors);
         if (!refs.length) return { ready: false, reason: 'no_curve_data' };
         samples = buildAnchorDayCurve(refs, curvePathFn, dates[day]);
-        if (samples) peaks = findPeaksInSamples(padWithNeighborDays(samples, refs, curvePathFn, dates[day]));
+        if (samples) peaks = peaksWithNeighborDays(samples, refs, curvePathFn, dates[day]);
     } else if (region === 'eastsea') {
         const r = buildEastSeaDayCurve(rock.lat, rock.lon, dates, day);
         samples = r.samples; peaks = r.peaks;

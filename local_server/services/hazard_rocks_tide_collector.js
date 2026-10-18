@@ -128,11 +128,12 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     const isoDate = isoDateOf(yyyymmdd);
     const qLat = Math.round(anchor.lat * 100000) / 100000;
     const qLon = Math.round(anchor.lon * 100000) / 100000;
-    const { collectTideBedPages, getGridHash } = getTideCollector();
+    const { collectTideBedPages, lookupGridHash } = getTideCollector();
     // [새벽 빈칸 메우기 — 2026-10-18] 옆날 파일의 spill 을 먼저 쓰고, 모자라면 옆날 한 페이지만 받는다.
     const edgeIo = {
         readNeighbor: (ymd) => Edges.readJson(curvePath(anchor.id, ymd)),
-        fetchPage: (reqYmd, page) => collectTideBedPages(qLat, qLon, String(reqYmd), [page]).then(r => r && r.items)
+        // 못 받았으면 null(빈 배열과 구분 — fillEdges 가 장애로 센다)
+        fetchPage: (reqYmd, page) => collectTideBedPages(qLat, qLon, String(reqYmd), [page]).then(r => (r && r.loadedPages && r.loadedPages.length) ? r.items : null)
     };
     // 하루치는 이미 받았고 가장자리만 빈 파일(예: 이 수정 전에 받은 파일)이면 하루치를 다시 받지 않는다.
     const reuse = opts.force ? null : Edges.reusableOwnDay(Edges.readJson(curvePath(anchor.id, yyyymmdd)));
@@ -141,17 +142,23 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
         const rec = { ...reuse, curve: filled.curve, count: filled.curve.length };
         const complete = Edges.isFullDay(rec);
         writeCurve(anchor, yyyymmdd, { ...rec, status: complete ? 'complete' : 'partial' });
-        return { anchorId: anchor.id, date: yyyymmdd, status: complete ? 'complete' : 'partial', count: rec.count, edgeOnly: true };
+        return { anchorId: anchor.id, date: yyyymmdd, status: complete ? 'complete' : 'partial', count: rec.count, edgeOnly: true, edgeFailed: !complete && filled.fetchFailed > 0 };
     }
 
-    let hash = null;
-    try { hash = await getGridHash(qLat, qLon, yyyymmdd); } catch (e) {
-        // ★조용히 넘어가지 않는다 (3-44). 격자 조회가 죽으면 **「그 해역엔 조석 격자가 없다」와
-        //   똑같이** 처리된다 — 미제공 해역과 조회 실패가 구분되지 않았다.
-        console.warn('[조석] 격자 조회 실패 — 「격자 미제공」과 같이 처리된다:', qLat, qLon, e && e.message);
-        hash = null;
+    // [격자 조회 실패 ≠ 격자 미제공 — 2026-10-18 독립 검토 C-1] 일시 장애면 파일을 건드리지 않고 'failed'
+    //   (연속 실패 차단기가 센다). 예전엔 둘이 같아서 곡선이 있던 파일을 no_grid 빈 파일로 덮었다.
+    let g = { hash: null, error: true };
+    try { g = await lookupGridHash(qLat, qLon, yyyymmdd); } catch (e) {
+        console.warn('[조석] 격자 조회 실패 — 파일을 그대로 두고 다음에 다시:', qLat, qLon, e && e.message);
     }
+    if (g.error) return { anchorId: anchor.id, date: yyyymmdd, status: 'failed', reason: 'grid_lookup_failed' };
+    const hash = g.hash;
     if (!hash) {
+        // 격자 미제공이라는 답이 왔어도, 이미 곡선이 있는 파일은 빈 파일로 덮지 않는다(같은 좌표가 어제까지 격자가 있었다).
+        const prevRec = Edges.readJson(curvePath(anchor.id, yyyymmdd));
+        if (prevRec && Array.isArray(prevRec.curve) && prevRec.curve.length) {
+            return { anchorId: anchor.id, date: yyyymmdd, status: 'no_grid', kept: true };
+        }
         writeCurve(anchor, yyyymmdd, {
             status: 'no_grid', curve: [], loadedPages: [], failedPages: [],
             note: 'TideBED 격자 미제공 해역'
@@ -168,6 +175,7 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     const split = Edges.splitByDay(items, yyyymmdd);
     const filled = await Edges.fillEdges(split.curve, yyyymmdd, edgeIo);
     const curve = filled.curve;
+    const edgeFailed = filled.fetchFailed > 0;
 
     const peaks = findTidePeaks(items || [], isoDate);
     const complete = Edges.isFullDay({ loadedPages, failedPages, curve });
@@ -181,7 +189,7 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
         spill: split.spill,
         curve
     });
-    return { anchorId: anchor.id, date: yyyymmdd, status: complete ? 'complete' : 'partial', count: curve.length };
+    return { anchorId: anchor.id, date: yyyymmdd, status: complete ? 'complete' : 'partial', count: curve.length, edgeFailed: !complete && edgeFailed };
 }
 
 /** 곡선 레코드를 원자적으로 저장(tmp 파일 후 rename) — 부분 쓰기 중 읽기 race 방지. */
@@ -212,7 +220,9 @@ async function runPool(tasks, concurrency, worker) {
             try { r = await worker(tasks[myIdx]); }
             catch (e) { r = { error: e.message, status: 'failed' }; }
             results[myIdx] = r;
-            if (r && r.status === 'failed') {
+            // 가장자리 페이지를 못 받은 것도 장애로 센다(2026-10-18 독립 검토 B-D1 — 예전엔 'partial' 로 돌아와
+            //   차단기를 우회해, 장애 중 기동하면 전수를 끝까지 두드렸다).
+            if (r && (r.status === 'failed' || r.edgeFailed)) {
                 consecFail++;
                 if (consecFail >= FAIL_ABORT_THRESHOLD) aborted = true;
             } else {

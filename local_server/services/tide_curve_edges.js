@@ -19,6 +19,12 @@
  *   ② 날짜 D 를 저장할 때 옆날 파일(D-1·D+1)의 spill[D] 를 가져와 빈 분을 채운다(호출 0회).
  *      매일 밤 새로 받는 날은 "모레" 하나뿐이고, 그 전날("내일") 파일은 전날 밤 이미 받아 두었으므로
  *      조시차가 양수인 지점은 평소 호출이 늘지 않는다.
+ *      ⚠조시차가 **음수**이고 15분을 넘는 지점은 "모레"의 밤 끝을 메울 다음날 파일이 아직 없으므로
+ *      **매일 밤 앵커당 1페이지가 영구히 더 든다**(③). 배포 직후 한 번만이 아니다(2026-10-18 독립 검토 B-D5 로 정정).
+ *      그런 지점이 몇 곳인지는 확인하지 못했다(TideBED 접속 차단).
+ *      또 가장자리만 메우는 경로(④)는 그날 요청을 다시 받지 않으므로 옆날이 쓸 spill 을 새로 만들지 못한다
+ *      (있던 spill 은 그대로 둔다). 그러면 옆날이 자기 가장자리 한 페이지를 받는다 — 여기서 그날 끝 페이지를
+ *      더 받아 spill 을 만드는 것과 호출 수가 같아 따로 받지 않았다.
  *   ③ 그래도 EDGE_TOL_MIN 분보다 길게 비면 옆날 요청의 해당 쪽 한 페이지만 받는다(1회):
  *      앞이 비면 D-1 의 5페이지(obsrvnDt 20:00~23:59 → slctdDt 가 D 새벽), 뒤가 비면 D+1 의 1페이지.
  *      — 처음 기동해 전날 파일이 없을 때, 조시차가 음수인 지점의 밤 끝, 옛 파일(spill 없음) 고칠 때.
@@ -163,8 +169,11 @@ function readJson(p) {
  * @param {number} ymd - 그날(YYYYMMDD)
  * @param {{readNeighbor:function(number):Object|null, fetchPage:function(number, number):Promise<Array|null>}} io
  *   readNeighbor(옆날 ymd) → 그 앵커의 옆날 곡선 파일 내용 · fetchPage(요청 날짜, 페이지) → TideBED item 배열
- * @returns {Promise<{curve:Array<{t:string,h:number}>, fromSpill:number, fetched:number}>}
- *   fromSpill = 옆날 파일에서 채운 분 수, fetched = 옆날 페이지를 받은 횟수(0~2)
+ *   (페이지를 못 받았으면 null — 빈 배열은 "받았는데 그날 몫이 없음")
+ * @returns {Promise<{curve:Array<{t:string,h:number}>, fromSpill:number, fetched:number, fetchFailed:number}>}
+ *   fromSpill = 옆날 파일에서 채운 분 수, fetched = 옆날 페이지를 받은 횟수(0~2),
+ *   fetchFailed = 그중 못 받은 횟수(io.fetchPage 가 null/예외 — 장애). 수집기는 이것이 있고 "완전"이 아니면
+ *   결과에 edgeFailed 를 달아 연속 실패 차단기가 세게 한다(2026-10-18 독립 검토 B-D1).
  * [연계] ← 세 수집기 collectOne → splitByDay(받은 한 페이지에서 그날 몫만)
  */
 async function fillEdges(curve, ymd, io) {
@@ -175,7 +184,7 @@ async function fillEdges(curve, ymd, io) {
         if (nb && nb.spill && Array.isArray(nb.spill[String(ymd)])) out = mergeMissing(out, nb.spill[String(ymd)]);
     }
     const fromSpill = out.length - before;
-    let fetched = 0;
+    let fetched = 0, fetchFailed = 0;
     const plan = [
         { gap: 'head', reqYmd: addDays(ymd, -1), page: HEAD_FROM_PREV_PAGE },
         { gap: 'tail', reqYmd: addDays(ymd, 1), page: TAIL_FROM_NEXT_PAGE }
@@ -190,9 +199,10 @@ async function fillEdges(curve, ymd, io) {
             items = null;
         }
         fetched++;
-        if (Array.isArray(items) && items.length) out = mergeMissing(out, splitByDay(items, ymd).curve);
+        if (!Array.isArray(items)) fetchFailed++;   // 페이지를 못 받음(장애) — 수집기가 연속 실패로 센다
+        else if (items.length) out = mergeMissing(out, splitByDay(items, ymd).curve);
     }
-    return { curve: out, fromSpill, fetched };
+    return { curve: out, fromSpill, fetched, fetchFailed };
 }
 
 module.exports = {

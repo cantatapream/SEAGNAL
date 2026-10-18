@@ -155,7 +155,7 @@ const P410 = [175.2,175.4,176.5,177.5,178.5,179.2,161,161,162,162,163,163,164,16
     ok('어제 극값 요약 — 같은 실데이터에서 5개 이하·번갈아', ex.length <= 5 && ex.every((p, i) => i === 0 || p.type !== ex[i - 1].type), ex.map(p => p.type[0] + p.t).join(' '));
     const SRC = fs.readFileSync(path.join(LS, 'services', 'hazard_rocks_prev_peaks.js'), 'utf8');
     const SUB = fs.readFileSync(path.join(LS, 'services', 'hazard_rocks_submersion.js'), 'utf8');
-    ok('두 곳(팝업·어제 요약)이 같은 함수 findPeaksInSamples 를 쓴다', /findPeaksInSamples\(/.test(SRC) && /findPeaksInSamples\(padWithNeighborDays/.test(SUB));
+    ok('두 곳(팝업·어제 요약)이 같은 함수 findPeaksInSamples 를 쓴다', /findPeaksInSamples\(/.test(SRC) && /findPeaksInSamples\(seq\)/.test(SUB) && /peaksWithNeighborDays\(samples, refs/.test(SUB));
     ok('예전 복사본(findLocalExtrema)이 남아 있지 않다', !/function findLocalExtrema/.test(SUB));
 })();
 
@@ -197,6 +197,58 @@ const P410 = [175.2,175.4,176.5,177.5,178.5,179.2,161,161,162,162,163,163,164,16
     } finally {
         for (const p of laid) { try { fs.unlinkSync(p); } catch (e) { /* noop */ } }
     }
+})();
+
+// A-11 「정체 저조」는 남기고 흔들림만 지운다(독립 검토 A-F1) — 운영 공개 API 암초 1586(성산포 3km)
+//   2026-10-18 오늘 144점 + 내일 00:00~11:50(새벽 00:00~01:00 은 운영 값이 새벽 빈칸(B) 결함이라 전날 23:50 ~ 01:10 직선으로 메움).
+//   성산포 공식 조석표 오늘: 저조 07:23(99) · 고조 15:48(180) · **저조 23:46(145)**. 내려가다 1cm 남짓 오르고(정체) 다시 내려가는 물때다.
+(function () {
+    const D0 = [163.7,163.7,160.5,160.5,160.1,159.9,159.9,159.3,158.3,157.7,156.7,156.1,154.6,153,151.4,149.8,147.8,146.2,143.8,141.6,139.6,137.3,134.6,132.3,130,128,125.3,123,121,119,117,115,113,111.6,109.6,108.2,106.6,105.2,104.2,103.2,102,101.4,101,100.4,99.9,100.1,100.1,100.5,101.1,101.3,101.9,103.3,104.5,105.5,107,108.6,110.6,112.2,114.4,116.4,118.8,121,123.4,125.6,128.6,130.9,133.1,136.1,138.7,141.1,143.7,146.7,149.3,151.7,154.3,156.7,159.1,161.3,163.7,165.7,168.1,169.8,171.6,173.1,174.6,176.2,177.2,178.6,179.4,180.4,181,181.8,181.8,182.2,182.2,182.2,182.7,182.7,182.7,182.1,181.7,181.5,181.1,180.1,180.1,179.1,178.5,177.5,177.3,176.3,175.3,173.9,172.9,171.9,170.7,169.7,168.4,167.1,166.1,164.4,163.1,162.1,161.1,159.4,158.1,157.1,156.1,155.1,154.1,153.1,152.1,151.7,150.7,149.7,149.3,148.7,148.3,147.9,147.3,147.3,147.3,146.9,146.9,146.9];
+    const D1 = [147,147.1,147.1,147.2,147.3,147.4,147.4,147.5,147.5,147.9,147.9,147.9,147.9,147.9,147.5,147.3,147.3,146.3,145.9,145.7,144.7,144.1,143.1,142.1,141.6,140.6,139.6,138.6,137.6,136.6,135.4,134,133,131.6,130.4,129,128,126.8,125.8,124.4,123,122,120.8,119.8,118.8,117.8,116.8,116,115,114.4,113.6,112.9,112.6,112.1,112.1,111.7,111.7,112.1,112.3,112.3,112.9,113.9,114.5,115.5,116.5,117.5,119,120.2,121.6,123.2,124.8,126.4];
+    const seq = D0.map((cm, i) => ({ m: i * 10, cm })).concat(D1.map((cm, i) => ({ m: 1440 + i * 10, cm })));
+    const pk = findPeaksInSamples(seq);
+    ok('정체 저조 — 오늘 23:40 무렵 저조를 남긴다(공식 23:46, 바텀시트도 싣는다)', pk.some(p => p.type === 'low' && p.m >= 1380 && p.m < 1440), pk.map(p => p.type[0] + hhmm(p.m) + '/' + p.cm).join(' '));
+    ok('정체 저조 — 공식 저조 07:23·고조 15:48 도 그대로(±40분)', pk.some(p => p.type === 'low' && Math.abs(p.m - 443) <= 40) && pk.some(p => p.type === 'high' && Math.abs(p.m - 948) <= 40));
+    const pk1 = findPeaksInSamples(seq.map(p => ({ m: p.m - 1440, cm: p.cm })));   // 내일 기준
+    ok('정체 고조 — 내일 01:50 무렵 고조(1cm 오른 정체)도 남긴다(바텀시트와 같은 꼴)', pk1.some(p => p.type === 'high' && p.m >= 60 && p.m <= 150), pk1.map(p => p.type[0] + hhmm(p.m)).join(' '));
+    // 흔들림(10~20분 간격·1cm 미만)은 그대로 지운다 — 운영 표본에서 본 꼴: 1654 내일 고조 17:25/206.9 · 저조 17:40/206.8 · 고조 17:50/206.9
+    const w = []; for (let m = 0; m < 1440; m += 10) w.push({ m, cm: Math.round((150 + 57 * Math.cos(2 * Math.PI * (m - 1050) / 745.2)) * 10) / 10 });
+    const at = (m, cm) => { w[m / 10].cm = cm; };
+    at(1040, 206.9); at(1050, 206.9); at(1060, 206.8); at(1070, 206.9);
+    const pw = findPeaksInSamples(w);
+    ok('흔들림(10~20분·0.1cm 짝) — 고조 하나로 합친다', pw.filter(p => Math.abs(p.m - 1055) <= 30).length === 1 && alternates(pw), pw.map(p => p.type[0] + hhmm(p.m) + '/' + p.cm).join(' '));
+    const PF = fs.readFileSync(path.join(LS, 'peak_finder.js'), 'utf8');
+    ok('주석이 실측 분포로 정정돼 있다(1cm 미만 22·1~3cm 12·3~20cm 9·20cm 이상 604)', /1cm 미만 22 · 1~3cm 12 · 3~20cm 9 · 20cm 이상 604쌍/.test(PF) && !/진짜 물때는 전부 20cm 이상\(356쌍\)/.test(PF));
+})();
+
+// A-10 자정 이음매 — 옆날에 앵커 일부만 있을 때(독립 검토 C-2·A-F2). 암초 2532(가까운 앵커 HRJ017·016·014·015)에
+//   앵커마다 높이를 조금씩 다르게(+0·+20·−10·+25cm) 깐다 → 옆날을 따로 섞으면 자정에서 단차가 생겨
+//   진짜 극값이 지워지거나 가짜 극값이 생겼다. 지금은 세 날 다 있는 같은 앵커 묶음으로만 이어 붙인다.
+(function () {
+    const HR = require(path.join(LS, 'services', 'hazard_rocks_tide_collector.js'));
+    const HRC = require(path.join(LS, 'services', 'hazard_rocks_tide_common.js'));
+    const Subm = require(path.join(LS, 'services', 'hazard_rocks_submersion.js'));
+    const win = HR.windowDatesKST(HRC.WINDOW_DAYS);
+    const ids = ['HRJ017', 'HRJ016', 'HRJ014', 'HRJ015'], off = { HRJ017: 0, HRJ016: 20, HRJ014: -10, HRJ015: 25 };
+    if (win.some(y => ids.some(id => fs.existsSync(HR.curvePath(id, y))))) { console.log('  ⏭️ 실제 곡선 파일이 있어 A-10 을 건너뜀(덮지 않음)'); return; }
+    const lay = (ymd, di, list, phase) => { for (const id of list) {
+        const curve = []; for (let m = 0; m < 1440; m++) curve.push({ t: hhmm(m), h: Math.round(150 + 25 * Math.cos(2 * Math.PI * (di * 1440 + m - phase) / 745.2) + off[id]) });
+        const p = HR.curvePath(id, ymd); fs.mkdirSync(path.dirname(p), { recursive: true });
+        fs.writeFileSync(p, JSON.stringify({ status: 'complete', loadedPages: [1, 2, 3, 4, 5], failedPages: [], curve })); } };
+    const clear = () => { for (const id of ids) for (const y of win) { try { fs.unlinkSync(HR.curvePath(id, y)); } catch (e) { /* 없으면 그만 */ } } };
+    const run = (prevIds, nextIds, phase) => { clear(); lay(win[0], 0, prevIds, phase); lay(win[1], 1, ids, phase); lay(win[2], 2, nextIds, phase);
+        const r = Subm.getTideCurve(2532, 1); clear(); return (r.peaks || []).map(p => p.type[0] + p.t).join(' '); };
+    try {
+        // ① 저조가 내일 00:20 (위상 1087) — 전날에 가까운 앵커 하나만 있어도 00:20 저조를 지우지 않는다
+        const base1 = run(ids, ids, 1087);
+        ok('이음매① 기준(네 앵커 다 있음) — 내일 00:20 저조가 있다', /^l00:20 /.test(base1), base1);
+        ok('이음매① 전날에 가까운 앵커 하나만 — 같은 결과(저조 00:20 안 지워짐)', run([ids[0]], ids, 1087) === base1, run([ids[0]], ids, 1087));
+        ok('이음매① 전날에 셋만 — 같은 결과', run(ids.slice(0, 3), ids, 1087) === base1);
+        // ② 자정이 오르는 중(위상 −90 → 고조 01:30 무렵) — 다음날 일부만 있어도 23:50 근처에 가짜 극값을 만들지 않는다
+        const base2 = run(ids, ids, 1440 + 90 - 1440);
+        ok('이음매② 다음날에 가까운 앵커 하나만 — 기준과 같은 결과(가짜 극값 없음)', run(ids, [ids[0]], 0 + 90) === base2, `${run(ids, [ids[0]], 90)} vs ${base2}`);
+        ok('이음매② 다음날에 셋만 — 같은 결과', run(ids, ids.slice(1), 90) === base2);
+    } finally { clear(); }
 })();
 
 // ── [B] 새벽·밤 가장자리 ───────────────────────────────────────────────────
@@ -267,10 +319,13 @@ await (async function () {
 await (async function () {
     const tcPath = require.resolve(path.join(LS, 'services', 'tide_collector.js'));
     const calls = [];
+    let gridAns = { hash: '1_2', error: false }, edgeDown = false;
     const fake = {
-        getGridHash: async () => { calls.push('grid'); return '1_2'; },
+        getGridHash: async () => { calls.push('grid'); return gridAns.hash; },
+        lookupGridHash: async () => { calls.push('grid'); return gridAns; },
         collectTideBedPages: async (lat, lon, req, pages) => {
             const pg = pages || [1, 2, 3, 4, 5]; calls.push(`pages:${req}:${pg.join(',')}`);
+            if (edgeDown && pg.length < 5) return { items: [], loadedPages: [], failedPages: pg };   // 가장자리 페이지 장애
             return { items: fakeItems(+req, 66, pg), loadedPages: pg, failedPages: [] };
         },
         isUserActive: () => false
@@ -338,6 +393,48 @@ await (async function () {
             for (const p of laid) { try { fs.unlinkSync(p); } catch (e) { /* noop */ } }
             for (const f of Object.keys(ppBackup)) { const p = path.join(ppDir, f); if (!fs.existsSync(p)) fs.writeFileSync(p, ppBackup[f]); }
         }
+
+        // ⑥ 격자 조회 실패(장애) — 곡선이 있던 파일을 no_grid 빈 파일로 덮지 않는다(독립 검토 C-1)
+        const before6 = fs.readFileSync(HR.curvePath(anchor.id, days[0]), 'utf8');
+        const p6 = HR.curvePath(anchor.id, 19000105);
+        fs.writeFileSync(p6, JSON.stringify({ status: 'partial', loadedPages: [1, 2, 3, 4], failedPages: [5], curve: JSON.parse(before6).curve.slice(0, 1200) }));
+        days.push(19000105);
+        gridAns = { hash: null, error: true }; calls.length = 0;
+        const r6 = await HR.collectOne(anchor, 19000105);
+        const j6 = JSON.parse(fs.readFileSync(p6, 'utf8'));
+        ok('격자 조회 장애 — 결과는 failed(차단기가 센다)', r6.status === 'failed', JSON.stringify(r6));
+        ok('격자 조회 장애 — 4페이지 부분 파일을 빈 no_grid 로 덮지 않는다', j6.status === 'partial' && j6.curve.length === 1200, `${j6.status} ${j6.curve.length}`);
+        // ⑦ 격자 미제공 답이 와도 곡선이 있던 파일은 그대로
+        gridAns = { hash: null, error: false };
+        const r7 = await HR.collectOne(anchor, 19000105);
+        ok('격자 미제공 답 — 곡선이 있던 파일은 덮지 않는다(kept)', r7.status === 'no_grid' && r7.kept === true && JSON.parse(fs.readFileSync(p6, 'utf8')).curve.length === 1200, JSON.stringify(r7));
+        // ⑦-2 곡선이 없던 날짜면 종전처럼 no_grid 를 기록
+        const r7b = await HR.collectOne(anchor, 19000106); days.push(19000106);
+        ok('격자 미제공 + 파일 없음 — 종전처럼 no_grid 기록', r7b.status === 'no_grid' && JSON.parse(fs.readFileSync(HR.curvePath(anchor.id, 19000106), 'utf8')).status === 'no_grid');
+        gridAns = { hash: '1_2', error: false };
+
+        // ⑧ 가장자리 페이지 장애 — partial 이어도 edgeFailed 로 차단기가 센다(독립 검토 B-D1).
+        //   anchors.json 의 실제 17앵커 × 시험 날짜 1개를 「하루치는 있고 새벽만 빈」 옛 파일로 깔고 전부 가장자리 장애.
+        //   종전: partial 이라 차단기를 우회해 17곳 전부 두드렸다 → 지금: 연속 8곳에서 멈춘다.
+        const ppBackup2 = {};
+        try { for (const f of fs.readdirSync(ppDir)) ppBackup2[f] = fs.readFileSync(path.join(ppDir, f)); } catch (e) { /* 폴더 없음 */ }
+        const laid8 = [];
+        try {
+            const oldCurve = Edges.splitByDay(fakeItems(19000110, 66), 19000110).curve;
+            for (const a of anchors) {
+                const p = HR.curvePath(a.id, 19000110);
+                if (fs.existsSync(p)) continue;
+                fs.writeFileSync(p, JSON.stringify({ anchorId: a.id, date: 19000110, status: 'complete', loadedPages: [1, 2, 3, 4, 5], failedPages: [], curve: oldCurve })); laid8.push(p);
+            }
+            edgeDown = true; calls.length = 0;
+            const r8 = await HR.collectHazardRockTides({ dates: [19000110], log: () => {} });
+            ok(`가장자리 장애 — 연속 8곳에서 차단(앵커 ${anchors.length}곳 전부 두드리지 않음)`, r8.aborted === true && calls.length === 8, `aborted=${r8.aborted} 호출=${calls.length}`);
+        } finally {
+            edgeDown = false;
+            for (const p of laid8) { try { fs.unlinkSync(p); } catch (e) { /* noop */ } }
+            try { fs.unlinkSync(require(path.join(LS, 'services', 'hazard_rocks_prev_peaks.js')).filePath('hr', 19000110)); } catch (e) { /* noop */ }
+            for (const f of Object.keys(ppBackup2)) { const p = path.join(ppDir, f); if (!fs.existsSync(p)) fs.writeFileSync(p, ppBackup2[f]); }
+        }
     } finally {
         cleanup();
         if (saved) require.cache[tcPath] = saved; else delete require.cache[tcPath];
@@ -374,66 +471,91 @@ await (async function () {
 })();
 
 // ── [D] 바텀시트 조석 요청 시간 제한·키 재시도 ──────────────────────────────
-console.log('\n[D] TideBED 요청 — 시간 제한 + 네트워크 오류면 다른 키로 1회');
+console.log('\n[D] TideBED 요청 — 연결 기한(다른 키로 1회) · 전체 기한(다시 묻지 않음)');
 await (async function () {
     const cfgPath = path.join(LS, 'data', 'tidebed_config.json');
     const hadCfg = fs.existsSync(cfgPath);
     const cfgBackup = hadCfg ? fs.readFileSync(cfgPath) : null;
-    const https = require('https');
+    const https = require('https'), http = require('http');
     const realGet = https.get;
-    let TC;
+    let srv = null;
     try {
-        TC = require(path.join(LS, 'services', 'tide_collector.js'));
+        const TC = require(path.join(LS, 'services', 'tide_collector.js'));
         const keysBackup = TC.tideBedConfig.keys.slice();
+        const toBackup = { ...TC.TIDEBED_TIMEOUTS };
         TC.tideBedConfig.keys.splice(0, TC.tideBedConfig.keys.length,
             { key: 'TESTKEY_A', used: 0, owner: 'A' }, { key: 'TESTKEY_B', used: 0, owner: 'B' }, { key: 'TESTKEY_C', used: 0, owner: 'C' });
         TC.tideBedConfig.lastResetDate = new Date(Date.now() + 9 * 3600000).toISOString().split('T')[0];   // 날짜 바뀜 저장 안 일어나게
+        ok('기본 기한 — 연결 5초·전체 15초', toBackup.connectMs === 5000 && toBackup.totalMs === 15000, JSON.stringify(toBackup));
+        TC.TIDEBED_TIMEOUTS.connectMs = 80; TC.TIDEBED_TIMEOUTS.totalMs = 300;   // 시험만 짧게(실제로 15초 기다리지 않음)
         const EventEmitter = require('events');
+
+        // D-1 연결이 영영 안 됨(소켓이 연결 중에서 멈춤) — 종전 req.setTimeout 은 연결 뒤에만 시작해 이 경우를 못 막았다(검토 B-D2).
         let seen = [];
-        // 가짜 https.get — 연결이 영영 안 되는 요청. setTimeout 을 걸면 바로 시간 초과를 울린다(실제로 10초 기다리지 않음).
         https.get = (url) => {
-            const key = (String(url).match(/serviceKey=([^&]+)/) || [])[1];
+            seen.push((String(url).match(/serviceKey=([^&]+)/) || [])[1]);
             const req = new EventEmitter();
-            req.setTimeout = (ms, cb) => { seen.push({ key, ms }); setImmediate(cb); return req; };
-            req.destroy = (err) => setImmediate(() => req.emit('error', err));
+            req.destroy = (err) => setImmediate(() => { req.emit('error', err); req.emit('close'); });
+            setImmediate(() => req.emit('socket', Object.assign(new EventEmitter(), { connecting: true })));
             return req;
         };
-        const t0 = Date.now();
-        const r = await TC.fetchTideBedPage(33.4, 126.2, '20261018', 1, 1);
-        ok('연결이 안 되면 null 을 돌려준다(멈추지 않음)', r === null);
-        ok('시간 제한을 건다(10초)', seen.length >= 1 && seen.every(s => s.ms === 10000) && TC.TIDEBED_TIMEOUT_MS === 10000, JSON.stringify(seen.map(s => s.ms)));
-        ok('네트워크 오류면 한 번만 다시 묻는다(총 2회)', seen.length === 2, String(seen.length));
-        ok('다시 물을 때는 다른 키를 쓴다', seen.length === 2 && seen[0].key !== seen[1].key, seen.map(s => s.key).join(' → '));
-        ok('가짜 시간 초과 기준 바로 끝난다(실제 대기 없음)', Date.now() - t0 < 2000, `${Date.now() - t0}ms`);
-        // getGridHash(바텀시트가 응답 전에 기다리는 것)도 같은 길로 빨리 끝난다
+        let t0 = Date.now();
+        const r1 = await TC.fetchTideBedPage(33.4, 126.2, '20261018', 1, 1);
+        ok('연결이 안 되면 연결 기한에 끊고 null', r1 === null && Date.now() - t0 < 1000, `${JSON.stringify(r1)} ${Date.now() - t0}ms`);
+        ok('연결 실패는 다른 키로 1회만 다시(총 2회)', seen.length === 2 && seen[0] !== seen[1], seen.join(' → '));
         seen = [];
-        const g = await TC.getGridHash(33.4, 126.2, '20261018');
-        ok('격자 조회(getGridHash)도 null 로 빨리 끝난다 — 사용자에게 "격자 확인 불가"가 곧 간다', g === null && seen.length === 2);
-        // 두 번째에 성공하면 그 결과를 쓴다
-        let n = 0;
-        https.get = (url, cb) => {
-            const idx = n++;
-            const req = new EventEmitter();
-            req.setTimeout = (ms, tcb) => { if (idx === 0) setImmediate(tcb); return req; };
-            req.destroy = (err) => setImmediate(() => req.emit('error', err));
-            if (idx > 0) setImmediate(() => {
-                const res = new EventEmitter();
-                cb(res);
-                res.emit('data', JSON.stringify({ response: { body: { items: { item: [{ m2TconstAmp: '1.234', m2TconstTlag: '5.678' }] } } } }));
-                res.emit('end');
-            });
-            return req;
-        };
-        const g2 = await TC.getGridHash(33.4, 126.2, '20261018');
-        ok('첫 요청이 시간 초과·두 번째가 성공하면 그 값을 쓴다', g2 === '1234_5678', String(g2));
+        const g = await TC.lookupGridHash(33.4, 126.2, '20261018');
+        ok('격자 조회도 빨리 끝나고 「조회 실패」로 표시(격자 미제공과 구분)', g.hash === null && g.error === true && seen.length === 2, JSON.stringify(g));
+
+        // D-2 실제 소켓 — 가짜 TideBED 서버(127.0.0.1)로 돌린다
+        let mode = 'ok', hits = 0;
+        const okBody = JSON.stringify({ response: { header: { resultCode: '00' }, body: { items: { item: [{ m2TconstAmp: '1.234', m2TconstTlag: '5.678', slctdDt: '2026-10-18 00:00', slctdHgt: '1' }] } } } });
+        srv = http.createServer((req, res) => {
+            hits++;
+            if (mode === 'ok') res.end(okBody);
+            else if (mode === 'slow') setTimeout(() => { try { res.end(okBody); } catch (e) { /* 이미 끊김 */ } }, 600);
+            else if (mode === 'nodata') res.end(JSON.stringify({ response: { header: { resultCode: '03', resultMsg: 'NODATA_ERROR' } } }));
+            else if (mode === 'err99') res.end(JSON.stringify({ response: { header: { resultCode: '99', resultMsg: 'UNKNOWN_ERROR' } } }));
+        });
+        await new Promise(r => srv.listen(0, '127.0.0.1', r));
+        const port = srv.address().port;
+        https.get = (url, cb) => http.get(String(url).replace('https://apis.data.go.kr', `http://127.0.0.1:${port}`), cb);
+        hits = 0; mode = 'ok';
+        ok('정상 응답 — 그대로 받는다', (await TC.getGridHash(33.4, 126.2, '20261018')) === '1234_5678' && hits === 1);
+        hits = 0; mode = 'slow'; t0 = Date.now();
+        const r2 = await TC.fetchTideBedPage(33.4, 126.2, '20261018', 1, 300);
+        ok('느린 응답(전체 기한 넘음) — 끊고 다시 묻지 않는다(요청 1회)', r2 && r2._timedOut === true && hits === 1, `${JSON.stringify(r2)} hits=${hits}`);
+        hits = 0; t0 = Date.now();
+        const r3 = await TC.collectTideBedPages(33.4, 126.2, '20261018', [1, 2, 3, 4, 5]);
+        ok('5페이지 모두 느림 — 페이지 재시도도 안 해 요청 5회(종전 검토 실측 30회)', hits === 5 && r3.loadedPages.length === 0 && r3.failedPages.length === 5, `hits=${hits} ${JSON.stringify(r3.failedPages)}`);
+        mode = 'nodata';
+        ok('응답 코드 03(자료 없음) — 「격자 미제공」(조회 실패 아님)', JSON.stringify(await TC.lookupGridHash(33.4, 126.2, '20261018')) === JSON.stringify({ hash: null, error: false }));
+        mode = 'err99';
+        ok('응답 코드 99(알 수 없는 오류) — 「조회 실패」', (await TC.lookupGridHash(33.4, 126.2, '20261018')).error === true);
+        Object.assign(TC.TIDEBED_TIMEOUTS, toBackup);
         TC.tideBedConfig.keys.splice(0, TC.tideBedConfig.keys.length, ...keysBackup);
     } finally {
         https.get = realGet;
+        if (srv) srv.close();
         // 시험이 설정 파일을 만들었거나 바꿨으면 되돌린다(서비스키를 디스크에 남기지 않게)
         try { if (hadCfg) fs.writeFileSync(cfgPath, cfgBackup); else if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath); } catch (e) { /* noop */ }
     }
     const SRC = fs.readFileSync(path.join(LS, 'services', 'tide_collector.js'), 'utf8');
     ok('응답 본문을 받다 끊겨도(response error) 처리한다', /response\.on\('error', onNetError\)/.test(SRC));
+    ok('연결 단계 실패만 다른 키로 다시 묻는다', /if \(!connected && !netRetried\)/.test(SRC));
+})();
+
+// 격자 조회 장애를 인근 격자 탐색의 「못 찾음」으로 세지 않는다(서해·남해 — 3번이면 앵커 영구 포기, 독립 검토 C-1)
+(function () {
+    const TFS = fs.readFileSync(path.join(LS, 'services', 'tide_field_collector.js'), 'utf8');
+    ok('인근 격자 탐색 — 조회 장애면 시도 횟수를 올리지 않고 멈춘다', /if \(g\.error\) \{[\s\S]{0,200}return \{ error: true \};/.test(TFS) && /if \(nudged && nudged\.error\) return \{[^}]*status: 'failed'/.test(TFS));
+    ok('물빠짐 수집 — 격자 조회 장애면 failed(파일 안 건드림)', /if \(g\.error\) return \{ anchorId: anchor\.id, date: yyyymmdd, status: 'failed', reason: 'grid_lookup_failed' \};/.test(TFS));
+    for (const f of ['tide_field_collector.js', 'hazard_rocks_tide_collector.js', 'jeju_isolation_tide_collector.js']) {
+        const src = fs.readFileSync(path.join(LS, 'services', f), 'utf8');
+        ok(`${f} — 가장자리 장애(edgeFailed)도 연속 실패로 센다`, /r\.status === 'failed' \|\| r\.edgeFailed/.test(src));
+    }
+    const SERVER = fs.readFileSync(path.join(LS, 'server.js'), 'utf8');
+    ok('기동 보충이 곡선을 바꿨을 때만 잠김경고 재계산(computeAllCrossings)', /if \(changed\) \{[\s\S]{0,120}computeAllCrossings\(\)/.test(SERVER));
 })();
 
 console.log('\n[E] 게이트 등록');

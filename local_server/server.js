@@ -558,18 +558,31 @@ app.listen(PORT, '0.0.0.0', () => {
                 //   재시작마다 돌아도 새로 받는 것은 빈 날짜뿐이다. 세 수집기는 차례로(동시 호출 금지),
                 //   23:30 묶음과도 같은 줄(runTideBatchExclusive)에 세운다.
                 require('./services/tide_field_common').runTideBatchExclusive(async () => {
+                    // 곡선 파일을 실제로 새로 썼는지(complete·partial 이 하나라도) — 썼을 때만 잠김경고를 다시 계산한다.
+                    const wrote = (r) => !!(r && r.byStatus && ((r.byStatus.complete || 0) + (r.byStatus.partial || 0)) > 0);
+                    let changed = false;
                     try {
                         const r = await tideFieldCollector.bootstrapTideField();
                         console.log(`🌊 [startup] 물빠짐 부트스트랩 결과: ${JSON.stringify(r)}`);
+                        changed = changed || wrote(r);
                     } catch (err) { console.error('[startup] 물빠짐 부트스트랩 실패:', err && err.message); }
                     try {
                         const r = await require('./services/hazard_rocks_tide_collector').collectHazardRockTides();
                         console.log(`🌊 [startup] 제주 간출암 앵커 보충 결과: ${JSON.stringify(r)}`);
+                        changed = changed || wrote(r);
                     } catch (err) { console.error('[startup] 제주 간출암 앵커 보충 실패:', err && err.message); }
                     try {
                         const r = await require('./services/jeju_isolation_tide_collector').collectJejuIsolationTides();
                         console.log(`🌊 [startup] 제주 고립판정 격자 보충 결과: ${JSON.stringify(r)}`);
+                        changed = changed || wrote(r);
                     } catch (err) { console.error('[startup] 제주 고립판정 격자 보충 실패:', err && err.message); }
+                    // [잠김경고 재계산 — 2026-10-18 독립 검토 C-5] 기동 보충이 곡선을 바꿨으면 그 자리에서 다시 계산한다.
+                    //   예전엔 23:30 에만 계산해, 배포 당일 메운 곡선(새벽 빈칸·모레)이 23:30 까지 잠김경고에 안 들어갔다.
+                    //   아무 파일도 안 바꿨으면(이미 다 있음) 부르지 않는다 — 재시작마다 무거운 계산을 하지 않게.
+                    if (changed) {
+                        try { await require('./services/hazard_rocks_submersion').computeAllCrossings(); }
+                        catch (err) { console.error('[startup] 잠김경고 재계산 실패:', err && err.message); }
+                    } else console.log('🌊 [startup] 곡선 변경 없음 — 잠김경고 재계산 생략');
                 });
             } catch (e) {
                 console.error('[startup] 물빠짐 부트스트랩 트리거 실패:', e && e.message);

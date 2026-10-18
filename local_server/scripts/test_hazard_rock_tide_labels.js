@@ -60,7 +60,7 @@ const BODY = { success: true, ready: true, date: 20261018, region: 'jeju', valso
     } catch (e) { console.log('  ⏭️ 브라우저를 띄우지 못함 — 건너뜀: ' + (e && e.message || '').split('\n')[0]); console.log(`\n${pass} PASS / ${fail} FAIL`); return; }
 
     /** nowKst("HH:MM") 에 상자를 그리고 세 라벨 상자를 잰다. @returns {Promise<{now,boxes,svg,errors}>} */
-    async function draw(nowKst, shotName) {
+    async function draw(nowKst, shotName, body) {
         const ctx = await browser.newContext({ viewport: { width: 380, height: 640 }, timezoneId: 'Asia/Seoul', deviceScaleFactor: 2 });
         const page = await ctx.newPage();
         const errors = [];
@@ -71,7 +71,7 @@ const BODY = { success: true, ready: true, date: 20261018, region: 'jeju', valso
             if (u === 'http://hr.test/') return r.fulfill({ contentType: 'text/html', body:
                 `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#0b1220;font-family:sans-serif} ${CSS}</style></head>` +
                 `<body><div id="box" class="hazard-rock-popup rock-tide-popup" style="width:340px;margin:10px"></div></body></html>` });
-            if (u.startsWith('http://hr.test/api/hazard-rocks/tide-curve')) return r.fulfill({ contentType: 'application/json', body: JSON.stringify(BODY) });
+            if (u.startsWith('http://hr.test/api/hazard-rocks/tide-curve')) return r.fulfill({ contentType: 'application/json', body: JSON.stringify(body || BODY) });
             if (u === 'http://hr.test/hr.js') return r.fulfill({ contentType: 'application/javascript', body: SRC });
             return r.abort();
         });
@@ -84,13 +84,20 @@ const BODY = { success: true, ready: true, date: 20261018, region: 'jeju', valso
             const svg = document.querySelector('.rtp-svg');
             const vb = svg.viewBox.baseVal;
             const boxes = {};
+            let all = null;
             svg.querySelectorAll('text').forEach((t) => {
                 const first = t.querySelector('tspan');
                 if (!first) return;
                 const k = first.textContent;
-                if (k === '현 시각' || k === '잠김' || k === '노출') { const b = t.getBBox(); boxes[k] = { x1: b.x, x2: b.x + b.width, y1: b.y, y2: b.y + b.height, text: t.textContent }; }
+                if (k === '현 시각' || k === '잠김' || k === '노출') {
+                    // ⚠종류마다 하나만 두면(종전) 하루 두 번 잠길 때 둘째 라벨과의 겹침을 못 본다(독립 검토 C-3) — 전부 모은다.
+                    const b = t.getBBox(), box = { x1: b.x, x2: b.x + b.width, y1: b.y, y2: b.y + b.height, text: t.textContent };
+                    if (k === '현 시각') boxes[k] = box; else (all = all || []).push(box);
+                    if (k !== '현 시각') boxes[k] = boxes[k] || box;
+                }
             });
-            return { boxes, vb: { w: vb.width, h: vb.height } };
+            const dot = [...svg.querySelectorAll('circle')].find(c => c.getAttribute('fill') === 'var(--rtp-now-dot)');
+            return { boxes, others: all || [], vb: { w: vb.width, h: vb.height }, dot: dot ? { x: +dot.getAttribute('cx'), y: +dot.getAttribute('cy') } : null };
         });
         const file = path.join(SHOT_DIR, shotName);
         await page.locator('#box').screenshot({ path: file });
@@ -124,13 +131,34 @@ const BODY = { success: true, ready: true, date: 20261018, region: 'jeju', valso
         const nowCx = c.boxes['현 시각'] ? (c.boxes['현 시각'].x1 + c.boxes['현 시각'].x2) / 2 : NaN;
         const expectX = 30 + (480 / 1440) * (320 - 30 - 8);   // renderTideChart X(08:00)
         ok('③ 겹칠 일이 없으면 현 시각 라벨은 점 바로 아래(가로 위치 그대로)', Math.abs(nowCx - expectX) < 2, `${nowCx} vs ${expectX}`);
+
+        // ④ 하루 두 번 잠김(라벨 4개)·오른쪽 끝·짧은 잠김 넷(라벨 8개) — 독립 검토 C-3 사례. 모든 잠김·노출 라벨과 대어 본다.
+        const cv = (fn) => { const pts = []; for (let m = 0; m < 1440; m += 10) pts.push({ t: `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`, cm: Math.round(fn(m) * 10) / 10 }); return pts; };
+        const twice = cv(m => 150 + 25 * Math.cos(2 * Math.PI * (m - 360) / 745));
+        const cases = [
+            ['하루 두 번 잠김 12:30', '12:30', { ...BODY, valsouCm: 150, points: twice, peaks: [], submergedAt: [] }, 'hr_label_case4_twice_1230.png'],
+            ['하루 두 번 잠김 06:10', '06:10', { ...BODY, valsouCm: 150, points: twice, peaks: [], submergedAt: [] }, 'hr_label_case5_twice_0610.png'],
+            ['오른쪽 끝 23:50', '23:50', { ...BODY, valsouCm: 150, points: twice, peaks: [], submergedAt: [] }, 'hr_label_case6_edge_2350.png'],
+            ['짧은 잠김 넷(라벨 8개) 05:00', '05:00', { ...BODY, valsouCm: 279, points: cv(m => 200 + 80 * Math.cos(2 * Math.PI * (m - 300) / 372)), peaks: [], submergedAt: [] }, 'hr_label_case7_short4_0500.png'],
+        ];
+        for (const [name, now, body, shot] of cases) {
+            const d = await draw(now, shot, body);
+            console.log('     화면: ' + d.file);
+            const nb = d.boxes['현 시각'];
+            const hit = d.others.filter(o => overlap(nb, o)).map(o => o.text);
+            ok(`④ ${name} — 잠김·노출 라벨 ${d.others.length}개 모두와 겹치지 않는다`, d.others.length >= 3 && nb && hit.length === 0, `겹침=${hit.join(',')} 라벨=${d.others.map(o => o.text).join('|')}`);
+            ok(`④ ${name} — 현 시각 라벨이 그림 안에 있다`, inside(nb, d.vb), JSON.stringify(nb));
+            const cx = nb ? (nb.x1 + nb.x2) / 2 : NaN;
+            ok(`④ ${name} — 라벨이 점에서 멀지 않다(가로 40px 이내)`, d.dot && Math.abs(cx - d.dot.x) <= 40, `라벨 ${cx && cx.toFixed(0)} · 점 ${d.dot && d.dot.x.toFixed(0)}`);
+        }
     } finally {
         await browser.close();
     }
 
     console.log('\n[2] 코드에 남아 있어야 할 것');
-    ok('현재 시각 라벨 자리를 잠김·노출 라벨 상자와 대어 고른다', /labelBoxes\.some\(function \(o\) \{ return boxesOverlap\(bx, o\); \}\)/.test(SRC));
-    ok('옆으로 비키는 후보가 있다(짧은 잠김 구간 — 위·아래가 다 막힘)', /var sides = nowX <= labelsMidX/.test(SRC));
+    ok('현재 시각 라벨 자리를 잠김·노출 라벨 상자 전부와 대어 고른다', /var overlapArea = function \(b\) \{\s*return labelBoxes\.reduce/.test(SRC));
+    ok('옆으로 비키는 후보가 있다(짧은 잠김 구간 — 위·아래가 다 막힘)', /var sgn = nowX <= labelsMidX/.test(SRC));
+    ok('다 막히면 겹치는 넓이가 가장 작은 그림 안 자리(종전 자리로 돌아가지 않음)', /if \(area < bestArea\)/.test(SRC) && /clampX/.test(SRC));
     ok('verify_all.sh SUITES 에 이 스위트가 있다', /test_hazard_rock_tide_labels/.test(fs.readFileSync(path.join(ROOT, 'scripts', 'refactor', 'verify_all.sh'), 'utf8')));
 
     console.log(`\n${pass} PASS / ${fail} FAIL`);
