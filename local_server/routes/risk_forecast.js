@@ -1,6 +1,7 @@
 /**
  * 역할: 연안 분석·공식 선박사고와 혼잡 예보·자료 상태·원본 PDF를 수집 없이 제공한다.
  * [연계] risk_store → /api/risk-forecast/* → marine-life/risk-forecast 화면.
+ *        sea/area-frame·coast/area-frame(2026-10-18 §11.10.24) — 지도와 같은 값을 관할 하나 상자만: 연안 안전 브리핑 팝업 지도(forecast/station-briefing/station_briefing_riskmap.js).
  *        sea/traffic-history 는 sea_traffic_history.createApi(칸별 2주 30분 척수 + 특보 발효 구간) — 화면은 디자인 확정 뒤.
  *        기본 저장소(stores)는 관할 브리핑(services/station_briefing.js forDefault)이 함께 쓴다.
  * [로드 순서] server.js 라우트 등록. 요청에서는 수집·AI·푸시 호출이 없다.
@@ -22,6 +23,8 @@ function createRouter({store=createStore(),marine=require('../services/marine_fu
     router.get(base+'/sea/traffic-history',handle(req=>trafficHistory.query(req.query),60));
     router.get(base+'/sea/unified-cells',handle(()=>marine.unifiedCells(),60));
     router.get(base+'/sea/unified-frame',handle(req=>marine.unifiedFrame(req.query.mode,req.query.t),0));
+    // 관할 하나 구역만(연안 안전 브리핑 팝업 지도 — 설계서 §11.10.24): 같은 unifiedFrame 값을 bbox 안 칸만 칸 위치와 함께
+    router.get(base+'/sea/area-frame',handle(req=>marine.areaFrame(req.query.mode,req.query.t,req.query.bbox),0));
     router.get(base+'/sea/analysis',handle(req=>marine.analysis(req.query),0));
     router.get(base+'/sea/jurisdictions',handle(()=>marine.jurisdictionList(),86400));
     router.get(base+'/sea/briefing',handle(req=>marine.briefing(req.query.id,req.query.t),0));
@@ -29,6 +32,16 @@ function createRouter({store=createStore(),marine=require('../services/marine_fu
     router.get(base+'/sea/accident-frame',handle(req=>store.accidentFrame(req.query.t)));
     router.get(base+'/sea/accident-cell',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('사고 격자 id 필요'),{status:400});return store.accidentDetail(req.query.id,req.query.t,{lon:req.query.lon,lat:req.query.lat});}));
     // 연안 지도·상세는 날짜(KST)당 하나 — 그날 3시간 칸 중 가장 높은 값(T24, 사용자 2026-10-16 「5-하루 하나로 합치기」·「1. 가」). t 는 그 날짜 안의 시각.
+    /** 연안 하루 값(coastDayFrame — 지도 /coast/frame 과 같은 값)을 경위도 상자 안 관광지만, 관광지 도형과 함께 준다(연안 안전 브리핑 팝업 지도 — 설계서 §11.10.24·§11.10.26).
+     * 전국 관광지 표(/coast/spots — 도형 포함 수 MB)를 받지 않고 관할 하나만 그리려고 둔다. 번호 i 는 이 응답 안 번호(0부터) — scores 의 [i,score] 와 짝.
+     * 예: coastArea('2026-10-17T10:05:00+09:00','126.1,33.2,126.5,33.6') → {t,daily:{date,times},spots:[{i:0,id,name,lat,lon,beach,geometry}],scores:[[0,1.2]]}
+     * @param {string} [t] - 선택 시각(그 KST 날짜의 하루 값) @param {string} bbox - '서,남,동,북'(4°×4° 이하·한국 범위) @returns {object} [연계] ← GET coast/area-frame / → store.coastDayFrame·spots */
+    function coastArea(t,bbox){const b=String(bbox||'').split(',').map(Number);
+        if(b.length!==4||!b.every(Number.isFinite)||b[0]>=b[2]||b[1]>=b[3]||b[2]-b[0]>4||b[3]-b[1]>4||b[0]<115||b[2]>140||b[1]<20||b[3]>45)throw Object.assign(new Error('구역 상자 오류'),{status:400});
+        const f=store.coastDayFrame(t),table=store.spots().spots,byI=new Map(table.map(p=>[p.i,p])),spots=[],scores=[];
+        for(const [i,score]of f.spots||[]){const p=byI.get(i);if(!p||p.lon<b[0]||p.lon>b[2]||p.lat<b[1]||p.lat>b[3])continue;scores.push([spots.length,score]);spots.push({i:spots.length,id:p.id,name:p.name,lat:p.lat,lon:p.lon,beach:p.beach,geometry:p.geometry||(p.cell?{type:'Polygon',coordinates:[p.cell]}:null)});}
+        return{t:f.t||t||null,daily:f.daily||null,degraded:f.degraded||[],bbox:b,spots,scores};}
+    router.get(base+'/coast/area-frame',handle(req=>coastArea(req.query.t,req.query.bbox),0));
     router.get(base+'/coast/frame',handle(req=>store.coastDayFrame(req.query.t)));
     router.get(base+'/sea/frame',handle(req=>store.frame(true,req.query.t)));
     router.get(base+'/coast/spot',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('관광지 id 필요'),{status:400});return store.coastDayDetail(req.query.id,req.query.t);}));

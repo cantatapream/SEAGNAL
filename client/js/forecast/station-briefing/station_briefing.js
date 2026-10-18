@@ -6,6 +6,7 @@
  *         ①서버 노출 판정이 display:true 일 때만 아코디언을 보인다(처음에는 관리자 기기에만 — 일반 사용자 화면은 그대로)
  *         ②설정 흐름: 설정 전 안내 → [설정하기] → 파출소 관할 하나를 누르면 가운데 확인 창 [취소]/[저장](해상·육상 함께, 각각 끄기 가능) · 건너뛰기 → 「더 이상 표시하지 않을까요?」
  *         ③본문(station_briefing_render.js) ④카드의 [위험예측에서 보기 ›] ⑤특보 변경 판 N 뱃지 ⑥설정 팝업(⚙ 오른쪽 위)의 표시/숨김·관할 설정 칸.
+ *         ⑦「지금 밀집」 줄·선박 팝업 지도는 보고 있는 동안 새 실시간 선박 자료가 오면 바뀐다(pollNow — §11.10.24).
  *         선택은 이 기기에만 저장한다(localStorage — 관심해역 설정 weatherAppSettings_v1·지방청 설정 officeManualSettings 와 같은 관례).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -17,6 +18,7 @@
  *                    · admin/admin.js('seagnal-admin-change' 사건 — 관리자 상태가 바뀌면 노출 판정 다시) · settings.js settingsModalHasUnsaved·saveSettingsAndClose([관할 설정])
  *                    · index2.html applyFeatureBlocks(점검 차단 'station-briefing' — window._blockedFeatures, 차단을 바꾼 뒤 applyVisibility 를 부름)
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(고르기 지도 — picker 가 처음 지도를 열 때) · GET /api/station-briefing?station=&day=auto (routes/station_briefing.js — 노출 판정)
+ *                    · GET /api/station-briefing/now?station=&day=auto&since=(「지금 밀집」만 — 보고 있는 동안 1분마다, §11.10.24 pollNow)
  *                    관리자 기기 판정 정보는 특보 예측 표출 제어(forecast/prediction/advisory_prediction.js _adminAuth)와 같은 방식:
  *                    관리자 모드(seagnal_admin_mode)일 때만 push_token → 쿼리 adminToken · 로그인 토큰 → X-Admin-Token 헤더
  *  - 마크업        : index2.html #station-briefing-accordion-header/body · #station-briefing-title(제목 글) · #station-briefing-content · #station-briefing-badge-slot
@@ -33,7 +35,11 @@
     var REFRESH_MS = 10 * 60000;   // 노출 판정·브리핑을 다시 받는 간격 — 판은 하루 세 번 + 특보 변경 때만 바뀐다(노출 범위 전환도 이 간격 안에 반영, 2단계 검토 A3)
     // 노출 판정 조회가 실패했을 때 다시 묻는 간격(2단계 검토 A5) — 직전 판정은 그대로 두고 짧게 세 번까지. 그 뒤는 10분 주기에 맡긴다.
     var RETRY_MS = [5000, 20000, 60000];
-    var S = { display: false, audience: null, stations: null, resp: null, fetchedAt: 0, mode: 'view', pick: null, timer: null, seq: 0, retry: 0, retryTimer: null };
+    // 「지금 밀집」 줄·선박 팝업을 보고 있는 동안 실시간 선박 자료가 바뀌었는지 묻는 간격(설계서 §11.10.24 — 사용자 결정 (가) 새 자료가 들어올 때마다).
+    //   수집기는 1분마다 깨어나 5분 칸마다 한 번 받는다(sea_realtime_collector.js start·collect) — 1분 간격이면 새 자료가 저장된 뒤 1분 안에 보인다.
+    //   서버(GET /now)는 자료 시각이 같으면 계산 없이 {unchanged:true} 만 준다.
+    var NOW_MS = 60000;
+    var S = { display: false, audience: null, stations: null, resp: null, fetchedAt: 0, mode: 'view', pick: null, timer: null, seq: 0, retry: 0, retryTimer: null, nowTimer: null, nowBusy: false };
 
     /**
      * 이 기기에 저장한 선택을 읽는다(저장소가 막혀 있으면 기본값).
@@ -139,7 +145,11 @@
             var r = await get('/api/station-briefing?station=' + encodeURIComponent(p.station) + '&day=auto');
             if (n !== S.seq) return;
             if (!r || r.display !== true) { S.display = false; applyVisibility(); return; }
+            // 팝업 지도(선박·관광지 등)가 열린 채 같은 판을 다시 받았으면 본문을 다시 그리지 않는다 — 다시 그리면 열린 창이 닫힌다(§11.10.24). 「지금 밀집」만 바꾼다.
+            var same = S.resp && S.resp.briefing && r.briefing && S.resp.date === r.date && S.resp.briefing.generatedAt === r.briefing.generatedAt && S.resp.briefing.edition === r.briefing.edition;
+            var R = w.StationBriefingRender, keep = same && S.mode === 'view' && R && R.popupOpen && R.popupOpen();
             S.resp = r; S.fetchedAt = Date.now();
+            if (keep && R.updateNow($('station-briefing-content'), r)) { updateBadge(); setTitle(); return; }
         } catch (e) {
             if (n !== S.seq) return;
             console.warn('[연안 안전 브리핑] 브리핑 조회 실패:', e && e.message);
@@ -147,6 +157,39 @@
         }
         if (S.mode === 'view') renderBody();
         updateBadge(); setTitle();
+    }
+    /**
+     * 「지금 밀집」이 화면에 보이는가 — 기기 화면이 켜져 있고(visibilityState), 브리핑 본문이 실제로 보이거나(아코디언 펼침·해양예보 탭) 선박 팝업 지도가 열려 있을 때.
+     * 예: 아코디언 접힘·다른 탭 → 거짓 · 선박 팝업 열림 → 참
+     * @returns {boolean} [연계] ← pollNow / → StationBriefingRender.nowPopupOpen
+     */
+    function nowShown() {
+        if (document.visibilityState === 'hidden') return false;
+        var R = w.StationBriefingRender; if (R && R.nowPopupOpen && R.nowPopupOpen()) return true;
+        var body = $('station-briefing-accordion-body'), box = $('station-briefing-content');
+        return !!(body && box && !body.classList.contains('collapsed') && body.style.display !== 'none' && box.getClientRects().length);
+    }
+    /**
+     * 실시간 선박 자료가 바뀌었으면 「지금 밀집」 줄(시각·척수·붐비는 해역)과 열린 선박 팝업 지도를 바꾼다 — 브리핑 본문은 다시 받지도 그리지도 않는다(설계서 §11.10.24).
+     * 사용자 원문 2026-10-18: *"08:40 기준 관할 해역 선박 75척 이렇게 되어 있는데 … 실시간으로 데이터를 업데이트 시킬 수 있는 거 아닌가? 그래서 실시간 현황이 계속 표출될 수 있도록 … 시간도 계속 바뀌어가면서"*
+     * GET /api/station-briefing/now?station=&day=auto&since=<지금 가진 now.at> — 같으면 {unchanged:true}. 줄이 새로 생기거나 없어져야 하면 본문을 다시 그린다(드묾 — 자료가 낡았다 돌아올 때).
+     * 예: await pollNow() → true(바뀜) · false(그대로·보이지 않음·실패)
+     * @returns {Promise<boolean>} [연계] ← init(1분 주기·화면 다시 보임) / → get·StationBriefingRender.updateNow·renderBody
+     */
+    async function pollNow() {
+        var p = prefs();
+        if (!S.display || S.mode !== 'view' || !p.station || p.showSea === false || !S.resp || !S.resp.briefing || S.nowBusy || !nowShown()) return false;
+        var seq = S.seq, since = (S.resp.now && S.resp.now.at) || '', r;
+        S.nowBusy = true;
+        try { r = await get('/api/station-briefing/now?station=' + encodeURIComponent(p.station) + '&day=auto' + (since ? '&since=' + encodeURIComponent(since) : '')); }
+        catch (e) { console.warn('[연안 안전 브리핑] 지금 밀집 다시 받기 실패 — 다음 주기에 다시:', e && e.message); return false; }
+        finally { S.nowBusy = false; }
+        if (seq !== S.seq || !S.resp || !S.resp.briefing || S.mode !== 'view') return false;   // 그 사이 브리핑을 다시 받았으면 버린다
+        if (!r || r.display !== true) { S.display = false; applyVisibility(); return false; }
+        if (r.now && r.now.unchanged) return false;
+        S.resp.now = r.now || null;
+        if (!w.StationBriefingRender || !w.StationBriefingRender.updateNow($('station-briefing-content'), S.resp)) renderBody();
+        return true;
     }
     /**
      * 아코디언 제목 글을 보이는 판의 시각으로 맞춘다 — 「07:30 AI 연안 안전 브리핑」(2026-10-17 사용자 *"연안 안전 브리핑 아코디언을 hh:mm AI 연안 안전 브리핑으로 변경해줘."*). 판이 없으면 「AI 연안 안전 브리핑」.
@@ -427,12 +470,15 @@
         refreshDisplay();
         // 10분마다 노출 판정부터 다시(2단계 검토 A3) — 관리자가 「노출 안 함」으로 바꾸면 관할을 고르지 않은 기기도 이 간격 안에 사라진다. 판정이 보임이면 그 안에서 브리핑도 받는다.
         if (!S.timer) S.timer = setInterval(function () { if (document.visibilityState !== 'hidden') refreshDisplay(); }, REFRESH_MS);
+        // 「지금 밀집」 실시간(§11.10.24) — 1분마다, 화면이 다시 보이면 곧바로. 보이지 않으면 묻지 않는다(nowShown).
+        if (!S.nowTimer) S.nowTimer = setInterval(pollNow, NOW_MS);
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') pollNow(); });
         // 관리자 로그인·로그아웃·관리자 모드·관리자 기기 등록이 바뀌면 바로 다시 판정(2단계 검토 A8 — admin.js 가 'seagnal-admin-change' 를 보낸다).
         document.addEventListener('seagnal-admin-change', function () { refreshDisplay(); });
     }
 
     w.toggleStationBriefingAccordion = toggle;
     w.openStationBriefingSetup = openSetup;
-    w.StationBriefing = { init: init, refresh: refreshDisplay, load: loadBriefing, toggle: toggle, openSetup: openSetup, renderSettings: renderSettings, openInRisk: openInRisk, applyVisibility: applyVisibility, prefs: prefs, _state: S };
+    w.StationBriefing = { init: init, refresh: refreshDisplay, load: loadBriefing, pollNow: pollNow, toggle: toggle, openSetup: openSetup, renderSettings: renderSettings, openInRisk: openInRisk, applyVisibility: applyVisibility, prefs: prefs, _state: S };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })(window);

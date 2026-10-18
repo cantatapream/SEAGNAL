@@ -134,6 +134,7 @@
     "risk_basis.js",
     "risk_forecast.js",
     "life_safety.js",
+    "station_briefing_riskmap.js",
     "station_briefing_render.js",
     "station_briefing_basis.js",
     "station_briefing_picker.js",
