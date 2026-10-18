@@ -1852,14 +1852,14 @@ function makeBriefings() {
             assert.deepEqual(r.m.badges, ["연안 위험지수 69 '높음'|rgb(251, 146, 60)"], '배지 글자 = 띠 색(높음 주황) · 해수욕장 아님');
             assert.deepEqual(r.i.badges, ["연안 위험지수 56 '다소 높음'|rgb(242, 194, 48)", '해수욕장|rgb(203, 213, 225)'], '다소 높음 노랑 + 「해수욕장」 배지([특성] 끝에서 옮김)');
             assert.deepEqual(r.m.today, { ul: false, text: '사람 평소의 1.6배' }, '항목 하나면 점 없이');
-            assert.deepEqual([r.i.today.ul, r.i.today.text], [true, '사람 평소의 1.2배해안 바람 11m/s(튜브·물놀이기구 떠밀림 주의)'], '둘 이상이면 「•」 목록');
+            assert.deepEqual([r.i.today.ul, r.i.today.text], [true, '사람 평소의 1.2배해안 바람 11m/s(튜브·물놀이기구 표류 주의)'], '둘 이상이면 「•」 목록');
             assert.deepEqual(r.m.total, { tag: 'B', text: '총 0건', exp: null }, '0건이면 링크 아닌 굵은 글자'); assert.equal(r.m.line, '기록된 연안사고 없음'); assert.deepEqual(r.m.note, []);
             assert.deepEqual(r.i.total, { tag: 'BUTTON', text: '총 6건', exp: 'false' }, 'N>0 이면 링크(처음 닫힘)'); assert.equal(r.i.line, '익수 3건, 표류 2건, 추락 1건 | 인명피해 사망 2명, 실종 0명');
             assert.deepEqual(r.i.note, ['이곳에서는 집계 기간 중 익수 사고가 많이 기록되었습니다.']);
             assert.deepEqual(r.accTable, { exp: 'true', title: '연안사고 발생 현황', head: ['연도', '사고 종류', '건수'], rows: ['2020년|익수|2건', '2020년|추락|1건', '2020년|표류|1건', '2021년|익수|1건', '2024년|표류|1건'], over: 0 });
             assert.deepEqual(r.accClosed, ['false', true], '다시 누르면 닫힘');
             assert.equal(r.m.adv.text, '[권고]방문객이 평소보다 많을 것으로 예상되어 연안 활동 시 주의가 요구됩니다.');
-            assert.equal(r.i.adv.text, '[권고]방문객이 늘고 바람이 강해 튜브·물놀이기구가 떠밀릴 수 있으므로, 연안 활동 시 관심이 요구됩니다.');
+            assert.equal(r.i.adv.text, '[권고]방문객이 늘고 바람이 강해 튜브·물놀이기구가 표류할 수 있으므로, 연안 활동 시 관심이 요구됩니다.');
             for (const c of [r.m, r.i]) {
                 assert.deepEqual([c.adv.bg, c.adv.border, c.adv.radius, c.adv.k, c.adv.kShrink, c.adv.v, c.adv.w], ['rgba(255, 200, 60, 0.1)', 'rgba(255, 200, 60, 0.38)', '10px', 'rgb(255, 215, 94)', '0', 'rgb(255, 255, 255)', '800'], '[권고] 상자(덧붙임 9) — 머리 노랑·본문 흰색 굵게');
                 assert.equal(c.adv.fs, c.adv.rowFs, '글자 크기는 카드 줄 그대로'); assert.ok(c.adv.lefts.every((x) => Math.abs(x - c.adv.vLeft) <= 1), '둘째 줄 = 본문 첫 글자 위치 ' + JSON.stringify(c.adv));
@@ -2094,6 +2094,24 @@ function makeBriefings() {
             assert.deepEqual([r.seaAdv.k, r.seaAdv.kc, r.seaAdv.bg, r.seaAdv.fs === r.seaAdv.rowFs, r.seaAdv.last], ['[권고]', 'rgb(255, 215, 94)', 'rgba(255, 200, 60, 0.1)', true, true], '해역 카드 [권고] 상자 ' + JSON.stringify(r.seaAdv));
             assert.ok(r.seaAdv.lv.every((x) => /^(경계|주의|관심|'[^']+')$/.test(x)), '특보 이름 속 글자는 칠하지 않음 ' + JSON.stringify(r.seaAdv.lv));
             await L20.context().close();
+        });
+        await check('[§11.10.30-UI] 「해상 분석」 칸 해구 흐름 줄(.sb-weather) — 「기준」 없음·끝 마침표 하나(사용자 「그냥 11.9m/s입니다.로 끝내」) · 넘지 않음 「222해구 예보는 유의파고 1.7m·풍속 11.9m/s입니다.」 · 넘음 「…, 21시부터 낮아집니다.」 · 해상 분석 칸 글 어디에도 「기준」 없음', async () => {
+            const low = mapInputs(hallimInput()); low.sea.weather = { 222: { label: '222해구', rows: [[15, 1.2, 9], [18, 1.7, 11.9], [21, 1.5, 10]].map(([h, wh, ws]) => ({ at: at(h), wh, ws })) } };
+            const bl = R.buildBriefing(low, WIN, { generatedAt: '2026-10-17T13:10:00+09:00' });
+            const g = await device({ admin: true, width: 360, height: 780 }); await pickStation(g, HALLIM); await openAcc(g);
+            const r = await g.evaluate(async ({ list, now }) => {
+                const R = window.StationBriefingRender, box = document.getElementById('station-briefing-content'), out = [];
+                for (const b of list) {
+                    R.render(box, { ok: true, briefing: b }, { now, showSea: true, showLand: true, onLink: () => {} });
+                    const sec = box.querySelector('[data-sb-sec="sea"]'), w = sec && sec.querySelector('.sb-weather');
+                    out.push({ w: w ? w.textContent : null, sea: sec ? sec.textContent : '' });
+                }
+                return out;
+            }, { list: [bl, B.h], now: clock.now });
+            assert.equal(r[0].w, '222해구 예보는 유의파고 1.7m·풍속 11.9m/s입니다.', '사용자 화면 문장(종전 「…로 기준(유의파고 2m·풍속 12m/s) 미만입니다」)');
+            assert.ok(/^232해구 예보는 15시부터 유의파고 2\.4m·풍속 13m\/s로 높아집니다\(12시 유의파고 1\.4m·풍속 9m\/s\), 21시부터 낮아집니다\.$/.test(r[1].w), r[1].w);
+            for (const x of r) { assert.ok(!/\.\./.test(x.w), '이중 마침표 없음 ' + x.w); assert.ok(x.sea.length > 100 && !/기준/.test(x.sea), '해상 분석 칸 글에 「기준」 없음 — ' + (x.sea.match(/.{30}기준.{20}/) || [''])[0]); }
+            await g.context().close();
         });
         await check('실행 오류 없음', async () => { assert.deepEqual(errors, []); });
     } catch (e) { console.error('❌ 준비 실패', e && e.stack); fail++; }
