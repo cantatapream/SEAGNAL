@@ -144,7 +144,7 @@ const trafficHistory=H.createApi({history,warnings,zonesOfCell:id=>/^GR4_/.test(
  const HELP=await page.evaluate(()=>RiskMarine.HELP);
  await check('[?] 두 개: 위 줄 「위험 예측 기준 설명」·아래 줄 「밀집도·혼잡도 기준 설명」, aria-haspopup=dialog, 누르는 칸 ≥32px, 380px 에서 배지·글자 줄과 안 겹침·카드 안',async()=>{
   const r=await heroLayout();assert.deepEqual(r.btns.map(x=>[x.kind,x.row,x.label,x.pop]),[['risk',0,'위험 예측 기준 설명','dialog'],['cong',1,'밀집도·혼잡도 기준 설명','dialog']]);
-  for(const x of r.btns){assert.ok(x.w>=32&&x.h>=32,JSON.stringify(x));assert.equal(x.hitBadge,false,x.kind+' 배지와 겹침');assert.equal(x.hitText,0,x.kind+' 누르는 칸이 글자 줄과 겹침');assert.equal(x.dotHitText,0,x.kind+' 동그라미가 글자 줄과 겹침');assert.ok(x.inCard,x.kind+' 카드 밖');}});
+  for(const x of r.btns){assert.ok(x.w>=32-0.01&&x.h>=32-0.01,JSON.stringify(x));/* 0.01px 허용 — getBoundingClientRect 소수점(2026-10-18 verify_all 동시 실행 중 h 31.99997 로 실패, 단독 실행은 32) */assert.equal(x.hitBadge,false,x.kind+' 배지와 겹침');assert.equal(x.hitText,0,x.kind+' 누르는 칸이 글자 줄과 겹침');assert.equal(x.dotHitText,0,x.kind+' 동그라미가 글자 줄과 겹침');assert.ok(x.inCard,x.kind+' 카드 밖');}});
  await check('위험 예측 문장(380px): 새 문장·「MLP모델」, 어절 단위(keep-all) 줄마다 한 줄·폭 안, 자간 ≥ -0.06em, 줄 수 ≤ 자연 줄바꿈',async()=>{
   const r=await heroLayout();console.log('  380px 줄 '+r.lines+'(자연 '+r.natLines+') · 최소 자간 '+r.minLs.toFixed(3)+'em · 줄 끝 남은 px '+r.gaps.join(','));
   assert.equal(r.text,FIT_TEXT);assert.ok(r.text.includes('MLP모델'));assert.ok(r.lines>=2,'줄 나눔 '+r.lines);assert.ok(r.oneLine,'줄이 다시 갈림');assert.ok(r.inside,'폭 넘침');assert.ok(r.minLs>=-0.0601,String(r.minLs));assert.ok(r.lines<=r.natLines,r.lines+'>'+r.natLines);assert.equal(r.keepAll,'keep-all');
