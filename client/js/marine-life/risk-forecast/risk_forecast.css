@@ -237,7 +237,6 @@ body:not(.ls-safety) .rf-date-nav{display:none!important}
 .rf-coast-key:not([hidden])~[data-marine-caption]:not([hidden]){margin-top:4px!important;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)}
 
 /* 위험지형과 같은 banzone/bzl 공통 디자인과 스위치를 그대로 사용한다. */
-#ocean-risk-forecast-toggle-btn.rf-preview-locked{opacity:.4;filter:grayscale(1);cursor:default}
 .rf-marine-compact .rf-map-legend[hidden]{display:none}
 /* 해상 ON 일 때만 나오는 두 칸 단일 선택 [혼잡도][위험 예측](2026-10-15 조작부 시안). 「표시 항목」 접이식·「~ 표출 중」 뱃지는 없앴다. */
 [data-marine-tools][hidden]{display:none}

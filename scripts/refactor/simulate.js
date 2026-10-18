@@ -273,10 +273,12 @@ if (require.main === module) (async () => {
     await clickTab('ocean-life-group', '메인탭 재진입:해양생활');
     // 실제 앱 버튼을 열어 기본 층·닫힌 시트·OFF 상태를 확인한다. 원천 오류 배너는 숨기고 관리자 인증된 이력에서만 조회한다.
     try {
-        const previewLocked=await page.evaluate(()=>{const b=document.getElementById('ocean-risk-forecast-toggle-btn');for(let i=0;i<9;i++)b.click();return b.getAttribute('aria-disabled')==='true'&&!window._riskForecastApp&&!b.classList.contains('active');});
-        scenarios.push({label:'위험예측:10회 트리거의 첫9회 비활성',target:'ocean-risk-forecast-toggle-btn',ok:previewLocked,required:true});
+        // 2026-10-18 일반 공개 — 미리보기 잠금(10번 누름)을 없앴다: 처음 한 번 누르면 바로 열린다(종전 시나리오 「10회 트리거의 첫9회 비활성」 대체).
+        const lockLook=await page.evaluate(()=>{const b=document.getElementById('ocean-risk-forecast-toggle-btn');return b.getAttribute('aria-disabled')===null&&!b.classList.contains('rf-preview-locked');});
         await page.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').click());
         await page.waitForFunction(() => window._riskForecastApp && !document.getElementById('risk-forecast-legend').hidden, null, {timeout:15000});
+        const opensAtOnce=lockLook&&await page.evaluate(()=>document.getElementById('ocean-risk-forecast-toggle-btn').classList.contains('active')&&window._riskForecastApp.getState().enabled);
+        scenarios.push({label:'위험예측:잠금 없이 한 번 눌러 열림',target:'ocean-risk-forecast-toggle-btn',ok:opensAtOnce,required:true});
         const ok = await page.evaluate(() => {
             const state=window._riskForecastApp.getState();
             return state.enabled && state.coast && !state.sea && !state.selected && !document.getElementById('risk-forecast-sheet').classList.contains('open');
