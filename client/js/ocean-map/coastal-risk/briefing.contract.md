@@ -61,6 +61,7 @@
            "text": "14:05 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 12개\n한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의" } }
 ```
 `now` = 「지금 밀집」(Q6 — AI 없음, **오늘 판에서만**, 요청 때 해상 통합 `briefing()` 의 현재 척수로 계산). 실시간 자료가 낡거나 없으면 `null`. 숫자는 위 예시처럼 형식만 보인 것.
+§18(2026-10-18): 응답 맨 위 `beach` = `{관광지 id: [줄, …]}` — 연안 카드(`briefing.land.cards[].link.spotId`) 관광지마다 3km 안 기상청 해수욕장의 개장·입수 참고 줄(`services/beach_weather.linesForSpots`, 브리핑 `date` 기준, 줄 없는 관광지는 빠짐 · 실패하면 `{}`). 저장된 판에는 없고 요청 때 만든다(관리자 미리보기에도). 화면은 연안 카드 [오늘 예상] 아래에 글 그대로.
 §11.10.9 ⑦: 응답 맨 위 `nextPublishAt` = 다음 정시 판 공개 시각(KST ISO — 07:30·17:30·23:00 중 지금 다음, `rules.nextPublishAt`; 관리자 미리보기 응답에도). 화면 머리 「… 기준 브리핑 (다음 브리핑 갱신 HH:MM 또는 특보 변경 시)」. `fallback`·`wanted`·`nextExpectedAt` 은 그대로 오지만 화면은 fallback 상자를 그리지 않는다.
 §11.10.9 ⑥: `cells` = 같은 스냅숏의 선박이 있는 격자 `[{id, box:[서,남,동,북], count}]`(합 = `count`, 수 = `gridCount` — `marine_fusion.briefing` `current.cells`), `busiest.id` = 가장 붐비는 해역 위치가 든 격자(없으면 null) — 화면 팝업 지도가 격자 안에 척수를 쓴다(`routes/station_briefing.nowLineFrom`).
 §11.10.9(2026-10-17): `text` 는 두 줄(`\n` — 화면 `.sb-now` 는 `white-space:pre-line`, 붐비는 해역이 없으면 첫 줄만, 글은 `routes/station_briefing.nowLineText`). 「선박이 있는 해역 격자 N개」 = `gridCount`(실시간 선박 교통 응답에서 이 관할에 든 GR4 격자 줄 수 — 공단 응답은 배가 없는 격자를 보내지 않는다). 종전 「지금(14:05 기준) … 37척(교통 칸 12개) — … 18척으로 충돌·접촉 주의」.

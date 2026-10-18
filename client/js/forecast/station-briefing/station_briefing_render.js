@@ -33,6 +33,7 @@
  *                    · 해역 카드 「KOMSA 혼잡 예보」 표는 한 줄에 두 시각(pairTable — 「시각 | 혼잡지수 | 시각 | 혼잡지수」).
  *         §11.10.34(2026-10-18 — 화면만): 글 속 지도 링크 = <span role="button" tabindex=0>(mapLink — 긴 해역 링크 뒤 「는」이 다음 줄로 밀리지 않게) · 「조석」 칸 뺌 · 잠기는 바위 팝업 지도 +/− 단추 뺌(끌기·핀치·휠·더블탭은 그대로)
  *                    · 해상 결론 배지 「N개 해역 주의(KOMSA)」(「예보」 뺌) · 화면 글의 「(KOMSA …)」 괄호는 2pt 작게(komsaText).
+ *         §18(2026-10-18): 연안 카드 [오늘 예상] 바로 아래 해수욕장 안내 줄(beachBox — 응답 resp.beach[관광지 id], 개장 줄 → 입수 줄, 서버 글 그대로).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : marine-life/risk-forecast/risk_format.js(RiskFormat.BAND_COLORS — 위험예측 4색) · risk_basis.js(RiskBasis.open('briefing') — [기준 상세])
@@ -40,6 +41,7 @@
  *                    · ol.js(index2 <head> 전역 ol — 미니 지도) · ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 바탕 해아름 바다지도, 관심해역 고르기 지도와 같은 방식, 없으면 선만)
  *                    · marine-life/safety/hazard_rocks.js(window.HazardRockTidePanel — 간출암 조석 곡선 상자·마커 그림, §11.10.10) · index2.html <style>(.hazard-rock-popup.rock-tide-popup 모양)
  *                    · station_briefing_riskmap.js(StationBriefingRiskMap — 위험예측 배경 지도 층·바텀시트, §11.10.24·§11.10.26)
+ *                    · shared/utils/utils.js(trackUsage — 사용량: 글 속 지도 링크·근거 지도 펼침·지도 칸 시트. render(opts.usage) 로 그린 본문만 센다 — usageOf·usage, 이름표 shared/utils/usage_keys.js)
  *  - 서버 API      : 브리핑은 받은 응답만 그린다(받기는 station_briefing.js · admin_station_briefing.js). 간출암 상자는 HazardRockTidePanel 이 /api/hazard-rocks/tide-curve 를 받는다
  *                    · 연안 카드 [위치 보기]를 누를 때만 GET /api/risk-forecast/hazard-zones?ids=(routes/risk_forecast.js — 위험구역 폴리곤, §11.10.20)
  *                    · 위험예측 배경 지도·시트는 StationBriefingRiskMap 이 GET /api/risk-forecast/sea/area-frame·coast/area-frame·sea/analysis·coast/spot·sea/traffic-history 를 받는다(§11.10.24)
@@ -56,6 +58,32 @@
     var BAND_ORDER = ['평소 수준', '다소 높음', '높음', '매우 높음'], FALLBACK = ['#2fb36b', '#f2c230', '#fb923c', '#e0322c'], GREY = '#64748b';
     // 단계 이름 — 2026-10-17 「필요」를 뺐다(설계서 §11.10.16, 사용자 *"경계 필요, 주의 필요 이렇게 하지말고 경계 1, 주의 5, 관심 1 처럼 표출"* · *"전체적으로 필요라는 텍스트는 빼도 될 것 같은데"*). 서버 rules.WORD 와 같은 표.
     var WORDS = ['평소 수준', '관심', '주의', '경계'];
+    // ── 사용량 통계(사용자 2026-10-18 *"브리핑에서 위험예측 또는 지도와 연계된 하이퍼링크 등을 누르면 각 한건 … 브리핑에서 위험예측 기능과 관련된 지도가 열리면 위험예측으로 반영"*) ──
+    //   위험예측 지도 층(StationBriefingRiskMap — 위험예측 RiskMapLayer 그대로)을 여는 링크·위험예측 위험구역 자료(GET /api/risk-forecast/hazard-zones)를 그리는 지도는 「위험예측」 묶음('risk.*_from_briefing'),
+    //   위험예측 자료 없이 브리핑 자료만 그리는 지도·창(대해구 칸·특보 표·잠기는 바위)은 「연안 안전 브리핑」 묶음('briefing.*'). 이름표 shared/utils/usage_keys.js.
+    var USAGE_KEYS = { haegu: 'briefing.haegu_map', 'map-haegu': 'briefing.haegu_map', warn: 'briefing.warn_popup', rocks: 'briefing.rocks_map', spot: 'risk.spot_map_from_briefing', 'land-hazard-map': 'risk.hazard_map_from_briefing' };
+    var opener = null;   // 지금 팝업을 여는 링크(mapLink 가 onOpen 동안만 둔다) — openMapPopup 이 그 링크가 센다고 표시된 본문 안이면 창도 센다고 표시
+    /**
+     * 링크·펼침 단추의 이름(data-sb-maplink·data-sb-x)을 사용량 기능 키로 바꾼다. 세지 않는 것(표만 펼치는 단추 등)은 null.
+     * 「지금 밀집」·해상 근거 펼침 지도는 위험예측 배경 부품(RM())이 있을 때만 위험예측 지도이고, 없으면 종전 지도(브리핑 묶음)다.
+     * 예: usageOf('now-all') → 'risk.ships_map_from_briefing' · usageOf('haegu') → 'briefing.haegu_map' · usageOf('iso') → null
+     * @param {string} key @returns {string|null} [연계] ← mapLink·expander / → RM
+     */
+    function usageOf(key) {
+        if (key === 'now-all') return RM() ? 'risk.ships_map_from_briefing' : 'briefing.ships_map';
+        if (key === 'now-busiest') return RM() ? 'risk.busiest_map_from_briefing' : 'briefing.busiest_map';
+        if (key === 'map-overview' || key === 'map-accidentOnly') return RM() ? 'risk.basis_map_from_briefing' : 'briefing.basis_map';
+        return USAGE_KEYS[key] || null;
+    }
+    /**
+     * 사용량 1건 — from 이 사용자 화면 본문(render 의 opts.usage 로 data-sb-usage 를 단 그릇) 또는 그 본문 링크로 연 창 안일 때만. 관리자 미리보기는 세지 않는다.
+     * 예: usage('briefing.haegu_map', link) → window.trackUsage('briefing.haegu_map')
+     * @param {string|null} key @param {HTMLElement} from - 누른 요소(또는 그 지도 칸) @returns {void} [연계] ← mapLink·expander·riskPopup·basisList / → window.trackUsage(utils.js)
+     */
+    function usage(key, from) {
+        if (!key || !from || typeof from.closest !== 'function' || !from.closest('[data-sb-usage]')) return;
+        if (typeof w.trackUsage === 'function') w.trackUsage(key);
+    }
     /**
      * 서버 단계 말을 화면 이름으로 — 규칙 v16 전에 저장된 판의 「관심 필요·주의 필요·경계 필요」를 「관심·주의·경계」로 줄인다(그 밖은 그대로 — 「평소 수준」·「확인 불가(일부)」).
      * 예: levelWord('주의 필요') → '주의' · levelWord('주의') → '주의' · levelWord('확인 불가(일부)') → '확인 불가(일부)'
@@ -551,11 +579,13 @@
         var card = el('div', 'sb-card'); card.setAttribute('data-sb-card', 'land');
         var head = el('div', 'sb-card-head'); head.appendChild(el('strong', 'sb-card-name', c.name || '이름 없는 장소')); head.appendChild(chip(c.rank, c.word)); card.appendChild(head);
         var ch = c.today && Array.isArray(c.today.changes) ? c.today.changes : [];
-        if (typeof c.advice === 'string' && c.accidents) landCardV19(card, c, ch);
+        var bm = opts && opts.beach, bl = bm && c.link && c.link.spotId && Array.isArray(bm[c.link.spotId]) ? bm[c.link.spotId] : [];   // 해수욕장 안내 줄(§18)
+        if (typeof c.advice === 'string' && c.accidents) landCardV19(card, c, ch, bl);
         else {
             if (c.sourceLabel) { var tags = el('div', 'sb-tags'); tags.appendChild(el('span', 'sb-tag', c.sourceLabel)); card.appendChild(tags); }
             if (c.traits && c.traits.text) card.appendChild(row('[특성]', c.traits.text));
             if (ch.length) card.appendChild(todayRow(ch));
+            if (bl.length) card.appendChild(beachBox(bl));
             if (c.sentence) card.appendChild(el('p', 'sb-sentence', c.sentence));
         }
         if (Array.isArray(c.missing) && c.missing.length) card.appendChild(el('p', 'sb-miss', '일부 자료 확인 불가: ' + sourceNames(c.missing)));
@@ -579,6 +609,13 @@
         appendText(p, t.slice(a + m[2].length + m[3].length));
         return p;
     }
+    /**
+     * 해수욕장 안내 줄 상자(설계서 §18, 2026-10-18 사용자 *"입수한 사람이 있을 수 있다는 알림 문구"* — 서버 routes/station_briefing.js 가 응답 때 붙이는 beach[관광지 id]).
+     *   개장 줄 → 입수 줄, 서버 글 그대로(textContent). 위험 단계·[권고]와 무관한 참고 줄이라 [오늘 예상] 바로 아래 하늘색 왼쪽 줄 상자.
+     * 예: beachBox(['협재해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · …']) → div.sb-beach > p.sb-beach-line
+     * @param {string[]} lines @returns {HTMLElement} [연계] ← landCard·landCardV19
+     */
+    function beachBox(lines) { var bx = el('div', 'sb-beach'); bx.setAttribute('data-sb-beach', ''); lines.forEach(function (l) { if (typeof l === 'string' && l) bx.appendChild(el('p', 'sb-beach-line', l)); }); return bx; }
     /** [오늘 예상] 줄 — 항목이 하나면 점 없이 글, 둘 이상이면 「•」 목록(§11.10.20). 예: todayRow(['사람 평소의 1.6배']) → [오늘 예상] 사람 평소의 1.6배. @param {string[]} ch @returns {HTMLElement} [연계] ← landCard·landCardV19 / → row·list */
     function todayRow(ch) { if (ch.length === 1) return row('[오늘 예상]', parenText(el('span', 'sb-row-v'), ch[0], numText)); var u = el('ul', 'sb-list'); ch.forEach(function (x) { u.appendChild(parenText(el('li'), x, numText)); }); return row('[오늘 예상]', u); }   // 수치 흰 굵게(덧붙임 28)   // 긴 괄호 묶음(§11.10.20 덧붙임 24)
     /**
@@ -587,9 +624,10 @@
      *   → 그 아래 「익수 3건, … | 인명피해 사망 N명, 실종 N명」(0건 「기록된 연안사고 없음」) → (표) → 「이곳에서는 집계 기간 중 … 많이 기록되었습니다.」 → [오늘 예상] → [권고](노랑 굵게).
      *   원문 *"위험구역 세곳이라고 놓고 하이퍼링크로 … 누르면 밑에 열리고 … 표로 정리"* · *"사고현황 오른쪽에는 총 0건 이라고 종합 표출"* · *"총 0건을 하이퍼링크로 하여 아래 표가 아코디언처럼 열리도록 … 열리고 닫히고"*.
      * 예: landCardV19(card, {indexBadge:{text:"연안 위험지수 56 '다소 높음'",rank:1},traits:{beach:true},hazardTable:{link:'4개소',rows:[…]},accidents:{label:"사고현황('20~'24년)",total:6,totalText:'총 6건',text:'익수 3건, …',table:{…},note:'…'},advice:'…'}, ['사람 평소의 1.2배','해안 바람 11m/s(…)'])
-     * @param {HTMLElement} card @param {Object} c @param {string[]} ch - today.changes @returns {void} [연계] ← landCard / → hazardBox·cellsTable·expander·todayRow·row
+     * @param {HTMLElement} card @param {Object} c @param {string[]} ch - today.changes @param {string[]} [bl] - 해수욕장 안내 줄(§18 — [오늘 예상] 바로 아래)
+     * @returns {void} [연계] ← landCard / → hazardBox·cellsTable·expander·todayRow·beachBox·row
      */
-    function landCardV19(card, c, ch) {
+    function landCardV19(card, c, ch, bl) {
         var bs = el('div', 'sb-srcbs sb-landbs'), ib = c.indexBadge;
         if (ib && ib.text) { var r = Number(ib.rank), s = el('span', 'sb-srcb', ib.text); s.setAttribute('data-rank', String(r)); s.setAttribute('data-sb-src', 'index'); if (r !== 3) s.style.color = colorOf(r); bs.appendChild(s); }
         if (c.traits && c.traits.beach) { var bb = el('span', 'sb-srcb sb-landb-beach', '해수욕장'); bb.setAttribute('data-sb-src', 'beach'); bs.appendChild(bb); }
@@ -612,6 +650,7 @@
         } else if (A.text) card.appendChild(row('[' + (A.label || '사고현황') + ']', A.text));
         if (A.note) card.appendChild(historyNoteNode(A.note));   // 사고 유형 흰 굵게(§11.10.20 덧붙임 25)
         if (ch.length) card.appendChild(todayRow(ch));
+        if (bl && bl.length) card.appendChild(beachBox(bl));
         card.appendChild(adviceRow(c.advice));   // §11.10.20 덧붙임 9 — 해역 카드·총평 (권고)와 같은 상자
     }
     /**
@@ -730,16 +769,17 @@
      * 브리핑 응답 하나를 그린다(그릇 안을 비우고 새로). 브리핑이 없으면 안내(다음 예정 시각)만.
      * 예: render(document.getElementById('station-briefing-content'), {ok:true,display:true,date:'2026-10-17',briefing:{…},now:null}, {showSea:true,showLand:true,onLink:fn})
      * @param {HTMLElement} box @param {Object} resp - GET /api/station-briefing(또는 관리자 preview) 응답
-     * @param {Object} [opts] - showSea·showLand(기본 true)·links(false 면 바로가기 없음)·onLink(target,btn)·now(ms, 시험용)
+     * @param {Object} [opts] - showSea·showLand(기본 true)·links(false 면 바로가기 없음)·onLink(target,btn)·now(ms, 시험용)·usage(true 면 이 본문의 지도 링크를 사용량에 센다 — 사용자 화면만)
      * @returns {void}
      * [연계] ← station_briefing.js renderBody · admin_station_briefing.js 미리보기 / → summaryBodyV3(§11.10.4 「가」 모양 — summary.analysis 있음)·summaryBodyV2(§11.10.1 총평)·summaryBody(§11.10 판)·legacyOverview(그 전)·renderRest·RiskBasis.open
      */
     function render(box, resp, opts) {
-        opts = opts || {};
+        opts = Object.assign({}, opts || {}, { beach: resp && resp.beach && typeof resp.beach === 'object' ? resp.beach : null });   // 연안 카드 해수욕장 안내 줄(§18)
         closeMapPopup();   // 본문을 다시 그리면 열린 팝업 지도도 닫는다(§11.10.9 ⑥)
         closePageSheet();  // 근거 지도에서 올린 화면 바텀시트도(§11.10.24)
         var showSea = opts.showSea !== false, showLand = opts.showLand !== false, nowMs = Number.isFinite(opts.now) ? opts.now : Date.now();
         box.textContent = '';
+        if (opts.usage) box.setAttribute('data-sb-usage', ''); else box.removeAttribute('data-sb-usage');   // 사용량은 사용자 화면 본문만(관리자 미리보기 제외 — usage)
         var b = resp && resp.briefing;
         var top = el('div', 'sb-meta');
         var left = el('div', 'sb-meta-text');
@@ -802,7 +842,7 @@
      * @param {string} text - 버튼 글(textContent) @param {function(HTMLElement):(Function|void)} build - 펼칠 때 panel 을 채움, 정리 함수를 돌려줄 수 있음 @param {string} key - data-sb-x(시험이 찾는 이름)
      * @param {boolean} [pill] - 참이면 알약 배지 모양(글 화살표 ▸/▾ 대신 꺾쇠)
      * @param {boolean} [noArrow] - 참이면 화살표 없이 밑줄 글만(§11.10.10 D — (고립 주의) 링크, 사용자 *"화살표 … 그냥 없애줘"* · §11.10.12 위험예보만 해역 줄 *"화살표는 빼주고"*). 펼침 상태는 aria-expanded 로 그대로 알린다
-     * @returns {{btn:HTMLButtonElement, panel:HTMLElement}} [연계] ← isolationLine·basisList·summaryBodyV3 / → isoTable·raisedTable·miniMap
+     * @returns {{btn:HTMLButtonElement, panel:HTMLElement}} [연계] ← isolationLine·basisList·summaryBodyV3 / → isoTable·raisedTable·miniMap · usage(usageOf(key)) — 지도 펼침만 사용량 1건
      */
     function expander(text, build, key, pill, noArrow) {
         var id = 'sb-x-' + (++xSeq), btn = el('button', 'sb-x-btn' + (pill ? ' sb-x-pill' : '')), panel = el('div', 'sb-x-panel'), arrow = pill ? el('span', 'sb-x-chev') : el('span', 'sb-x-arrow', ' ▸'), stop = null;
@@ -815,7 +855,7 @@
             if (typeof stop === 'function') stop();
             stop = null; panel.textContent = ''; panel.hidden = !open;
             btn.setAttribute('aria-expanded', String(open)); if (!pill && arrow) arrow.textContent = open ? ' ▾' : ' ▸';
-            if (open) stop = build(panel) || null;
+            if (open) { usage(usageOf(key), btn); stop = build(panel) || null; }   // 사용량 — 지도를 펼칠 때만 1건(접을 때·표만 펼치는 단추는 세지 않는다, usageOf null)
         });
         return { btn: btn, panel: panel };
     }
@@ -1025,6 +1065,7 @@
         closeMapPopup();
         var back = document.activeElement, wrap = el('div', 'sb-dlg sb-mapdlg' + (bare ? ' sb-warndlg' : '')), dim = el('div', 'sb-dlg-dim'), box = el('div', 'sb-dlg-box sb-mapdlg-box'), id = 'sb-mapdlg-t' + (++xSeq), x = null;
         wrap.setAttribute('data-sb-map-popup', key || '');
+        if (opener && opener.closest && opener.closest('[data-sb-usage]')) wrap.setAttribute('data-sb-usage', '');   // 센다고 표시된 본문의 링크로 연 창 — 창 안 지도 칸 시트도 센다(riskPopup)
         // §11.10.24: 창 안(지도·창 안 바텀시트)을 마우스로 눌러도 초점이 창에 남게 — 초점 없는 지도 캔버스를 누르면 초점이 body 로 가 Esc(아래 keydown)가 창에 닿지 않았다
         wrap.tabIndex = -1;
         box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
@@ -1101,7 +1142,7 @@
                 if (on && ex) stop.map.getView().fit(ex, { size: stop.map.getSize(), padding: [30, 30, 30, 30], maxZoom: 13 });   // 움직임 없이 — 시트가 올라오는 동안 지도는 이미 맞춰져 있다
             }
             stop = miniMap(body, o.area, o.boxes || [], o.caption, { big: true, polys: o.polys, risk: { kind: o.kind, t: o.t, interactive: true,
-                onPick: function (kind, id, point) { sh.open(kind === 'coast' ? 'coast' : 'marine', id, point, o.t); },
+                onPick: function (kind, id, point) { usage(kind === 'coast' ? 'risk.sheet.coast_from_briefing' : 'risk.sheet.sea_from_briefing', P.wrap); sh.open(kind === 'coast' ? 'coast' : 'marine', id, point, o.t); },   // 사용량 — 칸·관광지를 눌러 연 시트(관광지 팝업이 저절로 올리는 첫 시트는 세지 않는다)
                 onLoad: function (d) { if (typeof o.onLoad === 'function') o.onLoad(d, stop, sh); } } });
             P.mapStop = stop;
             return function () { sh.destroy(); if (typeof stop === 'function') stop(); };
@@ -1198,12 +1239,14 @@
      *   <button> 이 아니라 <span role="button"> 이다(2026-10-18 사용자 휴대폰 화면 — 「제주도서부앞바다·…북서연안바다(232해구)」 다음 「는」이 다음 줄로 내려가 어색함):
      *   <button> 은 CSS 에서 display:inline 을 줘도 브라우저가 inline-block 으로 그려(Chromium 실측 — getComputedStyle 이 inline-block) 한 줄보다 긴 링크가 통째 상자가 되고,
      *   목록 점은 상자 마지막 줄에 붙고 뒷말은 다음 줄로 밀린다. span 은 글처럼 흘러 뒷말이 바로 이어진다. 키보드: Enter·Space 로 누름(tabindex 0).
-     * @param {string} text @param {function(HTMLElement)} onOpen - 눌렀을 때(링크 요소를 넘긴다) @param {string} key @returns {HTMLElement} [연계] ← analysisNodes·nowNode·rocksLine
+     * @param {string} text @param {function(HTMLElement)} onOpen - 눌렀을 때(링크 요소를 넘긴다) @param {string} key @returns {HTMLElement} [연계] ← analysisNodes·nowNode·rocksLine / → usage(usageOf(key)) — 사용량 1건
      */
     function mapLink(text, onOpen, key) {
         var b = el('span', 'sb-x-btn sb-maplink', text); b.setAttribute('role', 'button'); b.tabIndex = 0; b.setAttribute('aria-haspopup', 'dialog'); b.setAttribute('data-sb-maplink', key);
-        b.addEventListener('click', function (e) { e.stopPropagation(); onOpen(b); });
-        b.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onOpen(b); } });
+        // 누를 때마다 사용량 1건(usageOf — 위험예측 지도면 「위험예측」, 아니면 「연안 안전 브리핑」) · 여는 동안 opener 를 둬 창 안 지도 칸 시트도 셀 수 있게(openMapPopup)
+        var open = function () { usage(usageOf(key), b); opener = b; try { onOpen(b); } finally { opener = null; } };
+        b.addEventListener('click', function (e) { e.stopPropagation(); open(); });
+        b.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); open(); } });
         return b;
     }
     // ── 잠기는 바위(간출암) — 링크 → 팝업 지도 → 마커 → 간출암 조석 곡선 상자(2026-10-17 사용자 결정 — 설계서 §11.10.10) ──
@@ -1377,7 +1420,7 @@
                     var cap0 = mapCaption(d, b.station, text);
                     if (!useRisk) return miniMap(panel, area, d.boxes, cap0);
                     var st = miniMap(panel, area, d.boxes, cap0 + ' · 칸을 누르면 해상 분석', { risk: { kind: 'risk', t: rk,
-                        onPick: function (kind, id, point) { openPageSheet('marine', id, point, rk); },
+                        onPick: function (kind, id, point) { usage('risk.sheet.sea_from_briefing', panel); openPageSheet('marine', id, point, rk); },   // 사용량 — 근거 지도 칸을 눌러 연 해상 시트
                         onLoad: function (dd) { if (st && st.caption) st.caption.textContent = '칸 색 = ' + kstText(dd.forecastAt || dd.t) + ' 위험 예측 · ' + cap0 + ' · 칸을 누르면 해상 분석'; } } });
                     return function () { closePageSheet(); if (typeof st === 'function') st(); };
                 }, 'map-' + (d.key || ''), false, d.key === 'accidentOnly');

@@ -11,6 +11,7 @@
  *         바로가기로 고른 칸·관광지는 시트 위로 보이는 지도 띠의 가운데로 옮기고 칸 전체가 그 띠에 들어오게 맞춘다(시트 높이는 재서 — 2026-10-17 frameTo).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈) / style.css .spinner(기다림 표시) · risk_forecast.css .rf-map-wait
+ *                    · shared/utils/utils.js(trackUsage·withUsageSuppressed — 사용량 「위험예측」 묶음, 키 이름표 shared/utils/usage_keys.js)
  *                    · index2.html 항행경보 날짜 줄 CSS(.navwarn-date-nav·.navwarn-nav-btn·.navwarn-date-label·.navwarn-date-tag — 연안 날짜 넘기기가 그대로 씀, T24)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js) — 해상 시트는 sea/analysis 뒤 sea/traffic-history?days=15
  *  - 마크업        : index2.html #risk-forecast-sheet / #risk-forecast-legend
@@ -28,6 +29,21 @@
      * [연계] 아래 요청 catch → console.warn
      */
     function failureInfo(error){return {name:['Error','TypeError','SyntaxError','AbortError'].includes(error&&error.name)?error.name:'Error',status:error&&Number.isInteger(error.status)&&error.status>=100&&error.status<=599?error.status:null};}
+    /**
+     * 사용량 통계에 1건 보낸다(shared/utils/utils.js trackUsage — 없으면 조용히 넘어간다). 키 이름표는 shared/utils/usage_keys.js 「위험예측」 묶음.
+     * 집계 규칙(사용자 2026-10-18 *"위험예측 버튼을 누르고 각 토글을 누르면 1건, 그리고 격자를 눌러서 바텀시트를 열면 한건"*): 위험예측 켬·스위치 켬·해상 표시 선택·지도에서 칸·관광지를 눌러 시트를 열 때.
+     * 예: usage('risk.on') → POST /api/usage {feature:'risk.on'}
+     * @param {string} key - 'risk.*' 기능 키 @returns {void}
+     * [연계] ← bindApp 버튼·mount 의 범례 스위치·mapSelect / → window.trackUsage(utils.js) → routes/usage.js
+     */
+    function usage(key){if(typeof w.trackUsage==='function')w.trackUsage(key);}
+    /**
+     * fn 을 사용량 집계 없이 실행한다(프로그램이 대신 누르는 클릭 — 브리핑 바로가기가 위험예측 버튼·층 스위치를 누를 때). 사람이 누른 것만 센다(usage_keys.js 규칙).
+     * 예: quiet(function(){btn.click();}) → 그 클릭의 'risk.on' 은 0건
+     * @param {Function} fn @returns {void}
+     * [연계] ← goTo·RiskForecast.openAt / → window.withUsageSuppressed(utils.js — 없으면 그냥 실행)
+     */
+    function quiet(fn){if(typeof w.withUsageSuppressed==='function')w.withUsageSuppressed(fn);else fn();}
     /**
      * API·지도·스위치·슬라이더·상세 시트의 상태를 조율한다.
      * 예: RiskForecast.mount({map,sheetEl,legendEl,bannerEl})
@@ -48,8 +64,11 @@
          * 0.2초 대기 중(아직 .open 없음)·닫히는 움직임 중(clear 가 .open 을 먼저 뗌)은 열려 있지 않은 것으로 본다. 누름은 위험예측이 받은 것으로 친다(RiskMapLayer.hit → true) —
          * 그 아래 다른 지도 클릭 처리로 넘어가지 않게. 지도 클릭 경로만 막는다: 시트 안 버튼(같은 위치 관광지 목록·관할 해역 이동)·탭 복귀(life_safety.js)·날짜/시간 버튼은 select 를 바로 부른다.
          * 예: 연안 시트가 열린 채 해상 칸 누름 → 아무것도 바뀌지 않음 / ✕ 로 닫는 0.3초 안에 누름 → 그 칸이 열림
-         * @param {string} kind @param {string|string[]} id @param {Object} [location] @returns {void} [연계] ← RiskMapLayer.hit(지도 클릭) / → select */
-        function mapSelect(kind,id,location){if(sheetEl.classList&&sheetEl.classList.contains('open'))return;select(kind,id,location);}
+         * 사용량: 시트가 열리면 'risk.sheet.sea'·'risk.sheet.coast' 1건(지도 클릭 경로만 — 브리핑 바로가기·탭 복귀의 select 는 세지 않는다).
+         * @param {string} kind @param {string|string[]} id @param {Object} [location] @returns {void} [연계] ← RiskMapLayer.hit(지도 클릭) / → select·usage */
+        function mapSelect(kind,id,location){if(sheetEl.classList&&sheetEl.classList.contains('open'))return;select(kind,id,location);
+            // [사용량] 지도에서 눌러 시트가 열렸을 때만 1건(해상 칸·연안 관광지 구분). 같은 위치 관광지 목록도 연안 1건 — 목록에서 고르는 것(시트 안 버튼)은 세지 않는다.
+            if(Array.isArray(id)?choosing:(selected&&selected.kind===kind&&selected.id===id))usage(seaKind(kind)==='coast'?'risk.sheet.coast':'risk.sheet.sea');}
         var layer=w.RiskMapLayer.create(map,mapSelect),sheet=w.RiskSheet.create(sheetEl,{close:clearSelection,hazard:hazard,basis:w.RiskBasis.open,choose:select,day:function(dir){shiftDay(dir);},marinePoint:function(lon,lat){var pad=visiblePadding();select('marine','point',{lon:lon,lat:lat});var xy=ol.proj.fromLonLat([lon,lat]);map.getView().fit([xy[0]-50,xy[1]-50,xy[0]+50,xy[1]+50],{padding:pad,maxZoom:14,duration:250});},retry:function(){api.clear();refresh();}});
         legend.innerHTML='<div class="banzone-legend" role="group" aria-label="위험예측 보기"><button type="button" class="bzl-row on" data-layer="coast" aria-pressed="true"><span class="bzl-name">연안 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button><button type="button" class="bzl-row" data-layer="sea" aria-pressed="false"><span class="bzl-name">해상 위험 예측·분석</span><span class="bzl-switch" aria-hidden="true"></span></button></div><div class="rf-map-legend" hidden><div class="rf-accident-key" data-sea-legend hidden>점·점선 = 공단 선박 혼잡 (실제 선박 위치·척수 아님) <span><i style="border:2px dashed #b8c5da;background:transparent"></i>낮음</span> · <span><i style="border:2px dashed #74b9ff;background:transparent"></i>보통</span> · <span><i style="border:2px dashed #d47cff;background:transparent"></i>높음</span> · <span><i style="border:2px dashed #ff5fe3;background:transparent"></i>매우높음</span></div><div class="rf-accident-key" data-accident-legend hidden>면 = 공단 선박 사고예보 <span><i style="background:#2fb36b"></i>낮음</span> · <span><i style="background:#f2c230"></i>보통</span> · <span><i style="background:#fb923c"></i>주의</span> · <span><i style="background:#e0322c"></i>경계</span></div></div>';
         if(w.RiskMarine){legend.classList.add('rf-marine-compact');legend.querySelector('.rf-map-legend').innerHTML='<div data-sea-legend hidden><strong class="rf-marine-caption" data-marine-caption>공식 사고예보</strong><div data-accident-legend hidden class="rf-mini-key"></div></div>';}
@@ -208,8 +227,8 @@
          * @returns {void} [연계] ← marineTime(보일 때)·창 크기 변경 / 위치 기준(offsetParent)은 지도 감싸개(.ocean-map-wrapper) */
         function placeDateNav(){if(!dateNav||!dateNav.style)return;dateNav.style.top='';if(dateNav.hidden||!dateNav.getBoundingClientRect||!legend.getBoundingClientRect)return;var n=dateNav.getBoundingClientRect(),l=legend.getBoundingClientRect();if(l.width>0&&l.height>0&&n.left<l.right&&l.left<n.right&&n.top<l.bottom&&l.top<n.bottom){var p=dateNav.offsetParent?dateNav.offsetParent.getBoundingClientRect().top:0;dateNav.style.top=Math.ceil(l.bottom-p+6)+'px';}}
         // 두 칸은 늘 하나만 켜진다: 이미 켜진 칸을 다시 눌러도 그대로다. 시각은 바꾸지 않는다.
-        if(w.RiskMarine){marineLegend();legend.addEventListener('click',function(e){var b=e.target.closest('[data-marine-mode]');if(b&&b.dataset.marineMode!==marineMode){marineMode=b.dataset.marineMode;marineLegend();waitStart();refresh();}});}
-        legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));if(w.RiskMarine&&meta&&t)t=nearest(mainTimes(),t);var kindKey=legend.querySelector('[data-'+kind+'-legend]');if(kindKey)kindKey.hidden=!state[kind];if(!w.RiskMarine)legend.querySelector('.rf-map-legend').hidden=!state.sea;colorLegendSync();marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(state[kind])waitStart();if(!meta)sync();else refresh();});
+        if(w.RiskMarine){marineLegend();legend.addEventListener('click',function(e){var b=e.target.closest('[data-marine-mode]');if(b&&b.dataset.marineMode!==marineMode){marineMode=b.dataset.marineMode;usage(marineMode==='congestion'?'risk.marine_mode.congestion':'risk.marine_mode.risk');marineLegend();waitStart();refresh();}});}
+        legend.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;var kind=b.dataset.layer;state[kind]=!state[kind];if(state[kind])usage(kind==='sea'?'risk.layer.sea':'risk.layer.coast');/* [사용량] 켤 때만 — 끌 때는 세지 않는다(해양안전 집계 규칙) */if(w.RiskMarine&&kind==='sea'&&state.sea){marineMode='risk';marineLegend();}b.classList.toggle('on',state[kind]);b.setAttribute('aria-pressed',String(state[kind]));if(w.RiskMarine&&meta&&t)t=nearest(mainTimes(),t);var kindKey=legend.querySelector('[data-'+kind+'-legend]');if(kindKey)kindKey.hidden=!state[kind];if(!w.RiskMarine)legend.querySelector('.rf-map-legend').hidden=!state.sea;colorLegendSync();marineTime();if(kind==='sea'){(colorLegend||legend).querySelector('[data-accident-legend]').hidden=!state.sea;marineTime();}if((selected&&(selected.kind===kind||(kind==='sea'&&seaKind(selected.kind)==='sea')))||(choosing&&kind==='coast'))clearSelection();if(state[kind])waitStart();if(!meta)sync();else refresh();});
         function seaKind(kind){return ['accident','traffic','marine','briefing'].includes(kind)?'sea':kind;}
         /** 일반 화면 배너는 띄우지 않는다. 자료 원천 안내는 과제16에 따라 관리자 오류현황으로 보내고,
          * 위성지도 실패도 안내 없이 기본맵으로 바꾼다(사용자 확정 2026-10-15 「마」).
@@ -448,11 +467,11 @@
          * 예: goTo({kind:'marine',id:'GR4_F4K23_P4',location:{lon:126.53,lat:33.56},t:'2026-10-17T15:00:00+09:00'}) → 해상 ON·15시·그 칸 시트
          *     goTo({kind:'coast',id:'50110|협재해수욕장',date:'2026-10-17',location:{lon:126.239,lat:33.394}}) → 그 날짜·그 관광지 시트 / 관광지 표에 없는 id → false
          * @param {Object} target - kind('marine'|'coast')·id·location{lon,lat}·t(해상 ISO)·date(연안 YYYY-MM-DD) @returns {Promise<boolean>} 골랐으면 true
-         * [연계] ← RiskForecast.openAt(bindApp) ← forecast/station-briefing/station_briefing.js / → 층 스위치 click·sync·setMain·select */
+         * [연계] ← RiskForecast.openAt(bindApp) ← forecast/station-briefing/station_briefing.js / → 층 스위치 click(quiet — 사용량 0건)·sync·setMain·select */
         async function goTo(target){
             if(!target||!enabled||disposed)return false;
             await sync();var layerKey=target.kind==='coast'?'coast':'sea';
-            if(!state[layerKey]){var lb=legend.querySelector('[data-layer="'+layerKey+'"]');if(lb)lb.click();await sync();}
+            if(!state[layerKey]){var lb=legend.querySelector('[data-layer="'+layerKey+'"]');if(lb)quiet(function(){lb.click();});await sync();}   // 프로그램 클릭 — 바로가기 1건(station_briefing.js)만 센다
             if(!meta||!enabled||disposed||!state[layerKey])return false;
             var next=t||meta.now;
             // 연안 날짜가 위험예측 표(coastDays)에 없으면 다른 날짜를 조용히 열지 않고 false(2단계 검토 A7 — 부른 쪽이 안내한다).
@@ -491,6 +510,7 @@
         var instance=null,pending=false,enabled=false;
         btn.addEventListener('click',async function(){
             enabled=!enabled;btn.classList.toggle('active',enabled);btn.setAttribute('aria-pressed',String(enabled));
+            if(enabled)usage('risk.on');   // [사용량] 켤 때 1건(첫 await 전 — 바로가기의 quiet 클릭이 막을 수 있게)
             if(instance){instance.setEnabled(enabled);return;}if(!enabled||pending)return;pending=true;
             try{
                 var map=w.getOceanMap&&w.getOceanMap();
@@ -506,9 +526,9 @@
         /** 「활동지점 안전 브리핑」 카드의 [위험예측에서 보기 ›](설계서 §11.4) — 꺼져 있으면 버튼을 눌러 켠 뒤(해양안전 단독 표출 규칙 그대로) goTo.
          * 2026-10-18 일반 공개로 미리보기 잠금이 없어져 관리자·일반 기기 모두 같은 길로 연다(종전: 관리자 모드만 — 2단계 검토 A2).
          * 예: await RiskForecast.openAt({kind:'coast',id:'S1',date:'2026-10-17'}) → true · 표에 없는 id → false
-         * @param {Object} target - goTo 와 같음 @returns {Promise<boolean>} [연계] ← station_briefing.js openInRisk / → btn click·instance.goTo */
+         * @param {Object} target - goTo 와 같음 @returns {Promise<boolean>} [연계] ← station_briefing.js openInRisk / → btn click(quiet — 사용량 0건)·instance.goTo */
         w.RiskForecast.openAt=async function(target){
-            if(!enabled)btn.click();
+            if(!enabled)quiet(function(){btn.click();});   // 프로그램 클릭 — 'risk.on' 을 세지 않는다(바로가기 1건만, 이중 집계 방지)
             for(var i=0;i<200&&!(instance&&instance.getState().enabled);i++)await new Promise(function(r){setTimeout(r,50);});   // 지도·모듈 준비(최대 10초)
             return instance&&instance.getState().enabled?instance.goTo(target):false;
         };

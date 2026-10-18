@@ -9,7 +9,7 @@
  *  - 사용하는 파일 : 없음(순수 데이터)
  *  - 서버 API      : 없음 — 서버 routes/usage.js 가 이 파일을 require 해 CSV 이름표로 쓴다
  *  - 마크업        : 없음
- *  - 나를 쓰는 곳  : client/js/admin/admin_collect.js (window.USAGE_FEATURE_LABELS) ·
+ *  - 나를 쓰는 곳  : client/js/admin/admin_collect.js (window.USAGE_FEATURE_LABELS — 이름표의 「묶음 · 」 앞말이 화면의 묶음 표시) ·
  *                    local_server/routes/usage.js (module.exports) ·
  *                    local_server/scripts/test_usage_keys.js (키 누락 검사)
  * [로드 순서] admin/pagination_helper.js 다음 · admin/admin.js 이전 — 순서 변경 금지
@@ -101,5 +101,38 @@
     'safety.vts': '해양안전 · 관제구역',
     'safety.vts.zone': '해양안전 · 관제구역 폴리곤 클릭',
     'safety.seaway': '해양안전 · 항로·해역',
-    'safety.seaway.zone': '해양안전 · 항로·해역 폴리곤 클릭'
+    'safety.seaway.zone': '해양안전 · 항로·해역 폴리곤 클릭',
+    // H. 연안 안전 브리핑(특보 및 전망 탭 아코디언) — 사용자 확정 집계 규칙 2026-10-18
+    //    아코디언을 펼칠 때마다 1건(접을 때는 세지 않는다). 브리핑 글 속 링크 중 위험예측 자료가 없는 지도·창은 이 묶음.
+    //    (station_briefing.js toggle · station_briefing_render.js usageOf)
+    'briefing.open': '연안 안전 브리핑 · 펼침',
+    'briefing.haegu_map': '연안 안전 브리핑 · 대해구 지도',
+    'briefing.warn_popup': '연안 안전 브리핑 · 특보 현황 창',
+    'briefing.rocks_map': '연안 안전 브리핑 · 잠기는 바위 지도',
+    // 위험예측 배경 부품이 없을 때(모듈 로드 실패)만 쓰는 종전 지도 — 위험예측 자료가 없어 브리핑 묶음
+    'briefing.ships_map': '연안 안전 브리핑 · 선박 지도(배경 없음)',
+    'briefing.busiest_map': '연안 안전 브리핑 · 붐비는 해역(배경 없음)',
+    'briefing.basis_map': '연안 안전 브리핑 · 근거 지도(배경 없음)',
+    // I. 위험예측(해양안전생활 > 해양안전 [위험예측]) — 사용자 확정 집계 규칙 2026-10-18
+    //    켜면 1건, 안의 스위치를 켜면 각 1건, 지도에서 칸·관광지를 눌러 바텀시트가 열리면 1건(끌 때는 세지 않는다).
+    //    (risk_forecast.js usage — 브리핑 바로가기가 대신 누르는 버튼·스위치는 withUsageSuppressed 로 세지 않는다)
+    'risk.on': '위험예측 · 켬',
+    'risk.layer.coast': '위험예측 · 연안 스위치 켬',
+    'risk.layer.sea': '위험예측 · 해상 스위치 켬',
+    'risk.marine_mode.congestion': '위험예측 · 해상 혼잡도 선택',
+    'risk.marine_mode.risk': '위험예측 · 해상 위험 예측 선택',
+    'risk.sheet.sea': '위험예측 · 해상 칸 시트',
+    'risk.sheet.coast': '위험예측 · 관광지 시트',
+    //    브리핑에서 위험예측으로 — 「위험예측에서 보기」 바로가기·위험예측 지도 층(또는 위험예측 위험구역 자료)을 여는 링크·그 지도 칸 시트.
+    //    이름표는 짧게 — 관리자 화면 기능별 막대의 이름 칸이 좁은 폰 화면에서 긴 이름의 앞을 자른다(시험 사진 usage_admin_feature.png).
+    //    사용자 원문: *"브리핑에서 위험예측 기능과 관련된 지도가 열리면 위험예측으로 반영되어야하는거야"*
+    'risk.goto_sea_from_briefing': '위험예측 · 브리핑 바로가기(해역)',
+    'risk.goto_coast_from_briefing': '위험예측 · 브리핑 바로가기(관광지)',
+    'risk.ships_map_from_briefing': '위험예측 · 브리핑 선박 지도',
+    'risk.busiest_map_from_briefing': '위험예측 · 브리핑 붐비는 해역',
+    'risk.spot_map_from_briefing': '위험예측 · 브리핑 관광지 지도',
+    'risk.basis_map_from_briefing': '위험예측 · 브리핑 근거 지도',
+    'risk.hazard_map_from_briefing': '위험예측 · 브리핑 위험구역 지도',
+    'risk.sheet.sea_from_briefing': '위험예측 · 브리핑 해상 칸 시트',
+    'risk.sheet.coast_from_briefing': '위험예측 · 브리핑 관광지 시트'
 });

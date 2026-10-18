@@ -80,6 +80,10 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-notice-ico .rf-ico-warn { vertical-align:-.14em; margin-right:1px; color:#facc15; }
 .rf-warn-name { color:#ef4444; }
 .rf-notice-em { color:#fff; }
+/* 해수욕장 안내 줄(설계서 §18, 2026-10-18) — 위험 단계와 무관한 참고 줄이라 특보 상자(주황)와 다른 하늘색 상자. 글은 서버 글 그대로 */
+.rf-beach { padding:8px 10px; border:1px solid rgba(56,189,248,.35); border-radius:10px; margin:8px 0; background:rgba(56,189,248,.10); font-size:.8rem; color:#d2dcea; }
+.rf-beach-line { margin:0; line-height:1.5; word-break:keep-all; overflow-wrap:anywhere; }
+.rf-beach-line+.rf-beach-line { margin-top:4px; }
 /* 요소 줄 설명 「•」 목록. 마지막 요소 줄은 구분선 없음 → 아래 주변 연안사고 상자와 8+10=18px */
 .rf-bullet { display:flex; gap:5px; align-items:flex-start; }
 .rf-bullet>span:first-child { flex:0 0 auto; }

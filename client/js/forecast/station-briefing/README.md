@@ -372,3 +372,45 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - **잠기는 바위 팝업 지도**: 왼쪽 위 +/− 단추(`ol.control.Zoom`)를 뺐다. 끌기·두 손가락·휠·더블탭은 그대로. 창 안 Tab 은 ✕ 하나.
 - **KOMSA**: 해상 결론 배지 「N개 해역 주의(KOMSA)」(「예보」 뺌). 화면 글 속 「(KOMSA)」·「(KOMSA 기준)」 괄호는 둘레 글보다 2pt 작게(`komsaText` → `.sb-komsa-paren`) — 결론 배지·해상 근거 줄·AI 분석 문단·해역 카드 배지·가로 표 이름 칸·[권고]. 서버 글은 그대로. [기준 상세]는 대상 아님.
 - 시험: `test_station_briefing_ui.js` `[§11.10.34-1]`·`[§11.10.34-4]`·`[§11.10.32 → §11.10.34]` · 본문 시험(「조석」 칸 없음).
+
+## 사용량 통계 — 「연안 안전 브리핑」·「위험예측」 두 묶음 (2026-10-18 사용자 결정)
+
+> 사용자 원문: *"통합관리자센터에 사용량통계가 있는데 연안안전 브리핑 제공실적도 집계되도록 해줘 집계는 아코디언이 열리면 1건으로 반영. 그리고 해양생활안전에서 위험예측 버튼을 누르고 각 토글을 누르면 1건, 그리고 격자를 눌러서 바텀시트를 열면 한건, 그리고 브리핑에서 위험예측 또는 지도와 연계된 하이퍼링크 등을 누르면 각 한건으로 집계해줘. 연안 안전 브리핑과 위험예측은 별개로 집계가 되어야하고 브리핑에서 위험예측 기능과 관련된 지도가 열리면 위험예측으로 반영되어야하는거야"*
+
+관리자 센터 > 종합 통계 > 사용량 통계 > 「기능별 누적 사용」에 이름표 앞말 **「연안 안전 브리핑 · 」**·**「위험예측 · 」** 으로 따로 보인다
+(이 화면은 기능 키마다 한 줄이고 따로 묶는 칸이 없다 — 해양안전 「해양안전 · 」과 같은 관례). 이름표는 `client/js/shared/utils/usage_keys.js` H·I 절.
+
+**묶음 나누는 기준(코드로 판단)**: 위험예측 지도 층(`StationBriefingRiskMap` — 위험예측 `RiskMapLayer` 그대로)을 여는 링크, 위험예측 위험구역 자료
+(`GET /api/risk-forecast/hazard-zones`)를 그리는 지도, 위험예측 탭으로 가는 바로가기 → **위험예측**(`risk.*_from_briefing`).
+위험예측 자료 없이 브리핑 자료만 그리는 지도·창(대해구 칸·특보 표·잠기는 바위) → **연안 안전 브리핑**(`briefing.*`).
+
+| 누름 | 키 | 묶음 |
+|---|---|---|
+| 아코디언 머리 — 펼칠 때(접을 때 0건) | `briefing.open` | 브리핑 |
+| 분석 문단 대해구 이름 · 근거 「대해구」 줄 펼침 지도 | `briefing.haegu_map` | 브리핑 |
+| 분석 문단 특보 말 · (특보) 줄 → 「기상특보 현황」 창 | `briefing.warn_popup` | 브리핑 |
+| (물때) 「잠기는 바위(간출암) N곳」 지도 | `briefing.rocks_map` | 브리핑 |
+| [위험예측에서 보기 ›] 해역 카드 / 관광지 카드 | `risk.goto_sea_from_briefing` / `risk.goto_coast_from_briefing` | 위험예측 |
+| 「관할 해역 선박 N척」 / 붐비는 해역 이름 팝업 지도 | `risk.ships_map_from_briefing` / `risk.busiest_map_from_briefing` | 위험예측 |
+| 연안 근거 관광지 이름 팝업 지도 | `risk.spot_map_from_briefing` | 위험예측 |
+| 해상 근거 「위험이 높아진 해역」·「위험예보만」 펼침 지도 | `risk.basis_map_from_briefing` | 위험예측 |
+| 연안 카드 [위험구역] 표의 [위치 보기] 지도 | `risk.hazard_map_from_briefing` | 위험예측 |
+| 위 지도에서 칸 / 관광지를 눌러 연 바텀시트 | `risk.sheet.sea_from_briefing` / `risk.sheet.coast_from_briefing` | 위험예측 |
+
+- **세지 않는 것**: 아코디언 접기·칸(총평·해상·연안 분석) 머리·「분석 근거 상세 보기」 알약·표만 펼치는 단추(고립 사고·위험이 높아진 곳·사고현황·[위험구역] 표)·
+  펼친 지도 접기·관광지 팝업이 저절로 올리는 첫 시트·잠기는 바위 마커(조석 상자)·⚙/[설정하기]로 설정 화면을 여는 것(`openSetup` — 브리핑 본문이 아니다).
+- **이중 집계 없음**: [위험예측에서 보기 ›] 는 `openInRisk` 에서 1건만 센다. 이어서 `RiskForecast.openAt` 이 위험예측 버튼을, `goTo` 가 층 스위치를
+  대신 누르지만 그 클릭은 `risk_forecast.js quiet`(= `withUsageSuppressed`)로 0건이고, `goTo` 의 `select` 는 지도 클릭 경로(`mapSelect`)가 아니라 시트도 0건이다.
+- **사용자 화면만**: `station_briefing.js renderBody` 가 `render(…, {usage:true})` 로 그릇에 `data-sb-usage` 를 단다. 관리자 미리보기(`admin_station_briefing.js` — `{links:false}`)는
+  달지 않아 0건. 팝업 창은 그 링크가 센다고 표시된 본문 안이었을 때만 창에도 표시가 붙는다(`openMapPopup` ← `mapLink` 의 `opener`).
+- 위험예측 배경 부품이 없을 때(모듈 로드 실패 — `StationBriefingRiskMap.ready()` 거짓)의 종전 지도는 위험예측 자료가 없어 브리핑 묶음
+  (`briefing.ships_map`·`briefing.busiest_map`·`briefing.basis_map`).
+- 시험: `local_server/scripts/test_usage_briefing_risk_ui.js`(실제 Chromium 클릭 → POST /api/usage 키·건수) · `test_usage_keys.js`(발신 키 ⊂ 이름표 · 묶음 앞말).
+
+## 연안 카드 해수욕장 안내 줄 (2026-10-18 — 설계서 §18)
+
+> 사용자 원문: *"입수한 사람이 있을 수 있다는 알림 문구"* · *"개장 일정 폐장 일정 관련해서는 해수부를 기준으로만"* (전체 결정 표는 설계서 §18.1)
+
+- 서버 `routes/station_briefing.js` 가 `GET /api/station-briefing`(·관리자 미리보기) 응답에 `beach` = `{관광지 id: [줄]}`(브리핑 날짜, 연안 카드 관광지만 — `services/beach_weather.js` `linesForSpots`)를 **응답 때** 붙인다. 저장된 판·규칙 판(v23)·AI 입력(`station_briefing_ai.js`)은 그대로.
+- 화면 `station_briefing_render.js` `beachBox`: 연안 카드 [오늘 예상] 바로 아래, [권고] 위 — 하늘색 왼쪽 줄 상자(`.sb-beach`·`.sb-beach-line`, `station_briefing.css`), 서버 글 그대로(textContent). 옛 판 카드(규칙 v19 전)도 [오늘 예상] 아래.
+- `index2.html` `station_briefing_render.js`·`station_briefing.css` ?v=20261018beach. 시험 `local_server/scripts/test_beach_weather.js`(라우트 — 카드 관광지만·저장 판 안 고침).

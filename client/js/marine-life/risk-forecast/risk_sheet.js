@@ -9,6 +9,7 @@
  *         연안 시트 끝에 「이 관광지 주변 연안사고(2020~2024년)」 카드(2026-10-16 T9 — 해상 사고 카드와 같은 꼴, RiskMarine 공용 함수). 경위도는 화면에 쓰지 않는다(같은 날).
  *         2026-10-18 연안 시트 시안(CoastSheet.dc.html·CoastSheetOpen.dc.html): 등급 배지·막대 눈금·「…날 수 있는 조건」·「•」 줄과 넘치는 줄만 자간 맞춤·
  *         위험구역 종류 밑줄 버튼 → 표(위치·종류·구분·지도)·특보/표류 한 상자·「주변 연안사고('20년 ~ '24년)」(설계서 §15.2).
+ *         2026-10-18 해수욕장 안내 줄(서버 beach — 3km 안 기상청 해수욕장의 개장·입수 참고, 특보 상자 아래 하늘색 상자, 설계서 §18).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈(RiskFormat·RiskMarine.accSort/accSummary/bindAcc/closePop) / OpenLayers(지도 모듈)
  *                    · style.css 해양종합정보 시트 날짜 줄(.ocean-date-nav-inline·.ocean-date-nav-btn·.ocean-sheet-date-stack·.ocean-sheet-solar·.ocean-sheet-lunar — 연안 날짜 줄이 그대로 씀, T24)
@@ -209,6 +210,13 @@
      * [연계] create.show → 시트 / noticeLines·noticeBox
      */
     function notices(list) { return noticeBox(noticeLines(list)); }
+    /**
+     * 해수욕장 안내 줄(설계서 §18, 2026-10-18 사용자 *"입수한 사람이 있을 수 있다는 알림 문구"* — 개장 줄 → 입수 줄, 서버 글 그대로).
+     * 위험 점수·단계와 무관한 참고 줄이라 특보·표류 상자(주황)와 따로 하늘색 상자에 담는다. 줄이 없으면 빈 문자열(「정보 없음」 같은 말도 없음).
+     * 예: beachBox(['협재해수욕장(1.2km) — 수온 22℃ · …']) → '<div class="rf-beach" data-beach>…</div>'
+     * @param {string[]} lines - 서버 coast/spot 의 beach @returns {string} HTML [연계] create.show(연안) / 서버 services/beach_weather.linesFor
+     */
+    function beachBox(lines) { lines=(Array.isArray(lines)?lines:[]).filter(function(l){return typeof l==='string'&&l;}); return lines.length?'<div class="rf-beach" data-beach>'+lines.map(function(l){return '<p class="rf-beach-line">'+F.escape(l)+'</p>';}).join('')+'</div>':''; }
     // 안내 줄 앞 그림(2026-10-18 시안 — 종전 글자 ⚠·🛟 대신): 특보 = 노란 테두리 세모, 표류 = 빨강·흰 구명환.
     var ICON_WARN='<svg width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" class="rf-ico-warn"><path d="M12 3.5L2 20.5h20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.1" fill="currentColor"/></svg>';
     var ICON_BUOY='<svg width="1.1em" height="1.1em" viewBox="0 0 24 24" aria-hidden="true" class="rf-ico-buoy"><circle cx="12" cy="12" r="8" fill="none" stroke="#f04438" stroke-width="5"/><circle cx="12" cy="12" r="8" fill="none" stroke="#ffffff" stroke-width="5" stroke-dasharray="4.2 8.37" stroke-dashoffset="2.1"/><circle cx="12" cy="12" r="10.5" fill="none" stroke="#7a2a22" stroke-width="0.8"/><circle cx="12" cy="12" r="5.5" fill="none" stroke="#7a2a22" stroke-width="0.8"/></svg>';
@@ -454,7 +462,8 @@
             // 연안: 위험지수 카드 → 안내 → 요소 줄(계산 설명 아코디언 「사고 배수는 어떻게 합쳤나요?」는 2026-10-18 삭제 — 사용자 「빼자.」, 같은 방법은 [기준 상세]·PDF 에 있음) → 주변 연안사고(2026-10-16 T9 — 해상 시트가 「위 카드 → 교통량 → 과거 사고 → 날씨」로 지금 상황 뒤에 과거 사고를 두는 것과 같은 자리).
             //   안내(특보·표류)는 연안 하루 값이면 그날 칸 전부의 것(daily.notices — 시각을 붙임, §16.1 ②), 아니면 종전대로 그 칸의 것.
             //   요소 줄은 .rf-coast-rows 로 묶는다 — 마지막 줄 아래 구분선을 지우고 주변 연안사고 상자와 18px 띄우는 기준(2026-10-18 시안).
-            else body+=summary(d,kind)+(d.daily&&Array.isArray(d.daily.notices)?dayNotices(d.daily):notices(d.notices))+'<div class="rf-coast-rows">'+coastRows(rows)+'</div>'+(kind==='coast'&&Object.prototype.hasOwnProperty.call(d,'history')?coastHistory(d.history):'');
+            //   해수욕장 안내(§18 — 개장·입수 참고 줄)는 특보·표류 상자 바로 아래, 요소 줄 위.
+            else body+=summary(d,kind)+(d.daily&&Array.isArray(d.daily.notices)?dayNotices(d.daily):notices(d.notices))+(kind==='coast'?beachBox(d.beach):'')+'<div class="rf-coast-rows">'+coastRows(rows)+'</div>'+(kind==='coast'&&Object.prototype.hasOwnProperty.call(d,'history')?coastHistory(d.history):'');
             // 머리 [기준 상세]는 연안 요약(위험지수 카드)이 있을 때만. 옛 공식 사고·해상 칸 상세는 본문에 자기 버튼이 있다.
             basisFor(kind!=='accident'&&kind!=='sea'&&d.clickable!==false?kind:null);
             // 다른 관광지·시각을 그리면 열린 사고 목록 팝업을 닫는다(같은 관광지·시각의 60초 갱신은 그대로 — 내용이 같다).
@@ -509,5 +518,5 @@
      * @returns {string[]} 진단 문장 [연계] RiskForecast.refresh / 공개 배너·시트에는 출력하지 않는다
      */
     function sourceMessages(data,kind){var sources=Object.assign({},data.sources||{}),stamp=Date.parse(data.t);if(Number.isFinite(stamp)&&sources.events&&sources.events.months){var month=new Date(stamp+9*3600000).toISOString().slice(0,7);sources.events=sources.events.months[month]||{status:'missing'};}var keys=kind==='accident'?['accident','zoneForecasts','congestion']:kind==='sea'?['warnings','zoneForecasts','congestion']:['warnings','gale','zoneForecasts','swell','ripCurrent','tourConcentration','events'];return keys.filter(function(key){var s=sources[key];return s&&s.status&&!['ok','offseason'].includes(s.status);}).map(function(key){var s=sources[key],text=sourceName(key)+(s.status==='stale'?' 자료가 오래되었습니다':s.status==='error'?' 자료 수집에 실패했습니다':' 자료를 받지 못했습니다');if(key==='zoneForecasts'&&s.status==='stale')text+=' (예보 기준 '+sourceTime((data.inputs||{}).zoneForecastBase||s.base||s.updatedAt)+')';return text+' (마지막 수집 '+sourceTime(s.lastSuccess||s.updatedAt)+')';});}
-    w.RiskSheet={create:create,sourceName:sourceName,sourceMessages:sourceMessages,coastRows:coastRows,seaRows:seaRows};
+    w.RiskSheet={create:create,sourceName:sourceName,sourceMessages:sourceMessages,coastRows:coastRows,seaRows:seaRows,beachBox:beachBox};
 })(window);

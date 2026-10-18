@@ -7,6 +7,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/station_briefing.js(forDefault — 생성·저장·설정) · advisory/displayControl.js(isAdminDevice — 특보 예측 표출 제어와 같은 기기 판정)
+ *                    · services/beach_weather.js(linesForSpots — 연안 카드 해수욕장 안내 줄 beach, 응답 때 붙임 · 설계서 §18)
  *                    · services/admin_auth.js(verifyToken·requireAdminToken — 관리자 API 인증, 쓸 때 require)
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(관할 구역 — 설정 화면 지도) · GET /api/station-briefing
  *                    GET /api/station-briefing/now(「지금 밀집」만 — 화면이 1분마다, since 가 같으면 unchanged, §11.10.24)
@@ -37,12 +38,15 @@ function createRouter({
     authorize = (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next),
     nowLine = null,
     clock = () => Date.now(),
+    beachLines = (ids, date) => require('../services/beach_weather').forDefault().linesForSpots(ids, date),
 } = {}) {
     const router = express.Router(), SB = require('../services/station_briefing'), downloads = new Map();   // token → {name, text, exp}
     const svc = () => service || SB.forDefault();
     /** 요청에서 기기 식별(관리자 기기 판정용)·관리자 토큰을 꺼낸다 — advisoryPrediction 과 같은 이름(adminToken·endpoint 쿼리, X-Admin-Device·X-Admin-Token 헤더). */
     const who = (req) => ({ deviceId: (req.query && (req.query.adminToken || req.query.endpoint)) || req.get('X-Admin-Device') || '', adminToken: req.get('X-Admin-Token') || (req.query && req.query.adminAuthToken) || '' });
     const gate = (req) => SB.decideExposure(svc().readConfig().exposure, who(req), { isAdminDevice, verifyToken });
+    /** 브리핑 연안 카드 관광지마다 해수욕장 안내 줄(§18). 실패하면 빈 표(브리핑은 그대로). 예: beachOf({date:'2026-10-18', briefing:{land:{cards:[{link:{spotId:'a'}}]}}}) → {a:['…']} */
+    const beachOf = (r) => { try { const ids = ((r && r.briefing && r.briefing.land && r.briefing.land.cards) || []).map((c) => c && c.link && c.link.spotId).filter(Boolean); return ids.length ? beachLines(ids, r.date) || {} : {}; } catch (_) { console.error('[station_briefing] 해수욕장 안내 줄 실패'); return {}; } };
     const fail = (res, e) => res.status(e.status || 500).set('Cache-Control', 'no-store').json({ ok: false, error: e.status ? e.message : '브리핑 처리 실패' });
 
     router.get('/api/station-briefing/stations', (req, res) => {
@@ -62,8 +66,10 @@ function createRouter({
             if (!svc().stations().some((s) => s.key === key)) return res.status(404).json({ ok: false, error: '관할 없음' });
             const r = svc().pick({ key, day });
             let now = null; try { now = nowLine ? nowLine(key, r) : null; } catch (_) { now = null; }
+            // beach(설계서 §18, 2026-10-18) = 연안 카드 관광지 id → 해수욕장 안내 줄(개장·입수 참고). 저장된 판은 고치지 않고 응답 때 붙인다(늘 최신 예보·수온 — AI 입력에는 없음).
+            const beach = beachOf(r);
             // nextPublishAt(§11.10.9 ⑦) = 다음 정시 판 공개 시각 — 화면 머리 「(다음 브리핑 갱신 HH:MM 또는 특보 변경 시)」
-            res.json({ ok: true, audience: g.audience, display: true, ...r, now, nextPublishAt: R.nextPublishAt(clock()) });
+            res.json({ ok: true, audience: g.audience, display: true, ...r, now, beach, nextPublishAt: R.nextPublishAt(clock()) });
         } catch (e) { fail(res, e); }
     });
     // 「지금 밀집」만 다시(§11.10.24 — 2026-10-18 사용자 *"실시간으로 데이터를 업데이트 시킬 수 있는 거 아닌가? … 시간도 계속 바뀌어가면서"*).
@@ -102,7 +108,8 @@ function createRouter({
             if (typeof key !== 'string' || !key) return res.status(400).json({ ok: false, error: '관할(station) 필요' });
             if (!['auto', 'today', 'tomorrow'].includes(day)) return res.status(400).json({ ok: false, error: 'day 는 auto·today·tomorrow' });
             if (!svc().stations().some((s) => s.key === key)) return res.status(404).json({ ok: false, error: '관할 없음' });
-            res.json({ ok: true, ...svc().pick({ key, day, withPending: true }), nextPublishAt: R.nextPublishAt(clock()) });   // 공개 예정 판(§11.10.4)이 있으면 그것을 「예정」으로(pending·publishAt)
+            const r = svc().pick({ key, day, withPending: true });
+            res.json({ ok: true, ...r, beach: beachOf(r), nextPublishAt: R.nextPublishAt(clock()) });   // 공개 예정 판(§11.10.4)이 있으면 그것을 「예정」으로(pending·publishAt)
         } catch (e) { fail(res, e); }
     });
     router.put(admin + '/config', express.json({ limit: '8kb' }), (req, res) => { try { res.json({ ok: true, config: svc().writeConfig(req.body || {}) }); } catch (e) { fail(res, e); } });

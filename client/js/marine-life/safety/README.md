@@ -457,5 +457,6 @@ mudflat.js / sea_parting.js / swimming.js)을 그대로 씁니다.** 이 모듈�
 | CCTV | — | CCTV 마커를 눌러 팝업이 뜨면 `ocean.cctv_open` 1건 |
 | 관제구역 | `safety.vts` 1건 | 폴리곤을 눌러 팝업이 뜨면 `safety.vts.zone` 1건 (첫 탭은 하이라이트만, 두 번째 탭에 팝업) |
 | 항로·해역 | `safety.seaway` 1건 | 폴리곤을 눌러 팝업이 뜨면 `safety.seaway.zone` 1건 |
+| 위험예측 | `risk.on` 1건 (따로 「위험예측 · 」 묶음 — 2026-10-18) | 스위치 켬·해상 표시 고름·칸/관광지 시트 각 1건 — 키 표는 [위험예측 README](../risk-forecast/README.md) 「사용량 통계」 |
 
 이름표는 `client/js/shared/utils/usage_keys.js` 한 장이고, 빠지면 `local_server/scripts/test_usage_keys.js` 가 실패한다.

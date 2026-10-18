@@ -4,13 +4,14 @@
  *        sea/area-frame·coast/area-frame(2026-10-18 §11.10.24) — 지도와 같은 값을 관할 하나 상자만: 연안 안전 브리핑 팝업 지도(forecast/station-briefing/station_briefing_riskmap.js).
  *        sea/traffic-history 는 sea_traffic_history.createApi(칸별 2주 30분 척수 + 특보 발효 구간) — 화면은 디자인 확정 뒤.
  *        기본 저장소(stores)는 관할 브리핑(services/station_briefing.js forDefault)이 함께 쓴다.
+ *        coast/spot 의 beach = 그 날짜의 해수욕장 안내 줄(services/beach_weather.js — 개장·입수 참고, 점수에는 없음, 설계서 §18 2026-10-18).
  * [로드 순서] server.js 라우트 등록. 요청에서는 수집·AI·푸시 호출이 없다.
  */
 'use strict';
 const express=require('express'),path=require('path'),fs=require('fs');
 const {createStore}=require('../services/risk_store');
 /** 위험예측 전용 라우터를 만든다. 예: 검사에서는 가짜저장소로계약확인. @param {object} options @returns {Router} [연계] ← server.js */
-function createRouter({store=createStore(),marine=require('../services/marine_fusion').createStore({risk:store}),trafficHistory=require('../services/sea_traffic_history').createApi(),reportDir=path.join(__dirname,'..','config','coastal_safety','accident_analysis','v3','public')}={}){
+function createRouter({store=createStore(),marine=require('../services/marine_fusion').createStore({risk:store}),trafficHistory=require('../services/sea_traffic_history').createApi(),reportDir=path.join(__dirname,'..','config','coastal_safety','accident_analysis','v3','public'),beach=(id,date)=>require('../services/beach_weather').forDefault().linesFor(id,date)}={}){
     const router=express.Router(),base='/api/risk-forecast';
     /** 실패를 상태 포함 JSON으로 보낸다. 예: 자료준비전503. @param {function} fn @param {number} maxAge @returns {function} [연계] ← route handlers */
     function handle(fn,maxAge=60){return(req,res)=>{try{res.set('Cache-Control',maxAge?'public, max-age='+maxAge:'no-store');res.json({ok:true,...fn(req),sources:store.sources()});}catch(e){res.status(e.status||503).set('Cache-Control','no-store').json({ok:false,error:e.status?e.message:'위험예측 자료 처리 실패',sources:store.sources()});}};}
@@ -44,7 +45,9 @@ function createRouter({store=createStore(),marine=require('../services/marine_fu
     router.get(base+'/coast/area-frame',handle(req=>coastArea(req.query.t,req.query.bbox),0));
     router.get(base+'/coast/frame',handle(req=>store.coastDayFrame(req.query.t)));
     router.get(base+'/sea/frame',handle(req=>store.frame(true,req.query.t)));
-    router.get(base+'/coast/spot',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('관광지 id 필요'),{status:400});return store.coastDayDetail(req.query.id,req.query.t);}));
+    /** 해수욕장 안내 줄(§18) — 실패해도 연안 상세는 그대로 준다(줄 없음). 예: beachOf('a','2026-10-18') → ['…'] @returns {string[]} [연계] ← GET coast/spot / → services/beach_weather.linesFor */
+    function beachOf(id,date){try{return date?beach(id,date)||[]:[];}catch(_){console.error('[risk_forecast] 해수욕장 안내 줄 실패');return[];}}
+    router.get(base+'/coast/spot',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('관광지 id 필요'),{status:400});const d=store.coastDayDetail(req.query.id,req.query.t);return{...d,beach:beachOf(req.query.id,d&&d.daily&&d.daily.date)};}));
     router.get(base+'/sea/cell',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('해상 칸 id 필요'),{status:400});return store.seaDetail(req.query.id,req.query.t);}));
     router.get(base+'/hazard-zones',handle(req=>{if(typeof req.query.ids!=='string'||!req.query.ids)throw Object.assign(new Error('위험구역 ids 필요'),{status:400});return store.hazards(req.query.ids.split(','));},86400));
     router.get(base+'/islands',handle(()=>store.islands(),86400));
