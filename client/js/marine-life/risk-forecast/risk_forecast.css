@@ -97,8 +97,17 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-tbl::after { right:0; background:linear-gradient(to left,rgba(143,211,255,.3),rgba(143,211,255,0)); }
 .rf-tbl.more-left::before,.rf-tbl.more-right::after { opacity:1; }
 .rf-basis .n { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; } .rf-basis .wrap { white-space:normal; }
+/* 기준 상세 글머리 줄(2026-10-18 사용자 「문장단위로 줄바꿈을 해주고 여러 내용이 들어있으면 문장의 시작에 점으로」) — 문장 여럿인 문단을 risk_basis_content.js pts() 가
+   ul.rf-pts 로 만든다. 점은 글자가 아니라 ::before(내어쓰기 — 둘째 줄은 점 오른쪽에 맞춤). 어절 단위 줄바꿈은 위 .rf-basis 의 word-break:keep-all. */
+.rf-basis .rf-pts { list-style:none; margin:6px 0; padding:0; display:flex; flex-direction:column; gap:3px; }
+.rf-basis .rf-pts li { position:relative; margin:0; padding-left:12px; }
+.rf-basis .rf-pts li::before { content:'•'; position:absolute; left:0; top:0; }
+/* 연안 「단계 말」 표(2026-10-18 「이건 표로 만드는게 좋지 않겠니 ?」): 단계 색 네모 + 단계 색 굵은 이름. 칸이 짧아 위 표 최소 폭(9em·16em)을 풀어 380px 에서도 옆으로 밀지 않게. */
+.rf-basis .rf-tbl .rf-bands td:nth-child(n),.rf-basis .rf-tbl .rf-bands th:nth-child(n) { min-width:0; }
+.rf-basis .rf-band { white-space:nowrap; vertical-align:middle; } .rf-basis .rf-band i { display:inline-block; width:10px; height:10px; margin-right:6px; border-radius:2px; vertical-align:-1px; } .rf-basis .rf-band b { font-weight:700; } .rf-basis .rf-bands th:first-child { text-align:left; }
 .rf-basis .mclose { flex:none; border:0; border-radius:999px; background:#ffffff22; color:#fff; padding:4px 10px; font-size:.78rem; font-weight:700; }
-.rf-basis .pdf-btn,.rf-basis .pdf-btn:visited { display:inline-block; border:1px solid #ffd74073; background:#ffd74024; color:#ffe17a; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:700; margin:6px 0 2px; }
+/* PDF 버튼 글자는 보통 굵기(2026-10-18 사용자 「여기도 볼드 빼」 — 색·테두리는 그대로) */
+.rf-basis .pdf-btn,.rf-basis .pdf-btn:visited { display:inline-block; border:1px solid #ffd74073; background:#ffd74024; color:#ffe17a; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:400; margin:6px 0 2px; }
 /* 해상 기준 상세 맨 아래 MTIS 두 링크 — 버튼 모양·가운데(2026-10-16 「버튼 형식으로 바꿔주고 각 버튼을 가운데 정렬해줘」). 한 줄에 안 들어가면 위아래로 쌓여 각각 가운데.
    글자 #8fd3ff(종전 링크 색) — 반투명 하늘색 바탕을 창 바탕 두 끝에 덧칠해도 대비 4.5:1 이상(test_risk_sheet_ui). */
 .rf-basis .rf-basis-links { display:flex; flex-wrap:wrap; justify-content:center; gap:8px 10px; margin:14px 0 4px; }
