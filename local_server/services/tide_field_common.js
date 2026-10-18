@@ -26,6 +26,7 @@
  *   - routes/tide_field.js          → 예측 엔진 API
  *   - js/tide_field.js              → 프론트 레이어 (bbox 만 별도 응답으로 받음)
  *   - tide.js (프론트)              → TIDE_REFERENCE_STATIONS 원본 (여기 부분집합)
+ *   - server.js·scheduler.js        → runTideBatchExclusive(앵커 곡선 수집 묶음 줄세우기 — 동시 호출 금지)
  * ============================================================================
  */
 
@@ -366,6 +367,27 @@ const TIDE_FIELD_CONFIG = {
     //   앵커가 버킷 기반으로 바뀌어 컴포넌트·물길거리 개념이 사라졌다.
 };
 
+// ============================================================================
+// 앵커 곡선 일괄 수집 줄세우기 (2026-10-18)
+// ============================================================================
+let _tideBatchChain = Promise.resolve();
+/**
+ * 앵커 곡선 일괄 수집(서해·남해 → 제주 간출암 → 제주 고립판정 …)을 한 줄로 세워 차례로 돌린다.
+ * 예: runTideBatchExclusive(async () => { await a(); await b(); }) — 앞 묶음이 끝나야 시작한다.
+ * @param {function(): Promise<*>} fn - 한 묶음(그 안에서도 수집기를 차례로 await 해야 한다)
+ * @returns {Promise<*>} fn 의 결과(실패해도 다음 묶음은 막지 않는다)
+ * [연계] ← server.js 기동 보충(물빠짐 → 제주 두 수집기) · scheduler.js KST 23:30 묶음
+ *   [왜] 세 수집기는 TideBED 키 3개를 바텀시트 사용자와 같이 쓴다. 수집기마다 자기 중복 실행만
+ *     막고(_running) 서로는 모른다 — 기동 보충이 도는 중에 23:30 묶음이 시작되면 서해·남해는
+ *     「이미 진행 중」으로 건너뛰고 곧장 제주 수집이 시작돼 **두 수집기가 동시에 키를 쓴다**.
+ *     같은 줄에 세우면 23:30 묶음은 기동 보충이 끝난 뒤 시작한다(이미 받은 날은 건너뛴다).
+ */
+function runTideBatchExclusive(fn) {
+    const run = _tideBatchChain.then(() => fn());
+    _tideBatchChain = run.catch(() => { /* 실패한 묶음이 다음 묶음을 막지 않게 — 실패는 호출부가 run 으로 받는다 */ });
+    return run;
+}
+
 module.exports = {
     // 경로
     TIDE_FIELD_DIR, GRID_META_PATH, ANCHORS_PATH, CURVES_DIR, BATHYMETRY_DIR,
@@ -375,7 +397,7 @@ module.exports = {
     // 표준항
     ALL_REFERENCE_STATIONS, getRegionStations,
     // 유틸
-    toRad, haversineKm, rowMTL,
+    toRad, haversineKm, rowMTL, runTideBatchExclusive,
     // 설정
     TIDE_FIELD_CONFIG
 };

@@ -2,9 +2,9 @@
  * ============================================================================
  * 파일명: client/js/forecast/station-briefing/station_briefing_render.js
  * 역할  : 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론 + 연안·해상 분석 문단(AI 또는 규칙) + 접힌 「분석 근거」(근거·권고) + (기상)·(물때)
- *         · 해상 시간 막대·해역 카드·연안 카드·조석·데이터 출처)을 화면 칸으로 옮긴다(2026-10-17 사용자 결정 「가」 모양 — 설계서 §11.10.4).
+ *         · 해상 시간 막대·해역 카드·연안 카드·데이터 출처)을 화면 칸으로 옮긴다(2026-10-17 사용자 결정 「가」 모양 — 설계서 §11.10.4). 「조석」 칸은 §11.10.34 에 뺐다(물때는 총평 「물때」 칸).
  *         아코디언 제목 글 「HH:MM AI 연안 안전 브리핑」(titleText)도 여기서 만든다. 서버 글은 모두 textContent 로만 넣는다(계약서 §5 「화면은 textContent 로만」 — HTML 삽입 금지).
- *         HTML 로 넣는 것은 조석 게이지(해양종합정보 OS.tideGaugeHtml 이 숫자·시각만으로 만든 것)뿐이다.
+ *         HTML 로 넣는 것은 없다(종전 유일한 예외였던 조석 게이지 OS.tideGaugeHtml 은 「조석」 칸과 함께 §11.10.34 에 뺐다).
  *         근거 줄 ▸ 펼침(2026-10-17 §11.10.3): 고립 사고 지점 표 · 관할 해역 미니 지도(해당 칸·대해구 테두리 깜빡임 — 접거나 다시 그리면 멈춤).
  *         §11.10.9: 분석 근거 알약 배지 · 「평소보다 위험이 높아진 곳」 표 · 「{구역} 기상 현황」 머리 · 분석 문단 강조 토막(highlightSegments — span textContent 로만) · 마지막 「따라서 …」 → (권고) 줄
  *                   · 대해구 이름·「관할 해역 선박 N척」·붐비는 해역 링크 → 가운데 팝업 지도(openMapPopup — 서버 summary.sea.haegu·now.cells).
@@ -31,11 +31,12 @@
  *         §11.10.32(2026-10-18 — 화면만): 잠기는 바위 팝업 지도 = 위성지도 바탕(StationBriefingRiskMap.baseLayers — 위험예측 팝업과 같은 브이월드) + 끌기·핀치·휠·더블탭 확대 + 화면 +/− 단추(miniMap opt.sat·opt.zoom)
  *                    · 「○○앞바다 기상 현황」 줄은 머리말(「오늘 오후」) 다음 줄에서 날씨 내용 시작(weatherPart <br>) · 「물때」 머리 = 기상 현황 머리와 같은 모양 + 줄마다 「•」 목록(tidePart).
  *                    · 해역 카드 「KOMSA 혼잡 예보」 표는 한 줄에 두 시각(pairTable — 「시각 | 혼잡지수 | 시각 | 혼잡지수」).
+ *         §11.10.34(2026-10-18 — 화면만): 글 속 지도 링크 = <span role="button" tabindex=0>(mapLink — 긴 해역 링크 뒤 「는」이 다음 줄로 밀리지 않게) · 「조석」 칸 뺌 · 잠기는 바위 팝업 지도 +/− 단추 뺌(끌기·핀치·휠·더블탭은 그대로)
+ *                    · 해상 결론 배지 「N개 해역 주의(KOMSA)」(「예보」 뺌) · 화면 글의 「(KOMSA …)」 괄호는 2pt 작게(komsaText).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : ocean-map/bottom-sheet/ocean_bottom_sheet3.js(OceanSheet.tideGaugeHtml — 조석 게이지 디자인 그대로)
- *                    · marine-life/risk-forecast/risk_format.js(RiskFormat.BAND_COLORS — 위험예측 4색) · risk_basis.js(RiskBasis.open('briefing') — [기준 상세])
- *                    · style.css(.marine-forecast-sub-accordion·.ocean-tide-*) · station_briefing.css(.sb-*)
+ *  - 사용하는 파일 : marine-life/risk-forecast/risk_format.js(RiskFormat.BAND_COLORS — 위험예측 4색) · risk_basis.js(RiskBasis.open('briefing') — [기준 상세])
+ *                    · style.css(.marine-forecast-sub-accordion) · station_briefing.css(.sb-*)
  *                    · ol.js(index2 <head> 전역 ol — 미니 지도) · ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 바탕 해아름 바다지도, 관심해역 고르기 지도와 같은 방식, 없으면 선만)
  *                    · marine-life/safety/hazard_rocks.js(window.HazardRockTidePanel — 간출암 조석 곡선 상자·마커 그림, §11.10.10) · index2.html <style>(.hazard-rock-popup.rock-tide-popup 모양)
  *                    · station_briefing_riskmap.js(StationBriefingRiskMap — 위험예측 배경 지도 층·바텀시트, §11.10.24·§11.10.26)
@@ -114,7 +115,7 @@
         ['지역 행사', '한국관광공사(+ Gemini 보충 검색)', '육상 「오늘 바뀐 요소」', '연안'],
         ['연안사고 위험구역', '해양경찰청', '관광지 [위험구역], 상시 위험 장소', '연안'], // §11.10.20 — 종전 「육상 특성」
         ['과거 연안사고 — 연안 인명사고(익수·추락·고립·표류·기타), 관광지 구역 + 앞바다 500m, 2020~2024', '국립해양조사원 개방海 인명사고', '관광지 [사고현황]', '연안'], // §11.10.20 — 종전 「관광지 [특성]」
-        ['조석(고조·저조)·잠기는 바위', '국립해양조사원 조석 예측(앱이 매일 23:30 수집)', '조석 칸', '물때'],
+        ['조석(고조·저조)·잠기는 바위', '국립해양조사원 조석 예측(앱이 매일 23:30 수집)', '총평 「물때」', '물때'], // §11.10.34 — 「조석」 칸을 빼서 쓰는 곳은 총평 「물때」 칸만
     ];
 
     /**
@@ -148,15 +149,30 @@
      *   「다.」만 문장 끝으로 본다 — 「2.4배」·「1.5~3.0m」 같은 숫자의 점, 「다.」 뒤에 닫는 괄호·따옴표·숫자가 오거나 글이 끝나면 자르지 않는다. 「다. 」로 끝난 조각(강조 토막 사이 — 다음 토막이 새 문장)은 끝에 <br>.
      * 예: appendText(p, '물에 잠깁니다. 바위 위 낚시·채취 중 고립에 주의가 요구됩니다.') → p: 「물에 잠깁니다. 」<br>「바위 위 … 요구됩니다.」 · appendText(p, '평소의 2.4배입니다') → 텍스트 하나
      * @param {Node} node @param {*} text - 문자열로 바꿔 붙인다 @returns {Node} node [연계] ← el(모든 칸) · 서버 글을 텍스트 노드로 붙이는 곳(analysisNodes·rocksLine·isolationLine·basisList·adviceLine 등) · 시험 [§11.10.16]
+     *   / → komsaText(「(KOMSA …)」 괄호만 2pt 작게 — §11.10.34)
      */
     function appendText(node, text) {
         var t = String(text), re = /다\.(?:\s+|(?=[가-힣]))/g, at = 0, m;
         while ((m = re.exec(t))) {
             var end = m.index + m[0].length;
-            node.appendChild(document.createTextNode(t.slice(at, end))); node.appendChild(document.createElement('br')); at = end;
+            komsaText(node, t.slice(at, end)); node.appendChild(document.createElement('br')); at = end;
         }
-        if (at < t.length || !at) node.appendChild(document.createTextNode(t.slice(at)));
+        if (at < t.length || !at) komsaText(node, t.slice(at));
         return node;
+    }
+    /**
+     * 글을 텍스트 노드로 붙이되 「(KOMSA)」·「(KOMSA 기준)」처럼 KOMSA 가 든 괄호만 작은 글(span.sb-komsa-paren — 둘레 글보다 2pt 작게, station_briefing.css)로 감싼다. 글자는 그대로(textContent 는 서버 글과 같다).
+     *   2026-10-18 사용자 *"komsa가 들어간 괄호는 2pt 크기를 줄여줘"*(설계서 §11.10.34) — 결론 배지 「6개 해역 경계(KOMSA)」·해역 카드 배지·가로 표 이름 칸·[권고]·근거 줄·분석 문단 모두 이 함수를 거친다.
+     * 예: komsaText(p, "해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 1칸") → 「해양사고 위험예보」<span class="sb-komsa-paren">(KOMSA)</span>「 기준 등급 …」 · KOMSA 괄호가 없으면 텍스트 노드 하나
+     * @param {Node} node @param {string} s @returns {void} [연계] ← appendText·analysisNodes(plain)·expander(단추 글)
+     */
+    function komsaText(node, s) {
+        var re = /\(KOMSA[^()]*\)/g, at = 0, m;
+        while ((m = re.exec(s))) {
+            if (m.index > at) node.appendChild(document.createTextNode(s.slice(at, m.index)));
+            var k = document.createElement('span'); k.className = 'sb-komsa-paren'; k.textContent = m[0]; node.appendChild(k); at = m.index + m[0].length;
+        }
+        if (at < s.length || !at) node.appendChild(document.createTextNode(s.slice(at)));
     }
     /**
      * 단계 배지(색 상자 + 단계 말). 노랑·주황 위에는 어두운 글자. prefix 가 있으면 배지 글 앞에(「연안 주의」 — 2026-10-17 사용자 *"육상 주의 필요가 아니라 연안 주의 필요라고 명시되도록 해줘."*, §11.10.16 부터 「필요」 없음).
@@ -190,7 +206,7 @@
     /**
      * 접히는 칸 하나(종합 예보의 하위 아코디언과 같은 모양 .marine-forecast-sub-accordion). 머리를 누르면 펼침/접힘.
      * 처음 상태(2026-10-17 사용자 *"기본적으로 총평과 권고만 아코디언이 펼쳐진 상태로 시작하고, 나머지는 접힌 상태로 시작하도록 해."* — 설계서 §11.10.16 소절):
-     *   「총평과 권고」만 펼침(open true), 해상 분석·연안 분석·조석은 접힘. 펼친 상태를 기억하는 곳은 없다 — 본문을 다시 그리면(판이 바뀌면) 다시 이 처음 상태다(종전에도 다시 그리면 모두 펼침으로 돌아왔다).
+     *   「총평과 권고」만 펼침(open true), 해상 분석·연안 분석은 접힘(「조석」 칸은 §11.10.34 에 뺐다). 펼친 상태를 기억하는 곳은 없다 — 본문을 다시 그리면(판이 바뀌면) 다시 이 처음 상태다(종전에도 다시 그리면 모두 펼침으로 돌아왔다).
      * 예: section('총평과 권고', 'overview', true) → {root, body} — body 에 내용을 붙인다 · section('해상 분석', 'sea') → 접힌 칸(aria-expanded="false")
      * @param {string} title @param {string} key - data-sb-sec(시험·스크린샷이 찾는 이름) @param {boolean} [open] - 처음 펼침(없으면 접힘)
      * @returns {{root:HTMLElement, body:HTMLElement, head:HTMLElement}}
@@ -703,38 +719,7 @@
         var h = new Date(t + 3 * 3600000 + 9 * 3600000).getUTCHours();
         return (h === 0 ? 24 : h) + '시';
     }
-    /**
-     * 조석 칸 — 해양종합정보 바텀시트 조석 게이지 디자인 그대로(OS.tideGaugeHtml) + 서버 문구(밀물·잠기는 바위).
-     * 계약 §2.2: peaks {type,t:'HH:MM',cm} → {type, minutes, level}. prevPeak 는 전날 자신의 시각이라 1440 을 빼서 앞날로 민다.
-     * 게이지(진행 막대)는 그 날이 오늘(KST)일 때만 — 바텀시트와 같은 규칙. 시각·cm 가 모양에 맞지 않는 피크는 버린다(HTML 에 숫자만 들어가게).
-     * 예: tide({date:'2026-10-17',gauge:{peaks:[{type:'low',t:'06:12',cm:-12},…],prevPeak:{type:'high',t:'23:59',cm:600}},text:['06:12 저조 뒤부터 …']}, now)
-     * @param {Object} t - briefing.tide @param {number} nowMs - 지금(ms) @param {Object} [b] - briefing(바위 링크 — §11.10.10) @returns {HTMLElement}
-     * [연계] ← render / → OceanSheet.tideGaugeHtml(ocean_bottom_sheet3.js buildTideGauge)·rocksLine
-     */
-    function tide(t, nowMs, b) {
-        var box = el('div', 'sb-tide');
-        var conv = function (p, shift) {
-            var m = p && /^(\d{2}):(\d{2})$/.exec(String(p.t || '')), cm = p ? Number(p.cm) : NaN;
-            if (!m || !Number.isFinite(cm) || (p.type !== 'high' && p.type !== 'low')) return null;
-            return { type: p.type, minutes: (+m[1]) * 60 + (+m[2]) + (shift || 0), level: cm };
-        };
-        var g = t.gauge || {}, peaks = (g.peaks || []).map(function (p) { return conv(p, 0); }).filter(Boolean).sort(function (a, b) { return a.minutes - b.minutes; });
-        var y = g.prevPeak ? [conv(g.prevPeak, -1440)].filter(Boolean) : [], n = g.nextPeak ? [conv(g.nextPeak, 1440)].filter(Boolean) : [];
-        var OS = w.OceanSheet;
-        if (peaks.length && OS && typeof OS.tideGaugeHtml === 'function') {
-            // 기기 시간대와 상관없이 KST 시·분을 갖는 Date(게이지는 dateObj.getHours()·getMinutes() 를 읽는다).
-            var k = new Date(nowMs + 9 * 3600000), kst = new Date(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate(), k.getUTCHours(), k.getUTCMinutes());
-            var today = k.toISOString().slice(0, 10) === t.date;
-            // 피크가 서버 숫자·시각만으로 바뀐 뒤 해양종합정보와 같은 함수로 만든 HTML(숫자·고정 글자만).
-            var wrap = el('div', 'ocean-tide-wrap');
-            var title = el('div', 'ocean-tide-title-row'); var tt = el('div', 'ocean-tide-title'); var ic = el('i', 'fa-solid fa-water'); tt.appendChild(ic); tt.appendChild(document.createTextNode(' 조석 · ' + dateText(t.date))); title.appendChild(tt); wrap.appendChild(title);
-            var gauge = el('div', 'sb-tide-gauge'); gauge.innerHTML = OS.tideGaugeHtml(peaks, y, n, kst, today); wrap.appendChild(gauge);
-            box.appendChild(wrap);
-        }
-        (t.text || []).forEach(function (line) { box.appendChild(rocksLine('sb-tide-text', line, b)); });   // 「잠기는 바위(간출암) N곳」은 (물때) 칸과 같은 지도 링크(§11.10.10)
-        if (t.anchor && Number.isFinite(Number(t.anchor.distKm))) box.appendChild(el('p', 'sb-small', '관할 대표 위치에서 ' + Number(t.anchor.distKm) + 'km 떨어진 조석 지점 기준'));
-        return box;
-    }
+    // 「조석」 칸 그리기(tide — 해양종합정보 조석 게이지 OceanSheet.tideGaugeHtml + 물때 글 + 「관할 대표 위치에서 N km 떨어진 조석 지점 기준」)는 §11.10.34 에 칸째 뺐다(renderRest ⑥ 주석).
     /**
      * 다음 판 안내 — 공개 시각(§11.10.4 — 40분 전(§11.10.22 D, 종전 20분 전)부터 만들어 두었다가 이 시각에 보임)이 아직이면 「다음 브리핑 공개: …」, 이미 지났으면(서버가 늦게 켜진 경우 등) 「다음 브리핑을 준비 중입니다(… 공개 예정)」.
      * 예: nextText('2026-10-17T23:00:00+09:00', 10-17 21:30) → '다음 브리핑 공개: 10월 17일(토) 23:00' · 23:05 → '다음 브리핑을 준비 중입니다(10월 17일(토) 23:00 공개 예정)'
@@ -786,12 +771,13 @@
         renderRest(box, b, opts, showSea, showLand, nowMs);
     }
     /**
-     * 해상 결론 배지 오른쪽 「N개 해역 주의(KOMSA 예보)」(§11.10.16 전에는 「주의 필요」) — 해양사고 위험예보만 위험 단계인 해역 수(결론에는 넣지 않은 해역), 단계마다 하나·그 단계 색(높은 단계 먼저).
+     * 해상 결론 배지 오른쪽 「N개 해역 주의(KOMSA)」(§11.10.16 전에는 「주의 필요」 · §11.10.34 전에는 「(KOMSA 예보)」) — 해양사고 위험예보만 위험 단계인 해역 수(결론에는 넣지 않은 해역), 단계마다 하나·그 단계 색(높은 단계 먼저).
+     * 2026-10-18 사용자 *"komsa 예보에서 예보는 빼자"* · *"komsa가 들어간 괄호는 2pt 크기를 줄여줘"*(설계서 §11.10.34) — 「(KOMSA)」 괄호는 chip → el → appendText → komsaText 가 작은 글로 감싼다.
      * 2026-10-17 사용자 *"해상 평소 수준 그 오른쪽에 배지로서 "#개 해역 주의 필요(KOMSA예보)"라고 표현하고 아래 해상 분석에는 주의 필요 해역이 있습니다. 그 부분을 아예 없애는 건 어떨까?"*(설계서 §11.10.12)
      *   — 종전 결론 아래 노란 안내 한 줄(levelNoteText 「해상 분석에는 「주의 필요」 해역이 있습니다 — …」, 2단계 검토 B1)은 없앴다. 초록 「평소 수준」이 「안전」으로 읽히지 않게 하는 일은 이 배지가 한다.
      * 수 = 서버 summary.sea.accidentOnly(근거 줄 「해양사고 위험예보(KOMSA) 기준 등급 '주의'인 해역 N칸」과 같은 수). 그 칸이 없는 옛 판은 해역 카드(단계 높은 순 10곳까지)에
      *   위험예보만 해역(overviewRank 0)이 모두 들어 있을 때만 카드로 센다 — 모자라면 셀 수 없어 배지 없음(지어내지 않는다).
-     * 예: {summary:{sea:{accidentOnly:[{rank:3,word:'경계',count:1},{rank:2,word:'주의',count:3}]}}} → [chip(3,'1개 해역 경계(KOMSA 예보)'), chip(2,'3개 해역 주의(KOMSA 예보)')] · 없으면 [] (§11.10.16 부터 「필요」 없음)
+     * 예: {summary:{sea:{accidentOnly:[{rank:3,word:'경계',count:1},{rank:2,word:'주의',count:3}]}}} → [chip(3,'1개 해역 경계(KOMSA)'), chip(2,'3개 해역 주의(KOMSA)')] · 없으면 [] (§11.10.16 부터 「필요」 없음)
      * @param {Object} b - briefing @returns {HTMLElement[]} [연계] ← summaryBodyV3·summaryBodyV2·summaryBody·legacyOverview / → chip
      */
     function komsaBadges(b) {
@@ -802,7 +788,7 @@
             if (k > 0 && only.length === k) [3, 2, 1].forEach(function (r) { var n = only.filter(function (c) { return Number(c.rank) === r; }).length; if (n) groups.push({ rank: r, word: SHORT[r], count: n }); });
         }
         return groups.filter(function (g) { return g && Number(g.count) > 0 && Number(g.rank) >= 1; }).map(function (g) {
-            var c = chip(g.rank, g.count + '개 해역 ' + g.word + '(KOMSA 예보)'); c.classList.add('sb-komsa'); c.setAttribute('data-sb-komsa', String(g.rank)); return c;   // §11.10.16 — 「필요」 없음
+            var c = chip(g.rank, g.count + '개 해역 ' + g.word + '(KOMSA)'); c.classList.add('sb-komsa'); c.setAttribute('data-sb-komsa', String(g.rank)); return c;   // §11.10.16 — 「필요」 없음
         });
     }
 
@@ -821,7 +807,7 @@
     function expander(text, build, key, pill, noArrow) {
         var id = 'sb-x-' + (++xSeq), btn = el('button', 'sb-x-btn' + (pill ? ' sb-x-pill' : '')), panel = el('div', 'sb-x-panel'), arrow = pill ? el('span', 'sb-x-chev') : el('span', 'sb-x-arrow', ' ▸'), stop = null;
         btn.type = 'button'; btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-controls', id); btn.setAttribute('data-sb-x', key);
-        btn.appendChild(document.createTextNode(text)); arrow.setAttribute('aria-hidden', 'true'); if (!noArrow) btn.appendChild(arrow);
+        komsaText(btn, String(text)); arrow.setAttribute('aria-hidden', 'true'); if (!noArrow) btn.appendChild(arrow);   // 근거 줄 「해양사고 위험예보(KOMSA) 기준 등급 …」의 KOMSA 괄호는 2pt 작게(§11.10.34)
         panel.id = id; panel.hidden = true; panel.setAttribute('data-sb-x-panel', key);
         btn.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -907,7 +893,7 @@
      *            그 관할 상자만 받아 깐다(StationBriefingRiskMap.attach — 위험예측 RiskMapLayer 그대로). 칸·관광지를 누르면 onPick. 정리 함수에 stop.map·caption·risk()·highlight(boxes, polys)·focus(maxZoom).
      *            위험예측 스크립트가 없으면(RM() null) 종전 모양.
      * §11.10.32(2026-10-18 — 잠기는 바위 팝업): opt.sat = 위험예측 층 없이 바탕만 위성지도(StationBriefingRiskMap.baseLayers 그대로 — 위성 키를 못 받으면 해아름 기본맵, 그 파일이 없으면 해아름 바다지도)
-     *            · opt.zoom = 끌기·두 손가락(핀치)·마우스 휠·더블탭 확대(OpenLayers 기본 조작 — 위험예측 팝업 지도와 같은 것) + 지도 왼쪽 위 +/− 단추(ol.control.Zoom — 「확대」·「축소」).
+     *            · opt.zoom = 끌기·두 손가락(핀치)·마우스 휠·더블탭 확대(OpenLayers 기본 조작 — 위험예측 팝업 지도와 같은 것). 화면 +/− 단추는 없다(§11.10.34 — 사용자 *"플러스 마이너스 버튼을 화면에서 제외해줘"*).
      *              지도를 끄는 동안 바깥 페이지는 스크롤되지 않는다(OL 이 그 터치·휠의 기본 동작을 막는다). 바위 누르기(onPoint)는 그대로.
      * @param {HTMLElement} panel @param {Array} area - 관할 폴리곤 목록(경위도) @param {number[][]} boxes - [서,남,동,북] 목록 @param {string} caption @param {Object} [opt] - {big, cells, dim, points, onPoint, polys, spot, risk, sat, zoom}
      * @returns {Function|null} 정리 함수 [연계] ← basisList(expander build)·openMapPopup(대해구·지금 밀집 팝업)·riskPopup / ol.js(index2 전역)·ocean_map.js oceanCreateKhoaLayer · station_briefing_riskmap.js(StationBriefingRiskMap)
@@ -951,8 +937,9 @@
         if (risk) [areaLayer, cellLayer, hlLayer, ptLayer, spotLayer].forEach(function (l, i) { l.setZIndex(150 + i); });
         // 팝업 지도(risk.interactive)는 끌기·두 손가락 확대를 받는다(혼잡도 숫자는 확대해야 보인다 — 위험예측 지도와 같은 규칙). 근거 펼침 지도는 종전처럼 그림(누름만)
         var mapOpt = { target: box, layers: layers, view: new ol.View({ center: proj([127.5, 36]), zoom: 7 }), controls: [] }; if (!(risk && risk.interactive) && !opt.zoom) mapOpt.interactions = [];
-        // §11.10.32: opt.zoom — 화면 +/− 단추(손가락·휠을 못 쓰는 사람·키보드용). 앱의 다른 지도는 단추를 숨기지만 사용자가 단추를 원했다
-        if (opt.zoom) { var zc = new ol.control.Zoom({ zoomInLabel: '+', zoomOutLabel: '−', zoomInTipLabel: '확대', zoomOutTipLabel: '축소' }); mapOpt.controls = [zc]; [].forEach.call(zc.element.querySelectorAll('button'), function (bt) { var out = bt.classList.contains('ol-zoom-out'); bt.setAttribute('aria-label', out ? '축소' : '확대'); bt.setAttribute('data-sb-map-zoom', out ? 'out' : 'in'); }); box.setAttribute('data-sb-map-zoomable', ''); }
+        // §11.10.32: opt.zoom — 끌기·핀치·휠·더블탭 확대만(위 interactions 기본값). 화면 +/− 단추(ol.control.Zoom)는 §11.10.34 에 뺐다 —
+        //   2026-10-18 사용자 *"그리고 플러스 마이너스 버튼을 화면에서 제외해줘"*(앱의 다른 지도처럼 단추 없음 · controls 는 위 [] 그대로)
+        if (opt.zoom) box.setAttribute('data-sb-map-zoomable', '');
         var map = new ol.Map(mapOpt); if (sat) sat.map = map;
         var ext = areaSrc.getExtent().slice(); if (hlSrc.getFeatures().length) ol.extent.extend(ext, hlSrc.getExtent()); if (cellSrc.getFeatures().length) ol.extent.extend(ext, cellSrc.getExtent()); if (ptSrc.getFeatures().length) ol.extent.extend(ext, ptSrc.getExtent()); if (spotSrc.getFeatures().length) ol.extent.extend(ext, spotSrc.getExtent());
         if (ptSrc.getFeatures().length && typeof opt.onPoint === 'function') {
@@ -1056,14 +1043,14 @@
         x.addEventListener('click', function (e) { e.stopPropagation(); closeMapPopup(); });
         dim.addEventListener('pointerdown', function (e) { e.preventDefault(); closeMapPopup(); });
         wrap.addEventListener('click', function (e) { e.stopPropagation(); });   // 바깥 아코디언 머리로 번지지 않게
-        // Esc = 간출암 상자(§11.10.10)가 떠 있으면 그것만, 아니면 창 · Tab = 창 안에서만 돈다(상자가 떠 있으면 ✕ ↔ 상자 단추들 · 지도 +/− 단추가 있으면 ✕ 다음 — §11.10.32)
+        // Esc = 간출암 상자(§11.10.10)가 떠 있으면 그것만, 아니면 창 · Tab = 창 안에서만 돈다(상자가 떠 있으면 ✕ ↔ 상자 단추들 — 지도 +/− 단추는 §11.10.34 에 뺐다)
         wrap.addEventListener('keydown', function (e) {
             // §11.10.24: 창 안 바텀시트가 올라와 있으면 Esc 는 시트만 내린다
             if (e.key === 'Escape') { e.preventDefault(); if (rockPanel) closeRockPanel(); else if (popup && popup.sheet && popup.sheet.isOpen()) popup.sheet.close(); else closeMapPopup(); }
             else if (e.key === 'Tab') {
                 e.preventDefault();
                 var sh = popup && popup.sheet && popup.sheet.isOpen() ? [].slice.call(popup.sheet.el.querySelectorAll('button,[href],[tabindex]:not([tabindex="-1"])')).filter(function (b) { return !b.disabled && b.getClientRects().length; }) : [];
-                var f = [x].concat([].slice.call(wrap.querySelectorAll('[data-sb-map-zoom]'))).concat(rockPanel ? [].slice.call(rockPanel.el.querySelectorAll('button')).filter(function (b) { return !b.disabled; }) : []).concat(sh), k = f.indexOf(document.activeElement);
+                var f = [x].concat(rockPanel ? [].slice.call(rockPanel.el.querySelectorAll('button')).filter(function (b) { return !b.disabled; }) : []).concat(sh), k = f.indexOf(document.activeElement);
                 f[(k + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
             }
         });
@@ -1207,12 +1194,16 @@
     /** 아무 팝업 지도나 열려 있나(10분 정기 갱신이 같은 판이면 본문을 다시 그리지 않게 — 열린 창이 닫히지 않게). 예: popupOpen() → false @returns {boolean} [연계] ← station_briefing.js loadBriefing */
     function popupOpen() { return !!popup; }
     /**
-     * 글 안의 링크 단추(밑줄 글 — 근거 줄 펼침 단추와 같은 .sb-x-btn 모양). 예: mapLink('대해구 75', fn, 'haegu') → <button class="sb-x-btn sb-maplink" data-sb-maplink="haegu" aria-haspopup="dialog">
-     * @param {string} text @param {function(HTMLElement)} onOpen - 눌렀을 때(단추를 넘긴다) @param {string} key @returns {HTMLButtonElement} [연계] ← analysisNodes·nowNode
+     * 글 안의 링크 단추(밑줄 글 — 근거 줄 펼침 단추와 같은 .sb-x-btn 모양). 예: mapLink('대해구 75', fn, 'haegu') → <span role="button" tabindex="0" class="sb-x-btn sb-maplink" data-sb-maplink="haegu" aria-haspopup="dialog">
+     *   <button> 이 아니라 <span role="button"> 이다(2026-10-18 사용자 휴대폰 화면 — 「제주도서부앞바다·…북서연안바다(232해구)」 다음 「는」이 다음 줄로 내려가 어색함):
+     *   <button> 은 CSS 에서 display:inline 을 줘도 브라우저가 inline-block 으로 그려(Chromium 실측 — getComputedStyle 이 inline-block) 한 줄보다 긴 링크가 통째 상자가 되고,
+     *   목록 점은 상자 마지막 줄에 붙고 뒷말은 다음 줄로 밀린다. span 은 글처럼 흘러 뒷말이 바로 이어진다. 키보드: Enter·Space 로 누름(tabindex 0).
+     * @param {string} text @param {function(HTMLElement)} onOpen - 눌렀을 때(링크 요소를 넘긴다) @param {string} key @returns {HTMLElement} [연계] ← analysisNodes·nowNode·rocksLine
      */
     function mapLink(text, onOpen, key) {
-        var b = el('button', 'sb-x-btn sb-maplink', text); b.type = 'button'; b.setAttribute('aria-haspopup', 'dialog'); b.setAttribute('data-sb-maplink', key);
+        var b = el('span', 'sb-x-btn sb-maplink', text); b.setAttribute('role', 'button'); b.tabIndex = 0; b.setAttribute('aria-haspopup', 'dialog'); b.setAttribute('data-sb-maplink', key);
         b.addEventListener('click', function (e) { e.stopPropagation(); onOpen(b); });
+        b.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onOpen(b); } });
         return b;
     }
     // ── 잠기는 바위(간출암) — 링크 → 팝업 지도 → 마커 → 간출암 조석 곡선 상자(2026-10-17 사용자 결정 — 설계서 §11.10.10) ──
@@ -1251,12 +1242,12 @@
         return true;
     }
     /**
-     * (물때)·조석 칸의 서버 물때 줄 하나 — 그 줄에 summary.rocks.link(「잠기는 바위(간출암) N곳」)가 있고 관할 경계(summary.sea.area)가 있으면 그 글만 팝업 지도 링크로.
+     * (물때) 칸의 서버 물때 줄 하나(종전 아래 「조석」 칸에서도 썼다 — §11.10.34 에 그 칸을 뺐다) — 그 줄에 summary.rocks.link(「잠기는 바위(간출암) N곳」)가 있고 관할 경계(summary.sea.area)가 있으면 그 글만 팝업 지도 링크로.
      * 지도 = 관할 경계(파란 선) + 그 N곳 간출암 마커 — 마커를 누르면 openRockPanel. 그 밖은 글만(옛 판·바위 목록 없음).
- *   §11.10.32(사용자 *"이거 배경을 위성지도로 해주고"* · *"해당 지도에서 확대 축소도 가능토록 해줘."*): 바탕 = 위성지도(miniMap opt.sat) · 끌기·핀치·휠·더블탭 + +/− 단추(opt.zoom).
-     * 예: rocksLine('sb-sum-tide', '관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 …', b) → <p class="sb-sum-tide" data-sb-rocks>관할 내 <button data-sb-maplink="rocks">잠기는 바위(간출암) 2곳</button>이 …</p>
+ *   §11.10.32(사용자 *"이거 배경을 위성지도로 해주고"* · *"해당 지도에서 확대 축소도 가능토록 해줘."*): 바탕 = 위성지도(miniMap opt.sat) · 끌기·핀치·휠·더블탭(opt.zoom — +/− 단추는 §11.10.34 에 뺌).
+     * 예: rocksLine('sb-sum-tide', '관할 내 잠기는 바위(간출암) 2곳이 02:40~16:41 사이 …', b) → <p class="sb-sum-tide" data-sb-rocks>관할 내 <span role="button" data-sb-maplink="rocks">잠기는 바위(간출암) 2곳</span>이 …</p>
      * @param {string} cls - p 의 class @param {string} line - 서버 글 @param {Object} b - briefing(summary.rocks·summary.sea.area·station) @returns {HTMLElement}
-     * [연계] ← tidePart·tide / → mapLink·openMapPopup·miniMap(points)·openRockPanel
+     * [연계] ← tidePart(「물때」 — 아래 「조석」 칸은 §11.10.34 에 뺐다) / → mapLink·openMapPopup·miniMap(points)·openRockPanel
      */
     function rocksLine(cls, line, b) {
         var p = el('p', cls), S = (b && b.summary) || {}, R = S.rocks, text = String(line || ''), i = R && R.link ? text.indexOf(R.link) : -1;
@@ -1703,7 +1694,7 @@
         // §11.10.20 덧붙임 3(2026-10-18 사용자 *"AI 분석 CHAT GPT 다음줄부터 본문이 시작되도록 하고, 각 문장마다 근거에 들어간것처럼 점으로 시작되도록"*):
         //   문장마다 「•」 목록 한 줄 — 나누는 자리는 appendText 의 「다.」 줄바꿈 자리 그대로(글 토막은 그 자리에서만 끊고, 강조·링크 토막은 그대로 지금 줄에 붙인다).
         var cur = function () { if (!li) { li = el('li'); ul.appendChild(li); } return li; };
-        var plain = function (txt) { var re = /다\.(?:\s+|(?=[가-힣]))/g, at = 0, mm, x = String(txt); while ((mm = re.exec(x))) { var e = mm.index + mm[0].length; cur().appendChild(document.createTextNode(x.slice(at, e))); li = null; at = e; } if (at < x.length) cur().appendChild(document.createTextNode(x.slice(at))); };
+        var plain = function (txt) { var re = /다\.(?:\s+|(?=[가-힣]))/g, at = 0, mm, x = String(txt); while ((mm = re.exec(x))) { var e = mm.index + mm[0].length; komsaText(cur(), x.slice(at, e)); li = null; at = e; } if (at < x.length) komsaText(cur(), x.slice(at)); };   // 「(KOMSA 기준)」 괄호는 2pt 작게(§11.10.34)
         p.appendChild(ul);
         hl.forEach(function (h) { links.push({ text: h.name, key: h.major }); if (h.label && h.label !== h.name) links.push({ text: h.label, key: h.major }); });
         highlightSegments(text, names, links).forEach(function (sg) {
@@ -1880,10 +1871,10 @@
         pick(0);
     }
     /**
-     * 총평 아래 나머지 칸(해상 분석·육상 분석·조석·꼬리)을 그린다 — 종전 render 뒷부분 그대로. 「특별 상황」 칸은 없앴다(아래 ② 주석).
+     * 총평 아래 나머지 칸(해상 분석·육상 분석·꼬리)을 그린다 — 종전 render 뒷부분 그대로. 「특별 상황」 칸(아래 ② 주석)·「조석」 칸(아래 ⑥ 주석 — §11.10.34)은 없앴다.
      * 처음에는 모두 접힘(§11.10.16 소절 — 「총평과 권고」만 펼침).
      * @param {HTMLElement} box @param {Object} b @param {Object} opts @param {boolean} showSea @param {boolean} showLand @param {number} nowMs @returns {void}
-     * [연계] ← render / → section·timeBar·seaCard·landCard·tide · levelGroups·levelBadges·levelTabs(§11.10.14 — 해상·연안 분석 머리 배지·단계 단추)
+     * [연계] ← render / → section·timeBar·seaCard·landCard · levelGroups·levelBadges·levelTabs(§11.10.14 — 해상·연안 분석 머리 배지·단계 단추)
      */
     function renderRest(box, b, opts, showSea, showLand, nowMs) {
         // ② 「특별 상황」 칸(특보 해제 예고·예비·이미 해제)은 그리지 않는다 — 2026-10-17 사용자 *"특별상황은 굳이 들어갈 필요가 있겠나 싶은게, 어차피 특보정보가 총평 내용에 녹아들어가고,
@@ -1929,8 +1920,8 @@
             box.appendChild(s4.root);
         }
 
-        // ⑥ 조석(서해·남해·제주 관할)
-        if (b.tide) { var s5 = section('조석', 'tide'); s5.body.appendChild(tide(b.tide, nowMs, b)); box.appendChild(s5.root); }
+        // ⑥ 「조석」 칸(게이지 카드·고조·저조 목록·물때 글·「관할 대표 위치에서 N km 떨어진 조석 지점 기준」)은 그리지 않는다 — 2026-10-18 사용자 *"그리고 조석정보는 뺴자. 여기서는"*(설계서 §11.10.34).
+        //   같은 물때 글(밀물·잠기는 바위 링크)과 (고립 주의)는 총평 「물때」 칸(tidePart — 서버 summary.tide)에 그대로 있다. 서버 b.tide 는 그대로 저장된다(화면에만 없음).
 
         // ⑦ 안내(종전 「데이터 출처 보기」 접힘은 2026-10-18 삭제) — 2026-10-18 사용자 결정(설계서 §11.10.20, 시안 ⑥판) 원문 *"출처 이런 게 나오는데 너무 보기가 지저분한데 … 데이터 출처 보기 … 아코디언 … 체계적으로"*
         //   · 기준 시각 줄 *"이걸 굳이 명시해야할까 ?"* → 다루는 시간도 *"아예 빼자."* · 안내 *"노란색 텍스트 … 출처 아코디언 밖으로"* · *"결과로, 다음 줄바꿔서 … 실제 현장상황과 다를 수 있습니다."*

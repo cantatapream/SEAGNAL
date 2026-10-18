@@ -159,4 +159,105 @@ function findTidePeaks(tideBedData, targetDateStr = null) {
     };
 }
 
-module.exports = { findTidePeaks };
+// ===========================
+// 표본 곡선용 — findTidePeaks 와 같은 규칙을 {m, cm} 표본에 적용 (2026-10-18)
+// ===========================
+/** 같은 종류(고조끼리·저조끼리) 극값을 하나로 합치는 간격(분) — findTidePeaks 4단계의 180 과 같은 값. */
+const SAME_TYPE_MERGE_MIN = 180;
+/** 흔들림으로 볼 고조↔저조 짝의 조건 — 높이 차이가 MIN_SWING_CM 보다 작고 **그리고** 두 극값 시각이
+ *  WIGGLE_MAX_GAP_MIN 분 이내일 때만 지운다(둘 다 맞아야 한다).
+ *  [왜 두 조건인가 — 2026-10-18 독립 검토 A-F1 로 정정]
+ *    처음엔 높이 차이(3cm)만 봤다. 그러자 제주 동부의 「정체 저조」(내려가다 1~2cm 오르고 다시 내려가는
+ *    진짜 물때 — 예: 암초 1586 저조 23:40(146.9)·고조 01:50(147.9), 성산포 공식 조석표 저조 23:46(145))까지
+ *    지웠다. 바텀시트(findTidePeaks)는 이 저조를 싣는다. 흔들림과 정체 물때는 높이가 아니라 **시간**이 다르다:
+ *  [실측 — 운영 공개 API 표본(검토 A 의 advA/api, 서해·남해·제주 103곳 × 오늘~모레), 00:00~01:10(새벽 빈칸) 제외]
+ *    20cm 미만으로 오르내린 이웃 짝 19쌍 중 18쌍은 두 극값 사이가 10~20분(평탄 구간 끝↔다음 시작 10분 = 표본 한 칸)이고
+ *    높이 차이 0.1~2cm — 여러 기준점의 1cm 계단을 거리 가중으로 섞을 때 한 곳이 먼저 내려가고 다른 곳이
+ *    나중에 올라가 생기는 흔들림이다(바텀시트는 한 지점 값만 쓰므로 생기지 않는다).
+ *    나머지 1쌍(2502 내일 03:00/03:35, 1.5cm)은 35분. 정체 저조는 85분 이상이었다.
+ *    (전체 이웃 짝 높이 차이 분포: 1cm 미만 22 · 1~3cm 12 · 3~20cm 9 · 20cm 이상 604쌍 — 검토 A 실측.
+ *     처음 주석의 「진짜 물때는 전부 20cm 이상, 흔들림은 전부 1cm 미만」은 내 표본 161개만 본 것이라 틀렸다.)
+ *    그래서 시간 기준을 표본 세 칸(30분)으로 둔다 — 흔들림(10~20분)은 지우고, 정체 물때(85분 이상)는 남긴다. */
+const MIN_SWING_CM = 3;
+const WIGGLE_MAX_GAP_MIN = 30;
+
+/**
+ * 일정 간격 조위 표본에서 고조·저조를 찾는다 — 바텀시트(findTidePeaks)와 같은 규칙.
+ *   ① 오르다 내리면 고조, 내리다 오르면 저조. **같은 값이 이어지는 평탄 구간은 하나로** 보고
+ *      그 가운데 시각을 극값 시각으로 한다(1cm 계단마다 고조·저조를 번갈아 만들지 않게).
+ *   ② (추가) 높이 차이 MIN_SWING_CM 미만 **이고** 시각 차이 WIGGLE_MAX_GAP_MIN 분 이하인 고조↔저조 짝은
+ *      흔들림으로 지운다 — 가장 작은 짝부터. 느린 「정체 물때」(1~2cm, 1시간 넘게)는 바텀시트처럼 남긴다.
+ *   ③ 극값의 평탄 구간 가운데가 [dayStart, dayEnd) 안에 들 때만 그날 것으로 친다(앞뒤 날 표본을
+ *      이어 붙여 넘기면 자정 근처 극값도 놓치지 않는다 — 바텀시트의 12시간 패딩과 같은 뜻).
+ *   ④ 같은 종류가 SAME_TYPE_MERGE_MIN 분 이내로 붙으면 더 극단값만 남긴다(findTidePeaks 4단계).
+ *   ⑤ (추가) 그 뒤에도 같은 종류가 이웃하면 더 극단값 하나만(고조·저조가 번갈게).
+ * 예: 10분 간격 하루치(조금 날 계단 곡선) → [{m:155,cm:228,type:'high'},{m:560,cm:127,type:'low'},…] (4개 안팎)
+ * @param {Array<{m:number,cm:number}>} samples - m=분(그날 0시 기준, 앞날은 음수·다음날은 1440 이상 가능), 오름차순, 결측 없음
+ * @param {{dayStart?:number, dayEnd?:number}} [opts] - 그날 범위(기본 0~1440)
+ * @returns {Array<{m:number,cm:number,type:'high'|'low'}>} 시각순 극값(m 은 정수 분)
+ * [연계] ← services/hazard_rocks_submersion.js getTideCurve(간출암 조석 상자의 고조·저조 목록)
+ *        ← services/hazard_rocks_prev_peaks.js extremaOfCurve(어제 극값 요약 — 그날 첫 물때 ▲/▼)
+ *   두 곳이 같은 규칙을 쓰게 하려고 여기 하나로 둔다. 바텀시트 findTidePeaks 는 TideBED 원자료
+ *   (문자열 시각·4개 상한)를 받으므로 그대로 두고, 같은 규칙을 표본용으로 옮긴 것이다.
+ */
+function findPeaksInSamples(samples, opts) {
+    const dayStart = opts && opts.dayStart != null ? opts.dayStart : 0;
+    const dayEnd = opts && opts.dayEnd != null ? opts.dayEnd : 1440;
+    const pts = (samples || []).filter(p => p && p.cm != null && !isNaN(p.cm));
+    if (pts.length < 3) return [];
+
+    // ① 평탄 구간을 하나로 보는 극값 탐색(findTidePeaks 2단계와 같은 흐름)
+    let raw = [];
+    let lastDir = 0, flatStart = -1;
+    for (let i = 1; i < pts.length; i++) {
+        const diff = pts[i].cm - pts[i - 1].cm;
+        if (diff === 0) { if (flatStart < 0) flatStart = i - 1; continue; }
+        const dir = diff > 0 ? 1 : -1;
+        if (lastDir !== 0 && dir !== lastDir) {
+            const s = flatStart >= 0 ? flatStart : i - 1, e = i - 1;
+            // 가운데 시각은 내림 — findTidePeaks(getMidpointTime: 두 시각 평균의 '분'만 취함)와 같은 값
+            raw.push({ type: lastDir === 1 ? 'high' : 'low', start: pts[s].m, m: Math.floor((pts[s].m + pts[e].m) / 2), cm: pts[e].cm });
+        }
+        lastDir = dir; flatStart = -1;
+    }
+
+    // ② 흔들림 짝 지우기 — 짧은(WIGGLE_MAX_GAP_MIN 이하) 이웃 고조↔저조 짝 중 차이가 가장 작은 것부터,
+    //   MIN_SWING_CM 미만이 없을 때까지. 시간이 긴 짝(정체 물때)은 높이 차이가 작아도 건드리지 않는다.
+    while (raw.length >= 2) {
+        let bi = -1, best = Infinity;
+        for (let i = 0; i + 1 < raw.length; i++) {
+            if (raw[i + 1].m - raw[i].m > WIGGLE_MAX_GAP_MIN) continue;
+            const sw = Math.abs(raw[i + 1].cm - raw[i].cm);
+            if (sw < best) { best = sw; bi = i; }
+        }
+        if (bi < 0 || best >= MIN_SWING_CM) break;
+        raw.splice(bi, 2);
+    }
+
+    // ③ 그날 것만
+    raw = raw.filter(p => p.m >= dayStart && p.m < dayEnd);
+
+    // ④ 같은 종류 180분 합침(findTidePeaks filterPeaks — 간격은 평탄 구간 시작 기준)
+    const mergeSameType = (list) => {
+        const out = [];
+        for (const p of list) {
+            const prev = out[out.length - 1];
+            if (!prev || p.start - prev.start > SAME_TYPE_MERGE_MIN) out.push(p);
+            else if ((p.type === 'high' && p.cm > prev.cm) || (p.type === 'low' && p.cm < prev.cm)) out[out.length - 1] = p;
+        }
+        return out;
+    };
+    const merged = mergeSameType(raw.filter(p => p.type === 'high')).concat(mergeSameType(raw.filter(p => p.type === 'low')))
+        .sort((a, b) => a.m - b.m);
+    // ⑤ (추가) ④ 뒤에 같은 종류가 이웃하면(예: 고조 하나가 옆 고조에 합쳐져 저조 둘이 붙음) 더 극단값 하나만 —
+    //   목록은 고조·저조가 번갈아야 화면의 "직전 물때 대비 ▲/▼"가 뜻을 가진다. 한 지점 곡선이면 일어나지 않는다.
+    const out = [];
+    for (const p of merged) {
+        const prev = out[out.length - 1];
+        if (prev && prev.type === p.type) { if ((p.type === 'high' && p.cm > prev.cm) || (p.type === 'low' && p.cm < prev.cm)) out[out.length - 1] = p; }
+        else out.push(p);
+    }
+    return out.map(p => ({ m: p.m, cm: p.cm, type: p.type }));
+}
+
+module.exports = { findTidePeaks, findPeaksInSamples, MIN_SWING_CM, WIGGLE_MAX_GAP_MIN, SAME_TYPE_MERGE_MIN };
