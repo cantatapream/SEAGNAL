@@ -173,7 +173,8 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
   test('같은 위치 목록에서 다른 관광지 선택',()=>assert.deepEqual(ui.choices,[{kind:'coast',id:'b'}]));
   test('낡은 예보 기준은 파고·풍속줄에 남고 공통 원천 경고는 숨김',()=>{assert.equal((ui.staleText.match(/예보 기준/g)||[]).length,2);assert.ok(!ui.staleText.includes('해구 예보 자료가 오래되었습니다'));});
   // 2026-10-16 사용자 (가)로 지도·상자 색이 단계 4색이 되어 확정 문안(§12.2 「1배 초록 → … 연속 그라데이션」)의 이 문장만 바꿨다 — 설계서 §15.
-  test('연안 기준상세 색문안: 단계 4색(2026-10-16 (가)) — 0~100 막대만 이어진 색',()=>{assert.match(ui.basis,/단계 말과 같은 4색입니다: 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강/);assert.doesNotMatch(ui.basis,/연속 그라데이션/);assert.match(ui.basis,/이 관광지 주변 3km에서 이 날에/);});
+  // 2026-10-18 사용자 「전체적으로 "말"이라는 용어가 잘 이해가 안되는데 다른 단어로 치환할 수 있니 ?」 — 「단계 말」 → 「위험 단계」.
+  test('연안 기준상세 색문안: 단계 4색(2026-10-16 (가)) — 0~100 막대만 이어진 색 · 「단계 말」 없이 「위험 단계」',()=>{assert.doesNotMatch(ui.basis,/단계 말/);assert.match(ui.basis,/위험 단계와 같은 4색입니다: 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강/);assert.doesNotMatch(ui.basis,/연속 그라데이션/);assert.match(ui.basis,/이 관광지 주변 3km에서 이 날에/);});
   test('근거표 제목 색은 확정노랑',()=>assert.equal(ui.headerColor,'rgb(255, 225, 122)'));
   test('키보드 초점은 파랑2px·offset2px',()=>{assert.equal(ui.focusWidth,'2px');assert.equal(ui.focusColor,'rgb(68, 138, 255)');assert.equal(ui.focusOffset,'2px');});
   test('움직임줄이기 스위치 전환 중단',()=>assert.equal(ui.switchTransition,'0s'));

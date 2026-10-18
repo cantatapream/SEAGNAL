@@ -55,6 +55,17 @@ test('U81 위험구역 줄: 종류별 개수(0곳 종류는 뺌)·모두 N곳·�
 test('U81 연안 기준 상세: 새 기준(평소=30일 평균)·종류별 위험구역 점수·재추정 달·0점 뜻 변화 문구, 옛 계단·가산 문구 없음',()=>{const ctx={window:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(dir,'risk_basis_content.js'),'utf8'),ctx);const c=ctx.window.RiskBasisContent.coast;
   for(const t of ['평소(앞으로 30일 집중률의 평균)만큼 붐비고','그 관광지 자신의 평소와 비교','평소(30일 평균)의 2배마다','+0.44 · 0.70 · 0.88','36% · 62% · 84% 높음','8월 67% 높음 … 1월 48% 낮음','+0.74 … −0.95','종류마다 3곳까지만 셉니다'])assert.ok(c.includes(t),t);
   for(const t of ['사람이 가장 적고','사람 혼잡 1단계마다','1~2 / 3~5 / 6곳 이상','사망사고 발생구역 3km 안','단계 경계는 검증하지 못한 값'])assert.ok(!c.includes(t),t);});
+// 2026-10-18 사용자 확정: 배수 = 사고 건수 비교(「가능성」 아님) · 「달 점수」→「월별 점수」 · 「단계 말」→「위험 단계」(표) · 문장 여럿은 「•」 줄(ul.rf-pts) ·
+// 시트에서 뺀 「사고 배수는 어떻게 합쳤나요?」(커밋 295a39cf8)의 내용(반올림 표시값 차이·사망·실종에 곱하지 않는 요소·계산 예)이 기준 상세에 있음.
+test('2026-10-18 연안 기준 상세: 「많이 날 수 있는 조건」·월별 점수·위험 단계 표·뺀 계산 설명 보충, 옛 말 없음',()=>{const ctx={window:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(dir,'risk_basis_content.js'),'utf8'),ctx);const c=ctx.window.RiskBasisContent.coast;
+  for(const t of ['몇 배 많이 날 수 있는 조건인지','<h4>사망·실종 사고 배수</h4>','반올림 전에 곱한','주말 행사(사망·실종 값 추정 보류)와 너울·이안류 정책 점수는 이 배수에 곱하지 않습니다','반올림 값을 곱하면 위험지수 칸의 배수와 조금 다를 수 있습니다','1.48점','약 2.8배','위험지수 49(다소 높음)','사고가 약 N% 더 많이 날 수 있는 조건','100건 날 때 196건','월별 점수 0 = 1년 평균','월별(1년 평균 대비','월별 분석도 포함','<h4>위험 단계</h4>','<table class="rf-bands">','위험 단계와 같은 4색입니다','배지','눈금','사고가 나면 사망·실종으로 이어질 가능성(14% 높음)'])assert.ok(c.includes(t),t);
+  for(const t of ['사망·실종 사고 가능성','달 점수','달 분석','단계 말','일어나기 쉬운지','사고 배수는 어떻게 합쳤나요'])assert.ok(!c.includes(t),t);});
+test('2026-10-18 기준 상세(연안·해상): 문장 여럿인 문단은 <p>로 남기지 않고 ul.rf-pts 의 문장마다 li(점은 CSS — 글자에 없음)',()=>{const ctx={window:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(dir,'risk_basis_content.js'),'utf8'),ctx);
+  for(const kind of ['coast','sea']){const c=ctx.window.RiskBasisContent[kind],strip=h=>h.replace(/<[^>]+>/g,'');
+   const multi=[...c.matchAll(/<p(?: [^>]*)?>([\s\S]*?)<\/p>/g)].map(m=>strip(m[1])).filter(t=>(t.match(/다\.(\s|$)/g)||[]).length>1);assert.deepEqual(multi,[],kind+' 문장 여럿인 <p>');
+   const lis=[...c.matchAll(/<li>([\s\S]*?)<\/li>/g)].map(m=>strip(m[1]));assert.ok(lis.length>=10,kind+' 글머리 줄 '+lis.length);
+   assert.deepEqual(lis.filter(t=>(t.match(/다\.(\s|$)/g)||[]).length>1),[],kind+' 한 줄에 문장 하나');assert.ok(!c.includes('•'),kind+' 점은 글자가 아님');}
+  const sea=ctx.window.RiskBasisContent.sea;for(const t of ['주의보는 노랑, 경보는 빨강 띠','점선 상자','예비특보 노랑','제목 줄에 「특보」'])assert.ok(sea.includes(t),t);});
 test('U81 사망사고 발생구역 가산 줄(fatalZone)은 더 그리지 않음',()=>assert.equal(S.coastRows([{key:'fatalZone',rr:1.29,fatalRr:1.3}]),''));
 test('배 혼잡 낮음 숨김',()=>assert.equal(S.seaRows([{key:'congestion',level:0,ci:.5}]),''));
 test('특보없는 파고2m 노랑',()=>assert.match(S.seaRows([{key:'wave',value:2.5}]),/rf-t-y[^>]*>2\.5m/));

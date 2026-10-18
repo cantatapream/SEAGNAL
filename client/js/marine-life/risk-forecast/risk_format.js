@@ -2,6 +2,7 @@
  * ============================================================================
  * 파일명: client/js/marine-life/risk-forecast/risk_format.js
  * 역할  : 서버가 계산한 점수·배수를 글자와 표시색으로 바꾼다. 점수 판정은 하지 않는다.
+ *         몇 글자 넘친 글 줄의 자간 줄이기(fitLines, 2026-10-18)도 여기 둔다 — 기준 상세·시트가 같은 규칙을 쓰게.
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈 / OpenLayers(지도 모듈)
  *  - 서버 API      : /api/risk-forecast/* (routes/risk_forecast.js)
@@ -13,6 +14,8 @@
 (function (w) {
     'use strict';
     var RGB = [[47,179,107],[242,194,48],[251,146,60],[224,50,44]];
+    // fitLines 가 차례로 시험하는 자간(사용자 2026-10-18 「자간을 조금 줄여서 한줄에」 — 작은 값부터, -0.05em 아래로는 줄이지 않는다)
+    var FIT_STEPS = ['-0.02em', '-0.035em', '-0.05em'];
     /**
      * 상대 배수를 배 또는 증감률 문장으로 표시한다.
      * 예: fmt(1.54) → +54%
@@ -185,5 +188,26 @@
         var i = Object.keys(BAND_COLORS).indexOf(band);
         return 'rgb(' + RGB[i].join(',') + ')';
     }
-    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, stamp:stamp, direction:direction, luminance:luminance, stationLabel:stationLabel, BAND_COLORS:BAND_COLORS, scoreIndex:scoreIndex, bandOf:bandOf, bandColor:bandColor};
+    /**
+     * 몇 글자 넘쳐 한 줄이 더 생긴 문단·글머리 줄만 자간을 조금 줄여 한 줄 덜 쓰게 한다(전체 일괄로 줄이지 않는다).
+     * -0.02em → -0.035em → -0.05em 순으로 시험해 줄 수가 줄어드는 첫 값(가장 작게 줄인 값)만 남기고, 셋 다 안 되면 자간을 원래대로 둔다.
+     * 왜: 사용자 2026-10-18 「텍스트 한 두개 때문에 다음줄로 넘어가는 경우에는 자간을 조금 줄여서 한줄에 표시」. -0.05em 으로도 안 줄면
+     *     넘친 글자가 많다는 뜻이라 손대지 않는다(글자가 빽빽해지는 것을 막는다). 줄 수 = 높이 ÷ line-height(반올림).
+     * 예: 380px 기준 상세에서 「…표시합니다.」의 「다.」만 다음 줄 → -0.02em 으로 한 줄 / 반 줄 넘게 넘친 문장 → 그대로
+     * @param {Element[]|NodeList} els - 화면에 붙은(display 된) 글 블록(p·li). 다시 부르면 자간을 지우고 처음부터 잰다(창 폭이 바뀐 때).
+     * @returns {void}
+     * [연계] ← RiskBasis.open(기준 상세 문단·글머리 줄) / 시트 글 줄도 같은 규칙이면 이것을 쓴다.
+     */
+    function fitLines(els) {
+        Array.prototype.forEach.call(els || [], function (el) {
+            try {
+                el.style.letterSpacing = '';
+                var lh = parseFloat(getComputedStyle(el).lineHeight), lines = function () { return Math.round(el.getBoundingClientRect().height / lh); }, base;
+                if (!(lh > 0) || (base = lines()) < 2) return;
+                for (var i = 0; i < FIT_STEPS.length; i++) { el.style.letterSpacing = FIT_STEPS[i]; if (lines() < base) return; }
+                el.style.letterSpacing = '';
+            } catch (e) { el.style.letterSpacing = ''; }
+        });
+    }
+    w.RiskFormat = {fmt:fmt, amt:amt, tone:tone, col:col, ink:ink, escape:escape, safeURL:safeURL, dms:dms, time:time, stamp:stamp, direction:direction, luminance:luminance, stationLabel:stationLabel, BAND_COLORS:BAND_COLORS, scoreIndex:scoreIndex, bandOf:bandOf, bandColor:bandColor, fitLines:fitLines, FIT_STEPS:FIT_STEPS};
 })(window);

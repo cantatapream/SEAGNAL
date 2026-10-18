@@ -2,7 +2,8 @@
  * 파일명: local_server/scripts/test_risk_sheet_ui.js
  * 역할  : 휴대폰 크기 Chromium에서 위험예측 바텀시트의 하단 탭 가림 방지·고정 머리/스크롤 본문·즉시 스켈레톤과 늦은 응답 보호·고정 일시 표시·위험구역 아코디언과 보이는 지도 중앙 이동을 검사한다.
  *         2026-10-16 T8: 머리 부제 줄 오른쪽 끝 [기준 상세], (T7 연안 시각 막대는 T24 로 없앰 — 대신 연안 날짜 줄: 해양종합정보 시트 같은 < 날짜 >·「가장 높은 때 HH시 기준」·시트↔메인 날짜 함께),
- *         기준 상세 창(제목·닫기 고정 머리, 「기준 상세 — 」 없음, 링크·PDF 버튼 글자 대비 4.5:1 이상). RISK_SHEET_SHOTS=<폴더> 를 주면 380·320px 사진을 남긴다.
+ *         기준 상세 창(제목·닫기 고정 머리, 「기준 상세 — 」 없음, 링크·PDF 버튼 글자 대비 4.5:1 이상).
+ *         2026-10-18: 기준 상세 「•」 글머리 줄·넘친 줄만 자간 줄임(RiskFormat.fitLines)·연안 위험 단계 표 4색·PDF 버튼 보통 굵기. RISK_SHEET_SHOTS=<폴더> 를 주면 380·320px 사진을 남긴다.
  * [연계] 실제 risk_forecast/sheet/slider/map_layer/format/marine + risk_forecast.css + index2.html의 --ls-bottom-chrome 규칙 / HTTP 가짜 API → verify_all.
  * [로드 순서] 독립 검사; 외부 수집·운영 키 없음. 측정값은 「측정」 줄로 남긴다.
  */
@@ -244,7 +245,8 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  // 2026-10-16 사용자 「맨 아래 mtis 공식 사고예보, mtis 공식 혼잡예보가 하이퍼링크 형식으로 있는데 이거는 디자인은 버튼 형식으로 바꿔주고 각 버튼을 가운데 정렬해줘.」
  //   종전 단언(밑줄 하늘색 링크 · 「·」 로 이음)을 버튼 모양·가운데·「·」 없음으로 바꿨다. 같은 날 「여기 제목에 공식 텍스트는 빼줘.」 — 해상 제목 「선박 사고위험·교통혼잡 예보」.
  await check('기준 상세 MTIS 두 링크는 버튼 모양(밑줄 없음·둥근 테두리)·가운데·「·」 없음·새 창, 창 바탕 두 끝 모두에 글자 대비 4.5:1 이상(연안 PDF 버튼 포함), 해상 제목에 「공식」 없음',async()=>{
-  const pdf=await pg.evaluate(()=>{const a=document.querySelector('.rf-basis .pdf-btn'),cs=getComputedStyle(a);return{color:cs.color,bg:cs.backgroundColor};});
+  const pdf=await pg.evaluate(()=>{const a=document.querySelector('.rf-basis .pdf-btn'),cs=getComputedStyle(a);return{color:cs.color,bg:cs.backgroundColor,weight:cs.fontWeight};});
+  assert.equal(pdf.weight,'400','PDF 버튼 글자 보통 굵기(2026-10-18 「여기도 볼드 빼」)');
   for(const width of [380,320,1024]){
    await pg.setViewportSize({width,height:820});await pg.evaluate(()=>{RiskBasis.close();RiskBasis.open('sea');});
    const m=await pg.evaluate(()=>{const p=document.querySelector('.rf-basis .rf-basis-links'),pr=p.getBoundingClientRect(),cs=getComputedStyle(p);const inner={l:pr.left+parseFloat(cs.paddingLeft),r:pr.right-parseFloat(cs.paddingRight)};
@@ -333,6 +335,38 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
      assert.ok(await pg.evaluate(()=>{const o=document.querySelector('.rf-tbl');return o.classList.contains('more-left')&&!o.classList.contains('more-right');}),'끝까지 밀면 왼쪽 그늘만');await pg.screenshot({path:path.join(SHOTS,'basis_coast_380_table_after.png')});}}
    if(kind==='sea'&&width===380&&SHOTS){await pg.evaluate(()=>document.querySelector('.rf-tbl').scrollIntoView({block:'center'}));await pg.waitForTimeout(60);await pg.screenshot({path:path.join(SHOTS,'basis_sea_380_table.png')});}
   }
+  await pg.evaluate(()=>RiskBasis.close());await pg.setViewportSize({width:380,height:820});
+ });
+ // 2026-10-18 사용자 「공통적으로 어절단위로 끊어서 다음줄로 보내주고 문장단위로 줄바꿈을 해주고 여러 내용이 들어있으면 문장의 시작에 점으로 반영해줘」 ·
+ // 「텍스트 한 두개 때문에 다음줄로 넘어가는 경우에는 자간을 조금 줄여서 한줄에 표시」 · 「이건 표로 만드는게 좋지 않겠니 ?」(연안 위험 단계 표)
+ for(const kind of ['coast','sea'])await check('기준 상세 글('+kind+'): 문장 여럿 = 「•」 글머리 줄(내어쓰기)·어절 줄바꿈·넘친 줄만 자간 줄임(-0.02→-0.035→-0.05em 중 첫 값)'+(kind==='coast'?'·위험 단계 표 4색':''),async()=>{
+  for(const width of [380,320]){
+   await pg.setViewportSize({width,height:820});await pg.evaluate(k=>{RiskBasis.close();RiskBasis.open(k);},kind);await pg.waitForTimeout(80);
+   const m=await pg.evaluate(()=>{const body=document.querySelector('.rf-basis-body'),lis=[...body.querySelectorAll('.rf-pts li')],li=lis[0],lb=getComputedStyle(li,'::before');
+    const blocks=[...body.querySelectorAll('p:not(.rf-basis-links),.rf-pts li')],steps=RiskFormat.FIT_STEPS;
+    const lines=el=>Math.round(el.getBoundingClientRect().height/parseFloat(getComputedStyle(el).lineHeight));
+    // 자간을 줄인 줄마다: 원래(자간 0)로 되돌리면 한 줄 늘고, 앞 단계 값으로는 줄지 않았는지(가장 작게 줄인 값인지) 다시 잰다.
+    const fitted=blocks.filter(el=>el.style.letterSpacing).map(el=>{const ls=el.style.letterSpacing,i=steps.indexOf(ls),now=lines(el);el.style.letterSpacing='';const base=lines(el),earlier=steps.slice(0,Math.max(0,i)).map(s=>{el.style.letterSpacing=s;return lines(el);});el.style.letterSpacing=ls;return{ls,i,now,base,earlier};});
+    const bands=[...body.querySelectorAll('table.rf-bands tbody tr')].map(tr=>({name:tr.cells[0].textContent,dot:getComputedStyle(tr.cells[0].querySelector('i')).backgroundColor,ink:getComputedStyle(tr.cells[0].querySelector('b')).color,range:tr.cells[1].textContent,times:tr.cells[2].textContent}));
+    return{n:lis.length,bullet:lb.content,pos:lb.position,pad:parseFloat(getComputedStyle(li).paddingLeft),listStyle:getComputedStyle(li.parentNode).listStyleType,wordBreak:getComputedStyle(li).wordBreak,
+     multiP:[...body.querySelectorAll('p:not(.rf-basis-links)')].filter(p=>(p.textContent.match(/다\.(\s|$)/g)||[]).length>1).map(p=>p.textContent.slice(0,30)),
+     liText:lis[0].textContent,fitted,bad:blocks.filter(el=>el.style.letterSpacing&&!steps.includes(el.style.letterSpacing)).length,bands,BC:RiskFormat.BAND_COLORS,over:body.scrollWidth-body.clientWidth};});
+   console.log('측정 기준 상세 글 '+kind+' '+width+'px',JSON.stringify({n:m.n,fitted:m.fitted.length,bands:m.bands.length}));
+   assert.ok(m.n>=10,'글머리 줄 수 '+m.n);assert.equal(m.bullet,'"•"');assert.equal(m.pos,'absolute');assert.ok(m.pad>=10&&m.pad<=16,'내어쓰기 '+m.pad);assert.equal(m.listStyle,'none');assert.equal(m.wordBreak,'keep-all');
+   assert.ok(!m.liText.includes('•'),'점은 글자가 아니다(::before)');assert.deepEqual(m.multiP,[],'문장 여럿인 <p>가 남지 않음');assert.equal(m.over,0);assert.equal(m.bad,0);
+   for(const f of m.fitted){assert.ok(f.i>=0);assert.equal(f.now,f.base-1,'자간 줄여 한 줄 줄어듦 '+JSON.stringify(f));assert.ok(f.earlier.every(x=>x===f.base),'더 작게 줄인 값으로는 안 줄어야 '+JSON.stringify(f));}
+   if(kind==='coast'){const B={'평소 수준':'rgb(47, 179, 107)','다소 높음':'rgb(242, 194, 48)','높음':'rgb(251, 146, 60)','매우 높음':'rgb(224, 50, 44)'};
+    assert.deepEqual(m.bands.map(b=>[b.name,b.range,b.times]),[['평소 수준','0~19','1.5배 미만'],['다소 높음','20~66','약 1.5~4배'],['높음','67~99','약 4~8배'],['매우 높음','100','8배 이상']]);
+    for(const b of m.bands){assert.equal(b.dot,B[b.name],b.name+' 네모');assert.equal(b.ink,B[b.name],b.name+' 글자');}}
+   if(SHOTS&&width===380){await pg.screenshot({path:path.join(SHOTS,'basis_'+kind+'_380_points.png')});}
+  }
+  // 자간 줄이기 도우미 단독: 한두 글자 넘친 줄은 줄이고, 많이 넘친 줄은 그대로(전체 일괄 금지).
+  const u=await pg.evaluate(()=>{const host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;width:400px;font-size:13px;line-height:20px;word-break:keep-all';document.body.appendChild(host);
+   const mk=t=>{const p=document.createElement('p');p.style.margin='0';p.textContent=t;host.appendChild(p);return p;},w=t=>{const s=document.createElement('span');s.style.whiteSpace='nowrap';s.textContent=t;host.appendChild(s);const r=s.getBoundingClientRect().width;s.remove();return r;};
+   let t='가';while(w(t+' 가')<=400)t+=' 가';const exact=t;  // 400px 에 꼭 맞는 한 줄(한 글자 어절을 빈칸으로 이음 — keep-all 은 어절 사이에서만 줄을 바꾼다. 약 45자라 -0.05em 이면 어절 하나 폭 넘게 줄어든다)
+   const small=mk(exact+' 가'),big=mk(exact+' '+exact.slice(0,Math.ceil(exact.length/2))),one=mk('가나');RiskFormat.fitLines([small,big,one]);
+   const r={small:small.style.letterSpacing,big:big.style.letterSpacing,one:one.style.letterSpacing,smallH:small.getBoundingClientRect().height};host.remove();return r;});
+  assert.ok(['-0.02em','-0.035em','-0.05em'].includes(u.small),'한 글자 넘친 줄 '+u.small);assert.equal(u.smallH,20,'한 줄로');assert.equal(u.big,'','많이 넘친 줄은 그대로');assert.equal(u.one,'','한 줄은 그대로');
   await pg.evaluate(()=>RiskBasis.close());await pg.setViewportSize({width:380,height:820});
  });
  await check('모바일 실행 오류 없음',()=>assert.deepEqual(errors,[]));
