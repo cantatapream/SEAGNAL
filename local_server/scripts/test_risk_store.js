@@ -86,17 +86,19 @@ try{run({
      a.deepEqual(today.daily.notices,[
        {key:'warning',name:'풍랑주의보',state:'예비',from:K('12:17'),to:K('21:00'),issued:null,effective:{start:N(15),end:N(15),range:false},release:null},
        {key:'warning',name:'풍랑주의보',state:'발효',from:K('12:17'),to:K('15:00'),issued:null,effective:null,release:{start:K('18:00'),end:K('18:00'),range:false}},
-       {key:'drift',windMs:10,from:K('15:00'),to:K('18:00')}],'가장 높은 칸 밖(12:17·15시)의 발효 특보가 나오고, 이어진 칸은 하나로(예비 12:17~21시·발효 12:17~15시), 표류는 15~18시 가장 센 10m/s');
+       {key:'drift',windMs:10,target:'소형 보트·레저기구',from:K('15:00'),to:K('18:00')}],'가장 높은 칸 밖(12:17·15시)의 발효 특보가 나오고, 이어진 칸은 하나로(예비 12:17~21시·발효 12:17~15시), 표류는 15~18시 가장 센 10m/s');
      a.deepEqual(today.notices,peak.notices,'위의 notices 는 종전처럼 가장 높은 칸의 것(화면은 daily.notices 를 쓴다)');
      const slots=today.daily.times.map(at=>st.coastDetail('one',at).score);a.equal(today.score,Math.max(...slots),'점수는 그대로 그날 칸 최댓값 — 특보·바람은 점수에 들지 않는다');
      const t15=st.coastDetail('one',K('15:00')),t21=st.coastDetail('one',K('21:00'));a.equal(t15.score,t21.score,'특보·바람 9m/s 있는 15시와 없는 21시 점수가 같다(연안 특보·표류 바람은 점수 밖)');
+     // §11.10.35: 표류 target = 칸 시각의 KST 달(10·11월 → 「소형 보트·레저기구」 — risk_score.driftTarget). 칸 하나 상세(종전 notices)에도 같은 말.
+     a.deepEqual(st.coastDetail('one',K('15:00')).notices.find(n=>n.key==='drift'),{key:'drift',windMs:9,target:'소형 보트·레저기구'});
      const tomorrow=st.coastDayDetail('one',N(0));
      a.deepEqual(tomorrow.daily.notices,[
        {key:'warning',name:'풍랑주의보',state:'예비',from:N(0),to:N(21),issued:null,effective:{start:N(15),end:N(15),range:false},release:null},
-       {key:'drift',windMs:8,from:N(3),to:N(3)},
-       {key:'drift',windMs:11,from:N(9),to:N(12)}],'내일: 발효는 해제돼 없음, 표류는 끊겼다 다시 나오면 따로(03시 / 09~12시)');
+       {key:'drift',windMs:8,target:'소형 보트·레저기구',from:N(3),to:N(3)},
+       {key:'drift',windMs:11,target:'소형 보트·레저기구',from:N(9),to:N(12)}],'내일: 발효는 해제돼 없음, 표류는 끊겼다 다시 나오면 따로(03시 / 09~12시)');
      alerts({});st.invalidate();
-     a.deepEqual(st.coastDayDetail('one',K('12:17')).daily.notices,[{key:'drift',windMs:10,from:K('15:00'),to:K('18:00')}],'특보 없음 → 특보 안내 없음(표류만)');
+     a.deepEqual(st.coastDayDetail('one',K('12:17')).daily.notices,[{key:'drift',windMs:10,target:'소형 보트·레저기구',from:K('15:00'),to:K('18:00')}],'특보 없음 → 특보 안내 없음(표류만)');
    }finally{fs.rmSync(td,{recursive:true,force:true});}},
  '결정1(2026-10-16) 연안 특보 시각은 기상청 것 그대로: 태풍(트리)·강풍(육상강풍 행) 모두 발표·발효 예정·해제 예고 시각을 하루 안내에 싣고, 발효 중이면 해제 예고 시각 전 칸은 모두 특보 있음 · coastWarnings 는 지금 걸린 특보와 특보구역':a=>{
    const td=fs.mkdtempSync(path.join(os.tmpdir(),'risk-warn-times-')),tdata=path.join(td,'data'),trisk=path.join(td,'risk'),tcfg=path.join(td,'config');
