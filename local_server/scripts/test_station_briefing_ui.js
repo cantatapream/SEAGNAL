@@ -471,7 +471,7 @@ function makeBriefings() {
             assert.ok(s.constant.startsWith('상시 위험 장소'));
             assert.ok(s.gauge, '오늘 판이라 해양종합정보와 같은 진행 게이지'); assert.equal(s.peaks, 4); assert.ok(s.tideText[0].includes('저조 뒤부터 물이 차오릅니다'), s.tideText[0]);
             // §11.10.20: 「기준 시각 … 판」·「다루는 시간」 줄 없음 · 노란 안내(옛 「참고 정보이며 …」 대체) · 2026-10-18 「데이터 출처 보기」 삭제(출처는 [기준 상세]에만)
-            assert.equal(s.foot, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.', s.foot);
+            assert.equal(s.foot, '※각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.', s.foot);   // §11.10.28 앞 「※」 칸
             assert.equal(s.edition, '10월 17일 13:10 기준 브리핑 (다음 갱신 17:30 또는 특보 변경 시)', '§11.10.9 ⑦ — 판 종류·생성 시각 없이, 제목과 같은 시각 + 다음 갱신');
             assert.ok(s.title.startsWith(/\d{2}:\d{2}/.exec(s.edition)[0] + ' '), '제목 시각 = 머리 글 시각 — ' + s.title);
             await page.evaluate(() => { document.querySelectorAll('#station-briefing-content button[data-sb-x^="basis-"]').forEach((x) => { if (x.getAttribute('aria-expanded') === 'true') x.click(); }); });
@@ -1906,10 +1906,17 @@ function makeBriefings() {
         });
         await check('[§11.10.20-UI3] 맨 아래 — 「기준 시각」·「다루는 시간」 줄 없음 · 「데이터 출처 보기」 없음(2026-10-18 삭제 — 출처는 [기준 상세]) · 노란 안내 한 문장(br 없음 · 어절 단위 줄바꿈 keep-all) 「각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.」 · 옛 판(b.notice 옛 글)도 새 안내 · 360px 넘침 없음', async () => {
             const old = JSON.parse(JSON.stringify(G)); old.notice = '참고 정보이며 안전을 보장하지 않습니다.'; await draw20(old);
-            const r = await L20.evaluate(() => { const f = document.querySelector('#sb20 .sb-foot'), nt = f.querySelector('[data-sb-notice]'), o = { src: document.querySelectorAll('#sb20 button[data-sb-x="sources"], #sb20 [data-sb-sources], #sb20 .sb-src-tbl').length, kids: [...f.children].map((x) => x.className), noteBr: nt.querySelectorAll('br').length, note: nt.textContent, wb: getComputedStyle(nt).wordBreak, color: getComputedStyle(nt).color, w: getComputedStyle(nt).fontWeight, text: f.textContent };
+            const r = await L20.evaluate(() => { const f = document.querySelector('#sb20 .sb-foot'), nt = f.querySelector('[data-sb-notice]'), o = { src: document.querySelectorAll('#sb20 button[data-sb-x="sources"], #sb20 [data-sb-sources], #sb20 .sb-src-tbl').length, kids: [...f.children].map((x) => x.className), noteBr: nt.querySelectorAll('br').length, note: nt.querySelector('.sb-notice-t').textContent, wb: getComputedStyle(nt).wordBreak, color: getComputedStyle(nt).color, w: getComputedStyle(nt).fontWeight, text: f.textContent,
+                    kids2: [...nt.children].map((x) => [x.className, x.className === 'sb-notice-k' ? x.textContent + '|' + x.getAttribute('aria-hidden') : '']), fs: parseFloat(getComputedStyle(nt).fontSize), lh: parseFloat(getComputedStyle(nt).lineHeight) };
+                const tx = nt.querySelector('.sb-notice-t'), kL = nt.querySelector('.sb-notice-k').getBoundingClientRect().left, rt = document.createRange(); rt.selectNodeContents(tx);
+                o.lefts = [...new Set([...rt.getClientRects()].filter((q) => q.width > 0.5).map((q) => Math.round(q.left)))]; o.tL = Math.round(tx.getBoundingClientRect().left); o.kL = Math.round(kL);
                 const rg = document.createRange(); rg.selectNodeContents(nt); o.lines = new Set([...rg.getClientRects()].map((x) => Math.round(x.top))).size; o.over = f.scrollWidth - f.clientWidth; o.page = document.documentElement.scrollWidth; o.vw = innerWidth; return o; });
             assert.deepEqual([r.src, r.kids], [0, ['sb-notice']], '출처 버튼·표 없음 → 안내만');
-            assert.deepEqual([r.noteBr, r.note, r.wb, r.color, r.w], [0, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.', 'keep-all', 'rgb(255, 210, 63)', '700'], '노란 안내 한 문장(옛 판 b.notice 대신)');
+            assert.deepEqual([r.noteBr, r.note, r.wb, r.color, r.w], [0, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.', 'keep-all', 'rgb(255, 210, 63)', '400'], '노란 안내 한 문장(옛 판 b.notice 대신) · §11.10.28 굵게 뺌');
+            // §11.10.28 *"텍스트 크기 3포인트정도 크게 … 볼드는 빼고 텍스트 맨앞에 당구장 표시 처럼"* · *"줄간격을 좀 더 좁혀줘 지금의 1/2정도로"* — 약 16.5px · 줄높이 약 21px · 「※」 칸 + 글 칸(둘째 줄도 ※ 뒤 글자 시작)
+            assert.deepEqual(r.kids2, [['sb-notice-k', '※|true'], ['sb-notice-t', '']], '「※」 칸 + 글 칸');
+            assert.ok(Math.abs(r.fs - 16.5) < 0.3 && Math.abs(r.lh - 21) < 0.5, '글자 약 16.5px·줄높이 약 21px ' + r.fs + '/' + r.lh);
+            assert.ok(r.lines >= 2 && r.tL > r.kL && r.lefts.length === 1 && r.lefts[0] === r.tL, '줄마다 글 칸 시작(※ 오른쪽) ' + JSON.stringify([r.kL, r.tL, r.lefts]));
             assert.ok(!/기준 시각|다루는 시간|참고 정보이며|출처:|데이터 출처 보기/.test(r.text), r.text);
             assert.equal(r.over, 0); assert.ok(r.page <= r.vw + 1); console.log('    안내 줄 수(360px):', r.lines);
             await L20.evaluate(() => document.querySelector('#sb20 .sb-foot').scrollIntoView({ block: 'center' })); await clean(L20);
@@ -2082,6 +2089,43 @@ function makeBriefings() {
             assert.deepEqual([xs.imgs, xs.flag, xs.t.startsWith('<img')], [0, null, true]);
             await draw20(g3); await L20.evaluate(() => { document.querySelectorAll('#sb20 [data-sb-sec="sea"] [role="tabpanel"]').forEach((p) => { p.hidden = false; }); document.querySelector('#sb20 [data-sb-traffic]').closest('[data-sb-card]').scrollIntoView({ block: 'start' }); }); await clean(L20);
             await L20.locator('#sb20 [data-sb-card="sea"]').first().screenshot({ path: path.join(SHOT, 'sea_traffic_line_360.png') });
+        });
+        await check('[§11.10.27-UI] (기상) 칸 칠하기(360px) — 오전·오후 줄 수치 흰 굵게(「구름많음」·「풍향 …」 그대로) · 특이사항 수치·시간 범위 흰 굵게, 「풍랑 예비특보」 노랑, 「매우 강한 바람」·「돌풍과 천둥·번개」·「높아짐」 흰 굵게 · 「오늘 오전」 이름표·출처 줄 그대로 · textContent = 서버 글 · 넘침 없음', async () => {
+            // 사용자가 보여 준 화면 글 그대로(2026-10-18 *"여기도 주요 수치나 그런거는 색상 또는 텍스트 스타일이 달랐으면 좋겠는데 ? 다른데 반영된 것 처럼"*)
+            const W = { zone: '제주도북부앞바다', missing: false, rows: [{ label: '오늘 오전', text: '구름많음 · 파고 1.0~2.5m · 풍속 8~13m/s · 풍향 남→남서', ok: true }, { label: '오늘 오후', text: '흐림 · 파고 1.0~2.5m · 풍속 8~13m/s · 풍향 남서→서', ok: true }],
+                source: '제주지방기상청 단기 해상예보 (10.18 05:00 발표)', bulletinMissing: false, notesFound: true, notesSource: '제주지방기상청 단기 전망 (10.18 04:30 발표)',
+                notes: ['오늘 밤까지 순간풍속 20m/s의 매우 강한 바람', '풍랑 예비특보: 오늘 새벽(00~06시) 제주도앞바다(북부앞바다 제외) — 물결 1.5~3.0m로 높아짐', '오늘 제주도해상과 남해서부서쪽먼바다 돌풍과 천둥·번개(곳에 따라)'] };
+            const g = JSON.parse(JSON.stringify(G)); g.summary.weather = W; await draw20(g);
+            const r = await L20.evaluate(() => {
+                const p = document.querySelector('#sb20 [data-sb-part="weather"]'), R = window.StationBriefingRender, tmp = document.createElement('i'); tmp.style.color = R.colorOf(1); p.appendChild(tmp); const yellow = getComputedStyle(tmp).color; tmp.remove();
+                const line = (li) => ({ text: li.textContent, hl: [...li.querySelectorAll('.sb-hl')].map((b) => [b.textContent, b.getAttribute('data-sb-wx-k'), getComputedStyle(b).color, getComputedStyle(b).fontWeight].join('|')),
+                    label: li.firstElementChild && !li.firstElementChild.classList.contains('sb-hl') ? [li.firstElementChild.textContent, getComputedStyle(li.firstElementChild).color] : null });
+                return { rows: [...p.querySelectorAll('.sb-wx-rows > li')].map(line), notes: [...p.querySelectorAll('.sb-wx-notes > li')].map(line), yellow, white: getComputedStyle(p.querySelector('.sb-hl-b')).color, base: getComputedStyle(p.querySelector('.sb-wx-rows > li')).color,
+                    smalls: [...p.querySelectorAll('.sb-small')].map((e) => [e.textContent, e.children.length]), page: document.documentElement.scrollWidth, vw: innerWidth };
+            });
+            const W8 = r.white + '|800', Y8 = r.yellow + '|800';
+            assert.equal(r.white, 'rgb(248, 250, 252)', '흰 = .sb-hl-b(#f8fafc)'); assert.notEqual(r.yellow, r.white, '노랑 = colorOf(1)(분석 문단 예비특보와 같은 색)');
+            assert.deepEqual(r.rows.map((x) => x.text), W.rows.map((x) => x.label + ' ' + x.text), 'textContent = 이름표 + 서버 글');
+            for (const x of r.rows) {
+                assert.deepEqual(x.hl, ['1.0~2.5m|num|' + W8, '8~13m/s|num|' + W8], '줄 수치만 흰 굵게 ' + JSON.stringify(x.hl));
+                assert.deepEqual(x.label, [x.text.slice(0, 6), r.base], '「오늘 오전/오후」 이름표 그대로(글 칸 색 굵게 — 칠하지 않음)');
+            }
+            assert.deepEqual(r.notes.map((x) => x.text), W.notes, 'textContent = 서버 글');
+            assert.deepEqual(r.notes.map((x) => x.hl), [
+                ['20m/s|num|' + W8, '매우 강한 바람|risk|' + W8],
+                ['풍랑 예비특보|warn|' + Y8, '00~06시|num|' + W8, '1.5~3.0m|num|' + W8, '높아짐|risk|' + W8],
+                ['돌풍과 천둥·번개|risk|' + W8]], JSON.stringify(r.notes.map((x) => x.hl)));
+            assert.deepEqual(r.smalls, [[W.source, 0], [W.notesSource, 0]], '출처 줄 그대로(회색 작은 글, 칠하지 않음)');
+            assert.ok(r.page <= r.vw + 1, '360px 가로 넘침 없음 ' + r.page);
+            await L20.evaluate(() => document.querySelector('#sb20 [data-sb-part="weather"]').scrollIntoView({ block: 'start' })); await clean(L20);
+            await L20.locator('#sb20 [data-sb-part="weather"]').screenshot({ path: path.join(SHOT, 'weather_box_colors_360.png') });
+            // 경보·주의보 색 · 서버 글은 textContent 로만(계약 §5)
+            const g2 = JSON.parse(JSON.stringify(g)); g2.summary.weather.notes = ['풍랑주의보 발효 중 · 강풍경보', XSS + ' 순간풍속 25m/s']; await draw20(g2);
+            const x2 = await L20.evaluate(() => { const n = [...document.querySelectorAll('#sb20 .sb-wx-notes > li')];
+                return { warn: [...n[0].querySelectorAll('[data-sb-wx-k="warn"]')].map((b) => [b.textContent, b.getAttribute('data-rank'), getComputedStyle(b).color]), orange: (() => { const t = document.createElement('i'); t.style.color = window.StationBriefingRender.colorOf(2); n[0].appendChild(t); const c = getComputedStyle(t).color; t.remove(); return c; })(),
+                    imgs: document.querySelectorAll('#sb20 img').length, flag: window.__xss || null, t: n[1].textContent }; });
+            assert.deepEqual(x2.warn, [['풍랑주의보 발효 중', '2', x2.orange], ['강풍경보', '3', 'rgb(227, 72, 66)']], '주의보 주황 · 경보 밝힌 빨강(.sb-hl-red) ' + JSON.stringify(x2.warn));
+            assert.deepEqual([x2.imgs, x2.flag, x2.t], [0, null, XSS + ' 순간풍속 25m/s']);
         });
         await check('[§11.10.20-UI5] 옛 판 후퇴 — 규칙 v17 연안 카드(advice·accidents 없음)는 종전 꼬리표·[특성]·문장 그대로([오늘 예상] 하나면 점 없음) · 해역 카드 [권고]도 같은 상자(덧붙임 9 — 글자 크기 카드 그대로, 특보 이름 속 글자는 칠하지 않음)', async () => {
             const old = JSON.parse(JSON.stringify(G)); old.rulesVersion = 'station-briefing-rules-v17';

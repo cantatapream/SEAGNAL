@@ -116,7 +116,9 @@
 .sb-tide .ocean-tide-wrap { margin-bottom:6px; }
 .sb-foot { border-top:1px solid rgba(148,163,184,.18); padding-top:8px; color:#94a3b8; font-size:.72rem; }
 .sb-foot p { margin:3px 0; }
-.sb-notice { color:#ffd23f; font-weight:700; font-size:.78rem; line-height:1.55; margin:8px 2px 0; word-break:keep-all; overflow-wrap:anywhere; }   /* §11.10.20 — 노란 안내(종전 분홍 「참고 정보이며 …」) · 2026-10-18 한 문장, 줄바꿈은 어절 단위 */
+.sb-notice { display:flex; gap:4px; color:#ffd23f; font-weight:400; font-size:1.03rem; line-height:1.27; margin:8px 2px 0; word-break:keep-all; overflow-wrap:anywhere; }   /* §11.10.20 — 노란 안내(종전 분홍 「참고 정보이며 …」) · 2026-10-18 한 문장, 줄바꿈은 어절 단위 · §11.10.28 약 3pt 크게(.78rem → 1.03rem ≈ 16.5px)·굵게 뺌(종전 700)·줄높이 약 21px(시안 25px 의 줄 사이 여백 절반)·「※」 칸 + 글 칸(둘째 줄이 ※ 뒤 글자 시작에) */
+.sb-notice-k { flex:none; }
+.sb-notice-t { min-width:0; }
 /* 설정 흐름(설정 전 안내·관할 고르기·둘 다 건너뛸 때 묻기) */
 .sb-setup, .sb-unset, .sb-confirm { background:rgba(15,23,42,.6); border:1px solid rgba(148,163,184,.2); border-radius:12px; padding:14px; }
 .sb-setup h4, .sb-unset h4, .sb-confirm h4 { margin:0 0 6px; color:#f1f5f9; font-size:.92rem; }
