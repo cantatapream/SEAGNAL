@@ -23,6 +23,8 @@
  *         §11.10.23(서버 규칙 v21): 해역 카드 [최근 14일 선박 동향] 한 줄(「…많이 기록되었습니다」 다음 · [기상 예보] 앞 — 서버 card.traffic, 없으면 줄 없음) · 데이터 출처 한 줄.
  *         §11.10.22(서버 규칙 v20): 해구 표기 「75해구」·「223-9해구」(지도 풀이·링크 경계) · [기상 예보]·분석 문단 「유의파고 …」 굵게(옛 판 「최대 파고 …」도) · 해역 카드 [사고현황('21~'25년)] 내용은 이름표 다음 줄(연안 카드와 같은 모양).
  *                    · [사고현황('20~'24년)] 「총 N건」 → 표 「연도 | 사고 종류 | 건수」 · [오늘 예상] 하나면 점 없이 · [권고]. 맨 아래 「데이터 출처 보기」 접힌 표 「구분 | 자료 | 제공」 + 노란 두 줄 안내(기준 시각·다루는 시간 줄 없음).
+ *         §11.10.29(시안 SbSeaA — 서버 그대로): 해상 시간 막대 = 게이지(timeBar — 이어진 8px 막대 · ⚑ 줄 · 눈금 글자 tickText·tickEnd) · 해역 카드 세로 표 두 개 → 가로 표 하나(seaGrid — 열 = 시각,
+ *                    해양사고 위험예보·기상특보 행, 4칸이 같으면 한 칸 「12~24시 주의」, 칸 색 = gridRank 한 곳) · 배지·가로 표 칸 굵게 없음 · 해역 카드 제목 해구 괄호 작게(seaCardName) · AI 이름표 색(ChatGPT 흰·Gemini 파랑).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : ocean-map/bottom-sheet/ocean_bottom_sheet3.js(OceanSheet.tideGaugeHtml — 조석 게이지 디자인 그대로)
@@ -265,6 +267,17 @@
         return b;
     }
     /**
+     * 해역 카드 제목 — 끝의 해구 괄호 「(223-9해구)」만 작은 글·굵게 없음(span.sb-card-haegu — 제목보다 2pt 작게, station_briefing.css). 글은 textContent 로만(제목 textContent 는 서버 글 그대로).
+     * 2026-10-18 사용자 *"이 브리핑 카드에서도 해구를 표현하는 부분은 2포인트 줄이고 볼드 없애줘"*(설계서 §11.10.29) — 본문 속 해역 링크(「경북북부앞바다(75해구)」)는 대상 아님.
+     * 예: seaCardName('성산포 북방 3.9해리 해역(223-9해구)') → <strong class="sb-card-name">성산포 북방 3.9해리 해역<span class="sb-card-haegu">(223-9해구)</span></strong> · 괄호 없으면 글 하나
+     * @param {string} name @returns {HTMLElement} [연계] ← seaCard
+     */
+    function seaCardName(name) {
+        var m = /\([^()]*해구\)$/.exec(name), s = el('strong', 'sb-card-name', m ? name.slice(0, m.index) : name);
+        if (m) s.appendChild(el('span', 'sb-card-haegu', m[0]));
+        return s;
+    }
+    /**
      * 해역 카드 하나 — 「○○ 방위 N해리 해역(해구)」, 단계·출처 꼬리표, 줄들, 바로가기.
      * 규칙 v14 카드(서버 advice 가 있음 — 2026-10-17 사용자 결정, 설계서 §11.10.13): [사고현황('21~'25년)](traits.label·text) → [기상 예보](today.weatherLines + today.forecast)
      *   → [그 밖의 근거](today.otherLines — 꼬리표와 같은 줄은 서버가 이미 뺌) → 「… 사고가 많이 기록되었습니다」(historyNote) → 맨 끝 [권고](advice).
@@ -278,7 +291,7 @@
      */
     function seaCard(c, opts) {
         var card = el('div', 'sb-card'); card.setAttribute('data-sb-card', 'sea');
-        var head = el('div', 'sb-card-head'); head.appendChild(el('strong', 'sb-card-name', c.name || '이름 없는 해역')); head.appendChild(chip(c.rank, c.word)); card.appendChild(head);
+        var head = el('div', 'sb-card-head'); head.appendChild(seaCardName(c.name || '이름 없는 해역')); head.appendChild(chip(c.rank, c.word)); card.appendChild(head);
         if (Array.isArray(c.badges) && c.badges.length && typeof c.advice === 'string') { seaCardBadged(card, c); return seaCardLink(card, c, opts); }   // §11.10.15 규칙 v16 카드
         var tags = el('div', 'sb-tags');
         if (c.sourceLabel) tags.appendChild(el('span', 'sb-tag', c.sourceLabel));
@@ -318,18 +331,90 @@
      * 상세는 표(같은 날 시안 ④판 사용자 확정 *"여기도 표로 정리하면 좋겠어. 시간대별로"*): 서버 detail[] = {title, head, rows} → 제목 줄 + 표(srcbTable). 규칙 v16 판의 글 줄(string)은 종전 한 줄 그대로.
      * 글자 색: 관심·주의 = colorOf(rank) 를 글자에, 경계 = .sb-srcb[data-rank="3"](station_briefing.css — 어두운 바탕 위 대비 4.5 이상 밝은 빨강, §11.10.11 분석 문단과 같은 색). 서버 글은 textContent 로만.
      * 예: seaBadges([{source:'accident',text:"18~24시 해양사고 위험예보 '주의'(KOMSA)",rank:2,detail:[]}]) → <div class="sb-srcbs"><span class="sb-srcb" data-rank="2" style="color:#fb923c">18~24시 …</span></div>
-     * @param {Object[]} badges - 해역 카드 badges(서버 station_briefing_rules.seaBadges) @returns {HTMLElement} [연계] ← seaCardBadged / → colorOf·srcbTable
+     * §11.10.29(시안 A *"이게 낫겠어."*): 해양사고 위험예보·기상특보 상세가 있으면 배지를 모두 먼저 → 가로 표 하나(seaGrid) → 나머지 상세(혼잡·해구 예보 세로 표). 배지 글은 굵게 없음(CSS — *"이런 뱃지는 모두 볼드 빼도록 해자."*).
+     * @param {Object[]} badges - 해역 카드 badges(서버 station_briefing_rules.seaBadges) @returns {HTMLElement} [연계] ← seaCardBadged / → colorOf·srcbTable·gridDetail·seaGrid
      */
     function seaBadges(badges) {
         var box = el('div', 'sb-srcbs'); box.setAttribute('data-sb-badges', String(badges.length));
-        badges.forEach(function (g) {
+        var grid = badges.filter(function (g) { return gridDetail(g); });
+        var badge = function (g) {
             var r = Number(g.rank), s = el('span', 'sb-srcb', g.text || '');
             s.setAttribute('data-rank', String(r)); s.setAttribute('data-sb-src', String(g.source || ''));
             if (r !== 3) s.style.color = colorOf(r);
             box.appendChild(s);
-            (Array.isArray(g.detail) ? g.detail : []).forEach(function (d) { box.appendChild(d && typeof d === 'object' ? srcbTable(d) : el('p', 'sb-srcb-det', d)); });
-        });
+        };
+        var details = function (g) { (Array.isArray(g.detail) ? g.detail : []).forEach(function (d) { if (grid.indexOf(g) >= 0 && d === gridDetail(g)) return; box.appendChild(d && typeof d === 'object' ? srcbTable(d) : el('p', 'sb-srcb-det', d)); }); };
+        // §11.10.29: 가로 표에 들어갈 상세(해양사고 위험예보·기상특보)가 있으면 배지를 모두 먼저 → 가로 표 하나 → 나머지 상세(혼잡·해구 예보 세로 표 — 종전 꼴). 없으면 종전처럼 배지마다 바로 아래 상세.
+        if (grid.length) { badges.forEach(badge); box.appendChild(seaGrid(grid)); badges.forEach(details); }
+        else badges.forEach(function (g) { badge(g); details(g); });
         return box;
+    }
+    /**
+     * 배지의 상세 중 가로 표 한 행이 될 것 — 해양사고 위험예보(「시각 | 등급」)·기상특보(「시각 | 상태」) 표(서버 seaBadges sub 'accident'·'warning', 머리 두 칸).
+     * 혼잡 예보(「시각 | 혼잡지수」)·해구 예보(「시각 | 유의파고 | 풍속」)는 숫자 칸이라 세로 표 그대로(사용자 결정은 위 두 표만 — §11.10.29 「못 한 것」). 규칙 v16 판(상세가 글 줄)은 null.
+     * 예: gridDetail({sub:'accident', detail:[{title:'KOMSA 해양사고 위험예보', head:['시각','등급'], rows:[…]}]}) → 그 detail · gridDetail({sub:'congestion', …}) → null
+     * @param {Object} g - badges[] 하나 @returns {Object|null} [연계] ← seaBadges·seaGrid
+     */
+    function gridDetail(g) {
+        if (!g || (g.sub !== 'accident' && g.sub !== 'warning')) return null;
+        var d = (Array.isArray(g.detail) ? g.detail : [])[0];
+        return d && typeof d === 'object' && Array.isArray(d.head) && d.head.length === 2 && Array.isArray(d.rows) && d.rows.length ? d : null;
+    }
+    // ── §11.10.29 (c) 가로 표 칸 색 — 고르는 곳은 여기 한 곳(gridRank). 사용자에게 「특보 발효 칸 색」을 묻는 중이라 답 전까지는 배지와 같은 규칙:
+    //    해양사고 위험예보 칸 = 그 등급 색(주의 주황 · 경계 빨강) · 특보 「발효 중」 = 주의보 주황 · 경보 빨강 · 「예비특보」·「해제 뒤」 = 노랑(분석 문단 특보 말과 같은 색).
+    //    「발효 = 빨강」으로 바꾸려면 아래 GRID_WARN_ON_RANK 를 3 으로(null = 특보 종류대로).
+    var GRID_WARN_ON_RANK = null;
+    /**
+     * 가로 표 칸 하나의 색 단계(0~3, 칸 글자 색 = colorOf · 3 = CSS 밝은 빨강). 색을 안 칠하면 null.
+     * 예: gridRank({text:'주의',rank:2}, g) → 2 · gridRank('발효 중', {name:'풍랑주의보'}) → 2 · gridRank('발효 중', {name:'풍랑경보'}) → 3 · gridRank('예비특보', g) → 1 · gridRank('—', g) → null
+     * @param {string|{text:string,rank:number}} c - 서버 표 칸 @param {Object} g - 그 배지 @returns {number|null} [연계] ← seaGrid
+     */
+    function gridRank(c, g) {
+        if (c && typeof c === 'object') return Number.isFinite(Number(c.rank)) ? Number(c.rank) : null;
+        var t = String(c || '');
+        if (/^발효/.test(t)) return GRID_WARN_ON_RANK != null ? GRID_WARN_ON_RANK : /경보$/.test(String(g.name || '').replace(/ (예비특보|해제 뒤)$/, '')) ? 3 : 2;   // 「풍랑경보」 → 3 · 「풍랑주의보」 → 2
+        if (/예비특보|해제 뒤/.test(t)) return 1;
+        return null;
+    }
+    /**
+     * 해역 카드 가로 표 — 열 = 시각(행들의 시각을 모은 것, 보통 12·15·18·21시), 행 = 「해양사고 위험예보(KOMSA)」·「풍랑주의보(기상청)」 + 특보구역 작은 회색 글.
+     * 2026-10-18 사용자 *"표로 인해서 자리가 너무 많이 차지되는것 같지 않아 ? … 표 자체는 좋은데 데이터 정리방법이 적절치 않은 것 같은데 ?"* → 시안 A *"이게 낫겠어."*(설계서 §11.10.29) — 종전 세로 표 두 개(「시각 | 등급」·「시각 | 상태」 4줄씩).
+     * 한 행의 칸 값이 모든 열에서 같으면 한 칸으로 합쳐 「12~24시 주의」(창 = 배지 window — 서버 runsText, 없으면 첫 열~마지막 열+3시), 다르면 칸마다(그 행에 없는 시각 = 「—」).
+     * 칸 글은 굵지 않게(사용자 *"여기서는 볼드 빼줘."* — CSS .sb-grid-v), 색 = gridRank. 서버 글은 textContent 로만.
+     * 예: seaGrid([{sub:'accident',name:'해양사고 위험예보',agency:'KOMSA',window:'12~24시',detail:[{title:'KOMSA 해양사고 위험예보',head:['시각','등급'],rows:[['12시',{text:'주의',rank:2}],…4줄]}]}])
+     *     → <div class="sb-srcb-det sb-srcb-tab sb-grid"><div class="sb-srcb-tblw"><table class="sb-srcb-tbl sb-grid-tbl"><thead>(빈칸)·12시·15시·18시·21시</thead><tbody><tr><td>해양사고 위험예보(KOMSA)</td><td colspan="4">12~24시 주의</td></tr></tbody></table></div></div>
+     * @param {Object[]} list - gridDetail 이 있는 배지들(배지 순서) @returns {HTMLElement} [연계] ← seaBadges / → gridDetail·gridRank·colorOf · station_briefing.css(.sb-grid-*)
+     */
+    function seaGrid(list) {
+        var hours = [];
+        list.forEach(function (g) { var prev = -1; gridDetail(g).rows.forEach(function (r) { var h = String(r[0]), k = hours.indexOf(h); if (k < 0) { hours.splice(prev + 1, 0, h); k = prev + 1; } prev = k; }); });
+        var wrap = el('div', 'sb-srcb-det sb-srcb-tab sb-grid'), sc = el('div', 'sb-srcb-tblw'), t = el('table', 'sb-srcb-tbl sb-grid-tbl'), hr = el('tr'), th = el('thead'), tb = el('tbody');
+        wrap.setAttribute('data-sb-grid', String(list.length));
+        hr.appendChild(el('th', 'sb-grid-name')); hours.forEach(function (h) { hr.appendChild(el('th', 'sb-grid-h', h)); }); th.appendChild(hr); t.appendChild(th);
+        list.forEach(function (g) {
+            var d = gridDetail(g), tr = el('tr'), base = String(g.name || '').replace(/ (예비특보|해제 뒤)$/, ''), agency = String(g.agency || '');
+            var nm = el('td', 'sb-grid-name', base ? base + (agency ? '(' + agency + ')' : '') : String(d.title || ''));
+            // 특보구역 — 서버 표 제목 「기상청 {구역} {특보}」에서 기관·특보 이름을 뗀 나머지(해양사고 위험예보 제목 「KOMSA 해양사고 위험예보」는 남는 것 없음)
+            var title = String(d.title || ''), zone = title.indexOf(agency + ' ') === 0 ? title.slice(agency.length + 1) : title;
+            zone = base && zone.slice(-base.length) === base ? zone.slice(0, -base.length).trim() : '';
+            if (zone) { nm.appendChild(el('br')); nm.appendChild(el('span', 'sb-grid-zone', zone)); }
+            tr.appendChild(nm);
+            var by = {}; d.rows.forEach(function (r) { by[String(r[0])] = r[1]; });
+            var txt = function (c) { return c && typeof c === 'object' ? String(c.text) : String(c == null ? '' : c); };
+            var first = d.rows[0][1], same = hours.every(function (h) { return Object.prototype.hasOwnProperty.call(by, h) && txt(by[h]) === txt(first); });
+            var cell = function (c, text) {
+                var td = el('td', 'sb-grid-v', text), r = c == null ? null : gridRank(c, g);
+                if (r != null) { td.setAttribute('data-rank', String(r)); if (r !== 3) td.style.color = colorOf(r); }
+                return td;
+            };
+            if (same) {
+                var win = g.window || (parseInt(hours[0], 10) + '~' + (parseInt(hours[hours.length - 1], 10) + 3) + '시');
+                var td = cell(first, win + ' ' + txt(first)); td.colSpan = hours.length; td.setAttribute('data-sb-merged', 'true'); tr.appendChild(td);
+            } else hours.forEach(function (h) { tr.appendChild(Object.prototype.hasOwnProperty.call(by, h) ? cell(by[h], txt(by[h])) : cell(null, '—')); });
+            tb.appendChild(tr);
+        });
+        t.appendChild(tb); sc.appendChild(t); wrap.appendChild(sc);
+        return wrap;
     }
     /**
      * 배지 상세 표 — 제목(서버 글 「KOMSA 해양사고 위험예보」·「232해구 예보」 등) + 표 「시각 | 등급」 같은 꼴(설계서 §11.10.15 「2026-10-17 사용자 확정(시안 ④판)」).
@@ -537,32 +622,63 @@
     /**
      * 해상 시간 막대 — 3시간 칸마다 관할 최고 단계 색, 사건(특보 해제 예고·예비·해제·발효)이 있는 칸에 ⚑ + 범례.
      * 칸 아래 설명 줄(「18시 · 주의 필요 · ○○ 해역 · 근거 …」)과 그 줄을 채우던 칸 누르기는 없앴다(2026-10-17 사용자 결정 — 설계서 §11.10.13,
-     * 원문 *"이 텍스트는 아래 또 나오니까 필요없는거 아니니? 개별로 나오잖아"* — 같은 내용이 해역 카드·특별 상황에 따로 있다). 칸은 누르는 단추가 아니라 그림(role=img + aria-label 「18시 주의 필요 …」).
-     * 예: timeBar([{label:'06시',rank:2,word:'주의',events:[{kind:'release',text:'…'}]}, …]) → 칸 6개 + 범례
+     * 원문 *"이 텍스트는 아래 또 나오니까 필요없는거 아니니? 개별로 나오잖아"* — 같은 내용이 해역 카드·특별 상황에 따로 있다). 칸은 누르는 단추가 아니라 그림(role=img + aria-label 「18시 주의 …」).
+     * §11.10.29(2026-10-18 사용자 *"12, 15, 18, 21 버튼은 눌러볼 수 없는거니 ? … 그냥 게이지처럼해서 표현하는게 오해를 덜 사겠는데 ?"* → 시안 A *"이게 낫겠어."*):
+     *   칸 상자(테두리·둥근 모서리·높이 34px — 단추처럼 보임) 대신 이어진 막대 하나(높이 8px, 양끝만 둥금)를 칸별 단계 색으로 나눈다.
+     *   ⚑ 는 막대 위 그 구간 가운데 작은 표시, 시각은 막대 아래 눈금 글자(칸 시작 시각 + 마지막 칸 끝 — 「12 15 18 21 24시」). 눈금·⚑ 는 aria-hidden(칸 aria-label 에 같은 정보).
+     * 예: timeBar([{at:'…T12:00…',label:'12시',rank:2,word:'주의',events:[{kind:'release',text:'…'}]}, …4칸]) → 막대(구간 4) + 눈금 「12 15 18 21 24시」 + 범례
      * 보는 시각(nowMs)에 이미 끝난 칸은 흐리게(.sb-slot-past) — 만드는 시각이 든 칸부터 다루므로 열어 볼 때 지난 칸이 섞일 수 있다(2단계 검토 B3).
      * @param {Object[]} slots - briefing.sea.timeBar @param {number} [nowMs] - 지금(ms) @returns {HTMLElement}
-     * [연계] ← render(해상 분석)
+     * [연계] ← render(해상 분석) / → colorOf·tickText · station_briefing.css(.sb-timebar·.sb-gauge-*)
      */
     function timeBar(slots, nowMs) {
-        var wrap = el('div', 'sb-timebar-wrap'), bar = el('div', 'sb-timebar');
+        var wrap = el('div', 'sb-timebar-wrap'), bar = el('div', 'sb-timebar'), n = slots.length, ticks = el('div', 'sb-gauge-ticks');
         bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', '해상 시간 막대 — 3시간 칸별 관할 최고 단계');
-        slots.forEach(function (s) {
+        var flags = slots.some(function (s) { return Array.isArray(s.events) && s.events.length; }) ? el('div', 'sb-gauge-flags') : null;
+        if (flags) { flags.setAttribute('aria-hidden', 'true'); wrap.appendChild(flags); }
+        ticks.setAttribute('aria-hidden', 'true');
+        slots.forEach(function (s, i) {
             var b = el('span', 'sb-slot'); b.setAttribute('role', 'img');
-            var bg = colorOf(s.rank, s.word); b.style.background = bg;
+            b.style.background = colorOf(s.rank, s.word);
             var past = Number.isFinite(nowMs) && Date.parse(s.at) + 3 * 3600000 <= nowMs; if (past) { b.classList.add('sb-slot-past'); b.setAttribute('data-past', 'true'); }
-            b.appendChild(el('span', 'sb-slot-h', String(s.label || '').replace(/시$/, '')));
-            if (Array.isArray(s.events) && s.events.length) { var f = el('span', 'sb-slot-flag', '⚑'); f.setAttribute('aria-hidden', 'true'); b.appendChild(f); b.setAttribute('data-event', 'true'); }
+            if (Array.isArray(s.events) && s.events.length) { var f = el('span', 'sb-slot-flag', '⚑'); f.style.left = ((i + 0.5) * 100 / n) + '%'; flags.appendChild(f); b.setAttribute('data-event', 'true'); }
             b.setAttribute('aria-label', (s.label || '') + ' ' + (s.word || WORDS[s.rank] || '') + (s.events && s.events.length ? ' — 특보 사건 있음' : '') + (past ? ' — 지난 시간' : ''));
             b.setAttribute('data-rank', String(s.rank));
             bar.appendChild(b);
+            ticks.appendChild(tickAt(tickText(s.label), i, n));
         });
-        wrap.appendChild(bar);
+        var endH = tickEnd(slots[n - 1]); if (endH) ticks.appendChild(tickAt(endH, n, n));
+        wrap.appendChild(bar); wrap.appendChild(ticks);
         var legend = el('div', 'sb-legend');
         WORDS.forEach(function (word, r) { var k = el('span', 'sb-legend-k'); var sw = el('i'); sw.style.background = colorOf(r); k.appendChild(sw); k.appendChild(document.createTextNode(word)); legend.appendChild(k); });
         legend.appendChild(el('span', 'sb-legend-k', '⚑ 특보 사건'));
         if (slots.some(function (s) { return Number.isFinite(nowMs) && Date.parse(s.at) + 3 * 3600000 <= nowMs; })) legend.appendChild(el('span', 'sb-legend-k', '흐린 칸 = 이미 지난 시간'));
         wrap.appendChild(legend);
         return wrap;
+    }
+    /**
+     * 눈금 글자 하나를 경계 위치(i/n)에 — 첫 눈금은 왼쪽 맞춤, 마지막(i = n)은 오른쪽 맞춤, 그 밖은 가운데(§11.10.29).
+     * 예: tickAt('15', 1, 4) → <span class="sb-gauge-tick" style="left:25%">15</span> @param {string} text @param {number} i @param {number} n @returns {HTMLElement} [연계] ← timeBar
+     */
+    function tickAt(text, i, n) {
+        var t = el('span', 'sb-gauge-tick', text); t.style.left = (i * 100 / n) + '%';
+        if (i === 0) t.setAttribute('data-edge', 'start'); else if (i === n) t.setAttribute('data-edge', 'end');
+        return t;
+    }
+    /**
+     * 칸 이름표 → 눈금 글자 — 시만 남긴다(서버 label 「12시」·「10월 18일 21시」(밤 판 첫 칸 — 날짜 앞말) → 「12」·「21」). 날짜는 칸 aria-label 에 그대로 있다.
+     * 날짜 앞말을 눈금에 두지 않는 까닭: 밤 판은 칸이 9개라 360px 에서 눈금 사이가 약 33px — 「10월 18일 21」은 옆 눈금과 겹친다.
+     * 예: tickText('12시') → '12' · tickText('10월 18일 21시') → '21' @param {string} label @returns {string} [연계] ← timeBar
+     */
+    function tickText(label) { return String(label || '').replace(/^.*\s/, '').replace(/시$/, ''); }
+    /**
+     * 마지막 칸의 끝 시각 눈금 — 칸 시작(at) + 3시간의 KST 시(0시면 24). 예: {at:'2026-10-18T21:00:00+09:00'} → '24시' · {at:'…T15:00…'} → '18시' · at 없음 → ''.
+     * @param {Object} s - 마지막 칸 @returns {string} [연계] ← timeBar(마지막 칸 21시 = 21~24시라 경계 눈금 24시 — 사용자 확정 시안 A)
+     */
+    function tickEnd(s) {
+        var t = Date.parse(s && s.at); if (!Number.isFinite(t)) return '';
+        var h = new Date(t + 3 * 3600000 + 9 * 3600000).getUTCHours();
+        return (h === 0 ? 24 : h) + '시';
     }
     /**
      * 조석 칸 — 해양종합정보 바텀시트 조석 게이지 디자인 그대로(OS.tideGaugeHtml) + 서버 문구(밀물·잠기는 바위).
@@ -1390,7 +1506,7 @@
                 var p = el('div', 'sb-analysis'); p.setAttribute('data-sb-analysis', kind); p.setAttribute('data-sb-analysis-source', useAi ? ov.source : 'rule');   // §11.10.20 덧붙임 3 — 이름표 줄 + 「•」 문장 목록(ul 이 들어가 p 가 아니라 div)
                 // 문단 글은 강조 토막으로(§11.10.9 ④ — 특보·장소 주어·방문객 배수·단계 말, textContent 로만). 마지막 「따라서 …」는 떼어 아래 (권고) 줄로(⑤ — 강조 없이 (권고) 모양 그대로)
                 var wt = sum.warnings && Array.isArray(sum.warnings.rows) && sum.warnings.rows.length ? sum.warnings : null;   // 「기상특보 현황」 표(§11.10.16 소절 E1 — 서버 rules.warnTable)
-                var tag = el('span', 'sb-an-tag' + (useAi ? '' : ' sb-an-rule'), useAi ? 'AI 분석 · ' + who : '규칙 분석'); p.appendChild(tag); p.appendChild(document.createTextNode(' '));   // 이름표는 자기 줄(아래 ul 이 블록)
+                var tag = el('span', 'sb-an-tag' + (useAi ? ' sb-an-' + ov.source : ' sb-an-rule'), useAi ? 'AI 분석 · ' + who : '규칙 분석'); p.appendChild(tag); p.appendChild(document.createTextNode(' '));   // 이름표는 자기 줄(아래 ul 이 블록) · §11.10.29 이름표 색 = 공급자(sb-an-chatgpt 흰색 · sb-an-gemini 파랑 — ov.source 'chatgpt'·'gemini')
                 var wn = analysisNodes(p, sp ? sp.body : text, names, kind === 'sea' ? hg : null, wt); d.appendChild(p);
                 if (wt && !wn) d.appendChild(warnFallback(wt));   // 특보 말이 문단에 없으면(AI 가 빼먹음) 그때만 한 줄
                 if (sp) d.appendChild(adviceLine(sp.advice, 'analysis'));
