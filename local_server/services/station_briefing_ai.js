@@ -443,7 +443,8 @@ function validateOverview(o, si) {
         const multSet = new Set(mk[k] || []);
         // 배수 범위(§11.10.31 — 2026-10-18 14:08 운영 「multiplier:1.1~1.2배」, 사용자 「진행해줘.」): 「1.1~1.2배」는 양 끝(1.1배·1.2배)이 둘 다 그 문단 허용 배수에 있고
         //   작은 수~큰 수일 때만 통과. 한쪽이라도 없거나 뒤집힌 것(1.2~1.1)·같은 수(1.2~1.2)는 종전처럼 multiplier:. 범위 열쇠가 그대로 허용 목록에 있으면(해상 해제 칸 '1.2~1.3|배') 종전대로 통과.
-        const multRangeOk = (n) => n.range && n.ends.every((e) => multSet.has(e)) && Number(n.ends[0].split('|')[0]) < Number(n.ends[1].split('|')[0]);
+        //   왼쪽 숫자는 단위가 없거나 「배」일 때만(독립 검토 D1 — numTokens 는 범위 단위를 오른쪽 것으로 잡아 「1.1m~1.2배」·「1.1시~1.2배」도 배 범위가 된다. numTokens 는 다른 검사가 써서 여기서만 본다).
+        const multRangeOk = (n) => n.range && /^\d+(?:\.\d+)?\s*(?:배)?\s*[~∼〜–-]/.test(n.text) && n.ends.every((e) => multSet.has(e)) && Number(n.ends[0].split('|')[0]) < Number(n.ends[1].split('|')[0]);
         for (const n of numTokens(t)) {
             if (n.unit === '배') { if (!multSet.has(n.key) && !multRangeOk(n)) errors.push('multiplier:' + n.text); continue; }
             // 연도에 붙은 「년」: 입력이 「2020~2024 연안사고」처럼 년 없이 적은 같은 수면 통과(2026-10-17 운영 오판 number:2020~2024년)

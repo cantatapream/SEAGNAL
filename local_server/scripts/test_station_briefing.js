@@ -2487,7 +2487,7 @@ const WIN = R.editionWindow('morning', T0);
         // 한글 셈말(number:hangul:두 곳·세 곳): 그 문단 결론·근거 줄(count_keys)에 같은 수가 있을 때만(독립 검토 7) — 허용 숫자에 2곳이 있어도 문단 줄에 없으면 실패
         assert.deepStrictEqual(errs('두 곳에 사람이 많습니다.'), ['number:hangul:두 곳']);
         assert.deepStrictEqual(AI.validateOverview({ land: null, sea: '두 곳에 사람이 많습니다.' }, { ...si, count_keys: { sea: ['2|곳'], land: [] } }).errors.filter((e) => e.startsWith('number')), []);
-        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v14', '아직 배포 전 v13 에 함께 — §11.10.31 에서 v14');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v14', '이 사례는 v13(§11.10.25) 때 더함 — 지금 판은 §11.10.31 배수 범위로 올린 v14');
     });
     await check('[§11.10.17-3] 검사기(sb-validate-v11) — S1 「경계 필요」(보정 안 거친 글) · S3 「기준」(「(KOMSA 기준)」·「10:00 기준」은 허용) · S6 「근거로, … 이므로」 겹침 · 근거 꼬리표 「(기상청) 근거로」 · 이유 글(서버·관리자)', () => {
         const e = (sea) => AI.validateOverview({ ...good, sea }, si).errors;
@@ -3046,6 +3046,9 @@ const WIN = R.editionWindow('morning', T0);
         const land = (x) => good.land.replace('1.8배', x), mErr = (x) => AI.validateOverview({ ...good, land: land(x) }, s1).errors.filter((e) => e.startsWith('multiplier:'));
         assert.deepStrictEqual(AI.validateOverview({ ...good, land: land('1.1~1.2배') }, s1).errors, [], '운영 실패 꼴 「평소의 1.1~1.2배」 — 문단 전체 통과');
         assert.deepStrictEqual(mErr('1.1배~1.2배'), [], '단위를 양쪽에 붙여도');
+        assert.deepStrictEqual([mErr('1.1 ~ 1.2 배'), mErr('1.1 배 ~ 1.2 배')], [[], []], '띄어 써도');
+        // 독립 검토 D1: numTokens 는 범위 단위를 오른쪽 것으로 잡는다 — 왼쪽에 다른 단위가 붙은 「1.1m~1.2배」·「1.1시~1.2배」는 배 범위가 아니다(fa5fa4aeb 에서 통과하던 우회)
+        assert.deepStrictEqual([mErr('1.1m~1.2배'), mErr('1.1시~1.2배')], [['multiplier:1.1m~1.2배'], ['multiplier:1.1시~1.2배']], '왼쪽 숫자 단위가 배가 아니면 막는다');
         for (const [x, code] of [['1.1~1.3배', 'multiplier:1.1~1.3배'], ['1.0~1.2배', 'multiplier:1.0~1.2배'], ['1.2~1.1배', 'multiplier:1.2~1.1배'], ['1.2~1.2배', 'multiplier:1.2~1.2배']]) assert.deepStrictEqual(mErr(x), [code], x + ' — 한쪽 없음·뒤집힘·같은 수는 막는다');
         assert.deepStrictEqual([mErr('1.2배'), mErr('1.1배'), mErr('1.3배')], [[], [], ['multiplier:1.3배']], '낱개는 종전 그대로');
         assert.ok(AI.validateOverview({ ...good, land: land('1.2배'), sea: good.sea.replace('15시부터', '평소의 1.1~1.2배 사고와 15시부터') }, s1).errors.includes('multiplier:1.1~1.2배'), '연안 배수 범위를 해상 문단에 쓰면 막는다(문단별)');
