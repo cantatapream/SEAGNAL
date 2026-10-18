@@ -298,7 +298,8 @@ if (require.main === module) (async () => {
             return opened && popped && !document.getElementById('risk-forecast-sheet').classList.contains('open') && _riskForecastApp.getState().t === before && !PopupStack.list().includes('risk-forecast-sheet');
         });
         scenarios.push({label:'위험예측:뒤로가기 시트 닫기',target:'ocean-risk-forecast-toggle-btn',ok:backWorks,required:true});
-        // 실제 API의 한 연안 지점을 열어 합계 설명의 기본 접힘·펼침과 상대 지표 문구를 확인한다.
+        // 실제 API의 한 연안 지점을 열어 위험지수 카드의 상대 지표 문구를 확인한다.
+        //   2026-10-18 사용자 「빼자.」 — 「사고 배수는 어떻게 합쳤나요?」(.rf-calculation) 아코디언 삭제(같은 방법은 [기준 상세]·PDF). 그 칸이 없어야 한다.
         await page.evaluate(async () => {
             const response = await fetch('/api/risk-forecast/coast/spots');
             if (!response.ok) throw new Error('연안 위치표 응답 실패');
@@ -306,15 +307,13 @@ if (require.main === module) (async () => {
             if (!points.spots.length) throw new Error('연안 위치표 비어 있음');
             _riskForecastApp.select('coast', points.spots[0].id);
         });
-        await page.waitForFunction(() => document.querySelector('#risk-forecast-sheet.open .rf-calculation'), null, {timeout:15000});
+        await page.waitForFunction(() => { const s = document.querySelector('#risk-forecast-sheet.open'); return s && !s.hasAttribute('aria-busy') && s.textContent.includes('전체 사고'); }, null, {timeout:15000});
         const coastExplanation = await page.evaluate(() => {
-            const explanation = document.querySelector('#risk-forecast-sheet .rf-calculation');
-            const initiallyClosed = !explanation.open;
-            explanation.querySelector('summary').click();
-            const shown = initiallyClosed && explanation.open && explanation.textContent.includes('상대 비교 지표') && explanation.textContent.includes('전체 사고');
+            const sheet = document.getElementById('risk-forecast-sheet');
+            const shown = !sheet.querySelector('.rf-calculation') && !sheet.textContent.includes('어떻게 합쳤나요') && /평소만큼 붐비고|확인된 요소 기준/.test(sheet.textContent);
             return shown && PopupStack.popLast() && !document.getElementById('risk-forecast-sheet').classList.contains('open');
         });
-        scenarios.push({label:'연안위험:실제 API 합계 배수 설명',target:'risk-forecast-sheet',ok:!!coastExplanation,required:true});
+        scenarios.push({label:'연안위험:실제 API 위험지수 카드(합계 설명 아코디언 없음)',target:'risk-forecast-sheet',ok:!!coastExplanation,required:true});
 
         const privateResponse=await page.request.get(new URL('/api/admin/risk-forecast/errors',page.url()).href);
         const privateDiagnostics=privateResponse.status()===401 && await page.evaluate(()=>{

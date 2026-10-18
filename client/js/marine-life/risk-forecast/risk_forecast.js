@@ -160,9 +160,10 @@
          *     숨김 글자 data-map-time = 「조회 시각 10.12.(월) 11:00」(aria-live 없음 — 바꿀 때 읽어 주기는 timeToast)
          * T24(2026-10-16): 하단 시간 바는 해상이 켜져 있을 때만 보인다. 연안만 켜면 바(와 바 때문에 올리던 출처·축척 — body.rf-sea-time-on)를 숨기고 화면 가운데 위쪽 날짜 넘기기(dateNav)를 보인다.
          *   예: 연안만 → 바 숨김·날짜 줄 「‹ 10월 16일 (금) [오늘] ›」(‹ 비활성) · 해상 켬 → 바 보임·날짜 줄 숨김 · 둘 다 끔 → 둘 다 숨김
+         *   연안 지점을 골라 바텀시트가 열려 있는 동안은 위쪽 날짜 줄도 숨긴다 — 시트 머리의 날짜 줄로 넘긴다(사용자 2026-10-18 「바텀시트 자체에서 넘길 수 있으니」). 닫으면(clearSelection) 다시 보인다.
          * @returns {void} [연계] ← sync·시간버튼·날짜 넘기기·층 스위치 / → nextTime·buttonTime·dayInfo·placeDateNav·sheetDay(열린 연안 시트 날짜 줄). 현재 복귀는 서버 meta.now를 사용한다.
          */
-        function marineTime(){sheetDay();if(!timeBar)return;var shown=enabled&&state.sea,dated=enabled&&state.coast&&!state.sea;timeBar.hidden=!shown;dateNav.hidden=!dated;if(!shown&&!dated){clearTimeout(toastTimer);toastEl.hidden=true;}var tools=legend.querySelector('[data-marine-tools]');if(tools)tools.hidden=!(enabled&&state.sea);document.body.classList.toggle('rf-sea-time-on',shown);if(!meta)return;
+        function marineTime(){sheetDay();if(!timeBar)return;var shown=enabled&&state.sea,dated=enabled&&state.coast&&!state.sea;timeBar.hidden=!shown;dateNav.hidden=!dated||!!selected;if(!shown&&!dated){clearTimeout(toastTimer);toastEl.hidden=true;}var tools=legend.querySelector('[data-marine-tools]');if(tools)tools.hidden=!(enabled&&state.sea);document.body.classList.toggle('rf-sea-time-on',shown);if(!meta)return;
             if(dated){var info=dayInfo();dateNav.querySelector('[data-day-label]').textContent=info.label;var tag=dateNav.querySelector('[data-day-tag]');tag.textContent=info.tag;tag.classList.toggle('other',info.tag!=='오늘');[['-1',info.prev],['1',info.next]].forEach(function(x){var b=dateNav.querySelector('[data-day-step="'+x[0]+'"]');b.disabled=!x[1];b.setAttribute('aria-disabled',String(!x[1]));});placeDateNav();}var local=new Date(Date.parse(t||meta.now)+32400000),pad=function(n){return String(n).padStart(2,'0');};timeBar.querySelector('[data-map-time]').textContent='조회 시각 '+pad(local.getUTCMonth()+1)+'.'+pad(local.getUTCDate())+'.('+['일','월','화','수','목','금','토'][local.getUTCDay()]+') '+pad(local.getUTCHours())+':'+pad(local.getUTCMinutes());timeBar.querySelectorAll('[data-time-step]').forEach(function(b){var current=b.dataset.timeStep==='now',to=current?meta.now:nextTime(Number(b.dataset.timeStep));b.disabled=!to;b.setAttribute('aria-disabled',String(!to));b.querySelector('[data-time-at]').innerHTML=to?buttonTime(to):'';if(current)b.setAttribute('aria-pressed',String(t===meta.now));});}
         // ── 연안 하루 값·날짜 넘기기(T24, 사용자 2026-10-16) ─────────────────────────────
         // 「5-하루 하나로 합치기. 해당구역을 클릭하면 해양종합정보의 바텀시트처럼 일 시 왼쪽 오른쪽에 < > 버튼 만들어서 넘길 수 있도록.」
@@ -234,7 +235,7 @@
          * 예: 위성지도 → 해안도. 켠 적이 없으면(oldBase 없음) 아무것도 바꾸지 않는다.
          * @returns {void} [연계] ← setEnabled(false)·destroy / → oceanSetBasemap */
         function restoreBasemap(){if(oldBase&&w.oceanSetBasemap)w.oceanSetBasemap(oldBase);oldBase=null;}
-        function clearSelection(){framing=null;if(w.PopupStack)w.PopupStack.remove('risk-forecast-sheet');detailSeq++;selected=null;choosing=false;sheet.clear();layer.setSelection(null);w.RiskBasis.close();}
+        function clearSelection(){framing=null;if(w.PopupStack)w.PopupStack.remove('risk-forecast-sheet');detailSeq++;selected=null;choosing=false;sheet.clear();layer.setSelection(null);w.RiskBasis.close();marineTime();}
         /**
          * 열린 시트를 기존 휴대폰 뒤로가기 관리자에 등록한다.
          * 예: 기준창이 열려도 기존 시트 항목은 다시 쌓지 않는다.
@@ -278,7 +279,7 @@
             // 이미 열려 있으면(또는 내려가는 중이면) 내리지 않고 내용만 바꾼다 — 단 지도 클릭은 열린 동안 mapSelect 가 막는다(T24 「나. 무시」).
             //   여기까지 오는 열린 시트의 변경은 시트 안 버튼(같은 위치 관광지 목록·관할 해역 이동)과 탭 복귀뿐이다.
             if(sheet.hold)sheet.hold(OPEN_DELAY_MS);
-            sheet.loading({title:kind==='coast'&&typeof item.name==='string'?item.name:'',subtitle:''});registerSheet();
+            sheet.loading({title:kind==='coast'&&typeof item.name==='string'?item.name:'',subtitle:''});registerSheet();marineTime();
             // 연안 시트는 따로 시각을 갖지 않고 메인 날짜를 따른다(T24 — 시트에서 넘기면 상단 날짜도, 상단에서 넘기면 시트도 같이).
             if(meta){selected.at=w.RiskMarine&&kind==='coast'?null:nearest(selectionTimes(kind),t||meta.now);mountSlider();}detail();
         }
