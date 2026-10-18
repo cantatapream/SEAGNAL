@@ -1098,6 +1098,28 @@
             : 'AI 해설 없음 — 결론·근거·권고는 서버가 계산한 값입니다.';
         var sn = el('p', 'sb-small sb-source', note); sn.setAttribute('data-sb-source', ai ? ov.source : 'template'); body.appendChild(sn);
     }
+    // (기상) 칸 수치 — 「1.0~2.5m」·「8~13m/s」·「20m/s」·「90km/h」·「30~50mm」·「00~06시」(서버 periodText·bulletinScan 글의 꼴). [연계] ← wxNodes
+    var WX_NUM_RE = /\d+(?:\.\d+)?(?:~\d+(?:\.\d+)?)?(?:m\/s|km\/h|mm|m(?![a-z/])|시)/g;
+    // (기상) 특이사항의 위험 날씨 말 — 서버 bulletinScan 이 쓰는 말 그대로(gustNote 「(매우) 강한 바람」·waveNote 「높아짐」·windNote 「강해짐」·「돌풍과 천둥·번개」·「시간당 … 강한 비」·「짙은 안개」). [연계] ← wxNodes
+    var WX_RISK_RE = /(?:매우 )?강한 (?:바람|비)|돌풍과 천둥·번개|천둥·번개|짙은 안개|높아짐|강해짐/g;
+    /**
+     * (기상) 칸 오전·오후 줄·특이사항 글 칠하기(2026-10-18 사용자 *"여기도 주요 수치나 그런거는 색상 또는 텍스트 스타일이 달랐으면 좋겠는데 ? 다른데 반영된 것 처럼"* — 설계서 §11.10.27).
+     *   다른 칸과 같은 규칙·같은 class: 수치 흰 굵게(해역 카드 [기상 예보] forecastNodes·[오늘 예상] numText — §11.10.20 덧붙임 19·28) ·
+     *   특보 이름 = forecastNodes 와 같은 색(「풍랑 예비특보」·「… 해제」 노랑 colorOf(1) · 「풍랑주의보」 주황 colorOf(2) · 「…경보」 .sb-hl-red) ·
+     *   위험 날씨 말(WX_RISK_RE) 흰 굵게(분석 문단 기상 전망 위험 구절 — 덧붙임 4). 「구름많음」·「풍향 남→남서」·구역 이름·「(곳에 따라)」는 그대로. 겹치면 특보 → 수치 → 위험 말 순.
+     *   서버 글(summary.weather rows[].text·notes[])을 화면이 칠한다 — 글은 textContent 로만(이어 붙이면 서버 글과 같다).
+     * 예: wxNodes(li, '풍랑 예비특보: 오늘 새벽(00~06시) 제주도앞바다 — 물결 1.5~3.0m로 높아짐') → <b 노랑>풍랑 예비특보</b>: 오늘 새벽(<b 흰>00~06시</b>) 제주도앞바다 — 물결 <b 흰>1.5~3.0m</b>로 <b 흰>높아짐</b>
+     * @param {HTMLElement} node @param {string} text @returns {HTMLElement} node [연계] ← weatherPart / → colorOf·appendText·HL_KINDS
+     */
+    function wxNodes(node, text) {
+        var t = String(text), marks = [], m, add = function (a, z, k, r) { if (z > a && marks.every(function (x) { return z <= x.a || a >= x.b; })) marks.push({ a: a, b: z, k: k, r: r }); };
+        var wr = new RegExp('(?:' + HL_KINDS + ')(?:(?:주의보|경보)(?: 예비특보)?(?: 발효(?: 중| 예정)?| 해제(?: 예고)?)?| 예비특보)', 'g');
+        while ((m = wr.exec(t))) add(m.index, m.index + m[0].length, 'warn', /예비특보|해제/.test(m[0]) ? 1 : /경보/.test(m[0]) ? 3 : 2);
+        [[WX_NUM_RE, 'num'], [WX_RISK_RE, 'risk']].forEach(function (p) { p[0].lastIndex = 0; while ((m = p[0].exec(t))) add(m.index, m.index + m[0].length, p[1]); });
+        marks.sort(function (x, y) { return x.a - y.a; }); var at = 0;
+        marks.forEach(function (k) { appendText(node, t.slice(at, k.a)); var b = el('b', 'sb-hl sb-fv', t.slice(k.a, k.b)); b.setAttribute('data-sb-wx-k', k.k); if (k.k === 'warn') { if (k.r === 3) b.classList.add('sb-hl-red'); else b.style.color = colorOf(k.r); b.setAttribute('data-rank', String(k.r)); } else b.classList.add('sb-hl-b'); node.appendChild(b); at = k.b; });
+        appendText(node, t.slice(at)); return node;
+    }
     /**
      * (기상) 칸 — 가장 가까운 앞바다 단기 해상예보 오전·오후 두 줄 + 출처 + 특이사항(§11.10.1·§11.10.2). summaryBodyV2(§11.10.1)·summaryBodyV3(§11.10.4) 공용.
      * 2026-10-17 사용자 결정(§11.10.9): 머리 「{구역} 기상 현황」을 결론 줄(.sb-headline 「… 해상의 단계는 "평소 수준"입니다」)과 같은 모양으로 — 원문 *"그 텍스트 크기와 스타일과 동일한 크기로 그 헤더 … 경북북부앞바다 기상 현황"*.
@@ -1105,17 +1127,17 @@
      *   특이사항: 항목이 있으면 머리 「특이사항」(같은 모양) + 목록 + 출처 · 항목이 없으면 이유와 상관없이(그날 특이사항 없음 · 단기 전망을 못 받음(bulletinMissing) · 뽑지 못함(notesFound)) 칸째 없음 —
      *   머리·안내·출처 줄 모두 없음(§11.10.11 사용자 결정 *"아예 빼 받지 못함 안내 넣지 말고"* — 이 자리만 L-291 「조용한 것이 이상 없는 것처럼 보이면 안 된다」보다 사용자 결정이 우선).
      * 예: weatherPart(part, {weather:{zone:'제주도서부앞바다',rows:[{label:'오늘 오전',text:'…'}],source:'…',notes:[…]}}) → <div data-sb-part="weather"><p class="sb-headline sb-wx-head">제주도서부앞바다 기상 현황</p>…</div>
-     * @param {function(string,string):HTMLElement} part - 이름표 칸 만들기 @param {Object} S - summary @returns {void} [연계] ← summaryBodyV2·summaryBodyV3
+     * @param {function(string,string):HTMLElement} part - 이름표 칸 만들기 @param {Object} S - summary @returns {void} [연계] ← summaryBodyV2·summaryBodyV3 / → wxNodes(줄·특이사항 칠하기 — §11.10.27)
      */
     function weatherPart(part, S) {
         var W = S.weather || {}, wp = part('weather', null), head = function (text, key) { var h = el('p', 'sb-headline sb-wx-head', text); h.setAttribute('data-sb-wx-head', key); wp.appendChild(h); };
         head((W.zone ? W.zone + ' ' : '') + '기상 현황', 'weather');
         if (!W.missing && Array.isArray(W.rows) && W.rows.length) {
-            var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); appendText(li, r.text); wl.appendChild(li); }); wp.appendChild(wl);
+            var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); wxNodes(li, r.text); wl.appendChild(li); }); wp.appendChild(wl);   // 수치 흰 굵게(§11.10.27)
             if (W.source) wp.appendChild(el('p', 'sb-small', W.source));
         } else { var wm = el('p', 'sb-miss', '기상예보 자료를 확인하지 못했습니다.'); wm.setAttribute('data-sb-wx-missing', ''); wp.appendChild(wm); }
         if (!W.bulletinMissing && Array.isArray(W.notes) && W.notes.length) {
-            head('특이사항', 'notes'); var nl = list(W.notes); nl.classList.add('sb-wx-notes'); wp.appendChild(nl);
+            head('특이사항', 'notes'); var nl = el('ul', 'sb-list sb-wx-notes'); W.notes.forEach(function (x) { nl.appendChild(wxNodes(el('li'), x)); }); wp.appendChild(nl);   // 수치·특보·위험 날씨 말 칠하기(§11.10.27)
             if (W.notesSource) wp.appendChild(el('p', 'sb-small', W.notesSource));
         }
         // 그 밖(항목 없음·못 받음·뽑지 못함) — 칸째 없음: 머리·안내·출처 줄 모두 없다(§11.10.11)

@@ -2083,6 +2083,43 @@ function makeBriefings() {
             await draw20(g3); await L20.evaluate(() => { document.querySelectorAll('#sb20 [data-sb-sec="sea"] [role="tabpanel"]').forEach((p) => { p.hidden = false; }); document.querySelector('#sb20 [data-sb-traffic]').closest('[data-sb-card]').scrollIntoView({ block: 'start' }); }); await clean(L20);
             await L20.locator('#sb20 [data-sb-card="sea"]').first().screenshot({ path: path.join(SHOT, 'sea_traffic_line_360.png') });
         });
+        await check('[§11.10.27-UI] (기상) 칸 칠하기(360px) — 오전·오후 줄 수치 흰 굵게(「구름많음」·「풍향 …」 그대로) · 특이사항 수치·시간 범위 흰 굵게, 「풍랑 예비특보」 노랑, 「매우 강한 바람」·「돌풍과 천둥·번개」·「높아짐」 흰 굵게 · 「오늘 오전」 이름표·출처 줄 그대로 · textContent = 서버 글 · 넘침 없음', async () => {
+            // 사용자가 보여 준 화면 글 그대로(2026-10-18 *"여기도 주요 수치나 그런거는 색상 또는 텍스트 스타일이 달랐으면 좋겠는데 ? 다른데 반영된 것 처럼"*)
+            const W = { zone: '제주도북부앞바다', missing: false, rows: [{ label: '오늘 오전', text: '구름많음 · 파고 1.0~2.5m · 풍속 8~13m/s · 풍향 남→남서', ok: true }, { label: '오늘 오후', text: '흐림 · 파고 1.0~2.5m · 풍속 8~13m/s · 풍향 남서→서', ok: true }],
+                source: '제주지방기상청 단기 해상예보 (10.18 05:00 발표)', bulletinMissing: false, notesFound: true, notesSource: '제주지방기상청 단기 전망 (10.18 04:30 발표)',
+                notes: ['오늘 밤까지 순간풍속 20m/s의 매우 강한 바람', '풍랑 예비특보: 오늘 새벽(00~06시) 제주도앞바다(북부앞바다 제외) — 물결 1.5~3.0m로 높아짐', '오늘 제주도해상과 남해서부서쪽먼바다 돌풍과 천둥·번개(곳에 따라)'] };
+            const g = JSON.parse(JSON.stringify(G)); g.summary.weather = W; await draw20(g);
+            const r = await L20.evaluate(() => {
+                const p = document.querySelector('#sb20 [data-sb-part="weather"]'), R = window.StationBriefingRender, tmp = document.createElement('i'); tmp.style.color = R.colorOf(1); p.appendChild(tmp); const yellow = getComputedStyle(tmp).color; tmp.remove();
+                const line = (li) => ({ text: li.textContent, hl: [...li.querySelectorAll('.sb-hl')].map((b) => [b.textContent, b.getAttribute('data-sb-wx-k'), getComputedStyle(b).color, getComputedStyle(b).fontWeight].join('|')),
+                    label: li.firstElementChild && !li.firstElementChild.classList.contains('sb-hl') ? [li.firstElementChild.textContent, getComputedStyle(li.firstElementChild).color] : null });
+                return { rows: [...p.querySelectorAll('.sb-wx-rows > li')].map(line), notes: [...p.querySelectorAll('.sb-wx-notes > li')].map(line), yellow, white: getComputedStyle(p.querySelector('.sb-hl-b')).color, base: getComputedStyle(p.querySelector('.sb-wx-rows > li')).color,
+                    smalls: [...p.querySelectorAll('.sb-small')].map((e) => [e.textContent, e.children.length]), page: document.documentElement.scrollWidth, vw: innerWidth };
+            });
+            const W8 = r.white + '|800', Y8 = r.yellow + '|800';
+            assert.equal(r.white, 'rgb(248, 250, 252)', '흰 = .sb-hl-b(#f8fafc)'); assert.notEqual(r.yellow, r.white, '노랑 = colorOf(1)(분석 문단 예비특보와 같은 색)');
+            assert.deepEqual(r.rows.map((x) => x.text), W.rows.map((x) => x.label + ' ' + x.text), 'textContent = 이름표 + 서버 글');
+            for (const x of r.rows) {
+                assert.deepEqual(x.hl, ['1.0~2.5m|num|' + W8, '8~13m/s|num|' + W8], '줄 수치만 흰 굵게 ' + JSON.stringify(x.hl));
+                assert.deepEqual(x.label, [x.text.slice(0, 6), r.base], '「오늘 오전/오후」 이름표 그대로(글 칸 색 굵게 — 칠하지 않음)');
+            }
+            assert.deepEqual(r.notes.map((x) => x.text), W.notes, 'textContent = 서버 글');
+            assert.deepEqual(r.notes.map((x) => x.hl), [
+                ['20m/s|num|' + W8, '매우 강한 바람|risk|' + W8],
+                ['풍랑 예비특보|warn|' + Y8, '00~06시|num|' + W8, '1.5~3.0m|num|' + W8, '높아짐|risk|' + W8],
+                ['돌풍과 천둥·번개|risk|' + W8]], JSON.stringify(r.notes.map((x) => x.hl)));
+            assert.deepEqual(r.smalls, [[W.source, 0], [W.notesSource, 0]], '출처 줄 그대로(회색 작은 글, 칠하지 않음)');
+            assert.ok(r.page <= r.vw + 1, '360px 가로 넘침 없음 ' + r.page);
+            await L20.evaluate(() => document.querySelector('#sb20 [data-sb-part="weather"]').scrollIntoView({ block: 'start' })); await clean(L20);
+            await L20.locator('#sb20 [data-sb-part="weather"]').screenshot({ path: path.join(SHOT, 'weather_box_colors_360.png') });
+            // 경보·주의보 색 · 서버 글은 textContent 로만(계약 §5)
+            const g2 = JSON.parse(JSON.stringify(g)); g2.summary.weather.notes = ['풍랑주의보 발효 중 · 강풍경보', XSS + ' 순간풍속 25m/s']; await draw20(g2);
+            const x2 = await L20.evaluate(() => { const n = [...document.querySelectorAll('#sb20 .sb-wx-notes > li')];
+                return { warn: [...n[0].querySelectorAll('[data-sb-wx-k="warn"]')].map((b) => [b.textContent, b.getAttribute('data-rank'), getComputedStyle(b).color]), orange: (() => { const t = document.createElement('i'); t.style.color = window.StationBriefingRender.colorOf(2); n[0].appendChild(t); const c = getComputedStyle(t).color; t.remove(); return c; })(),
+                    imgs: document.querySelectorAll('#sb20 img').length, flag: window.__xss || null, t: n[1].textContent }; });
+            assert.deepEqual(x2.warn, [['풍랑주의보 발효 중', '2', x2.orange], ['강풍경보', '3', 'rgb(227, 72, 66)']], '주의보 주황 · 경보 밝힌 빨강(.sb-hl-red) ' + JSON.stringify(x2.warn));
+            assert.deepEqual([x2.imgs, x2.flag, x2.t], [0, null, XSS + ' 순간풍속 25m/s']);
+        });
         await check('[§11.10.20-UI5] 옛 판 후퇴 — 규칙 v17 연안 카드(advice·accidents 없음)는 종전 꼬리표·[특성]·문장 그대로([오늘 예상] 하나면 점 없음) · 해역 카드 [권고]도 같은 상자(덧붙임 9 — 글자 크기 카드 그대로, 특보 이름 속 글자는 칠하지 않음)', async () => {
             const old = JSON.parse(JSON.stringify(G)); old.rulesVersion = 'station-briefing-rules-v17';
             old.land.cards.forEach((c) => { delete c.indexBadge; delete c.hazardTable; delete c.accidents; delete c.advice; c.sentence = c.name + ' — ' + c.today.changes.join(', ') + '. 물가 접근에 주의가 필요합니다.'; });
