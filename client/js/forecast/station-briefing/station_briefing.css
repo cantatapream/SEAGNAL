@@ -1,7 +1,7 @@
 /* ============================================================================
  * 파일명: client/js/forecast/station-briefing/station_briefing.css
  * 역할  : 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 아코디언 본문·설정 흐름(관할 고르기 탭 두 개·해역 단추·관할 지도·아코디언 포함)·설정 팝업 칸의 모양(.sb-*).
- *         바깥 아코디언(.main-accordion-header·.gradient-slate)·안쪽 칸(.marine-forecast-sub-*)·조석 게이지(.ocean-tide-*)·
+ *         바깥 아코디언(.main-accordion-header·.gradient-slate)·안쪽 칸(.marine-forecast-sub-*)·
  *         [기준 상세] 버튼·창(.rf-basis-btn·.rf-basis)은 기존 규칙(style.css·risk_forecast.css)을 그대로 쓰고 여기서는 다시 정하지 않는다.
  * [연계] station_briefing_render.js · station_briefing.js · station_briefing_picker.js(고르기 탭·가운데 확인 창 .sb-dlg*) · admin/admin_station_briefing.js(미리보기) · index2.html <link>
  * ============================================================================ */
@@ -78,8 +78,10 @@
 .sb-legend-k i { display:inline-block; width:10px; height:10px; border-radius:3px; }
 /* 보는 시각에 이미 끝난 3시간 칸 — 흐리게(2단계 검토 B3). 색(단계)은 그대로 두어 무엇이었는지는 읽힌다. */
 .sb-slot-past { opacity:.4; }
-/* 해상 결론 칩 오른쪽 「N개 해역 주의 필요(KOMSA 예보)」 배지(§11.10.12 — 종전 노란 안내 한 줄 .sb-level-note 대신) */
+/* 해상 결론 칩 오른쪽 「N개 해역 주의(KOMSA)」 배지(§11.10.12 — 종전 노란 안내 한 줄 .sb-level-note 대신 · §11.10.34 「예보」 뺌) */
 .sb-komsa { margin-left:6px; }
+/* §11.10.34 화면 글 속 「(KOMSA)」·「(KOMSA 기준)」 괄호 — 둘레 글보다 2pt 작게(사용자 *"komsa가 들어간 괄호는 2pt 크기를 줄여줘"* · render.js komsaText — 결론 배지·해역 카드 배지·가로 표 이름 칸·[권고]·근거 줄·분석 문단) */
+.sb-komsa-paren { font-size:calc(1em - 2pt); }
 /* 키가 큰 본문이 잘리지 않게(2단계 검토 A1) — 기존 아코디언은 펼침 높이를 max-height 8000px 로 두고 overflow:hidden 이라,
    카드가 많은 관할(해역 10·관광지 10·상시 12)은 아래쪽(조석·출처·「안전을 보장하지 않습니다」)이 잘렸다(360px 에서 본문 11,015px).
    펼친 상태만 상한을 푼다 — 접힘(.collapsed max-height:0)·opacity 전환은 기존 규칙 그대로(펼침/접힘의 높이 전환만 즉시). 안쪽 칸(.sb-sec)도 같다. */
@@ -133,8 +135,6 @@
 .sb-warndlg .sb-wxbox { margin:0; box-shadow:0 8px 24px rgba(0,0,0,.5); }
 .sb-warn-fb { margin:2px 0 4px; font-size:.8rem; }
 .sb-link { margin-top:4px; padding:5px 10px; border-radius:999px; border:1px solid rgba(103,232,249,.45); background:rgba(103,232,249,.1); color:#a5f3fc; font-size:.76rem; font-weight:700; cursor:pointer; }
-.sb-tide-text { margin:6px 0; font-size:.8rem; }
-.sb-tide .ocean-tide-wrap { margin-bottom:6px; }
 .sb-foot { border-top:1px solid rgba(148,163,184,.18); padding-top:8px; color:#94a3b8; font-size:.72rem; }
 .sb-foot p { margin:3px 0; }
 .sb-notice { display:flex; gap:4px; color:#ffd23f; font-weight:400; font-size:1.03rem; line-height:1.27; margin:8px 2px 0; word-break:keep-all; overflow-wrap:anywhere; }   /* §11.10.20 — 노란 안내(종전 분홍 「참고 정보이며 …」) · 2026-10-18 한 문장, 줄바꿈은 어절 단위 · §11.10.28 약 3pt 크게(.78rem → 1.03rem ≈ 16.5px)·굵게 뺌(종전 700)·줄높이 약 21px(시안 25px 의 줄 사이 여백 절반)·「※」 칸 + 글 칸(둘째 줄이 ※ 뒤 글자 시작에) */
@@ -267,9 +267,6 @@
 .sb-mapdlg-x { flex:none; width:32px; height:32px; border:1px solid rgba(255,255,255,.15); border-radius:8px; background:rgba(255,255,255,.06); color:#e2e8f0; font-size:.95rem; cursor:pointer; }
 .sb-mapdlg-x:focus-visible { outline:2px solid #67e8f9; outline-offset:2px; }
 .sb-minimap.sb-minimap-lg { height:62vh; min-height:260px; max-height:620px; }
-/* §11.10.32 잠기는 바위 팝업 지도 +/− 단추(ol.control.Zoom — ol.css 기본 모양을 손가락 크기로) */
-.sb-minimap .ol-zoom { top:8px; left:8px; }
-.sb-minimap .ol-zoom button { width:34px; height:34px; font-size:1.3rem; line-height:1; }
 .sb-maplink { font-weight:700; }
 /* 간출암 조석 곡선 상자(§11.10.10 — 「잠기는 바위(간출암) N곳」 지도에서 마커를 누르면): 모양은 해양안전 「위험지형」 팝업 그대로(index2.html .hazard-rock-popup.rock-tide-popup —
    너비 21rem·최대 88vw·높이 80vh 안 스크롤), 여기서는 팝업 지도 창(.sb-dlg) 위 화면 가운데 자리만 정한다(창 상자보다 위 층). */

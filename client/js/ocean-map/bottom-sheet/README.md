@@ -9,7 +9,7 @@
 |------|------|-----------|
 | `ocean_bottom_sheet1.js` | 해양종합정보 바텀시트 — 코어/네임스페이스/진입점/공용 유틸 | `endDrag`, `updateTyphoonEtaBadge`, `showOceanBottomSheet` |
 | `ocean_bottom_sheet2.js` | 바텀시트 헤더 — 날짜 네비게이션 + 음력 표시 + 📍 토글 + ✕ 닫기 | — |
-| `ocean_bottom_sheet3.js` | 바텀시트 조석 카드 — TideBED 폴링 + 3모드 렌더링(loading/error/detail). 게이지·고저조 목록 HTML 은 `buildTideGauge` 한 곳 — `OS.tideGaugeHtml` 로도 열어 활동지점 안전 브리핑 조석 칸이 같은 디자인을 쓴다(2026-10-16) | `gridPointKey`, `loadGridHashLS`, `persistGridHashIfFavorite`, `rememberGridHash`, `forgetGridHash`, `lookupGridHash`, `OS.prefetchFavoriteTides`, `buildTideGauge`·`OS.tideGaugeHtml` |
+| `ocean_bottom_sheet3.js` | 바텀시트 조석 카드 — TideBED 폴링 + 3모드 렌더링(loading/error/detail). 게이지·고저조 목록 HTML 은 `buildTideGauge` 한 곳(2026-10-16 에 `OS.tideGaugeHtml` 로도 열어 연안 안전 브리핑 「조석」 칸이 같이 썼으나, 2026-10-18 그 칸을 빼며 그 출입구도 뺐다 — 설계서 §11.10.34) | `gridPointKey`, `loadGridHashLS`, `persistGridHashIfFavorite`, `rememberGridHash`, `forgetGridHash`, `lookupGridHash`, `OS.prefetchFavoriteTides`, `buildTideGauge` |
 | `ocean_bottom_sheet4.js` | 동해 북부(36°N+128°E+) IDW 보간 + 천문 카드 (SunCalc) | `runIdw`, `afterLoads`, `loadNext`, `pickMoonPhase`, `fmt` |
 | `ocean_bottom_sheet5.js` | 7개 일반 카드 + 전체 오케스트레이터 | `_isStaleEpoch`, `fetchDepth`, `fetchRoms`, `fetchPressure`, `fetchWeather`, `fetchWave` |
 | `ocean_bottom_sheet_vsby.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `_keyOf`, `_fmtNum`, `_fmtVis`, `_setValue`, `_tKey`, `_dateKey` |
