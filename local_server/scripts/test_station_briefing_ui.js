@@ -131,6 +131,7 @@ function makeBriefings() {
         assert.deepEqual(stationsFx.filter((s) => !s.geometry).map((s) => s.key), [AEWOL]);
         // 지금 밀집 격자(§11.10.9 ⑥ — routes nowLineFrom 꼴: 같은 스냅숏의 선박이 있는 격자, 합 37척) — 한림 앞바다 근처 상자(시험값)
         const NOW_CELLS = { cells: [{ id: 'GR4_A', box: [126.2, 33.4, 126.225, 33.425], count: 18 }, { id: 'GR4_B', box: [126.225, 33.4, 126.25, 33.425], count: 12 }, { id: 'GR4_C', box: [126.15, 33.375, 126.175, 33.4], count: 7 }], busiest: { name: '한림항 북서방 1.2해리 해역(232-2해구)', count: 18, id: 'GR4_A' } };
+        const NOWFX = { at: '2026-10-17T10:00:00+09:00', count: 37, gridCount: 12, busiest: null, text: '10:00 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 12개\n한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의', ...NOW_CELLS };
         const real = SB.createService({ dir, clock: () => clock.now, loadStations: () => stationsFx });
         const ctl = { running: false, runs: 0 };
         const service = { ...real, run: async () => { ctl.runs++; return { ok: true }; }, status: () => ({ ...real.status(), running: ctl.running, progress: ctl.running ? ctl.progress || null : null }), progressNow: () => ({ running: ctl.running, progress: ctl.running ? ctl.progress || null : null }) };
@@ -138,7 +139,8 @@ function makeBriefings() {
         const sbRouter = createRouter({ service, isAdminDevice: (id) => id === 'admin-push-token', verifyToken: (t) => t === 'admin-login',
             authorize: (req, res, next) => req.get('X-Admin-Token') === 'admin-login' ? next() : res.status(401).json({ ok: false, error: '관리자 인증 필요' }),
             clock: () => clock.now,   // nextPublishAt(§11.10.9 ⑦)도 가짜 시계로
-            nowLine: (key, r) => key === HALLIM && r.briefing ? { at: '2026-10-17T10:00:00+09:00', count: 37, gridCount: 12, busiest: null, text: '10:00 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 12개\n한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의', ...NOW_CELLS } : null });
+            // §11.10.24: 실시간 갱신 시험이 NOWFX 를 바꾼다(새 선박 자료). since 가 지금 자료 시각과 같으면 {unchanged} — routes defaultNowLine 과 같은 계약
+            nowLine: (key, r, o) => key === HALLIM && r.briefing ? (o && o.since && o.since === NOWFX.at ? { unchanged: true, at: o.since } : { ...NOWFX }) : null });
 
         // ── 위험예측 가짜 저장소(test_life_safety_tab_keep.js 와 같은 꼴) — 바로가기가 실제 위험예측 화면·시트를 연다 ──
         const geometry = { type: 'Polygon', coordinates: [[[126.525, 33.55], [126.55, 33.55], [126.55, 33.575], [126.525, 33.575], [126.525, 33.55]]] };
@@ -633,8 +635,10 @@ function makeBriefings() {
             assert.deepEqual([r.haegu.key, r.haegu.role, r.haegu.modal, r.haegu.title, r.haegu.map, r.haegu.area, r.haegu.hl, r.haegu.cells, r.haegu.focus], ['haegu', 'dialog', 'true', hg[0].name, 'ol', '1', '1', '0', true]);
             assert.ok(r.haegu.h >= r.haegu.vh * 0.55 && r.haegu.h <= r.haegu.vh * 0.7, '지도 높이 약 62vh — ' + r.haegu.h + '/' + r.haegu.vh); assert.ok(r.haegu.left >= 16 && r.haegu.right >= 16, '360px 좌우 여백 ' + r.haegu.left + '/' + r.haegu.right);
             assert.equal(r.afterEsc, false, 'Esc 로 닫힘'); assert.equal(r.blinkAfter, 0, '닫으면 깜빡임 멈춤');
-            assert.deepEqual([r.all.key, r.all.hl, r.all.cells, r.all.labels], ['now-all', '0', '3', '18,12,7'], '선박이 있는 격자마다 칸 안 척수'); assert.equal(r.afterX, false, '✕ 로 닫힘');
-            assert.deepEqual([r.busiest.key, r.busiest.hl, r.busiest.cells, r.busiest.labels, r.busiest.blink], ['now-busiest', '1', '3', '18,12,7', 'on'], '그 격자는 깜빡이고 다른 격자도 숫자와 함께(흐리게)');
+            // §11.10.24(2026-10-18): 선박 팝업은 위험예측 배경(위성지도 + 혼잡도 지금 칸 색·선박 수 — RiskMapLayer)으로 바뀌었다 — 종전 청록 칸 층(cells)은 쓰지 않는다.
+            //   칸 색·숫자·누르기·실시간 갱신은 아래 [§11.10.24-UI] 가 본다(자료를 받은 뒤라 기다려야 한다).
+            assert.deepEqual([r.all.key, r.all.title, r.all.hl, r.all.cells], ['now-all', '한림파출소 관할 해역 선박 37척', '0', '0']); assert.equal(r.afterX, false, '✕ 로 닫힘');
+            assert.deepEqual([r.busiest.key, r.busiest.title, r.busiest.hl, r.busiest.blink], ['now-busiest', '한림항 북서방 1.2해리 해역(232-2해구) 18척', '1', 'on'], '그 격자는 깜빡임');
             await page.waitForTimeout(400); await clean(page); await page.screenshot({ path: path.join(SHOT, 'briefing_now_popup_360.png') });
             await page.evaluate(() => { const d = document.querySelector('[data-sb-map-popup] .sb-dlg-dim'); d.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })); });
             assert.equal(await page.evaluate(() => !!document.querySelector('[data-sb-map-popup]')), false, '바깥(어두운 바탕)을 누르면 닫힘');
@@ -1572,11 +1576,13 @@ function makeBriefings() {
             r.each.forEach((o, i) => {
                 assert.deepEqual([o.exp, o.next, o.map, o.area, o.hl, o.blink, o.count1, o.exp2, o.blink2, o.count2, o.empty], ['true', true, 'ol', 1, hl[i], 'on', 1, 'false', 'off', 0, true], JSON.stringify(o));
                 assert.ok(o.h >= 190 && o.h <= 210, '지도 높이 약 200px — ' + o.h); assert.ok(o.fits, '관할 전체가 보이게 맞춤');
-                assert.equal(o.base, 'khoa', '바탕은 관심해역 고르기 지도와 같은 해아름 바다지도(이 시험은 타일 요청을 막아 바탕이 비어 보인다)');
+                // §11.10.24: 위험이 높아진 해역·위험예보만 줄은 위험예측 배경(위성지도 — 이 시험은 위성 키 요청이 404 라 해아름 기본맵으로 바뀜), 대해구 줄은 종전 해아름 바다지도
+                if (i < 2) assert.ok(['vworld', 'khoa'].includes(o.base), o.base); else assert.equal(o.base, 'khoa', '바탕은 관심해역 고르기 지도와 같은 해아름 바다지도(이 시험은 타일 요청을 막아 바탕이 비어 보인다)');
                 assert.ok(/^[01]>[01]$/.test(o.phases) && o.phases !== '1>', '깜빡임 진행 ' + o.phases); assert.ok(o.cap.includes('한림파출소 관할 해역'), o.cap);
             });
             assert.ok(r.each[2].cap.includes('232해구'), r.each[2].cap);
-            assert.equal(r.each[1].cap, "빨간 테두리(깜빡임) = KOMSA 기준 등급 '주의' 해역 · 파란 선 = 한림파출소 관할 해역", '§11.10.12 캡션');
+            // §11.10.12 캡션 + §11.10.24 위험예측 배경 꼬리(「칸 색 = HH:MM 위험 예측 · …」은 자료를 받은 뒤 앞에 붙는다)
+            assert.ok(r.each[1].cap.includes("빨간 테두리(깜빡임) = KOMSA 기준 등급 '주의' 해역 · 파란 선 = 한림파출소 관할 해역 · 칸을 누르면 해상 분석"), '§11.10.12 캡션 ' + r.each[1].cap);
             assert.deepEqual([r.before, r.afterDetach, r.detachBlink, r.afterClose], [1, 0, 'off', 0], '떼어 낸 지도는 다음 깜빡임에서 스스로 멈춘다');
         });
         await check('[§11.10.3] 움직임 줄이기 설정이면 깜빡이지 않고 굵은 테두리로만(static) · 380px 펼친 지도 스크린샷', async () => {
@@ -2095,6 +2101,172 @@ function makeBriefings() {
             assert.ok(r.seaAdv.lv.every((x) => /^(경계|주의|관심|'[^']+')$/.test(x)), '특보 이름 속 글자는 칠하지 않음 ' + JSON.stringify(r.seaAdv.lv));
             await L20.context().close();
         });
+        // ── §11.10.24·§11.10.26(2026-10-18 사용자 결정): 위험예측 배경 팝업 지도 · 그 안 바텀시트 · 「지금 밀집」 실시간 갱신 · 관광지 이름 링크(밑줄만) ──
+        //   사용자 원문: *"해상 위험 분석 예측 분석에서 혼잡도를 클릭했을 때 나오는 지도처럼 … 위성 지도에 그 숫자가 입력되도록 하고 그 숫자가 입력된 그 격자를 실제로 클릭해 볼수 있었으면"* ·
+        //   *"이게 실시간으로 업데이트 되면 이 지도도 업데이트 돼야 될것 같고"* · *"모충사 … 지도가 팝업으로 나오고 그 팝업에서 해당 영역이 깜빡이도록 하며 잠깐 뒤 자동으로 바텀시트가 올라왔으면"* ·
+        //   *"텍스트 색상과 스타일이 바뀌지 않도록 하고 밑줄만"*
+        const IN_CELL = { id: 'GR4_HALLIM_IN', i: 1, lat: 33.4125, lon: 126.2125, geometry: { type: 'Polygon', coordinates: [[[126.2, 33.4], [126.225, 33.4], [126.225, 33.425], [126.2, 33.425], [126.2, 33.4]]] } };
+        const RT0 = io.read(path.join(dir, 'sea_realtime.json.gz'));
+        /** 새 실시간 선박 자료(수집기가 5분 칸마다 쓰는 sea_realtime.json.gz 꼴)를 쓴다 — 한림 관할 안 칸 하나(IN_CELL)를 더한다. @param {string} sourceAt @param {number} n */
+        const writeRT = (sourceAt, n) => io.write(path.join(dir, 'sea_realtime.json.gz'), { v: 'v2', cells: [cell, IN_CELL], rows: [[0, 21, .2], [1, n, .5]], collectedAt: sourceAt, sourceAt, source: 'MTIS realtime API' });
+        await check('[§11.10.24-UI0] 서버 구역 자료 — sea/area-frame(혼잡도 지금·위험 예측: 상자 안 칸만, 칸 위치·숫자·색) · coast/area-frame(상자 안 관광지 + 도형 + 그날 값) · 상자 검사 400', async () => {
+            const g = async (q) => { const r = await fetch(base + '/api/risk-forecast/' + q); return { status: r.status, j: await r.json().catch(() => null) }; };
+            let r = await g('sea/area-frame?mode=current&bbox=126.4,33.4,126.7,33.7');
+            assert.equal(r.status, 200); assert.deepEqual(r.j.cells.map((c) => [c.id, c.lon, c.lat, c.n]), [[CELL.id, CELL.lon, CELL.lat, 21]]); assert.equal(r.j.mode, 'current'); assert.ok(Number.isFinite(r.j.cells[0].color) && r.j.cells[0].level, JSON.stringify(r.j.cells[0]));
+            r = await g('sea/area-frame?mode=current&bbox=126.0,33.2,126.4,33.5'); assert.deepEqual(r.j.cells, [], '상자 밖 칸은 주지 않는다');
+            r = await g('sea/area-frame?mode=risk&bbox=126.4,33.4,126.7,33.7'); assert.equal(r.j.mode, 'accident'); assert.ok(r.j.forecastAt, '위험 예측 시각');
+            for (const bad of ['1,2,3', '126.5,33,126.4,34', '120,30,125,35', '100,30,101,31', 'a,b,c,d']) assert.equal((await g('sea/area-frame?mode=current&bbox=' + bad)).status, 400, bad);
+            r = await g('coast/area-frame?bbox=126.0,33.2,126.4,33.5');
+            assert.deepEqual([r.status, r.j.spots.map((s) => [s.i, s.id, s.name, s.geometry && s.geometry.type]), r.j.scores], [200, [[0, '50110|협재해수욕장', '협재해수욕장', 'Polygon']], [[0, 3]]]);
+            r = await g('coast/area-frame?bbox=127,35,127.5,35.5'); assert.deepEqual([r.j.spots, r.j.scores], [[], []]);
+            assert.equal((await g('coast/area-frame?bbox=126,33,131,34')).status, 400, '4° 넘는 상자');
+        });
+        const pg = await device({ admin: true, width: 360, height: 780 });
+        const reqs = []; pg.on('request', (q) => { if (q.url().includes('/api/risk-forecast/')) reqs.push(q.url()); });
+        await pickStation(pg, HALLIM); await pg.waitForSelector('[data-sb-sec="overview"]'); await openAcc(pg); await clean(pg);
+        const popState = () => pg.evaluate(() => { const d = document.querySelector('[data-sb-map-popup]'); if (!d) return null; const m = d.querySelector('.sb-minimap'), sh = d.querySelector('[data-sb-rf-sheet]'), sb = m._sbMap;
+            const hx = sb.hl.getFeatures().length ? ol.proj.transformExtent(sb.hl.getExtent(), 'EPSG:3857', 'EPSG:4326').map((v) => Math.round(v * 1000) / 1000) : null;
+            return { key: d.dataset.sbMapPopup, title: d.querySelector('.sb-dlg-title').textContent, head: (d.querySelector('[data-sb-now-at]') || {}).textContent || null, grid: m.dataset.sbGrid, n: m.dataset.sbGridN, labels: m.dataset.sbGridLabels, hl: m.dataset.sbMapHl, hx, blink: m.dataset.sbBlink,
+                res: sb.map.getView().getResolution(), sheetOpen: !!sh && sh.classList.contains('open'), sheetKind: sh && sh.getAttribute('data-sb-rf-loaded'), sheetId: sh && sh.getAttribute('data-sb-rf-id'), up: d.classList.contains('sb-sheet-up'), node: d }; });
+        const nowLinks = () => pg.evaluate(() => [...document.querySelectorAll('#station-briefing-content [data-sb-now] [data-sb-maplink]')].map((x) => x.dataset.sbMaplink + ':' + x.textContent));
+        const nowText = () => pg.evaluate(() => document.querySelector('#station-briefing-content [data-sb-now]').textContent);
+        const nowReqs = () => reqLog.filter((q) => q.path === '/api/station-briefing/now');
+        await check('[§11.10.24-UI1] (가)(나) 「관할 해역 선박 N척」 팝업 — 위성 바탕 + 혼잡도 지금 칸 색·숫자(확대 80m/px 미만) · 새 선박 자료가 오면(1분 확인 — since 같으면 계산 없음) 줄·시각·제목·지도 칸이 바뀌고 창은 그대로 · 칸을 누르면 그 창 안 해상 분석 시트(저절로는 안 올라옴) · Esc 는 시트 먼저 · 360px', async () => {
+            assert.ok((await nowText()).startsWith('10:00 기준 관할 해역 선박 37척'), await nowText());
+            await pg.evaluate(() => document.querySelector('#station-briefing-content [data-sb-maplink="now-all"]').click());
+            await pg.waitForFunction(() => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'); return m && m.dataset.sbGrid === 'current'; }, null, { timeout: 8000 });
+            let s = await popState();
+            assert.deepEqual([s.key, s.title, s.head, s.n, s.hl], ['now-all', '한림파출소 관할 해역 선박 37척', '10:00 기준 · 새 선박 자료가 오면 자동으로 바뀝니다', '0', '0'], JSON.stringify(s));
+            assert.ok(s.res < 80, '칸 안 숫자가 보이는 확대 ' + s.res);
+            assert.ok(reqs.some((u) => u.includes('/sea/area-frame?') && u.includes('mode=current') && /bbox=126\.0333%2C33\.1861%2C126\.4667%2C33\.6222/.test(u)), '관할 상자만 받는다 ' + reqs.filter((u) => u.includes('area-frame')).join(' '));
+            await pg.waitForTimeout(700); assert.equal((await popState()).sheetOpen, false, '해상 팝업은 바텀시트를 저절로 올리지 않는다');
+            // 자료 그대로 — since 를 붙여 묻고 {unchanged} → 아무것도 바꾸지 않음
+            const k0 = nowReqs().length; assert.equal(await pg.evaluate(() => window.StationBriefing.pollNow()), false);
+            assert.deepEqual(nowReqs().slice(k0).map((q) => [q.q.station, q.q.since]), [[HALLIM, '2026-10-17T10:00:00+09:00']]);
+            // 새 선박 자료(10:05) — 수집기가 파일을 바꾸고 nowLine 도 새 값
+            writeRT('2026-10-17T10:05:00+09:00', 18);
+            Object.assign(NOWFX, { at: '2026-10-17T10:05:00+09:00', count: 40, gridCount: 4, text: '10:05 기준 관할 해역 선박 40척 · 선박이 있는 해역 격자 4개\n한림항 서방 0.9해리 해역(232-2해구) 20척 — 충돌·접촉 주의',
+                cells: NOW_CELLS.cells.map((c) => c.id === 'GR4_B' ? { ...c, count: 20 } : c), busiest: { name: '한림항 서방 0.9해리 해역(232-2해구)', count: 20, id: 'GR4_B' } });
+            const node0 = await pg.evaluate(() => { window.__sbPop = document.querySelector('[data-sb-map-popup]'); return true; });
+            assert.equal(await pg.evaluate(() => window.StationBriefing.pollNow()), true, '바뀌었다');
+            await pg.waitForFunction(() => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'); return m && m.dataset.sbGridN === '1'; }, null, { timeout: 8000 });
+            s = await popState();
+            assert.deepEqual([s.title, s.head, s.labels, await pg.evaluate(() => window.__sbPop === document.querySelector('[data-sb-map-popup]'))], ['한림파출소 관할 해역 선박 40척', '10:05 기준 · 새 선박 자료가 오면 자동으로 바뀝니다', '18', true], '같은 창에서 제목·시각·칸 숫자 갱신');
+            assert.ok((await nowText()).startsWith('10:05 기준 관할 해역 선박 40척'), await nowText());
+            assert.deepEqual(await nowLinks(), ['now-all:관할 해역 선박 40척', 'now-busiest:한림항 서방 0.9해리 해역(232-2해구)'], '링크 글도 새 값');
+            assert.ok(node0);
+            // 칸을 실제로 누른다 → 그 창 안 해상 분석 시트(0.2초 뒤)
+            const xy = await pg.evaluate((c) => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'), map = m._sbMap.map, p = ol.proj.fromLonLat([c.lon, c.lat]); map.getView().setCenter(p); map.renderSync(); const px = map.getPixelFromCoordinate(p), r = m.getBoundingClientRect(); return [r.left + px[0], r.top + px[1]]; }, IN_CELL);
+            await pg.mouse.click(xy[0], xy[1]);
+            await pg.waitForFunction(() => { const sh = document.querySelector('[data-sb-map-popup] [data-sb-rf-sheet]'); return sh && sh.classList.contains('open') && sh.getAttribute('data-sb-rf-loaded') === 'marine'; }, null, { timeout: 8000 });
+            await pg.waitForTimeout(400);   // 올라오는 움직임(0.3초)이 끝난 뒤 잰다
+            s = await popState();
+            assert.deepEqual([s.sheetKind, s.sheetId, s.up], ['marine', IN_CELL.id, true], '그 칸 해상 분석 · 창은 위로 붙고 지도는 줄어듦');
+            const sh = await pg.evaluate(() => { const e = document.querySelector('[data-sb-map-popup] [data-sb-rf-sheet]'), r = e.getBoundingClientRect(); return { title: e.querySelector('.rf-title').textContent, body: e.querySelector('.rf-body').textContent.length, left: Math.round(r.left), right: Math.round(innerWidth - r.right), bottom: Math.round(innerHeight - r.bottom), tl: e.querySelector('.rf-timeline').hidden, page: document.documentElement.scrollWidth, vw: innerWidth }; });
+            assert.ok(sh.title && sh.body > 20, JSON.stringify(sh)); assert.deepEqual([sh.left, sh.right, sh.bottom, sh.tl], [0, 0, 0, true], '창 맨 아래 전체 폭 · 시각 막대 자리 비움 ' + JSON.stringify(sh));
+            assert.ok(sh.page <= sh.vw + 1, '360px 가로 넘침 없음 ' + sh.page);
+            await clean(pg); await pg.screenshot({ path: path.join(SHOT, 'briefing_now_risk_360.png') });
+            await pg.keyboard.press('Escape'); await pg.waitForTimeout(450);
+            s = await popState(); assert.deepEqual([!!s, s && s.sheetOpen, s && s.up], [true, false, false], 'Esc 는 시트만');
+            await pg.keyboard.press('Escape'); assert.equal(await popState(), null, '다시 Esc 면 창');
+        });
+        await check('[§11.10.24-UI2] 붐비는 해역 팝업 — 같은 배경·그 칸 깜빡임 · 실시간으로 가장 붐비는 해역이 바뀌면 깜빡이는 칸·제목·링크 글이 바뀜 · 열린 채 10분 정기 갱신은 창을 닫지 않음', async () => {
+            await pg.evaluate(() => document.querySelector('#station-briefing-content [data-sb-maplink="now-busiest"]').click());
+            await pg.waitForFunction(() => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'); return m && m.dataset.sbGrid === 'current'; }, null, { timeout: 8000 });
+            let s = await popState();
+            assert.deepEqual([s.key, s.title, s.hl, s.blink, s.hx], ['now-busiest', '한림항 서방 0.9해리 해역(232-2해구) 20척', '1', 'on', [126.225, 33.4, 126.25, 33.425]], JSON.stringify(s));
+            writeRT('2026-10-17T10:08:00+09:00', 25);
+            Object.assign(NOWFX, { at: '2026-10-17T10:08:00+09:00', count: 44, text: '10:08 기준 관할 해역 선박 44척 · 선박이 있는 해역 격자 4개\n한림항 북서방 1.2해리 해역(232-2해구) 25척 — 충돌·접촉 주의',
+                cells: NOW_CELLS.cells.map((c) => c.id === 'GR4_A' ? { ...c, count: 25 } : c), busiest: { name: '한림항 북서방 1.2해리 해역(232-2해구)', count: 25, id: 'GR4_A' } });
+            assert.equal(await pg.evaluate(() => window.StationBriefing.pollNow()), true);
+            await pg.waitForFunction(() => document.querySelector('[data-sb-map-popup] .sb-minimap').dataset.sbGridLabels === '25', null, { timeout: 8000 });
+            s = await popState();
+            assert.deepEqual([s.key, s.title, s.hl, s.blink, s.hx], ['now-busiest', '한림항 북서방 1.2해리 해역(232-2해구) 25척', '1', 'on', [126.2, 33.4, 126.225, 33.425]], '깜빡이는 칸이 새 붐비는 해역으로');
+            assert.deepEqual(await nowLinks(), ['now-all:관할 해역 선박 44척', 'now-busiest:한림항 북서방 1.2해리 해역(232-2해구)']);
+            await pg.evaluate(() => { window.__sbPop = document.querySelector('[data-sb-map-popup]'); });
+            await pg.evaluate(() => window.StationBriefing.load()); await pg.waitForTimeout(300);
+            assert.equal(await pg.evaluate(() => window.__sbPop === document.querySelector('[data-sb-map-popup]') && window.__sbPop.isConnected), true, '같은 판을 다시 받아도 열린 창은 그대로');
+            await pg.keyboard.press('Escape'); assert.equal(await popState(), null);
+        });
+        await check('[§11.10.24-UI3] 실시간 확인은 보일 때만 — 화면 꺼짐(visibilityState hidden)·아코디언 접힘이면 /now 를 묻지 않는다', async () => {
+            const k0 = nowReqs().length;
+            await pg.evaluate(() => Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }));
+            assert.equal(await pg.evaluate(() => window.StationBriefing.pollNow()), false);
+            await pg.evaluate(() => { delete document.visibilityState; window.toggleStationBriefingAccordion(); }); await pg.waitForTimeout(400);
+            assert.equal(await pg.evaluate(() => window.StationBriefing.pollNow()), false);
+            assert.equal(nowReqs().length, k0, '묻지 않았다');
+            await openAcc(pg); assert.equal(await pg.evaluate(() => window.StationBriefing.pollNow()), false, '다시 펼침 — 자료 그대로(unchanged)'); assert.equal(nowReqs().length, k0 + 1);
+        });
+        await check('[§11.10.24-UI4] (C) 해상 근거 「위험이 높아진 해역」·「위험예보만 \'주의\'인 해역」 펼침 지도 = 위성 바탕 + 위험 예측 색 · 그 칸 깜빡임 유지 · 칸을 누르면 화면 바텀시트(해상 분석) · 접으면 시트도 내림 · 360px', async () => {
+            // 이 시험 자료의 위험 예측 칸(공식 사고예보 가짜 칸)은 한림 관할 상자 밖이라, 관할 상자 요청에만 관할 안 칸 하나를 돌려준다(서버 구역 자료 자체는 [§11.10.24-UI0])
+            await pg.route('**/api/risk-forecast/sea/area-frame?*', async (route) => { const u = new URL(route.request().url()); if (u.searchParams.get('mode') !== 'risk') return route.continue();
+                const res = await route.fetch(), j = await res.json(); j.cells = j.cells.concat([{ id: IN_CELL.id, lon: IN_CELL.lon, lat: IN_CELL.lat, n: 0.002, level: '주의', color: 0.3 }]); return route.fulfill({ response: res, json: j }); });
+            await pg.evaluate(() => { const b = document.querySelector('[data-sb-x="basis-sea"]'); if (b.getAttribute('aria-expanded') !== 'true') b.click(); });
+            for (const key of ['accidentOnly', 'overview']) {
+                await pg.evaluate((k) => document.querySelector('[data-sb-x="map-' + k + '"]').click(), key);
+                await pg.waitForFunction((k) => { const p = document.querySelector('[data-sb-x-panel="map-' + k + '"] .sb-minimap'); return p && p.dataset.sbGrid === 'accident'; }, key, { timeout: 8000 });
+                const m = await pg.evaluate((k) => { const p = document.querySelector('[data-sb-x-panel="map-' + k + '"]'), mm = p.querySelector('.sb-minimap'); return { n: mm.dataset.sbGridN, blink: mm.dataset.sbBlink, hl: mm.dataset.sbMapHl, cap: p.querySelector('.sb-minimap-cap').textContent }; }, key);
+                assert.deepEqual([m.n, m.blink, m.hl], ['1', 'on', key === 'overview' ? '2' : '1'], key + ' ' + JSON.stringify(m)); assert.ok(/^칸 색 = .+ 위험 예측 · /.test(m.cap) && m.cap.endsWith('칸을 누르면 해상 분석'), m.cap);
+                assert.ok(reqs.some((u) => u.includes('mode=risk')), '위험 예측 색');
+                if (key === 'accidentOnly') { await pg.evaluate((k) => document.querySelector('[data-sb-x="map-' + k + '"]').click(), key); continue; }
+                const xy = await pg.evaluate((c) => { const mm = document.querySelector('[data-sb-x-panel="map-overview"] .sb-minimap'); mm.scrollIntoView({ block: 'center' }); const map = mm._sbMap.map, p = ol.proj.fromLonLat([c.lon, c.lat]); map.renderSync(); const px = map.getPixelFromCoordinate(p), r = mm.getBoundingClientRect(); return [r.left + px[0], r.top + px[1]]; }, IN_CELL);
+                await pg.mouse.click(xy[0], xy[1]);
+                await pg.waitForFunction(() => { const sh = [...document.querySelectorAll('body > [data-sb-rf-sheet]')][0]; return sh && sh.classList.contains('open') && sh.getAttribute('data-sb-rf-loaded') === 'marine'; }, null, { timeout: 8000 });
+                const sh = await pg.evaluate(() => { const e = document.querySelector('body > [data-sb-rf-sheet]'), r = e.getBoundingClientRect(), mm = document.querySelector('[data-sb-x-panel="map-overview"] .sb-minimap'); return { id: e.getAttribute('data-sb-rf-id'), left: Math.round(r.left), right: Math.round(innerWidth - r.right), page: document.documentElement.scrollWidth, vw: innerWidth, blink: mm.dataset.sbBlink, popup: !!document.querySelector('[data-sb-map-popup]') }; });
+                assert.deepEqual([sh.id, sh.left, sh.right, sh.blink, sh.popup], [IN_CELL.id, 0, 0, 'on', false], JSON.stringify(sh)); assert.ok(sh.page <= sh.vw + 1, '360px 가로 넘침 없음');
+                await clean(pg); await pg.screenshot({ path: path.join(SHOT, 'briefing_basis_risk_360.png') });
+                await pg.evaluate(() => document.querySelector('[data-sb-x="map-overview"]').click()); await pg.waitForTimeout(450);
+                assert.equal(await pg.evaluate(() => document.querySelector('body > [data-sb-rf-sheet]').classList.contains('open')), false, '지도를 접으면 시트도 내려감');
+            }
+            await pg.unroute('**/api/risk-forecast/sea/area-frame?*');
+        });
+        await check('[§11.10.26-UI] (D)(E)(F) 연안 근거 관광지 이름 — 밑줄만(글자 색·굵기·크기 그대로) · 누르면 팝업(위성 바탕 + 연안 위험 색 · 그 관광지 영역 깜빡임) → 0.2초쯤 뒤 연안 분석 시트 자동(브리핑 날짜 — 날짜 줄) · 「평소보다 위험이 높아진 곳」은 종전 표 펼침 그대로 · 360px', async () => {
+            await pg.route('**/api/risk-forecast/coast/spot?*', async (route) => { const res = await route.fetch(), j = await res.json(); j.daily = { date: '2026-10-17', peakAt: '2026-10-17T15:00:00+09:00', times: [] }; return route.fulfill({ response: res, json: j }); });
+            await pg.evaluate(() => { const b = document.querySelector('[data-sb-x="basis-land"]'); if (b.getAttribute('aria-expanded') !== 'true') b.click(); });
+            const st = await pg.evaluate(() => {
+                const c = document.getElementById('station-briefing-content'), links = [...c.querySelectorAll('.sb-spotlink')];
+                const cs = (e) => { const g = getComputedStyle(e); return [g.color, g.fontWeight, g.fontSize, g.fontFamily, g.fontStyle, g.letterSpacing]; };
+                const raised = c.querySelector('button[data-sb-x="raised"]'), all = c.querySelector('[data-sb-maplink="now-all"]');
+                return { names: links.map((x) => x.textContent), keys: links.map((x) => x.parentElement.textContent),
+                    same: links.map((x) => JSON.stringify(cs(x)) === JSON.stringify(cs(x.parentElement))), deco: links.map((x) => getComputedStyle(x).textDecorationLine), parentDeco: links.map((x) => getComputedStyle(x.parentElement).textDecorationLine),
+                    bg: links.map((x) => getComputedStyle(x).backgroundColor), border: links.map((x) => getComputedStyle(x).borderTopWidth), pad: links.map((x) => getComputedStyle(x).paddingLeft),
+                    raised: raised && { cls: raised.className, maplink: raised.hasAttribute('data-sb-maplink'), popup: raised.getAttribute('aria-haspopup') }, allCls: all && all.className };
+            });
+            const names = B.h.summary.land.basis.map((t) => /^([^—]{1,20}?) — /.exec(t)).filter(Boolean).map((m) => m[1]).filter((n) => B.h.land.cards.some((c) => c.name === n) || (B.h.summary.land.raised && (B.h.summary.land.raised.rows || []).some((r) => r.name === n)));
+            assert.ok(st.names.length >= 1 && st.names.includes('협재해수욕장'), JSON.stringify(st.names) + ' / ' + JSON.stringify(names));
+            assert.deepEqual(st.keys, st.names.map((n) => n + ' — '), '이름 + 「 — 」');
+            assert.ok(st.same.every(Boolean), '글자 색·굵기·크기·글꼴 = 그 줄 이름표 그대로 ' + JSON.stringify(st.same));
+            assert.ok(st.deco.every((d) => d === 'underline') && st.parentDeco.every((d) => d === 'none'), '밑줄은 링크 글에만 ' + JSON.stringify([st.deco, st.parentDeco]));
+            assert.ok(st.bg.every((b) => b === 'rgba(0, 0, 0, 0)') && st.border.every((b) => b === '0px') && st.pad.every((p) => p === '0px'), '단추 바탕·테두리·여백 없음 ' + JSON.stringify([st.bg, st.border, st.pad]));
+            assert.deepEqual(st.raised, { cls: 'sb-x-btn', maplink: false, popup: null }, '(F) 「평소보다 위험이 높아진 곳」 = 종전 표 펼침(지도 팝업 아님)');
+            assert.equal(st.allCls, 'sb-x-btn sb-maplink', '다른 링크 모양은 그대로');
+            await pg.evaluate(() => [...document.querySelectorAll('#station-briefing-content .sb-spotlink')].find((x) => x.textContent === '협재해수욕장').click());
+            const t0 = await pg.evaluate(() => { const d = document.querySelector('[data-sb-map-popup]'), sh = d && d.querySelector('[data-sb-rf-sheet]'); return { key: d && d.dataset.sbMapPopup, title: d && d.querySelector('.sb-dlg-title').textContent, open: !!sh && sh.classList.contains('open') }; });
+            assert.deepEqual(t0, { key: 'spot', title: '협재해수욕장', open: false }, '누른 즉시는 지도만');
+            await pg.waitForFunction(() => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'); return m && m.dataset.sbGrid === 'coast' && m.dataset.sbMapHl !== '0'; }, null, { timeout: 8000 });
+            const tHl = Date.now(), s1 = await popState();
+            assert.deepEqual([s1.hl, s1.blink, s1.hx], ['1', 'on', [126.234, 33.389, 126.244, 33.399]], '그 관광지 영역(도형) 깜빡임 ' + JSON.stringify(s1));
+            await pg.waitForFunction(() => { const sh = document.querySelector('[data-sb-map-popup] [data-sb-rf-sheet]'); return sh && sh.classList.contains('open') && sh.getAttribute('data-sb-rf-loaded') === 'coast'; }, null, { timeout: 5000 });
+            const dt = Date.now() - tHl, s2 = await popState();
+            assert.ok(dt < 1500, '영역이 보인 뒤 잠깐 뒤 시트 ' + dt + 'ms'); assert.deepEqual([s2.sheetId, s2.up], ['50110|협재해수욕장', true]);
+            const sd = await pg.evaluate(() => { const e = document.querySelector('[data-sb-map-popup] [data-sb-rf-sheet]'); return { tl: e.querySelector('.rf-timeline').hidden, date: e.querySelector('[data-sheet-date]').textContent, peak: e.querySelector('[data-sheet-peak]').textContent, arrows: [...e.querySelectorAll('[data-sheet-day]')].map((b) => getComputedStyle(b).visibility), page: document.documentElement.scrollWidth, vw: innerWidth }; });
+            assert.deepEqual([sd.tl, sd.date, sd.peak, sd.arrows], [false, "'26. 10. 17.(토)", '가장 높은 때 15시 기준', ['hidden', 'hidden']], '브리핑 날짜 줄(넘기기 단추 숨김) ' + JSON.stringify(sd));
+            assert.ok(sd.page <= sd.vw + 1, '360px 가로 넘침 없음');
+            const spotReq = reqs.filter((u) => u.includes('/coast/spot?')).pop(); assert.ok(spotReq && !/[?&]t=/.test(spotReq), '브리핑 날짜가 오늘이면 시각 없이(서버 지금 = 오늘 하루 값) ' + spotReq);
+            assert.ok(reqs.some((u) => u.includes('/coast/area-frame?') && !/[?&]t=/.test(u)), '연안 구역 자료도 오늘 하루 값');
+            await pg.waitForFunction(() => document.querySelector('[data-sb-map-popup] .sb-minimap').dataset.sbBlinkPhase === '1', null, { timeout: 3000 });   // 테두리가 보이는 때에 찍는다
+            // 지도가 실제로 그려졌는가(시트가 올라온 뒤 다시 맞춘 지도에서 관광지 영역·깜빡임 테두리 — 그림 칸에 칠한 점이 있다). 이 시험은 시계를 멈춰 두므로 움직임(duration) 있는 맞추기는 끝나지 않는다
+            const painted = await pg.evaluate(() => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'); m._sbMap.map.renderSync(); return [...m.querySelectorAll('canvas')].map((c) => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let a = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) a++; return a; }).reduce((x, y) => x + y, 0); });
+            assert.ok(painted > 500, '팝업 지도에 영역이 그려짐 ' + painted);
+            await clean(pg); await pg.screenshot({ path: path.join(SHOT, 'briefing_spot_popup_360.png') });
+            await pg.keyboard.press('Escape'); await pg.waitForTimeout(400); await pg.keyboard.press('Escape'); assert.equal(await popState(), null);
+            await pg.unroute('**/api/risk-forecast/coast/spot?*');
+            // 브리핑 날짜가 내일이면 그날 00시 하루 값
+            assert.equal(await pg.evaluate(() => window.StationBriefingRender.coastAt({ targetDate: '2026-10-18' })), '2026-10-18T00:00:00+09:00');
+            assert.equal(await pg.evaluate(() => window.StationBriefingRender.coastAt({ targetDate: '2026-10-17' })), undefined);
+        });
+        await pg.context().close();
+        io.write(path.join(dir, 'sea_realtime.json.gz'), RT0);
         await check('실행 오류 없음', async () => { assert.deepEqual(errors, []); });
     } catch (e) { console.error('❌ 준비 실패', e && e.stack); fail++; }
     finally { if (browser) await browser.close(); if (server) server.close(); try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* 임시 폴더 */ } }

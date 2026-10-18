@@ -84,10 +84,12 @@
         return { load: load, select: function (kind, id) { L.setSelection(kind, id); }, spots: function () { return spots; }, layer: L,
             destroy: function () { alive = false; map.un('click', click); L.destroy(); } };
     }
+    /** 연안 시트 날짜 줄 글(위험예측 RiskForecast.dayInfo 의 sheet 꼴). 예: dayText('2026-10-17') → "'26. 10. 17.(토)" @param {string} date - YYYY-MM-DD @returns {string} [연계] ← sheet(open) / → RiskSheet.day */
+    function dayText(date) { var l = new Date(Date.parse(date + 'T00:00:00Z')); return "'" + String(l.getUTCFullYear()).slice(-2) + '. ' + (l.getUTCMonth() + 1) + '. ' + l.getUTCDate() + '.(' + ['일', '월', '화', '수', '목', '금', '토'][l.getUTCDay()] + ')'; }
     /**
      * 위험예측과 같은 바텀시트 하나를 host 안에 만든다(.rf-sheet — 아래에서 0.2초 뒤 올라오고 0.3초 동안 내려감, 위험예측 RiskSheet 그대로).
      * open('marine', id, {lon,lat}, t) = 해상 분석(GET sea/analysis + 교통량 그래프) · open('coast', id, null, t) = 연안 분석(GET coast/spot — 그날 하루 값).
-     * 휴대폰 뒤로가기·✕·Escape(부르는 쪽)로 닫는다. 시각 막대 자리(.rf-timeline)는 비운다 — 이 시트는 고른 시각(지금 또는 브리핑 시각) 하나만 보인다.
+     * 휴대폰 뒤로가기·✕·Escape(부르는 쪽)로 닫는다. 시각 막대 자리(.rf-timeline)는 해상이면 비우고, 연안이면 그 하루 값 날짜만(넘기기 단추 없음) — 이 시트는 고른 시각(지금 또는 브리핑 날짜) 하나만 보인다.
      * 예: var s = sheet(document.body, {onClose:fn}); s.open('coast', '50110|협재해수욕장', null, undefined)
      * @param {HTMLElement} host @param {Object} [o] - {onClose(), onOpen()} @returns {{open:Function, close:Function, isOpen:Function, el:HTMLElement, destroy:Function}}
      * [연계] ← station_briefing_render.js riskPopup·근거 펼침 지도 / → RiskSheet.create·show·loading·hold·trafficHistory·clear · RiskBasis.open · PopupStack
@@ -118,13 +120,17 @@
                 if (n !== seq) return;
                 // ctx.now(위험예측은 서버 meta.now): 시각을 안 보냈으면 응답 시각이 곧 지금, 보냈으면 이 기기 시각(지금/미래 문구용)
                 var now = t ? new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 19) + '+09:00' : d.t;
+                // 연안: 시각 막대 자리에 그 하루 값의 날짜 줄(위험예측 연안 시트와 같은 꼴 — 「'26. 10. 17.(토)」 + 「가장 높은 때 HH시 기준」) — 넘기기 단추는 숨긴다(station_briefing.css).
+                //   브리핑 날짜 하나만 보이므로 날짜를 밝혀 둔다. show 보다 먼저 그려야 show 가 둘째 줄(가장 높은 때)을 채운다. 해상은 시각 막대 자리를 비운다.
+                var dd = kind === 'coast' && d.daily && /^\d{4}-\d{2}-\d{2}$/.test(String(d.daily.date || '')) ? d.daily.date : null;
+                if (dd) S.day({ date: dd, sheet: dayText(dd), prev: false, next: false });
                 S.show(d, kind === 'coast' ? 'coast' : 'marine', null, { now: now });
-                var tl = el.querySelector('.rf-timeline'); if (tl) tl.hidden = true;
+                var tl = el.querySelector('.rf-timeline'); if (tl) tl.hidden = !dd;
                 el.setAttribute('data-sb-rf-loaded', kind);
                 if (kind !== 'coast' && d.marine) {
                     var cell = w.RiskMarine.cellOf(d.marine);
                     if (!cell) S.trafficHistory(null, null, 'nocell');
-                    else { try { var h = await rapi().get('sea/traffic-history', { cell: cell, days: 15 }); if (n === seq) S.trafficHistory(cell, h); } catch (e) { if (n === seq) S.trafficHistory(cell, null, 'error'); } }
+                    else { try { var h = await rapi().get('sea/traffic-history', { cell: cell, days: 15 }); if (n === seq) S.trafficHistory(cell, h); } catch (e) { console.warn('[연안 안전 브리핑] 교통량 기록을 받지 못함 — 시트에 「불러오지 못했습니다」:', e && e.message); if (n === seq) S.trafficHistory(cell, null, 'error'); } }
                 }
             } catch (e) { if (n === seq) S.error(e && e.message || '오류'); }
         }
@@ -137,5 +143,5 @@
         function isOpen() { return el.classList.contains('open'); }
         return { open: open, close: close, isOpen: isOpen, el: el, destroy: function () { if (isOpen() || pushed) close(); if (el.parentNode) el.parentNode.removeChild(el); } };
     }
-    w.StationBriefingRiskMap = { ready: ready, bbox: bbox, baseLayers: baseLayers, attach: attach, sheet: sheet };
+    w.StationBriefingRiskMap = { ready: ready, bbox: bbox, baseLayers: baseLayers, attach: attach, sheet: sheet, dayText: dayText };
 })(window);

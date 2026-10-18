@@ -15,6 +15,7 @@
 | `station_briefing.js` | 아코디언 본체 — 노출 판정·설정 흐름(관할 고르기·건너뛰기·숨김)·N 뱃지·바로가기·설정 팝업 칸·제목 「HH:MM AI 연안 안전 브리핑」 | `refreshDisplay`, `loadBriefing`, `setTitle`, `renderSetup`, `finishSetup`, `renderConfirm`, `toggle`, `openSetup`, `updateBadge`, `openInRisk`, `renderSettings`, `applyVisibility`, `toast` |
 | `station_briefing_picker.js` | 설정 화면의 관할 고르기 칸 — 탭 두 개 「지도에서 선택하기」(해역 단추 → 관할 폴리곤 지도) · 「파출소로 선택하기」(지방청 → 해양경찰서 → 파출소 아코디언 + 이름 찾기) · 관할을 누르면 가운데 확인 창 | `mount`, `destroy`, `mapPanel`, `drawMap`, `zoneStyle`, `listPanel`, `loadAreas`, `confirmPick`, `closeDialog` |
 | `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` · 근거 줄 지도 펼침(OpenLayers) · 제목 글 | `render`, `titleText`·`editionTime`·`editionLabel`(§11.10.4 제목·판 이름), `summaryBodyV3`(§11.10.4 「가」 모양), `weatherPart`·`tidePart`((기상)·(물때) 공용), `summaryBodyV2`(§11.10.1 총평), `basisList`·`expander`·`miniMap`·`isolationLine`(§11.10.3), `summaryBody`(§11.10 판), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`(§11.10.15 배지 카드 `seaCardBadged`·`seaBadges`·`seaCardLink`), `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
+| `station_briefing_riskmap.js` | 브리핑 지도에 위험예측과 같은 배경(위성지도 + 혼잡도 지금·위험 예측·연안 위험 색)을 관할 상자만 받아 깔고, 칸·관광지를 누르면 위험예측과 같은 바텀시트(해상·연안 분석)를 이 화면 안에서 올린다(§11.10.24·§11.10.26) — 위험예측 `RiskMapLayer`·`RiskSheet` 를 그대로 쓴다 | `ready`, `bbox`, `baseLayers`, `attach`, `sheet`, `dayText` |
 | `station_briefing_basis.js` | [기준 상세] 문안(위험예측 기준 상세 창 `RiskBasis.open('briefing')` 으로 연다) | (문자열 `RiskBasisContent.briefing`) |
 | `station_briefing.css` | `.sb-*` 모양(바깥 아코디언·안쪽 칸·조석 게이지·기준 창은 기존 CSS 재사용) | — |
 
@@ -25,7 +26,7 @@
 
 ## 로드 순서
 
-`index2.html` 에서 `life_safety.js` 다음 — `station_briefing_render.js` → `station_briefing_basis.js` → `station_briefing_picker.js` → `station_briefing.js`.
+`index2.html` 에서 `life_safety.js` 다음 — `station_briefing_riskmap.js`(§11.10.24 — `risk_*.js` 의 `RiskMapLayer`·`RiskSheet`·`RiskMarine` 뒤) → `station_briefing_render.js` → `station_briefing_basis.js` → `station_briefing_picker.js` → `station_briefing.js`.
 `station_briefing_basis.js` 는 `risk_basis_content.js`(RiskBasisContent 를 새로 만드는 파일)보다 **뒤**여야 문안이 덮이지 않는다.
 CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 
@@ -250,6 +251,19 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - 규칙 분석 마지막 「따라서」·서버 권고: 「A 주변 연안사고에 주의가」 → 「A 인근 연안에서는 주의가」.
 - AI: 지시문 연안 예시를 같은 꼴로 + 규칙 S16. 그래도 「A에는 주의가」로 오면 `polishOverview` 가 연안 마지막 「따라서」 문장만 고친다(대목에 연안·인근·주변·해상·해역·관할이 있으면 그대로).
 
+## 위험예측 배경 팝업 지도 · 그 안 바텀시트 · 「지금 밀집」 실시간 · 관광지 이름 링크 (2026-10-18 — 설계서 §11.10.24·§11.10.26)
+
+> 사용자 원문: *"08:40 기준 관할 해역 선박 75척 … 실시간으로 데이터를 업데이트 시킬 수 있는 거 아닌가? … 시간도 계속 바뀌어가면서 … 이 지도도 업데이트 돼야 될것 같고 … 해상 위험 분석 예측 분석에서 혼잡도를 클릭했을 때 나오는 지도처럼 … 위성 지도에 그 숫자가 입력되도록 하고 그 숫자가 입력된 그 격자를 실제로 클릭해 볼수 있었으면 좋겠거든 그래서 그 분석 자체를 바로 이 화면 안에서 볼수 있도록"* (전문은 설계서 §11.10.24)
+
+- **「관할 해역 선박 N척」·가장 붐비는 해역 팝업**: 바탕 = 위성지도(위험예측을 켰을 때와 같은 브이월드 — 키를 못 받으면 해아름 기본맵), 그 위에 위험예측 「혼잡도」 지금 층(칸 색·칸 안 선박 수, 숫자가 보이게 80m/px 미만으로 확대). 칸을 누르면 **그 창 안에서** 위험예측과 같은 해상 분석 바텀시트(0.2초 뒤 아래에서). 시트가 올라오면 창이 위로 붙고 지도가 줄어 고른 칸이 가리지 않는다. Esc·뒤로가기는 시트 먼저. 붐비는 해역 팝업은 그 칸이 깜빡인다. 해상 팝업은 시트를 저절로 올리지 않는다(누를 칸이 여럿).
+- **실시간 갱신**: 브리핑을 보고 있는 동안(화면 켜짐·아코디언 펼침·해양예보 탭, 또는 선박 팝업이 열려 있음) 1분마다 `GET /api/station-briefing/now?station=&day=auto&since=<지금 가진 자료 시각>` — 서버는 실시간 선박 자료 시각이 같으면 계산 없이 `{unchanged:true}`. 바뀌었으면 「지금 밀집」 줄(시각·척수·가장 붐비는 해역 링크 글)만 바꾸고(브리핑 본문은 다시 그리지 않음), 열린 선박 팝업의 제목·「HH:MM 기준」 줄·칸 색과 숫자·깜빡이는 칸을 같은 창에서 바꾼다. 10분 정기 갱신이 같은 판을 다시 받아도 팝업이 열려 있으면 본문을 다시 그리지 않는다(창이 닫히지 않게).
+  선박 자료 자체는 서버 수집기(`sea_realtime_collector.js`)가 1분마다 깨어나 5분 칸마다 한 번 받는다(운영 Fly 에서만) — 화면에는 새 자료가 저장된 뒤 1분 안에 보인다.
+- **해상 근거 「위험이 높아진 해역 N칸」·「해양사고 위험예보만 '주의'인 해역 N칸」 펼침 지도**: 바탕 = 위성지도 + 위험예측 「위험 예측」 색(그 단계가 가장 높은 첫 시각, 지났으면 지금), 해당 칸 깜빡임은 그대로. 칸을 누르면 화면 바텀시트(위험예측 시트와 같은 자리 — 창 없이). 지도를 접거나·본문을 다시 그리거나·다른 탭으로 가면 시트도 내린다. 대해구(232해구) 줄은 종전 해아름 지도.
+- **연안 근거 관광지 이름**(§11.10.26 — 「모충사 — …」 줄의 이름): 글자 색·굵기·크기 그대로 **밑줄만**(`.sb-spotlink`). 누르면 팝업(위성지도 + 연안 위험 색 — 그날 하루 값, 브리핑 날짜 기준) · 그 관광지 영역 깜빡임 · 0.2초쯤 뒤 그 관광지 연안 분석 시트가 저절로 올라온다(시트 머리에 그 날짜). 다른 관광지를 누르면 그 시트로 바뀐다.
+- **바꾸지 않은 것**: 연안 근거 「평소보다 위험이 높아진 곳 M곳」은 종전 표 펼침 그대로(사용자 보류). 관리자 전용 노출 규칙 그대로(`/now` 도 같은 노출 판정). 위험예측 스크립트가 없는 화면(관리자 미리보기 단독 등)은 종전 지도.
+- 서버(새 경로): `GET /api/station-briefing/now` · `GET /api/risk-forecast/sea/area-frame?mode=current|risk&bbox=` · `GET /api/risk-forecast/coast/area-frame?bbox=` — 상자 4°×4° 넘거나 한국 범위 밖이면 400. 전국 표(약 2.5MB)를 받지 않고 관할 하나만 그린다.
+
 ## 시험
 
 `local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES) — 실제 Chromium 으로 index2.html 전체를 띄워 일반·관리자 기기, 설정 흐름, 본문 상태(「가」 모양·제목 시각·규칙 분석·옛 브리핑 대체(§11.10.1·§11.10·그 전)), textContent, 바로가기, N 뱃지, [기준 상세], 관리자 「AI 브리핑」 탭(오류 목록 [복사]·[md로 저장] 포함), 관할 확인 창(취소·Esc·바깥·뒤로가기·늦은 click 무시)·해상/연안 칸 한 줄(360px)을 본다.
+§11.10.24·§11.10.26 은 `[§11.10.24-UI0~4]`·`[§11.10.26-UI]`(서버 구역 자료 · 선박 팝업 칸 숫자·칸 누르기·실시간 갱신(새 실시간 파일 + `pollNow`) · 보일 때만 묻기 · 근거 지도 위험 예측 색·칸 누르기 · 관광지 링크 밑줄만·자동 시트·날짜 줄 · 360px)와 `test_station_briefing.js` `[§11.10.24-1·2]`(GET /now).

@@ -20,6 +20,11 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
    받을 때마다 제목을 그 판 시각으로(`setTitle` → `StationBriefingRender.titleText` — 정시 판은 `publishAt`, 그 밖은 `generatedAt`).
 4. 노출 판정 조회가 실패하면 직전 판정을 유지하고 5초·20초·60초 뒤 다시 묻는다(그 뒤는 10분 주기). 관리자 상태가 바뀌면(`admin.js` 의 `seagnal-admin-change` 사건 — 로그인·로그아웃·관리자 모드·관리자 기기 등록) 바로 다시 받는다.
 
+5. 「지금 밀집」 실시간(§11.10.24): `pollNow` 가 1분마다(화면이 다시 보이면 곧바로) `nowShown()`(화면 켜짐 + 본문이 실제로 보임, 또는 선박 팝업 열림)일 때만
+   `GET /api/station-briefing/now?station=&day=auto&since=<S.resp.now.at>` → `{unchanged:true}` 면 끝, 새 `now` 면 `StationBriefingRender.updateNow`(「지금 밀집」 줄만 바꿈 + 열린 선박 팝업 `popup.live`).
+   줄이 새로 생기거나 사라져야 하면(자료가 낡았다 돌아옴) 본문을 다시 그린다. `loadBriefing` 은 같은 판을 다시 받았는데 팝업 지도가 열려 있으면 본문을 다시 그리지 않고 `updateNow` 만(창이 닫히지 않게).
+6. 위험예측 배경 지도·시트(§11.10.24·§11.10.26): `station_briefing_riskmap.js` 가 `GET /api/risk-forecast/sea/area-frame`(mode=current|risk, 관할 상자)·`coast/area-frame`(관할 상자 안 관광지 + 도형 + 그날 값)을 받아
+   위험예측 `RiskMapLayer` 로 그리고, 칸·관광지를 누르면 `RiskSheet` 틀로 `sea/analysis`(+ `sea/traffic-history`)·`coast/spot` 을 받아 시트를 올린다. 요청 캐시는 위험예측 `RiskAPI` 그대로.
 ## 저장(이 기기 — localStorage `seagnal_station_briefing_v1`)
 `{station, name, office, seaOnly, showSea, showLand, hidden, seen:{관할: 마지막으로 펼쳐 본 generatedAt}}` — 관심해역(`weatherAppSettings_v1`)·지방청(`officeManualSettings`)과 같은 관례.
 저장소가 막혀 있으면 기본값으로 동작한다(그때는 매번 설정 전 상태).
@@ -101,6 +106,12 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 | `seaAccRows` | station_briefing_render.js | §11.10.22 B: 해역 카드 [사고현황('21~'25년)] — 이름표 한 줄(`row` 값 칸 빈칸) + 그 아래 `p.sb-acc-line[data-sb-acc-line="sea"]`(연안 카드 [사고현황] 아래 줄과 같은 클래스, `accText` 칠하기) — v14·v15 판(`seaCard`)·v16 이후 판(`seaCardBadged`) 모두 |
 | `seaCardBadged`·`seaBadges`·`seaCardLink` | station_briefing_render.js | §11.10.15: 규칙 v16 해역 카드(`badges` 있음) — 출처별 배지 `.sb-srcb`(`data-rank` = 글자 색 단계 · `data-sb-src` = accident·congestion·weather, 글은 서버 `text` 그대로 textContent) + 상세 줄 `.sb-srcb-det`(서버 `detail`) → [사고현황] → 사고 한 줄 → [기상 예보] → [권고]. 경계 글자 색은 CSS `.sb-srcb[data-rank="3"]`(#e34842), 관심·주의는 `colorOf`. `badges` 없는 옛 판은 `seaCard` 의 종전 길. `seaCardLink` = 맨 끝 [위험예측에서 보기 ›](두 길 공용). 시안 ④판(규칙 v17): `detail[]` 이 `{title, head, rows}` 면 `srcbTable` 이 제목 `.sb-srcb-dt` + 표 `.sb-srcb-tbl`(상자 `.sb-srcb-tblw` 가로 스크롤, `{text, rank}` 칸 = `.sb-srcb-grade` 그 등급 색), 글 줄(v16 판)이면 종전 한 줄 |
 
+| `pollNow`·`nowShown` | station_briefing.js | §11.10.24: 「지금 밀집」 1분 확인(보일 때만 · since = 지금 가진 자료 시각 · 같으면 서버가 계산 없이 unchanged) |
+| `updateNow`·`nowPopupOpen`·`popupOpen` | station_briefing_render.js | §11.10.24: 「지금 밀집」 줄만 바꾸기(+ 열린 선박 팝업 `popup.live` — 제목·「HH:MM 기준」·칸·깜빡이는 칸) · 선박 팝업 열림 · 아무 팝업 열림 |
+| `riskPopup`·`nowPopup`·`spotPopup` | station_briefing_render.js | §11.10.24·§11.10.26: 위험예측 배경 팝업 지도 + 그 창 안 바텀시트(`StationBriefingRiskMap.sheet`) · 선박(all·busiest) · 관광지 하나(영역 깜빡임 → `AUTO_SHEET_MS` 0.2초 뒤 연안 시트 자동) |
+| `openPageSheet`·`closePageSheet` | station_briefing_render.js | §11.10.24: 근거 펼침 지도(위험이 높아진 해역·위험예보만)에서 칸을 누르면 화면 바텀시트 · 접기·다시 그리기·탭 이동(`data-active-tab` 감시) 때 내림 |
+| `miniMap` 의 `opt.risk` | station_briefing_render.js | §11.10.24: `{kind:'current'·'risk'·'coast', t, interactive, onPick, onLoad}` — 바탕 위성지도 + `StationBriefingRiskMap.attach` · 정리 함수에 `map`·`caption`·`risk()`·`highlight(boxes, polys)`·`focus(maxZoom)` |
+| `attach`·`sheet`·`bbox`·`baseLayers`·`dayText` | station_briefing_riskmap.js | §11.10.24: 위험예측 층 얹기·구역 자료 받기·누름 판정 · 위험예측과 같은 시트(해상·연안, 연안은 그 날짜 줄 — 넘기기 단추 숨김) · 관할 상자 · 위성 바탕 · 날짜 글 |
 ## 수정 시 주의사항
 - **서버 글은 텍스트 노드로만**(계약 §5) — `el()`·`appendText`(§11.10.16: 「다.」 문장 끝 뒤에 `<br>` 만 끼우고 글은 그대로, textContent = 서버 글). 새로 서버 글을 붙일 때도 `appendText` 를 쓴다. `innerHTML` 은 조석 게이지(숫자·시각만 — 모양 검사 뒤 `OS.tideGaugeHtml`)와 [기준 상세] 정적 문안뿐.
 - 노출 판정을 화면에서 하지 않는다 — `display` 는 서버가 정한다. 아코디언 머리·몸은 마크업에서 `display:none` 으로 시작한다.
@@ -116,3 +127,6 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 - **근거 줄 지도 깜빡임은 꼭 멈춘다**(§11.10.3): 접으면 `expander` 가 `miniMap` 의 정리 함수(타이머 해제·`map.setTarget(null)`)를 부르고, 펼친 채 본문을 다시 그려 지도가 떨어지면 다음 깜빡임에서 `isConnected` 를 보고 스스로 멈춘다. 시험은 `StationBriefingRender.blinking()`(지금 깜빡이는 지도 수)으로 본다.
 - 지도는 그림처럼 고정(`interactions:[]`·`controls:[]`) — 페이지를 쓸어 내릴 때 손가락을 가로채지 않게. 도형은 서버가 소수 4자리·약 100m 단순화로 줄여 보낸다(`station_briefing_inputs.areaOf`).
 - 시험: `local_server/scripts/test_station_briefing_ui.js`.
+- **위험예측 부품은 고치지 않고 빌려 쓴다**(§11.10.24): 배경 층·누름 판정은 `RiskMapLayer`, 시트 틀·본문은 `RiskSheet`·`RiskMarine`. 그 파일들의 함수 이름·인자(특히 `RiskSheet.create` 처리기 이름·`hold`·`day`, `RiskMapLayer.drawUnified`·`hit`·`setSelection`·`selectionExtent`)를 바꾸면 `station_briefing_riskmap.js` 도 같이 본다.
+- 창(`.sb-dlg` z 40000) 안 시트는 창 맨 아래(`--rf-chrome:0`), 시트가 여는 사고 목록·[?]·[기준 상세] 창은 창이 열린 동안만 z 40100(`html.sb-mapdlg-open` — station_briefing.css).
+- 연안 근거 관광지 링크(`.sb-spotlink`)는 글자 모양을 그 줄에서 물려받는다(`font:inherit; color:inherit`) — 다른 링크(`.sb-x-btn.sb-maplink`) 모양으로 바꾸지 않는다(사용자 「밑줄만」).

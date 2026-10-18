@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 126개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 127개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -81,6 +81,7 @@ client/js/
 │       ├── station_briefing_basis.js
 │       ├── station_briefing_picker.js
 │       ├── station_briefing_render.js
+│       ├── station_briefing_riskmap.js
 │       └── station_briefing.js
 ├── location-alert/  ← ⚡ 위치기반 경보
 │   ├── location_alert_background.js
@@ -301,6 +302,7 @@ client/js/
 | `station_briefing_basis.js` | 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」 — 2026-10-17 §11.10.4)의 [기준 상세] 문안 — 브리핑이 |
 | `station_briefing_picker.js` | 「연안 안전 브리핑 지역 설정」(종전 「활동지점(파출소 관할) 설정」) 화면의 관할 고르기 칸 — 탭 두 개(사용자 2026- |
 | `station_briefing_render.js` | 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론 + 연안 |
+| `station_briefing_riskmap.js` | 연안 안전 브리핑의 지도(팝업·근거 펼침)에 위험예측 화면과 같은 배경 — 위성지도 위 해상 칸 색·선박 수(혼잡도) / 위험 |
 
 ### `client/js/location-alert/`
 

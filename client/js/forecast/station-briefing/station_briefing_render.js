@@ -897,6 +897,8 @@
         closeMapPopup();
         var back = document.activeElement, wrap = el('div', 'sb-dlg sb-mapdlg' + (bare ? ' sb-warndlg' : '')), dim = el('div', 'sb-dlg-dim'), box = el('div', 'sb-dlg-box sb-mapdlg-box'), id = 'sb-mapdlg-t' + (++xSeq), x = null;
         wrap.setAttribute('data-sb-map-popup', key || '');
+        // §11.10.24: 창 안(지도·창 안 바텀시트)을 마우스로 눌러도 초점이 창에 남게 — 초점 없는 지도 캔버스를 누르면 초점이 body 로 가 Esc(아래 keydown)가 창에 닿지 않았다
+        wrap.tabIndex = -1;
         box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
         // bare(「기상특보 현황」 창 — §11.10.16 소절 E1): 머리를 만들지 않고 build 가 넣은 상자(warnBox)의 제목·✕ 를 쓴다(근거 안 상자와 같은 모양). 이름 = aria-label + 그 제목
         if (bare) box.setAttribute('aria-label', title);
@@ -932,7 +934,7 @@
     // 원문: *"해상 위험 분석 예측 분석에서 혼잡도를 클릭했을 때 나오는 지도처럼 … 위성 지도에 그 숫자가 입력되도록 하고 그 숫자가 입력된 그 격자를 실제로 클릭해 볼수 있었으면 좋겠거든
     //        그래서 그 분석 자체를 바로 이 화면 안에서 볼수 있도록"* · *"배경지도가 위험예측으로 나오도록 … 해당 격자가 깜박이도록 … 바텀시트도 열어볼 수 있도록"*
     //        · 관광지 *"지도가 팝업으로 나오고 그 팝업에서 해당 영역이 깜빡이도록 하며 잠깐 뒤 자동으로 바텀시트가 올라왔으면"*.
-    var AUTO_SHEET_MS = 400;   // 관광지 하나 팝업: 자료를 받아 영역이 깜빡이기 시작한 뒤 이만큼 + 시트의 0.2초(위험예측 hold) 뒤 시트가 올라온다
+    var AUTO_SHEET_MS = 200;   // 관광지 하나 팝업: 자료를 받아 그 영역이 깜빡이기 시작한 뒤 이만큼(0.2초 — 위험예측 시트가 누른 뒤 올라오는 hold 와 같은 값) 뒤 시트가 올라온다
     /** 부품이 다 실렸으면 StationBriefingRiskMap, 아니면 null(관리자 미리보기 단독 등 — 종전 지도). @returns {Object|null} [연계] ← miniMap·nowNode·basisList */
     function RM() { var m = w.StationBriefingRiskMap; return m && m.ready() ? m : null; }
     /** 브리핑의 관할 경계(summary.sea.area — 연안 지도도 이 경계 상자로 관광지를 고른다). 예: seaArea(b) → [[[[126.1,33.3],…]]] @param {Object} b @returns {Array|null} */
@@ -968,7 +970,7 @@
                 P.wrap.classList.toggle('sb-sheet-up', on);
                 if (!stop || !stop.map) return;
                 stop.map.updateSize(); var c = stop.risk(), ex = c && c.layer.selectionExtent();
-                if (on && ex) stop.map.getView().fit(ex, { size: stop.map.getSize(), padding: [30, 30, 30, 30], maxZoom: 13, duration: 200 });
+                if (on && ex) stop.map.getView().fit(ex, { size: stop.map.getSize(), padding: [30, 30, 30, 30], maxZoom: 13 });   // 움직임 없이 — 시트가 올라오는 동안 지도는 이미 맞춰져 있다
             }
             stop = miniMap(body, o.area, o.boxes || [], o.caption, { big: true, polys: o.polys, risk: { kind: o.kind, t: o.t, interactive: true,
                 onPick: function (kind, id, point) { sh.open(kind === 'coast' ? 'coast' : 'marine', id, point, o.t); },
@@ -1024,7 +1026,7 @@
                 if (!s) { if (stop.caption) stop.caption.textContent = name + ' 위치를 위험예측 관광지 자료에서 찾지 못했습니다 · ' + stop.caption.textContent; return; }
                 stop.highlight([], s.geometry ? [s.geometry] : []); stop.focus(14); stop.risk().select('coast', s.id);
                 if (done) return; done = true;
-                setTimeout(function () { if (popup === P && !sh.isOpen()) sh.open('coast', s.id, null, t); }, AUTO_SHEET_MS);
+                if (popup === P && !sh.isOpen()) sh.open('coast', s.id, null, t, AUTO_SHEET_MS);   // 시트 hold(AUTO_SHEET_MS) — 그동안 영역이 먼저 깜빡인다
             } });
     }
     // ── 근거 펼침 지도(위험이 높아진 해역)에서 칸을 누르면 올라오는 화면 바텀시트(창 없이 — 위험예측 시트와 같은 자리) ──

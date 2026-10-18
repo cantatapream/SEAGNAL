@@ -2957,6 +2957,38 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(b2.sea.cards.map((c) => c.today.lines), a.sea.cards.map((c) => c.today.lines), 'today.lines 그대로');
         assert.equal(R.RULES_VERSION, 'station-briefing-rules-v22');
     });
+    // ── §11.10.24(2026-10-18 사용자 *"실시간으로 데이터를 업데이트 시킬 수 있는 거 아닌가? … 시간도 계속 바뀌어가면서"*): 「지금 밀집」만 다시 받는 GET /api/station-briefing/now ──
+    await check('[§11.10.24-1] GET /now — 노출 판정 그대로(안 보이면 now:null·계산 없음) · station·day 검사(400·404) · since 를 nowLine 에 넘김 · nowLine 값·{unchanged} 그대로 · 던지면 null · no-store', async () => {
+        const express = require('express'), { createRouter } = require('../routes/station_briefing');
+        const calls = [], picked = { date: '2026-10-17', briefing: { key: 'k' } };
+        let exposure = 'user', reply = { at: '2026-10-17T10:05:00+09:00', count: 38, text: '10:05 기준 관할 해역 선박 38척 · 선박이 있는 해역 격자 3개' };
+        const fake = { readConfig: () => ({ exposure }), stations: () => [{ key: 'k' }], pick: (q) => { calls.push(['pick', q]); return picked; } };
+        const app = express(); app.use(createRouter({ service: fake, isAdminDevice: () => false, verifyToken: () => false, clock: () => T0,
+            nowLine: (key, r, o) => { calls.push(['now', key, r, o]); if (reply === 'throw') throw new Error('boom'); return reply; } }));
+        const server = http.createServer(app); await new Promise((r) => server.listen(0, '127.0.0.1', r));
+        const base = 'http://127.0.0.1:' + server.address().port + '/api/station-briefing/now';
+        const get = async (q) => { const r = await fetch(base + q); return { status: r.status, cache: r.headers.get('cache-control'), j: await r.json() }; };
+        try {
+            let r = await get('?station=k&day=auto&since=' + encodeURIComponent('2026-10-17T10:00:00+09:00'));
+            assert.deepStrictEqual([r.status, r.cache, r.j.display, r.j.now], [200, 'no-store', true, reply]);
+            assert.deepStrictEqual(calls.filter((c) => c[0] === 'now').map((c) => [c[1], c[2], c[3]]), [['k', picked, { since: '2026-10-17T10:00:00+09:00' }]], 'since 를 그대로 넘김');
+            assert.equal(r.j.briefing, undefined, '브리핑 본문은 주지 않는다(now 만)');
+            reply = { unchanged: true, at: '2026-10-17T10:05:00+09:00' }; r = await get('?station=k&since=x'); assert.deepStrictEqual(r.j.now, reply, '같으면 unchanged 그대로');
+            calls.length = 0; r = await get('?station=k'); assert.deepStrictEqual(calls.find((c) => c[0] === 'now')[3], { since: '' }, 'since 없으면 빈 글');
+            reply = 'throw'; r = await get('?station=k'); assert.deepStrictEqual([r.status, r.j.now], [200, null], 'nowLine 이 던지면 null');
+            assert.equal((await get('')).status, 400); assert.equal((await get('?station=k&day=yesterday')).status, 400); assert.equal((await get('?station=zz')).status, 404);
+            exposure = 'off'; calls.length = 0; r = await get('?station=k');
+            assert.deepStrictEqual([r.status, r.j.display, r.j.now, calls.length], [200, false, null, 0], '노출 안 함이면 계산하지 않는다');
+        } finally { server.close(); }
+    });
+    await check('[§11.10.24-2] 화면 pollNow·updateNow 계약 — 렌더가 updateNow·nowPopupOpen·popupOpen 을 내놓고, 본체가 pollNow 를 내놓는다(1분 주기 · since = 지금 가진 now.at)', () => {
+        const src = fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing.js'), 'utf8');
+        assert.ok(/var NOW_MS = 60000;/.test(src), '1분 주기'); assert.ok(src.includes("'/api/station-briefing/now?station='") && src.includes("'&since='"), 'since 를 붙여 묻는다');
+        assert.ok(/visibilityState === 'hidden'\) return false/.test(src), '화면이 꺼져 있으면 묻지 않는다');
+        const sb = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing_render.js'), 'utf8'), sb);
+        const SR = sb.window.StationBriefingRender; assert.deepStrictEqual(['updateNow', 'nowPopupOpen', 'popupOpen'].map((k) => typeof SR[k]), ['function', 'function', 'function']);
+        assert.equal(SR.updateNow(null, { briefing: null }), false, '브리핑이 없으면 거짓(본문을 다시 그리게)');
+    });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);
