@@ -488,8 +488,12 @@ async function getGridHash(lat, lon, reqDate) {
  * [연계] ← getGridHash(바텀시트 — 종전처럼 해시만) · 세 앵커 수집기 collectOne·resolveNudge
  *   [왜] 예전엔 둘 다 null 이라, 일시 장애(새 10초 시간 제한 포함) 때 수집기가 곡선이 있던 파일을
  *     「격자 미제공」 빈 파일로 덮었고, 서해·남해 인근 격자 탐색은 장애를 「못 찾음」으로 세어 3번이면 앵커를 영구 포기했다.
- *   ⚠「자료 없음」 판정: 응답 머리(header)의 resultCode 가 없거나 '00'(정상)·'03'(공공데이터포털 NODATA)일 때만.
- *     TideBED 가 격자 밖 좌표에 실제로 어떤 코드를 주는지는 이 환경에서 확인하지 못했다(접속 차단).
+ *   ⚠「자료 없음」 판정: 응답 머리(header)의 resultCode 가 없거나 '00'(정상)·'03'(공공데이터포털 NODATA)
+ *     ·'10'(INVALID_REQUEST_PARAMETER_ERROR — 격자 밖 좌표)일 때.
+ *   [코드 10 = 격자 밖 — 2026-10-19 운영 로그로 확인] 같은 수집·같은 날짜에서 특정 앵커 좌표만 늘 10 을 받고
+ *     나머지는 정상으로 받았다(66회 · 그중 A0001 은 /api/tide-field/nogrid 의 격자 미제공 목록에 있던 앵커).
+ *     10 을 「조회 실패」로 셌더니 그 앵커들이 매번 failed 가 되어, 인근 격자로 보정해 받던 앵커도 새 날짜를
+ *     못 받고, 그 앵커들이 줄 맨 앞에 오면 연속 실패 차단기가 나머지 수집까지 멈췄다(물빠짐 8/114 · 제주 고립 26/45).
  */
 async function lookupGridHash(lat, lon, reqDate) {
     let result = null;
@@ -507,7 +511,7 @@ async function lookupGridHash(lat, lon, reqDate) {
         }
     }
     const code = header && header.resultCode != null ? String(header.resultCode) : null;
-    if (code && code !== '00' && code !== '03') {
+    if (code && code !== '00' && code !== '03' && code !== '10') {
         console.warn(`⚠️ 격자 해시 조회 — 오류 코드 ${code}(${header.resultMsg || ''}) — 「격자 미제공」으로 치지 않는다`);
         return { hash: null, error: true };
     }
