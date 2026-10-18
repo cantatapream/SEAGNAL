@@ -2457,6 +2457,13 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(AI.validateOverview(AI.polishOverview(good), si).ok, AI.validateOverview(AI.polishOverview(good), si).errors.join(','));
         assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION, R.RULES_VERSION], ['sb-prompt-v16', 'sb-validate-v13', 'station-briefing-rules-v22']);
     });
+    await check('[§11.10.25 덧] 지명 오판 고침(검증 v13 — 2026-10-18 08:03 운영 place:해제뒤에도·특보해제전후에도·예고돼있어이후에도) — 「…에도」·「오늘도」·방위 한 글자 앞부분(서서히·남아)은 지명 아님 · 가짜 섬 이름(「가짜도 앞바다」·「가짜도 북쪽 해상」·「가짜도 서해상」·「흑산도는」)은 계속 후보', () => {
+        const names = (s) => AI.placeCandidates(s).map((x) => x.text);
+        for (const s of ['풍랑주의보가 해제 뒤에도 해상에서는 파도가 높겠습니다.', '특보 해제 전후에도 앞바다는 물결이 높습니다.', '예고돼 있어 이후에도 해역 상황을 살펴야 합니다.', '오늘도 해상에는 바람이 강합니다.', '바람도 서서히 약해지겠습니다.', '물결도 남아 있겠습니다.', '파고도 동반해 높아집니다.', '가짜도 앞으로 나아집니다.'])
+            assert.deepStrictEqual(names(s), [], s);
+        assert.deepStrictEqual(names('가짜도 앞바다는 위험합니다.'), ['가짜도', '가짜도 앞바다']);
+        for (const [s, n] of [['가짜도 북쪽 해상은', '가짜도'], ['차귀도 앞 갯바위', '차귀도'], ['가짜도 서해상', '가짜도'], ['흑산도는 주의', '흑산도'], ['가짜도 남부 해역', '가짜도']]) assert.ok(names(s).includes(n), s + ' → ' + names(s));
+    });
     await check('[§11.10.17-3] 검사기(sb-validate-v11) — S1 「경계 필요」(보정 안 거친 글) · S3 「기준」(「(KOMSA 기준)」·「10:00 기준」은 허용) · S6 「근거로, … 이므로」 겹침 · 근거 꼬리표 「(기상청) 근거로」 · 이유 글(서버·관리자)', () => {
         const e = (sea) => AI.validateOverview({ ...good, sea }, si).errors;
         assert.ok(e(good.sea.replace('15시부터 유의파고 2.4m로 높아져', '15시부터 유의파고 2.4m로 높아져 경계 필요 수준이며')).includes('word:level-need:경계 필요'));
