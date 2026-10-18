@@ -370,10 +370,11 @@
          * @returns {void}
          * [연계] RiskForecast.select → 여기 / 관할 문구는 RiskFormat.stationLabel(서버 office: marine_fusion·risk_store)
          *        해상 본문은 RiskMarine.render 로 그리고 RiskMarine.attach 로 날씨 펼침·사고 팝업·교통량 그래프 동작을 붙인다(2026-10-15 시안 8차)
+         *        해상 제목은 RiskMarine.title — 끝 해구 괄호만 2pt 작게·굵기 없이(2026-10-18 사용자 확정)
          */
         function show(d,kind,item,ctx) {
             el.removeAttribute('aria-busy');
-            if(w.RiskMarine&&(d.marine||kind==='briefing')){el.querySelector('.rf-title').textContent=d.marine?d.marine.location:d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';basisFor(d.marine?'sea':null);el.querySelector('.rf-timeline').hidden=false;var mb=el.querySelector('.rf-body');mb.innerHTML=d.marine?w.RiskMarine.render(d.marine,ctx):w.RiskMarine.briefing(d);present();if(d.marine&&w.RiskMarine.attach)w.RiskMarine.attach(mb,d.marine,ctx);return;}
+            if(w.RiskMarine&&(d.marine||kind==='briefing')){if(d.marine)w.RiskMarine.title(el.querySelector('.rf-title'),d.marine.location);else el.querySelector('.rf-title').textContent=d.station.name+' 관할 브리핑';el.querySelector('.rf-subtitle').textContent=d.marine?F.stationLabel(d.marine.station,d.marine.office):'선박 교통·예보·사고 이력 종합';basisFor(d.marine?'sea':null);el.querySelector('.rf-timeline').hidden=false;var mb=el.querySelector('.rf-body');mb.innerHTML=d.marine?w.RiskMarine.render(d.marine,ctx):w.RiskMarine.briefing(d);present();if(d.marine&&w.RiskMarine.attach)w.RiskMarine.attach(mb,d.marine,ctx);return;}
             var sub=d.subtitle||{};
             el.querySelector('.rf-title').textContent=kind==='accident'?'선박 사고 위험예보 · 격자 '+d.gridId:kind==='sea'?((d.title||{}).major+'-'+(d.title||{}).sub+'해구'):d.title;
             // 경위도는 화면에 쓰지 않는다(사용자 2026-10-16 「그리고 경위도는 빼자. 표시하는 곳에서.」) — 연안은 관할만, 옛 공식 사고 격자는 부제 없음(제목에 격자 번호).

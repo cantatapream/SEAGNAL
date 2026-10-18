@@ -22,6 +22,8 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-sheet button,.rf-basis button,.rf-legend button { min-height:24px; min-width:24px; }
 .rf-sheet-handle { width:40px; height:4px; border-radius:3px; background:rgba(255,255,255,.3); margin:0 auto 8px; }
 .rf-title { font-size:1.05rem; font-weight:700; margin:0 30px 2px 0; color:#e6edf8; }
+/* 해상 시트 제목 끝 해구 괄호 「(92-7해구)」: 제목보다 2pt 작게(16.8px → 약 14.13px)·굵기 없이 — 사용자 2026-10-18 「해구를 표현하는 괄호는 2포인트 줄여서 볼드 없이 표출」(risk_marine.js title). */
+.rf-title .rf-haegu { font-size:calc(1em - 2pt); font-weight:400; }
 .rf-subtitle { font-size:.8rem; color:#bfcbde; }
 /* 부제 줄: 부제(좌표·관할) + 오른쪽 끝(✕ 아래) [기준 상세](2026-10-16 T8). 부제가 길면 부제만 줄바꿈하고 버튼 자리는 비워 둔다. */
 .rf-sub-row { display:flex; align-items:flex-start; gap:8px; }
@@ -215,6 +217,9 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-card{position:relative;margin:0 0 10px;padding:12px;border:1px solid #ffffff30;border-radius:14px;background:#ffffff0d}
 .rf-card h4{margin:0 0 8px;font-size:.86rem;color:#cfe0ff}
 .rf-src{font-size:.72rem;color:#98abc7;font-weight:400;margin-left:6px}
+/* 해상 시트 섹션 제목은 흰색(시안 2026-10-18 ⑤ — 「지난 2주간 선박교통량」·「이 해역 과거 선박사고」·「지금 이 해역 날씨」). 시각(.rf-src)은 흐린 색 그대로.
+   .rf-card h4 는 연안 카드도 함께 쓰는 공용 규칙이라 건드리지 않고, 해상 카드 선택자로만 덮어쓴다. 사고 제목 괄호 기간(.rf-yrs)은 원래 제목색. */
+.rf-traffic h4,.rf-sea-acc h4,.rf-wx-head h4{color:#fff}.rf-sea-acc .rf-yrs{color:#cfe0ff}
 .rf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .rf-tile{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px}
 .rf-tile small{display:block;font-size:.68rem;color:#8fb4e6;font-weight:600;white-space:nowrap}.rf-tile b{font-size:1.05rem;white-space:nowrap}.rf-tile b em{font-style:normal;font-size:.75rem;font-weight:500;color:#bfcbde;margin-left:2px}
@@ -222,9 +227,14 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-r{display:flex;gap:12px;align-items:center;padding:10px 0}
 .rf-r+.rf-r{border-top:1px solid #ffffff1c}
 .rf-lvl{width:84px;border-radius:12px;padding:5px 6px;text-align:center;flex-shrink:0;box-sizing:border-box}
-.rf-lvl small{display:block;font-size:.66rem;font-weight:700;white-space:nowrap}.rf-lvl strong{display:block;font-size:1.3rem;line-height:1.2;white-space:nowrap}
-.rf-lvl strong.l4{font-size:1.02rem;line-height:1.56rem}
+.rf-lvl small{display:block;font-size:.66rem;font-weight:700;white-space:nowrap}
+/* 단계 글자: 어두운 남색 알약 + 글자색 = 그 칸의 단계색(risk_marine.js badge 가 inline color) — 시안 2026-10-18 ⑤ 사용자 확정(20.8px·800·자간 .06em·위아래 3px/1px·안쪽 1px 12px 2px). */
+.rf-lvl strong{display:inline-block;margin:3px 0 1px;padding:1px 12px 2px;border-radius:999px;background:#10151f;font-size:1.3rem;font-weight:800;line-height:1.2;letter-spacing:.06em;white-space:nowrap}
+/* 4글자(매우높음)는 알약이 칸(안쪽 72px)에 들게 글자·자간·안쪽 여백만 줄인다. */
+.rf-lvl strong.l4{font-size:.9rem;line-height:1.56rem;letter-spacing:0;padding:1px 5px 2px}
 .rf-txt{font-size:.84rem;line-height:1.5;color:#e6edf8}.rf-txt p{margin:0}
+/* 「이 해역 선박 18척」의 척수: 16px·800·밀집도 단계색(risk_marine.js hero 가 inline color) — 시안 2026-10-18 ⑤. */
+.rf-txt b.rf-cnt{font-size:1rem;font-weight:800}
 .rf-txt .sub{font-size:.74rem;color:#cbd5e6;margin-top:2px}
 /* 「충돌·접촉사고 주의」 — 주황(2026-10-16 사용자 「주황계열로 변경.」, 종전 연보라 #f0c6ff). 위험 예측 「주의」(#e58b46)·연안 「높음」(#fb923c) 계열을 어두운 시트에서 읽히게 밝힌 색.
    대비: 시트 바탕 두 끝 #0c1a3a 8.64:1·#162d5a 6.80:1, 카드(흰 5% 덧칠) 위 7.58:1·5.86:1 — 가장 낮은 값도 4.5:1 이상(test_risk_sea_sheet_ui). */
@@ -243,11 +253,12 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-avg b.none{color:#98abc7}
 .rf-chart{margin-top:12px;min-height:156px;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:grab}
 .rf-chart svg{display:block;width:100%}
-.rf-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.68rem;color:#cbd5e6;margin-top:6px;align-items:center}
+.rf-leg{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;font-size:.68rem;color:#cbd5e6;margin-top:6px;align-items:center}
 .rf-leg span{display:inline-flex;align-items:center;gap:5px}.rf-leg i{display:inline-block;width:14px;height:10px;border-radius:2px}
 .rf-leg i.ln{height:2px;background:#8fd3ff}
 .rf-leg i.adv-j{background:rgba(255,196,64,.45);box-shadow:inset 0 2px 0 #ffc440}.rf-leg i.adv-k{background:rgba(248,96,96,.5);box-shadow:inset 0 2px 0 #f86060}
-.rf-leg .zh{margin-left:auto;color:#98abc7}.rf-leg .zh b{color:#fff;font-weight:700}
+/* 범례는 가운데 정렬(시안 2026-10-18 ⑤). 확대율 글자는 확대했을 때만 같은 줄 끝에 붙는다 — 비면 자리를 차지하지 않게 숨긴다. */
+.rf-leg .zh{color:#98abc7}.rf-leg .zh:empty{display:none}.rf-leg .zh b{color:#fff;font-weight:700}
 .rf-chart-msg{margin:6px 0 0;font-size:.7rem}
 .rf-none h4{margin:0}
 .rf-acc-sum{display:flex;align-items:center;gap:16px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
@@ -288,7 +299,8 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-wx-head .chev{flex:none;width:9px;height:9px;margin:0 4px 4px 0;border-right:2px solid #cfe0ff;border-bottom:2px solid #cfe0ff;transform:rotate(45deg);transition:transform .2s}
 .rf-wx-head[aria-expanded="true"] .chev{transform:rotate(-135deg);margin:4px 4px 0 0}
 .rf-wx-body{padding:0 12px 12px}
-.rf-wx-body .g{font-size:.68rem;color:#98abc7;font-weight:600;margin:2px 0 5px}.rf-wx-body .g+.rf-grid{margin-bottom:8px}
+/* 묶음 제목 「파도」「바람」: 흰색·800·종전 크기보다 1pt 크게(10.88px → 12.21px), 칸 제목(유의파고 등)은 색 그대로 굵기만 800 — 시안 2026-10-18 ⑤-2. */
+.rf-wx-body .g{font-size:calc(.68rem + 1pt);line-height:18px;color:#fff;font-weight:800;margin:2px 0 5px}.rf-wx-body .rf-tile small{font-weight:800}.rf-wx-body .g+.rf-grid{margin-bottom:8px}
 .rf-wx-body .rf-tile b em.dir{color:#cfe0ff;font-weight:600;margin-left:3px;font-size:.7rem}
 .rf-wx-body .rf-grid3{grid-template-columns:1fr 1fr 1.3fr}
 .rf-cite{margin:2px 2px 6px;padding:10px 2px 0;border-top:1px solid #ffffff1c;font-size:.68rem;color:#98abc7;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
@@ -327,8 +339,10 @@ body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome)
 .rf-map-wait p{margin:0;padding:8px 12px;border-radius:8px;background:rgba(10,15,28,.9);border:1px solid var(--border-color,#334155);color:var(--text-main,#eaf1fa);font-size:.8rem;white-space:nowrap}
 body:not(.ls-safety) .rf-map-wait{display:none !important}
 /* 해상 시트 날씨 아코디언 — 그 해역 발효 중 특보 상자(「파도」 위, 2026-10-16 사용자 「테두리가 빨간 사각형 박스로 제주도북부앞바다 풍랑주의보 발효」). 여러 개면 위아래로 쌓는다(경보 먼저). */
-.rf-warn-box{margin:2px 0 8px;padding:8px 10px;border:1.5px solid #ff4d4f;border-radius:4px;background:rgba(255,77,79,.08);overflow-wrap:anywhere}
+.rf-warn-box{margin:2px 0 8px;padding:8px 10px;border:1.5px dashed #ff4d4f;border-radius:4px;background:rgba(255,77,79,.08);overflow-wrap:anywhere}
 .rf-warn-box b{display:block;margin:0 0 4px;font-size:.84rem;font-weight:700;color:#fff;word-break:keep-all;overflow-wrap:anywhere}
 .rf-warn-box p{margin:0;font-size:.74rem;line-height:1.5;color:#dfe8f5}
+/* 테두리 점선(시안 2026-10-18 ⑤-2): 발효 = 빨강 점선(위), 예비특보 발표 = 노랑 점선 — 앱 예비특보 노랑(style.css --accent-yellow #ffd740, 특보정보 탭 .alert-card.preliminary). */
+.rf-warn-box[data-state="예비"]{border-color:#ffd740;background:rgba(255,215,64,.08)}
 /* 제목 줄 「특보」 표시(risk_marine.js warnBadge — 상자와 같은 조건, 접혀도 보임, 2026-10-16 「2 추천대로」). 상자와 같은 빨강 계열 테두리, 흰 글자 대 #d32f2f 바탕 대비 약 4.98:1. 줄어들지 않게 flex:none. */
 .rf-warn-badge{flex:none;padding:1px 6px;border:1px solid #ff4d4f;border-radius:4px;background:#d32f2f;color:#fff;font-size:.68rem;font-weight:700;line-height:1.4;white-space:nowrap}

@@ -3,6 +3,7 @@
  * 역할  : 해상 지점 시트 본문(위 카드 위험 예측·밀집도/혼잡도, 지난 2주간 선박교통량 그래프, 이 해역 과거 선박사고 도넛·팝업,
  *         날씨 아코디언, 출처)과 관할 브리핑을 그린다. 화면 모양은 2026-10-15 확정 시안 8차(+추가 확정 5가지)를 따른다.
  *         위 카드 두 줄의 [?] 기준 설명 팝업·위험 예측 설명 문장 자간 맞춤은 2026-10-16 사용자 확정.
+ *         2026-10-18 시안 ⑤·⑤-2(사용자 댓글 확정): 단계 글자 남색 알약·척수 밀집도 색·사고 제목 「('21년 ~ '25년)」·특보 상자 점선(발효 빨강·예비 노랑)·시트 제목 해구 괄호 2pt 작게(title).
  *         선종·톤수 구성은 표시하지 않는다(사용자 결정 2026-10-15 「톤수, 선박 종류는 API에서 제공하지않는다고
  *         공식적으로 확인했어. 이용할 수 없을 것 같아.」 — 받던 MTIS 웹 수집도 이용약관 때문에 없앴다).
  * [연계] RiskFormat·RiskAPI → sea/analysis(marine.current·congestion·accident·collisionNotice·weather·warnings·history.accidents),
@@ -73,9 +74,10 @@
      * @param {string} at - 선택 시각 ISO @param {string} [now] - 서버 지금 ISO @returns {string} [연계] ← 날씨 아코디언 제목 */
     function whenText(at,now){var a=k(Date.parse(at)),n=now?k(Date.parse(now)):a,next=k(Date.parse(n.day+'T00:00:00+09:00')+DAY).day;return (a.day===n.day?'':a.day===next?'내일 ':a.m+'.'+p2(a.d)+' ')+p2(a.h)+'시';}
     /** 단계 뱃지를 만든다. 4글자(매우높음)는 칸 안에 들게 글자만 줄인다. 값이 없으면 회색 「-」.
-     * 예: badge('위험 예측','보통',RISK) @param {string} label @param {string|null} level @param {object} pal - 단계→색 @returns {string} HTML
+     * 단계 글자(주의·높음 등)는 어두운 남색 알약 안에 그 칸의 단계색으로 쓴다(시안 2026-10-18 ⑤ 사용자 확정 — 모양은 CSS .rf-lvl strong).
+     * 예: badge('위험 예측','보통',RISK) → 노란 칸 + 남색 알약 안 노란 「보통」 @param {string} label @param {string|null} level @param {object} pal - 단계→색 @returns {string} HTML
      * [연계] ← hero */
-    function badge(label,level,pal){var c=pal[level]||NONE,txt=pal[level]?level:'-';return '<div class="rf-lvl" data-level="'+F.escape(txt)+'" style="background:'+c+';color:'+(pal[level]?F.ink(rgb(c)):'#cfd8e6')+'"><small>'+label+'</small><strong'+(txt.length>=4?' class="l4"':'')+'>'+F.escape(txt)+'</strong></div>';}
+    function badge(label,level,pal){var c=pal[level]||NONE,txt=pal[level]?level:'-';return '<div class="rf-lvl" data-level="'+F.escape(txt)+'" style="background:'+c+';color:'+(pal[level]?F.ink(rgb(c)):'#cfd8e6')+'"><small>'+label+'</small><strong'+(txt.length>=4?' class="l4"':'')+' style="color:'+(pal[level]?c:'#cfd8e6')+'">'+F.escape(txt)+'</strong></div>';}
     /** 혼잡예보 단계 작은 뱃지. 예: chip('높음') @param {string} lv @returns {string} HTML [연계] ← hero */
     function chip(lv){var c=CONG[lv];return '<span class="rf-chip" style="background:'+c+';color:'+F.ink(rgb(c))+'">'+F.escape(lv)+'</span>';}
     /** 소수 한 자리로 쓴다(정수면 소수 없이). 예: 4 → '4', 4.25 → '4.3' @param {number} v @returns {string} */
@@ -98,12 +100,19 @@
         var a=m.accident,cf=m.congestion,c=m.current,okA=a&&a.status==='ok'&&RISK[a.level],okC=cf&&cf.status==='ok'&&CONG[cf.level],cc=m.collisionNotice&&m.collisionNotice.on?'<p><b class="rf-cc">충돌·접촉사고 주의</b></p>':'',row;
         if(isNow(m,ctx)){
             var live=c&&c.status==='ok'&&Number.isFinite(c.count),dens=live&&Number.isFinite(c.density)?c.density:null;
-            var line=live?(c.absent?'<p>이 해역 선박 없음</p>':'<p>이 해역 선박 <b>'+F.escape(c.count)+'척</b>(밀집도 '+(dens===null?'-':dens.toFixed(1)+'%')+')</p>'):'<p>이 해역 선박 정보 없음</p>';
+            // 척수(「18척」)는 밀집도 단계색 — 옆 「밀집도」 칸과 같은 색(시안 2026-10-18 ⑤ 사용자 확정). 밀집도를 모르면(칸이 「-」) 색을 칠하지 않는다.
+            var cntCol=dens!==null&&CONG[c.densityLevel]?' style="color:'+CONG[c.densityLevel]+'"':'';
+            var line=live?(c.absent?'<p>이 해역 선박 없음</p>':'<p>이 해역 선박 <b class="rf-cnt"'+cntCol+'>'+F.escape(c.count)+'척</b>(밀집도 '+(dens===null?'-':dens.toFixed(1)+'%')+')</p>'):'<p>이 해역 선박 정보 없음</p>';
             var fh=cf&&Number.isFinite(Date.parse(cf.forecastAt))?p2(k(Date.parse(cf.forecastAt)).h)+'시 ':'';
             row=badge('밀집도',live&&dens!==null?c.densityLevel:null,CONG)+'<div class="rf-txt">'+helpBtn('cong')+line+cc+'<p>'+(okC?fh+'혼잡예보 '+chip(cf.level):'혼잡예보 정보 없음')+'</p></div>';
         }else row=badge('혼잡도',okC?cf.level:null,CONG)+'<div class="rf-txt">'+helpBtn('cong')+'<p>혼잡 지수 <b>'+(okC&&Number.isFinite(cf.index)?Number(cf.index).toFixed(1):'-')+'</b></p>'+cc+'</div>';
         return '<section class="rf-card rf-hero"><div class="rf-r">'+badge('위험 예측',okA?a.level:null,RISK)+'<div class="rf-txt">'+helpBtn('risk')+'<p class="rf-fit" data-fit="'+FIT_TEXT+'">'+FIT_TEXT+'</p></div></div><div class="rf-r">'+row+'</div></section>';
     }
+    /** 해상 시트 제목(h3)을 쓴다 — 끝의 해구 괄호 「(92-7해구)」만 제목보다 2pt 작게·굵기 없이(CSS .rf-title .rf-haegu), 이름 부분은 그대로.
+     * 사용자 2026-10-18 「해구를 표현하는 괄호는 2포인트 줄여서 볼드 없이 표출」. 글자는 textContent 로만 넣는다(서버 문자열을 HTML 로 해석하지 않음).
+     * 예: title(h3,'부산 남동방 4.4해리 해역(92-7해구)') → 「부산 남동방 4.4해리 해역」+<span class="rf-haegu">(92-7해구)</span> · 괄호가 없으면 통째로 textContent
+     * @param {HTMLElement} h3 - 시트 머리 .rf-title @param {string} loc - 서버 marine.location @returns {void} [연계] ← RiskSheet.show(해상) */
+    function title(h3,loc){var s=String(loc==null?'':loc),m=/^(.*?)(\([^()]*해구\))$/.exec(s);h3.textContent=m?m[1]:s;if(m){var sp=document.createElement('span');sp.className='rf-haegu';sp.textContent=m[2];h3.appendChild(sp);}}
     /** 이 지점의 교통량 이력 칸 번호(GR4)를 고른다. 예: current.gridId 우선, 없으면 그 시각 혼잡 예보 칸. 없으면 null.
      * @param {object} m - marine @returns {string|null} [연계] ← RiskForecast.detail(sea/traffic-history?cell=) · fillTraffic */
     function cellOf(m){var id=(m&&m.current&&m.current.gridId)||(m&&m.congestion&&m.congestion.gridId)||null;return typeof id==='string'&&/^GR4_/.test(id)?id:null;}
@@ -132,11 +141,15 @@
      * [연계] ← render / 서버 marine_fusion.accidentList(사고예보 5km 칸 안 2021~2025, 해양오염·부유물감김 제외)
      */
     function accidents(h){
-        if(!h||h.available===false)return '<section class="rf-card"><h4>이 해역 과거 선박사고</h4><p class="rf-muted">선박사고 이력 자료를 확인할 수 없습니다.</p></section>';
-        var yrs=(h.from&&h.to?F.escape(String(h.from).slice(0,4))+'~'+F.escape(String(h.to).slice(0,4))+'년':''),L=accSort(h.accidents);
-        if(!L.length)return '<section class="rf-card rf-none" data-acc-none><h4>이 해역 선박사고 없음<span class="rf-src">'+yrs+'</span></h4></section>';
-        return '<section class="rf-card rf-acc"><h4>이 해역 과거 선박사고<span class="rf-src">'+yrs+'</span></h4>'+accSummary(L)+'</section>';
+        if(!h||h.available===false)return '<section class="rf-card rf-sea-acc"><h4>이 해역 과거 선박사고</h4><p class="rf-muted">선박사고 이력 자료를 확인할 수 없습니다.</p></section>';
+        var yrs=yearsText(h),L=accSort(h.accidents);
+        if(!L.length)return '<section class="rf-card rf-none rf-sea-acc" data-acc-none><h4>이 해역 선박사고 없음'+yrs+'</h4></section>';
+        return '<section class="rf-card rf-acc rf-sea-acc"><h4>이 해역 과거 선박사고'+yrs+'</h4>'+accSummary(L)+'</section>';
     }
+    /** 사고 카드 제목 뒤에 붙는 기간 글자. 연안 「주변 연안사고('20년 ~ '24년)」와 같은 꼴(시안 2026-10-18 ⑤ 사용자 확정 — 종전 제목 오른쪽 따로 붙던 「2021~2025년」을 없앴다).
+     * 예: yearsText({from:'2021-01-01',to:'2025-12-31'}) → '<span class="rf-yrs">(&#39;21년 ~ &#39;25년)</span>' · from·to 가 없으면 ''
+     * @param {object} h - marine.history {from,to} @returns {string} HTML(괄호 부분은 CSS .rf-yrs 가 원래 제목색) [연계] ← accidents */
+    function yearsText(h){return h.from&&h.to?'<span class="rf-yrs">'+F.escape("('"+String(h.from).slice(2,4)+"년 ~ '"+String(h.to).slice(2,4)+'년)')+'</span>':'';}
     /** 사고 목록을 최신순으로 정렬한 사본을 만든다. 예: accSort([{date:'2021-…'},{date:'2024-…'}]) → 2024 먼저 @param {object[]|null} list @returns {object[]} [연계] ← accidents·attach·연안 시트(RiskSheet) */
     function accSort(list){return (list||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));});}
     /**
@@ -183,12 +196,14 @@
      * 예: 특보 1개 이상 → '<span class="rf-warn-badge" data-warn-badge>특보</span>' / 없음·자료 낡음 → ''
      * @param {object} m @returns {string} HTML [연계] ← weather / → activeWarns(상자와 같은 조건) */
     function warnBadge(m){return activeWarns(m).length?'<span class="rf-warn-badge" data-warn-badge>특보</span>':'';}
-    /** 그 해역에 선택 시각 기준 발효 중인 특보 상자(빨간 테두리, 「파도」 위). 경보 먼저(서버 정렬). 특보가 없거나 특보 자료가 낡거나 없으면 아무것도 그리지 않는다.
+    /** 그 해역에 선택 시각 기준 발효 중인 특보 상자(빨간 점선 테두리, 「파도」 위). 경보 먼저(서버 정렬). 특보가 없거나 특보 자료가 낡거나 없으면 아무것도 그리지 않는다.
      * 예: 「제주도북부앞바다 풍랑주의보 발효」 / 「발표 : 10월 16일(금) 04:30」 / 「발효 : 10월 16일(금) 06:00」 / 「해제예정 : 정보없음」
      * 사용자 2026-10-16 「해당 해역에 특보가 있다면 파고 윗부분에 한줄로 테두리가 빨간 사각형 박스로 제주도북부앞바다 풍랑주의보 발효 …」
+     * 테두리는 점선(2026-10-18 시안 ⑤-2 사용자 확정): 발효 = 빨강 점선, 예비특보 발표 = 노랑 점선(data-state="예비", CSS).
+     *   ⚠ 지금 서버(marine_fusion.warningsAt)는 발효만 보내고 예비특보는 뺀다 — 항목에 state:'예비' 가 올 때만 노랑 상자 「… 예비특보 발표」가 된다(그 전에는 그려지지 않음).
      * @param {object} m - 서버 marine(warnings:{status,zone,items}) @returns {string} HTML [연계] ← weather / → activeWarns(제목 줄 warnBadge 와 같은 조건) / 서버 marine_fusion.warningsAt */
     function warnBoxes(m){
-        return activeWarns(m).map(function(x){return '<div class="rf-warn-box" data-warn-box data-level="'+F.escape(x.level)+'"><b>'+F.escape(x.zone+' '+x.type+x.level+' 발효')+'</b><p>발표 : '+F.escape(warnWhen(x.issued))+'</p><p>발효 : '+F.escape(warnWhen(x.effective))+'</p><p>해제예정 : '+F.escape(warnWhen(x.release))+'</p></div>';}).join('');}
+        return activeWarns(m).map(function(x){var pre=x.state==='예비';return '<div class="rf-warn-box" data-warn-box data-level="'+F.escape(x.level)+'" data-state="'+(pre?'예비':'발효')+'"><b>'+F.escape(x.zone+' '+x.type+x.level+(pre?' 예비특보 발표':' 발효'))+'</b><p>발표 : '+F.escape(warnWhen(x.issued))+'</p><p>발효 : '+F.escape(warnWhen(x.effective))+'</p><p>해제예정 : '+F.escape(warnWhen(x.release))+'</p></div>';}).join('');}
     /** 날씨 아코디언(처음 접힘). 지금이면 「지금 이 해역 날씨」, 미래면 「이 해역 내일 09시 예보」(오늘이면 「이 해역 18시 예보」).
      * 파도(유의파고·파주기·파향) / 바람(풍속·풍향). 예: 파향 203.4 → 「203° 남남서」.
      * 펼친 몸통 맨 위(「파도」 위)에 그 해역 발효 중 특보 상자(warnBoxes)를 둔다(2026-10-16). 그런 특보가 있으면 제목 줄 꺾쇠 앞에 「특보」(warnBadge, 접혀도 보임).
@@ -432,5 +447,5 @@
     function congestionColor(position){return color(position);}
     /** 열린 공용 팝업(사고 목록·[?])이 있으면 닫는다. 예: 연안 시트가 다른 관광지·시각을 그릴 때 @returns {void} [연계] ← RiskSheet.show(연안) → closeAcc */
     function closePop(){var op=document.querySelector('.rf-acc-pop');if(op){op._opener=null;closeAcc(op);}}
-    w.RiskMarine={HELP:HELP,render:render,attach:attach,accSort:accSort,accSummary:accSummary,bindAcc:bindAcc,closePop:closePop,fillTraffic:fillTraffic,cellOf:cellOf,zoom:zoom,briefing:briefing,history:history,color:color,congestionColor:congestionColor};
+    w.RiskMarine={HELP:HELP,title:title,render:render,attach:attach,accSort:accSort,accSummary:accSummary,bindAcc:bindAcc,closePop:closePop,fillTraffic:fillTraffic,cellOf:cellOf,zoom:zoom,briefing:briefing,history:history,color:color,congestionColor:congestionColor};
 })(window);

@@ -108,7 +108,7 @@ bash scripts/refactor/verify_all.sh
 | 함수 | 하는 일 |
 |------|---------|
 | `activeWarns(m)` | `marine.warnings` 가 `status:'ok'` 이고 `items` 가 있으면 그 목록, 아니면 빈 목록. 아래 두 함수의 **유일한 조건** |
-| `warnBoxes(m)` | 펼친 몸통 「파도」 위 빨간 테두리 상자(`.rf-warn-box`) — `activeWarns` 각 항목 |
+| `warnBoxes(m)` | 펼친 몸통 「파도」 위 특보 상자(`.rf-warn-box`) — `activeWarns` 각 항목. 테두리 점선(2026-10-18): 발효 빨강, `state:'예비'` 항목은 `data-state="예비"` 노랑 「… 예비특보 발표」(지금 서버는 예비를 보내지 않음) |
 | `warnBadge(m)` | 제목 줄 꺾쇠 앞 작은 「특보」(`.rf-warn-badge`, 흰 글자·#d32f2f·테두리 #ff4d4f) — `activeWarns` 가 하나라도 있으면 |
 
 - 표시는 펼쳐도 남긴다(제목 줄은 접힘·펼침에 같고 꺾쇠만 돈다). 시각을 바꾸면 `render` 가 다시 그려 함께 바뀐다.
@@ -365,4 +365,18 @@ bash scripts/refactor/verify_all.sh
 - 하루 값의 칸은 서버 연안 시간축 하나에서 정한다(`coastTimeline`). 오늘의 지난 칸을 넣으려면(설계서 §16.1 ①) `validateTime`·`coastDay` 를 함께 바꿔야 한다.
 - 지도 클릭 무시는 지도 경로(`mapSelect`)만이다. `select` 자체에 막기를 넣으면 시트 안 관광지 목록·관할 해역 이동·탭 복귀가 막힌다.
 - 검사: `NODE_PATH=/opt/node-tools/node_modules node local_server/scripts/test_risk_coast_day.js` (선택 `RISK_DAY_SHOTS=<폴더>` — 380·1280px 화면 PNG).
+
+## 해상 시트 시안 반영 — 2026-10-18
+README 「해상 시트 시안 반영」 절의 확정 사항을 코드로 옮긴 자리.
+
+| 무엇 | 전 | 후 |
+|------|----|----|
+| `badge` 단계 글자 | 칸 글자색(`F.ink`) 그대로, `display:block` | `<strong style="color:단계색">` + `.rf-lvl strong` 남색 알약(#10151f·800·자간 .06em·여백 3px/1px·안쪽 1px 12px 2px). `.l4` 는 .9rem·자간 0·안쪽 1px 5px 2px |
+| `hero` 척수 | `<b>` 굵게 | `<b class="rf-cnt" style="color:밀집도 단계색">` 16px·800(밀집도 모르면 색 없음) |
+| `accidents` 제목 | `<span class="rf-src">2021~2025년</span>` | `yearsText` → `<span class="rf-yrs">('21년 ~ '25년)</span>`(#cfe0ff), 카드에 `.rf-sea-acc` |
+| 해상 h4 색 | 공용 `.rf-card h4` #cfe0ff | `.rf-traffic h4,.rf-sea-acc h4,.rf-wx-head h4{color:#fff}`(공용 규칙은 그대로) |
+| `.rf-leg` | 왼쪽 정렬, `.zh` `margin-left:auto` | `justify-content:center`, `.zh:empty{display:none}` |
+| `.rf-wx-body .g` | .68rem·600·#98abc7 | `calc(.68rem + 1pt)`(12.21px)·줄높이 18px·800·#fff, `.rf-wx-body .rf-tile small{font-weight:800}` |
+| 시트 제목(해상) | `risk_sheet.js` `show` 가 `.rf-title.textContent = marine.location` | `RiskMarine.title(h3,location)` — 끝 「(…해구)」만 `<span class="rf-haegu">`(textContent), CSS `.rf-title .rf-haegu{font-size:calc(1em - 2pt);font-weight:400}` |
+| `.rf-warn-box` | 1.5px solid #ff4d4f | 1.5px dashed #ff4d4f, `[data-state="예비"]` #ffd740·바탕 rgba(255,215,64,.08) |
 
