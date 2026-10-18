@@ -63,7 +63,7 @@ const dataCache = {
  *   변경되지 않은 파일은 stat 만 하고 read/parse 를 스킵 (CPU 부담 절감).
  *
  * [mtime 기반 read 최적화 도입 배경]
- *   zone_forecasts.json (5.85 MB) 같은 큰 파일은 하루 2회만 갱신되는데,
+ *   zone_forecasts.json (5.85 MB) 같은 큰 파일은 하루 2회만 갱신되는데(도입 당시 기준 — 2026-10-16부터 30분마다 다시 쓴다),
  *   기존 코드는 5초마다 무조건 read + JSON.parse 하여 12시간 동안 8,640번
  *   같은 작업을 반복했음. mtime 비교로 변경 시에만 read 하도록 변경.
  *
