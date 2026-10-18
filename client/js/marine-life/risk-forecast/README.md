@@ -455,3 +455,21 @@
 - **그대로 둔 것(잠금과 다른 장치)**: 버튼이 해양안전 화면에서만 보이는 CSS(`#ocean-risk-forecast-toggle-btn{display:none}` + `body.ls-mode.ls-safety … {display:flex}`)는 화면 배치 규칙이라 그대로다. 관리자 점검용 원천 수집 오류 API(`/api/admin/risk-forecast/errors`·`accident-level-stats` — `routes/risk_errors.js` 가 `admin_auth.requireAdminToken` 으로 막음, `simulate.js` 「위험예측:원천오류 관리자 전용」)도 운영 진단 정보라 그대로다. 위험예측 화면이 쓰는 `/api/risk-forecast/*`(`routes/risk_forecast.js`)에는 관리자 조건이 없다. 「연안 안전 브리핑」 아코디언의 노출 범위(관리자/사용자 — 서버 설정)는 브리핑 기능의 공개 설정이라 이번 범위가 아니다(바로가기 자체는 브리핑이 보이는 기기면 누구나 동작).
 - **캐시**: `?v=20261018open`(risk_forecast.css·risk_forecast.js·station_briefing.js).
 - **시험**: `test_marine_ui` 「실제 위험예측 버튼은 잠금 없이 한 번 누르면 바로 열림·다시 누르면 꺼짐·새페이지도 잠금 없음」 · `test_station_briefing_ui` 「[UI-A2] 일반 기기 … 바로 열고 그 관광지 시트(잠금 없음)」(새 일반 기기에서 `openAt` → true 포함) · `test_life_safety_tab_keep`(처음 상태 잠금 없음·한 번 눌러 켬) · `test_risk_coast_day`(한 번 눌러 켬) · `simulate.js` 「위험예측:잠금 없이 한 번 눌러 열림」(종전 「10회 트리거의 첫9회 비활성」 대체).
+
+## 사용량 통계 「위험예측」 묶음 (2026-10-18 사용자 결정)
+
+> 사용자 원문: *"해양생활안전에서 위험예측 버튼을 누르고 각 토글을 누르면 1건, 그리고 격자를 눌러서 바텀시트를 열면 한건"* · *"연안 안전 브리핑과 위험예측은 별개로 집계"*
+
+`risk_forecast.js usage()` → `window.trackUsage`(utils.js). 이름표 `client/js/shared/utils/usage_keys.js` I 절(앞말 「위험예측 · 」). 끌 때는 세지 않는다(해양안전 집계 규칙과 같다).
+
+| 누름 | 키 |
+|---|---|
+| [위험예측] 버튼 켬 | `risk.on` |
+| 「연안 위험 예측·분석」 / 「해상 위험 예측·분석」 스위치 켬 | `risk.layer.coast` / `risk.layer.sea` |
+| 해상 [혼잡도] / [위험 예측] 고름(이미 고른 칸 0건) | `risk.marine_mode.congestion` / `risk.marine_mode.risk` |
+| 지도에서 해상 칸 / 연안 관광지를 눌러 시트가 열림(`mapSelect` — 열린 동안 지도 클릭은 무시라 0건, 같은 위치 관광지 목록도 연안 1건) | `risk.sheet.sea` / `risk.sheet.coast` |
+
+- 하단 시각 버튼(-6H~+6H)·연안 날짜 넘기기·시트 안 단추·시트 닫기는 세지 않는다(토글이 아니다). 탭 복귀 때 `life_safety.js` 가 다시 켜는 것은 `_silently` 로 0건.
+- 연안 안전 브리핑의 바로가기(`RiskForecast.openAt`·`goTo`)가 버튼·층 스위치를 대신 누르는 클릭은 `quiet()`(`withUsageSuppressed`)로 0건 — 브리핑 쪽 `risk.goto_*_from_briefing` 1건만 남는다.
+  브리핑에서 여는 위험예측 지도 키 전체는 [연안 안전 브리핑 README](../../forecast/station-briefing/README.md) 「사용량 통계」 절.
+- 시험: `local_server/scripts/test_usage_briefing_risk_ui.js`. 캐시 `?v=20261018usage`.

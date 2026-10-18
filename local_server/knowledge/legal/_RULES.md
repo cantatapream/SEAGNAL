@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 123 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 124 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -390,6 +390,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_station_briefing` | 「활동지점 안전 브리핑」(파출소 관할) 서버 1단계 시험 — 고정 입력(가짜 자료)으로 규칙·AI 순서·검증·저장·일정·노출을 결정론적으로 확인한다. |
 | `test_station_briefing_ui` | 「활동지점 안전 브리핑」 2단계(화면)를 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다 — |
 | `test_risk_goto_frame` | 「연안 안전 브리핑」 카드의 [위험예측에서 보기 ›](RiskForecast.openAt)로 위험예측을 열었을 때, 고른 해상 칸·연안 관광지가 |
+| `test_usage_briefing_risk_ui` | 사용량 통계 「연안 안전 브리핑」·「위험예측」 두 묶음이 실제 클릭 한 번에 정확히 1건씩(키·건수) 서버로 가는지 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다. |
 | `test_location_dispatch_reliability` | 위치기반 깨우기(특보·태풍) 발송 신뢰성 + 스냅샷 축약 회귀검사 |
 | `test_forecast_gear_ui` | 해양예보 탭 아코디언 ⚙ 두 개를 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다(2026-10-17 사용자 확정). |
 | `test_smallzone_forecast` | 소해구 예보 수집 서비스(services/smallzone_forecast.js)와 그 API(routes/weather.js GET /api/marine-small-zone-forecasts/:l… |

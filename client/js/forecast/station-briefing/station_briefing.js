@@ -17,6 +17,7 @@
  *                    · style.css .new-badge(공지사항과 같은 N 뱃지) · core/index2_patch.js(_showOceanToast — 바로가기 실패 안내)
  *                    · admin/admin.js('seagnal-admin-change' 사건 — 관리자 상태가 바뀌면 노출 판정 다시) · settings.js settingsModalHasUnsaved·saveSettingsAndClose([관할 설정])
  *                    · index2.html applyFeatureBlocks(점검 차단 'station-briefing' — window._blockedFeatures, 차단을 바꾼 뒤 applyVisibility 를 부름)
+ *                    · shared/utils/utils.js(trackUsage — 사용량: 펼침 'briefing.open' · 바로가기 'risk.goto_*_from_briefing', 이름표 shared/utils/usage_keys.js)
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(고르기 지도 — picker 가 처음 지도를 열 때) · GET /api/station-briefing?station=&day=auto (routes/station_briefing.js — 노출 판정)
  *                    · GET /api/station-briefing/now?station=&day=auto&since=(「지금 밀집」만 — 보고 있는 동안 1분마다, §11.10.24 pollNow)
  *                    관리자 기기 판정 정보는 특보 예측 표출 제어(forecast/prediction/advisory_prediction.js _adminAuth)와 같은 방식:
@@ -228,7 +229,8 @@
         if (!S.resp) { var l = document.createElement('p'); l.className = 'sb-small'; l.textContent = '브리핑을 불러오는 중입니다…'; box.appendChild(l); return; }
         if (S.resp.error) { var er = document.createElement('p'); er.className = 'sb-miss'; er.textContent = '브리핑을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.'; box.appendChild(er); return; }
         if (!w.StationBriefingRender) return;
-        w.StationBriefingRender.render(box, S.resp, { showSea: p.showSea !== false, showLand: p.showLand !== false, onLink: openInRisk });
+        // usage:true — 이 본문의 지도 링크·근거 지도·지도 칸 시트를 사용량에 센다(관리자 미리보기 admin_station_briefing.js 는 넘기지 않아 세지 않는다)
+        w.StationBriefingRender.render(box, S.resp, { showSea: p.showSea !== false, showLand: p.showLand !== false, onLink: openInRisk, usage: true });
     }
 
     /**
@@ -343,8 +345,8 @@
     }
     /**
      * 아코디언 머리를 눌렀을 때 — 바깥 아코디언 토글(해상 기상 전망과 같은 동작). 펼치면 N 뱃지를 지우고, 10분 넘게 지난 브리핑은 다시 받는다.
-     * 예: toggle() → 펼침 + markSeen
-     * @returns {void} [연계] ← index2.html #station-briefing-accordion-header onclick / → markSeen·loadBriefing
+     * 예: toggle() → 펼침 + markSeen + 사용량 'briefing.open' 1건
+     * @returns {void} [연계] ← index2.html #station-briefing-accordion-header onclick / → markSeen·loadBriefing·window.trackUsage(utils.js — 이름표 usage_keys.js)
      */
     function toggle() {
         var b = $('station-briefing-accordion-body'), h = $('station-briefing-accordion-header'); if (!b) return;
@@ -352,7 +354,8 @@
         if (b.style.display === 'none' && S.display && !prefs().hidden) b.style.display = '';
         var willOpen = b.classList.contains('collapsed');
         b.classList.toggle('collapsed'); if (h) h.classList.toggle('collapsed-state');
-        if (willOpen) { markSeen(); if (prefs().station && Date.now() - S.fetchedAt > REFRESH_MS) loadBriefing(); }
+        // [사용량] 연안 안전 브리핑 제공실적 — 펼칠 때마다 1건(접을 때는 세지 않는다, 사용자 2026-10-18 *"집계는 아코디언이 열리면 1건으로 반영"*)
+        if (willOpen) { if (typeof w.trackUsage === 'function') w.trackUsage('briefing.open'); markSeen(); if (prefs().station && Date.now() - S.fetchedAt > REFRESH_MS) loadBriefing(); }
     }
     /**
      * 설정 화면을 연다(⚙ 버튼·[설정하기]·설정 팝업 [관할 설정]). 숨김이었으면 다시 보인다.
@@ -393,9 +396,12 @@
      * 해양안전 화면이 지도를 준비하고 떠날 때 화면을 되살리는 200ms 뒤(life_safety.js _enterSafety)를 기다린 다음 RiskForecast.openAt 를 부른다.
      * 예: openInRisk({kind:'marine',id:'GR4_F4K23_P4',location:{lon:126.53,lat:33.56},t:'…15:00…'}) → 해양안전 · 위험예측 해상 ON · 15시 · 그 칸 시트
      * @param {Object} target - RiskForecast.openAt 대상 @param {HTMLElement} [btn] - 누른 버튼(기다리는 동안 잠금) @returns {Promise<boolean>}
-     * [연계] ← station_briefing_render.js linkBtn / → switchMainTab·switchSubTab·RiskForecast.openAt(risk_forecast.js)
+     * [연계] ← station_briefing_render.js linkBtn / → switchMainTab·switchSubTab·RiskForecast.openAt(risk_forecast.js)·window.trackUsage('risk.goto_*_from_briefing')
      */
     async function openInRisk(target, btn) {
+        // [사용량] 바로가기 1건 — 「위험예측」 묶음(사용자 2026-10-18 *"브리핑에서 위험예측 기능과 관련된 지도가 열리면 위험예측으로 반영"*).
+        //   이어서 RiskForecast.openAt 이 위험예측 버튼·층 스위치를 대신 누르지만 그 클릭은 risk_forecast.js quiet 로 세지 않는다(이중 집계 없음).
+        if (typeof w.trackUsage === 'function') w.trackUsage(target && target.kind === 'coast' ? 'risk.goto_coast_from_briefing' : 'risk.goto_sea_from_briefing');
         var what = target && target.kind === 'coast' ? '이 관광지' + (target.date ? '(' + (w.StationBriefingRender ? w.StationBriefingRender.dateText(target.date) : target.date) + ')' : '') : '이 해역';
         if (!w.RiskForecast || typeof w.RiskForecast.openAt !== 'function') { console.warn('[연안 안전 브리핑] 위험예측 모듈이 없어 바로가기를 열지 못함'); toast('위험예측을 열지 못했습니다 — 위험예측 화면을 불러오지 못했습니다.'); return false; }
         // 2026-10-18 위험예측 일반 공개 — 미리보기 잠금이 없어져 일반 기기도 관리자와 같이 바로 연다(종전 「아직 미리보기 기능이라…」 안내는 뺐다).
