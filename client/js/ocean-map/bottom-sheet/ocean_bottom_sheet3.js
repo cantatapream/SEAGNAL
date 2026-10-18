@@ -10,8 +10,8 @@
  *  - 나를 쓰는 곳  : OS.fetchTideForSheet(ocean_bottom_sheet5.js loadAllForDate),
  *                    OS.refreshTideGaugeForTime(ocean_bottom_sheet2.js SheetTL.onRelease),
  *                    OS.prefetchFavoriteTides(이 파일의 load·visibilitychange 리스너 — 앱 시작·복귀 시
- *                    즐겨찾기 해점 오늘 조석을 미리 받아 영속 캐시에 넣음),
- *                    OS.tideGaugeHtml(forecast/station-briefing/station_briefing_render.js — 브리핑 조석 칸이 같은 게이지 디자인)
+ *                    즐겨찾기 해점 오늘 조석을 미리 받아 영속 캐시에 넣음)
+ *                    (종전 OS.tideGaugeHtml — 연안 안전 브리핑 「조석」 칸용 — 은 그 칸을 뺄 때 함께 뺐다, 2026-10-18 설계서 §11.10.34)
  * ============================================================================
  *
  * [표시 형식 (이미지 기반)]
@@ -915,7 +915,7 @@
         tPeaks.sort(function (a, b) { return a.minutes - b.minutes; });
 
         var todayMode = OS.isToday(dateObj);
-        // 게이지(헤더)·고저조 목록 HTML — 활동지점 안전 브리핑도 같은 함수를 쓴다(OS.tideGaugeHtml, 2026-10-16 §11.6-11 「그 디자인이 같이」).
+        // 게이지(헤더)·고저조 목록 HTML(2026-10-16 §11.6-11 에 떼어 낸 함수 — 브리핑 「조석」 칸이 같이 쓰다가 §11.10.34 에 그 칸을 뺐다)
         var gauge = buildTideGauge(peaks, yPeaks, tPeaks, dateObj, todayMode);
         var headHtml = gauge.headHtml, peaksHtml = gauge.peaksHtml;
 
@@ -1138,13 +1138,12 @@
 
     /* --------------------------------------------------------------
      * 게이지(헤더 진행 막대·예상 조위)와 고조·저조 목록 HTML 을 만든다 — renderTideData 에서 떼어 낸 것(내용 그대로).
-     * 활동지점 안전 브리핑(forecast/station-briefing)이 해양종합정보 조석 게이지 디자인을 그대로 쓰도록 OS.tideGaugeHtml 로도 연다
-     * (2026-10-16 설계서 §11.6-11, 사용자 원문 「조석이 게이지랑 함께 … 그 디자인이 같이 나왔으면 좋겠어.」).
+     * (2026-10-16 설계서 §11.6-11 에 연안 안전 브리핑 「조석」 칸이 같은 디자인을 쓰도록 OS.tideGaugeHtml 로도 열었다가, 2026-10-18 §11.10.34 에 그 칸을 빼며 그 출입구도 뺐다.)
      * 예: buildTideGauge([{type:'low',minutes:372,level:-12},…], [어제 마지막 피크], [내일 첫 피크], 오늘 14:05, true) → {headHtml:'<div class="ocean-tide-head">…', peaksHtml:'<div class="ocean-tide-peaks">…'}
      * @param {Array} peaks - 그날 [{type,minutes,level}] (분 오름차순, diff 를 이 함수가 채운다) @param {Array} yPeaks - 어제 @param {Array} tPeaks - 내일
      * @param {Date} dateObj - 게이지 기준 시각(그 날의 시·분) @param {boolean} todayMode - 오늘이면 게이지, 아니면 목록만
      * @returns {{headHtml:string, peaksHtml:string}} 숫자·시각만 담긴 HTML
-     * [연계] ← renderTideData · OS.tideGaugeHtml(station_briefing_render.js) / → renderHeadHtml·renderPeakGroup·interpolateLevel
+     * [연계] ← renderTideData / → renderHeadHtml·renderPeakGroup·interpolateLevel
      * ------------------------------------------------------------ */
     function buildTideGauge(peaks, yPeaks, tPeaks, dateObj, todayMode) {
         // [시트 슬라이더 연계] dateObj 는 슬라이더가 가리키는 시각 (value=0 → real now,
@@ -1258,10 +1257,6 @@
             '</div>';
         return { headHtml: headHtml, peaksHtml: peaksHtml };
     }
-    OS.tideGaugeHtml = function (peaks, yPeaks, tPeaks, dateObj, todayMode) {
-        var g = buildTideGauge(peaks, yPeaks, tPeaks, dateObj, todayMode);
-        return g.headHtml + g.peaksHtml;
-    };
 
     /* --------------------------------------------------------------
      * 내부: 헤더 (좌:다음피크 / 가운데:진행막대 / 우:그 다음 피크)
