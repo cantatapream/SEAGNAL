@@ -20,6 +20,9 @@
  *                    · E(시안 ⑤판): 분석 문단의 특보 말(「풍랑주의보 해제 예고」·「예비특보」 등) → 「기상특보 현황」 창 링크(openWarnPopup — 표 「특보구역 | 특보 | 시각」·발표·해제 뒤 한 문장),
  *                      특보 말이 없으면 문단 아래 「(특보) …」 한 줄 · 해상 근거 안 같은 상자(warnBox) · 표 칸에는 따옴표 없음(서버).
  *         §11.10.20(시안 Land.dc.html ⑥판, 서버 규칙 v19): 연안 카드 — 배지 줄(연안 위험지수·해수욕장) · [위험구역] 「N개소」 → 표 「구역 종류 | 개소 수」 → [위치 보기] 지도(그 종류 위험구역 폴리곤 깜빡임 + 관광지 점)
+ *         §11.10.24(2026-10-18): 「관할 해역 선박 N척」·붐비는 해역 팝업 = 위성지도 + 혼잡도 지금(칸 색·선박 수) · 칸을 누르면 그 창 안 해상 분석 바텀시트 · 열린 동안 실시간 갱신(updateNow·popup.live)
+ *                    · 해상 근거 「위험이 높아진 해역 N칸」·「위험예보만 해역」 펼침 지도 = 위성지도 + 위험 예측 색, 칸을 누르면 화면 바텀시트(openPageSheet).
+ *         §11.10.26(2026-10-18): 연안 근거 「이름 — …」 줄의 관광지 이름(밑줄만) → 팝업(위성지도 + 연안 위험 색 · 그 영역 깜빡임) → 잠깐 뒤 연안 분석 바텀시트 자동.
  *         §11.10.23(서버 규칙 v21): 해역 카드 [최근 14일 선박 동향] 한 줄(「…많이 기록되었습니다」 다음 · [기상 예보] 앞 — 서버 card.traffic, 없으면 줄 없음) · 데이터 출처 한 줄.
  *         §11.10.22(서버 규칙 v20): 해구 표기 「75해구」·「223-9해구」(지도 풀이·링크 경계) · [기상 예보]·분석 문단 「유의파고 …」 굵게(옛 판 「최대 파고 …」도) · 해역 카드 [사고현황('21~'25년)] 내용은 이름표 다음 줄(연안 카드와 같은 모양).
  *                    · [사고현황('20~'24년)] 「총 N건」 → 표 「연도 | 사고 종류 | 건수」 · [오늘 예상] 하나면 점 없이 · [권고]. 맨 아래 노란 안내 한 문장(기준 시각·다루는 시간 줄 없음 · 출처 표는 [기준 상세]에만 — 2026-10-18).
@@ -32,12 +35,14 @@
  *                    · style.css(.marine-forecast-sub-accordion·.ocean-tide-*) · station_briefing.css(.sb-*)
  *                    · ol.js(index2 <head> 전역 ol — 미니 지도) · ocean-map/map/ocean_map.js(window.oceanCreateKhoaLayer — 바탕 해아름 바다지도, 관심해역 고르기 지도와 같은 방식, 없으면 선만)
  *                    · marine-life/safety/hazard_rocks.js(window.HazardRockTidePanel — 간출암 조석 곡선 상자·마커 그림, §11.10.10) · index2.html <style>(.hazard-rock-popup.rock-tide-popup 모양)
+ *                    · station_briefing_riskmap.js(StationBriefingRiskMap — 위험예측 배경 지도 층·바텀시트, §11.10.24·§11.10.26)
  *  - 서버 API      : 브리핑은 받은 응답만 그린다(받기는 station_briefing.js · admin_station_briefing.js). 간출암 상자는 HazardRockTidePanel 이 /api/hazard-rocks/tide-curve 를 받는다
  *                    · 연안 카드 [위치 보기]를 누를 때만 GET /api/risk-forecast/hazard-zones?ids=(routes/risk_forecast.js — 위험구역 폴리곤, §11.10.20)
+ *                    · 위험예측 배경 지도·시트는 StationBriefingRiskMap 이 GET /api/risk-forecast/sea/area-frame·coast/area-frame·sea/analysis·coast/spot·sea/traffic-history 를 받는다(§11.10.24)
  *  - 마크업        : index2.html #station-briefing-content(그 안을 통째로 만든다) · 관리자 미리보기 상자
  *  - 나를 쓰는 곳  : station_briefing.js(아코디언 본문) · admin/admin_station_briefing.js(관할 하나 미리보기)
  *  - 계약          : client/js/ocean-map/coastal-risk/briefing.contract.md §1.2·§2
- * [로드 순서] life_safety.js 다음 · station_briefing_basis.js·station_briefing.js 이전
+ * [로드 순서] station_briefing_riskmap.js 다음(그 앞 life_safety.js·risk_*.js) · station_briefing_basis.js·station_briefing.js 이전
  * ============================================================================
  */
 (function (w) {
@@ -729,6 +734,7 @@
     function render(box, resp, opts) {
         opts = opts || {};
         closeMapPopup();   // 본문을 다시 그리면 열린 팝업 지도도 닫는다(§11.10.9 ⑥)
+        closePageSheet();  // 근거 지도에서 올린 화면 바텀시트도(§11.10.24)
         var showSea = opts.showSea !== false, showLand = opts.showLand !== false, nowMs = Number.isFinite(opts.now) ? opts.now : Date.now();
         box.textContent = '';
         var b = resp && resp.briefing;
@@ -879,8 +885,11 @@
      *            polys 가 있으면 관할 폴리곤(area)이 비어 있어도 그린다(파란 선 없음).
      * §11.10.10: opt.points = [{id, lat, lon, v, times}] 간출암 — 해양안전 「위험지형」과 같은 간출암 그림(HazardRockTidePanel.icon, 없으면 주황 점) · opt.onPoint(row, unselect) = 마커를 눌렀을 때
      *            (누른 마커에 빨간 고리, unselect() 를 부르면 고리를 지운다). 지도는 끌기·확대 없이도 누름(click)은 받는다.
-     * @param {HTMLElement} panel @param {Array} area - 관할 폴리곤 목록(경위도) @param {number[][]} boxes - [서,남,동,북] 목록 @param {string} caption @param {Object} [opt] - {big, cells, dim, points, onPoint, polys, spot}
-     * @returns {Function|null} 정리 함수 [연계] ← basisList(expander build)·openMapPopup(대해구·지금 밀집 팝업) / ol.js(index2 전역)·ocean_map.js oceanCreateKhoaLayer
+     * §11.10.24·§11.10.26(2026-10-18): opt.risk = {kind:'current'|'risk'|'coast', t, interactive, onPick(kind,id,point), onLoad(data, stop)} — 바탕을 위성지도로, 그 위에 위험예측 지도 층(혼잡도 지금 · 위험 예측 · 연안 위험)을
+     *            그 관할 상자만 받아 깐다(StationBriefingRiskMap.attach — 위험예측 RiskMapLayer 그대로). 칸·관광지를 누르면 onPick. 정리 함수에 stop.map·caption·risk()·highlight(boxes, polys)·focus(maxZoom).
+     *            위험예측 스크립트가 없으면(RM() null) 종전 모양.
+     * @param {HTMLElement} panel @param {Array} area - 관할 폴리곤 목록(경위도) @param {number[][]} boxes - [서,남,동,북] 목록 @param {string} caption @param {Object} [opt] - {big, cells, dim, points, onPoint, polys, spot, risk}
+     * @returns {Function|null} 정리 함수 [연계] ← basisList(expander build)·openMapPopup(대해구·지금 밀집 팝업)·riskPopup / ol.js(index2 전역)·ocean_map.js oceanCreateKhoaLayer · station_briefing_riskmap.js(StationBriefingRiskMap)
      */
     function miniMap(panel, area, boxes, caption, opt) {
         opt = opt || {};
@@ -910,10 +919,16 @@
         var sp = opt.spot && Number.isFinite(Number(opt.spot.lon)) && Number.isFinite(Number(opt.spot.lat)) ? opt.spot : null, spotSrc = new ol.source.Vector({ features: sp ? [new ol.Feature(new ol.geom.Point(proj([sp.lon, sp.lat])))] : [] });
         var spotLayer = new ol.layer.Vector({ source: spotSrc, style: new ol.style.Style({ image: new ol.style.Circle({ radius: 5, fill: new ol.style.Fill({ color: '#ffffff' }), stroke: new ol.style.Stroke({ color: '#0f172a', width: 2 }) }),
             text: sp && sp.name ? new ol.style.Text({ text: String(sp.name), font: '700 12px sans-serif', offsetY: -13, fill: new ol.style.Fill({ color: '#0f172a' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 3 }), overflow: true }) : undefined }) });
-        var layers = [], baseOn = false;
-        if (typeof w.oceanCreateKhoaLayer === 'function') { try { var base = w.oceanCreateKhoaLayer('BASEMAP_RLTM3857'); base.setVisible(true); layers.push(base); baseOn = true; } catch (e) { console.warn('[station-briefing] 바탕 지도 없이 선만 그립니다', e); } }
+        var layers = [], baseOn = false, RMx = opt.risk && area.length ? RM() : null, risk = RMx ? opt.risk : null, sat = null;
+        // §11.10.24: 위험예측 배경(opt.risk) — 바탕 = 위험예측을 켰을 때와 같은 위성지도(브이월드, 키가 없으면 해아름 기본맵), 그 위에 위험예측 지도 층(RiskMapLayer)
+        if (risk) { sat = RMx.baseLayers(function (k) { box.setAttribute('data-sb-map-base', k); }); if (sat) { layers.push.apply(layers, sat); baseOn = true; } }
+        if (!sat && typeof w.oceanCreateKhoaLayer === 'function') { try { var base = w.oceanCreateKhoaLayer('BASEMAP_RLTM3857'); base.setVisible(true); layers.push(base); baseOn = true; } catch (e) { console.warn('[station-briefing] 바탕 지도 없이 선만 그립니다', e); } }
         layers.push(areaLayer, cellLayer, hlLayer, ptLayer, spotLayer);
-        var map = new ol.Map({ target: box, layers: layers, view: new ol.View({ center: proj([127.5, 36]), zoom: 7 }), controls: [], interactions: [] });
+        // 위험예측 층(zIndex 130~139) 위에 관할 선·깜빡임·점이 오게
+        if (risk) [areaLayer, cellLayer, hlLayer, ptLayer, spotLayer].forEach(function (l, i) { l.setZIndex(150 + i); });
+        // 팝업 지도(risk.interactive)는 끌기·두 손가락 확대를 받는다(혼잡도 숫자는 확대해야 보인다 — 위험예측 지도와 같은 규칙). 근거 펼침 지도는 종전처럼 그림(누름만)
+        var mapOpt = { target: box, layers: layers, view: new ol.View({ center: proj([127.5, 36]), zoom: 7 }), controls: [] }; if (!(risk && risk.interactive)) mapOpt.interactions = [];
+        var map = new ol.Map(mapOpt); if (sat) sat.map = map;
         var ext = areaSrc.getExtent().slice(); if (hlSrc.getFeatures().length) ol.extent.extend(ext, hlSrc.getExtent()); if (cellSrc.getFeatures().length) ol.extent.extend(ext, cellSrc.getExtent()); if (ptSrc.getFeatures().length) ol.extent.extend(ext, ptSrc.getExtent()); if (spotSrc.getFeatures().length) ol.extent.extend(ext, spotSrc.getExtent());
         if (ptSrc.getFeatures().length && typeof opt.onPoint === 'function') {
             map.on('click', function (evt) {
@@ -925,13 +940,35 @@
         }
         var fitOpt = { size: map.getSize(), padding: polys.length ? [24, 24, 24, 24] : [10, 10, 10, 10] }; if (polys.length) fitOpt.maxZoom = 15;   // 위험구역 하나는 아주 작아 너무 당겨지지 않게
         map.updateSize(); map.getView().fit(ext, fitOpt);
-        box.setAttribute('data-sb-map', 'ol'); box.setAttribute('data-sb-map-base', baseOn ? 'khoa' : 'none'); box.setAttribute('data-sb-map-spot', String(spotSrc.getFeatures().length));
+        box.setAttribute('data-sb-map', 'ol'); if (!sat) box.setAttribute('data-sb-map-base', baseOn ? 'khoa' : 'none'); box.setAttribute('data-sb-map-spot', String(spotSrc.getFeatures().length));
         box.setAttribute('data-sb-map-cells', String(cellSrc.getFeatures().length)); box.setAttribute('data-sb-map-labels', cellSrc.getFeatures().map(function (f) { return f.get('label'); }).join(','));
         box.setAttribute('data-sb-map-points', String(ptSrc.getFeatures().length)); box.setAttribute('data-sb-map-icon', RP && RP.icon ? 'hazard-rocks' : 'dot');
         box.setAttribute('data-sb-map-area', String(areaSrc.getFeatures().length)); box.setAttribute('data-sb-map-hl', String(hlSrc.getFeatures().length));
         box._sbMap = { map: map, area: areaSrc, hl: hlSrc, hlLayer: hlLayer, cells: cellSrc, points: ptSrc, spot: spotSrc };   // 시험용 손잡이(OL 지형지물 수 확인 · 마커 화면 위치)
-        var timer = null;
-        var stop = function () { if (timer) { clearInterval(timer); timer = null; blinking--; } box.setAttribute('data-sb-blink', still ? 'static' : 'off'); map.setTarget(null); };
+        var timer = null, ctl = null, cap = panel.querySelector('.sb-minimap-cap');
+        if (risk) {
+            // 혼잡도(지금)는 칸 안 선박 수가 보이는 확대(위험예측 지도 규칙 — 해상도 80m/px 미만)로 — 깜빡이는 칸(없으면 관할) 가운데
+            if (risk.kind === 'current' && map.getView().getResolution() >= 80) { map.getView().setCenter(ol.extent.getCenter(hlSrc.getFeatures().length ? hlSrc.getExtent() : ext)); map.getView().setResolution(79); }
+            ctl = RMx.attach(map, { kind: risk.kind, t: risk.t, bbox: RMx.bbox(area, boxes),
+                onPick: function (kind, id, point) { ctl.select(kind, Array.isArray(id) ? id[0] : id); box.setAttribute('data-sb-map-pick', String(Array.isArray(id) ? id[0] : id)); if (typeof risk.onPick === 'function') risk.onPick(kind, Array.isArray(id) ? id[0] : id, point || null); },
+                onLoad: function (d) {
+                    var list = d.cells || d.spots || []; box.setAttribute('data-sb-grid', d.mode || 'coast'); box.setAttribute('data-sb-grid-n', String(list.length)); box.setAttribute('data-sb-grid-at', String(d.forecastAt || d.t || ''));
+                    box.setAttribute('data-sb-grid-labels', d.mode === 'current' ? (d.cells || []).filter(function (c) { return c.n > 0; }).map(function (c) { return c.n; }).join(',') : '');
+                    if (typeof risk.onLoad === 'function') risk.onLoad(d, stop);
+                } });
+            ctl.load().catch(function (e) { box.setAttribute('data-sb-grid', 'error'); if (cap) cap.textContent = '위험예측 자료를 불러오지 못했습니다 — ' + (e && e.message || '오류') + ' · ' + caption; });
+        }
+        var stop = function () { if (timer) { clearInterval(timer); timer = null; blinking--; } if (ctl) { ctl.destroy(); ctl = null; } box.setAttribute('data-sb-blink', still ? 'static' : 'off'); map.setTarget(null); };
+        stop.map = map; stop.caption = cap; stop.risk = function () { return ctl; };
+        /** 깜빡이는 칸·도형을 바꾼다(§11.10.24 — 실시간 갱신으로 가장 붐비는 해역이 바뀜 · 관광지 영역은 자료를 받은 뒤). 예: stop.highlight([[126.2,33.4,126.225,33.425]], []) */
+        stop.highlight = function (bx, pl) {
+            hlSrc.clear();
+            (bx || []).forEach(function (b) { hlSrc.addFeature(new ol.Feature(new ol.geom.Polygon([[[b[0], b[1]], [b[0], b[3]], [b[2], b[3]], [b[2], b[1]], [b[0], b[1]]].map(proj)]))); });
+            (pl || []).forEach(function (g) { (g && g.type === 'MultiPolygon' ? g.coordinates : g && g.type === 'Polygon' ? [g.coordinates] : []).forEach(function (poly) { hlSrc.addFeature(new ol.Feature(new ol.geom.Polygon(poly.map(function (ring) { return ring.map(proj); })))); }); });
+            box.setAttribute('data-sb-map-hl', String(hlSrc.getFeatures().length));
+        };
+        /** 깜빡이는 것에 맞춰 지도를 옮긴다(없으면 그대로). 예: stop.focus(15) @param {number} [maxZoom] */
+        stop.focus = function (maxZoom) { if (hlSrc.getFeatures().length) map.getView().fit(hlSrc.getExtent(), { size: map.getSize(), padding: [40, 40, 40, 40], maxZoom: maxZoom || 14 }); };
         if (still) box.setAttribute('data-sb-blink', 'static');
         else {
             box.setAttribute('data-sb-blink', 'on'); blinking++;
@@ -960,6 +997,7 @@
         closeRockPanel();   // 간출암 상자(§11.10.10)가 떠 있으면 같이 닫는다
         if (!popup) return;
         var p = popup; popup = null;
+        document.documentElement.classList.remove('sb-mapdlg-open');
         if (w.PopupStack) w.PopupStack.remove('sb-map-popup');
         if (typeof p.stop === 'function') p.stop();
         if (p.wrap.parentNode) p.wrap.parentNode.removeChild(p.wrap);
@@ -975,6 +1013,8 @@
         closeMapPopup();
         var back = document.activeElement, wrap = el('div', 'sb-dlg sb-mapdlg' + (bare ? ' sb-warndlg' : '')), dim = el('div', 'sb-dlg-dim'), box = el('div', 'sb-dlg-box sb-mapdlg-box'), id = 'sb-mapdlg-t' + (++xSeq), x = null;
         wrap.setAttribute('data-sb-map-popup', key || '');
+        // §11.10.24: 창 안(지도·창 안 바텀시트)을 마우스로 눌러도 초점이 창에 남게 — 초점 없는 지도 캔버스를 누르면 초점이 body 로 가 Esc(아래 keydown)가 창에 닿지 않았다
+        wrap.tabIndex = -1;
         box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
         // bare(「기상특보 현황」 창 — §11.10.16 소절 E1): 머리를 만들지 않고 build 가 넣은 상자(warnBox)의 제목·✕ 를 쓴다(근거 안 상자와 같은 모양). 이름 = aria-label + 그 제목
         if (bare) box.setAttribute('aria-label', title);
@@ -985,17 +1025,20 @@
         }
         var body = el('div', 'sb-mapdlg-body'); box.appendChild(body);
         wrap.appendChild(dim); wrap.appendChild(box); document.body.appendChild(wrap);
-        popup = { wrap: wrap, back: back, stop: null };
+        document.documentElement.classList.add('sb-mapdlg-open');   // 창 안 바텀시트의 사고 목록·[?]·[기준 상세] 창(.rf-acc-pop·.rf-modal)이 이 창 위에 오게(station_briefing.css)
+        popup = { wrap: wrap, back: back, stop: null, key: key || '', title: box.querySelector('.sb-dlg-title'), sheet: null, live: null };
         if (bare) { popup.stop = build(body) || null; x = box.querySelector('[data-sb-map-close]'); var bt = box.querySelector('.sb-wxbox-t'); if (bt && bt.id) box.setAttribute('aria-labelledby', bt.id); }
         x.addEventListener('click', function (e) { e.stopPropagation(); closeMapPopup(); });
         dim.addEventListener('pointerdown', function (e) { e.preventDefault(); closeMapPopup(); });
         wrap.addEventListener('click', function (e) { e.stopPropagation(); });   // 바깥 아코디언 머리로 번지지 않게
         // Esc = 간출암 상자(§11.10.10)가 떠 있으면 그것만, 아니면 창 · Tab = 창 안에서만 돈다(상자가 떠 있으면 ✕ ↔ 상자 단추들)
         wrap.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') { e.preventDefault(); if (rockPanel) closeRockPanel(); else closeMapPopup(); }
+            // §11.10.24: 창 안 바텀시트가 올라와 있으면 Esc 는 시트만 내린다
+            if (e.key === 'Escape') { e.preventDefault(); if (rockPanel) closeRockPanel(); else if (popup && popup.sheet && popup.sheet.isOpen()) popup.sheet.close(); else closeMapPopup(); }
             else if (e.key === 'Tab') {
                 e.preventDefault();
-                var f = [x].concat(rockPanel ? [].slice.call(rockPanel.el.querySelectorAll('button')).filter(function (b) { return !b.disabled; }) : []), k = f.indexOf(document.activeElement);
+                var sh = popup && popup.sheet && popup.sheet.isOpen() ? [].slice.call(popup.sheet.el.querySelectorAll('button,[href],[tabindex]:not([tabindex="-1"])')).filter(function (b) { return !b.disabled && b.getClientRects().length; }) : [];
+                var f = [x].concat(rockPanel ? [].slice.call(rockPanel.el.querySelectorAll('button')).filter(function (b) { return !b.disabled; }) : []).concat(sh), k = f.indexOf(document.activeElement);
                 f[(k + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
             }
         });
@@ -1003,6 +1046,141 @@
         var p = popup; if (!bare) p.stop = build(body) || null;   // 붙인 뒤에 그려야 지도가 크기를 잰다(bare 는 위에서 이미 — ✕ 를 찾으려고)
         x.focus();
     }
+    // ── 위험예측 배경 지도 + 바텀시트(2026-10-18 사용자 결정 — 설계서 §11.10.24·§11.10.26) ──
+    // 원문: *"해상 위험 분석 예측 분석에서 혼잡도를 클릭했을 때 나오는 지도처럼 … 위성 지도에 그 숫자가 입력되도록 하고 그 숫자가 입력된 그 격자를 실제로 클릭해 볼수 있었으면 좋겠거든
+    //        그래서 그 분석 자체를 바로 이 화면 안에서 볼수 있도록"* · *"배경지도가 위험예측으로 나오도록 … 해당 격자가 깜박이도록 … 바텀시트도 열어볼 수 있도록"*
+    //        · 관광지 *"지도가 팝업으로 나오고 그 팝업에서 해당 영역이 깜빡이도록 하며 잠깐 뒤 자동으로 바텀시트가 올라왔으면"*.
+    var AUTO_SHEET_MS = 200;   // 관광지 하나 팝업: 자료를 받아 그 영역이 깜빡이기 시작한 뒤 이만큼(0.2초 — 위험예측 시트가 누른 뒤 올라오는 hold 와 같은 값) 뒤 시트가 올라온다
+    /** 부품이 다 실렸으면 StationBriefingRiskMap, 아니면 null(관리자 미리보기 단독 등 — 종전 지도). @returns {Object|null} [연계] ← miniMap·nowNode·basisList */
+    function RM() { var m = w.StationBriefingRiskMap; return m && m.ready() ? m : null; }
+    /** 브리핑의 관할 경계(summary.sea.area — 연안 지도도 이 경계 상자로 관광지를 고른다). 예: seaArea(b) → [[[[126.1,33.3],…]]] @param {Object} b @returns {Array|null} */
+    function seaArea(b) { var S = b && b.summary && b.summary.sea; return S && Array.isArray(S.area) && S.area.length ? S.area : null; }
+    /** 연안 하루 값 시각 — 브리핑 날짜가 오늘(이 기기 KST)이면 없음(서버 지금), 뒤 날짜면 그날 00시. 예: targetDate '2026-10-18'·오늘 10-17 → '2026-10-18T00:00:00+09:00' @param {Object} b @returns {string|undefined} */
+    function coastAt(b) { var d = b && b.targetDate, today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); return d && d > today ? d + 'T00:00:00+09:00' : undefined; }
+    /**
+     * 근거 지도(위험이 높아진 해역)의 위험 예측 시각 — 해상 시간 막대에서 그 단계(overview 는 overviewRank, 위험예보만은 rank)가 가장 높은 첫 칸. 그 칸이 지금보다 앞이면 없음(서버 지금 칸).
+     * 예: timeBar [{at:'…T15:00',overviewRank:2}, {at:'…T18:00',overviewRank:2}] · 지금 10:05 → '…T15:00' @param {Object} b @param {string} key @returns {string|undefined}
+     */
+    function riskAt(b, key) {
+        var best = null; ((b && b.sea && b.sea.timeBar) || []).forEach(function (s) { var r = Number(key === 'overview' ? s.overviewRank : s.rank) || 0; if (r > 0 && (!best || r > best.r)) best = { r: r, at: s.at }; });
+        return best && Date.parse(best.at) > Date.now() ? best.at : undefined;
+    }
+    /**
+     * 위험예측 배경 팝업 지도 + 그 창 안 바텀시트. 칸·관광지를 누르면 그 해상·연안 분석 시트가 0.2초 뒤 올라온다(위험예측과 같은 내용·같은 틀).
+     * 예: riskPopup('한림파출소 관할 해역 선박 37척', 'now-all', {area, kind:'current', boxes:[], caption:'…'})
+     * @param {string} title @param {string} key - data-sb-map-popup @param {Object} o - {area, kind, t, boxes, polys, caption, head(지도 위 요소), onLoad(d, stop, sheet)}
+     * @returns {void} [연계] ← nowPopup·spotPopup / → openMapPopup·miniMap(opt.risk)·StationBriefingRiskMap.sheet
+     */
+    function riskPopup(title, key, o) {
+        openMapPopup(title, function (body) {
+            var P = popup, stop = null;
+            if (o.head) body.appendChild(o.head);
+            var sh = RM().sheet(P.wrap, {
+                onOpen: function () { up(true); }, onClose: function () { up(false); },
+                // 연안 시트의 위험구역 목록을 누르면 위험예측처럼 그 구역을 지도에 칠하고 그 줄을 눌림 표시
+                onHazard: function (id, S) { fetch('/api/risk-forecast/hazard-zones?ids=' + encodeURIComponent(id)).then(function (r) { return r.json(); }).then(function (fc) { var c = stop && stop.risk(); if (c && fc && fc.features) { c.layer.showHazards(fc, [30, 30, 30, 30]); S.markZone(id); } }).catch(function (e) { console.warn('[연안 안전 브리핑] 위험구역을 받지 못함', e && e.message); }); }
+            });
+            P.sheet = sh;
+            /** 시트가 올라오면 창을 위로 붙이고 지도를 줄여 고른 칸이 시트에 가려지지 않게(내려가면 되돌림). @param {boolean} on */
+            function up(on) {
+                P.wrap.classList.toggle('sb-sheet-up', on);
+                if (!stop || !stop.map) return;
+                stop.map.updateSize(); var c = stop.risk(), ex = c && c.layer.selectionExtent();
+                if (on && ex) stop.map.getView().fit(ex, { size: stop.map.getSize(), padding: [30, 30, 30, 30], maxZoom: 13 });   // 움직임 없이 — 시트가 올라오는 동안 지도는 이미 맞춰져 있다
+            }
+            stop = miniMap(body, o.area, o.boxes || [], o.caption, { big: true, polys: o.polys, risk: { kind: o.kind, t: o.t, interactive: true,
+                onPick: function (kind, id, point) { sh.open(kind === 'coast' ? 'coast' : 'marine', id, point, o.t); },
+                onLoad: function (d) { if (typeof o.onLoad === 'function') o.onLoad(d, stop, sh); } } });
+            P.mapStop = stop;
+            return function () { sh.destroy(); if (typeof stop === 'function') stop(); };
+        }, key);
+    }
+    var nowState = null;   // 「지금 밀집」 마지막 값 {now, b} — nowNode 가 두고 updateNow(실시간 갱신)가 바꾼다. 열린 선박 팝업(nowPopup)이 이것을 읽는다
+    /** 붐비는 해역 격자 상자(now.busiest.id 가 든 now.cells 줄). 예: busiestBox(now) → [126.2,33.4,126.225,33.425] @param {Object} now @returns {number[]|null} */
+    function busiestBox(now) { var bz = now && now.busiest, c = bz && bz.id && Array.isArray(now.cells) ? now.cells.filter(function (x) { return x.id === bz.id; })[0] : null; return c ? c.box : null; }
+    /** 선박 팝업 제목. 예: ('all') → '한림파출소 관할 해역 선박 37척' · ('busiest') → '한림항 북서방 … 18척'(붐비는 해역이 없어졌으면 「… — 지금 14척 이상 붐비는 해역 없음」) @param {string} which @returns {string} */
+    function nowTitle(which) {
+        var now = nowState.now, b = nowState.b, st = (b.station && b.station.name) || '', bz = now.busiest;
+        return which === 'busiest' ? (bz && bz.name ? bz.name + ' ' + bz.count + '척' : st + ' 관할 — 지금 14척 이상 붐비는 해역 없음') : st + ' 관할 해역 선박 ' + now.count + '척';
+    }
+    /** 지도 위 시각 줄. 예: nowAtText({at:'2026-10-17T10:00:00+09:00'}) → '10:00 기준 · 새 선박 자료가 오면 자동으로 바뀝니다' @param {Object} now @returns {string} */
+    function nowAtText(now) { var hm = /T(\d{2}:\d{2})/.exec(String(now && now.at || '')); return (hm ? hm[1] + ' 기준' : '지금') + ' · 새 선박 자료가 오면 자동으로 바뀝니다'; }
+    /**
+     * 「관할 해역 선박 N척」(all)·붐비는 해역(busiest) 팝업 — 위성지도 + 혼잡도 지금(칸 색·칸 안 선박 수, 위험예측 「혼잡도」 지금 화면과 같은 층) · 관할 경계 · 붐비는 해역 칸 깜빡임.
+     * 칸을 누르면 그 칸 해상 분석 시트. 열려 있는 동안 실시간 선박 자료가 바뀌면(updateNow → popup.live) 제목·시각·깜빡임 칸·칸 색과 숫자를 다시(창은 그대로).
+     * 사용자 원문 2026-10-18: *"이게 실시간으로 업데이트 되면 이 지도도 업데이트 돼야 될것 같고"* · *"제주 남남서방 0.9해리 해역(223-7해구)" 눌렀을 때에도 동일하게 직전 지시와 동일하게 조치."*
+     * 예: nowPopup('busiest') @param {string} which - 'all'|'busiest' @returns {void} [연계] ← nowNode 링크 / → riskPopup · popup.live ← updateNow
+     */
+    function nowPopup(which) {
+        var b = nowState.b, st = (b.station && b.station.name) || '', head = el('p', 'sb-small sb-now-at', nowAtText(nowState.now)), bx = busiestBox(nowState.now);
+        head.setAttribute('data-sb-now-at', '');
+        riskPopup(nowTitle(which), 'now-' + which, { area: seaArea(b), kind: 'current', head: head, boxes: which === 'busiest' && bx ? [bx] : [],
+            caption: '칸 색 = 지금 혼잡도(밀집도) · 칸 안 숫자 = 선박 수 · ' + (which === 'busiest' ? '빨간 테두리(깜빡임) = 가장 붐비는 해역 · ' : '') + '파란 선 = ' + st + ' 관할 해역 · 칸을 누르면 해상 분석' });
+        var P = popup;
+        P.live = function () {
+            if (popup !== P || !nowState) return;
+            if (P.title) P.title.textContent = nowTitle(which);
+            head.textContent = nowAtText(nowState.now);
+            var s = P.mapStop; if (!s) return;
+            if (which === 'busiest') { var nb = busiestBox(nowState.now); s.highlight(nb ? [nb] : [], []); }
+            var c = s.risk(); if (c) c.load().catch(function (e) { console.warn('[연안 안전 브리핑] 선박 지도 갱신 실패', e && e.message); });
+        };
+    }
+    /** 브리핑에서 관광지 이름 → 관광지 id(연안 카드 link.spotId). 없으면 null(지도 자료에서 이름으로 찾는다). 예: spotIdOf(b,'협재해수욕장') → '50110|협재해수욕장' @param {Object} b @param {string} name @returns {string|null} */
+    function spotIdOf(b, name) { var c = ((b && b.land && b.land.cards) || []).filter(function (x) { return x && x.name === name && x.link && x.link.spotId; })[0]; return c ? c.link.spotId : null; }
+    /**
+     * 관광지 하나 팝업(연안 근거 줄의 관광지 이름) — 위성지도 + 연안 위험 색(그날 하루 값 — 위험예측 연안 화면과 같은 층) · 그 관광지 영역 깜빡임 · 잠깐 뒤 그 관광지 연안 분석 시트가 저절로 올라온다
+     * (해상 팝업은 누를 칸이 여럿이라 저절로 올리지 않는다 — 사용자 *"이것은 한곳만이라서 바텀시트를 자동으로 올릴 수 있을 것 같은데"*). 다른 관광지를 누르면 그 시트로 바뀐다.
+     * 예: spotPopup('모충사', b) @param {string} name @param {Object} b @returns {void} [연계] ← basisList(연안 근거 「이름 — 내용」 줄) / → riskPopup(kind coast)
+     */
+    function spotPopup(name, b) {
+        var t = coastAt(b), id = spotIdOf(b, name), done = false;
+        riskPopup(name, 'spot', { area: seaArea(b), kind: 'coast', t: t,
+            caption: '지역 색 = 연안 위험 예측(' + (t ? dateText(t.slice(0, 10)) : '오늘') + ' 하루 값) · 빨간 테두리(깜빡임) = ' + name + ' · 다른 관광지를 누르면 그 연안 분석',
+            onLoad: function (d, stop, sh) {
+                var s = (d.spots || []).filter(function (p) { return id ? p.id === id : p.name === name; })[0], P = popup;
+                if (!s) { if (stop.caption) stop.caption.textContent = name + ' 위치를 위험예측 관광지 자료에서 찾지 못했습니다 · ' + stop.caption.textContent; return; }
+                stop.highlight([], s.geometry ? [s.geometry] : []); stop.focus(14); stop.risk().select('coast', s.id);
+                if (done) return; done = true;
+                if (popup === P && !sh.isOpen()) sh.open('coast', s.id, null, t, AUTO_SHEET_MS);   // 시트 hold(AUTO_SHEET_MS) — 그동안 영역이 먼저 깜빡인다
+            } });
+    }
+    // ── 근거 펼침 지도(위험이 높아진 해역)에서 칸을 누르면 올라오는 화면 바텀시트(창 없이 — 위험예측 시트와 같은 자리) ──
+    var pageSheet = null, pageWatch = null;
+    /**
+     * 화면 바텀시트를 연다(처음 한 번 만든다). 다른 탭으로 옮기면·본문을 다시 그리면·펼친 지도를 접으면 내린다.
+     * 예: openPageSheet('marine', 'GR4_F4K23_P4', {lon:126.54,lat:33.56}, '2026-10-17T15:00:00+09:00')
+     * @param {string} kind @param {string} id @param {Object} point @param {string} [t] @returns {void} [연계] ← basisList 지도 onPick / → StationBriefingRiskMap.sheet
+     */
+    function openPageSheet(kind, id, point, t) {
+        if (!pageSheet) {
+            pageSheet = RM().sheet(document.body, { onClose: function () { if (pageWatch) { pageWatch.disconnect(); pageWatch = null; } } });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && pageSheet && pageSheet.isOpen() && !popup) pageSheet.close(); });
+        }
+        pageSheet.open(kind, id, point, t);
+        if (!pageWatch && w.MutationObserver) { pageWatch = new MutationObserver(function () { closePageSheet(); }); pageWatch.observe(document.body, { attributes: true, attributeFilter: ['data-active-tab'] }); }
+    }
+    /** 화면 바텀시트를 내린다(열려 있거나 올라오는 중일 때만). 예: closePageSheet() @returns {void} [연계] ← render·근거 지도 접기·탭 이동 */
+    function closePageSheet() { if (pageSheet && (pageSheet.isOpen() || pageSheet.el.classList.contains('rf-shown') || pageSheet.el.hasAttribute('data-sb-rf-kind'))) pageSheet.close(); }
+    /**
+     * 실시간 「지금 밀집」만 바꾼다(브리핑 본문은 그대로 — 2026-10-18 사용자 *"실시간 현황이 계속 표출될 수 있도록 … 시간도 계속 바뀌어가면서"*, 설계서 §11.10.24).
+     * 줄([data-sb-now])을 새 글·링크로 바꾸고, 선박 팝업이 열려 있으면 그 지도·제목도(popup.live). 줄이 새로 생기거나 사라져야 하면 거짓 — 부르는 쪽이 본문을 다시 그린다.
+     * 예: updateNow(box, {briefing, now:{at, count:38, text:'10:05 기준 …', cells, busiest}}) → true
+     * @param {HTMLElement} box @param {Object} resp - 브리핑 응답(now 를 새 값으로 바꾼 것) @returns {boolean} [연계] ← station_briefing.js pollNow·loadBriefing / → nowNode·popup.live
+     */
+    function updateNow(box, resp) {
+        var now = resp && resp.now, b = resp && resp.briefing, node = box && box.querySelector('[data-sb-now]');
+        if (!b) return false;
+        if (!now || !now.text) return !node;
+        if (!node) return false;
+        if (node.tagName === 'DIV') node.parentNode.replaceChild(nowNode(now, b), node); else node.textContent = now.text;
+        if (popup && typeof popup.live === 'function') popup.live();
+        return true;
+    }
+    /** 실시간 선박 팝업(지금 밀집 — now-all·now-busiest)이 열려 있나(열려 있는 동안은 아코디언이 접혀도 1분 갱신을 한다). 예: nowPopupOpen() → true @returns {boolean} [연계] ← station_briefing.js nowShown */
+    function nowPopupOpen() { return !!(popup && /^now-/.test(popup.key)); }
+    /** 아무 팝업 지도나 열려 있나(10분 정기 갱신이 같은 판이면 본문을 다시 그리지 않게 — 열린 창이 닫히지 않게). 예: popupOpen() → false @returns {boolean} [연계] ← station_briefing.js loadBriefing */
+    function popupOpen() { return !!popup; }
     /**
      * 글 안의 링크 단추(밑줄 글 — 근거 줄 펼침 단추와 같은 .sb-x-btn 모양). 예: mapLink('대해구 75', fn, 'haegu') → <button class="sb-x-btn sb-maplink" data-sb-maplink="haegu" aria-haspopup="dialog">
      * @param {string} text @param {function(HTMLElement)} onOpen - 눌렀을 때(단추를 넘긴다) @param {string} key @returns {HTMLButtonElement} [연계] ← analysisNodes·nowNode
@@ -1075,14 +1253,15 @@
      * @param {Object} now - resp.now @param {Object} b - briefing @returns {HTMLElement} div.sb-now(두 줄 이상이면 안에 ul.sb-now-list) [연계] ← summaryBodyV3 / → mapLink·openMapPopup·miniMap
      */
     function nowNode(now, b) {
-        var box = el('div', 'sb-now'), text = String(now.text || ''); box.setAttribute('data-sb-now', '');
+        var box = el('div', 'sb-now'), text = String(now.text || ''); box.setAttribute('data-sb-now', ''); nowState = { now: now, b: b };
         var area = b.summary && b.summary.sea && Array.isArray(b.summary.sea.area) && b.summary.sea.area.length ? b.summary.sea.area : null, cells = Array.isArray(now.cells) ? now.cells : [];
         var stName = (b.station && b.station.name) || '', links = [];
         if (area && cells.length) {
             var all = '관할 해역 선박 ' + now.count + '척';
-            links.push({ text: all, key: 'all', open: function () { openMapPopup(stName + ' 관할 해역 선박 ' + now.count + '척', function (body) { return miniMap(body, area, [], '청록 칸 = 지금 선박이 있는 해역 격자 · 칸 안 숫자 = 선박 수 · 파란 선 = ' + stName + ' 관할 해역', { big: true, cells: cells }); }, 'now-all'); } });
+            // §11.10.24(2026-10-18): 위험예측 배경(위성지도 + 혼잡도 지금 칸 색·선박 수 — 칸을 누르면 해상 분석 시트, 열린 동안 실시간 갱신). 부품이 없으면 종전 청록 칸 지도
+            links.push({ text: all, key: 'all', open: function () { if (RM()) return nowPopup('all'); openMapPopup(stName + ' 관할 해역 선박 ' + now.count + '척', function (body) { return miniMap(body, area, [], '청록 칸 = 지금 선박이 있는 해역 격자 · 칸 안 숫자 = 선박 수 · 파란 선 = ' + stName + ' 관할 해역', { big: true, cells: cells }); }, 'now-all'); } });
             var bz = now.busiest, bc = bz && bz.id ? cells.filter(function (c) { return c.id === bz.id; })[0] : null;
-            if (bz && bz.name && bc) links.push({ text: bz.name, key: 'busiest', open: function () { openMapPopup(bz.name + ' ' + bz.count + '척', function (body) { return miniMap(body, area, [bc.box], '빨간 테두리(깜빡임) = ' + bz.name + ' · 칸 안 숫자 = 선박 수 · 파란 선 = ' + stName + ' 관할 해역', { big: true, cells: cells, dim: true }); }, 'now-busiest'); } });
+            if (bz && bz.name && bc) links.push({ text: bz.name, key: 'busiest', open: function () { if (RM()) return nowPopup('busiest'); openMapPopup(bz.name + ' ' + bz.count + '척', function (body) { return miniMap(body, area, [bc.box], '빨간 테두리(깜빡임) = ' + bz.name + ' · 칸 안 숫자 = 선박 수 · 파란 선 = ' + stName + ' 관할 해역', { big: true, cells: cells, dim: true }); }, 'now-busiest'); } });
         }
         // 줄(서버 글의 줄바꿈)마다 — 두 줄 이상이면 「•」 목록(근거 목록과 같은 걸린 들여쓰기), 한 줄이면 점 없이 글(2026-10-18 사용자 *"여기도 각 문장이 점으로 시작되었으면 좋겠어."* ·
         //   *"만약 단독이면 점 불필요"* — 설계서 §11.10.20 덧붙임 14, 카드 [오늘 예상]과 같은 규칙). 링크는 그 글이 든 줄에서 처음 나온 곳 하나.
@@ -1174,13 +1353,30 @@
                 else { appendText(li, text + ' '); li.appendChild(rx.btn); }
                 li.appendChild(rx.panel);
             } else if (d && area && Array.isArray(d.boxes) && d.boxes.length) {
-                var x = expander(text, function (panel) { return miniMap(panel, area, d.boxes, mapCaption(d, b.station, text)); }, 'map-' + (d.key || ''), false, d.key === 'accidentOnly');
+                // §11.10.24(2026-10-18 사용자 *"배경지도가 위험예측으로 나오도록 … 해당 격자가 깜박이도록 … 바텀시트도 열어볼 수 있도록"*): 위험이 높아진 해역·위험예보만 해역 줄은
+                //   위성지도 + 위험 예측 색(그 단계가 가장 높은 첫 시각) — 칸을 누르면 화면 바텀시트(해상 분석). 대해구 줄(haegu)은 종전 지도
+                var useRisk = (d.key === 'overview' || d.key === 'accidentOnly') && !!RM(), rk = useRisk ? riskAt(b, d.key) : undefined;
+                var x = expander(text, function (panel) {
+                    var cap0 = mapCaption(d, b.station, text);
+                    if (!useRisk) return miniMap(panel, area, d.boxes, cap0);
+                    var st = miniMap(panel, area, d.boxes, cap0 + ' · 칸을 누르면 해상 분석', { risk: { kind: 'risk', t: rk,
+                        onPick: function (kind, id, point) { openPageSheet('marine', id, point, rk); },
+                        onLoad: function (dd) { if (st && st.caption) st.caption.textContent = '칸 색 = ' + kstText(dd.forecastAt || dd.t) + ' 위험 예측 · ' + cap0 + ' · 칸을 누르면 해상 분석'; } } });
+                    return function () { closePageSheet(); if (typeof st === 'function') st(); };
+                }, 'map-' + (d.key || ''), false, d.key === 'accidentOnly');
                 li.appendChild(x.btn); if (note) li.appendChild(note); li.appendChild(x.panel);
             } else {
                 // 「이름 — 내용」 줄(연안 근거 「하트해변 — 연안 위험지수 100(매우 높음, 예상), …」)은 두 칸 — 「이름 —」 줄지 않는 칸 + 내용 칸, 둘째 줄이 내용 첫 글자 위치에서
                 //   (2026-10-18 사용자 *"첫 텍스트 시작하는 위치에 다음줄 텍스트가 시작되도록 해줘."* — 설계서 §11.10.20 덧붙임 12). 이름이 길면(20자 넘음 — 해역 이름 등) 종전 한 덩어리(좁은 화면에서 넘치지 않게).
                 var kv = /^([^—]{1,20}?) — ([^]+)$/.exec(String(text));
-                if (kv) { var row2 = el('div', 'sb-basis-kv'), bv = el('span', 'sb-basis-v'); row2.appendChild(el('span', 'sb-basis-k', kv[1] + ' — ')); basisNodes(bv, kv[2], spotRank(b, kv[1])); row2.appendChild(bv); li.appendChild(row2); }
+                if (kv) {
+                    var row2 = el('div', 'sb-basis-kv'), bv = el('span', 'sb-basis-v'), bk = el('span', 'sb-basis-k'), nm = kv[1];
+                    // §11.10.26(2026-10-18): 관광지 이름(연안 근거 — 브리핑이 아는 관광지일 때만) → 그 관광지 팝업 지도(영역 깜빡임 + 잠깐 뒤 연안 분석 시트 자동).
+                    //   글자 색·굵기·크기는 그대로, 밑줄만(사용자 *"텍스트 색상과 스타일이 바뀌지 않도록 하고 밑줄만 쳐질 수 있도록 해줘."* — .sb-spotlink)
+                    if (spotRank(b, nm) !== undefined && RM() && seaArea(b)) { var sl = mapLink(nm, function () { spotPopup(nm, b); }, 'spot'); sl.className = 'sb-spotlink'; bk.appendChild(sl); appendText(bk, ' — '); }
+                    else appendText(bk, nm + ' — ');
+                    row2.appendChild(bk); basisNodes(bv, kv[2], spotRank(b, kv[1])); row2.appendChild(bv); li.appendChild(row2);
+                }
                 else basisNodes(li, text, undefined);   // 공통 줄(「풍랑주의보 예비특보(…)」 등) — 특보 이름만 색(§11.10.20 덧붙임 17)
                 if (note) li.appendChild(note);
             }
@@ -1714,5 +1910,5 @@
         box.appendChild(foot);
     }
     // blinking() = 지금 깜빡이는 지도 수(시험이 접기·다시 그리기 뒤 0 인지 본다 — §11.10.3)
-    w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, subtitleText: subtitleText, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, highlightSegments: highlightSegments, highlightNames: highlightNames, splitAdvice: splitAdvice, closeMapPopup: closeMapPopup, WORDS: WORDS, levelWord: levelWord, appendText: appendText, SOURCES: SOURCES, blinking: function () { return blinking; } };
+    w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, subtitleText: subtitleText, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, highlightSegments: highlightSegments, highlightNames: highlightNames, splitAdvice: splitAdvice, closeMapPopup: closeMapPopup, WORDS: WORDS, levelWord: levelWord, appendText: appendText, SOURCES: SOURCES, blinking: function () { return blinking; }, updateNow: updateNow, nowPopupOpen: nowPopupOpen, popupOpen: popupOpen, riskAt: riskAt, coastAt: coastAt };
 })(window);
