@@ -277,6 +277,19 @@ function makeBriefings() {
             assert.equal(await vis(page, 'station-briefing-settings-btn'), false);
             await openAcc(page); const t = await content(page); assert.ok(t.includes('연안 안전 브리핑 지역이 설정되지 않았습니다'), t); assert.ok(await page.$('#station-briefing-setup-btn'));
         });
+        await check('[§11.10.35] 머리 색 청록(기상 전망 회색과 다름) · 제목 오른쪽 beta 뱃지(특보 예측 .adv-beta-badge 그대로)', async () => {
+            const r = await page.evaluate(() => {
+                const h = document.getElementById('station-briefing-accordion-header'), m = document.getElementById('marine-forecast-accordion-header');
+                const t = document.getElementById('station-briefing-title'), b = h.querySelector('h2 .adv-beta-badge'), cs = b && getComputedStyle(b);
+                return { bg: getComputedStyle(h).backgroundImage, mbg: getComputedStyle(m).backgroundImage, has: !!b, txt: b && b.textContent,
+                    color: cs && cs.color, right: b ? b.getBoundingClientRect().left - t.getBoundingClientRect().right : null, inTitle: t.contains(b) };
+            });
+            assert.ok(r.bg.includes('rgb(16, 41, 43)') && r.bg.includes('rgb(15, 110, 106)'), r.bg); assert.notEqual(r.bg, r.mbg, '기상 전망 회색과 다른 색');
+            assert.ok(r.has && r.txt === 'beta', 'beta 뱃지'); assert.equal(r.color, 'rgb(255, 225, 77)', '특보 예측 뱃지와 같은 노란 글자');
+            assert.ok(r.right >= 0 && r.right <= 6, '제목 바로 오른쪽(간격 ' + r.right + 'px)'); assert.equal(r.inTitle, false, '제목 글 칸 밖 — setTitle 이 글을 바꿔도 남는다');
+            await page.evaluate(() => document.getElementById('station-briefing-accordion-header').scrollIntoView()); await clean(page);
+            await (await page.$('#station-briefing-accordion-header')).screenshot({ path: path.join(SHOT, 'header_beta.png') });
+        });
         await check('설정 → 관할 목록이 경찰서별 묶음, 남항 두 곳은 경찰서로 구분, 해상만 표시 · 이름으로 찾기', async () => {
             await tap(page, '#station-briefing-setup-btn'); await page.waitForSelector('[data-sb-setup]');
             await tap(page, '[data-sb-tab="list"]');

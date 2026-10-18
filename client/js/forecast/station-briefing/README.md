@@ -17,7 +17,7 @@
 | `station_briefing_render.js` | 브리핑 본문 그리기(서버 글은 textContent 로만) — 관리자 미리보기도 같은 렌더러 · 출처 한 벌 `SOURCES` · 근거 줄 지도 펼침(OpenLayers) · 제목 글 | `render`, `titleText`·`editionTime`·`editionLabel`(§11.10.4 제목·판 이름), `summaryBodyV3`(§11.10.4 「가」 모양), `weatherPart`·`tidePart`((기상)·(물때) 공용), `summaryBodyV2`(§11.10.1 총평), `basisList`·`expander`·`miniMap`·`isolationLine`(§11.10.3), `summaryBody`(§11.10 판), `legacyOverview`(옛 브리핑), `renderRest`, `timeBar`, `seaCard`(§11.10.15 배지 카드 `seaCardBadged`·`seaBadges`·`seaCardLink`), `landCard`, `tide`, `colorOf`, `dayWord`, `nextText` |
 | `station_briefing_riskmap.js` | 브리핑 지도에 위험예측과 같은 배경(위성지도 + 혼잡도 지금·위험 예측·연안 위험 색)을 관할 상자만 받아 깔고, 칸·관광지를 누르면 위험예측과 같은 바텀시트(해상·연안 분석)를 이 화면 안에서 올린다(§11.10.24·§11.10.26) — 위험예측 `RiskMapLayer`·`RiskSheet` 를 그대로 쓴다 | `ready`, `bbox`, `baseLayers`, `attach`, `sheet`, `dayText` |
 | `station_briefing_basis.js` | [기준 상세] 문안(위험예측 기준 상세 창 `RiskBasis.open('briefing')` 으로 연다) | (문자열 `RiskBasisContent.briefing`) · 모양 도우미 `pts`(문장마다 「•」 줄)·`band`(위험 단계 표 줄) — §11.10.33 |
-| `station_briefing.css` | `.sb-*` 모양(바깥 아코디언·안쪽 칸·기준 창은 기존 CSS 재사용 — 조석 게이지는 §11.10.34 에 「조석」 칸과 함께 뺐다) | — |
+| `station_briefing.css` | `.sb-*` 모양(바깥 아코디언·안쪽 칸·기준 창은 기존 CSS 재사용 — 조석 게이지는 §11.10.34 에 「조석」 칸과 함께 뺐다). 바깥 아코디언 머리 색만 여기서 정한다(`.gradient-briefing` 청록, §11.10.35 — 제목 오른쪽 beta 뱃지는 `style.css` `.adv-beta-badge` 그대로) | — |
 
 ## 화면에서 찾아가는 법
 
