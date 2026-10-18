@@ -116,7 +116,7 @@
 .sb-tide .ocean-tide-wrap { margin-bottom:6px; }
 .sb-foot { border-top:1px solid rgba(148,163,184,.18); padding-top:8px; color:#94a3b8; font-size:.72rem; }
 .sb-foot p { margin:3px 0; }
-.sb-notice { color:#ffd23f; font-weight:700; font-size:.78rem; line-height:1.55; margin:8px 2px 0; }   /* §11.10.20 — 노란 두 줄 안내(종전 분홍 「참고 정보이며 …」) */
+.sb-notice { color:#ffd23f; font-weight:700; font-size:.78rem; line-height:1.55; margin:8px 2px 0; word-break:keep-all; overflow-wrap:anywhere; }   /* §11.10.20 — 노란 안내(종전 분홍 「참고 정보이며 …」) · 2026-10-18 한 문장, 줄바꿈은 어절 단위 */
 /* 설정 흐름(설정 전 안내·관할 고르기·둘 다 건너뛸 때 묻기) */
 .sb-setup, .sb-unset, .sb-confirm { background:rgba(15,23,42,.6); border:1px solid rgba(148,163,184,.2); border-radius:12px; padding:14px; }
 .sb-setup h4, .sb-unset h4, .sb-confirm h4 { margin:0 0 6px; color:#f1f5f9; font-size:.92rem; }
@@ -221,6 +221,9 @@
 .sb-raised-table th:last-child { text-align:left; }
 .sb-raised-table td:nth-child(2) { white-space:nowrap; }
 .sb-raised-why { margin:3px 0 0; font-size:.7rem; line-height:1.45; }
+/* 2026-10-18 「시안이 기준」(Main.dc.html .muted·.hr/.ho) — 평소 칸·[나머지 …] 줄은 흐린 글, 오늘 칸 단계 말은 굵게(색은 colorOf) */
+.sb-raised-table .sb-raised-usual { color:#93a0b8; }
+.sb-raised-table .sb-raised-lv { font-weight:800; }
 .sb-wx-head { margin:4px 0 4px; }
 .sb-wx-head + .sb-list { margin-top:2px; }
 .sb-now { white-space:pre-line; }
@@ -258,12 +261,6 @@
 .sb-x-btn.sb-hz-loc[aria-expanded="true"] { background:#1d3157; color:#e0f2fe; }
 .sb-hz-maprow > td { padding:4px 0 8px !important; white-space:normal !important; }
 .sb-hz-maprow .sb-x-panel { margin:0; }
-/* 맨 아래 「데이터 출처 보기」(§11.10.20) — 처음 접힘, 펼치면 표 「구분 | 자료 | 제공」(칸 안 어절 단위 줄바꿈) */
-.sb-src { display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:12px; background:#0e1628; border:1px solid #1f2b45; }
-.sb-x-btn.sb-x-pill.sb-src-acc { display:flex; width:100%; box-sizing:border-box; justify-content:space-between; padding:11px 14px; border-radius:10px; border:1px solid #1f2b45; background:#111b31; color:#f3f6fc; font-size:.86rem; font-weight:800; }
-.sb-src .sb-x-panel { margin:0; }
-.sb-src-tbl th, .sb-src-tbl td { white-space:normal; color:#e2e8f0; vertical-align:top; }
-.sb-src-tbl td.sb-src-grp { white-space:nowrap; color:#94a3b8; }
 /* (권고) 상자(2026-10-18 사용자 결정 — 설계서 §11.10.20 덧붙임 2·6·7·8·9, 시안 .adv): 총평 (권고)·해역·연안 카드 [권고] 같은 모양 — 노란 엷은 바탕·테두리,
    머리 「(권고)」·「[권고]」 노랑 굵게(줄지 않는 칸), 본문 흰색 굵게(둘째 줄은 본문 첫 글자 위치에서), 본문 속 등급 말은 등급 색(render.js adviceBox). 글자 크기는 자리마다 그대로. */
 .sb-adv { box-sizing:border-box; max-width:100%; margin:6px 0; padding:10px 12px; border-radius:12px; background:rgba(255,200,60,.10); border:1px solid rgba(255,200,60,.38); font-weight:800; }

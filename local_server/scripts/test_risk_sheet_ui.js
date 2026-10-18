@@ -153,8 +153,8 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   await pg.waitForFunction(()=>document.querySelector('#risk-forecast-sheet [data-retry]'),null,{timeout:20000});const st=await sheetState();assert.ok(!st.skeleton&&st.busy===null&&st.body.includes('서버 오류')&&!st.index);assert.deepEqual(st.stack,['risk-forecast-sheet']);
   failures.delete('a|'+now);await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-retry]').click());await waitTitle('광안리해수욕장');
  });
- await check('열린 상세는 과제15 접힌 설명을 유지',async()=>{
-  const m=await pg.evaluate(()=>{const d=document.querySelector('#risk-forecast-sheet .rf-calculation');return{has:!!d,open:d&&d.open,summary:d&&d.querySelector('summary').textContent};});assert.equal(m.has,true);assert.equal(m.open,false);assert.equal(m.summary,'사고 배수는 어떻게 합쳤나요?');
+ await check('열린 연안 상세에 「사고 배수는 어떻게 합쳤나요?」 없음(2026-10-18 사용자 「빼자.」 — 과제15 설명 삭제, 같은 방법은 [기준 상세]·PDF)',async()=>{
+  const m=await pg.evaluate(()=>{const s=document.querySelector('#risk-forecast-sheet');return{has:!!s.querySelector('.rf-calculation'),text:s.textContent};});assert.equal(m.has,false);assert.doesNotMatch(m.text,/어떻게 합쳤나요/);
  });
  // ── 과제10: 위험구역 아코디언과 시트에 가려지지 않은 지도 영역의 가운데 이동 ──
  /** 지도가 움직임(애니메이션)을 끝낼 때까지 기다린다. 예: await settleMap(). @returns {Promise<void>} [연계] ← 과제10 */

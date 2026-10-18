@@ -303,7 +303,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
   await page.evaluate(()=>document.querySelector('.rf-date-nav [data-day-step="1"]').click());await page.waitForFunction(t=>window._riskForecastApp.getState().t===t,tmr);
   await page.evaluate(()=>window._riskForecastApp.select('coast','S1'));await page.waitForFunction(t=>document.getElementById('risk-forecast-sheet').classList.contains('open')&&document.querySelector('#risk-forecast-sheet .rf-title').textContent.includes(t),tmr,{timeout:8000});
   const nav=()=>page.evaluate(()=>{const n=document.querySelector('.rf-date-nav');return{shown:!n.hidden&&n.getClientRects().length>0,label:n.querySelector('[data-day-label]').textContent,tag:n.querySelector('[data-day-tag]').textContent};});
-  const before=await nav();assert.deepEqual([before.shown,before.tag],[true,'내일'],'전제: 연안만·내일');
+  const before=await nav();assert.deepEqual([before.shown,before.tag],[false,'내일'],'전제: 연안만·내일(연안 시트가 열린 동안 상단 날짜 줄은 숨김 — 2026-10-18 「바텀시트 자체에서 넘길 수 있으니」)');
   for(const trip of ['메인탭','하위 탭']){
    if(trip==='메인탭'){await tab('weather-group');await settle();}else await toLife();
    assert.equal((await nav()).shown,false,trip+' — 다른 탭에서는 날짜 줄 숨김');assert.equal((await S()).sheetOpen,false);
@@ -313,6 +313,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
    assert.ok((await page.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-sheet-date]').textContent)).startsWith(sheetDate),trip+' — 시트 날짜 줄도 내일');
   }
   await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());await settle(400);
+  assert.deepEqual(await nav(),{...before,shown:true},'시트를 닫으면 상단 날짜 줄 「내일」이 다시 보인다');
  });
 
  // ── 2026-10-16 셋째 결정 「12·13 추천대로」 ──
