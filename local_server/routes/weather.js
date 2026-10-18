@@ -613,7 +613,7 @@ router.get('/api/forecasts', (req, res) => {
 // 동작 원리:
 //   - dataCache.lastUpdate.zoneForecasts (= 파일 mtime) 이 변하지 않았으면
 //     캐시된 문자열/압축본을 그대로 반환 → stringify·압축 모두 생략
-//   - 파일이 갱신되면 (하루 2회: 09:30, 21:30 KST) mtime 이 변하므로
+//   - 파일이 갱신되면 (30분마다 확인·저장 — 새 판은 하루 2회, 약 03시·15시 KST 무렵 도착) mtime 이 변하므로
 //     다음 첫 요청 1건에서만 새로 stringify + gzip + brotli 후 캐시 갱신
 //
 // compression 미들웨어와의 관계 (이중 압축 방지):
@@ -750,7 +750,8 @@ function getZoneForecastsResponse() {
 }
 
 // 4. 해구별 기상전망
-//    [수집 주기] 하루 2회 (09:30, 21:30 KST), zone_forecasts.json
+//    [수집 주기] 30분마다 (매시 00·30분 KST, 2026-10-16~). 새 판(00·12UTC)은 하루 2회,
+//               실측(2026-10-18) 약 03시·15시 KST 무렵 도착 — 종전 「09:30·21:30」 표기는 틀렸음. zone_forecasts.json
 //    [응답 크기] 약 5.86 MB (압축 후 ~700 KB) — 큰 응답이라 캐시 효과 큼
 //    [HTTP 캐시] 정상 응답에만 max-age=1800 (30분), 빈 응답은 no-store.
 //                zone_avg.js 는 자체 cache:'no-store' 로 강제 우회 — 영향 없음.

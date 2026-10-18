@@ -204,7 +204,7 @@ CDN:
 | `marineForecastProcessor.collectMarineForecasts` | 1443 | 10분마다 | marine_forecast.json |
 | `collectBuoys` (multi) | 1383-1398 | 매 5,35분 (KMA 갱신 사이클) | buoys.json |
 | `collectGeneralForecasts` | 1402 | 1일 2회 (05:15, 17:15) | general_forecasts.json |
-| `collectZoneForecasts` | 1405 | 1일 2회 (09:30, 21:30) | zone_forecasts.json |
+| `collectZoneForecasts` | 1405 | 1일 2회 (09:30, 21:30) ← **정정 2026-10-18**: 2026-10-16부터 30분마다 수집, 새 판은 하루 2회 약 03시·15시 KST 무렵 도착 | zone_forecasts.json |
 | `collectMidTermSeaForecasts` | 1408 | 1일 2회 | 중기 해상 예보 |
 | `collectFishingIndex` | 1411 | 1일 2회 | fishing_index.json |
 | `collectSurfingIndex` | 1414 | 1일 2회 | surfing_index.json |
