@@ -520,7 +520,7 @@ function makeBriefings() {
                 const rb = c.querySelector('button[data-sb-x="raised"]'); out.rb = rb ? rb.childNodes[0].textContent : null; out.rbExp0 = rb && rb.getAttribute('aria-expanded'); rb.click();
                 const t = c.querySelector('[data-sb-raised-table]'); out.rbExp1 = rb.getAttribute('aria-expanded'); out.panelFor = rb.getAttribute('aria-controls') === t.parentElement.id;
                 out.head = [...t.querySelectorAll('th')].map((e) => e.textContent); out.rows = [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent));
-                out.li = rb.parentElement.firstChild.textContent + rb.textContent; out.cap = t.querySelector('caption').textContent;
+                out.li = rb.parentElement.firstChild.textContent + rb.textContent; out.cap = !!t.querySelector('caption'); const lv = t.querySelector('.sb-raised-lv'), us = t.querySelector('.sb-raised-usual'); out.lvStyle = lv ? [getComputedStyle(lv).fontWeight, lv.style.color !== ''] : null; out.usColor = us ? getComputedStyle(us).color : null; out.chips = t.querySelectorAll('.sb-chip').length;
                 const wh = c.querySelector('[data-sb-wx-head="weather"]'), hl = c.querySelector('[data-sb-summary="sea"] .sb-headline'), g = (e) => { const z = getComputedStyle(e); return [z.fontSize, z.fontWeight, z.color]; };
                 out.wxStyle = [g(wh), g(hl), wh.className.includes('sb-headline')]; out.notesHead = g(c.querySelector('[data-sb-wx-head="notes"]'));
                 const now = c.querySelector('[data-sb-now]'); out.now = now.innerText; out.nowWs = getComputedStyle(now).whiteSpace;
@@ -531,8 +531,12 @@ function makeBriefings() {
             assert.ok(r.pill.left > 40, '오른쪽 정렬(왼쪽에 빈자리) ' + r.pill.left); assert.notEqual(r.t0, r.t1, '펼치면 꺾쇠가 뒤집힌다'); assert.equal(r.exp, 'true');
             const rz = B.h.summary.land.raised;
             assert.equal(r.rb, rz.link); assert.deepEqual([r.rbExp0, r.rbExp1, r.panelFor], ['false', 'true', true]);
-            assert.deepEqual(r.head, ['관광지', '평소', '오늘(예상)']); assert.equal(r.rows.length, rz.rows.length); assert.equal(rz.rows.length, B.h.land.attentionSpots, '관심 이상 관광지 전부');
-            assert.deepEqual(r.rows, rz.rows.map((x) => [x.name, '평소 수준', x.word + x.reason])); assert.ok(r.li.startsWith(B.h.summary.land.basis[0].slice(0, 20)), r.li); assert.ok(r.cap.includes('평소 수준'), r.cap);
+            // 2026-10-18 「시안이 기준이 되어야 해.」(Main.dc.html) — 위 3곳 + 「[나머지 N곳 — …]」 · 설명 줄 없음 · 칩 없음(평소 흐린 글·단계 말 굵게 단계 색)
+            assert.deepEqual(r.head, ['관광지', '평소', '오늘(예상)']); assert.equal(rz.rows.length, B.h.land.attentionSpots, '서버 자료는 관심 이상 관광지 전부');
+            const top = rz.rows.slice(0, 3).map((x) => [x.name, '평소 수준', x.word + x.reason]), rest = rz.rows.slice(3);
+            const restTxt = rest.length ? '[나머지 ' + rest.length + '곳 — ' + [[3, '경계'], [2, '주의'], [1, '관심']].map(([k, w]) => [w, rest.filter((x) => x.rank === k).length]).filter(([, n]) => n).map(([w, n]) => w + ' ' + n + '곳').join(' · ') + ']' : null;
+            assert.deepEqual(r.rows, restTxt ? top.concat([[restTxt]]) : top); assert.ok(r.li.startsWith(B.h.summary.land.basis[0].slice(0, 20)), r.li);
+            assert.deepEqual([r.cap, r.chips, r.lvStyle, r.usColor], [false, 0, ['800', true], 'rgb(147, 160, 184)']);
             await page.locator('#station-briefing-content [data-sb-summary="land"]').screenshot({ path: path.join(SHOT, 'briefing_raised_380.png') });
             assert.deepEqual(r.wxStyle[0], r.wxStyle[1], '「기상 현황」 머리 = 결론 줄과 같은 크기·굵기·색'); assert.ok(r.wxStyle[2]); assert.deepEqual(r.notesHead, r.wxStyle[1]);
             assert.deepEqual(r.now.split('\n'), ['10:00 기준 관할 해역 선박 37척 · 선박이 있는 해역 격자 12개', '한림항 북서방 1.2해리 해역(232-2해구) 18척 — 충돌·접촉 주의'], '두 줄'); assert.equal(r.nowWs, 'pre-line');

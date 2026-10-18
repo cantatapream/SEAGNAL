@@ -711,21 +711,28 @@
     /**
      * 연안 근거 첫 줄 「평소보다 위험이 높아진 곳 N곳」을 누르면 펼치는 표 「관광지 | 평소 | 오늘(예상)」(서버 summary.land.raised — 관심 이상 관광지 전부, 단계 높은 순·이름 순).
      * 2026-10-17 사용자 *"관광지, 기존, 위험이 높아진 곳 세 개로 구분해서 기존엔 뭐였는데 뭘로 높아졌다 … 위험이 높아진 모든 관광지에 대해서"*(설계서 §11.10.9).
-     * 평소 칸은 서버 값(「평소 수준」 — 관광지마다 따로 저장된 평소 단계는 없다, 서버 rules.raisedTable 주석), 오늘 칸은 단계 배지 + 아래 작게 높아진 이유. 글은 textContent.
+     * 평소 칸은 서버 값(「평소 수준」 — 관광지마다 따로 저장된 평소 단계는 없다, 서버 rules.raisedTable 주석, 흐린 글), 오늘 칸은 단계 말(단계 색 굵게) + 아래 작게 높아진 이유. 위 3곳 + 「[나머지 …]」 한 줄(시안). 글은 textContent.
      * 예: raisedTable(panel, {head:['관광지','평소','오늘(예상)'], rows:[{name:'협재해수욕장',usual:'평소 수준',rank:2,word:'주의',reason:"연안 위험지수 72(높음, 예상), 방문객 평소의 1.8배(예상)"}], caption:'…'})
      * @param {HTMLElement} panel @param {Object} r - summary.land.raised @returns {void} [연계] ← basisList(expander build) / → chip
      */
     function raisedTable(panel, r) {
+        // 2026-10-18 사용자 「시안이 기준이 되어야 해.」 — 시안 Main.dc.html 꼴: 설명 줄(caption) 없음 · 평소 = 흐린 글 · 오늘 = 단계 말 단계 색 굵게 + 아래 작은 흐린 이유 ·
+        //   위 3곳만, 나머지는 한 줄 「[나머지 N곳 — 주의 a곳 · 관심 b곳]」(rows 는 단계 높은 순 — 서버 rules.raisedTable)
         var t = el('table', 'sb-iso-table sb-raised-table'); t.setAttribute('data-sb-raised-table', '');
-        if (r.caption) t.appendChild(el('caption', '', r.caption));
         var hr = el('tr'), th = el('thead'); (r.head || ['관광지', '평소', '오늘(예상)']).forEach(function (h) { hr.appendChild(el('th', '', h)); }); th.appendChild(hr); t.appendChild(th);
-        var tb = el('tbody');
-        (r.rows || []).forEach(function (x) {
+        var tb = el('tbody'), rows = r.rows || [], TOP = 3;
+        rows.slice(0, TOP).forEach(function (x) {
             var tr = el('tr'); tr.appendChild(el('td', 'sb-raised-name', x.name));
-            var u = el('td'); u.appendChild(chip(0, x.usual || '평소 수준')); tr.appendChild(u);
-            var d = el('td'); d.appendChild(chip(x.rank, x.word)); if (x.reason) d.appendChild(el('p', 'sb-small sb-raised-why', x.reason)); tr.appendChild(d);
+            tr.appendChild(el('td', 'sb-raised-usual', x.usual || '평소 수준'));
+            var d = el('td'), lv = el('span', 'sb-hl sb-hl-lv sb-raised-lv', levelWord(x.word || WORDS[x.rank] || ''));
+            lv.style.color = colorOf(x.rank, x.word); lv.setAttribute('data-rank', String(x.rank)); d.appendChild(lv);
+            if (x.reason) d.appendChild(el('p', 'sb-small sb-raised-why', x.reason)); tr.appendChild(d);
             tb.appendChild(tr);
         });
+        if (rows.length > TOP) {
+            var rest = rows.slice(TOP), cnt = [3, 2, 1].map(function (k) { var n = rest.filter(function (x) { return Number(x.rank) === k; }).length; return n ? WORDS[k] + ' ' + n + '곳' : ''; }).filter(Boolean);
+            var rr = el('tr', 'sb-raised-rest'), td = el('td', 'sb-raised-usual', '[나머지 ' + rest.length + '곳' + (cnt.length ? ' — ' + cnt.join(' · ') : '') + ']'); td.colSpan = 3; rr.appendChild(td); tb.appendChild(rr);
+        }
         t.appendChild(tb); panel.appendChild(t);
     }
     /**

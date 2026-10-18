@@ -2019,14 +2019,14 @@ const WIN = R.editionWindow('morning', T0);
         const y = hallim(), base = y.land.spots[0];
         for (let i = 0; i < 12; i++) y.land.spots.push({ ...base, id: '50110|가상' + i, name: '가상관광지' + String(i).padStart(2, '0'), index: 70 + i });
         const bb = R.buildBriefing(y, WIN, { generatedAt: R.isoKst(T0) }), L = bb.summary.land, rz = L.raised;
-        assert.equal(bb.land.attentionSpots, 14); assert.equal(bb.land.cards.length, 14, '카드도 전부(2026-10-17 상한 없앰 — 종전 10)'); assert.equal(rz.rows.length, 14, '표는 전부');
+        assert.equal(bb.land.attentionSpots, 14); assert.equal(bb.land.cards.length, 14, '카드도 전부(2026-10-17 상한 없앰 — 종전 10)'); assert.equal(rz.rows.length, 14, '자료는 전부(화면은 위 3곳 + 「[나머지 …]」)');
         assert.equal(rz.line, 0); assert.equal(rz.link, '평소보다 위험이 높아진 곳 14곳'); assert.ok(L.basis[0].includes(rz.link), L.basis[0]);
         assert.deepStrictEqual(rz.head, ['관광지', '평소', '오늘(예상)']);
         assert.deepStrictEqual(rz.rows.map((r) => r.name), [...Array(12)].map((_, i) => '가상관광지' + String(i).padStart(2, '0')).concat(['협재해수욕장', '금능해수욕장']), '주의(이름 순) → 관심');
-        assert.deepStrictEqual(rz.rows[12], { name: '협재해수욕장', usual: '평소 수준', rank: 2, word: '주의', reason: '연안 위험지수 72(높음, 예상), 방문객 평소의 1.8배(예상), 해안 바람 9m/s(예상, 튜브·물놀이기구 떠밀림 주의)' });
-        assert.deepStrictEqual(rz.rows[13], { name: '금능해수욕장', usual: '평소 수준', rank: 1, word: '관심', reason: '연안 위험지수 41(다소 높음, 예상), 방문객 평소의 1.3배(예상)' });
+        assert.deepStrictEqual(rz.rows[12], { name: '협재해수욕장', usual: '평소 수준', rank: 2, word: '주의', reason: '위험지수 72 · 방문객 1.8배 · 해안 바람 9m/s' });   // 2026-10-18 시안 꼴 짧은 이유(「시안이 기준이 되어야 해.」)
+        assert.deepStrictEqual(rz.rows[13], { name: '금능해수욕장', usual: '평소 수준', rank: 1, word: '관심', reason: '위험지수 41 · 방문객 1.3배' });
         assert.ok(rz.rows.every((r) => r.usual === '평소 수준') && !rz.rows.some((r) => /한림항|판포포구/.test(r.name)), '바뀐 요소가 없거나 지수가 평소 수준인 곳은 표에 없음');
-        assert.ok(/평소 = 오늘 달라진 요소/.test(rz.caption), rz.caption);
+        assert.equal(rz.caption, undefined, '설명 줄은 시안에 없어 뺐다(2026-10-18)');
         // 밤 판(대상 내일) — 머리 「내일(예상)」
         const nb = R.buildBriefing(hallim(), R.editionWindow('night', Date.parse(at(22))), { generatedAt: R.isoKst(Date.parse(at(22))) });
         if (nb.summary.land.raised) assert.equal(nb.summary.land.raised.head[2], '내일(예상)');

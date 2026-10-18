@@ -221,6 +221,9 @@
 .sb-raised-table th:last-child { text-align:left; }
 .sb-raised-table td:nth-child(2) { white-space:nowrap; }
 .sb-raised-why { margin:3px 0 0; font-size:.7rem; line-height:1.45; }
+/* 2026-10-18 「시안이 기준」(Main.dc.html .muted·.hr/.ho) — 평소 칸·[나머지 …] 줄은 흐린 글, 오늘 칸 단계 말은 굵게(색은 colorOf) */
+.sb-raised-table .sb-raised-usual { color:#93a0b8; }
+.sb-raised-table .sb-raised-lv { font-weight:800; }
 .sb-wx-head { margin:4px 0 4px; }
 .sb-wx-head + .sb-list { margin-top:2px; }
 .sb-now { white-space:pre-line; }

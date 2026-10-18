@@ -944,8 +944,8 @@ function landSummary(b, dayWord) {
  * 아래로 펼쳐지면서 표로서 … 관광지, 기존, 위험이 높아진 곳 세 개로 구분해서 기존엔 뭐였는데 뭘로 높아졌다 … 위험이 높아진 모든 관광지에 대해서"*.
  * 「평소」 칸 = 「평소 수준」 — 코드로 확인한 정의: 관광지 단계(landSpot)는 오늘 바뀐 요소(방문객 평소보다 많음·행사·너울·이안류·특보·예비특보·해안 바람)나 특보 해제 뒤가 있을 때만 붙고,
  *   그런 것이 없는 날은 연안 위험지수·위험구역·사고 이력과 상관없이 모두 0(「평소 수준」 — 상시 위험 장소)이다. 관광지마다 따로 저장된 평소 단계·평소 지수는 없다.
- * 행 = 관심 이상 관광지 전부(land.attentionAll — 카드 상한 없음), 단계 높은 순 → 이름 순. 이유 = 근거 줄과 같은 글(지수는 「(높음, 예상)」, 바뀐 요소는 expectText).
- * 예: → {line:0, link:'평소보다 위험이 높아진 곳 12곳', head:['관광지','평소','오늘(예상)'], rows:[{name:'금능석물원', usual:'평소 수준', rank:2, word:'주의', reason:'연안 위험지수 92(높음, 예상), 방문객 평소의 2.2배(예상)'}, …], caption:'…'}
+ * 행 = 관심 이상 관광지 전부(land.attentionAll — 카드 상한 없음), 단계 높은 순 → 이름 순(화면은 시안대로 위 3곳 + 「[나머지 N곳 — 주의 a곳 · 관심 b곳]」). 이유 = 시안 꼴 짧은 글.
+ * 예: → {line:0, link:'평소보다 위험이 높아진 곳 12곳', head:['관광지','평소','오늘(예상)'], rows:[{name:'금능석물원', usual:'평소 수준', rank:2, word:'주의', reason:'위험지수 92 · 방문객 2.2배'}, …]}}
  * @param {object} land - landSection 결과 @param {string} dayWord - 오늘|내일 @returns {object|null} attentionAll 이 없는 옛 브리핑(다시 계산)이면 null
  * [연계] ← landSummary / 화면: station_briefing_render.js basisList(그 줄의 link 를 버튼으로 → raisedTable 표)
  */
@@ -953,13 +953,13 @@ function raisedTable(land, dayWord) {
     const all = Array.isArray(land.attentionAll) ? land.attentionAll : null;
     if (!all || !all.length) return null;
     const rows = all.slice().sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name, 'ko')).map((c) => {
-        const idx = /^연안 위험지수/.test(c.sourceLabel || '') ? '연안 위험지수' + (Number.isFinite(c.index) ? ' ' + c.index : '') + '(' + (c.band ? c.band + ', ' : '') + '예상)' : null;
-        const reason = [idx].concat((c.changes || []).map((t, i) => expectText((c.kinds || [])[i], t))).filter(Boolean).join(', ');
+        // 이유 = 시안(Main.dc.html) 꼴 짧은 글 「위험지수 100 · 방문객 2.4배」(2026-10-18 사용자 「시안이 기준이 되어야 해.」) — 지수는 숫자만, 방문객은 배수만, 그 밖 요소는 꼬리 괄호를 뺀 이름.
+        const idx = /^연안 위험지수/.test(c.sourceLabel || '') && Number.isFinite(c.index) ? '위험지수 ' + c.index : null;
+        const reason = [idx].concat((c.changes || []).map((t, i) => (c.kinds || [])[i] === 'people' ? String(t).replace(/^(?:사람|방문객)\s*평소의\s*/, '방문객 ') : String(t).replace(/\s*\([^()]*\)$/, ''))).filter(Boolean).join(' · ');
         return { name: c.name, usual: '평소 수준', rank: c.rank, word: c.word, reason };
     });
     return {
-        line: 0, link: '평소보다 위험이 높아진 곳 ' + land.attentionSpots + '곳', head: ['관광지', '평소', dayWord + '(예상)'], rows,
-        caption: '평소 = ' + dayWord + ' 달라진 요소(방문객·행사·너울·이안류·특보·해안 바람)가 없을 때의 단계 — 그런 날은 모든 관광지가 「평소 수준」입니다. 단계 아래 작은 글은 높아진 이유입니다.',
+        line: 0, link: '평소보다 위험이 높아진 곳 ' + land.attentionSpots + '곳', head: ['관광지', '평소', dayWord + '(예상)'], rows,   // 설명 줄(caption)은 시안에 없어 뺐다(2026-10-18)
     };
 }
 /**
