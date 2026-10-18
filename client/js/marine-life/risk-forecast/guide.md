@@ -286,6 +286,26 @@ bash scripts/refactor/verify_all.sh
 
 수정 시 주의: 지도 연안 색 경계를 바꿀 때는 서버 `risk_points.scoreBand` 와 `RiskFormat.bandOf` 를 같이 바꾼다(`test_risk_format` 이 −1~4점 전 구간을 대조한다). 집계표를 다시 만들면(`build_coast_accidents.py`) `riskSpotsHash` 가 지금 `risk_spots.json` 해시와 같은지 `/meta` 의 `coastAccidents.status` 로 확인한다.
 
+## 연안 지점 바텀시트 시안 반영 — 2026-10-18
+
+사용자 확정은 [README.md](README.md)의 같은 이름 절, 결정 표는 설계서 §15.2. 바뀐 자리(`risk_sheet.js`·`risk_forecast.css` 연안 규칙만):
+
+| 위치 | 이전 | 지금 |
+|---|---|---|
+| `summary`(연안) | 오른쪽 글 첫 줄에 등급 글자, 「평소만큼 붐비고 … 비교」, 배수는 `F.fmt` | 칸 안 `.rf-band-badge`(글자색 = 칸 색 `c`), 오른쪽 `.rf-index-lead` 「평소 정도로 붐비고 …의 ⏎ 평범한 날과 비교 시 ⏎ 전체 사고 」+`cond(rr)`, 막대를 `.rf-ramp-wrap` 로 감싸고 `.rf-ramp-mark`(left = 지수 %) |
+| 배수 문구 | `possibility`(「N% 높은 사고 발생 가능성」)·`fatal`(「사망·실종 사고 발생 가능성 : … 높음」) | `cond`(「약 N배 많이 / 약 N% 더 많이 / 약 N% 적게 / 비슷하게」 + 「날 수 있는 조건」)·`fatal`(「사망·실종 사고 : 기준 대비 」+`cond`). `possibility` 는 옛 해상 칸 상세(`seaRows`)만 쓴다 |
+| `coastRows` 사람·위험구역·달 | 한 덩어리 글 + `<br>` | `bullets([...])` — 「•」 줄마다 `.rf-fit` |
+| `hazardKinds` | 「연안사고 위험구역 2곳 · …, 모두 」 글 | 종류별 `button.rf-hz-kind[data-hz-toggle]`(종류색 `.rf-hz-risk/.rf-hz-freq/.rf-hz-death`), byType 이 없으면 「위험구역 N개소」 버튼 하나 |
+| `hazards` | `<details class="rf-hazards">` 목록(주소 버튼·관할) | `div.rf-hz-box[data-hz-box][hidden] > table.rf-hz-table`(위치·종류·구분·지도), 구역이 없으면 빈 문자열 |
+| `create` 클릭 위임 | — | `[data-hz-toggle]` → 같은 `.rf-row` 의 표 `hidden` 토글·버튼들 `aria-expanded` |
+| `markZone` | `li.is-selected` | `tr.is-selected` |
+| `present` | 올리기만 | 끝에 `fit()` — `.rf-body .rf-fit` 줄 수(높이 ÷ line-height)가 `<br>` 수 + 1 보다 많으면 `FIT=[-0.02,-0.035,-0.05]` em 순 |
+| `notices`·`dayNotices` | 안내마다 `.rf-notice` 상자, 글자 ⚠·🛟 | `noticeBox(lines)` 한 상자 + `noticeLine(icon,html)` 줄(`ICON_WARN`·`ICON_BUOY`), 특보 머리 `b.rf-warn-name`, 표류 `driftText` |
+| `coastHistory` | 「이 관광지 주변 연안사고(2020~2024년)」 + `.rf-acc-area` | 「주변 연안사고」+`span.rf-coast-yrs`「('20년 ~ '24년)」, 영역 줄 없음 |
+| `show` 연안 본문 | 요소 줄을 본문에 바로 | `div.rf-coast-rows` 로 감쌈(마지막 줄 구분선 없음 기준) |
+
+수정 시 주의: `.rf-sheet button` 이 모든 시트 버튼에 24px 최소 높이를 주므로 글줄 안 버튼(`.rf-hz-kind`)은 위아래 −2.5px 여백으로 줄 높이를 지킨다. `.rf-card h4` 는 해상과 같이 쓰는 규칙이라 연안 제목 색은 `.rf-card.rf-coast-acc h4` 로만 바꾼다. 「…날 수 있는 조건」은 특보 칸 「사망·실종으로 이어질 가능성이 14% 높습니다」(사고가 난 뒤의 비율)에는 쓰지 않는다.
+
 ## 하단 시간 버튼 5개·시각 토스트·연안 색 범례·출처/축척 올림 — 2026-10-16
 
 사용자 원문: 「하단에 시간대 설정이 있는데 -12 -6h - 3h 현재 +3h, +6h +12로 버튼을 만들고 처음에는 - 부분은 회색이었다가 +3으로 가면 -3 활성화 되어서 뒤로 갈 수 있도록 수정 필요(해상도 동일하게,) 그리고 왼쪽에 0월 0일 금요일 10:00은 빼도록 하고 현재 및 시간 이동 버튼 아래에 1.(금) 00:00 라고 버튼 내에 작은 글씨로 써지도록 하고 싶어. 물론 시간 이동에 따라 현재만 제외하고 해당 시간이 바뀌어야지. 더이상 미래로 갈 수 없는 경우에는 해당 시간 버튼은 비활성화 되도록 해주고. 해상도 동일하게 진행.」 · 「그러면 토스트 메시지로 하단에 뜨면 되는거 아니니 ?」 (왼쪽 날짜를 없애면 지금 보는 시각을 알 길이 없어지는 문제에 대한 답) · 「그런데 지금 지도에 색상에 따른 범례가 안보이는데 ?」 · 「이 시안을 보니까 버튼이 높아지네 ? +12 -12버튼은 빼도록 하자. 그리고 버튼을 좀더 넓게 사용하도록 하자.」 (7버튼 시안 화면을 보고) · 「범례는 해상위험예측과 동일한 위치에 배치하도록 해줘. 그리고 각 토글을 on 하면 국토교통부 브이월드가 시간 조정 부분으로 인해 가려지는데 브이월드가 시간 조정 버튼 높이만큼 위로 올라오도록 해줘(축척도 마찬가지로)」 (화면 설명은 README 같은 이름 절)

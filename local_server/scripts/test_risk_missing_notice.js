@@ -222,7 +222,8 @@ const rm = (f) => fs.rmSync(f, { force: true });
             const body = await render(detail(make(OCT)));
             for (const bad of ['자료 없음', '일부 요소', '확인된 요소', '특보, ', '행사 정보'])
                 assert.ok(!body.includes(bad), bad + ' / ' + body);
-            assert.ok(body.includes('평소만큼 붐비고 위험구역 없는 곳'));
+            // 2026-10-18 연안 시트 시안: 「평소만큼 붐비고 … 비교」 → 「평소 정도로 붐비고 위험구역 없는 곳의 / 평범한 날과 비교 시」
+            assert.ok(body.includes('평소 정도로 붐비고 위험구역 없는 곳'));
         });
         await test('시트: 행사 수집 실패 → 행사 행에 자료 없음 + 확인된 요소 기준 안내(전역 경고 목록은 숨김)', async () => {
             const c = make(OCT);

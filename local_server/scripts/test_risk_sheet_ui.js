@@ -162,12 +162,23 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  const settleMap=async()=>{await pg.waitForFunction(()=>!map.getView().getAnimating()&&!map.getView().getInteracting());await pg.waitForTimeout(600);};
  /** 위험구역 폴리곤(또는 한 점)의 지도 화면 위치를 시트 윗변과 함께 잰다. @param {string} what 'hazard'|'point' @param {number[]} [lonlat] 점 좌표 @returns {Promise<object>} cx·cy·top·bottom·visibleCenterY·sheetTop [연계] ← 과제10 */
  const placed=(what,lonlat)=>pg.evaluate(([w,ll])=>{const el=document.getElementById('risk-forecast-sheet'),m=document.getElementById('map').getBoundingClientRect(),sr=el.getBoundingClientRect();let x0,y0,x1,y1;if(w==='hazard'){const ex=map.getLayers().getArray().find(l=>l.getClassName()==='rf-hazard-canvas').getSource().getExtent();const a=map.getPixelFromCoordinate([ex[0],ex[3]]),b=map.getPixelFromCoordinate([ex[2],ex[1]]);x0=a[0];y0=a[1];x1=b[0];y1=b[1];}else{const a=map.getPixelFromCoordinate(ol.proj.fromLonLat(ll));x0=x1=a[0];y0=y1=a[1];}return{cx:(x0+x1)/2,cy:(y0+y1)/2,top:y0,bottom:y1,mapWidth:m.width,visibleCenterY:(sr.top-m.top)/2,sheetTop:sr.top-m.top};},[what,lonlat||null]);
- await check('위험구역 N곳 현황은 버튼 모양 아코디언(접힘→펼침)이고 구역마다 정보·주소 버튼',async()=>{
+ // 2026-10-18 연안 시트 시안 ②-2(CoastSheetOpen.dc.html): 종전 「위험구역 N곳 현황」 아코디언(목록·주소·관할) → 종류별 밑줄 버튼을 누르면 테두리 상자 안 표(위치·종류·구분·지도).
+ await check('위험구역 표(시안 ②-2): 처음 접힘 → 종류 밑줄 버튼(종류색)을 누르면 상자 안 표 펼침(머리 흰색 굵게·칸 위치/종류/구분/지도·연번·주소·관할 없음) → 다시 누르면 접힘, [위치보기] 24px 이상·보통 굵기',async()=>{
   await fresh();await open('a');
-  const m=await pg.evaluate(()=>{const d=document.querySelector('#risk-forecast-sheet .rf-hazards'),sm=d.querySelector('summary'),r=sm.getBoundingClientRect();const closed=!d.open;sm.scrollIntoView();sm.click();return{closed,opened:d.open,text:sm.textContent,height:r.height,items:d.querySelectorAll('li').length,buttons:d.querySelectorAll('button[data-zone-id]').length,minBtn:Math.min(...Array.from(d.querySelectorAll('button')).map(b=>b.getBoundingClientRect().height)),first:d.querySelector('li').textContent};});
-  console.log('측정 아코디언',JSON.stringify({height:m.height,items:m.items,minBtn:m.minBtn}));
-  assert.ok(m.closed&&m.opened);assert.equal(m.text,'위험구역 12곳 현황');assert.ok(m.height>=40);assert.equal(m.items,12);assert.equal(m.buttons,12);assert.ok(m.minBtn>=24,'누르는 곳 높이 '+m.minBtn);
-  for(const t of ['위험구역0','갯바위','연안사고 위험구역','부산 수영구 광안로 100','광안리파출소 관할'])assert.ok(m.first.includes(t),t);
+  const m=await pg.evaluate(()=>{const s=document.querySelector('#risk-forecast-sheet'),box=s.querySelector('[data-hz-box]'),tg=s.querySelector('[data-hz-toggle]');const closed=box.hidden&&box.getBoundingClientRect().height===0;tg.scrollIntoView();tg.click();const cs=getComputedStyle(box),btn=box.querySelector('button[data-zone-id]');
+   return{closed,opened:!box.hidden&&box.getBoundingClientRect().height>0,exp:tg.getAttribute('aria-expanded'),toggles:[...s.querySelectorAll('[data-hz-toggle]')].map(b=>[b.textContent,getComputedStyle(b).color,getComputedStyle(b).textDecorationLine]),head:[...box.querySelectorAll('th')].map(t=>[t.textContent,getComputedStyle(t).color,getComputedStyle(t).fontWeight]),rows:box.querySelectorAll('tbody tr').length,buttons:box.querySelectorAll('button[data-zone-id]').length,minBtn:Math.min(...[...box.querySelectorAll('button')].map(b=>b.getBoundingClientRect().height)),btnWeight:getComputedStyle(btn).fontWeight,btnColor:getComputedStyle(btn).color,first:[...box.querySelector('tbody tr').cells].map(c=>c.textContent),kindColor:getComputedStyle(box.querySelector('.rf-hz-class')).color,border:cs.borderTopWidth+' '+cs.borderTopColor,radius:cs.borderTopLeftRadius,pad:cs.padding,bg:cs.backgroundColor,text:box.textContent,head2:s.querySelector('.rf-coast-rows .rf-row:nth-child(2) .rf-row-head').textContent};});
+  console.log('측정 위험구역 표',JSON.stringify({...m,text:undefined}));
+  assert.ok(m.closed&&m.opened,'접힘 → 펼침');assert.equal(m.exp,'true');
+  assert.deepEqual(m.toggles,[['연안사고 위험구역 12개소','rgb(45, 212, 191)','underline']]);assert.equal(m.head2,'위험구역(3km 안)12개소');
+  assert.deepEqual(m.head,[['위치','rgb(255, 255, 255)','800'],['종류','rgb(255, 255, 255)','800'],['구분','rgb(255, 255, 255)','800'],['지도','rgb(255, 255, 255)','800']]);
+  assert.equal(m.rows,12);assert.equal(m.buttons,12);assert.ok(m.minBtn>=24,'누르는 곳 높이 '+m.minBtn);assert.equal(m.btnWeight,'400','[위치보기] 보통 굵기(사용자 「여기서도 볼드 빼줘」)');assert.equal(m.btnColor,'rgb(143, 195, 255)');
+  assert.deepEqual(m.first,['위험구역0','갯바위','위험구역','위치보기']);assert.equal(m.kindColor,'rgb(45, 212, 191)');
+  assert.equal(m.border,'1px rgba(255, 255, 255, 0.18)');assert.equal(m.radius,'10px');assert.equal(m.pad,'4px 8px 2px');assert.equal(m.bg,'rgba(255, 255, 255, 0.04)');
+  for(const t of ['광안로','관할','연안사고 위험구역'])assert.ok(!m.text.includes(t),'표에 없어야 함 '+t);
+  const shots=process.env.RISK_SHEET_SHOTS;if(shots){fs.mkdirSync(shots,{recursive:true});await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-hz-box]').scrollIntoView({block:'center'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(shots,'coast_hazard_table_412.png')});}
+  const again=await pg.evaluate(()=>{const s=document.querySelector('#risk-forecast-sheet');s.querySelector('[data-hz-toggle]').click();return[s.querySelector('[data-hz-box]').hidden,s.querySelector('[data-hz-toggle]').getAttribute('aria-expanded')];});
+  assert.deepEqual(again,[true,'false'],'다시 누르면 접힘');
+  await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-hz-toggle]').click());
  });
  await check('위험구역을 누르면 시트에 가려지지 않은 지도 영역의 가운데로 이동(서브탭 닫힘·열림)',async()=>{
   for(const sub of [false,true]){
@@ -275,9 +286,12 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
  const accCard=()=>pg.evaluate(()=>{const c=document.querySelector('#risk-forecast-sheet [data-coast-acc]');if(!c)return null;const r=e=>{const b=e.getBoundingClientRect();return{l:b.left,r:b.right,t:b.top,b:b.bottom};};const body=document.querySelector('#risk-forecast-sheet .rf-body');
   return{kind:c.dataset.coastAcc,title:c.querySelector('h4').textContent,area:(c.querySelector('.rf-acc-area')||{}).textContent||null,total:(c.querySelector('[data-acc-total]')||{}).textContent||null,legend:[...c.querySelectorAll('.rf-acc-leg li')].map(li=>li.textContent.replace(/\s+/g,' ').trim()),cas:(c.querySelector('[data-acc-cas]')||{}).textContent||null,casBold:[...c.querySelectorAll('.rf-acc-cas b')].map(b=>[b.textContent,getComputedStyle(b).color,getComputedStyle(b).fontWeight]),
    card:r(c),svg:c.querySelector('svg')&&r(c.querySelector('svg')),items:[...c.querySelectorAll('.rf-acc-leg li')].map(r),last:body.lastElementChild===c||body.lastElementChild.contains(c),bodyOverflow:body.scrollWidth-body.clientWidth,boxBg:getComputedStyle(document.querySelector('#risk-forecast-sheet .rf-score-box')).backgroundColor,sub:document.querySelector('#risk-forecast-sheet .rf-subtitle').textContent,text:body.textContent};});
- await check('T9 연안 주변 연안사고: 제목(기간)·영역 한 줄·도넛 총 건수·유형 범례(기타(인명))·인명피해 줄(사망·실종만 빨강 굵게), 시트 맨 끝 · 380px 겹침 없음',async()=>{
+ await check('T9 연안 주변 연안사고: 제목(기간, 2026-10-18 시안 흰색·영역 줄 없음)·도넛 총 건수·유형 범례(기타(인명))·인명피해 줄(사망·실종만 빨강 굵게), 시트 맨 끝 · 380px 겹침 없음',async()=>{
   await pg.setViewportSize({width:380,height:820});await fresh();await open('a');const m=await accCard();console.log('측정 T9 사고 카드 380px',JSON.stringify({...m,text:undefined}));
-  assert.equal(m.kind,'list');assert.equal(m.title,'이 관광지 주변 연안사고(2020~2024년)');assert.equal(m.area,'지도에 칠한 이 관광지 구역과 그 앞바다 500m');assert.equal(m.total,'7건');
+  // 2026-10-18 시안: 제목 「주변 연안사고('20년 ~ '24년)」(흰색, 연도만 종전 제목색) · 영역 한 줄은 뺐다 · 마지막 요소 줄 구분선 없음, 상자와 18px.
+  assert.equal(m.kind,'list');assert.equal(m.title,"주변 연안사고('20년 ~ '24년)");assert.equal(m.area,null);assert.equal(m.total,'7건');
+  const hc=await pg.evaluate(()=>{const c=document.querySelector('#risk-forecast-sheet [data-coast-acc]'),rows=[...document.querySelectorAll('#risk-forecast-sheet .rf-coast-rows>.rf-row')],last=rows[rows.length-1];return{h4:getComputedStyle(c.querySelector('h4')).color,yrs:getComputedStyle(c.querySelector('.rf-coast-yrs')).color,lastBorder:getComputedStyle(last).borderBottomWidth,otherBorder:getComputedStyle(rows[0]).borderBottomWidth,gap:c.getBoundingClientRect().top-last.getBoundingClientRect().bottom+parseFloat(getComputedStyle(last).paddingBottom)};});
+  assert.deepEqual([hc.h4,hc.yrs],['rgb(255, 255, 255)','rgb(207, 224, 255)'],'제목 흰색·연도 범위 종전 제목색');assert.equal(hc.lastBorder,'0px','마지막 요소 줄 구분선 없음');assert.equal(hc.otherBorder,'1px');assert.ok(Math.abs(hc.gap-18)<=.5,'마지막 줄 글 끝 ↔ 상자 '+hc.gap);
   assert.deepEqual(m.legend,['익수3건›','추락1건›','고립1건›','표류1건›','기타(인명)1건›']);
   assert.equal(m.cas,'사망 1명(24년, 익수), 실종 1명(22년, 추락)');assert.deepEqual(m.casBold.map(x=>x[0]),['사망 1명','실종 1명']);for(const b of m.casBold){assert.equal(b[1],'rgb(255, 107, 107)');assert.ok(+b[2]>=700);}
   assert.ok(m.last,'시트 맨 끝 카드');assert.equal(m.bodyOverflow,0,'본문 가로 넘침');
@@ -295,26 +309,46 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   assert.deepEqual(await pg.evaluate(()=>[document.querySelector('.rf-acc-pop h5').textContent,[...document.querySelectorAll('.rf-acc-pop li .t')].map(x=>x.textContent)]),['기타(인명) 1건최신순',['2020.06.02']]);
   await pg.keyboard.press('Escape');assert.equal(await pg.evaluate(()=>document.querySelector('.rf-acc-pop').hidden),true);assert.equal(await pg.evaluate(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')),true,'Escape 는 팝업만');
  });
- await check('T9 0건이면 「이 관광지 주변 연안사고 없음(2020~2024년)」+영역 한 줄, 자료 없음(available:false)이면 「이 관광지 주변 연안사고 자료 없음」',async()=>{
+ await check('T9 0건이면 「주변 연안사고 없음(\'20년 ~ \'24년)」(2026-10-18 시안 — 영역 줄 없음), 자료 없음(available:false)이면 「주변 연안사고 자료 없음」',async()=>{
   await pg.evaluate(()=>{app.select('coast','b');});await waitTitle('해운대해수욕장');let m=await accCard();console.log('측정 T9 0건',JSON.stringify({kind:m.kind,title:m.title,area:m.area}));
-  assert.equal(m.kind,'none');assert.equal(m.title,'이 관광지 주변 연안사고 없음(2020~2024년)');assert.equal(m.area,'지도에 칠한 이 관광지 구역과 그 앞바다 500m');assert.equal(m.total,null);assert.equal(m.bodyOverflow,0);
+  assert.equal(m.kind,'none');assert.equal(m.title,"주변 연안사고 없음('20년 ~ '24년)");assert.equal(m.area,null);assert.equal(m.total,null);assert.equal(m.bodyOverflow,0);
   if(SHOTS){await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-coast-acc]').scrollIntoView({block:'end'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_acc_none_380.png')});}
   FIX.history.b={available:false};await fresh();await open('b');m=await accCard();
-  assert.equal(m.kind,'nodata');assert.equal(m.title,'이 관광지 주변 연안사고 자료 없음');assert.equal(m.area,null);
+  assert.equal(m.kind,'nodata');assert.equal(m.title,'주변 연안사고 자료 없음');assert.equal(m.area,null);
   if(SHOTS){await pg.evaluate(()=>document.querySelector('#risk-forecast-sheet [data-coast-acc]').scrollIntoView({block:'end'}));await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_acc_nodata_380.png')});}
   FIX.history.b.available=true;FIX.history.b={available:true,from:'2020-01-01',to:'2024-12-31',area:'이 관광지 구역과 앞바다 500m',accidents:[]};
  });
  await check('「표류」 통일(떠밀림 없음)·연안 부제는 경위도 없이 관할만·위험지수 상자 색 = 단계 색(지수 19 → 초록)',async()=>{
   await fresh();await open('a');let m=await accCard();
-  assert.ok(m.text.includes('사고 종류 : 익수, 추락, 고립, 표류'));assert.ok(m.text.includes('튜브·물놀이기구 표류 주의'));assert.ok(!m.text.includes('떠밀림'));
+  assert.ok(m.text.includes('사고 종류 : 익수, 추락, 고립, 표류'));assert.ok(m.text.includes('튜브·물놀이기구 등 표류 주의'));assert.ok(!m.text.includes('떠밀림'));
   assert.equal(m.sub,'부산해양경찰서 광안리파출소 관할');assert.ok(!/[°′″]/.test(m.sub));
   const B={'평소 수준':'rgb(47, 179, 107)','다소 높음':'rgb(242, 194, 48)','높음':'rgb(251, 146, 60)','매우 높음':'rgb(224, 50, 44)'};assert.equal(m.boxBg,B[scored.band],'상자 색 '+scored.band);
   for(const [idx,band] of [[19,'평소 수준'],[20,'다소 높음'],[67,'높음'],[100,'매우 높음']]){FIX.score.b={score:idx*.03,index:idx,band};await fresh();await open('b');m=await accCard();assert.equal(m.boxBg,B[band],'지수 '+idx);
+   // 2026-10-18 시안: 등급 글자는 칸 안 남색 알약 배지(글자색 = 칸 색, 15.2px·800·자간 0.06em), 오른쪽 글은 등급 없이 「평소 정도로 붐비고…」부터, 막대 위 지수 위치 눈금(A안).
+   const g=await pg.evaluate(()=>{const s=document.querySelector('#risk-forecast-sheet'),bd=s.querySelector('.rf-band-badge'),cs=getComputedStyle(bd),ramp=s.querySelector('.rf-ramp').getBoundingClientRect(),tick=s.querySelector('.rf-ramp-tick').getBoundingClientRect(),val=s.querySelector('.rf-ramp-val'),tri=s.querySelector('.rf-ramp-tri').getBoundingClientRect(),card=s.querySelector('.rf-index').getBoundingClientRect(),tcs=getComputedStyle(s.querySelector('.rf-ramp-tick'));
+    return{text:bd.textContent,color:cs.color,bg:cs.backgroundColor,size:cs.fontSize,weight:cs.fontWeight,ls:cs.letterSpacing,radius:cs.borderTopLeftRadius,prose:s.querySelector('.rf-index-prose').textContent,pos:(tick.left+tick.width/2-ramp.left)/ramp.width*100,tickW:tick.width,tickBg:tcs.backgroundColor,tickShadow:tcs.boxShadow,val:val.textContent,valBg:getComputedStyle(val).backgroundColor,triAbove:tri.bottom<=tick.top+.5&&tri.top>=val.getBoundingClientRect().bottom-.5,inside:val.getBoundingClientRect().top>=card.top,gap:ramp.top-s.querySelector('.rf-index-main').getBoundingClientRect().bottom};});
+   assert.equal(g.text,band);assert.equal(g.color,B[band],'배지 글자 = 칸 색');assert.equal(g.bg,'rgb(16, 21, 31)');assert.equal(g.size,'15.2px');assert.equal(g.weight,'800');assert.equal(g.ls,(15.2*.06).toFixed(3).replace(/0+$/,'')+'px');assert.equal(g.radius,'999px');
+   assert.ok(g.prose.startsWith('평소 정도로 붐비고 위험구역 없는 곳의평범한 날과 비교 시전체 사고 '),'오른쪽 글 '+g.prose);assert.ok(!g.prose.includes(band+'평소'),'오른쪽 글에 등급 없음');assert.match(g.prose,/날 수 있는 조건사망·실종 사고 .* 날 수 있는 조건사고 종류/);
+   assert.ok(Math.abs(g.pos-idx)<=0.6,'눈금 위치 '+g.pos+' vs 지수 '+idx);assert.equal(g.tickW,3);assert.equal(g.tickBg,'rgb(255, 255, 255)');assert.match(g.tickShadow,/rgb\(16, 21, 31\) 0px 0px 0px 1.5px/);assert.equal(g.val,String(idx));assert.equal(g.valBg,'rgb(255, 255, 255)');assert.ok(g.triAbove,'말풍선 → ▼ → 눈금 순서');assert.ok(g.inside,'말풍선이 카드 안');assert.ok(g.gap>=22,'막대 위 표시 자리 '+g.gap);
    if(SHOTS&&idx===19){await pg.evaluate(()=>{document.querySelector('#risk-forecast-sheet .rf-body').scrollTop=0;});await pg.waitForTimeout(80);await pg.screenshot({path:path.join(SHOTS,'coast_index19_380.png')});}}
   delete FIX.score.b;
   const basis=await pg.evaluate(()=>{RiskBasis.open('coast');const t=document.querySelector('.rf-basis-body').textContent;RiskBasis.close();return t;});
   assert.ok(basis.includes('연안 사고(익수·추락·고립·표류)')&&!basis.includes('떠밀림'));
   assert.ok(basis.includes('목록에는 익수·추락·고립·표류와 기타(인명)를 보여 줍니다. 위험지수 점수는 익수·추락·고립·표류 4유형으로 계산했습니다.'),'목록과 점수 유형 차이 한 줄');
+ });
+ // 2026-10-18 시안 댓글: 한 줄을 몇 글자 넘쳐 두 줄이 되는 「그 줄만」 자간을 -0.02 → -0.035 → -0.05em 순으로 줄여 한 줄이 되는 최소값만, 그래도 안 되면 원래대로. 전체 일괄 축소 금지.
+ // 글꼴마다 폭이 달라, 첫 「•」 줄의 실제 한 줄 폭을 자간별로 재고 그 사이 폭으로 줄을 좁혀(max-width) 기대값을 정한다.
+ await check('자간 맞춤(시안 댓글): 넘치는 줄만 -0.02/-0.035/-0.05em 중 한 줄이 되는 최소값, 안 되면 원래대로 두 줄 · 다른 줄은 그대로',async()=>{
+  await pg.setViewportSize({width:412,height:915});await fresh();await open('a');
+  const W=await pg.evaluate(()=>{const f=document.querySelector('#risk-forecast-sheet .rf-coast-rows .rf-fit'),c=f.cloneNode(true);c.style.cssText='position:absolute;visibility:hidden;white-space:nowrap;width:auto;max-width:none';f.parentNode.appendChild(c);const out=[0,-0.02,-0.035,-0.05].map(v=>{c.style.letterSpacing=v+'em';return c.getBoundingClientRect().width;});c.remove();return out;});
+  console.log('측정 자간별 한 줄 폭',JSON.stringify(W));
+  const cases=[[Math.ceil(W[0])+2,''],[(W[0]+W[1])/2,'-0.02em'],[(W[1]+W[2])/2,'-0.035em'],[(W[2]+W[3])/2,'-0.05em'],[W[3]-15,'']];
+  for(const [width,want] of cases){
+   await fresh();await pg.addStyleTag({content:'#risk-forecast-sheet .rf-coast-rows>.rf-row:first-child .rf-bullet:first-child .rf-fit{max-width:'+width.toFixed(2)+'px}'});await open('a');
+   const r=await pg.evaluate(()=>{const fs=[...document.querySelectorAll('#risk-forecast-sheet .rf-coast-rows .rf-fit')],f=fs[0],lh=parseFloat(getComputedStyle(f).lineHeight);return{ls:f.style.letterSpacing,lines:Math.round(f.getBoundingClientRect().height/lh),second:fs[1].style.letterSpacing};});
+   console.log('측정 자간 맞춤 폭 '+width.toFixed(1),JSON.stringify(r));
+   assert.equal(r.ls,want,'폭 '+width+' → '+want);assert.equal(r.lines,want||width>W[0]?1:2,'줄 수');assert.equal(r.second,'','다른 줄은 그대로');
+  }
  });
  // 2026-10-16 사용자 「표는 오른쪽 왼쪽으로 스크롤하면서 볼 수 있도록 해서 표가 과도하게 위아래로 켜지지 않도록 … 화면에 맞게 적절하게」
  for(const kind of ['coast','sea'])await check('기준 상세 표('+kind+'): 380·320px 가로 스크롤 상자·줄 수 ≤ 4·숫자 칸 줄바꿈 없음·창 자체는 가로 스크롤 없음, 1024px 스크롤 없이 꽉 참',async()=>{

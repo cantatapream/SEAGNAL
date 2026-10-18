@@ -137,9 +137,14 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
   if(SHOTS)await page.screenshot({path:path.join(SHOTS,'day-380-시트-오늘.png')});
  });
  await check('§16.1 ② + 결정 1 연안 시트 안내: 그날 남은 칸 어느 칸이든 특보·표류가 있으면 — 특보는 기상청 시각(발표·발효 예정·해제 예고), 못 읽은 것만 칸 시각+「칸 기준」, 표류는 칸 시각(12시 무렵), 특보 없는 날은 안내 없음',async()=>{
-  const notes=()=>page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice')].map(e=>e.textContent));
+  // 2026-10-18 연안 시트 시안: 특보·표류는 주황 상자(.rf-notice) 하나 안의 줄(.rf-notice-line) — 글자 ⚠·🛟 대신 그림(SVG), 특보 이름·상태는 빨강 굵게, 「특보 중에는…」은 다음 줄.
+  const notes=()=>page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice-line')].map(e=>e.textContent));
+  const boxes=()=>page.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice').length);
   assert.equal((await S()).peak,'가장 높은 때 18시 기준');
-  assert.deepEqual(await notes(),['⚠ 강풍주의보 예비특보(10:30 발표) — 21~24시 발효 예정. 태풍주의보 예비특보 — 18시~(칸 기준). 풍랑주의보 발효 중(05시 발표) — 13일 03~06시 해제 예고. 특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 14% 높습니다.','🛟 12시 무렵 이 앞바다 바람 9m/s — 튜브·물놀이기구 표류 주의'],'결정 1: 발효 = 해제 예고 시각(다른 날 「13일」)·발표 시각, 예비 = 발효 예정 시각(범위 21~24시), 시각 없으면 칸 시각+「칸 기준」, 「더 일찍 풀릴」 없음');
+  assert.equal(await boxes(),1,'특보·표류가 한 상자');
+  assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-notice .rf-warn-name')].map(b=>[b.textContent,getComputedStyle(b).color])),[['강풍주의보 예비특보','rgb(239, 68, 68)'],['태풍주의보 예비특보','rgb(239, 68, 68)'],['풍랑주의보 발효 중','rgb(239, 68, 68)']],'특보 이름·상태 빨강 굵게');
+  assert.equal(await page.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-notice-line svg').length),2,'줄마다 그림');
+  assert.deepEqual(await notes(),['강풍주의보 예비특보(10:30 발표) — 21~24시 발효 예정. 태풍주의보 예비특보 — 18시~(칸 기준). 풍랑주의보 발효 중(05시 발표) — 13일 03~06시 해제 예고.특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 14% 높습니다.','12시 무렵 바람 9m/s로 튜브·물놀이기구 등 표류 주의'],'결정 1: 발효 = 해제 예고 시각(다른 날 「13일」)·발표 시각, 예비 = 발효 예정 시각(범위 21~24시), 시각 없으면 칸 시각+「칸 기준」, 「더 일찍 풀릴」 없음');
   assert.ok(!/더 일찍/.test((await notes()).join('')),'「더 일찍 풀릴 수 있음」 없음');
   if(SHOTS){await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-notice').scrollIntoView({block:'center'}));await page.screenshot({path:path.join(SHOTS,'day-380-시트-안내.png')});}
   await sheetClick(1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-13'));await ready();
