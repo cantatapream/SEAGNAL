@@ -282,7 +282,8 @@
             if(s.key==='drift'){drift.push({key:'drift',windMs:s.windMs,when:when(s),most:s.from!==s.to});return;}
             if(s.key!=='warning')return;
             // 특보 이름·상태는 빨강 굵게(2026-10-18 시안 「<b>풍랑주의보 발효 중</b> — 19일 03~06시 해제 예고.」), 발표·예고 시각은 보통 글자.
-            var issued=kmaTime(s.issued,day),head='<b class="rf-warn-name">'+F.escape(s.name+(s.state==='발효'?' 발효 중':' 예비특보'))+'</b>'+(issued?F.escape('('+issued+' 발표)'):'');
+            // 「(HH시 발표)」는 뺀다 — 사용자 2026-10-18 *"2번빼고"*(시안에서 「(05시 발표)」 지운 것과 같게).
+            var head='<b class="rf-warn-name">'+F.escape(s.name+(s.state==='발효'?' 발효 중':' 예비특보'))+'</b>';
             var t=kmaTime(s.state==='발효'?s.release:s.effective,day);
             (s.state==='발효'?eff:pre).push(head+F.escape(' — '+(t?t+(s.state==='발효'?' 해제 예고':' 발효 예정'):when(s)+'(칸 기준)')));
         });
