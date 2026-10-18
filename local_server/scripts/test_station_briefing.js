@@ -2464,6 +2464,29 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(names('가짜도 앞바다는 위험합니다.'), ['가짜도', '가짜도 앞바다']);
         for (const [s, n] of [['가짜도 북쪽 해상은', '가짜도'], ['차귀도 앞 갯바위', '차귀도'], ['가짜도 서해상', '가짜도'], ['흑산도는 주의', '흑산도'], ['가짜도 남부 해역', '가짜도']]) assert.ok(names(s).includes(n), s + ' → ' + names(s));
     });
+    await check('[§11.10.25 덧 둘째] 2026-10-18 09:08 관리자 실행 거부 13건 — 관광지 이름 속 「A과 B」의 앞 조각(남해 가천 해변·항도몽돌해수욕장)·「예상돼·있어」 앞 낱말은 통과 · 지어낸 이름·입력에 없는 범위(09~18시)·한글 셈말(두 곳·세 곳)은 계속 실패', () => {
+        // 실제 관광지 표: 두 이름 모두 남해파출소 관할(risk_spots.json)
+        const spots = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/coastal_safety/risk_spots.json'), 'utf8')).spots;
+        for (const n of ['남해 가천 해변과 암수바위', '항도몽돌해수욕장과 항도방파제']) assert.equal((spots.find((x) => x.name === n) || {}).station, '남해파출소', n);
+        const si = { name: '남해파출소', allowed_places: ['남해파출소', '사천해양경찰서', '남해 가천 해변과 암수바위', '항도몽돌해수욕장과 항도방파제', '천하몽돌해수욕장'], place_stems: ['남해'], kma_zones: [],
+            allowed_number_keys: ['9~12|시', '9|시', '12|시', '15~18|시', '15|시', '18|시', '2|곳'], count_keys: { sea: [], land: [] }, levels: { sea: { 남해파출소: 0 }, land: {} }, land: null };
+        const errs = (sea) => AI.validateOverview({ land: null, sea }, si).errors.filter((e) => !/^(?:shape|level)/.test(e));
+        // 운영 거부(place:남해가천해변·항도몽돌해수욕장 — 4번 다)·(place:바람도예상돼해수욕장)·(place:있어해제직후에도 — 0c4bd1849 에서 이미 고침) → 통과
+        for (const s of ['남해 가천 해변과 항도몽돌해수욕장에 사람이 많습니다.', '남해 가천해변에는 물결이 높습니다.', '항도몽돌해수욕장과 항도방파제 일대를 살핍니다.', '암수바위 주변도 그렇습니다.',
+            '강한 바람도 예상돼 해수욕장 물가에서는 주의가 요구됩니다.', '풍랑주의보 해제가 예고돼 있어 해제 직후에도 앞바다 물결이 높겠습니다.']) assert.deepStrictEqual(errs(s), [], s);
+        // 지어낸 이름은 그대로 실패 — 「과」 앞 조각이 지명 접미사로 끝날 때만 나누고, 앞 낱말이 「돼·어」여도 이름 자체는 본다
+        assert.deepStrictEqual(errs('남해 가짜해변과 항도가짜해수욕장에 사람이 많습니다.'), ['place:남해가짜해변', 'place:항도가짜해수욕장']);
+        assert.deepStrictEqual(errs('가천 해변과 암수해변을 봅니다.'), ['place:가천해변', 'place:암수해변']);
+        assert.deepStrictEqual(errs('바람이 불어 가짜해수욕장, 예상돼 만리포해수욕장'), ['place:가짜해수욕장', 'place:만리포해수욕장']);
+        assert.deepStrictEqual(AI.placeCandidates('바람도 예상돼 해수욕장').map((x) => x.text), [], '「예상돼」를 이름 앞 낱말로 붙이지 않음');
+        // 범위(number:09~18시·9~21시): 앞자리 0 은 원인이 아니다(09~18시·9~18시 같은 열쇠) — 범위 자체가 입력에 없으면 그대로 실패(B1, 의도한 막음)
+        assert.deepStrictEqual([AI.numTokens('09~18시')[0].key, AI.numTokens('9~18시')[0].key, AI.numTokens('09시~18시')[0].key], ['9~18|시', '9~18|시', '9~18|시']);
+        assert.deepStrictEqual(errs('09~18시 바람이 강합니다.'), ['number:09~18시']); assert.deepStrictEqual(errs('09~12시 바람이 강합니다.'), []);
+        // 한글 셈말(number:hangul:두 곳·세 곳): 그 문단 결론·근거 줄(count_keys)에 같은 수가 있을 때만(독립 검토 7) — 허용 숫자에 2곳이 있어도 문단 줄에 없으면 실패
+        assert.deepStrictEqual(errs('두 곳에 사람이 많습니다.'), ['number:hangul:두 곳']);
+        assert.deepStrictEqual(AI.validateOverview({ land: null, sea: '두 곳에 사람이 많습니다.' }, { ...si, count_keys: { sea: ['2|곳'], land: [] } }).errors.filter((e) => e.startsWith('number')), []);
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v13', '아직 배포 전 v13 에 함께');
+    });
     await check('[§11.10.17-3] 검사기(sb-validate-v11) — S1 「경계 필요」(보정 안 거친 글) · S3 「기준」(「(KOMSA 기준)」·「10:00 기준」은 허용) · S6 「근거로, … 이므로」 겹침 · 근거 꼬리표 「(기상청) 근거로」 · 이유 글(서버·관리자)', () => {
         const e = (sea) => AI.validateOverview({ ...good, sea }, si).errors;
         assert.ok(e(good.sea.replace('15시부터 유의파고 2.4m로 높아져', '15시부터 유의파고 2.4m로 높아져 경계 필요 수준이며')).includes('word:level-need:경계 필요'));
