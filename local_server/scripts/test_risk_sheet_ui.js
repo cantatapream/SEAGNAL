@@ -249,6 +249,13 @@ function page(){return '<!doctype html><html><head><meta name="viewport" content
   assert.equal(m.title,'연안 위험지수');assert.ok(!m.text.includes('기준 상세 —'));assert.deepEqual(m.headKids,['H3','BUTTON']);assert.equal(m.bodyH3,0);assert.equal(m.boxOverflow,'hidden');
   assert.ok(m.scrolled>0,'내용이 스크롤되어야 함');assert.equal(m.headMoved,0);assert.equal(m.closeMoved,0);assert.equal(m.closeHit,true,'닫기 버튼이 가려짐');assert.equal(m.focus,'mclose');
  });
+ await check('§11.10.35 기준 상세 창은 가운데 떠 있는 창 — 아래 끝이 화면 끝에서 떨어져 보인다(380×820·1280×900), 사방 둥근 모서리',async()=>{
+  for(const [w,h] of [[1280,900],[380,820]]){await pg.setViewportSize({width:w,height:h});await pg.waitForTimeout(50);
+   const m=await pg.evaluate(()=>{const b=document.querySelector('.rf-basis'),r=b.getBoundingClientRect(),cs=getComputedStyle(b);return{top:r.top,bottom:window.innerHeight-r.bottom,radius:cs.borderBottomLeftRadius,h:r.height,vh:window.innerHeight};});
+   console.log('측정 기준 상세 창 위치',w,JSON.stringify(m));
+   assert.ok(m.bottom>=16,'아래 여백 '+m.bottom+'px');assert.ok(m.top>=16,'위 여백 '+m.top+'px');assert.ok(m.h<=m.vh*0.8+1,'높이 80vh 이하');assert.equal(m.radius,'20px','아래 모서리도 둥글게');}
+  await pg.setViewportSize({width:380,height:820});
+ });
  /** 두 색의 명암비(WCAG). 예: ratio([143,211,255],[22,45,90]) → 약 8.3 @param {number[]} a @param {number[]} b RGB @returns {number} [연계] ← T8 링크 색 */
  const lum=c=>{const v=c.map(x=>{x/=255;return x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4);});return .2126*v[0]+.7152*v[1]+.0722*v[2];},ratio=(a,b)=>{const x=lum(a),y=lum(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
  const rgb=t=>t.match(/[\d.]+/g).map(Number),over=(fg,bg)=>fg.slice(0,3).map((v,i)=>v*(fg[3]??1)+bg[i]*(1-(fg[3]??1)));
