@@ -15,6 +15,7 @@
  *         §11.10.3(2026-10-17): (물때) 아래 (고립 주의) 「사고 지점(N개소)」 표 펼침 · 해상 근거 ▸ 미니 지도(관할 경계 + 칸·해구 테두리 깜빡임 — 접기·떼기·움직임 줄이기) · [기준 상세] 「해상 근거 읽는 법」.
  *         §11.10.4(2026-10-17): 제목 「HH:MM AI 연안 안전 브리핑」 · 「가」 모양(결론 → 분석 문단(이름표 AI 분석·규칙 분석) → 접힌 「연안/해상 분석 근거」 → (기상) → (물때)) · 칩 「연안 ○○ 필요」 ·
  *         지금 밀집 줄은 해상 분석 아래 · 관리자 미리보기 공개 예정 판 「예정」 · 오류 시도 번호 · 이름 바꿈.
+ *         §11.10.33(2026-10-18): [기준 상세] 모양 — 문장마다 「•」 줄 · 「위험 단계」 표(브리핑 색) · 넘친 줄만 자간 줄임(360·412px, basis_points_<폭>.png · basis_bands_<폭>.png).
  *         380px·1280px 스크린샷을 SB_SHOT_DIR(없으면 임시 폴더)에 남긴다(펼친 지도 briefing_sea_map_380.png · 고립 표 briefing_isolation_380.png · 새 모양 briefing_layout_380.png·briefing_layout_open_380.png 포함).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -972,10 +973,52 @@ function makeBriefings() {
         await check('[기준 상세] — 위험예측과 같은 창(고정 머리·표 가로 스크롤), 제목 「연안 안전 브리핑」·주요 규칙 문구(§11.10.4 — 07:30·20분 전 만들기·분석 문단·VM 3번 → Gemini → 규칙 분석)', async () => {
             await tap(page, '#station-briefing-content .sb-basis-btn'); await page.waitForSelector('.rf-modal .rf-basis');
             const r = await page.evaluate(() => ({ title: document.querySelector('.rf-basis-head h3').textContent, body: document.querySelector('.rf-basis-body').innerText, tbl: document.querySelectorAll('.rf-basis-body .rf-tbl').length, close: !!document.querySelector('.rf-basis-head .mclose') }));
-            assert.equal(r.title, '연안 안전 브리핑'); assert.ok(r.close); assert.equal(r.tbl, 3);
+            assert.equal(r.title, '연안 안전 브리핑'); assert.ok(r.close); assert.equal(r.tbl, 4, '위험 단계 표(§11.10.33) + 해상·연안 기준 표 + 출처 표');
             for (const k of ['07:30 · 17:30 · 23:00', '40분 전(06:50 · 16:50 · 22:20)', '그때까지는 이전 판', '덮지 않습니다', '21시가 넘으면 다음 날', '오늘 밤~내일', '공단 안내로는 경계 상위 5%·주의 상위 5~15% 구간', '만들기 시작한 시각이 든 3시간 칸부터', '기상청 해제 시각', '해제 예고로만', '사고 확률이 아닙니다', '관심 이상인 곳을 모두', '최대 12곳', '이안류를 관측하는 해수욕장만', '8m/s 이상', '다음 정시 판에 반영', '조석 칸이 없습니다', '「확인 불가」(회색)', '1.2~1.3배', '저조 뒤부터 물이 차오릅니다',
                 '연안 분석·해상 분석', '3~5문장', '최대 3번', 'Gemini 로 한 번', '규칙 분석', '「AI 분석 · ChatGPT」', '「연안 분석 근거 상세 보기」', '선박이 있는 해역 격자', '관광지 | 평소 | 오늘(예상)', '잔잔한 바다일 것으로 예상됩니다', '14m/s 이상 매우 강함', '07:30 판은 오늘 오전·오후', '참고 정보이며 안전을 보장하지 않습니다']) assert.ok(r.body.includes(k), k);
             for (const no of ['활동지점', '최대 20분', '틀 문장', '해설(육상']) assert.ok(!r.body.includes(no), no);
+        });
+        // §11.10.33(2026-10-18 사용자 *"우리가 아까 기준 상세 수정하지 않았니 ? 왜 수정 지침대로 반영이 되지 않은거지 ?"* → *"수정해"*):
+        //   위험예측 기준 상세(커밋 326f3b6a4)와 같은 지침 — 문장 여럿 = 「•」 글머리 줄(ul.rf-pts) · 어절 줄바꿈 · 「단계 말」 → 「위험 단계」 표(브리핑 4색 + 확인 불가 회색) · 넘친 줄만 자간 줄임.
+        //   360·412px 사진: SB_SHOT_DIR 의 basis_points_<폭>.png(창 첫 화면) · basis_bands_<폭>.png(위험 단계 표).
+        await check('[§11.10.33] [기준 상세] 모양 — 문장마다 「•」 줄·어절 줄바꿈·위험 단계 표(브리핑 색)·넘친 줄만 자간 줄임(-0.02→-0.035→-0.05em 중 첫 값, 안 넘친 줄은 그대로)', async () => {
+            for (const width of [360, 412]) {
+                await page.setViewportSize({ width, height: 800 }); await page.evaluate(() => { window.RiskBasis.close(); window.RiskBasis.open('briefing'); }); await page.waitForTimeout(150);
+                const m = await page.evaluate(() => {
+                    const body = document.querySelector('.rf-basis-body'), lis = [...body.querySelectorAll('.rf-pts li')], li = lis[0], lb = getComputedStyle(li, '::before'), steps = window.RiskFormat.FIT_STEPS;
+                    const blocks = [...body.querySelectorAll('p:not(.rf-basis-links),.rf-pts li')], lines = (el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
+                    // 자간을 줄인 줄: 자간 0 이면 한 줄 늘고, 앞 단계 값으로는 줄지 않음(가장 작게 줄인 값) / 줄이지 않은 두 줄 이상 블록: 세 값 어느 것으로도 줄지 않음(= 줄여야 할 줄을 빠뜨리지 않음)
+                    const fitted = [], skipped = [];
+                    for (const el of blocks) {
+                        const ls = el.style.letterSpacing, now = lines(el);
+                        if (ls) { const i = steps.indexOf(ls); el.style.letterSpacing = ''; const base = lines(el), earlier = steps.slice(0, Math.max(0, i)).map((s) => { el.style.letterSpacing = s; return lines(el); }); el.style.letterSpacing = ls; fitted.push({ i, now, base, earlier, t: el.textContent.slice(0, 20) }); }
+                        else if (now >= 2) { const shrink = steps.map((s) => { el.style.letterSpacing = s; return lines(el); }); el.style.letterSpacing = ''; skipped.push({ now, shrink, t: el.textContent.slice(0, 20) }); }
+                    }
+                    const tb = body.querySelector('table.rf-bands'), after = tb.closest('.rf-tbl').nextElementSibling;
+                    const bands = [...tb.querySelectorAll('tbody tr')].map((tr) => ({ name: tr.cells[0].textContent, dot: getComputedStyle(tr.cells[0].querySelector('i')).backgroundColor, ink: getComputedStyle(tr.cells[0].querySelector('b')).color, word: tr.cells[1].textContent }));
+                    const hex = (c) => 'rgb(' + [1, 3, 5].map((k) => parseInt(c.substr(k, 2), 16)).join(', ') + ')', R = window.StationBriefingRender;
+                    return { n: lis.length, bullet: lb.content, pos: lb.position, pad: parseFloat(getComputedStyle(li).paddingLeft), listStyle: getComputedStyle(li.parentNode).listStyleType, wordBreak: getComputedStyle(li).wordBreak,
+                        dotText: lis.filter((x) => x.textContent.includes('•')).length, multiP: [...body.querySelectorAll('p:not(.rf-basis-links)')].filter((p) => (p.textContent.match(/다\.(\s|$)/g) || []).length > 1).map((p) => p.textContent.slice(0, 30)),
+                        multiLi: lis.filter((x) => (x.textContent.match(/다\.(\s|$)/g) || []).length > 1).map((x) => x.textContent.slice(0, 30)),
+                        h4: [...body.querySelectorAll('h4')].map((h) => h.textContent), text: body.textContent, fitted, skipped, blocks: blocks.length, bad: blocks.filter((el) => el.style.letterSpacing && !steps.includes(el.style.letterSpacing)).length,
+                        bands, want: [[0, '평소 수준'], [1, '관심'], [2, '주의'], [3, '경계'], [0, '확인 불가']].map(([r, w]) => hex(R.colorOf(r, w))), after: after && after.matches('ul.rf-pts') ? after.textContent : '', over: body.scrollWidth - body.clientWidth };
+                });
+                console.log('  측정 [기준 상세] ' + width + 'px', JSON.stringify({ li: m.n, blocks: m.blocks, fitted: m.fitted.length, fittedSteps: m.fitted.map((f) => f.i), skipped2plus: m.skipped.length }));
+                assert.ok(m.n >= 50, '글머리 줄 수 ' + m.n); assert.equal(m.bullet, '"•"'); assert.equal(m.pos, 'absolute'); assert.ok(m.pad >= 10 && m.pad <= 16, '내어쓰기 ' + m.pad); assert.equal(m.listStyle, 'none'); assert.equal(m.wordBreak, 'keep-all');
+                assert.equal(m.dotText, 0, '점은 글자가 아니다(::before)'); assert.deepEqual(m.multiP, [], '문장 여럿인 <p>가 남지 않음'); assert.deepEqual(m.multiLi, [], '한 줄에 문장 하나'); assert.equal(m.over, 0, width + 'px 가로 넘침 없음');
+                assert.ok(m.h4.includes('위험 단계') && !m.text.includes('단계 말'), '「단계 말」 → 「위험 단계」 ' + JSON.stringify(m.h4));
+                assert.deepEqual(m.bands.map((b) => [b.name, b.word]), [['평소 수준', '초록'], ['관심', '노랑'], ['주의', '주황'], ['경계', '빨강'], ['확인 불가', '회색']]);
+                m.bands.forEach((b, k) => { assert.equal(b.dot, m.want[k], b.name + ' 네모 = 브리핑 colorOf'); assert.equal(b.ink, m.want[k], b.name + ' 글자 = 브리핑 colorOf'); });
+                assert.ok(m.after.includes('출처 꼬리표') && m.after.includes('「확인 불가」(회색)') && m.after.includes('안전하다는 뜻이 아닙니다'), '출처 꼬리표 설명은 표 바로 아래 「•」 줄');
+                assert.equal(m.bad, 0); assert.ok(m.fitted.length < m.blocks, '전체 일괄이 아님');
+                for (const f of m.fitted) { assert.ok(f.i >= 0); assert.equal(f.now, f.base - 1, '자간 줄여 한 줄 줄어듦 ' + JSON.stringify(f)); assert.ok(f.earlier.every((x) => x === f.base), '더 작게 줄인 값으로는 안 줄어야 ' + JSON.stringify(f)); }
+                for (const s of m.skipped) assert.ok(s.shrink.every((x) => x === s.now), '안 줄인 줄은 줄여도 줄 수가 같아야(넘친 줄을 빠뜨리지 않음) ' + JSON.stringify(s));
+                await clean(page); await page.screenshot({ path: path.join(SHOT, 'basis_points_' + width + '.png') });
+                await page.evaluate(() => [...document.querySelectorAll('.rf-basis-body h4')].find((h) => h.textContent === '위험 단계').scrollIntoView({ block: 'start' })); await page.waitForTimeout(60);
+                await page.screenshot({ path: path.join(SHOT, 'basis_bands_' + width + '.png') });
+            }
+            await page.evaluate(() => window.RiskBasis.close()); await page.setViewportSize({ width: 380, height: 844 });
+            await tap(page, '#station-briefing-content .sb-basis-btn'); await page.waitForSelector('.rf-modal .rf-basis');   // 다음 사진(basis_380)은 종전처럼 [기준 상세] 단추로 연 창
         });
         await clean(page); await page.screenshot({ path: path.join(SHOT, 'basis_380.png') });
         await page.setViewportSize({ width: 1280, height: 900 }); await page.waitForTimeout(200); await clean(page); await page.screenshot({ path: path.join(SHOT, 'basis_1280.png') });
