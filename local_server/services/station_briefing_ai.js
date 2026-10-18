@@ -48,7 +48,8 @@ const SCHEMA = 'station-briefing-input-v2';
 //   + 지명 오판 고침(2026-10-18 08:03 운영 place:해제뒤에도 등 — 「…에도」·방위 한 글자 앞부분 일치) ·
 //   + 지명 오판 고침 둘째(2026-10-18 09:08 관리자 실행 — 설계서 §11.10.25 덧 둘째): 관광지 이름 속 「A과 B」의 앞 조각(place:남해가천해변·항도몽돌해수욕장) · 「예상돼·있어」를 이름 앞 낱말로 붙이지 않음(place:바람도예상돼해수욕장) ·
 //   지시문 예시·S16, polishOverview 가 연안 마지막 「따라서」 문장의 「A에는/A에서는/A에 (관심|주의|경계)가」를 「A 인근 연안에서는 …가」로 고친다(대목에 연안·인근·주변·해상·해역·관할이 이미 있으면 그대로).
-const VALIDATOR_VERSION = 'sb-validate-v13', PROMPT_VERSION = 'sb-prompt-v16';   // v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
+// 검증 v14(2026-10-18 설계서 §11.10.31 — 운영 14:08 「multiplier:1.1~1.2배」, 사용자 「진행해줘.」): 배수 범위 「1.1~1.2배」는 양 끝이 둘 다 그 문단 허용 배수이고 작은 수~큰 수일 때만 통과. 지시문은 그대로(v16).
+const VALIDATOR_VERSION = 'sb-validate-v14', PROMPT_VERSION = 'sb-prompt-v16';   // v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -440,8 +441,11 @@ function validateOverview(o, si) {
         if (/\((?:KOMSA|기상청)\)\s*근거로/.test(t)) errors.push('word:tag-reason');
         if (/[<>]|https?:|www\.|javascript:|&[a-z]+;|\]\(/i.test(t)) errors.push('markup');
         const multSet = new Set(mk[k] || []);
+        // 배수 범위(§11.10.31 — 2026-10-18 14:08 운영 「multiplier:1.1~1.2배」, 사용자 「진행해줘.」): 「1.1~1.2배」는 양 끝(1.1배·1.2배)이 둘 다 그 문단 허용 배수에 있고
+        //   작은 수~큰 수일 때만 통과. 한쪽이라도 없거나 뒤집힌 것(1.2~1.1)·같은 수(1.2~1.2)는 종전처럼 multiplier:. 범위 열쇠가 그대로 허용 목록에 있으면(해상 해제 칸 '1.2~1.3|배') 종전대로 통과.
+        const multRangeOk = (n) => n.range && n.ends.every((e) => multSet.has(e)) && Number(n.ends[0].split('|')[0]) < Number(n.ends[1].split('|')[0]);
         for (const n of numTokens(t)) {
-            if (n.unit === '배') { if (!multSet.has(n.key)) errors.push('multiplier:' + n.text); continue; }
+            if (n.unit === '배') { if (!multSet.has(n.key) && !multRangeOk(n)) errors.push('multiplier:' + n.text); continue; }
             // 연도에 붙은 「년」: 입력이 「2020~2024 연안사고」처럼 년 없이 적은 같은 수면 통과(2026-10-17 운영 오판 number:2020~2024년)
             const yearOk = n.unit === '년' && /^(?:19|20)\d\d(?:~(?:19|20)\d\d)?$/.test(n.key.split('|')[0]) && allowedN.has(n.key.split('|')[0] + '|');
             if (!allowedN.has(n.key) && !yearOk) errors.push('number:' + n.text);
@@ -532,6 +536,23 @@ function explainError(code) {
 }
 // 호출 시간 제한 기본값(B7) — VM 은 codex_bridge 자체 300초 뒤 조금 더, Gemini 는 어댑터 90초 뒤 조금 더(어댑터가 먼저 끊는다). VM 이 이 횟수만큼 잇달아 실패하면 그 실행 동안 VM 을 건너뛴다.
 const DEFAULT_TIMEOUTS = Object.freeze({ vm: 320000, gemini: 100000 }), VM_FAIL_LIMIT = 3;
+// 탈락한 글 보관(§11.10.31 — 사용자 「진행해줘.」): 문단 하나를 오류 기록에 남길 때 이 글자 수까지만. AI 응답 길이에는 상한이 없어(parseResponse 는 자르지 않는다)
+//   긴 글(검사 shape:…-too-long 으로 떨어지는 글)이 그대로 남으면, 1분 점검마다 통째로 읽고 쓰는 state.json 이 3일 동안 그만큼 커진다. 검사 상한(MAX_CHARS 460)의 두 배 남짓이라 보통 글은 다 남는다.
+const REJECTED_TEXT_MAX = 1000;
+/**
+ * 검사에 떨어진 AI 글과 그 관할의 허용 숫자·배수를 오류 기록에 붙일 꼴로 만든다(§11.10.31 — 운영 오류 「multiplier:1.1~1.2배」·「number:4.2」의 원인을 서버가 남기지 않아 확인할 수 없었다).
+ * 글은 검사가 본 그대로(polishOverview 를 거친 글), 문단마다 REJECTED_TEXT_MAX 자까지(넘으면 「…(전체 N자 중 앞 1000자)」). 허용 목록은 stationInput 의 사람이 읽는 꼴(allowed_numbers·allowed_multipliers).
+ * 비밀은 들어가지 않는다 — 글은 AI 응답 문단, 허용 목록은 브리핑 사실 글에서 뽑은 숫자뿐이다(API 키·토큰은 어댑터가 따로 쥐고 지시문·응답에 없다).
+ * 예: rejectedOf({land:'… 평소의 1.1~1.2배 …', sea:'…'}, si) → {text:{land:'… 평소의 1.1~1.2배 …', sea:'…'}, allowed:{numbers:['1.1배','15~18시',…], multipliers:{sea:[], land:['1.1배','1.2배']}}}
+ *     rejectedOf(null, si) → {}(응답에 그 관할이 없음 — 남길 글이 없다)
+ * @param {object|null} o - 검사한 {land, sea} @param {object} si - stationInput @returns {object} {text, allowed} 또는 {} [연계] ← generate accept(검사 탈락 오류) → station_briefing.addErrors(3일 보관) → 관리자 errorsMarkdown
+ */
+function rejectedOf(o, si) {
+    if (!o) return {};
+    const clip = (t) => typeof t !== 'string' ? null : t.length > REJECTED_TEXT_MAX ? t.slice(0, REJECTED_TEXT_MAX) + '…(전체 ' + t.length + '자 중 앞 ' + REJECTED_TEXT_MAX + '자)' : t;
+    const m = si.allowed_multipliers || {};
+    return { text: { land: clip(o.land), sea: clip(o.sea) }, allowed: { numbers: [...(si.allowed_numbers || [])], multipliers: { sea: [...(m.sea || [])], land: [...(m.land || [])] } } };
+}
 /**
  * 관할 브리핑들의 AI 분석 문단을 만든다(AI 또는 규칙 분석). 재사용 → 해양경찰서 묶음마다 다시 시도 사슬 → 규칙 분석.
  * 다시 시도(2026-10-17 사용자 *"vm 최대 3번 후 제미나이로 가자."* — 설계서 §11.10.4):
@@ -610,7 +631,7 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
             if (!res) { failed.push(it); tell({ type: 'station', key: it.b.key, state: 'retry', attempt }); continue; }
             const o = polishOverview(res.map.get(it.b.key)), v = o ? validateOverview(o, it.si) : { ok: false, errors: ['missing:station'] };   // §11.10.17 — 고칠 수 있는 것은 먼저 고친다
             if (v.ok) { overviews[it.b.key] = { land: o.land || null, sea: o.sea, source: res.provider, model: res.model, hash: it.hash, attempts: attempt }; stats.ai++; feedback.delete(it.b.key); tell({ type: 'station', key: it.b.key, state: 'done', attempt }); }
-            else { errors.push({ at, stage: 'validate', provider: res.provider, stations: [it.b.key], attempt, reason: v.errors.slice(0, 6).join(',') }); feedback.set(it.b.key, v.errors.slice(0, 8).map(explainError)); failed.push(it); tell({ type: 'station', key: it.b.key, state: 'retry', attempt }); }
+            else { errors.push({ at, stage: 'validate', provider: res.provider, stations: [it.b.key], attempt, reason: v.errors.slice(0, 6).join(','), ...rejectedOf(o, it.si) }); feedback.set(it.b.key, v.errors.slice(0, 8).map(explainError)); failed.push(it); tell({ type: 'station', key: it.b.key, state: 'retry', attempt }); }
         }
         return failed;
     }
@@ -644,4 +665,4 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     return { overviews, stats, errors };
 }
 
-module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, polishOverview, LEVEL_NEED_RE, FORBIDDEN, KMA_ZONE_NAMES, KMA_BIG_GROUPS, zoneWord, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
+module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, REJECTED_TEXT_MAX, rejectedOf, polishOverview, LEVEL_NEED_RE, FORBIDDEN, KMA_ZONE_NAMES, KMA_BIG_GROUPS, zoneWord, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };

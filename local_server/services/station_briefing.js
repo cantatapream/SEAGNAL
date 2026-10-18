@@ -5,7 +5,7 @@
  *         특보가 바뀔 때(그 특보구역에 걸친 관할만 — 곧바로 공개) 관할 입력을 모아(station_briefing_inputs) 규칙으로 판단하고(station_briefing_rules — 「총평과 권고」 결론·근거·권고·규칙 분석 문단 포함)
  *         연안·해상 분석 문단만 AI 로 쓴 뒤(station_briefing_ai — VM 최대 3번 → Gemini → 규칙 분석) 날짜별 파일에 저장한다. 공개 시각 전의 판은 pending 에 두고 그동안 화면에는 이전 판을 준다(visibleOf).
  *         관리자 설정(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만)과 노출 판정(관리자 기기에만 등)도 여기서 정한다.
- *         관리자 「AI 브리핑」 탭용으로 실행 중 진행(메모리 progress — 단계·묶음·관할, progressNow)과 최근 3일 실행 기록(state.runs — 실행마다 오류 드롭다운)도 준다(§11.10.7).
+ *         관리자 「AI 브리핑」 탭용으로 실행 중 진행(메모리 progress — 단계·묶음·관할, progressNow)과 최근 3일 실행 기록(state.runs — 실행마다 오류 드롭다운)도 준다(§11.10.7). 오류 기록에는 검사에 떨어진 AI 글·그 관할 허용 숫자·배수도 함께 3일 남긴다(§11.10.31 — 글 실린 것은 최근 1,000건, trimRejected).
  *         실행 요약에는 관광지 자료 확인 불가(spotFailOf — 실행 기록은 수만, 마지막 실행·마지막 정시 판(lastEdition)은 관할·관광지 이름까지)도 남긴다(§11.10.21 — 관리자 「상태」 상자·정시 판 소요 표).
  *         자동 실행(정시 판·특보 변경 판)이 끝날 때마다 관리자 휴대폰에 결과 푸시 1통(오류가 없어도), 던지면 「분석 실패」 1통(§11.10.8 — 관리자 즉시 실행은 보내지 않음).
  *         해역 기상은 소해구 예보(§11.10.19): 모으기 전에 저장된 소해구 판(smallzone_forecast — 대해구 예보가 새 판을 받을 때 미리 받아 둠)을 찾기 함수로 넘기고,
@@ -36,6 +36,7 @@ const DATA = path.join(__dirname, '..', 'data');
 // 안전 상한 ERROR_HARD_CAP: state.json 은 1분 점검마다 여러 번 읽고 쓰므로 끝없이 커지면 안 된다. 운영 10-17 08:00 판 오류가 67건 — 정시 3판에 특보 변경·관리자 실행까지
 // 하루 10번 그만큼 나도 3일 2천 건 남짓이라 5,000건은 그 두 배 넘는 여유이고, 한 건 수백 바이트라 파일은 수 MB 안이다. 상한에 걸려 지운 것은 errorsCapped 로 남겨
 // 관리자 화면이 「상한 때문에 지움」을 밝힌다(조용히 사라지지 않게 — CLAUDE.md L-291).
+// §11.10.31 부터 검사 탈락 오류에는 AI 글·허용 목록이 실려 한 건이 수 KB 다 — 그 몫은 아래 REJECTED_KEEP 이 따로 묶는다.
 const ERROR_KEEP_DAYS = 3, ERROR_HARD_CAP = 5000;
 /**
  * 오류 목록을 보관 규칙대로 자른다 — 최근 ERROR_KEEP_DAYS 일(KST 날짜)만, 그래도 ERROR_HARD_CAP 을 넘으면 오래된 것부터.
@@ -46,7 +47,21 @@ const ERROR_KEEP_DAYS = 3, ERROR_HARD_CAP = 5000;
 function keepErrors(list, now) {
     const from = R.kstDate(now - (ERROR_KEEP_DAYS - 1) * 86400000);
     const recent = (list || []).filter((e) => e && typeof e.at === 'string' && e.at.slice(0, 10) >= from);
-    return { errors: recent.slice(-ERROR_HARD_CAP), dropped: Math.max(0, recent.length - ERROR_HARD_CAP) };
+    return { errors: trimRejected(recent.slice(-ERROR_HARD_CAP)), dropped: Math.max(0, recent.length - ERROR_HARD_CAP) };
+}
+// 탈락 글 보관 건수(§11.10.31 — 사용자 「진행해줘.」): 검사 탈락 오류에 붙는 AI 글·허용 목록(text·allowed — station_briefing_ai.rejectedOf)은 최근 이만큼만.
+//   글이 실린 오류는 한 건이 수 KB(실측은 설계서 §11.10.31)라, 5,000건 상한까지 모두 실으면 1분 점검마다 2~3번 통째로 읽는 state.json 이 수십 MB 가 된다.
+//   그보다 오래된 것은 글·허용 목록만 빼고 textDropped:true 를 남긴다(오류 줄은 그대로 — 조용히 사라지지 않게, md 가 「보관 상한으로 글을 지움」을 밝힌다).
+const REJECTED_KEEP = 1000;
+/**
+ * 오류 목록(오래된 것 → 최근 것)에서 탈락 글(text)이 실린 것을 최근 REJECTED_KEEP 건만 두고, 그보다 오래된 것은 글·허용 목록을 빼고 textDropped:true.
+ * 예: 글 실린 오류 1,002건 → 가장 오래된 2건만 {…, textDropped:true}(text·allowed 없음) · 글 없는 오류는 그대로. 원래 배열·객체는 바꾸지 않는다.
+ * @param {object[]} list @returns {object[]} [연계] ← keepErrors(쓰기·읽기 둘 다)
+ */
+function trimRejected(list) {
+    const out = list.slice();
+    for (let i = out.length - 1, n = 0; i >= 0; i--) { if (!out[i].text || ++n <= REJECTED_KEEP) continue; const { text: _t, allowed: _a, ...rest } = out[i]; out[i] = { ...rest, textDropped: true }; }
+    return out;
 }
 /**
  * 상한 기록(errorsCapped)도 보관 기간(ERROR_KEEP_DAYS, KST 날짜)이 지나면 버린다(2026-10-17 독립 검토 10 — 종전엔 한 번 걸리면 지워지지 않아 관리자 화면이 계속 「상한 때문에 지움」을 밝혔다).
@@ -698,4 +713,4 @@ function forDefault() {
     return def;
 }
 
-module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, freshCapped, keepRuns, spotFailOf, newProgress, stepProgress, onAiProgress, editionName, shortNames, runPushText, failPushText, defaultAdminPush, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, SMALLZONE_WAIT_MS, zoneBaseOf, smallFinder, start: () => forDefault().start() };
+module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, trimRejected, REJECTED_KEEP, freshCapped, keepRuns, spotFailOf, newProgress, stepProgress, onAiProgress, editionName, shortNames, runPushText, failPushText, defaultAdminPush, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, SMALLZONE_WAIT_MS, zoneBaseOf, smallFinder, start: () => forDefault().start() };
