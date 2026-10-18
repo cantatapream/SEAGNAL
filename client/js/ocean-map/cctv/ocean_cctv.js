@@ -109,7 +109,7 @@
           + '<p><i class="fa-solid fa-circle-check"></i> 칸을 <strong>두 번 누르면</strong> 그 해구의 <strong>기상전망</strong>이 열립니다 — <strong>풍향 · 풍속 · 유의파고 · 파향 · 파주기 · 시정</strong> 여섯 가지를 3시간 간격으로 최대 75시간까지, 위쪽 그래프와 아래 표로 보여줍니다.</p>'
           + '<p><i class="fa-solid fa-circle-check"></i> 버튼을 켜면 격자가 잘 보이도록 <strong>배경지도가 기본맵으로 자동 전환</strong>되고, 끄면 원래 배경지도로 돌아갑니다.</p>'
           + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <strong>소해구를 눌러도 바람·파도 값은 그 소해구가 속한 대해구 값</strong>입니다. 소해구 단위로 실제 달라지는 것은 <strong>시정</strong>뿐입니다.</p>',
-          src: '격자: 기상청 해양기상기후정보포털 해구 격자<br>바람·파도: 기상청 API허브 해상 대해구 예보(하루 2회 09:30·21:30 갱신)<br>시정: 기상청 국지예보모델(RDPS) 시정예측(1시간마다 갱신)' },
+          src: '격자: 기상청 해양기상기후정보포털 해구 격자<br>바람·파도: 기상청 API허브 해상 대해구 예보(새 판 하루 2회, 약 03시·15시 KST 반영 · 30분마다 확인)<br>시정: 기상청 국지예보모델(RDPS) 시정예측(1시간마다 갱신)' },
         // 특보구역[2026-09-09 개편] — "특보 ON" 은 별도 버튼이 아니라 이 버튼에 딸린
         //   곁가지(같은 .ocean-warn-zone-wrap 안 두 조각)라, 옛 "특보 ON/OFF" 탭을 여기 합쳤다.
         { id: 'warnzone', label: '특보구역', bodyHtml:

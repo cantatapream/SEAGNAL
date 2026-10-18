@@ -86,7 +86,7 @@
 |---|---|
 | 만드는 곳 | `scheduler.js` `collectZoneForecasts` (`:542`), 저장 `saveData('zone_forecasts.json', …)` (`:594`) |
 | 받는 것 | 기상청 API허브 `SEA_ZONE_LARGE`(`:555`·`:577`), 기준시각(UTC 00 또는 12) + **0~75시간, 3시간 간격 26개** (`:569~571`) |
-| 갱신 주기 | **09:30·21:30 KST** (`:2614`) + 서버 기동 때 1회(`:2478`) · 2026-10-16부터 30분마다(매시 00·30분, 수집 방식은 그대로 — 기상청 답변 「생성에 6시간 이상 걸릴 수 있다」, `client/js/admin/README.md`) |
+| 갱신 주기 | ~~**09:30·21:30 KST** (`:2614`)~~ + 서버 기동 때 1회(`:2478`) · 2026-10-16부터 30분마다(매시 00·30분, 수집 방식은 그대로 — 기상청 답변 「생성에 6시간 이상 걸릴 수 있다」, `client/js/admin/README.md`) · **정정 2026-10-18**: 09:30·21:30 은 수집 시각이었을 뿐 새 판이 앱에 들어오는 시각이 아니다. 운영 `/api/marine-zone-forecasts` 20~30분 간격 관찰: 21시 판(baseTmUtf 2026101712)은 02:30 수집엔 없고 03:00 수집에서 처음 받음, 09시 판(2026101800)은 14:30 엔 없고 15:00 수집에서 처음 받음 → 새 판은 **약 03시·15시 KST 무렵**(하루 한 번씩·30분 해상도 관찰이라 단정 아님) |
 | 저장 구조 | `{ updatedAt, baseTmUtf, data: { "<대해구번호>": [ {tm, lzone, wh, wp, waveDir, ws, windDir}, … ] }, count }`. 필드 출처 `parseKmaTable` (`:515~537`): `wh`=WH_SIG(유의파고 m) · **`wp`=WVPRD_MAX(최대 파주기 s)** · `ws`=WS(풍속 m/s) · `windDir`=WD. **`tm` 은 UTC 10자리 `YYYYMMDDHH`** (`getUtcTm` `:268~274` — 주석 `:265` 은 12자리라 적었으나 코드는 10자리) |
 | 대해구 번호 | `data` 의 키 = `client/marine_zone_area.json` 의 `marine_zone_no`. 화면 `client/js/forecast/alerts/marine.js:71~98` 이 「123-4」에서 앞 번호만 떼어 `/api/marine-zone-forecasts/123` 을 부르는 것으로 확인 |
 | 메모리·API | `dataCache.zoneForecasts`(cache_manager `:86`). `GET /api/marine-zone-forecasts`(`weather.js:784`, 전체 약 5.86MB — 코드 주석 값) · `/:zoneId`(`:854`) |
@@ -286,7 +286,7 @@ js/marine-life/risk-forecast/risk_forecast.js   ← 마지막. 페이지 끝 인
 [외부]                      [수집 — 서버 프로세스 안]                         [저장]
 MMIS 특보 ──(1분, 기존)──> marine_warning_crawler.js ─────────────────> data/weather_alerts.json   (풍랑·태풍)
                                        └─(기존) gale_warning_store.save ─> data/gale_warnings.json    (강풍, 푸시 없음)
-API허브 해구예보 ─(09:30·21:30, 기존)─> scheduler.collectZoneForecasts ─> data/zone_forecasts.json
+API허브 해구예보 ─(30분마다 확인, 기존 · 새 판은 하루 2회 약 03시·15시 KST 도착 — 2026-10-18 정정)─> scheduler.collectZoneForecasts ─> data/zone_forecasts.json
 MMIS 너울 WFS ─(1시간 폴링, 기존)──> services/swell_smallzone.js ──────> 메모리 + data/swell_smallzone.json.gz
 KHOA·KMA 이안류 ─(30분, 기존)──> scheduler.collectRipCurrentIndex ───> data/ripcurrent_index.json
 공단 혼잡도 ─(04:00·04:30·05:00·05:30 점검, 2026-10-15 변경)─> services/sea_traffic_collector.js ─> data/risk_forecast/sea_traffic.json.gz
@@ -319,7 +319,7 @@ routes/risk_forecast.js ── /meta · /sea/cells · /sea/frame · /sea/cell �
 |---|---|---|---|
 | 특보(풍랑·태풍) | 1분(기존) | `dataCache.warnings` 5초 mtime 확인(기존) | — |
 | 강풍 | 1분(기존, 바뀔 때만 씀) | `risk_store` 가 30초마다 mtime 확인 | — |
-| 해구 예보 | 09:30·21:30 KST(기존) | `dataCache.zoneForecasts`(기존) | — |
+| 해구 예보 | 30분마다 확인(기존) · 새 판은 하루 2회 약 03시·15시 KST 도착(2026-10-18 정정) | `dataCache.zoneForecasts`(기존) | — |
 | 너울 | 1시간 폴링(기존) | swell 모듈 메모리(기존) — `getStatus().baseTm` 로 변화 감지 | — |
 | 이안류 | 30분(기존) | `dataCache.ripCurrentIndex`(기존) | — |
 | 혼잡도 | ~~05:10 KST 하루 1회, 실패 시 06:10·07:10 재시도~~ → **04:00·04:30·05:00·05:30 KST 네 번 점검**(사용자 확정 2026-10-15, 원문 「혼잡예보는 4시~5시 업데이트 되므로 4시부터 4시, 4시 30분, 5시, 5시 30분 이렇게 4차례 점검하면 될 것 같은데」). 그날 정상본이 생기면 남은 시각은 건너뜀. 네 번 다 실패한 날은 **06:30~12:30 매시 30분** 추가 점검(같은 날 「권장안 대로」). 한 회차의 첫 요청부터 빈 응답이면 갱신 전으로 보고 1건만 쓰고 멈춤. 하루 호출 상한 90건 | 파일 + 메모리 | — |

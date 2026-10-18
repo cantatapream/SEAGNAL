@@ -5,7 +5,7 @@
  *         생성 방식(ChatGPT VM / Gemini / 규칙 분석만)·모델·노출 범위(사용자에게 / 관리자에게만 / 노출 안 함)·묶음 단위·「바뀐 곳만 다시 만들기」를 고르고,
  *         상태 카드(실행 중·대기 표시 · 마지막 실행 · 판별 AI/다시 시도/규칙 분석/오류 수 · 공개 예정 · 다음 예정)와 실행 중 진행 게이지(전체 막대 + 묶음별·관할별 — §11.10.7),
  *         상태 카드 안 「관광지 자료 확인 불가」(판별 N관할 · 관광지 M곳, 0이면 「없음」, 펼치면 이름)와 정시 판 소요 시간 작은 표(최근 6회 — 시작·분:초·결과·마감, §11.10.21),
- *         최근 3일 오류를 실행마다 드롭다운으로 골라 관할별·시도별 한글 풀이로 보고 [복사]·[md로 저장](고른 실행만 — 앱 안에서는 시스템 브라우저로 내려받기)을 하고,
+ *         최근 3일 오류를 실행마다 드롭다운으로 골라 관할별·시도별 한글 풀이로 보고 [복사]·[md로 저장](고른 실행만 — 앱 안에서는 시스템 브라우저로 내려받기 · 검사에 떨어진 AI 글과 그 관할 허용 숫자·배수도 담는다 §11.10.31)을 하고,
  *         [지금 다시 만들기](곧바로 공개 · 실행 중이면 409 안내)와 관할 하나 미리보기(공개 예정 판은 「예정」)를 한다.
  * ----------------------------------------------------------------------------
  * [연계]
@@ -562,7 +562,8 @@
      * 예: errorsMarkdown([{at:'2026-10-17T08:03:10+09:00',edition:'morning',date:'2026-10-17',stage:'validate',provider:'chatgpt',stations:['제주해양경찰서|한림파출소'],reason:'place:제주도',attempt:2}], ms, {days:3})
      *     → '# 연안 안전 브리핑 — AI 브리핑 오류(최근 3일)\n\n- 만든 시각: 2026-10-17 10:05 KST\n- 건수: 1건\n\n| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 | 풀이 |\n|---|…|\n| 2026-10-17 08:03:10 | 07:30 판 · 2026-10-17 | validate · 2번째 | chatgpt | 제주해양경찰서 한림파출소 | place:제주도 | 2번째 시도(ChatGPT) — 입력 자료에 없는 지명 「제주도」 |'
      * @param {Object[]} errs - 오류(최근 것부터) @param {number} nowMs @param {Object} keep - status.errorKeep {days,cap} @param {Object} [run] - runGroups 의 한 실행
-     * @returns {string} [연계] ← drawRunErrors(복사·md로 저장) · 시험 test_station_briefing.js(vm)
+     * 표 아래에는 검사에 떨어진 AI 글·그 관할 허용 숫자·배수 절을 붙인다(§11.10.31 — 서버가 남긴 오류에 글이 있을 때만, rejectedMarkdown).
+     * @returns {string} [연계] ← drawRunErrors(복사·md로 저장) · 시험 test_station_briefing.js(vm) / → rejectedMarkdown
      */
     function errorsMarkdown(errs, nowMs, keep, run) {
         var cell = function (v) { return String(v === undefined || v === null || v === '' ? '—' : v).replace(/\r?\n/g, ' ').replace(/([\\|`<>])/g, '\\$1'); };
@@ -575,7 +576,33 @@
         }
         out.push('- 만든 시각: ' + kstStamp(nowMs, true) + ' KST', '- 건수: ' + errs.length + '건', '', '| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 | 풀이 |', '|---|---|---|---|---|---|---|');
         errs.forEach(function (e) { out.push('| ' + [String(e.at || '').slice(0, 19).replace('T', ' '), editionText(e), stageText(e), e.provider, stationsText(e.stations), e.reason, attemptText(e) + ' — ' + reasonTexts(e).join(' · ')].map(cell).join(' | ') + ' |'); });
-        return out.join('\n') + '\n';
+        return out.join('\n') + '\n' + rejectedMarkdown(errs, cell);
+    }
+    /**
+     * 검사에 떨어진 AI 글과 그 관할의 허용 숫자·배수(서버 오류의 text·allowed — §11.10.31)를 마크다운 절로. 글이 실린 오류가 없으면 빈 글.
+     * 글은 코드 울타리(```text) 안에 그대로 — 글 속 백틱 줄보다 긴 울타리를 써서 글이 울타리를 닫지 못하게 한다(CommonMark).
+     * 서버 보관 상한(최근 1,000건)을 넘어 글을 지운 오류(textDropped)는 그 사실을 한 줄로 밝힌다.
+     * 예: rejectedMarkdown([{at:'2026-10-18T14:08:00+09:00',stations:['인천해양경찰서|대청파출소'],attempt:1,provider:'chatgpt',reason:'multiplier:1.1~1.2배',text:{land:'…',sea:'…'},allowed:{numbers:['1.1배'],multipliers:{sea:[],land:['1.1배','1.2배']}}}], cell)
+     *     → '\n## 탈락한 AI 글 …\n\n### 1. 2026-10-18 14:08:00 · 인천해양경찰서 대청파출소 · 1번째 시도(ChatGPT)\n\n- 이유: `multiplier:1.1~1.2배`\n- 허용 배수 — 연안: `1.1배` · `1.2배` / 해상: (없음)\n…'
+     * @param {Object[]} errs @param {Function} cell - errorsMarkdown 의 표 칸 이스케이프 @returns {string} [연계] ← errorsMarkdown
+     */
+    function rejectedMarkdown(errs, cell) {
+        var list = errs.filter(function (e) { return e && (e.text || e.textDropped); });
+        if (!list.length) return '';
+        // 숫자·이유는 코드 칸(`…`)으로 — 「12~15시 · 15~18시」의 물결(~)이 GFM 미리보기에서 취소선으로 읽히지 않게. 글 속 백틱보다 긴 백틱으로 감싼다.
+        var ticks = function (t, min) { var runs = String(t).match(/`+/g) || []; return new Array(Math.max(min, 1 + runs.reduce(function (m, r) { return Math.max(m, r.length); }, 0)) + 1).join('`'); };
+        var code = function (v) { var s = String(v).replace(/\r?\n/g, ' '), f = ticks(s, 1); return f.length > 1 ? f + ' ' + s + ' ' + f : f + s + f; };
+        var join = function (a) { return Array.isArray(a) && a.length ? a.map(code).join(' · ') : '(없음)'; };
+        var fence = function (t) { var f = ticks(t, 3); return f + 'text\n' + t + '\n' + f; };
+        var out = ['', '## 탈락한 AI 글 — 검사가 본 글과 그 관할의 허용 숫자·배수(' + list.length + '건)', ''];
+        list.forEach(function (e, i) {
+            out.push('### ' + (i + 1) + '. ' + [String(e.at || '').slice(0, 19).replace('T', ' '), stationsText(e.stations), attemptText(e)].map(cell).join(' · '), '', '- 이유: ' + code(e.reason || '—'));
+            if (!e.text) { out.push('- 글: 보관 상한(최근 1,000건)을 넘어 서버가 지웠습니다', ''); return; }
+            var a = e.allowed || {}, m = a.multipliers || {};
+            out.push('- 허용 배수 — 연안: ' + join(m.land) + ' / 해상: ' + join(m.sea), '- 허용 숫자: ' + join(a.numbers), '');
+            [['land', '연안 분석'], ['sea', '해상 분석']].forEach(function (p) { var t = e.text[p[0]]; out.push(p[1] + ':', '', typeof t === 'string' && t ? fence(t) : '(없음)', ''); });
+        });
+        return out.join('\n');
     }
     /**
      * 한 실행의 오류를 관할별로 묶는다 — 관할 하나짜리 오류(검사 탈락 등)는 그 관할 아래 시도 순서대로, 여러 관할에 걸친 오류(묶음 호출 실패·시간 초과)와 관할 없는 오류(실행 실패)는 따로.
