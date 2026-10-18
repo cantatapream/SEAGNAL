@@ -180,9 +180,11 @@ async function fetchChunk(baseTm, tmEf, lzones) {
 
 /**
  * 대해구 목록을 40개씩 나눠 26개 발효시각을 모두 받는다(동시 CONCURRENCY 개). 끝내 실패한 요청은 그 시각을 비워 둔다.
- * 예: await fetchAll('2026101700', ['233']) → { data:{'233':{'1':[26행],…}}, requests:26, failed:0, missingTimes:[], firstError:null }
+ * 요청이 모두 「표 없음」(기상청이 그 판을 아직 내지 않음 — 「해구번호를 확인하여 주시기 바랍니다.」)이면 요청마다 줄을 찍지 않고 notYet:true 만 돌려준다
+ *   (2026-10-18 사용자 *"개선 제안대로 진행"* — 판이 나오기 전 재시작 때 같은 줄이 52번 찍혀 로그를 읽기 어려웠다). 섞여 실패하면 종전처럼 요청마다 찍는다.
+ * 예: await fetchAll('2026101700', ['233']) → { data:{'233':{'1':[26행],…}}, requests:26, failed:0, missingTimes:[], firstError:null, notYet:false }
  * @param {string} baseTm @param {string[]} lzones
- * @returns {Promise<{data:object, requests:number, failed:number, missingTimes:string[], firstError:string|null}>}
+ * @returns {Promise<{data:object, requests:number, failed:number, missingTimes:string[], firstError:string|null, notYet:boolean}>}
  * [연계] ← prefetch·get / → fetchChunk
  */
 async function fetchAll(baseTm, lzones) {
@@ -191,7 +193,8 @@ async function fetchAll(baseTm, lzones) {
     const jobs = [];
     for (const tm of efTimes(baseTm)) for (const c of chunks) jobs.push({ tm, c });
     const data = {}, missing = new Set();
-    let failed = 0, firstError = null, next = 0;
+    let failed = 0, firstError = null, next = 0, allNoTable = true;
+    const warns = [];
     const worker = async () => {
         while (next < jobs.length) {
             const job = jobs[next++];
@@ -202,19 +205,22 @@ async function fetchAll(baseTm, lzones) {
                 }
             } catch (e) {
                 failed++; missing.add(job.tm); firstError = firstError || e.message;   // 그 시각은 비워 두고 status 에 남긴다
-                console.warn(`[smallzone] ${job.tm} 대해구 ${job.c.length}개 끝내 실패 — 그 시각은 비워 둔다: ${e.message}`);
+                if (!/^표 없음/.test(e.message)) allNoTable = false;
+                warns.push(`[smallzone] ${job.tm} 대해구 ${job.c.length}개 끝내 실패 — 그 시각은 비워 둔다: ${e.message}`);
             }
         }
     };
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, jobs.length) }, worker));
     for (const z of Object.values(data)) for (const rows of Object.values(z)) rows.sort((a, b) => a.tm.localeCompare(b.tm));
-    return { data, requests: jobs.length, failed, missingTimes: [...missing].sort(), firstError };
+    const notYet = jobs.length > 0 && failed === jobs.length && allNoTable;
+    if (!notYet) warns.forEach((w) => console.warn(w));
+    return { data, requests: jobs.length, failed, missingTimes: [...missing].sort(), firstError, notYet };
 }
 
-/** 실패를 기록하고 로그에 남긴다(키 가림). [연계] ← prefetch·get */
-function fail(where, message) {
+/** 실패를 기록하고 로그에 남긴다(키 가림). quiet = 기록만 하고 로그는 찍지 않는다(판 아직 없음 — 부르는 쪽이 한 줄로 찍는다). [연계] ← prefetch·get */
+function fail(where, message, quiet) {
     lastError = { at: new Date().toISOString(), message: mask(where + ': ' + message) };
-    console.error('[smallzone] ' + lastError.message);
+    if (!quiet) console.error('[smallzone] ' + lastError.message);
 }
 
 function cachePath() { return path.join(opts.dataDir, 'smallzone_forecast.json.gz'); }
@@ -305,7 +311,8 @@ function prefetch(lzones, baseTm) {
         const r = await fetchAll(baseTm, list);
         const summary = { ok: r.failed === 0, skipped: false, baseTm, lzones: list.length, got: Object.keys(r.data).length, requests: r.requests, failed: r.failed, missingTimes: r.missingTimes, ms: Date.now() - t0 };
         lastRun = { at: new Date().toISOString(), ...summary };
-        if (r.failed) fail('브리핑용 소해구 예보 ' + baseTm + ' 판 요청 ' + r.requests + '번 중 ' + r.failed + '번 실패', r.firstError);
+        if (r.failed) fail('브리핑용 소해구 예보 ' + baseTm + ' 판 요청 ' + r.requests + '번 중 ' + r.failed + '번 실패', r.firstError, r.notYet);
+        if (r.notYet) console.log(`[smallzone] 브리핑용 ${baseTm} 판 아직 없음(기상청 「표 없음」 · 요청 ${r.requests}번) — 다음 대해구 수집(30분 뒤) 때 다시 받는다`);
         if (!Object.keys(r.data).length) {
             writeStatus('실패: ' + baseTm + ' 판 요청 ' + r.requests + '번 모두 실패 — ' + (r.firstError || '') + (brief ? ' (저장된 ' + brief.baseTm + ' 판 유지)' : ''));
             return summary;

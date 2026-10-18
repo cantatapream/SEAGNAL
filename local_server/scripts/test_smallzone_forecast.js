@@ -155,6 +155,23 @@ const zones = (n, from = 1) => Array.from({ length: n }, (_, i) => String(from +
             assert.ok(/^실패: 2026110100 판 요청 26번 모두 실패/.test(status.message), status.message);
             assert.ok(status.message.includes('저장된 2026103112 판 유지'));
         });
+        await check('판 아직 없음(모두 「표 없음」)이면 요청마다 줄을 찍지 않고 한 줄만 — 상태 기록은 종전 그대로(2026-10-18)', async () => {
+            calls = []; rule = () => 'notable'; logs.length = 0; capture();
+            const r = await S.prefetch(zones(2, 300), '2026110100');
+            release();
+            assert.equal(r.failed, 26); assert.equal(r.ok, false);
+            assert.equal(logs.filter((l) => /끝내 실패/.test(l)).length, 0, logs.join('\n'));
+            assert.equal(logs.filter((l) => /2026110100 판 아직 없음/.test(l)).length, 1, logs.join('\n'));
+            assert.ok(/26번 중 26번 실패/.test(S.getStatus().lastError.message), '관리자 상태(lastError)에는 남는다');
+            const status = JSON.parse(fs.readFileSync(path.join(dir, 'smallzone_forecast_status.json'), 'utf8'));
+            assert.ok(/^실패: 2026110100 판 요청 26번 모두 실패/.test(status.message), status.message);
+            calls = []; rule = (q) => (q.tma_ef === '2026110100' ? 'reset' : 'notable'); logs.length = 0; capture();
+            await S.prefetch(zones(2, 300), '2026110100');
+            release();
+            assert.equal(logs.filter((l) => /끝내 실패/.test(l)).length, 26, '끊김이 섞이면 종전처럼 요청마다 찍는다');
+            assert.equal(logs.filter((l) => /판 아직 없음/.test(l)).length, 0);
+            rule = () => null;
+        });
 
         fresh();
         await S.prefetch(['233'], BASE);
