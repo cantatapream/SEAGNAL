@@ -57,12 +57,12 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
  server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base='http://127.0.0.1:'+server.address().port;
  browser=await chromium.launch({...((process.env.PW_CHROME||process.env.SIM_CHROMIUM||process.env.CHROMIUM_EXECUTABLE)?{executablePath:process.env.PW_CHROME||process.env.SIM_CHROMIUM||process.env.CHROMIUM_EXECUTABLE}:{}),headless:true,args:['--no-sandbox']});
  let page,errors=[];
- /** 앱을 새로 띄워 해양안전 → 위험예측(잠김 10번 누름)까지 켠다. 시험 서버에 공지 등이 없어 뜨는 「서버 연결 불가」 팝업은 시험 화면에서 지운다(위험예측과 무관). @param {number} width @returns {Promise<void>} */
+ /** 앱을 새로 띄워 해양안전 → 위험예측(한 번 누름 — 2026-10-18 일반 공개로 잠금 없음)까지 켠다. 시험 서버에 공지 등이 없어 뜨는 「서버 연결 불가」 팝업은 시험 화면에서 지운다(위험예측과 무관). @param {number} width @returns {Promise<void>} */
  async function boot(width){if(page)await page.context().close();const ctx=await browser.newContext({viewport:{width,height:width<600?780:800}});page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',r=>r.request().url().startsWith(base)?r.continue():r.abort());
   await page.goto(base+'/');await page.waitForFunction(()=>typeof window.switchMainTab==='function'&&document.getElementById('ocean-risk-forecast-toggle-btn'));await page.waitForTimeout(600);
   await page.evaluate(()=>document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"]').click());await page.waitForTimeout(600);
-  await page.evaluate(()=>{const b=document.getElementById('ocean-risk-forecast-toggle-btn');for(let i=0;i<10;i++)b.click();});
+  await page.evaluate(()=>document.getElementById('ocean-risk-forecast-toggle-btn').click());
   await page.waitForFunction(()=>window._riskForecastApp&&window._riskForecastApp.getState().enabled&&!document.querySelector('.rf-date-nav').hidden,null,{timeout:10000});
   await page.evaluate(()=>{const v=window.getOceanMap().getView();v.setCenter(ol.proj.fromLonLat([126.56,33.44]));v.setZoom(11);});await page.waitForTimeout(800);
   await page.evaluate(()=>{const p=document.getElementById('server-maintenance-popup');if(p)p.remove();});}

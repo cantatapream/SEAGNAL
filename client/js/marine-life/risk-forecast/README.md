@@ -38,7 +38,7 @@
 
 ## 해상 화면 후속 수정 — 2026-10-13
 
-위험예측 버튼은 페이지마다 비활성 모습으로 시작한다. 첫9회는 기능과 다른 오버레이에 영향을 주지 않고,10회째에 해제하면서 연다. 이후 같은 페이지에서는 보통 토글로 동작한다. HTML disabled는 클릭을 받지 못하므로 aria-disabled와 캡처 처리로 구현한다. 서버 인증이나 자동수집 중지 기능은 아니다.
+위험예측 버튼은 페이지마다 비활성 모습으로 시작한다. 첫9회는 기능과 다른 오버레이에 영향을 주지 않고,10회째에 해제하면서 연다. 이후 같은 페이지에서는 보통 토글로 동작한다. HTML disabled는 클릭을 받지 못하므로 aria-disabled와 캡처 처리로 구현한다. 서버 인증이나 자동수집 중지 기능은 아니다. **(2026-10-18 대체: 이 잠금은 없앴다 — 처음 한 번 누르면 바로 열린다. 아래 「일반 공개 — 미리보기 잠금 제거」 절.)**
 
 연안·해상 스위치는 위험지형과 동일한 banzone/bzl 스타일을 사용한다. 해상ON은 기본 통합색, 하위 아코디언의 사고위험 예보·실시간 교통·혼잡도 예측은 한 항목만 선택된다. 선택 후 접고 뱃지로 알리며, 선택한 항목을 다시 끄면 기본 통합으로 돌아간다. 실시간 교통 선택은 현재로 복귀하고, 미래 버튼을 누르면 기본 미래 공식 사고예보로 전환한다. **(2026-10-15 대체: 하위 아코디언·뱃지는 없앴다 — 아래 「해상 시트·지도 조작부 화면」 절.)**
 
@@ -346,8 +346,8 @@
 
 - `mount()` 가 돌려주는 객체에 `goTo(target)` — 그 층(연안·해상)을 켜고(꺼져 있으면 범례 스위치 click), 시각을 옮긴 뒤(해상: 지난 시각이면 지금, 아니면 그 시각을 넘지 않는 마지막 메인 시각 · 연안: 오늘이면 지금, 내일이면 그날 첫 칸 — `shiftDay` 와 같은 규칙) `select()` 하고 지도를 그 자리로 옮긴다. 관광지 표에 없는 id 면 `false`.
 - `setMain()` 이 `refresh()` 약속을 돌려준다(종전 반환 없음) — `goTo` 만 기다린다. 버튼·날짜 줄 동작은 그대로.
-- `bindApp()` 이 `RiskForecast.openAt(target)` 을 연다 — 미리보기 잠금(10번 누름)을 풀고, 꺼져 있으면 위험예측 버튼을 실제로 눌러 켠 뒤(해양안전 단독 표출 규칙 그대로) `goTo`. 부르는 곳: `client/js/forecast/station-briefing/station_briefing.js openInRisk`(탭 이동은 거기서 `switchMainTab`·`switchSubTab`).
-- ⚠잠금 해제: 브리핑 바로가기를 누르면 그 기기에서는 위험예측 미리보기 잠금이 풀린다(브리핑이 지금은 관리자 기기에만 보이므로). 브리핑을 일반 사용자에게 열 때 다시 볼 것.
+- `bindApp()` 이 `RiskForecast.openAt(target)` 을 연다 — (2026-10-16~10-17: 관리자 모드일 때만 미리보기 잠금을 풀었다 · 2026-10-18 잠금 제거로 누구나) 꺼져 있으면 위험예측 버튼을 실제로 눌러 켠 뒤(해양안전 단독 표출 규칙 그대로) `goTo`. 부르는 곳: `client/js/forecast/station-briefing/station_briefing.js openInRisk`(탭 이동은 거기서 `switchMainTab`·`switchSubTab`).
+- ⚠잠금 해제: 브리핑 바로가기를 누르면 그 기기에서는 위험예측 미리보기 잠금이 풀린다(브리핑이 지금은 관리자 기기에만 보이므로). 브리핑을 일반 사용자에게 열 때 다시 볼 것. **(2026-10-18 해소: 잠금 자체를 없앴다 — 아래 「일반 공개」 절.)**
 - 검사: `local_server/scripts/test_station_briefing_ui.js` 「[위험예측에서 보기 ›]」 두 사례.
 - **바로가기로 고른 칸은 시트 위 지도 띠 가운데로 — 2026-10-17**. 사용자 원문(휴대폰): *「위험 예측에서 보기를 눌렀을 때 이렇게 이동되는데 바텀시트 위쪽으로 해당 격자가 가운데 와서 바텀시트에 가려지지 않도록 조치해줘.」*
   - 원인: `goTo` 가 `select()` 바로 뒤에 `visiblePadding()` 을 불렀는데, 그때 시트는 0.2초 대기(`RiskSheet.hold`) 중이라 `.open` 이 아직 없어 아래 여백이 기본 30px 였다 — 화면 전체의 가운데로 옮겨진 칸이 곧 올라온 시트(화면의 66%) 뒤에 숨었다. 범위도 칸이 아니라 좌표 둘레 3km 였다.
@@ -445,3 +445,13 @@
 - `risk_sheet.js` `driftText` 는 `target` 을 그대로 쓰고(`dayNotices` 가 묶음의 `target` 을 넘긴다), 없으면 대상 말 없이 「표류 주의」(화면이 달을 짐작하지 않는다). 캐시 `risk_sheet.js?v=20261018coast3`.
 - 위험예측 [기준 상세](`risk_basis_content.js`)에는 표류 안내 설명이 없어 고치지 않았다. 산출근거 원고·PDF 의 「"튜브·물놀이기구 표류 주의" 문구만 붙입니다」(연안 913행)는 손대지 않음.
 - 시험: `test_risk_score_coast`(5/31·6/1·9/30·10/1 경계·UTC 시각) · `test_risk_store`(`target`) · `test_risk_sheet_ui` 「§11.10.36」(여름·겨울 말·브리핑과 같은 말·target 없음) · `test_risk_coast_day`(10월 → 겨울 말) · `test_station_briefing` 「[§11.10.36]」(실제 저장소 경계 4일 → 시트 안내와 브리핑 글 같은 말).
+
+## 일반 공개 — 미리보기 잠금 제거 (2026-10-18)
+
+> 사용자 원문: *"해양안전생활에서 위험예측을 이제 트리거를 제거해줘."* · *"위험예측은 바로 풀어줄 수 있도록 조치가 되면 바로 머지링크를 알려줘"*
+
+- **무엇이 바뀌었나**: 해양안전생활 > 해양안전의 「위험예측」 버튼이 페이지마다 흐린 모습(`rf-preview-locked` — 투명도 .4·흑백)·`aria-disabled="true"` 로 시작해 **10번 눌러야 열리던 미리보기 잠금**을 없앴다. 이제 처음 한 번 누르면 바로 켜지고, 다시 누르면 꺼지는 보통 토글이다.
+- **고친 곳**: `risk_forecast.js bindApp`(잠금 카운터·캡처 단계 클릭 막기 제거 · `RiskForecast.openAt` 의 관리자 모드 조건 제거 · `RiskForecast.previewLocked` 삭제) · `index2.html` 버튼 마크업(`rf-preview-locked`·`aria-disabled` 제거) · `risk_forecast.css`(잠금 모양 규칙 삭제) · `forecast/station-briefing/station_briefing.js openInRisk`(일반 기기에서 「아직 미리보기 기능이라…」 토스트로 멈추던 분기 제거 — 이제 관리자·일반 기기 모두 같은 길로 해양안전 탭으로 옮겨 연다).
+- **그대로 둔 것(잠금과 다른 장치)**: 버튼이 해양안전 화면에서만 보이는 CSS(`#ocean-risk-forecast-toggle-btn{display:none}` + `body.ls-mode.ls-safety … {display:flex}`)는 화면 배치 규칙이라 그대로다. 관리자 점검용 원천 수집 오류 API(`/api/admin/risk-forecast/errors`·`accident-level-stats` — `routes/risk_errors.js` 가 `admin_auth.requireAdminToken` 으로 막음, `simulate.js` 「위험예측:원천오류 관리자 전용」)도 운영 진단 정보라 그대로다. 위험예측 화면이 쓰는 `/api/risk-forecast/*`(`routes/risk_forecast.js`)에는 관리자 조건이 없다. 「연안 안전 브리핑」 아코디언의 노출 범위(관리자/사용자 — 서버 설정)는 브리핑 기능의 공개 설정이라 이번 범위가 아니다(바로가기 자체는 브리핑이 보이는 기기면 누구나 동작).
+- **캐시**: `?v=20261018open`(risk_forecast.css·risk_forecast.js·station_briefing.js).
+- **시험**: `test_marine_ui` 「실제 위험예측 버튼은 잠금 없이 한 번 누르면 바로 열림·다시 누르면 꺼짐·새페이지도 잠금 없음」 · `test_station_briefing_ui` 「[UI-A2] 일반 기기 … 바로 열고 그 관광지 시트(잠금 없음)」(새 일반 기기에서 `openAt` → true 포함) · `test_life_safety_tab_keep`(처음 상태 잠금 없음·한 번 눌러 켬) · `test_risk_coast_day`(한 번 눌러 켬) · `simulate.js` 「위험예측:잠금 없이 한 번 눌러 열림」(종전 「10회 트리거의 첫9회 비활성」 대체).
