@@ -515,6 +515,7 @@ await (async function () {
             if (mode === 'ok') res.end(okBody);
             else if (mode === 'slow') setTimeout(() => { try { res.end(okBody); } catch (e) { /* 이미 끊김 */ } }, 600);
             else if (mode === 'nodata') res.end(JSON.stringify({ response: { header: { resultCode: '03', resultMsg: 'NODATA_ERROR' } } }));
+            else if (mode === 'err10') res.end(JSON.stringify({ response: { header: { resultCode: '10', resultMsg: 'INVALID_REQUEST_PARAMETER_ERROR' } } }));
             else if (mode === 'err99') res.end(JSON.stringify({ response: { header: { resultCode: '99', resultMsg: 'UNKNOWN_ERROR' } } }));
         });
         await new Promise(r => srv.listen(0, '127.0.0.1', r));
@@ -530,6 +531,8 @@ await (async function () {
         ok('5페이지 모두 느림 — 페이지 재시도도 안 해 요청 5회(종전 검토 실측 30회)', hits === 5 && r3.loadedPages.length === 0 && r3.failedPages.length === 5, `hits=${hits} ${JSON.stringify(r3.failedPages)}`);
         mode = 'nodata';
         ok('응답 코드 03(자료 없음) — 「격자 미제공」(조회 실패 아님)', JSON.stringify(await TC.lookupGridHash(33.4, 126.2, '20261018')) === JSON.stringify({ hash: null, error: false }));
+        mode = 'err10';
+        ok('응답 코드 10(격자 밖 좌표) — 「격자 미제공」(조회 실패로 세면 차단기가 수집을 멈춘다, 2026-10-19 운영 로그)', JSON.stringify(await TC.lookupGridHash(33.4, 126.2, '20261018')) === JSON.stringify({ hash: null, error: false }));
         mode = 'err99';
         ok('응답 코드 99(알 수 없는 오류) — 「조회 실패」', (await TC.lookupGridHash(33.4, 126.2, '20261018')).error === true);
         Object.assign(TC.TIDEBED_TIMEOUTS, toBackup);
