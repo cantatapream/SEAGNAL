@@ -385,6 +385,23 @@
         return t;
     }
 
+    var RTP_LABEL_HALF_W = 27;    // 2줄 라벨의 반폭(px, 근사) — "현 시각"·"HH:MM" 15px 굵은 글씨가 약 50px 폭
+    /**
+     * svgTwoLineLabel(cx, anchorY, dir, …) 이 차지하는 대략의 상자 — 라벨끼리 겹치는지 볼 때 쓴다.
+     * 예: twoLineLabelBox(100, 80, 1) → {x1:73, x2:127, y1:65, y2:100}
+     * @param {number} cx @param {number} anchorY @param {number} dir - 1=점 아래로, -1=점 위로
+     * @returns {{x1:number,x2:number,y1:number,y2:number}}
+     * [연계] ← renderTideChart(현재 시각 라벨 자리 고르기 — 잠김/노출 라벨과 겹치면 반대쪽으로)
+     */
+    function twoLineLabelBox(cx, anchorY, dir) {
+        var y1 = dir === 1 ? anchorY : anchorY - RTP_LABEL_LINE_GAP;   // 첫 줄 글자 밑선
+        return { x1: cx - RTP_LABEL_HALF_W, x2: cx + RTP_LABEL_HALF_W, y1: y1 - RTP_LABEL_FONT_SIZE, y2: y1 + RTP_LABEL_LINE_GAP + 4 };
+    }
+    /** 두 상자가 겹치나. */
+    function boxesOverlap(a, b) {
+        return a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+    }
+
     /**
      * 조석 곡선 SVG를 그린다 — 잠긴 구간은 곡선 모양대로만 빨갛게(클리핑) 칠하고
      * 그 구간의 선 자체도 빨간색으로 덧그린다. 잠기는/드러나는 교차 시각을 점+2줄
@@ -475,14 +492,20 @@
             fill: 'none', stroke: 'var(--rtp-red)', 'stroke-width': 1.2, 'stroke-dasharray': '5,3', opacity: 0.5
         }));
 
-        // 잠김/노출 교차점 — 점 + 2줄 라벨(잠김=위쪽, 노출=아래쪽)
+        // 잠김/노출 교차점 — 점 + 2줄 라벨(잠김=위쪽, 노출=아래쪽). 라벨 자리는 현재 시각 라벨이 피해 가도록 모아 둔다.
+        var labelBoxes = [];
         crossings.forEach(function (c) {
             if (c.t > 1440) return;
             var color = c.type === 'submerge' ? 'var(--rtp-red)' : 'var(--rtp-green)';
             var cx = X(c.t), cy = Y(valsouCm);
             svg.appendChild(svgEl('circle', { cx: cx, cy: cy, r: 3.6, fill: color, stroke: 'var(--rtp-bg)', 'stroke-width': 1.4 }));
-            if (c.type === 'submerge') svg.appendChild(svgTwoLineLabel(cx, cy - 22, -1, '잠김', minutesToHHMM(c.t), color));
-            else svg.appendChild(svgTwoLineLabel(cx, cy + 20, 1, '노출', minutesToHHMM(c.t), color));
+            if (c.type === 'submerge') {
+                svg.appendChild(svgTwoLineLabel(cx, cy - 22, -1, '잠김', minutesToHHMM(c.t), color));
+                labelBoxes.push(twoLineLabelBox(cx, cy - 22, -1));
+            } else {
+                svg.appendChild(svgTwoLineLabel(cx, cy + 20, 1, '노출', minutesToHHMM(c.t), color));
+                labelBoxes.push(twoLineLabelBox(cx, cy + 20, 1));
+            }
         });
 
         // 현재 시각(오늘 보기일 때만) — 곡선 위 점 + 펄스 글로우 + "현 시각/HH:MM" 라벨
@@ -490,7 +513,44 @@
             var nowX = X(nowMin), nowY = Y(cmAtMinute(pts, nowMin));
             svg.appendChild(svgEl('circle', { cx: nowX, cy: nowY, r: 4.5, class: 'rtp-now-glow' }));
             svg.appendChild(svgEl('circle', { cx: nowX, cy: nowY, r: 4.5, fill: 'var(--rtp-now-dot)', stroke: 'var(--rtp-bg)', 'stroke-width': 2 }));
-            svg.appendChild(svgTwoLineLabel(nowX, nowY + 20, 1, '현 시각', minutesToHHMM(nowMin), 'var(--rtp-ink)'));
+            // [라벨 겹침 — 2026-10-18 사용자 화면] 잠김 구간이 짧고(예: 16:35 잠김 ~ 17:02 노출) 지금이 그 근처면
+            //   "현 시각"(점 아래)과 "노출"(교차점 아래)이 같은 자리에 겹쳐 둘 다 못 읽었다. 잠김·노출 라벨은
+            //   그대로 두고 "현 시각" 라벨만 비켜 놓는다. 후보 순서: ①점 아래(종전) ②점 위 ③한 줄 더 아래·위
+            //   ④옆으로 반 칸씩(잠김·노출 라벨 반대쪽 먼저, 각 자리에서 ①~③) — 두 칸까지. 가로는 그림 안으로 당겨 넣는다(23:50 처럼 오른쪽 끝이면 밖으로 나갔다).
+            //   **모든** 잠김·노출 라벨(하루 두 번 잠기면 4개)과 대어, 안 겹치는 첫 자리를 쓰고,
+            //   다 겹치면 그림 안 후보 가운데 **겹치는 넓이가 가장 작은** 자리를 쓴다(독립 검토 C-3 — 종전엔 이때
+            //   처음 자리(점 아래)로 돌아가 겹쳤다).
+            var labelsMidX = labelBoxes.length ? labelBoxes.reduce(function (sum, b) { return sum + (b.x1 + b.x2) / 2; }, 0) / labelBoxes.length : nowX;
+            var sideStep = 2 * RTP_LABEL_HALF_W + 6;
+            var sgn = nowX <= labelsMidX ? -1 : 1;
+            var clampX = function (x) { return Math.max(RTP_LABEL_HALF_W, Math.min(W - RTP_LABEL_HALF_W, x)); };
+            var cands = [];
+            [0, 0.5, 1, 1.5, 2].forEach(function (k) {   // 점에서 가까운 자리부터(반 칸씩)
+                (k === 0 ? [0] : [sgn * k, -sgn * k]).forEach(function (s) {
+                    // 세로: 점 바로 아래·바로 위·한 줄 더 아래·한 줄 더 위(다른 라벨을 건너 놓을 자리)
+                    [[20, 1], [-14, -1], [56, 1], [-50, -1]].forEach(function (v) {
+                        cands.push({ cx: clampX(nowX + s * sideStep), y: nowY + v[0], dir: v[1] });
+                    });
+                });
+            });
+            var overlapArea = function (b) {
+                return labelBoxes.reduce(function (sum, o) {
+                    var w = Math.min(b.x2, o.x2) - Math.max(b.x1, o.x1), h = Math.min(b.y2, o.y2) - Math.max(b.y1, o.y1);
+                    return sum + (w > 0 && h > 0 ? w * h : 0);
+                }, 0);
+            };
+            var nowPlace = null, bestArea = Infinity;
+            for (var ci = 0; ci < cands.length; ci++) {
+                var bx = twoLineLabelBox(cands[ci].cx, cands[ci].y, cands[ci].dir);
+                if (bx.y1 < 0 || bx.y2 > H - 12) continue;   // 위로 그림 밖·아래 12px(시간축 글자)
+                var area = overlapArea(bx);
+                if (area === 0) { nowPlace = cands[ci]; break; }
+                if (area < bestArea) { bestArea = area; nowPlace = cands[ci]; }
+            }
+            if (!nowPlace) nowPlace = { cx: clampX(nowX), y: nowY + 20, dir: 1 };
+            var nowLabel = svgTwoLineLabel(nowPlace.cx, nowPlace.y, nowPlace.dir, '현 시각', minutesToHHMM(nowMin), 'var(--rtp-ink)');
+            nowLabel.setAttribute('class', 'rtp-now-label');
+            svg.appendChild(nowLabel);
         }
     }
 

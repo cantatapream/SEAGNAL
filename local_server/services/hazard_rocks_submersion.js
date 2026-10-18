@@ -32,6 +32,7 @@
  *   - scripts/build_tide_field.js         → loadTideTable(year) 재사용(동해 표준항)
  *   - routes/hazard_rocks.js              → getUpcomingWarnings() 를 API로 노출
  *   - scheduler.js                        → KST 23:30, 곡선 수집 직후 1회 호출
+ *   - peak_finder.js                      → findPeaksInSamples(팝업 고조·저조 — 바텀시트와 같은 규칙, 2026-10-18)
  * ============================================================================
  */
 
@@ -45,6 +46,7 @@ const TFCollector = require('./tide_field_collector');
 const HRC = require('./hazard_rocks_tide_common');
 const HRCollector = require('./hazard_rocks_tide_collector');
 const PrevPeaks = require('./hazard_rocks_prev_peaks');
+const { findPeaksInSamples } = require('../peak_finder');
 
 const HAZARD_ROCKS_JSON = path.join(__dirname, '..', '..', 'client', 'hazard_rocks.json');
 const SUBMERSION_PATH = path.join(HRC.HAZARD_ROCKS_TIDE_DIR, 'submersion.json');
@@ -447,30 +449,12 @@ function getUpcomingWarnings(now) {
 //   1분 해상도로 1440회 IDW 합성 — 수 ms, eastsea는 극값 3~4개 보간뿐).
 const CURVE_SAMPLE_STEP_MIN = 10; // 팝업 차트에 보낼 점 간격(분) — 10분이면 하루 144점.
 
-/** 극값(고조/저조) 후보 스캔 — 인접 표본과 비교해 국소 최댓/최솟값을 찾는다.
- *  같은 종류(고조/저조끼리)가 PEAK_MERGE_GAP_MIN 이내로 붙어 있으면 더 극단값만 남긴다
- *  (반정현파가 아닌 실측 곡선은 미세한 요철이 있어 완전 매끈하지 않을 수 있음). */
-const PEAK_MERGE_GAP_MIN = 120;
-function findLocalExtrema(samples) {
-    // samples: [{m, cm}] (m=분, 오름차순, 결측 없음)
-    const raw = [];
-    for (let i = 1; i < samples.length - 1; i++) {
-        const p = samples[i - 1], c = samples[i], n = samples[i + 1];
-        if (c.cm >= p.cm && c.cm >= n.cm && (c.cm > p.cm || c.cm > n.cm)) raw.push({ m: c.m, cm: c.cm, type: 'high' });
-        else if (c.cm <= p.cm && c.cm <= n.cm && (c.cm < p.cm || c.cm < n.cm)) raw.push({ m: c.m, cm: c.cm, type: 'low' });
-    }
-    const merged = [];
-    for (const p of raw) {
-        const last = merged[merged.length - 1];
-        if (last && last.type === p.type && (p.m - last.m) <= PEAK_MERGE_GAP_MIN) {
-            const better = p.type === 'high' ? p.cm > last.cm : p.cm < last.cm;
-            if (better) merged[merged.length - 1] = p;
-        } else {
-            merged.push(p);
-        }
-    }
-    return merged;
-}
+// [고조·저조 찾기 — 바텀시트와 같은 규칙, 2026-10-18]
+//   예전엔 이 파일의 findLocalExtrema 가 "양옆 표본보다 크거나 같으면 고조"로 셌다. 평탄 구간을
+//   몰라서 TideBED 1cm 계단(…161,161,162,162…)마다 고조·저조를 번갈아 만들었고, 조금 날 하루
+//   20~26개가 목록에 떴다(운영 id=410 오늘 26개 — 표본 161개 중 84개가 7개 이상).
+//   지금은 peak_finder.findPeaksInSamples(평탄 구간 하나로·같은 종류 180분 합침 + 1cm 미만 흔들림
+//   지우기)를 쓴다. 어제 극값 요약(hazard_rocks_prev_peaks.extremaOfCurve)도 같은 함수를 쓴다.
 
 function minutesToHHMM(m) {
     const h = Math.floor(m / 60), mm = m % 60;
@@ -493,6 +477,51 @@ function buildAnchorDayCurve(refs, curvePathFn, yyyymmdd) {
         if (wsum > 0) samples.push({ m, cm: Math.round((vsum / wsum) * 10) / 10 });
     }
     return samples.length ? samples : null;
+}
+
+/**
+ * 그날 고조·저조를 찾는다 — 앞뒤 날 표본(전날 뒤쪽 12시간·다음날 앞쪽 12시간)을 이어 붙여 자정 근처 물때도 잡는다.
+ * 예: 오늘 00:05 고조 → 그날 표본만으로는 "오르다 내림"을 못 봐 빠지지만, 전날 23:00~ 표본을 붙이면 잡힌다.
+ * @param {Array<{m:number,cm:number}>} samples - 그날 표본(m=0~1430, 화면에 그리는 곡선 그대로)
+ * @param {Array<{id:string,distKm:number}>} refs - 가까운 앵커
+ * @param {function(string, number): string} curvePathFn - 앵커 곡선 경로 함수
+ * @param {number} ymd - 그날(YYYYMMDD)
+ * @returns {Array<{m:number,cm:number,type:'high'|'low'}>} 그날(0~1439분) 극값
+ * [연계] ← getTideCurve → peak_finder.findPeaksInSamples(그날 0~1440 에 가운데가 든 극값만 남긴다)
+ *   바텀시트(routes/tide.js analyzeAndSave)가 앞뒤 12시간을 붙여 찾는 것과 같은 뜻이다.
+ *   ⚠옆날 곡선은 매일 밤 지워지므로(purgeStaleCurves — 오늘~모레만 남김) 오늘의 전날은 밤 23:30 수집 뒤
+ *     자정까지, 모레의 다음날은 늘 없다. 그때는 그 쪽을 붙이지 않는다(종전과 같음).
+ *   [이음매 단차 막기 — 2026-10-18 독립 검토 C-2·A-F2] 처음엔 옆날을 따로 IDW 해 붙였다. 옆날에 일부 앵커
+ *     파일이 없으면 자정에서 섞는 앵커가 바뀌어 곡선이 끊기고(앵커끼리 수 cm~15cm 차이), 그 단차가 진짜 자정
+ *     근처 극값을 지우거나(암초 2532 저조 00:20 누락) 가짜 극값을 만들었다(1250 저조 23:50 등).
+ *     지금은 이어 붙이는 구간 전체(전날·그날·다음날)를 **세 쪽 모두 곡선이 있는 같은 앵커 묶음**으로만 섞는다.
+ *     ①그날 곡선이 있는 앵커가 다 옆날도 있으면 → 화면 곡선(samples) 그대로에 옆날을 붙인다(평소).
+ *     ②일부만 있으면 → 그 일부 앵커만으로 세 날을 다시 섞어 극값 **시각**을 찾고, 높이는 화면 곡선 값으로 적는다
+ *       (목록 숫자가 그려진 곡선과 어긋나지 않게).
+ *     ③한 곳도 없으면 그 쪽은 붙이지 않는다.
+ */
+function peaksWithNeighborDays(samples, refs, curvePathFn, ymd) {
+    const has = (r, d) => !!loadCurveByMinute(curvePathFn, r.id, addDaysToYmd(ymd, d));
+    const used = refs.filter(r => has(r, 0));
+    // 붙일 쪽과 앵커 묶음 — 양쪽 다 있는 앵커 → 전날만 → 다음날만 순으로 처음 비지 않은 것
+    let group = [], usePrev = false, useNext = false;
+    for (const [p, n] of [[true, true], [true, false], [false, true]]) {
+        const g = used.filter(r => (!p || has(r, -1)) && (!n || has(r, 1)));
+        if (g.length) { group = g; usePrev = p; useNext = n; break; }
+    }
+    if (!group.length) group = used;
+    const own = group.length === used.length ? samples : (buildAnchorDayCurve(group, curvePathFn, ymd) || samples);
+    const side = (d) => (buildAnchorDayCurve(group, curvePathFn, addDaysToYmd(ymd, d)) || []);
+    const seq = (usePrev ? side(-1).filter(p => p.m >= 720).map(p => ({ m: p.m - 1440, cm: p.cm })) : [])
+        .concat(own, useNext ? side(1).filter(p => p.m < 720).map(p => ({ m: p.m + 1440, cm: p.cm })) : []);
+    const peaks = findPeaksInSamples(seq);
+    if (own === samples) return peaks;
+    // ② — 높이는 화면 곡선(samples) 값으로(가장 가까운 표본)
+    return peaks.map(p => {
+        let best = samples[0];
+        for (const s2 of samples) if (Math.abs(s2.m - p.m) < Math.abs(best.m - p.m)) best = s2;
+        return { m: p.m, cm: best.cm, type: p.type };
+    });
 }
 
 /** YYYYMMDD(정수) 에 delta일을 더한 YYYYMMDD(정수). 연간 조석표는 window_days 제약과
@@ -678,7 +707,7 @@ function getTideCurve(rockId, dayOffset) {
         refs = nearestRefs(rock.lat, rock.lon, anchors);
         if (!refs.length) return { ready: false, reason: 'no_curve_data' };
         samples = buildAnchorDayCurve(refs, curvePathFn, dates[day]);
-        if (samples) peaks = findLocalExtrema(samples);
+        if (samples) peaks = peaksWithNeighborDays(samples, refs, curvePathFn, dates[day]);
     } else if (region === 'eastsea') {
         const r = buildEastSeaDayCurve(rock.lat, rock.lon, dates, day);
         samples = r.samples; peaks = r.peaks;

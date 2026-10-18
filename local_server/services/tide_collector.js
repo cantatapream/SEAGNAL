@@ -20,6 +20,7 @@
  * - services/cache_manager.js → tideCache에 결과 저장
  * - peak_finder.js → findTidePeaks() 함수로 고조/저조 분석
  * - routes/tide.js → API 엔드포인트에서 이 모듈의 함수 호출
+ * - (2026-10-18) fetchTideBedPage 시간 제한 TIDEBED_TIMEOUTS(연결 5초·전체 15초) — 연결 실패만 다른 키로 1회 재시도
  *
  * [초보자를 위한 안내]
  * TideBED API는 공공데이터포털(data.go.kr)에서 제공하는 조석 예측 API입니다.
@@ -41,6 +42,18 @@ const { findTidePeaks } = require('../peak_finder');
 // ============================================================================
 const TIDEBED_CONFIG_FILE = path.join(DATA_DIR, 'tidebed_config.json');
 const TIDEBED_BASE_URL = 'https://apis.data.go.kr/1192136/tidebed/GetTidebedApiService';
+/** TideBED 요청 1건의 시간 제한(ms) — 두 단계로 나눈다(2026-10-18, 독립 검토 B-D2·B-D3 로 고침).
+ *  connectMs: 연결(TCP+TLS)이 이 안에 안 되면 끊는다. 서버에 요청이 닿지도 않았으므로 **다른 키로 1회** 다시 묻는다.
+ *  totalMs  : 요청 시작부터 응답 끝까지의 전체 기한. 넘기면 끊되 **곧바로 다시 묻지 않고**, 페이지 재시도
+ *             (collectTideBedPages)도 하지 않는다 — 느린 정상 응답을 끊고 거듭 물으면 페이지당 요청이 최대 6배가 된다.
+ *  [근거] ①처음엔 req.setTimeout(10초) 하나였는데, 그것은 **연결된 뒤에만** 시작해 연결이 안 되는 경우
+ *    (예전 증상 — 약 127초) 를 막지 못했다(검토 B 실측). ②전체 기한 15초 = 같은 apis.data.go.kr 계열 다른 수집기의
+ *    상한(marine_client·regional_forecast_collector 15초 — bulletin_cancel_scanner 는 10초). 이 응답을
+ *    바텀시트가 기다리므로 그보다 길게는 두지 않았다. ③연결 5초 = 정상이면 1초 안쪽인 연결 단계에 여유를 둔 값.
+ *    ⚠TideBED 정상 응답 시간은 이 환경에서 잴 수 없었다(접속 차단) — 운영 로그로 확인해 고칠 것.
+ *  사용자 최악 대기: 연결 실패 5초 + 다른 키 5초 = 10초, 느린 응답 15초(그 뒤 오류).
+ *  (시험이 짧은 값으로 바꿔 쓸 수 있게 객체로 둔다 — test_tide_edges.js [D]) */
+const TIDEBED_TIMEOUTS = { connectMs: 5000, totalMs: 15000 };
 
 // ============================================================================
 // 사용자 요청 우선 신호 (야간 앵커 수집과 TideBED 키 충돌 회피)
@@ -211,10 +224,19 @@ function pickKeyIndex(excludeIndices) {
  *   throttle/UNKNOWN_ERROR 빈도 감소. 실패 시 그 키를 excludeKeyIndices 에
  *   추가하고 다른 키로 재시도 (실패 키 회피).
  *
+ * [시간 제한·네트워크 재시도 — 2026-10-18]
+ *   예전엔 https.get 에 시간 제한이 없어, 연결이 안 되면 OS 가 포기할 때까지(리눅스 기본 SYN 재시도
+ *   6회 ≈ 127초 + 응답 대기) 사용자 바텀시트가 "불러오는 중"으로 멈췄다(getGridHash 가 응답 전에
+ *   이 함수를 기다린다). 지금은 TIDEBED_TIMEOUTS 의 두 기한을 건다:
+ *     - 연결 단계 실패(연결 시간 초과·연결 거부·DNS 등, 응답 전) → 다른 키로 **1회만** 다시. 두 번째도 실패면 null.
+ *     - 연결 뒤 전체 기한 초과 → 다시 묻지 않고 { _timedOut: true } (호출부는 실패로 보고, 페이지 재시도도 안 한다).
+ *     - 연결 뒤 끊김(본문 중단 등) → null(다시 묻지 않음 — 페이지 재시도가 맡는다).
+ *
  * @param {number} retryCount  내부 재귀 카운터 (외부 호출 시 0)
  * @param {number[]} excludeKeyIndices  재시도 시 회피할 키 인덱스 (실패 키)
+ * @param {boolean} netRetried  네트워크 오류로 이미 한 번 다시 물었나(내부용 — 두 번째 오류면 그대로 null)
  */
-async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retryCount = 0, excludeKeyIndices = []) {
+async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retryCount = 0, excludeKeyIndices = [], netRetried = false) {
     if (tideBedConfig.keys.length === 0) {
         console.error('❌ 등록된 TideBED API 키가 없습니다.');
         return null;
@@ -242,12 +264,16 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
     const apiKey = currentKeyData.key;
     const keyLabel = currentKeyData.owner ? `#${keyIdx + 1}(${currentKeyData.owner})` : `#${keyIdx + 1}`;
 
-    return new Promise((resolve) => {
+    return new Promise((resolveOnce) => {
+        // 응답 끝·요청 오류·응답 오류가 겹쳐 와도 결과는 한 번만 낸다(시간 초과로 끊을 때 둘 다 올 수 있다).
+        let settled = false;
+        const resolve = (v) => { if (!settled) { settled = true; resolveOnce(v); } };
         const encodedKey = encodeURIComponent(apiKey);
         const url = `${TIDEBED_BASE_URL}?serviceKey=${encodedKey}&lat=${lat}&lot=${lon}&reqDate=${reqDate}&type=json&min=1&numOfRows=${numOfRows}&pageNo=${pageNo}`;
 
-        https.get(url, (response) => {
+        const req = https.get(url, (response) => {
             let data = '';
+            response.on('error', onNetError);   // 본문을 받다가 끊긴 경우(시간 초과 포함)
             response.on('data', chunk => data += chunk);
             response.on('end', async () => {
                 try {
@@ -255,7 +281,7 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
                         console.warn(`⚠️ TideBED Key ${keyLabel} 제한/오류 — 실패 키 제외하고 다른 키로 재시도`);
                         if (retryCount < tideBedConfig.keys.length) {
                             const newExclude = excludeKeyIndices.concat([keyIdx]);
-                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude);
+                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude, netRetried);
                             return resolve(result);
                         }
                     }
@@ -274,7 +300,7 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
                         console.warn(`⚠️ TideBED Key ${keyLabel} XML 에러 응답 — 실패 키 제외하고 다른 키로 재시도`);
                         if (retryCount < tideBedConfig.keys.length) {
                             const newExclude = excludeKeyIndices.concat([keyIdx]);
-                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude);
+                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude, netRetried);
                             return resolve(result);
                         }
                     }
@@ -282,10 +308,33 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
                     resolve(null);
                 }
             });
-        }).on('error', (err) => {
-            console.error(`❌ TideBED Page ${pageNo} (Key ${keyLabel}) request error:`, err.message);
-            resolve(null);
         });
+        // 두 기한 — 연결 단계(connectMs)·전체(totalMs). 둘 다 끊으면 아래 onNetError 로 간다.
+        let connected = false, timedOut = false;
+        const connTimer = setTimeout(() => { if (!connected) req.destroy(new Error(`연결 시간 초과 ${TIDEBED_TIMEOUTS.connectMs}ms`)); }, TIDEBED_TIMEOUTS.connectMs);
+        const totalTimer = setTimeout(() => { timedOut = true; req.destroy(new Error(`전체 시간 초과 ${TIDEBED_TIMEOUTS.totalMs}ms`)); }, TIDEBED_TIMEOUTS.totalMs);
+        const clearTimers = () => { clearTimeout(connTimer); clearTimeout(totalTimer); };
+        req.on('socket', (sock) => {
+            if (!sock.connecting) { connected = true; return; }   // 재사용된(이미 연결된) 소켓
+            sock.once('connect', () => { connected = true; });
+            sock.once('secureConnect', () => { connected = true; });
+        });
+        req.on('response', () => { connected = true; });
+        req.on('close', clearTimers);
+        req.on('error', onNetError);
+        async function onNetError(err) {
+            clearTimers();
+            if (settled) return;
+            console.error(`❌ TideBED Page ${pageNo} (Key ${keyLabel}) request error:`, err && err.message);
+            // 연결 단계 실패 → 다른 키로 1회만(키가 1개뿐이면 같은 키로 1회). 요청이 서버에 닿지 않았다.
+            if (!connected && !netRetried) {
+                settled = true;   // 이 요청의 결과는 재시도 결과로 낸다
+                const newExclude = tideBedConfig.keys.length > 1 ? excludeKeyIndices.concat([keyIdx]) : excludeKeyIndices;
+                return resolveOnce(await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude, true));
+            }
+            // 연결 뒤 전체 기한 초과 → 다시 묻지 않는다(느린 정상 응답을 거듭 끊어 호출만 늘리지 않게).
+            resolve(timedOut ? { _timedOut: true } : null);
+        }
     });
 }
 
@@ -325,7 +374,12 @@ async function collectTideBedPages(lat, lon, reqDate, pages) {
     const results = await Promise.all(pagePromises);
 
     const failedPages = [];
+    // [시간 초과 페이지는 다시 묻지 않는다 — 2026-10-18 독립 검토 B-D3] 전체 기한(15초)을 넘긴 페이지까지
+    //   아래에서 2번 더 물으면 느린 정상 응답 하나에 요청이 3배(연결 재시도까지 6배)가 된다. 그 페이지는 실패로 남기고
+    //   다음 수집 때(앵커 수집기는 다음 배치·기동 보충, 바텀시트는 사용자 재요청) 다시 받는다.
+    const timedOutPages = new Set();
     for (const { page, result } of results) {
+        if (result && result._timedOut) timedOutPages.add(page);
         const body = result?.response?.body || result?.body;
         const header = result?.response?.header || result?.header;
 
@@ -356,7 +410,7 @@ async function collectTideBedPages(lat, lon, reqDate, pages) {
     const RETRY_DELAYS_MS = [200, 500];
     const MAX_PAGE_RETRIES = RETRY_DELAYS_MS.length;
     let retryAttempt = 0;
-    let remainingFailed = failedPages;
+    let remainingFailed = failedPages.filter(pg => !timedOutPages.has(pg));
     while (remainingFailed.length > 0 && retryAttempt < MAX_PAGE_RETRIES) {
         const backoffMs = RETRY_DELAYS_MS[retryAttempt];
         retryAttempt++;
@@ -381,6 +435,9 @@ async function collectTideBedPages(lat, lon, reqDate, pages) {
                 }
                 loadedPages.push(page);
                 console.log(`  ✅ Page ${page} (재시도 ${retryAttempt}): ${Array.isArray(items) ? items.length : 1}건 수집 완료`);
+            } else if (result && result._timedOut) {
+                console.warn(`  ⚠️ Page ${page} (재시도 ${retryAttempt}): 시간 초과 — 더 묻지 않음`);
+                timedOutPages.add(page);
             } else {
                 console.warn(`  ⚠️ Page ${page} (재시도 ${retryAttempt}): 여전히 실패 (응답 코드: ${header?.resultCode || 'N/A'})`);
                 stillFailed.push(page);
@@ -388,6 +445,7 @@ async function collectTideBedPages(lat, lon, reqDate, pages) {
         }
         remainingFailed = stillFailed;
     }
+    remainingFailed = remainingFailed.concat([...timedOutPages]).sort((a, b) => a - b);
 
     if (remainingFailed.length > 0) {
         console.error(`❌ ${remainingFailed.length}개 페이지 최종 실패: [${remainingFailed.join(', ')}] → 부분 데이터(${allItems.length}건) 반환`);
@@ -418,21 +476,42 @@ async function collectTideBedData(lat, lon, reqDate, pages) {
  *   재방문 latency 는 보존.
  */
 async function getGridHash(lat, lon, reqDate) {
-    try {
-        const result = await fetchTideBedPage(lat, lon, reqDate, 1, 1);
-        const body = result?.response?.body || result?.body;
-        if (body && body.items) {
-            const item = Array.isArray(body.items.item) ? body.items.item[0] : body.items.item;
-            if (item && item.m2TconstAmp !== undefined && item.m2TconstTlag !== undefined) {
-                const amp = Math.round(parseFloat(item.m2TconstAmp) * 1000);
-                const tlag = Math.round(parseFloat(item.m2TconstTlag) * 1000);
-                return `${amp}_${tlag}`;
-            }
+    return (await lookupGridHash(lat, lon, reqDate)).hash;
+}
+
+/**
+ * 격자 해시를 묻되 「격자 미제공」과 「조회 실패」를 가른다(2026-10-18 독립 검토 C-1·B-D4).
+ * 예: 정상 → {hash:'1234_5678', error:false} · 격자 없음(응답은 왔는데 자료 없음) → {hash:null, error:false}
+ *     · 네트워크 오류·시간 초과·키 오류·알 수 없는 오류 코드 → {hash:null, error:true}
+ * @param {number} lat @param {number} lon @param {string|number} reqDate - YYYYMMDD
+ * @returns {Promise<{hash:string|null, error:boolean}>}
+ * [연계] ← getGridHash(바텀시트 — 종전처럼 해시만) · 세 앵커 수집기 collectOne·resolveNudge
+ *   [왜] 예전엔 둘 다 null 이라, 일시 장애(새 10초 시간 제한 포함) 때 수집기가 곡선이 있던 파일을
+ *     「격자 미제공」 빈 파일로 덮었고, 서해·남해 인근 격자 탐색은 장애를 「못 찾음」으로 세어 3번이면 앵커를 영구 포기했다.
+ *   ⚠「자료 없음」 판정: 응답 머리(header)의 resultCode 가 없거나 '00'(정상)·'03'(공공데이터포털 NODATA)일 때만.
+ *     TideBED 가 격자 밖 좌표에 실제로 어떤 코드를 주는지는 이 환경에서 확인하지 못했다(접속 차단).
+ */
+async function lookupGridHash(lat, lon, reqDate) {
+    let result = null;
+    try { result = await fetchTideBedPage(lat, lon, reqDate, 1, 1); }
+    catch (e) { console.error('❌ 격자 해시 조회 실패:', e.message); return { hash: null, error: true }; }
+    if (!result || result._timedOut) return { hash: null, error: true };   // 네트워크·시간 초과·키 오류
+    const body = result?.response?.body || result?.body;
+    const header = result?.response?.header || result?.header;
+    if (body && body.items) {
+        const item = Array.isArray(body.items.item) ? body.items.item[0] : body.items.item;
+        if (item && item.m2TconstAmp !== undefined && item.m2TconstTlag !== undefined) {
+            const amp = Math.round(parseFloat(item.m2TconstAmp) * 1000);
+            const tlag = Math.round(parseFloat(item.m2TconstTlag) * 1000);
+            return { hash: `${amp}_${tlag}`, error: false };
         }
-    } catch (e) {
-        console.error('❌ 격자 해시 조회 실패:', e.message);
     }
-    return null;
+    const code = header && header.resultCode != null ? String(header.resultCode) : null;
+    if (code && code !== '00' && code !== '03') {
+        console.warn(`⚠️ 격자 해시 조회 — 오류 코드 ${code}(${header.resultMsg || ''}) — 「격자 미제공」으로 치지 않는다`);
+        return { hash: null, error: true };
+    }
+    return { hash: null, error: false };
 }
 
 // ============================================================================
@@ -618,9 +697,11 @@ module.exports = {
     saveTideBedConfig,
     rotateTideBedKey,
     fetchTideBedPage,
+    TIDEBED_TIMEOUTS,
     collectTideBedData,
     collectTideBedPages,   // 페이지 셀렉터 (boundary 최적화) 지원 신규 API
     getGridHash,
+    lookupGridHash,
     getAdjacentDates,
     collectAndSaveTideData,
     // [사용자 우선] 야간 수집과 키 충돌 회피용 신호

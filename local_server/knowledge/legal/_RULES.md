@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 121 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 123 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -295,6 +295,8 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_accident_sheet` | 사고 분석 바텀시트·격자가 조용히 깨지지 않게 고정한다. |
 | `test_pending_law` | 예고본 사전수집·시행일 자동 전환(H-29 트랙 C)을 고정한다. |
 | `test_hazard_rocks_tide` | 간출암 조석 곡선 팝업이 조용히 깨지지 않게 고정한다. |
+| `test_tide_edges` | 간출암 조석 상자(해양안전 위험지형 팝업·연안 브리핑 바위 상자)의 네 가지 결함이 다시 생기지 않게 고정한다. |
+| `test_hazard_rock_tide_labels` | 간출암 조석 상자 곡선 위 「현 시각」 라벨이 「잠김」·「노출」 라벨과 겹치지 않게 고정한다. |
 | `test_tide_field_memory` | routes/tide_field.js; 임시 메모리 파일·앵커만 사용, 실제 수집/키/운영 파일 없음. |
 | `test_guide_tabs` | 「안내」 팝업이 화면·데이터와 어긋나지 않게 고정한다. |
 | `test_tab_structure` | 하단 메뉴·하위탭 구성이 조용히 되돌아가지 않게 고정한다. |
