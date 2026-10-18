@@ -552,9 +552,25 @@ app.listen(PORT, '0.0.0.0', () => {
                     if (purged > 0) console.log(`🧹 [startup] 윈도우 밖 곡선 파일 ${purged}개 정리(디스크 회복)`);
                 } catch (e) { console.error('[startup] 곡선 정리 실패:', e && e.message); }
                 console.log('🌊 [startup] 물빠짐 예측 부트스트랩 시작 (전처리 보장 → 롤링 수집)...');
-                Promise.resolve(tideFieldCollector.bootstrapTideField())
-                    .then(r => console.log(`🌊 [startup] 물빠짐 부트스트랩 결과: ${JSON.stringify(r)}`))
-                    .catch(err => console.error('[startup] 물빠짐 부트스트랩 실패:', err && err.message));
+                // [제주 기동 보충 — 2026-10-18] 물빠짐이 끝나면 제주 두 수집기도 부족분만 채운다.
+                //   제주는 23:30 에만 받아서, 자정이 지나면 「모레」 곡선이 다음 23:30 까지 비었다(간출암
+                //   조석 상자 모레 = 이 지역은 아직 지원하지 않아요). 이미 완전한 날짜는 건너뛰므로
+                //   재시작마다 돌아도 새로 받는 것은 빈 날짜뿐이다. 세 수집기는 차례로(동시 호출 금지),
+                //   23:30 묶음과도 같은 줄(runTideBatchExclusive)에 세운다.
+                require('./services/tide_field_common').runTideBatchExclusive(async () => {
+                    try {
+                        const r = await tideFieldCollector.bootstrapTideField();
+                        console.log(`🌊 [startup] 물빠짐 부트스트랩 결과: ${JSON.stringify(r)}`);
+                    } catch (err) { console.error('[startup] 물빠짐 부트스트랩 실패:', err && err.message); }
+                    try {
+                        const r = await require('./services/hazard_rocks_tide_collector').collectHazardRockTides();
+                        console.log(`🌊 [startup] 제주 간출암 앵커 보충 결과: ${JSON.stringify(r)}`);
+                    } catch (err) { console.error('[startup] 제주 간출암 앵커 보충 실패:', err && err.message); }
+                    try {
+                        const r = await require('./services/jeju_isolation_tide_collector').collectJejuIsolationTides();
+                        console.log(`🌊 [startup] 제주 고립판정 격자 보충 결과: ${JSON.stringify(r)}`);
+                    } catch (err) { console.error('[startup] 제주 고립판정 격자 보충 실패:', err && err.message); }
+                });
             } catch (e) {
                 console.error('[startup] 물빠짐 부트스트랩 트리거 실패:', e && e.message);
             }

@@ -29,6 +29,8 @@
  *   - scripts/build_jeju_bathy_grid.js → anchors_jeju.json/grid_meta_jeju.json 생성
  *   - services/tide_collector.js → collectTideBedPages, getGridHash
  *   - scheduler.js → KST 23:30, 제주 간출암 앵커 수집 직후 이어서(순차) 호출
+ *   - server.js    → 서버 기동 시 제주 간출암 보충 뒤 부족분만 보충(2026-10-18)
+ *   - services/tide_curve_edges.js → 새벽·밤 가장자리 메우기·완전 판정(2026-10-18)
  * ============================================================================
  */
 'use strict';
@@ -38,6 +40,7 @@ const path = require('path');
 
 const C = require('./tide_field_common');
 const { findTidePeaks } = require('../peak_finder');
+const Edges = require('./tide_curve_edges');
 
 let _tc = null;
 function getTideCollector() {
@@ -51,6 +54,11 @@ const WINDOW_DAYS = C.TIDE_FIELD_CONFIG.WINDOW_DAYS;
 const CONCURRENCY = 1;
 const ANCHOR_GAP_MS = 350;
 const FAIL_ABORT_THRESHOLD = 8;
+// [사용자 우선 — 2026-10-18] 바텀시트 사용자 조석 요청이 최근(10초) 있었으면 앵커 사이에서 키를 양보한다.
+//   tide_field_collector 와 같은 규칙·같은 값(0.5초마다 확인, 앵커당 최대 30초). 예전엔 이 수집기에만
+//   양보가 없었다 — 23:30 에만 돌 땐 드물었지만, 서버 기동 때도 부족분을 채우게 되면서 넣었다.
+const USER_YIELD_POLL_MS = 500;
+const MAX_USER_YIELD_MS = 30000;
 
 function windowDatesKST(nDays) {
     const nowKst = new Date(Date.now() + 9 * 3600000);
@@ -86,18 +94,11 @@ function curvePath(anchorId, yyyymmdd) {
     return path.join(CURVES_DIR_JEJU, `${anchorId}_${yyyymmdd}.json`);
 }
 
+/** (앵커,날짜) 완전 수집 여부 — 5페이지·실패 0·1300분 이상 + 새벽·밤 빈칸 15분 이하(2026-10-18,
+ *  tide_curve_edges.isFullDay — hazard_rocks_tide_collector.isComplete 와 같은 기준). */
 function isComplete(anchorId, yyyymmdd) {
-    const p = curvePath(anchorId, yyyymmdd);
-    if (!fs.existsSync(p)) return false;
-    try {
-        const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-        const lp = Array.isArray(j.loadedPages) ? j.loadedPages.length : 0;
-        const fp = Array.isArray(j.failedPages) ? j.failedPages.length : 0;
-        return j.status === 'complete' && lp >= 5 && fp === 0 &&
-            Array.isArray(j.curve) && j.curve.length >= 1300;
-    } catch (e) {
-        return false;
-    }
+    const j = Edges.readJson(curvePath(anchorId, yyyymmdd));
+    return !!j && j.status === 'complete' && Edges.isFullDay(j);
 }
 
 /** 윈도우 밖(과거 날짜) 곡선 파일 정리 — 물빠짐/간출암과 동일 취지(볼륨 누적 방지). */
@@ -124,6 +125,19 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     const qLat = Math.round(anchor.lat * 100000) / 100000;
     const qLon = Math.round(anchor.lon * 100000) / 100000;
     const { collectTideBedPages, getGridHash } = getTideCollector();
+    // [새벽 빈칸 메우기 — 2026-10-18] hazard_rocks_tide_collector.collectOne 과 같은 방식(services/tide_curve_edges.js).
+    const edgeIo = {
+        readNeighbor: (ymd) => Edges.readJson(curvePath(anchor.id, ymd)),
+        fetchPage: (reqYmd, page) => collectTideBedPages(qLat, qLon, String(reqYmd), [page]).then(r => r && r.items)
+    };
+    const reuse = opts.force ? null : Edges.reusableOwnDay(Edges.readJson(curvePath(anchor.id, yyyymmdd)));
+    if (reuse) {
+        const filled = await Edges.fillEdges(reuse.curve, yyyymmdd, edgeIo);
+        const rec = { ...reuse, curve: filled.curve, count: filled.curve.length };
+        const complete = Edges.isFullDay(rec);
+        writeCurve(anchor, yyyymmdd, { ...rec, status: complete ? 'complete' : 'partial' });
+        return { anchorId: anchor.id, date: yyyymmdd, status: complete ? 'complete' : 'partial', count: rec.count, edgeOnly: true };
+    }
 
     let hash = null;
     try { hash = await getGridHash(qLat, qLon, yyyymmdd); } catch (e) {
@@ -145,19 +159,13 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
         return { anchorId: anchor.id, date: yyyymmdd, status: 'failed', count: 0 };
     }
 
-    const dayItems = (items || []).filter(it => {
-        const dt = it.slctdDt || it.obsrvnDt || '';
-        return dt.startsWith(isoDate);
-    });
-    const curve = dayItems.map(it => {
-        const dt = it.slctdDt || it.obsrvnDt;
-        const hhmm = dt.includes(' ') ? dt.split(' ')[1].slice(0, 5) : dt.slice(11, 16);
-        const h = parseFloat(it.slctdHgt != null ? it.slctdHgt : it.obsrvnHgt);
-        return { t: hhmm, h: isNaN(h) ? null : h };
-    }).filter(p => p.h != null).sort((a, b) => a.t.localeCompare(b.t));
+    // 그날 몫은 곡선, 옆날 몫(조시차만큼 넘친 꼬리)은 spill — 옆날 파일이 새벽·밤 빈칸을 메우는 데 쓴다.
+    const split = Edges.splitByDay(items, yyyymmdd);
+    const filled = await Edges.fillEdges(split.curve, yyyymmdd, edgeIo);
+    const curve = filled.curve;
 
     const peaks = findTidePeaks(items || [], isoDate);
-    const complete = loadedPages.length >= 5 && failedPages.length === 0 && curve.length >= 1300;
+    const complete = Edges.isFullDay({ loadedPages, failedPages, curve });
     writeCurve(anchor, yyyymmdd, {
         status: complete ? 'complete' : 'partial',
         loadedPages, failedPages, count: curve.length,
@@ -165,6 +173,7 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
             lowTide1: peaks.lowTide1, lowTide2: peaks.lowTide2,
             highTide1: peaks.highTide1, highTide2: peaks.highTide2
         },
+        spill: split.spill,
         curve
     });
     return { anchorId: anchor.id, date: yyyymmdd, status: complete ? 'complete' : 'partial', count: curve.length };
@@ -272,7 +281,16 @@ async function _collectInner(opts) {
 
     const t0 = Date.now();
     let progress = 0;
+    const tcMod = getTideCollector();
     const { results, aborted } = await runPool(tasks, CONCURRENCY, async (task) => {
+        if (tcMod && typeof tcMod.isUserActive === 'function') {
+            let yielded = 0;
+            while (tcMod.isUserActive() && yielded < MAX_USER_YIELD_MS) {
+                await new Promise(res => setTimeout(res, USER_YIELD_POLL_MS));
+                yielded += USER_YIELD_POLL_MS;
+            }
+            if (yielded) log(`  ⏸ 사용자 요청 우선 — 키 양보 ${(yielded / 1000).toFixed(1)}s 후 진행`);
+        }
         progress++;
         log(`▶ [${progress}/${tasks.length}] 앵커 ${task.anchor.id} (${task.anchor.lat.toFixed(3)},${task.anchor.lon.toFixed(3)}) 날짜 ${task.date} 수집 중...`);
         const r = await collectOne(task.anchor, task.date, { log });

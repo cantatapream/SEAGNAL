@@ -39,6 +39,16 @@
    - 오늘~+2일(KST) 앵커 1분 조위곡선을 동시성 풀(앵커 5개씩)로 수집.
    - 롤링 윈도우: 없거나 부분수집(loadedPages<5/failedPages)분만 재호출.
    - 저장: `data/tide_field/curves/{anchorId}_{YYYYMMDD}.json` (curves/ 는 .gitignore).
+   - **새벽·밤 가장자리(2026-10-18)**: TideBED 는 날짜 D 를 물으면 기준 관측소 시각 00:00~23:59 를 주고
+     그 지점 시각(slctdDt)은 조시차만큼 밀린다(한림 +66분 → D 01:06 ~ D+1 01:05). 예전엔 D 몫만 남겨
+     **D 00:00~01:05 가 늘 비었고**, 완전 판정(1300분 이상)은 그 빈칸을 못 봤다. 지금은
+     `services/tide_curve_edges.js` 로 ①옆날 몫(꼬리)을 파일의 `spill` 에 남기고 ②D 를 저장할 때
+     D-1·D+1 파일의 `spill[D]` 로 빈칸을 채우며 ③그래도 15분 넘게 비면 옆날 요청의 한 페이지
+     (앞=전날 5페이지·뒤=다음날 1페이지)만 받는다. 완전 판정에 「처음 분 ≤00:15·마지막 분 ≥23:44」를 더했다.
+     세 수집기(물빠짐·제주 간출암·제주 고립판정)가 같은 함수를 쓴다. 곡선을 읽는 쪽은 `curve` 만 읽는다(바뀐 것 없음).
+   - **기동 보충**: 서버 기동 시(`FLY_ALLOC_ID`) 물빠짐 부트스트랩이 끝나면 제주 두 수집기도 빈 날짜만 채운다
+     (2026-10-18 — 제주 「모레」가 자정~23:30 비던 문제). 세 수집기는 `tide_field_common.runTideBatchExclusive`
+     한 줄에 서고, 23:30 묶음도 같은 줄에 선다(동시 호출 금지).
    - 수동 트리거(운영, 소량 권장):
      ```
      node -e "require('./services/tide_field_collector').collectTideField({limitAnchors:3}).then(console.log)"
@@ -55,6 +65,8 @@
 ## 주의
 - 개발 중 대규모 라이브 수집 금지(쿼터/네트워크). `limitAnchors` 로 소량 검증.
 - TideBED API 키는 `services/tide_collector.js` 가 관리(3키 라운드로빈). 노출 금지.
+- TideBED 요청 1건은 10초(`TIDEBED_TIMEOUT_MS`) 동안 조용하면 끊고, 네트워크 오류·시간 초과면
+  다른 키로 1회만 다시 묻는다(2026-10-18 — 예전엔 시간 제한이 없어 연결이 안 되면 약 2분 넘게 기다렸다).
 
 ## 확장 — 간출암 잠김경고 (hazard_rocks)
 

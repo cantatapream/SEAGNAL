@@ -20,6 +20,7 @@
  * - services/cache_manager.js → tideCache에 결과 저장
  * - peak_finder.js → findTidePeaks() 함수로 고조/저조 분석
  * - routes/tide.js → API 엔드포인트에서 이 모듈의 함수 호출
+ * - (2026-10-18) fetchTideBedPage 시간 제한 TIDEBED_TIMEOUT_MS + 네트워크 오류 시 다른 키로 1회 재시도
  *
  * [초보자를 위한 안내]
  * TideBED API는 공공데이터포털(data.go.kr)에서 제공하는 조석 예측 API입니다.
@@ -41,6 +42,12 @@ const { findTidePeaks } = require('../peak_finder');
 // ============================================================================
 const TIDEBED_CONFIG_FILE = path.join(DATA_DIR, 'tidebed_config.json');
 const TIDEBED_BASE_URL = 'https://apis.data.go.kr/1192136/tidebed/GetTidebedApiService';
+/** TideBED 요청 1건의 시간 제한(ms) — 소켓이 이만큼 조용하면(연결 안 됨·응답 멈춤) 끊는다.
+ *  [근거] 같은 공공데이터포털(apis.data.go.kr) 계열을 부르는 다른 수집기들이 10~15초를 쓴다
+ *  (bulletin_cancel_scanner 10초, marine_client·regional_forecast_collector 15초). 바텀시트는 이 응답을
+ *  기다려 화면을 그리므로 짧은 쪽(10초)을 택했다 — 다른 키로 1회 재시도해도 최악 약 20초.
+ *  ⚠정상 응답 시간은 이 환경에서 잴 수 없었다(apis.data.go.kr 접속 차단) — 운영 로그로 확인할 것. */
+const TIDEBED_TIMEOUT_MS = 10000;
 
 // ============================================================================
 // 사용자 요청 우선 신호 (야간 앵커 수집과 TideBED 키 충돌 회피)
@@ -211,10 +218,18 @@ function pickKeyIndex(excludeIndices) {
  *   throttle/UNKNOWN_ERROR 빈도 감소. 실패 시 그 키를 excludeKeyIndices 에
  *   추가하고 다른 키로 재시도 (실패 키 회피).
  *
+ * [시간 제한·네트워크 재시도 — 2026-10-18]
+ *   예전엔 https.get 에 시간 제한이 없어, 연결이 안 되면 OS 가 포기할 때까지(리눅스 기본 SYN 재시도
+ *   6회 ≈ 127초 + 응답 대기) 사용자 바텀시트가 "불러오는 중"으로 멈췄다(getGridHash 가 응답 전에
+ *   이 함수를 기다린다). 지금은 소켓이 TIDEBED_TIMEOUT_MS 동안 아무것도 주고받지 않으면 끊고,
+ *   연결 오류·시간 초과면 **다른 키로 한 번만** 다시 묻는다(키 하나의 일시 차단과 구분이 안 되므로).
+ *   → 최악 약 2 × 10초 = 20초 뒤 null(호출부는 "격자 확인 불가"·페이지 실패로 처리).
+ *
  * @param {number} retryCount  내부 재귀 카운터 (외부 호출 시 0)
  * @param {number[]} excludeKeyIndices  재시도 시 회피할 키 인덱스 (실패 키)
+ * @param {boolean} netRetried  네트워크 오류로 이미 한 번 다시 물었나(내부용 — 두 번째 오류면 그대로 null)
  */
-async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retryCount = 0, excludeKeyIndices = []) {
+async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retryCount = 0, excludeKeyIndices = [], netRetried = false) {
     if (tideBedConfig.keys.length === 0) {
         console.error('❌ 등록된 TideBED API 키가 없습니다.');
         return null;
@@ -242,12 +257,16 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
     const apiKey = currentKeyData.key;
     const keyLabel = currentKeyData.owner ? `#${keyIdx + 1}(${currentKeyData.owner})` : `#${keyIdx + 1}`;
 
-    return new Promise((resolve) => {
+    return new Promise((resolveOnce) => {
+        // 응답 끝·요청 오류·응답 오류가 겹쳐 와도 결과는 한 번만 낸다(시간 초과로 끊을 때 둘 다 올 수 있다).
+        let settled = false;
+        const resolve = (v) => { if (!settled) { settled = true; resolveOnce(v); } };
         const encodedKey = encodeURIComponent(apiKey);
         const url = `${TIDEBED_BASE_URL}?serviceKey=${encodedKey}&lat=${lat}&lot=${lon}&reqDate=${reqDate}&type=json&min=1&numOfRows=${numOfRows}&pageNo=${pageNo}`;
 
-        https.get(url, (response) => {
+        const req = https.get(url, (response) => {
             let data = '';
+            response.on('error', onNetError);   // 본문을 받다가 끊긴 경우(시간 초과 포함)
             response.on('data', chunk => data += chunk);
             response.on('end', async () => {
                 try {
@@ -255,7 +274,7 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
                         console.warn(`⚠️ TideBED Key ${keyLabel} 제한/오류 — 실패 키 제외하고 다른 키로 재시도`);
                         if (retryCount < tideBedConfig.keys.length) {
                             const newExclude = excludeKeyIndices.concat([keyIdx]);
-                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude);
+                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude, netRetried);
                             return resolve(result);
                         }
                     }
@@ -274,7 +293,7 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
                         console.warn(`⚠️ TideBED Key ${keyLabel} XML 에러 응답 — 실패 키 제외하고 다른 키로 재시도`);
                         if (retryCount < tideBedConfig.keys.length) {
                             const newExclude = excludeKeyIndices.concat([keyIdx]);
-                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude);
+                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude, netRetried);
                             return resolve(result);
                         }
                     }
@@ -282,10 +301,21 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
                     resolve(null);
                 }
             });
-        }).on('error', (err) => {
-            console.error(`❌ TideBED Page ${pageNo} (Key ${keyLabel}) request error:`, err.message);
-            resolve(null);
         });
+        // 연결·응답이 TIDEBED_TIMEOUT_MS 동안 멈추면 끊는다 → 아래 'error' 로 간다.
+        req.setTimeout(TIDEBED_TIMEOUT_MS, () => req.destroy(new Error(`timeout ${TIDEBED_TIMEOUT_MS}ms`)));
+        req.on('error', onNetError);
+        // 네트워크 오류·시간 초과 → 다른 키로 1회만 다시(키가 1개뿐이면 같은 키로 1회). 두 번째도 실패면 null.
+        async function onNetError(err) {
+            if (settled) return;
+            console.error(`❌ TideBED Page ${pageNo} (Key ${keyLabel}) request error:`, err && err.message);
+            if (!netRetried) {
+                settled = true;   // 이 요청의 결과는 재시도 결과로 낸다
+                const newExclude = tideBedConfig.keys.length > 1 ? excludeKeyIndices.concat([keyIdx]) : excludeKeyIndices;
+                return resolveOnce(await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude, true));
+            }
+            resolve(null);
+        }
     });
 }
 
@@ -618,6 +648,7 @@ module.exports = {
     saveTideBedConfig,
     rotateTideBedKey,
     fetchTideBedPage,
+    TIDEBED_TIMEOUT_MS,
     collectTideBedData,
     collectTideBedPages,   // 페이지 셀렉터 (boundary 최적화) 지원 신규 API
     getGridHash,

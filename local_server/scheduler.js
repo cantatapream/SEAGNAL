@@ -2842,33 +2842,27 @@ async function init() {
         //   최초 실행=자동 3일, 이후 1일/일. anchors.json 미존재 시 모듈이 안전 skip.
         //   fire-and-forget — 다른 작업/사이클을 막지 않음. 내부 동시성 5앵커 제한.
         if (hm === '23:30') {
-            log('🌊 TideBED 앵커 곡선 수집 시작 (서해·남해, 오늘~+2일, KST)...');
-            tideFieldCollector.collectTideField({ log })
-                .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (서해·남해): ${JSON.stringify(r)}`))
-                .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (서해·남해): ${err.message}`))
-                .finally(() => {
-                    // [간출암 잠김경고] 제주 앵커 수집 — 물빠짐과 동일 TideBED 키를
-                    //   쓰므로 동시 발사를 피해 물빠짐 완료 직후 이어서 실행한다.
-                    log('🌊 TideBED 앵커 곡선 수집 시작 (제주)...');
-                    hazardRocksTideCollector.collectHazardRockTides({ log })
-                        .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (제주): ${JSON.stringify(r)}`))
-                        .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주): ${err.message}`))
-                        .finally(() => {
-                            // [노출암 고립판정] 제주 촘촘 격자 앵커 수집 — 같은 TideBED
-                            //   키를 쓰므로 위 제주 간출암 수집 직후 이어서(순차) 실행한다.
-                            log('🌊 TideBED 앵커 곡선 수집 시작 (제주 고립판정 격자)...');
-                            jejuIsolationTideCollector.collectJejuIsolationTides({ log })
-                                .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (제주 고립판정 격자): ${JSON.stringify(r)}`))
-                                .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주 고립판정 격자): ${err.message}`))
-                                .finally(() => {
-                                    // [간출암 잠김경고] 곡선이 갱신됐으니 잠김 교차시각도 재계산.
-                                    //   무거운 스캔(분단위×3일×전체 암초)이라 배치당 1회만 수행.
-                                    log('⏱️ 간출암 잠김 교차시각 재계산 시작...');
-                                    hazardRocksSubmersion.computeAllCrossings({ log })
-                                        .catch(err => log(`⚠️ 간출암 잠김 교차시각 계산 오류: ${err.message}`));
-                                });
-                        });
-                });
+            // [줄세우기 — 2026-10-18] 서버 기동 보충(server.js — 물빠짐 → 제주 두 수집기)과 같은 줄에 선다
+            //   (tide_field_common.runTideBatchExclusive). 기동 보충이 도는 중이면 끝난 뒤 시작한다 —
+            //   예전엔 서해·남해가 「이미 진행 중」으로 건너뛰자마자 제주 수집이 시작돼 키를 동시에 썼다.
+            //   순서·로그는 종전과 같다: 서해·남해 → 제주 간출암 → 제주 고립판정 격자 → 잠김 교차시각.
+            require('./services/tide_field_common').runTideBatchExclusive(async () => {
+                log('🌊 TideBED 앵커 곡선 수집 시작 (서해·남해, 오늘~+2일, KST)...');
+                try { log(`✅ TideBED 앵커 곡선 수집 결과 (서해·남해): ${JSON.stringify(await tideFieldCollector.collectTideField({ log }))}`); }
+                catch (err) { log(`⚠️ TideBED 앵커 곡선 수집 오류 (서해·남해): ${err.message}`); }
+                // [간출암 잠김경고] 제주 앵커 수집 — 물빠짐과 동일 TideBED 키를 쓰므로 물빠짐 완료 직후 이어서.
+                log('🌊 TideBED 앵커 곡선 수집 시작 (제주)...');
+                try { log(`✅ TideBED 앵커 곡선 수집 결과 (제주): ${JSON.stringify(await hazardRocksTideCollector.collectHazardRockTides({ log }))}`); }
+                catch (err) { log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주): ${err.message}`); }
+                // [노출암 고립판정] 제주 촘촘 격자 앵커 수집 — 같은 키, 위 제주 간출암 수집 직후 이어서.
+                log('🌊 TideBED 앵커 곡선 수집 시작 (제주 고립판정 격자)...');
+                try { log(`✅ TideBED 앵커 곡선 수집 결과 (제주 고립판정 격자): ${JSON.stringify(await jejuIsolationTideCollector.collectJejuIsolationTides({ log }))}`); }
+                catch (err) { log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주 고립판정 격자): ${err.message}`); }
+                // [간출암 잠김경고] 곡선이 갱신됐으니 잠김 교차시각도 재계산(분단위×3일×전체 암초 — 배치당 1회).
+                log('⏱️ 간출암 잠김 교차시각 재계산 시작...');
+                try { await hazardRocksSubmersion.computeAllCrossings({ log }); }
+                catch (err) { log(`⚠️ 간출암 잠김 교차시각 계산 오류: ${err.message}`); }
+            });
         }
 
         if (process.env.FLY_ALLOC_ID) {

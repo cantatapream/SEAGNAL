@@ -31,6 +31,7 @@
  *   - peak_finder.js → 곡선 요약(피크) 산출
  *   - scheduler.js → KST 23:30 1일 1회 호출
  *   - routes/tide_field.js → 저장된 곡선을 읽어 η(t) 보간
+ *   - services/tide_curve_edges.js → 새벽·밤 가장자리 메우기·완전 판정(2026-10-18)
  * ============================================================================
  */
 
@@ -44,6 +45,7 @@ const C = require('./tide_field_common');
 const CFG = C.TIDE_FIELD_CONFIG;
 const { findTidePeaks } = require('../peak_finder');
 const prevPeaks = require('./hazard_rocks_prev_peaks');
+const Edges = require('./tide_curve_edges');
 
 // tide_collector 는 server_config(→dotenv/express) 체인을 끌어온다. 실제 수집
 // 시점에만 필요하므로 lazy-require 로 둔다. 덕분에 helper(날짜/경로/완전성)만
@@ -157,21 +159,13 @@ function purgeStaleCurves(logFn) {
 
 /**
  * (앵커,날짜) 가 이미 완전 수집되었는지 판정.
- * 완전 = 파일 존재 + loadedPages 5개 + failedPages 없음 + 곡선 길이 충분.
+ * 완전 = 파일 존재 + loadedPages 5개 + failedPages 없음 + 곡선 길이 충분(1300분)
+ *        + 새벽·밤 가장자리 빈칸 15분 이하(2026-10-18 추가 — services/tide_curve_edges.isFullDay).
+ * [왜] 1300분 기준만으로는 조시차만큼 새벽(예: 00:00~01:05)이 비어도 "완전"이라 다시 받지 않았다.
  */
 function isComplete(anchorId, yyyymmdd) {
-    const p = curvePath(anchorId, yyyymmdd);
-    if (!fs.existsSync(p)) return false;
-    try {
-        const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-        const lp = Array.isArray(j.loadedPages) ? j.loadedPages.length : 0;
-        const fp = Array.isArray(j.failedPages) ? j.failedPages.length : 0;
-        const ok = j.status === 'complete' && lp >= 5 && fp === 0 &&
-            Array.isArray(j.curve) && j.curve.length >= 1300;
-        return ok;
-    } catch (e) {
-        return false;
-    }
+    const j = Edges.readJson(curvePath(anchorId, yyyymmdd));
+    return !!j && j.status === 'complete' && Edges.isFullDay(j);
 }
 
 // ============================================================================
@@ -313,6 +307,23 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     // 수집에 사용할 좌표(기본=앵커). no_grid 보정(nudge) 시 인근 격자 좌표로 교체.
     let cLat = qLat, cLon = qLon, nudged = null;
 
+    // [새벽 빈칸 메우기 — 2026-10-18] 옆날 파일의 spill 을 먼저 쓰고, 모자라면 옆날 한 페이지만 받는다
+    //   (services/tide_curve_edges.js). 옆날 페이지도 하루치와 같은 좌표(보정됐으면 보정 좌표)로 받는다.
+    const edgeIo = (lat, lon) => ({
+        readNeighbor: (ymd) => Edges.readJson(curvePath(anchor.id, ymd)),
+        fetchPage: (reqYmd, page) => collectTideBedPages(lat, lon, String(reqYmd), [page]).then(r => r && r.items)
+    });
+    // 하루치는 이미 받았고 가장자리만 빈 파일이면(예: 이 수정 전에 받은 파일) 하루치를 다시 받지 않는다.
+    const reuse = opts.force ? null : Edges.reusableOwnDay(Edges.readJson(curvePath(anchor.id, yyyymmdd)));
+    if (reuse) {
+        const at = reuse.nudgedTo || { lat: qLat, lon: qLon };
+        const filled = await Edges.fillEdges(reuse.curve, yyyymmdd, edgeIo(at.lat, at.lon));
+        const rec = { ...reuse, curve: filled.curve, count: filled.curve.length };
+        const complete = Edges.isFullDay(rec);
+        writeCurve(anchor, yyyymmdd, { ...rec, status: complete ? 'complete' : 'partial' });
+        return { anchorId: anchor.id, date: yyyymmdd, status: complete ? 'complete' : 'partial', count: rec.count, edgeOnly: true };
+    }
+
     // (선택) 격자 제공 해역 검증 — TideBED 미제공이면 인근 격자로 보정, 실패 시 skip.
     if (verifyGrid) {
         let hash = null;
@@ -346,21 +357,14 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
         return { anchorId: anchor.id, date: yyyymmdd, status: 'failed', count: 0 };
     }
 
-    // 해당 날짜 레코드만 추출 + 1분 곡선 [{t:'HH:MM', h(cm)}] 으로 경량화
-    const dayItems = (items || []).filter(it => {
-        const dt = it.slctdDt || it.obsrvnDt || '';
-        return dt.startsWith(isoDate);
-    });
-    const curve = dayItems.map(it => {
-        const dt = it.slctdDt || it.obsrvnDt;
-        const hhmm = dt.includes(' ') ? dt.split(' ')[1].slice(0, 5) : dt.slice(11, 16);
-        const h = parseFloat(it.slctdHgt != null ? it.slctdHgt : it.obsrvnHgt);
-        return { t: hhmm, h: isNaN(h) ? null : h };
-    }).filter(p => p.h != null).sort((a, b) => a.t.localeCompare(b.t));
+    // 해당 날짜 레코드만 추출 + 1분 곡선 [{t:'HH:MM', h(cm)}] 으로 경량화.
+    //   옆날 몫(조시차만큼 넘친 꼬리)은 버리지 않고 spill 로 남겨 옆날 파일의 새벽·밤 빈칸을 메운다.
+    const split = Edges.splitByDay(items, yyyymmdd);
+    const curve = (await Edges.fillEdges(split.curve, yyyymmdd, edgeIo(cLat, cLon))).curve;
 
     const peaks = findTidePeaks(items || [], isoDate);
 
-    const complete = loadedPages.length >= 5 && failedPages.length === 0 && curve.length >= 1300;
+    const complete = Edges.isFullDay({ loadedPages, failedPages, curve });
     const rec = {
         status: complete ? 'complete' : 'partial',
         loadedPages, failedPages,
@@ -372,6 +376,7 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
         },
         // 보정된 경우 실제 수집 좌표 기록(디버그/투명성). 라우트는 앵커 원위치로 보간.
         ...(nudged ? { nudgedTo: { lon: cLon, lat: cLat } } : {}),
+        spill: split.spill,
         curve
     };
     writeCurve(anchor, yyyymmdd, rec);
