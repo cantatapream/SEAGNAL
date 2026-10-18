@@ -1590,7 +1590,10 @@
         //   2026-10-18 「데이터 출처 보기」 아코디언 삭제 *"데이터 출처보기 버튼을 별도 아코디언으로 한다기보다 뺴줘. 어차피 기준 상세에 들어가 있잖아."* — 같은 SOURCES 표가 [기준 상세](station_briefing_basis.js)에 있다.
         var foot = el('div', 'sb-foot');
         var nt = el('p', 'sb-notice'); nt.setAttribute('data-sb-notice', '');
-        nt.textContent = '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.';   // 2026-10-18 *"한줄로 표출해주되, 어절단위로 줄바꿔줘"* — 강제 줄바꿈(br) 없이 한 문장, 넘치면 어절에서(.sb-notice keep-all)
+        // §11.10.28 사용자 *"텍스트 크기 3포인트정도 크게 해줘. 그리고 볼드는 빼고 텍스트 맨앞에 당구장 표시 처럼 뭔가 나와있으면 좋겠어."* — 「※」 칸 + 글 칸(.sb-notice flex — 둘째 줄이 ※ 뒤 글자 시작에)
+        var nk = el('span', 'sb-notice-k', '※'); nk.setAttribute('aria-hidden', 'true'); nt.appendChild(nk);
+        var nx = el('span', 'sb-notice-t'); nt.appendChild(nx);
+        nx.textContent = '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.';   // 2026-10-18 *"한줄로 표출해주되, 어절단위로 줄바꿔줘"* — 강제 줄바꿈(br) 없이 한 문장, 넘치면 어절에서(.sb-notice keep-all)
         foot.appendChild(nt);
         box.appendChild(foot);
     }

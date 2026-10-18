@@ -471,7 +471,7 @@ function makeBriefings() {
             assert.ok(s.constant.startsWith('상시 위험 장소'));
             assert.ok(s.gauge, '오늘 판이라 해양종합정보와 같은 진행 게이지'); assert.equal(s.peaks, 4); assert.ok(s.tideText[0].includes('저조 뒤부터 물이 차오릅니다'), s.tideText[0]);
             // §11.10.20: 「기준 시각 … 판」·「다루는 시간」 줄 없음 · 노란 안내(옛 「참고 정보이며 …」 대체) · 2026-10-18 「데이터 출처 보기」 삭제(출처는 [기준 상세]에만)
-            assert.equal(s.foot, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.', s.foot);
+            assert.equal(s.foot, '※각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.', s.foot);   // §11.10.28 앞 「※」 칸
             assert.equal(s.edition, '10월 17일 13:10 기준 브리핑 (다음 갱신 17:30 또는 특보 변경 시)', '§11.10.9 ⑦ — 판 종류·생성 시각 없이, 제목과 같은 시각 + 다음 갱신');
             assert.ok(s.title.startsWith(/\d{2}:\d{2}/.exec(s.edition)[0] + ' '), '제목 시각 = 머리 글 시각 — ' + s.title);
             await page.evaluate(() => { document.querySelectorAll('#station-briefing-content button[data-sb-x^="basis-"]').forEach((x) => { if (x.getAttribute('aria-expanded') === 'true') x.click(); }); });
@@ -1906,10 +1906,17 @@ function makeBriefings() {
         });
         await check('[§11.10.20-UI3] 맨 아래 — 「기준 시각」·「다루는 시간」 줄 없음 · 「데이터 출처 보기」 없음(2026-10-18 삭제 — 출처는 [기준 상세]) · 노란 안내 한 문장(br 없음 · 어절 단위 줄바꿈 keep-all) 「각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.」 · 옛 판(b.notice 옛 글)도 새 안내 · 360px 넘침 없음', async () => {
             const old = JSON.parse(JSON.stringify(G)); old.notice = '참고 정보이며 안전을 보장하지 않습니다.'; await draw20(old);
-            const r = await L20.evaluate(() => { const f = document.querySelector('#sb20 .sb-foot'), nt = f.querySelector('[data-sb-notice]'), o = { src: document.querySelectorAll('#sb20 button[data-sb-x="sources"], #sb20 [data-sb-sources], #sb20 .sb-src-tbl').length, kids: [...f.children].map((x) => x.className), noteBr: nt.querySelectorAll('br').length, note: nt.textContent, wb: getComputedStyle(nt).wordBreak, color: getComputedStyle(nt).color, w: getComputedStyle(nt).fontWeight, text: f.textContent };
+            const r = await L20.evaluate(() => { const f = document.querySelector('#sb20 .sb-foot'), nt = f.querySelector('[data-sb-notice]'), o = { src: document.querySelectorAll('#sb20 button[data-sb-x="sources"], #sb20 [data-sb-sources], #sb20 .sb-src-tbl').length, kids: [...f.children].map((x) => x.className), noteBr: nt.querySelectorAll('br').length, note: nt.querySelector('.sb-notice-t').textContent, wb: getComputedStyle(nt).wordBreak, color: getComputedStyle(nt).color, w: getComputedStyle(nt).fontWeight, text: f.textContent,
+                    kids2: [...nt.children].map((x) => [x.className, x.className === 'sb-notice-k' ? x.textContent + '|' + x.getAttribute('aria-hidden') : '']), fs: parseFloat(getComputedStyle(nt).fontSize), lh: parseFloat(getComputedStyle(nt).lineHeight) };
+                const tx = nt.querySelector('.sb-notice-t'), kL = nt.querySelector('.sb-notice-k').getBoundingClientRect().left, rt = document.createRange(); rt.selectNodeContents(tx);
+                o.lefts = [...new Set([...rt.getClientRects()].filter((q) => q.width > 0.5).map((q) => Math.round(q.left)))]; o.tL = Math.round(tx.getBoundingClientRect().left); o.kL = Math.round(kL);
                 const rg = document.createRange(); rg.selectNodeContents(nt); o.lines = new Set([...rg.getClientRects()].map((x) => Math.round(x.top))).size; o.over = f.scrollWidth - f.clientWidth; o.page = document.documentElement.scrollWidth; o.vw = innerWidth; return o; });
             assert.deepEqual([r.src, r.kids], [0, ['sb-notice']], '출처 버튼·표 없음 → 안내만');
-            assert.deepEqual([r.noteBr, r.note, r.wb, r.color, r.w], [0, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.', 'keep-all', 'rgb(255, 210, 63)', '700'], '노란 안내 한 문장(옛 판 b.notice 대신)');
+            assert.deepEqual([r.noteBr, r.note, r.wb, r.color, r.w], [0, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.', 'keep-all', 'rgb(255, 210, 63)', '400'], '노란 안내 한 문장(옛 판 b.notice 대신) · §11.10.28 굵게 뺌');
+            // §11.10.28 *"텍스트 크기 3포인트정도 크게 … 볼드는 빼고 텍스트 맨앞에 당구장 표시 처럼"* · *"줄간격을 좀 더 좁혀줘 지금의 1/2정도로"* — 약 16.5px · 줄높이 약 21px · 「※」 칸 + 글 칸(둘째 줄도 ※ 뒤 글자 시작)
+            assert.deepEqual(r.kids2, [['sb-notice-k', '※|true'], ['sb-notice-t', '']], '「※」 칸 + 글 칸');
+            assert.ok(Math.abs(r.fs - 16.5) < 0.3 && Math.abs(r.lh - 21) < 0.5, '글자 약 16.5px·줄높이 약 21px ' + r.fs + '/' + r.lh);
+            assert.ok(r.lines >= 2 && r.tL > r.kL && r.lefts.length === 1 && r.lefts[0] === r.tL, '줄마다 글 칸 시작(※ 오른쪽) ' + JSON.stringify([r.kL, r.tL, r.lefts]));
             assert.ok(!/기준 시각|다루는 시간|참고 정보이며|출처:|데이터 출처 보기/.test(r.text), r.text);
             assert.equal(r.over, 0); assert.ok(r.page <= r.vw + 1); console.log('    안내 줄 수(360px):', r.lines);
             await L20.evaluate(() => document.querySelector('#sb20 .sb-foot').scrollIntoView({ block: 'center' })); await clean(L20);
