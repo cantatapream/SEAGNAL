@@ -1,10 +1,13 @@
 /* ============================================================================
  * 파일명: client/js/forecast/station-briefing/station_briefing.css
  * 역할  : 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 아코디언 본문·설정 흐름(관할 고르기 탭 두 개·해역 단추·관할 지도·아코디언 포함)·설정 팝업 칸의 모양(.sb-*).
- *         바깥 아코디언(.main-accordion-header·.gradient-slate)·안쪽 칸(.marine-forecast-sub-*)·
+ *         바깥 아코디언(.main-accordion-header — 머리 색만 여기 .gradient-briefing, §11.10.35)·안쪽 칸(.marine-forecast-sub-*)·
  *         [기준 상세] 버튼·창(.rf-basis-btn·.rf-basis)은 기존 규칙(style.css·risk_forecast.css)을 그대로 쓰고 여기서는 다시 정하지 않는다.
  * [연계] station_briefing_render.js · station_briefing.js · station_briefing_picker.js(고르기 탭·가운데 확인 창 .sb-dlg*) · admin/admin_station_briefing.js(미리보기) · index2.html <link>
  * ============================================================================ */
+/* §11.10.35 바깥 아코디언 머리 색 — 청록. 바로 위 「기상청 해상 기상 전망」(회색 .gradient-slate)과 구분.
+   빨강(특보)·초록(특보 없음)·파랑(기상현황)·노랑/주황(발표 배지)과 겹치지 않게 고른 색. 제목 오른쪽 beta 뱃지는 style.css .adv-beta-badge 그대로. */
+.main-accordion-header.gradient-briefing { background:linear-gradient(90deg, #10292b 0%, #0f6e6a 100%); border-color:rgba(45,212,191,.3); }
 .sb-wrap { display:flex; flex-direction:column; gap:12px; color:#e2e8f0; font-size:.86rem; line-height:1.55; word-break:keep-all; overflow-wrap:anywhere; }
 .sb-meta { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
 .sb-meta-text { display:flex; flex-direction:column; gap:2px; min-width:0; }

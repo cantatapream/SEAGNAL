@@ -110,9 +110,12 @@ body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn
 .rf-map-legend { display:flex; flex-direction:column; gap:3px; color:#e6edf8; font-size:.74rem; padding:5px 8px; background:rgba(10,15,28,.94); border:1px solid var(--border-color); border-radius:10px; }
 .rf-map-legend span { display:flex; align-items:center; gap:5px; }
 .rf-banner { position:absolute; bottom:10px; left:8px; right:8px; z-index:440; background:#132342ed; color:#e6edf8; padding:7px 10px; border-radius:8px; font-size:.75rem; pointer-events:none; }
-.rf-modal { position:fixed; z-index:11000; inset:0; background:rgba(4,8,18,.72); display:flex; align-items:flex-end; justify-content:center; }
+/* 기준 상세 창은 화면 아래에 붙이지 않고 가운데 떠 있는 창(사방 둥근 모서리 + 위아래 여백) — 아래 끝이 보이게(2026-10-18 사용자 「아래 범위를 한정」, 설계서 §11.10.35).
+   종전(아래 붙은 시트·88vh)은 PC 화면에서 창 아래 끝이 화면 끝에 닿아 끝없이 이어지는 것처럼 보였다.
+   좌우 여백은 두지 않는다(휴대폰 폭에서 창 너비·줄바꿈은 종전 그대로 — 폭은 .rf-basis max-width:600px). */
+.rf-modal { position:fixed; z-index:11000; inset:0; background:rgba(4,8,18,.72); display:flex; align-items:center; justify-content:center; padding:max(16px, env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) max(16px, env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px); }
 /* 기준 상세 창: 제목+닫기는 스크롤 밖 고정 머리(.rf-basis-head), 내용만 .rf-basis-body 에서 스크롤(2026-10-16 T8 「스크롤에 관계없이 고정」). 구조는 risk_basis.js open 이 만든다. */
-.rf-basis { width:100%; max-width:600px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; border-radius:20px 20px 0 0; background:linear-gradient(180deg,#0c1a3a,#162d5a); font-size:.82rem; line-height:1.6; color:#e6edf8; word-break:keep-all; overflow-wrap:break-word; }
+.rf-basis { width:100%; max-width:600px; max-height:min(80vh, 100%); display:flex; flex-direction:column; overflow:hidden; border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,.45); background:linear-gradient(180deg,#0c1a3a,#162d5a); font-size:.82rem; line-height:1.6; color:#e6edf8; word-break:keep-all; overflow-wrap:break-word; }
 .rf-basis-head { flex:none; display:flex; align-items:center; gap:10px; padding:14px 16px 10px; border-bottom:1px solid rgba(255,255,255,.12); }
 .rf-basis-head h3 { flex:1 1 auto; min-width:0; }
 .rf-basis-body { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:2px 16px 20px; }
