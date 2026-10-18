@@ -319,6 +319,12 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - 보관: 검사 탈락 오류에 검사가 본 AI 글(`text.land`·`text.sea`, 문단마다 1,000자까지)과 그 관할 허용 숫자·배수(`allowed`)를 함께 남긴다 — 오류와 같은 3일, 글 실린 오류는 최근 1,000건만(그 전은 `textDropped`). 관리자 「AI 브리핑」 [복사]·[md로 저장] 표 아래 「탈락한 AI 글」 절. 화면 목록은 그대로.
 - `index2.html` `admin_station_briefing.js` `?v=20261018sb21`.
 
+## AI 검사 — 「‧」(U+2027) 가운뎃점 · 「N해역」 보정 (2026-10-18 — 설계서 §11.10.37, 검증 `sb-validate-v15`)
+
+- 운영 21:10 「특보 변경 판」: 새만금파출소 4번 모두 `place:선유도`(관광지 「무녀도‧선유도」의 가운뎃점이 U+2027 이라 허용 이름을 못 나눔 — 검사 오판) → 나누는 글자에 `‧` 추가.
+- 영광파출소 `number:3.4`(AI 가 「3.4해리 해역」을 「3.4해역」으로 줄여 씀) → `polishOverview` 가 검사 전에 「3.4해리 해역」으로 고침.
+- 새만금 4번째 `number:20m/s`(기상청 통보문 숫자)는 검사가 맞다 — 그대로.
+
 ## 시험
 
 `local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES) — 실제 Chromium 으로 index2.html 전체를 띄워 일반·관리자 기기, 설정 흐름, 본문 상태(「가」 모양·제목 시각·규칙 분석·옛 브리핑 대체(§11.10.1·§11.10·그 전)), textContent, 바로가기, N 뱃지, [기준 상세], 관리자 「AI 브리핑」 탭(오류 목록 [복사]·[md로 저장] 포함), 관할 확인 창(취소·Esc·바깥·뒤로가기·늦은 click 무시)·해상/연안 칸 한 줄(360px)을 본다.
@@ -400,3 +406,11 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - 위험예측 배경 부품이 없을 때(모듈 로드 실패 — `StationBriefingRiskMap.ready()` 거짓)의 종전 지도는 위험예측 자료가 없어 브리핑 묶음
   (`briefing.ships_map`·`briefing.busiest_map`·`briefing.basis_map`).
 - 시험: `local_server/scripts/test_usage_briefing_risk_ui.js`(실제 Chromium 클릭 → POST /api/usage 키·건수) · `test_usage_keys.js`(발신 키 ⊂ 이름표 · 묶음 앞말).
+
+## 연안 카드 해수욕장 안내 줄 (2026-10-18 — 설계서 §18)
+
+> 사용자 원문: *"입수한 사람이 있을 수 있다는 알림 문구"* · *"개장 일정 폐장 일정 관련해서는 해수부를 기준으로만"* (전체 결정 표는 설계서 §18.1)
+
+- 서버 `routes/station_briefing.js` 가 `GET /api/station-briefing`(·관리자 미리보기) 응답에 `beach` = `{관광지 id: [줄]}`(브리핑 날짜, 연안 카드 관광지만 — `services/beach_weather.js` `linesForSpots`)를 **응답 때** 붙인다. 저장된 판·규칙 판(v23)·AI 입력(`station_briefing_ai.js`)은 그대로.
+- 화면 `station_briefing_render.js` `beachBox`: 연안 카드 [오늘 예상] 바로 아래, [권고] 위 — 하늘색 왼쪽 줄 상자(`.sb-beach`·`.sb-beach-line`, `station_briefing.css`), 서버 글 그대로(textContent). 옛 판 카드(규칙 v19 전)도 [오늘 예상] 아래.
+- `index2.html` `station_briefing_render.js`·`station_briefing.css` ?v=20261018beach. 시험 `local_server/scripts/test_beach_weather.js`(라우트 — 카드 관광지만·저장 판 안 고침).

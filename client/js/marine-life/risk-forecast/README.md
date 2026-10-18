@@ -436,6 +436,16 @@
 
 - `risk_sheet.js` `dayNotices` 특보 머리: 「풍랑주의보 발효 중 — 13일 03~06시 해제 예고.」(발표 시각 없음). 발효 예정·해제 예고 시각은 그대로.
 
+## 연안 시트 해수욕장 안내 줄 — 2026-10-18 (설계서 §18)
+
+> 사용자 원문: *"기상청에 등록된 해수욕장이 있으니까 비지정 포함해서 그 정보를 모두 받아볼 수 있도록 하고 … 기상청 해수욕장 데이터와 기상을 고려해서 입수가 괜찮은지 … 입수한 사람이 있을 수 있다는 알림 문구"* · *"개장 일정 폐장 일정 관련해서는 해수부를 기준으로만"* · *"3km로 하면 될것 같고"*
+
+- 관광지에서 3km 안 가장 가까운 기상청 해수욕장 1곳(정적 표 `config/coastal_safety/beach_weather_static.json`)의 그날 낮 09~18시 예보와 수온으로 입수 참고 줄, 해수부 개장 일정이 있으면 개장 줄(개장 줄 → 입수 줄). **위험지수·단계에는 들지 않는다.**
+- 서버: `GET /api/risk-forecast/coast/spot` 응답에 `beach`(시트 날짜 `daily.date` 의 줄 배열 — `services/beach_weather.js` `linesFor`). 안내 함수가 실패해도 상세는 그대로(`beach: []`). 수집은 `services/beach_weather_collector.js`(발표 15분 뒤 하루 8번, 운영만).
+- 화면: `risk_sheet.js` `beachBox` — 특보·표류 주황 상자 바로 아래 하늘색 상자(`.rf-beach`·`.rf-beach-line`, `risk_forecast.css`), 서버 글 그대로(escape). 줄이 없으면 상자도 없다(「정보 없음」 같은 말 없음). 날짜 < > 로 오늘·내일 각각.
+- `index2.html` `risk_sheet.js`·`risk_forecast.css` ?v=20261018beach.
+- 판단 규칙·확정 문구·수온 순서(부이 → 소해구 예보 → 없음)·오래된 값 숨김·미결: 설계서 §18. 시험 `local_server/scripts/test_beach_weather.js`.
+
 ## 연안 표류 안내 대상 말 — 달로 나눔 (2026-10-18 — 설계서 §11.10.36)
 
 > 사용자 원문: *"6월 ~ 9월이 좋겠어. 튜브, 물놀이기구. 나머지는 소형보트, 레저기구 등이라고 표현 하자."*

@@ -512,6 +512,9 @@ app.listen(PORT, '0.0.0.0', () => {
             try { require('./services/' + name).start(); }
             catch (_) { console.error('[startup] 위험예측 수집기 시작 실패:', name); }
         }
+        // 기상청 해수욕장 단기예보·수온 — 운영에서만 발표 15분 뒤(02:15·05:15·…·23:15 KST) 419곳(설계서 §18, 2026-10-18)
+        try { require('./services/beach_weather_collector').start(); }
+        catch (_) { console.error('[startup] 해수욕장 날씨 수집기 시작 실패'); }
         // 활동지점 안전 브리핑 — 운영에서만 1분 점검(08:00·17:30·23:00 KST + 특보 변경). 시작 때 계산·외부 호출은 없다(첫 점검 1분 뒤).
         try { require('./services/station_briefing').start(); }
         catch (_) { console.error('[startup] 활동지점 안전 브리핑 시작 실패'); }

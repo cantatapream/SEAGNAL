@@ -125,7 +125,7 @@ SUITES=(test_child_relevance test_child_unknown_gate test_child_confirm test_ef_
   test_risk_points test_risk_time test_risk_score_sea test_risk_score_coast test_risk_static test_coast_accidents test_risk_geo
   test_risk_format test_risk_preview test_risk_lifecycle test_risk_map_layer
   test_risk_collectors test_risk_store test_tour_concentration_daily test_risk_missing_notice test_risk_store_file_cache test_risk_errors test_risk_errors_ui test_risk_errors_filter_ui test_data_collection_status test_collect_fail_alert test_data_collection_ui test_zone_forecast_guard test_risk_history_sources test_risk_routes test_risk_accident test_marine_fusion test_marine_ui test_risk_basemap test_risk_main_time test_risk_sheet_ui test_risk_sea_sheet_ui test_risk_station_label test_realtime_tolerant test_traffic_history test_sea_traffic_profile test_no_mtis_web test_root_deps test_slow_request_log test_risk_map_wait test_life_safety_tab_keep test_risk_select_motion test_risk_coast_day test_station_briefing test_station_briefing_ui test_risk_goto_frame test_usage_briefing_risk_ui
-  test_location_dispatch_reliability test_forecast_gear_ui test_smallzone_forecast test_marine_smallzone_ui)
+  test_location_dispatch_reliability test_forecast_gear_ui test_smallzone_forecast test_marine_smallzone_ui test_beach_weather)
 for suite in "${SUITES[@]}"; do
   f="local_server/scripts/${suite}.js"
   if [ ! -f "$f" ]; then echo "  ❌ 없음 $f"; fail "스위트 $suite — 파일 없음"; continue; fi

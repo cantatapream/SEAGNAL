@@ -15,6 +15,7 @@
  *         §11.10.3(2026-10-17): (물때) 아래 (고립 주의) 「사고 지점(N개소)」 표 펼침 · 해상 근거 ▸ 미니 지도(관할 경계 + 칸·해구 테두리 깜빡임 — 접기·떼기·움직임 줄이기) · [기준 상세] 「해상 근거 읽는 법」.
  *         §11.10.4(2026-10-17): 제목 「HH:MM AI 연안 안전 브리핑」 · 「가」 모양(결론 → 분석 문단(이름표 AI 분석·규칙 분석) → 접힌 「연안/해상 분석 근거」 → (기상) → (물때)) · 칩 「연안 ○○ 필요」 ·
  *         지금 밀집 줄은 해상 분석 아래 · 관리자 미리보기 공개 예정 판 「예정」 · 오류 시도 번호 · 이름 바꿈.
+ *         §18(2026-10-18): 연안 카드 해수욕장 안내 줄(응답 beach — [오늘 예상] 아래·[권고] 위, beach_briefing_card_360.png·beach_briefing_screen_360.png).
  *         §11.10.33(2026-10-18): [기준 상세] 모양 — 문장마다 「•」 줄 · 「위험 단계」 표(브리핑 색) · 넘친 줄만 자간 줄임(360·412px, basis_points_<폭>.png · basis_bands_<폭>.png).
  *         380px·1280px 스크린샷을 SB_SHOT_DIR(없으면 임시 폴더)에 남긴다(펼친 지도 briefing_sea_map_380.png · 고립 표 briefing_isolation_380.png · 새 모양 briefing_layout_380.png·briefing_layout_open_380.png 포함).
  * ----------------------------------------------------------------------------
@@ -2210,6 +2211,27 @@ function makeBriefings() {
             for (const [n, f] of [['모충사', 'land_mochungsa_360.png'], ['이호테우해변', 'land_ihotaewoo_360.png']]) {
                 const loc = L20.locator('#sb20 [data-sb-card="land"]', { hasText: n }); await loc.scrollIntoViewIfNeeded(); await clean(L20); await loc.screenshot({ path: path.join(SHOT, f) });
             }
+        });
+        await check('[§18] 연안 카드 해수욕장 안내 줄(응답 beach[관광지 id]) — [오늘 예상] 바로 아래·[권고] 위 하늘색 상자 · 서버 글 그대로(textContent) · beach 없는 카드는 상자 없음 · 360px 넘침 없음', async () => {
+            const CLEAN = { '50110|이호테우해변': ['이호테우해수욕장이 개장 기간(7.1~8.31)이라 사람이 많이 몰릴 수 있습니다.', '이호테우해수욕장 — 수온 19℃ · 낮 최고 24℃로 물놀이하기에 아주 좋은 날씨는 아니지만, 바닷물에 들어가는 사람이 있을 수 있습니다.'] };
+            const BEACH = { '50110|이호테우해변': [CLEAN['50110|이호테우해변'][0], CLEAN['50110|이호테우해변'][1] + XSS] };
+            const drawB = (beach) => L20.evaluate(({ bb, now, beach }) => { const R = window.StationBriefingRender, c = document.getElementById('station-briefing-content'); c.textContent = ''; const box = document.createElement('div'); box.className = 'sb-wrap'; box.id = 'sb20'; c.appendChild(box);
+                R.render(box, { ok: true, briefing: bb, beach }, { now, onLink: () => {} }); box.querySelectorAll('.sb-sec:not(.open)').forEach((x) => x.classList.add('open')); box.querySelectorAll('[role="tabpanel"][hidden]').forEach((x) => { x.hidden = false; }); }, { bb: G, now: clock.now, beach });
+            await drawB(BEACH);
+            const r = await L20.evaluate(() => { const cards = [...document.querySelectorAll('#sb20 [data-sb-card="land"]')], card = (n) => cards.find((c) => c.querySelector('.sb-card-name').textContent === n);
+                const kids = (c) => [...c.children].map((e) => e.classList.contains('sb-beach') ? 'beach' : e.classList.contains('sb-adv') ? 'advice' : e.classList.contains('sb-row') ? 'row:' + e.querySelector('.sb-row-k').textContent : null).filter(Boolean);
+                const b = card('이호테우해변').querySelector('.sb-beach');
+                return { i: kids(card('이호테우해변')), m: kids(card('모충사')), lines: [...b.querySelectorAll('.sb-beach-line')].map((x) => x.textContent), html: b.querySelectorAll('img').length, border: getComputedStyle(b).borderLeftColor, over: card('이호테우해변').scrollWidth - card('이호테우해변').clientWidth, page: document.documentElement.scrollWidth, vw: innerWidth, xss: window.__xss || 0 }; });
+            assert.deepEqual(r.i.slice(-3), ['row:[오늘 예상]', 'beach', 'advice'], '[오늘 예상] → 해수욕장 줄 → [권고]');
+            assert.ok(!r.m.includes('beach'), 'beach 없는 카드(모충사)는 상자 없음');
+            assert.deepEqual(r.lines, BEACH['50110|이호테우해변'], '서버 글 그대로');
+            assert.deepEqual([r.html, r.xss], [0, 0], 'HTML 로 넣지 않음');
+            assert.equal(r.border, 'rgb(56, 189, 248)');
+            assert.deepEqual([r.over, r.page <= r.vw], [0, true], '360px 넘침 없음');
+            await drawB(CLEAN);   // 스크린샷은 시험용 XSS 글 없이
+            await L20.evaluate(() => document.querySelector('#sb20 .sb-beach').closest('[data-sb-card]').scrollIntoView({ block: 'center' })); await L20.waitForTimeout(150);
+            await L20.locator('#sb20 [data-sb-card="land"]:has(.sb-beach)').screenshot({ path: path.join(SHOT, 'beach_briefing_card_360.png') });
+            await clean(L20); await L20.screenshot({ path: path.join(SHOT, 'beach_briefing_screen_360.png') });
         });
         await check('[§11.10.20-UI2] [위험구역] 「3개소」 → 표 「구역 종류 | 개소 수 | [위치 보기]」 → 그 줄 아래 지도(GET /api/risk-forecast/hazard-zones?ids= — 그 종류 폴리곤 전부 깜빡임 + 관광지 점) · 다시 누르면 닫히고 깜빡임 멈춤 · 움직임 줄이기면 깜빡임 없음 · 자료 없는 id 는 안내', async () => {
             hzReq.length = 0;

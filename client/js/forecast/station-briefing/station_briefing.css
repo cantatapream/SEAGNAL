@@ -98,6 +98,10 @@
 .sb-row-k { color:#94a3b8; white-space:nowrap; font-weight:700; }
 .sb-row .sb-list { margin:0; }
 .sb-sentence { margin:6px 0 4px; color:#cbd5e1; font-size:.8rem; }
+/* 연안 카드 해수욕장 안내 줄(설계서 §18, 2026-10-18) — [오늘 예상] 아래, 위험 단계와 무관한 참고 줄이라 하늘색 왼쪽 줄. 글은 서버 글 그대로 */
+.sb-beach { margin:6px 0 4px; padding:5px 8px; border-left:3px solid #38bdf8; border-radius:4px; background:rgba(56,189,248,.08); }
+.sb-beach-line { margin:0; color:#cbd5e1; font-size:.8rem; line-height:1.5; word-break:keep-all; overflow-wrap:anywhere; }
+.sb-beach-line+.sb-beach-line { margin-top:3px; }
 /* §11.10.15 해역 카드 출처별 배지(승인 시안 .sb·.det) — 어두운 바탕·테두리 + 색 글자(등급은 바탕이 아니라 글자 색으로). 관심·주의 글자 색은 render 가 colorOf 로 넣고,
    경계는 이 빨강(#e34842 — 위험예측 빨강 #e0322c 는 이 바탕 #0b1324 위 대비 4.5 미만이라 §11.10.11 분석 문단과 같은 밝힌 빨강, 대비 약 4.66). 상세 줄은 배지 바로 아래 왼쪽 선. */
 .sb-srcbs { display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin:6px 0 4px; }

@@ -33,6 +33,7 @@
  *                    · 해역 카드 「KOMSA 혼잡 예보」 표는 한 줄에 두 시각(pairTable — 「시각 | 혼잡지수 | 시각 | 혼잡지수」).
  *         §11.10.34(2026-10-18 — 화면만): 글 속 지도 링크 = <span role="button" tabindex=0>(mapLink — 긴 해역 링크 뒤 「는」이 다음 줄로 밀리지 않게) · 「조석」 칸 뺌 · 잠기는 바위 팝업 지도 +/− 단추 뺌(끌기·핀치·휠·더블탭은 그대로)
  *                    · 해상 결론 배지 「N개 해역 주의(KOMSA)」(「예보」 뺌) · 화면 글의 「(KOMSA …)」 괄호는 2pt 작게(komsaText).
+ *         §18(2026-10-18): 연안 카드 [오늘 예상] 바로 아래 해수욕장 안내 줄(beachBox — 응답 resp.beach[관광지 id], 개장 줄 → 입수 줄, 서버 글 그대로).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : marine-life/risk-forecast/risk_format.js(RiskFormat.BAND_COLORS — 위험예측 4색) · risk_basis.js(RiskBasis.open('briefing') — [기준 상세])
@@ -578,11 +579,13 @@
         var card = el('div', 'sb-card'); card.setAttribute('data-sb-card', 'land');
         var head = el('div', 'sb-card-head'); head.appendChild(el('strong', 'sb-card-name', c.name || '이름 없는 장소')); head.appendChild(chip(c.rank, c.word)); card.appendChild(head);
         var ch = c.today && Array.isArray(c.today.changes) ? c.today.changes : [];
-        if (typeof c.advice === 'string' && c.accidents) landCardV19(card, c, ch);
+        var bm = opts && opts.beach, bl = bm && c.link && c.link.spotId && Array.isArray(bm[c.link.spotId]) ? bm[c.link.spotId] : [];   // 해수욕장 안내 줄(§18)
+        if (typeof c.advice === 'string' && c.accidents) landCardV19(card, c, ch, bl);
         else {
             if (c.sourceLabel) { var tags = el('div', 'sb-tags'); tags.appendChild(el('span', 'sb-tag', c.sourceLabel)); card.appendChild(tags); }
             if (c.traits && c.traits.text) card.appendChild(row('[특성]', c.traits.text));
             if (ch.length) card.appendChild(todayRow(ch));
+            if (bl.length) card.appendChild(beachBox(bl));
             if (c.sentence) card.appendChild(el('p', 'sb-sentence', c.sentence));
         }
         if (Array.isArray(c.missing) && c.missing.length) card.appendChild(el('p', 'sb-miss', '일부 자료 확인 불가: ' + sourceNames(c.missing)));
@@ -606,6 +609,13 @@
         appendText(p, t.slice(a + m[2].length + m[3].length));
         return p;
     }
+    /**
+     * 해수욕장 안내 줄 상자(설계서 §18, 2026-10-18 사용자 *"입수한 사람이 있을 수 있다는 알림 문구"* — 서버 routes/station_briefing.js 가 응답 때 붙이는 beach[관광지 id]).
+     *   개장 줄 → 입수 줄, 서버 글 그대로(textContent). 위험 단계·[권고]와 무관한 참고 줄이라 [오늘 예상] 바로 아래 하늘색 왼쪽 줄 상자.
+     * 예: beachBox(['협재해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · …']) → div.sb-beach > p.sb-beach-line
+     * @param {string[]} lines @returns {HTMLElement} [연계] ← landCard·landCardV19
+     */
+    function beachBox(lines) { var bx = el('div', 'sb-beach'); bx.setAttribute('data-sb-beach', ''); lines.forEach(function (l) { if (typeof l === 'string' && l) bx.appendChild(el('p', 'sb-beach-line', l)); }); return bx; }
     /** [오늘 예상] 줄 — 항목이 하나면 점 없이 글, 둘 이상이면 「•」 목록(§11.10.20). 예: todayRow(['사람 평소의 1.6배']) → [오늘 예상] 사람 평소의 1.6배. @param {string[]} ch @returns {HTMLElement} [연계] ← landCard·landCardV19 / → row·list */
     function todayRow(ch) { if (ch.length === 1) return row('[오늘 예상]', parenText(el('span', 'sb-row-v'), ch[0], numText)); var u = el('ul', 'sb-list'); ch.forEach(function (x) { u.appendChild(parenText(el('li'), x, numText)); }); return row('[오늘 예상]', u); }   // 수치 흰 굵게(덧붙임 28)   // 긴 괄호 묶음(§11.10.20 덧붙임 24)
     /**
@@ -614,9 +624,10 @@
      *   → 그 아래 「익수 3건, … | 인명피해 사망 N명, 실종 N명」(0건 「기록된 연안사고 없음」) → (표) → 「이곳에서는 집계 기간 중 … 많이 기록되었습니다.」 → [오늘 예상] → [권고](노랑 굵게).
      *   원문 *"위험구역 세곳이라고 놓고 하이퍼링크로 … 누르면 밑에 열리고 … 표로 정리"* · *"사고현황 오른쪽에는 총 0건 이라고 종합 표출"* · *"총 0건을 하이퍼링크로 하여 아래 표가 아코디언처럼 열리도록 … 열리고 닫히고"*.
      * 예: landCardV19(card, {indexBadge:{text:"연안 위험지수 56 '다소 높음'",rank:1},traits:{beach:true},hazardTable:{link:'4개소',rows:[…]},accidents:{label:"사고현황('20~'24년)",total:6,totalText:'총 6건',text:'익수 3건, …',table:{…},note:'…'},advice:'…'}, ['사람 평소의 1.2배','해안 바람 11m/s(…)'])
-     * @param {HTMLElement} card @param {Object} c @param {string[]} ch - today.changes @returns {void} [연계] ← landCard / → hazardBox·cellsTable·expander·todayRow·row
+     * @param {HTMLElement} card @param {Object} c @param {string[]} ch - today.changes @param {string[]} [bl] - 해수욕장 안내 줄(§18 — [오늘 예상] 바로 아래)
+     * @returns {void} [연계] ← landCard / → hazardBox·cellsTable·expander·todayRow·beachBox·row
      */
-    function landCardV19(card, c, ch) {
+    function landCardV19(card, c, ch, bl) {
         var bs = el('div', 'sb-srcbs sb-landbs'), ib = c.indexBadge;
         if (ib && ib.text) { var r = Number(ib.rank), s = el('span', 'sb-srcb', ib.text); s.setAttribute('data-rank', String(r)); s.setAttribute('data-sb-src', 'index'); if (r !== 3) s.style.color = colorOf(r); bs.appendChild(s); }
         if (c.traits && c.traits.beach) { var bb = el('span', 'sb-srcb sb-landb-beach', '해수욕장'); bb.setAttribute('data-sb-src', 'beach'); bs.appendChild(bb); }
@@ -639,6 +650,7 @@
         } else if (A.text) card.appendChild(row('[' + (A.label || '사고현황') + ']', A.text));
         if (A.note) card.appendChild(historyNoteNode(A.note));   // 사고 유형 흰 굵게(§11.10.20 덧붙임 25)
         if (ch.length) card.appendChild(todayRow(ch));
+        if (bl && bl.length) card.appendChild(beachBox(bl));
         card.appendChild(adviceRow(c.advice));   // §11.10.20 덧붙임 9 — 해역 카드·총평 (권고)와 같은 상자
     }
     /**
@@ -762,7 +774,7 @@
      * [연계] ← station_briefing.js renderBody · admin_station_briefing.js 미리보기 / → summaryBodyV3(§11.10.4 「가」 모양 — summary.analysis 있음)·summaryBodyV2(§11.10.1 총평)·summaryBody(§11.10 판)·legacyOverview(그 전)·renderRest·RiskBasis.open
      */
     function render(box, resp, opts) {
-        opts = opts || {};
+        opts = Object.assign({}, opts || {}, { beach: resp && resp.beach && typeof resp.beach === 'object' ? resp.beach : null });   // 연안 카드 해수욕장 안내 줄(§18)
         closeMapPopup();   // 본문을 다시 그리면 열린 팝업 지도도 닫는다(§11.10.9 ⑥)
         closePageSheet();  // 근거 지도에서 올린 화면 바텀시트도(§11.10.24)
         var showSea = opts.showSea !== false, showLand = opts.showLand !== false, nowMs = Number.isFinite(opts.now) ? opts.now : Date.now();

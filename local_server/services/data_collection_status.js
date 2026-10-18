@@ -267,8 +267,10 @@ function createStatus({
         //   이미 「연속 확인 실패 N회」를 보이고 오류현황이 3회 기준으로 판정하므로 실패 한 줄·판정은 겹쳐 하지 않는다.
         //   ★연속 실패 중(1회 이상)이면 파일 시각과 무관하게 빨강(검토 3, 2026-10-15): 이안류는 전 지점 호출이 실패해도
         //   수집기가 새 시각으로 파일을 써서(정보없음 13곳) 시각만 보면 정상으로 남았다. 모든 기록 대상 항목에 같게 적용한다.
-        const cf = fails ? fails[item.id] : null;
-        if (cf && !st.statusFile && cf.streak > 0) {
+        // 겹쳐 쓰지 않는 것은 statusFile 과 오류현황 원천(risk)이 함께 있는 항목(시정 예측 — 그 둘이 이미 실패를 판정한다)뿐이다.
+        //   statusFile 만 있는 항목(해수욕장 예보·수온 — 회차 요약 줄)은 수집 실패 기록으로 빨강을 정한다(설계서 §18, 2026-10-18 검토 A①).
+        const cf = fails ? fails[item.id] : null, ownJudge = !!(st.statusFile && st.risk);
+        if (cf && !ownJudge && cf.streak > 0) {
             details.push('마지막 수집 실패: ' + (cf.reason || '기타 오류') + ' (연속 ' + cf.streak + '회' +
                 (cf.since ? ', ' + isoKst(Date.parse(cf.since)).slice(5, 16).replace('T', ' ') + ' KST부터' : '') + ')');
             status = 'error';
@@ -277,7 +279,7 @@ function createStatus({
         // 관리자 푸시가 전달되지 않았으면(기기 없음·발송 오류·개발 환경) 한 줄 — 시정 예측 포함 모든 항목(검토 4).
         if (cf && cf.pushError)
             details.push('관리자 푸시 미전달: ' + cf.pushError + (cf.pushErrorAt ? ' (' + isoKst(Date.parse(cf.pushErrorAt)).slice(5, 16).replace('T', ' ') + ' KST)' : ''));
-        if (cf && ((!st.statusFile && cf.streak > 0) || cf.pushError)) stateFrom.push('data/collect_fail_alert.json');
+        if (cf && ((!ownJudge && cf.streak > 0) || cf.pushError)) stateFrom.push('data/collect_fail_alert.json');
         const off = item.official || {};
         return {
             id: item.id,
