@@ -122,6 +122,7 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 - 노출 판정을 화면에서 하지 않는다 — `display` 는 서버가 정한다. 아코디언 머리·몸은 마크업에서 `display:none` 으로 시작한다.
 - 탭 이동은 기존 `switchMainTab`·`switchSubTab` 만 쓴다(life_safety.js 탭 상태 유지 규칙과 충돌하지 않게).
 - [기준 상세] 문안을 바꿀 때는 서버 규칙(`station_briefing_rules.js`·`station_briefing.js`·`station_briefing_ai.js`)과 설계서 §11.6~§11.8 를 대조한다 — 코드에 없는 규칙을 쓰지 않는다.
+  모양(§11.10.33 — 위험예측 기준 상세와 같은 지침): 문장이 여럿인 문단은 `pts([...])`(문장마다 「•」 줄, 한 문장은 `<p>`), 단계 표는 `band()`(색 = `StationBriefingRender.colorOf`). 넘친 줄 자간은 `risk_basis.js` `fit` 이 저절로 한다 — 시험 `[§11.10.33]`(test_station_briefing.js·test_station_briefing_ui.js)이 문장 여럿인 `<p>` 를 막는다.
 - (§11.10.22 A 부터 꼬리는 「(232-5해구 예보)」·「(232해구 예보)」 — 서버 이름표 「232-5해구」·「232해구」) 해역 카드의 해구 예보 상세 표 제목·[기상 예보] 꼬리(「232-5해구 예보」·「(소해구 232-5 예보)」, 소해구 예보가 없으면 「232해구 예보」·「(대해구 232 예보)」)는 **서버 글 그대로** 그린다 — 화면은 대해구·소해구를 가리지 않는다(§11.10.19, 서버 `seaSection`·`station_briefing_inputs.smallWeather`).
 - 점검 차단(`station-briefing` — index2.html featureMap·bodyMap)과 노출 판정이 둘 다 몸 보임을 만진다 — `applyVisibility` 가 차단을 보고(일반 기기 숨김·관리자는 열어 둔 것 유지), index2 는 차단을 바꾼 뒤 `StationBriefing.applyVisibility()` 를 부른다.
 - 펼친 아코디언·안쪽 칸은 `max-height:none`(station_briefing.css) — 기존 8000px 상한이 카드 최대치 본문을 잘랐다.

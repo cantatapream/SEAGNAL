@@ -2993,6 +2993,18 @@ const WIN = R.editionWindow('morning', T0);
         const basisSrc = fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing_basis.js'), 'utf8');
         assert.ok(!/떠밀/.test(basisSrc) && (basisSrc.match(/튜브·물놀이기구 표류\)/g) || []).length === 2, '기준 상세 설명 두 곳');
     });
+    // §11.10.33(2026-10-18 사용자 *"우리가 아까 기준 상세 수정하지 않았니 ? 왜 수정 지침대로 반영이 되지 않은거지 ?"* → *"수정해"*): 위험예측 기준 상세와 같은 모양 지침(문안 글은 그대로)
+    await check('[§11.10.33] [기준 상세] 문안 — 문장 여럿인 <p> 없음(문장마다 ul.rf-pts li) · 「단계 말」 없음 → 「위험 단계」 표(5단계 · 브리핑 colorOf 색) · 점은 글자가 아님', () => {
+        const sb = { window: { StationBriefingRender: { SOURCES: [], colorOf: (r, w) => (String(w).indexOf('확인 불가') === 0 ? '#64748b' : ['#2fb36b', '#f2c230', '#fb923c', '#e0322c'][r]) } } };
+        require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing_basis.js'), 'utf8'), sb);
+        const c = sb.window.RiskBasisContent.briefing, strip = (h) => h.replace(/<[^>]+>/g, ''), ends = (t) => (t.match(/다\.(\s|$)/g) || []).length;
+        assert.deepStrictEqual([...c.matchAll(/<p(?: [^>]*)?>([\s\S]*?)<\/p>/g)].map((m) => strip(m[1])).filter((t) => ends(t) > 1), [], '문장 여럿인 <p>');
+        const lis = [...c.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => strip(m[1]));
+        assert.ok(lis.length >= 50, '글머리 줄 ' + lis.length); assert.deepStrictEqual(lis.filter((t) => ends(t) > 1), [], '한 줄에 문장 하나'); assert.ok(!c.includes('•'), '점은 CSS');
+        assert.ok(c.includes('<h4>위험 단계</h4>') && c.includes('<table class="rf-bands">') && !c.includes('단계 말'), '「단계 말」 → 「위험 단계」 표');
+        const rows = [...c.matchAll(/<tr><td class="rf-band"><i aria-hidden="true" style="background:(#[0-9a-f]{6})"><\/i><b style="color:(#[0-9a-f]{6})">([^<]+)<\/b><\/td><td class="n">([^<]+)<\/td><\/tr>/g)].map((m) => [m[3], m[4], m[1], m[2]]);
+        assert.deepStrictEqual(rows, [['평소 수준', '초록', '#2fb36b', '#2fb36b'], ['관심', '노랑', '#f2c230', '#f2c230'], ['주의', '주황', '#fb923c', '#fb923c'], ['경계', '빨강', '#e0322c', '#e0322c'], ['확인 불가', '회색', '#64748b', '#64748b']]);
+    });
     // §11.10.29(2026-10-18 사용자 시안 A *"이게 낫겠어."*): 화면이 해역 카드 세로 표 두 개를 가로 표 하나로 합칠 때 기대는 서버 배지 꼴 — 서버는 바꾸지 않았다(규칙 판 그대로).
     //   화면(station_briefing_render.js gridDetail·seaGrid)이 쓰는 필드: sub('accident'·'warning') · name · agency · window(4칸이 같을 때 합친 칸 「15~24시 주의」) · detail[0] = {title, head 두 칸, rows [[시각, 칸]]}.
     await check('[§11.10.29-1] 가로 표의 재료 = 서버 배지 — 해양사고 위험예보·풍랑주의보 배지마다 sub·name·agency·window · 상세 머리 두 칸 · 시각 열이 같음 · 특보 표 제목 「기상청 {구역} {특보}」 · 규칙 판 그대로', () => {
