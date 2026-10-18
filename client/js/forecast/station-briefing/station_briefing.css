@@ -58,13 +58,19 @@
 .sb-tag { display:inline-block; padding:1px 7px; border-radius:6px; background:rgba(148,163,184,.14); border:1px solid rgba(148,163,184,.25); color:#cbd5e1; font-size:.72rem; }
 .sb-tag-time { color:#fde68a; }
 .sb-tags { display:flex; flex-wrap:wrap; gap:4px; margin:4px 0; }
-/* 해상 시간 막대 — 3시간 칸(6~9칸)이 한 줄에 다 들어가게 칸 폭을 나눈다(칸 아래 설명 줄은 §11.10.13 에 없앰). */
+/* 해상 시간 막대 — 3시간 칸(3~9칸)이 한 줄에 다 들어가게 칸 폭을 나눈다(칸 아래 설명 줄은 §11.10.13 에 없앰).
+   §11.10.29(2026-10-18 사용자 *"버튼처럼 생겨서 … 그냥 게이지처럼해서 표현하는게 오해를 덜 사겠는데 ?"* → 시안 A): 칸 상자(테두리·둥근 모서리·34px)를 없애고
+   이어진 막대 하나(8px, 양끝만 둥금 — 구간 사이 가는 어두운 선) · 막대 위 ⚑ 줄(그 구간 가운데) · 막대 아래 눈금 글자(경계 시각, 마지막 = 끝 시각). 그림자·누를 것 같은 모양 없음. */
 .sb-timebar-wrap { margin:8px 0; }
-.sb-timebar { display:flex; gap:3px; }
-/* 칸은 누르는 단추가 아니다(§11.10.13 — 칸 아래 설명 줄을 없애며 누르기도 뺐다). 가운데 정렬은 종전 button 모양 그대로 */
-.sb-slot { position:relative; flex:1 1 0; min-width:0; min-height:34px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,.18); border-radius:6px; color:#111827; font-weight:800; font-size:.72rem; padding:2px 0; }
-.sb-slot-h { display:block; }
-.sb-slot-flag { position:absolute; top:-7px; right:-2px; font-size:.8rem; color:#fef08a; text-shadow:0 0 2px #000,0 0 2px #000; }
+.sb-timebar { display:flex; height:8px; border-radius:4px; overflow:hidden; }
+.sb-slot { flex:1 1 0; min-width:0; }
+.sb-slot + .sb-slot { border-left:1px solid rgba(15,23,42,.55); }
+.sb-gauge-flags { position:relative; height:13px; }
+.sb-slot-flag { position:absolute; top:0; transform:translateX(-50%); font-size:10px; line-height:13px; color:#fef08a; }
+.sb-gauge-ticks { position:relative; height:15px; margin-top:2px; color:#94a3b8; font-size:.68rem; line-height:15px; }
+.sb-gauge-tick { position:absolute; top:0; transform:translateX(-50%); white-space:nowrap; }
+.sb-gauge-tick[data-edge="start"] { transform:none; }
+.sb-gauge-tick[data-edge="end"] { transform:translateX(-100%); }
 .sb-legend { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:6px; color:#94a3b8; font-size:.7rem; }
 .sb-legend-k { display:inline-flex; align-items:center; gap:4px; }
 .sb-legend-k i { display:inline-block; width:10px; height:10px; border-radius:3px; }
@@ -80,6 +86,7 @@
 .sb-card { background:rgba(15,23,42,.55); border:1px solid rgba(148,163,184,.18); border-radius:10px; padding:10px 12px; margin:8px 0; }
 .sb-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
 .sb-card-name { color:#f8fafc; font-size:.88rem; min-width:0; }
+.sb-card-name .sb-card-haegu { font-size:calc(1em - 2pt); font-weight:400; white-space:nowrap; }   /* §11.10.29 해역 카드 제목 끝 「(223-9해구)」 — 사용자 *"해구를 표현하는 부분은 2포인트 줄이고 볼드 없애줘"* */
 .sb-row { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px; margin:4px 0; font-size:.8rem; }
 .sb-row-k { color:#94a3b8; white-space:nowrap; font-weight:700; }
 .sb-row .sb-list { margin:0; }
@@ -87,7 +94,7 @@
 /* §11.10.15 해역 카드 출처별 배지(승인 시안 .sb·.det) — 어두운 바탕·테두리 + 색 글자(등급은 바탕이 아니라 글자 색으로). 관심·주의 글자 색은 render 가 colorOf 로 넣고,
    경계는 이 빨강(#e34842 — 위험예측 빨강 #e0322c 는 이 바탕 #0b1324 위 대비 4.5 미만이라 §11.10.11 분석 문단과 같은 밝힌 빨강, 대비 약 4.66). 상세 줄은 배지 바로 아래 왼쪽 선. */
 .sb-srcbs { display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin:6px 0 4px; }
-.sb-srcb { display:block; max-width:100%; box-sizing:border-box; padding:2px 9px; border-radius:7px; background:#0b1324; border:1px solid rgba(148,163,184,.3); font-size:.76rem; font-weight:800; line-height:1.45; }
+.sb-srcb { display:block; max-width:100%; box-sizing:border-box; padding:2px 9px; border-radius:7px; background:#0b1324; border:1px solid rgba(148,163,184,.3); font-size:.76rem; font-weight:400; line-height:1.45; }   /* §11.10.29 굵게 뺌 — 사용자 *"이런 뱃지는 모두 볼드 빼도록 해자."*(해역·연안 카드 배지 모두, 종전 800) */
 .sb-srcb[data-rank="3"] { color:#e34842; }
 .sb-srcb-det { margin:0 0 2px; padding-left:9px; border-left:2px solid rgba(148,163,184,.3); color:#cbd5e1; font-size:.74rem; line-height:1.5; }
 /* 배지 상세 표(2026-10-17 사용자 확정 시안 ④판 — 설계서 §11.10.15): 제목 + 「시각 | 등급」 표. 좁으면 표 상자 안에서만 가로 스크롤(페이지는 넘치지 않음). */
@@ -99,6 +106,15 @@
 .sb-srcb-tbl th { color:#94a3b8; font-weight:700; }
 .sb-srcb-tbl .sb-srcb-grade { font-weight:800; }
 .sb-srcb-tbl td[data-rank="3"] { color:#e34842; }
+/* §11.10.29 해역 카드 가로 표(시안 A — 종전 세로 표 「시각 | 등급」·「시각 | 상태」 두 개): 열 = 시각, 행 = 예보 이름(+ 특보구역 작은 회색 글).
+   칸 값은 굵지 않게(사용자 *"여기서는 볼드 빼줘."*), 색은 render gridRank. 4칸이 같으면 한 칸(colspan)으로 「12~24시 주의」. */
+.sb-grid-tbl { table-layout:fixed; }
+.sb-grid-tbl th.sb-grid-name { width:40%; padding-left:0; }
+.sb-grid-tbl th.sb-grid-h { text-align:center; padding:3px 2px; }
+.sb-grid-tbl td.sb-grid-name { white-space:normal; padding-left:0; color:#cbd5e1; font-weight:700; line-height:1.35; }
+.sb-grid-zone { color:#94a3b8; font-weight:400; font-size:.66rem; }
+.sb-grid-tbl td.sb-grid-v { text-align:center; padding:3px 2px; white-space:normal; font-weight:400; color:#cbd5e1; }
+.sb-grid-tbl td.sb-grid-v[data-rank="3"] { color:#e34842; }
 /* 「기상특보 현황」 상자(2026-10-17 시안 ⑤판 사용자 확정 — 설계서 §11.10.16 소절 E1·E2): 창 안·해상 근거 안 같은 모양(둥근 테두리 + 제목 + 표 + 발표 줄) */
 .sb-wxbox { display:flex; flex-direction:column; gap:6px; margin:6px 0; padding:12px; border-radius:14px; background:#0e1628; border:1px solid #3d5a86; min-width:0; text-align:left; }
 .sb-wxbox, .sb-wxbox * { word-break:keep-all; overflow-wrap:anywhere; }
@@ -199,6 +215,9 @@
 .sb-analysis { margin:4px 0 6px; color:#e2e8f0; font-size:.84rem; line-height:1.65; }
 .sb-an-tag { display:inline-block; margin-right:2px; padding:0 6px; border-radius:999px; background:rgba(103,232,249,.14); border:1px solid rgba(103,232,249,.4); color:#67e8f9; font-size:.68rem; font-weight:700; vertical-align:1px; white-space:nowrap; }
 .sb-an-tag.sb-an-rule { background:rgba(148,163,184,.14); border-color:rgba(148,163,184,.45); color:#cbd5e1; }
+/* §11.10.29 이름표 색 = 분석을 쓴 공급자(사용자 *"chat gpt는 흰색으로, gemini로 했을때는 파란색으로 색상을 반영해줘."*) — render 가 ov.source('chatgpt'·'gemini')로 클래스를 붙인다. 종전 둘 다 청록(위 .sb-an-tag). */
+.sb-an-tag.sb-an-chatgpt { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.55); color:#fff; }
+.sb-an-tag.sb-an-gemini { background:rgba(96,165,250,.12); border-color:rgba(96,165,250,.6); color:#60a5fa; }
 .sb-basis-x { margin:2px 0 0; font-size:.8rem; }
 /* 관할을 누르면 뜨는 가운데 확인 창(2026-10-17 사용자 「팝업이 가운데 하나 뜨고 저장 또는 취소」 — station_briefing_picker.js confirmPick).
    공용 알림 창(style.css .seagnal-modal)과 같은 층(z-index 40000)·같은 어두운 바탕, 색은 앱 :root 변수(없으면 같은 값). 360px 에서도 좌우 16px 여백. */

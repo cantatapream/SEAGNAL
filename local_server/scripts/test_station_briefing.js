@@ -2992,6 +2992,21 @@ const WIN = R.editionWindow('morning', T0);
         const basisSrc = fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing_basis.js'), 'utf8');
         assert.ok(!/떠밀/.test(basisSrc) && (basisSrc.match(/튜브·물놀이기구 표류\)/g) || []).length === 2, '기준 상세 설명 두 곳');
     });
+    // §11.10.29(2026-10-18 사용자 시안 A *"이게 낫겠어."*): 화면이 해역 카드 세로 표 두 개를 가로 표 하나로 합칠 때 기대는 서버 배지 꼴 — 서버는 바꾸지 않았다(규칙 판 그대로).
+    //   화면(station_briefing_render.js gridDetail·seaGrid)이 쓰는 필드: sub('accident'·'warning') · name · agency · window(4칸이 같을 때 합친 칸 「15~24시 주의」) · detail[0] = {title, head 두 칸, rows [[시각, 칸]]}.
+    await check('[§11.10.29-1] 가로 표의 재료 = 서버 배지 — 해양사고 위험예보·풍랑주의보 배지마다 sub·name·agency·window · 상세 머리 두 칸 · 시각 열이 같음 · 특보 표 제목 「기상청 {구역} {특보}」 · 규칙 판 그대로', () => {
+        const win = R.editionWindow('evening', Date.parse('2026-10-17T15:10:00+09:00')), at = (h) => '2026-10-17T' + String(h).padStart(2, '0') + ':00:00+09:00';
+        const inp = { key: 'k|가로표', name: '가로표파출소', office: 'o', region: 'r', seaOnly: true, sources: { accident: 'ok', congestion: 'ok', zoneForecasts: 'ok', warnings: 'ok' }, places: [], land: null, tide: null,
+            sea: { reviewedCells: 1, regions: [{ rid: 'A:1', lat: 33.5, lon: 126.9, haegu: { major: 223, sub: 9, label: '223-9' }, ref: { name: '평대해변', distNm: 2.6, bearingWord: '북' }, zone: { name: '제주도동부앞바다', kind: 'main' }, zones: [],
+                slots: { [at(15)]: { accident: '주의' }, [at(18)]: { accident: '주의' }, [at(21)]: { accident: '주의' } }, history: { count: 0 } }],
+                weather: {}, warnings: [{ zone: '제주도동부앞바다', kind: '앞바다', type: '풍랑', level: '주의보', state: '발효', effective: { start: at(15), end: at(15), range: false }, release: null }] } };
+        const b = R.buildBriefing(inp, win, { generatedAt: '2026-10-17T15:10:00+09:00' }), g = b.sea.cards[0].badges;
+        assert.deepStrictEqual(g.map((x) => [x.sub, x.name, x.agency, x.window, x.rank]), [['accident', '해양사고 위험예보', 'KOMSA', '15~24시', 2], ['warning', '풍랑주의보', '기상청', '15~24시', 2]]);
+        assert.deepStrictEqual(g.map((x) => x.detail.map((d) => [d.title, d.head.join(',')])), [[['KOMSA 해양사고 위험예보', '시각,등급']], [['기상청 제주도동부앞바다 풍랑주의보', '시각,상태']]]);
+        assert.deepStrictEqual(g.map((x) => x.detail[0].rows.map((r) => r[0])), [['15시', '18시', '21시'], ['15시', '18시', '21시']], '두 표의 시각 열이 같다 — 가로 표 열 = 15·18·21시');
+        assert.deepStrictEqual(g.map((x) => x.detail[0].rows.map((r) => (r[1] && typeof r[1] === 'object' ? r[1].text + '/' + r[1].rank : r[1]))), [['주의/2', '주의/2', '주의/2'], ['발효 중', '발효 중', '발효 중']], '칸 = 등급 {text, rank} · 특보 상태 글');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v23', '서버 규칙 판 그대로(화면만 바뀜)');
+    });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);
