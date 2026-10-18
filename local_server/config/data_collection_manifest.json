@@ -21,6 +21,7 @@
     { "id": "khoa", "name": "국립해양조사원" },
     { "id": "komsa", "name": "해양교통안전공단" },
     { "id": "kto", "name": "한국관광공사" },
+    { "id": "kma-beach", "name": "기상청 해수욕장 날씨(공공데이터포털)" },
     { "id": "seagnal", "name": "우리 서버 생성" }
   ],
   "items": [
@@ -379,6 +380,66 @@
       },
       "state": { "risk": "events", "file": "risk_forecast/events_{month}.json", "collectedField": "collectedAt", "collectedFormat": "iso", "basisField": "month", "basisFormat": "raw", "basisLabel": "자료 달" },
       "graceMinutes": 60
+    },
+    {
+      "id": "beachForecast",
+      "stage": 1,
+      "name": "해수욕장 단기예보 (기상청 해수욕장 날씨)",
+      "provider": "kma-beach",
+      "endpoint": "apis.data.go.kr /1360000/BeachInfoservice/getVilageFcstBeach (해수욕장 419곳 — 몰운대 제외)",
+      "official": {
+        "kind": "doc",
+        "text": "단기예보 하루 8번 발표(02·05·08·11·14·17·20·23시 KST), 각 발표 10분 뒤부터 제공(활용가이드)",
+        "evidence": [
+          { "note": "기상청 「전국 해수욕장 날씨 조회서비스 Open API 활용가이드」 참고자료 「#발표시각정보 — 단기예보(KST)」 표: Base_time 02:00·05:00·08:00·11:00·14:00·17:00·20:00·23:00, API 제공 시간(~이후) 「…:10」 (확인 2026-10-18)" },
+          { "file": "local_server/services/beach_weather_collector.js", "quote": "「API 제공 시간(~이후)」 = 발표 10분 뒤" }
+        ]
+      },
+      "schedule": {
+        "text": "발표 15분 뒤 02:15·05:15·08:15·11:15·14:15·17:15·20:15·23:15 KST(운영 서버) + 회차 실패 시 같은 발표 안에서 30분마다 + 기동 때 이번 발표를 아직 못 받았으면",
+        "times": ["02:15", "05:15", "08:15", "11:15", "14:15", "17:15", "20:15", "23:15"],
+        "evidence": [
+          { "file": "local_server/services/beach_weather_collector.js", "quote": "const ISSUE_HOURS = [2, 5, 8, 11, 14, 17, 20, 23];" },
+          { "file": "local_server/services/beach_weather_collector.js", "quote": "const COLLECT_MIN = 15;" }
+        ]
+      },
+      "state": {
+        "file": "beach_weather/forecast.json",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "issueAt",
+        "basisFormat": "iso",
+        "basisLabel": "발표 시각"
+      },
+      "graceMinutes": 30
+    },
+    {
+      "id": "beachWaterTemp",
+      "stage": 1,
+      "name": "해수욕장 수온 관측 (기상청 해수욕장 날씨)",
+      "provider": "kma-beach",
+      "endpoint": "apis.data.go.kr /1360000/BeachInfoservice/getTwBuoyBeach (해수욕장 419곳 — 가장 최근 관측 1개)",
+      "official": {
+        "kind": null,
+        "text": "활용가이드에 수온 관측 갱신 주기가 적혀 있지 않다(서비스 개요 「데이터 갱신주기 — 일일(하단 상세정보 참고)」만)",
+        "evidence": []
+      },
+      "schedule": {
+        "text": "단기예보와 같은 회차(02:15·05:15·…·23:15 KST) 바로 뒤에 이어서",
+        "times": ["02:15", "05:15", "08:15", "11:15", "14:15", "17:15", "20:15", "23:15"],
+        "evidence": [
+          { "file": "local_server/services/beach_weather_collector.js", "quote": "const w = await run('tw', async (n) => {" }
+        ]
+      },
+      "state": {
+        "file": "beach_weather/watertemp.json",
+        "collectedField": "collectedAt",
+        "collectedFormat": "iso",
+        "basisField": "latestTm",
+        "basisFormat": "iso",
+        "basisLabel": "가장 최근 관측"
+      },
+      "graceMinutes": 30
     },
     {
       "id": "stationBriefing",

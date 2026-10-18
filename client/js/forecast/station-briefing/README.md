@@ -356,3 +356,11 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - **잠기는 바위 팝업 지도**: 왼쪽 위 +/− 단추(`ol.control.Zoom`)를 뺐다. 끌기·두 손가락·휠·더블탭은 그대로. 창 안 Tab 은 ✕ 하나.
 - **KOMSA**: 해상 결론 배지 「N개 해역 주의(KOMSA)」(「예보」 뺌). 화면 글 속 「(KOMSA)」·「(KOMSA 기준)」 괄호는 둘레 글보다 2pt 작게(`komsaText` → `.sb-komsa-paren`) — 결론 배지·해상 근거 줄·AI 분석 문단·해역 카드 배지·가로 표 이름 칸·[권고]. 서버 글은 그대로. [기준 상세]는 대상 아님.
 - 시험: `test_station_briefing_ui.js` `[§11.10.34-1]`·`[§11.10.34-4]`·`[§11.10.32 → §11.10.34]` · 본문 시험(「조석」 칸 없음).
+
+## 연안 카드 해수욕장 안내 줄 (2026-10-18 — 설계서 §18)
+
+> 사용자 원문: *"입수한 사람이 있을 수 있다는 알림 문구"* · *"개장 일정 폐장 일정 관련해서는 해수부를 기준으로만"* (전체 결정 표는 설계서 §18.1)
+
+- 서버 `routes/station_briefing.js` 가 `GET /api/station-briefing`(·관리자 미리보기) 응답에 `beach` = `{관광지 id: [줄]}`(브리핑 날짜, 연안 카드 관광지만 — `services/beach_weather.js` `linesForSpots`)를 **응답 때** 붙인다. 저장된 판·규칙 판(v23)·AI 입력(`station_briefing_ai.js`)은 그대로.
+- 화면 `station_briefing_render.js` `beachBox`: 연안 카드 [오늘 예상] 바로 아래, [권고] 위 — 하늘색 왼쪽 줄 상자(`.sb-beach`·`.sb-beach-line`, `station_briefing.css`), 서버 글 그대로(textContent). 옛 판 카드(규칙 v19 전)도 [오늘 예상] 아래.
+- `index2.html` `station_briefing_render.js`·`station_briefing.css` ?v=20261018beach. 시험 `local_server/scripts/test_beach_weather.js`(라우트 — 카드 관광지만·저장 판 안 고침).

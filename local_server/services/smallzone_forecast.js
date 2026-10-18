@@ -16,6 +16,7 @@
  *
  * [저장]
  *   브리핑용 판: 메모리 + data/smallzone_forecast.json.gz(지난 판은 덮어씀 — swell_smallzone.json.gz 와 같은 방식).
+ *     + tw: 소해구마다 날짜별 낮 수온 최솟값 하나(해수욕장 수온 대체 — 설계서 §18, 2026-10-18). 행(data)에는 TW 를 넣지 않는다(응답·시험 그대로).
  *   창 클릭용: 메모리만. 판이 바뀌면 비우고, 대해구 100개를 넘으면 오래 안 쓴 것부터 버린다.
  *   상태 한 줄: data/smallzone_forecast_status.json(관리자 「데이터 수집현황」 카드가 읽는다).
  *
@@ -28,7 +29,8 @@
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : scheduler.js(configure·대해구 예보 저장 직후 prefetch) · routes/weather.js(get)
  *                    · services/station_briefing.js(run — 브리핑 만들기 직전 peek·getStatus, 저장 판이 대해구 판보다 옛것이면 prefetch 한 번 — §11.10.19)
- *                    · 시험 local_server/scripts/test_smallzone_forecast.js
+ *                    · services/beach_weather.js(twNear — 해수욕장 부이 수온이 없을 때 소해구 예보 수온, §18)
+ *                    · 시험 local_server/scripts/test_smallzone_forecast.js · test_beach_weather.js(twNear)
  * [로드 순서] require 부작용 없음. 디스크 판은 처음 쓸 때 한 번 읽는다.
  * ============================================================================
  */
@@ -126,10 +128,11 @@ function num(v) { const n = parseFloat(v); return Number.isFinite(n) && n > -999
  * (help=1 일 때 「#  2. TMA_EF : 발효시각」 같은 설명 줄이 있어 TMA_FC 하나로는 가리지 않는다).
  * 예: parseTable('#START7777\n# TMA_FC TMA_EF LZONE SZONE … \n2026101700 2026101703 233 3 … 1.4 5.7 92.6 7.7 92.3 …')
  *     → [{lzone:'233', szone:'3', tm:'2026101703', wh:1.4, wp:5.7, waveDir:92.6, ws:7.7, windDir:92.3}]
- * @param {string} text @returns {object[]|null} #START7777 이 없으면 null(실패로 본다)
+ * @param {string} text @param {boolean} [withTw] - 참이면 행에 수온 tw(℃)와 소해구 칸 가운데 lat·lon 을 더 붙인다(해수욕장 수온 대체용 — fetchAll 만 씀, §18)
+ * @returns {object[]|null} #START7777 이 없으면 null(실패로 본다)
  * [연계] ← fetchChunk — 대해구 예보 행(scheduler.js parseKmaTable)과 같은 필드 이름·단위
  */
-function parseTable(text) {
+function parseTable(text, withTw) {
     if (typeof text !== 'string' || !text.includes('#START7777')) return null;
     let header = null;
     const rows = [];
@@ -145,7 +148,12 @@ function parseTable(text) {
         const r = {};
         header.forEach((h, i) => { r[h] = parts[i]; });
         if (!/^\d+$/.test(r.LZONE || '') || !/^[1-9]$/.test(r.SZONE || '') || !/^\d{10}$/.test(r.TMA_EF || '')) continue;
-        rows.push({ lzone: r.LZONE, szone: r.SZONE, tm: r.TMA_EF, wh: num(r.WH_SIG), wp: num(r.WVPRD_MAX), waveDir: num(r.WVDR), ws: num(r.WS), windDir: num(r.WD) });
+        const row = { lzone: r.LZONE, szone: r.SZONE, tm: r.TMA_EF, wh: num(r.WH_SIG), wp: num(r.WVPRD_MAX), waveDir: num(r.WVDR), ws: num(r.WS), windDir: num(r.WD) };
+        if (withTw) {
+            const lat = ['LAT_LB', 'LAT_LT', 'LAT_RT', 'LAT_RB'].map((k) => num(r[k])), lon = ['LON_LB', 'LON_LT', 'LON_RT', 'LON_RB'].map((k) => num(r[k]));
+            Object.assign(row, { tw: num(r.TW), lat: lat.every((x) => x !== null) ? lat.reduce((a, b) => a + b, 0) / 4 : null, lon: lon.every((x) => x !== null) ? lon.reduce((a, b) => a + b, 0) / 4 : null });
+        }
+        rows.push(row);
     }
     return rows;
 }
@@ -167,7 +175,7 @@ async function fetchChunk(baseTm, tmEf, lzones) {
         try {
             const res = await opts.fetchImpl(url);
             const text = new TextDecoder('euc-kr').decode(await res.arrayBuffer());
-            const rows = res.ok ? parseTable(text) : null;
+            const rows = res.ok ? parseTable(text, true) : null;
             if (rows) return rows;
             err = new Error(res.ok ? '표 없음: ' + text.replace(/\s+/g, ' ').trim().slice(0, 60) : 'HTTP ' + res.status);
         } catch (e) {
@@ -192,7 +200,7 @@ async function fetchAll(baseTm, lzones) {
     for (let i = 0; i < lzones.length; i += CHUNK) chunks.push(lzones.slice(i, i + CHUNK));
     const jobs = [];
     for (const tm of efTimes(baseTm)) for (const c of chunks) jobs.push({ tm, c });
-    const data = {}, missing = new Set();
+    const data = {}, missing = new Set(), tw = {};
     let failed = 0, firstError = null, next = 0, allNoTable = true;
     const warns = [];
     const worker = async () => {
@@ -202,6 +210,7 @@ async function fetchAll(baseTm, lzones) {
                 for (const r of await fetchChunk(baseTm, job.tm, job.c)) {
                     const z = (data[r.lzone] = data[r.lzone] || {});
                     (z[r.szone] = z[r.szone] || []).push({ tm: r.tm, wh: r.wh, wp: r.wp, waveDir: r.waveDir, ws: r.ws, windDir: r.windDir });
+                    twKeep(tw, r);
                 }
             } catch (e) {
                 failed++; missing.add(job.tm); firstError = firstError || e.message;   // 그 시각은 비워 두고 status 에 남긴다
@@ -214,8 +223,52 @@ async function fetchAll(baseTm, lzones) {
     for (const z of Object.values(data)) for (const rows of Object.values(z)) rows.sort((a, b) => a.tm.localeCompare(b.tm));
     const notYet = jobs.length > 0 && failed === jobs.length && allNoTable;
     if (!notYet) warns.forEach((w) => console.warn(w));
-    return { data, requests: jobs.length, failed, missingTimes: [...missing].sort(), firstError, notYet };
+    return { data, requests: jobs.length, failed, missingTimes: [...missing].sort(), firstError, notYet, tw: Object.values(tw) };
 }
+
+// 해수욕장 수온 대체(설계서 §18 — 사용자 2026-10-18 *"수온 관측 없는 해수욕장이 있다면 소해구 예보 수온으로 대신해도 돼. 필요한 것만 남기는 방식으로 설계해."*).
+//   소해구 표의 TW(℃) 중 「낮(KST 09·12·15·18시 = UTC 00·03·06·09시) 가장 낮은 값」 하나만 날짜마다 남긴다 — 행 26개 × 9 소해구를 다 들고 있지 않게.
+//   가장 낮은 값 = 「물놀이하기 좋다」를 쉽게 말하지 않는 쪽(보수적). 육지 소해구(-999)는 남지 않는다.
+const TW_DAY_UTC_HOURS = ['00', '03', '06', '09'];
+const TW_MAX_KM = 20;            // 해수욕장에서 소해구 칸 가운데까지 이보다 멀면 쓰지 않는다(칸 한 변 1/6° ≈ 15~18km — 해안 칸이 육지(-999)여도 바로 옆 바다 칸까지)
+const TW_MAX_AGE_MS = 48 * 3600000;   // 소해구 판(발표 UTC)이 이보다 오래되면 쓰지 않는다(판은 12시간마다 — 4판 넘게 못 받음)
+
+/** fetchAll 행 하나의 TW 를 날짜별 낮 최솟값으로 접어 둔다. 예: twKeep(acc, {lzone:'233',szone:'5',tm:'2026101803',tw:21.4,lat,lon}) [연계] ← fetchAll */
+function twKeep(acc, r) {
+    if (r.tw == null || r.lat == null || r.lon == null || !TW_DAY_UTC_HOURS.includes(r.tm.slice(8, 10))) return;
+    const k = r.lzone + '-' + r.szone, d = r.tm.slice(0, 4) + '-' + r.tm.slice(4, 6) + '-' + r.tm.slice(6, 8);
+    const c = acc[k] || (acc[k] = { z: k, lat: Math.round(r.lat * 1e4) / 1e4, lon: Math.round(r.lon * 1e4) / 1e4, d: {} });
+    c.d[d] = c.d[d] == null ? r.tw : Math.min(c.d[d], r.tw);
+}
+
+/**
+ * 해수욕장 위치에서 가까운 소해구의 그날 낮 수온(브리핑용 저장 판에서만 — 기상청에 묻지 않는다).
+ * 위치가 든 칸(가운데에서 위도·경도 1/12° 안)에 값이 있으면 그것, 아니면 TW_MAX_KM 안 가장 가까운 칸. 판이 TW_MAX_AGE_MS 보다 오래되면 null.
+ * 예: twNear(33.39, 126.24, '2026-10-18') → { tw:21.4, zone:'233-5', km:6.2, baseTm:'2026101800' } · 없으면 null
+ * @param {number} lat @param {number} lon @param {string} date - KST 날짜(YYYY-MM-DD) @param {number} [now]
+ * @returns {object|null} [연계] ← services/beach_weather.js waterTemp(부이 관측이 없을 때)
+ */
+function twNear(lat, lon, date, now = Date.now()) {
+    ensureLoaded();
+    if (!brief || !Array.isArray(brief.tw) || !/^\d{10}$/.test(brief.baseTm || '')) return null;
+    const b = brief.baseTm, baseMs = Date.UTC(+b.slice(0, 4), +b.slice(4, 6) - 1, +b.slice(6, 8), +b.slice(8, 10));
+    if (!(now - baseMs <= TW_MAX_AGE_MS)) return null;
+    let best = null;
+    for (const c of brief.tw) {
+        const v = c.d && c.d[date];
+        if (!Number.isFinite(v)) continue;
+        const inside = Math.abs(c.lat - lat) <= 1 / 12 && Math.abs(c.lon - lon) <= 1 / 12;
+        const km = kmBetween(lat, lon, c.lat, c.lon);
+        const rank = inside ? -1 : km;
+        if (!inside && km > TW_MAX_KM) continue;
+        if (!best || rank < best.rank) best = { rank, tw: v, zone: c.z, km: Math.round(km * 10) / 10, baseTm: b };
+    }
+    if (!best) return null;
+    delete best.rank;
+    return best;
+}
+/** 두 점 거리(km, 하버사인). @returns {number} [연계] ← twNear */
+function kmBetween(a, b, c, d) { const R = Math.PI / 180, h = Math.sin((c - a) * R / 2) ** 2 + Math.cos(a * R) * Math.cos(c * R) * Math.sin((d - b) * R / 2) ** 2; return 2 * 6371.0088 * Math.asin(Math.sqrt(h)); }
 
 /** 실패를 기록하고 로그에 남긴다(키 가림). quiet = 기록만 하고 로그는 찍지 않는다(판 아직 없음 — 부르는 쪽이 한 줄로 찍는다). [연계] ← prefetch·get */
 function fail(where, message, quiet) {
@@ -317,7 +370,7 @@ function prefetch(lzones, baseTm) {
             writeStatus('실패: ' + baseTm + ' 판 요청 ' + r.requests + '번 모두 실패 — ' + (r.firstError || '') + (brief ? ' (저장된 ' + brief.baseTm + ' 판 유지)' : ''));
             return summary;
         }
-        brief = { baseTm, collectedAt: new Date().toISOString(), lzones: list, requests: r.requests, failed: r.failed, missingTimes: r.missingTimes, data: r.data };
+        brief = { baseTm, collectedAt: new Date().toISOString(), lzones: list, requests: r.requests, failed: r.failed, missingTimes: r.missingTimes, data: r.data, tw: r.tw };
         try {
             fs.mkdirSync(opts.dataDir, { recursive: true });
             const gz = zlib.gzipSync(Buffer.from(JSON.stringify({ fmt: 1, ...brief }), 'utf8'));
@@ -404,4 +457,4 @@ function getStatus() {
     };
 }
 
-module.exports = { configure, prefetch, get, peek, getStatus, briefingLzones, parseTable, efTimes, mask, _reset, CHUNK, CLICK_MAX, MARGIN_DEG };
+module.exports = { configure, prefetch, get, peek, getStatus, briefingLzones, parseTable, efTimes, mask, _reset, twNear, CHUNK, CLICK_MAX, MARGIN_DEG, TW_MAX_KM, TW_MAX_AGE_MS };
