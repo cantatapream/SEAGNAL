@@ -2133,13 +2133,13 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(['06:00', '07:30', '17:40', '22:59', '23:00', '23:30'].map((h) => R.nextPublishAt(t(h))), ['2026-10-17T07:30:00+09:00', '2026-10-17T17:30:00+09:00', '2026-10-17T23:00:00+09:00', '2026-10-17T23:00:00+09:00', '2026-10-18T07:30:00+09:00', '2026-10-18T07:30:00+09:00']);
         const sb = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/forecast/station-briefing/station_briefing_render.js'), 'utf8'), sb);
         const SR = sb.window.StationBriefingRender, ev = { edition: 'evening', publishAt: '2026-10-17T17:30:00+09:00', generatedAt: '2026-10-17T17:10:05+09:00', targetDate: '2026-10-17' };
-        assert.equal(SR.subtitleText(ev, R.nextPublishAt(t('18:00')), t('18:00')), '10월 17일 17:30 기준 브리핑 (다음 갱신 23:00 또는 특보 변경 시)');
+        assert.equal(SR.subtitleText(ev, R.nextPublishAt(t('18:00')), t('18:00')), '다음 갱신 23:00 또는 특보 변경 시');   // 2026-10-19 판 날짜·시각 글 뺌(§11.10.44)
         assert.equal(SR.titleText(ev), '17:30 AI 연안 안전 브리핑', '제목과 같은 시각');
         const mn = { edition: 'manual', generatedAt: '2026-10-17T18:31:20+09:00', targetDate: '2026-10-17' };
-        assert.equal(SR.subtitleText(mn, R.nextPublishAt(t('18:40')), t('18:40')), '10월 17일 18:31 기준 브리핑 (다음 갱신 23:00 또는 특보 변경 시)', '관리자 판 — 「관리자 즉시 실행 판」·「생성」 없음');
+        assert.equal(SR.subtitleText(mn, R.nextPublishAt(t('18:40')), t('18:40')), '다음 갱신 23:00 또는 특보 변경 시', '관리자 판 — 「관리자 즉시 실행 판」·「생성」 없음');
         const nt = { edition: 'night', publishAt: '2026-10-17T23:00:00+09:00', generatedAt: '2026-10-17T22:40:00+09:00', targetDate: '2026-10-18' };
-        assert.equal(SR.subtitleText(nt, R.nextPublishAt(t('23:05')), t('23:05')), '10월 17일 23:00 기준 브리핑 (다음 갱신 내일 07:30 또는 특보 변경 시)');
-        assert.equal(SR.subtitleText(ev, null, t('18:00')), '10월 17일 17:30 기준 브리핑', 'nextPublishAt 이 없으면 괄호 없음');
+        assert.equal(SR.subtitleText(nt, R.nextPublishAt(t('23:05')), t('23:05')), '다음 갱신 내일 07:30 또는 특보 변경 시');
+        assert.equal(SR.subtitleText(ev, null, t('18:00')), '', 'nextPublishAt 이 없으면 빈 글(머리 글 줄 없음)');
         // 라우터 — GET /api/station-briefing 응답에 nextPublishAt(가짜 시계)
         const express = require('express'), { createRouter } = require('../routes/station_briefing');
         const fake = { readConfig: () => ({ exposure: 'user' }), stations: () => [{ key: 'k' }], pick: () => ({ date: '2026-10-17', briefing: null }) };
