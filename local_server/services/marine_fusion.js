@@ -4,6 +4,7 @@
  * [연계] risk_store.marineInputs → 본 저장소 → routes/risk_forecast → RiskMarine 화면.
  *        관할 브리핑(station_briefing_inputs)이 stationAt·cellHistory 로 같은 관할 배정·과거 사고 집계를 쓴다(2026-10-16).
  *        특보 상자(marine.warnings): marineInputs.warnings(weather_alerts.json) · sea_warning_history.extract · warn_zone_cells(칸→특보구역).
+ *        해역 이름(cellName — 2026-10-19 「위험예측까지 넓힘」): risk_store.spots·coastal_hazard_zones → station_briefing_inputs.placesByStation(관할 기준점) → station_briefing_rules.regionName(브리핑 해역 카드와 같은 규칙).
  * [로드 순서] 요청에서 외부 수집·Gemini 호출 없음. 연안 관광객 사고는 읽지 않는다.
  */
 'use strict';
@@ -130,7 +131,7 @@ function riskColors(rows){const limits={};for(const r of rows||[]){if(RANK[r[2]]
  * @param {object} options - risk 저장소, 폴더·시계·정적자료 주입 @returns {object} 조회 API
  * [연계] ← routes/risk_forecast / 캐시는 자료 버전과 시간으로 제한한다.
  */
-function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.join(ROOT,'config','coastal_safety'),clock=Date.now,stations:injectedStations,accidents:injectedAccidents,describe=require('./risk_sea_cells').describe,zonesFor}={}){
+function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.join(ROOT,'config','coastal_safety'),clock=Date.now,stations:injectedStations,accidents:injectedAccidents,describe=require('./risk_sea_cells').describe,zonesFor,placesOf}={}){
     // 칸의 특보구역: GR4 칸이면 교통량 그래프(sea/traffic-history)와 같은 칸 중심 판정, 아니면 그 지점. 시험은 zonesFor 로 바꿔 넣는다.
     const zonesOf=zonesFor||((id,p)=>{const W=require('./warn_zone_cells');return(typeof id==='string'&&id.startsWith('GR4_')&&W.zonesOfCell(id))||W.zonesAt(p);});
     if(typeof clock!=='function')throw TypeError('clock function required');
@@ -142,6 +143,15 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const raw=injectedAccidents||io.read(path.join(clientDir,'accident_ships_hk.json'))?.rows||[];staticAvailable=!!raw.length;const latest=raw.reduce((n,r)=>Math.max(n,Number(String(r[2]).slice(0,4))||0),0);period={from:`${latest-4}-01-01`,to:`${latest}-12-31`,source:'앱 기존 선박사고 자료',includedTypes:Object.values(INCIDENTS),excludedTypes:['해양오염','부유물감김'],weatherRule:'기상악화 원인 포함, 제외 유형 우선',available:staticAvailable};
         for(const r of raw){const y=Number(String(r[2]).slice(0,4));if(y<latest-4||y>latest||!Number.isFinite(r[0])||!Number.isFinite(r[1]))continue;if(EXCLUDED.has(r[5])||(!INCIDENTS[r[5]]&&r[6]!=='ACC008')){excludedCount++;continue;}accidents.push(r);const key=Math.floor(r[1]*4)+','+Math.floor(r[0]*4);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(r);}
     }
+    // 해역 이름 기준점(연안 안전 브리핑 설계서 §11.10.38 — 2026-10-19 사용자 「위험예측까지 넓힘」): 칸 중심이 든 관할의 관광지(없으면 위험구역 장소명).
+    // 브리핑 해역 카드(station_briefing_rules.regionName ← station_briefing_inputs.gather 의 places)와 같은 관할 배정·같은 함수라, 같은 칸이면 위험예측 시트 제목·브리핑 카드·「지금 밀집」 이름이 같다.
+    // 97관할 배정(정리판·위험구역 파일 읽기 포함)은 실측 수~120ms 라 관광지 표 해시(risk.spots().v)마다 한 번만 한다. 시험은 placesOf(관할 id → [{name,lat,lon}]|null)를 넣는다 — 관할을 주입한 시험에서 기본 계산은 하지 않는다.
+    let placesCache=null;
+    function defaultPlaces(id){const sp=risk.spots();if(!placesCache||placesCache.v!==sp.v){const I=require('./station_briefing_inputs'),features=io.read(path.join(configDir,'coastal_hazard_zones.wgs84.geojson'))?.features||[];placesCache={v:sp.v,map:I.placesByStation(I.loadStations(configDir),sp.spots,features)};}return placesCache.map.get(id)||null;}
+    const placesFor=placesOf||(injectedStations?()=>null:defaultPlaces);
+    /** 칸의 해역 이름. 칸 중심이 든 관할의 기준점이 있으면 station_briefing_rules.regionName(주요지명이 10km 넘게 멀면 관광지·위험구역 중 더 가까운 곳), 관할 밖이거나 기준점을 못 얻으면(관광지 표 준비 전 등) location(주요지명만).
+     * 예: 한림항 앞 칸 → '비양도 남방 0.2해리 해역(232-2해구)'(종전 '화순항 북북서방 11.3해리 해역(232-2해구)') @param {object} cell - describe 결과 @returns {string} [연계] ← analyze / → stationFor·placesFor·regionName·location */
+    function cellName(cell){let pl=null;try{const s=stationFor([cell.lon,cell.lat]);pl=s?placesFor(s.id):null;}catch(_){pl=null;}return pl?require('./station_briefing_rules').regionName(cell,pl).name:location(cell);}
     function inside(p,b){return p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];}
     function stationFor(p){loadStatic();const key=p.join(',');if(stationCache.has(key))return stationCache.get(key);const value=stations.filter(s=>inside(p,s.bounds)&&G.pointInGeometry(p,s.geometry)).sort((a,b)=>a.name.localeCompare(b.name,'ko')||a.id.localeCompare(b.id))[0]||null;stationCache.set(key,value);if(stationCache.size>60000)stationCache.delete(stationCache.keys().next().value);return value;}
     /** 경계 안 과거 선박사고 줄(원자료 배열)을 모은다. @param {object} geometry @returns {Array[]} [연계] ← history·cellHistory */
@@ -230,8 +240,7 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const notice=collisionNotice(cf,Date.parse(at)<=clock()+60000&&liveData&&status.status==='ok'?liveData:null,clock());
         if(notice.on)reasons.unshift({key:'collision',text:notice.text,at:notice.reasons[0].at});
         const attention=Math.max(notice.on?1:0,af?.status==='ok'&&RANK[af.level]>=2?RANK[af.level]:0,cf?.status==='ok'&&RANK[cf.level]>=2?1:0,liveData&&status.status==='ok'&&liveData.count>=21?1:0,riskPeak&&inputs.sources.accident?.status==='ok'?(RANK[riskPeak.level]||0):0,inputs.sources.zoneForecasts?.status==='ok'&&(weather.wh>=2||weather.ws>=12)?1:0);
-        // nameRef = location 을 만든 같은 칸의 중심·주요지명·해구 — 연안 안전 브리핑 「지금 밀집」이 해역 카드와 같은 규칙(station_briefing_rules.regionName)으로 이름을 다시 짓는 재료(설계서 §11.10.38). 이 화면(위험예측 시트) 제목은 location 그대로.
-        return{location:location(cell),nameRef:{lat:cell.lat,lon:cell.lon,ref:cell.ref||null,haegu:cell.haegu||null},point:{lon:p[0],lat:p[1]},t:at,station:stationFor(p)?.name||null,office:stationFor(p)?.station||null,current:liveData,currentStatus:status,congestion:cf,accident:af,collisionNotice:notice,weather:{...weather,source:'기상청 해구별 예보',status:inputs.sources.zoneForecasts?.status},warnings,history:stats,outlook:{congestion:upcoming,accident:riskTimes},attention:['정보 확인','관심 필요','주의 필요','경계 단계 확인 필요'][attention],attentionRank:attention,reasons,scopeNote:'사고 단계와 지도 색은 현재·미래 모두 공식 사고 예보 그대로입니다. 충돌·접촉 주의는 혼잡 예보 높음 이상 또는 현재 14척 이상일 때 붙이는 앱 안내이며 사고 확률이나 공단 등급이 아닙니다. 현재 교통이 누락·낡으면 현재 척수는 사유로 쓰지 않습니다. 앱 사고 통계는 해양오염·부유물감김을 제외합니다.'};
+        return{location:cellName(cell),point:{lon:p[0],lat:p[1]},t:at,station:stationFor(p)?.name||null,office:stationFor(p)?.station||null,current:liveData,currentStatus:status,congestion:cf,accident:af,collisionNotice:notice,weather:{...weather,source:'기상청 해구별 예보',status:inputs.sources.zoneForecasts?.status},warnings,history:stats,outlook:{congestion:upcoming,accident:riskTimes},attention:['정보 확인','관심 필요','주의 필요','경계 단계 확인 필요'][attention],attentionRank:attention,reasons,scopeNote:'사고 단계와 지도 색은 현재·미래 모두 공식 사고 예보 그대로입니다. 충돌·접촉 주의는 혼잡 예보 높음 이상 또는 현재 14척 이상일 때 붙이는 앱 안내이며 사고 확률이나 공단 등급이 아닙니다. 현재 교통이 누락·낡으면 현재 척수는 사유로 쓰지 않습니다. 앱 사고 통계는 해양오염·부유물감김을 제외합니다.'};
     }
     function analysis({id,lon,lat,t}={}){const inputs=input(),at=time(t);let p;if(lon!==undefined&&lat!==undefined){p=[Number(lon),Number(lat)];if(!p.every(Number.isFinite)||p[0]<115||p[0]>140||p[1]<20||p[1]>45)throw Object.assign(Error('좌표 범위 오류'),{status:400});}else{const c=[...(live?.cells||[]),...(inputs.cells?.cells||[]),...(inputs.accident?.cells||[])].find(c=>c.id===id);if(!c)throw Object.assign(Error('해상 격자 없음'),{status:404});p=[c.lon,c.lat];}const marine=analyze(p,at,inputs);return{t:at,marine,title:marine.location,subtitle:marine.station||'',gridId:id||null,lat:p[1],lon:p[0]};}
     function briefing(id,t){loadStatic();const inputs=input(),at=time(t),s=stations.find(s=>s.id===id);if(!s)throw Object.assign(Error('관할 없음'),{status:404});const key=[id,at,liveSignature,inputs.version,freshness().status].join('|');if(briefCache.has(key))return briefCache.get(key);
