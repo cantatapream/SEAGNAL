@@ -2006,6 +2006,43 @@ function makeBriefings() {
             await page.unroute('**/api/hazard-rocks/tide-curve*');
             await page.setViewportSize({ width: 412, height: 915 });
         });
+        // §11.10.38 ③(2026-10-19 사용자 *"그리고 여기서는 화면 축소 확대(마우스 휠 및 터치 줌인)가 안되는데 되도록 해줘."* — 「제주도서부앞바다·…(232해구)」 대해구 팝업): 창으로 뜨는 지도는 모두 확대·축소, 본문 펼침 지도는 그대로 그림
+        await check('[§11.10.38-③] 대해구 팝업 지도(openMapPopup — miniMap opt.big) — 끌기·핀치·휠·더블탭 조작이 켜짐 · 마우스 휠로 해상도가 바뀜(확대·축소) · 휠 동안 바깥 페이지·창 스크롤 없음 · 본문 근거 「대해구」 펼침 지도는 종전처럼 조작 0개(페이지 스크롤을 가로채지 않음) · 360px', async () => {
+            await page.setViewportSize({ width: 360, height: 780 }); await openAcc(page);
+            // 사용자 화면과 같은 꼴 — 해상 AI 분석 첫 말이 대해구 이름(링크)인 판(§11.10.34-1 과 같은 방법으로 본문을 그린다)
+            const LONG = '제주도서부앞바다·제주도서부앞바다중 북서연안바다(232해구)', base = JSON.parse(JSON.stringify(B.h)); base.summary.sea.haegu[0].name = LONG;
+            base.overview.sea = LONG + '는 유의파고 2.6m·풍속 14m/s로 물결이 높고 바람이 매우 강할 것으로 예상됩니다. 따라서 비양도 주변 해역 운항에 주의가 요구됩니다.';
+            await page.evaluate(({ base, now }) => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), { ok: true, briefing: base }, { now, showSea: true, showLand: true, onLink: () => {} }), { base, now: clock.now });
+            await page.evaluate(() => { const lk = document.querySelector('#station-briefing-content [data-sb-analysis="sea"] [data-sb-maplink="haegu"]'); lk.scrollIntoView({ block: 'center' }); lk.click(); });
+            await page.waitForSelector('[data-sb-map-popup="haegu"] .sb-minimap[data-sb-map="ol"]');
+            const r = await page.evaluate(() => { const d = document.querySelector('[data-sb-map-popup="haegu"]'), m = d.querySelector('.sb-minimap'), H = m._sbMap, ol = window.ol;
+                return { title: d.querySelector('.sb-dlg-title').textContent, cap: d.querySelector('.sb-minimap-cap').textContent, zoomable: m.hasAttribute('data-sb-map-zoomable'), ctl: H.map.getControls().getLength(),
+                    names: ['DragPan', 'PinchZoom', 'MouseWheelZoom', 'DoubleClickZoom'].filter((k) => H.map.getInteractions().getArray().some((i) => i instanceof ol.interaction[k])), res0: H.map.getView().getResolution(), page: document.documentElement.scrollWidth, vw: innerWidth }; });
+            assert.equal(r.title, LONG, '사용자 화면의 그 팝업'); assert.ok(/해구 격자 · 파란 선 = .+ 관할 해역$/.test(r.cap), r.cap);
+            assert.deepEqual([r.zoomable, r.ctl, r.names], [true, 0, ['DragPan', 'PinchZoom', 'MouseWheelZoom', 'DoubleClickZoom']], '조작 켜짐 · +/− 단추 없음 ' + JSON.stringify(r));
+            let T = clock.now; const tick = async () => { T += 1000; await page.clock.setFixedTime(new Date(T)); await page.waitForTimeout(150); };   // OL 확대 움직임은 Date.now 로 진행(§11.10.32 시험과 같은 방법)
+            const resOf = () => page.evaluate(() => document.querySelector('[data-sb-map-popup="haegu"] .sb-minimap')._sbMap.map.getView().getResolution());
+            const box = await page.locator('[data-sb-map-popup="haegu"] .sb-minimap').boundingBox(), cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+            const sc0 = await page.evaluate(() => [scrollY, document.querySelector('[data-sb-map-popup="haegu"] .sb-dlg-box').scrollTop]);
+            await page.mouse.move(cx, cy); await page.mouse.wheel(0, -300); await page.waitForTimeout(300); await tick();
+            const res1 = await resOf(); assert.ok(res1 < r.res0 * 0.9, '휠 위로 = 확대(해상도 m/px 작아짐) ' + r.res0 + '→' + res1);
+            await page.mouse.wheel(0, 300); await page.waitForTimeout(300); await tick();
+            const res2 = await resOf(); assert.ok(res2 > res1 * 1.1, '휠 아래로 = 축소 ' + res1 + '→' + res2);
+            assert.deepEqual(await page.evaluate(() => [scrollY, document.querySelector('[data-sb-map-popup="haegu"] .sb-dlg-box').scrollTop]), sc0, '휠 동안 바깥 페이지·창 스크롤 없음');
+            await page.clock.setFixedTime(new Date(clock.now));
+            assert.ok(r.page <= r.vw + 1, '360px 가로 넘침 없음');
+            console.log('    대해구 팝업 휠: ' + [r.res0, res1, res2].map((v) => v.toFixed(1)).join(' → ') + ' m/px');
+            await clean(page); await page.screenshot({ path: path.join(SHOT, 'briefing_haegu_popup_zoom_360.png') });
+            await page.evaluate(() => document.querySelector('[data-sb-map-close]').click());
+            // 본문 근거 「대해구」 줄 펼침 지도(팝업 아님) — 종전 그대로 조작 0개
+            const inl = await page.evaluate(async () => { const b = document.querySelector('#station-briefing-content [data-sb-x="basis-sea"]'); if (b.getAttribute('aria-expanded') !== 'true') b.click();
+                document.querySelector('#station-briefing-content button[data-sb-x="map-haegu"]').click(); await new Promise((res) => setTimeout(res, 300));
+                const m = document.querySelector('#station-briefing-content [data-sb-x-panel="map-haegu"] .sb-minimap'), out = { n: m._sbMap.map.getInteractions().getLength(), zoomable: m.hasAttribute('data-sb-map-zoomable') };
+                document.querySelector('#station-briefing-content button[data-sb-x="map-haegu"]').click(); return out; });
+            assert.deepEqual(inl, { n: 0, zoomable: false }, '본문 펼침 지도는 그림(누름만)');
+            await page.evaluate(() => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), JSON.parse(JSON.stringify(window.StationBriefing._state.resp)), { showSea: true, showLand: true, onLink: () => {} }));
+            await page.setViewportSize({ width: 412, height: 915 });
+        });
         await check('[§11.10.3] [기준 상세] — 해양사고 위험예보(공단·3시간·단계)·칸 크기·결론에 넣지 않는 이유·「특보 가능성 기준」은 풍랑주의보 기준이 아님·지도 펼침·고립 지점 표', async () => {
             await tap(page, '#station-briefing-content .sb-basis-btn'); await page.waitForSelector('.rf-modal .rf-basis');
             const body = await page.evaluate(() => document.querySelector('.rf-basis-body').innerText);
@@ -2659,6 +2696,98 @@ function makeBriefings() {
             assert.equal(await pg.evaluate(() => window.StationBriefing.pollNow()), false);
             assert.equal(nowReqs().length, k0, '묻지 않았다');
             await openAcc(pg); assert.equal(await pg.evaluate(() => window.StationBriefing.pollNow()), false, '다시 펼침 — 자료 그대로(unchanged)'); assert.equal(nowReqs().length, k0 + 1);
+        });
+        // ── §11.10.38(2026-10-19 사용자 결정) ①육지 쪽 칸 누르기 ②지도 기다림 표시 ──
+        //   ① 원문: *"이 화면에서 꼭 해상을 눌러야만 다음 바텀시트가 열리는데 이 화면에서는 격자(육지쪽)을 눌러도 바텀시트가 켜지도록 수정해줘"*
+        //   ② 원문: *"팝업에서 지도를 띄울때 로딩시간이 있잖아 ? 위험예측화면에서 자료를 가져오는거니까. 따라서 그떄 위험예측에서와 같이 로딩스피너를 띄워주면 좋겠어."*
+        /** 팝업 지도에서 그 경위도를 지도 가운데로 옮기고 화면 좌표를 돌려준다. @param {{lon:number,lat:number}} c @returns {Promise<number[]>} */
+        const popupXY = (c) => pg.evaluate((q) => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'), map = m._sbMap.map, p = ol.proj.fromLonLat([q.lon, q.lat]); map.getView().setCenter(p); map.renderSync(); const px = map.getPixelFromCoordinate(p), r = m.getBoundingClientRect(); return [r.left + px[0], r.top + px[1]]; }, c);
+        await check('[§11.10.38-①] 혼잡도 지금 팝업 — 칸 안 육지 쪽을 눌러도 그 칸 해상 분석 시트(그 칸 중심 경위도로 요청 · 선택 테두리 · data-sb-map-pick) · 칸 밖 육지는 아무 일 없음 · 같은 점을 위험예측 본 화면처럼(hit 옵션 없이) 판정하면 종전대로 거짓', async () => {
+            // 해안선: IN_CELL(126.2~126.225E, 33.4~33.425N)의 서쪽 절반과 그 서쪽 바깥을 육지로
+            const LAND = { rings: [[[126.18, 33.40], [126.2125, 33.40], [126.2125, 33.43], [126.18, 33.43], [126.18, 33.40]]] };
+            await pg.route('**/api/ocean/land-mask', (rt) => rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(LAND) }));
+            try {
+                await pg.evaluate(() => document.querySelector('#station-briefing-content [data-sb-maplink="now-all"]').click());
+                await pg.waitForFunction(() => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'); return m && m.dataset.sbGrid === 'current' && m.dataset.sbGridN === '1'; }, null, { timeout: 8000 });
+                await pg.waitForTimeout(300);   // 해안선(boundaries)이 다 들어온 뒤
+                const LAND_IN = { lon: 126.205, lat: 33.41 }, LAND_OUT = { lon: 126.19, lat: 33.41 }, k0 = reqs.length;
+                let xy = await popupXY(LAND_OUT); await pg.mouse.click(xy[0], xy[1]); await pg.waitForTimeout(700);
+                let s = await popState();
+                assert.deepEqual([s.sheetOpen, reqs.slice(k0).filter((u) => u.includes('/sea/analysis?')).length], [false, 0], '칸 밖 육지 — 시트 없음·요청 없음');
+                xy = await popupXY(LAND_IN); await pg.mouse.click(xy[0], xy[1]);
+                await pg.waitForFunction(() => { const sh = document.querySelector('[data-sb-map-popup] [data-sb-rf-sheet]'); return sh && sh.classList.contains('open') && sh.getAttribute('data-sb-rf-loaded') === 'marine'; }, null, { timeout: 8000 });
+                s = await popState();
+                const pick = await pg.evaluate(() => document.querySelector('[data-sb-map-popup] .sb-minimap').getAttribute('data-sb-map-pick'));
+                assert.deepEqual([s.sheetKind, s.sheetId, pick], ['marine', IN_CELL.id, IN_CELL.id], '칸 안 육지 쪽 → 그 칸 해상 시트');
+                const an = new URL(reqs.slice(k0).filter((u) => u.includes('/sea/analysis?')).pop());
+                assert.deepEqual([an.searchParams.get('id'), Number(an.searchParams.get('lon')), Number(an.searchParams.get('lat'))], [IN_CELL.id, IN_CELL.lon, IN_CELL.lat], '육지 점이 아니라 그 칸 중심으로 요청 ' + an.search);
+                const selx = await pg.evaluate(() => { const ex = document.querySelector('[data-sb-map-popup] .sb-minimap')._sbMap.risk().layer.selectionExtent(); return ex && ol.proj.transformExtent(ex, 'EPSG:3857', 'EPSG:4326').map((v) => Math.round(v * 1e4) / 1e4); });
+                assert.deepEqual(selx, [126.2, 33.4, 126.225, 33.425], '선택 테두리 = 그 칸(해상 칸을 누를 때와 같은 setSelection)');
+                // 본 화면 판정(옵션 없음 — 위험예측 tryHandleClick 과 같은 부름) — 같은 육지 점은 종전대로 육지 = 연안으로 보고 거짓(해안선이 실제로 들어왔다는 확인도 된다)
+                const plain = await pg.evaluate((q) => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'), map = m._sbMap.map, c = ol.proj.fromLonLat([q.lon, q.lat]); return m._sbMap.risk().layer.hit({ coordinate: c, pixel: map.getPixelFromCoordinate(c) }); }, LAND_IN);
+                assert.equal(plain, false, '옵션 없는 hit(위험예측 본 화면)은 육지 쪽 칸을 고르지 않는다');
+                await pg.keyboard.press('Escape'); await pg.waitForTimeout(450);
+                await pg.keyboard.press('Escape'); assert.equal(await popState(), null);
+            } finally { await pg.unroute('**/api/ocean/land-mask'); await pg.evaluate(() => { const x = document.querySelector('[data-sb-map-popup] [data-sb-map-close]'); if (x) x.click(); }); }
+        });
+        await check('[§11.10.38-②] 위험예측 배경 지도 기다림 표시 — 처음 받는 동안 250ms 넘으면 지도 가운데 스피너(style.css .spinner) · 자료가 오면 숨김 · 실패하면 「잠시 후 다시 시도해 주세요」 2초 + 종전 캡션 · 실시간 갱신(popup.live)에는 띄우지 않음 · 근거 펼침 지도(위험 예측)도 같음 · 360px', async () => {
+            let delay = 900, failNext = false, step = '';
+            try {
+                await pg.route('**/api/risk-forecast/sea/area-frame?*', async (route) => {
+                    await new Promise((res) => setTimeout(res, delay));
+                    if (failNext) { failNext = false; return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false, error: '시험 실패' }) }); }
+                    const u = new URL(route.request().url()); if (u.searchParams.get('mode') !== 'risk') return route.continue();
+                    const res = await route.fetch(), j = await res.json(); j.cells = j.cells.concat([{ id: IN_CELL.id, lon: IN_CELL.lon, lat: IN_CELL.lat, n: 0.002, level: '주의', color: 0.3 }]); return route.fulfill({ response: res, json: j });
+                });
+                /** 지도 상자 sel 안 기다림 표시 상태. @param {string} sel */
+                const waitOf = (sel) => pg.evaluate((q) => { const m = document.querySelector(q), w = m && m.querySelector('[data-sb-map-wait]'); if (!w) return null; const sp = w.querySelector('[data-wait-spin]'), msg = w.querySelector('[data-wait-msg]'), r = w.getBoundingClientRect(), mr = m.getBoundingClientRect(), g = getComputedStyle(w);
+                    return { shown: !w.hidden && g.display !== 'none' && r.width > 0, spin: !sp.hidden && getComputedStyle(sp).display !== 'none' && getComputedStyle(sp).animationName, msg: !msg.hidden && getComputedStyle(msg).display !== 'none' ? msg.textContent : null,
+                        dx: Math.round(r.left + r.width / 2 - (mr.left + mr.width / 2)), dy: Math.round(r.top + r.height / 2 - (mr.top + mr.height / 2)), role: w.getAttribute('role'), pe: g.pointerEvents, grid: m.dataset.sbGrid || null }; }, sel);
+                const POP = '[data-sb-map-popup] .sb-minimap';
+                step = '가';
+                // (가) 느린 처음 받기 — 250ms 안에는 안 보이고, 넘으면 가운데 스피너, 자료가 오면 숨김
+                await pg.evaluate(() => document.querySelector('#station-briefing-content [data-sb-maplink="now-all"]').click());
+                await pg.waitForTimeout(100); let w0 = await waitOf(POP);
+                assert.ok(w0 && !w0.shown && !w0.grid, '250ms 전에는 안 보임 ' + JSON.stringify(w0));
+                await pg.waitForTimeout(350); w0 = await waitOf(POP);
+                assert.deepEqual([w0.shown, w0.spin, w0.msg, w0.role, w0.pe], [true, 'spin', null, 'status', 'none'], '250ms 넘으면 스피너(누름 통과) ' + JSON.stringify(w0));
+                assert.ok(Math.abs(w0.dx) <= 1 && Math.abs(w0.dy) <= 1, '지도 가운데 ' + JSON.stringify(w0));
+                await clean(pg); await pg.screenshot({ path: path.join(SHOT, 'briefing_map_wait_360.png') });
+                await pg.waitForFunction((q) => { const m = document.querySelector(q); return m && m.dataset.sbGrid === 'current'; }, POP, { timeout: 8000 });
+                w0 = await waitOf(POP); assert.deepEqual([w0.shown, w0.spin], [false, false], '자료가 오면 숨김');
+                step = '나';
+                // (나) 실시간 갱신(popup.live → 다시 받기)은 느려도 띄우지 않는다 — 위험예측도 사용자가 누른 동작만(60초 자동 갱신 제외)
+                writeRT('2026-10-17T10:09:00+09:00', 9);
+                Object.assign(NOWFX, { at: '2026-10-17T10:09:00+09:00', count: 30, text: '10:09 기준 관할 해역 선박 30척 · 선박이 있는 해역 격자 4개\n한림항 북서방 1.2해리 해역(232-2해구) 25척 — 충돌·접촉 주의' });
+                assert.equal(await pg.evaluate(() => window.StationBriefing.pollNow()), true);
+                await pg.waitForTimeout(500); w0 = await waitOf(POP);
+                assert.deepEqual([w0.shown, w0.spin], [false, false], '실시간 갱신 중에는 스피너 없음 ' + JSON.stringify(w0));
+                await pg.waitForFunction((q) => document.querySelector(q).dataset.sbGridLabels === '9', POP, { timeout: 8000 }).catch(async (e) => { throw new Error(e.message + ' ' + JSON.stringify(await pg.evaluate((q) => { const m = document.querySelector(q); return m && { labels: m.dataset.sbGridLabels, n: m.dataset.sbGridN, grid: m.dataset.sbGrid, title: document.querySelector('[data-sb-map-popup] .sb-dlg-title').textContent }; }, POP)) + ' reqs ' + reqs.slice(-4).join(' ')); });
+                await pg.keyboard.press('Escape'); assert.equal(await popState(), null);
+                step = '다';
+                // (다) 실패 — 스피너가 뜬 뒤 실패하면 같은 자리에 안내 2초, 캡션은 종전 「위험예측 자료를 불러오지 못했습니다 — …」
+                failNext = true; delay = 400;
+                await pg.evaluate(() => document.querySelector('#station-briefing-content [data-sb-maplink="now-all"]').click());
+                await pg.waitForFunction((q) => { const m = document.querySelector(q); return m && m.dataset.sbGrid === 'error'; }, POP, { timeout: 8000 });
+                const tFail = Date.now(); w0 = await waitOf(POP);
+                const cap = await pg.evaluate(() => document.querySelector('[data-sb-map-popup] .sb-minimap-cap').textContent);
+                assert.deepEqual([w0.shown, w0.spin, w0.msg], [true, false, '잠시 후 다시 시도해 주세요'], '실패 안내 ' + JSON.stringify(w0));
+                assert.ok(cap.startsWith('위험예측 자료를 불러오지 못했습니다 — 시험 실패 · '), cap);
+                await clean(pg); await pg.screenshot({ path: path.join(SHOT, 'briefing_map_wait_fail_360.png') });
+                await pg.waitForTimeout(Math.max(0, 2300 - (Date.now() - tFail))); w0 = await waitOf(POP);
+                assert.deepEqual([w0.shown, w0.msg], [false, null], '2초 뒤 사라짐');
+                await pg.keyboard.press('Escape'); assert.equal(await popState(), null);
+                step = '라';
+                // (라) 근거 펼침 지도(위험 예측 색 — 본문 안)도 같은 표시
+                delay = 900;
+                await pg.evaluate(() => { const b = document.querySelector('[data-sb-x="basis-sea"]'); if (b.getAttribute('aria-expanded') !== 'true') b.click(); document.querySelector('[data-sb-x="map-overview"]').click(); });
+                const BAS = '[data-sb-x-panel="map-overview"] .sb-minimap';
+                await pg.waitForTimeout(500); w0 = await waitOf(BAS);
+                assert.deepEqual([w0.shown, w0.spin], [true, 'spin'], '근거 펼침 지도도 스피너 ' + JSON.stringify(w0));
+                await pg.waitForFunction((q) => { const m = document.querySelector(q); return m && m.dataset.sbGrid === 'accident'; }, BAS, { timeout: 8000 });
+                w0 = await waitOf(BAS); assert.deepEqual([w0.shown, w0.spin], [false, false], '근거 지도 — 자료가 오면 숨김');
+                await pg.evaluate(() => document.querySelector('[data-sb-x="map-overview"]').click()); await pg.waitForTimeout(300);
+            } catch (e) { e.message = '[' + step + '] ' + e.message; throw e; } finally { await pg.unroute('**/api/risk-forecast/sea/area-frame?*'); await pg.evaluate(() => { const x = document.querySelector('[data-sb-map-popup] [data-sb-map-close]'); if (x) x.click(); }); }
         });
         await check('[§11.10.24-UI4] (C) 해상 근거 「위험이 높아진 해역」·「위험예보만 \'주의\'인 해역」 펼침 지도 = 위성 바탕 + 위험 예측 색 · 그 칸 깜빡임 유지 · 칸을 누르면 화면 바텀시트(해상 분석) · 접으면 시트도 내림 · 360px', async () => {
             // 이 시험 자료의 위험 예측 칸(공식 사고예보 가짜 칸)은 한림 관할 상자 밖이라, 관할 상자 요청에만 관할 안 칸 하나를 돌려준다(서버 구역 자료 자체는 [§11.10.24-UI0])

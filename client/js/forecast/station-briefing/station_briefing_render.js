@@ -33,6 +33,9 @@
  *                    · 해역 카드 「KOMSA 혼잡 예보」 표는 한 줄에 두 시각(pairTable — 「시각 | 혼잡지수 | 시각 | 혼잡지수」).
  *         §11.10.34(2026-10-18 — 화면만): 글 속 지도 링크 = <span role="button" tabindex=0>(mapLink — 긴 해역 링크 뒤 「는」이 다음 줄로 밀리지 않게) · 「조석」 칸 뺌 · 잠기는 바위 팝업 지도 +/− 단추 뺌(끌기·핀치·휠·더블탭은 그대로)
  *                    · 해상 결론 배지 「N개 해역 주의(KOMSA)」(「예보」 뺌) · 화면 글의 「(KOMSA …)」 괄호는 2pt 작게(komsaText).
+ *         §11.10.38(2026-10-19 — 화면만): 창으로 뜨는 지도(miniMap opt.big — 대해구·선박·관광지·잠기는 바위)는 모두 끌기·핀치·휠·더블탭 확대·축소(본문 펼침 지도는 그대로 그림)
+ *                    · 위험예측 배경 지도는 처음 받는 동안 250ms 넘으면 지도 가운데 스피너, 실패면 「잠시 후 다시 시도해 주세요」 2초(mapWait — 위험예측과 같은 값, 실시간 갱신에는 없음)
+ *                    · 해상 지도 칸 안 육지 쪽을 눌러도 그 칸 해상 시트(StationBriefingRiskMap.attach → RiskMapLayer.hit {landSea}).
  *         §18(2026-10-18): 연안 카드 [오늘 예상] 바로 아래 해수욕장 안내 줄(beachBox — 응답 resp.beach[관광지 id], 개장 줄 → 입수 줄, 서버 글 그대로).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -916,13 +919,33 @@
         wrap.appendChild(p); wrap.appendChild(x.panel);
         return wrap;
     }
+    var WAIT_SHOW_MS = 250, WAIT_FAIL_MS = 2000;   // 위험예측 risk_forecast.js 지도 기다림 표시와 같은 값(250ms 넘으면 스피너 · 실패 안내 2초)
+    /**
+     * 지도 가운데 기다림 표시(위험예측 지도 waitStart·waitEnd 와 같은 모양 — style.css .spinner 36px 파란 고리 + 「잠시 후 다시 시도해 주세요」).
+     * 만들자마자 기다림을 시작해 250ms 가 넘으면 스피너를 보이고, end(false) 면 끄고, end(true) 면 같은 자리에 안내를 2초 보인 뒤 끈다.
+     * 위험예측의 .rf-map-wait 는 해양안전 탭(body.ls-safety) 밖에서 숨겨지므로(risk_forecast.css) 브리핑은 같은 규칙의 .sb-map-wait 를 쓴다(station_briefing.css).
+     * 예: var w8 = mapWait(box); load().then(function () { w8.end(false); }, function () { w8.end(true); })
+     * @param {HTMLElement} box - 지도 상자(.sb-minimap) @returns {{end:function(boolean), el:HTMLElement}}
+     * [연계] ← miniMap(opt.risk 처음 받기) — §11.10.38 사용자 「팝업에서 지도를 띄울때 … 위험예측에서와 같이 로딩스피너를 띄워주면 좋겠어」
+     */
+    function mapWait(box) {
+        var we = el('div', 'sb-map-wait'), sp = el('div', 'spinner'), msg = el('p', '', '잠시 후 다시 시도해 주세요'), done = false;
+        we.hidden = true; we.setAttribute('role', 'status'); we.setAttribute('aria-live', 'polite'); we.setAttribute('data-sb-map-wait', '');
+        sp.setAttribute('aria-hidden', 'true'); sp.setAttribute('data-wait-spin', ''); sp.hidden = true; msg.setAttribute('data-wait-msg', ''); msg.hidden = true;
+        we.appendChild(sp); we.appendChild(msg); box.appendChild(we);
+        var showT = setTimeout(function () { if (done) return; sp.hidden = false; we.hidden = false; }, WAIT_SHOW_MS);
+        return { el: we, end: function (failed) {
+            if (done) return; done = true; clearTimeout(showT); sp.hidden = true; msg.hidden = !failed; we.hidden = !failed;
+            if (failed) setTimeout(function () { msg.hidden = true; we.hidden = true; }, WAIT_FAIL_MS);
+        } };
+    }
     /** 움직임 줄이기 설정이면 참(깜빡이지 않고 굵은 테두리로만). @returns {boolean} [연계] ← miniMap */
     function reducedMotion() { try { return !!(w.matchMedia && w.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (_) { return false; } }
     /**
      * 펼친 칸 안에 작은 지도(높이 약 200px)를 그린다 — 관할 해역 경계(파란 선) 전체가 보이게 맞추고, 해당 칸·해구 테두리(빨강)를 약 600ms 마다 깜빡인다.
      * 사용자 원문: *"대한민국 전도 전체로 보면 될 것이 아니라 그 해역 그 관할 전체가 표시되고 … 그 격자의 테두리가 깜빡깜빡했으면 좋겠거든."*
      * 바탕은 관심해역 고르기 지도(zone_setup.js)와 같은 해아름 바다지도(oceanCreateKhoaLayer) — 없으면 선만. 움직임 줄이기 설정이면 깜빡이지 않는다.
-     * 지도는 그림처럼 고정(끌기·확대 없음) — 페이지를 쓸어 내릴 때 지도가 손가락을 가로채지 않게(팝업 지도 opt.risk.interactive·opt.zoom 은 예외 — 창 안이라 가로채도 된다).
+     * 지도는 그림처럼 고정(끌기·확대 없음) — 페이지를 쓸어 내릴 때 지도가 손가락을 가로채지 않게(팝업 지도 opt.risk.interactive·opt.zoom·opt.big 은 예외 — 창 안이라 가로채도 된다. §11.10.38: opt.big(창으로 뜨는 지도)이면 모두 확대·축소).
      * 예: miniMap(panel, [[[[126.1,33.3],…]]], [[126.2,33.4,126.25,33.44]], '빨간 테두리(깜빡임) = …') → 정리 함수(깜빡임 멈춤·지도 떼기)
      * §11.10.9 ⑥: opt.big = 팝업용 큰 지도(.sb-minimap-lg) · opt.cells = [{id, box, count}] 선박이 있는 격자 — 테두리 + 격자 가운데 척수 글(ol Text) · opt.dim = 깜빡이는 격자 말고 나머지 격자를 흐리게.
      * §11.10.20: opt.polys = GeoJSON 도형(Polygon·MultiPolygon) 목록 — 상자(boxes) 대신 그 모양 그대로 깜빡임(연안 카드 [위치 보기] 위험구역) · opt.spot = {lon, lat, name} 흰 점 + 이름(관광지).
@@ -935,6 +958,7 @@
      * §11.10.32(2026-10-18 — 잠기는 바위 팝업): opt.sat = 위험예측 층 없이 바탕만 위성지도(StationBriefingRiskMap.baseLayers 그대로 — 위성 키를 못 받으면 해아름 기본맵, 그 파일이 없으면 해아름 바다지도)
      *            · opt.zoom = 끌기·두 손가락(핀치)·마우스 휠·더블탭 확대(OpenLayers 기본 조작 — 위험예측 팝업 지도와 같은 것). 화면 +/− 단추는 없다(§11.10.34 — 사용자 *"플러스 마이너스 버튼을 화면에서 제외해줘"*).
      *              지도를 끄는 동안 바깥 페이지는 스크롤되지 않는다(OL 이 그 터치·휠의 기본 동작을 막는다). 바위 누르기(onPoint)는 그대로.
+     * §11.10.38(2026-10-19): opt.big(창 지도 — 대해구·선박·관광지·잠기는 바위 팝업)이면 opt.zoom 과 같이 끌기·핀치·휠·더블탭 확대·축소 · opt.risk 는 처음 받는 동안 지도 가운데 기다림 표시(mapWait — 위험예측과 같은 250ms·실패 안내 2초).
      * @param {HTMLElement} panel @param {Array} area - 관할 폴리곤 목록(경위도) @param {number[][]} boxes - [서,남,동,북] 목록 @param {string} caption @param {Object} [opt] - {big, cells, dim, points, onPoint, polys, spot, risk, sat, zoom}
      * @returns {Function|null} 정리 함수 [연계] ← basisList(expander build)·openMapPopup(대해구·지금 밀집 팝업)·riskPopup / ol.js(index2 전역)·ocean_map.js oceanCreateKhoaLayer · station_briefing_riskmap.js(StationBriefingRiskMap)
      */
@@ -976,10 +1000,13 @@
         // 위험예측 층(zIndex 130~139) 위에 관할 선·깜빡임·점이 오게
         if (risk) [areaLayer, cellLayer, hlLayer, ptLayer, spotLayer].forEach(function (l, i) { l.setZIndex(150 + i); });
         // 팝업 지도(risk.interactive)는 끌기·두 손가락 확대를 받는다(혼잡도 숫자는 확대해야 보인다 — 위험예측 지도와 같은 규칙). 근거 펼침 지도는 종전처럼 그림(누름만)
-        var mapOpt = { target: box, layers: layers, view: new ol.View({ center: proj([127.5, 36]), zoom: 7 }), controls: [] }; if (!(risk && risk.interactive) && !opt.zoom) mapOpt.interactions = [];
+        // §11.10.38(2026-10-19 사용자 「여기서는 화면 축소 확대(마우스 휠 및 터치 줌인)가 안되는데 되도록 해줘」): 창으로 뜨는 지도(opt.big — openMapPopup 안에서만 쓴다)는 모두 확대·축소를 받는다.
+        //   본문에 박힌 작은 지도(근거 펼침·연안 카드 위치)는 그대로 그림(누름만) — 페이지를 쓸어 내리는 손가락·휠을 지도가 가로채지 않게.
+        var zoom = !!(opt.zoom || opt.big);
+        var mapOpt = { target: box, layers: layers, view: new ol.View({ center: proj([127.5, 36]), zoom: 7 }), controls: [] }; if (!(risk && risk.interactive) && !zoom) mapOpt.interactions = [];
         // §11.10.32: opt.zoom — 끌기·핀치·휠·더블탭 확대만(위 interactions 기본값). 화면 +/− 단추(ol.control.Zoom)는 §11.10.34 에 뺐다 —
         //   2026-10-18 사용자 *"그리고 플러스 마이너스 버튼을 화면에서 제외해줘"*(앱의 다른 지도처럼 단추 없음 · controls 는 위 [] 그대로)
-        if (opt.zoom) box.setAttribute('data-sb-map-zoomable', '');
+        if (zoom) box.setAttribute('data-sb-map-zoomable', '');
         var map = new ol.Map(mapOpt); if (sat) sat.map = map;
         var ext = areaSrc.getExtent().slice(); if (hlSrc.getFeatures().length) ol.extent.extend(ext, hlSrc.getExtent()); if (cellSrc.getFeatures().length) ol.extent.extend(ext, cellSrc.getExtent()); if (ptSrc.getFeatures().length) ol.extent.extend(ext, ptSrc.getExtent()); if (spotSrc.getFeatures().length) ol.extent.extend(ext, spotSrc.getExtent());
         if (ptSrc.getFeatures().length && typeof opt.onPoint === 'function') {
@@ -997,7 +1024,7 @@
         box.setAttribute('data-sb-map-points', String(ptSrc.getFeatures().length)); box.setAttribute('data-sb-map-icon', RP && RP.icon ? 'hazard-rocks' : 'dot');
         box.setAttribute('data-sb-map-area', String(areaSrc.getFeatures().length)); box.setAttribute('data-sb-map-hl', String(hlSrc.getFeatures().length));
         box._sbMap = { map: map, area: areaSrc, hl: hlSrc, hlLayer: hlLayer, cells: cellSrc, points: ptSrc, spot: spotSrc };   // 시험용 손잡이(OL 지형지물 수 확인 · 마커 화면 위치)
-        var timer = null, ctl = null, cap = panel.querySelector('.sb-minimap-cap');
+        var timer = null, ctl = null, wait = null, cap = panel.querySelector('.sb-minimap-cap');
         if (risk) {
             // 혼잡도(지금)는 칸 안 선박 수가 보이는 확대(위험예측 지도 규칙 — 해상도 80m/px 미만)로 — 깜빡이는 칸(없으면 관할) 가운데
             if (risk.kind === 'current' && map.getView().getResolution() >= 80) { map.getView().setCenter(ol.extent.getCenter(hlSrc.getFeatures().length ? hlSrc.getExtent() : ext)); map.getView().setResolution(79); }
@@ -1008,10 +1035,14 @@
                     box.setAttribute('data-sb-grid-labels', d.mode === 'current' ? (d.cells || []).filter(function (c) { return c.n > 0; }).map(function (c) { return c.n; }).join(',') : '');
                     if (typeof risk.onLoad === 'function') risk.onLoad(d, stop);
                 } });
-            ctl.load().catch(function (e) { box.setAttribute('data-sb-grid', 'error'); if (cap) cap.textContent = '위험예측 자료를 불러오지 못했습니다 — ' + (e && e.message || '오류') + ' · ' + caption; });
+            // §11.10.38(2026-10-19 사용자 「위험예측에서와 같이 로딩스피너를 띄워주면 좋겠어」): 처음 받는 동안 250ms 넘으면 지도 가운데 스피너, 실패면 「잠시 후 다시 시도해 주세요」 2초(위험예측 waitStart·waitEnd 와 같은 값).
+            //   실시간 갱신(popup.live → ctl.load)은 띄우지 않는다 — 위험예측도 사용자가 누른 동작만 띄우고 60초 자동 갱신에는 띄우지 않는다.
+            wait = mapWait(box);
+            ctl.load().then(function () { wait.end(false); }, function (e) { wait.end(true); box.setAttribute('data-sb-grid', 'error'); if (cap) cap.textContent = '위험예측 자료를 불러오지 못했습니다 — ' + (e && e.message || '오류') + ' · ' + caption; });
         }
-        var stop = function () { if (timer) { clearInterval(timer); timer = null; blinking--; } if (ctl) { ctl.destroy(); ctl = null; } box.setAttribute('data-sb-blink', still ? 'static' : 'off'); map.setTarget(null); };
+        var stop = function () { if (timer) { clearInterval(timer); timer = null; blinking--; } if (wait) wait.end(false); if (ctl) { ctl.destroy(); ctl = null; } box.setAttribute('data-sb-blink', still ? 'static' : 'off'); map.setTarget(null); };
         stop.map = map; stop.caption = cap; stop.risk = function () { return ctl; };
+        box._sbMap.risk = stop.risk;   // 시험용 손잡이(§11.10.38 — 위험예측 층 선택 테두리·본 화면 판정 확인)
         /** 깜빡이는 칸·도형을 바꾼다(§11.10.24 — 실시간 갱신으로 가장 붐비는 해역이 바뀜 · 관광지 영역은 자료를 받은 뒤). 예: stop.highlight([[126.2,33.4,126.225,33.425]], []) */
         stop.highlight = function (bx, pl) {
             hlSrc.clear();
