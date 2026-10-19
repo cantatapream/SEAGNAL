@@ -1945,7 +1945,71 @@
         pick(0);
     }
     /**
-     * 총평 아래 나머지 칸(해상 분석·육상 분석·꼬리)을 그린다 — 종전 render 뒷부분 그대로. 「특별 상황」 칸(아래 ② 주석)·「조석」 칸(아래 ⑥ 주석 — §11.10.34)은 없앴다.
+     * 상시 위험 장소 한 곳의 서버 글(land.constant[].text)을 표 칸으로 나눈다 — 서버는 칸별 값을 따로 주지 않고 글 하나만 준다(rules.landSection traitText·위험구역만 줄).
+     *   관광지(kind 'spot') 글 = 「위험구역 N곳(종류 n·…)」 · 「YYYY~YYYY 연안사고 N건(유형 n·…)」 · 「해수욕장」 을 「 · 」로 이은 것(빠진 토막은 없는 것).
+     *   위험구역만(kind 'hazard') 글 = 「구역분류 · 장소형태」(위험구역 하나 — 1개소). 이 꼴이 아니면 null — 표가 두 칸을 합쳐 글 그대로 보인다(지어내지 않는다).
+     *   서버 유형 목록(topTypes)은 셋까지라 합이 건수보다 작으면 「외 N」을 붙인다(카드 [사고현황]의 「외 N건」과 같은 뜻).
+     * 예: {kind:'spot', text:'위험구역 2곳(사망사고 발생구역 2) · 2020~2024 연안사고 4건(익수 3·추락 1)'} → {sub:null, hz:{n:2, list:['사망사고 발생구역 2']}, acc:{n:4, period:'2020~2024', list:['익수 3','추락 1']}}
+     *     {kind:'hazard', text:'사망사고 발생구역 · 방파제'} → {sub:'방파제', hz:{n:1, list:['사망사고 발생구역 1']}, acc:null} · {kind:'hazard', text:'방파제'} → null
+     * @param {Object} c - land.constant 한 항목 {kind, name, text} @returns {Object|null} [연계] ← constantTable
+     */
+    function constantParts(c) {
+        var parts = String((c && c.text) || '').split(' · '), out = { sub: null, hz: null, acc: null }, m;
+        if (c && c.kind === 'hazard') return parts.length === 2 && parts[0] && parts[1] ? { sub: parts[1], hz: { n: 1, list: [parts[0] + ' 1'] }, acc: null } : null;
+        var list = function (s) { return s ? s.split('·') : []; };
+        for (var i = 0; i < parts.length; i++) {
+            var p = parts[i];
+            if (!out.hz && (m = /^위험구역 (\d+)곳\(([^()]*)\)$/.exec(p))) out.hz = { n: Number(m[1]), list: list(m[2]) };
+            else if (!out.acc && (m = /^(\d{4}~\d{4}) 연안사고 (\d+)건\(([^()]*)\)$/.exec(p))) {
+                var acc = { n: Number(m[2]), period: m[1], list: list(m[3]) }, sum = 0, ok = true;
+                acc.list.forEach(function (x) { var k = /\s(\d+)$/.exec(x); if (k) sum += Number(k[1]); else ok = false; });
+                if (ok && acc.n > sum) acc.list.push('외 ' + (acc.n - sum));
+                out.acc = acc;
+            } else if (!out.sub && p === '해수욕장') out.sub = p;
+            else return null;
+        }
+        return out.hz || out.acc || out.sub ? out : null;
+    }
+    /**
+     * 「상시 위험 장소 N개소」 접힘 안 표 — 열 = 장소 | 위험구역 | 연안사고(기간)(2026-10-19 사용자 *"이 상시 위험장소를 표로 정리하여 표출할 수 있도록 하고 상시 위험 장소(12)를
+     *   상시 위험 장소 ##개소 라고 표현할 수 있도록 해줘."* — 설계서 §11.10.39). 종전 글머리 목록 「이름 — 글」의 토막을 칸으로 옮겼을 뿐 더하거나 빼지 않는다:
+     *   장소 칸 = 이름(+ 아래 작게 「해수욕장」·위험구역 장소형태) · 위험구역 칸 = 「N개소」 + 종류별 줄 · 연안사고 칸 = 「N건」 + 유형별 줄. 없는 칸은 「—」. 줄 순서 = 서버 순서.
+     *   기간은 모든 줄이 같으면 머리 「연안사고(2020~2024)」 한 번, 다르면 칸 안 작은 줄로. 못 읽는 글(constantParts null)은 두 칸을 합친 한 칸에 글 그대로.
+     *   표 상자(.sb-constant-tblw)는 좁으면 표만 가로로 밀린다(페이지는 넘치지 않음) — 360px 에서는 칸 안 줄바꿈으로 들어간다(시험 [§11.10.39]). 이름에 누르는 동작은 없다(종전 목록에도 없었다).
+     * 예: constantTable(details, [{kind:'spot', name:'판포포구', text:'위험구역 2곳(사망사고 발생구역 2) · 2020~2024 연안사고 4건(익수 3·추락 1)'}])
+     *     → 머리 장소|위험구역|연안사고(2020~2024) · 줄 판포포구 | 2개소 / 사망사고 발생구역 2 | 4건 / 익수 3 / 추락 1
+     * @param {HTMLElement} host - details.sb-constant @param {Object[]} items - land.constant @returns {void} [연계] ← renderRest / → constantParts / 모양: station_briefing.css .sb-constant-*
+     */
+    function constantTable(host, items) {
+        var rows = items.map(function (c) { return { c: c, p: constantParts(c) }; });
+        var periods = rows.reduce(function (a, r) { var q = r.p && r.p.acc && r.p.acc.period; if (q && a.indexOf(q) < 0) a.push(q); return a; }, []), one = periods.length === 1 ? periods[0] : null;
+        var w = el('div', 'sb-constant-tblw'), t = el('table', 'sb-iso-table sb-constant-table'); t.setAttribute('data-sb-constant-table', '');
+        var hr = el('tr'), th = el('thead'), ah = el('th', '', '연안사고');
+        if (one) ah.appendChild(el('span', 'sb-const-period', '(' + one + ')'));   // 기간은 머리 둘째 줄(좁은 칸에서 「(2020~202」/「4)」로 꺾이지 않게)
+        hr.appendChild(el('th', '', '장소')); hr.appendChild(el('th', '', '위험구역')); hr.appendChild(ah); th.appendChild(hr); t.appendChild(th);
+        /** 칸 하나 — 본 글(굵게) + 작은 줄들, 값이 없으면 「—」. */
+        var cell = function (main, subs) {
+            var td = el('td');
+            if (main === null) { td.appendChild(el('span', 'sb-const-none', '—')); return td; }
+            td.appendChild(el('span', 'sb-const-n', main)); subs.forEach(function (s) { td.appendChild(el('span', 'sb-const-sub', s)); });
+            return td;
+        };
+        var tb = el('tbody');
+        rows.forEach(function (r) {
+            var tr = el('tr'), p = r.p, nm = el('td', 'sb-const-place'); nm.appendChild(el('span', 'sb-const-name', r.c.name || ''));
+            if (p && p.sub) nm.appendChild(el('span', 'sb-const-sub', p.sub));
+            tr.appendChild(nm);
+            if (!p) { var raw = el('td'); raw.colSpan = 2; raw.appendChild(el('span', 'sb-const-raw', r.c.text || '')); tr.appendChild(raw); }
+            else {
+                tr.appendChild(p.hz ? cell(p.hz.n + '개소', p.hz.list) : cell(null));
+                tr.appendChild(p.acc ? cell(p.acc.n + '건', (one ? [] : [p.acc.period]).concat(p.acc.list)) : cell(null));
+            }
+            tb.appendChild(tr);
+        });
+        t.appendChild(tb); w.appendChild(t); host.appendChild(w);
+    }
+    /**
+     * 총평 아래 나머지 칸(연안 분석·해상 분석·꼬리)을 그린다 — 종전 render 뒷부분 그대로(2026-10-19 부터 연안 분석이 먼저 — §11.10.39). 「특별 상황」 칸(아래 ② 주석)·「조석」 칸(아래 ⑥ 주석 — §11.10.34)은 없앴다.
      * 처음에는 모두 접힘(§11.10.16 소절 — 「총평과 권고」만 펼침).
      * @param {HTMLElement} box @param {Object} b @param {Object} opts @param {boolean} showSea @param {boolean} showLand @param {number} nowMs @returns {void}
      * [연계] ← render / → section·timeBar·seaCard·landCard · levelGroups·levelBadges·levelTabs(§11.10.14 — 해상·연안 분석 머리 배지·단계 단추)
@@ -1954,6 +2018,29 @@
         // ② 「특별 상황」 칸(특보 해제 예고·예비·이미 해제)은 그리지 않는다 — 2026-10-17 사용자 *"특별상황은 굳이 들어갈 필요가 있겠나 싶은게, 어차피 특보정보가 총평 내용에 녹아들어가고,
         //   또 해상분석에 해상특보 내용이 녹는거 아니니 ? 그래서 필요가 없을 것 같은데."*(설계서 §11.10.16 소절). 이미 저장된 판도 그리지 않는다.
         //   그 제목(해제 예고·예비특보·해제)은 전부 총평 「해상 분석 근거 상세 보기」 (근거) 줄에 있다(서버 rules.seaSummary — 규칙 v17). 서버 b.special 은 AI 입력용으로 그대로.
+        // 칸 순서 = 「연안 분석」 → 「해상 분석」(총평과 권고 summaryBodyV3 의 연안 → 해상 덩어리와 같은 순서) — 2026-10-19 사용자 *"그다음 총평 및 권고는 연안부터 나오고 그다음 해상이 나오는데
+        //   아래 분석은 해상이 먼저 나오고 연안이 나오고 있으니 순서를 바꿔줘."*(설계서 §11.10.39). 종전에는 해상 분석(③④) 다음 연안 분석(⑤)이었다.
+
+        // ⑤ 육상 분석 — 관광지 카드 + 상시 위험 장소. 해상만 관할(land null)은 육상 보기를 꺼 두었어도 이유 한 줄을 보인다(계약 §7).
+        if (showLand || !b.land) {
+            var s4 = section('연안 분석', 'land');
+            if (!b.land) s4.body.appendChild(el('p', 'sb-small', b.seaOnlyReason || '이 관할은 해상 브리핑만 제공합니다.'));
+            else {
+                var land = b.land, lh = el('div', 'sb-sec-head'); lh.appendChild(chip(land.level && land.level.rank, land.level && land.level.word)); if (land.level && land.level.source) lh.appendChild(el('span', 'sb-tag', land.level.source)); s4.body.appendChild(lh);
+                // 「관광지 N곳 검토 · …」 줄도 해상과 같이 없앴다(§11.10.16 — 같은 꼴의 줄). 그 줄에 있던 「관광지 N곳 자료 확인 불가」도 그리지 않는다 —
+                //   2026-10-17 사용자 *"아예 확인 불가도 빼."*(설계서 §11.10.16 소절). 서버 land.failedSpots 값은 그대로 저장된다(화면에만 없음).
+                if (Array.isArray(land.missing) && land.missing.length) s4.body.appendChild(el('p', 'sb-miss', '확인하지 못한 자료: ' + sourceNames(land.missing)));
+                var landGroups = levelGroups(land.cards); levelBadges(s4.head, landGroups);   // 머리 오른쪽 단계별 개수(§11.10.14 — §11.10.16 「주의 2」)
+                if (Array.isArray(land.cards) && land.cards.length) levelTabs(s4.body, landGroups, function (c) { return landCard(c, opts); }, 'land');
+                else { var ne = el('p', 'sb-small', dayWord(b) + ' 평소와 달라진 요소(사람·행사·너울·이안류·특보·바람)가 있는 관광지가 없습니다.'); ne.setAttribute('data-sb-land-none', ''); s4.body.appendChild(ne); }
+                // 상시 위험 장소 — 접힘 머리 「상시 위험 장소 N개소」 + 표(§11.10.39 — 종전 「상시 위험 장소 (N)」 + 글머리 목록)
+                if (Array.isArray(land.constant) && land.constant.length) {
+                    var cd = el('details', 'sb-constant'); cd.appendChild(el('summary', '', '상시 위험 장소 ' + land.constant.length + '개소'));
+                    constantTable(cd, land.constant); s4.body.appendChild(cd);
+                }
+            }
+            box.appendChild(s4.root);
+        }
 
         // ③④ 해상 분석 — 시간 막대 + 해역 카드
         if (showSea && b.sea) {
@@ -1970,28 +2057,6 @@
             if (Array.isArray(sea.cards) && sea.cards.length) levelTabs(s3.body, seaGroups, function (c) { return seaCard(c, opts); }, 'sea');
             else s3.body.appendChild(el('p', 'sb-small', (sea.missing && sea.missing.length ? '확인된 자료에서는 ' : '') + '관심 이상인 해역이 없습니다.'));
             box.appendChild(s3.root);
-        }
-
-        // ⑤ 육상 분석 — 관광지 카드 + 상시 위험 장소. 해상만 관할(land null)은 육상 보기를 꺼 두었어도 이유 한 줄을 보인다(계약 §7).
-        if (showLand || !b.land) {
-            var s4 = section('연안 분석', 'land');
-            if (!b.land) s4.body.appendChild(el('p', 'sb-small', b.seaOnlyReason || '이 관할은 해상 브리핑만 제공합니다.'));
-            else {
-                var land = b.land, lh = el('div', 'sb-sec-head'); lh.appendChild(chip(land.level && land.level.rank, land.level && land.level.word)); if (land.level && land.level.source) lh.appendChild(el('span', 'sb-tag', land.level.source)); s4.body.appendChild(lh);
-                // 「관광지 N곳 검토 · …」 줄도 해상과 같이 없앴다(§11.10.16 — 같은 꼴의 줄). 그 줄에 있던 「관광지 N곳 자료 확인 불가」도 그리지 않는다 —
-                //   2026-10-17 사용자 *"아예 확인 불가도 빼."*(설계서 §11.10.16 소절). 서버 land.failedSpots 값은 그대로 저장된다(화면에만 없음).
-                if (Array.isArray(land.missing) && land.missing.length) s4.body.appendChild(el('p', 'sb-miss', '확인하지 못한 자료: ' + sourceNames(land.missing)));
-                var landGroups = levelGroups(land.cards); levelBadges(s4.head, landGroups);   // 머리 오른쪽 단계별 개수(§11.10.14 — §11.10.16 「주의 2」)
-                if (Array.isArray(land.cards) && land.cards.length) levelTabs(s4.body, landGroups, function (c) { return landCard(c, opts); }, 'land');
-                else { var ne = el('p', 'sb-small', dayWord(b) + ' 평소와 달라진 요소(사람·행사·너울·이안류·특보·바람)가 있는 관광지가 없습니다.'); ne.setAttribute('data-sb-land-none', ''); s4.body.appendChild(ne); }
-                if (Array.isArray(land.constant) && land.constant.length) {
-                    var cd = el('details', 'sb-constant'); cd.appendChild(el('summary', '', '상시 위험 장소 (' + land.constant.length + ')'));
-                    var cl = el('ul', 'sb-list');
-                    land.constant.forEach(function (c) { var li = el('li'); li.appendChild(el('b', '', c.name || '')); if (c.text) appendText(li, ' — ' + c.text); cl.appendChild(li); });
-                    cd.appendChild(cl); s4.body.appendChild(cd);
-                }
-            }
-            box.appendChild(s4.root);
         }
 
         // ⑥ 「조석」 칸(게이지 카드·고조·저조 목록·물때 글·「관할 대표 위치에서 N km 떨어진 조석 지점 기준」)은 그리지 않는다 — 2026-10-18 사용자 *"그리고 조석정보는 뺴자. 여기서는"*(설계서 §11.10.34).
