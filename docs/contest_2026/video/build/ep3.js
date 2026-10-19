@@ -25,12 +25,14 @@ baseCSS(COMMON_CSS + `
 .flow .gc>div{display:flex;flex-direction:column;justify-content:center;height:100%;padding:0 18px;font-weight:800;font-size:24px;color:${C.navy}}
 .flow small{font-weight:600;font-size:18px;color:#5E6B80;margin-top:4px}
 .arrow{position:absolute;font-weight:800;font-size:34px;color:${C.tealText}}
-.chatbg{position:absolute;left:0;top:0;width:400px;height:816px;background:rgb(4,11,19);overflow:hidden}
-.qb3{position:absolute;left:40px;width:330px;padding:12px 16px;border-radius:16px;background:#F7D84B;color:#1B1B1B;font-weight:600;font-size:15.5px;line-height:1.55}
+.chatbg{position:absolute;left:0;top:0;width:400px;height:816px;background:rgb(5,9,16);overflow:hidden}
+.cpanel{position:absolute;left:23px;top:0;width:354px;height:816px;background:linear-gradient(90deg,rgb(35,43,54) 0 2px,rgb(28,42,53) 2px 345px,rgb(9,10,15) 345px 353px,rgb(32,34,43) 353px)}
+.cside{position:absolute;top:0;width:23px;height:816px;background:rgb(5,9,16)}
+.qb3{position:absolute;left:56px;width:300px;padding:12px 16px;border-radius:16px;background:#F7D84B;color:#1B1B1B;font-weight:600;font-size:15.5px;line-height:1.55}
 .blab{position:absolute;left:38px;font-size:12.5px;color:#93A3B8;font-weight:500}
-.ans{position:absolute;left:35px;width:335px;padding:12px 12px 12px 12px;border-radius:16px;background:rgb(49,70,89);color:#E9EEF4;font-weight:400;font-size:15.6px;line-height:20px;word-break:keep-all}
+.ans{position:absolute;left:36px;width:320px;padding:12px 12px 12px 12px;border-radius:16px;background:rgb(50,71,90);color:#E9EEF4;font-weight:400;font-size:15.6px;line-height:20px;word-break:keep-all}
 .ans b{color:#F2C94C;font-weight:700}
-.think{position:absolute;left:35px;width:250px;height:92px;border-radius:16px;background:rgb(49,70,89);padding:14px}
+.think{position:absolute;left:36px;width:250px;height:92px;border-radius:16px;background:rgb(49,70,89);padding:14px}
 .sk{height:10px;border-radius:5px;background:#5A7088;margin-bottom:8px}
 .st{font-size:13px;color:#B9C7D6;font-weight:600;margin-top:6px}
 .dots i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#B9C7D6;margin-left:4px}
@@ -72,7 +74,7 @@ const pill = mk('div', 'win', world);
 const pillT = mk('div', 'pilltxt', pill); const pillM = maskText(pillT, '연안 안전', '');
 const subA = maskText(hud, '사고 나던 곳을 미리', 'hl'); subA.el.style.cssText += ';left:960px;top:600px;transform:translateX(-50%);font-size:52px';
 const subB = maskText(hud, '현직 해양경찰관이 AI와 만든 해양안전 앱 SEA:GNAL', 'sub'); subB.el.style.cssText += ';left:960px;top:684px;transform:translateX(-50%);font-size:28px;color:#5E6B80';
-const corner = mk('div', 'corner', hud, '3 / 3 &nbsp;사고 나던 곳을 미리');
+const corner = mk('div', 'corner', hud, '3 / 3 &nbsp;사고 나던 곳을 미리'); corner.style.background = C.bg;   // 확대된 카드가 뒤로 지나가도 읽히게
 // 판포포구 설명
 function cap(txt, cls, x, y, size) { const m = maskText(hud, txt, cls); m.el.style.left = px(x); m.el.style.top = px(y); if (size) m.el.style.fontSize = px(size); return m; }
 const ppT = cap('제주 판포포구', 'cap', 110, 330), ppD1 = cap('저조 때 다이빙 사고가 해마다 되풀이되던 곳', 'desc', 114, 432),
@@ -80,8 +82,8 @@ const ppT = cap('제주 판포포구', 'cap', 110, 330), ppD1 = cap('저조 때 
 // 머리말
 const hA = HL(hud, ['관광지 1,354곳,', '**오늘·내일**'], 110, 120, { size: 84 });
 const hB = HL(hud, ['확률이 아니라,', '**평소의 몇 배**'], 110, 120, { size: 84 });
-const hC = HL(hud, ['교대 직전,', '**하루 세 번**'], 110, 120, { size: 84 });
-const hCs = cap('누구나 관할을 골라 봅니다', 'desc', 114, 340);
+const hC = HL(hud, ['해양경찰관 교대 직전,', '**하루 세 번 브리핑**'], 110, 120, { size: 84 });   // 07:30·17:30·23:00 = 연안 안전 담당 해양경찰관 교대 직전(사용자 설계 의도, 게시글 수정본 59행)
+const hCs = cap('같은 브리핑을 누구나, 관할을 골라 봅니다', 'desc', 114, 340);
 const hD = HL(hud, ['결론은 규칙이,', '**해설은 AI가**'], 110, 120, { size: 84 });
 const hE = HL(hud, ['근거 조문까지,', '**쉬운 말로**'], 110, 120, { size: 84 });
 // 범례(오늘·내일 개수)
@@ -104,7 +106,7 @@ const TP = ['07:30', '17:30', '23:00'].map(s => { const g = Glass(hud, 'tpill');
 const ex = Glass(hud, 'ex'); ex.gc.innerHTML = '<div><div class="t">AI 문장 검사 · 예시</div><span class="w">안전합니다<s></s></span><span class="w">사고가 납니다<s></s></span></div>';
 const exS = [...ex.gc.querySelectorAll('s')];
 const exNote = cap('단정하는 말은 검사기가 막습니다', 'small', 116, 590, 24);
-const FL = [['서버 규칙', '단계·권고'], ['AI', '해설 문단'], ['검사기', '숫자·지명 대조']].map(([a, b]) => { const g = Glass(hud, 'flow'); g.el.style.cssText += ';width:210px;height:96px;border-radius:22px'; g.gc.innerHTML = `<div>${a}<small>${b}</small></div>`; return g; });
+const FL = [['서버 규칙', '단계·권고'], ['AI', '해설 문단'], ['검사기', '숫자·지명 대조']].map(([a, b]) => { const g = Glass(hud, 'flow'); g.el.style.cssText += ';width:200px;height:96px;border-radius:22px'; g.gc.innerHTML = `<div>${a}<small>${b}</small></div>`; return g; });
 const ARR = [0, 1].map(() => mk('div', 'arrow', hud, '→'));
 const flN = cap('검사를 못 통과하면 → 규칙 문단', 'small', 116, 790, 24);
 // 챗봇 쪽 설명
@@ -119,7 +121,7 @@ const install = maskText(hud, '구글 플레이 <b style="color:#0E9FAD">SEA:GNA
 install.el.style.cssText += ';left:960px;top:820px;transform:translateX(-50%);font-size:36px;font-weight:700;color:#0B1E3F';
 const credit = maskText(hud, '자료: 기상청·국립해양조사원·해양교통안전공단·해양경찰청·법제처 등 · 배경음: 직접 합성', 'small');
 credit.el.style.cssText += ';left:960px;top:885px;transform:translateX(-50%);font-size:22px';
-const thumbs = ['s31_2.png', 's33_1.png', 'v06.jpg'].map(f => { const e = mk('div', 'thumb', world); e.style.backgroundImage = `url(${IMG(f)})`; return e; });
+const thumbs = ['s31_2.png', 's33_1.png', 'v06.jpg'].map(f => { const e = mk('div', 'thumb', world); e.style.backgroundImage = `url(${IMG(f)})`; e.style.zIndex = '5'; return e; });   // 원(body)보다 위 — 카드가 원으로 빨려 들어감
 
 // ── 하나의 도형: 알약 → 휴대폰 → 점 / 점 → 휴대폰 → 웹 카드 → 휴대폰(챗봇) → 원 → 선 → 덮개 → 알약 → 점 ──
 const body = mk('div', 'win', world);
@@ -131,16 +133,17 @@ const L_pp = mk('div', 'scr', pscr); const ppTop = mk('img', 'shot', L_pp); ppTo
 const ppBot = mk('img', 'shot', L_pp); ppBot.src = IMG('pp_bot.png'); ppBot.style.width = '400px';
 const bxPP = Box(L_pp, 56 * S, 886 * S, 784 * S, 52 * S, '#E0322C');
 const L_312 = shotLayer('s31_2.png', 400);
-const bxIdx = Box(L_312, 64 * S, 878 * S, 204 * S, 204 * S), bx42 = Box(L_312, 436 * S, 958 * S, 132 * S, 42 * S);
+const bxIdx = Box(L_312, 64 * S, 878 * S, 204 * S, 204 * S), bx42 = Box(L_312, 387 * S, 954 * S, 119 * S, 46 * S);
 const L_333 = shotLayer('s33_3.png', 400);
-const L_331 = mk('div', 'scr', pscr); L_331.style.background = '#0B1529'; const im331 = mk('img', 'shot', L_331); im331.src = IMG('s33_1.png'); im331.style.width = '544px';
-const K331 = 544 / 595;
+const L_331 = mk('div', 'scr', pscr); L_331.style.cssText += ';width:544px;height:781px;background:#0B1529'; const im331 = mk('img', 'shot', L_331); im331.src = IMG('s33_1.png'); im331.style.width = '548px';
+const K331 = 548 / 595;   // 595×848 → 548×781: 카드 안쪽 높이에 맞춤(오른쪽 4px 잘림)
 const tagR = mk('div', 'tag2', L_331, '규칙'); tagR.style.background = C.navy; tagR.style.boxShadow = '0 0 0 2px #fff inset,0 6px 14px rgba(0,0,0,.3)';
 const tagA = mk('div', 'tag2', L_331, 'AI'); tagA.style.background = '#0FA3B1';
 const chk = mk('div', 'abs', L_331); chk.style.cssText += `;height:3px;width:${500 * K331}px;background:${C.teal}`;
 const CK = [[212, 357], [222, 378]].map(([x, y]) => { const e = mk('div', 'tag2', L_331, '✓'); e.style.cssText += `;background:${C.teal};padding:2px 8px;font-size:16px;left:${x * K331}px;top:${y * K331 - 12}px`; return e; });
 // 챗봇(재구성 + 실제 캡처 이어 붙인 띠)
 const L_chat = mk('div', 'chatbg', pscr);
+mk('div', 'cpanel', L_chat);   // 캡처 속 대화창 판(x 23~377)과 같은 판 — 재구성 부분과 실제 캡처가 이어지게(10-19 「화면이 틀어졌다」)
 const chatView = mk('div', 'abs', L_chat); chatView.style.cssText += ';left:0;top:48px;width:400px;height:692px;overflow:hidden';
 const chatIn = mk('div', 'abs', chatView); chatIn.style.cssText += ';left:0;top:0;width:400px';
 const qb = mk('div', 'qb3', chatIn, '낚시어선업을 하려고하는데 요건과 제한사항 등에 대해 알려줘'); qb.style.top = '16px';
@@ -157,6 +160,9 @@ const head = mk('img', 'shot', L_chat); head.src = IMG('chat_head.png'); head.st
 const foot = mk('div', 'abs', L_chat); foot.style.cssText += ';left:0;top:740px;width:400px;height:76px';
 const footI = mk('img', 'shot', foot); footI.src = IMG('chat_foot.png'); footI.style.width = '400px';
 const inp = mk('div', 'inp', foot, '<span></span>'); const inpT = inp.firstChild;
+[0, 377].forEach(x => { const e = mk('div', 'cside', L_chat); e.style.left = px(x); });   // 캡처(띠·머리·바닥) 양옆에 비치던 뒤 화면 가림
+{ const e = mk('div', 'cside', L_chat); e.style.cssText += ';left:0;top:804px;width:400px;height:12px'; }   // 바닥 캡처의 판 아래(y 63~)도 뒤 화면이라 가림
+{ const e = mk('div', 'cside', L_chat); e.style.cssText += ';left:357px;top:784px;width:20px;height:20px;background:radial-gradient(circle at 0 0,transparent 17px,rgb(5,9,16) 18px)'; }   // 판 오른쪽 아래 둥근 모서리 밖(빨간 배지가 비침)
 const recon = mk('div', 'rc', L_chat, '재구성 화면');
 const QTXT = '낚시어선업을 하려고하는데 요건과 제한사항 등에 대해 알려줘';
 const LAYERS = [L_pp, L_312, L_333, L_331, L_chat];
@@ -201,7 +207,7 @@ cue(B(16) + 0.2, 'typing', 0.6); cue(B(16) + 0.85, 'typing', 0.5); cue(B(17, 4),
 let cam = null;
 function buildCam() {
   cam = { x: [[B(7), YD[0], { z: .85, f: 1.6 }], [B(7) + 0.6, 960, { z: .9, f: 1.8 }], [B(8) + 0.2, 1130, { z: .85, f: 1.5 }], [B(9), 960, { z: .9, f: 1.6 }],
-      [B(12), 1050, { z: .85, f: 1.5 }], [B(15), 960, { z: .9, f: 1.6 }]],
+      [B(12), 1000, { z: .85, f: 1.5 }], [B(15), 960, { z: .9, f: 1.6 }]],
     y: [[B(7), YD[1], { z: .85, f: 1.6 }], [B(7) + 0.6, 540, { z: .9, f: 1.8 }], [B(8) + 0.2, 520, { z: .85, f: 1.5 }], [B(9), 540, { z: .9, f: 1.6 }],
       [B(12), 470, { z: .85, f: 1.5 }], [B(15), 540, { z: .9, f: 1.6 }]],
     z: [[B(7), 2.6, { z: .85, f: 1.6 }], [B(7) + 0.6, 1, { z: .9, f: 1.8 }], [B(8) + 0.2, 1.6, { z: .85, f: 1.5 }], [B(9), 1, { z: .9, f: 1.6 }],
@@ -340,8 +346,8 @@ window.seek = function (t) {
   setRise(exNote, t, B(13, 4) + 0.3, B(15), 'up'); exNote.el.style.top = '565px';
   FL.forEach((g, i) => { const t0 = B(14, 1 + i), o = on(t, t0, B(15, 2) + 0.4); vis(g.el, o); if (!o) return;
     const [hx, hy] = cardPt(545, 805); const suck = easeI(prog(t, B(15), 0.45));
-    g.el.style.transform = `translate(${lerp(110 + i * 270, hx - 105, suck)}px,${lerp(640, hy - 48, suck)}px) scale(${spr(t, t0, { z: .55, f: 2.4 }) * (1 - suck)})`; });
-  ARR.forEach((a, i) => { const o = on(t, B(14, 2 + i) + 0.1, B(15)); vis(a, o); if (o) a.style.transform = `translate(${110 + 210 + 14 + i * 270}px,662px) scale(${spr(t, B(14, 2 + i) + 0.1, { z: .5, f: 3 })})`; });
+    g.el.style.transform = `translate(${lerp(110 + i * 255, hx - 100, suck)}px,${lerp(640, hy - 48, suck)}px) scale(${spr(t, t0, { z: .55, f: 2.4 }) * (1 - suck)})`; });
+  ARR.forEach((a, i) => { const o = on(t, B(14, 2 + i) + 0.1, B(15)); vis(a, o); if (o) a.style.transform = `translate(${110 + 200 + 12 + i * 255}px,662px) scale(${spr(t, B(14, 2 + i) + 0.1, { z: .5, f: 3 })})`; });
   setRise(flN, t, B(14, 4), B(15), 'up'); flN.el.style.top = '760px';
   // 조리개: 「AI 챗봇」 단추
   let ik = 0; const ti0 = B(15, 4) + 0.05;
