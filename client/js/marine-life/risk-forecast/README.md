@@ -14,6 +14,7 @@
 - `risk_format.js`: DMS 정수 초, 16방위, HTML·출처 URL 보호, 색과 숫자 명암
 - `risk_basis.js`, `risk_basis_content.js`: 기준 상세(제목·닫기 고정 머리, 내용만 스크롤 — 2026-10-16) 및 서버 PDF 다운로드
 - `risk_forecast.css`: 기존 스위치·슬라이더를 재사용하는 표시 스타일
+- `harbor_cells_review.md`: 항구 칸 「불확실」 후보표(사람 확인용 — 생성기 `local_server/scripts/gen_harbor_cells.js` 가 만듦, 2026-10-19 · 아래 「항구 칸」 절)
 
 [연안 합계 배수 설명과 후속 과제 인계](../../../../handoff_remaining_risk_tasks.md) · [공단 정보공개청구 초안](../../../../information-disclosure-request.md)
 
@@ -483,3 +484,13 @@
 - 연안 안전 브리핑의 바로가기(`RiskForecast.openAt`·`goTo`)가 버튼·층 스위치를 대신 누르는 클릭은 `quiet()`(`withUsageSuppressed`)로 0건 — 브리핑 쪽 `risk.goto_*_from_briefing` 1건만 남는다.
   브리핑에서 여는 위험예측 지도 키 전체는 [연안 안전 브리핑 README](../../forecast/station-briefing/README.md) 「사용량 통계」 절.
 - 시험: `local_server/scripts/test_usage_briefing_risk_ui.js`. 캐시 `?v=20261018usage`.
+
+## 항구 칸(정박·계류) — 혼잡 판정 제외 · 회색 칸 (2026-10-19 — 설계서 §11.10.38)
+
+> 사용자 원문: *"항구에서 잡히는 것은 사실 통항이라고 보기는 어렵고 상시 그 배가 그 위치에 정박해서 계류하고 있는 상태를 의미하는 거라서 이것이 그 21척이 몰려서 밀집되어 있다라고 혼잡하다고 볼 수는 없을 것 같거든."* · 선택 *「예보 혼잡까지 전부」* · *「회색+숫자 유지」* · *「합계에서 뺌」* · *「자동판정후 애매한곳은1번으로」*
+
+- 목록: `local_server/config/coastal_safety/harbor_cells.json`(강·중 186칸 — 해경 항포구·방파제 구역·항 안 사고글·육지 비율로 자동 판정). 읽기 `local_server/services/harbor_cells.js`. 다시 만들기 `node local_server/scripts/gen_harbor_cells.js`(운영 공개 GET). 「불확실」 140칸은 적용하지 않고 [harbor_cells_review.md](harbor_cells_review.md) 에 구글맵 링크와 함께 둔다.
+- 지도(`risk_map_layer.js renderUnified`): 혼잡도 지금·혼잡 예보에서 서버 프레임 줄 끝이 `1` 인 칸은 회색(rgb(138,148,166), 투명도 .5) · 숫자(척수)는 그대로 · 위험 예측에는 회색 없음. 범례(`risk_forecast.js marineLegend`): 혼잡도일 때 막대 아래 「항구(정박·계류) 칸」 회색 네모(`.rf-harbor-key`).
+- 해상 시트(`risk_marine.js hero`): 서버 `marine.harbor` 가 있으면 「항구 칸 — 정박·계류 배 포함, 혼잡 판정 제외」 한 줄 · 서버는 그 칸에 충돌·접촉 주의·혼잡으로 인한 관심 단계를 만들지 않는다(척수·밀집도·혼잡 예보 값은 그대로 보임).
+- 위험지수(100점)·위험 예측 색은 바뀌지 않는다(혼잡은 원래 점수에 없음). 해역 카드 「최근 14일 선박 동향」은 이번 범위 밖(항구 칸 척수 그대로).
+- 시험: `local_server/scripts/test_harbor_cells.js`(verify_all). 캐시 `?v=20261019harbor`(risk_map_layer·risk_marine·risk_forecast.js·risk_forecast.css).

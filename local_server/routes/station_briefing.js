@@ -175,7 +175,8 @@ function defaultNowLine(key, r, o) {
  */
 function nowLineFrom(b) {
     if (!b || !b.current || b.current.status !== 'ok' || b.current.count === null) return null;
-    const busy = (b.regions || []).filter((x) => x.current && x.current.count >= 14).sort((a, c) => c.current.count - a.current.count)[0];
+    const busy = (b.regions || []).filter((x) => x.current && !x.current.harbor && x.current.count >= 14)   // 항구 칸(정박·계류)은 붐비는 해역이 아니다 — 2026-10-19 사용자 「예보 혼잡까지 전부」
+        .sort((a, c) => c.current.count - a.current.count)[0];
     const at = (b.current.sourceAt || b.current.collectedAt || '').slice(11, 16), cells = Array.isArray(b.current.cells) ? b.current.cells : [];
     const p = busy && busy.point, cell = p ? cells.find((c) => p.lon >= c.box[0] && p.lon <= c.box[2] && p.lat >= c.box[1] && p.lat <= c.box[3]) : null;
     const busiest = busy ? { name: busy.location, count: busy.current.count, id: cell ? cell.id : null } : null;

@@ -25,6 +25,15 @@ node local_server/scripts/build_risk_static.js
 
 Python·Shapely·pyproj는 정적 자료를 만드는 때만 필요하다. 앱 서버는 생성한 JSON을 읽으며 Python을 실행하지 않는다. 섬 외곽선은 API의 `islands`로 받는다(섬 `features` 만 — 2026-10-16 공통 육지 geometry `landGeometry` 는 화면이 쓰지 않아 응답에서 뺐다, README 「지도 버벅임 1단계」). 특보 경계(`/api/warn-zones`)는 읽지 않는다(2026-10-15 특보 영역 미표시).
 
+**항구 칸 목록(2026-10-19 — 설계서 §11.10.38)**: `local_server/config/coastal_safety/harbor_cells.json` 은 혼잡 판정에서 뺄 GR4 칸(강·중)이다. 운영 공개 GET 만 읽어 다시 만든다(Node 만, Python 불필요):
+
+```sh
+node local_server/scripts/gen_harbor_cells.js            # 운영 https://seagnal-server.fly.dev 공개 API — 동시 4개
+node local_server/scripts/gen_harbor_cells.js --cache /tmp/harbor   # 받은 응답을 두고 판정만 다시
+```
+
+같이 [harbor_cells_review.md](harbor_cells_review.md)(불확실 후보표 — 적용 안 함)를 다시 쓴다. 근거 자료(해경 위험구역·사고 장소글·육지 마스크)가 바뀌면 `test_harbor_cells.js` 「재판정 일치」 사례가 실패해 다시 만들 때를 알린다.
+
 ## 응답과 결측
 
 `meta`의 `now`와 `timeline.coast/sea.times`를 슬라이더에 사용한다. `versions.spots/cells`가 바뀌면 대응 표를 다시 읽는다. `coast/frame`의 `spots`와 `sea/frame`의 `cells`는 정적 표의 `i`를 참조하는 배열이다. 두 층의 프레임·상세에는 슬라이더에서 선택한 같은 시각을 전달하고 원천 예보의 간격 매칭은 서버가 한다. 상세 응답의 `score/index/band/rr`를 그대로 표시하고, `rows`, `notices`, `missing`을 문장 틀로 옮긴다. 특보 없는 날의 예보 배수·사유·반영 여부는 파고·풍속 행에 표시한다. 후보가 동률이면 파고 행 한 곳만 반영 표시한다. 기준 PDF는 `report/sea`와 `report/coast`에서 내려받는다.

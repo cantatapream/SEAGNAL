@@ -11,6 +11,7 @@
  * [연계]
  *  - 사용하는 파일 : config/coastal_safety/coastguard_stations.geojson(관할 97곳) · coastal_hazard_zones.wgs84.geojson(위험구역)
  *                    · services/risk_store.js(marineInputs·spots·coastDayDetail — 읽기·호출만) · services/marine_fusion.js(stationAt·cellHistory·warnTime)
+ *                    · services/harbor_cells.js(항구 칸 — collectSea 가 그 칸의 혼잡 예보를 해역 혼잡에서 뺀다, 2026-10-19)
  *                    · services/marine_congestion_codec.js · services/sea_warning_history.js(levelOf) · services/tide_field_common.js·tide_field_collector.js(앵커·곡선)
  *                    · services/jeju_isolation_tide_collector.js·hazard_rocks_tide_collector.js(제주 앵커·곡선 — 결정 5) · services/sea_warning_history.js(이미 해제된 특보 — 결정 4, 기록기를 주입받음)
  *                    · services/hazard_rocks_submersion.js(간출암 목록) · data/hazard_rocks/submersion.json · data/marine_forecast.json(기상청 단기 해상 전망)
@@ -288,10 +289,11 @@ function smallWeather(regions, win, small) {
  * 해역으로 묶고(같은 공식 사고 칸에 든 교통 칸은 하나), 창의 3시간 칸마다 공식 사고 단계·그 3시간 중 가장 높은 혼잡 예보를 붙인다.
  * 예: collectSea(stations, {risk, marine, win, now}) → Map{key → {reviewedCells, regions:[{rid,lat,lon,haegu,ref,zone,slots:{at:{accident,congestion}},history}], weather:{major:{label,rows}}, weatherSmall:{'232-5':{label,rows}}, warnings:[…]}}
  * @param {object[]} stations @param {object} o - risk(risk_store)·marine(marine_fusion 저장소)·win·now·smallZone(소해구 찾기 함수 — smallWeather, 없으면 weatherSmall 은 빈 객체)
- *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 있으면 해역마다 region.traffic = 결과|null, 없으면 필드 없음 — §11.10.23) @returns {object} {bySt:Map, sources}
+ *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 있으면 해역마다 region.traffic = 결과|null, 없으면 필드 없음 — §11.10.23)
+ *                     ·harbor(항구 칸 목록 {has} — 기본 services/harbor_cells.forDefault. 그 칸의 혼잡 예보는 해역 혼잡에 넣지 않는다 — 2026-10-19 사용자 「예보 혼잡까지 전부」) @returns {object} {bySt:Map, sources}
  * [연계] ← gather / → marine.stationAt·cellHistory·codec.rowAt·warningsFromTree·smallWeather·traffic.profiles
  */
-function collectSea(stations, { risk, marine, win, now, warnHistory = null, smallZone = null, traffic = null }) {
+function collectSea(stations, { risk, marine, win, now, warnHistory = null, smallZone = null, traffic = null, harbor = require('./harbor_cells').forDefault() }) {
     const codec = require('./marine_congestion_codec'), inputs = risk.marineInputs(), src = inputs.sources || {};
     const byIdx = new Map(stations.map((s) => [s.idx, s])), bySt = new Map(stations.map((s) => [s.key, { cells: new Set(), groups: new Map() }]));
     const acc = inputs.accident?.cells || [], idx = cellIndex(acc), accById = new Map(acc.map((c) => [c.id, c]));
@@ -317,7 +319,7 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null, smal
                 let best = null;
                 for (let h = 0; h < 3; h++) {
                     const hk = forecastKey(R.isoKst(Date.parse(at) + h * HOUR));
-                    for (const id of g.traffic) { const r = codec.rowAt(inputs.congestion, hk, id, ids); if (!r) continue; const rank = { '낮음': 0, '보통': 1, '높음': 2, '매우높음': 3 }[r.congestionLevel] ?? -1; if (!best || rank > best.rank || (rank === best.rank && r.congestionIndex > best.index)) best = { rank, level: r.congestionLevel, index: r.congestionIndex, at: R.isoKst(Date.parse(at) + h * HOUR) }; }
+                    for (const id of g.traffic) { if (harbor.has(id)) continue; /* 항구 칸(정박·계류) 혼잡 예보는 충돌·접촉 근거가 아니다 */ const r = codec.rowAt(inputs.congestion, hk, id, ids); if (!r) continue; const rank = { '낮음': 0, '보통': 1, '높음': 2, '매우높음': 3 }[r.congestionLevel] ?? -1; if (!best || rank > best.rank || (rank === best.rank && r.congestionIndex > best.index)) best = { rank, level: r.congestionLevel, index: r.congestionIndex, at: R.isoKst(Date.parse(at) + h * HOUR) }; }
                 }
                 slots[at] = { accident: g.accident ? accLevel(forecastKey(at), g.accident.i) : null, congestion: best ? { level: best.level, index: best.index, at: best.at } : null };
             }
