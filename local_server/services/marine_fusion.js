@@ -7,6 +7,7 @@
  *        항구 칸(harbor_cells — 2026-10-19 사용자 「예보 혼잡까지 전부」·「회색+숫자 유지」·「합계에서 뺌」): 목록에 든 GR4 칸은 지금 척수·혼잡 예보로
  *        충돌·접촉 주의·관심 단계를 만들지 않고, 관할 합계(briefing current)에서 빠지며, 지도 프레임(current·congestion) 줄 끝에 1(회색 표시)이 붙는다.
  *        해역 이름(cellName — 2026-10-19 「위험예측까지 넓힘」): risk_store.spots·coastal_hazard_zones → station_briefing_inputs.placesByStation(관할 기준점) → station_briefing_rules.regionName(브리핑 해역 카드와 같은 규칙).
+ *        해역 이름 기준점 공식 항(2026-10-19 「항구 우선」·「마을공동어항만 제외 (추천)」 — 설계서 §11.10.43): official_ports.forNaming() → regionName 셋째 인자(관할 안 칸만 — 10km 안 가장 가까운 항이 먼저. 관할 밖 칸은 주요지명만, 사용자 「관할 밖 바다에 대해서는 논외로」).
  * [로드 순서] 요청에서 외부 수집·Gemini 호출 없음. 연안 관광객 사고는 읽지 않는다.
  */
 'use strict';
@@ -135,7 +136,7 @@ function riskColors(rows){const limits={};for(const r of rows||[]){if(RANK[r[2]]
  * @param {object} options - risk 저장소, 폴더·시계·정적자료 주입 @returns {object} 조회 API
  * [연계] ← routes/risk_forecast / 캐시는 자료 버전과 시간으로 제한한다.
  */
-function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.join(ROOT,'config','coastal_safety'),clock=Date.now,stations:injectedStations,accidents:injectedAccidents,describe=require('./risk_sea_cells').describe,zonesFor,harbor=require('./harbor_cells').forDefault(),placesOf}={}){
+function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.join(ROOT,'config','coastal_safety'),clock=Date.now,stations:injectedStations,accidents:injectedAccidents,describe=require('./risk_sea_cells').describe,zonesFor,harbor=require('./harbor_cells').forDefault(),placesOf,ports}={}){
     // 칸의 특보구역: GR4 칸이면 교통량 그래프(sea/traffic-history)와 같은 칸 중심 판정, 아니면 그 지점. 시험은 zonesFor 로 바꿔 넣는다.
     const zonesOf=zonesFor||((id,p)=>{const W=require('./warn_zone_cells');return(typeof id==='string'&&id.startsWith('GR4_')&&W.zonesOfCell(id))||W.zonesAt(p);});
     if(typeof clock!=='function')throw TypeError('clock function required');
@@ -153,9 +154,14 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
     let placesCache=null;
     function defaultPlaces(id){const sp=risk.spots();if(!placesCache||placesCache.v!==sp.v){const I=require('./station_briefing_inputs'),features=io.read(path.join(configDir,'coastal_hazard_zones.wgs84.geojson'))?.features||[];placesCache={v:sp.v,map:I.placesByStation(I.loadStations(configDir),sp.spots,features)};}return placesCache.map.get(id)||null;}
     const placesFor=placesOf||(injectedStations?()=>null:defaultPlaces);
-    /** 칸의 해역 이름. 칸 중심이 든 관할의 기준점이 있으면 station_briefing_rules.regionName(주요지명이 10km 넘게 멀면 관광지·위험구역 중 더 가까운 곳), 관할 밖이거나 기준점을 못 얻으면(관광지 표 준비 전 등) location(주요지명만).
-     * 예: 한림항 앞 칸 → '비양도 남방 0.2해리 해역(232-2해구)'(종전 '화순항 북북서방 11.3해리 해역(232-2해구)') @param {object} cell - describe 결과 @returns {string} [연계] ← analyze / → stationFor·placesFor·regionName·location */
-    function cellName(cell){let pl=null;try{const s=stationFor([cell.lon,cell.lat]);pl=s?placesFor(s.id):null;}catch(_){pl=null;}return pl?require('./station_briefing_rules').regionName(cell,pl).name:location(cell);}
+    // 공식 항(§11.10.43 「항구 우선」) — 시험은 ports 배열을 넣는다(빈 배열 = 종전 규칙). 기본은 저장소 정리 파일(마을공동어항 제외).
+    // 관할을 주입한 시험의 기본은 placesFor 와 같이 기준점 없음(가짜 관할·가짜 이름 시험이 실제 항 이름에 흔들리지 않게).
+    const portList=()=>ports||(injectedStations?[]:require('./official_ports').forNaming());
+    /** 칸의 해역 이름 = station_briefing_rules.regionName(브리핑 해역 카드와 같은 함수·같은 공식 항 목록). **관할 안 칸만**: 10km 안 공식 항이 있으면 그 항(§11.10.43),
+     *  없으면 그 관할의 기준점이 있을 때 regionName(주요지명이 10km 넘게 멀면 관광지·위험구역 중 더 가까운 곳), 기준점을 못 얻으면(관광지 표 준비 전 등) location(주요지명만).
+     *  관할 밖 칸은 언제나 location(주요지명 165곳만) — 2026-10-19 사용자 *"관할 밖 바다에 대해서는 논외로 남기는게 좋을 것 같은데 관할 내 주요지명을 기준으로 설명토록 하는게 좋겠는걸"*.
+     * 예: 한림항 앞 칸 → '한림항 남동방 0.7해리 해역(232-2해구)'(§11.10.41 때 '비양도 남방 0.2해리 해역(232-2해구)', 그 전 '화순항 북북서방 11.3해리 해역(232-2해구)') @param {object} cell - describe 결과 @returns {string} [연계] ← analyze / → stationFor·placesFor·portList·regionName·location */
+    function cellName(cell){let st=null,pl=null;try{st=stationFor([cell.lon,cell.lat]);}catch(_){st=null;}if(!st)return location(cell);try{pl=placesFor(st.id);}catch(_){pl=null;}const nm=require('./station_briefing_rules').regionName(cell,pl||[],portList());return nm.baseKind==='port'||pl?nm.name:location(cell);}
     function inside(p,b){return p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];}
     function stationFor(p){loadStatic();const key=p.join(',');if(stationCache.has(key))return stationCache.get(key);const value=stations.filter(s=>inside(p,s.bounds)&&G.pointInGeometry(p,s.geometry)).sort((a,b)=>a.name.localeCompare(b.name,'ko')||a.id.localeCompare(b.id))[0]||null;stationCache.set(key,value);if(stationCache.size>60000)stationCache.delete(stationCache.keys().next().value);return value;}
     /** 경계 안 과거 선박사고 줄(원자료 배열)을 모은다. @param {object} geometry @returns {Array[]} [연계] ← history·cellHistory */
