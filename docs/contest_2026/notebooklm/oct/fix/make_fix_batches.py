@@ -187,10 +187,9 @@ FIX = {
 BATCHES = [[4, 6, 8, 9, 10, 12, 14], [15, 17, 18, 19, 20, 21, 24], [2, 25, 31, 34, 35, 36, 37]]
 LET = 'ABCDEFG'
 
-if os.path.isdir(OUT):
-    shutil.rmtree(OUT)
 for bi, batch in enumerate(BATCHES, 1):
     d = f'{OUT}/B{bi}'
+    shutil.rmtree(d, ignore_errors=True)  # 이 스크립트가 든 fix/ 자체는 지우지 않는다
     os.makedirs(d)
     shutil.copy(f'{ROOT}/oct/style_ref_slide03.jpg', d)
     nums = [new_no(o) for o in batch]
