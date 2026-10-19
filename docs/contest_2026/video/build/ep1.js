@@ -201,7 +201,7 @@ function Box(parent, x, y, w, h) {
   const s = mk('div', 'boxsvg', parent, `<svg width="${w + 8}" height="${h + 8}" style="overflow:visible"><rect x="2" y="2" width="${w}" height="${h}" rx="9" fill="none" stroke="${C.teal}" stroke-width="3.5" stroke-dasharray="${P}" stroke-dashoffset="${P}"/></svg>`);
   s.style.left = px(x - 2); s.style.top = px(y - 2);
   const r = s.querySelector('rect');
-  return { set(t, t0) { vis(s, t >= t0); r.setAttribute('stroke-dashoffset', P * (1 - easeO(prog(t, t0, 0.28)))); } };
+  return { set(t, t0) { vis(s, t >= t0); r.setAttribute('stroke-dashoffset', P * (1 - easeO(prog(t, t0, 0.17)))); } };
 }
 // 「풍랑 주의보」 배지: S09-1 y 1012~1035, x 703~828
 const bxBadge = Box(home.exp, 284, (1006 - 628) * S, 56, 15);
@@ -253,7 +253,7 @@ cur.path = [
   [24.3, 1260, 190], [24.9, 1300, 178], [25.2, 260, 360], [26.4, 250, 700], [27.0, 900, 620], [30.2, 1000, 640],
 ];
 // 기능 투어: 기능마다 누를 곳과 누르는 시각(기능 시작 + dt)
-const TAPS = [[200, 224, 0.45], [120, 640, 0.45], [371, 173, 0.45], [180, 300, 0.15], [276, 580, 0.9], [230, 330, 0.8], [200, 140, 0.45], [200, 330, 0.45]];
+const TAPS = [[200, 224, 0.35], [120, 640, 0.35], [371, 173, 0.35], [180, 300, 0.15], [276, 580, 0.9], [230, 330, 0.8], [200, 140, 0.35], [200, 330, 0.35]];
 TAPS.forEach(([x, y, dt], i) => { const tf = B(16 + i); cur.path.push([tf + dt - 0.25, PX + x - 30, PY + y + 40], [tf + dt, PX + x, PY + y], [tf + dt + 0.3, PX + x + 6, PY + y + 4]); });
 cur.path.push([B(24) + 0.15, PX + 200, PY + 12], [B(24) + 0.2, PX + 200, PY + 12]);
 // 끌어내리기: 알림창 아래 끝을 커서가 쥔다(42.495~48.495)
@@ -283,11 +283,13 @@ for (const n of [26, 27, 28]) cue(B(n) + 1.75, 'pop', 0.5);
 
 // 카메라: [t,값,스프링]의 합
 // 카메라: [t,값,스프링]의 합 — 기능마다 확대(왼쪽 설명이 가려지지 않게 중심 x 1100)
-const FOC = [[420, 1.6], [760, 1.6], [520, 1.45], [600, 1.45], [330, 1.6], [525, 1.6], [330, 1.55], [460, 1.7]];
+// [첫 확대 y, 배율, 두 번째로 옮겨 갈 y(없으면 null)] — 기능 하나(2초) 안에서 확대 → 옮김 → 빠짐
+const FOC = [[420, 1.6, 640], [760, 1.6, 600], [520, 1.45, 720], [600, 1.45, 790], [330, 1.6, null], [525, 1.6, null], [330, 1.55, 600], [460, 1.7, 580]];
 const camX = [], camY = [], camZ = [];
-FOC.forEach(([cyf, zf], i) => { const tf = B(16 + i);
-  camX.push([tf + 0.4, 1100, { z: .8, f: 2.2 }]); camY.push([tf + 0.4, cyf, { z: .8, f: 2.2 }]); camZ.push([tf + 0.4, zf, { z: .8, f: 2.2 }]);
-  camZ.push([tf + 1.7, 1.0 + 0.06 * (i % 2), { z: .8, f: 2.6 }]); camY.push([tf + 1.7, 540, { z: .8, f: 2.6 }]); });
+FOC.forEach(([cyf, zf, cy2], i) => { const tf = B(16 + i);
+  camX.push([tf + 0.3, 1100, { z: .8, f: 2.2 }]); camY.push([tf + 0.3, cyf, { z: .8, f: 2.2 }]); camZ.push([tf + 0.3, zf, { z: .8, f: 2.2 }]);
+  if (cy2) { camY.push([tf + 1.0, cy2, { z: .8, f: 2.4 }]); camZ.push([tf + 1.0, zf + 0.12, { z: .75, f: 2.4 }]); }
+  camZ.push([tf + 1.65, 1.0 + 0.06 * (i % 2), { z: .8, f: 2.6 }]); camY.push([tf + 1.65, 540, { z: .8, f: 2.6 }]); });
 camX.push([B(24), 1100, { z: .9, f: 2 }], [B(25), 960, { z: .55, f: 1.6 }],
   [B(26) + 0.35, 1115, { z: .85, f: 1.5 }], [B(27) + 0.3, 1130, { z: .85, f: 1.6 }], [B(28) + 0.5, 1140, { z: .85, f: 1.6 }], [B(29), 960, { z: .9, f: 1.5 }]);
 camY.push([B(24), 540, { z: .9, f: 2 }],

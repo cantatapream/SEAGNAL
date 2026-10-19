@@ -13,8 +13,10 @@ const easeO = u => (u = clamp(u), 1 - Math.pow(1 - u, 3));
 const easeI = u => (u = clamp(u), u * u * u);
 const prog = (t, t0, d) => clamp((t - t0) / d);
 /** 닫힌 형식 스프링 계단 응답(0→1, 넘침 있음). z=감쇠비, f=고유 진동수(Hz). t0 이전 0 */
+// 속도 배율(사용자 요청 10-19: 「탁탁」 빠르게) — 1.2Hz 이상 스프링만 빠르게, 느린 표류(1.2Hz 미만)는 그대로
+const SPEED = 1.7;
 function spr(t, t0, o = {}) {
-  const z = o.z ?? 0.55, f = o.f ?? 2.1, tau = t - t0;
+  const z = o.z ?? 0.55, f0 = o.f ?? 2.1, f = f0 >= 1.2 ? f0 * SPEED : f0, tau = t - t0;
   if (tau <= 0) return 0;
   const w = 2 * Math.PI * f;
   if (z >= 1) { return 1 - Math.exp(-w * tau) * (1 + w * tau); }

@@ -54,7 +54,7 @@ function Box(parent, x, y, w, h, color = C.teal) {
   const s = mk('div', 'boxsvg', parent, `<svg width="${w + 8}" height="${Math.max(h, 2) + 8}" style="overflow:visible">${shape}</svg>`);
   s.style.left = px(x - 2); s.style.top = px(y - 2);
   const r = s.firstChild.firstChild;
-  return { el: s, set(t, t0, t1 = 1e9) { vis(s, t >= t0 && t < t1); r.setAttribute('stroke-dashoffset', P * (1 - easeO(prog(t, t0, 0.28)))); } };
+  return { el: s, set(t, t0, t1 = 1e9) { vis(s, t >= t0 && t < t1); r.setAttribute('stroke-dashoffset', P * (1 - easeO(prog(t, t0, 0.17)))); } };
 }
 function rectStyle(e, x, y, w, h, r, bg) {
   e.style.transform = `translate(${x}px,${y}px)`; e.style.width = px(Math.max(0, w)); e.style.height = px(Math.max(0, h));
