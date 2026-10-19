@@ -24,6 +24,7 @@
      */
     function create(map, select) {
         var SELECTED='#4fc3f7'; // 선택 테두리 색 — 해구기상 대해구 선택(ocean_map.js _styleSelectedMainFeature)과 같은 값
+        var HARBOR_GREY='rgb(138,148,166)'; // 항구 칸(정박·계류) 회색 — 범례 risk_forecast.js marineLegend 의 .rf-harbor-key 와 같은 색(2026-10-19)
         var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], trafficCells=[], unifiedCells=[], unified=!!w.RiskMarine, unifiedMode=null, visible=false, active={coast:true,sea:false}, selection=null, land=[], maskKey='', maskCanvas=null, maskRef=null, maskStale=true, smoothCanvas=null, disposed=false, unifiedTable=null, unifiedIndex=new Map(), unifiedRows=new Map(), unifiedFeatures=new Map(), unifiedBins=new Map(), fillStyles=new Map(), numberStyles=new Map();
         ['accident','sea','marine','traffic','coast','hazard','selection','shore','points'].forEach(function (k,i) {
             sources[k]=new ol.source.Vector();
@@ -150,7 +151,8 @@
             for(var x=Math.floor(b[0]*4);x<=Math.floor(b[2]*4);x++)for(var y=Math.floor(b[1]*4);y<=Math.floor(b[3]*4);y++)(unifiedBins.get(x+','+y)||[]).forEach(function(c){
                 var row=unifiedRows.get(c.i);if(!row||c.lon<b[0]-.0125||c.lon>b[2]+.0125||c.lat<b[1]-.0125||c.lat>b[3]+.0125)return;
                 // 위험 예측(accident)은 위험 4색, 혼잡도(지금 current=밀집도·미래 congestion=혼잡 예보)는 혼잡 4색 — 범례 막대와 같은 색(2026-10-15 조작부 시안).
-                var cong=unifiedMode==='current'||unifiedMode==='congestion',colorKey=(cong?256:0)+Math.round(row[3]*255),style=fillStyles.get(colorKey);if(!style){var color=(cong&&w.RiskMarine.congestionColor?w.RiskMarine.congestionColor:w.RiskMarine.color)((colorKey%256)/255);style=new ol.style.Style({fill:new ol.style.Fill({color:rgba(color,.5)})});fillStyles.set(colorKey,style);}
+                // 항구 칸(서버 프레임 줄 끝 1 — harbor_cells, 정박·계류 배가 늘 세어지는 칸)은 혼잡 색 대신 회색, 숫자는 그대로(2026-10-19 사용자 「회색+숫자 유지」).
+                var cong=unifiedMode==='current'||unifiedMode==='congestion',harborRow=cong&&row[4]===1,colorKey=harborRow?512:(cong?256:0)+Math.round(row[3]*255),style=fillStyles.get(colorKey);if(!style){var color=harborRow?HARBOR_GREY:(cong&&w.RiskMarine.congestionColor?w.RiskMarine.congestionColor:w.RiskMarine.color)((colorKey%256)/255);style=new ol.style.Style({fill:new ol.style.Fill({color:rgba(color,.5)})});fillStyles.set(colorKey,style);}
                 if(overview){
                     // 전국 보기에서는 동일 색상 다각형을 한 도형으로 묶어 수만 개 Feature를 만들지 않는다.
                     var polygon;if(c.geometry){polygon=read(c.geometry).getCoordinates();}else{var lo=ol.proj.fromLonLat([c.lon-.0125,c.lat-.0125]),hi=ol.proj.fromLonLat([c.lon+.0125,c.lat+.0125]);polygon=[[[lo[0],lo[1]],[hi[0],lo[1]],[hi[0],hi[1]],[lo[0],hi[1]],[lo[0],lo[1]]]];}

@@ -75,7 +75,7 @@
             if (coast) { spots = d.spots || []; L.setTables({ cells: [] }, { spots: spots }, null); L.drawCoast({ spots: d.scores || [] }); }
             else {
                 var cells = d.cells || [];
-                L.drawUnified({ cells: cells.map(function (c, k) { return { i: k, id: c.id, lon: c.lon, lat: c.lat }; }) }, { mode: d.mode, cells: cells.map(function (c, k) { return [k, c.n, c.level, c.color]; }) });
+                L.drawUnified({ cells: cells.map(function (c, k) { return { i: k, id: c.id, lon: c.lon, lat: c.lat }; }) }, { mode: d.mode, cells: cells.map(function (c, k) { return c.harbor ? [k, c.n, c.level, c.color, 1] : [k, c.n, c.level, c.color]; }) });   // 끝 1 = 항구 칸(회색, 숫자 그대로 — 2026-10-19)
             }
             if (typeof opt.onLoad === 'function') opt.onLoad(d);
             return d;

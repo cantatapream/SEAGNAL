@@ -337,6 +337,16 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - **칸 순서**(`renderRest`): 총평과 권고(`summaryBodyV3` — 연안 → 해상)와 같게 「연안 분석」 → 「해상 분석」(종전 해상 → 연안).
 - `index2.html` `station_briefing_render.js`·`station_briefing.css` `?v=20261019constant`.
 
+## 항구 칸(정박·계류) — 「지금 밀집」·해상 분석에서 뺌 · 팝업 지도 회색 (2026-10-19 — 설계서 §11.10.40)
+
+> 사용자 원문: *"한림 파출소 관할에서 그 화순항 북북서방 11.3해리 해역에 21척이 몰려 있다라고 표현이 되는데 여기는 한림항이야."* · 선택 *「예보 혼잡까지 전부」* · *「회색+숫자 유지」* · *「합계에서 뺌」* · *「자동판정후 애매한곳은1번으로」*
+
+- 「관할 해역 선박 N척 · 선박이 있는 해역 격자 N개」는 항구 칸(`local_server/config/coastal_safety/harbor_cells.json`)을 뺀 수다(서버 `marine_fusion.briefing current`, 뺀 몫 `current.harborExcluded`). 둘째 줄 「○○ N척 — 충돌·접촉 주의」도 항구 칸을 고르지 않는다(`routes/station_briefing.nowLineFrom`). 글 모양은 그대로.
+- 해상 분석의 혼잡 예보 근거(「혼잡 예보 '매우높음' → 충돌·접촉 주의」)는 항구 칸 예보를 쓰지 않는다(`station_briefing_inputs.collectSea`). 규칙·검증·지시문 판은 그대로(입력이 바뀌면 AI 재사용 해시가 저절로 바뀐다).
+- 팝업 지도(`station_briefing_riskmap.js`): 서버 구역 자료 `harbor:true` 칸을 줄 끝 `1` 로 넘겨 위험예측 층이 회색 칸 + 척수 숫자로 그린다.
+- 해역 카드 「최근 14일 선박 동향」은 이번 결정 범위 밖 — 항구 칸 척수를 그대로 더한다.
+- 시험: `local_server/scripts/test_harbor_cells.js`. 캐시 `station_briefing_riskmap.js?v=20261019harbor`.
+
 ## 시험
 
 `local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES) — 실제 Chromium 으로 index2.html 전체를 띄워 일반·관리자 기기, 설정 흐름, 본문 상태(「가」 모양·제목 시각·규칙 분석·옛 브리핑 대체(§11.10.1·§11.10·그 전)), textContent, 바로가기, N 뱃지, [기준 상세], 관리자 「AI 브리핑」 탭(오류 목록 [복사]·[md로 저장] 포함), 관할 확인 창(취소·Esc·바깥·뒤로가기·늦은 click 무시)·해상/연안 칸 한 줄(360px)을 본다.
