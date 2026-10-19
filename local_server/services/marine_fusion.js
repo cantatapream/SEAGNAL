@@ -4,6 +4,9 @@
  * [연계] risk_store.marineInputs → 본 저장소 → routes/risk_forecast → RiskMarine 화면.
  *        관할 브리핑(station_briefing_inputs)이 stationAt·cellHistory 로 같은 관할 배정·과거 사고 집계를 쓴다(2026-10-16).
  *        특보 상자(marine.warnings): marineInputs.warnings(weather_alerts.json) · sea_warning_history.extract · warn_zone_cells(칸→특보구역).
+ *        항구 칸(harbor_cells — 2026-10-19 사용자 「예보 혼잡까지 전부」·「회색+숫자 유지」·「합계에서 뺌」): 목록에 든 GR4 칸은 지금 척수·혼잡 예보로
+ *        충돌·접촉 주의·관심 단계를 만들지 않고, 관할 합계(briefing current)에서 빠지며, 지도 프레임(current·congestion) 줄 끝에 1(회색 표시)이 붙는다.
+ *        해역 이름(cellName — 2026-10-19 「위험예측까지 넓힘」): risk_store.spots·coastal_hazard_zones → station_briefing_inputs.placesByStation(관할 기준점) → station_briefing_rules.regionName(브리핑 해역 카드와 같은 규칙).
  * [로드 순서] 요청에서 외부 수집·Gemini 호출 없음. 연안 관광객 사고는 읽지 않는다.
  */
 'use strict';
@@ -63,6 +66,8 @@ function accidentList(rows){const n=x=>Number.isFinite(x)&&x>=0?x:null;return ro
 // 사용자 결정 2026-10-15 「혼잡해서 발생하는 사고는 실질적으로 충돌뿐이라 혼잡도·밀집도로 사고 등급을 높이는 게 맞나 싶다」 ·
 // 「충돌, 접촉 주의로 안내가 나가야하고 사유도 명시해야해.」 → 혼잡·척수는 아래 collisionNotice 의 별도 안내로만 쓴다.
 const NOTICE_COUNT=14,NOTICE_CONGESTION=new Set(['높음','매우높음']);
+// 항구 칸 안내(해상 시트 사유 줄). 목록·판정 근거는 config/coastal_safety/harbor_cells.json(scripts/gen_harbor_cells.js).
+const HARBOR_TEXT='항구 칸(항·포구·방파제 안)이라 정박·계류 중인 배도 함께 세어져, 혼잡 판정(충돌·접촉 주의)에서 뺍니다.';
 /** 예보 시각을 짧게 쓴다. 예: 같은 날 '16시', 다른 날 '10.13. 16시'.
  * @param {string} at - KST ISO @param {number} now - 지금(ms) @returns {string} 시각 문구
  * [연계] ← collisionNotice / 내일 예보를 오늘 시각으로 오해하지 않게 날짜를 붙인다.
@@ -130,7 +135,7 @@ function riskColors(rows){const limits={};for(const r of rows||[]){if(RANK[r[2]]
  * @param {object} options - risk 저장소, 폴더·시계·정적자료 주입 @returns {object} 조회 API
  * [연계] ← routes/risk_forecast / 캐시는 자료 버전과 시간으로 제한한다.
  */
-function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.join(ROOT,'config','coastal_safety'),clock=Date.now,stations:injectedStations,accidents:injectedAccidents,describe=require('./risk_sea_cells').describe,zonesFor}={}){
+function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.join(ROOT,'config','coastal_safety'),clock=Date.now,stations:injectedStations,accidents:injectedAccidents,describe=require('./risk_sea_cells').describe,zonesFor,harbor=require('./harbor_cells').forDefault(),placesOf}={}){
     // 칸의 특보구역: GR4 칸이면 교통량 그래프(sea/traffic-history)와 같은 칸 중심 판정, 아니면 그 지점. 시험은 zonesFor 로 바꿔 넣는다.
     const zonesOf=zonesFor||((id,p)=>{const W=require('./warn_zone_cells');return(typeof id==='string'&&id.startsWith('GR4_')&&W.zonesOfCell(id))||W.zonesAt(p);});
     if(typeof clock!=='function')throw TypeError('clock function required');
@@ -142,6 +147,15 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const raw=injectedAccidents||io.read(path.join(clientDir,'accident_ships_hk.json'))?.rows||[];staticAvailable=!!raw.length;const latest=raw.reduce((n,r)=>Math.max(n,Number(String(r[2]).slice(0,4))||0),0);period={from:`${latest-4}-01-01`,to:`${latest}-12-31`,source:'앱 기존 선박사고 자료',includedTypes:Object.values(INCIDENTS),excludedTypes:['해양오염','부유물감김'],weatherRule:'기상악화 원인 포함, 제외 유형 우선',available:staticAvailable};
         for(const r of raw){const y=Number(String(r[2]).slice(0,4));if(y<latest-4||y>latest||!Number.isFinite(r[0])||!Number.isFinite(r[1]))continue;if(EXCLUDED.has(r[5])||(!INCIDENTS[r[5]]&&r[6]!=='ACC008')){excludedCount++;continue;}accidents.push(r);const key=Math.floor(r[1]*4)+','+Math.floor(r[0]*4);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(r);}
     }
+    // 해역 이름 기준점(연안 안전 브리핑 설계서 §11.10.41 — 2026-10-19 사용자 「위험예측까지 넓힘」): 칸 중심이 든 관할의 관광지(없으면 위험구역 장소명).
+    // 브리핑 해역 카드(station_briefing_rules.regionName ← station_briefing_inputs.gather 의 places)와 같은 관할 배정·같은 함수라, 같은 칸이면 위험예측 시트 제목·브리핑 카드·「지금 밀집」 이름이 같다.
+    // 97관할 배정(정리판·위험구역 파일 읽기 포함)은 실측 수~120ms 라 관광지 표 해시(risk.spots().v)마다 한 번만 한다. 시험은 placesOf(관할 id → [{name,lat,lon}]|null)를 넣는다 — 관할을 주입한 시험에서 기본 계산은 하지 않는다.
+    let placesCache=null;
+    function defaultPlaces(id){const sp=risk.spots();if(!placesCache||placesCache.v!==sp.v){const I=require('./station_briefing_inputs'),features=io.read(path.join(configDir,'coastal_hazard_zones.wgs84.geojson'))?.features||[];placesCache={v:sp.v,map:I.placesByStation(I.loadStations(configDir),sp.spots,features)};}return placesCache.map.get(id)||null;}
+    const placesFor=placesOf||(injectedStations?()=>null:defaultPlaces);
+    /** 칸의 해역 이름. 칸 중심이 든 관할의 기준점이 있으면 station_briefing_rules.regionName(주요지명이 10km 넘게 멀면 관광지·위험구역 중 더 가까운 곳), 관할 밖이거나 기준점을 못 얻으면(관광지 표 준비 전 등) location(주요지명만).
+     * 예: 한림항 앞 칸 → '비양도 남방 0.2해리 해역(232-2해구)'(종전 '화순항 북북서방 11.3해리 해역(232-2해구)') @param {object} cell - describe 결과 @returns {string} [연계] ← analyze / → stationFor·placesFor·regionName·location */
+    function cellName(cell){let pl=null;try{const s=stationFor([cell.lon,cell.lat]);pl=s?placesFor(s.id):null;}catch(_){pl=null;}return pl?require('./station_briefing_rules').regionName(cell,pl).name:location(cell);}
     function inside(p,b){return p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];}
     function stationFor(p){loadStatic();const key=p.join(',');if(stationCache.has(key))return stationCache.get(key);const value=stations.filter(s=>inside(p,s.bounds)&&G.pointInGeometry(p,s.geometry)).sort((a,b)=>a.name.localeCompare(b.name,'ko')||a.id.localeCompare(b.id))[0]||null;stationCache.set(key,value);if(stationCache.size>60000)stationCache.delete(stationCache.keys().next().value);return value;}
     /** 경계 안 과거 선박사고 줄(원자료 배열)을 모은다. @param {object} geometry @returns {Array[]} [연계] ← history·cellHistory */
@@ -175,19 +189,20 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
      */
     function unifiedFrame(mode='risk',t){if(!['risk','accident','congestion','current'].includes(mode))throw Object.assign(Error('지도 항목 오류'),{status:400});const inputs=input(),at=time(t),table=unifiedCells(),status=freshness(),liveById=new Map((live?.rows||[]).map(r=>[live.cells[r[0]].id,r])),accAt=T.isoKst(Math.floor(Date.parse(at)/(3*3600000))*3*3600000),accRows=inputs.accident?.frames?.[forecastKey(accAt)],colorById=riskColors(accRows),result=[];
         for(const c of table.cells){let level=null,n=null,color=null;if(mode==='current'){const r=liveById.get(c.id);if(!r&&status.status==='ok'){level='낮음';n=0;color=0;}   // 최신 응답에 없는 칸 = 배 없음 → 「낮음」(사용자 2026-10-15 「혼잡도에서 배가없는 칸을 낮음으로 색칠해줘」)
-            else if(r&&status.status==='ok'){level=densityLevel(r[2]);if(level){n=r[1];const rank=DENSITY_LEVELS.indexOf(level);color=Math.min(.999999,(rank+Math.max(0,Math.min(1,(r[2]-DENSITY_CUTS[rank])/(DENSITY_CUTS[rank+1]-DENSITY_CUTS[rank]))))/4);}}}else if(mode==='congestion'){const r=congestionAt(inputs.congestion,forecastKey(at),c.id);if(r&&inputs.sources.congestion?.status==='ok'){level=r.congestionLevel;n=r.congestionIndex;const cuts=[0,1,10,20,100],rank=RANK[level];color=(rank+Math.max(0,Math.min(1,(n-cuts[rank])/(cuts[rank+1]-cuts[rank]))))/4;}}else{const accidentIndex=accidentMapping.get(c.i),r=accidentIndex!==undefined&&findRow(accRows,accidentIndex,true);if(r&&inputs.sources.accident?.status==='ok'){level=r[2];n=r[1];color=colorById.get(accidentIndex);}}if(level&&Number.isFinite(n)&&Number.isFinite(color))result.push([c.i,n,level,color]);}
+            else if(r&&status.status==='ok'){level=densityLevel(r[2]);if(level){n=r[1];const rank=DENSITY_LEVELS.indexOf(level);color=Math.min(.999999,(rank+Math.max(0,Math.min(1,(r[2]-DENSITY_CUTS[rank])/(DENSITY_CUTS[rank+1]-DENSITY_CUTS[rank]))))/4);}}}else if(mode==='congestion'){const r=congestionAt(inputs.congestion,forecastKey(at),c.id);if(r&&inputs.sources.congestion?.status==='ok'){level=r.congestionLevel;n=r.congestionIndex;const cuts=[0,1,10,20,100],rank=RANK[level];color=(rank+Math.max(0,Math.min(1,(n-cuts[rank])/(cuts[rank+1]-cuts[rank]))))/4;}}else{const accidentIndex=accidentMapping.get(c.i),r=accidentIndex!==undefined&&findRow(accRows,accidentIndex,true);if(r&&inputs.sources.accident?.status==='ok'){level=r[2];n=r[1];color=colorById.get(accidentIndex);}}if(level&&Number.isFinite(n)&&Number.isFinite(color))result.push((mode==='current'||mode==='congestion')&&harbor.has(c.id)?[c.i,n,level,color,1]:[c.i,n,level,color]);}   // 끝의 1 = 항구 칸(지도 회색, 숫자는 그대로 — 2026-10-19 「회색+숫자 유지」)
         return{v:table.v,cells:result,mode:mode==='risk'?'accident':mode,t:at,forecastAt:mode==='accident'||mode==='risk'?accAt:mode==='congestion'?T.isoKst(Math.floor(Date.parse(at)/3600000)*3600000):null,currentStatus:status,grid:table.grid,accidentResolution:table.accidentResolution};}
     /** 경위도 상자 한 구역의 해상 칸 색·숫자를 칸 위치와 함께 준다 — unifiedFrame 과 같은 값(같은 함수)을 그 상자 안 칸만.
      * 연안 안전 브리핑 팝업 지도(설계서 §11.10.24 — 「관할 해역 선박 N척」·붐비는 해역 = 혼잡도 지금(current), 근거 「위험이 높아진 해역」 = 위험 예측(risk))가 쓴다.
      * 전국 표(unified-cells 약 2.5MB)와 전국 프레임을 받지 않고 관할 하나만 그리려고 둔다. 상자가 4°×4° 보다 크거나 한국 범위(115~140°E·20~45°N) 밖이면 400.
      * 예: areaFrame('current',undefined,'126.0,33.2,126.5,33.6') → {t,mode:'current',currentStatus,bbox:[126,33.2,126.5,33.6],cells:[{id:'GR4_…',lon,lat,n:18,level:'보통',color:0.31}]}
+     *     항구 칸(harbor_cells, current·congestion 만)은 harbor:true 가 붙는다 → 팝업 지도가 회색 칸 + 숫자로 그린다(2026-10-19).
      * @param {string} mode - risk|accident|congestion|current @param {string} [t] - 선택 시각 @param {string|number[]} bbox - '서,남,동,북' @returns {object}
      * [연계] ← routes/risk_forecast GET /sea/area-frame ← station_briefing_render.js gridMap / → unifiedFrame·unifiedCells(색 위치·숫자를 새로 계산하지 않는다)
      */
     function areaFrame(mode,t,bbox){const b=(Array.isArray(bbox)?bbox:String(bbox||'').split(',')).map(Number);
         if(b.length!==4||!b.every(Number.isFinite)||b[0]>=b[2]||b[1]>=b[3]||b[2]-b[0]>4||b[3]-b[1]>4||b[0]<115||b[2]>140||b[1]<20||b[3]>45)throw Object.assign(Error('구역 상자 오류'),{status:400});
         const f=unifiedFrame(mode,t),byI=new Map(unifiedCells().cells.map(c=>[c.i,c])),cells=[];
-        for(const r of f.cells){const c=byI.get(r[0]);if(c&&c.lon>=b[0]&&c.lon<=b[2]&&c.lat>=b[1]&&c.lat<=b[3])cells.push({id:c.id,lon:c.lon,lat:c.lat,n:r[1],level:r[2],color:r[3]});}
+        for(const r of f.cells){const c=byI.get(r[0]);if(c&&c.lon>=b[0]&&c.lon<=b[2]&&c.lat>=b[1]&&c.lat<=b[3])cells.push(r[4]===1?{id:c.id,lon:c.lon,lat:c.lat,n:r[1],level:r[2],color:r[3],harbor:true}:{id:c.id,lon:c.lon,lat:c.lat,n:r[1],level:r[2],color:r[3]});}
         return{t:f.t,mode:f.mode,forecastAt:f.forecastAt,currentStatus:f.currentStatus,bbox:b,cells};}
     function jurisdictionList(){loadStatic();return{stations:stations.map(({id,name,station})=>({id,name,station}))};}
     /** 해상 통합 조회 시각을 검사한다. 예: 지금-3시간~내일 23:59는 통과, 모레 00시는 400.
@@ -206,7 +221,9 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         // 공단 실시간 API 는 배가 없는 칸을 보내지 않는다(2026-10-15 운영 응답 3,890칸 중 0척 칸 0개 — 실행 확인). 그래서 최신 응답(status ok)에
         // 이 칸이 없으면 0척·밀집도 0 으로 낸다(사용자 2026-10-15 「수집된 데이터가 없으면 그 격자에 선박이 없다는 말」). 수집이 멈춘(낡은) 때는 모름 → null.
         const emptyId=!liveRow&&status.status==='ok'?(currentCell||traffic)?.id:null;
-        const liveData=liveRow?{gridId:currentCell.id,count:liveRow[1],density:liveRow[2],densityLevel:densityLevel(liveRow[2]),level:trafficLevel(liveRow[1]),...status}:emptyId?{gridId:emptyId,count:0,density:0,densityLevel:densityLevel(0),level:trafficLevel(0),absent:true,...status}:null;
+        // 항구 칸(harbor_cells — 2026-10-19 사용자 「예보 혼잡까지 전부」): 척수·혼잡 예보는 그대로 보이되 충돌·접촉 주의·관심 단계를 만들지 않는다.
+        const harborCell=harbor.of(currentCell?.id)||harbor.of(traffic?.id)||null;
+        const liveData=liveRow?{gridId:currentCell.id,count:liveRow[1],density:liveRow[2],densityLevel:densityLevel(liveRow[2]),level:trafficLevel(liveRow[1]),...(harborCell?{harbor:true}:{}),...status}:emptyId?{gridId:emptyId,count:0,density:0,densityLevel:densityLevel(0),level:trafficLevel(0),absent:true,...status}:null;
         const key=forecastKey(at),congestionRow=traffic&&congestionAt(inputs.congestion,key,traffic.id),cf=congestion(congestionRow,traffic);
         const accAt=T.isoKst(Math.floor(Date.parse(at)/(3*3600000))*3*3600000),ar=accidentCell&&findRow(inputs.accident?.frames?.[forecastKey(accAt)],accidentCell.i,true),af=ar?{gridId:accidentCell.id,index:ar[1],level:ar[2],forecastAt:accAt,createdAt:inputs.accident.createdAt,status:inputs.sources.accident?.status}:null;
         if(cf)cf.status=inputs.sources.congestion?.status;
@@ -227,25 +244,29 @@ function createStore({risk,dir=io.DEFAULT_DIR,clientDir=CLIENT,configDir=path.jo
         const riskPeak=riskTimes.find(r=>RANK[r.level]>=2);if(riskPeak&&inputs.sources.accident?.status==='ok')reasons.push({key:'riskWindow',text:`${riskPeak.forecastAt.slice(5,10)} ${riskPeak.forecastAt.slice(11,16)} 공식 사고 예보가 ${riskPeak.level}인 시간대에 운항 시 주의가 필요합니다.`,at:riskPeak.forecastAt});
         if(stats?.count)reasons.push({key:'history',text:`${stats.from.slice(0,4)}~${stats.to.slice(0,4)}년 ${stats.scope}에서 대상 선박사고 ${stats.count}건이 기록되었고, 가장 많은 유형은 ${stats.topTypes[0].type}(${stats.topTypes[0].count}건)입니다.`});
         if(inputs.sources.zoneForecasts?.status==='ok'&&(weather.wh>=2||weather.ws>=12))reasons.push({key:'weather',text:`해구 기상 예보는 ${weather.wh!=null?'유의파고 '+weather.wh+'m ':''}${weather.ws!=null?'풍속 '+weather.ws+'m/s':''}로 기상 변화에 관심이 필요합니다.`,at:weather.forecastAt});
-        const notice=collisionNotice(cf,Date.parse(at)<=clock()+60000&&liveData&&status.status==='ok'?liveData:null,clock());
+        const notice=collisionNotice(harborCell?null:cf,!harborCell&&Date.parse(at)<=clock()+60000&&liveData&&status.status==='ok'?liveData:null,clock());
+        if(harborCell)reasons.push({key:'harbor',text:HARBOR_TEXT});
         if(notice.on)reasons.unshift({key:'collision',text:notice.text,at:notice.reasons[0].at});
-        const attention=Math.max(notice.on?1:0,af?.status==='ok'&&RANK[af.level]>=2?RANK[af.level]:0,cf?.status==='ok'&&RANK[cf.level]>=2?1:0,liveData&&status.status==='ok'&&liveData.count>=21?1:0,riskPeak&&inputs.sources.accident?.status==='ok'?(RANK[riskPeak.level]||0):0,inputs.sources.zoneForecasts?.status==='ok'&&(weather.wh>=2||weather.ws>=12)?1:0);
-        return{location:location(cell),point:{lon:p[0],lat:p[1]},t:at,station:stationFor(p)?.name||null,office:stationFor(p)?.station||null,current:liveData,currentStatus:status,congestion:cf,accident:af,collisionNotice:notice,weather:{...weather,source:'기상청 해구별 예보',status:inputs.sources.zoneForecasts?.status},warnings,history:stats,outlook:{congestion:upcoming,accident:riskTimes},attention:['정보 확인','관심 필요','주의 필요','경계 단계 확인 필요'][attention],attentionRank:attention,reasons,scopeNote:'사고 단계와 지도 색은 현재·미래 모두 공식 사고 예보 그대로입니다. 충돌·접촉 주의는 혼잡 예보 높음 이상 또는 현재 14척 이상일 때 붙이는 앱 안내이며 사고 확률이나 공단 등급이 아닙니다. 현재 교통이 누락·낡으면 현재 척수는 사유로 쓰지 않습니다. 앱 사고 통계는 해양오염·부유물감김을 제외합니다.'};
+        const attention=Math.max(notice.on?1:0,af?.status==='ok'&&RANK[af.level]>=2?RANK[af.level]:0,!harborCell&&cf?.status==='ok'&&RANK[cf.level]>=2?1:0,!harborCell&&liveData&&status.status==='ok'&&liveData.count>=21?1:0,riskPeak&&inputs.sources.accident?.status==='ok'?(RANK[riskPeak.level]||0):0,inputs.sources.zoneForecasts?.status==='ok'&&(weather.wh>=2||weather.ws>=12)?1:0);
+        return{location:cellName(cell),point:{lon:p[0],lat:p[1]},t:at,station:stationFor(p)?.name||null,office:stationFor(p)?.station||null,current:liveData,currentStatus:status,congestion:cf,accident:af,collisionNotice:notice,harbor:harborCell?{grade:harborCell.grade,names:harborCell.hazards&&harborCell.hazards.length?harborCell.hazards:harborCell.names||[]}:null,weather:{...weather,source:'기상청 해구별 예보',status:inputs.sources.zoneForecasts?.status},warnings,history:stats,outlook:{congestion:upcoming,accident:riskTimes},attention:['정보 확인','관심 필요','주의 필요','경계 단계 확인 필요'][attention],attentionRank:attention,reasons,scopeNote:'사고 단계와 지도 색은 현재·미래 모두 공식 사고 예보 그대로입니다. 충돌·접촉 주의는 혼잡 예보 높음 이상 또는 현재 14척 이상일 때 붙이는 앱 안내이며 사고 확률이나 공단 등급이 아닙니다. 현재 교통이 누락·낡으면 현재 척수는 사유로 쓰지 않습니다. 앱 사고 통계는 해양오염·부유물감김을 제외합니다.'};
     }
     function analysis({id,lon,lat,t}={}){const inputs=input(),at=time(t);let p;if(lon!==undefined&&lat!==undefined){p=[Number(lon),Number(lat)];if(!p.every(Number.isFinite)||p[0]<115||p[0]>140||p[1]<20||p[1]>45)throw Object.assign(Error('좌표 범위 오류'),{status:400});}else{const c=[...(live?.cells||[]),...(inputs.cells?.cells||[]),...(inputs.accident?.cells||[])].find(c=>c.id===id);if(!c)throw Object.assign(Error('해상 격자 없음'),{status:404});p=[c.lon,c.lat];}const marine=analyze(p,at,inputs);return{t:at,marine,title:marine.location,subtitle:marine.station||'',gridId:id||null,lat:p[1],lon:p[0]};}
     function briefing(id,t){loadStatic();const inputs=input(),at=time(t),s=stations.find(s=>s.id===id);if(!s)throw Object.assign(Error('관할 없음'),{status:404});const key=[id,at,liveSignature,inputs.version,freshness().status].join('|');if(briefCache.has(key))return briefCache.get(key);
-        const liveCells=live?.cells||[],byIndex=new Map(liveCells.map(c=>[c.i,c])),rows=(live?.rows||[]).filter(r=>{const c=byIndex.get(r[0]);return c&&stationFor([c.lon,c.lat])?.id===id;});let count=0;
-        for(const r of rows)count+=r[1];
+        const liveCells=live?.cells||[],byIndex=new Map(liveCells.map(c=>[c.i,c])),inStation=(live?.rows||[]).filter(r=>{const c=byIndex.get(r[0]);return c&&stationFor([c.lon,c.lat])?.id===id;});let count=0,harborCount=0;
+        // 관할 합계에서 항구 칸(harbor_cells)을 뺀다 — 2026-10-19 사용자 「합계에서 뺌」. 뺀 수는 harborExcluded 로 따로 둔다.
+        const rows=inStation.filter(r=>!harbor.has(byIndex.get(r[0]).id)),harborRows=inStation.length-rows.length;
+        for(const r of rows)count+=r[1];for(const r of inStation)harborCount+=r[1];harborCount-=count;
+        const busyCount=a=>a.current&&!a.current.harbor?(a.current.count||0):0;   // 붐비는 해역 비교에서 항구 칸 척수는 0으로 본다
         const candidates=new Map();for(const c of [...liveCells,...(inputs.cells?.cells||[]),...(inputs.accident?.cells||[])])if(stationFor([c.lon,c.lat])?.id===id)candidates.set(c.id,c);
         const byRegion=new Map();for(const c of candidates.values()){
             const a=analyze([c.lon,c.lat],at,inputs),group=a.accident?.gridId||c.id,previous=byRegion.get(group);
-            if(a.attentionRank>0&&(!previous||a.attentionRank>previous.attentionRank||(a.attentionRank===previous.attentionRank&&(a.current?.count||0)>(previous.current?.count||0))))byRegion.set(group,a);
+            if(a.attentionRank>0&&(!previous||a.attentionRank>previous.attentionRank||(a.attentionRank===previous.attentionRank&&busyCount(a)>busyCount(previous))))byRegion.set(group,a);
         }
         const regions=[...byRegion.values()];
-        regions.sort((a,b)=>b.attentionRank-a.attentionRank||(b.current?.count||0)-(a.current?.count||0)||a.location.localeCompare(b.location,'ko'));
+        regions.sort((a,b)=>b.attentionRank-a.attentionRank||busyCount(b)-busyCount(a)||a.location.localeCompare(b.location,'ko'));
         const stationAccidents=accidents.filter(r=>stationFor([r[1],r[0]])?.id===id),historySummary={...summary(stationAccidents),...period};
         // current.cells(2026-10-17 — 연안 안전 브리핑 설계서 §11.10.9 ⑥): 지금 척수(count)를 이룬 같은 줄들 — 격자 id·상자 [서,남,동,북](소수 4자리)·척수. 브리핑 「지금 밀집」 팝업 지도가 격자 안에 척수를 쓴다.
-        const status=freshness(),result={station:{id:s.id,name:s.name},t:at,current:live?{count:rows.length?count:null,gridCount:rows.length,cells:rows.map(r=>{const c=byIndex.get(r[0]),bx=c.geometry?bounds(c.geometry):[c.lon-.0125,c.lat-.0125,c.lon+.0125,c.lat+.0125];return{id:c.id,box:bx.map(v=>Math.round(v*1e4)/1e4),count:r[1]};}),...status}:null,history:historySummary,regions:regions.slice(0,20).map(r=>r.history?{...r,history:{...r.history,accidents:undefined}}:r),totalAttentionRegions:regions.length,gridCount:candidates.size,method:'격자 중심이 속한 관할로 배정한 척수 집계. 경계·중복 관할은 이름순 1개에 배정하며 실제 선박 위치 기반 관할 척수가 아닙니다. 수신 격자가 없는 관할은 0척이 아닌 자료 없음으로 표시합니다.',baselineAvailable:false};
+        const status=freshness(),result={station:{id:s.id,name:s.name},t:at,current:live?{count:inStation.length?count:null,gridCount:rows.length,cells:rows.map(r=>{const c=byIndex.get(r[0]),bx=c.geometry?bounds(c.geometry):[c.lon-.0125,c.lat-.0125,c.lon+.0125,c.lat+.0125];return{id:c.id,box:bx.map(v=>Math.round(v*1e4)/1e4),count:r[1]};}),harborExcluded:{count:harborCount,gridCount:harborRows},...status}:null,history:historySummary,regions:regions.slice(0,20).map(r=>r.history?{...r,history:{...r.history,accidents:undefined}}:r),totalAttentionRegions:regions.length,gridCount:candidates.size,method:'격자 중심이 속한 관할로 배정한 척수 집계(항구 칸 — 항·포구·방파제 안 정박·계류 — 은 뺌). 경계·중복 관할은 이름순 1개에 배정하며 실제 선박 위치 기반 관할 척수가 아닙니다. 수신 격자가 없는 관할은 0척이 아닌 자료 없음으로 표시합니다.',baselineAvailable:false};
         briefCache.set(key,result);while(briefCache.size>8)briefCache.delete(briefCache.keys().next().value);return result;
     }
     /** 한 점이 든 관할을 준다(관할 브리핑 수집용 — 위 briefing 과 같은 규칙: 겹치면 이름순 1곳). 예: stationAt([126.2,33.45]) → {id:'88',name:'한림파출소',station:'제주해양경찰서'} · 관할 밖 → null

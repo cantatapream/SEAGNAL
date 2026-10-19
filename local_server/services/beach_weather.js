@@ -111,7 +111,8 @@ function decide(x) {
  * @param {string} label - 「이름(거리)」 @param {object} r - decide 결과 @returns {string} [연계] ← lines / 시험 「문구」
  */
 function swimText(label, r) {
-    if (r.kind === 'good') return `${label} — 수온 ${r.tw}℃ · 낮 최고 ${r.tmax}℃ · 파도 ${mText(r.wav)}로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.`;
+    // 파도가 0m(소수 첫째 자리 반올림)면 「파도 거의 없음」(사용자 2026-10-19 *"파도 0m는 파도 거의 없음으로 바꿔줘"*)
+    if (r.kind === 'good') return `${label} — 수온 ${r.tw}℃ · 낮 최고 ${r.tmax}℃ · ${r.wav === 0 ? '파도 거의 없음으로' : `파도 ${mText(r.wav)}로`} 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.`;
     if (r.kind === 'maybe') return `${label} — 수온 ${r.tw}℃ · 낮 최고 ${r.tmax}℃로 물놀이하기에 아주 좋은 날씨는 아니지만, 바닷물에 들어가는 사람이 있을 수 있습니다.`;
     const part = { wave: [`파도가 ${mText(r.wav)}로 높고`, `파도가 ${mText(r.wav)}로 높아`], wind: [`바람이 초속 ${r.wsd}m로 강하고`, `바람이 초속 ${r.wsd}m로 강해`], rain: ['비가 예보되고', '비가 예보되어'] };
     const why = r.bad.map((k, i) => part[k][i === r.bad.length - 1 ? 1 : 0]).join(' ');

@@ -325,6 +325,28 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - 영광파출소 `number:3.4`(AI 가 「3.4해리 해역」을 「3.4해역」으로 줄여 씀) → `polishOverview` 가 검사 전에 「3.4해리 해역」으로 고침.
 - 새만금 4번째 `number:20m/s`(기상청 통보문 숫자)는 검사가 맞다 — 그대로.
 
+## 「상시 위험 장소 N개소」 표 · 「연안 분석」 칸이 「해상 분석」 칸 위 (2026-10-19 — 설계서 §11.10.39, 화면만 · 서버·규칙 판 v24 그대로)
+
+> 사용자 원문: *"그리고 이 상시 위험장소를 표로 정리하여 표출할 수 있도록 하고 상시 위험 장소(12)를 상시 위험 장소 ##개소 라고 표현할 수 있도록 해줘."* ·
+> *"그다음 총평 및 권고는 연안부터 나오고 그다음 해상이 나오는데 아래 분석은 해상이 먼저 나오고 연안이 나오고 있으니 순서를 바꿔줘."*
+
+- **접힘 머리**: 「상시 위험 장소 (12)」 → 「상시 위험 장소 12개소」(`land.constant.length`).
+- **표**(`constantTable`): 장소 | 위험구역 | 연안사고(2020~2024). 서버 `land.constant[]` 는 칸별 숫자 없이 글 `text` 하나만 주므로 `constantParts` 가 그 글(서버 `rules.landSection traitText` 꼴)을 토막으로 나눈다 —
+  위험구역 「N개소」 + 종류별 작은 줄 · 연안사고 「N건」 + 유형별 작은 줄(서버 유형이 셋까지라 모자라면 「외 N」) · 「해수욕장」·위험구역 장소형태는 이름 아래 작은 줄 · 없는 칸 「—」.
+  못 읽는 글은 두 칸을 합쳐 글 그대로. 줄 순서는 서버 순서. 360px 은 칸 안 줄바꿈(넘치면 표 상자만 가로 스크롤). 모양 `station_briefing.css .sb-constant-*`(고립 지점 표 `.sb-iso-table` 바탕).
+- **칸 순서**(`renderRest`): 총평과 권고(`summaryBodyV3` — 연안 → 해상)와 같게 「연안 분석」 → 「해상 분석」(종전 해상 → 연안).
+- `index2.html` `station_briefing_render.js`·`station_briefing.css` `?v=20261019constant`.
+
+## 항구 칸(정박·계류) — 「지금 밀집」·해상 분석에서 뺌 · 팝업 지도 회색 (2026-10-19 — 설계서 §11.10.40)
+
+> 사용자 원문: *"한림 파출소 관할에서 그 화순항 북북서방 11.3해리 해역에 21척이 몰려 있다라고 표현이 되는데 여기는 한림항이야."* · 선택 *「예보 혼잡까지 전부」* · *「회색+숫자 유지」* · *「합계에서 뺌」* · *「자동판정후 애매한곳은1번으로」*
+
+- 「관할 해역 선박 N척 · 선박이 있는 해역 격자 N개」는 항구 칸(`local_server/config/coastal_safety/harbor_cells.json`)을 뺀 수다(서버 `marine_fusion.briefing current`, 뺀 몫 `current.harborExcluded`). 둘째 줄 「○○ N척 — 충돌·접촉 주의」도 항구 칸을 고르지 않는다(`routes/station_briefing.nowLineFrom`). 글 모양은 그대로.
+- 해상 분석의 혼잡 예보 근거(「혼잡 예보 '매우높음' → 충돌·접촉 주의」)는 항구 칸 예보를 쓰지 않는다(`station_briefing_inputs.collectSea`). 규칙·검증·지시문 판은 그대로(입력이 바뀌면 AI 재사용 해시가 저절로 바뀐다).
+- 팝업 지도(`station_briefing_riskmap.js`): 서버 구역 자료 `harbor:true` 칸을 줄 끝 `1` 로 넘겨 위험예측 층이 회색 칸 + 척수 숫자로 그린다.
+- 해역 카드 「최근 14일 선박 동향」은 이번 결정 범위 밖 — 항구 칸 척수를 그대로 더한다.
+- 시험: `local_server/scripts/test_harbor_cells.js`. 캐시 `station_briefing_riskmap.js?v=20261019harbor`.
+
 ## 시험
 
 `local_server/scripts/test_station_briefing_ui.js`(verify_all SUITES) — 실제 Chromium 으로 index2.html 전체를 띄워 일반·관리자 기기, 설정 흐름, 본문 상태(「가」 모양·제목 시각·규칙 분석·옛 브리핑 대체(§11.10.1·§11.10·그 전)), textContent, 바로가기, N 뱃지, [기준 상세], 관리자 「AI 브리핑」 탭(오류 목록 [복사]·[md로 저장] 포함), 관할 확인 창(취소·Esc·바깥·뒤로가기·늦은 click 무시)·해상/연안 칸 한 줄(360px)을 본다.
@@ -414,3 +436,20 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - 서버 `routes/station_briefing.js` 가 `GET /api/station-briefing`(·관리자 미리보기) 응답에 `beach` = `{관광지 id: [줄]}`(브리핑 날짜, 연안 카드 관광지만 — `services/beach_weather.js` `linesForSpots`)를 **응답 때** 붙인다. 저장된 판·규칙 판(v23)·AI 입력(`station_briefing_ai.js`)은 그대로.
 - 화면 `station_briefing_render.js` `beachBox`: 연안 카드 [오늘 예상] 바로 아래, [권고] 위 — 하늘색 왼쪽 줄 상자(`.sb-beach`·`.sb-beach-line`, `station_briefing.css`), 서버 글 그대로(textContent). 옛 판 카드(규칙 v19 전)도 [오늘 예상] 아래.
 - `index2.html` `station_briefing_render.js`·`station_briefing.css` ?v=20261018beach. 시험 `local_server/scripts/test_beach_weather.js`(라우트 — 카드 관광지만·저장 판 안 고침).
+
+## 지도 칸 육지 쪽 누르기 · 지도 기다림 표시 · 창 지도 확대·축소 (2026-10-19 사용자 결정 — 설계서 §11.10.38, 화면만)
+
+> 사용자 원문: *"이 화면에서 꼭 해상을 눌러야만 다음 바텀시트가 열리는데 이 화면에서는 격자(육지쪽)을 눌러도 바텀시트가 켜지도록 수정해줘"* ·
+> *"팝업에서 지도를 띄울때 로딩시간이 있잖아 ? 위험예측화면에서 자료를 가져오는거니까. 따라서 그떄 위험예측에서와 같이 로딩스피너를 띄워주면 좋겠어."* ·
+> *"그리고 여기서는 화면 축소 확대(마우스 휠 및 터치 줌인)가 안되는데 되도록 해줘."*
+
+- **① 칸 안 육지 쪽**: 해상 지도(혼잡도 지금·위험 예측 — 선박 팝업·근거 펼침 지도)에서 칸 안의 육지 쪽을 눌러도 그 칸 해상 분석 시트가 열린다(`station_briefing_riskmap.js attach` → `RiskMapLayer.hit(evt, {landSea:true})`).
+  칸 판정은 바다 쪽과 같은 통합 칸 표(칸 중심 ±0.0125°). 육지 쪽을 누르면 시트 요청 경위도는 **그 칸 중심**(누른 육지 점이 아님 — 설계서 §11.10.38 ①). 칸 밖 육지는 아무 일 없음.
+  선택 테두리·사용량(`risk.sheet.sea_from_briefing`)은 바다 쪽을 누를 때와 같은 길. **위험예측 본 화면은 그대로**(옵션 없이 부름 — 육지 = 연안 판정).
+- **② 기다림 표시**: 위험예측 배경 지도를 처음 받는 동안 250ms 가 넘으면 지도 가운데 스피너(`style.css .spinner`), 자료가 오면 끔, 실패하면 같은 자리에 「잠시 후 다시 시도해 주세요」 2초(위험예측 `waitStart`·`waitEnd` 와 같은 값) + 종전 캡션 「위험예측 자료를 불러오지 못했습니다 — …」.
+  모양은 `.sb-map-wait`(station_briefing.css — 위험예측 `.rf-map-wait` 는 해양안전 탭 밖에서 숨겨져 같은 규칙을 이 이름으로 둠). **실시간 갱신(`popup.live`)에는 띄우지 않는다** — 위험예측도 사용자가 누른 동작만 띄우고 60초 자동 갱신에는 띄우지 않는다.
+  선박 팝업·관광지 팝업·근거 펼침 지도 모두 `miniMap` 의 같은 처음 받기를 거친다(`mapWait`).
+- **③ 창 지도 확대·축소**: 창으로 뜨는 지도(`miniMap` `opt.big` — 대해구 이름 팝업·위험예측 부품이 없을 때의 선박 팝업·잠기는 바위·위험예측 배경 팝업)는 모두 끌기·핀치·마우스 휠·더블탭 확대·축소. +/− 단추는 없다(§11.10.34).
+  본문에 박힌 작은 지도(근거 줄 펼침·연안 카드 [위치 보기])는 종전처럼 그림(누름만) — 페이지를 쓸어 내리는 손가락·휠을 가로채지 않게.
+- `index2.html` `risk_map_layer.js`·`station_briefing_riskmap.js`·`station_briefing_render.js`·`station_briefing.css` `?v=20261019sb38`.
+- 시험: `test_station_briefing_ui.js` `[§11.10.38-①]`·`[§11.10.38-②]`·`[§11.10.38-③]` · `test_risk_map_layer.js` 「§11.10.38 …」 3건 · `test_usage_briefing_risk_ui.js` 「§11.10.38 지도 칸 안 육지 쪽 …」.

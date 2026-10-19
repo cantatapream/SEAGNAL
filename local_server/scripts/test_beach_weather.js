@@ -126,6 +126,8 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
         await check('확정 문구 세 가지(사용자 확정 — 글자 그대로, 숫자만)', () => {
             assert.equal(W.swimText('협재해수욕장(1.2km)', W.decide({ tw: 22, tmax: 27, wav: 0.5, wsd: 3, rain: false })),
                 '협재해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 0.5m로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.');
+            assert.equal(W.swimText('협재해수욕장(1.2km)', W.decide({ tw: 22, tmax: 27, wav: 0.04, wsd: 3, rain: false })),
+                '협재해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 거의 없음으로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.', '파도 0m → 「파도 거의 없음」(사용자 2026-10-19)');
             assert.equal(W.swimText('협재해수욕장(1.2km)', W.decide({ tw: 19, tmax: 24, wav: 0.5, wsd: 3, rain: false })),
                 '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃로 물놀이하기에 아주 좋은 날씨는 아니지만, 바닷물에 들어가는 사람이 있을 수 있습니다.');
             assert.equal(W.swimText('협재해수욕장(1.2km)', W.decide({ tw: 22, tmax: 27, wav: 1.8, wsd: 3, rain: false })),

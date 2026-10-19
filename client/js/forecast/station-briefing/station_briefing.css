@@ -216,12 +216,34 @@
 .sb-basis-note { margin:2px 0 0; }
 .sb-minimap { width:100%; height:200px; border-radius:8px; overflow:hidden; border:1px solid rgba(148,163,184,.3); background:#dbeafe; }
 .sb-minimap-cap { margin:4px 0 0; }
+/* 위험예측 배경 지도 기다림 표시(§11.10.38 — 2026-10-19 사용자 「위험예측에서와 같이 로딩스피너를 띄워주면 좋겠어」): 위험예측 .rf-map-wait(risk_forecast.css)와 같은 모양·자리.
+   그 클래스는 해양안전 탭 밖에서 숨겨지므로(body:not(.ls-safety) .rf-map-wait{display:none}) 같은 규칙을 이 이름으로 둔다. 스피너는 style.css .spinner 재사용, 지도 조작을 막지 않게 누름 통과.
+   움직임 줄이기: 위험예측과 같게 따로 처리하지 않는다(style.css .spinner·risk_forecast.css 어디에도 prefers-reduced-motion 규칙이 없다 — 검색 확인). */
+.sb-minimap { position:relative; }
+.sb-map-wait { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:140; display:flex; flex-direction:column; align-items:center; pointer-events:none; }
+.sb-map-wait[hidden], .sb-map-wait [hidden] { display:none; }
+.sb-map-wait .spinner { margin:0; background:rgba(10,15,28,.55); }
+.sb-map-wait p { margin:0; padding:8px 12px; border-radius:8px; background:rgba(10,15,28,.9); border:1px solid var(--border-color,#334155); color:var(--text-main,#eaf1fa); font-size:.8rem; white-space:nowrap; }
 .sb-iso-table { width:100%; border-collapse:collapse; font-size:.78rem; }
 .sb-iso-table caption { caption-side:bottom; text-align:left; padding-top:4px; color:#94a3b8; font-size:.72rem; }
 .sb-iso-table th, .sb-iso-table td { padding:4px 8px; border-bottom:1px solid rgba(148,163,184,.2); text-align:left; }
 .sb-iso-table th { color:#94a3b8; font-weight:700; }
 .sb-iso-table .sb-num { text-align:right; white-space:nowrap; }
 .sb-iso-table th:last-child { text-align:right; }
+/* §11.10.39(2026-10-19 사용자 *"이 상시 위험장소를 표로 정리하여 표출"*) 「상시 위험 장소 N개소」 표(render.js constantTable) — 장소 | 위험구역 | 연안사고.
+   고립 지점 표(.sb-iso-table)와 같은 줄·머리 모양. 칸 안 줄바꿈(어절 단위)으로 360px 에 들어가고, 그래도 넘치면 표 상자 안에서만 가로 스크롤(페이지는 넘치지 않음). */
+.sb-constant-tblw { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-top:4px; }
+.sb-constant-table { table-layout:fixed; }
+.sb-constant-table th:nth-child(1) { width:30%; }
+.sb-constant-table th:nth-child(2) { width:41%; }   /* 「사망사고 발생구역 2」가 360px 에서 한 줄(숫자만 다음 줄로 떨어지지 않게) */
+.sb-constant-table th:last-child { text-align:left; }
+.sb-constant-table th, .sb-constant-table td { padding:4px 5px; vertical-align:top; word-break:keep-all; overflow-wrap:anywhere; }
+.sb-const-period { display:block; font-size:.7rem; white-space:nowrap; }
+.sb-constant-table th:first-child, .sb-constant-table td:first-child { padding-left:0; }
+.sb-const-name { color:#f1f5f9; font-weight:700; }
+.sb-const-n { font-weight:800; }
+.sb-const-sub { display:block; color:#94a3b8; font-size:.7rem; line-height:1.4; }
+.sb-const-none { color:#94a3b8; }
 .sb-iso-line { margin:4px 0 2px; font-size:.8rem; }
 /* 「가」 모양(2026-10-17 사용자 결정 §11.10.4) — 결론 아래 분석 문단(이름표 「AI 분석 · ChatGPT」/「규칙 분석」) · 그 아래 접힌 「연안/해상 분석 근거」 */
 .sb-analysis { margin:4px 0 6px; color:#e2e8f0; font-size:.84rem; line-height:1.65; }

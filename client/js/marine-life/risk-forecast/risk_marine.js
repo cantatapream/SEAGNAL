@@ -94,10 +94,12 @@
      * 지도 면색이 같은 자료를 칠하지 않는 규칙(marine_fusion.unifiedFrame)과 같다. 낡은 현재값은 보이지 않고 「이 해역 선박 정보 없음」만(사용자 2026-10-15 「최신성 확인 필요… 붙일 필요는 없는 것 같은데」).
      * 최신 응답에 칸이 없으면(서버 current.absent — 공단 API 는 배 없는 칸을 안 보냄) 「이 해역 선박 없음」.
      * @param {object} m - marine @param {object} ctx - {now} @returns {string} HTML
-     * [연계] ← render / 서버 marine.accident·current(densityLevel)·congestion·collisionNotice
+     * [연계] ← render / 서버 marine.accident·current(densityLevel)·congestion·collisionNotice·harbor(항구 칸이면 「항구 칸 — … 혼잡 판정 제외」 한 줄)
      */
     function hero(m,ctx){
         var a=m.accident,cf=m.congestion,c=m.current,okA=a&&a.status==='ok'&&RISK[a.level],okC=cf&&cf.status==='ok'&&CONG[cf.level],cc=m.collisionNotice&&m.collisionNotice.on?'<p><b class="rf-cc">충돌·접촉사고 주의</b></p>':'',row;
+        // 항구 칸(서버 marine.harbor — harbor_cells): 척수·혼잡 예보는 그대로 보이고 혼잡 판정에서 빠졌다는 한 줄(2026-10-19 사용자 「회색+숫자 유지」).
+        cc+=m.harbor?'<p class="rf-muted rf-harbor-note">항구 칸 — 정박·계류 배 포함, 혼잡 판정 제외</p>':'';
         if(isNow(m,ctx)){
             var live=c&&c.status==='ok'&&Number.isFinite(c.count),dens=live&&Number.isFinite(c.density)?c.density:null;
             // 척수(「18척」)는 밀집도 단계색 — 옆 「밀집도」 칸과 같은 색(시안 2026-10-18 ⑤ 사용자 확정). 밀집도를 모르면(칸이 「-」) 색을 칠하지 않는다.

@@ -56,6 +56,7 @@
     }
     /**
      * 만든 지도에 위험예측 층을 얹고 그 구역 자료를 받는다. 누르면 위험예측 지도와 같은 판정(RiskMapLayer.hit — 해상 칸·연안 관광지)으로 onPick.
+     * 해상 지도(current·risk)는 칸 안 육지 쪽을 눌러도 그 칸(onPick('marine', id, 칸 중심 {lon,lat}) — §11.10.38, hit 의 {landSea:true}). 칸 밖 육지는 아무 일 없음.
      * kind: 'current' = 혼잡도 지금(밀집도 색 + 칸 안 선박 수 — 위험예측에서 「혼잡도」를 켠 지금 화면) · 'risk' = 위험 예측 색 · 'coast' = 연안 위험 색(그날 하루 값).
      * 예: attach(map, {kind:'current', bbox:[126,33.2,126.5,33.6], onPick:fn}) → {load, select, spots, destroy}
      * @param {ol.Map} map @param {Object} opt - {kind, t, bbox, onPick(kind,id,point), onLoad(data)} @returns {Object}
@@ -74,12 +75,13 @@
             if (coast) { spots = d.spots || []; L.setTables({ cells: [] }, { spots: spots }, null); L.drawCoast({ spots: d.scores || [] }); }
             else {
                 var cells = d.cells || [];
-                L.drawUnified({ cells: cells.map(function (c, k) { return { i: k, id: c.id, lon: c.lon, lat: c.lat }; }) }, { mode: d.mode, cells: cells.map(function (c, k) { return [k, c.n, c.level, c.color]; }) });
+                L.drawUnified({ cells: cells.map(function (c, k) { return { i: k, id: c.id, lon: c.lon, lat: c.lat }; }) }, { mode: d.mode, cells: cells.map(function (c, k) { return c.harbor ? [k, c.n, c.level, c.color, 1] : [k, c.n, c.level, c.color]; }) });   // 끝 1 = 항구 칸(회색, 숫자 그대로 — 2026-10-19)
             }
             if (typeof opt.onLoad === 'function') opt.onLoad(d);
             return d;
         }
-        var click = function (evt) { L.hit(evt); };
+        // §11.10.38(2026-10-19 사용자 「격자(육지쪽)을 눌러도 바텀시트가 켜지도록」): 해상 지도(current·risk)는 칸 안 육지 쪽을 눌러도 그 칸 해상 시트 — 위험예측 본 화면은 그대로(hit 의 o 없음)
+        var click = function (evt) { L.hit(evt, { landSea: !coast }); };
         map.on('click', click);
         return { load: load, select: function (kind, id) { L.setSelection(kind, id); }, spots: function () { return spots; }, layer: L,
             destroy: function () { alive = false; map.un('click', click); L.destroy(); } };

@@ -1,0 +1,4032 @@
+{
+ "schema": "harbor-cells-v1",
+ "generatedAt": "2026-10-19T09:28:14+09:00",
+ "source": "https://seagnal-server.fly.dev 공개 API(traffic-cells v 7a58059b4ba9215d · unified-cells v f3a58cdcd132501e)",
+ "criteria": {
+  "candidate": "근거(해경 항포구·방파제·선착장 구역 / 항 안 사고글 / 육지 10% 이상)가 있는 GR4 칸 가운데, 실시간 30분 평균 척수 이력(2026-10-16 00:00 ~ 2026-10-19 08:30 KST(30분 칸 162개))에서 한 번이라도 14척 이상 · 지금(2026-10-19T09:25:05+09:00) 14척 이상 · 혼잡 예보(2026-10-19T09:28:14+09:00 ~ 2026-10-20T23:00:00+09:00) '높음' 이상 중 하나",
+  "grade": "강 = 해경 구역 + 항 안 사고글 1건 이상 · 중 = 해경 구역만, 또는 항 안 사고글 3건 이상이고 육지 10% 이상 · 불확실 = 그 밖의 근거(목록에 넣지 않고 후보표로) · 아님 = 근거 없음",
+  "applied": "강·중만 이 목록에 들어가 혼잡 판정(지금 밀집·충돌·접촉 주의·혼잡 예보 관심 단계·관할 합계)에서 빠지고 지도에서 회색이 된다"
+ },
+ "counts": {
+  "evidenceCells": 1933,
+  "historyAsked": 1826,
+  "candidates": 326,
+  "applied": 186,
+  "strong": 134,
+  "medium": 52,
+  "uncertain": 140
+ },
+ "cells": [
+  {
+   "id": "GR4_F2I21_T1",
+   "lat": 37.8375,
+   "lon": 124.7125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 23,
+   "share14": 0.05,
+   "congMax": null,
+   "hazards": [
+    "선진포항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "선진포항"
+   ],
+   "land": 0.67
+  },
+  {
+   "id": "GR4_F2J23_J3",
+   "lat": 37.6625,
+   "lon": 125.7125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 26,
+   "share14": 0.04,
+   "congMax": null,
+   "hazards": [
+    "당섬외항선착장"
+   ],
+   "accInPort": 2,
+   "names": [
+    "내항선착장"
+   ],
+   "land": 0.34
+  },
+  {
+   "id": "GR4_F2K14_Y3",
+   "lat": 37.5125,
+   "lon": 126.4625,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18.5,
+   "share14": 0.14,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 3,
+   "names": [
+    "삼목선착장"
+   ],
+   "land": 0.29
+  },
+  {
+   "id": "GR4_F2K32_Y4",
+   "lat": 37.2625,
+   "lon": 126.4875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 32.8,
+   "share14": 0.34,
+   "congMax": null,
+   "hazards": [
+    "진두항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "진두항"
+   ],
+   "land": 0.73
+  },
+  {
+   "id": "GR4_F2K34_B1",
+   "lat": 37.2375,
+   "lon": 126.3125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 15,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "선미도 선착장"
+   ],
+   "accInPort": 1,
+   "names": [],
+   "land": 0.09
+  },
+  {
+   "id": "GR4_F2K34_X3",
+   "lat": 37.0125,
+   "lon": 126.4125,
+   "grade": "중",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 45.2,
+   "share14": 0.96,
+   "congMax": "매우높음",
+   "hazards": [],
+   "accInPort": 5,
+   "names": [
+    "대산항",
+    "관리부두",
+    "국가관리부두"
+   ],
+   "land": 0.57
+  },
+  {
+   "id": "GR4_F2K34_Y3",
+   "lat": 37.0125,
+   "lon": 126.4625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 24.2,
+   "share14": 0.2,
+   "congMax": null,
+   "hazards": [
+    "삼길포항",
+    "도비도선착장",
+    "대조도 선착장"
+   ],
+   "accInPort": 5,
+   "names": [
+    "삼길포항",
+    "도비도선착장"
+   ],
+   "land": 0.31
+  },
+  {
+   "id": "GR4_F2K41_B4",
+   "lat": 37.4625,
+   "lon": 126.5875,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 66.5,
+   "share14": 0.96,
+   "congMax": "높음",
+   "hazards": [
+    "연안부두"
+   ],
+   "accInPort": 24,
+   "names": [
+    "연안부두",
+    "역무선부두",
+    "인천해경전용부두"
+   ],
+   "land": 0.12
+  },
+  {
+   "id": "GR4_F2K41_C1",
+   "lat": 37.4875,
+   "lon": 126.6125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 23.7,
+   "share14": 0.46,
+   "congMax": null,
+   "hazards": [
+    "만석부두",
+    "북성포구"
+   ],
+   "accInPort": 7,
+   "names": [
+    "만석부두",
+    "북항",
+    "목재부두"
+   ],
+   "land": 0.59
+  },
+  {
+   "id": "GR4_F2K41_C2",
+   "lat": 37.4875,
+   "lon": 126.6375,
+   "grade": "강",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 5.8,
+   "share14": 0,
+   "congMax": "높음",
+   "hazards": [
+    "만석부두",
+    "화수부두"
+   ],
+   "accInPort": 1,
+   "names": [
+    "만석부두"
+   ],
+   "land": 0.86
+  },
+  {
+   "id": "GR4_F2K41_C3",
+   "lat": 37.4625,
+   "lon": 126.6125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 66.8,
+   "share14": 0.94,
+   "congMax": "매우높음",
+   "hazards": [
+    "연안부두",
+    "남항부두"
+   ],
+   "accInPort": 13,
+   "names": [
+    "연안부두",
+    "남항",
+    "국제부두"
+   ],
+   "land": 0.83
+  },
+  {
+   "id": "GR4_F2K41_G2",
+   "lat": 37.4375,
+   "lon": 126.5875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 16.5,
+   "share14": 0.02,
+   "congMax": null,
+   "hazards": [
+    "연안부두"
+   ],
+   "accInPort": 11,
+   "names": [
+    "석탄부두",
+    "남항부두",
+    "연안부두"
+   ],
+   "land": 0
+  },
+  {
+   "id": "GR4_F2K41_O2",
+   "lat": 37.3875,
+   "lon": 126.7375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 15.3,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "소래포구/ 소래철교",
+    "배곧 한울공원",
+    "월곶포구/ 월곶선착장"
+   ],
+   "accInPort": 1,
+   "names": [
+    "월곶포구"
+   ],
+   "land": 0.85
+  },
+  {
+   "id": "GR4_F2K43_I1",
+   "lat": 37.1875,
+   "lon": 126.6625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 24.7,
+   "share14": 0.09,
+   "congMax": null,
+   "hazards": [
+    "전곡항 선착장(전곡마리나)"
+   ],
+   "accInPort": 1,
+   "names": [
+    "전곡항"
+   ],
+   "land": 0.71
+  },
+  {
+   "id": "GR4_F2K43_N4",
+   "lat": 37.1125,
+   "lon": 126.6875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 19.5,
+   "share14": 0.09,
+   "congMax": null,
+   "hazards": [
+    "궁평항 선착장 및 방파제"
+   ],
+   "accInPort": 6,
+   "names": [
+    "궁평항",
+    "내측선착장"
+   ],
+   "land": 0.17
+  },
+  {
+   "id": "GR4_F2K43_V1",
+   "lat": 37.0375,
+   "lon": 126.5625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 29,
+   "share14": 0.09,
+   "congMax": null,
+   "hazards": [
+    "용무치항 선착장"
+   ],
+   "accInPort": 8,
+   "names": [
+    "장고항",
+    "마섬포구"
+   ],
+   "land": 0.26
+  },
+  {
+   "id": "GR4_F2O11_W2",
+   "lat": 36.7875,
+   "lon": 126.1375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 42,
+   "share14": 0.62,
+   "congMax": null,
+   "hazards": [
+    "모항항"
+   ],
+   "accInPort": 4,
+   "names": [
+    "모항항"
+   ],
+   "land": 0.47
+  },
+  {
+   "id": "GR4_F2O13_H2",
+   "lat": 36.6875,
+   "lon": 126.1375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 62.8,
+   "share14": 0.91,
+   "congMax": null,
+   "hazards": [
+    "신진항 (안흥외항)",
+    "마도 항포구 (물양장)"
+   ],
+   "accInPort": 14,
+   "names": [
+    "신진항"
+   ],
+   "land": 0.3
+  },
+  {
+   "id": "GR4_F2O13_H4",
+   "lat": 36.6625,
+   "lon": 126.1375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 21,
+   "share14": 0.19,
+   "congMax": null,
+   "hazards": [
+    "신진항 (안흥외항)"
+   ],
+   "accInPort": 5,
+   "names": [
+    "신진항",
+    "동방파제"
+   ],
+   "land": 0.08
+  },
+  {
+   "id": "GR4_F2O14_M3",
+   "lat": 36.6125,
+   "lon": 126.3625,
+   "grade": "중",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 27.8,
+   "share14": 0.23,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 4,
+   "names": [
+    "당암포구"
+   ],
+   "land": 0.37
+  },
+  {
+   "id": "GR4_F2O14_Y1",
+   "lat": 36.5375,
+   "lon": 126.4625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 26,
+   "share14": 0.22,
+   "congMax": null,
+   "hazards": [
+    "어사항포구",
+    "남당항포구"
+   ],
+   "accInPort": 1,
+   "names": [
+    "남당항"
+   ],
+   "land": 0.18
+  },
+  {
+   "id": "GR4_F2O21_E1",
+   "lat": 36.9875,
+   "lon": 126.7125,
+   "grade": "중",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 8.5,
+   "share14": 0,
+   "congMax": "매우높음",
+   "hazards": [],
+   "accInPort": 4,
+   "names": [
+    "평택당진항",
+    "현대제철부두",
+    "고대부두"
+   ],
+   "land": 0.76
+  },
+  {
+   "id": "GR4_F2O21_E2",
+   "lat": 36.9875,
+   "lon": 126.7375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18.2,
+   "share14": 0.62,
+   "congMax": null,
+   "hazards": [
+    "안섬포구 방파제"
+   ],
+   "accInPort": 4,
+   "names": [
+    "고대부두",
+    "당진항",
+    "마섬포구"
+   ],
+   "land": 0.52
+  },
+  {
+   "id": "GR4_F2O22_A2",
+   "lat": 36.9875,
+   "lon": 126.7875,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 17.2,
+   "share14": 0.04,
+   "congMax": null,
+   "hazards": [
+    "원정리 관리부두"
+   ],
+   "accInPort": 8,
+   "names": [
+    "관리부두",
+    "원정리부두",
+    "가스부두"
+   ],
+   "land": 0.09
+  },
+  {
+   "id": "GR4_F2O22_B4",
+   "lat": 36.9625,
+   "lon": 126.8375,
+   "grade": "중",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 26.3,
+   "share14": 0.93,
+   "congMax": "매우높음",
+   "hazards": [],
+   "accInPort": 11,
+   "names": [
+    "서부두",
+    "평택당진항",
+    "평택항"
+   ],
+   "land": 0.55
+  },
+  {
+   "id": "GR4_F2O22_G1",
+   "lat": 36.9375,
+   "lon": 126.8125,
+   "grade": "중",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 21.8,
+   "share14": 0.1,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 5,
+   "names": [
+    "음섬포구",
+    "복운리포구",
+    "서부두"
+   ],
+   "land": 0.11
+  },
+  {
+   "id": "GR4_F2O22_G2",
+   "lat": 36.9375,
+   "lon": 126.8375,
+   "grade": "강",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 13.8,
+   "share14": 0,
+   "congMax": "높음",
+   "hazards": [
+    "서부두 제2물량장"
+   ],
+   "accInPort": 6,
+   "names": [
+    "서부두",
+    "평택항",
+    "내항관리부두"
+   ],
+   "land": 0.24
+  },
+  {
+   "id": "GR4_F2O22_H1",
+   "lat": 36.9375,
+   "lon": 126.8625,
+   "grade": "중",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 20.7,
+   "share14": 0.68,
+   "congMax": "높음",
+   "hazards": [],
+   "accInPort": 7,
+   "names": [
+    "내항관리부두",
+    "평택당진항",
+    "내항"
+   ],
+   "land": 0.59
+  },
+  {
+   "id": "GR4_F2O41_F1",
+   "lat": 36.4375,
+   "lon": 126.5125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 55,
+   "share14": 0.58,
+   "congMax": "매우높음",
+   "hazards": [
+    "보령방조제",
+    "오천항포구"
+   ],
+   "accInPort": 3,
+   "names": [
+    "오천항"
+   ],
+   "land": 0.72
+  },
+  {
+   "id": "GR4_F2O41_P1",
+   "lat": 36.3375,
+   "lon": 126.5125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 96.3,
+   "share14": 0.93,
+   "congMax": "높음",
+   "hazards": [
+    "대천항"
+   ],
+   "accInPort": 16,
+   "names": [
+    "대천항",
+    "서방파제",
+    "대천어항"
+   ],
+   "land": 0.18
+  },
+  {
+   "id": "GR4_F2O41_U4",
+   "lat": 36.2625,
+   "lon": 126.5375,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 29.5,
+   "share14": 0.08,
+   "congMax": null,
+   "hazards": [
+    "무창포항포구"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.3
+  },
+  {
+   "id": "GR4_F2O43_A2",
+   "lat": 36.2375,
+   "lon": 126.5375,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18,
+   "share14": 0.04,
+   "congMax": null,
+   "hazards": [
+    "무창포항포구"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.72
+  },
+  {
+   "id": "GR4_F2O43_F3",
+   "lat": 36.1625,
+   "lon": 126.5125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 58.2,
+   "share14": 0.68,
+   "congMax": null,
+   "hazards": [
+    "홍원항포구"
+   ],
+   "accInPort": 2,
+   "names": [
+    "홍원항"
+   ],
+   "land": 0.41
+  },
+  {
+   "id": "GR4_F2O43_K1",
+   "lat": 36.1375,
+   "lon": 126.5125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 25.2,
+   "share14": 0.3,
+   "congMax": null,
+   "hazards": [
+    "마량항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "마량항",
+    "서방파제"
+   ],
+   "land": 0.08
+  },
+  {
+   "id": "GR4_F2O43_X3",
+   "lat": 36.0125,
+   "lon": 126.6625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 17.2,
+   "share14": 0.11,
+   "congMax": null,
+   "hazards": [
+    "장항신항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "장항",
+    "어항",
+    "장항신항"
+   ],
+   "land": 0.37
+  },
+  {
+   "id": "GR4_F4C14_O3",
+   "lat": 35.6125,
+   "lon": 126.4625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 59.8,
+   "share14": 0.8,
+   "congMax": null,
+   "hazards": [
+    "격포항",
+    "궁항"
+   ],
+   "accInPort": 44,
+   "names": [
+    "격포항",
+    "궁항항",
+    "남방파제"
+   ],
+   "land": 0.32
+  },
+  {
+   "id": "GR4_F4C14_T1",
+   "lat": 35.5875,
+   "lon": 126.4625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 16.8,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "궁항"
+   ],
+   "accInPort": 1,
+   "names": [
+    "궁항"
+   ],
+   "land": 0
+  },
+  {
+   "id": "GR4_F4C21_A3",
+   "lat": 35.9625,
+   "lon": 126.5125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 16,
+   "share14": 0.02,
+   "congMax": null,
+   "hazards": [
+    "남방파제 출입통제장소(테트라포드)"
+   ],
+   "accInPort": 6,
+   "names": [
+    "군산항",
+    "남방파제",
+    "번부두"
+   ],
+   "land": 0.09
+  },
+  {
+   "id": "GR4_F4C21_F1",
+   "lat": 35.9375,
+   "lon": 126.5125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 21,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "남방파제 출입통제장소(테트라포드)",
+    "서방파제 테트라포드"
+   ],
+   "accInPort": 7,
+   "names": [
+    "비응항",
+    "비응도항",
+    "유람선부두"
+   ],
+   "land": 0.02
+  },
+  {
+   "id": "GR4_F4C21_F2",
+   "lat": 35.9375,
+   "lon": 126.5375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 103.3,
+   "share14": 0.91,
+   "congMax": null,
+   "hazards": [
+    "비응항 선착장",
+    "서방파제 테트라포드"
+   ],
+   "accInPort": 11,
+   "names": [
+    "비응항",
+    "북방파제",
+    "새만금방파제"
+   ],
+   "land": 0.61
+  },
+  {
+   "id": "GR4_F4C32_N1",
+   "lat": 35.3875,
+   "lon": 126.4125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 17.3,
+   "share14": 0.16,
+   "congMax": null,
+   "hazards": [
+    "계마항 남북방파제",
+    "계마항 선착장"
+   ],
+   "accInPort": 4,
+   "names": [
+    "계마항"
+   ],
+   "land": 0.65
+  },
+  {
+   "id": "GR4_F4F14_I2",
+   "lat": 34.6875,
+   "lon": 125.4375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 54.7,
+   "share14": 0.48,
+   "congMax": null,
+   "hazards": [
+    "죽항리 선착장"
+   ],
+   "accInPort": 9,
+   "names": [
+    "흑산항",
+    "예리항",
+    "진리항"
+   ],
+   "land": 0.53
+  },
+  {
+   "id": "GR4_F4G12_M4",
+   "lat": 34.8625,
+   "lon": 126.3875,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 17.8,
+   "share14": 0.06,
+   "congMax": null,
+   "hazards": [
+    "전남 무안군 삼향읍 금동길 77(금동선착장)"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.03
+  },
+  {
+   "id": "GR4_F4G12_Q4",
+   "lat": 34.8125,
+   "lon": 126.3375,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 16,
+   "share14": 0.02,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 4,
+   "names": [
+    "목포구",
+    "북항"
+   ],
+   "land": 0.39
+  },
+  {
+   "id": "GR4_F4G12_R3",
+   "lat": 34.8125,
+   "lon": 126.3625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 133,
+   "share14": 0.99,
+   "congMax": "매우높음",
+   "hazards": [
+    "전남 목포시 북항 1~5부두/ 소형물양장"
+   ],
+   "accInPort": 45,
+   "names": [
+    "북항",
+    "북항선착장",
+    "내항"
+   ],
+   "land": 0.44
+  },
+  {
+   "id": "GR4_F4G12_W1",
+   "lat": 34.7875,
+   "lon": 126.3625,
+   "grade": "강",
+   "why": [
+    "history",
+    "congestion"
+   ],
+   "maxCount": 22.3,
+   "share14": 0.23,
+   "congMax": "높음",
+   "hazards": [
+    "전남 목포시 북항 1~5부두/ 소형물양장"
+   ],
+   "accInPort": 5,
+   "names": [
+    "관공선부두",
+    "대불부두",
+    "북항"
+   ],
+   "land": 0.48
+  },
+  {
+   "id": "GR4_F4G12_W2",
+   "lat": 34.7875,
+   "lon": 126.3875,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 44.2,
+   "share14": 0.96,
+   "congMax": "매우높음",
+   "hazards": [
+    "동명항",
+    "수협위판장"
+   ],
+   "accInPort": 11,
+   "names": [
+    "동명항",
+    "국제부두",
+    "남항부두"
+   ],
+   "land": 0.74
+  },
+  {
+   "id": "GR4_F4G12_W4",
+   "lat": 34.7625,
+   "lon": 126.3875,
+   "grade": "중",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 8.8,
+   "share14": 0,
+   "congMax": "매우높음",
+   "hazards": [],
+   "accInPort": 5,
+   "names": [
+    "용당부두",
+    "쌍용부두"
+   ],
+   "land": 0.7
+  },
+  {
+   "id": "GR4_F4G12_X1",
+   "lat": 34.7875,
+   "lon": 126.4125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 33.3,
+   "share14": 0.96,
+   "congMax": "높음",
+   "hazards": [
+    "남항"
+   ],
+   "accInPort": 6,
+   "names": [
+    "대불부두",
+    "남항부두"
+   ],
+   "land": 0.49
+  },
+  {
+   "id": "GR4_F4G14_C1",
+   "lat": 34.7375,
+   "lon": 126.3625,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 20.7,
+   "share14": 0.59,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 4,
+   "names": [
+    "돌핀부두"
+   ],
+   "land": 0.26
+  },
+  {
+   "id": "GR4_F4G31_M4",
+   "lat": 34.3625,
+   "lon": 126.1375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 113,
+   "share14": 0.94,
+   "congMax": "높음",
+   "hazards": [
+    "서망항",
+    "진도항"
+   ],
+   "accInPort": 16,
+   "names": [
+    "서망항",
+    "북방파제"
+   ],
+   "land": 0.4
+  },
+  {
+   "id": "GR4_F4G41_P3",
+   "lat": 34.3125,
+   "lon": 126.5125,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 19,
+   "share14": 0.03,
+   "congMax": null,
+   "hazards": [
+    "사랑개항",
+    "송호해수욕장 방파제"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.36
+  },
+  {
+   "id": "GR4_F4G41_T4",
+   "lat": 34.3125,
+   "lon": 126.7375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 16,
+   "share14": 0.02,
+   "congMax": null,
+   "hazards": [
+    "완도항 일원"
+   ],
+   "accInPort": 1,
+   "names": [],
+   "land": 0.97
+  },
+  {
+   "id": "GR4_F4G42_E4",
+   "lat": 34.4625,
+   "lon": 126.9875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 19.3,
+   "share14": 0.04,
+   "congMax": null,
+   "hazards": [
+    "대리항 선착장"
+   ],
+   "accInPort": 1,
+   "names": [
+    "대리항"
+   ],
+   "land": 0.02
+  },
+  {
+   "id": "GR4_F4G42_G1",
+   "lat": 34.4375,
+   "lon": 126.8125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 19.2,
+   "share14": 0.14,
+   "congMax": null,
+   "hazards": [
+    "마량 동방파제~원마항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "마량항",
+    "동방파제",
+    "중방파제"
+   ],
+   "land": 0.4
+  },
+  {
+   "id": "GR4_F4G42_K4",
+   "lat": 34.3625,
+   "lon": 126.7875,
+   "grade": "중",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 9.2,
+   "share14": 0,
+   "congMax": "높음",
+   "hazards": [
+    "상정 선착장"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.21
+  },
+  {
+   "id": "GR4_F4G42_P1",
+   "lat": 34.3375,
+   "lon": 126.7625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 23,
+   "share14": 0.12,
+   "congMax": null,
+   "hazards": [
+    "완도항 일원"
+   ],
+   "accInPort": 6,
+   "names": [
+    "남방파제",
+    "완도항"
+   ],
+   "land": 0.17
+  },
+  {
+   "id": "GR4_F4G42_P2",
+   "lat": 34.3375,
+   "lon": 126.7875,
+   "grade": "중",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 8,
+   "share14": 0,
+   "congMax": "매우높음",
+   "hazards": [
+    "물하태 선착장"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.52
+  },
+  {
+   "id": "GR4_F4G42_P3",
+   "lat": 34.3125,
+   "lon": 126.7625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 41.5,
+   "share14": 0.94,
+   "congMax": null,
+   "hazards": [
+    "완도항 일원",
+    "완 신항/몰서 방파제/남방파제"
+   ],
+   "accInPort": 25,
+   "names": [
+    "완도항",
+    "남방파제",
+    "신항"
+   ],
+   "land": 0.49
+  },
+  {
+   "id": "GR4_F4G42_Q3",
+   "lat": 34.3125,
+   "lon": 126.8125,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.8,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "신지 임촌 방파제"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0
+  },
+  {
+   "id": "GR4_F4G43_A3",
+   "lat": 34.2125,
+   "lon": 126.5125,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 19.3,
+   "share14": 0.07,
+   "congMax": null,
+   "hazards": [
+    "마안도 선착장"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.03
+  },
+  {
+   "id": "GR4_F4G43_G1",
+   "lat": 34.1875,
+   "lon": 126.5625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 15,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "노화전통시장 앞 이목항",
+    "노화도 당산리 항내"
+   ],
+   "accInPort": 1,
+   "names": [],
+   "land": 0.64
+  },
+  {
+   "id": "GR4_F4H13_W1",
+   "lat": 34.5375,
+   "lon": 127.1125,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 16,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "소록대교 밑 방파제"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.2
+  },
+  {
+   "id": "GR4_F4H13_W2",
+   "lat": 34.5375,
+   "lon": 127.1375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 56.5,
+   "share14": 0.7,
+   "congMax": null,
+   "hazards": [
+    "녹동항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "녹동항",
+    "북방파제",
+    "풍남선착장"
+   ],
+   "land": 0.96
+  },
+  {
+   "id": "GR4_F4H13_W4",
+   "lat": 34.5125,
+   "lon": 127.1375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 23.4,
+   "share14": 0.31,
+   "congMax": null,
+   "hazards": [
+    "녹동항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "녹동항",
+    "동방파제"
+   ],
+   "land": 0.28
+  },
+  {
+   "id": "GR4_F4H21_O3",
+   "lat": 34.8625,
+   "lon": 127.7125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 19.8,
+   "share14": 0.06,
+   "congMax": null,
+   "hazards": [
+    "월내초구(묘도선착장)/ 구 도선장경사로"
+   ],
+   "accInPort": 2,
+   "names": [
+    "묘도선착장",
+    "유조선부두"
+   ],
+   "land": 0.49
+  },
+  {
+   "id": "GR4_F4H22_H1",
+   "lat": 34.9375,
+   "lon": 127.8625,
+   "grade": "중",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 39.7,
+   "share14": 0.73,
+   "congMax": null,
+   "hazards": [
+    "신노량 방파제"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.4
+  },
+  {
+   "id": "GR4_F4H23_D1",
+   "lat": 34.7375,
+   "lon": 127.6625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.3,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "이순신마리나"
+   ],
+   "accInPort": 5,
+   "names": [
+    "마리나항",
+    "소호항",
+    "송현포구"
+   ],
+   "land": 0.12
+  },
+  {
+   "id": "GR4_F4H23_E1",
+   "lat": 34.7375,
+   "lon": 127.7125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 22.3,
+   "share14": 0.17,
+   "congMax": null,
+   "hazards": [
+    "여수시 국동항(수협 유류부두~T자방파제)"
+   ],
+   "accInPort": 6,
+   "names": [
+    "국동항"
+   ],
+   "land": 0.99
+  },
+  {
+   "id": "GR4_F4H23_E2",
+   "lat": 34.7375,
+   "lon": 127.7375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 50.5,
+   "share14": 0.95,
+   "congMax": "매우높음",
+   "hazards": [
+    "여수시 국동항(수협 유류부두~T자방파제)",
+    "이순신광장(수산물특화시장~여객선터미널~이순신광장)",
+    "하멜전시관(중앙출장소~하멜등대~거북선대교아래)"
+   ],
+   "accInPort": 19,
+   "names": [
+    "어항",
+    "국동항",
+    "돌산선착장"
+   ],
+   "land": 0.73
+  },
+  {
+   "id": "GR4_F4H23_E3",
+   "lat": 34.7125,
+   "lon": 127.7125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 51.2,
+   "share14": 0.96,
+   "congMax": null,
+   "hazards": [
+    "여수시 국동항(수협 유류부두~T자방파제)",
+    "신월항(넘너리방파제~T자방파제)"
+   ],
+   "accInPort": 20,
+   "names": [
+    "국동항",
+    "신월선착장",
+    "신월항포구"
+   ],
+   "land": 0.32
+  },
+  {
+   "id": "GR4_F4H23_E4",
+   "lat": 34.7125,
+   "lon": 127.7375,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 15,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 5,
+   "names": [
+    "진모선착장"
+   ],
+   "land": 0.35
+  },
+  {
+   "id": "GR4_F4H23_O1",
+   "lat": 34.6375,
+   "lon": 127.7125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18.5,
+   "share14": 0.06,
+   "congMax": null,
+   "hazards": [
+    "금천선착장"
+   ],
+   "accInPort": 2,
+   "names": [
+    "금천항"
+   ],
+   "land": 0.21
+  },
+  {
+   "id": "GR4_F4H23_O3",
+   "lat": 34.6125,
+   "lon": 127.7125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 43.5,
+   "share14": 0.77,
+   "congMax": null,
+   "hazards": [
+    "군내항 방파제"
+   ],
+   "accInPort": 1,
+   "names": [
+    "군내항"
+   ],
+   "land": 0.31
+  },
+  {
+   "id": "GR4_F4H23_O4",
+   "lat": 34.6125,
+   "lon": 127.7375,
+   "grade": "중",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 24.7,
+   "share14": 0.05,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 5,
+   "names": [
+    "신기항",
+    "군내항",
+    "전용부두"
+   ],
+   "land": 0.73
+  },
+  {
+   "id": "GR4_F4H24_A1",
+   "lat": 34.7375,
+   "lon": 127.7625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18,
+   "share14": 0.19,
+   "congMax": null,
+   "hazards": [
+    "신항 통선부두"
+   ],
+   "accInPort": 9,
+   "names": [
+    "신항",
+    "진목선착장",
+    "통선부두"
+   ],
+   "land": 0.22
+  },
+  {
+   "id": "GR4_F4H24_P1",
+   "lat": 34.5875,
+   "lon": 127.7625,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 21.5,
+   "share14": 0.06,
+   "congMax": null,
+   "hazards": [
+    "대횡간도 방파제"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.43
+  },
+  {
+   "id": "GR4_F4H32_E3",
+   "lat": 34.4625,
+   "lon": 127.4625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 26,
+   "share14": 0.17,
+   "congMax": null,
+   "hazards": [
+    "진기항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "언남선착장",
+    "축정항"
+   ],
+   "land": 0.66
+  },
+  {
+   "id": "GR4_F4H34_V1",
+   "lat": 34.0375,
+   "lon": 127.3125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18.5,
+   "share14": 0.28,
+   "congMax": null,
+   "hazards": [
+    "찬물샘방파제"
+   ],
+   "accInPort": 4,
+   "names": [
+    "거뭉항",
+    "고도선착장",
+    "동방파제"
+   ],
+   "land": 0.38
+  },
+  {
+   "id": "GR4_F4K12_A4",
+   "lat": 33.9625,
+   "lon": 126.2875,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 22.8,
+   "share14": 0.12,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 6,
+   "names": [
+    "추자항",
+    "대서리항"
+   ],
+   "land": 0.24
+  },
+  {
+   "id": "GR4_F4K14_Y3",
+   "lat": 33.5125,
+   "lon": 126.4625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 34.5,
+   "share14": 0.15,
+   "congMax": null,
+   "hazards": [
+    "도두항"
+   ],
+   "accInPort": 12,
+   "names": [
+    "도두항",
+    "두항",
+    "서방파제"
+   ],
+   "land": 0.25
+  },
+  {
+   "id": "GR4_F4K23_U4",
+   "lat": 33.5125,
+   "lon": 126.5375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 85,
+   "share14": 0.94,
+   "congMax": "매우높음",
+   "hazards": [
+    "탑동해안로(방파제)",
+    "제주항(내?외항)"
+   ],
+   "accInPort": 16,
+   "names": [
+    "제주항",
+    "어선부두",
+    "어항부두"
+   ],
+   "land": 0.88
+  },
+  {
+   "id": "GR4_F4K32_F3",
+   "lat": 33.4125,
+   "lon": 126.2625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 111.8,
+   "share14": 0.83,
+   "congMax": "매우높음",
+   "hazards": [
+    "한림항"
+   ],
+   "accInPort": 29,
+   "names": [
+    "한림항",
+    "동방파제",
+    "북방파제"
+   ],
+   "land": 0.74
+  },
+  {
+   "id": "GR4_F4K33_E4",
+   "lat": 33.2125,
+   "lon": 126.2375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 35.3,
+   "share14": 0.24,
+   "congMax": null,
+   "hazards": [
+    "모슬포항 일대"
+   ],
+   "accInPort": 5,
+   "names": [
+    "모슬포항"
+   ],
+   "land": 0.08
+  },
+  {
+   "id": "GR4_F4K34_A3",
+   "lat": 33.2125,
+   "lon": 126.2625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 21.7,
+   "share14": 0.12,
+   "congMax": null,
+   "hazards": [
+    "모슬포항 일대",
+    "운진항 일대"
+   ],
+   "accInPort": 17,
+   "names": [
+    "운진항",
+    "모슬포항",
+    "동방파제"
+   ],
+   "land": 0.8
+  },
+  {
+   "id": "GR4_F4K34_B2",
+   "lat": 33.2375,
+   "lon": 126.3375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 26.2,
+   "share14": 0.18,
+   "congMax": null,
+   "hazards": [
+    "화순항 동방파제 TTP",
+    "화순항 3부두 선착장"
+   ],
+   "accInPort": 5,
+   "names": [
+    "화순항",
+    "동방파제",
+    "화물선부두"
+   ],
+   "land": 0.53
+  },
+  {
+   "id": "GR4_F4K34_E2",
+   "lat": 33.2375,
+   "lon": 126.4875,
+   "grade": "강",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 3.8,
+   "share14": 0,
+   "congMax": "높음",
+   "hazards": [
+    "강정포구 방파제"
+   ],
+   "accInPort": 3,
+   "names": [
+    "강정포구",
+    "강정항"
+   ],
+   "land": 0.84
+  },
+  {
+   "id": "GR4_F4K41_X3",
+   "lat": 33.2625,
+   "lon": 126.6625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18,
+   "share14": 0.04,
+   "congMax": null,
+   "hazards": [
+    "세천포구 방파제",
+    "위미항 방파제"
+   ],
+   "accInPort": 11,
+   "names": [
+    "위미항",
+    "동방파제",
+    "신우지포구"
+   ],
+   "land": 0.21
+  },
+  {
+   "id": "GR4_F4K42_D4",
+   "lat": 33.4625,
+   "lon": 126.9375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 87.8,
+   "share14": 0.73,
+   "congMax": null,
+   "hazards": [
+    "오조항",
+    "성산항 서방파제",
+    "성산항 어선부두",
+    "성산항 동방파제",
+    "성산 일출봉 수마포구"
+   ],
+   "accInPort": 23,
+   "names": [
+    "성산항",
+    "소형어선부두",
+    "오조포구"
+   ],
+   "land": 0.21
+  },
+  {
+   "id": "GR4_F4K43_B1",
+   "lat": 33.2375,
+   "lon": 126.5625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 38.2,
+   "share14": 0.59,
+   "congMax": null,
+   "hazards": [
+    "서귀포항"
+   ],
+   "accInPort": 42,
+   "names": [
+    "서귀포항",
+    "서부두",
+    "내항"
+   ],
+   "land": 0.37
+  },
+  {
+   "id": "GR4_G1E14_X4",
+   "lat": 38.5125,
+   "lon": 128.4375,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 23,
+   "share14": 0.09,
+   "congMax": null,
+   "hazards": [
+    "대진항 북방파제"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.03
+  },
+  {
+   "id": "GR4_G1E32_J1",
+   "lat": 38.4375,
+   "lon": 128.4625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 28.8,
+   "share14": 0.33,
+   "congMax": null,
+   "hazards": [
+    "거진항 북방파제"
+   ],
+   "accInPort": 3,
+   "names": [
+    "거진항",
+    "반암항",
+    "북방파제"
+   ],
+   "land": 0.33
+  },
+  {
+   "id": "GR4_G1E41_K3",
+   "lat": 38.3625,
+   "lon": 128.5125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 22.7,
+   "share14": 0.24,
+   "congMax": null,
+   "hazards": [
+    "가진항 북방파제",
+    "공현진항 북방파제"
+   ],
+   "accInPort": 3,
+   "names": [
+    "가진항"
+   ],
+   "land": 0.46
+  },
+  {
+   "id": "GR4_G1E41_V3",
+   "lat": 38.2625,
+   "lon": 128.5625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 38.2,
+   "share14": 0.24,
+   "congMax": null,
+   "hazards": [
+    "아야진항 북방파제",
+    "아야진항 남방파제",
+    "봉포항 북방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "아야진항",
+    "북방파제",
+    "어선부두"
+   ],
+   "land": 0.42
+  },
+  {
+   "id": "GR4_G1E43_B4",
+   "lat": 38.2125,
+   "lon": 128.5875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 23.2,
+   "share14": 0.11,
+   "congMax": null,
+   "hazards": [
+    "장사항 방사제",
+    "장사항 북방파제",
+    "동명동 양미리부두",
+    "청호동 선착장(설악대교 밑)"
+   ],
+   "accInPort": 10,
+   "names": [
+    "속초항",
+    "신부두",
+    "갯배선착장"
+   ],
+   "land": 0.52
+  },
+  {
+   "id": "GR4_G1E43_C3",
+   "lat": 38.2125,
+   "lon": 128.6125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 29.8,
+   "share14": 0.1,
+   "congMax": null,
+   "hazards": [
+    "속초항 북방파제"
+   ],
+   "accInPort": 10,
+   "names": [
+    "속초항",
+    "북방파제",
+    "동명항"
+   ],
+   "land": 0.02
+  },
+  {
+   "id": "GR4_G1E43_G2",
+   "lat": 38.1875,
+   "lon": 128.5875,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 29.5,
+   "share14": 0.14,
+   "congMax": null,
+   "hazards": [
+    "청호동 선착장(설악대교 밑)"
+   ],
+   "accInPort": 3,
+   "names": [
+    "마리나부두",
+    "어선부두",
+    "청초항"
+   ],
+   "land": 0.87
+  },
+  {
+   "id": "GR4_G1E43_H3",
+   "lat": 38.1625,
+   "lon": 128.6125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 21.2,
+   "share14": 0.13,
+   "congMax": null,
+   "hazards": [
+    "대포항 북방파제",
+    "설악항 북방파제",
+    "물치항 북방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "남방파제",
+    "대포항",
+    "설악항"
+   ],
+   "land": 0.37
+  },
+  {
+   "id": "GR4_G1E43_Y4",
+   "lat": 38.0125,
+   "lon": 128.7375,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.7,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "기사문 북방파제"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.32
+  },
+  {
+   "id": "GR4_G1I22_F2",
+   "lat": 37.9375,
+   "lon": 128.7875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 16,
+   "share14": 0.04,
+   "congMax": null,
+   "hazards": [
+    "남애항 북방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "남애항",
+    "북방파제"
+   ],
+   "land": 0.61
+  },
+  {
+   "id": "GR4_G1I22_G4",
+   "lat": 37.9125,
+   "lon": 128.8375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 15.5,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "소돌항 북방파제"
+   ],
+   "accInPort": 1,
+   "names": [
+    "주문진항"
+   ],
+   "land": 0.09
+  },
+  {
+   "id": "GR4_G1I22_L2",
+   "lat": 37.8875,
+   "lon": 128.8375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 66.8,
+   "share14": 0.8,
+   "congMax": null,
+   "hazards": [
+    "주문진항 남방파제",
+    "주문진 도깨비 방사제",
+    "주문진항 북방파제"
+   ],
+   "accInPort": 12,
+   "names": [
+    "주문진항",
+    "북방파제",
+    "관공선부두"
+   ],
+   "land": 0.32
+  },
+  {
+   "id": "GR4_G1I22_Y3",
+   "lat": 37.7625,
+   "lon": 128.9625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18,
+   "share14": 0.1,
+   "congMax": null,
+   "hazards": [
+    "강릉항 북방파제",
+    "강릉항 남방파제",
+    "강릉항 요트마리나 선착장"
+   ],
+   "accInPort": 3,
+   "names": [
+    "강릉항",
+    "북방파제"
+   ],
+   "land": 0.36
+  },
+  {
+   "id": "GR4_G1J13_R1",
+   "lat": 37.5875,
+   "lon": 129.1125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 22.8,
+   "share14": 0.19,
+   "congMax": null,
+   "hazards": [
+    "대진항 북방파제",
+    "대진항 남방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "대진항"
+   ],
+   "land": 0.2
+  },
+  {
+   "id": "GR4_G1J13_R3",
+   "lat": 37.5625,
+   "lon": 129.1125,
+   "grade": "중",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 39.8,
+   "share14": 0.61,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 3,
+   "names": [
+    "묵호항",
+    "어달항"
+   ],
+   "land": 0.73
+  },
+  {
+   "id": "GR4_G1J13_W1",
+   "lat": 37.5375,
+   "lon": 129.1125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 25,
+   "share14": 0.32,
+   "congMax": null,
+   "hazards": [
+    "천곡항 방파제"
+   ],
+   "accInPort": 5,
+   "names": [
+    "묵호항",
+    "중앙부두"
+   ],
+   "land": 0.68
+  },
+  {
+   "id": "GR4_G1J31_I2",
+   "lat": 37.4375,
+   "lon": 129.1875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 23.8,
+   "share14": 0.21,
+   "congMax": null,
+   "hazards": [
+    "삼척항 북방파제",
+    "삼척항 남방파제"
+   ],
+   "accInPort": 5,
+   "names": [
+    "삼척항",
+    "북방파제"
+   ],
+   "land": 0.72
+  },
+  {
+   "id": "GR4_G1J32_V1",
+   "lat": 37.2875,
+   "lon": 129.3125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 20.5,
+   "share14": 0.12,
+   "congMax": null,
+   "hazards": [
+    "장호항 동방파제",
+    "장호항 북방파제",
+    "갈남항 북방파제"
+   ],
+   "accInPort": 3,
+   "names": [
+    "장호항",
+    "남방파제"
+   ],
+   "land": 0.54
+  },
+  {
+   "id": "GR4_G1J34_B2",
+   "lat": 37.2375,
+   "lon": 129.3375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18.5,
+   "share14": 0.06,
+   "congMax": null,
+   "hazards": [
+    "임원항 남방파제"
+   ],
+   "accInPort": 3,
+   "names": [
+    "임원항",
+    "북방파제",
+    "주문진항"
+   ],
+   "land": 0.93
+  },
+  {
+   "id": "GR4_G1J34_S3",
+   "lat": 37.0625,
+   "lon": 129.4125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 30.2,
+   "share14": 0.51,
+   "congMax": null,
+   "hazards": [
+    "죽변항 동방파제 낚시공터",
+    "죽변항 남방파제",
+    "죽변항 남방파제 낚시공터",
+    "죽변항 동방파제"
+   ],
+   "accInPort": 9,
+   "names": [
+    "죽변항",
+    "남방파제",
+    "마축항"
+   ],
+   "land": 0.81
+  },
+  {
+   "id": "GR4_G1N14_J1",
+   "lat": 36.6875,
+   "lon": 129.4625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 30,
+   "share14": 0.37,
+   "congMax": null,
+   "hazards": [
+    "거일 방파제",
+    "제동항 북방파제",
+    "제동항 남방파제",
+    "후포항 동방파제",
+    "후포항 남방파제",
+    "마리나항 방파제"
+   ],
+   "accInPort": 7,
+   "names": [
+    "후포항",
+    "북방파제"
+   ],
+   "land": 0.65
+  },
+  {
+   "id": "GR4_G1N14_X4",
+   "lat": 36.5125,
+   "lon": 129.4375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.8,
+   "share14": 0.02,
+   "congMax": null,
+   "hazards": [
+    "축산항 북방파제",
+    "사진3리 방파제"
+   ],
+   "accInPort": 5,
+   "names": [
+    "축산항"
+   ],
+   "land": 0.83
+  },
+  {
+   "id": "GR4_G1N32_M4",
+   "lat": 36.3625,
+   "lon": 129.3875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 20.8,
+   "share14": 0.22,
+   "congMax": null,
+   "hazards": [
+    "금진2리 방파제",
+    "강구항 북방파제",
+    "강구 해파랑공원"
+   ],
+   "accInPort": 9,
+   "names": [
+    "강구항",
+    "북방파제",
+    "남방파제"
+   ],
+   "land": 0.69
+  },
+  {
+   "id": "GR4_G1N32_R4",
+   "lat": 36.3125,
+   "lon": 129.3875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.7,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "구계항",
+    "원척항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "원척항",
+    "구계항",
+    "북방파제"
+   ],
+   "land": 0.2
+  },
+  {
+   "id": "GR4_G1N34_N4",
+   "lat": 36.1125,
+   "lon": 129.4375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 21.5,
+   "share14": 0.4,
+   "congMax": null,
+   "hazards": [
+    "영일만항 어항방파제",
+    "영일만항 북방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "북방파제",
+    "영일만항",
+    "포항"
+   ],
+   "land": 0.29
+  },
+  {
+   "id": "GR4_G1N34_W1",
+   "lat": 36.0375,
+   "lon": 129.3625,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 24.2,
+   "share14": 0.3,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 7,
+   "names": [
+    "포항",
+    "구항",
+    "동빈항"
+   ],
+   "land": 0.94
+  },
+  {
+   "id": "GR4_G1N34_W2",
+   "lat": 36.0375,
+   "lon": 129.3875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 17.8,
+   "share14": 0.02,
+   "congMax": null,
+   "hazards": [
+    "포항구항 북방파제",
+    "포항구항 남방파제"
+   ],
+   "accInPort": 5,
+   "names": [
+    "포항",
+    "포항구항",
+    "구항"
+   ],
+   "land": 0.4
+  },
+  {
+   "id": "GR4_G1N34_X3",
+   "lat": 36.0125,
+   "lon": 129.4125,
+   "grade": "중",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 23,
+   "share14": 0.83,
+   "congMax": "높음",
+   "hazards": [],
+   "accInPort": 3,
+   "names": [
+    "신항",
+    "포항",
+    "포항신항"
+   ],
+   "land": 0.43
+  },
+  {
+   "id": "GR4_G1N43_Q1",
+   "lat": 36.0875,
+   "lon": 129.5625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 23.8,
+   "share14": 0.07,
+   "congMax": null,
+   "hazards": [
+    "구만2리 북방파제",
+    "호미곶항 북방파제",
+    "구만2리 남방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "포항",
+    "호미곶항"
+   ],
+   "land": 0.2
+  },
+  {
+   "id": "GR4_G3A34_O4",
+   "lat": 35.1125,
+   "lon": 128.4875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 23.5,
+   "share14": 0.19,
+   "congMax": null,
+   "hazards": [
+    "광암항 광암해수욕장"
+   ],
+   "accInPort": 7,
+   "names": [
+    "광암항",
+    "마산합포구",
+    "북방파제"
+   ],
+   "land": 0.82
+  },
+  {
+   "id": "GR4_G3A43_B4",
+   "lat": 35.2125,
+   "lon": 128.5875,
+   "grade": "강",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 12.5,
+   "share14": 0,
+   "congMax": "매우높음",
+   "hazards": [
+    "마산항 2부두-T자방파제-수협공판장"
+   ],
+   "accInPort": 5,
+   "names": [
+    "마산항",
+    "마산합포구",
+    "수협부두"
+   ],
+   "land": 0.75
+  },
+  {
+   "id": "GR4_G3A43_G2",
+   "lat": 35.1875,
+   "lon": 128.5875,
+   "grade": "강",
+   "why": [
+    "history",
+    "congestion"
+   ],
+   "maxCount": 14,
+   "share14": 0.01,
+   "congMax": "높음",
+   "hazards": [
+    "마산항 2부두-T자방파제-수협공판장"
+   ],
+   "accInPort": 17,
+   "names": [
+    "마산항",
+    "마산합포구",
+    "모래부두"
+   ],
+   "land": 0.37
+  },
+  {
+   "id": "GR4_G3A43_L2",
+   "lat": 35.1375,
+   "lon": 128.5875,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 19.2,
+   "share14": 0.06,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 5,
+   "names": [
+    "마산합포구",
+    "덕동항",
+    "수정항"
+   ],
+   "land": 0.56
+  },
+  {
+   "id": "GR4_G3A43_N1",
+   "lat": 35.1375,
+   "lon": 128.6625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 30,
+   "share14": 0.81,
+   "congMax": null,
+   "hazards": [
+    "진해구 속천항"
+   ],
+   "accInPort": 5,
+   "names": [
+    "속천항",
+    "나가야항",
+    "속천방파제"
+   ],
+   "land": 0.81
+  },
+  {
+   "id": "GR4_G3A43_N2",
+   "lat": 35.1375,
+   "lon": 128.6875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 25.5,
+   "share14": 0.41,
+   "congMax": null,
+   "hazards": [
+    "장천항 2부두",
+    "진해구 속천항"
+   ],
+   "accInPort": 12,
+   "names": [
+    "진해항",
+    "덕산항",
+    "속천항"
+   ],
+   "land": 0.39
+  },
+  {
+   "id": "GR4_G3A43_N4",
+   "lat": 35.1125,
+   "lon": 128.6875,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 29.2,
+   "share14": 0.12,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 12,
+   "names": [
+    "탄약부두",
+    "국군탄약부두",
+    "녹등방파제"
+   ],
+   "land": 0.17
+  },
+  {
+   "id": "GR4_G3A43_Q3",
+   "lat": 35.0625,
+   "lon": 128.5625,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.7,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 7,
+   "names": [
+    "마산합포구",
+    "구복항",
+    "합포구"
+   ],
+   "land": 0.43
+  },
+  {
+   "id": "GR4_G3A43_R4",
+   "lat": 35.0625,
+   "lon": 128.6375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 42.3,
+   "share14": 0.51,
+   "congMax": null,
+   "hazards": [
+    "원전항 원전수협 마산지소앞"
+   ],
+   "accInPort": 6,
+   "names": [
+    "마산합포구",
+    "원전항"
+   ],
+   "land": 0.12
+  },
+  {
+   "id": "GR4_G3A43_T1",
+   "lat": 35.0875,
+   "lon": 128.7125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 29.5,
+   "share14": 0.54,
+   "congMax": null,
+   "hazards": [
+    "진해구 명동항",
+    "진해구 우도 방파제"
+   ],
+   "accInPort": 3,
+   "names": [
+    "명동항"
+   ],
+   "land": 0.05
+  },
+  {
+   "id": "GR4_G3A43_T2",
+   "lat": 35.0875,
+   "lon": 128.7375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 35.8,
+   "share14": 0.73,
+   "congMax": null,
+   "hazards": [
+    "진해구 우도 방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "삼포항"
+   ],
+   "land": 0.4
+  },
+  {
+   "id": "GR4_G3A44_N4",
+   "lat": 35.1125,
+   "lon": 128.9375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 21.7,
+   "share14": 0.09,
+   "congMax": null,
+   "hazards": [
+    "진목항포구"
+   ],
+   "accInPort": 2,
+   "names": [
+    "동리항",
+    "중리항"
+   ],
+   "land": 0.85
+  },
+  {
+   "id": "GR4_G3A44_P2",
+   "lat": 35.0875,
+   "lon": 128.7875,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 56,
+   "share14": 0.94,
+   "congMax": "매우높음",
+   "hazards": [
+    "부산신항서컨테이너부두",
+    "관공선부두"
+   ],
+   "accInPort": 5,
+   "names": [
+    "신항",
+    "신항소형선부두",
+    "안골항"
+   ],
+   "land": 0.58
+  },
+  {
+   "id": "GR4_G3A44_P3",
+   "lat": 35.0625,
+   "lon": 128.7625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18.3,
+   "share14": 0.08,
+   "congMax": null,
+   "hazards": [
+    "부산신항서컨테이너부두"
+   ],
+   "accInPort": 2,
+   "names": [
+    "부산신항",
+    "서컨테이너부두"
+   ],
+   "land": 0.06
+  },
+  {
+   "id": "GR4_G3A44_P4",
+   "lat": 35.0625,
+   "lon": 128.7875,
+   "grade": "강",
+   "why": [
+    "history",
+    "congestion"
+   ],
+   "maxCount": 15.5,
+   "share14": 0.01,
+   "congMax": "높음",
+   "hazards": [
+    "부산신항서컨테이너부두"
+   ],
+   "accInPort": 6,
+   "names": [
+    "신항",
+    "북항",
+    "컨테이너부두"
+   ],
+   "land": 0.15
+  },
+  {
+   "id": "GR4_G3A44_Q1",
+   "lat": 35.0875,
+   "lon": 128.8125,
+   "grade": "강",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 13.3,
+   "share14": 0,
+   "congMax": "매우높음",
+   "hazards": [
+    "부경신항수협 앞 계류장"
+   ],
+   "accInPort": 2,
+   "names": [
+    "부산신항",
+    "신항"
+   ],
+   "land": 0.84
+  },
+  {
+   "id": "GR4_G3A44_Q4",
+   "lat": 35.0625,
+   "lon": 128.8375,
+   "grade": "중",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 12.7,
+   "share14": 0,
+   "congMax": "높음",
+   "hazards": [],
+   "accInPort": 4,
+   "names": [
+    "신항",
+    "다목적부두",
+    "성북항"
+   ],
+   "land": 0.55
+  },
+  {
+   "id": "GR4_G3A44_T2",
+   "lat": 35.0875,
+   "lon": 128.9875,
+   "grade": "중",
+   "why": [
+    "history",
+    "congestion"
+   ],
+   "maxCount": 16.3,
+   "share14": 0.19,
+   "congMax": "매우높음",
+   "hazards": [],
+   "accInPort": 3,
+   "names": [
+    "감천항",
+    "동편부두",
+    "중앙부두"
+   ],
+   "land": 0.94
+  },
+  {
+   "id": "GR4_G3A44_T4",
+   "lat": 35.0625,
+   "lon": 128.9875,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 42.8,
+   "share14": 0.94,
+   "congMax": "매우높음",
+   "hazards": [
+    "낫개방파제"
+   ],
+   "accInPort": 12,
+   "names": [
+    "감천항",
+    "감천서방파제",
+    "국제부두"
+   ],
+   "land": 0.77
+  },
+  {
+   "id": "GR4_G3A44_V3",
+   "lat": 35.0125,
+   "lon": 128.8125,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 15,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "천성항"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.25
+  },
+  {
+   "id": "GR4_G3A44_Y2",
+   "lat": 35.0375,
+   "lon": 128.9875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.3,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "감천항 서방파제",
+    "성창방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "낫개항"
+   ],
+   "land": 0.1
+  },
+  {
+   "id": "GR4_G3B14_E4",
+   "lat": 35.7125,
+   "lon": 129.4875,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.5,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 4,
+   "names": [
+    "북방파제",
+    "읍천항",
+    "홍등방파제"
+   ],
+   "land": 0.19
+  },
+  {
+   "id": "GR4_G3B14_O3",
+   "lat": 35.6125,
+   "lon": 129.4625,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 33.2,
+   "share14": 0.26,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 8,
+   "names": [
+    "정자항",
+    "남방파제",
+    "북방파제"
+   ],
+   "land": 0.24
+  },
+  {
+   "id": "GR4_G3B14_W3",
+   "lat": 35.5125,
+   "lon": 129.3625,
+   "grade": "중",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 28.5,
+   "share14": 0.95,
+   "congMax": "매우높음",
+   "hazards": [],
+   "accInPort": 30,
+   "names": [
+    "장생포항",
+    "울산항",
+    "소형선부두"
+   ],
+   "land": 0.95
+  },
+  {
+   "id": "GR4_G3B14_W4",
+   "lat": 35.5125,
+   "lon": 129.3875,
+   "grade": "중",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 59,
+   "share14": 0.99,
+   "congMax": "높음",
+   "hazards": [],
+   "accInPort": 23,
+   "names": [
+    "울산항",
+    "용잠부두",
+    "염포부두"
+   ],
+   "land": 0.51
+  },
+  {
+   "id": "GR4_G3B21_B1",
+   "lat": 35.9875,
+   "lon": 129.5625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 38.7,
+   "share14": 0.7,
+   "congMax": null,
+   "hazards": [
+    "구룡포항",
+    "구룡포항 북방파제",
+    "구룡포항 남방파제"
+   ],
+   "accInPort": 14,
+   "names": [
+    "구룡포항",
+    "포항",
+    "북방파제"
+   ],
+   "land": 0.42
+  },
+  {
+   "id": "GR4_G3B21_K1",
+   "lat": 35.8875,
+   "lon": 129.5125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 17.8,
+   "share14": 0.03,
+   "congMax": null,
+   "hazards": [
+    "양포항 남방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "양포항",
+    "포항"
+   ],
+   "land": 0.94
+  },
+  {
+   "id": "GR4_G3B21_P3",
+   "lat": 35.8125,
+   "lon": 129.5125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 27.6,
+   "share14": 0.35,
+   "congMax": null,
+   "hazards": [
+    "감포 소형선 부두(물양장)",
+    "감포항북방파제",
+    "감포남방파제"
+   ],
+   "accInPort": 10,
+   "names": [
+    "감포항",
+    "북방파제",
+    "남방파제"
+   ],
+   "land": 0.34
+  },
+  {
+   "id": "GR4_G3B31_Y4",
+   "lat": 35.2625,
+   "lon": 129.2375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 16.2,
+   "share14": 0.06,
+   "congMax": null,
+   "hazards": [
+    "이동항"
+   ],
+   "accInPort": 1,
+   "names": [
+    "이동방파제"
+   ],
+   "land": 0.81
+  },
+  {
+   "id": "GR4_G3B32_C2",
+   "lat": 35.4875,
+   "lon": 129.3875,
+   "grade": "중",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 27.3,
+   "share14": 0.98,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 9,
+   "names": [
+    "울산항",
+    "가스부두",
+    "남화부두"
+   ],
+   "land": 0.4
+  },
+  {
+   "id": "GR4_G3B32_C3",
+   "lat": 35.4625,
+   "lon": 129.3625,
+   "grade": "중",
+   "why": [
+    "history",
+    "congestion"
+   ],
+   "maxCount": 24.2,
+   "share14": 0.7,
+   "congMax": "높음",
+   "hazards": [],
+   "accInPort": 16,
+   "names": [
+    "온산항",
+    "울산신항",
+    "컨테이너부두"
+   ],
+   "land": 0.58
+  },
+  {
+   "id": "GR4_G3B32_D1",
+   "lat": 35.4875,
+   "lon": 129.4125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 21.5,
+   "share14": 0.33,
+   "congMax": null,
+   "hazards": [
+    "방어진항",
+    "방어진 남방파제",
+    "상진항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "남방파제",
+    "방어진항",
+    "울산항"
+   ],
+   "land": 0.7
+  },
+  {
+   "id": "GR4_G3B32_D2",
+   "lat": 35.4875,
+   "lon": 129.4375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 67.5,
+   "share14": 0.98,
+   "congMax": "높음",
+   "hazards": [
+    "슬도방파제",
+    "방어진항",
+    "방어진 남방파제"
+   ],
+   "accInPort": 15,
+   "names": [
+    "방어진항",
+    "남방파제",
+    "슬도방파제"
+   ],
+   "land": 0.37
+  },
+  {
+   "id": "GR4_G3B32_H1",
+   "lat": 35.4375,
+   "lon": 129.3625,
+   "grade": "중",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 21.8,
+   "share14": 0.58,
+   "congMax": "높음",
+   "hazards": [],
+   "accInPort": 7,
+   "names": [
+    "남방파제",
+    "온산신항",
+    "신항"
+   ],
+   "land": 0.44
+  },
+  {
+   "id": "GR4_G3B32_L2",
+   "lat": 35.3875,
+   "lon": 129.3375,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 20.5,
+   "share14": 0.06,
+   "congMax": null,
+   "hazards": [
+    "진하항 방파제"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.92
+  },
+  {
+   "id": "GR4_G3B32_M3",
+   "lat": 35.3625,
+   "lon": 129.3625,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18.3,
+   "share14": 0.03,
+   "congMax": null,
+   "hazards": [
+    "대송항"
+   ],
+   "accInPort": 3,
+   "names": [
+    "송정방파제",
+    "평동방파제",
+    "평동항"
+   ],
+   "land": 0.23
+  },
+  {
+   "id": "GR4_G3B33_E4",
+   "lat": 35.2125,
+   "lon": 129.2375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 36.2,
+   "share14": 0.2,
+   "congMax": null,
+   "hazards": [
+    "대변항 월드컵방파제"
+   ],
+   "accInPort": 15,
+   "names": [
+    "대변항",
+    "외항",
+    "남방파제"
+   ],
+   "land": 0.19
+  },
+  {
+   "id": "GR4_G3B33_H4",
+   "lat": 35.1625,
+   "lon": 129.1375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 26.5,
+   "share14": 0.15,
+   "congMax": null,
+   "hazards": [
+    "민락항 방파제",
+    "마린시티 방파제"
+   ],
+   "accInPort": 6,
+   "names": [
+    "민락방파제",
+    "민락항",
+    "우동항"
+   ],
+   "land": 0.72
+  },
+  {
+   "id": "GR4_G3B33_J1",
+   "lat": 35.1875,
+   "lon": 129.2125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 17.5,
+   "share14": 0.06,
+   "congMax": null,
+   "hazards": [
+    "공수항 방파제",
+    "송정항 방파제"
+   ],
+   "accInPort": 4,
+   "names": [
+    "송정항"
+   ],
+   "land": 0.7
+  },
+  {
+   "id": "GR4_G3B33_L3",
+   "lat": 35.1125,
+   "lon": 129.0625,
+   "grade": "중",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 78.8,
+   "share14": 0.99,
+   "congMax": "매우높음",
+   "hazards": [],
+   "accInPort": 45,
+   "names": [
+    "부산항",
+    "북항",
+    "양곡부두"
+   ],
+   "land": 0.26
+  },
+  {
+   "id": "GR4_G3B33_P1",
+   "lat": 35.0875,
+   "lon": 129.0125,
+   "grade": "강",
+   "why": [
+    "now",
+    "congestion"
+   ],
+   "maxCount": 12.3,
+   "share14": 0,
+   "congMax": "매우높음",
+   "hazards": [
+    "감천항 어선부두",
+    "감천항 1~3부두",
+    "남항대교 옆 TTP"
+   ],
+   "accInPort": 10,
+   "names": [
+    "감천항",
+    "감청항"
+   ],
+   "land": 0.92
+  },
+  {
+   "id": "GR4_G3B33_P2",
+   "lat": 35.0875,
+   "lon": 129.0375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 103.5,
+   "share14": 0.99,
+   "congMax": "매우높음",
+   "hazards": [
+    "금양제빙 앞 물양장",
+    "남항대교 옆 TTP",
+    "봉래동물양장"
+   ],
+   "accInPort": 32,
+   "names": [
+    "남항",
+    "남부민방파제",
+    "돌체부두"
+   ],
+   "land": 0.54
+  },
+  {
+   "id": "GR4_G3B33_P3",
+   "lat": 35.0625,
+   "lon": 129.0125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 48,
+   "share14": 0.94,
+   "congMax": null,
+   "hazards": [
+    "감천항 1~3부두",
+    "감천항 동방파제"
+   ],
+   "accInPort": 40,
+   "names": [
+    "감천항",
+    "서방파제",
+    "동방파제"
+   ],
+   "land": 0.37
+  },
+  {
+   "id": "GR4_G3B33_Q1",
+   "lat": 35.0875,
+   "lon": 129.0625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 18.2,
+   "share14": 0.36,
+   "congMax": "매우높음",
+   "hazards": [
+    "동삼물양장"
+   ],
+   "accInPort": 8,
+   "names": [
+    "청학부두",
+    "우성부두"
+   ],
+   "land": 0.85
+  },
+  {
+   "id": "GR4_G3B33_Q2",
+   "lat": 35.0875,
+   "lon": 129.0875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 21.5,
+   "share14": 0.48,
+   "congMax": null,
+   "hazards": [
+    "동삼물양장"
+   ],
+   "accInPort": 10,
+   "names": [
+    "부산항",
+    "조도방파제",
+    "대체부두"
+   ],
+   "land": 0.2
+  },
+  {
+   "id": "GR4_G3B33_Q4",
+   "lat": 35.0625,
+   "lon": 129.0875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18.8,
+   "share14": 0.14,
+   "congMax": null,
+   "hazards": [
+    "하리항 일원"
+   ],
+   "accInPort": 1,
+   "names": [],
+   "land": 0.47
+  },
+  {
+   "id": "GR4_G3E11_F4",
+   "lat": 34.9125,
+   "lon": 128.0375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 48.2,
+   "share14": 0.38,
+   "congMax": null,
+   "hazards": [
+    "창선출장소 인근"
+   ],
+   "accInPort": 2,
+   "names": [
+    "늑도항"
+   ],
+   "land": 0.18
+  },
+  {
+   "id": "GR4_G3E11_G1",
+   "lat": 34.9375,
+   "lon": 128.0625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 38.2,
+   "share14": 0.94,
+   "congMax": "매우높음",
+   "hazards": [
+    "삼천포 구항 선착장",
+    "신수도 차도선 터미널 앞"
+   ],
+   "accInPort": 6,
+   "names": [
+    "굴항선착장",
+    "구항",
+    "대방항"
+   ],
+   "land": 0.89
+  },
+  {
+   "id": "GR4_G3E11_G2",
+   "lat": 34.9375,
+   "lon": 128.0875,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 52,
+   "share14": 0.69,
+   "congMax": null,
+   "hazards": [
+    "삼천포 신항선착장",
+    "팔포방파제",
+    "팔포항포구"
+   ],
+   "accInPort": 8,
+   "names": [
+    "신항",
+    "삼천포구항",
+    "삼천포신항"
+   ],
+   "land": 0.96
+  },
+  {
+   "id": "GR4_G3E11_G3",
+   "lat": 34.9125,
+   "lon": 128.0625,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 97.8,
+   "share14": 0.42,
+   "congMax": null,
+   "hazards": [
+    "삼천포 구항 선착장",
+    "신수도 차도선 터미널 앞"
+   ],
+   "accInPort": 3,
+   "names": [
+    "삼천포방파제",
+    "진널방파제"
+   ],
+   "land": 0.06
+  },
+  {
+   "id": "GR4_G3E11_G4",
+   "lat": 34.9125,
+   "lon": 128.0875,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 35.8,
+   "share14": 0.27,
+   "congMax": null,
+   "hazards": [
+    "삼천포 신항선착장",
+    "팔포방파제"
+   ],
+   "accInPort": 5,
+   "names": [
+    "신항",
+    "진널방파제",
+    "예인선부두"
+   ],
+   "land": 0.14
+  },
+  {
+   "id": "GR4_G3E11_H3",
+   "lat": 34.9125,
+   "lon": 128.1125,
+   "grade": "중",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 9.8,
+   "share14": 0,
+   "congMax": "높음",
+   "hazards": [],
+   "accInPort": 3,
+   "names": [
+    "군호선착장"
+   ],
+   "land": 0.63
+  },
+  {
+   "id": "GR4_G3E12_O4",
+   "lat": 34.8625,
+   "lon": 128.4875,
+   "grade": "중",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 3.7,
+   "share14": 0,
+   "congMax": "높음",
+   "hazards": [
+    "학산마을앞방파제"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.96
+  },
+  {
+   "id": "GR4_G3E12_R2",
+   "lat": 34.8375,
+   "lon": 128.3875,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 26.8,
+   "share14": 0.36,
+   "congMax": null,
+   "hazards": [
+    "인평동 민양마을 경로당 앞"
+   ],
+   "accInPort": 1,
+   "names": [
+    "인평항"
+   ],
+   "land": 0.52
+  },
+  {
+   "id": "GR4_G3E12_R3",
+   "lat": 34.8125,
+   "lon": 128.3625,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 15.3,
+   "share14": 0.02,
+   "congMax": null,
+   "hazards": [
+    "풍화리 오비도 사당개 마을 앞"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.27
+  },
+  {
+   "id": "GR4_G3E12_S1",
+   "lat": 34.8375,
+   "lon": 128.4125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now",
+    "congestion"
+   ],
+   "maxCount": 50.2,
+   "share14": 0.89,
+   "congMax": "높음",
+   "hazards": [
+    "강구안 물양장",
+    "미수동 방파제"
+   ],
+   "accInPort": 5,
+   "names": [
+    "항포구"
+   ],
+   "land": 0.88
+  },
+  {
+   "id": "GR4_G3E12_S2",
+   "lat": 34.8375,
+   "lon": 128.4375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 68.2,
+   "share14": 0.93,
+   "congMax": null,
+   "hazards": [
+    "동호항 물량장",
+    "강구안 물양장"
+   ],
+   "accInPort": 30,
+   "names": [
+    "동호항",
+    "전용부두",
+    "남방파제"
+   ],
+   "land": 0.41
+  },
+  {
+   "id": "GR4_G3E12_T1",
+   "lat": 34.8375,
+   "lon": 128.4625,
+   "grade": "중",
+   "why": [
+    "now"
+   ],
+   "maxCount": 13.8,
+   "share14": 0,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 3,
+   "names": [
+    "동호항"
+   ],
+   "land": 0.14
+  },
+  {
+   "id": "GR4_G3E12_W2",
+   "lat": 34.7875,
+   "lon": 128.3875,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 55,
+   "share14": 0.94,
+   "congMax": null,
+   "hazards": [
+    "삼덕항 방파제"
+   ],
+   "accInPort": 2,
+   "names": [
+    "삼덕항",
+    "중화항"
+   ],
+   "land": 0.59
+  },
+  {
+   "id": "GR4_G3E12_X3",
+   "lat": 34.7625,
+   "lon": 128.4125,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 22.5,
+   "share14": 0.14,
+   "congMax": null,
+   "hazards": [
+    "달아마을 물양장",
+    "달아마을 도선장 주변"
+   ],
+   "accInPort": 1,
+   "names": [
+    "남방파제",
+    "척포항"
+   ],
+   "land": 0.42
+  },
+  {
+   "id": "GR4_G3E14_K2",
+   "lat": 34.6375,
+   "lon": 128.2875,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 3,
+   "names": [
+    "욕지항",
+    "남방파제"
+   ],
+   "land": 0.36
+  },
+  {
+   "id": "GR4_G3E21_F4",
+   "lat": 34.9125,
+   "lon": 128.5375,
+   "grade": "중",
+   "why": [
+    "history"
+   ],
+   "maxCount": 15.3,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "사등면 삼호조선소앞"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.7
+  },
+  {
+   "id": "GR4_G3E21_J1",
+   "lat": 34.9375,
+   "lon": 128.7125,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 16.7,
+   "share14": 0.02,
+   "congMax": null,
+   "hazards": [
+    "외포항 소형선 부두"
+   ],
+   "accInPort": 1,
+   "names": [
+    "외포항"
+   ],
+   "land": 0.82
+  },
+  {
+   "id": "GR4_G3E21_N2",
+   "lat": 34.8875,
+   "lon": 128.6875,
+   "grade": "중",
+   "why": [
+    "history",
+    "congestion"
+   ],
+   "maxCount": 17.7,
+   "share14": 0.15,
+   "congMax": "매우높음",
+   "hazards": [
+    "옥포 항포구"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.96
+  },
+  {
+   "id": "GR4_G3E21_O2",
+   "lat": 34.8875,
+   "lon": 128.7375,
+   "grade": "강",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.3,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [
+    "능포항포구 일원"
+   ],
+   "accInPort": 1,
+   "names": [],
+   "land": 0.38
+  },
+  {
+   "id": "GR4_G3E21_O3",
+   "lat": 34.8625,
+   "lon": 128.7125,
+   "grade": "중",
+   "why": [
+    "congestion"
+   ],
+   "maxCount": 10.3,
+   "share14": 0,
+   "congMax": "매우높음",
+   "hazards": [
+    "장승포로 56-14 (장승포동) 항포구 일원",
+    "장승포로 56-20 (장승포동) 장승포 수변공원"
+   ],
+   "accInPort": 0,
+   "names": [],
+   "land": 0.95
+  },
+  {
+   "id": "GR4_G3E21_O4",
+   "lat": 34.8625,
+   "lon": 128.7375,
+   "grade": "강",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 29.7,
+   "share14": 0.78,
+   "congMax": null,
+   "hazards": [
+    "장승포로 56-14 (장승포동) 항포구 일원",
+    "장승포로 56-20 (장승포동) 장승포 수변공원"
+   ],
+   "accInPort": 3,
+   "names": [
+    "장승포항"
+   ],
+   "land": 0.35
+  }
+ ]
+}

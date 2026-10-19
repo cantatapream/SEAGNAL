@@ -24,6 +24,7 @@
      */
     function create(map, select) {
         var SELECTED='#4fc3f7'; // 선택 테두리 색 — 해구기상 대해구 선택(ocean_map.js _styleSelectedMainFeature)과 같은 값
+        var HARBOR_GREY='rgb(138,148,166)'; // 항구 칸(정박·계류) 회색 — 범례 risk_forecast.js marineLegend 의 .rf-harbor-key 와 같은 색(2026-10-19)
         var geo=new ol.format.GeoJSON(), sources={}, layers={}, spots=[], cells=[], accidentCells=[], trafficCells=[], unifiedCells=[], unified=!!w.RiskMarine, unifiedMode=null, visible=false, active={coast:true,sea:false}, selection=null, land=[], maskKey='', maskCanvas=null, maskRef=null, maskStale=true, smoothCanvas=null, disposed=false, unifiedTable=null, unifiedIndex=new Map(), unifiedRows=new Map(), unifiedFeatures=new Map(), unifiedBins=new Map(), fillStyles=new Map(), numberStyles=new Map();
         ['accident','sea','marine','traffic','coast','hazard','selection','shore','points'].forEach(function (k,i) {
             sources[k]=new ol.source.Vector();
@@ -150,7 +151,8 @@
             for(var x=Math.floor(b[0]*4);x<=Math.floor(b[2]*4);x++)for(var y=Math.floor(b[1]*4);y<=Math.floor(b[3]*4);y++)(unifiedBins.get(x+','+y)||[]).forEach(function(c){
                 var row=unifiedRows.get(c.i);if(!row||c.lon<b[0]-.0125||c.lon>b[2]+.0125||c.lat<b[1]-.0125||c.lat>b[3]+.0125)return;
                 // 위험 예측(accident)은 위험 4색, 혼잡도(지금 current=밀집도·미래 congestion=혼잡 예보)는 혼잡 4색 — 범례 막대와 같은 색(2026-10-15 조작부 시안).
-                var cong=unifiedMode==='current'||unifiedMode==='congestion',colorKey=(cong?256:0)+Math.round(row[3]*255),style=fillStyles.get(colorKey);if(!style){var color=(cong&&w.RiskMarine.congestionColor?w.RiskMarine.congestionColor:w.RiskMarine.color)((colorKey%256)/255);style=new ol.style.Style({fill:new ol.style.Fill({color:rgba(color,.5)})});fillStyles.set(colorKey,style);}
+                // 항구 칸(서버 프레임 줄 끝 1 — harbor_cells, 정박·계류 배가 늘 세어지는 칸)은 혼잡 색 대신 회색, 숫자는 그대로(2026-10-19 사용자 「회색+숫자 유지」).
+                var cong=unifiedMode==='current'||unifiedMode==='congestion',harborRow=cong&&row[4]===1,colorKey=harborRow?512:(cong?256:0)+Math.round(row[3]*255),style=fillStyles.get(colorKey);if(!style){var color=harborRow?HARBOR_GREY:(cong&&w.RiskMarine.congestionColor?w.RiskMarine.congestionColor:w.RiskMarine.color)((colorKey%256)/255);style=new ol.style.Style({fill:new ol.style.Fill({color:rgba(color,.5)})});fillStyles.set(colorKey,style);}
                 if(overview){
                     // 전국 보기에서는 동일 색상 다각형을 한 도형으로 묶어 수만 개 Feature를 만들지 않는다.
                     var polygon;if(c.geometry){polygon=read(c.geometry).getCoordinates();}else{var lo=ol.proj.fromLonLat([c.lon-.0125,c.lat-.0125]),hi=ol.proj.fromLonLat([c.lon+.0125,c.lat+.0125]);polygon=[[[lo[0],lo[1]],[hi[0],lo[1]],[hi[0],hi[1]],[lo[0],hi[1]],[lo[0],lo[1]]]];}
@@ -253,12 +255,21 @@
             if(unified){layers.sea.setVisible(false);layers.accident.setVisible(false);layers.traffic.setVisible(enabled&&state.sea&&unifiedMode==='current');}layers.marine.setVisible(enabled&&state.sea&&unified);
             ['shore','selection','hazard'].forEach(function(k){layers[k].setVisible(enabled&&(state.coast||state.sea));});
         }
-        function hit(evt) {
+        /**
+         * 지도를 누른 점으로 무엇을 골랐는지 판정해 select 를 부른다(연안 관광지 점 → 육지면 연안 면 · 바다면 해상 칸·혼잡점·사고 격자).
+         * 예: hit(evt) → 해상 칸이면 select('marine','GR4_…',{lon,lat}) 후 true · 아무것도 없으면 false
+         * o.landSea(연안 안전 브리핑 지도 — 2026-10-19 §11.10.38): 연안 층이 꺼지고 해상만 켠 통합 칸 지도에서 육지 쪽을 눌러도 그 점이 든 해상 칸(칸 중심 ±0.0125°, 아래 바다 판정과 같은 unifiedBins·unifiedRows)을 고른다.
+         *   그때 넘기는 경위도는 누른 육지 점이 아니라 그 칸 중심(c.lon·c.lat) — 서버 sea/analysis 는 lon/lat 이 오면 그 점으로 칸·관할·특보 구역을 다시 찾으므로 칸을 고른 것과 어긋나지 않게.
+         *   위험예측 본 화면(risk_forecast.js tryHandleClick)은 o 없이 불러 종전 그대로(육지 = 연안 판정).
+         * @param {Object} evt - OL 클릭 {coordinate, pixel} @param {Object} [o] - {landSea:boolean} @returns {boolean} 고른 것이 있으면 true
+         * [연계] ← risk_forecast.js tryHandleClick · station_briefing_riskmap.js attach(click — {landSea:true}) / → select(지도를 만든 쪽 콜백)
+         */
+        function hit(evt,o) {
             if(active.coast){var point=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers.points?f:null;},{layerFilter:function(l){return l===layers.points;},hitTolerance:4});if(point){var ids=point.get('ids');select('coast',ids.length>1?ids:ids[0]);return true;}}
             // 그림에서 잘린 쪽은 클릭도 막는다. 겹친 육지와 섬은 합집합으로 판정한다.
             var landHit=land.some(function(p){var geom=new ol.geom.Polygon(p.rings);return geom.intersectsCoordinate(evt.coordinate);});
-            var wanted=landHit?'coast':'sea'; if(!active[wanted])return false;
-            if(wanted==='sea'&&unified){var p=ol.proj.toLonLat(evt.coordinate),chosen=null;for(var x=Math.floor((p[0]-.0125)*4);x<=Math.floor((p[0]+.0125)*4);x++)for(var y=Math.floor((p[1]-.0125)*4);y<=Math.floor((p[1]+.0125)*4);y++)(unifiedBins.get(x+','+y)||[]).forEach(function(c){if(!chosen&&unifiedRows.has(c.i)&&Math.abs(c.lon-p[0])<=.0125&&Math.abs(c.lat-p[1])<=.0125&&(!c.geometry||read(c.geometry).intersectsCoordinate(evt.coordinate)))chosen=c;});if(chosen){select('marine',chosen.id,{lon:p[0],lat:p[1]});return true;}return false;}
+            var wanted=landHit?'coast':'sea'; if(landHit&&o&&o.landSea&&unified&&active.sea&&!active.coast)wanted='sea'; if(!active[wanted])return false;
+            if(wanted==='sea'&&unified){var p=ol.proj.toLonLat(evt.coordinate),chosen=null;for(var x=Math.floor((p[0]-.0125)*4);x<=Math.floor((p[0]+.0125)*4);x++)for(var y=Math.floor((p[1]-.0125)*4);y<=Math.floor((p[1]+.0125)*4);y++)(unifiedBins.get(x+','+y)||[]).forEach(function(c){if(!chosen&&unifiedRows.has(c.i)&&Math.abs(c.lon-p[0])<=.0125&&Math.abs(c.lat-p[1])<=.0125&&(!c.geometry||read(c.geometry).intersectsCoordinate(evt.coordinate)))chosen=c;});if(chosen){select('marine',chosen.id,landHit?{lon:chosen.lon,lat:chosen.lat}:{lon:p[0],lat:p[1]});return true;}return false;}
             if(wanted==='sea'){var current=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers.traffic?f:null;},{layerFilter:function(l){return l===layers.traffic;},hitTolerance:0});if(current){var currentPoint=ol.proj.toLonLat(evt.coordinate);select('traffic',current.get('id'),{lon:currentPoint[0],lat:currentPoint[1]});return true;}}
             if(wanted==='sea'){var accident=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers.accident?f:null;},{layerFilter:function(l){return l===layers.accident;},hitTolerance:0});if(accident){var lonLat=ol.proj.toLonLat(evt.coordinate);select('accident',accident.get('id'),{lon:lonLat[0],lat:lonLat[1]});return true;}}
             var feature=map.forEachFeatureAtPixel(evt.pixel,function(f,l){return l===layers[wanted]?f:null;},{layerFilter:function(l){return l===layers[wanted];},hitTolerance:2});

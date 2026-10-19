@@ -11,6 +11,7 @@
  * [연계]
  *  - 사용하는 파일 : config/coastal_safety/coastguard_stations.geojson(관할 97곳) · coastal_hazard_zones.wgs84.geojson(위험구역)
  *                    · services/risk_store.js(marineInputs·spots·coastDayDetail — 읽기·호출만) · services/marine_fusion.js(stationAt·cellHistory·warnTime)
+ *                    · services/harbor_cells.js(항구 칸 — collectSea 가 그 칸의 혼잡 예보를 해역 혼잡에서 뺀다, 2026-10-19)
  *                    · services/marine_congestion_codec.js · services/sea_warning_history.js(levelOf) · services/tide_field_common.js·tide_field_collector.js(앵커·곡선)
  *                    · services/jeju_isolation_tide_collector.js·hazard_rocks_tide_collector.js(제주 앵커·곡선 — 결정 5) · services/sea_warning_history.js(이미 해제된 특보 — 결정 4, 기록기를 주입받음)
  *                    · services/hazard_rocks_submersion.js(간출암 목록) · data/hazard_rocks/submersion.json · data/marine_forecast.json(기상청 단기 해상 전망)
@@ -206,6 +207,24 @@ function assignHazards(stations, features) {
     }
     return out;
 }
+/**
+ * 관할 하나의 해역 이름 기준점(설계서 §11.6-5 결정 5 — rules.regionName 의 places): 관광지, 관광지가 없으면 위험구역 장소명.
+ * 해역 카드(gather → seaSection)와 해상 통합 해역 이름(placesByStation → marine_fusion — 위험예측 시트 제목·「지금 밀집」, §11.10.41)이 같은 목록을 쓰게 한 곳에 둔다.
+ * 예: stationPlaces([{name:'비양도',lat:33.4154,lon:126.2621,…}], [{place:'한림항',…}]) → [{name:'비양도',lat:33.4154,lon:126.2621}] · 관광지 0곳 → 위험구역 [{name:'한림항',…}]
+ * @param {object[]} spots - assignSpots 의 그 관할 몫 @param {object[]} hz - assignHazards 의 그 관할 몫 @returns {object[]} [{name,lat,lon}]
+ * [연계] ← gather · placesByStation
+ */
+function stationPlaces(spots, hz) { return spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon })).concat(spots.length ? [] : hz.map((z) => ({ name: z.place, lat: z.lat, lon: z.lon }))); }
+/**
+ * 관할마다 해역 이름 기준점 — station_briefing.run 과 같은 관할 배정(assignSpots·assignHazards) + stationPlaces. 관할 순번(idx = marine_fusion 관할 id, 같은 정리판 같은 순서) 열쇠.
+ * 예: placesByStation(loadStations(), risk.spots().spots, 위험구역 features) → Map{'92'(한림파출소) → [{name:'비양도',…}, …30곳]}
+ * @param {object[]} stations - loadStations() @param {object[]} spots - risk_store.spots().spots @param {object[]} features - coastal_hazard_zones.wgs84.geojson features
+ * @returns {Map} idx → [{name,lat,lon}] [연계] ← marine_fusion(해역 이름 — 설계서 §11.10.41)
+ */
+function placesByStation(stations, spots, features) {
+    const bySt = assignSpots(stations, spots), hz = assignHazards(stations, features);
+    return new Map(stations.map((s) => [s.idx, stationPlaces(bySt.get(s.key) || [], hz.get(s.key) || [])]));
+}
 /** 예보 시각 열쇠(YYYYMMDDHH00, KST). 예: '2026-10-17T15:00:00+09:00' → '202610171500'. @param {string} at @returns {string} [연계] ← collectSea */
 function forecastKey(at) { return at.slice(0, 4) + at.slice(5, 7) + at.slice(8, 10) + at.slice(11, 13) + '00'; }
 /** 특보 종류 이름. 예: 'V' → '풍랑'. @param {string} s @returns {string} [연계] ← warningsFromTree */
@@ -288,10 +307,11 @@ function smallWeather(regions, win, small) {
  * 해역으로 묶고(같은 공식 사고 칸에 든 교통 칸은 하나), 창의 3시간 칸마다 공식 사고 단계·그 3시간 중 가장 높은 혼잡 예보를 붙인다.
  * 예: collectSea(stations, {risk, marine, win, now}) → Map{key → {reviewedCells, regions:[{rid,lat,lon,haegu,ref,zone,slots:{at:{accident,congestion}},history}], weather:{major:{label,rows}}, weatherSmall:{'232-5':{label,rows}}, warnings:[…]}}
  * @param {object[]} stations @param {object} o - risk(risk_store)·marine(marine_fusion 저장소)·win·now·smallZone(소해구 찾기 함수 — smallWeather, 없으면 weatherSmall 은 빈 객체)
- *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 있으면 해역마다 region.traffic = 결과|null, 없으면 필드 없음 — §11.10.23) @returns {object} {bySt:Map, sources}
+ *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 있으면 해역마다 region.traffic = 결과|null, 없으면 필드 없음 — §11.10.23)
+ *                     ·harbor(항구 칸 목록 {has} — 기본 services/harbor_cells.forDefault. 그 칸의 혼잡 예보는 해역 혼잡에 넣지 않는다 — 2026-10-19 사용자 「예보 혼잡까지 전부」) @returns {object} {bySt:Map, sources}
  * [연계] ← gather / → marine.stationAt·cellHistory·codec.rowAt·warningsFromTree·smallWeather·traffic.profiles
  */
-function collectSea(stations, { risk, marine, win, now, warnHistory = null, smallZone = null, traffic = null }) {
+function collectSea(stations, { risk, marine, win, now, warnHistory = null, smallZone = null, traffic = null, harbor = require('./harbor_cells').forDefault() }) {
     const codec = require('./marine_congestion_codec'), inputs = risk.marineInputs(), src = inputs.sources || {};
     const byIdx = new Map(stations.map((s) => [s.idx, s])), bySt = new Map(stations.map((s) => [s.key, { cells: new Set(), groups: new Map() }]));
     const acc = inputs.accident?.cells || [], idx = cellIndex(acc), accById = new Map(acc.map((c) => [c.id, c]));
@@ -317,7 +337,7 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null, smal
                 let best = null;
                 for (let h = 0; h < 3; h++) {
                     const hk = forecastKey(R.isoKst(Date.parse(at) + h * HOUR));
-                    for (const id of g.traffic) { const r = codec.rowAt(inputs.congestion, hk, id, ids); if (!r) continue; const rank = { '낮음': 0, '보통': 1, '높음': 2, '매우높음': 3 }[r.congestionLevel] ?? -1; if (!best || rank > best.rank || (rank === best.rank && r.congestionIndex > best.index)) best = { rank, level: r.congestionLevel, index: r.congestionIndex, at: R.isoKst(Date.parse(at) + h * HOUR) }; }
+                    for (const id of g.traffic) { if (harbor.has(id)) continue; /* 항구 칸(정박·계류) 혼잡 예보는 충돌·접촉 근거가 아니다 */ const r = codec.rowAt(inputs.congestion, hk, id, ids); if (!r) continue; const rank = { '낮음': 0, '보통': 1, '높음': 2, '매우높음': 3 }[r.congestionLevel] ?? -1; if (!best || rank > best.rank || (rank === best.rank && r.congestionIndex > best.index)) best = { rank, level: r.congestionLevel, index: r.congestionIndex, at: R.isoKst(Date.parse(at) + h * HOUR) }; }
                 }
                 slots[at] = { accident: g.accident ? accLevel(forecastKey(at), g.accident.i) : null, congestion: best ? { level: best.level, index: best.index, at: best.at } : null };
             }
@@ -624,7 +644,7 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
             key: st.key, name: st.name, office: st.office, region: st.region, seaOnly: st.seaOnly, seaOnlyReason: st.seaOnlyReason,
             location: locations[st.key] || null, sources: sea.sources, area: areaOf(st.geometry),
             sea: { reviewedCells: s.reviewedCells, regions: s.regions, weather: s.weather, weatherSmall: s.weatherSmall, warnings: s.warnings, frameGaps: s.frameGaps },
-            places: spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon })).concat(spots.length ? [] : hz.map((z) => ({ name: z.place, lat: z.lat, lon: z.lon }))),
+            places: stationPlaces(spots, hz),
             land: st.seaOnly ? null : collectLand(spots, hz, { risk, t: landT, now, warnHistory }),
             tide: collectTide(locations[st.key], win.targetDate, st.geometry, tideDeps),
             zoneWeather: collectZoneWeather(locations[st.key], regional),
@@ -632,4 +652,4 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
     });
 }
 
-module.exports = { areaOf, boxOf, haeguBox, loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, smallWeather, smallRowAt, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };
+module.exports = { areaOf, boxOf, haeguBox, loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, stationPlaces, placesByStation, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, smallWeather, smallRowAt, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };
