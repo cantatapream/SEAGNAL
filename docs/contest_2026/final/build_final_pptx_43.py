@@ -172,14 +172,17 @@ LINES = {}
 for k, n in enumerate(ORDER, 1):
     slide_img = Image.open(f'{D}/px43fix/s{n:02d}.png').convert('RGB')
     sl = prs.slides.add_slide(blank)
-    bgj = f'{OUT}ov/bg{k:02d}.jpg'; slide_img.save(bgj, quality=92)
+    bgj = f'{OUT}ov/bg{k:02d}.jpg'; slide_img.save(bgj, quality=90)
     sl.shapes.add_picture(bgj, 0, Emu(Y0), prs.slide_width, Emu(9067800))
     prev = slide_img.convert('RGBA')
     for i, p in enumerate(L.get(n, [])):
         ov = render_photo(p) if p.get('photo') else render(slide_img, p)
-        fn = f'{OUT}ov/s{k:02d}_{i}.png'
-        ov.save(fn)
         x0, y0, x1, y1 = p['box']
+        # 파일 크기를 줄이려고 덧붙일 그림을 그 자리 배경 위에 미리 합쳐 JPEG 로 넣는다(둥근 모서리·흐림 가장자리는 배경색으로 남음)
+        under = slide_img.crop((x0, y0, x1, y1)).resize(ov.size, Image.LANCZOS).convert('RGBA')
+        under.alpha_composite(ov)
+        fn = f'{OUT}ov/s{k:02d}_{i}.jpg'
+        under.convert('RGB').save(fn, quality=90)
         pic = sl.shapes.add_picture(fn, Emu(round(x0 * E)), Emu(round(Y0 + y0 * EY)), Emu(round((x1 - x0) * E)), Emu(round((y1 - y0) * EY)))
         pic.name = os.path.splitext(p['f'].lstrip('@'))[0]
         prev.alpha_composite(ov.resize((x1 - x0, y1 - y0), Image.LANCZOS), (x0, y0))
