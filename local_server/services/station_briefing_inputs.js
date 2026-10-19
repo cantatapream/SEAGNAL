@@ -206,6 +206,14 @@ function assignHazards(stations, features) {
     }
     return out;
 }
+/**
+ * 관할 하나의 해역 이름 기준점(설계서 §11.6-5 결정 5 — rules.regionName 의 places): 관광지, 관광지가 없으면 위험구역 장소명.
+ * 해역 카드(gather → seaSection)와 「지금 밀집」 붐비는 해역(station_briefing.placesOf → routes nowLineFrom, §11.10.38)이 같은 목록을 쓰게 한 곳에 둔다.
+ * 예: stationPlaces([{name:'비양도',lat:33.4154,lon:126.2621,…}], [{place:'한림항',…}]) → [{name:'비양도',lat:33.4154,lon:126.2621}] · 관광지 0곳 → 위험구역 [{name:'한림항',…}]
+ * @param {object[]} spots - assignSpots 의 그 관할 몫 @param {object[]} hz - assignHazards 의 그 관할 몫 @returns {object[]} [{name,lat,lon}]
+ * [연계] ← gather · station_briefing.placesOf
+ */
+function stationPlaces(spots, hz) { return spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon })).concat(spots.length ? [] : hz.map((z) => ({ name: z.place, lat: z.lat, lon: z.lon }))); }
 /** 예보 시각 열쇠(YYYYMMDDHH00, KST). 예: '2026-10-17T15:00:00+09:00' → '202610171500'. @param {string} at @returns {string} [연계] ← collectSea */
 function forecastKey(at) { return at.slice(0, 4) + at.slice(5, 7) + at.slice(8, 10) + at.slice(11, 13) + '00'; }
 /** 특보 종류 이름. 예: 'V' → '풍랑'. @param {string} s @returns {string} [연계] ← warningsFromTree */
@@ -624,7 +632,7 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
             key: st.key, name: st.name, office: st.office, region: st.region, seaOnly: st.seaOnly, seaOnlyReason: st.seaOnlyReason,
             location: locations[st.key] || null, sources: sea.sources, area: areaOf(st.geometry),
             sea: { reviewedCells: s.reviewedCells, regions: s.regions, weather: s.weather, weatherSmall: s.weatherSmall, warnings: s.warnings, frameGaps: s.frameGaps },
-            places: spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon })).concat(spots.length ? [] : hz.map((z) => ({ name: z.place, lat: z.lat, lon: z.lon }))),
+            places: stationPlaces(spots, hz),
             land: st.seaOnly ? null : collectLand(spots, hz, { risk, t: landT, now, warnHistory }),
             tide: collectTide(locations[st.key], win.targetDate, st.geometry, tideDeps),
             zoneWeather: collectZoneWeather(locations[st.key], regional),
@@ -632,4 +640,4 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
     });
 }
 
-module.exports = { areaOf, boxOf, haeguBox, loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, smallWeather, smallRowAt, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };
+module.exports = { areaOf, boxOf, haeguBox, loadStations, normalizeAddress, geocodeStation, estimateLocation, ensureLocations, assignSpots, assignHazards, stationPlaces, warningsFromTree, releasedFrom, dayNoticeSummary, collectSea, smallWeather, smallRowAt, collectLand, collectTide, kmaOutlook, regionalForecast, nearestCoastalZone, nearestFarZone, collectZoneWeather, COASTAL_MAX_KM, gather, forecastKey, readJson, writeJson, CONFIG, DATA, stationSeas, seaZones, stationAreas };

@@ -405,7 +405,7 @@ function smallFinder(sz, zb) { return sz && zb ? (major) => { const p = sz.peek(
  *                     ·smallZone(소해구 예보 — peek·getStatus·prefetch, 기본 null = 모든 해역 대해구 예보. forDefault 가 smallzone_forecast 를 넘긴다 — 시험은 가짜. §11.10.19)
  *                     ·smallZoneWaitMs(소해구 다시 받기 기다림 상한 — 기본 SMALLZONE_WAIT_MS)
  *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 기본 null = 「최근 14일 선박 동향」 줄 없음. forDefault 가 forDir() 를 넘긴다 — 시험은 가짜·주입. §11.10.23)
- * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList·stationAreas (+ 시험용 _pushResult)
+ * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList·stationAreas·placesOf(「지금 밀집」 해역 이름 기준점 — §11.10.38) (+ 시험용 _pushResult)
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
@@ -418,6 +418,25 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     const fileCache = new Map();
     const p = (f) => path.join(dir, f);
     const stations = () => stationsCache || (stationsCache = loadStations());
+    /** 위험구역 원자료(주입이 있으면 그것). @returns {object[]} GeoJSON features [연계] ← run·placesOf */
+    const hazardList = () => (hazardFeatures ? hazardFeatures() : (I.readJson(path.join(I.CONFIG, 'coastal_hazard_zones.wgs84.geojson'))?.features || []));
+    let placesCache = null;   // {v: 관광지 표 해시, map: 관할 열쇠 → places}
+    /**
+     * 관할 하나의 해역 이름 기준점(관광지, 없으면 위험구역 장소명) — run 이 해역 카드 이름(rules.regionName)에 넘기는 input.places 와 같은 계산(assignSpots·assignHazards·I.stationPlaces).
+     * 「지금 밀집」 붐비는 해역 이름(routes/station_briefing defaultNowLine — 설계서 §11.10.38)이 브리핑 GET·GET /now 때 쓴다.
+     * 관할 배정은 97관할을 다 돈다(2026-10-19 실측 13~120ms) — 요청마다 다시 하지 않게 관광지 표 해시(risk.spots().v)가 같으면 지난 결과를 쓴다(해시가 없으면 매번 계산).
+     * 예: placesOf('제주해양경찰서|한림파출소') → [{name:'비양도',lat:33.4154,lon:126.2621}, …30곳] · 모르는 열쇠 → []
+     * @param {string} key @returns {object[]} [{name,lat,lon}] — 관광지 표 준비 전이면 risk.spots() 가 던진 오류를 그대로 던진다(부르는 쪽이 종전 이름으로)
+     * [연계] ← routes/station_briefing.defaultNowLine / → I.assignSpots·I.assignHazards·I.stationPlaces
+     */
+    function placesOf(key) {
+        const sp = spotsOf ? { v: null, spots: spotsOf() } : risk.spots();
+        if (!placesCache || sp.v == null || placesCache.v !== sp.v) {
+            const all = stations(), bySt = I.assignSpots(all, sp.spots), hz = I.assignHazards(all, hazardList());
+            placesCache = { v: sp.v, map: new Map(all.map((s) => [s.key, I.stationPlaces(bySt.get(s.key) || [], hz.get(s.key) || [])])) };
+        }
+        return placesCache.map.get(key) || [];
+    }
     /** 설정 읽기. @returns {object} [연계] ← run·routes */
     function readConfig() { return normConfig(I.readJson(p('config.json'))); }
     /** 설정 쓰기(선택지 밖 값이면 400). 예: writeConfig({exposure:'user'}) → 저장된 설정 @param {object} patch @returns {object} [연계] ← routes PUT */
@@ -509,7 +528,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             else wins.push(R.editionWindow(kind, now));
             progress = newProgress({ at: R.isoKst(now), kind, unit: config.batchUnit, stations: targets.length, windows: wins.map((w) => w.targetDate) });
             const spots = spotsOf ? spotsOf() : risk.spots().spots, spotsBySt = I.assignSpots(all, spots);
-            const hz = I.assignHazards(all, hazardFeatures ? hazardFeatures() : (I.readJson(path.join(I.CONFIG, 'coastal_hazard_zones.wgs84.geojson'))?.features || []));
+            const hz = I.assignHazards(all, hazardList());
             const landPoints = Object.fromEntries(all.map((s) => [s.key, (spotsBySt.get(s.key) || []).concat(hz.get(s.key) || [])]));
             const locations = await I.ensureLocations({ stations: all, landPoints, file: p('locations.json'), geocoder, now });
             stepProgress(progress, 'locate-done');
@@ -698,7 +717,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * @returns {object} [연계] ← routes GET status?only=progress
      */
     function progressNow() { return { running: !!running, progress: running ? progress : null }; }
-    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
+    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, progressNow, stationList, stationAreas, stations, placesOf, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
 }
 let def = null;
 /**

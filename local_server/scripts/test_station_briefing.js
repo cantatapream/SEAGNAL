@@ -3115,6 +3115,33 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(AI.polishOverview({ land: null, sea: '184해구와 1.3m 해역, 5곳 해역' }).sea, '184해구와 1.3m 해역, 5곳 해역', '숫자 바로 뒤 「해역」이 아니면 그대로');
         assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v15');
     });
+    // ── §11.10.38(2026-10-19 사용자 *"비양도 그러면 화순항 북북서방 11.3해리라고 나오는 게 아니라 비양도를 기준으로 나와야 되잖아"*) ──
+    await check('[§11.10.38-1] 「지금 밀집」 붐비는 해역 이름 = 해역 카드와 같은 regionName — 한림항 앞 칸(실제 tide.js 주요지명·실제 한림 관광지 표)은 「화순항 북북서방 11.3해리」가 아니라 「비양도 남방 0.2해리」', () => {
+        const D = require('../services/risk_sea_cells'), M = require('../services/marine_fusion'), { nowLineFrom } = require('../routes/station_briefing');
+        const cell = D.describe({ gridId: 'GR4_HALLIM', latitude: 33.4125, longitude: 126.2625 });
+        assert.equal(M.location(cell), '화순항 북북서방 11.3해리 해역(232-2해구)', '사용자 화면 그대로 — 주요지명(조석 표준항 165곳)만 본 이름');
+        const all = I.loadStations(), key = all.find((s) => s.name === '한림파출소').key;
+        const table = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/coastal_safety/risk_spots.json'), 'utf8')).spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon, police: p.station ? { name: p.station } : null }));   // risk_store.spots() 와 같은 꼴
+        const places = I.stationPlaces(I.assignSpots(all, table).get(key), []);
+        assert.ok(places.some((p) => p.name === '비양도'), '한림 관할 관광지에 비양도가 있다');
+        const nameRef = { lat: cell.lat, lon: cell.lon, ref: cell.ref, haegu: cell.haegu };
+        const mb = { current: { status: 'ok', count: 30, gridCount: 1, cells: [{ id: 'GR4_HALLIM', box: [126.25, 33.4, 126.275, 33.425], count: 21 }], sourceAt: '2026-10-19T10:05:00+09:00' }, regions: [{ location: M.location(cell), nameRef, point: { lon: 126.2625, lat: 33.4125 }, current: { count: 21 } }] };
+        const n = nowLineFrom(mb, places);
+        assert.deepStrictEqual(n.busiest, { name: '비양도 남방 0.2해리 해역(232-2해구)', count: 21, id: 'GR4_HALLIM' });
+        assert.equal(n.busiest.name, R.regionName(nameRef, places).name, '해역 카드(seaSection)와 같은 함수·같은 규칙');
+        assert.equal(n.text, '10:05 기준 관할 해역 선박 30척 · 선박이 있는 해역 격자 1개\n비양도 남방 0.2해리 해역(232-2해구) 21척 — 충돌·접촉 주의');
+        assert.equal(nowLineFrom(mb).busiest.name, '화순항 북북서방 11.3해리 해역(232-2해구)', '관할 기준점을 못 얻으면(관광지 표 준비 전 등) 종전 이름');
+        const near = { ...mb, regions: [{ ...mb.regions[0], location: '죽변항 북서방 0.7해리 해역(69-9해구)', nameRef: { lat: 37.06, lon: 129.41, ref: { name: '죽변항', distNm: 0.7, bearingWord: '북서' }, haegu: { label: '69-9' } } }] };
+        assert.equal(nowLineFrom(near, [{ name: '가까운 관광지', lat: 37.06, lon: 129.41 }]).busiest.name, '죽변항 북서방 0.7해리 해역(69-9해구)', '주요지명이 10km 안이면 주요지명 그대로(카드와 같은 규칙)');
+    });
+    await check('[§11.10.38-2] 서비스 placesOf — 실행(gather)이 해역 카드 이름에 넘기는 input.places 와 같은 목록(관광지, 없으면 위험구역 장소명)', () => {
+        const spot = { name: '비양도', lat: 33.4154, lon: 126.2621, police: { name: '한림파출소' } };
+        const hz = [{ properties: { '관할파출소': '한림파출소', '소속서': '제주해양경찰서', name: 'Z1', '장소명': '한림항', '장소형태': '항포구', '구역분류': '위험' }, geometry: { type: 'Point', coordinates: [126.26, 33.41] } }];
+        const mk = (spots) => SB.createService({ dir: fs.mkdtempSync(path.join(tmp, 'places-')), clock: () => T0, risk: { ...fakeRisk, spots: () => ({ v: null, spots }) }, marine: fakeMarine, loadStations: () => fakeStations, hazardFeatures: () => hz });
+        assert.deepStrictEqual(mk([spot]).placesOf('제주해양경찰서|한림파출소'), [{ name: '비양도', lat: 33.4154, lon: 126.2621 }], '관광지가 있으면 관광지만(gather 와 같음)');
+        assert.deepStrictEqual(mk([]).placesOf('제주해양경찰서|한림파출소'), [{ name: '한림항', lat: 33.41, lon: 126.26 }], '관광지가 없으면 위험구역 장소명(gather 와 같음)');
+        assert.deepStrictEqual(mk([spot]).placesOf('없는 관할'), []);
+    });
     // ── §11.10.31(2026-10-18 사용자 「진행해줘.」 — 운영 14:08 「특보 변경 판」 대청파출소 「multiplier:1.1~1.2배」·「number:4.2」, 서버가 탈락 글을 남기지 않아 원인 확인 불가): 배수 범위 · 탈락한 글 보관 ──
     await check('[§11.10.31-1] 배수 범위 — 양 끝이 둘 다 그 문단 허용 배수(작은 수~큰 수)면 통과 · 한쪽 없음·뒤집힘·같은 수·다른 문단 배수는 multiplier: · 낱개는 그대로 · 판 v14', () => {
         const s1 = { ...si, allowed_multiplier_keys: { sea: si.allowed_multiplier_keys.sea, land: ['1.1|배', '1.2|배'] } };   // 운영 대청파출소 연안 허용 배수와 같은 꼴(사용자 실측)

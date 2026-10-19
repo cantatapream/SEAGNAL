@@ -163,7 +163,9 @@ function defaultNowLine(key, r, o) {
     const { stores } = require('./risk_forecast');
     // §11.10.24 가벼운 다시 묻기(GET /now): 화면이 가진 자료 시각(since)과 실시간 자료 시각이 같고 자료가 정상이면 관할 척수를 다시 세지 않는다
     if (o && o.since) { const s = stores.marine.tables().status; if (s && s.status === 'ok' && (s.sourceAt || s.collectedAt) === o.since) return { unchanged: true, at: o.since }; }
-    return nowLineFrom(stores.marine.briefing(st.idx, R.isoKst(now)));
+    // §11.10.38: 붐비는 해역 이름의 관할 기준점(해역 카드와 같은 places). 못 얻으면(관광지 표 준비 전 등) null — 종전 이름(주요지명만)으로
+    let places = null; try { places = SB.forDefault().placesOf(key); } catch (_) { places = null; }
+    return nowLineFrom(stores.marine.briefing(st.idx, R.isoKst(now)), places);
 }
 /**
  * 해상 통합 관할 브리핑(marine_fusion.briefing) 결과 하나로 「지금 밀집」 객체를 만든다(순수 — 시험이 가짜 결과로 부른다).
@@ -171,14 +173,18 @@ function defaultNowLine(key, r, o) {
  *   cells = 같은 스냅숏의 선박이 있는 격자 [{id, box, count}](current.cells — 합 = count, 수 = gridCount), busiest.id = 가장 붐비는 해역 위치(point)가 든 격자 — 화면 팝업 지도가 그 격자를 깜빡인다.
  * 예: nowLineFrom({current:{status:'ok',count:35,gridCount:7,cells:[…],sourceAt:'2026-10-17T20:45:00+09:00'}, regions:[{location:'죽변항 북서방 0.7해리 해역(69-9해구)', point:{lon,lat}, current:{count:27}}]})
  *     → {at:'2026-10-17T20:45:00+09:00', count:35, gridCount:7, cells:[…], busiest:{name:'죽변항 …', count:27, id:'GR4_…'}, text:'20:45 기준 …\n죽변항 … 27척 — 충돌·접촉 주의'}
- * @param {object} b - marine_fusion.briefing 결과 @returns {object|null} 실시간 자료가 낡거나 없으면 null [연계] ← defaultNowLine / → nowLineText
+ * 붐비는 해역 이름(§11.10.38 — 2026-10-19 사용자 *"비양도 그러면 화순항 북북서방 11.3해리라고 나오는 게 아니라 비양도를 기준으로 나와야 되잖아"*): places(관할 기준점 — service.placesOf)가 있으면
+ *   해역 카드와 같은 R.regionName(주요지명이 10km 넘게 멀면 관할 관광지·없으면 위험구역 장소명 중 더 가까운 곳)으로, 재료는 그 해역의 nameRef(marine_fusion — location 을 만든 같은 칸).
+ *   places 가 없거나 nameRef 가 없으면 종전대로 location(주요지명만). 예: 한림항 앞 칸 '화순항 북북서방 11.3해리 해역(232-2해구)' → '비양도 남방 0.2해리 해역(232-2해구)'
+ * @param {object} b - marine_fusion.briefing 결과 @param {object[]|null} [places] - [{name,lat,lon}] @returns {object|null} 실시간 자료가 낡거나 없으면 null [연계] ← defaultNowLine / → nowLineText·R.regionName
  */
-function nowLineFrom(b) {
+function nowLineFrom(b, places = null) {
     if (!b || !b.current || b.current.status !== 'ok' || b.current.count === null) return null;
     const busy = (b.regions || []).filter((x) => x.current && x.current.count >= 14).sort((a, c) => c.current.count - a.current.count)[0];
     const at = (b.current.sourceAt || b.current.collectedAt || '').slice(11, 16), cells = Array.isArray(b.current.cells) ? b.current.cells : [];
     const p = busy && busy.point, cell = p ? cells.find((c) => p.lon >= c.box[0] && p.lon <= c.box[2] && p.lat >= c.box[1] && p.lat <= c.box[3]) : null;
-    const busiest = busy ? { name: busy.location, count: busy.current.count, id: cell ? cell.id : null } : null;
+    const nr = busy && busy.nameRef, named = Array.isArray(places) && nr && Number.isFinite(nr.lat) && Number.isFinite(nr.lon);
+    const busiest = busy ? { name: named ? R.regionName(nr, places).name : busy.location, count: busy.current.count, id: cell ? cell.id : null } : null;
     return { at: b.current.sourceAt || b.current.collectedAt || null, count: b.current.count, gridCount: b.current.gridCount, cells, busiest, text: nowLineText({ at, count: b.current.count, gridCount: b.current.gridCount, busiest }) };
 }
 const router = createRouter({ nowLine: defaultNowLine });
