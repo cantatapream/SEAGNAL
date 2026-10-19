@@ -17,6 +17,8 @@ const S = require('../services/smallzone_forecast');
 
 let pass = 0, fail = 0;
 async function check(name, fn) { try { await fn(); pass++; console.log('✅', name); } catch (e) { fail++; console.error('❌', name, e && e.message); } }
+/** 줄 배열 → 글 배열(2026-10-19 §18.11 부터 줄은 {kind,text,name,concl}). 예: txt([{text:'가'}]) → ['가'] */
+const txt = (ls) => ls.map((l) => l.text);
 const CONFIG = path.join(__dirname, '..', 'config', 'coastal_safety');
 const STATIC = JSON.parse(fs.readFileSync(path.join(CONFIG, 'beach_weather_static.json'), 'utf8'));
 const SPOTS = JSON.parse(fs.readFileSync(path.join(CONFIG, 'risk_spots.json'), 'utf8')).spots;
@@ -133,16 +135,16 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             assert.equal(W.swimText('협재해수욕장(1.2km)', W.decide({ tw: 22, tmax: 27, wav: 1.8, wsd: 3, rain: false })),
                 '협재해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높아 물에 들어가기에 적절하지 않습니다.');
         });
-        await check('[사용자 2026-10-18 「경고문구로 넣어야지 파고가 3m인데」] 수온 18~19℃·낮 최고 23~24℃ 에서 나쁜 항목이 있으면 경고 문구(「이고」·끝 문장 없음) · 하나씩 · 경계 1.0m·7m/s 는 아님 · 없으면 종전 「있을 수 있음」', () => {
+        await check('[사용자 2026-10-18 「경고문구로 넣어야지 파고가 3m인데」] 수온 18~19℃·낮 최고 23~24℃ 에서 나쁜 항목이 있으면 경고 문구(「이나,」 — 사용자 2026-10-19 「좋아」, 종전 「이고」·끝 문장 없음) · 하나씩 · 경계 1.0m·7m/s 는 아님 · 없으면 종전 「있을 수 있음」', () => {
             const t = (o) => W.swimText('협재해수욕장(1.2km)', W.decide({ tw: 19, tmax: 24, wav: 0.5, wsd: 3, rain: false, ...o }));
-            assert.equal(t({ wav: 3.5, wsd: 14, rain: true }).replace('3.5m', '3m').replace('14m', '13m'), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 파도가 3m로 높고 바람이 초속 13m로 강하고 비가 예보되어 물에 들어가기에 적절하지 않습니다.', '사용자 예시 꼴');
-            assert.equal(t({ wav: 3.5, wsd: 14, rain: true }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 파도가 3.5m로 높고 바람이 초속 14m로 강하고 비가 예보되어 물에 들어가기에 적절하지 않습니다.', '운영 재현 꼴');
-            assert.equal(t({ wav: 3 }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 파도가 3m로 높아 물에 들어가기에 적절하지 않습니다.');
-            assert.equal(t({ wsd: 13 }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 바람이 초속 13m로 강해 물에 들어가기에 적절하지 않습니다.');
-            assert.equal(t({ rain: true }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이고 비가 예보되어 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(t({ wav: 3.5, wsd: 14, rain: true }).replace('3.5m', '3m').replace('14m', '13m'), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이나, 파도가 3m로 높고 바람이 초속 13m로 강하고 비가 예보되어 물에 들어가기에 적절하지 않습니다.', '사용자 예시 꼴');
+            assert.equal(t({ wav: 3.5, wsd: 14, rain: true }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이나, 파도가 3.5m로 높고 바람이 초속 14m로 강하고 비가 예보되어 물에 들어가기에 적절하지 않습니다.', '운영 재현 꼴');
+            assert.equal(t({ wav: 3 }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이나, 파도가 3m로 높아 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(t({ wsd: 13 }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이나, 바람이 초속 13m로 강해 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(t({ rain: true }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃이나, 비가 예보되어 물에 들어가기에 적절하지 않습니다.');
             assert.equal(t({ wav: 1.0, wsd: 7 }), '협재해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃로 물놀이하기에 아주 좋은 날씨는 아니지만, 바닷물에 들어가는 사람이 있을 수 있습니다.', '경계(1.0m·7m/s)는 나쁜 항목 아님');
             assert.ok(!/따뜻하지만|그래도/.test(t({ wav: 3 })));
-            assert.equal(W.swimText('협재해수욕장', W.decide({ tw: 19, tmax: 24, wav: 3, wsd: 3, rain: false })), '협재해수욕장 — 수온 19℃ · 낮 최고 24℃이고 파도가 3m로 높아 물에 들어가기에 적절하지 않습니다.', '자체 관광지는 괄호 없음');
+            assert.equal(W.swimText('협재해수욕장', W.decide({ tw: 19, tmax: 24, wav: 3, wsd: 3, rain: false })), '협재해수욕장 — 수온 19℃ · 낮 최고 24℃이나, 파도가 3m로 높아 물에 들어가기에 적절하지 않습니다.', '자체 관광지는 괄호 없음');
         });
         await check('거친 날 나쁜 항목만 바꿔 넣기 · 여럿이면 「-고」로 이음(파도 → 바람 → 비)', () => {
             const t = (o) => W.swimText('A', W.decide({ tw: 22, tmax: 27, wav: 0.5, wsd: 3, rain: false, ...o }));
@@ -203,30 +205,42 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
         col._put(1, '202607121400', '2026-07-12', items('2026-07-12', 0, 23, CALM).concat(items('2026-07-13', 0, 23, { ...CALM, WAV: 1.8, TMX: 28 })));
         col._putTw(1, '202607121300', 22.3);
         await check('줄 순서 = 개장 줄 → 입수 줄 · 거리 한 자리(1.2km) · 같은 이름 관광지는 거리 괄호 없음', () => {
-            assert.deepEqual(svc.linesFor('s1', '2026-07-12'), ['협재해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.',
+            assert.deepEqual(txt(svc.linesFor('s1', '2026-07-12')), ['협재해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.',
                 '협재해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 0.5m로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.']);
-            assert.ok(svc.linesFor('s2', '2026-07-12')[1].startsWith('협재해수욕장 — 수온'));
+            assert.ok(svc.linesFor('s2', '2026-07-12')[1].text.startsWith('협재해수욕장 — 수온'));
+        });
+        await check('[§18.11 사용자 2026-10-19 「해당 종류 분류에 따른 색상을 해수욕장 명칭에 반영」] 줄 = {kind, text, name, concl} — 종류 다섯(개장·좋음·있을 수 있음·경고·거친 날) 모두 text 는 이름으로 시작·결론으로 끝남 · 결론 글자 그대로', () => {
+            assert.deepEqual(W.CONCL, { open: '사람이 많이 몰릴 수 있습니다.', good: '바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.',
+                maybe: '바닷물에 들어가는 사람이 있을 수 있습니다.', warn: '물에 들어가기에 적절하지 않습니다.', rough: '물에 들어가기에 적절하지 않습니다.' }, '사용자 지시의 결론 부분');
+            const ls = svc.linesFor('s1', '2026-07-12');
+            assert.deepEqual(ls.map((l) => [l.kind, l.name, l.concl]), [['open', '협재해수욕장', W.CONCL.open], ['good', '협재해수욕장', W.CONCL.good]]);
+            assert.equal(svc.linesFor('s1', '2026-07-13')[1].kind, 'rough');
+            const N = '협재해수욕장', o = { open: '2026-07-10', close: '2026-08-23' };
+            const all = [['open', W.openText(N, o, '2026-07-05', '2026-07-05')], ['open', W.openText(N, o, '2026-07-10', '2026-07-10')], ['open', W.openText(N, o, '2026-07-11', '2026-07-11')]];
+            for (const x of [{ wav: 0.5 }, { tw: 19, tmax: 24 }, { tw: 19, tmax: 24, wav: 3 }, { wav: 1.8, rain: true }]) { const r = W.decide({ tw: 22, tmax: 27, wav: 0.5, wsd: 3, rain: false, ...x }); all.push([r.kind, W.swimText(N + '(1.2km)', r)]); }
+            assert.deepEqual(all.map((a) => a[0]), ['open', 'open', 'open', 'good', 'maybe', 'warn', 'rough']);
+            for (const [k, t] of all) { const l = W.line(k, N, t); assert.ok(l.text.startsWith(l.name) && l.text.endsWith(l.concl) && l.name.length + l.concl.length < l.text.length, k + ' ' + t); }
         });
         await check('내일: 내일 낮 예보 + 오늘 수온(사용자 확정 「내일 판단도 오늘 수온값」) · 모레·어제·연결 없는 관광지는 줄 없음', () => {
-            assert.equal(svc.linesFor('s1', '2026-07-13')[1], '협재해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높아 물에 들어가기에 적절하지 않습니다.');
+            assert.equal(svc.linesFor('s1', '2026-07-13')[1].text, '협재해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높아 물에 들어가기에 적절하지 않습니다.');
             assert.deepEqual(svc.linesFor('s1', '2026-07-14'), []); assert.deepEqual(svc.linesFor('s1', '2026-07-11'), []); assert.deepEqual(svc.linesFor('없음', '2026-07-12'), []);
             assert.deepEqual(svc.linesForSpots(['s1', 's3', '없음'], '2026-07-12'), { s1: svc.linesFor('s1', '2026-07-12') });
         });
         await check('낮 09~18시만 본다(최댓값) — 08시·19시의 높은 파도·비는 판단에 안 들어감', () => {
             col._put(1, '202607121400', '2026-07-12', items('2026-07-12', 8, 8, { WAV: 3, PTY: 1 }).concat(items('2026-07-12', 19, 19, { WAV: 3, POP: 90 })));
-            assert.match(svc.linesFor('s1', '2026-07-12')[1], /좋은 날씨/);
+            assert.match(svc.linesFor('s1', '2026-07-12')[1].text, /좋은 날씨/);
             col._put(1, '202607121400', '2026-07-12', items('2026-07-12', 18, 18, { POP: 60 }));
-            assert.match(svc.linesFor('s1', '2026-07-12')[1], /비가 예보되어/, '강수확률 60% 칸 = 비');
+            assert.match(svc.linesFor('s1', '2026-07-12')[1].text, /비가 예보되어/, '강수확률 60% 칸 = 비');
             col._put(1, '202607121400', '2026-07-12', items('2026-07-12', 9, 18, { POP: 10 }));
         });
         await check('수온 출처 순서: 부이(12시간 안) → 소해구 예보 수온(오늘 날짜로 물음) → 없으면 입수 줄 없음(개장 줄은 남음)', () => {
             col._putTw(1, '202607120100', 22.3);   // 13시간 전 → 낡음
             small = () => ({ tw: 19.2, zone: '233-5' }); smallCalls = [];
-            assert.match(svc.linesFor('s1', '2026-07-13')[1], /수온 19℃/, '소해구 값');
+            assert.match(svc.linesFor('s1', '2026-07-13')[1].text, /수온 19℃/, '소해구 값');
             assert.deepEqual(smallCalls, ['2026-07-12'], '내일 보기도 오늘 날짜 소해구 수온');
             assert.equal(svc.waterTemp(1).from, 'smallzone');
             small = () => null;
-            assert.deepEqual(svc.linesFor('s1', '2026-07-12'), ['협재해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.']);
+            assert.deepEqual(txt(svc.linesFor('s1', '2026-07-12')), ['협재해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.']);
             col._putTw(1, '202607121300', 22.3);
             assert.equal(svc.waterTemp(1).from, 'buoy');
         });
@@ -250,10 +264,10 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             c._put(1, '202607121400', '2026-07-12', items('2026-07-12', 0, 23, CALM).concat(items('2026-07-12', 10, 10, { WAV: 3, PTY: 1 }), items('2026-07-13', 0, 23, CALM)));
             c._putTw(1, '202607121300', 22);
             const sv = W.createBeachWeather({ table, collector: c, clock: () => t.v, smallTw: () => null });
-            assert.match(sv.linesFor('s1', '2026-07-12')[1], /좋은 날씨/, '지난 10시 칸은 빼고 봄');
+            assert.match(sv.linesFor('s1', '2026-07-12')[1].text, /좋은 날씨/, '지난 10시 칸은 빼고 봄');
             t.v = kst('2026-07-12T18:40:00'); assert.equal(sv.linesFor('s1', '2026-07-12').length, 2, '18시 칸까지는 오늘');
             t.v = kst('2026-07-12T19:00:00');
-            assert.deepEqual(sv.linesFor('s1', '2026-07-12'), ['협재해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.'], '오늘 낮이 지나면 입수 줄 없음');
+            assert.deepEqual(txt(sv.linesFor('s1', '2026-07-12')), ['협재해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.'], '오늘 낮이 지나면 입수 줄 없음');
             assert.equal(sv.linesFor('s1', '2026-07-13').length, 2, '내일 줄은 그대로');
         });
         await check('[검토 A④] 낮 최고: TMX 가 없으면 낮 10칸(09~18시) 기온이 모두 있을 때만 그 최댓값 — 빈 상태에서 늦은 판(17시)만 받으면 오늘 입수 줄 없음', () => {
@@ -274,8 +288,8 @@ const CALM = { TMP: 26, SKY: 1, PTY: 0, POP: 10, WAV: 0.5, WSD: 4, TMX: 27 };
             c._putTw(1, '202607122200', 22);
             const sv = W.createBeachWeather({ table, collector: c, clock: () => t.v, smallTw: () => null });
             t.v = kst('2026-07-13T00:30:00');
-            assert.match(sv.linesFor('s1', '2026-07-13')[1], /좋은 날씨/, '오늘(7-13)');
-            assert.match(sv.linesFor('s1', '2026-07-14')[1], /파도가 1.8m로 높아/, '내일(7-14) — 종전 48칸이면 없음');
+            assert.match(sv.linesFor('s1', '2026-07-13')[1].text, /좋은 날씨/, '오늘(7-13)');
+            assert.match(sv.linesFor('s1', '2026-07-14')[1].text, /파도가 1.8m로 높아/, '내일(7-14) — 종전 48칸이면 없음');
         });
         await check('비 판정선 강수확률 60%(사용자 「통상적인 수준」) — 실측 표본(을왕리 2026-10-18 11시 판 25시간): POP 60 이상 칸은 모두 PTY≥1, 30 이하 칸은 모두 PTY 0', () => {
             const v = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'beach_weather', 'vilage_sample_pop_pty.json'), 'utf8'));

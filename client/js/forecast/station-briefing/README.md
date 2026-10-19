@@ -330,6 +330,8 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 > 사용자 원문: *"그리고 이 상시 위험장소를 표로 정리하여 표출할 수 있도록 하고 상시 위험 장소(12)를 상시 위험 장소 ##개소 라고 표현할 수 있도록 해줘."* ·
 > *"그다음 총평 및 권고는 연안부터 나오고 그다음 해상이 나오는데 아래 분석은 해상이 먼저 나오고 연안이 나오고 있으니 순서를 바꿔줘."*
 
+> ⚠**같은 날 아래 「상시 위험 장소 목록 화면에서 뺌」(§11.10.42)으로 이 접힘·표는 없어졌다** — 아래 두 줄은 이력. 칸 순서는 그대로.
+
 - **접힘 머리**: 「상시 위험 장소 (12)」 → 「상시 위험 장소 12개소」(`land.constant.length`).
 - **표**(`constantTable`): 장소 | 위험구역 | 연안사고(2020~2024). 서버 `land.constant[]` 는 칸별 숫자 없이 글 `text` 하나만 주므로 `constantParts` 가 그 글(서버 `rules.landSection traitText` 꼴)을 토막으로 나눈다 —
   위험구역 「N개소」 + 종류별 작은 줄 · 연안사고 「N건」 + 유형별 작은 줄(서버 유형이 셋까지라 모자라면 「외 N」) · 「해수욕장」·위험구역 장소형태는 이름 아래 작은 줄 · 없는 칸 「—」.
@@ -346,6 +348,16 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - 팝업 지도(`station_briefing_riskmap.js`): 서버 구역 자료 `harbor:true` 칸을 줄 끝 `1` 로 넘겨 위험예측 층이 회색 칸 + 척수 숫자로 그린다.
 - 해역 카드 「최근 14일 선박 동향」은 이번 결정 범위 밖 — 항구 칸 척수를 그대로 더한다.
 - 시험: `local_server/scripts/test_harbor_cells.js`. 캐시 `station_briefing_riskmap.js?v=20261019harbor`.
+
+## 해역 이름 — 공식 항 우선 (2026-10-19 — 설계서 §11.10.43)
+
+> 사용자 원문: *"항구로 확인하면 그 항구가 기준점이 되어 00항으로부터 몇도 몇마일 해상 이런 부분도 해결할 수 있지 않니"* · 선택 *「항구 우선」* · *「마을공동어항만 제외 (추천)」*
+
+- 해역 이름 「○○ 방위 N해리 해역(해구)」의 ○○: 10km 안에 해양수산부 공식 항(무역항·연안항·국가어항·지방어항·어촌정주어항 — `local_server/config/coastal_safety/official_ports.json`, 읽기 `local_server/services/official_ports.js forNaming`)이 있으면 가장 가까운 항, 없으면 종전(주요지명 → 10km 넘으면 관할 관광지 → 위험구역 장소명). 예: 한림항 앞 칸 「한림항 남동방 0.7해리 해역(232-2해구)」.
+- 한 함수(`station_briefing_rules.regionName(region, places, ports)`)를 해역 카드(`gather` → `input.ports`)와 위험예측 시트 제목·관할 관심 해역·「지금 밀집」(`marine_fusion.cellName`)이 같이 쓴다. 규칙 판 `station-briefing-rules-v25`(검증·지시문 판 그대로 — 새 이름은 카드 이름·nameBase 로 허용 지명에 들어간다). 저장된 판은 고치지 않는다.
+- 관할 밖 칸(위험예측 시트 등)은 공식 항을 쓰지 않고 종전 이름(주요지명만) — 사용자 *"관할 밖 바다에 대해서는 논외로 남기는게 좋을 것 같은데 관할 내 주요지명을 기준으로 설명토록 하는게 좋겠는걸"*.
+- [기준 상세] 「해역 이름 붙이는 법」 문단에 공식 항 줄. 캐시 `station_briefing_basis.js?v=20261019port`.
+- 시험: `test_station_briefing.js` `[§11.10.43-1~3]` · `test_marine_fusion.js` 「해역 이름 — 공식 항」.
 
 ## 시험
 
@@ -434,6 +446,7 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 > 사용자 원문: *"입수한 사람이 있을 수 있다는 알림 문구"* · *"개장 일정 폐장 일정 관련해서는 해수부를 기준으로만"* (전체 결정 표는 설계서 §18.1)
 
 - 서버 `routes/station_briefing.js` 가 `GET /api/station-briefing`(·관리자 미리보기) 응답에 `beach` = `{관광지 id: [줄]}`(브리핑 날짜, 연안 카드 관광지만 — `services/beach_weather.js` `linesForSpots`)를 **응답 때** 붙인다. 저장된 판·규칙 판(v23)·AI 입력(`station_briefing_ai.js`)은 그대로.
+- (2026-10-19 §18.11 로 따로 상자 → [오늘 예상] 칸 안으로 바뀌었다 — 아래 「해수욕장 줄 [오늘 예상] 칸 안」. 다음 줄은 이력.)
 - 화면 `station_briefing_render.js` `beachBox`: 연안 카드 [오늘 예상] 바로 아래, [권고] 위 — 하늘색 왼쪽 줄 상자(`.sb-beach`·`.sb-beach-line`, `station_briefing.css`), 서버 글 그대로(textContent). 옛 판 카드(규칙 v19 전)도 [오늘 예상] 아래.
 - `index2.html` `station_briefing_render.js`·`station_briefing.css` ?v=20261018beach. 시험 `local_server/scripts/test_beach_weather.js`(라우트 — 카드 관광지만·저장 판 안 고침).
 
@@ -453,3 +466,17 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
   본문에 박힌 작은 지도(근거 줄 펼침·연안 카드 [위치 보기])는 종전처럼 그림(누름만) — 페이지를 쓸어 내리는 손가락·휠을 가로채지 않게.
 - `index2.html` `risk_map_layer.js`·`station_briefing_riskmap.js`·`station_briefing_render.js`·`station_briefing.css` `?v=20261019sb38`.
 - 시험: `test_station_briefing_ui.js` `[§11.10.38-①]`·`[§11.10.38-②]`·`[§11.10.38-③]` · `test_risk_map_layer.js` 「§11.10.38 …」 3건 · `test_usage_briefing_risk_ui.js` 「§11.10.38 지도 칸 안 육지 쪽 …」.
+
+## 해수욕장 줄 [오늘 예상] 칸 안 · 종류 색 · 「상시 위험 장소」 목록 화면에서 뺌 (2026-10-19 — 설계서 §18.11 · §11.10.42, 화면만 · 규칙 판·AI 입력 그대로)
+
+> 사용자 원문: *"연안 카드에도 적용하는게 좋겠어."* · *"거친날, 개장 예정 등 해당 종류 분류에 따른 색상을 해수욕장 명칭에 반영해줘."* · *"바닷물에 들어가는 사람이 있을 수 있다 부분도 해당 색상을 적용해줘."* · *"화면에서 리스트만 빼는건 어떄 ?"*
+
+- **[오늘 예상] 아래 줄 목록**(2026-10-19): 바뀐 요소 두 줄 이상이거나 해수욕장 줄이 있으면 `.sb-row-stack` — 이름표 아래 줄에 점 목록(종전 오른쪽 좁은 칸).
+- **해수욕장 줄**(`todayRow(ch, bl)`·`beachNode`·`beachIcon`·`beachItems`): 따로 상자(`.sb-beach`) 없이 [오늘 예상] 칸 마지막 항목. 바뀐 요소 + 해수욕장 줄이 하나면 점 없는 단일 값, 둘 이상이면 목록 —
+  해수욕장 항목은 「•」 자리에 물결·파라솔 그림(선 `#38bdf8`), 글 첫머리는 다른 항목과 같은 위치. 바뀐 요소가 없는 날은 [오늘 예상] 칸에 해수욕장 줄만.
+- **응답 꼴**: 서버 `beach[관광지 id]` 줄 = `{kind, text, name, concl}`(`services/beach_weather.line` — `text` 는 `name` 으로 시작·`concl` 로 끝남). 이름·결론을 종류 색 굵게(`.sb-bk-*` — 개장 `#7dd3fc` · 좋음 `#4ade80` · 있을 수 있음 `#facc15` · 경고 `#fb923c` · 거친 날 `#f87171`).
+  문자열(옛 꼴)·토막이 안 맞는 줄은 색 없이 글 그대로. 글은 텍스트 노드로만. 계약 `client/js/ocean-map/coastal-risk/briefing.contract.md` §18.
+- **「상시 위험 장소 N개소」 접힘·표**(§11.10.39 `constantTable`·`constantParts`, `.sb-constant-*`)는 **화면에서 뺐다**. 서버 `land.constant`·총평 연안 근거 「상시 위험 장소: A·B 등」·규칙 분석 문단·AI 입력은 그대로.
+  [기준 상세](`station_briefing_basis.js`) 「최대 12곳」 → 「분석 칸에 목록으로 보이지 않고 … 총평 연안 근거에 … 앞 3곳 이름만」. 관리자 「AI 브리핑」 탭에는 같은 목록이 없다(확인).
+- `index2.html` `station_briefing_render.js`·`station_briefing_basis.js`·`station_briefing.css` `?v=20261019beachui`.
+- 시험: `test_station_briefing_ui.js` `[§18·§18.11]`·`[§11.10.42]`·본문 사례·`[기준 상세]` · 서버 줄 꼴 `test_beach_weather.js`.

@@ -444,6 +444,7 @@
 
 - 관광지에서 3km 안 가장 가까운 기상청 해수욕장 1곳(정적 표 `config/coastal_safety/beach_weather_static.json`)의 그날 낮 09~18시 예보와 수온으로 입수 참고 줄, 해수부 개장 일정이 있으면 개장 줄(개장 줄 → 입수 줄). **위험지수·단계에는 들지 않는다.**
 - 서버: `GET /api/risk-forecast/coast/spot` 응답에 `beach`(시트 날짜 `daily.date` 의 줄 배열 — `services/beach_weather.js` `linesFor`). 안내 함수가 실패해도 상세는 그대로(`beach: []`). 수집은 `services/beach_weather_collector.js`(발표 15분 뒤 하루 8번, 운영만).
+- (2026-10-19 §18.11 로 바뀌었다 — 아래 「해수욕장 줄 특보·표류 상자 안」. 다음 두 줄은 이력.)
 - 화면: `risk_sheet.js` `beachBox` — 특보·표류 주황 상자 바로 아래 하늘색 상자(`.rf-beach`·`.rf-beach-line`, `risk_forecast.css`), 서버 글 그대로(escape). 줄이 없으면 상자도 없다(「정보 없음」 같은 말 없음). 날짜 < > 로 오늘·내일 각각.
 - `index2.html` `risk_sheet.js`·`risk_forecast.css` ?v=20261018beach.
 - 판단 규칙·확정 문구·수온 순서(부이 → 소해구 예보 → 없음)·오래된 값 숨김·미결: 설계서 §18. 시험 `local_server/scripts/test_beach_weather.js`.
@@ -491,7 +492,18 @@
 > 사용자 원문: *"항구에서 잡히는 것은 사실 통항이라고 보기는 어렵고 상시 그 배가 그 위치에 정박해서 계류하고 있는 상태를 의미하는 거라서 이것이 그 21척이 몰려서 밀집되어 있다라고 혼잡하다고 볼 수는 없을 것 같거든."* · 선택 *「예보 혼잡까지 전부」* · *「회색+숫자 유지」* · *「합계에서 뺌」* · *「자동판정후 애매한곳은1번으로」*
 
 - 목록: `local_server/config/coastal_safety/harbor_cells.json`(강·중 186칸 — 해경 항포구·방파제 구역·항 안 사고글·육지 비율로 자동 판정). 읽기 `local_server/services/harbor_cells.js`. 다시 만들기 `node local_server/scripts/gen_harbor_cells.js`(운영 공개 GET). 「불확실」 140칸은 적용하지 않고 [harbor_cells_review.md](harbor_cells_review.md) 에 구글맵 링크와 함께 둔다.
+- 공식 자료 자동 확인(2026-10-19 「좋아 진행하자」 — 설계서 §11.10.40 2차): 해양수산부 공공데이터포털 항만·어항 파일 10종을 정리한 `local_server/config/coastal_safety/official_ports.json`(690곳 — 이름·종류·대표 위경도·국가어항 구역·출처, 만들기 `node local_server/scripts/build_official_ports.js --src <원본 폴더> [--download]`)으로 불확실 칸 안에 공식 항이 있으면 **공식** 등급으로 목록에 올린다 → 목록 236칸(강 134 · 중 52 · 공식 50), 불확실 89, 사용자 제외 1(영목항 구역 칸 `GR4_F2O32_I4` — 사용자 *"거기는 항구칸으로 보면 안될 것 같아 영목항은."*, 생성기 `USER_EXCLUDED`). 후보표에 「공식 근거」 열과 「공식 근거 없는 강·중 95칸」 참고 표. 같은 파일이 관할 안 칸의 해역 이름 기준점도 된다(마을공동어항 제외 — 설계서 §11.10.43).
 - 지도(`risk_map_layer.js renderUnified`): 혼잡도 지금·혼잡 예보에서 서버 프레임 줄 끝이 `1` 인 칸은 회색(rgb(138,148,166), 투명도 .5) · 숫자(척수)는 그대로 · 위험 예측에는 회색 없음. 범례(`risk_forecast.js marineLegend`): 혼잡도일 때 막대 아래 「항구(정박·계류) 칸」 회색 네모(`.rf-harbor-key`).
-- 해상 시트(`risk_marine.js hero`): 서버 `marine.harbor` 가 있으면 「항구 칸 — 정박·계류 배 포함, 혼잡 판정 제외」 한 줄 · 서버는 그 칸에 충돌·접촉 주의·혼잡으로 인한 관심 단계를 만들지 않는다(척수·밀집도·혼잡 예보 값은 그대로 보임).
+- 해상 시트(`risk_marine.js hero`): 서버 `marine.harbor` 가 있으면 혼잡예보 줄(미래 시각이면 혼잡 지수 줄) 오른쪽에 「(항구 | 혼잡 판정 제외)」(2026-10-19 사용자 — 종전 따로 한 줄은 뺐다) · 서버는 그 칸에 충돌·접촉 주의·혼잡으로 인한 관심 단계를 만들지 않는다(척수·밀집도·혼잡 예보 값은 그대로 보임).
 - 위험지수(100점)·위험 예측 색은 바뀌지 않는다(혼잡은 원래 점수에 없음). 해역 카드 「최근 14일 선박 동향」은 이번 범위 밖(항구 칸 척수 그대로).
 - 시험: `local_server/scripts/test_harbor_cells.js`(verify_all). 캐시 `?v=20261019harbor`(risk_map_layer·risk_marine·risk_forecast.js·risk_forecast.css).
+
+## 연안 시트 해수욕장 줄 — 특보·표류 상자 안 · 종류 색 (2026-10-19 — 설계서 §18.11)
+
+> 사용자 원문: *"해수욕장 관련 문구는 그날 특보, 표류 안내가 표출되는 칸에 들어갈 수 있도록 해줘."* · *"거친날, 개장 예정 등 해당 종류 분류에 따른 색상을 해수욕장 명칭에 반영해줘."* · *"바닷물에 들어가는 사람이 있을 수 있다 부분도 해당 색상을 적용해줘."*
+
+- `risk_sheet.js` `beachLines(d.beach)` → `dayNotices(daily, extra)`·`notices(list, extra)` — 특보·표류 주황 상자(`.rf-notice`) 마지막 줄(`.rf-notice-line.rf-beach-line[data-beach]`), 그림 `ICON_BEACH`(물결 두 줄 + 파라솔, 선 `#38bdf8`).
+  특보·표류가 없는 날은 해수욕장 줄만 든 주황 상자. 따로 있던 하늘색 상자(`beachBox`·`.rf-beach`)는 지웠다. 내보내기 `RiskSheet.beachLines`·`beachText`(종전 `beachBox`).
+- 서버 줄 = `{kind, text, name, concl}`(`services/beach_weather.line`) — `beachText` 가 이름·결론을 종류 색 굵게(`risk_forecast.css .rf-bk-*` — 개장 `#7dd3fc` · 좋음 `#4ade80` · 있을 수 있음 `#facc15` · 경고 `#fb923c` · 거친 날 `#f87171`), 가운데는 보통 글자. 문자열(옛 꼴)·토막이 안 맞는 줄은 색 없이 글 그대로(모두 escape).
+- 경고 문구 「수온 N℃ · 낮 최고 M℃이나, …」(종전 「…이고 …」 — 사용자 「좋아」).
+- `index2.html` `risk_sheet.js`·`risk_forecast.css` `?v=20261019beachui`. 시험 `local_server/scripts/test_risk_coast_day.js` 「§18·§18.11」 · `test_beach_weather.js`.

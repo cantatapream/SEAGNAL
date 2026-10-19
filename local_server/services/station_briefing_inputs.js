@@ -12,6 +12,7 @@
  *  - 사용하는 파일 : config/coastal_safety/coastguard_stations.geojson(관할 97곳) · coastal_hazard_zones.wgs84.geojson(위험구역)
  *                    · services/risk_store.js(marineInputs·spots·coastDayDetail — 읽기·호출만) · services/marine_fusion.js(stationAt·cellHistory·warnTime)
  *                    · services/harbor_cells.js(항구 칸 — collectSea 가 그 칸의 혼잡 예보를 해역 혼잡에서 뺀다, 2026-10-19)
+ *                    · services/official_ports.js(해역 이름 기준점 공식 항 — gather 가 input.ports 로 넘긴다, §11.10.43)
  *                    · services/marine_congestion_codec.js · services/sea_warning_history.js(levelOf) · services/tide_field_common.js·tide_field_collector.js(앵커·곡선)
  *                    · services/jeju_isolation_tide_collector.js·hazard_rocks_tide_collector.js(제주 앵커·곡선 — 결정 5) · services/sea_warning_history.js(이미 해제된 특보 — 결정 4, 기록기를 주입받음)
  *                    · services/hazard_rocks_submersion.js(간출암 목록) · data/hazard_rocks/submersion.json · data/marine_forecast.json(기상청 단기 해상 전망)
@@ -633,9 +634,10 @@ function collectZoneWeather(loc, regional) {
  *                     ·regional(regionalForecast() 결과 — 없으면 (기상) 칸은 「자료를 확인하지 못했습니다」)
  *                     ·smallZone(소해구 예보 찾기 함수 (대해구) → {baseTm, data}|null — station_briefing.run 이 저장 판·판 비교로 만든다, §11.10.19. 없으면 모든 해역이 대해구 예보)
  *                     ·traffic(sea_traffic_profile 계산기 — collectSea 가 해역마다 최근 14일 선박 동향을 붙인다, §11.10.23. 없으면 그 줄 없음)
+ *                     ·ports(해역 이름 기준점 공식 항 [{name,lat,lon}] — 기본 services/official_ports.forNaming(), §11.10.43)
  * @returns {object[]} [연계] ← station_briefing.run / → collectSea·collectLand·collectTide·collectZoneWeather
  */
-function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null, regional = null, smallZone = null, traffic = null }) {
+function gather({ stations, risk, marine, win, now, locations, hazards, spotsBySt, tideDeps, warnHistory = null, regional = null, smallZone = null, traffic = null, ports = require('./official_ports').forNaming() }) {
     const sea = collectSea(stations, { risk, marine, win, now, warnHistory, smallZone, traffic });
     const landT = win.targetDate === R.kstDate(now) ? R.isoKst(Math.floor(now / 60000) * 60000) : win.targetDate + 'T00:00:00+09:00';
     return stations.map((st) => {
@@ -645,6 +647,7 @@ function gather({ stations, risk, marine, win, now, locations, hazards, spotsByS
             location: locations[st.key] || null, sources: sea.sources, area: areaOf(st.geometry),
             sea: { reviewedCells: s.reviewedCells, regions: s.regions, weather: s.weather, weatherSmall: s.weatherSmall, warnings: s.warnings, frameGaps: s.frameGaps },
             places: stationPlaces(spots, hz),
+            ports,   // 해역 이름 기준점 — 공식 항(§11.10.43 「항구 우선」, 마을공동어항 제외). 전국 목록 그대로(관할 경계 밖의 항도 관할 안 해역에서 10km 안이면 기준점 — marine_fusion.cellName 과 같은 목록)
             land: st.seaOnly ? null : collectLand(spots, hz, { risk, t: landT, now, warnHistory }),
             tide: collectTide(locations[st.key], win.targetDate, st.geometry, tideDeps),
             zoneWeather: collectZoneWeather(locations[st.key], regional),
