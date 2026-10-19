@@ -325,7 +325,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(S.advice.startsWith('15~24시 비양도 ') && S.advice.endsWith('해리 해역 운항에 주의가 요구됩니다.') && !/따라서/.test(S.advice + L.advice), S.advice);
         assert.ok(!JSON.stringify(b.summary).includes('관심 이상'), '「관심 이상」 용어를 쓰지 않음');
         assert.deepStrictEqual([b.overview.land, b.overview.sea, b.overview.source], [null, null, 'template'], '틀(AI 없음)이면 해설 없음');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v24'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v25'); assert.equal(typeof R.templateOverview, 'undefined', '종전 틀 총평 문단은 없앰');
     });
     const si = AI.stationInput(b);
     // AI 분석 문단 견본(2026-10-17 §11.10.4 — 3~5문장, 마지막 「따라서 … 필요합니다」. 그 전 §11.10 해설은 1~2문장): 허용 숫자·지명·단계만 쓴 글. 아래 검사들이 이것을 조금씩 바꿔 실패를 만든다.
@@ -1466,7 +1466,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(so.summary.analysis.land, null); assert.ok(AI.sentences(so.summary.analysis.sea).length >= 3);
         // 조사: 괄호 덧말 앞 낱말로(「해역(232-2해구)은」) · 받침 ㄹ + 으로 → 로
         assert.equal(R.josa('비양도 북북서방 1.4해리 해역(232-2해구)', '은', '는'), '은'); assert.equal(R.josa("연안 위험지수 72 '높음'(예상)", '으로', '로'), '으로'); assert.equal(R.josa('바다물', '으로', '로'), '로');
-        assert.equal(b.rulesVersion, 'station-briefing-rules-v24');
+        assert.equal(b.rulesVersion, 'station-briefing-rules-v25');
     });
     // 사용자 예시 꼴(돝섬해상유원지·5099해구)을 한림 고정 자료 이름·숫자로 옮긴 AI 분석 문단
     const ex = {
@@ -2220,7 +2220,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual([c.badges[0].source, c.badges[0].name, c.badges[0].level, c.badges[0].agency, c.badges[0].window], ['accident', '해양사고 위험예보', '주의', 'KOMSA', '18~24시']);
         assert.deepStrictEqual([c.rank, c.word], [2, '주의'], '카드 딱지 그대로');
         assert.equal(c.advice, "18~24시 이 해역은 해양사고 위험예보 '주의'(KOMSA) 근거로 운항 시 주의가 요구됩니다.");
-        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v24');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v25');
     });
     await check('[§11.10.15-2] 섞인 경우(시안 C) — KOMSA 18시 \'주의\'·21시 \'경계\' + 혼잡 \'매우높음\' 두 칸: 배지 둘(위험예보 먼저) · 위험예보 창 = 경계 칸만 · 상세 줄 = 칸마다 등급 / 칸마다 혼잡지수(그 칸 가장 높은 시각) · 혼잡 글자 색 = 경계(3)', () => {
         const c = card15({ [at(18)]: { accident: '주의', congestion: { level: '매우높음', index: 45.14, at: at(18) } }, [at(21)]: { accident: '경계', congestion: { level: '매우높음', index: 32.91, at: at(22) } } });
@@ -2459,7 +2459,7 @@ const WIN = R.editionWindow('morning', T0);
             assert.equal(pl(keep).land, keep.replace(/필요합니다\.$/, '요구됩니다.'), '이미 연안·인근·주변이 있거나 마지막 문장이 아니면 그대로 — ' + keep);
         // 보정한 글도 검증 통과(이름 대목 판정 그대로)
         assert.ok(AI.validateOverview(AI.polishOverview(good), si).ok, AI.validateOverview(AI.polishOverview(good), si).errors.join(','));
-        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION, R.RULES_VERSION], ['sb-prompt-v16', 'sb-validate-v15', 'station-briefing-rules-v24']);
+        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION, R.RULES_VERSION], ['sb-prompt-v16', 'sb-validate-v15', 'station-briefing-rules-v25']);
     });
     await check('[§11.10.25 덧] 지명 오판 고침(검증 v13 — 2026-10-18 08:03 운영 place:해제뒤에도·특보해제전후에도·예고돼있어이후에도) — 「…에도」·「오늘도」·방위 한 글자 앞부분(서서히·남아)은 지명 아님 · 가짜 섬 이름(「가짜도 앞바다」·「가짜도 북쪽 해상」·「가짜도 서해상」·「흑산도는」)은 계속 후보', () => {
         const names = (s) => AI.placeCandidates(s).map((x) => x.text);
@@ -2774,7 +2774,7 @@ const WIN = R.editionWindow('morning', T0);
     await check('[§11.10.20-5] 맨 아래 안내 · 규칙 판 v19 · 지시문 v14(S14 「연안 활동」·S15 배수 되풀이 금지) · 브리핑 JSON 어디에도 「물가 접근」·「참고 정보이며」 없음 · (물때)·(고립 주의) 「요구됩니다」', () => {
         const b = realLand.b, h = R.buildBriefing(hallim(), WIN, { generatedAt: R.isoKst(T0) });
         assert.equal(b.notice, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.');
-        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v24');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v25');
         for (const x of [b, h]) { const j = JSON.stringify(x); assert.ok(!j.includes('물가 접근') && !j.includes('참고 정보이며') && !j.includes('필요합니다'), '「물가 접근」·옛 안내·「필요합니다」 없음'); }
         assert.equal(AI.PROMPT_VERSION, 'sb-prompt-v16'); assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v15', '§11.10.22 에서 v12 · §11.10.25 에서 v13 · §11.10.31 에서 v14(이 사례 때는 그대로 v11)');
         const pr = AI.buildPrompt(AI.batchInput([AI.stationInput(h, null)], null));
@@ -2959,7 +2959,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(AI.buildPrompt(AI.batchInput([ib], null)), AI.buildPrompt(AI.batchInput([ia], null)));
         assert.ok(!JSON.stringify(ib).includes('하루 평균'));
         assert.deepStrictEqual(b2.sea.cards.map((c) => c.today.lines), a.sea.cards.map((c) => c.today.lines), 'today.lines 그대로');
-        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v24');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v25');
     });
     await check('[§11.10.30] 해구 흐름 글(화면 「해상 분석」 칸 줄 — weatherFlow.text)에 「기준」 없음(사용자 「기준관련된 내용은 뺴기로 했잖니 ? 그냥 11.9m/s입니다.로 끝내」) — 넘지 않음 「…11.9m/s입니다.」 · 넘음 「…, 21시부터 낮아집니다.」 · 끝 마침표 하나 · 보이는 해상 글 어디에도 기준 말 없음 · 판 v23', () => {
         const W = (rows) => R.weatherFlow(rows.map(([h, wh, ws]) => ({ at: at(h), wh, ws })), '222해구', WIN.targetDate);
@@ -2985,7 +2985,7 @@ const WIN = R.editionWindow('morning', T0);
         const si = AI.stationInput(R.buildBriefing(yIn(yHist), yWin, { generatedAt: '2026-10-17T17:10:00+09:00' }));
         assert.ok(si.allowed_number_keys.includes('7.5|m/s') && !si.allowed_number_keys.includes('12|m/s') && !si.allowed_number_keys.includes('2|m'), si.allowed_number_keys.filter((k) => /\|m/.test(k)).join(','));
         assert.ok(!JSON.stringify(si.sea).includes('기준(유의파고'));
-        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v24');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v25');
     });
     await check('[§11.10.30 표류] 「떠밀림」→「표류」 통일(사용자 「표류로 통일」) — 해안 바람 요소 「…(튜브·물놀이기구 표류 주의)」 · [권고] 이유 「…표류할 수 있으므로」 · 기준 상세 설명 · 브리핑 JSON 어디에도 「떠밀」 없음 · 키 drift 그대로', () => {
         const c = b.land.cards.find((x) => x.today.kinds && x.today.kinds.includes('drift'));
@@ -3036,7 +3036,7 @@ const WIN = R.editionWindow('morning', T0);
         // AI 가 서버 글의 겨울 말을 옮겨 써도 여름 말과 같은 대우(지명·사실 낱말 검사에 걸리지 않음) — 위 견본(good)에서 바꾼 꼴 둘의 오류 목록이 같다
         const errs = (w) => AI.validateOverview({ ...good, land: good.land.replace('튜브가 떠밀릴 수 있습니다', w + '가 표류할 수 있습니다') }, si).errors;
         assert.deepStrictEqual(errs(Wn), errs(S)); assert.ok(!errs(Wn).some((e) => /^(place|fact|word|level)/.test(e)), errs(Wn).join(','));
-        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v24');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v25');
     });
     // §11.10.33(2026-10-18 사용자 *"우리가 아까 기준 상세 수정하지 않았니 ? 왜 수정 지침대로 반영이 되지 않은거지 ?"* → *"수정해"*): 위험예측 기준 상세와 같은 모양 지침(문안 글은 그대로)
     await check('[§11.10.33] [기준 상세] 문안 — 문장 여럿인 <p> 없음(문장마다 ul.rf-pts li) · 「단계 말」 없음 → 「위험 단계」 표(5단계 · 브리핑 colorOf 색) · 점은 글자가 아님', () => {
@@ -3063,7 +3063,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(g.map((x) => x.detail.map((d) => [d.title, d.head.join(',')])), [[['KOMSA 해양사고 위험예보', '시각,등급']], [['기상청 제주도동부앞바다 풍랑주의보', '시각,상태']]]);
         assert.deepStrictEqual(g.map((x) => x.detail[0].rows.map((r) => r[0])), [['15시', '18시', '21시'], ['15시', '18시', '21시']], '두 표의 시각 열이 같다 — 가로 표 열 = 15·18·21시');
         assert.deepStrictEqual(g.map((x) => x.detail[0].rows.map((r) => (r[1] && typeof r[1] === 'object' ? r[1].text + '/' + r[1].rank : r[1]))), [['주의/2', '주의/2', '주의/2'], ['발효 중', '발효 중', '발효 중']], '칸 = 등급 {text, rank} · 특보 상태 글');
-        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v24', '서버 규칙 판 그대로(화면만 바뀜)');
+        assert.equal(R.RULES_VERSION, 'station-briefing-rules-v25', '서버 규칙 판 그대로(화면만 바뀜)');
     });
     // ── §11.10.24(2026-10-18 사용자 *"실시간으로 데이터를 업데이트 시킬 수 있는 거 아닌가? … 시간도 계속 바뀌어가면서"*): 「지금 밀집」만 다시 받는 GET /api/station-briefing/now ──
     await check('[§11.10.24-1] GET /now — 노출 판정 그대로(안 보이면 now:null·계산 없음) · station·day 검사(400·404) · since 를 nowLine 에 넘김 · nowLine 값·{unchanged} 그대로 · 던지면 null · no-store', async () => {
@@ -3117,11 +3117,11 @@ const WIN = R.editionWindow('morning', T0);
     });
     // ── §11.10.41(2026-10-19 사용자 *"비양도 그러면 화순항 북북서방 11.3해리라고 나오는 게 아니라 비양도를 기준으로 나와야 되잖아"*) ──
     // 2026-10-19 사용자 결정 「위험예측까지 넓힘」 — 해역 이름을 짓는 marine_fusion(위험예측 해상 시트 제목·관할 브리핑 목록·브리핑 팝업 속 시트·「지금 밀집」)이 같은 규칙
-    await check('[§11.10.41-1] 해상 통합 해역 이름 = 브리핑 해역 카드와 같은 regionName — 한림항 앞 칸 /sea/analysis 제목(실제 정리판·tide.js·관광지 표·위험구역)은 「화순항 북북서방 11.3해리」가 아니라 「비양도 남방 0.2해리」 · 주요지명 10km 안 칸은 그대로', () => {
+    await check('[§11.10.41-1] 해상 통합 해역 이름 = 브리핑 해역 카드와 같은 regionName — 한림항 앞 칸 /sea/analysis 제목(실제 정리판·tide.js·관광지 표·위험구역)은 「화순항 북북서방 11.3해리」가 아니라 「비양도 남방 0.2해리」(공식 항 기준점 없이 — §11.10.42 앞 규칙) · 주요지명 10km 안 칸은 그대로', () => {
         const D = require('../services/risk_sea_cells'), M = require('../services/marine_fusion'), at = R.isoKst(Date.now());
         const table = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/coastal_safety/risk_spots.json'), 'utf8')).spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon, police: p.station ? { name: p.station } : null }));   // risk_store.spots() 와 같은 꼴
         const inputs = { version: 1, cells: { cells: [] }, accident: { cells: [], frames: {} }, congestion: null, warnings: null, sources: {}, weather: () => ({ wh: null, ws: null, forecastAt: null }) };
-        const store = M.createStore({ risk: { marineInputs: () => inputs, sources: () => ({}), spots: () => ({ v: 'test', spots: table }) }, dir: fs.mkdtempSync(path.join(tmp, 'mf-')) });
+        const store = M.createStore({ risk: { marineInputs: () => inputs, sources: () => ({}), spots: () => ({ v: 'test', spots: table }) }, dir: fs.mkdtempSync(path.join(tmp, 'mf-')), ports: [] });   // ports: [] = 공식 항 기준점 없음(§11.10.41 규칙만 — §11.10.42 는 아래)
         const cell = D.describe({ gridId: 'point', latitude: 33.4125, longitude: 126.2625 });
         assert.equal(M.location(cell), '화순항 북북서방 11.3해리 해역(232-2해구)', '사용자 화면 그대로 — 주요지명(조석 표준항 165곳)만 본 이름');
         const a = store.analysis({ lon: 126.2625, lat: 33.4125, t: at });
@@ -3131,6 +3131,43 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(a.title, R.regionName(cell, places).name, '브리핑 해역 카드(seaSection ← gather 의 places)와 같은 배정·같은 함수');
         const jeju = D.describe({ gridId: 'point', latitude: 33.5375, longitude: 126.5375 });
         assert.ok(jeju.ref.distNm * 1.852 <= 10); assert.equal(store.analysis({ lon: 126.5375, lat: 33.5375, t: at }).title, M.location(jeju), '주요지명이 10km 안이면 그대로');
+    });
+    // ── §11.10.42(2026-10-19 사용자 *"항구로 확인하면 그 항구가 기준점이 되어 00항으로부터 몇도 몇마일 해상 이런 부분도 해결할 수 있지 않니"* · 선택 「항구 우선」·「마을공동어항만 제외 (추천)」) ──
+    await check('[§11.10.42-1] regionName 항구 우선 — 10km 안 가장 가까운 공식 항이 주요지명(10km 안이어도)·관광지보다 먼저 · 10km 넘는 항은 무시(종전 규칙) · 0.1해리 안은 「○○항 인근 해역」 · ports 없으면 종전과 같음', () => {
+        const reg = { lat: 33.44, lon: 126.24, ref: { name: '화순항', distNm: 5.0, bearingWord: '북' }, haegu: { label: '232-2' } }, places = [{ name: '비양도', lat: 33.4067, lon: 126.2275 }];
+        const hl = { name: '한림항', kind: '연안항', lat: 33.42046, lon: 126.25364 }, far = { name: '먼항', kind: '지방어항', lat: 33.6, lon: 126.24 };
+        const p = R.regionName(reg, places, [far, hl]);
+        assert.deepStrictEqual([p.baseKind, p.base], ['port', '한림항'], '주요지명 화순항이 9.3km(10km 안)여도 항구 우선'); assert.ok(/^한림항 \S+방 \d+\.\d해리 해역\(232-2해구\)$/.test(p.name), p.name);
+        assert.ok(p.distKm <= 10);
+        assert.deepStrictEqual(R.regionName(reg, places, [far]), R.regionName(reg, places), '10km 넘는 항(17.8km)뿐이면 종전 규칙(주요지명 10km 안 → 그대로)');
+        assert.deepStrictEqual(R.regionName(reg, places, []), R.regionName(reg, places)); assert.equal(R.regionName(reg, places).baseKind, 'ref');
+        assert.equal(R.regionName({ ...reg, lat: 33.4205, lon: 126.2537 }, places, [hl]).name, '한림항 인근 해역(232-2해구)', '0.1해리(185m) 안');
+    });
+    await check('[§11.10.42-2] 실제 공식 항(official_ports.forNaming — 마을공동어항 제외) · 한림항 앞 칸 = 「한림항 남동방 0.7해리 해역(232-2해구)」 — 위험예측 시트 제목·브리핑 카드 규칙(같은 places·같은 ports) 같음 · 제주 1.3km 칸도 항구 우선 「제주항 북서방 0.9해리」 · 공식 항 10km 밖 칸은 종전', () => {
+        const OP = require('../services/official_ports'), ports = OP.forNaming(), kinds = new Set(ports.map((q) => q.kind));
+        assert.ok(ports.length > 400 && !kinds.has('마을공동어항') && ['무역항', '연안항', '국가어항', '지방어항', '어촌정주어항'].every((k) => kinds.has(k)), [...kinds].join());
+        const D = require('../services/risk_sea_cells'), M = require('../services/marine_fusion'), at = R.isoKst(Date.now());
+        const table = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/coastal_safety/risk_spots.json'), 'utf8')).spots.map((q) => ({ name: q.name, lat: q.lat, lon: q.lon, police: q.station ? { name: q.station } : null }));
+        const inputs = { version: 1, cells: { cells: [] }, accident: { cells: [], frames: {} }, congestion: null, warnings: null, sources: {}, weather: () => ({ wh: null, ws: null, forecastAt: null }) };
+        const store = M.createStore({ risk: { marineInputs: () => inputs, sources: () => ({}), spots: () => ({ v: 'test', spots: table }) }, dir: fs.mkdtempSync(path.join(tmp, 'mf-')) });   // 기본 = 저장소 정리 파일
+        const cell = D.describe({ gridId: 'point', latitude: 33.4125, longitude: 126.2625 }), a = store.analysis({ lon: 126.2625, lat: 33.4125, t: at });
+        assert.equal(a.title, '한림항 남동방 0.7해리 해역(232-2해구)'); assert.equal(a.marine.station, '한림파출소');
+        const all = I.loadStations(), places = I.placesByStation(all, table, I.readJson(path.join(I.CONFIG, 'coastal_hazard_zones.wgs84.geojson')).features).get(all.find((q) => q.name === '한림파출소').idx);
+        assert.equal(a.title, R.regionName(cell, places, ports).name, '브리핑 해역 카드(seaSection ← gather 의 places·ports)와 같은 함수·같은 목록');
+        assert.equal(store.analysis({ lon: 126.5375, lat: 33.5375, t: at }).title, '제주항 북서방 0.9해리 해역(223-7해구)', '주요지명 「제주」가 1.3km 여도 공식 항(1.6km)이 먼저 — 「항구 우선」');
+        const off = D.describe({ gridId: 'point', latitude: 32.1125, longitude: 125.1875 });   // 먼바다(공식 항 10km 밖, 관할 밖)
+        assert.equal(store.analysis({ lon: 125.1875, lat: 32.1125, t: at }).title, M.location(off), '공식 항 10km 밖 · 관할 밖 → 종전 이름(주요지명만)');
+    });
+    await check('[§11.10.42-3] 브리핑 카드·AI — input.ports 가 있으면 해역 카드 이름이 항구 기준(nameBase 한림항·nameBaseKind port) · AI 허용 지명에 「한림항」 · 그 이름을 쓴 해설이 검증 통과(검증·지시문 판 그대로) · gather 가 기본 ports 를 넘김', () => {
+        const ports = [{ name: '한림항', kind: '연안항', lat: 33.42046, lon: 126.25364 }];
+        const bp = R.buildBriefing({ ...hallim(), ports }, WIN, { generatedAt: R.isoKst(T0) }), c = bp.sea.cards[0];
+        assert.ok(c.name.startsWith('한림항 ') && c.name.endsWith('해리 해역(232-2해구)'), c.name); assert.deepStrictEqual([c.nameBase, c.nameBaseKind], ['한림항', 'port']);
+        const s2 = AI.stationInput(bp); assert.ok(s2.allowed_places.includes('한림항') && s2.allowed_places.includes(c.name), s2.allowed_places.join());
+        const sea = good.sea.replace(/비양도 주변 해역/g, '한림항 주변 해역');
+        assert.deepStrictEqual(vo({ land: good.land, sea }, s2).errors, [], '항구 이름을 쓴 해설 통과');
+        assert.ok(vo({ land: good.land, sea: sea.replace(/한림항/g, '가짜항') }, s2).errors.some((e) => e.startsWith('place:')), '입력에 없는 항 이름은 계속 막음');
+        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION, R.RULES_VERSION], ['sb-prompt-v16', 'sb-validate-v15', 'station-briefing-rules-v25'], '규칙 판만 올림(카드 이름이 바뀜) — 허용 지명은 종전 길(카드 이름·nameBase)로 들어가 검증·지시문은 그대로');
+        assert.ok(/ports = require\('\.\/official_ports'\)\.forNaming\(\)/.test(fs.readFileSync(path.join(__dirname, '../services/station_briefing_inputs.js'), 'utf8')), 'gather 기본값');
     });
     await check('[§11.10.41-2] placesByStation — 실행(gather)이 해역 카드 이름에 넘기는 input.places 와 같은 목록(관광지, 없으면 위험구역 장소명) · 관할 순번(idx) 열쇠', () => {
         const spot = { name: '비양도', lat: 33.4154, lon: 126.2621, police: { name: '한림파출소' } };

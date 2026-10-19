@@ -32,7 +32,8 @@ const SOURCES = {
     local_fp: { id: '15147449', title: '해양수산부_공동활용체계_지방어항_20211230', provider: '해양수산부 해양공간정책과(조사 국립해양조사원 2017)', use: '지방어항 이름·좌표' },
     settle_fp: { id: '15147417', title: '해양수산부_공동활용체계_어촌정주어항_20231119', provider: '해양수산부 해양공간정책과', use: '어촌정주어항 이름·좌표' },
     village_fp: { id: '15144585', title: '해양수산부_공동활용체계_마을공동어항_20200224', provider: '해양수산부 해양공간정책과', use: '마을공동어항 이름·좌표' },
-    fishport: { id: '15147455', title: '해양수산부_공동활용체계_어항_20211123', provider: '해양수산부 해양공간정책과', use: '국가어항 대표 좌표(소형선항만안내에 없을 때)' }
+    fishport: { id: '15147455', title: '해양수산부_공동활용체계_어항_20211123', provider: '해양수산부 해양공간정책과', use: '국가어항 대표 좌표(소형선항만안내에 없을 때)' },
+    national_2019: { id: '3083027', title: '해양수산부_어항정보_20191231', provider: '해양수산부 어촌어항과', use: '국가어항 이름(113) — 위 두 국가어항 파일에 없는 항. 좌표는 소형선항만안내 → 어항 파일 → 이 파일 좌표(소수 둘째 자리, 약 1km)' }
 };
 const KINDS = ['무역항', '연안항', '국가어항', '지방어항', '어촌정주어항', '마을공동어항'];   // 앞일수록 우선(같은 항이 두 목록에 있으면 앞 종류)
 
@@ -91,7 +92,7 @@ function build(dir) {
     /** 이름으로 좌표 하나 고르기 — 후보가 하나면 그것, 여럿이면 near 에 가장 가까운 것(near 없으면 고르지 않음). */
     const pick = (list, near) => !list || !list.length ? null : list.length === 1 ? list[0] : near ? list.slice().sort((a, b) => km(a, near) - km(b, near))[0] : null;
     // ① 무역항·연안항(항만정보) — 좌표: 소형선항만안내 같은 이름 → 항만기본계획 「○○항…」 가장 넓은 시설 도형 중심
-    const plans = new Map();
+    const plans = new Map(), tradeNames = new Set(raw.port_info.map((r) => norm(r['항만명'])));
     for (const r of raw.port_plan) { const m = norm(r['기본계획명']).match(/^(.+?항)/); if (!m || /^(전국항만|국가관리연안항|항만기본)/.test(norm(r['기본계획명']))) continue; for (const ring of wkt(r['공간정보'])) { const s = ringStat(ring); if (!plans.has(m[1]) || s.a > plans.get(m[1]).a) plans.set(m[1], s); } }
     for (const r of raw.port_info) {
         const name = r['항만명'].trim(), sub = r['국가관리구분'] + ' ' + r['항구분'], kind = r['항구분'] === '연안항' ? '연안항' : '무역항';   // 신항만은 무역항 계열로 둔다(sub 에 원래 구분)
@@ -100,12 +101,13 @@ function build(dir) {
         else if (p) { const [lon, lat] = toLL(p.c); ports.push({ name, kind, sub, lat: r5(lat), lon: r5(lon), src: ['port_info', 'port_plan'] }); }
         else unlocated.push({ name, kind, sub, src: 'port_info' });
     }
-    // ② 국가어항 — 이름·구역: 국가어항(위경도) ∪ 국가어항구역(5179). 좌표: 소형선항만안내 → 어항 파일 → 구역 도형 중심
+    // ② 국가어항 — 이름·구역: 국가어항(위경도) ∪ 국가어항구역(5179) ∪ 어항정보 2019(이름·대략 좌표). 좌표: 소형선항만안내 → 어항 파일 → 구역 도형 중심(없으면 2019 좌표)
     const nat = new Map();
     for (const r of raw.national_fp) { const n = r['국가어항구역명'].trim(), rings = wkt(r['공간정보']); if (!nat.has(norm(n))) nat.set(norm(n), { name: n, rings, src: 'national_fp' }); }
     for (const r of raw.national_fp_zone) { const n = r['국가어항구역명'].trim(); if (nat.has(norm(n)) && nat.get(norm(n)).rings.length) continue; nat.set(norm(n), { name: n, rings: wkt(r['공간정보']).map((ring) => ring.map(toLL)), src: 'national_fp_zone' }); }
+    for (const r of raw.national_2019) { const n = r['어항명'].trim(), lat = +r['위도'], lon = +r['경도']; if (!nat.has(norm(n)) && inKr(lat, lon)) nat.set(norm(n), { name: n, rings: [], src: 'national_2019', approx: { lat, lon } }); }
     for (const [k, v] of nat) {
-        const rings = v.rings.filter((x) => x.length > 3), big = rings.map(ringStat).sort((a, b) => b.a - a.a)[0], center = big ? { lon: big.c[0], lat: big.c[1] } : null;
+        const rings = v.rings.filter((x) => x.length > 3), big = rings.map(ringStat).sort((a, b) => b.a - a.a)[0], center = big ? { lon: big.c[0], lat: big.c[1] } : v.approx || null;
         // 이름이 같은 점이 구역에서 5km 넘게 멀면(다른 곳의 같은 이름) 쓰지 않는다
         const near = (q) => q && (!center || km(q, center) <= 5) ? q : null;
         const s = near(pick(small.get(k), center)), f = near(pick(fish.get(k), center)), at = s ? [s, 'small_harbor'] : f ? [f, 'fishport'] : center ? [center, v.src] : null;
@@ -119,10 +121,22 @@ function build(dir) {
         for (const r of raw[key]) { const a = +r['어촌정주어항위도'], b = +r['어촌정주어항경도'], lon = a > 100 ? a : b, lat = a > 100 ? b : a;
             if (!inKr(lat, lon)) { unlocated.push({ name: r[nameCol], kind, src: key }); continue; } ports.push({ name: r[nameCol].trim(), kind, lat: r5(lat), lon: r5(lon), src: [key] }); }
     }
+    // ④ 소형선항만안내 소개글이 「○○항은 지방어항(1971. 지정)」처럼 종류를 밝힌 항 — 위 목록에 같은 이름이 2km 안에 없을 때만
+    for (const r of raw.small_harbor) {
+        const name = r['항만명'].trim(), m = String(r['소개설명'] || '').match(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[은는][^.]*?(무역항|연안항|국가어항|지방어항|어촌정주어항|마을공동어항)\\('));
+        const lat = dms(r['소형선항만도분초위도']), lon = dms(r['소형선항만도분초경도']);
+        if (!m || lat == null || lon == null || !inKr(lat, lon) || ports.some((q) => norm(q.name) === norm(name) && km(q, { lat, lon }) < 2)) continue;
+        // 무역항·연안항은 항만정보(2023) 목록이 정본 — 소개글(2017)이 그렇게 말해도 그 목록에 없는 이름이면 쓰지 않는다(예: 비인항 「연안항」)
+        if ((m[1] === '무역항' || m[1] === '연안항') && !tradeNames.has(norm(name))) continue;
+        ports.push({ name, kind: m[1], lat: r5(lat), lon: r5(lon), src: ['small_harbor'] });   // src 가 small_harbor 하나뿐 = 종류를 소개글에서 읽은 항
+    }
     // 같은 이름이 두 종류 목록에 2km 안으로 겹치면 앞 종류 하나만(무역항 > 연안항 > 국가어항 > 지방어항 > 어촌정주어항 > 마을공동어항)
     ports.sort((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || a.name.localeCompare(b.name, 'ko') || a.lat - b.lat);
     const kept = [], dropped = [];
     for (const p of ports) { const d = kept.find((q) => norm(q.name) === norm(p.name) && km(q, p) < 2); if (d) dropped.push({ name: p.name, kind: p.kind, keptAs: d.kind }); else kept.push(p); }
+    // 앞 단계에서 좌표를 못 구했어도 소개글 단계(④)에서 같은 종류·이름으로 자리를 찾은 항은 unlocated 에서 뺀다(예: 옥계항)
+    const located = new Set(kept.map((p) => p.kind + '|' + norm(p.name)));
+    for (let i = unlocated.length - 1; i >= 0; i--) if (located.has(unlocated[i].kind + '|' + norm(unlocated[i].name))) unlocated.splice(i, 1);
     const counts = Object.fromEntries(KINDS.map((k) => [k, kept.filter((p) => p.kind === k).length]));
     return {
         schema: 'official-ports-v1', builtAt: new Date().toISOString().slice(0, 10), builder: 'local_server/scripts/build_official_ports.js',

@@ -5,20 +5,20 @@
  "criteria": {
   "candidate": "근거(해경 항포구·방파제·선착장 구역 / 항 안 사고글 / 육지 10% 이상)가 있는 GR4 칸 가운데, 실시간 30분 평균 척수 이력(2026-10-16 00:00 ~ 2026-10-19 08:30 KST(30분 칸 162개))에서 한 번이라도 14척 이상 · 지금(2026-10-19T09:25:05+09:00) 14척 이상 · 혼잡 예보(2026-10-19T09:28:14+09:00 ~ 2026-10-20T23:00:00+09:00) '높음' 이상 중 하나",
   "grade": "강 = 해경 구역 + 항 안 사고글 1건 이상 · 중 = 해경 구역만, 또는 항 안 사고글 3건 이상이고 육지 10% 이상 · 공식 = 불확실 근거 + 칸 안에 해양수산부 공식 항(대표 좌표 또는 국가어항 구역) · 불확실 = 그 밖의 근거(목록에 넣지 않고 후보표로) · 아님 = 근거 없음",
-  "official": "공식 항 = local_server/config/coastal_safety/official_ports.json(local_server/scripts/build_official_ports.js — 해양수산부 공공데이터포털 파일데이터 해양수산부_항만정보_20231212(data.go.kr/data/15088273) · 해양수산부_공동활용체계_소형선항만안내_20171231(data.go.kr/data/15148613) · 해양수산부_항만기본계획(무역항 연안항)_20240717(data.go.kr/data/15129889) · 해양수산부_공동활용체계_국가어항_20100423(data.go.kr/data/15149006) · 해양수산부_공동활용체계_국가어항구역_20210901(data.go.kr/data/15148598) · 해양수산부_공동활용체계_지방어항_20211230(data.go.kr/data/15147449) · 해양수산부_공동활용체계_어촌정주어항_20231119(data.go.kr/data/15147417) · 해양수산부_공동활용체계_마을공동어항_20200224(data.go.kr/data/15144585) · 해양수산부_공동활용체계_어항_20211123(data.go.kr/data/15147455), 이용허락범위 「제한 없음」). 칸마다 official = [{name, kind, how:점|구역}]",
+  "official": "공식 항 = local_server/config/coastal_safety/official_ports.json(local_server/scripts/build_official_ports.js — 해양수산부 공공데이터포털 파일데이터 해양수산부_항만정보_20231212(data.go.kr/data/15088273) · 해양수산부_공동활용체계_소형선항만안내_20171231(data.go.kr/data/15148613) · 해양수산부_항만기본계획(무역항 연안항)_20240717(data.go.kr/data/15129889) · 해양수산부_공동활용체계_국가어항_20100423(data.go.kr/data/15149006) · 해양수산부_공동활용체계_국가어항구역_20210901(data.go.kr/data/15148598) · 해양수산부_공동활용체계_지방어항_20211230(data.go.kr/data/15147449) · 해양수산부_공동활용체계_어촌정주어항_20231119(data.go.kr/data/15147417) · 해양수산부_공동활용체계_마을공동어항_20200224(data.go.kr/data/15144585) · 해양수산부_공동활용체계_어항_20211123(data.go.kr/data/15147455) · 해양수산부_어항정보_20191231(data.go.kr/data/3083027), 이용허락범위 「제한 없음」). 칸마다 official = [{name, kind, how:점|구역}]",
   "applied": "강·중·공식이 이 목록에 들어가 혼잡 판정(지금 밀집·충돌·접촉 주의·혼잡 예보 관심 단계·관할 합계)에서 빠지고 지도에서 회색이 된다"
  },
  "counts": {
   "evidenceCells": 1933,
   "historyAsked": 1826,
   "candidates": 326,
-  "applied": 232,
+  "applied": 237,
   "strong": 134,
   "medium": 52,
-  "official": 46,
-  "uncertain": 94,
-  "strongMediumWithOfficial": 83,
-  "strongMediumWithoutOfficial": 103
+  "official": 51,
+  "uncertain": 89,
+  "strongMediumWithOfficial": 91,
+  "strongMediumWithoutOfficial": 95
  },
  "cells": [
   {
@@ -439,7 +439,38 @@
     "마섬포구"
    ],
    "land": 0.26,
-   "official": []
+   "official": [
+    {
+     "name": "장고항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
+  },
+  {
+   "id": "GR4_F2N44_O4",
+   "lat": 36.1125,
+   "lon": 125.9875,
+   "grade": "공식",
+   "why": [
+    "history"
+   ],
+   "maxCount": 32.5,
+   "share14": 0.35,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 1,
+   "names": [
+    "어청도항"
+   ],
+   "land": 0.31,
+   "official": [
+    {
+     "name": "어청도항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
   },
   {
    "id": "GR4_F2O11_W2",
@@ -544,7 +575,13 @@
     "동방파제"
    ],
    "land": 0.08,
-   "official": []
+   "official": [
+    {
+     "name": "안흥항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
   },
   {
    "id": "GR4_F2O14_M3",
@@ -611,7 +648,13 @@
     "남당항"
    ],
    "land": 0.18,
-   "official": []
+   "official": [
+    {
+     "name": "남당항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
   },
   {
    "id": "GR4_F2O21_E1",
@@ -832,6 +875,31 @@
     {
      "name": "효자도항",
      "kind": "지방어항",
+     "how": "점"
+    }
+   ]
+  },
+  {
+   "id": "GR4_F2O34_S2",
+   "lat": 36.0875,
+   "lon": 126.4375,
+   "grade": "공식",
+   "why": [
+    "history"
+   ],
+   "maxCount": 18,
+   "share14": 0.04,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 0,
+   "names": [
+    "연도항"
+   ],
+   "land": 0.22,
+   "official": [
+    {
+     "name": "연도항",
+     "kind": "국가어항",
      "how": "점"
     }
    ]
@@ -2062,6 +2130,11 @@
      "name": "녹동신항",
      "kind": "연안항",
      "how": "점"
+    },
+    {
+     "name": "녹동항",
+     "kind": "국가어항",
+     "how": "점"
     }
    ]
   },
@@ -2855,6 +2928,32 @@
     {
      "name": "나로도항",
      "kind": "연안항",
+     "how": "점"
+    }
+   ]
+  },
+  {
+   "id": "GR4_F4H32_K1",
+   "lat": 34.3875,
+   "lon": 127.2625,
+   "grade": "공식",
+   "why": [
+    "history"
+   ],
+   "maxCount": 14.2,
+   "share14": 0.01,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 1,
+   "names": [
+    "시산항",
+    "서방파제"
+   ],
+   "land": 0.46,
+   "official": [
+    {
+     "name": "시산항",
+     "kind": "국가어항",
      "how": "점"
     }
    ]
@@ -3726,6 +3825,11 @@
    "land": 0.54,
    "official": [
     {
+     "name": "장호항",
+     "kind": "국가어항",
+     "how": "점"
+    },
+    {
      "name": "초곡항",
      "kind": "지방어항",
      "how": "점"
@@ -3785,7 +3889,13 @@
     "마축항"
    ],
    "land": 0.81,
-   "official": []
+   "official": [
+    {
+     "name": "죽변항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
   },
   {
    "id": "GR4_G1N14_J1",
@@ -3901,7 +4011,13 @@
     "북방파제"
    ],
    "land": 0.2,
-   "official": []
+   "official": [
+    {
+     "name": "구계항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
   },
   {
    "id": "GR4_G1N34_N4",
@@ -4834,7 +4950,13 @@
     "포항"
    ],
    "land": 0.94,
-   "official": []
+   "official": [
+    {
+     "name": "양포항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
   },
   {
    "id": "GR4_G3B21_P3",
@@ -4859,7 +4981,13 @@
     "남방파제"
    ],
    "land": 0.34,
-   "official": []
+   "official": [
+    {
+     "name": "감포항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
   },
   {
    "id": "GR4_G3B31_Y4",
@@ -5918,6 +6046,32 @@
    "official": []
   },
   {
+   "id": "GR4_G3E13_A4",
+   "lat": 34.7125,
+   "lon": 128.0375,
+   "grade": "공식",
+   "why": [
+    "history",
+    "now"
+   ],
+   "maxCount": 51.2,
+   "share14": 0.65,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 0,
+   "names": [
+    "미조항"
+   ],
+   "land": 0.56,
+   "official": [
+    {
+     "name": "미조항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
+  },
+  {
    "id": "GR4_G3E14_K2",
    "lat": 34.6375,
    "lon": 128.2875,
@@ -6083,7 +6237,13 @@
     "외포항"
    ],
    "land": 0.82,
-   "official": []
+   "official": [
+    {
+     "name": "외포항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
   },
   {
    "id": "GR4_G3E21_N2",
@@ -6232,6 +6392,31 @@
    "official": [
     {
      "name": "구조라항",
+     "kind": "국가어항",
+     "how": "점"
+    }
+   ]
+  },
+  {
+   "id": "GR4_G3E21_T1",
+   "lat": 34.8375,
+   "lon": 128.7125,
+   "grade": "공식",
+   "why": [
+    "history"
+   ],
+   "maxCount": 30.2,
+   "share14": 0.19,
+   "congMax": null,
+   "hazards": [],
+   "accInPort": 2,
+   "names": [
+    "지세포항"
+   ],
+   "land": 0.54,
+   "official": [
+    {
+     "name": "지세포항",
      "kind": "국가어항",
      "how": "점"
     }
