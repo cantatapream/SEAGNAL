@@ -1,0 +1,333 @@
+/* ============================================================================
+ * 파일명: client/js/redesign-preview/redesign_preview.css
+ * 역할  : 「디자인 미리보기」의 겉모습. body 에 .rd-preview 가 붙었을 때만 걸린다
+ *         (켜고 끄는 것은 redesign_preview.js — 해양안전생활 탭 10연타).
+ *         꺼져 있으면 이 파일의 규칙은 하나도 적용되지 않는다 → 원래 화면 그대로.
+ * ----------------------------------------------------------------------------
+ * [디자인 원칙 — 2026-10-19 impeccable 기준 재검사 결과에서 나왔다. 상세는 README.md]
+ *  1. 색은 뜻이 하나다. 빨강 = 경보·위험만. 주의보 = 주황, 예비 = 노랑 점선, 특보 없음 = 차분한 중립.
+ *     「선택됨·버튼」은 파랑 하나. 머리줄 4개를 각기 다른 색으로 칠하지 않는다.
+ *  2. 글자 최소 11px(지도 버튼 라벨) · 일반 12px 이상. 하단 탭 라벨 12px.
+ *  3. 누르는 것은 44px 안팎(지도 위 좁은 자리만 예외로 40px 이상).
+ *  4. 꾸밈 효과(네온 빛번짐·계속 깜빡임·그라데이션 글자·사선 무늬 배경·해역 이모지)는 걷어낸다.
+ *  5. 회색 글자는 배경 대비 4.5:1 이상인 값만 쓴다.
+ * [연계] js/redesign-preview/redesign_preview.js (body.rd-preview · .rd-lv-alarm/.rd-lv-advisory 꼬리표)
+ *        덮어쓰는 원래 규칙: style.css · index2.html <head> <style> · risk_forecast.css · station_briefing.css
+ * [로드 순서] <head> 의 마지막 stylesheet(station_briefing.css 다음) — 원래 규칙보다 뒤에 와야 이긴다.
+ *            index2.html <head> 의 일부 규칙이 !important 라서 여기서도 그 자리만 !important 를 쓴다.
+ * ============================================================================ */
+
+/* ── 0. 색·글자 기준값(토큰) ─────────────────────────────────────────────── */
+body.rd-preview {
+    --rd-bg:        #0b1220;   /* 바탕: 순수 검정 대신 남색 기운 */
+    --rd-surface:   #131c2e;   /* 카드·머리줄 */
+    --rd-surface-2: #1a2539;   /* 눌림·강조 카드 */
+    --rd-line:      rgba(160, 180, 210, 0.18);
+    --rd-text:      #eaf0f8;   /* 본문  — #131c2e 위 대비 약 15:1 */
+    --rd-text-2:    #b6c2d4;   /* 보조  — 약 9:1 */
+    --rd-text-3:    #93a1b7;   /* 흐린 보조 — 약 6:1 (이보다 흐리게 쓰지 않는다) */
+    --rd-accent:    #5aa2ff;   /* 선택됨·누를 수 있음 */
+    --rd-alarm:     #f04747;   /* 경보·위험(빨강은 여기서만) */
+    --rd-alarm-tx:  #ffb3b3;
+    --rd-advisory:  #f59e0b;   /* 주의보 */
+    --rd-advisory-tx: #ffd28a;
+    --rd-watch:     #e8c547;   /* 예비특보 */
+    --rd-calm:      #7fb8a8;   /* 특보 없음(초록 원색 대신 차분한 청록 회색) */
+
+    /* 원래 앱 변수도 같은 값으로 맞춰, 변수를 쓰는 곳은 자동으로 따라오게 */
+    --text-sub: var(--rd-text-3);
+    --card-bg: var(--rd-surface);
+    --border-color: var(--rd-line);
+    --accent-blue: var(--rd-accent);
+    --font-family: 'Noto Sans KR', sans-serif;   /* Inter + 한글 혼용 대신 한글 글꼴 하나 */
+}
+
+/* ── 1. 바탕 — 사선 무늬·빛 번짐 원(orb) 없이 단색 ─────────────────────────── */
+body.rd-preview::before {
+    background-image: none !important;
+    background-color: var(--rd-bg) !important;
+}
+
+/* ── 2. 머리글(로고·방문자 수·버튼) ──────────────────────────────────────── */
+body.rd-preview .logo-text {
+    background: none;
+    -webkit-text-fill-color: var(--rd-text);
+    color: var(--rd-text);
+    text-shadow: none;
+}
+body.rd-preview .logo-accent {
+    animation: none;
+    -webkit-text-fill-color: var(--rd-accent);
+}
+/* 방문자 수·머리 버튼은 style.css 의 휴대폰용 @media 규칙이 !important 로 크기를 정해서 여기서도 !important */
+body.rd-preview .vc-label { font-size: 12px !important; color: var(--rd-text-3); opacity: 1; }
+body.rd-preview .vc-count,
+body.rd-preview .vc-dot   { font-size: 12px !important; }
+body.rd-preview .header-settings-btn,
+body.rd-preview .header-report-btn {
+    width: 40px !important;
+    height: 40px !important;
+    max-width: none !important;
+    max-height: none !important;
+    font-size: 15px !important;
+}
+body.rd-preview .kma-brand-text { font-size: 11px; }
+body.rd-preview .kma-btn {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* ── 3. 특보정보 탭 — 머리줄(아코디언) ─────────────────────────────────────
+ * 원래: 회색·청록·빨강/초록·파랑 그라데이션 4색 → 색에 일정한 뜻이 없었다.
+ * 미리보기: 모두 같은 카드. 「특보 발효」일 때만 빨간 테두리·옅은 빨간 바탕. */
+body.rd-preview .main-accordion-header,
+body.rd-preview .main-accordion-header.gradient-slate,
+body.rd-preview .main-accordion-header.gradient-marine,
+body.rd-preview .main-accordion-header.gradient-safe,
+body.rd-preview .main-accordion-header.gradient-briefing,
+body.rd-preview .main-accordion-header.gradient-prediction {
+    background: var(--rd-surface);
+    border: 1px solid var(--rd-line);
+    border-radius: 14px;
+    filter: none;
+}
+body.rd-preview .main-accordion-header.gradient-alert {
+    background: rgba(240, 71, 71, 0.12);
+    border: 1px solid rgba(240, 71, 71, 0.55);
+}
+/* 발효 중인 특보가 주의보뿐이면 머리줄도 주황(빨강은 경보가 있을 때만) — rd-hdr-advisory 는 redesign_preview.js _tagHeader 가 붙인다 */
+body.rd-preview .main-accordion-header.gradient-alert.rd-hdr-advisory {
+    background: rgba(245, 158, 11, 0.10);
+    border: 1px solid rgba(245, 158, 11, 0.55);
+}
+body.rd-preview .gradient-alert.rd-hdr-advisory .section-title i { color: var(--rd-advisory); }
+/* 머리줄 아이콘: 기본은 보조 글자색, 특보 발효일 때만 빨강, 특보 없음은 차분한 청록 */
+body.rd-preview .section-title i { color: var(--rd-text-2); }
+body.rd-preview .gradient-alert .section-title i { color: var(--rd-alarm); }
+body.rd-preview .gradient-safe  .section-title i { color: var(--rd-calm); }
+body.rd-preview .section-title {
+    text-transform: none;
+    letter-spacing: 0;
+}
+/* 톱니(⚙) — 원래 #64748b 로 머리줄 위 대비 1.3~2.2:1 → 거의 안 보였다 */
+body.rd-preview .accordion-gear-btn,
+body.rd-preview #station-briefing-settings-btn {
+    color: var(--rd-text-2) !important;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+/* beta 표시: 네온·계속 깜빡임 → 조용한 작은 표지 */
+body.rd-preview .adv-beta-badge,
+body.rd-preview .adv-beta-badge.beta-neon,
+body.rd-preview .adv-beta-badge.beta-chip {
+    animation: none;
+    text-shadow: none;
+    box-shadow: none;
+    font-style: normal;
+    font-weight: 600;
+    font-size: 11px;
+    top: -0.35em;
+    margin-left: 6px;
+    padding: 1px 6px;
+    color: var(--rd-text-2);
+    background: transparent;
+    border: 1px solid var(--rd-line);
+}
+
+/* ── 4. 특보 배지 — 경보와 주의보를 색으로 가른다 ──────────────────────────
+ * 원래: .status-badge.warning 하나(빨강)로 경보·주의보를 함께 칠했다.
+ * redesign_preview.js 가 글자를 읽어 .rd-lv-alarm(경보)/.rd-lv-advisory(주의보) 를 붙인다. */
+body.rd-preview .status-badge { font-size: 12px; letter-spacing: 0; padding: 4px 9px; }
+body.rd-preview .status-badge.warning.rd-lv-alarm {
+    background: var(--rd-alarm);
+    color: #fff;
+    border: 1px solid var(--rd-alarm);
+}
+body.rd-preview .status-badge.warning.rd-lv-advisory {
+    background: rgba(245, 158, 11, 0.16);
+    color: var(--rd-advisory-tx);
+    border: 1px solid rgba(245, 158, 11, 0.70);
+}
+body.rd-preview .status-badge.preliminary {
+    background: transparent;
+    color: var(--rd-watch);
+    border: 1px dashed var(--rd-watch);
+}
+body.rd-preview .status-badge.orange {           /* 「발표」 */
+    background: transparent;
+    color: var(--rd-advisory-tx);
+    border: 1px solid rgba(245, 158, 11, 0.60);
+}
+body.rd-preview .status-badge.safe {
+    background: transparent;
+    color: var(--rd-calm);
+    border: 1px solid rgba(127, 184, 168, 0.45);
+}
+/* 해역별 건수 배지: 빨강~주황 그라데이션(특보 수)·하늘색 그라데이션(해역 수, 흰 글자 대비 2.4:1) → 단색 */
+body.rd-preview .count-badge {
+    background: rgba(240, 71, 71, 0.18);
+    color: var(--rd-alarm-tx);
+    border: 1px solid rgba(240, 71, 71, 0.55);
+    box-shadow: none;
+    font-size: 12px;
+}
+body.rd-preview .count-badge.zero,
+body.rd-preview [id^="status-"][id$="-count"].count-badge {
+    background: var(--rd-surface-2);
+    color: var(--rd-text-2);
+    border: 1px solid var(--rd-line);
+}
+/* 해역 머리의 장식 이모지(🌅🌊🏖️🍊) — 정보가 아니라 감춘다 */
+body.rd-preview span[style*="font-size: 1.5rem; margin-right: 8px;"] { display: none; }
+/* 파고·풍속 평균 배지: 2초마다 테두리 깜빡임 → 멈춤 */
+body.rd-preview .zone-avg-box .zone-avg-badge { animation: none; font-size: 12px; }
+body.rd-preview .buoy-status-btn,
+body.rd-preview .overview-btn { min-height: 36px; }
+
+/* ── 5. 하단 메인탭·하위탭 ─────────────────────────────────────────────── */
+body.rd-preview .bottom-main-tabs .tab-btn {
+    font-size: 12px !important;
+    color: var(--rd-text-3) !important;
+}
+body.rd-preview .bottom-main-tabs .tab-btn.active {
+    color: var(--rd-accent) !important;
+    border-top-color: var(--rd-accent);
+}
+
+/* ── 6. 지도 위 버튼(해양종합정보·해양안전) ──────────────────────────────
+ * 원래: 폭 38px, 라벨 8px 한 줄. 미리보기: 폭 44px, 라벨 11px 두 줄(「풍향/풍속」).
+ * 두 줄 글자는 원래 「글자 크게」 설정에서 쓰던 data-line1/2 를 그대로 쓴다. */
+body.rd-preview .ocean-overlay-btn {
+    width: 44px;
+    padding: 7px 0 6px;
+    gap: 3px;
+    color: var(--rd-text-2);
+    background: rgba(19, 28, 46, 0.92);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+body.rd-preview .ocean-overlay-btn.active {
+    background: #1f4f9e;
+    color: #fff;
+    box-shadow: none;
+}
+body.rd-preview .ocean-overlay-label[data-line1] {
+    font-size: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+body.rd-preview #ocean-warn-active-toggle-btn .ocean-overlay-label { font-size: 0; }
+/* 「위험예측」 버튼은 data-line1/2 가 없고 원래 .6rem 고정(risk_forecast.css) → 두 줄 11px 로 */
+body.rd-preview #ocean-risk-forecast-toggle-btn .ocean-overlay-label {
+    font-size: 0 !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+body.rd-preview #ocean-risk-forecast-toggle-btn .ocean-overlay-label::before,
+body.rd-preview #ocean-risk-forecast-toggle-btn .ocean-overlay-label::after {
+    display: block;
+    font-size: 11px;
+    line-height: 1.1;
+    font-weight: 600;
+}
+body.rd-preview #ocean-risk-forecast-toggle-btn .ocean-overlay-label::before { content: '위험' !important; }   /* risk_forecast.css:5 가 content:none !important */
+body.rd-preview #ocean-risk-forecast-toggle-btn .ocean-overlay-label::after  { content: '예측' !important; }
+body.rd-preview .ocean-overlay-label[data-line1]::before,
+body.rd-preview .ocean-overlay-label[data-line2]::after {
+    display: block;
+    font-size: 11px;
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: inherit;
+}
+body.rd-preview .ocean-overlay-label[data-line1]::before { content: attr(data-line1); }
+body.rd-preview .ocean-overlay-label[data-line2]::after  { content: attr(data-line2); }
+
+/* ── 7. 지도 아래 정보창(바텀시트) ───────────────────────────────────────── */
+body.rd-preview .ocean-card-icon-label { font-size: 11px; }
+body.rd-preview .ocean-card-icon { min-width: 52px; }
+body.rd-preview .ocean-astro-label,
+body.rd-preview .ocean-astro-times,
+body.rd-preview .ocean-astro-t { font-size: 12px; }
+body.rd-preview .ocean-card-attrib { font-size: 11px; line-height: 14px; color: var(--rd-text-3); }
+/* 머리 줄(내 위치 · ‹ 날짜 › · ☆)은 한 줄에 다 들어가야 해서 44px 대신 38px(원래 28~34px).
+   닫기 ✕ 는 머리 줄 밖 오른쪽 위라 40px. */
+body.rd-preview .ocean-date-nav-btn,
+body.rd-preview .ocean-loc-toggle,
+body.rd-preview .ocean-loc-favorite {
+    width: 38px;
+    height: 38px;
+    font-size: 15px;
+}
+body.rd-preview .ocean-sheet-close {
+    width: 34px;    /* 40px 이면 머리 줄 ☆ 버튼에 닿는다(390px 폭 실측) */
+    height: 34px;
+    font-size: 15px;
+}
+
+/* ── 8. 위험예측 특보 상자 — 경보·주의보를 색으로 가른다(원래 둘 다 빨간 점선) ── */
+body.rd-preview .rf-warn-box[data-level="경보"] {
+    border: 2px solid var(--rd-alarm);
+    background: rgba(240, 71, 71, 0.12);
+}
+body.rd-preview .rf-warn-box[data-level="주의보"] {
+    border: 1.5px solid var(--rd-advisory);
+    background: rgba(245, 158, 11, 0.10);
+}
+body.rd-preview .rf-warn-box[data-state="예비"] {
+    border: 1.5px dashed var(--rd-watch);
+    background: transparent;
+}
+
+/* ── 9. 공지사항 — 네온 빛번짐 제거, 빨강은 공지에 쓰지 않는다 ───────────── */
+body.rd-preview .promo-item.pinned-post {
+    background: var(--rd-surface-2);
+    border: 1px solid rgba(90, 162, 255, 0.45);
+    box-shadow: none;
+}
+body.rd-preview .promo-badge {
+    text-shadow: none;
+    box-shadow: none;
+    font-size: 12px;
+    letter-spacing: 0;
+}
+/* 게시판 분류 배지: 색은 관리자가 게시판마다 정해 인라인 style 로 박힌다(js/notice/board/promo.js getCategoryBadge,
+   빛번짐 box-shadow 포함). 미리보기에서는 분류를 글자로 구분하고 색은 한 가지로 — 빨강 「공지」 가 위험처럼 보이지 않게. */
+body.rd-preview .promo-badge,
+body.rd-preview .promo-badge-red,
+body.rd-preview .promo-badge-blue,
+body.rd-preview .promo-badge-green,
+body.rd-preview .promo-badge-gray {
+    color: var(--rd-text-2) !important;
+    background: var(--rd-surface-2) !important;
+    border: 1px solid var(--rd-line) !important;
+    box-shadow: none !important;
+}
+body.rd-preview .promo-tab-btn { min-height: 40px; }
+
+/* ── 10. 켜고 끌 때 뜨는 안내(redesign_preview.js _toast) — 미리보기 여부와 무관하게 보인다 ── */
+.rd-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    z-index: 50000;
+    max-width: calc(100vw - 32px);
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: #1a2539;
+    color: #eaf0f8;
+    border: 1px solid rgba(160, 180, 210, 0.25);
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: center;
+    pointer-events: none;
+}
