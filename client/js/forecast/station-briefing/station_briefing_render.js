@@ -113,16 +113,17 @@
      * 본문 머리 글 — 2026-10-17 사용자 결정(설계서 §11.10.9 ⑦) 원문 *"10월 17일 몇시 브리핑, 몇시 기준 브리핑 이렇게 나왔으면 좋겠고 관리자 즉시 실행판이라고 그런 종류를 써놓을 필요는 없을 것 같아 그리고 몇 시에 생성됐는지도 적힐 필요 없을 것 같아
      * 단 그 오른쪽에 괄호로서 다음 브리핑 갱신 시점 몇 시 … 또는 특보 변경 시 라고 하고 괄호를 닫았으면 좋겠거든."*
      * 날짜·시각 = 제목 「HH:MM AI 연안 안전 브리핑」과 같은 판 시각(editionIso). 다음 갱신 = 서버 nextPublishAt(다음 정시 판 공개 시각) — 오늘이 아니면 「내일 HH:MM」. 없으면 괄호 없이.
-     * 예: subtitleText({edition:'evening',publishAt:'2026-10-17T17:30:00+09:00'}, '2026-10-17T23:00:00+09:00', 10-17 18:00) → '10월 17일 17:30 기준 브리핑 (다음 갱신 23:00 또는 특보 변경 시)'
-     *     밤 23:05 · next '2026-10-18T07:30…' → '… (다음 갱신 내일 07:30 또는 특보 변경 시)'
+     * 예: subtitleText({edition:'evening',publishAt:'2026-10-17T17:30:00+09:00'}, '2026-10-17T23:00:00+09:00', 10-17 18:00) → '다음 갱신 23:00 또는 특보 변경 시'(2026-10-19 — 종전 「10월 17일 17:30 기준 브리핑 (…)」)
+     *     밤 23:05 · next '2026-10-18T07:30…' → '다음 갱신 내일 07:30 또는 특보 변경 시' · nextIso 없음 → ''
      * @param {Object} b @param {string} [nextIso] - resp.nextPublishAt @param {number} nowMs @returns {string} [연계] ← render(.sb-edition)
      */
     function subtitleText(b, nextIso, nowMs) {
-        var iso = editionIso(b), d = /^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso), n = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(String(nextIso || ''));
-        var head = d ? (+d[1]) + '월 ' + (+d[2]) + '일 ' + d[3] + ':' + d[4] + ' 기준 브리핑' : dateText(b && b.targetDate) + ' 브리핑';
-        if (!n) return head;
+        // 2026-10-19 사용자 *"10월 19일 07:30 기준 브리핑이라는 텍스트를 제거하고 다음 갱신 17:30 또는 특보 변경시 라고만 나오도록"* — 판 날짜·시각 글과 괄호를 뺐다
+        //   (판 시각은 아코디언 제목 「HH:MM AI 연안 안전 브리핑」에 그대로 있다). 다음 갱신 시각이 없으면 빈 글 — 부르는 쪽이 줄을 그리지 않는다.
+        var n = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(String(nextIso || ''));
+        if (!b || !n) return '';
         var today = new Date(nowMs + 9 * 3600000).toISOString().slice(0, 10);
-        return head + ' (다음 갱신 ' + (n[1] === today ? '' : '내일 ') + n[2] + ':' + n[3] + ' 또는 특보 변경 시)';   // §11.10.20 덧붙임 16 — 사용자 *"다음 브리핑 00:00 이 아닌 다음 갱신 00:00으로 해줘."*(종전 「다음 브리핑 갱신」)
+        return '다음 갱신 ' + (n[1] === today ? '' : '내일 ') + n[2] + ':' + n[3] + ' 또는 특보 변경 시';   // §11.10.20 덧붙임 16 — 사용자 *"다음 브리핑 00:00 이 아닌 다음 갱신 00:00으로 해줘."*(종전 「다음 브리핑 갱신」)
     }
     /**
      * 아코디언 제목 — 2026-10-17 사용자 *"연안 안전 브리핑 아코디언을 hh:mm AI 연안 안전 브리핑으로 변경해줘."*. 보이는 판의 시각을 앞에, 판이 없으면 시각 없이.
@@ -832,7 +833,7 @@
         var top = el('div', 'sb-meta');
         var left = el('div', 'sb-meta-text');
         if (b && b.station) left.appendChild(el('strong', 'sb-station', (b.station.name || '') + (b.station.office ? ' · ' + b.station.office : '')));
-        if (b) left.appendChild(el('span', 'sb-edition', subtitleText(b, resp && resp.nextPublishAt, nowMs)));   // §11.10.9 ⑦ — 판 종류·생성 시각 없음
+        var subT = subtitleText(b, resp && resp.nextPublishAt, nowMs); if (subT) left.appendChild(el('span', 'sb-edition', subT));   // §11.10.9 ⑦ — 판 종류·생성 시각 없음
         top.appendChild(left);
         var basis = el('button', 'rf-basis-btn sb-basis-btn', '기준 상세'); basis.type = 'button';
         basis.addEventListener('click', function (e) { e.stopPropagation(); if (w.RiskBasis) w.RiskBasis.open('briefing', basis); });

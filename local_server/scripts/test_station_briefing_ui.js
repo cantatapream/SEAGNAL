@@ -497,8 +497,8 @@ function makeBriefings() {
             assert.ok(s.tideLines.length >= 1 && s.tideLines[0].includes('저조 뒤부터 물이 차오릅니다'), '물때 글은 총평 「물때」 칸에 그대로 ' + s.tideLines[0]);
             // §11.10.20: 「기준 시각 … 판」·「다루는 시간」 줄 없음 · 노란 안내(옛 「참고 정보이며 …」 대체) · 2026-10-18 「데이터 출처 보기」 삭제(출처는 [기준 상세]에만)
             assert.equal(s.foot, '※각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.', s.foot);   // §11.10.28 앞 「※」 칸
-            assert.equal(s.edition, '10월 17일 13:10 기준 브리핑 (다음 갱신 17:30 또는 특보 변경 시)', '§11.10.9 ⑦ — 판 종류·생성 시각 없이, 제목과 같은 시각 + 다음 갱신');
-            assert.ok(s.title.startsWith(/\d{2}:\d{2}/.exec(s.edition)[0] + ' '), '제목 시각 = 머리 글 시각 — ' + s.title);
+            assert.equal(s.edition, '다음 갱신 17:30 또는 특보 변경 시', '§11.10.9 ⑦ — 판 종류·생성 시각 없이, 제목과 같은 시각 + 다음 갱신');
+            assert.ok(/^13:10 AI 연안 안전 브리핑/.test(s.title), '판 시각은 제목에만(2026-10-19 머리 글에서 뺌) — ' + s.title);
             await page.evaluate(() => { document.querySelectorAll('#station-briefing-content button[data-sb-x^="basis-"]').forEach((x) => { if (x.getAttribute('aria-expanded') === 'true') x.click(); }); });
         });
         await check('서버 글은 textContent — HTML 문자열이 글자로 보이고 img 가 생기지 않는다', async () => {
@@ -1208,7 +1208,7 @@ function makeBriefings() {
             assert.ok((await content(page)).includes('다음 브리핑 공개: 10월 17일(토) 23:00'));
             await pickStation(page, HALLIM); await page.waitForSelector('[data-sb-sec="overview"]');
             const t = await content(page); assert.ok(!t.includes('아직 없어') && !t.includes('보여 드립니다'), '§11.10.9 ⑦ — 「…아직 없어 … 보여 드립니다」 상자 없음: ' + t.slice(0, 200));
-            assert.equal(await page.$eval('#station-briefing-content .sb-edition', (e) => e.textContent), '10월 17일 13:10 기준 브리핑 (다음 갱신 23:00 또는 특보 변경 시)');
+            assert.equal(await page.$eval('#station-briefing-content .sb-edition', (e) => e.textContent), '다음 갱신 23:00 또는 특보 변경 시');   // 2026-10-19 판 날짜·시각 글 뺌
             clock.now = Date.parse('2026-10-17T10:05:00+09:00');
         });
         await page.context().close();
@@ -1381,9 +1381,9 @@ function makeBriefings() {
             fs.writeFileSync(path.join(dir, 'briefings_2026-10-17.json'), JSON.stringify({ date: '2026-10-17', stations: { [HALLIM]: B.h, [BUSAN]: B.b, [MOKPO]: B.m }, pending: { [HALLIM]: ev } }));
             const user = await http('/api/station-briefing?station=' + encodeURIComponent(HALLIM) + '&adminToken=admin-push-token');
             assert.deepEqual([user.body.briefing.edition, user.body.pending], ['warning', undefined], '사용자에게는 공개 시각까지 지금 판');
-            await tap(page, '[data-sb-preview-go]'); await page.waitForFunction(() => { const e = document.querySelector('[data-sb-preview-out] .sb-edition'); return e && e.textContent.startsWith('10월 17일 17:30'); });
+            await tap(page, '[data-sb-preview-go]'); await page.waitForFunction(() => { const e = document.querySelector('[data-sb-preview-out] .sb-edition'); return e && e.textContent.startsWith('다음 갱신 '); });
             const r = await page.evaluate(() => ({ note: !!document.querySelector('[data-sb-preview-out] [data-sb-pending]'), text: document.querySelector('[data-sb-preview-out]').textContent, ed: document.querySelector('[data-sb-preview-out] .sb-edition').textContent }));
-            assert.ok(!r.note && !r.text.includes('예정 — ') && !r.text.includes('공개될 판입니다'), '§11.10.10 F — 「예정 — …」 안내 없음'); assert.ok(r.ed.startsWith('10월 17일 17:30 기준 브리핑 (다음 갱신 '), r.ed);
+            assert.ok(!r.note && !r.text.includes('예정 — ') && !r.text.includes('공개될 판입니다'), '§11.10.10 F — 「예정 — …」 안내 없음'); assert.ok(r.ed.startsWith('다음 갱신 ') && !r.ed.includes('기준 브리핑'), r.ed);
             await page.evaluate(() => [...document.querySelectorAll('[data-sb-status] button')].find((b) => b.textContent === '새로고침').click()); await page.waitForSelector('[data-sb-pending-status]');
             assert.ok((await page.$eval('[data-sb-pending-status]', (e) => e.textContent)).includes('10-17 17:30 — 1곳(그때까지 사용자에게는 이전 판)'));
             writeDay('2026-10-17', { [HALLIM]: B.h, [BUSAN]: B.b, [MOKPO]: B.m });
@@ -1791,7 +1791,7 @@ function makeBriefings() {
                 // §11.10.1 판(10-17 저녁까지 저장 — summary.weather 는 있고 analysis 없음): 그 모양(결론 → 기상 → 물때 → 근거 → 해설) 그대로, 칩은 「연안」 이름표
                 const v2 = JSON.parse(JSON.stringify(base)); delete v2.summary.analysis; delete v2.publishAt; v2.edition = 'morning'; v2.generatedAt = '2026-10-17T08:00:00+09:00';
                 R.render(box, { ok: true, briefing: v2 }, { now });
-                out.v2 = { parts: [...box.querySelectorAll('[data-sb-part]')].map((e) => e.dataset.sbPart), label: (box.querySelector('[data-sb-part="conclusion"] .sb-level-k') || {}).textContent, cm: box.querySelectorAll('[data-sb-commentary]').length, analysis: box.querySelectorAll('[data-sb-analysis]').length, title: R.titleText(v2), edition: box.querySelector('.sb-edition').textContent };
+                out.v2 = { parts: [...box.querySelectorAll('[data-sb-part]')].map((e) => e.dataset.sbPart), label: (box.querySelector('[data-sb-part="conclusion"] .sb-level-k') || {}).textContent, cm: box.querySelectorAll('[data-sb-commentary]').length, analysis: box.querySelectorAll('[data-sb-analysis]').length, title: R.titleText(v2), edition: box.querySelector('.sb-edition') ? box.querySelector('.sb-edition').textContent : null };
                 R.render(box, { ok: true, briefing: null, nextExpectedAt: '2026-10-17T08:00:00+09:00' }, { now }); out.passed = box.textContent;
                 R.render(box, { ok: true, briefing: null, nextExpectedAt: '2026-10-17T17:30:00+09:00' }, { now }); out.ahead = box.textContent;
                 box.remove();
@@ -1816,7 +1816,7 @@ function makeBriefings() {
             assert.ok(r.tomorrow.startsWith('내일 평소와 달라진 요소'), r.tomorrow); assert.ok(r.today.startsWith('오늘 평소와 달라진 요소'), r.today);
             assert.ok(r.passed.includes('다음 브리핑을 준비 중입니다(10월 17일(토) 08:00 공개 예정)'), r.passed);
             assert.deepEqual([r.v2.parts, r.v2.label, r.v2.cm, r.v2.analysis, r.v2.title], [['conclusion', 'weather', 'tide', 'land', 'sea', 'commentary'], '연안', 2, 0, '08:00 AI 연안 안전 브리핑'], '§11.10.1 판(분석 문단 없음)은 그 모양 그대로 · 옛 정시 판 제목 시각 = 만든 시각');
-            assert.equal(r.v2.edition, '10월 17일 08:00 기준 브리핑', '옛 정시 판(공개 시각 없음) = 만든 시각 · nextPublishAt 없으면 괄호 없음');
+            assert.equal(r.v2.edition, null, '2026-10-19 — 판 날짜·시각 글 뺌 · nextPublishAt 없으면 머리 글 줄 없음');
             assert.deepEqual([r.old.sum, r.old.basis], [0, true], '옛 브리핑은 새 모양 대신 종전 문단 + 근거 접힘');
             assert.deepEqual([r.v1.parts, r.v1.landHead, r.v1.landTide], [0, base.summary.land.headline, ['06:12 저조 뒤부터 물이 차오릅니다']], '§11.10 판 브리핑은 그 모양(육상 덩어리 안 물때) 그대로');
             assert.ok(r.old.paras[0].startsWith('land:연안 오늘 한림파출소 관할 육상은') && r.old.paras[1].startsWith('sea:해상 '), r.old.paras.join(' / ')); assert.ok(r.old.src.includes('기본 문장(틀)'), r.old.src);
