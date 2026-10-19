@@ -32,7 +32,7 @@ node local_server/scripts/gen_harbor_cells.js            # 운영 https://seagna
 node local_server/scripts/gen_harbor_cells.js --cache /tmp/harbor   # 받은 응답을 두고 판정만 다시
 ```
 
-같이 [harbor_cells_review.md](harbor_cells_review.md)(불확실 후보표 — 적용 안 함)를 다시 쓴다. 근거 자료(해경 위험구역·사고 장소글·육지 마스크)가 바뀌면 `test_harbor_cells.js` 「재판정 일치」 사례가 실패해 다시 만들 때를 알린다.
+같이 [harbor_cells_review.md](harbor_cells_review.md)(불확실 후보표 — 적용 안 함)를 다시 쓴다. 판정에 쓰는 공식 항 정리 파일(`local_server/config/coastal_safety/official_ports.json` — 해양수산부 공공데이터포털 원문에서)은 원본이 새로 올라왔을 때만 다시 만든다: `node local_server/scripts/build_official_ports.js --src /tmp/ports --download`(원본은 그 폴더에만 — 저장소에 넣지 않음). 근거 자료(해경 위험구역·사고 장소글·육지 마스크)가 바뀌면 `test_harbor_cells.js` 「재판정 일치」 사례가 실패해 다시 만들 때를 알린다.
 
 ## 응답과 결측
 
