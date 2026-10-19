@@ -39,7 +39,7 @@ function store({ hCount = 23, oCount = 23, cong = '낮음', harbor = harborList 
     const row = (id) => ({ gridId: id, fcstDate: '20261012', fcstTime: '1300', congestionIndex: cong === '매우높음' ? 33.2 : .5, congestionLevel: cong });
     const inp = { version: 1, cells: { cells: [cellH, cellO] }, congestion: { frames: { '202610121300': [row(HB), row(OP)] } }, accident: { cells: [], frames: {} },
         sources: { accident: { status: 'ok' }, congestion: { status: 'ok' }, zoneForecasts: { status: 'ok' } }, weather: () => ({ wh: .5, ws: 3, forecastAt: '2026-10-12T12:00:00+09:00' }) };
-    const s = M.createStore({ risk: { marineInputs: () => inp }, dir, clock: () => Date.parse(T13), stations, accidents: [], describe, harbor, zonesFor: () => null, ports: [] });   // ports: [] — 해역 이름은 가짜 주요지명 그대로(공식 항 기준점 §11.10.42 는 test_station_briefing·test_marine_fusion 이 본다)
+    const s = M.createStore({ risk: { marineInputs: () => inp }, dir, clock: () => Date.parse(T13), stations, accidents: [], describe, harbor, zonesFor: () => null, ports: [] });   // ports: [] — 해역 이름은 가짜 주요지명 그대로(공식 항 기준점 §11.10.43 는 test_station_briefing·test_marine_fusion 이 본다)
     s.cleanup = () => fs.rmSync(dir, { recursive: true, force: true }); return s;
 }
 
@@ -81,15 +81,21 @@ function store({ hCount = 23, oCount = 23, cong = '낮음', harbor = harborList 
     });
     // ── 2. 저장소 목록 ──
     const list = JSON.parse(fs.readFileSync(H.FILE, 'utf8'));
-    await check('목록 파일: 공식 근거로 올라간 칸 표본(옥포항·다대포항·청산도항·영목항 구역) = 공식 등급·항 이름·종류 기록 · 불확실 140 = 공식 51 + 남음 89(2026-10-19 09:28 자료) · 미조항(어항정보 2019 국가어항) 칸 = 공식', () => {
+    await check('목록 파일: 공식 근거로 올라간 칸 표본(옥포항·다대포항·청산도항) = 공식 등급·항 이름·종류 기록 · 불확실 140 = 공식 50 + 사용자 제외 1(영목항 구역 칸) + 남음 89(2026-10-19 09:28 자료) · 미조항(어항정보 2019 국가어항) 칸 = 공식', () => {
         const by = new Map(list.cells.map((c) => [c.id, c]));
-        for (const [id, name, kind] of [['GR4_G3E21_O1', '옥포항', '무역항'], ['GR4_G3A44_T3', '다대포항', '국가어항'], ['GR4_F4G44_H1', '청산도항', '국가어항'], ['GR4_F2O32_I4', '영목항', '국가어항'], ['GR4_G3E13_A4', '미조항', '국가어항']]) {
+        for (const [id, name, kind] of [['GR4_G3E21_O1', '옥포항', '무역항'], ['GR4_G3A44_T3', '다대포항', '국가어항'], ['GR4_F4G44_H1', '청산도항', '국가어항'], ['GR4_G3E13_A4', '미조항', '국가어항']]) {
             const c = by.get(id); assert.ok(c, id); assert.equal(c.grade, '공식', id); assert.ok(c.official.some((p) => p.name === name && p.kind === kind), id); assert.ok(c.names.includes(name), id);
         }
         assert.equal(list.counts.official, list.cells.filter((c) => c.grade === '공식').length);
-        assert.deepEqual([list.counts.official, list.counts.uncertain, list.counts.strong, list.counts.medium], [51, 89, 134, 52]);
+        assert.deepEqual([list.counts.official, list.counts.uncertain, list.counts.strong, list.counts.medium, list.counts.userExcluded], [50, 89, 134, 52, 1]);
         assert.equal(list.counts.strongMediumWithOfficial + list.counts.strongMediumWithoutOfficial, list.counts.strong + list.counts.medium);
         assert.ok(list.cells.every((c) => Array.isArray(c.official)) && list.criteria.official.includes('data.go.kr/data/15088273'));
+    });
+    await check('사용자 제외: 영목항 구역만 걸친 칸 GR4_F2O32_I4 — 자동 판정은 공식이어도 목록에 없음 · 제외 목록에 사유·사용자 원문 「거기는 항구칸으로 보면 안될 것 같아 영목항은.」·날짜', () => {
+        assert.equal(G.grade(G.evidenceFor(ctx, 'GR4_F2O32_I4')), '공식', '자동 판정은 그대로');
+        assert.ok(!list.cells.some((c) => c.id === 'GR4_F2O32_I4')); assert.equal(H.forDefault().has('GR4_F2O32_I4'), false);
+        assert.deepEqual(G.USER_EXCLUDED.GR4_F2O32_I4.quote, '거기는 항구칸으로 보면 안될 것 같아 영목항은.'); assert.equal(G.USER_EXCLUDED.GR4_F2O32_I4.date, '2026-10-19');
+        assert.ok(list.cells.every((c) => !G.USER_EXCLUDED[c.id]));
     });
     await check('목록 파일: 강·중·공식만 · 한림항·도두항·제주항 칸 있음 · 보령 앞바다 두 칸·먼바다 칸 없음 · 기준·칸 수 기록', () => {
         const ids = new Set(list.cells.map((c) => c.id));
@@ -111,7 +117,8 @@ function store({ hCount = 23, oCount = 23, cong = '낮음', harbor = harborList 
         assert.equal(rows.length, list.counts.uncertain); assert.ok(rows.every((l) => l.includes('https://www.google.com/maps?q=')));
         assert.ok(rows.every((l) => / \| 없음 — 가장 가까운 공식 항 \S+\((무역항|연안항|국가어항|지방어항|어촌정주어항|마을공동어항)\) [\d.]+km \| /.test(l)), rows.find((l) => !l.includes('없음 — ')));
         const applied = new Set(list.cells.map((c) => c.id)); assert.ok(rows.every((l) => !applied.has(l.split('|')[2].trim())));
-        assert.equal(parts.length, 3); assert.equal(rowsOf(parts[1]).length, list.counts.official); assert.equal(rowsOf(parts[2]).length, list.counts.strongMediumWithoutOfficial);
+        assert.equal(parts.length, 4); assert.ok(parts[1].startsWith('사용자 제외(1') && parts[1].includes('| GR4_F2O32_I4 |') && parts[1].includes('「거기는 항구칸으로 보면 안될 것 같아 영목항은.」'), parts[1].slice(0, 300));
+        assert.equal(rowsOf(parts[2]).length, list.counts.official); assert.equal(rowsOf(parts[3]).length, list.counts.strongMediumWithoutOfficial);
     });
     await check('목록 읽기: of·has·size · 깨진 목록이면 빈 목록(아무 칸도 빼지 않음)', () => {
         assert.equal(harborList.has(HB), true); assert.equal(harborList.of(OP), null); assert.equal(harborList.size, 1);

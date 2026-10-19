@@ -34,6 +34,10 @@ const PORT_TYPES = new Set(['항포구(선착장)', '방파제(TTP)', '방파제
 const INPORT = /항\s*내|항내|안벽|물양장|계류|정박|부두|접안|선착장|포구|선창|어항|마리나|방파제/;
 const OFFSET = /\d+(\.\d+)?\s*(마일|해리|km|키로)/;
 const NAME = /[가-힣]{1,6}(?:항|포구|선착장|부두|방파제)/g;
+// 사람 판정으로 항구 칸에서 뺀 칸 — 자동 판정(등급)이 무엇이든 목록에 넣지 않고 후보표 「사용자 제외」에 남긴다(재생성 때도 그대로).
+const USER_EXCLUDED = {
+    GR4_F2O32_I4: { reason: '영목항 국가어항 구역만 걸친 칸(안면도 영목항~원산도 물길, 보령 앞 27번 칸 서쪽) — 실제 통항이 함께 빠질 수 있음', quote: '거기는 항구칸으로 보면 안될 것 같아 영목항은.', date: '2026-10-19' }
+};
 const BUSY = 14;   // 「붐비는 해역」 기준(routes/station_briefing.js nowLineFrom · marine_fusion NOTICE_COUNT 와 같은 값)
 
 /**
@@ -216,7 +220,7 @@ async function main() {
         const p = pos.get(id); cand.push({ id, lat: Math.round(p.lat * 1e4) / 1e4, lon: Math.round(p.lon * 1e4) / 1e4, grade: grade(e), why, now: n, maxCount: h ? Math.round(h.max * 10) / 10 : null, share14: h ? Math.round(h.share14 * 100) / 100 : null, congMax: c, evidence: e });
     }
     cand.sort((a, b) => a.id.localeCompare(b.id));
-    const applied = cand.filter((c) => c.grade === '강' || c.grade === '중' || c.grade === '공식'), unsure = cand.filter((c) => c.grade === '불확실');
+    const userOut = cand.filter((c) => USER_EXCLUDED[c.id]), applied = cand.filter((c) => !USER_EXCLUDED[c.id] && (c.grade === '강' || c.grade === '중' || c.grade === '공식')), unsure = cand.filter((c) => !USER_EXCLUDED[c.id] && c.grade === '불확실');
     const offMeta = JSON.parse(fs.readFileSync(path.join(ROOT, OFFICIAL), 'utf8')), noOfficial = applied.filter((c) => !c.evidence.official.length);
     const at = (i) => span ? new Date(Date.parse(span.start) + i * 1800000 + 9 * 3600000).toISOString().slice(0, 16).replace('T', ' ') : '-';
     const window = span ? at(span.first) + ' ~ ' + at(span.last) + ' KST(30분 칸 ' + span.slots + '개)' : '이력 없음';
@@ -226,9 +230,10 @@ async function main() {
             candidate: '근거(해경 항포구·방파제·선착장 구역 / 항 안 사고글 / 육지 10% 이상)가 있는 GR4 칸 가운데, 실시간 30분 평균 척수 이력(' + window + ')에서 한 번이라도 ' + BUSY + '척 이상 · 지금(' + (cur.status && cur.status.sourceAt) + ') ' + BUSY + '척 이상 · 혼잡 예보(' + times[0] + ' ~ ' + times[times.length - 1] + ') \'높음\' 이상 중 하나',
             grade: '강 = 해경 구역 + 항 안 사고글 1건 이상 · 중 = 해경 구역만, 또는 항 안 사고글 3건 이상이고 육지 10% 이상 · 공식 = 불확실 근거 + 칸 안에 해양수산부 공식 항(대표 좌표 또는 국가어항 구역) · 불확실 = 그 밖의 근거(목록에 넣지 않고 후보표로) · 아님 = 근거 없음',
             official: '공식 항 = ' + OFFICIAL + '(' + offMeta.builder + ' — 해양수산부 공공데이터포털 파일데이터 ' + Object.values(offMeta.sources).map((s) => s.title + '(data.go.kr/data/' + s.id + ')').join(' · ') + ', 이용허락범위 「제한 없음」). 칸마다 official = [{name, kind, how:점|구역}]',
+            userExcluded: '사람 판정 제외(gen_harbor_cells.js USER_EXCLUDED — 칸·사유·사용자 원문·날짜)는 등급과 상관없이 넣지 않는다',
             applied: '강·중·공식이 이 목록에 들어가 혼잡 판정(지금 밀집·충돌·접촉 주의·혼잡 예보 관심 단계·관할 합계)에서 빠지고 지도에서 회색이 된다'
         },
-        counts: { evidenceCells: ev.size, historyAsked: ask.length, candidates: cand.length, applied: applied.length, strong: applied.filter((c) => c.grade === '강').length, medium: applied.filter((c) => c.grade === '중').length, official: applied.filter((c) => c.grade === '공식').length, uncertain: unsure.length, strongMediumWithOfficial: applied.filter((c) => c.grade !== '공식' && c.evidence.official.length).length, strongMediumWithoutOfficial: noOfficial.length },
+        counts: { evidenceCells: ev.size, historyAsked: ask.length, candidates: cand.length, applied: applied.length, strong: applied.filter((c) => c.grade === '강').length, medium: applied.filter((c) => c.grade === '중').length, official: applied.filter((c) => c.grade === '공식').length, uncertain: unsure.length, userExcluded: userOut.length, strongMediumWithOfficial: applied.filter((c) => c.grade !== '공식' && c.evidence.official.length).length, strongMediumWithoutOfficial: noOfficial.length },
         cells: applied.map(({ id, lat, lon, grade: g, why, maxCount, share14, congMax, evidence }) => ({ id, lat, lon, grade: g, why, maxCount, share14, congMax, hazards: evidence.hazards, accInPort: evidence.accInPort, names: g === '공식' ? [...new Set([...evidence.official.map((p) => p.name), ...evidence.names])].slice(0, 3) : evidence.names, land: evidence.land, official: evidence.official }))
     };
     fs.writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
@@ -239,8 +244,11 @@ async function main() {
         '> 사용자 결정(2026-10-19): 목록 확정 「자동판정후 애매한곳은1번으로」 — 아래 칸은 **적용하지 않았다.** 구글맵으로 보고 항·포구·방파제 안이면 「확인」 칸에 표시해 알려 주면 목록에 넣는다.',
         '> 공식 자료 자동 확인(2026-10-19 「좋아 진행하자」): 불확실 칸 안에 해양수산부 공식 항(대표 좌표 또는 국가어항 구역)이 있으면 「공식」 등급으로 목록에 올렸다. 아래 표에 남은 칸은 공식 근거가 없는 칸이다 — 「공식 근거」 칸에 가장 가까운 공식 항과 거리를 적었다.', '',
         '- 만든 시각: ' + meta.now + ' · 후보 기준: ' + out.criteria.candidate, '- 등급 기준: ' + out.criteria.grade, '- ' + out.criteria.official,
-        '- 칸 수: 근거 있는 칸 ' + ev.size + ' · 후보 ' + cand.length + ' · 자동 적용 ' + applied.length + '(강 ' + out.counts.strong + ' · 중 ' + out.counts.medium + ' · 공식 ' + out.counts.official + ') · **불확실 ' + unsure.length + '(이 표)**', '',
+        '- 칸 수: 근거 있는 칸 ' + ev.size + ' · 후보 ' + cand.length + ' · 자동 적용 ' + applied.length + '(강 ' + out.counts.strong + ' · 중 ' + out.counts.medium + ' · 공식 ' + out.counts.official + ') · 사용자 제외 ' + userOut.length + ' · **불확실 ' + unsure.length + '(이 표)**', '',
         ...HEAD, ...unsure.sort(byCount).map((c, k) => reviewRow(c, k + 1, ctx)), '',
+        '## 사용자 제외(' + userOut.length + ' — 자동 판정과 상관없이 적용하지 않음)', '',
+        '| 칸 | 위도, 경도 | 자동 판정 | 공식 근거 | 사유 | 사용자 원문 | 날짜 | 구글맵 |', '|---|---|---|---|---|---|---|---|',
+        ...userOut.map((c) => { const x = USER_EXCLUDED[c.id]; return '| ' + c.id + ' | ' + c.lat.toFixed(4) + ', ' + c.lon.toFixed(4) + ' | ' + c.grade + ' | ' + (c.evidence.official.length ? officialText(c.evidence.official) : '없음') + ' | ' + x.reason + ' | 「' + x.quote + '」 | ' + x.date + ' | https://www.google.com/maps?q=' + c.lat.toFixed(4) + ',' + c.lon.toFixed(4) + ' |'; }), '',
         '## 공식 근거로 올라간 칸(공식 ' + out.counts.official + ' — 이미 적용)', '',
         ...HEAD, ...applied.filter((c) => c.grade === '공식').sort(byCount).map((c, k) => reviewRow(c, k + 1, ctx)), '',
         '## 참고 — 자동 적용(강·중) 가운데 공식 근거가 없는 칸 ' + noOfficial.length + '(적용은 그대로 — 빼려면 알려 주세요)', '',
@@ -249,4 +257,4 @@ async function main() {
     console.log(JSON.stringify(out.counts), window);
 }
 if (require.main === module) main().catch((e) => { console.error('[gen_harbor_cells] 실패:', e.message); process.exit(1); });
-module.exports = { buildContext, evidenceFor, grade, landShare, touches, officialIn, PORT_TYPES, BUSY, OFFICIAL };
+module.exports = { buildContext, evidenceFor, grade, landShare, touches, officialIn, PORT_TYPES, BUSY, OFFICIAL, USER_EXCLUDED };

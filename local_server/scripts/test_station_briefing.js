@@ -3117,11 +3117,11 @@ const WIN = R.editionWindow('morning', T0);
     });
     // ── §11.10.41(2026-10-19 사용자 *"비양도 그러면 화순항 북북서방 11.3해리라고 나오는 게 아니라 비양도를 기준으로 나와야 되잖아"*) ──
     // 2026-10-19 사용자 결정 「위험예측까지 넓힘」 — 해역 이름을 짓는 marine_fusion(위험예측 해상 시트 제목·관할 브리핑 목록·브리핑 팝업 속 시트·「지금 밀집」)이 같은 규칙
-    await check('[§11.10.41-1] 해상 통합 해역 이름 = 브리핑 해역 카드와 같은 regionName — 한림항 앞 칸 /sea/analysis 제목(실제 정리판·tide.js·관광지 표·위험구역)은 「화순항 북북서방 11.3해리」가 아니라 「비양도 남방 0.2해리」(공식 항 기준점 없이 — §11.10.42 앞 규칙) · 주요지명 10km 안 칸은 그대로', () => {
+    await check('[§11.10.41-1] 해상 통합 해역 이름 = 브리핑 해역 카드와 같은 regionName — 한림항 앞 칸 /sea/analysis 제목(실제 정리판·tide.js·관광지 표·위험구역)은 「화순항 북북서방 11.3해리」가 아니라 「비양도 남방 0.2해리」(공식 항 기준점 없이 — §11.10.43 앞 규칙) · 주요지명 10km 안 칸은 그대로', () => {
         const D = require('../services/risk_sea_cells'), M = require('../services/marine_fusion'), at = R.isoKst(Date.now());
         const table = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/coastal_safety/risk_spots.json'), 'utf8')).spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon, police: p.station ? { name: p.station } : null }));   // risk_store.spots() 와 같은 꼴
         const inputs = { version: 1, cells: { cells: [] }, accident: { cells: [], frames: {} }, congestion: null, warnings: null, sources: {}, weather: () => ({ wh: null, ws: null, forecastAt: null }) };
-        const store = M.createStore({ risk: { marineInputs: () => inputs, sources: () => ({}), spots: () => ({ v: 'test', spots: table }) }, dir: fs.mkdtempSync(path.join(tmp, 'mf-')), ports: [] });   // ports: [] = 공식 항 기준점 없음(§11.10.41 규칙만 — §11.10.42 는 아래)
+        const store = M.createStore({ risk: { marineInputs: () => inputs, sources: () => ({}), spots: () => ({ v: 'test', spots: table }) }, dir: fs.mkdtempSync(path.join(tmp, 'mf-')), ports: [] });   // ports: [] = 공식 항 기준점 없음(§11.10.41 규칙만 — §11.10.43 는 아래)
         const cell = D.describe({ gridId: 'point', latitude: 33.4125, longitude: 126.2625 });
         assert.equal(M.location(cell), '화순항 북북서방 11.3해리 해역(232-2해구)', '사용자 화면 그대로 — 주요지명(조석 표준항 165곳)만 본 이름');
         const a = store.analysis({ lon: 126.2625, lat: 33.4125, t: at });
@@ -3132,8 +3132,8 @@ const WIN = R.editionWindow('morning', T0);
         const jeju = D.describe({ gridId: 'point', latitude: 33.5375, longitude: 126.5375 });
         assert.ok(jeju.ref.distNm * 1.852 <= 10); assert.equal(store.analysis({ lon: 126.5375, lat: 33.5375, t: at }).title, M.location(jeju), '주요지명이 10km 안이면 그대로');
     });
-    // ── §11.10.42(2026-10-19 사용자 *"항구로 확인하면 그 항구가 기준점이 되어 00항으로부터 몇도 몇마일 해상 이런 부분도 해결할 수 있지 않니"* · 선택 「항구 우선」·「마을공동어항만 제외 (추천)」) ──
-    await check('[§11.10.42-1] regionName 항구 우선 — 10km 안 가장 가까운 공식 항이 주요지명(10km 안이어도)·관광지보다 먼저 · 10km 넘는 항은 무시(종전 규칙) · 0.1해리 안은 「○○항 인근 해역」 · ports 없으면 종전과 같음', () => {
+    // ── §11.10.43(2026-10-19 사용자 *"항구로 확인하면 그 항구가 기준점이 되어 00항으로부터 몇도 몇마일 해상 이런 부분도 해결할 수 있지 않니"* · 선택 「항구 우선」·「마을공동어항만 제외 (추천)」) ──
+    await check('[§11.10.43-1] regionName 항구 우선 — 10km 안 가장 가까운 공식 항이 주요지명(10km 안이어도)·관광지보다 먼저 · 10km 넘는 항은 무시(종전 규칙) · 0.1해리 안은 「○○항 인근 해역」 · ports 없으면 종전과 같음', () => {
         const reg = { lat: 33.44, lon: 126.24, ref: { name: '화순항', distNm: 5.0, bearingWord: '북' }, haegu: { label: '232-2' } }, places = [{ name: '비양도', lat: 33.4067, lon: 126.2275 }];
         const hl = { name: '한림항', kind: '연안항', lat: 33.42046, lon: 126.25364 }, far = { name: '먼항', kind: '지방어항', lat: 33.6, lon: 126.24 };
         const p = R.regionName(reg, places, [far, hl]);
@@ -3143,7 +3143,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(R.regionName(reg, places, []), R.regionName(reg, places)); assert.equal(R.regionName(reg, places).baseKind, 'ref');
         assert.equal(R.regionName({ ...reg, lat: 33.4205, lon: 126.2537 }, places, [hl]).name, '한림항 인근 해역(232-2해구)', '0.1해리(185m) 안');
     });
-    await check('[§11.10.42-2] 실제 공식 항(official_ports.forNaming — 마을공동어항 제외) · 한림항 앞 칸 = 「한림항 남동방 0.7해리 해역(232-2해구)」 — 위험예측 시트 제목·브리핑 카드 규칙(같은 places·같은 ports) 같음 · 제주 1.3km 칸도 항구 우선 「제주항 북서방 0.9해리」 · 공식 항 10km 밖 칸은 종전', () => {
+    await check('[§11.10.43-2] 실제 공식 항(official_ports.forNaming — 마을공동어항 제외) · 한림항 앞 칸 = 「한림항 남동방 0.7해리 해역(232-2해구)」 — 위험예측 시트 제목·브리핑 카드 규칙(같은 places·같은 ports) 같음 · 제주 1.3km 칸도 항구 우선 「제주항 북서방 0.9해리」 · 관할 밖 칸(먼바다·대포항 2.4km 연안)은 종전 이름', () => {
         const OP = require('../services/official_ports'), ports = OP.forNaming(), kinds = new Set(ports.map((q) => q.kind));
         assert.ok(ports.length > 400 && !kinds.has('마을공동어항') && ['무역항', '연안항', '국가어항', '지방어항', '어촌정주어항'].every((k) => kinds.has(k)), [...kinds].join());
         const D = require('../services/risk_sea_cells'), M = require('../services/marine_fusion'), at = R.isoKst(Date.now());
@@ -3156,9 +3156,13 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(a.title, R.regionName(cell, places, ports).name, '브리핑 해역 카드(seaSection ← gather 의 places·ports)와 같은 함수·같은 목록');
         assert.equal(store.analysis({ lon: 126.5375, lat: 33.5375, t: at }).title, '제주항 북서방 0.9해리 해역(223-7해구)', '주요지명 「제주」가 1.3km 여도 공식 항(1.6km)이 먼저 — 「항구 우선」');
         const off = D.describe({ gridId: 'point', latitude: 32.1125, longitude: 125.1875 });   // 먼바다(공식 항 10km 밖, 관할 밖)
-        assert.equal(store.analysis({ lon: 125.1875, lat: 32.1125, t: at }).title, M.location(off), '공식 항 10km 밖 · 관할 밖 → 종전 이름(주요지명만)');
+        assert.equal(store.analysis({ lon: 125.1875, lat: 32.1125, t: at }).title, M.location(off), '관할 밖 먼바다 → 종전 이름(주요지명만)');
+        // 관할 밖 연안(대포항 2.4km — 공식 항 10km 안) — 사용자 *"관할 밖 바다에 대해서는 논외로 남기는게 좋을 것 같은데 관할 내 주요지명을 기준으로 설명토록 하는게 좋겠는걸"*
+        const outCoast = D.describe({ gridId: 'point', latitude: 33.2375, longitude: 126.4125 }), oc = store.analysis({ lon: 126.4125, lat: 33.2375, t: at });
+        assert.equal(oc.marine.station, null, '관할 밖'); assert.equal(R.regionName(outCoast, [], ports).base, '대포항', '규칙만 보면 항 기준이 되는 칸');
+        assert.equal(oc.title, M.location(outCoast)); assert.equal(oc.title, '화순항 동방 4.0해리 해역(232-6해구)', '관할 밖은 항이 가까워도 종전 이름(주요지명만)');
     });
-    await check('[§11.10.42-3] 브리핑 카드·AI — input.ports 가 있으면 해역 카드 이름이 항구 기준(nameBase 한림항·nameBaseKind port) · AI 허용 지명에 「한림항」 · 그 이름을 쓴 해설이 검증 통과(검증·지시문 판 그대로) · gather 가 기본 ports 를 넘김', () => {
+    await check('[§11.10.43-3] 브리핑 카드·AI — input.ports 가 있으면 해역 카드 이름이 항구 기준(nameBase 한림항·nameBaseKind port) · AI 허용 지명에 「한림항」 · 그 이름을 쓴 해설이 검증 통과(검증·지시문 판 그대로) · gather 가 기본 ports 를 넘김', () => {
         const ports = [{ name: '한림항', kind: '연안항', lat: 33.42046, lon: 126.25364 }];
         const bp = R.buildBriefing({ ...hallim(), ports }, WIN, { generatedAt: R.isoKst(T0) }), c = bp.sea.cards[0];
         assert.ok(c.name.startsWith('한림항 ') && c.name.endsWith('해리 해역(232-2해구)'), c.name); assert.deepStrictEqual([c.nameBase, c.nameBaseKind], ['한림항', 'port']);

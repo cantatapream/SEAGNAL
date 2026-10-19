@@ -6,17 +6,19 @@
   "candidate": "근거(해경 항포구·방파제·선착장 구역 / 항 안 사고글 / 육지 10% 이상)가 있는 GR4 칸 가운데, 실시간 30분 평균 척수 이력(2026-10-16 00:00 ~ 2026-10-19 08:30 KST(30분 칸 162개))에서 한 번이라도 14척 이상 · 지금(2026-10-19T09:25:05+09:00) 14척 이상 · 혼잡 예보(2026-10-19T09:28:14+09:00 ~ 2026-10-20T23:00:00+09:00) '높음' 이상 중 하나",
   "grade": "강 = 해경 구역 + 항 안 사고글 1건 이상 · 중 = 해경 구역만, 또는 항 안 사고글 3건 이상이고 육지 10% 이상 · 공식 = 불확실 근거 + 칸 안에 해양수산부 공식 항(대표 좌표 또는 국가어항 구역) · 불확실 = 그 밖의 근거(목록에 넣지 않고 후보표로) · 아님 = 근거 없음",
   "official": "공식 항 = local_server/config/coastal_safety/official_ports.json(local_server/scripts/build_official_ports.js — 해양수산부 공공데이터포털 파일데이터 해양수산부_항만정보_20231212(data.go.kr/data/15088273) · 해양수산부_공동활용체계_소형선항만안내_20171231(data.go.kr/data/15148613) · 해양수산부_항만기본계획(무역항 연안항)_20240717(data.go.kr/data/15129889) · 해양수산부_공동활용체계_국가어항_20100423(data.go.kr/data/15149006) · 해양수산부_공동활용체계_국가어항구역_20210901(data.go.kr/data/15148598) · 해양수산부_공동활용체계_지방어항_20211230(data.go.kr/data/15147449) · 해양수산부_공동활용체계_어촌정주어항_20231119(data.go.kr/data/15147417) · 해양수산부_공동활용체계_마을공동어항_20200224(data.go.kr/data/15144585) · 해양수산부_공동활용체계_어항_20211123(data.go.kr/data/15147455) · 해양수산부_어항정보_20191231(data.go.kr/data/3083027), 이용허락범위 「제한 없음」). 칸마다 official = [{name, kind, how:점|구역}]",
+  "userExcluded": "사람 판정 제외(gen_harbor_cells.js USER_EXCLUDED — 칸·사유·사용자 원문·날짜)는 등급과 상관없이 넣지 않는다",
   "applied": "강·중·공식이 이 목록에 들어가 혼잡 판정(지금 밀집·충돌·접촉 주의·혼잡 예보 관심 단계·관할 합계)에서 빠지고 지도에서 회색이 된다"
  },
  "counts": {
   "evidenceCells": 1933,
   "historyAsked": 1826,
   "candidates": 326,
-  "applied": 237,
+  "applied": 236,
   "strong": 134,
   "medium": 52,
-  "official": 51,
+  "official": 50,
   "uncertain": 89,
+  "userExcluded": 1,
   "strongMediumWithOfficial": 91,
   "strongMediumWithoutOfficial": 95
  },
@@ -814,32 +816,6 @@
    ],
    "land": 0.59,
    "official": []
-  },
-  {
-   "id": "GR4_F2O32_I4",
-   "lat": 36.4125,
-   "lon": 126.4375,
-   "grade": "공식",
-   "why": [
-    "history",
-    "now"
-   ],
-   "maxCount": 40.2,
-   "share14": 0.54,
-   "congMax": null,
-   "hazards": [],
-   "accInPort": 0,
-   "names": [
-    "영목항"
-   ],
-   "land": 0.16,
-   "official": [
-    {
-     "name": "영목항",
-     "kind": "국가어항",
-     "how": "구역"
-    }
-   ]
   },
   {
    "id": "GR4_F2O32_N2",

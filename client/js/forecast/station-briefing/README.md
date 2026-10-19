@@ -347,14 +347,15 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - 해역 카드 「최근 14일 선박 동향」은 이번 결정 범위 밖 — 항구 칸 척수를 그대로 더한다.
 - 시험: `local_server/scripts/test_harbor_cells.js`. 캐시 `station_briefing_riskmap.js?v=20261019harbor`.
 
-## 해역 이름 — 공식 항 우선 (2026-10-19 — 설계서 §11.10.42)
+## 해역 이름 — 공식 항 우선 (2026-10-19 — 설계서 §11.10.43)
 
 > 사용자 원문: *"항구로 확인하면 그 항구가 기준점이 되어 00항으로부터 몇도 몇마일 해상 이런 부분도 해결할 수 있지 않니"* · 선택 *「항구 우선」* · *「마을공동어항만 제외 (추천)」*
 
 - 해역 이름 「○○ 방위 N해리 해역(해구)」의 ○○: 10km 안에 해양수산부 공식 항(무역항·연안항·국가어항·지방어항·어촌정주어항 — `local_server/config/coastal_safety/official_ports.json`, 읽기 `local_server/services/official_ports.js forNaming`)이 있으면 가장 가까운 항, 없으면 종전(주요지명 → 10km 넘으면 관할 관광지 → 위험구역 장소명). 예: 한림항 앞 칸 「한림항 남동방 0.7해리 해역(232-2해구)」.
 - 한 함수(`station_briefing_rules.regionName(region, places, ports)`)를 해역 카드(`gather` → `input.ports`)와 위험예측 시트 제목·관할 관심 해역·「지금 밀집」(`marine_fusion.cellName`)이 같이 쓴다. 규칙 판 `station-briefing-rules-v25`(검증·지시문 판 그대로 — 새 이름은 카드 이름·nameBase 로 허용 지명에 들어간다). 저장된 판은 고치지 않는다.
+- 관할 밖 칸(위험예측 시트 등)은 공식 항을 쓰지 않고 종전 이름(주요지명만) — 사용자 *"관할 밖 바다에 대해서는 논외로 남기는게 좋을 것 같은데 관할 내 주요지명을 기준으로 설명토록 하는게 좋겠는걸"*.
 - [기준 상세] 「해역 이름 붙이는 법」 문단에 공식 항 줄. 캐시 `station_briefing_basis.js?v=20261019port`.
-- 시험: `test_station_briefing.js` `[§11.10.42-1~3]` · `test_marine_fusion.js` 「해역 이름 — 공식 항」.
+- 시험: `test_station_briefing.js` `[§11.10.43-1~3]` · `test_marine_fusion.js` 「해역 이름 — 공식 항」.
 
 ## 시험
 
