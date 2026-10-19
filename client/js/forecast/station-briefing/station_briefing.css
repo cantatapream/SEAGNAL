@@ -216,6 +216,14 @@
 .sb-basis-note { margin:2px 0 0; }
 .sb-minimap { width:100%; height:200px; border-radius:8px; overflow:hidden; border:1px solid rgba(148,163,184,.3); background:#dbeafe; }
 .sb-minimap-cap { margin:4px 0 0; }
+/* 위험예측 배경 지도 기다림 표시(§11.10.38 — 2026-10-19 사용자 「위험예측에서와 같이 로딩스피너를 띄워주면 좋겠어」): 위험예측 .rf-map-wait(risk_forecast.css)와 같은 모양·자리.
+   그 클래스는 해양안전 탭 밖에서 숨겨지므로(body:not(.ls-safety) .rf-map-wait{display:none}) 같은 규칙을 이 이름으로 둔다. 스피너는 style.css .spinner 재사용, 지도 조작을 막지 않게 누름 통과.
+   움직임 줄이기: 위험예측과 같게 따로 처리하지 않는다(style.css .spinner·risk_forecast.css 어디에도 prefers-reduced-motion 규칙이 없다 — 검색 확인). */
+.sb-minimap { position:relative; }
+.sb-map-wait { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:140; display:flex; flex-direction:column; align-items:center; pointer-events:none; }
+.sb-map-wait[hidden], .sb-map-wait [hidden] { display:none; }
+.sb-map-wait .spinner { margin:0; background:rgba(10,15,28,.55); }
+.sb-map-wait p { margin:0; padding:8px 12px; border-radius:8px; background:rgba(10,15,28,.9); border:1px solid var(--border-color,#334155); color:var(--text-main,#eaf1fa); font-size:.8rem; white-space:nowrap; }
 .sb-iso-table { width:100%; border-collapse:collapse; font-size:.78rem; }
 .sb-iso-table caption { caption-side:bottom; text-align:left; padding-top:4px; color:#94a3b8; font-size:.72rem; }
 .sb-iso-table th, .sb-iso-table td { padding:4px 8px; border-bottom:1px solid rgba(148,163,184,.2); text-align:left; }

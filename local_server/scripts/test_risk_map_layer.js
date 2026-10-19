@@ -88,6 +88,25 @@ function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',la
   test('혼잡은 자체사고점수99 대신 공식낮음 점선·한점 표시',()=>{assert.equal(official.trafficLevel,'낮음');assert.equal(official.trafficFill,'rgba(0,0,0,0)');assert.equal(official.trafficStyles,2);});
   test('겹친격자 클릭은 사고상세와 실제클릭 경위도 전달',()=>{assert.equal(official.hit,true);assert.equal(official.chosen.kind,'accident');assert.equal(official.chosen.id,'14802');assert.ok(Math.abs(official.chosen.point.lon-126.505)<1e-8);assert.ok(Math.abs(official.chosen.point.lat-36.42)<1e-8);});
   test('해상OFF는 공식사고와 혼잡 둘다 숨김',()=>assert.equal(official.off,true));
+  // ── §11.10.38(2026-10-19 연안 안전 브리핑 지도 — 사용자 「격자(육지쪽)을 눌러도 바텀시트가 켜지도록」): hit(evt,{landSea:true}) 만 칸 안 육지 쪽을 그 해상 칸으로(칸 중심 경위도) ──
+  //   위험예측 본 화면은 옵션 없이 부르므로(risk_forecast.js tryHandleClick) 육지 = 연안 판정 그대로여야 한다.
+  const landSea=await page.evaluate(async()=>{
+   const host=document.createElement('div');host.style.cssText='width:412px;height:915px';document.body.appendChild(host);
+   const hadMarine='RiskMarine' in window,oldMarine=window.RiskMarine;window.RiskMarine={color:()=>'rgb(86,166,111)',congestionColor:()=>'rgb(86,166,111)'};   // 칠하기 색만(뒤 시험에 남기지 않게 끝에 되돌린다)
+   const map=new ol.Map({target:host,layers:[],view:new ol.View({center:ol.proj.fromLonLat([126.2125,33.4125]),zoom:13})}),selected=[];
+   const layer=RiskMapLayer.create(map,(kind,id,point)=>selected.push({kind,id,point}));
+   window.fetch=async()=>({ok:true,json:async()=>({rings:[[[126.18,33.40],[126.2125,33.40],[126.2125,33.43],[126.18,33.43],[126.18,33.40]]]})});
+   await layer.boundaries({get:async()=>({features:[]})});
+   layer.setActive({coast:false,sea:true},true);layer.drawUnified({cells:[{i:0,id:'GR4_X',lon:126.2125,lat:33.4125}]},{mode:'current',cells:[[0,5,'보통',0.3]]});map.renderSync();
+   const at=(lon,lat,o)=>{const c=ol.proj.fromLonLat([lon,lat]);const n=selected.length,hit=layer.hit({coordinate:c,pixel:map.getPixelFromCoordinate(c)},o);return{hit,pick:selected.length>n?selected.at(-1):null};};
+   const plainLand=at(126.205,33.41),optLand=at(126.205,33.41,{landSea:true}),optOut=at(126.19,33.41,{landSea:true}),optSea=at(126.22,33.41,{landSea:true}),plainSea=at(126.22,33.41);
+   layer.setActive({coast:true,sea:true},true);const coastOn=at(126.205,33.41,{landSea:true});
+   layer.destroy();map.dispose();host.remove();if(hadMarine)window.RiskMarine=oldMarine;else delete window.RiskMarine;
+   return{plainLand,optLand,optOut,optSea,plainSea,coastOn};
+  });
+  test('§11.10.38 옵션 없는 hit(위험예측 본 화면) — 칸 안 육지 쪽은 종전대로 고르지 않음, 바다 쪽은 누른 점 경위도',()=>{assert.deepEqual(landSea.plainLand,{hit:false,pick:null});assert.deepEqual(landSea.plainSea.pick&&[landSea.plainSea.hit,landSea.plainSea.pick.kind,landSea.plainSea.pick.id],[true,'marine','GR4_X']);assert.ok(Math.abs(landSea.plainSea.pick.point.lon-126.22)<1e-9);});
+  test('§11.10.38 hit(evt,{landSea:true}) — 칸 안 육지 쪽 → 그 칸(칸 중심 경위도) · 칸 밖 육지 → 없음 · 바다 쪽 → 누른 점 그대로',()=>{assert.deepEqual(landSea.optLand,{hit:true,pick:{kind:'marine',id:'GR4_X',point:{lon:126.2125,lat:33.4125}}});assert.deepEqual(landSea.optOut,{hit:false,pick:null});assert.equal(landSea.optSea.hit,true);assert.ok(Math.abs(landSea.optSea.pick.point.lon-126.22)<1e-9,JSON.stringify(landSea.optSea));});
+  test('§11.10.38 연안 층이 켜져 있으면 옵션이 있어도 육지 = 연안 판정(해상 칸으로 바꾸지 않음)',()=>assert.deepEqual(landSea.coastOn,{hit:false,pick:null}));
   // ── T5 버벅임 1단계(2026-10-16): 육지 가리개는 끄는 동안(view 상호작용 중) 다시 만들지 않고 손을 뗀 뒤(moveend)에만 만든다 ──
   // 다시 만들기는 육지 꼭짓점마다 map.getPixelFromCoordinate 를 부르므로 그 호출 수로 가린다(재사용이면 층마다 2번).
   const moving=await page.evaluate(async input=>{

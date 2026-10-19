@@ -192,6 +192,20 @@ function makeBriefing() {
             assert.deepEqual(r.ours, ['risk.sheet.sea_from_briefing']);
             await pg.keyboard.press('Escape'); await pg.waitForTimeout(400); await pg.keyboard.press('Escape');
         });
+        // §11.10.38(2026-10-19 사용자 「격자(육지쪽)을 눌러도 바텀시트가 켜지도록」): 칸 안 육지 쪽을 눌러 연 시트도 해상 칸을 누를 때와 같은 1건 · 칸 밖 육지는 0건
+        await check('[위험예측] §11.10.38 지도 칸 안 육지 쪽을 눌러 연 시트 → risk.sheet.sea_from_briefing 1건 · 칸 밖 육지 0건', async () => {
+            await pg.route('**/api/ocean/land-mask', (rt) => rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rings: [[[126.18, 33.40], [126.2125, 33.40], [126.2125, 33.43], [126.18, 33.43], [126.18, 33.40]]] }) }));
+            try {
+                let r = await keysOf(() => click(C + '[data-sb-maplink="now-all"]'), () => { const m = document.querySelector('[data-sb-map-popup] .sb-minimap'); return m && m.dataset.sbGrid === 'current' && m.dataset.sbGridN === '1'; });
+                assert.deepEqual(r.ours, ['risk.ships_map_from_briefing']); await pg.waitForTimeout(300);
+                let xy = await popupCellXY({ lon: 126.19, lat: 33.41 });
+                r = await keysOf(() => pg.mouse.click(xy[0], xy[1])); assert.deepEqual(r.ours, [], '칸 밖 육지');
+                xy = await popupCellXY({ lon: 126.205, lat: 33.41 });
+                r = await keysOf(() => pg.mouse.click(xy[0], xy[1]), () => { const sh = document.querySelector('[data-sb-map-popup] [data-sb-rf-sheet]'); return sh && sh.classList.contains('open'); });
+                assert.deepEqual(r.ours, ['risk.sheet.sea_from_briefing'], '칸 안 육지 쪽');
+                await pg.keyboard.press('Escape'); await pg.waitForTimeout(400); await pg.keyboard.press('Escape');
+            } finally { await pg.unroute('**/api/ocean/land-mask'); await closePopup(); }
+        });
         await check('[위험예측] 붐비는 해역 이름 → risk.busiest_map_from_briefing 1건', async () => {
             const r = await keysOf(() => click(C + '[data-sb-maplink="now-busiest"]'), () => !!document.querySelector('[data-sb-map-popup="now-busiest"]'));
             assert.deepEqual(r.ours, ['risk.busiest_map_from_briefing']); await closePopup();
