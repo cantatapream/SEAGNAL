@@ -3115,6 +3115,29 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(AI.polishOverview({ land: null, sea: '184해구와 1.3m 해역, 5곳 해역' }).sea, '184해구와 1.3m 해역, 5곳 해역', '숫자 바로 뒤 「해역」이 아니면 그대로');
         assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v15');
     });
+    // ── §11.10.41(2026-10-19 사용자 *"비양도 그러면 화순항 북북서방 11.3해리라고 나오는 게 아니라 비양도를 기준으로 나와야 되잖아"*) ──
+    // 2026-10-19 사용자 결정 「위험예측까지 넓힘」 — 해역 이름을 짓는 marine_fusion(위험예측 해상 시트 제목·관할 브리핑 목록·브리핑 팝업 속 시트·「지금 밀집」)이 같은 규칙
+    await check('[§11.10.41-1] 해상 통합 해역 이름 = 브리핑 해역 카드와 같은 regionName — 한림항 앞 칸 /sea/analysis 제목(실제 정리판·tide.js·관광지 표·위험구역)은 「화순항 북북서방 11.3해리」가 아니라 「비양도 남방 0.2해리」 · 주요지명 10km 안 칸은 그대로', () => {
+        const D = require('../services/risk_sea_cells'), M = require('../services/marine_fusion'), at = R.isoKst(Date.now());
+        const table = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/coastal_safety/risk_spots.json'), 'utf8')).spots.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon, police: p.station ? { name: p.station } : null }));   // risk_store.spots() 와 같은 꼴
+        const inputs = { version: 1, cells: { cells: [] }, accident: { cells: [], frames: {} }, congestion: null, warnings: null, sources: {}, weather: () => ({ wh: null, ws: null, forecastAt: null }) };
+        const store = M.createStore({ risk: { marineInputs: () => inputs, sources: () => ({}), spots: () => ({ v: 'test', spots: table }) }, dir: fs.mkdtempSync(path.join(tmp, 'mf-')) });
+        const cell = D.describe({ gridId: 'point', latitude: 33.4125, longitude: 126.2625 });
+        assert.equal(M.location(cell), '화순항 북북서방 11.3해리 해역(232-2해구)', '사용자 화면 그대로 — 주요지명(조석 표준항 165곳)만 본 이름');
+        const a = store.analysis({ lon: 126.2625, lat: 33.4125, t: at });
+        assert.equal(a.title, '비양도 남방 0.2해리 해역(232-2해구)'); assert.equal(a.marine.location, a.title); assert.equal(a.marine.station, '한림파출소');
+        const all = I.loadStations(), places = I.placesByStation(all, table, I.readJson(path.join(I.CONFIG, 'coastal_hazard_zones.wgs84.geojson')).features).get(all.find((s) => s.name === '한림파출소').idx);
+        assert.ok(places.some((p) => p.name === '비양도'), '한림 관할 관광지에 비양도가 있다');
+        assert.equal(a.title, R.regionName(cell, places).name, '브리핑 해역 카드(seaSection ← gather 의 places)와 같은 배정·같은 함수');
+        const jeju = D.describe({ gridId: 'point', latitude: 33.5375, longitude: 126.5375 });
+        assert.ok(jeju.ref.distNm * 1.852 <= 10); assert.equal(store.analysis({ lon: 126.5375, lat: 33.5375, t: at }).title, M.location(jeju), '주요지명이 10km 안이면 그대로');
+    });
+    await check('[§11.10.41-2] placesByStation — 실행(gather)이 해역 카드 이름에 넘기는 input.places 와 같은 목록(관광지, 없으면 위험구역 장소명) · 관할 순번(idx) 열쇠', () => {
+        const spot = { name: '비양도', lat: 33.4154, lon: 126.2621, police: { name: '한림파출소' } };
+        const hz = [{ properties: { '관할파출소': '한림파출소', '소속서': '제주해양경찰서', name: 'Z1', '장소명': '한림항', '장소형태': '항포구', '구역분류': '위험' }, geometry: { type: 'Point', coordinates: [126.26, 33.41] } }];
+        assert.deepStrictEqual(I.placesByStation(fakeStations, [spot], hz).get('0'), [{ name: '비양도', lat: 33.4154, lon: 126.2621 }], '관광지가 있으면 관광지만(gather 와 같음)');
+        assert.deepStrictEqual(I.placesByStation(fakeStations, [], hz).get('0'), [{ name: '한림항', lat: 33.41, lon: 126.26 }], '관광지가 없으면 위험구역 장소명(gather 와 같음)');
+    });
     // ── §11.10.31(2026-10-18 사용자 「진행해줘.」 — 운영 14:08 「특보 변경 판」 대청파출소 「multiplier:1.1~1.2배」·「number:4.2」, 서버가 탈락 글을 남기지 않아 원인 확인 불가): 배수 범위 · 탈락한 글 보관 ──
     await check('[§11.10.31-1] 배수 범위 — 양 끝이 둘 다 그 문단 허용 배수(작은 수~큰 수)면 통과 · 한쪽 없음·뒤집힘·같은 수·다른 문단 배수는 multiplier: · 낱개는 그대로 · 판 v14', () => {
         const s1 = { ...si, allowed_multiplier_keys: { sea: si.allowed_multiplier_keys.sea, land: ['1.1|배', '1.2|배'] } };   // 운영 대청파출소 연안 허용 배수와 같은 꼴(사용자 실측)

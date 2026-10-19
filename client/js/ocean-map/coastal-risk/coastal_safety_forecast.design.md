@@ -2361,6 +2361,50 @@ U 번호는 표마다 겹치므로(§1 의 U79~U81 과 §13.1 의 U79~U81 이 �
 
 **확인 못 한 것**: `vmtc` 정의(순간 재실인지) · 공단 혼잡 예보가 정박선을 세는지(한림항 칸 값이 높다는 것만 확인) · 지도 서비스(OSM·구글) 직접 대조 — 작업 환경에서 접속이 막혀(프록시 403) 근거는 저장소 자료뿐. 칸 단위라 항 입구·바깥 해역의 실제 통항도 함께 빠진다.
 
+### 11.10.41 「지금 밀집」 붐비는 해역 이름도 해역 카드와 같은 규칙으로 — 주요지명이 10km 넘게 멀면 관할 관광지 (2026-10-19 사용자 지적 · 서버만 · 규칙·검증 판 그대로)
+
+> 사용자 원문: *"얼마 전에 우리가 주요 지명 지명 정보를 우리 앱에 추가로 반영했는데 한림항 같은 경우가 없어도 비양도는 반복 반영된 걸로 알고 있거든 비양도 그러면 화순항 북북서방 11.3해리라고 나오는 게 아니라 비양도를 기준으로 나와야 되잖아 가까운 데를 기준으로 했으면 근데 화순항으로 나오고 있어서 이 주요 지명 로직이 여기 표출에는 적용이 되지 않는 것으로 추정되는데 이 부분도 같이 확인해 줘."*
+> 화면: 관리자 「AI 연안 안전 브리핑」 한림파출소 「지금 밀집」 팝업 제목 「화순항 북북서방 11.3해리 해역(232-2해구) 21척」.
+
+**원인(코드로 확인).** 해역 이름을 짓는 곳이 둘이었다.
+- 해역 카드·총평·[권고]·AI 사실 목록 = `station_briefing_rules.regionName` — §11.6-5 결정 5 규칙(주요지명 = 조석 표준항 165곳 `client/tide.js` `TIDE_REFERENCE_STATIONS`, 그것이 10km 넘게 멀면 관할 관광지·관광지가 없으면 위험구역 장소명 중 더 가까운 곳).
+- 「지금 밀집」 둘째 줄·팝업 제목(`now.busiest.name`) = `routes/station_briefing.nowLineFrom` 이 `marine_fusion.briefing` 해역의 `location` 을 그대로 썼다. `location` 은 `marine_fusion.location()`(위험예측 해상 시트 제목과 같은 함수) — **주요지명 165곳만** 본다. 그래서 결정 5 가 이 줄에는 처음부터 걸리지 않았다.
+- 실측(`risk_sea_cells.describe` 33.4125°N 126.2625°E — 한림항 앞 GR4 칸 중심): 가장 가까운 주요지명 화순항 20.9km → `location` = 「화순항 북북서방 11.3해리 해역(232-2해구)」(사용자 화면과 같은 글자). 같은 칸을 `regionName` + 한림 관할 관광지(`risk_spots.json` station 「한림파출소」 30곳 — 비양도 33.4154°N 126.2621°E 포함)로 지으면 「비양도 남방 0.2해리 해역(232-2해구)」.
+- 자료 유무: 「한림항」은 주요지명 165곳에도, 한림 관광지 30곳에도 **없다**(위험구역 15곳 장소명에는 있다 — 그러나 결정 5 는 관광지가 있으면 위험구역을 쓰지 않는다). 「비양도」는 관광지 표에 있다. ⚠그 관광지 좌표(33.4154, 126.2621)는 섬(비양봉 33.4086, 126.2271 쪽)이 아니라 한림항 도항선 쪽이다 — 관광지 원자료 그대로이며 이번에 고치지 않았다.
+
+**고친 것 — 1차(커밋 `31aba5846`, ⚠아래 「2차」로 대체 — 이 네 줄의 `nameRef`·`placesOf`·`nowLineFrom(b, places)` 는 코드에 남지 않았다).**
+- `marine_fusion` analyze 결과에 `nameRef` = `location` 을 만든 같은 칸의 `{lat, lon, ref, haegu}` 를 싣는다(관할 브리핑 `regions[]`·`/sea/analysis` `marine` 모두. 위험예측 화면은 쓰지 않는다).
+- `station_briefing_inputs.stationPlaces(spots, hz)` — 실행(`gather`)이 카드 이름에 넘기던 `places` 계산을 함수로 뺐다(같은 식).
+- 서비스 `placesOf(key)` — `run` 과 같은 관할 배정(`assignSpots`·`assignHazards`)으로 그 관할의 `places`. 97관할 배정이 실측 13~120ms 라 관광지 표 해시(`risk.spots().v`)가 같으면 지난 결과를 쓴다.
+- `nowLineFrom(b, places)` — `places` 와 `nameRef` 가 있으면 `R.regionName(nameRef, places).name`, 없으면(관광지 표 준비 전 등) 종전 `location`. `defaultNowLine` 이 `placesOf` 를 부른다(실패하면 종전 이름).
+
+**판 올림 판단.** `RULES_VERSION`·`VALIDATOR_VERSION`·`PROMPT_VERSION` **그대로**. 「지금 밀집」은 저장 판에 없고(요청 때 계산 — `defaultNowLine`), AI 입력(`stationInput`)·AI 검사(`validateOverview`)에 들어가지 않는다(`station_briefing_ai.js` 에 `busiest`·`nowLine` 없음 — grep 확인). 저장된 판의 카드 이름도 원래 `regionName` 이라 바뀌지 않는다.
+
+**남은 갈림길(1차 때 — 아래 2차에서 사용자 결정으로 닫음).** 같은 「○○ 방위 N해리 해역」을 주요지명만으로 짓는 곳이 더 있다: 위험예측 해상 시트 제목(`/sea/analysis` `title`·`marine.location`)·위험예측 관할 브리핑 시트 관심 해역 목록(`/sea/briefing` `regions[].location`)·브리핑 팝업 지도에서 칸을 눌러 여는 시트 제목(같은 `RiskSheet`). 결정 5 는 「해상 브리핑」 결정이라 위험예측(일반 공개 화면)에 넓힐지는 사용자 결정. 넓히지 않으면 브리핑 팝업 제목(비양도 …)과 그 칸을 눌러 연 시트 제목(화순항 …)이 다르게 보인다 — 해역 카드에서는 이번 수정 전부터 그랬다.
+
+- 시험(1차 — 2차에서 아래로 바꿈): `test_station_briefing.js` `[§11.10.41-1]`(실제 tide.js·실제 관광지 표로 한림항 앞 칸 → 「비양도 남방 0.2해리 해역(232-2해구)」 · 카드와 같은 `regionName` 결과 · 기준점 없으면 종전 이름 · 주요지명 10km 안이면 그대로) · `[§11.10.41-2]`(`placesOf` = 관광지, 없으면 위험구역 장소명) · `test_marine_fusion.js` 「해역 이름 재료 nameRef」. 수정 전 3건 실패 → 수정 뒤 통과.
+
+#### 11.10.41 2차 — 위험예측까지 넓힘 (2026-10-19 사용자 결정)
+
+> 사용자 결정(조율 에이전트 전달): *「위험예측까지 넓힘」* — 위험예측 해상 시트 제목·관할 브리핑 관심 해역 목록·브리핑 팝업에서 칸을 눌러 연 시트·옛 해상 시트 부제도 같은 규칙(주요지명이 10km 넘게 멀면 가까운 관광지, 없으면 위험구역 장소명 — `rules.regionName` 과 같은 결과). 원칙: **같은 칸이면 두 화면 이름이 같다.**
+
+**고친 것 — 이름을 짓는 한 곳(`marine_fusion`)에서.**
+- `marine_fusion` `cellName(cell)` — 칸 중심이 든 관할(`stationFor` — 브리핑 `collectSea` 의 `marine.stationAt` 과 같은 함수)의 기준점으로 `station_briefing_rules.regionName`. 관할 밖이거나 기준점을 못 얻으면(관광지 표 준비 전 등) 종전 `location()`(주요지명만). `analyze` 의 `location` 이 이것이라 `/sea/analysis` `title`, `/sea/briefing` `regions[].location`, 브리핑 「지금 밀집」(`nowLineFrom` 이 `busy.location` 을 그대로 씀 — 1차 수정을 되돌려 라우트는 main 그대로)이 함께 바뀐다.
+- 기준점 = `station_briefing_inputs.placesByStation(stations, spots, features)` — 실행(`gather`)과 같은 관할 배정(`assignSpots`·`assignHazards`) + `stationPlaces`, 관할 순번(idx = `marine_fusion` 관할 id, 같은 정리판 같은 순서) 열쇠. `marine_fusion` 은 관광지 표 해시(`risk.spots().v`)마다 한 번 계산해 둔다. 시험은 `placesOf` 를 주입.
+- 1차의 `nameRef`·서비스 `placesOf`·`nowLineFrom(b, places)` 는 되돌렸다(같은 일을 두 곳에서 하지 않게 — 이름을 짓는 곳이 하나면 화면이 어긋날 수 없다).
+
+**「관할 관광지」인가 「전국 관광지」인가 — 관할로 했다(근거: 실측).** 0.025° 격자(GR4 칸 중심 꼴, 경도 124~132°·위도 33~38.7°, 72,960점)로 셈(scratchpad 일회성 스크립트, 2026-10-19):
+- 관할 안 5,076점 중 이름이 바뀐 점 996. **위험예측 시트 제목 ≠ 브리핑 카드 규칙 = 0점**(수정 전 996점).
+- 기준점을 전국(모든 관할의 기준점을 합친 것)으로 했다면 관할 안 213점이 브리핑 카드와 달라진다(관할 경계 근처에서 이웃 관할 관광지가 더 가까운 경우) — 원칙 「같은 칸 같은 이름」에 어긋나 쓰지 않았다.
+- 관할 밖은 종전대로 주요지명만. 관할 밖 바다(특보구역 도형 안) 48,104점 중 전국 기준이면 26,677점에 관광지·위험구역 이름이 붙는다(먼바다 칸이 섬 관광지 기준이 되는 등) — 사용자 결정 없이 넓히지 않았다.
+- ⚠옛 해상 시트 부제(`risk_store.seaDetail` `subtitle=c.ref` → `risk_sheet.js` 「화순항 북북서 330도 11.3해리」)는 바꾸지 않았다 — 앱에서 닿지 않는 길이다: `risk_forecast.js` 상세 요청은 `RiskMarine` 이 있으면 해상 칸을 전부 `sea/analysis` 로 보내고, `RiskMarine`(risk_marine.js)은 `index2.html`·`risk_forecast_preview.html` 둘 다 `risk_sheet.js` 앞에 싣는다(`/sea/cell` 을 부르는 클라이언트 코드 없음 — grep).
+
+**계산 비용.** 관할 기준점 표 1회 4~7ms(+정리판·위험구역 파일 읽기, 첫 분석 호출 전체 219~395ms 중 일부 — 종전도 첫 호출은 사고 자료 읽기로 219ms). 분석 1회 평균 0.78~0.93ms(종전 0.85ms — 같은 격자 셈, 차이는 측정 흔들림 범위). 미리 계산 표는 만들지 않았다.
+
+**판 올림.** 브리핑 `RULES_VERSION`·`VALIDATOR_VERSION`·`PROMPT_VERSION` 그대로 — 브리핑 저장 판의 카드 이름은 원래 `regionName` 이고, 바뀐 이름(위험예측·「지금 밀집」)은 요청 때 계산이며 AI 입력·검사에 없다. 클라이언트 파일은 바꾸지 않았다(이름 글자만 바뀜 — index2.html `?v`·.br/.gz 손대지 않음).
+
+- 시험(2차): `test_station_briefing.js` `[§11.10.41-1]`(실제 정리판·tide.js·관광지 표·위험구역으로 만든 해상 통합 저장소 — 한림항 앞 `/sea/analysis` 제목 「비양도 남방 0.2해리 해역(232-2해구)」 · 관할 「한림파출소」 · 카드 규칙과 같음 · 제주항 약 1.3km 칸은 종전 이름) · `[§11.10.41-2]`(`placesByStation` = 관광지, 없으면 위험구역 장소명) · `test_marine_fusion.js` 「해역 이름」(주입 기준점 → 분석 제목·관할 브리핑 regions 모두 regionName · 먼 기준점·기준점 없음·실패·관할 밖은 종전). main 의 `marine_fusion.js`·`station_briefing_inputs.js` 로 돌리면 3건 실패(213/2 · 49/1) → 이 수정으로 215/0 · 50/0.
+
 ---
 
 ## § 18. 해수욕장 안내 줄 — 기상청 해수욕장 날씨·수온으로 「물에 들어가는 사람이 있을 수 있음」 · 해수부 개장 일정 (2026-10-18 사용자 결정)
