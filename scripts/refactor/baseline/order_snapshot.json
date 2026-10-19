@@ -140,6 +140,7 @@
     "station_briefing_picker.js",
     "station_briefing.js",
     "zone_setup.js",
-    "tutorial.js"
+    "tutorial.js",
+    "redesign_preview.js"
   ]
 }
