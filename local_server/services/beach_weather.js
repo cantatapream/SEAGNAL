@@ -14,6 +14,9 @@
  *        낮 최고 = 기상청 TMX(없으면 낮 10칸 기온이 모두 있을 때만 그 최댓값).
  *        수온 = 해수욕장 부이 관측(12시간 안) → 없으면 소해구 예보 수온(그날 낮 최댓값 — 경고를 더 내는 쪽) → 없으면 줄 없음. 내일도 오늘 수온을 쓴다.
  *        비교는 화면에 쓰는 숫자(수온·기온·풍속 정수, 파고 소수 한 자리)로 한다 — 문장과 판정이 어긋나지 않게.
+ * [응답 꼴 — 2026-10-19 설계서 §18.11] 줄마다 {kind, text, name, concl}: kind = 종류(open 개장 · good 좋음 · maybe 있을 수 있음 · warn 경고 · rough 거친 날),
+ *        text = 문장 전체(종전 문자열 그대로), name = 문장 맨 앞 해수욕장 이름, concl = 문장 맨 끝 결론 — 화면이 이름·결론을 종류 색으로 칠한다
+ *        (사용자 *"거친날, 개장 예정 등 해당 종류 분류에 따른 색상을 해수욕장 명칭에 반영해줘."*). text 는 늘 name 으로 시작하고 concl 로 끝난다(시험이 확인).
  * [연계]
  *  - 사용하는 파일 : config/coastal_safety/beach_weather_static.json(해수욕장·관광지 연결·해수부 개장 — build_beach_weather_static.py)
  *                    · services/beach_weather_collector.js(forecast·waterTemp·issueAt) · services/smallzone_forecast.js(twNear)
@@ -33,6 +36,14 @@ const TW_MAX_AGE_MS = 12 * 3600000;            // 부이 수온 관측이 이보
 const RAIN_POP = 60;                           // 강수확률 이 이상인 칸도 「비」로 본다(사용자 2026-10-18 「통상적인 수준에서 판단」 — 표본에서 기상청 강수형태 판정선과 같음, 설계서 §18.4)
 const OPEN_SOON_DAYS = 5;                      // 사용자 확정 *"개장 예정은 5일 전부터 표시하면 될 것 같고"*
 const GOOD = { tw: 20, tmax: 25, wav: 1, wsd: 7 }, MAYBE = { tw: 18, tmax: 23 };
+// 종류마다 문장 끝 결론(swimText·openText 가 이 글로 끝난다 — 화면이 종류 색으로 칠하는 토막, 설계서 §18.11)
+const CONCL = {
+    open: '사람이 많이 몰릴 수 있습니다.',
+    good: '바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.',
+    maybe: '바닷물에 들어가는 사람이 있을 수 있습니다.',
+    warn: '물에 들어가기에 적절하지 않습니다.',
+    rough: '물에 들어가기에 적절하지 않습니다.',
+};
 
 /** 한글 받침이 있으면 a, 없으면 b. 예: josa('협재해수욕장','이','가') → '협재해수욕장이' · josa('멍비치','이','가') → '멍비치가' */
 function josa(word, a, b) {
@@ -106,7 +117,8 @@ function decide(x) {
 
 /**
  * 판단 결과를 확정 문구로 쓴다(사용자 확정 — 이 글자 그대로, 숫자만 바뀜). 거친 날의 나쁜 항목이 여럿이면 앞 항목은 「-고」로 잇는다
- *   (「파도가 1.8m로 높고 바람이 초속 9m로 강해」·「바람이 초속 9m로 강하고 비가 예보되어」). 순서 = 파도 → 바람 → 비. 경고(warn)는 「수온 19℃ · 낮 최고 24℃이고 …」.
+ *   (「파도가 1.8m로 높고 바람이 초속 9m로 강해」·「바람이 초속 9m로 강하고 비가 예보되어」). 순서 = 파도 → 바람 → 비. 경고(warn)는 「수온 19℃ · 낮 최고 24℃이나, …」
+ *   (사용자 2026-10-19 *"수욘 22도, 낮 최고기온 24도 이나, 비가 예보되어. 라고 표현해야 문구가 자연스럽지 않곘니 ?"* → 「좋아」 — 종전 「…℃이고 …」).
  * 예: swimText('협재해수욕장(1.2km)', {kind:'good',tw:22,tmax:27,wav:0.5}) → '협재해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 0.5m로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.'
  * @param {string} label - 「이름(거리)」 @param {object} r - decide 결과 @returns {string} [연계] ← lines / 시험 「문구」
  */
@@ -117,7 +129,7 @@ function swimText(label, r) {
     const part = { wave: [`파도가 ${mText(r.wav)}로 높고`, `파도가 ${mText(r.wav)}로 높아`], wind: [`바람이 초속 ${r.wsd}m로 강하고`, `바람이 초속 ${r.wsd}m로 강해`], rain: ['비가 예보되고', '비가 예보되어'] };
     const why = r.bad.map((k, i) => part[k][i === r.bad.length - 1 ? 1 : 0]).join(' ');
     // 끝 문장 「그래도 물에 들어가는 사람이 있을 수 있습니다.」는 뺐다(사용자 2026-10-18 *"들어가는사람이 있을수있다는 빼줘 파고가 3미터인데 어떻게 들어가니"*)
-    if (r.kind === 'warn') return `${label} — 수온 ${r.tw}℃ · 낮 최고 ${r.tmax}℃이고 ${why} 물에 들어가기에 적절하지 않습니다.`;
+    if (r.kind === 'warn') return `${label} — 수온 ${r.tw}℃ · 낮 최고 ${r.tmax}℃이나, ${why} 물에 들어가기에 적절하지 않습니다.`;
     return `${label} — 수온 ${r.tw}℃로 따뜻하지만 ${why} 물에 들어가기에 적절하지 않습니다.`;
 }
 
@@ -138,6 +150,15 @@ function openText(name, o, date, today) {
     if (date <= o.close) return `${subj} 개장 기간(${md(o.open)}~${md(o.close)})이라 사람이 많이 몰릴 수 있습니다.`;
     return null;
 }
+
+/**
+ * 안내 줄 하나를 응답 꼴로 싼다(설계서 §18.11 — 화면이 이름·결론을 종류 색으로 칠할 수 있게, 글을 다시 나누지 않아도 되도록 토막을 함께 준다).
+ * 예: line('open', '협재해수욕장', '협재해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.')
+ *     → {kind:'open', text:'협재해수욕장이 …', name:'협재해수욕장', concl:'사람이 많이 몰릴 수 있습니다.'}
+ * @param {string} kind - open·good·maybe·warn·rough @param {string} name - 문장 맨 앞 해수욕장 이름 @param {string} text - 문장 전체
+ * @returns {{kind:string, text:string, name:string, concl:string}} [연계] ← linesFor / → 화면 risk_sheet.js beachLines · station_briefing_render.js beachNode
+ */
+function line(kind, name, text) { return { kind, text, name, concl: CONCL[kind] }; }
 
 /**
  * 서비스를 만든다(시험은 표·수집기·소해구·시계를 바꿔 넣는다).
@@ -172,8 +193,8 @@ function createBeachWeather(o = {}) {
     }
     /**
      * 관광지 하나·날짜 하나의 안내 줄(개장 줄 → 입수 줄). 연결 해수욕장이 없거나 오늘·내일이 아니면 빈 배열.
-     * 예: linesFor('64110|협재해수욕장', '2026-07-12') → ['협재해수욕장이 개장 기간(7.10~8.23)이라 …', '협재해수욕장 — 수온 22℃ · …']
-     * @param {string} spotId @param {string} date - KST YYYY-MM-DD @returns {string[]} [연계] ← linesForSpots·라우트
+     * 예: linesFor('64110|협재해수욕장', '2026-07-12') → [{kind:'open', text:'협재해수욕장이 개장 기간(7.10~8.23)이라 …', name, concl}, {kind:'good', text:'협재해수욕장(1.2km) — 수온 22℃ · …', name, concl}]
+     * @param {string} spotId @param {string} date - KST YYYY-MM-DD @returns {Object[]} 줄 {kind, text, name, concl}(line) [연계] ← linesForSpots·라우트 / → line
      */
     function linesFor(spotId, date) {
         const t = T(), link = t.links[spotId], now = clock(), today = C.kstParts(now).date;
@@ -183,13 +204,13 @@ function createBeachWeather(o = {}) {
         const b = byNum.get(link.n);
         if (!b) return [];
         const out = [], op = openText(b.name, t.open[String(b.n)], date, today);
-        if (op) out.push(op);
+        if (op) out.push(line('open', b.name, op));
         const wx = dayWeather(collector.forecast(b.n), date, now), tw = wx ? waterTemp(b, now) : null;
         const r = wx && tw ? decide({ ...wx, tw: tw.tw }) : null;
-        if (r) out.push(swimText(link.self ? b.name : `${b.name}(${Math.max(0.1, Math.round(link.m / 100) / 10).toFixed(1)}km)`, r));
+        if (r) out.push(line(r.kind, b.name, swimText(link.self ? b.name : `${b.name}(${Math.max(0.1, Math.round(link.m / 100) / 10).toFixed(1)}km)`, r)));
         return out;
     }
-    /** 여러 관광지 한 번에(브리핑 연안 카드). 예: linesForSpots(['a','b'], '2026-10-18') → { a:[…] } (빈 줄 관광지는 뺌). @returns {object} */
+    /** 여러 관광지 한 번에(브리핑 연안 카드). 예: linesForSpots(['a','b'], '2026-10-18') → { a:[{kind,text,name,concl}, …] } (빈 줄 관광지는 뺌). @returns {object} */
     function linesForSpots(ids, date) {
         const out = {};
         for (const id of new Set(ids || [])) { const l = linesFor(id, date); if (l.length) out[id] = l; }
@@ -202,5 +223,5 @@ let def = null;
 /** 운영 기본(정적 표·기본 수집기·소해구 저장 판). [연계] ← routes/risk_forecast.js·routes/station_briefing.js */
 function forDefault() { return def || (def = createBeachWeather()); }
 
-module.exports = { createBeachWeather, forDefault, dayWeather, decide, swimText, openText, josa,
+module.exports = { createBeachWeather, forDefault, dayWeather, decide, swimText, openText, josa, line, CONCL,
     DAY_FROM, DAY_TO, STALE_ISSUES_MS, TW_MAX_AGE_MS, RAIN_POP, OPEN_SOON_DAYS, GOOD, MAYBE };

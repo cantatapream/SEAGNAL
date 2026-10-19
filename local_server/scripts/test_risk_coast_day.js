@@ -10,7 +10,8 @@
  *         · 「아직 이미지처럼 연안 위험에 시간 조정이 있네 ? 날짜 바꾸는 디자인을 적용해줘. 예를 들면, 우리 앱에서 항행경보가 반영된곳을 보면 화면 가운데 위쪽에 날짜 변경 기능이 있잖아? 그거처럼 말이야.」
  *         · 하루 값 「1. 가」(그날 3시간 칸 중 가장 높은 값) · 해상 함께 「2. 가」(해상 시간 버튼 그대로, 연안은 그 시각이 속한 KST 날짜) · 「나. 무시」.
  *         연안 시트 안내(특보·표류)는 그날 칸 전부의 것(daily.notices)에 시각을 붙여 — 설계서 §16.1 ②(2026-10-16 「모두 추천대로」).
- *         §18(2026-10-18): 연안 시트 해수욕장 안내 줄(가짜 beach — 특보 상자 바로 아래·요소 줄 위·오늘/내일·360px, 판단·문구는 test_beach_weather).
+ *         §18(2026-10-18): 연안 시트 해수욕장 안내 줄(가짜 beach — 오늘/내일·360px, 판단·문구는 test_beach_weather).
+ *         §18.11(2026-10-19): 해수욕장 줄은 특보·표류 주황 상자 안 마지막 줄(물결·파라솔 그림) · 이름·결론 종류 색 굵게 · 특보 없는 날은 해수욕장 줄만 든 상자 · 옛 문자열 줄은 색 없이.
  *         하루 값 계산 자체(8칸·이른 칸·KST 경계·결측 합침·안내 묶음)는 test_risk_store 가 본다. 여기 가짜 저장소는 날짜마다 다른 값(오늘 1.2·내일 2.2)만 준다.
  *         RISK_DAY_SHOTS=<폴더> 를 주면 380·1280px 화면을 PNG 로 남긴다(판정에 쓰지 않음).
  * [연계] client/index2.html(항행경보 #navwarn-date-nav 규칙) · risk_forecast.js(dateNav·shiftDay·setMain·mapSelect) · risk_sheet.js(day) ·
@@ -52,7 +53,9 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
   islands:()=>({features:[]})};
  const marine=M.createStore({risk:store,dir,clock:()=>now,stations:[{properties:{name:'제주파출소',station:'제주해양경찰서'},geometry}],accidents:[],describe:()=>cell});
  // §18(2026-10-18) 해수욕장 안내 줄 — 가짜(S1 만, 날짜마다 다른 줄). 판단·문구 자체는 test_beach_weather 가 본다.
- const BEACH={'S1@2026-10-12':['가짜해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.','가짜해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높고 바람이 초속 9m로 강해 물에 들어가기에 적절하지 않습니다.'],'S1@2026-10-13':['가짜해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 0.5m로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.']};
+ // 서버 줄 꼴 {kind,text,name,concl}(§18.11) — 서버 함수(beach_weather.line)로 만든다. 글은 가짜, 판단·문구는 test_beach_weather 가 본다.
+ const BL=require('../services/beach_weather').line,BN='가짜해수욕장';
+ const BEACH={'S1@2026-10-12':[BL('open',BN,'가짜해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.'),BL('rough',BN,'가짜해수욕장(1.2km) — 수온 22℃로 따뜻하지만 파도가 1.8m로 높고 바람이 초속 9m로 강해 물에 들어가기에 적절하지 않습니다.')],'S1@2026-10-13':[BL('open',BN,'가짜해수욕장이 개장 기간(7.10~8.23)이라 사람이 많이 몰릴 수 있습니다.'),BL('maybe',BN,'가짜해수욕장(1.2km) — 수온 19℃ · 낮 최고 24℃로 물놀이하기에 아주 좋은 날씨는 아니지만, 바닷물에 들어가는 사람이 있을 수 있습니다.')]};
  const app=express();app.use(createRouter({store,marine,beach:(id,date)=>BEACH[id+'@'+date]||[]}));
  app.get('/',(req,res)=>res.sendFile(path.join(root,'client/index2.html')));
  app.use(express.static(path.join(root,'client')));
@@ -142,12 +145,13 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
  });
  await check('§16.1 ② + 결정 1 연안 시트 안내: 그날 남은 칸 어느 칸이든 특보·표류가 있으면 — 특보는 기상청 시각(발표·발효 예정·해제 예고), 못 읽은 것만 칸 시각+「칸 기준」, 표류는 칸 시각(12시 무렵), 특보 없는 날은 안내 없음',async()=>{
   // 2026-10-18 연안 시트 시안: 특보·표류는 주황 상자(.rf-notice) 하나 안의 줄(.rf-notice-line) — 글자 ⚠·🛟 대신 그림(SVG), 특보 이름·상태는 빨강 굵게, 「특보 중에는…」은 다음 줄.
-  const notes=()=>page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice-line')].map(e=>e.textContent));
+  // 해수욕장 줄(.rf-beach-line — §18.11 부터 같은 상자 안)은 아래 §18 사례가 본다
+  const notes=()=>page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice-line:not(.rf-beach-line)')].map(e=>e.textContent));
   const boxes=()=>page.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice').length);
   assert.equal((await S()).peak,'가장 높은 때 18시 기준');
   assert.equal(await boxes(),1,'특보·표류가 한 상자');
   assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#risk-forecast-sheet .rf-notice .rf-warn-name')].map(b=>[b.textContent,getComputedStyle(b).color])),[['강풍주의보 예비특보','rgb(239, 68, 68)'],['태풍주의보 예비특보','rgb(239, 68, 68)'],['풍랑주의보 발효 중','rgb(239, 68, 68)']],'특보 이름·상태 빨강 굵게');
-  assert.equal(await page.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-notice-line svg').length),2,'줄마다 그림');
+  assert.equal(await page.evaluate(()=>document.querySelectorAll('#risk-forecast-sheet .rf-notice-line:not(.rf-beach-line) svg').length),2,'줄마다 그림');
   assert.deepEqual(await notes(),['강풍주의보 예비특보 — 21~24시 발효 예정. 태풍주의보 예비특보 — 18시~(칸 기준). 풍랑주의보 발효 중 — 13일 03~06시 해제 예고.특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 14% 높습니다.','12시 무렵 바람 9m/s로 소형 보트·레저기구 등 표류 주의'],'결정 1: 발효 = 해제 예고 시각(다른 날 「13일」)·발표 시각, 예비 = 발효 예정 시각(범위 21~24시), 시각 없으면 칸 시각+「칸 기준」, 「더 일찍 풀릴」 없음');
   assert.ok(!/더 일찍/.test((await notes()).join('')),'「더 일찍 풀릴 수 있음」 없음');
   if(SHOTS){await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-notice').scrollIntoView({block:'center'}));await page.screenshot({path:path.join(SHOTS,'day-380-시트-안내.png')});}
@@ -156,19 +160,35 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
   await sheetClick(-1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-12'));await ready();
   assert.equal((await notes()).length,2,'오늘로 돌아오면 다시');
  });
- await check('§18 연안 시트 해수욕장 안내 줄: 특보·표류 상자 바로 아래 하늘색 상자 · 개장 줄 → 입수 줄 서버 글 그대로 · 날짜 < > 로 내일 줄 · 줄 없는 관광지는 상자 없음',async()=>{
-  const beach=()=>page.evaluate(()=>{const b=document.querySelector('#risk-forecast-sheet .rf-body .rf-beach');if(!b)return null;const prev=b.previousElementSibling,next=b.nextElementSibling,cs=getComputedStyle(b);return{lines:[...b.querySelectorAll('.rf-beach-line')].map(e=>e.textContent),prev:prev&&prev.className,next:next&&next.className,bg:cs.backgroundColor,overflow:document.documentElement.scrollWidth>innerWidth};});
+ await check('§18·§18.11 연안 시트 해수욕장 안내 줄(2026-10-19 사용자 「그날 특보, 표류 안내가 표출되는 칸에」): 특보·표류 주황 상자 안 마지막 줄 · 물결·파라솔 그림(#38bdf8) · 이름·결론 종류 색 굵게 · 특보 없는 날은 해수욕장 줄만 든 상자 · 따로 하늘색 상자 없음 · 360px',async()=>{
+  const beach=()=>page.evaluate(()=>{const box=document.querySelector('#risk-forecast-sheet .rf-body .rf-notice');if(!box)return null;const kids=[...box.children],bl=kids.filter(e=>e.classList.contains('rf-beach-line'));
+   const ems=bl.map(l=>[...l.querySelectorAll('b.rf-beach-em')].map(b=>[b.textContent,getComputedStyle(b).color,getComputedStyle(b).fontWeight]));
+   return{boxes:document.querySelectorAll('#risk-forecast-sheet .rf-body .rf-notice').length,order:kids.map(e=>e.classList.contains('rf-beach-line')?'beach':'notice'),lines:bl.map(e=>e.textContent),ems,
+    svg:bl.map(l=>{const g=l.querySelector('.rf-notice-ico svg.rf-ico-beach');return g?g.getAttribute('stroke'):null;}),data:bl.every(l=>l.hasAttribute('data-beach')),old:document.querySelectorAll('#risk-forecast-sheet .rf-beach').length,
+    next:box.nextElementSibling&&box.nextElementSibling.className,over:document.documentElement.scrollWidth>innerWidth,boxOver:box.scrollWidth>box.clientWidth+1};});
+  const O='rgb(125, 211, 252)',W='700',T=l=>l.map(x=>x.text);
   let b=await beach();
-  assert.deepEqual(b.lines,BEACH['S1@2026-10-12']);assert.equal(b.prev,'rf-notice');assert.equal(b.next,'rf-coast-rows');assert.equal(b.bg,'rgba(56, 189, 248, 0.1)');assert.equal(b.overflow,false);
+  assert.deepEqual(b.order,['notice','notice','beach','beach'],'특보·표류 줄 다음 해수욕장 줄(같은 상자) '+JSON.stringify(b.order));assert.equal(b.boxes,1);assert.equal(b.old,0,'종전 하늘색 상자(.rf-beach) 없음');
+  assert.deepEqual(b.lines,T(BEACH['S1@2026-10-12']),'글은 서버 글 그대로');assert.deepEqual(b.svg,['#38bdf8','#38bdf8'],'줄마다 물결·파라솔 그림');assert.ok(b.data);
+  assert.deepEqual(b.ems,[[['가짜해수욕장',O,W],['사람이 많이 몰릴 수 있습니다.',O,W]],[['가짜해수욕장','rgb(248, 113, 113)',W],['물에 들어가기에 적절하지 않습니다.','rgb(248, 113, 113)',W]]],'개장 하늘 · 거친 날 빨강 — 이름·결론만 '+JSON.stringify(b.ems));
+  assert.equal(b.next,'rf-coast-rows');assert.equal(b.over,false);
   await page.setViewportSize({width:360,height:780});await page.waitForTimeout(250);
-  if(SHOTS){await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-beach').scrollIntoView({block:'center'}));await page.screenshot({path:path.join(SHOTS,'beach_coast_sheet_today_360.png')});}
-  assert.equal((await beach()).overflow,false,'360px 가로 넘침 없음');
+  if(SHOTS){await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-notice').scrollIntoView({block:'center'}));await page.screenshot({path:path.join(SHOTS,'beach_coast_sheet_today_360.png')});}
+  b=await beach();assert.deepEqual([b.over,b.boxOver],[false,false],'360px 가로 넘침 없음');
   await sheetClick(1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-13'));await ready();
-  b=await beach();assert.deepEqual(b.lines,BEACH['S1@2026-10-13']);assert.equal(b.next,'rf-coast-rows','특보 없는 날은 위험지수 카드 바로 아래');
-  if(SHOTS){await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-beach').scrollIntoView({block:'center'}));await page.screenshot({path:path.join(SHOTS,'beach_coast_sheet_tomorrow_360.png')});}
+  b=await beach();assert.deepEqual(b.order,['beach','beach'],'특보·표류 없는 날 = 해수욕장 줄만 든 주황 상자');assert.deepEqual(b.lines,T(BEACH['S1@2026-10-13']));
+  assert.deepEqual(b.ems[1],[['가짜해수욕장','rgb(250, 204, 21)',W],['바닷물에 들어가는 사람이 있을 수 있습니다.','rgb(250, 204, 21)',W]],'있을 수 있음 노랑(「바닷물에 들어가는 사람이 있을 수 있다」 부분도)');
+  assert.equal(b.next,'rf-coast-rows','특보 없는 날도 위험지수 카드 아래 상자 하나 → 요소 줄');assert.deepEqual([b.over,b.boxOver],[false,false]);
+  if(SHOTS){await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-notice').scrollIntoView({block:'center'}));await page.screenshot({path:path.join(SHOTS,'beach_coast_sheet_tomorrow_360.png')});}
+  // 다섯 종류 색 · 옛 꼴(문자열)·토막이 안 맞는 줄은 색 없이 글 그대로 · 글은 이스케이프(화면 함수 직접)
+  const f=await page.evaluate(([good,warn])=>{const R=window.RiskSheet,d=document.createElement('div');d.className='rf-notice';document.querySelector('#risk-forecast-sheet .rf-body').appendChild(d);
+   d.innerHTML=R.beachLines([good,warn,'옛 꼴 <b>글</b>',{kind:'good',text:'이름이 다른 줄',name:'없는 이름',concl:'끝'},{kind:'x',text:'모르는 종류',name:'모르는',concl:'종류'},null,{text:''}]).join('');
+   const o=[...d.children].map(l=>[l.textContent,[...l.querySelectorAll('b')].map(b=>getComputedStyle(b).color)]);d.remove();return o;},[BL('good',BN,BN+'(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 0.5m로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.'),BL('warn',BN,BN+'(1.2km) — 수온 19℃ · 낮 최고 24℃이나, 비가 예보되어 물에 들어가기에 적절하지 않습니다.')]);
+  assert.deepEqual(f.map(x=>x[1]),[['rgb(74, 222, 128)','rgb(74, 222, 128)'],['rgb(251, 146, 60)','rgb(251, 146, 60)'],[],[],[]],'좋음 초록 · 경고 주황 · 옛 꼴·안 맞는 토막·모르는 종류는 색 없음 '+JSON.stringify(f));
+  assert.deepEqual(f.map(x=>x[0]).slice(2),['옛 꼴 <b>글</b>','이름이 다른 줄','모르는 종류'],'글 그대로(HTML 아님) · 빈 줄은 뺌');
   await sheetClick(-1);await page.waitForFunction(()=>document.querySelector('#risk-forecast-sheet .rf-body').textContent.includes('@2026-10-12'));await ready();
   await page.setViewportSize({width:380,height:780});await page.waitForTimeout(250);
-  assert.ok(await page.evaluate(()=>!!document.querySelector('#risk-forecast-sheet .rf-beach')));
+  assert.ok(await page.evaluate(()=>!!document.querySelector('#risk-forecast-sheet .rf-beach-line')));
  });
  await check('T24 「나. 무시」 실제 앱 지도 누르기(ocean_map.js 경로): 연안 시트가 열린 동안 같은 위치 관광지·열린 그 관광지 누름은 무시 — 시트 다시 그림 없음·테두리·제목·요청 그대로',async()=>{
   const sel=()=>page.evaluate(()=>window.getOceanMap().getLayers().getArray().find(l=>l.getClassName()==='rf-selection-canvas').getSource().getFeatures().length);

@@ -54,8 +54,8 @@
 /* §11.10.32 「물때」 줄 = 기상 현황 줄과 같은 「•」 목록 — 항목 안 문단(물때·간출암 줄·고립 주의 줄)의 위아래 여백은 li 가 맡는다 */
 .sb-tide-rows .sb-sum-tide, .sb-tide-rows .sb-iso-line { margin:0; }
 .sb-now { margin:6px 0; padding:6px 9px; border-radius:8px; background:rgba(103,232,249,.08); color:#a5f3fc; font-size:.8rem; }
-.sb-basis, .sb-constant { margin-top:6px; }
-.sb-basis summary, .sb-constant summary { cursor:pointer; color:#93c5fd; font-size:.8rem; font-weight:700; }
+.sb-basis { margin-top:6px; }
+.sb-basis summary { cursor:pointer; color:#93c5fd; font-size:.8rem; font-weight:700; }
 .sb-list { margin:4px 0; padding-left:18px; }
 .sb-list li { margin:2px 0; }
 .sb-source { font-size:.7rem; }
@@ -98,10 +98,16 @@
 .sb-row-k { color:#94a3b8; white-space:nowrap; font-weight:700; }
 .sb-row .sb-list { margin:0; }
 .sb-sentence { margin:6px 0 4px; color:#cbd5e1; font-size:.8rem; }
-/* 연안 카드 해수욕장 안내 줄(설계서 §18, 2026-10-18) — [오늘 예상] 아래, 위험 단계와 무관한 참고 줄이라 하늘색 왼쪽 줄. 글은 서버 글 그대로 */
-.sb-beach { margin:6px 0 4px; padding:5px 8px; border-left:3px solid #38bdf8; border-radius:4px; background:rgba(56,189,248,.08); }
-.sb-beach-line { margin:0; color:#cbd5e1; font-size:.8rem; line-height:1.5; word-break:keep-all; overflow-wrap:anywhere; }
-.sb-beach-line+.sb-beach-line { margin-top:3px; }
+/* 연안 카드 해수욕장 안내 줄(설계서 §18 · §18.11 2026-10-19) — 따로 상자 없이 [오늘 예상] 칸 마지막 줄(render.js todayRow·beachNode). 그림(물결·파라솔) + 글.
+   목록일 때는 「•」 자리(목록 왼쪽 18px)에 그림 — 글 첫머리가 다른 항목 글과 같은 위치. 이름·결론은 종류 색 굵게:
+   개장(예정·당일·기간) 하늘 · 좋음 초록 · 있을 수 있음 노랑 · 경고 주황 · 거친 날 빨강(위험예측 연안 시트 .rf-bk-* 와 같은 값). */
+.sb-beach-item { display:flex; gap:4px; align-items:flex-start; }
+.sb-list li.sb-beach-item { list-style:none; margin-left:-18px; }
+.sb-beach-ico { flex:0 0 14px; line-height:inherit; }
+.sb-beach-ico svg { display:inline-block; width:14px; height:14px; vertical-align:-.2em; }
+.sb-beach-t { min-width:0; overflow-wrap:anywhere; }
+.sb-beach-em { font-weight:700; }
+.sb-bk-open { color:#7dd3fc; } .sb-bk-good { color:#4ade80; } .sb-bk-maybe { color:#facc15; } .sb-bk-warn { color:#fb923c; } .sb-bk-rough { color:#f87171; }
 /* §11.10.15 해역 카드 출처별 배지(승인 시안 .sb·.det) — 어두운 바탕·테두리 + 색 글자(등급은 바탕이 아니라 글자 색으로). 관심·주의 글자 색은 render 가 colorOf 로 넣고,
    경계는 이 빨강(#e34842 — 위험예측 빨강 #e0322c 는 이 바탕 #0b1324 위 대비 4.5 미만이라 §11.10.11 분석 문단과 같은 밝힌 빨강, 대비 약 4.66). 상세 줄은 배지 바로 아래 왼쪽 선. */
 .sb-srcbs { display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin:6px 0 4px; }
@@ -230,20 +236,6 @@
 .sb-iso-table th { color:#94a3b8; font-weight:700; }
 .sb-iso-table .sb-num { text-align:right; white-space:nowrap; }
 .sb-iso-table th:last-child { text-align:right; }
-/* §11.10.39(2026-10-19 사용자 *"이 상시 위험장소를 표로 정리하여 표출"*) 「상시 위험 장소 N개소」 표(render.js constantTable) — 장소 | 위험구역 | 연안사고.
-   고립 지점 표(.sb-iso-table)와 같은 줄·머리 모양. 칸 안 줄바꿈(어절 단위)으로 360px 에 들어가고, 그래도 넘치면 표 상자 안에서만 가로 스크롤(페이지는 넘치지 않음). */
-.sb-constant-tblw { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-top:4px; }
-.sb-constant-table { table-layout:fixed; }
-.sb-constant-table th:nth-child(1) { width:30%; }
-.sb-constant-table th:nth-child(2) { width:41%; }   /* 「사망사고 발생구역 2」가 360px 에서 한 줄(숫자만 다음 줄로 떨어지지 않게) */
-.sb-constant-table th:last-child { text-align:left; }
-.sb-constant-table th, .sb-constant-table td { padding:4px 5px; vertical-align:top; word-break:keep-all; overflow-wrap:anywhere; }
-.sb-const-period { display:block; font-size:.7rem; white-space:nowrap; }
-.sb-constant-table th:first-child, .sb-constant-table td:first-child { padding-left:0; }
-.sb-const-name { color:#f1f5f9; font-weight:700; }
-.sb-const-n { font-weight:800; }
-.sb-const-sub { display:block; color:#94a3b8; font-size:.7rem; line-height:1.4; }
-.sb-const-none { color:#94a3b8; }
 .sb-iso-line { margin:4px 0 2px; font-size:.8rem; }
 /* 「가」 모양(2026-10-17 사용자 결정 §11.10.4) — 결론 아래 분석 문단(이름표 「AI 분석 · ChatGPT」/「규칙 분석」) · 그 아래 접힌 「연안/해상 분석 근거」 */
 .sb-analysis { margin:4px 0 6px; color:#e2e8f0; font-size:.84rem; line-height:1.65; }

@@ -45,7 +45,7 @@ function createRouter({
     /** 요청에서 기기 식별(관리자 기기 판정용)·관리자 토큰을 꺼낸다 — advisoryPrediction 과 같은 이름(adminToken·endpoint 쿼리, X-Admin-Device·X-Admin-Token 헤더). */
     const who = (req) => ({ deviceId: (req.query && (req.query.adminToken || req.query.endpoint)) || req.get('X-Admin-Device') || '', adminToken: req.get('X-Admin-Token') || (req.query && req.query.adminAuthToken) || '' });
     const gate = (req) => SB.decideExposure(svc().readConfig().exposure, who(req), { isAdminDevice, verifyToken });
-    /** 브리핑 연안 카드 관광지마다 해수욕장 안내 줄(§18). 실패하면 빈 표(브리핑은 그대로). 예: beachOf({date:'2026-10-18', briefing:{land:{cards:[{link:{spotId:'a'}}]}}}) → {a:['…']} */
+    /** 브리핑 연안 카드 관광지마다 해수욕장 안내 줄(§18). 실패하면 빈 표(브리핑은 그대로). 예: beachOf({date:'2026-10-18', briefing:{land:{cards:[{link:{spotId:'a'}}]}}}) → {a:[{kind,text,name,concl}]}(§18.11) */
     const beachOf = (r) => { try { const ids = ((r && r.briefing && r.briefing.land && r.briefing.land.cards) || []).map((c) => c && c.link && c.link.spotId).filter(Boolean); return ids.length ? beachLines(ids, r.date) || {} : {}; } catch (_) { console.error('[station_briefing] 해수욕장 안내 줄 실패'); return {}; } };
     const fail = (res, e) => res.status(e.status || 500).set('Cache-Control', 'no-store').json({ ok: false, error: e.status ? e.message : '브리핑 처리 실패' });
 

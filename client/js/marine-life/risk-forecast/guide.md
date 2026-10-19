@@ -421,3 +421,16 @@ README 「해상 시트 시안 반영」 절의 확정 사항을 코드로 옮�
 | `risk_score.driftTarget(t)`(서버, 새 함수) | — | `t` 의 KST 달이 6~9월이면 「튜브·물놀이기구」, 그 밖 「소형 보트·레저기구」. `scoreCoast` 의 `notices.driftTarget` |
 | `risk_store.coastScore` 표류 안내 | `{key:'drift',windMs}` | `{key:'drift',windMs,target}` — `dayNotices` 묶음에도 `target`(그날 칸은 같은 달) |
 | `RiskSheet` `driftText(n)` | 「… 튜브·물놀이기구 등 표류 주의」 고정 | `n.target` + 「 등 표류 주의」(없으면 「표류 주의」) · `dayNotices` 가 `target` 을 넘김 |
+
+## 연안 시트 해수욕장 줄 — 특보·표류 상자 안 · 종류 색 — 2026-10-19 (설계서 §18.11)
+
+사용자 원문: *"해수욕장 관련 문구는 그날 특보, 표류 안내가 표출되는 칸에 들어갈 수 있도록 해줘."* · *"거친날, 개장 예정 등 해당 종류 분류에 따른 색상을 해수욕장 명칭에 반영해줘."* · *"바닷물에 들어가는 사람이 있을 수 있다 부분도 해당 색상을 적용해줘."*
+
+| 무엇 | 전 | 후 |
+|------|----|----|
+| 서버 `beach_weather.linesFor` 줄 | 문자열 | `{kind, text, name, concl}`(`line` — `text` 는 `name` 으로 시작·`concl` 로 끝남, `kind` = open·good·maybe·warn·rough) |
+| `RiskSheet` 해수욕장 줄 | `beachBox(lines)` — 특보 상자 아래 하늘색 `div.rf-beach > p.rf-beach-line` | `beachLines(lines)` → `noticeLine(ICON_BEACH, beachText(l), 'rf-beach-line')` 줄을 `dayNotices(daily, extra)`·`notices(list, extra)` 의 같은 `.rf-notice` 상자 끝에. 특보·표류 없으면 해수욕장 줄만 든 상자 |
+| `beachText(l)` | — | 이름·결론 `b.rf-beach-em.rf-bk-<kind>`(종류 색 굵게), 가운데 보통 글자 · 문자열·토막 안 맞음·모르는 종류 → 색 없이 escape 글 그대로 |
+| `noticeLine(icon, html, cls)` | 두 인자 | 셋째 `cls` 가 있으면 줄에 class + `data-beach` |
+| CSS | `.rf-beach`·`.rf-beach-line` 상자 | 지움 → `.rf-beach-em`·`.rf-bk-open/good/maybe/warn/rough` |
+| 경고 문구(서버 `swimText` warn) | 「…낮 최고 24℃이고 …」 | 「…낮 최고 24℃이나, …」 |
