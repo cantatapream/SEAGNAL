@@ -94,20 +94,21 @@
      * 지도 면색이 같은 자료를 칠하지 않는 규칙(marine_fusion.unifiedFrame)과 같다. 낡은 현재값은 보이지 않고 「이 해역 선박 정보 없음」만(사용자 2026-10-15 「최신성 확인 필요… 붙일 필요는 없는 것 같은데」).
      * 최신 응답에 칸이 없으면(서버 current.absent — 공단 API 는 배 없는 칸을 안 보냄) 「이 해역 선박 없음」.
      * @param {object} m - marine @param {object} ctx - {now} @returns {string} HTML
-     * [연계] ← render / 서버 marine.accident·current(densityLevel)·congestion·collisionNotice·harbor(항구 칸이면 「항구 칸 — … 혼잡 판정 제외」 한 줄)
+     * [연계] ← render / 서버 marine.accident·current(densityLevel)·congestion·collisionNotice·harbor(항구 칸이면 혼잡예보 줄 오른쪽 「(항구 | 혼잡 판정 제외)」)
      */
     function hero(m,ctx){
         var a=m.accident,cf=m.congestion,c=m.current,okA=a&&a.status==='ok'&&RISK[a.level],okC=cf&&cf.status==='ok'&&CONG[cf.level],cc=m.collisionNotice&&m.collisionNotice.on?'<p><b class="rf-cc">충돌·접촉사고 주의</b></p>':'',row;
-        // 항구 칸(서버 marine.harbor — harbor_cells): 척수·혼잡 예보는 그대로 보이고 혼잡 판정에서 빠졌다는 한 줄(2026-10-19 사용자 「회색+숫자 유지」).
-        cc+=m.harbor?'<p class="rf-muted rf-harbor-note">항구 칸 — 정박·계류 배 포함, 혼잡 판정 제외</p>':'';
+        // 항구 칸(서버 marine.harbor — harbor_cells): 척수·혼잡 예보는 그대로 보이고, 혼잡예보(미래면 혼잡 지수) 줄 오른쪽에 「(항구 | 혼잡 판정 제외)」
+        //   (2026-10-19 사용자 *"항구 칸 - 정박 계류 배 포함 혼잡 판정제외 이거 뺴줘. 그 줄을 아예 빼주고 그리고 12시 혼잡예보 낮음 오른쪽에 (항구 | 혼잡 판정 제외) 라고 명시해줘."* — 종전 따로 한 줄)
+        var hb=m.harbor?' <span class="rf-muted rf-harbor-note">(항구 | 혼잡 판정 제외)</span>':'';
         if(isNow(m,ctx)){
             var live=c&&c.status==='ok'&&Number.isFinite(c.count),dens=live&&Number.isFinite(c.density)?c.density:null;
             // 척수(「18척」)는 밀집도 단계색 — 옆 「밀집도」 칸과 같은 색(시안 2026-10-18 ⑤ 사용자 확정). 밀집도를 모르면(칸이 「-」) 색을 칠하지 않는다.
             var cntCol=dens!==null&&CONG[c.densityLevel]?' style="color:'+CONG[c.densityLevel]+'"':'';
             var line=live?(c.absent?'<p>이 해역 선박 없음</p>':'<p>이 해역 선박 <b class="rf-cnt"'+cntCol+'>'+F.escape(c.count)+'척</b>(밀집도 '+(dens===null?'-':dens.toFixed(1)+'%')+')</p>'):'<p>이 해역 선박 정보 없음</p>';
             var fh=cf&&Number.isFinite(Date.parse(cf.forecastAt))?p2(k(Date.parse(cf.forecastAt)).h)+'시 ':'';
-            row=badge('밀집도',live&&dens!==null?c.densityLevel:null,CONG)+'<div class="rf-txt">'+helpBtn('cong')+line+cc+'<p>'+(okC?fh+'혼잡예보 '+chip(cf.level):'혼잡예보 정보 없음')+'</p></div>';
-        }else row=badge('혼잡도',okC?cf.level:null,CONG)+'<div class="rf-txt">'+helpBtn('cong')+'<p>혼잡 지수 <b>'+(okC&&Number.isFinite(cf.index)?Number(cf.index).toFixed(1):'-')+'</b></p>'+cc+'</div>';
+            row=badge('밀집도',live&&dens!==null?c.densityLevel:null,CONG)+'<div class="rf-txt">'+helpBtn('cong')+line+cc+'<p>'+(okC?fh+'혼잡예보 '+chip(cf.level):'혼잡예보 정보 없음')+hb+'</p></div>';
+        }else row=badge('혼잡도',okC?cf.level:null,CONG)+'<div class="rf-txt">'+helpBtn('cong')+'<p>혼잡 지수 <b>'+(okC&&Number.isFinite(cf.index)?Number(cf.index).toFixed(1):'-')+'</b>'+hb+'</p>'+cc+'</div>';
         return '<section class="rf-card rf-hero"><div class="rf-r">'+badge('위험 예측',okA?a.level:null,RISK)+'<div class="rf-txt">'+helpBtn('risk')+'<p class="rf-fit" data-fit="'+FIT_TEXT+'">'+FIT_TEXT+'</p></div></div><div class="rf-r">'+row+'</div></section>';
     }
     /** 해상 시트 제목(h3)을 쓴다 — 끝의 해구 괄호 「(92-7해구)」만 제목보다 2pt 작게·굵기 없이(CSS .rf-title .rf-haegu), 이름 부분은 그대로.

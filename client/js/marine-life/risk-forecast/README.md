@@ -492,6 +492,6 @@
 
 - 목록: `local_server/config/coastal_safety/harbor_cells.json`(강·중 186칸 — 해경 항포구·방파제 구역·항 안 사고글·육지 비율로 자동 판정). 읽기 `local_server/services/harbor_cells.js`. 다시 만들기 `node local_server/scripts/gen_harbor_cells.js`(운영 공개 GET). 「불확실」 140칸은 적용하지 않고 [harbor_cells_review.md](harbor_cells_review.md) 에 구글맵 링크와 함께 둔다.
 - 지도(`risk_map_layer.js renderUnified`): 혼잡도 지금·혼잡 예보에서 서버 프레임 줄 끝이 `1` 인 칸은 회색(rgb(138,148,166), 투명도 .5) · 숫자(척수)는 그대로 · 위험 예측에는 회색 없음. 범례(`risk_forecast.js marineLegend`): 혼잡도일 때 막대 아래 「항구(정박·계류) 칸」 회색 네모(`.rf-harbor-key`).
-- 해상 시트(`risk_marine.js hero`): 서버 `marine.harbor` 가 있으면 「항구 칸 — 정박·계류 배 포함, 혼잡 판정 제외」 한 줄 · 서버는 그 칸에 충돌·접촉 주의·혼잡으로 인한 관심 단계를 만들지 않는다(척수·밀집도·혼잡 예보 값은 그대로 보임).
+- 해상 시트(`risk_marine.js hero`): 서버 `marine.harbor` 가 있으면 혼잡예보 줄(미래 시각이면 혼잡 지수 줄) 오른쪽에 「(항구 | 혼잡 판정 제외)」(2026-10-19 사용자 — 종전 따로 한 줄은 뺐다) · 서버는 그 칸에 충돌·접촉 주의·혼잡으로 인한 관심 단계를 만들지 않는다(척수·밀집도·혼잡 예보 값은 그대로 보임).
 - 위험지수(100점)·위험 예측 색은 바뀌지 않는다(혼잡은 원래 점수에 없음). 해역 카드 「최근 14일 선박 동향」은 이번 범위 밖(항구 칸 척수 그대로).
 - 시험: `local_server/scripts/test_harbor_cells.js`(verify_all). 캐시 `?v=20261019harbor`(risk_map_layer·risk_marine·risk_forecast.js·risk_forecast.css).

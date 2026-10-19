@@ -186,7 +186,7 @@ function store({ hCount = 23, oCount = 23, cong = '낮음', harbor = harborList 
             assert.deepEqual(errors, []);
             assert.equal(r.cur.h, 'rgba(138,148,166,0.5)'); assert.notEqual(r.cur.o, r.cur.h); assert.deepEqual(r.cur.nums.sort(), [23, 23]);
             assert.notEqual(r.acc.h, 'rgba(138,148,166,0.5)'); assert.equal(r.acc.h, r.acc.o);
-            assert.ok(r.withH.includes('항구 칸 — 정박·계류 배 포함, 혼잡 판정 제외'), r.withH); assert.ok(!r.without.includes('항구 칸'));
+            assert.ok(r.withH.includes('혼잡예보 정보 없음 (항구 | 혼잡 판정 제외)'), r.withH); assert.ok(!r.withH.includes('정박·계류 배 포함'), r.withH); assert.ok(!r.without.includes('항구'));   // 2026-10-19 사용자: 따로 한 줄 빼고 혼잡예보 줄 오른쪽에
         } finally { await browser.close(); }
     });
     console.log('\n' + pass + ' PASS / ' + fail + ' FAIL'); process.exit(fail ? 1 : 0);
