@@ -1733,7 +1733,7 @@ function makeBriefings() {
             const r = await page.evaluate(() => {
                 const box = document.getElementById('station-briefing-content'), out = [];
                 box.querySelectorAll('[data-sb-card] .sb-row').forEach((row) => {
-                    const k = row.querySelector('.sb-row-k'), v = row.children[1]; if (!k || !v) return;
+                    const k = row.querySelector('.sb-row-k'), v = row.children[1]; if (!k || !v || row.classList.contains('sb-row-stack')) return;   // [오늘 예상] 아래 줄 목록(2026-10-19)은 오른쪽 들여쓰기 대상 아님
                     const rg = document.createRange(); rg.selectNodeContents(v);
                     const lines = []; [...rg.getClientRects()].filter((q) => q.width > 0.5).forEach((q) => { const l = lines.find((x) => Math.abs(x.top - q.top) < 3); if (l) l.left = Math.min(l.left, q.left); else lines.push({ top: q.top, left: q.left }); });
                     if (lines.length < 2) return;
@@ -2298,14 +2298,15 @@ function makeBriefings() {
                 const kids = (c) => [...c.children].map((e) => e.classList.contains('sb-adv') ? 'advice' : e.classList.contains('sb-row') ? 'row:' + e.querySelector('.sb-row-k').textContent : null).filter(Boolean);
                 const today = (c) => [...c.querySelectorAll('.sb-row')].find((x) => x.querySelector('.sb-row-k').textContent === '[오늘 예상]');
                 const ti = today(card('이호테우해변')), lis = [...ti.querySelectorAll('ul.sb-list > li')], bi = lis.filter((x) => x.classList.contains('sb-beach-item')), other = lis.find((x) => !x.classList.contains('sb-beach-item'));
-                const tm = today(card('모충사')), one = tm.querySelector('.sb-row-v');
+                const tm = today(card('모충사')), one = tm.querySelector('li.sb-beach-item');
+                const stack = [ti, tm].map((t) => [t.classList.contains('sb-row-stack'), Math.round(t.querySelector('ul').getBoundingClientRect().top - t.querySelector('.sb-row-k').getBoundingClientRect().bottom) >= -1, Math.round(t.querySelector('ul').getBoundingClientRect().left) < Math.round(t.querySelector('.sb-row-k').getBoundingClientRect().right)]);
                 return { i: kids(card('이호테우해변')), m: kids(card('모충사')), old: document.querySelectorAll('#sb20 .sb-beach, #sb20 .sb-beach-line').length,
                     order: lis.map((x) => x.classList.contains('sb-beach-item') ? 'beach' : 'change'), lines: bi.map((x) => x.querySelector('.sb-beach-t').textContent),
                     ems: bi.map((x) => [...x.querySelectorAll('b.sb-beach-em')].map((b) => [b.textContent, getComputedStyle(b).color, getComputedStyle(b).fontWeight])),
                     icons: bi.map((x) => { const g = x.querySelector('.sb-beach-ico svg.sb-ico-beach'); return g ? [g.getAttribute('stroke'), g.querySelectorAll('path').length] : null; }), bullet: bi.map((x) => getComputedStyle(x).listStyleType),
                     align: Math.round(bi[0].querySelector('.sb-beach-t').getBoundingClientRect().left - other.getBoundingClientRect().left), icoIn: Math.round(bi[0].querySelector('.sb-beach-ico').getBoundingClientRect().left - ti.querySelector('ul').getBoundingClientRect().left),
                     one: { ul: tm.querySelectorAll('ul').length, beach: one.classList.contains('sb-beach-item'), text: one.querySelector('.sb-beach-t') && one.querySelector('.sb-beach-t').textContent, em: one.querySelectorAll('b').length, ico: !!one.querySelector('svg.sb-ico-beach') },
-                    html: document.querySelectorAll('#sb20 img').length, xss: window.__xss || 0,
+                    stack, html: document.querySelectorAll('#sb20 img').length, xss: window.__xss || 0,
                     over: Math.max(card('이호테우해변').scrollWidth - card('이호테우해변').clientWidth, card('모충사').scrollWidth - card('모충사').clientWidth), page: document.documentElement.scrollWidth, vw: innerWidth }; });
             assert.deepEqual(r.i.slice(-2), ['row:[오늘 예상]', 'advice'], '[오늘 예상] → [권고] (따로 상자 없음)'); assert.equal(r.old, 0, '종전 .sb-beach 상자 없음');
             assert.deepEqual(r.order, chI.map(() => 'change').concat(['beach', 'beach']), '바뀐 요소 다음 해수욕장 줄(같은 목록 마지막)');
@@ -2314,7 +2315,8 @@ function makeBriefings() {
             assert.deepEqual(r.ems, [[[N, S, '700'], ['사람이 많이 몰릴 수 있습니다.', S, '700']], [[N, Y, '700'], ['바닷물에 들어가는 사람이 있을 수 있습니다.', Y, '700']]], '개장 하늘 · 있을 수 있음 노랑 — 이름·결론만');
             assert.deepEqual(r.icons, [['#38bdf8', 5], ['#38bdf8', 5]], '줄마다 물결·파라솔 그림'); assert.deepEqual(r.bullet, ['none', 'none'], '「•」 대신 그림');
             assert.ok(Math.abs(r.align) <= 1, '해수욕장 줄 글 첫머리 = 다른 항목 글 첫머리 ' + r.align); assert.ok(r.icoIn <= 1, '그림은 「•」 자리(목록 왼쪽 여백) ' + r.icoIn);
-            assert.deepEqual(r.one, { ul: 0, beach: true, text: OLD, em: 0, ico: true }, '바뀐 요소 없는 날 해수욕장 줄 하나 = 점 없는 단일 값 · 옛 문자열은 색 없이 그대로');
+            assert.deepEqual(r.one, { ul: 1, beach: true, text: OLD, em: 0, ico: true }, '바뀐 요소 없는 날 해수욕장 줄 하나도 아래 줄 목록 · 옛 문자열은 색 없이 그대로');
+            assert.deepEqual(r.stack, [[true, true, true], [true, true, true]], '[오늘 예상] 목록은 이름표 아래 줄에서 시작(2026-10-19 사용자 「오늘 예상 아래쪽에 점으로서 … 정렬」)');
             assert.deepEqual([r.over, r.page <= r.vw], [0, true], '360px 넘침 없음');
             await drawB({ '50110|이호테우해변': [OPEN, MAYBE('')], '50110|모충사': [BL('good', '함덕해수욕장', '함덕해수욕장(1.2km) — 수온 22℃ · 낮 최고 27℃ · 파도 0.5m로 바닷물에 들어가 물놀이하기 좋은 날씨입니다. 물에 들어가는 사람이 많을 수 있습니다.')] }, '모충사');   // 스크린샷은 시험용 XSS 글 없이
             assert.equal(await L20.evaluate(() => getComputedStyle([...document.querySelectorAll('#sb20 b.sb-bk-good')][0]).color), 'rgb(74, 222, 128)', '좋음 초록');

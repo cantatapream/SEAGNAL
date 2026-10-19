@@ -2623,3 +2623,5 @@ U 번호는 표마다 겹치므로(§1 의 U79~U81 과 §13.1 의 U79~U81 이 �
 `test_station_briefing_ui` 「[§18·§18.11]」([오늘 예상] → [권고] · 같은 목록 마지막 · 그림이 「•」 자리·글 첫머리 맞춤 · 색 · 하나면 단일 값 · 옛 문자열 색 없음 · XSS 글 그대로 · 360px).
 스크린샷(360px): `beach_coast_sheet_today_360.png`·`beach_coast_sheet_tomorrow_360.png`(`RISK_DAY_SHOTS`) · `beach_briefing_card_360.png`·`beach_briefing_card_single_360.png`·`beach_briefing_screen_360.png`(`SB_SHOT_DIR`).
 `index2.html` `risk_sheet.js`·`risk_forecast.css`·`station_briefing_render.js`·`station_briefing.css` `?v=20261019beachui`.
+- **덧붙임(2026-10-19 사용자) — [오늘 예상] 목록은 이름표 아래 줄에** — 바뀐 요소가 두 줄 이상이거나 해수욕장 줄이 있으면 `todayRow` 가 줄에 `sb-row-stack` 을 붙여 「[오늘 예상]」 아래 줄에 점 목록으로 그린다(종전: 이름표 오른쪽 좁은 칸). 바뀐 요소 한 줄만이면 종전처럼 오른쪽 한 값. 원문 *"오늘 예상에 오른쪽으로 이제 데이터들을 정리하다 보니까 데이터가 쪼그라드는데 그 내용은 오늘 예상 아래쪽에 점으로서 이렇게 정렬해서 반영될 수 있도록 하는 게 좋겠어."* · 시험 `test_station_briefing_ui.js` [§18·§18.11](목록이 이름표 아래·왼쪽에서 시작) — 수정 전 98/2 → 후 100/0.
+

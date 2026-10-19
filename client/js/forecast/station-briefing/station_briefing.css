@@ -97,6 +97,8 @@
 .sb-row { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px; margin:4px 0; font-size:.8rem; }
 .sb-row-k { color:#94a3b8; white-space:nowrap; font-weight:700; }
 .sb-row .sb-list { margin:0; }
+/* [오늘 예상] 두 줄 이상·해수욕장 줄 — 이름 칸 아래 줄에 점 목록(2026-10-19 사용자 — 종전 오른쪽 좁은 칸) */
+.sb-row.sb-row-stack { grid-template-columns:minmax(0,1fr); gap:2px; }
 .sb-sentence { margin:6px 0 4px; color:#cbd5e1; font-size:.8rem; }
 /* 연안 카드 해수욕장 안내 줄(설계서 §18 · §18.11 2026-10-19) — 따로 상자 없이 [오늘 예상] 칸 마지막 줄(render.js todayRow·beachNode). 그림(물결·파라솔) + 글.
    목록일 때는 「•」 자리(목록 왼쪽 18px)에 그림 — 글 첫머리가 다른 항목 글과 같은 위치. 이름·결론은 종류 색 굵게:

@@ -655,15 +655,17 @@
      *   바뀐 요소 + 해수욕장 줄을 합쳐 하나면 단일 값, 둘 이상이면 목록(해수욕장 줄은 「•」 자리에 물결·파라솔 그림). 바뀐 요소가 없는 날은 해수욕장 줄만.
      *   2026-10-19 사용자 *"연안 카드에도 적용하는게 좋겠어."*(연안 시트처럼 해수욕장 줄을 따로 상자 없이 그날 안내 칸에 — 설계서 §18.11).
      * 예: todayRow(['사람 평소의 1.6배']) → [오늘 예상] 사람 평소의 1.6배 · todayRow([], [{kind:'good',…}]) → [오늘 예상] (그림) 협재해수욕장 — …
-     *     todayRow(['사람 평소의 1.6배'], [개장 줄, 입수 줄]) → [오늘 예상] • 사람 평소의 1.6배 / (그림) 개장 줄 / (그림) 입수 줄
+     *     todayRow(['사람 평소의 1.6배'], [개장 줄, 입수 줄]) → [오늘 예상] (다음 줄) • 사람 평소의 1.6배 / (그림) 개장 줄 / (그림) 입수 줄
      * @param {string[]} ch - today.changes @param {Array<Object|string>} [bl] - 해수욕장 줄(beachItems) @returns {HTMLElement} [연계] ← landCard·landCardV19 / → row·parenText·numText·beachNode
      */
     function todayRow(ch, bl) {
         bl = bl || [];
-        if (ch.length + bl.length === 1) return row('[오늘 예상]', ch.length ? parenText(el('span', 'sb-row-v'), ch[0], numText) : beachNode(el('span', 'sb-row-v'), bl[0]));   // 수치 흰 굵게(덧붙임 28)   // 긴 괄호 묶음(§11.10.20 덧붙임 24)
+        if (ch.length === 1 && !bl.length) return row('[오늘 예상]', parenText(el('span', 'sb-row-v'), ch[0], numText));   // 수치 흰 굵게(덧붙임 28)   // 긴 괄호 묶음(§11.10.20 덧붙임 24)
+        // 두 줄 이상이거나 해수욕장 줄(긴 글)이 있으면 [오늘 예상] 아래 줄에 점 목록으로(2026-10-19 사용자 *"오늘 예상 오른쪽으로 … 데이터가 쪼그라드는데 그 내용은
+        //   오늘 예상 아래쪽에 점으로서 이렇게 정렬해서 반영될 수 있도록"* — 종전엔 이름 칸 오른쪽 좁은 칸에 목록)
         var u = el('ul', 'sb-list'); ch.forEach(function (x) { u.appendChild(parenText(el('li'), x, numText)); });
         bl.forEach(function (l) { u.appendChild(beachNode(el('li'), l)); });
-        return row('[오늘 예상]', u);
+        var r = row('[오늘 예상]', u); r.classList.add('sb-row-stack'); return r;
     }
     /**
      * 규칙 v19 연안 카드 본문(설계서 §11.10.20 — 시안 ⑥판): 배지 줄(「연안 위험지수 N '띠'」 글자 색 = 띠 단계 + 해수욕장이면 「해수욕장」 — 종전 [특성] 끝에서 옮김)
