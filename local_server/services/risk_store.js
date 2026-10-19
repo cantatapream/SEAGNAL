@@ -211,9 +211,10 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
      * 지금 칸은 분 단위로 내린다 — 같은 1분 안의 요청이 같은 칸이 되어 칸 점수 보관(coastSlots)을 함께 쓴다(종전 연안 프레임은 요청 시각마다 새로 셌다).
      * 예: 지금 10-31 12:17:40, t 가 10-31 의 어느 시각 → {date:'2026-10-31',times:['…T12:17:00+09:00','…T15:00…','…T18:00…','…T21:00…']}
      *     t 가 11-01 → 11-01 00·03·…·21시 8칸 · 모레·지난 시각 → 400(validateTime) · 그 날짜 칸이 없으면(자정 직후 어제 날짜) 400
-     * @param {string} t - 그 날짜 안의 시각(화면은 그 날짜의 첫 칸 — 오늘은 meta.now, 내일은 00시 — 를 보낸다) @returns {{date:string,times:string[]}}
+     *     t 를 안 주면(undefined·빈 글자) 지금 — 오늘 하루 값(브리핑 팝업 지도·연안 시트가 오늘이면 t 없이 부른다. 종전엔 400 「잘못된 예보 시각」, 2026-10-19 사용자 화면)
+     * @param {string} [t] - 그 날짜 안의 시각(화면은 그 날짜의 첫 칸 — 오늘은 meta.now, 내일은 00시 — 를 보낸다) @returns {{date:string,times:string[]}}
      * [연계] ← coastDayFrame·coastDayDetail / → coastTimeline·validateTime */
-    function coastDay(t){t=validateTime(t,false);const date=T.dateKey(t),times=coastTimeline(Math.floor(clock()/60000)*60000).filter(at=>T.dateKey(at)===date);if(!times.length)throw Object.assign(new Error('잘못된 예보 시각'),{status:400});return{date,times};}
+    function coastDay(t){t=validateTime(t===undefined||t===''?T.isoKst(clock()):t,false);const date=T.dateKey(t),times=coastTimeline(Math.floor(clock()/60000)*60000).filter(at=>T.dateKey(at)===date);if(!times.length)throw Object.assign(new Error('잘못된 예보 시각'),{status:400});return{date,times};}
     /** 연안 하루 값의 안내(특보·표류)를 그날 칸 전부에서 모은다(설계서 §16.1 ②, 사용자 2026-10-16 「모두 추천대로」).
      * 연안 특보·표류 바람은 점수에 들지 않아(risk_score.scoreCoast 의 notices) 가장 높은 칸과 특보 칸이 다를 수 있다 — 가장 높은 칸 것만 보이면 그날 다른 칸의 특보가 시트에서 빠진다.
      * 같은 안내(특보는 이름+발효/예비, 표류는 하나)가 이어진 칸에 있으면 하나로 묶는다(from=첫 칸·to=끝 칸 시각). 끊겼다 다시 나오면 따로. 순서는 처음 나온 칸 → 그 칸 안 예비·발효·표류 순.
