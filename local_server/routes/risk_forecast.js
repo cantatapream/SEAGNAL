@@ -5,6 +5,7 @@
  *        sea/traffic-history 는 sea_traffic_history.createApi(칸별 2주 30분 척수 + 특보 발효 구간) — 화면은 디자인 확정 뒤.
  *        기본 저장소(stores)는 관할 브리핑(services/station_briefing.js forDefault)이 함께 쓴다.
  *        coast/spot 의 beach = 그 날짜의 해수욕장 안내 줄(services/beach_weather.js — 개장·입수 참고, 점수에는 없음, 설계서 §18 2026-10-18).
+ *        줄마다 {kind, text, name, concl}(2026-10-19 §18.11 — 화면이 이름·결론을 종류 색으로 칠함).
  * [로드 순서] server.js 라우트 등록. 요청에서는 수집·AI·푸시 호출이 없다.
  */
 'use strict';
@@ -45,7 +46,7 @@ function createRouter({store=createStore(),marine=require('../services/marine_fu
     router.get(base+'/coast/area-frame',handle(req=>coastArea(req.query.t,req.query.bbox),0));
     router.get(base+'/coast/frame',handle(req=>store.coastDayFrame(req.query.t)));
     router.get(base+'/sea/frame',handle(req=>store.frame(true,req.query.t)));
-    /** 해수욕장 안내 줄(§18) — 실패해도 연안 상세는 그대로 준다(줄 없음). 예: beachOf('a','2026-10-18') → ['…'] @returns {string[]} [연계] ← GET coast/spot / → services/beach_weather.linesFor */
+    /** 해수욕장 안내 줄(§18) — 실패해도 연안 상세는 그대로 준다(줄 없음). 예: beachOf('a','2026-10-18') → [{kind:'good',text:'…',name:'…',concl:'…'}] @returns {Object[]} [연계] ← GET coast/spot / → services/beach_weather.linesFor */
     function beachOf(id,date){try{return date?beach(id,date)||[]:[];}catch(_){console.error('[risk_forecast] 해수욕장 안내 줄 실패');return[];}}
     router.get(base+'/coast/spot',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('관광지 id 필요'),{status:400});const d=store.coastDayDetail(req.query.id,req.query.t);return{...d,beach:beachOf(req.query.id,d&&d.daily&&d.daily.date)};}));
     router.get(base+'/sea/cell',handle(req=>{if(typeof req.query.id!=='string'||!req.query.id)throw Object.assign(new Error('해상 칸 id 필요'),{status:400});return store.seaDetail(req.query.id,req.query.t);}));

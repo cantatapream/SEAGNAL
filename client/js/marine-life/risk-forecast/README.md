@@ -444,6 +444,7 @@
 
 - 관광지에서 3km 안 가장 가까운 기상청 해수욕장 1곳(정적 표 `config/coastal_safety/beach_weather_static.json`)의 그날 낮 09~18시 예보와 수온으로 입수 참고 줄, 해수부 개장 일정이 있으면 개장 줄(개장 줄 → 입수 줄). **위험지수·단계에는 들지 않는다.**
 - 서버: `GET /api/risk-forecast/coast/spot` 응답에 `beach`(시트 날짜 `daily.date` 의 줄 배열 — `services/beach_weather.js` `linesFor`). 안내 함수가 실패해도 상세는 그대로(`beach: []`). 수집은 `services/beach_weather_collector.js`(발표 15분 뒤 하루 8번, 운영만).
+- (2026-10-19 §18.11 로 바뀌었다 — 아래 「해수욕장 줄 특보·표류 상자 안」. 다음 두 줄은 이력.)
 - 화면: `risk_sheet.js` `beachBox` — 특보·표류 주황 상자 바로 아래 하늘색 상자(`.rf-beach`·`.rf-beach-line`, `risk_forecast.css`), 서버 글 그대로(escape). 줄이 없으면 상자도 없다(「정보 없음」 같은 말 없음). 날짜 < > 로 오늘·내일 각각.
 - `index2.html` `risk_sheet.js`·`risk_forecast.css` ?v=20261018beach.
 - 판단 규칙·확정 문구·수온 순서(부이 → 소해구 예보 → 없음)·오래된 값 숨김·미결: 설계서 §18. 시험 `local_server/scripts/test_beach_weather.js`.
@@ -495,3 +496,13 @@
 - 해상 시트(`risk_marine.js hero`): 서버 `marine.harbor` 가 있으면 혼잡예보 줄(미래 시각이면 혼잡 지수 줄) 오른쪽에 「(항구 | 혼잡 판정 제외)」(2026-10-19 사용자 — 종전 따로 한 줄은 뺐다) · 서버는 그 칸에 충돌·접촉 주의·혼잡으로 인한 관심 단계를 만들지 않는다(척수·밀집도·혼잡 예보 값은 그대로 보임).
 - 위험지수(100점)·위험 예측 색은 바뀌지 않는다(혼잡은 원래 점수에 없음). 해역 카드 「최근 14일 선박 동향」은 이번 범위 밖(항구 칸 척수 그대로).
 - 시험: `local_server/scripts/test_harbor_cells.js`(verify_all). 캐시 `?v=20261019harbor`(risk_map_layer·risk_marine·risk_forecast.js·risk_forecast.css).
+
+## 연안 시트 해수욕장 줄 — 특보·표류 상자 안 · 종류 색 (2026-10-19 — 설계서 §18.11)
+
+> 사용자 원문: *"해수욕장 관련 문구는 그날 특보, 표류 안내가 표출되는 칸에 들어갈 수 있도록 해줘."* · *"거친날, 개장 예정 등 해당 종류 분류에 따른 색상을 해수욕장 명칭에 반영해줘."* · *"바닷물에 들어가는 사람이 있을 수 있다 부분도 해당 색상을 적용해줘."*
+
+- `risk_sheet.js` `beachLines(d.beach)` → `dayNotices(daily, extra)`·`notices(list, extra)` — 특보·표류 주황 상자(`.rf-notice`) 마지막 줄(`.rf-notice-line.rf-beach-line[data-beach]`), 그림 `ICON_BEACH`(물결 두 줄 + 파라솔, 선 `#38bdf8`).
+  특보·표류가 없는 날은 해수욕장 줄만 든 주황 상자. 따로 있던 하늘색 상자(`beachBox`·`.rf-beach`)는 지웠다. 내보내기 `RiskSheet.beachLines`·`beachText`(종전 `beachBox`).
+- 서버 줄 = `{kind, text, name, concl}`(`services/beach_weather.line`) — `beachText` 가 이름·결론을 종류 색 굵게(`risk_forecast.css .rf-bk-*` — 개장 `#7dd3fc` · 좋음 `#4ade80` · 있을 수 있음 `#facc15` · 경고 `#fb923c` · 거친 날 `#f87171`), 가운데는 보통 글자. 문자열(옛 꼴)·토막이 안 맞는 줄은 색 없이 글 그대로(모두 escape).
+- 경고 문구 「수온 N℃ · 낮 최고 M℃이나, …」(종전 「…이고 …」 — 사용자 「좋아」).
+- `index2.html` `risk_sheet.js`·`risk_forecast.css` `?v=20261019beachui`. 시험 `local_server/scripts/test_risk_coast_day.js` 「§18·§18.11」 · `test_beach_weather.js`.

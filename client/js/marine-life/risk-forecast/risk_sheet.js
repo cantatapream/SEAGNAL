@@ -9,7 +9,8 @@
  *         연안 시트 끝에 「이 관광지 주변 연안사고(2020~2024년)」 카드(2026-10-16 T9 — 해상 사고 카드와 같은 꼴, RiskMarine 공용 함수). 경위도는 화면에 쓰지 않는다(같은 날).
  *         2026-10-18 연안 시트 시안(CoastSheet.dc.html·CoastSheetOpen.dc.html): 등급 배지·막대 눈금·「…날 수 있는 조건」·「•」 줄과 넘치는 줄만 자간 맞춤·
  *         위험구역 종류 밑줄 버튼 → 표(위치·종류·구분·지도)·특보/표류 한 상자·「주변 연안사고('20년 ~ '24년)」(설계서 §15.2).
- *         2026-10-18 해수욕장 안내 줄(서버 beach — 3km 안 기상청 해수욕장의 개장·입수 참고, 특보 상자 아래 하늘색 상자, 설계서 §18).
+ *         2026-10-18 해수욕장 안내 줄(서버 beach — 3km 안 기상청 해수욕장의 개장·입수 참고, 설계서 §18).
+ *         2026-10-19 해수욕장 줄은 특보·표류 주황 상자(.rf-notice) 안 마지막 줄 — 물결·파라솔 그림, 이름·결론을 종류 색 굵게(설계서 §18.11).
  * [연계]
  *  - 사용하는 파일 : 같은 폴더 위험예측 모듈(RiskFormat·RiskMarine.accSort/accSummary/bindAcc/closePop) / OpenLayers(지도 모듈)
  *                    · style.css 해양종합정보 시트 날짜 줄(.ocean-date-nav-inline·.ocean-date-nav-btn·.ocean-sheet-date-stack·.ocean-sheet-solar·.ocean-sheet-lunar — 연안 날짜 줄이 그대로 씀, T24)
@@ -204,27 +205,52 @@
     /**
      * 서버 특보·표류 안내를 표시한다(화면 글자 「떠밀림」 → 「표류」 통일, 사용자 2026-10-16 「표류로 통일」 — 서버 키 drift 는 그대로)(3일째 특보급 안내는 연안 2일 제한 「가」 2026-10-15로 서버가 더 이상 보내지 않는다).
      * 2026-10-18 시안: 특보·표류를 주황 상자 하나에 줄마다 그림(세모·구명환)과 함께 담는다(noticeBox·noticeLine).
-     * 예: notices(detail.notices)
+     * 2026-10-19: 해수욕장 줄(extra — beachLines)을 같은 상자 마지막 줄로 넣는다(설계서 §18.11).
+     * 예: notices(detail.notices) · notices(detail.notices, beachLines(detail.beach))
      * @param {Object[]} list - 서버 안내 목록
+     * @param {string[]} [extra] - 상자 끝에 붙일 줄 HTML(해수욕장 줄)
      * @returns {string} 안내 HTML
      * [연계] create.show → 시트 / noticeLines·noticeBox
      */
-    function notices(list) { return noticeBox(noticeLines(list)); }
+    function notices(list,extra) { return noticeBox(noticeLines(list).concat(extra||[])); }
+    // 해수욕장 줄 종류 → 색(설계서 §18.11, 2026-10-19 사용자 *"거친날, 개장 예정 등 해당 종류 분류에 따른 색상을 해수욕장 명칭에 반영해줘."* ·
+    //   *"바닷물에 들어가는 사람이 있을 수 있다 부분도 해당 색상을 적용해줘."*) — 색은 risk_forecast.css .rf-bk-* (개장 하늘 · 좋음 초록 · 있을 수 있음 노랑 · 경고 주황 · 거친 날 빨강)
+    var BEACH_KINDS=['open','good','maybe','warn','rough'];
     /**
-     * 해수욕장 안내 줄(설계서 §18, 2026-10-18 사용자 *"입수한 사람이 있을 수 있다는 알림 문구"* — 개장 줄 → 입수 줄, 서버 글 그대로).
-     * 위험 점수·단계와 무관한 참고 줄이라 특보·표류 상자(주황)와 따로 하늘색 상자에 담는다. 줄이 없으면 빈 문자열(「정보 없음」 같은 말도 없음).
-     * 예: beachBox(['협재해수욕장(1.2km) — 수온 22℃ · …']) → '<div class="rf-beach" data-beach>…</div>'
-     * @param {string[]} lines - 서버 coast/spot 의 beach @returns {string} HTML [연계] create.show(연안) / 서버 services/beach_weather.linesFor
+     * 해수욕장 줄 하나의 글 HTML. 서버 줄 {kind,text,name,concl}(services/beach_weather.line — text 는 name 으로 시작·concl 로 끝남)이면
+     *   이름과 결론을 종류 색 굵게, 가운데는 보통 글자. 옛 꼴(문자열)이거나 토막이 맞지 않으면 색 없이 글 그대로(글을 다시 나누지 않는다).
+     * 예: beachText({kind:'maybe',text:'A해수욕장 — 수온 19℃ … 바닷물에 들어가는 사람이 있을 수 있습니다.',name:'A해수욕장',concl:'바닷물에 들어가는 사람이 있을 수 있습니다.'})
+     *     → '<b class="rf-beach-em rf-bk-maybe">A해수욕장</b> — 수온 19℃ … <b class="rf-beach-em rf-bk-maybe">바닷물에 …</b>' · beachText('옛 글') → '옛 글'
+     * @param {Object|string} l - 서버 beach 한 줄 @returns {string} HTML(글은 모두 이스케이프) — 글이 없으면 ''
+     * [연계] ← beachLines / 서버 services/beach_weather.line
      */
-    function beachBox(lines) { lines=(Array.isArray(lines)?lines:[]).filter(function(l){return typeof l==='string'&&l;}); return lines.length?'<div class="rf-beach" data-beach>'+lines.map(function(l){return '<p class="rf-beach-line">'+F.escape(l)+'</p>';}).join('')+'</div>':''; }
+    function beachText(l) {
+        if(typeof l==='string')return F.escape(l);
+        if(!l||typeof l.text!=='string'||!l.text)return '';
+        var t=l.text,n=l.name,c=l.concl;
+        if(BEACH_KINDS.indexOf(l.kind)<0||typeof n!=='string'||typeof c!=='string'||!n||!c||n.length+c.length>t.length||t.indexOf(n)!==0||t.slice(t.length-c.length)!==c)return F.escape(t);
+        var em=function(x){return '<b class="rf-beach-em rf-bk-'+l.kind+'">'+F.escape(x)+'</b>';};
+        return em(n)+F.escape(t.slice(n.length,t.length-c.length))+em(c);
+    }
+    /**
+     * 해수욕장 안내 줄들(설계서 §18 — 개장 줄 → 입수 줄)을 특보·표류 상자에 넣을 줄로 만든다. 2026-10-19 사용자
+     *   *"해수욕장 관련 문구는 그날 특보, 표류 안내가 표출되는 칸에 들어갈 수 있도록 해줘."*(설계서 §18.11) — 종전 따로 있던 하늘색 상자(.rf-beach)는 없앴다.
+     *   줄마다 그림(물결·파라솔) + 글(beachText). 줄이 없으면 빈 배열(「정보 없음」 같은 말도 없음).
+     * 예: beachLines([{kind:'good',text:'…',name:'…',concl:'…'}]) → ['<div class="rf-notice-line rf-beach-line" data-beach>…</div>']
+     * @param {Array<Object|string>} lines - 서버 coast/spot 의 beach @returns {string[]} 줄 HTML [연계] create.show(연안) → notices·dayNotices(extra) / → beachText·noticeLine
+     */
+    function beachLines(lines) { return (Array.isArray(lines)?lines:[]).map(beachText).filter(Boolean).map(function(h){return noticeLine(ICON_BEACH,h,'rf-beach-line');}); }
     // 안내 줄 앞 그림(2026-10-18 시안 — 종전 글자 ⚠·🛟 대신): 특보 = 노란 테두리 세모, 표류 = 빨강·흰 구명환.
+    //   해수욕장(2026-10-19 §18.11) = 하늘색 선 물결 두 줄 + 파라솔.
     var ICON_WARN='<svg width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" class="rf-ico-warn"><path d="M12 3.5L2 20.5h20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.1" fill="currentColor"/></svg>';
     var ICON_BUOY='<svg width="1.1em" height="1.1em" viewBox="0 0 24 24" aria-hidden="true" class="rf-ico-buoy"><circle cx="12" cy="12" r="8" fill="none" stroke="#f04438" stroke-width="5"/><circle cx="12" cy="12" r="8" fill="none" stroke="#ffffff" stroke-width="5" stroke-dasharray="4.2 8.37" stroke-dashoffset="2.1"/><circle cx="12" cy="12" r="10.5" fill="none" stroke="#7a2a22" stroke-width="0.8"/><circle cx="12" cy="12" r="5.5" fill="none" stroke="#7a2a22" stroke-width="0.8"/></svg>';
+    var ICON_BEACH='<svg width="1.1em" height="1.1em" viewBox="0 0 24 24" aria-hidden="true" class="rf-ico-beach" fill="none" stroke="#38bdf8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5a8 8 0 0 1 16 0z"/><path d="M12 2.5v-.5"/><path d="M12 10.5v6"/><path d="M2 18.5c1.7-1.3 3.3-1.3 5 0s3.3 1.3 5 0 3.3-1.3 5 0 3.3 1.3 5 0"/><path d="M2 21.8c1.7-1.3 3.3-1.3 5 0s3.3 1.3 5 0 3.3-1.3 5 0 3.3 1.3 5 0"/></svg>';
     /**
-     * 안내 한 줄(그림 + 글)을 만든다. 예: noticeLine(ICON_WARN,'…') @param {string} icon - 그림 SVG @param {string} html - 이 파일에서 만든 HTML
-     * @returns {string} 줄 HTML [연계] noticeLines·dayNotices → noticeBox
+     * 안내 한 줄(그림 + 글)을 만든다. 예: noticeLine(ICON_WARN,'…') · noticeLine(ICON_BEACH,'…','rf-beach-line')
+     * @param {string} icon - 그림 SVG @param {string} html - 이 파일에서 만든 HTML @param {string} [cls] - 줄에 더할 class(해수욕장 줄 'rf-beach-line' — data-beach 도 붙음)
+     * @returns {string} 줄 HTML [연계] noticeLines·dayNotices·beachLines → noticeBox
      */
-    function noticeLine(icon,html) { return '<div class="rf-notice-line"><span class="rf-notice-ico">'+icon+'</span><span>'+html+'</span></div>'; }
+    function noticeLine(icon,html,cls) { return '<div class="rf-notice-line'+(cls?' '+cls+'" data-beach':'"')+'><span class="rf-notice-ico">'+icon+'</span><span>'+html+'</span></div>'; }
     /**
      * 안내 줄들을 주황 상자 하나에 담는다(2026-10-18 시안 — 특보·표류가 한 상자 안 두 줄). 줄이 없으면 빈 문자열.
      * 예: noticeBox([warnLine,driftLine]) → '<div class="rf-notice">…</div>' @param {string[]} lines - 줄 HTML @returns {string} [연계] notices·dayNotices → create.show
@@ -283,10 +309,12 @@
      *     → 「[세모] <빨강 굵게>풍랑주의보 발효 중</>(14시 발표) — 17일 06~09시 해제 예고.<br>특보 중에는 사고는 평소보다 적지만, …」(2026-10-18 시안)
      *     [{key:'drift',windMs:9,target:'튜브·물놀이기구',from:'…T03:00…',to:'…T03:00…'}] → 「[구명환] 03시 무렵 바람 9m/s로 튜브·물놀이기구 등 표류 주의」(10~5월이면 서버 target 「소형 보트·레저기구」) · 여러 칸에 이어지면 그중 가장 센 바람 「최대 Nm/s」, 그날 끝까지면 「09시부터」
      *     특보·표류 줄은 한 상자(.rf-notice) 안 줄(.rf-notice-line)
-     * @param {Object} daily - 서버 risk_store.coastDayDetail 의 daily{date,times,notices:[{key,name,state,from,to,windMs,target,issued,effective,release}]} @returns {string} 안내 HTML
+     *     해수욕장 줄(extra — 2026-10-19 §18.11)은 같은 상자 마지막 줄. 특보·표류가 없는 날은 해수욕장 줄만 든 상자.
+     * @param {Object} daily - 서버 risk_store.coastDayDetail 의 daily{date,times,notices:[{key,name,state,from,to,windMs,target,issued,effective,release}]}
+     * @param {string[]} [extra] - 상자 끝에 붙일 줄 HTML(beachLines) @returns {string} 안내 HTML
      * [연계] ← create.show(연안 — daily.notices 가 있을 때. 없으면 종전 notices(d.notices)) → kmaTime·notices(표류 문구) / 서버 risk_store.dayNotices
      */
-    function dayNotices(daily) {
+    function dayNotices(daily,extra) {
         var times=daily.times||[],end=times[times.length-1],day=daily.date||'',hh=function(at){var t=Date.parse(at);return Number.isFinite(t)?String(new Date(t+9*3600000).getUTCHours()).padStart(2,'0')+'시':'';};
         var when=function(s){return s.to===end?hh(s.from)+'~':s.from===s.to?hh(s.from)+' 무렵':hh(s.from)+'~'+hh(s.to);};
         var pre=[],eff=[],drift=[];
@@ -300,7 +328,7 @@
             (s.state==='발효'?eff:pre).push(head+F.escape(' — '+(t?t+(s.state==='발효'?' 해제 예고':' 발효 예정'):when(s)+'(칸 기준)')));
         });
         var warn=pre.length||eff.length?noticeLine(ICON_WARN,pre.concat(eff).join('. ')+'.'+(eff.length?'<br>특보 중에는 사고는 평소보다 적지만, 사고가 나면 사망·실종으로 이어질 가능성이 '+b('14%',1.14)+' 높습니다.':'')):'';
-        return noticeBox([warn].concat(noticeLines(drift)));
+        return noticeBox([warn].concat(noticeLines(drift),extra||[]));
     }
     /**
      * 연안 사고 자료의 유형 이름을 화면 이름으로 바꾼다 — 집계표의 「기타」는 인명사고만 남긴 기타라 「기타(인명)」로 쓴다(U80).
@@ -462,8 +490,8 @@
             // 연안: 위험지수 카드 → 안내 → 요소 줄(계산 설명 아코디언 「사고 배수는 어떻게 합쳤나요?」는 2026-10-18 삭제 — 사용자 「빼자.」, 같은 방법은 [기준 상세]·PDF 에 있음) → 주변 연안사고(2026-10-16 T9 — 해상 시트가 「위 카드 → 교통량 → 과거 사고 → 날씨」로 지금 상황 뒤에 과거 사고를 두는 것과 같은 자리).
             //   안내(특보·표류)는 연안 하루 값이면 그날 칸 전부의 것(daily.notices — 시각을 붙임, §16.1 ②), 아니면 종전대로 그 칸의 것.
             //   요소 줄은 .rf-coast-rows 로 묶는다 — 마지막 줄 아래 구분선을 지우고 주변 연안사고 상자와 18px 띄우는 기준(2026-10-18 시안).
-            //   해수욕장 안내(§18 — 개장·입수 참고 줄)는 특보·표류 상자 바로 아래, 요소 줄 위.
-            else body+=summary(d,kind)+(d.daily&&Array.isArray(d.daily.notices)?dayNotices(d.daily):notices(d.notices))+(kind==='coast'?beachBox(d.beach):'')+'<div class="rf-coast-rows">'+coastRows(rows)+'</div>'+(kind==='coast'&&Object.prototype.hasOwnProperty.call(d,'history')?coastHistory(d.history):'');
+            //   해수욕장 안내(§18 — 개장·입수 참고 줄)는 특보·표류 상자 안 마지막 줄(2026-10-19 §18.11 — 종전 그 아래 따로 하늘색 상자). 특보·표류가 없으면 해수욕장 줄만 든 상자.
+            else body+=summary(d,kind)+(d.daily&&Array.isArray(d.daily.notices)?dayNotices(d.daily,kind==='coast'?beachLines(d.beach):null):notices(d.notices,kind==='coast'?beachLines(d.beach):null))+'<div class="rf-coast-rows">'+coastRows(rows)+'</div>'+(kind==='coast'&&Object.prototype.hasOwnProperty.call(d,'history')?coastHistory(d.history):'');
             // 머리 [기준 상세]는 연안 요약(위험지수 카드)이 있을 때만. 옛 공식 사고·해상 칸 상세는 본문에 자기 버튼이 있다.
             basisFor(kind!=='accident'&&kind!=='sea'&&d.clickable!==false?kind:null);
             // 다른 관광지·시각을 그리면 열린 사고 목록 팝업을 닫는다(같은 관광지·시각의 60초 갱신은 그대로 — 내용이 같다).
@@ -518,5 +546,5 @@
      * @returns {string[]} 진단 문장 [연계] RiskForecast.refresh / 공개 배너·시트에는 출력하지 않는다
      */
     function sourceMessages(data,kind){var sources=Object.assign({},data.sources||{}),stamp=Date.parse(data.t);if(Number.isFinite(stamp)&&sources.events&&sources.events.months){var month=new Date(stamp+9*3600000).toISOString().slice(0,7);sources.events=sources.events.months[month]||{status:'missing'};}var keys=kind==='accident'?['accident','zoneForecasts','congestion']:kind==='sea'?['warnings','zoneForecasts','congestion']:['warnings','gale','zoneForecasts','swell','ripCurrent','tourConcentration','events'];return keys.filter(function(key){var s=sources[key];return s&&s.status&&!['ok','offseason'].includes(s.status);}).map(function(key){var s=sources[key],text=sourceName(key)+(s.status==='stale'?' 자료가 오래되었습니다':s.status==='error'?' 자료 수집에 실패했습니다':' 자료를 받지 못했습니다');if(key==='zoneForecasts'&&s.status==='stale')text+=' (예보 기준 '+sourceTime((data.inputs||{}).zoneForecastBase||s.base||s.updatedAt)+')';return text+' (마지막 수집 '+sourceTime(s.lastSuccess||s.updatedAt)+')';});}
-    w.RiskSheet={create:create,sourceName:sourceName,sourceMessages:sourceMessages,coastRows:coastRows,seaRows:seaRows,beachBox:beachBox};
+    w.RiskSheet={create:create,sourceName:sourceName,sourceMessages:sourceMessages,coastRows:coastRows,seaRows:seaRows,beachLines:beachLines,beachText:beachText};
 })(window);
