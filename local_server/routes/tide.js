@@ -163,14 +163,22 @@ router.post('/api/save_tide_input', async (req, res) => {
         // ❹ 클라이언트가 caching 한 gridHash 를 보내왔다면 KHOA 사전 조회 skip.
         let gridHash;
         let gridHashRefreshed = false; // 클라이언트 캐시 무효 감지 → 자동 갱신 시 true
+        let gridLookup = null;         // 서버가 직접 물었을 때의 결과 {hash,error,code} — 실패 로그용
         if (clientGridHash) {
             gridHash = clientGridHash;
             console.log(`⚡ 클라이언트 격자 캐시 사용: ${gridHash} (KHOA 사전 조회 skip)`);
         } else {
-            gridHash = await tideCollector.getGridHash(lat, lon, date);
+            // lookupGridHash — 해시와 함께 「조회 실패」인지 「격자 미제공」인지를 받아 로그에 남긴다(2026-10-20).
+            //   종전엔 둘 다 「격자 해시를 확인할 수 없습니다」 한 줄이라, 운영 로그만으로 원인을 가를 수 없었다.
+            const g = await tideCollector.lookupGridHash(lat, lon, date);
+            gridHash = g.hash;
+            gridLookup = g;
         }
         if (!gridHash) {
-            console.error('❌ 격자 해시를 확인할 수 없습니다.');
+            const why = !gridLookup ? ''
+                : gridLookup.error ? ' — 조회 실패(네트워크·시간 초과·키 오류, 위 TideBED 로그 참고)'
+                : ` — 격자 미제공(응답은 왔으나 자료 없음, 응답 코드 ${gridLookup.code || '없음'})`;
+            console.error('❌ 격자 해시를 확인할 수 없습니다.' + why);
             res.json({ success: false, error: 'Grid hash unavailable' });
             return;
         }

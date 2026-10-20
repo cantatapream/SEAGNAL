@@ -486,7 +486,7 @@ await (async function () {
         TC.tideBedConfig.keys.splice(0, TC.tideBedConfig.keys.length,
             { key: 'TESTKEY_A', used: 0, owner: 'A' }, { key: 'TESTKEY_B', used: 0, owner: 'B' }, { key: 'TESTKEY_C', used: 0, owner: 'C' });
         TC.tideBedConfig.lastResetDate = new Date(Date.now() + 9 * 3600000).toISOString().split('T')[0];   // 날짜 바뀜 저장 안 일어나게
-        ok('기본 기한 — 연결 5초·전체 15초', toBackup.connectMs === 5000 && toBackup.totalMs === 15000, JSON.stringify(toBackup));
+        ok('기본 기한 — 연결 5초·전체 30초(2026-10-20: TideBED 정상 응답이 18초 걸린 실측 — 15초면 끊는다)', toBackup.connectMs === 5000 && toBackup.totalMs === 30000, JSON.stringify(toBackup));
         TC.TIDEBED_TIMEOUTS.connectMs = 80; TC.TIDEBED_TIMEOUTS.totalMs = 300;   // 시험만 짧게(실제로 15초 기다리지 않음)
         const EventEmitter = require('events');
 
@@ -530,9 +530,9 @@ await (async function () {
         const r3 = await TC.collectTideBedPages(33.4, 126.2, '20261018', [1, 2, 3, 4, 5]);
         ok('5페이지 모두 느림 — 페이지 재시도도 안 해 요청 5회(종전 검토 실측 30회)', hits === 5 && r3.loadedPages.length === 0 && r3.failedPages.length === 5, `hits=${hits} ${JSON.stringify(r3.failedPages)}`);
         mode = 'nodata';
-        ok('응답 코드 03(자료 없음) — 「격자 미제공」(조회 실패 아님)', JSON.stringify(await TC.lookupGridHash(33.4, 126.2, '20261018')) === JSON.stringify({ hash: null, error: false }));
+        ok('응답 코드 03(자료 없음) — 「격자 미제공」(조회 실패 아님)', JSON.stringify(await TC.lookupGridHash(33.4, 126.2, '20261018')) === JSON.stringify({ hash: null, error: false, code: '03' }));
         mode = 'err10';
-        ok('응답 코드 10(격자 밖 좌표) — 「격자 미제공」(조회 실패로 세면 차단기가 수집을 멈춘다, 2026-10-19 운영 로그)', JSON.stringify(await TC.lookupGridHash(33.4, 126.2, '20261018')) === JSON.stringify({ hash: null, error: false }));
+        ok('응답 코드 10(격자 밖 좌표) — 「격자 미제공」(조회 실패로 세면 차단기가 수집을 멈춘다, 2026-10-19 운영 로그)', JSON.stringify(await TC.lookupGridHash(33.4, 126.2, '20261018')) === JSON.stringify({ hash: null, error: false, code: '10' }));
         mode = 'err99';
         ok('응답 코드 99(알 수 없는 오류) — 「조회 실패」', (await TC.lookupGridHash(33.4, 126.2, '20261018')).error === true);
         Object.assign(TC.TIDEBED_TIMEOUTS, toBackup);
