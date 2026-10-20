@@ -3560,6 +3560,35 @@ line-height: 1.1;
     margin: 10px 0;
 }
 
+/* promo-md:start — 마크다운으로 불러온 게시글(format:'md')에만: 단계별 글자 크기·간격·글자색 (2026-10-20 사용자 「추천대로」 — NOTICE.md 3)
+   같은 단계끼리 같은 크기·간격, 아래 단계로 갈수록 작고 촘촘하게(10 · 5 · 3) — 어디까지가 한 묶음인지 보이게.
+   큰 꼭지 ## 17px(위 20·아래 8) · 소제목 ### 15px 하늘색 · ○ 항목 15px(10) · - 하위 14px(5) · · 그 아래 13px(3).
+   편집기(Quill 1.3.6)는 간격을 글에 담지 못해 여기서 단계(h2·h3·li·ql-indent-N)로 건다. 옛 글(format 없음)은 그대로.
+   선택자 앞 .ql-editor 는 quill.snow.css 의 같은 규칙(li 들여쓰기·글머리 기호)보다 세게 하려는 것.
+   [연계] promo.js(상세 #promo-detail-content·편집기 root 에 promo-md) · markdown_import.js · scripts/notice/build_notice.js(미리보기가 이 덩어리를 그대로 읽음) */
+.ql-editor.promo-md > * { margin: 0; }
+.ql-editor.promo-md > * + * { margin-top: 10px; }
+.ql-editor.promo-md p, .ql-editor.promo-md li { font-size: 15px; line-height: 1.6; color: #cbd5e1; }
+.ql-editor.promo-md h2 { font-size: 17px; font-weight: 700; line-height: 1.4; color: #f8fafc; }
+.ql-editor.promo-md > * + h2 { margin-top: 20px; }
+.ql-editor.promo-md h3 { font-size: 15px; font-weight: 700; line-height: 1.4; color: #7dd3fc; }
+.ql-editor.promo-md > * + h3 { margin-top: 14px; }
+.ql-editor.promo-md > h2 + *, .ql-editor.promo-md > h3 + * { margin-top: 8px; }
+.ql-editor.promo-md strong { color: #f8fafc; }
+.ql-editor.promo-md ul, .ql-editor.promo-md ol { padding-left: 0; }
+.ql-editor.promo-md li:not(.ql-direction-rtl) { padding-left: 18px; }
+.ql-editor.promo-md li + li { margin-top: 10px; }
+.ql-editor.promo-md li.ql-indent-1:not(.ql-direction-rtl) { padding-left: 36px; font-size: 14px; }
+.ql-editor.promo-md li + li.ql-indent-1 { margin-top: 5px; }
+.ql-editor.promo-md li.ql-indent-2:not(.ql-direction-rtl) { padding-left: 54px; font-size: 13px; }
+.ql-editor.promo-md li + li.ql-indent-2 { margin-top: 3px; }
+.ql-editor.promo-md ul > li:not(.ql-direction-rtl)::before { content: '○'; width: 14px; margin-left: -18px; margin-right: 4px; text-align: left; }
+.ql-editor.promo-md ul > li.ql-indent-1:not(.ql-direction-rtl)::before { content: '-'; }
+.ql-editor.promo-md ul > li.ql-indent-2:not(.ql-direction-rtl)::before { content: '·'; }
+.ql-editor.promo-md img { margin: 2px 0; }
+.ql-editor.promo-md blockquote { font-size: 13px; line-height: 1.6; color: #94a3b8; border-left: 3px solid #334155; padding-left: 10px; }
+/* promo-md:end */
+
 /* 관리자 - 게시글 에디터 모달 */
 .promo-editor-modal-content {
     max-width: 900px;

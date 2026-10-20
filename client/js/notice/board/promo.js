@@ -28,6 +28,10 @@
 let promoQuillEditor = null;
 let currentEditingPromoId = null;
 let currentAttachments = []; // [New] 현재 편집 중인 게시글의 첨부파일 목록
+let promoEditorFormat = null; // 'md' = 마크다운으로 불러온 글 — 저장 때 format 으로 보내고, 보기·편집기에 단계별 간격·크기(style.css .promo-md)를 건다(2026-10-20)
+
+/** 마크다운 글이면 단계별 간격·글자 크기(style.css .promo-md)를 켠다. 예: setPromoMd(el, 'md') @param {Element} el @param {string|null} format @returns {void} [연계] ← openPromoDetail·openPromoEditor·importPromoMarkdown */
+function setPromoMd(el, format) { if (el) el.classList.toggle('promo-md', format === 'md'); }
 let _boardsCache = []; // 게시판 목록 캐시
 let _commentCounts = {}; // 게시글별 댓글 수 캐시 { "postId": count }
 let _reactionCounts = {}; // 게시글별 리액션 수 캐시 { "postId": { heartCount, thumbsCount, wowCount } }
@@ -525,6 +529,7 @@ window.openPromoDetail = async function (postId) {
 
         const contentEl = document.getElementById('promo-detail-content');
         contentEl.innerHTML = post.content;
+        setPromoMd(contentEl, post.format);   // 마크다운 글만 단계별 간격·크기
 
         // [New] 첨부파일 표시 (전용 컨테이너 사용 및 극소형 레이아웃)
         const attachmentContainer = document.getElementById('promo-detail-attachments');
@@ -678,6 +683,7 @@ async function importPromoMarkdown(file) {
     if (!r.html) { alert('파일에서 본문을 찾지 못했습니다.'); return; }
     if (promoQuillEditor.getText().trim() && !confirm('지금 본문을 마크다운 파일 내용으로 바꿀까요?')) return;
     promoQuillEditor.clipboard.dangerouslyPasteHTML(r.html);
+    promoEditorFormat = 'md'; setPromoMd(promoQuillEditor.root, 'md');   // 저장 때 format:'md' — 게시판에서 단계별 간격·크기
     const titleEl = document.getElementById('promo-editor-title');
     if (titleEl && !titleEl.value.trim() && r.title) titleEl.value = r.title;
     const notes = [];
@@ -978,6 +984,7 @@ window.openPromoEditor = async function (editData = null) {
         if (slider) slider.style.background = allowCommentsInput.checked ? '#4fc3f7' : 'rgba(255,255,255,0.15)';
     }
     promoQuillEditor.root.innerHTML = editData ? editData.content : '';
+    promoEditorFormat = editData && editData.format === 'md' ? 'md' : null; setPromoMd(promoQuillEditor.root, promoEditorFormat);
 
     // [New] 첨부파일 초기화
     currentAttachments = editData && editData.attachments ? [...editData.attachments] : [];
@@ -1029,7 +1036,8 @@ window.savePromoPost = async function () {
         category: category,
         isPinned: isPinned,
         allowComments: allowComments,  // 댓글 허용 여부
-        attachments: currentAttachments // [New] 첨부파일 배열
+        attachments: currentAttachments, // [New] 첨부파일 배열
+        format: promoEditorFormat || undefined   // 'md' = 마크다운 글(단계별 간격·크기)
     };
     if (currentEditingPromoId) {
         postData.id = currentEditingPromoId;

@@ -447,6 +447,8 @@ router.post('/api/promo', (req, res) => {
                     // 댓글 허용 여부: 명시적으로 전달된 경우에만 업데이트, 그 외 기존값 유지
                     allowComments: postData.allowComments !== undefined ? postData.allowComments : (posts[index].allowComments !== undefined ? posts[index].allowComments : false),
                     attachments: postData.attachments || posts[index].attachments || [],
+                    // 마크다운 글 표시(2026-10-20): 'md' 만 받는다 — 안 보내면 기존값 유지(...posts[index])
+                    format: postData.format === 'md' ? 'md' : posts[index].format,
                     updatedAt: getKstString()
                 };
             } else {
@@ -463,6 +465,8 @@ router.post('/api/promo', (req, res) => {
                 // 댓글 허용 여부: 기본값 false (관리자가 명시적으로 켜야 활성화)
                 allowComments: postData.allowComments || false,
                 attachments: postData.attachments || [],
+                // 마크다운으로 불러온 글이면 'md' — 화면이 단계별 간격·글자 크기를 건다(style.css .promo-md, 2026-10-20)
+                ...(postData.format === 'md' ? { format: 'md' } : {}),
                 createdAt: getKstString(),
                 updatedAt: getKstString(),
                 views: 0
