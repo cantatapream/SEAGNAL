@@ -49,7 +49,7 @@ const SCHEMA = 'station-briefing-input-v2';
 //   + 지명 오판 고침 둘째(2026-10-18 09:08 관리자 실행 — 설계서 §11.10.25 덧 둘째): 관광지 이름 속 「A과 B」의 앞 조각(place:남해가천해변·항도몽돌해수욕장) · 「예상돼·있어」를 이름 앞 낱말로 붙이지 않음(place:바람도예상돼해수욕장) ·
 //   지시문 예시·S16, polishOverview 가 연안 마지막 「따라서」 문장의 「A에는/A에서는/A에 (관심|주의|경계)가」를 「A 인근 연안에서는 …가」로 고친다(대목에 연안·인근·주변·해상·해역·관할이 이미 있으면 그대로).
 // 검증 v14(2026-10-18 설계서 §11.10.31 — 운영 14:08 「multiplier:1.1~1.2배」, 사용자 「진행해줘.」): 배수 범위 「1.1~1.2배」는 양 끝이 둘 다 그 문단 허용 배수이고 작은 수~큰 수일 때만 통과. 지시문은 그대로(v16).
-const VALIDATOR_VERSION = 'sb-validate-v15', PROMPT_VERSION = 'sb-prompt-v16';   // v15(2026-10-18 설계서 §11.10.37): 허용 이름을 「‧」(U+2027)로도 나눔 · 「N해역」 → 「N해리 해역」 보정 · v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
+const VALIDATOR_VERSION = 'sb-validate-v16', PROMPT_VERSION = 'sb-prompt-v16';   // v16(2026-10-20 설계서 §11.10.46): 바로 앞 이름을 가리키는 「세 곳에」·「두 곳 모두」 통과(anaphoraCountOk) · v15(2026-10-18 설계서 §11.10.37): 허용 이름을 「‧」(U+2027)로도 나눔 · 「N해역」 → 「N해리 해역」 보정 · v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -455,7 +455,8 @@ function validateOverview(o, si) {
             if (!allowedN.has(n.key) && !yearOk) errors.push('number:' + n.text);
         }
         const paraCount = si.count_keys ? new Set(si.count_keys[k] || []) : allowedN;   // 셈말은 그 문단 결론·근거에 있는 수만(독립 검토 7)
-        for (const m of t.matchAll(HNUM_RE)) { const w = m[1].replace(/\s+/g, ' '); if (!countWordOk(w, allowedN, paraCount)) errors.push('number:hangul:' + w); }
+        // §11.10.46: 바로 앞에 늘어놓은 대상 이름을 가리키는 「세 곳에」·「두 곳 모두」는 이름 수가 맞으면 통과(anaphoraCountOk) — 문장마다 앞 문장과 함께 본다.
+        ss.forEach((s, i) => { for (const m of s.matchAll(HNUM_RE)) { const w = m[1].replace(/\s+/g, ' '), at = m.index + m[0].indexOf(m[1]); if (!countWordOk(w, allowedN, paraCount) && !anaphoraCountOk(w, s.slice(0, at), ss[i - 1] || '', (si.levels && si.levels[k]) || {}, si.name)) errors.push('number:hangul:' + w); } });
         for (const m of t.matchAll(HMULT_RE)) errors.push('multiplier:' + m[1].replace(/\s+/g, ' '));
         // 조사가 붙은 원래 낱말도 본다 — 허용 이름 뒤에 조사만 남으면 통과(「한림공원도」·「삼양해안도로를」 — 조사 도·로를 지명 끝 「도」로 잘못 자르던 2026-10-17 운영 오판)
         const withParticle = (raw) => names.some((a) => { const i = raw.lastIndexOf(a); return i >= 0 && PARTICLE_ONLY_RE.test(raw.slice(i + a.length)); });
@@ -501,6 +502,21 @@ function validateOverview(o, si) {
  * @param {string} w - HNUM_RE 가 잡은 글(공백 하나로 정리) @param {Set<string>} allowedN - allowed_number_keys @param {Set<string>} [para] - 그 문단 count_keys(없으면 allowedN) @returns {boolean} [연계] ← validateOverview
  */
 function countWordOk(w, allowedN, para = allowedN) { const m = /^(\S+) ?(곳|개|군데)$/.exec(w), n = m ? COUNT_WORD[m[1]] : undefined, key = m ? n + '|' + (m[2] === '군데' ? '곳' : m[2]) : null; return !!n && allowedN.has(key) && para.has(key); }
+/**
+ * 바로 앞에 늘어놓은 대상 이름을 가리키는 곳 셈말인지(§11.10.46, 2026-10-20 사용자 「조건부 허용」 — 운영 07:30 판 「세 곳에 너울이…」·「두 곳 모두」 4건).
+ * 셋 다 맞아야 참: ①「곳·군데」이고 둘 이상 ②문장·쉼표 대목 첫머리(앞이 비었거나 「,」·「이들」로 끝남 — 「위험구역 세 곳」처럼 다른 것을 세는 꼴은 아님)
+ * ③그 앞 대목에 대상 이름(levels 문단 열쇠, 관할 이름 빼고)이 있으면 그 수, 없으면 바로 앞 문장의 이름 수가 셈말과 같음. 다른 이름 안에 든 이름(「광암」 ⊂ 「광암해수욕장」)은 하나로 센다.
+ * 예: ('세 곳', '', 'A·B·C는 관심 수준입니다.', {A:1,B:1,C:1}) → true · ('두 곳', '연도는 …, 어청도는 …, ', …) → true(그 대목 이름 2)
+ *     ('세 곳', '위험구역 ', 'A·B·C …') → false(첫머리 아님) · ('두 곳', '', 'A·B·C …') → false(이름 3) · ('두 개', …) → false(곳만)
+ * @param {string} w - 셈말(공백 하나로 정리) @param {string} before - 같은 문장 셈말 앞 글 @param {string} prev - 앞 문장 @param {object} lv - 그 문단 levels @param {string} self - 관할 이름
+ * @returns {boolean} [연계] ← validateOverview(countWordOk 가 거짓일 때만)
+ */
+function anaphoraCountOk(w, before, prev, lv, self) {
+    const m = /^(\S+) ?(곳|군데)$/.exec(w), n = m ? COUNT_WORD[m[1]] : undefined;
+    if (!n || n < 2 || !/(?:^|[,，]|이들)\s*$/.test(before)) return false;
+    const count = (x) => { const cx = compact(x), hit = [...new Set(Object.keys(lv).filter((a) => a !== self).map(compact).filter((a) => a && cx.includes(a)))]; return hit.filter((a) => !hit.some((b) => b !== a && b.includes(a))).length; };
+    const own = count(before); return (own || count(prev)) === n;
+}
 /** 묶음 단위대로 나눈다. 예: unit 'office' → 해양경찰서마다 한 묶음(21개). @param {object[]} items @param {string} unit - station|office|region @returns {object[][]} [연계] ← generate */
 function groupBy(items, unit) {
     const m = new Map();
@@ -669,4 +685,4 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     return { overviews, stats, errors };
 }
 
-module.exports = { SCHEMA, VALIDATOR_VERSION, PROMPT_VERSION, REJECTED_TEXT_MAX, rejectedOf, polishOverview, LEVEL_NEED_RE, FORBIDDEN, KMA_ZONE_NAMES, KMA_BIG_GROUPS, zoneWord, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
+module.exports = { SCHEMA, VALIDATOR_VERSION, anaphoraCountOk, PROMPT_VERSION, REJECTED_TEXT_MAX, rejectedOf, polishOverview, LEVEL_NEED_RE, FORBIDDEN, KMA_ZONE_NAMES, KMA_BIG_GROUPS, zoneWord, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
