@@ -49,7 +49,7 @@ const SCHEMA = 'station-briefing-input-v2';
 //   + 지명 오판 고침 둘째(2026-10-18 09:08 관리자 실행 — 설계서 §11.10.25 덧 둘째): 관광지 이름 속 「A과 B」의 앞 조각(place:남해가천해변·항도몽돌해수욕장) · 「예상돼·있어」를 이름 앞 낱말로 붙이지 않음(place:바람도예상돼해수욕장) ·
 //   지시문 예시·S16, polishOverview 가 연안 마지막 「따라서」 문장의 「A에는/A에서는/A에 (관심|주의|경계)가」를 「A 인근 연안에서는 …가」로 고친다(대목에 연안·인근·주변·해상·해역·관할이 이미 있으면 그대로).
 // 검증 v14(2026-10-18 설계서 §11.10.31 — 운영 14:08 「multiplier:1.1~1.2배」, 사용자 「진행해줘.」): 배수 범위 「1.1~1.2배」는 양 끝이 둘 다 그 문단 허용 배수이고 작은 수~큰 수일 때만 통과. 지시문은 그대로(v16).
-const VALIDATOR_VERSION = 'sb-validate-v16', PROMPT_VERSION = 'sb-prompt-v16';   // v16(2026-10-20 설계서 §11.10.46): 바로 앞 이름을 가리키는 「세 곳에」·「두 곳 모두」 통과(anaphoraCountOk) · v15(2026-10-18 설계서 §11.10.37): 허용 이름을 「‧」(U+2027)로도 나눔 · 「N해역」 → 「N해리 해역」 보정 · v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
+const VALIDATOR_VERSION = 'sb-validate-v17', PROMPT_VERSION = 'sb-prompt-v16';   // v17(2026-10-20 설계서 §11.10.47): 셈말 이름에 상시 위험 장소·앞 문장+그 대목 합침 · 「강원앞바다」 꼴 · 「새벽부터」·「대부분」 앞 낱말 아님 · v16(2026-10-20 설계서 §11.10.46): 바로 앞 이름을 가리키는 「세 곳에」·「두 곳 모두」 통과(anaphoraCountOk) · v15(2026-10-18 설계서 §11.10.37): 허용 이름을 「‧」(U+2027)로도 나눔 · 「N해역」 → 「N해리 해역」 보정 · v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -61,6 +61,8 @@ const KMA_BIG_GROUPS = Object.freeze(['서해앞바다', '남해앞바다', '동
 const KMA_ZONE_NAMES = Object.freeze((() => {
     const { ZONE_GROUP_MAP } = require('../config/zone_group_map'), out = new Set(['제주도', ...KMA_BIG_GROUPS]);
     for (const [k, v] of Object.entries(ZONE_GROUP_MAP)) for (const n of [k, ...v]) { out.add(n); if (n.includes('·')) out.add(n.split('·').pop()); }
+    // §11.10.47(10-20 16:52 운영 place:새벽부터강원앞바다 — 기상청 16:30 해상 전망 원문에 「강원앞바다」): 도 단위 앞바다 묶음 「강원북부앞바다」 → 「강원앞바다」(경북·제주도도 같은 꼴).
+    for (const n of [...out]) { const m = /^(.+?)(?:북부|중부|남부|동부|서부)앞바다$/.exec(n); if (m) out.add(m[1] + '앞바다'); }
     return [...out].sort();
 })());
 // 곳·개를 세는 한글 수사(2026-10-17 결정 — 운영 실패 「number:hangul:두 곳」·「세 곳」). 그 수가 같은 단위로 허용 숫자에 있을 때만(예: 「두 곳」 ← 허용 열쇠 '2|곳').
@@ -110,8 +112,8 @@ const NEXT_CONTEXT = /^(?:해역|일대|주변|인근|부근|근처|앞(?!으로
 const STOP_WORD = new Set(['관할', '인근', '주변', '부근', '해당', '같은', '모든', '각', '일부', '전체', '오늘', '내일', '따라서', '특히', '다만', '또', '및', '등', '해상', '육상', '연안', '이', '그', '저', '이번', '이곳', '그곳', '평소', '현재', '지금', '오전', '오후', '새벽', '밤', '낮', '앞', '뒤', '옆', '안', '밖', '근처', '여러', '주요']);
 // 지명 뒤에 붙을 수 있는 조사 하나로 된 꼬리(빈 꼬리 포함) — 하나만: 「한림공원도로」(도+로)·「삼양해안도로도로」는 조사가 아니다(§11.10.6 독립 검토) — validateOverview 의 조사 붙은 지명 대조
 const PARTICLE_ONLY_RE = /^(?:에서는|에서도|에서|으로는|으로|까지|부터|보다|처럼|에는|에도|의|에|은|는|이|가|을|를|과|와|로|도|만)?$/;
-const DETERMINER = new Set(['한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열', '몇', '두세', '서너', '이들', '그들', '저', '이런', '그런', '두어']);
-const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면|다|요|게|께|죠|에도|돼|어)$/;   // 「에도」 — 「해제 뒤에도 앞바다」의 「뒤에도」를 이름 앞 낱말로 붙이지 않게(v13) · 「돼·어」 — 「바람도 예상돼 해수욕장」·「있어 해수욕장」(10-18 09:08 운영 place:바람도예상돼해수욕장 — 관광지 이름 1,353개의 앞 낱말 중 「돼·어」로 끝나는 것 0개)
+const DETERMINER = new Set(['한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열', '몇', '두세', '서너', '이들', '그들', '저', '이런', '그런', '두어', '대부분']);   // 「대부분」 — 「…를 비롯해 대부분 해구가」(10-20 16:52 운영 place:비롯해대부분해구, §11.10.47)
+const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면|다|요|게|께|죠|에도|돼|어|부터|까지)$/;   // 「부터·까지」 — 「내일 새벽부터 먼바다」(10-20 16:52 운영 place:새벽부터먼바다, §11.10.47) · 「에도」 — 「해제 뒤에도 앞바다」의 「뒤에도」를 이름 앞 낱말로 붙이지 않게(v13) · 「돼·어」 — 「바람도 예상돼 해수욕장」·「있어 해수욕장」(10-18 09:08 운영 place:바람도예상돼해수욕장 — 관광지 이름 1,353개의 앞 낱말 중 「돼·어」로 끝나는 것 0개)
 // 관광지 이름 속 「A과 B」(「남해 가천 해변과 암수바위」·「항도몽돌해수욕장과 항도방파제」 — 남해파출소, 10-18 09:08 운영 place:남해가천해변·항도몽돌해수욕장): 지명 접미사 뒤 「과·와 」에서 나눈 앞 조각도 허용 이름(validateOverview)
 const AND_SPLIT_RE = new RegExp('(?<=(?:' + PLACE_SUFFIX.join('|') + '))[과와]\\s+');
 // 분석 문단 문장 수(2026-10-17 사용자 결정 §11.10.4 — 연안·해상 각 3~5문장, 사용자 예시가 4문장·3문장). §11.10 의 해설은 1~2문장이었다.
@@ -455,8 +457,9 @@ function validateOverview(o, si) {
             if (!allowedN.has(n.key) && !yearOk) errors.push('number:' + n.text);
         }
         const paraCount = si.count_keys ? new Set(si.count_keys[k] || []) : allowedN;   // 셈말은 그 문단 결론·근거에 있는 수만(독립 검토 7)
+        const countNames = Object.keys((si.levels && si.levels[k]) || {}).concat(k === 'land' && si.land && Array.isArray(si.land.constant) ? si.land.constant : []);   // §11.10.47: 상시 위험 장소 이름도 센다
         // §11.10.46: 바로 앞에 늘어놓은 대상 이름을 가리키는 「세 곳에」·「두 곳 모두」는 이름 수가 맞으면 통과(anaphoraCountOk) — 문장마다 앞 문장과 함께 본다.
-        ss.forEach((s, i) => { for (const m of s.matchAll(HNUM_RE)) { const w = m[1].replace(/\s+/g, ' '), at = m.index + m[0].indexOf(m[1]); if (!countWordOk(w, allowedN, paraCount) && !anaphoraCountOk(w, s.slice(0, at), ss[i - 1] || '', (si.levels && si.levels[k]) || {}, si.name)) errors.push('number:hangul:' + w); } });
+        ss.forEach((s, i) => { for (const m of s.matchAll(HNUM_RE)) { const w = m[1].replace(/\s+/g, ' '), at = m.index + m[0].indexOf(m[1]); if (!countWordOk(w, allowedN, paraCount) && !anaphoraCountOk(w, s.slice(0, at), ss[i - 1] || '', countNames, si.name)) errors.push('number:hangul:' + w); } });
         for (const m of t.matchAll(HMULT_RE)) errors.push('multiplier:' + m[1].replace(/\s+/g, ' '));
         // 조사가 붙은 원래 낱말도 본다 — 허용 이름 뒤에 조사만 남으면 통과(「한림공원도」·「삼양해안도로를」 — 조사 도·로를 지명 끝 「도」로 잘못 자르던 2026-10-17 운영 오판)
         const withParticle = (raw) => names.some((a) => { const i = raw.lastIndexOf(a); return i >= 0 && PARTICLE_ONLY_RE.test(raw.slice(i + a.length)); });
@@ -505,17 +508,20 @@ function countWordOk(w, allowedN, para = allowedN) { const m = /^(\S+) ?(곳|개
 /**
  * 바로 앞에 늘어놓은 대상 이름을 가리키는 곳 셈말인지(§11.10.46, 2026-10-20 사용자 「조건부 허용」 — 운영 07:30 판 「세 곳에 너울이…」·「두 곳 모두」 4건).
  * 셋 다 맞아야 참: ①「곳·군데」이고 둘 이상 ②문장·쉼표 대목 첫머리(앞이 비었거나 「,」·「이들」로 끝남 — 「위험구역 세 곳」처럼 다른 것을 세는 꼴은 아님)
- * ③그 앞 대목에 대상 이름(levels 문단 열쇠, 관할 이름 빼고)이 있으면 그 수, 없으면 바로 앞 문장의 이름 수가 셈말과 같음. 다른 이름 안에 든 이름(「광암」 ⊂ 「광암해수욕장」)은 하나로 센다.
+ * ③그 앞 대목에 대상 이름이 있으면 그 수, 또는 그 앞 대목과 바로 앞 문장의 이름을 합친 수(겹치면 하나)가 셈말과 같음. 다른 이름 안에 든 이름(「광암」 ⊂ 「광암해수욕장」)은 하나로 센다.
+ *   이름 = levels 문단 열쇠 + 연안이면 상시 위험 장소(si.land.constant), 관할 이름 빼고(§11.10.47 — 10-20 16:52 운영: 해망 「군산 내항 일대…와 소룡포구 일대 … 두 곳 모두」(상시 위험 장소),
+ *   신항 「대항선착장과 대항전망대 …. 가덕도 연대봉도 …, 세 곳 모두」(앞 문장 2 + 그 대목 1)).
  * 예: ('세 곳', '', 'A·B·C는 관심 수준입니다.', {A:1,B:1,C:1}) → true · ('두 곳', '연도는 …, 어청도는 …, ', …) → true(그 대목 이름 2)
  *     ('세 곳', '위험구역 ', 'A·B·C …') → false(첫머리 아님) · ('두 곳', '', 'A·B·C …') → false(이름 3) · ('두 개', …) → false(곳만)
- * @param {string} w - 셈말(공백 하나로 정리) @param {string} before - 같은 문장 셈말 앞 글 @param {string} prev - 앞 문장 @param {object} lv - 그 문단 levels @param {string} self - 관할 이름
+ * @param {string} w - 셈말(공백 하나로 정리) @param {string} before - 같은 문장 셈말 앞 글 @param {string} prev - 앞 문장 @param {string[]} names - 셀 이름(levels 열쇠 + 상시 위험 장소) @param {string} self - 관할 이름
  * @returns {boolean} [연계] ← validateOverview(countWordOk 가 거짓일 때만)
  */
-function anaphoraCountOk(w, before, prev, lv, self) {
+function anaphoraCountOk(w, before, prev, names, self) {
     const m = /^(\S+) ?(곳|군데)$/.exec(w), n = m ? COUNT_WORD[m[1]] : undefined;
     if (!n || n < 2 || !/(?:^|[,，]|이들)\s*$/.test(before)) return false;
-    const count = (x) => { const cx = compact(x), hit = [...new Set(Object.keys(lv).filter((a) => a !== self).map(compact).filter((a) => a && cx.includes(a)))]; return hit.filter((a) => !hit.some((b) => b !== a && b.includes(a))).length; };
-    const own = count(before); return (own || count(prev)) === n;
+    const all = [...new Set(names.filter((a) => a !== self).map(compact).filter(Boolean))];
+    const hits = (x) => { const cx = compact(x), hit = all.filter((a) => cx.includes(a)); return hit.filter((a) => !hit.some((b) => b !== a && b.includes(a))); };
+    const own = hits(before), both = hits(before + ' ' + prev); return (own.length > 0 && own.length === n) || both.length === n;
 }
 /** 묶음 단위대로 나눈다. 예: unit 'office' → 해양경찰서마다 한 묶음(21개). @param {object[]} items @param {string} unit - station|office|region @returns {object[][]} [연계] ← generate */
 function groupBy(items, unit) {
