@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 127개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 128개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -134,6 +134,7 @@ client/js/
 ├── notice/  ← [탭4] 공지사항
 │   ├── board/
 │   │   ├── image_compress.js
+│   │   ├── markdown_import.js
 │   │   ├── promo.js
 │   └── comments/
 │       ├── promo_comment1.js
@@ -400,6 +401,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `image_compress.js` | 관리자 게시글 에디터(Quill) 의 이미지 자동 압축 유틸리티 |
+| `markdown_import.js` | 공지 게시판 관리자 글쓰기 — 마크다운(.md) 파일 내용을 게시글 본문(HTML)으로 바꾼다. |
 | `promo.js` | 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집) |
 
 ### `client/js/notice/comments/`
