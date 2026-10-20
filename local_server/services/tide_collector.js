@@ -21,6 +21,7 @@
  * - peak_finder.js → findTidePeaks() 함수로 고조/저조 분석
  * - routes/tide.js → API 엔드포인트에서 이 모듈의 함수 호출
  * - (2026-10-18) fetchTideBedPage 시간 제한 TIDEBED_TIMEOUTS(연결 5초·전체 15초) — 연결 실패만 다른 키로 1회 재시도
+ * - (2026-10-20) 전체 기한 15초 → 30초 — TideBED 가 간헐적으로 약 18초 걸려 정상 응답이 끊겼다(아래 TIDEBED_TIMEOUTS)
  *
  * [초보자를 위한 안내]
  * TideBED API는 공공데이터포털(data.go.kr)에서 제공하는 조석 예측 API입니다.
@@ -51,9 +52,18 @@ const TIDEBED_BASE_URL = 'https://apis.data.go.kr/1192136/tidebed/GetTidebedApiS
  *    상한(marine_client·regional_forecast_collector 15초 — bulletin_cancel_scanner 는 10초). 이 응답을
  *    바텀시트가 기다리므로 그보다 길게는 두지 않았다. ③연결 5초 = 정상이면 1초 안쪽인 연결 단계에 여유를 둔 값.
  *    ⚠TideBED 정상 응답 시간은 이 환경에서 잴 수 없었다(접속 차단) — 운영 로그로 확인해 고칠 것.
- *  사용자 최악 대기: 연결 실패 5초 + 다른 키 5초 = 10초, 느린 응답 15초(그 뒤 오류).
+ *  사용자 최악 대기: 연결 실패 5초 + 다른 키 5초 = 10초, 느린 응답 30초(그 뒤 오류).
+ *  [2026-10-20 전체 기한 15초 → 30초 — 운영 로그와 실측으로 고침]
+ *    운영 로그(10-20 09:14 KST): 바텀시트 조석 요청이 「TideBED Page 1 … 전체 시간 초과 15000ms」로 끊겨
+ *    「격자 해시를 확인할 수 없습니다」 → 사용자 화면에 조석이 안 나왔다. 같은 날 같은 요청(numOfRows=1)을 좌표 6곳에
+ *    15번 직접 보내 보니 응답이 온 10번 중 8번은 1~2초였고 **2번은 18.0초·18.5초** 걸려 정상 자료가 왔다(둘 다 위 좌표
+ *    33.70771, 126.60283 — 그러나 같은 좌표의 300건 페이지·이후 8번은 2초 안쪽이라 좌표 탓이 아니라 간헐적 지연).
+ *    나머지 5번은 연결이 끊겼는데, 시험 환경의 중계(프록시) 기록에도 남아 있어 TideBED 탓인지 가르지 못했다.
+ *    15초면 이 느린 정상 응답을 버린다.
+ *    30초 = 관측 최대(18.5초)에 여유를 둔 값. 시간 제한이 없던 10-18 이전에는 이런 응답을 기다려 받았다.
+ *    ⚠연결 기한(5초)은 그대로 — 위 지연은 연결 뒤 응답 대기에서 났다.
  *  (시험이 짧은 값으로 바꿔 쓸 수 있게 객체로 둔다 — test_tide_edges.js [D]) */
-const TIDEBED_TIMEOUTS = { connectMs: 5000, totalMs: 15000 };
+const TIDEBED_TIMEOUTS = { connectMs: 5000, totalMs: 30000 };
 
 // ============================================================================
 // 사용자 요청 우선 신호 (야간 앵커 수집과 TideBED 키 충돌 회피)
@@ -513,9 +523,11 @@ async function lookupGridHash(lat, lon, reqDate) {
     const code = header && header.resultCode != null ? String(header.resultCode) : null;
     if (code && code !== '00' && code !== '03' && code !== '10') {
         console.warn(`⚠️ 격자 해시 조회 — 오류 코드 ${code}(${header.resultMsg || ''}) — 「격자 미제공」으로 치지 않는다`);
-        return { hash: null, error: true };
+        return { hash: null, error: true, code };
     }
-    return { hash: null, error: false };
+    // code 를 함께 준다 — 바텀시트 라우트가 「왜 격자 미제공인가」를 로그에 남기게(2026-10-20: 4.9초 만에 이유 없이
+    //   「격자 해시를 확인할 수 없습니다」만 남은 건이 있었는데, 실패인지 격자 밖인지 로그로 가를 수 없었다).
+    return { hash: null, error: false, code };
 }
 
 // ============================================================================
