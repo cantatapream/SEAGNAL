@@ -4,7 +4,7 @@
  * 역할: 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집)
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : image_compress.js(compressImageToJpeg/blobToDataURL), promo_comment5.js(loadPromoComments), admin.js(showUnifiedLoginModal·adminAuthenticated), admin/pagination_helper.js
+ *  - 사용하는 파일 : image_compress.js(compressImageToJpeg/blobToDataURL), markdown_import.js(noticeMarkdown.toHtml — 마크다운 불러오기), promo_comment5.js(loadPromoComments), admin.js(showUnifiedLoginModal·adminAuthenticated), admin/pagination_helper.js
  *  - 서버 API      : /api/promo(/*), /api/boards, /api/comments/counts, /api/reactions(/counts), /api/upload, /api/upload-file
  *  - 마크업        : index2.html #promo-list(-pagination), #promo-detail-modal, #promo-editor-modal, #promo-tabs-container, #promo-attachment-list 등
  *  - 나를 쓰는 곳  : 자체 초기화 및 탭/검색 시 renderPromoPosts 호출; admin_trigger.js·댓글 파일들이 promo 전역·상세보기 참조
@@ -664,6 +664,28 @@ function escapeHtml(text) {
 // 통합 관리자(unified-admin-modal) > "게시판 관리" 탭 > "게시글 관리" 서브탭에서
 // 사용. 별도 오렌지 팝업(showPromoManagementModal) 은 제거됨.
 
+/**
+ * 마크다운(.md) 파일을 읽어 편집기 본문에 채운다 — 저장은 하지 않는다(관리자가 눈으로 보고 고친 뒤 [저장], 사용자 결정 2026-10-20).
+ * 제목 칸이 비어 있으면 파일 맨 처음 「# 제목」을 제목으로. 본문이 이미 있으면 바꿀지 먼저 묻는다. 넣지 못한 사진·크기 초과는 알린다.
+ * 예: importPromoMarkdown(File('2026-10-20_패치노트.md')) → 제목 「10월 패치노트」 + 본문(글·사진) 채움
+ * @param {File} file - .md 파일 @returns {Promise<void>}
+ * [연계] ← openPromoEditor [마크다운 파일 불러오기] / → markdown_import.js window.noticeMarkdown.toHtml · Quill clipboard.dangerouslyPasteHTML · 저장 한도 5MB(server_config express.json)
+ */
+async function importPromoMarkdown(file) {
+    if (!window.noticeMarkdown || !promoQuillEditor) { alert('마크다운 불러오기를 준비하지 못했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
+    const text = await file.text();
+    const r = window.noticeMarkdown.toHtml(text);
+    if (!r.html) { alert('파일에서 본문을 찾지 못했습니다.'); return; }
+    if (promoQuillEditor.getText().trim() && !confirm('지금 본문을 마크다운 파일 내용으로 바꿀까요?')) return;
+    promoQuillEditor.clipboard.dangerouslyPasteHTML(r.html);
+    const titleEl = document.getElementById('promo-editor-title');
+    if (titleEl && !titleEl.value.trim() && r.title) titleEl.value = r.title;
+    const notes = [];
+    if (r.warnings.length) notes.push('넣지 못한 사진 ' + r.warnings.length + '장:\n- ' + r.warnings.join('\n- '));
+    if (promoQuillEditor.root.innerHTML.length > 4.5 * 1024 * 1024) notes.push('본문이 4.5MB 를 넘어 저장이 안 될 수 있습니다(한도 5MB) — 사진을 줄여 주세요.');
+    if (notes.length) alert(notes.join('\n\n'));
+}
+
 // 8. 새 글 작성 에디터 열기
 window.openPromoEditor = async function (editData = null) {
     // 기존 모달 닫기
@@ -704,6 +726,13 @@ window.openPromoEditor = async function (editData = null) {
                             </label>
                         </div>
                         <input type="text" id="promo-editor-title" class="promo-editor-title-input" placeholder="제목을 입력하세요">
+                        <!-- 마크다운(.md) 불러오기 — 글·사진만 편집기에 채운다(바로 저장하지 않음). 규칙: 저장소 NOTICE.md · markdown_import.js -->
+                        <div style="display:flex; justify-content:flex-end; margin:-6px 0 8px;">
+                            <label style="cursor:pointer; padding:6px 12px; background:rgba(255,171,64,0.12); border:1px solid rgba(255,171,64,0.4); border-radius:6px; font-size:0.8rem; color:#ffab40;">
+                                <i class="fa-brands fa-markdown" style="margin-right:4px;"></i>마크다운 파일 불러오기
+                                <input type="file" id="promo-md-input" style="display:none;" accept=".md,.markdown,text/markdown,text/plain">
+                            </label>
+                        </div>
                         <div id="promo-quill-editor"></div>
                         <!-- 이미지 업로드 진행률 표시 -->
                         <div id="promo-upload-progress" style="display:none; margin-top:10px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; position:relative; height:24px; border:1px solid rgba(255,255,255,0.2);">
@@ -736,6 +765,7 @@ window.openPromoEditor = async function (editData = null) {
         `;
         document.body.insertAdjacentHTML('beforeend', html);
         editorModal = document.getElementById('promo-editor-modal');
+        document.getElementById('promo-md-input').addEventListener('change', function () { const f = this.files && this.files[0]; this.value = ''; if (f) importPromoMarkdown(f); });
     }
 
     editorModal.classList.remove('hidden');

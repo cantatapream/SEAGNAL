@@ -83,6 +83,7 @@
     "vsby_forecast_layer.js",
     "admin_trigger.js",
     "image_compress.js",
+    "markdown_import.js",
     "promo.js",
     "promo_comment1.js",
     "promo_comment2.js",
