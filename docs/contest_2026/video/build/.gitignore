@@ -1,0 +1,10 @@
+assets/
+fonts/
+sfx/
+out/
+__pycache__/
+music/*.wav
+music/*.mp3
+music/events.json
+music/stems/
+music/check/
