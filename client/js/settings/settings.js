@@ -10,6 +10,8 @@
  * - UserSettings: 관심 해역 필터링 (localStorage)
  * - NotificationSettings: 푸시 알림 구독 설정
  * - FontSizeManager: 글꼴 크기 조절
+ * - initSafetyPopupUI(), saveSafetyPopupUI(): 기상특보 안전권고 팝업 끄기 설정
+ *   (fix_popup_logic.js 의 AlertDetailPopup 이 읽는 localStorage 'suppressSafetyPopup')
  * - findSeaZone(), findNearestZone(): 위치 기반 해역 검색
  * - openSettingsModal(): 관심해역 탭의 「활동지점 안전 브리핑」 칸을 forecast/station-briefing/station_briefing.js(StationBriefing.renderSettings)가 채운다(2026-10-16)
  * - settingsModalHasUnsaved(): 저장하지 않은 변경이 있나 — 그 칸의 [관할 설정]이 팝업을 닫기 전에 묻는 데 쓴다(2026-10-16 2단계 검토 A4)
@@ -552,6 +554,36 @@ function saveNotificationUI() {
     });
 }
 
+/**
+ * "기상특보 안전권고 팝업 끄기" 체크박스에 현재 저장값을 반영.
+ * 예: localStorage 에 'true' 가 들어 있으면 체크된 상태로 그린다.
+ *
+ * [연계] ← openSettingsModal (설정 모달을 열 때마다)
+ *          → 없음 (localStorage 만 읽는다)
+ *          왜 필요한가 — 이 값을 실제로 읽는 쪽은 fix_popup_logic.js 의
+ *          AlertDetailPopup.show 인데, 지금까지 체크박스와 그 값을 잇는 코드가
+ *          없어서 사용자가 체크해도 저장되지 않고 다시 열면 항상 꺼져 보였다.
+ */
+function initSafetyPopupUI() {
+    const opt = document.getElementById('opt-suppress-safety-popup');
+    if (!opt) return;
+    opt.checked = localStorage.getItem('suppressSafetyPopup') === 'true';
+}
+
+/**
+ * "기상특보 안전권고 팝업 끄기" 체크박스의 현재 상태를 저장.
+ * 예: 체크된 상태로 저장하면 localStorage['suppressSafetyPopup'] = 'true'.
+ *
+ * [연계] ← saveSettingsAndClose (설정 모달의 "저장 및 닫기")
+ *          → fix_popup_logic.js 의 AlertDetailPopup.show 가 이 값을 읽어
+ *            팝업을 띄울지 말지 결정한다.
+ */
+function saveSafetyPopupUI() {
+    const opt = document.getElementById('opt-suppress-safety-popup');
+    if (!opt) return;
+    localStorage.setItem('suppressSafetyPopup', opt.checked ? 'true' : 'false');
+}
+
 // [New] 설정 탭 전환 함수
 window.switchSettingsTab = function (tabId) {
     console.log('Switching to tab:', tabId);
@@ -605,6 +637,7 @@ function openSettingsModal() {
 
     renderSettingsList();
     initNotificationUI(); // [New] UI 초기화 (localStorage에서 최신 값 다시 읽음)
+    initSafetyPopupUI();  // 안전권고 팝업 끄기 체크박스에 저장값 반영
     if (typeof initLocationAlertUI === 'function') initLocationAlertUI(); // [위치기반 특보] 토글/관리자 게이트 초기화
     // [활동지점 안전 브리핑] 관심해역 탭의 표시/숨김·관할 설정 칸(§11.2) — 노출 판정이 display:true 일 때만 보인다.
     //   관리자 모드를 막 켰을 수 있으므로 판정을 다시 받는다(받으면 applyVisibility 가 이 칸을 다시 그린다). 이 칸은 누르는 즉시 적용 — 아래 스냅샷과 무관.
@@ -687,6 +720,7 @@ function saveSettingsAndClose() {
 
     UserSettings.save();
     saveNotificationUI(); // [New] 알림 설정 저장
+    saveSafetyPopupUI();  // 안전권고 팝업 끄기 설정 저장
     if (window.FontSizeManager) FontSizeManager.save(); // [New] 폰트 크기 저장
     closeSettingsModal();
 
