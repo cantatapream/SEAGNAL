@@ -345,11 +345,29 @@ function createStore({ file, backfillFile } = {}) {
         return { ok: true, device: name, state: d.state };
     }
 
+    /**
+     * 옛 서버(2026-11-03 02:25 KST 배포 전)가 저장한 글은 줄마다 「표준 구역인가(zoneKnown)」 칸이 없어
+     * 관리자 화면이 표준 구역까지 전부 「모르는 구역」으로 보였다(사용자 지적 2026-11-03).
+     * 보여줄 때만 지금 규칙으로 다시 분해한다 — 파일은 고치지 않는다. 새 형식 글은 그대로 돌려준다.
+     * 예: {warnings:[{zone:'동해중부안쪽먼바다',…(zoneKnown 없음)}]} → warnings 재분해 + oldFormat:true
+     * [연계] ← snapshot(이 파일) / → admin_kakao_relay.js 배지
+     */
+    function viewOf(m) {
+        const ws = m.warnings || [];
+        if (!ws.length || ws.every((w) => 'zoneKnown' in w)) return m;
+        const warnings = parseWarnings(m.text, new Date(m.receivedAt));
+        // 저장할 때와 같은 규칙: 190자 넘는 알림 글의 마지막 줄은 잘렸을 수 있다(storeMessages cutTail).
+        if (m.source === 'notification' && String(m.text).length >= 190 && warnings.length) warnings[warnings.length - 1].cutTail = true;
+        const same = (o) => (w) => w.zone === canonZone(o.zone) && w.kind === o.kind && w.at === o.at && w.action === o.action;
+        const remap = (list) => (list || []).map((o) => warnings.find(same(o))).filter(Boolean);
+        return { ...m, warnings, newWarnings: remap(m.newWarnings), missedWarnings: remap(m.missedWarnings), oldFormat: true };
+    }
+
     /** 관리자 확인용 — 마지막 신호와 최근 글 n개. */
     function snapshot(n = 50) {
         const db = load();
         return {
-            heartbeat: db.heartbeat, devices: db.devices || {}, messages: db.messages.slice(-n).reverse(),
+            heartbeat: db.heartbeat, devices: db.devices || {}, messages: db.messages.slice(-n).reverse().map(viewOf),
             pending: db.pending || [], checks: (db.checks || []).slice(-50).reverse(),
             seen: { ids: Object.keys(timedSet(db.seenIds, new Date()).dump(MAX_SEEN_IDS)).length, keys: Object.keys(timedSet(db.seenKeys, new Date()).dump(MAX_SEEN_KEYS)).length },
             anchor: db.anchor || null,
