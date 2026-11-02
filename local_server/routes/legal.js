@@ -51,6 +51,7 @@
  * - services/article_text.js    → /api/legal/article-text 의 조문 원문 발췌 본체
  * - services/pending_answers.js → 답변완료 푸시용 1회용 임시 보관함(3시간)
  * - services/legal_ask_stats.js → /api/legal/ask 질문 수 날짜별 집계(내용 없이 숫자만, data/legal_ask_stats.json)
+ * - services/nariya_exposure_schedule.js → GET/POST /api/legal/config 의 「자동 노출 시간」(KST 노출·비노출 시각 → 응답 exposure 를 요청 시점에 계산)
  * - services/firebase_admin_lazy.js → FCM 발송(첫 사용 시 SDK 로딩)
  *
  * [경합위험] review_queue.md·공유 md는 여러 승인이 동시에 쓰면 손상될 수 있어
@@ -71,6 +72,7 @@ const gemini = require('../services/gemini_client');
 const codexBridge = require('../services/codex_bridge');   // 관리자 전용 Codex 개발자 모드(삼중 잠금)
 const llmChain = require('../services/llm_chain');   // [답변 AI 사슬 · 2026-11-02] 순서(providerOrder)·소진 해제·상태
 const askStats = require('../services/legal_ask_stats');   // [질문 수 · 2026-11-02] 날짜별 집계(숫자만)
+const exposureSchedule = require('../services/nariya_exposure_schedule');   // [자동 노출 시간 · 2026-11-02] KST 노출·비노출 시각 → 유효 노출(요청 시점 계산)
 const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
 const wikiBrief = require('../services/legal_wiki_brief');
@@ -275,6 +277,13 @@ function readConfig() {
 function normConfig(c) {
   return {
     exposure: ['off', 'admin', 'user'].includes(c.exposure) ? c.exposure : 'off',
+    // [자동 노출 시간 · 2026-11-02 사용자 확정] 「08:00 노출 · 19:00 비노출」(KST, 시각은 관리자가 바꿀 수 있음) — 기본 **켜짐**.
+    //   켜져 있으면 위 exposure 는 「관리자가 손으로 고른 값」이고, exposureManualAt 이후 경계 시각을 한 번도 안 지났을 때만 쓰인다.
+    //   실제로 클라에 가는 exposure 는 GET/POST 응답에서 exposureSchedule.describe 가 계산한다(이 함수는 저장값만 정리).
+    exposureAuto: c.exposureAuto !== false,
+    exposureOnAt: exposureSchedule.normTimes(c).onAt,
+    exposureOffAt: exposureSchedule.normTimes(c).offAt,
+    exposureManualAt: (typeof c.exposureManualAt === 'string' && Number.isFinite(Date.parse(c.exposureManualAt))) ? c.exposureManualAt : null,
     answerCanonicalOnly: c.answerCanonicalOnly === true,
     understandConfirm: c.understandConfirm === true,
     scopeNarrow: c.scopeNarrow === true,
@@ -322,7 +331,8 @@ router.get('/api/legal/config', (req, res) => {
   // 이 GET 은 일반 사용자도 노출 설정을 읽으려 부른다 → providerStatus(키 유무·소진·오늘 호출 수)는 관리자 토큰이 있을 때만.
   const isAdmin = adminAuth.verifyToken(req.get('X-Admin-Token') || '');
   const cfg = normConfig(readConfig());
-  res.json(Object.assign({ ok: true }, cfg, isAdmin ? { providerStatus: llmChain.status(cfg.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL) } : {}));
+  // exposure 는 저장값이 아니라 **지금 시각의 유효 노출**로 덮는다(자동 노출 시간) — 옛 앱도 이 칸만 읽으면 맞게 보인다.
+  res.json(Object.assign({ ok: true }, cfg, exposureSchedule.describe(cfg, exposureSchedule.now()), isAdmin ? { providerStatus: llmChain.status(cfg.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL) } : {}));
 });
 router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   const b = req.body || {};
@@ -338,15 +348,30 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     return res.status(400).json({ ok: false, error: `providerReset은 ${llmChain.PROVIDERS.join('|')}|all` });
   if (b.providerModels !== undefined && !llmChain.isValidModels(b.providerModels))
     return res.status(400).json({ ok: false, error: 'providerModels는 {claude1|claude2|upstage:{model,effort}, chatgpt:{model}} — 값은 GET providerChoices 목록 안에서(gemini 는 고를 수 없음)' });
-  for (const k of BOOL_SWITCHES) {
+  for (const k of BOOL_SWITCHES.concat('exposureAuto')) {
     if (b[k] !== undefined && typeof b[k] !== 'boolean')
       return res.status(400).json({ ok: false, error: `${k}는 true|false` });
+  }
+  for (const k of ['exposureOnAt', 'exposureOffAt']) {
+    if (b[k] !== undefined && !exposureSchedule.isHHMM(b[k]))
+      return res.status(400).json({ ok: false, error: `${k}는 HH:MM(00:00~23:59, KST)` });
   }
   // 소진 해제는 검사가 전부 통과한 뒤에만(400 으로 거절된 요청이 해제만 남기지 않게).
   if (b.providerReset !== undefined) llmChain.resetExhausted(b.providerReset);
   withLock(async () => {
     const cur = normConfig(readConfig());                       // 기존 필드 보존(머지) — 한 필드 갱신이 다른 필드 삭제 안 하게
-    if (b.exposure !== undefined) cur.exposure = b.exposure;
+    // [자동 노출 시간] 두 시각이 같아지면 창을 정할 수 없다 → 저장하지 않고 400(아래 then 이 받는다).
+    const onAt = b.exposureOnAt !== undefined ? b.exposureOnAt : cur.exposureOnAt;
+    const offAt = b.exposureOffAt !== undefined ? b.exposureOffAt : cur.exposureOffAt;
+    if (onAt === offAt) return { _bad: '노출 시각과 비노출 시각이 같습니다 — 서로 다르게 정해 주세요' };
+    const nowMs = exposureSchedule.now();
+    const shown = exposureSchedule.describe(cur, nowMs).exposure;   // 바꾸기 직전에 실제로 보이던 값
+    cur.exposureOnAt = onAt; cur.exposureOffAt = offAt;
+    if (b.exposureAuto === false && cur.exposureAuto) { cur.exposure = shown; cur.exposureManualAt = null; }   // 끄는 순간 보이던 값 그대로 고정(갑자기 옛 저장값으로 튀지 않게)
+    if (b.exposureAuto === true && !cur.exposureAuto) cur.exposureManualAt = null;                          // 켜는 순간부터 시간표가 정한다
+    if (b.exposureAuto !== undefined) cur.exposureAuto = b.exposureAuto;
+    // 자동이 켜져 있을 때 손으로 바꾼 노출은 「다음 경계 시각까지만」 — 바꾼 시각을 남긴다(exposureSchedule.describe 가 판정).
+    if (b.exposure !== undefined) { cur.exposure = b.exposure; cur.exposureManualAt = cur.exposureAuto ? new Date(nowMs).toISOString() : null; }
     if (b.answerModel !== undefined) cur.answerModel = b.answerModel;
     if (b.providerOrder !== undefined) cur.providerOrder = b.providerOrder.slice();
     if (b.providerRemoved !== undefined) cur.providerRemoved = b.providerRemoved.slice();
@@ -354,7 +379,11 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     for (const k of BOOL_SWITCHES) if (b[k] !== undefined) cur[k] = b[k];
     writeFileAtomic(CONFIG_FILE, JSON.stringify(Object.assign(cur, { updatedAt: new Date().toISOString() }), null, 1));
     return cur;
-  }).then(v => { const n = normConfig(v); res.json(Object.assign({ ok: true }, n, { providerStatus: llmChain.status(n.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL) })); }).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
+  }).then(v => {
+    if (v && v._bad) return res.status(400).json({ ok: false, error: v._bad });
+    const n = normConfig(v);
+    res.json(Object.assign({ ok: true }, n, exposureSchedule.describe(n, exposureSchedule.now()), { providerStatus: llmChain.status(n.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL) }));
+  }).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
 // GET /api/legal/reviews/stats — 카운트
