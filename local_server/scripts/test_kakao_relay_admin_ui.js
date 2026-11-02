@@ -75,6 +75,54 @@ const DATA = {
     ok('지우기 → POST device·action', post && JSON.parse(post[1].body).action === 'remove' && JSON.parse(post[1].body).device === 'phone', post && post[1].body);
     ok('누른 뒤 다시 그림', calls.filter((x) => x[0].startsWith('/api/admin/kakao-relay?')).length === 2);
 
+    console.log('D. 버튼 줄·비교현황 창(2026-11-03 「[비교현황] [새로고침] (여기에 명시)」·「시간대별로 비교」)');
+    const iB = h.indexOf('비교현황'), iR = h.indexOf('새로고침'), iT = h.indexOf('특보 알림톡을 중계 앱이');
+    ok('버튼 순서 비교현황 → 새로고침, 설명은 버튼 아래', iB > 0 && iB < iR && iR < iT, [iB, iR, iT]);
+    ok('버튼 줄 왼쪽 정렬', /justify-content:flex-start[^>]*>[^]*?비교현황/.test(h));
+    // 작은 가짜 document — 창(div)을 만들고 지우는 것만 흉내 낸다.
+    const els = {};
+    const doc = { body: { appendChild: (e) => { els[e.id] = e; } }, getElementById: (id) => els[id] || null,
+        createElement: () => { const e = { style: {}, addEventListener() {}, remove() { delete els[e.id]; } }; return e; }, addEventListener() {} };
+    const SUM = {
+        day: '2026-11-03', today: '2026-11-03', waitMin: 10,
+        days: [{ day: '2026-11-02', msgs: 1, lines: {}, diffMin: 0 }, { day: '2026-11-03', msgs: 3, newLines: 4, lines: { '일치': 2, '불일치': 1 }, diffMin: 15, missedLines: 1 }],
+        totals: { msgs: 3, dups: 2, newLines: 4, missedLines: 1, lines: { '일치': 2, '불일치': 1 }, lagAvg: 3, diffMin: 15, waitMin: 5, mmisChanges: 2, mmisError: 0, devices: { tablet: 3 }, beats: { tablet: 40 } },
+        hours: Array.from({ length: 24 }, (_, i) => ({ hour: i, msgs: i === 12 ? 2 : 0, applied: i === 12 ? 2 : 0, mmisChanges: 0, diffMin: i === 12 ? 15 : 0, waitMin: 0, lines: i === 12 ? { '일치': 2 } : {},
+            diffZones: i === 12 ? { '동해남부북쪽바깥먼바다': { min: 15, diffs: ['cur'], kakao: '특보 없음', mmis: '풍랑주의보' } } : {} })),
+        lines: [{ t: '2026-11-03T03:04:00Z', zone: '동해중부바깥먼바다', line: '동해중부바깥먼바다 풍랑주의보 「발효」 11/03 12:00', receivedAt: '2026-11-03T03:01:00Z', result: '일치', lagMin: 3 }],
+        episodes: [{ zone: '동해남부북쪽바깥먼바다', start: '2026-11-03T03:10:00Z', end: '2026-11-03T03:31:00Z', min: 21, worst: 'diff', first: 'MMIS가 먼저 바뀜' }],
+        events: [{ t: '2026-11-03T03:00:00Z', kind: 'baseline', note: '시작' }],
+        current: { startedAt: '2026-11-03T03:00:00Z', at: new Date().toISOString(), match: 92, wait: 0, diff: 1, typhoon: 0, active: 2,
+            rows: [{ zone: '동해남부북쪽바깥먼바다', status: 'diff', diffs: ['cur'], kakao: '특보 없음', mmis: '풍랑주의보', active: true }] },
+    };
+    const calls3 = [];
+    const ctx3 = { window: { confirm: () => true, alert() {} }, document: doc, Date, JSON, Math, Number, String, Object, Array, encodeURIComponent, console,
+        fetch: async (u) => { calls3.push(u); return { ok: true, json: async () => SUM }; } };
+    vm.createContext(ctx3); vm.runInContext(SRC, ctx3);
+    await ctx3.window.__krCompare('2026-11-03');
+    const ov = els['kr-compare'];
+    const ch = ov ? ov.innerHTML : '';
+    ok('비교현황 → 관리자 API 에 날짜를 넘김', calls3[0] === '/api/admin/kakao-relay/compare?day=2026-11-03', calls3);
+    ok('지금 상태: 차이 구역·양쪽 상태', /동해남부북쪽바깥먼바다/.test(ch) && /카톡판/.test(ch) && /앱\(MMIS\)/.test(ch) && /발효 등급/.test(ch));
+    ok('합계: 일치·불일치·평균 카톡이 빠름·차이 시간', /카톡 줄 → 일치/.test(ch) && /카톡 줄 → 불일치/.test(ch) && /평균 카톡이 3분 빠름/.test(ch) && /15분/.test(ch));
+    ok('시간대 24줄·12시 펼치면 차이 구역과 줄 결과', (ch.match(/id="kr-hour-/g) || []).length === 24 && /10분 넘게 다른 구역/.test(ch) && /카톡이 3분 빠름/.test(ch));
+    ok('날짜 고르기·날짜별 추세', /window.__krCompare\('2026-11-02'\)/.test(ch) && /날짜별 추세/.test(ch));
+    ok('뜻 풀이(같음·반영 대기·차이·태풍)', /정상 시간차/.test(ch) && /확인 필요/.test(ch) && /태풍 발효를 보내지 않음/.test(ch));
+    ok('보고서 내려받기 버튼 둘(이 날·시험 전체)', /이 날 보고서 내려받기\(\.md\)/.test(ch) && /window.__krReport\('2026-11-03'\)/.test(ch) && /window.__krReport\('all'\)/.test(ch));
+    let clicked = null;
+    doc.createElement = () => { const e = { style: {}, addEventListener() {}, click() { clicked = e.download; }, remove() {} }; return e; };
+    ctx3.URL = { createObjectURL: () => 'blob:x', revokeObjectURL() {} };
+    ctx3.setTimeout = () => {};
+    ctx3.fetch = async (u) => { calls3.push(u); return { ok: true, blob: async () => ({}) }; };
+    await ctx3.window.__krReport('all');
+    ok('내려받기 → 관리자 API·파일 이름', calls3.includes('/api/admin/kakao-relay/report.md?day=all') && clicked === 'kakao_relay_report_all.md', [calls3, clicked]);
+    ctx3.window.__krCompareClose();
+    ok('닫기', !els['kr-compare']);
+    const ctx4 = { window: {}, document: doc, Date, JSON, Math, Number, String, Object, Array, encodeURIComponent, console, fetch: async () => ({ ok: false, status: 500, json: async () => ({}) }) };
+    vm.createContext(ctx4); vm.runInContext(SRC, ctx4);
+    await ctx4.window.__krCompare();
+    ok('비교현황 못 불러오면 그 사실을 보여 줌', /불러오지 못했습니다 — HTTP 500/.test(els['kr-compare'].innerHTML));
+
     console.log(`\n${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);
 })();

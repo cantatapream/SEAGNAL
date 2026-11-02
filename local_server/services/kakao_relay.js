@@ -7,10 +7,10 @@
  *         태블릿이 멈추면(신호 끊김 등) 관리자에게 푸시로 알린다(checkHealth).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : config/server_config(DATA_DIR) · services/collect_fail_alert(멈춤 알림)
+ *  - 사용하는 파일 : config/server_config(DATA_DIR) · services/collect_fail_alert(멈춤 알림) · services/kakao_relay_log(날짜별 기록장 — 받은 글·중복·신호·기기 설정)
  *  - 서버 API      : 없음(routes/kakao_relay.js 가 부른다)
  *  - 마크업        : 없음
- *  - 나를 쓰는 곳  : routes/kakao_relay.js · scheduler.js(5분마다 checkHealth, 매분 checkMmis) · 검사 scripts/test_kakao_relay.js
+ *  - 나를 쓰는 곳  : routes/kakao_relay.js · scheduler.js(5분마다 checkHealth, 매분 checkMmis) · services/kakao_shadow(해석 함수) · 검사 scripts/test_kakao_relay.js
  *  - 읽는 파일     : data/weather_alerts.json(특보현황 — 카톡과 대조) · marine_warning_crawler(표준 해역표)
  *  - 알림          : services/collect_fail_alert.js 항목 kakaoRelay(태블릿 신호 끊김·접근성 꺼짐·읽기 실패 → 관리자 푸시)
  * [로드 순서] 해당 없음(서버 모듈)
@@ -19,7 +19,8 @@
 'use strict';
 const fs = require('fs'),
     path = require('path'),
-    crypto = require('crypto');
+    crypto = require('crypto'),
+    { createLog } = require('./kakao_relay_log');
 
 const MAX_MESSAGES = 300;
 /** 「이미 봤음」 기억은 최근 3일치만 둔다(사용자 확정 2026-11-03 「계속 누적시킬 필요가 있을까」).
@@ -141,9 +142,11 @@ function parseWarnings(text, now = new Date()) {
  * @returns {{storeMessages:function, heartbeat:function, snapshot:function}}
  * [연계] ← routes/kakao_relay.js
  */
-function createStore({ file, backfillFile } = {}) {
+function createStore({ file, backfillFile, logDir } = {}) {
     if (!file) file = path.join(require('../config/server_config').DATA_DIR, 'kakao_relay.json');
     if (!backfillFile) backfillFile = file.replace(/\.json$/, '') + '_backfill.json';
+    // 10일 시험용 날짜별 기록장(30일 보관) — 받은 글 원문은 아래 db.messages 에 300건만 남으므로 따로 전부 남긴다.
+    const log = createLog(logDir || path.join(path.dirname(file), 'kakao_relay_log'));
 
     function load() {
         try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
@@ -178,7 +181,7 @@ function createStore({ file, backfillFile } = {}) {
         const db = load();
         // 관리자가 끈·지운 기기의 글은 받지 않는다(사용자 확정 2026-11-03 3단계 「휴대폰 거를 관리자 페이지에서 삭제하고 태블릿 것만」).
         const dev = touchDevice(db, device, now);
-        if (dev.state !== 'on') { save(db); return { added: 0, duplicate: 0, promoted: 0, ignored: items.length, new: [], anchor: db.anchor ? db.anchor.id : null }; }
+        if (dev.state !== 'on') { save(db); log.append({ kind: 'ignored', device: String(device || ''), state: dev.state, count: items.length }, now.getTime()); return { added: 0, duplicate: 0, promoted: 0, ignored: items.length, new: [], anchor: db.anchor ? db.anchor.id : null }; }
         dev.lastMessageAt = now.toISOString();
         const byId = new Map(db.messages.map((x) => [x.id, x]));
         const seenIds = timedSet(db.seenIds, now);
@@ -191,6 +194,7 @@ function createStore({ file, backfillFile } = {}) {
         items = [...items].sort((x, y) => (y && y.trigger === false ? 0 : 1) - (x && x.trigger === false ? 0 : 1));
         const missedLines = [];
         const added = [];
+        const logs = [];   // 저장이 끝난 뒤 기록장에 덧붙일 것(저장 실패면 남기지 않는다)
         let duplicate = 0, promoted = 0;
         const fresh = (w) => now.getTime() - Date.parse(w.until || w.at) <= STALE_WARNING_MS;
         const usable = (w) => w.zoneKnown && !w.mmisOnly && w.action !== 'unknown';
@@ -202,6 +206,7 @@ function createStore({ file, backfillFile } = {}) {
             const old = byId.get(id);
             if (old || seenIds.has(id)) {
                 duplicate++;
+                logs.push({ kind: 'dup', id, device: String(device || ''), source: it.source === 'notification' ? 'notification' : 'screen', trigger });
                 // 함께 읽힌 글로 먼저 들어왔던 것이 나중에 「이번 알림」으로 오면 놓친 줄을 새 줄로 올린다(동시에 여러 개 온 경우).
                 if (old && trigger && !old.trigger && (old.missedWarnings || []).length) {
                     old.newWarnings = (old.newWarnings || []).concat(old.missedWarnings.filter(fresh));
@@ -251,11 +256,13 @@ function createStore({ file, backfillFile } = {}) {
                 console.warn('[kakao_relay] ⚠특보 글 분해 0줄 — 알림톡 꼴 확인 필요:', id);
             }
             queuePending(db, rec.newWarnings, now);
+            logs.push({ kind: 'msg', id, device: rec.device, source: rec.source, trigger, text, lines: logLines(rec) });
             db.messages.push(rec);
             byId.set(id, rec);
             added.push(rec);
         }
         // 기준점(마지막으로 본 글)을 화면에서 찾지 못하고 끝까지(최대 끌기) 올라갔다 — 그 사이 글을 놓쳤을 수 있다.
+        if (meta.anchor) logs.push({ kind: 'anchor', device: String(device || ''), status: String(meta.anchor).slice(0, 20) });
         if (meta.anchor === 'missing') db.alerts.push({ type: 'anchorMissing', at: now.toISOString(), device: String(device || ''), text: 'anchorMissing' });
         // 「이번 알림」으로 이미 아는 글이 다시 맨 아래에 있으면(중복) 기준점만 옮긴다.
         for (const it of items) {
@@ -271,6 +278,7 @@ function createStore({ file, backfillFile } = {}) {
         db.seenIds = seenIds.dump(MAX_SEEN_IDS);
         db.missedKeys = missedKeys.dump(MAX_SEEN_KEYS);
         save(db);
+        for (const ev of logs) log.append(ev, now.getTime());
         return { added: added.length, duplicate, promoted, new: added, anchor: db.anchor ? db.anchor.id : null };
     }
 
@@ -333,6 +341,7 @@ function createStore({ file, backfillFile } = {}) {
             }
             if (db.alerts) db.alerts = db.alerts.slice(-MAX_ALERTS);
         }
+        log.append({ kind: 'beat', device: String(info.device || ''), battery: info.battery, note: info.note }, now.getTime());
         db.heartbeat = dev.beat;   // 마지막으로 들어온 신호(옛 화면·검사 호환)
         // 데이터 수집현황 카드가 읽는 맨 위 칸(목록표 kakaoRelay 의 collectedField) — 켜진 기기 중 가장 최근 신호.
         db.heartbeatAt = Object.values(db.devices).filter((d) => d.state === 'on' && d.beat)
@@ -359,6 +368,7 @@ function createStore({ file, backfillFile } = {}) {
         d.changedAt = now.toISOString();
         db.heartbeatAt = Object.values(db.devices).filter((x) => x.state === 'on' && x.beat).map((x) => x.beat.at).sort().pop() || null;
         save(db);
+        log.append({ kind: 'device', device: String(name), action }, now.getTime());
         return { ok: true, device: name, state: d.state };
     }
 
@@ -483,6 +493,21 @@ function touchDevice(db, name, now) {
     const key = String(name || '').trim().slice(0, 40) || '(이름 없음)';
     if (!db.devices[key]) db.devices[key] = { state: 'on', firstSeen: now.toISOString() };
     return db.devices[key];
+}
+
+/**
+ * 기록장용 줄 요약 — 구역·종류·동작·시각과 이 글에서의 처리(새 특보·놓친 글·이미 봄·잘린 끝 줄·모르는 구역·태풍).
+ * 예: [{zone:'동해중부바깥먼바다', kind:'풍랑주의보', action:'해제', at:'…', tag:'new'}]
+ * [연계] ← storeMessages(이 파일) / → kakao_shadow.summarize
+ */
+function logLines(rec) {
+    const keyOf = (w) => warningKey(w);
+    const nk = new Set((rec.newWarnings || []).map(keyOf)), mk = new Set((rec.missedWarnings || []).map(keyOf));
+    return (rec.warnings || []).map((w) => ({
+        zone: w.zone, kind: w.kind, action: w.action, at: w.at, until: w.until || undefined,
+        tag: !w.zoneKnown ? 'unknownZone' : w.mmisOnly ? 'typhoon' : w.cutTail ? 'cutTail' : w.action === 'unknown' ? 'unknownAction'
+            : nk.has(keyOf(w)) ? 'new' : mk.has(keyOf(w)) ? 'missed' : 'seen',
+    }));
 }
 
 /**
@@ -803,4 +828,6 @@ async function checkMmis({
     }
 }
 
-module.exports = { parseWarnings, canonZone, createStore, warningKey, judgeHealth, checkHealth, checkMmis, mmisMatches, describeMmis, mmisIso, MAX_MESSAGES, ACTIONS, HEARTBEAT_STALE_MS, MMIS_WAIT_MS, MAX_ALERTS };
+module.exports = { parseWarnings, canonZone, createStore, warningKey, judgeHealth, checkHealth, checkMmis, mmisMatches, describeMmis, mmisIso, MAX_MESSAGES, ACTIONS, HEARTBEAT_STALE_MS, MMIS_WAIT_MS, MAX_ALERTS,
+    // kakao_shadow(카톡판 특보현황 비교)가 같은 해석을 쓰도록
+    zoneTable, mmisZones, lvlOf, isWave, clrOf, fmtK };
