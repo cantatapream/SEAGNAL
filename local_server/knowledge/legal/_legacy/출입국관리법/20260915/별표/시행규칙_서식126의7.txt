@@ -1,0 +1,85 @@
+[시행규칙] 서식126의7 — 관리비용 납부 고지서
+
+■ 출입국관리법 시행규칙 [별지 제126호의7서식]    (앞면)                              
+                                                                                                          
+  관리비용 납부 고지서                                                                                    
+  NOTICE OF PAYMENT FOR MANAGEMENT EXPENSE                                                                
+                                                                                                          
+                      귀하                                                                                
+  To                                                                                                      
+                                                                                                          
+  귀하가 「출입국관리법」 제76조의3 및 같은 법 시행령 제88조의5제3항에 따라 부담하여야 하                 
+  는 송환대기자 관리비용을 아래와 같이 고지합니다.                                                        
+  I hereby notify you the payment for management expense of Person to be repatriated as                   
+  follows in accordance with Article 76-3 of the Immigration Act and paragraph 3, Article 88-5            
+  Enforcement Decree of the Immigration Act.                                                              
+                                                                                                          
+─────────────┬───────────────────────────────────────
+  송환 대상자             │성명 (Full Name)                                                              
+  (Person to be           ├──────────────────┬────────────────────
+  repatriated)            │생년월일 (Date of Birth)            │성별 (Sex)                              
+                          │                                    │     남 (Male) [  ]  여 (Female) [  ]   
+                          ├──────────────────┴────────────────────
+                          │국적 (Nationality)                                                            
+                          ├──────────────────┬────────────────────
+                          │송환 사유 (Reason for Repatriation) │송환대기기간 (Waiting Period for        
+                          │                                    │Repatriation)                           
+─────────────┴──────────────────┴────────────────────
+                                                                                                          
+─────────────┬───────────────────────────────────────
+  납부의무자              │                                                                              
+  (Obligor for Payment)   │                                                                              
+─────────────┼───────────────────────────────────────
+  선박등의 장 또는        │                                                                              
+  운수업자의 귀책사유     │                                                                              
+  [Reason(s) Attributable │                                                                              
+  to Forwarding Agent]    │                                                                              
+─────────────┼───────────────────────────────────────
+  납부번호                │                                                                              
+  (Payment No.)           │                                                                              
+─────────────┼───────────────────────────────────────
+  납부금액                │                                                                              
+  (Payment Amount)        │                                                                              
+─────────────┼───────────────────────────────────────
+  산출근거                │                                                                              
+  (Basis for Calculation) │                                                                              
+─────────────┼───────────────────────────────────────
+  납부 기한               │                                                                              
+  (Payment Deadline)      │                                                                              
+─────────────┴───────────────────────────────────────
+                                                                                                          
+─────────────────────────────────────────────────────
+   년 (Year)          월 (Month)          일 (Day)                                                        
+                                                                                                          
+                                                                ┏━━┓                                  
+                          ○○출입국ㆍ외국인청(사무소ㆍ출장소)장┃직인┃                                  
+                                                                ┗━━┛                                  
+  Chief of ○○ Immigration Office(Branch Office)                                                         
+                                                                                                          
+        주소:                                                                                             
+  (Address) :                                                                                             
+  전화번호(Phone No.) :              , 담당공무원(Person in Charge) :                                     
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]                                                      
+                                                                                                          
+                                                                                                        
+    (뒷면)                                                                                              
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                        
+  주의사항 ATTENTION                                                                                    
+    1. 첨부된 납부고지서를 사용하여 납부기한까지 납부하시기 바랍니다.                                   
+       Please make the payment by due date according to the attached Notice of Payment For              
+  Management Expense.                                                                                   
+    2. 위의 관리비용 고지에 이의가 있는 경우 이 고지를 받은 날부터 60일 이내에 해당 출                  
+  입국ㆍ외국인청(사무소ㆍ출장소)장에게 이의를 제기할 수 있습니다.                                       
+       If you have any objections to the above management expense, you can file an appeal to            
+  the Chief of Immigration Office(Branch Office) within 60 days from receipt of this notice.            
+    3. 지정된 기한 내에 이의를 제기하지 않거나 납부하지 않았을 때에는 「국가채권 관리법」등             
+  관련 법령에 따라 강제집행 절차 등을 진행한다는 것을 유의하시기 바랍니다.                              
+       Please note that if you do not raise an objection within the time limit to object  or fail to    
+  make the payment by due date, you may face consequences such as the compulsory                        
+  execution procedure, etc. in accordance with relevant laws, for example, the State Credit             
+  Management Act.                                                                                       
+                                                                                                        
+                                                                                                        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

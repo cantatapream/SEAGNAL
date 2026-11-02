@@ -1,0 +1,412 @@
+[시행규칙] 서식17 — 사증발급신청서 VISA APPLICATION FORM
+
+■ 출입국관리법 시행규칙 [별지 제17호서식]             (제1쪽 / Page1)                                 
+                                                                                                                          
+  사증발급신청서                                                                                                          
+   VISA APPLICATION FORM                                                                                                  
+                                                                                                                          
+                                                                                                                          
+─────────────────────────────────────────────────────────────
+                                                                                                          
+   ? 신청인은 사실에 근거하여 빠짐없이 정확하게 신청서를 작성해야 합니다.                                                
+   ? 신청서상의 모든 질문에 대한 답변은 한글 또는 영문으로 기재해야 합니다.                                              
+   ? 선택사항은 해당 칸[  ] 안에 √ 표시를 하시기 바랍니다.                                                              
+   ?‘기타’를 선택한 경우, 상세내용을 기재하시기 바랍니다.                                                              
+                                                                                                
+   ? The applicant must fill out this form completely and correctly.                                                     
+   ? The applicant must write in block letters either in English or Korean.                                              
+   ? For multiple-choice questions, the applicant must check [√] all that apply.                                        
+   ? If the applicant selects‘Other’, please provide more information in the given space.                              
+─────────────────────────────────────────────────────────────
+                                                                                                                          
+─────────────────────────────────────────────────────────────
+  1. 인적사항 / PERSONAL DETAILS                                                                                          
+──────────────┬──────────────────────────────────────────────
+  PHOTO                     │1.1 여권에 기재된 영문 성명/Full name in English (as shown in passport)                     
+  여권용 사진               ├────────────────────┬─────────────────────────
+  (35㎜×45㎜)              │  성 Family Name                        │  명 Given Names                                  
+  - 흰색 바탕에 모자를 쓰지 │                                        │                                                  
+  않은 정면 사진으로 촬영일 ├────────────────────┼─────────────────────────
+  부터 6개월이 경과하지 않  │1.2 한자성명 한자성명                   │1.3 성별 Sex                                      
+  아야 함                   │                                        │남성/Male[   ]  여성/Female[   ]                  
+  A color photo taken       ├────────────────────┼─────────────────────────
+  within the last 6 months  │1.4 생년월일 Date of Birth (yyyy/mm/dd) │1.5 국적  Nationality                             
+  (full face without hat,   │                                        │                                                  
+  front view against white  ├────────────────────┼─────────────────────────
+  or off-white background)  │1.6 출생국가 Country of Birth           │1.7 국가신분증번호 National Identity No.          
+                            │                                        │                                                  
+──────────────┴────────────────────┴─────────────────────────
+  1.8  이전에 한국에 출입국하였을 때 다른 성명을 사용했는지 여부                                                          
+       Has the applicant ever used any other names to enter or depart Korea?                                              
+      아니요 No [   ]   예 Yes [   ]   → ‘예’선택 시  상세내용 기재 If‘Yes’, please provide details                  
+      (성 Family Name                               , 명 Given Name                                    )                  
+─────────────────────────────────────────────────────────────
+  1.9 복수 국적 여부 Is the applicant a citizen of more than one country ?   아니요 No [   ]   예 Yes [   ]               
+     →‘예’선택 시  상세내용 기재 If‘Yes’, please write the countries  (                                         )    
+─────────────────────────────────────────────────────────────
+  2. 신청 사증 정보/ DETAILS OF VISA APPLICATION                                                                          
+────────────────────────────────┬────────────────────────────
+   2.1 체류기간(장ㆍ단기) Period of                             │ 2.2 체류자격 Status of Stay                            
+  Stay(Long/Short-term)                                         │                                                        
+   90일 이상 장기체류 Long-term Stay over 90 days       [   ]   │                                                        
+   90일 이하 단기체류 Short-term Stay less than 90 days  [   ]  │                                                        
+────────────────────────────────┴────────────────────────────
+                                                                                                                          
+─────────────────────────────────────────────────────────────
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━                                              
+    공용란 FOR OFFICIAL USE ONLY                                                                                          
+  ─────┬────┬┬────┬┬────┬──────────────                                              
+    기본사항│체류자격││체류기간││사증종류│단수ㆍ복수(2회, 3회 이상)                                                 
+  ─────┼────┼┼────┼┼────┼──────────────                                              
+    접수사항│접수일자││접수번호││처리과  │                                                                          
+  ─────┼────┼┼────┼┼────┼──────────────                                              
+    허가사항│허가일자││사증번호││고지사항│                                                                          
+  ─────┼────┼┼────┼┴────┴──────────────                                              
+    결 재   │담당자  ││가 [   ]│                                                                             
+            ├────┼┤부 [   ]│                                                                                      
+            │        ││        │                                                                                      
+            ├────┼┤        │                                                                                      
+            │        ││        │                                                                                      
+  ─────┴────┴┴────┴────────────────────                                              
+                                                                                                        
+  ─────────────────────────────────────                                              
+    210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]                                                                    
+                                                                                                                          
+                                                                                                                          
+                                                                                                      
+  (제2쪽 / Page2)                                                                                     
+───────────────────────────────────────────────────
+  3. 여권정보 / PASSPORT INFORMATION                                                                  
+───────────────────────────────────────────────────
+  3.1 여권종류 Passport Type                                                                          
+                                                                                                      
+  외교관 Diplomatic [   ]                       관용 Official [   ]                                   
+                                                                                                      
+  일반 Regular [   ]                            기타 Other [   ]                                      
+                                                                                                      
+      → ‘기타’상세내용 If‘Other’, please provide details (                                          )  
+───────────────┬────────────────┬──────────────────
+  3.2 여권번호 Passport No.   │3.3 발급국가 Country of Passport│3.4 발급지 Place of Issue           
+                              │                                │                                    
+───────────────┼────────────────┼──────────────────
+  3.5 발급일자 Date of Issue  │3.6 기간만료일 Date Of Expiry   │                                    
+                              │                                │                                    
+───────────────┴────────────────┴──────────────────
+  3.7 다른 여권 소지 여부 Does the applicant have any other valid passports ?    아니요 No [   ]   예 Yes [   ]   
+     → ‘예’선택 시  상세내용 기재 If ‘Yes’, please provide details                               
+───────────────────────────────────────────────────
+    a) 여권종류 Passport Type                                                                         
+───────────────────────────────────────────────────
+  외교관 Diplomatic [   ]                       관용 Official [   ]                                   
+                                                                                                      
+  일반 Regular [   ]                            기타 Other [   ]                                      
+───────────────────────────────────────────────────
+    b) 여권번호 Passport No.     c) 발급국가 Country of Passport   d) 기간만료일 Date of Expiry       
+                                                                                                      
+───────────────────────────────────────────────────
+                                                                                                      
+                                                                                                      
+  4. 연락처 / CONTACT INFORMATION                                                                     
+───────────────────────────────────────────────────
+  4.1 본국 주소 Home Country Address of the applicant                                                 
+                                                                                                      
+───────────────────────────────────────────────────
+  4.2 현 거주지 Current Residential Address *현 거주지가 본국 주소와 다를 경우 기재 *Please write the current address if   
+  different from above                                                                                
+                                                                                                      
+───────────────────────────────────────────────────
+  4.3 휴대전화 Cell Phone No. 또는 일반전화 Telephone No.         4.4 전자우편 E-mail                 
+                                                                                                      
+───────────────────────────────────────────────────
+  4.5 비상시 연락처 Emergency Contact Information                                                     
+──────────────────────┬────────────────────────────
+    a) 성명 Full Name in English            │  b) 거주 국가 Country of Residence                     
+──────────────────────┼────────────────────────────
+    c) 전화번호 Telephone No.               │  d) 관계 Relationship to the applicant                 
+──────────────────────┴────────────────────────────
+                                                                                                      
+───────────────────────────────────────────────────
+  5. 혼인사항 및 가족사항 / MARITAL STATUS AND FAMILY DETAILS                                         
+───────────────────────────────────────────────────
+  5.1 현재 혼인사항 Current Marital Status                                                            
+                                                                                                      
+  기혼 Married [   ]            이혼 Divorced [   ]                   미혼 Single [   ]               
+───────────────────────────────────────────────────
+  5.2 배우자 인적사항 Personal Information of the applicant’s Spouse *기혼으로 표기한 경우에만 기재 If‘Married’please provide details of the   
+  spouse                                                                                              
+                                                                                                      
+─────────────────────┬─────────────────────────────
+    a) 성 Family Name (in English)        │  b) 명 Given Names (in English)                          
+─────────────────────┼─────────────────────────────
+    c) 생년월일 Date of Birth (yyyy/mm/dd)│  d) 국적 Nationality                                     
+─────────────────────┼─────────────────────────────
+    e) 거주지 Residential Address         │  f) 연락처 Contact No.                                   
+─────────────────────┴─────────────────────────────
+  5.3 자녀 유무 Does the applicant have children?                                                     
+                                                                                                      
+  없음 No [   ]                   있음 Yes [   ]                    자녀수 Number of children [   ]   
+───────────────────────────────────────────────────
+                                                                                                      
+───────────────────────────────────────────────────
+  6. 학력 / EDUCATION                                                                                 
+───────────────────────────────────────────────────
+  6.1 최종학력 What is the highest degree or level of education the applicant has completed ?         
+                                                                                                      
+  석사/박사 Master’s /Doctoral Degree [   ]     대졸 Bachelor’s Degree  [   ]                       
+                                                                                                      
+    고졸 High School Diploma [   ]              기타 Other [   ]                                      
+                                                                                                      
+     → ‘기타’선택 시 상세내용 기재 If‘Other’, please provide details (                                      )  
+─────────────────┬─────────────────────────────────
+  6.2 학교명 Name of School       │6.3 학교 소재지 Location of School(city/province/country)         
+                                  │                                                                  
+─────────────────┴─────────────────────────────────
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]                                                  
+                                                                                                      
+                                                                                                                                  
+  (제3쪽 / Page3)                                                                                                                 
+─────────────────────────────────────────────────────────────────
+  7. 직업 / EMPLOYMENT                                                                                                            
+─────────────────────────────────────────────────────────────────
+  7.1 직업  Current personal circumstances                                                                                        
+                                                                                                                                  
+  사업가 Entrepreneur [   ]               자영업자 Self-Employed [   ]      직장인 Employed [   ]                                 
+                                                                                                                                  
+  공무원 Civil Servant [   ]              학생 Student [   ]                퇴직자 Retired [   ]                                  
+                                                                                                                                  
+  무직 Unemployed [   ]                   기타 Other [   ]                                                                        
+                                                                                                                                  
+     → ‘기타’선택 시 상세내용 기재 If‘Other’, please provide details (                                 )                     
+─────────────────────────────────────────────────────────────────
+  7.2. 직업 상세정보 Employment Details                                                                                           
+─────────────────────────────────────┬───────────────────────────
+    a) 회사/기관/학교명 Name of Company/Institute/School                  │  b) 직위/과정 Position/Course                        
+                                                                          │                                                      
+─────────────────────────────────────┼───────────────────────────
+    c) 회사/기관/학교 주소 Address of Company/Institute/School            │  d) 전화번호 Telephone No.                           
+                                                                          │                                                      
+─────────────────────────────────────┴───────────────────────────
+                                                                                                                                  
+                                                                                                                                  
+  8. 방문정보 / DETAILS OF VISIT                                                                                                  
+─────────────────────────────────────────────────────────────────
+  8.1 입국목적 Purpose of Visit to Korea                                                                                          
+─────────────────────────────────────────────────────────────────
+  관광/통과 Tourism/Transit [   ]       행사참석/Meeting, Conference [   ]    의료관광 Medical Tourism  [   ]                         
+                                                                                                                                  
+  단기상용 Business Trip [   ]          유학/연수 Study/Training [   ]    취업활동 Work [   ]                                     
+                                                                                                                                  
+  무역/투자/주재                        가족 또는 친지방문  Visiting      결혼이민 Marriage Migrant [   ]                         
+  Trade/Investment/Intra-Corporate      Family/Relatives/Friends  [   ]                                                           
+  Transferee [   ]                                                                                                                
+                                                                                                                                  
+  외교/공무 Diplomatic/Official [   ]   기타 Other [   ]                                                                          
+                                                                                                                                  
+     → ‘기타’선택 시 상세내용 기재 If ‘Other’, please provide details (                                 )                    
+──────────────────────┬──────────────────────────────────────────
+  8.2 체류예정기간 Intended Period of Stay  │8.3 입국예정일 Intended Date of Entry                                               
+                                            │                                                                                    
+──────────────────────┴──────────────┬───────────────────────────
+  8.4 체류예정지(호텔 포함) Address in Korea (including hotels)           │8.5 한국 내 연락처 Contact No. in Korea               
+                                                                          │                                                      
+─────────────────────────────────────┴───────────────────────────
+  8.6 과거 5년간 한국을 방문한 경력  Has the applicant travelled to Korea in the last 5 years ?                                   
+      아니요 No [   ]   예 Yes [   ]  → ‘예’선택 시 상세내용 기재 If ‘Yes’, please provide details of any visits to Korea    
+      (     ) 회 times,                                                                                                           
+  ──────────────┬───────────────                                                                    
+    방문목적 Purpose of Visit │방문기간 Period of Stay                                                                           
+                              │ (yyyy/mm/dd)~ (yyyy/mm/dd)                                                                       
+  ──────────────┼───────────────                                                                    
+                              │                                                                                                  
+  ──────────────┼───────────────                                                                    
+                              │                                                                                                  
+  ──────────────┼───────────────                                                                    
+                              │                                                                                                  
+  ──────────────┼───────────────                                                                    
+                              │                                                                                                  
+  ──────────────┼───────────────                                                                    
+                              │                                                                                                  
+  ──────────────┴───────────────                                                                    
+─────────────────────────────────────────────────────────────────
+  8.7 한국 외에 과거 5년간 여행한 국가 Has the applicant travelled outside his/her country of residence, excluding to Korea, in   
+  the last 5 years?                                                                                                               
+       아니요 No [   ]   예 Yes [   ]   → ‘예’선택 시 상세내용 기재 If ‘Yes’, please provide details of these trips          
+─────────────────────┬────────────────┬──────────────────────────
+   국가명 Name of Country (in English)    │방문목적 Purpose of Visit       │방문기간 Period of Stay                             
+                                          │                                │ (yyyy/mm/dd)~ (yyyy/mm/dd)                         
+─────────────────────┼────────────────┼──────────────────────────
+                                          │                                │                                                    
+─────────────────────┼────────────────┼──────────────────────────
+                                          │                                │                                                    
+─────────────────────┼────────────────┼──────────────────────────
+                                          │                                │                                                    
+─────────────────────┼────────────────┼──────────────────────────
+                                          │                                │                                                    
+─────────────────────┼────────────────┼──────────────────────────
+                                          │                                │                                                    
+                                                                                                                                  
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]                                                                              
+                                                                                                                                  
+                                                                                                                                                
+  (제4쪽 / Page4)                                                                                                                               
+────────────────────────────────────────────────────────────────────────
+  8.8. 국내 체류 가족 유무 Does the applicant have any family member(s) staying in Korea?                                                       
+        아니요 No [   ]   예 Yes [   ]   → ‘예’선택 시 상세내용 기재 If ‘Yes’, please provide details of the family member(s)              
+──────────────┬───────────┬─────────┬───────────────────────────────────
+  성명 Full name in English │생년월일 Date of Birth│국적              │관계 Relationship to the                                              
+                            │ (yyyy/mm/dd)         │Nationality       │applicant                                                             
+──────────────┼───────────┼─────────┼───────────────────────────────────
+                            │                      │                  │                                                                      
+──────────────┼───────────┼─────────┼───────────────────────────────────
+                            │                      │                  │                                                                      
+──────────────┼───────────┼─────────┼───────────────────────────────────
+                            │                      │                  │                                                                      
+──────────────┼───────────┼─────────┼───────────────────────────────────
+                            │                      │                  │                                                                      
+──────────────┴───────────┴─────────┴───────────────────────────────────
+   * 참고: 가족의 범위 ? 배우자, 자녀, 부모, 형제                                                                                              
+      Note: Scope of family members - Spouse, children, parents, siblings of the applicant                                                      
+────────────────────────────────────────────────────────────────────────
+  8.9. 동반입국 가족 유무 Is the applicant travelling to Korea with any family member(s) ?                                                      
+        아니요 No [   ]   예 Yes [   ]   → ‘예’선택 시 상세내용 기재 If ‘Yes’, please provide details of the                               
+  family member(s) the applicant is travelling with                                                                                             
+──────────────┬───────────┬─────────┬───────────────────────────────────
+  성명 Full name in English │생년월일 Date of Birth│국적              │관계 Relationship to                                                  
+                            │ (yyyy/mm/dd)         │Nationality       │the applicant                                                         
+──────────────┼───────────┼─────────┼───────────────────────────────────
+                            │                      │                  │                                                                      
+──────────────┼───────────┼─────────┼───────────────────────────────────
+                            │                      │                  │                                                                      
+──────────────┼───────────┼─────────┼───────────────────────────────────
+                            │                      │                  │                                                                      
+──────────────┼───────────┼─────────┼───────────────────────────────────
+                            │                      │                  │                                                                      
+──────────────┴───────────┴─────────┴───────────────────────────────────
+   * 참고 : 가족의 범위 ? 배우자, 자녀, 부모, 형제                                                                                             
+      Note : Scope of family members - Spouse, children, parents, siblings of the applicant                                                     
+────────────────────────────────────────────────────────────────────────
+                                                                                                                                                
+────────────────────────────────────────────────────────────────────────
+  9. 초청 정보 / DETAILS OF INVITATION                                                                                                          
+────────────────────────────────────────────────────────────────────────
+  9.1 초청인/초청회사 Is there anyone inviting the applicant for the visa?                                                                      
+       아니요 No [   ]   예 Yes [   ]  → ‘예’선택 시 상세내용 기재 If‘Yes’, please provide details                                         
+────────────────────────────────────────────────────────────────────────
+    a) 초청인/초청회사명 Name of inviting person/organization (Korean, foreign resident in Korea, company, or institute)                        
+                                                                                                                                                
+───────────────────────────────────┬────────────────────────────────────
+    b) 생년월일/사업자등록번호 Date of Birth/Business Registration No.│  c) 관계 Relationship to the applicant                                 
+                                                                      │                                                                        
+───────────────────────────────────┼────────────────────────────────────
+    d) 주소 Address                                                   │  e) 전화번호 Phone No.                                                 
+                                                                      │                                                                        
+───────────────────────────────────┴────────────────────────────────────
+                                                                                                                                                
+                                                                                                                                                
+  10. 방문경비 / FUNDING DETAILS                                                                                                                
+────────────────────────────────────────────────────────────────────────
+  10.1 방문경비(미국 달러 기준) Estimated travel costs(in US dollars)                                                                           
+                                                                                                                                                
+────────────────────────────────────────────────────────────────────────
+  10.2 경비지급자 Who will pay for the applicant’s travel-related expenses? (Any relevant person including the applicant and/or organization)  
+───────────────────────────────────┬────────────────────────────────────
+    a) 성명/회사(단체)명 Name of Person/Organization (Company)        │ b) 관계 Relationship to the applicant                                  
+                                                                      │                                                                        
+───────────────────────────────────┼────────────────────────────────────
+    c) 지원내용 Type of Support                                       │ d) 연락처 Contact No.                                                  
+                                                                      │                                                                        
+───────────────────────────────────┴────────────────────────────────────
+                                                                                                                                                
+────────────────────────────────────────────────────────────────────────
+  11. 서류 작성 시 도움 여부 / ASSISTANCE WITH THIS FORM                                                                                        
+────────────────────────────────────────────────────────────────────────
+  11.1 이 신청서를 작성하는데 다른 사람의 도움을 받았습니까? Did the applicant receive assistance in completing                                 
+  this form?   아니요 No [   ]   예 Yes [   ]  →‘예’선택 시 상세내용 기재 If‘Yes’, please provide details of the person                    
+  who assisted the applicant                                                                                                                    
+  ────────┬───────────┬──────────┬────────────────                                              
+    성명 Full Name│생년월일 Date of Birth│연락처 Telephone No.│관계                                                                          
+                  │ (yyyy/mm/dd)         │                    │Relationship to the applicant                                                 
+  ────────┼───────────┼──────────┼────────────────                                              
+                  │                      │                    │                                                                              
+  ────────┴───────────┴──────────┴────────────────                                              
+    210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]                                                                                          
+                                                                                                                                                
+                                                                                                                                                
+                                                                                                          
+  (제5쪽 / Page5))                                                                                        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    유의사항 Notice                                                                                       
+─────────────────────────────────────────────────────
+   1. 위 기재사항과 관련하여 자세한 내용은 별지로 작성하거나 관련 서류를 추가로 제출할 수 있습니다.       
+   If extra space is needed to complete any item, record on a separate sheet of paper or submit relevant   
+  documents which could support the application.                                                          
+   2. 대한민국 사증을 승인받은 후 분실 또는 훼손 등의 사유로 여권을 새로 발급받은 경우에는, 정확한 개인정보를 반영  
+  할 수 있도록 변경된 여권정보를 사증처리기관에 통보해야 합니다.                                          
+   If you received Korean visa approval, and have new passport issued thereafter in lieu of lost/damaged   
+  passport, you must notify the concerned visa office of changes in your passport information.            
+   3. 사증을 발급받았더라도 대한민국 입국 시 입국거부 사유가 발견될 경우에는 대한민국으로의 입국이 허가되지 않을 수 있습니다.  
+     Possession of a visa does not entitle the bearer to enter the Republic of Korea upon arrival at the port   
+  of entry if he/she is found inadmissible.                                                               
+   4. 「출입국관리법 시행규칙」 제9조제1항에 따라 C 계열 사증소지자는 입국 후에 체류자격을 변경할 수 없습니다.   
+     Please note that category C visa holders are not able to change their status of stay after their entry into   
+  the Republic of Korea in accordance with Article 9(1) of the Enforcement Regulations of the Immigration Act.   
+   5. 허위사실 기재 또는 허위서류 제출이 확인되는 경우에는 사증발급ㆍ체류허가가 취소되며, 형사처벌ㆍ입국금지의 대상이   
+  될 수 있습니다.                                                                                         
+   Providing false information or documents leads to revocation of a visa and permission to stay, and may result   
+  in criminal punishments and an entry ban to the Republic of Korea.                                      
+   6.사증심사에 필요한 관련 서류 제출 요구에 따르지 않는 경우, 사증심사가 지연되거나 신청이 불허 될 수 있습니다.   
+      Failure to submit all required  documents may cause delay or denial of a visa.                      
+   7. 사증발급 신청 결과는 ‘대한민국 비자포털(www.visa.go.kr)’에서 확인*해야 하며, 사증발급거부통지서를 문서로 교  
+  부받고자 하는 경우에는 직접 공관을 방문하여 신청해야 합니다.                                            
+    * 확인 방법 : 비자포털 초기화면 좌측 ‘조회/발급’-‘진행현황 조회 및 출력’-‘재외공관’을 선택하고 여권번호, 성명, 생년  
+  월일 입력 후 조회                                                                                       
+      Visa applicants must check online on the Korea Visa Portal website* (www.visa.go.kr) for visa       
+  application results. To receive the disapproval notice in written form, visa applicants must visit the   
+  diplomatic office and apply in person.                                                                  
+    * How to check results: click‘Check Application Status’located on the left side of the Visa Portal main display -   
+  click‘Check Application Status & Print’- select‘Diplomatic Office’ and input information in the blanks.  
+─────────────────────────────────────────────────────
+                                                                                                          
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                          
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  12. 서약 / DECLARATION                                                                                  
+─────────────────────────────────────────────────────
+    본인은 위의 유의사항에 동의하며, 이 신청서에 기재된 내용이 거짓 없이 정확하게 작성되었음을 확인합니   
+  다. 또한 본인은 대한민국의 「출입국관리법」 규정을 준수할 것을 서약합니다.                              
+                                                                                                          
+   I declare that I agree with the terms of application including the contents of the notice provided above,   
+  that statements made in this application are true and correct, and that I will comply with the Immigration   
+  Act of the Republic of Korea.                                                                           
+─────────────────────────────────────────────────────
+    /         /         /  신청일자 (년. 월. 일) DATE OF APPLICATION (yyyy/mm/dd)                            
+─────────────────────────────────────────────────────
+  신청인 성명                                   (자필서명)                                                
+                                                                                                          
+                                        Applicant Name                           SIGNATURE OF APPLICANT    
+                                                                                                          
+                                                                                                          
+  ※ 17세 미만자의 경우 부모 또는 법정후견인의 서명을 기재할 것                                           
+   ※ Signature of Parent or Legal Guardian is required for a person under 17 years of age                
+   ※ 위 서명란에 본인의 성명과 서명을 기재하지 않는 경우 사증발급이 불허될 수 있음                       
+   ※ Failure to provide name and signature may result in your application being denied.                  
+──────┬──────────────────────────────────────────────
+  첨부서류  │ 「출입국관리법 시행규칙」 제76조제1항 및 별표 5에 따른 사증발급 신청 등 첨부서류           
+  ATTACHMENT│                                                                                            
+━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  처리절차 / Procedure                                                                                    
+─────────────────────────────────────────────────────
+                                                                                                          
+┌──────┐  ┌─────────┐  ┌─────────┐    ┌─────┐  ┌─────────┐
+│신청서 작성 │?│접 수             │?│심 사             │?  │결 재     │?│사증 발급         │
+│Application │  │Reception         │  │Review            │    │Approval  │  │Issuance          │
+└──────┘  └─────────┘  └─────────┘    └─────┘  └─────────┘
+  신청인            처 리 기 관             처 리 기 관             처 리 기 관       처 리 기 관         
+  Applicant         (재외공관)              (좌동)                  (좌동)            (좌동)              
+                    Diplomatic Mission      Diplomatic Mission      Diplomatic        Diplomatic Mission  
+                                                                    Mission                               
+                                                                                                          
+                                                                                                          
+─────────────────────────────────────────────────────
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)                                                       
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

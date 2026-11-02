@@ -1,0 +1,51 @@
+[시행규칙] 서식126의8 — 관리비용 청구서
+
+■ 출입국관리법 시행규칙 [별지 제126호의8서식]                            
+                                                                                              
+  관리비용 청구서                                                                             
+  INVOICE FOR MANAGEMENT EXPENSE                                                              
+  REIMBURSEMENT                                                                               
+                                                                                              
+  ○○출입국ㆍ외국인청(사무소ㆍ출장소)장  귀하                                                
+  To the Chief of ○○ Immigration Office(Branch Office)                                      
+────────┬──────────────────────────────────────
+  송환 대상자   │성명 (Full Name)                                                            
+  (Person to be ├─────────────────┬────────────────────
+  repatriated)  │생년월일 (Date of Birth)          │성별 (Sex)                              
+                │                                  │      남 (Male) [  ]  여 (Female) [  ]  
+                ├─────────────────┴────────────────────
+                │국적 (Nationality)                                                          
+                ├─────────────────┬────────────────────
+                │송환사유 (Reason for Repatriation)│송환대기기간 (Waiting Period for        
+                │                                  │Repatriation)                           
+────────┴─────────────────┴────────────────────
+                                                                                              
+────────┬──────────────────────────────────────
+  지출금액      │                                                                            
+  (Total Amount)│                                                                            
+────────┼──────────────────────────────────────
+  산출근거      │산출근거를 설명하는 자료는 별도로 첨부                                      
+  (Basis for    │Details explaining the calculations are attached                            
+  Calculation)  │                                                                            
+────────┴──────────────────────────────────────
+                                                                                              
+───────────────────────────────────────────────
+   「출입국관리법」 제76조의2제3항 및 같은 법 시행규칙 제67조의5제1항에 따른                  
+  ○○출입국ㆍ외국인청(사무소ㆍ출장소)장의 요청으로 송환대상외국인을 관리하였                 
+  으므로, 위와 같이 지출한 관리비용을 청구합니다.                                             
+    I hereby request the reimbursement of management expenses associated                      
+  with the management of the Person to be repatriated upon the request of                     
+  the Chief of 00 Immigration Office (Branch Office) in accordance with                       
+  paragraph 3, Article 76-2 of the Immigration Act and paragraph 1, Article                   
+  67-5 of the Enforcement Rule of the Immigration Act.                                        
+                                                                                              
+                                                                                              
+    신청일                                         년      월      일                         
+    (Date of Application)                       (Year)   (Month)  (Day)                       
+                                                                                              
+    신청인                                             (서명 또는 인)                         
+    (Applicant)                                     (signature or                             
+                            seal)                                                             
+                                                                                              
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

@@ -1,0 +1,112 @@
+[시행규칙] 서식34 — 통합신청서 (신고서) APPLICATION FORM (REPORT FORM)
+
+■ 출입국관리법 시행규칙 [별지 제34호서식]                                                                                            
+                                                                                                                                                          
+  통합신청서 (신고서)                                                                                                                                     
+  APPLICATION FORM (REPORT FORM)                                                                                                                          
+                                                                                                                                                          
+  ※ 신청서는 한글 또는 영문으로 작성하시기 바랍니다. (Please complete this form in Korean or English.)                                                   
+                                                                                                                                                          
+  □ 신청/신고 선택 SELECT APPLICATION/REPORT                                                                                                             
+─────────────────────────┬──────────────────────────────┬────────────────────
+  [  ] 외국인 등록                                │[  ] 체류자격 외 활동허가     (희망 자격 :        )         │PHOTO                                   
+       FOREIGN RESIDENT REGISTRATION              │                                                            │여권용 사진(35㎜×45㎜)                 
+                                                  │   ENGAGE IN ACTIVITIES NOT COVERED BY THE                  │                                        
+                                                  │STATUS OF SOJOURN / Status to apply for (          )        │* 촬영일부터 6개월이 지나               
+─────────────────────────┼──────────────────────────────┤지 않아야 함                            
+  [  ] 등록증 재발급                              │[  ] 근무처 변경ㆍ추가허가 / 신고                           │   taken within last 6                  
+       REISSUANCE OF REGISTRATION CARD            │CHANGE OR ADDITION OF WORKPLACE                             │months                                  
+─────────────────────────┼──────────────────────────────┤                                        
+  [  ] 체류기간 연장허가                          │[  ] 재입국허가 (단수, 복수)                                │* 외국인 등록 및 등록증                 
+       EXTENSION OF SOJOURN PERIOD                │  REENTRY PERMIT (SINGLE, MULTIPLE)                         │재발급 시에만 사진 부착                 
+─────────────────────────┼──────────────────────────────┤  Photo only for Foreign                
+  [  ] 체류자격 변경허가  (희망 자격 :        )   │[  ] 체류지 변경신고                                        │Resident Registration                   
+                                                  │     ALTERATION OF RESIDENCE                                │(Reissued)                              
+      CHANGE OF STATUS OF SOJOURN                 │                                                            │                                        
+      / Status to apply for (          )          │                                                            │                                        
+─────────────────────────┼──────────────────────────────┤                                        
+  [  ] 체류자격 부여      (희망 자격 :        )   │[  ] 등록사항 변경신고                                      │                                        
+                                                  │CHANGE OF INFORMATION ON REGISTRATION                       │                                        
+        GRANTING STATUS OF SOJOURN                │                                                            │                                        
+      / Status to apply for (          )          │                                                            │                                        
+─────────────────────────┴──────────────────────────────┴────────────────────
+                                                                                                                                                          
+━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━
+  성명            │성 Surname                              │명 Given names                                    │                                        
+  Name In Full    ├────────────────────┼─────────────────────────┼────────────────────
+                  │                                        │                                                  │                                        
+─────────┴─┬──────────────┬───┼────────┬──────┬─────────┼─────────┬──────────
+  생년월일            │년 yyyy                     │월 mm │일 dd           │성 별       │[ ]남 M           │국적              │                    
+  Date of Birth       ├──────────────┼───┼────────┤Sex         │[ ]여 F           │Nationality       │                    
+                      │                            │      │                │            │                  │                  │                    
+───────────┴──────┬─┬─────┼┬──┼─────┬──┼─┬──┬─┼─┬──┬──┬─┤                  │                    
+  외국인등록번호                    │  │          ││    │          │    │  │    │  │  │    │    │  │                  │                    
+  Foreign Resident Registration No. │  │          ││    │          │    │  │    │  │  │    │    │  │                  │                    
+─────────┬────────┴─┴─────┼┴──┴─────┴──┼─┴──┴─┴─┴──┴┬─┴─┴─────────┼──────────
+  여권번호        │                                │여권 발급일자           │                        │여권 유효기간             │                    
+  Passport No.    │                                │Passport Issue Date     │                        │Passport Expiry Date      │                    
+─────────┼────────────────┴────────────┴────────────┴─────────────┴──────────
+  대한민국 내 주소│                                                                                                                                      
+  Address In Korea│                                                                                                                                      
+─────────┴────┬───────────────────────┬────────────────┬─────────────────────
+  전화번호 Telephone No.    │                                              │휴대전화 Cell phone No.         │                                          
+──────────────┼───────────────────────┴────────────────┼───────────┬─────────
+  본국 주소                 │                                                                                │전화번호              │                  
+  Address In Home Country   │                                                                                │Phone No.             │                  
+────────┬─────┴──────────────────────┬─────────┬───────┼───────────┼─────────
+  재학 여부     │     미취학[ ],         초[ ],     중[ ],   고[ ]       │학교 이름         │              │전화번호              │                  
+  School Status │Non-school[ ], Elementary[ ], Middle[ ], High[ ]        │Name of School    │              │Phone No.             │                  
+                ├──────────────┬─────────────┴─────────┴───────┴───────────┴─────────
+                │학교 종류                   │                       교육청 인가[ ],        교육청 비인가, 대안학교[ ]                                  
+                │Type of School              │Accredited school by Education Office[ ], Non-accredited, Alternative school[ ]                           
+────────┴┬─────────────┼────┬────────────────┬─────────┬───────────┬─────────
+  근무처          │원 근무처                 │        │사업자등록번호                  │                  │전화번호              │                  
+  Workplace       │Current Workplace         │        │Business Registration No.       │                  │Phone No.             │                  
+                  ├─────────────┼────┼────────────────┼─────────┼───────────┼─────────
+                  │예정 근무처               │        │사업자등록번호                  │                  │전화번호              │                  
+                  │New Workplace             │        │Business Registration No.       │                  │Phone No.             │                  
+─────────┴─────────────┼────┴────────────────┼─────────┼───────────┼─────────
+  연 소득금액 Annual Income Amount            │만원(ten thousand won)                    │                  │직업 Occupation       │                  
+───────────────────────┼────┬────────────────┼─────────┴───────────┴─────────
+  재입국 신청 기간 Intended Period Of Reentry │        │전자우편 E-Mail                 │                                                              
+───────────────────────┴────┴────────────────┼───────────────────────────────
+  반환용 계좌번호(외국인등록 및 외국인등록증 재발급 신청 시에만 기재)                     │                                                              
+  Refund Bank Account No. only for Foreign Resident Registration                          │                                                              
+───────────────────────┬─────────────┬───────┴───────────┬───────────────────
+  신청일 Date of application                  │                          │신청인 서명 또는 인 Signature/Seal    │                                      
+━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━
+                                                                                                                                                          
+                                                                                                                                                          
+  신청인 제출서류                             │「출입국관리법 시행규칙」 별표 5의2의 체류자격별ㆍ신청구분별 첨부서류 참고                                
+  (담당공무원 확인사항)                       │  Please refer to the attached documents for each status of stay and each application                     
+  Required documents for applicants           │type in Annex 5-2 of the Enforcement Rule of the Immigration Act.                                         
+  (Matters to be checked by officer in charge)│                                                                                                          
+━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  행정정보 공동이용 동의서 (Consent for sharing of administrative information)                                                                            
+─────────────────────────────────────────────────────────────────────────────
+  본인은 이 건 업무처리와 관련하여 담당 공무원이 「전자정부법」 제36조에 따른 행정정보의 공동이용을 통하여 위의 담당 공무원 확인 사항을                   
+  확인하는 것에 동의합니다.      *동의하지 않는 경우에는 신청인이 직접 관련 서류를 제출해야 합니다.                                                       
+  I, the undersigned, hereby consent to allow all documents and information required for the processing of this application to be viewed                  
+  by the public servant in charge as specified in Article 36 of the Electronic Government Act. * If you disagree, you are required to                     
+  present all related documents in person.                                                                                                                
+                                                                                                                                                          
+  신청인                    서명 또는 인          신청인의 배우자                     서명 또는 인    신청인의 부 또는 모                 서명 또는 인    
+  Applicant                 Signature/Seal        Spouse of applicant                 Signature/Seal  Father/Mother of applicant          Signature/Seal  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  공 용 란 (For Official Use Only)                                                                                                                        
+──────────┬────────┬─────────┬─────────────┬─────────┬───────────┬───────────
+  기본 사항         │최초입국일      │                  │체류자격                  │                  │체류기간              │                      
+──────────┼────────┼─────────┼─────────────┼─────────┴───────────┴───────────
+  접수 사항         │접수일자        │                  │접수번호                  │                                                                  
+──────────┼────────┼─────────┼─────────────┼─────────┬───────────┬───────────
+  허가(신고) 사항   │허가(신고) 일자 │                  │허가번호                  │                  │체류자격              │                      
+                    │                │                  │                          │                  ├───────────┼───────────
+                    │                │                  │                          │                  │체류기간              │                      
+──────────┼────────┼─────────┼─────────────┼─────────┼───────────┴───────────
+  결     재         │담 당           │                  │                          │                  │청장ㆍ소장                                    
+                    ├────────┼─────────┼─────────────┼─────────┼───────────┬───────────
+                    │                │                  │                          │                  │가 / 부               │                      
+━━━━━━━━━━┷━━━━━━━━┷━━━━━━━━━┷━━━━━━━━━━━━━┷━━━━━━━━━┷━━━━━━━━━━━┷━━━━━━━━━━━
+  수입인지는 뒷면에 첨부(Revenue Stamp on the Backside) / 수수료 면제(exemption) [ ] (면제사유:                    )                                      
+─────────────────────────────────────────────────────────────────────────────
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

@@ -1,0 +1,56 @@
+[시행규칙] 서식121 — 출국권고서
+
+■ 출입국관리법 시행규칙 [별지 제121호서식]                                    
+                                                                                                    
+   번호(No.) :                                                                                      
+  출국권고서                                                                                        
+  (WRITTEN ADVICE TO EXIT)                                                                          
+──────────┬───────────────────────────────────────
+  인적사항          │성명 (Full name)                                                              
+  (Personal details)├────────────┬──────────────────────────
+                    │생년월일 (Date of Birth)│성별 (Sex) [ ]남 Male  [ ]여 Female                 
+                    ├────────────┴──────────────────────────
+                    │국적 (Nationality)                                                            
+                    │                                                                              
+                    ├───────────────────────────────────────
+                    │대한민국 내 주소 (Address in Korea)                                           
+                    │                                                                              
+──────────┴───────────────────────────────────────
+                                                                                                    
+──────────────────────────────────────────────────
+   1.「출입국관리법」 제67조제2항에 따라 위 사람에 대해 다음과 같이 출국을 권고합니다.              
+     Pursuant to Paragraph 2, Article 67 of the Immigration Act, the abovementioned person          
+  is advised to leave the Republic of Korea as per following instructions.                          
+   2. 귀하는 위 처분에 대하여 이의가 있을 때에는 이 명령서를 받은 날부터 90일 이내에 행정심판       
+  또는 행정소송을 제기할 수 있습니다.                                                               
+     ※ 행정심판을 청구할 때에는 온라인행정심판(www.simpan.go.kr), 행정소송을 청구할 때에는         
+  전자소송(ecfs.scourt.go.kr)을 통하여 온라인으로도 청구할 수 있습니다.                             
+     A person who has an objection to the above disposition may file an administrative appeal or    
+  an administrative litigation within 90 days after receipt of the recommendation for departure     
+  order.                                                                                            
+     ※ You may file an administrative appeal online (www.simpan.go.kr) and an administrative       
+  litigation on the Internet(ecfs.scourt.go.kr).                                                    
+─────────────┬────────────────────────────────────
+  출국권고 이유           │                                                                        
+   (Reason for the Advice)│                                                                        
+─────────────┼────────────────────────────────────
+  적용 규정               │                                                                        
+  (Applicable Provision)  │                                                                        
+─────────────┼────────────────────────────────────
+  출국기한                │                                                                        
+  (Deadline for Departure)│                                                                        
+─────────────┼────────────────────────────────────
+  기타                    │                                                                        
+  (Others)                │                                                                        
+─────────────┴────────────────────────────────────
+                                                                                                    
+──────────────────────────────────────────────────
+                                                                                                    
+         년      월      일                                                                         
+                                    Date    (year)   (month)    (day)                               
+                                                                     ┏━━┓                       
+                               ○○출입국ㆍ외국인청(사무소ㆍ출장소)장┃직인┃                       
+                                                                     ┗━━┛                       
+                           CHIEF, ○○IMMIGRATION OFFICE                                            
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

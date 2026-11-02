@@ -1,0 +1,64 @@
+[시행규칙] 서식24의4 — 입국 불허가 통지서
+
+■ 출입국관리법 시행규칙 [별지 제24호의4서식]                                                                 
+                                                                                                                                  
+  입국 불허가 통지서                                                                                                              
+  NOTICE OF ENTRY REFUSAL                                                                                                         
+                                                                                                                                  
+   발행번호 (No.                    )                                                                                             
+───────────┬─────────────────────────────────────────────────────
+  인적사항            │성명                                                                                                      
+  Personal Details    │Name in Full                                                                                              
+                      ├─────────────────────────────────────────────────────
+                      │생년월일                                                                                                  
+                      │Date of Birth                                                                                             
+                      ├─────────────────────────────────────────────────────
+                      │여권번호                                                                                                  
+                      │Passport No.                                                                                              
+───────────┴─────────────────────────────────────────────────────
+  「출입국관리법」 제12조에 따라 귀하는 아래와 같은 사유로 대한민국에 입국이 허가되지 않았으므로                                  
+  지체 없이 출국하여야 합니다.                                                                                                    
+  In accordance with the provisions of Article 12 of the Immigration Act, Korea Immigration Service has                           
+  determined that you are inadmissible to the Republic of Korea and hereby shall leave because of the                             
+  following ground(s).                                                                                                            
+──────────┬──────────────────────────────────────────────────────
+  입국 불허가 사유  │귀하는 「출입국관리법」 제12조제3항에 따른 요건 중 다음의 요건을 갖추었음을                                 
+  Grounds for Entry │증명하지 못하였습니다.                                                                                      
+  Refusal           │You failed to show that you have met the bellow requirement among the requirements                          
+                    │mandated on paragraph 3 of Article 12 of the Immigration Act.                                               
+                    │                                                                                                            
+                    │〔 〕여권과 사증이 유효할 것                                                                                
+                    │     His/her passport and the visa shall be valid                                                           
+                    │                                                                                                            
+                    │〔 〕「출입국관리법」 제7조의3제2항에 따른 사전여행허가서가 유효할 것                                       
+                    │      His/her prior permit for travel referred to in Article 7-3 (2) of the Immigration Act shall be valid  
+                    │                                                                                                            
+                    │〔 〕입국목적이 체류자격에 맞을 것                                                                          
+                    │      The purpose of his/her entry shall comply with the status of stay                                     
+                    │                                                                                                            
+                    │〔 〕체류기간이 법무부령으로 정하는 바에 따라 정하여졌을 것                                                 
+                    │     The period of stay shall have been determined as prescribed by Ordinance of the                        
+                    │Ministry of Justice                                                                                         
+                    │                                                                                                            
+                    │〔 〕「출입국관리법」 제11조에 따른 입국 금지 또는 거부의 대상이 아닐 것                                    
+                    │      He/she shall not be subject to prohibition or refusal of entry under Article 11 of the                
+                    │Immigration Act                                                                                             
+──────────┼──────────────────────────────────────────────────────
+  송환대기장소 안내 │「출입국관리법」 제76조의2에 따라 귀하는 출국하기 전까지 출국대기실에서 대기해야 합니다.                    
+  Location of       │In accordance with Article 76-2 of the Immigration Act, you shall wait in the departure                     
+  Waiting Room      │waiting room until your departure.                                                                          
+──────────┴──────────────────────────────────────────────────────
+  입국 불허가 통지서를 출입국관리공무원으로부터 직접 교부받았다면, 아래에 서명하시기 바랍니다.                                    
+  When the notice of entry refusal was personally handed to you by an immigration officer, please sign below.                     
+                                                                                                                                  
+  수령자 서명                                                                                                                     
+  Recipient's Signature                                                                                                           
+─────────────────────────────────────────────────────────────────
+                                                                   년          월          일                                     
+                                               Date       (year)      (month)      (day)                                          
+                                          ┏━━┓                                                                                
+    ○○출입국ㆍ외국인청(사무소ㆍ출장소)장┃직인┃                                                                                
+                                          ┗━━┛                                                                                
+  Chief of ○○ Immigration Office(Branch Office)                                                                                 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

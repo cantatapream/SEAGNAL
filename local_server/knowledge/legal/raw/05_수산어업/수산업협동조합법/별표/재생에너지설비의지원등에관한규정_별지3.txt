@@ -1,0 +1,113 @@
+[재생에너지 설비의 지원 등에 관한 규정] 별지3 — 재생에너지 사용 확인서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000287400 (수집 2026-11-02)
+별표서식파일링크: /LSW/flDownload.do?flSeq=170974141
+
+[별지 제3호 서식] 재생에너지 사용 확인서
+ 1. 재생에너지 사용 확인서(국문)
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    확인서번호 : 제     호  제출처:                                                         
+                                                                                            
+                                                                                            
+  재생에너지 사용 확인서                                                                    
+                                                                                            
+  1. 소비자명 :                                                                             
+  2. 주소 :                                                                                 
+  3. 대표자명 :                                                                             
+  4. 사용내용                                                                               
+    - 사용수단 :                                                                            
+    - 사용량 : (            MWh)                                                            
+    - 사용기간 :                                                                            
+    - 생산기간 :                                                                            
+    - 대상전원 :                                                                            
+    - 발전소명 :                                                                            
+    - 발전기코드 :                                                                          
+    - 발전소 소재지 :                                                                       
+    - 상업운전개시일 또는 사용전검사(점검)일 :                                              
+                                                                                            
+  위와 같이 재생에너지를 사용(구매)하였음을 확인합니다.                                     
+                                                                                            
+                                              년      월       일                           
+                                                                                            
+    한국에너지공단 재생에너지센터 소장 (인)                                                 
+                                                                                            
+  [붙임] 재생에너지 사용 확인서 상세내역                                                    
+                                                                                            
+                                                                                            
+  ※ 제63조제1항 각 호의 수단에 따라 확인서에 포함되는 내용은 아래와 같음                   
+     1. 녹색프리미엄 : 사용량, 사용기간, 생산기간, 대상전원, 발전소명, 발전소코드, 발전소   
+  소재지, 상업운전개시일                                                                    
+     2. 전기판매사업자를 통한 전력구매계약, 직접전력거래계약, 분산에너지 전력 직접거래      
+  계약 : 사용량, 사용기간, 대상전원, 발전소명, 발전기코드, 발전소 소재지, 상업운전개        
+  시일                                                                                      
+     3. 공급인증서 구매 : 사용량, 사용기간, 생산기간, 대상전원, 발전소명, 발전기코드, 발전  
+  소 소재지, 상업운전개시일                                                                 
+     4. 자기소비용 재생에너지 설비 설치 : 사용량, 사용기간, 대상전원, 발전소명, 발전소 소   
+  재지, 사용전검사(점검)일                                                                  
+  ※ 재생에너지 사용량(MWh)의 소수점 넷째자리 이하는 절사하고 발급함                        
+  ※ 재생에너지 사용 확인서를 발급받는 경우 발급 후 해당 공급인증서는 폐기함                
+                                                                                            
+[붙임] 재생에너지 사용 확인서 상세내역
+ 
+   확인서 번호 : 제        호
+  
+재생에너지 사용 확인서 상세내역
+┌─┬───┬────┬────┬────┬────┬───┬───┬─────┐
+│구│사용량│사용기간│생산기간│대상전원│발전소명│발전기│발전소│상업운전  │
+│분│(MWh) │        │        │        │        │코드  │소재지│개시일    │
+│  │      │        │        │        │        │      │      │또는      │
+│  │      │        │        │        │        │      │      │사용전검사│
+│  │      │        │        │        │        │      │      │(점검)일  │
+├─┼───┼────┼────┼────┼────┼───┼───┼─────┤
+│  │      │        │        │        │        │      │      │          │
+│  │      │        │        │        │        │      │      │          │
+│  │      │        │        │        │        │      │      │          │
+│  │      │        │        │        │        │      │      │          │
+│  │      │        │        │        │        │      │      │          │
+└─┴───┴────┴────┴────┴────┴───┴───┴─────┘
+ 2. 재생에너지 사용 확인서(영문)
+ 
+                     
+                    
+                    
+  No.   Submit to:  
+                    
+  
+Confirmation of Renewable Energy Use
+1. Consumer name : 
+2. Address :
+3. Owner Name :
+4. Details of Use
+  - Method : 
+  - Amount : (            MWh)
+  - Period of Use : 
+  - Period of Production : 
+  - Energy Source : 
+  - Generator Name : 
+  - Generator ID : 
+  - Generator Location : 
+  - Commissioning(Re-Powering) Date : 
+    This is to confirm that the renewable energy has been used
+    as stated above.
+                                  (year). (month). (date).
+                                
+KOREA ENERGY AGENCY 
+RENEWABLE ENERGY CENTER
+   Appendix.  Confirmation List of Renewable Energy Use
+[Appendix] Confirmation List of Renewable Energy Use
+ 
+  No.
+Confirmation List of Renewable Energy Use
+┌──┬────┬────┬─────┬────┬─────┬─────┬─────┬───────┐
+│No. │Amount  │Period  │Period of │Energy  │Generator │Generator │Generator │Commissioning │
+│    │(MWh)   │of Use  │Production│Source  │Name      │ID        │Location  │(Re-Powering) │
+│    │        │        │          │        │          │          │          │Date          │
+├──┼────┼────┼─────┼────┼─────┼─────┼─────┼───────┤
+│    │        │        │          │        │          │          │          │              │
+│    │        │        │          │        │          │          │          │              │
+│    │        │        │          │        │          │          │          │              │
+│    │        │        │          │        │          │          │          │              │
+│    │        │        │          │        │          │          │          │              │
+└──┴────┴────┴─────┴────┴─────┴─────┴─────┴───────┘

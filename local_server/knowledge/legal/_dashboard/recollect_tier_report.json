@@ -538,6 +538,26 @@
      "status": "갱신"
     }
    ]
+  },
+  {
+   "ran_at": "2026-11-03 02:10 KST",
+   "results": [
+    {
+     "slug": "선원법",
+     "tier": "법률",
+     "old_mst": "290771",
+     "new_mst": "291275",
+     "old_eff": "20261002",
+     "new_eff": "20261027",
+     "old_chars": 86796,
+     "new_chars": 87200,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/선원법/20261002",
+     "status": "갱신"
+    }
+   ]
   }
  ]
 }
