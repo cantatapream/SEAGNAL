@@ -3,7 +3,8 @@
  *
  * 왜 있나: 사용자 확정(2026-11-02) — 「업스테이지가 끝나면 클로드1, 클로드1이 끝나면 클로드2 … Gemini」.
  *   크레딧 소진이면 그 AI 를 계속 건너뛰고, 일시 오류면 그 호출만 다음 AI 가 답해야 한다.
- *   ChatGPT 칸은 연속 3번 실패하면 30분 쉰다(⑦).
+ *   ChatGPT 칸은 연속 3번 실패하면 30분 쉰다(⑦). 스트림(callStream)은 조각을 흘리고 첫 조각 전 실패만 다음 AI 로(⑧).
+ *   소진·쉼은 파일에 남아 모듈을 다시 불러와도 이어진다(⑨) — 저장 파일은 임시 폴더(LLM_CHAIN_STATE_FILE)로 돌려 운영 data 를 안 건드린다.
  *   실제 네트워크는 부르지 않는다 — 전역 fetch 를 가짜로 바꿔 Claude·업스테이지 응답을 흉내 낸다.
  *
  * [연계] → services/llm_chain.js · services/codex_bridge.js(요청 범위) · services/gemini_client.js(입구)
@@ -15,6 +16,11 @@ process.env.ANTHROPIC_API_KEY_2 = 'k2';
 process.env.UPSTAGE_API_KEY = 'ku';
 delete process.env.NRYA_CODEX_SECRET;      // ChatGPT 칸은 서버 스위치 없음 → 건너뜀
 delete process.env.GEMINI_API_KEY_26_8;    // Gemini 칸은 키 없음 → 실패(진짜 호출 방지)
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'llm_chain_test_'));
+const STATE_FILE = process.env.LLM_CHAIN_STATE_FILE = path.join(STATE_DIR, 'llm_chain_state.json');   // 운영 data/ 대신
 
 const bridge = require('../services/codex_bridge');
 const chain = require('../services/llm_chain');
@@ -57,6 +63,34 @@ const hang = () => (init) => new Promise((_, rej) => {
   const sig = init && init.signal;
   if (sig) sig.addEventListener('abort', () => rej(sig.reason || new Error('aborted')));
 });
+// SSE(스트림) 응답 — evs 는 [이벤트이름|null, 데이터] 묶음.
+//   first 를 바로 보내고, gate 가 풀린 뒤 rest 를 보내고 닫는다. rest 가 null 이면 닫지 않고 매달린다(요청 signal 이 끊으면 오류).
+const enc = new TextEncoder();
+const sseText = (evs) => evs.map(([ev, d]) => (ev ? `event: ${ev}\n` : '') + `data: ${typeof d === 'string' ? d : JSON.stringify(d)}\n\n`).join('');
+function sseRes(init, first, rest, gate) {
+  const sig = init && init.signal;
+  const body = new ReadableStream({
+    start(c) {
+      if (sig) sig.addEventListener('abort', () => { try { c.error(sig.reason || new Error('aborted')); } catch (_) { /* 이미 닫힘 */ } });
+      if (first.length) c.enqueue(enc.encode(sseText(first)));
+      if (rest === null) return;
+      Promise.resolve(gate).then(() => { if (rest.length) c.enqueue(enc.encode(sseText(rest))); c.close(); }).catch(() => {});
+    },
+  });
+  return new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream', 'request-id': 'req_test' } });
+}
+const cHead = [['message_start', { type: 'message_start', message: { id: 'm', type: 'message', role: 'assistant', model: 'claude-sonnet-5-5', content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 0 } } }],
+  ['content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }]];
+const cDelta = (t) => ['content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: t } }];
+const cTail = [['content_block_stop', { type: 'content_block_stop', index: 0 }],
+  ['message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 2 } }],
+  ['message_stop', { type: 'message_stop' }]];
+const cErrEv = ['error', { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } }];
+const uDelta = (t) => [null, { choices: [{ delta: { content: t } }] }];
+const uDone = [null, '[DONE]'];
+/** Claude 스트림: texts 를 조각으로. gate 를 주면 첫 조각만 먼저 보내고 gate 뒤에 나머지. */
+const claudeStream = (texts, gate) => (init) => sseRes(init, [...cHead, cDelta(texts[0])], [...texts.slice(1).map(cDelta), ...cTail], gate);
+const upStream = (texts, gate) => (init) => sseRes(init, [uDelta(texts[0])], [...texts.slice(1).map(uDelta), uDone], gate);
 /** p 가 ms 안에 안 끝나면 '__시간초과__' — 시험이 120초 매달리지 않게. */
 const within = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r('__시간초과__'), ms))]);
 
@@ -257,6 +291,133 @@ const ask = (order, config) => inChain(async () => {
     ap.sendAdminPush = savedPush;
   }
 
+  console.log('\n── ⑧ 스트림(callStream) — 조각을 흘리고, 첫 조각 전 실패만 다음 AI 로(2026-11-02 사용자 확정) ──');
+  {
+    chain.resetExhausted('all');
+    /** 사슬 요청 범위 안에서 callGeminiStream 을 끝까지 읽는다. onChunk 는 조각마다 불린다. */
+    const askStream = (order, config, onChunk) => inChain(async () => {
+      const chunks = []; let err = null;
+      try {
+        for await (const c of gemini.callGeminiStream({ model: 'gemini-2.5-flash', contents: '질문', config: config || {}, caller: 's' })) { chunks.push(c); if (onChunk) onChunk(c); }
+      } catch (e) { err = e; }
+      return { chunks, err, label: bridge.answerLabel('gemini-2.5-flash') };
+    }, order);
+    const today = (id) => chain.status().find(x => x.id === id).today;
+
+    // 첫 조각을 받기 전에는 서버가 나머지를 안 보낸다(gate) — 사슬이 완성본을 모아 한 번에 넘기면 여기서 매달린다.
+    seen.length = 0;
+    let open; let gate = new Promise(r => { open = r; });
+    plan.claude.k2 = claudeStream(['가', '나', '다'], gate);
+    const s0 = today('claude2').success;
+    const a = await within(askStream(['claude2', 'upstage', 'claude1', 'chatgpt', 'gemini'], null, () => open()), 5000);
+    ok('Claude 스트림: 첫 조각이 나머지보다 먼저 나온다 · 조각 3개', a !== '__시간초과__' && JSON.stringify(a.chunks) === '["가","나","다"]' && !a.err, JSON.stringify(a));
+    ok('Claude 스트림 요청: stream:true · claude-sonnet-5-5 · effort medium', seen[0] && seen[0].body.stream === true && seen[0].body.model === 'claude-sonnet-5-5' && seen[0].body.output_config.effort === 'medium', JSON.stringify(seen[0] && seen[0].body));
+    ok('답변 끝 표시 → Claude Sonnet 5.5 · 통계 success +1', a.label && /Claude Sonnet 5\.5/.test(a.label) && today('claude2').success === s0 + 1, JSON.stringify({ label: a.label, t: today('claude2') }));
+
+    seen.length = 0;
+    gate = new Promise(r => { open = r; });
+    plan.upstage = upStream(['업', '스', '테'], gate);
+    const b = await within(askStream(ORD, null, () => open()), 5000);
+    ok('업스테이지 스트림: 첫 조각이 먼저 · 조각 3개', b !== '__시간초과__' && JSON.stringify(b.chunks) === '["업","스","테"]' && !b.err, JSON.stringify(b));
+    ok('업스테이지 스트림 요청: stream:true · solar-pro4 · reasoning_effort medium', seen[0] && seen[0].body.stream === true && seen[0].body.model === 'solar-pro4' && seen[0].body.reasoning_effort === 'medium', JSON.stringify(seen[0] && seen[0].body));
+    ok('답변 끝 표시 → Upstage Solar Pro 4', /Upstage Solar Pro 4/.test(b.label), b.label);
+
+    seen.length = 0;
+    plan.upstage = upErr(403, 'api_key_is_not_allowed');
+    plan.claude.k1 = claudeErr(402, 'billing_error');
+    plan.claude.k2 = claudeStream(['대', '신']);
+    const c = await askStream(ORD);
+    ok('첫 조각 전 소진(업스테이지 403·클로드1 402) → 클로드2 가 흘린다', JSON.stringify(c.chunks) === '["대","신"]' && !c.err, JSON.stringify(c));
+    ok('스트림에서도 소진 표시(업스테이지·클로드1) · 클로드2 아님', !!chain.status().find(x => x.id === 'upstage').exhaustedAt && !!chain.status().find(x => x.id === 'claude1').exhaustedAt && !chain.status().find(x => x.id === 'claude2').exhaustedAt, JSON.stringify(chain.status()));
+    chain.resetExhausted('all');
+
+    seen.length = 0;
+    plan.claude.k2 = (init) => sseRes(init, [...cHead, cDelta('반쯤')], [cErrEv]);
+    plan.upstage = upOk('부르면 안 됨');
+    const f0 = today('claude2').fail;
+    const d = await askStream(['claude2', 'upstage', 'claude1', 'chatgpt', 'gemini']);
+    ok('첫 조각 뒤 실패 → throw · 다음 AI(업스테이지)를 안 부른다', JSON.stringify(d.chunks) === '["반쯤"]' && !!d.err && !seen.some(x => x.who === 'upstage'), JSON.stringify({ d, seen: seen.map(x => x.who) }));
+    ok('그 경우 답변 끝 이름은 글을 쓴 AI(클로드) · 실패 통계 +1 · 소진 아님', /Claude Sonnet 5\.5/.test(d.label) && today('claude2').fail === f0 + 1 && !chain.status().find(x => x.id === 'claude2').exhaustedAt, JSON.stringify({ label: d.label, t: today('claude2') }));
+
+    seen.length = 0;
+    plan.upstage = (init) => sseRes(init, [], null);            // 머리는 왔는데 조각이 안 온다
+    plan.claude.k1 = (init) => sseRes(init, cHead, null);
+    plan.claude.k2 = claudeStream(['늦지', '않게']);
+    const t0 = Date.now();
+    const e = await within(askStream(ORD, { httpOptions: { timeout: 80 } }), 5000);
+    ok('첫 조각 시간 한도(httpOptions.timeout 80ms) → 업스테이지·클로드1 끊고 클로드2 가 흘림(5초 안) · 소진 아님', e !== '__시간초과__' && JSON.stringify(e.chunks) === '["늦지","않게"]' && chain.status().every(x => !x.exhaustedAt), `${Date.now() - t0}ms ${JSON.stringify(e)}`);
+
+    plan.upstage = upErr(500, 'internal');
+    plan.claude.k1 = claudeErr(400, 'invalid_request_error');
+    plan.claude.k2 = claudeErr(400, 'invalid_request_error');
+    const g = await askStream(ORD);
+    ok('모두 첫 조각 전 실패 → throw(Gemini 칸 키 없음까지 감) · 조각 없음', g.chunks.length === 0 && !!g.err && /Gemini GEMINI_API_KEY/.test(g.err.message), JSON.stringify({ chunks: g.chunks, err: g.err && g.err.message }));
+
+    // Gemini 칸 — 실제 Gemini 를 부르지 않도록 callStream 에 가짜 Gemini 스트림을 넘겨 시험한다.
+    const fakeGem = (pieces, failAfter) => async function* () { for (const p of pieces) yield p; if (failAfter) throw new Error('끊김'); };
+    const viaChain = (gen) => inChain(async () => {
+      const chunks = []; let err = null;
+      try { for await (const x of chain.callStream({ model: 'gemini-2.5-flash', contents: 'q', config: {}, caller: 'g' }, gen)) chunks.push(x); } catch (er) { err = er; }
+      return { chunks, err, label: bridge.answerLabel('gemini-2.5-flash') };
+    }, ['gemini', 'claude2', 'upstage', 'claude1', 'chatgpt']);
+    plan.claude.k2 = claudeStream(['클']);
+    const h = await viaChain(fakeGem(['G1', 'G2']));
+    ok('Gemini 칸 스트림: 조각을 그대로 흘림 · 답변 끝 Gemini', JSON.stringify(h.chunks) === '["G1","G2"]' && !h.err && /Gemini 2\.5 Flash/.test(h.label), JSON.stringify(h));
+    const i = await viaChain(fakeGem(['G1'], true));
+    ok('Gemini 칸 첫 조각 뒤 끊김 → throw · 클로드2 로 안 넘어감', JSON.stringify(i.chunks) === '["G1"]' && !!i.err, JSON.stringify(i));
+    const j = await viaChain(fakeGem([], true));
+    ok('Gemini 칸 첫 조각 전 실패 → 클로드2 가 흘림', JSON.stringify(j.chunks) === '["클"]' && !j.err, JSON.stringify(j));
+
+    // ChatGPT 칸 — 스트림이 없어 완성본 1번. 연속 실패 수도 callRaw 와 같이 센다.
+    const saved = { en: bridge.ENABLED, alive: bridge.workerAlive, call: bridge.callRaw };
+    let gpt = { success: true, response: { text: 'GPT 통째 답' }, error: null, isRateLimited: false, keyLabel: 'codex' }, gptCalls = 0;
+    bridge.ENABLED = true; bridge.workerAlive = () => true; bridge.callRaw = async () => { gptCalls++; return gpt; };
+    const GORD = ['chatgpt', 'claude2', 'upstage', 'claude1', 'gemini'];
+    const k = await askStream(GORD);
+    ok('ChatGPT 칸: 완성본을 한 번에(조각 1개) · 답변 끝 ChatGPT', JSON.stringify(k.chunks) === '["GPT 통째 답"]' && /ChatGPT GPT-6 Luna/.test(k.label), JSON.stringify(k));
+    gpt = { success: false, response: null, error: '종료코드 1', isRateLimited: false, keyLabel: 'codex' };
+    plan.claude.k2 = claudeStream(['대타']);
+    const l = await askStream(GORD);
+    ok('ChatGPT 칸 실패 → 클로드2 가 흘림', JSON.stringify(l.chunks) === '["대타"]', JSON.stringify(l));
+    await askStream(GORD); await askStream(GORD);
+    ok('스트림에서도 ChatGPT 연속 3회 실패 → 쉼', gptCalls === 4 && !!chain.status().find(x => x.id === 'chatgpt').restUntil, JSON.stringify({ gptCalls, st: chain.status().find(x => x.id === 'chatgpt') }));
+    chain.resetExhausted('all');
+    bridge.ENABLED = saved.en; bridge.workerAlive = saved.alive; bridge.callRaw = saved.call;
+  }
+
+  console.log('\n── ⑨ 소진·ChatGPT 쉼 — 재시작(모듈 다시 불러오기) 뒤에도 유지(2026-11-02 사용자 확정) ──');
+  {
+    const fresh = () => { delete require.cache[require.resolve('../services/llm_chain')]; return require('../services/llm_chain'); };
+    chain.resetExhausted('all');
+    plan.upstage = upErr(403, 'api_key_is_not_allowed');
+    plan.claude.k2 = claudeOk('클로드2');
+    await ask(['upstage', 'claude2', 'claude1', 'chatgpt', 'gemini']);
+    const saved = { en: bridge.ENABLED, alive: bridge.workerAlive, call: bridge.callRaw };
+    bridge.ENABLED = true; bridge.workerAlive = () => true;
+    bridge.callRaw = async () => ({ success: false, response: null, error: '종료코드 1', isRateLimited: false, keyLabel: 'codex' });
+    for (let n = 0; n < 3; n++) await ask(['chatgpt', 'claude2', 'upstage', 'claude1', 'gemini']);
+    bridge.ENABLED = saved.en; bridge.workerAlive = saved.alive; bridge.callRaw = saved.call;
+    const before = chain.status();
+    const up0 = before.find(x => x.id === 'upstage').exhaustedAt, rest0 = before.find(x => x.id === 'chatgpt').restUntil;
+    ok('저장 파일이 임시 폴더에 생겼다(운영 data 아님)', fs.existsSync(STATE_FILE) && up0 && rest0, JSON.stringify({ file: STATE_FILE, up0, rest0 }));
+
+    const c2 = fresh();
+    const st2 = c2.status();
+    ok('다시 불러오기 → 업스테이지 소진 유지(같은 시각)', st2.find(x => x.id === 'upstage').exhaustedAt === up0 && st2.filter(x => x.exhaustedAt).length === 1, JSON.stringify(st2));
+    ok('다시 불러오기 → ChatGPT 쉼 유지(같은 끝 시각)', st2.find(x => x.id === 'chatgpt').restUntil === rest0, JSON.stringify(st2.find(x => x.id === 'chatgpt')));
+
+    ok('소진 해제도 파일에 남는다(해제 → 다시 불러오기 → 비어 있음)', c2.resetExhausted('all') && fresh().status().every(x => !x.exhaustedAt && !x.restUntil), fs.readFileSync(STATE_FILE, 'utf8'));
+
+    fs.writeFileSync(STATE_FILE, '{"exhausted": {"upstage": ');   // 반쯤 쓰다 만 파일
+    ok('손상 파일 → 빈 상태로 뜬다(오류 없이)', fresh().status().every(x => !x.exhaustedAt && !x.restUntil));
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ exhausted: { claude1: 'x', bogus: { at: '2026-11-02T00:00:00Z' }, claude2: { at: '2026-11-02T00:00:00Z', error: 'e' } }, chatgptRest: { until: Date.now() - 1000 } }));
+    const st3 = fresh().status();
+    ok('모양 틀린 칸·모르는 이름은 버리고, 지난 쉼은 무시', st3.filter(x => x.exhaustedAt).map(x => x.id).join() === 'claude2' && !st3.find(x => x.id === 'chatgpt').restUntil, JSON.stringify(st3));
+    fs.writeFileSync(STATE_FILE, '[]');
+    ok('JSON 이지만 엉뚱한 모양([]) → 빈 상태', fresh().status().every(x => !x.exhaustedAt && !x.restUntil));
+  }
+
+  fs.rmSync(STATE_DIR, { recursive: true, force: true });
   console.log(`\n  ${pass} PASS / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);
 })();

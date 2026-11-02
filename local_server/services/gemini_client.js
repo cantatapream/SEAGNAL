@@ -24,7 +24,7 @@ const { GoogleGenAI } = require('@google/genai');
 //   표시가 없는 호출(= 평소의 모든 호출)은 아래 코드가 그대로 돈다. 설계: services/codex_client.design.md
 const codexBridge = require('./codex_bridge');
 // [답변 AI 사슬 · 2026-11-02] 사슬 표시가 있는 요청(/api/legal/ask, ChatGPT 와 같은 범위)은 관리자 센터 순서대로
-//   업스테이지 → 클로드1 → 클로드2 → ChatGPT → Gemini 를 시도한다. 표시가 없는 호출은 아래 코드가 그대로 돈다.
+//   업스테이지 → 클로드2 → 클로드1 → ChatGPT → Gemini(기본, 관리자 센터에서 변경)를 시도한다. 표시가 없는 호출은 아래 코드가 그대로 돈다.
 const llmChain = require('./llm_chain');
 // 검색 그라운딩(tools)·음성(responseModalities) 같은 Gemini 전용 기능은 사슬을 타지 않는다.
 const geminiOnly = (config) => !!(config && (config.tools || config.responseModalities));
@@ -274,14 +274,24 @@ async function* callGeminiStream({ model, contents, config, caller = 'unknown' }
         yield r.response.text;
         return;
     }
-    // 사슬도 조각 스트리밍이 없다 — 완성된 답을 한 번에(Gemini 칸이 답해도 같다).
+    // 사슬은 조각을 흘린다(2026-11-02 사용자 확정) — Claude·업스테이지·Gemini 칸은 조각, ChatGPT 칸만 완성본 한 번.
+    //   첫 조각 전 실패만 다음 AI 로, 첫 조각 뒤 실패는 throw(아래 Gemini 스트림과 같은 관례). 상세: llm_chain.callStream
     if (llmChain.active() && !geminiOnly(config)) {
-        const r = await llmChain.callRaw({ model, contents, config, caller }, geminiDirect);
-        if (!r.success) throw new Error(r.error || '답변 AI 사슬 실패');
-        yield r.response.text;
+        yield* llmChain.callStream({ model, contents, config, caller }, geminiStreamDirect);
         return;
     }
     if (!hasAnyKey()) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+    yield* geminiStreamDirect({ model, contents, config, caller });
+}
+
+/**
+ * 원래의 Gemini 스트림(키 선택·쿨다운). 사슬의 Gemini 칸도 이것을 부른다 — 사슬을 다시 타지 않는다.
+ * hasAnyKey() 대신 keys.length 를 본다 — 사슬 요청 안에서는 hasAnyKey() 가 늘 true 라서.
+ * @param {object} params - { model, contents, config, caller } @yields {string} 텍스트 조각
+ * [연계] ← callGeminiStream(사슬 밖) · llm_chain.callStream(Gemini 칸)
+ */
+async function* geminiStreamDirect({ model, contents, config, caller = 'unknown' }) {
+    if (!keys.length) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
 
     bumpUsage('requests', caller);
     const triedIndices = [];

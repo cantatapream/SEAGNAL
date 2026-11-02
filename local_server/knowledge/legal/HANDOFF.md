@@ -1532,6 +1532,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-02 22:29 KST] ✅완료 — 답변 AI 사슬: 소진 상태 저장 + 스트리밍
+A) exhausted·ChatGPT 쉼을 local_server/data/llm_chain_state.json(볼륨)에 원자 저장·로드(LLM_CHAIN_STATE_FILE 로 변경 가능, 손상 시 빈 상태). B) callStream: Claude(SDK stream)·Upstage(SSE)·Gemini 조각 스트리밍, ChatGPT 완성본 1회. 첫 조각 전 실패만 다음 AI, 이후 실패는 throw. 시간한도는 첫 조각까지. 시험 test_llm_chain 69/0·test_codex_bridge 33/0·test_root_deps 3/0. 미확인: Upstage 스트림 실제 응답 모양·Claude 실호출(가짜 SSE 로만 시험) — 운영에서 관리자 기기로 확인 필요.
+
+
 ### [2026-11-02 22:11 KST] ✅완료 — ChatGPT 칸 연속3실패→30분 쉼
 llm_chain.js: 사슬 안 chatgpt 실제 호출이 3연속 실패하면 30분 건너뜀+관리자 푸시1회, 30분 뒤 자동 재시도, 성공 시 카운터0, [소진 해제]로 즉시 해제. 관리자 센터 '쉬는 중(HH:MM KST까지)'. 정한 세부: 쉼 끝나면 다시 3번 실패해야 또 쉼·쉬는 중 끝난 호출 실패는 안 셈·쉬는 중 성공은 쉼 유지. 시험 test_llm_chain 44/0, test_codex_bridge 33/0. verify_all 전체는 이번엔 재실행 안 함(직전 실행 대비 바뀐 파일은 위 시험이 덮음).
 
