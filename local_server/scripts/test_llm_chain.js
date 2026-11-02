@@ -5,6 +5,7 @@
  *   크레딧 소진이면 그 AI 를 계속 건너뛰고, 일시 오류면 그 호출만 다음 AI 가 답해야 한다.
  *   ChatGPT 칸은 연속 3번 실패하면 30분 쉰다(⑦). 스트림(callStream)은 조각을 흘리고 첫 조각 전 실패만 다음 AI 로(⑧).
  *   소진·쉼은 파일에 남아 모듈을 다시 불러와도 이어진다(⑨) — 저장 파일은 임시 폴더(LLM_CHAIN_STATE_FILE)로 돌려 운영 data 를 안 건드린다.
+ *   관리자 센터 [삭제]로 뺀 AI(providerRemoved)는 부르지 않고, 다시 추가하면 다시 부른다 · Gemini 는 못 뺀다(⑩) — 설정 파일은 메모리로 돌린다.
  *   실제 네트워크는 부르지 않는다 — 전역 fetch 를 가짜로 바꿔 Claude·업스테이지 응답을 흉내 낸다.
  *
  * [연계] → services/llm_chain.js · services/codex_bridge.js(요청 범위) · services/gemini_client.js(입구)
@@ -415,6 +416,84 @@ const ask = (order, config) => inChain(async () => {
     ok('모양 틀린 칸·모르는 이름은 버리고, 지난 쉼은 무시', st3.filter(x => x.exhaustedAt).map(x => x.id).join() === 'claude2' && !st3.find(x => x.id === 'chatgpt').restUntil, JSON.stringify(st3));
     fs.writeFileSync(STATE_FILE, '[]');
     ok('JSON 이지만 엉뚱한 모양([]) → 빈 상태', fresh().status().every(x => !x.exhaustedAt && !x.restUntil));
+  }
+
+  console.log('\n── ⑩ AI 삭제(providerRemoved) — 뺀 AI 는 안 부름 · 다시 추가 · Gemini 는 못 뺌(2026-11-02 사용자 요청) ──');
+  {
+    // ⑨ 가 모듈을 다시 불러왔다 — gemini_client 가 쥔 사슬은 처음 불러온 것(chain)이라 그것으로 시험한다.
+    chain.resetExhausted('all');
+    /** 삭제 목록을 준 사슬 요청 범위에서 fn 을 돌린다. */
+    const inChainRm = (fn, order, removed) => {
+      let p;
+      bridge.withRequest({ body: {}, get: () => undefined }, { setHeader() {} }, () => { p = fn(); }, { answerModel: 'gpt-6-luna', codexForUsers: true, providerOrder: order, providerRemoved: removed });
+      return p;
+    };
+    const askRm = (removed) => inChainRm(() => gemini.callGemini({ model: 'gemini-2.5-flash', contents: '질문', config: {}, caller: 'rm' }), ORD, removed);
+    plan.upstage = upOk('업스테이지 답');
+    plan.claude.k1 = claudeOk('클로드1 답');
+    seen.length = 0;
+    const r1 = await askRm(['upstage']);
+    ok('업스테이지 삭제 → 업스테이지를 안 부르고 클로드1 이 답함', r1.success && r1.text === '클로드1 답' && !seen.some(x => x.who === 'upstage'), JSON.stringify({ r1, seen: seen.map(x => x.who) }));
+    const s1 = [];
+    plan.claude.k2 = claudeStream(['스', '트']);
+    seen.length = 0;
+    await inChainRm(async () => { for await (const t of gemini.callGeminiStream({ model: 'gemini-2.5-flash', contents: '질문', config: {}, caller: 'rm' })) s1.push(t); }, ORD, ['upstage', 'claude1']);
+    ok('스트림도 삭제된 AI(업스테이지·클로드1)를 안 부르고 클로드2 가 흘림', JSON.stringify(s1) === '["스","트"]' && seen.length === 1 && seen[0].who === 'claude:k2', JSON.stringify({ s1, seen: seen.map(x => x.who) }));
+    seen.length = 0;
+    const r2 = await askRm([]);
+    ok('다시 추가(삭제 목록에서 뺌) → 업스테이지를 다시 부른다', r2.success && r2.text === '업스테이지 답' && seen[0].who === 'upstage', JSON.stringify({ r2, seen: seen.map(x => x.who) }));
+    seen.length = 0;
+    const r3 = await askRm(undefined);
+    ok('삭제 목록 없음(옛 설정) → 종전대로 1번부터', r3.success && r3.text === '업스테이지 답' && seen[0].who === 'upstage', JSON.stringify(seen.map(x => x.who)));
+
+    ok('isValidRemoved: 빈 배열·정상 id 는 받는다', chain.isValidRemoved([]) && chain.isValidRemoved(['upstage', 'claude1', 'claude2', 'chatgpt']));
+    ok('isValidRemoved: gemini·모르는 이름·겹침·배열 아님은 거부', !chain.isValidRemoved(['gemini']) && !chain.isValidRemoved(['x']) && !chain.isValidRemoved(['claude1', 'claude1']) && !chain.isValidRemoved('claude1') && !chain.isValidRemoved(null));
+    ok('normRemoved: 없음·틀린 값 → [] · 맞으면 복사', JSON.stringify(chain.normRemoved(undefined)) === '[]' && JSON.stringify(chain.normRemoved(['gemini'])) === '[]' && JSON.stringify(chain.normRemoved(['claude1'])) === '["claude1"]');
+    const st = chain.status(['claude1']);
+    ok('status(삭제 목록) → removed 표시(claude1 만)', st.filter(x => x.removed).map(x => x.id).join() === 'claude1' && chain.status().every(x => x.removed === false), JSON.stringify(st.map(x => [x.id, x.removed])));
+
+    // 설정 API — 설정 파일(nariya_config.json)만 메모리로 돌려 실제 파일을 안 건드린다(atomic_write·legal.js 둘 다 fs 객체를 쓴다).
+    const mem = {};
+    const isCfg = (p) => /nariya_config\.json(\.tmp)?$/.test(String(p));
+    const real = { ex: fs.existsSync, rd: fs.readFileSync, wr: fs.writeFileSync, mv: fs.renameSync };
+    fs.existsSync = (p) => (isCfg(p) ? p in mem : real.ex(p));
+    fs.readFileSync = (p, ...a) => (isCfg(p) ? (p in mem ? mem[p] : (() => { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; })()) : real.rd(p, ...a));
+    fs.writeFileSync = (p, d, ...a) => (isCfg(p) ? void (mem[p] = String(d)) : real.wr(p, d, ...a));
+    fs.renameSync = (a, b) => (isCfg(a) ? void (mem[b] = mem[a], delete mem[a]) : real.mv(a, b));
+    try {
+      const router = require('../routes/legal');
+      const route = (m) => router.stack.find(l => l.route && l.route.path === '/api/legal/config' && l.route.methods[m]).route;
+      const call = (m, token, body) => new Promise((resolve) => {
+        const stack = route(m).stack;
+        const req = { body, get: (h) => (h === 'X-Admin-Token' ? token : undefined) };
+        const res = { code: 200, status(c) { this.code = c; return this; }, json(o) { resolve({ code: this.code, body: o }); } };
+        stack[stack.length - 1].handle(req, res, () => resolve({ code: 'next' }));
+      });
+      const CFG = path.join(__dirname, '..', 'data', 'nariya_config.json');
+      const OLD_ORDER = ['claude2', 'upstage', 'claude1', 'gemini', 'chatgpt'];
+      mem[CFG] = JSON.stringify({ exposure: 'admin', providerOrder: OLD_ORDER });   // 이 필드가 생기기 전의 저장값
+      const g = await call('get', 'good');
+      ok('옛 저장값(providerRemoved 없음) → 순서 그대로 · providerRemoved [] · 모두 removed:false', JSON.stringify(g.body.providerOrder) === JSON.stringify(OLD_ORDER) && JSON.stringify(g.body.providerRemoved) === '[]' && g.body.providerStatus.every(x => x.removed === false), JSON.stringify(g.body));
+      const g0 = await call('get', undefined);
+      ok('GET 토큰 없음에도 providerRemoved 는 붙고 providerStatus 는 안 붙음', Array.isArray(g0.body.providerRemoved) && !('providerStatus' in g0.body), JSON.stringify(Object.keys(g0.body)));
+
+      for (const [name, bad] of [['gemini', ['gemini']], ['모르는 이름', ['x']], ['겹침', ['claude1', 'claude1']], ['배열 아님', 'claude1']]) {
+        const before = mem[CFG];
+        const p = await call('post', 'good', { providerRemoved: bad });
+        ok(`POST providerRemoved ${name} → 400 · 저장값 그대로`, p.code === 400 && /providerRemoved/.test(p.body.error) && mem[CFG] === before, JSON.stringify(p));
+      }
+      const p1 = await call('post', 'good', { providerRemoved: ['claude1'] });
+      const saved1 = JSON.parse(mem[CFG]);
+      ok('POST providerRemoved [claude1] → 저장 · 순서·다른 필드 보존 · 응답 status 에 removed', p1.code === 200 && JSON.stringify(saved1.providerRemoved) === '["claude1"]' && JSON.stringify(saved1.providerOrder) === JSON.stringify(OLD_ORDER) && saved1.exposure === 'admin' && p1.body.providerStatus.find(x => x.id === 'claude1').removed === true, JSON.stringify({ p1: p1.body, saved1 }));
+      const p2 = await call('post', 'good', { providerOrder: ['claude2', 'upstage', 'claude1', 'chatgpt', 'gemini'], providerRemoved: [] });
+      const saved2 = JSON.parse(mem[CFG]);
+      ok('POST 다시 추가(순서+빈 삭제 목록 한 번에) → 둘 다 저장', p2.code === 200 && JSON.stringify(saved2.providerRemoved) === '[]' && saved2.providerOrder.join() === 'claude2,upstage,claude1,chatgpt,gemini', JSON.stringify(saved2));
+      mem[CFG] = JSON.stringify({ providerOrder: OLD_ORDER, providerRemoved: ['claude1', 'gemini'] });   // 손으로 고친 틀린 저장값
+      const g2 = await call('get', 'good');
+      ok('저장값에 gemini 가 들어 있으면 → providerRemoved [](아무것도 안 뺌)', JSON.stringify(g2.body.providerRemoved) === '[]', JSON.stringify(g2.body.providerRemoved));
+    } finally {
+      fs.existsSync = real.ex; fs.readFileSync = real.rd; fs.writeFileSync = real.wr; fs.renameSync = real.mv;
+    }
   }
 
   fs.rmSync(STATE_DIR, { recursive: true, force: true });

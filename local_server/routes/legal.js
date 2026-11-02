@@ -287,6 +287,9 @@ function normConfig(c) {
     // [답변 AI 사슬 · 2026-11-02 사용자 확정] 시도 순서(기본 업스테이지→클로드1→클로드2→ChatGPT→Gemini).
     //   적용 범위는 codexForUsers·관리자 토큰과 같다(codexBridge.withRequest ④).
     providerOrder: llmChain.normOrder(c.providerOrder),
+    // [AI 삭제 · 2026-11-02 사용자 요청] 관리자 센터 [삭제]로 사슬에서 뺀 AI(기본 [] — 이 필드가 없던 옛 저장값도 []).
+    //   순서(providerOrder)는 다섯 개 순열 그대로 두고 사슬이 이 목록을 건너뛴다. gemini 는 뺄 수 없다(마지막 안전망).
+    providerRemoved: llmChain.normRemoved(c.providerRemoved),
   };
 }
 // POST /api/legal/config 가 받는 boolean 스위치 목록(위 normConfig 와 1:1).
@@ -315,7 +318,8 @@ function clarifyRoundNext(ctx) {
 router.get('/api/legal/config', (req, res) => {
   // 이 GET 은 일반 사용자도 노출 설정을 읽으려 부른다 → providerStatus(키 유무·소진·오늘 호출 수)는 관리자 토큰이 있을 때만.
   const isAdmin = adminAuth.verifyToken(req.get('X-Admin-Token') || '');
-  res.json(Object.assign({ ok: true }, normConfig(readConfig()), isAdmin ? { providerStatus: llmChain.status() } : {}));
+  const cfg = normConfig(readConfig());
+  res.json(Object.assign({ ok: true }, cfg, isAdmin ? { providerStatus: llmChain.status(cfg.providerRemoved) } : {}));
 });
 router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   const b = req.body || {};
@@ -325,6 +329,8 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     return res.status(400).json({ ok: false, error: `answerModel은 ${codexBridge.ANSWER_MODELS.join('|')}` });
   if (b.providerOrder !== undefined && !llmChain.isValidOrder(b.providerOrder))
     return res.status(400).json({ ok: false, error: `providerOrder는 ${llmChain.PROVIDERS.join(',')} 다섯 개를 한 번씩 담은 배열` });
+  if (b.providerRemoved !== undefined && !llmChain.isValidRemoved(b.providerRemoved))
+    return res.status(400).json({ ok: false, error: `providerRemoved는 ${llmChain.PROVIDERS.filter(p => p !== 'gemini').join(',')} 중에서 겹치지 않게 담은 배열(gemini 는 뺄 수 없음)` });
   if (b.providerReset !== undefined && !llmChain.isValidReset(b.providerReset))
     return res.status(400).json({ ok: false, error: `providerReset은 ${llmChain.PROVIDERS.join('|')}|all` });
   for (const k of BOOL_SWITCHES) {
@@ -338,10 +344,11 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     if (b.exposure !== undefined) cur.exposure = b.exposure;
     if (b.answerModel !== undefined) cur.answerModel = b.answerModel;
     if (b.providerOrder !== undefined) cur.providerOrder = b.providerOrder.slice();
+    if (b.providerRemoved !== undefined) cur.providerRemoved = b.providerRemoved.slice();
     for (const k of BOOL_SWITCHES) if (b[k] !== undefined) cur[k] = b[k];
     writeFileAtomic(CONFIG_FILE, JSON.stringify(Object.assign(cur, { updatedAt: new Date().toISOString() }), null, 1));
     return cur;
-  }).then(v => res.json(Object.assign({ ok: true }, normConfig(v), { providerStatus: llmChain.status() }))).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
+  }).then(v => { const n = normConfig(v); res.json(Object.assign({ ok: true }, n, { providerStatus: llmChain.status(n.providerRemoved) })); }).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
 // GET /api/legal/reviews/stats — 카운트
