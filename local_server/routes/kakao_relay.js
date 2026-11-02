@@ -58,10 +58,12 @@ function createRouter({
         // 한 번에 받는 양을 넘기면 일부만 받고 성공이라 하지 않는다 — 앱은 50건씩 나눠 보낸다.
         if (items.length > 50) return res.status(413).json({ ok: false, error: '한 번에 50건까지' });
         try {
-            const r = store.storeMessages(items, req.body.device);
+            // 기준점 결과(found|missing|none)는 앱이 첫 글에 붙여 보낸다(대기열 묶음이 나뉘어도 따라가게).
+            const anchorStatus = req.body.anchor || (items.find((i) => i && i.anchor) || {}).anchor;
+            const r = store.storeMessages(items, req.body.device, new Date(), { anchor: anchorStatus });
             if (r.added) console.log(`[kakao_relay] 새 글 ${r.added}건 (중복 ${r.duplicate})`);
             // 끈·지운 기기의 글은 받지 않지만 200 으로 답한다 — 앱이 같은 글을 계속 다시 보내지 않게.
-            res.json({ ok: true, accepted: items.length, added: r.added, duplicate: r.duplicate, ignored: r.ignored || 0 });
+            res.json({ ok: true, accepted: items.length, added: r.added, duplicate: r.duplicate, ignored: r.ignored || 0, anchor: r.anchor });
         } catch (e) {
             console.warn('[kakao_relay] 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });
@@ -78,8 +80,9 @@ function createRouter({
     router.post('/api/kakao-relay/heartbeat', auth, (req, res) => {
         const b = req.body || {};
         try {
-            store.heartbeat({ device: String(b.device || ''), battery: b.battery, note: String(b.note || '').slice(0, 200) });
-            res.json({ ok: true });
+            const anchor = store.heartbeat({ device: String(b.device || ''), battery: b.battery, note: String(b.note || '').slice(0, 200) });
+            // 앱은 이 기준점(마지막으로 본 글의 id)이 화면에 보일 때까지 위로 올라가며 읽는다.
+            res.json({ ok: true, anchor });
         } catch (e) {
             console.warn('[kakao_relay] 신호 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });

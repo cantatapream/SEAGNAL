@@ -30,6 +30,9 @@ public class ReaderService extends AccessibilityService {
     //   옮겨가면」 — 경계에 걸린 말풍선이 두 화면 사이에서 빠지지 않게). 2페이지 높이를 읽으려면 4번 끈다(4×0.6≈2.4).
     private static final int PAGES_UP = 4;
     static final float SWIPE_FRACTION = 0.6f;
+    // 기준점(서버가 기억하는 「마지막으로 본 글」)이 있으면 그 글이 보일 때까지 올라간다(사용자 확정 2026-11-03).
+    //   통신이 끊겼다가 특보가 여러 개 밀려 와도 빠짐없이 읽고, 새 글이 하나면 금방 멈춘다. 최대 15번 끌기.
+    private static final int MAX_ANCHOR_SWIPES = 15;
     private static final long STEP_MS = 1_500L;     // 한 페이지 넘긴 뒤 그려질 때까지
 
     private static ReaderService instance;
@@ -40,6 +43,9 @@ public class ReaderService extends AccessibilityService {
     private final java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
     private int pagesLeft;
     private String lastSig;          // 넘기기 전 화면 서명 — 넘긴 뒤에도 같으면 안 움직인 것
+    private String anchorId;         // 서버가 알려 준 기준점(마지막으로 본 글 id). 없으면 기본 양만 읽는다
+    private boolean anchorFound;
+    private String newestText;       // 첫 화면 맨 아래(가장 최근) 특보 글
     private boolean triedFallback;   // 끌기가 안 먹혀 「한 페이지 위로」를 한 번 시도했나
     private String scrollNote;   // 위 페이지를 다 못 읽었으면 그 까닭(기록용 — 실패로 치지 않는다)
     private PowerManager.WakeLock wake;
@@ -75,6 +81,9 @@ public class ReaderService extends AccessibilityService {
         if (pi == null) { Config.status(this, "알림에 열기 동작이 없음"); return; }
         found.clear();
         fullOk = false;
+        anchorId = Config.prefs(this).getString("anchor", null);
+        anchorFound = false;
+        newestText = null;
         state = State.WAIT_CHAT;
         wakeScreen();
         try {
@@ -126,6 +135,8 @@ public class ReaderService extends AccessibilityService {
 
         if (state == State.WAIT_CHAT) {
             found.addAll(texts);
+            newestText = texts.get(texts.size() - 1);   // 대화창은 아래가 최신 — 화면 순서상 마지막이 맨 아래
+            checkAnchor(texts);
             if (more != null && click(more)) {
                 state = State.WAIT_FULL;
                 Config.status(this, "전체보기 누름");
@@ -143,15 +154,33 @@ public class ReaderService extends AccessibilityService {
             fullOk = true;
             performGlobalAction(GLOBAL_ACTION_BACK);   // 전문 화면을 닫고 대화방으로 돌아가 위 페이지를 읽는다
             state = State.SCROLL;
-            pagesLeft = PAGES_UP;
+            pagesLeft = anchorId == null ? PAGES_UP : MAX_ANCHOR_SWIPES;
+            if (anchorFound) { handler.postDelayed(() -> finish(null), STEP_MS); return; }
             handler.postDelayed(this::scrollUp, STEP_MS);
         }
     }
 
     private void startScroll() {
         state = State.SCROLL;
-        pagesLeft = PAGES_UP;
+        if (anchorFound) { finish(null); return; }   // 마지막으로 본 글이 첫 화면에 있다 — 그 아래만 새 글
+        pagesLeft = anchorId == null ? PAGES_UP : MAX_ANCHOR_SWIPES;
         scrollUp();
+    }
+
+    /** 이 글들 중에 기준점(마지막으로 본 글)이 있나. */
+    private void checkAnchor(List<String> texts) {
+        if (anchorId == null || anchorFound) return;
+        for (String t : texts) if (anchorId.equals(idOf(t))) { anchorFound = true; return; }
+    }
+
+    /** 서버와 같은 글 id — sha256(앞뒤 공백 뺀 글)의 16진 앞 16자. 예: idOf("…") → "3fa9…" */
+    static String idOf(String t) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(t.trim().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < 8; i++) b.append(String.format("%02x", d[i]));
+            return b.toString();
+        } catch (Exception e) { return ""; }
     }
 
     /** 대화창을 위로 넘긴다(직전 화면과 겹치게 60% 끌기). 더 못 넘기면(맨 위) 끝낸다. */
@@ -184,10 +213,14 @@ public class ReaderService extends AccessibilityService {
             finish(null);   // 맨 위에 닿음
             return;
         }
+        List<String> page = new ArrayList<>();
         for (AccessibilityNodeInfo n : room) {
             String s = textOf(n);
-            if (s != null && s.contains(Config.MARKER)) found.add(s);
+            if (s != null && s.contains(Config.MARKER)) page.add(s);
         }
+        found.addAll(page);
+        checkAnchor(page);
+        if (anchorFound) { finish(null); return; }   // 마지막으로 본 글까지 올라왔다
         scrollUp();
     }
 
@@ -365,7 +398,8 @@ public class ReaderService extends AccessibilityService {
         } else {
             result = "실패: " + (why == null ? "글 없음" : why);
         }
-        if (!found.isEmpty()) Sender.sendRead(this, new ArrayList<>(found));
+        String anchorStatus = anchorId == null ? "none" : anchorFound ? "found" : "missing";
+        if (!found.isEmpty()) Sender.sendRead(this, new ArrayList<>(found), newestText, anchorStatus);
         Config.status(this, "대화방 읽기 " + result);
         // 서버 신호에 실어 보낼 마지막 결과(화면에만 남기지 않는다)
         Config.prefs(this).edit().putString("lastRead",

@@ -22,6 +22,10 @@ const fs = require('fs'),
     crypto = require('crypto');
 
 const MAX_MESSAGES = 300;
+/** 「이미 봤음」 기억은 최근 3일치만 둔다(사용자 확정 2026-11-03 「계속 누적시킬 필요가 있을까」).
+ *  같은 특보가 알림 글·대화방 전문·두 기기로 겹쳐 오는 건 몇 분~몇 시간 안의 일이다. 그보다 옛 글은
+ *  기준점(anchor — 마지막으로 본 글) 덕분에 앱이 다시 읽지 않는다. */
+const SEEN_TTL_MS = 3 * 24 * 3600e3;
 const MAX_SEEN_KEYS = 8000;
 /** 「이미 봤음」 글 id 기억(실시간 기록 300건과 별도 — 긁어온 옛 글로 미리 채운다). */
 const MAX_SEEN_IDS = 6000;
@@ -144,7 +148,7 @@ function createStore({ file, backfillFile } = {}) {
     function load() {
         try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
         catch (e) {
-            if (e.code === 'ENOENT') return { messages: [], heartbeat: null, heartbeatAt: null, seenKeys: [] };
+            if (e.code === 'ENOENT') return { messages: [], heartbeat: null, heartbeatAt: null, seenKeys: {} };
             // 깨진 파일을 빈 DB 로 덮어쓰면 이력이 통째로 사라진다 — 원본을 남기고 저장을 거부한다.
             try { fs.copyFileSync(file, file + '.bad'); } catch (_) { /* 원본 보존 시도만 */ }
             throw new Error('저장 파일 손상(' + e.message + ') — ' + file + '.bad 로 보존, 저장 거부');
@@ -170,17 +174,17 @@ function createStore({ file, backfillFile } = {}) {
      * @param {string} device @param {Date} [now]
      * [연계] ← routes/kakao_relay POST /messages / → parseWarnings · checkMmis(대조 대기열 pending)
      */
-    function storeMessages(items, device, now = new Date()) {
+    function storeMessages(items, device, now = new Date(), meta = {}) {
         const db = load();
         // 관리자가 끈·지운 기기의 글은 받지 않는다(사용자 확정 2026-11-03 3단계 「휴대폰 거를 관리자 페이지에서 삭제하고 태블릿 것만」).
         const dev = touchDevice(db, device, now);
-        if (dev.state !== 'on') { save(db); return { added: 0, duplicate: 0, promoted: 0, ignored: items.length, new: [] }; }
+        if (dev.state !== 'on') { save(db); return { added: 0, duplicate: 0, promoted: 0, ignored: items.length, new: [], anchor: db.anchor ? db.anchor.id : null }; }
         dev.lastMessageAt = now.toISOString();
         const byId = new Map(db.messages.map((x) => [x.id, x]));
-        const seenIds = new Set(db.seenIds || []);
-        const seen = new Set(db.seenKeys || []);
+        const seenIds = timedSet(db.seenIds, now);
+        const seen = timedSet(db.seenKeys, now);
         // 「놓친 글」로만 본 줄의 열쇠 — 그 줄이 나중에 「이번 알림」 글(다른 글이어도)에 나오면 새 특보로 올린다(적대검증 M6).
-        const missedKeys = new Set(db.missedKeys || []);
+        const missedKeys = timedSet(db.missedKeys, now);
         db.pending = db.pending || [];
         db.alerts = db.alerts || [];
         // 한 묶음 안에서는 「이번 알림」 글을 먼저 본다(앱은 화면 글 → 전문 → 위 페이지 순으로 보낸다 — M6).
@@ -211,6 +215,7 @@ function createStore({ file, backfillFile } = {}) {
                 continue;
             }
             seenIds.add(id);
+            if (it.newest) db.anchor = { id, at: now.toISOString(), device: String(device || '') };
             const rec = {
                 id, text, trigger,
                 source: it.source === 'notification' ? 'notification' : 'screen',
@@ -250,15 +255,23 @@ function createStore({ file, backfillFile } = {}) {
             byId.set(id, rec);
             added.push(rec);
         }
+        // 기준점(마지막으로 본 글)을 화면에서 찾지 못하고 끝까지(최대 끌기) 올라갔다 — 그 사이 글을 놓쳤을 수 있다.
+        if (meta.anchor === 'missing') db.alerts.push({ type: 'anchorMissing', at: now.toISOString(), device: String(device || ''), text: 'anchorMissing' });
+        // 「이번 알림」으로 이미 아는 글이 다시 맨 아래에 있으면(중복) 기준점만 옮긴다.
+        for (const it of items) {
+            if (!it || !it.newest) continue;
+            const id = crypto.createHash('sha256').update(String(it.text || '').trim()).digest('hex').slice(0, 16);
+            if (seenIds.has(id)) db.anchor = { id, at: now.toISOString(), device: String(device || '') };
+        }
         // 24시간 안의 놓친 줄은 관리자에게 알린다 — 알림을 못 받고 대화방에서만 발견된 특보(적대검증 M7).
         if (missedLines.length) db.alerts.push({ type: 'missed', lines: missedLines.slice(0, 20), at: now.toISOString(), device: String(device || ''), text: missedLines.join('|') });
         db.alerts = db.alerts.slice(-MAX_ALERTS);
         if (db.messages.length > MAX_MESSAGES) db.messages = db.messages.slice(-MAX_MESSAGES);
-        db.seenKeys = [...seen].slice(-MAX_SEEN_KEYS);
-        db.seenIds = [...seenIds].slice(-MAX_SEEN_IDS);
-        db.missedKeys = [...missedKeys].slice(-MAX_SEEN_KEYS);
-        if (added.length || promoted || missedLines.length) save(db);
-        return { added: added.length, duplicate, promoted, new: added };
+        db.seenKeys = seen.dump(MAX_SEEN_KEYS);
+        db.seenIds = seenIds.dump(MAX_SEEN_IDS);
+        db.missedKeys = missedKeys.dump(MAX_SEEN_KEYS);
+        save(db);
+        return { added: added.length, duplicate, promoted, new: added, anchor: db.anchor ? db.anchor.id : null };
     }
 
     /**
@@ -269,7 +282,7 @@ function createStore({ file, backfillFile } = {}) {
      */
     function seed(texts, now = new Date()) {
         const db = load();
-        const seenIds = new Set(db.seenIds || []), seen = new Set(db.seenKeys || []);
+        const seenIds = timedSet(db.seenIds, now), seen = timedSet(db.seenKeys, now);
         let ids = 0, keys = 0;
         for (const t of texts) {
             const text = String(t || '').trim();
@@ -281,10 +294,10 @@ function createStore({ file, backfillFile } = {}) {
                 if (!seen.has(k)) { seen.add(k); keys++; }
             }
         }
-        db.seenIds = [...seenIds].slice(-MAX_SEEN_IDS);
-        db.seenKeys = [...seen].slice(-MAX_SEEN_KEYS);
+        db.seenIds = seenIds.dump(MAX_SEEN_IDS);
+        db.seenKeys = seen.dump(MAX_SEEN_KEYS);
         save(db);
-        return { ids, keys, totalIds: db.seenIds.length, totalKeys: db.seenKeys.length };
+        return { ids, keys, totalIds: Object.keys(db.seenIds).length, totalKeys: Object.keys(db.seenKeys).length };
     }
 
     /** 대조 대기열·관리자 알림 대기열을 다루는 checkMmis 용 — 읽고 고친 뒤 저장. */
@@ -308,6 +321,7 @@ function createStore({ file, backfillFile } = {}) {
         db.heartbeatAt = Object.values(db.devices).filter((d) => d.state === 'on' && d.beat)
             .map((d) => d.beat.at).sort().pop() || null;
         save(db);
+        return db.anchor ? db.anchor.id : null;
     }
 
     /** 켜진 기기들의 마지막 신호(멈춤 감시는 기기마다 따로 본다). [{device, beat}] */
@@ -337,7 +351,8 @@ function createStore({ file, backfillFile } = {}) {
         return {
             heartbeat: db.heartbeat, devices: db.devices || {}, messages: db.messages.slice(-n).reverse(),
             pending: db.pending || [], checks: (db.checks || []).slice(-50).reverse(),
-            seen: { ids: (db.seenIds || []).length, keys: (db.seenKeys || []).length },
+            seen: { ids: Object.keys(timedSet(db.seenIds, new Date()).dump(MAX_SEEN_IDS)).length, keys: Object.keys(timedSet(db.seenKeys, new Date()).dump(MAX_SEEN_KEYS)).length },
+            anchor: db.anchor || null,
         };
     }
 
@@ -406,6 +421,25 @@ function createStore({ file, backfillFile } = {}) {
     }
 
     return { storeMessages, seed, update, heartbeat, deviceBeats, setDevice, snapshot, lastHeartbeat, storeBackfill, backfillAll, clearBackfill };
+}
+
+/**
+ * 기한(3일)이 있는 「이미 봤음」 집합. 저장 꼴은 {열쇠: 처음 본 시각}. 옛 저장 꼴(배열)은 지금 시각으로 옮긴다.
+ * 예: const s = timedSet(db.seenKeys, now); s.has(k); s.add(k); db.seenKeys = s.dump(8000)
+ */
+function timedSet(stored, now) {
+    const nowMs = now.getTime(), nowIso = now.toISOString();
+    const m = new Map();
+    if (Array.isArray(stored)) for (const k of stored) m.set(k, nowIso);
+    else if (stored && typeof stored === 'object') for (const [k, at] of Object.entries(stored)) if (nowMs - Date.parse(at) <= SEEN_TTL_MS) m.set(k, at);
+    return {
+        has: (k) => m.has(k),
+        add: (k) => { if (!m.has(k)) m.set(k, nowIso); },
+        delete: (k) => m.delete(k),
+        get size() { return m.size; },
+        /** 기한 안의 것만, 최근 순으로 최대 n개를 객체로. */
+        dump: (n) => Object.fromEntries([...m.entries()].sort((a, b) => (a[1] < b[1] ? -1 : 1)).slice(-n)),
+    };
 }
 
 /** 기기 기록을 꺼내거나 새로 만든다(처음 보는 기기는 「켜짐」). 예: touchDevice(db, 'phone') → {state:'on', firstSeen, …} */
@@ -690,6 +724,8 @@ async function checkMmis({
             const body0 = `원문: ${String(a.text || '').replace(/\s+/g, ' ').slice(0, 160)}`;
             if (a.type === 'unknownZone') msgs.push({ kind: 'alert', alert: a, title: '❓ 카톡 특보에 모르는 구역 이름',
                 body: `「${a.zones.join('」, 「')}」 — 앱 표준 구역표에 없는 이름입니다. 이 줄은 기록만 하고 대조·반영에서 뺐습니다.\n${body0}\n→ 새 별칭이 필요한지 확인해 주세요.` });
+            else if (a.type === 'anchorMissing') msgs.push({ kind: 'alert', alert: a, title: '⚠ 중계 앱이 마지막으로 본 글을 찾지 못함',
+                body: `${fmtK(a.at)} ${a.device || ''} — 대화방을 위로 끝까지(최대 끌기) 올려도 서버가 기억하는 「마지막으로 본 글」이 나오지 않았습니다.\n그 사이 특보 글을 놓쳤을 수 있습니다. 카톡 대화방을 직접 확인하거나 [긁어오기]로 채워 주세요.` });
             else if (a.type === 'missed') msgs.push({ kind: 'alert', alert: a, title: `ℹ 카톡 대화방에서 처음 보는 특보 ${a.lines.length}줄(알림은 못 받았던 글)`,
                 body: a.lines.map((l) => `• ${l}`).join('\n') + `\n(${fmtK(a.at)} ${a.device || ''} 가 대화방을 읽다가 발견 — 통신이 끊겼던 사이 온 글일 수 있습니다. 이미 지난 특보일 수 있어 새 특보로는 쓰지 않았습니다.)` });
             else msgs.push({ kind: 'alert', alert: a, title: '❓ 카톡 특보 글을 읽지 못함',
