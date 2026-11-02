@@ -496,11 +496,6 @@ function touchDevice(db, name, now) {
 }
 
 /**
- * 특보 줄의 비교 열쇠. 예: {zoneKey:'서해남부먼바다', kind:'풍랑주의보', at:'2026-11-02T19:00+09:00', action:'발효'}
- *   → '서해남부먼바다|풍랑주의보|2026-11-02T19:00+09:00|발효'
- * [연계] ← storeMessages
- */
-/**
  * 기록장용 줄 요약 — 구역·종류·동작·시각과 이 글에서의 처리(새 특보·놓친 글·이미 봄·잘린 끝 줄·모르는 구역·태풍).
  * 예: [{zone:'동해중부바깥먼바다', kind:'풍랑주의보', action:'해제', at:'…', tag:'new'}]
  * [연계] ← storeMessages(이 파일) / → kakao_shadow.summarize
@@ -515,6 +510,11 @@ function logLines(rec) {
     }));
 }
 
+/**
+ * 특보 줄의 비교 열쇠. 예: {zoneKey:'서해남부먼바다', kind:'풍랑주의보', at:'2026-11-02T19:00+09:00', action:'발효'}
+ *   → '서해남부먼바다|풍랑주의보|2026-11-02T19:00+09:00|발효'
+ * [연계] ← storeMessages
+ */
 function warningKey(w) {
     return [w.zoneKey || String(w.zone).replace(/\s+/g, ''), w.kind, w.at, w.until || '', w.action].join('|');
 }

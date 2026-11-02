@@ -41,6 +41,10 @@ const WAIT_MS = 10 * 60e3;          // 반영 대기 — 기존 대조(checkMmis
 const TICK_MS = 5 * 60e3;           // 비교 결과를 기록장에 남기는 간격
 const LINE_GIVE_UP_MS = 6 * 3600e3; // 카톡 줄이 6시간 안에 MMIS 와 같아지지 않으면 「불일치」로 닫는다
 const APPLIED_TTL_MS = 3 * 864e5;
+// 이보다 오래된 글 줄은 반영하지 않는다(이미 반영했을 것) — 「반영함」 표시를 지운 뒤 300건 안에 남은 옛 글이
+//   다시 반영돼 카톡판이 옛 상태로 돌아가지 않게(적대검증 2026-11-03 #1). APPLIED_TTL_MS 보다 짧아야 한다.
+const MAX_LINE_AGE_MS = 2 * 864e5;
+const STALE_MMIS_MIN = 15;          // 특보현황 파일이 이만큼 갱신 안 됐으면 「MMIS 멈춤 의심」
 const KST = 9 * 3600e3;
 
 const emptyZone = () => ({ cur: null, until: null, pend: null, pre: null, changedAt: null, kakaoAt: null });
@@ -110,12 +114,12 @@ function mmisView(alerts) {
     for (const [name, node] of Object.entries(kr.mmisZones(alerts))) {
         const c = node.current, u = node.upcoming;
         const cur = kr.isWave(c) && ['주의보', '경보'].includes(kr.lvlOf(c)) ? kr.lvlOf(c) : null;
-        out[name] = { cur, up: kr.isWave(u), clr: cur ? kr.mmisIso(kr.clrOf(c)) : null, typhoon: isTyphoon(c) || isTyphoon(u) };
+        out[name] = { cur, up: kr.isWave(u), clr: cur ? kr.mmisIso(kr.clrOf(c)) : null, yn: cur ? kr.mmisIso(c.tmYn) : null, typhoon: isTyphoon(c) || isTyphoon(u) };
         for (const [cn, cb] of Object.entries(node.children || {})) {
             if (!cb) { out[cn] = { cur: null, up: false, clr: null, typhoon: false }; continue; }
             const lvl = kr.lvlOf(cb), wave = kr.isWave(cb);
             const ccur = wave && ['주의보', '경보'].includes(lvl) ? lvl : null;
-            out[cn] = { cur: ccur, up: wave && lvl === '예비', clr: ccur ? kr.mmisIso(kr.clrOf(cb)) : null, typhoon: isTyphoon(cb) };
+            out[cn] = { cur: ccur, up: wave && lvl === '예비', clr: ccur ? kr.mmisIso(kr.clrOf(cb)) : null, yn: ccur ? kr.mmisIso(cb.tmYn) : null, typhoon: isTyphoon(cb) };
         }
     }
     return out;
@@ -137,7 +141,7 @@ function describe(v, clrWord) {
  * diffs: 'cur'(발효 등급) · 'up'(다가오는 특보) · 'clr'(해제 시각, 양쪽 다 정확할 때만)
  * [연계] ← runShadow
  */
-function compareZone(sv, mv, nowMs, shadowChangedMs, mmisSinceMs) {
+function compareZone(sv, mv, nowMs, shadowChangedMs, mmisSinceMs, mmisCoreSinceMs) {
     mv = mv || { cur: null, up: false, clr: null, typhoon: false };
     if (mv.typhoon) return { status: 'typhoon', diffs: [] };
     const diffs = [];
@@ -145,11 +149,16 @@ function compareZone(sv, mv, nowMs, shadowChangedMs, mmisSinceMs) {
     if (sv.up !== mv.up) diffs.push('up');
     if (sv.cur && mv.cur && sv.until && mv.clr && sv.until !== mv.clr) diffs.push('clr');
     if (!diffs.length) return { status: 'match', diffs };
-    const recent = (nowMs - (shadowChangedMs || 0) < WAIT_MS) || (nowMs - (mmisSinceMs || 0) < WAIT_MS);
+    // MMIS 쪽은 「다른 칸」이 바뀐 시각으로 본다 — 해제예고만 바뀌었는데 오래된 등급 차이가 10분간 「반영 대기」로
+    //   내려가지 않게(적대검증 #6). 해제 시각만 다를 때만 해제예고 변화 시각을 쓴다.
+    const onlyClr = diffs.length === 1 && diffs[0] === 'clr';
+    const mSince = onlyClr ? mmisSinceMs : (mmisCoreSinceMs != null ? mmisCoreSinceMs : mmisSinceMs);
+    const recent = (nowMs - (shadowChangedMs || 0) < WAIT_MS) || (nowMs - (mSince || 0) < WAIT_MS);
     return { status: recent ? 'wait' : 'diff', diffs };
 }
 
 const sigOf = (v) => JSON.stringify([v.cur, v.up, v.clr, v.typhoon]);
+const coreOf = (v) => JSON.stringify([v.cur, v.up, v.typhoon]);
 const lineText = (w) => `${w.zone} ${w.kind} 「${w.action}」 ${kr.fmtK(w.at)}${w.until ? '~' + kr.fmtK(w.until).slice(6) : ''}`;
 
 function loadState(file) {
@@ -192,7 +201,13 @@ function runShadow({
         const nowIso = new Date(now).toISOString();
         let st = loadState(file);
         let mv;
-        try { mv = mmisView(readAlerts()); }
+        let mmisAgeMin = null;
+        try {
+            const raw = readAlerts();
+            mv = mmisView(raw);
+            // 특보현황 파일이 언제 갱신됐나 — 크롤러가 멈춰 굳어 있으면 「같음」이 믿을 수 없다(적대검증 낮음: 조용함 ≠ 정상).
+            if (raw && raw.updatedAt && Number.isFinite(Date.parse(raw.updatedAt))) mmisAgeMin = Math.round((now - Date.parse(raw.updatedAt)) / 60e3);
+        }
         catch (e) {
             // 특보현황을 못 읽으면 비교할 수 없다 — 「같음」으로 남기지 않고 못 읽었다고 남긴다(5분에 한 번).
             if (st && now - Date.parse(st.lastTick || 0) >= TICK_MS) {
@@ -209,20 +224,31 @@ function runShadow({
                 if (!v.cur && !v.up) continue;
                 const z = st.zones[name] = emptyZone();
                 if (v.cur) z.cur = { level: v.cur, since: null };
-                if (v.clr) z.until = v.clr;
+                // 해제예고(clrNtcTm)는 예보라 넣지 않는다 — 확정 해제시각(tmYn)만(적대검증 #4).
+                if (v.yn) z.until = v.yn;
                 if (v.up) z.pre = { from: null, until: null, baseline: true };
                 z.changedAt = nowIso;
                 active.push(`${name} ${describe(v, '해제예고')}`);
             }
-            for (const [name, v] of Object.entries(mv)) st.mmis[name] = { sig: sigOf(v), since: nowIso };
-            log.append({ kind: 'baseline', note: '시작 상태를 이 시각 앱 특보현황(MMIS)으로 채움 — 이후 변화는 카톡 줄로만', active }, now);
+            for (const [name, v] of Object.entries(mv)) st.mmis[name] = { sig: sigOf(v), since: nowIso, core: coreOf(v), coreSince: nowIso };
+            // 시작 전에 카톡이 이미 알려 준 「미래 시각 해제」(확정)는 넣는다 — 시작 상태 구역에만, 아직 안 지난 것만.
+            const known = [];
+            for (const m of store.snapshot(kr.MAX_MESSAGES).messages) {
+                if (now - Date.parse(m.receivedAt) > MAX_LINE_AGE_MS) continue;
+                for (const w of m.warnings || []) {
+                    const z = st.zones[w.zone];
+                    if (!z || !z.cur || w.section !== '기상특보' || w.action !== '해제' || w.cutTail || !w.zoneKnown || !(Date.parse(w.at) > now)) continue;
+                    if (!z.until || Date.parse(w.at) !== Date.parse(z.until)) { z.until = w.at; known.push(`${w.zone} 해제 ${kr.fmtK(w.at)}`); }
+                }
+            }
+            log.append({ kind: 'baseline', kakaoRelease: known, note: '시작 상태를 이 시각 앱 특보현황(MMIS)으로 채움 — 이후 변화는 카톡 줄로만', active }, now);
         }
         // MMIS 쪽 변화 시각(구역별) — 반영 대기·「누가 먼저」 판정과 카톡 줄 지연 계산에 쓴다.
         for (const [name, v] of Object.entries(mv)) {
-            const sig = sigOf(v), prev = st.mmis[name];
+            const sig = sigOf(v), core = coreOf(v), prev = st.mmis[name];
             if (!prev || prev.sig !== sig) {
                 if (prev) log.append({ kind: 'mmis', zone: name, to: describe(v, '해제예고') }, now);
-                st.mmis[name] = { sig, since: nowIso };
+                st.mmis[name] = { sig, since: nowIso, core, coreSince: prev && prev.core === core ? (prev.coreSince || prev.since) : nowIso };
             }
             // 시작 때 MMIS 로 채운 「다가오는 특보」는 카톡 줄로 시작·끝을 알 수 없다 — MMIS 에서 사라지면 같이 지운다.
             const z = st.zones[name];
@@ -236,15 +262,17 @@ function runShadow({
         // ① 새 카톡 줄 — 「이번 알림」 줄(newWarnings)만 반영한다. 놓친 글 줄은 기록만.
         const startMs = Date.parse(st.startedAt);
         const cand = [];
-        for (const m of store.snapshot(kr.MAX_MESSAGES).messages.slice().reverse()) {
+        store.snapshot(kr.MAX_MESSAGES).messages.slice().reverse().forEach((m, j) => {
             const t = Date.parse(m.promotedAt || m.receivedAt);
-            if (!(t >= startMs)) continue;
-            (m.newWarnings || []).forEach((w, i) => cand.push({ w, t, i, m, missed: false }));
-            (m.missedWarnings || []).forEach((w, i) => cand.push({ w, t, i, m, missed: true }));
-        }
-        cand.sort((a, b) => a.t - b.t || a.i - b.i);
+            if (!(t >= startMs) || now - t > MAX_LINE_AGE_MS) return;
+            (m.newWarnings || []).forEach((w, i) => cand.push({ w, t, j, i, m, missed: false }));
+            (m.missedWarnings || []).forEach((w, i) => cand.push({ w, t: Date.parse(m.receivedAt), j, i, m, missed: true }));
+        });
+        // 같은 시각이면 글 순서 → 줄 순서(적대검증 #5)
+        cand.sort((a, b) => a.t - b.t || a.j - b.j || a.i - b.i);
         for (const { w, t, m, missed } of cand) {
-            const key = m.id + '|' + kr.warningKey(w);
+            // 놓친 글로 먼저 본 줄이 나중에 「이번 알림」으로 올라오면 다시 봐야 하므로 열쇠를 나눈다(적대검증 #2).
+            const key = m.id + '|' + kr.warningKey(w) + (missed ? '|missed' : '|new');
             if (st.applied[key]) continue;
             st.applied[key] = nowIso;
             if (missed) { log.append({ kind: 'missedLine', zone: w.zone, line: lineText(w), device: m.device, msgId: m.id }, now); continue; }
@@ -254,8 +282,14 @@ function runShadow({
                 tr.closed = true;
             }
             st.tracks = st.tracks.filter((tr) => !tr.closed);
+            advance(st.zones, t);   // 그 줄을 받기 전까지의 시각 변화부터(몰아서 처리할 때 순서 — 적대검증 낮음)
+            const b4 = shadowView(st.zones[w.zone]);
             applyLine(st.zones, w, t);
-            st.tracks.push({ zone: w.zone, line: lineText(w), receivedAt: new Date(t).toISOString(), msgId: m.id });
+            const af = shadowView(st.zones[w.zone]);
+            // 이 줄이 무엇을 바꿨나 — 그것이 MMIS 에 반영됐는지로 줄 결과를 낸다(적대검증 #3: 구역 전체가 같은지로만 보면
+            //   연장·해제예고 없는 미래 해제가 받자마자 「일치」가 되고 큰 음수 지연이 평균에 섞였다).
+            const aspect = (b4.cur !== af.cur || b4.up !== af.up) ? 'core' : b4.until !== af.until ? 'clr' : 'none';
+            st.tracks.push({ zone: w.zone, line: lineText(w), receivedAt: new Date(t).toISOString(), msgId: m.id, aspect });
             log.append({ kind: 'apply', zone: w.zone, line: lineText(w), device: m.device, msgId: m.id, receivedAt: new Date(t).toISOString() }, now);
         }
         // ② 시각 변화
@@ -265,20 +299,31 @@ function runShadow({
         const rows = [];
         for (const name of names) {
             const z = st.zones[name], sv = shadowView(z), m = mv[name];
-            const r = compareZone(sv, m, now, z && Date.parse(z.changedAt), st.mmis[name] && Date.parse(st.mmis[name].since));
+            const mm = st.mmis[name];
+            const r = compareZone(sv, m, now, z && Date.parse(z.changedAt), mm && Date.parse(mm.since), mm && Date.parse(mm.coreSince || mm.since));
             rows.push({ zone: name, ...r, kakao: describe(sv, '해제 예정'), mmis: describe(m, '해제예고'), active: !!(sv.cur || sv.up || (m && (m.cur || m.up))) });
         }
         const byZone = new Map(rows.map((r) => [r.zone, r]));
         // ④ 카톡 줄마다 결과(B)
+        const mvNow = mv;
         for (const tr of st.tracks) {
             const r = byZone.get(tr.zone);
             const recvMs = Date.parse(tr.receivedAt);
             let result = null, lagMin;
             if (r && r.status === 'typhoon') result = '비교 제외(태풍)';
+            else if (tr.aspect === 'none') result = '바뀐 것 없음(이미 아는 내용)';
             else if (r && r.status === 'match') {
-                result = '일치';
-                // 양수 = MMIS 가 카톡보다 n분 늦게 같아짐(카톡이 빠름), 0 이하 = MMIS 가 먼저(또는 이미 같았음)
-                lagMin = Math.round((Date.parse((st.mmis[tr.zone] || {}).since || tr.receivedAt) - recvMs) / 60e3);
+                const mm = st.mmis[tr.zone] || {};
+                if (tr.aspect === 'clr' && !(mvNow[tr.zone] && mvNow[tr.zone].clr)) {
+                    // MMIS 에 정확한 해제 시각이 아직 없다 — 생길 때까지 기다리고, 카톡판 해제 예정이 지나거나 6시간이 되면 닫는다.
+                    const z = st.zones[tr.zone];
+                    if (!(z && z.until) || now - recvMs > LINE_GIVE_UP_MS) result = '확인 불가(MMIS에 정확한 해제 시각 없음)';
+                } else {
+                    result = '일치';
+                    // 양수 = MMIS 가 카톡보다 n분 늦게 같아짐(카톡이 빠름), 0 이하 = MMIS 가 먼저 바뀌어 있었음
+                    const since = tr.aspect === 'core' ? (mm.coreSince || mm.since) : mm.since;
+                    lagMin = Math.round((Date.parse(since || tr.receivedAt) - recvMs) / 60e3);
+                }
             } else if (now - recvMs > LINE_GIVE_UP_MS) result = '불일치';
             if (!result) continue;
             log.append({ kind: 'line', zone: tr.zone, line: tr.line, receivedAt: tr.receivedAt, result, lagMin, mmis: r ? r.mmis : '', kakao: r ? r.kakao : '' }, now);
@@ -306,7 +351,7 @@ function runShadow({
         const pick = (s) => rows.filter((r) => r.status === s).map((r) => ({ zone: r.zone, diffs: r.diffs, kakao: r.kakao, mmis: r.mmis }));
         const counts = { match: rows.filter((r) => r.status === 'match').length, wait: pick('wait').length, diff: pick('diff').length, typhoon: pick('typhoon').length, active: rows.filter((r) => r.active).length };
         if (!st.lastTick || now - Date.parse(st.lastTick) >= TICK_MS - 30e3) {
-            log.append({ kind: 'tick', ...counts, waitZones: pick('wait'), diffZones: pick('diff'), typhoonZones: pick('typhoon').map((r) => r.zone) }, now);
+            log.append({ kind: 'tick', ...counts, mmisAgeMin, waitZones: pick('wait'), diffZones: pick('diff'), typhoonZones: pick('typhoon').map((r) => r.zone) }, now);
             st.lastTick = nowIso;
         }
         st.last = { at: nowIso, ...counts, rows: rows.filter((r) => r.active || r.status !== 'match').sort((a, b) => a.zone.localeCompare(b.zone, 'ko')) };
@@ -331,8 +376,8 @@ function summarize({ day, now = Date.now(), file = path.join(require('../config/
     if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) day = today;
     const hourOf = (t) => new Date(Date.parse(t) + KST).getUTCHours();
     function one(d, detail) {
-        const hours = Array.from({ length: 24 }, (_, h) => ({ hour: h, msgs: 0, dups: 0, newLines: 0, missedLines: 0, applied: 0, ticks: 0, diffMin: 0, waitMin: 0, diffZones: {}, mmisChanges: 0, mmisError: 0, lines: {}, devices: {} }));
-        const tot = { msgs: 0, dups: 0, ignored: 0, newLines: 0, missedLines: 0, unknownZone: 0, cutTail: 0, applied: 0, ticks: 0, diffMin: 0, waitMin: 0, mmisChanges: 0, mmisError: 0, lines: {}, lagSum: 0, lagN: 0, lagMax: null, devices: {}, beats: {} };
+        const hours = Array.from({ length: 24 }, (_, h) => ({ hour: h, msgs: 0, dups: 0, newLines: 0, missedLines: 0, applied: 0, ticks: 0, staleTicks: 0, diffMin: 0, waitMin: 0, diffZones: {}, mmisChanges: 0, mmisError: 0, lines: {}, devices: {} }));
+        const tot = { msgs: 0, dups: 0, ignored: 0, newLines: 0, missedLines: 0, unknownZone: 0, cutTail: 0, applied: 0, ticks: 0, staleTicks: 0, gapHours: 0, diffMin: 0, waitMin: 0, mmisChanges: 0, mmisError: 0, lines: {}, lagSum: 0, lagN: 0, lagMax: null, devices: {}, beats: {} };
         const lines = [], episodes = [], extra = [];
         for (const ev of log.read(d)) {
             const h = hours[hourOf(ev.t)];
@@ -355,6 +400,7 @@ function summarize({ day, now = Date.now(), file = path.join(require('../config/
             else if (ev.kind === 'tick') {
                 if (ev.mmisError) { h.mmisError++; tot.mmisError++; continue; }
                 h.ticks++; tot.ticks++;
+                if (ev.mmisAgeMin != null && ev.mmisAgeMin > STALE_MMIS_MIN) { h.staleTicks++; tot.staleTicks++; }
                 const step = TICK_MS / 60e3;
                 if ((ev.diffZones || []).length) { h.diffMin += step; tot.diffMin += step; }
                 if ((ev.waitZones || []).length) { h.waitMin += step; tot.waitMin += step; }
@@ -371,14 +417,20 @@ function summarize({ day, now = Date.now(), file = path.join(require('../config/
                 if (detail) lines.push(ev);
             } else if (ev.kind === 'episode') { if (detail) episodes.push(ev); }
         }
+        // 비교가 돌지 않은 시간 — 다 지난 시간인데(시험 시작 뒤) 5분 기록이 10개 미만이면 「기록 없음」으로 표시한다.
+        for (const h of hours) {
+            const hs = Date.parse(d + 'T00:00:00+09:00') + h.hour * 3600e3;
+            h.gap = !!(startMs && hs >= startMs && hs + 3600e3 <= now && h.ticks + h.mmisError < 10);
+            if (h.gap) tot.gapHours++;
+        }
         tot.lagAvg = tot.lagN ? Math.round((tot.lagSum / tot.lagN) * 10) / 10 : null;
         return { hours, tot, lines, episodes, extra };
     }
+    let current = null, startMs = 0;
+    try { const st = loadState(file); current = st ? { startedAt: st.startedAt, ...(st.last || {}) } : null; startMs = st ? Date.parse(st.startedAt) || 0 : 0; }
+    catch (e) { current = { error: e.message }; }
     const days = log.days().map((d) => ({ day: d, ...one(d, false).tot }));
     const sel = one(day, true);
-    let current = null;
-    try { const st = loadState(file); current = st ? { startedAt: st.startedAt, ...(st.last || {}) } : null; }
-    catch (e) { current = { error: e.message }; }
     return { day, today, days, totals: sel.tot, hours: sel.hours, lines: sel.lines, episodes: sel.episodes, events: sel.extra, current, waitMin: WAIT_MS / 60e3, tickMin: TICK_MS / 60e3 };
 }
 

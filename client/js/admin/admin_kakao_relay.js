@@ -320,15 +320,20 @@
             + stat('차이가 있던 시간', '약 ' + (T.diffMin || 0) + '분', '반영 대기 ' + (T.waitMin || 0) + '분', T.diffMin ? '#f87171' : null)
             + stat('앱(MMIS) 변화', (T.mmisChanges || 0) + '번', T.mmisError ? '특보현황 못 읽음 ' + T.mmisError + '번' : '', T.mmisError ? '#fbbf24' : null)
             + stat('기타', '대체 ' + (L['다음 글로 대체'] || 0) + ' · 태풍 ' + (L['비교 제외(태풍)'] || 0), '모르는 구역 ' + (T.unknownZone || 0) + ' · 잘린 끝 줄 ' + (T.cutTail || 0))
-            + stat('신호', beats || '—', T.ignored ? '끈 기기 글 거절 ' + T.ignored + '건' : '') + '</div>');
+            + stat('신호', beats || '—', T.ignored ? '끈 기기 글 거절 ' + T.ignored + '건' : '')
+            + stat('비교가 안 돈 시간', (T.gapHours || 0) + '시간', '특보현황 갱신 멈춤 의심 ' + (T.staleTicks || 0) * 5 + '분', (T.gapHours || T.staleTicks) ? '#fbbf24' : null) + '</div>');
         // 시간대별
         var hrows = (s.hours || []).map(function (H) {
-            var any = H.msgs || H.applied || H.mmisChanges || H.diffMin || H.waitMin || H.mmisError || Object.keys(H.lines || {}).length;
+            var any = H.msgs || H.applied || H.mmisChanges || H.diffMin || H.waitMin || H.mmisError || H.gap || H.staleTicks || Object.keys(H.lines || {}).length;
             var tone = H.diffMin ? 'background:rgba(248,113,113,0.08);' : H.waitMin ? 'background:rgba(251,191,36,0.06);' : '';
             var res = Object.keys(H.lines || {}).map(function (k) { return k + ' ' + H.lines[k]; }).join(' · ');
+            // 조용함과 멈춤을 구분해 보여 준다 — 비교가 안 돈 시간, 특보현황 파일이 굳은 시간, 못 읽은 시간.
+            var warn = [H.gap ? '⚠ 비교 기록 없음(멈춤?)' : '', H.staleTicks ? '⚠ 특보현황 갱신 멈춤 의심 ' + H.staleTicks * 5 + '분' : '', H.mmisError ? '⚠ 특보현황 못 읽음 ' + H.mmisError + '번' : ''].filter(Boolean).join(' · ');
+            if (warn) res = '<span style="color:#fbbf24">' + esc(warn) + '</span>' + (res ? ' · ' + esc(res) : '');
+            else res = esc(res);
             var row = '<tr style="cursor:' + (any ? 'pointer' : 'default') + ';' + tone + (any ? '' : 'opacity:0.45;') + '"' + (any ? ' onclick="window.__krHour(' + H.hour + ')"' : '') + '>'
                 + td(String(H.hour).padStart(2, '0') + '시', 'white-space:nowrap') + td(H.msgs || '') + td(H.applied || '') + td(H.mmisChanges || '')
-                + td(H.waitMin ? H.waitMin + '분' : '') + td(H.diffMin ? '<b style="color:#f87171">' + H.diffMin + '분</b>' : '') + td(esc(res)) + '</tr>';
+                + td(H.waitMin ? H.waitMin + '분' : '') + td(H.diffMin ? '<b style="color:#f87171">' + H.diffMin + '분</b>' : '') + td(res) + '</tr>';
             return row + '<tr id="kr-hour-' + H.hour + '" style="display:none"><td colspan="7" style="padding:6px 10px;background:#11161d;font-size:0.76rem;line-height:1.55">' + hourDetail(s, H.hour) + '</td></tr>';
         });
         html += section('🕒 시간대별 (줄을 누르면 펼침)', table(['시각', '받은 글', '카톡판 반영', 'MMIS 변화', '반영 대기', '차이', '카톡 줄 결과'], hrows));

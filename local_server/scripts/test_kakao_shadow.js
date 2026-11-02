@@ -83,7 +83,7 @@ const run = (m) => sh.runShadow({ store, now: min(m), readAlerts: () => mmis, fi
 ok('열쇠 없는 서버는 아무것도 안 함', sh.runShadow({ store, now: min(0), readAlerts: () => mmis, file: shFile, log, enabled: false }) === null && !fs.existsSync(shFile));
 let r = run(0);
 let st = JSON.parse(fs.readFileSync(shFile, 'utf8'));
-ok('처음엔 그 시각 MMIS 로 시작 상태(해제예고까지)', st.zones['동해중부안쪽먼바다'].cur.level === '주의보' && st.zones['동해중부안쪽먼바다'].until === '2026-11-03T18:00+09:00' && r.diff === 0, r);
+ok('처음엔 그 시각 MMIS 로 시작 상태 — 해제예고(예보)는 확정 해제로 넣지 않음', st.zones['동해중부안쪽먼바다'].cur.level === '주의보' && st.zones['동해중부안쪽먼바다'].until === null && r.diff === 0, r);
 ok('시작 상태 기록(baseline)', log.read(dayOf(min(0))).some((e) => e.kind === 'baseline' && e.active.length === 1));
 // 카톡: 동해중부바깥먼바다 발효(12:00 KST — 지난 시각)
 store.storeMessages([{ text: HEAD + '동해중부바깥먼바다,\n풍랑주의보 11월 03일 12시 00분 발효', source: 'screen', trigger: true }], 'tablet', new Date(min(1)));
@@ -114,7 +114,7 @@ ev = log.read(dayOf(min(0)));
 const ep2 = ev.filter((e) => e.kind === 'episode' && e.zone === '동해남부북쪽바깥먼바다').pop();
 ok('늦은 카톡 → 같아짐 · 구간 21분 · MMIS 가 먼저 · 최악 「차이」', r.diff === 0 && ep2 && ep2.min === 21 && ep2.first === 'MMIS가 먼저 바뀜' && ep2.worst === 'diff', ep2);
 const ln2 = ev.filter((e) => e.kind === 'line' && e.zone === '동해남부북쪽바깥먼바다').pop();
-ok('그 줄 결과 일치·음수(MMIS 가 먼저)', ln2 && ln2.result === '일치' && ln2.lagMin < 0, ln2);
+ok('그 줄 결과 일치·음수(MMIS 가 20분 먼저)', ln2 && ln2.result === '일치' && ln2.lagMin === -20, ln2);
 // 미래 해제 → 그 시각에 풀림 · MMIS 가 늦게 풀어도 대기 후 같음
 store.storeMessages([{ text: HEAD + '동해중부바깥먼바다,\n풍랑주의보 11월 03일 13시 00분 해제', source: 'screen', trigger: true }], 'tablet', new Date(min(40)));
 run(41);
@@ -172,11 +172,91 @@ console.log('F. 비교현황 요약(D)');
 const s = sh.summarize({ day: dayOf(min(0)), now: min(700), file: shFile, log });
 ok('시간대 24칸', s.hours.length === 24);
 ok('12시대(KST): 받은 글·반영 줄·대기·차이 분', s.hours[12].msgs >= 2 && s.hours[12].applied >= 2 && s.hours[12].diffMin > 0, s.hours[12]);
-ok('줄 결과 합계(일치·불일치)', s.totals.lines['일치'] >= 3 && s.totals.lines['불일치'] === 1, s.totals.lines);
+ok('줄 결과 합계(일치·불일치·확인 불가)', s.totals.lines['일치'] >= 2 && s.totals.lines['불일치'] === 1 && s.totals.lines['확인 불가(MMIS에 정확한 해제 시각 없음)'] === 1, s.totals.lines);
 ok('평균 지연(분) 계산', typeof s.totals.lagAvg === 'number');
 ok('구간 목록·사건 목록', s.episodes.length >= 2 && s.events.some((e) => e.kind === 'baseline'));
 ok('기록 있는 날 목록·현재 상태', s.days.some((d) => d.day === dayOf(min(0)) && d.msgs >= 2) && s.current && s.current.startedAt);
 ok('날짜 꼴이 틀리면 오늘로', sh.summarize({ day: '../../etc', now: min(700), file: shFile, log }).day === dayOf(min(700)));
+
+console.log('G. 적대검증 반영(2026-11-03 독립 검토 재현 6건)');
+{
+    const mk = (name) => {
+        const d = fs.mkdtempSync(path.join(os.tmpdir(), 'kakao-shadow-' + name + '-'));
+        const st2 = kr.createStore({ file: path.join(d, 'kakao_relay.json') });
+        const lg = createLog(path.join(d, 'kakao_relay_log'));
+        const f = path.join(d, 'kakao_shadow.json');
+        return { st2, lg, f, run: (ms, mm) => sh.runShadow({ store: st2, now: ms, readAlerts: () => mm, file: f, log: lg, enabled: true }) };
+    };
+    const Z = (cur) => tree({ 동해중부안쪽먼바다: leaf(cur), 동해중부바깥먼바다: leaf(), 동해남부북쪽바깥먼바다: leaf() });
+    // #1 3일 지난 글 재반영
+    const a = mk('old');
+    a.run(min(0), Z());
+    a.st2.storeMessages([{ text: HEAD + '동해중부안쪽먼바다,\n풍랑주의보 11월 03일 12시 00분 발효', trigger: true }], 'tablet', new Date(min(1)));
+    a.run(min(2), Z(block('주의보')));
+    a.st2.storeMessages([{ text: HEAD + '동해중부안쪽먼바다,\n풍랑주의보 11월 03일 13시 00분 해제', trigger: true }], 'tablet', new Date(min(60)));
+    a.run(min(61), Z());
+    a.st2.storeMessages([{ text: HEAD + '동해중부안쪽먼바다,\n풍랑주의보 11월 07일 12시 00분 발효', trigger: true }], 'tablet', new Date(min(4 * 1440)));
+    a.run(min(4 * 1440 + 1), Z(block('주의보')));
+    const r1 = a.run(min(4 * 1440 + 30), Z(block('주의보')));
+    const applies = a.lg.days().flatMap((d) => a.lg.read(d)).filter((e) => e.kind === 'apply');
+    ok('#1 3일 지난 옛 글을 다시 반영하지 않음(카톡판이 옛 상태로 안 돌아감)', applies.length === 3 && r1.diff === 0, { n: applies.length, r1 });
+    // #2 놓친 글 → 나중에 이번 알림으로 올라오면 반영
+    const b = mk('promo');
+    b.run(min(0), Z());
+    const TXT_B = HEAD + '동해중부바깥먼바다,\n풍랑주의보 11월 03일 12시 00분 발효';
+    b.st2.storeMessages([{ text: HEAD + '동해남부북쪽바깥먼바다,\n풍랑주의보 11월 03일 12시 00분 발효', trigger: true }, { text: TXT_B, trigger: false }], 'tablet', new Date(min(1)));
+    b.run(min(2), Z());
+    b.st2.storeMessages([{ text: TXT_B, trigger: true }], 'tablet', new Date(min(3)));
+    b.run(min(4), Z());
+    const shB = JSON.parse(fs.readFileSync(b.f, 'utf8'));
+    ok('#2 놓친 글로 먼저 본 줄이 이번 알림으로 올라오면 카톡판에 반영', shB.zones['동해중부바깥먼바다'] && shB.zones['동해중부바깥먼바다'].cur && shB.zones['동해중부바깥먼바다'].cur.level === '주의보');
+    // #5 같은 시각 여러 글 — 글 순서대로
+    const c = mk('order');
+    c.run(min(0), Z());
+    c.st2.storeMessages([
+        { text: HEAD + '동해중부바깥먼바다,\n풍랑주의보 11월 03일 12시 00분 발효\n\n동해중부안쪽먼바다,\n풍랑경보 11월 03일 12시 00분 변경', trigger: true },
+        { text: HEAD + '동해중부안쪽먼바다,\n풍랑경보 11월 03일 12시 01분 해제', trigger: true },
+    ], 'tablet', new Date(min(2)));
+    c.run(min(3), Z());
+    const shC = JSON.parse(fs.readFileSync(c.f, 'utf8'));
+    ok('#5 같은 시각 받은 글은 글 순서 → 줄 순서로(나중 글의 해제가 이김)', shC.zones['동해중부안쪽먼바다'].cur === null, shC.zones['동해중부안쪽먼바다']);
+    // #6 해제예고만 바뀌어도 오래된 차이는 차이로 남음
+    ok('#6 MMIS 해제예고만 방금 바뀌어도 등급 차이는 「차이」 유지', sh.compareZone({ cur: null, up: false }, { cur: '주의보', up: false }, min(60), 0, min(58), min(0)).status === 'diff');
+    ok('#6 해제 시각만 다를 때는 해제예고 변화 시각으로 대기 판단', sh.compareZone({ cur: '주의보', up: false, until: '2026-11-03T18:00+09:00' }, { cur: '주의보', up: false, clr: '2026-11-03T19:00+09:00' }, min(60), 0, min(58), min(0)).status === 'wait');
+    // #4 시작 상태: 확정 해제시각(tmYn)·시작 전 카톡이 알린 미래 해제
+    const d4 = mk('base');
+    d4.st2.storeMessages([{ text: HEAD + '동해중부바깥먼바다,\n풍랑주의보 11월 03일 18시 00분 해제', trigger: true }], 'tablet', new Date(min(-30)));
+    d4.run(min(0), tree({ 동해중부안쪽먼바다: leaf(block('주의보', '풍랑', { tmYn: '2026년 11월 03일 15시 00분', clrNtcTm: '2026년 11월 03일 15시 00분' })), 동해중부바깥먼바다: leaf(block('주의보', '풍랑', { clrNtcTm: '2026년 11월 03일 20시 00분' })), 동해남부북쪽바깥먼바다: leaf(block('주의보', '풍랑', { clrNtcTm: '2026년 11월 03일 16시 00분' })) }));
+    const sh4 = JSON.parse(fs.readFileSync(d4.f, 'utf8'));
+    ok('#4 시작 상태: MMIS 확정 해제시각(tmYn)은 넣음', sh4.zones['동해중부안쪽먼바다'].until === '2026-11-03T15:00+09:00');
+    ok('#4 시작 상태: 시작 전 카톡이 알린 미래 해제는 넣음', sh4.zones['동해중부바깥먼바다'].until === '2026-11-03T18:00+09:00');
+    ok('#4 시작 상태: MMIS 해제예고(예보)만 있으면 넣지 않음', sh4.zones['동해남부북쪽바깥먼바다'].until === null);
+    // #3 줄 결과는 그 줄이 바꾼 것으로
+    const e = mk('aspect');
+    e.run(min(0), Z(block('주의보')));
+    e.st2.storeMessages([{ text: HEAD + '동해중부안쪽먼바다,\n풍랑주의보 11월 03일 11시 00분 발효', trigger: true }], 'tablet', new Date(min(1)));
+    e.run(min(2), Z(block('주의보')));
+    e.st2.storeMessages([{ text: HEAD + '동해중부안쪽먼바다,\n풍랑주의보 11월 03일 18시 00분 해제', trigger: true }], 'tablet', new Date(min(3)));
+    e.run(min(4), Z(block('주의보')));
+    e.run(min(9), Z(block('주의보', '풍랑', { clrNtcTm: '2026년 11월 03일 18시 00분' })));
+    const lnE = e.lg.read(dayOf(min(0))).filter((x) => x.kind === 'line');
+    ok('#3 아무것도 안 바꾼 줄 = 「바뀐 것 없음」(평균 지연에 안 섞임)', lnE.some((x) => /11:00/.test(x.line) && x.result === '바뀐 것 없음(이미 아는 내용)' && x.lagMin === undefined), lnE);
+    ok('#3 해제 시각 줄은 MMIS 해제예고가 같아질 때 일치·지연 6분', lnE.some((x) => /18:00/.test(x.line) && x.result === '일치' && x.lagMin === 6), lnE);
+}
+
+console.log('H. 멈춤과 조용함 구분');
+{
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'kakao-shadow-gap-'));
+    const st3 = kr.createStore({ file: path.join(d, 'kakao_relay.json') });
+    const lg = createLog(path.join(d, 'kakao_relay_log')), f = path.join(d, 'kakao_shadow.json');
+    const mm = { updatedAt: new Date(min(-60)).toISOString(), ...tree({ 동해중부안쪽먼바다: leaf() }) };
+    for (let m = 0; m <= 60; m += 5) sh.runShadow({ store: st3, now: min(m), readAlerts: () => mm, file: f, log: lg, enabled: true });
+    // 13시(KST)는 비교가 돌지 않음
+    const s3 = sh.summarize({ day: dayOf(min(0)), now: min(180), file: f, log: lg });
+    ok('비교가 안 돈 지난 시간은 「기록 없음」', s3.hours[13].gap === true && s3.hours[12].gap === false && s3.totals.gapHours >= 1, [s3.hours[12].ticks, s3.hours[13].ticks]);
+    ok('특보현황 파일이 15분 넘게 안 바뀌면 멈춤 의심으로 셈', s3.hours[12].staleTicks > 0, s3.hours[12]);
+    ok('시험 시작 전 시간은 기록 없음으로 안 셈', s3.hours[11].gap === false);
+}
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
