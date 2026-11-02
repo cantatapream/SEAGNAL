@@ -1,0 +1,57 @@
+[지정검역물의 검역방법 및 기준] 별지21 — 수입동물 현장검역 결과서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000285742 (수집 2026-11-02)
+별표서식파일링크: /LSW/flDownload.do?flSeq=169853725
+
+[별지 제21호서식]
+수입동물 현장검역 결과서
+The result of on-site import animal quarantine and inspection
+1. 공통사항(General information)
+┏━━━━━━━━┯┯━━━━━┯┯━━━━━━━━━━━━━━┯┓
+┃현장검역        ││수입자    ││여권번호                    │┃
+┃접수번호        ││Name of   ││Passport No.                │┃
+┃Registration    ││consignee ││(주민등록번호)              │┃
+┃number          ││          ││(Resident registration No.) │┃
+┠────────┼┴─────┼┴───────┬──────┴┨
+┃주소            │            │연락처          │              ┃
+┃Address         │            │Contact number  │              ┃
+┠────────┼──────┼────────┼───────┨
+┃품명            │            │중량(Kg)/두수   │              ┃
+┃Kind of animals │            │Weight/Quantity │              ┃
+┗━━━━━━━━┷━━━━━━┷━━━━━━━━┷━━━━━━━┛
+상기 물품에 대하여 반송 또는 계류장으로 운송 후 검역을 하고자 합니다.
+The above mentioned animal(s) will return or will be transported to the designated quarantine facility for quarantine and inspection.
+2. 반송(Return)
+┏━━━━━━━━━━┯┯━━━━━━━━━━┯┓
+┃반송예정일          ││반송일자            │┃
+┃The estimated date  ││The date of return  │┃
+┃of return           ││                    │┃
+┠──────────┼┼──────────┼┨
+┃인수자(화주)서명    ││인계자(검역관)      │┃
+┃The signature of    ││The signature of    │┃
+┃consignee(owner)    ││consignor(official) │┃
+┗━━━━━━━━━━┷┷━━━━━━━━━━┷┛
+ 가. 반송하는 경우 사전에 관할 지역본부장에게 알려야 합니다. 
+ A. The return shall be pre-notified to the competent regional(district) office.
+ 나. 반송명령을 받은 날로부터 30일 이내에 반송명령을 이행하여야 합니다.
+ B. The return order shall be followed within 30 days from the issue date of the return order.
+3. 계류장 운송후 검역(Quarantine at the designated quarantine facility)
+┏━━━━━━━┯━━━━━━━━┯━━━━━━━┯┯━━━━━━━┯┓
+┃관리방법      │□자가관리      │동의 서명     ││유치 여부     │┃
+┃The method of │self-management │The signature ││The approval  │┃
+┃management    │□위탁관리      │of approval   ││of confinement│┃
+┃              │consignment     │              ││              │┃
+┃              │-management     │              ││              │┃
+┗━━━━━━━┷━━━━━━━━┷━━━━━━━┷┷━━━━━━━┷┛
+ 가. 검역중 부대비용, 건강관리, 폐사 등에 대한 책임은 화주에게 있습니다.
+ A. The importer(owner) shall take full responsibility for all related expense incurred by the health care, the disposal of the death etc. during the quarantine period.
+ 나. 동물의 건강관리를 위하여 진료수의사를 선임할 수 있습니다.
+ B. The importer(owner) can hire the veterinarian in charge of the health care.
+ 다. 자가관리가 어려울 경우 사육관리인에게 위탁할 수 있습니다.
+    (사양관리인이 지정된 검역시설에 한함)
+ C. The importer(owner) can entrust the caretaker with the management in case of inability to self-management.(The option is confined to the quarantine facility with caretaker.)
+년(Year)    월(Month)    일(Day) 
+수입자            (인)
+Name of consignee (signature)   
+검역관            (인)
+Name of veterinary official (signature)
+210㎜297×㎜[백상지 80g/㎡]

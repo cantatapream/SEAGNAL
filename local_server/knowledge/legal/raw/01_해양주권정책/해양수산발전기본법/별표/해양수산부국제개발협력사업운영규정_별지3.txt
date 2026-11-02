@@ -1,0 +1,226 @@
+[해양수산부 국제개발협력사업 운영 규정] 별지3 — 분기별 진도보고서(국문, 영문)
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000284786 (수집 2026-11-02)
+별표서식파일링크: /LSW/flDownload.do?flSeq=169022431
+
+[별지 제3호 서식] 분기별 진도보고서 (국문)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃1. 사업 개요                                                                                                ┃
+┣━━━━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃사업코드                │                                                                                  ┃
+┃                        │해수부 일련번호(1192000)_해당사업연도*(20XX)_임의로 부여된 사업번호(NNN)          ┃
+┃                        │* 신규사업은 신규 사업 신청연도로 기입. 계속 사업의 경우, 사업시작연도            ┃
+┃                        │(2020,2021,2022년 등) 기입                                                        ┃
+┠────────────┼─────────────────────────────────────────┨
+┃수행기관                │공식적인 사업수행기관 이름 기입(ex. ○○공사, ○○대학교)                         ┃
+┠─────────┬──┼─────────────────────────────────────────┨
+┃사업명            │국문│사업 국문명 기입                                                                  ┃
+┃                  ├──┼─────────────────────────────────────────┨
+┃                  │영문│사업 영문명 기입                                                                  ┃
+┠─────────┴──┼─────────────────────────────────────────┨
+┃수원국                  │(사업대상국가/지역) ex) 방글라데시 다카                                           ┃
+┠────────────┼─────────────────────────────────────────┨
+┃총 사업기간/사업비      │(총 사업기간) 사업연월기준으로 기입 ex) 2023.01~2023.12                           ┃
+┃                        │(총 사업비) 천원 단위로 기입                                                      ┃
+┠────────────┼─────────────────────────────────────────┨
+┃대상 사업기간           │- 진도보고서 해당 월 기입 ex) 2026.07.01. ~ 2026.11.30.                           ┃
+┠────────────┼─────────────────────────────────────────┨
+┃사업 내용               │양자무상사업 경우, 기존에 제출한 양자무상사업 시행계획 양식 내 “사업개요-사업    ┃
+┃                        │내용-사업개요 내 명시된 사업 핵심 내용 기입                                       ┃
+┃                        │다자(프로젝트) 경우, 기존에 제출한 다자무상사업 시행계획 추가자료 ④ 양식 내      ┃
+┃                        │“사업내용-사업개요 내 명시된 사업 핵심 내용 기입                                 ┃
+┃                        │다자(정규재원·프로그램) 경우, 다자무상사업 시행계획 공통자료 ① 내 “개요-분담   ┃
+┃                        │금 납부 내용 내 명시된 구체 내용 기입                                             ┃
+┣━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃2. 사업담당자                                                                                               ┃
+┣━━━━━━━━━┯━━┯━━━━━━━━━┯━━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━┫
+┃사업책임자*       │성명│                  │전화번호            │                                        ┃
+┃                  │    │                  ├──────────┼────────────────────┨
+┃                  │    │                  │이메일              │                                        ┃
+┠─────────┼──┼─────────┼──────────┼────────────────────┨
+┃사업실무자        │성명│                  │전화번호            │                                        ┃
+┃                  │    │                  ├──────────┼────────────────────┨
+┃                  │    │                  │이메일              │                                        ┃
+┠─────────┼──┼─────────┼──────────┼────────────────────┨
+┃실행기관 담당자** │성명│                  │전화번호            │                                        ┃
+┃                  │    │                  ├──────────┼────────────────────┨
+┃                  │    │                  │이메일              │                                        ┃
+┠─────────┴──┴─────────┴──────────┴────────────────────┨
+┃*사업 진행과 관련된 주요 공문 및 안내 사항 관리에 대한 담당자                                               ┃
+┃**다자기구 및 타 실행기관과 협업 시 작성. 다자성 양자 사업 경우, 다자기구의 주요 담당자 정보 필수로 기입    ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃3. 분기별 사업 추진 실적(PDM 연계)                                                                          ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃※ PDM에 명시된 Output·Activity·지표를 기준으로 작성                                                      ┃
+┠──────────┬─────────┬───────────┬──────────┬──────────┨
+┃PDM 성과            │PDM 활동          │성과 지표             │주요 추진 실적      │지표 달성 현황      ┃
+┃(Output)            │(Activity)        │(Indicator)           │                    │(목표치/ 실적치)    ┃
+┠──────────┼─────────┼───────────┼──────────┼──────────┨
+┃Output 1. ex) 역량  │Activity 1-1. ex) │ex) 파견 전문가 수(명)│ex) 분기 내 전문가2 │목표치: 연간4명     ┃
+┃강화 훈련 실시      │전문가 파견       │                      │명 파견, ○○기관 대│실적치:             ┃
+┃                    │                  │                      │상 기술훈련3회 실시 │                    ┃
+┠──────────┼─────────┼───────────┼──────────┼──────────┨
+┃(추가 행 복사)      │(추가 행 복사)    │(해당 지표 기입)      │(분기 내 실적 기입) │목표치: (PDM 목표치)┃
+┃                    │                  │                      │                    │실적치:             ┃
+┠──────────┼─────────┼───────────┼──────────┼──────────┨
+┃(추가 행 복사)      │(추가 행 복사)    │(해당 지표 기입)      │(분기 내 실적 기입) │목표치: (PDM 목표치)┃
+┃                    │                  │                      │                    │실적치:             ┃
+┣━━━━━━━━━━┷━━━━━━━━━┷━━━━━━━━━━━┷━━━━━━━━━━┷━━━━━━━━━━┫
+┃4. 주요 문제점 및 대응 현황                                                                                 ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃※ 수행 중 발생한 문제점과 그에 대한 조치 내용을 기입. 문제가 없는 경우' 해당 없음' 기재.                   ┃
+┠───────────┬──────────────────────────────────────────┨
+┃주요 문제점           │                                                                                    ┃
+┠───────────┼──────────────────────────────────────────┨
+┃대응 조치             │                                                                                    ┃
+┠───────────┼──────────────────────────────────────────┨
+┃건의·요청사항        │                                                                                    ┃
+┣━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃5. 주요 행사 및 홍보 실적  국외 출장 및 초청 연수 등의 행사 내용 기입                                       ┃
+┣━━━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃출장(초청)현황        │ -(국외출장) 국외 출장지, 주요 대면자 정보, 출장자 참여 인원 및 일수 기입           ┃
+┃                      │ -(초청연수) 초청연수 참가자 인원, 기간/일수, 교육장소, 내용, 담당자 등 기입        ┃
+┠───────────┼──────────────────────────────────────────┨
+┃홍보실적              │ 언론 보도 등 기입                                                                  ┃
+┣━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃6. 사업 예산 집행 현황(누적)                                                                                ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃※ 보고 시기 기준 누적 집행 금액 기입. 원 단위까지 기재하고, 잔액은 '총예산－집행액'으로 산출.              ┃
+┠───────────┬─────────┬────────────────────────────────┨
+┃사업예산              │총예산            │총예산 원 단위 기입                                             ┃
+┃(누적)                ├─────────┼────────────────────────────────┨
+┃                      │집행액            │진도보고서 해당 월 누적집행액 원단위 기입                       ┃
+┃                      ├─────────┼────────────────────────────────┨
+┃                      │잔액              │(총예산-집행액)에 해당하는 잔액 원단위 기입                     ┃
+┃                      ├─────────┼────────────────────────────────┨
+┃                      │집행률            │(산술식=총예산÷집행액×100)에 해당하는 집행률 기입(%)          ┃
+┠───────────┼─────────┴────────────────────────────────┨
+┃익월 추진계획         │익월 추진계획 기입                                                                  ┃
+┠───────────┼──────────────────────────────────────────┨
+┃기타 의견             │건의사항 및 기타 의견 있을 시 기입                                                  ┃
+┣━━━━━━━━━━━┷┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃사업 수행 실적 및       │(사업 수행 실적)                                                                  ┃
+┃문제점 대응             │- 양자무상사업 경우, 기존에 제출한 사업별 시행계획 양식 내 “사업개요-사업        ┃
+┃                        │내용－연도별 추진계획” 내 명시된 사업추진 내용 위주로 기입                       ┃
+┃                        │                                                                                  ┃
+┃                        │(문제점 대응) 사업 수행 시 발생한 문제점 및 그에 대한 대응책 기입                 ┃
+┃                        │ex) 안전요수, 물가 인플레이션, 지역간 분쟁, 시장 상황에 따른 구매의 어려움,       ┃
+┃                        │물류 및 통관 절차, 정치적 이슈, 자연환경에 따른 제약 등                           ┃
+┠────────────┼─────────────────────────────────────────┨
+┃주요 행사 및            │(주요 행사) 국외 출장 및 초청 연수 등의 행사 내용 기입                            ┃
+┃사업홍보                │ -(국외출장) 국외 출장지, 주요 대면자 정보, 출장자 참여 인원 및 일수 기입         ┃
+┃                        │ -(초청연수) 초청연수 참가자 인원, 기간/일수, 교육장소, 내용, 담당자 등 기입      ┃
+┃                        │                                                                                  ┃
+┃                        │(사업홍보) 언론 보도 등 기입                                                      ┃
+┖────────────┴─────────────────────────────────────────┚
+ 분기별 진도보고서(영문)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃1. Project/Program Overview                                                                                 ┃
+┣━━━━━━━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃Project Code                  │Enter the project code assigned by the Ministry of Oceans and Fisheries     ┃
+┃                              │(MOF) (e.g., First digit: MOF code (1192000), followed by Project Fiscal    ┃
+┃                              │Year (20XX) and Project Number (NNN))                                       ┃
+┠───────────────┼──────────────────────────────────────┨
+┃Implementing Agency           │Enter the official name of the implementing agency                          ┃
+┃                              │(e.g., ○○ Corporation, ○○ University)                                   ┃
+┠───────┬───────┼──────────────────────────────────────┨
+┃Project Title │Korean Title  │Enter the Korean title of the project                                       ┃
+┃              ├───────┼──────────────────────────────────────┨
+┃              │English Title │Enter the English title of the project                                      ┃
+┠───────┴───────┼──────────────────────────────────────┨
+┃Partner Country               │Enter the partner country (or region)                                       ┃
+┃                              │e.g., Bangladesh, Dhaka                                                     ┃
+┠───────────────┼──────────────────────────────────────┨
+┃Overall Project Period / Budget│(Project Period) Enter the overall project implementation period            ┃
+┃                              │e.g., January 2023 － December 2027                                         ┃
+┃                              │(Project Budget) Enter the total approved project budget                    ┃
+┠───────────────┼──────────────────────────────────────┨
+┃Reporting Period              │Enter the reporting Period                                                  ┃
+┃                              │e.g., 1 June 2026 － 30 September 2026                                      ┃
+┠───────────────┼──────────────────────────────────────┨
+┃Project Description           │? Briefly describe the project in approximately 3－5 lines.                ┃
+┃                              │? Prepare the description based on the approved project plan,              ┃
+┃                              │ including project objectives and activities.                               ┃
+┣━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃2. Project Personnel                                                                                        ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃* Project Personnel responsible for managing official correspondence and notifications related to project   ┃
+┃implementation                                                                                              ┃
+┃** Executing Agency Focal Point: Applicable where the implementing agency subcontracts part of the project  ┃
+┃to a private company, research institution, or other organization, or where a multilateral organization     ┃
+┃participates in local implementation under a bilateral project with multilateral engagement.                ┃
+┠───────┬───────┬──────────┬─────┬─────────────────────┨
+┃Project       │Name          │                    │Telephone │                                          ┃
+┃Manager*      │              │                    ├─────┼─────────────────────┨
+┃              │              │                    │Email     │                                          ┃
+┠───────┼───────┼──────────┼─────┼─────────────────────┨
+┃Project Focal │Name          │                    │Telephone │                                          ┃
+┃Point*        │              │                    ├─────┼─────────────────────┨
+┃              │              │                    │Email     │                                          ┃
+┠───────┼───────┼──────────┼─────┼─────────────────────┨
+┃Executing     │Name          │                    │Telephone │                                          ┃
+┃Agency        │              │                    ├─────┼─────────────────────┨
+┃Focal Point** │              │                    │Email     │                                          ┃
+┣━━━━━━━┷━━━━━━━┷━━━━━━━━━━┷━━━━━┷━━━━━━━━━━━━━━━━━━━━━┫
+┃3. Project Progress (Based on PDM)                                                                          ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃※ Prepare this section based on the Outputs, Activities, and Indicators specified in the Project Design    ┃
+┃Matrix (PDM)                                                                                                ┃
+┠────────┬───────┬──────────┬───────┬──────────────────┨
+┃PDM Output      │PDM Activity  │Indicator           │Key Progress  │Indicator                           ┃
+┃                │              │                    │Achieved      │Achievement                         ┃
+┃                │              │                    │              │Status                              ┃
+┃                │              │                    │              │(Target/Actual)                     ┃
+┠────────┼───────┼──────────┼───────┼──────────────────┨
+┃Output 1.       │Activity 1-1. │                    │              │Target:                             ┃
+┃                │              │                    │              │Actual:                             ┃
+┠────────┼───────┼──────────┼───────┼──────────────────┨
+┃                │              │                    │              │Target:                             ┃
+┃                │              │                    │              │Actual:                             ┃
+┠────────┼───────┼──────────┼───────┼──────────────────┨
+┃                │              │                    │              │Target:                             ┃
+┃                │              │                    │              │Actual:                             ┃
+┣━━━━━━━━┷━━━━━━━┷━━━━━━━━━━┷━━━━━━━┷━━━━━━━━━━━━━━━━━━┫
+┃4. Key Issues and Response Measures                                                                         ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃※ Describe any issues encountered during project implementation and the actions taken to address them. If  ┃
+┃no issues arose during the reporting period, indicate “N/A”                                               ┃
+┠───────────────┬──────────────────────────────────────┨
+┃Key Issues                    │                                                                            ┃
+┠───────────────┼──────────────────────────────────────┨
+┃Response Measures             │                                                                            ┃
+┠───────────────┼──────────────────────────────────────┨
+┃Recommendations / Requests    │                                                                            ┃
+┣━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃5. Major Events and Outreach Activities                                                                     ┃
+┣━━━━━━━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃Mission / Invitation          │? (Overseas Missions) Provide information on Mission destination(s), Key   ┃
+┃Activities                    │counterparts/meeting participants, Number of participants, Duration of the  ┃
+┃                              │mission (days)                                                              ┃
+┃                              │? (Invitational Training Program) Provide information on Number of         ┃
+┃                              │participants, Training period and duration, Training venue, Training contents, ┃
+┃                              │Responsible personnel                                                       ┃
+┠───────────────┼──────────────────────────────────────┨
+┃Communication and             │Enter media coverage and other outreach activities.                         ┃
+┃Outreach Results              │                                                                            ┃
+┣━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃6. Project Budget Execution Status (Cumulative as of the Reporting Period)                                  ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃※ Report cumulative expenditures up to the reporting period. Amounts should be rounded to the nearest      ┃
+┃KRW or USD. Remaining balance should be calculated based on the total budget and expenditures.              ┃
+┠───────────────┬─────────┬────────────────────────────┨
+┃Project Budget (Cumulative by │Total Budget      │Enter the total approved project budget (KRW/USD).      ┃
+┃Quarter)                      ├─────────┼────────────────────────────┨
+┃                              │Expenditure       │Enter the cumulative expenditure amount reported in the ┃
+┃                              │                  │progress report (KRW/USD).                              ┃
+┃                              ├─────────┼────────────────────────────┨
+┃                              │Remaining Balance │Enter the remaining balance calculated as:              ┃
+┃                              │                  │Total Budget ? Expenditure (KRW/USD).                  ┃
+┃                              ├─────────┼────────────────────────────┨
+┃                              │Budget Execution  │Enter the budget execution rate calculated as:          ┃
+┃                              │Rate              │(Expenditure ÷ Total Budget) × 100 (%)                ┃
+┠───────────────┼─────────┴────────────────────────────┨
+┃Plan for the Following Month  │Enter the implementation plan for the following month.                      ┃
+┠───────────────┼──────────────────────────────────────┨
+┃Recommendations / Issues      │Enter any recommendations, requests, or other matters requiring attention.  ┃
+┃Requiring Attention           │                                                                            ┃
+┗━━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

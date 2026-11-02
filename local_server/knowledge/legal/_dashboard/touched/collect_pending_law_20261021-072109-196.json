@@ -1,0 +1,13 @@
+{
+ "script": "collect_pending_law",
+ "stamp": "20261021-072109-196",
+ "files": [
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/_대기/20261022/법률.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/_대기/20261022/_meta.json",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/_대기/20261022/법률.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/_대기/20261022/_meta.json",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/_대기/20261113/법률.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/_대기/20261113/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json"
+ ]
+}
