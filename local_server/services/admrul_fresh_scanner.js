@@ -314,6 +314,7 @@ function reopenStillStale(entries, file = QUEUE_FILE) {
  *   ① 이번 보고서에 그 카드의 행이 없다(이름이 바뀌어 다른 제목으로 받았거나, 그 점검이 실패했다)
  *   ② 행 판정이 「현행」이 아니다(구버전·이름불일치·응답없음·조회실패 등)
  *   ③ `same_name_note` 가 붙었다 — 「우리 번호는 살아 있지만 이름만 같은 다른 문서가 잡혔다, 사람이 확인」
+ *   ⑤ 조례인데 현행 판(current)이 없거나 시행예정 판(pending)이 걸렸다 — 지금 시행 중인 판과 견주지 못한 것이다
  *   ④ (조례 밖) 우리가 가진 번호 **전부**가 현행 번호와 같지 않다 — 같은 제목 사본이 여러 폴더에 있고
  *      그중 하나만 새 판이면 행 판정은 「현행」이 되지만 나머지 사본은 아직 낡았다.
  *      조례는 번호가 아니라 시행일로 판정하므로(ordin_fresh.py) 판정을 그대로 믿는다.
@@ -328,13 +329,19 @@ function closeNowFresh(rows, file = QUEUE_FILE) {
     const serial = String((r.current || {}).serial || '');
     if (!String(r.tier || '').startsWith('조례')) {
       if (!serial || !held.length || !held.every((h) => String(h) === serial)) continue;
+    } else if (!r.current || !(r.current.issued || serial) || (r.pending || []).length) {
+      // ⑤ 조례라도 「현행 목록의 판이 시행예정뿐이라 지금 판과는 견주지 못했다」 행(ordin_fresh.py — current 없음·pending 있음)은
+      //   판정이 「현행」이어도 **확인 못 한 것**이다(2026-11-03 독립 검토 A-1).
+      continue;
     }
     ok.set(key(r.title, r.tier, r.slug), { held, serial });
   }
   if (!ok.size) return [];
   const closed = [];
+  const seen = new Set();   // 같은 id 줄이 둘이면 updateJsonlById 가 한 번에 다 고친다 — 수를 두 번 세지 않는다(검토 C-1)
   for (const e of adminQueues.readJsonl(file)) {
-    if (!e || !e.id || (e.status || 'pending') !== 'pending') continue;
+    if (!e || !e.id || seen.has(e.id) || (e.status || 'pending') !== 'pending') continue;
+    seen.add(e.id);
     const hit = ok.get(key(e.title, e.tier, e.slug));
     if (!hit) continue;
     const now = new Date().toISOString();

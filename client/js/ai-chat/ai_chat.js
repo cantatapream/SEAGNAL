@@ -2242,7 +2242,8 @@
       : '<span style="color:var(--nrya-text-sub)">(안내 없음)</span>';
     // ★닫았는데 아직도 낡아서 **다시 뜬 카드**임을 알린다(2026-09-20). 그냥 다시 뜨기만 하면
     //   관리자는 "아까 처리했는데 왜 또?"로 읽고 같은 판단을 반복하게 된다.
-    var reopen = (it.reopen_count || 0) > 0
+    //   (닫힌 카드에는 띄우지 않는다 — 점검이 자동으로 닫은 카드도 옛 재등장 횟수를 기록으로 갖고 있다, 2026-11-03)
+    var reopen = (it.reopen_count || 0) > 0 && (it.status || 'pending') === 'pending'
       ? '<div class="nrya-notice-box nrya-err" style="margin:0 0 8px"><span class="nrya-em">🔁</span>' +
           '<b>다시 뜬 카드입니다(' + it.reopen_count + '번째)</b><br>' +
           '<span style="font-size:11.5px">' + esc(it.reopen_reason || '이번 점검에서도 구버전으로 나왔습니다.') +
@@ -2647,9 +2648,16 @@
     });
     if (!rows) {
       // 폴백: 구조화 필드가 없으면 body 를 잘라 보여줌(장문 방지)
-      var b = String(rv.body || '').trim();
+      // ★2026-11-03: 잘린 앞부분만 보이면 정작 뒤에 적힌 결론이 안 보였다(REVIEW-…-806). 그래서
+      //   「한눈에」·AI 결론이 있으면 미리보기를 빼고, 어느 경우든 **전체 기록은 펼쳐 볼 수 있게** 둔다.
+      var full = String(rv.body || '').trim();
+      var b = full;
       if (b.length > 480) b = b.slice(0, 480) + ' …';
-      rows = '<div class="nrya-rv-field"><div class="nrya-rv-fval nrya-rv-fval-pre">' + esc(b || '(본문 없음)') + '</div></div>';
+      var hasLead = (rv.easy && rv.easy.length) || rv.aiDone;
+      rows = (hasLead ? '' : '<div class="nrya-rv-field"><div class="nrya-rv-fval nrya-rv-fval-pre">' + esc(b || '(본문 없음)') + '</div></div>') +
+        (full && (hasLead || full.length > 480)
+          ? '<details class="nrya-rv-full"><summary>📄 카드 전체 기록 펼치기</summary><div class="nrya-rv-fval nrya-rv-fval-pre">' + esc(full) + '</div></details>'
+          : '');
     }
     var urls = rv.urls || [];
     if (urls.length) {
@@ -2660,6 +2668,41 @@
         }).join('') + '</div>';
     }
     return rows;
+  }
+
+  /** 카드 글의 **굵게**·`코드` 만 살린다(나머지는 그대로 글자). esc 를 먼저 거친 글에만 쓴다. @param {string} t @returns {string} */
+  function rvInline(t) {
+    return esc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+
+  /**
+   * 「한눈에 보기」 칸 — 카드 맨 위에 쉬운 말로 요점(무엇을 판단하나·확인된 것·승인하면·기각하면·추천).
+   * 서버가 review_queue.md 의 `- 한눈에:` 칸을 읽어 rv.easy 로 준다(routes/legal.js parseReviewQueueText).
+   * 예: easyHTML({easy:[{k:'무엇을 판단하나', v:'…'}]}) → '<div class="nrya-rv-easy">…'
+   * @param {object} rv @returns {string} 없으면 ''
+   * [왜 — 2026-11-03 사장님] "내용 자체를 이해하기 쉽게 설명해야 내가 판단이 될 것 같아."
+   */
+  function easyHTML(rv) {
+    var e = rv.easy || [];
+    if (!e.length) return '';
+    return '<div class="nrya-rv-easy"><div class="nrya-rv-easyhead">🧭 한눈에 보기</div>' +
+      e.map(function (x) {
+        var rec = /^추천/.test(x.k);
+        return '<div class="nrya-rv-easyrow' + (rec ? ' nrya-rec' : '') + '"><span class="nrya-rv-easyk">' + esc(x.k) + '</span><span class="nrya-rv-easyv">' + rvInline(x.v) + '</span></div>';
+      }).join('') + '</div>';
+  }
+
+  /**
+   * 「AI 조사 결론」 칸 — AI 조사가 끝나 사람 승인만 남은 카드(rv.aiDone)의 결론을 본문보다 먼저 보인다.
+   * @param {object} rv @returns {string} 없으면 ''
+   */
+  function aiDoneHTML(rv) {
+    var d = rv.aiDone;
+    if (!d) return '';
+    return '<div class="nrya-rv-aidone"><div class="nrya-rv-aidonehead">🔎 AI 조사 결론 — 사람 승인만 남았습니다</div>' +
+      '<div class="nrya-rv-aidonemain">' + rvInline(String(d.head || '').replace(/^\s*/, '')) + '</div>' +
+      (d.detail ? '<details class="nrya-rv-full"><summary>조사 내용 자세히</summary><div class="nrya-rv-fval nrya-rv-fval-pre">' + esc(d.detail) + '</div></details>' : '') +
+      '</div>';
   }
 
   /**
@@ -2692,7 +2735,9 @@
     var pages = (rv.targetPages || []).map(esc).join(' · ');
     var st = approved
       ? '<span class="nrya-rv-st nrya-done">✓ 승인·canonical</span>'
-      : '<span class="nrya-rv-st nrya-wait">검증 대기</span>';
+      : rv.aiDone
+        ? '<span class="nrya-rv-st nrya-wait nrya-humanonly">AI 조사 끝 · 사람 승인만 남음</span>'
+        : '<span class="nrya-rv-st nrya-wait">검증 대기</span>';
     // 유형 분기(2026-08-06 3갈래로 확장): '확인 체크리스트'가 있으면 §6-D 신형(직접 확인→AI 재검토),
     // 'AI 제안값'이 있으면 값확정형(수치 입력), 나머지는 구형 해석·판단형(승인/기각+선택 메모).
     var hasChecklist = !!((rv.fields || {})['확인 체크리스트']);
@@ -2719,6 +2764,7 @@
     }
     var body =
       '<div class="nrya-rv-body">' +
+        easyHTML(rv) + aiDoneHTML(rv) +
         reviewFieldsHTML(rv) +
         (pages ? '<div class="nrya-src-line">📍 대상 페이지: ' + pages + '</div>' : '') +
         // 원문 보기(2026-11-02 사용자 요청) — 판단 전에 실제 법령 원문을 이 화면에서 펼쳐 본다(toggleReviewSources).

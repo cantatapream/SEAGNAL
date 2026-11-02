@@ -136,8 +136,28 @@ function withLock(fn) {
  */
 function parseReviewQueue() {
   if (!fs.existsSync(REVIEW_QUEUE)) return [];
-  const txt = fs.readFileSync(REVIEW_QUEUE, 'utf8');
-  const lines = txt.split('\n');
+  return parseReviewQueueText(fs.readFileSync(REVIEW_QUEUE, 'utf8'));
+}
+
+// 「한눈에」 칸(2026-11-03 사장님 지시 · 3-97) — 카드 안에 이렇게 적는다. 사람이 판단하기 쉬운 말로 요점을 먼저 보인다.
+//   - 한눈에:
+//     · 무엇을 판단하나: …
+//     · 승인하면: …
+//   (점 「·」 뒤 이름·콜론·내용. 들여쓴 다음 줄은 앞 항목에 이어 붙는다. 들여쓰지 않은 줄에서 끝난다.)
+const RQ_EASY_HEAD = /^-\s*한눈에\s*[:：]\s*$/;
+const RQ_EASY_ITEM = /^\s+[·•]\s*([^:：]{1,40})[:：]\s*(.+)$/;
+
+/**
+ * review_queue.md 글을 카드 배열로 읽는다(파일을 읽지 않는 순수 함수 — 시험이 글을 바로 준다).
+ * 예: parseReviewQueueText('### REVIEW-가-1: 제목\n- 승인: [ ] 대기\n') → [{id:'REVIEW-가-1', approved:false, …}]
+ * @param {string} txt review_queue.md 전문
+ * @returns {Array<{id,law,title,targetPages,body,approved,approvedMeta,excluded,excludedReason,easy,aiDone}>}
+ *   easy: 「한눈에」 칸 [{k,v}] (없으면 []) · aiDone: 앞쪽 `[x]` 줄(AI 조사 종결) 뒤에 마지막 줄이 `[ ]` 인 카드의
+ *   그 결론 {head, detail} — 「AI 조사는 끝났고 사람 승인만 남았다」는 표시에 쓴다(없으면 null).
+ * [연계] ← parseReviewQueue · test_review_card_view.js
+ */
+function parseReviewQueueText(txt) {
+  const lines = String(txt || '').split('\n');
   const entries = [];
   let cur = null;
   for (const line of lines) {
@@ -148,7 +168,7 @@ function parseReviewQueue() {
       const id = m[1];
       const law = id.replace(/^REVIEW-/, '').replace(/-\d+$/, '');
       cur = { id, law, title: m[2].trim(), targetPages: [], body: '', approved: false, approvedMeta: '',
-              excluded: false, excludedReason: '' };
+              excluded: false, excludedReason: '', easy: [], aiDone: null, _inEasy: false };
       continue;
     }
     // ── 카드가 아닌 `### ` 제목은 **앞 카드를 닫는다**(2026-09-22, P-10) ──
@@ -162,6 +182,13 @@ function parseReviewQueue() {
     if (RQ_CLOSE.test(line)) { if (cur) { entries.push(cur); cur = null; } continue; }
     if (!cur) continue;
     cur.body += line + '\n';
+    if (RQ_EASY_HEAD.test(line)) { cur._inEasy = true; continue; }
+    if (cur._inEasy) {
+      const ei = line.match(RQ_EASY_ITEM);
+      if (ei) { cur.easy.push({ k: ei[1].trim(), v: ei[2].trim() }); continue; }
+      if (/^\s+\S/.test(line) && cur.easy.length) { cur.easy[cur.easy.length - 1].v += ' ' + line.trim(); continue; }
+      cur._inEasy = false;
+    }
     const tp = line.match(/^-\s*대상\s*페이지:\s*(.+)$/);
     if (tp) cur.targetPages = tp[1].split(/[,·]/).map(s => s.trim()).filter(Boolean);
     const ap = line.match(RQ_OK);
@@ -181,7 +208,48 @@ function parseReviewQueue() {
     if (na) { cur.excluded = true; cur.excludedReason = '해당 없음 — ' + (na[1] || '').trim(); }
   }
   if (cur) entries.push(cur);
+  for (const e of entries) { delete e._inEasy; e.aiDone = findAiDone(e.body); }
   return entries;
+}
+
+/**
+ * 「AI 조사는 끝났고 사람 승인만 남은」 카드인지 본다 — 카드 안 `- 승인:` 줄 가운데 **마지막 줄이 [ ]** 인데
+ * 그 앞에 `[x]` 줄(조사 에이전트가 적은 종결)이 있으면, 그 [x] 줄과 들여쓴 이어진 줄들을 결론으로 돌려준다.
+ * 예: findAiDone('- 승인: [x] 종결 — 원본에 식이 없다\n  · 확인함\n- 승인: [ ] 대기\n')
+ *     → {head:'종결 — 원본에 식이 없다', detail:'· 확인함'}
+ * @param {string} body 카드 본문 @returns {{head:string, detail:string}|null}
+ * [왜 — 2026-11-03] REVIEW-선박평형수관리법-806 은 9-20 에 조사가 끝나 [x] 줄이 있었지만, 사람 승인 줄([ ])이 뒤에 남아
+ *   화면은 그냥 「검증 대기」였고 본문 앞부분만 잘려 보여 **그 결론이 화면에 안 나왔다.**
+ */
+function findAiDone(body) {
+  const ls = String(body || '').split('\n');
+  const oks = [];
+  ls.forEach((l, i) => { const m = l.match(RQ_OK); if (m) oks.push({ i, x: m[1].toLowerCase() === 'x', meta: (m[2] || '').trim() }); });
+  if (oks.length < 2 || oks[oks.length - 1].x) return null;
+  const done = oks.slice(0, -1).filter(o => o.x).pop();
+  if (!done) return null;
+  const more = [];
+  for (let j = done.i + 1; j < ls.length && /^\s+\S/.test(ls[j]); j++) more.push(ls[j].trim());
+  return { head: done.meta, detail: more.join('\n') };
+}
+
+/**
+ * 카드 블록 안의 `- 승인:` 줄을 바꾼다 — 줄이 여럿이면 **마지막 줄**을 바꾼다(화면·파서가 마지막 줄을 상태로 읽는다).
+ * 예: replaceApprovalLine(txt, 'REVIEW-가-1', '- 승인: [x] 승인(관리자, 2026-11-03)') → {txt:…, found:true}
+ * @param {string} txt review_queue.md 전문 @param {string} id 카드 번호 @param {string} mark 새 승인 줄
+ * @returns {{txt:string, found:boolean}} found=false 면 그 블록에 승인 줄이 없다(부르는 쪽이 새로 단다)
+ * [왜 — 2026-11-03] 종전 정규식은 **첫** 승인 줄을 바꿨다. REVIEW-…-806 처럼 앞에 AI 종결 [x] 줄, 끝에 사람 승인 [ ] 줄이
+ *   있는 카드에서 승인을 누르면 앞줄만 바뀌고 끝줄 [ ] 이 남아 **카드가 계속 「대기」로 남았다.**
+ * [연계] ← finalizeApproval · test_review_card_view.js
+ */
+function replaceApprovalLine(txt, id, mark) {
+  const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // ⚠다음 `###` 헤더 앞에서 멈춘다(남의 블록 승인줄을 덮어쓰지 않게, 2026-08-28). 탐욕(*)이라 블록 안 **마지막** 승인 줄에 맞는다.
+  const INBLOCK_GREEDY = '(?:(?!\\n###\\s)[\\s\\S])*';
+  const blockRe = new RegExp('(###\\s+' + escId + ':' + INBLOCK_GREEDY + ')-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
+  if (!blockRe.test(txt)) return { txt, found: false };
+  // 함수 치환: mark 의 '$' 특수시퀀스($1·$&·$$)가 원장을 손상시키지 않도록
+  return { txt: txt.replace(blockRe, (mm, p1) => p1 + mark), found: true };
 }
 
 /**
@@ -234,6 +302,8 @@ router.get('/api/legal/reviews', (req, res) => {
         urls: s.urls,               // 검증용 원문/이미지 링크(클라에서 클릭 가능하게)
         approved: e.approved, approvedMeta: e.approvedMeta,
         excluded: e.excluded, excludedReason: e.excludedReason,
+        easy: e.easy,               // 「한눈에」 칸 — 화면 맨 위에 쉬운 말로(2026-11-03)
+        aiDone: e.aiDone,           // AI 조사 종결 + 사람 승인만 남음 → 그 결론을 먼저 보인다(2026-11-03)
       };
     }) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
@@ -540,15 +610,11 @@ function finalizeApproval(entry, decision, correctedValue, by) {
     : decision === 'reject'
       ? `- 승인: [ ] 반려(${by}, ${dateStr})`
       : `- 승인: [x] 승인(${by}, ${dateStr})` + (correctedValue != null && correctedValue !== '' ? ` · 확정값: ${String(correctedValue)}` : '');
-  // 해당 엔트리 블록 내부의 "- 승인:" 라인만 교체
+  // 해당 엔트리 블록 내부의 "- 승인:" 라인만 교체 — 여럿이면 **마지막 줄**(replaceApprovalLine, 2026-11-03)
   const escId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // ⚠`[\s\S]*?` 만 쓰면 **자기 블록에 `- 승인:` 줄이 없을 때 다음 항목까지 삼켜**
-  //   남의 승인줄을 덮어쓴다(2026-08-28 독립 검토에서 발견, 실제 대기열에 그런 항목이 2개 있었다).
-  //   그래서 다음 `###` 헤더 앞에서 멈추게 한다.
   const INBLOCK = '(?:(?!\\n###\\s)[\\s\\S])*?';
-  const blockRe = new RegExp('(###\\s+' + escId + ':' + INBLOCK + ')-\\s*승인:\\s*\\[[ xX]\\][^\\n]*', 'm');
-  // 함수 치환: correctedValue/by의 '$' 특수시퀀스($1·$&·$$)가 원장을 손상시키지 않도록
-  if (blockRe.test(txt)) txt = txt.replace(blockRe, (mm, p1) => p1 + mark);
+  const rep = replaceApprovalLine(txt, id, mark);
+  if (rep.found) txt = rep.txt;
   else {
     // 그 항목에 `- 승인:` 줄이 아예 없는 경우 — 블록 끝에 새로 만들어 넣는다.
     // (종전에는 500 을 냈고, 그 전에는 다음 항목의 승인줄을 덮어썼다.)
@@ -2613,4 +2679,6 @@ router.get('/api/legal/rooms/law', adminAuth.requireAdminToken, (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// 시험용 손잡이(test_review_card_view.js) — 파일을 읽지 않는 순수 함수만 내놓는다.
+router.__test = { parseReviewQueueText, replaceApprovalLine, findAiDone };
 module.exports = router;

@@ -164,6 +164,20 @@ check('⑧ 돌려준 목록이 실제로 닫은 것과 같다',
   JSON.stringify(closed8.slice().sort()) === JSON.stringify(['adf_f1', 'adf_f2', 'adf_f9']), JSON.stringify(closed8));
 // 닫은 뒤 다시 낡게 나오면 기존 규칙대로 다시 뜬다(자동 닫기가 「다시 띄우기」를 막지 않는다).
 const back8 = fresh.reopenStillStale([{ id: 'adf_f1' }], q8);
+// 검토 A-1 · C-1(2026-11-03): 조례의 「시행예정 판뿐」 행은 확인 못 한 것 · 같은 id 줄 두 개는 한 번만 센다.
+const q8b = tmpQueue([
+  { id: 'adf_o1', title: '경상남도 낚시 조례', tier: '조례', slug: '경상남도_낚시조례', status: 'pending' },
+  { id: 'adf_d1', title: '항만부잔교시설 관리규정', tier: '행정규칙', slug: '', status: 'pending' },
+  { id: 'adf_d1', title: '항만부잔교시설 관리규정', tier: '행정규칙', slug: '', status: 'pending' },
+]);
+const closed8b = fresh.closeNowFresh([
+  { title: '경상남도 낚시 조례', tier: '조례', slug: '경상남도_낚시조례', verdict: '현행', held_ids: ['5'], current: null,
+    pending: [{ serial: '6', issued: '20271201' }], note: '현행 목록의 판이 시행예정이다 — 지금 시행 중인 판과는 따로 견주지 못했다.' },
+  rows8[0],
+], q8b);
+check('⑧ 조례라도 시행예정 판뿐(현행 판 없음)이면 닫지 않는다', !closed8b.includes('adf_o1')
+  && (new Map(queues.readJsonl(q8b).map((e) => [e.id, e])).get('adf_o1') || {}).status === 'pending', JSON.stringify(closed8b));
+check('⑧ 같은 id 줄이 둘이어도 닫은 수는 한 번만 센다', JSON.stringify(closed8b) === JSON.stringify(['adf_d1']), JSON.stringify(closed8b));
 check('⑧ 자동으로 닫은 카드도 또 낡게 나오면 다시 뜬다', back8.length === 1
   && (new Map(queues.readJsonl(q8).map((e) => [e.id, e])).get('adf_f1') || {}).status === 'pending');
 check('⑧ 점검이 성공한 쪽 행(allRows)으로 자동 닫기를 부르고 그 수를 상태에 적는다',

@@ -377,6 +377,23 @@
 .nrya-console .nrya-rv-law, .nrya-console .nrya-rv-q{font:inherit; font-size:11.5px; color:var(--nrya-text);
   background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:5px 8px; max-width:100%}
 .nrya-console .nrya-rv-law{max-width:46%}
+/* ⚠수치검증 카드 「한눈에 보기」·「AI 조사 결론」·전체 기록 펼치기(2026-11-03 사장님 지시) */
+.nrya-console .nrya-rv-easy{background:rgba(68,138,255,.08); border:1px solid rgba(68,138,255,.32); border-radius:10px; padding:11px 12px; margin:0 0 10px}
+.nrya-console .nrya-rv-easyhead{font-size:13px; font-weight:800; color:#8bb6ff; margin-bottom:7px}
+.nrya-console .nrya-rv-easyrow{display:flex; gap:10px; font-size:12.5px; line-height:1.6; color:#dfe7f5; padding:4px 0; border-top:1px dashed rgba(255,255,255,.08)}
+.nrya-console .nrya-rv-easyrow:first-of-type{border-top:0}
+.nrya-console .nrya-rv-easyk{flex:0 0 7.5em; font-weight:700; color:#ffe082}
+.nrya-console .nrya-rv-easyv{flex:1 1 auto; min-width:0}
+.nrya-console .nrya-rv-easyrow.nrya-rec .nrya-rv-easyk{color:#69f0ae}
+.nrya-console .nrya-rv-easyrow.nrya-rec .nrya-rv-easyv{color:#c8ffe0; font-weight:600}
+.nrya-console .nrya-rv-aidone{background:rgba(105,240,174,.06); border:1px solid rgba(105,240,174,.3); border-radius:10px; padding:10px 12px; margin:0 0 10px}
+.nrya-console .nrya-rv-aidonehead{font-size:12.5px; font-weight:800; color:#69f0ae; margin-bottom:5px}
+.nrya-console .nrya-rv-aidonemain{font-size:12.5px; color:#dfe7f5; line-height:1.6}
+.nrya-console .nrya-rv-full{margin-top:7px}
+.nrya-console .nrya-rv-full>summary{cursor:pointer; font-size:12px; font-weight:700; color:#8bb6ff; padding:4px 0}
+.nrya-console .nrya-rv-full .nrya-rv-fval-pre{margin-top:6px; max-height:420px; overflow:auto}
+.nrya-console .nrya-rv-st.nrya-humanonly{background:rgba(105,240,174,.14); border-color:rgba(105,240,174,.45); color:#69f0ae}
+@media (max-width:560px){.nrya-console .nrya-rv-easyrow{flex-direction:column; gap:2px}.nrya-console .nrya-rv-easyk{flex-basis:auto}}
 /* 보기 칸(대기·승인됨·전체) — 방 버튼(.nrya-subtab)과 같은 알약 꼴. `.nrya-rv-bar button` 보다 구체적으로 덮는다(2026-11-03) */
 .nrya-console .nrya-rv-seg{display:inline-flex; gap:4px; padding:3px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid var(--nrya-border)}
 .nrya-console .nrya-rv-bar .nrya-rv-segbtn{padding:4px 11px; border-radius:14px; background:transparent; border:1px solid transparent; color:var(--nrya-text-sub); font-size:11.5px; font-weight:600}
