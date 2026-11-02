@@ -1532,6 +1532,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-02 23:09 KST] ✅완료 — 답변 AI 순서 [삭제] 버튼
+관리자 센터 순서 목록 각 줄(Gemini 제외)에 [삭제]+확인창, 삭제된 AI 는 사슬에서 안 부름, '삭제된 AI: ○○ [다시 추가]'. 설정 providerRemoved(검증: 5개 중·gemini 불가·중복 불가, 틀린 저장값은 []). Fly 키는 안 지워짐. 시험 test_llm_chain 86/0·test_codex_bridge 33/0·test_legal_ask_stats 37/0. 화면 실클릭 미확인.
+
+
+### [2026-11-02 23:03 KST] ✅완료 — 나리야 질문 수 집계(1년 보관)
+services/legal_ask_stats.js 신설 — /api/legal/ask 최종 응답 1건=1질문(되묻기는 clarify 칸 별도), 날짜(KST)별 total·admin·user·failed·AI별(upstage/claude1/claude2/chatgpt/gemini/rule). data/legal_ask_stats.json 365일 보관. GET /api/legal/admin/ask-stats + 관리자 콘솔 '질문 수' 카드(오늘·어제·7일·30일). 질문 내용 저장 안 함. 시험 test_legal_ask_stats 37/0(SUITES 등록)·test_llm_chain 69/0·test_codex_bridge 33/0. 다음: 답변 AI 순서 목록 [삭제] 버튼(확인창·다시 추가, Gemini 제외).
+
+
 ### [2026-11-02 22:29 KST] ✅완료 — 답변 AI 사슬: 소진 상태 저장 + 스트리밍
 A) exhausted·ChatGPT 쉼을 local_server/data/llm_chain_state.json(볼륨)에 원자 저장·로드(LLM_CHAIN_STATE_FILE 로 변경 가능, 손상 시 빈 상태). B) callStream: Claude(SDK stream)·Upstage(SSE)·Gemini 조각 스트리밍, ChatGPT 완성본 1회. 첫 조각 전 실패만 다음 AI, 이후 실패는 throw. 시간한도는 첫 조각까지. 시험 test_llm_chain 69/0·test_codex_bridge 33/0·test_root_deps 3/0. 미확인: Upstage 스트림 실제 응답 모양·Claude 실호출(가짜 SSE 로만 시험) — 운영에서 관리자 기기로 확인 필요.
 
