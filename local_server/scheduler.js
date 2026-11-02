@@ -2818,6 +2818,14 @@ async function init() {
             spawnAdvisoryCycle(':25');
         }
 
+        // [카톡 특보중계 태블릿 멈춤 감시 — 2026-11-02] 5분마다 마지막 신호를 보고 끊김·접근성 꺼짐·읽기 실패면
+        //   관리자 푸시(첫 이상 1번·복구 1번 — services/collect_fail_alert 항목 kakaoRelay). 열쇠 미설정이면 아무것도 안 함.
+        if (min % 5 === 2) {
+            require('./services/kakao_relay').checkHealth().catch(err =>
+                log(`⚠️ [kakao_relay] 멈춤 감시 오류: ${err.message}`)
+            );
+        }
+
         // [관리자 반복 푸시] 매 정시(min === 0)에 미확인 항목 체크 후 관리자 푸시 재발송
         // 바다에서 네트워크가 간헐적으로만 되는 해경 관리자를 위해 1시간 간격으로 반복 발송
         if (min === 0) {

@@ -22,7 +22,8 @@
     { "id": "komsa", "name": "해양교통안전공단" },
     { "id": "kto", "name": "한국관광공사" },
     { "id": "kma-beach", "name": "기상청 해수욕장 날씨(공공데이터포털)" },
-    { "id": "seagnal", "name": "우리 서버 생성" }
+    { "id": "seagnal", "name": "우리 서버 생성" },
+    { "id": "seagnal-tablet", "name": "카톡 특보중계 태블릿(우리 앱)" }
   ],
   "items": [
     {
@@ -797,6 +798,24 @@
       },
       "state": { "file": "typhoon.json", "collectedField": "updatedAt", "collectedFormat": "iso" },
       "graceMinutes": 20
+    },
+    {
+      "id": "kakaoRelay",
+      "stage": 1,
+      "name": "카톡 특보중계 신호 (우리 태블릿 앱)",
+      "provider": "seagnal-tablet",
+      "endpoint": "POST /api/kakao-relay/heartbeat (태블릿 앱 kakao_relay_app)",
+      "official": { "kind": null, "text": "해당 없음 — 외부 기관 자료가 아니라 우리 태블릿 앱이 보내는 「살아 있음」 신호", "evidence": [] },
+      "schedule": {
+        "text": "태블릿 앱이 30분마다 신호(절전 중엔 늦어질 수 있음). 서버는 5분마다 70분 넘게 끊겼는지 보고 관리자 푸시",
+        "intervalMinutes": 30,
+        "evidence": [
+          { "file": "kakao_relay_app/app/src/main/java/kr/seagnal/kakaorelay/KakaoNotiService.java", "quote": "BEAT_MS = 30 * 60 * 1000L" },
+          { "file": "local_server/services/kakao_relay.js", "quote": "const HEARTBEAT_STALE_MS = 70 * 60e3;" }
+        ]
+      },
+      "state": { "file": "kakao_relay.json", "collectedField": "heartbeatAt", "collectedFormat": "iso" },
+      "graceMinutes": 40
     }
   ]
 }
