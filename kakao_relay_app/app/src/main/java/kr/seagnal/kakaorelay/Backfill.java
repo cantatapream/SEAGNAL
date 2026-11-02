@@ -109,15 +109,15 @@ final class Backfill {
         if (root == null) { H.postDelayed(Backfill::step, STEP_MS); return; }
         List<AccessibilityNodeInfo> nodes = new ArrayList<>();
         ReaderService.collect(root, nodes);
-        if (!ReaderService.hasChannelTitle(nodes)) { stop("대화방을 벗어남"); return; }
+        List<AccessibilityNodeInfo> room = ReaderService.roomNodes(nodes);   // 대화창 영역만(태블릿 목록 제외)
+        if (room == null) { stop("대화방을 벗어남"); return; }
 
         JSONArray batch = new JSONArray();
         String date = null;
         JSONObject last = null;
-        AccessibilityNodeInfo list = null;
+        AccessibilityNodeInfo list = ReaderService.roomScroller(room);
         try {
-            for (AccessibilityNodeInfo n : nodes) {
-                if (list == null && n.isScrollable()) list = n;
+            for (AccessibilityNodeInfo n : room) {
                 String t = ReaderService.textOf(n);
                 if (t == null) continue;
                 String x = t.trim();

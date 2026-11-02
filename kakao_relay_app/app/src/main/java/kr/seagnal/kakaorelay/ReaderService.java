@@ -95,17 +95,22 @@ public class ReaderService extends AccessibilityService {
         List<AccessibilityNodeInfo> nodes = new ArrayList<>();
         collect(root, nodes);
 
+        // 대화방 화면에서는 그 대화창 영역 안만 읽는다(태블릿은 왼쪽 목록·오른쪽 대화창 — 목록 미리보기가 섞이지 않게).
+        //   「전체보기」 화면은 제목이 다를 수 있어 카톡 창 전체에서 읽되, 특보 글 중 가장 긴 것을 전문으로 본다.
+        List<AccessibilityNodeInfo> scope = nodes;
+        if (state == State.WAIT_CHAT) {
+            scope = roomNodes(nodes);
+            if (scope == null) return;   // 그 채널 대화방이 아니다(목록·다른 방) — 다음 화면 변화 때 다시 본다
+        }
         List<String> texts = new ArrayList<>();
         AccessibilityNodeInfo more = null;
-        for (AccessibilityNodeInfo n : nodes) {
+        for (AccessibilityNodeInfo n : scope) {
             String s = textOf(n);
             if (s == null) continue;
             if (s.contains(Config.MARKER)) texts.add(s);
-            else if (s.trim().equals("전체보기")) more = n;   // 카톡은 아주 긴 글을 접어 둔다
+            else if (s.trim().equals("전체보기")) more = n;   // 카톡은 아주 긴 글을 접어 둔다(실제 확인 2026-11-02 태블릿 화면)
         }
         if (texts.isEmpty()) return;   // 아직 그려지는 중 — 다음 화면 변화 때 다시 읽는다
-        // 그 채널 대화방이 맞는지(화면 어딘가에 채널 이름이 보이는지) — 채팅 목록·다른 방이면 읽지 않는다.
-        if (state == State.WAIT_CHAT && !hasChannelTitle(nodes)) return;
 
         if (state == State.WAIT_CHAT) {
             int from = Math.max(0, texts.size() - KEEP_LAST);
@@ -117,17 +122,59 @@ public class ReaderService extends AccessibilityService {
             }
             finish(null);
         } else if (state == State.WAIT_FULL) {
-            found.add(texts.get(texts.size() - 1));
+            String longest = texts.get(0);
+            for (String t : texts) if (t.length() > longest.length()) longest = t;
+            found.add(longest);
             fullOk = true;
             finish(null);
         }
     }
 
     static boolean hasChannelTitle(List<AccessibilityNodeInfo> nodes) {
+        return roomNodes(nodes) != null;
+    }
+
+    /**
+     * 그 채널 대화창 영역 안의 노드들. 대화창이 아니면 null.
+     * 제목 = 채널 이름이 든 짧은 글자 중 **넘겨지는 목록 안에 있지 않은 것**(대화방 머리의 고정 제목).
+     *   목록 안의 같은 이름(태블릿 왼쪽 채팅 목록 항목, 말풍선 위 보낸 이 이름)은 제목이 아니다.
+     * 영역 = 제목 아래, 제목 왼쪽 끝에서 제목 높이 2배만큼 왼쪽부터 화면 오른쪽 끝까지
+     *   (태블릿 2026-11-02 화면: 왼쪽 목록 오른쪽 끝 < 대화창 제목 왼쪽 − 2×높이 / 휴대폰은 거의 화면 전체).
+     */
+    static List<AccessibilityNodeInfo> roomNodes(List<AccessibilityNodeInfo> nodes) {
+        AccessibilityNodeInfo title = null;
         for (AccessibilityNodeInfo n : nodes) {
             String t = textOf(n);
-            if (t != null && t.length() < 40 && t.contains(Config.CHANNEL)) return true;
+            if (t != null && t.length() < 40 && t.contains(Config.CHANNEL) && !insideScrollable(n)) { title = n; break; }
         }
+        if (title == null) return null;
+        android.graphics.Rect tb = new android.graphics.Rect(), b = new android.graphics.Rect();
+        title.getBoundsInScreen(tb);
+        int left = Math.max(0, tb.left - 2 * tb.height());
+        List<AccessibilityNodeInfo> out = new ArrayList<>();
+        for (AccessibilityNodeInfo n : nodes) {
+            n.getBoundsInScreen(b);
+            if (b.centerX() >= left && b.centerY() > tb.bottom) out.add(n);
+        }
+        return out;
+    }
+
+    /** 대화창 영역 안에서 넘길 수 있는 목록(가장 큰 것). 없으면 null. */
+    static AccessibilityNodeInfo roomScroller(List<AccessibilityNodeInfo> room) {
+        AccessibilityNodeInfo best = null;
+        long bestArea = -1;
+        android.graphics.Rect b = new android.graphics.Rect();
+        for (AccessibilityNodeInfo n : room) {
+            if (!n.isScrollable()) continue;
+            n.getBoundsInScreen(b);
+            long a = (long) b.width() * b.height();
+            if (a > bestArea) { bestArea = a; best = n; }
+        }
+        return best;
+    }
+
+    private static boolean insideScrollable(AccessibilityNodeInfo n) {
+        for (AccessibilityNodeInfo p = n.getParent(); p != null; p = p.getParent()) if (p.isScrollable()) return true;
         return false;
     }
 
