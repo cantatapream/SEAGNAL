@@ -12,7 +12,7 @@ AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓴다(2026-
 
 ## 데이터 흐름
 0. 설정 화면 「지도에서 선택하기」에서 해역을 처음 누르면 `GET /api/station-briefing/areas`(관할 폴리곤·해역 — 같은 노출 판정·같은 관리자 정보, 한 번 받으면 다시 묻지 않음). 해역 규칙은 README 「관할 고르기 탭 두 개」·계약 §1.1b.
-1. 시작(DOMContentLoaded) → `GET /api/station-briefing/stations` — 관리자 정보는 특보 예측(`advisory_prediction.js _adminAuth`)과 같은 방식:
+1. 시작(DOMContentLoaded) → `GET /api/station-briefing/stations` — 관리자 정보는 옛 특보 예측(2026-11-03 삭제)과 같은 방식:
    관리자 모드(`seagnal_admin_mode`)일 때만 `push_token` 을 쿼리 `adminToken` 으로, 로그인 토큰(`seagnal_admin_token`)을 `X-Admin-Token` 헤더로.
 2. `display:false` → 머리·몸 `display:none` 그대로(일반 화면 변화 없음). `display:true` → 보이고, 고른 관할이 있으면
    `GET /api/station-briefing?station={key}&day=auto` → `StationBriefingRender.render`.

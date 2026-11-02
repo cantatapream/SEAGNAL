@@ -11,11 +11,11 @@
 | `admin_data_status.js` | 관리자 → 점검 → 데이터 수집현황 화면(수집 목록·현재 원천 상태·오류·복구 이력) | `renderDataCollectionTab`, `renderDataCollectionList` |
 | `admin_station_briefing.js` | 관리자 → AI → 「AI 브리핑」 하위 탭 — 연안 안전 브리핑 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만(칸 이름 흰색·고른 버튼 청록+✓) · 상태 카드(실행 중/대기 알약·통계 칩) · 실행 중 진행 게이지(전체 막대 가운데 = 지금 하는 곳 · 단계 4칸 · 묶음 칩 · 관할 칩, 2.5초마다 `status?only=progress`) · 최근 3일 오류를 실행마다 드롭다운 → 관할별·시도별 한글 풀이 · [복사]·[md로 저장](고른 실행만 — 앱 안에서는 서버에 맡기고 시스템 브라우저로 내려받기 · 표 아래 「탈락한 AI 글」 절 = 검사에 떨어진 AI 글·그 관할 허용 숫자·배수, §11.10.31) · [지금 다시 만들기](409) · 관할 미리보기(`/api/admin/station-briefing/*`, 설계서 §11.10.7) · 상태 안 「관광지 자료 확인 불가」(판별 N관할 · 관광지 M곳, 0이면 「없음」, 펼치면 이름)·정시 판 소요 시간 표(최근 6회 — 분:초·공개 전/뒤·마감, §11.10.21) | `renderStationBriefingAdmin`, `drawConfig`, `drawStatus`, `drawSpotFail`, `drawEditionTimes`, `mmss`, `drawProgress`, `startPoll`, `drawRunErrors`, `runGroups`, `errorsByStation`, `codeText`, `reasonTexts`, `errorsMarkdown`, `rejectedMarkdown`, `saveMarkdown`, `drawPreview`, `nextEdition` |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 | `isAdminTestMode`, `getAdminToken`, `getTestModeParams`, `renderATMStatus`, `renderATMCollect`, `renderATMForecast` |
+| `admin_kakao_relay.js` | 관리자 → 특보 관리 → 「카톡 중계」 탭(옛 특보 예측 자리) — 중계 기기별 마지막 신호·끄기/켜기/지우기, 앱 특보현황(MMIS) 대조 기록, 받은 특보 글과 구역별 줄(새 특보·놓친 글·이미 봄) | `renderKakaoRelayAdminTab`, `deviceCard`, `messageCard`, `checks`, `deviceAction` |
 | `admin_location_status.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `readPrefFirst`, `readPos`, `fmtAgo`, `fmtAbs`, `esc`, `seaLandOf` |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI | `escapeHTML`, `_reportDisplayName`, `loadReportList`, `renderReportList`, `_loadCommentReportList`, `_renderCommentReportList` |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) | `renderUnifiedSurveyContent`, `escSvAttr`, `renderSurveyCreateTab`, `renderQuestionsList`, `renderSurveyStatusTab`, `_reloadSurveyStatusKeepPage` |
 | `admin_trigger.js` | 관리자 트리거(15회 클릭), 공지/점검/오류 팝업 | `initAdminTrigger`, `checkNoticeStatus`, `showAdminNoticeModal`, `loadPromoListForNoticeLegacy`, `requestNoticeUpdate`, `showNoticePopup` |
-| `advisory_manage_admin.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `esc`, `api`, `toast`, `load`, `statsHtml`, `modeBtn` |
 | `cctv7.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `toggleCctvEditMode`, `handleCctvEditClick`, `_selectEditFeature`, `_moveSelectedFeature`, `_clearEditSelection`, `_updateEditPanel` |
 | `pagination_helper.js` | 관리자 리스트 화면용 공용 페이지네이션 UI helper | `buildPageList`, `renderStandardPagination`, `resolveScrollTarget`, `normalize` |
 

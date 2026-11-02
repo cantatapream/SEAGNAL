@@ -34,7 +34,7 @@
     'main.region_btn.gugu': '해역 버튼 · 해구기상',
     'main.region_btn.windy': '해역 버튼 · 윈디',
     'main.region_btn.overview': '해역 버튼 · 종합정보',
-    'main.advisory_prediction_toggle': '특보 예측 펼침',
+    'main.advisory_prediction_toggle': '특보 예측 펼침', // 기능은 2026-11-03 삭제 — 옛 사용량 통계 표시용 이름표만 남김
     // B. 관측 부위(부이)
     'buoy.info_view': '부이 정보 조회',
     // C. 해상일기도
