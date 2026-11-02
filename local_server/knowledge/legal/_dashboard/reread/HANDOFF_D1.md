@@ -136,7 +136,7 @@ SEAGNAL 저장소에서 「위키 다른 눈의 다시 읽기(D1)」 작업을 �
 
 ### 6-1. 준비
 1. **세션 조건**: 「Workflow」 도구가 있어야 한다 — 클로드 **앱**으로 연 세션에만 있다(웹 브라우저로 연 Claude Code 에는 없을 수 있다 — `HANDOFF.md` §0-A). 없으면 사장님께 앱으로 다시 열어 달라고 한다. 권한 모드는 에이전트가 묻지 않고 Bash·Edit 를 쓸 수 있는 모드여야 한다(아니면 에이전트가 승인 대기로 멈춘다). 다른 계정이 `cantatapream/SEAGNAL` 에 push 할 수 있어야 한다.
-2. **저장소 위치는 `/home/user/seagnal`**(워크플로우 스크립트가 이 경로를 쓴다 — 다르면 `tools/reread_workflow.js` 의 `REPO` 를 고친다).
+2. **저장소 위치는 `/home/user/seagnal` 을 권한다.** 워크플로우가 쓸 저장소 경로는 `make_queue.js` 가 args 의 `repo` 로 넣어 준다(다른 곳에 클론해도 그 경로가 들어간다 — 코드에 경로를 박지 않는다, 검사 V2-b).
 3. 브랜치: PR #1365 가 **머지됐으면** main 에서 새 브랜치 · **아직이면** 사장님께 머지를 먼저 부탁하고, 그 전에 이어 가야 하면 `claude/confident-bell-f2lhl3` 위에서.
 4. 꼭 읽을 것: `_SCHEMA.md` §5-D(ⓐ~ⓗ) · 이 문서 · `_LESSONS.md` L-410~L-418 · `HANDOFF.md` 의 「작업 로그」(1530행 부근부터) 맨 위 몇 항목.
 5. 세션 임시 폴더(scratchpad)에 `reread_tmp/` 를 만든다.

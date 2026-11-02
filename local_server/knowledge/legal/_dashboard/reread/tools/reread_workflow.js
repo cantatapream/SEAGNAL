@@ -3,9 +3,9 @@
 // ⚠ 이 파일은 2026-10-09 세션의 임시 폴더에 있던 reread_wf3.js 를 2026-11-02 에 다시 적은 것이다.
 //   (컨테이너가 초기화돼 원본이 사라졌다. 스키마·CHECKS·head·partPrompt 는 원본 글자 그대로(meta 는 원본 v2 → v3 로 이름만 바꿈),
 //    readPrompt·fixPrompt·onePage·splitPhase 는 원본의 동작을 기록대로 다시 짰다.)
-//   실행 전 이 파일을 한 번 읽고, 저장소 경로(REPO)가 맞는지 확인한다.
+//   실행 전 이 파일을 한 번 읽는다. 저장소 경로는 args.repo 로 받는다.
 //
-// 실행: Workflow({ scriptPath: '<이 파일>', args: {round, date, tmp, status, [model], [effort], pages:[{f, v1, g}]} })
+// 실행: Workflow({ scriptPath: '<이 파일>', args: {repo, round, date, tmp, status, [model], [effort], pages:[{f, v1, g}]} })
 //   - round: 묶음 이름(예 'D1-R01'). 읽는 이 이름(r<영숫자만>-<쪽순번>-<회차>)·장부 메모·변경 이력·승격 기록줄에 그대로 박힌다.
 //     묶음마다 다르게, 그리고 등록부 번호(3-NN)와 헷갈리지 않게 'D1-R' 꼴을 쓴다. 장부에 이미 있는 3-94~3-100 은 쓰지 않는다.
 //   - tmp: 지적 JSON 을 쓸 임시 폴더(세션 scratchpad 아래). 미리 만들어 둔다.
@@ -24,7 +24,9 @@ export const meta = {
     { title: '나눠 읽기', detail: '절 묶음마다 새 에이전트 · 남은 묶음만 다시 · 2바퀴' },
   ],
 }
-const REPO = '/home/user/seagnal'
+// 저장소 경로는 args.repo 로 받는다(make_queue.js 가 넣어 준다) — 코드에 컴퓨터별 경로를 박지 않는다(V2-b)
+if (!args.repo) throw new Error('args.repo(저장소 절대경로)가 없다 — make_queue.js 로 args 를 만든다')
+const REPO = args.repo
 const LEGAL = REPO + '/local_server/knowledge/legal'
 const TMP = args.tmp
 const RND = args.round

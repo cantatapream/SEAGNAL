@@ -87,7 +87,7 @@ q.sort((a, b) => (b.v1.length ? 1 : 0) - (a.v1.length ? 1 : 0) || b.size - a.siz
 const skip = +arg('--skip', 0); const size = +arg('--size', 30);
 const pick = q.slice(skip, skip + size).map(({ f, v1, g }) => ({ f, v1, g }));
 if (!arg('--round') || !arg('--date') || !arg('--tmp')) { console.error('--round · --date(KST, 예 2026-11-03) · --tmp 를 꼭 준다'); process.exit(2); }
-const out = { round: arg('--round'), date: arg('--date'), tmp: arg('--tmp'), status, pages: pick };
+const out = { repo: path.resolve(LEGAL, '..', '..', '..'), round: arg('--round'), date: arg('--date'), tmp: arg('--tmp'), status, pages: pick };
 const s = JSON.stringify(out);
 if (arg('--out')) fs.writeFileSync(arg('--out'), s);
 console.error(`대상 ${q.length}쪽(${status}) · 이번 묶음 ${pick.length}쪽 · args ${s.length}자`);
