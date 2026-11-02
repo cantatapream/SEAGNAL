@@ -35,7 +35,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const kr = require('./kakao_relay');
-const { createLog, dayOf } = require('./kakao_relay_log');
+const { createLog, dayOf, explain, hmK, DIFF_WORD } = require('./kakao_relay_log');
 
 const WAIT_MS = 10 * 60e3;          // 반영 대기 — 기존 대조(checkMmis MMIS_WAIT_MS)와 같은 10분
 const TICK_MS = 5 * 60e3;           // 비교 결과를 기록장에 남기는 간격
@@ -434,4 +434,141 @@ function summarize({ day, now = Date.now(), file = path.join(require('../config/
     return { day, today, days, totals: sel.tot, hours: sel.hours, lines: sel.lines, episodes: sel.episodes, events: sel.extra, current, waitMin: WAIT_MS / 60e3, tickMin: TICK_MS / 60e3 };
 }
 
-module.exports = { runShadow, summarize, applyLine, advance, shadowView, mmisView, compareZone, WAIT_MS, TICK_MS, LINE_GIVE_UP_MS };
+/**
+ * 마크다운 보고서 — 사람이 읽고, 이 파일 하나만 AI 에게 줘도 분석할 수 있게 판정 기준·원자료·판정 근거를 함께 담는다
+ * (사용자 확정 2026-11-03 「단순히 수집됐다 안 됐다, 차이가 난다 안 난다만 적을 게 아니라 세부 내용까지 상세히」
+ *  「그 마크다운 파일을 내가 다운받아서 너에게 제공했을 때 그걸 토대로 분석이 될 수 있을 정도로」).
+ * 예: reportMarkdown({day:'2026-11-03'}) / reportMarkdown({day:'all'}) → '# 카톡 특보중계 비교 시험 보고서 …'
+ * @param {object} o @param {string} o.day - 'YYYY-MM-DD' 또는 'all'(기록이 있는 모든 날)
+ * @returns {string}
+ * [연계] ← routes/kakao_relay GET /api/admin/kakao-relay/report.md / → summarize · kakao_relay_log.explain
+ */
+function reportMarkdown({ day, now = Date.now(), file = path.join(require('../config/server_config').DATA_DIR, 'kakao_shadow.json'), log = createLog(path.join(path.dirname(file), 'kakao_relay_log')) } = {}) {
+    const all = day === 'all';
+    const days = all ? log.days() : [/^\d{4}-\d{2}-\d{2}$/.test(day || '') ? day : dayOf(now)];
+    const cell = (v) => String(v == null || v === '' ? '—' : v).replace(/\|/g, '\\|').replace(/\s*\n\s*/g, ' ');
+    const tbl = (head, rows) => rows.length ? ['| ' + head.join(' | ') + ' |', '|' + head.map(() => '---').join('|') + '|', ...rows.map((r) => '| ' + r.map(cell).join(' | ') + ' |')].join('\n') : '_(없음)_';
+    const sums = days.map((d) => summarize({ day: d, now, file, log }));
+    const evs = days.flatMap((d) => log.read(d));
+    const by = (k) => evs.filter((e) => e.kind === k);
+    const cur = (sums[0] && sums[0].current) || {};
+    const T = { msgs: 0, newLines: 0, missedLines: 0, dups: 0, diffMin: 0, waitMin: 0, gapHours: 0, staleTicks: 0, mmisError: 0, mmisChanges: 0, ticks: 0, unknownZone: 0, cutTail: 0, lines: {}, devices: {}, beats: {}, lagSum: 0, lagN: 0 };
+    for (const s0 of sums) {
+        const t = s0.totals;
+        for (const k of ['msgs', 'newLines', 'missedLines', 'dups', 'diffMin', 'waitMin', 'gapHours', 'staleTicks', 'mmisError', 'mmisChanges', 'ticks', 'unknownZone', 'cutTail', 'lagSum', 'lagN']) T[k] += t[k] || 0;
+        for (const g of ['lines', 'devices', 'beats']) for (const [k, v] of Object.entries(t[g] || {})) T[g][k] = (T[g][k] || 0) + v;
+    }
+    const lag = T.lagN ? Math.round((T.lagSum / T.lagN) * 10) / 10 : null;
+    const lastBeat = {};
+    for (const e of by('beat')) lastBeat[e.device] = e;
+    const lines = by('line'), eps = by('episode'), diffEps = eps.filter((e) => e.worst === 'diff');
+    // 아직 끝나지 않은(보고서를 만든 지금도 다른) 구간 — 끝난 구간 기록(episode)에는 아직 없다.
+    let open = [];
+    try { const st = loadState(file); open = st ? Object.entries(st.ep || {}).map(([zone, e]) => ({ zone, ...e })) : []; } catch (e) { console.warn('[kakao_shadow] 보고서: 상태 파일 읽기 실패 —', e.message); open = []; }
+    const bad = lines.filter((l) => l.result === '불일치' || /^확인 불가/.test(l.result) || l.result === '다음 글로 대체');
+    const out = [];
+    const range = all ? (days.length ? `${days[0]} ~ ${days[days.length - 1]} (${days.length}일)` : '기록 없음') : days[0];
+    out.push(`# 카톡 특보중계 비교 시험 보고서 — ${range}`, '',
+        `> 만든 시각: ${hmK(new Date(now).toISOString())} KST · 시험 시작: ${cur.startedAt ? hmK(cur.startedAt) + ' KST' : '아직 시작 안 함'} · 시각은 모두 한국 시간(KST).`,
+        '> 이 파일 하나로 사람과 AI 가 모두 분석할 수 있도록 판정 기준, 받은 글 원문, 줄마다의 판정과 근거, 앱 특보현황 변화를 함께 담았다.', '');
+    out.push('## 1. 이 시험은 무엇인가', '',
+        '- 목적: 카톡 「기상청 해양기상정보포털」 알림톡을 앱 특보현황의 주 정보로 써도 되는지 약 10일 동안 시험한다. MMIS(기상청 해양기상 시스템) 수집은 오류가 잦아 백업으로 돌릴 계획이다.',
+        '- 방법: 서버가 카톡 특보 줄만으로 「카톡판 특보현황」을 따로 만들고, 1분마다 지금 앱에 보이는 특보현황(MMIS 수집)과 93개 해역(부모·자식)을 하나씩 맞대어 본다.',
+        '- 이 시험은 **기록만** 한다. 앱 특보현황과 사용자 푸시는 지금도 MMIS 기준이며 바뀌지 않는다.',
+        '- 중계 기기: 휴대폰(임시, 2026-11-04까지)과 태블릿이 카톡을 읽어 서버로 보낸다. 같은 글을 두 기기가 보내면 한 번만 센다.', '');
+    out.push('## 2. 읽는 법 — 용어와 판정 기준', '',
+        '**비교 결과(1분마다, 구역별)**',
+        `- 같음: 카톡판과 앱(MMIS)이 같다.`,
+        `- 반영 대기: 한쪽이 바뀐 지 ${WAIT_MS / 60e3}분이 안 됐다. 카톡이 MMIS보다 보통 2~4분 빠르므로 정상적인 시간차다.`,
+        `- 차이: ${WAIT_MS / 60e3}분이 넘도록 다르다 → **확인이 필요한 것.** 카톡이 늦거나 빠졌는지, MMIS 가 늦거나 틀렸는지 원문으로 가려야 한다.`,
+        '- 태풍(비교 제외): 태풍 특보가 걸린 구역. 카톡은 태풍 발효를 보내지 않으므로 태풍은 MMIS 기준이다.',
+        '', '**비교하는 칸**',
+        `- ${DIFF_WORD.cur}: 주의보·경보·없음.`,
+        `- ${DIFF_WORD.up}: 예비특보, 또는 발표됐지만 아직 발효 전인 특보가 있는가(앱은 둘 다 「예비」로 싣는다).`,
+        `- ${DIFF_WORD.clr}: 카톡이 미래 시각 해제(확정 예고)를 알렸고 앱에도 정확한 해제 시각이 있을 때만 비교한다.`,
+        '', '**카톡 줄마다의 판정**',
+        '- 일치: 그 줄이 바꾼 것이 앱(MMIS)에도 나타났다. 「지연」은 앱이 같아진 시각 − 카톡 받은 시각(분). 양수 = 카톡이 빨랐음, 0 이하 = 앱이 먼저 바뀌어 있었음.',
+        `- 불일치: 받은 뒤 ${LINE_GIVE_UP_MS / 3600e3}시간 안에 앱이 같아지지 않았다 → 확인 필요.`,
+        '- 다음 글로 대체: 앱이 같아지기 전에 같은 구역에 다음 카톡 글이 왔다.',
+        '- 바뀐 것 없음: 이미 알고 있던 내용이라 카톡판이 바뀌지 않았다(판정 대상 아님).',
+        '- 확인 불가: 카톡이 해제 시각을 알렸지만 앱에 정확한 해제 시각이 없어 맞는지 알 수 없다.',
+        '', '**카톡 줄의 뜻(사용자 확인 2026-11-03)**',
+        '- 시각 = 그 상태가 시작되는 시각. 발효·변경 = 그 시각부터 그 종류·등급. 해제의 미래 시각 = 그때 풀린다는 확정 예고. 변경해제 = 태풍으로 바뀌며 풍랑 끝. 연장 = 이어짐(해제예고 시각은 카톡에 없음).',
+        '- 놓친 글: 알림 없이 대화방에서만 발견된 줄. 언제 온 글인지 몰라 카톡판에 반영하지 않고 기록만 한다.',
+        '- 잘린 끝 줄: 알림 글은 200자에서 잘리므로 끝 줄은 믿지 않는다(대화방 전문으로 다시 온다).',
+        '- 시작 상태: 카톡 옛 글이 없어 시험 시작 시각의 앱 특보현황으로 한 번 채웠다. 그 뒤 카톡판은 카톡 줄로만 바뀐다.',
+        '- 아직 정하지 않은 해석: 예비특보 「해제」의 뜻(취소인지 시간 변경인지), 예비특보가 끝 시각에 저절로 사라지는지. 「다가오는 특보」 차이가 많으면 이것부터 볼 것.', '');
+    out.push('## 3. 한눈에 보기', '',
+        tbl(['항목', '값', '뜻'], [
+            ['받은 카톡 글', `${T.msgs}건`, '기기별: ' + (Object.entries(T.devices).map(([k, v]) => `${k} ${v}`).join(', ') || '없음') + ` · 중복으로 버린 글 ${T.dups}건`],
+            ['새 특보 줄', `${T.newLines}줄`, '방금 온 알림에서 처음 본 특보 줄'],
+            ['놓친 글 줄', `${T.missedLines}줄`, '알림 없이 대화방에서만 발견 — 많으면 알림 수신·대화방 읽기에 문제'],
+            ['카톡 줄 → 일치', `${T.lines['일치'] || 0}줄`, lag != null ? `평균 지연 ${lag}분(양수 = 카톡이 빠름)` : '지연 기록 없음'],
+            ['카톡 줄 → 불일치', `${T.lines['불일치'] || 0}줄`, '6시간 안에 앱과 같아지지 않음 — 4장에서 상세'],
+            ['카톡 줄 → 다음 글로 대체 / 확인 불가 / 바뀐 것 없음', `${T.lines['다음 글로 대체'] || 0} / ${Object.entries(T.lines).filter(([k]) => /^확인 불가/.test(k)).reduce((a, [, v]) => a + v, 0)} / ${Object.entries(T.lines).filter(([k]) => /^바뀐 것 없음/.test(k)).reduce((a, [, v]) => a + v, 0)}`, ''],
+            ['10분 넘게 다른 구간', `${diffEps.length}번`, `차이가 있던 시간 약 ${T.diffMin}분(5분 점검 기준) · 반영 대기 약 ${T.waitMin}분`],
+            ['앱(MMIS) 변화', `${T.mmisChanges}번`, '앱 특보현황에서 구역 상태가 바뀐 횟수'],
+            ['비교가 안 돈 시간', `${T.gapHours}시간`, '서버 비교가 멈췄을 수 있는 시간(조용한 것과 다름)'],
+            ['앱 특보현황 갱신 멈춤 의심', `약 ${T.staleTicks * 5}분`, '특보현황 파일이 15분 넘게 안 바뀐 동안 — 이때 「같음」은 믿기 어려움'],
+            ['앱 특보현황 못 읽음', `${T.mmisError}번`, ''],
+            ['모르는 구역 / 잘린 끝 줄', `${T.unknownZone} / ${T.cutTail}`, ''],
+            ['기기 신호', Object.entries(T.beats).map(([k, v]) => `${k} ${v}회`).join(', ') || '없음', '30분마다. 마지막: ' + (Object.values(lastBeat).map((b) => `${b.device} ${hmK(b.t)} 배터리 ${b.battery}% 「${b.note || ''}」`).join(' / ') || '없음')],
+        ]), '');
+    if (all && sums.length > 1) {
+        out.push('**날짜별**', '', tbl(['날짜', '받은 글', '새 특보 줄', '놓친 글 줄', '일치', '불일치', '차이(분)', '비교 안 돈 시간'], sums.map((s0) => {
+            const t = s0.totals;
+            return [s0.day, t.msgs, t.newLines, t.missedLines, t.lines['일치'] || 0, t.lines['불일치'] || 0, t.diffMin, t.gapHours];
+        })), '');
+    }
+    out.push('## 4. 확인이 필요한 것', '');
+    out.push('### 4-1. 10분 넘게 달랐던 구간', '', tbl(['구역', '시작', '끝', '분', '다른 것', '누가 먼저', '카톡판', '앱(MMIS)', '설명'],
+        diffEps.map((e) => [e.zone, hmK(e.start), hmK(e.end), e.min, (e.diffs || []).map((d) => DIFF_WORD[d] || d).join(', '), e.first, e.kakao, e.mmis, e.설명 || explain(e)])
+            .concat(open.map((e) => [e.zone, hmK(e.start), '진행 중', Math.round((now - Date.parse(e.start)) / 60e3), (e.diffs || []).map((d) => DIFF_WORD[d] || d).join(', '), e.first, e.kakao, e.mmis,
+                `보고서를 만든 지금도 다름(${e.worst === 'diff' ? '10분 넘음 — 확인 필요' : '아직 10분 안'}).`]))), '');
+    if (cur.rows && (cur.diff || cur.wait)) {
+        out.push('**보고서를 만든 지금도 다른 구역**', '', tbl(['구역', '상태', '카톡판', '앱(MMIS)', '다른 것'],
+            cur.rows.filter((r) => r.status === 'diff' || r.status === 'wait').map((r) => [r.zone, r.status === 'diff' ? '차이' : '반영 대기', r.kakao, r.mmis, (r.diffs || []).map((d) => DIFF_WORD[d] || d).join(', ')])), '');
+    }
+    out.push('### 4-2. 불일치·확인 불가·대체된 카톡 줄', '', tbl(['판정 시각', '구역', '카톡 줄', '받은 시각', '판정', '그때 카톡판', '그때 앱(MMIS)', '설명'],
+        bad.map((l) => [hmK(l.t), l.zone, l.line, hmK(l.receivedAt), l.result, l.kakao, l.mmis, l.설명 || explain(l)])), '');
+    out.push('### 4-3. 놓친 글 줄(알림 없이 대화방에서 발견)', '', tbl(['발견 시각', '기기', '줄', '설명'], by('missedLine').map((e) => [hmK(e.t), e.device, e.line, e.설명 || explain(e)])), '');
+    const anchors = by('anchor').filter((e) => e.status === 'missing');
+    out.push('### 4-4. 대화방에서 「마지막으로 본 글」을 못 찾은 때', '', tbl(['시각', '기기', '설명'], anchors.map((e) => [hmK(e.t), e.device, e.설명 || explain(e)])), '');
+    const gaps = sums.flatMap((s0) => s0.hours.filter((h) => h.gap || h.staleTicks || h.mmisError).map((h) => [s0.day, `${String(h.hour).padStart(2, '0')}시`, h.gap ? '비교 기록 없음' : '', h.staleTicks ? `약 ${h.staleTicks * 5}분` : '', h.mmisError || '']));
+    out.push('### 4-5. 비교가 멈췄거나 앱 특보현황이 굳어 있던 시간', '', tbl(['날짜', '시간', '비교 기록', '특보현황 갱신 멈춤 의심', '특보현황 못 읽음(번)'], gaps), '');
+    out.push('## 5. 카톡 줄별 판정 전체', '', tbl(['판정 시각', '구역', '카톡 줄', '받은 시각', '판정', '지연(분)', '그때 앱(MMIS)'],
+        lines.map((l) => [hmK(l.t), l.zone, l.line, hmK(l.receivedAt), l.result, l.lagMin, l.mmis])), '');
+    out.push('**카톡판에 반영한 줄(받은 순서)**', '', tbl(['반영 시각', '기기', '구역', '카톡 줄', '받은 시각'], by('apply').map((e) => [hmK(e.t), e.device, e.zone, e.line, hmK(e.receivedAt)])), '');
+    out.push('## 6. 카톡판과 앱이 달랐던 구간 전체(반영 대기 포함)', '', tbl(['구역', '시작', '끝', '분', '결과', '다른 것', '누가 먼저', '카톡판', '앱(MMIS)'],
+        eps.map((e) => [e.zone, hmK(e.start), hmK(e.end), e.min, e.worst === 'diff' ? '10분 넘음' : '10분 안에 같아짐', (e.diffs || []).map((d) => DIFF_WORD[d] || d).join(', '), e.first, e.kakao, e.mmis])), '');
+    out.push('## 7. 앱 특보현황(MMIS) 변화 기록', '', tbl(['시각', '구역', '바뀐 상태'], by('mmis').map((e) => [hmK(e.t), e.zone, e.to])), '');
+    out.push('## 8. 시간대별', '');
+    for (const s0 of sums) {
+        out.push(`**${s0.day}**`, '', tbl(['시각', '받은 글', '새 특보 줄', '놓친 글 줄', '카톡판 반영', '앱 변화', '반영 대기(분)', '차이(분)', '10분 넘게 다른 구역', '카톡 줄 판정', '점검'],
+            s0.hours.filter((h) => h.msgs || h.applied || h.mmisChanges || h.diffMin || h.waitMin || h.gap || h.staleTicks || h.mmisError || Object.keys(h.lines).length).map((h) => [
+                `${String(h.hour).padStart(2, '0')}시`, h.msgs, h.newLines, h.missedLines, h.applied, h.mmisChanges, h.waitMin, h.diffMin,
+                Object.entries(h.diffZones).map(([z, e]) => `${z} 약 ${e.min}분(카톡판 「${e.kakao}」/앱 「${e.mmis}」)`).join('; '),
+                Object.entries(h.lines).map(([k, v]) => `${k} ${v}`).join(', '),
+                [h.gap ? '⚠비교 기록 없음' : '', h.staleTicks ? `⚠특보현황 갱신 멈춤 의심 약 ${h.staleTicks * 5}분` : '', h.mmisError ? `⚠못 읽음 ${h.mmisError}번` : '', `5분 점검 ${h.ticks}번`].filter(Boolean).join(' · '),
+            ])), '');
+    }
+    out.push('## 9. 받은 카톡 글 원문', '', '각 글의 특보 줄이 어떻게 처리됐는지(처리: 새 특보·놓친 글·이미 받은 줄·잘린 끝 줄·모르는 구역·태풍)와 원문 그대로.', '');
+    const TAG = { new: '새 특보', missed: '놓친 글', seen: '이미 받은 줄', cutTail: '잘린 끝 줄(믿지 않음)', unknownZone: '모르는 구역', typhoon: '태풍(MMIS 기준)', unknownAction: '동작어 못 읽음' };
+    by('msg').forEach((m, i) => {
+        out.push(`### 9-${i + 1}. ${hmK(m.t)} · ${m.device} · ${m.source === 'notification' ? '알림 글' : '대화방 전문'} · ${m.trigger === false ? '함께 읽힌 직전 글' : '방금 온 알림'}`, '',
+            m.설명 || explain(m), '',
+            tbl(['구역', '종류', '동작', '시각', '끝 시각(예비특보)', '처리'], (m.lines || []).map((l) => [l.zone, l.kind, l.action, hmK(l.at), l.until ? hmK(l.until) : '', TAG[l.tag] || l.tag])), '',
+            '```text', String(m.text || '').replace(/```/g, "'''"), '```', '');
+    });
+    const dups = by('dup');
+    out.push('**중복으로 버린 글**', '', tbl(['시각', '기기', '경로', '방금 온 알림?'], dups.map((e) => [hmK(e.t), e.device, e.source === 'notification' ? '알림 글' : '대화방 전문', e.trigger === false ? '아니오' : '예'])), '');
+    out.push('## 10. 기기 기록(신호·설정·대화방 읽기)', '', tbl(['시각', '설명'], evs.filter((e) => ['beat', 'device', 'anchor', 'ignored'].includes(e.kind)).map((e) => [hmK(e.t), e.설명 || explain(e)])), '');
+    out.push('## 11. 전체 연대기(시간순, 5분 점검은 다른 구역·문제가 있을 때만)', '', ...evs.filter((e) => e.kind !== 'tick' || e.mmisError || (e.diffZones || []).length || (e.waitZones || []).length || (e.mmisAgeMin != null && e.mmisAgeMin > 15))
+        .map((e) => `- ${hmK(e.t)} — ${e.설명 || explain(e) || e.kind}`), '');
+    out.push('## 부록. 원자료', '', '- 서버 파일: `data/kakao_relay_log/YYYY-MM-DD.jsonl`(한국 날짜, 30일 보관). 한 줄 = 한 사건(JSON). 모든 줄에 `t`(UTC 시각)·`kind`(종류)·`설명`(한글 설명)이 있다.',
+        '- kind: msg(받은 글 원문·줄 처리) · dup(중복 글) · ignored(끈 기기 글) · beat(기기 신호) · device(관리자 기기 설정) · anchor(마지막으로 본 글 찾기) · baseline(시험 시작 상태) · apply(카톡판 반영) · missedLine(놓친 글 줄) · mmis(앱 특보현황 변화) · line(카톡 줄 판정) · episode(달랐던 구간) · tick(5분 점검).',
+        '- 계산 방법: services/kakao_shadow.js(runShadow·summarize·reportMarkdown), 설명 문장: services/kakao_relay_log.js(explain).', '');
+    return out.join('\n');
+}
+
+module.exports = { runShadow, summarize, reportMarkdown, applyLine, advance, shadowView, mmisView, compareZone, WAIT_MS, TICK_MS, LINE_GIVE_UP_MS };

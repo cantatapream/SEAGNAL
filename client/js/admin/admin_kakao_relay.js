@@ -282,7 +282,11 @@
         var cur = s.current || {};
         var T = s.totals || {};
         var L = T.lines || {};
-        var html = '<div style="font-size:0.78rem;color:#9aa7b4;margin:8px 0 4px;line-height:1.5">'
+        // 마크다운 보고서 내려받기 — 사람이 읽고, 그대로 AI 에게 줘서 분석할 수 있는 상세 보고서(사용자 확정 2026-11-03).
+        var html = '<div style="display:flex;flex-wrap:wrap;gap:0;margin-top:6px">'
+            + btn('이 날 보고서 내려받기(.md)', 'window.__krReport(\'' + esc(s.day) + '\')', '52,211,153')
+            + btn('시험 전체 보고서 내려받기(.md)', 'window.__krReport(\'all\')', '52,211,153') + '</div>'
+            + '<div style="font-size:0.78rem;color:#9aa7b4;margin:8px 0 4px;line-height:1.5">'
             + '카톡 글만으로 만든 특보현황이 앱 특보현황(MMIS)과 같은지 서버가 <b>1분마다 구역별로</b> 비교합니다. 기록만 하며 앱 화면·푸시는 바꾸지 않습니다.<br>'
             + badge('같음', STATUS.match[1]) + ' 양쪽이 같음 · ' + badge('반영 대기', STATUS.wait[1]) + ' 한쪽이 바뀐 지 ' + (s.waitMin || 10) + '분 안(정상 시간차) · '
             + badge('차이', STATUS.diff[1]) + ' ' + (s.waitMin || 10) + '분 넘게 다름 → 확인 필요 · ' + badge('태풍(비교 제외)', STATUS.typhoon[1]) + ' 카톡이 태풍 발효를 보내지 않음'
@@ -351,6 +355,29 @@
         if (ov) ov.remove();
     }
 
+    /**
+     * 마크다운 보고서를 내려받는다(관리자 토큰이 붙도록 fetch 로 받아 파일로 저장).
+     * @param {string} day - 'YYYY-MM-DD' 또는 'all'
+     * [연계] ← 비교현황 창 버튼 / → GET /api/admin/kakao-relay/report.md
+     */
+    async function downloadReport(day) {
+        try {
+            var r = await fetch('/api/admin/kakao-relay/report.md?day=' + encodeURIComponent(day), { cache: 'no-store' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            var blob = await r.blob();
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'kakao_relay_report_' + day + '.md';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        } catch (e) {
+            console.warn('[카톡 중계] 보고서 내려받기 실패:', e && e.message);
+            window.alert('보고서를 내려받지 못했습니다 — ' + e.message);
+        }
+    }
+
+    window.__krReport = downloadReport;
     window.__krCompare = openCompare;
     window.__krCompareClose = closeCompare;
     window.__krHour = function (h) {

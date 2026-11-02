@@ -258,5 +258,24 @@ console.log('H. 멈춤과 조용함 구분');
     ok('시험 시작 전 시간은 기록 없음으로 안 셈', s3.hours[11].gap === false);
 }
 
+console.log('I. 쉬운 설명·마크다운 보고서(사용자 확정 2026-11-03 「이해하기 쉬운 설명」·「AI 에게 줘도 분석될 정도로 상세히」)');
+{
+    const all = log.days().flatMap((d) => log.read(d));
+    const kinds = ['msg', 'dup', 'beat', 'device', 'ignored', 'baseline', 'apply', 'line', 'episode', 'mmis', 'missedLine', 'tick'];
+    const missing = kinds.filter((k) => !all.some((e) => e.kind === k && typeof e.설명 === 'string' && e.설명.length > 10));
+    ok('기록 한 줄마다 한글 설명(종류 12가지 모두)', missing.length === 0, missing);
+    const lnOk = all.find((e) => e.kind === 'line' && e.result === '일치' && e.lagMin === 3);
+    ok('설명 예: 카톡 줄 일치는 몇 분 빨랐는지 문장으로', lnOk && /카톡이 앱\(MMIS\)보다 3분 빨랐음/.test(lnOk.설명), lnOk && lnOk.설명);
+    const epD = all.find((e) => e.kind === 'episode' && e.worst === 'diff');
+    ok('설명 예: 달랐던 구간은 무엇이·누가 먼저·확인 필요까지', epD && /발효 중인 특보 등급/.test(epD.설명) && /MMIS가 먼저 바뀜/.test(epD.설명) && /확인 필요/.test(epD.설명), epD && epD.설명);
+    const md = sh.reportMarkdown({ day: dayOf(min(0)), now: min(700), file: shFile, log });
+    ok('보고서: 목적·읽는 법(판정 기준)·한눈에·확인 필요·줄별 판정·구간·MMIS 변화·시간대·원문·기기·연대기·원자료 장', ['## 1. 이 시험은 무엇인가', '## 2. 읽는 법', '## 3. 한눈에 보기', '## 4. 확인이 필요한 것', '## 5. 카톡 줄별 판정 전체', '## 6.', '## 7.', '## 8. 시간대별', '## 9. 받은 카톡 글 원문', '## 10.', '## 11. 전체 연대기', '## 부록'].every((h) => md.includes(h)));
+    ok('보고서: 불일치 줄과 그때 양쪽 상태', /\| 불일치 \|/.test(md) && /6시간 동안 앱\(MMIS\)과 같아지지 않음/.test(md));
+    ok('보고서: 받은 글 원문 그대로(코드 블록)와 줄별 처리', /```text\n\[해양기상기후정보 알림\]/.test(md) && /\| 새 특보 \|/.test(md));
+    ok('보고서: 10분 넘은 구간 상세(누가 먼저)', /### 4-1[^]*MMIS가 먼저 바뀜/.test(md));
+    const mdAll = sh.reportMarkdown({ day: 'all', now: min(700), file: shFile, log });
+    ok('시험 전체 보고서(all) — 기간 표시', /# 카톡 특보중계 비교 시험 보고서 — \d{4}-\d{2}-\d{2} ~ /.test(mdAll));
+}
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

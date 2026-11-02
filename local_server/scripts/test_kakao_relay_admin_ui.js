@@ -108,6 +108,14 @@ const DATA = {
     ok('시간대 24줄·12시 펼치면 차이 구역과 줄 결과', (ch.match(/id="kr-hour-/g) || []).length === 24 && /10분 넘게 다른 구역/.test(ch) && /카톡이 3분 빠름/.test(ch));
     ok('날짜 고르기·날짜별 추세', /window.__krCompare\('2026-11-02'\)/.test(ch) && /날짜별 추세/.test(ch));
     ok('뜻 풀이(같음·반영 대기·차이·태풍)', /정상 시간차/.test(ch) && /확인 필요/.test(ch) && /태풍 발효를 보내지 않음/.test(ch));
+    ok('보고서 내려받기 버튼 둘(이 날·시험 전체)', /이 날 보고서 내려받기\(\.md\)/.test(ch) && /window.__krReport\('2026-11-03'\)/.test(ch) && /window.__krReport\('all'\)/.test(ch));
+    let clicked = null;
+    doc.createElement = () => { const e = { style: {}, addEventListener() {}, click() { clicked = e.download; }, remove() {} }; return e; };
+    ctx3.URL = { createObjectURL: () => 'blob:x', revokeObjectURL() {} };
+    ctx3.setTimeout = () => {};
+    ctx3.fetch = async (u) => { calls3.push(u); return { ok: true, blob: async () => ({}) }; };
+    await ctx3.window.__krReport('all');
+    ok('내려받기 → 관리자 API·파일 이름', calls3.includes('/api/admin/kakao-relay/report.md?day=all') && clicked === 'kakao_relay_report_all.md', [calls3, clicked]);
     ctx3.window.__krCompareClose();
     ok('닫기', !els['kr-compare']);
     const ctx4 = { window: {}, document: doc, Date, JSON, Math, Number, String, Object, Array, encodeURIComponent, console, fetch: async () => ({ ok: false, status: 500, json: async () => ({}) }) };
