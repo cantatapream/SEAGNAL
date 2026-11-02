@@ -22,6 +22,7 @@ final class Sender {
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
     private static final int MAX_QUEUE = 100;
     private static final int BATCH = 50;
+    private static final int MAX_BACKFILL_QUEUE = 2000;
 
     private Sender() {}
 
@@ -67,21 +68,44 @@ final class Sender {
 
     /** 대기열을 서버로 보낸다. 성공하면 비운다(POOL 스레드에서만 부른다). */
     private static void flush(Context c) throws Exception {
+        flush(c, "queue", "/api/kakao-relay/messages");
+    }
+
+    /**
+     * 임시 「긁어오기」: 대화방에서 읽은 옛 특보 글을 분석용 보관함으로 보낸다(실시간 기록과 따로).
+     * items 각각 {text, date?, time?}
+     */
+    static void sendBackfill(Context ctx, JSONArray items) {
+        final Context c = ctx.getApplicationContext();
+        POOL.execute(() -> {
+            try {
+                JSONArray q = new JSONArray(Config.prefs(c).getString("bqueue", "[]"));
+                for (int i = 0; i < items.length(); i++) q.put(items.get(i));
+                while (q.length() > MAX_BACKFILL_QUEUE) q.remove(0);
+                Config.prefs(c).edit().putString("bqueue", q.toString()).commit();
+                flush(c, "bqueue", "/api/kakao-relay/backfill");
+            } catch (Exception e) {
+                Config.status(c, "긁어오기 전송 오류: " + e.getMessage());
+            }
+        });
+    }
+
+    private static void flush(Context c, String key, String path) throws Exception {
         // 서버는 한 번에 50건까지 받는다 — 50건씩 나눠 보내고, 보낸 묶음만 대기열에서 지운다.
         while (true) {
-            JSONArray q = new JSONArray(Config.prefs(c).getString("queue", "[]"));
+            JSONArray q = new JSONArray(Config.prefs(c).getString(key, "[]"));
             if (q.length() == 0) return;
             JSONArray chunk = new JSONArray();
             for (int i = 0; i < Math.min(BATCH, q.length()); i++) chunk.put(q.get(i));
             JSONObject b = new JSONObject().put("device", Config.device(c)).put("messages", chunk);
-            int code = post(c, "/api/kakao-relay/messages", b);
+            int code = post(c, path, b);
             if (code != 200) {
                 Config.status(c, "전송 실패 HTTP " + code + " — " + q.length() + "건 대기");
                 return;
             }
             JSONArray rest = new JSONArray();
             for (int i = chunk.length(); i < q.length(); i++) rest.put(q.get(i));
-            Config.prefs(c).edit().putString("queue", rest.toString()).commit();
+            Config.prefs(c).edit().putString(key, rest.toString()).commit();
             Config.status(c, "전송 성공 " + chunk.length() + "건");
         }
     }

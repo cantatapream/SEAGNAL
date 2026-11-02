@@ -38,6 +38,7 @@ public class ReaderService extends AccessibilityService {
     private final Runnable timeout = () -> finish("시간 초과");
 
     static boolean isOn() { return instance != null; }
+    static ReaderService get() { return instance; }
 
     /** KakaoNotiService 가 부른다: 알림의 contentIntent 로 대화방을 열고 읽기 시작. */
     static void openAndRead(Context c, PendingIntent pi) {
@@ -59,7 +60,7 @@ public class ReaderService extends AccessibilityService {
     @Override public void onInterrupt() {}
 
     private void start(PendingIntent pi) {
-        if (state != State.IDLE) { again = pi; return; }   // 읽는 중이면 끝난 뒤 다시 읽는다
+        if (state != State.IDLE || Backfill.active()) { again = pi; return; }   // 읽는 중이면 끝난 뒤 다시 읽는다
         if (pi == null) { Config.status(this, "알림에 열기 동작이 없음"); return; }
         found.clear();
         fullOk = false;
@@ -81,6 +82,7 @@ public class ReaderService extends AccessibilityService {
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
+        if (Backfill.active()) { Backfill.onEvent(this, e); return; }   // 임시 긁어오기 중에는 그쪽이 화면을 다룬다
         if (state == State.IDLE || e.getPackageName() == null) return;
         if (!Config.KAKAO.contentEquals(e.getPackageName())) return;
         handler.removeCallbacks(readNow);
@@ -122,7 +124,7 @@ public class ReaderService extends AccessibilityService {
         }
     }
 
-    private static boolean hasChannelTitle(List<AccessibilityNodeInfo> nodes) {
+    static boolean hasChannelTitle(List<AccessibilityNodeInfo> nodes) {
         for (AccessibilityNodeInfo n : nodes) {
             CharSequence t = n.getText();
             if (t != null && t.length() < 40 && t.toString().contains(Config.CHANNEL)) return true;
@@ -130,7 +132,7 @@ public class ReaderService extends AccessibilityService {
         return false;
     }
 
-    private static void collect(AccessibilityNodeInfo n, List<AccessibilityNodeInfo> out) {
+    static void collect(AccessibilityNodeInfo n, List<AccessibilityNodeInfo> out) {
         if (n == null) return;
         out.add(n);
         for (int i = 0; i < n.getChildCount(); i++) collect(n.getChild(i), out);
@@ -145,6 +147,13 @@ public class ReaderService extends AccessibilityService {
     }
 
     private boolean fullOk;
+
+    /** 긁어오기가 끝난 뒤 미뤄 둔 실시간 읽기가 있으면 시작한다. [연계] ← Backfill.stop */
+    void resumePending() {
+        PendingIntent next = again;
+        again = null;
+        if (next != null && Config.auto(this)) handler.postDelayed(() -> start(next), 1_500L);
+    }
 
     private void finish(String why) {
         handler.removeCallbacks(timeout);

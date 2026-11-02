@@ -23,6 +23,8 @@ public class BeatReceiver extends BroadcastReceiver {
 
     /** 지금 상태를 담아 신호를 보낸다. note 꼴은 서버 kakao_relay.judgeHealth 가 읽는다. */
     static void beatNow(Context c) {
+        // 자동 중계를 끈 기기는 신호를 보내지 않는다 — 보내면 서버 멈춤 감시가 이 기기 상태를 태블릿 상태로 오인한다.
+        if (!Config.auto(c)) { Config.status(c, "자동 중계 꺼짐 — 신호 안 보냄"); return; }
         String note = (ReaderService.isOn() ? "ok" : "접근성 꺼짐")
                 + (KakaoNotiService.isConnected() ? "" : " · 알림 감시 끊김")
                 + " | 마지막 읽기: " + Config.prefs(c).getString("lastRead", "없음");

@@ -35,6 +35,7 @@ public class KakaoNotiService extends NotificationListenerService {
 
     @Override public void onNotificationPosted(StatusBarNotification sbn) {
         if (!Config.KAKAO.equals(sbn.getPackageName())) return;
+        if (!Config.auto(this)) return;   // 자동 중계를 끈 기기(본 휴대폰 등)는 아무것도 하지 않는다
         Notification n = sbn.getNotification();
         Bundle x = n.extras;
         String title = String.valueOf(x.getCharSequence(Notification.EXTRA_TITLE));

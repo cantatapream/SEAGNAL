@@ -22,6 +22,8 @@ final class Config {
     static String server(Context c) { return prefs(c).getString("server", ""); }
     static String token(Context c) { return prefs(c).getString("token", ""); }
     static String device(Context c) { return prefs(c).getString("device", "tablet"); }
+    /** 자동 중계(알림이 오면 대화방을 열어 읽기 + 30분 신호). 본 휴대폰처럼 긁어오기만 할 기기에서는 끈다. */
+    static boolean auto(Context c) { return prefs(c).getBoolean("auto", true); }
 
     /** 화면에 보여 줄 최근 상태 한 줄을 남긴다. */
     static void status(Context c, String s) {
