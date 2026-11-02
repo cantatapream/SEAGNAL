@@ -1532,6 +1532,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-03 03:47 KST] ✅완료 — AI 모델 탭 + 칸별 모델·노력 선택 + 질문 수 접기
+관리자 콘솔 세 번째 탭 '🤖 AI 모델': 답변 AI 순서(카드형 줄·모델/노력 드롭다운·▲▼·삭제·소진해제), 일반 사용자 적용 스위치(이름 변경), 질문 수 아코디언(머리 '총 N건 · 오늘 N건'). '답변 AI 모델' 버튼줄·긴 설명문 삭제. 설정 providerModels(클로드 키별 sonnet/opus/haiku-5-5 × low~max, 업스테이지 solar-pro4/mini4 × none~high, ChatGPT luna/sol/astra, Gemini 표시만). 옛 answerModel 호환(gemini→Luna). 시험 test_llm_chain 121/0·codex_bridge 33/0·legal_ask_stats 39/0·root_deps 3/0. 화면 playwright 가짜 API 로 데스크톱·360px 확인. ⚠운영 answerModel 이 gemini 면 배포 후 ChatGPT 칸 다시 켜짐(VM 연결 시).
+
+
 ### [2026-11-03 01:07 KST] 🟢착수 — 3-95 승인분 162건(새 49건) — 10-27 공포분 등
 brief 2026-11-03 01:06. 순서: 3-94 PR 머지 → main 에서 새로 → collect_approved → 법 묶음 에이전트 대조 → 2차 읽기 → 린트·verify → PR. 해운법 유가보조금 52곳 먼저.
 

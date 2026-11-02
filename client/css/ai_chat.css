@@ -174,6 +174,35 @@
 .nrya-console .nrya-seg-help{font-size:11.5px; color:var(--nrya-text-sub); margin-top:9px; line-height:1.5}
 .nrya-console .nrya-seg-err{margin-top:8px; font-size:11.5px; color:#ff8a8a; background:rgba(255,82,82,.08); border:1px solid rgba(255,82,82,.3); border-radius:8px; padding:8px 10px; line-height:1.5}
 .nrya-console .nrya-seg-help b{color:#ffe082}
+
+/* AI 모델 탭(2026-11-02) — 답변 AI 순서 줄마다 둥근 카드(.nrya-card·.nrya-seg 토큰 재사용). 휴대폰 폭에서는 줄바꿈(flex-wrap). */
+.nrya-console .nrya-prov-list{display:flex; flex-direction:column; gap:8px}
+.nrya-console .nrya-prov{background:var(--nrya-sec-bg); border:1px solid var(--nrya-border); border-radius:11px; padding:10px 11px}
+.nrya-console .nrya-prov-top{display:flex; align-items:center; flex-wrap:wrap; gap:6px 8px}
+.nrya-console .nrya-prov-rank{flex:0 0 auto; width:22px; height:22px; border-radius:7px; display:grid; place-items:center; background:rgba(68,138,255,.18); color:#8bb6ff; font-family:var(--nrya-mono); font-size:12px; font-weight:800}
+.nrya-console .nrya-prov-name{font-size:14px; font-weight:700; color:var(--nrya-text-main); white-space:nowrap}
+.nrya-console .nrya-prov-badge{font-size:10.5px; font-weight:700; border-radius:6px; padding:2px 7px; border:1px solid; white-space:nowrap}
+.nrya-console .nrya-b-ok{color:var(--nrya-accent-green); background:rgba(105,240,174,.08); border-color:rgba(105,240,174,.3)}
+.nrya-console .nrya-b-bad{color:#ff8a8a; background:rgba(255,82,82,.08); border-color:rgba(255,82,82,.35)}
+.nrya-console .nrya-b-rest{color:#ffe082; background:rgba(255,215,64,.08); border-color:rgba(255,215,64,.35)}
+.nrya-console .nrya-b-off{color:var(--nrya-text-sub); background:rgba(255,255,255,.04); border-color:var(--nrya-border)}
+.nrya-console .nrya-prov-today{font-size:11px; color:var(--nrya-text-sub); font-family:var(--nrya-mono); white-space:nowrap}
+.nrya-console .nrya-prov-acts{margin-left:auto; display:flex; flex-wrap:wrap; gap:4px}
+.nrya-console .nrya-prov-btn{border:1px solid var(--nrya-border); background:rgba(255,255,255,.05); color:#c6d4e6; border-radius:7px; padding:4px 9px; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer}
+.nrya-console .nrya-prov-btn:disabled{opacity:.35; cursor:default}
+.nrya-console .nrya-prov-btn.nrya-del{color:#ff8a8a; border-color:rgba(255,82,82,.3)}
+.nrya-console .nrya-prov-btn.nrya-reset{color:#ffe082; border-color:rgba(255,215,64,.35)}
+.nrya-console .nrya-prov-sel{display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:9px}
+.nrya-console .nrya-prov-f{flex:1 1 140px; min-width:0; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--nrya-text-sub); font-weight:600}
+.nrya-console .nrya-prov-f select,.nrya-console .nrya-prov-fixed{flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--nrya-border); color:var(--nrya-text-main); border-radius:8px; padding:6px 8px; font-family:inherit; font-size:12.5px; font-weight:500}
+.nrya-console .nrya-prov-f select option{background:var(--nrya-card-bg)}
+.nrya-console .nrya-prov-fixed{color:var(--nrya-text-sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.nrya-console .nrya-prov-gone{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:4px 2px 0; font-size:12px; color:var(--nrya-text-sub)}
+.nrya-console .nrya-prov-gone-it{display:inline-flex; align-items:center; gap:5px}
+.nrya-console .nrya-panel > .nrya-acc{margin-bottom:12px}
+@media (max-width:400px){
+  .nrya-console .nrya-vswitch button{font-size:12px; gap:3px}
+}
 .nrya-console .nrya-subtabs{display:flex; gap:7px; overflow-x:auto; padding:2px 0 10px; scrollbar-width:none}
 .nrya-console .nrya-subtabs::-webkit-scrollbar{display:none}
 .nrya-console .nrya-subtab{position:relative; flex:0 0 auto; padding:7px 13px; border-radius:18px; background:rgba(255,255,255,.05); border:1px solid var(--nrya-border); color:var(--nrya-text-sub); font-size:12.5px; font-weight:600; white-space:nowrap; cursor:pointer}
