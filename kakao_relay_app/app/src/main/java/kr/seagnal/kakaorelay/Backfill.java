@@ -29,7 +29,7 @@ final class Backfill {
     private static final long STEP_MS = 1_500L;      // 넘긴 뒤 옛 글이 불려 와 그려질 때까지 기다림
     private static final long ARM_TIMEOUT_MS = 3 * 60_000L;
     private static final int MAX_ROUNDS = 1500;
-    private static final int IDLE_STOP = 4;
+    private static final int IDLE_STOP = 6;   // 겹쳐 넘기면 새 글 없는 화면이 더 자주 나와 여유를 둔다(맨 위는 화면 서명으로 따로 알아챈다)
     private static final Pattern DATE = Pattern.compile("\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일.*");
     private static final Pattern TIME = Pattern.compile("^(오전|오후)\\s?\\d{1,2}:\\d{2}$");
 
@@ -42,6 +42,8 @@ final class Backfill {
     private static Context app;
     private static JSONArray all = new JSONArray();   // 이번 회차에 모은 전부(파일로 저장)
     private static long lastMiss;
+    private static String lastSig;
+    private static boolean triedFallback;
     private static boolean dumped;   // 회차마다 진단 파일 1번
 
     private Backfill() {}
@@ -60,6 +62,8 @@ final class Backfill {
         all = new JSONArray();
         dumped = false;
         lastMiss = 0;
+        lastSig = null;
+        triedFallback = false;
         Config.status(app, "긁어오기 대기 — 카톡에서 「" + Config.CHANNEL + "」 대화방을 여세요(3분 안)");
     }
 
@@ -150,8 +154,22 @@ final class Backfill {
         rounds++;
         if (idle >= IDLE_STOP) { stop("더 옛 글 없음(새 글 " + IDLE_STOP + "번 연속 없음)"); return; }
         if (rounds >= MAX_ROUNDS) { stop("최대 " + MAX_ROUNDS + "화면"); return; }
-        boolean moved = list != null && list.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
-        if (!moved && batch.length() == 0) { stop("더 넘길 수 없음"); return; }
+        // 넘기기 전후 화면이 같으면 안 움직인 것 — 「한 페이지 위로」를 한 번 시도하고, 그래도 같으면 맨 위.
+        String sig = ReaderService.signature(room);
+        if (sig.equals(lastSig)) {
+            if (!triedFallback && list != null && list.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) {
+                triedFallback = true;
+                H.postDelayed(Backfill::step, STEP_MS);
+                return;
+            }
+            stop("더 넘길 수 없음(맨 위)");
+            return;
+        }
+        lastSig = sig;
+        triedFallback = false;
+        // 직전 화면과 약 40% 겹치게 60%만 끌어 넘긴다(사용자 제안 2026-11-03). 끌기를 못 하면 「한 페이지 위로」.
+        boolean moved = list != null && (ReaderService.swipeDown(s, list) || list.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD));
+        if (!moved) { stop("더 넘길 수 없음"); return; }
         H.postDelayed(Backfill::step, STEP_MS);
     }
 

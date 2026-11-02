@@ -26,7 +26,10 @@ public class ReaderService extends AccessibilityService {
     // 동시에 여러 특보 카톡이 오는 경우가 있어(2026-11-01 16:03 예비특보·기상특보 2건 동시) 위로 2페이지까지 넘겨 읽는다
     //   (사용자 확정 2026-11-03 「최소한 스크롤 2페이지는 위로 돌려서 지금 데이터와 변동이 있는지 확인」).
     //   이미 본 글은 서버가 거른다(글 id·특보 줄 열쇠).
-    private static final int PAGES_UP = 2;
+    //   넘길 때는 화면 높이의 60%만 끌어 직전 화면과 약 40% 겹치게 한다(사용자 제안 2026-11-03 「직전 페이지와 겹쳐서
+    //   옮겨가면」 — 경계에 걸린 말풍선이 두 화면 사이에서 빠지지 않게). 2페이지 높이를 읽으려면 4번 끈다(4×0.6≈2.4).
+    private static final int PAGES_UP = 4;
+    static final float SWIPE_FRACTION = 0.6f;
     private static final long STEP_MS = 1_500L;     // 한 페이지 넘긴 뒤 그려질 때까지
 
     private static ReaderService instance;
@@ -36,6 +39,8 @@ public class ReaderService extends AccessibilityService {
     private State state = State.IDLE;
     private final java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
     private int pagesLeft;
+    private String lastSig;          // 넘기기 전 화면 서명 — 넘긴 뒤에도 같으면 안 움직인 것
+    private boolean triedFallback;   // 끌기가 안 먹혀 「한 페이지 위로」를 한 번 시도했나
     private String scrollNote;   // 위 페이지를 다 못 읽었으면 그 까닭(기록용 — 실패로 치지 않는다)
     private PowerManager.WakeLock wake;
     private PendingIntent again;   // 읽는 도중 새 특보가 오면 끝난 뒤 한 번 더 읽는다
@@ -149,28 +154,72 @@ public class ReaderService extends AccessibilityService {
         scrollUp();
     }
 
-    /** 대화창을 위로 한 페이지 넘긴다. 더 못 넘기면(맨 위) 끝낸다. */
+    /** 대화창을 위로 넘긴다(직전 화면과 겹치게 60% 끌기). 더 못 넘기면(맨 위) 끝낸다. */
     private void scrollUp() {
         if (state != State.SCROLL) return;
         if (pagesLeft <= 0) { finish(null); return; }
         List<AccessibilityNodeInfo> room = currentRoom();
         if (room == null) { scrollNote = "위 페이지 전 대화방을 벗어남"; finish(null); return; }
         AccessibilityNodeInfo sc = roomScroller(room);
-        if (sc == null || !sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) { finish(null); return; }
+        if (sc == null) { finish(null); return; }
+        lastSig = signature(room);
+        triedFallback = false;
+        if (!swipeDown(this, sc) && !sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) { finish(null); return; }
         pagesLeft--;
         handler.postDelayed(this::readPageUp, STEP_MS);
     }
 
-    /** 넘긴 페이지의 특보 글을 모으고 다음 페이지로. */
+    /** 넘긴 화면의 특보 글을 모으고 다음으로. 화면이 안 바뀌었으면 「한 페이지 위로」를 한 번 더 시도, 그래도 같으면 맨 위. */
     private void readPageUp() {
         if (state != State.SCROLL) return;
         List<AccessibilityNodeInfo> room = currentRoom();
         if (room == null) { scrollNote = "위 페이지를 읽는 중 대화방을 벗어남"; finish(null); return; }
+        if (signature(room).equals(lastSig)) {
+            AccessibilityNodeInfo sc = roomScroller(room);
+            if (!triedFallback && sc != null && sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) {
+                triedFallback = true;
+                handler.postDelayed(this::readPageUp, STEP_MS);
+                return;
+            }
+            finish(null);   // 맨 위에 닿음
+            return;
+        }
         for (AccessibilityNodeInfo n : room) {
             String s = textOf(n);
             if (s != null && s.contains(Config.MARKER)) found.add(s);
         }
         scrollUp();
+    }
+
+    /** 화면 서명 — 대화창에 보이는 글자들을 이어 붙인 것. 넘기기 전후가 같으면 화면이 안 움직인 것이다. */
+    static String signature(List<AccessibilityNodeInfo> room) {
+        StringBuilder b = new StringBuilder();
+        for (AccessibilityNodeInfo n : room) {
+            String s = textOf(n);
+            if (s != null) b.append(s.length()).append(':').append(s.hashCode()).append('|');
+        }
+        return b.toString();
+    }
+
+    /**
+     * 대화창 안에서 손가락을 위→아래로 화면 높이의 60%만큼 천천히 끈다(옛 글 쪽으로 넘기기, 직전 화면과 40% 겹침).
+     * 천천히(0.4초) 끌어 휙 넘어가는(관성) 일과 누르기로 잘못 읽히는 일을 피한다.
+     * @return 동작을 보냈으면 true(안드로이드 7 미만·영역이 너무 작으면 false — 호출 쪽이 「한 페이지 위로」로 대신한다)
+     */
+    static boolean swipeDown(AccessibilityService s, AccessibilityNodeInfo pane) {
+        if (Build.VERSION.SDK_INT < 24 || pane == null) return false;
+        android.graphics.Rect r = new android.graphics.Rect();
+        pane.getBoundsInScreen(r);
+        if (r.height() < 200 || r.width() < 100) return false;
+        float x = r.centerX();
+        float y1 = r.top + r.height() * 0.2f;
+        float y2 = y1 + r.height() * SWIPE_FRACTION;
+        android.graphics.Path p = new android.graphics.Path();
+        p.moveTo(x, y1);
+        p.lineTo(x, y2);
+        android.accessibilityservice.GestureDescription g = new android.accessibilityservice.GestureDescription.Builder()
+                .addStroke(new android.accessibilityservice.GestureDescription.StrokeDescription(p, 0, 400)).build();
+        return s.dispatchGesture(g, null, null);
     }
 
     private List<AccessibilityNodeInfo> currentRoom() {
