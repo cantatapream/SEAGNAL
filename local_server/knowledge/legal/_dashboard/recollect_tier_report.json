@@ -410,6 +410,26 @@
      "status": "갱신"
     }
    ]
+  },
+  {
+   "ran_at": "2026-11-02 22:22 KST",
+   "results": [
+    {
+     "slug": "해운법",
+     "tier": "법률",
+     "old_mst": "286933",
+     "new_mst": "291467",
+     "old_eff": "20260616",
+     "new_eff": "20261027",
+     "old_chars": 60394,
+     "new_chars": 60526,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/해운법/20260616",
+     "status": "갱신"
+    }
+   ]
   }
  ]
 }

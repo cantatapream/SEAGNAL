@@ -41,18 +41,6 @@
  ],
  "local_server/knowledge/legal/raw/05_수산어업/수산업법": [
   {
-   "date": "20261022",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "285535"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_eea555"
-   }
-  },
-  {
    "date": "20270617",
    "files": [
     "법률.txt"
@@ -280,20 +268,6 @@
    },
    "queue_id": {
     "법률.txt": "chg_20261007_e39763"
-   }
-  }
- ],
- "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률": [
-  {
-   "date": "20261022",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "285491"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_acbe7f"
    }
   }
  ],
