@@ -297,6 +297,16 @@ print(','.join(sorted(R.restore_notes(b, n))))`;
   ok('T-note 새 판에 없는 파일에는 만들지 않는다', !fs.existsSync(path.join(BD, '시행령_별표9.txt')) && r.stdout.trim() === '시행령_별표2.txt,시행령_서식0.txt', r.stdout);
 }
 
+// ── T-title: 머리에 덧붙인 「기계 대조」 메모 안의 낫표를 제목으로 읽지 않는다(2026-11-03 · 3-97) ──
+//   실제로 고시 4개가 메모 속 「대조 완료」 를 제목으로 얻어 한 줄로 묶이고 신선도 점검을 못 받았다.
+{
+  const ft = path.join(TMP, 'title_memo.txt');
+  fs.writeFileSync(ft, '🟡기계 대조 71%(2026-09-24): … (문턱 95% 미만이라 「대조 완료」로 올리지 않았다)\n' +
+    '  (옛 표시는 지우지 않는다 — 출처: 국가법령정보센터 행정규칙(훈령) 「선박 톤수 측정 요령」(현행))\n소관부서: 해양수산부\n');
+  const rT = spawnSync('python3', ['-c', 'import sys; sys.path.insert(0, sys.argv[1]); import _admrul_id as A; print(A.find_title(sys.argv[2])[0])', LOOP, ft], { encoding: 'utf8' });
+  ok('T-title: 「기계 대조」 메모 줄의 낫표는 제목이 아니다', (rT.stdout || '').trim() === '선박 톤수 측정 요령', (rT.stdout || '') + (rT.stderr || ''));
+}
+
 fs.rmSync(TMP, { recursive: true, force: true });
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
