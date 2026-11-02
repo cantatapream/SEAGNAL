@@ -81,6 +81,12 @@ local_server/data/child_bulletin_state.json.tmp
 # 이미지에 같은 경로 파일을 넣어도 볼륨 마운트에 가려지므로 추적하지 않는다.
 local_server/data/nariya_config.json
 local_server/data/nariya_config.json.tmp
+# 답변 AI 사슬 소진·ChatGPT 쉼 상태(services/llm_chain.js) — 런타임 상태(볼륨). 2026-11-02
+local_server/data/llm_chain_state.json
+local_server/data/llm_chain_state.json.tmp
+# 나리야 질문 수 날짜별 집계(services/legal_ask_stats.js) — 런타임 누적(볼륨, 숫자만). 2026-11-02
+local_server/data/legal_ask_stats.json
+local_server/data/legal_ask_stats.json.tmp
 
 # 태풍 통보문/예보 캐시 (typhoon_crawler.js 가 런타임 생성, Fly.io Volume에 저장)
 # 스케줄러가 부팅 시 재생성하므로 추적 제외

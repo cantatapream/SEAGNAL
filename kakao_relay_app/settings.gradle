@@ -1,0 +1,5 @@
+// 카톡 특보 중계 앱(태블릿 전용) — SEAGNAL 본 앱(android/)과 별개의 독립 프로젝트.
+pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+rootProject.name = 'kakao_relay_app'
+include ':app'

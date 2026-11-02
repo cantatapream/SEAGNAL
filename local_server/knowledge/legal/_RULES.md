@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 127 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 129 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -333,6 +333,8 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_score_body` | ★「변경 이력」이 **검색 점수에서 빠졌는지**를 고정한다. (결심 4-5ⓐ) |
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
+| `test_llm_chain` | 나리야 답변 AI 사슬(services/llm_chain.js)의 순서·자동 전환·크레딧 소진 처리를 고정한다. |
+| `test_legal_ask_stats` | 나리야 질문 수 날짜별 집계(services/legal_ask_stats.js)와 /api/legal/ask 연결을 고정한다. |
 | `test_fav_tide_prefetch` | 즐겨찾기 조석 미리받기(OS.prefetchFavoriteTides)를 고정한다. |
 | `test_picture_text` | ★그림 판독문이 **모델 근거에서 빠지는지**를 고정한다. (3-75 · Q-19) |
 | `test_ordin_fresh` | ★조례(자치법규)도 주간 원문 신선도 점검에 들어가 있는지를 고정한다. (3-78) |
@@ -398,6 +400,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_marine_smallzone_ui` | 실제 Chromium 에서 해구 기상전망 창(client/js/forecast/alerts/marine.js)의 소해구 표시를 검사한다(§11.10.18). |
 | `test_beach_weather` | 기상청 해수욕장 날씨(수집기 services/beach_weather_collector.js · 판단·문구 services/beach_weather.js · |
 | `test_notice_markdown` | 공지 게시판 「마크다운 파일 불러오기」(2026-10-20 사용자 결정 — 파일을 올리면 편집기에 채우고, 눈으로 보고 고친 뒤 저장 · 사진은 파일 안에)를 고정한다. |
+| `test_kakao_relay` | 카톡 특보 알림톡 수신(services/kakao_relay · routes/kakao_relay)을 고정한다. |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.
