@@ -23,14 +23,20 @@ import java.util.List;
 public class ReaderService extends AccessibilityService {
     private static final long TIMEOUT_MS = 45_000L;
     private static final long SETTLE_MS = 1_200L;   // 화면이 다 그려질 때까지 기다리는 시간
-    private static final int KEEP_LAST = 5;         // 화면에 보이는 특보 글 중 최근 몇 개를 보낼지
+    // 동시에 여러 특보 카톡이 오는 경우가 있어(2026-11-01 16:03 예비특보·기상특보 2건 동시) 위로 2페이지까지 넘겨 읽는다
+    //   (사용자 확정 2026-11-03 「최소한 스크롤 2페이지는 위로 돌려서 지금 데이터와 변동이 있는지 확인」).
+    //   이미 본 글은 서버가 거른다(글 id·특보 줄 열쇠).
+    private static final int PAGES_UP = 2;
+    private static final long STEP_MS = 1_500L;     // 한 페이지 넘긴 뒤 그려질 때까지
 
     private static ReaderService instance;
-    private enum State { IDLE, WAIT_CHAT, WAIT_FULL }
+    private enum State { IDLE, WAIT_CHAT, WAIT_FULL, SCROLL }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private State state = State.IDLE;
-    private final List<String> found = new ArrayList<>();
+    private final java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
+    private int pagesLeft;
+    private String scrollNote;   // 위 페이지를 다 못 읽었으면 그 까닭(기록용 — 실패로 치지 않는다)
     private PowerManager.WakeLock wake;
     private PendingIntent again;   // 읽는 도중 새 특보가 오면 끝난 뒤 한 번 더 읽는다
 
@@ -84,7 +90,7 @@ public class ReaderService extends AccessibilityService {
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
         if (e.getPackageName() != null && Config.KAKAO.contentEquals(e.getPackageName())) Backfill.onDiagEvent(this);
         if (Backfill.active()) { Backfill.onEvent(this, e); return; }   // 임시 긁어오기 중에는 그쪽이 화면을 다룬다
-        if (state == State.IDLE || e.getPackageName() == null) return;
+        if (state == State.IDLE || state == State.SCROLL || e.getPackageName() == null) return;
         if (!Config.KAKAO.contentEquals(e.getPackageName())) return;
         handler.removeCallbacks(readNow);
         handler.postDelayed(readNow, SETTLE_MS);   // 변화가 멈춘 뒤 한 번만 읽는다
@@ -114,21 +120,61 @@ public class ReaderService extends AccessibilityService {
         if (texts.isEmpty()) return;   // 아직 그려지는 중 — 다음 화면 변화 때 다시 읽는다
 
         if (state == State.WAIT_CHAT) {
-            int from = Math.max(0, texts.size() - KEEP_LAST);
-            found.addAll(texts.subList(from, texts.size()));
+            found.addAll(texts);
             if (more != null && click(more)) {
                 state = State.WAIT_FULL;
                 Config.status(this, "전체보기 누름");
                 return;
             }
-            finish(null);
+            startScroll();
         } else if (state == State.WAIT_FULL) {
             String longest = texts.get(0);
             for (String t : texts) if (t.length() > longest.length()) longest = t;
             found.add(longest);
             fullOk = true;
-            finish(null);
+            performGlobalAction(GLOBAL_ACTION_BACK);   // 전문 화면을 닫고 대화방으로 돌아가 위 페이지를 읽는다
+            state = State.SCROLL;
+            pagesLeft = PAGES_UP;
+            handler.postDelayed(this::scrollUp, STEP_MS);
         }
+    }
+
+    private void startScroll() {
+        state = State.SCROLL;
+        pagesLeft = PAGES_UP;
+        scrollUp();
+    }
+
+    /** 대화창을 위로 한 페이지 넘긴다. 더 못 넘기면(맨 위) 끝낸다. */
+    private void scrollUp() {
+        if (state != State.SCROLL) return;
+        if (pagesLeft <= 0) { finish(null); return; }
+        List<AccessibilityNodeInfo> room = currentRoom();
+        if (room == null) { scrollNote = "위 페이지 전 대화방을 벗어남"; finish(null); return; }
+        AccessibilityNodeInfo sc = roomScroller(room);
+        if (sc == null || !sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) { finish(null); return; }
+        pagesLeft--;
+        handler.postDelayed(this::readPageUp, STEP_MS);
+    }
+
+    /** 넘긴 페이지의 특보 글을 모으고 다음 페이지로. */
+    private void readPageUp() {
+        if (state != State.SCROLL) return;
+        List<AccessibilityNodeInfo> room = currentRoom();
+        if (room == null) { scrollNote = "위 페이지를 읽는 중 대화방을 벗어남"; finish(null); return; }
+        for (AccessibilityNodeInfo n : room) {
+            String s = textOf(n);
+            if (s != null && s.contains(Config.MARKER)) found.add(s);
+        }
+        scrollUp();
+    }
+
+    private List<AccessibilityNodeInfo> currentRoom() {
+        AccessibilityNodeInfo root = kakaoRoot(this);
+        if (root == null) return null;
+        List<AccessibilityNodeInfo> nodes = new ArrayList<>();
+        collect(root, nodes);
+        return roomNodes(nodes);
     }
 
     static boolean hasChannelTitle(List<AccessibilityNodeInfo> nodes) {
@@ -262,11 +308,11 @@ public class ReaderService extends AccessibilityService {
         if (state == State.WAIT_FULL && !fullOk) {
             result = "전체보기 실패(" + why + ") — 접힌 글 " + found.size() + "개만 보냄";
         } else if (!found.isEmpty()) {
-            result = "성공 " + found.size() + "개";
+            result = "성공 " + found.size() + "개" + (scrollNote == null ? "" : "(" + scrollNote + ")");
         } else {
             result = "실패: " + (why == null ? "글 없음" : why);
         }
-        if (!found.isEmpty()) Sender.sendMessages(this, new ArrayList<>(found), "screen");
+        if (!found.isEmpty()) Sender.sendRead(this, new ArrayList<>(found));
         Config.status(this, "대화방 읽기 " + result);
         // 서버 신호에 실어 보낼 마지막 결과(화면에만 남기지 않는다)
         Config.prefs(this).edit().putString("lastRead",
@@ -274,6 +320,7 @@ public class ReaderService extends AccessibilityService {
         if (state == State.WAIT_FULL) performGlobalAction(GLOBAL_ACTION_BACK);   // 전문 화면을 닫고 나간다
         found.clear();
         fullOk = false;
+        scrollNote = null;
         state = State.IDLE;
         performGlobalAction(GLOBAL_ACTION_HOME);
         if (wake != null && wake.isHeld()) wake.release();

@@ -42,6 +42,26 @@ final class Sender {
         });
     }
 
+    /**
+     * 대화방에서 읽은 글을 보낸다. 방금 뜬 알림과 앞부분이 같은 말풍선에는 trigger=true(「이번 알림」),
+     * 함께 읽힌 직전 글은 trigger=false — 서버는 이것으로 새 특보와 놓친 글을 가른다(services/kakao_relay storeMessages).
+     */
+    static void sendRead(Context ctx, List<String> texts) {
+        final Context c = ctx.getApplicationContext();
+        POOL.execute(() -> {
+            try {
+                JSONArray q = new JSONArray(Config.prefs(c).getString("queue", "[]"));
+                for (String t : texts) q.put(new JSONObject().put("text", t).put("source", "screen")
+                        .put("trigger", KakaoNotiService.isRecentNotification(t)));
+                while (q.length() > MAX_QUEUE) q.remove(0);
+                Config.prefs(c).edit().putString("queue", q.toString()).commit();
+                flush(c);
+            } catch (Exception e) {
+                Config.status(c, "대기열 오류: " + e.getMessage());
+            }
+        });
+    }
+
     /** 살아 있음 신호를 보내고, 쌓인 글이 있으면 같이 다시 보낸다. */
     static void heartbeat(Context ctx, String note) {
         final Context c = ctx.getApplicationContext();

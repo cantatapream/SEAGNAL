@@ -10,7 +10,7 @@
 'use strict';
 const fs = require('fs'), os = require('os'), path = require('path'), http = require('http');
 const express = require('express');
-const { parseWarnings, createStore, judgeHealth, checkHealth, MAX_MESSAGES, HEARTBEAT_STALE_MS } = require('../services/kakao_relay');
+const { parseWarnings, createStore, judgeHealth, checkHealth, checkMmis, mmisMatches, MAX_MESSAGES, HEARTBEAT_STALE_MS } = require('../services/kakao_relay');
 const { createRouter } = require('../routes/kakao_relay');
 
 let pass = 0, fail = 0;
@@ -21,16 +21,25 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
 (async () => {
     console.log('A. 분해');
     let w = parseWarnings(HEAD + '동해남부북쪽바깥먼바다,\n풍랑주의보 11월 02일 19시 00분 발효', NOV);
-    ok('한 건 발효', JSON.stringify(w) === JSON.stringify([{ zone: '동해남부북쪽바깥먼바다', zoneKey: '동해남부북쪽바깥먼바다', kind: '풍랑주의보', at: '2026-11-02T19:00+09:00', action: '발효', rawAction: '발효' }]), w);
+    ok('한 건 발효', JSON.stringify(w) === JSON.stringify([{ section: '기상특보', rawZone: '동해남부북쪽바깥먼바다', zone: '동해남부북쪽바깥먼바다', zoneKey: '동해남부북쪽바깥먼바다', parent: null, zoneKnown: true, kind: '풍랑주의보', type: '풍랑', level: '주의보', at: '2026-11-02T19:00+09:00', until: null, action: '발효', rawAction: '발효' }]), w);
     w = parseWarnings(HEAD + '제주도서부앞바다,\n풍랑주의보 11월 02일 18시 00분\n해제\n제주도서부앞바다중 북서연안바다,\n풍랑주의보 11월 02일 18시 00분\n해제\n제주도서부앞바다중가파도연안바\n다,\n풍랑주의보 11월 02일 18시 00분\n해제', NOV);
     ok('여러 건·줄바꿈 해제', w.length === 3 && w.every((x) => x.action === '해제'), w);
-    ok('띄어쓰기 있는 구역 이름 유지', w[1] && w[1].zone === '제주도서부앞바다중 북서연안바다', w[1]);
+    ok('띄어쓰기 있는 구역 이름 → 표준 이름·부모·원문 보존', w[1] && w[1].zone === '제주도서부앞바다중북서연안바다' && w[1].parent === '제주도서부앞바다' && w[1].rawZone === '제주도서부앞바다중 북서연안바다', w[1]);
+    let q = parseWarnings(HEAD + '태안.서산 북쪽 평수구역,\n풍랑주의보 10월 28일 00시 00분 해제\n남해서부 서쪽,\n풍랑주의보 08월 08일 20시 00분 발효\n울릉도서면연안바다,\n풍랑경보 10월 27일 19시 00분 변경', NOV);
+    ok('「.」→「·」·공백 제거로 표준 이름(부모 표로 충남북부앞바다)', q[0].zone === '태안·서산북쪽평수구역' && q[0].parent === '충남북부앞바다' && q[0].zoneKnown, q[0]);
+    ok('별칭: 남해서부 서쪽 = 남해서부서쪽먼바다(부모)', q[1].zone === '남해서부서쪽먼바다' && q[1].parent === null && q[1].zoneKnown, q[1]);
+    ok('울릉도 자식의 부모는 동해중부안쪽먼바다(이름에 「중」 없음)·경보 등급', q[2].parent === '동해중부안쪽먼바다' && q[2].level === '경보', q[2]);
+    q = parseWarnings('[해양기상기후정보 알림]\n\n[예비특보]\n제주도서부앞바다중 남서연안바다,\n풍랑예비특보 11월 02일 12~18시 발효\n남해동부바깥먼바다,\n태풍예비특보 10월 25일 18~00시 해제', NOV);
+    ok('예비특보: 시간 범위·등급 예비', q[0].section === '예비특보' && q[0].level === '예비' && q[0].at === '2026-11-02T12:00+09:00' && q[0].until === '2026-11-02T18:00+09:00', q[0]);
+    ok('예비특보 18~00시는 다음 날 00시까지 · 태풍은 MMIS 기준 표시', q[1].until === '2026-10-26T00:00+09:00' && q[1].mmisOnly === true && q[1].action === '해제', q[1]);
+    ok('변경해제는 아는 동작어', parseWarnings(HEAD + '남해동부바깥먼바다,\n풍랑경보 10월 25일 15시 00분 변경해제', NOV)[0].action === '변경해제');
+    ok('모르는 구역은 zoneKnown=false', parseWarnings(HEAD + '서해남부먼바다,\n풍랑주의보 11월 02일 19시 00분 발효', NOV)[0].zoneKnown === false);
     ok('비교용 열쇠는 공백 없음', w[1] && w[1].zoneKey === '제주도서부앞바다중북서연안바다', w[1]);
-    ok('잘린 동작어는 unknown', parseWarnings(HEAD + '서해남부먼바다,\n풍랑주의보 11월 02일 19시 00분 해', NOV)[0].action === 'unknown');
+    ok('잘린 동작어는 unknown', parseWarnings(HEAD + '서해남부북쪽안쪽먼바다,\n풍랑주의보 11월 02일 19시 00분 해', NOV)[0].action === 'unknown');
     ok('끊긴 구역 이름 이어 붙임', w[2] && w[2].zone === '제주도서부앞바다중가파도연안바다', w[2]);
     ok('04시 05분 같은 분 단위', parseWarnings(HEAD + '제주도동부앞바다중 남동연안바다,\n풍랑주의보 11월 02일 04시 05분\n해제', NOV)[0].at === '2026-11-02T04:05+09:00');
     ok('[기상특보] 없으면 빈 목록', parseWarnings('아무 글', NOV).length === 0);
-    ok('12월에 받은 1월 특보는 다음 해', parseWarnings(HEAD + '서해남부먼바다,\n풍랑경보 01월 01일 03시 00분 발효', new Date('2026-12-31T16:00:00Z'))[0].at.startsWith('2027-01-01'));
+    ok('12월에 받은 1월 특보는 다음 해', parseWarnings(HEAD + '서해남부북쪽안쪽먼바다,\n풍랑경보 01월 01일 03시 00분 발효', new Date('2026-12-31T16:00:00Z'))[0].at.startsWith('2027-01-01'));
 
     console.log('B. 저장');
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kakao-relay-'));
@@ -51,14 +60,14 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
 
     console.log('D. 특보 줄 단위 중복');
     const st2 = createStore({ file: path.join(tmp, 'db2.json') });
-    const L1 = '서해남부먼바다,\n풍랑주의보 11월 02일 17시 00분 발효';
+    const L1 = '서해남부북쪽안쪽먼바다,\n풍랑주의보 11월 02일 17시 00분 발효';
     let n = st2.storeMessages([{ text: HEAD + L1, source: 'notification' }], 't', NOV).new[0];
     ok('처음 본 줄은 새 특보', n.newWarnings.length === 1, n.newWarnings);
-    n = st2.storeMessages([{ text: HEAD + L1 + '\n서해중부먼바다,\n풍랑주의보 11월 02일 17시 00분 발효' }], 't', NOV).new[0];
-    ok('알림 글·화면 글이 달라도 같은 줄은 새것 아님(새 줄만)', n.newWarnings.length === 1 && n.newWarnings[0].zone === '서해중부먼바다', n.newWarnings);
-    n = st2.storeMessages([{ text: HEAD + '동해중부먼바다,\n풍랑주의보 10월 30일 17시 00분 발효' }], 't', NOV).new[0];
+    n = st2.storeMessages([{ text: HEAD + L1 + '\n서해중부안쪽먼바다,\n풍랑주의보 11월 02일 17시 00분 발효' }], 't', NOV).new[0];
+    ok('알림 글·화면 글이 달라도 같은 줄은 새것 아님(새 줄만)', n.newWarnings.length === 1 && n.newWarnings[0].zone === '서해중부안쪽먼바다', n.newWarnings);
+    n = st2.storeMessages([{ text: HEAD + '동해중부바깥먼바다,\n풍랑주의보 10월 30일 17시 00분 발효' }], 't', NOV).new[0];
     ok('24시간 넘게 지난 옛 특보는 새것 아님', n.newWarnings.length === 0, n.newWarnings);
-    n = st2.storeMessages([{ text: HEAD + '남해동부먼바다,\n풍랑주의보 11월 02일 17시 00분 해' }], 't', NOV).new[0];
+    n = st2.storeMessages([{ text: HEAD + '남해동부안쪽먼바다,\n풍랑주의보 11월 02일 17시 00분 해' }], 't', NOV).new[0];
     ok('동작어 모름(unknown)은 새것 아님', n.newWarnings.length === 0);
 
     console.log('E. 멈춤 판정');
@@ -85,6 +94,76 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     await checkHealth({ store: st3, alert: fakeAlert, now: T, enabled: true });
     ok('신호 돌아오면 정상 보고', calls.length === 2 && calls[1][1].ok === true);
     ok('수집현황 카드가 읽는 heartbeatAt 칸', JSON.parse(fs.readFileSync(path.join(tmp, 'db3.json'), 'utf8')).heartbeatAt === new Date(T).toISOString());
+
+    console.log('G. 이번 알림·함께 읽힌 직전 글·미리 채우기');
+    const st4 = createStore({ file: path.join(tmp, 'db4.json') });
+    const OLD = HEAD + '동해중부안쪽먼바다,\n풍랑주의보 11월 02일 19시 00분 발효';
+    const NEW = HEAD + '남해동부바깥먼바다,\n풍랑주의보 11월 03일 03시 00분 해제';
+    const T3 = new Date('2026-11-02T15:02:25Z');
+    r = st4.storeMessages([{ text: NEW, source: 'screen', trigger: true }, { text: OLD, source: 'screen', trigger: false }], 'phone', T3);
+    ok('이번 알림 글의 줄만 새 특보', r.new[0].newWarnings.length === 1 && r.new[1].newWarnings.length === 0, r.new.map((x) => x.newWarnings.length));
+    ok('함께 읽힌 처음 보는 직전 글은 놓친 글로 따로', r.new[1].missedWarnings.length === 1 && r.new[1].trigger === false, r.new[1].missedWarnings);
+    r = st4.storeMessages([{ text: OLD, source: 'screen', trigger: true }], 'phone', T3);
+    ok('나중에 같은 글이 이번 알림으로 오면 새 특보로 올림(동시에 2개 온 경우)', r.promoted === 1 && st4.snapshot(10).messages.find((m) => m.text === OLD).newWarnings.length === 1, r);
+    r = st4.storeMessages([{ text: OLD, trigger: true }], 'phone', T3);
+    ok('두 번 올리지 않음', r.promoted === 0 && r.duplicate === 1, r);
+    ok('trigger 가 없는 옛 앱 글은 이번 알림으로 봄', st4.storeMessages([{ text: HEAD + '남해동부안쪽먼바다,\n풍랑주의보 11월 03일 03시 00분 해제' }], 'tab', T3).new[0].trigger === true);
+    const st5 = createStore({ file: path.join(tmp, 'db5.json') });
+    const sd = st5.seed([OLD, NEW, '  ']);
+    ok('미리 채우기: 글 2·줄 2', sd.ids === 2 && sd.keys === 2, sd);
+    r = st5.storeMessages([{ text: OLD, trigger: false }, { text: NEW, trigger: true }], 'phone', T3);
+    ok('미리 채운 옛 글은 중복으로 버림(새 특보·놓친 글 없음)', r.added === 0 && r.duplicate === 2, r);
+    r = st5.storeMessages([{ text: NEW + '\n제주도남쪽바깥먼바다,\n풍랑주의보 11월 03일 03시 00분 해제', trigger: true }], 'phone', T3);
+    ok('미리 채운 줄은 새것 아님, 새 줄만', r.new[0].newWarnings.map((w) => w.zone).join() === '제주도남쪽바깥먼바다', r.new[0].newWarnings);
+    const st6 = createStore({ file: path.join(tmp, 'db6.json') });
+    r = st6.storeMessages([{ text: HEAD + '서해남부먼바다,\n풍랑주의보 11월 02일 19시 00분 발효\n남해동부바깥먼바다,\n태풍경보 11월 02일 19시 00분 발효', trigger: true }], 'phone', T3);
+    ok('모르는 구역·태풍 줄은 새 특보에 안 넣음', r.new[0].newWarnings.length === 0 && r.new[0].unknownZones.join() === '서해남부먼바다', r.new[0]);
+
+    console.log('H. 특보현황(MMIS) 대조 판정');
+    const B = (o) => ({ wrnTpNm: '풍랑', wrnLvlNm: '주의보', tmFc: '', tmEf: '', tmYn: '', clrNtcTm: '', ...o });
+    const rel = { zone: '남해동부바깥먼바다', level: '주의보', action: '해제', at: '2026-11-03T03:00+09:00', receivedAt: '2026-11-02T15:02:22Z' };
+    ok('해제: 해제예고 범위 그대로면 아직 다름', !mmisMatches(rel, { current: B({ clrNtcTm: '3일 새벽(03시~06시)' }) }));
+    ok('해제: 해제예고가 정확히 그 시각이면 같음', mmisMatches(rel, { current: B({ clrNtcTm: '2026년 11월 03일 03시 00분' }) }));
+    ok('해제: 특보현황에 풍랑이 없으면 같음', mmisMatches(rel, { current: null, upcoming: null }));
+    const ext = { zone: '제주도동부앞바다', level: '주의보', action: '연장', at: '2026-10-26T11:00+09:00', receivedAt: '2026-10-26T02:03:00Z' };
+    ok('연장: 옛 발표(06시)만 있으면 다름 — 옛 해제예고로 해제되는 사고의 신호', !mmisMatches(ext, { current: B({ tmFc: '2026년 10월 26일 06시 00분', clrNtcTm: '26일 오전(09시~12시)' }) }));
+    ok('연장: 새 발표(11시)를 받았으면 같음', mmisMatches(ext, { current: B({ tmFc: '2026년 10월 26일 11시 00분', clrNtcTm: '26일 늦은 오후(15시~18시)' }) }));
+    const up = { zone: '동해중부안쪽먼바다', level: '경보', action: '변경', at: '2026-10-27T19:00+09:00', receivedAt: '2026-10-27T08:05:00Z' };
+    ok('변경(격상): 특보현황이 아직 주의보면 다름', !mmisMatches(up, { current: B({ tmFc: '2026년 10월 27일 05시 00분' }) }));
+    ok('변경(격상): 경보·발효 19시가 보이면 같음', mmisMatches(up, { current: B({ wrnLvlNm: '주의보' }), upcoming: B({ wrnLvlNm: '경보', tmEf: '2026년 10월 27일 19시 00분' }) }));
+    const chg = { zone: '남해동부바깥먼바다', level: '경보', action: '변경해제', at: '2026-10-25T15:00+09:00', receivedAt: '2026-10-25T05:00:00Z' };
+    ok('변경해제: 풍랑경보가 태풍으로 바뀌었으면 같음', mmisMatches(chg, { current: B({ wrnTpNm: '태풍', wrnLvlNm: '경보' }) }));
+
+    console.log('I. 대조 알림(10분·같아짐·모르는 구역)');
+    const st7 = createStore({ file: path.join(tmp, 'db7.json') });
+    st7.storeMessages([{ text: HEAD + '제주도동부앞바다,\n풍랑주의보 10월 26일 11시 00분 연장\n제주도동부앞바다중우도연안바다,\n풍랑주의보 10월 26일 11시 00분 연장', trigger: true }], 'phone', new Date('2026-10-26T02:03:00Z'));
+    ok('대조 대기열은 부모 해역만', st7.snapshot(0).pending.length === 1 && st7.snapshot(0).pending[0].zone === '제주도동부앞바다');
+    let tree = { current: { 제주도: { 제주도앞바다: { 제주도동부앞바다: { current: B({ tmFc: '2026년 10월 26일 06시 00분', tmEf: '2026년 10월 26일 06시 00분', clrNtcTm: '26일 오전(09시~12시)' }), upcoming: null, history: [], children: {} } } } } };
+    const sent = [];
+    const fake = async (t, b) => { sent.push({ t, b }); return { delivered: true }; };
+    const T0 = Date.parse('2026-10-26T02:03:00Z');
+    let cr = await checkMmis({ store: st7, now: T0 + 9 * 60e3, send: fake, readAlerts: () => tree, enabled: true });
+    ok('10분 전에는 알리지 않음', cr.sent === 0 && sent.length === 0, cr);
+    cr = await checkMmis({ store: st7, now: T0 + 10 * 60e3, send: fake, readAlerts: () => tree, enabled: true });
+    ok('10분째 다르면 알림 1통', cr.mismatched === 1 && sent.length === 1, cr);
+    ok('알림 문장: 구역·카톡 내용·도착 시각·지금 특보현황·할 일', /제주도동부앞바다 풍랑주의보 「연장」 10\/26 11:00/.test(sent[0].b) && /카톡 도착 10\/26 11:03/.test(sent[0].b) && /해제예고 26일 오전\(09시~12시\)/.test(sent[0].b) && /발표 10\/26 06:00/.test(sent[0].b) && /통보문/.test(sent[0].b), sent[0]);
+    cr = await checkMmis({ store: st7, now: T0 + 11 * 60e3, send: fake, readAlerts: () => tree, enabled: true });
+    ok('같은 불일치는 다시 알리지 않음', cr.sent === 0 && sent.length === 1, cr);
+    tree.current.제주도.제주도앞바다.제주도동부앞바다.current = B({ tmFc: '2026년 10월 26일 11시 00분', clrNtcTm: '26일 늦은 오후(15시~18시)' });
+    cr = await checkMmis({ store: st7, now: T0 + 14 * 60e3, send: fake, readAlerts: () => tree, enabled: true });
+    ok('따라오면 「같아짐」 1통(몇 분 늦었는지)', cr.resolved === 1 && /같아짐/.test(sent[1].t) && /약 14분 늦음/.test(sent[1].b), sent[1]);
+    ok('대기열 비움·관리자 기록 2건(같은 문장)', st7.snapshot(0).pending.length === 0 && st7.snapshot(0).checks.length === 2 && st7.snapshot(0).checks[1].body === sent[0].b);
+    const st8 = createStore({ file: path.join(tmp, 'db8.json') });
+    st8.storeMessages([{ text: HEAD + '서해남부먼바다,\n풍랑주의보 11월 02일 19시 00분 발효', trigger: true }], 'phone', T3);
+    const sent2 = [];
+    let flakyFail = true;
+    const flaky = async (t, b) => { sent2.push(t); return { delivered: !flakyFail }; };
+    await checkMmis({ store: st8, now: T3.getTime(), send: flaky, readAlerts: () => ({ current: {} }), enabled: true });
+    flakyFail = false;
+    await checkMmis({ store: st8, now: T3.getTime() + 60e3, send: flaky, readAlerts: () => ({ current: {} }), enabled: true });
+    await checkMmis({ store: st8, now: T3.getTime() + 120e3, send: flaky, readAlerts: () => ({ current: {} }), enabled: true });
+    ok('모르는 구역 알림: 전달 실패면 다음 회차 재시도, 전달되면 끝', sent2.length === 2 && sent2.every((t) => /모르는 구역/.test(t)), sent2);
+    ok('열쇠 미설정이면 대조 안 함', (await checkMmis({ store: st8, enabled: false })) === null);
 
     console.log('C. 라우트');
     const app = express(); app.use(express.json());
@@ -114,7 +193,7 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     ok('실시간 기록 읽기(열쇠)', x.status === 200 && x.body.messages.length === 1 && 'heartbeat' in x.body, x.body);
     console.log('F. 임시 긁어오기');
     secret = 'k';
-    x = await call('POST', '/api/kakao-relay/backfill', { device: 'p', messages: [{ text: HEAD + '서해남부먼바다,\n풍랑주의보 12월 30일 17시 00분 발효', date: '2025년 12월 30일 화요일', time: '오후 5:03' }, { text: 'b2' }] }, { 'X-Relay-Token': 'k' });
+    x = await call('POST', '/api/kakao-relay/backfill', { device: 'p', messages: [{ text: HEAD + '서해남부북쪽안쪽먼바다,\n풍랑주의보 12월 30일 17시 00분 발효', date: '2025년 12월 30일 화요일', time: '오후 5:03' }, { text: 'b2' }] }, { 'X-Relay-Token': 'k' });
     ok('긁어오기 저장', x.status === 200 && x.body.added === 2 && x.body.total === 2, x);
     x = await call('POST', '/api/kakao-relay/backfill', { messages: [{ text: 'b2' }] }, { 'X-Relay-Token': 'k' });
     ok('긁어오기 중복', x.body.added === 0 && x.body.duplicate === 1, x);

@@ -6,7 +6,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/kakao_relay(분해·저장) · services/admin_auth(관리자 조회)
- *  - 서버 API      : POST·GET /api/kakao-relay/messages · POST /api/kakao-relay/heartbeat ·
+ *  - 서버 API      : POST·GET /api/kakao-relay/messages · POST /api/kakao-relay/heartbeat · POST /api/kakao-relay/seed ·
  *                    POST·GET·DELETE /api/kakao-relay/backfill(임시 긁어오기 — 분석용, 같은 열쇠) ·
  *                    GET /api/admin/kakao-relay
  *  - 마크업        : 없음
@@ -83,6 +83,14 @@ function createRouter({
             console.warn('[kakao_relay] 신호 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });
         }
+    });
+
+    // 「이미 봤음」 기억 미리 채우기 — 긁어온 옛 알림톡 글 목록(texts)을 넣는다(services/kakao_relay seed).
+    router.post('/api/kakao-relay/seed', auth, (req, res) => {
+        const texts = Array.isArray(req.body && req.body.texts) ? req.body.texts : [];
+        if (texts.length > 3000) return res.status(413).json({ ok: false, error: '한 번에 3000건까지' });
+        try { res.json({ ok: true, ...store.seed(texts) }); }
+        catch (e) { res.status(500).json({ ok: false, error: e.message }); }
     });
 
     // ── 임시 긁어오기(분석용) — 본 휴대폰의 옛 알림톡. 실시간 기록과 따로 둔다(services/kakao_relay storeBackfill). ──

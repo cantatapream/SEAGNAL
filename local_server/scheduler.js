@@ -2818,6 +2818,12 @@ async function init() {
             spawnAdvisoryCycle(':25');
         }
 
+        // [카톡 ↔ 특보현황(MMIS) 대조 — 2026-11-03] 매분. 카톡 풍랑 특보가 10분 넘게 특보현황에 안 맞으면 관리자 알림,
+        //   나중에 같아지면 「같아짐」 알림. 모르는 구역·분해 실패도 알림. 기록·알림만 — 특보현황·사용자 푸시는 안 바꾼다.
+        require('./services/kakao_relay').checkMmis().catch(err =>
+            log(`⚠️ [kakao_relay] MMIS 대조 오류: ${err.message}`)
+        );
+
         // [카톡 특보중계 태블릿 멈춤 감시 — 2026-11-02] 5분마다 마지막 신호를 보고 끊김·접근성 꺼짐·읽기 실패면
         //   관리자 푸시(첫 이상 1번·복구 1번 — services/collect_fail_alert 항목 kakaoRelay). 열쇠 미설정이면 아무것도 안 함.
         if (min % 5 === 2) {

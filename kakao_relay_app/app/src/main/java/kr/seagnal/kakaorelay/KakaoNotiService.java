@@ -20,6 +20,34 @@ public class KakaoNotiService extends NotificationListenerService {
 
     static boolean isConnected() { return connected; }
 
+    // 최근 10분 안에 뜬 특보 알림 글 — 대화방에서 읽은 말풍선 중 어느 것이 「이번 알림」인지 가리는 데 쓴다.
+    private static final java.util.ArrayDeque<Object[]> RECENT = new java.util.ArrayDeque<>();
+    private static final long RECENT_MS = 10 * 60 * 1000L;
+
+    private static String norm(String s) { return s == null ? "" : s.replaceAll("\\s+", " ").trim(); }
+
+    static synchronized void rememberNotification(String text) {
+        long now = System.currentTimeMillis();
+        while (!RECENT.isEmpty() && now - (Long) RECENT.peekFirst()[1] > RECENT_MS) RECENT.pollFirst();
+        RECENT.addLast(new Object[]{norm(text), now});
+    }
+
+    /**
+     * 이 말풍선이 최근 뜬 알림의 글인가. 알림 글은 200자에서 잘려 오므로(2026-11-03 실측) 앞부분이 같으면 같은 글로 본다.
+     * 예: 알림 「…제주도남서쪽안쪽먼바다,\n풍랑주의보 11월 0」 ↔ 말풍선 「…11월 03일 03시 00분 해제」 → true
+     */
+    static synchronized boolean isRecentNotification(String bubble) {
+        String b = norm(bubble);
+        long now = System.currentTimeMillis();
+        for (Object[] r : RECENT) {
+            if (now - (Long) r[1] > RECENT_MS) continue;
+            String n = (String) r[0];
+            String prefix = n.length() >= 190 ? n.substring(0, n.length() - 3) : n;
+            if (!prefix.isEmpty() && b.startsWith(prefix)) return true;
+        }
+        return false;
+    }
+
     @Override public void onListenerConnected() {
         connected = true;
         Config.status(this, "알림 감시 시작");
@@ -46,6 +74,7 @@ public class KakaoNotiService extends NotificationListenerService {
 
         Config.status(this, "특보 알림 감지 (" + text.length() + "자)");
         if (text.contains(Config.MARKER)) {
+            rememberNotification(text);
             Sender.sendMessages(this, Collections.singletonList(text), "notification");
         }
         if (Config.notiOnly(this)) return;   // 휴대폰용 — 화면·카톡을 건드리지 않고 알림 글만 보낸다
