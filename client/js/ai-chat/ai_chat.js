@@ -39,6 +39,8 @@
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
+ *                    GET  /api/legal/reviews/:id/sources        (카드의 「원문 보기」 — 대상 페이지 근거 조문 표의
+ *                                                               줄마다 원문 열림 여부 + 법령정보센터 주소)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토·원문신선도 실카운트)
  *                    GET  /api/legal/admin/ask-stats           (질문 수 — 날짜별 KST·1년 보관·숫자만. 「질문 수」 카드)
  *                    GET  /api/legal/freshness?status=pending  (원문신선도 — 낡은 행정규칙 원문 목록
@@ -78,12 +80,14 @@
  *                                                                 빈 배열이면 아무것도 그리지 않는다
  *                                                               · 6초 초과+옵트인이면 서버가 완료 푸시 발송)
  *                    GET  /api/legal/pending-answer/:requestId (푸시로 재진입 시 그 답변 1회 복원)
- *                    GET  /api/legal/article-text?law&article&tier&baseLaw
+ *                    GET  /api/legal/article-text?law&article&tier&baseLaw[&files=1]
  *                                                              (근거법령 체인의 조문 카드를 누르면
  *                                                               그 조 원문 전체 + 인용된 항·호 강조.
  *                                                               인용이 범위(제1~9조)·문서 전체면 조를
  *                                                               강조 없이 나열하고, 본문의 별표·서식
- *                                                               참조는 refs 판정으로 링크·회색 처리)
+ *                                                               참조는 refs 판정으로 링크·회색 처리.
+ *                                                               files=1 은 ⚠수치검증 카드에서 연 창만 —
+ *                                                               고시 별표의 원본 HWP·PDF 단추까지)
  *                    GET  /api/legal/src?p=<raw 상대경로>       (별표 스캔 이미지 원본 — 위 refs 의 image)
  *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
  *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
@@ -2640,6 +2644,8 @@
         bodyHTML:
         '<div class="nrya-rv-body">' + reviewFieldsHTML(rv) +
           (pagesA ? '<div class="nrya-src-line">📍 대상 페이지: ' + pagesA + '</div>' : '') +
+          // 원문 보기(2026-11-02) — 눌러야 서버에 묻는다(toggleReviewSources). 승인된 카드도 다시 볼 수 있게 둔다.
+          '<div class="nrya-rv-src"><button type="button" class="nrya-btn-src">📜 원문 보기 (법령 원문·법령정보센터)</button><div class="nrya-rv-srcbox" style="display:none"></div></div>' +
           '<div class="nrya-rv-actions"><button class="nrya-btn-no nrya-btn-undo">↩ 승인 되돌리기 (대기로)</button></div>' +
           '<div class="nrya-inline-err nrya-hidden" style="display:none"></div><div class="nrya-chain"></div>' +
         '</div>',
@@ -2677,6 +2683,8 @@
       '<div class="nrya-rv-body">' +
         reviewFieldsHTML(rv) +
         (pages ? '<div class="nrya-src-line">📍 대상 페이지: ' + pages + '</div>' : '') +
+        // 원문 보기(2026-11-02 사용자 요청) — 판단 전에 실제 법령 원문을 이 화면에서 펼쳐 본다(toggleReviewSources).
+        '<div class="nrya-rv-src"><button type="button" class="nrya-btn-src">📜 원문 보기 (법령 원문·법령정보센터)</button><div class="nrya-rv-srcbox" style="display:none"></div></div>' +
         correctBlock +
         actionsHTML +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
@@ -2689,6 +2697,139 @@
       subHTML: '<b>' + esc(rv.law || '') + '</b>' + (pages ? ' · ' + (rv.targetPages || []).length + '개 페이지' : ''),
       statusHTML: st, bodyHTML: body,
     });
+  }
+
+  // ── ⚠수치검증 카드의 「원문 보기」(2026-11-02 사용자 요청) ─────────────────────────────
+  // 사용자 원문: "내가 검증하기 위해서는 해당 실제 원문을 보아야 하는데 원문을 볼 수있는 링크 또는
+  //   원문을 직접 해당 화면에서 볼 수 있도록 해주면 좋겠어."
+  // 새 원문 보기 장치를 짜지 않는다 — 챗봇 답변의 **조문 창(openArtPop)·별표 창**을 그대로 띄운다(L-136).
+  // 어떤 원문을 열지는 서버가 카드의 대상 페이지 「근거 조문」 표에서 골라 준다(services/review_sources.js).
+
+  // 서버가 줄마다 원문을 미리 열어 본 결과(open.reason)를 사람 말로. 없는 이유를 지어내지 않는다 — 모르는 값은 그대로 보인다.
+  var REVIEW_OPEN_WHY = {
+    law_not_found: '우리 원문 모음에 이 법이 없어요',
+    file_not_found: '이 고시·계층의 원문 파일을 찾지 못했어요',
+    article_not_found: '원문에서 이 조를 찾지 못했어요',
+    bad_request: '조문 칸의 표기를 기계가 읽을 수 없어요',
+    no_source: '서버에 원문이 없어요',
+    error: '원문을 여는 중 오류가 났어요'
+  };
+
+  /**
+   * 「원문 보기」를 눌렀을 때 카드 안에 펼칠 목록 HTML 을 만든다(서버 응답 → 화면).
+   * 대상 페이지마다 「근거 조문」 표의 줄을 나열하고, 줄마다 [원문 펼치기](조문 창) · [법령정보센터] 를 단다.
+   * 원문을 못 찾은 줄·페이지는 **못 찾았다고** 적는다 — 빈칸이 「문제 없음」처럼 보이지 않게(L-291).
+   * 카드 글이 가리킨 줄(서버 rows[].pointed — 이미 맨 위로 와 있다)에는 「📌 이 카드가 가리킨 곳」을 달고,
+   * 하나도 없으면 「카드 본문의 조·별표를 보고 골라 주세요」라고 밝힌다. 경로가 적혔지만 못 읽은 칸(d.unread)은
+   * 「안 적혔다」와 구별해 알린다(2026-11-02 독립 검토 반영).
+   * 예: reviewSourcesHTML({pages:[{rel:'wiki/concepts/A__B.md', problem:'', rows:[{law:'선박안전법', article:'제76조', tier:'law', open:{ok:true}, link:{url:'https://www.law.go.kr/…', direct:true}}]}]})
+   *     → '…<button class="nrya-rv-open" data-law="선박안전법" data-article="제76조" … data-files="1">📖 원문 펼치기</button>…'
+   * @param {object} d - GET /api/legal/reviews/:id/sources 응답 {pages, lawSearch}
+   * @returns {string} HTML
+   * [연계] ← toggleReviewSources. 버튼의 data-* 는 openArtPop 이 GET /api/legal/article-text 에 그대로 넘긴다
+   *        (chainStepHTML 과 같은 열쇠 — data-files="1" 만 더해 고시 별표의 원본 HWP·PDF 단추까지 받는다).
+   */
+  function reviewSourcesHTML(d) {
+    var pages = (d && d.pages) || [];
+    function miss(t) { return '<div class="nrya-rv-srcmiss">⚠ ' + esc(t) + '</div>'; }
+    function search(ls) {
+      if (!ls || !ls.url) return '';
+      return '<a class="nrya-rv-lawgo" href="' + esc(ls.url) + '" target="_blank" rel="noopener noreferrer">🔗 국가법령정보센터에서 이 법 찾기</a>';
+    }
+    var html = '<div class="nrya-rv-srchelp">대상 페이지의 「근거 조문」 표입니다. <b>📖 원문 펼치기</b>를 누르면 이 화면에서 조문·별표 원문이 열리고' +
+      '(원본 파일이 있으면 내려받기 단추도 함께), <b>🔗 법령정보센터</b>는 국가법령정보센터 누리집으로 갑니다.</div>';
+    // 경로는 적혔는데 위키 쪽으로 읽지 못한 칸(`draft/concept_X.md → wiki/concepts/` 등) — 「안 적혔다」와 다르게 알린다.
+    var unread = (d && d.unread) || [];
+    var unreadMsg = unread.length
+      ? miss('대상 페이지 칸에 「' + unread.join(' · ') + '」라고 적혀 있지만, 지금 위키 쪽 경로로 읽을 수 없는 형식이에요.')
+      : '';
+    if (!pages.length) {
+      return html + (unreadMsg || miss('이 카드에는 대상 페이지가 적혀 있지 않아 원문을 자동으로 찾지 못했어요.')) + search(d && d.lawSearch);
+    }
+    html += unreadMsg;
+    // 카드 글(제목·본문)이 가리킨 줄 — 서버가 쪽마다 맨 위로 올려 보낸다(review_sources.rowPointedByCard).
+    // 하나도 없으면 「어느 줄이 쟁점인지」를 기계가 고르지 않았다는 것을 밝힌다.
+    var anyRows = pages.some(function (p) { return (p.rows || []).length; });
+    if (anyRows && !d.pointed) {
+      html += '<div class="nrya-rv-srchelp">이 카드 글에 나온 조·별표 번호와 맞는 줄을 찾지 못했어요 — 카드 본문의 조·별표를 보고 골라 주세요.</div>';
+    }
+    pages.forEach(function (p) {
+      html += '<div class="nrya-rv-srcpage"><div class="nrya-rv-flab">📄 ' + esc(p.rel) + '</div>';
+      if (p.problem === 'no_file') html += miss('이 대상 페이지 파일을 찾지 못했어요 — 이름이 바뀌었거나 지워졌을 수 있어요.');
+      else if (p.problem === 'no_table' || !(p.rows || []).length) html += miss('이 페이지에는 「근거 조문」 표가 없어 원문을 자동으로 찾지 못했어요.');
+      else (p.rows || []).forEach(function (row) {
+        var c = row.contact || {};
+        var lawShow = displayLawName(row);
+        var open = row.open || {};
+        var note = [row.step, row.gist].filter(Boolean).join(' · ');
+        if (note.length > 140) note = note.slice(0, 140) + ' …';
+        var btn = (open.ok || open.reason === 'not_checked')
+          ? '<button type="button" class="nrya-rv-open" data-law="' + esc(row.law || '') + '" data-lawshow="' + esc(lawShow) +
+            '" data-article="' + esc(row.article || '') + '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(row.baseLaw || '') +
+            '" data-gist="' + esc(row.gist || '') + '" data-min="' + esc(c.소관부처명 || '') + '" data-dept="' + esc(c.부서명 || '') +
+            '" data-tel="' + esc(c.전화번호 || '') + '" data-files="1">📖 원문 펼치기</button>' +
+            // 줄이 많아 서버가 미리 열어 보지 않은 줄 — 열릴지 모른다는 것을 숨기지 않는다(누르면 조문 창이 결과를 알린다).
+            (open.ok ? '' : '<span class="nrya-rv-srcnote">미리 확인하지 않은 줄</span>')
+          : '<span class="nrya-rv-srcmiss">⚠ 우리 원문에서 못 열어요 — ' + esc(REVIEW_OPEN_WHY[open.reason] || open.reason || '이유 모름') + '</span>';
+        var go = row.link && row.link.url
+          ? '<a class="nrya-rv-lawgo" href="' + esc(row.link.url) + '" target="_blank" rel="noopener noreferrer">🔗 법령정보센터에서 ' + (row.link.direct ? '열기' : '찾기') + '</a>'
+          : '';
+        html += '<div class="nrya-rv-srow' + (row.pointed ? ' nrya-pointed' : '') + '">' +
+          (row.pointed ? '<div class="nrya-rv-spoint">📌 이 카드가 가리킨 곳 — 카드 글에 같은 법·번호가 나와요</div>' : '') +
+          '<div class="nrya-rv-srow-h"><span class="nrya-rv-stier">' + esc(tierLabel(row)) + '</span> <b>' + esc(lawShow) + (row.article ? ' ' + esc(row.article) : '') + '</b></div>' +
+          (note ? '<div class="nrya-rv-srow-n">' + esc(note) + '</div>' : '') +
+          '<div class="nrya-rv-srow-a">' + btn + go + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    });
+    if (pages.every(function (p) { return p.problem || !(p.rows || []).length; })) html += search(d && d.lawSearch);
+    return html;
+  }
+
+  /**
+   * 카드의 「원문 보기」 단추: 처음 누르면 서버에서 원문 목록을 받아 카드 안에 펼치고, 다시 누르면 접는다.
+   * 목록의 [원문 펼치기] 는 챗봇과 같은 조문 창을 연다 — 관리자 창(z-index 10000) 위에 뜨도록
+   * #nrya-overlays 에 `nrya-admin-layer` 를 붙인다(닫을 때 closeArtPop 이 뗀다).
+   * 예: toggleReviewSources('REVIEW-선박안전법-01', 단추, 상자) → GET /api/legal/reviews/REVIEW-선박안전법-01/sources
+   * @param {string} id - 카드 번호 @param {HTMLElement} btn - 「원문 보기」 단추 @param {HTMLElement} box - 펼칠 자리
+   * [연계] ← bindReviewCard. → GET /api/legal/reviews/:id/sources(routes/legal.js) · reviewSourcesHTML · openArtPop.
+   */
+  function toggleReviewSources(id, btn, box) {
+    if (box.getAttribute('data-loaded') === '1') {
+      var shown = box.style.display !== 'none';
+      box.style.display = shown ? 'none' : 'block';
+      btn.classList.toggle('nrya-on', !shown);
+      return;
+    }
+    if (btn.disabled) return;
+    btn.disabled = true;
+    box.style.display = 'block';
+    box.innerHTML = '<div class="nrya-rv-srchelp">원문 목록을 불러오는 중…</div>';
+    legalGet('/api/legal/reviews/' + encodeURIComponent(id) + '/sources')
+      .then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return { ok: false, error: '응답을 읽지 못했습니다.' }; });
+      })
+      .then(function (d) {
+        btn.disabled = false;
+        if (d._denied) { box.innerHTML = '<div class="nrya-rv-srcmiss">⚠ 관리자 로그인이 필요합니다 — 통합관리자 센터에서 로그인한 뒤 다시 눌러 주세요.</div>'; return; }
+        if (!d || !d.ok) { box.innerHTML = '<div class="nrya-rv-srcmiss">⚠ 원문 목록을 불러오지 못했습니다: ' + esc((d && d.error) || '알 수 없는 오류') + '</div>'; return; }
+        box.setAttribute('data-loaded', '1');
+        btn.classList.add('nrya-on');
+        box.innerHTML = reviewSourcesHTML(d);
+        box.querySelectorAll('.nrya-rv-open').forEach(function (b) {
+          b.onclick = function () {
+            var ov = document.getElementById('nrya-overlays');
+            if (ov) ov.classList.add('nrya-admin-layer');
+            openArtPop(b);
+          };
+        });
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        box.innerHTML = '<div class="nrya-rv-srcmiss">⚠ 네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>';
+      });
   }
 
   /**
@@ -2709,6 +2850,9 @@
     var undoBtn = card.querySelector('.nrya-btn-undo');
     var errBox = card.querySelector('.nrya-inline-err');
     var findingsIn = card.querySelector('.nrya-findings-in');
+    var srcBtn = card.querySelector('.nrya-btn-src');
+    var srcBox = card.querySelector('.nrya-rv-srcbox');
+    if (srcBtn && srcBox) srcBtn.onclick = function () { toggleReviewSources(id, srcBtn, srcBox); };
 
     function showErr(msg) { if (!errBox) return; errBox.style.display = 'block'; errBox.classList.remove('nrya-hidden'); errBox.textContent = msg; }
     function clearErr() { if (!errBox) return; errBox.style.display = 'none'; errBox.textContent = ''; }
@@ -4777,7 +4921,9 @@
     legalGet('/api/legal/article-text?law=' + encodeURIComponent(law) +
       '&article=' + encodeURIComponent(article) +
       '&tier=' + encodeURIComponent(tier) +
-      '&baseLaw=' + encodeURIComponent(el.getAttribute('data-base') || ''))
+      '&baseLaw=' + encodeURIComponent(el.getAttribute('data-base') || '') +
+      // data-files="1" — 관리자 ⚠수치검증 카드에서 연 창만(reviewSourcesHTML). 고시 별표의 원본 HWP·PDF 단추까지 받는다.
+      (el.getAttribute('data-files') === '1' ? '&files=1' : ''))
       .then(function (r) { return r.json(); })
       .catch(function () { return { ok: false }; })
       .then(function (d) {
@@ -4831,6 +4977,9 @@
     var pop = document.getElementById('nryaArtPop'), veil = document.getElementById('nryaArtVeil');
     if (pop) pop.classList.remove('nrya-open');
     if (veil) veil.classList.remove('nrya-open');
+    // 관리자 카드에서 띄울 때 붙인 「관리자 창 위로」 표시를 뗀다(toggleReviewSources).
+    var ov = document.getElementById('nrya-overlays');
+    if (ov) ov.classList.remove('nrya-admin-layer');
   }
 
   /**
