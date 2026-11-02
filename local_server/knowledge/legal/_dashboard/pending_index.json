@@ -309,6 +309,16 @@
    "queue_id": {}
   }
  ],
+ "local_server/knowledge/legal/raw/15_관련타부처/지속가능한연근해어업발전법": [
+  {
+   "date": "20270617",
+   "files": [
+    "법률_발췌.txt"
+   ],
+   "mst": {},
+   "queue_id": {}
+  }
+ ],
  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법": [
   {
    "date": "20261112",
