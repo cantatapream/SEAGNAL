@@ -103,15 +103,21 @@ common_cited={c:sorted(v) for c,v in cited_by.items() if len(v)>=3}
 # 3) 링크 갭(비대칭): 페이지 파일명 기준 [[link]] 대상이 존재하나 역링크 없음 — 링크 표기가 자유라 근사
 allfiles=set(p['file'] for p in pages)
 linkgap=[]
-linkmap={p['file']:set(re.sub(r'\s+','',l) for l in p['links']) for p in pages}
+# ★링크 글자 → 대상 페이지 이름(2026-11-03 · L-419): 폴더(`statutes/`…)·별칭(`|…`)·절(`#…`)을 떼고 공백을 뺀다.
+#   link_sym.js 의 linkKey() 와 같은 규칙이다 — 한쪽만 고치면 두 자가 어긋난다(L-136).
+def link_key(l):
+    l=str(l).split('|')[0].split('#')[0]
+    l=re.sub(r'^(statutes|concepts|comparisons|annexes|activities)/','',l)
+    return re.sub(r'\s+','',l)
+linkmap={p['file']:set(link_key(l) for l in p['links']) for p in pages}
 norm={re.sub(r'\s+','',f):f for f in allfiles}
 for p in pages:
     for l in p['links']:
-        ln=re.sub(r'\s+','',l)
+        ln=link_key(l)
         if ln in norm:
             tgt=norm[ln]
             # 역링크 있나
-            back=any(re.sub(r'\s+','',x)==re.sub(r'\s+','',p['file']) for x in linkmap.get(tgt,[]))
+            back=re.sub(r'\s+','',p['file']) in linkmap.get(tgt,set())
             if not back: linkgap.append({'from':p['file'],'to':tgt})
 
 os.makedirs(DASH,exist_ok=True)
