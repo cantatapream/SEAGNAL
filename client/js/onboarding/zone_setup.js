@@ -431,7 +431,6 @@
             if (typeof window.renderApp === 'function') window.renderApp();
             if (typeof window.renderMarineWeatherStatus === 'function') window.renderMarineWeatherStatus();
             if (typeof window.loadRegionalForecast === 'function') window.loadRegionalForecast();
-            if (typeof window.rerenderAdvisoryPrediction === 'function') window.rerenderAdvisoryPrediction();
         } catch (e) { /* 다시 그리기 실패는 설정 저장과 무관 — 저장은 이미 끝났다 */ }
     }
 
