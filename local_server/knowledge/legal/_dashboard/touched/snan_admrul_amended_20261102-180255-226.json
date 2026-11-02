@@ -1,0 +1,19 @@
+{
+ "script": "snan_admrul_amended",
+ "stamp": "20261102-180255-226",
+ "files": [
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/행정규칙/_이미지/167362235.png",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/행정규칙/_이미지/167362235.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/행정규칙/선내안전·보건및사고예방기준.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/행정규칙/_admrul.json",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/별표/선내안전·보건및사고예방기준_별표1.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/별표/선내안전·보건및사고예방기준_별표2.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/별표/선내안전·보건및사고예방기준_별지1.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/별표/선내안전·보건및사고예방기준_별지2.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/별표/선내안전·보건및사고예방기준_별지3.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/별표/선내안전·보건및사고예방기준_별지4.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/별표/선내안전·보건및사고예방기준_별지5.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/별표/선내안전·보건및사고예방기준_별지6.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/별표/선내안전·보건및사고예방기준_별지7.txt"
+ ]
+}
