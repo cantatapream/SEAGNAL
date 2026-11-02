@@ -86,19 +86,31 @@ public class ReaderService extends AccessibilityService {
         newestText = null;
         state = State.WAIT_CHAT;
         wakeScreen();
-        try {
-            if (Build.VERSION.SDK_INT >= 34) {
-                ActivityOptions o = ActivityOptions.makeBasic();
-                o.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
-                pi.send(this, 0, null, null, null, null, o.toBundle());
-            } else {
-                pi.send();
-            }
-        } catch (Exception e) {
-            finish("대화방 열기 실패: " + e.getMessage());
-            return;
-        }
         handler.postDelayed(timeout, TIMEOUT_MS);
+        // ① 화면 켜기·잠금 넘기기: 투명 화면(WakeActivity)을 잠깐 띄운다(2026-11-03 — 화면이 꺼진 동안 온 특보를 못 읽던 문제).
+        try {
+            startActivity(new android.content.Intent(this, WakeActivity.class)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION));
+            Config.status(this, "특보 — 화면 켜는 중");
+        } catch (Exception e) {
+            Config.status(this, "화면 켜기 실패(계속 진행): " + e.getMessage());
+        }
+        // ② 화면이 켜질 시간을 준 뒤 알림의 열기 동작으로 대화방을 연다.
+        handler.postDelayed(() -> {
+            if (state != State.WAIT_CHAT) return;
+            try {
+                if (Build.VERSION.SDK_INT >= 34) {
+                    ActivityOptions o = ActivityOptions.makeBasic();
+                    o.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+                    pi.send(this, 0, null, null, null, null, o.toBundle());
+                } else {
+                    pi.send();
+                }
+                Config.status(this, "대화방 여는 중");
+            } catch (Exception e) {
+                finish("대화방 열기 실패: " + e.getMessage());
+            }
+        }, 1_200L);
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
@@ -420,7 +432,8 @@ public class ReaderService extends AccessibilityService {
     private void wakeScreen() {
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (pm == null) return;
-        wake = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "relay:read");
+        // CPU 를 깨워 둔다(화면이 꺼진 동안에도 시간 초과·다음 단계 타이머가 돌게). 화면 켜기는 WakeActivity 가 맡는다.
+        wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "relay:read");
         wake.acquire(TIMEOUT_MS + 5_000L);
     }
 }
