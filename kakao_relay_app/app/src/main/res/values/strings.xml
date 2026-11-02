@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SEAGNAL 특보중계</string>
+    <string name="a11y_desc">카카오톡 「기상청 해양기상정보포털」 대화방에 온 특보 알림톡 글자를 읽어 SEAGNAL 서버로 보냅니다. 다른 대화방은 읽지 않습니다.</string>
+</resources>
