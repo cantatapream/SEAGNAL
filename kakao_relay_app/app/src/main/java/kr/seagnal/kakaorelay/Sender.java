@@ -21,6 +21,7 @@ import java.util.concurrent.Executors;
 final class Sender {
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
     private static final int MAX_QUEUE = 100;
+    private static final int BATCH = 50;
 
     private Sender() {}
 
@@ -59,15 +60,22 @@ final class Sender {
 
     /** 대기열을 서버로 보낸다. 성공하면 비운다(POOL 스레드에서만 부른다). */
     private static void flush(Context c) throws Exception {
-        JSONArray q = new JSONArray(Config.prefs(c).getString("queue", "[]"));
-        if (q.length() == 0) return;
-        JSONObject b = new JSONObject().put("device", Config.device(c)).put("messages", q);
-        int code = post(c, "/api/kakao-relay/messages", b);
-        if (code == 200) {
-            Config.prefs(c).edit().putString("queue", "[]").commit();
-            Config.status(c, "전송 성공 " + q.length() + "건");
-        } else {
-            Config.status(c, "전송 실패 HTTP " + code + " — " + q.length() + "건 대기");
+        // 서버는 한 번에 50건까지 받는다 — 50건씩 나눠 보내고, 보낸 묶음만 대기열에서 지운다.
+        while (true) {
+            JSONArray q = new JSONArray(Config.prefs(c).getString("queue", "[]"));
+            if (q.length() == 0) return;
+            JSONArray chunk = new JSONArray();
+            for (int i = 0; i < Math.min(BATCH, q.length()); i++) chunk.put(q.get(i));
+            JSONObject b = new JSONObject().put("device", Config.device(c)).put("messages", chunk);
+            int code = post(c, "/api/kakao-relay/messages", b);
+            if (code != 200) {
+                Config.status(c, "전송 실패 HTTP " + code + " — " + q.length() + "건 대기");
+                return;
+            }
+            JSONArray rest = new JSONArray();
+            for (int i = chunk.length(); i < q.length(); i++) rest.put(q.get(i));
+            Config.prefs(c).edit().putString("queue", rest.toString()).commit();
+            Config.status(c, "전송 성공 " + chunk.length() + "건");
         }
     }
 

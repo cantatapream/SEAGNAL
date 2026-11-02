@@ -20,7 +20,8 @@ public class KakaoNotiService extends NotificationListenerService {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable beat = new Runnable() {
         @Override public void run() {
-            Sender.heartbeat(KakaoNotiService.this, ReaderService.isOn() ? "ok" : "접근성 꺼짐");
+            Sender.heartbeat(KakaoNotiService.this, (ReaderService.isOn() ? "ok" : "접근성 꺼짐")
+                    + " | 마지막 읽기: " + Config.prefs(KakaoNotiService.this).getString("lastRead", "없음"));
             handler.postDelayed(this, BEAT_MS);
         }
     };
@@ -33,7 +34,8 @@ public class KakaoNotiService extends NotificationListenerService {
 
     @Override public void onListenerDisconnected() {
         handler.removeCallbacks(beat);
-        Config.status(this, "알림 감시 끊김");
+        Config.status(this, "알림 감시 끊김 — 다시 연결 요청");
+        requestRebind(new android.content.ComponentName(this, KakaoNotiService.class));
     }
 
     @Override public void onNotificationPosted(StatusBarNotification sbn) {
@@ -43,8 +45,8 @@ public class KakaoNotiService extends NotificationListenerService {
         String title = String.valueOf(x.getCharSequence(Notification.EXTRA_TITLE));
         CharSequence big = x.getCharSequence(Notification.EXTRA_BIG_TEXT);
         String text = String.valueOf(big != null ? big : x.getCharSequence(Notification.EXTRA_TEXT));
-        boolean ours = title.contains(Config.CHANNEL) || text.contains(Config.MARKER);
-        if (!ours) return;  // 다른 대화방 알림은 아무것도 하지 않는다
+        // 보낸 쪽(알림 제목)이 그 채널일 때만 — 본문에 표식만 흉내 낸 다른 대화는 무시한다(가짜 특보 방지).
+        if (!title.contains(Config.CHANNEL)) return;
 
         Config.status(this, "특보 알림 감지 (" + text.length() + "자)");
         if (text.contains(Config.MARKER)) {

@@ -19,6 +19,8 @@ const fs = require('fs'),
     crypto = require('crypto');
 
 const MAX_MESSAGES = 300;
+/** 믿고 쓰는 동작어. 이 밖의 말은 'unknown'. */
+const ACTIONS = ['발효', '해제', '변경', '발표', '연장', '대치'];
 
 /**
  * 알림톡 본문에서 특보 줄을 뽑는다.
@@ -45,12 +47,17 @@ function parseWarnings(text, now = new Date()) {
         if (mon === 1 && kst.getUTCMonth() === 11) year++;
         else if (mon === 12 && kst.getUTCMonth() === 0) year--;
         const p = (n) => String(n).padStart(2, '0');
+        // 「…바\n다」처럼 화면 폭에서 끊긴 공백은 없애고, 「…앞바다중 북동연안바다」의 원래 띄어쓰기는 남긴다.
+        const zone = m[1].trim().replace(/(?<!중)\s+/g, '');
         out.push({
-            // 「…바\n다」처럼 화면 폭에서 끊긴 공백은 없애고, 「…앞바다중 북동연안바다」의 원래 띄어쓰기는 남긴다.
-            zone: m[1].trim().replace(/(?<!중)\s+/g, ''),
+            zone,
+            // 비교용 열쇠 — 공백을 모두 뺀 이름(MMIS 쪽 이름 대부분이 공백 없는 꼴이다).
+            zoneKey: zone.replace(/\s+/g, ''),
             kind: m[2],
             at: `${year}-${p(mon)}-${p(day)}T${p(m[5])}:${p(m[6])}+09:00`,
-            action: m[7],
+            // 모르는 동작어(잘린 글 「해」, 「풍랑경보로」 등)는 그대로 믿지 않고 'unknown' 으로 둔다.
+            action: ACTIONS.includes(m[7]) ? m[7] : 'unknown',
+            rawAction: m[7],
         });
     }
     return out;
@@ -69,8 +76,10 @@ function createStore({ file } = {}) {
     function load() {
         try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
         catch (e) {
-            if (e.code !== 'ENOENT') console.warn('[kakao_relay] 저장 파일 읽기 실패:', e.message);
-            return { messages: [], heartbeat: null };
+            if (e.code === 'ENOENT') return { messages: [], heartbeat: null };
+            // 깨진 파일을 빈 DB 로 덮어쓰면 이력이 통째로 사라진다 — 원본을 남기고 저장을 거부한다.
+            try { fs.copyFileSync(file, file + '.bad'); } catch (_) { /* 원본 보존 시도만 */ }
+            throw new Error('저장 파일 손상(' + e.message + ') — ' + file + '.bad 로 보존, 저장 거부');
         }
     }
     function save(db) {
@@ -105,6 +114,11 @@ function createStore({ file } = {}) {
                 receivedAt: now.toISOString(),
                 warnings: parseWarnings(text, now),
             };
+            // 특보 글인데 한 줄도 못 나눴으면 꼴이 바뀐 것이다 — 조용히 넘기지 않고 표시·기록한다.
+            if (text.includes('[기상특보]') && !rec.warnings.length) {
+                rec.unparsed = true;
+                console.warn('[kakao_relay] ⚠특보 글 분해 0줄 — 알림톡 꼴 확인 필요:', id);
+            }
             db.messages.push(rec);
             added.push(rec);
         }
@@ -132,4 +146,4 @@ function createStore({ file } = {}) {
     return { storeMessages, heartbeat, snapshot };
 }
 
-module.exports = { parseWarnings, createStore, MAX_MESSAGES };
+module.exports = { parseWarnings, createStore, MAX_MESSAGES, ACTIONS };

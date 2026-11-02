@@ -76,8 +76,13 @@ public class MainActivity extends Activity {
         boolean batt = pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
         state.setText("\n알림 접근: " + (noti ? "✅" : "❌") + "   화면 읽기: " + (ReaderService.isOn() ? "✅" : "❌")
                 + "   배터리 제외: " + (batt ? "✅" : "❌") + "\n대기 중인 글: "
-                + Config.prefs(this).getString("queue", "[]").length() + "자\n");
+                + queueCount() + "건\n");
         log.setText(Config.prefs(this).getString("log", ""));
+    }
+
+    private int queueCount() {
+        try { return new org.json.JSONArray(Config.prefs(this).getString("queue", "[]")).length(); }
+        catch (Exception e) { return -1; }
     }
 
     private EditText field(LinearLayout v, String hint, String val, boolean secret) {

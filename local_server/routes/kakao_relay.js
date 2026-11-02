@@ -32,6 +32,8 @@ function relayAuth(getSecret) {
         const got = Buffer.from(req.get('X-Relay-Token') || '');
         const want = Buffer.from(secret);
         if (got.length === want.length && crypto.timingSafeEqual(got, want)) return next();
+        // 열쇠를 잘못 넣은 태블릿이 서버에 흔적 없이 묻히지 않게 기록한다.
+        console.warn('[kakao_relay] 열쇠 불일치로 거부', req.path);
         return res.status(401).json({ ok: false, error: '열쇠가 맞지 않습니다' });
     };
 }
@@ -51,11 +53,13 @@ function createRouter({
     const auth = relayAuth(getSecret);
 
     router.post('/api/kakao-relay/messages', auth, (req, res) => {
-        const items = Array.isArray(req.body && req.body.messages) ? req.body.messages.slice(0, 50) : [];
+        const items = Array.isArray(req.body && req.body.messages) ? req.body.messages : [];
+        // 한 번에 받는 양을 넘기면 일부만 받고 성공이라 하지 않는다 — 앱은 50건씩 나눠 보낸다.
+        if (items.length > 50) return res.status(413).json({ ok: false, error: '한 번에 50건까지' });
         try {
             const r = store.storeMessages(items, req.body.device);
             if (r.added) console.log(`[kakao_relay] 새 글 ${r.added}건 (중복 ${r.duplicate})`);
-            res.json({ ok: true, added: r.added, duplicate: r.duplicate });
+            res.json({ ok: true, accepted: items.length, added: r.added, duplicate: r.duplicate });
         } catch (e) {
             console.warn('[kakao_relay] 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });
@@ -68,6 +72,7 @@ function createRouter({
             store.heartbeat({ device: String(b.device || ''), battery: b.battery, note: String(b.note || '').slice(0, 200) });
             res.json({ ok: true });
         } catch (e) {
+            console.warn('[kakao_relay] 신호 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });
         }
     });

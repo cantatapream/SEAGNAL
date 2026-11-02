@@ -32,6 +32,7 @@ public class ReaderService extends AccessibilityService {
     private State state = State.IDLE;
     private final List<String> found = new ArrayList<>();
     private PowerManager.WakeLock wake;
+    private PendingIntent again;   // 읽는 도중 새 특보가 오면 끝난 뒤 한 번 더 읽는다
 
     private final Runnable readNow = this::readScreen;
     private final Runnable timeout = () -> finish("시간 초과");
@@ -58,9 +59,10 @@ public class ReaderService extends AccessibilityService {
     @Override public void onInterrupt() {}
 
     private void start(PendingIntent pi) {
-        if (state != State.IDLE) return;   // 이미 읽는 중이면 그 회차가 최근 글까지 함께 읽는다
+        if (state != State.IDLE) { again = pi; return; }   // 읽는 중이면 끝난 뒤 다시 읽는다
         if (pi == null) { Config.status(this, "알림에 열기 동작이 없음"); return; }
         found.clear();
+        fullOk = false;
         state = State.WAIT_CHAT;
         wakeScreen();
         try {
@@ -101,6 +103,8 @@ public class ReaderService extends AccessibilityService {
             else if (s.trim().equals("전체보기")) more = n;   // 카톡은 아주 긴 글을 접어 둔다
         }
         if (texts.isEmpty()) return;   // 아직 그려지는 중 — 다음 화면 변화 때 다시 읽는다
+        // 그 채널 대화방이 맞는지(화면 어딘가에 채널 이름이 보이는지) — 채팅 목록·다른 방이면 읽지 않는다.
+        if (state == State.WAIT_CHAT && !hasChannelTitle(nodes)) return;
 
         if (state == State.WAIT_CHAT) {
             int from = Math.max(0, texts.size() - KEEP_LAST);
@@ -113,9 +117,17 @@ public class ReaderService extends AccessibilityService {
             finish(null);
         } else if (state == State.WAIT_FULL) {
             found.add(texts.get(texts.size() - 1));
-            performGlobalAction(GLOBAL_ACTION_BACK);
+            fullOk = true;
             finish(null);
         }
+    }
+
+    private static boolean hasChannelTitle(List<AccessibilityNodeInfo> nodes) {
+        for (AccessibilityNodeInfo n : nodes) {
+            CharSequence t = n.getText();
+            if (t != null && t.length() < 40 && t.toString().contains(Config.CHANNEL)) return true;
+        }
+        return false;
     }
 
     private static void collect(AccessibilityNodeInfo n, List<AccessibilityNodeInfo> out) {
@@ -132,19 +144,33 @@ public class ReaderService extends AccessibilityService {
         return false;
     }
 
+    private boolean fullOk;
+
     private void finish(String why) {
         handler.removeCallbacks(timeout);
         handler.removeCallbacks(readNow);
-        if (!found.isEmpty()) {
-            Sender.sendMessages(this, new ArrayList<>(found), "screen");
-            Config.status(this, "대화방에서 " + found.size() + "개 읽음");
+        String result;
+        if (state == State.WAIT_FULL && !fullOk) {
+            result = "전체보기 실패(" + why + ") — 접힌 글 " + found.size() + "개만 보냄";
+        } else if (!found.isEmpty()) {
+            result = "성공 " + found.size() + "개";
         } else {
-            Config.status(this, "대화방 읽기 실패: " + (why == null ? "글 없음" : why));
+            result = "실패: " + (why == null ? "글 없음" : why);
         }
+        if (!found.isEmpty()) Sender.sendMessages(this, new ArrayList<>(found), "screen");
+        Config.status(this, "대화방 읽기 " + result);
+        // 서버 신호에 실어 보낼 마지막 결과(화면에만 남기지 않는다)
+        Config.prefs(this).edit().putString("lastRead",
+                new java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.KOREA).format(new java.util.Date()) + " " + result).apply();
+        if (state == State.WAIT_FULL) performGlobalAction(GLOBAL_ACTION_BACK);   // 전문 화면을 닫고 나간다
         found.clear();
+        fullOk = false;
         state = State.IDLE;
         performGlobalAction(GLOBAL_ACTION_HOME);
         if (wake != null && wake.isHeld()) wake.release();
+        PendingIntent next = again;
+        again = null;
+        if (next != null) handler.postDelayed(() -> start(next), 1_500L);
     }
 
     @SuppressWarnings("deprecation")

@@ -21,10 +21,12 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
 (async () => {
     console.log('A. 분해');
     let w = parseWarnings(HEAD + '동해남부북쪽바깥먼바다,\n풍랑주의보 11월 02일 19시 00분 발효', NOV);
-    ok('한 건 발효', JSON.stringify(w) === JSON.stringify([{ zone: '동해남부북쪽바깥먼바다', kind: '풍랑주의보', at: '2026-11-02T19:00+09:00', action: '발효' }]), w);
+    ok('한 건 발효', JSON.stringify(w) === JSON.stringify([{ zone: '동해남부북쪽바깥먼바다', zoneKey: '동해남부북쪽바깥먼바다', kind: '풍랑주의보', at: '2026-11-02T19:00+09:00', action: '발효', rawAction: '발효' }]), w);
     w = parseWarnings(HEAD + '제주도서부앞바다,\n풍랑주의보 11월 02일 18시 00분\n해제\n제주도서부앞바다중 북서연안바다,\n풍랑주의보 11월 02일 18시 00분\n해제\n제주도서부앞바다중가파도연안바\n다,\n풍랑주의보 11월 02일 18시 00분\n해제', NOV);
     ok('여러 건·줄바꿈 해제', w.length === 3 && w.every((x) => x.action === '해제'), w);
     ok('띄어쓰기 있는 구역 이름 유지', w[1] && w[1].zone === '제주도서부앞바다중 북서연안바다', w[1]);
+    ok('비교용 열쇠는 공백 없음', w[1] && w[1].zoneKey === '제주도서부앞바다중북서연안바다', w[1]);
+    ok('잘린 동작어는 unknown', parseWarnings(HEAD + '서해남부먼바다,\n풍랑주의보 11월 02일 19시 00분 해', NOV)[0].action === 'unknown');
     ok('끊긴 구역 이름 이어 붙임', w[2] && w[2].zone === '제주도서부앞바다중가파도연안바다', w[2]);
     ok('04시 05분 같은 분 단위', parseWarnings(HEAD + '제주도동부앞바다중 남동연안바다,\n풍랑주의보 11월 02일 04시 05분\n해제', NOV)[0].at === '2026-11-02T04:05+09:00');
     ok('[기상특보] 없으면 빈 목록', parseWarnings('아무 글', NOV).length === 0);
@@ -41,6 +43,12 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     st.storeMessages(Array.from({ length: MAX_MESSAGES + 5 }, (_, i) => ({ text: 'x' + i })), 'tab', NOV);
     ok('보관 상한', st.snapshot(1000).messages.length === MAX_MESSAGES);
 
+    r = st.storeMessages([{ text: HEAD + '꼴이 바뀐 글' }], 'tab', NOV);
+    ok('분해 0줄이면 unparsed 표시', r.new[0].unparsed === true, r.new[0]);
+    const bad = path.join(tmp, 'bad.json'); fs.writeFileSync(bad, '{깨짐');
+    let threw = false; try { createStore({ file: bad }).heartbeat({}); } catch (_) { threw = true; }
+    ok('깨진 파일은 덮어쓰지 않음', threw && fs.readFileSync(bad, 'utf8') === '{깨짐' && fs.existsSync(bad + '.bad'));
+
     console.log('C. 라우트');
     const app = express(); app.use(express.json());
     let secret = 'k';
@@ -54,7 +62,9 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     ok('열쇠 없으면 401', (await call('POST', '/api/kakao-relay/messages', { messages: [] })).status === 401);
     ok('열쇠 틀리면 401', (await call('POST', '/api/kakao-relay/messages', { messages: [] }, { 'X-Relay-Token': 'z' })).status === 401);
     let x = await call('POST', '/api/kakao-relay/messages', { device: 't', messages: [{ text: 'new-one' }] }, { 'X-Relay-Token': 'k' });
-    ok('맞는 열쇠 저장', x.status === 200 && x.body.added === 1, x);
+    ok('맞는 열쇠 저장·받은 건수 회신', x.status === 200 && x.body.added === 1 && x.body.accepted === 1, x);
+    x = await call('POST', '/api/kakao-relay/messages', { messages: Array.from({ length: 51 }, (_, i) => ({ text: 'm' + i })) }, { 'X-Relay-Token': 'k' });
+    ok('50건 초과는 일부 받고 성공이라 하지 않음(413)', x.status === 413, x);
     x = await call('POST', '/api/kakao-relay/heartbeat', { device: 't', battery: 77 }, { 'X-Relay-Token': 'k' });
     ok('신호 기록', x.status === 200 && st.snapshot().heartbeat.battery === 77, x);
     x = await call('GET', '/api/admin/kakao-relay?n=2');
