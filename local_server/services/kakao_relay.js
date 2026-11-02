@@ -699,7 +699,7 @@ async function checkMmis({
         for (const m of msgs) {
             let r;
             try { r = await send(m.title, m.body, { kind: 'kakao_relay_' + m.kind }); }
-            catch (e) { r = { delivered: false, error: String(e && e.message).slice(0, 60) }; }
+            catch (e) { console.warn('[kakao_relay] 관리자 알림 발송 예외:', e && e.message); r = { delivered: false, error: String(e && e.message).slice(0, 60) }; }
             if (r && r.delivered) delivered.push(m);
             else console.warn('[kakao_relay] 관리자 알림 미전달(다음 회차 재시도):', m.title, r && r.error);
         }

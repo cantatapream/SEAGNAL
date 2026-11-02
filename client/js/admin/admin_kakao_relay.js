@@ -135,6 +135,7 @@
             if (!r.ok) throw new Error('HTTP ' + r.status);
             data = await r.json();
         } catch (e) {
+            console.warn('[카톡 중계] 기록 불러오기 실패:', e && e.message);
             container.innerHTML = '<div style="padding:16px;color:#f87171">카톡 중계 기록을 불러오지 못했습니다 — ' + esc(e.message) + '</div>';
             return;
         }
@@ -169,6 +170,7 @@
             var r = await fetch('/api/admin/kakao-relay/device', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: name, action: action }) });
             if (!r.ok) throw new Error('HTTP ' + r.status);
         } catch (e) {
+            console.warn('[카톡 중계] 기기 설정 실패:', e && e.message);
             window.alert('기기 설정을 바꾸지 못했습니다 — ' + e.message);
         }
         if (lastContainer) renderKakaoRelayAdminTab(lastContainer);
