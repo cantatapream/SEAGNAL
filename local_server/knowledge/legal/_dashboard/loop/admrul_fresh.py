@@ -36,7 +36,7 @@
   ⚠이어받기는 **판정을 다시 하지 않는다.** 이어받은 줄은 그때 물어본 답이다. 날짜가 지나면
     그만큼 낡는다 — 죽은 실행을 잇는 용도이지, 어제 결과를 오늘 재활용하라는 뜻이 아니다.
 """
-import json, os, re, sys, time
+import io, json, os, re, sys, time
 import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _fail_reasons                                 # 3-80 — 실패한 까닭을 버리지 않는다
@@ -128,9 +128,24 @@ def wiki_pages_citing(title):
 ARCHIVE_MARK = re.compile(r'구\s*판|전사본|보존용|보존\)|폐지\s*당시')
 
 
+# ★머리말로 밝힌 보존본(2026-11-03 · 3-97). 2026-08-23 에 「위키가 이 옛 판을 인용한다」는 까닭으로 되살린 파일 3개
+#   (비관리청항만공사 요령 · 신항만건설심의위원회 세칙 · 연안정비 시설물 사후관리 지침)는 이름·파일명에 표시가 없고
+#   머리에 「⚠이 고시는 **폐지·대체된 구 판본**이다 … 기록·대조 목적으로만 둔다」 고만 적혀 있어, 매주 「이름바뀜의심」 으로
+#   올라왔고 2026-11-03 에는 그 판정을 따라 **현행본으로 덮어쓸 뻔했다**(되돌림 — L-420).
+ARCHIVE_HEAD = re.compile(r'폐지·대체된\s*구\s*판본|기록·대조\s*목적으로만\s*둔다|^대체됨 경고:', re.M)
+
+
 def is_archive(title, path):
-    """제목이나 파일명이 스스로 '옛 판 보존본'이라 밝히고 있나."""
-    return bool(ARCHIVE_MARK.search(str(title or '')) or ARCHIVE_MARK.search(os.path.basename(path or '')))
+    """제목·파일명이나 **머리말**(앞 12줄)이 스스로 '옛 판 보존본'이라 밝히고 있나."""
+    if ARCHIVE_MARK.search(str(title or '')) or ARCHIVE_MARK.search(os.path.basename(path or '')):
+        return True
+    try:
+        p = path if os.path.isabs(path or '') else os.path.join(ROOT, path or '')
+        with io.open(p, encoding='utf-8', errors='replace') as f:
+            head = ''.join(next(f, '') for _ in range(12))
+    except Exception:
+        return False
+    return bool(ARCHIVE_HEAD.search(head))
 
 
 def held_is_live(serial):
