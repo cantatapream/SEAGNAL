@@ -23,14 +23,31 @@ import java.util.List;
 public class ReaderService extends AccessibilityService {
     private static final long TIMEOUT_MS = 45_000L;
     private static final long SETTLE_MS = 1_200L;   // 화면이 다 그려질 때까지 기다리는 시간
-    private static final int KEEP_LAST = 5;         // 화면에 보이는 특보 글 중 최근 몇 개를 보낼지
+    // 동시에 여러 특보 카톡이 오는 경우가 있어(2026-11-01 16:03 예비특보·기상특보 2건 동시) 위로 2페이지까지 넘겨 읽는다
+    //   (사용자 확정 2026-11-03 「최소한 스크롤 2페이지는 위로 돌려서 지금 데이터와 변동이 있는지 확인」).
+    //   이미 본 글은 서버가 거른다(글 id·특보 줄 열쇠).
+    //   넘길 때는 화면 높이의 60%만 끌어 직전 화면과 약 40% 겹치게 한다(사용자 제안 2026-11-03 「직전 페이지와 겹쳐서
+    //   옮겨가면」 — 경계에 걸린 말풍선이 두 화면 사이에서 빠지지 않게). 2페이지 높이를 읽으려면 4번 끈다(4×0.6≈2.4).
+    private static final int PAGES_UP = 4;
+    static final float SWIPE_FRACTION = 0.6f;
+    // 기준점(서버가 기억하는 「마지막으로 본 글」)이 있으면 그 글이 보일 때까지 올라간다(사용자 확정 2026-11-03).
+    //   통신이 끊겼다가 특보가 여러 개 밀려 와도 빠짐없이 읽고, 새 글이 하나면 금방 멈춘다. 최대 15번 끌기.
+    private static final int MAX_ANCHOR_SWIPES = 15;
+    private static final long STEP_MS = 1_500L;     // 한 페이지 넘긴 뒤 그려질 때까지
 
     private static ReaderService instance;
-    private enum State { IDLE, WAIT_CHAT, WAIT_FULL }
+    private enum State { IDLE, WAIT_CHAT, WAIT_FULL, SCROLL }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private State state = State.IDLE;
-    private final List<String> found = new ArrayList<>();
+    private final java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
+    private int pagesLeft;
+    private String lastSig;          // 넘기기 전 화면 서명 — 넘긴 뒤에도 같으면 안 움직인 것
+    private String anchorId;         // 서버가 알려 준 기준점(마지막으로 본 글 id). 없으면 기본 양만 읽는다
+    private boolean anchorFound;
+    private String newestText;       // 첫 화면 맨 아래(가장 최근) 특보 글
+    private boolean triedFallback;   // 끌기가 안 먹혀 「한 페이지 위로」를 한 번 시도했나
+    private String scrollNote;   // 위 페이지를 다 못 읽었으면 그 까닭(기록용 — 실패로 치지 않는다)
     private PowerManager.WakeLock wake;
     private PendingIntent again;   // 읽는 도중 새 특보가 오면 끝난 뒤 한 번 더 읽는다
 
@@ -64,27 +81,42 @@ public class ReaderService extends AccessibilityService {
         if (pi == null) { Config.status(this, "알림에 열기 동작이 없음"); return; }
         found.clear();
         fullOk = false;
+        anchorId = Config.prefs(this).getString("anchor", null);
+        anchorFound = false;
+        newestText = null;
         state = State.WAIT_CHAT;
         wakeScreen();
-        try {
-            if (Build.VERSION.SDK_INT >= 34) {
-                ActivityOptions o = ActivityOptions.makeBasic();
-                o.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
-                pi.send(this, 0, null, null, null, null, o.toBundle());
-            } else {
-                pi.send();
-            }
-        } catch (Exception e) {
-            finish("대화방 열기 실패: " + e.getMessage());
-            return;
-        }
         handler.postDelayed(timeout, TIMEOUT_MS);
+        // ① 화면 켜기·잠금 넘기기: 투명 화면(WakeActivity)을 잠깐 띄운다(2026-11-03 — 화면이 꺼진 동안 온 특보를 못 읽던 문제).
+        try {
+            startActivity(new android.content.Intent(this, WakeActivity.class)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION));
+            Config.status(this, "특보 — 화면 켜는 중");
+        } catch (Exception e) {
+            Config.status(this, "화면 켜기 실패(계속 진행): " + e.getMessage());
+        }
+        // ② 화면이 켜질 시간을 준 뒤 알림의 열기 동작으로 대화방을 연다.
+        handler.postDelayed(() -> {
+            if (state != State.WAIT_CHAT) return;
+            try {
+                if (Build.VERSION.SDK_INT >= 34) {
+                    ActivityOptions o = ActivityOptions.makeBasic();
+                    o.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+                    pi.send(this, 0, null, null, null, null, o.toBundle());
+                } else {
+                    pi.send();
+                }
+                Config.status(this, "대화방 여는 중");
+            } catch (Exception e) {
+                finish("대화방 열기 실패: " + e.getMessage());
+            }
+        }, 1_200L);
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
         if (e.getPackageName() != null && Config.KAKAO.contentEquals(e.getPackageName())) Backfill.onDiagEvent(this);
         if (Backfill.active()) { Backfill.onEvent(this, e); return; }   // 임시 긁어오기 중에는 그쪽이 화면을 다룬다
-        if (state == State.IDLE || e.getPackageName() == null) return;
+        if (state == State.IDLE || state == State.SCROLL || e.getPackageName() == null) return;
         if (!Config.KAKAO.contentEquals(e.getPackageName())) return;
         handler.removeCallbacks(readNow);
         handler.postDelayed(readNow, SETTLE_MS);   // 변화가 멈춘 뒤 한 번만 읽는다
@@ -114,21 +146,133 @@ public class ReaderService extends AccessibilityService {
         if (texts.isEmpty()) return;   // 아직 그려지는 중 — 다음 화면 변화 때 다시 읽는다
 
         if (state == State.WAIT_CHAT) {
-            int from = Math.max(0, texts.size() - KEEP_LAST);
-            found.addAll(texts.subList(from, texts.size()));
+            found.addAll(texts);
+            newestText = texts.get(texts.size() - 1);   // 대화창은 아래가 최신 — 화면 순서상 마지막이 맨 아래
+            checkAnchor(texts);
             if (more != null && click(more)) {
                 state = State.WAIT_FULL;
                 Config.status(this, "전체보기 누름");
                 return;
             }
-            finish(null);
+            startScroll();
         } else if (state == State.WAIT_FULL) {
             String longest = texts.get(0);
             for (String t : texts) if (t.length() > longest.length()) longest = t;
+            int had = 0;
+            for (String t : found) had = Math.max(had, t.length());
+            // 전문 화면이 아직 안 열렸는데 대화방 화면을 읽은 것일 수 있다 — 이미 모은 글보다 길 때만 전문으로 인정(적대검증 M9).
+            if (longest.length() <= had) return;
             found.add(longest);
             fullOk = true;
-            finish(null);
+            performGlobalAction(GLOBAL_ACTION_BACK);   // 전문 화면을 닫고 대화방으로 돌아가 위 페이지를 읽는다
+            state = State.SCROLL;
+            pagesLeft = anchorId == null ? PAGES_UP : MAX_ANCHOR_SWIPES;
+            if (anchorFound) { handler.postDelayed(() -> finish(null), STEP_MS); return; }
+            handler.postDelayed(this::scrollUp, STEP_MS);
         }
+    }
+
+    private void startScroll() {
+        state = State.SCROLL;
+        if (anchorFound) { finish(null); return; }   // 마지막으로 본 글이 첫 화면에 있다 — 그 아래만 새 글
+        pagesLeft = anchorId == null ? PAGES_UP : MAX_ANCHOR_SWIPES;
+        scrollUp();
+    }
+
+    /** 이 글들 중에 기준점(마지막으로 본 글)이 있나. */
+    private void checkAnchor(List<String> texts) {
+        if (anchorId == null || anchorFound) return;
+        for (String t : texts) if (anchorId.equals(idOf(t))) { anchorFound = true; return; }
+    }
+
+    /** 서버와 같은 글 id — sha256(앞뒤 공백 뺀 글)의 16진 앞 16자. 예: idOf("…") → "3fa9…" */
+    static String idOf(String t) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(t.trim().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < 8; i++) b.append(String.format("%02x", d[i]));
+            return b.toString();
+        } catch (Exception e) { return ""; }
+    }
+
+    /** 대화창을 위로 넘긴다(직전 화면과 겹치게 60% 끌기). 더 못 넘기면(맨 위) 끝낸다. */
+    private void scrollUp() {
+        if (state != State.SCROLL) return;
+        if (pagesLeft <= 0) { finish(null); return; }
+        List<AccessibilityNodeInfo> room = currentRoom();
+        if (room == null) { scrollNote = "위 페이지 전 대화방을 벗어남"; finish(null); return; }
+        AccessibilityNodeInfo sc = roomScroller(room);
+        if (sc == null) { finish(null); return; }
+        lastSig = signature(room);
+        triedFallback = false;
+        if (!swipeDown(this, sc) && !sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) { finish(null); return; }
+        pagesLeft--;
+        handler.postDelayed(this::readPageUp, STEP_MS);
+    }
+
+    /** 넘긴 화면의 특보 글을 모으고 다음으로. 화면이 안 바뀌었으면 「한 페이지 위로」를 한 번 더 시도, 그래도 같으면 맨 위. */
+    private void readPageUp() {
+        if (state != State.SCROLL) return;
+        List<AccessibilityNodeInfo> room = currentRoom();
+        if (room == null) { scrollNote = "위 페이지를 읽는 중 대화방을 벗어남"; finish(null); return; }
+        if (signature(room).equals(lastSig)) {
+            AccessibilityNodeInfo sc = roomScroller(room);
+            if (!triedFallback && sc != null && sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) {
+                triedFallback = true;
+                handler.postDelayed(this::readPageUp, STEP_MS);
+                return;
+            }
+            finish(null);   // 맨 위에 닿음
+            return;
+        }
+        List<String> page = new ArrayList<>();
+        for (AccessibilityNodeInfo n : room) {
+            String s = textOf(n);
+            if (s != null && s.contains(Config.MARKER)) page.add(s);
+        }
+        found.addAll(page);
+        checkAnchor(page);
+        if (anchorFound) { finish(null); return; }   // 마지막으로 본 글까지 올라왔다
+        scrollUp();
+    }
+
+    /** 화면 서명 — 대화창에 보이는 글자들을 이어 붙인 것. 넘기기 전후가 같으면 화면이 안 움직인 것이다. */
+    static String signature(List<AccessibilityNodeInfo> room) {
+        StringBuilder b = new StringBuilder();
+        for (AccessibilityNodeInfo n : room) {
+            String s = textOf(n);
+            if (s != null) b.append(s.length()).append(':').append(s.hashCode()).append('|');
+        }
+        return b.toString();
+    }
+
+    /**
+     * 대화창 안에서 손가락을 위→아래로 화면 높이의 60%만큼 천천히 끈다(옛 글 쪽으로 넘기기, 직전 화면과 40% 겹침).
+     * 천천히(0.4초) 끌어 휙 넘어가는(관성) 일과 누르기로 잘못 읽히는 일을 피한다.
+     * @return 동작을 보냈으면 true(안드로이드 7 미만·영역이 너무 작으면 false — 호출 쪽이 「한 페이지 위로」로 대신한다)
+     */
+    static boolean swipeDown(AccessibilityService s, AccessibilityNodeInfo pane) {
+        if (Build.VERSION.SDK_INT < 24 || pane == null) return false;
+        android.graphics.Rect r = new android.graphics.Rect();
+        pane.getBoundsInScreen(r);
+        if (r.height() < 200 || r.width() < 100) return false;
+        float x = r.centerX();
+        float y1 = r.top + r.height() * 0.2f;
+        float y2 = y1 + r.height() * SWIPE_FRACTION;
+        android.graphics.Path p = new android.graphics.Path();
+        p.moveTo(x, y1);
+        p.lineTo(x, y2);
+        android.accessibilityservice.GestureDescription g = new android.accessibilityservice.GestureDescription.Builder()
+                .addStroke(new android.accessibilityservice.GestureDescription.StrokeDescription(p, 0, 400)).build();
+        return s.dispatchGesture(g, null, null);
+    }
+
+    private List<AccessibilityNodeInfo> currentRoom() {
+        AccessibilityNodeInfo root = kakaoRoot(this);
+        if (root == null) return null;
+        List<AccessibilityNodeInfo> nodes = new ArrayList<>();
+        collect(root, nodes);
+        return roomNodes(nodes);
     }
 
     static boolean hasChannelTitle(List<AccessibilityNodeInfo> nodes) {
@@ -262,11 +406,12 @@ public class ReaderService extends AccessibilityService {
         if (state == State.WAIT_FULL && !fullOk) {
             result = "전체보기 실패(" + why + ") — 접힌 글 " + found.size() + "개만 보냄";
         } else if (!found.isEmpty()) {
-            result = "성공 " + found.size() + "개";
+            result = "성공 " + found.size() + "개" + (scrollNote == null ? "" : "(" + scrollNote + ")");
         } else {
             result = "실패: " + (why == null ? "글 없음" : why);
         }
-        if (!found.isEmpty()) Sender.sendMessages(this, new ArrayList<>(found), "screen");
+        String anchorStatus = anchorId == null ? "none" : anchorFound ? "found" : "missing";
+        if (!found.isEmpty()) Sender.sendRead(this, new ArrayList<>(found), newestText, anchorStatus);
         Config.status(this, "대화방 읽기 " + result);
         // 서버 신호에 실어 보낼 마지막 결과(화면에만 남기지 않는다)
         Config.prefs(this).edit().putString("lastRead",
@@ -274,6 +419,7 @@ public class ReaderService extends AccessibilityService {
         if (state == State.WAIT_FULL) performGlobalAction(GLOBAL_ACTION_BACK);   // 전문 화면을 닫고 나간다
         found.clear();
         fullOk = false;
+        scrollNote = null;
         state = State.IDLE;
         performGlobalAction(GLOBAL_ACTION_HOME);
         if (wake != null && wake.isHeld()) wake.release();
@@ -286,7 +432,8 @@ public class ReaderService extends AccessibilityService {
     private void wakeScreen() {
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (pm == null) return;
-        wake = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "relay:read");
+        // CPU 를 깨워 둔다(화면이 꺼진 동안에도 시간 초과·다음 단계 타이머가 돌게). 화면 켜기는 WakeActivity 가 맡는다.
+        wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "relay:read");
         wake.acquire(TIMEOUT_MS + 5_000L);
     }
 }

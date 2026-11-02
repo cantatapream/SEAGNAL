@@ -23,6 +23,12 @@
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
         </service>
 
+        <!-- 특보가 오면 화면을 켜고 잠금 화면을 넘기는 투명 화면(ReaderService 가 띄움) -->
+        <activity android:name=".WakeActivity" android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true" android:noHistory="true" android:taskAffinity=""
+            android:showWhenLocked="true" android:turnScreenOn="true" />
+
         <!-- 30분 신호 알람 + 기기 재시작 때 알람 다시 걸기 -->
         <receiver android:name=".BeatReceiver" android:exported="true">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>

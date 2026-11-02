@@ -42,6 +42,34 @@ final class Sender {
         });
     }
 
+    /**
+     * 대화방에서 읽은 글을 보낸다. 방금 뜬 알림과 앞부분이 같은 말풍선에는 trigger=true(「이번 알림」),
+     * 함께 읽힌 직전 글은 trigger=false — 서버는 이것으로 새 특보와 놓친 글을 가른다(services/kakao_relay storeMessages).
+     */
+    static void sendRead(Context ctx, List<String> texts, String newest, String anchorStatus) {
+        final Context c = ctx.getApplicationContext();
+        POOL.execute(() -> {
+            try {
+                JSONArray q = new JSONArray(Config.prefs(c).getString("queue", "[]"));
+                boolean first = true;
+                for (String t : texts) {
+                    JSONObject o = new JSONObject().put("text", t).put("source", "screen")
+                            .put("trigger", KakaoNotiService.isRecentNotification(t));
+                    // 맨 아래(가장 최근) 말풍선 — 서버가 이것을 다음 기준점(마지막으로 본 글)으로 삼는다.
+                    if (t.equals(newest)) o.put("newest", true);
+                    // 기준점을 끝까지 못 찾았으면 서버가 관리자에게 알린다(그 사이 글을 놓쳤을 수 있음).
+                    if (first) { o.put("anchor", anchorStatus); first = false; }
+                    q.put(o);
+                }
+                while (q.length() > MAX_QUEUE) q.remove(0);
+                Config.prefs(c).edit().putString("queue", q.toString()).commit();
+                flush(c);
+            } catch (Exception e) {
+                Config.status(c, "대기열 오류: " + e.getMessage());
+            }
+        });
+    }
+
     /** 살아 있음 신호를 보내고, 쌓인 글이 있으면 같이 다시 보낸다. */
     static void heartbeat(Context ctx, String note) {
         final Context c = ctx.getApplicationContext();
@@ -110,6 +138,14 @@ final class Sender {
         }
     }
 
+    private static byte[] readAll(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[4096];
+        int n;
+        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        return out.toByteArray();
+    }
+
     private static int post(Context c, String path, JSONObject body) throws Exception {
         String base = Config.server(c).replaceAll("/+$", "");
         if (base.isEmpty()) throw new IllegalStateException("서버 주소 미설정");
@@ -122,7 +158,16 @@ final class Sender {
             h.setRequestProperty("Content-Type", "application/json; charset=utf-8");
             h.setRequestProperty("X-Relay-Token", Config.token(c));
             try (OutputStream o = h.getOutputStream()) { o.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
-            return h.getResponseCode();
+            int code = h.getResponseCode();
+            if (code == 200) {
+                // 서버가 알려 주는 기준점(마지막으로 본 글 id)을 기억한다 — 다음 대화방 읽기는 이것이 보일 때까지 위로 올라간다.
+                try (java.io.InputStream in = h.getInputStream()) {
+                    String res = new String(readAll(in), StandardCharsets.UTF_8);
+                    JSONObject j = new JSONObject(res);
+                    if (j.has("anchor") && !j.isNull("anchor")) Config.prefs(c).edit().putString("anchor", j.getString("anchor")).apply();
+                } catch (Exception ignored) { /* 기준점이 없는 옛 서버 응답 — 기본 읽기 양으로 */ }
+            }
+            return code;
         } finally {
             h.disconnect();
         }

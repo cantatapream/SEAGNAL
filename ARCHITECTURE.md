@@ -29,6 +29,7 @@ client/js/
 ├── admin/  ← ⚡ 관리자 센터
 │   ├── admin_collect.js
 │   ├── admin_data_status.js
+│   ├── admin_kakao_relay.js
 │   ├── admin_location_status.js
 │   ├── admin_report.js
 │   ├── admin_station_briefing.js
@@ -36,7 +37,6 @@ client/js/
 │   ├── admin_trigger.js
 │   ├── admin_zone_editor.js
 │   ├── admin.js
-│   ├── advisory_manage_admin.js
 │   ├── cctv7.js
 │   └── pagination_helper.js
 ├── ai-chat/
@@ -74,9 +74,6 @@ client/js/
 │   │   ├── forecast.js
 │   │   ├── marine_forecast.js
 │   │   └── windy.js
-│   ├── prediction/
-│   │   ├── advisory_prediction.js
-│   │   └── run_advisory_render_test.js
 │   └── station-briefing/
 │       ├── station_briefing_basis.js
 │       ├── station_briefing_picker.js
@@ -212,13 +209,13 @@ client/js/
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
 | `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
+| `admin_kakao_relay.js` | 관리자 → 특보 관리 → 「카톡 중계」 탭 — 중계 기기·MMIS 대조 기록·받은 특보 글 |
 | `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시 |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_station_briefing.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 연안 안전 브리핑(종전 「활동지점  |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
 | `admin_trigger.js` | 관리자 트리거(15회 클릭), 공지/점검/오류 팝업 |
 | `admin_zone_editor.js` | 출입통제구역(access_control_zones.json) 폴리곤 점 편집기 — 독립 페이지 |
-| `advisory_manage_admin.js` | 관리자 "특보 관리 → 특보 예측" 운영 UI (청중 모드 토글·예측 목록 관리) |
 | `cctv7.js` | 마커 좌표가 잘못된 경우 지도 상에서 직접 위치를 교정합니다. |
 | `pagination_helper.js` | 관리자 리스트 화면용 공용 페이지네이션 UI helper |
 
@@ -287,13 +284,6 @@ client/js/
 | `forecast.js` | 해상예보 테이블, 정보 팝업(해구별/특보/조석) |
 | `marine_forecast.js` | 기상청 해상 기상 전망 데이터 로드 및 렌더링 |
 | `windy.js` | Windy 팝업, 상태 카드 시스템 |
-
-### `client/js/forecast/prediction/`
-
-| 파일 | 역할 |
-|------|------|
-| `advisory_prediction.js` | "해역별 특보 예측" 아코디언 렌더러. |
-| `run_advisory_render_test.js` | node 렌더 테스트 하네스 — advisory_prediction(v6) 렌더 함수 검증 (브라우저 불필요) |
 
 ### `client/js/forecast/station-briefing/`
 
@@ -528,7 +518,6 @@ client/js/
 
 - `local_server/routes/` (31) — Express API 라우트
 - `local_server/services/` (35) — 서버 서비스(캐시·푸시·수집 등)
-- `local_server/advisory/` — 특보 예측 엔진
 - `local_server/scheduler.js` — 크롤러·수집 스케줄러
 - `local_server/data/` — 런타임 데이터 (Fly 볼륨 /app/local_server/data — 경로 변경 금지)
 - 예외: `services/typhoon_radius.js`·`typhoon_message.js` 는 서버·클라 공용 —

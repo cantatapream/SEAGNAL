@@ -4,7 +4,7 @@
  * 역할: 통합 관리자 시스템 (인증, 대시보드, 특보 관리)
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : admin_collect.js·admin_survey.js·admin_report.js·advisory_manage_admin.js·admin_location_status.js·admin_data_status.js·admin_station_briefing.js(AI → AI 브리핑) (각 탭 렌더러), push/alert_push.js(특보 알림 모달), admin/pagination_helper.js
+ *  - 사용하는 파일 : admin_collect.js·admin_survey.js·admin_report.js·admin_kakao_relay.js(특보 관리 → 카톡 중계)·admin_location_status.js·admin_data_status.js·admin_station_briefing.js(AI → AI 브리핑) (각 탭 렌더러), push/alert_push.js(특보 알림 모달), admin/pagination_helper.js
  *  - 서버 API      : /api/admin/login·manual-alert(-release)·maintenance*·work-mode·device-status·weather-alerts-json 등 /api/admin/* 다수, /api/assistant/ask, /api/stats/*, /api/push-*
  *  - 마크업        : index2.html 관리자 센터 모달 (#admin-modal, #alert-admin-inner-content, #ait-* 등)
  *  - 나를 쓰는 곳  : admin_trigger.js·notice/board/promo.js(showUnifiedLoginModal 트리거), core/backbutton.js
@@ -3999,7 +3999,8 @@ async function renderUnifiedAlertContent(container) {
 
     const topTabs = [
         { id: 'alert-manage', name: '실시간 특보 알림 관리', icon: 'fa-tower-broadcast' },
-        { id: 'advisory-pred', name: '특보 예측',            icon: 'fa-wand-magic-sparkles' },
+        // 옛 「특보 예측」 자리(2026-11-03 삭제) — 카톡 특보중계 기록·기기 관리(admin_kakao_relay.js)
+        { id: 'kakao-relay',  name: '카톡 중계',              icon: 'fa-comment-dots' },
         { id: 'ledger-view',  name: '장부',                   icon: 'fa-book' },
         { id: 'error-log',    name: '오류 로그',              icon: 'fa-triangle-exclamation' },
         { id: 'manual-edit',  name: '특보 수정',              icon: 'fa-pen-to-square' }
@@ -4035,9 +4036,9 @@ async function renderUnifiedAlertContent(container) {
 
         if (topTabId === 'alert-manage') {
             renderAlertManageSubTab(topContent);
-        } else if (topTabId === 'advisory-pred') {
-            if (typeof window.renderAdvisoryDisplayManageTab === 'function') window.renderAdvisoryDisplayManageTab(topContent);
-            else topContent.innerHTML = '<div style="padding:16px;color:#888">특보 예측 관리 모듈 로드 실패(advisory_manage_admin.js).</div>';
+        } else if (topTabId === 'kakao-relay') {
+            if (typeof window.renderKakaoRelayAdminTab === 'function') window.renderKakaoRelayAdminTab(topContent);
+            else topContent.innerHTML = '<div style="padding:16px;color:#888">카톡 중계 모듈 로드 실패(admin_kakao_relay.js).</div>';
         } else if (topTabId === 'ledger-view') {
             renderLedgerViewTab(topContent);
         } else if (topTabId === 'error-log') {
@@ -4765,7 +4766,6 @@ async function renderMaintenanceFullTab(container) {
                 { id: 'report-btn', label: '오류 제보 버튼' },
                 { id: 'marine-forecast', label: '기상청 해상 기상 전망' },
                 { id: 'station-briefing', label: '연안 안전 브리핑' },
-                { id: 'advisory-prediction', label: '특보 예측' },
                 { id: 'weather-alert', label: '해역별 특보현황', linked: ['ov-warn-zone'] },
                 { id: 'weather-buoy', label: '해역별 기상현황', linked: ['ov-buoy'], children: [
                     { id: 'status-forecast', label: '기상예보 버튼' },

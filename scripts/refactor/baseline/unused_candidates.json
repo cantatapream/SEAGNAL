@@ -2,8 +2,7 @@
   "unusedJs": [
     "js/admin/cctv7.js",
     "js/assistant/memory/user_memory_bridge.js",
-    "js/assistant/memory/user_memory_web.js",
-    "js/forecast/prediction/run_advisory_render_test.js"
+    "js/assistant/memory/user_memory_web.js"
   ],
   "unusedImg": [
     "assets/Untitled-1.png",

@@ -20,7 +20,7 @@
  *                    · shared/utils/utils.js(trackUsage — 사용량: 펼침 'briefing.open' · 바로가기 'risk.goto_*_from_briefing', 이름표 shared/utils/usage_keys.js)
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(고르기 지도 — picker 가 처음 지도를 열 때) · GET /api/station-briefing?station=&day=auto (routes/station_briefing.js — 노출 판정)
  *                    · GET /api/station-briefing/now?station=&day=auto&since=(「지금 밀집」만 — 보고 있는 동안 1분마다, §11.10.24 pollNow)
- *                    관리자 기기 판정 정보는 특보 예측 표출 제어(forecast/prediction/advisory_prediction.js _adminAuth)와 같은 방식:
+ *                    관리자 기기 판정 정보는 옛 특보 예측 표출 제어(2026-11-03 삭제)와 같은 방식:
  *                    관리자 모드(seagnal_admin_mode)일 때만 push_token → 쿼리 adminToken · 로그인 토큰 → X-Admin-Token 헤더
  *  - 마크업        : index2.html #station-briefing-accordion-header/body · #station-briefing-title(제목 글) · #station-briefing-content · #station-briefing-badge-slot
  *                    · #station-briefing-settings-btn · 설정 팝업 #station-briefing-settings(관심해역 탭)
@@ -58,7 +58,7 @@
     function save(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { console.warn('[연안 안전 브리핑] 설정 저장 실패 — 이 기기에서 다음에 다시 물을 수 있다'); } }
 
     /**
-     * 노출 판정용 관리자 정보 — 특보 예측(advisory_prediction.js _adminAuth)과 같은 방식.
+     * 노출 판정용 관리자 정보 — 옛 특보 예측(2026-11-03 삭제)과 같은 방식.
      * 관리자 모드가 아니면 빈 값 → 서버가 「관리자에게만」 설정에서 display:false 를 준다.
      * 예: 관리자 모드 + push_token 'tok' → {params:'adminToken=tok', headers:{'X-Admin-Token':…}}
      * @returns {{params:string, headers:Object}} [연계] ← get / 서버 routes/station_briefing.js who()

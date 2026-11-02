@@ -6,9 +6,9 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/kakao_relay(분해·저장) · services/admin_auth(관리자 조회)
- *  - 서버 API      : POST·GET /api/kakao-relay/messages · POST /api/kakao-relay/heartbeat ·
+ *  - 서버 API      : POST·GET /api/kakao-relay/messages · POST /api/kakao-relay/heartbeat · POST /api/kakao-relay/seed ·
  *                    POST·GET·DELETE /api/kakao-relay/backfill(임시 긁어오기 — 분석용, 같은 열쇠) ·
- *                    GET /api/admin/kakao-relay
+ *                    GET /api/admin/kakao-relay · POST /api/admin/kakao-relay/device(기기 끄기·켜기·지우기)
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : server.js(등록) · kakao_relay_app(안드로이드 앱) · 검사 test_kakao_relay
  * [로드 순서] server.js 에서 routes/admin 보다 먼저 등록한다(자체 인증).
@@ -58,9 +58,12 @@ function createRouter({
         // 한 번에 받는 양을 넘기면 일부만 받고 성공이라 하지 않는다 — 앱은 50건씩 나눠 보낸다.
         if (items.length > 50) return res.status(413).json({ ok: false, error: '한 번에 50건까지' });
         try {
-            const r = store.storeMessages(items, req.body.device);
+            // 기준점 결과(found|missing|none)는 앱이 첫 글에 붙여 보낸다(대기열 묶음이 나뉘어도 따라가게).
+            const anchorStatus = req.body.anchor || (items.find((i) => i && i.anchor) || {}).anchor;
+            const r = store.storeMessages(items, req.body.device, new Date(), { anchor: anchorStatus });
             if (r.added) console.log(`[kakao_relay] 새 글 ${r.added}건 (중복 ${r.duplicate})`);
-            res.json({ ok: true, accepted: items.length, added: r.added, duplicate: r.duplicate });
+            // 끈·지운 기기의 글은 받지 않지만 200 으로 답한다 — 앱이 같은 글을 계속 다시 보내지 않게.
+            res.json({ ok: true, accepted: items.length, added: r.added, duplicate: r.duplicate, ignored: r.ignored || 0, anchor: r.anchor });
         } catch (e) {
             console.warn('[kakao_relay] 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });
@@ -77,12 +80,21 @@ function createRouter({
     router.post('/api/kakao-relay/heartbeat', auth, (req, res) => {
         const b = req.body || {};
         try {
-            store.heartbeat({ device: String(b.device || ''), battery: b.battery, note: String(b.note || '').slice(0, 200) });
-            res.json({ ok: true });
+            const anchor = store.heartbeat({ device: String(b.device || ''), battery: b.battery, note: String(b.note || '').slice(0, 200) });
+            // 앱은 이 기준점(마지막으로 본 글의 id)이 화면에 보일 때까지 위로 올라가며 읽는다.
+            res.json({ ok: true, anchor });
         } catch (e) {
             console.warn('[kakao_relay] 신호 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });
         }
+    });
+
+    // 「이미 봤음」 기억 미리 채우기 — 긁어온 옛 알림톡 글 목록(texts)을 넣는다(services/kakao_relay seed).
+    router.post('/api/kakao-relay/seed', auth, (req, res) => {
+        const texts = Array.isArray(req.body && req.body.texts) ? req.body.texts : [];
+        if (texts.length > 3000) return res.status(413).json({ ok: false, error: '한 번에 3000건까지' });
+        try { res.json({ ok: true, ...store.seed(texts) }); }
+        catch (e) { res.status(500).json({ ok: false, error: e.message }); }
     });
 
     // ── 임시 긁어오기(분석용) — 본 휴대폰의 옛 알림톡. 실시간 기록과 따로 둔다(services/kakao_relay storeBackfill). ──
@@ -104,6 +116,14 @@ function createRouter({
     });
     router.delete('/api/kakao-relay/backfill', auth, (req, res) => {
         try { res.json({ ok: true, deleted: store.clearBackfill() }); }
+        catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+    });
+
+    // 관리자: 기기 끄기·켜기·지우기(3단계 — 휴대폰을 빼고 태블릿만 남기기)
+    router.post('/api/admin/kakao-relay/device', authorize, (req, res) => {
+        const b = req.body || {};
+        if (!b.device || !['enable', 'disable', 'remove'].includes(b.action)) return res.status(400).json({ ok: false, error: 'device·action(enable|disable|remove) 필요' });
+        try { res.json(store.setDevice(String(b.device), b.action)); }
         catch (e) { res.status(500).json({ ok: false, error: e.message }); }
     });
 
