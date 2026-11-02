@@ -143,6 +143,29 @@ public class ReaderService extends AccessibilityService {
      *   (태블릿 2026-11-02 화면: 왼쪽 목록 오른쪽 끝 < 대화창 제목 왼쪽 − 2×높이 / 휴대폰은 거의 화면 전체).
      */
     static List<AccessibilityNodeInfo> roomNodes(List<AccessibilityNodeInfo> nodes) {
+        // ① 카톡 이름표(id)로 찾는다 — 휴대폰·태블릿 진단 파일(2026-11-02)에서 둘 다 같은 id 확인:
+        //    대화방 제목 toolbar_default_title_text(이름은 설명 칸), 대화 목록 chat_log_recycler_list
+        //    (태블릿 세로: 목록 x144~805 · 대화창 x805~1581). 대화 목록 사각형 안의 노드만 대화방 글로 본다.
+        AccessibilityNodeInfo idTitle = null, pane = null;
+        for (AccessibilityNodeInfo n : nodes) {
+            String id = n.getViewIdResourceName();
+            if (id == null) continue;
+            if (idTitle == null && id.endsWith(":id/toolbar_default_title_text")) {
+                String t = textOf(n);
+                if (t != null && t.contains(Config.CHANNEL)) idTitle = n;
+            } else if (pane == null && id.endsWith(":id/chat_log_recycler_list")) pane = n;
+        }
+        if (idTitle != null && pane != null) {
+            android.graphics.Rect pb = new android.graphics.Rect(), b = new android.graphics.Rect();
+            pane.getBoundsInScreen(pb);
+            List<AccessibilityNodeInfo> out = new ArrayList<>();
+            for (AccessibilityNodeInfo n : nodes) {
+                n.getBoundsInScreen(b);
+                if (n == pane || pb.contains(b.centerX(), b.centerY())) out.add(n);
+            }
+            return out;
+        }
+        // ② id 가 바뀌었을 때를 위한 위치 방식(아래).
         AccessibilityNodeInfo title = null;
         for (AccessibilityNodeInfo n : nodes) {
             String t = textOf(n);
@@ -162,6 +185,10 @@ public class ReaderService extends AccessibilityService {
 
     /** 대화창 영역 안에서 넘길 수 있는 목록(가장 큰 것). 없으면 null. */
     static AccessibilityNodeInfo roomScroller(List<AccessibilityNodeInfo> room) {
+        for (AccessibilityNodeInfo n : room) {
+            String id = n.getViewIdResourceName();
+            if (id != null && id.endsWith(":id/chat_log_recycler_list")) return n;
+        }
         AccessibilityNodeInfo best = null;
         long bestArea = -1;
         android.graphics.Rect b = new android.graphics.Rect();
