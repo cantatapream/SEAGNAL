@@ -11,6 +11,8 @@
  * review_queue.md 승인 마킹 + 승인 이력 저장).
  *  - GET  /api/legal/reviews          → 검증 대기 목록(review_queue.md 파싱)
  *  - GET  /api/legal/reviews/stats    → 대기/승인 카운트
+ *  - GET  /api/legal/reviews/:id/sources → 카드의 대상 페이지 「근거 조문」 표 → 줄마다 원문이 열리는지 +
+ *                                       국가법령정보센터 주소(services/review_sources.js). 화면은 조문 창을 그대로 띄운다
  *  - POST /api/legal/reviews/:id/approve → 승인(+교정값 확정) 또는 반려 → 서버 반영
  *  - POST /api/legal/reviews/:id/submit-findings → 사람이 "확인 체크리스트"를 보고 적은 확인
  *                                       결과를 Gemini가 재검토(match/mismatch/uncertain) →
@@ -35,6 +37,7 @@
  *  - GET  /api/legal/article-text     → 답변카드의 조문 카드를 눌렀을 때 띄울 원문. 인용 표기에 따라
  *                                       조 하나(항·호 분해 + 인용 항 강조) / 범위(제1~9조) / 문서 전체로
  *                                       갈리고, 본문의 별표·서식 참조는 실재 여부(refs)까지 판정해 준다
+ *                                       (`files=1` 이면 고시 별표에도 원본 HWP·PDF 주소를 찾아 붙인다 — 관리자 카드용)
  *  - GET  /api/legal/aliases          → 법령 약칭 → 정식 명칭 대응표(모호하지 않은 것만). 화면이 답변
  *                                       본문의 조문에 링크를 걸 때 법을 특정하는 데 쓴다
  *
@@ -49,6 +52,7 @@
  * - services/atomic_write.js → 원자적 파일쓰기(경합 방지)
  * - services/legal_retriever.js → /api/legal/ask 의 검색·답변합성 본체
  * - services/article_text.js    → /api/legal/article-text 의 조문 원문 발췌 본체
+ * - services/review_sources.js  → /api/legal/reviews/:id/sources 의 본체(⚠수치검증 카드 → 근거 조문 원문)
  * - services/pending_answers.js → 답변완료 푸시용 1회용 임시 보관함(3시간)
  * - services/legal_ask_stats.js → /api/legal/ask 질문 수 날짜별 집계(내용 없이 숫자만, data/legal_ask_stats.json)
  * - services/firebase_admin_lazy.js → FCM 발송(첫 사용 시 SDK 로딩)
@@ -65,6 +69,7 @@ const adminAuth = require('../services/admin_auth');
 const { writeFileAtomic } = require('../services/atomic_write');
 const legalRetriever = require('../services/legal_retriever');
 const articleText = require('../services/article_text');
+const reviewSources = require('../services/review_sources');   // ⚠수치검증 카드 → 근거 조문 원문 안내
 const effectiveDate = require('../services/effective_date');   // 지식 방 '원문'이 챗봇과 같은 판(예고본 포함)을 보여주게
 const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
@@ -374,6 +379,23 @@ router.get('/api/legal/reviews/approvals', (req, res) => {
   }
   res.json({ ok: true, count: out.log.length, path: APPROVALS_LOG, approvals: out.log,
     brokenMovedTo: out.brokenMovedTo || undefined });
+});
+
+// GET /api/legal/reviews/:id/sources — 카드 한 장이 보면 되는 **법령 원문** 안내(2026-11-02 사용자 요청)
+// 사용자 원문: "내가 검증하기 위해서는 해당 실제 원문을 보아야 하는데 원문을 볼 수 있는 링크 또는
+//   원문을 직접 해당 화면에서 볼 수 있도록 해주면 좋겠어."
+// 대상 페이지의 「## 근거 조문」 표를 줄마다 조문 창과 같은 함수로 열어 보고 결과를 싣는다
+// (services/review_sources.js). 관리자 토큰은 위 router.use('/api/legal/reviews') 가 이미 요구한다.
+router.get('/api/legal/reviews/:id/sources', async (req, res) => {
+  try {
+    const entry = parseReviewQueue().find(e => e.id === req.params.id);
+    if (!entry) return res.status(404).json({ ok: false, error: '그 번호의 카드가 대기열에 없습니다.' });
+    const out = await reviewSources.buildReviewSources(entry);
+    res.json(Object.assign({ ok: true, id: entry.id }, out));
+  } catch (e) {
+    console.error('[Legal] 카드 원문 안내 실패:', req.params.id, e && e.message);
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
 });
 
 /**
@@ -2202,8 +2224,10 @@ router.get('/api/legal/article-text', async (req, res) => {
     const q = req.query || {};
     // ⚠ `article`(항·호까지 포함한 표기)은 **그대로** 넘긴다 — 라우트에서 항·호를 깎으면 응답의
     //   focused 판정(계약2)이 성립하지 않는다. 응답도 통째로 그대로 통과시킨다(addenda 등 계약3).
+    // `files=1` — 관리자 ⚠수치검증 카드에서 연 창만 보낸다: 고시 본문에 별표 글이 있어도 원본 HWP·PDF 단추를
+    //   찾아 붙인다(article_text.resolveRefs ⑤). 챗봇 답변의 조문 창은 보내지 않아 지금과 같다.
     const out = await articleText.loadArticle({
-      law: q.law, article: q.article, tier: q.tier, baseLaw: q.baseLaw,
+      law: q.law, article: q.article, tier: q.tier, baseLaw: q.baseLaw, files: q.files === '1',
     });
     res.json(out);
   } catch (e) {
