@@ -70,6 +70,12 @@ public class MainActivity extends Activity {
             refresh();
         });
         button(v, "[임시] 긁어오기 중지", () -> { Backfill.stop("사용자 중지"); refresh(); });
+        button(v, "[진단] 카톡 화면 구조 저장 — 누른 뒤 아무 대화방 열기(글자 저장 안 함)", () -> {
+            Backfill.armDiag(this);
+            android.content.Intent k = getPackageManager().getLaunchIntentForPackage(Config.KAKAO);
+            if (k != null) startActivity(k);
+            refresh();
+        });
         button(v, "새로고침", this::refresh);
 
         state = new TextView(this);

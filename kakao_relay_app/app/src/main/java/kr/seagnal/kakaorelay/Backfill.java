@@ -173,7 +173,8 @@ final class Backfill {
                         .put("id", String.valueOf(n.getViewIdResourceName()))
                         .put("textLen", tx == null ? 0 : tx.length())
                         .put("descLen", ds == null ? 0 : ds.length())
-                        .put("scroll", n.isScrollable());
+                        .put("scroll", n.isScrollable())
+                        .put("bounds", boundsOf(n));
                 if (withText) {
                     if (tx != null) o.put("text", tx.toString().substring(0, Math.min(60, tx.length())));
                     if (ds != null) o.put("desc", ds.toString().substring(0, Math.min(60, ds.length())));
@@ -185,6 +186,43 @@ final class Backfill {
         } catch (Exception e) {
             return "진단 저장 실패: " + e.getMessage();
         }
+    }
+
+    private static String boundsOf(AccessibilityNodeInfo n) {
+        android.graphics.Rect r = new android.graphics.Rect();
+        n.getBoundsInScreen(r);
+        return r.left + "," + r.top + "," + r.right + "," + r.bottom;
+    }
+
+    // ── [화면 구조 진단] (사용자 제안 2026-11-02 「테블릿에 앱을 깔아주고 분석하도록」) ──
+    //   알림톡 승인 전 태블릿에서도 카톡 화면 배치(왼쪽 목록·오른쪽 대화창)를 정확히 재기 위해, 아무 대화방이나 연 상태의
+    //   화면 구조를 저장한다. 다른 대화 내용이 새지 않게 글자는 저장하지 않는다(종류·id·위치·글자 길이만).
+    private static boolean diagArmed;
+    private static long diagAt;
+
+    static void armDiag(Context c) {
+        app = c.getApplicationContext();
+        if (!ReaderService.isOn()) { Config.status(app, "진단: 화면 읽기(접근성)를 먼저 켜세요"); return; }
+        diagArmed = true;
+        diagAt = System.currentTimeMillis();
+        Config.status(app, "진단 대기 — 카톡에서 아무 대화방이나 열어 두세요(5초 뒤 저장, 글자는 저장 안 함)");
+    }
+
+    /** ReaderService 가 카톡 화면 변화마다 부른다. 대기 후 5초가 지나면 한 번 저장. */
+    static void onDiagEvent(ReaderService s) {
+        if (!diagArmed) return;
+        long now = System.currentTimeMillis();
+        if (now - diagAt > ARM_TIMEOUT_MS) { diagArmed = false; Config.status(app, "진단 시간 초과"); return; }
+        if (now - diagAt < 5_000L) return;
+        AccessibilityNodeInfo root = ReaderService.kakaoRoot(s);
+        if (root == null || root.getPackageName() == null || !Config.KAKAO.contentEquals(root.getPackageName())) return;
+        diagArmed = false;
+        List<AccessibilityNodeInfo> nodes = new ArrayList<>();
+        ReaderService.collect(root, nodes);
+        android.util.DisplayMetrics dm = app.getResources().getDisplayMetrics();
+        String r = dump(nodes, false);
+        Config.status(app, r + " · 화면 " + dm.widthPixels + "×" + dm.heightPixels
+                + " · 대화방 인식=" + (ReaderService.roomNodes(nodes) != null));
     }
 
     private static String save() {

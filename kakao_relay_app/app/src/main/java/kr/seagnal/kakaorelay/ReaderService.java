@@ -82,6 +82,7 @@ public class ReaderService extends AccessibilityService {
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
+        if (e.getPackageName() != null && Config.KAKAO.contentEquals(e.getPackageName())) Backfill.onDiagEvent(this);
         if (Backfill.active()) { Backfill.onEvent(this, e); return; }   // 임시 긁어오기 중에는 그쪽이 화면을 다룬다
         if (state == State.IDLE || e.getPackageName() == null) return;
         if (!Config.KAKAO.contentEquals(e.getPackageName())) return;
