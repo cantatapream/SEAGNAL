@@ -90,7 +90,7 @@ public class ReaderService extends AccessibilityService {
     }
 
     private void readScreen() {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
+        AccessibilityNodeInfo root = kakaoRoot(this);
         if (root == null) return;
         List<AccessibilityNodeInfo> nodes = new ArrayList<>();
         collect(root, nodes);
@@ -98,9 +98,8 @@ public class ReaderService extends AccessibilityService {
         List<String> texts = new ArrayList<>();
         AccessibilityNodeInfo more = null;
         for (AccessibilityNodeInfo n : nodes) {
-            CharSequence t = n.getText();
-            if (t == null) continue;
-            String s = t.toString();
+            String s = textOf(n);
+            if (s == null) continue;
             if (s.contains(Config.MARKER)) texts.add(s);
             else if (s.trim().equals("전체보기")) more = n;   // 카톡은 아주 긴 글을 접어 둔다
         }
@@ -126,10 +125,36 @@ public class ReaderService extends AccessibilityService {
 
     static boolean hasChannelTitle(List<AccessibilityNodeInfo> nodes) {
         for (AccessibilityNodeInfo n : nodes) {
-            CharSequence t = n.getText();
-            if (t != null && t.length() < 40 && t.toString().contains(Config.CHANNEL)) return true;
+            String t = textOf(n);
+            if (t != null && t.length() < 40 && t.contains(Config.CHANNEL)) return true;
         }
         return false;
+    }
+
+    /**
+     * 노드의 글자. 화면 글자(text)가 없으면 설명(contentDescription)을 쓴다 —
+     * 앱에 따라 제목·말풍선 글자를 설명 칸에만 넣어 두기 때문이다(2026-11-02 휴대폰 시험에서 대화방을 못 알아봄).
+     */
+    static String textOf(AccessibilityNodeInfo n) {
+        CharSequence t = n.getText();
+        if (t == null || t.length() == 0) t = n.getContentDescription();
+        return t == null || t.length() == 0 ? null : t.toString();
+    }
+
+    /**
+     * 카카오톡 창의 뿌리 노드. 지금 활성 창이 카톡이 아니면(접근성 바로가기 버튼 등이 앞에 있을 때)
+     * 화면의 창 목록에서 카톡 창을 찾는다.
+     */
+    static AccessibilityNodeInfo kakaoRoot(AccessibilityService s) {
+        AccessibilityNodeInfo r = s.getRootInActiveWindow();
+        if (r != null && r.getPackageName() != null && Config.KAKAO.contentEquals(r.getPackageName())) return r;
+        try {
+            for (android.view.accessibility.AccessibilityWindowInfo w : s.getWindows()) {
+                AccessibilityNodeInfo wr = w.getRoot();
+                if (wr != null && wr.getPackageName() != null && Config.KAKAO.contentEquals(wr.getPackageName())) return wr;
+            }
+        } catch (Exception ignored) { /* 창 목록을 못 읽으면 활성 창으로 */ }
+        return r;
     }
 
     static void collect(AccessibilityNodeInfo n, List<AccessibilityNodeInfo> out) {

@@ -41,6 +41,8 @@ final class Backfill {
     private static final Handler H = new Handler(Looper.getMainLooper());
     private static Context app;
     private static JSONArray all = new JSONArray();   // 이번 회차에 모은 전부(파일로 저장)
+    private static long lastMiss;
+    private static boolean dumped;   // 회차마다 진단 파일 1번
 
     private Backfill() {}
 
@@ -56,6 +58,8 @@ final class Backfill {
         rounds = 0; idle = 0; total = 0;
         seen.clear();
         all = new JSONArray();
+        dumped = false;
+        lastMiss = 0;
         Config.status(app, "긁어오기 대기 — 카톡에서 「" + Config.CHANNEL + "」 대화방을 여세요(3분 안)");
     }
 
@@ -76,11 +80,21 @@ final class Backfill {
         if (st != St.ARMED) return;
         if (System.currentTimeMillis() - armedAt > ARM_TIMEOUT_MS) { stop("3분 안에 대화방이 열리지 않음"); return; }
         if (e.getPackageName() == null || !Config.KAKAO.contentEquals(e.getPackageName())) return;
-        AccessibilityNodeInfo root = s.getRootInActiveWindow();
+        AccessibilityNodeInfo root = ReaderService.kakaoRoot(s);
         if (root == null) return;
         List<AccessibilityNodeInfo> nodes = new ArrayList<>();
         ReaderService.collect(root, nodes);
-        if (!ReaderService.hasChannelTitle(nodes)) return;
+        if (!ReaderService.hasChannelTitle(nodes)) {
+            // 어디서 막혔는지 남긴다(5초에 한 번). 진단 파일은 채널 이름을 못 찾았으므로 글자 없이 구조만 저장한다.
+            long now = System.currentTimeMillis();
+            if (now - lastMiss > 5_000L) {
+                lastMiss = now;
+                Config.status(app, "긁어오기 대기 — 카톡 화면은 보이나 채널 이름을 못 찾음(화면 요소 " + nodes.size() + "개)");
+                if (!dumped) { dumped = true; Config.status(app, dump(nodes, false)); }
+            }
+            return;
+        }
+        if (!dumped) { dumped = true; Config.status(app, dump(nodes, true)); }
         st = St.RUNNING;
         Config.status(app, "긁어오기 시작 — 위로 넘기며 읽는 중(카톡 화면을 만지지 마세요)");
         H.postDelayed(Backfill::step, STEP_MS);
@@ -91,7 +105,7 @@ final class Backfill {
         if (st != St.RUNNING) return;
         ReaderService s = ReaderService.get();
         if (s == null) { stop("화면 읽기 꺼짐"); return; }
-        AccessibilityNodeInfo root = s.getRootInActiveWindow();
+        AccessibilityNodeInfo root = ReaderService.kakaoRoot(s);
         if (root == null) { H.postDelayed(Backfill::step, STEP_MS); return; }
         List<AccessibilityNodeInfo> nodes = new ArrayList<>();
         ReaderService.collect(root, nodes);
@@ -104,9 +118,9 @@ final class Backfill {
         try {
             for (AccessibilityNodeInfo n : nodes) {
                 if (list == null && n.isScrollable()) list = n;
-                CharSequence t = n.getText();
+                String t = ReaderService.textOf(n);
                 if (t == null) continue;
-                String x = t.toString().trim();
+                String x = t.trim();
                 if (DATE.matcher(x).matches() && x.length() < 30) { date = x; continue; }
                 if (TIME.matcher(x).matches()) {
                     if (last != null && !last.has("time")) last.put("time", x);
@@ -145,30 +159,64 @@ final class Backfill {
      * 모은 글을 「다운로드」 폴더에 JSON 파일로 저장한다. 위에서 아래로 넘겼으므로 화면 순서는 최신→옛날이다.
      * @return 사람에게 보일 결과 한 줄
      */
+    /**
+     * 진단: 카톡 화면 구조(요소마다 종류·id·글자/설명 유무)를 다운로드 폴더에 저장한다.
+     * withText=true(채널 대화방임을 확인한 뒤)일 때만 글자 앞 60자를 담는다 — 다른 대화 목록의 글자가 새지 않게.
+     */
+    private static String dump(List<AccessibilityNodeInfo> nodes, boolean withText) {
+        try {
+            JSONArray arr = new JSONArray();
+            for (AccessibilityNodeInfo n : nodes) {
+                CharSequence tx = n.getText(), ds = n.getContentDescription();
+                JSONObject o = new JSONObject()
+                        .put("cls", String.valueOf(n.getClassName()))
+                        .put("id", String.valueOf(n.getViewIdResourceName()))
+                        .put("textLen", tx == null ? 0 : tx.length())
+                        .put("descLen", ds == null ? 0 : ds.length())
+                        .put("scroll", n.isScrollable());
+                if (withText) {
+                    if (tx != null) o.put("text", tx.toString().substring(0, Math.min(60, tx.length())));
+                    if (ds != null) o.put("desc", ds.toString().substring(0, Math.min(60, ds.length())));
+                }
+                arr.put(o);
+            }
+            return "진단 " + write("kakao_screen_" + (withText ? "room_" : "unknown_"),
+                    new JSONObject().put("withText", withText).put("nodes", arr));
+        } catch (Exception e) {
+            return "진단 저장 실패: " + e.getMessage();
+        }
+    }
+
     private static String save() {
-        String name = "kakao_backfill_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.KOREA)
-                .format(new java.util.Date()) + ".json";
         try {
             JSONObject doc = new JSONObject()
                     .put("note", "SEAGNAL 특보중계 임시 긁어오기 — 채널 「" + Config.CHANNEL + "」 대화방, 화면 순서 최신→옛날")
                     .put("savedAt", new java.util.Date().toString())
                     .put("count", all.length())
                     .put("messages", all);
-            byte[] bytes = doc.toString(1).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            if (android.os.Build.VERSION.SDK_INT >= 29) {
-                android.content.ContentValues cv = new android.content.ContentValues();
-                cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
-                cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/json");
-                android.net.Uri uri = app.getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
-                if (uri == null) return "파일 저장 실패";
-                try (java.io.OutputStream o = app.getContentResolver().openOutputStream(uri)) { o.write(bytes); }
-                return "다운로드 폴더에 " + name + " 저장";
-            }
-            java.io.File f = new java.io.File(app.getExternalFilesDir(null), name);
-            try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(bytes); }
-            return f.getAbsolutePath() + " 저장";
+            return write("kakao_backfill_", doc);
         } catch (Exception e) {
             return "파일 저장 실패: " + e.getMessage();
         }
     }
+
+    /** 다운로드 폴더에 prefix+날짜시각.json 으로 쓴다. @return 사람에게 보일 결과 한 줄 */
+    private static String write(String prefix, JSONObject doc) throws Exception {
+        String name = prefix + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.KOREA)
+                .format(new java.util.Date()) + ".json";
+        byte[] bytes = doc.toString(1).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            android.content.ContentValues cv = new android.content.ContentValues();
+            cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
+            cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/json");
+            android.net.Uri uri = app.getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+            if (uri == null) return "파일 저장 실패";
+            try (java.io.OutputStream o = app.getContentResolver().openOutputStream(uri)) { o.write(bytes); }
+            return "다운로드 폴더에 " + name + " 저장";
+        }
+        java.io.File f = new java.io.File(app.getExternalFilesDir(null), name);
+        try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(bytes); }
+        return f.getAbsolutePath() + " 저장";
+    }
+
 }
