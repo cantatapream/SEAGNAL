@@ -35,6 +35,9 @@
  *     `reopenStillStale()`). 종전에는 큐에 이미 있는 id 를 통째로 걸러내서, 관리자가 "해당없음"이나
  *     "처리완료"를 누르면 그 판에 대해서는 영영 다시 뜨지 않았다 — 원문이 낡은 채로 남아도 화면은 0 이었다.
  *     점검이 다시 "구버전"이라고 말하면 그 판정이 이긴다(정말 다시 받았다면 구버전으로 나오지 않는다).
+ *  ⑥ 거꾸로 **대기 중인 카드라도 이번 점검에서 우리 사본이 현행으로 확인되면 자동으로 닫는다**
+ *     (2026-11-03 사장님 결정 · 3-97, `closeNowFresh()`). 원문을 다시 받아도 사람이 누를 때까지
+ *     카드가 남아 있어, 화면 숫자가 「아직 낡은 것」이 아니라 「아무도 안 닫은 카드」가 됐었다.
  *
  * [저장 위치 — 재배포해도 안 지워지는 곳에 쓴다]
  *  결과·큐를 `local_server/data/` 밑에 둔다. 이 디렉토리만 fly.io 볼륨으로 마운트돼 있어
@@ -295,6 +298,60 @@ function reopenStillStale(entries, file = QUEUE_FILE) {
   return back;
 }
 
+/**
+ * 대기 중인 카드 가운데 **이번 점검에서 우리 사본이 현행으로 확인된 것**을 자동으로 닫는다(처리완료).
+ * 예: closeNowFresh([{title:'수산업법 시행령', tier:'시행령', slug:'수산업법', verdict:'현행',
+ *                     held_ids:['291000'], current:{serial:'291000'}}]) → ['adf_…'](닫은 id 목록)
+ * @param {object[]} rows 이번 점검 보고서 행 전부(**점검이 성공한 쪽의 행만** 넘긴다 — 실패한 쪽은 확인 못 한 것이다)
+ * @param {string} [file] 큐 파일 경로(기본은 볼륨의 원문신선도 큐 — 테스트가 임시 파일을 준다)
+ * @returns {string[]} 닫은 카드 id 목록
+ * [왜 있나 — 2026-11-03 사장님 결정(3-97)]
+ *   원문을 다시 받아도 카드는 사람이 「처리완료」를 눌러야만 닫혀서, 화면의 56은 「아직 낡은 것」이 아니라
+ *   「아무도 안 닫은 카드」였다. 「낡았다」는 사건이 아니라 **상태**다 — 기계가 다시 재서 「이제 현행」이라고
+ *   말하면 그 판정으로 닫는다(CLAUDE.md 결정로그 2026-09-20 ①의 반대 방향: 사람 클릭으로 끄지 못하게 했듯,
+ *   사람 클릭을 기다리지도 않는다). 닫은 뒤 또 낡게 나오면 `reopenStillStale()` 가 다시 띄운다.
+ * [언제 닫지 않나 — 「확인 못 한 것」을 「현행」으로 읽지 않는다]
+ *   ① 이번 보고서에 그 카드의 행이 없다(이름이 바뀌어 다른 제목으로 받았거나, 그 점검이 실패했다)
+ *   ② 행 판정이 「현행」이 아니다(구버전·이름불일치·응답없음·조회실패 등)
+ *   ③ `same_name_note` 가 붙었다 — 「우리 번호는 살아 있지만 이름만 같은 다른 문서가 잡혔다, 사람이 확인」
+ *   ④ (조례 밖) 우리가 가진 번호 **전부**가 현행 번호와 같지 않다 — 같은 제목 사본이 여러 폴더에 있고
+ *      그중 하나만 새 판이면 행 판정은 「현행」이 되지만 나머지 사본은 아직 낡았다.
+ *      조례는 번호가 아니라 시행일로 판정하므로(ordin_fresh.py) 판정을 그대로 믿는다.
+ * [연계] ← runFreshnessScan · → adminQueues.updateJsonlById(QUEUE_FILE) · 시험 test_stale_reopen.js ⑧
+ */
+function closeNowFresh(rows, file = QUEUE_FILE) {
+  const key = (title, tier, slug) => `${tier || '행정규칙'}|${slug || ''}|${title}`;
+  const ok = new Map();
+  for (const r of rows || []) {
+    if (!r || r.verdict !== '현행' || r.same_name_note) continue;
+    const held = r.held_ids || [];
+    const serial = String((r.current || {}).serial || '');
+    if (!String(r.tier || '').startsWith('조례')) {
+      if (!serial || !held.length || !held.every((h) => String(h) === serial)) continue;
+    }
+    ok.set(key(r.title, r.tier, r.slug), { held, serial });
+  }
+  if (!ok.size) return [];
+  const closed = [];
+  for (const e of adminQueues.readJsonl(file)) {
+    if (!e || !e.id || (e.status || 'pending') !== 'pending') continue;
+    const hit = ok.get(key(e.title, e.tier, e.slug));
+    if (!hit) continue;
+    const now = new Date().toISOString();
+    adminQueues.updateJsonlById(file, e.id, {
+      status: 'done',
+      decidedBy: '점검(자동 확인)',
+      decidedAt: now,
+      auto_closed: true,
+      auto_close_reason: `이번 점검에서 우리 사본이 현행으로 확인돼 자동으로 닫았습니다`
+        + (hit.serial ? `(보유 ${hit.held.join(',')} = 현행 ${hit.serial})` : '') + '.',
+    });
+    closed.push(e.id);
+  }
+  if (closed.length) console.log(`[AdmrulFresh] 이제 현행으로 확인된 카드 ${closed.length}건을 자동으로 닫았습니다.`);
+  return closed;
+}
+
 /** 마지막 점검 결과를 기록한다 — 화면 위에 "언제 검사했고 어떻게 끝났나"를 보여주기 위해. */
 function writeStatus(obj) {
   try {
@@ -385,10 +442,13 @@ async function runFreshnessScan() {
     for (const e of fresh) adminQueues.appendJsonl(QUEUE_FILE, e);
     // ★이미 큐에 있는 카드라도 **지금도 낡아 있으면 다시 대기로 돌린다**(2026-09-20 사용자 지시).
     const reopened = reopenStillStale(entries.filter((e) => known.has(e.id)));
+    // ★거꾸로, 대기 중인데 **이번에 현행으로 확인된** 카드는 자동으로 닫는다(2026-11-03 사장님 결정 · 3-97).
+    //   allRows 에는 성공한 점검의 행만 들어 있다 — 실패한 쪽 카드는 건드리지 않는다.
+    const autoClosed = closeNowFresh(allRows);
 
     const st = { ok: true, startedAt, finishedAt: new Date().toISOString(),
       checked, fresh: freshCnt, stale: staleRows.length, unknown, mismatch, repealed, renamed,
-      added: fresh.length, reopened: reopened.length,
+      added: fresh.length, reopened: reopened.length, autoClosed: autoClosed.length,
       // 한쪽만 실패했으면 ok:true 로 두되 **무엇을 못 봤는지 반드시 남긴다.**
       partialError: errors.length ? errors.join(' / ') : null, error: null };
     writeStatus(st);
@@ -435,4 +495,4 @@ function startFreshnessScan() {
 }
 
 module.exports = { runFreshnessScan, startFreshnessScan, readStatus, QUEUE_FILE, REPORT_FILE, reopenStillStale,
-  toQueueEntry, ORDIN_SCRIPT, ORDIN_REPORT_FILE, partFailure };
+  closeNowFresh, toQueueEntry, ORDIN_SCRIPT, ORDIN_REPORT_FILE, partFailure };

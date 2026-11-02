@@ -1372,11 +1372,12 @@
     var pages = Math.max(1, Math.ceil(shown.length / REVIEW_PAGE_SIZE));
     return '<div class="nrya-rv-bar">' +
       '<button class="nrya-rv-refresh" title="서버에서 다시 불러오기">↻ 새로고침</button>' +
-      '<select class="nrya-rv-status" title="승인된 항목을 보면 되돌릴 수 있습니다">' +
-        ['pending:대기만', 'approved:승인됨', 'all:전체'].map(function (o) {
-          var v = o.split(':')[0];
-          return '<option value="' + v + '"' + (reviewState.status === v ? ' selected' : '') + '>' + o.split(':')[1] + '</option>';
-        }).join('') + '</select>' +
+      // ★보기 칸 고르기 — 옛 기본 <select>(흰 바탕 상자)를 방 버튼과 같은 꼴의 알약 버튼 묶음으로(2026-11-03 사장님 지시).
+      '<span class="nrya-rv-seg" role="group" aria-label="보기" title="승인된 항목을 보면 되돌릴 수 있습니다">' +
+        ['pending:대기', 'approved:승인됨', 'all:전체'].map(function (o) {
+          var v = o.split(':')[0], on = reviewState.status === v;
+          return '<button type="button" class="nrya-rv-segbtn' + (on ? ' nrya-active' : '') + '" data-st="' + v + '" aria-pressed="' + on + '">' + o.split(':')[1] + '</button>';
+        }).join('') + '</span>' +
       '<select class="nrya-rv-law">' + opts + '</select>' +
       '<input class="nrya-rv-q" type="search" placeholder="검색(ID·제목·페이지)" value="' + esc(reviewState.q) + '">' +
       '<span class="nrya-rv-count">' + from + '–' + to + ' / ' + shown.length + '건' +
@@ -1406,13 +1407,15 @@
 
     var refresh = host.querySelector('.nrya-rv-refresh');
     if (refresh) refresh.onclick = function () { renderReviewCards(host); };
-    var st = host.querySelector('.nrya-rv-status');
-    if (st) st.onchange = function () {
-      // 법 필터를 그대로 두면, 새 목록에 그 법이 없을 때 화면엔 '전체 법'로 보이는데 실제로는
-      // 옛 법이 계속 걸려 0건이 뜬다(2026-08-28 독립 검토에서 발견·실측). 그래서 같이 푼다.
-      reviewState.status = st.value; reviewState.law = ''; reviewState.page = 0;
-      renderReviewCards(host);
-    };
+    host.querySelectorAll('.nrya-rv-segbtn').forEach(function (btn) {
+      btn.onclick = function () {
+        if (btn.getAttribute('data-st') === reviewState.status) return;
+        // 법 필터를 그대로 두면, 새 목록에 그 법이 없을 때 화면엔 '전체 법'로 보이는데 실제로는
+        // 옛 법이 계속 걸려 0건이 뜬다(2026-08-28 독립 검토에서 발견·실측). 그래서 같이 푼다.
+        reviewState.status = btn.getAttribute('data-st'); reviewState.law = ''; reviewState.page = 0;
+        renderReviewCards(host);
+      };
+    });
     var sel = host.querySelector('.nrya-rv-law');
     if (sel) sel.onchange = function () { reviewState.law = sel.value; reviewState.page = 0; paintReviews(host); };
     var q = host.querySelector('.nrya-rv-q');
@@ -2174,6 +2177,7 @@
     return partial + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
       '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '건 대조 · 낡은 원문 ' + (last.stale || 0) + '건' +
       (last.reopened ? ' · 닫혀 있었지만 아직 낡아 다시 띄운 것 ' + last.reopened + '건' : '') +
+      (last.autoClosed ? ' · 이제 현행으로 확인돼 자동으로 닫은 카드 ' + last.autoClosed + '건' : '') +
       (last.renamed ? '(그중 이름 바뀜 의심 ' + last.renamed + '건)' : '') +
       (last.mismatch ? ' · 이름불일치 ' + last.mismatch + '건' : '') +
       (last.repealed ? ' · 폐지가능 ' + last.repealed + '건' : '') +

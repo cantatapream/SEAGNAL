@@ -377,6 +377,11 @@
 .nrya-console .nrya-rv-law, .nrya-console .nrya-rv-q{font:inherit; font-size:11.5px; color:var(--nrya-text);
   background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:5px 8px; max-width:100%}
 .nrya-console .nrya-rv-law{max-width:46%}
+/* 보기 칸(대기·승인됨·전체) — 방 버튼(.nrya-subtab)과 같은 알약 꼴. `.nrya-rv-bar button` 보다 구체적으로 덮는다(2026-11-03) */
+.nrya-console .nrya-rv-seg{display:inline-flex; gap:4px; padding:3px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid var(--nrya-border)}
+.nrya-console .nrya-rv-bar .nrya-rv-segbtn{padding:4px 11px; border-radius:14px; background:transparent; border:1px solid transparent; color:var(--nrya-text-sub); font-size:11.5px; font-weight:600}
+.nrya-console .nrya-rv-bar .nrya-rv-segbtn:hover:not(.nrya-active){background:rgba(255,255,255,.07); border-color:transparent}
+.nrya-console .nrya-rv-bar .nrya-rv-segbtn.nrya-active{background:rgba(68,138,255,.2); border-color:var(--nrya-accent-blue); color:#8bb6ff}
 .nrya-console .nrya-rv-q{flex:1 1 120px; min-width:110px}
 .nrya-console .nrya-rv-count{font-size:11px; color:var(--nrya-text-sub); font-variant-numeric:tabular-nums}
 .nrya-console .nrya-rv-pager{display:flex; align-items:center; gap:6px; margin-left:auto}
