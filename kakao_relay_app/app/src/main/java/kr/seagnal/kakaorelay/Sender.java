@@ -44,6 +44,11 @@ final class Sender {
     /** 살아 있음 신호를 보내고, 쌓인 글이 있으면 같이 다시 보낸다. */
     static void heartbeat(Context ctx, String note) {
         final Context c = ctx.getApplicationContext();
+        // 알람으로 깨어난 짧은 순간에 전송이 끝나기 전에 기기가 다시 잠들지 않게 잡아 둔다(최대 60초).
+        android.os.PowerManager pm = (android.os.PowerManager) c.getSystemService(Context.POWER_SERVICE);
+        final android.os.PowerManager.WakeLock wl = pm == null ? null
+                : pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "relay:beat");
+        if (wl != null) wl.acquire(60_000L);
         POOL.execute(() -> {
             try {
                 BatteryManager bm = (BatteryManager) c.getSystemService(Context.BATTERY_SERVICE);
@@ -54,6 +59,8 @@ final class Sender {
                 flush(c);
             } catch (Exception e) {
                 Config.status(c, "신호 실패: " + e.getMessage());
+            } finally {
+                if (wl != null && wl.isHeld()) wl.release();
             }
         });
     }

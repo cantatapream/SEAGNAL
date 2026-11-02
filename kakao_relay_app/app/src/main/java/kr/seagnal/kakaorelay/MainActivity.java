@@ -47,7 +47,7 @@ public class MainActivity extends Activity {
         button(v, "③ 배터리 최적화 제외", () ->
                 startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                         Uri.parse("package:" + getPackageName()))));
-        button(v, "서버 연결 시험(신호 보내기)", () -> Sender.heartbeat(this, "시험"));
+        button(v, "서버 연결 시험(신호 보내기)", () -> BeatReceiver.beatNow(this));
         button(v, "시험 글 보내기", () -> Sender.sendMessages(this, Collections.singletonList(
                 Config.MARKER + "\n\n[기상특보]\n시험바다,\n풍랑주의보 01월 01일 00시 00분\n시험 "
                         + System.currentTimeMillis()), "notification"));

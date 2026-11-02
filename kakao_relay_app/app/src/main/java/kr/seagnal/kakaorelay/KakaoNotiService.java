@@ -2,8 +2,6 @@ package kr.seagnal.kakaorelay;
 
 import android.app.Notification;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
@@ -16,24 +14,21 @@ import java.util.Collections;
  * 또 30분마다 서버에 "살아 있음" 신호를 보낸다.
  */
 public class KakaoNotiService extends NotificationListenerService {
-    private static final long BEAT_MS = 30 * 60 * 1000L;
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Runnable beat = new Runnable() {
-        @Override public void run() {
-            Sender.heartbeat(KakaoNotiService.this, (ReaderService.isOn() ? "ok" : "접근성 꺼짐")
-                    + " | 마지막 읽기: " + Config.prefs(KakaoNotiService.this).getString("lastRead", "없음"));
-            handler.postDelayed(this, BEAT_MS);
-        }
-    };
+    /** 신호 간격. 서버 멈춤 판정(70분)과 데이터 수집현황 목록표 kakaoRelay 가 이 값을 근거로 쓴다. */
+    static final long BEAT_MS = 30 * 60 * 1000L;
+    private static volatile boolean connected;
+
+    static boolean isConnected() { return connected; }
 
     @Override public void onListenerConnected() {
+        connected = true;
         Config.status(this, "알림 감시 시작");
-        handler.removeCallbacks(beat);
-        handler.post(beat);
+        BeatReceiver.schedule(this);   // 30분 신호는 알람으로(깊은 잠에서도 깨어남) — 서비스 안 타이머는 잠들면 멈춘다
+        BeatReceiver.beatNow(this);
     }
 
     @Override public void onListenerDisconnected() {
-        handler.removeCallbacks(beat);
+        connected = false;
         Config.status(this, "알림 감시 끊김 — 다시 연결 요청");
         requestRebind(new android.content.ComponentName(this, KakaoNotiService.class));
     }

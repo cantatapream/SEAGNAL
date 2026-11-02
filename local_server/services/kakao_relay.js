@@ -3,13 +3,15 @@
  * 파일명: local_server/services/kakao_relay.js
  * 역할  : 태블릿 전용 앱(kakao_relay_app)이 카카오톡 「기상청 해양기상정보포털」 알림톡에서 읽어 보낸
  *         글을 받아, 특보 한 줄씩(구역·종류·시각·발효/해제)으로 나누고 파일에 쌓는다.
- *         지금은 "받아서 기록"까지만 한다 — 푸시 발송 경로(MMIS)에는 아직 연결하지 않았다.
+ *         지금은 "받아서 기록"까지만 한다 — 사용자 푸시 발송 경로(MMIS)에는 아직 연결하지 않았다.
+ *         태블릿이 멈추면(신호 끊김 등) 관리자에게 푸시로 알린다(checkHealth).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : config/server_config(DATA_DIR)
+ *  - 사용하는 파일 : config/server_config(DATA_DIR) · services/collect_fail_alert(멈춤 알림)
  *  - 서버 API      : 없음(routes/kakao_relay.js 가 부른다)
  *  - 마크업        : 없음
- *  - 나를 쓰는 곳  : routes/kakao_relay.js · 검사 scripts/test_kakao_relay.js
+ *  - 나를 쓰는 곳  : routes/kakao_relay.js · scheduler.js(5분마다 checkHealth) · 검사 scripts/test_kakao_relay.js
+ *  - 알림          : services/collect_fail_alert.js 항목 kakaoRelay(태블릿 신호 끊김·접근성 꺼짐·읽기 실패 → 관리자 푸시)
  * [로드 순서] 해당 없음(서버 모듈)
  * ============================================================================
  */
@@ -19,6 +21,12 @@ const fs = require('fs'),
     crypto = require('crypto');
 
 const MAX_MESSAGES = 300;
+const MAX_SEEN_KEYS = 3000;
+/** 받은 시각보다 이만큼 지난 특보 줄은 「새 특보」로 치지 않는다. */
+const STALE_WARNING_MS = 24 * 3600e3;
+/** 앱 신호는 30분마다(KakaoNotiService BEAT_MS). 절전으로 늦어질 수 있어 70분 넘게 없으면 끊김으로 본다.
+ *  데이터 수집현황 목록표 kakaoRelay 의 30분 주기 + graceMinutes 40 과 같은 값이다. */
+const HEARTBEAT_STALE_MS = 70 * 60e3;
 /** 믿고 쓰는 동작어. 이 밖의 말은 'unknown'. */
 const ACTIONS = ['발효', '해제', '변경', '발표', '연장', '대치'];
 
@@ -76,7 +84,7 @@ function createStore({ file } = {}) {
     function load() {
         try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
         catch (e) {
-            if (e.code === 'ENOENT') return { messages: [], heartbeat: null };
+            if (e.code === 'ENOENT') return { messages: [], heartbeat: null, heartbeatAt: null, seenKeys: [] };
             // 깨진 파일을 빈 DB 로 덮어쓰면 이력이 통째로 사라진다 — 원본을 남기고 저장을 거부한다.
             try { fs.copyFileSync(file, file + '.bad'); } catch (_) { /* 원본 보존 시도만 */ }
             throw new Error('저장 파일 손상(' + e.message + ') — ' + file + '.bad 로 보존, 저장 거부');
@@ -99,6 +107,8 @@ function createStore({ file } = {}) {
     function storeMessages(items, device, now = new Date()) {
         const db = load();
         const known = new Set(db.messages.map((x) => x.id));
+        // 특보 「줄」 단위 중복 — 같은 특보가 알림 글·화면 글·접힌 글·전문으로 여러 번 들어와도 한 번만 새것이다.
+        const seen = new Set(db.seenKeys || []);
         const added = [];
         let duplicate = 0;
         for (const it of items) {
@@ -114,6 +124,13 @@ function createStore({ file } = {}) {
                 receivedAt: now.toISOString(),
                 warnings: parseWarnings(text, now),
             };
+            // 새 특보 줄: 처음 보는 열쇠이고, 받은 시각보다 24시간 넘게 지난 옛 특보가 아닌 것(밀려난 옛 글이 다시 들어온 경우 차단).
+            rec.newWarnings = rec.warnings.filter((w) => {
+                const key = warningKey(w);
+                if (seen.has(key) || w.action === 'unknown') return false;
+                seen.add(key);
+                return now.getTime() - Date.parse(w.at) <= STALE_WARNING_MS;
+            });
             // 특보 글인데 한 줄도 못 나눴으면 꼴이 바뀐 것이다 — 조용히 넘기지 않고 표시·기록한다.
             if (text.includes('[기상특보]') && !rec.warnings.length) {
                 rec.unparsed = true;
@@ -123,6 +140,7 @@ function createStore({ file } = {}) {
             added.push(rec);
         }
         if (db.messages.length > MAX_MESSAGES) db.messages = db.messages.slice(-MAX_MESSAGES);
+        db.seenKeys = [...seen].slice(-MAX_SEEN_KEYS);
         if (added.length) save(db);
         return { added: added.length, duplicate, new: added };
     }
@@ -134,6 +152,8 @@ function createStore({ file } = {}) {
     function heartbeat(info, now = new Date()) {
         const db = load();
         db.heartbeat = { ...info, at: now.toISOString() };
+        // 데이터 수집현황 카드가 읽는 맨 위 칸(목록표 kakaoRelay 의 collectedField).
+        db.heartbeatAt = db.heartbeat.at;
         save(db);
     }
 
@@ -143,7 +163,66 @@ function createStore({ file } = {}) {
         return { heartbeat: db.heartbeat, messages: db.messages.slice(-n).reverse() };
     }
 
-    return { storeMessages, heartbeat, snapshot };
+    /** 멈춤 감시용 — 마지막 신호만. 파일이 없으면 null. */
+    function lastHeartbeat() {
+        return load().heartbeat || null;
+    }
+
+    return { storeMessages, heartbeat, snapshot, lastHeartbeat };
 }
 
-module.exports = { parseWarnings, createStore, MAX_MESSAGES, ACTIONS };
+/**
+ * 특보 줄의 비교 열쇠. 예: {zoneKey:'서해남부먼바다', kind:'풍랑주의보', at:'2026-11-02T19:00+09:00', action:'발효'}
+ *   → '서해남부먼바다|풍랑주의보|2026-11-02T19:00+09:00|발효'
+ * [연계] ← storeMessages
+ */
+function warningKey(w) {
+    return [w.zoneKey || String(w.zone).replace(/\s+/g, ''), w.kind, w.at, w.action].join('|');
+}
+
+/**
+ * 태블릿 경로가 지금 정상인가를 판정한다(사건이 아니라 상태 — 고쳐질 때까지 계속 「이상」이다).
+ * 예: 마지막 신호 80분 전 → {ok:false, reason:'태블릿 신호 끊김 — 마지막 11/02 13:00'}
+ *     신호 note 에 '접근성 꺼짐' → {ok:false, reason:'태블릿 화면 읽기(접근성) 꺼짐'}
+ *     한 번도 신호가 없었음 → null(아직 설치 전 — 판정하지 않음. 수집현황 카드에는 「기록 없음」으로 보인다)
+ * @param {object|null} hb - lastHeartbeat() @param {number} nowMs
+ * @returns {{ok:boolean, reason?:string}|null}
+ * [연계] ← checkHealth / 검사 test_kakao_relay
+ */
+function judgeHealth(hb, nowMs) {
+    if (!hb || !hb.at) return null;
+    const at = Date.parse(hb.at);
+    if (!Number.isFinite(at)) return { ok: false, reason: '태블릿 신호 시각을 읽을 수 없음' };
+    if (!(nowMs - at <= HEARTBEAT_STALE_MS)) {
+        const k = new Date(at + 9 * 3600e3).toISOString();
+        return { ok: false, reason: '태블릿 신호 끊김 — 마지막 ' + k.slice(5, 10).replace('-', '/') + ' ' + k.slice(11, 16) };
+    }
+    const note = String(hb.note || '');
+    if (note.includes('접근성 꺼짐')) return { ok: false, reason: '태블릿 화면 읽기(접근성) 꺼짐' };
+    if (note.includes('알림 감시 끊김')) return { ok: false, reason: '태블릿 카톡 알림 감시 끊김' };
+    const last = /마지막 읽기: (.*)$/.exec(note);
+    if (last && /실패/.test(last[1])) return { ok: false, reason: '대화방 읽기 실패 — ' + last[1].slice(0, 60) };
+    return { ok: true };
+}
+
+/**
+ * 판정을 관리자 알림기(collect_fail_alert)에 넘긴다 — 처음 이상일 때 1번, 정상으로 돌아오면 「복구」 1번.
+ * 서버에 열쇠(KAKAO_RELAY_TOKEN)가 없으면 이 경로를 안 쓰는 것이므로 아무것도 하지 않는다.
+ * 예: scheduler 가 5분마다 checkHealth() 호출
+ * @returns {Promise<object|null>} 판정
+ * [연계] ← scheduler.js 1분 마스터(5분마다) / → judgeHealth · services/collect_fail_alert.report('kakaoRelay')
+ */
+async function checkHealth({ store = createStore(), alert = require('./collect_fail_alert'), now = Date.now(), enabled = !!process.env.KAKAO_RELAY_TOKEN } = {}) {
+    if (!enabled) return null;
+    let v;
+    try {
+        v = judgeHealth(store.lastHeartbeat(), now);
+    } catch (e) {
+        v = { ok: false, reason: '저장 파일 읽기 실패 — ' + e.message.slice(0, 60) };
+    }
+    if (!v) return null;
+    await alert.report('kakaoRelay', v.ok ? { ok: true } : { ok: false, error: { plainReason: v.reason } });
+    return v;
+}
+
+module.exports = { parseWarnings, createStore, warningKey, judgeHealth, checkHealth, MAX_MESSAGES, ACTIONS, HEARTBEAT_STALE_MS };

@@ -10,7 +10,7 @@
 'use strict';
 const fs = require('fs'), os = require('os'), path = require('path'), http = require('http');
 const express = require('express');
-const { parseWarnings, createStore, MAX_MESSAGES } = require('../services/kakao_relay');
+const { parseWarnings, createStore, judgeHealth, checkHealth, MAX_MESSAGES, HEARTBEAT_STALE_MS } = require('../services/kakao_relay');
 const { createRouter } = require('../routes/kakao_relay');
 
 let pass = 0, fail = 0;
@@ -48,6 +48,43 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     const bad = path.join(tmp, 'bad.json'); fs.writeFileSync(bad, '{깨짐');
     let threw = false; try { createStore({ file: bad }).heartbeat({}); } catch (_) { threw = true; }
     ok('깨진 파일은 덮어쓰지 않음', threw && fs.readFileSync(bad, 'utf8') === '{깨짐' && fs.existsSync(bad + '.bad'));
+
+    console.log('D. 특보 줄 단위 중복');
+    const st2 = createStore({ file: path.join(tmp, 'db2.json') });
+    const L1 = '서해남부먼바다,\n풍랑주의보 11월 02일 17시 00분 발효';
+    let n = st2.storeMessages([{ text: HEAD + L1, source: 'notification' }], 't', NOV).new[0];
+    ok('처음 본 줄은 새 특보', n.newWarnings.length === 1, n.newWarnings);
+    n = st2.storeMessages([{ text: HEAD + L1 + '\n서해중부먼바다,\n풍랑주의보 11월 02일 17시 00분 발효' }], 't', NOV).new[0];
+    ok('알림 글·화면 글이 달라도 같은 줄은 새것 아님(새 줄만)', n.newWarnings.length === 1 && n.newWarnings[0].zone === '서해중부먼바다', n.newWarnings);
+    n = st2.storeMessages([{ text: HEAD + '동해중부먼바다,\n풍랑주의보 10월 30일 17시 00분 발효' }], 't', NOV).new[0];
+    ok('24시간 넘게 지난 옛 특보는 새것 아님', n.newWarnings.length === 0, n.newWarnings);
+    n = st2.storeMessages([{ text: HEAD + '남해동부먼바다,\n풍랑주의보 11월 02일 17시 00분 해' }], 't', NOV).new[0];
+    ok('동작어 모름(unknown)은 새것 아님', n.newWarnings.length === 0);
+
+    console.log('E. 멈춤 판정');
+    const T = Date.parse('2026-11-02T05:00:00Z');
+    ok('신호 한 번도 없음 → 판정 안 함(null)', judgeHealth(null, T) === null);
+    ok('69분 전 신호 → 정상', judgeHealth({ at: new Date(T - 69 * 60e3).toISOString(), note: 'ok | 마지막 읽기: 없음' }, T).ok === true);
+    let v = judgeHealth({ at: new Date(T - HEARTBEAT_STALE_MS - 1).toISOString(), note: 'ok' }, T);
+    ok('70분 넘게 끊김 → 이상(KST 시각)', v.ok === false && /신호 끊김 — 마지막 11\/02 12:49/.test(v.reason), v);
+    ok('신호 시각 손상 → 이상', judgeHealth({ at: 'x' }, T).ok === false);
+    ok('접근성 꺼짐 → 이상', judgeHealth({ at: new Date(T).toISOString(), note: '접근성 꺼짐 | 마지막 읽기: 없음' }, T).reason === '태블릿 화면 읽기(접근성) 꺼짐');
+    ok('알림 감시 끊김 → 이상', judgeHealth({ at: new Date(T).toISOString(), note: 'ok · 알림 감시 끊김 | 마지막 읽기: 없음' }, T).reason === '태블릿 카톡 알림 감시 끊김');
+    v = judgeHealth({ at: new Date(T).toISOString(), note: 'ok | 마지막 읽기: 11-02 13:00 실패: 시간 초과' }, T);
+    ok('마지막 읽기 실패 → 이상', v.ok === false && /대화방 읽기 실패/.test(v.reason), v);
+    ok('마지막 읽기 성공 → 정상', judgeHealth({ at: new Date(T).toISOString(), note: 'ok | 마지막 읽기: 11-02 13:00 성공 3개' }, T).ok === true);
+    const calls = [];
+    const fakeAlert = { report: async (id, o) => calls.push([id, o]) };
+    const st3 = createStore({ file: path.join(tmp, 'db3.json') });
+    ok('열쇠 미설정이면 감시 안 함', (await checkHealth({ store: st3, alert: fakeAlert, now: T, enabled: false })) === null && !calls.length);
+    ok('신호 없으면 보고 안 함', (await checkHealth({ store: st3, alert: fakeAlert, now: T, enabled: true })) === null && !calls.length);
+    st3.heartbeat({ device: 't', note: 'ok' }, new Date(T - 2 * 3600e3));
+    await checkHealth({ store: st3, alert: fakeAlert, now: T, enabled: true });
+    ok('끊김은 kakaoRelay 실패로 보고(사람 문장 사유)', calls.length === 1 && calls[0][0] === 'kakaoRelay' && calls[0][1].ok === false && /신호 끊김/.test(calls[0][1].error.plainReason), calls);
+    st3.heartbeat({ device: 't', note: 'ok' }, new Date(T));
+    await checkHealth({ store: st3, alert: fakeAlert, now: T, enabled: true });
+    ok('신호 돌아오면 정상 보고', calls.length === 2 && calls[1][1].ok === true);
+    ok('수집현황 카드가 읽는 heartbeatAt 칸', JSON.parse(fs.readFileSync(path.join(tmp, 'db3.json'), 'utf8')).heartbeatAt === new Date(T).toISOString());
 
     console.log('C. 라우트');
     const app = express(); app.use(express.json());

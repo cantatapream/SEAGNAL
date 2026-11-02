@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- 카카오톡이 설치돼 있는지 확인하고 실행하기 위해 -->
     <queries><package android:name="com.kakao.talk" /></queries>
@@ -21,6 +22,11 @@
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
         </service>
+
+        <!-- 30분 신호 알람 + 기기 재시작 때 알람 다시 걸기 -->
+        <receiver android:name=".BeatReceiver" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
 
         <!-- ② 카톡 대화방 화면의 글자를 읽는다(접근성) -->
         <service android:name=".ReaderService" android:exported="true"
