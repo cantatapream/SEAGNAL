@@ -175,8 +175,13 @@ function createStore({ file, backfillFile } = {}) {
         const byId = new Map(db.messages.map((x) => [x.id, x]));
         const seenIds = new Set(db.seenIds || []);
         const seen = new Set(db.seenKeys || []);
+        // 「놓친 글」로만 본 줄의 열쇠 — 그 줄이 나중에 「이번 알림」 글(다른 글이어도)에 나오면 새 특보로 올린다(적대검증 M6).
+        const missedKeys = new Set(db.missedKeys || []);
         db.pending = db.pending || [];
         db.alerts = db.alerts || [];
+        // 한 묶음 안에서는 「이번 알림」 글을 먼저 본다(앱은 화면 글 → 전문 → 위 페이지 순으로 보낸다 — M6).
+        items = [...items].sort((x, y) => (y && y.trigger === false ? 0 : 1) - (x && x.trigger === false ? 0 : 1));
+        const missedLines = [];
         const added = [];
         let duplicate = 0, promoted = 0;
         const fresh = (w) => now.getTime() - Date.parse(w.until || w.at) <= STALE_WARNING_MS;
@@ -192,6 +197,7 @@ function createStore({ file, backfillFile } = {}) {
                 // 함께 읽힌 글로 먼저 들어왔던 것이 나중에 「이번 알림」으로 오면 놓친 줄을 새 줄로 올린다(동시에 여러 개 온 경우).
                 if (old && trigger && !old.trigger && (old.missedWarnings || []).length) {
                     old.newWarnings = (old.newWarnings || []).concat(old.missedWarnings.filter(fresh));
+                    for (const w of old.missedWarnings) missedKeys.delete(warningKey(w));
                     old.missedWarnings = [];
                     old.trigger = true;
                     old.promotedAt = now.toISOString();
@@ -209,11 +215,20 @@ function createStore({ file, backfillFile } = {}) {
                 warnings: parseWarnings(text, now),
                 newWarnings: [], missedWarnings: [],
             };
+            // 알림 글은 200자에서 잘려 온다(2026-11-03 실측) — 끝에 닿은 마지막 줄은 동작어가 잘렸을 수 있어
+            //   (「변경해제」→「변경」) 쓰지 않는다. 같은 줄은 대화방 전문으로 다시 온다(적대검증 M5).
+            const cutTail = rec.source === 'notification' && text.length >= 190 ? rec.warnings[rec.warnings.length - 1] : null;
             for (const w of rec.warnings) {
+                if (w === cutTail) { w.cutTail = true; continue; }
                 const key = warningKey(w);
-                if (seen.has(key) || !usable(w)) continue;
+                if (!usable(w)) continue;
+                if (seen.has(key)) {
+                    if (trigger && missedKeys.has(key) && fresh(w)) { missedKeys.delete(key); rec.newWarnings.push(w); }
+                    continue;
+                }
                 seen.add(key);
-                (trigger ? (fresh(w) ? rec.newWarnings : []) : rec.missedWarnings).push(w);
+                if (trigger) { if (fresh(w)) rec.newWarnings.push(w); }
+                else { rec.missedWarnings.push(w); missedKeys.add(key); if (fresh(w)) missedLines.push(`${w.zone} ${w.kind} 「${w.action}」 ${w.until ? w.at.slice(5, 16).replace('T', ' ') + '~' + w.until.slice(11, 16) : w.at.slice(5, 16).replace('T', ' ')}`); }
             }
             const unknown = rec.warnings.filter((w) => !w.zoneKnown).map((w) => w.rawZone);
             if (unknown.length) {
@@ -231,10 +246,14 @@ function createStore({ file, backfillFile } = {}) {
             byId.set(id, rec);
             added.push(rec);
         }
+        // 24시간 안의 놓친 줄은 관리자에게 알린다 — 알림을 못 받고 대화방에서만 발견된 특보(적대검증 M7).
+        if (missedLines.length) db.alerts.push({ type: 'missed', lines: missedLines.slice(0, 20), at: now.toISOString(), device: String(device || ''), text: missedLines.join('|') });
+        db.alerts = db.alerts.slice(-MAX_ALERTS);
         if (db.messages.length > MAX_MESSAGES) db.messages = db.messages.slice(-MAX_MESSAGES);
         db.seenKeys = [...seen].slice(-MAX_SEEN_KEYS);
         db.seenIds = [...seenIds].slice(-MAX_SEEN_IDS);
-        if (added.length || promoted) save(db);
+        db.missedKeys = [...missedKeys].slice(-MAX_SEEN_KEYS);
+        if (added.length || promoted || missedLines.length) save(db);
         return { added: added.length, duplicate, promoted, new: added };
     }
 
@@ -378,6 +397,14 @@ function warningKey(w) {
 function queuePending(db, ws, now) {
     for (const w of ws) {
         if (w.section !== '기상특보' || w.parent || w.type !== '풍랑') continue;
+        // 같은 해역에 더 새 카톡 줄이 오면 옛 대기 줄은 대체됐다 — 조용히 닫고 기록만(적대검증 H3: 옛 「해제 03:00」이
+        //   새 「해제 06:00」 뒤에도 남아 오탐 알림을 내던 문제).
+        db.checks = db.checks || [];
+        db.pending = db.pending.filter((q) => {
+            if (q.zone !== w.zone) return true;
+            db.checks.push({ at: now.toISOString(), kind: 'superseded', title: '대조 대체(같은 해역에 새 카톡 줄)', body: `${q.zone} ${q.kind} 「${q.action}」 ${q.at} → ${w.kind} 「${w.action}」 ${w.at}` });
+            return false;
+        });
         db.pending.push({
             key: warningKey(w), zone: w.zone, kind: w.kind, level: w.level, action: w.action, at: w.at,
             receivedAt: now.toISOString(), status: 'wait',
@@ -432,11 +459,18 @@ async function checkHealth({ store = createStore(), alert = require('./collect_f
 
 // ── 카톡 ↔ 특보현황(MMIS) 대조 (사용자 확정 2026-11-03: 「10분」 동의, 「관리자 푸시는 이해가기 쉽게」) ──────────
 //   카톡으로 받은 풍랑 특보(부모 해역)가 10분이 지나도 특보현황(MMIS, data/weather_alerts.json)에 반영되지 않으면
-//   관리자에게 알린다. 나중에 따라오면 「같아짐」을 한 번 더 알린다. 6시간 넘게 안 맞으면 대조를 그만두고 기록만 남긴다.
+//   관리자에게 알린다. 나중에 따라오면 「같아짐」, 6시간 내내 다르면 「대조 종료」를 한 번 더 알린다.
 //   이 단계는 기록·알림만 한다 — 특보현황·사용자 푸시는 바꾸지 않는다.
+//   ★특보현황 쪽 칸의 뜻은 크롤러 실제 동작에 맞춘다(적대검증 2026-11-03 H1·H2 — marine_warning_crawler 로 확인):
+//     · 발표됐지만 아직 발효 전인 특보는 등급이 「예비」로 실린다(toBlock: wrnLvlReal || wrnLvlNm, :3374).
+//     · 발표시각(tmFc)은 처음 발표 시각으로 고정되고 변경·연장에도 안 바뀐다(_applyAnnounceAnchor, :1820).
+//       그래서 「연장」은 발표시각이 아니라 **해제예고 칸이 카톡 도착 무렵 바뀌었는지**로 본다.
 const MMIS_WAIT_MS = 10 * 60e3;
 const MMIS_GIVE_UP_MS = 6 * 3600e3;
+/** 연장 판정: 특보현황 해제예고가 카톡 도착 15분 전 이후에 바뀌었으면 같은 연장을 받은 것으로 본다(특보현황이 더 빠를 수도 있어 여유). */
+const CLR_CHANGE_SLACK_MS = 15 * 60e3;
 const MAX_CHECKS = 200;
+const MAX_ALERTS = 50;
 
 /** 'YYYY년 MM월 DD일 HH시 MM분' → '…T HH:MM+09:00'. 못 읽으면 null. */
 function mmisIso(str) {
@@ -462,44 +496,62 @@ function mmisZones(alerts) {
     return out;
 }
 
+const lvlOf = (b) => String((b && (b.wrnLvlNm || b.wrnLvl)) || '');
+const isWave = (b) => !!b && /풍랑/.test(String(b.wrnTpNm || b.wrnTp || ''));
+/** 해제예고 칸(정확 시각이 오면 tmYn, 아니면 clrNtcTm·tmCc 범위). */
+const clrOf = (b) => String((b && (b.tmYn || b.clrNtcTm || b.tmCc)) || '');
+
 /**
  * 카톡 한 줄이 특보현황(MMIS)에 반영됐는가.
- * 예: 카톡 「풍랑주의보 11월 03일 03시 00분 해제」 ↔ MMIS 해제예고 '2026년 11월 03일 03시 00분' → true
- *     카톡 「풍랑주의보 … 연장」 ↔ MMIS 발표시각이 카톡 도착 90분 전보다 이전(옛 발표 그대로) → false
- * 판정:
- *   발효·변경·연장: 특보현황에 같은 종류·등급(풍랑·주의보/경보)이 있고, 발효시각이나 발표시각이 카톡 시각과 같거나,
- *                  발표시각이 카톡 도착 90분 전 이후(=같은 발표를 이미 받음)일 때.
- *   해제: 특보현황에 풍랑이 없거나, 해제시각/해제예고가 카톡 시각과 정확히 같을 때.
- *   변경해제: 특보현황의 풍랑 경보가 사라졌거나(태풍 등으로 바뀜) 해제시각이 같을 때.
+ *   발효(T): 풍랑 블록 중 발효시각이 T 이고 등급이 같거나 「예비」(발효 전 발표분)인 것이 있으면 같음.
+ *   변경(등급 L, T): 등급 L(또는 발효 전이면 「예비」) 블록의 발효시각이 T 이거나, T 가 지났고 지금 발효 중 등급이 L 이면 같음.
+ *   연장: 지금 발효 중 같은 등급이 있고, 그 해제예고 칸이 카톡 도착 15분 전 이후에 바뀌었으면 같음(clrSince — checkMmis 가 잰다).
+ *   해제(T): 발효 중(주의보·경보) 풍랑이 없거나, 그 해제시각/해제예고가 정확히 T 이면 같음. 다음 예비는 보지 않는다.
+ *   변경해제: 그 등급의 발효 중 풍랑이 없거나 해제시각이 T 이면 같음.
+ * 예: 카톡 「풍랑주의보 11월 03일 03시 00분 해제」 ↔ 특보현황 해제예고 '2026년 11월 03일 03시 00분' → true
  * @param {object} p - 대기 줄 @param {object|undefined} node - mmisZones()[해역]
+ * @param {number} nowMs @param {number|null} clrSinceMs - 그 해역 해제예고 칸이 지금 값이 된 시각
  * @returns {boolean}
  * [연계] ← checkMmis
  */
-function mmisMatches(p, node) {
+function mmisMatches(p, node, nowMs = Date.now(), clrSinceMs = null) {
     if (!node) return false;
-    const blocks = [node.current, node.upcoming].filter(Boolean);
-    const wave = blocks.filter((b) => /풍랑/.test(String(b.wrnTpNm || b.wrnTp || '')));
-    const lvl = (b) => String(b.wrnLvlNm || b.wrnLvl || '');
+    const cur = isWave(node.current) ? node.current : null;
+    const blocks = [node.current, node.upcoming].filter(isWave);
+    const active = cur && ['주의보', '경보'].includes(lvlOf(cur)) ? cur : null;
     if (p.action === '해제' || p.action === '변경해제') {
-        const target = p.action === '변경해제' ? wave.filter((b) => lvl(b) === p.level) : wave;
-        if (!target.length) return true;
-        return target.some((b) => mmisIso(b.tmYn) === p.at || mmisIso(b.clrNtcTm) === p.at);
+        if (!active || (p.action === '변경해제' && lvlOf(active) !== p.level)) return true;
+        return mmisIso(active.tmYn) === p.at || mmisIso(active.clrNtcTm) === p.at;
     }
-    const since = Date.parse(p.receivedAt) - 90 * 60e3;
-    return wave.some((b) => lvl(b) === p.level && (
-        mmisIso(b.tmEf) === p.at || mmisIso(b.tmFc) === p.at || Date.parse(mmisIso(b.tmFc)) >= since));
+    if (p.action === '연장') {
+        return !!active && lvlOf(active) === p.level && clrSinceMs != null && clrSinceMs >= Date.parse(p.receivedAt) - CLR_CHANGE_SLACK_MS;
+    }
+    // 발효·변경(·발표·대치)
+    if (blocks.some((b) => mmisIso(b.tmEf) === p.at && (lvlOf(b) === p.level || lvlOf(b) === '예비'))) return true;
+    return Date.parse(p.at) <= nowMs && !!active && lvlOf(active) === p.level;
 }
 
-/** 특보현황의 그 해역 상태를 사람이 읽는 한 줄로. */
+/** 특보현황의 그 해역 상태를 사람이 읽는 한 줄로(발효 중 + 다가오는 것). */
 function describeMmis(node) {
-    const b = node && (node.current || node.upcoming);
-    if (!b) return '특보 없음';
-    const parts = [String(b.wrnTpNm || b.wrnTp || '') + String(b.wrnLvlNm || b.wrnLvl || '')];
-    if (b.tmEf) parts.push('발효 ' + fmtK(mmisIso(b.tmEf)));
-    const clr = b.tmYn || b.clrNtcTm || b.tmCc;
-    parts.push('해제예고 ' + (clr ? (mmisIso(clr) ? fmtK(mmisIso(clr)) : clr) : '없음'));
-    if (b.tmFc) parts.push('발표 ' + fmtK(mmisIso(b.tmFc)));
-    return parts.join(' · ');
+    const one = (b, tag) => {
+        const parts = [tag + String(b.wrnTpNm || b.wrnTp || '') + lvlOf(b)];
+        if (b.tmEf) parts.push('발효 ' + (mmisIso(b.tmEf) ? fmtK(mmisIso(b.tmEf)) : b.tmEf));
+        const clr = clrOf(b);
+        parts.push('해제예고 ' + (clr ? (mmisIso(clr) ? fmtK(mmisIso(clr)) : clr) : '없음'));
+        if (b.tmFc) parts.push('처음 발표 ' + fmtK(mmisIso(b.tmFc)));
+        return parts.join(' · ');
+    };
+    const out = [];
+    if (node && node.current) out.push(one(node.current, ''));
+    if (node && node.upcoming) out.push(one(node.upcoming, '다가오는 특보: '));
+    return out.length ? out.join(' / ') : '특보 없음';
+}
+
+/** 카톡 줄을 사람이 읽는 한 줄로. 미래 시각의 해제는 「예고」임을 밝힌다(적대검증 L2). */
+function describeLine(p, nowMs) {
+    const future = Date.parse(p.at) > nowMs;
+    const act = p.action === '해제' && future ? '해제 예고(그 시각에 풀림)' : p.action;
+    return `${p.zone} ${p.kind} 「${act}」 ${fmtK(p.at)}`;
 }
 
 /** 운영에서만 관리자 푸시(개발은 콘솔 한 줄). collect_fail_alert.defaultSend 와 같은 규칙. */
@@ -512,11 +564,16 @@ async function defaultAdminSend(title, body, data) {
     return r && r.sent > 0 ? { delivered: true } : { delivered: false, error: '전달 0건' };
 }
 
+let _checking = false;   // 겹쳐 돌지 않게(푸시가 1분을 넘겨도 같은 알림이 두 번 가지 않게 — 적대검증 L4)
+
 /**
- * 1분마다 부른다. ① 대조 대기열을 특보현황과 맞춰 보고 10분째 다르면 알림, 나중에 같아지면 「같아짐」 알림.
- * ② 모르는 구역·분해 실패 알림을 보낸다. 보낸 알림은 checks 에 같은 문장으로 남긴다(관리자 기록).
- * 전달되지 않으면 상태를 바꾸지 않아 다음 회차에 다시 보낸다.
- * @returns {Promise<{sent:number, mismatched:number, resolved:number}>}
+ * 1분마다 부른다.
+ *   ① 특보현황 해역별 해제예고 칸이 언제 지금 값이 됐는지 기록(연장 판정용 clrSeen).
+ *   ② 대조 대기열을 특보현황과 맞춰 본다: 10분째 다르면 알림, 나중에 같아지면 「같아짐」, 6시간 내내 다르면 「대조 종료」.
+ *   ③ 모르는 구역·분해 실패·놓친 글 알림을 보낸다(특보현황 파일을 못 읽어도 이건 보낸다 — 적대검증 M3).
+ *   ④ 특보현황 파일을 못 읽기 시작하면 1번, 다시 읽히면 1번 알린다.
+ * 보낸 알림은 checks 에 같은 문장으로 남긴다. 전달되지 않으면 상태를 바꾸지 않아 다음 회차에 다시 보낸다.
+ * @returns {Promise<{sent:number, mismatched:number, resolved:number}|null>}
  * [연계] ← scheduler.js 1분 마스터 / → mmisMatches · describeMmis · admin_push
  */
 async function checkMmis({
@@ -524,80 +581,109 @@ async function checkMmis({
     readAlerts = () => JSON.parse(fs.readFileSync(path.join(require('../config/server_config').DATA_DIR, 'weather_alerts.json'), 'utf8')),
     enabled = !!process.env.KAKAO_RELAY_TOKEN,
 } = {}) {
-    if (!enabled) return null;
-    let zones;
-    try { zones = mmisZones(readAlerts()); }
-    catch (e) { console.warn('[kakao_relay] 특보현황 읽기 실패 — 대조 건너뜀:', e.message); return null; }
-    const snap = store.snapshot(0);
-    const pending = snap.pending || [];
-    const db0 = { alerts: [] };
-    store.update((db) => { db0.alerts = db.alerts || []; return null; });
-    const mism = [], res = [], drop = [];
-    for (const p of pending) {
-        const node = zones[p.zone];
-        const ok = mmisMatches(p, node);
-        const age = now - Date.parse(p.receivedAt);
-        if (ok) { if (p.status === 'alerted') res.push({ p, node }); else drop.push({ p, why: 'matched' }); }
-        else if (age > MMIS_GIVE_UP_MS) drop.push({ p, why: 'expired', node });
-        else if (age >= MMIS_WAIT_MS && p.status === 'wait') mism.push({ p, node });
-    }
-    const msgs = [];
-    const line = (p) => `${p.zone} ${p.kind} 「${p.action}」 ${fmtK(p.at)}`;
-    if (mism.length) {
-        msgs.push({
-            kind: 'mismatch', items: mism,
-            title: `⚠ 카톡 특보가 특보현황에 ${Math.round(MMIS_WAIT_MS / 60e3)}분째 반영 안 됨 (${mism.length}곳)`,
-            body: mism.map(({ p, node }) =>
-                `• ${line(p)}\n  카톡 도착 ${fmtK(p.receivedAt)}\n  지금 특보현황(MMIS): ${describeMmis(node)}`).join('\n')
-                + '\n→ 앱 특보현황이 예전 정보일 수 있습니다. 기상청 통보문으로 어느 쪽이 맞는지 확인해 주세요.',
+    if (!enabled || _checking) return null;
+    _checking = true;
+    try {
+        let zones = null, readErr = null;
+        try { zones = mmisZones(readAlerts()); }
+        catch (e) { readErr = e.message; console.warn('[kakao_relay] 특보현황 읽기 실패 — 대조 건너뜀:', e.message); }
+        const nowIso = new Date(now).toISOString();
+        // ① 해제예고 칸 변화 기록 + 현재 대기열·알림 대기열 꺼내기
+        let pending = [], alerts = [], clrSeen = {}, readFailNotified = false;
+        store.update((db) => {
+            db.clrSeen = db.clrSeen || {};
+            if (zones) {
+                for (const [z, node] of Object.entries(zones)) {
+                    const v = isWave(node.current) ? clrOf(node.current) : '';
+                    const prev = db.clrSeen[z];
+                    if (!prev || prev.v !== v) db.clrSeen[z] = { v, since: nowIso };
+                }
+            }
+            pending = (db.pending || []).slice();
+            alerts = (db.alerts || []).slice();
+            clrSeen = db.clrSeen;
+            readFailNotified = !!db.mmisReadFailNotified;
+            return null;
         });
-    }
-    if (res.length) {
-        msgs.push({
-            kind: 'resolved', items: res,
-            title: `✅ 특보현황이 카톡과 같아짐 (${res.length}곳)`,
-            body: res.map(({ p, node }) => `• ${line(p)}\n  ${fmtK(new Date(now).toISOString())}에 특보현황도 반영 (카톡보다 약 ${Math.round((now - Date.parse(p.receivedAt)) / 60e3)}분 늦음)\n  지금 특보현황: ${describeMmis(node)}`).join('\n'),
-        });
-    }
-    for (const a of db0.alerts) {
-        msgs.push(a.type === 'unknownZone' ? {
-            kind: 'alert', alert: a,
-            title: '❓ 카톡 특보에 모르는 구역 이름',
-            body: `「${a.zones.join('」, 「')}」 — 우리 구역표(93곳)에 없는 이름입니다. 이 줄은 기록만 하고 대조·반영에서 뺐습니다.\n원문: ${a.text.replace(/\s+/g, ' ').slice(0, 160)}\n→ 새 별칭이 필요한지 확인해 주세요.`,
-        } : {
-            kind: 'alert', alert: a,
-            title: '❓ 카톡 특보 글을 읽지 못함',
-            body: `특보 글인데 구역·시각을 한 줄도 나누지 못했습니다(알림톡 꼴이 바뀌었을 수 있음).\n원문: ${a.text.replace(/\s+/g, ' ').slice(0, 160)}`,
-        });
-    }
-    const delivered = [];
-    for (const m of msgs) {
-        let r;
-        try { r = await send(m.title, m.body, { kind: 'kakao_relay_' + m.kind }); }
-        catch (e) { r = { delivered: false, error: String(e && e.message).slice(0, 60) }; }
-        if (r && r.delivered) delivered.push(m);
-        else console.warn('[kakao_relay] 관리자 알림 미전달(다음 회차 재시도):', m.title, r && r.error);
-    }
-    const nowIso = new Date(now).toISOString();
-    store.update((db) => {
-        const keyOf = (p) => p.key + '@' + p.receivedAt;
-        const byKey = new Map((db.pending || []).map((p) => [keyOf(p), p]));
-        db.checks = db.checks || [];
-        for (const { p, why, node } of drop) {
-            byKey.delete(keyOf(p));
-            if (why === 'expired') db.checks.push({ at: nowIso, kind: 'expired', title: '대조 종료(6시간 동안 다름)', body: `${line(p)} / 특보현황: ${describeMmis(node)}` });
+        const msgs = [];
+        const mism = [], res = [], expired = [], matchedQuiet = [];
+        if (zones) {
+            for (const p of pending) {
+                const node = zones[p.zone];
+                const cs = clrSeen[p.zone] ? Date.parse(clrSeen[p.zone].since) : null;
+                const ok = mmisMatches(p, node, now, cs);
+                const age = now - Date.parse(p.receivedAt);
+                if (ok) (p.status === 'alerted' ? res : matchedQuiet).push({ p, node });
+                else if (age > MMIS_GIVE_UP_MS) expired.push({ p, node });
+                else if (age >= MMIS_WAIT_MS && p.status === 'wait') mism.push({ p, node });
+            }
+            if (mism.length) {
+                const mins = Math.round(Math.min(...mism.map(({ p }) => now - Date.parse(p.receivedAt))) / 60e3);
+                msgs.push({
+                    kind: 'mismatch', items: mism,
+                    title: `⚠ 카톡 특보가 앱 특보현황에 ${mins}분째 반영 안 됨 (${mism.length}곳)`,
+                    body: mism.map(({ p, node }) =>
+                        `• ${describeLine(p, now)}\n  카톡 도착 ${fmtK(p.receivedAt)}\n  지금 앱 특보현황(기상청 MMIS 수집): ${describeMmis(node)}`).join('\n')
+                        + '\n→ 앱 특보현황이 예전 정보일 수 있습니다. 기상청 통보문으로 어느 쪽이 맞는지 확인해 주세요.',
+                });
+            }
+            if (res.length) {
+                msgs.push({
+                    kind: 'resolved', items: res,
+                    title: `✅ 앱 특보현황이 카톡과 같아짐 (${res.length}곳)`,
+                    body: res.map(({ p, node }) => `• ${describeLine(p, now)}\n  ${fmtK(nowIso)} 확인 — 카톡 도착 ${fmtK(p.receivedAt)}보다 약 ${Math.round((now - Date.parse(p.receivedAt)) / 60e3)}분 뒤\n  지금 앱 특보현황: ${describeMmis(node)}`).join('\n'),
+                });
+            }
+            if (expired.length) {
+                msgs.push({
+                    kind: 'expired', items: expired,
+                    title: `⛔ 카톡 특보와 앱 특보현황이 6시간째 다름 — 대조 종료 (${expired.length}곳)`,
+                    body: expired.map(({ p, node }) => `• ${describeLine(p, now)} (카톡 도착 ${fmtK(p.receivedAt)})\n  지금 앱 특보현황: ${describeMmis(node)}`).join('\n')
+                        + '\n→ 더는 자동으로 대조하지 않습니다. 앱 특보현황이 맞는지 직접 확인해 주세요.',
+                });
+            }
+            if (readFailNotified) msgs.push({ kind: 'readOk', title: '✅ 앱 특보현황 파일 다시 읽힘 — 카톡 대조 재개', body: `${fmtK(nowIso)}부터 카톡 특보와 앱 특보현황 대조를 다시 합니다.` });
+        } else if (!readFailNotified) {
+            msgs.push({ kind: 'readFail', title: '⚠ 앱 특보현황 파일을 읽지 못해 카톡 대조 중단', body: `${fmtK(nowIso)} — ${String(readErr).slice(0, 80)}\n→ 서버의 특보 수집 상태를 확인해 주세요. 다시 읽히면 알려 드립니다.` });
         }
-        for (const m of delivered) {
-            db.checks.push({ at: nowIso, kind: m.kind, title: m.title, body: m.body });
-            if (m.kind === 'mismatch') for (const { p } of m.items) { const q = byKey.get(keyOf(p)); if (q) { q.status = 'alerted'; q.alertedAt = nowIso; } }
-            if (m.kind === 'resolved') for (const { p } of m.items) byKey.delete(keyOf(p));
-            if (m.kind === 'alert') db.alerts = (db.alerts || []).filter((a) => a !== m.alert && !(a.at === m.alert.at && a.text === m.alert.text));
+        for (const a of alerts) {
+            const body0 = `원문: ${String(a.text || '').replace(/\s+/g, ' ').slice(0, 160)}`;
+            if (a.type === 'unknownZone') msgs.push({ kind: 'alert', alert: a, title: '❓ 카톡 특보에 모르는 구역 이름',
+                body: `「${a.zones.join('」, 「')}」 — 앱 표준 구역표에 없는 이름입니다. 이 줄은 기록만 하고 대조·반영에서 뺐습니다.\n${body0}\n→ 새 별칭이 필요한지 확인해 주세요.` });
+            else if (a.type === 'missed') msgs.push({ kind: 'alert', alert: a, title: `ℹ 카톡 대화방에서 처음 보는 특보 ${a.lines.length}줄(알림은 못 받았던 글)`,
+                body: a.lines.map((l) => `• ${l}`).join('\n') + `\n(${fmtK(a.at)} ${a.device || ''} 가 대화방을 읽다가 발견 — 통신이 끊겼던 사이 온 글일 수 있습니다. 이미 지난 특보일 수 있어 새 특보로는 쓰지 않았습니다.)` });
+            else msgs.push({ kind: 'alert', alert: a, title: '❓ 카톡 특보 글을 읽지 못함',
+                body: `특보 글인데 구역·시각을 한 줄도 나누지 못했습니다(알림톡 꼴이 바뀌었을 수 있음).\n${body0}` });
         }
-        db.pending = [...byKey.values()];
-        db.checks = db.checks.slice(-MAX_CHECKS);
-        return null;
-    });
-    return { sent: delivered.length, mismatched: mism.length, resolved: res.length };
+        const delivered = [];
+        for (const m of msgs) {
+            let r;
+            try { r = await send(m.title, m.body, { kind: 'kakao_relay_' + m.kind }); }
+            catch (e) { r = { delivered: false, error: String(e && e.message).slice(0, 60) }; }
+            if (r && r.delivered) delivered.push(m);
+            else console.warn('[kakao_relay] 관리자 알림 미전달(다음 회차 재시도):', m.title, r && r.error);
+        }
+        store.update((db) => {
+            const keyOf = (p) => p.key + '@' + p.receivedAt;
+            const byKey = new Map((db.pending || []).map((p) => [keyOf(p), p]));
+            db.checks = db.checks || [];
+            for (const { p } of matchedQuiet) byKey.delete(keyOf(p));
+            for (const m of delivered) {
+                db.checks.push({ at: nowIso, kind: m.kind, title: m.title, body: m.body });
+                if (m.kind === 'mismatch') for (const { p } of m.items) { const q = byKey.get(keyOf(p)); if (q) { q.status = 'alerted'; q.alertedAt = nowIso; } }
+                if (m.kind === 'resolved' || m.kind === 'expired') for (const { p } of m.items) byKey.delete(keyOf(p));
+                if (m.kind === 'readFail') db.mmisReadFailNotified = true;
+                if (m.kind === 'readOk') db.mmisReadFailNotified = false;
+                if (m.kind === 'alert') db.alerts = (db.alerts || []).filter((a) => !(a.at === m.alert.at && a.type === m.alert.type && a.text === m.alert.text));
+            }
+            db.pending = [...byKey.values()];
+            db.checks = db.checks.slice(-MAX_CHECKS);
+            return null;
+        });
+        return { sent: delivered.length, mismatched: mism.length, resolved: res.length };
+    } finally {
+        _checking = false;
+    }
 }
 
-module.exports = { parseWarnings, canonZone, createStore, warningKey, judgeHealth, checkHealth, checkMmis, mmisMatches, describeMmis, mmisIso, MAX_MESSAGES, ACTIONS, HEARTBEAT_STALE_MS, MMIS_WAIT_MS };
+module.exports = { parseWarnings, canonZone, createStore, warningKey, judgeHealth, checkHealth, checkMmis, mmisMatches, describeMmis, mmisIso, MAX_MESSAGES, ACTIONS, HEARTBEAT_STALE_MS, MMIS_WAIT_MS, MAX_ALERTS };

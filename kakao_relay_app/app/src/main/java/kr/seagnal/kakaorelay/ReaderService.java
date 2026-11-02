@@ -130,6 +130,10 @@ public class ReaderService extends AccessibilityService {
         } else if (state == State.WAIT_FULL) {
             String longest = texts.get(0);
             for (String t : texts) if (t.length() > longest.length()) longest = t;
+            int had = 0;
+            for (String t : found) had = Math.max(had, t.length());
+            // 전문 화면이 아직 안 열렸는데 대화방 화면을 읽은 것일 수 있다 — 이미 모은 글보다 길 때만 전문으로 인정(적대검증 M9).
+            if (longest.length() <= had) return;
             found.add(longest);
             fullOk = true;
             performGlobalAction(GLOBAL_ACTION_BACK);   // 전문 화면을 닫고 대화방으로 돌아가 위 페이지를 읽는다
