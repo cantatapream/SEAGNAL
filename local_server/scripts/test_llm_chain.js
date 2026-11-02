@@ -3,6 +3,7 @@
  *
  * 왜 있나: 사용자 확정(2026-11-02) — 「업스테이지가 끝나면 클로드1, 클로드1이 끝나면 클로드2 … Gemini」.
  *   크레딧 소진이면 그 AI 를 계속 건너뛰고, 일시 오류면 그 호출만 다음 AI 가 답해야 한다.
+ *   ChatGPT 칸은 연속 3번 실패하면 30분 쉰다(⑦).
  *   실제 네트워크는 부르지 않는다 — 전역 fetch 를 가짜로 바꿔 Claude·업스테이지 응답을 흉내 낸다.
  *
  * [연계] → services/llm_chain.js · services/codex_bridge.js(요청 범위) · services/gemini_client.js(입구)
@@ -189,6 +190,71 @@ const ask = (order, config) => inChain(async () => {
     const p2 = await call('post', 'good', { providerReset: 'x' });
     ok('POST providerReset 틀린 값 → 400', p2.code === 400 && /providerReset/.test(p2.body.error), JSON.stringify(p2));
     ok('isValidReset 은 검사만 한다(지우지 않음)', chain.isValidReset('claude1') && chain.isValidReset('all') && !chain.isValidReset('x') && !!chain.status().find(x => x.id === 'claude1').exhaustedAt);
+  }
+
+  console.log('\n── ⑦ ChatGPT 칸 연속 3회 실패 → 30분 쉼(2026-11-02 사용자 확정) ──');
+  {
+    // 가짜 ChatGPT 칸 — 위처럼 모듈 함수를 바꿔 끼운다(실제 VM 작업자·네트워크 없음). 시계는 Date.now 를 앞으로 돌려 흉내 낸다.
+    chain.resetExhausted('all');
+    const realNow = Date.now;
+    let skew = 0;
+    Date.now = () => realNow() + skew;
+    const saved = { en: bridge.ENABLED, alive: bridge.workerAlive, call: bridge.callRaw };
+    let alive = true, gpt = { success: false, response: null, error: '종료코드 1', isRateLimited: false, keyLabel: 'codex' }, gptCalls = 0;
+    bridge.ENABLED = true;
+    bridge.workerAlive = () => alive;
+    bridge.callRaw = async () => { gptCalls++; return gpt; };
+    const pushes = [];
+    const ap = require('../services/admin_push');
+    const savedPush = ap.sendAdminPush;
+    ap.sendAdminPush = async (title) => { pushes.push(title); };
+    plan.claude.k2 = claudeOk('클로드2 대신');
+    const GORD = ['chatgpt', 'claude2', 'upstage', 'claude1', 'gemini'];
+    const gst = () => chain.status().find(x => x.id === 'chatgpt');
+    const askN = async (n) => { for (let i = 0; i < n; i++) await ask(GORD); };
+    const gptFail = gpt;
+    const gptOk = { success: true, response: { text: 'GPT 답' }, error: null, isRateLimited: false, keyLabel: 'codex' };
+
+    alive = false;
+    await askN(3);
+    ok('작업자 미연결로 건너뛴 것은 실패로 안 센다(3번 건너뜀 → 쉼 아님)', gptCalls === 0 && !gst().restUntil && pushes.length === 0, JSON.stringify({ gptCalls, st: gst(), pushes }));
+    alive = true;
+
+    await askN(2);
+    ok('2연속 실패 → 아직 안 쉼', gptCalls === 2 && !gst().restUntil, JSON.stringify(gst()));
+    const r3 = (await ask(GORD)).r;
+    const want = new Date(Date.now() + 30 * 60 * 1000).getTime();
+    const until = Date.parse(gst().restUntil);
+    ok('3연속 실패 → 쉼(restUntil ≈ 지금 + 30분) · 그 질문은 클로드2 가 답함', gptCalls === 3 && Math.abs(until - want) < 5000 && r3.success && r3.text === '클로드2 대신', JSON.stringify({ st: gst(), r3 }));
+    ok('쉬기 시작할 때 관리자 푸시 1회', pushes.length === 1 && /ChatGPT/.test(pushes[0]), JSON.stringify(pushes));
+    ok('쉼은 소진 표시가 아니다(exhaustedAt 없음)', !gst().exhaustedAt);
+
+    skew += 29 * 60 * 1000;
+    await askN(3);
+    ok('쉬는 동안(29분 뒤까지) ChatGPT 를 안 부른다 · 푸시 추가 없음', gptCalls === 3 && !!gst().restUntil && pushes.length === 1, JSON.stringify({ gptCalls, pushes }));
+
+    skew += 60 * 1000 + 1000;
+    gpt = gptOk;
+    const r4 = (await ask(GORD)).r;
+    ok('30분 지나면 다시 부른다 → 성공하면 ChatGPT 가 답함 · 쉼 표시 사라짐', gptCalls === 4 && r4.success && r4.text === 'GPT 답' && !gst().restUntil, JSON.stringify({ gptCalls, r4, st: gst() }));
+
+    gpt = gptFail; await askN(2);
+    gpt = gptOk; await askN(1);
+    gpt = gptFail; await askN(2);
+    ok('실패·실패·성공·실패·실패 → 성공에서 0 으로 돌아가 안 쉼', gptCalls === 9 && !gst().restUntil && pushes.length === 1, JSON.stringify({ gptCalls, st: gst(), pushes }));
+    await askN(1);
+    ok('그 뒤 한 번 더 실패(성공 뒤 3연속) → 쉼 · 푸시 2번째', gptCalls === 10 && !!gst().restUntil && pushes.length === 2, JSON.stringify({ gptCalls, pushes }));
+
+    ok('providerReset chatgpt → 쉼 즉시 해제', chain.resetExhausted('chatgpt') === true && !gst().restUntil);
+    await askN(1);
+    ok('해제 뒤 바로 다시 부른다', gptCalls === 11, String(gptCalls));
+    await askN(2);
+    ok('해제는 연속 실패 수도 0 으로(해제 뒤 3번째 실패에서야 다시 쉼)', gptCalls === 13 && !!gst().restUntil && pushes.length === 3, JSON.stringify({ gptCalls, pushes }));
+    ok('providerReset all 도 쉼 해제', chain.resetExhausted('all') === true && !gst().restUntil);
+
+    Date.now = realNow;
+    bridge.ENABLED = saved.en; bridge.workerAlive = saved.alive; bridge.callRaw = saved.call;
+    ap.sendAdminPush = savedPush;
   }
 
   console.log(`\n  ${pass} PASS / ${fail} FAIL`);

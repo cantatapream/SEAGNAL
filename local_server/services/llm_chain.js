@@ -5,6 +5,7 @@
  *       기본 순서: 업스테이지 → 클로드 키2 → 클로드 키1 → ChatGPT(VM) → Gemini (클로드는 키2 먼저 — 2026-11-02 사용자 확정).
  *       앞의 AI 가 **크레딧 소진**이면 그 AI 를 계속 건너뛴다(관리자가 「소진 해제」를 누르거나 서버가 재시작될 때까지).
  *       그 밖의 일시 오류(시간초과·서버 오류)는 **그 호출 하나만** 다음 AI 가 대신 답한다.
+ *       ChatGPT 칸만은 한도 소진을 알아볼 수 없어 **연속 3번 실패하면 30분 쉰다**(2026-11-02 사용자 확정).
  * ============================================================================
  * [사용자 확정 2026-11-02] 범위는 ChatGPT(codex)와 같다(/api/legal/ask). 순서는 관리자 센터에서 바꾼다.
  *   「넘어가는 조건」은 크레딧이 다 떨어졌을 때.
@@ -29,6 +30,11 @@ const UPSTAGE_MODEL = 'solar-pro4';
 const UPSTAGE_URL = 'https://api.upstage.ai/v1/chat/completions';
 const CALL_TIMEOUT_MS = 120 * 1000;
 const JSON_RULE = 'Respond with a single valid JSON value only. No code fences, no extra text.';
+// ChatGPT 칸 쉼(사용자 확정 2026-11-02) — VM 작업자는 종료코드·시간초과 문구만 줘서 한도 소진을 알아볼 수 없다.
+//   그래서 사슬 안 ChatGPT 호출이 연속 CHATGPT_FAIL_LIMIT 번 실패하면 CHATGPT_REST_MS 동안 건너뛴다(지나면 자동 재시도).
+//   없으면: 한도가 다 찬 동안 질문마다 ChatGPT 칸이 최대 300초를 기다린 뒤에야 다음 AI 로 넘어간다.
+const CHATGPT_FAIL_LIMIT = 3;
+const CHATGPT_REST_MS = 30 * 60 * 1000;
 
 const env = (k) => String(process.env[k] || '').trim();
 const KEYS = { claude1: env('ANTHROPIC_API_KEY_1'), claude2: env('ANTHROPIC_API_KEY_2'), upstage: env('UPSTAGE_API_KEY') };
@@ -37,6 +43,8 @@ console.log('[LLM 사슬] 키 — ' + ['ANTHROPIC_API_KEY_1', 'ANTHROPIC_API_KEY
 
 // 크레딧 소진 표시(인메모리). id → { at, error }. 재시작하면 비워진다(그때 다시 시도해 보고 또 소진이면 다시 표시).
 const exhausted = {};
+// ChatGPT 칸 연속 실패 수·쉼 끝 시각(ms, 0 = 안 쉼). 인메모리 — 재시작·「소진 해제」로 비워진다.
+const chatgptRest = { fails: 0, until: 0 };
 // 오늘(KST) 호출 집계 — 관리자 화면 표시용. id → { calls, success, fail }
 let stats = null;
 function _stats() {
@@ -94,6 +102,7 @@ function callTimeout(config) {
  */
 function usable(id, s) {
   if (exhausted[id]) return false;
+  if (id === 'chatgpt' && Date.now() < chatgptRest.until) return false;   // 연속 실패로 쉬는 중
   if (id === 'claude1' || id === 'claude2' || id === 'upstage') return !!KEYS[id];
   if (id === 'chatgpt') return !!(s && s.model) && codexBridge.ENABLED && codexBridge.workerAlive();
   return id === 'gemini';
@@ -189,6 +198,7 @@ async function callRaw(args, geminiDirect) {
       try { text = g.success ? g.response.text : null; } catch (_) { text = null; }
       r = g.success && text ? { success: true, text, raw: g } : { success: false, error: `${NAMES[id]} ${g.error || '빈 응답'}` };
     }
+    if (id === 'chatgpt') countChatgpt(r.success);
     if (r.success) {
       bump(id, 'success');
       s.used = id;
@@ -204,6 +214,28 @@ async function callRaw(args, geminiDirect) {
     if (r.creditOut) markExhausted(id, r.error);
   }
   return { success: false, response: null, error: errs.join(' | ') || '사용 가능한 답변 AI 없음', isRateLimited: false, keyLabel: 'chain' };
+}
+
+/**
+ * ChatGPT 칸 연속 실패를 센다. 성공이면 0, 실패가 CHATGPT_FAIL_LIMIT 번 이어지면 CHATGPT_REST_MS 쉼 + 관리자 푸시 1회.
+ * 쉬는 동안 끝난 호출(쉼 직전에 이미 나가 있던 것)의 실패는 세지 않는다 — 쉼이 끝나자마자 다시 쉬지 않게.
+ * 예: 실패·실패·실패 → 30분 쉼(카운터 0으로) / 실패·실패·성공 → 카운터 0
+ * @param {boolean} success
+ * [연계] ← callRaw(사슬 안 ChatGPT 호출 결과만). usable 이 쉼을 본다. status 가 restUntil 로 내보낸다.
+ */
+function countChatgpt(success) {
+  if (success) { chatgptRest.fails = 0; return; }
+  if (Date.now() < chatgptRest.until) return;
+  if (++chatgptRest.fails < CHATGPT_FAIL_LIMIT) return;
+  chatgptRest.fails = 0;
+  chatgptRest.until = Date.now() + CHATGPT_REST_MS;
+  const hhmm = new Date(chatgptRest.until + 9 * 3600000).toISOString().slice(11, 16);
+  console.error(`[LLM 사슬] ${NAMES.chatgpt} 연속 ${CHATGPT_FAIL_LIMIT}회 실패 → ${hhmm} KST 까지 쉼`);
+  try {
+    const { sendAdminPush } = require('./admin_push');
+    sendAdminPush(`⏸ ${NAMES.chatgpt} 연속 ${CHATGPT_FAIL_LIMIT}회 실패 — 쉼`, `${hhmm} KST 까지 다음 순서 AI 로 넘어가고, 그 뒤 자동으로 다시 시도합니다. 바로 다시 쓰려면 관리자 센터에서 「소진 해제」를 눌러 주세요.`)
+      .catch(e => console.error('[LLM 사슬] 관리자 푸시 오류:', e.message));
+  } catch (_) { /* 푸시 모듈 없음 — 로그만 */ }
 }
 
 /** 크레딧 소진 표시 + 관리자 푸시(그 AI 당 한 번). */
@@ -227,19 +259,20 @@ function isValidReset(id) {
 }
 
 /**
- * 소진 표시를 지운다. @param {string} id - PROVIDERS 중 하나 또는 'all' @returns {boolean} 받은 값이 유효했나
+ * 소진 표시를 지운다(chatgpt·all 이면 ChatGPT 칸 쉼·연속 실패 수도). @param {string} id - PROVIDERS 중 하나 또는 'all' @returns {boolean} 받은 값이 유효했나
  * [연계] ← routes/legal.js POST /api/legal/config { providerReset }
  */
 function resetExhausted(id) {
+  if (id !== 'all' && !PROVIDERS.includes(id)) return false;
+  if (id === 'all' || id === 'chatgpt') { chatgptRest.fails = 0; chatgptRest.until = 0; }
   if (id === 'all') { PROVIDERS.forEach(p => delete exhausted[p]); return true; }
-  if (!PROVIDERS.includes(id)) return false;
   delete exhausted[id];
   return true;
 }
 
 /**
- * 관리자 화면용 상태 — 키 유무(값은 내보내지 않는다)·소진 여부·오늘 호출 수.
- * @returns {Array<{id,name,hasKey,exhaustedAt,today}>}
+ * 관리자 화면용 상태 — 키 유무(값은 내보내지 않는다)·소진 여부·쉼 끝 시각(ChatGPT 만, 안 쉬면 null)·오늘 호출 수.
+ * @returns {Array<{id,name,hasKey,exhaustedAt,restUntil,today}>}
  * [연계] ← routes/legal.js GET /api/legal/config
  */
 function status() {
@@ -248,6 +281,7 @@ function status() {
     id, name: NAMES[id],
     hasKey: id === 'chatgpt' ? !!codexBridge.ENABLED : id === 'gemini' ? true : !!KEYS[id],
     exhaustedAt: exhausted[id] ? exhausted[id].at : null,
+    restUntil: id === 'chatgpt' && Date.now() < chatgptRest.until ? new Date(chatgptRest.until).toISOString() : null,
     today: s.by[id] || { calls: 0, success: 0, fail: 0 },
   }));
 }

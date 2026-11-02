@@ -452,7 +452,8 @@
                 '<div class="nrya-card-lab" style="margin-top:14px"><span class="nrya-pipe"></span>답변 AI 순서 (크레딧 소진 시 다음으로 자동 전환)</div>' +
                 '<div id="nryaOrderList"></div>' +
                 '<div class="nrya-seg-help">위에서부터 시도합니다. 크레딧이 떨어진 AI 는 「소진」으로 표시되고 건너뜁니다 — 충전 후 [소진 해제]를 누르세요. ' +
-                  '일시 오류(응답 지연 등)는 그 질문만 다음 AI 가 대신 답합니다.</div>' +
+                  '일시 오류(응답 지연 등)는 그 질문만 다음 AI 가 대신 답합니다. ' +
+                  'ChatGPT 는 연속 3번 실패하면 30분 「쉬는 중」이 되고 그 뒤 자동으로 다시 시도합니다([소진 해제]로 바로 풀 수 있음).</div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
               '</div>' +
               '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
@@ -583,7 +584,7 @@
   }
 
   /**
-   * 답변 AI 순서 목록을 그린다 — 줄마다 순번·이름·상태(키 없음/소진/오늘 n회)·▲▼·[소진 해제].
+   * 답변 AI 순서 목록을 그린다 — 줄마다 순번·이름·상태(키 없음/소진/쉬는 중/오늘 n회)·▲▼·[소진 해제].
    * 예: 1. 업스테이지 · 정상 · 오늘 3회(성공 3) [▲][▼]
    * [연계] ← paintModelSeg. 클릭은 initModelSeg 가 받아 setAnswerConfig({providerOrder|providerReset}).
    */
@@ -595,7 +596,10 @@
     box.innerHTML = serverProviderOrder.map(function (id, i) {
       var st = byId[id] || {};
       var t = st.today || { calls: 0, success: 0 };
+      // restUntil — ChatGPT 칸 연속 3회 실패로 쉬는 끝 시각(ISO, 서버 llm_chain.status). KST 시:분으로 보인다.
+      var rest = st.restUntil ? new Date(Date.parse(st.restUntil) + 9 * 3600000).toISOString().slice(11, 16) : '';
       var badge = st.exhaustedAt ? '<span style="color:#f87171">소진</span>'
+        : rest ? '<span style="color:#fbbf24">쉬는 중(' + rest + ' KST까지)</span>'
         : st.hasKey === false ? '<span style="color:#94a3b8">키 없음(건너뜀)</span>'
         : '<span style="color:#4ade80">정상</span>';
       var btn = 'style="border:1px solid #334155;background:none;color:inherit;border-radius:6px;padding:3px 8px;margin-left:4px;cursor:pointer"';
@@ -603,7 +607,7 @@
         '<b style="width:18px">' + (i + 1) + '.</b>' +
         '<span style="flex:1">' + esc(NAME[id] || id) + ' · ' + badge +
           ' <span style="color:#94a3b8">· 오늘 ' + t.calls + '회(성공 ' + t.success + ')</span></span>' +
-        (st.exhaustedAt ? '<button data-act="reset" data-id="' + id + '" ' + btn + '>소진 해제</button>' : '') +
+        (st.exhaustedAt || rest ? '<button data-act="reset" data-id="' + id + '" ' + btn + '>소진 해제</button>' : '') +
         '<button data-act="up" data-id="' + id + '" ' + btn + (i === 0 ? ' disabled' : '') + '>▲</button>' +
         '<button data-act="down" data-id="' + id + '" ' + btn + (i === n - 1 ? ' disabled' : '') + '>▼</button>' +
       '</div>';

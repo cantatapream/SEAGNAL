@@ -1532,6 +1532,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-02 22:11 KST] ✅완료 — ChatGPT 칸 연속3실패→30분 쉼
+llm_chain.js: 사슬 안 chatgpt 실제 호출이 3연속 실패하면 30분 건너뜀+관리자 푸시1회, 30분 뒤 자동 재시도, 성공 시 카운터0, [소진 해제]로 즉시 해제. 관리자 센터 '쉬는 중(HH:MM KST까지)'. 정한 세부: 쉼 끝나면 다시 3번 실패해야 또 쉼·쉬는 중 끝난 호출 실패는 안 셈·쉬는 중 성공은 쉼 유지. 시험 test_llm_chain 44/0, test_codex_bridge 33/0. verify_all 전체는 이번엔 재실행 안 함(직전 실행 대비 바뀐 파일은 위 시험이 덮음).
+
+
 ### [2026-11-02 21:58 KST] ✅완료 — 나리야 답변 AI 5단 자동전환
 services/llm_chain.js 신설. 기본 순서 업스테이지(solar-pro4·reasoning medium) → 클로드 키2 → 클로드 키1(claude-sonnet-5-5·effort medium) → ChatGPT(VM) → Gemini, 관리자 센터 ▲▼로 변경·[소진 해제]. 범위=codex 와 같음(관리자||codexForUsers). 크레딧 소진(Claude 402/billing_error·400 credit balance, Upstage 4코드)만 계속 건너뜀+관리자 푸시, 그 외 오류는 그 호출만 다음. 시크릿 ANTHROPIC_API_KEY_1/_2·UPSTAGE_API_KEY(사용자 등록 대기). Sonnet 적대검증 결함 4건(짧은 timeout 무시·400 크레딧·공개 GET 상태 노출·reset 부작용) Opus high 로 수정. 시험 test_llm_chain 31/0·test_codex_bridge 33/0·test_root_deps 3/0. verify_all 잔여 실패는 playwright-core·acorn 부재(환경) — 직접 실행해 원인 확인. 미결(사용자 판단): ChatGPT 한도 소진 감지 없음(최대 300초 대기)·소진 표시 인메모리/머신별·사슬 요청은 스트리밍 없이 한 번에.
 

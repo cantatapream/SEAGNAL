@@ -262,6 +262,7 @@ Codex 모드와 무관하게 공공 공개 전에 따로 다룰 사항.
   - Claude: HTTP 402 / `billing_error` (Anthropic 오류표).
   - Upstage: `api_key_is_blocked`(401) · `api_key_is_not_allowed`(403) · `studio_subscription_quota_exceeded`(403) · `usage_limit_exceeded`(429) (console.upstage.ai/docs/resources/error-codes). `too_many_requests`(429, 분당 한도)는 소진 아님.
   - ChatGPT·Gemini: 소진 표시 없음(종전 동작 — 그 호출만 다음으로 / Gemini 는 자체 쿨다운).
+  - **ChatGPT 칸 쉼(2026-11-02 사용자 확정)**: 작업자가 종료코드·시간초과 문구만 줘 한도 소진을 알아볼 수 없으므로, 사슬 안 ChatGPT 호출이 **연속 3번 실패하면 30분 건너뛴다**(`CHATGPT_FAIL_LIMIT`·`CHATGPT_REST_MS`). 30분 뒤 자동 재시도 · 쉬기 시작할 때 관리자 푸시 1회 · 성공 1번이면 연속 실패 수 0 · 작업자 미연결로 건너뛴 것은 실패로 안 셈 · 쉬는 중 끝난 호출의 실패도 안 셈. 관리자 센터에 「쉬는 중(HH:MM KST까지)」(`status().restUntil`), [소진 해제](`providerReset` chatgpt|all)로 즉시 해제(연속 실패 수도 0). 메모리에만 있어 재시작 때 지워진다. 시험 `test_llm_chain.js` ⑦.
 - **일시 오류**: 그 호출 하나만 다음 AI 로. 순서는 바뀌지 않는다.
 - **소진 표시는 메모리에만** 있다 — 관리자 센터 [소진 해제] 또는 서버 재시작 때 지워진다(재시작 뒤 또 소진이면 다시 찍힌다).
 - **Gemini 전용 기능**(검색 그라운딩 `tools`·음성 `responseModalities`)은 사슬을 타지 않는다.
