@@ -8,7 +8,7 @@
  *  - 사용하는 파일 : services/kakao_relay(분해·저장) · services/admin_auth(관리자 조회)
  *  - 서버 API      : POST·GET /api/kakao-relay/messages · POST /api/kakao-relay/heartbeat · POST /api/kakao-relay/seed ·
  *                    POST·GET·DELETE /api/kakao-relay/backfill(임시 긁어오기 — 분석용, 같은 열쇠) ·
- *                    GET /api/admin/kakao-relay
+ *                    GET /api/admin/kakao-relay · POST /api/admin/kakao-relay/device(기기 끄기·켜기·지우기)
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : server.js(등록) · kakao_relay_app(안드로이드 앱) · 검사 test_kakao_relay
  * [로드 순서] server.js 에서 routes/admin 보다 먼저 등록한다(자체 인증).
@@ -60,7 +60,8 @@ function createRouter({
         try {
             const r = store.storeMessages(items, req.body.device);
             if (r.added) console.log(`[kakao_relay] 새 글 ${r.added}건 (중복 ${r.duplicate})`);
-            res.json({ ok: true, accepted: items.length, added: r.added, duplicate: r.duplicate });
+            // 끈·지운 기기의 글은 받지 않지만 200 으로 답한다 — 앱이 같은 글을 계속 다시 보내지 않게.
+            res.json({ ok: true, accepted: items.length, added: r.added, duplicate: r.duplicate, ignored: r.ignored || 0 });
         } catch (e) {
             console.warn('[kakao_relay] 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });
@@ -112,6 +113,14 @@ function createRouter({
     });
     router.delete('/api/kakao-relay/backfill', auth, (req, res) => {
         try { res.json({ ok: true, deleted: store.clearBackfill() }); }
+        catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+    });
+
+    // 관리자: 기기 끄기·켜기·지우기(3단계 — 휴대폰을 빼고 태블릿만 남기기)
+    router.post('/api/admin/kakao-relay/device', authorize, (req, res) => {
+        const b = req.body || {};
+        if (!b.device || !['enable', 'disable', 'remove'].includes(b.action)) return res.status(400).json({ ok: false, error: 'device·action(enable|disable|remove) 필요' });
+        try { res.json(store.setDevice(String(b.device), b.action)); }
         catch (e) { res.status(500).json({ ok: false, error: e.message }); }
     });
 

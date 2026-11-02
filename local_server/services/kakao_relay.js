@@ -172,6 +172,10 @@ function createStore({ file, backfillFile } = {}) {
      */
     function storeMessages(items, device, now = new Date()) {
         const db = load();
+        // 관리자가 끈·지운 기기의 글은 받지 않는다(사용자 확정 2026-11-03 3단계 「휴대폰 거를 관리자 페이지에서 삭제하고 태블릿 것만」).
+        const dev = touchDevice(db, device, now);
+        if (dev.state !== 'on') { save(db); return { added: 0, duplicate: 0, promoted: 0, ignored: items.length, new: [] }; }
+        dev.lastMessageAt = now.toISOString();
         const byId = new Map(db.messages.map((x) => [x.id, x]));
         const seenIds = new Set(db.seenIds || []);
         const seen = new Set(db.seenKeys || []);
@@ -297,17 +301,41 @@ function createStore({ file, backfillFile } = {}) {
      */
     function heartbeat(info, now = new Date()) {
         const db = load();
-        db.heartbeat = { ...info, at: now.toISOString() };
-        // 데이터 수집현황 카드가 읽는 맨 위 칸(목록표 kakaoRelay 의 collectedField).
-        db.heartbeatAt = db.heartbeat.at;
+        const dev = touchDevice(db, info.device, now);
+        dev.beat = { ...info, at: now.toISOString() };
+        db.heartbeat = dev.beat;   // 마지막으로 들어온 신호(옛 화면·검사 호환)
+        // 데이터 수집현황 카드가 읽는 맨 위 칸(목록표 kakaoRelay 의 collectedField) — 켜진 기기 중 가장 최근 신호.
+        db.heartbeatAt = Object.values(db.devices).filter((d) => d.state === 'on' && d.beat)
+            .map((d) => d.beat.at).sort().pop() || null;
         save(db);
+    }
+
+    /** 켜진 기기들의 마지막 신호(멈춤 감시는 기기마다 따로 본다). [{device, beat}] */
+    function deviceBeats() {
+        const db = load();
+        return Object.entries(db.devices || {}).filter(([, d]) => d.state === 'on').map(([name, d]) => ({ device: name, beat: d.beat || null }));
+    }
+
+    /**
+     * 관리자가 기기를 끄기·켜기·지우기. 지운 기기는 목록에서 빠지고, 다시 보내도 「지운 기기」로 남아 받지 않는다(켜기로 되살림).
+     * 예: setDevice('phone', 'remove') → {ok:true, state:'removed'}
+     * [연계] ← routes/kakao_relay POST /api/admin/kakao-relay/device
+     */
+    function setDevice(name, action, now = new Date()) {
+        const db = load();
+        const d = touchDevice(db, name, now);
+        d.state = action === 'enable' ? 'on' : action === 'disable' ? 'off' : action === 'remove' ? 'removed' : d.state;
+        d.changedAt = now.toISOString();
+        db.heartbeatAt = Object.values(db.devices).filter((x) => x.state === 'on' && x.beat).map((x) => x.beat.at).sort().pop() || null;
+        save(db);
+        return { ok: true, device: name, state: d.state };
     }
 
     /** 관리자 확인용 — 마지막 신호와 최근 글 n개. */
     function snapshot(n = 50) {
         const db = load();
         return {
-            heartbeat: db.heartbeat, messages: db.messages.slice(-n).reverse(),
+            heartbeat: db.heartbeat, devices: db.devices || {}, messages: db.messages.slice(-n).reverse(),
             pending: db.pending || [], checks: (db.checks || []).slice(-50).reverse(),
             seen: { ids: (db.seenIds || []).length, keys: (db.seenKeys || []).length },
         };
@@ -377,7 +405,15 @@ function createStore({ file, backfillFile } = {}) {
         return n;
     }
 
-    return { storeMessages, seed, update, heartbeat, snapshot, lastHeartbeat, storeBackfill, backfillAll, clearBackfill };
+    return { storeMessages, seed, update, heartbeat, deviceBeats, setDevice, snapshot, lastHeartbeat, storeBackfill, backfillAll, clearBackfill };
+}
+
+/** 기기 기록을 꺼내거나 새로 만든다(처음 보는 기기는 「켜짐」). 예: touchDevice(db, 'phone') → {state:'on', firstSeen, …} */
+function touchDevice(db, name, now) {
+    db.devices = db.devices || {};
+    const key = String(name || '').trim().slice(0, 40) || '(이름 없음)';
+    if (!db.devices[key]) db.devices[key] = { state: 'on', firstSeen: now.toISOString() };
+    return db.devices[key];
 }
 
 /**
@@ -448,7 +484,11 @@ async function checkHealth({ store = createStore(), alert = require('./collect_f
     if (!enabled) return null;
     let v;
     try {
-        v = judgeHealth(store.lastHeartbeat(), now);
+        // 기기마다 따로 판정한다(휴대폰·태블릿 신호가 섞이지 않게). 하나라도 이상이면 「이상」, 사유에 기기 이름을 붙인다.
+        //   신호를 한 번도 안 보낸 기기·끈 기기는 판정하지 않는다.
+        const vs = store.deviceBeats().map(({ device, beat }) => ({ device, v: judgeHealth(beat, now) })).filter((x) => x.v);
+        const bad = vs.filter((x) => !x.v.ok);
+        v = !vs.length ? null : bad.length ? { ok: false, reason: bad.map((x) => `[${x.device}] ${x.v.reason}`).join(' · ') } : { ok: true };
     } catch (e) {
         v = { ok: false, reason: '저장 파일 읽기 실패 — ' + e.message.slice(0, 60) };
     }

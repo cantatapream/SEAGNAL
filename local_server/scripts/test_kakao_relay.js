@@ -217,6 +217,27 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     await checkMmis({ store: st13, now: R1.getTime() + 6 * 3600e3 + 60e3, send: f4, readAlerts: () => tree2, enabled: true });
     ok('6시간 내내 다르면 「대조 종료」 푸시(M4)', sent4.length === 2 && /6시간째 다름/.test(sent4[1].t) && st13.snapshot(0).pending.length === 0, sent4.map((m) => m.t));
 
+    console.log('K. 기기별 관리(3단계)');
+    const sD = createStore({ file: path.join(tmp, 'dbD.json') });
+    const TD = Date.parse('2026-11-03T03:00:00Z');
+    sD.heartbeat({ device: 'tablet', note: 'ok | 마지막 읽기: 없음' }, new Date(TD));
+    sD.heartbeat({ device: 'phone', note: 'ok | 마지막 읽기: 없음' }, new Date(TD - 2 * 3600e3));
+    const calls2 = [];
+    const fa = { report: async (id, o) => calls2.push(o) };
+    await checkHealth({ store: sD, alert: fa, now: TD, enabled: true });
+    ok('기기마다 따로 판정 — 휴대폰만 끊겨도 이상, 사유에 기기 이름', calls2[0].ok === false && /\[phone\] 태블릿 신호 끊김/.test(calls2[0].error.plainReason) && !/\[tablet\]/.test(calls2[0].error.plainReason), calls2[0]);
+    ok('수집현황 카드 시각 = 켜진 기기 중 가장 최근', JSON.parse(fs.readFileSync(path.join(tmp, 'dbD.json'), 'utf8')).heartbeatAt === new Date(TD).toISOString());
+    sD.setDevice('phone', 'remove');
+    await checkHealth({ store: sD, alert: fa, now: TD, enabled: true });
+    ok('지운 기기는 멈춤 감시에서 빠짐 → 정상', calls2[1].ok === true, calls2[1]);
+    r = sD.storeMessages([{ text: HEAD + '남해동부바깥먼바다,\n풍랑주의보 11월 03일 03시 00분 해제', trigger: true }], 'phone', new Date(TD));
+    ok('지운 기기의 글은 받지 않음', r.added === 0 && r.ignored === 1, r);
+    sD.setDevice('phone', 'enable');
+    r = sD.storeMessages([{ text: HEAD + '남해동부바깥먼바다,\n풍랑주의보 11월 03일 03시 00분 해제', trigger: true }], 'phone', new Date(TD));
+    ok('다시 켜면 받음', r.added === 1, r);
+    sD.setDevice('tablet', 'disable');
+    ok('끈 기기도 받지 않음·목록에는 남음', sD.storeMessages([{ text: 'x-off' }], 'tablet', new Date(TD)).ignored === 1 && sD.snapshot(0).devices.tablet.state === 'off');
+
     console.log('C. 라우트');
     const app = express(); app.use(express.json());
     let secret = 'k';
@@ -235,6 +256,10 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     ok('50건 초과는 일부 받고 성공이라 하지 않음(413)', x.status === 413, x);
     x = await call('POST', '/api/kakao-relay/heartbeat', { device: 't', battery: 77 }, { 'X-Relay-Token': 'k' });
     ok('신호 기록', x.status === 200 && st.snapshot().heartbeat.battery === 77, x);
+    x = await call('POST', '/api/admin/kakao-relay/device', { device: 't', action: 'disable' });
+    ok('관리자 기기 끄기 API', x.status === 200 && x.body.state === 'off', x.body);
+    ok('잘못된 동작은 400', (await call('POST', '/api/admin/kakao-relay/device', { device: 't', action: 'boom' })).status === 400);
+    await call('POST', '/api/admin/kakao-relay/device', { device: 't', action: 'enable' });
     x = await call('GET', '/api/admin/kakao-relay?n=2');
     ok('관리자 조회 최신순', x.body.messages.length === 2 && x.body.messages[0].text === 'new-one', x.body.messages);
     secret = '';

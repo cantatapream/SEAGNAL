@@ -29,6 +29,7 @@ client/js/
 ├── admin/  ← ⚡ 관리자 센터
 │   ├── admin_collect.js
 │   ├── admin_data_status.js
+│   ├── admin_kakao_relay.js
 │   ├── admin_location_status.js
 │   ├── admin_report.js
 │   ├── admin_station_briefing.js
@@ -208,6 +209,7 @@ client/js/
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
 | `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
+| `admin_kakao_relay.js` | 관리자 → 특보 관리 → 「카톡 중계」 탭 — 중계 기기·MMIS 대조 기록·받은 특보 글 |
 | `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시 |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_station_briefing.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 연안 안전 브리핑(종전 「활동지점  |
