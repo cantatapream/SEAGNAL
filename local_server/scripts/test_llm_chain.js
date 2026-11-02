@@ -6,6 +6,7 @@
  *   ChatGPT 칸은 연속 3번 실패하면 30분 쉰다(⑦). 스트림(callStream)은 조각을 흘리고 첫 조각 전 실패만 다음 AI 로(⑧).
  *   소진·쉼은 파일에 남아 모듈을 다시 불러와도 이어진다(⑨) — 저장 파일은 임시 폴더(LLM_CHAIN_STATE_FILE)로 돌려 운영 data 를 안 건드린다.
  *   관리자 센터 [삭제]로 뺀 AI(providerRemoved)는 부르지 않고, 다시 추가하면 다시 부른다 · Gemini 는 못 뺀다(⑩) — 설정 파일은 메모리로 돌린다.
+ *   칸별 모델·노력(providerModels)으로 요청하고, 틀린 값은 400, 옛 answerModel 은 ChatGPT 칸 모델로 이어진다(⑪).
  *   실제 네트워크는 부르지 않는다 — 전역 fetch 를 가짜로 바꿔 Claude·업스테이지 응답을 흉내 낸다.
  *
  * [연계] → services/llm_chain.js · services/codex_bridge.js(요청 범위) · services/gemini_client.js(입구)
@@ -491,6 +492,114 @@ const ask = (order, config) => inChain(async () => {
       mem[CFG] = JSON.stringify({ providerOrder: OLD_ORDER, providerRemoved: ['claude1', 'gemini'] });   // 손으로 고친 틀린 저장값
       const g2 = await call('get', 'good');
       ok('저장값에 gemini 가 들어 있으면 → providerRemoved [](아무것도 안 뺌)', JSON.stringify(g2.body.providerRemoved) === '[]', JSON.stringify(g2.body.providerRemoved));
+    } finally {
+      fs.existsSync = real.ex; fs.readFileSync = real.rd; fs.writeFileSync = real.wr; fs.renameSync = real.mv;
+    }
+  }
+
+  console.log('\n── ⑪ 칸별 모델·노력(providerModels) — 고른 모델·effort 로 요청 · 검증 400 · 옛 answerModel 호환(2026-11-02 사용자 요청) ──');
+  {
+    chain.resetExhausted('all');
+    /** providerModels 를 준 사슬 요청 범위에서 질문 하나(비스트림) — 답과 답변 끝 표시줄을 돌려준다. */
+    const askPm = (order, pm) => {
+      let p;
+      bridge.withRequest({ body: {}, get: () => undefined }, { setHeader() {} }, () => {
+        p = (async () => {
+          const r = await gemini.callGemini({ model: 'gemini-2.5-flash', contents: '질문', config: {}, caller: 'pm' });
+          return { r, label: bridge.answerLabel('gemini-2.5-flash') };
+        })();
+      }, { answerModel: 'gpt-6-luna', codexForUsers: true, providerOrder: order, providerModels: pm });
+      return p;
+    };
+    plan.claude.k1 = claudeOk('클로드1 답');
+    plan.claude.k2 = claudeOk('클로드2 답');
+    plan.upstage = upOk('업스테이지 답');
+    seen.length = 0;
+    const a1 = await askPm(['claude1', 'claude2', 'upstage', 'chatgpt', 'gemini'], { claude1: { model: 'claude-opus-5-5', effort: 'high' }, claude2: { model: 'claude-haiku-5-5', effort: 'low' } });
+    ok('클로드 키1 = claude-opus-5-5 · effort high · max_tokens 16000 으로 요청', a1.r.text === '클로드1 답' && seen[0].who === 'claude:k1' && seen[0].body.model === 'claude-opus-5-5' && seen[0].body.output_config.effort === 'high' && seen[0].body.max_tokens === 16000, JSON.stringify(seen[0] && seen[0].body));
+    ok('답변 끝 표시 → 실제 고른 모델(Claude Opus 5.5)', /Claude Opus 5\.5 모델이 답했습니다/.test(a1.label), a1.label);
+    seen.length = 0;
+    const a2 = await askPm(['claude2', 'claude1', 'upstage', 'chatgpt', 'gemini'], { claude1: { model: 'claude-opus-5-5', effort: 'high' }, claude2: { model: 'claude-haiku-5-5', effort: 'low' } });
+    ok('클로드 키2 는 따로 저장된 값(claude-haiku-5-5 · low) — 키1 값과 안 섞임', a2.r.text === '클로드2 답' && seen[0].who === 'claude:k2' && seen[0].body.model === 'claude-haiku-5-5' && seen[0].body.output_config.effort === 'low', JSON.stringify(seen[0] && seen[0].body));
+    ok('답변 끝 표시 → Claude Haiku 5.5', /Claude Haiku 5\.5/.test(a2.label), a2.label);
+    seen.length = 0;
+    await askPm(['claude1', 'claude2', 'upstage', 'chatgpt', 'gemini'], { claude1: { model: 'claude-sonnet-5-5', effort: 'max' } });
+    ok('effort max → max_tokens 64000(xhigh·max 는 64000 이상 — claude-api 스킬 체크리스트)', seen[0].body.output_config.effort === 'max' && seen[0].body.max_tokens === 64000, JSON.stringify(seen[0] && seen[0].body));
+    seen.length = 0;
+    const a3 = await askPm(['upstage', 'claude1', 'claude2', 'chatgpt', 'gemini'], { upstage: { model: 'solar-mini4', effort: 'none' } });
+    ok('업스테이지 = solar-mini4 · reasoning_effort none 으로 요청', a3.r.text === '업스테이지 답' && seen[0].body.model === 'solar-mini4' && seen[0].body.reasoning_effort === 'none', JSON.stringify(seen[0] && seen[0].body));
+    ok('답변 끝 표시 → Upstage Solar Mini 4', /Upstage Solar Mini 4 모델이 답했습니다/.test(a3.label), a3.label);
+    // 스트림도 같은 값
+    seen.length = 0;
+    plan.claude.k2 = claudeStream(['가', '나']);
+    let label = '';
+    const chunks = [];
+    await new Promise((resolve) => {
+      bridge.withRequest({ body: {}, get: () => undefined }, { setHeader() {} }, () => {
+        (async () => {
+          for await (const t of gemini.callGeminiStream({ model: 'gemini-2.5-flash', contents: '질문', config: {}, caller: 'pms' })) chunks.push(t);
+          label = bridge.answerLabel('gemini-2.5-flash');
+        })().then(resolve, resolve);
+      }, { codexForUsers: true, providerOrder: ['claude2', 'claude1', 'upstage', 'chatgpt', 'gemini'], providerModels: { claude2: { model: 'claude-opus-5-5', effort: 'xhigh' } } });
+    });
+    ok('스트림도 고른 값(claude-opus-5-5 · xhigh · max_tokens 64000)', chunks.join('') === '가나' && seen[0].body.stream === true && seen[0].body.model === 'claude-opus-5-5' && seen[0].body.output_config.effort === 'xhigh' && seen[0].body.max_tokens === 64000, JSON.stringify(seen[0] && seen[0].body));
+    ok('스트림 답변 끝 표시 → Claude Opus 5.5', /Claude Opus 5\.5/.test(label), label);
+    // ChatGPT 칸 모델 — providerModels.chatgpt 가 먼저, 없으면 옛 answerModel
+    const storeOf = (cfg) => { let st; bridge.withRequest({ body: {}, get: () => undefined }, { setHeader() {} }, () => { st = bridge.store(); }, Object.assign({ codexForUsers: true }, cfg)); return st; };
+    ok('withRequest: providerModels.chatgpt.model(gpt-6-sol)이 answerModel(luna)보다 먼저', storeOf({ answerModel: 'gpt-6-luna', providerModels: { chatgpt: { model: 'gpt-6-sol', effort: null } } }).model === 'gpt-6-sol');
+    ok('withRequest: providerModels 없음 → 종전대로 answerModel(gpt-6-astra)', storeOf({ answerModel: 'gpt-6-astra' }).model === 'gpt-6-astra');
+
+    ok('isValidModels: 정상(일부 칸만·ChatGPT 는 model 만)', chain.isValidModels({}) && chain.isValidModels({ claude1: { model: 'claude-opus-5-5', effort: 'max' }, upstage: { model: 'solar-pro4', effort: 'high' }, chatgpt: { model: 'gpt-6-astra' } }));
+    for (const [name, bad] of [['gemini 칸', { gemini: { model: 'gemini-2.5-flash' } }], ['모르는 모델', { claude1: { model: 'claude-x', effort: 'low' } }], ['노력 빠짐', { claude2: { model: 'claude-opus-5-5' } }],
+      ['업스테이지 노력 max(목록 밖)', { upstage: { model: 'solar-pro4', effort: 'max' } }], ['ChatGPT 에 노력', { chatgpt: { model: 'gpt-6-luna', effort: 'high' } }], ['ChatGPT gemini', { chatgpt: { model: 'gemini' } }],
+      ['배열', []], ['null', null]]) {
+      ok(`isValidModels 거부: ${name}`, !chain.isValidModels(bad));
+    }
+    const nm = chain.normModels(undefined, 'gemini');
+    ok('normModels(없음, answerModel gemini) → 네 칸 기본값 · ChatGPT 는 Luna', nm.claude1.model === 'claude-sonnet-5-5' && nm.claude1.effort === 'medium' && nm.claude2.effort === 'medium' && nm.upstage.model === 'solar-pro4' && nm.upstage.effort === 'medium' && nm.chatgpt.model === 'gpt-6-luna' && nm.chatgpt.effort === null, JSON.stringify(nm));
+    ok('normModels(없음, answerModel gpt-6-sol) → ChatGPT 칸 Sol(옛 저장값 호환)', chain.normModels(undefined, 'gpt-6-sol').chatgpt.model === 'gpt-6-sol');
+    ok('normModels: providerModels.chatgpt 가 있으면 answerModel 무시', chain.normModels({ chatgpt: { model: 'gpt-6-astra' } }, 'gpt-6-sol').chatgpt.model === 'gpt-6-astra');
+    ok('normModels: 틀린 칸만 기본값, 맞는 칸은 그대로', (() => { const x = chain.normModels({ claude1: { model: 'zz', effort: 'low' }, claude2: { model: 'claude-opus-5-5', effort: 'xhigh' } }); return x.claude1.model === 'claude-sonnet-5-5' && x.claude1.effort === 'medium' && x.claude2.model === 'claude-opus-5-5' && x.claude2.effort === 'xhigh'; })());
+
+    // 설정 API — ⑩ 과 같이 설정 파일만 메모리로 돌린다.
+    const mem = {};
+    const isCfg = (p) => /nariya_config\.json(\.tmp)?$/.test(String(p));
+    const real = { ex: fs.existsSync, rd: fs.readFileSync, wr: fs.writeFileSync, mv: fs.renameSync };
+    fs.existsSync = (p) => (isCfg(p) ? p in mem : real.ex(p));
+    fs.readFileSync = (p, ...a) => (isCfg(p) ? (p in mem ? mem[p] : (() => { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; })()) : real.rd(p, ...a));
+    fs.writeFileSync = (p, d, ...a) => (isCfg(p) ? void (mem[p] = String(d)) : real.wr(p, d, ...a));
+    fs.renameSync = (a, b) => (isCfg(a) ? void (mem[b] = mem[a], delete mem[a]) : real.mv(a, b));
+    try {
+      const router = require('../routes/legal');
+      const route = (m) => router.stack.find(l => l.route && l.route.path === '/api/legal/config' && l.route.methods[m]).route;
+      const call = (m, token, body) => new Promise((resolve) => {
+        const stack = route(m).stack;
+        const req = { body, get: (h) => (h === 'X-Admin-Token' ? token : undefined) };
+        const res = { code: 200, status(c) { this.code = c; return this; }, json(o) { resolve({ code: this.code, body: o }); } };
+        stack[stack.length - 1].handle(req, res, () => resolve({ code: 'next' }));
+      });
+      const CFG = path.join(__dirname, '..', 'data', 'nariya_config.json');
+      mem[CFG] = JSON.stringify({ exposure: 'admin', answerModel: 'gemini' });   // providerModels 가 생기기 전 · 버튼줄에서 Gemini 를 골라 둔 저장값
+      const g = await call('get', 'good');
+      ok('옛 저장값 answerModel gemini → providerModels.chatgpt = gpt-6-luna · 나머지 기본값', g.body.providerModels && g.body.providerModels.chatgpt.model === 'gpt-6-luna' && g.body.providerModels.claude1.model === 'claude-sonnet-5-5' && g.body.answerModel === 'gemini', JSON.stringify(g.body.providerModels));
+      ok('GET 관리자 → providerChoices(Gemini 칸 = legal_retriever.ANSWER_MODEL, 노력 없음 · ChatGPT 노력 없음)', g.body.providerChoices && g.body.providerChoices.gemini.model === require('../services/legal_retriever').ANSWER_MODEL && g.body.providerChoices.gemini.efforts.length === 0 && g.body.providerChoices.chatgpt.efforts.length === 0 && g.body.providerChoices.claude1.efforts.join() === 'low,medium,high,xhigh,max', JSON.stringify(g.body.providerChoices));
+      ok('GET 관리자 status → ChatGPT 칸에 workerAlive(서버 스위치 없음 시험 → hasKey false)', (() => { const c = g.body.providerStatus.find(x => x.id === 'chatgpt'); return c && typeof c.workerAlive === 'boolean' && c.hasKey === false; })(), JSON.stringify(g.body.providerStatus.find(x => x.id === 'chatgpt')));
+      const g0 = await call('get', undefined);
+      ok('GET 토큰 없음 → providerChoices 안 붙음', !('providerChoices' in g0.body));
+      mem[CFG] = JSON.stringify({ answerModel: 'gpt-6-sol' });
+      ok('옛 저장값 answerModel gpt-6-sol → providerModels.chatgpt = gpt-6-sol', (await call('get', 'good')).body.providerModels.chatgpt.model === 'gpt-6-sol');
+
+      mem[CFG] = JSON.stringify({ exposure: 'admin', providerModels: { claude2: { model: 'claude-opus-5-5', effort: 'high' } } });
+      for (const [name, bad] of [['gemini 칸', { gemini: { model: 'gemini-2.5-flash' } }], ['effort 목록 밖', { claude1: { model: 'claude-opus-5-5', effort: 'ultra' } }], ['배열', [1]], ['문자열', 'claude']]) {
+        const before = mem[CFG];
+        const p = await call('post', 'good', { providerModels: bad });
+        ok(`POST providerModels ${name} → 400 · 저장값 그대로`, p.code === 400 && /providerModels/.test(p.body.error) && mem[CFG] === before, JSON.stringify(p));
+      }
+      const p1 = await call('post', 'good', { providerModels: { claude1: { model: 'claude-haiku-5-5', effort: 'xhigh' } } });
+      const sv = JSON.parse(mem[CFG]);
+      ok('POST providerModels 한 칸 → 그 칸만 바뀌고 키2·다른 필드는 보존', p1.code === 200 && sv.providerModels.claude1.model === 'claude-haiku-5-5' && sv.providerModels.claude1.effort === 'xhigh' && sv.providerModels.claude2.model === 'claude-opus-5-5' && sv.exposure === 'admin' && p1.body.providerModels.claude1.effort === 'xhigh', JSON.stringify(sv));
+      const p2 = await call('post', 'good', { providerModels: { chatgpt: { model: 'gpt-6-astra' } } });
+      ok('POST ChatGPT 칸 모델 → providerModels.chatgpt 저장(이후 사슬·llm:codex 가 이 모델)', p2.code === 200 && JSON.parse(mem[CFG]).providerModels.chatgpt.model === 'gpt-6-astra' && p2.body.providerModels.chatgpt.effort === null, JSON.stringify(p2.body.providerModels));
     } finally {
       fs.existsSync = real.ex; fs.readFileSync = real.rd; fs.writeFileSync = real.wr; fs.renameSync = real.mv;
     }

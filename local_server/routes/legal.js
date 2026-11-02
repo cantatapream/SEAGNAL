@@ -19,7 +19,7 @@
  *                                       match면 자동 승인(위 approve와 동일 반영), 아니면 이유를
  *                                       담아 대기 유지 + review_queue.md에 시도 이력 append
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
- *  - GET  /api/legal/admin/ask-stats  → 나리야 질문 수(날짜별·1년 보관, 숫자만 — services/legal_ask_stats.js)
+ *  - GET  /api/legal/admin/ask-stats  → 나리야 질문 수(날짜별·1년 보관, 숫자만 — services/legal_ask_stats.js · sums.all = 보관 중 전체 합)
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
  *  - GET  /api/legal/rooms/stats      → 지식 방 갈래 버튼 6개 숫자 + 인트로 칩(개념 status·그래프 엣지)
  *  - GET  /api/legal/rooms/list       → 지식 방 6개 목록(room=raw|concept|statute|comparison|annex|graph,
@@ -30,7 +30,7 @@
  *                                       done 이벤트의 clarify 필드로 내려보낸다(legal_retriever.decideClarify)
  *                                       위키에 근거가 없으면 2차로 법령 원문(GitHub 온디맨드)을 훑어 "미검증 참고" 답변 시도
  *                                       6초 넘게 걸린 요청 + 알림 동의 시 답변을 임시 보관하고 개인 푸시 발송
- *                                       관리자 센터 answerModel(기본 Luna)·codexForUsers(기본 꺼짐)에 따라 AI 호출을
+ *                                       관리자 센터 providerModels.chatgpt(옛 answerModel, 기본 Luna)·codexForUsers(기본 꺼짐)에 따라 AI 호출을
  *                                       VM 의 Codex 로(services/codex_bridge.js). 시험용 llm:"codex"|"gemini" 도 받는다
  *  - POST /api/legal/codex/poll|result → VM Codex 작업자 창구(X-Codex-Secret, NRYA_CODEX_SECRET 없으면 404)
  *  - GET  /api/legal/pending-answer/:requestId → 푸시로 다시 들어온 사용자에게 그 답변을 1회만 돌려줌
@@ -295,6 +295,9 @@ function normConfig(c) {
     // [AI 삭제 · 2026-11-02 사용자 요청] 관리자 센터 [삭제]로 사슬에서 뺀 AI(기본 [] — 이 필드가 없던 옛 저장값도 []).
     //   순서(providerOrder)는 다섯 개 순열 그대로 두고 사슬이 이 목록을 건너뛴다. gemini 는 뺄 수 없다(마지막 안전망).
     providerRemoved: llmChain.normRemoved(c.providerRemoved),
+    // [칸별 모델·노력 · 2026-11-02 사용자 요청] 관리자 센터 「AI 모델」 탭 — {claude1|claude2|upstage:{model,effort}, chatgpt:{model,effort:null}}.
+    //   늘 네 칸을 다 채운다(틀린 칸은 기본값). ChatGPT 칸은 이 필드가 없던 옛 저장값이면 answerModel 을 따른다('gemini' 면 Luna).
+    providerModels: llmChain.normModels(c.providerModels, c.answerModel),
   };
 }
 // POST /api/legal/config 가 받는 boolean 스위치 목록(위 normConfig 와 1:1).
@@ -324,7 +327,7 @@ router.get('/api/legal/config', (req, res) => {
   // 이 GET 은 일반 사용자도 노출 설정을 읽으려 부른다 → providerStatus(키 유무·소진·오늘 호출 수)는 관리자 토큰이 있을 때만.
   const isAdmin = adminAuth.verifyToken(req.get('X-Admin-Token') || '');
   const cfg = normConfig(readConfig());
-  res.json(Object.assign({ ok: true }, cfg, isAdmin ? { providerStatus: llmChain.status(cfg.providerRemoved) } : {}));
+  res.json(Object.assign({ ok: true }, cfg, isAdmin ? { providerStatus: llmChain.status(cfg.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL) } : {}));
 });
 router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   const b = req.body || {};
@@ -338,6 +341,8 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     return res.status(400).json({ ok: false, error: `providerRemoved는 ${llmChain.PROVIDERS.filter(p => p !== 'gemini').join(',')} 중에서 겹치지 않게 담은 배열(gemini 는 뺄 수 없음)` });
   if (b.providerReset !== undefined && !llmChain.isValidReset(b.providerReset))
     return res.status(400).json({ ok: false, error: `providerReset은 ${llmChain.PROVIDERS.join('|')}|all` });
+  if (b.providerModels !== undefined && !llmChain.isValidModels(b.providerModels))
+    return res.status(400).json({ ok: false, error: 'providerModels는 {claude1|claude2|upstage:{model,effort}, chatgpt:{model}} — 값은 GET providerChoices 목록 안에서(gemini 는 고를 수 없음)' });
   for (const k of BOOL_SWITCHES) {
     if (b[k] !== undefined && typeof b[k] !== 'boolean')
       return res.status(400).json({ ok: false, error: `${k}는 true|false` });
@@ -350,10 +355,11 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     if (b.answerModel !== undefined) cur.answerModel = b.answerModel;
     if (b.providerOrder !== undefined) cur.providerOrder = b.providerOrder.slice();
     if (b.providerRemoved !== undefined) cur.providerRemoved = b.providerRemoved.slice();
+    if (b.providerModels !== undefined) cur.providerModels = Object.assign({}, cur.providerModels, b.providerModels);   // 보낸 칸만 바꾼다
     for (const k of BOOL_SWITCHES) if (b[k] !== undefined) cur[k] = b[k];
     writeFileAtomic(CONFIG_FILE, JSON.stringify(Object.assign(cur, { updatedAt: new Date().toISOString() }), null, 1));
     return cur;
-  }).then(v => { const n = normConfig(v); res.json(Object.assign({ ok: true }, n, { providerStatus: llmChain.status(n.providerRemoved) })); }).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
+  }).then(v => { const n = normConfig(v); res.json(Object.assign({ ok: true }, n, { providerStatus: llmChain.status(n.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL) })); }).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
 // GET /api/legal/reviews/stats — 카운트

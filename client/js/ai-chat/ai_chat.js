@@ -35,14 +35,14 @@
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
- *                    POST /api/legal/config {answerModel|codexForUsers|providerOrder|providerRemoved|providerReset} (답변 AI 모델·일반 사용자 적용·AI 순서·AI 삭제/다시 추가·소진 해제, 관리자)
+ *                    POST /api/legal/config {codexForUsers|providerOrder|providerRemoved|providerReset|providerModels} (일반 사용자 적용·AI 순서·AI 삭제/다시 추가·소진 해제·칸별 모델/노력, 관리자 — 「AI 모델」 탭)
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
  *                    GET  /api/legal/reviews/:id/sources        (카드의 「원문 보기」 — 대상 페이지 근거 조문 표의
  *                                                               줄마다 원문 열림 여부 + 법령정보센터 주소)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토·원문신선도 실카운트)
- *                    GET  /api/legal/admin/ask-stats           (질문 수 — 날짜별 KST·1년 보관·숫자만. 「질문 수」 카드)
+ *                    GET  /api/legal/admin/ask-stats           (질문 수 — 날짜별 KST·1년 보관·숫자만. 「AI 모델」 탭 「질문 수」 아코디언)
  *                    GET  /api/legal/freshness?status=pending  (원문신선도 — 낡은 행정규칙 원문 목록
  *                                                               + last: 마지막 점검이 언제·어떻게 끝났나)
  *                    POST /api/legal/freshness/:id/decide       (처리완료/해당없음)
@@ -168,10 +168,8 @@
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
-  // [Codex 모드 · 2026-09-27 사용자 확정] 관리자 센터 설정 두 개(서버 /api/legal/config 가 진실의 원천).
-  //   serverAnswerModel: 관리자 기기의 질문을 어느 AI 로 답할지(기본 ChatGPT Luna).
-  //   serverCodexForUsers: ChatGPT 답변을 일반 사용자에게도 적용할지(기본 꺼짐).
-  var serverAnswerModel = 'gpt-6-luna';
+  // [Codex 모드 · 2026-09-27 사용자 확정] serverCodexForUsers: 답변 AI 순서를 일반 사용자에게도 적용할지(기본 꺼짐, 서버 /api/legal/config 가 진실의 원천).
+  //   (옛 「답변 AI 모델」 버튼줄·answerModel 은 2026-11-02 사용자 요청으로 화면에서 뺐다 — ChatGPT 칸 모델은 providerModels.chatgpt 로 고른다.)
   var serverCodexForUsers = false;
   // [답변 AI 사슬 · 2026-11-02 사용자 확정] 시도 순서와 각 AI 상태(키 유무·크레딧 소진·오늘 호출 수).
   //   서버 /api/legal/config 의 providerOrder·providerStatus 가 진실의 원천.
@@ -179,6 +177,10 @@
   var serverProviderStatus = [];
   // [AI 삭제 · 2026-11-02 사용자 요청] 관리자가 [삭제]로 사슬에서 뺀 AI(서버 providerRemoved). 순서 목록에서 숨기고 아래 「삭제된 AI」로 보인다.
   var serverProviderRemoved = [];
+  // [칸별 모델·노력 · 2026-11-02 사용자 요청] 서버 providerModels({claude1:{model,effort},…})와 고를 수 있는 값(providerChoices — 관리자 응답에만).
+  //   providerChoices 가 없으면(조회 전·관리자 아님) 고르는 칸 없이 모델 이름만 보인다.
+  var serverProviderModels = {};
+  var serverProviderChoices = null;
   var PROVIDER_NAME = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT(VM)', gemini: 'Gemini' };
   var statsCache = null;                       // {total,pending,approved} — 배지용
   var adminStatsCache = null;                  // {draft,feedback,candidates,amendments} — 서브탭 배지용
@@ -402,7 +404,7 @@
 
   /**
    * 통합관리자 센터의 "나리야 법령" 탭이 부르는 진입점. 주어진 컨테이너에 나리야
-   * 관리자 콘솔 전체(지식 방 브라우저 + 관리자 검토센터 + 노출 토글)를 렌더한다.
+   * 관리자 콘솔 전체(지식 방 브라우저 + 관리자 검토센터 + 노출 토글 + AI 모델 탭)를 렌더한다.
    * 탭을 열 때마다 새로 불려도 안전하도록 매번 innerHTML 을 재구성한다.
    * @param {HTMLElement} container - 콘솔을 담을 컨테이너(예: #unified-admin-body)
    * [연계] ← admin.js switchUnifiedAdminTab('nariya'). → renderRoom/renderAdmin/initSeg.
@@ -419,6 +421,8 @@
             '<div class="nrya-vswitch" id="nryaVswitch">' +
               '<button class="nrya-active" data-view="rooms">💬 지식 방</button>' +
               '<button data-view="admin">🛠 관리자 검토 <span class="nrya-vb-badge" id="nryaVbBadge">…</span></button>' +
+              // [AI 모델 탭 · 2026-11-02 사용자 요청] 「AI 모델 선택 인터페이스는 지식 방·관리자 검토와 별개로 AI 모델 탭에서」.
+              '<button data-view="models">🤖 AI 모델</button>' +
             '</div>' +
           '</div>' +
           '<div id="nryaViewRooms">' +
@@ -441,38 +445,37 @@
                 '<div class="nrya-seg-help" id="nryaSegHelp">노출 설정을 불러오는 중…</div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaSegErr"></div>' +
               '</div>' +
-              // [Codex 모드] 답변 AI 모델 + 일반 사용자 적용 스위치. 저장은 POST /api/legal/config.
+              '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
+              '<div class="nrya-subtabs" id="nryaSubtabs"></div>' +
+              '<div id="nryaAdminContent"></div>' +
+            '</div>' +
+          '</div>' +
+          // [AI 모델 탭 · 2026-11-02 사용자 요청] 답변 AI 순서(칸별 모델·노력·▲▼·삭제) · 일반 사용자 적용 스위치 · 질문 수 아코디언.
+          //   저장은 POST /api/legal/config, 질문 수는 GET /api/legal/admin/ask-stats.
+          '<div id="nryaViewModels" class="nrya-hidden">' +
+            '<div class="nrya-panel">' +
               '<div class="nrya-card">' +
-                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 모델 (서버 전역)</div>' +
-                '<div class="nrya-seg" id="nryaModelSeg">' +
-                  '<button data-model="gemini">Gemini</button>' +
-                  '<button data-model="gpt-6-luna">GPT Luna</button>' +
-                  '<button data-model="gpt-6-sol">GPT Sol</button>' +
-                  '<button data-model="gpt-6-astra">GPT Astra</button>' +
-                '</div>' +
-                '<div class="nrya-seg-help" id="nryaModelHelp">설정을 불러오는 중…</div>' +
-                '<div class="nrya-card-lab" style="margin-top:14px"><span class="nrya-pipe"></span>ChatGPT 답변을 일반 사용자에게도 적용</div>' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서 (크레딧 소진 시 다음으로 자동 전환)</div>' +
+                '<div id="nryaOrderList" class="nrya-prov-list"></div>' +
+                '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
+              '</div>' +
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서를 일반 사용자에게도 적용</div>' +
                 '<div class="nrya-seg" id="nryaUsersSeg">' +
                   '<button data-users="on">켜기</button>' +
                   '<button data-users="off">끄기(기본)</button>' +
                 '</div>' +
                 '<div class="nrya-seg-help" id="nryaUsersHelp"></div>' +
-                '<div class="nrya-card-lab" style="margin-top:14px"><span class="nrya-pipe"></span>답변 AI 순서 (크레딧 소진 시 다음으로 자동 전환)</div>' +
-                '<div id="nryaOrderList"></div>' +
-                '<div class="nrya-seg-help">위에서부터 시도합니다. 크레딧이 떨어진 AI 는 「소진」으로 표시되고 건너뜁니다 — 충전 후 [소진 해제]를 누르세요. ' +
-                  '일시 오류(응답 지연 등)는 그 질문만 다음 AI 가 대신 답합니다. ' +
-                  'ChatGPT 는 연속 3번 실패하면 30분 「쉬는 중」이 되고 그 뒤 자동으로 다시 시도합니다([소진 해제]로 바로 풀 수 있음). ' +
-                  '더 이상 쓰지 않는 AI 는 [삭제]로 순서에서 뺄 수 있고(Gemini 는 마지막 안전망이라 뺄 수 없음), [다시 추가]로 되돌립니다.</div>' +
-                '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
               '</div>' +
-              // [질문 수 · 2026-11-02 사용자 확정] 날짜별 집계(KST·1년 보관·질문 내용은 저장 안 함). GET /api/legal/admin/ask-stats.
-              '<div class="nrya-card">' +
-                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>질문 수 (KST 날짜별 · 1년 보관 · 내용은 저장 안 함)</div>' +
-                '<div id="nryaAskStats" class="nrya-seg-help">불러오는 중…</div>' +
+              // [질문 수 · 2026-11-02 사용자 확정] 날짜별 집계(KST·1년 보관·질문 내용은 저장 안 함). 평소 접힘 — 머리를 누르면 펼친다(원문 방 .nrya-acc 모양 재사용).
+              '<div class="nrya-acc" id="nryaAskAcc">' +
+                '<div class="nrya-acc-head" id="nryaAskHead"><div style="flex:1;min-width:0">' +
+                  '<div class="nrya-acc-name">질문 수</div>' +
+                  '<div class="nrya-acc-dom">KST 날짜별 · 1년 보관 · 내용은 저장 안 함</div></div>' +
+                  '<span class="nrya-eff" id="nryaAskSum">…</span>' +
+                  '<div class="nrya-chev">▼</div></div>' +
+                '<div class="nrya-acc-body"><div id="nryaAskStats" class="nrya-seg-help" style="margin-top:0">불러오는 중…</div></div>' +
               '</div>' +
-              '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
-              '<div class="nrya-subtabs" id="nryaSubtabs"></div>' +
-              '<div id="nryaAdminContent"></div>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -489,12 +492,16 @@
       var v = b.dataset.view;
       root.querySelector('#nryaViewRooms').classList.toggle('nrya-hidden', v !== 'rooms');
       root.querySelector('#nryaViewAdmin').classList.toggle('nrya-hidden', v !== 'admin');
+      root.querySelector('#nryaViewModels').classList.toggle('nrya-hidden', v !== 'models');
     });
 
     // 노출 3-state 토글(서버 전역 설정)
     initSeg(root);
-    // 답변 AI 모델 · 일반 사용자 적용 스위치(서버 전역 설정)
+    // AI 모델 탭 — 답변 AI 순서(칸별 모델·노력) · 일반 사용자 적용 스위치(서버 전역 설정) · 질문 수 아코디언
     initModelSeg(root);
+    root.querySelector('#nryaAskHead').addEventListener('click', function () {
+      root.querySelector('#nryaAskAcc').classList.toggle('nrya-open');
+    });
 
     // 초기 렌더
     renderRoomPills('원문'); renderRoom('원문');
@@ -505,25 +512,28 @@
     refreshRoomStats();   // 지식 방 갈래 버튼 6개 숫자·인트로 칩(실데이터)
     refreshStats();
     refreshAdminStats();
-    refreshAskStats();    // 「질문 수」 카드
+    refreshAskStats();    // 「질문 수」 아코디언(AI 모델 탭)
   }
 
   /**
-   * 「질문 수」 카드를 서버 집계로 채운다 — 줄은 항목(전체·관리자·일반·AI별·실패·되묻기), 칸은 오늘·어제·7일·30일.
-   * 예: 전체 | 12 | 30 | 140 | 520
+   * 「질문 수」 아코디언을 서버 집계로 채운다 — 줄은 항목(전체·관리자·일반·AI별·실패·되묻기), 칸은 오늘·어제·7일·30일.
+   * 머리 오른쪽에는 「총 N건 · 오늘 N건」(총 = 서버 sums.all, 보관 중인 1년 전체 합).
+   * 예: 전체 | 12 | 30 | 140 | 520 · 머리 「총 1,204건 · 오늘 12건」
    * 「전체」는 답변·실패로 끝난 질문만 센다(되묻기 카드는 같은 질문이 다시 오므로 따로 「되묻기」 줄).
    * [연계] → GET /api/legal/admin/ask-stats(관리자 토큰 — services/legal_ask_stats.js summary). ← renderAdminInto(콘솔 열 때).
    *          실패하면 숫자를 지어내지 않고 이유 한 줄만 보인다.
    */
   function refreshAskStats() {
     var box = document.getElementById('nryaAskStats'); if (!box) return;
+    var sumEl = function (t) { var el = document.getElementById('nryaAskSum'); if (el) el.textContent = t; };
     legalGet('/api/legal/admin/ask-stats').then(function (res) {
       if (res.status === 401 || res.status === 403) return { _denied: true };
       return res.json().catch(function () { return null; });
     }).then(function (d) {
       box = document.getElementById('nryaAskStats'); if (!box) return;
-      if (d && d._denied) { box.textContent = '관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 여세요.'; return; }
-      if (!d || !d.ok || !d.sums) { box.textContent = '질문 수를 불러오지 못했습니다.'; return; }
+      if (d && d._denied) { box.textContent = '관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 여세요.'; sumEl('로그인 필요'); return; }
+      if (!d || !d.ok || !d.sums) { box.textContent = '질문 수를 불러오지 못했습니다.'; sumEl('불러오기 실패'); return; }
+      sumEl((d.sums.all ? '총 ' + Number(d.sums.all.total).toLocaleString() + '건 · ' : '') + '오늘 ' + Number(d.sums.today.total).toLocaleString() + '건');
       var P = ['today', 'yesterday', 'd7', 'd30'];
       var ROWS = [['전체', function (r) { return r.total; }], ['· 관리자', function (r) { return r.admin; }], ['· 일반 사용자', function (r) { return r.user; }],
         ['업스테이지', function (r) { return r.ai.upstage; }], ['클로드 키1', function (r) { return r.ai.claude1; }], ['클로드 키2', function (r) { return r.ai.claude2; }],
@@ -532,7 +542,7 @@
       var td = 'style="padding:5px 4px;text-align:right;border-bottom:1px solid rgba(148,163,184,.15)"';
       box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
         '<tr><th style="text-align:left;padding:5px 4px;color:#94a3b8;font-weight:400">' + esc(d.today || '') + '</th>' +
-        ['오늘', '어제', '7일', '30일'].map(function (h) { return '<th style="text-align:right;padding:5px 4px;color:#94a3b8;font-weight:400">' + h + '</th>'; }).join('') + '</tr>' +
+        ['오늘', '어제', '7일', '30일'].map(function (h) { return '<th style="text-align:right;padding:5px 4px;color:#94a3b8;font-weight:400;white-space:nowrap">' + h + '</th>'; }).join('') + '</tr>' +
         ROWS.map(function (row) {
           return '<tr><td style="padding:5px 4px;border-bottom:1px solid rgba(148,163,184,.15)">' + esc(row[0]) + '</td>' +
             P.map(function (p) { return '<td ' + td + '>' + esc(row[1](d.sums[p])) + '</td>'; }).join('') + '</tr>';
@@ -540,6 +550,7 @@
         '<div style="margin-top:6px">7일·30일은 오늘 포함. 「전체」는 답변·실패로 끝난 질문 수입니다(되묻기를 거쳐도 한 번).</div>';
     }).catch(function () {
       box = document.getElementById('nryaAskStats'); if (box) box.textContent = '질문 수를 불러오지 못했습니다(네트워크 오류).';
+      sumEl('불러오기 실패');
     });
   }
 
@@ -579,21 +590,26 @@
   }
 
   /**
-   * 답변 AI 모델 토글과 「일반 사용자에게도」 스위치에 클릭을 잇고 현재 값으로 칠한다.
+   * AI 모델 탭 — 「일반 사용자에게도」 스위치·답변 AI 순서 목록(▲▼·삭제·다시 추가·소진 해제·모델/노력 고르기)에 이벤트를 잇고 현재 값으로 칠한다.
    * @param {HTMLElement} root - .nrya-console 루트
-   * [연계] → setAnswerConfig(POST /api/legal/config). 서버 적용은 codex_bridge.withRequest.
+   * [연계] → setAnswerConfig(POST /api/legal/config). 서버 적용은 codex_bridge.withRequest·llm_chain(pickOf).
    */
   function initModelSeg(root) {
-    root.querySelector('#nryaModelSeg').addEventListener('click', function (e) {
-      var b = e.target.closest('button[data-model]'); if (!b) return;
-      setAnswerConfig({ answerModel: b.dataset.model });
-    });
     root.querySelector('#nryaUsersSeg').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-users]'); if (!b) return;
       var on = b.dataset.users === 'on';
-      if (on && !serverCodexForUsers && !window.confirm('일반 사용자 질문도 ChatGPT(관리자 정액제 계정)로 답합니다.\n' +
-        'OpenAI 약관상 계정 공유에 해당해 계정이 정지될 수 있고, 사용량 한도가 빨리 찰 수 있습니다.\n켜시겠습니까?')) return;
+      if (on && !serverCodexForUsers && !window.confirm('일반 사용자 질문도 답변 AI 순서(업스테이지·클로드·ChatGPT…)대로 답합니다.\n' +
+        'ChatGPT 칸은 관리자 정액제 계정이라 OpenAI 약관상 계정 공유에 해당해 계정이 정지될 수 있고, 사용량 한도가 빨리 찰 수 있습니다.\n켜시겠습니까?')) return;
       setAnswerConfig({ codexForUsers: on });
+    });
+    // 모델·노력 고르기 — 그 칸만 보낸다({providerModels:{claude1:{model,effort}}}). ChatGPT 칸은 노력 없이 {model}.
+    root.querySelector('#nryaOrderList').addEventListener('change', function (e) {
+      var sel = e.target.closest('select[data-pm]'); if (!sel) return;
+      var id = sel.dataset.id, cur = serverProviderModels[id] || {}, pick = {};
+      pick.model = sel.dataset.pm === 'model' ? sel.value : cur.model;
+      if (id !== 'chatgpt') pick.effort = sel.dataset.pm === 'effort' ? sel.value : cur.effort;
+      var patch = {}; patch[id] = pick;
+      setAnswerConfig({ providerModels: patch });
     });
     root.querySelector('#nryaOrderList').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-act]'); if (!b) return;
@@ -623,29 +639,22 @@
   }
 
   /**
-   * 답변 AI 모델 토글·일반 사용자 스위치를 서버 값에 맞춰 칠하고 안내문을 갱신한다.
+   * AI 모델 탭의 일반 사용자 스위치·답변 AI 순서 목록을 서버 값에 맞춰 칠하고 안내문을 갱신한다.
    * 콘솔이 안 떠 있으면 아무 것도 하지 않는다.
    */
   function paintModelSeg() {
-    var seg = document.getElementById('nryaModelSeg'); if (!seg) return;
-    seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('nrya-on', x.dataset.model === serverAnswerModel); });
-    var users = document.getElementById('nryaUsersSeg');
+    var users = document.getElementById('nryaUsersSeg'); if (!users) return;
     users.querySelectorAll('button').forEach(function (x) {
       var on = (x.dataset.users === 'on') === serverCodexForUsers;
       x.classList.toggle('nrya-on', on);
       x.classList.toggle('nrya-warn', on && serverCodexForUsers);
     });
     var pre = configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>';
-    var help = document.getElementById('nryaModelHelp');
-    if (help) help.innerHTML = pre + (serverAnswerModel === 'gemini'
-      ? '<b>Gemini</b> — 아래 순서에서 ChatGPT 칸을 건너뜁니다.'
-      : '<b>' + serverAnswerModel + '</b> — 아래 순서의 ChatGPT 칸이 이 모델(VM 정액제)로 답합니다. ' +
-        'VM 작업자가 꺼져 있으면 ChatGPT 칸을 건너뜁니다.');
     paintOrderList();
     var uh = document.getElementById('nryaUsersHelp');
-    if (uh) uh.innerHTML = serverCodexForUsers
-      ? '<b>켜짐</b> — 일반 사용자 질문도 아래 순서(업스테이지·클로드·ChatGPT…)로 답합니다. ⚠ChatGPT 칸은 OpenAI 약관상 계정 공유 위험·사용량 한도 주의.'
-      : '<b>꺼짐(기본값)</b> — 일반 사용자 질문은 Gemini 로 답합니다(아래 순서는 관리자 기기에만 적용).';
+    if (uh) uh.innerHTML = pre + (serverCodexForUsers
+      ? '<b>켜짐</b> — 일반 사용자 질문도 위 순서(업스테이지·클로드·ChatGPT…)로 답합니다. ⚠ChatGPT 칸은 OpenAI 약관상 계정 공유 위험·사용량 한도 주의.'
+      : '<b>꺼짐(기본값)</b> — 일반 사용자 질문은 Gemini 로 답합니다(위 순서는 관리자 기기에만 적용).');
   }
 
   /**
@@ -658,10 +667,13 @@
   }
 
   /**
-   * 답변 AI 순서 목록을 그린다 — 줄마다 순번·이름·상태(키 없음/소진/쉬는 중/오늘 n회)·[소진 해제]·▲▼·[삭제](Gemini 줄 없음).
+   * 답변 AI 순서 목록을 그린다 — 줄마다 둥근 카드: 순위·이름·상태 배지·오늘 호출 수·[소진 해제]·▲▼·[삭제](Gemini 줄 없음)
+   *   + 모델·노력 고르기(서버 providerChoices 안에서만. 고를 게 없으면 「선택 불가」).
+   * 상태 배지: 소진 > 쉬는 중 > 키 없음(ChatGPT 는 「건너뜀 · 서버 스위치 없음」) > 「건너뜀 · VM 미연결」(ChatGPT) > 정상
+   *   — 사슬이 실제로 건너뛰는 조건(llm_chain.usable)과 같은 순서로 본다.
    * 목록 아래에 「삭제된 AI: ○○ [다시 추가]」.
-   * 예: 1. 업스테이지 · 정상 · 오늘 3회(성공 3) [▲][▼][삭제]
-   * [연계] ← paintModelSeg. 클릭은 initModelSeg 가 받아 setAnswerConfig({providerOrder|providerRemoved|providerReset}).
+   * 예: [1] 업스테이지 (정상) 오늘 3회·성공 3 [▲][▼][삭제] / 모델 [solar-pro4 ▾] 노력 [medium ▾]
+   * [연계] ← paintModelSeg. 클릭·고르기는 initModelSeg 가 받아 setAnswerConfig({providerOrder|providerRemoved|providerReset|providerModels}).
    */
   function paintOrderList() {
     var box = document.getElementById('nryaOrderList'); if (!box) return;
@@ -669,36 +681,55 @@
     var NAME = PROVIDER_NAME;
     var vis = visibleOrder();
     var n = vis.length;
-    var btn = 'style="border:1px solid #334155;background:none;color:inherit;border-radius:6px;padding:3px 8px;margin-left:4px;cursor:pointer"';
+    var NOT = '<span class="nrya-prov-fixed" title="이 AI 는 서버에서 노력 값을 넘기지 않습니다">선택 불가</span>';
+    /** 고르기 칸 하나 — 값이 둘 이상이면 select, 하나뿐이면 글자, 없으면 「선택 불가」. */
+    function pickHTML(id, field, list, cur) {
+      if (!list || !list.length) return field === 'effort' ? NOT : '<span class="nrya-prov-fixed">' + esc(cur || '—') + '</span>';
+      if (list.length === 1 || id === 'gemini') return '<span class="nrya-prov-fixed">' + esc(list[0]) + '</span>';
+      return '<select data-pm="' + field + '" data-id="' + id + '" aria-label="' + esc((NAME[id] || id) + (field === 'model' ? ' 모델' : ' 노력')) + '">' +
+        list.map(function (v) { return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('') + '</select>';
+    }
     box.innerHTML = vis.map(function (id, i) {
       var st = byId[id] || {};
       var t = st.today || { calls: 0, success: 0 };
+      var ch = serverProviderChoices && serverProviderChoices[id];
+      var pm = serverProviderModels[id] || {};
       // restUntil — ChatGPT 칸 연속 3회 실패로 쉬는 끝 시각(ISO, 서버 llm_chain.status). KST 시:분으로 보인다.
       var rest = st.restUntil ? new Date(Date.parse(st.restUntil) + 9 * 3600000).toISOString().slice(11, 16) : '';
-      var badge = st.exhaustedAt ? '<span style="color:#f87171">소진</span>'
-        : rest ? '<span style="color:#fbbf24">쉬는 중(' + rest + ' KST까지)</span>'
-        : st.hasKey === false ? '<span style="color:#94a3b8">키 없음(건너뜀)</span>'
-        : '<span style="color:#4ade80">정상</span>';
-      return '<div style="display:flex;align-items:center;gap:6px;padding:6px 2px;border-bottom:1px solid rgba(148,163,184,.15);font-size:12.5px">' +
-        '<b style="width:18px">' + (i + 1) + '.</b>' +
-        '<span style="flex:1">' + esc(NAME[id] || id) + ' · ' + badge +
-          ' <span style="color:#94a3b8">· 오늘 ' + t.calls + '회(성공 ' + t.success + ')</span></span>' +
-        (st.exhaustedAt || rest ? '<button data-act="reset" data-id="' + id + '" ' + btn + '>소진 해제</button>' : '') +
-        '<button data-act="up" data-id="' + id + '" ' + btn + (i === 0 ? ' disabled' : '') + '>▲</button>' +
-        '<button data-act="down" data-id="' + id + '" ' + btn + (i === n - 1 ? ' disabled' : '') + '>▼</button>' +
-        (id === 'gemini' ? '' : '<button data-act="remove" data-id="' + id + '" ' + btn + '>삭제</button>') +
+      var badge = st.exhaustedAt ? ['bad', '소진']
+        : rest ? ['rest', '쉬는 중 · ' + rest + ' KST까지']
+        : st.hasKey === false ? ['off', id === 'chatgpt' ? '건너뜀 · 서버 스위치 없음' : '키 없음']
+        : id === 'chatgpt' && st.workerAlive === false ? ['off', '건너뜀 · VM 미연결']
+        : st.id ? ['ok', '정상'] : ['off', '상태 모름'];
+      return '<div class="nrya-prov">' +
+        '<div class="nrya-prov-top">' +
+          '<span class="nrya-prov-rank">' + (i + 1) + '</span>' +
+          '<span class="nrya-prov-name">' + esc(NAME[id] || id) + '</span>' +
+          '<span class="nrya-prov-badge nrya-b-' + badge[0] + '">' + esc(badge[1]) + '</span>' +
+          '<span class="nrya-prov-today">오늘 ' + t.calls + '회 · 성공 ' + t.success + '</span>' +
+          '<span class="nrya-prov-acts">' +
+            (st.exhaustedAt || rest ? '<button class="nrya-prov-btn nrya-reset" data-act="reset" data-id="' + id + '">소진 해제</button>' : '') +
+            '<button class="nrya-prov-btn" data-act="up" data-id="' + id + '" aria-label="위로"' + (i === 0 ? ' disabled' : '') + '>▲</button>' +
+            '<button class="nrya-prov-btn" data-act="down" data-id="' + id + '" aria-label="아래로"' + (i === n - 1 ? ' disabled' : '') + '>▼</button>' +
+            (id === 'gemini' ? '' : '<button class="nrya-prov-btn nrya-del" data-act="remove" data-id="' + id + '">삭제</button>') +
+          '</span>' +
+        '</div>' +
+        '<div class="nrya-prov-sel">' +
+          '<label class="nrya-prov-f"><span>모델</span>' + pickHTML(id, 'model', ch && ch.models, pm.model) + '</label>' +
+          '<label class="nrya-prov-f"><span>노력</span>' + (ch ? pickHTML(id, 'effort', ch.efforts, pm.effort) : '<span class="nrya-prov-fixed">' + esc(pm.effort || '—') + '</span>') + '</label>' +
+        '</div>' +
       '</div>';
     }).join('') + (serverProviderRemoved.length
-      ? '<div style="padding:8px 2px;font-size:12.5px;color:#94a3b8">삭제된 AI: ' + serverProviderRemoved.map(function (id) {
-          return esc(NAME[id] || id) + ' <button data-act="restore" data-id="' + id + '" ' + btn + '>다시 추가</button>';
-        }).join(' · ') + '</div>'
+      ? '<div class="nrya-prov-gone">삭제된 AI: ' + serverProviderRemoved.map(function (id) {
+          return '<span class="nrya-prov-gone-it">' + esc(NAME[id] || id) + ' <button class="nrya-prov-btn" data-act="restore" data-id="' + id + '">다시 추가</button></span>';
+        }).join('') + '</div>'
       : '');
   }
 
   /**
-   * 답변 AI 모델 또는 일반 사용자 스위치를 서버에 저장(관리자 전용)한다.
-   * 예: setAnswerConfig({ answerModel: 'gpt-6-sol' }) · setAnswerConfig({ codexForUsers: false })
-   * @param {{answerModel?:string, codexForUsers?:boolean, providerOrder?:string[], providerRemoved?:string[], providerReset?:string}} patch
+   * AI 모델 탭의 설정(일반 사용자 스위치·순서·삭제·소진 해제·칸별 모델/노력)을 서버에 저장(관리자 전용)한다.
+   * 예: setAnswerConfig({ providerModels: { claude1: { model: 'claude-opus-5-5', effort: 'high' } } }) · setAnswerConfig({ codexForUsers: false })
+   * @param {{codexForUsers?:boolean, providerOrder?:string[], providerRemoved?:string[], providerReset?:string, providerModels?:object}} patch
    * [연계] → POST /api/legal/config. ← initModelSeg 클릭.
    */
   function setAnswerConfig(patch) {
@@ -710,14 +741,16 @@
     }).then(function (data) {
       var msg = data._denied ? '관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'
         : (!data || !data.ok) ? ((data && data.error) || '설정 저장 실패') : '';
-      if (msg) { if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = msg; } return; }
-      serverAnswerModel = data.answerModel || serverAnswerModel;
+      if (msg) { paintModelSeg(); if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = msg; } return; }
       serverCodexForUsers = data.codexForUsers === true;
       if (Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
       if (Array.isArray(data.providerRemoved)) serverProviderRemoved = data.providerRemoved;
       if (Array.isArray(data.providerStatus)) serverProviderStatus = data.providerStatus;
+      if (data.providerModels && typeof data.providerModels === 'object') serverProviderModels = data.providerModels;
+      if (data.providerChoices && typeof data.providerChoices === 'object') serverProviderChoices = data.providerChoices;
       paintModelSeg();
     }).catch(function (e) {
+      paintModelSeg();   // 저장 실패 — 고른 칸(select)을 서버 값으로 되돌린다
       if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = '네트워크 오류: ' + String(e && e.message || e); }
     });
   }
@@ -741,11 +774,12 @@
       if (data && data.ok && ['off', 'admin', 'user'].indexOf(data.exposure) !== -1) {
         serverExposure = data.exposure;
       }
-      if (data && data.ok && typeof data.answerModel === 'string') serverAnswerModel = data.answerModel;
       if (data && data.ok) serverCodexForUsers = data.codexForUsers === true;
       if (data && data.ok && Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
       if (data && data.ok && Array.isArray(data.providerRemoved)) serverProviderRemoved = data.providerRemoved;
       if (data && data.ok && Array.isArray(data.providerStatus)) serverProviderStatus = data.providerStatus;
+      if (data && data.ok && data.providerModels && typeof data.providerModels === 'object') serverProviderModels = data.providerModels;
+      if (data && data.ok && data.providerChoices && typeof data.providerChoices === 'object') serverProviderChoices = data.providerChoices;
       configLoaded = true;
       paintSeg();
       paintModelSeg();

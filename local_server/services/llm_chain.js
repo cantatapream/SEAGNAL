@@ -12,13 +12,16 @@
  * [사용자 확정 2026-11-02] 범위는 ChatGPT(codex)와 같다(/api/legal/ask). 순서는 관리자 센터에서 바꾼다.
  *   「넘어가는 조건」은 크레딧이 다 떨어졌을 때.
  *   관리자 센터 [삭제]로 뺀 AI(providerRemoved)는 시도하지 않는다 — Gemini 는 뺄 수 없다(2026-11-02 사용자 요청).
+ *   관리자 센터 「AI 모델」 탭에서 칸마다 모델·노력(effort)을 고른다(providerModels — 2026-11-02 사용자 요청, CHOICES 참고).
  *
  * [연계]
  *   - 사용 파일 : services/codex_bridge.js (요청 범위 ALS·VM 작업자 호출), services/atomic_write.js, @anthropic-ai/sdk
  *                 data/llm_chain_state.json (소진·쉼 저장 — fly.toml 볼륨 /app/local_server/data)
- *   - 서버 API  : Claude Messages API(claude-sonnet-5-5, effort medium) · Upstage chat/completions(solar-pro4, reasoning_effort medium)
+ *   - 서버 API  : Claude Messages API(기본 claude-sonnet-5-5, effort medium) · Upstage chat/completions(기본 solar-pro4, reasoning_effort medium)
+ *                 — 둘 다 관리자 설정 providerModels 로 바꿀 수 있다(CHOICES 안에서만).
  *   - 호출처    : services/gemini_client.js callGeminiRaw(→callRaw)/callGeminiStream(→callStream) 입구(사슬 표시가 있는 요청일 때)
- *                 routes/legal.js normConfig(providerOrder·providerRemoved)·POST /api/legal/config(providerReset)
+ *                 routes/legal.js normConfig(providerOrder·providerRemoved·providerModels)·POST /api/legal/config(providerReset)
+ *                 services/codex_bridge.js answerLabel(이 파일이 적은 s.usedModel 로 답변 끝 모델 이름)
  *   - 환경변수  : ANTHROPIC_API_KEY_1 · ANTHROPIC_API_KEY_2 · UPSTAGE_API_KEY (Fly.io 시크릿)
  *                 LLM_CHAIN_STATE_FILE (저장 파일 경로 바꾸기 — 시험이 운영 data 파일을 건드리지 않게 임시 폴더로 돌린다)
  * [로드 순서] 서버 모듈 — require 순서 무관(codex_bridge 를 부르지만 codex_bridge 는 이 파일을 부르지 않는다).
@@ -35,6 +38,20 @@ const DEFAULT_ORDER = ['upstage', 'claude2', 'claude1', 'chatgpt', 'gemini'];   
 const NAMES = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT(VM)', gemini: 'Gemini' };
 const CLAUDE_MODEL = 'claude-sonnet-5-5';
 const UPSTAGE_MODEL = 'solar-pro4';
+// 칸마다 고를 수 있는 모델·노력(2026-11-02 사용자 요청 — 관리자 센터 「AI 모델」 탭). 첫 칸이 아니라 model·effort 가 기본값.
+//   클로드: 세 모델 모두 effort low~max 다섯 단계 지원(claude-api 스킬 shared/model-migration.md — Sonnet 5.5·Opus 5.5·Haiku 5.5 절,
+//           설치된 @anthropic-ai/sdk 1.3.0 OutputConfig.effort 타입도 같은 다섯 값). 그래서 모델별 제한은 없다.
+//   업스테이지: solar-pro4·solar-mini4 둘 다 reasoning_effort 지원(console.upstage.ai/docs/capabilities/reasoning —
+//           「solar-mini4 follows the same rules as solar-pro4」, none·minimal=끔, low~max=켬). 사용자가 제안한 none·low·medium·high 만 연다.
+//   ChatGPT: VM 작업자(scripts/codex_worker.js)는 `codex exec -m <모델>` 만 넘기고 노력 값은 넘기지 않는다 → 노력 선택 없음(efforts 빈 배열).
+//           모델 목록은 codex_bridge.ANSWER_MODELS 에서 'gemini' 를 뺀 것.
+//   Gemini: 여기서 고르지 않는다(legal_retriever.ANSWER_MODEL 고정, 사고량은 호출마다 *_CONFIG 가 정한다) — 화면에는 표시만.
+const CHOICES = {
+  claude: { models: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'], efforts: ['low', 'medium', 'high', 'xhigh', 'max'], model: CLAUDE_MODEL, effort: 'medium' },
+  upstage: { models: ['solar-pro4', 'solar-mini4'], efforts: ['none', 'low', 'medium', 'high'], model: UPSTAGE_MODEL, effort: 'medium' },
+  chatgpt: { models: codexBridge.ANSWER_MODELS.filter(m => m !== 'gemini'), efforts: [], model: codexBridge.DEFAULT_MODEL, effort: null },
+};
+const CHOICE_OF = { claude1: 'claude', claude2: 'claude', upstage: 'upstage', chatgpt: 'chatgpt' };
 const UPSTAGE_URL = 'https://api.upstage.ai/v1/chat/completions';
 const CALL_TIMEOUT_MS = 120 * 1000;
 const JSON_RULE = 'Respond with a single valid JSON value only. No code fences, no extra text.';
@@ -146,6 +163,64 @@ function normRemoved(r) {
   return isValidRemoved(r) ? r.slice() : [];
 }
 
+/**
+ * 칸 하나의 모델·노력 값이 CHOICES 안에 있는가. ChatGPT 칸은 노력이 없어야 한다(없음·null 만).
+ * 예: isValidPick('claude1', {model:'claude-opus-5-5', effort:'high'}) → true / isValidPick('upstage', {model:'solar-pro4', effort:'max'}) → false
+ * @param {string} id @param {any} v @returns {boolean}
+ * [연계] ← isValidModels·normModels.
+ */
+function isValidPick(id, v) {
+  const c = CHOICES[CHOICE_OF[id]];
+  if (!c || !v || typeof v !== 'object' || Array.isArray(v) || !c.models.includes(v.model)) return false;
+  return c.efforts.length ? c.efforts.includes(v.effort) : (v.effort === undefined || v.effort === null);
+}
+/**
+ * POST /api/legal/config 의 providerModels 검사 — 객체, 키는 claude1·claude2·upstage·chatgpt 중(일부만 와도 된다),
+ * 값은 칸마다 {model, effort}(ChatGPT 는 {model}). Gemini·모르는 키·목록 밖 값은 거절.
+ * 예: isValidModels({ claude1: { model: 'claude-opus-5-5', effort: 'max' } }) → true / isValidModels({ gemini: {…} }) → false
+ * @param {any} pm @returns {boolean}
+ * [연계] ← routes/legal.js POST /api/legal/config(틀리면 400).
+ */
+function isValidModels(pm) {
+  return !!pm && typeof pm === 'object' && !Array.isArray(pm) && Object.keys(pm).every(id => isValidPick(id, pm[id]));
+}
+/**
+ * 저장값용 — 네 칸을 다 채운 객체를 돌려준다. 칸마다 맞으면 그 값, 아니면 기본값(CHOICES).
+ * ChatGPT 칸은 옛 저장값 answerModel 과 호환: providerModels.chatgpt 가 없으면 answerModel(‘gemini’ 면 기본 Luna).
+ * 예: normModels(undefined, 'gpt-6-sol') → { claude1:{model:'claude-sonnet-5-5',effort:'medium'}, …, chatgpt:{model:'gpt-6-sol',effort:null} }
+ * @param {any} pm - 설정의 providerModels @param {string} [answerModel] - 옛 설정값
+ * @returns {{claude1:{model:string,effort:string}, claude2:{model:string,effort:string}, upstage:{model:string,effort:string}, chatgpt:{model:string,effort:null}}}
+ * [연계] ← routes/legal.js normConfig · 이 파일 pickOf(요청 범위 s.models).
+ */
+function normModels(pm, answerModel) {
+  const src = pm && typeof pm === 'object' && !Array.isArray(pm) ? pm : {};
+  const out = {};
+  for (const id of Object.keys(CHOICE_OF)) {
+    const c = CHOICES[CHOICE_OF[id]];
+    out[id] = isValidPick(id, src[id]) ? { model: src[id].model, effort: c.efforts.length ? src[id].effort : null } : { model: c.model, effort: c.effort };
+  }
+  if (!isValidPick('chatgpt', src.chatgpt) && CHOICES.chatgpt.models.includes(answerModel)) out.chatgpt.model = answerModel;
+  return out;
+}
+/**
+ * 관리자 화면용 선택지 — CHOICES 를 칸 id 별로 펼치고 Gemini 칸(표시만)을 붙인다.
+ * @param {string} geminiModel - legal_retriever.ANSWER_MODEL @returns {object}
+ * [연계] ← routes/legal.js GET·POST /api/legal/config(관리자 응답 providerChoices). → ai_chat.js paintOrderList.
+ */
+function choices(geminiModel) {
+  const out = {};
+  for (const id of Object.keys(CHOICE_OF)) {
+    const c = CHOICES[CHOICE_OF[id]];
+    out[id] = { models: c.models.slice(), efforts: c.efforts.slice(), model: c.model, effort: c.effort };
+  }
+  out.gemini = { models: [String(geminiModel || '')], efforts: [], model: String(geminiModel || ''), effort: null };
+  return out;
+}
+/** 이 요청에서 그 칸이 쓸 모델·노력(요청 범위 s.models — codexBridge.withRequest 가 넣는다). [연계] ← callRaw·callStream */
+function pickOf(id, s) {
+  return normModels(s && s.models)[id];
+}
+
 /** 지금 이 호출이 사슬 표시가 있는 요청 안인가. [연계] ← gemini_client.js 입구 */
 function active() {
   const s = codexBridge.store();
@@ -187,7 +262,8 @@ function usable(id, s) {
  * Claude 호출. 크레딧 소진은 402 billing_error(Anthropic 오류표 기준) + 400 invalid_request_error 중 「credit balance」 문구.
  * @returns {Promise<{success:boolean, text?:string, error?:string, creditOut?:boolean}>}
  */
-async function callClaude(apiKey, { contents, config }) {
+async function callClaude(apiKey, { contents, config }, pick) {
+  const p = pick || { model: CLAUDE_MODEL, effort: 'medium' };
   const timeout = callTimeout(config);
   // 짧은 한도(호출이 httpOptions.timeout 을 준 경우)면 SDK 재시도를 끈다(maxRetries 0).
   //   재시도 1회면 시간초과 때 한도 × 2 + 대기만큼 걸려 호출이 정한 한도를 넘는다. 재시도 몫은 사슬의 다음 AI 가 맡는다.
@@ -197,9 +273,9 @@ async function callClaude(apiKey, { contents, config }) {
   const client = new Anthropic({ apiKey, authToken: null, baseURL: 'https://api.anthropic.com', maxRetries, timeout });
   try {
     const msg = await client.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 16000,
-      output_config: { effort: 'medium' },
+      model: p.model,
+      max_tokens: claudeMaxTokens(p.effort),
+      output_config: { effort: p.effort },
       ...(wantsJson(config) ? { system: JSON_RULE } : {}),
       messages: [{ role: 'user', content: promptText(contents) }],
     });
@@ -211,6 +287,18 @@ async function callClaude(apiKey, { contents, config }) {
     console.warn('[LLM 사슬] Claude 호출 실패:', e.status || '', String(e.message || e).slice(0, 200));
     return { success: false, error: `Claude ${e.status || ''} ${String(e.message || e).slice(0, 200)}`, creditOut: claudeCreditOut(e) };
   }
+}
+
+/**
+ * Claude max_tokens — effort xhigh·max 면 64000, 아니면 종전 16000.
+ * 왜: claude-api 스킬 shared/model-migration.md 체크리스트 「[BLOCKS] At output_config.effort of xhigh or max: set max_tokens >= 64000
+ *   (otherwise output truncates mid-thought)」. max_tokens 는 생각+답 합계 상한이라 높은 노력에서 16000 이면 답이 잘릴 수 있다.
+ *   클라이언트에 timeout 을 직접 주므로 SDK 의 「10분 넘을 수 있으면 스트림 필수」 검사(_calculateNonstreamingTimeout)는 타지 않는다.
+ * @param {string} effort @returns {number}
+ * [연계] ← callClaude·streamClaude.
+ */
+function claudeMaxTokens(effort) {
+  return effort === 'xhigh' || effort === 'max' ? 64000 : 16000;
 }
 
 /**
@@ -230,7 +318,8 @@ function claudeCreditOut(e) {
 const UPSTAGE_CREDIT_CODES = ['api_key_is_blocked', 'api_key_is_not_allowed', 'studio_subscription_quota_exceeded', 'usage_limit_exceeded'];
 
 /** 업스테이지 호출(OpenAI 호환 chat/completions). @returns 위 callClaude 와 같은 모양 */
-async function callUpstage(apiKey, { contents, config }) {
+async function callUpstage(apiKey, { contents, config }, pick) {
+  const p = pick || { model: UPSTAGE_MODEL, effort: 'medium' };
   try {
     const messages = [];
     if (wantsJson(config)) messages.push({ role: 'system', content: JSON_RULE });
@@ -238,7 +327,7 @@ async function callUpstage(apiKey, { contents, config }) {
     const res = await fetch(UPSTAGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: UPSTAGE_MODEL, messages, reasoning_effort: 'medium' }),
+      body: JSON.stringify({ model: p.model, messages, reasoning_effort: p.effort }),
       signal: AbortSignal.timeout(callTimeout(config)),
     });
     const body = await res.json().catch(() => null);
@@ -281,7 +370,8 @@ function firstChunkTimer(ms) {
  * 예: for await (const t of streamClaude(KEYS.claude2, { contents:'…', config:{} })) …  → '가', '나', …
  * [연계] ← callStream. 요청 모양(모델·effort·JSON 규칙·baseURL 고정·재시도)은 callClaude 와 같다.
  */
-async function* streamClaude(apiKey, { contents, config }) {
+async function* streamClaude(apiKey, { contents, config }, pick) {
+  const p = pick || { model: CLAUDE_MODEL, effort: 'medium' };
   const timeout = callTimeout(config);
   const maxRetries = timeout < CALL_TIMEOUT_MS ? 0 : 1;
   const client = new Anthropic({ apiKey, authToken: null, baseURL: 'https://api.anthropic.com', maxRetries, timeout });
@@ -289,9 +379,9 @@ async function* streamClaude(apiKey, { contents, config }) {
   let got = false;
   try {
     const stream = await client.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 16000,
-      output_config: { effort: 'medium' },
+      model: p.model,
+      max_tokens: claudeMaxTokens(p.effort),
+      output_config: { effort: p.effort },
       ...(wantsJson(config) ? { system: JSON_RULE } : {}),
       messages: [{ role: 'user', content: promptText(contents) }],
       stream: true,
@@ -320,7 +410,8 @@ async function* streamClaude(apiKey, { contents, config }) {
  * ⚠스트림 응답 모양은 OpenAI 호환 규약 기준이다 — 업스테이지 실호출로 확인하지 않았다.
  * [연계] ← callStream.
  */
-async function* streamUpstage(apiKey, { contents, config }) {
+async function* streamUpstage(apiKey, { contents, config }, pick) {
+  const p = pick || { model: UPSTAGE_MODEL, effort: 'medium' };
   const ms = callTimeout(config);
   const timer = firstChunkTimer(ms);
   let got = false;
@@ -331,7 +422,7 @@ async function* streamUpstage(apiKey, { contents, config }) {
     const res = await fetch(UPSTAGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: UPSTAGE_MODEL, messages, reasoning_effort: 'medium', stream: true }),
+      body: JSON.stringify({ model: p.model, messages, reasoning_effort: p.effort, stream: true }),
       signal: timer.signal,
     });
     if (!res.ok) {
@@ -390,8 +481,8 @@ async function callRaw(args, geminiDirect) {
     if (!usable(id, s)) continue;
     bump(id, 'calls');
     let r;
-    if (id === 'claude1' || id === 'claude2') r = await callClaude(KEYS[id], args);
-    else if (id === 'upstage') r = await callUpstage(KEYS[id], args);
+    if (id === 'claude1' || id === 'claude2') r = await callClaude(KEYS[id], args, pickOf(id, s));
+    else if (id === 'upstage') r = await callUpstage(KEYS[id], args, pickOf(id, s));
     else {
       const g = id === 'chatgpt'
         ? await codexBridge.callRaw({ contents, config, caller, model: s.model })
@@ -404,6 +495,7 @@ async function callRaw(args, geminiDirect) {
     if (r.success) {
       bump(id, 'success');
       s.used = id;
+      s.usedModel = usedModelOf(id, s, args);
       if (errs.length) console.warn(`[LLM 사슬] ${NAMES[id]} 가 대신 답함 caller=${caller} 앞선 실패: ${errs.join(' | ')}`);
       const text = wantsJson(config) && id !== 'gemini' ? codexBridge.stripFence(r.text) : r.text;
       return r.raw && id === 'gemini'
@@ -441,14 +533,15 @@ async function* callStream(args, geminiStream) {
     bump(id, 'calls');
     let started = false;
     try {
-      const gen = id === 'claude1' || id === 'claude2' ? streamClaude(KEYS[id], args)
-        : id === 'upstage' ? streamUpstage(KEYS[id], args)
+      const gen = id === 'claude1' || id === 'claude2' ? streamClaude(KEYS[id], args, pickOf(id, s))
+        : id === 'upstage' ? streamUpstage(KEYS[id], args, pickOf(id, s))
         : id === 'chatgpt' ? chatgptOnce({ contents, config, caller, model: s.model })
         : geminiStream(args);
       for await (const t of gen) {
         if (!started) {
           started = true;
           s.used = id;
+          s.usedModel = usedModelOf(id, s, args);
           if (errs.length) console.warn(`[LLM 사슬] ${NAMES[id]} 가 대신 답함(스트림) caller=${caller} 앞선 실패: ${errs.join(' | ')}`);
         }
         yield t;
@@ -469,6 +562,17 @@ async function* callStream(args, geminiStream) {
     return;
   }
   throw new Error(errs.join(' | ') || '사용 가능한 답변 AI 없음');
+}
+
+/**
+ * 답을 쓴 칸의 실제 모델 이름(답변 끝 표시줄용 s.usedModel). ChatGPT 는 요청 범위 모델, Gemini 는 호출이 넘긴 모델.
+ * 예: usedModelOf('claude2', { models:{ claude2:{ model:'claude-opus-5-5', effort:'high' } } }) → 'claude-opus-5-5'
+ * [연계] ← callRaw·callStream. → codex_bridge.answerLabel 이 읽는다.
+ */
+function usedModelOf(id, s, args) {
+  if (id === 'chatgpt') return s.model || codexBridge.DEFAULT_MODEL;
+  if (id === 'gemini') return args && args.model;
+  return pickOf(id, s).model;
 }
 
 /**
@@ -540,10 +644,11 @@ function resetExhausted(id) {
 }
 
 /**
- * 관리자 화면용 상태 — 키 유무(값은 내보내지 않는다)·삭제 여부·소진 여부·쉼 끝 시각(ChatGPT 만, 안 쉬면 null)·오늘 호출 수.
+ * 관리자 화면용 상태 — 키 유무(값은 내보내지 않는다)·삭제 여부·소진 여부·쉼 끝 시각(ChatGPT 만, 안 쉬면 null)·오늘 호출 수
+ *   · ChatGPT 칸만 workerAlive(VM 작업자가 최근 90초 안에 왔나 — 아니면 사슬이 건너뛴다, usable 과 같은 판정).
  * 예: status(['claude1']) → [{ id:'upstage', removed:false, … }, { id:'claude1', removed:true, … }, …]
  * @param {string[]} [removed] - 설정의 providerRemoved(normConfig 결과). 없으면 아무것도 삭제 안 된 것으로.
- * @returns {Array<{id,name,hasKey,removed,exhaustedAt,restUntil,today}>}
+ * @returns {Array<{id,name,hasKey,removed,exhaustedAt,restUntil,today,workerAlive?}>}
  * [연계] ← routes/legal.js GET·POST /api/legal/config
  */
 function status(removed) {
@@ -555,7 +660,8 @@ function status(removed) {
     exhaustedAt: exhausted[id] ? exhausted[id].at : null,
     restUntil: id === 'chatgpt' && Date.now() < chatgptRest.until ? new Date(chatgptRest.until).toISOString() : null,
     today: s.by[id] || { calls: 0, success: 0, fail: 0 },
+    ...(id === 'chatgpt' ? { workerAlive: codexBridge.workerAlive() } : {}),
   }));
 }
 
-module.exports = { PROVIDERS, DEFAULT_ORDER, NAMES, CLAUDE_MODEL, UPSTAGE_MODEL, normOrder, isValidOrder, normRemoved, isValidRemoved, active, callRaw, callStream, isValidReset, resetExhausted, status };
+module.exports = { PROVIDERS, DEFAULT_ORDER, NAMES, CLAUDE_MODEL, UPSTAGE_MODEL, CHOICES, normOrder, isValidOrder, normRemoved, isValidRemoved, isValidModels, normModels, choices, active, callRaw, callStream, isValidReset, resetExhausted, status };

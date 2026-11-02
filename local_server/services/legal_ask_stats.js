@@ -177,10 +177,11 @@ function sumOf(keys) {
 }
 
 /**
- * 관리자 화면용 요약 — 날짜별 목록(최신 먼저)과 오늘·어제·최근 7일·최근 30일 합계(모두 오늘 포함, KST).
- * 예: summary() → { today:'2026-11-02', days:[{date:'2026-11-02', total:5, …}], sums:{ today, yesterday, d7, d30 } }
+ * 관리자 화면용 요약 — 날짜별 목록(최신 먼저)과 오늘·어제·최근 7일·최근 30일 합계(모두 오늘 포함, KST)
+ *   · all = 보관 중인 날짜 전부(최대 365일)의 합 — 관리자 콘솔 「질문 수」 아코디언 머리 「총 N건」(2026-11-02 사용자 요청).
+ * 예: summary() → { today:'2026-11-02', days:[{date:'2026-11-02', total:5, …}], sums:{ today, yesterday, d7, d30, all } }
  * @param {number} [now] - 시험이 고정 시각을 넣을 때만
- * @returns {{today:string, keepDays:number, days:object[], sums:{today:object, yesterday:object, d7:object, d30:object}}}
+ * @returns {{today:string, keepDays:number, days:object[], sums:{today:object, yesterday:object, d7:object, d30:object, all:object}}}
  * [연계] ← routes/legal.js GET /api/legal/admin/ask-stats.
  */
 function summary(now) {
@@ -192,7 +193,7 @@ function summary(now) {
     today: kstDate(t),
     keepDays: KEEP_DAYS,
     days: Object.keys(days).sort().reverse().map((k) => Object.assign({ date: k }, days[k])),
-    sums: { today: sumOf(back(1)), yesterday: sumOf([kstDate(t - DAY_MS)]), d7: sumOf(back(7)), d30: sumOf(back(30)) },
+    sums: { today: sumOf(back(1)), yesterday: sumOf([kstDate(t - DAY_MS)]), d7: sumOf(back(7)), d30: sumOf(back(30)), all: sumOf(Object.keys(days)) },
   };
 }
 
