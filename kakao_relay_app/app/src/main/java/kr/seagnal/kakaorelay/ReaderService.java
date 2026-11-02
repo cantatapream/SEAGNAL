@@ -38,6 +38,7 @@ public class ReaderService extends AccessibilityService {
     private final Runnable timeout = () -> finish("시간 초과");
 
     static boolean isOn() { return instance != null; }
+    static ReaderService get() { return instance; }
 
     /** KakaoNotiService 가 부른다: 알림의 contentIntent 로 대화방을 열고 읽기 시작. */
     static void openAndRead(Context c, PendingIntent pi) {
@@ -59,7 +60,7 @@ public class ReaderService extends AccessibilityService {
     @Override public void onInterrupt() {}
 
     private void start(PendingIntent pi) {
-        if (state != State.IDLE) { again = pi; return; }   // 읽는 중이면 끝난 뒤 다시 읽는다
+        if (state != State.IDLE || Backfill.active()) { again = pi; return; }   // 읽는 중이면 끝난 뒤 다시 읽는다
         if (pi == null) { Config.status(this, "알림에 열기 동작이 없음"); return; }
         found.clear();
         fullOk = false;
@@ -81,6 +82,8 @@ public class ReaderService extends AccessibilityService {
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
+        if (e.getPackageName() != null && Config.KAKAO.contentEquals(e.getPackageName())) Backfill.onDiagEvent(this);
+        if (Backfill.active()) { Backfill.onEvent(this, e); return; }   // 임시 긁어오기 중에는 그쪽이 화면을 다룬다
         if (state == State.IDLE || e.getPackageName() == null) return;
         if (!Config.KAKAO.contentEquals(e.getPackageName())) return;
         handler.removeCallbacks(readNow);
@@ -88,23 +91,27 @@ public class ReaderService extends AccessibilityService {
     }
 
     private void readScreen() {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
+        AccessibilityNodeInfo root = kakaoRoot(this);
         if (root == null) return;
         List<AccessibilityNodeInfo> nodes = new ArrayList<>();
         collect(root, nodes);
 
+        // 대화방 화면에서는 그 대화창 영역 안만 읽는다(태블릿은 왼쪽 목록·오른쪽 대화창 — 목록 미리보기가 섞이지 않게).
+        //   「전체보기」 화면은 제목이 다를 수 있어 카톡 창 전체에서 읽되, 특보 글 중 가장 긴 것을 전문으로 본다.
+        List<AccessibilityNodeInfo> scope = nodes;
+        if (state == State.WAIT_CHAT) {
+            scope = roomNodes(nodes);
+            if (scope == null) return;   // 그 채널 대화방이 아니다(목록·다른 방) — 다음 화면 변화 때 다시 본다
+        }
         List<String> texts = new ArrayList<>();
         AccessibilityNodeInfo more = null;
-        for (AccessibilityNodeInfo n : nodes) {
-            CharSequence t = n.getText();
-            if (t == null) continue;
-            String s = t.toString();
+        for (AccessibilityNodeInfo n : scope) {
+            String s = textOf(n);
+            if (s == null) continue;
             if (s.contains(Config.MARKER)) texts.add(s);
-            else if (s.trim().equals("전체보기")) more = n;   // 카톡은 아주 긴 글을 접어 둔다
+            else if (s.trim().equals("전체보기")) more = n;   // 카톡은 아주 긴 글을 접어 둔다(실제 확인 2026-11-02 태블릿 화면)
         }
         if (texts.isEmpty()) return;   // 아직 그려지는 중 — 다음 화면 변화 때 다시 읽는다
-        // 그 채널 대화방이 맞는지(화면 어딘가에 채널 이름이 보이는지) — 채팅 목록·다른 방이면 읽지 않는다.
-        if (state == State.WAIT_CHAT && !hasChannelTitle(nodes)) return;
 
         if (state == State.WAIT_CHAT) {
             int from = Math.max(0, texts.size() - KEEP_LAST);
@@ -116,21 +123,116 @@ public class ReaderService extends AccessibilityService {
             }
             finish(null);
         } else if (state == State.WAIT_FULL) {
-            found.add(texts.get(texts.size() - 1));
+            String longest = texts.get(0);
+            for (String t : texts) if (t.length() > longest.length()) longest = t;
+            found.add(longest);
             fullOk = true;
             finish(null);
         }
     }
 
-    private static boolean hasChannelTitle(List<AccessibilityNodeInfo> nodes) {
+    static boolean hasChannelTitle(List<AccessibilityNodeInfo> nodes) {
+        return roomNodes(nodes) != null;
+    }
+
+    /**
+     * 그 채널 대화창 영역 안의 노드들. 대화창이 아니면 null.
+     * 제목 = 채널 이름이 든 짧은 글자 중 **넘겨지는 목록 안에 있지 않은 것**(대화방 머리의 고정 제목).
+     *   목록 안의 같은 이름(태블릿 왼쪽 채팅 목록 항목, 말풍선 위 보낸 이 이름)은 제목이 아니다.
+     * 영역 = 제목 아래, 제목 왼쪽 끝에서 제목 높이 2배만큼 왼쪽부터 화면 오른쪽 끝까지
+     *   (태블릿 2026-11-02 화면: 왼쪽 목록 오른쪽 끝 < 대화창 제목 왼쪽 − 2×높이 / 휴대폰은 거의 화면 전체).
+     */
+    static List<AccessibilityNodeInfo> roomNodes(List<AccessibilityNodeInfo> nodes) {
+        // ① 카톡 이름표(id)로 찾는다 — 휴대폰·태블릿 진단 파일(2026-11-02)에서 둘 다 같은 id 확인:
+        //    대화방 제목 toolbar_default_title_text(이름은 설명 칸), 대화 목록 chat_log_recycler_list
+        //    (태블릿 세로: 목록 x144~805 · 대화창 x805~1581). 대화 목록 사각형 안의 노드만 대화방 글로 본다.
+        AccessibilityNodeInfo idTitle = null, pane = null;
         for (AccessibilityNodeInfo n : nodes) {
-            CharSequence t = n.getText();
-            if (t != null && t.length() < 40 && t.toString().contains(Config.CHANNEL)) return true;
+            String id = n.getViewIdResourceName();
+            if (id == null) continue;
+            if (idTitle == null && id.endsWith(":id/toolbar_default_title_text")) {
+                String t = textOf(n);
+                if (t != null && t.contains(Config.CHANNEL)) idTitle = n;
+            } else if (pane == null && id.endsWith(":id/chat_log_recycler_list")) pane = n;
         }
+        if (idTitle != null && pane != null) {
+            android.graphics.Rect pb = new android.graphics.Rect(), b = new android.graphics.Rect();
+            pane.getBoundsInScreen(pb);
+            List<AccessibilityNodeInfo> out = new ArrayList<>();
+            for (AccessibilityNodeInfo n : nodes) {
+                n.getBoundsInScreen(b);
+                if (n == pane || pb.contains(b.centerX(), b.centerY())) out.add(n);
+            }
+            return out;
+        }
+        // ② id 가 바뀌었을 때를 위한 위치 방식(아래).
+        AccessibilityNodeInfo title = null;
+        for (AccessibilityNodeInfo n : nodes) {
+            String t = textOf(n);
+            if (t != null && t.length() < 40 && t.contains(Config.CHANNEL) && !insideScrollable(n)) { title = n; break; }
+        }
+        if (title == null) return null;
+        android.graphics.Rect tb = new android.graphics.Rect(), b = new android.graphics.Rect();
+        title.getBoundsInScreen(tb);
+        int left = Math.max(0, tb.left - 2 * tb.height());
+        List<AccessibilityNodeInfo> out = new ArrayList<>();
+        for (AccessibilityNodeInfo n : nodes) {
+            n.getBoundsInScreen(b);
+            if (b.centerX() >= left && b.centerY() > tb.bottom) out.add(n);
+        }
+        return out;
+    }
+
+    /** 대화창 영역 안에서 넘길 수 있는 목록(가장 큰 것). 없으면 null. */
+    static AccessibilityNodeInfo roomScroller(List<AccessibilityNodeInfo> room) {
+        for (AccessibilityNodeInfo n : room) {
+            String id = n.getViewIdResourceName();
+            if (id != null && id.endsWith(":id/chat_log_recycler_list")) return n;
+        }
+        AccessibilityNodeInfo best = null;
+        long bestArea = -1;
+        android.graphics.Rect b = new android.graphics.Rect();
+        for (AccessibilityNodeInfo n : room) {
+            if (!n.isScrollable()) continue;
+            n.getBoundsInScreen(b);
+            long a = (long) b.width() * b.height();
+            if (a > bestArea) { bestArea = a; best = n; }
+        }
+        return best;
+    }
+
+    private static boolean insideScrollable(AccessibilityNodeInfo n) {
+        for (AccessibilityNodeInfo p = n.getParent(); p != null; p = p.getParent()) if (p.isScrollable()) return true;
         return false;
     }
 
-    private static void collect(AccessibilityNodeInfo n, List<AccessibilityNodeInfo> out) {
+    /**
+     * 노드의 글자. 화면 글자(text)가 없으면 설명(contentDescription)을 쓴다 —
+     * 앱에 따라 제목·말풍선 글자를 설명 칸에만 넣어 두기 때문이다(2026-11-02 휴대폰 시험에서 대화방을 못 알아봄).
+     */
+    static String textOf(AccessibilityNodeInfo n) {
+        CharSequence t = n.getText();
+        if (t == null || t.length() == 0) t = n.getContentDescription();
+        return t == null || t.length() == 0 ? null : t.toString();
+    }
+
+    /**
+     * 카카오톡 창의 뿌리 노드. 지금 활성 창이 카톡이 아니면(접근성 바로가기 버튼 등이 앞에 있을 때)
+     * 화면의 창 목록에서 카톡 창을 찾는다.
+     */
+    static AccessibilityNodeInfo kakaoRoot(AccessibilityService s) {
+        AccessibilityNodeInfo r = s.getRootInActiveWindow();
+        if (r != null && r.getPackageName() != null && Config.KAKAO.contentEquals(r.getPackageName())) return r;
+        try {
+            for (android.view.accessibility.AccessibilityWindowInfo w : s.getWindows()) {
+                AccessibilityNodeInfo wr = w.getRoot();
+                if (wr != null && wr.getPackageName() != null && Config.KAKAO.contentEquals(wr.getPackageName())) return wr;
+            }
+        } catch (Exception ignored) { /* 창 목록을 못 읽으면 활성 창으로 */ }
+        return r;
+    }
+
+    static void collect(AccessibilityNodeInfo n, List<AccessibilityNodeInfo> out) {
         if (n == null) return;
         out.add(n);
         for (int i = 0; i < n.getChildCount(); i++) collect(n.getChild(i), out);
@@ -145,6 +247,13 @@ public class ReaderService extends AccessibilityService {
     }
 
     private boolean fullOk;
+
+    /** 긁어오기가 끝난 뒤 미뤄 둔 실시간 읽기가 있으면 시작한다. [연계] ← Backfill.stop */
+    void resumePending() {
+        PendingIntent next = again;
+        again = null;
+        if (next != null && Config.auto(this)) handler.postDelayed(() -> start(next), 1_500L);
+    }
 
     private void finish(String why) {
         handler.removeCallbacks(timeout);

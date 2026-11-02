@@ -22,6 +22,10 @@ final class Config {
     static String server(Context c) { return prefs(c).getString("server", ""); }
     static String token(Context c) { return prefs(c).getString("token", ""); }
     static String device(Context c) { return prefs(c).getString("device", "tablet"); }
+    /** 자동 중계(알림이 오면 대화방을 열어 읽기 + 30분 신호). 본 휴대폰처럼 긁어오기만 할 기기에서는 끈다. */
+    static boolean auto(Context c) { return prefs(c).getBoolean("auto", true); }
+    /** 알림 글만 보내기(휴대폰용, 사용자 확정 2026-11-02): 자동 중계 중에도 화면을 켜거나 카톡을 열지 않는다. */
+    static boolean notiOnly(Context c) { return prefs(c).getBoolean("notiOnly", false); }
 
     /** 화면에 보여 줄 최근 상태 한 줄을 남긴다. */
     static void status(Context c, String s) {

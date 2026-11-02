@@ -22,6 +22,8 @@ const fs = require('fs'),
 
 const MAX_MESSAGES = 300;
 const MAX_SEEN_KEYS = 3000;
+/** 임시 긁어오기 보관 상한. */
+const MAX_BACKFILL = 5000;
 /** 받은 시각보다 이만큼 지난 특보 줄은 「새 특보」로 치지 않는다. */
 const STALE_WARNING_MS = 24 * 3600e3;
 /** 앱 신호는 30분마다(KakaoNotiService BEAT_MS). 절전으로 늦어질 수 있어 70분 넘게 없으면 끊김으로 본다.
@@ -78,8 +80,9 @@ function parseWarnings(text, now = new Date()) {
  * @returns {{storeMessages:function, heartbeat:function, snapshot:function}}
  * [연계] ← routes/kakao_relay.js
  */
-function createStore({ file } = {}) {
+function createStore({ file, backfillFile } = {}) {
     if (!file) file = path.join(require('../config/server_config').DATA_DIR, 'kakao_relay.json');
+    if (!backfillFile) backfillFile = file.replace(/\.json$/, '') + '_backfill.json';
 
     function load() {
         try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
@@ -168,7 +171,66 @@ function createStore({ file } = {}) {
         return load().heartbeat || null;
     }
 
-    return { storeMessages, heartbeat, snapshot, lastHeartbeat };
+    // ── 임시 「긁어오기」 보관함 (사용자 확정 2026-11-02 「임시로만. 그렇게 가져가면 네가 그 데이터를 보고 분석해줄 수 있도록」) ──
+    //   본 휴대폰 카톡에 이미 쌓인 옛 알림톡을 분석용으로만 모은다. 실시간 기록(file)·특보 줄 중복표(seenKeys)와
+    //   섞지 않는다 — 옛 특보가 「새 특보」로 잡히거나, 앞으로 올 특보를 「이미 봤다」로 막는 일이 없게.
+    //   분석이 끝나면 clearBackfill 로 지운다.
+
+    function loadBackfill() {
+        try { return JSON.parse(fs.readFileSync(backfillFile, 'utf8')); }
+        catch (e) {
+            if (e.code === 'ENOENT') return { messages: [] };
+            throw new Error('긁어오기 파일 손상(' + e.message + ')');
+        }
+    }
+
+    /**
+     * 긁어온 글을 넣는다. 글 본문이 같으면 한 번만. 연도는 화면의 날짜 줄(예 '2026년 11월 2일 일요일')이 있으면 그것으로 정한다.
+     * 예: storeBackfill([{text, date:'2026년 11월 2일 일요일', time:'오후 5:03'}], 'phone') → {added:1, duplicate:0, total:1}
+     * @param {Array<{text:string, date?:string, time?:string}>} items @param {string} device @param {Date} [now]
+     * [연계] ← routes/kakao_relay POST /api/kakao-relay/backfill
+     */
+    function storeBackfill(items, device, now = new Date()) {
+        const db = loadBackfill();
+        const known = new Set(db.messages.map((x) => x.id));
+        let added = 0, duplicate = 0;
+        for (const it of items) {
+            const text = String((it && it.text) || '').trim();
+            if (!text) continue;
+            const id = crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
+            if (known.has(id)) { duplicate++; continue; }
+            known.add(id);
+            const date = it.date ? String(it.date).slice(0, 40) : null;
+            const dm = date && /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/.exec(date);
+            const basis = dm ? new Date(Date.UTC(+dm[1], +dm[2] - 1, +dm[3], 3)) : now; // 그날 정오 KST
+            db.messages.push({
+                id, text, date, time: it.time ? String(it.time).slice(0, 20) : null,
+                device: String(device || ''), receivedAt: now.toISOString(),
+                yearGuessed: !dm,
+                warnings: parseWarnings(text, basis),
+            });
+            added++;
+        }
+        if (db.messages.length > MAX_BACKFILL) db.messages = db.messages.slice(-MAX_BACKFILL);
+        if (added) {
+            const tmp = backfillFile + '.tmp';
+            fs.writeFileSync(tmp, JSON.stringify(db));
+            fs.renameSync(tmp, backfillFile);
+        }
+        return { added, duplicate, total: db.messages.length };
+    }
+
+    /** 긁어온 글 전부(분석용). */
+    function backfillAll() { return loadBackfill(); }
+
+    /** 분석이 끝나면 지운다. 지운 건수를 돌려준다. */
+    function clearBackfill() {
+        const n = loadBackfill().messages.length;
+        try { fs.unlinkSync(backfillFile); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+        return n;
+    }
+
+    return { storeMessages, heartbeat, snapshot, lastHeartbeat, storeBackfill, backfillAll, clearBackfill };
 }
 
 /**
