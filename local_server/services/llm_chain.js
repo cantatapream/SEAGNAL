@@ -208,6 +208,7 @@ async function callClaude(apiKey, { contents, config }) {
     if (!text.trim()) return { success: false, error: 'Claude 빈 응답' };
     return { success: true, text };
   } catch (e) {
+    console.warn('[LLM 사슬] Claude 호출 실패:', e.status || '', String(e.message || e).slice(0, 200));
     return { success: false, error: `Claude ${e.status || ''} ${String(e.message || e).slice(0, 200)}`, creditOut: claudeCreditOut(e) };
   }
 }
@@ -249,6 +250,7 @@ async function callUpstage(apiKey, { contents, config }) {
     if (!text || !String(text).trim()) return { success: false, error: 'Upstage 빈 응답' };
     return { success: true, text: String(text) };
   } catch (e) {
+    console.warn('[LLM 사슬] Upstage 호출 실패:', String(e.message || e).slice(0, 200));
     return { success: false, error: `Upstage ${String(e.message || e).slice(0, 200)}` };
   }
 }
