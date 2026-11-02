@@ -156,23 +156,26 @@ const LUNA = { answerModel: 'gpt-6-luna', codexForUsers: false };
   console.log('\n── ⑤ 관리자 센터 설정(작업자 연결됨) ──');
   {
     const w = fakeRes(); bridge.poll(fakeReq({}, secretH), w);   // 작업자가 방금 왔다
+    // [2026-11-02] 평소 질문(④)은 ChatGPT 직행이 아니라 답변 AI 사슬(services/llm_chain.js)로 간다.
+    //   'chain:<모델>' = 사슬 표시 + ChatGPT 칸이 쓸 모델(null 이면 ChatGPT 칸 건너뜀). 헤더는 codex 직행(시험 llm:codex)만.
     const cases = [
-      ['설정 Luna + 관리자 기기(llm 없음) → codex·Luna', {}, { 'X-Admin-Token': 'GOOD' }, LUNA, true, 'gpt-6-luna'],
-      ['설정 Luna + 일반 사용자 + 사용자 스위치 꺼짐 → Gemini·헤더 없음(바이트 동일)', {}, {}, LUNA, false, null],
-      ['설정 Luna + 일반 사용자 + 사용자 스위치 켜짐 → codex', {}, {}, { answerModel: 'gpt-6-luna', codexForUsers: true }, true, 'gpt-6-luna'],
-      ['설정 gemini + 사용자 스위치 켜짐 → Gemini(모델이 gemini 면 codex 안 씀)', {}, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'gemini', codexForUsers: true }, false, null],
-      ['설정 Sol + 관리자 기기 → codex·Sol', {}, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'gpt-6-sol' }, true, 'gpt-6-sol'],
-      ['시험 llm:gemini + 관리자 + 설정 Luna → Gemini(비교 기준군)', { llm: 'gemini' }, { 'X-Admin-Token': 'GOOD' }, LUNA, false, null],
-      ['시험 llm:codex + 설정 gemini → codex·기본 Luna', { llm: 'codex' }, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'gemini' }, true, 'gpt-6-luna'],
-      ['틀린 모델 이름이 설정에 들어와도 codex 로 안 감', {}, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'rm -rf' }, false, null],
+      ['설정 Luna + 관리자 기기(llm 없음) → 사슬·Luna', {}, { 'X-Admin-Token': 'GOOD' }, LUNA, 'chain:gpt-6-luna', null],
+      ['설정 Luna + 일반 사용자 + 사용자 스위치 꺼짐 → Gemini·헤더 없음(바이트 동일)', {}, {}, LUNA, 'gemini', null],
+      ['설정 Luna + 일반 사용자 + 사용자 스위치 켜짐 → 사슬', {}, {}, { answerModel: 'gpt-6-luna', codexForUsers: true }, 'chain:gpt-6-luna', null],
+      ['설정 gemini + 사용자 스위치 켜짐 → 사슬·ChatGPT 칸 없음', {}, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'gemini', codexForUsers: true }, 'chain:null', null],
+      ['설정 Sol + 관리자 기기 → 사슬·Sol', {}, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'gpt-6-sol' }, 'chain:gpt-6-sol', null],
+      ['시험 llm:gemini + 관리자 + 설정 Luna → Gemini(비교 기준군)', { llm: 'gemini' }, { 'X-Admin-Token': 'GOOD' }, LUNA, 'gemini', null],
+      ['시험 llm:codex + 설정 gemini → codex·기본 Luna', { llm: 'codex' }, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'gemini' }, 'codex', 'gpt-6-luna'],
+      ['틀린 모델 이름이 설정에 들어와도 ChatGPT 칸에 안 실림', {}, { 'X-Admin-Token': 'GOOD' }, { answerModel: 'rm -rf' }, 'chain:null', null],
     ];
+    const where = () => { const st = bridge.store(); return !st ? 'gemini' : st.codex ? 'codex' : 'chain:' + st.model; };
     for (const [name, body, headers, cfg, want, model] of cases) {
-      const r = through(body, headers, () => bridge.active(), cfg);
+      const r = through(body, headers, where, cfg);
       const gotModel = r.res.headers['X-Nrya-Model'] || null;
-      ok(name, r.out === want && gotModel === model, JSON.stringify({ active: r.out, headers: r.res.headers }));
+      ok(name, r.out === want && gotModel === model, JSON.stringify({ where: r.out, headers: r.res.headers }));
     }
     const { job } = await roundTrip(() => {
-      let p; through({}, { 'X-Admin-Token': 'GOOD' }, () => { p = bridge.callRaw({ contents: 'M', caller: 'm' }); }, { answerModel: 'gpt-6-astra' });
+      let p; through({ llm: 'codex' }, { 'X-Admin-Token': 'GOOD' }, () => { p = bridge.callRaw({ contents: 'M', caller: 'm' }); }, { answerModel: 'gpt-6-astra' });
       return p;
     }, { ok: true, text: 'x' });
     ok('일감에 설정 모델이 실려 작업자에게 간다', job && job.model === 'gpt-6-astra', JSON.stringify(job));

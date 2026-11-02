@@ -67,6 +67,7 @@ const effectiveDate = require('../services/effective_date');   // 지식 방 '�
 const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
 const codexBridge = require('../services/codex_bridge');   // 관리자 전용 Codex 개발자 모드(삼중 잠금)
+const llmChain = require('../services/llm_chain');   // [답변 AI 사슬 · 2026-11-02] 순서(providerOrder)·소진 해제·상태
 const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
 const wikiBrief = require('../services/legal_wiki_brief');
@@ -280,6 +281,9 @@ function normConfig(c) {
     //   실제 적용은 codexBridge.withRequest 가 한다 — NRYA_CODEX_SECRET 이 없는 서버에서는 둘 다 효과 없음.
     answerModel: codexBridge.ANSWER_MODELS.includes(c.answerModel) ? c.answerModel : codexBridge.DEFAULT_MODEL,
     codexForUsers: c.codexForUsers === true,
+    // [답변 AI 사슬 · 2026-11-02 사용자 확정] 시도 순서(기본 업스테이지→클로드1→클로드2→ChatGPT→Gemini).
+    //   적용 범위는 codexForUsers·관리자 토큰과 같다(codexBridge.withRequest ④).
+    providerOrder: llmChain.normOrder(c.providerOrder),
   };
 }
 // POST /api/legal/config 가 받는 boolean 스위치 목록(위 normConfig 와 1:1).
@@ -306,7 +310,9 @@ function clarifyRoundNext(ctx) {
   return (Number.isFinite(prev) && prev > 0 ? prev : 0) + 1;
 }
 router.get('/api/legal/config', (req, res) => {
-  res.json(Object.assign({ ok: true }, normConfig(readConfig())));
+  // 이 GET 은 일반 사용자도 노출 설정을 읽으려 부른다 → providerStatus(키 유무·소진·오늘 호출 수)는 관리자 토큰이 있을 때만.
+  const isAdmin = adminAuth.verifyToken(req.get('X-Admin-Token') || '');
+  res.json(Object.assign({ ok: true }, normConfig(readConfig()), isAdmin ? { providerStatus: llmChain.status() } : {}));
 });
 router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   const b = req.body || {};
@@ -314,18 +320,25 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     return res.status(400).json({ ok: false, error: 'exposure는 off|admin|user' });
   if (b.answerModel !== undefined && !codexBridge.ANSWER_MODELS.includes(b.answerModel))
     return res.status(400).json({ ok: false, error: `answerModel은 ${codexBridge.ANSWER_MODELS.join('|')}` });
+  if (b.providerOrder !== undefined && !llmChain.isValidOrder(b.providerOrder))
+    return res.status(400).json({ ok: false, error: `providerOrder는 ${llmChain.PROVIDERS.join(',')} 다섯 개를 한 번씩 담은 배열` });
+  if (b.providerReset !== undefined && !llmChain.isValidReset(b.providerReset))
+    return res.status(400).json({ ok: false, error: `providerReset은 ${llmChain.PROVIDERS.join('|')}|all` });
   for (const k of BOOL_SWITCHES) {
     if (b[k] !== undefined && typeof b[k] !== 'boolean')
       return res.status(400).json({ ok: false, error: `${k}는 true|false` });
   }
+  // 소진 해제는 검사가 전부 통과한 뒤에만(400 으로 거절된 요청이 해제만 남기지 않게).
+  if (b.providerReset !== undefined) llmChain.resetExhausted(b.providerReset);
   withLock(async () => {
     const cur = normConfig(readConfig());                       // 기존 필드 보존(머지) — 한 필드 갱신이 다른 필드 삭제 안 하게
     if (b.exposure !== undefined) cur.exposure = b.exposure;
     if (b.answerModel !== undefined) cur.answerModel = b.answerModel;
+    if (b.providerOrder !== undefined) cur.providerOrder = b.providerOrder.slice();
     for (const k of BOOL_SWITCHES) if (b[k] !== undefined) cur[k] = b[k];
     writeFileAtomic(CONFIG_FILE, JSON.stringify(Object.assign(cur, { updatedAt: new Date().toISOString() }), null, 1));
     return cur;
-  }).then(v => res.json(Object.assign({ ok: true }, normConfig(v)))).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
+  }).then(v => res.json(Object.assign({ ok: true }, normConfig(v), { providerStatus: llmChain.status() }))).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
 // GET /api/legal/reviews/stats — 카운트
