@@ -1,0 +1,16 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20261102-132930-203",
+ "files": [
+  "local_server/knowledge/legal/_legacy/농수산물의원산지표시등에관한법률/20251001/시행령.txt",
+  "local_server/knowledge/legal/_legacy/농수산물의원산지표시등에관한법률/20251001/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/_legacy/농수산물의원산지표시등에관한법률/20251001/별표/시행령_별표1의2.txt",
+  "local_server/knowledge/legal/_legacy/농수산물의원산지표시등에관한법률/20251001/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/시행령.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/별표/시행령_별표1의2.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/별표/_links.json",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/_meta.json"
+ ]
+}
