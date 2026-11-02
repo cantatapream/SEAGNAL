@@ -8,7 +8,9 @@
  *  - 사용하는 파일 : services/kakao_relay(분해·저장) · services/admin_auth(관리자 조회)
  *  - 서버 API      : POST·GET /api/kakao-relay/messages · POST /api/kakao-relay/heartbeat · POST /api/kakao-relay/seed ·
  *                    POST·GET·DELETE /api/kakao-relay/backfill(임시 긁어오기 — 분석용, 같은 열쇠) ·
- *                    GET /api/admin/kakao-relay · POST /api/admin/kakao-relay/device(기기 끄기·켜기·지우기)
+ *                    GET /api/admin/kakao-relay · POST /api/admin/kakao-relay/device(기기 끄기·켜기·지우기) ·
+ *                    GET /api/admin/kakao-relay/compare?day=YYYY-MM-DD(비교현황 — services/kakao_shadow.summarize) ·
+ *                    GET /api/admin/kakao-relay/report.md?day=YYYY-MM-DD|all(마크다운 보고서 내려받기)
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : server.js(등록) · kakao_relay_app(안드로이드 앱) · 검사 test_kakao_relay
  * [로드 순서] server.js 에서 routes/admin 보다 먼저 등록한다(자체 인증).
@@ -49,6 +51,8 @@ function createRouter({
     store = createStore(),
     getSecret = () => process.env.KAKAO_RELAY_TOKEN,
     authorize = adminAuth.requireAdminToken,
+    summarize = (o) => require('../services/kakao_shadow').summarize(o),
+    report = (o) => require('../services/kakao_shadow').reportMarkdown(o),
 } = {}) {
     const router = express.Router();
     const auth = relayAuth(getSecret);
@@ -125,6 +129,26 @@ function createRouter({
         if (!b.device || !['enable', 'disable', 'remove'].includes(b.action)) return res.status(400).json({ ok: false, error: 'device·action(enable|disable|remove) 필요' });
         try { res.json(store.setDevice(String(b.device), b.action)); }
         catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+    });
+
+    // 비교현황 창 — 카톡판 특보현황과 앱 특보현황(MMIS)의 시간대별 비교(services/kakao_shadow.summarize).
+    router.get('/api/admin/kakao-relay/compare', authorize, (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        try { res.json(summarize({ day: String(req.query.day || '') })); }
+        catch (e) { console.warn('[kakao_relay] 비교현황 읽기 실패:', e.message); res.status(500).json({ ok: false, error: e.message }); }
+    });
+
+    // 마크다운 보고서 내려받기(day=YYYY-MM-DD 또는 all) — 사람이 읽고, 그대로 AI 에게 줘서 분석할 수 있게.
+    router.get('/api/admin/kakao-relay/report.md', authorize, (req, res) => {
+        const day = String(req.query.day || '');
+        try {
+            const md = report({ day });
+            const name = 'kakao_relay_report_' + (day === 'all' ? 'all' : (/^\d{4}-\d{2}-\d{2}$/.test(day) ? day : 'today')) + '.md';
+            res.set('Cache-Control', 'no-store');
+            res.set('Content-Type', 'text/markdown; charset=utf-8');
+            res.set('Content-Disposition', 'attachment; filename="' + name + '"');
+            res.send(md);
+        } catch (e) { console.warn('[kakao_relay] 보고서 만들기 실패:', e.message); res.status(500).json({ ok: false, error: e.message }); }
     });
 
     router.get('/api/admin/kakao-relay', authorize, (req, res) => {

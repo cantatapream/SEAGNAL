@@ -317,7 +317,8 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     console.log('C. 라우트');
     const app = express(); app.use(express.json());
     let secret = 'k';
-    app.use(createRouter({ store: st, getSecret: () => secret, authorize: (q, s, n) => n() }));
+    let sumArg = null;
+    app.use(createRouter({ store: st, getSecret: () => secret, authorize: (q, s, n) => n(), summarize: (o) => { sumArg = o; return { day: o.day || 'today', hours: [] }; }, report: (o) => '# 보고서 ' + o.day }));
     const srv = http.createServer(app).listen(0);
     const port = srv.address().port;
     const call = (m, p, body, h = {}) => new Promise((res) => {
@@ -347,6 +348,10 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     ok('실시간 기록 읽기는 열쇠 필요', (await call('GET', '/api/kakao-relay/messages')).status === 401);
     x = await call('GET', '/api/kakao-relay/messages?n=1', null, { 'X-Relay-Token': 'k' });
     ok('실시간 기록 읽기(열쇠)', x.status === 200 && x.body.messages.length === 1 && 'heartbeat' in x.body, x.body);
+    x = await call('GET', '/api/admin/kakao-relay/compare?day=2026-11-03');
+    ok('비교현황(관리자) — 날짜를 넘겨 요약을 돌려줌', x.status === 200 && sumArg && sumArg.day === '2026-11-03' && x.body.day === '2026-11-03', x.body);
+    x = await new Promise((resolve) => http.get({ port: srv.address().port, path: '/api/admin/kakao-relay/report.md?day=all' }, (r) => { let d = ''; r.on('data', (c) => d += c); r.on('end', () => resolve({ status: r.statusCode, h: r.headers, d })); }));
+    ok('보고서 내려받기 — 마크다운·파일 이름', x.status === 200 && /text\/markdown/.test(x.h['content-type']) && /kakao_relay_report_all\.md/.test(x.h['content-disposition']) && x.d === '# 보고서 all', x);
     console.log('F. 임시 긁어오기');
     secret = 'k';
     x = await call('POST', '/api/kakao-relay/backfill', { device: 'p', messages: [{ text: HEAD + '서해남부북쪽안쪽먼바다,\n풍랑주의보 12월 30일 17시 00분 발효', date: '2025년 12월 30일 화요일', time: '오후 5:03' }, { text: 'b2' }] }, { 'X-Relay-Token': 'k' });
