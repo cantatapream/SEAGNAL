@@ -252,6 +252,25 @@ def unapproved_dates_of(law_slug, idx, ids):
     return out
 
 
+def add_history_row(out, note):
+    """「## 변경 이력」 표의 **마지막 표 행 바로 뒤**에 한 줄을 넣는다. 절이나 표가 없으면 절을 새로 단다.
+
+    ★왜 「절 끝」이 아니라 「마지막 표 행 뒤」인가 (2026-11-02 실측) — 표 뒤에 인용문
+      (`> AI 재검증 승급 …`)이 붙은 쪽이 있다. 종전에는 절 끝에 붙여 줄이 **표 밖**으로 나가
+      표의 한 행으로 읽히지 않았다(수산업법__유어와무허가어업금지 · 수산종자산업육성법__수산종자유통품질표시).
+    예: add_history_row('## 변경 이력\\n\\n| a |\\n|---|\\n| 1 |\\n\\n> 메모\\n', '| 2 |')
+        → '## 변경 이력\\n\\n| a |\\n|---|\\n| 1 |\\n| 2 |\\n\\n> 메모\\n'
+    @param {str} out 위키 본문 · @param {str} note 넣을 표 행 · @returns {str}
+    [연계] fold_wiki() · test_pending_law.js T-fold-3
+    """
+    m = re.search(r'^## 변경 이력\s*\n(?:.*\n)*?(?=\n?## |\Z)', out, re.M)
+    rows = list(re.finditer(r'^\|.*$', m.group(0), re.M)) if m else []
+    if rows:
+        at = m.start() + rows[-1].end()
+        return out[:at] + '\n' + note + out[at:]
+    return out.rstrip('\n') + '\n\n## 변경 이력\n\n| 날짜 | 무엇이 바뀜 | 출처 |\n|---|---|---|\n' + note + '\n'
+
+
 def fold_wiki(today, dry, touched, ids, allow_unapproved=False):
     n = held = 0
     idx = cpl.build_index()
@@ -281,12 +300,7 @@ def fold_wiki(today, dry, touched, ids, allow_unapproved=False):
         if out == src:
             continue
         note = f"| {stamp} | 시행일 마커 접기 — 시행 {', '.join(dates)} 서술을 본문으로, 시행전 서술 삭제 | fold_effective.py |"
-        m = re.search(r'^## 변경 이력\s*\n(?:.*\n)*?(?=\n?## |\Z)', out, re.M)
-        if m and re.search(r'^\|', m.group(0), re.M):
-            block = m.group(0).rstrip('\n') + '\n' + note + '\n'
-            out = out[:m.start()] + block + out[m.end():]
-        else:
-            out = out.rstrip('\n') + '\n\n## 변경 이력\n\n| 날짜 | 무엇이 바뀜 | 출처 |\n|---|---|---|\n' + note + '\n'
+        out = add_history_row(out, note)
         print(f"✎ {os.path.relpath(p, WIKI)} — 시행 {', '.join(dates)} 접음")
         if not dry:
             open(p, 'w', encoding='utf-8').write(out); touched.add(p)

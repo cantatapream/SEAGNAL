@@ -35,11 +35,12 @@
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
- *                    POST /api/legal/config {answerModel|codexForUsers|providerOrder|providerReset} (답변 AI 모델·일반 사용자 적용·AI 순서·소진 해제, 관리자)
+ *                    POST /api/legal/config {answerModel|codexForUsers|providerOrder|providerRemoved|providerReset} (답변 AI 모델·일반 사용자 적용·AI 순서·AI 삭제/다시 추가·소진 해제, 관리자)
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토·원문신선도 실카운트)
+ *                    GET  /api/legal/admin/ask-stats           (질문 수 — 날짜별 KST·1년 보관·숫자만. 「질문 수」 카드)
  *                    GET  /api/legal/freshness?status=pending  (원문신선도 — 낡은 행정규칙 원문 목록
  *                                                               + last: 마지막 점검이 언제·어떻게 끝났나)
  *                    POST /api/legal/freshness/:id/decide       (처리완료/해당없음)
@@ -172,6 +173,9 @@
   //   서버 /api/legal/config 의 providerOrder·providerStatus 가 진실의 원천.
   var serverProviderOrder = ['upstage', 'claude2', 'claude1', 'chatgpt', 'gemini'];
   var serverProviderStatus = [];
+  // [AI 삭제 · 2026-11-02 사용자 요청] 관리자가 [삭제]로 사슬에서 뺀 AI(서버 providerRemoved). 순서 목록에서 숨기고 아래 「삭제된 AI」로 보인다.
+  var serverProviderRemoved = [];
+  var PROVIDER_NAME = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT(VM)', gemini: 'Gemini' };
   var statsCache = null;                       // {total,pending,approved} — 배지용
   var adminStatsCache = null;                  // {draft,feedback,candidates,amendments} — 서브탭 배지용
   var curAdminSubtab = '⚠수치검증';            // renderSubtabs가 마지막으로 그린 활성 탭(재갱신 시 유지용)
@@ -453,8 +457,14 @@
                 '<div id="nryaOrderList"></div>' +
                 '<div class="nrya-seg-help">위에서부터 시도합니다. 크레딧이 떨어진 AI 는 「소진」으로 표시되고 건너뜁니다 — 충전 후 [소진 해제]를 누르세요. ' +
                   '일시 오류(응답 지연 등)는 그 질문만 다음 AI 가 대신 답합니다. ' +
-                  'ChatGPT 는 연속 3번 실패하면 30분 「쉬는 중」이 되고 그 뒤 자동으로 다시 시도합니다([소진 해제]로 바로 풀 수 있음).</div>' +
+                  'ChatGPT 는 연속 3번 실패하면 30분 「쉬는 중」이 되고 그 뒤 자동으로 다시 시도합니다([소진 해제]로 바로 풀 수 있음). ' +
+                  '더 이상 쓰지 않는 AI 는 [삭제]로 순서에서 뺄 수 있고(Gemini 는 마지막 안전망이라 뺄 수 없음), [다시 추가]로 되돌립니다.</div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
+              '</div>' +
+              // [질문 수 · 2026-11-02 사용자 확정] 날짜별 집계(KST·1년 보관·질문 내용은 저장 안 함). GET /api/legal/admin/ask-stats.
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>질문 수 (KST 날짜별 · 1년 보관 · 내용은 저장 안 함)</div>' +
+                '<div id="nryaAskStats" class="nrya-seg-help">불러오는 중…</div>' +
               '</div>' +
               '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
               '<div class="nrya-subtabs" id="nryaSubtabs"></div>' +
@@ -491,6 +501,42 @@
     refreshRoomStats();   // 지식 방 갈래 버튼 6개 숫자·인트로 칩(실데이터)
     refreshStats();
     refreshAdminStats();
+    refreshAskStats();    // 「질문 수」 카드
+  }
+
+  /**
+   * 「질문 수」 카드를 서버 집계로 채운다 — 줄은 항목(전체·관리자·일반·AI별·실패·되묻기), 칸은 오늘·어제·7일·30일.
+   * 예: 전체 | 12 | 30 | 140 | 520
+   * 「전체」는 답변·실패로 끝난 질문만 센다(되묻기 카드는 같은 질문이 다시 오므로 따로 「되묻기」 줄).
+   * [연계] → GET /api/legal/admin/ask-stats(관리자 토큰 — services/legal_ask_stats.js summary). ← renderAdminInto(콘솔 열 때).
+   *          실패하면 숫자를 지어내지 않고 이유 한 줄만 보인다.
+   */
+  function refreshAskStats() {
+    var box = document.getElementById('nryaAskStats'); if (!box) return;
+    legalGet('/api/legal/admin/ask-stats').then(function (res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return null; });
+    }).then(function (d) {
+      box = document.getElementById('nryaAskStats'); if (!box) return;
+      if (d && d._denied) { box.textContent = '관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 여세요.'; return; }
+      if (!d || !d.ok || !d.sums) { box.textContent = '질문 수를 불러오지 못했습니다.'; return; }
+      var P = ['today', 'yesterday', 'd7', 'd30'];
+      var ROWS = [['전체', function (r) { return r.total; }], ['· 관리자', function (r) { return r.admin; }], ['· 일반 사용자', function (r) { return r.user; }],
+        ['업스테이지', function (r) { return r.ai.upstage; }], ['클로드 키1', function (r) { return r.ai.claude1; }], ['클로드 키2', function (r) { return r.ai.claude2; }],
+        ['ChatGPT', function (r) { return r.ai.chatgpt; }], ['Gemini', function (r) { return r.ai.gemini; }], ['AI 없이 정해진 답(해역 트리)', function (r) { return r.ai.rule; }],
+        ['실패(답을 못 냄)', function (r) { return r.failed; }], ['되묻기 카드(전체에 안 셈)', function (r) { return r.clarify; }]];
+      var td = 'style="padding:5px 4px;text-align:right;border-bottom:1px solid rgba(148,163,184,.15)"';
+      box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
+        '<tr><th style="text-align:left;padding:5px 4px;color:#94a3b8;font-weight:400">' + esc(d.today || '') + '</th>' +
+        ['오늘', '어제', '7일', '30일'].map(function (h) { return '<th style="text-align:right;padding:5px 4px;color:#94a3b8;font-weight:400">' + h + '</th>'; }).join('') + '</tr>' +
+        ROWS.map(function (row) {
+          return '<tr><td style="padding:5px 4px;border-bottom:1px solid rgba(148,163,184,.15)">' + esc(row[0]) + '</td>' +
+            P.map(function (p) { return '<td ' + td + '>' + esc(row[1](d.sums[p])) + '</td>'; }).join('') + '</tr>';
+        }).join('') + '</table>' +
+        '<div style="margin-top:6px">7일·30일은 오늘 포함. 「전체」는 답변·실패로 끝난 질문 수입니다(되묻기를 거쳐도 한 번).</div>';
+    }).catch(function () {
+      box = document.getElementById('nryaAskStats'); if (box) box.textContent = '질문 수를 불러오지 못했습니다(네트워크 오류).';
+    });
   }
 
   /**
@@ -547,12 +593,27 @@
     });
     root.querySelector('#nryaOrderList').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-act]'); if (!b) return;
-      var id = b.dataset.id, i = serverProviderOrder.indexOf(id);
+      var id = b.dataset.id;
       if (b.dataset.act === 'reset') return setAnswerConfig({ providerReset: id });
-      var j = b.dataset.act === 'up' ? i - 1 : i + 1;
-      if (i < 0 || j < 0 || j >= serverProviderOrder.length) return;
-      var next = serverProviderOrder.slice(); next[i] = next[j]; next[j] = id;
-      setAnswerConfig({ providerOrder: next });
+      // 보이는 줄(삭제 안 된 AI)끼리 움직이고, 서버에는 다섯 개 순열로 보낸다(삭제된 AI 는 맨 뒤에 붙인다 — 사슬이 건너뛰므로 자리는 상관없다).
+      var vis = visibleOrder(), hid = serverProviderOrder.filter(function (x) { return vis.indexOf(x) < 0; });
+      if (b.dataset.act === 'remove') {
+        if (id === 'gemini' || !window.confirm('정말 삭제하시겠습니까?\n(' + (PROVIDER_NAME[id] || id) + '을(를) 답변 순서에서 뺍니다. Fly.io 키는 지워지지 않습니다)')) return;
+        return setAnswerConfig({ providerRemoved: serverProviderRemoved.concat([id]) });
+      }
+      if (b.dataset.act === 'restore') {
+        // 다시 추가 — 보이는 줄의 맨 뒤, 맨 뒤가 Gemini(마지막 안전망)면 그 바로 앞.
+        var at = vis[vis.length - 1] === 'gemini' ? vis.length - 1 : vis.length;
+        var back = vis.slice(); back.splice(at, 0, id);
+        return setAnswerConfig({
+          providerOrder: back.concat(hid.filter(function (x) { return x !== id; })),
+          providerRemoved: serverProviderRemoved.filter(function (x) { return x !== id; }),
+        });
+      }
+      var i = vis.indexOf(id), j = b.dataset.act === 'up' ? i - 1 : i + 1;
+      if (i < 0 || j < 0 || j >= vis.length) return;
+      var next = vis.slice(); next[i] = next[j]; next[j] = id;
+      setAnswerConfig({ providerOrder: next.concat(hid) });
     });
     paintModelSeg();
   }
@@ -584,16 +645,28 @@
   }
 
   /**
-   * 답변 AI 순서 목록을 그린다 — 줄마다 순번·이름·상태(키 없음/소진/쉬는 중/오늘 n회)·▲▼·[소진 해제].
-   * 예: 1. 업스테이지 · 정상 · 오늘 3회(성공 3) [▲][▼]
-   * [연계] ← paintModelSeg. 클릭은 initModelSeg 가 받아 setAnswerConfig({providerOrder|providerReset}).
+   * 순서 목록에 보이는 AI(삭제 안 된 것)를 순서대로. 예: 순서 [upstage,claude2,…] · 삭제 [claude2] → [upstage,claude1,chatgpt,gemini]
+   * @returns {string[]}
+   * [연계] ← paintOrderList(그리기)·initModelSeg(▲▼·다시 추가 자리 계산).
+   */
+  function visibleOrder() {
+    return serverProviderOrder.filter(function (id) { return serverProviderRemoved.indexOf(id) < 0; });
+  }
+
+  /**
+   * 답변 AI 순서 목록을 그린다 — 줄마다 순번·이름·상태(키 없음/소진/쉬는 중/오늘 n회)·[소진 해제]·▲▼·[삭제](Gemini 줄 없음).
+   * 목록 아래에 「삭제된 AI: ○○ [다시 추가]」.
+   * 예: 1. 업스테이지 · 정상 · 오늘 3회(성공 3) [▲][▼][삭제]
+   * [연계] ← paintModelSeg. 클릭은 initModelSeg 가 받아 setAnswerConfig({providerOrder|providerRemoved|providerReset}).
    */
   function paintOrderList() {
     var box = document.getElementById('nryaOrderList'); if (!box) return;
     var byId = {}; serverProviderStatus.forEach(function (x) { byId[x.id] = x; });
-    var NAME = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT(VM)', gemini: 'Gemini' };
-    var n = serverProviderOrder.length;
-    box.innerHTML = serverProviderOrder.map(function (id, i) {
+    var NAME = PROVIDER_NAME;
+    var vis = visibleOrder();
+    var n = vis.length;
+    var btn = 'style="border:1px solid #334155;background:none;color:inherit;border-radius:6px;padding:3px 8px;margin-left:4px;cursor:pointer"';
+    box.innerHTML = vis.map(function (id, i) {
       var st = byId[id] || {};
       var t = st.today || { calls: 0, success: 0 };
       // restUntil — ChatGPT 칸 연속 3회 실패로 쉬는 끝 시각(ISO, 서버 llm_chain.status). KST 시:분으로 보인다.
@@ -602,7 +675,6 @@
         : rest ? '<span style="color:#fbbf24">쉬는 중(' + rest + ' KST까지)</span>'
         : st.hasKey === false ? '<span style="color:#94a3b8">키 없음(건너뜀)</span>'
         : '<span style="color:#4ade80">정상</span>';
-      var btn = 'style="border:1px solid #334155;background:none;color:inherit;border-radius:6px;padding:3px 8px;margin-left:4px;cursor:pointer"';
       return '<div style="display:flex;align-items:center;gap:6px;padding:6px 2px;border-bottom:1px solid rgba(148,163,184,.15);font-size:12.5px">' +
         '<b style="width:18px">' + (i + 1) + '.</b>' +
         '<span style="flex:1">' + esc(NAME[id] || id) + ' · ' + badge +
@@ -610,14 +682,19 @@
         (st.exhaustedAt || rest ? '<button data-act="reset" data-id="' + id + '" ' + btn + '>소진 해제</button>' : '') +
         '<button data-act="up" data-id="' + id + '" ' + btn + (i === 0 ? ' disabled' : '') + '>▲</button>' +
         '<button data-act="down" data-id="' + id + '" ' + btn + (i === n - 1 ? ' disabled' : '') + '>▼</button>' +
+        (id === 'gemini' ? '' : '<button data-act="remove" data-id="' + id + '" ' + btn + '>삭제</button>') +
       '</div>';
-    }).join('');
+    }).join('') + (serverProviderRemoved.length
+      ? '<div style="padding:8px 2px;font-size:12.5px;color:#94a3b8">삭제된 AI: ' + serverProviderRemoved.map(function (id) {
+          return esc(NAME[id] || id) + ' <button data-act="restore" data-id="' + id + '" ' + btn + '>다시 추가</button>';
+        }).join(' · ') + '</div>'
+      : '');
   }
 
   /**
    * 답변 AI 모델 또는 일반 사용자 스위치를 서버에 저장(관리자 전용)한다.
    * 예: setAnswerConfig({ answerModel: 'gpt-6-sol' }) · setAnswerConfig({ codexForUsers: false })
-   * @param {{answerModel?:string, codexForUsers?:boolean, providerOrder?:string[], providerReset?:string}} patch
+   * @param {{answerModel?:string, codexForUsers?:boolean, providerOrder?:string[], providerRemoved?:string[], providerReset?:string}} patch
    * [연계] → POST /api/legal/config. ← initModelSeg 클릭.
    */
   function setAnswerConfig(patch) {
@@ -633,6 +710,7 @@
       serverAnswerModel = data.answerModel || serverAnswerModel;
       serverCodexForUsers = data.codexForUsers === true;
       if (Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
+      if (Array.isArray(data.providerRemoved)) serverProviderRemoved = data.providerRemoved;
       if (Array.isArray(data.providerStatus)) serverProviderStatus = data.providerStatus;
       paintModelSeg();
     }).catch(function (e) {
@@ -662,6 +740,7 @@
       if (data && data.ok && typeof data.answerModel === 'string') serverAnswerModel = data.answerModel;
       if (data && data.ok) serverCodexForUsers = data.codexForUsers === true;
       if (data && data.ok && Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
+      if (data && data.ok && Array.isArray(data.providerRemoved)) serverProviderRemoved = data.providerRemoved;
       if (data && data.ok && Array.isArray(data.providerStatus)) serverProviderStatus = data.providerStatus;
       configLoaded = true;
       paintSeg();

@@ -1,0 +1,20 @@
+{
+ "script": "fold_effective",
+ "stamp": "20261021-072109-198",
+ "files": [
+  "local_server/knowledge/legal/_legacy/raw/05_수산어업/수산업법/법률_시행20260423_MST270747.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/법률.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산업법/_meta.json",
+  "local_server/knowledge/legal/_legacy/raw/12_수산물유통/농수산물의원산지표시등에관한법률/법률_시행20220101_MST237105.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/법률.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json",
+  "local_server/knowledge/legal/wiki/concepts/농수산물의원산지표시등에관한법률__수산물원산지표시.md",
+  "local_server/knowledge/legal/wiki/concepts/농수산물의원산지표시등에관한법률__원산지거짓표시위장판매.md",
+  "local_server/knowledge/legal/wiki/concepts/농수산물의원산지표시등에관한법률__음식점원산지표시.md",
+  "local_server/knowledge/legal/wiki/concepts/수산업법__면허어업과어업권.md",
+  "local_server/knowledge/legal/wiki/concepts/수산업법__유어와무허가어업금지.md",
+  "local_server/knowledge/legal/wiki/concepts/수산종자산업육성법__수산종자유통품질표시.md",
+  "local_server/knowledge/legal/wiki/statutes/농수산물의원산지표시등에관한법률.md"
+ ]
+}

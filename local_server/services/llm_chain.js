@@ -11,13 +11,14 @@
  * ============================================================================
  * [사용자 확정 2026-11-02] 범위는 ChatGPT(codex)와 같다(/api/legal/ask). 순서는 관리자 센터에서 바꾼다.
  *   「넘어가는 조건」은 크레딧이 다 떨어졌을 때.
+ *   관리자 센터 [삭제]로 뺀 AI(providerRemoved)는 시도하지 않는다 — Gemini 는 뺄 수 없다(2026-11-02 사용자 요청).
  *
  * [연계]
  *   - 사용 파일 : services/codex_bridge.js (요청 범위 ALS·VM 작업자 호출), services/atomic_write.js, @anthropic-ai/sdk
  *                 data/llm_chain_state.json (소진·쉼 저장 — fly.toml 볼륨 /app/local_server/data)
  *   - 서버 API  : Claude Messages API(claude-sonnet-5-5, effort medium) · Upstage chat/completions(solar-pro4, reasoning_effort medium)
  *   - 호출처    : services/gemini_client.js callGeminiRaw(→callRaw)/callGeminiStream(→callStream) 입구(사슬 표시가 있는 요청일 때)
- *                 routes/legal.js normConfig(providerOrder)·POST /api/legal/config(providerReset)
+ *                 routes/legal.js normConfig(providerOrder·providerRemoved)·POST /api/legal/config(providerReset)
  *   - 환경변수  : ANTHROPIC_API_KEY_1 · ANTHROPIC_API_KEY_2 · UPSTAGE_API_KEY (Fly.io 시크릿)
  *                 LLM_CHAIN_STATE_FILE (저장 파일 경로 바꾸기 — 시험이 운영 data 파일을 건드리지 않게 임시 폴더로 돌린다)
  * [로드 순서] 서버 모듈 — require 순서 무관(codex_bridge 를 부르지만 codex_bridge 는 이 파일을 부르지 않는다).
@@ -124,6 +125,27 @@ function isValidOrder(o) {
   return Array.isArray(o) && o.length === PROVIDERS.length && PROVIDERS.every(p => o.includes(p));
 }
 
+/**
+ * 관리자 센터에서 [삭제]한 AI 목록(providerRemoved)을 검사한다 — PROVIDERS 의 id 를 겹치지 않게 담은 배열, 'gemini' 는 안 된다
+ * (Gemini 는 마지막 안전망 — 2026-11-02 사용자 확정). 빈 배열은 「삭제된 AI 없음」.
+ * 순서(providerOrder)는 다섯 개 순열 그대로 두고, 사슬이 이 목록의 AI 를 건너뛴다(usable) — 기존 저장값·순서 검사가 안 바뀌게.
+ * 예: isValidRemoved(['claude1']) → true / isValidRemoved(['gemini']) → false / isValidRemoved(['x']) → false
+ * @param {any} r @returns {boolean}
+ * [연계] ← routes/legal.js POST /api/legal/config 검사(틀리면 400). normRemoved 도 같은 기준.
+ */
+function isValidRemoved(r) {
+  return Array.isArray(r) && r.every((id, i) => PROVIDERS.includes(id) && id !== 'gemini' && r.indexOf(id) === i);
+}
+/**
+ * 저장값용 — 맞으면 그대로(복사), 틀리거나 없으면 [](아무것도 안 뺀다 — 이 필드가 없던 옛 저장값과 같은 동작).
+ * 예: normRemoved(undefined) → [] / normRemoved(['upstage']) → ['upstage'] / normRemoved(['gemini']) → []
+ * @param {any} r @returns {string[]}
+ * [연계] ← routes/legal.js normConfig.
+ */
+function normRemoved(r) {
+  return isValidRemoved(r) ? r.slice() : [];
+}
+
 /** 지금 이 호출이 사슬 표시가 있는 요청 안인가. [연계] ← gemini_client.js 입구 */
 function active() {
   const s = codexBridge.store();
@@ -149,10 +171,11 @@ function callTimeout(config) {
 }
 
 /**
- * 이 AI 를 이번 호출에 쓸 수 있는가(키 있음 · 소진 아님 · ChatGPT 는 작업자 연결 + 모델 지정).
- * @param {string} id @param {object} s - 요청 범위 저장소 @returns {boolean}
+ * 이 AI 를 이번 호출에 쓸 수 있는가(관리자가 삭제 안 함 · 키 있음 · 소진 아님 · ChatGPT 는 작업자 연결 + 모델 지정).
+ * @param {string} id @param {object} s - 요청 범위 저장소(s.removed = 관리자 센터 [삭제] 목록, codexBridge.withRequest 가 넣는다) @returns {boolean}
  */
 function usable(id, s) {
+  if (s && Array.isArray(s.removed) && s.removed.includes(id)) return false;   // 관리자 센터에서 [삭제] — 시도하지 않는다
   if (exhausted[id]) return false;
   if (id === 'chatgpt' && Date.now() < chatgptRest.until) return false;   // 연속 실패로 쉬는 중
   if (id === 'claude1' || id === 'claude2' || id === 'upstage') return !!KEYS[id];
@@ -185,6 +208,7 @@ async function callClaude(apiKey, { contents, config }) {
     if (!text.trim()) return { success: false, error: 'Claude 빈 응답' };
     return { success: true, text };
   } catch (e) {
+    console.warn('[LLM 사슬] Claude 호출 실패:', e.status || '', String(e.message || e).slice(0, 200));
     return { success: false, error: `Claude ${e.status || ''} ${String(e.message || e).slice(0, 200)}`, creditOut: claudeCreditOut(e) };
   }
 }
@@ -226,6 +250,7 @@ async function callUpstage(apiKey, { contents, config }) {
     if (!text || !String(text).trim()) return { success: false, error: 'Upstage 빈 응답' };
     return { success: true, text: String(text) };
   } catch (e) {
+    console.warn('[LLM 사슬] Upstage 호출 실패:', String(e.message || e).slice(0, 200));
     return { success: false, error: `Upstage ${String(e.message || e).slice(0, 200)}` };
   }
 }
@@ -515,14 +540,17 @@ function resetExhausted(id) {
 }
 
 /**
- * 관리자 화면용 상태 — 키 유무(값은 내보내지 않는다)·소진 여부·쉼 끝 시각(ChatGPT 만, 안 쉬면 null)·오늘 호출 수.
- * @returns {Array<{id,name,hasKey,exhaustedAt,restUntil,today}>}
- * [연계] ← routes/legal.js GET /api/legal/config
+ * 관리자 화면용 상태 — 키 유무(값은 내보내지 않는다)·삭제 여부·소진 여부·쉼 끝 시각(ChatGPT 만, 안 쉬면 null)·오늘 호출 수.
+ * 예: status(['claude1']) → [{ id:'upstage', removed:false, … }, { id:'claude1', removed:true, … }, …]
+ * @param {string[]} [removed] - 설정의 providerRemoved(normConfig 결과). 없으면 아무것도 삭제 안 된 것으로.
+ * @returns {Array<{id,name,hasKey,removed,exhaustedAt,restUntil,today}>}
+ * [연계] ← routes/legal.js GET·POST /api/legal/config
  */
-function status() {
+function status(removed) {
   const s = _stats();
   return PROVIDERS.map(id => ({
     id, name: NAMES[id],
+    removed: Array.isArray(removed) && removed.includes(id),
     hasKey: id === 'chatgpt' ? !!codexBridge.ENABLED : id === 'gemini' ? true : !!KEYS[id],
     exhaustedAt: exhausted[id] ? exhausted[id].at : null,
     restUntil: id === 'chatgpt' && Date.now() < chatgptRest.until ? new Date(chatgptRest.until).toISOString() : null,
@@ -530,4 +558,4 @@ function status() {
   }));
 }
 
-module.exports = { PROVIDERS, DEFAULT_ORDER, NAMES, CLAUDE_MODEL, UPSTAGE_MODEL, normOrder, isValidOrder, active, callRaw, callStream, isValidReset, resetExhausted, status };
+module.exports = { PROVIDERS, DEFAULT_ORDER, NAMES, CLAUDE_MODEL, UPSTAGE_MODEL, normOrder, isValidOrder, normRemoved, isValidRemoved, active, callRaw, callStream, isValidReset, resetExhausted, status };

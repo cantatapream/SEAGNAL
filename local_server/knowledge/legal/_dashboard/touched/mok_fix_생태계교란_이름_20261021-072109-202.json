@@ -1,0 +1,8 @@
+{
+ "script": "mok_fix_생태계교란_이름",
+ "stamp": "20261021-072109-202",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/생물다양성보전및이용에관한법률/별표/생태계교란_생물_지정_고시_별표0.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/생물다양성보전및이용에관한법률/별표/생태계교란생물_별표0.txt"
+ ]
+}

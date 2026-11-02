@@ -256,6 +256,7 @@ Codex 모드와 무관하게 공공 공개 전에 따로 다룰 사항.
 - **코드**: `services/llm_chain.js`. 입구는 `gemini_client.callGeminiRaw`(→`callRaw`)/`callGeminiStream`(→`callStream`) — 요청 범위에 사슬 표시가 있을 때만 탄다.
 - **범위**: `codex_bridge.withRequest` ④(평소 질문)에서 `관리자 토큰 || codexForUsers` 이면 사슬. 아니면 종전대로 Gemini. 시험용 `llm:"codex"`·`llm:"gemini"` 는 종전 그대로.
 - **기본 순서**: `upstage → claude2 → claude1 → chatgpt → gemini` (사용자 확정: *"클로드 키 중에서는 "ANTHROPIC_API_KEY_2" 이것을 먼저쓰고 "ANTHROPIC_API_KEY_1"를 나중에"*). 관리자 센터 ▲▼ 로 바꾸면 `nariya_config.json` 의 `providerOrder` 에 저장된다.
+- **AI 삭제(2026-11-02 사용자 요청 — *"더이상 키가 없고 더이상 사용하지 않는다면 … 삭제버튼을 만들어줘. 삭제버튼을 누르면 정말 삭제하겠냐고 다시한번 확인토록"*)**: 줄마다 [삭제](Gemini 줄은 없음 — 마지막 안전망) → `window.confirm` → `providerRemoved`(string[], 기본 [], `llm_chain.isValidRemoved`: PROVIDERS 부분집합·gemini·겹침 불가, POST 틀리면 400 / 저장값이 틀리면 `normRemoved` 로 []) 에 저장, 사슬 `usable` 이 건너뛴다(callRaw·callStream 공통), `status(removed)` 에 `removed` 표시. `providerOrder` 는 다섯 개 순열 그대로(옛 저장값·`isValidOrder` 불변). 목록 아래 「삭제된 AI: ○○ [다시 추가]」 → 보이는 줄의 맨 뒤(맨 뒤가 Gemini 면 그 바로 앞)에 넣은 순서와 삭제 목록을 한 번에 POST. Fly.io 시크릿은 건드리지 않는다. 시험 `test_llm_chain.js` ⑩.
 - **모델**: Claude `claude-sonnet-5-5` + `output_config.effort: "medium"` / Upstage `solar-pro4` + `reasoning_effort: "medium"` / ChatGPT 칸은 관리자 센터 `answerModel`(gemini 로 두면 ChatGPT 칸 건너뜀).
 - **Fly.io 시크릿 이름**: `ANTHROPIC_API_KEY_1` · `ANTHROPIC_API_KEY_2` · `UPSTAGE_API_KEY`. 없으면 그 칸은 건너뛴다(부팅 로그 `[LLM 사슬] 키 — …` 에 있음/없음이 찍힌다).
 - **크레딧 소진 판정**(이것만 「계속 건너뜀」 + 관리자 푸시 1회):
