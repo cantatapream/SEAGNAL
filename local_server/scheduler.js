@@ -2759,6 +2759,12 @@ async function init() {
             log(`⚠️ [kakao_relay] MMIS 대조 오류: ${err.message}`)
         );
 
+        // [카톡판 특보현황 10일 시험 — 2026-11-03] 매분. 카톡 줄만으로 만든 특보현황을 앱 특보현황(MMIS)과 구역별로
+        //   맞대어 차이·시간차를 날짜별 기록장(data/kakao_relay_log, 30일)에 남긴다. 기록만 — 특보현황·푸시는 안 바꾼다.
+        //   관리자 「카톡 중계 → 비교현황」이 읽는다(services/kakao_shadow).
+        try { require('./services/kakao_shadow').runShadow(); }
+        catch (err) { log(`⚠️ [kakao_shadow] 카톡판 비교 오류: ${err.message}`); }
+
         // [카톡 특보중계 태블릿 멈춤 감시 — 2026-11-02] 5분마다 마지막 신호를 보고 끊김·접근성 꺼짐·읽기 실패면
         //   관리자 푸시(첫 이상 1번·복구 1번 — services/collect_fail_alert 항목 kakaoRelay). 열쇠 미설정이면 아무것도 안 함.
         if (min % 5 === 2) {
