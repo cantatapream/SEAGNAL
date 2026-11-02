@@ -430,6 +430,48 @@
      "status": "갱신"
     }
    ]
+  },
+  {
+   "ran_at": "2026-11-02 22:30 KST",
+   "results": [
+    {
+     "slug": "농수산물의원산지표시등에관한법률",
+     "tier": "시행령",
+     "old_mst": "278005",
+     "new_mst": "291357",
+     "old_eff": "20251001",
+     "new_eff": "20261022",
+     "old_chars": 20999,
+     "new_chars": 21429,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 3,
+     "legacy": "_legacy/농수산물의원산지표시등에관한법률/20251001",
+     "new_byl": 3,
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-11-02 22:30 KST",
+   "results": [
+    {
+     "slug": "농수산물의원산지표시등에관한법률",
+     "tier": "시행규칙",
+     "old_mst": "268207",
+     "new_mst": "291287",
+     "old_eff": "20250109",
+     "new_eff": "20261022",
+     "old_chars": 6773,
+     "new_chars": 7342,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 7,
+     "legacy": "_legacy/농수산물의원산지표시등에관한법률/20250109",
+     "new_byl": 7,
+     "status": "갱신"
+    }
+   ]
   }
  ]
 }
