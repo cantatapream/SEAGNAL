@@ -13,6 +13,9 @@
  *   - PNG 본체(무인증): https://marine.kma.go.kr + img_list[i]
  *   - PNG 배치: EPSG:4326, extent = MMIS 번들 검증값(아래 VSBY_EXTENT).
  *   런(생산시각)은 img 경로의 RDPS_<YYYYMMDDHH>_VIS 에서 추출 → 바뀔 때만 재수집.
+ *   ⚠(2026-10-15 확인) imgList 가 HTTP 200 · 0바이트를 돌려준다(헤더·쿠키를 바꿔도 같음,
+ *     MMIS 화면 번들도 같은 주소를 무인증 GET 으로 부름 · gdps/imgList 도 0바이트).
+ *     확인 실패는 getStatus().lastCheckOk/lastCheckError/failStreak/failSince 로 드러난다.
  *
  * [대해구 시정 — 소해구 래스터 집계(완전 래스터화)]
  *   해구별 기상전망에서 "대해구" 클릭 시 선 차트는 그 대해구에 속한 9개 소해구
@@ -22,6 +25,8 @@
  * [캐시 / 영속성]
  *   메모리 상주 + data/vsby_smallzone.json.gz(gzip). 부팅 시 로드, 런 동일하면
  *   재수집 생략(재부팅·머지 안전).
+ *   imgList 확인 결과(연속 실패 수 failStreak 등)는 data/vsby_check_state.json 에 남겨
+ *   재기동 뒤에도 이어 센다(2026-10-15). 연속 3번 실패하면 관리자 푸시(services/collect_fail_alert).
  * ============================================================================
  */
 'use strict';
@@ -190,11 +195,23 @@ function _sampleKm(data, W, H, x, y) {
 // ────────────────────────────────────────────────────────────────────────────
 const _H = { Referer: `${KMA_BASE}/mmis/`, 'User-Agent': 'Mozilla/5.0 (SEAGNAL/vsby)' };
 
-/** imgList → { fctTimes:[...], imgs:[...], baseTm } (무인증). */
+/**
+ * imgList → { fctTimes:[...], imgs:[...], baseTm } (무인증).
+ * 응답이 비었거나 JSON 이 아니면 HTTP 상태·길이·형식을 담아 throw 한다.
+ *   (2026-10-15) 기상청이 HTTP 200 · 0바이트를 돌려줘 r.json() 이 「Unexpected end of JSON
+ *   input」만 남겼다 — 잘린 응답인지 빈 응답인지 로그로 구분이 안 됐다.
+ * @returns {Promise<{fctTimes:string[], imgs:string[], baseTm:string|null}>}
+ * [연계] ← refreshIfStale(1시간 폴링) · collect
+ */
 async function fetchImgList() {
     const r = await fetch(IMGLIST_URL, { headers: _H, timeout: 15000 });
     if (!r.ok) throw new Error('imgList ' + r.status);
-    const j = await r.json();
+    const text = await r.text();
+    const ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '없음';
+    if (!text.length) throw new Error(`imgList 빈 응답 (HTTP ${r.status}, 0바이트, content-type=${ct})`);
+    let j;
+    try { j = JSON.parse(text); }
+    catch (e) { throw new Error(`imgList JSON 아님 (HTTP ${r.status}, ${text.length}바이트, content-type=${ct}): ${e.message}`); }
     const fctTimes = (j.data && j.data.fct_tm_list) || [];
     const imgs = (j.data && j.data.img_list) || [];
     const m = /RDPS_(\d{10})_VIS/.exec(imgs[0] || '');
@@ -347,11 +364,82 @@ async function getMajorForGraphByPoint(lat, lon) {
 // ────────────────────────────────────────────────────────────────────────────
 // 5. 공개 API
 // ────────────────────────────────────────────────────────────────────────────
-function init() { _loadCache(); }
+function init() { _loadCache(); _loadCheckState(); }
 
+// 마지막 imgList 확인 결과 — getStatus 로 노출. 확인이 계속 실패해도 캐시는 옛 런을 그대로
+//   내주므로, 이것이 없으면 「갱신이 멈췄다」가 콘솔 한 줄 말고는 어디에도 안 보였다(2026-10-15).
+let _lastCheck = { at: null, ok: null, error: null, failStreak: 0, failSince: null };
+
+// [확인 결과 영속화 — 2026-10-15 사용자 지시 ⓐ] 위 _lastCheck 는 메모리라 재기동·배포마다 연속 실패 수가 0 으로
+//   돌아갔다. 그러면 장애 중 재기동할 때마다 관리자 오류현황이 「수집 실패」에서 빠졌다가 약 2시간(3회 확인) 뒤
+//   다시 들어왔다(00_docs/operations/risk-forecast-error-history.md 「한계」). 확인할 때마다 작은 파일에 남기고
+//   init 에서 되읽는다. data/ 는 운영에서 영속 볼륨(fly.toml [[mounts]] → /app/local_server/data)이다.
+//   검사는 VSBY_CHECK_STATE_FILE 로 임시 경로를 준다(실제 data/ 를 건드리지 않게).
+const CHECK_STATE_PATH = process.env.VSBY_CHECK_STATE_FILE || path.join(DATA_DIR, 'vsby_check_state.json');
+
+/**
+ * 마지막 imgList 확인 결과를 파일에 원자적으로 쓴다. 실패해도 수집은 계속한다(콘솔 한 줄).
+ * 예: { at:'2026-10-15T12:00:00.000Z', ok:false, error:'imgList 빈 응답 …', failStreak:2, failSince:'…' }
+ * @returns {void}
+ * [연계] ← refreshIfStale(확인할 때마다) / → _loadCheckState(재기동 때 되읽음)
+ */
+function _saveCheckState() {
+    const tmp = CHECK_STATE_PATH + '.' + process.pid + '.tmp';
+    try {
+        fs.mkdirSync(path.dirname(CHECK_STATE_PATH), { recursive: true });
+        fs.writeFileSync(tmp, JSON.stringify({ v: 1, ..._lastCheck }));
+        fs.renameSync(tmp, CHECK_STATE_PATH);
+    } catch (e) {
+        try { fs.unlinkSync(tmp); } catch (_) { /* 임시 파일이 없으면 정리할 것도 없다 */ }
+        console.error('[vsby_sz] 확인 상태 저장 실패:', e.message);
+    }
+}
+
+/**
+ * 저장해 둔 확인 결과를 되읽는다. 형식이 어긋나면 버리고 처음(0회)부터 센다.
+ * 예: 파일 { failStreak:2, … } → 재기동 직후 getStatus().failStreak === 2
+ * @returns {boolean} 되읽었으면 true
+ * [연계] ← init(startAutoRefresh) / → getStatus → risk_history_sources.visibilitySource(3회 기준)
+ */
+function _loadCheckState() {
+    try {
+        if (!fs.existsSync(CHECK_STATE_PATH)) return false;
+        const o = JSON.parse(fs.readFileSync(CHECK_STATE_PATH, 'utf8'));
+        const iso = (v) => v === null || (typeof v === 'string' && Number.isFinite(Date.parse(v)));
+        if (!o || o.v !== 1 || !iso(o.at) || !iso(o.failSince) || ![true, false, null].includes(o.ok) ||
+            !(o.error === null || typeof o.error === 'string') || !Number.isInteger(o.failStreak) || o.failStreak < 0) {
+            console.error('[vsby_sz] 확인 상태 파일 형식이 맞지 않아 무시');
+            return false;
+        }
+        _lastCheck = { at: o.at, ok: o.ok, error: o.error === null ? null : o.error.slice(0, 300), failStreak: o.failStreak, failSince: o.failSince };
+        return true;
+    } catch (e) {
+        console.error('[vsby_sz] 확인 상태 읽기 실패:', e.message);
+        return false;
+    }
+}
+
+/**
+ * 1시간마다 imgList 로 런을 확인하고, 바뀌었으면 수집한다. 확인 결과(연속 실패 수)는 파일에 남기고
+ * collect_fail_alert 에 알린다 — 연속 3번 실패면 관리자 푸시, 그 뒤 성공하면 복구 푸시(2026-10-15).
+ * ⚠imgList 확인이 성공한 뒤의 PNG 수집 실패(collect)는 여기 연속 실패 수에 들어가지 않는다.
+ * @returns {Promise<void>}
+ * [연계] ← startAutoRefresh 타이머 / → fetchImgList · _saveCheckState · collect · services/collect_fail_alert.report
+ */
 async function refreshIfStale() {
     let il;
-    try { il = await fetchImgList(); } catch (e) { console.error('[vsby_sz] imgList 확인 실패:', e.message); return; }
+    const at = new Date().toISOString();
+    try { il = await fetchImgList(); } catch (e) {
+        console.error('[vsby_sz] imgList 확인 실패:', e.message);
+        _lastCheck = { at, ok: false, error: e.message, failStreak: _lastCheck.failStreak + 1, failSince: _lastCheck.failSince || at };
+        _saveCheckState();
+        // 관리자 푸시 — 시정 예측만 연속 3번 실패해야 보낸다(사용자 확정 2026-10-15 「(나)」). 세는 수는 위 영속 failStreak.
+        require('./collect_fail_alert').report('visibility', { ok: false, error: e, streak: _lastCheck.failStreak, since: _lastCheck.failSince });
+        return;
+    }
+    _lastCheck = { at, ok: true, error: null, failStreak: 0, failSince: null };
+    _saveCheckState();
+    require('./collect_fail_alert').report('visibility', { ok: true });   // 실패 알림을 보냈던 경우에만 「복구」 푸시
     const empty = !_cache || !Object.keys(_cache.cells || {}).length;
     if (!il.baseTm) { if (empty) console.log('[vsby_sz] baseTm 미확인 + 캐시 없음'); return; }
     if (!empty && _cache.baseTm === il.baseTm) return;   // 최신
@@ -369,12 +457,26 @@ function startAutoRefresh() {
     console.log('[vsby_sz] 자동 갱신 시작 (래스터, 폴링 1시간)');
 }
 
+/**
+ * 캐시·갱신 상태. 예: { baseTm:'2026101100', lastFctTm:'2026.10.14 16:00', lastCheckOk:false, failStreak:3, ... }
+ * lastFctTm 이 지금보다 과거면 화면에 나갈 앞날 예측이 하나도 없다는 뜻이다.
+ * @returns {object}
+ * [연계] → routes/vsby_smallzone.js GET /api/vsby-smallzone/status
+ *        → risk_history_sources.visibilitySource (관리자 점검 → 데이터 수집현황 → 현재 원천 상태, 1분 감시)
+ */
 function getStatus() {
+    const ft = _cache.fctTimes || [];
     return {
         baseTm: _cache.baseTm,
         collectedAt: _cache.collectedAt,
         cellCount: Object.keys(_cache.cells || {}).length,
-        frameCount: (_cache.fctTimes || []).length,
+        frameCount: ft.length,
+        lastFctTm: ft.length ? ft[ft.length - 1] : null,
+        lastCheckAt: _lastCheck.at,
+        lastCheckOk: _lastCheck.ok,
+        lastCheckError: _lastCheck.error,
+        failStreak: _lastCheck.failStreak,
+        failSince: _lastCheck.failSince,
         cached: fs.existsSync(CACHE_PATH)
     };
 }

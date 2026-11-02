@@ -17,6 +17,7 @@
  *
  * [연계 모듈]
  *   - services/tide_collector.js : TideBED 조석 데이터 수집 (별도 스케줄)
+ *   - services/zone_forecast_guard.js : 해구별 예보 판 비교(옛 판으로 덮어쓰기 방지)·결과 기록
  *   - services/firebase_admin_lazy.js : push 알림용 Firebase Admin (lazy init)
  *   - routes/admin.js : 작업 모드(점검 모드) 설정 — loadWorkModeConfig
  *
@@ -30,56 +31,8 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-
-// ============================================================================
-// [특보 예측] 무거운 일기도(GIF) 분석 사이클을 별도 자식 프로세스로 격리 실행.
-// ----------------------------------------------------------------------------
-//   왜? predictionEngine 은 6개 청의 풍속/파고 GIF 를 RGBA 로 디코드하느라
-//   메모리를 크게 쓴다. 이를 메인 웹서버 프로세스 안에서 돌리면 1GB 머신이
-//   OOM 으로 강제 재시작될 수 있다(실제 장애 발생). 자식 프로세스로 분리하면:
-//     - 디코드 버퍼가 메인 서버 메모리와 분리되고, 종료 시 전량 회수된다.
-//     - 자식이 OOM/크래시 해도 메인 서버는 영향받지 않는다.
-//   동시에 1개만 실행(중복 가드). 자식은 runPrediction.js 의 CLI 진입점을 쓴다.
-// ============================================================================
-let _advisoryChildRunning = false;
-// 마스터 스위치: 관리자 "특보 관리 → 특보 예측" 표출 모드. 'off' 면 생성도 중단.
-//   displayControl.getMode() != 'off' (admin/all) 이면 사이클 가동.
-let _displayControl = null;
-try { _displayControl = require('./advisory/displayControl'); } catch (_) { _displayControl = null; }
-function _advisoryEnabled() {
-    try { return _displayControl ? _displayControl.getMode() !== 'off' : false; } catch (_) { return false; }
-}
-function spawnAdvisoryCycle(reason) {
-    if (!_advisoryEnabled()) {
-        console.log(`[advisory] 표출모드 off — ${reason} 스킵`);
-        return;
-    }
-    if (_advisoryChildRunning) {
-        console.log(`[advisory] 이전 사이클 진행 중 — ${reason} 스킵`);
-        return;
-    }
-    try {
-        const { spawn } = require('child_process');
-        const child = spawn(
-            process.execPath,
-            [path.join(__dirname, 'advisory', 'runPrediction.js')],
-            { cwd: __dirname, stdio: ['ignore', 'inherit', 'inherit'], env: process.env }
-        );
-        _advisoryChildRunning = true;
-        console.log(`[advisory] 사이클 자식 시작 (${reason}, pid=${child.pid})`);
-        child.on('exit', (code) => {
-            _advisoryChildRunning = false;
-            console.log(`[advisory] 사이클 자식 종료 (${reason}, code=${code})`);
-        });
-        child.on('error', (e) => {
-            _advisoryChildRunning = false;
-            console.error(`[advisory] 사이클 자식 spawn 실패 (${reason}):`, e && e.message);
-        });
-    } catch (e) {
-        _advisoryChildRunning = false;
-        console.error(`[advisory] 사이클 트리거 실패 (${reason}):`, e && e.message);
-    }
-}
+// 이안류·MMIS 관측 수집이 실패하면 관리자 푸시(첫 실패·복구 1번씩) — 사용자 확정 2026-10-15. require 부작용 없음.
+const collectFailAlert = require('./services/collect_fail_alert');
 
 // [Push] Firebase Admin 초기화는 services/firebase_admin_lazy.js 로 이동.
 //   - 본 파일에서는 admin 자체를 사용하지 않으므로 require 자체를 제거하여
@@ -108,6 +61,8 @@ async function syncTime() {
             }
             resolve();
         });
+        // timeout 옵션만으로는 요청이 끊기지 않는다 — 응답 없는 소켓이면 이 약속이 영영 안 끝나 1분 주기 전체(특보 수집 포함)가 멈춘다(독립 검토 2, 2026-10-17).
+        req.on('timeout', () => req.destroy(new Error('timeout')));
         req.on('error', (e) => {
             log(`🕒 시각 동기화 실패: ${e.message}`);
             resolve();
@@ -153,6 +108,7 @@ const lastRunStatus = {
     scuba: { lastRun: null, status: '대기 중', message: '' },    // 스킨스쿠버 지수
     ripcurrent: { lastRun: null, status: '대기 중', message: '' }, // 이안류 지수 (실시간)
     swimming: { lastRun: null, status: '대기 중', message: '' }, // 해수욕 지수
+    smallZone: { lastRun: null, status: '대기 중', message: '' }, // 소해구 예보(브리핑용 미리 받기, §11.10.18)
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -202,6 +158,12 @@ const regionalBulletinCollector = require('./regional_bulletin_collector');
 //   사용자 첫 요청 시점에 외부 호출이 발생하지 않도록 사전 적재 + gzip 디스크 백업.
 //   변경 사유 및 동작은 services/khoa_stream_cache.js 모듈 헤더 참고.
 const khoaStreamCache = require('./services/khoa_stream_cache');
+// [해구 예보 판 비교 — 2026-10-15] 찾은 판이 가진 판보다 오래되면 덮어쓰지 않고, 결과를 data/zone_forecasts_status.json 에 남긴다.
+const zoneGuard = require('./services/zone_forecast_guard');
+// [소해구 예보 — 2026-10-17 §11.10.18] 대해구 예보가 판을 저장한 직후 브리핑용 대해구의 소해구 예보를 같은 판으로 미리 받는다.
+//   키는 여기서 넘긴다(모듈은 키를 저장·로그하지 않는다). 창 클릭용 조회는 routes/weather.js 가 같은 모듈의 get 을 부른다.
+const smallZoneForecast = require('./services/smallzone_forecast');
+smallZoneForecast.configure({ getKey: () => CONFIG.KMA_HUB_KEY });
 
 // [물빠짐 예측 — Phase 1] 서해·남해 앵커 1분 조위곡선 배치 수집기.
 //   anchors.json(build_tide_field.js 산출) 을 순회하며 오늘~+2일(KST) TideBED
@@ -400,6 +362,8 @@ async function collectKmaBuoys() {
 //     2) fetchWithTimeout(url, opts, 8000) → 8초 타임아웃 GET
 //     3) 응답 OK & 응답 JSON code === '0000' 일 때만 파일 저장
 //     4) 실패 시 log 만 남기고 종료 (직전 캐시 유지)
+//     5) 성공·실패를 services/collect_fail_alert 에 알린다 — 첫 실패·복구 때 관리자 푸시 1번씩,
+//        실패 기록은 data/collect_fail_alert.json(데이터 수집현황 카드에 「마지막 수집 실패」로 보임, 2026-10-15)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // [C타입 = 파고부이] 한산도(22467) 등 51개. 파고/파주기/수온 위주.
@@ -413,8 +377,10 @@ async function collectMarineWhBuoys() {
         if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
         // saveData 는 services/save_data 헬퍼 — local_server/data/ 디렉터리에 JSON 저장
         saveData('marine_wh_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
+        collectFailAlert.report('marineWhBuoys', { ok: true });
     } catch (e) {
         log(`⚠️ marine wh-buoy 수집 실패: ${e.message}`);
+        collectFailAlert.report('marineWhBuoys', { ok: false, error: e }); // 관리자 푸시(첫 실패·복구 1번씩) + 실패 기록
     }
 }
 
@@ -428,8 +394,10 @@ async function collectMarineBuoys() {
         const json = await response.json();
         if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
         saveData('marine_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
+        collectFailAlert.report('marineBuoys', { ok: true });
     } catch (e) {
         log(`⚠️ marine buoy 수집 실패: ${e.message}`);
+        collectFailAlert.report('marineBuoys', { ok: false, error: e }); // 관리자 푸시(첫 실패·복구 1번씩) + 실패 기록
     }
 }
 
@@ -443,8 +411,10 @@ async function collectMarineLhBuoys() {
         const json = await response.json();
         if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
         saveData('marine_lh_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
+        collectFailAlert.report('marineLhBuoys', { ok: true });
     } catch (e) {
         log(`⚠️ marine lh 수집 실패: ${e.message}`);
+        collectFailAlert.report('marineLhBuoys', { ok: false, error: e }); // 관리자 푸시(첫 실패·복구 1번씩) + 실패 기록
     }
 }
 
@@ -458,8 +428,10 @@ async function collectMarineVs() {
         const json = await response.json();
         if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
         saveData('marine_vs.json', { updatedAt: getNowStr(), data: json.data || [] });
+        collectFailAlert.report('marineVs', { ok: true });
     } catch (e) {
         log(`⚠️ marine vs 수집 실패: ${e.message}`);
+        collectFailAlert.report('marineVs', { ok: false, error: e }); // 관리자 푸시(첫 실패·복구 1번씩) + 실패 기록
     }
 }
 
@@ -564,6 +536,20 @@ async function collectZoneForecasts() {
             } catch (e) { }
         }
 
+        // [판 비교 — 2026-10-15 사용자 지시 「새 판 없음, 기존 판 유지 기록 · 더 오래된 판으로 덮어쓰지 않기」]
+        //   찾은 판이 가진 판보다 오래됐으면(예: 12UTC 판 확인이 일시 실패해 00UTC 로 내려감) 받지도 덮어쓰지도 않는다.
+        //   같은 판은 종전대로 다시 받는다 — 받은 시각(updatedAt)이 갱신돼야 risk_store 의 15시간 낡음 규칙이
+        //   12UTC 판이 늦는 밤마다 울리지 않는다(그 규칙을 바꾸는 것은 이번 범위가 아니다).
+        const expectedBaseTm = getUtcTm(latestUtc);
+        const storedBaseTm = zoneGuard.storedBase(CONFIG.DATA_DIR);
+        const zoneVerdict = zoneGuard.decide(storedBaseTm, validBaseTm);
+        if (zoneVerdict === 'older' || zoneVerdict === 'none') {
+            const kept = zoneGuard.record(CONFIG.DATA_DIR, { result: zoneVerdict, stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
+            lastRunStatus.zone = { lastRun: getNowStr(), status: '유지', message: kept ? kept.message : '새 판 없음, 기존 판 유지' };
+            log(`ℹ️ 해구별 예보: ${lastRunStatus.zone.message}`);
+            return;
+        }
+
         if (validBaseTm) {
             const zoneDataMap = {};
             const baseDate = new Date(Date.UTC(parseInt(validBaseTm.substring(0, 4)), parseInt(validBaseTm.substring(4, 6)) - 1, parseInt(validBaseTm.substring(6, 8)), parseInt(validBaseTm.substring(8, 10))));
@@ -593,6 +579,19 @@ async function collectZoneForecasts() {
             if (Object.keys(zoneDataMap).length > 0) {
                 saveData('zone_forecasts.json', { updatedAt: getNowStr(), baseTmUtf: validBaseTm, data: zoneDataMap, count: Object.keys(zoneDataMap).length });
                 lastRunStatus.zone = { lastRun: getNowStr(), status: '성공', message: `${Object.keys(zoneDataMap).length}개 구역 저장` };
+                zoneGuard.record(CONFIG.DATA_DIR, { result: zoneVerdict, stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
+                // [소해구 예보 미리 받기 — §11.10.18] 같은 판으로 브리핑용 대해구만. 기다리지 않는다 — 실패해도 대해구 수집 결과·흐름은 그대로.
+                //   같은 판을 이미 빠짐없이 받았으면 모듈이 요청 없이 돌아온다(30분마다 여기를 지나도 판당 한 번).
+                //   Promise.resolve().then 안에서 부른다 — 목록 계산이 던져도 이 try 의 catch(프로덕션 프록시로 대해구를 덮어씀)로 가지 않게.
+                Promise.resolve().then(() => smallZoneForecast.prefetch(smallZoneForecast.briefingLzones(), validBaseTm)).then((r) => {
+                    if (r.skipped) return;
+                    lastRunStatus.smallZone = { lastRun: getNowStr(), status: r.failed === 0 ? '성공' : (r.got ? '일부 실패' : '실패'),
+                        message: `${r.baseTm} 판 · 대해구 ${r.lzones}개 · 요청 ${r.requests}번 중 실패 ${r.failed}` };
+                }).catch((e) => {
+                    lastRunStatus.smallZone = { lastRun: getNowStr(), status: '실패', message: smallZoneForecast.mask(e.message) };
+                });
+            } else {
+                zoneGuard.record(CONFIG.DATA_DIR, { result: 'empty', stored: storedBaseTm, found: validBaseTm, expected: expectedBaseTm });
             }
         }
     } catch (e) {
@@ -1888,6 +1887,12 @@ async function collectRipCurrentIndex() {
 
         const result = { updatedAt: getNowStr(), places: {} };
         let dataCount = 0;
+        // 공개 API 호출 실패(HTTP 오류·연결·시간초과·해석 실패·비정상 결과코드) — 「자료 없음(03)」과 구분한다.
+        //   전 지점 호출이 다 실패해야 「이안류를 받아오지 못했다」로 보고 관리자 푸시(사용자 확정 2026-10-15).
+        //   성공은 호출 오류가 0건일 때만 — 일부만 실패하면 아무것도 보고하지 않는다(검토 2: 전부 실패 뒤 1곳만
+        //   살아나도 「복구」→ 다시 「실패」 2통이 나갔다).
+        const callErrors = [];
+        let callCount = 0;
 
         for (const beach of RIP_BEACHES) {
             // 망상은 공개 API에 데이터가 없어(코드에 BOM 박힘 → 데이터 미제공) 아래에서 KHOA 내부 데이터로 보강
@@ -1895,7 +1900,10 @@ async function collectRipCurrentIndex() {
                 result.places[beach.name] = { code: beach.code, lat: beach.lat, lot: beach.lot, hasData: false, level: null };
                 continue;
             }
-            const latest = await _fetchRipLatest(beach.code);
+            let latest = null;
+            callCount++;
+            try { latest = await _fetchRipLatest(beach.code); }
+            catch (e) { callErrors.push(e); }   // 로그는 _fetchRipLatest 가 남겼다 — 그 지점은 아래에서 정보없음으로
             if (latest) {
                 dataCount++;
                 result.places[beach.name] = {
@@ -1952,6 +1960,14 @@ async function collectRipCurrentIndex() {
         }
 
         const totalPlaces = Object.keys(result.places).length;
+        if (callCount > 0 && callErrors.length === callCount) {
+            log(`⚠️ 이안류 공개 API ${callCount}개 지점 호출이 모두 실패`);
+            collectFailAlert.report('ripCurrent', { ok: false, error: callErrors[0] });
+        } else if (callErrors.length === 0) {
+            collectFailAlert.report('ripCurrent', { ok: true });
+        } else {
+            log(`⚠️ 이안류 공개 API ${callErrors.length}/${callCount}개 지점 호출 실패 — 수집 실패 알림 상태는 그대로 둔다`);
+        }
         saveData('ripcurrent_index.json', result);
         lastRunStatus.ripcurrent = {
             lastRun: getNowStr(),
@@ -1967,7 +1983,9 @@ async function collectRipCurrentIndex() {
 }
 
 /**
- * 특정 해수욕장의 '가장 최근 관측' 1건을 반환합니다 (없으면 null).
+ * 특정 해수욕장의 '가장 최근 관측' 1건을 반환합니다 (자료 없으면 null).
+ * 호출 자체가 실패하면(HTTP 오류·연결·시간초과·JSON 해석 실패·03/10 밖의 결과코드) throw 한다 —
+ * 「자료 없음」과 「받아오지 못함」을 호출자가 가르게(2026-10-15, 수집 실패 관리자 푸시).
  *
  * [설명]
  * 이안류 API는 reqDate(기본 오늘)의 5분 간격 시계열을 반환합니다.
@@ -1986,15 +2004,21 @@ async function _fetchRipLatest(beachCode) {
         });
         const url = `${RIP_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
         const response = await fetchWithTimeout(url, {}, 30000);
-        if (!response.ok) {
-            log(`⚠️ 이안류 API 응답 오류 (${beachCode}): HTTP ${response.status}`);
-            return null;
-        }
+        if (!response.ok) throw new Error('HTTP ' + response.status);
         const data = await response.json();
-        // 데이터 없음(03)·파라미터 오류(10) 등은 정상적인 '미관측'으로 처리
-        if (data?.header?.resultCode !== '00') return null;
+        // 데이터 없음(03)·파라미터 오류(10)는 정상적인 '미관측'으로 처리. 그 밖의 결과코드는 받아오지 못한 것(호출 실패)이다.
+        //   머리(header)가 최상위가 아니라 response 안에 오는 꼴도 받는다(같은 1192136 계열 routes/ocean2.js·tide_collector 와 같게)
+        //   — 꼴 차이로 「결과코드 없음」 실패 알림이 잘못 나가지 않게(2026-10-15).
+        const header = data?.header || data?.response?.header;
+        // 숫자로 오는 결과코드(3·10·0)도 문자열 '03'·'10'·'00' 과 같게(검토 7 — 비수기 03 을 실패로 세지 않게).
+        const rcRaw = String(header?.resultCode ?? '').trim();
+        const rc = /^\d$/.test(rcRaw) ? '0' + rcRaw : rcRaw;
+        if (rc !== '00') {
+            if (rc === '03' || rc === '10') return null;
+            throw new Error('API 결과코드=' + (rc || '없음'));
+        }
 
-        const items = data?.body?.items?.item;
+        const items = (data?.body || data?.response?.body)?.items?.item;
         if (!items) return null;
         const arr = Array.isArray(items) ? items : [items];
         if (arr.length === 0) return null;
@@ -2007,7 +2031,7 @@ async function _fetchRipLatest(beachCode) {
         return arr[arr.length - 1];
     } catch (e) {
         log(`⚠️ 이안류 API 호출 실패 (${beachCode}): ${e.message}`);
-        return null;
+        throw e;   // 호출자(collectRipCurrentIndex)가 「자료 없음」과 「호출 실패」를 가른다
     }
 }
 
@@ -2520,14 +2544,6 @@ async function init() {
         log(`⚠️ [KHOA] 초기 정기 수집 오류: ${err.message}`)
     );
 
-    // [특보 예측] 부팅 후 1회 시드 — 다음 :25 를 기다리지 않고 상태 파일을 채운다.
-    //   부팅 직후엔 build-gzip·tide_field·각종 수집기가 동시에 돌아 메모리/CPU 가
-    //   몰린다. 무거운 예측 사이클(자식 프로세스)이 그 위에 겹치지 않도록 6분 뒤로
-    //   시드를 미룬다. spawnAdvisoryCycle 가 자체적으로 격리/중복가드 처리.
-    setTimeout(() => {
-        if (!crawlPaused) spawnAdvisoryCycle('boot-seed');
-    }, 6 * 60 * 1000);
-
     const weatherAlertsCrawler = require('./weather_alerts_crawler'); // 크롤러 모듈 추가
 
     // [신규] 태풍 통보문/예보 수집기 (방재기상플랫폼 태풍정보)
@@ -2607,11 +2623,14 @@ async function init() {
             collectMarineVs();
         }
 
-        // 기상예보: 하루 2회 (05:15, 17:15)
-        if (['05:15', '17:15'].includes(hm)) collectGeneralForecasts();
+        // 기상예보: 하루 3회 (05:15, 11:15, 17:15) — 해상 단기 통보문 공식 발표 05·11·17시(data.go.kr 15058629),
+        //   11시분을 17:15까지 못 받던 것 보완(사용자 2026-10-15 「해상단기통보문은 11시 15분 한번 더 넣고」)
+        if (['05:15', '11:15', '17:15'].includes(hm)) collectGeneralForecasts();
 
-        // 해구별 기상전망: 하루 2회 (09:30, 21:30 KST)
-        if (['09:30', '21:30'].includes(hm)) collectZoneForecasts();
+        // 해구별 기상전망: 30분마다(매시 00·30분 KST — 종전 09:30·21:30 포함).
+        //   기상청 API허브 답변(2026-10-16) 「생성하는데 6시간 이상이 소요될 수 있습니다」 — 새 판이 늦게 올라와도 30분 안에 받는다.
+        //   사용자 2026-10-16: 「그냥 아무런 변화 없이 30분에 한번 점검하도록」(수집 방식은 그대로, 횟수만).
+        if (min === 0 || min === 30) collectZoneForecasts();
 
         // 중기해상예보: 하루 2회 (06:15, 18:15)
         if (['06:15', '18:15'].includes(hm)) collectMidTermSeaForecasts();
@@ -2734,11 +2753,18 @@ async function init() {
             require('./services/seaway_refresh').checkAndRefreshSeaway();
         }
 
-        // [특보 예측] 매시 :25 예측 사이클 (엔진→억제→상태). fire-and-forget, throw 격리.
-        //   crawlPaused 가드: 운영자가 크롤을 멈추면 예측(dmdw 크롤 동반)도 멈춘다.
-        //   await 없음 — 느린 dmdw 크롤이 1분 틱을 블로킹하지 않게.
-        if (min === 25 && !crawlPaused) {
-            spawnAdvisoryCycle(':25');
+        // [카톡 ↔ 특보현황(MMIS) 대조 — 2026-11-03] 매분. 카톡 풍랑 특보가 10분 넘게 특보현황에 안 맞으면 관리자 알림,
+        //   나중에 같아지면 「같아짐」 알림. 모르는 구역·분해 실패도 알림. 기록·알림만 — 특보현황·사용자 푸시는 안 바꾼다.
+        require('./services/kakao_relay').checkMmis().catch(err =>
+            log(`⚠️ [kakao_relay] MMIS 대조 오류: ${err.message}`)
+        );
+
+        // [카톡 특보중계 태블릿 멈춤 감시 — 2026-11-02] 5분마다 마지막 신호를 보고 끊김·접근성 꺼짐·읽기 실패면
+        //   관리자 푸시(첫 이상 1번·복구 1번 — services/collect_fail_alert 항목 kakaoRelay). 열쇠 미설정이면 아무것도 안 함.
+        if (min % 5 === 2) {
+            require('./services/kakao_relay').checkHealth().catch(err =>
+                log(`⚠️ [kakao_relay] 멈춤 감시 오류: ${err.message}`)
+            );
         }
 
         // [관리자 반복 푸시] 매 정시(min === 0)에 미확인 항목 체크 후 관리자 푸시 재발송
@@ -2765,33 +2791,27 @@ async function init() {
         //   최초 실행=자동 3일, 이후 1일/일. anchors.json 미존재 시 모듈이 안전 skip.
         //   fire-and-forget — 다른 작업/사이클을 막지 않음. 내부 동시성 5앵커 제한.
         if (hm === '23:30') {
-            log('🌊 TideBED 앵커 곡선 수집 시작 (서해·남해, 오늘~+2일, KST)...');
-            tideFieldCollector.collectTideField({ log })
-                .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (서해·남해): ${JSON.stringify(r)}`))
-                .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (서해·남해): ${err.message}`))
-                .finally(() => {
-                    // [간출암 잠김경고] 제주 앵커 수집 — 물빠짐과 동일 TideBED 키를
-                    //   쓰므로 동시 발사를 피해 물빠짐 완료 직후 이어서 실행한다.
-                    log('🌊 TideBED 앵커 곡선 수집 시작 (제주)...');
-                    hazardRocksTideCollector.collectHazardRockTides({ log })
-                        .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (제주): ${JSON.stringify(r)}`))
-                        .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주): ${err.message}`))
-                        .finally(() => {
-                            // [노출암 고립판정] 제주 촘촘 격자 앵커 수집 — 같은 TideBED
-                            //   키를 쓰므로 위 제주 간출암 수집 직후 이어서(순차) 실행한다.
-                            log('🌊 TideBED 앵커 곡선 수집 시작 (제주 고립판정 격자)...');
-                            jejuIsolationTideCollector.collectJejuIsolationTides({ log })
-                                .then(r => log(`✅ TideBED 앵커 곡선 수집 결과 (제주 고립판정 격자): ${JSON.stringify(r)}`))
-                                .catch(err => log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주 고립판정 격자): ${err.message}`))
-                                .finally(() => {
-                                    // [간출암 잠김경고] 곡선이 갱신됐으니 잠김 교차시각도 재계산.
-                                    //   무거운 스캔(분단위×3일×전체 암초)이라 배치당 1회만 수행.
-                                    log('⏱️ 간출암 잠김 교차시각 재계산 시작...');
-                                    hazardRocksSubmersion.computeAllCrossings({ log })
-                                        .catch(err => log(`⚠️ 간출암 잠김 교차시각 계산 오류: ${err.message}`));
-                                });
-                        });
-                });
+            // [줄세우기 — 2026-10-18] 서버 기동 보충(server.js — 물빠짐 → 제주 두 수집기)과 같은 줄에 선다
+            //   (tide_field_common.runTideBatchExclusive). 기동 보충이 도는 중이면 끝난 뒤 시작한다 —
+            //   예전엔 서해·남해가 「이미 진행 중」으로 건너뛰자마자 제주 수집이 시작돼 키를 동시에 썼다.
+            //   순서·로그는 종전과 같다: 서해·남해 → 제주 간출암 → 제주 고립판정 격자 → 잠김 교차시각.
+            require('./services/tide_field_common').runTideBatchExclusive(async () => {
+                log('🌊 TideBED 앵커 곡선 수집 시작 (서해·남해, 오늘~+2일, KST)...');
+                try { log(`✅ TideBED 앵커 곡선 수집 결과 (서해·남해): ${JSON.stringify(await tideFieldCollector.collectTideField({ log }))}`); }
+                catch (err) { log(`⚠️ TideBED 앵커 곡선 수집 오류 (서해·남해): ${err.message}`); }
+                // [간출암 잠김경고] 제주 앵커 수집 — 물빠짐과 동일 TideBED 키를 쓰므로 물빠짐 완료 직후 이어서.
+                log('🌊 TideBED 앵커 곡선 수집 시작 (제주)...');
+                try { log(`✅ TideBED 앵커 곡선 수집 결과 (제주): ${JSON.stringify(await hazardRocksTideCollector.collectHazardRockTides({ log }))}`); }
+                catch (err) { log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주): ${err.message}`); }
+                // [노출암 고립판정] 제주 촘촘 격자 앵커 수집 — 같은 키, 위 제주 간출암 수집 직후 이어서.
+                log('🌊 TideBED 앵커 곡선 수집 시작 (제주 고립판정 격자)...');
+                try { log(`✅ TideBED 앵커 곡선 수집 결과 (제주 고립판정 격자): ${JSON.stringify(await jejuIsolationTideCollector.collectJejuIsolationTides({ log }))}`); }
+                catch (err) { log(`⚠️ TideBED 앵커 곡선 수집 오류 (제주 고립판정 격자): ${err.message}`); }
+                // [간출암 잠김경고] 곡선이 갱신됐으니 잠김 교차시각도 재계산(분단위×3일×전체 암초 — 배치당 1회).
+                log('⏱️ 간출암 잠김 교차시각 재계산 시작...');
+                try { await hazardRocksSubmersion.computeAllCrossings({ log }); }
+                catch (err) { log(`⚠️ 간출암 잠김 교차시각 계산 오류: ${err.message}`); }
+            });
         }
 
         if (process.env.FLY_ALLOC_ID) {

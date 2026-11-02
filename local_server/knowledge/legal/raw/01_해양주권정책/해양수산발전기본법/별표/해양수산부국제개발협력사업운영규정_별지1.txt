@@ -1,0 +1,71 @@
+[해양수산부 국제개발협력사업 운영 규정] 별지1 — 타당성조사 보고서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000284786 (수집 2026-11-02)
+별표서식파일링크: /LSW/flDownload.do?flSeq=169022415
+
+[별지 제1호 서식]
+타당성조사 보고서
+┌───────────┐
+│┌───┐            │
+││표  지│            │
+│└───┘            │
+│                      │
+│                      │
+│  타당성조사보고서    │
+│                      │
+│                      │
+│                      │
+│                      │
+│                      │
+│년  월                │
+│                      │
+│                      │
+│                      │
+│                      │
+│작 성 부 서(기 관) 명 │
+│                      │
+│                      │
+│                      │
+└───────────┘
+┌───┐
+│목  차│
+└───┘
+Ⅰ. 사업추진요건 분석 (Situation Analysis)
+ 1. 사업 여건 (Context of the project)
+사업대상국 및 사업대상지 (Target country and project site)
+사업대상지 여건 (Country context)
+현황 개요 (Overview of the current situation)
+Ⅱ. 수원기관 정보 (General Information on Organization)
+ 1. 수원기관 개요 (Overview of Organization)
+ 2. 수원기관 전략 및 활동 (Strategies and activities for responding to the problem)
+ 3. 사업수행역량 (Organization’s capacity on implementing the project)
+ 4. 사업대상국 내 협력 기관 (Cooperating organizations in target country)
+Ⅲ. 사업타당성 (Justification)
+  1. 문제상황 (Problem Statement)
+ (1) 사업지역 심층분석 (In-depth situation analysis at the project site)
+ (2) 타 공여기관/국제기구의 유사사업 추진현황 (Assistance from other organizations to the project site)
+  2. 수요조사 (Needs Assessment)
+ (1) 수혜대상 및 이해관계자 분석 (Description of target group (beneficiaries) and stakeholders)
+ (2) 수혜자 수요조사 (Needs of beneficiaries)
+ (3) 사업수행 타당성 (Justification for intervention)
+  3. 사업타당성 (Feasibility of the Project)
+ (1) 사업의 배경 및 목적 : 해당 사업의 배경 및 사업 시행을 통해 궁극적으로 달성하고자 하는 목표
+ (2) 기술적 타당성 분석 : 해당 사업의 기술적 시행의 가능 여부
+ (3) 경제적 타당성 분석 : 사업효과의 경제수요 충족 여부
+ (4) 정책적 타당성 분석 : 사업시행 후 기대되는 지역균형발전, 정책 일관성, 위험요인 등 고려 여부
+ (5) 환경ㆍ사회문화적 타당성 분석 : 사업시행으로 인한 잠재적인 부정적 환경요인에 대한 검토 여부
+ (6) 기타 : 사업 실현가능성, 사업 수행에 있어서의 위험요인 분석 및 대응 방안, 사업 종료 후 사업 효과의 지속가능성 등
+Ⅳ. 사업추진계획 (Project Description)
+  1. 사업목적 및 성과목표 (Goal and Objectives)
+  2. 기대결과 (Expected Results)
+ (1) 기대성과 (Expected outcomes)
+ (2) 기대산출물 (Expected outputs)
+  3. 사업내용 (Project Activities)
+ (1) 사업내용 및 산출물 상세 정의 (Activities & Output description)
+ (2) 사업 세부 프로세스 정의 (Process description)
+  4. 사업 수행 (Project Implementation)
+ (1) 사업수행체계 (Implementation structure)
+ (2) 추진일정 (Work plan and time frame)
+ (3) 연간 예산계획 (Annual budget plan)
+  5. 성과관리방안 (Result Management Strategy)
+ (1) 성과지표 및 평가계획 
+ (2) 지속가능방안 및 사후관리방안

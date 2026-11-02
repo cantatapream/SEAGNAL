@@ -260,7 +260,6 @@ console.log(`🌍 Serving static files from: ${staticRoot}`);
 // ============================================================================
 app.use(require('./routes/health'));
 app.use(require('./routes/weather'));
-app.use(require('./routes/advisoryPrediction'));  // 특보 예측 상태 조회 API (관심해역 필터, 읽기 전용)
 app.use(require('./routes/tide'));
 app.use(require('./routes/content'));
 app.use(require('./routes/stats'));
@@ -269,6 +268,10 @@ app.use(require('./routes/archive'));
 app.use(require('./routes/push'));
 app.use(require('./routes/push_test'));
 app.use(require('./routes/location_alert'));  // 위치기반 특보 경보 동의 기록 API (④)
+app.use(require('./routes/risk_errors'));  // 기존 관리자 토큰으로 보호된 사고예측 오류현황
+app.use(require('./routes/data_collection'));  // 관리자 점검 → 데이터 수집현황(수집 목록) — 같은 토큰 인증
+app.use(require('./routes/station_briefing'));  // 활동지점 안전 브리핑(파출소 관할) — 노출 판정·관리자 설정(같은 토큰 인증)
+app.use(require('./routes/kakao_relay'));  // 태블릿 앱이 보내는 카톡 특보 알림톡 수신(자체 열쇠) + 관리자 조회
 app.use(require('./routes/admin'));
 app.use(require('./routes/survey'));
 app.use(require('./routes/report'));
@@ -286,6 +289,7 @@ const cctvSeafogRouter = require('./routes/cctv_seafog');
 app.use(cctvSeafogRouter);
 app.use(require('./routes/ocean1'));        // 해양종합정보 API (수심/ROMS/기상/파고/저질)
 app.use(require('./routes/ocean2'));        // ROMS 격자/저질 API
+app.use(require('./routes/risk_forecast'));  // 위험예측 시간축·점수·산출근거 PDF API
 app.use(require('./routes/ocean3'));        // 해양현황 날씨/바람 API (zone_forecasts 기반)
 app.use(require('./routes/ocean4'));        // 해양현황 파고/zone-forecasts 오버레이 API
 app.use(require('./routes/pressure'));     // 바텀시트 기압 카드 API (OpenWeather 해면기압)
@@ -501,6 +505,20 @@ app.listen(PORT, '0.0.0.0', () => {
             console.error('[startup] CCTV 초기수집 트리거 실패:', e && e.message);
         }
 
+        // 위험예측은 운영에서만 외부 수집. 각 실패는 다른 수집기와 서버 응답을 막지 않는다.
+        try { require('./services/risk_error_history').start(); }
+        catch (_) { console.error('[startup] 위험예측 상태 감시 시작 실패'); }
+        for (const name of ['sea_traffic_collector', 'sea_accident_collector', 'sea_realtime_collector', 'tour_concentration_collector', 'coastal_events_collector', 'sea_warning_history']) {
+            try { require('./services/' + name).start(); }
+            catch (_) { console.error('[startup] 위험예측 수집기 시작 실패:', name); }
+        }
+        // 기상청 해수욕장 단기예보·수온 — 운영에서만 발표 15분 뒤(02:15·05:15·…·23:15 KST) 419곳(설계서 §18, 2026-10-18)
+        try { require('./services/beach_weather_collector').start(); }
+        catch (_) { console.error('[startup] 해수욕장 날씨 수집기 시작 실패'); }
+        // 활동지점 안전 브리핑 — 운영에서만 1분 점검(08:00·17:30·23:00 KST + 특보 변경). 시작 때 계산·외부 호출은 없다(첫 점검 1분 뒤).
+        try { require('./services/station_briefing').start(); }
+        catch (_) { console.error('[startup] 활동지점 안전 브리핑 시작 실패'); }
+
         // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
         try {
             require('./services/vsby_smallzone').startAutoRefresh();
@@ -537,9 +555,38 @@ app.listen(PORT, '0.0.0.0', () => {
                     if (purged > 0) console.log(`🧹 [startup] 윈도우 밖 곡선 파일 ${purged}개 정리(디스크 회복)`);
                 } catch (e) { console.error('[startup] 곡선 정리 실패:', e && e.message); }
                 console.log('🌊 [startup] 물빠짐 예측 부트스트랩 시작 (전처리 보장 → 롤링 수집)...');
-                Promise.resolve(tideFieldCollector.bootstrapTideField())
-                    .then(r => console.log(`🌊 [startup] 물빠짐 부트스트랩 결과: ${JSON.stringify(r)}`))
-                    .catch(err => console.error('[startup] 물빠짐 부트스트랩 실패:', err && err.message));
+                // [제주 기동 보충 — 2026-10-18] 물빠짐이 끝나면 제주 두 수집기도 부족분만 채운다.
+                //   제주는 23:30 에만 받아서, 자정이 지나면 「모레」 곡선이 다음 23:30 까지 비었다(간출암
+                //   조석 상자 모레 = 이 지역은 아직 지원하지 않아요). 이미 완전한 날짜는 건너뛰므로
+                //   재시작마다 돌아도 새로 받는 것은 빈 날짜뿐이다. 세 수집기는 차례로(동시 호출 금지),
+                //   23:30 묶음과도 같은 줄(runTideBatchExclusive)에 세운다.
+                require('./services/tide_field_common').runTideBatchExclusive(async () => {
+                    // 곡선 파일을 실제로 새로 썼는지(complete·partial 이 하나라도) — 썼을 때만 잠김경고를 다시 계산한다.
+                    const wrote = (r) => !!(r && r.byStatus && ((r.byStatus.complete || 0) + (r.byStatus.partial || 0)) > 0);
+                    let changed = false;
+                    try {
+                        const r = await tideFieldCollector.bootstrapTideField();
+                        console.log(`🌊 [startup] 물빠짐 부트스트랩 결과: ${JSON.stringify(r)}`);
+                        changed = changed || wrote(r);
+                    } catch (err) { console.error('[startup] 물빠짐 부트스트랩 실패:', err && err.message); }
+                    try {
+                        const r = await require('./services/hazard_rocks_tide_collector').collectHazardRockTides();
+                        console.log(`🌊 [startup] 제주 간출암 앵커 보충 결과: ${JSON.stringify(r)}`);
+                        changed = changed || wrote(r);
+                    } catch (err) { console.error('[startup] 제주 간출암 앵커 보충 실패:', err && err.message); }
+                    try {
+                        const r = await require('./services/jeju_isolation_tide_collector').collectJejuIsolationTides();
+                        console.log(`🌊 [startup] 제주 고립판정 격자 보충 결과: ${JSON.stringify(r)}`);
+                        changed = changed || wrote(r);
+                    } catch (err) { console.error('[startup] 제주 고립판정 격자 보충 실패:', err && err.message); }
+                    // [잠김경고 재계산 — 2026-10-18 독립 검토 C-5] 기동 보충이 곡선을 바꿨으면 그 자리에서 다시 계산한다.
+                    //   예전엔 23:30 에만 계산해, 배포 당일 메운 곡선(새벽 빈칸·모레)이 23:30 까지 잠김경고에 안 들어갔다.
+                    //   아무 파일도 안 바꿨으면(이미 다 있음) 부르지 않는다 — 재시작마다 무거운 계산을 하지 않게.
+                    if (changed) {
+                        try { await require('./services/hazard_rocks_submersion').computeAllCrossings(); }
+                        catch (err) { console.error('[startup] 잠김경고 재계산 실패:', err && err.message); }
+                    } else console.log('🌊 [startup] 곡선 변경 없음 — 잠김경고 재계산 생략');
+                });
             } catch (e) {
                 console.error('[startup] 물빠짐 부트스트랩 트리거 실패:', e && e.message);
             }

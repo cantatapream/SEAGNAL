@@ -10,6 +10,7 @@
  * 3. switchMainTab / switchSubTab 을 래핑하여:
  *    - 헤더를 특보정보 탭에서만 표시, 나머지 탭에서 숨김
  *    - 메인탭 클릭 시 해당 그룹 서브탭 자동 펼침 (body.sub-tabs-open ON)
+ *    - 그룹탭 클릭 시 기본 하위탭으로 되돌림 — 해양안전생활만 예외(마지막 하위탭 유지, 2026-10-16)
  *    - 서브탭 버튼 선택 시 서브탭 닫힘
  * 4. 본문(콘텐츠/지도) 터치 시 서브탭 자동 닫힘 (capture 리스너)
  * 5. enterOceanMapSection / exitOceanMapSection 오버라이드
@@ -302,7 +303,13 @@ window.switchMainTab = function (targetId) {
     //         기본 섹션(TAB_GROUP_DEFAULTS) 버튼에만 active 부여 → 원본이
     //         "active 버튼의 섹션" 을 찾을 때 기본 섹션으로 표시됨.
     //         단, targetId 가 명시적인 섹션ID인 경우는 사용자 의도를 존중해 스킵.
-    var _groupForReset = TAB_GROUP_DEFAULTS[targetId] ? targetId : null;
+    //  [예외 — 해양안전생활(2026-10-16 사용자 확정)] 이 탭은 다른 탭에 다녀와도 마지막 화면을
+    //         유지한다: 「…다른 탭을 갔다오면 해양안전생활 화면이 초기화되는데 가장 마지막에 했던
+    //         화면 상태로 유지해줘. 단 앱을 껐다가 켜면 초기화상태로 시작.」 → 기본 하위탭으로
+    //         되돌리지 않고 원본(marine.js)이 "이전에 선택했던 하위탭"을 그대로 보이게 둔다.
+    //         하위탭 안의 화면(켜 둔 버튼·지도 위치 등)은 life_safety.js 1-3 절이 되살린다.
+    //         처음 앱을 켜면 마크업의 active(해양안전)가 기본값이다.
+    var _groupForReset = (TAB_GROUP_DEFAULTS[targetId] && targetId !== 'ocean-life-group') ? targetId : null;
     if (_groupForReset) {
         var _defaultSection = TAB_GROUP_DEFAULTS[_groupForReset];
         var _subNavId = TAB_GROUP_SUBTABS[_groupForReset];

@@ -40,6 +40,7 @@
     var OS = window.OceanSheet = window.OceanSheet || {};
 
     var VSBY_MAX = 20; // km 상한 클램프
+    var MAX_GAP_MIN = 60; // 선택 시각과 이보다 먼 frame 밖에 없으면 「정보 없음」(frame 1시간 간격)
 
     // 동시성 토큰 — 빠른 슬라이더 이동 시 오래된 응답이 새 응답 덮지 않도록
     var _fetchToken = 0;
@@ -119,16 +120,32 @@
         return out;
     }
 
-    /** 정규화 series + 선택 시각 → 가장 가까운 시각의 km 값 (없으면 null). */
+    /**
+     * YYYYMMDDHHmm 정수 키 → 분 단위 시각(벽시계 기준). 키끼리 그냥 빼면 날짜가 바뀔 때
+     *   10월 14일 23시 ↔ 10월 15일 00시가 7700 처럼 벌어져 거리 비교가 틀린다.
+     * 예: _keyMinutes(202610151200) - _keyMinutes(202610151100) === 60
+     */
+    function _keyMinutes(key) {
+        var s = String(key);
+        return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12)) / 60000;
+    }
+
+    /**
+     * 정규화 series + 선택 시각 → 가장 가까운 시각의 km 값 (없으면 null).
+     * ★가장 가까운 frame 도 선택 시각과 MAX_GAP_MIN(60분) 넘게 떨어지면 null → 「정보 없음」.
+     *   예전엔 거리 제한이 없어, MMIS 수집이 멈춘 동안 며칠 전 예보가 오늘 값처럼 보였다
+     *   (사용자 확정 2026-10-15 「정확한 최신 데이터가 아닌 경우 정보없음」). frame 은 1시간 간격.
+     * 예: series 가 10/14 16시까지뿐이고 선택 시각이 10/15 12시 → null
+     */
     function _valueAt(norm, date) {
         if (!Array.isArray(norm) || !norm.length) return null;
-        var target = _dateKey(date);
+        var target = _keyMinutes(_dateKey(date));
         var best = null, bestDiff = Infinity;
         for (var i = 0; i < norm.length; i++) {
-            var diff = Math.abs(norm[i].key - target);
+            var diff = Math.abs(_keyMinutes(norm[i].key) - target);
             if (diff < bestDiff) { bestDiff = diff; best = norm[i]; }
         }
-        return best ? best.v : null;
+        return best && bestDiff <= MAX_GAP_MIN ? best.v : null;
     }
 
     /** 캐시된 series 로 카드 값만 갱신 (재요청 없음). */

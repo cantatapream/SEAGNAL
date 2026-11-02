@@ -11,6 +11,8 @@
  * - NotificationSettings: 푸시 알림 구독 설정
  * - FontSizeManager: 글꼴 크기 조절
  * - findSeaZone(), findNearestZone(): 위치 기반 해역 검색
+ * - openSettingsModal(): 관심해역 탭의 「활동지점 안전 브리핑」 칸을 forecast/station-briefing/station_briefing.js(StationBriefing.renderSettings)가 채운다(2026-10-16)
+ * - settingsModalHasUnsaved(): 저장하지 않은 변경이 있나 — 그 칸의 [관할 설정]이 팝업을 닫기 전에 묻는 데 쓴다(2026-10-16 2단계 검토 A4)
  *
  * [로딩 순서] 8번째 (marine.js 이후)
  * ============================================================================
@@ -310,6 +312,19 @@ const UserSettings = {
         return true;
     },
 
+    /**
+     * 관심해역을 골라 둔 상태인지 알려준다 — 꺼 둔(false) 구역·해역이 하나라도 있으면 true.
+     * 예: {} 또는 전부 true → false(아직 안 고름 = 전 해역) · {'서해': false} → true
+     * @returns {boolean}
+     * [연계] ← forecast/alerts/render.js syncAlertZoneGear(「해역별 특보현황」 ⚙ 보이기) ·
+     *          forecast/outlook/marine_forecast.js getRelevantOfficeCodes(관심해역으로 지방청 고르기)
+     *          규칙은 render.js renderApp 의 「관심해역별 특보현황」 제목 판정(isFiltered)·
+     *          settings/zone_guide.js isAllZonesOn 과 같다 — 셋이 같은 상태를 같게 보게 하려고.
+     */
+    hasInterestZones() {
+        return Object.values(this.settings).includes(false);
+    },
+
     // 설정 값 가져오기 (기본값 true)
     get(key) {
         return this.settings[key] !== false;
@@ -591,6 +606,10 @@ function openSettingsModal() {
     renderSettingsList();
     initNotificationUI(); // [New] UI 초기화 (localStorage에서 최신 값 다시 읽음)
     if (typeof initLocationAlertUI === 'function') initLocationAlertUI(); // [위치기반 특보] 토글/관리자 게이트 초기화
+    // [활동지점 안전 브리핑] 관심해역 탭의 표시/숨김·관할 설정 칸(§11.2) — 노출 판정이 display:true 일 때만 보인다.
+    //   관리자 모드를 막 켰을 수 있으므로 판정을 다시 받는다(받으면 applyVisibility 가 이 칸을 다시 그린다). 이 칸은 누르는 즉시 적용 — 아래 스냅샷과 무관.
+    //   [연계] js/forecast/station-briefing/station_briefing.js renderSettings·refresh
+    if (window.StationBriefing) { window.StationBriefing.renderSettings(); window.StationBriefing.refresh(); }
 
     // 스냅샷 저장 (initNotificationUI 이후에 생성해야 localStorage 최신 값 기준)
     UserSettings._snapshot = JSON.parse(JSON.stringify(UserSettings.settings));
@@ -627,6 +646,30 @@ function closeSettingsModal() {
 }
 
 /**
+ * 설정 모달에 저장하지 않은 변경이 있는가 — 관심해역(UserSettings 스냅샷과 비교)·글꼴(스냅샷과 비교)·알림(화면 칸 vs 저장값, saveNotificationUI 가 읽는 칸과 같은 것).
+ * 모달 밖으로 나가는 버튼(활동지점 안전 브리핑 [관할 설정])이 closeSettingsModal 의 스냅샷 복원으로 변경을 조용히 버리지 않게 묻는 데 쓴다(2026-10-16 2단계 검토 A4).
+ * 예: 관심해역 칸 하나를 끈 뒤 → true · 열자마자 → false · 모달이 닫혀 있으면 false
+ * @returns {boolean}
+ * [연계] ← forecast/station-briefing/station_briefing.js renderSettings([관할 설정]) / UserSettings._snapshot·_fontSizeSnapshot·NotificationSettings.settings
+ */
+function settingsModalHasUnsaved() {
+    const modal = document.getElementById('settings-modal');
+    if (!modal || modal.classList.contains('hidden')) return false;
+    if (UserSettings._snapshot && JSON.stringify(UserSettings.settings) !== JSON.stringify(UserSettings._snapshot)) return true;
+    if (window._fontSizeSnapshot && window.FontSizeManager && FontSizeManager.get() !== window._fontSizeSnapshot) return true;
+    const master = document.getElementById('push-master-toggle');
+    if (master) {
+        // 화면에 없는 칸은 비교하지 않는다(그 값은 저장 때도 바뀌지 않는 것으로 본다).
+        const cur = NotificationSettings.settings || {}, chk = (id) => { const e = document.getElementById(id); return e ? e.checked : undefined; };
+        const radio = document.querySelector('input[name="push-target"]:checked');
+        const ui = { master: master.checked, target: radio ? radio.value : undefined, announce: chk('push-opt-announce'), active: chk('push-opt-active'), release: chk('push-opt-release'), night: chk('push-opt-night'), childZones: chk('push-opt-childzones'), typhoon: chk('push-opt-typhoon'), aiAnswer: chk('push-opt-ai-answer') };
+        for (const k of Object.keys(ui)) if (ui[k] !== undefined && cur[k] !== undefined && cur[k] !== ui[k]) return true;
+    }
+    return false;
+}
+window.settingsModalHasUnsaved = settingsModalHasUnsaved;
+
+/**
  * 설정 모달의 변경사항을 확정 저장하고 모달 닫기.
  *
  * [순서]
@@ -660,11 +703,6 @@ function saveSettingsAndClose() {
     }
     if (typeof loadRegionalForecast === 'function') {
         loadRegionalForecast();
-    }
-    // [작업7] 해역별 특보 예측 섹션도 즉시 반영 — 보관된 마지막 data 로 재렌더
-    // (데이터 재요청 없이 헤더 문구·카드 필터를 관심해역 토글에 맞춰 갱신).
-    if (typeof window.rerenderAdvisoryPrediction === 'function') {
-        window.rerenderAdvisoryPrediction();
     }
 }
 

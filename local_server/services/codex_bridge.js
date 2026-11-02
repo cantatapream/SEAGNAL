@@ -78,7 +78,7 @@ const DEFAULT_MODEL = 'gpt-6-luna';
  *   아무것도 요청 안 한 일반 사용자가 Gemini 로 가면 헤더도 없다(응답 바이트 동일).
  * 예: 관리자 토큰 + { llm: "codex" } → X-Nrya-LLM: codex, X-Nrya-Model: gpt-6-luna
  * @param {object} req @param {object} res @param {Function} next
- * @param {{answerModel?:string, codexForUsers?:boolean}} [cfg] - 관리자 센터 설정(normConfig 결과)
+ * @param {{answerModel?:string, codexForUsers?:boolean, providerOrder?:string[], providerRemoved?:string[]}} [cfg] - 관리자 센터 설정(normConfig 결과)
  * [연계] ← routes/legal.js /api/legal/ask 앞(설정을 읽어 넘긴다). → admin_auth.verifyToken.
  */
 function withRequest(req, res, next, cfg) {
@@ -91,13 +91,21 @@ function withRequest(req, res, next, cfg) {
     res.setHeader('X-Nrya-Model', m);
     return als.run({ codex: true, model: m }, next);
   };
-  if (!ENABLED || llm === 'gemini') return toGemini();
+  if (llm === 'gemini') return toGemini();
   const isAdmin = () => require('./admin_auth').verifyToken(req.get('X-Admin-Token') || '');
-  if (llm === 'codex') return isAdmin() ? toCodex(model || DEFAULT_MODEL) : toGemini();
-  if (!model) return toGemini();
+  if (llm === 'codex') return ENABLED && isAdmin() ? toCodex(model || DEFAULT_MODEL) : toGemini();
+  // ④ 평소 질문 — [2026-11-02 사용자 확정] ChatGPT 와 같은 범위(관리자 || codexForUsers)에서
+  //   업스테이지·클로드×2·ChatGPT·Gemini 를 관리자 센터 순서대로 시도하는 사슬(services/llm_chain.js)로 보낸다.
+  //   ChatGPT 칸은 서버 스위치·작업자 연결·모델(answerModel ≠ 'gemini')이 다 있을 때만 쓰인다(llm_chain.usable).
+  //   헤더는 붙이지 않는다 — 어느 AI 가 답할지는 호출해 봐야 안다(답변 끝 표시줄이 알려 준다).
   if (!(c.codexForUsers === true || isAdmin())) return toGemini();
-  if (!workerAlive()) return toGemini();
-  return toCodex(model);
+  //   removed = 관리자 센터 [삭제] 목록(providerRemoved) — 사슬이 그 AI 를 건너뛴다(llm_chain.usable).
+  return als.run({ chain: true, order: c.providerOrder, removed: c.providerRemoved, model, used: null }, next);
+}
+
+/** 이 요청 범위의 저장소(사슬·codex 표시). 없으면 undefined. [연계] ← services/llm_chain.js */
+function store() {
+  return als.getStore();
 }
 
 /**
@@ -112,7 +120,10 @@ function withRequest(req, res, next, cfg) {
  */
 function answerLabel(geminiModel) {
   const s = als.getStore();
-  const name = (s && s.codex)
+  const used = s && s.chain ? s.used : null;   // 사슬 요청 — 마지막으로 성공한 AI
+  if (used === 'claude1' || used === 'claude2') return '\n\n※ 이 답변은 Claude Sonnet 5.5 모델이 답했습니다.';
+  if (used === 'upstage') return '\n\n※ 이 답변은 Upstage Solar Pro 4 모델이 답했습니다.';
+  const name = ((s && s.codex) || used === 'chatgpt')
     ? 'ChatGPT ' + String(s.model || DEFAULT_MODEL).replace(/^gpt-(\d+)-(\w+)$/i, (m, v, n) => `GPT-${v} ${n.charAt(0).toUpperCase()}${n.slice(1)}`)
     : 'Gemini ' + String(geminiModel || '').replace(/^gemini-/i, '').split('-')
       .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -154,11 +165,12 @@ function handOut() {
  * gemini_client.callGeminiRaw 와 **같은 반환 모양**으로 codex 답을 받아 온다.
  * 예: callRaw({ contents: '…', config: { responseMimeType: 'application/json' }, caller: 'Legal-Clarify' })
  *     → { success: true, response: { text: '{"needed":false}' }, error: null, isRateLimited: false, keyLabel: 'codex' }
- * @param {{contents:any, config?:object, caller?:string}} args
+ * @param {{contents:any, config?:object, caller?:string, model?:string}} args
+ *   model: 요청 범위(withRequest) 밖에서 부르는 곳이 모델을 직접 고를 때만(관할 브리핑 — 관리자 「AI 브리핑」 설정). 없으면 종전대로 요청 범위의 모델 → 기본 모델.
  * @returns {Promise<{success:boolean, response:{text:string}|null, error:string|null, isRateLimited:boolean, keyLabel:string}>}
- * [연계] ← gemini_client.js. → 작업자(scripts/codex_worker.js)가 poll/result 로 처리.
+ * [연계] ← gemini_client.js · station_briefing_ai(관할 브리핑 총평, model 지정). → 작업자(scripts/codex_worker.js)가 poll/result 로 처리.
  */
-function callRaw({ contents, config, caller = 'unknown' }) {
+function callRaw({ contents, config, caller = 'unknown', model }) {
   const fail = (error) => ({ success: false, response: null, error, isRateLimited: false, keyLabel: 'codex' });
   if (!workerAlive()) {
     console.error(`[Codex] VM 작업자 연결 없음 caller=${caller} (마지막 접속 ${lastWorkerSeenAt ? Math.round((Date.now() - lastWorkerSeenAt) / 1000) + '초 전' : '없음'})`);
@@ -168,7 +180,7 @@ function callRaw({ contents, config, caller = 'unknown' }) {
   const json = !!(config && config.responseMimeType === 'application/json');
   return new Promise((resolve) => {
     const store = als.getStore() || {};
-    const job = { id, prompt: promptText(contents), json, caller, model: store.model || DEFAULT_MODEL, state: 'queued', createdAt: Date.now(), resolve: null, timer: null };
+    const job = { id, prompt: promptText(contents), json, caller, model: (ANSWER_MODELS.includes(model) && model !== 'gemini' ? model : null) || store.model || DEFAULT_MODEL, state: 'queued', createdAt: Date.now(), resolve: null, timer: null };
     job.resolve = (r) => { clearTimeout(job.timer); jobs.delete(id); resolve(r); };
     job.timer = setTimeout(() => {
       const i = queue.indexOf(id); if (i >= 0) queue.splice(i, 1);
@@ -230,4 +242,4 @@ function result(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { withRequest, active, callRaw, poll, result, stripFence, workerAlive, answerLabel, ENABLED, ANSWER_MODELS, DEFAULT_MODEL };
+module.exports = { withRequest, active, store, callRaw, poll, result, stripFence, workerAlive, answerLabel, ENABLED, ANSWER_MODELS, DEFAULT_MODEL };

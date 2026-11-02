@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 111개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 128개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -28,13 +28,15 @@ SEAGNAL(바다날씨)은 해양 기상특보·해양종합정보·해양생활·
 client/js/
 ├── admin/  ← ⚡ 관리자 센터
 │   ├── admin_collect.js
+│   ├── admin_data_status.js
+│   ├── admin_kakao_relay.js
 │   ├── admin_location_status.js
 │   ├── admin_report.js
+│   ├── admin_station_briefing.js
 │   ├── admin_survey.js
 │   ├── admin_trigger.js
 │   ├── admin_zone_editor.js
 │   ├── admin.js
-│   ├── advisory_manage_admin.js
 │   ├── cctv7.js
 │   └── pagination_helper.js
 ├── ai-chat/
@@ -72,9 +74,12 @@ client/js/
 │   │   ├── forecast.js
 │   │   ├── marine_forecast.js
 │   │   └── windy.js
-│   └── prediction/
-│       ├── advisory_prediction.js
-│       └── run_advisory_render_test.js
+│   └── station-briefing/
+│       ├── station_briefing_basis.js
+│       ├── station_briefing_picker.js
+│       ├── station_briefing_render.js
+│       ├── station_briefing_riskmap.js
+│       └── station_briefing.js
 ├── location-alert/  ← ⚡ 위치기반 경보
 │   ├── location_alert_background.js
 │   ├── location_alert_core.js
@@ -87,6 +92,16 @@ client/js/
 │   │   └── mudflat.js
 │   ├── ripcurrent/
 │   │   └── ripcurrent.js
+│   ├── risk-forecast/
+│   │   ├── risk_api.js
+│   │   ├── risk_basis_content.js
+│   │   ├── risk_basis.js
+│   │   ├── risk_forecast.js
+│   │   ├── risk_format.js
+│   │   ├── risk_map_layer.js
+│   │   ├── risk_marine.js
+│   │   ├── risk_sheet.js
+│   │   ├── risk_slider.js
 │   ├── safety/
 │   │   ├── access_control.js
 │   │   ├── accident_geocode_review_person.js
@@ -116,6 +131,7 @@ client/js/
 ├── notice/  ← [탭4] 공지사항
 │   ├── board/
 │   │   ├── image_compress.js
+│   │   ├── markdown_import.js
 │   │   └── promo.js
 │   └── comments/
 │       ├── promo_comment1.js
@@ -138,6 +154,7 @@ client/js/
 │   │   ├── cctv4.js
 │   │   └── ocean_cctv.js
 │   ├── coastal-risk/
+│   │   ├── mock/
 │   ├── layers/
 │   │   ├── shrt_forecast_layer.js
 │   │   ├── tide_field.js
@@ -191,12 +208,14 @@ client/js/
 |------|------|
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
+| `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
+| `admin_kakao_relay.js` | 관리자 → 특보 관리 → 「카톡 중계」 탭 — 중계 기기·MMIS 대조 기록·받은 특보 글 |
 | `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시 |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
+| `admin_station_briefing.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 연안 안전 브리핑(종전 「활동지점  |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
 | `admin_trigger.js` | 관리자 트리거(15회 클릭), 공지/점검/오류 팝업 |
 | `admin_zone_editor.js` | 출입통제구역(access_control_zones.json) 폴리곤 점 편집기 — 독립 페이지 |
-| `advisory_manage_admin.js` | 관리자 "특보 관리 → 특보 예측" 운영 UI (청중 모드 토글·예측 목록 관리) |
 | `cctv7.js` | 마커 좌표가 잘못된 경우 지도 상에서 직접 위치를 교정합니다. |
 | `pagination_helper.js` | 관리자 리스트 화면용 공용 페이지네이션 UI helper |
 
@@ -266,12 +285,15 @@ client/js/
 | `marine_forecast.js` | 기상청 해상 기상 전망 데이터 로드 및 렌더링 |
 | `windy.js` | Windy 팝업, 상태 카드 시스템 |
 
-### `client/js/forecast/prediction/`
+### `client/js/forecast/station-briefing/`
 
 | 파일 | 역할 |
 |------|------|
-| `advisory_prediction.js` | "해역별 특보 예측" 아코디언 렌더러. |
-| `run_advisory_render_test.js` | node 렌더 테스트 하네스 — advisory_prediction(v6) 렌더 함수 검증 (브라우저 불필요) |
+| `station_briefing.js` | 해양예보 탭 「🔭 기상청 해상 기상 전망」 바로 아래의 「HH:MM AI 연안 안전 브리핑」 아코디언(설계서 §11.1~§1 |
+| `station_briefing_basis.js` | 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」 — 2026-10-17 §11.10.4)의 [기준 상세] 문안 — 브리핑이 |
+| `station_briefing_picker.js` | 「연안 안전 브리핑 지역 설정」(종전 「활동지점(파출소 관할) 설정」) 화면의 관할 고르기 칸 — 탭 두 개(사용자 2026- |
+| `station_briefing_render.js` | 「연안 안전 브리핑」(종전 「활동지점 안전 브리핑」) 본문을 그린다 — 서버가 만든 브리핑(총평과 권고 = 서버 결론 + 연안 |
+| `station_briefing_riskmap.js` | 연안 안전 브리핑의 지도(팝업·근거 펼침)에 위험예측 화면과 같은 배경 — 위성지도 위 해상 칸 색·선박 수(혼잡도) / 위험 |
 
 ### `client/js/location-alert/`
 
@@ -299,6 +321,20 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `ripcurrent.js` | 이안류 지수 프론트엔드 전체 로직 (지도형 — 스킨스쿠버 방식) |
+
+### `client/js/marine-life/risk-forecast/`
+
+| 파일 | 역할 |
+|------|------|
+| `risk_api.js` | 위험예측 API의 응답을 제한 시간 안에 받고 입력 시각별로 캐시한다. |
+| `risk_basis.js` | 확정된 기준 상세 문안을 대화창으로 열고 휴대폰 뒤로가기·원본 PDF 다운로드를 연결한다. |
+| `risk_basis_content.js` | 공식 선박 예보와 연안 분석의 기준 문안을 보관한다. 동적인 API 데이터는 이 문자열에 섞지 않는다. |
+| `risk_forecast.js` | 해상 지도 [위험 예측](공식 사고예보)·[혼잡도](지금 밀집도·미래 혼잡예보) 두 칸 선택을 단일 격자 지도와 상세와 연안· |
+| `risk_format.js` | 서버가 계산한 점수·배수를 글자와 표시색으로 바꾼다. 점수 판정은 하지 않는다. |
+| `risk_map_layer.js` | 해상은 단일 GR4의 연속 면색·확대 척수와 선택 경계로, 연안은 기존 분석으로 표시한다. |
+| `risk_marine.js` | 해상 지점 시트 본문(위 카드 위험 예측·밀집도/혼잡도, 지난 2주간 선박교통량 그래프, 이 해역 과거 선박사고 도넛·팝업, |
+| `risk_sheet.js` | 해역 종합·공식 예보·해구 기상·선박사고 이력과 연안 분석을 구별하고 연안 합계 배수의 계산 과정을 설명한다. |
+| `risk_slider.js` | 서버 KST 시간축 배열을 기존 해양종합정보 슬라이더 모양으로 표시한다. |
 
 ### `client/js/marine-life/safety/`
 
@@ -355,6 +391,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `image_compress.js` | 관리자 게시글 에디터(Quill) 의 이미지 자동 압축 유틸리티 |
+| `markdown_import.js` | 공지 게시판 관리자 글쓰기 — 마크다운(.md) 파일 내용을 게시글 본문(HTML)으로 바꾼다. |
 | `promo.js` | 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집) |
 
 ### `client/js/notice/comments/`
@@ -481,7 +518,6 @@ client/js/
 
 - `local_server/routes/` (31) — Express API 라우트
 - `local_server/services/` (35) — 서버 서비스(캐시·푸시·수집 등)
-- `local_server/advisory/` — 특보 예측 엔진
 - `local_server/scheduler.js` — 크롤러·수집 스케줄러
 - `local_server/data/` — 런타임 데이터 (Fly 볼륨 /app/local_server/data — 경로 변경 금지)
 - 예외: `services/typhoon_radius.js`·`typhoon_message.js` 는 서버·클라 공용 —

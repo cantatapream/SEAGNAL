@@ -247,3 +247,40 @@ Gemini 전용 `config`(`thinkingConfig`, `temperature`)는 무시한다. JSON �
 
 `/api/legal/ask` 가 인증 없이 열려 있다. 지금은 버튼만 숨긴 상태라, 주소를 아는 누구나 Gemini 요금을 쓰게 할 수 있다.
 Codex 모드와 무관하게 공공 공개 전에 따로 다룰 사항.
+
+## 10. 답변 AI 사슬 — 업스테이지·클로드×2·ChatGPT·Gemini 자동 전환 (2026-11-02 추가)
+
+> 사용자 원문: *"자동으로 넘어가는거야 업스테이지가 끝나면 클로드 1이 다 끝나면 클로드 2가 또 끝나면 챗지피티가. 끝나면 제미나이가. 이 순으로 말이야. 이 순서는 사용자 설정에서 바꿀수 있도록도 해줘."*
+> 「끝나면」 = *"크레딧이 다 떨어졌을때"*. 범위 = *"지금 챗 gpt와 같은 범위"*. 설정 위치 = 관리자 센터.
+
+- **코드**: `services/llm_chain.js`. 입구는 `gemini_client.callGeminiRaw`(→`callRaw`)/`callGeminiStream`(→`callStream`) — 요청 범위에 사슬 표시가 있을 때만 탄다.
+- **범위**: `codex_bridge.withRequest` ④(평소 질문)에서 `관리자 토큰 || codexForUsers` 이면 사슬. 아니면 종전대로 Gemini. 시험용 `llm:"codex"`·`llm:"gemini"` 는 종전 그대로.
+- **기본 순서**: `upstage → claude2 → claude1 → chatgpt → gemini` (사용자 확정: *"클로드 키 중에서는 "ANTHROPIC_API_KEY_2" 이것을 먼저쓰고 "ANTHROPIC_API_KEY_1"를 나중에"*). 관리자 센터 ▲▼ 로 바꾸면 `nariya_config.json` 의 `providerOrder` 에 저장된다.
+- **AI 삭제(2026-11-02 사용자 요청 — *"더이상 키가 없고 더이상 사용하지 않는다면 … 삭제버튼을 만들어줘. 삭제버튼을 누르면 정말 삭제하겠냐고 다시한번 확인토록"*)**: 줄마다 [삭제](Gemini 줄은 없음 — 마지막 안전망) → `window.confirm` → `providerRemoved`(string[], 기본 [], `llm_chain.isValidRemoved`: PROVIDERS 부분집합·gemini·겹침 불가, POST 틀리면 400 / 저장값이 틀리면 `normRemoved` 로 []) 에 저장, 사슬 `usable` 이 건너뛴다(callRaw·callStream 공통), `status(removed)` 에 `removed` 표시. `providerOrder` 는 다섯 개 순열 그대로(옛 저장값·`isValidOrder` 불변). 목록 아래 「삭제된 AI: ○○ [다시 추가]」 → 보이는 줄의 맨 뒤(맨 뒤가 Gemini 면 그 바로 앞)에 넣은 순서와 삭제 목록을 한 번에 POST. Fly.io 시크릿은 건드리지 않는다. 시험 `test_llm_chain.js` ⑩.
+- **모델**: Claude `claude-sonnet-5-5` + `output_config.effort: "medium"` / Upstage `solar-pro4` + `reasoning_effort: "medium"` / ChatGPT 칸은 관리자 센터 `answerModel`(gemini 로 두면 ChatGPT 칸 건너뜀).
+- **Fly.io 시크릿 이름**: `ANTHROPIC_API_KEY_1` · `ANTHROPIC_API_KEY_2` · `UPSTAGE_API_KEY`. 없으면 그 칸은 건너뛴다(부팅 로그 `[LLM 사슬] 키 — …` 에 있음/없음이 찍힌다).
+- **크레딧 소진 판정**(이것만 「계속 건너뜀」 + 관리자 푸시 1회):
+  - Claude: HTTP 402 / `billing_error` (Anthropic 오류표).
+  - Upstage: `api_key_is_blocked`(401) · `api_key_is_not_allowed`(403) · `studio_subscription_quota_exceeded`(403) · `usage_limit_exceeded`(429) (console.upstage.ai/docs/resources/error-codes). `too_many_requests`(429, 분당 한도)는 소진 아님.
+  - ChatGPT·Gemini: 소진 표시 없음(종전 동작 — 그 호출만 다음으로 / Gemini 는 자체 쿨다운).
+  - **ChatGPT 칸 쉼(2026-11-02 사용자 확정)**: 작업자가 종료코드·시간초과 문구만 줘 한도 소진을 알아볼 수 없으므로, 사슬 안 ChatGPT 호출이 **연속 3번 실패하면 30분 건너뛴다**(`CHATGPT_FAIL_LIMIT`·`CHATGPT_REST_MS`). 30분 뒤 자동 재시도 · 쉬기 시작할 때 관리자 푸시 1회 · 성공 1번이면 연속 실패 수 0 · 작업자 미연결로 건너뛴 것은 실패로 안 셈 · 쉬는 중 끝난 호출의 실패도 안 셈. 관리자 센터에 「쉬는 중(HH:MM KST까지)」(`status().restUntil`), [소진 해제](`providerReset` chatgpt|all)로 즉시 해제(연속 실패 수도 0). ~~메모리에만 있어 재시작 때 지워진다~~ → 쉼 끝 시각은 재시작 뒤에도 유지(아래 「상태 저장」). 시험 `test_llm_chain.js` ⑦.
+- **일시 오류**: 그 호출 하나만 다음 AI 로. 순서는 바뀌지 않는다.
+- ~~**소진 표시는 메모리에만** 있다 — 관리자 센터 [소진 해제] 또는 서버 재시작 때 지워진다(재시작 뒤 또 소진이면 다시 찍힌다).~~ → 아래 「상태 저장」으로 바뀜(2026-11-02).
+- **상태 저장(2026-11-02 사용자 확정)**: 소진 표시(`exhausted`)와 ChatGPT 쉼 끝 시각(`chatgptRest.until`)을 볼륨 파일 `local_server/data/llm_chain_state.json`(fly.toml `[[mounts]]` `/app/local_server/data`)에 둔다. 서버 재시작·배포 뒤에도 이어지고, 지우는 길은 관리자 센터 [소진 해제]뿐이다.
+  - 쓰기: 상태가 바뀔 때만 — 소진 표시(`markExhausted`)·쉼 시작(`countChatgpt`)·해제(`resetExhausted`). `atomic_write.writeFileAtomic`(tmp→rename). 쓰기 실패는 로그만(메모리 상태로 계속).
+  - 읽기: 모듈 로드 때 1번. 파일 없음 → 빈 상태. 읽기 실패·손상(JSON 아님) → 빈 상태 + 로그. 모양이 틀린 칸·모르는 이름은 버림. 지난 쉼(until ≤ 지금)은 무시.
+  - 연속 실패 수(`fails`)는 저장하지 않는다 — 쓰는 순간(쉼 시작·해제)엔 늘 0 이라 의미가 없다. 재시작하면 0 부터 센다.
+  - 경로 바꾸기: 환경변수 `LLM_CHAIN_STATE_FILE`. 시험은 임시 폴더를 쓴다(운영 data 를 안 건드림). git 추적 제외(`.gitignore`).
+  - 시험 `test_llm_chain.js` ⑨(저장→모듈 다시 불러오기→유지 · 해제도 유지 · 손상 파일 → 빈 상태 · 지난 쉼 무시).
+- **스트림(2026-11-02 사용자 확정)**: 답변 합성(`legal_retriever.synthesizeAnswerStream` → `gemini_client.callGeminiStream`)이 사슬 요청이면 `llm_chain.callStream`(비동기 제너레이터)으로 간다. 종전엔 `callRaw` 완성본을 한 번에 넘겼다.
+  - 조각을 흘리는 칸: Claude(SDK `messages.create({ stream:true })` 의 `text_delta`) · 업스테이지(`stream:true` SSE `choices[0].delta.content`, `[DONE]`에서 끝) · Gemini(`gemini_client.geminiStreamDirect` — 원래 Gemini 스트림을 사슬 재진입 없이). ChatGPT 칸은 스트림이 없어 완성본 1번.
+  - **첫 조각 전** 실패 → `callRaw` 와 같은 규칙으로 다음 AI(크레딧 소진 판정·표시·푸시, ChatGPT 연속 실패 수). **첫 조각 뒤** 실패 → 다음으로 넘기지 않고 throw(이미 일부가 나갔다 — 기존 Gemini 스트림과 같은 관례, `routes/legal.js` 가 받은 데까지 처리).
+  - 시간 한도: `min(httpOptions.timeout, 120초)` 를 **첫 조각까지만** 잰다(첫 조각이 오면 푼다). 왜: Claude SDK timeout 은 응답 머리(헤더)까지만 재고, 업스테이지의 `AbortSignal.timeout` 을 그대로 쓰면 긴 답을 중간에 끊는다. 첫 조각 뒤에는 한도가 없다(기존 Gemini 스트림과 같음).
+  - 답변 끝 이름(`s.used`)은 **첫 조각 때** 적는다(사양 밖 결정) — 중간에 끊겨도 화면에 나간 글을 쓴 AI 이름이 붙게. 통계 success 는 끝까지 받은 때만, 중간 끊김은 fail.
+  - JSON 호출은 스트림으로 오지 않는다 — 스트림 호출부는 `synthesizeAnswerStream` 하나(`SYNTH_CONFIG`, responseMimeType 없음). 그래도 JSON 규칙(system)·ChatGPT 칸 ``` 벗기기는 callRaw 와 같게 둔다.
+  - ⚠업스테이지 스트림 응답 모양은 OpenAI 호환 규약 기준이고 실호출로 확인하지 않았다. Claude 스트림은 설치된 SDK 1.3.0 코드(`core/streaming.js` — `event: error` 는 APIError 로 던지고, 끊김(abort)은 조용히 끝냄)를 읽고 맞췄다.
+  - 시험 `test_llm_chain.js` ⑧(Claude·업스테이지 조각이 나머지보다 먼저 나옴 · 첫 조각 전 소진→다음 · 첫 조각 뒤 실패→throw·다음 안 부름 · 첫 조각 시간 한도 · Gemini 칸 · ChatGPT 칸 완성본 1번·연속 실패 쉼 · 답변 끝 이름).
+- **Gemini 전용 기능**(검색 그라운딩 `tools`·음성 `responseModalities`)은 사슬을 타지 않는다.
+- **답변 끝 표시**: 마지막으로 성공한 AI 이름(Claude Sonnet 5.5 / Upstage Solar Pro 4 / ChatGPT … / Gemini …).
+- **시험**: `scripts/test_llm_chain.js`(verify_all SUITES 등록) · `scripts/test_codex_bridge.js` ⑤ 갱신.
+- **독립 리뷰 반영(2026-11-02, 시험 ⑥)**: ①Claude·업스테이지 시간 한도 = `min(config.httpOptions.timeout, 120초)` (legal_retriever 의 *_CONFIG 가 10~15초), 짧은 한도면 Claude SDK 재시도 끔(재시도 몫은 다음 AI) — ChatGPT 칸 300초는 그대로. ②Claude 400 `invalid_request_error` + "credit balance" 문구도 소진(옛 응답 형태 대비, ⚠실호출 미확인). ③`GET /api/legal/config` 의 `providerStatus` 는 관리자 토큰이 있을 때만. ④`providerReset` 은 앞에서 `isValidReset` 로 검사만 하고, 실제 해제는 모든 검사 통과 뒤.

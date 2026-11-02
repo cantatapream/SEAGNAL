@@ -17,6 +17,7 @@
  *                                       match면 자동 승인(위 approve와 동일 반영), 아니면 이유를
  *                                       담아 대기 유지 + review_queue.md에 시도 이력 append
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
+ *  - GET  /api/legal/admin/ask-stats  → 나리야 질문 수(날짜별·1년 보관, 숫자만 — services/legal_ask_stats.js)
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
  *  - GET  /api/legal/rooms/stats      → 지식 방 갈래 버튼 6개 숫자 + 인트로 칩(개념 status·그래프 엣지)
  *  - GET  /api/legal/rooms/list       → 지식 방 6개 목록(room=raw|concept|statute|comparison|annex|graph,
@@ -49,6 +50,7 @@
  * - services/legal_retriever.js → /api/legal/ask 의 검색·답변합성 본체
  * - services/article_text.js    → /api/legal/article-text 의 조문 원문 발췌 본체
  * - services/pending_answers.js → 답변완료 푸시용 1회용 임시 보관함(3시간)
+ * - services/legal_ask_stats.js → /api/legal/ask 질문 수 날짜별 집계(내용 없이 숫자만, data/legal_ask_stats.json)
  * - services/firebase_admin_lazy.js → FCM 발송(첫 사용 시 SDK 로딩)
  *
  * [경합위험] review_queue.md·공유 md는 여러 승인이 동시에 쓰면 손상될 수 있어
@@ -67,6 +69,8 @@ const effectiveDate = require('../services/effective_date');   // 지식 방 '�
 const pendingAnswers = require('../services/pending_answers');
 const gemini = require('../services/gemini_client');
 const codexBridge = require('../services/codex_bridge');   // 관리자 전용 Codex 개발자 모드(삼중 잠금)
+const llmChain = require('../services/llm_chain');   // [답변 AI 사슬 · 2026-11-02] 순서(providerOrder)·소진 해제·상태
+const askStats = require('../services/legal_ask_stats');   // [질문 수 · 2026-11-02] 날짜별 집계(숫자만)
 const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
 const wikiBrief = require('../services/legal_wiki_brief');
@@ -280,6 +284,12 @@ function normConfig(c) {
     //   실제 적용은 codexBridge.withRequest 가 한다 — NRYA_CODEX_SECRET 이 없는 서버에서는 둘 다 효과 없음.
     answerModel: codexBridge.ANSWER_MODELS.includes(c.answerModel) ? c.answerModel : codexBridge.DEFAULT_MODEL,
     codexForUsers: c.codexForUsers === true,
+    // [답변 AI 사슬 · 2026-11-02 사용자 확정] 시도 순서(기본 업스테이지→클로드1→클로드2→ChatGPT→Gemini).
+    //   적용 범위는 codexForUsers·관리자 토큰과 같다(codexBridge.withRequest ④).
+    providerOrder: llmChain.normOrder(c.providerOrder),
+    // [AI 삭제 · 2026-11-02 사용자 요청] 관리자 센터 [삭제]로 사슬에서 뺀 AI(기본 [] — 이 필드가 없던 옛 저장값도 []).
+    //   순서(providerOrder)는 다섯 개 순열 그대로 두고 사슬이 이 목록을 건너뛴다. gemini 는 뺄 수 없다(마지막 안전망).
+    providerRemoved: llmChain.normRemoved(c.providerRemoved),
   };
 }
 // POST /api/legal/config 가 받는 boolean 스위치 목록(위 normConfig 와 1:1).
@@ -306,7 +316,10 @@ function clarifyRoundNext(ctx) {
   return (Number.isFinite(prev) && prev > 0 ? prev : 0) + 1;
 }
 router.get('/api/legal/config', (req, res) => {
-  res.json(Object.assign({ ok: true }, normConfig(readConfig())));
+  // 이 GET 은 일반 사용자도 노출 설정을 읽으려 부른다 → providerStatus(키 유무·소진·오늘 호출 수)는 관리자 토큰이 있을 때만.
+  const isAdmin = adminAuth.verifyToken(req.get('X-Admin-Token') || '');
+  const cfg = normConfig(readConfig());
+  res.json(Object.assign({ ok: true }, cfg, isAdmin ? { providerStatus: llmChain.status(cfg.providerRemoved) } : {}));
 });
 router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   const b = req.body || {};
@@ -314,18 +327,28 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     return res.status(400).json({ ok: false, error: 'exposure는 off|admin|user' });
   if (b.answerModel !== undefined && !codexBridge.ANSWER_MODELS.includes(b.answerModel))
     return res.status(400).json({ ok: false, error: `answerModel은 ${codexBridge.ANSWER_MODELS.join('|')}` });
+  if (b.providerOrder !== undefined && !llmChain.isValidOrder(b.providerOrder))
+    return res.status(400).json({ ok: false, error: `providerOrder는 ${llmChain.PROVIDERS.join(',')} 다섯 개를 한 번씩 담은 배열` });
+  if (b.providerRemoved !== undefined && !llmChain.isValidRemoved(b.providerRemoved))
+    return res.status(400).json({ ok: false, error: `providerRemoved는 ${llmChain.PROVIDERS.filter(p => p !== 'gemini').join(',')} 중에서 겹치지 않게 담은 배열(gemini 는 뺄 수 없음)` });
+  if (b.providerReset !== undefined && !llmChain.isValidReset(b.providerReset))
+    return res.status(400).json({ ok: false, error: `providerReset은 ${llmChain.PROVIDERS.join('|')}|all` });
   for (const k of BOOL_SWITCHES) {
     if (b[k] !== undefined && typeof b[k] !== 'boolean')
       return res.status(400).json({ ok: false, error: `${k}는 true|false` });
   }
+  // 소진 해제는 검사가 전부 통과한 뒤에만(400 으로 거절된 요청이 해제만 남기지 않게).
+  if (b.providerReset !== undefined) llmChain.resetExhausted(b.providerReset);
   withLock(async () => {
     const cur = normConfig(readConfig());                       // 기존 필드 보존(머지) — 한 필드 갱신이 다른 필드 삭제 안 하게
     if (b.exposure !== undefined) cur.exposure = b.exposure;
     if (b.answerModel !== undefined) cur.answerModel = b.answerModel;
+    if (b.providerOrder !== undefined) cur.providerOrder = b.providerOrder.slice();
+    if (b.providerRemoved !== undefined) cur.providerRemoved = b.providerRemoved.slice();
     for (const k of BOOL_SWITCHES) if (b[k] !== undefined) cur[k] = b[k];
     writeFileAtomic(CONFIG_FILE, JSON.stringify(Object.assign(cur, { updatedAt: new Date().toISOString() }), null, 1));
     return cur;
-  }).then(v => res.json(Object.assign({ ok: true }, normConfig(v)))).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
+  }).then(v => { const n = normConfig(v); res.json(Object.assign({ ok: true }, n, { providerStatus: llmChain.status(n.providerRemoved) })); }).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
 // GET /api/legal/reviews/stats — 카운트
@@ -668,6 +691,14 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
       freshness: adminQueues.countPending(freshScanner.QUEUE_FILE),
       mokAudit: adminQueues.countPending(mokScanner.QUEUE_FILE) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// GET /api/legal/admin/ask-stats — 나리야 질문 수(날짜별 KST, 1년 보관, 질문 내용 없이 숫자만).
+//   일별 목록 + 오늘·어제·최근7일·최근30일 합계. 「질문 1건」 기준은 services/legal_ask_stats.js 머리말.
+//   [연계] ← ai_chat.js 관리자 콘솔 「질문 수」 카드(refreshAskStats).
+router.get('/api/legal/admin/ask-stats', adminAuth.requireAdminToken, (req, res) => {
+  try { res.json(Object.assign({ ok: true }, askStats.summary())); }
+  catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
 // 초안승인 방이 쓰는 표시([미확인] 머리표). legal_retriever 가 본문에 넣는 것과 **같은 글자**여야
@@ -1649,6 +1680,18 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
   //   ctx와 무관한 별도 채널이다(§9.1 #1 "새로 타이핑한 질문은 맥락을 비운다"는 그대로 두고,
   //   decideClarify가 이미 애매해서 되물을 때만 "방금 그거예요?" 확인 후보 하나를 더 보여준다).
   const lastQuestion = String((req.body && req.body.lastQuestion) || '').trim().slice(0, 200);
+  // [질문 수 · 2026-11-02 사용자 확정] 요청 하나를 **딱 한 번** 센다(숫자만 — 질문 내용은 안 남긴다).
+  //   되묻기(확인 카드)로 끝난 요청은 'clarify' 칸에만 — 버튼을 누르면 같은 질문이 다시 오므로
+  //   total 은 최종(답변·실패)으로 끝난 요청만 센다. 기준 전문: services/legal_ask_stats.js 머리말.
+  //   관리자 여부는 GET /api/legal/config 와 같은 방식(X-Admin-Token 검증).
+  const askIsAdmin = adminAuth.verifyToken(req.get('X-Admin-Token') || '');
+  let askCounted = false;
+  const countAsk = (outcome, ai) => {
+    if (askCounted) return;
+    askCounted = true;
+    askStats.record({ admin: askIsAdmin, outcome, ai });
+  };
+  let answeredBy = null;   // 답을 쓴 AI — answerLabel(답변 끝 표시줄)을 부르는 자리에서 같은 판정으로 적는다
   // ★[대화 기억, 2026-08-18 사용자 확정] "🔁 관련해서 더 궁금해요"로 이어 물을 때 앱이 실어 보내는
   //   **직전까지의 대화 전체**([{q,a}, …]). 주제 낱말 하나(ctx.topic)만으로는 AI가 확신하지 못해
   //   방금 한 얘기를 또 되물었기 때문이다(사용자 재현).
@@ -1702,6 +1745,7 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
       answer: step.answer || null, sources: [], citationChain: [], note: step.note || '',
       clarify: step.clarify, confirmKind: step.confirmKind })) + '\n');
     res.end();
+    countAsk('clarify');
     if (askId) inFlightAsks.delete(askId);
   };
   try {
@@ -1738,6 +1782,8 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
       if (zone.clarify) done.clarify = zone.clarify;
       res.write(JSON.stringify(withCtxNext(done)) + '\n');
       res.end();
+      if (zone.clarify) countAsk('clarify');
+      else countAsk(done.answer ? 'answered' : 'failed', 'rule');   // 해역 트리 답 — AI 없이 정해진 답
       if (askId) inFlightAsks.delete(askId);
       return;
     }
@@ -1760,6 +1806,7 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
         answer: legalRetriever.withAssumedNotice(split.answer, assumed),
         sources: [], citationChain: [], note: split.note, clarify: split.clarify })) + '\n');
       res.end();
+      countAsk('clarify');
       if (askId) inFlightAsks.delete(askId);
       return;
     }
@@ -1870,6 +1917,7 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
         note: '추가 정보가 필요해요',
         clarify: { question: clarify.question, options: clarify.options } })) + '\n');
       res.end();
+      countAsk('clarify');
       if (askId) inFlightAsks.delete(askId);
       return;
     }
@@ -1916,6 +1964,7 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
     //   위 참고 한 줄과 같은 방식(델타로도 보내 화면과 done.answer 가 같게). 답이 없으면 붙이지 않는다.
     if (synth.trim().length > 0) {
       const aiTail = codexBridge.answerLabel(legalRetriever.ANSWER_MODEL);
+      answeredBy = askStats.providerNow();
       full += aiTail;
       res.write(JSON.stringify({ type: 'delta', text: aiTail }) + '\n');
       if (res.flush) res.flush();
@@ -2017,6 +2066,7 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
           answer: nu.answer, sources: [], citationChain: [],
           note: '이 질문에 맞는 근거를 위키에서 찾지 못했습니다.' })) + '\n');
         res.end();
+        countAsk('failed');   // 모르는 구어를 끝내 못 풀어 정해진 포기 문구로 끝남 — 답을 못 냈다
         if (askId) inFlightAsks.delete(askId);
         return;
       }
@@ -2026,6 +2076,7 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
     if (raw && raw.answer) {
       answer = legalRetriever.withAssumedNotice(raw.answer, assumed)    // [H-37 §4.4] 2차 조회 경로에도 붙인다
         + codexBridge.answerLabel(legalRetriever.ANSWER_MODEL);          // [답변 AI 표시] 2차 원문 답변도 AI 가 쓴 것
+      answeredBy = askStats.providerNow();
       sourcesOut = [];
       // 2차(원문 직독) 답변은 위키 근거 조문 표를 쓰지 않았다 — 1차에서 만들다 만 인용사슬을 그대로
       // 딸려 보내면 이 답변의 근거인 척 붙는다(환각 0). sources와 같이 비운다.
@@ -2054,6 +2105,7 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
     res.write(JSON.stringify(withCtxNext({ type: 'done', ok: true, query: q, canonicalOnly, ...(aiDiag.length ? { aiDiag } : {}),
       answer, sources: sourcesOut, citationChain, forms, citeLaws, note })) + '\n');
     res.end();
+    countAsk(answer ? 'answered' : 'failed', answeredBy);
 
     // [답변완료 푸시] 스트림은 위에서 이미 평소대로 끝냈다 — 여기부터는 부가 동작이라
     //   기존 응답 흐름에 아무 영향이 없다(실패해도 사용자는 화면에서 답을 이미 봤다).
@@ -2082,6 +2134,7 @@ router.post('/api/legal/ask', (req, res, next) => codexBridge.withRequest(req, r
     if (askId) inFlightAsks.delete(askId);
   } catch (e) {
     if (askId) inFlightAsks.delete(askId);
+    countAsk('failed');   // 처리 중 오류 — 이미 다른 갈래로 셌으면 countAsk 가 무시한다
     if (res.headersSent) {
       res.write(JSON.stringify({ type: 'done', ok: false, error: String(e.message || e) }) + '\n');
       return res.end();

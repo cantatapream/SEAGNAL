@@ -163,7 +163,7 @@ self.addEventListener('fetch', (event) => {
     if (isBlacklisted(url)) return;
 
     // 4) Stale-While-Revalidate
-    event.respondWith(staleWhileRevalidate(req));
+    event.respondWith(staleWhileRevalidate(req, event));
 });
 
 /**
@@ -180,7 +180,7 @@ self.addEventListener('fetch', (event) => {
  * @param {Request} req
  * @returns {Promise<Response>}
  */
-async function staleWhileRevalidate(req) {
+async function staleWhileRevalidate(req, event) {
     const cache = await caches.open(CACHE_NAME);
     const cached = await cache.match(req);
 
@@ -206,7 +206,10 @@ async function staleWhileRevalidate(req) {
 
     // 캐시 적중 시 즉시 캐시 반환, 백그라운드 fetch 는 계속 진행되어 캐시 갱신.
     // 캐시 미스 시 네트워크 fetch 결과 기다림.
-    return cached || networkFetch;
+    // 실패 promise를방치하지 않고 네트워크 오류 Response로 종료한다. 정적 파일이 없는 경우를 성공으로 바꾸지는 않는다.
+    const settledFetch=networkFetch.catch(() => Response.error());
+    if(event)event.waitUntil(settledFetch.then(() => undefined));
+    return cached || settledFetch;
 }
 
 // ============================================================================

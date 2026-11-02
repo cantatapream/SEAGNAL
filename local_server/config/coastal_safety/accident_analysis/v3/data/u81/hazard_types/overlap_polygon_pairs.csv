@@ -1,0 +1,7 @@
+﻿type_pair,overlapping_pairs_area_gt_1m2,touching_only_pairs
+다발-다발,2,0
+다발-사망,3,0
+다발-위험,6,0
+사망-사망,2,0
+사망-위험,3,0
+위험-위험,9,0

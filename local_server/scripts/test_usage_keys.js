@@ -3,6 +3,8 @@
  * 파일명: local_server/scripts/test_usage_keys.js
  * 역할  : 사용량 통계 회귀 검사 — ①앱이 세는 모든 기능 키에 한글 이름표가 있는가
  *         ②"프로그램 클릭 동안 세지 않기"(withUsageSuppressed)가 실제로 동작하는가.
+ *         ③연안 안전 브리핑('briefing.*')·위험예측('risk.*') 키가 발신되고 이름표가 각 묶음 앞말로 시작하는가(2026-10-18).
+ *         실제 클릭으로 몇 건이 가는지는 test_usage_briefing_risk_ui.js(Playwright)가 잰다.
  *         새 버튼에 trackUsage 를 달고 이름표를 빼먹으면 여기서 잡힌다.
  * ----------------------------------------------------------------------------
  * [연계]
@@ -40,7 +42,7 @@ function listClientJs(dir, out) {
 // ── ① 발신 키 ⊂ 이름표 ──────────────────────────────────────────────
 // trackUsage 를 부르는 파일 안의 '접두어.키' 꼴 문자열 리터럴을 전부 모은다.
 //   (오버레이·천기 레이어처럼 변수로 넘기는 키도 결국 같은 파일 안에 리터럴로 있다)
-const KEY_RE = /'((?:main|buoy|chart|ocean|shrt|sheet|life|safety)\.[A-Za-z0-9_.가-힣]+)'/g;
+const KEY_RE = /'((?:main|buoy|chart|ocean|shrt|sheet|life|safety|briefing|risk)\.[A-Za-z0-9_.가-힣]+)'/g;   // briefing·risk = 2026-10-18 연안 안전 브리핑·위험예측 묶음
 const emitted = new Map(); // key -> 첫 발견 파일
 listClientJs(path.join(ROOT, 'client/js'), []).forEach(f => {
     const src = fs.readFileSync(f, 'utf8');
@@ -71,6 +73,20 @@ emitted.forEach((file, key) => {
     'safety.navwarn', 'safety.navwarn.date', 'safety.navwarn.zone',
     'safety.vts', 'safety.vts.zone', 'safety.seaway', 'safety.seaway.zone', 'ocean.cctv_open'
 ].forEach(k => check(emitted.has(k), '해양안전 집계 키 발신처 있음: ' + k));
+
+// ── 사용자 확정 규칙(2026-10-18)의 키 — 연안 안전 브리핑·위험예측은 따로 묶는다(이름표 앞말로 구분) ──
+[
+    'briefing.open', 'briefing.haegu_map', 'briefing.warn_popup', 'briefing.rocks_map',
+    'risk.on', 'risk.layer.coast', 'risk.layer.sea', 'risk.marine_mode.congestion', 'risk.marine_mode.risk',
+    'risk.sheet.sea', 'risk.sheet.coast',
+    'risk.goto_sea_from_briefing', 'risk.goto_coast_from_briefing', 'risk.ships_map_from_briefing', 'risk.busiest_map_from_briefing',
+    'risk.spot_map_from_briefing', 'risk.basis_map_from_briefing', 'risk.hazard_map_from_briefing',
+    'risk.sheet.sea_from_briefing', 'risk.sheet.coast_from_briefing'
+].forEach(k => check(emitted.has(k), '브리핑·위험예측 집계 키 발신처 있음: ' + k));
+Object.keys(LABELS).filter(k => /^briefing\./.test(k)).forEach(k =>
+    check(/^연안 안전 브리핑 · /.test(LABELS[k]), '「연안 안전 브리핑」 묶음 이름표: ' + k + ' → ' + LABELS[k]));
+Object.keys(LABELS).filter(k => /^risk\./.test(k)).forEach(k =>
+    check(/^위험예측 · /.test(LABELS[k]), '「위험예측」 묶음 이름표: ' + k + ' → ' + LABELS[k]));
 
 // ── ② withUsageSuppressed 동작 — utils.js 를 가짜 브라우저에 올려 실제로 호출 ──
 const sent = [];

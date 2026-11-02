@@ -1,0 +1,233 @@
+/**
+ * 파일명: local_server/scripts/test_risk_map_layer.js
+ * 역할  : 실제 관광지·육지·섬 원천 전체를 제품 OpenLayers 지도 층에 넣어 빈 형상 회귀와 상세 시트의 실제 연안 합계 설명을 검사한다.
+ * [연계] risk_map_layer.js · risk_spots.json · land_mask_korea.json · island_outlines.geojson / verify_all.sh
+ */
+'use strict';
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const root=path.join(__dirname,'../..');let pass=0,fail=0;
+/** 실제 실행 결과를 확인한다. 예: test('전수 형상',()=>assert.equal(...)). @param {string} label 사례 @param {Function} fn 검증 @returns {void} [연계] 아래 브라우저 결과 → assert */
+function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',label,e.message);}}
+(async()=>{
+ const {chromium}=require('playwright-core');
+ const candidates=[process.env.PW_CHROME,process.env.SIM_CHROMIUM,process.env.CHROMIUM_EXECUTABLE,chromium.executablePath(),process.env.PLAYWRIGHT_BROWSERS_PATH&&path.join(process.env.PLAYWRIGHT_BROWSERS_PATH,'chromium')];
+ const exe=candidates.find(p=>p&&fs.existsSync(p));
+ const browser=await chromium.launch({...(exe?{executablePath:exe}:{}),args:['--no-sandbox']});
+ try{
+  const load=p=>JSON.parse(fs.readFileSync(path.join(root,p),'utf8'));
+  const table=load('local_server/config/coastal_safety/risk_spots.json'),land=load('client/land_mask_korea.json'),islands=load('local_server/config/coastal_safety/island_outlines.geojson'),main=load('client/assets/warn_zones.geojson'),sub=load('client/assets/warn_zones_sub.geojson');
+  const page=await browser.newPage({viewport:{width:412,height:915}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.setContent('<div id="map" style="width:412px;height:915px"></div>');
+  for(const file of ['assets/vendor/ol/ol.js','js/marine-life/risk-forecast/risk_format.js','js/marine-life/risk-forecast/risk_map_layer.js'])await page.addScriptTag({path:path.join(root,'client',file)});
+  const result=await page.evaluate(async input=>{
+   const map=new ol.Map({target:'map',layers:[],view:new ol.View({center:ol.proj.fromLonLat([129.15,35.16]),zoom:12})});
+   const selected=[],layer=RiskMapLayer.create(map,(kind,id)=>selected.push({kind,id})),spots=input.table.spots.map((p,i)=>({...p,i}));
+   window.fetch=async url=>({ok:true,json:async()=>url==='/api/warn-zones'?input.main:url==='/api/warn-zones-sub'?input.sub:input.land});
+   await layer.boundaries({get:async()=>input.islands});
+   layer.setTables({cells:[]},{spots});layer.setActive({coast:true,sea:false},true);layer.drawCoast({spots:spots.map(p=>[p.i,1])});
+   const find=name=>map.getLayers().getArray().find(l=>l.getClassName()==='rf-'+name+'-canvas');
+   const coast=find('coast').getSource().getFeatures(),shore=find('shore').getSource().getFeatures(),points=find('points').getSource().getFeatures();
+   const empty=spots.filter(p=>p.geometry.coordinates.length===0);
+   const skipped=empty.every(p=>!coast.some(f=>f.get('id')===p.id));
+   map.renderSync();layer.drawCoast({spots:spots.map(p=>[p.i,2])});map.renderSync();const repeat=find('coast').getSource().getFeatures().length;
+   const chosenEmpty=empty.find(p=>points.some(f=>f.get('ids').includes(p.id)&&f.get('ids').length===1)),emptyPoint=points.find(f=>f.get('ids').includes(chosenEmpty.id)),duplicate=points.find(f=>f.get('ids').length>1);
+   const click=f=>{map.getView().setCenter(f.getGeometry().getCoordinates());map.renderSync();return layer.hit({coordinate:f.getGeometry().getCoordinates(),pixel:map.getPixelFromCoordinate(f.getGeometry().getCoordinates())});};
+   const emptyHit=click(emptyPoint),emptySelected=selected.at(-1).id,duplicateHit=click(duplicate),duplicateSelected=selected.at(-1).id;
+   layer.setSelection('coast',chosenEmpty.id);const emptyHighlight=find('selection').getSource().getFeatures().length;
+   layer.setActive({coast:false,sea:true},true);const hiddenPoints=!find('points').getVisible(),offHit=click(emptyPoint);layer.destroy();
+   return{count:spots.length,empty:empty.length,coast:coast.length,repeat,shore:shore.length,skipped,pointIds:points.flatMap(f=>f.get('ids')).length,emptyPointIds:empty.every(p=>points.some(f=>f.get('ids').includes(p.id))),emptyHit,emptySelected,expectedEmpty:chosenEmpty.id,duplicateHit,duplicateSelected,expectedDuplicate:duplicate.get('ids'),emptyHighlight,hiddenPoints,offHit};
+  },{table,land,islands,main,sub});
+  test('실제 관광지 원천 전체 사용',()=>assert.equal(result.count,table._about.sourceSpots));
+  test('빈 교차 형상 수는 정적 빌드 기록과 일치',()=>assert.equal(result.empty,table._about.emptyGeometries));
+  test('빈 형상은 건너뛰고 모든 유효 관광지 표시',()=>assert.equal(result.coast,result.count-result.empty));
+  test('빈 형상에 대체 관광지 원을 만들지 않음',()=>assert.equal(result.skipped,true));
+  test('슬라이더 프레임 재그리기도 전체 유효 형상 유지',()=>assert.equal(result.repeat,result.coast));
+  test('육지·21개 섬 원천 외곽선 표시',()=>assert.equal(result.shore,land.rings.length+islands.features.reduce((n,f)=>n+(f.geometry.type==='MultiPolygon'?f.geometry.coordinates.length:1),0)));
+  // ── 특보 영역 미표시(사용자 2026-10-15 「지도에 특보 영역을 표시하지 말자고 했는데 나오고 있는데 없애주고」) ──
+  // 과제14의 특보 배경 면을 없앴다. 지도층에 특보 층·특보 그리기 함수가 없고, 경계를 받을 때 특보 구역 폴리곤을 내려받지 않는다.
+  const noWarn=await page.evaluate(async input=>{
+   const host=document.createElement('div');host.style.cssText='width:412px;height:915px';document.body.appendChild(host);
+   const map=new ol.Map({target:host,layers:[],view:new ol.View({center:ol.proj.fromLonLat([129.6,35.5]),zoom:9})});
+   const layer=RiskMapLayer.create(map,()=>{}),fetched=[];
+   window.fetch=async url=>{fetched.push(url);return{ok:true,json:async()=>url==='/api/warn-zones'?input.main:url==='/api/warn-zones-sub'?input.sub:input.land};};
+   await layer.boundaries({get:async()=>input.islands});
+   layer.setActive({coast:true,sea:true},true);map.renderSync();
+   const names=map.getLayers().getArray().map(l=>l.getClassName());
+   const shore=map.getLayers().getArray().find(l=>l.getClassName()==='rf-shore-canvas').getSource().getFeatures().length;
+   const filled=map.getLayers().getArray().filter(l=>l.getClassName()!=='rf-shore-canvas').reduce((n,l)=>n+l.getSource().getFeatures().length,0);
+   const api={drawWarnings:typeof layer.drawWarnings,zonesLoaded:typeof layer.zonesLoaded};
+   layer.destroy();map.dispose();host.remove();
+   return{fetched,names,shore,filled,api};
+  },{main,sub,land,islands});
+  test('특보 영역 미표시: 특보 층(rf-borders-canvas)이 없다',()=>assert.ok(!noWarn.names.includes('rf-borders-canvas'),noWarn.names.join(',')));
+  test('특보 영역 미표시: 특보 그리기 함수(drawWarnings·zonesLoaded)가 없다',()=>assert.deepEqual(noWarn.api,{drawWarnings:'undefined',zonesLoaded:'undefined'}));
+  test('특보 영역 미표시: 경계 준비 때 특보 구역 폴리곤(/api/warn-zones·-sub)을 받지 않는다',()=>{assert.ok(!noWarn.fetched.some(u=>String(u).startsWith('/api/warn-zones')),noWarn.fetched.join(','));assert.ok(noWarn.fetched.includes('/api/ocean/land-mask'));});
+  test('특보 영역 미표시: 경계 준비 뒤 지도에 그려진 것은 해안선뿐(면 0개)',()=>{assert.ok(noWarn.shore>0);assert.equal(noWarn.filled,0);});
+  test('빈면 포함 모든 관광지를 중심점에서 선택 가능',()=>{assert.equal(result.pointIds,result.count);assert.equal(result.emptyPointIds,true);assert.equal(result.emptyHit,true);assert.ok(Array.isArray(result.emptySelected)?result.emptySelected.includes(result.expectedEmpty):result.emptySelected===result.expectedEmpty);});
+  test('동일좌표 클릭은 전체 관광지 선택 후보 전달',()=>{assert.equal(result.duplicateHit,true);assert.deepEqual(result.duplicateSelected,result.expectedDuplicate);});
+  test('빈면 선택도 흰 중심점 강조가 남음',()=>assert.ok(result.emptyHighlight>=1));
+  test('연안OFF는 중심점 숨김과 클릭 해제',()=>{assert.equal(result.hiddenPoints,true);assert.equal(result.offHit,false);});
+  test('전수 지도 렌더링의 미처리 오류 없음',()=>assert.deepEqual(errors,[]));
+  const official=await page.evaluate(()=>{
+   const host=document.createElement('div');host.id='official-map';host.style.cssText='width:412px;height:915px';document.body.appendChild(host);
+   const map=new ol.Map({target:host,layers:[],view:new ol.View({center:ol.proj.fromLonLat([126.49,36.41]),zoom:12})}),selected=[];
+   const layer=RiskMapLayer.create(map,(kind,id,point)=>selected.push({kind,id,point}));
+   // 공식 공개웹 2026-10-11 12시 격자14802의 원본 경계. 그리기 검사는 정합성 검사와 별개다.
+   const geometry={type:'Polygon',coordinates:[[[126.4678348288123,36.39086142052764],[126.4678348288123,36.42700968205161],[126.5127505930183,36.42700968205161],[126.5127505930183,36.39086142052764],[126.4678348288123,36.39086142052764]]]};
+   layer.setTables({cells:[{i:0,id:'traffic-fixture',lat:36.415,lon:126.50}]},{spots:[]},{cells:[{i:0,id:'14802',lat:36.408936,lon:126.490293,geometry}]});
+   layer.setActive({coast:false,sea:true},true);layer.drawAccident({cells:[[0,.015262514,'경계']]});layer.drawSea({cells:[[0,99,.14,'낮음']]});map.renderSync();
+   const find=name=>map.getLayers().getArray().find(l=>l.getClassName()==='rf-'+name+'-canvas'),accident=find('accident').getSource().getFeatures()[0],traffic=find('sea').getSource().getFeatures()[0];
+   const point=ol.proj.fromLonLat([126.505,36.42]);const hit=layer.hit({coordinate:point,pixel:map.getPixelFromCoordinate(point)}),chosen=selected.at(-1);
+   const extent=accident.getGeometry().getExtent(),colors=[];['낮음','보통','주의','경계'].forEach(level=>{layer.drawAccident({cells:[[0,.0001,level]]});colors.push(find('accident').getSource().getFeatures()[0].getStyle().getFill().getColor());});
+   layer.drawAccident({cells:[[0,.9,'미확인']]});const unknown=find('accident').getSource().getFeatures().length;
+   layer.setActive({coast:true,sea:false},true);const off=!find('accident').getVisible()&&!find('sea').getVisible();layer.destroy();map.dispose();host.remove();
+   return{extent,riskIndex:accident.get('riskIndex'),level:accident.get('level'),trafficLevel:traffic.get('level'),trafficFill:traffic.getStyle()[0].getFill().getColor(),trafficStyles:traffic.getStyle().length,hit,chosen,colors,unknown,off};
+  });
+  test('공식 사고 격자는 원본5000m경계와 원시지수 유지',()=>{assert.ok(Math.abs(official.extent[2]-official.extent[0]-5000)<.001);assert.ok(Math.abs(official.extent[3]-official.extent[1]-5000)<.001);assert.equal(official.riskIndex,.015262514);assert.equal(official.level,'경계');});
+  test('공식4단계 그대로 구별하고 미확인단계 추정금지',()=>{assert.equal(new Set(official.colors).size,4);assert.equal(official.unknown,0);});
+  test('혼잡은 자체사고점수99 대신 공식낮음 점선·한점 표시',()=>{assert.equal(official.trafficLevel,'낮음');assert.equal(official.trafficFill,'rgba(0,0,0,0)');assert.equal(official.trafficStyles,2);});
+  test('겹친격자 클릭은 사고상세와 실제클릭 경위도 전달',()=>{assert.equal(official.hit,true);assert.equal(official.chosen.kind,'accident');assert.equal(official.chosen.id,'14802');assert.ok(Math.abs(official.chosen.point.lon-126.505)<1e-8);assert.ok(Math.abs(official.chosen.point.lat-36.42)<1e-8);});
+  test('해상OFF는 공식사고와 혼잡 둘다 숨김',()=>assert.equal(official.off,true));
+  // ── §11.10.38(2026-10-19 연안 안전 브리핑 지도 — 사용자 「격자(육지쪽)을 눌러도 바텀시트가 켜지도록」): hit(evt,{landSea:true}) 만 칸 안 육지 쪽을 그 해상 칸으로(칸 중심 경위도) ──
+  //   위험예측 본 화면은 옵션 없이 부르므로(risk_forecast.js tryHandleClick) 육지 = 연안 판정 그대로여야 한다.
+  const landSea=await page.evaluate(async()=>{
+   const host=document.createElement('div');host.style.cssText='width:412px;height:915px';document.body.appendChild(host);
+   const hadMarine='RiskMarine' in window,oldMarine=window.RiskMarine;window.RiskMarine={color:()=>'rgb(86,166,111)',congestionColor:()=>'rgb(86,166,111)'};   // 칠하기 색만(뒤 시험에 남기지 않게 끝에 되돌린다)
+   const map=new ol.Map({target:host,layers:[],view:new ol.View({center:ol.proj.fromLonLat([126.2125,33.4125]),zoom:13})}),selected=[];
+   const layer=RiskMapLayer.create(map,(kind,id,point)=>selected.push({kind,id,point}));
+   window.fetch=async()=>({ok:true,json:async()=>({rings:[[[126.18,33.40],[126.2125,33.40],[126.2125,33.43],[126.18,33.43],[126.18,33.40]]]})});
+   await layer.boundaries({get:async()=>({features:[]})});
+   layer.setActive({coast:false,sea:true},true);layer.drawUnified({cells:[{i:0,id:'GR4_X',lon:126.2125,lat:33.4125}]},{mode:'current',cells:[[0,5,'보통',0.3]]});map.renderSync();
+   const at=(lon,lat,o)=>{const c=ol.proj.fromLonLat([lon,lat]);const n=selected.length,hit=layer.hit({coordinate:c,pixel:map.getPixelFromCoordinate(c)},o);return{hit,pick:selected.length>n?selected.at(-1):null};};
+   const plainLand=at(126.205,33.41),optLand=at(126.205,33.41,{landSea:true}),optOut=at(126.19,33.41,{landSea:true}),optSea=at(126.22,33.41,{landSea:true}),plainSea=at(126.22,33.41);
+   layer.setActive({coast:true,sea:true},true);const coastOn=at(126.205,33.41,{landSea:true});
+   layer.destroy();map.dispose();host.remove();if(hadMarine)window.RiskMarine=oldMarine;else delete window.RiskMarine;
+   return{plainLand,optLand,optOut,optSea,plainSea,coastOn};
+  });
+  test('§11.10.38 옵션 없는 hit(위험예측 본 화면) — 칸 안 육지 쪽은 종전대로 고르지 않음, 바다 쪽은 누른 점 경위도',()=>{assert.deepEqual(landSea.plainLand,{hit:false,pick:null});assert.deepEqual(landSea.plainSea.pick&&[landSea.plainSea.hit,landSea.plainSea.pick.kind,landSea.plainSea.pick.id],[true,'marine','GR4_X']);assert.ok(Math.abs(landSea.plainSea.pick.point.lon-126.22)<1e-9);});
+  test('§11.10.38 hit(evt,{landSea:true}) — 칸 안 육지 쪽 → 그 칸(칸 중심 경위도) · 칸 밖 육지 → 없음 · 바다 쪽 → 누른 점 그대로',()=>{assert.deepEqual(landSea.optLand,{hit:true,pick:{kind:'marine',id:'GR4_X',point:{lon:126.2125,lat:33.4125}}});assert.deepEqual(landSea.optOut,{hit:false,pick:null});assert.equal(landSea.optSea.hit,true);assert.ok(Math.abs(landSea.optSea.pick.point.lon-126.22)<1e-9,JSON.stringify(landSea.optSea));});
+  test('§11.10.38 연안 층이 켜져 있으면 옵션이 있어도 육지 = 연안 판정(해상 칸으로 바꾸지 않음)',()=>assert.deepEqual(landSea.coastOn,{hit:false,pick:null}));
+  // ── T5 버벅임 1단계(2026-10-16): 육지 가리개는 끄는 동안(view 상호작용 중) 다시 만들지 않고 손을 뗀 뒤(moveend)에만 만든다 ──
+  // 다시 만들기는 육지 꼭짓점마다 map.getPixelFromCoordinate 를 부르므로 그 호출 수로 가린다(재사용이면 층마다 2번).
+  const moving=await page.evaluate(async input=>{
+   const host=document.createElement('div');host.style.cssText='width:412px;height:915px';document.body.appendChild(host);
+   const map=new ol.Map({target:host,layers:[],view:new ol.View({center:ol.proj.fromLonLat([129.15,35.16]),zoom:12})});
+   const layer=RiskMapLayer.create(map,()=>{}),spots=input.table.spots.map((p,i)=>({...p,i}));
+   window.fetch=async()=>({ok:true,json:async()=>input.land});
+   await layer.boundaries({get:async()=>input.islands});layer.setTables({cells:[]},{spots});layer.setActive({coast:true,sea:false},true);layer.drawCoast({spots:spots.map(p=>[p.i,2])});
+   // 처음 몇 프레임은 OL 자신이 movestart·moveend 를 내므로(첫 화면 정착) 정착할 때까지 그린 뒤 잰다.
+   for(let k=0;k<3;k++)map.renderSync();
+   let calls=0;const original=map.getPixelFromCoordinate.bind(map);map.getPixelFromCoordinate=c=>{calls++;return original(c);};
+   const canvas=()=>host.querySelector('.rf-coast-canvas canvas'),alpha=()=>{const c=canvas();const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data,a=new Uint8Array(d.length/4);for(let i=0;i<a.length;i++)a[i]=d[i*4+3];return a;};
+   const view=map.getView(),c0=view.getCenter();view.beginInteraction();const drags=[];
+   for(let k=1;k<=3;k++){calls=0;view.setCenter([c0[0]+k*15*view.getResolution(),c0[1]]);map.renderSync();drags.push(calls);}
+   const during=alpha();view.endInteraction();map.renderSync();calls=0;map.renderSync();const rebuilt=calls,after=alpha();
+   // 동쪽으로 45px 옮겼으므로 오른쪽 45px 띠는 직전 화면 밖이라 가리개가 없다(설계상 손을 뗄 때까지 비는 곳) — 그 띠는 빼고 비교한다.
+   const width=canvas().width,strip=Math.ceil(45*width/412)+2;let big=0,coastPixels=0;for(let i=0;i<after.length;i++){if(i%width>=width-strip)continue;if(after[i]>0)coastPixels++;if(Math.abs(after[i]-during[i])>128)big++;}
+   layer.dim(true);const dimmed=map.getLayers().getArray().filter(l=>/rf-(coast|coast-edge|points|marine|traffic|sea|accident)-canvas/.test(l.getClassName())).map(l=>l.getOpacity()),shoreDim=map.getLayers().getArray().find(l=>l.getClassName()==='rf-shore-canvas').getOpacity();
+   layer.dim(false);const restored=map.getLayers().getArray().map(l=>l.getOpacity());
+   layer.destroy();map.dispose();host.remove();
+   return{drags,rebuilt,big,coastPixels,dimmed,shoreDim,restored};
+  },{table,land,islands});
+  // ── 연안 G안(사용자 2026-10-16 「연안테두리 g로 반영해보자」): 실선 없음·흰 경계선 별도 층·연안 면만 6px 흐림 뒤 육지로 다시 자름·클릭은 도형 기준 ──
+  const coastG=await page.evaluate(async input=>{
+   const host=document.createElement('div');host.style.cssText='width:412px;height:915px';document.body.appendChild(host);
+   const map=new ol.Map({target:host,layers:[],view:new ol.View({center:ol.proj.fromLonLat([129.10,35.135]),zoom:12})}),chosen=[];
+   const layer=RiskMapLayer.create(map,(kind,id)=>chosen.push({kind,id})),spots=input.table.spots.map((p,i)=>({...p,i}));
+   window.fetch=async()=>({ok:true,json:async()=>input.land});
+   await layer.boundaries({get:async()=>input.islands});layer.setTables({cells:[]},{spots});layer.setActive({coast:true,sea:false},true);layer.drawCoast({spots:spots.map(p=>[p.i,2])});
+   const find=name=>map.getLayers().getArray().find(l=>l.getClassName()==='rf-'+name+'-canvas');
+   // 어떤 층 canvas 에 어떤 필터·합성으로 그렸는지 기록한다(층 div 의 className 으로 가른다).
+   const ops=[],orig=CanvasRenderingContext2D.prototype.drawImage;
+   CanvasRenderingContext2D.prototype.drawImage=function(...a){const owner=this.canvas.closest&&this.canvas.closest('[class^="rf-"]');if(owner&&host.contains(owner))ops.push({layer:owner.className.split(' ')[0],filter:this.filter,op:this.globalCompositeOperation});return orig.apply(this,a);};
+   map.renderSync();map.dispatchEvent('moveend');map.renderSync();CanvasRenderingContext2D.prototype.drawImage=orig;
+   const coast=find('coast').getSource().getFeatures(),edge=find('coast-edge'),edges=edge?edge.getSource().getFeatures():[];
+   const strokes=coast.filter(f=>f.getStyle().getStroke()).length,edgeStroke=edges[0]&&edges[0].getStyle().getStroke();
+   // 연안 면 안쪽(관광지 점에서 20px 넘게 떨어진 곳)을 누르면 그 연안 면이 선택된다 — 클릭 판정은 흐림과 무관한 도형 기준.
+   const centers=find('points').getSource().getFeatures().map(f=>map.getPixelFromCoordinate(f.getGeometry().getCoordinates())),size=map.getSize();let probe=null;
+   for(const f of coast){const g=f.getGeometry(),poly=g.getType()==='MultiPolygon'?g.getPolygons()[0]:g,pt=poly.getInteriorPoint().getCoordinates(),px=map.getPixelFromCoordinate(pt);if(px[0]<20||px[1]<20||px[0]>size[0]-20||px[1]>size[1]-20)continue;if(centers.some(c=>Math.hypot(c[0]-px[0],c[1]-px[1])<20))continue;if(!g.intersectsCoordinate(pt))continue;probe={id:f.get('id'),pt,px};break;}
+   const hit=probe?layer.hit({coordinate:probe.pt,pixel:probe.px}):null;
+   layer.setActive({coast:false,sea:true},true);const edgeHidden=edge&&!edge.getVisible();
+   layer.destroy();map.dispose();host.remove();
+   return{coast:coast.length,strokes,edgeName:!!edge,edges:edges.length,edgeColor:edgeStroke&&edgeStroke.getColor(),edgeWidth:edgeStroke&&edgeStroke.getWidth(),edgeHidden,ops,probe:probe&&probe.id,hit,chosen:chosen.at(-1)};
+  },{table,land,islands});
+  const opsOf=name=>coastG.ops.filter(o=>o.layer==='rf-'+name+'-canvas');
+  test('연안 G: 연안 면에 같은 색 실선 테두리가 없음(채움만)',()=>{assert.ok(coastG.coast>10,'연안 면 '+coastG.coast);assert.equal(coastG.strokes,0);});
+  test('연안 G: 흰 경계선(0.5px·흰 13%)은 해안선(shore)이 아닌 별도 층에 연안 면 수만큼',()=>{assert.equal(coastG.edgeName,true);assert.equal(coastG.edges,coastG.coast);assert.equal(coastG.edgeColor,'rgba(255,255,255,.13)');assert.equal(coastG.edgeWidth,.5);assert.equal(coastG.edgeHidden,true,'연안 OFF 면 경계선도 숨김');});
+  test('연안 G: 연안 면만 6px 흐린 뒤 육지 가리개로 다시 자름(흐림 → destination-in 순서)',()=>{const c=opsOf('coast'),blur=c.findIndex(o=>o.filter==='blur(6px)'),cut=c.findIndex((o,i)=>i>blur&&o.op==='destination-in');assert.ok(blur>=0,JSON.stringify(c));assert.ok(cut>blur,JSON.stringify(c));});
+  test('연안 G: 흰 경계선·관광지 점·선택 테두리는 흐리지 않음(경계선도 육지로 자름)',()=>{for(const name of ['coast-edge','points','selection'])assert.ok(opsOf(name).every(o=>!o.filter||o.filter==='none'),name+' '+JSON.stringify(opsOf(name)));assert.ok(opsOf('coast-edge').some(o=>o.op==='destination-in'),'경계선 층 재마스킹');});
+  test('연안 G: 클릭 판정은 도형 기준 그대로 — 연안 면 안쪽을 누르면 그 면 선택',()=>{assert.ok(coastG.probe,'관광지 점에서 떨어진 안쪽 점을 찾았다');assert.equal(coastG.hit,true);assert.deepEqual(coastG.chosen,{kind:'coast',id:coastG.probe});});
+  test('T5 끄는 동안(상호작용 중)에는 육지 가리개를 다시 만들지 않음 — 프레임마다 좌표 변환 호출이 층당 2번 남짓',()=>{for(const n of moving.drags)assert.ok(n<50,'끄는 동안 호출 '+moving.drags.join(','));});
+  test('T5 손을 뗀 뒤(moveend)에는 가리개를 새로 만듦',()=>assert.ok(moving.rebuilt>1000,'다시 만든 프레임 호출 '+moving.rebuilt));
+  test('T5 옮겨 쓴 가리개와 새로 만든 가리개가 크게 어긋나지 않음(새로 드러난 띠 밖에서 연안 면 알파 128 넘게 다른 화소 1% 미만)',()=>{assert.ok(moving.coastPixels>1000,'연안 면이 그려졌다 '+moving.coastPixels);assert.ok(moving.big<moving.coastPixels*0.01,moving.big+'/'+moving.coastPixels);});
+  test('T4 기다리는 동안 위험예측 색 층만 흐리게(0.35)·해안선은 그대로·풀면 모두 1',()=>{assert.equal(moving.dimmed.length,7);assert.ok(moving.dimmed.every(v=>v===0.35));assert.equal(moving.shoreDim,1);assert.ok(moving.restored.every(v=>v===1));});
+  // ── 2026-10-16 사용자 (가): 지도 연안 면·관광지 점 테두리 색 = 단계 4색(시트 상자·시각 막대와 같은 색). 경계 지수 19/20·66/67·99/100 을 점수로 넣어 확인한다. ──
+  const bandMap=await page.evaluate(async input=>{
+   const host=document.createElement('div');host.style.cssText='width:412px;height:915px';document.body.appendChild(host);
+   const map=new ol.Map({target:host,layers:[],view:new ol.View({center:ol.proj.fromLonLat([129.10,35.135]),zoom:12})}),layer=RiskMapLayer.create(map,()=>{}),spots=input.table.spots.map((p,i)=>({...p,i}));
+   window.fetch=async()=>({ok:true,json:async()=>input.land});await layer.boundaries({get:async()=>input.islands});layer.setTables({cells:[]},{spots});layer.setActive({coast:true,sea:false},true);
+   const idx=[19,20,66,67,99,100],withArea=spots.filter(p=>p.geometry&&p.geometry.coordinates&&p.geometry.coordinates.length).slice(0,idx.length);
+   layer.drawCoast({spots:withArea.map((p,k)=>[p.i,idx[k]*.03])});
+   const find=name=>map.getLayers().getArray().find(l=>l.getClassName()==='rf-'+name+'-canvas'),fills={},strokes={};
+   for(const f of find('coast').getSource().getFeatures())fills[f.get('id')]=f.getStyle().getFill().getColor();
+   for(const f of find('points').getSource().getFeatures())strokes[f.get('id')]=f.getStyle().getImage().getStroke().getColor();
+   const out=withArea.map((p,k)=>({index:idx[k],fill:fills[p.id],stroke:strokes[p.id]}));layer.destroy();map.dispose();host.remove();return out;
+  },{table,land,islands});
+  const BAND={19:'47,179,107',20:'242,194,48',66:'242,194,48',67:'251,146,60',99:'251,146,60',100:'224,50,44'};
+  test('(가) 연안 면 색은 단계 4색(지수 19 초록·20 노랑·66 노랑·67 주황·99 주황·100 빨강, 50% 채움)',()=>{assert.equal(bandMap.length,6);for(const r of bandMap)assert.equal(r.fill,'rgba('+BAND[r.index]+',0.5)','지수 '+r.index+' '+r.fill);});
+  test('(가) 관광지 점 테두리도 같은 단계 색',()=>{for(const r of bandMap)if(r.stroke)assert.equal(r.stroke,'rgb('+BAND[r.index]+')','지수 '+r.index+' '+r.stroke);assert.ok(bandMap.some(r=>r.stroke),'점 테두리를 하나 이상 읽음');});
+  for(const file of ['style.css','js/marine-life/risk-forecast/risk_forecast.css'])await page.addStyleTag({path:path.join(root,'client',file)});
+  const index=fs.readFileSync(path.join(root,'client/index2.html'),'utf8');await page.addStyleTag({content:index.slice(index.indexOf('        .ocean-legend-stack > .banzone-legend,'),index.indexOf('        /* 선택 초기화 버튼',index.indexOf('        .ocean-legend-stack > .banzone-legend,')))});
+  for(const file of ['risk_slider.js','risk_sheet.js','risk_basis_content.js','risk_basis.js'])await page.addScriptTag({path:path.join(root,'client/js/marine-life/risk-forecast',file)});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const ui=await page.evaluate(()=>{
+   document.body.className='ls-safety';const host=document.createElement('div');host.className='rf-sheet';document.body.appendChild(host);const choices=[];const sheet=RiskSheet.create(host,{close(){},hazard(){},basis(){},retry(){},choose:(kind,id)=>choices.push({kind,id})});
+   sheet.choose([{id:'a',name:'관광지A'},{id:'b',name:'관광지B'}]);host.querySelector('[data-spot-id="b"]').click();
+   sheet.show({title:{major:1,sub:1},subtitle:{name:'부산',bearingWord:'북동',bearingDeg:45,distNm:1},score:.75,index:25,band:'다소 높음',rr:1.68,clickable:true,rows:[{key:'wave',value:2.6},{key:'wind',value:13}],sources:{zoneForecasts:{status:'stale',updatedAt:'2026-10-09T09:00:00+09:00'}}},'sea',{});
+   const staleText=host.querySelector('.rf-body').textContent;RiskSlider.mount(sheet.timelineEl,['2026-10-11T18:00:00+09:00','2026-10-11T21:00:00+09:00'],'2026-10-11T18:00:00+09:00',()=>{});
+   RiskBasis.open('coast');const close=document.querySelector('.mclose'),focused=getComputedStyle(close),basis=document.querySelector('.rf-basis').textContent;
+   const legend=document.createElement('div');legend.className='rf-legend';legend.innerHTML='<div class="banzone-legend"><button class="bzl-row"><span class="bzl-switch"></span></button></div>';document.body.appendChild(legend);
+   const result={choices,staleText,basis,headerColor:getComputedStyle(document.querySelector('.rf-basis th')).color,focusWidth:focused.outlineWidth,focusColor:focused.outlineColor,focusOffset:focused.outlineOffset,bubbles:host.querySelectorAll('.ocean-sheet-tooltip').length,label:host.querySelector('output.rf-time-label').textContent,switchTransition:getComputedStyle(legend.querySelector('.bzl-switch')).transitionDuration,sliderLabel:host.querySelector('input').getAttribute('aria-label')};RiskBasis.close();return result;
+  });
+  test('같은 위치 목록에서 다른 관광지 선택',()=>assert.deepEqual(ui.choices,[{kind:'coast',id:'b'}]));
+  test('낡은 예보 기준은 파고·풍속줄에 남고 공통 원천 경고는 숨김',()=>{assert.equal((ui.staleText.match(/예보 기준/g)||[]).length,2);assert.ok(!ui.staleText.includes('해구 예보 자료가 오래되었습니다'));});
+  // 2026-10-16 사용자 (가)로 지도·상자 색이 단계 4색이 되어 확정 문안(§12.2 「1배 초록 → … 연속 그라데이션」)의 이 문장만 바꿨다 — 설계서 §15.
+  // 2026-10-18 사용자 「전체적으로 "말"이라는 용어가 잘 이해가 안되는데 다른 단어로 치환할 수 있니 ?」 — 「단계 말」 → 「위험 단계」.
+  test('연안 기준상세 색문안: 단계 4색(2026-10-16 (가)) — 0~100 막대만 이어진 색 · 「단계 말」 없이 「위험 단계」',()=>{assert.doesNotMatch(ui.basis,/단계 말/);assert.match(ui.basis,/위험 단계와 같은 4색입니다: 평소 수준 초록 · 다소 높음 노랑 · 높음 주황 · 매우 높음 빨강/);assert.doesNotMatch(ui.basis,/연속 그라데이션/);assert.match(ui.basis,/이 관광지 주변 3km에서 이 날에/);});
+  test('근거표 제목 색은 확정노랑',()=>assert.equal(ui.headerColor,'rgb(255, 225, 122)'));
+  test('키보드 초점은 파랑2px·offset2px',()=>{assert.equal(ui.focusWidth,'2px');assert.equal(ui.focusColor,'rgb(68, 138, 255)');assert.equal(ui.focusOffset,'2px');});
+  test('움직임줄이기 스위치 전환 중단',()=>assert.equal(ui.switchTransition,'0s'));
+  test('슬라이더 말풍선 없이 위에 고정 일시 표시',()=>{assert.equal(ui.bubbles,0);assert.equal(ui.label,"'26.10.11(일) 18:00");});
+  test('시간축 보조기기 이름',()=>assert.equal(ui.sliderLabel,'시간 이동'));
+  const officialSheet=await page.evaluate(()=>{
+   const host=document.createElement('div');host.className='rf-sheet';document.body.appendChild(host);const basisKinds=[];const sheet=RiskSheet.create(host,{close(){},hazard(){},basis:kind=>basisKinds.push(kind),retry(){},choose(){}});
+   sheet.show({gridId:'14802',lat:36.408936,lon:126.490293,accidentRiskIndex:.015262514,accidentRiskLevel:'경계',forecastAt:'2026-10-11T12:00:00+09:00',createdAt:'2026-10-11T03:00:00+09:00',congestion:{gridId:'GR4_fixture',congestionIndex:.14,congestionLevel:'낮음',forecastAt:'2026-10-11T13:00:00+09:00'},weather:{source:'기상청 해구별 예보',forecastAt:'2026-10-11T12:00:00+09:00',wh:.2,ws:3.1,wp:4.14,wd:241},missing:[],sources:{accident:{status:'ok'}}},'accident',{});
+   const text=host.textContent,noOwnIndex=!host.querySelector('.rf-index'),accidentBasis=!!host.querySelector('[data-basis="sea"]');host.querySelector('[data-basis="sea"]').click();sheet.show({title:{major:1,sub:1},subtitle:{name:'참조',bearingDeg:45},score:3,rr:8,index:100,officialCongestionLevel:'낮음',rows:[{key:'congestion',levelName:'보통',ci:5},{key:'wave',value:1},{key:'wind',value:3}],missing:[]},'sea',{});const trafficText=host.textContent,trafficBasis=!!host.querySelector('[data-basis="sea"]');host.querySelector('[data-basis="sea"]').click();sheet.show({title:{major:1,sub:1},subtitle:{},rows:[{key:'congestion',levelName:'높음',ci:10}],missing:[]},'sea',{});const unknownText=host.textContent;return{text,noOwnIndex,trafficText,unknownText,accidentBasis,trafficBasis,basisKinds,missingMessages:RiskSheet.sourceMessages({sources:{accident:{status:'error'}}},'accident')};
+  });
+  test('공식 사고상세는 원시지수·생성시각과 다른기상 출처분리',()=>{assert.match(officialSheet.text,/공식 선박 사고 위험예보/);assert.match(officialSheet.text,/0.015262514/);assert.match(officialSheet.text,/발생 확률/);assert.match(officialSheet.text,/GR4_fixture/);assert.match(officialSheet.text,/파주기/);assert.match(officialSheet.text,/4.14s/);assert.match(officialSheet.text,/241°/);assert.match(officialSheet.text,/기상청 해구별 예보/);assert.equal(officialSheet.noOwnIndex,true);});
+  test('혼잡만있는 상세는 자체위험 배수를 공식처럼 표시하지 않음',()=>{assert.doesNotMatch(officialSheet.trafficText,/약 8배|위험지수|전복/);assert.match(officialSheet.trafficText,/낮음/);});
+  test('공식사고 원천실패는 내부 진단 문장으로 구분',()=>assert.match(officialSheet.missingMessages.join(' '),/공식 선박 사고 위험예보 자료 수집에 실패/));
+  test('혼잡5의 공식낮음은 기존보통 판정으로 바꾸지 않음',()=>{assert.match(officialSheet.trafficText,/낮음 · 지수 5/);assert.doesNotMatch(officialSheet.trafficText,/보통/);assert.match(officialSheet.unknownText,/단계 확인 불가/);assert.doesNotMatch(officialSheet.unknownText,/높음/);});
+  test('사고·혼잡 시트 모두 공식기준 상세 버튼 연결',()=>{assert.equal(officialSheet.accidentBasis,true);assert.equal(officialSheet.trafficBasis,true);assert.deepEqual(officialSheet.basisKinds,['sea','sea']);});
+
+
+  const scorer=require('../services/risk_score');
+  // U81(2026-10-15): 사람 = 평소(30일 평균 11.315)의 8배 → 2.91점, 위험구역 = 종류별(위험 6·사망 2·다발 3, 3곳에서 멈춤) 합.
+  const typedZones=[['연안사고 위험구역',6],['사망사고 발생구역',2],['연안사고 다발구역',3]].flatMap(([c,n])=>Array.from({length:n},(_,i)=>({id:c+i,'구역분류':c})));
+  const coastInput={t:'2026-10-11T15:00:00+09:00',now:'2026-10-11T15:00:00+09:00',spot:{hazard:{count:11,zones:typedZones}},concentration:90.52,concentrationBase:{gm:11.315,days:30},events:[],swell:{periodS:8}};
+  const scored=scorer.scoreCoast(coastInput);scored.rows=scored.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
+  const incomplete=scorer.scoreCoast({...coastInput,concentration:null,events:null,swell:null});incomplete.rows=incomplete.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
+  const policy=scorer.scoreCoast({...coastInput,swell:{periodS:12},spot:{hazard:{count:11,zones:typedZones},ripBeach:'fixture'},rip:{level:'주의',hasData:true}});policy.rows=policy.factors.map(r=>({...r,key:r.key==='concentration'?'people':r.key}));
+  // 2026-10-18 사용자 「빼자.」 — 연안 시트의 「사고 배수는 어떻게 합쳤나요?」 아코디언 삭제(같은 계산 방법은 [기준 상세]·PDF). 시트에 그 칸이 없고 함수도 내보내지 않는다.
+  const calculation=await page.evaluate(({scored})=>{
+   const host=document.createElement('div');host.className='rf-sheet';document.body.appendChild(host);const sheet=RiskSheet.create(host,{close(){},hazard(){},basis(){},retry(){},choose(){}});
+   sheet.show({...scored,title:'영도 흰여울해안터널',subtitle:{lat:35,lon:129},notices:[]},'coast',{});
+   return{has:!!host.querySelector('.rf-calculation'),text:host.textContent,fn:typeof RiskSheet.coastCalculation};
+  },{scored});
+  test('연안 시트에 「사고 배수는 어떻게 합쳤나요?」 아코디언 없음(2026-10-18 삭제)',()=>{assert.equal(calculation.has,false);assert.doesNotMatch(calculation.text,/어떻게 합쳤나요/);assert.equal(calculation.fn,'undefined');});
+  test('U81 사망실종 계수(반올림 전) — 서버 점수 계산은 그대로',()=>{assert.ok(Math.abs(scored.fatalRr-21.857984648808593)<1e-8);assert.equal(policy.fatalRr,scored.fatalRr,'너울·이안류 정책점수는 사망배수에 넣지 않음');assert.ok(incomplete.factors.some(r=>r.missing),'입력 누락은 missing');});
+
+
+ }finally{await browser.close();}
+ console.log(`${pass} PASS / ${fail} FAIL`);process.exitCode=fail?1:0;
+})().catch(e=>{console.error('FAIL 지도 전수 실행:',e.message);console.log(`${pass} PASS / ${fail+1} FAIL`);process.exitCode=1;});

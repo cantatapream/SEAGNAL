@@ -1,0 +1,618 @@
+{
+ "_about": {
+  "what": "별표 파출소 관할 vs 해경 파출소 관할구역 자료(D159-1, 2022-12-01, 96곳) 대조 — 2022 자료는 문제 부분 확인용 참고만",
+  "iou": "겹침 면적/합친 면적(1=완전 일치)"
+ },
+ "stations": [
+  {
+   "station": "인천",
+   "name": "영흥파출소",
+   "self_intersect": false,
+   "iou_2022": 0.951
+  },
+  {
+   "station": "인천",
+   "name": "신항만파출소",
+   "self_intersect": false,
+   "iou_2022": 1.0
+  },
+  {
+   "station": "인천",
+   "name": "백령파출소",
+   "self_intersect": false,
+   "iou_2022": 0.76
+  },
+  {
+   "station": "인천",
+   "name": "대청파출소",
+   "self_intersect": false,
+   "iou_2022": 0.889
+  },
+  {
+   "station": "인천",
+   "name": "인항파출소",
+   "self_intersect": false,
+   "iou_2022": 0.902
+  },
+  {
+   "station": "인천",
+   "name": "하늘바다파출소",
+   "self_intersect": false,
+   "iou_2022": 0.723
+  },
+  {
+   "station": "인천",
+   "name": "강화파출소",
+   "self_intersect": false,
+   "iou_2022": 0.752
+  },
+  {
+   "station": "인천",
+   "name": "연평파출소",
+   "self_intersect": false,
+   "iou_2022": 1.0
+  },
+  {
+   "station": "인천",
+   "name": "대명파출소",
+   "self_intersect": true,
+   "iou_2022": 0.484,
+   "iou_2022_swap_last_two": 0.403,
+   "swap_valid": false
+  },
+  {
+   "station": "평택",
+   "name": "안산파출소",
+   "self_intersect": false,
+   "iou_2022": 0.324
+  },
+  {
+   "station": "평택",
+   "name": "대부파출소",
+   "self_intersect": false,
+   "iou_2022": 0.49
+  },
+  {
+   "station": "평택",
+   "name": "평택파출소",
+   "self_intersect": true,
+   "iou_2022": 0.185,
+   "iou_2022_swap_last_two": 0.229,
+   "swap_valid": true
+  },
+  {
+   "station": "평택",
+   "name": "당진파출소",
+   "self_intersect": false,
+   "iou_2022": 0.579
+  },
+  {
+   "station": "평택",
+   "name": "대산파출소",
+   "self_intersect": false,
+   "iou_2022": 0.771
+  },
+  {
+   "station": "태안",
+   "name": "마검포파출소",
+   "self_intersect": false,
+   "iou_2022": 0.697
+  },
+  {
+   "station": "태안",
+   "name": "영목파출소",
+   "self_intersect": false,
+   "iou_2022": 0.716
+  },
+  {
+   "station": "태안",
+   "name": "모항파출소",
+   "self_intersect": false,
+   "iou_2022": 0.758
+  },
+  {
+   "station": "태안",
+   "name": "신진파출소",
+   "self_intersect": false,
+   "iou_2022": 0.831
+  },
+  {
+   "station": "태안",
+   "name": "학암포파출소",
+   "self_intersect": false,
+   "iou_2022": 0.709
+  },
+  {
+   "station": "보령",
+   "name": "대천파출소",
+   "self_intersect": false,
+   "iou_2022": 0.902
+  },
+  {
+   "station": "보령",
+   "name": "홍성파출소",
+   "self_intersect": false,
+   "iou_2022": 0.655
+  },
+  {
+   "station": "보령",
+   "name": "오천파출소",
+   "self_intersect": false,
+   "iou_2022": 0.724
+  },
+  {
+   "station": "보령",
+   "name": "홍원파출소",
+   "self_intersect": false,
+   "iou_2022": 0.874
+  },
+  {
+   "station": "보령",
+   "name": "장항파출소",
+   "self_intersect": false,
+   "iou_2022": 0.706
+  },
+  {
+   "station": "군산",
+   "name": "해망파출소",
+   "self_intersect": true,
+   "iou_2022": 0.547,
+   "iou_2022_swap_last_two": 0.228,
+   "swap_valid": true
+  },
+  {
+   "station": "군산",
+   "name": "새만금파출소",
+   "self_intersect": false,
+   "iou_2022": 0.788
+  },
+  {
+   "station": "군산",
+   "name": "비응파출소",
+   "self_intersect": false,
+   "iou_2022": 0.831
+  },
+  {
+   "station": "부안",
+   "name": "변산파출소",
+   "self_intersect": false,
+   "iou_2022": 0.653
+  },
+  {
+   "station": "부안",
+   "name": "고창파출소",
+   "self_intersect": false,
+   "iou_2022": 0.69
+  },
+  {
+   "station": "부안",
+   "name": "위도파출소",
+   "self_intersect": false,
+   "iou_2022": 1.0
+  },
+  {
+   "station": "목포",
+   "name": "남항파출소",
+   "self_intersect": false,
+   "iou_2022": 0.728
+  },
+  {
+   "station": "목포",
+   "name": "흑산파출소",
+   "self_intersect": false,
+   "iou_2022": 0.931
+  },
+  {
+   "station": "목포",
+   "name": "영광파출소",
+   "self_intersect": false,
+   "iou_2022": 0.953
+  },
+  {
+   "station": "목포",
+   "name": "진도파출소",
+   "self_intersect": false,
+   "iou_2022": 0.868
+  },
+  {
+   "station": "목포",
+   "name": "암태파출소",
+   "self_intersect": false,
+   "iou_2022": 0.769
+  },
+  {
+   "station": "목포",
+   "name": "북항파출소",
+   "self_intersect": false,
+   "iou_2022": 0.685
+  },
+  {
+   "station": "목포",
+   "name": "지도파출소",
+   "self_intersect": false,
+   "iou_2022": 0.592
+  },
+  {
+   "station": "완도",
+   "name": "완도파출소",
+   "self_intersect": false,
+   "iou_2022": 0.997
+  },
+  {
+   "station": "완도",
+   "name": "노화파출소",
+   "self_intersect": false,
+   "iou_2022": 0.958
+  },
+  {
+   "station": "완도",
+   "name": "마량파출소",
+   "self_intersect": false,
+   "iou_2022": 0.89
+  },
+  {
+   "station": "완도",
+   "name": "회진파출소",
+   "self_intersect": false,
+   "iou_2022": 0.837
+  },
+  {
+   "station": "완도",
+   "name": "땅끝파출소",
+   "self_intersect": false,
+   "iou_2022": 0.753
+  },
+  {
+   "station": "여수",
+   "name": "광양파출소",
+   "self_intersect": false,
+   "iou_2022": 0.109
+  },
+  {
+   "station": "여수",
+   "name": "여수바다파출소",
+   "self_intersect": false,
+   "iou_2022": 0.406
+  },
+  {
+   "station": "여수",
+   "name": "돌산파출소",
+   "self_intersect": false,
+   "iou_2022": 0.912
+  },
+  {
+   "station": "여수",
+   "name": "나로도파출소",
+   "self_intersect": false,
+   "iou_2022": 0.448
+  },
+  {
+   "station": "여수",
+   "name": "거문파출소",
+   "self_intersect": false,
+   "iou_2022": 0.677
+  },
+  {
+   "station": "여수",
+   "name": "녹동파출소",
+   "self_intersect": false,
+   "iou_2022": 0.581
+  },
+  {
+   "station": "여수",
+   "name": "여호파출소",
+   "self_intersect": false,
+   "in_2022": false
+  },
+  {
+   "station": "울산",
+   "name": "강동파출소",
+   "self_intersect": false,
+   "iou_2022": 0.87
+  },
+  {
+   "station": "울산",
+   "name": "방어진파출소",
+   "self_intersect": false,
+   "iou_2022": 0.769
+  },
+  {
+   "station": "울산",
+   "name": "울산항파출소",
+   "self_intersect": false,
+   "iou_2022": 0.166
+  },
+  {
+   "station": "울산",
+   "name": "진하파출소",
+   "self_intersect": false,
+   "iou_2022": 0.828
+  },
+  {
+   "station": "울산",
+   "name": "기장파출소",
+   "self_intersect": false,
+   "iou_2022": 0.849
+  },
+  {
+   "station": "부산",
+   "name": "송정파출소",
+   "self_intersect": false,
+   "iou_2022": 0.85
+  },
+  {
+   "station": "부산",
+   "name": "광안리파출소",
+   "self_intersect": false,
+   "iou_2022": 0.754
+  },
+  {
+   "station": "부산",
+   "name": "영도파출소",
+   "self_intersect": false,
+   "iou_2022": 0.775
+  },
+  {
+   "station": "부산",
+   "name": "남항파출소",
+   "self_intersect": true,
+   "iou_2022": 0.73,
+   "iou_2022_swap_last_two": 0.276,
+   "swap_valid": false
+  },
+  {
+   "station": "부산",
+   "name": "다대파출소",
+   "self_intersect": false,
+   "iou_2022": 0.908
+  },
+  {
+   "station": "부산",
+   "name": "감천파출소",
+   "self_intersect": false,
+   "iou_2022": 0.94
+  },
+  {
+   "station": "부산",
+   "name": "명지파출소",
+   "self_intersect": false,
+   "iou_2022": 0.99
+  },
+  {
+   "station": "창원",
+   "name": "신항파출소",
+   "self_intersect": true,
+   "iou_2022": 0.235,
+   "iou_2022_swap_last_two": 0.229,
+   "swap_valid": false
+  },
+  {
+   "station": "창원",
+   "name": "진해파출소",
+   "self_intersect": false,
+   "iou_2022": 0.281
+  },
+  {
+   "station": "창원",
+   "name": "마산파출소",
+   "self_intersect": false,
+   "iou_2022": 0.248
+  },
+  {
+   "station": "창원",
+   "name": "광암파출소",
+   "self_intersect": false,
+   "iou_2022": 0.225
+  },
+  {
+   "station": "통영",
+   "name": "장승포파출소",
+   "self_intersect": false,
+   "iou_2022": 0.227
+  },
+  {
+   "station": "통영",
+   "name": "고현파출소",
+   "self_intersect": false,
+   "iou_2022": 0.032
+  },
+  {
+   "station": "통영",
+   "name": "거제남부파출소",
+   "self_intersect": false,
+   "iou_2022": 0.716
+  },
+  {
+   "station": "통영",
+   "name": "통영파출소",
+   "self_intersect": false,
+   "iou_2022": 0.761
+  },
+  {
+   "station": "통영",
+   "name": "고성파출소",
+   "self_intersect": false,
+   "iou_2022": 0.233
+  },
+  {
+   "station": "사천",
+   "name": "사천파출소",
+   "self_intersect": false,
+   "iou_2022": 0.629
+  },
+  {
+   "station": "사천",
+   "name": "남해파출소",
+   "self_intersect": false,
+   "iou_2022": 0.651
+  },
+  {
+   "station": "사천",
+   "name": "하동파출소",
+   "self_intersect": false,
+   "iou_2022": 0.453
+  },
+  {
+   "station": "속초",
+   "name": "거진파출소",
+   "self_intersect": false,
+   "iou_2022": 0.972
+  },
+  {
+   "station": "속초",
+   "name": "속초파출소",
+   "self_intersect": false,
+   "iou_2022": 0.991
+  },
+  {
+   "station": "속초",
+   "name": "낙산파출소",
+   "self_intersect": false,
+   "iou_2022": 1.0
+  },
+  {
+   "station": "강릉",
+   "name": "주문진파출소",
+   "self_intersect": false,
+   "iou_2022": 0.962,
+   "station_2022": "속초"
+  },
+  {
+   "station": "강릉",
+   "name": "강릉파출소",
+   "self_intersect": false,
+   "iou_2022": 0.43,
+   "station_2022": "동해"
+  },
+  {
+   "station": "동해",
+   "name": "묵호파출소",
+   "self_intersect": true,
+   "iou_2022": 0.301,
+   "iou_2022_swap_last_two": 0.523,
+   "swap_valid": true
+  },
+  {
+   "station": "동해",
+   "name": "울릉파출소",
+   "self_intersect": false,
+   "iou_2022": 0.838
+  },
+  {
+   "station": "동해",
+   "name": "삼척파출소",
+   "self_intersect": true,
+   "iou_2022": 0.505,
+   "iou_2022_swap_last_two": 0.911,
+   "swap_valid": true
+  },
+  {
+   "station": "동해",
+   "name": "임원파출소",
+   "self_intersect": true,
+   "iou_2022": 0.556,
+   "iou_2022_swap_last_two": 0.873,
+   "swap_valid": true
+  },
+  {
+   "station": "울진",
+   "name": "죽변파출소",
+   "self_intersect": true,
+   "iou_2022": 0.592,
+   "iou_2022_swap_last_two": 0.793,
+   "swap_valid": true
+  },
+  {
+   "station": "울진",
+   "name": "후포파출소",
+   "self_intersect": true,
+   "iou_2022": 0.485,
+   "iou_2022_swap_last_two": 0.544,
+   "swap_valid": true
+  },
+  {
+   "station": "울진",
+   "name": "축산파출소",
+   "self_intersect": true,
+   "iou_2022": 0.617,
+   "iou_2022_swap_last_two": 0.804,
+   "swap_valid": true
+  },
+  {
+   "station": "울진",
+   "name": "강구파출소",
+   "self_intersect": true,
+   "iou_2022": 0.479,
+   "iou_2022_swap_last_two": 0.874,
+   "swap_valid": true
+  },
+  {
+   "station": "포항",
+   "name": "영일만파출소",
+   "self_intersect": true,
+   "iou_2022": 0.465,
+   "iou_2022_swap_last_two": 0.873,
+   "swap_valid": true
+  },
+  {
+   "station": "포항",
+   "name": "포항파출소",
+   "self_intersect": false,
+   "iou_2022": 0.622
+  },
+  {
+   "station": "포항",
+   "name": "호미곶파출소",
+   "self_intersect": false,
+   "iou_2022": 0.684
+  },
+  {
+   "station": "포항",
+   "name": "구룡포파출소",
+   "self_intersect": false,
+   "iou_2022": 0.906
+  },
+  {
+   "station": "포항",
+   "name": "감포파출소",
+   "self_intersect": false,
+   "iou_2022": 0.901
+  },
+  {
+   "station": "제주",
+   "name": "제주파출소",
+   "self_intersect": false,
+   "iou_2022": 0.759
+  },
+  {
+   "station": "제주",
+   "name": "한림파출소",
+   "self_intersect": false,
+   "iou_2022": 0.707
+  },
+  {
+   "station": "제주",
+   "name": "추자파출소",
+   "self_intersect": false,
+   "iou_2022": 0.984
+  },
+  {
+   "station": "서귀포",
+   "name": "성산파출소",
+   "self_intersect": false,
+   "iou_2022": 0.572
+  },
+  {
+   "station": "서귀포",
+   "name": "서귀포파출소",
+   "self_intersect": false,
+   "iou_2022": 0.84
+  },
+  {
+   "station": "서귀포",
+   "name": "화순파출소",
+   "self_intersect": false,
+   "iou_2022": 0.832
+  }
+ ]
+}

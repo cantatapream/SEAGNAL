@@ -3,7 +3,7 @@
  * routes/vsby_smallzone.js
  * MMIS 해구별예측(소해구) 시정 캐시 제공 API.
  *
- *   GET /api/vsby-smallzone/status            → 캐시 상태(baseTm, 셀 수)
+ *   GET /api/vsby-smallzone/status            → 캐시 상태(baseTm, 셀 수, 마지막 프레임 lastFctTm, 마지막 imgList 확인 결과 lastCheck*·failStreak)
  *   GET /api/vsby-smallzone?zone=S1251100     → 특보구역의 소해구별 시정 시계열(프리페치 캐시)
  *   GET /api/vsby-smallzone?cells=144-1,145-2 → 지정 소해구들의 시정 시계열(캐시)
  *   GET /api/vsby-smallzone/point?lat=&lon=   → [B1] 임의 해점이 속한 소해구 시정(지연 로딩)

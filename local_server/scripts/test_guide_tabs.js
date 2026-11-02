@@ -19,8 +19,11 @@
  * [실행] node local_server/scripts/test_guide_tabs.js
  * [연계] ← scripts/refactor/verify_all.sh SUITES
  *        → client/js/ocean-map/cctv/ocean_cctv.js (해양종합정보 안내 13탭)
- *        → client/js/marine-life/safety/life_safety.js (해양안전 안내 8탭)
+ *        → client/js/marine-life/safety/life_safety.js (해양안전 안내 9탭 — 2026-10-16 위험예측 탭 추가)
  *        → client/index2.html (화면 버튼 존재 여부)
+ *        → client/js/marine-life/risk-forecast/risk_forecast.css (위험예측 버튼 order:0 — 맨 위)
+ *        → client/js/marine-life/risk-forecast/risk_forecast.js·risk_format.js·risk_sheet.js·risk_basis_content.js
+ *          (위험예측 탭에 적은 스위치 이름·시간 버튼·단계 말·[기준 상세]·오늘·내일이 화면 코드와 같은가)
  */
 'use strict';
 
@@ -35,6 +38,12 @@ const SAFETY_SRC = fs.readFileSync(path.join(CLIENT, 'js', 'marine-life', 'safet
 const INDEX_SRC = fs.readFileSync(path.join(CLIENT, 'index2.html'), 'utf8');
 const TIDE_ROUTE = fs.readFileSync(path.join(ROOT, 'local_server', 'routes', 'tide.js'), 'utf8');
 const VERIFY_SRC = fs.readFileSync(path.join(ROOT, 'scripts', 'refactor', 'verify_all.sh'), 'utf8');
+const RF_DIR = path.join(CLIENT, 'js', 'marine-life', 'risk-forecast');
+const RF_CSS = fs.readFileSync(path.join(RF_DIR, 'risk_forecast.css'), 'utf8');
+const RF_JS = fs.readFileSync(path.join(RF_DIR, 'risk_forecast.js'), 'utf8');
+const RF_FORMAT = fs.readFileSync(path.join(RF_DIR, 'risk_format.js'), 'utf8');
+const RF_SHEET = fs.readFileSync(path.join(RF_DIR, 'risk_sheet.js'), 'utf8');
+const RF_BASIS = fs.readFileSync(path.join(RF_DIR, 'risk_basis_content.js'), 'utf8');
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {
@@ -106,12 +115,13 @@ ok('지도 조작 2개(위치 검색·진북 정렬)를 뺀 모든 탭에 출처
 console.log('\n[2] 해양안전 안내 — 탭 순서가 버튼 순서와 같은가');
 
 const SAFETY_EXPECT = [
+    ['riskforecast', '위험예측'],
     ['hazardrock', '위험지형'], ['accident', '사고정보'], ['banzone', '금지구역'],
     ['navwarn', '항행경보'], ['mudflat', '물빠짐'], ['cctv', 'CCTV'],
     ['vts', '관제구역'], ['seaway', '항로·해역']
 ];
 ok('탭을 읽어 낼 수 있다', Array.isArray(safetyTabs), String(safetyTabs));
-ok('탭이 8개다', (safetyTabs || []).length === 8, String((safetyTabs || []).length));
+ok('탭이 9개다(2026-10-16 위험예측 추가)', (safetyTabs || []).length === 9, String((safetyTabs || []).length));
 ok('탭 id·라벨·순서가 화면 버튼 순서와 같다',
     JSON.stringify((safetyTabs || []).map(t => [t.id, t.label])) === JSON.stringify(SAFETY_EXPECT),
     (safetyTabs || []).map(t => t.label).join(' | '));
@@ -127,14 +137,19 @@ ok('모든 탭에 출처 줄이 있다',
     const re = /body\.ls-mode\.ls-safety #ocean-overlay-controls > #?([\w-]+)\s*\{ order: (\d+); \}/g;
     let m;
     while ((m = re.exec(INDEX_SRC))) order[+m[2] - 1] = m[1];
+    // 위험예측 버튼의 순서는 index2.html 이 아니라 risk_forecast.css 에 있다(order:0 = 맨 위).
+    const rfOrder = (RF_CSS.match(/body\.ls-mode\.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn \{[^}]*order:\s*(-?\d+)/) || [])[1];
+    ok('위험예측 버튼 순서를 risk_forecast.css 에서 읽었다(order:0 = 맨 위)', rfOrder === '0', String(rfOrder));
+    if (rfOrder === '0') order.unshift('ocean-risk-forecast-toggle-btn');
     const BTN_TO_TAB = {
+        'ocean-risk-forecast-toggle-btn': 'riskforecast',
         'ocean-terrain-toggle-btn': 'hazardrock', 'ocean-accident-wrap': 'accident',
         'ocean-banzone-toggle-btn': 'banzone', 'ocean-navwarn-btn': 'navwarn',
         'ocean-mudflat-toggle-btn': 'mudflat', 'ocean-cctv-toggle-btn': 'cctv',
         'ocean-vts-toggle-btn': 'vts', 'ocean-seaway-toggle-btn': 'seaway'
     };
     const fromCss = order.filter(Boolean).map(id => BTN_TO_TAB[id]).filter(Boolean);
-    ok('화면 버튼 순서(CSS order)를 8개 다 읽었다', fromCss.length === 8, fromCss.join(','));
+    ok('화면 버튼 순서(CSS order)를 9개 다 읽었다', fromCss.length === 9, fromCss.join(','));
     ok('안내 탭 순서 = 화면 버튼 순서',
         JSON.stringify(fromCss) === JSON.stringify((safetyTabs || []).map(t => t.id)),
         fromCss.join(',') + ' vs ' + (safetyTabs || []).map(t => t.id).join(','));
@@ -192,6 +207,42 @@ function has(text, s) { return text.indexOf(s) >= 0; }
     ok(`갯바위 ${nShore}곳이 위험지형 탭과 같다`, has(safetyText, `갯바위</strong>(${nShore}곳)`), nShore);
     ok(`갯바위에 가린 노출암 ${nCov}개가 위험지형 탭과 같다`,
         has(safetyText, `노출암 ${nCov}개`), String(nCov));
+})();
+
+// ── [3-2] 위험예측 탭 ↔ 화면 코드·기준 상세 ─────────────────────────────
+// 2026-10-16 사용자 「그리고 해양안전생활에서 안내 버튼을 보면 매뉴별 내용이 있는데 그 내용에
+//   위험예측에 관한 내용이 들어가도록 해줘. 내용은 기존에 작성되어있던 내용을 참고하여 반영해.
+//   길게쓸 필요는 없어. 주요내용만.」 — 탭에 적은 이름·단계·버튼이 화면 코드에서 바뀌면 여기서 걸린다.
+console.log('\n[3-2] 위험예측 탭 ↔ 화면 코드');
+(function () {
+    const rf = ((safetyTabs || []).find(t => t.id === 'riskforecast') || {}).html || '';
+    ok('위험예측 탭 본문이 있다', rf.length > 100, String(rf.length));
+    ['연안 위험 예측·분석', '해상 위험 예측·분석'].forEach(name => {
+        ok(`스위치 이름 「${name}」 이 화면 코드와 같다`, has(rf, name) && has(RF_JS, '<span class="bzl-name">' + name + '</span>'));
+    });
+    ok('처음엔 연안만 켜진다(스위치 기본값이 연안 on·해상 off)',
+        has(rf, '처음에는 연안만') &&
+        has(RF_JS, 'class="bzl-row on" data-layer="coast" aria-pressed="true"') &&
+        has(RF_JS, 'class="bzl-row" data-layer="sea" aria-pressed="false"'));
+    ok('해상 단계 「낮음·보통·주의·경계」 가 기준 상세·지도 범례와 같다',
+        has(rf, '낮음·보통·주의·경계') && has(RF_BASIS, '<b>낮음·보통·주의·경계</b>') &&
+        has(RF_JS, "['낮음','보통','주의','경계']"));
+    ok('연안 단계 「평소 수준·다소 높음·높음·매우 높음」 이 단계 함수와 같다',
+        has(rf, '평소 수준·다소 높음·높음·매우 높음') &&
+        has(RF_FORMAT, "['평소 수준','다소 높음','높음','매우 높음']"));
+    ok('[혼잡도] 선택 버튼이 화면에 있다', has(rf, '[혼잡도]') && has(RF_JS, 'data-marine-mode="congestion" aria-checked="false">혼잡도</button>'));
+    ok('시간 버튼 5개(-6H·-3H·현재·+3H·+6H)가 화면 코드와 같다',
+        has(rf, '-6H·-3H·현재·+3H·+6H') && has(RF_JS, "['-6','-3','now','3','6']"));
+    ok('[기준 상세] 버튼이 시트에 있다', has(rf, '[기준 상세]') && has(RF_SHEET, '>기준 상세</button>'));
+    ok('연안 PDF 받기가 연안 기준 상세에 있다', has(rf, 'PDF') && /coast:[\s\S]*pdf-btn/.test(RF_BASIS));
+    ok('「오늘·내일」 이 기준 상세와 같다', has(rf, '오늘·내일') && has(RF_BASIS, '오늘·내일을 3시간 간격'));
+    ok('연안 「주변 3km」 가 기준 상세와 같다', has(rf, '주변 3km') && has(RF_BASIS, '이 관광지 주변 3km'));
+    // 연안은 「하루 하나·날짜 넘기기」로 바뀌는 중(2026-10-16 사용자 확정) — 3시간 칸이라고 적지 않는다.
+    const coastSentences = rf.split('</p>').filter(p => /<strong>연안<\/strong>/.test(p));
+    ok('연안을 3시간 단위라고 적지 않는다(날짜별)',
+        coastSentences.length > 0 && coastSentences.every(p => !/3시간/.test(p) || /<strong>해상<\/strong>/.test(p)) && has(rf, '<strong>날짜별</strong>'),
+        coastSentences.length + '문단');
+    ok('위험예측 탭에 출처 줄이 있다', /ocean-info-src/.test(rf));
 })();
 
 // ── [4] 표기 통일 ─────────────────────────────────────────────────────────

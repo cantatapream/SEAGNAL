@@ -1,0 +1,9 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20261021-072109-199",
+ "files": [
+  "local_server/knowledge/legal/_legacy/해운법/20260616/법률.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/법률.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/_meta.json"
+ ]
+}

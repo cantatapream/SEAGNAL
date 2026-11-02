@@ -4,12 +4,17 @@
  * 역할: 기상청 해상 기상 전망 데이터 로드 및 렌더링
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : shared/utils/utils.js(trackUsage) · settings/settings.js(사용자 발표청 설정)
+ *  - 사용하는 파일 : shared/utils/utils.js(trackUsage) · settings/settings.js(UserSettings.hasInterestZones — 관심해역 골랐나) ·
+ *                   core/config.js(getTopOffice) · core/backbutton.js(PopupStack — 설정 팝업 뒤로가기)
  *  - 서버 API      : GET /api/marine-forecast · /api/regional-forecast
- *  - 마크업        : #marine-forecast-accordion-header/body · #ultra-short-forecast-body ·
- *                   #short-term-forecast-body · #regional-forecast-title/body · #office-settings-panel
+ *  - 마크업        : #marine-forecast-accordion-header/body · #regional-office-settings-btn(머리 오른쪽 ⚙) ·
+ *                   #ultra-short-forecast-body · #short-term-forecast-body · #regional-forecast-title/body ·
+ *                   #office-settings-panel(관심 기상청 설정 팝업 — 이 파일이 만든다)
+ *  - 저장          : localStorage 'officeManualSettings' {지방청코드: true|false} — 관심 기상청 한 곳(2026-10-17부터 하나만 true) ·
+ *                   localStorage 'officeLegacyZoneFallback' '1'|'0' — 이 판 전부터 관심해역을 쓰던 기기인가(처음 한 번만 정함)
  *  - 나를 쓰는 곳  : forecast/alerts/data.js(fetchAllData → loadMarineForecast) ·
- *                   index2.html(아코디언 토글 onclick)
+ *                   settings/settings.js·onboarding/zone_setup.js(관심해역 저장 뒤 loadRegionalForecast) ·
+ *                   index2.html(아코디언 토글·⚙ onclick)
  * ============================================================================
  *
  * [설명]
@@ -387,42 +392,58 @@ function applyMarineForecastDefaultExpansion(data) {
     _marineForecastDefaultApplied = true;
 }
 
+// 지방청 목록 — 화면·설정 팝업에 나오는 차례(수도권→부산→광주→강원→대전→대구→제주).
+//   여러 곳을 저장해 둔 옛 설정을 한 곳으로 줄일 때도 이 차례로 첫 곳을 고른다.
+const OFFICE_LIST = [
+    { code: '109', name: '수도권기상청' },
+    { code: '159', name: '부산지방기상청' },
+    { code: '156', name: '광주지방기상청' },
+    { code: '105', name: '강원지방기상청' },
+    { code: '133', name: '대전지방기상청' },
+    { code: '143', name: '대구지방기상청' },
+    { code: '184', name: '제주지방기상청' }
+];
+
 /**
- * 사용자 관심해역 기반으로 해당하는 지방청 코드 목록 반환
+ * 종합 예보에 보여 줄 지방청 코드를 정한다 — 늘 0개 또는 1개.
+ *
+ * 예: 관심 기상청을 제주로 골라 둠 → ['184'] · 아무것도 안 골랐고 관심해역도 없음 → []
  *
  * [우선순위]
- * 1. 수동 지방청 설정 (localStorage의 'officeManualSettings')이 있으면 최우선 적용
- * 2. 수동 설정이 없으면 관심해역이 **가장 많은 지방청 하나**(config.js getTopOffice).
- *    관심해역을 아직 안 고른 상태면 판단 근거가 없어 모든 지방청을 보여준다.
+ * 1. 사용자가 고른 관심 기상청 하나(localStorage 'officeManualSettings' — getChosenOfficeCode)
+ * 2. 안 골랐으면, **이 판 전부터 관심해역을 쓰던 기기**(_officeLegacyZoneFallback)가 관심해역을 골라 둔
+ *    경우에만 관심해역이 **가장 많은 지방청 하나**(config.js getTopOffice — 사용자 확정 2026-09-27).
+ *    새로 설치한 기기는 관심해역을 골라도 여기로 오지 않는다(2026-10-17 사용자 확정 —
+ *    「지금처럼 두자. 그렇지만 새롭게 설정하는 사람, 최초 설치한 사람 등에 대해서는 뜨도록 해야해.」).
+ * 3. 그 밖에는 [] → 화면에 「관심 기상청이 설정되지 않았습니다」와 [설정하기]를 띄운다.
+ *    (2026-10-17 사용자 확정 — 종전에는 이때 7개 지방청을 모두 보여 줬다.)
  *
- * [연계] toggleOfficeSettingsPanel() → 수동 설정 UI
- * [연계] renderRegionalForecast() → 이 함수의 반환값으로 표시할 지방청 결정
+ * @returns {string[]} 지방청 코드 배열(0~1개)
+ * [연계] ← renderRegionalForecast()·loadRegionalForecast()(무엇을 그릴지) · openOfficeSettingsPanel()(팝업의 처음 선택)
+ *        → settings/settings.js UserSettings.hasInterestZones() · core/config.js getTopOffice()
  */
 function getRelevantOfficeCodes() {
-    // 1순위: 수동 지방청 설정 확인
-    var manualSettings = getOfficeManualSettings();
-    if (manualSettings) {
-        // 수동 설정에서 ON인 지방청 코드만 반환
-        var codes = [];
-        Object.keys(manualSettings).forEach(function(code) {
-            if (manualSettings[code]) codes.push(code);
-        });
-        return codes;
-    }
+    // 1순위: 사용자가 고른 관심 기상청
+    var chosen = getChosenOfficeCode();
+    if (chosen) return [chosen];
 
-    // 2순위: 관심해역이 **가장 많은 지방청 하나**(사용자 확정 2026-09-27)
-    if (typeof getTopOffice === 'function' && typeof UserSettings !== 'undefined') {
+    // 2순위: 이 판 전부터 관심해역을 쓰던 기기가 관심해역을 골라 둔 경우만 — 관심해역이 가장 많은 지방청 하나
+    //   관심해역을 안 고른 상태(전 해역)는 판단 근거가 없으므로 고르지 않는다.
+    //   새로 설치한 기기는 관심해역이 있어도 관심 기상청을 고를 때까지 안내 칸을 본다.
+    if (_officeLegacyZoneFallback
+        && typeof UserSettings !== 'undefined' && typeof UserSettings.hasInterestZones === 'function'
+        && UserSettings.hasInterestZones() && typeof getTopOffice === 'function') {
         return getTopOffice(UserSettings.settings);
     }
-    // config.js 로드 전이면 모든 지방청 반환
-    return Object.keys(REGIONAL_OFFICES || {});
+    return [];
 }
 
 /**
  * localStorage에서 수동 지방청 설정을 읽어오는 함수
- * 설정이 없거나 파싱 실패 시 null 반환 (= 관심해역 설정 사용)
+ * 설정이 없거나 파싱 실패 시 null 반환
  *
  * @returns {Object|null} { "109": true, "159": false, ... } 형태 또는 null
+ * [연계] ← getChosenOfficeCode()
  */
 function getOfficeManualSettings() {
     try {
@@ -435,141 +456,249 @@ function getOfficeManualSettings() {
 }
 
 /**
- * 수동 지방청 설정을 localStorage에 저장하는 함수
+ * 사용자가 고른 관심 기상청 한 곳의 코드를 돌려준다(없으면 null).
  *
- * @param {Object} settings - { "109": true, "159": false, ... }
+ * 예: {"109":false,"184":true} → '184'
+ *     {"109":true,"159":true,"184":true}(여러 곳을 켜 둔 옛 설정) → '109'
+ *     {"109":false, …전부 false} 또는 저장 없음 → null(= 안 고름)
+ *
+ * [옛 설정 옮기기 — 2026-10-17] 예전에는 여러 지방청을 함께 켤 수 있었다. 이제는 한 곳만이므로
+ *   켜 둔 곳 가운데 **설정 팝업 차례(OFFICE_LIST)에서 가장 앞선 곳 하나**만 쓴다.
+ *   저장값은 읽을 때마다 같은 규칙으로 줄이므로 따로 고쳐 쓰지 않는다 — 사용자가 [완료]를
+ *   누르면 그때 한 곳만 켠 꼴로 저장된다. 빈 화면이 되지 않게, 켜 둔 곳이 하나라도 있으면 그중 하나를 보여 준다.
+ *
+ * @returns {string|null} 지방청 코드
+ * [연계] ← getRelevantOfficeCodes() / → getOfficeManualSettings()
  */
-function saveOfficeManualSettings(settings) {
+function getChosenOfficeCode() {
+    var manual = getOfficeManualSettings();
+    if (!manual || typeof manual !== 'object') return null;
+    for (var i = 0; i < OFFICE_LIST.length; i++) {
+        if (manual[OFFICE_LIST[i].code] === true) return OFFICE_LIST[i].code;
+    }
+    return null;
+}
+
+/**
+ * 관심 기상청 한 곳을 localStorage에 저장한다 — 고른 곳만 true, 나머지는 false.
+ *
+ * 예: saveChosenOffice('184') → {"109":false,"159":false,…,"184":true}
+ *     (종전과 같은 꼴·같은 키라 옛 판 앱이 읽어도 그 한 곳이 보인다)
+ * @param {string} code - 지방청 코드
+ * [연계] ← 설정 팝업 [완료](openOfficeSettingsPanel 안)
+ */
+function saveChosenOffice(code) {
+    var settings = {};
+    OFFICE_LIST.forEach(function (o) { settings[o.code] = (o.code === code); });
     localStorage.setItem('officeManualSettings', JSON.stringify(settings));
 }
 
+/** 옛 기기 표시를 담는 localStorage 키 — '1' 옛 기기(관심해역 기준 유지) · '0' 아님 · 없음 = 아직 안 정함 */
+var OFFICE_LEGACY_KEY = 'officeLegacyZoneFallback';
+
 /**
- * 수동 지방청 설정을 초기화하는 함수 (관심해역 설정으로 되돌리기)
- * localStorage에서 삭제하고 UI 갱신
+ * 이 기기가 「관심 기상청」 판(2026-10-17) 전부터 관심해역을 쓰던 기기인지 **처음 한 번만** 정하고 기억한다.
+ *
+ * 왜: 사용자 확정(2026-10-17) — 「지금처럼 두자. 그렇지만 새롭게 설정하는 사람, 최초 설치한 사람 등에
+ *   대해서는 뜨도록 해야해.」 이미 관심해역을 쓰던 사람은 종합 예보가 갑자기 안내 칸으로 바뀌지 않게
+ *   관심해역 기준(가장 많은 지방청)을 그대로 두고, 새로 설치·새로 설정하는 사람은 관심 기상청을 고를 때까지
+ *   「관심 기상청이 설정되지 않았습니다」+[설정하기]를 보게 한다.
+ *
+ * 예: 새 판을 처음 연 순간 관심해역이 저장돼 있고 관심 기상청은 없음 → '1' 저장 · true
+ *     처음 연 순간 관심해역이 없음(처음 설치·앱 데이터 지움·아직 안 고름) → '0' 저장 · false
+ *     처음 연 순간 관심 기상청을 이미 골라 둠 → '0'(고른 곳이 늘 앞서므로 기댈 일이 없다)
+ *     이미 '1'·'0' 이 있으면 그 값 그대로 — 그 뒤 관심해역을 새로 골라도 다시 정하지 않는다.
+ *
+ * [순서 — 2026-10-17 코드로 확인] 이 파일 맨 위(스크립트를 읽는 순간)에서 한 번 부른다.
+ *   index2.html 에서 settings/settings.js(UserSettings.init() 이 그 자리에서 저장값을 읽음)가 이 파일보다 앞이고,
+ *   관심해역을 저장하는 곳(onboarding/zone_setup.js _save · settings.js saveSettingsAndClose ·
+ *   tutorial.js 숨은 진입로 → zone_setup)은 모두 이 파일 뒤에 실리거나 사용자가 눌러야 돈다.
+ *   그래서 처음 설치한 기기에서 온보딩이 관심해역을 저장하기 전에 판정이 끝난다.
+ *
+ * 정한 뒤의 경우:
+ *   - 옛 기기가 나중에 관심해역을 모두 지움 → 기댈 관심해역이 없으니 안내 칸. 다시 고르면 관심해역 기준이 돌아온다.
+ *   - 옛 기기가 관심 기상청을 고름 → 고른 곳이 앞선다(1순위).
+ *   - 앱 데이터를 지움 → 표시도 지워지므로 새로 설치한 것과 같다.
+ *   - 저장소를 못 읽으면 처음 보는 기기로 보고 판정, 못 쓰면 이번 실행에만 그 판정을 쓴다.
+ *
+ * @returns {boolean} 옛 기기면 true(관심해역 기준 지방청을 보여 줌)
+ * [연계] ← 이 파일 맨 위 _officeLegacyZoneFallback(한 번) / → getChosenOfficeCode() ·
+ *          settings/settings.js UserSettings.hasInterestZones() · getRelevantOfficeCodes()(2순위 조건)
  */
-function resetOfficeManualSettings() {
-    localStorage.removeItem('officeManualSettings');
-    // 설정 패널 닫기
-    var panel = document.getElementById('office-settings-panel');
-    if (panel) panel.remove();
-    // 예보 다시 렌더링 (관심해역 기반으로 복원)
-    if (typeof loadRegionalForecast === 'function') loadRegionalForecast();
+function decideOfficeLegacyZoneFallback() {
+    var saved = null;
+    try { saved = localStorage.getItem(OFFICE_LEGACY_KEY); } catch (e) { /* 못 읽으면 처음 보는 기기로 판정한다 */ }
+    if (saved === '1') return true;
+    if (saved === '0') return false;
+    var legacy = !getChosenOfficeCode()
+        && typeof UserSettings !== 'undefined' && typeof UserSettings.hasInterestZones === 'function'
+        && UserSettings.hasInterestZones();
+    try { localStorage.setItem(OFFICE_LEGACY_KEY, legacy ? '1' : '0'); } catch (e) { /* 못 쓰면 이번 실행에만 이 판정을 쓴다 */ }
+    return legacy;
+}
+
+// 스크립트를 읽는 순간 한 번 정한다 — 온보딩이 관심해역을 저장하기 전(위 [순서])
+var _officeLegacyZoneFallback = decideOfficeLegacyZoneFallback();
+
+/**
+ * 「기상청 해상 기상 전망」 아코디언이 닫혀 있으면 연다(설정 팝업·안내가 보이게).
+ * [연계] ← openOfficeSettingsPanel() / → toggleMarineForecastAccordion()(같은 파일 — 사용량 기록도 같이)
+ */
+function _expandMarineForecastAccordion() {
+    var body = document.getElementById('marine-forecast-accordion-body');
+    if (body && body.classList.contains('collapsed')) window.toggleMarineForecastAccordion();
 }
 
 /**
- * 지방청 설정 패널을 열고 닫는 토글 함수
- * 종합 예보 헤더의 ⚙ 버튼 클릭 시 호출
+ * 관심 기상청 설정 팝업(「📋 지방청 표시 설정」)을 연다 — 한 곳만 고르는 라디오 목록 + [취소]·[완료].
  *
- * [동작]
- * - 패널이 없으면 생성하여 표시
- * - 패널이 이미 있으면 제거 (토글)
- * - 7개 지방청 목록과 토글 스위치를 표시
- * - 수동 설정이 없는 경우 현재 관심해역 기반 상태를 기본값으로 표시
+ * 예: 아코디언 머리 ⚙ 또는 안내 칸의 [설정하기]를 누름 → 아코디언이 펼쳐지고 맨 위에 팝업이 뜬다.
+ *     한 곳을 누르면 다른 곳은 풀린다. [완료]는 한 곳을 골라야 눌린다.
+ *     [완료] = 저장하고 닫은 뒤 종합 예보를 그 지방청으로 다시 그림 · [취소]·×·Esc·뒤로가기 = 저장 없이 닫음.
  *
- * [연계] index.html → ⚙ 버튼의 onclick에서 호출
- * [연계] saveOfficeManualSettings() → 토글 변경 시 저장
- * [연계] renderRegionalForecast() → 설정 변경 후 예보 다시 렌더링
+ * [화면] 종전 팝업과 같은 모양(어두운 카드·📋 제목·안내 문구). 바뀐 것: 켬/끔 스위치 7개 → 라디오 7줄,
+ *   [초기화] 없앰, [취소]·[완료] 추가(사용자 확정 2026-10-17).
+ * [뒤로가기] core/backbutton.js 의 PopupStack 에 'office-settings-panel' 로 올려, 하드웨어 뒤로가기가 [취소]와 같게 닫는다.
+ *
+ * @returns {void}
+ * [연계] ← index2.html #regional-office-settings-btn(⚙) · toggleOfficeSettingsPanel() · 안내 칸 [설정하기](renderRegionalForecast)
+ *        → saveChosenOffice() · loadRegionalForecast() · window.PopupStack(core/backbutton.js)
  */
-function toggleOfficeSettingsPanel() {
-    var existing = document.getElementById('office-settings-panel');
-    if (existing) { existing.remove(); return; }
+function openOfficeSettingsPanel() {
+    if (document.getElementById('office-settings-panel')) return;
+    var host = document.getElementById('marine-forecast-content');
+    if (!host) return;
+    _expandMarineForecastAccordion();
 
-    // 현재 상태: 수동 설정이 있으면 그 값, 없으면 관심해역 기반
-    var manualSettings = getOfficeManualSettings();
-    var currentCodes;
-    if (manualSettings) {
-        currentCodes = new Set(Object.keys(manualSettings).filter(function(k) { return manualSettings[k]; }));
-    } else {
-        // 수동 설정이 없을 때의 "지금 상태" 도 화면과 같아야 한다 → 같은 함수를 쓴다
-        if (typeof getTopOffice === 'function' && typeof UserSettings !== 'undefined') {
-            currentCodes = new Set(getTopOffice(UserSettings.settings));
-        } else {
-            currentCodes = new Set(Object.keys(REGIONAL_OFFICES || {}));
-        }
-    }
-
-    // 지방청 목록 (표출 순서)
-    var offices = [
-        { code: '109', name: '수도권기상청' },
-        { code: '159', name: '부산지방기상청' },
-        { code: '156', name: '광주지방기상청' },
-        { code: '105', name: '강원지방기상청' },
-        { code: '133', name: '대전지방기상청' },
-        { code: '143', name: '대구지방기상청' },
-        { code: '184', name: '제주지방기상청' }
-    ];
-
-    // 설정 패널 HTML 생성
-    var listHtml = offices.map(function(o) {
-        var isOn = currentCodes.has(o.code);
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
-            + '<span style="color:#e2e8f0;font-size:0.85rem;">' + o.name + '</span>'
-            + '<label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;">'
-            + '<input type="checkbox" data-office-code="' + o.code + '" ' + (isOn ? 'checked' : '')
-            + ' onchange="onOfficeToggleChange()" style="opacity:0;width:0;height:0;">'
-            + '<span style="position:absolute;inset:0;background:' + (isOn ? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.1)')
-            + ';border-radius:12px;transition:background 0.3s;"></span>'
-            + '<span style="position:absolute;top:2px;left:' + (isOn ? '22px' : '2px')
-            + ';width:20px;height:20px;background:#fff;border-radius:50%;transition:left 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></span>'
-            + '</label></div>';
-    }).join('');
+    var current = getRelevantOfficeCodes()[0] || null;   // 처음 선택 = 지금 화면에 보이는 곳
+    var picked = current;
+    var opener = document.activeElement;
 
     var panel = document.createElement('div');
     panel.id = 'office-settings-panel';
-    panel.style.cssText = 'background:rgba(15,23,42,0.95);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px;margin:8px 0;';
-    panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
-        + '<span style="color:#fff;font-size:0.9rem;font-weight:600;">📋 지방청 표시 설정</span>'
-        + '<button onclick="document.getElementById(\'office-settings-panel\').remove()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:1.1rem;">&times;</button>'
-        + '</div>'
-        + '<p style="color:#94a3b8;font-size:0.75rem;margin:0 0 12px 0;">※ 이 설정은 관심해역 설정보다 우선 적용됩니다.</p>'
-        + listHtml
-        + '<div style="text-align:center;margin-top:12px;">'
-        + '<button onclick="resetOfficeManualSettings()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;padding:8px 20px;border-radius:8px;font-size:0.8rem;cursor:pointer;">초기화 (관심해역 기준으로 복원)</button>'
-        + '</div>';
+    panel.className = 'office-settings-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-labelledby', 'office-settings-title');
 
-    // 종합 예보 헤더 바로 아래에 삽입
-    var headerEl = document.querySelector('#regional-forecast-section .marine-forecast-sub-header');
-    if (headerEl && headerEl.parentNode) {
-        headerEl.parentNode.insertBefore(panel, headerEl.nextSibling);
+    var head = document.createElement('div');
+    head.className = 'office-settings-head';
+    var title = document.createElement('span');
+    title.id = 'office-settings-title';
+    title.className = 'office-settings-title';
+    title.textContent = '📋 지방청 표시 설정';
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'office-settings-x';
+    x.setAttribute('aria-label', '닫기');
+    x.textContent = '×';
+    head.appendChild(title);
+    head.appendChild(x);
+    panel.appendChild(head);
+
+    var note = document.createElement('p');
+    note.className = 'office-settings-note';
+    note.textContent = '※ 이 설정은 관심해역 설정보다 우선 적용됩니다.';
+    panel.appendChild(note);
+    var hint = document.createElement('p');
+    hint.className = 'office-settings-note';
+    hint.textContent = '관심 기상청을 한 곳 고르세요.';
+    panel.appendChild(hint);
+
+    var group = document.createElement('div');
+    group.className = 'office-settings-list';
+    group.setAttribute('role', 'radiogroup');
+    group.setAttribute('aria-labelledby', 'office-settings-title');
+    OFFICE_LIST.forEach(function (o) {
+        var row = document.createElement('label');
+        row.className = 'office-settings-row';
+        var name = document.createElement('span');
+        name.textContent = o.name;
+        var radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'office-settings-pick';
+        radio.value = o.code;
+        radio.setAttribute('data-office-code', o.code);
+        radio.checked = (o.code === current);
+        radio.addEventListener('change', function () {
+            if (!radio.checked) return;
+            picked = o.code;
+            _paint();
+        });
+        row.appendChild(name);
+        row.appendChild(radio);
+        group.appendChild(row);
+    });
+    panel.appendChild(group);
+
+    var actions = document.createElement('div');
+    actions.className = 'office-settings-actions';
+    var cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'office-settings-btn';
+    cancel.setAttribute('data-office-action', 'cancel');
+    cancel.textContent = '취소';
+    var done = document.createElement('button');
+    done.type = 'button';
+    done.className = 'office-settings-btn primary';
+    done.setAttribute('data-office-action', 'done');
+    done.textContent = '완료';
+    actions.appendChild(cancel);
+    actions.appendChild(done);
+    panel.appendChild(actions);
+
+    /** 고른 줄 강조·[완료] 잠금을 지금 선택에 맞춘다. [연계] ← 라디오 change · 처음 열 때 */
+    function _paint() {
+        group.querySelectorAll('.office-settings-row').forEach(function (row) {
+            row.classList.toggle('checked', row.querySelector('input').checked);
+        });
+        done.disabled = !picked;
     }
+    /** 팝업을 닫는다(저장 여부는 부른 쪽이 정한다). [연계] ← [취소]·[완료]·×·Esc·PopupStack */
+    function _close() {
+        if (window.PopupStack) window.PopupStack.remove('office-settings-panel');
+        panel.remove();
+        if (opener && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
+    }
+    /** 저장 없이 닫는다. [연계] ← [취소]·×·Esc·하드웨어 뒤로가기 */
+    function _cancel() { _close(); }
+
+    x.addEventListener('click', _cancel);
+    cancel.addEventListener('click', _cancel);
+    done.addEventListener('click', function () {
+        if (!picked) return;
+        saveChosenOffice(picked);
+        _close();
+        if (typeof loadRegionalForecast === 'function') loadRegionalForecast();
+    });
+    panel.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') { ev.stopPropagation(); _cancel(); }
+    });
+
+    _paint();
+    host.insertBefore(panel, host.firstChild);
+    if (window.PopupStack) window.PopupStack.push('office-settings-panel', _cancel);
+    var first = group.querySelector('input:checked') || group.querySelector('input');
+    if (first) first.focus();
 }
 
 /**
- * 지방청 토글 스위치 변경 시 호출되는 함수
- * 모든 토글의 현재 상태를 수집하여 localStorage에 저장하고 예보를 다시 렌더링
- *
- * [동작]
- * 1. 설정 패널 내 모든 체크박스를 순회
- * 2. 각 지방청 코드별 ON/OFF 상태를 수집
- * 3. localStorage에 저장
- * 4. 토글 스위치 시각적 상태 갱신 (색상, 위치)
- * 5. 예보 다시 렌더링
+ * 설정 팝업을 열고 닫는다(⚙ 버튼) — 열려 있으면 저장 없이 닫고, 없으면 연다.
+ * 예: ⚙ 한 번 → 열림 · 한 번 더 → [취소]와 같이 닫힘
+ * [연계] ← index2.html #regional-office-settings-btn onclick / → openOfficeSettingsPanel()
  */
-function onOfficeToggleChange() {
-    var panel = document.getElementById('office-settings-panel');
-    if (!panel) return;
-
-    var checkboxes = panel.querySelectorAll('input[data-office-code]');
-    var settings = {};
-    checkboxes.forEach(function(cb) {
-        settings[cb.getAttribute('data-office-code')] = cb.checked;
-        // 토글 스위치 시각적 상태 갱신
-        var track = cb.nextElementSibling;
-        var thumb = track ? track.nextElementSibling : null;
-        if (track) track.style.background = cb.checked ? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.1)';
-        if (thumb) thumb.style.left = cb.checked ? '22px' : '2px';
-    });
-
-    saveOfficeManualSettings(settings);
-
-    // 예보 다시 렌더링
-    if (typeof loadRegionalForecast === 'function') loadRegionalForecast();
+function toggleOfficeSettingsPanel() {
+    var existing = document.getElementById('office-settings-panel');
+    if (existing) {
+        var cancel = existing.querySelector('[data-office-action="cancel"]');
+        if (cancel) cancel.click();
+        return;
+    }
+    openOfficeSettingsPanel();
 }
 
 // 전역에서 접근 가능하도록 window에 등록
 window.toggleOfficeSettingsPanel = toggleOfficeSettingsPanel;
-window.onOfficeToggleChange = onOfficeToggleChange;
-window.resetOfficeManualSettings = resetOfficeManualSettings;
+window.openOfficeSettingsPanel = openOfficeSettingsPanel;
 
 /**
  * PDF 발표시각의 날짜(MM.DD)가 KST 오늘과 같은지 판정.
@@ -616,6 +745,35 @@ function isPdfTemperatureForToday(publishTime) {
 }
 
 /**
+ * 관심 기상청이 없을 때의 안내 칸을 그린다 — 문구 두 줄 + [설정하기].
+ *
+ * 예: 앱을 처음 깔고 아코디언을 펼침 → 「관심 기상청이 설정되지 않았습니다.」
+ *     「설정하면 그 지방기상청의 해상 단기 전망을 보여 드립니다.」 [설정하기]
+ * @param {HTMLElement} bodyEl - #regional-forecast-body
+ * [연계] ← renderRegionalForecast() / → openOfficeSettingsPanel()([설정하기]가 같은 설정 팝업을 연다)
+ */
+function renderOfficeUnsetNotice(bodyEl) {
+    bodyEl.textContent = '';
+    var box = document.createElement('div');
+    box.className = 'regional-office-unset';
+    var msg = document.createElement('p');
+    msg.className = 'regional-office-unset-title';
+    msg.textContent = '관심 기상청이 설정되지 않았습니다.';
+    var sub = document.createElement('p');
+    sub.className = 'regional-office-unset-sub';
+    sub.textContent = '설정하면 그 지방기상청의 해상 단기 전망을 보여 드립니다.';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'regional-office-unset-btn';
+    btn.textContent = '설정하기';
+    btn.addEventListener('click', function (ev) { ev.stopPropagation(); openOfficeSettingsPanel(); });
+    box.appendChild(msg);
+    box.appendChild(sub);
+    box.appendChild(btn);
+    bodyEl.appendChild(box);
+}
+
+/**
  * 종합 예보 (지방기상청 단기예보) 렌더링
  */
 function renderRegionalForecast(data) {
@@ -625,9 +783,16 @@ function renderRegionalForecast(data) {
 
     const relevantCodes = getRelevantOfficeCodes();
 
-    if (!data || relevantCodes.length === 0) {
+    // 관심 기상청이 없으면 7곳을 다 보여 주지 않고 안내 + [설정하기](사용자 확정 2026-10-17)
+    if (relevantCodes.length === 0) {
         titleEl.textContent = '종합 예보';
-        bodyEl.innerHTML = '<p class="marine-forecast-empty">관심해역을 설정하면 해당 지역의 종합 예보를 확인할 수 있습니다.</p>';
+        renderOfficeUnsetNotice(bodyEl);
+        return;
+    }
+
+    if (!data) {
+        titleEl.textContent = '종합 예보';
+        bodyEl.innerHTML = '<p class="marine-forecast-empty">종합 예보를 불러오지 못했습니다.</p>';
         return;
     }
 
@@ -795,6 +960,11 @@ window.toggleRegionalOffice = function (code) {
  * 종합 예보 데이터 로드
  */
 async function loadRegionalForecast() {
+    // 관심 기상청이 없으면 받을 것도 없다 — 안내 칸만 바로 그린다
+    if (getRelevantOfficeCodes().length === 0) {
+        renderRegionalForecast(null);
+        return;
+    }
     try {
         // [캐시] 서버 Cache-Control: max-age=600 (10분) — 하루 3회 수집 데이터라 10분 캐시 안전.
         const response = await fetch('/api/regional-forecast');

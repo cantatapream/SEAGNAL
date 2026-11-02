@@ -578,3 +578,12 @@ time: trimStr(r.ftTm || r.typTm),   // YYYYMMDDHHmm
 - killed(완전 종료) 수신: 네이티브 `MessagingService` 에 `typhoon_radius_wake` 분기 + `radiusEntry`/슬롯·디둡·문구의
   Java/Kotlin 포팅(`TyphoonRadiusDecider`) + APK 재빌드(`versionCode`/`versionName`/`NATIVE_MIN_VERSION`). §15-3 참조.
   Phase 2a 는 fly.dev 원격 로드(JS+서버)만으로 출시 가능(네이티브/APK 무변경).
+
+## 17. 발송 신뢰성 보강 (2026-10-15, 서버만)
+> 사용자 결정(2026-10-15) 원문 요지: **"①②둘 다, 서버만, 앱 업데이트 없음."** — ①(a)(b)(d)를 태풍 반경 디스패치에도 같게, (c)도 같은 지문 구조가 있으면 같게.
+
+- `_defaultSendFn` 이 토큰을 **500개씩** 나눠 보낸다(`services/fcm_multicast_chunked.js`) — 종전엔 500개를 넘으면 SDK 예외로 전원 미수신.
+- `dispatchTyphoon` 의 `sent` = **실제 성공 수**(종전: 대상 수), 이력 count 도 같은 값(예외·미구성 0).
+- **dedupKey 는 성공 ≥1 일 때만 저장**(종전: 결과와 무관하게 저장 — 코드 주석은 "방송 성공 시에만 dedupKey 갱신"이라 적혀 있었으나 조건이 없었다). 성공 0이면 `reason:'send_failed'` 로 끝나고 다음 10분 주기에 같은 슬롯으로 다시 보낸다. 같은 키로 연속 실패하면 0건 이력은 첫 번만(프로세스 메모리 `_lastFailedKey`).
+- 발송마다 로그 1줄: `[TyphoonRadiusDispatch] 발송 결과(<dedupKey>) — 대상·호출·성공·실패·실패코드`(토큰 미기록).
+- 검사: `local_server/scripts/test_location_dispatch_reliability.js` [7]. 상세는 `client/js/location-alert/location_alert.design.md` §18.

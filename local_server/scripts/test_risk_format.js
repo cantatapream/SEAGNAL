@@ -1,0 +1,85 @@
+/**
+ * 파일명: local_server/scripts/test_risk_format.js
+ * 역할  : U77·U78의 위험예측 서식·색·좌표와 HTML/URL 처리를 제품 함수로 검사한다.
+ * [연계] risk_format.js · risk_sheet.js / verify_all.sh
+ */
+'use strict';
+const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert');
+const dir=path.join(__dirname,'../../client/js/marine-life/risk-forecast');
+const context={window:{},URL,console};vm.createContext(context);
+for(const file of ['risk_format.js','risk_sheet.js'])vm.runInContext(fs.readFileSync(path.join(dir,file),'utf8'),context);
+const F=context.window.RiskFormat,S=context.window.RiskSheet;let pass=0,fail=0;
+/** 사례를 검사하고 verify_all이 읽는 PASS/FAIL 개수를 출력한다. 예: test('서식',()=>assert.equal(...)). @param {string} label 사례 @param {Function} fn 검증 [연계] ← 아래 사례 / → 제품 RiskFormat 함수 */
+function test(label,fn){try{fn();pass++;}catch(e){fail++;console.error('FAIL',label,e.message);}}
+for(const [rr,expected] of [[1.54,'+54%'],[.58,'−42%'],[1,'±0%'],[2,'약 2배'],[4.27,'약 4.3배'],[14.55,'약 15배']])test('배수 '+rr,()=>assert.equal(F.fmt(rr),expected));
+for(const [rr,expected] of [[1.49,'g'],[1.5,'y'],[3.99,'y'],[4,'o'],[7.99,'o'],[8,'r']])test('글자 경계 '+rr,()=>assert.equal(F.tone(rr),expected));
+for(const [s,expected] of [[-1,'rgb(47,179,107)'],[0,'rgb(47,179,107)'],[Math.log2(1.5),'rgb(242,194,48)'],[2,'rgb(251,146,60)'],[3,'rgb(224,50,44)'],[5,'rgb(224,50,44)']])test('표시색 경계 '+s,()=>assert.equal(F.col(s),expected));
+for(let i=0;i<=100;i++)test('상자 명암 '+i,()=>{const bg=F.col(i*.03),fg=F.ink(bg);const parse=x=>x.match(/\d+/g).slice(0,3).map(Number);const l=F.luminance(parse(bg)),f=fg==='#ffffff'?1:fg==='#000000'?0:F.luminance([16,21,31]);assert.ok((Math.max(l,f)+.05)/(Math.min(l,f)+.05)>=4.5);});
+// 2026-10-16 사용자 (가): 연안 상자·지도 색 = 단계 4색. 경계는 서버 risk_points.scoreToIndex·scoreBand 와 같아야 한다(같은 19 인데 상자 노랑·슬라이더 초록이던 어긋남).
+const P=require('../services/risk_points'),BANDRGB={'평소 수준':'rgb(47,179,107)','다소 높음':'rgb(242,194,48)','높음':'rgb(251,146,60)','매우 높음':'rgb(224,50,44)'};
+test('단계 경계: 클라 scoreIndex·bandOf = 서버 scoreToIndex·scoreBand (−1~4점, 0.0005 간격 전 구간)',()=>{for(let i=-2000;i<=8000;i++){const sc=i*.0005;assert.equal(F.scoreIndex(sc),P.scoreToIndex(sc),'지수 '+sc);assert.equal(F.bandOf(F.scoreIndex(sc)),P.scoreBand(P.scoreToIndex(sc)),'단계 '+sc);}});
+for(const [idx,band] of [[19,'평소 수준'],[20,'다소 높음'],[66,'다소 높음'],[67,'높음'],[99,'높음'],[100,'매우 높음']])test('지수 '+idx+' → '+band+' 색(점수로도 같은 색)',()=>{const sc=idx*.03;assert.equal(P.scoreBand(P.scoreToIndex(sc)),band);assert.equal(F.bandColor(sc),BANDRGB[band]);assert.equal(F.bandColor(band),BANDRGB[band]);});
+test('지수 19 는 종전 연속 색(거의 노랑)이 아니라 초록',()=>{assert.equal(F.col(.57),'rgb(237,194,50)');assert.equal(F.bandColor(.57),'rgb(47,179,107)');});
+test('band 색 = BAND_COLORS(슬라이더 칸·범례와 같은 값), 모르는 단계·null 은 회색',()=>{for(const [b,hex] of Object.entries(F.BAND_COLORS))assert.equal(F.bandColor(b),'rgb('+hex.slice(1).match(/../g).map(x=>parseInt(x,16)).join(',')+')');assert.equal(F.bandColor('없는 단계'),'rgb(120,130,145)');assert.equal(F.bandColor(null),'rgb(120,130,145)');});
+for(const band of Object.keys(BANDRGB))test('단계 상자 명암 4.5:1 이상 '+band,()=>{const bg=F.bandColor(band),fg=F.ink(bg),parse=x=>x.match(/\d+/g).slice(0,3).map(Number),l=F.luminance(parse(bg)),f=fg==='#ffffff'?1:fg==='#000000'?0:F.luminance([16,21,31]),r=(Math.max(l,f)+.05)/(Math.min(l,f)+.05);console.log('측정 상자 명암',band,bg,fg,r.toFixed(2));assert.ok(r>=4.5);});
+test('좌표 초 carry',()=>assert.equal(F.dms(35+59/60+59.9/3600,true),'36°00′00″N'));
+test('좌표 음수',()=>assert.equal(F.dms(-129.5,false),'129°30′00″W'));
+test('KST 날짜',()=>assert.equal(F.time('2026-10-09T15:42:00Z'),"'26. 10. 10.(토) 00:42"));
+test('시트 고정 일시는 「\'26.mm.dd(요일) HH:mm」 두 자리·KST',()=>{assert.equal(F.stamp('2026-10-14T15:00:00+09:00'),"'26.10.14(수) 15:00");assert.equal(F.stamp('2026-01-02T00:05:00+09:00'),"'26.01.02(금) 00:05");assert.equal(F.stamp('2026-10-09T15:42:00Z'),"'26.10.10(토) 00:42");});
+test('시트 고정 일시는 잘못된 시각에 빈 문자열',()=>{assert.equal(F.stamp(''),'');assert.equal(F.stamp('나쁜값'),'');assert.equal(F.stamp(undefined),'');});
+test('16방위',()=>assert.equal(F.direction(45),'북동'));
+test('HTML 보호',()=>assert.equal(F.escape('<img onerror="x">'), '&lt;img onerror=&quot;x&quot;&gt;'));
+test('javascript 링크 거부',()=>assert.equal(F.safeURL('javascript:alert(1)'),''));
+test('https 링크 허용',()=>assert.equal(F.safeURL('https://example.com/a'),'https://example.com/a'));
+test('너울 결측 줄 제외',()=>assert.equal(S.coastRows([{key:'swell',missing:true}]),''));
+test('행사 이름 escape',()=>assert.ok(!S.coastRows([{key:'event',name:'<img src=x onerror=alert(1)>',weekend:false,src:'javascript:alert(1)'}]).includes('<img')));
+test('위험구역 이름 escape',()=>assert.ok(S.coastRows([{key:'hazard',count:1,rr:1.62,fatalRr:1.18,zones:[{id:'"x',place:'<b>x</b>',shape:'s',class:'c',addr:'<img>',police:'경찰'}]}]).includes('&lt;b&gt;x&lt;/b&gt;')));
+test('평일 행사 설명',()=>assert.ok(S.coastRows([{key:'event',name:'축제',weekend:false}]).includes('평일 행사는 과거 사고에 차이가 없어')));
+test('U81 사람: 평소(30일 평균) 이하라 0점이면 줄 숨김(종전 「0단계 숨김」)',()=>{assert.equal(S.coastRows([{key:'people',score:0,ratio:.5,cr:5,base:10,rr:1,fatalRr:1}]),'');assert.equal(S.coastRows([{key:'people',stage:0}]),'');});
+// 2026-10-18 연안 시트 시안 댓글: 「…가능성 높음」 → 「…날 수 있는 조건」, 숫자 앞 「약」, 「•」 두 줄, 제목 「사람 혼잡(예측)」.
+test('U81 사람 줄: 「평소(30일 평균) 대비 N배로 사고가 약 N% 더 많이 날 수 있는 조건」·집중률과 30일 평균을 함께·사망·실종 줄',()=>{const h=S.coastRows([{key:'people',score:.97,ratio:2,cr:40,base:20,baseDays:30,rr:1.96,fatalRr:1.54}]);assert.match(h,/<strong>사람 혼잡\(예측\)/);assert.match(h,/평소\(30일 평균\) 대비 <b class="rf-t-y">2\.0배<\/b>로 사고가 <b[^>]*>약 96%<\/b> 더 많이 날 수 있는 조건/);assert.match(h,/집중률 40 · 30일 평균 20/);assert.match(h,/사망·실종 사고 : 평소 대비 <b[^>]*>약 54%<\/b> 더 많이 날 수 있는 조건/);assert.equal((h.match(/class="rf-bullet"/g)||[]).length,2);assert.doesNotMatch(h,/가능성|단계|한산할 때/);});
+// 2026-10-15 검토: 30일 평균이 17.3205 처럼 원값 그대로, 1.03배가 「1.0배라 평소 대비 3% 높은」처럼 어긋나 보였다.
+test('U81 사람 줄 숫자: 30일 평균은 소수 한 자리 · 2배 미만 배수는 소수 둘째 자리(정수 %와 같은 1% 단위) · 2배 이상은 소수 한 자리',()=>{
+  const rr=r=>1.96**Math.log2(r),row=(ratio,base)=>S.coastRows([{key:'people',score:.97*Math.log2(ratio),ratio,cr:+(ratio*base).toFixed(1),base,baseDays:30,rr:rr(ratio),fatalRr:1.54**Math.log2(ratio)}]);
+  let h=row(1.03,17.3205);assert.match(h,/30일 평균 17\.3\)/);assert.doesNotMatch(h,/17\.32/);assert.match(h,/대비 <b[^>]*>1\.03배<\/b>로 사고가 <b[^>]*>약 3%<\/b> 더 많이/);assert.doesNotMatch(h,/1\.0배/);
+  assert.match(row(1.84,20),/1\.84배.*30일 평균 20\.0/);assert.match(row(4.27,10),/4\.3배/);assert.match(row(2,20),/2\.0배/);});
+// 2026-10-15 2차 검토 D8: 2배 판정을 반올림 전 값으로 해 1.995 → 「2.00배」·2.0 → 「2.0배」로 어긋났다 · 1.00배라 「0% 높은」 줄이 그려졌다 · 30일 평균 null 이 「0.0」.
+test('U81 사람 줄 경계(D8): 2배 판정은 소수 둘째 자리 반올림 값으로 · 사고 가능성이 반올림해 0% 면 줄을 그리지 않음 · 30일 평균 없음은 빈칸',()=>{
+  const rr=r=>1.96**Math.log2(r),row=(ratio,base=20)=>S.coastRows([{key:'people',score:.97*Math.log2(ratio),ratio,cr:+(ratio*20).toFixed(1),base,baseDays:30,rr:rr(ratio),fatalRr:1.54**Math.log2(ratio)}]);
+  for(const ratio of [1.995,1.999])assert.match(row(ratio),/대비 <b[^>]*>2\.0배<\/b>로/,String(ratio));assert.doesNotMatch(row(1.995),/2\.00배/);
+  assert.match(row(1.994),/대비 <b[^>]*>1\.99배<\/b>로/);
+  for(const ratio of [1.004,1.005])assert.equal(row(ratio),'','반올림해 0% 인 줄은 그리지 않는다 '+ratio);
+  assert.match(row(1.03),/약 3%<\/b> 더 많이/,'1% 이상은 그린다');
+  for(const base of [null,''])assert.match(row(1.5,base),/30일 평균 \)/,JSON.stringify(base));assert.doesNotMatch(row(1.5,null),/0\.0\)/);});
+test('U81 사람 결측은 「자료 없음」 줄(30일 평균이 없을 때 포함)',()=>assert.match(S.coastRows([{key:'people',missing:true,score:0}]),/사람 혼잡.*자료 없음/));
+test('U81 위험구역 줄(2026-10-18 시안): 종류별 개수 밑줄 버튼(0개소 종류는 뺌·종류색)·「로<br>위험구역 없는 곳 대비 사고가 약 N% 더 많이 날 수 있는 조건」·제목 칸 N개소',()=>{const h=S.coastRows([{key:'hazard',count:3,rr:1.85,fatalRr:1.86,byType:[{class:'연안사고 위험구역',count:2},{class:'사망사고 발생구역',count:0},{class:'연안사고 다발구역',count:1}],zones:[]}]);assert.match(h,/<span><b class="rf-t-y">3개소<\/b><\/span>/);assert.match(h,/<button type="button" class="rf-hz-kind rf-hz-risk" data-hz-toggle aria-expanded="false">연안사고 위험구역 2개소<\/button> · <button type="button" class="rf-hz-kind rf-hz-freq" data-hz-toggle aria-expanded="false">연안사고 다발구역 1개소<\/button>로<br>위험구역 없는 곳 대비 사고가 <b[^>]*>약 85%<\/b> 더 많이 날 수 있는 조건/);assert.match(h,/사망·실종 사고 : 위험구역 없는 곳 대비 <b[^>]*>약 86%<\/b> 더 많이 날 수 있는 조건/);assert.doesNotMatch(h,/사망사고 발생구역 0|\d곳/);assert.doesNotMatch(h,/data-hz-box/,'구역이 없으면 표 없음');});
+test('위험구역 표(2026-10-18 시안 ②-2): 접힌 상자 안 표 — 칸 위치·종류·구분(「연안사고 」 뺀 이름·종류색)·지도[위치보기], 연번·주소·관할 없음',()=>{const h=S.coastRows([{key:'hazard',count:2,rr:2.5,fatalRr:2.5,byType:[{class:'연안사고 위험구역',count:1},{class:'사망사고 발생구역',count:1}],zones:[{id:'z1',place:'민락항 방파제',shape:'방파제(TTP)',class:'연안사고 위험구역',addr:'부산 수영구',police:'광안리',office:'부산해양경찰서'},{id:'z2',place:'용호항',shape:'항포구(선착장)',class:'사망사고 발생구역',addr:'부산 남구',police:'용호'}]}]);assert.match(h,/<div class="rf-hz-box" data-hz-box hidden><table class="rf-hz-table"><thead><tr><th scope="col">위치<\/th><th scope="col">종류<\/th><th scope="col">구분<\/th><th scope="col">지도<\/th><\/tr><\/thead>/);assert.match(h,/<tr><td><b>민락항 방파제<\/b><\/td><td class="rf-hz-shape">방파제\(TTP\)<\/td><td class="rf-hz-class rf-hz-risk">위험구역<\/td><td><button type="button" class="rf-hazard-link" data-zone-id="z1" aria-pressed="false">위치보기<\/button><\/td><\/tr>/);assert.match(h,/rf-hz-death">사망사고 발생구역</);assert.doesNotMatch(h,/부산 수영구|관할|<ol|<li/);assert.match(h,/사고가 <b[^>]*>약 2\.5배<\/b> 많이 날 수 있는 조건/);});
+test('「날 수 있는 조건」 문구 경계(2026-10-18): 2배 이상 「약 N배 많이」·1~2배 「약 N% 더 많이」·1 미만 「약 N% 적게」·0% 「비슷하게」(달 줄)',()=>{const m=rr=>S.coastRows([{key:'month',month:1,score:Math.log2(rr),rr,fatalRr:rr}]);assert.match(m(4.27),/1년 평균 대비 사고가 <b class="rf-t-o">약 4\.3배<\/b> 많이 날 수 있는 조건/);assert.match(m(1.05),/사고가 <b[^>]*>약 5%<\/b> 더 많이 날 수 있는 조건/);assert.match(m(0.52),/사고가 <b[^>]*>약 48%<\/b> 적게 날 수 있는 조건/);assert.match(m(0.52),/사망·실종 사고 : 1년 평균 대비 <b[^>]*>약 48%<\/b> 적게 날 수 있는 조건/);assert.match(m(1.002),/사고가 비슷하게 날 수 있는 조건/);assert.doesNotMatch(m(0.52),/가능성|높음|낮음|낮은|높은/);});
+test('U81 연안 기준 상세: 새 기준(평소=30일 평균)·종류별 위험구역 점수·재추정 달·0점 뜻 변화 문구, 옛 계단·가산 문구 없음',()=>{const ctx={window:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(dir,'risk_basis_content.js'),'utf8'),ctx);const c=ctx.window.RiskBasisContent.coast;
+  for(const t of ['평소(앞으로 30일 집중률의 평균)만큼 붐비고','그 관광지 자신의 평소와 비교','평소(30일 평균)의 2배마다','+0.44 · 0.70 · 0.88','36% · 62% · 84% 높음','8월 67% 높음 … 1월 48% 낮음','+0.74 … −0.95','종류마다 3곳까지만 셉니다'])assert.ok(c.includes(t),t);
+  for(const t of ['사람이 가장 적고','사람 혼잡 1단계마다','1~2 / 3~5 / 6곳 이상','사망사고 발생구역 3km 안','단계 경계는 검증하지 못한 값'])assert.ok(!c.includes(t),t);});
+// 2026-10-18 사용자 확정: 배수 = 사고 건수 비교(「가능성」 아님) · 「달 점수」→「월별 점수」 · 「단계 말」→「위험 단계」(표) · 문장 여럿은 「•」 줄(ul.rf-pts) ·
+// 시트에서 뺀 「사고 배수는 어떻게 합쳤나요?」(커밋 295a39cf8)의 내용(반올림 표시값 차이·사망·실종에 곱하지 않는 요소·계산 예)이 기준 상세에 있음.
+test('2026-10-18 연안 기준 상세: 「많이 날 수 있는 조건」·월별 점수·위험 단계 표·뺀 계산 설명 보충, 옛 말 없음',()=>{const ctx={window:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(dir,'risk_basis_content.js'),'utf8'),ctx);const c=ctx.window.RiskBasisContent.coast;
+  for(const t of ['몇 배 많이 날 수 있는 조건인지','<h4>사망·실종 사고 배수</h4>','반올림 전에 곱한','주말 행사(사망·실종 값 추정 보류)와 너울·이안류 정책 점수는 이 배수에 곱하지 않습니다','반올림 값을 곱하면 위험지수 칸의 배수와 조금 다를 수 있습니다','1.48점','약 2.8배','위험지수 49(다소 높음)','사고가 약 N% 더 많이 날 수 있는 조건','100건 날 때 196건','월별 점수 0 = 1년 평균','월별(1년 평균 대비','월별 분석도 포함','<h4>위험 단계</h4>','<table class="rf-bands">','위험 단계와 같은 4색입니다','배지','눈금','사고가 나면 사망·실종으로 이어질 가능성(14% 높음)'])assert.ok(c.includes(t),t);
+  for(const t of ['사망·실종 사고 가능성','달 점수','달 분석','단계 말','일어나기 쉬운지','사고 배수는 어떻게 합쳤나요'])assert.ok(!c.includes(t),t);});
+test('2026-10-18 기준 상세(연안·해상): 문장 여럿인 문단은 <p>로 남기지 않고 ul.rf-pts 의 문장마다 li(점은 CSS — 글자에 없음)',()=>{const ctx={window:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(dir,'risk_basis_content.js'),'utf8'),ctx);
+  for(const kind of ['coast','sea']){const c=ctx.window.RiskBasisContent[kind],strip=h=>h.replace(/<[^>]+>/g,'');
+   const multi=[...c.matchAll(/<p(?: [^>]*)?>([\s\S]*?)<\/p>/g)].map(m=>strip(m[1])).filter(t=>(t.match(/다\.(\s|$)/g)||[]).length>1);assert.deepEqual(multi,[],kind+' 문장 여럿인 <p>');
+   const lis=[...c.matchAll(/<li>([\s\S]*?)<\/li>/g)].map(m=>strip(m[1]));assert.ok(lis.length>=10,kind+' 글머리 줄 '+lis.length);
+   assert.deepEqual(lis.filter(t=>(t.match(/다\.(\s|$)/g)||[]).length>1),[],kind+' 한 줄에 문장 하나');assert.ok(!c.includes('•'),kind+' 점은 글자가 아님');}
+  const sea=ctx.window.RiskBasisContent.sea;for(const t of ['주의보는 노랑, 경보는 빨강 띠','점선 상자','예비특보 노랑','제목 줄에 「특보」'])assert.ok(sea.includes(t),t);});
+test('U81 사망사고 발생구역 가산 줄(fatalZone)은 더 그리지 않음',()=>assert.equal(S.coastRows([{key:'fatalZone',rr:1.29,fatalRr:1.3}]),''));
+test('배 혼잡 낮음 숨김',()=>assert.equal(S.seaRows([{key:'congestion',level:0,ci:.5}]),''));
+test('특보없는 파고2m 노랑',()=>assert.match(S.seaRows([{key:'wave',value:2.5}]),/rf-t-y[^>]*>2\.5m/));
+test('특보없는 풍속12m 노랑·정수',()=>assert.match(S.seaRows([{key:'wind',value:14}]),/rf-t-y[^>]*>14m\/s/));
+test('높은 혼잡도 빨강',()=>assert.match(S.seaRows([{key:'congestion',ci:12,level:2,levelName:'높음'}]),/rf-t-r/));
+test('예보 결측 자료 이름 한국어',()=>assert.equal(S.sourceName('forecast'),'해구 예보'));
+test('예보만 높은 파고는 해당행에 근거·반영 꼬리표 표시',()=>{const html=S.seaRows([{key:'wave',value:2.7,forecastOnly:true,cond:'fcst_only',threshold:2.5,lead:0,rr:2.29,used:true}]);assert.match(html,/파고.*위험지수에 반영/);assert.match(html,/특보 없는 오늘 파고.*2\.5m 이상/);assert.match(html,/약 2\.3배/);assert.ok(!html.includes('특보급 날씨 예보'));assert.ok(!html.includes('특보 중'));});
+test('예보만 풍속 단계 근거는 실제 임계값 사용',()=>assert.match(S.seaRows([{key:'wind',value:17.4,forecastOnly:true,cond:'fcst_only',threshold:17,lead:1,rr:3.39,used:true}]),/특보 없는 내일 풍속.*17m\/s 이상/));
+test('낡은 예보 기준은 해당 파고줄에도 표시',()=>assert.match(S.seaRows([{key:'wave',value:2.6,sourceTime:"'26. 10. 9.(금) 09:00"}]),/예보 기준/));
+test('원천 실패와 한산함을 구분하고 마지막 성공시각 표시',()=>{const text=S.sourceMessages({sources:{congestion:{status:'error',lastSuccess:'2026-10-09T05:14:00+09:00'}}},'sea').join();assert.match(text,/수집에 실패/);assert.match(text,/마지막 수집 '26\. 10\. 9\./);});
+test('UTC10자리 예보발표는 KST기준으로 표시',()=>assert.match(S.sourceMessages({sources:{zoneForecasts:{status:'stale',base:'2026100912',updatedAt:'2026-10-09T22:00:00+09:00'}}},'sea').join(),/예보 기준 '26\. 10\. 9\.\(금\) 21:00/));
+test('선택일 다음달행사 누락을 당월정상과 분리',()=>{const sources={events:{status:'ok',months:{'2026-10':{status:'ok'},'2026-11':{status:'missing'}}}};assert.equal(S.sourceMessages({t:'2026-10-31T21:00:00+09:00',sources},'coast').length,0);assert.match(S.sourceMessages({t:'2026-11-01T00:00:00+09:00',sources},'coast').join(),/행사 자료를 받지 못했습니다/);});
+test('행사 개별 원문과 공식원천 링크 문구 구분',()=>{const html=S.coastRows([{key:'event',name:'축제A, 경기B',weekend:false,events:[{name:'축제A',src:'https://example.com/a',sourceType:'tourapi',start:'2026-10-11',end:'2026-10-12'},{name:'경기B',src:'https://example.com/b',start:'2026-10-11',end:'2026-10-11'}]}]);assert.match(html,/축제A · 관광공사 원천 자료/);assert.match(html,/경기B · 행사 원문/);assert.match(html,/https:\/\/example\.com\/b/);});
+console.log(`${pass} PASS / ${fail} FAIL`);process.exitCode=fail?1:0;

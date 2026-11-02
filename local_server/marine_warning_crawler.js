@@ -68,6 +68,24 @@ try {
     console.warn('[marine_warning_crawler] marine_client 로드 실패 — run() 비활성:', e && e.message);
 }
 
+// [강풍 별도 저장] 해안 안전 예보(U5)용 — 강풍(W) 행만 data/gale_warnings.json 에 따로 남긴다.
+//   로드 실패해도 크롤러 본체엔 영향 없음(강풍 저장만 비활성). 강풍 푸시는 없다.
+let galeStore = null;
+try {
+    galeStore = require('./services/gale_warning_store');
+} catch (e) {
+    console.warn('[marine_warning_crawler] gale_warning_store 로드 실패 — 강풍 별도 저장 비활성:', e && e.message);
+}
+
+// [수집 실패 관리자 푸시 — 2026-10-15] MMIS 특보 endpoint 를 받아오지 못하면 첫 실패·복구 때 관리자 푸시 1번씩.
+//   로드 실패해도 크롤러 본체엔 영향 없음(알림만 비활성).
+let collectFailAlert = null;
+try {
+    collectFailAlert = require('./services/collect_fail_alert');
+} catch (e) {
+    console.warn('[marine_warning_crawler] collect_fail_alert 로드 실패 — 수집 실패 알림 비활성:', e && e.message);
+}
+
 // [자식-only 통보문 보강] 확정된 자식 변동(_buildUserPushChanges 통과분)에만 그 부모 관할
 //   지방청 ntfctn/list 를 이벤트성으로 조회·매칭해 ef/list 에 없는 자식 통보문을 영속 저장한다.
 //   로드 실패해도 크롤러 본체엔 영향 없음(자식 통보문 보강만 비활성).
@@ -4370,7 +4388,24 @@ async function run(opts = {}) {
         } catch (err) {
             console.warn('[Marine] endpoint 부분 실패 — cycle skip (이번 1분 발사 0):',
                 (err && err.failedEndpoints) ? err.failedEndpoints.join(' | ') : (err && err.message));
+            // [수집 실패 관리자 푸시 — 2026-10-15] 특보·강풍은 이 한 번의 호출에서 함께 나온다.
+            //   푸시는 특보(warnings) 한 통에 둘을 담고, 강풍(gale)은 실패 기록만 남긴다(collect_fail_alert ITEMS).
+            if (collectFailAlert) {
+                collectFailAlert.report('warnings', { ok: false, error: err });
+                collectFailAlert.report('gale', { ok: false, error: err });
+            }
             return [];
+        }
+        if (collectFailAlert) {
+            collectFailAlert.report('warnings', { ok: true });
+            collectFailAlert.report('gale', { ok: true });
+        }
+
+        // 1-B) [강풍 별도 저장 — 해안 안전 예보 U5·M10] 받은 응답에서 강풍(W) 행만 따로 파일로 남긴다.
+        //   아래 풍랑·태풍 흐름(allowlist V/T)과 무관 — 응답을 읽기만 하고, 실패해도 이번 주기는 그대로 진행.
+        if (galeStore) {
+            try { galeStore.save(fetched); }
+            catch (e) { console.warn('[Marine] 강풍 별도 저장 실패(특보 흐름 영향 없음):', e && e.message); }
         }
 
         // 2) curr snapshot 구축 — [V11] 발효(list)+예비(ready) 모두 병합, allowlist(V/T) 적용
@@ -4607,6 +4642,8 @@ async function run(opts = {}) {
 // ============================================================================
 module.exports = {
     PARENT_TO_CHILDREN,
+    // 표준 해역명 표(코드→정식명 93개) — services/kakao_relay 가 카톡 구역 이름을 이 표에 맞춘다(2026-11-03).
+    MMIS_CODE_TO_NAME,
     StateSnapshot,
     DiffMatrix,
     EventDispatcher,

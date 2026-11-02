@@ -1,0 +1,403 @@
+/* 위험예측 전용 표시. banzone 스위치와 ocean-sheet 슬라이더 원본은 재사용한다. */
+#ocean-risk-forecast-toggle-btn { display:none; }
+body.ls-mode.ls-safety #ocean-overlay-controls > #ocean-risk-forecast-toggle-btn { display:flex !important; order:0; }
+#ocean-risk-forecast-toggle-btn .ocean-overlay-label { font-size:.6rem !important; white-space:nowrap; }
+#ocean-risk-forecast-toggle-btn .ocean-overlay-label::before,#ocean-risk-forecast-toggle-btn .ocean-overlay-label::after { content:none !important; }
+/* 시트는 화면(viewport) 기준으로 하단 메인탭(+열린 서브탭) 바로 위에 놓는다.
+   --ls-bottom-chrome = 메인탭 + (열려 있으면) 서브탭 높이이며 index2.html이 body.ls-mode.ls-safety에 정의한다.
+   --main-tab-height는 탭 offsetHeight 실측값이라 아이폰 아래 여백(safe-area)이 이미 들어 있어 env()를 또 더하지 않는다.
+   지도 박스 기준 absolute bottom은 서브탭이 닫히면 화면 끝까지 늘어나 시트 하단이 탭 아래로 가려졌다. */
+.rf-sheet { --rf-chrome:var(--ls-bottom-chrome,var(--main-tab-height,68px)); position:fixed; z-index:450; bottom:var(--rf-chrome); left:0; right:0; max-height:calc((100vh - var(--rf-chrome)) * .66); overflow:hidden; display:none; flex-direction:column; background:linear-gradient(180deg,#0c1a3a,#162d5a); border-radius:20px 20px 0 0; color:#e6edf8; font-size:.84rem; line-height:1.55; word-break:keep-all; overflow-wrap:break-word; box-shadow:0 -4px 25px #0007; }
+@supports (height:100dvh) { .rf-sheet { max-height:calc((100dvh - var(--rf-chrome)) * .66); } }
+/* 올라오고 내려가는 움직임은 해양종합정보 바텀시트(style.css .ocean-bottom-sheet)와 같은 값 — transform 0.3s cubic-bezier(0.22,1,0.36,1),
+   닫힘 translateY(100%) ↔ 열림 translateY(0). 사용자 2026-10-16 「현재 해양종합정보 바텀시트에는 애니메이션이 잘 반영되어있음. 그대로 하면될듯. 닫을때도 마찬가지로」.
+   .rf-shown = 그려져 있음(올라가는 중·열림·내려가는 중), .open = 열림(위로). 내려가기가 끝나면 risk_sheet.js 가 .rf-shown 을 뗀다(0.3초). */
+.rf-sheet { transform:translateY(100%); transition:transform .3s cubic-bezier(0.22,1,0.36,1); }
+.rf-sheet.rf-shown,.rf-sheet.open { display:flex; }
+.rf-sheet.open { transform:translateY(0); }
+/* 고정 머리: 손잡이·닫기·제목·시각 조작. 스크롤은 .rf-body 안에서만 일어난다. */
+.rf-sheet-head { flex:none; position:relative; padding:10px 16px 0; }
+.rf-body { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:0 16px 18px; }
+.rf-sheet [hidden],.rf-legend [hidden] { display:none !important; }
+.rf-sheet button,.rf-basis button,.rf-legend button { min-height:24px; min-width:24px; }
+.rf-sheet-handle { width:40px; height:4px; border-radius:3px; background:rgba(255,255,255,.3); margin:0 auto 8px; }
+.rf-title { font-size:1.05rem; font-weight:700; margin:0 30px 2px 0; color:#e6edf8; }
+/* 해상 시트 제목 끝 해구 괄호 「(92-7해구)」: 제목보다 2pt 작게(16.8px → 약 14.13px)·굵기 없이 — 사용자 2026-10-18 「해구를 표현하는 괄호는 2포인트 줄여서 볼드 없이 표출」(risk_marine.js title). */
+.rf-title .rf-haegu { font-size:calc(1em - 2pt); font-weight:400; }
+.rf-subtitle { font-size:.8rem; color:#bfcbde; }
+/* 부제 줄: 부제(좌표·관할) + 오른쪽 끝(✕ 아래) [기준 상세](2026-10-16 T8). 부제가 길면 부제만 줄바꿈하고 버튼 자리는 비워 둔다. */
+.rf-sub-row { display:flex; align-items:flex-start; gap:8px; }
+.rf-sub-row .rf-subtitle { flex:1 1 auto; min-width:0; }
+.rf-sub-row .rf-basis-btn { flex:none; margin:-2px -4px -3px 0; }   /* 24px 누르는 곳이지만 줄 높이(약 19.8px)보다 높게 잡히지 않게 위아래를 음수 여백으로 — 한 줄 부제일 때 시각 줄을 밀지 않는다 */
+.rf-close { position:absolute; top:10px; right:12px; }
+.rf-timeline { position:relative; margin:8px 0 10px; }
+/* 슬라이더 위의 고정 일시 표시(과제8). 말풍선처럼 손잡이를 따라다니지 않는다. */
+.rf-time-label { display:block; min-height:1.4em; margin:0 0 2px; text-align:center; font-size:.9rem; font-weight:700; font-variant-numeric:tabular-nums; color:#e6edf8; }
+.rf-timeline .ocean-sheet-slider-wrap { position:relative; width:100%; }
+.rf-timeline .ocean-sheet-slider { min-height:24px; min-width:24px; }
+.rf-divider-track { position:absolute; inset:8px 8px; pointer-events:none; }
+.rf-slider-labels { display:none; }
+.rf-index { position:relative; border:1px solid #ffffff30; border-radius:14px; padding:10px 12px 10px; margin-bottom:12px; background:#ffffff0d; }
+.rf-index-main { display:flex; align-items:center; gap:12px; }
+.rf-score-box { border-radius:12px; min-width:78px; padding:6px 10px; text-align:center; flex-shrink:0; }
+.rf-score-box small { display:block; font-size:.66rem; font-weight:700; }
+.rf-score-box strong { display:block; font-size:1.6rem; line-height:1.1; }
+.rf-index-prose { font-size:.84rem; }
+.rf-index-prose small { display:block; font-size:.72rem; color:#cbd5e6; }
+.rf-basis-btn { border:1px solid #ffffff55; border-radius:999px; padding:3px 9px; font-size:.7rem; font-weight:700; background:#ffffff14; color:#e6edf8; white-space:nowrap; cursor:pointer; }
+.rf-ramp { height:8px; border-radius:4px; margin-top:10px; background:linear-gradient(90deg,#2fb36b 0%,#f2c230 19.49875%,#fb923c 66.6667%,#e0322c 100%); }
+.rf-ramp-labels { display:flex; justify-content:space-between; color:#cbd5e6; font-size:.66rem; }
+.rf-t-g { color:#4ade80; } .rf-t-y { color:#facc15; } .rf-t-o { color:#fb923c; } .rf-t-r { color:#f87171; }
+.rf-muted,.rf-row small { color:#bfcbde; }
+.rf-row { border-bottom:1px solid #ffffff25; padding:8px 0; }
+.rf-row-head { display:flex; justify-content:space-between; gap:8px; font-size:.86rem; }
+.rf-row-head>span { text-align:right; white-space:nowrap; }
+.rf-row-desc { font-size:.76rem; color:#bfcbde; margin-top:4px; }
+.rf-row a,.rf-hazard-link { color:#8fc3ff; }
+.rf-used { margin-left:6px; font-size:.64rem; padding:1px 5px; border-radius:6px; background:#ffd740; color:#10151f !important; white-space:nowrap; }
+.rf-notice,.rf-missing { padding:8px 10px; border:1px solid #ffffff35; border-radius:10px; margin:8px 0; background:#ffffff0a; font-size:.8rem; color:#d2dcea; }
+.rf-notice { background:rgba(255,143,31,.14); border-color:rgba(255,143,31,.35); }
+.rf-kinds { margin-top:10px; }
+.rf-kinds>div { display:flex; justify-content:space-between; gap:8px; }
+/* 연안 시트 시안(2026-10-18, CoastSheet.dc.html·CoastSheetOpen.dc.html) — 연안 시트 전용 규칙. 해상 시트(risk_marine.js)는 이 이름들을 쓰지 않는다. */
+/* 위험지수 칸 등급 배지: 남색 알약 + 글자색은 칸 색(인라인 style color) */
+.rf-score-box small.rf-band-badge { display:inline-block; margin-top:4px; padding:1px 12px 2px; border-radius:999px; background:#10151f; font-size:.95rem; font-weight:800; line-height:20px; letter-spacing:.06em; }
+.rf-index-lead { display:block; font-size:.72rem; }
+.rf-index-prose b { font-size:.84rem; line-height:1.33; }
+/* 0~100 막대 위 현재 지수 눈금(A안): 흰 말풍선 숫자 · ▼ · 흰 세로 눈금(3px, 남색 테두리). 위 22px 는 표시 자리. */
+.rf-ramp-wrap { position:relative; margin-top:22px; }
+.rf-ramp-wrap .rf-ramp { margin-top:0; }
+.rf-ramp-mark { position:absolute; top:-20px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; pointer-events:none; }
+.rf-ramp-val { padding:0 5px; border-radius:4px; background:#fff; color:#10151f; font-size:.66rem; font-weight:800; line-height:14px; }
+.rf-ramp-tri { width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-top:4px solid #fff; }
+.rf-ramp-tick { width:3px; height:12px; border-radius:2px; background:#fff; box-shadow:0 0 0 1.5px #10151f; }
+/* 특보·표류 안내: 한 상자 안 줄마다 그림 + 글 */
+.rf-notice { display:flex; flex-direction:column; gap:4px; }
+.rf-notice-line { display:flex; gap:4px; align-items:flex-start; }
+.rf-notice-line>span:last-child { min-width:0; }
+.rf-notice-ico { flex:0 0 auto; width:1.15em; }
+.rf-notice-ico svg { display:inline-block; vertical-align:-.2em; }
+.rf-notice-ico .rf-ico-warn { vertical-align:-.14em; margin-right:1px; color:#facc15; }
+.rf-warn-name { color:#ef4444; }
+.rf-notice-em { color:#fff; }
+/* 해수욕장 안내 줄(설계서 §18 · §18.11 2026-10-19) — 특보·표류 상자(.rf-notice) 안 마지막 줄(물결·파라솔 그림). 해수욕장 이름·결론은 종류 색 굵게:
+   개장(예정·당일·기간) 하늘 · 좋음 초록 · 있을 수 있음 노랑 · 경고 주황 · 거친 날 빨강. 종전 따로 있던 하늘색 상자 .rf-beach 는 없앴다. */
+.rf-beach-line>span:last-child { overflow-wrap:anywhere; }
+.rf-beach-em { font-weight:700; }
+.rf-bk-open { color:#7dd3fc; } .rf-bk-good { color:#4ade80; } .rf-bk-maybe { color:#facc15; } .rf-bk-warn { color:#fb923c; } .rf-bk-rough { color:#f87171; }
+/* 요소 줄 설명 「•」 목록. 마지막 요소 줄은 구분선 없음 → 아래 주변 연안사고 상자와 8+10=18px */
+.rf-bullet { display:flex; gap:5px; align-items:flex-start; }
+.rf-bullet>span:first-child { flex:0 0 auto; }
+.rf-bullet>.rf-fit { min-width:0; }
+.rf-coast-rows>.rf-row:last-child { border-bottom:0; }
+/* 위험구역 종류 밑줄 버튼(누르면 표 펼침) — 종류색 */
+/* 누르는 높이는 시트 공통 24px(.rf-sheet button)을 지키고, 위아래 -2.5px 여백으로 줄 높이는 시안(글줄 그대로)과 같게 */
+.rf-hz-kind { display:inline-block; padding:0; margin:-2.5px 0; border:0; background:none; color:#8fc3ff; font:inherit; line-height:inherit; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.rf-hz-risk { color:#2dd4bf; } .rf-hz-freq { color:#38bdf8; } .rf-hz-death { color:#fb7185; }
+/* 위험구역 표(위치·종류·구분·지도) — 테두리 상자 안. [위치보기] 글자는 보통 굵기(사용자 시안 댓글 「여기서도 볼드 빼줘」) */
+.rf-hz-box { margin-top:8px; padding:4px 8px 2px; overflow-x:auto; border:1px solid rgba(255,255,255,.18); border-radius:10px; background:rgba(255,255,255,.04); }
+.rf-hz-table { width:100%; border-collapse:collapse; font-size:.72rem; line-height:16.5px; }
+.rf-hz-table th { padding:4px; border-bottom:1px solid rgba(255,255,255,.25); color:#fff; font-weight:800; text-align:left; white-space:nowrap; }
+.rf-hz-table td { padding:5px 4px; border-bottom:1px solid rgba(255,255,255,.1); vertical-align:top; text-align:left; }
+.rf-hz-table td b { color:#eaf1ff; font-weight:700; }
+.rf-hz-table .rf-hz-shape { color:#bfcbde; }
+.rf-hz-table .rf-hz-class { font-weight:700; }
+.rf-hz-table tr.is-selected td { background:#ffd7401f; }
+.rf-hz-table .rf-hazard-link { display:inline-block; min-height:24px; padding:2px 8px; border:1px solid rgba(143,195,255,.6); border-radius:6px; background:rgba(143,195,255,.12); font:inherit; font-weight:400; white-space:nowrap; cursor:pointer; }
+.rf-hz-table .rf-hazard-link[aria-pressed="true"] { color:#ffd740; border-color:#ffd740; }
+/* 주변 연안사고 상자: 요소 줄과 10px, 제목 흰색·연도 범위만 종전 제목색 */
+.rf-card.rf-coast-acc { margin-top:10px; }
+.rf-card.rf-coast-acc h4 { color:#fff; }
+.rf-coast-yrs { color:#cfe0ff; }
+.rf-legend { display:flex; flex-direction:column; gap:5px; }
+.rf-legend[hidden],.rf-banner[hidden] { display:none !important; }
+.rf-legend .bzl-row { min-height:24px; min-width:24px; }
+.rf-map-legend { display:flex; flex-direction:column; gap:3px; color:#e6edf8; font-size:.74rem; padding:5px 8px; background:rgba(10,15,28,.94); border:1px solid var(--border-color); border-radius:10px; }
+.rf-map-legend span { display:flex; align-items:center; gap:5px; }
+.rf-banner { position:absolute; bottom:10px; left:8px; right:8px; z-index:440; background:#132342ed; color:#e6edf8; padding:7px 10px; border-radius:8px; font-size:.75rem; pointer-events:none; }
+/* 기준 상세 창은 화면 아래에 붙이지 않고 가운데 떠 있는 창(사방 둥근 모서리 + 위아래 여백) — 아래 끝이 보이게(2026-10-18 사용자 「아래 범위를 한정」, 설계서 §11.10.35).
+   종전(아래 붙은 시트·88vh)은 PC 화면에서 창 아래 끝이 화면 끝에 닿아 끝없이 이어지는 것처럼 보였다.
+   좌우 여백은 두지 않는다(휴대폰 폭에서 창 너비·줄바꿈은 종전 그대로 — 폭은 .rf-basis max-width:600px). */
+.rf-modal { position:fixed; z-index:11000; inset:0; background:rgba(4,8,18,.72); display:flex; align-items:center; justify-content:center; padding:max(16px, env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) max(16px, env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px); }
+/* 기준 상세 창: 제목+닫기는 스크롤 밖 고정 머리(.rf-basis-head), 내용만 .rf-basis-body 에서 스크롤(2026-10-16 T8 「스크롤에 관계없이 고정」). 구조는 risk_basis.js open 이 만든다. */
+.rf-basis { width:100%; max-width:600px; max-height:min(80vh, 100%); display:flex; flex-direction:column; overflow:hidden; border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,.45); background:linear-gradient(180deg,#0c1a3a,#162d5a); font-size:.82rem; line-height:1.6; color:#e6edf8; word-break:keep-all; overflow-wrap:break-word; }
+.rf-basis-head { flex:none; display:flex; align-items:center; gap:10px; padding:14px 16px 10px; border-bottom:1px solid rgba(255,255,255,.12); }
+.rf-basis-head h3 { flex:1 1 auto; min-width:0; }
+.rf-basis-body { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:2px 16px 20px; }
+.rf-basis h3 { font-size:1rem; margin:0; color:#e6edf8; }
+/* 링크: 남색 바탕에 기본 파랑 밑줄이 안 보였다(2026-10-16 T8) → 밝은 하늘색+밑줄. #8fd3ff 는 창 바탕 두 끝(#0c1a3a·#162d5a) 모두에 4.5:1 이상(test_risk_sheet_ui 가 실제 계산값으로 확인). */
+.rf-basis a,.rf-basis a:visited { color:#8fd3ff; text-decoration:underline; text-underline-offset:2px; } .rf-basis h4 { color:#ffe17a; font-size:.86rem; margin:12px 0 4px; } .rf-basis p { margin:6px 0; }
+.rf-basis table { border-collapse:collapse; width:100%; margin:8px 0; font-size:.78rem; } .rf-basis th,.rf-basis td { color:#e6edf8; border-bottom:1px solid rgba(255,255,255,.12); padding:5px 6px; background:transparent; }
+.rf-basis th { color:#ffe17a; }
+/* 기준 상세 표 — 가로 스크롤 상자(2026-10-16 사용자 「표는 오른쪽 왼쪽으로 스크롤하면서 … 화면에 맞게 적절하게」). risk_basis.js scrollTable 이 감싼다.
+   글자 칸은 읽기 좋은 최소 폭(9em, 칸이 셋 이상인 표의 첫 칸 16em ≈ 한 줄 15자 안팎)을 지키고 숫자 칸(.n)은 줄바꿈하지 않는다 — 좁은 화면에서는 표가 상자보다 넓어져 옆으로 밀고,
+   넓은 화면(본문 폭 ≥ 표 최소 폭)에서는 지금처럼 꽉 찬다. 더 볼 쪽 가장자리에 옅은 하늘색 그늘(.more-right/.more-left). */
+.rf-tbl { position:relative; margin:8px 0; }
+.rf-tbl-scroll { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; }
+.rf-basis .rf-tbl table { margin:0; }
+.rf-basis .rf-tbl td:not(.n),.rf-basis .rf-tbl th:not(.n) { min-width:9em; }
+.rf-basis .rf-tbl td:first-child:nth-last-child(n+3),.rf-basis .rf-tbl th:first-child:nth-last-child(n+3) { min-width:16em; }
+.rf-tbl::before,.rf-tbl::after { content:''; position:absolute; top:0; bottom:0; width:18px; pointer-events:none; opacity:0; transition:opacity .15s; }
+.rf-tbl::before { left:0; background:linear-gradient(to right,rgba(143,211,255,.3),rgba(143,211,255,0)); }
+.rf-tbl::after { right:0; background:linear-gradient(to left,rgba(143,211,255,.3),rgba(143,211,255,0)); }
+.rf-tbl.more-left::before,.rf-tbl.more-right::after { opacity:1; }
+.rf-basis .n { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; } .rf-basis .wrap { white-space:normal; }
+/* 기준 상세 글머리 줄(2026-10-18 사용자 「문장단위로 줄바꿈을 해주고 여러 내용이 들어있으면 문장의 시작에 점으로」) — 문장 여럿인 문단을 risk_basis_content.js pts() 가
+   ul.rf-pts 로 만든다. 점은 글자가 아니라 ::before(내어쓰기 — 둘째 줄은 점 오른쪽에 맞춤). 어절 단위 줄바꿈은 위 .rf-basis 의 word-break:keep-all. */
+.rf-basis .rf-pts { list-style:none; margin:6px 0; padding:0; display:flex; flex-direction:column; gap:3px; }
+.rf-basis .rf-pts li { position:relative; margin:0; padding-left:12px; }
+.rf-basis .rf-pts li::before { content:'•'; position:absolute; left:0; top:0; }
+/* 연안 「단계 말」 표(2026-10-18 「이건 표로 만드는게 좋지 않겠니 ?」): 단계 색 네모 + 단계 색 굵은 이름. 칸이 짧아 위 표 최소 폭(9em·16em)을 풀어 380px 에서도 옆으로 밀지 않게. */
+.rf-basis .rf-tbl .rf-bands td:nth-child(n),.rf-basis .rf-tbl .rf-bands th:nth-child(n) { min-width:0; }
+.rf-basis .rf-band { white-space:nowrap; vertical-align:middle; } .rf-basis .rf-band i { display:inline-block; width:10px; height:10px; margin-right:6px; border-radius:2px; vertical-align:-1px; } .rf-basis .rf-band b { font-weight:700; } .rf-basis .rf-bands th:first-child { text-align:left; }
+.rf-basis .mclose { flex:none; border:0; border-radius:999px; background:#ffffff22; color:#fff; padding:4px 10px; font-size:.78rem; font-weight:700; }
+/* PDF 버튼 글자는 보통 굵기(2026-10-18 사용자 「여기도 볼드 빼」 — 색·테두리는 그대로) */
+.rf-basis .pdf-btn,.rf-basis .pdf-btn:visited { display:inline-block; border:1px solid #ffd74073; background:#ffd74024; color:#ffe17a; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:400; margin:6px 0 2px; }
+/* 해상 기준 상세 맨 아래 MTIS 두 링크 — 버튼 모양·가운데(2026-10-16 「버튼 형식으로 바꿔주고 각 버튼을 가운데 정렬해줘」). 한 줄에 안 들어가면 위아래로 쌓여 각각 가운데.
+   글자 #8fd3ff(종전 링크 색) — 반투명 하늘색 바탕을 창 바탕 두 끝에 덧칠해도 대비 4.5:1 이상(test_risk_sheet_ui). */
+.rf-basis .rf-basis-links { display:flex; flex-wrap:wrap; justify-content:center; gap:8px 10px; margin:14px 0 4px; }
+.rf-basis a.link-btn,.rf-basis a.link-btn:visited { display:inline-block; border:1px solid #8fd3ff73; background:#8fd3ff1f; color:#8fd3ff; border-radius:999px; padding:6px 14px; font-size:.78rem; font-weight:700; line-height:1.4; text-decoration:none; white-space:nowrap; }
+.rf-location-options { display:flex; flex-direction:column; gap:6px; }
+.rf-location-choice { text-align:left; padding:8px 10px; border:1px solid #ffffff40; border-radius:8px; background:#ffffff14; color:#e6edf8; font:inherit; }
+.rf-sheet :focus-visible,.rf-basis :focus-visible,.rf-legend :focus-visible { outline:2px solid #448aff; outline-offset:2px; }
+@media (prefers-reduced-motion:reduce) { .rf-sheet,.rf-sheet *,.rf-basis *,.rf-legend *,.rf-legend *::after { transition:none !important; } }
+/* 해양종합정보에서는 안전 오버레이가 남지 않도록 화면 클래스에 묶는다. */
+body:not(.ls-safety) #risk-forecast-sheet,body:not(.ls-safety) #risk-forecast-legend,body:not(.ls-safety) #risk-forecast-banner,body:not(.ls-safety) .rf-marine-timebar,body:not(.ls-safety) .rf-color-legend { display:none !important; }
+
+/* 공식 선박 사고 면색과 혼잡 선/점은 서로 다른 범례로 읽는다. */
+.rf-accident-key { border-top:1px solid #ffffff30; padding-top:5px; margin-top:3px; }
+.rf-accident-key span { display:flex; align-items:center; gap:5px; }
+.rf-accident-key i { width:10px; height:10px; border-radius:2px; display:inline-block; }
+.rf-official { border:1px solid #ffffff30; border-radius:12px; padding:10px; margin:10px 0; }
+.rf-official>strong { color:#cfe0ff; }
+.rf-weather-title { margin:12px 0 4px; color:#cfe0ff; font-size:.86rem; }
+
+.rf-official-basis { display:block; margin:0 0 8px auto; border:1px solid #ffffff55; border-radius:999px; padding:3px 9px; font-size:.7rem; font-weight:700; background:#ffffff14; color:#e6edf8; }
+/* 해역 종합·관할 브리핑: 현재 관측과 미래 예보를 분리하고 긴 목록은 접어 표시한다. */
+.rf-marine-section,.rf-marine-summary{margin:12px 0;padding:12px;border:1px solid rgba(160,180,210,.3);border-radius:10px}
+.rf-marine-summary{background:rgba(65,105,180,.15)}
+.rf-marine-section h4,.rf-marine-summary h4{margin:0 0 8px}
+.rf-marine-metrics{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+.rf-marine-metrics span{padding:6px 8px;background:rgba(120,150,200,.1);border-radius:6px}
+.rf-marine-reasons{padding-left:20px}.rf-marine-reasons li{margin:9px 0}.rf-marine-reasons small{display:block;color:#98abc7}
+.rf-marine-table{width:100%;border-collapse:collapse}.rf-marine-table th,.rf-marine-table td{padding:7px;border-bottom:1px solid rgba(160,180,210,.25);text-align:left}
+.rf-marine-region{width:100%;text-align:left;padding:9px;background:rgba(80,125,195,.2);color:inherit;border:1px solid #607998;border-radius:7px}
+.rf-brief-controls{max-width:270px;padding:8px}.rf-brief-controls select{max-width:100%;width:100%;padding:8px;margin:8px 0;background:#1d304e;color:#fff;border:1px solid #6f87a6;border-radius:6px}
+.rf-brief-controls button{padding:8px;background:#315c95;color:#fff;border:1px solid #7792b4;border-radius:6px}
+
+.rf-marine-modes{display:flex;gap:4px;margin:6px 0}.rf-marine-modes button{padding:5px 7px;color:#d7e5ff;background:#1d304e;border:1px solid #5f7899;border-radius:6px;font-size:12px}.rf-marine-modes button[aria-pressed="true"]{background:#365fc0;color:#fff}.rf-mini-key{display:flex;gap:7px;font-size:11px}.rf-mini-key span{white-space:nowrap}.rf-mini-key i{display:inline-block;width:9px;height:9px;margin-right:3px;border-radius:2px}.rf-brief-controls [data-current-stamp]{display:block;margin-top:5px;font-size:11px}.rf-brief-controls{padding:5px 8px}
+
+.rf-marine-caption{display:block;font-size:12px;margin-top:6px}.rf-map-time{font-size:11px;margin:4px 0}.rf-map-time .rf-slider{margin:0;padding:0}.rf-map-time .rf-slider input{height:20px}.rf-marine-compact .rf-map-legend{margin-top:3px}.rf-marine-compact .rf-marine-modes{margin:3px 0}
+
+/* 사고정보 .accident-grid-legend와 같은 상자; 색상막대와4개문구만 별도 내용이다. */
+.rf-color-legend{position:fixed;left:8px;bottom:calc(var(--main-tab-height,68px) + 8px + 25px);z-index:150;display:flex;flex-direction:column;gap:4px;width:150px;padding:7px 9px;background:rgba(10,15,28,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--border-color,#334155);border-radius:8px;font-size:.64rem;color:var(--text-sub,#94a3b8);box-sizing:border-box;pointer-events:none}
+body.sub-tabs-open .rf-color-legend{bottom:calc(var(--main-tab-height,68px) + var(--sub-tab-height,50px) + 8px + 25px)}
+body.ls-mode.ls-safety .rf-color-legend{bottom:calc(var(--ls-bottom-chrome,68px) + 6px + 25px)}
+body.ls-mode.ls-safety.ls-mudflat-on .rf-color-legend{bottom:calc(var(--ls-bottom-chrome,68px) + 2.25rem + 6px + 25px)}
+.rf-color-legend[hidden]{display:none}.rf-color-legend .rf-marine-caption{margin:0;text-align:left;font-size:inherit;font-weight:700;color:var(--text-main,#eaf1fa);background:none}.rf-color-legend .rf-mini-key{display:block}.rf-gradient-bar{height:6px;border-radius:3px;background:linear-gradient(to right,#56a66f 0%,#dbc753 33.333%,#e58b46 66.666%,#d64b45 100%)}.rf-gradient-labels{display:flex;justify-content:space-between;margin-top:4px;font-size:inherit}
+
+.rf-legend-change{animation:rf-legend-change .65s ease-out 1}@keyframes rf-legend-change{0%,100%{opacity:1}35%{opacity:.45}}@media(prefers-reduced-motion:reduce){.rf-legend-change{animation:none}}
+
+/* 연안·해상 공통 시각: 메인 탭과 지도 출처 사이의 낮은 전폭 바. 5버튼(-6H·-3H·현재·+3H·+6H — 2026-10-16 후속 「+12 -12버튼은 빼도록 하자 … 버튼을 좀더 넓게」), 버튼마다 아래 한 줄 작은 글씨로 갈 시각(2026-10-16 — 종전 왼쪽 날짜 output 은 없앴고 선택 시각은 숨김 글자로 읽어 준다). 바 46px·버튼 34px(종전 4버튼 때와 같음). */
+body.rf-sea-time-on{--rf-time-height:46px;--rf-bottom-chrome:var(--main-tab-height,68px)}
+body.rf-sea-time-on.sub-tabs-open{--rf-bottom-chrome:calc(var(--main-tab-height,68px) + var(--sub-tab-height,50px))}
+.rf-marine-timebar{position:fixed;left:0;right:0;bottom:var(--rf-bottom-chrome,var(--main-tab-height,68px));z-index:151;height:var(--rf-time-height,46px);box-sizing:border-box;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;gap:6px;padding:5px 8px;background:rgba(15,26,45,.96);border-top:1px solid #56708c;border-bottom:1px solid #56708c;box-shadow:0 -3px 10px rgba(0,0,0,.18);color:#eef4ff}
+.rf-marine-timebar[hidden]{display:none}
+.rf-marine-timebar .rf-sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.rf-marine-timebar button{height:34px;min-width:0;padding:0 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;font-size:12px;line-height:14px;color:inherit;background:#223752;border:1px solid #617b99;border-radius:6px;cursor:pointer;font-variant-numeric:tabular-nums}
+.rf-marine-timebar button b{font-weight:700;white-space:nowrap}
+.rf-marine-timebar button small{display:block;min-height:12px;font-size:10px;line-height:12px;color:#bcd0ea;white-space:nowrap}
+.rf-marine-timebar button[aria-pressed="true"]{background:#365fc0;border-color:#92afff}
+.rf-marine-timebar button:disabled{background:#2b313b;border-color:#4a525e;color:#7b838f;cursor:default}.rf-marine-timebar button:disabled small{color:#7b838f}
+.rf-marine-timebar button:focus-visible{outline:2px solid #ffd740;outline-offset:1px}
+/* 출처(「국토교통부 브이월드」)·축척을 시간 줄 높이(--rf-time-height — 바 높이와 같은 변수)만큼 올린다.
+   2026-10-16 사용자 「각 토글을 on 하면 국토교통부 브이월드가 시간 조정 부분으로 인해 가려지는데 브이월드가 시간 조정 버튼 높이만큼 위로 올라오도록 해줘(축척도 마찬가지로)」:
+   index2.html 의 body.ls-mode.ls-safety .ol-attribution/.ol-scale-line {bottom:… !important} 가 선택자 점수가 더 높아(0,3,1 > 0,2,1)
+   첫 두 선택자만으로는 실제 앱에서 지고 있었다 → 같은 클래스를 더한 선택자(0,4,1·물빠짐 0,5,1)를 함께 둔다. */
+body.rf-sea-time-on .ol-attribution,body.rf-sea-time-on .ol-scale-line,body.ls-mode.ls-safety.rf-sea-time-on .ol-attribution,body.ls-mode.ls-safety.rf-sea-time-on .ol-scale-line{position:fixed!important;bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 6px)!important}
+body.rf-sea-time-on .rf-color-legend{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 31px)!important}
+body.rf-sea-time-on.ls-mudflat-on .ol-attribution,body.rf-sea-time-on.ls-mudflat-on .ol-scale-line,body.ls-mode.ls-safety.rf-sea-time-on.ls-mudflat-on .ol-attribution,body.ls-mode.ls-safety.rf-sea-time-on.ls-mudflat-on .ol-scale-line{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 2.25rem + 6px)!important}
+body.rf-sea-time-on.ls-mudflat-on .rf-color-legend{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 2.25rem + 31px)!important}
+@media(max-width:360px){.rf-marine-timebar{gap:4px;padding-left:5px;padding-right:5px}.rf-marine-timebar button small{font-size:9px;letter-spacing:-.2px}}
+/* 시각 토스트(2026-10-16 「토스트 메시지로 하단에」): 시간 바 바로 위 가운데, 약 2초. 해상 색 범례(바 위 31px 부터)보다 낮게 두어 겹치지 않고, 누름은 지도로 통과시킨다. */
+.rf-time-toast{position:fixed;left:50%;bottom:calc(var(--rf-bottom-chrome,var(--main-tab-height,68px)) + var(--rf-time-height,46px) + 4px);transform:translateX(-50%);z-index:152;box-sizing:border-box;height:24px;padding:0 12px;border-radius:12px;background:rgba(10,15,28,.92);border:1px solid #56708c;color:#eef4ff;font-size:12px;line-height:22px;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+.rf-time-toast[hidden]{display:none}
+body:not(.ls-safety) .rf-time-toast{display:none!important}
+/* 연안만 켰을 때(T24 — 하단 시간 바 없음) 날짜 넘기기 토스트의 기본 자리: 하단 탭(+열린 서브탭) 바로 위 가운데. 출처·축척·색 범례와 겹치면 liftToast 가 그 위로 올린다. */
+body:not(.rf-sea-time-on) .rf-time-toast{bottom:calc(var(--ls-bottom-chrome,var(--main-tab-height,68px)) + 8px)}
+/* 연안 날짜 넘기기(T24, 사용자 2026-10-16 「항행경보가 반영된곳을 보면 화면 가운데 위쪽에 날짜 변경 기능이 있잖아? 그거처럼」):
+   모양·크기·자리는 index2.html 의 항행경보 규칙(.navwarn-date-nav top:66px 가운데·.navwarn-nav-btn 26px·.navwarn-date-label·.navwarn-date-tag)을 클래스째 그대로 쓴다.
+   여기에는 항행경보에 없는 것만 둔다: [hidden](그 규칙의 display:flex 가 hidden 속성을 이긴다)·비활성 모양(항행경보는 날짜 제한이 없어 없음 — 해양종합정보 시트 날짜 버튼 비활성과 같은 opacity .3)·해양안전 밖 숨김. */
+.rf-date-nav[hidden]{display:none!important}
+.rf-date-nav .navwarn-nav-btn:disabled{opacity:.3;cursor:not-allowed}
+.rf-date-nav .navwarn-nav-btn:disabled:active{transform:none}
+body:not(.ls-safety) .rf-date-nav{display:none!important}
+/* 연안 시트 날짜 줄(T24): 해양종합정보 시트 머리의 날짜 넘기기(.ocean-date-nav-inline — 그쪽은 머리 격자가 가운데에 둔다)를 시각 막대 자리 가운데에. */
+.rf-timeline .rf-sheet-day{justify-content:center}
+/* 연안 색 범례(2026-10-16 「지도에 색상에 따른 범례가 안보이는데 ?」·「범례는 해상위험예측과 동일한 위치에」): 왼쪽 아래 .rf-color-legend 상자 위쪽.
+   해상 범례와 같은 제목·막대·글자 모양. 단계 이름이 길어 상자 폭은 내용에 맞춰 넓어진다(최소 150px). [hidden] 은 상자 안에서도 확실히 숨긴다. */
+.rf-color-legend{width:auto!important;min-width:150px}
+.rf-color-legend [hidden]{display:none!important}
+.rf-coast-key{display:flex;flex-direction:column;gap:4px}
+.rf-coast-key-title{font-weight:700;color:var(--text-main,#eaf1fa)}
+.rf-coast-key .rf-gradient-labels{gap:6px}
+.rf-coast-key .rf-gradient-labels span{white-space:nowrap}
+.rf-coast-key:not([hidden])~[data-marine-caption]:not([hidden]){margin-top:4px!important;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)}
+
+/* 위험지형과 같은 banzone/bzl 공통 디자인과 스위치를 그대로 사용한다. */
+.rf-marine-compact .rf-map-legend[hidden]{display:none}
+/* 해상 ON 일 때만 나오는 두 칸 단일 선택 [혼잡도][위험 예측](2026-10-15 조작부 시안). 「표시 항목」 접이식·「~ 표출 중」 뱃지는 없앴다. */
+[data-marine-tools][hidden]{display:none}
+.rf-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin:2px 4px;padding:2px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08)}
+.rf-seg button{min-height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--text-sub,#94a3b8);font:inherit;font-size:.7rem;font-weight:700;white-space:nowrap;cursor:pointer}
+.rf-seg button[aria-checked="true"]{background:var(--accent-yellow,#ffd740);color:#10151f}
+.rf-seg button:focus-visible{outline:2px solid #448aff;outline-offset:1px}
+.rf-color-legend .rf-marine-caption small{font-weight:400;color:var(--text-sub,#94a3b8);font-size:inherit}
+/* 혼잡도·밀집도 범례도 위험 예측과 같은 4색(사용자 2026-10-16 「그냥 해양쪽과 같은 색상을 사용하자.」, 종전 #b8c5da→#74b9ff→#d47cff→#ff5fe3). 단계 이름(낮음·보통·높음·매우높음)과 제목으로 구분한다. */
+.rf-gradient-bar.rf-pal-cong{background:linear-gradient(to right,#56a66f 0%,#dbc753 33.333%,#e58b46 66.666%,#d64b45 100%)}
+/* 항구 칸(정박·계류) 범례 — 지도 회색 칸과 같은 색(risk_map_layer.js HARBOR_GREY, 칠할 때 투명도 .5) · 2026-10-19 */
+.rf-harbor-key{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:inherit;white-space:nowrap}.rf-harbor-key i{display:inline-block;width:12px;height:8px;border-radius:2px;background:rgba(138,148,166,.5);border:1px solid rgba(138,148,166,.9)}
+/* 하단의 법률/AI 진입 버튼도 새 시간바·축척을 덮지 않도록 함께 올린다. */
+body.rf-sea-time-on #nrya-overlays .nrya-fab{bottom:calc(var(--rf-bottom-chrome) + var(--rf-time-height) + 44px)}
+
+/* 응답 전 로딩 스켈레톤(과제6): 내용 자리를 회색 틀로 먼저 보인다. 움직임 줄이기에서는 반짝임을 끈다. */
+.rf-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.rf-skeleton { padding-top:4px; }
+.rf-sk { margin-bottom:10px; border-radius:10px; background:linear-gradient(90deg,#ffffff14 25%,#ffffff2b 50%,#ffffff14 75%); background-size:200% 100%; animation:rf-sk-shimmer 1.2s linear infinite; }
+.rf-sk-score { height:96px; } .rf-sk-line { height:14px; width:80%; } .rf-sk-short { width:55%; } .rf-sk-row { height:46px; }
+@keyframes rf-sk-shimmer { to { background-position:-200% 0; } }
+@media (prefers-reduced-motion:reduce) { .rf-sk { animation:none; } }
+
+/* ── 해상 지점 시트 본문(2026-10-15 시안 8차) — risk_marine.js render ── */
+.rf-card{position:relative;margin:0 0 10px;padding:12px;border:1px solid #ffffff30;border-radius:14px;background:#ffffff0d}
+.rf-card h4{margin:0 0 8px;font-size:.86rem;color:#cfe0ff}
+.rf-src{font-size:.72rem;color:#98abc7;font-weight:400;margin-left:6px}
+/* 해상 시트 섹션 제목은 흰색(시안 2026-10-18 ⑤ — 「지난 2주간 선박교통량」·「이 해역 과거 선박사고」·「지금 이 해역 날씨」). 시각(.rf-src)은 흐린 색 그대로.
+   .rf-card h4 는 연안 카드도 함께 쓰는 공용 규칙이라 건드리지 않고, 해상 카드 선택자로만 덮어쓴다. 사고 제목 괄호 기간(.rf-yrs)은 원래 제목색. */
+.rf-traffic h4,.rf-sea-acc h4,.rf-wx-head h4{color:#fff}.rf-sea-acc .rf-yrs{color:#cfe0ff}
+.rf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rf-tile{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px}
+.rf-tile small{display:block;font-size:.68rem;color:#8fb4e6;font-weight:600;white-space:nowrap}.rf-tile b{font-size:1.05rem;white-space:nowrap}.rf-tile b em{font-style:normal;font-size:.75rem;font-weight:500;color:#bfcbde;margin-left:2px}
+.rf-hero{padding:4px 12px}
+.rf-r{display:flex;gap:12px;align-items:center;padding:10px 0}
+.rf-r+.rf-r{border-top:1px solid #ffffff1c}
+.rf-lvl{width:84px;border-radius:12px;padding:5px 6px;text-align:center;flex-shrink:0;box-sizing:border-box}
+.rf-lvl small{display:block;font-size:.66rem;font-weight:700;white-space:nowrap}
+/* 단계 글자: 어두운 남색 알약 + 글자색 = 그 칸의 단계색(risk_marine.js badge 가 inline color) — 시안 2026-10-18 ⑤ 사용자 확정(20.8px·800·자간 .06em·위아래 3px/1px·안쪽 1px 12px 2px). */
+.rf-lvl strong{display:inline-block;margin:3px 0 1px;padding:1px 12px 2px;border-radius:999px;background:#10151f;font-size:1.3rem;font-weight:800;line-height:1.2;letter-spacing:.06em;white-space:nowrap}
+/* 4글자(매우높음)는 알약이 칸(안쪽 72px)에 들게 글자·자간·안쪽 여백만 줄인다. */
+.rf-lvl strong.l4{font-size:.9rem;line-height:1.56rem;letter-spacing:0;padding:1px 5px 2px}
+.rf-txt{font-size:.84rem;line-height:1.5;color:#e6edf8}.rf-txt p{margin:0}
+/* 「이 해역 선박 18척」의 척수: 16px·800·밀집도 단계색(risk_marine.js hero 가 inline color) — 시안 2026-10-18 ⑤. */
+.rf-txt b.rf-cnt{font-size:1rem;font-weight:800}
+.rf-txt .sub{font-size:.74rem;color:#cbd5e6;margin-top:2px}
+/* 「충돌·접촉사고 주의」 — 주황(2026-10-16 사용자 「주황계열로 변경.」, 종전 연보라 #f0c6ff). 위험 예측 「주의」(#e58b46)·연안 「높음」(#fb923c) 계열을 어두운 시트에서 읽히게 밝힌 색.
+   대비: 시트 바탕 두 끝 #0c1a3a 8.64:1·#162d5a 6.80:1, 카드(흰 5% 덧칠) 위 7.58:1·5.86:1 — 가장 낮은 값도 4.5:1 이상(test_risk_sea_sheet_ui). */
+.rf-txt b.rf-cc{color:#ffa25e;font-weight:800;white-space:nowrap}
+.rf-chip{display:inline-block;margin-left:3px;padding:0 6px;border-radius:6px;font-size:.7rem;font-weight:800;line-height:1.5;vertical-align:1px;white-space:nowrap}
+/* 위 카드 [?](2026-10-16): 글자 칸이 줄 끝까지 차지하고, 첫 줄 오른쪽 26px 만 비워(::before 띄움) 그 위에 32px 누르는 칸을 얹는다 — 배지·문장을 밀지도 덮지도 않는다.
+   보이는 동그라미(18px)는 첫 줄 가운데 높이. 문장 자간 맞춤(risk_marine.js fitText)은 이 26px 를 읽어 첫 줄을 짧게 잡는다. */
+.rf-hero .rf-txt{flex:1 1 auto;min-width:0;position:relative}
+.rf-hero .rf-txt::before{content:'';float:right;width:26px;height:1.5em}
+.rf-hero .rf-fit{word-break:keep-all}
+.rf-sheet .rf-help-btn{position:absolute;top:-12px;right:-7px;width:32px;height:32px;min-width:32px;min-height:32px;margin:0;padding:13px 0 0;border:0;background:transparent;display:flex;justify-content:center;align-items:flex-start;cursor:pointer}
+.rf-help-btn span{display:block;width:18px;height:18px;box-sizing:border-box;border-radius:50%;border:1px solid #ffffff66;color:#cfe0ff;font-size:.68rem;font-weight:800;line-height:16px;text-align:center}
+.rf-avg{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 12px}
+.rf-avg small{font-size:.74rem}.rf-avg b{font-size:1.35rem}
+.rf-avg.fut{border-color:#ffd27a88}.rf-avg.fut small{color:#ffd27a}
+.rf-avg b.none{color:#98abc7}
+.rf-chart{margin-top:12px;min-height:156px;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:grab}
+.rf-chart svg{display:block;width:100%}
+.rf-leg{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;font-size:.68rem;color:#cbd5e6;margin-top:6px;align-items:center}
+.rf-leg span{display:inline-flex;align-items:center;gap:5px}.rf-leg i{display:inline-block;width:14px;height:10px;border-radius:2px}
+.rf-leg i.ln{height:2px;background:#8fd3ff}
+.rf-leg i.adv-j{background:rgba(255,196,64,.45);box-shadow:inset 0 2px 0 #ffc440}.rf-leg i.adv-k{background:rgba(248,96,96,.5);box-shadow:inset 0 2px 0 #f86060}
+/* 범례는 가운데 정렬(시안 2026-10-18 ⑤). 확대율 글자는 확대했을 때만 같은 줄 끝에 붙는다 — 비면 자리를 차지하지 않게 숨긴다. */
+.rf-leg .zh{color:#98abc7}.rf-leg .zh:empty{display:none}.rf-leg .zh b{color:#fff;font-weight:700}
+.rf-chart-msg{margin:6px 0 0;font-size:.7rem}
+.rf-none h4{margin:0}
+.rf-acc-sum{display:flex;align-items:center;gap:16px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+.rf-acc-sum svg{flex:none;display:block}
+.rf-acc-leg{flex:1;margin:0;padding:0;list-style:none;font-size:.78rem;color:#d2dcea;min-width:0}
+.rf-acc-leg li{padding:0}.rf-acc-leg li+li{border-top:1px solid #ffffff12}
+.rf-acc-leg button{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;padding:4px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.rf-acc-leg i{width:10px;height:10px;border-radius:3px;flex:none}
+.rf-acc-leg span{flex:1}.rf-acc-leg small{color:#98abc7}.rf-acc-leg b{font-weight:700;color:#fff}.rf-acc-leg b em{font-style:normal;font-weight:500;font-size:.7rem;color:#bfcbde;margin-left:1px}
+.rf-acc-leg .go{flex:none;width:10px;margin-left:2px;color:#8fa3c2;font-size:1rem;line-height:1;text-align:right}
+.rf-acc-cas{margin:8px 2px 0;font-size:.78rem;line-height:1.5;color:#cbd5e6}
+.rf-acc-cas b{color:#ff6b6b;font-weight:800}.rf-acc-cas.none{color:#98abc7}
+/* 연안 「이 관광지 주변 연안사고」(2026-10-16 T9) — 해상 사고 카드와 같은 틀, 제목 아래 영역 설명 한 줄만 더한다. */
+.rf-acc-area{margin:-4px 0 8px;font-size:.72rem;line-height:1.45;color:#98abc7}.rf-none .rf-acc-area{margin:4px 0 0}
+.rf-acc-pop{position:fixed;inset:0;z-index:11000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,10,22,.62)}
+.rf-acc-pop[hidden]{display:none}
+.rf-acc-pop .box{width:100%;max-width:340px;max-height:72vh;overflow-y:auto;border-radius:16px;background:#0f2242;border:1px solid #ffffff2e;box-shadow:0 12px 40px rgba(0,0,0,.5);padding:14px 14px 10px;color:#e6edf8}
+.rf-acc-pop .hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.rf-acc-pop .hd i{width:10px;height:10px;border-radius:3px;flex:none}
+.rf-acc-pop .hd h5{flex:1;margin:0;font-size:.95rem;color:#fff}.rf-acc-pop .hd h5 small{font-size:.72rem;color:#98abc7;font-weight:400;margin-left:6px}
+.rf-acc-pop .x{flex:none;width:32px;height:32px;border-radius:50%;border:1px solid #ffffff30;background:transparent;color:#cfe0ff;font-size:1.1rem;line-height:1;cursor:pointer}
+.rf-acc-pop ul{margin:0;padding:0;list-style:none}
+.rf-acc-pop li{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 2px;border-top:1px solid #ffffff14;font-size:.8rem;color:#d2dcea}
+.rf-acc-pop li .t b{color:#fff;font-weight:700}.rf-acc-pop li .t .no{color:#7f93b2}
+.rf-acc-pop li .c{flex:none;white-space:nowrap;font-size:.76rem;color:#7f93b2}.rf-acc-pop li .c.hurt{color:#ff6b6b;font-weight:800}
+/* [?] 설명 팝업 — 사고 팝업과 같은 틀(.rf-acc-pop .box)에 문장·표만 다르다. 가·나·다는 내어쓰기. */
+.rf-acc-pop .rf-help p{margin:0 0 5px;font-size:.8rem;line-height:1.55;color:#d2dcea;word-break:keep-all}
+.rf-acc-pop .rf-help p.gi{padding-left:1.6em;text-indent:-1.6em;margin-bottom:3px}.rf-acc-pop .rf-help p.gi b{display:inline-block;width:1.6em;text-indent:0;color:#fff;font-weight:700}
+.rf-acc-pop .rf-help .gt{padding-left:1.6em}
+.rf-help-tbl{width:100%;border-collapse:collapse;margin:6px 0 4px;font-size:.78rem;color:#d2dcea}
+.rf-help-tbl th,.rf-help-tbl td{padding:7px 6px;border-top:1px solid #ffffff1c;text-align:left;vertical-align:middle;word-break:keep-all}
+.rf-help-tbl th{border-top:0;color:#98abc7;font-size:.7rem;font-weight:600}
+.rf-help-tbl td:first-child{white-space:nowrap;color:#fff;font-weight:700}
+.rf-help-tbl td i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.rf-wx{padding:0}
+.rf-wx-head{display:flex;align-items:center;gap:8px;width:100%;padding:12px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.rf-wx-head h4{flex:1;margin:0}
+.rf-wx-head .chev{flex:none;width:9px;height:9px;margin:0 4px 4px 0;border-right:2px solid #cfe0ff;border-bottom:2px solid #cfe0ff;transform:rotate(45deg);transition:transform .2s}
+.rf-wx-head[aria-expanded="true"] .chev{transform:rotate(-135deg);margin:4px 4px 0 0}
+.rf-wx-body{padding:0 12px 12px}
+/* 묶음 제목 「파도」「바람」: 흰색·800·종전 크기보다 1pt 크게(10.88px → 12.21px), 칸 제목(유의파고 등)은 색 그대로 굵기만 800 — 시안 2026-10-18 ⑤-2. */
+.rf-wx-body .g{font-size:calc(.68rem + 1pt);line-height:18px;color:#fff;font-weight:800;margin:2px 0 5px}.rf-wx-body .rf-tile small{font-weight:800}.rf-wx-body .g+.rf-grid{margin-bottom:8px}
+.rf-wx-body .rf-tile b em.dir{color:#cfe0ff;font-weight:600;margin-left:3px;font-size:.7rem}
+.rf-wx-body .rf-grid3{grid-template-columns:1fr 1fr 1.3fr}
+.rf-cite{margin:2px 2px 6px;padding:10px 2px 0;border-top:1px solid #ffffff1c;font-size:.68rem;color:#98abc7;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.rf-cite dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 8px}.rf-cite dt{color:#7f93b2}.rf-cite dd{margin:0;color:#b9c6da}
+@media (prefers-reduced-motion:reduce){.rf-wx-head .chev{transition:none}}
+
+/* 시트 시각 막대(해상·연안 공통 — 연안은 2026-10-16 T7): 시각별 단계 색·3시간 눈금·자정 날짜·「지금」 꼬리표·범례(risk_slider.js mountRisk). 손잡이 중심(양끝 8px 안쪽)에 맞춘다. */
+.rf-risk-time .ocean-sheet-slider::-webkit-slider-runnable-track{background:transparent;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.rf-risk-time .ocean-sheet-slider::-moz-range-track{background:transparent;border:0;box-shadow:none}
+.rf-st-top{position:relative;width:calc(100% - 48px);margin:6px auto 3px;height:15px}
+/* 범례: 「지금」 꼬리표 쪽 자리는 mountRisk 가 inline padding 으로 비우고, 남은 폭의 가운데(첫·끝 항목 auto 여백 — 넘치면 음수가 되지 않아 꼬리표 반대쪽으로만 넘친다). */
+.rf-st-key{position:absolute;left:0;right:0;top:0;box-sizing:border-box;display:flex;gap:9px;font-size:.62rem;color:#b9c6da;white-space:nowrap;line-height:15px}
+.rf-st-key span:first-child{margin-left:auto}.rf-st-key span:last-child{margin-right:auto}
+@media (max-width:360px){.rf-st-key{gap:6px}}
+.rf-st-key span{display:inline-flex;align-items:center;gap:3px}.rf-st-key i{width:10px;height:6px;border-radius:2px;display:inline-block}
+.rf-st-now{position:absolute;top:0;transform:translateX(-50%);font-size:.6rem;font-weight:800;color:#fff;background:#2a78c8;border-radius:4px;padding:0 4px;line-height:14px;white-space:nowrap}
+.rf-st-now::after{content:'';position:absolute;left:50%;bottom:-3px;margin-left:-3px;border:3px solid transparent;border-bottom:0;border-top-color:#2a78c8}
+.rf-st-wrap{position:relative;width:calc(100% - 32px);margin:0 auto}
+.rf-st-track{position:absolute;left:8px;right:8px;top:5px;height:8px;border-radius:4px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.22)}
+.rf-st-track span{position:absolute;top:0;bottom:0}
+.rf-st-marks{position:absolute;left:8px;right:8px;top:0;height:18px;z-index:1;pointer-events:none}
+.rf-st-marks i{position:absolute;top:3px;width:1px;height:12px;margin-left:-.5px;background:rgba(10,20,40,.75)}
+.rf-st-marks i.day{top:1px;height:16px;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 0 1px rgba(10,20,40,.5)}
+.rf-st-marks i.now{top:1px;height:16px;width:2px;margin-left:-1px;background:#2a78c8}
+.rf-st-marks i[hidden]{display:none}
+.rf-st-wrap .ocean-sheet-slider{position:relative;z-index:2;display:block;width:100%;height:18px}
+.rf-st-lab{position:relative;height:15px;margin:1px 8px 0}
+.rf-st-lab em{position:absolute;top:0;transform:translateX(-50%);font-style:normal;font-size:.62rem;color:#9fb0c9;white-space:nowrap}
+.rf-st-lab em.day{color:#fff;font-weight:700}
+
+/* 지도 기다림 표시(2026-10-16 T4 — risk_forecast.js waitStart·waitEnd). 사용자가 누른 동작이 250ms 넘게 걸리면 지도 가운데에 띄운다.
+   스피너는 style.css 의 .spinner(36px 파란 고리) 재사용, 실패 안내는 같은 자리에 「잠시 후 다시 시도해 주세요」 2초. 지도 조작을 막지 않게 pointer-events:none. */
+.rf-map-wait{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:140;display:flex;flex-direction:column;align-items:center;pointer-events:none}
+.rf-map-wait[hidden]{display:none}
+.rf-map-wait .spinner{margin:0;background:rgba(10,15,28,.55)}
+.rf-map-wait p{margin:0;padding:8px 12px;border-radius:8px;background:rgba(10,15,28,.9);border:1px solid var(--border-color,#334155);color:var(--text-main,#eaf1fa);font-size:.8rem;white-space:nowrap}
+body:not(.ls-safety) .rf-map-wait{display:none !important}
+/* 해상 시트 날씨 아코디언 — 그 해역 발효 중 특보 상자(「파도」 위, 2026-10-16 사용자 「테두리가 빨간 사각형 박스로 제주도북부앞바다 풍랑주의보 발효」). 여러 개면 위아래로 쌓는다(경보 먼저). */
+.rf-warn-box{margin:2px 0 8px;padding:8px 10px;border:1.5px dashed #ff4d4f;border-radius:4px;background:rgba(255,77,79,.08);overflow-wrap:anywhere}
+.rf-warn-box b{display:block;margin:0 0 4px;font-size:.84rem;font-weight:700;color:#fff;word-break:keep-all;overflow-wrap:anywhere}
+.rf-warn-box p{margin:0;font-size:.74rem;line-height:1.5;color:#dfe8f5}
+/* 테두리 점선(시안 2026-10-18 ⑤-2): 발효 = 빨강 점선(위), 예비특보 발표 = 노랑 점선 — 앱 예비특보 노랑(style.css --accent-yellow #ffd740, 특보정보 탭 .alert-card.preliminary). */
+.rf-warn-box[data-state="예비"]{border-color:#ffd740;background:rgba(255,215,64,.08)}
+/* 제목 줄 「특보」 표시(risk_marine.js warnBadge — 상자와 같은 조건, 접혀도 보임, 2026-10-16 「2 추천대로」). 상자와 같은 빨강 계열 테두리, 흰 글자 대 #d32f2f 바탕 대비 약 4.98:1. 줄어들지 않게 flex:none. */
+.rf-warn-badge{flex:none;padding:1px 6px;border:1px solid #ff4d4f;border-radius:4px;background:#d32f2f;color:#fff;font-size:.68rem;font-weight:700;line-height:1.4;white-space:nowrap}

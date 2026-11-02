@@ -11,7 +11,9 @@
  *                    #server-maintenance-popup 등)
  *  - 나를 쓰는 곳  : 네이티브 하드웨어 뒤로가기 이벤트 + 다수 feature 공용 —
  *                    window.PopupStack 을 marine.js·ocean_bottom_sheet1.js·
- *                    fishing.js·admin.js 등 다수 파일이 사용
+ *                    fishing.js·admin.js 등 다수 파일이 사용.
+ *                    PopupStack.detach 는 life_safety.js 가 숨은 해양생활 섹션의 팝업 항목을
+ *                    잠시 빼 둘 때만 쓴다(2026-10-16)
  * ============================================================================
  *
  * [설명]
@@ -50,6 +52,21 @@
             popupStack = popupStack.filter(function (item) {
                 return item.id !== id;
             });
+        },
+
+        /**
+         * 항목 하나를 닫지 않고 스택에서 꺼내 돌려준다(없으면 null) — 나중에 push(e.id, e.close)로 되돌린다.
+         * 예: 바다낚시 지점 팝업을 연 채 해양안전으로 감 → detach('fishing-bottomsheet') → 보이지 않는
+         *     그 팝업이 첫 뒤로가기를 가져가지 않는다. 돌아오면 다시 push.
+         * @param {string} id - 팝업 고유 식별자
+         * @returns {{id:string, close:Function}|null}
+         * [연계] ← marine-life/safety/life_safety.js _syncBackStack() — 숨은 섹션의 팝업만(2026-10-16)
+         */
+        detach: function (id) {
+            for (var i = 0; i < popupStack.length; i++) {
+                if (popupStack[i].id === id) return popupStack.splice(i, 1)[0];
+            }
+            return null;
         },
 
         popLast: function () {

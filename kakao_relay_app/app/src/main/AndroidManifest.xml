@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- 카카오톡이 설치돼 있는지 확인하고 실행하기 위해 -->
+    <queries><package android:name="com.kakao.talk" /></queries>
+
+    <application android:label="@string/app_name" android:allowBackup="false"
+        android:usesCleartextTraffic="false">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ① 카톡 알림이 뜨는 순간을 잡는다 -->
+        <service android:name=".KakaoNotiService" android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
+
+        <!-- 특보가 오면 화면을 켜고 잠금 화면을 넘기는 투명 화면(ReaderService 가 띄움) -->
+        <activity android:name=".WakeActivity" android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true" android:noHistory="true" android:taskAffinity=""
+            android:showWhenLocked="true" android:turnScreenOn="true" />
+
+        <!-- 30분 신호 알람 + 기기 재시작 때 알람 다시 걸기 -->
+        <receiver android:name=".BeatReceiver" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
+
+        <!-- ② 카톡 대화방 화면의 글자를 읽는다(접근성) -->
+        <service android:name=".ReaderService" android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/reader_service" />
+        </service>
+    </application>
+</manifest>

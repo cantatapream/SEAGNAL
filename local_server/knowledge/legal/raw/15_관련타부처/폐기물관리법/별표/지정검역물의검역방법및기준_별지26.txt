@@ -1,0 +1,94 @@
+[지정검역물의 검역방법 및 기준] 별지26 — 폐기·반송 처분 명령서
+출처: 국가법령정보센터 행정규칙 API target=admrul ID=2100000285742 (수집 2026-11-02)
+별표서식파일링크: /LSW/flDownload.do?flSeq=169853761
+
+[별지 제26호서식]
+                                                                          
+  (앞쪽)                                                                  
+┌───────────────────────────────────┐
+│제      호                                                            │
+│No.                                                                   │
+│폐기·반송 처분 명령서                                                │
+│Order for Destruction/Return                                          │
+├────┬───────┬─────┬───────────┬────┤
+│수입자  │성 명         │          │상  호                │        │
+│Importer│Name          │          │Company               │        │
+│        ├───────┼─────┴───────────┴────┤
+│        │주 소         │                                            │
+│        │Address       │                                            │
+├────┼───────┼─────┬───────────┬────┤
+│수출자  │성 명         │          │상  호                │        │
+│Exporter│Name          │          │Company               │        │
+│        ├───────┼─────┴───────────┴────┤
+│        │주 소         │                                            │
+│        │Address       │                                            │
+├────┴───────┼─────┬───────────┬────┤
+│선(기)명                │          │도착항 및 도착 연월일 │        │
+│Name of ship and flight │          │Port & Date of arrival│        │
+├────────────┼─────┼───────────┼────┤
+│생산국(제조국)          │          │수출국                │        │
+│Country of Manufacture  │          │Country of Export     │        │
+├────────────┼─────┴───────────┴────┤
+│해외제조업소명          │                                            │
+│(해외작업장명, EST no.) │                                            │
+│Name of Manufacture     │                                            │
+├────────────┼─────┬───────────┬────┤
+│화물관리번호            │          │선하증권번호          │        │
+│Consignment             │          │B/L No.               │        │
+│Identification Number   │          │                      │        │
+├────────────┼─────┼───────────┼────┤
+│품목명                  │수량(두수)│순중량                │비고    │
+│Item                    │Quantity  │Net Weight            │Remarks │
+├────────────┼─────┼───────────┼────┤
+│                        │          │                      │        │
+├────────────┼─────┴───────────┴────┤
+│처분기간                │                                            │
+│Period of disposal      │                                            │
+├────────────┼──────────────────────┤
+│처분 사유               │                                            │
+│Reason for disposal     │                                            │
+├────────────┴──────────────────────┤
+│  「가축전염병예방법」 제32조, 제33조, 제44조에 따라 명령(폐기ㆍ반송)을 받은 날로부터 30일 이│
+│내에 명령을 이행하여야 하며, 휴대품의 경우 반송명령을 받은 날로부터 30일 이내에 반송명령을 이행│
+│하지 아니할 경우 폐기합니다.                                          │
+│   I hereby order you to (destruct, return) as above mentioned items in accordance with Article │
+│32, 33, 44 of “Act on the Prevention of contagious Animal Diseases” of the Republic of Korea. │
+│If the order of return will not be fulfilled within 30 days from the date of the return order, it will  │
+│be destroyed.                                                         │
+│                                                                      │
+│                                                  년(Year)          월 (Month)        일(Day)   │
+│                                                                      │
+│  농림축산검역본부 ○○지역본부ㆍ사무소 동물검역관 (서명 또는 인)     │
+│                                                                      │
+│ ○○ (Regional/District) Office of APQA, Animal Quarantine Official  (Signature)│
+│                                                                      │
+└───────────────────────────────────┘
+                                                                                                      
+  (뒤쪽)                                                                                              
+┌─────────────────────────────────────────────────┐
+│                                                                                                  │
+┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┥
+│유 의 사 항 Remarks                                                                               │
+├─────────────────────────────────────────────────┤
+│  1. 폐기 또는 반송되는 물품에 대하여는 폐기 또는 반송 시까지 밀폐형 컨테이너나 용기에 보관하거   │
+│나 다른 물품과 격리하여 비닐 등으로 덮어 교차오염이 발생하지 않도록 조치할 것                     │
+│     The consignment subject to destruction or return shall be treated to prevent the             │
+│cross-contamination by means of storing in sealed container or vessel or by means of              │
+│covering proper materials(such as vinyl) for separation from other consignments until the         │
+│destruction or return.                                                                            │
+│                                                                                                  │
+│2. 폐기 또는 반송을 위하여 이동하는 경우에 밀폐형 컨테이너나 용기에 넣거나 비닐 등으로 덮어 교차오│
+│염이 발생하지 않도록 조치한 후 이동할 것                                                          │
+│   If the movement of consignment is for destruction or return, it shall be moved after the       │
+│appropriate preventive controls such as containment in sealed container/vessel or covering        │
+│with proper materials(such as vinyl) for prevention of cross-contamination.                       │
+│                                                                                                  │
+│3. 불합격품의 경우에는 검역본부장이 정하여 고시한 방법에 따라 "불합격품" 표시를 부착한 후 접근·  │
+│이동 금지 조치할 것                                                                               │
+│    The consignments subject to destruction should have a sign of "The consignment subject        │
+│to destruction" on the surface according to the methods regulated by the Commissioner of          │
+│the Animal and Plant Quarantine Agency and be prohibited from approach or movement                │
+│without permission.                                                                               │
+└─────────────────────────────────────────────────┘
+                                                                                                      
+                                                                                                      

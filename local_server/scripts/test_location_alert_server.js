@@ -46,7 +46,8 @@ const snap = dispatch.buildSnapshot(active.map(w => ({ ...w, efTime: w.efTime ||
 check('경보 구역 tier=severe', snap.zones['울산앞바다'].tier === 'severe', snap.zones['울산앞바다'].tier);
 check('주의보 구역 tier=advisory', snap.zones['경북남부앞바다'].tier === 'advisory', snap.zones['경북남부앞바다'].tier);
 check('예비 구역 tier=prelim', snap.zones['제주도앞바다'].tier === 'prelim', snap.zones['제주도앞바다'].tier);
-check('스냅샷 generatedAt ISO', /\d{4}-\d{2}-\d{2}T/.test(snap.generatedAt));
+// [2026-10-15 축약] 단말이 안 읽는 generatedAt 은 싣지 않는다(FCM 4096B 한도) — test_location_dispatch_reliability [5][6].
+check('스냅샷에 generatedAt 없음(단말 미사용 필드 축약)', !('generatedAt' in snap));
 
 console.log('\n[2b] 스냅샷 forecast 주입');
 // 레코드가 forecast 를 직접 들고 오면(데모 override) 그대로 zone.forecast 에 부착.
@@ -62,9 +63,10 @@ check('forecast 보유 레코드 → zone.forecast 부착',
 const snapNoFc = dispatch.buildSnapshot([
     { zone: '존재하지않는해역XYZ', warnType: '풍랑', level: '주의보', event: 'active' },
 ]);
-check('forecast 미보유 + 데이터 없음 → null',
-    snapNoFc.zones['존재하지않는해역XYZ'].forecast === null,
-    JSON.stringify(snapNoFc.zones['존재하지않는해역XYZ'].forecast));
+// [2026-10-15 축약] null 이면 키 자체를 생략한다(단말은 없음·null 을 똑같이 '예측 줄 없음'으로 처리).
+check('forecast 미보유 + 데이터 없음 → 키 생략(구역은 그대로)',
+    snapNoFc.zones['존재하지않는해역XYZ'] && !('forecast' in snapNoFc.zones['존재하지않는해역XYZ']),
+    JSON.stringify(snapNoFc.zones['존재하지않는해역XYZ']));
 
 console.log('\n[2c] buildMessage 예측 기상 줄');
 const core = require('../../client/js/location-alert/location_alert_core.js');

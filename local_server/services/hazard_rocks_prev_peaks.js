@@ -33,6 +33,7 @@
  *   - services/hazard_rocks_tide_collector.js → 수집 직후 capture() 호출(제주)
  *   - services/hazard_rocks_submersion.js   → getTideCurve 가 load() 로 어제 극값 조회
  *   - scripts/test_hazard_rocks_tide.js     → 이 모듈의 왕복 저장·정리 검사
+ *   - peak_finder.js                        → findPeaksInSamples(극값 규칙 — 팝업 오늘 극값과 같은 함수, 2026-10-18)
  * ============================================================================
  */
 
@@ -50,9 +51,9 @@ const KEEP_DAYS = 5;
 /** 곡선을 이 간격(분)으로 훑어 극값을 찾는다 — 팝업이 오늘 곡선을 만들 때와 같은 값.
  *  [연계] hazard_rocks_submersion.js CURVE_SAMPLE_STEP_MIN 과 반드시 같아야 한다. */
 const SAMPLE_STEP_MIN = 10;
-/** 같은 종류(고조끼리·저조끼리) 극값이 이 분 이내로 붙어 있으면 더 극단값만 남긴다.
- *  [연계] hazard_rocks_submersion.js PEAK_MERGE_GAP_MIN 과 같은 값. */
-const PEAK_MERGE_GAP_MIN = 120;
+// 극값을 고르는 규칙은 peak_finder.findPeaksInSamples 하나를 팝업(오늘 극값)과 같이 쓴다(2026-10-18 —
+//   예전엔 이 파일과 hazard_rocks_submersion.js 가 같은 "평탄 구간을 모르는" 복사본을 따로 가졌다).
+const { findPeaksInSamples } = require('../peak_finder');
 
 /**
  * 요약 파일 경로를 만든다.
@@ -70,46 +71,37 @@ function filePath(setId, ymd) {
  * 1분 간격 곡선 배열을 SAMPLE_STEP_MIN 간격으로 훑어 극값(고조/저조)을 찾는다.
  * 예: 하루치 곡선 → [{t:"07:30", cm:232.4, type:"high"}, ...]
  * @param {Array<{t:string,h:number}>} curve - 곡선 파일의 curve 배열("HH:MM" + 조위cm)
- * @returns {Array<{t:string,cm:number,type:'high'|'low'}>} 시각순 극값
+ * @param {Array<{t:string,h:number}>=} prevCurve - 전날 곡선(있으면 뒤쪽 12시간을 앞에 붙여 자정 근처 극값을 잡는다)
+ * @param {Array<{t:string,h:number}>=} nextCurve - 다음날 곡선(있으면 앞쪽 12시간을 뒤에 붙인다)
+ * @returns {Array<{t:string,cm:number,type:'high'|'low'}>} 시각순 극값(그날 00:00~23:59 것만)
  * [연계] ← capture() — 저장 직전에 곡선에서 극값만 뽑아내기 위함.
+ *   → peak_finder.findPeaksInSamples — 팝업 "오늘" 극값(getTideCurve)과 같은 규칙.
  *   ⚠팝업이 "오늘" 극값을 만들 때는 여러 앵커를 IDW로 섞은 뒤 극값을 찾는데,
  *     여기서는 앵커 하나씩 따로 찾는다(섞기 전). 그래서 어제 값은 오늘 값과
  *     계산 순서가 달라 수 cm 차이가 날 수 있다 — 저장량을 줄이려고 감수한 부분.
  */
-function extremaOfCurve(curve) {
+function extremaOfCurve(curve, prevCurve, nextCurve) {
     if (!Array.isArray(curve) || !curve.length) return [];
-    // "HH:MM" → 분 배열(0~1439). 결측 분은 비워 둔다.
-    const byMinute = new Array(1440).fill(null);
-    for (const pt of curve) {
-        if (!pt || pt.h == null) continue;
-        const s = String(pt.t);
-        const hh = parseInt(s.slice(0, 2), 10), mm = parseInt(s.slice(3, 5), 10);
-        if (isNaN(hh) || isNaN(mm)) continue;
-        byMinute[hh * 60 + mm] = pt.h;
-    }
-    const samples = [];
-    for (let m = 0; m < 1440; m += SAMPLE_STEP_MIN) {
-        if (byMinute[m] != null) samples.push({ m, cm: Math.round(byMinute[m] * 10) / 10 });
-    }
-    if (samples.length < 3) return [];
-
-    const raw = [];
-    for (let i = 1; i < samples.length - 1; i++) {
-        const p = samples[i - 1], c = samples[i], n = samples[i + 1];
-        if (c.cm >= p.cm && c.cm >= n.cm && (c.cm > p.cm || c.cm > n.cm)) raw.push({ m: c.m, cm: c.cm, type: 'high' });
-        else if (c.cm <= p.cm && c.cm <= n.cm && (c.cm < p.cm || c.cm < n.cm)) raw.push({ m: c.m, cm: c.cm, type: 'low' });
-    }
-    const merged = [];
-    for (const p of raw) {
-        const last = merged[merged.length - 1];
-        if (last && last.type === p.type && (p.m - last.m) <= PEAK_MERGE_GAP_MIN) {
-            const better = p.type === 'high' ? p.cm > last.cm : p.cm < last.cm;
-            if (better) merged[merged.length - 1] = p;
-        } else {
-            merged.push(p);
+    // 곡선("HH:MM") → SAMPLE_STEP_MIN 간격 표본 {m, cm}. offset 은 전날 -1440·다음날 +1440.
+    const toSamples = (c, offset, keep) => {
+        const byMinute = new Array(1440).fill(null);
+        for (const pt of (Array.isArray(c) ? c : [])) {
+            if (!pt || pt.h == null) continue;
+            const s = String(pt.t);
+            const hh = parseInt(s.slice(0, 2), 10), mm = parseInt(s.slice(3, 5), 10);
+            if (isNaN(hh) || isNaN(mm)) continue;
+            byMinute[hh * 60 + mm] = pt.h;
         }
-    }
-    return merged.map((p) => ({
+        const out = [];
+        for (let m = 0; m < 1440; m += SAMPLE_STEP_MIN) {
+            if (byMinute[m] != null && keep(m)) out.push({ m: m + offset, cm: Math.round(byMinute[m] * 10) / 10 });
+        }
+        return out;
+    };
+    const own = toSamples(curve, 0, () => true);
+    if (own.length < 3) return [];
+    const samples = toSamples(prevCurve, -1440, m => m >= 720).concat(own, toSamples(nextCurve, 1440, m => m < 720));
+    return findPeaksInSamples(samples).map((p) => ({
         t: `${String(Math.floor(p.m / 60)).padStart(2, '0')}:${String(p.m % 60).padStart(2, '0')}`,
         cm: p.cm,
         type: p.type
@@ -135,7 +127,13 @@ function capture(setId, ymd, anchorIds, curvePathFn, logFn) {
     for (const id of anchorIds || []) {
         let j;
         try { j = JSON.parse(fs.readFileSync(curvePathFn(id, ymd), 'utf8')); } catch (e) { continue; }
-        const ex = extremaOfCurve(j && j.curve);
+        // 옆날 곡선이 남아 있으면 앞뒤 12시간을 붙여 자정 근처 극값도 잡는다(없으면 그날만 — 종전과 같음).
+        const near = (delta) => {
+            const d = new Date(Date.UTC(+String(ymd).slice(0, 4), +String(ymd).slice(4, 6) - 1, +String(ymd).slice(6, 8) + delta));
+            const nymd = d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+            try { return JSON.parse(fs.readFileSync(curvePathFn(id, nymd), 'utf8')).curve; } catch (e) { return null; }
+        };
+        const ex = extremaOfCurve(j && j.curve, near(-1), near(1));
         if (!ex.length) continue;
         peaks[id] = ex;
         nPeaks += ex.length;
@@ -221,6 +219,6 @@ function captureWindow(setId, dates, anchorIds, curvePathFn, logFn) {
 }
 
 module.exports = {
-    PREV_PEAKS_DIR, KEEP_DAYS, SAMPLE_STEP_MIN, PEAK_MERGE_GAP_MIN,
+    PREV_PEAKS_DIR, KEEP_DAYS, SAMPLE_STEP_MIN,
     filePath, extremaOfCurve, capture, load, prune, captureWindow
 };

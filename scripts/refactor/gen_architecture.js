@@ -142,7 +142,6 @@ ${indexTables(JS)}
 
 - \`local_server/routes/\` (31) — Express API 라우트
 - \`local_server/services/\` (35) — 서버 서비스(캐시·푸시·수집 등)
-- \`local_server/advisory/\` — 특보 예측 엔진
 - \`local_server/scheduler.js\` — 크롤러·수집 스케줄러
 - \`local_server/data/\` — 런타임 데이터 (Fly 볼륨 /app/local_server/data — 경로 변경 금지)
 - 예외: \`services/typhoon_radius.js\`·\`typhoon_message.js\` 는 서버·클라 공용 —

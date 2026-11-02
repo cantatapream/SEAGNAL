@@ -121,11 +121,13 @@ ok('곡선이 없으면(undefined) 빈 배열', PrevPeaks.extremaOfCurve(undefin
 })();
 
 // 상수가 팝업 쪽과 어긋나면 어제/오늘 극값 기준이 달라진다 — 값이 같은지 고정
+//   [2026-10-18] 극값 규칙은 두 곳이 같은 함수(peak_finder.findPeaksInSamples)를 쓰게 바꿨다 — 병합 간격 상수를
+//   따로 맞출 필요가 없어져 "같은 함수를 쓰는가"로 바꿔 고정한다(상세 시험은 test_tide_edges.js [A]).
 (function () {
     const step = (SUBM_SRC.match(/CURVE_SAMPLE_STEP_MIN = (\d+)/) || [])[1];
-    const gap = (SUBM_SRC.match(/PEAK_MERGE_GAP_MIN = (\d+)/) || [])[1];
+    const PP_SRC = fs.readFileSync(path.join(ROOT, 'local_server', 'services', 'hazard_rocks_prev_peaks.js'), 'utf8');
     ok('표본 간격이 팝업(오늘 곡선)과 같다', String(PrevPeaks.SAMPLE_STEP_MIN) === step, `${PrevPeaks.SAMPLE_STEP_MIN} vs ${step}`);
-    ok('극값 병합 간격이 팝업과 같다', String(PrevPeaks.PEAK_MERGE_GAP_MIN) === gap, `${PrevPeaks.PEAK_MERGE_GAP_MIN} vs ${gap}`);
+    ok('극값 규칙이 팝업과 같다(둘 다 findPeaksInSamples)', /findPeaksInSamples\(/.test(SUBM_SRC) && /findPeaksInSamples\(/.test(PP_SRC));
 })();
 
 // ── [2] 서버가 실제로 내주는 어제 극값 (동해 = 실데이터) ───────────────────

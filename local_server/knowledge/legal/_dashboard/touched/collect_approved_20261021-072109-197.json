@@ -1,0 +1,9 @@
+{
+ "script": "collect_approved",
+ "stamp": "20261021-072109-197",
+ "files": [
+  "local_server/knowledge/legal/raw/09_레저관광/마리나항만의조성및관리등에관한법률/_대기/20270909/법률.txt",
+  "local_server/knowledge/legal/raw/09_레저관광/마리나항만의조성및관리등에관한법률/_대기/20270909/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json"
+ ]
+}

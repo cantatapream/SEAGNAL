@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 66 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 131 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -295,6 +295,9 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_accident_sheet` | 사고 분석 바텀시트·격자가 조용히 깨지지 않게 고정한다. |
 | `test_pending_law` | 예고본 사전수집·시행일 자동 전환(H-29 트랙 C)을 고정한다. |
 | `test_hazard_rocks_tide` | 간출암 조석 곡선 팝업이 조용히 깨지지 않게 고정한다. |
+| `test_tide_edges` | 간출암 조석 상자(해양안전 위험지형 팝업·연안 브리핑 바위 상자)의 네 가지 결함이 다시 생기지 않게 고정한다. |
+| `test_hazard_rock_tide_labels` | 간출암 조석 상자 곡선 위 「현 시각」 라벨이 「잠김」·「노출」 라벨과 겹치지 않게 고정한다. |
+| `test_tide_field_memory` | routes/tide_field.js; 임시 메모리 파일·앵커만 사용, 실제 수집/키/운영 파일 없음. |
 | `test_guide_tabs` | 「안내」 팝업이 화면·데이터와 어긋나지 않게 고정한다. |
 | `test_tab_structure` | 하단 메뉴·하위탭 구성이 조용히 되돌아가지 않게 고정한다. |
 | `test_usage_keys` | 사용량 통계 회귀 검사 — ①앱이 세는 모든 기능 키에 한글 이름표가 있는가 |
@@ -310,6 +313,9 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_typhoon_jma` | 태풍 탭의 "일본(JMA)" 출처가 조용히 깨지지 않게 고정한다. |
 | `test_typhoon_ecmwf` | 태풍 탭의 "유럽(ECMWF)" 출처가 조용히 깨지지 않게 고정한다. |
 | `test_khoa_https` | 개방海(국립해양조사원, khoa.go.kr)를 http:// 로 부르는 코드가 없게 고정한다. |
+| `test_khoa_stream_cache_memory` | 유향·유속·수온 캐시의 과거 슬롯 제거와 73슬롯 상한을 검증한다. |
+| `test_vsby_imglist_check` | 해구별 시정(RDPS 래스터) imgList 확인 실패가 상태로 드러나는지 고정한다. |
+| `test_vsby_stale` | 시정 표시가 「최신 자료가 아니면 정보 없음」으로 나오는지 확인한다(사용자 확정 2026-10-15). |
 | `test_byl_decl` | 별표 파일 **선언줄** 판독(`bylDeclLine`·`parseBylDecl`·`hasBylBody`). |
 | `test_treaty_caselaw_meta` | §5-6 국제협약 · §5-7 판례변동 메타를 **읽는지** 고정한다. |
 | `test_context_budget` | 모델에게 넘기는 [근거자료]의 **합계 상한**(P-19)을 고정한다. |
@@ -327,6 +333,8 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_score_body` | ★「변경 이력」이 **검색 점수에서 빠졌는지**를 고정한다. (결심 4-5ⓐ) |
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
+| `test_llm_chain` | 나리야 답변 AI 사슬(services/llm_chain.js)의 순서·자동 전환·크레딧 소진 처리를 고정한다. |
+| `test_legal_ask_stats` | 나리야 질문 수 날짜별 집계(services/legal_ask_stats.js)와 /api/legal/ask 연결을 고정한다. |
 | `test_fav_tide_prefetch` | 즐겨찾기 조석 미리받기(OS.prefetchFavoriteTides)를 고정한다. |
 | `test_picture_text` | ★그림 판독문이 **모델 근거에서 빠지는지**를 고정한다. (3-75 · Q-19) |
 | `test_ordin_fresh` | ★조례(자치법규)도 주간 원문 신선도 점검에 들어가 있는지를 고정한다. (3-78) |
@@ -337,6 +345,63 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_scan_catchup` | ★개정 스캔이 며칠 실패한 뒤에는 그 사이를 따라잡는다. (3-84) |
 | `test_mok_bulk` | ★원문결손 방: 해소된 카드 자동 닫기 · 「✓ 전체 처리」 · 지시문 .md 받기 · 버튼 잘림 (3-88) |
 | `test_reread_guard` | ★고친 canonical 은 다른 에이전트가 읽어야 한다 (1단계 1-2·1-3 · 사장님 결정 D2·D3, 2026-10-08) |
+| `test_gale_store` | 강풍(W) 별도 저장 검증 |
+| `test_risk_points` | 점수표를 원고와 대조하고 반올림한 지수의 새 단계 경계를 고정한다(연안 달·위험구역은 U81 정정 절 §13과 대조). |
+| `test_risk_time` | 기존 크롤러 정규화 글자·월말·해제예고·한국 날짜 시간축을 검증한다. |
+| `test_risk_score_sea` | 선택시각 예보·특보 최대후보·혼잡 결측·강풍 제외를 검증한다. |
+| `test_risk_score_coast` | 연안 합산·사망배수 분리·주말·정책값·결측 생략과 U81(사람 30일 평균 대비·위험구역 후보 A)을 검증한다. |
+| `test_risk_static` | 배송 정적 표가 원본 관광지·위험구역·이안류·기하 계약을 보존하는지 검사한다. |
+| `test_coast_accidents` | 관광지별 주변 연안 인명사고 정적 표(coast_accidents.json)가 유형·기간·중복·영역 계약을 지키는지 |
+| `test_risk_geo` | 홀·다중면·경계 포함·방위·거리·겹침 동률 기초를 검증한다. |
+| `test_risk_format` | U77·U78의 위험예측 서식·색·좌표와 HTML/URL 처리를 제품 함수로 검사한다. |
+| `test_risk_preview` | 위험예측 미리보기와 실제 앱의 원본 스위치 CSS·스크립트 순서·오버레이 연결을 검사한다. |
+| `test_risk_lifecycle` | 실제 위험예측 조율기의 공식 선박 예보의 독립 요청·2일(오늘·내일) 시간축·실패 복구·뒤로가기 스택·OFF 경쟁과 API TTL을 검사한다. |
+| `test_risk_map_layer` | 실제 관광지·육지·섬 원천 전체를 제품 OpenLayers 지도 층에 넣어 빈 형상 회귀와 상세 시트의 실제 연안 합계 설명을 검사한다. |
+| `test_risk_collectors` | risk_collector_io 및 세 수집기 · 운영키/외부 HTTP/푸시 호출 없음 |
+| `test_risk_store` | risk_store + 계산기 · 임시 fixture 파일만 읽고 기존 수집 파일/푸시를 수정하지 않는다. |
+| `test_tour_concentration_daily` | 관광지 집중률 「그날 값」 매일 쌓기(appendDaily)가 해마다 파일에 쌓이고 5년보다 오래된 날을 지우는지 검증한다. |
+| `test_risk_missing_notice` | 실제 risk_store 가 임시 자료로 만든 상세 응답을 실제 RiskSheet(Chromium)에 그대로 넣고, 같은 원천 상태를 관리자 오류이력에도 넣는다. |
+| `test_risk_store_file_cache` | 위험예측 파일 캐시 회귀: 작은 상태/쿼터 갱신은 큰 자료를 재파싱하지 않되 |
+| `test_risk_errors` | risk_error_history / risk_errors / 기존 admin_auth. 외부 수집·실사용 인증키 없음. |
+| `test_risk_errors_ui` | 제품 admin.js / risk_sheet.js. 운영 API·인증정보 없이 Chromium 사용. |
+| `test_risk_errors_filter_ui` | 관리자 오류현황의 원천·상태 필터가 현재 상태·이력 둘 다에 걸리는지와 상태 배지 색을 실제 라우터+Chromium 으로 검사한다. |
+| `test_data_collection_status` | 관리자 「데이터 수집현황 → 수집 목록」의 목록표(manifest)·계산·API 를 검사한다. |
+| `test_collect_fail_alert` | 이안류·기상청 MMIS 수집 실패 관리자 푸시(services/collect_fail_alert)를 고정한다. |
+| `test_data_collection_ui` | 관리자 → 점검 → 「데이터 수집현황」 화면을 실제 라우터 + Chromium 으로 검사한다. |
+| `test_zone_forecast_guard` | 해구별 기상예보 수집이 새 판을 못 받았을 때 「새 판 없음, 기존 판 유지」를 기록하고 |
+| `test_risk_history_sources` | 오류 감시의 본문 제거·손상 판별·공개 저장소와 같은 신선도·갱신/삭제를 검사한다. |
+| `test_risk_routes` | routes/risk_forecast.js · 임시 보고서/가짜 저장소만 사용, 수집/키/푸시 없음 |
+| `test_risk_accident` | 공식 선박사고 순차수집·원자게시·3시간원본·클릭공간매칭을 임시자료로 검증한다. |
+| `test_marine_fusion` | 해상 통합의 누락·중복·시각·사고유형·관할 집계와 최신 수집의 정상본 보존을 검증한다. |
+| `test_harbor_cells` | 「항구 칸」(항·포구·방파제 안 — 정박·계류 배가 늘 세어지는 해상 교통 칸)을 혼잡 판정에서 빼는 일을 검사한다. |
+| `test_marine_ui` | 실제 Chromium에서 해상 지도 [혼잡도][위험 예측]·현재 척수(선종·톤수 표시 없음)·사고 이력·시각 버튼·시각 독립·실패 복구·모바일 렌더링·HTML 보호를 검사한다. |
+| `test_risk_basemap` | 위험예측을 켜면 배경이 위성지도로 바뀌고, 끄거나 없애면 켜기 전 배경으로 돌아오는지(과제12)와 |
+| `test_risk_main_time` | 메인 시각(하단 5버튼·시각 토스트)과 연안 색 범례(2026-10-16)를 실제 Chromium에서 검사한다. |
+| `test_risk_sheet_ui` | 휴대폰 크기 Chromium에서 위험예측 바텀시트의 하단 탭 가림 방지·고정 머리/스크롤 본문·즉시 스켈레톤과 늦은 응답 보호·고정 일시 표시·위험구역 아코디언과 보이는 지도 중앙 이동을 검사한다. |
+| `test_risk_sea_sheet_ui` | 해상 위험 예측·분석 화면(2026-10-15 확정 시안 8차 + 추가 확정 5가지, 지도 조작부 시안)을 실제 Chromium 에서 검사한다. |
+| `test_risk_station_label` | 위험예측 시트(해상·연안 부제, 위험구역 목록)의 관할 문구가 「제주해양경찰서 한림파출소 관할」 꼴인지 검사한다. |
+| `test_realtime_tolerant` | 실시간 선박 교통 수집이 「이상한 줄 하나」 때문에 전체를 버리지 않고 그 줄만 빼는지, |
+| `test_traffic_history` | 교통량 2주 그래프용 서버 쪽(30분 척수 이력·특보 발효 구간·칸→특보구역·조회 API)을 검사한다. |
+| `test_sea_traffic_profile` | 관할 브리핑 해역별 「최근 14일 선박 동향」 계산(services/sea_traffic_profile.js)을 검사한다. |
+| `test_no_mtis_web` | 서버 코드가 MTIS 웹 화면(mtis.komsa.or.kr)에 자동 접속하지 않는지 지킨다. |
+| `test_root_deps` | 운영 서버가 실제로 쓰는 외부 패키지가 **저장소 루트 package.json** 에 모두 들어 있는지 검사한다. |
+| `test_slow_request_log` | 느린 요청 기록(services/slow_request_log.js)이 3초 넘는 요청만, 쿼리 없이, 붙잡는 요청은 빼고 남기는지 실제 HTTP 로 확인한다. |
+| `test_risk_map_wait` | 위험예측 지도의 「기다림 표시」(지도 가운데 스피너·이전 색 흐림·실패 안내 2초)가 켜지고 꺼지는 때를 고정한다(2026-10-16 T4). |
+| `test_life_safety_tab_keep` | 하단 「해양안전생활」 탭이 다른 메인탭에 다녀와도 마지막 화면을 유지하고 새로고침이면 처음 상태인지 실제 화면으로 검사한다. |
+| `test_risk_select_motion` | 위험예측 지도에서 해상 GR4 칸·연안 관광지를 누르면 ①선택 테두리가 해구기상 해구 칸 선택과 같은 모양(시안 #4fc3f7·2.5px)으로 바로 보이고 |
+| `test_risk_coast_day` | 위험예측 연안 「하루 하나」(T24)의 화면을 실제 index2.html 전체(Chromium)로 검사한다 — |
+| `test_station_briefing` | 「활동지점 안전 브리핑」(파출소 관할) 서버 1단계 시험 — 고정 입력(가짜 자료)으로 규칙·AI 순서·검증·저장·일정·노출을 결정론적으로 확인한다. |
+| `test_station_briefing_ui` | 「활동지점 안전 브리핑」 2단계(화면)를 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다 — |
+| `test_risk_goto_frame` | 「연안 안전 브리핑」 카드의 [위험예측에서 보기 ›](RiskForecast.openAt)로 위험예측을 열었을 때, 고른 해상 칸·연안 관광지가 |
+| `test_usage_briefing_risk_ui` | 사용량 통계 「연안 안전 브리핑」·「위험예측」 두 묶음이 실제 클릭 한 번에 정확히 1건씩(키·건수) 서버로 가는지 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다. |
+| `test_location_dispatch_reliability` | 위치기반 깨우기(특보·태풍) 발송 신뢰성 + 스냅샷 축약 회귀검사 |
+| `test_forecast_gear_ui` | 해양예보 탭 아코디언 ⚙ 두 개를 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다(2026-10-17 사용자 확정). |
+| `test_smallzone_forecast` | 소해구 예보 수집 서비스(services/smallzone_forecast.js)와 그 API(routes/weather.js GET /api/marine-small-zone-forecasts/:l… |
+| `test_marine_smallzone_ui` | 실제 Chromium 에서 해구 기상전망 창(client/js/forecast/alerts/marine.js)의 소해구 표시를 검사한다(§11.10.18). |
+| `test_beach_weather` | 기상청 해수욕장 날씨(수집기 services/beach_weather_collector.js · 판단·문구 services/beach_weather.js · |
+| `test_notice_markdown` | 공지 게시판 「마크다운 파일 불러오기」(2026-10-20 사용자 결정 — 파일을 올리면 편집기에 채우고, 눈으로 보고 고친 뒤 저장 · 사진은 파일 안에)를 고정한다. |
+| `test_kakao_relay` | 카톡 특보 알림톡 수신(services/kakao_relay · routes/kakao_relay)을 고정한다. |
+| `test_kakao_relay_admin_ui` | 관리자 「카톡 중계」 탭(client/js/admin/admin_kakao_relay.js)이 서버 기록을 사람이 읽게 그리는지 고정한다. |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

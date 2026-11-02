@@ -49,7 +49,7 @@ const TFC = require('./../services/tide_field_collector');
 let _meta = null;          // grid_meta.json 파싱본
 let _metaMtime = 0;
 let _anchors = null;       // anchors.json 의 anchors 배열
-let _cellAnchorIdx = null; // cellKey -> [{anchor, distKm}] (직선거리 이내)
+let _cellAnchorIdx = null; // 조회된 cellKey -> [{anchor, distKm}] (직선거리 이내)
 let _cellTileIdx = null;   // 타일키 -> [cell...] (bbox 후보 선택용)
 
 // ── 프리컴퓨트(frames.bin) 캐시 ───────────────────────────────────────
@@ -96,7 +96,7 @@ function loadMetaIfNeeded() {
         for (let i = 0; i < _meta.cells.length; i++) _meta.cells[i]._i = i;
     }
     _anchors = TFC.loadAnchors() || [];
-    buildCellAnchorIndex();
+    _cellAnchorIdx = new Map();
     buildCellTileIndex();
     // grid_meta 갱신 → 프리컴퓨트 캐시도 다시 검증/로드.
     loadFramesIfNeeded(true);
@@ -182,23 +182,24 @@ function loadFramesIfNeeded(force) {
 }
 
 /**
- * 각 셀이 참조할 앵커 목록을 사전 계산.
- *   조건: 직선거리 ≤ INTERP_MAX_KM. 컴포넌트 제약 없음(앵커가 버킷 기반이라
- *   연결성 위상이 없다). 가까운 순 최대 INTERP_MAX_ANCHORS 개.
+ * 폴백/디버그에서 실제로 조회하는 셀의 앵커만 연결하고 재사용한다.
+ * 거리25km 안에서 가까운 순 최대4개라는 기존 보간 규칙은 유지한다.
+ * @param {Object} cell - 현재 grid_meta 셀
+ * @returns {Array<{anchor:Object,distKm:number}>} 가까운 앵커 (없으면 빈 배열)
+ * [연계] cellDepthM/debug; loadMetaIfNeeded가 메타 변경 시 캐시를 비운다.
  */
-function buildCellAnchorIndex() {
-    _cellAnchorIdx = new Map();
-    if (!_meta || !Array.isArray(_meta.cells)) return;
-
-    for (const cell of _meta.cells) {
-        const scored = [];
-        for (const a of _anchors) {
-            const d = C.haversineKm(cell.lat, cell.lon, a.lat, a.lon);
-            if (d <= CFG.INTERP_MAX_KM) scored.push({ anchor: a, distKm: d });
-        }
-        scored.sort((x, y) => x.distKm - y.distKm);
-        _cellAnchorIdx.set(cell.key, scored.slice(0, CFG.INTERP_MAX_ANCHORS));
+function cellAnchors(cell) {
+    const cached = _cellAnchorIdx.get(cell.key);
+    if (cached) return cached;
+    const scored = [];
+    for (const a of _anchors) {
+        const d = C.haversineKm(cell.lat, cell.lon, a.lat, a.lon);
+        if (d <= CFG.INTERP_MAX_KM) scored.push({ anchor: a, distKm: d });
     }
+    scored.sort((x, y) => x.distKm - y.distKm);
+    const refs = scored.slice(0, CFG.INTERP_MAX_ANCHORS);
+    _cellAnchorIdx.set(cell.key, refs);
+    return refs;
 }
 
 /** 셀 타일 인덱스 (0.1° 버킷). bbox 후보 셀을 O(bbox 타일 수) 로 추린다. */
@@ -347,7 +348,7 @@ function computeField(yyyymmdd, minute, cells, includeShallow) {
 function cellDepthM(cell, yyyymmdd, snapped) {
     const d = cell.depth, z0 = cell.z0;       // BADA 수심·Z₀ (m). null 가능.
     if (d == null || z0 == null) return null;
-    const refs = _cellAnchorIdx.get(cell.key) || [];
+    const refs = cellAnchors(cell);
     let wsum = 0, vsum = 0;
     for (const { anchor, distKm } of refs) {
         const byMinute = loadAnchorCurve(anchor.id, yyyymmdd);
@@ -629,7 +630,7 @@ router.get('/api/tide-field/debug', (req, res) => {
         if (d < nd) { nd = d; nearest = cell; }
     }
     if (!nearest) return res.json({ success: false, error: '셀 없음' });
-    const refs = _cellAnchorIdx.get(nearest.key) || [];
+    const refs = cellAnchors(nearest);
     const dates = TFC.windowDatesKST(CFG.WINDOW_DAYS);
     const step = CFG.STEP_MINUTES;
 

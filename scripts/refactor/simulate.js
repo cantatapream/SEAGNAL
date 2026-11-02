@@ -100,6 +100,16 @@ if (require.main === module) (async () => {
     console.log(`[simulate] 크로미움: ${exePath || '(playwright 기본 해석에 맡김)'}`);
     const browser = await loadChromium().launch({ ...(exePath ? { executablePath: exePath } : {}), headless: true });
     const page = await browser.newPage({ viewport: { width: 412, height: 915 } }); // 모바일 비율
+    // ⚠브이월드(위성지도) 타일은 투명 그림으로 대신 준다 (2026-10-15).
+    //   위험예측을 켜면 배경이 위성지도로 바뀌는데, 깃허브 CI 에서 api.vworld.kr 이 타일 요청 29건을
+    //   ERR_HTTP2_SERVER_REFUSED_STREAM 으로 거절했다(run 38668118019 — 진단 출력으로 호스트 확인).
+    //   타일 서버가 받아 주는지는 우리 코드의 회귀가 아니고, 실제 사용자 단말이 받는 경로와도 다르다.
+    //   그래서 이 시뮬레이션에서는 바깥 타일 서버에 의존하지 않게 한다. 우리 서버(/api/…)·다른 호스트는 그대로 간다.
+    let vworldStubbed = 0;
+    await page.route(/^https:\/\/api\.vworld\.kr\//, (route) => {
+        vworldStubbed++;
+        route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
+    });
 
     const consoleErrors = [];
     const failed404 = [];
@@ -109,6 +119,14 @@ if (require.main === module) (async () => {
     //   (실제로 이번에 그랬고, 다시 돌리니 안 났다 — 그러면 원인을 영영 모른다).
     //   회귀 판정에는 쓰지 않는다(콘솔 에러 쪽이 이미 잡는다). **진단을 위해 남길 뿐이다.**
     const server5xx = [];
+    // 403의 실제 주소도 남긴다. 브라우저의 공통 문구만으로 원인을 놓치지 않으며 판정은 유지한다.
+    const forbidden403 = [];
+    // 네트워크 단계에서 실패한 요청(net::ERR_…)도 콘솔 문구에는 주소가 없다 — 오류명·호스트만 남긴다(진단용, 판정 불변).
+    //   2026-10-15 CI 에서 ERR_HTTP2_SERVER_REFUSED_STREAM 이 처음 났는데 어느 서버인지 알 길이 없었다.
+    const netFailed = [];
+    page.on('requestfailed', (req) => {
+        try { const u = new URL(req.url()); netFailed.push(((req.failure() || {}).errorText || '?') + ' ' + u.host); } catch (_) { /* URL 이 아닌 요청(data: 등)은 진단 대상이 아니다 */ }
+    });
     page.on('console', (msg) => {
         if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 300));
     });
@@ -155,6 +173,10 @@ if (require.main === module) (async () => {
         } catch (_) { return false; }
     }
     page.on('response', (res) => {
+        if (res.status() === 403) {
+            const resource = new URL(res.url());
+            forbidden403.push(resource.origin + resource.pathname); // 쿼리의 인증 정보는 출력하지 않는다.
+        }
         if (res.status() >= 500 && res.url().startsWith(URL_BASE)) {
             const at = server5xx.length;
             server5xx.push(res.status() + ' ' + res.url().replace(URL_BASE, ''));
@@ -249,6 +271,81 @@ if (require.main === module) (async () => {
     //   짝을 못 찾아 그 시나리오가 조용히 통과 처리된다(검사가 약해진다).
     //   화면상의 이름은 2026-09-10 부터 "해양안전생활" 이다.
     await clickTab('ocean-life-group', '메인탭 재진입:해양생활');
+    // 실제 앱 버튼을 열어 기본 층·닫힌 시트·OFF 상태를 확인한다. 원천 오류 배너는 숨기고 관리자 인증된 이력에서만 조회한다.
+    try {
+        // 2026-10-18 일반 공개 — 미리보기 잠금(10번 누름)을 없앴다: 처음 한 번 누르면 바로 열린다(종전 시나리오 「10회 트리거의 첫9회 비활성」 대체).
+        const lockLook=await page.evaluate(()=>{const b=document.getElementById('ocean-risk-forecast-toggle-btn');return b.getAttribute('aria-disabled')===null&&!b.classList.contains('rf-preview-locked');});
+        await page.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').click());
+        await page.waitForFunction(() => window._riskForecastApp && !document.getElementById('risk-forecast-legend').hidden, null, {timeout:15000});
+        const opensAtOnce=lockLook&&await page.evaluate(()=>document.getElementById('ocean-risk-forecast-toggle-btn').classList.contains('active')&&window._riskForecastApp.getState().enabled);
+        scenarios.push({label:'위험예측:잠금 없이 한 번 눌러 열림',target:'ocean-risk-forecast-toggle-btn',ok:opensAtOnce,required:true});
+        const ok = await page.evaluate(() => {
+            const state=window._riskForecastApp.getState();
+            return state.enabled && state.coast && !state.sea && !state.selected && !document.getElementById('risk-forecast-sheet').classList.contains('open');
+        });
+        if (!ok) throw new Error('기본 층 또는 초기 시트 상태 불일치');
+        // legend는 비동기 자료 준비 전에 표시된다. 시각이 잡혀 위치표가 설치된 뒤 지점을 선택한다.
+        await page.waitForFunction(() => window._riskForecastApp && Number.isFinite(Date.parse(_riskForecastApp.getState().t)), null, {timeout:15000});
+        const backWorks = await page.evaluate(async () => {
+            const points = await fetch('/api/risk-forecast/coast/spots').then(r => r.json());
+            const ids = points.spots.slice(0,2).map(p => p.id);
+            if (ids.length !== 2) return false;
+            const before = _riskForecastApp.getState().t;
+            _riskForecastApp.select('coast', ids);
+            // 2026-10-16: 닫혀 있던 시트는 누른 뒤 약 0.2초 뒤에 올라온다(risk_sheet.js hold) — 열릴 때까지 기다린다(최대 약 3초).
+            const sheetEl = document.getElementById('risk-forecast-sheet');
+            for (let i = 0; i < 60 && !sheetEl.classList.contains('open'); i++) await new Promise(r => setTimeout(r, 50));
+            const opened = sheetEl.classList.contains('open') && PopupStack.list().includes('risk-forecast-sheet');
+            const popped = PopupStack.popLast();
+            return opened && popped && !document.getElementById('risk-forecast-sheet').classList.contains('open') && _riskForecastApp.getState().t === before && !PopupStack.list().includes('risk-forecast-sheet');
+        });
+        scenarios.push({label:'위험예측:뒤로가기 시트 닫기',target:'ocean-risk-forecast-toggle-btn',ok:backWorks,required:true});
+        // 실제 API의 한 연안 지점을 열어 위험지수 카드의 상대 지표 문구를 확인한다.
+        //   2026-10-18 사용자 「빼자.」 — 「사고 배수는 어떻게 합쳤나요?」(.rf-calculation) 아코디언 삭제(같은 방법은 [기준 상세]·PDF). 그 칸이 없어야 한다.
+        await page.evaluate(async () => {
+            const response = await fetch('/api/risk-forecast/coast/spots');
+            if (!response.ok) throw new Error('연안 위치표 응답 실패');
+            const points = await response.json();
+            if (!points.spots.length) throw new Error('연안 위치표 비어 있음');
+            _riskForecastApp.select('coast', points.spots[0].id);
+        });
+        await page.waitForFunction(() => { const s = document.querySelector('#risk-forecast-sheet.open'); return s && !s.hasAttribute('aria-busy') && s.textContent.includes('전체 사고'); }, null, {timeout:15000});
+        const coastExplanation = await page.evaluate(() => {
+            const sheet = document.getElementById('risk-forecast-sheet');
+            const shown = !sheet.querySelector('.rf-calculation') && !sheet.textContent.includes('어떻게 합쳤나요') && /평소 정도로 붐비고|확인된 요소 기준/.test(sheet.textContent);
+            return shown && PopupStack.popLast() && !document.getElementById('risk-forecast-sheet').classList.contains('open');
+        });
+        scenarios.push({label:'연안위험:실제 API 위험지수 카드(합계 설명 아코디언 없음)',target:'risk-forecast-sheet',ok:!!coastExplanation,required:true});
+
+        const privateResponse=await page.request.get(new URL('/api/admin/risk-forecast/errors',page.url()).href);
+        const privateDiagnostics=privateResponse.status()===401 && await page.evaluate(()=>{
+            const banner=document.getElementById('risk-forecast-banner');
+            return banner.hidden && !banner.textContent;
+        });
+        scenarios.push({label:'위험예측:원천오류 관리자 전용',target:'ocean-risk-forecast-toggle-btn',ok:privateDiagnostics,required:true});
+        // 공식 사고 면과 원래 혼잡 격자 층은 자료 결측 때도 서로 독립적으로 켜고 끈다.
+        await page.evaluate(() => document.querySelector('#risk-forecast-legend [data-layer="sea"]').click());
+        await page.waitForFunction(() => {
+            const layers = getOceanMap().getLayers().getArray();
+            return ['rf-marine-canvas'].every(name => layers.some(layer => layer.getClassName() === name && layer.getVisible()));
+        }, null, {timeout:15000});
+        const officialLayers = await page.evaluate(() => {
+            const layers = getOceanMap().getLayers().getArray();
+            const visible = name => layers.some(layer => layer.getClassName() === name && layer.getVisible());
+            const key = document.querySelector('.rf-color-legend [data-accident-legend]');
+            return _riskForecastApp.getState().sea && visible('rf-marine-canvas') && !visible('rf-accident-canvas') && !visible('rf-sea-canvas') && key && !key.hidden && key.textContent.includes('경계');
+        });
+        scenarios.push({label:'위험예측:공식 사고·혼잡 동시층',target:'ocean-risk-forecast-toggle-btn',ok:!!officialLayers,required:true});
+        const terrainStyle=await page.evaluate(()=>{const risk=document.querySelector('#risk-forecast-legend .banzone-legend'),terrain=document.getElementById('terrain-legend');if(!risk||!terrain)return false;const r=getComputedStyle(risk),t=getComputedStyle(terrain),rs=getComputedStyle(risk.querySelector('.bzl-switch')),ts=getComputedStyle(terrain.querySelector('.bzl-switch'));return r.backgroundColor===t.backgroundColor&&r.borderRadius===t.borderRadius&&r.flexDirection==='column'&&rs.display!=='none'&&rs.width===ts.width&&rs.height===ts.height;});
+        scenarios.push({label:'위험예측:위험지형 동일 박스·스위치',target:'ocean-risk-forecast-toggle-btn',ok:terrainStyle,required:true});
+        const marineWired=await page.evaluate(()=>!!window.RiskMarine && !!document.querySelector('.rf-marine-timebar [data-time-step="3"]') && !document.querySelector('#risk-forecast-legend [data-marine-brief]') && getOceanMap().getLayers().getArray().some(l=>l.getClassName()==='rf-marine-canvas'));
+        scenarios.push({label:'해상통합:하단 시각 버튼·브리핑 진입 제거',target:'ocean-risk-forecast-toggle-btn',ok:marineWired,required:true});
+        await page.evaluate(() => document.getElementById('ocean-risk-forecast-toggle-btn').click());
+        const off=await page.evaluate(() => !window._riskForecastApp.getState().enabled && document.getElementById('risk-forecast-legend').hidden && document.getElementById('risk-forecast-banner').hidden && document.querySelector('.rf-marine-timebar').hidden && document.querySelector('.rf-color-legend').hidden);
+        scenarios.push({label:'위험예측:실제앱 기본층·OFF',target:'ocean-risk-forecast-toggle-btn',ok:off,required:true});
+    } catch(e) {
+        scenarios.push({label:'위험예측:실제앱 기본층·OFF',target:'ocean-risk-forecast-toggle-btn',ok:false,required:true,error:String(e).slice(0,150)});
+    }
     for (const t of LIFE_SUBTABS) await clickTab(t, `서브탭:${t}`);
 
     // ★판정 전에 404 본문 읽기를 **다 기다린다**(G-38).
@@ -324,14 +421,14 @@ if (require.main === module) (async () => {
     const lostGlobals = base.globalFunctions.filter((g) => !result.globalFunctions.includes(g));
     const brokenScenarios = result.scenarios.filter((s) => {
         const b = base.scenarios.find((x) => x.label === s.label);
-        return b && b.ok && !s.ok; // 기준선에서 되던 것이 안 되면 회귀
+        return (s.required || (b && b.ok)) && !s.ok; // 새 필수 시나리오도 기준선 등록 전부터 검사
     });
 
     // ★「자료 파일이 없어서 나는 404」는 회귀가 아니다 — 다만 **숨기지는 않는다**(G-34 의 교훈).
     const envMiss = new404.filter((e) => missingData.has(e));
     const real404 = new404.filter((e) => !missingData.has(e));
 
-    // 콘솔 에러 중에도 **환경 탓인 것**이 있다. 두 가지뿐이고, 둘 다 이유가 분명하다.
+    // 콘솔 에러 중에도 **환경 탓인 것**이 있다. 아래 ⓐ~ⓓ 뿐이고, 모두 이유가 분명하다.
     //   ⓐ `… status of 404 (Not Found)` — 위 envMiss 가 브라우저 콘솔에 되비친 것이다.
     //      ⚠진짜 404 가 하나라도 있으면 이 줄이 그것 때문일 수도 있으므로 **빼지 않는다**.
     //   ⓑ `ERR_CERT_AUTHORITY_INVALID` — 개발 컨테이너의 에이전트 프록시 CA 탓이다.
@@ -341,6 +438,10 @@ if (require.main === module) (async () => {
     const envErrRe = [];
     if (envMiss.length && !real404.length) envErrRe.push(/status of 404 \(Not Found\)/i);
     if (behindProxy) envErrRe.push(/ERR_CERT_AUTHORITY_INVALID/i);
+    //   ⓓ `ERR_TUNNEL_CONNECTION_FAILED` — 같은 프록시가 허용 목록 밖 호스트(브이월드·OSM 지도 타일)로의
+    //      터널을 거절한 것이다(2026-10-15 실측: 위험예측이 배경을 위성지도로 바꾸며 api.vworld.kr·
+    //      tile.openstreetmap.org 타일만 이 오류). ⓑ 와 같이 **프록시가 켜져 있을 때만** 뺀다.
+    if (behindProxy) envErrRe.push(/ERR_TUNNEL_CONNECTION_FAILED/i);
     //   ⓒ `status of 5xx` — 그 주행에서 난 5xx 가 **전부** 우리 프로시의 바깥길 끊김일 때만(G-47).
     //      하나라도 그 꼴이 아니면 이 줄이 **그것 때문일 수도** 있으니 빼지 않는다(ⓐ 와 같은 잠금).
     const uniq5xx = [...new Set(server5xx)];
@@ -350,6 +451,7 @@ if (require.main === module) (async () => {
     const realErrors = newErrors.filter((e) => !envErrRe.some((r) => r.test(e)));
 
     console.log(`[simulate] 신규 콘솔에러 ${realErrors.length}(+환경 ${envErrors.length}) · 신규 404 ${real404.length}(+자료부재 ${envMiss.length}) · 사라진 전역함수 ${lostGlobals.length} · 깨진 시나리오 ${brokenScenarios.length}`);
+    if (vworldStubbed) console.log(`  ⏭️  브이월드 위성 타일 ${vworldStubbed}건은 투명 그림으로 대신 줬다(바깥 타일 서버에 의존하지 않음 — 위 page.route 설명)`);
     let fail = false;
     if (envErrors.length) {
         console.log(`  ⏭️  환경 탓인 콘솔 에러 ${envErrors.length}건 — 회귀로 세지 않는다`);
@@ -362,6 +464,15 @@ if (require.main === module) (async () => {
     }
     if (realErrors.length) {
         fail = true; console.error('  ❌ 신규 콘솔 에러:'); realErrors.slice(0, 10).forEach((e) => console.error('    - ' + e));
+        if (realErrors.some((e) => /status of 403\b/.test(e))) {
+            console.error('  ↳ 이번 주행에서 403을 낸 주소(쿼리 제외):');
+            [...new Set(forbidden403)].forEach((url) => console.error('      ' + url));
+        }
+        if (realErrors.some((e) => /net::ERR_/.test(e)) && netFailed.length) {
+            console.error('  ↳ 이번 주행에서 네트워크 단계에서 실패한 요청(오류·호스트, 건수):');
+            const n = new Map(); netFailed.forEach((k) => n.set(k, (n.get(k) || 0) + 1));
+            [...n].slice(0, 10).forEach(([k, c]) => console.error('      ' + k + ' ×' + c));
+        }
         // 콘솔 문구만으로는 어느 주소인지 모른다 — 우리가 따로 적어 둔 5xx 목록을 함께 준다.
         if (server5xx.length) {
             console.error('  ↳ 이번 주행에서 5xx 를 낸 주소:');
@@ -381,7 +492,7 @@ if (require.main === module) (async () => {
             '    - ' + e + '\n        ↳ ' + (notAbsentWhy.get(e) || '본문 읽기가 제한시간(5초) 안에 안 끝났다')));
     }
     if (lostGlobals.length) { fail = true; console.error('  ❌ 사라진 전역 함수:'); lostGlobals.slice(0, 20).forEach((e) => console.error('    - ' + e)); }
-    if (brokenScenarios.length) { fail = true; console.error('  ❌ 깨진 시나리오:'); brokenScenarios.forEach((s) => console.error('    - ' + s.label)); }
+    if (brokenScenarios.length) { fail = true; console.error('  ❌ 깨진 시나리오:'); brokenScenarios.forEach((s) => console.error('    - ' + s.label + (s.error ? ' — ' + s.error : ''))); }
 
     if (fail) process.exit(1);
     console.log('[simulate] ✅ 통과 — 기준선 대비 회귀 없음');

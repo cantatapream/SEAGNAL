@@ -4,7 +4,7 @@
  * 역할: 통합 관리자 시스템 (인증, 대시보드, 특보 관리)
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : admin_collect.js·admin_survey.js·admin_report.js·advisory_manage_admin.js·admin_location_status.js (각 탭 렌더러), push/alert_push.js(특보 알림 모달), admin/pagination_helper.js
+ *  - 사용하는 파일 : admin_collect.js·admin_survey.js·admin_report.js·admin_kakao_relay.js(특보 관리 → 카톡 중계)·admin_location_status.js·admin_data_status.js·admin_station_briefing.js(AI → AI 브리핑) (각 탭 렌더러), push/alert_push.js(특보 알림 모달), admin/pagination_helper.js
  *  - 서버 API      : /api/admin/login·manual-alert(-release)·maintenance*·work-mode·device-status·weather-alerts-json 등 /api/admin/* 다수, /api/assistant/ask, /api/stats/*, /api/push-*
  *  - 마크업        : index2.html 관리자 센터 모달 (#admin-modal, #alert-admin-inner-content, #ait-* 등)
  *  - 나를 쓰는 곳  : admin_trigger.js·notice/board/promo.js(showUnifiedLoginModal 트리거), core/backbutton.js
@@ -57,6 +57,18 @@ const adminAuthenticated = {
 
 const ADMIN_TOKEN_KEY = 'seagnal_admin_token';
 
+/**
+ * 관리자 상태(로그인 토큰·관리자 모드·관리자 기기 등록)가 바뀌었다고 화면에 알린다 — document 에 'seagnal-admin-change' 사건.
+ * 관리자에게만 보이는 화면(활동지점 안전 브리핑 아코디언)이 다음 정기 갱신(10분)을 기다리지 않고 노출 판정을 다시 받게 한다(2026-10-16 2단계 검토 A8).
+ * 예: _notifyAdminChange('logout') → StationBriefing.refresh()
+ * @param {string} reason - 'login'|'logout'|'mode'|'device' (사건 detail 에 실림) @returns {void}
+ * [연계] → forecast/station-briefing/station_briefing.js init(사건을 듣는다)
+ */
+function _notifyAdminChange(reason) {
+    try { document.dispatchEvent(new CustomEvent('seagnal-admin-change', { detail: { reason: reason } })); }
+    catch (e) { console.warn('[admin] 관리자 상태 변경 알림 실패:', e && e.message); }
+}
+
 /** localStorage(영구) > sessionStorage(세션) 순으로 토큰 조회. 없으면 null. */
 function getStoredAdminToken() {
     try {
@@ -82,6 +94,7 @@ function saveAdminToken(token, persist) {
             sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
         }
     } catch (_) { /* private mode 등 — 조용히 무시 */ }
+    _notifyAdminChange('login');
 }
 
 /** 양쪽 저장소에서 토큰 모두 제거 (만료/로그아웃) */
@@ -90,6 +103,7 @@ function clearAdminToken() {
         localStorage.removeItem(ADMIN_TOKEN_KEY);
         sessionStorage.removeItem(ADMIN_TOKEN_KEY);
     } catch (_) { /* 무시 */ }
+    _notifyAdminChange('logout');
 }
 
 /** adminAuthenticated 플래그 4개를 한꺼번에 설정. UI 가드용 */
@@ -292,6 +306,7 @@ window._toggleAdminMode = function (checked) {
         window._atmTestMode = false;
         fetch('/api/admin/test-cleanup', { method: 'POST' }).catch(() => {});
     }
+    _notifyAdminChange('mode');
 };
 
 // ============================================================================
@@ -366,6 +381,7 @@ window._registerAdminDevice = async function () {
         if (data.success) {
             alert(data.alreadyRegistered ? '이미 등록된 기기입니다.' : '관리자 기기 등록 완료!\n수집 오류 발생 시 이 기기로 푸시 알림을 받습니다.');
             _checkAdminDeviceStatus(); // 버튼 상태 갱신
+            _notifyAdminChange('device');
         } else {
             alert('등록 실패: ' + (data.error || '알 수 없는 오류'));
         }
@@ -389,6 +405,7 @@ window._unregisterAdminDevice = async function () {
         if (data.success) {
             alert('관리자 기기 해제 완료');
             _checkAdminDeviceStatus(); // 버튼 상태 갱신
+            _notifyAdminChange('device');
         }
     } catch (e) {
         alert('해제 요청 실패: ' + e.message);
@@ -697,7 +714,10 @@ window.SeagnalDebug = window.SeagnalDebug || (function () {
     };
 })();
 
-// AI 탭 호스트 — [AI 비서] / [테스트] 두 하위탭. 시연 탭과 동일한 하위탭 패턴.
+// AI 탭 호스트 — [AI 비서] / [테스트] / [AI 챗봇] / [AI 브리핑] 하위탭. 시연 탭과 동일한 하위탭 패턴.
+//   「AI 브리핑」(2026-10-16, 설계서 §11.6 결정 16 — U61 「사고 분석·예측」 이름 대체)은 admin_station_briefing.js 가 그린다.
+//   「AI 사고예측(오류현황)」은 2026-10-15 사용자 결정으로 점검 → 데이터 수집현황 아래로 옮겼다
+//   (원문 「빠져서 점검 탭 아래로 가는게 맞음」) — renderDataCollectionTab(admin_data_status.js).
 async function renderUnifiedAiTab(container) {
     var saved = 'assistant';
     try { saved = localStorage.getItem('seagnal_ai_subtab') || 'assistant'; } catch (e) { /* noop */ }
@@ -709,10 +729,10 @@ async function renderUnifiedAiTab(container) {
     container.innerHTML =
         '<div id="ai-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('chatbot', 'AI 챗봇')
+        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('chatbot', 'AI 챗봇') + mkTabBtn('briefing', 'AI 브리핑')
         + '</div>'
         + '<div id="ai-subtab-body"></div>';
-    switchAiSubTab(['test', 'chatbot'].includes(saved) ? saved : 'assistant');
+    switchAiSubTab(['test', 'chatbot', 'briefing'].includes(saved) ? saved : 'assistant');
 }
 
 window.switchAiSubTab = function (which) {
@@ -730,6 +750,12 @@ window.switchAiSubTab = function (which) {
     var _m = document.getElementById('unified-admin-modal');
     if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
     if (which === 'test') renderAiTestSubtab(sub);
+    else if (which === 'briefing') {
+        // [AI 브리핑] 연안 안전 브리핑(종전 「활동지점 안전 브리핑」) — 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만·상태·지금 다시 만들기·관할 미리보기
+        //   (설계서 §11.6 결정 16·17, js/admin/admin_station_briefing.js — /api/admin/station-briefing/*)
+        if (typeof window.renderStationBriefingAdmin === 'function') window.renderStationBriefingAdmin(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">AI 브리핑 모듈(js/admin/admin_station_briefing.js)이 로드되지 않았습니다.</div>';
+    }
     else if (which === 'chatbot') {
         // [AI 챗봇] 나리야 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)
         if (window.NariyaChat && window.NariyaChat.renderAdminInto) window.NariyaChat.renderAdminInto(sub);
@@ -737,6 +763,123 @@ window.switchAiSubTab = function (which) {
     }
     else renderAiAssistantSubtab(sub);
 };
+
+/** 위험예측 자료 원천의 현재 상태와 유한 오류 이력을 조회한다(오류현황).
+ * 예: 점검 → 데이터 수집현황 → 「현재 원천 상태」(view:'current') · 「오류·복구 이력」(view:'history').
+ *     view 를 안 주면 두 구역을 함께 그린다(종전 AI → AI 사고예측 화면과 같음 — 검사가 이 꼴을 본다).
+ *     원천·상태 필터는 서버가 현재 상태와 이력 둘 다에 건다.
+ * 모양은 관리자 화면의 다른 하위탭(AI 비서·서버 로그)과 같은 어두운 카드·배지·버튼 꼴을 따른다.
+ * @param {HTMLElement} container @param {{view?:'current'|'history'}} [opts] @returns {void}
+ * [연계] ← admin_data_status.js renderDataCollectionTab(점검 탭, 2026-10-15 이전 위치는 AI 탭)
+ *        → 기존 관리자 fetch 토큰 래퍼 → /api/admin/risk-forecast/errors (routes/risk_errors.js →
+ *        services/risk_error_history.list) · 검사 test_risk_errors_ui / test_risk_errors_filter_ui / test_data_collection_ui
+ */
+function renderAiForecastSubtab(container, opts) {
+    const view = opts && (opts.view === 'current' || opts.view === 'history') ? opts.view : null;
+    const names = {warnings:'특보',gale:'육상 강풍',zoneForecasts:'해구별 기상예보',swell:'너울',ripCurrent:'이안류',congestion:'선박 혼잡',accident:'공식 선박사고 예보',tourConcentration:'관광지 집중률',events:'행사',realtime:'실시간 선박 교통',visibility:'해구별 시정 예측',stationBriefing:'연안 안전 브리핑'};
+    // partial(일부 실패): 자료는 저장·사용 중이지만 일부가 빠졌다 — 예: 행사 수집의 Gemini·카카오·공식 목록 중 일부 실패(2026-10-15). 분류는 원인별 이름(예: 행사 일부 실패 — 카카오).
+    const statuses = {ok:'정상',offseason:'비운영 기간',partial:'일부 실패',error:'수집 실패',stale:'자료 오래됨',missing:'자료 없음'};
+    // recovered 사건인데 상태가 offseason 이면 「복구」가 아니라 더 수집하지 않게 되어 닫힌 것이다(예: 지난 달 행사 — risk_error_history 3차 검토 F2).
+    const phases = {opened:'문제 발생',changed:'문제 변경',recovered:'복구'},
+        phaseName = r => r.phase === 'recovered' && r.status === 'offseason' ? '수집 종료' : phases[r.phase];
+    // 상태 배지 색 — 관리자 화면에서 이미 쓰는 값(정상 #34d399·경고 #fbbf24·에러 #f87171·보조 #94a3b8·강조 #22d3ee) + 일부 실패 주황 #fb923c
+    const tones = {ok:'52,211,153',stale:'251,191,36',partial:'251,146,60',error:'248,113,113',missing:'148,163,184',offseason:'34,211,238'};
+    const esc = value => String(value == null ? '—' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const at = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('ko-KR', {timeZone:'Asia/Seoul', hour12:false}) + ' KST' : '—';
+    const selectStyle = 'width:100%;padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0f1b33;color:#fff;font-size:0.8rem;box-sizing:border-box;';
+    const labelStyle = 'display:block;color:#64748b;font-size:0.72rem;margin-bottom:3px;';
+    const boxStyle = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;';
+    const pageBtnStyle = 'padding:6px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#e2e8f0;font-size:0.78rem;font-weight:600;cursor:pointer;';
+    const options = (keys, labels) => '<option value="">전체</option>' + keys.map(k => '<option value="' + k + '">' + labels[k] + '</option>').join('');
+    container.innerHTML =
+        '<div>'
+        + '<div class="admin-section-title"><span><i class="fa-solid fa-triangle-exclamation" style="color:#22d3ee;"></i> ' + (view === 'current' ? '현재 원천 상태' : view === 'history' ? '오류·복구 이력' : '오류현황') + '</span></div>'
+        + '<div style="color:#94a3b8;font-size:0.8rem;margin-bottom:10px;line-height:1.5;">' + (view === 'current'
+            ? '위험예측 자료 원천마다 지금 상태입니다(1분마다 확인). 원천·상태로 거를 수 있습니다.'
+            : view === 'history'
+            ? '위험예측 자료의 수집 실패·누락·오래됨과 복구 내역입니다. 같은 문제가 반복되면 한 건으로 유지합니다.'
+            : '자료 수집·누락·오래됨과 복구 내역입니다. 같은 문제가 반복되면 한 건으로 유지합니다. 원천·상태를 고르면 <b>현재 원천 상태</b>와 <b>오류·복구 이력</b>이 함께 걸러집니다.') + '</div>'
+        + '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">'
+        +   '<div style="flex:1 1 140px;min-width:0;"><label style="' + labelStyle + '">원천<select data-risk-source style="' + selectStyle + 'margin-top:3px;">' + options(Object.keys(names), names) + '</select></label></div>'
+        +   '<div style="flex:1 1 120px;min-width:0;"><label style="' + labelStyle + '">상태<select data-risk-status style="' + selectStyle + 'margin-top:3px;">' + options(['error','partial','stale','missing','ok','offseason'], statuses) + '</select></label></div>'
+        +   '<button type="button" data-risk-refresh style="padding:8px 14px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-size:0.8rem;font-weight:700;cursor:pointer;"><i class="fa-solid fa-rotate-right"></i> 새로고침</button>'
+        + '</div>'
+        + '<div data-risk-history aria-live="polite"></div><div data-risk-pagination style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;color:#94a3b8;font-size:0.8rem;"></div></div>';
+    const host = container.firstElementChild, body = host.querySelector('[data-risk-history]'), pager = host.querySelector('[data-risk-pagination]');
+    let page = 1, request = 0;
+    /** 상태 한 칸 배지. 예: error → 빨간 「수집 실패」. data-risk-badge 는 검사가 색을 읽는 자리. */
+    const badge = status => {
+        const tone = tones[status] || tones.missing;
+        return '<span data-risk-badge="' + esc(status) + '" style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:700;white-space:nowrap;'
+            + 'background:rgba(' + tone + ',0.15);color:rgb(' + tone + ');border:1px solid rgba(' + tone + ',0.3);">' + esc(statuses[status] || status) + '</span>';
+    };
+    /** 「이름 칸 · 값」 줄 모음. 값이 없는 줄은 뺀다. 분류가 상태와 같으면(stale·missing) 겹치므로 생략. */
+    const lines = pairs => '<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 10px;margin-top:8px;font-size:0.78rem;line-height:1.45;">'
+        + pairs.filter(p => p[1]).map(p => '<span style="color:#64748b;white-space:nowrap;">' + p[0] + '</span><span style="color:#cbd5e1;overflow-wrap:anywhere;">' + esc(p[1]) + '</span>').join('') + '</div>';
+    const code = r => r.code && r.code !== r.status ? r.code : null;
+    /** 카드 한 장 — 왼쪽 띠 색으로 상태를 한눈에. */
+    const card = (r, chips, pairs, mark) => {
+        const tone = tones[r.status] || tones.missing;
+        return '<div ' + mark + ' style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.06);border-left:3px solid rgb(' + tone + ');border-radius:8px;padding:10px 12px;margin-top:8px;">'
+            + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
+            + '<span style="color:#e2e8f0;font-weight:700;font-size:0.88rem;">' + esc(names[r.source]) + (r.scope !== 'global' ? ' <span style="color:#94a3b8;font-weight:600;">' + esc(r.scope) + '</span>' : '') + '</span>'
+            + '<span style="display:flex;gap:6px;flex-wrap:wrap;">' + chips + '</span></div>' + lines(pairs) + '</div>';
+    };
+    const section = (title, count, inner) => '<div style="' + boxStyle + '"><div style="font-size:0.85rem;color:#94a3b8;">' + title + ' <span style="color:#64748b;">(' + count + ')</span></div>' + inner + '</div>';
+    const empty = text => '<div style="color:#64748b;font-size:0.8rem;padding:10px 0 2px;">' + text + '</div>';
+    async function load() {
+        const n = ++request;
+        body.innerHTML = '<div style="color:#64748b;font-size:0.8rem;padding:6px 0;">오류현황을 불러오는 중입니다.</div>';
+        pager.replaceChildren();
+        const params = new URLSearchParams({page: String(page), limit: '30'});
+        let filtered = false;
+        for (const key of ['source', 'status']) {
+            const value = host.querySelector('[data-risk-' + key + ']').value;
+            if (value) { params.set(key, value); filtered = true; }
+        }
+        try {
+            const response = await fetch('/api/admin/risk-forecast/errors?' + params.toString());
+            if (!response.ok) throw Error('unavailable');
+            const result = await response.json();
+            if (n !== request || !host.isConnected || !container.contains(host)) return;
+            const current = result.current || [], rows = result.data || [], p = result.pagination;
+            const currentHtml = '<div data-risk-current>' + section('<i class="fa-solid fa-signal"></i> 현재 원천 상태', current.length,
+                    current.length ? current.map(r => card(r, badge(r.status), [
+                        ['마지막 정상 수집', at(r.lastSuccess || r.updatedAt)],
+                        ['최신화 확인', r.checkedAt && at(r.checkedAt)],
+                        ['분류', code(r)],
+                        ['상세', r.detail],
+                    ], 'data-risk-card')).join('')
+                    : empty(filtered ? '조건에 맞는 원천이 없습니다.' : '아직 기록된 원천 상태가 없습니다.')) + '</div>';
+            const historyHtml = section('<i class="fa-solid fa-clock-rotate-left"></i> 오류·복구 이력', p.total,
+                    rows.length ? rows.map(r => card(r,
+                        '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;white-space:nowrap;background:rgba(255,255,255,.06);color:#cbd5e1;">' + esc(phaseName(r)) + '</span>' + badge(r.status), [
+                        ['기록 시각', at(r.lastAt)],
+                        ['최초 감지', at(r.firstAt)],
+                        ['분류', code(r)],
+                        ['상세', r.detail],
+                    ], 'data-risk-row')).join('')
+                    : empty('기록된 이력이 없습니다.'));
+            body.innerHTML =
+                '<div style="color:#64748b;font-size:0.75rem;margin-bottom:8px;">최종 상태 확인 ' + esc(at(result.observedAt)) + '</div>'
+                + (view === 'history' ? '' : currentHtml) + (view === 'current' ? '' : historyHtml);
+            page = p.page;
+            if (view === 'current') return; // 현재 상태만 보는 화면에는 이력 쪽 넘김이 없다
+            pager.innerHTML = '<button type="button" data-risk-prev style="' + pageBtnStyle + (page <= 1 ? 'opacity:.4;cursor:default;' : '') + '" ' + (page <= 1 ? 'disabled' : '') + '>이전</button>'
+                + '<span>' + page + ' / ' + p.totalPages + ' · ' + p.total + '건</span>'
+                + '<button type="button" data-risk-next style="' + pageBtnStyle + (page >= p.totalPages ? 'opacity:.4;cursor:default;' : '') + '" ' + (page >= p.totalPages ? 'disabled' : '') + '>다음</button>';
+            pager.querySelector('[data-risk-prev]').onclick = () => { page--; load(); };
+            pager.querySelector('[data-risk-next]').onclick = () => { page++; load(); };
+        } catch (_) {
+            console.warn('[관리자] 사고예측 오류현황 조회 실패');
+            if (n === request && host.isConnected && container.contains(host))
+                body.innerHTML = '<div style="padding:12px;border-radius:8px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);color:#fca5a5;font-size:0.82rem;">오류현황을 불러오지 못했습니다. 새로고침으로 다시 시도해주세요.</div>';
+        }
+    }
+    host.querySelector('[data-risk-refresh]').onclick = load;
+    for (const key of ['source', 'status']) host.querySelector('[data-risk-' + key + ']').onchange = () => { page = 1; load(); };
+    load();
+}
 
 // AI 비서 하위탭 — Gemini 호출량 + 권한 + 음성 토글(+현재 엔진) + 테스트 호출 + 대화 내역.
 async function renderAiAssistantSubtab(container) {
@@ -3856,7 +3999,8 @@ async function renderUnifiedAlertContent(container) {
 
     const topTabs = [
         { id: 'alert-manage', name: '실시간 특보 알림 관리', icon: 'fa-tower-broadcast' },
-        { id: 'advisory-pred', name: '특보 예측',            icon: 'fa-wand-magic-sparkles' },
+        // 옛 「특보 예측」 자리(2026-11-03 삭제) — 카톡 특보중계 기록·기기 관리(admin_kakao_relay.js)
+        { id: 'kakao-relay',  name: '카톡 중계',              icon: 'fa-comment-dots' },
         { id: 'ledger-view',  name: '장부',                   icon: 'fa-book' },
         { id: 'error-log',    name: '오류 로그',              icon: 'fa-triangle-exclamation' },
         { id: 'manual-edit',  name: '특보 수정',              icon: 'fa-pen-to-square' }
@@ -3892,9 +4036,9 @@ async function renderUnifiedAlertContent(container) {
 
         if (topTabId === 'alert-manage') {
             renderAlertManageSubTab(topContent);
-        } else if (topTabId === 'advisory-pred') {
-            if (typeof window.renderAdvisoryDisplayManageTab === 'function') window.renderAdvisoryDisplayManageTab(topContent);
-            else topContent.innerHTML = '<div style="padding:16px;color:#888">특보 예측 관리 모듈 로드 실패(advisory_manage_admin.js).</div>';
+        } else if (topTabId === 'kakao-relay') {
+            if (typeof window.renderKakaoRelayAdminTab === 'function') window.renderKakaoRelayAdminTab(topContent);
+            else topContent.innerHTML = '<div style="padding:16px;color:#888">카톡 중계 모듈 로드 실패(admin_kakao_relay.js).</div>';
         } else if (topTabId === 'ledger-view') {
             renderLedgerViewTab(topContent);
         } else if (topTabId === 'error-log') {
@@ -4375,7 +4519,8 @@ function renderCollectTestSubTab(container) {
 }
 
 // ============================================================================
-// (G) 점검 모드 관리 탭 렌더링 (하위 탭: 점검 모드 / 운영 병행 모드)
+// (G) 점검 모드 관리 탭 렌더링 (하위 탭: 점검 모드 / 운영 병행 모드 / 서버로그 / 데이터 수집현황)
+//   데이터 수집현황(2026-10-15) — 수집 목록·현재 원천 상태·오류·복구 이력. 본체는 admin_data_status.js.
 // ============================================================================
 async function renderUnifiedMaintenanceContent(container) {
     container.innerHTML = `
@@ -4393,6 +4538,9 @@ async function renderUnifiedMaintenanceContent(container) {
             <button id="maint-subtab-log" onclick="switchMaintenanceSubTab('log')" style="flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
                 <i class="fa-solid fa-file-lines"></i> 서버로그
             </button>
+            <button id="maint-subtab-data" onclick="switchMaintenanceSubTab('data')" style="flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
+                <i class="fa-solid fa-database"></i> 데이터 수집현황
+            </button>
         </div>
         <div id="maint-subtab-body"></div>
     `;
@@ -4404,6 +4552,7 @@ window.switchMaintenanceSubTab = function (tab) {
     const fullBtn = document.getElementById('maint-subtab-full');
     const workBtn = document.getElementById('maint-subtab-work');
     const logBtn = document.getElementById('maint-subtab-log');
+    const dataBtn = document.getElementById('maint-subtab-data');
     const body = document.getElementById('maint-subtab-body');
     if (!body) return;
 
@@ -4413,6 +4562,7 @@ window.switchMaintenanceSubTab = function (tab) {
     if (fullBtn) fullBtn.style.cssText = inactiveStyle;
     if (workBtn) workBtn.style.cssText = inactiveStyle;
     if (logBtn) logBtn.style.cssText = inactiveStyle;
+    if (dataBtn) dataBtn.style.cssText = inactiveStyle;
 
     if (tab === 'full') {
         if (fullBtn) fullBtn.style.cssText = activeStyle;
@@ -4420,6 +4570,10 @@ window.switchMaintenanceSubTab = function (tab) {
     } else if (tab === 'log') {
         if (logBtn) logBtn.style.cssText = activeStyle;
         renderServerLogTab(body);
+    } else if (tab === 'data') {
+        if (dataBtn) dataBtn.style.cssText = activeStyle;
+        if (typeof window.renderDataCollectionTab === 'function') window.renderDataCollectionTab(body);
+        else body.innerHTML = '<div style="padding:20px;color:#fca5a5;">데이터 수집현황 모듈(js/admin/admin_data_status.js)이 로드되지 않았습니다.</div>';
     } else {
         if (workBtn) workBtn.style.cssText = activeStyle;
         renderMaintenanceWorkTab(body);
@@ -4611,7 +4765,7 @@ async function renderMaintenanceFullTab(container) {
             { id: 'weather-alert-tab', label: '특보 및 전망', children: [
                 { id: 'report-btn', label: '오류 제보 버튼' },
                 { id: 'marine-forecast', label: '기상청 해상 기상 전망' },
-                { id: 'advisory-prediction', label: '특보 예측' },
+                { id: 'station-briefing', label: '연안 안전 브리핑' },
                 { id: 'weather-alert', label: '해역별 특보현황', linked: ['ov-warn-zone'] },
                 { id: 'weather-buoy', label: '해역별 기상현황', linked: ['ov-buoy'], children: [
                     { id: 'status-forecast', label: '기상예보 버튼' },

@@ -231,8 +231,10 @@ function loadZoneFeatures() {
         if (f.properties.level !== 2 || f.properties.ground !== 'local') continue;
         const name = f.properties.regKo || f.properties.regko;
         if (!name || NEW_JEJU_NAMES.includes(name)) continue; // 신 제주 10구역 이름은 옛 이름으로 대체(아래)
+        // [2026-10-10] 짧은 이름(regko, 예 '거제')도 함께 보관 — 통보문 구간은 짧은 이름으로 쌓인 것이 많다(아래 zoneKeys 참고)
+        const alt = f.properties.regko && f.properties.regko !== name ? f.properties.regko : null;
         try {
-            landFeatures.push({ name, geom: turf.feature(f.geometry), bbox: turf.bbox(f), line: turf.polygonToLine(f.geometry) });
+            landFeatures.push({ name, alt, geom: turf.feature(f.geometry), bbox: turf.bbox(f), line: turf.polygonToLine(f.geometry) });
         } catch (e) { /* 지오메트리 이상 — skip */ }
     }
     for (const f of jejuOld.features) {
@@ -273,8 +275,9 @@ function makeZoneFinders(seaFeatures, landFeatures) {
                 if (turf.booleanPointInPolygon(pt, f.geom)) d = 0;
                 else d = turf.nearestPointOnLine(f.line, pt).properties.dist; // km
             } catch (e) { continue; }
-            if (d < bestDist) { bestDist = d; best = name; }
+            if (d < bestDist) { bestDist = d; best = f.alt ? [name, f.alt] : name; }
         }
+        // 반환: 이름 하나(문자열) 또는 [긴 이름, 짧은 이름] — levelOnDay 가 둘 다 찾는다
         return (best != null && bestDist <= NEAR_LAND_KM) ? best : null;
     }
     return { findSeaZone, findNearLand };
@@ -287,20 +290,58 @@ function ymdToDash(ymd) { return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.sl
 function hmToPadded(hm) { const [h, m] = String(hm).split(':'); return h.padStart(2, '0') + ':' + (m || '00').padStart(2, '0'); }
 
 function makeFlagComputers(intervals, findSeaZone, findNearLand) {
+    // [2026-10-10, 사용자 지시 "기존 특보구역 명을 변경하는것이 아닌 그 데이터도 받아올 수 있도록 넓히라"]
+    // 구간 키의 구역 이름은 통보문 표기 그대로 둔다. 대신 찾을 때 표기 차이를 넓게 받는다.
+    //  ① 해상: 통보문 키는 '인천·경기남부앞바다'(가운뎃점), 사고 위치 판정은 '인천경기남부앞바다'(정규화) —
+    //     공백·가운뎃점·마침표를 지운 이름이 같으면 같은 구역으로 본다.
+    //  ② 육상(강풍): 통보문 키는 '거제'(짧은 이름)와 '거제시'(긴 이름), '속초평지', '부산'(부산중부의 상위) 등이
+    //     섞여 있다 — findNearLand 가 돌려준 두 이름(긴·짧은) 각각에서 앱 사고정보 탭의 특보 일수 계산과
+    //     **같은 후보 규칙**(client/js/marine-life/safety/accident_info.js warnZoneNameCandidates)으로
+    //     후보 이름을 만들어, 구간 자료에 있는 후보 **전부의 구간을 합집합**한다(앱과 같은 방식).
+    // 같은 구역의 여러 표기 구간을 합쳐서 보므로, 원래 맞던 구역의 결과는 바뀌지 않는다(추가만 됨).
+    const normZone = z => String(z).replace(/[\s·.]/g, '');
+    const byNorm = {};   // 정규화 이름|종류|레벨 -> [{start,end}] (표기가 다른 키를 모두 합침)
+    for (const [k, arr] of Object.entries(intervals)) {
+        const [z, t, l] = k.split('|');
+        const nk = normZone(z) + '|' + t + '|' + l;
+        (byNorm[nk] || (byNorm[nk] = [])).push(...arr);
+    }
+    // 앱 accident_info.js warnZoneNameCandidates 와 같은 규칙(상위 구역 parents 후보만 빠짐 — 이 스크립트의
+    // 육상 구역 파일에는 parents 가 없다). 규칙을 바꾸면 두 곳을 같이 바꿀 것.
+    const DIR_SUFFIX = /(중부|서부|동부|남부|북부|영종|도서)$/;
+    function landCandidates(name) {
+        const out = [];
+        const push = v => { if (v && !out.includes(v)) out.push(v); };
+        const n = normZone(name); push(n);
+        const noTag = n.replace(/__.*$/, ''); push(noTag);
+        const noParen = noTag.replace(/\(.*?\)/g, ''); push(noParen);
+        [noTag, noParen].forEach(b => {
+            push(b.replace(/(시|군|구)(?=(평지|산지)?$)/, ''));
+            push(b.replace(/(시|군|구)/g, ''));
+            const base = b.replace(DIR_SUFFIX, ''); push(base); push(base.replace(/(시|군|구)$/, ''));
+            push(b + '평지'); push(b.replace(/(시|군|구)$/, '') + '평지');
+            const tail = b.match(/(평지|산지)$/);
+            if (tail) { const head = b.slice(0, -tail[0].length); ['시', '군', '구'].forEach(u => push(head + u + tail[0])); }
+        });
+        return out;
+    }
+    // 해상(문자열)은 정규화 이름만, 육상(findNearLand 가 준 [긴 이름, 짧은 이름] 또는 이름)은 후보 규칙까지 넓힌다.
+    const zoneKeys = (zone, wide) => [...new Set((Array.isArray(zone) ? zone : [zone]).flatMap(z => wide ? landCandidates(z) : [normZone(z)]))];
+    const ivs = (zone, type, level) => zoneKeys(zone, type === 'GW').flatMap(z => byNorm[z + '|' + type + '|' + level] || []);
     // 두 레벨 구간의 합집합이 예전 단일 구간과 같으므로(위 buildIntervals 주석 참고),
     // "발효중이었는지"(레벨 무관)는 두 레벨 중 하나라도 걸리면 true — 기존 flags 산출과 동일.
     function levelAt(zone, type, exactTime) {
         for (const level of ['경보', '주의보']) {
-            const arr = intervals[zone + '|' + type + '|' + level];
-            if (arr && arr.some(iv => exactTime >= iv.start && exactTime < iv.end)) return level;
+            const arr = ivs(zone, type, level);
+            if (arr.some(iv => exactTime >= iv.start && exactTime < iv.end)) return level;
         }
         return null;
     }
     function levelOnDay(zone, type, dateDash) {
         const dayStart = dateDash + ' 00:00', dayEnd = dateDash + ' 23:59';
         for (const level of ['경보', '주의보']) {
-            const arr = intervals[zone + '|' + type + '|' + level];
-            if (arr && arr.some(iv => iv.start <= dayEnd && iv.end >= dayStart)) return level;
+            const arr = ivs(zone, type, level);
+            if (arr.some(iv => iv.start <= dayEnd && iv.end >= dayStart)) return level;
         }
         return null;
     }

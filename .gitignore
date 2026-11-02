@@ -81,6 +81,12 @@ local_server/data/child_bulletin_state.json.tmp
 # 이미지에 같은 경로 파일을 넣어도 볼륨 마운트에 가려지므로 추적하지 않는다.
 local_server/data/nariya_config.json
 local_server/data/nariya_config.json.tmp
+# 답변 AI 사슬 소진·ChatGPT 쉼 상태(services/llm_chain.js) — 런타임 상태(볼륨). 2026-11-02
+local_server/data/llm_chain_state.json
+local_server/data/llm_chain_state.json.tmp
+# 나리야 질문 수 날짜별 집계(services/legal_ask_stats.js) — 런타임 누적(볼륨, 숫자만). 2026-11-02
+local_server/data/legal_ask_stats.json
+local_server/data/legal_ask_stats.json.tmp
 
 # 태풍 통보문/예보 캐시 (typhoon_crawler.js 가 런타임 생성, Fly.io Volume에 저장)
 # 스케줄러가 부팅 시 재생성하므로 추적 제외
@@ -137,6 +143,9 @@ local_server/data/regional_forecast.json
 local_server/data/tidebed_config.json
 local_server/data/weather_alerts.json
 local_server/data/zone_forecasts.json
+local_server/data/zone_forecasts_status.json
+local_server/data/vsby_check_state.json
+local_server/data/collect_fail_alert.json
 local_server/data/forecast_cache/
 local_server/data/khoa_stream_cache.json.gz
 local_server/data/tide_usage.json
@@ -226,3 +235,18 @@ googla_cloud_api_backup_bot_key/
 # 변환 결과(client/accident_*.json)만 커밋한다. 재생성 시 이 폴더에 CSV를 두고
 # node scripts/build_accidents.js 실행.
 local_server/scripts/_accident_raw/
+# 강풍(W) 별도 저장 — 실행 중 생기는 자료(services/gale_warning_store.js)
+local_server/data/gale_warnings.json
+local_server/data/gale_warnings_log.jsonl
+
+# 위험지수 산출 근거 보고서 — 생성물(원고 .md 에서 40_public_report_pdf.js 로 다시 만듦). 확정본은 앱 배포 위치에 따로 둔다
+local_server/config/coastal_safety/accident_analysis/v3/public/*.html
+local_server/config/coastal_safety/accident_analysis/v3/public/*.pdf
+
+# 위험예측 수집 캐시·호출 장부는 런타임 데이터이며 배포하지 않는다
+local_server/data/risk_forecast/
+# 기상청 해수욕장 단기예보·수온 보관(services/beach_weather_collector.js — 운영 수집 런타임 데이터)
+local_server/data/beach_weather/
+# 앱에서 다운로드할 확정 보고서 두 개는 원고와 함께 배포한다
+!local_server/config/coastal_safety/accident_analysis/v3/public/해상_위험지수_산출근거.pdf
+!local_server/config/coastal_safety/accident_analysis/v3/public/연안_위험지수_산출근거.pdf

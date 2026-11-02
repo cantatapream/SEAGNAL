@@ -9,6 +9,11 @@
 |--------------|---------|
 | 🗺️ **구조가 궁금하다** — 폴더가 어떻게 짜여 있고 각 파일이 뭘 하는지 | **[ARCHITECTURE.md](ARCHITECTURE.md)** (설계도면) |
 | 🛠️ **코드를 추가·수정하려 한다** | **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** (개발지침) — 작업 전 필독 |
+| 🌊 위험예측 화면·계산·수집 구조를 확인한다 | [위험예측 개발 안내](client/js/marine-life/risk-forecast/guide.md) |
+| 🌊 위험예측 검증 결과와 남은 실수집 조건을 확인한다 | [위험예측 검증 기록](client/js/marine-life/risk-forecast/validation.md) |
+| 🧠 Fly 메모리 장애·조류 캐시 삭제 정책과 다음 확인사항 | [서버 메모리 인계](handoff_server_memory.md) |
+| 🌊 물빠짐 첫 로딩의 앵커 연결 지연 계산 | [물빠짐 메모리 인계](handoff_tide_field_memory.md) |
+| 🔗 관리자 오류현황·혼잡예보·물빠짐 세 변경 통합 | [통합 인계](handoff_combined_risk_1377_1379.md) |
 | 📐 왜 이렇게 정리했나 (리팩토링 배경) | [00_docs/REFACTORING_PROPOSAL_STRUCTURE.md](00_docs/REFACTORING_PROPOSAL_STRUCTURE.md) |
 
 ## 빠른 실행
@@ -36,3 +41,5 @@ docs/ · 00_docs/   문서
 ```
 
 > 서비스 계정 키는 `secrets/` 에 두며 git 에 올리지 않습니다. 새 환경에서는 수동 배치 필요.
+
+해상 위험예측 후속 화면은10회 클릭 진입·하단3시간 시각 버튼·배타적 표시 항목과 지도 렌더링 최적화를 사용한다. 세부 계약과 Fly 메모리 조사 구분은 [인계 문서](handoff_marine_fusion.md) 및 [해상 설계](client/js/marine-life/risk-forecast/marine_fusion.design.md)를 참고한다.

@@ -93,21 +93,20 @@ function buildTyphoonWakeMessage(sig) {
     };
 }
 
-// ── 기본 전송: firebase-admin 데이터 메시지(멀티캐스트). firebase 미구성/실패는 흡수. ──
+// ── 기본 전송: firebase-admin 데이터 메시지(멀티캐스트, 토큰 ≤500개씩). firebase 미구성/실패는 흡수. ──
+//   [2026-10-15] 500개 초과면 SDK 가 예외를 던져 전원이 못 받던 것을 fcm_multicast_chunked 로 분할.
+//   항상 숫자 successCount 를 돌려준다(미구성·예외 = 0). 로그는 dispatchTyphoon 의 요약 1줄로.
 async function _defaultSendFn(tokens, message) {
     try {
         const { getAdmin } = require('./firebase_admin_lazy');
         const admin = getAdmin();
-        if (!admin || !admin.apps || admin.apps.length === 0) return { ok: false, reason: 'no_admin' };
-        const res = await admin.messaging().sendEachForMulticast({
-            tokens,
-            data: message.data,
-            android: message.android,
-        });
-        return { ok: true, successCount: res.successCount, failureCount: res.failureCount };
+        if (!admin || !admin.apps || admin.apps.length === 0) {
+            return { ok: false, reason: 'no_admin', successCount: 0, failureCount: 0, errorCodes: {} };
+        }
+        return await require('./fcm_multicast_chunked').sendMulticastChunked(admin.messaging(), tokens, message);
     } catch (e) {
         console.error('[TyphoonRadiusDispatch] send 실패:', e && e.message);
-        return { ok: false, reason: e && e.message };
+        return { ok: false, reason: e && e.message, successCount: 0, failureCount: tokens.length, errorCodes: { send_threw: tokens.length } };
     }
 }
 
@@ -136,6 +135,8 @@ function recordHistory(summary, count) {
 }
 
 // ── 상태(직전 dedupKey) 파일 ───────────────────────────────────────────────
+// 성공 0으로 끝난 dedupKey(프로세스 메모리) — 같은 키 재시도 실패 시 0건 이력 중복 방지용. 재시작 시 비워진다.
+let _lastFailedKey = null;
 function _readLastKey() {
     try { return (JSON.parse(fs.readFileSync(_SIG_FILE, 'utf8')) || {}).key || ''; } catch (_) { return ''; }
 }
@@ -165,8 +166,10 @@ function _summaryOf(typhoons, slot) {
  *           그 dedupKey 가 직전 방송 키(상태파일)와 다르면 → 방송 1회.
  * @param {object} typhoonJson data/typhoon.json 파싱 객체
  * @param {object} opts { sendFn, getConsents, now, record, lastKey } (테스트 주입용)
- *   - lastKey: 직전 dedupKey 를 주입(테스트). 미지정 시 상태파일에서 읽고, 방송 성공 시 파일에 기록.
- * @returns {Promise<{sent, slot, dedupKey, reason}>}
+ *   - lastKey: 직전 dedupKey 를 주입(테스트). 미지정 시 상태파일에서 읽고, 방송 성공(성공 ≥1) 시 파일에 기록.
+ *   - writeLastKey / recordHistory: 테스트 주입용(상태파일·이력 파일 대신 호출).
+ * @returns {Promise<{sent, targets, failed, slot, dedupKey, reason}>} sent = 실제 성공 수(2026-10-15, 종전: 대상 수),
+ *   reason 'send_failed' = 대상은 있었으나 성공 0(키 미저장 → 다음 주기 재시도).
  */
 async function dispatchTyphoon(typhoonJson, opts = {}) {
     const typhoons = _activeTyphoons(typhoonJson);
@@ -203,16 +206,34 @@ async function dispatchTyphoon(typhoonJson, opts = {}) {
     const sendFn = opts.sendFn || _defaultSendFn;
     const message = buildTyphoonWakeMessage(triggerKey);
     const result = await sendFn(tokens, message);
+    // [2026-10-15] 실제 성공 수만 센다 — 숫자 successCount 가 없으면(예외·미구성) 0.
+    const successCount = (result && Number.isFinite(result.successCount)) ? result.successCount : 0;
+    const failureCount = (result && Number.isFinite(result.failureCount)) ? result.failureCount : (tokens.length - successCount);
+    try {
+        const line = '[TyphoonRadiusDispatch] 발송 결과(' + triggerKey + ') — '
+            + require('./fcm_multicast_chunked').formatSendSummary(tokens.length, result)
+            + (successCount > 0 ? '' : ' · 성공 0 → 키 미저장, 다음 주기에 재시도');
+        if (successCount > 0) console.log(line); else console.warn(line);
+    } catch (_) { /* 로그 문자열 조립 실패는 발송 결과에 영향 없다 */ }
 
-    // 방송 성공 시에만 dedupKey 갱신(상태파일). 테스트가 lastKey 를 주입했으면 파일은 건드리지 않는다.
-    if (opts.lastKey == null) _writeLastKey(triggerKey);
+    // 방송이 1건 이상 성공했을 때만 dedupKey 갱신(상태파일). 성공 0이면 저장하지 않아 다음 주기
+    //   (스케줄러 10분)에 같은 슬롯으로 다시 보낸다. [2026-10-15 — 종전엔 결과와 무관하게 저장했다]
+    //   opts.writeLastKey 는 테스트 주입용. 테스트가 lastKey 만 주입했으면 파일은 건드리지 않는다.
+    if (successCount > 0) {
+        if (opts.writeLastKey) opts.writeLastKey(triggerKey);
+        else if (opts.lastKey == null) _writeLastKey(triggerKey);
+        _lastFailedKey = null;
+    }
+    // 같은 키로 연속 실패하면 0건 이력은 첫 번만 남긴다(10분마다 0건 이력이 쌓이지 않게).
+    const recordThis = successCount > 0 || triggerKey !== _lastFailedKey;
+    if (successCount === 0) _lastFailedKey = triggerKey;
 
-    if (opts.record !== false) {
-        const count = (result && Number.isFinite(result.successCount)) ? result.successCount : tokens.length;
-        recordHistory(_summaryOf(typhoons, triggerSlot), count);
+    if (opts.record !== false && recordThis) {
+        (opts.recordHistory || recordHistory)(_summaryOf(typhoons, triggerSlot), successCount);
     }
 
-    return { sent: tokens.length, slot: triggerSlot, dedupKey: triggerKey, reason: 'sent', result };
+    return { sent: successCount, targets: tokens.length, failed: failureCount, slot: triggerSlot, dedupKey: triggerKey,
+        reason: successCount > 0 ? 'sent' : 'send_failed', result };
 }
 
 /**
