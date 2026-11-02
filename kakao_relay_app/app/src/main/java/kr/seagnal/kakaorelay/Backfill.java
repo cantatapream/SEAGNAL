@@ -19,7 +19,11 @@ import java.util.regex.Pattern;
  * 임시 「긁어오기」(사용자 확정 2026-11-02 「임시로만」): 이미 받은 옛 특보 알림톡을 분석용으로 모은다.
  * [긁어오기 시작] → 사람이 카톡에서 「해양기상정보포털」 대화방을 연다 → 화면에 채널 이름이 보이면 시작 →
  * 화면의 특보 글을 읽어 보내고 → 위로 한 화면 넘기기 → 반복. 새 글이 4번 연속 없거나 더 넘길 수 없으면 끝.
- * 특보 표식([해양기상기후정보 알림])이 든 글만 보낸다. 날짜 줄·시각도 함께 붙인다(분석용).
+ * 날짜 줄·시각도 함께 붙인다(분석용).
+ * ★1단계(분석, 사용자 확정 2026-11-02 「파일로 저장해서 채팅에 첨부」): 서버로 보내지 않고 휴대폰 「다운로드」 폴더에
+ *   kakao_backfill_날짜시각.json 으로 저장한다. 분석을 위해 표식 글만이 아니라 그 채널 대화방 안의 글(15자 이상)을
+ *   모두 담고 hasMarker 로 구분한다 — 표식 없는 다른 꼴 메시지가 있는지도 봐야 하므로. 다른 대화방은 읽지 않는다(채널 이름 확인).
+ *   서버 주소가 설정돼 있으면 표식 글만 서버 임시 보관함에도 보낸다(2단계 이후용).
  */
 final class Backfill {
     private static final long STEP_MS = 1_500L;      // 넘긴 뒤 옛 글이 불려 와 그려질 때까지 기다림
@@ -36,6 +40,7 @@ final class Backfill {
     private static final Set<String> seen = new HashSet<>();
     private static final Handler H = new Handler(Looper.getMainLooper());
     private static Context app;
+    private static JSONArray all = new JSONArray();   // 이번 회차에 모은 전부(파일로 저장)
 
     private Backfill() {}
 
@@ -50,15 +55,18 @@ final class Backfill {
         armedAt = System.currentTimeMillis();
         rounds = 0; idle = 0; total = 0;
         seen.clear();
+        all = new JSONArray();
         Config.status(app, "긁어오기 대기 — 카톡에서 「" + Config.CHANNEL + "」 대화방을 여세요(3분 안)");
     }
 
     /** [긁어오기 중지] 또는 끝났을 때. */
     static void stop(String why) {
         if (st == St.OFF) return;
+        boolean wasRunning = st == St.RUNNING;
         st = St.OFF;
         H.removeCallbacksAndMessages(null);
-        if (app != null) Config.status(app, "긁어오기 끝 — " + why + " · 모은 글 " + total + "개");
+        String saved = wasRunning && all.length() > 0 ? save() : "저장할 글 없음";
+        if (app != null) Config.status(app, "긁어오기 끝 — " + why + " · 모은 글 " + all.length() + "개 · " + saved);
         ReaderService s = ReaderService.get();
         if (s != null) s.resumePending();
     }
@@ -104,21 +112,23 @@ final class Backfill {
                     if (last != null && !last.has("time")) last.put("time", x);
                     continue;
                 }
-                if (!x.contains(Config.MARKER)) continue;
+                if (x.length() < 15) continue;   // 「채널 추가」 같은 짧은 화면 글자는 뺀다
+                boolean marker = x.contains(Config.MARKER);
                 last = null;
                 if (!seen.add(x)) continue;
-                last = new JSONObject().put("text", x);
+                last = new JSONObject().put("text", x).put("hasMarker", marker);
                 if (date != null) last.put("date", date);
-                batch.put(last);
+                all.put(last);
+                if (marker) batch.put(last);
             }
         } catch (Exception e) {
             stop("읽기 오류 " + e.getMessage());
             return;
         }
-        if (batch.length() > 0) {
-            total += batch.length();
+        if (batch.length() > 0 || all.length() > total) {
+            total = all.length();
             idle = 0;
-            Sender.sendBackfill(app, batch);
+            if (batch.length() > 0 && !Config.server(app).isEmpty()) Sender.sendBackfill(app, batch);
             Config.status(app, "긁어오기 중 — 모은 글 " + total + "개");
         } else {
             idle++;
@@ -129,5 +139,36 @@ final class Backfill {
         boolean moved = list != null && list.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
         if (!moved && batch.length() == 0) { stop("더 넘길 수 없음"); return; }
         H.postDelayed(Backfill::step, STEP_MS);
+    }
+
+    /**
+     * 모은 글을 「다운로드」 폴더에 JSON 파일로 저장한다. 위에서 아래로 넘겼으므로 화면 순서는 최신→옛날이다.
+     * @return 사람에게 보일 결과 한 줄
+     */
+    private static String save() {
+        String name = "kakao_backfill_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.KOREA)
+                .format(new java.util.Date()) + ".json";
+        try {
+            JSONObject doc = new JSONObject()
+                    .put("note", "SEAGNAL 특보중계 임시 긁어오기 — 채널 「" + Config.CHANNEL + "」 대화방, 화면 순서 최신→옛날")
+                    .put("savedAt", new java.util.Date().toString())
+                    .put("count", all.length())
+                    .put("messages", all);
+            byte[] bytes = doc.toString(1).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                android.content.ContentValues cv = new android.content.ContentValues();
+                cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
+                cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/json");
+                android.net.Uri uri = app.getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                if (uri == null) return "파일 저장 실패";
+                try (java.io.OutputStream o = app.getContentResolver().openOutputStream(uri)) { o.write(bytes); }
+                return "다운로드 폴더에 " + name + " 저장";
+            }
+            java.io.File f = new java.io.File(app.getExternalFilesDir(null), name);
+            try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(bytes); }
+            return f.getAbsolutePath() + " 저장";
+        } catch (Exception e) {
+            return "파일 저장 실패: " + e.getMessage();
+        }
     }
 }

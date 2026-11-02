@@ -58,7 +58,7 @@ public class MainActivity extends Activity {
         button(v, "시험 글 보내기", () -> Sender.sendMessages(this, Collections.singletonList(
                 Config.MARKER + "\n\n[기상특보]\n시험바다,\n풍랑주의보 01월 01일 00시 00분\n시험 "
                         + System.currentTimeMillis()), "notification"));
-        button(v, "[임시] 긁어오기 시작 — 누른 뒤 카톡 대화방 열기", () -> {
+        button(v, "[임시] 긁어오기 시작 — 누른 뒤 카톡 대화방 열기(결과는 다운로드 폴더 파일)", () -> {
             Backfill.arm(this);
             android.content.Intent k = getPackageManager().getLaunchIntentForPackage(Config.KAKAO);
             if (k != null) startActivity(k);
