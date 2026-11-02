@@ -6,7 +6,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/kakao_relay(분해·저장) · services/admin_auth(관리자 조회)
- *  - 서버 API      : POST /api/kakao-relay/messages · POST /api/kakao-relay/heartbeat ·
+ *  - 서버 API      : POST·GET /api/kakao-relay/messages · POST /api/kakao-relay/heartbeat ·
  *                    POST·GET·DELETE /api/kakao-relay/backfill(임시 긁어오기 — 분석용, 같은 열쇠) ·
  *                    GET /api/admin/kakao-relay
  *  - 마크업        : 없음
@@ -65,6 +65,13 @@ function createRouter({
             console.warn('[kakao_relay] 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });
         }
+    });
+
+    // 같은 열쇠로 실시간 기록을 읽는다 — 휴대폰 시험(2026-11-02)에서 무엇이 들어왔는지 분석하기 위해.
+    router.get('/api/kakao-relay/messages', auth, (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        try { res.json(store.snapshot(Math.min(+req.query.n || 300, 300))); }
+        catch (e) { res.status(500).json({ ok: false, error: e.message }); }
     });
 
     router.post('/api/kakao-relay/heartbeat', auth, (req, res) => {

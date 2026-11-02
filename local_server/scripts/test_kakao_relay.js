@@ -108,6 +108,10 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     ok('관리자 조회 최신순', x.body.messages.length === 2 && x.body.messages[0].text === 'new-one', x.body.messages);
     secret = '';
     ok('서버에 열쇠 미설정이면 503', (await call('POST', '/api/kakao-relay/heartbeat', {}, { 'X-Relay-Token': '' })).status === 503);
+    secret = 'k';
+    ok('실시간 기록 읽기는 열쇠 필요', (await call('GET', '/api/kakao-relay/messages')).status === 401);
+    x = await call('GET', '/api/kakao-relay/messages?n=1', null, { 'X-Relay-Token': 'k' });
+    ok('실시간 기록 읽기(열쇠)', x.status === 200 && x.body.messages.length === 1 && 'heartbeat' in x.body, x.body);
     console.log('F. 임시 긁어오기');
     secret = 'k';
     x = await call('POST', '/api/kakao-relay/backfill', { device: 'p', messages: [{ text: HEAD + '서해남부먼바다,\n풍랑주의보 12월 30일 17시 00분 발효', date: '2025년 12월 30일 화요일', time: '오후 5:03' }, { text: 'b2' }] }, { 'X-Relay-Token': 'k' });

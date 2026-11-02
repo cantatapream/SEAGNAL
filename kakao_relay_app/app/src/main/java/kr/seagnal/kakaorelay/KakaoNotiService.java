@@ -48,6 +48,7 @@ public class KakaoNotiService extends NotificationListenerService {
         if (text.contains(Config.MARKER)) {
             Sender.sendMessages(this, Collections.singletonList(text), "notification");
         }
+        if (Config.notiOnly(this)) return;   // 휴대폰용 — 화면·카톡을 건드리지 않고 알림 글만 보낸다
         ReaderService.openAndRead(this, n.contentIntent);
     }
 }
