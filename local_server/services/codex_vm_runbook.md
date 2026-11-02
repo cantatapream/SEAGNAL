@@ -38,7 +38,7 @@
 | `local_server/routes/legal.js` | `/api/legal/ask` 앞 미들웨어, `POST /api/legal/codex/poll`·`/result`, 설정 `answerModel`·`codexForUsers`, 답변 끝 표시 |
 | `local_server/scripts/codex_worker.js` | **VM 에서만** 도는 작업자(`codex exec` 호출, 답 전송 재시도) |
 | `local_server/scripts/test_codex_bridge.js` | 잠금·설정 조합·왕복·표시 시험(33문항, `verify_all.sh` SUITES 등록) |
-| `client/js/ai-chat/ai_chat.js` | 관리자 콘솔 「답변 AI 모델」·「ChatGPT 답변을 일반 사용자에게도 적용」 카드 |
+| `client/js/ai-chat/ai_chat.js` | 관리자 콘솔 「AI 모델」 탭 — 답변 AI 순서(칸별 모델·노력, ChatGPT 칸 모델 = `providerModels.chatgpt`)·「답변 AI 순서를 일반 사용자에게도 적용」 스위치(2026-11-02 — 옛 「답변 AI 모델」 버튼줄은 없앰) |
 | `local_server/services/codex_client.design.md` | 설계·사용자 확정 원문·시험 결과 전부 |
 
 ## 4. 언제 ChatGPT 로 답하나 (결정 순서 — `codex_bridge.withRequest`)

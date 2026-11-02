@@ -50,6 +50,7 @@ ChatGPT 의 **인터넷 검색은 쓰지 않는다**(근거가 우리 자료 밖
   답이 실제로 나오면 맨 끝에 `※ 이 답변은 ChatGPT GPT-6 Luna 모델이 답했습니다.` / `… Gemini 2.5 Flash …` 한 줄을
   서버가 붙인다(`codex_bridge.answerLabel`, 1차 합성·2차 원문 답변 둘 다). 되묻기·답 없음에는 안 붙는다.
 - ⚠비교 시험 스크립트는 Gemini 기준군에 **`llm:"gemini"` 를 명시해야** 한다(관리자 토큰을 싣고 llm 을 비우면 이제 Luna 로 간다).
+- ⚠**2026-11-02 갱신**: 「답변 AI 모델」 버튼줄은 화면에서 없앴다. ChatGPT 칸 모델은 이제 `providerModels.chatgpt.model`(관리자 센터 「AI 모델」 탭)이 먼저이고 `answerModel` 은 옛 저장값 호환용이다(`gemini` 는 Luna 로 읽는다) — §10 「칸별 모델·노력」.
 
 ## 1. 왜 잠금이 필요한가 (확인한 사실)
 
@@ -257,7 +258,7 @@ Codex 모드와 무관하게 공공 공개 전에 따로 다룰 사항.
 - **범위**: `codex_bridge.withRequest` ④(평소 질문)에서 `관리자 토큰 || codexForUsers` 이면 사슬. 아니면 종전대로 Gemini. 시험용 `llm:"codex"`·`llm:"gemini"` 는 종전 그대로.
 - **기본 순서**: `upstage → claude2 → claude1 → chatgpt → gemini` (사용자 확정: *"클로드 키 중에서는 "ANTHROPIC_API_KEY_2" 이것을 먼저쓰고 "ANTHROPIC_API_KEY_1"를 나중에"*). 관리자 센터 ▲▼ 로 바꾸면 `nariya_config.json` 의 `providerOrder` 에 저장된다.
 - **AI 삭제(2026-11-02 사용자 요청 — *"더이상 키가 없고 더이상 사용하지 않는다면 … 삭제버튼을 만들어줘. 삭제버튼을 누르면 정말 삭제하겠냐고 다시한번 확인토록"*)**: 줄마다 [삭제](Gemini 줄은 없음 — 마지막 안전망) → `window.confirm` → `providerRemoved`(string[], 기본 [], `llm_chain.isValidRemoved`: PROVIDERS 부분집합·gemini·겹침 불가, POST 틀리면 400 / 저장값이 틀리면 `normRemoved` 로 []) 에 저장, 사슬 `usable` 이 건너뛴다(callRaw·callStream 공통), `status(removed)` 에 `removed` 표시. `providerOrder` 는 다섯 개 순열 그대로(옛 저장값·`isValidOrder` 불변). 목록 아래 「삭제된 AI: ○○ [다시 추가]」 → 보이는 줄의 맨 뒤(맨 뒤가 Gemini 면 그 바로 앞)에 넣은 순서와 삭제 목록을 한 번에 POST. Fly.io 시크릿은 건드리지 않는다. 시험 `test_llm_chain.js` ⑩.
-- **모델**: Claude `claude-sonnet-5-5` + `output_config.effort: "medium"` / Upstage `solar-pro4` + `reasoning_effort: "medium"` / ChatGPT 칸은 관리자 센터 `answerModel`(gemini 로 두면 ChatGPT 칸 건너뜀).
+- **모델**: ~~Claude `claude-sonnet-5-5` + `output_config.effort: "medium"` / Upstage `solar-pro4` + `reasoning_effort: "medium"` / ChatGPT 칸은 관리자 센터 `answerModel`(gemini 로 두면 ChatGPT 칸 건너뜀).~~ → 아래 「칸별 모델·노력」으로 바뀜(2026-11-02). 위 값은 이제 **기본값**이다.
 - **Fly.io 시크릿 이름**: `ANTHROPIC_API_KEY_1` · `ANTHROPIC_API_KEY_2` · `UPSTAGE_API_KEY`. 없으면 그 칸은 건너뛴다(부팅 로그 `[LLM 사슬] 키 — …` 에 있음/없음이 찍힌다).
 - **크레딧 소진 판정**(이것만 「계속 건너뜀」 + 관리자 푸시 1회):
   - Claude: HTTP 402 / `billing_error` (Anthropic 오류표).
@@ -284,3 +285,22 @@ Codex 모드와 무관하게 공공 공개 전에 따로 다룰 사항.
 - **답변 끝 표시**: 마지막으로 성공한 AI 이름(Claude Sonnet 5.5 / Upstage Solar Pro 4 / ChatGPT … / Gemini …).
 - **시험**: `scripts/test_llm_chain.js`(verify_all SUITES 등록) · `scripts/test_codex_bridge.js` ⑤ 갱신.
 - **독립 리뷰 반영(2026-11-02, 시험 ⑥)**: ①Claude·업스테이지 시간 한도 = `min(config.httpOptions.timeout, 120초)` (legal_retriever 의 *_CONFIG 가 10~15초), 짧은 한도면 Claude SDK 재시도 끔(재시도 몫은 다음 AI) — ChatGPT 칸 300초는 그대로. ②Claude 400 `invalid_request_error` + "credit balance" 문구도 소진(옛 응답 형태 대비, ⚠실호출 미확인). ③`GET /api/legal/config` 의 `providerStatus` 는 관리자 토큰이 있을 때만. ④`providerReset` 은 앞에서 `isValidReset` 로 검사만 하고, 실제 해제는 모든 검사 통과 뒤.
+- **칸별 모델·노력 + 「AI 모델」 탭(2026-11-02 사용자 요청)**:
+  > 사용자 원문(스크린샷 기반 요청 요지): 「답변 AI 모델」 버튼줄(Gemini/GPT Luna/Sol/Astra)을 없애고, 「답변 AI 순서」 각 줄에서 그 AI 의 모델 버전과 노력(effort)을 고르게. 목록을 버튼줄처럼 예쁘게, 긴 설명문은 빼고, 스위치 이름은 「답변 AI 순서를 일반 사용자에게도 적용」, 「질문 수」는 아코디언(머리에 「총 N건 · 오늘 N건」).
+  > 추가 원문: *"AI 모델 선택과 관련된 인터페이스는 지식 방, 관리자 검토와는 별개로 「AI 모델」이라는 탭을 하나 만들어서 그쪽에서 관리하는게 좋겠는데"*
+  - **화면**(`client/js/ai-chat/ai_chat.js`·`client/css/ai_chat.css`): 콘솔 머리 탭 `#nryaVswitch` 에 세 번째 버튼 `data-view="models"`(🤖 AI 모델) — 지식 방·관리자 검토와 같은 방식(버튼 `nrya-active` + 뷰 `nrya-hidden` 토글, 마지막 탭 기억 없음 — 기존 두 탭도 기억하지 않는다). 그 탭(`#nryaViewModels`)에 ①답변 AI 순서(줄마다 둥근 카드 `.nrya-prov`: 순위·이름·상태 배지·오늘 호출 수·[소진 해제]·▲▼·[삭제] + 모델·노력 고르기) ②「답변 AI 순서를 일반 사용자에게도 적용」 스위치(`codexForUsers` — 이름만 바뀜, 동작 그대로) ③「질문 수」 아코디언(원문 방 `.nrya-acc` 재사용, 평소 접힘). 노출 설정 카드는 관리자 검토 탭에 그대로.
+  - **상태 배지**(사슬 `usable` 과 같은 순서): 소진 > 쉬는 중(HH:MM KST까지) > 키 없음(ChatGPT 는 「건너뜀 · 서버 스위치 없음」= `NRYA_CODEX_SECRET` 없음) > 「건너뜀 · VM 미연결」(ChatGPT, `status().workerAlive` false = 작업자가 90초 안에 안 옴) > 정상.
+  - **설정 `providerModels`**(`nariya_config.json`): `{claude1|claude2|upstage:{model,effort}, chatgpt:{model,effort:null}}` — 클로드 키1·키2 따로 저장. `llm_chain.normModels` 가 늘 네 칸을 채운다(틀린 칸만 기본값). POST 는 보낸 칸만 바꾸고(`Object.assign` 머지), `isValidModels` 로 틀리면 400(gemini 칸·목록 밖 값·ChatGPT 에 노력·노력 빠짐). 관리자 GET/POST 응답에 `providerChoices`(고를 수 있는 값 — 화면은 이 안에서만 그린다, Gemini 칸 = `legal_retriever.ANSWER_MODEL` 표시만).
+  - **선택지와 근거**:
+    | 칸 | 모델(첫째 = 기본) | 노력(기본) | 근거 |
+    |---|---|---|---|
+    | 클로드 키1·키2 | claude-sonnet-5-5 · claude-opus-5-5 · claude-haiku-5-5 | low·**medium**·high·xhigh·max | claude-api 스킬 `shared/model-migration.md` — Sonnet 5.5·Opus 5.5·Haiku 5.5 절 모두 다섯 단계 지원. 설치된 `@anthropic-ai/sdk` 1.3.0 `OutputConfig.effort` 타입도 같은 다섯 값. 모델별 제한 없음 |
+    | 업스테이지 | solar-pro4 · solar-mini4 | none·low·**medium**·high | console.upstage.ai/docs/capabilities/reasoning — 「solar-mini4 follows the same rules as solar-pro4」(none·minimal=끔, low~max=켬). 사용자가 제안한 네 값만 연다 |
+    | ChatGPT(VM) | gpt-6-luna · gpt-6-sol · gpt-6-astra | **선택 불가** | `scripts/codex_worker.js` 는 `codex exec -m <모델>` 만 넘기고 노력 인자가 없다. VM 은 고치지 않았다 |
+    | Gemini | gemini-2.5-flash(표시만) | **선택 불가** | `legal_retriever.ANSWER_MODEL` 고정, 사고량은 호출마다 `*_CONFIG.thinkingConfig` 가 정함 |
+  - **사슬 적용**: `codex_bridge.withRequest` 가 요청 범위에 `models: cfg.providerModels` 를 넣고, `llm_chain.pickOf(id, s)` 로 Claude·업스테이지 요청(비스트림·스트림 둘 다)의 모델·노력을 정한다. **ChatGPT 칸 모델**은 `providerModels.chatgpt.model` 이 먼저, 없으면 옛 `answerModel`(시험 경로 `llm:"codex"` 도 같은 값).
+  - **옛 `answerModel` 호환**: `providerModels.chatgpt` 가 없는 저장값이면 `answerModel` 을 ChatGPT 칸 모델로 쓴다. 단 `answerModel: "gemini"`(옛 버튼줄에서 Gemini 를 고른 상태)는 **Luna 로** 바뀐다 → ⚠그 저장값이면 배포 뒤 ChatGPT 칸이 다시 켜진다(VM 작업자가 연결돼 있으면). 버튼줄이 없어졌으므로 **ChatGPT 칸을 끄려면 [삭제]** 를 쓴다. `answerModel` 필드·POST 검사는 그대로 둔다(station_briefing 의 `chatgptModel` 목록이 `ANSWER_MODELS` 와 같은지 시험이 보므로 `ANSWER_MODELS` 불변).
+  - **Claude `max_tokens`(사양 밖 결정)**: effort `xhigh`·`max` 면 64000, 아니면 종전 16000 — claude-api 스킬 체크리스트 「[BLOCKS] At output_config.effort of xhigh or max: set max_tokens >= 64000」. 클라이언트에 timeout 을 직접 주므로 SDK 의 「10분 넘으면 스트림 필수」 검사는 안 탄다. ⚠시간 한도(최대 120초·첫 조각까지)는 그대로라 높은 노력에서 시간초과로 다음 AI 로 넘어갈 수 있다(실호출 미측정).
+  - **답변 끝 표시**: 사슬이 답을 쓴 칸의 실제 모델을 `s.usedModel` 에 적고 `answerLabel` 이 이름으로 바꾼다(예: `claude-opus-5-5` → Claude Opus 5.5, `solar-mini4` → Upstage Solar Mini 4).
+  - **질문 수 총계**: `legal_ask_stats.summary().sums.all` = 보관 중(최대 365일) 모든 날짜의 합 → 아코디언 머리 「총 N건 · 오늘 N건」.
+  - 시험: `test_llm_chain.js` ⑪(고른 모델·노력으로 요청 — 비스트림·스트림, 키1·키2 따로, xhigh·max → max_tokens 64000, 답변 끝 이름, 검증 400·저장값 불변, 한 칸만 바꾸기, 옛 answerModel gemini→Luna·sol→sol, providerChoices·workerAlive) · `test_legal_ask_stats.js`(총계).

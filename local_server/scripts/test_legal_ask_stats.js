@@ -65,6 +65,8 @@ const T = (s) => Date.parse(s);   // ISO(+09:00) → ms
   ok('7일 = 오늘 포함 7일(10-27 들어감·10-26 빠짐)', sm.sums.d7.total === 5 && sm.sums.d7.ai.upstage === 1, JSON.stringify(sm.sums.d7));
   ok('30일 = 오늘 포함 30일(10-26 들어감·10-03 빠짐)', sm.sums.d30.total === 6 && sm.sums.d30.ai.chatgpt === 0, JSON.stringify(sm.sums.d30));
   ok('모르는 AI 이름은 AI 칸에 안 들어감(전체는 셈)', (() => { S.record({ admin: false, outcome: 'answered', ai: 'zzz', now: T('2026-09-01T10:00:00+09:00') }); const x = S.summary(NOW).days.find(d => d.date === '2026-09-01'); return x.total === 1 && !('zzz' in x.ai); })());
+  sm = S.summary(NOW);
+  ok('총계(all) = 보관 중 모든 날짜의 합 — 30일 밖(10-03·09-01)도 들어감(8건)', sm.sums.all.total === 8 && sm.sums.all.total === sm.days.reduce((n, d) => n + d.total, 0) && sm.sums.all.ai.chatgpt === 1 && sm.sums.all.clarify === 1, JSON.stringify(sm.sums.all));
   ok('질문 내용을 담는 칸이 없다(파일에 숫자만)', !/"(q|query|text|answer)"/.test(fs.readFileSync(FA, 'utf8')));
 
   console.log('\n── ③ 365일 정리 ──');
@@ -206,6 +208,7 @@ const T = (s) => Date.parse(s);   // ISO(+09:00) → ms
     const g = mkRes();
     getRoute.stack[getRoute.stack.length - 1].handle({ get: () => undefined }, g, () => {});
     ok('GET /api/legal/admin/ask-stats → ok · 일별 목록 · 오늘/어제/7일/30일', g.body && g.body.ok && Array.isArray(g.body.days) && g.body.sums.today.total === 7 && 'yesterday' in g.body.sums && 'd7' in g.body.sums && g.body.sums.d30.total === 7, JSON.stringify(g.body && g.body.sums));
+    ok('GET 응답에 총계 sums.all(「총 N건」) — 이 파일엔 오늘만 있어 7', g.body && g.body.sums && g.body.sums.all && g.body.sums.all.total === 7, JSON.stringify(g.body && g.body.sums && g.body.sums.all));
     ok('라우트가 쓴 숫자가 임시 파일에 남는다', JSON.parse(fs.readFileSync(FR, 'utf8')).days['2026-11-02'].total === 7);
   } finally {
     Date.now = realNow;

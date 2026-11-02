@@ -10,6 +10,8 @@
  *   ① 서버 스위치 — 환경변수 NRYA_CODEX_SECRET(16자 이상)이 없으면 무조건 Gemini·작업자 창구 404.
  *   ② 관리자 센터 설정(routes/legal.js normConfig):
  *      answerModel(기본 gpt-6-luna) — 관리자 기기의 질문을 어느 모델로 답할지. 'gemini' 면 codex 안 씀.
+ *        ⚠2026-11-02 부터는 providerModels.chatgpt.model 이 먼저다(관리자 센터 「AI 모델」 탭). answerModel 은 옛 저장값 호환용 —
+ *        routes/legal.js normConfig(→ llm_chain.normModels)가 providerModels.chatgpt 가 없을 때 answerModel('gemini' 면 Luna)로 채운다.
  *      codexForUsers(기본 false) — 켜면 **일반 사용자 질문도** codex 로 답한다.
  *   ③ 시험용 명시 선택 — 요청 본문 llm:"codex"(관리자 토큰 필요)·llm:"gemini".
  *   ⚠codexForUsers 를 켜면 남이 관리자의 ChatGPT 정액제를 쓰게 된다 — OpenAI 약관상 계정 공유 위험.
@@ -78,13 +80,16 @@ const DEFAULT_MODEL = 'gpt-6-luna';
  *   아무것도 요청 안 한 일반 사용자가 Gemini 로 가면 헤더도 없다(응답 바이트 동일).
  * 예: 관리자 토큰 + { llm: "codex" } → X-Nrya-LLM: codex, X-Nrya-Model: gpt-6-luna
  * @param {object} req @param {object} res @param {Function} next
- * @param {{answerModel?:string, codexForUsers?:boolean, providerOrder?:string[], providerRemoved?:string[]}} [cfg] - 관리자 센터 설정(normConfig 결과)
+ * @param {{answerModel?:string, codexForUsers?:boolean, providerOrder?:string[], providerRemoved?:string[], providerModels?:object}} [cfg] - 관리자 센터 설정(normConfig 결과)
  * [연계] ← routes/legal.js /api/legal/ask 앞(설정을 읽어 넘긴다). → admin_auth.verifyToken.
  */
 function withRequest(req, res, next, cfg) {
   const c = cfg || {};
   const llm = req.body && req.body.llm;
-  const model = ANSWER_MODELS.includes(c.answerModel) && c.answerModel !== 'gemini' ? c.answerModel : null;
+  // ChatGPT 칸 모델 — providerModels.chatgpt.model(「AI 모델」 탭)이 먼저, 없으면 옛 answerModel('gemini' 면 null = ChatGPT 칸 안 씀).
+  const pmChat = c.providerModels && c.providerModels.chatgpt && c.providerModels.chatgpt.model;
+  const model = ANSWER_MODELS.includes(pmChat) && pmChat !== 'gemini' ? pmChat
+    : ANSWER_MODELS.includes(c.answerModel) && c.answerModel !== 'gemini' ? c.answerModel : null;
   const toGemini = () => { if (llm) res.setHeader('X-Nrya-LLM', 'gemini'); return next(); };
   const toCodex = (m) => {
     res.setHeader('X-Nrya-LLM', 'codex');
@@ -100,7 +105,8 @@ function withRequest(req, res, next, cfg) {
   //   헤더는 붙이지 않는다 — 어느 AI 가 답할지는 호출해 봐야 안다(답변 끝 표시줄이 알려 준다).
   if (!(c.codexForUsers === true || isAdmin())) return toGemini();
   //   removed = 관리자 센터 [삭제] 목록(providerRemoved) — 사슬이 그 AI 를 건너뛴다(llm_chain.usable).
-  return als.run({ chain: true, order: c.providerOrder, removed: c.providerRemoved, model, used: null }, next);
+  //   models = 칸별 모델·노력(providerModels) — 사슬이 클로드·업스테이지 요청에 쓴다(llm_chain.pickOf).
+  return als.run({ chain: true, order: c.providerOrder, removed: c.providerRemoved, models: c.providerModels, model, used: null, usedModel: null }, next);
 }
 
 /** 이 요청 범위의 저장소(사슬·codex 표시). 없으면 undefined. [연계] ← services/llm_chain.js */
@@ -114,6 +120,7 @@ function store() {
  * 이 요청이 codex 로 표시됐으면 그 모델, 아니면 Gemini(부르는 쪽이 넘긴 모델명)다.
  * 예: answerLabel('gemini-2.5-flash') → '\n\n※ 이 답변은 Gemini 2.5 Flash 모델이 답했습니다.'
  *     (codex 요청 안이면 '… ChatGPT GPT-6 Luna 모델이 답했습니다.')
+ *     (사슬에서 클로드 키2 가 claude-opus-5-5 로 답했으면 '… Claude Opus 5.5 모델이 답했습니다.' — llm_chain 이 적은 s.usedModel)
  * @param {string} geminiModel - Gemini 로 답할 때 쓰는 모델명(legal_retriever.ANSWER_MODEL)
  * @returns {string} 줄바꿈 두 개로 시작하는 한 줄
  * [연계] ← routes/legal.js /api/legal/ask(1차 합성 답변·2차 원문 답변 끝).
@@ -121,13 +128,32 @@ function store() {
 function answerLabel(geminiModel) {
   const s = als.getStore();
   const used = s && s.chain ? s.used : null;   // 사슬 요청 — 마지막으로 성공한 AI
-  if (used === 'claude1' || used === 'claude2') return '\n\n※ 이 답변은 Claude Sonnet 5.5 모델이 답했습니다.';
-  if (used === 'upstage') return '\n\n※ 이 답변은 Upstage Solar Pro 4 모델이 답했습니다.';
+  if (used === 'claude1' || used === 'claude2') return `\n\n※ 이 답변은 ${claudeName(s.usedModel || 'claude-sonnet-5-5')} 모델이 답했습니다.`;
+  if (used === 'upstage') return `\n\n※ 이 답변은 ${solarName(s.usedModel || 'solar-pro4')} 모델이 답했습니다.`;
   const name = ((s && s.codex) || used === 'chatgpt')
     ? 'ChatGPT ' + String(s.model || DEFAULT_MODEL).replace(/^gpt-(\d+)-(\w+)$/i, (m, v, n) => `GPT-${v} ${n.charAt(0).toUpperCase()}${n.slice(1)}`)
     : 'Gemini ' + String(geminiModel || '').replace(/^gemini-/i, '').split('-')
       .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   return `\n\n※ 이 답변은 ${name.trim()} 모델이 답했습니다.`;
+}
+
+/**
+ * Claude 모델 id → 사람이 읽는 이름. 꼴이 다르면 id 그대로.
+ * 예: claudeName('claude-opus-5-5') → 'Claude Opus 5.5' · claudeName('claude-haiku-5-5') → 'Claude Haiku 5.5'
+ * [연계] ← answerLabel.
+ */
+function claudeName(id) {
+  const m = String(id).match(/^claude-([a-z]+)-(\d+)-(\d+)$/i);
+  return m ? `Claude ${m[1].charAt(0).toUpperCase()}${m[1].slice(1)} ${m[2]}.${m[3]}` : String(id);
+}
+/**
+ * 업스테이지 모델 id → 사람이 읽는 이름. 꼴이 다르면 'Upstage ' + id.
+ * 예: solarName('solar-pro4') → 'Upstage Solar Pro 4' · solarName('solar-mini4') → 'Upstage Solar Mini 4'
+ * [연계] ← answerLabel.
+ */
+function solarName(id) {
+  const m = String(id).match(/^solar-([a-z]+)(\d+)$/i);
+  return m ? `Upstage Solar ${m[1].charAt(0).toUpperCase()}${m[1].slice(1)} ${m[2]}` : `Upstage ${id}`;
 }
 
 /** VM 작업자가 최근(WORKER_STALE_MS 안)에 창구에 왔는가. @returns {boolean} */
