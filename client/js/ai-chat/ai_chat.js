@@ -35,7 +35,7 @@
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
- *                    POST /api/legal/config {answerModel|codexForUsers} (답변 AI 모델·일반 사용자 적용, 관리자)
+ *                    POST /api/legal/config {answerModel|codexForUsers|providerOrder|providerReset} (답변 AI 모델·일반 사용자 적용·AI 순서·소진 해제, 관리자)
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
@@ -168,6 +168,10 @@
   //   serverCodexForUsers: ChatGPT 답변을 일반 사용자에게도 적용할지(기본 꺼짐).
   var serverAnswerModel = 'gpt-6-luna';
   var serverCodexForUsers = false;
+  // [답변 AI 사슬 · 2026-11-02 사용자 확정] 시도 순서와 각 AI 상태(키 유무·크레딧 소진·오늘 호출 수).
+  //   서버 /api/legal/config 의 providerOrder·providerStatus 가 진실의 원천.
+  var serverProviderOrder = ['upstage', 'claude2', 'claude1', 'chatgpt', 'gemini'];
+  var serverProviderStatus = [];
   var statsCache = null;                       // {total,pending,approved} — 배지용
   var adminStatsCache = null;                  // {draft,feedback,candidates,amendments} — 서브탭 배지용
   var curAdminSubtab = '⚠수치검증';            // renderSubtabs가 마지막으로 그린 활성 탭(재갱신 시 유지용)
@@ -445,6 +449,11 @@
                   '<button data-users="off">끄기(기본)</button>' +
                 '</div>' +
                 '<div class="nrya-seg-help" id="nryaUsersHelp"></div>' +
+                '<div class="nrya-card-lab" style="margin-top:14px"><span class="nrya-pipe"></span>답변 AI 순서 (크레딧 소진 시 다음으로 자동 전환)</div>' +
+                '<div id="nryaOrderList"></div>' +
+                '<div class="nrya-seg-help">위에서부터 시도합니다. 크레딧이 떨어진 AI 는 「소진」으로 표시되고 건너뜁니다 — 충전 후 [소진 해제]를 누르세요. ' +
+                  '일시 오류(응답 지연 등)는 그 질문만 다음 AI 가 대신 답합니다. ' +
+                  'ChatGPT 는 연속 3번 실패하면 30분 「쉬는 중」이 되고 그 뒤 자동으로 다시 시도합니다([소진 해제]로 바로 풀 수 있음).</div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
               '</div>' +
               '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
@@ -536,6 +545,15 @@
         'OpenAI 약관상 계정 공유에 해당해 계정이 정지될 수 있고, 사용량 한도가 빨리 찰 수 있습니다.\n켜시겠습니까?')) return;
       setAnswerConfig({ codexForUsers: on });
     });
+    root.querySelector('#nryaOrderList').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-act]'); if (!b) return;
+      var id = b.dataset.id, i = serverProviderOrder.indexOf(id);
+      if (b.dataset.act === 'reset') return setAnswerConfig({ providerReset: id });
+      var j = b.dataset.act === 'up' ? i - 1 : i + 1;
+      if (i < 0 || j < 0 || j >= serverProviderOrder.length) return;
+      var next = serverProviderOrder.slice(); next[i] = next[j]; next[j] = id;
+      setAnswerConfig({ providerOrder: next });
+    });
     paintModelSeg();
   }
 
@@ -555,19 +573,51 @@
     var pre = configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>';
     var help = document.getElementById('nryaModelHelp');
     if (help) help.innerHTML = pre + (serverAnswerModel === 'gemini'
-      ? '<b>Gemini</b> — 모든 질문을 Gemini API 로 답합니다(ChatGPT 미사용).'
-      : '<b>' + serverAnswerModel + '</b> — 관리자 기기의 질문을 VM 의 ChatGPT(정액제)로 답합니다. ' +
-        'VM 작업자가 꺼져 있으면 Gemini 로 답합니다.');
+      ? '<b>Gemini</b> — 아래 순서에서 ChatGPT 칸을 건너뜁니다.'
+      : '<b>' + serverAnswerModel + '</b> — 아래 순서의 ChatGPT 칸이 이 모델(VM 정액제)로 답합니다. ' +
+        'VM 작업자가 꺼져 있으면 ChatGPT 칸을 건너뜁니다.');
+    paintOrderList();
     var uh = document.getElementById('nryaUsersHelp');
     if (uh) uh.innerHTML = serverCodexForUsers
-      ? '<b>켜짐</b> — 일반 사용자 질문도 위 ChatGPT 모델로 답합니다. ⚠OpenAI 약관상 계정 공유 위험·사용량 한도 주의.'
-      : '<b>꺼짐(기본값)</b> — 일반 사용자 질문은 Gemini 로 답합니다.';
+      ? '<b>켜짐</b> — 일반 사용자 질문도 아래 순서(업스테이지·클로드·ChatGPT…)로 답합니다. ⚠ChatGPT 칸은 OpenAI 약관상 계정 공유 위험·사용량 한도 주의.'
+      : '<b>꺼짐(기본값)</b> — 일반 사용자 질문은 Gemini 로 답합니다(아래 순서는 관리자 기기에만 적용).';
+  }
+
+  /**
+   * 답변 AI 순서 목록을 그린다 — 줄마다 순번·이름·상태(키 없음/소진/쉬는 중/오늘 n회)·▲▼·[소진 해제].
+   * 예: 1. 업스테이지 · 정상 · 오늘 3회(성공 3) [▲][▼]
+   * [연계] ← paintModelSeg. 클릭은 initModelSeg 가 받아 setAnswerConfig({providerOrder|providerReset}).
+   */
+  function paintOrderList() {
+    var box = document.getElementById('nryaOrderList'); if (!box) return;
+    var byId = {}; serverProviderStatus.forEach(function (x) { byId[x.id] = x; });
+    var NAME = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT(VM)', gemini: 'Gemini' };
+    var n = serverProviderOrder.length;
+    box.innerHTML = serverProviderOrder.map(function (id, i) {
+      var st = byId[id] || {};
+      var t = st.today || { calls: 0, success: 0 };
+      // restUntil — ChatGPT 칸 연속 3회 실패로 쉬는 끝 시각(ISO, 서버 llm_chain.status). KST 시:분으로 보인다.
+      var rest = st.restUntil ? new Date(Date.parse(st.restUntil) + 9 * 3600000).toISOString().slice(11, 16) : '';
+      var badge = st.exhaustedAt ? '<span style="color:#f87171">소진</span>'
+        : rest ? '<span style="color:#fbbf24">쉬는 중(' + rest + ' KST까지)</span>'
+        : st.hasKey === false ? '<span style="color:#94a3b8">키 없음(건너뜀)</span>'
+        : '<span style="color:#4ade80">정상</span>';
+      var btn = 'style="border:1px solid #334155;background:none;color:inherit;border-radius:6px;padding:3px 8px;margin-left:4px;cursor:pointer"';
+      return '<div style="display:flex;align-items:center;gap:6px;padding:6px 2px;border-bottom:1px solid rgba(148,163,184,.15);font-size:12.5px">' +
+        '<b style="width:18px">' + (i + 1) + '.</b>' +
+        '<span style="flex:1">' + esc(NAME[id] || id) + ' · ' + badge +
+          ' <span style="color:#94a3b8">· 오늘 ' + t.calls + '회(성공 ' + t.success + ')</span></span>' +
+        (st.exhaustedAt || rest ? '<button data-act="reset" data-id="' + id + '" ' + btn + '>소진 해제</button>' : '') +
+        '<button data-act="up" data-id="' + id + '" ' + btn + (i === 0 ? ' disabled' : '') + '>▲</button>' +
+        '<button data-act="down" data-id="' + id + '" ' + btn + (i === n - 1 ? ' disabled' : '') + '>▼</button>' +
+      '</div>';
+    }).join('');
   }
 
   /**
    * 답변 AI 모델 또는 일반 사용자 스위치를 서버에 저장(관리자 전용)한다.
    * 예: setAnswerConfig({ answerModel: 'gpt-6-sol' }) · setAnswerConfig({ codexForUsers: false })
-   * @param {{answerModel?:string, codexForUsers?:boolean}} patch
+   * @param {{answerModel?:string, codexForUsers?:boolean, providerOrder?:string[], providerReset?:string}} patch
    * [연계] → POST /api/legal/config. ← initModelSeg 클릭.
    */
   function setAnswerConfig(patch) {
@@ -582,6 +632,8 @@
       if (msg) { if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = msg; } return; }
       serverAnswerModel = data.answerModel || serverAnswerModel;
       serverCodexForUsers = data.codexForUsers === true;
+      if (Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
+      if (Array.isArray(data.providerStatus)) serverProviderStatus = data.providerStatus;
       paintModelSeg();
     }).catch(function (e) {
       if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = '네트워크 오류: ' + String(e && e.message || e); }
@@ -609,6 +661,8 @@
       }
       if (data && data.ok && typeof data.answerModel === 'string') serverAnswerModel = data.answerModel;
       if (data && data.ok) serverCodexForUsers = data.codexForUsers === true;
+      if (data && data.ok && Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
+      if (data && data.ok && Array.isArray(data.providerStatus)) serverProviderStatus = data.providerStatus;
       configLoaded = true;
       paintSeg();
       paintModelSeg();

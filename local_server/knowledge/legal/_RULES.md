@@ -333,6 +333,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_score_body` | ★「변경 이력」이 **검색 점수에서 빠졌는지**를 고정한다. (결심 4-5ⓐ) |
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
+| `test_llm_chain` | 나리야 답변 AI 사슬(services/llm_chain.js)의 순서·자동 전환·크레딧 소진 처리를 고정한다. |
 | `test_fav_tide_prefetch` | 즐겨찾기 조석 미리받기(OS.prefetchFavoriteTides)를 고정한다. |
 | `test_picture_text` | ★그림 판독문이 **모델 근거에서 빠지는지**를 고정한다. (3-75 · Q-19) |
 | `test_ordin_fresh` | ★조례(자치법규)도 주간 원문 신선도 점검에 들어가 있는지를 고정한다. (3-78) |
