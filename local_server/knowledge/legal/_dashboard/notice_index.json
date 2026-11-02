@@ -1210,6 +1210,10 @@
  "선박만재흘수선기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],
+ "선박미수입사실신고절차.txt": [
+  "local_server/knowledge/legal/raw/04_선박해운/해운법",
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법"
+ ],
  "선박방화구조기준.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/선박안전법"
  ],

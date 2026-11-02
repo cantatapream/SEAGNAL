@@ -1,0 +1,14 @@
+{
+ "script": "collect_approved_015f85_두폴더",
+ "stamp": "20261102-150959-214",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/행정규칙/선박미수입사실신고절차.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/별표/선박미수입사실신고절차_별지1.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/별표/선박미수입사실신고절차_별지2.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/별표/선박미수입사실신고절차_별지3.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법/행정규칙/선박미수입사실신고절차.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법/별표/선박미수입사실신고절차_별지1.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법/별표/선박미수입사실신고절차_별지2.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법/별표/선박미수입사실신고절차_별지3.txt"
+ ]
+}
