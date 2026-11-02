@@ -1,0 +1,10 @@
+{
+ "script": "rename_dup_archive_3_97",
+ "stamp": "20261102-205553-231",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/항로표지장비및용품의표준화규정.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/행정규칙/외항운송사업자운임공표업무처리요령.txt",
+  "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법/행정규칙/수산관계법령위반행위신고자에대한포상기준및방법등에관한규정.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/행정규칙/체류자격외활동허가등의신청및수령의대리에관한규정.txt"
+ ]
+}
