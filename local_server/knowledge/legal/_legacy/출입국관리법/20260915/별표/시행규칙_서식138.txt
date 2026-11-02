@@ -1,0 +1,54 @@
+[시행규칙] 서식138 — 출입국에 관한 사실증명 CERTIFICATE OF ENTRY & DEPARTURE
+
+■ 출입국관리법 시행규칙 [별지 제138호서식]                                      
+  ※ 이 증명서는 정부24(www.gov.kr)에서 무료로 발급받을 수 있습니다.                                  
+                                                                                                      
+  출입국에 관한 사실증명                                                                              
+  CERTIFICATE OF ENTRY & DEPARTURE                                                                    
+  (약칭: 출입국사실증명, 약호: C322A)                                                                 
+──────────────────┬────────────────────────────────
+  발급번호                          │발급일                        쪽수                              
+  (Serial No.)                      │(Date of Issuance)            (Page Count)                      
+──────────────────┴────────────────────────────────
+                                                                                                      
+───────┬───────────────────────────────────────────
+  대상자      │성명 (Full Name)                                                                      
+  (Person to  ├───────────────────────┬───────────────────
+  whom the    │주민등록번호 (Resident Registration No.) /    │성별 (Sex)                            
+  Certificate │생년월일 (Date of Birth)                      │                                      
+  is          ├───────────────────────┼───────────────────
+  issued)     │국가/지역 (Country/Region)                    │여권번호 (Passport No.)               
+───────┴───────────────────────┴───────────────────
+                                                                                                      
+───────┬───────────┬──────────┬─┬────────┬─────────
+  출입국일자  │출국 (Departure)      │입국 (Entry)        │  │출국 (Departure)│입국 (Entry)      
+  (Date of    ├───────────┼──────────┤  ├────────┼─────────
+  Entry /     │                      │                    │  │                │                  
+  Departure)  │                      │                    │  │                │                  
+───────┴───────────┴──────────┴─┴────────┴─────────
+                                                                                                      
+───────────────────┬───────────────────────────────
+  조회 기간                           │     .     .    . 부터(from)                                  
+  (Reference Period)                  │     .     .    . 까지(to)                                    
+────────┬──────────┴────────────┬──────────┬───────
+  용도 (Purpose)│                                              │신청인              │              
+                │                                              │(Name of Applicant) │              
+────────┴───────────────────────┴──────────┴───────
+                                                                                                      
+───────────────────────────────────────────────────
+   「출입국관리법」 제88조제1항에 따라 위의 사실을 증명합니다.                                        
+    I hereby certify that the above information is true in accordance with paragraph 1, Article 88    
+  of the Immigration Act of the Republic of Korea.                                                    
+                                                                                                      
+  발급일 (Date of Issuance)            년 (Year)          월 (Month)          일 (Day)                
+                                                                                                      
+  발급 담당자 (Officer in Charge)                           전화번호 (Phone No.)                      
+                                                                                                      
+                                                                      ┏━━┓                        
+    ○○ 출입국ㆍ외국인청(사무소ㆍ출장소)장 / ○○ 시장ㆍ군수ㆍ구청장 ┃직인┃                        
+    또는 읍ㆍ면ㆍ동의 장 / 재외공관의 장                              ┃    ┃                        
+                                                                      ┗━━┛                        
+  Chief of ○○ Immigration Office(Branch Office) / Head of ○○ SiㆍGunㆍ Gu or EupㆍMyeonㆍDong /   
+  Head of Overseas Diplomatic Mission                                                                 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

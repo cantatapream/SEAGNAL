@@ -25,6 +25,46 @@
    }
   }
  ],
+ "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법": [
+  {
+   "date": "20270428",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291463"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_428ad4"
+   }
+  },
+  {
+   "date": "20280428",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291463"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_3b128e"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/04_선박해운/도선법": [
+  {
+   "date": "20270428",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291273"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_65006d"
+   }
+  }
+ ],
  "local_server/knowledge/legal/raw/04_선박해운/어선법": [
   {
    "date": "20270617",
@@ -50,6 +90,20 @@
    },
    "queue_id": {
     "법률.txt": "chg_20261007_dcf08b"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법": [
+  {
+   "date": "20271028",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291277"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_b65028"
    }
   }
  ],
@@ -90,6 +144,18 @@
    },
    "queue_id": {
     "법률.txt": "chg_20261007_8308da"
+   }
+  },
+  {
+   "date": "20270428",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291279"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_408227"
    }
   }
  ],
@@ -142,6 +208,32 @@
    },
    "queue_id": {
     "법률.txt": "chg_20261007_0ffbf0"
+   }
+  },
+  {
+   "date": "20271028",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291473"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_754cec"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/06_선원노동/선원법": [
+  {
+   "date": "20271028",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291275"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_4c7766"
    }
   }
  ],
@@ -217,6 +309,18 @@
  ],
  "local_server/knowledge/legal/raw/09_레저관광/마리나항만의조성및관리등에관한법률": [
   {
+   "date": "20270428",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291449"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_accb4d"
+   }
+  },
+  {
    "date": "20270909",
    "files": [
     "법률.txt"
@@ -226,6 +330,20 @@
    },
    "queue_id": {
     "법률.txt": "chg_20261007_d33f10"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/09_레저관광/수상레저안전법": [
+  {
+   "date": "20271028",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291471"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_c487a7"
    }
   }
  ],
@@ -243,6 +361,20 @@
    }
   }
  ],
+ "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법": [
+  {
+   "date": "20270414",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291157"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261014_a9460f"
+   }
+  }
+ ],
  "local_server/knowledge/legal/raw/10_항만물류/항만법": [
   {
    "date": "20261113",
@@ -254,6 +386,32 @@
    },
    "queue_id": {
     "법률.txt": "chg_20260810_5f9b0e"
+   }
+  },
+  {
+   "date": "20271028",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291459"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_225925"
+   }
+  }
+ ],
+ "local_server/knowledge/legal/raw/10_항만물류/항만운송사업법": [
+  {
+   "date": "20270128",
+   "files": [
+    "법률.txt"
+   ],
+   "mst": {
+    "법률.txt": "291461"
+   },
+   "queue_id": {
+    "법률.txt": "chg_20261028_eda98b"
    }
   }
  ],

@@ -538,6 +538,47 @@
      "status": "갱신"
     }
    ]
+  },
+  {
+   "ran_at": "2026-11-03 02:10 KST",
+   "results": [
+    {
+     "slug": "선원법",
+     "tier": "법률",
+     "old_mst": "290771",
+     "new_mst": "291275",
+     "old_eff": "20261002",
+     "new_eff": "20261027",
+     "old_chars": 86796,
+     "new_chars": 87200,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 0,
+     "legacy": "_legacy/선원법/20261002",
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-11-03 02:38 KST",
+   "results": [
+    {
+     "slug": "수산관계법령위반행위에대한행정처분의기준과절차에관한규칙",
+     "tier": "법률",
+     "old_mst": "268127",
+     "new_mst": "291421",
+     "old_eff": "20250103",
+     "new_eff": "20261022",
+     "old_chars": 10363,
+     "new_chars": 10580,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 10,
+     "legacy": "_legacy/수산관계법령위반행위에대한행정처분의기준과절차에관한규칙/20250103",
+     "new_byl": 10,
+     "status": "갱신"
+    }
+   ]
   }
  ]
 }

@@ -277,6 +277,28 @@
 .nrya-console .nrya-correct-hint{font-size:10.5px; color:#69f0ae; margin-top:7px}
 .nrya-console .nrya-src-line{font-size:11px; color:var(--nrya-text-sub); margin:9px 0 12px; line-height:1.5}
 .nrya-console .nrya-src-line a{color:#8bb6ff; text-decoration:none}
+/* [원문 보기] ⚠수치검증 카드 안에서 대상 페이지 「근거 조문」 표의 줄마다 원문 창·법령정보센터로 가는 목록
+   (2026-11-02 사용자 요청 — ai_chat.js reviewSourcesHTML/toggleReviewSources). 못 찾은 줄은 노란 경고로 보인다. */
+.nrya-console .nrya-btn-src{width:100%; margin:0 0 11px; border:1px solid rgba(105,240,174,.45); background:rgba(105,240,174,.10);
+  color:#8fe6bb; font-family:inherit; font-weight:800; font-size:13px; padding:10px; border-radius:9px; cursor:pointer}
+.nrya-console .nrya-btn-src.nrya-on{background:rgba(105,240,174,.18)}
+.nrya-console .nrya-btn-src:disabled{opacity:.6; cursor:default}
+.nrya-console .nrya-rv-srcbox{margin:-4px 0 12px; border:1px solid rgba(105,240,174,.25); border-radius:9px; padding:10px; background:rgba(105,240,174,.03)}
+.nrya-console .nrya-rv-srchelp{font-size:11.5px; color:var(--nrya-text-sub); line-height:1.55; margin-bottom:8px}
+.nrya-console .nrya-rv-srchelp b{color:#cdd8ee}
+.nrya-console .nrya-rv-srcpage+.nrya-rv-srcpage{margin-top:10px}
+.nrya-console .nrya-rv-srow{border:1px solid var(--nrya-border); border-radius:8px; padding:8px 10px; margin-top:6px; background:rgba(255,255,255,.02)}
+.nrya-console .nrya-rv-srow-h{font-size:12.5px; color:#fff; line-height:1.5; word-break:break-word}
+.nrya-console .nrya-rv-stier{display:inline-block; font-size:10.5px; font-weight:800; color:#a9c6ff; background:rgba(68,138,255,.14); border-radius:5px; padding:1px 6px; margin-right:2px}
+.nrya-console .nrya-rv-srow-n{font-size:11.5px; color:#c3ccdc; line-height:1.5; margin-top:3px; word-break:break-word}
+.nrya-console .nrya-rv-srow-a{display:flex; flex-wrap:wrap; gap:6px; margin-top:7px}
+.nrya-console .nrya-rv-open{border:1px solid rgba(105,240,174,.45); background:rgba(105,240,174,.12); color:#8fe6bb; font-family:inherit; font-weight:800; font-size:12px; padding:7px 10px; border-radius:7px; cursor:pointer}
+.nrya-console .nrya-rv-lawgo{display:inline-flex; align-items:center; font-size:12px; font-weight:700; text-decoration:none; color:#8bb6ff; background:rgba(68,138,255,.1); border:1px solid rgba(68,138,255,.28); border-radius:7px; padding:7px 10px}
+.nrya-console .nrya-rv-srcmiss{display:block; font-size:12px; color:#ffd740; background:rgba(255,215,64,.08); border:1px solid rgba(255,215,64,.3); border-radius:7px; padding:7px 10px; margin-top:6px; line-height:1.5}
+.nrya-console .nrya-rv-srow-a .nrya-rv-srcmiss{margin-top:0}
+.nrya-console .nrya-rv-srow.nrya-pointed{border-color:rgba(255,215,64,.55); background:rgba(255,215,64,.06)}
+.nrya-console .nrya-rv-spoint{font-size:11px; font-weight:800; color:#ffd740; margin-bottom:4px}
+.nrya-console .nrya-rv-srcnote{align-self:center; font-size:11px; color:var(--nrya-text-sub)}
 /* §6-D 신형 리뷰 필드(2026-08-06): "볼 법(N)" 카드·"확인 체크리스트" 번호목록·확인결과 입력란·AI 재검토 결과 */
 .nrya-console .nrya-rv-lawblock{border:1px solid var(--nrya-border); border-radius:9px; padding:10px 11px; margin-bottom:8px; background:rgba(255,255,255,.02)}
 .nrya-console .nrya-rv-lawblock:last-child{margin-bottom:0}
@@ -355,6 +377,28 @@
 .nrya-console .nrya-rv-law, .nrya-console .nrya-rv-q{font:inherit; font-size:11.5px; color:var(--nrya-text);
   background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:5px 8px; max-width:100%}
 .nrya-console .nrya-rv-law{max-width:46%}
+/* ⚠수치검증 카드 「한눈에 보기」·「AI 조사 결론」·전체 기록 펼치기(2026-11-03 사장님 지시) */
+.nrya-console .nrya-rv-easy{background:rgba(68,138,255,.08); border:1px solid rgba(68,138,255,.32); border-radius:10px; padding:11px 12px; margin:0 0 10px}
+.nrya-console .nrya-rv-easyhead{font-size:13px; font-weight:800; color:#8bb6ff; margin-bottom:7px}
+.nrya-console .nrya-rv-easyrow{display:flex; gap:10px; font-size:12.5px; line-height:1.6; color:#dfe7f5; padding:4px 0; border-top:1px dashed rgba(255,255,255,.08)}
+.nrya-console .nrya-rv-easyrow:first-of-type{border-top:0}
+.nrya-console .nrya-rv-easyk{flex:0 0 7.5em; font-weight:700; color:#ffe082}
+.nrya-console .nrya-rv-easyv{flex:1 1 auto; min-width:0}
+.nrya-console .nrya-rv-easyrow.nrya-rec .nrya-rv-easyk{color:#69f0ae}
+.nrya-console .nrya-rv-easyrow.nrya-rec .nrya-rv-easyv{color:#c8ffe0; font-weight:600}
+.nrya-console .nrya-rv-aidone{background:rgba(105,240,174,.06); border:1px solid rgba(105,240,174,.3); border-radius:10px; padding:10px 12px; margin:0 0 10px}
+.nrya-console .nrya-rv-aidonehead{font-size:12.5px; font-weight:800; color:#69f0ae; margin-bottom:5px}
+.nrya-console .nrya-rv-aidonemain{font-size:12.5px; color:#dfe7f5; line-height:1.6}
+.nrya-console .nrya-rv-full{margin-top:7px}
+.nrya-console .nrya-rv-full>summary{cursor:pointer; font-size:12px; font-weight:700; color:#8bb6ff; padding:4px 0}
+.nrya-console .nrya-rv-full .nrya-rv-fval-pre{margin-top:6px; max-height:420px; overflow:auto}
+.nrya-console .nrya-rv-st.nrya-humanonly{background:rgba(105,240,174,.14); border-color:rgba(105,240,174,.45); color:#69f0ae}
+@media (max-width:560px){.nrya-console .nrya-rv-easyrow{flex-direction:column; gap:2px}.nrya-console .nrya-rv-easyk{flex-basis:auto}}
+/* 보기 칸(대기·승인됨·전체) — 방 버튼(.nrya-subtab)과 같은 알약 꼴. `.nrya-rv-bar button` 보다 구체적으로 덮는다(2026-11-03) */
+.nrya-console .nrya-rv-seg{display:inline-flex; gap:4px; padding:3px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid var(--nrya-border)}
+.nrya-console .nrya-rv-bar .nrya-rv-segbtn{padding:4px 11px; border-radius:14px; background:transparent; border:1px solid transparent; color:var(--nrya-text-sub); font-size:11.5px; font-weight:600}
+.nrya-console .nrya-rv-bar .nrya-rv-segbtn:hover:not(.nrya-active){background:rgba(255,255,255,.07); border-color:transparent}
+.nrya-console .nrya-rv-bar .nrya-rv-segbtn.nrya-active{background:rgba(68,138,255,.2); border-color:var(--nrya-accent-blue); color:#8bb6ff}
 .nrya-console .nrya-rv-q{flex:1 1 120px; min-width:110px}
 .nrya-console .nrya-rv-count{font-size:11px; color:var(--nrya-text-sub); font-variant-numeric:tabular-nums}
 .nrya-console .nrya-rv-pager{display:flex; align-items:center; gap:6px; margin-left:auto}
@@ -731,6 +775,13 @@ body.sub-tabs-open #nrya-overlays .nrya-fab{bottom:calc(var(--main-tab-height,68
 #nrya-overlays .nrya-bylpop-veil{position:fixed; inset:0; z-index:1003; background:rgba(0,0,0,.6); opacity:0; visibility:hidden; transition:opacity .2s ease}
 #nrya-overlays .nrya-bylpop-veil.nrya-open{opacity:1; visibility:visible}
 #nrya-overlays .nrya-bylpop{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.96); z-index:1004; width:min(440px,calc(100vw - 32px)); max-height:76vh; background:#111525; border:1px solid rgba(105,240,174,.3); border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.65); display:flex; flex-direction:column; overflow:hidden; opacity:0; visibility:hidden; transition:transform .2s ease, opacity .2s ease}
+/* [관리자 창 위로] 관리자 센터(#unified-admin-modal, z-index 10000 — style.css)의 ⚠수치검증 카드에서 조문 창을
+   열면 아래 값(1001~1004)으로는 관리자 창 뒤에 숨는다. 그때만 #nrya-overlays 에 nrya-admin-layer 를 붙여
+   위로 올린다(ai_chat.js toggleReviewSources 가 붙이고 closeArtPop 이 뗀다). 챗봇 쪽 순서는 그대로다. */
+#nrya-overlays.nrya-admin-layer .nrya-artpop-veil{z-index:10001}
+#nrya-overlays.nrya-admin-layer .nrya-artpop{z-index:10002}
+#nrya-overlays.nrya-admin-layer .nrya-bylpop-veil{z-index:10003}
+#nrya-overlays.nrya-admin-layer .nrya-bylpop{z-index:10004}
 #nrya-overlays .nrya-bylpop.nrya-open{transform:translate(-50%,-50%) scale(1); opacity:1; visibility:visible}
 #nrya-overlays .nrya-bylpop-head{display:flex; align-items:flex-start; gap:8px; padding:12px 13px; border-bottom:1px solid rgba(105,240,174,.2)}
 #nrya-overlays .nrya-bylpop-t{flex:1; min-width:0; word-break:break-word; font-size:12.5px; font-weight:700; color:#8fe6bb}

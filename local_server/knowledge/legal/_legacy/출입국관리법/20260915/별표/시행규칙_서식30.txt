@@ -1,0 +1,162 @@
+[시행규칙] 서식30 — 상륙허가 신청서, 상륙허가서
+
+■ 출입국관리법 시행규칙 [별지 제30호서식]             
+                                                                            
+                                                                            
+                                      (제1쪽 / Page1)                       
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓  
+  ┃상륙허가 신청서   □승무원 CREW(□SINGLE, □MULTIPLE)               ┃  
+  ┃APPLICATION FOR   □긴급 EMERGENCY                                  ┃  
+  ┃                  □재난 DISASTER                                   ┃  
+  ┃                  □관광 TOUR(□GROUP, □INDIVIDUAL)                ┃  
+  ┠────────┬────────┬────┬───────────┨  
+  ┃                │ 성 Surname     │ 성 별  │[ ]남 M               ┃  
+  ┃                │                │  Sex   │[ ]여 F               ┃  
+  ┃                ├────────┴────┴───────────┨  
+  ┃                │ 명 Given names                                   ┃  
+  ┃                │                                                  ┃  
+  ┃                ├─────────────────────────┨  
+  ┃                │ 생년월일 DATE OF BIRTH(yyyy/mm/dd)               ┃  
+  ┃                │                                                  ┃  
+  ┃                ├─────────────────────────┨  
+  ┃                │ 국적 NATIONALITY                                 ┃  
+  ┃                │                                                  ┃  
+  ┠────────┴──────┬──────────────────┨  
+  ┃여권번호 PASSPORT NO.         │직업 OCCUPATION                     ┃  
+  ┃                              │                                    ┃  
+  ┠───────────────┼──────────────────┨  
+  ┃상륙이유 REASON FOR LANDING   │운수업자 AGENT                      ┃  
+  ┃                              │                                    ┃  
+  ┠───────────────┼──────────────────┨  
+  ┃입항편명                      │출항편명                            ┃  
+  ┃FLIGHT NO./DISEMBARKATION     │FLIGHT NO./EMBARKATION              ┃  
+  ┃                              │                                    ┃  
+  ┠───────────────┼──────────────────┨  
+  ┃전출항지 DEPARTED PORT        │다음 출항지 NEXT PORT OF            ┃  
+  ┃                              │CALL                                ┃  
+  ┃                              │                                    ┃  
+  ┠───────────────┴──────────────────┨  
+  ┃By signing below, I agree that I will comply with the Immigration   ┃  
+  ┃Act of the Republic of Korea and notify all crews and passengers    ┃  
+  ┃of the obligation to abide by the Immigration Act. I declare        ┃  
+  ┃that I will assume full responsibility for any violation of the Act ┃  
+  ┃committed by them.                                                  ┃  
+  ┠──────────────────────────────────┨  
+  ┃ 서명 SIGNATURE OF APPLICANT (AGENT/MASTER)                         ┃  
+  ┃                                                                    ┃  
+  ┠──────────────────────────────────┨  
+  ┃공용란        OFFICIAL USE ONLY                                     ┃  
+  ┠───────────────┬──────────────────┨  
+  ┃행동범위 제한 AREA OF MOVEMENT│유효기한 VALID UNTIL(yyyy/mm/dd)    ┃  
+  ┃                              │                                    ┃  
+  ┠───────────────┴──────────────────┨  
+  ┃기타 제한/조건 RESTRICTIONS OR CONDITIONS                           ┃  
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛  
+    92mm×132mm(인쇄용지(NCR) 75G/㎡)                                       
+                                                                            
+                                                                            
+                                                                                        
+  ■ 출입국관리법 시행규칙 [별지 제30호서식]                                            
+                                                                                        
+                                                                                        
+     Ministry of Justice, Republic of Korea       No.           (제2쪽 / Page2)         
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      
+  ┃  상륙허가서    □CREW(□SINGLE, □MULTIPLE)                                ┃      
+  ┃LANDING PERMIT  □EMERGENCY                                                 ┃      
+  ┃                □DISASTER                                                  ┃      
+  ┠───────┬──────┬───┬───────────────────┨      
+  ┃              │ 성 Surname │성 별 │[ ]남 M                               ┃      
+  ┃              │            │Sex   │[ ]여 F                               ┃      
+  ┃              ├──────┴───┴───────────────────┨      
+  ┃              │ 명 Given names                                             ┃      
+  ┃              │                                                            ┃      
+  ┃              ├──────────────────────────────┨      
+  ┃              │ 생년월일 DATE OF BIRTH(yyyy/mm/dd)                         ┃      
+  ┃              │                                                            ┃      
+  ┃              ├──────────────────────────────┨      
+  ┃              │ 국적 NATIONALITY                                           ┃      
+  ┃              │                                                            ┃      
+  ┠───────┴────┬─────────────────────────┨      
+  ┃여권번호 PASSPORT NO.   │직업 OCCUPATION                                   ┃      
+  ┃                        │                                                  ┃      
+  ┠────────────┼─────────────────────────┨      
+  ┃상륙이유 REASON FOR LANDING│운수업자 AGENT                                    ┃   
+  ┃                        │                                                  ┃      
+  ┠────────────┼─────────────────────────┨      
+  ┃입항편명                │출항편명                                          ┃      
+  ┃FLIGHT NO./DISEMBARKATION│FLIGHT NO./EMBARKATION                            ┃     
+  ┃                        │                                                  ┃      
+  ┠────────────┼─────────────────────────┨      
+  ┃전출항지 DEPARTED PORT  │다음 출항지 NEXT PORT OF                          ┃      
+  ┃                        │CALL                                              ┃      
+  ┃                        │                                                  ┃      
+  ┠────────────┼─────────────────────────┨      
+  ┃입국심사인 ENTRANCE SEAL│출국심사인 DEPARTURE SEAL                         ┃      
+  ┃                        │                                                  ┃      
+  ┃                        │                                                  ┃      
+  ┃                        │                                                  ┃      
+  ┃                        │                                                  ┃      
+  ┃                        │                                                  ┃      
+  ┠────────────┼─────────────────────────┨      
+  ┃행동범위 제한           │유효기한                                          ┃      
+  ┃AREA OF MOVEMENT        │VALID UNTIL(yyyy/mm/dd)                           ┃      
+  ┃                        │                                                  ┃      
+  ┠────────────┴─────────────────────────┨      
+  ┃기타 제한/조건 RESTRICTIONS OR CONDITIONS                                   ┃      
+  ┃(뒤면 주의사항 참고) SEE NEXT PAGE "NOTICE"                                 ┃      
+  ┡━━━━┯━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩      
+  │복사방지│      │바코드존                                                  │      
+  ├────┴───┴─────────────────────────────┤      
+  │92mm × 132mm인쇄용지 75g/㎡                                                │      
+  └──────────────────────────────────────┘      
+                                                                                        
+                                                                                  
+  ■ 출입국관리법 시행규칙 [별지 제30호서식]                                      
+                                                                                  
+                                                                                  
+          (제3쪽 / Page3)                                                         
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓  
+  ┃주의사항 NOTICE                                                           ┃  
+  ┃                                                                          ┃  
+  ┃ 1. 이 상륙허가서는 여권 또는 선원수첩과 함께 항시 휴대하여 출입국관리    ┃  
+  ┃공무원이나 다른 권한 있는 공무원의 요구가 있으면 제시하여야 합니다.       ┃  
+  ┃This Landing Permit shall be carried with passport or seaman's book       ┃  
+  ┃at all times and presented to the immigration officer or other            ┃  
+  ┃authorized official upon request.                                         ┃  
+  ┃ 2. 승무원상륙허가를 받은 사람은 상륙허가기간 만료 전 또는 상륙허         ┃  
+  ┃가기간 만료 전이라도 승무하고 있는 선박 등이 출항하기 전에는 승선         ┃  
+  ┃하여야 합니다.                                                            ┃  
+  ┃The bearer of this Landing Permit shall go on board not later than the    ┃  
+  ┃date of expiration of the permit or before vessel, etc. which             ┃  
+  ┃he/she is on board departs from a port although the period of the         ┃  
+  ┃validity of the permit has not been expired.                              ┃  
+  ┃ 3. 이 허가서 소지자는 대한민국 내에서 승선선박 등의 승무원으로서의       ┃  
+  ┃활동 외의 다른 사업을 영위하거나 보수를 받는 활동을 할 수가 없습니다.     ┃  
+  ┃The bearer of this landing permit can not do any activity for             ┃  
+  ┃making money except for the activity done as a crew in Korea.             ┃  
+  ┃ 4. 이 허가서 소지자의 행동범위는 특별히 제한 또는 확대하는 경우를        ┃  
+  ┃제외하고는 승선선박 등이 기항한(하는) 지역의 지방 출입국·외국인관서      ┃  
+  ┃의 관할구역으로 합니다.                                                   ┃  
+  ┃The movement of the bearer of this landing permit shall be limited        ┃  
+  ┃to the jurisdiction of the immigration office which controls the          ┃  
+  ┃port at which the vessel makes a call except especially restricted        ┃  
+  ┃or extended.                                                              ┃  
+  ┃ 5. 위 또는 앞면에 기재한 조건을 위반한 때는 「출입국관리법」에 따        ┃  
+  ┃라 처벌됩니다.                                                            ┃  
+  ┃Violation of conditions stated above or on the front page shall result in ┃  
+  ┃penalties pursuant to the Immigration Act.                                ┃  
+  ┠─────────────────────────────────────┨  
+  ┃상륙허가내용 변경 CHANGED LANDING PERMISSION                              ┃  
+  ┠─────┬──────┬──────┬─────────────────┨  
+  ┃허가번호  │허가일자    │변경허가내용│확인 인                           ┃  
+  ┃PERMIT NO.│PERMITTED ON│CONTENTS    │AUTHORITY                         ┃  
+  ┠─────┼──────┼──────┼─────────────────┨  
+  ┃          │            │            │                                  ┃  
+  ┠─────┼──────┼──────┼─────────────────┨  
+  ┃          │            │            │                                  ┃  
+  ┠─────┼──────┼──────┼─────────────────┨  
+  ┃          │            │            │                                  ┃  
+  ┠─────┼──────┼──────┼─────────────────┨  
+  ┃          │            │            │                                  ┃  
+  ┗━━━━━┷━━━━━━┷━━━━━━┷━━━━━━━━━━━━━━━━━┛  
+     92mm × 132mm인쇄용지 75g/㎡

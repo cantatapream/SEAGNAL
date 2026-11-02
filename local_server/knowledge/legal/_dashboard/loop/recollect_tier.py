@@ -170,6 +170,41 @@ def byl_changed(law, tier, bdir):
         shutil.rmtree(td, ignore_errors=True)
 
 
+NOTE_RE = re.compile(r'^(⚠표 아님|주의:)')
+
+
+def carry_notes(bdir, files):
+    """옛 별표 파일 둘째 줄의 **우리 주석**(「⚠표 아님 …」·「주의: …」)을 파일 이름별로 챙긴다.
+
+    ★왜 (2026-11-03, L-417 재발) — 별표를 새 판으로 다시 쓰면 API 글만 남아 우리가 단 주석이 사라졌다
+      (수산업법 시행령 별표2 「⚠표 아님」 → V5-20 0→102줄 · 서식0 「주의: 번호 없음」 · 수협법 별표0 · 출입국 서식11의2).
+    @param {str} bdir 별표 폴더 · @param {list[str]} files 옛 파일 이름 · @returns {dict} {파일이름: 주석줄}
+    [연계] do_one() 이 지우기 전에 부르고, 다시 쓴 뒤 restore_notes() 로 되살린다 · test_collect_approved T-note
+    """
+    out = {}
+    for f in files:
+        ls = open(os.path.join(bdir, f), encoding='utf-8', errors='replace').read().split('\n')
+        if len(ls) > 1 and NOTE_RE.match(ls[1]):
+            out[f] = ls[1]
+    return out
+
+
+def restore_notes(bdir, notes):
+    """carry_notes() 가 챙긴 주석을 **같은 이름의 새 파일** 둘째 줄에 다시 넣는다(이미 있으면 그대로).
+    새 판에 그 파일이 없으면 넣지 않는다(별표가 없어졌다). @returns {list[str]} 되살린 파일 이름"""
+    done = []
+    for f, note in notes.items():
+        q = os.path.join(bdir, f)
+        if not os.path.exists(q):
+            continue
+        ls = open(q, encoding='utf-8').read().split('\n')
+        if note not in ls:
+            ls.insert(1, note)
+            open(q, 'w', encoding='utf-8').write('\n'.join(ls))
+        done.append(f)
+    return done
+
+
 def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, other=False, byl=True, force=False):
     base = find_raw_dir(slug, other)
     if not base:
@@ -273,6 +308,7 @@ def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, 
         # ★byl=False 면 별표는 손대지 않는다 (2026-10-07, 3-85). 원문결손(목 누락) 7건을 고칠 때 쓴다 —
         #   `15_관련타부처` 의 타법 폴더에 그 층 별표를 통째로 새로 들이면 일이 「목 되찾기」 를 넘어선다.
         if byl and byl_units:
+            notes = carry_notes(bdir, old_byl)   # 우리 주석 줄을 지우기 전에 챙긴다(L-417)
             for f in old_byl:
                 os.remove(os.path.join(bdir, f))
                 touched.add(os.path.join(bdir, f))
@@ -282,6 +318,9 @@ def do_one(slug, tier, new_mst, efyd, touched, dry, allow_marks, held_mst=None, 
             n = extract_layer({'법령': law}, tier, bdir, links)
             json.dump(links, open(lp, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
             touched.add(lp)
+            kept = restore_notes(bdir, notes)
+            if kept:
+                rec['kept_notes'] = kept
             for f in os.listdir(bdir):
                 if f.startswith(tier + '_') and f.endswith('.txt'):
                     touched.add(os.path.join(bdir, f))

@@ -1,0 +1,82 @@
+[시행규칙] 서식126의4 — 송환대기장소 변경 신청서
+
+■ 출입국관리법 시행규칙 [별지 제126호의4서식]                                      
+                                                                                                        
+  송환대기장소 변경 신청서                                                                              
+  APPLICATION FOR CHANGE OF REPATRIATION WAITING AREA                                                   
+                                                                                                        
+                                                                                                        
+─────────────┬────┬──────────┬──────────────────────
+  접수번호                │접수일자│처리일자            │처리기간                                    
+─────────────┴────┴──────────┴──────────────────────
+                                                                                                        
+───────────┬───────────────┬────────────────────────
+  인적사항            │성명 (Name in Full)           │성별 (Sex)                                      
+  (Personal           │                              │    남 (Male) [  ]  여 (Female) [  ]            
+  Information)        ├───────────────┼────────────────────────
+                      │생년월일 (Date of Birth)      │국적 (Nationality)                              
+                      │                              │                                                
+                      ├───────────────┼────────────────────────
+                      │여권번호 (Passport No.)       │입국편명 (Flight No.)                           
+                      │                              │                                                
+                      ├───────────────┼────────────────────────
+                      │휴대전화번호 (Cell Phone No.) │전자우편 (E-mail)                               
+───────────┴───────────────┴────────────────────────
+                                                                                                        
+───────────┬────────────────────────────────────────
+  신청안내 및         │1. 귀하는 변경된 송환대기장소에서 머무르는 경우 발생하는 비용을 부담하여야      
+  준수사항            │합니다. You shall be responsible of the expenses arising from your stay at      
+  (Application Notice │the changed place of repatriation waiting area.                                 
+  and Compliance      │2. 귀하는 대한민국 정부가 요청하는 경우 송환대기장소 변경 신청에 필요한 자료    
+  Matters)            │를 제출하여야 합니다. Upon request of the ROK government, you shall             
+                      │submit required documents relevant to your application for change of            
+                      │repatriation waiting area.                                                      
+                      │3. 귀하는 변경된 송환대기장소에 머무르는 동안 대한민국 법률, 공항 내 보안규정   
+                      │및 출입국관리공무원의 정당한 지시를 준수하여야 합니다. During your stay at      
+                      │the changed place of repatriation waiting area, you shall comply with the       
+                      │laws of the ROK, security regulations of the airport, and lawful orders of      
+                      │the immigration officer.                                                        
+                      │4. 귀하가 변경 조건을 위반하는 등 변경된 송환대기장소에 머무르는 것이 부적절    
+                      │하다고 판단되는 경우 송환대기장소를 출국대기실로 다시 변경할 수 있습니다.       
+                      │When deemed inappropriate for the person to stay at the changed place           
+                      │of repatriation waiting area, such as violating the conditions for change of    
+                      │repatriation waiting area, the repatriation waiting area may be changed to      
+                      │the departure waiting room.                                                     
+───────────┼────────────────────────────────────────
+  송환대기장소        │                                                                                
+  (Repatriation       │                                                                                
+  Waiting Area)       │                                                                                
+───────────┼────────────────────────────────────────
+  신청사유            │                                                                                
+  (Reason for         │                                                                                
+  Application)        │                                                                                
+───────────┼────────────────────────────────────────
+  입증 자료           │※ 따로 입증할 자료가 있는 경우에는 별도로 첨부합니다.                          
+  (Supporting         │ If you have any additional evidence to prove it, please attach it separately.  
+  Evidence)           │                                                                                
+───────────┴────────────────────────────────────────
+                                                                                                        
+────────────────────────────────────────────────────
+    본인은 신청안내 및 준수사항에 대하여 안내를 받았으며, 송환대기장소 변경을 신청합니다.               
+    I have been informed of application notice and compliance matters, and apply for change of          
+  repatriation waiting area.                                                                            
+                                                                                                        
+    신청일                                                  년      월      일                          
+    (Date of Application)                                 (Year)   (Month)  (Day)                       
+                                                                                                        
+    신청인                                                      (서명 또는 인)                          
+    (Applicant)                                              (signature or seal)                        
+                                                                                                        
+                                                                                                        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  공용란(FOR OFFICIAL USE ONLY)                                                                         
+────────────┬─┬─────────────┬─────┬─────────────────
+  허가번호              │  │결재                      │청장      │                                  
+                        │  │                          ├─────┤                                  
+────────────┼─┤                          │국장      │                                  
+  허가일자              │  │                          ├─────┤                                  
+                        │  │                          │과장      │                                  
+                        │  │                          ├─────┤                                  
+                        │  │                          │담당      │                                  
+━━━━━━━━━━━━┷━┷━━━━━━━━━━━━━┷━━━━━┷━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

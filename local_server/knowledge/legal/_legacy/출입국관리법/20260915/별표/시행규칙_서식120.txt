@@ -1,0 +1,53 @@
+[시행규칙] 서식120 — 보호 일시해제 취소서
+
+■ 출입국관리법 시행규칙 [별지 제120호서식]                                 
+                                                                                                
+                                                             번호(No.) :                        
+  보호 일시해제 취소서                                                                          
+  (REVOCATION OF TEMPORARY RELEASE FROM DETENTION)                                              
+  수신 :                                                                                        
+  To :                                                                                          
+───────────┬────────────────────────────────────
+  용의자              │성명 (Full name)                                                        
+  (Person subject to  ├────────────┬───────────────────────
+  Revocation)         │생년월일 (Date of Birth)│성별 (Gender) [ ]남 Male  [ ]여 Female        
+                      ├────────────┼───────────────────────
+                      │국적 (Nationality)      │직업 (Occupation)                             
+                      ├────────────┴───────────────────────
+                      │대한민국 내 주소 (Address in Korea)                                     
+───────────┼────────────────────────────────────
+  보호                │발부일자 (Date of Issue)                                                
+  일시해제 사항       ├────────────────────────────────────
+  (Details of         │번호 (Reference No.)                                                    
+  Temporary Release   │                                                                        
+  Previously Granted) │                                                                        
+───────────┴────────────────────────────────────
+                                                                                                
+────────────────────────────────────────────────
+    위 사람에게 한 보호 일시해제를 「출입국관리법」 제66조제1항에 따라 아래 사유로 취소합니다.  
+    The temporary release from detention granted to the above-mentioned person is               
+  revoked pursuant to Article 66(1) of the Immigration Act, for the reason stated               
+  below.                                                                                        
+───────────┬────────────────────────────────────
+  취소사유 및         │취소사유 (Reason for revocation)                                        
+  보호 장소           ├────────────────────────────────────
+  (Reason for         │보호 장소 (Place of Detention)                                          
+  revocation          │                                                                        
+  and Place of        │                                                                        
+  Detention)          │                                                                        
+───────────┼────────────────────────────────────
+  보호 기간           │부터                까지                                                
+  (Period of          │ (from)                  (to)                                           
+  Detention)          │                                                                        
+───────────┴────────────────────────────────────
+                                                                                                
+────────────────────────────────────────────────
+                                                                                                
+            년       월      일                                                                 
+                                    Date    (year)    (month)    (day)                          
+                                                                       ┏━━┓                 
+                                 ○○출입국ㆍ외국인청(사무소ㆍ출장소)장┃직인┃                 
+                                                                       ┗━━┛                 
+                           CHIEF, ○○IMMIGRATION OFFICE                                        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

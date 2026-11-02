@@ -1,0 +1,46 @@
+[시행규칙] 서식56의4 — 출국정지(출국정지기간 연장) 통지서
+
+출입국관리법 시행규칙 [별지 제56호의4서식]                                                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃법  무  부                                                                                                      ┃
+┃MINISTRY OF JUSTICE                                                                                             ┃
+┃  TO :                                                      Date       .       .       .                        ┃
+┃                                                                                                                ┃
+┃출국정지(출국정지기간 연장) 통지서                                                                              ┃
+┃NOTICE OF(EXTENSION OF PERIOD OF) SUSPENSION OF DEPARTURE                                                       ┃
+┃                                                                                                                ┃
+┃    I hereby notify you that your departure shall be suspended(the period of suspension of your departure was   ┃
+┃extended) in accordance with article 29 of the immigration law, as follows :                                    ┃
+┃                                                                                                                ┃
+┃  □  Date of suspension of departure :              From              .      .     .                           ┃
+┃                                                      To                 .      .      .                        ┃
+┃                                                                                                                ┃
+┃  □ Extended period of suspension of departure :    From              .      .      .                          ┃
+┃                                                      To                 .      .      .                        ┃
+┃                                                                                                                ┃
+┃  Cause for(extension of) suspension of departure :                                                             ┃
+┃                                                                                                                ┃
+┃  Institution which requested(for extension of) suspension of departure :                                       ┃
+┃                                                                                                                ┃
+┃ ※ 안내 사항 (Notice):                                                                                         ┃
+┃  1. 귀하는 위 처분에 대하여 이의가 있을 때에는 「출입국관리법」 제29조제2항에 따라                             ┃
+┃이 통지서를 받은 날부터 10일 이내에 법무부장관에게 이의신청을 하거나, 이 통지서를                               ┃
+┃받은 날부터 90일 이내에 행정심판 또는 행정소송을 제기할 수 있습니다.                                            ┃
+┃     A person who has an objection to the above disposition may file an objection with the Minister of Justice  ┃
+┃within 10 days after receipt of the notice of(extension of period of) suspension of departure in                ┃
+┃accordance with Article 29 paragraph 2 of the Immigration Act or may file an administration appeal or an        ┃
+┃administrative litigation within 90 days from the date of receiving the notice.                                 ┃
+┃                                                                                                                ┃
+┃  2. 이의신청을 할 때에는 전자우편(bordercontrol@korea.kr)으로, 행정심판을 청구할 때에는                        ┃
+┃온라인행정심판(www.simpan.go.kr)을 통하여, 행정소송을 청구할 때에는 전자소송                                    ┃
+┃(ecfs.scourt.go.kr)을 통하여 온라인으로도 청구할 수 있습니다.                                                   ┃
+┃       You may file an objection via e-mail(bordercontrol@korea.kr), an administrative appeal online            ┃
+┃(www.simpan.go.kr) and an administrative litigation on the Internet (ecfs.scourt.go.kr)                         ┃
+┃                                                                                                                ┃
+┃            ┏━━┓                                                                                            ┃
+┃  법무부장관┃직인┃                                                                                            ┃
+┃            ┗━━┛                                                                                            ┃
+┃MINISTER OF JUSTICE                                                                                             ┃
+┃(OFFICIAL SEAL AFFIXED)                                                                                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                                 210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]
