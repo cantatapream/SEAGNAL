@@ -316,6 +316,23 @@ function createStore({ file, backfillFile } = {}) {
         const db = load();
         const dev = touchDevice(db, info.device, now);
         dev.beat = { ...info, at: now.toISOString() };
+        // 배터리 알림(사용자 요청 2026-11-03 「태블릿 배터리가 30퍼센트 이하로 떨어져도 관리자에 알림」).
+        //   사건이 아니라 상태다 — 30% 이하로 처음 떨어질 때 1번, 충전돼 40% 이상이 되면 「충전됨」 1번.
+        //   40% 로 띄운 까닭: 30~31% 를 오가면 30분마다 「부족」「충전됨」이 번갈아 나간다.
+        //   이 알림은 「멈춤 감시」(checkHealth → collect_fail_alert)와 따로 보낸다 — 그쪽은 이미 「이상」인 동안
+        //   사유가 바뀌어도 다시 알리지 않아, 휴대폰 이상 중에 태블릿 배터리가 떨어지면 조용히 묻힌다.
+        const bat = typeof info.battery === 'number' ? info.battery : Number(info.battery);
+        if (dev.state === 'on' && Number.isFinite(bat) && bat >= 0) {
+            const at = now.toISOString(), device = String(info.device || '');
+            if (bat <= BATTERY_LOW && !dev.lowBattery) {
+                dev.lowBattery = true;
+                (db.alerts = db.alerts || []).push({ type: 'batteryLow', device, battery: bat, at, text: 'batteryLow@' + at });
+            } else if (bat >= BATTERY_OK && dev.lowBattery) {
+                dev.lowBattery = false;
+                (db.alerts = db.alerts || []).push({ type: 'batteryOk', device, battery: bat, at, text: 'batteryOk@' + at });
+            }
+            if (db.alerts) db.alerts = db.alerts.slice(-MAX_ALERTS);
+        }
         db.heartbeat = dev.beat;   // 마지막으로 들어온 신호(옛 화면·검사 호환)
         // 데이터 수집현황 카드가 읽는 맨 위 칸(목록표 kakaoRelay 의 collectedField) — 켜진 기기 중 가장 최근 신호.
         db.heartbeatAt = Object.values(db.devices).filter((d) => d.state === 'on' && d.beat)
@@ -563,6 +580,8 @@ const MMIS_GIVE_UP_MS = 6 * 3600e3;
 const CLR_CHANGE_SLACK_MS = 15 * 60e3;
 const MAX_CHECKS = 200;
 const MAX_ALERTS = 50;
+/** 배터리 알림 경계 — 이하로 떨어지면 「부족」, 충전돼 이상이 되면 「충전됨」(heartbeat). */
+const BATTERY_LOW = 30, BATTERY_OK = 40;
 
 /** 'YYYY년 MM월 DD일 HH시 MM분' → '…T HH:MM+09:00'. 못 읽으면 null. */
 function mmisIso(str) {
@@ -744,6 +763,10 @@ async function checkMmis({
                 body: `「${a.zones.join('」, 「')}」 — 앱 표준 구역표에 없는 이름입니다. 이 줄은 기록만 하고 대조·반영에서 뺐습니다.\n${body0}\n→ 새 별칭이 필요한지 확인해 주세요.` });
             else if (a.type === 'anchorMissing') msgs.push({ kind: 'alert', alert: a, title: '⚠ 중계 앱이 마지막으로 본 글을 찾지 못함',
                 body: `${fmtK(a.at)} ${a.device || ''} — 대화방을 위로 끝까지(최대 끌기) 올려도 서버가 기억하는 「마지막으로 본 글」이 나오지 않았습니다.\n그 사이 특보 글을 놓쳤을 수 있습니다. 카톡 대화방을 직접 확인하거나 [긁어오기]로 채워 주세요.` });
+            else if (a.type === 'batteryLow') msgs.push({ kind: 'alert', alert: a, title: `🔋 중계 기기 배터리 부족 — ${a.device} ${a.battery}%`,
+                body: `${fmtK(a.at)} ${a.device} 배터리가 ${a.battery}% 입니다(알림 기준 ${BATTERY_LOW}% 이하).\n꺼지면 카톡 특보를 서버로 보내지 못합니다. 충전기를 연결해 주세요.\n(${BATTERY_OK}% 이상으로 충전되면 한 번 더 알려 드립니다.)` });
+            else if (a.type === 'batteryOk') msgs.push({ kind: 'alert', alert: a, title: `✅ 중계 기기 배터리 충전됨 — ${a.device} ${a.battery}%`,
+                body: `${fmtK(a.at)} ${a.device} 배터리가 ${a.battery}% 로 올라왔습니다. 배터리 부족 알림을 마칩니다.` });
             else if (a.type === 'missed') msgs.push({ kind: 'alert', alert: a, title: `ℹ 카톡 대화방에서 처음 보는 특보 ${a.lines.length}줄(알림은 못 받았던 글)`,
                 body: a.lines.map((l) => `• ${l}`).join('\n') + `\n(${fmtK(a.at)} ${a.device || ''} 가 대화방을 읽다가 발견 — 통신이 끊겼던 사이 온 글일 수 있습니다. 이미 지난 특보일 수 있어 새 특보로는 쓰지 않았습니다.)` });
             else msgs.push({ kind: 'alert', alert: a, title: '❓ 카톡 특보 글을 읽지 못함',
