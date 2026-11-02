@@ -37,7 +37,7 @@
  *  - GET  /api/legal/article-text     → 답변카드의 조문 카드를 눌렀을 때 띄울 원문. 인용 표기에 따라
  *                                       조 하나(항·호 분해 + 인용 항 강조) / 범위(제1~9조) / 문서 전체로
  *                                       갈리고, 본문의 별표·서식 참조는 실재 여부(refs)까지 판정해 준다
- *                                       (`files=1` 이면 고시 별표에도 원본 HWP·PDF 주소를 찾아 붙인다 — 관리자 카드용)
+ *                                       (`files=1` + 관리자 토큰이면 고시 별표에도 원본 HWP·PDF 주소를 찾아 붙인다 — 관리자 카드용)
  *  - GET  /api/legal/aliases          → 법령 약칭 → 정식 명칭 대응표(모호하지 않은 것만). 화면이 답변
  *                                       본문의 조문에 링크를 걸 때 법을 특정하는 데 쓴다
  *
@@ -2226,8 +2226,11 @@ router.get('/api/legal/article-text', async (req, res) => {
     //   focused 판정(계약2)이 성립하지 않는다. 응답도 통째로 그대로 통과시킨다(addenda 등 계약3).
     // `files=1` — 관리자 ⚠수치검증 카드에서 연 창만 보낸다: 고시 본문에 별표 글이 있어도 원본 HWP·PDF 단추를
     //   찾아 붙인다(article_text.resolveRefs ⑤). 챗봇 답변의 조문 창은 보내지 않아 지금과 같다.
+    //   ⚠이 경로는 인증이 없다 — **관리자 토큰이 맞을 때만** files 를 받는다. 아니면 조용히 무시하고 종전대로 연다
+    //   (아무나 별표 후보 파일 조회를 늘리지 못하게 · 2026-11-02 독립 검토 B-4).
+    const files = q.files === '1' && adminAuth.verifyToken(req.get('X-Admin-Token') || '');
     const out = await articleText.loadArticle({
-      law: q.law, article: q.article, tier: q.tier, baseLaw: q.baseLaw, files: q.files === '1',
+      law: q.law, article: q.article, tier: q.tier, baseLaw: q.baseLaw, files,
     });
     res.json(out);
   } catch (e) {

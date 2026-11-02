@@ -33,35 +33,78 @@ const MAX_OPEN_CHECK = 60;
 const LAWGO = 'https://www.law.go.kr';
 
 /**
- * 카드의 「대상 페이지」 칸 값들을 실제 위키 쪽(kind·file)으로 바꾼다.
+ * 카드의 「대상 페이지」 칸 값들을 실제 위키 쪽(kind·file)으로 바꾸고, `.md` 가 적혔는데 읽지 못한 칸도 따로 모은다.
  * 칸에는 설명이 섞여 있다 — `wiki/concepts/A__B.md (사유가 적힌 자리: 본문 98행 …)`,
  * 법 접두를 줄인 `__C.md`(바로 앞 쪽의 법을 물려받는다), 쉼표로 쪼개져 들어온 설명 조각
  * (`(8R 감사 gap remediation` 등). `.md` 가 없는 조각은 쪽이 아니므로 건너뛴다.
  * 승인 처리(routes/legal.js applyToWikiPages)와 같은 규칙(접두 제거 · `.md` 뒤 설명 자르기 · `__` 상속)에
  * concepts 밖의 폴더(statutes·comparisons·annexes·activities)도 받는다.
- * 예: pageRefsOf(['wiki/concepts/어선법__A.md (신규)', '__B.md'])
- *     → [{kind:'concept', file:'어선법__A', rel:'wiki/concepts/어선법__A.md'}, {kind:'concept', file:'어선법__B', rel:'wiki/concepts/어선법__B.md'}]
+ * ⚠`draft/concept_어업허가.md → wiki/concepts/`(옛 초안 경로 + 폴더만) · `wiki/concepts/comparisons/…md`(폴더가 겹친 오기)처럼
+ *   **경로는 적혔는데 위키 쪽 하나로 읽을 수 없는 칸**은 짐작해 고르지 않고 `unread` 에 그대로 담는다 —
+ *   화면이 「적혀 있지 않다」가 아니라 「적혀 있지만 읽을 수 없는 형식」이라고 다르게 알리게(2026-11-02 독립 검토 B-1).
+ * 예: scanPageCells(['wiki/concepts/어선법__A.md (신규)', '__B.md', 'draft/concept_X.md → wiki/concepts/'])
+ *     → {refs:[{kind:'concept', file:'어선법__A', …}, {kind:'concept', file:'어선법__B', …}], unread:['draft/concept_X.md → wiki/concepts/']}
  * @param {string[]} targetPages - GET /api/legal/reviews 의 targetPages
- * @returns {Array<{kind:string, file:string, rel:string}>}
- * [연계] ← buildReviewSources.
+ * @returns {{refs:Array<{kind:string, file:string, rel:string}>, unread:string[]}}
+ * [연계] ← pageRefsOf · buildReviewSources.
  */
-function pageRefsOf(targetPages) {
-  const out = [];
+function scanPageCells(targetPages) {
+  const refs = [], unread = [];
   let lastLaw = '', lastDir = 'concepts';
   for (const raw of targetPages || []) {
-    const m = /^(?:wiki\/([a-z]+)\/)?(\S+?)\.md\b/.exec(String(raw || '').trim());
-    if (!m) continue;
+    const cell = String(raw || '').trim();
+    const m = /^(?:wiki\/([a-z]+)\/)?(\S+?)\.md\b/.exec(cell);
+    if (!m) { if (/\.md\b/.test(cell)) unread.push(cell); continue; }
     const dir = m[1] || lastDir;
-    if (!DIR_KIND[dir]) continue;
     let file = m[2];
+    // 폴더 밖으로 나가는 이름·모르는 폴더·하위 경로가 섞인 이름은 받지 않는다(읽지 못한 칸으로 남긴다)
+    if (!DIR_KIND[dir] || /[\\/]|\.\./.test(file)) { unread.push(cell); continue; }
     if (file.startsWith('__') && lastLaw) file = lastLaw + file;
     else lastLaw = file.split('__')[0];
     lastDir = dir;
-    if (/[\\/]|\.\./.test(file)) continue;             // 폴더 밖으로 나가는 이름은 받지 않는다
-    if (out.some(p => p.kind === DIR_KIND[dir] && p.file === file)) continue;
-    out.push({ kind: DIR_KIND[dir], file, rel: 'wiki/' + dir + '/' + file + '.md' });
+    if (refs.some(p => p.kind === DIR_KIND[dir] && p.file === file)) continue;
+    refs.push({ kind: DIR_KIND[dir], file, rel: 'wiki/' + dir + '/' + file + '.md' });
   }
-  return out;
+  return { refs, unread };
+}
+
+/**
+ * 카드의 「대상 페이지」 칸 값들을 실제 위키 쪽(kind·file)으로 바꾼다(읽지 못한 칸은 버린다 — 그 목록은 scanPageCells).
+ * 예: pageRefsOf(['wiki/concepts/어선법__A.md (신규)', '__B.md'])
+ *     → [{kind:'concept', file:'어선법__A', rel:'wiki/concepts/어선법__A.md'}, {kind:'concept', file:'어선법__B', rel:'wiki/concepts/어선법__B.md'}]
+ * @param {string[]} targetPages
+ * @returns {Array<{kind:string, file:string, rel:string}>}
+ * [연계] → scanPageCells.
+ */
+function pageRefsOf(targetPages) { return scanPageCells(targetPages).refs; }
+
+// 카드 글과 줄을 맞대 볼 때 쓰는 번호 꼴 — 조(`제28조`·`제18조의2`)와 별표(`별표12`·`별표 3의2`).
+const CITE_TOKEN_RE = /제\s*\d+\s*조(?:\s*의\s*\d+)?|별표\s*\d+(?:\s*의\s*\d+)?/g;
+/** 이름·번호 비교용으로 공백·낫표·가운뎃점·밑줄을 지운다(글자는 안 바꾼다). @param {string} s @returns {string} */
+function flat(s) { return String(s || '').replace(/[\s「」『』·ㆍ_]/g, ''); }
+/** 글에서 조·별표 번호를 뽑아 공백 없는 꼴로. 예: citeTokens('제 28 조②, 별표 12') → ['제28조','별표12'] @param {string} s @returns {string[]} */
+function citeTokens(s) { return (String(s || '').match(CITE_TOKEN_RE) || []).map(t => t.replace(/\s+/g, '')); }
+
+/**
+ * 근거 조문 한 줄이 **카드 글(제목·본문)이 가리킨 곳**인가.
+ * ① 줄의 조문 칸에 든 조·별표 번호 하나가 카드 글에도 그대로 있고 ② 그 줄의 법이 카드 글에 이름으로 나오거나
+ * 카드의 법(카드 번호에서 뗀 이름)과 같을 때만 참이다. 둘 다 글자 그대로의 대조다 — 뜻을 짐작하지 않는다.
+ * 계층 낱말뿐인 법령 칸(`시행규칙`)은 쪽의 법(baseLaw)을 붙여 본다.
+ * 예: rowPointedByCard({law:'선박평형수 관리 등을 위한 기준', article:'별표12(제11조)'}, '', '…/선박평형수관리등을위한기준_별표12.txt …', '선박평형수(船舶平衡水)관리법') → true
+ * @param {{law:string, article:string}} row @param {string} baseLaw - 그 줄이 실린 쪽의 법
+ * @param {string} cardText - 카드 제목 + 본문 @param {string} cardLaw - 카드의 법(entry.law)
+ * @returns {boolean}
+ * [연계] ← buildReviewSources(가리킨 줄을 맨 위로 · 먼저 열어 본다).
+ */
+function rowPointedByCard(row, baseLaw, cardText, cardLaw) {
+  const want = new Set(citeTokens(cardText));
+  if (!want.size || !citeTokens(row.article).some(t => want.has(t))) return false;
+  let name = String(row.law || '').replace(/[「」『』]/g, '').trim();
+  const bare = /^(시행령|시행규칙)(?:\s*(?:별표|별지|서식)[\s\S]*)?$/.exec(name);
+  if (bare) name = String(baseLaw || '').trim() + ' ' + bare[1];
+  const text = flat(cardText);
+  const plain = flat(name.replace(/\s*(시행령|시행규칙)\s*$/, ''));
+  return (!!flat(name) && text.includes(flat(name))) || (!!plain && plain === flat(cardLaw));
 }
 
 /**
@@ -108,21 +151,27 @@ function lawGoLink(row) {
 /**
  * 카드 한 장(review_queue.md 항목)의 원문 안내를 만든다.
  * 대상 페이지마다 「## 근거 조문」 표를 읽고, 줄마다 조문 창과 **같은 함수**(loadArticle)로 원문을 열어 본다.
- * 예: await buildReviewSources({id:'REVIEW-…-806', law:'…', targetPages:['wiki/concepts/…__항만국통제.md (…)']})
- *     → {pages:[{rel, title, law, status, problem:'', rows:[{law, article, tier, open:{ok:true}, link:{…}}, …]}]}
- * @param {{law?:string, targetPages?:string[]}} entry - routes/legal.js parseReviewQueue 의 항목 하나
- * @returns {Promise<{pages:Array<object>, lawSearch:{url:string, direct:boolean}}>}
+ * ★카드 글(제목·본문)이 가리킨 줄(rowPointedByCard)은 쪽 안에서 맨 위로 올리고 `pointed:true` 를 붙이며,
+ *   미리 열어 보기(상한 MAX_OPEN_CHECK)도 **그 줄부터** 한다 — 표가 200줄을 넘는 카드에서도 쟁점 줄이 상한에 안 잘린다
+ *   (2026-11-02 독립 검토: 806 카드의 쟁점 「별표12(제11조)」가 19줄 중 3번째에 표시 없이 있었다).
+ * 예: await buildReviewSources({id:'REVIEW-…-806', law:'…', title:'…', body:'…', targetPages:['wiki/concepts/…__항만국통제.md (…)']})
+ *     → {pages:[{rel, …, rows:[{law:'선박평형수 관리 등을 위한 기준', article:'별표12(제11조)', pointed:true, open:{ok:true}, …}, …]}], pointed:1, unread:[]}
+ * @param {{law?:string, title?:string, body?:string, targetPages?:string[]}} entry - routes/legal.js parseReviewQueue 의 항목 하나
+ * @returns {Promise<{pages:Array<object>, pointed:number, unread:string[], lawSearch:{url:string, direct:boolean}}>}
  *   pages[].problem: 'no_file'(쪽 파일이 없다) · 'no_table'(근거 조문 표가 없다) · ''(줄이 있다)
  *   rows[].open: {ok:true} / {ok:false, reason:'law_not_found'|'file_not_found'|'article_not_found'|'bad_request'|'no_source'|'error'|'not_checked'}
+ *   pointed: 카드가 가리킨 줄 수(0 이면 화면이 「카드 본문의 조·별표를 보고 골라 달라」고 안내한다)
+ *   unread: 경로가 적혔지만 위키 쪽으로 읽지 못한 칸(그대로)
  *   lawSearch: 대상 페이지가 하나도 없을 때 화면이 내놓을 「그 법 찾기」 주소(카드의 법 이름으로)
- * [연계] ← routes/legal.js GET /api/legal/reviews/:id/sources. → pageRefsOf · lawGoLink ·
+ * [연계] ← routes/legal.js GET /api/legal/reviews/:id/sources. → scanPageCells · rowPointedByCard · lawGoLink ·
  *        legal_retriever.readPage/extractCitationChain/lookupContact · article_text.loadArticle.
  */
 async function buildReviewSources(entry) {
-  const refs = pageRefsOf(entry && entry.targetPages);
+  const { refs, unread } = scanPageCells(entry && entry.targetPages);
+  const cardText = String((entry && entry.title) || '') + '\n' + String((entry && entry.body) || '');
+  const cardLaw = (entry && entry.law) || '';
   const byKey = new Map((legalRetriever.loadIndex().pages || []).map(p => [p.kind + ':' + p.file, p]));
   const pages = [];
-  let checked = 0;
   for (const r of refs) {
     const idx = byKey.get(r.kind + ':' + r.file) || null;
     const page = legalRetriever.readPage(r.kind, r.file);
@@ -133,33 +182,42 @@ async function buildReviewSources(entry) {
       status: (idx && idx.status) || (page && page.frontmatter && page.frontmatter.status) || '',
       problem: '', rows: [],
     };
-    if (!page) { out.problem = 'no_file'; pages.push(out); continue; }
-    const chain = legalRetriever.extractCitationChain(page.body || '');
-    if (!chain.length) { out.problem = 'no_table'; pages.push(out); continue; }
-    for (const row of chain) {
-      const baseLaw = out.law;
-      let open = { ok: false, reason: 'not_checked' };
-      if (checked < MAX_OPEN_CHECK) {
-        checked++;
-        try {
-          const d = await articleText.loadArticle({ law: row.law, article: row.article, tier: row.tier, baseLaw });
-          open = d && d.ok ? { ok: true } : { ok: false, reason: (d && d.reason) || 'error' };
-        } catch (e) {
-          // 한 줄이 던져도 나머지 줄은 보여 준다(화면에는 「못 엶」으로 뜬다). 던진 까닭은 서버 기록에 남긴다.
-          console.warn('[review_sources] 원문 열기 실패:', row.law, row.article, e && e.message);
-          open = { ok: false, reason: 'error' };
-        }
-      }
-      out.rows.push({
-        law: row.law, article: row.article, tier: row.tier, step: row.step || '', gist: row.gist || '',
-        effectiveDate: row.effectiveDate || '', baseLaw,
-        contact: legalRetriever.lookupContact(row.law) || null,
-        open, link: lawGoLink(Object.assign({}, row, { baseLaw })),
-      });
-    }
     pages.push(out);
+    if (!page) { out.problem = 'no_file'; continue; }
+    const chain = legalRetriever.extractCitationChain(page.body || '');
+    if (!chain.length) { out.problem = 'no_table'; continue; }
+    const baseLaw = out.law;
+    const rows = chain.map(row => ({
+      law: row.law, article: row.article, tier: row.tier, step: row.step || '', gist: row.gist || '',
+      effectiveDate: row.effectiveDate || '', baseLaw,
+      pointed: rowPointedByCard(row, baseLaw, cardText, cardLaw),
+      contact: legalRetriever.lookupContact(row.law) || null,
+      open: { ok: false, reason: 'not_checked' },
+      link: lawGoLink(Object.assign({}, row, { baseLaw })),
+    }));
+    // 가리킨 줄을 맨 위로 — 나머지는 표 순서 그대로(stable)
+    out.rows = rows.filter(x => x.pointed).concat(rows.filter(x => !x.pointed));
   }
-  return { pages, lawSearch: lawGoLink({ law: (entry && entry.law) || '', tier: 'law' }) };
+  // 미리 열어 보기: 가리킨 줄 전부 먼저, 그다음 나머지를 쪽·표 순서대로 상한까지.
+  const all = pages.flatMap(p => p.rows);
+  const order = all.filter(x => x.pointed).concat(all.filter(x => !x.pointed));
+  let checked = 0;
+  for (const row of order) {
+    if (checked >= MAX_OPEN_CHECK) break;
+    checked++;
+    try {
+      const d = await articleText.loadArticle({ law: row.law, article: row.article, tier: row.tier, baseLaw: row.baseLaw });
+      row.open = d && d.ok ? { ok: true } : { ok: false, reason: (d && d.reason) || 'error' };
+    } catch (e) {
+      // 한 줄이 던져도 나머지 줄은 보여 준다(화면에는 「못 엶」으로 뜬다). 던진 까닭은 서버 기록에 남긴다.
+      console.warn('[review_sources] 원문 열기 실패:', row.law, row.article, e && e.message);
+      row.open = { ok: false, reason: 'error' };
+    }
+  }
+  return {
+    pages, pointed: all.filter(x => x.pointed).length, unread,
+    lawSearch: lawGoLink({ law: cardLaw, tier: 'law' }),
+  };
 }
 
-module.exports = { pageRefsOf, lawGoLink, buildReviewSources, MAX_OPEN_CHECK };
+module.exports = { pageRefsOf, scanPageCells, rowPointedByCard, citeTokens, lawGoLink, buildReviewSources, MAX_OPEN_CHECK };

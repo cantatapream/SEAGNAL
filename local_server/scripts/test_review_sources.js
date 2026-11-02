@@ -14,6 +14,8 @@
 //    ④ `files` 표시 — 관리자 창에서만 고시 별표에 원본 PDF 주소가 붙고, 표시가 없으면 **지금과 같다**(챗봇 쪽 불변)
 //    ⑤ 화면 HTML(reviewSourcesHTML) — 열쇠 data-* · 못 연 줄은 이유를 적고 단추 없음 · 빈 경우를 정직하게 · 이스케이프
 //    ⑥ 관리자 창(z-index 10000) 위로 뜨는가 — CSS 값을 두 파일에서 읽어 비교한다
+//    (2026-11-02 독립 검토 반영) 카드가 가리킨 줄을 맨 위로·먼저 열어 보기 · 못 읽는 대상 페이지 칸을 따로 알림 ·
+//    인증 없는 /api/legal/article-text 는 관리자 토큰이 있을 때만 files 를 받는다
 //
 //   ⚠시각 비의존. 운영 파일에 쓰지 않는다(읽기 전용 경로만 부른다).
 //   [연계] services/review_sources.js · routes/legal.js(GET /api/legal/reviews/:id/sources) ·
@@ -46,6 +48,10 @@ const REAL_PAGE = 'wiki/concepts/선박평형수(船舶平衡水)관리법__항�
     const r4 = RS.pageRefsOf(['wiki/concepts/../../_dashboard/x.md', 'wiki/secret/a.md', '../a.md']);
     ok('★폴더 밖으로 나가는 이름·모르는 폴더는 받지 않는다', r4.length === 0, JSON.stringify(r4));
     ok('빈 값 → 빈 목록', RS.pageRefsOf(undefined).length === 0 && RS.pageRefsOf([]).length === 0);
+    // 2026-11-02 독립 검토 B-1 — 경로는 적혔는데 위키 쪽으로 못 읽는 칸을 「안 적혔다」와 가른다(실제 카드 REVIEW-수산업법-01 꼴)
+    const sc = RS.scanPageCells(['draft/concept_어업허가.md → wiki/concepts/', 'wiki/concepts/comparisons/안전장구_구명설비.md', '카드에 명시 없음']);
+    ok('★경로가 적혔지만 못 읽는 칸은 unread 로 남긴다(.md 없는 글은 남기지 않는다)',
+      sc.refs.length === 0 && sc.unread.length === 2 && /draft\/concept_어업허가/.test(sc.unread[0]), JSON.stringify(sc));
   }
 
   console.log('\n── ② 법령정보센터 주소 ──');
@@ -105,6 +111,12 @@ const REAL_PAGE = 'wiki/concepts/선박평형수(船舶平衡水)관리법__항�
       bad.map(r => r.law + ' ' + r.article + ' → ' + (r.open && r.open.reason)).join(' / '));
     const byl = rows.find(r => r.law === '선박평형수 관리 등을 위한 기준');
     ok('카드가 말하는 고시 별표12 줄이 있고 열린다', !!byl && byl.tier === 'notice' && /별표12/.test(byl.article) && byl.open.ok, JSON.stringify(byl && byl.open));
+    // 2026-11-02 독립 검토(공통 B) — 쟁점 줄을 가리키고 맨 위로
+    ok('★카드 글이 가리킨 줄은 그 별표12 하나이고 맨 위에 온다', b.pointed === 1 && rows[0] === byl && byl.pointed === true && rows.filter(r => r.pointed).length === 1,
+      JSON.stringify({ pointed: b.pointed, first: rows[0] && rows[0].law + ' ' + rows[0].article }));
+    const sq = await call(src, { params: { id: 'REVIEW-수산업법-01' } });
+    ok('★`draft/… → wiki/concepts/` 칸 카드(REVIEW-수산업법-01) → 쪽 0 + unread 에 그 칸', sq.body && sq.body.ok && sq.body.pages.length === 0 && sq.body.unread.length === 1,
+      JSON.stringify(sq.body && { pages: sq.body.pages.length, unread: sq.body.unread }));
     ok('줄마다 쪽의 법(baseLaw)·법령정보센터 주소가 붙는다', rows.every(r => r.baseLaw && r.link && /^https:\/\/www\.law\.go\.kr\//.test(r.link.url)));
     const nf = await call(src, { params: { id: 'REVIEW-없는카드-0' } });
     ok('없는 카드 번호 → 404 + 이유', nf.code === 404 && nf.body && nf.body.ok === false && !!nf.body.error, JSON.stringify(nf));
@@ -117,6 +129,31 @@ const REAL_PAGE = 'wiki/concepts/선박평형수(船舶平衡水)관리법__항�
     ok('쪽 파일이 없으면 problem=no_file(빈 목록으로 숨기지 않는다)', gone.pages.length === 1 && gone.pages[0].problem === 'no_file', JSON.stringify(gone.pages));
   }
 
+  {
+    const P = RS.rowPointedByCard;
+    ok('가리킴: 번호와 법 이름이 둘 다 카드 글에 있어야 한다',
+      P({ law: '선박안전법', article: '제76조' }, '어선법', '선박안전법 제76조를 보라', '어선법')
+      && !P({ law: '선박안전법', article: '제76조' }, '어선법', '제76조를 보라', '어선법')      // 법 이름 없음
+      && !P({ law: '선박안전법', article: '제7조' }, '어선법', '선박안전법 제76조', '어선법'));  // 제7조 ≠ 제76조
+    ok('가리킴: 계층 낱말뿐인 칸은 쪽의 법으로 · 카드의 법과 같으면 이름 없이도', P({ law: '시행규칙', article: '제3조의2' }, '어선법', '제 3 조의 2 가 문제', '어선법'));
+    // 60줄 상한 — 가리킨 줄이 표 맨 끝(61번째 뒤)에 있어도 먼저 열어 본다
+    const R = require('../services/legal_retriever');
+    const savedRead = R.readPage, savedChain = R.extractCitationChain, savedIdx = R.loadIndex;
+    const many = [];
+    for (let i = 1; i <= 70; i++) many.push({ law: '선박안전법', article: '제' + i + '조', tier: 'law' });
+    many.push({ law: '선박안전법', article: '제76조의2', tier: 'law' });
+    R.readPage = () => ({ body: 'x', frontmatter: {} });
+    R.extractCitationChain = () => many.map(x => Object.assign({}, x));
+    R.loadIndex = () => ({ pages: [{ kind: 'concept', file: '선박안전법__가짜', law: '선박안전법', topic: '가짜' }] });
+    try {
+      const o = await RS.buildReviewSources({ law: '선박안전법', title: '선박안전법 제76조의2 해석', body: '', targetPages: ['wiki/concepts/선박안전법__가짜.md'] });
+      const rows = o.pages[0].rows;
+      ok('★가리킨 줄이 71번째에 있어도 맨 위로 오고 상한(60) 안에서 먼저 열어 본다',
+        rows[0].article === '제76조의2' && rows[0].pointed && rows[0].open.reason !== 'not_checked' && rows.filter(r => r.open.reason === 'not_checked').length === rows.length - RS.MAX_OPEN_CHECK,
+        JSON.stringify({ first: rows[0].article, open: rows[0].open }));
+    } finally { R.readPage = savedRead; R.extractCitationChain = savedChain; R.loadIndex = savedIdx; }
+  }
+
   console.log('\n── ④ files 표시 — 관리자 창에서만 원본 PDF 주소 ──');
   {
     const A = require('../services/article_text');
@@ -127,6 +164,16 @@ const REAL_PAGE = 'wiki/concepts/선박평형수(船舶平衡水)관리법__항�
     const r1 = (withF.refs || []).find(r => r.key === '별표12') || {};
     ok('표시 없음(챗봇) — 지금과 같다: 별표 글은 있고 원본 주소는 안 찾는다', r0.kind === 'text' && !r0.pdf && !r0.hwp, JSON.stringify({ kind: r0.kind, pdf: r0.pdf }));
     ok('★files:true(관리자) — 같은 별표 글 + 원본 PDF 주소', r1.kind === 'text' && r1.body === r0.body && /flDownload\.do\?flSeq=148633769/.test(r1.pdf || ''), JSON.stringify({ kind: r1.kind, pdf: r1.pdf }));
+    // 2026-11-02 독립 검토 B-4 — 인증 없는 /api/legal/article-text 는 관리자 토큰이 있을 때만 files 를 받는다
+    const at = handler('/api/legal/article-text');
+    const qs = { law: q.law, article: q.article, tier: q.tier, baseLaw: q.baseLaw, files: '1' };
+    const asReq = (tok) => ({ query: qs, get: (h) => (/x-admin-token/i.test(h) ? tok : undefined) });
+    const noTok = await call(at, asReq(undefined));
+    const badTok = await call(at, asReq('bad'));
+    const goodTok = await call(at, asReq('good'));
+    const pdfOf = (r) => (((r.body || {}).refs || []).find(x => x.key === '별표12') || {}).pdf;
+    ok('★files=1 이라도 토큰 없음·틀린 토큰이면 무시(종전과 같다), 관리자 토큰이면 PDF 주소', !pdfOf(noTok) && !pdfOf(badTok) && /flSeq=148633769/.test(pdfOf(goodTok) || ''),
+      JSON.stringify({ none: pdfOf(noTok), bad: pdfOf(badTok), good: pdfOf(goodTok) }));
   }
 
   console.log('\n── ⑤ 화면 HTML ──');
@@ -170,6 +217,12 @@ const REAL_PAGE = 'wiki/concepts/선박평형수(船舶平衡水)관리법__항�
     ok('★못 연 줄 → 단추 없이 이유를 적는다', /못 열어요 — 이 고시·계층의 원문 파일을 찾지 못했어요/.test(html) && (html.match(/class="nrya-rv-open"/g) || []).length === 1);
     ok('바로 가는 주소는 「열기」, 검색 주소는 「찾기」', /법령정보센터에서 열기/.test(html) && /법령정보센터에서 찾기/.test(html));
     ok('★위키 글은 이스케이프된다', html.indexOf('<script>') < 0 && html.indexOf('&lt;script&gt;') >= 0);
+    const pt = H.reviewSourcesHTML({ pointed: 1, pages: [{ rel: 'x.md', problem: '', rows: [{ law: '어선법', article: '제1조', tier: 'law', pointed: true, open: { ok: true }, link: null }, { law: '어선법', article: '제2조', tier: 'law', open: { ok: true }, link: null }] }] });
+    ok('가리킨 줄에 「이 카드가 가리킨 곳」 표시(한 줄만)', (pt.match(/이 카드가 가리킨 곳/g) || []).length === 1 && /nrya-rv-srow nrya-pointed/.test(pt) && !/골라 주세요/.test(pt));
+    const np = H.reviewSourcesHTML({ pointed: 0, pages: [{ rel: 'x.md', problem: '', rows: [{ law: '어선법', article: '제2조', tier: 'law', open: { ok: true }, link: null }] }] });
+    ok('★가리킨 줄이 없으면 「카드 본문의 조·별표를 보고 골라 주세요」', /카드 본문의 조·별표를 보고 골라 주세요/.test(np) && !/이 카드가 가리킨 곳/.test(np));
+    const ur = H.reviewSourcesHTML({ pages: [], unread: ['draft/concept_어업허가.md → wiki/concepts/'], lawSearch: { url: 'u' } });
+    ok('★못 읽는 형식의 칸 → 「적혀 있지만 읽을 수 없는 형식」(「적혀 있지 않다」가 아니다)', /읽을 수 없는 형식/.test(ur) && /draft\/concept_어업허가/.test(ur) && !/적혀 있지 않아/.test(ur));
     const nc = H.reviewSourcesHTML({ pages: [{ rel: 'x.md', problem: '', rows: [{ law: '어선법', article: '제1조', tier: 'law', open: { ok: false, reason: 'not_checked' }, link: null }] }] });
     ok('미리 열어 보지 않은 줄 → 단추는 주되 「미리 확인하지 않은 줄」이라 적는다', /class="nrya-rv-open"/.test(nc) && /미리 확인하지 않은 줄/.test(nc));
     const empty = H.reviewSourcesHTML({ pages: [], lawSearch: { url: 'https://www.law.go.kr/lsSc.do?menuId=1&query=x', direct: false } });

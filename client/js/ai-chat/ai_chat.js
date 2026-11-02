@@ -2719,6 +2719,9 @@
    * 「원문 보기」를 눌렀을 때 카드 안에 펼칠 목록 HTML 을 만든다(서버 응답 → 화면).
    * 대상 페이지마다 「근거 조문」 표의 줄을 나열하고, 줄마다 [원문 펼치기](조문 창) · [법령정보센터] 를 단다.
    * 원문을 못 찾은 줄·페이지는 **못 찾았다고** 적는다 — 빈칸이 「문제 없음」처럼 보이지 않게(L-291).
+   * 카드 글이 가리킨 줄(서버 rows[].pointed — 이미 맨 위로 와 있다)에는 「📌 이 카드가 가리킨 곳」을 달고,
+   * 하나도 없으면 「카드 본문의 조·별표를 보고 골라 주세요」라고 밝힌다. 경로가 적혔지만 못 읽은 칸(d.unread)은
+   * 「안 적혔다」와 구별해 알린다(2026-11-02 독립 검토 반영).
    * 예: reviewSourcesHTML({pages:[{rel:'wiki/concepts/A__B.md', problem:'', rows:[{law:'선박안전법', article:'제76조', tier:'law', open:{ok:true}, link:{url:'https://www.law.go.kr/…', direct:true}}]}]})
    *     → '…<button class="nrya-rv-open" data-law="선박안전법" data-article="제76조" … data-files="1">📖 원문 펼치기</button>…'
    * @param {object} d - GET /api/legal/reviews/:id/sources 응답 {pages, lawSearch}
@@ -2735,8 +2738,20 @@
     }
     var html = '<div class="nrya-rv-srchelp">대상 페이지의 「근거 조문」 표입니다. <b>📖 원문 펼치기</b>를 누르면 이 화면에서 조문·별표 원문이 열리고' +
       '(원본 파일이 있으면 내려받기 단추도 함께), <b>🔗 법령정보센터</b>는 국가법령정보센터 누리집으로 갑니다.</div>';
+    // 경로는 적혔는데 위키 쪽으로 읽지 못한 칸(`draft/concept_X.md → wiki/concepts/` 등) — 「안 적혔다」와 다르게 알린다.
+    var unread = (d && d.unread) || [];
+    var unreadMsg = unread.length
+      ? miss('대상 페이지 칸에 「' + unread.join(' · ') + '」라고 적혀 있지만, 지금 위키 쪽 경로로 읽을 수 없는 형식이에요.')
+      : '';
     if (!pages.length) {
-      return html + miss('이 카드에는 대상 페이지가 적혀 있지 않아 원문을 자동으로 찾지 못했어요.') + search(d && d.lawSearch);
+      return html + (unreadMsg || miss('이 카드에는 대상 페이지가 적혀 있지 않아 원문을 자동으로 찾지 못했어요.')) + search(d && d.lawSearch);
+    }
+    html += unreadMsg;
+    // 카드 글(제목·본문)이 가리킨 줄 — 서버가 쪽마다 맨 위로 올려 보낸다(review_sources.rowPointedByCard).
+    // 하나도 없으면 「어느 줄이 쟁점인지」를 기계가 고르지 않았다는 것을 밝힌다.
+    var anyRows = pages.some(function (p) { return (p.rows || []).length; });
+    if (anyRows && !d.pointed) {
+      html += '<div class="nrya-rv-srchelp">이 카드 글에 나온 조·별표 번호와 맞는 줄을 찾지 못했어요 — 카드 본문의 조·별표를 보고 골라 주세요.</div>';
     }
     pages.forEach(function (p) {
       html += '<div class="nrya-rv-srcpage"><div class="nrya-rv-flab">📄 ' + esc(p.rel) + '</div>';
@@ -2759,7 +2774,8 @@
         var go = row.link && row.link.url
           ? '<a class="nrya-rv-lawgo" href="' + esc(row.link.url) + '" target="_blank" rel="noopener noreferrer">🔗 법령정보센터에서 ' + (row.link.direct ? '열기' : '찾기') + '</a>'
           : '';
-        html += '<div class="nrya-rv-srow">' +
+        html += '<div class="nrya-rv-srow' + (row.pointed ? ' nrya-pointed' : '') + '">' +
+          (row.pointed ? '<div class="nrya-rv-spoint">📌 이 카드가 가리킨 곳 — 카드 글에 같은 법·번호가 나와요</div>' : '') +
           '<div class="nrya-rv-srow-h"><span class="nrya-rv-stier">' + esc(tierLabel(row)) + '</span> <b>' + esc(lawShow) + (row.article ? ' ' + esc(row.article) : '') + '</b></div>' +
           (note ? '<div class="nrya-rv-srow-n">' + esc(note) + '</div>' : '') +
           '<div class="nrya-rv-srow-a">' + btn + go + '</div>' +
