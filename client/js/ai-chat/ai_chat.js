@@ -35,6 +35,9 @@
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
+ *                    POST /api/legal/config {exposureAuto|exposureOnAt|exposureOffAt} (자동 노출 시간 켜기/끄기·노출/비노출 시각 KST, 관리자 — 「AI 모델」 탭.
+ *                                                               GET 의 exposure 는 서버가 지금 시각으로 계산한 유효값 ·
+ *                                                               exposureNext.inMs 뒤에 다시 읽어 경계 시각에 FAB 가 바뀐다)
  *                    POST /api/legal/config {codexForUsers|providerOrder|providerRemoved|providerReset|providerModels} (일반 사용자 적용·AI 순서·AI 삭제/다시 추가·소진 해제·칸별 모델/노력, 관리자 — 「AI 모델」 탭)
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
@@ -164,6 +167,11 @@
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
+  // [자동 노출 시간 · 2026-11-02 사용자 확정] 「08:00 노출 · 19:00 비노출」(KST, 관리자가 시각을 바꿀 수 있음). 서버가 진실의 원천 —
+  //   serverExposure 는 서버가 지금 시각으로 계산한 유효값이고, 여기엔 스위치·시각·다음 전환만 들고 있는다.
+  var serverExposureSched = { auto: true, onAt: '08:00', offAt: '19:00', source: 'schedule', next: null };
+  var exposureTimer = null;                    // 다음 전환 시각에 /config 를 다시 읽는 타이머
+  var exposureDueAt = 0;                       // 그 타이머가 울려야 하는 기기 시각(ms) — 앱이 백그라운드에서 타이머를 놓쳤는지 볼 때
   // [Codex 모드 · 2026-09-27 사용자 확정] serverCodexForUsers: 답변 AI 순서를 일반 사용자에게도 적용할지(기본 꺼짐, 서버 /api/legal/config 가 진실의 원천).
   //   (옛 「답변 AI 모델」 버튼줄·answerModel 은 2026-11-02 사용자 요청으로 화면에서 뺐다 — ChatGPT 칸 모델은 providerModels.chatgpt 로 고른다.)
   var serverCodexForUsers = false;
@@ -439,6 +447,8 @@
                   '<button data-exp="off">비노출</button>' +
                 '</div>' +
                 '<div class="nrya-seg-help" id="nryaSegHelp">노출 설정을 불러오는 중…</div>' +
+                // [자동 노출 시간] 켜져 있으면 위 버튼은 「다음 전환 시각까지만」 — 스위치·시각은 「🤖 AI 모델」 탭에 있다.
+                '<div class="nrya-seg-help" id="nryaSegAuto"></div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaSegErr"></div>' +
               '</div>' +
               '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
@@ -450,6 +460,21 @@
           //   저장은 POST /api/legal/config, 질문 수는 GET /api/legal/admin/ask-stats.
           '<div id="nryaViewModels" class="nrya-hidden">' +
             '<div class="nrya-panel">' +
+              // [자동 노출 시간 · 2026-11-02 사용자 확정] 「통합관리자 센터 → AI 탭 → AI 챗봇 → 🤖 AI 모델」 에서 켜기/끄기·시각(KST)을 정한다.
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>챗봇 자동 노출 시간 (KST · 매일)</div>' +
+                '<div class="nrya-seg" id="nryaAutoSeg">' +
+                  '<button data-auto="on">켜기(기본)</button>' +
+                  '<button data-auto="off">끄기</button>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:9px;font-size:12.5px">' +
+                  '<label>노출 <input type="time" id="nryaOnAt" step="60" style="font:inherit;padding:4px 6px;border-radius:6px"></label>' +
+                  '<label>비노출 <input type="time" id="nryaOffAt" step="60" style="font:inherit;padding:4px 6px;border-radius:6px"></label>' +
+                  '<button class="nrya-prov-btn" id="nryaSchedSave">시각 저장</button>' +
+                '</div>' +
+                '<div class="nrya-seg-help" id="nryaSchedHelp"></div>' +
+                '<div class="nrya-seg-err nrya-hidden" id="nryaSchedErr"></div>' +
+              '</div>' +
               '<div class="nrya-card">' +
                 '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서 (크레딧 소진 시 다음으로 자동 전환)</div>' +
                 '<div id="nryaOrderList" class="nrya-prov-list"></div>' +
@@ -583,6 +608,91 @@
       x.classList.toggle('nrya-warn', on && (serverExposure === 'admin' || serverExposure === 'off'));
     });
     if (help) help.innerHTML = (configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>') + (HELP[serverExposure] || HELP.off);
+    var auto = document.getElementById('nryaSegAuto');
+    if (auto) auto.innerHTML = exposureNowText() + (serverExposureSched.auto ? ' — 위 버튼으로 바꾸면 다음 전환 시각까지만 유지됩니다(자동 설정은 「🤖 AI 모델」 탭).' : '');
+    paintSchedule();
+  }
+
+  /**
+   * 「현재: 노출 · 19:00 에 비노출 예정」 같은 한 줄을 만든다(자동 노출 시간 상태).
+   * 예: 자동 켜짐·10시 → '<b>자동 켜짐</b> · 현재: 노출 · 19:00 에 비노출 예정'
+   *     자동 켜짐·관리자가 손으로 바꿈 → '… 현재: 관리자만(직접 바꿈) · 08:00 에 노출로 돌아감'
+   * @returns {string} HTML
+   * [연계] ← paintSeg(관리자 검토 탭 노출 카드)·paintSchedule(AI 모델 탭 카드). 시각은 서버가 준 KST 'HH:MM'(기기 시간대 무관).
+   */
+  function exposureNowText() {
+    var L = { user: '노출', admin: '관리자만', off: '비노출' };
+    var sc = serverExposureSched, n = sc.next;
+    if (!sc.auto) return '<b>자동 노출 시간 꺼짐</b> · 현재: ' + L[serverExposure] + ' (손으로 바꿀 때까지 그대로)';
+    var head = '<b>자동 노출 시간 켜짐</b> (' + esc(sc.onAt) + ' 노출 · ' + esc(sc.offAt) + ' 비노출) · 현재: ' + L[serverExposure] + (sc.source === 'override' ? '(직접 바꿈)' : '');
+    if (!n) return head;
+    var TO = { user: '노출로', admin: '관리자만으로', off: '비노출로' };
+    return head + ' · ' + esc(n.kst) + ' 에 ' + (sc.source === 'override' ? TO[n.exposure] + ' 돌아감' : L[n.exposure] + ' 예정');
+  }
+
+  /**
+   * AI 모델 탭의 「챗봇 자동 노출 시간」 카드(켜기/끄기·노출/비노출 시각·현재 상태)를 서버 값으로 칠한다.
+   * 시각 입력칸은 사용자가 고치는 중(포커스)이면 덮지 않는다. 콘솔이 안 떠 있으면 아무 것도 안 한다.
+   * [연계] ← paintSeg(fetchConfig·setConfig·postExposure 뒤). → exposureNowText.
+   */
+  function paintSchedule() {
+    var seg = document.getElementById('nryaAutoSeg'); if (!seg) return;
+    seg.querySelectorAll('button').forEach(function (x) {
+      var on = (x.dataset.auto === 'on') === serverExposureSched.auto;
+      x.classList.toggle('nrya-on', on);
+      x.classList.toggle('nrya-warn', on && !serverExposureSched.auto);
+    });
+    [['nryaOnAt', serverExposureSched.onAt], ['nryaOffAt', serverExposureSched.offAt]].forEach(function (p) {
+      var el = document.getElementById(p[0]); if (el && document.activeElement !== el) el.value = p[1];
+    });
+    var h = document.getElementById('nryaSchedHelp');
+    if (h) h.innerHTML = (configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>') + exposureNowText() +
+      '<br>비노출 시간에는 관리자 기기에도 챗봇 버튼이 안 보입니다(관리자 콘솔은 그대로). 노출 시각이 비노출 시각보다 늦으면 자정을 넘겨 노출합니다.';
+  }
+
+  /**
+   * 서버 응답의 노출 칸(exposure = 지금 시각의 유효값 · exposureAuto/OnAt/OffAt · exposureSource · exposureNext)을 받아 들이고,
+   * 다음 전환 시각(exposureNext.inMs — 서버 시계 기준이라 기기 시계가 틀려도 맞다) 뒤에 /config 를 다시 읽게 예약한다.
+   * 예: {exposure:'user', exposureNext:{kst:'19:00', exposure:'off', inMs:3600000}} → 1시간 + 몇 초 뒤 fetchConfig → FAB 숨김
+   * @param {object} data - GET/POST /api/legal/config 응답
+   * [연계] ← fetchConfig·setConfig·postExposure. → fetchConfig(타이머). 몰림 방지로 2~32초 흩뿌린다.
+   */
+  function applyExposure(data) {
+    if (['off', 'admin', 'user'].indexOf(data.exposure) !== -1) serverExposure = data.exposure;
+    if (typeof data.exposureAuto === 'boolean') {
+      serverExposureSched = { auto: data.exposureAuto, onAt: data.exposureOnAt || '08:00', offAt: data.exposureOffAt || '19:00',
+        source: data.exposureSource || '', next: data.exposureNext || null };
+    }
+    if (exposureTimer) { clearTimeout(exposureTimer); exposureTimer = null; }
+    exposureDueAt = 0;
+    var n = data.exposureNext;
+    if (n && typeof n.inMs === 'number' && n.inMs >= 0) {
+      var delay = Math.min(n.inMs + 2000 + Math.floor(Math.random() * 30000), 2147483647);
+      exposureDueAt = Date.now() + delay;
+      exposureTimer = setTimeout(fetchConfig, delay);
+    }
+  }
+
+  /**
+   * 노출 관련 칸만 서버에 저장(관리자 전용)하고 화면·FAB 를 다시 그린다.
+   * 예: postExposure({exposureAuto:false}, 'nryaSchedErr') · postExposure({exposureOnAt:'07:30', exposureOffAt:'20:00'}, 'nryaSchedErr')
+   * @param {object} patch @param {string} errId - 오류를 띄울 칸 id
+   * [연계] → POST /api/legal/config. ← initModelSeg(AI 모델 탭 자동 노출 카드).
+   */
+  function postExposure(patch, errId) {
+    var err = document.getElementById(errId);
+    if (err) { err.style.display = 'none'; err.textContent = ''; }
+    var show = function (m) { paintSeg(); if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = m; } };
+    legalPost('/api/legal/config', patch).then(function (res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      if (data._denied) return show('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.');
+      if (!data || !data.ok) return show((data && data.error) || '설정 저장 실패');
+      applyExposure(data);
+      paintSeg();
+      updateFabVisibility();
+    }).catch(function (e) { show('네트워크 오류: ' + String(e && e.message || e)); });
   }
 
   /**
@@ -591,6 +701,15 @@
    * [연계] → setAnswerConfig(POST /api/legal/config). 서버 적용은 codex_bridge.withRequest·llm_chain(pickOf).
    */
   function initModelSeg(root) {
+    // [자동 노출 시간] 켜기/끄기 · 시각 저장(KST HH:MM). 저장은 setConfig 와 같은 창구(POST /api/legal/config).
+    root.querySelector('#nryaAutoSeg').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-auto]'); if (!b) return;
+      postExposure({ exposureAuto: b.dataset.auto === 'on' }, 'nryaSchedErr');
+    });
+    root.querySelector('#nryaSchedSave').addEventListener('click', function () {
+      var on = root.querySelector('#nryaOnAt').value, off = root.querySelector('#nryaOffAt').value;
+      postExposure({ exposureOnAt: on, exposureOffAt: off }, 'nryaSchedErr');
+    });
     root.querySelector('#nryaUsersSeg').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-users]'); if (!b) return;
       var on = b.dataset.users === 'on';
@@ -767,9 +886,7 @@
     return legalGet('/api/legal/config').then(function (res) {
       return res.json().catch(function () { return null; });
     }).then(function (data) {
-      if (data && data.ok && ['off', 'admin', 'user'].indexOf(data.exposure) !== -1) {
-        serverExposure = data.exposure;
-      }
+      if (data && data.ok) applyExposure(data);   // 유효 노출 + 다음 전환 시각 재조회 예약(자동 노출 시간)
       if (data && data.ok) serverCodexForUsers = data.codexForUsers === true;
       if (data && data.ok && Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
       if (data && data.ok && Array.isArray(data.providerRemoved)) serverProviderRemoved = data.providerRemoved;
@@ -782,6 +899,8 @@
       updateFabVisibility();
     }).catch(function () {
       configLoaded = true; // 실패해도 기본 off 로 확정
+      // 전환 시각에 다시 읽다가 실패했으면 1분 뒤 또 읽는다(안 그러면 19시가 지나도 버튼이 남는다). 첫 로드 실패는 종전대로 그대로 둔다.
+      if (exposureDueAt) { exposureDueAt = Date.now() + 60000; exposureTimer = setTimeout(fetchConfig, 60000); }
       paintSeg();
       paintModelSeg();
       updateFabVisibility();
@@ -802,6 +921,7 @@
       if (data._denied) { segError('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); return; }
       if (!data || !data.ok) { segError((data && data.error) || '노출 설정 저장 실패'); return; }
       serverExposure = data.exposure || exp;
+      applyExposure(data);
       paintSeg();
       updateFabVisibility();
     }).catch(function (e) { segError('네트워크 오류: ' + String(e && e.message || e)); });
@@ -6077,6 +6197,11 @@
     // 다른 탭/창에서 관리자 모드가 바뀌면(=admin 노출조건 변동) FAB 재평가
     window.addEventListener('storage', function (e) {
       if (!e || e.key === LS_ADMIN) updateFabVisibility();
+    });
+
+    // [자동 노출 시간] 앱이 백그라운드에 있는 동안 휴대폰이 타이머를 멈췄다가 전환 시각을 넘겨 돌아오면 바로 다시 읽는다.
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && exposureDueAt && Date.now() >= exposureDueAt) fetchConfig();
     });
 
     updateFabVisibility();

@@ -1532,6 +1532,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-03 05:41 KST] ✅완료 — 나리야 챗봇 자동 노출 시간
+services/nariya_exposure_schedule.js 신설. 매일 KST 08:00 노출(user)·19:00 비노출(off, 관리자도 안 보임), 기본 켜짐. 통합관리자 센터 → AI → AI 챗봇 → 나리야 콘솔 '🤖 AI 모델' 탭에 켜기/끄기·두 시각 설정 카드. 요청 시점 계산(타이머 없음, UTC+9 직접), 자동 중 수동 변경은 다음 경계까지만. 클라는 다음 전환 시각에 설정 재조회. ⚠POST /api/legal/ask 는 노출을 보지 않음(버튼만 숨김)·열린 채팅창은 안 닫음. 시험 test_nariya_exposure_schedule 47/0, llm_chain 121/0, codex_bridge 33/0, ask_stats 39/0, silent_catch 22/0(acorn 임시).
+
+
 ### [2026-11-03 03:47 KST] ✅완료 — AI 모델 탭 + 칸별 모델·노력 선택 + 질문 수 접기
 관리자 콘솔 세 번째 탭 '🤖 AI 모델': 답변 AI 순서(카드형 줄·모델/노력 드롭다운·▲▼·삭제·소진해제), 일반 사용자 적용 스위치(이름 변경), 질문 수 아코디언(머리 '총 N건 · 오늘 N건'). '답변 AI 모델' 버튼줄·긴 설명문 삭제. 설정 providerModels(클로드 키별 sonnet/opus/haiku-5-5 × low~max, 업스테이지 solar-pro4/mini4 × none~high, ChatGPT luna/sol/astra, Gemini 표시만). 옛 answerModel 호환(gemini→Luna). 시험 test_llm_chain 121/0·codex_bridge 33/0·legal_ask_stats 39/0·root_deps 3/0. 화면 playwright 가짜 API 로 데스크톱·360px 확인. ⚠운영 answerModel 이 gemini 면 배포 후 ChatGPT 칸 다시 켜짐(VM 연결 시).
 
