@@ -84,7 +84,9 @@ final class Sender {
                 JSONObject b = new JSONObject().put("device", Config.device(c)).put("note", note)
                         .put("battery", bm == null ? -1 : bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY));
                 int code = post(c, "/api/kakao-relay/heartbeat", b);
+                // 성공도 남긴다 — 「서버 연결 시험」을 눌러도 아무 반응이 없어 보였다(사용자 지적 2026-11-03).
                 if (code != 200) Config.status(c, "신호 실패 HTTP " + code);
+                else Config.statusBeatOk(c);
                 flush(c);
             } catch (Exception e) {
                 Config.status(c, "신호 실패: " + e.getMessage());

@@ -265,6 +265,22 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     await checkMmis({ store: sL, now: TL + 200e3, send: async (t, b) => { sentL.push({ t, b }); return { delivered: true }; }, readAlerts: () => ({ current: {} }), enabled: true });
     ok('기준점을 못 찾으면 관리자 알림(놓쳤을 수 있음)', sentL.some((m) => /마지막으로 본 글을 찾지 못함/.test(m.t) && /긁어오기/.test(m.b)), sentL.map((m) => m.t));
 
+    console.log('M. 옛 형식 기록 보여주기(2026-11-03 「모르는 구역」 오표시)');
+    // 실제 운영 파일의 옛 글 모양 그대로 — 줄에 zoneKnown·parent 가 없다.
+    const OLD_TXT = HEAD + '동해남부북쪽바깥먼바다,\n풍랑주의보 11월 02일 19시 00분 발효\n\n남해서부 서쪽,\n풍랑주의보 11월 02일 19시 00분 발효';
+    const oldW = (z) => ({ zone: z, zoneKey: z, kind: '풍랑주의보', at: '2026-11-02T19:00+09:00', action: '발효', rawAction: '발효' });
+    const oldFile = path.join(tmp, 'old.json');
+    fs.writeFileSync(oldFile, JSON.stringify({ messages: [
+        { id: 'o1', text: OLD_TXT, source: 'screen', device: 'phone', receivedAt: '2026-11-02T15:02:25.603Z', warnings: [oldW('동해남부북쪽바깥먼바다'), oldW('남해서부서쪽')], newWarnings: [oldW('남해서부서쪽')] },
+        { id: 'o2', text: HEAD + '시험바다,\n풍랑주의보 01월 01일 00시 00분 시험', source: 'notification', device: 'tablet', receivedAt: '2026-11-02T15:07:46.015Z', warnings: [{ zone: '시험바다', kind: '풍랑주의보', at: '2026-01-01T00:00+09:00', action: 'unknown' }], newWarnings: [] },
+    ], heartbeat: null, seenKeys: {} }));
+    const vOld = createStore({ file: oldFile }).snapshot(10).messages;
+    ok('옛 기록의 표준 구역은 「아는 구역」으로 다시 분해', vOld[1].oldFormat === true && vOld[1].warnings.every((w) => w.zoneKnown === true), vOld[1].warnings);
+    ok('옛 기록의 새 특보 표시도 새 이름(별칭)에 맞춰 이어짐', vOld[1].newWarnings.length === 1 && vOld[1].newWarnings[0].zone === '남해서부서쪽먼바다', vOld[1].newWarnings);
+    ok('시험바다는 여전히 모르는 구역', vOld[0].warnings[0].zoneKnown === false);
+    ok('보여주기만 — 파일은 그대로', !('zoneKnown' in JSON.parse(fs.readFileSync(oldFile, 'utf8')).messages[0].warnings[0]));
+    ok('새 형식 글은 손대지 않음', !st.snapshot(1).messages[0].oldFormat);
+
     console.log('C. 라우트');
     const app = express(); app.use(express.json());
     let secret = 'k';

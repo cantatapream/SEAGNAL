@@ -36,4 +36,17 @@ final class Config {
         if (all.length() > 4000) all = all.substring(0, 4000);
         prefs(c).edit().putString("log", all).apply();
     }
+
+    /**
+     * 신호 성공을 기록한다. 30분마다 한 줄씩 쌓이면 4000자 기록이 신호 줄로 가득 차 특보 읽기 기록이 밀려나므로,
+     * 맨 위 줄이 이미 「신호 성공」이면 그 줄만 새 시각으로 바꾼다.
+     */
+    static void statusBeatOk(Context c) {
+        String old = prefs(c).getString("log", "");
+        int nl = old.indexOf('\n');
+        String first = nl < 0 ? old : old.substring(0, nl);
+        if (first.contains(BEAT_OK)) prefs(c).edit().putString("log", nl < 0 ? "" : old.substring(nl + 1)).apply();
+        status(c, BEAT_OK + " — 서버가 이 기기 신호를 받음");
+    }
+    static final String BEAT_OK = "신호 성공";
 }
