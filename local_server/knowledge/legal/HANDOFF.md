@@ -1532,6 +1532,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-02 21:58 KST] ✅완료 — 나리야 답변 AI 5단 자동전환
+services/llm_chain.js 신설. 기본 순서 업스테이지(solar-pro4·reasoning medium) → 클로드 키2 → 클로드 키1(claude-sonnet-5-5·effort medium) → ChatGPT(VM) → Gemini, 관리자 센터 ▲▼로 변경·[소진 해제]. 범위=codex 와 같음(관리자||codexForUsers). 크레딧 소진(Claude 402/billing_error·400 credit balance, Upstage 4코드)만 계속 건너뜀+관리자 푸시, 그 외 오류는 그 호출만 다음. 시크릿 ANTHROPIC_API_KEY_1/_2·UPSTAGE_API_KEY(사용자 등록 대기). Sonnet 적대검증 결함 4건(짧은 timeout 무시·400 크레딧·공개 GET 상태 노출·reset 부작용) Opus high 로 수정. 시험 test_llm_chain 31/0·test_codex_bridge 33/0·test_root_deps 3/0. verify_all 잔여 실패는 playwright-core·acorn 부재(환경) — 직접 실행해 원인 확인. 미결(사용자 판단): ChatGPT 한도 소진 감지 없음(최대 300초 대기)·소진 표시 인메모리/머신별·사슬 요청은 스트리밍 없이 한 번에.
+
+
+### [2026-11-02 21:39 KST] 🟢착수 — 나리야 답변 AI 5단 자동전환(업스테이지·클로드×2·ChatGPT·Gemini)
+codex 와 같은 범위(/api/legal/ask). 신규 services/llm_chain.js — 관리자 센터 순서대로 시도, 크레딧 소진(Claude 402 billing_error · Upstage 401 api_key_is_blocked/403 api_key_is_not_allowed·studio_subscription_quota_exceeded/429 usage_limit_exceeded)이면 그 AI를 건너뛰고 관리자 푸시. 일시 오류는 그 호출만 다음으로. 시크릿 ANTHROPIC_API_KEY_1/_2, UPSTAGE_API_KEY. 모델 claude-sonnet-5-5 effort medium · solar-pro4 reasoning_effort medium.
+
+
 ### [2026-10-20 10:05 KST] ✅완료 — 바텀시트 조석 조회 실패 — TideBED 15초 제한
 완료. 원인: 10-18 신설 TIDEBED_TIMEOUTS.totalMs 15초가 TideBED 의 간헐적 느린 정상 응답(실측 18.0·18.5초 — numOfRows=1 15회 중 응답 10회 중 2회; 착수 기록의 2/13 은 잘못 센 것)을 끊음(운영 로그 09:15:01 「전체 시간 초과 15000ms」). 조치: totalMs 30초(연결 5초 유지), lookupGridHash 가 code 도 돌려주고 /api/save_tide_input 실패 로그에 「조회 실패」/「격자 미제공(응답 코드)」 구분. 운영 첫 건(33.81095,127.12674, 4.9초 무로그 실패)은 실측상 격자가 있는 좌표 — 일시 이상 응답으로 보이나 코드가 로그에 없어 원인 미확인(다음엔 새 로그로 보임). 확인: test_tide_edges 93/0, 실제 TideBED 로 두 좌표 lookupGridHash 8회 전부 해시 정상. verify_all 실패 1건 test_overlay_solo(사고정보 시험 전제) — 10-06 원본 코드로도 동일, 조석 무관. 후속 제안: 바텀시트가 일시 실패도 「격자 미제공」처럼 카드를 숨김 → 재시도 안내 검토.
 

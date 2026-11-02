@@ -247,3 +247,24 @@ Gemini 전용 `config`(`thinkingConfig`, `temperature`)는 무시한다. JSON �
 
 `/api/legal/ask` 가 인증 없이 열려 있다. 지금은 버튼만 숨긴 상태라, 주소를 아는 누구나 Gemini 요금을 쓰게 할 수 있다.
 Codex 모드와 무관하게 공공 공개 전에 따로 다룰 사항.
+
+## 10. 답변 AI 사슬 — 업스테이지·클로드×2·ChatGPT·Gemini 자동 전환 (2026-11-02 추가)
+
+> 사용자 원문: *"자동으로 넘어가는거야 업스테이지가 끝나면 클로드 1이 다 끝나면 클로드 2가 또 끝나면 챗지피티가. 끝나면 제미나이가. 이 순으로 말이야. 이 순서는 사용자 설정에서 바꿀수 있도록도 해줘."*
+> 「끝나면」 = *"크레딧이 다 떨어졌을때"*. 범위 = *"지금 챗 gpt와 같은 범위"*. 설정 위치 = 관리자 센터.
+
+- **코드**: `services/llm_chain.js`. 입구는 `gemini_client.callGeminiRaw/callGeminiStream` — 요청 범위에 사슬 표시가 있을 때만 탄다.
+- **범위**: `codex_bridge.withRequest` ④(평소 질문)에서 `관리자 토큰 || codexForUsers` 이면 사슬. 아니면 종전대로 Gemini. 시험용 `llm:"codex"`·`llm:"gemini"` 는 종전 그대로.
+- **기본 순서**: `upstage → claude2 → claude1 → chatgpt → gemini` (사용자 확정: *"클로드 키 중에서는 "ANTHROPIC_API_KEY_2" 이것을 먼저쓰고 "ANTHROPIC_API_KEY_1"를 나중에"*). 관리자 센터 ▲▼ 로 바꾸면 `nariya_config.json` 의 `providerOrder` 에 저장된다.
+- **모델**: Claude `claude-sonnet-5-5` + `output_config.effort: "medium"` / Upstage `solar-pro4` + `reasoning_effort: "medium"` / ChatGPT 칸은 관리자 센터 `answerModel`(gemini 로 두면 ChatGPT 칸 건너뜀).
+- **Fly.io 시크릿 이름**: `ANTHROPIC_API_KEY_1` · `ANTHROPIC_API_KEY_2` · `UPSTAGE_API_KEY`. 없으면 그 칸은 건너뛴다(부팅 로그 `[LLM 사슬] 키 — …` 에 있음/없음이 찍힌다).
+- **크레딧 소진 판정**(이것만 「계속 건너뜀」 + 관리자 푸시 1회):
+  - Claude: HTTP 402 / `billing_error` (Anthropic 오류표).
+  - Upstage: `api_key_is_blocked`(401) · `api_key_is_not_allowed`(403) · `studio_subscription_quota_exceeded`(403) · `usage_limit_exceeded`(429) (console.upstage.ai/docs/resources/error-codes). `too_many_requests`(429, 분당 한도)는 소진 아님.
+  - ChatGPT·Gemini: 소진 표시 없음(종전 동작 — 그 호출만 다음으로 / Gemini 는 자체 쿨다운).
+- **일시 오류**: 그 호출 하나만 다음 AI 로. 순서는 바뀌지 않는다.
+- **소진 표시는 메모리에만** 있다 — 관리자 센터 [소진 해제] 또는 서버 재시작 때 지워진다(재시작 뒤 또 소진이면 다시 찍힌다).
+- **Gemini 전용 기능**(검색 그라운딩 `tools`·음성 `responseModalities`)은 사슬을 타지 않는다.
+- **답변 끝 표시**: 마지막으로 성공한 AI 이름(Claude Sonnet 5.5 / Upstage Solar Pro 4 / ChatGPT … / Gemini …).
+- **시험**: `scripts/test_llm_chain.js`(verify_all SUITES 등록) · `scripts/test_codex_bridge.js` ⑤ 갱신.
+- **독립 리뷰 반영(2026-11-02, 시험 ⑥)**: ①Claude·업스테이지 시간 한도 = `min(config.httpOptions.timeout, 120초)` (legal_retriever 의 *_CONFIG 가 10~15초), 짧은 한도면 Claude SDK 재시도 끔(재시도 몫은 다음 AI) — ChatGPT 칸 300초는 그대로. ②Claude 400 `invalid_request_error` + "credit balance" 문구도 소진(옛 응답 형태 대비, ⚠실호출 미확인). ③`GET /api/legal/config` 의 `providerStatus` 는 관리자 토큰이 있을 때만. ④`providerReset` 은 앞에서 `isValidReset` 로 검사만 하고, 실제 해제는 모든 검사 통과 뒤.

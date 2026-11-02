@@ -23,6 +23,11 @@ const { GoogleGenAI } = require('@google/genai');
 // [Codex 개발자 모드] 관리자 본인 요청에 한해 AI 호출을 VM 의 ChatGPT(Codex)로 돌린다.
 //   표시가 없는 호출(= 평소의 모든 호출)은 아래 코드가 그대로 돈다. 설계: services/codex_client.design.md
 const codexBridge = require('./codex_bridge');
+// [답변 AI 사슬 · 2026-11-02] 사슬 표시가 있는 요청(/api/legal/ask, ChatGPT 와 같은 범위)은 관리자 센터 순서대로
+//   업스테이지 → 클로드1 → 클로드2 → ChatGPT → Gemini 를 시도한다. 표시가 없는 호출은 아래 코드가 그대로 돈다.
+const llmChain = require('./llm_chain');
+// 검색 그라운딩(tools)·음성(responseModalities) 같은 Gemini 전용 기능은 사슬을 타지 않는다.
+const geminiOnly = (config) => !!(config && (config.tools || config.responseModalities));
 
 // [쿨다운 정책] 429 의 종류에 따라 차등 적용.
 //   기존엔 무조건 1시간이라, 분당 한도(RPM, 1분이면 회복)엔 과하게 길어 불필요한
@@ -97,6 +102,7 @@ function getUsageStats() { return Object.assign({}, _ensureUsage()); }
 /** 등록된 키가 하나라도 있는지 */
 function hasAnyKey() {
     if (codexBridge.active()) return true;   // codex 요청은 Gemini 키 유무와 무관
+    if (llmChain.active()) return true;      // 사슬 요청 — 앞 순서 AI 가 답할 수 있다
     return keys.length > 0;
 }
 
@@ -170,7 +176,13 @@ function notifyAdmin(title, body) {
  */
 async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
     if (codexBridge.active()) return codexBridge.callRaw({ contents, config, caller });
-    if (!hasAnyKey()) {
+    if (llmChain.active() && !geminiOnly(config)) return llmChain.callRaw({ model, contents, config, caller }, geminiDirect);
+    return geminiDirect({ model, contents, config, caller });
+}
+
+/** 원래의 Gemini 호출(키 선택·쿨다운). 사슬의 Gemini 칸도 이것을 부른다 — 사슬을 다시 타지 않는다. */
+async function geminiDirect({ model, contents, config, caller = 'unknown' }) {
+    if (!keys.length) {
         return {
             success: false, response: null,
             error: 'GEMINI_API_KEY가 설정되지 않았습니다.',
@@ -259,6 +271,13 @@ async function* callGeminiStream({ model, contents, config, caller = 'unknown' }
     if (codexBridge.active()) {
         const r = await codexBridge.callRaw({ contents, config, caller });
         if (!r.success) throw new Error(r.error || 'codex 실패');
+        yield r.response.text;
+        return;
+    }
+    // 사슬도 조각 스트리밍이 없다 — 완성된 답을 한 번에(Gemini 칸이 답해도 같다).
+    if (llmChain.active() && !geminiOnly(config)) {
+        const r = await llmChain.callRaw({ model, contents, config, caller }, geminiDirect);
+        if (!r.success) throw new Error(r.error || '답변 AI 사슬 실패');
         yield r.response.text;
         return;
     }
