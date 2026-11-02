@@ -40,6 +40,7 @@
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토·원문신선도 실카운트)
+ *                    GET  /api/legal/admin/ask-stats           (질문 수 — 날짜별 KST·1년 보관·숫자만. 「질문 수」 카드)
  *                    GET  /api/legal/freshness?status=pending  (원문신선도 — 낡은 행정규칙 원문 목록
  *                                                               + last: 마지막 점검이 언제·어떻게 끝났나)
  *                    POST /api/legal/freshness/:id/decide       (처리완료/해당없음)
@@ -456,6 +457,11 @@
                   'ChatGPT 는 연속 3번 실패하면 30분 「쉬는 중」이 되고 그 뒤 자동으로 다시 시도합니다([소진 해제]로 바로 풀 수 있음).</div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
               '</div>' +
+              // [질문 수 · 2026-11-02 사용자 확정] 날짜별 집계(KST·1년 보관·질문 내용은 저장 안 함). GET /api/legal/admin/ask-stats.
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>질문 수 (KST 날짜별 · 1년 보관 · 내용은 저장 안 함)</div>' +
+                '<div id="nryaAskStats" class="nrya-seg-help">불러오는 중…</div>' +
+              '</div>' +
               '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
               '<div class="nrya-subtabs" id="nryaSubtabs"></div>' +
               '<div id="nryaAdminContent"></div>' +
@@ -491,6 +497,42 @@
     refreshRoomStats();   // 지식 방 갈래 버튼 6개 숫자·인트로 칩(실데이터)
     refreshStats();
     refreshAdminStats();
+    refreshAskStats();    // 「질문 수」 카드
+  }
+
+  /**
+   * 「질문 수」 카드를 서버 집계로 채운다 — 줄은 항목(전체·관리자·일반·AI별·실패·되묻기), 칸은 오늘·어제·7일·30일.
+   * 예: 전체 | 12 | 30 | 140 | 520
+   * 「전체」는 답변·실패로 끝난 질문만 센다(되묻기 카드는 같은 질문이 다시 오므로 따로 「되묻기」 줄).
+   * [연계] → GET /api/legal/admin/ask-stats(관리자 토큰 — services/legal_ask_stats.js summary). ← renderAdminInto(콘솔 열 때).
+   *          실패하면 숫자를 지어내지 않고 이유 한 줄만 보인다.
+   */
+  function refreshAskStats() {
+    var box = document.getElementById('nryaAskStats'); if (!box) return;
+    legalGet('/api/legal/admin/ask-stats').then(function (res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return null; });
+    }).then(function (d) {
+      box = document.getElementById('nryaAskStats'); if (!box) return;
+      if (d && d._denied) { box.textContent = '관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 여세요.'; return; }
+      if (!d || !d.ok || !d.sums) { box.textContent = '질문 수를 불러오지 못했습니다.'; return; }
+      var P = ['today', 'yesterday', 'd7', 'd30'];
+      var ROWS = [['전체', function (r) { return r.total; }], ['· 관리자', function (r) { return r.admin; }], ['· 일반 사용자', function (r) { return r.user; }],
+        ['업스테이지', function (r) { return r.ai.upstage; }], ['클로드 키1', function (r) { return r.ai.claude1; }], ['클로드 키2', function (r) { return r.ai.claude2; }],
+        ['ChatGPT', function (r) { return r.ai.chatgpt; }], ['Gemini', function (r) { return r.ai.gemini; }], ['AI 없이 정해진 답(해역 트리)', function (r) { return r.ai.rule; }],
+        ['실패(답을 못 냄)', function (r) { return r.failed; }], ['되묻기 카드(전체에 안 셈)', function (r) { return r.clarify; }]];
+      var td = 'style="padding:5px 4px;text-align:right;border-bottom:1px solid rgba(148,163,184,.15)"';
+      box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
+        '<tr><th style="text-align:left;padding:5px 4px;color:#94a3b8;font-weight:400">' + esc(d.today || '') + '</th>' +
+        ['오늘', '어제', '7일', '30일'].map(function (h) { return '<th style="text-align:right;padding:5px 4px;color:#94a3b8;font-weight:400">' + h + '</th>'; }).join('') + '</tr>' +
+        ROWS.map(function (row) {
+          return '<tr><td style="padding:5px 4px;border-bottom:1px solid rgba(148,163,184,.15)">' + esc(row[0]) + '</td>' +
+            P.map(function (p) { return '<td ' + td + '>' + esc(row[1](d.sums[p])) + '</td>'; }).join('') + '</tr>';
+        }).join('') + '</table>' +
+        '<div style="margin-top:6px">7일·30일은 오늘 포함. 「전체」는 답변·실패로 끝난 질문 수입니다(되묻기를 거쳐도 한 번).</div>';
+    }).catch(function () {
+      box = document.getElementById('nryaAskStats'); if (box) box.textContent = '질문 수를 불러오지 못했습니다(네트워크 오류).';
+    });
   }
 
   /**
