@@ -472,6 +472,72 @@
      "status": "갱신"
     }
    ]
+  },
+  {
+   "ran_at": "2026-11-02 22:34 KST",
+   "results": [
+    {
+     "slug": "수산업법",
+     "tier": "시행령",
+     "old_mst": "287149",
+     "new_mst": "291369",
+     "old_eff": "20260701",
+     "new_eff": "20261022",
+     "old_chars": 57872,
+     "new_chars": 57695,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "status": "보류(사람작업 소실)",
+     "lost_marks": [
+      "【이미지판독"
+     ]
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-11-02 22:34 KST",
+   "results": [
+    {
+     "slug": "수산업법",
+     "tier": "시행규칙",
+     "old_mst": "288181",
+     "new_mst": "291419",
+     "old_eff": "20260713",
+     "new_eff": "20261022",
+     "old_chars": 64598,
+     "new_chars": 64724,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "old_byl": 108,
+     "legacy": "_legacy/수산업법/20260713",
+     "new_byl": 108,
+     "status": "갱신"
+    }
+   ]
+  },
+  {
+   "ran_at": "2026-11-02 22:34 KST",
+   "results": [
+    {
+     "slug": "수산업법",
+     "tier": "시행령",
+     "old_mst": "287149",
+     "new_mst": "291369",
+     "old_eff": "20260701",
+     "new_eff": "20261022",
+     "old_chars": 57872,
+     "new_chars": 57695,
+     "old_has_budchik": true,
+     "new_has_budchik": true,
+     "allowed_marks": [
+      "【이미지판독"
+     ],
+     "old_byl": 14,
+     "legacy": "_legacy/수산업법/20260701",
+     "new_byl": 14,
+     "status": "갱신"
+    }
+   ]
   }
  ]
 }
