@@ -145,8 +145,8 @@ const DEFAULT_CONFIG = Object.freeze({ method: 'chatgpt', chatgptModel: 'gpt-6-l
  */
 function normConfig(c) { const o = {}; for (const [k, v] of Object.entries(DEFAULT_CONFIG)) o[k] = c && CHOICES[k].includes(c[k]) ? c[k] : v; return o; }
 /**
- * 노출 판정(§11.6-15) — 특보 예측 표출 제어(routes/advisoryPrediction.js)와 같은 순서:
- *   user → 모두에게 / off → 아무에게도 / admin → ①등록된 관리자 기기(admin_devices.json — FCM 토큰 또는 웹푸시 endpoint 를 그대로 대조, advisory/displayControl.isAdminDevice)
+ * 노출 판정(§11.6-15) — 옛 특보 예측 표출 제어(2026-11-03 삭제)와 같은 순서:
+ *   user → 모두에게 / off → 아무에게도 / admin → ①등록된 관리자 기기(admin_devices.json — FCM 토큰 또는 웹푸시 endpoint 를 그대로 대조, services/admin_device.isAdminDevice)
  *   ②그 밖이면 관리자 로그인 토큰(X-Admin-Token — admin_auth.verifyToken, PC 처럼 기기 등록이 안 되는 관리자).
  * 예: decideExposure('admin', {deviceId:'tok1'}, {isAdminDevice:id=>id==='tok1'}) → {audience:'admin',display:true,by:'device'}
  * @param {string} exposure @param {object} who - {deviceId,adminToken} @param {object} fns - isAdminDevice·verifyToken @returns {object}

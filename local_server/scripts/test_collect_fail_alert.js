@@ -120,8 +120,9 @@ function make(opts = {}) {
         for (const [e, want] of cases) ok('분류 「' + e.message.slice(0, 40) + '」 → ' + want, R(e) === want, R(e));
         ok('분류 결과에 키·주소가 섞이지 않는다', !/SECRET|https?:/.test(cases.map(([e]) => R(e)).join()));
         ok('시정 기준 3회 = 오류현황 VSBY_FAIL_STREAK (둘이 어긋나지 않게)', A.ITEMS.visibility.threshold === require('../services/risk_history_sources').VSBY_FAIL_STREAK);
-        ok('대상 11개 = 사용자 결정 목록(이안류·특보·강풍·너울·시정·관측 4종) + 해수욕장 예보·수온(설계서 §18)',
-            eq(Object.keys(A.ITEMS).sort(), ['beachForecast', 'beachWaterTemp', 'gale', 'marineBuoys', 'marineLhBuoys', 'marineVs', 'marineWhBuoys', 'ripCurrent', 'swell', 'visibility', 'warnings']));
+        ok('대상 12개 = 사용자 결정 목록(이안류·특보·강풍·너울·시정·관측 4종) + 해수욕장 예보·수온(설계서 §18) + 카톡 특보중계 태블릿(2026-11-02)',
+            eq(Object.keys(A.ITEMS).sort(), ['beachForecast', 'beachWaterTemp', 'gale', 'kakaoRelay', 'marineBuoys', 'marineLhBuoys', 'marineVs', 'marineWhBuoys', 'ripCurrent', 'swell', 'visibility', 'warnings']));
+        ok('사람 문장 사유(plainReason)는 그대로', A.reasonOf({ plainReason: '태블릿 신호 끊김 — 마지막 11/02 13:00' }) === '태블릿 신호 끊김 — 마지막 11/02 13:00');
         ok('해수욕장 예보·수온은 첫 실패에 푸시(사용자 2026-10-18 「푸시보내」 — push:false·기다림·횟수 기준 없음)', ['beachForecast', 'beachWaterTemp'].every((k) => A.ITEMS[k].push !== false && !A.ITEMS[k].threshold && !A.ITEMS[k].minFailMs));
         const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'data_collection_manifest.json'), 'utf8'));
         ok('대상 열쇠는 모두 데이터 수집현황 목록표 id 다', Object.keys(A.ITEMS).every((id) => manifest.items.some((i) => i.id === id)));

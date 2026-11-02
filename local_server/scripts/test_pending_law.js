@@ -238,6 +238,15 @@ console.log('── T-fold 시행일 뒤 정리 ──');
     `import sys; sys.path.insert(0, ${JSON.stringify(LOOP)}); import fold_effective as f; sys.stdout.write(f.fold_markers(open(sys.argv[1], encoding='utf-8').read(), sys.argv[2]))`,
     (() => { const p = path.join(fxDir, 'b.md'); fs.writeFileSync(p, body); return p; })(), today], { env, encoding: 'utf8' });
   ok('T-fold-1 파이썬 접기 == JS 접기(20260918)', pyFold(WIKI_FX, '20260918') === E.applyStageMarkers(WIKI_FX, '20260918'));
+  // T-fold-3 변경 이력 줄은 **마지막 표 행 바로 뒤**에 — 표 뒤에 인용문이 있어도 표 밖으로 나가지 않는다(2026-11-02 실측 2쪽).
+  const addRow = (body) => execFileSync('python3', ['-c',
+    `import sys; sys.path.insert(0, ${JSON.stringify(LOOP)}); import fold_effective as f; sys.stdout.write(f.add_history_row(open(sys.argv[1], encoding='utf-8').read(), '| 새 |'))`,
+    (() => { const p = path.join(fxDir, 'h.md'); fs.writeFileSync(p, body); return p; })()], { env, encoding: 'utf8' });
+  ok('T-fold-3 표 뒤 인용문이 있어도 표 안에 넣는다',
+    addRow('# t\n\n## 변경 이력\n\n| 날짜 |\n|---|\n| 옛 |\n\n> 메모\n') === '# t\n\n## 변경 이력\n\n| 날짜 |\n|---|\n| 옛 |\n| 새 |\n\n> 메모\n');
+  ok('T-fold-3 다음 절이 있어도 그 앞 표 안에',
+    addRow('## 변경 이력\n\n| 날짜 |\n|---|\n| 옛 |\n\n## 다음\n본문\n') === '## 변경 이력\n\n| 날짜 |\n|---|\n| 옛 |\n| 새 |\n\n## 다음\n본문\n');
+  ok('T-fold-3 절이 없으면 새로 단다', /## 변경 이력\n\n\| 날짜 \| 무엇이 바뀜 \| 출처 \|\n\|---\|---\|---\|\n\| 새 \|\n$/.test(addRow('# t\n본문\n')));
   ok('T-fold-1 파이썬 접기 == JS 접기(20261231, 인라인·블록 둘 다)', pyFold(WIKI_FX, '20261231') === E.applyStageMarkers(WIKI_FX, '20261231'));
   const future = '<!--시행전 20270101-->옛<!--/시행전--><!--시행 20270101-->새<!--/시행-->\n<!--시행 20260918-->\n지난 것\n<!--/시행-->';
   const pf = pyFold(future, '20260918');

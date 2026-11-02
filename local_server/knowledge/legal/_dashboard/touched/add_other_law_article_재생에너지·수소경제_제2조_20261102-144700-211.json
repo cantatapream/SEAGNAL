@@ -1,0 +1,10 @@
+{
+ "script": "add_other_law_article_재생에너지·수소경제_제2조",
+ "stamp": "20261102-144700-211",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/재생에너지개발이용보급촉진법/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/재생에너지개발이용보급촉진법/법률_발췌.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/수소경제육성및수소안전관리에관한법률/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/수소경제육성및수소안전관리에관한법률/법률_발췌.txt"
+ ]
+}

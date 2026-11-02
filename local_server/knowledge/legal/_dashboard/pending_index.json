@@ -41,18 +41,6 @@
  ],
  "local_server/knowledge/legal/raw/05_수산어업/수산업법": [
   {
-   "date": "20261022",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "285535"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_eea555"
-   }
-  },
-  {
    "date": "20270617",
    "files": [
     "법률.txt"
@@ -283,20 +271,6 @@
    }
   }
  ],
- "local_server/knowledge/legal/raw/12_수산물유통/농수산물의원산지표시등에관한법률": [
-  {
-   "date": "20261022",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "285491"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_acbe7f"
-   }
-  }
- ],
  "local_server/knowledge/legal/raw/12_수산물유통/수산물유통의관리및지원에관한법률": [
   {
    "date": "20270323",
@@ -328,6 +302,16 @@
  "local_server/knowledge/legal/raw/15_관련타부처/노인복지법": [
   {
    "date": "20261231",
+   "files": [
+    "법률_발췌.txt"
+   ],
+   "mst": {},
+   "queue_id": {}
+  }
+ ],
+ "local_server/knowledge/legal/raw/15_관련타부처/지속가능한연근해어업발전법": [
+  {
+   "date": "20270617",
    "files": [
     "법률_발췌.txt"
    ],

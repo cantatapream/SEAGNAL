@@ -1536,6 +1536,22 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 관리자 콘솔 세 번째 탭 '🤖 AI 모델': 답변 AI 순서(카드형 줄·모델/노력 드롭다운·▲▼·삭제·소진해제), 일반 사용자 적용 스위치(이름 변경), 질문 수 아코디언(머리 '총 N건 · 오늘 N건'). '답변 AI 모델' 버튼줄·긴 설명문 삭제. 설정 providerModels(클로드 키별 sonnet/opus/haiku-5-5 × low~max, 업스테이지 solar-pro4/mini4 × none~high, ChatGPT luna/sol/astra, Gemini 표시만). 옛 answerModel 호환(gemini→Luna). 시험 test_llm_chain 121/0·codex_bridge 33/0·legal_ask_stats 39/0·root_deps 3/0. 화면 playwright 가짜 API 로 데스크톱·360px 확인. ⚠운영 answerModel 이 gemini 면 배포 후 ChatGPT 칸 다시 켜짐(VM 연결 시).
 
 
+### [2026-11-03 01:07 KST] 🟢착수 — 3-95 승인분 162건(새 49건) — 10-27 공포분 등
+brief 2026-11-03 01:06. 순서: 3-94 PR 머지 → main 에서 새로 → collect_approved → 법 묶음 에이전트 대조 → 2차 읽기 → 린트·verify → PR. 해운법 유가보조금 52곳 먼저.
+
+
+### [2026-11-03 00:48 KST] ✅완료 — 3-94 후속 — 사장님 「모두 추천대로」 처리
+②다법 새 고시: 선박 미수입 사실신고 절차 → 해운법·원양산업발전법 두 폴더(사장님 선택) · 해양환경영향조사 규정·나머지 6건 받지 않음. ③연근해어업발전법(2027-06-17 제정) 제8·24조 대기 발췌 + 위키 4쪽 시행일 마커. ④재생에너지법·수소경제법 제2조 발췌 + families 판번호(V5-18). 후속 Z 8쪽 수정 → R6 2차 읽기 8쪽 PASS(누계 43쪽, V5-57 ✅). test_admrul_review 958. 남음: 사장님이 머지 후 운영 「지금 스캔」 → 10-27 등 미승인 개정 승인 → 지시문 다시 받아 처리(해운법 유가보조금 위키 52곳 먼저). 도구 결함 2(add_other_law_article families 미기록 · cite_row flat 의 ㆍ).
+
+
+### [2026-11-03 00:06 KST] 🟢착수 — 3-94 후속 — 사장님 「모두 추천대로」
+②다법 새 고시 1·2번(해양환경영향조사 규정·선박 미수입 신고)만 제1조 근거 --place 수집, 3~8번 받지 않음 ③지속가능한 연근해어업 발전법 예고본 수집·위키 4쪽 ④재생에너지법·수소경제법 제2조 발췌 ⑤PR. ①운영 「지금 스캔」은 사장님 몫.
+
+
+### [2026-11-02 23:46 KST] ✅완료 — 개정 113건 위키 업데이트·검증·린트 + 원문결손 4건 (등록부 3-94)
+같은 113건이 3-89(10-08)에서 반영됐으나 2차 읽기 기록 0이라 전수 재대조. 수집: 새 고시 20(3-89 미수집분)·보류 10(다법 → 폴더 사람 결정)·범죄수사규칙 10-02판·낡은 예고본 4 재수집. 10-22 승격(수산업·원산지, --allow-unapproved 근거=인계문 approved) + 같은 날 위임 하위법령(수산업·원산지 시행령·시행규칙). 위키: 법 묶음 6 + 후속 2 에이전트가 53건 원문 대조 → 약 47쪽 수정(A등급 「있는 규정을 없다」 2 등). 2차 읽기: 다른 에이전트 5명이 고친 canonical 39쪽 전부 PASS(장부 39줄, V5-57 ✅, C 2건 남김: 신항만 부대공사 45행·면허어업과어업권 「추가된다」). 원문결손 4건 원문 처리 끝(survey 빠짐 0·mok_audit 해운법 0) — 판정표는 3-94·이번 세션 보고. 도구: fold_effective 변경이력 줄 표 안(T-fold-3). 검사: lint_stage_markers·lint_index·lint_build ✅ · verify_all 2회차 실패 목록 = V4 1건(KHOA 지도 타일 바깥 시간 초과) → simulate 단독 재실행 통과. 환경 메모: 이 컨테이너는 NODE_PATH=/opt/node-tools/node_modules 를 더해야 화면 시험이 돈다(playwright-core). 다음(사장님 판단): ①운영 「지금 스캔」 → 10-14·10-22·10-27 미승인 개정(law_fresh 10층 + 해운법 10-27 유가보조금 — 원문은 원문결손 처리로 이미 새 판, 위키 52곳은 옛 서술) 승인 ②보류 고시 10건 폴더 ③지속가능한 연근해어업 발전법(2027-06-17 제정) 수집 여부 ④재생에너지법·수소경제법 raw 없음.
+
+
 ### [2026-11-02 23:09 KST] ✅완료 — 답변 AI 순서 [삭제] 버튼
 관리자 센터 순서 목록 각 줄(Gemini 제외)에 [삭제]+확인창, 삭제된 AI 는 사슬에서 안 부름, '삭제된 AI: ○○ [다시 추가]'. 설정 providerRemoved(검증: 5개 중·gemini 불가·중복 불가, 틀린 저장값은 []). Fly 키는 안 지워짐. 시험 test_llm_chain 86/0·test_codex_bridge 33/0·test_legal_ask_stats 37/0. 화면 실클릭 미확인.
 
@@ -1552,12 +1568,18 @@ A) exhausted·ChatGPT 쉼을 local_server/data/llm_chain_state.json(볼륨)에 �
 llm_chain.js: 사슬 안 chatgpt 실제 호출이 3연속 실패하면 30분 건너뜀+관리자 푸시1회, 30분 뒤 자동 재시도, 성공 시 카운터0, [소진 해제]로 즉시 해제. 관리자 센터 '쉬는 중(HH:MM KST까지)'. 정한 세부: 쉼 끝나면 다시 3번 실패해야 또 쉼·쉬는 중 끝난 호출 실패는 안 셈·쉬는 중 성공은 쉼 유지. 시험 test_llm_chain 44/0, test_codex_bridge 33/0. verify_all 전체는 이번엔 재실행 안 함(직전 실행 대비 바뀐 파일은 위 시험이 덮음).
 
 
+### [2026-11-02 22:08 KST] 🟢착수 — 개정 113건 원문수집·위키반영 + 원문결손 4건
+관리자 일괄승인 brief(2026-11-02 22:06) 기반: collect_approved → 위키 반영 → 린트·verify. 원문결손 4건(mok_*) 재수집.
+
+
 ### [2026-11-02 21:58 KST] ✅완료 — 나리야 답변 AI 5단 자동전환
 services/llm_chain.js 신설. 기본 순서 업스테이지(solar-pro4·reasoning medium) → 클로드 키2 → 클로드 키1(claude-sonnet-5-5·effort medium) → ChatGPT(VM) → Gemini, 관리자 센터 ▲▼로 변경·[소진 해제]. 범위=codex 와 같음(관리자||codexForUsers). 크레딧 소진(Claude 402/billing_error·400 credit balance, Upstage 4코드)만 계속 건너뜀+관리자 푸시, 그 외 오류는 그 호출만 다음. 시크릿 ANTHROPIC_API_KEY_1/_2·UPSTAGE_API_KEY(사용자 등록 대기). Sonnet 적대검증 결함 4건(짧은 timeout 무시·400 크레딧·공개 GET 상태 노출·reset 부작용) Opus high 로 수정. 시험 test_llm_chain 31/0·test_codex_bridge 33/0·test_root_deps 3/0. verify_all 잔여 실패는 playwright-core·acorn 부재(환경) — 직접 실행해 원인 확인. 미결(사용자 판단): ChatGPT 한도 소진 감지 없음(최대 300초 대기)·소진 표시 인메모리/머신별·사슬 요청은 스트리밍 없이 한 번에.
 
 
 ### [2026-11-02 21:39 KST] 🟢착수 — 나리야 답변 AI 5단 자동전환(업스테이지·클로드×2·ChatGPT·Gemini)
 codex 와 같은 범위(/api/legal/ask). 신규 services/llm_chain.js — 관리자 센터 순서대로 시도, 크레딧 소진(Claude 402 billing_error · Upstage 401 api_key_is_blocked/403 api_key_is_not_allowed·studio_subscription_quota_exceeded/429 usage_limit_exceeded)이면 그 AI를 건너뛰고 관리자 푸시. 일시 오류는 그 호출만 다음으로. 시크릿 ANTHROPIC_API_KEY_1/_2, UPSTAGE_API_KEY. 모델 claude-sonnet-5-5 effort medium · solar-pro4 reasoning_effort medium.
+
+
 
 
 ### [2026-10-20 10:05 KST] ✅완료 — 바텀시트 조석 조회 실패 — TideBED 15초 제한

@@ -6,7 +6,7 @@
  *         계약(응답 필드·예시)은 client/js/ocean-map/coastal-risk/briefing.contract.md.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : services/station_briefing.js(forDefault — 생성·저장·설정) · advisory/displayControl.js(isAdminDevice — 특보 예측 표출 제어와 같은 기기 판정)
+ *  - 사용하는 파일 : services/station_briefing.js(forDefault — 생성·저장·설정) · services/admin_device.js(isAdminDevice — 등록된 관리자 기기 판정)
  *                    · services/beach_weather.js(linesForSpots — 연안 카드 해수욕장 안내 줄 beach, 응답 때 붙임 · 설계서 §18)
  *                    · services/admin_auth.js(verifyToken·requireAdminToken — 관리자 API 인증, 쓸 때 require)
  *  - 서버 API      : GET /api/station-briefing/stations · GET /api/station-briefing/areas(관할 구역 — 설정 화면 지도) · GET /api/station-briefing
@@ -33,7 +33,7 @@ const DOWNLOAD_TTL_MS = 5 * 60000, DOWNLOAD_MAX = 20;
  */
 function createRouter({
     service = null,
-    isAdminDevice = (id) => require('../advisory/displayControl').isAdminDevice(id),
+    isAdminDevice = (id) => require('../services/admin_device').isAdminDevice(id),
     verifyToken = (t) => require('../services/admin_auth').verifyToken(t),
     authorize = (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next),
     nowLine = null,
@@ -42,7 +42,7 @@ function createRouter({
 } = {}) {
     const router = express.Router(), SB = require('../services/station_briefing'), downloads = new Map();   // token → {name, text, exp}
     const svc = () => service || SB.forDefault();
-    /** 요청에서 기기 식별(관리자 기기 판정용)·관리자 토큰을 꺼낸다 — advisoryPrediction 과 같은 이름(adminToken·endpoint 쿼리, X-Admin-Device·X-Admin-Token 헤더). */
+    /** 요청에서 기기 식별(관리자 기기 판정용)·관리자 토큰을 꺼낸다 — 이름은 adminToken·endpoint 쿼리, X-Admin-Device·X-Admin-Token 헤더(옛 특보 예측과 같은 규약). */
     const who = (req) => ({ deviceId: (req.query && (req.query.adminToken || req.query.endpoint)) || req.get('X-Admin-Device') || '', adminToken: req.get('X-Admin-Token') || (req.query && req.query.adminAuthToken) || '' });
     const gate = (req) => SB.decideExposure(svc().readConfig().exposure, who(req), { isAdminDevice, verifyToken });
     /** 브리핑 연안 카드 관광지마다 해수욕장 안내 줄(§18). 실패하면 빈 표(브리핑은 그대로). 예: beachOf({date:'2026-10-18', briefing:{land:{cards:[{link:{spotId:'a'}}]}}}) → {a:[{kind,text,name,concl}]}(§18.11) */
