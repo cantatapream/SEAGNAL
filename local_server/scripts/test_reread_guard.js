@@ -86,10 +86,17 @@ cli(['add', '--page', WPAGE, '--verdict', 'PASS', '--reader', 'a3', '--fixer', '
 ok('PASS 뒤에는 회차가 0 으로', L.pageState(WPAGE).holdStreak === 0 && L.pageState(WPAGE).last['판정'] === 'PASS');
 
 console.log('R6 승격 도구는 장부의 PASS(전체·해시 일치)가 있어야 올린다(시험 모드 --dry)');
-const DRAFT = 'concepts/내수면어업법__공익어업제한취소.md';
+// 시험 쪽: 지금 draft 이고 draft 배너 머리가 있는 개념 쪽 하나를 고른다(고정 이름을 쓰면 그 쪽이 승격되는 순간
+// 이 절이 조용히 건너뛰어진다 — 2026-11-03 D1-R28 에서 공익어업제한취소가 올라가 실제로 그랬다).
+const CDIR = path.join(__dirname, '../knowledge/legal/wiki/concepts');
+const DRAFT = 'concepts/' + (fs.readdirSync(CDIR).sort().find(f => {
+  if (!f.endsWith('.md')) return false;
+  const t = fs.readFileSync(path.join(CDIR, f), 'utf8');
+  return /^status: draft$/m.test(t) && /^> ⚠️? \*\*draft/m.test(t);
+}) || '내수면어업법__공익어업제한취소.md');
 const PP = path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py');
 const SPEC = path.join(TMP, 'spec.json');
-fs.writeFileSync(SPEC, JSON.stringify({ '내수면어업법__공익어업제한취소': ['raw/05_수산어업/내수면어업법', '조문', '없음'] }));
+fs.writeFileSync(SPEC, JSON.stringify({ [DRAFT.replace(/^concepts\//, '').replace(/\.md$/, '')]: ['raw/시험', '조문', '없음'] }));
 function pp() {
   try { return { code: 0, out: execFileSync('python3', [PP, SPEC, '--round', 'T', '--dry'], { env, encoding: 'utf8' }) }; }
   catch (e) { return { code: e.status, out: String(e.stdout || '') }; }
@@ -106,6 +113,21 @@ else {
   const r6 = pp();
   ok('PASS · 전체 · 해시 일치 → 올림(시험이라 파일은 안 바뀜)', r6.code === 0 && /올림/.test(r6.out), r6.out);
   ok('시험 모드는 파일을 바꾸지 않는다', fs.readFileSync(path.join(__dirname, '../knowledge/legal/wiki', DRAFT), 'utf8') === draftNow);
+}
+
+console.log('R6b 승격 도구는 사람 승인 대기 카드가 열린 쪽을 올리지 않는다(쪼갠 카드는 하위 카드로 본다)');
+{
+  const QF = path.join(TMP, 'queue.md');
+  const PPY = path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py');
+  const run = (q, key) => { fs.writeFileSync(QF, q); return execFileSync('python3', ['-c',
+    `import importlib.util,sys;sp=importlib.util.spec_from_file_location('pp',sys.argv[1]);m=importlib.util.module_from_spec(sp);sp.loader.exec_module(m);print(','.join(m.pending_cards(sys.argv[2])))`,
+    PPY, key], { env: { ...env, REVIEW_QUEUE: QF }, encoding: 'utf8' }).trim(); };
+  const K = 'concepts/가상법__시험쪽.md';
+  ok('대기 카드 → 그 번호를 돌려준다', run(`### REVIEW-가상법-1: 시험\n- 대상 페이지: wiki/${K}\n- 승인: [ ] 대기\n`, K) === 'REVIEW-가상법-1');
+  ok('승인된 카드 → 없음', run(`### REVIEW-가상법-1: 시험\n- 대상 페이지: wiki/${K}\n- 승인: [x] 승인\n`, K) === '');
+  ok('쪼갠 카드는 대기여도 세지 않는다 · 하위 카드가 닫혔으면 없음', run(`### REVIEW-가상법-2: 시험\n- 대상 페이지: wiki/${K}\n- 쪼갬: 하위 카드 1장\n- 승인: [ ] 대기\n\n### REVIEW-가상법-2-1: 하위\n- 대상 페이지: wiki/${K}\n- 승인: [x] 종결\n`, K) === '');
+  ok('「해당 없음」 카드는 세지 않는다', run(`### REVIEW-가상법-3: 시험\n- 대상 페이지: wiki/${K}\n- 승인: [ ] 해당 없음 — 기계 확인\n`, K) === '');
+  ok('콜론 없는 기록 머리는 카드가 아니다', run(`### REVIEW-가상법-4 기록\n- 대상 페이지: wiki/${K}\n- 승인: [ ] 대기\n`, K) === '');
 }
 
 console.log('R5 verify_all 에 걸려 있다');

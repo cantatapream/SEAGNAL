@@ -27,6 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LEGAL = os.path.normpath(os.path.join(HERE, '..', '..'))
 WIKI = os.path.join(LEGAL, 'wiki')
 LEDGER = os.environ.get('REREAD_LEDGER') or os.path.join(LEGAL, '_dashboard', 'reread', 'verdicts.jsonl')
+QUEUE = os.environ.get('REVIEW_QUEUE') or os.path.join(LEGAL, '_dashboard', 'review_queue.md')
 BANNED = ('REVIEW', '판독', 'OCR', '출처미확인', '출처 미확인', '원본이미지', '[미확인]')
 
 
@@ -34,6 +35,30 @@ def body_hash(key):
     out = subprocess.run(['node', os.path.join(HERE, 'reread_ledger.js'), 'hash', key],
                          capture_output=True, text=True, check=True).stdout
     return out.split()[0]
+
+
+def pending_cards(key):
+    """이 쪽을 가리키는 확인 카드 중 아직 사람 승인 대기인 것(`- 승인: [ ]`, 해당 없음·쪼갬 제외)의 번호 목록.
+
+    예: pending_cards('concepts/선박안전법__무선설비및선박위치발신장치.md') → ['REVIEW-선박안전법-4']
+    [연계] _dashboard/review_queue.md 머리말의 카드 상태 셋(승인·대기·세지 않음) · 관리자 「초안승인」 방.
+    왜: 승격 기록줄은 「대기열에서 안 풀린 확인 항목 없음」이라고 적는데, 이 도구는 그것을 확인하지 않고 적고 있었다
+        (2026-11-03 D1-R26 에서 발견 — 그때 올린 쪽들은 대기열을 다시 세어 보니 쪼갠 카드의 하위 카드가 모두 닫혀
+        있어 실제로 건너뛴 사람 몫은 없었다). 적는 말을 실제로 확인하게 한다 — 사람 몫을 기계가 건너뛰지 않게.
+    """
+    try:
+        q = open(QUEUE, encoding='utf-8').read()
+    except FileNotFoundError:
+        return []
+    out = []
+    for c in re.split(r'\n(?=### )', q):
+        m = re.match(r'### (REVIEW-[^:\n]+):', c)
+        if not m or ('wiki/' + key) not in c or re.search(r'^- 쪼갬:', c, re.M):
+            continue
+        appr = re.findall(r'^- 승인:.*$', c, re.M)
+        if appr and appr[-1].startswith('- 승인: [ ]') and '해당 없음' not in appr[-1]:
+            out.append(m.group(1))
+    return out
 
 
 def last_row(key):
@@ -61,6 +86,9 @@ def promote(name, rawdir, cmp2, notcmp, rnd, today, dry):
     if not r or r.get('판정') != 'PASS' or r.get('범위') != '전체' or r.get('본문해시') != h:
         why = '장부 기록 없음' if not r else f"마지막 {r.get('판정')}·{r.get('범위')}·해시 {'같음' if r.get('본문해시') == h else '다름'}"
         return False, f'올리지 않음 — {why}'
+    pend = pending_cards(key)
+    if pend:
+        return False, f'올리지 않음 — 사람 승인 대기 카드가 열려 있다: {", ".join(pend)}'
     fm_end = s.index('\n---\n', 4)
     fm, body = s[:fm_end], s[fm_end:]
     if not re.search(r'^status: draft$', fm, re.M):
