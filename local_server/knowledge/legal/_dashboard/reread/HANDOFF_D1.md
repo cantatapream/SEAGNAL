@@ -216,3 +216,49 @@ SEAGNAL 저장소에서 「위키 다른 눈의 다시 읽기(D1)」 작업을 �
 | `_dashboard/loop/lint_index.py` · `lint_build.py` · `worklist_progress.py` | 색인 · 린트 보고 · 진행판 |
 | `../../../scripts/refactor/verify_all.sh` · `gen_rulebook.py` | 전체 게이트 · 규칙집 |
 | `HANDOFF.md` · `_dashboard/d_standard_2026-09-22/00_WORKLIST.md` | 작업 로그 · 등록부(3-93 · 3-96) |
+
+## 10. 두 계정이 나눠 하기 (2026-11-03 사장님 제안 · 확정)
+
+> 사장님 원문: *"이 계정 말고 다른 계정도 있거든. 그 계정과 반을 나눠서 그 계정에서 반이 진행될 수 있도록 하고 이 계정에서 반이 진행될 수 있도록 하면 어떨까?"*
+
+### 10-1. 나눈 것
+- canonical 1,108쪽(사장님 「정확도 위해 모두 확인」)은 2026-11-03 13:30 KST 의 `make_queue.js --status canonical` 목록으로 **고정**했다.
+  R29~R34(180쪽)는 계정 A(이 문서를 쓴 세션 · 브랜치 `claude/intelligent-bell-b0puy2`)가 이미 돌리고 있다.
+  남은 31묶음은 `_dashboard/reread/plan/D1-R35.json` ~ `D1-R65.json`(30쪽씩, R65 만 28쪽 · 묶음끼리 중복 0).
+  R35~R42 는 1차 기계 대조 「보류」 쪽, R43 은 반쯤, R44~R65 는 「통과」 쪽이다.
+- **번갈아 나눈다** — 보류 쪽이 양쪽에 고루 가게:
+  - **계정 A(이 세션)**: R36 · R38 · … · R64 (짝수 15묶음) + 이미 돌던 R29~R34
+  - **계정 B(다른 계정)**: R35 · R37 · … · R65 (홀수 16묶음)
+- ⚠ **남의 묶음 쪽은 고치지 않는다.** 묶음 목록에 없는 쪽은 열어 읽기만 한다.
+
+### 10-2. 계정 B 시작법
+1. 클로드 앱으로 새 세션을 연다(Workflow 도구가 있어야 한다 — §6-1). 저장소 `cantatapream/SEAGNAL`.
+2. **브랜치 `claude/intelligent-bell-b0puy2` 를 받아 그 위에서 새 브랜치를 만든다**(main 이 아니다 — 승격 도구의 오늘 수정 · 묶음 목록 · 이 문서가 아직 main 에 없다).
+3. 이 문서 §5(지킬 것) · §6(절차) · §10 을 읽는다. Q-19(그림 안 글자를 옮겨 적지 않는다)는 워크플로우 지시에 이미 들어 있다.
+4. 묶음 하나 돌리기:
+   ```
+   python3 local_server/knowledge/legal/_dashboard/reread/tools/make_wf.py \
+     local_server/knowledge/legal/_dashboard/reread/plan/D1-R35.json \
+     --out <세션 임시폴더>/reread_tmp/wf_D1-R35.js --tmp <세션 임시폴더>/reread_tmp --date <오늘 KST>
+   ```
+   → `Workflow({scriptPath: '<세션 임시폴더>/reread_tmp/wf_D1-R35.js'})`. 동시에 4~6개.
+   (`--repo` 는 기본값이 이 저장소 루트다 — 다른 곳에 클론했으면 그 경로를 준다.)
+5. 묶음이 끝나면 §6-2 의 5번 그대로: `post_batch.py <결과 파일> --round D1-R35 --date <KST> --dry` → 숫자 확인 → 실제.
+   - post_batch 는 canonical PASS → 기록 · CAP → draft + human_list · C 지적 → c_list 를 한다.
+   - 그 뒤 `node local_server/knowledge/legal/_dashboard/loop/reread_guard.js --gate`(V5-57) · `promote_guard.js --gate`(V5-13) 를 **저장소 루트에서** 돌린다.
+   - 커밋은 경로를 하나씩. 중간 저장이 필요하면 `SEAGNAL_INDEX_SYNC=off git commit …`(색인은 묶음 끝에 lint_index·lint_build 로).
+6. **매 묶음 끝·커밋 직전에 계정 A 브랜치를 받아 합친다**(`git fetch origin claude/intelligent-bell-b0puy2 && git merge …`).
+
+### 10-3. 두 계정이 함께 쓰는 파일 — 합칠 때 규칙
+| 파일 | 두 계정이 하는 일 | 합칠 때 |
+|---|---|---|
+| `_dashboard/reread/verdicts.jsonl`(장부) | 끝에 줄 추가만 | 충돌 나면 **양쪽 줄 모두 남긴다**(순서 상관없음 — 쪽·시각으로 읽는다) |
+| `_dashboard/reread/c_list.md` · `human_list.md` | 끝에 절 추가만 | 양쪽 모두 남긴다 |
+| `HANDOFF.md` 작업 로그 | 줄 추가 | 양쪽 모두 남긴다 |
+| `_dashboard/index.json` · `lint_report.json` · `build_index.md` · `wiki/graph.json` · `wiki/_backbone.md`(색인) | 기계가 다시 만든다 | 어느 쪽을 골라도 되고, 합친 뒤 `lint_index.py` · `lint_build.py` 로 **다시 만든다** |
+| 위키 쪽 | 자기 묶음 쪽만 | 겹치지 않는다(겹치면 그 자체가 사고 — 멈추고 사장님께 알린다) |
+| `_LESSONS.md` 번호 · 등록부 번호 | 새 번호 | 달기 직전에 상대 브랜치를 받아 가장 큰 번호를 본다 |
+
+### 10-4. 머지
+- main 머지는 사장님이 한다(§5). 열린 PR 이 V5-57 초록이려면 **그 브랜치에서 고치던 canonical 쪽의 다시 읽기가 다 끝난 뒤**여야 한다 — 묶음 사이 쉬는 틈에 PR 을 연다.
+- 두 계정 PR 은 따로 열어도 된다. 나중 PR 이 먼저 머지된 쪽을 받아 합친 뒤 연다.
