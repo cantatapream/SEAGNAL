@@ -1535,6 +1535,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-03 13:27 KST] 🟢착수 — D1 canonical 다시 읽기 착수(D1-R29~R32)
+draft 132쪽 마무리(R24 진행 중) 와 함께 canonical 1,108쪽(다른 세션이 변경분만 읽은 43쪽 포함 — 사장님 「추천대로」) 다시 읽기 시작. 1차 기계 대조: 통과 672 · 보류 436 — 보류 쪽·큰 쪽 먼저. 30쪽씩 D1-R29~R32 워크플로우 4개(sonnet·medium). args 를 대화에 붙이지 않으려고 묶음마다 reread_workflow.js 사본에 args 를 박은 스크립트(scratchpad/reread_tmp/wf_D1-Rnn.js)로 띄움. 승격 도구는 오늘 대기열·V5-13 사전 검사·변경분 PASS 규칙을 더함(L-421).
+
+
 ### [2026-11-03 10:12 KST] 🟢착수 — D1 draft 132쪽 다시 읽기 착수(D1-R24~R28)
 사장님 「워크플로우」 선택(2026-11-03). make_queue 로 draft 132쪽을 27·27·27·27·24쪽 5묶음(D1-R24~R28)으로 나눠 reread_workflow.js 워크플로우 5개를 동시에 띄움(sonnet·medium, CLAUDE.md L-12). 1차 기계 대조 132쪽: 통과 47 · 보류 85. 스크립트에 Q-19(그림 안 글자 옮기지 않기) 문구를 읽기·정정 지시에 덧붙임. 끝나면 post_batch.py 로 승격·장부·human_list·c_list 처리 후 묶음마다 커밋.
 
