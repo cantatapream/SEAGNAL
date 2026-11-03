@@ -89,11 +89,20 @@ console.log('R6 승격 도구는 장부의 PASS(전체·해시 일치)가 있어
 // 시험 쪽: 지금 draft 이고 draft 배너 머리가 있는 개념 쪽 하나를 고른다(고정 이름을 쓰면 그 쪽이 승격되는 순간
 // 이 절이 조용히 건너뛰어진다 — 2026-11-03 D1-R28 에서 공익어업제한취소가 올라가 실제로 그랬다).
 const CDIR = path.join(__dirname, '../knowledge/legal/wiki/concepts');
-const DRAFT = 'concepts/' + (fs.readdirSync(CDIR).sort().find(f => {
+// 승격 사전 검사(guard_reasons)에 걸리는 쪽을 고르면 「올림」 시험이 그 이유로 깨진다(2026-11-03 실측) → 걸리지 않는 첫 쪽.
+const CANDS = fs.readdirSync(CDIR).sort().filter(f => {
   if (!f.endsWith('.md')) return false;
   const t = fs.readFileSync(path.join(CDIR, f), 'utf8');
   return /^status: draft$/m.test(t) && /^> ⚠️? \*\*draft/m.test(t);
-}) || '내수면어업법__공익어업제한취소.md');
+});
+const PICK = (() => {
+  try {
+    return execFileSync('python3', ['-c',
+      `import importlib.util,sys,os;sp=importlib.util.spec_from_file_location('pp',sys.argv[1]);m=importlib.util.module_from_spec(sp);sp.loader.exec_module(m)\nfor f in sys.argv[3:]:\n  s=open(os.path.join(sys.argv[2],f),encoding='utf-8').read()\n  if not m.guard_reasons(s[s.index(chr(10)+'---'+chr(10),4):]) and not m.pending_cards('concepts/'+f):\n    print(f);break`,
+      path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py'), CDIR, ...CANDS], { encoding: 'utf8' }).trim();
+  } catch (_) { return ''; }
+})();
+const DRAFT = 'concepts/' + (PICK || CANDS[0] || '내수면어업법__공익어업제한취소.md');
 const PP = path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py');
 const SPEC = path.join(TMP, 'spec.json');
 fs.writeFileSync(SPEC, JSON.stringify({ [DRAFT.replace(/^concepts\//, '').replace(/\.md$/, '')]: ['raw/시험', '조문', '없음'] }));
