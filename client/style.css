@@ -4406,6 +4406,11 @@ line-height: 1.1;
     border-radius: 0;
     border-left: none;
     border-right: none;
+    /* 화면 가득일 때 휴대폰 위 상태표시줄·아래 탐색줄 자리를 비운다 — 없으면 관리자 창 머리가 상태표시줄 밑으로
+       들어간다(사용자 지적 2026-11-03 「AI 탭을 눌렀을 때만 상태 표시줄 바깥까지 침범」). 다른 탭은 90vh 가운데라 안 겹친다. */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
 }
 
 #unified-admin-modal.admin-fullscreen .unified-admin-body {

@@ -171,42 +171,9 @@ router.post('/api/admin/crawl-toggle', (req, res) => {
 // 특보 장부 관리
 // ============================================================================
 
-// [marine] 장부(diff 기준점) 초기화 + 테스트 푸시
-//   marine_warning_state.json(prev 스냅샷)을 비우고, 강제 baseline 사이클을 1회 실행.
-//   E-1 첫부팅 가드를 우회하여 현재 활성 특보(발효+예비)를 "신규"로 감지 → 실제 푸시 발사.
-//   필터링된 전체 사용자에게 발송됨 (현재 활성 해역 구독자 대상).
-router.post('/api/admin/marine/reset', async (req, res) => {
-    try {
-        const { testPush, adminToken, broadcastAll } = req.body || {};
-        marineWarningCrawler.resetState();
-        let pushed = false;
-        const targetAll = broadcastAll === true || (!adminToken && testPush !== false);
-        if (testPush !== false) {
-            // 강제 baseline 사이클 — 현재 활성 특보를 신규로 감지하여 푸시 발송.
-            //   - adminToken 있음: 그 관리자 기기에게만 발송 (테스트 전용, 일반 사용자 영향 없음)
-            //   - adminToken 없음 또는 broadcastAll=true: 전체 사용자에게 발송 (활성 해역 구독자 대상)
-            await marineWarningCrawler.run({
-                forceBaselinePush: true,
-                adminToken: (broadcastAll === true) ? undefined : (adminToken || undefined)
-            });
-            pushed = true;
-        }
-        console.log(`[Admin] marine 장부 초기화 완료 (테스트 푸시=${pushed}, 전체발송=${targetAll})`);
-        res.json({
-            success: true,
-            pushed,
-            broadcastAll: targetAll,
-            message: pushed
-                ? (targetAll
-                    ? '장부를 초기화하고 현재 활성 특보를 신규로 감지하여 전체 사용자에게 푸시를 발송했습니다.'
-                    : '장부를 초기화하고 현재 활성 특보를 신규로 감지하여 (관리자 기기에만) 테스트 푸시를 발송했습니다.')
-                : '장부를 초기화했습니다. (다음 1분 사이클부터 baseline 재설정)'
-        });
-    } catch (e) {
-        console.error('[Admin] marine 장부 초기화 실패:', e && e.message);
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
+// [삭제 2026-11-03] POST /api/admin/marine/reset(장부 초기화 + 테스트 푸시·전체 사용자 재발송) — 관리자 버튼과 함께 삭제
+//   (사용자 「해당 기능을 사용안한지 너무 오래됨」). marine_warning_crawler 의 resetState·run({forceBaselinePush}) 는
+//   푸시 경로 안쪽이라 손대지 않았다(지금은 부르는 곳이 없다).
 
 // 특보 장부 초기화
 router.post('/api/admin/alerts-reset', (req, res) => {

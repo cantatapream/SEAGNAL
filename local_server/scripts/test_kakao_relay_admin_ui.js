@@ -63,6 +63,10 @@ const DATA = {
     ok('자식 구역은 부모를 함께 보임', /\(제주도서부앞바다\)/.test(h));
     ok('글자 안전(HTML 안 섞임)', !/<script/i.test(h));
 
+    ok('중계 기기: 한 줄에 2개(격자)·접힌 아코디언(제목에 이름)', /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/.test(h) && /<details[^>]*>\s*<summary[^>]*>[^]*?<b style="color:#e6edf3">tablet<\/b>/.test(h) && !/<details open/.test(h));
+    ok('신호 끊긴 기기는 접혀 있어도 ⚠ 표시(휴대폰만)', (h.match(/⚠ 신호 확인/g) || []).length === 1);
+    // 자정 무렵이면 두 날로 갈릴 수 있어(글이 1~2분 전) 건수 합으로 본다 — 시각 의존 검사 금지.
+    ok('받은 특보 글: 날짜별 접힌 아코디언·건수', (h.match(/📅 \d{2}\/\d{2} <span[^>]*>\((\d+)건\)/g) || []).reduce((a, x) => a + +/\((\d+)건/.exec(x)[1], 0) === 2);
     console.log('B. 실패를 숨기지 않음');
     const bad = load(async () => ({ ok: false, status: 401, json: async () => ({}) }));
     const c2 = { innerHTML: '' };
