@@ -1,0 +1,65 @@
+[시행규칙] 서식95 — 보호명령서
+
+■ 출입국관리법 시행규칙 [별지 제95호서식]                                                
+                                                                                                              
+                                                             번호(No.) :                                      
+  보호명령서                                                                                                  
+  (DETENTION ORDER)                                                                                           
+──────────┬────────────────────────────────────────────
+  보호 대상자       │성명 (Full name)                                                                        
+  Person subject to ├────────────────────────────────────────────
+  Detention Order   │성별 (Gender)  남 Male[  ]  여 Female[  ]                                               
+                    ├────────────────────────────────────────────
+                    │생년월일 (Date of Birth)                                                                
+                    ├────────────────────────────────────────────
+                    │국적 (Nationality)                                                                      
+                    ├────────────────────────────────────────────
+                    │직업 (Occupation)                                                                       
+                    ├────────────────────────────────────────────
+                    │대한민국 내 주소 (Address in Korea)                                                     
+──────────┴────────────────────────────────────────────
+                                                                                                              
+───────────────────────────────────────────────────────
+  1. 위 사람을 「출입국관리법」 제51조, 제63조 또는 제63조의3에 따라 다음과 같이 보호할 것을 명령합           
+  니다. 보호된 사람 또는 국내에 있는 그의 법정대리인, 배우자, 직계친족, 형제자매, 가족, 변호인 또는           
+  보호된 사람이 지정하는 사람은 외국인보호위원회에 보호에 대한 심사청구를 할 수 있습니다.                     
+     The above mentioned person is hereby ordered to be detained pursuant to Article 51?Article 63 or Arti   
+  cle 63-3 of the Immigration Act. The detainee, or any of the following persons residing in Korea: their     
+  legal representative, spouse, lineal relative, sibling, other family member, legal counsel, or any other    
+  person designated by the detainee, may file an application for review with the Immigration Detention        
+  Review Committee.                                                                                           
+  2. 귀하는 위 처분에 대해 이의가 있는 경우에는 이 명령서를 받은 날부터 90일 이내에 행정심판 또는             
+  행정소송을 제기할 수 있습니다.                                                                              
+    ※ 행정심판을 청구하는 경우에는 온라인행정심판(www.simpan.go.kr), 행정소송을 청구하는 경우                
+  에는 전자소송(ecfs.scourt.go.kr)을 통해 온라인으로도 청구할 수 있습니다.                                    
+     A person who has an objection to the above disposition may file an administrative appeal or an admi      
+  nistrative litigation within 90 days from the date of receipt of this detention order.                      
+     ? You may file an administrative appeal online (www.simpan.go.kr) and an administrative litigation      
+  on the Internet(ecfs.scourt.go.kr).                                                                         
+───────────────────────────────────────────────────────
+                                                                                                              
+────────────┬──────────────────────────────────────────
+  보호의 사유           │                                                                                    
+  (Reason for Detention)│                                                                                    
+────────────┼──────────────────────────────────────────
+  보호 장소             │                                                                                    
+  (Place of Detention)  │                                                                                    
+────────────┼──────────────────────────────────────────
+  보호 기간             │                    부터                까지                                        
+  (Period of Detention) │                      (from)                  (to)                                  
+────────────┼──────────────────────────────────────────
+  비고                  │                                                                                    
+  (Remarks)             │                                                                                    
+────────────┴──────────────────────────────────────────
+                                                                                                              
+───────────────────────────────────────────────────────
+                                                     년      월      일                                       
+                                    Date           (year)  (month)  (day)                                     
+                                                                     ┏━━┓                                 
+                               ○○출입국ㆍ외국인청(사무소ㆍ출장소)장┃직인┃                                 
+                                                                     ┗━━┛                                 
+                             CHIEF, ○○IMMIGRATION OFFICE                                                    
+                                                      집행자 :                    (서명 또는 인)              
+                                            Enforcement officer :               (signature or seal)           
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

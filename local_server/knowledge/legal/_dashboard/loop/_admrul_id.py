@@ -268,7 +268,11 @@ def find_title(path, head=None):
     hit = _recovered().get(key)
     if isinstance(hit, dict) and hit.get('공식명'):
         return str(hit['공식명']), 'admrul_id_recovered.json'
-    m = re.search(r'[「『]([^」』]{4,80})[」』]', head)
+    # ★우리가 머리에 덧붙인 「기계 대조」 메모 줄은 건너뛴다(2026-11-03 · 3-97). 그 메모 안의 「대조 완료」 가
+    #   제목으로 잡혀 고시 4개(선박 전자증서 발급 고시·선박 톤수 측정 요령 등)가 같은 이름 「대조 완료」 한 줄로 묶이고
+    #   「ID불일치」로 빠져 **신선도 점검을 한 번도 못 받았다.**
+    body_head = '\n'.join(l for l in head.split('\n') if not re.match(r'^\s*(🟡|✅|🔴|⚠️?)기계 대조', l))
+    m = re.search(r'[「『]([^」』]{4,80})[」』]', body_head)
     if m:
         return m.group(1), '맨 앞 낫표'
     return None, '제목을 못 찾았다'

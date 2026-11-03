@@ -60,7 +60,9 @@ const GEN = ['draftCardHTML', 'feedbackCardHTML', 'candidateCardHTML', 'amendmen
   'freshnessCardHTML', 'mokCardHTML', 'reviewCardHTML'];
 
 // `cardShell()` 이 생기면 그것도 같이 떼어 온다 — 있으면 쓰고, 없으면 지금 그대로 돈다.
-const OPTIONAL = ['cardShell', 'cardField', 'cardStatus', 'cardActions'];
+const OPTIONAL = ['cardShell', 'cardField', 'cardStatus', 'cardActions',
+  // ⚠수치검증 카드 「한눈에 보기」·「AI 조사 결론」(2026-11-03) — reviewCardHTML 이 부른다
+  'rvInline', 'easyHTML', 'aiDoneHTML'];
 const optional = OPTIONAL.filter((n) => SRC.indexOf('function ' + n + '(') >= 0);
 
 const parts = [

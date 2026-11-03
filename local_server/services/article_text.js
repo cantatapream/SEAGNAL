@@ -2061,7 +2061,12 @@ async function resolveRefs(found, ctx) {
   // 고시는 TIER_BYL_PREFIX에 없어 ③·④를 못 타 hwp/pdf가 여기서만 채워질 수 있으므로, 미해결
   // 참조(missing)가 없으면(=②에서 이미 전부 text로 풀렸으면) 돌 필요가 없다 — 안 그러면 이미
   // 해결된 팝업에서도 매번 GitHub 조회가 돌아 불필요하게 느려진다(실측: 최악 케이스 2회→11회).
-  if (ctx.tier === 'notice' && bylRefs.some(r => r.kind === 'missing')) {
+  //    ★`ctx.wantFiles`(2026-11-02, 관리자 ⚠수치검증 카드): 고시 본문 안에서 별표 글을 이미 찾았어도(②)
+  //      **원본 HWP·PDF 주소가 없는 별표**는 이 단계를 돌려 주소만 보탠다(kind·글은 그대로).
+  //      관리자는 원본 파일(그림·수식이 든)을 직접 봐야 판단할 수 있어서다. 챗봇의 조문 창은 이 값을 안 보내
+  //      위의 「돌 필요가 없다」 그대로다(조회 횟수가 늘지 않는다).
+  const unsettled = r => r.kind === 'missing' || (!!ctx.wantFiles && !r.hwp && !r.pdf);
+  if (ctx.tier === 'notice' && bylRefs.some(unsettled)) {
     // 위키 표의 고시 이름엔 `…지침(고시)`·`「…」(국립수산물품질관리원, 2026-02-11 발령)`처럼
     // 꼬리표가 붙어 있어 그대로 비교하면 별표 파일의 머리말과 안 맞는다 — 괄호 주석을 걷어낸다.
     const want0 = squash(String(ctx.docTitle || '').replace(/[（(][^)）]*[)）]/g, '')) || squash(ctx.docTitle);
@@ -2083,7 +2088,7 @@ async function resolveRefs(found, ctx) {
     // ★한 고시가 별표를 수십 개 가진 경우가 있다(지정교육기관기준 83개) — 이름으로 좁혀도
     //   앞 8개는 `별표1·별표10·별표10의2·별표11…` 로 채워져 정작 찾는 `별표2` 가 잘린다
     //   (2026-08-31 실측, V5-11 게이트가 잡아냈다). **찾는 번호가 파일명에 든 것을 맨 앞으로** 보낸다.
-    const need0 = bylRefs.filter(r => r.kind === 'missing').map(r => String(r.key || '')).filter(Boolean);
+    const need0 = bylRefs.filter(unsettled).map(r => String(r.key || '')).filter(Boolean);
     // ★열쇠는 `서식5` 인데 파일 이름은 `별지5`·`별지5호서식` 으로 적힌다(parseBylFile 이 읽을 때
     //   별지→서식으로 맞춰 주므로 파일 자체는 맞다). 이름 정렬이 그 짝을 모르면 `별지5` 파일이
     //   앞 8개 밖으로 밀려 **파일이 있는데도 못 연다** — 2026-08-31 실측(선박법 사무취급 요령 서식5,
@@ -2093,7 +2098,7 @@ async function resolveRefs(found, ctx) {
     const pool = mine.length ? mine : all;
     const cand = pool.slice().sort((a, b) => (hasKey(b) ? 1 : 0) - (hasKey(a) ? 1 : 0)).slice(0, 8);
     for (const e of cand) {
-      if (!bylRefs.some(r => r.kind === 'missing')) break;
+      if (!bylRefs.some(unsettled)) break;
       const t = await githubRaw.fetchText(ctx.base + '/별표/' + e.name);
       if (!t) continue;
       const parsed = parseBylFile(t);
@@ -2135,9 +2140,10 @@ function docDate(text) {
  *     → {ok:true, mode:'single', articleTitle:'제10조(역사문화환경 보존지역의 보호)', paragraphs:[…④에 hit:true…]}
  *     loadArticle({law:'서해 5도 해상운송비 지원 지침', article:'제1~9조', tier:'notice', baseLaw:'서해5도지원특별법'})
  *     → {ok:true, mode:'range', articleTitle:'제1조~제9조', articles:[9개], refs:[{key:'서식1',kind:'link',…}]}
- * @param {{law:string, article:string, tier:string, baseLaw:string}} q
+ * @param {{law:string, article:string, tier:string, baseLaw:string, files?:boolean}} q
+ *   files: true 면 고시 별표의 원본 HWP·PDF 주소까지 찾는다(관리자 ⚠수치검증 카드 — resolveRefs ⑤)
  * @returns {Promise<object>} 성공 {ok:true,…} / 실패 {ok:false, reason}
- * [연계] ← routes/legal.js GET /api/legal/article-text. → github_raw.listDir/fetchText.
+ * [연계] ← routes/legal.js GET /api/legal/article-text · services/review_sources.js. → github_raw.listDir/fetchText.
  */
 async function loadArticle(q) {
   const law = String((q && q.law) || '').trim();
@@ -2278,6 +2284,7 @@ async function loadArticle(q) {
   const refCtx = {
     base: docBase, tier, docText: text, docTitle: law,
     docDir: filePath.slice(0, filePath.lastIndexOf('/')),
+    wantFiles: !!(q && q.files),     // resolveRefs ⑤ — 관리자 카드에서 연 창만 true(아래 ⑤ 주석)
   };
 
   // ── 별표 전용 인용: 조 본문을 거치지 않고 그 별표 원문을 바로 판정해 돌려준다 ──

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>해양법령 도우미 구조도</title>
+<!-- 패치노트 구조도 원본 — Playwright 로 318px 폭·2배로 찍어 shots/8_structure.jpg 로 만든다(게시판 본문 칸 폭 318px). -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body { word-break: keep-all; margin: 0; background: #161b2d; font-family: 'Noto Sans KR', sans-serif; color: #e2e8f0; }
+  #d { width: 318px; box-sizing: border-box; padding: 14px 10px 16px; }
+  h2 { margin: 0 0 8px; font-size: 15px; color: #7dd3fc; text-align: center; }
+  .box { border-radius: 10px; padding: 8px 10px; background: #1f2a44; border: 1.5px solid #334155; }
+  .box b { display: block; font-size: 15px; color: #fff; }
+  .box span { display: block; font-size: 13px; color: #cbd5e1; line-height: 1.45; margin-top: 2px; }
+  .n { display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #0ea5e9; color: #fff; font-size: 12px; text-align: center; line-height: 20px; margin-right: 6px; vertical-align: 1px; }
+  .ai { border-color: #fbbf24; }
+  .ai .n { background: #f59e0b; }
+  .ans { border-color: #34d399; }
+  .ans .n { background: #10b981; }
+  .arr { text-align: center; color: #64748b; font-size: 16px; line-height: 18px; margin: 2px 0; }
+  .sep { height: 1px; background: #334155; margin: 14px 0 12px; }
+  .upd { background: #1c2438; border: 1.5px dashed #475569; }
+  .who { border-color: #f472b6; }
+  .who b { color: #fbcfe8; }
+  .back { margin-top: 6px; font-size: 12.5px; color: #94a3b8; text-align: center; }
+</style></head><body><div id="d">
+  <h2>답변이 만들어지는 길</h2>
+  <div class="box"><b><i class="n">1</i>원문 받기</b><span>국가법령정보센터에서 법령·고시 원문을 받아 둡니다</span></div>
+  <div class="arr">▼</div>
+  <div class="box"><b><i class="n">2</i>위키로 정리</b><span>AI가 원문을 읽고 챗봇이 볼 정리본(위키)을 만듭니다</span></div>
+  <div class="arr">▼</div>
+  <div class="box ai"><b><i class="n">3</i>다른 AI가 다시 대조</b><span>정리본을 올리거나 고칠 때, 만든 AI가 아닌 다른 AI가 원문과 맞춰 봅니다</span></div>
+  <div class="arr">▼</div>
+  <div class="box ans"><b><i class="n">4</i>답변</b><span>근거 조문과 함께 답하고, 조문을 누르면 원문이 바로 열립니다</span></div>
+
+  <div class="sep"></div>
+  <h2>최신으로 지키는 길</h2>
+  <div class="box upd"><b>자동 점검</b><span>매일 새벽 1시 · 법이 바뀌었나 확인<br>매주 일·수요일 새벽 3시 · 받아 둔 원문이 낡았거나 빠졌나 점검</span></div>
+  <div class="arr">▼</div>
+  <div class="box who"><b>관리자 확인·승인</b><span>점검은 알려 주기만 하고, 위키는 자동으로 고치지 않습니다</span></div>
+  <div class="arr">▼</div>
+  <div class="box"><b>원문 다시 받기 · 위키 고치기</b></div>
+  <div class="arr">▼</div>
+  <div class="box ai"><b>다른 AI가 다시 대조</b><span>고친 정리본도 위 3번처럼 다시 맞춰 봅니다</span></div>
+</div></body></html>

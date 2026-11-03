@@ -273,6 +273,40 @@ ok('C8 사람 전사본(출처가 API 가 아님)은 덮지 않는다', (o9['사
 ok('C8 새 판에 없는 별표 파일은 지우지 않고 알린다', (o9['새판에없음'] || []).includes('별표고시_별표9.txt') && fs.existsSync(F9), o9);
 ok('C8 `[별지 제3호의2서식]` 은 별지3의2 로 쓴다(3호와 겹쳐 사라지지 않게)', (o9['새로썼다'] || []).includes('별표고시_별지3의2.txt') && fs.existsSync(path.join(BY, '별표고시_별지3의2.txt')), o9);
 
+// ── T-note 별표를 새 판으로 다시 써도 둘째 줄 우리 주석(「⚠표 아님」·「주의:」)은 남는다 (2026-11-03, L-417 재발) ──
+{
+  const BD = path.join(TMP, 'note_byl'); fs.mkdirSync(BD, { recursive: true });
+  fs.writeFileSync(path.join(BD, '시행령_별표2.txt'), '[시행령] 별표2 — 제목\n⚠표 아님 — 세로 글씨\n\n옛 본문\n');
+  fs.writeFileSync(path.join(BD, '시행령_서식0.txt'), '[시행령] 서식0 — 증표\n주의: 원문에 번호 없음\n\n옛\n');
+  fs.writeFileSync(path.join(BD, '시행령_별표3.txt'), '[시행령] 별표3 — 보통\n\n옛\n');
+  fs.writeFileSync(path.join(BD, '시행령_별표9.txt'), '[시행령] 별표9 — 없어질 것\n주의: 메모\n');
+  const code = `import sys,os; sys.path.insert(0, ${JSON.stringify(LOOP)}); import recollect_tier as R
+b=sys.argv[1]; n=R.carry_notes(b, sorted(f for f in os.listdir(b) if f.endswith('.txt')))
+for f in os.listdir(b): os.remove(os.path.join(b,f))
+open(os.path.join(b,'시행령_별표2.txt'),'w').write('[시행령] 별표2 — 제목\\n\\n새 본문\\n')
+open(os.path.join(b,'시행령_서식0.txt'),'w').write('[시행령] 서식0 — 증표\\n\\n새\\n')
+open(os.path.join(b,'시행령_별표3.txt'),'w').write('[시행령] 별표3 — 보통\\n\\n새\\n')
+print(','.join(sorted(R.restore_notes(b, n))))`;
+  const r = spawnSync('python3', ['-c', code, BD], { encoding: 'utf8' });
+  const b2 = fs.readFileSync(path.join(BD, '시행령_별표2.txt'), 'utf8').split('\n');
+  const s0 = fs.readFileSync(path.join(BD, '시행령_서식0.txt'), 'utf8').split('\n');
+  const b3 = fs.readFileSync(path.join(BD, '시행령_별표3.txt'), 'utf8').split('\n');
+  ok('T-note 「⚠표 아님」 주석이 새 판 둘째 줄에 남는다', b2[1] === '⚠표 아님 — 세로 글씨' && b2.includes('새 본문'), [b2, r.stderr]);
+  ok('T-note 「주의:」 주석도 남는다', s0[1] === '주의: 원문에 번호 없음', s0);
+  ok('T-note 주석이 없던 파일은 그대로', b3[1] === '' && b3.length === 4, b3);
+  ok('T-note 새 판에 없는 파일에는 만들지 않는다', !fs.existsSync(path.join(BD, '시행령_별표9.txt')) && r.stdout.trim() === '시행령_별표2.txt,시행령_서식0.txt', r.stdout);
+}
+
+// ── T-title: 머리에 덧붙인 「기계 대조」 메모 안의 낫표를 제목으로 읽지 않는다(2026-11-03 · 3-97) ──
+//   실제로 고시 4개가 메모 속 「대조 완료」 를 제목으로 얻어 한 줄로 묶이고 신선도 점검을 못 받았다.
+{
+  const ft = path.join(TMP, 'title_memo.txt');
+  fs.writeFileSync(ft, '🟡기계 대조 71%(2026-09-24): … (문턱 95% 미만이라 「대조 완료」로 올리지 않았다)\n' +
+    '  (옛 표시는 지우지 않는다 — 출처: 국가법령정보센터 행정규칙(훈령) 「선박 톤수 측정 요령」(현행))\n소관부서: 해양수산부\n');
+  const rT = spawnSync('python3', ['-c', 'import sys; sys.path.insert(0, sys.argv[1]); import _admrul_id as A; print(A.find_title(sys.argv[2])[0])', LOOP, ft], { encoding: 'utf8' });
+  ok('T-title: 「기계 대조」 메모 줄의 낫표는 제목이 아니다', (rT.stdout || '').trim() === '선박 톤수 측정 요령', (rT.stdout || '') + (rT.stderr || ''));
+}
+
 fs.rmSync(TMP, { recursive: true, force: true });
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

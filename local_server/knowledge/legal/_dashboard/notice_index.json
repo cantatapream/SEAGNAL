@@ -212,7 +212,13 @@
  "(원주지방환경청)공공폐수처리시설기본계획통합고시_2026-144호_구판전사.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
+ "(원주지방환경청)공공폐수처리시설기본계획통합고시_2026-147호_구판전사.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
+ ],
  "(원주지방환경청)수질오염물질의배출허용기준중별도배출허용기준고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
+ ],
+ "(원주지방환경청)수질오염물질의배출허용기준중별도배출허용기준고시_2025-20호_구판.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
  "(인천지방해양수산청)공유수면점용·사용허가의면제대상시설고시.txt": [
@@ -348,9 +354,6 @@
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
  ],
  "2006해사노동협약사무처리규정.txt": [
-  "local_server/knowledge/legal/raw/06_선원노동/선원법"
- ],
- "2006해사노동협약사무처리규정고시.txt": [
   "local_server/knowledge/legal/raw/06_선원노동/선원법"
  ],
  "2017년도가격변동지수및2018년도부과금(과징금)산정지수.txt": [
@@ -1077,6 +1080,9 @@
  "사설항로표지의설치및관리에관한규정.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/항로표지법"
  ],
+ "사증·체류정책협의회규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
+ ],
  "사회통합자원봉사위원기본규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
  ],
@@ -1141,6 +1147,9 @@
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
  "생활폐기물반입협력금산정에관한고시.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "생활폐기물선별시설의설치ㆍ운영에관한지침.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
  "생활폐기물수집·운반대행계약을위한원가계산산정방법에관한규정.txt": [
@@ -2034,8 +2043,11 @@
  "장승포항어항구설정고시.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
  ],
+ "재생에너지설비의지원등에관한규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/재생에너지개발이용보급촉진법"
+ ],
  "재생에너지집적화단지조성·지원등에관한지침.txt": [
-  "local_server/knowledge/legal/raw/05_수산어업/수산업협동조합법"
+  "local_server/knowledge/legal/raw/15_관련타부처/재생에너지개발이용보급촉진법"
  ],
  "재외공관보고규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법"
@@ -2472,8 +2484,14 @@
  "항만재개발사업시행자지정.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만법"
  ],
+ "항만재개발사업재정지원지침.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만재개발및주변지역발전에관한법률"
+ ],
  "항만재개발에따른생계지원금업무처리규정.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/항만재개발및주변지역발전에관한법률"
+ ],
+ "항만지하시설물의공간정보보안및운영관리지침.txt": [
+  "local_server/knowledge/legal/raw/10_항만물류/항만법"
  ],
  "항만출입절차에관한규정.txt": [
   "local_server/knowledge/legal/raw/03_해상교통안전/국제항해선박및항만시설의보안에관한법률"

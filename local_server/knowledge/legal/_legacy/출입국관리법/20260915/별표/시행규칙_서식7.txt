@@ -1,0 +1,53 @@
+[시행규칙] 서식7 — 승무원등록증
+
+[별지 제7호서식]                      
+                                                          
+  승무원등록증                                            
+                                                          
+                                                          
+                                                     
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃CREW REGISTRATION CARD                                ┃
+┃승무원등록증                                          ┃
+┃                                                      ┃
+┃┌─────────┐                                ┃
+┃│사진              │  Reg No.                       ┃
+┃│Photo             │  Name                          ┃
+┃│2.7㎜×3.5㎜      │  Date of birth           Sex   ┃
+┃│                  │  Nationality                   ┃
+┃│MINISTRY OF       │  Passport No.           Rank   ┃
+┃│JUSTICE           │  Name of bearer                ┃
+┃│REPUBLIC OF KOREA │  Date Of Issue          Expiry ┃
+┃└─────────┘                                ┃
+┃출입국ㆍ외국인청(사무소ㆍ출장소)장  ??              ┃
+┃Chief, ○○Immigration Office                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  85.6㎜(가로)×54.0(세로)×0.76㎜(두께)                  
+  재질 : (PVC, 경질 폴리염화비닐) ISO 7810 ID-1 type      
+                                                          
+                                
+                           
+┏━━━━━━━━━━━━━━┓
+┃  기재사항변경/Change if statements┃
+┃┌──┬──┬──┬───┐┃
+┃│일자│구분│내용│확인자│┃
+┃├──┼──┼──┼───┤┃
+┃│    │    │    │      │┃
+┃├──┼──┼──┼───┤┃
+┃│    │    │    │      │┃
+┃├──┼──┼──┼───┤┃
+┃│    │    │    │      │┃
+┃└──┴──┴──┴───┘┃
+┃    주의사항/Notice         ┃
+┃  1. 이 증은 출입국시 항시 휴대하여야 하며 출입국관리공무원이나 다른 권한┃
+┃있는 공무원의 요구가 있을 때에는 제시하여야 합니다.┃
+┃    This card should be carried at all times and presented to an ┃
+┃immigration officer or other authorized official upon request.┃
+┃  2. 이 증의 소지자 또는 운수업자는 명의인이 승무종료로 하선하거나 퇴직한 ┃
+┃때, 승무원 등록이 취소 또는 무효가 된 때에는 빠른 시일 내에 출입국관┃
+┃리 공무원에게 반환하여야 합니다.┃
+┃    Surrender this card to an immigration officer when the bearer of this ┃
+┃card retired or was fired.  ┃
+┃  3. 이 증을 습득하신 분은 우체통에 넣어주세요.┃
+┃    If found, please put this into the postbox.┃
+┗━━━━━━━━━━━━━━┛

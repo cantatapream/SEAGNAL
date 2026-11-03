@@ -1,0 +1,78 @@
+[시행규칙] 서식139 — 외국인등록 사실증명 CERTIFICATE OF FOREIGN RESIDENT REGISTRATION
+
+■ 출입국관리법 시행규칙 [별지 제139호서식]                                                  
+                                                                                                                  
+  ※ 이 증명서는 정부24(www.gov.kr)에서 무료로 발급받을 수 있습니다.                                              
+                                                                                                                  
+  외국인등록 사실증명                                                                                             
+  CERTIFICATE OF FOREIGN RESIDENT REGISTRATION                                                                    
+  (약칭: 외국인등록증명, 약호: C322B)                                                                             
+────────────────────┬────────────────────────────────────
+  발급번호                              │발급일                                                                  
+  (Serial No.)                          │(Date of Issuance)                                                      
+────────────────────┴────────────────────────────────────
+                                                                                                                  
+──────────┬──────────────────────────────────────────────
+  대상자            │외국인등록번호 (Foreign Resident Registration No.)                                          
+  (Person to        ├──────────────────────────────────────────────
+  whom the          │성명 (Full Name)                                                                            
+  Certificate is    ├──────────────────────────────────────────────
+  Issued)           │변경 전 성명(Previous Full Name)                                                            
+                    │                                                                                            
+                    ├───┬──────┬─────────┬──────┬───────┬──────────
+                    │성별  │            │생년월일          │            │여권번호      │                    
+                    │(Sex) │            │(Date of Birth)   │            │(Passport No.)│                    
+                    ├───┴──────┴─────────┴──┬───┴───────┴──────────
+                    │국가/지역 (Country/Region)                    │체류자격 (Status of Sojourn)                
+                    ├───────────────────────┼──────────────────────
+                    │체류기간 (Period of Sojourn)                  │등록일자 (Date of Registration)             
+                    ├───────────────────────┴──────────────────────
+                    │등록체류지 (Address)                                                                        
+                    ├──────────────────────────────────────────────
+                    │이전의 등록번호/말소된 주민등록번호 (Previous Registration No./ Expired Korean Resident Registration No.)  
+──────────┼─────────────────────┬──────────┬─────────────
+  용도 (Purpose)    │                                          │신청인              │                          
+                    │                                          │(Name of Applicant) │                          
+──────────┴─────────────────────┴──────────┴─────────────
+  ※ 체류자격 변경 사항 포함 [ ]네  / [ ]아니오                                                                   
+  ※ Previous status of sojourn to be shown on the certificate. [ ] Yes / [ ] NoI                                 
+──────────┬────────┬───────────────────────┬─────────────
+  체류자격          │변경일          │체류자격                                      │비고                      
+  변경사항          │(Date of Change)│(Status of Sojourn)                           │(Remarks)                 
+  (Record of Status ├────────┼───────────────────────┼─────────────
+  of Sojourn        │                │                                              │                          
+  Change)           │                │                                              │                          
+──────────┼────────┼───────────────────────┼─────────────
+  체류지            │변경일          │주소                                          │비고                      
+  변경사항          │(Date of Change)│(Residential Address in Korea)                │(Remarks)                 
+  (Record of        ├────────┼───────────────────────┼─────────────
+  Residential       │                │                                              │                          
+  Address Change)   │                │                                              │                          
+──────────┴────────┴───────────────────────┴─────────────
+                                                                                                                  
+──────────┬────────┬─────────────┬───┬───────────────────
+  동거 가족 사항    │관계            │성명                      │성별  │외국인등록번호                        
+  (Family Member    │(Relationship)  │(Name)                    │(Sex) │(Foreign Resident Registration No.)   
+  (s) who Live      ├────────┼─────────────┼───┼───────────────────
+  Together)         │                │                          │      │                                      
+──────────┴────────┴─────────────┴───┴───────────────────
+  ※ 동거 가족 사항은 당사자의 제출서류 등을 바탕으로 작성되었으며, 친족관계 변동에 대해 별도 확인이 필요할 수 있습니다.  
+     The above family member details are based on submitted documents, further verification may                   
+  be required in case of any change.                                                                              
+─────────────────────────────────────────────────────────
+                                                                                                                  
+─────────────────────────────────────────────────────────
+  「출입국관리법」 제88조제2항에 따라 위의 사실을 증명합니다.                                                     
+   I hereby certify that the above information is true in accordance with paragraph 2, Article 88 of the          
+  Immigration Act, of the Republic of Korea.                                                                      
+                                                                                                                  
+  발급일 (Date of Issuance)            년 (Year)          월 (Month)          일 (Day)                            
+                                                                                                                  
+  발급 담당자 (Officer in Charge)                                 전화번호 (Phone No.)                            
+                                                                                                                  
+                                                                                            ┏━━┓              
+    ○○출입국ㆍ외국인청(사무소ㆍ출장소)장  / ○○ 시장ㆍ군수ㆍ구청장  또는 읍ㆍ면ㆍ동의 장 ┃직인┃              
+                                                                                            ┗━━┛              
+   Chief of ○○ Immigration Office(Branch Office) / Head of ○○ SiㆍGunㆍGu or EupㆍMyeonㆍDong                 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  210㎜×297㎜[백상지(80ｇ/㎡) 또는 중질지(80ｇ/㎡)]

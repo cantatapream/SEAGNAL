@@ -1,0 +1,95 @@
+[시행규칙] 서식118 — 보호 일시해제 신청서
+
+■ 출입국관리법 시행규칙 [별지 제118호서식]                                                             
+                                                                                                                            
+  보호 일시해제 신청서                                                                                                      
+  (APPLICATION FOR TEMPORARY RELEASE FROM DETENTION)                                                                        
+                                                                                                                            
+  ※ 색상이 어두운 칸은 신청인이 작성하지 않으며, [ ]에는 해당되는 곳에 √표를 합니다.                                      
+  The applicant shall not fill in the shaded areas. Please place a check mark (V) in the applicable boxes [  ].             
+─────────┬───────────────────────┬────────────────────────────
+  접수번호        │접수일                                        │처리기간                                                
+  Receipt No      │Receipt Date                                  │Processing Period                                       
+─────────┴───────────────────────┴────────────────────────────
+                                                                                                                            
+─────────┬──────────────────────────┬─────────────────────────
+  신청인          │성 명                                               │생년월일                                          
+  Applicant       │Full Name                                           │ Date of Birth                                    
+                  ├──────────────────────────┼─────────────────────────
+                  │성 별           [ ] 남      [ ] 여                  │ 국적                                             
+                  │Gender         [ ] Male   [ ] Female                │ Nationality                                      
+                  ├──────────────────────────┴─────────────────────────
+                  │대한민국 내 주소                                                                                        
+                  │Address in Korea                                                                                        
+                  │ (전화번호:                            )                                                                
+                  │(Telephone:                         )                                                                   
+                  ├────────────────────────────────────────────────────
+                  │전자우편                                                                                                
+                  │E-mail                                                                                                  
+                  ├────────────────────────────────────────────────────
+                  │피보호자와의 관계                                                                                       
+                  │Relationship with the detainee                                                                          
+─────────┼──────────────────────────┬─────────────────────────
+  피보호자        │성 명                                               │생년월일                                          
+  Detainee        │Full Name                                           │ Date of Birth                                    
+                  ├──────────────────────────┼─────────────────────────
+                  │성 별           [ ] 남      [ ] 여                  │ 국적                                             
+                  │Gender         [ ] Male   [ ] Female                │ Nationality                                      
+                  ├──────────────────────────┴─────────────────────────
+                  │대한민국 내 주소                                                                                        
+                  │Address in Korea                                                                                        
+                  │ (전화번호:                            )                                                                
+                  │(Telephone:                         )                                                                   
+─────────┴────────────────────────────────────────────────────
+  ?신청인과 피보호자가 동일인일 경우 신청인의 인적사항란만 작성합니다.                                                     
+    If the applicant and the detainee are the same person, please fill out only the applicant's personal information section.  
+─────────┬───────┬─┬──────────────┬──┬────────────────┬───────
+  보호명령서      │명령서발급기관│  │명령서                      │    │명령서                          │              
+  Detention Order │Issuing Office│  │발급일자                    │    │번호                            │              
+                  │              │  │Date of                     │    │No. of the                      │              
+                  │              │  │Issue                       │    │Order                           │              
+─────────┼───────┴─┴──────────────┴──┴────────────────┴───────
+  신청 취지       │                                                                                                        
+  및 사유         │                                                                                                        
+  Purpose and     │                                                                                                        
+  Reason for      │                                                                                                        
+  Application     │                                                                                                        
+─────────┼────────────────────────────────────────────────────
+  붙임 서류       │                                                                                                        
+  Attachments     │                                                                                                        
+─────────┴────────────────────────────────────────────────────
+    위 피보호자에 대한 보호 일시해제를 신청하니 보호 일시해제 여부를 결정해 주시기 바랍니다.                                
+    I respectfully request temporary release of the above-mentioned detainee from detention and                             
+  ask that a decision be made on whether to grant the temporary release.                                                    
+                                                                                                                            
+  년         월         일                                                                                                  
+  (Year)       (Month)     (Day)                                                                                            
+                                                                                                                            
+  신청인                                                           (서명 또는 인)                                           
+  Applicant                                                       Signature/Seal                                            
+                                                                                                                            
+  외국인보호위원회                                                      귀중                                                
+  TO: The Immigration Detention Review Committee                                                                            
+━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┯━━━━━
+  첨부 서류   │1. 신청 사유 및 보증금 납부능력을 소명하는 자료                                                 │수수료    
+  Attachments │   Supporting Materials explaining the grounds for the application and applicant’s             │없음      
+              │ability to pay the security deposit                                                             │(No Fee)  
+              │2.보증인 또는 법정대리인등의 자격을 증명하는 자료(보증인 또는 법정대리인등이 보호 일            │          
+              │시해제를 신청하는 경우에만 제출합니다.)                                                         │          
+              │   Materials proving the status of the guarantor?legal representative or any other             │          
+              │person concerned (to be submitted only when the guarantor?legal representative or              │          
+              │any other person concerned applies for temporary release from detention)                        │          
+━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━
+                                                                                                                            
+──────────────────────────────────────────────────────────────
+  처리절차 Procedure                                                                                                        
+──────────────────────────────────────────────────────────────
+                                                                                                                            
+┌────────┐  ┌───────────────────┐  ┌───────────────────┐  ┌─────┐
+│신 청           │?│접 수                                 │?│심 사ㆍ결 정                          │?│통 지     │
+│Application     │  │Receipt                               │  │Decision                              │  │Notice    │
+└────────┘  └───────────────────┘  └───────────────────┘  └─────┘
+  신청인                청장?사무소장?출장소장 또는 보호소장      외국인보호위원회                                        
+  Applicant             Chief of Immigration Office                 Immigration Detention Review Committee                  
+──────────────────────────────────────────────────────────────
+  210mm×297mm[백상지 80g/㎡(재활용품)]

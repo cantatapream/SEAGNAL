@@ -35,10 +35,15 @@
  *  - 서버 API      : routes/legal.js
  *                    GET  /api/legal/config                   (노출설정 조회, 기본 off)
  *                    POST /api/legal/config {exposure}         (노출설정 저장, 관리자)
+ *                    POST /api/legal/config {exposureAuto|exposureOnAt|exposureOffAt} (자동 노출 시간 켜기/끄기·노출/비노출 시각 KST, 관리자 — 「AI 모델」 탭.
+ *                                                               GET 의 exposure 는 서버가 지금 시각으로 계산한 유효값 ·
+ *                                                               exposureNext.inMs 뒤에 다시 읽어 경계 시각에 FAB 가 바뀐다)
  *                    POST /api/legal/config {codexForUsers|providerOrder|providerRemoved|providerReset|providerModels} (일반 사용자 적용·AI 순서·AI 삭제/다시 추가·소진 해제·칸별 모델/노력, 관리자 — 「AI 모델」 탭)
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
+ *                    GET  /api/legal/reviews/:id/sources        (카드의 「원문 보기」 — 대상 페이지 근거 조문 표의
+ *                                                               줄마다 원문 열림 여부 + 법령정보센터 주소)
  *                    GET  /api/legal/admin/stats               (초안·피드백·새지식후보·개정검토·원문신선도 실카운트)
  *                    GET  /api/legal/admin/ask-stats           (질문 수 — 날짜별 KST·1년 보관·숫자만. 「AI 모델」 탭 「질문 수」 아코디언)
  *                    GET  /api/legal/freshness?status=pending  (원문신선도 — 낡은 행정규칙 원문 목록
@@ -78,12 +83,14 @@
  *                                                                 빈 배열이면 아무것도 그리지 않는다
  *                                                               · 6초 초과+옵트인이면 서버가 완료 푸시 발송)
  *                    GET  /api/legal/pending-answer/:requestId (푸시로 재진입 시 그 답변 1회 복원)
- *                    GET  /api/legal/article-text?law&article&tier&baseLaw
+ *                    GET  /api/legal/article-text?law&article&tier&baseLaw[&files=1]
  *                                                              (근거법령 체인의 조문 카드를 누르면
  *                                                               그 조 원문 전체 + 인용된 항·호 강조.
  *                                                               인용이 범위(제1~9조)·문서 전체면 조를
  *                                                               강조 없이 나열하고, 본문의 별표·서식
- *                                                               참조는 refs 판정으로 링크·회색 처리)
+ *                                                               참조는 refs 판정으로 링크·회색 처리.
+ *                                                               files=1 은 ⚠수치검증 카드에서 연 창만 —
+ *                                                               고시 별표의 원본 HWP·PDF 단추까지)
  *                    GET  /api/legal/src?p=<raw 상대경로>       (별표 스캔 이미지 원본 — 위 refs 의 image)
  *  - 마크업        : #unified-admin-body(콘솔 마운트 지점, admin.js 소유),
  *                    body 에 스스로 주입하는 #nrya-overlays(FAB·채팅·지도 팝업)
@@ -164,6 +171,11 @@
 
   var serverExposure = 'off';                  // 서버 전역 노출설정(진실의 원천). 기본 off
   var configLoaded = false;                    // /config 최초 로드 완료 여부
+  // [자동 노출 시간 · 2026-11-02 사용자 확정] 「08:00 노출 · 19:00 비노출」(KST, 관리자가 시각을 바꿀 수 있음). 서버가 진실의 원천 —
+  //   serverExposure 는 서버가 지금 시각으로 계산한 유효값이고, 여기엔 스위치·시각·다음 전환만 들고 있는다.
+  var serverExposureSched = { auto: true, onAt: '08:00', offAt: '19:00', source: 'schedule', next: null };
+  var exposureTimer = null;                    // 다음 전환 시각에 /config 를 다시 읽는 타이머
+  var exposureDueAt = 0;                       // 그 타이머가 울려야 하는 기기 시각(ms) — 앱이 백그라운드에서 타이머를 놓쳤는지 볼 때
   // [Codex 모드 · 2026-09-27 사용자 확정] serverCodexForUsers: 답변 AI 순서를 일반 사용자에게도 적용할지(기본 꺼짐, 서버 /api/legal/config 가 진실의 원천).
   //   (옛 「답변 AI 모델」 버튼줄·answerModel 은 2026-11-02 사용자 요청으로 화면에서 뺐다 — ChatGPT 칸 모델은 providerModels.chatgpt 로 고른다.)
   var serverCodexForUsers = false;
@@ -439,6 +451,8 @@
                   '<button data-exp="off">비노출</button>' +
                 '</div>' +
                 '<div class="nrya-seg-help" id="nryaSegHelp">노출 설정을 불러오는 중…</div>' +
+                // [자동 노출 시간] 켜져 있으면 위 버튼은 「다음 전환 시각까지만」 — 스위치·시각은 「🤖 AI 모델」 탭에 있다.
+                '<div class="nrya-seg-help" id="nryaSegAuto"></div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaSegErr"></div>' +
               '</div>' +
               '<div class="nrya-card-lab" style="padding:0 2px"><span class="nrya-pipe"></span>관리자 검토 센터 · 5개 검토 방(UI 통합·데이터 분리)</div>' +
@@ -450,6 +464,21 @@
           //   저장은 POST /api/legal/config, 질문 수는 GET /api/legal/admin/ask-stats.
           '<div id="nryaViewModels" class="nrya-hidden">' +
             '<div class="nrya-panel">' +
+              // [자동 노출 시간 · 2026-11-02 사용자 확정] 「통합관리자 센터 → AI 탭 → AI 챗봇 → 🤖 AI 모델」 에서 켜기/끄기·시각(KST)을 정한다.
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>챗봇 자동 노출 시간 (KST · 매일)</div>' +
+                '<div class="nrya-seg" id="nryaAutoSeg">' +
+                  '<button data-auto="on">켜기(기본)</button>' +
+                  '<button data-auto="off">끄기</button>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:9px;font-size:12.5px">' +
+                  '<label>노출 <input type="time" id="nryaOnAt" step="60" style="font:inherit;padding:4px 6px;border-radius:6px"></label>' +
+                  '<label>비노출 <input type="time" id="nryaOffAt" step="60" style="font:inherit;padding:4px 6px;border-radius:6px"></label>' +
+                  '<button class="nrya-prov-btn" id="nryaSchedSave">시각 저장</button>' +
+                '</div>' +
+                '<div class="nrya-seg-help" id="nryaSchedHelp"></div>' +
+                '<div class="nrya-seg-err nrya-hidden" id="nryaSchedErr"></div>' +
+              '</div>' +
               '<div class="nrya-card">' +
                 '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서 (크레딧 소진 시 다음으로 자동 전환)</div>' +
                 '<div id="nryaOrderList" class="nrya-prov-list"></div>' +
@@ -583,6 +612,91 @@
       x.classList.toggle('nrya-warn', on && (serverExposure === 'admin' || serverExposure === 'off'));
     });
     if (help) help.innerHTML = (configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>') + (HELP[serverExposure] || HELP.off);
+    var auto = document.getElementById('nryaSegAuto');
+    if (auto) auto.innerHTML = exposureNowText() + (serverExposureSched.auto ? ' — 위 버튼으로 바꾸면 다음 전환 시각까지만 유지됩니다(자동 설정은 「🤖 AI 모델」 탭).' : '');
+    paintSchedule();
+  }
+
+  /**
+   * 「현재: 노출 · 19:00 에 비노출 예정」 같은 한 줄을 만든다(자동 노출 시간 상태).
+   * 예: 자동 켜짐·10시 → '<b>자동 켜짐</b> · 현재: 노출 · 19:00 에 비노출 예정'
+   *     자동 켜짐·관리자가 손으로 바꿈 → '… 현재: 관리자만(직접 바꿈) · 08:00 에 노출로 돌아감'
+   * @returns {string} HTML
+   * [연계] ← paintSeg(관리자 검토 탭 노출 카드)·paintSchedule(AI 모델 탭 카드). 시각은 서버가 준 KST 'HH:MM'(기기 시간대 무관).
+   */
+  function exposureNowText() {
+    var L = { user: '노출', admin: '관리자만', off: '비노출' };
+    var sc = serverExposureSched, n = sc.next;
+    if (!sc.auto) return '<b>자동 노출 시간 꺼짐</b> · 현재: ' + L[serverExposure] + ' (손으로 바꿀 때까지 그대로)';
+    var head = '<b>자동 노출 시간 켜짐</b> (' + esc(sc.onAt) + ' 노출 · ' + esc(sc.offAt) + ' 비노출) · 현재: ' + L[serverExposure] + (sc.source === 'override' ? '(직접 바꿈)' : '');
+    if (!n) return head;
+    var TO = { user: '노출로', admin: '관리자만으로', off: '비노출로' };
+    return head + ' · ' + esc(n.kst) + ' 에 ' + (sc.source === 'override' ? TO[n.exposure] + ' 돌아감' : L[n.exposure] + ' 예정');
+  }
+
+  /**
+   * AI 모델 탭의 「챗봇 자동 노출 시간」 카드(켜기/끄기·노출/비노출 시각·현재 상태)를 서버 값으로 칠한다.
+   * 시각 입력칸은 사용자가 고치는 중(포커스)이면 덮지 않는다. 콘솔이 안 떠 있으면 아무 것도 안 한다.
+   * [연계] ← paintSeg(fetchConfig·setConfig·postExposure 뒤). → exposureNowText.
+   */
+  function paintSchedule() {
+    var seg = document.getElementById('nryaAutoSeg'); if (!seg) return;
+    seg.querySelectorAll('button').forEach(function (x) {
+      var on = (x.dataset.auto === 'on') === serverExposureSched.auto;
+      x.classList.toggle('nrya-on', on);
+      x.classList.toggle('nrya-warn', on && !serverExposureSched.auto);
+    });
+    [['nryaOnAt', serverExposureSched.onAt], ['nryaOffAt', serverExposureSched.offAt]].forEach(function (p) {
+      var el = document.getElementById(p[0]); if (el && document.activeElement !== el) el.value = p[1];
+    });
+    var h = document.getElementById('nryaSchedHelp');
+    if (h) h.innerHTML = (configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>') + exposureNowText() +
+      '<br>비노출 시간에는 관리자 기기에도 챗봇 버튼이 안 보입니다(관리자 콘솔은 그대로). 노출 시각이 비노출 시각보다 늦으면 자정을 넘겨 노출합니다.';
+  }
+
+  /**
+   * 서버 응답의 노출 칸(exposure = 지금 시각의 유효값 · exposureAuto/OnAt/OffAt · exposureSource · exposureNext)을 받아 들이고,
+   * 다음 전환 시각(exposureNext.inMs — 서버 시계 기준이라 기기 시계가 틀려도 맞다) 뒤에 /config 를 다시 읽게 예약한다.
+   * 예: {exposure:'user', exposureNext:{kst:'19:00', exposure:'off', inMs:3600000}} → 1시간 + 몇 초 뒤 fetchConfig → FAB 숨김
+   * @param {object} data - GET/POST /api/legal/config 응답
+   * [연계] ← fetchConfig·setConfig·postExposure. → fetchConfig(타이머). 몰림 방지로 2~32초 흩뿌린다.
+   */
+  function applyExposure(data) {
+    if (['off', 'admin', 'user'].indexOf(data.exposure) !== -1) serverExposure = data.exposure;
+    if (typeof data.exposureAuto === 'boolean') {
+      serverExposureSched = { auto: data.exposureAuto, onAt: data.exposureOnAt || '08:00', offAt: data.exposureOffAt || '19:00',
+        source: data.exposureSource || '', next: data.exposureNext || null };
+    }
+    if (exposureTimer) { clearTimeout(exposureTimer); exposureTimer = null; }
+    exposureDueAt = 0;
+    var n = data.exposureNext;
+    if (n && typeof n.inMs === 'number' && n.inMs >= 0) {
+      var delay = Math.min(n.inMs + 2000 + Math.floor(Math.random() * 30000), 2147483647);
+      exposureDueAt = Date.now() + delay;
+      exposureTimer = setTimeout(fetchConfig, delay);
+    }
+  }
+
+  /**
+   * 노출 관련 칸만 서버에 저장(관리자 전용)하고 화면·FAB 를 다시 그린다.
+   * 예: postExposure({exposureAuto:false}, 'nryaSchedErr') · postExposure({exposureOnAt:'07:30', exposureOffAt:'20:00'}, 'nryaSchedErr')
+   * @param {object} patch @param {string} errId - 오류를 띄울 칸 id
+   * [연계] → POST /api/legal/config. ← initModelSeg(AI 모델 탭 자동 노출 카드).
+   */
+  function postExposure(patch, errId) {
+    var err = document.getElementById(errId);
+    if (err) { err.style.display = 'none'; err.textContent = ''; }
+    var show = function (m) { paintSeg(); if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = m; } };
+    legalPost('/api/legal/config', patch).then(function (res) {
+      if (res.status === 401 || res.status === 403) return { _denied: true };
+      return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+    }).then(function (data) {
+      if (data._denied) return show('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.');
+      if (!data || !data.ok) return show((data && data.error) || '설정 저장 실패');
+      applyExposure(data);
+      paintSeg();
+      updateFabVisibility();
+    }).catch(function (e) { show('네트워크 오류: ' + String(e && e.message || e)); });
   }
 
   /**
@@ -591,6 +705,15 @@
    * [연계] → setAnswerConfig(POST /api/legal/config). 서버 적용은 codex_bridge.withRequest·llm_chain(pickOf).
    */
   function initModelSeg(root) {
+    // [자동 노출 시간] 켜기/끄기 · 시각 저장(KST HH:MM). 저장은 setConfig 와 같은 창구(POST /api/legal/config).
+    root.querySelector('#nryaAutoSeg').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-auto]'); if (!b) return;
+      postExposure({ exposureAuto: b.dataset.auto === 'on' }, 'nryaSchedErr');
+    });
+    root.querySelector('#nryaSchedSave').addEventListener('click', function () {
+      var on = root.querySelector('#nryaOnAt').value, off = root.querySelector('#nryaOffAt').value;
+      postExposure({ exposureOnAt: on, exposureOffAt: off }, 'nryaSchedErr');
+    });
     root.querySelector('#nryaUsersSeg').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-users]'); if (!b) return;
       var on = b.dataset.users === 'on';
@@ -767,9 +890,7 @@
     return legalGet('/api/legal/config').then(function (res) {
       return res.json().catch(function () { return null; });
     }).then(function (data) {
-      if (data && data.ok && ['off', 'admin', 'user'].indexOf(data.exposure) !== -1) {
-        serverExposure = data.exposure;
-      }
+      if (data && data.ok) applyExposure(data);   // 유효 노출 + 다음 전환 시각 재조회 예약(자동 노출 시간)
       if (data && data.ok) serverCodexForUsers = data.codexForUsers === true;
       if (data && data.ok && Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
       if (data && data.ok && Array.isArray(data.providerRemoved)) serverProviderRemoved = data.providerRemoved;
@@ -782,6 +903,8 @@
       updateFabVisibility();
     }).catch(function () {
       configLoaded = true; // 실패해도 기본 off 로 확정
+      // 전환 시각에 다시 읽다가 실패했으면 1분 뒤 또 읽는다(안 그러면 19시가 지나도 버튼이 남는다). 첫 로드 실패는 종전대로 그대로 둔다.
+      if (exposureDueAt) { exposureDueAt = Date.now() + 60000; exposureTimer = setTimeout(fetchConfig, 60000); }
       paintSeg();
       paintModelSeg();
       updateFabVisibility();
@@ -802,6 +925,7 @@
       if (data._denied) { segError('관리자 로그인 필요 — 통합관리자 센터에서 로그인 후 다시 시도하세요.'); return; }
       if (!data || !data.ok) { segError((data && data.error) || '노출 설정 저장 실패'); return; }
       serverExposure = data.exposure || exp;
+      applyExposure(data);
       paintSeg();
       updateFabVisibility();
     }).catch(function (e) { segError('네트워크 오류: ' + String(e && e.message || e)); });
@@ -1368,11 +1492,12 @@
     var pages = Math.max(1, Math.ceil(shown.length / REVIEW_PAGE_SIZE));
     return '<div class="nrya-rv-bar">' +
       '<button class="nrya-rv-refresh" title="서버에서 다시 불러오기">↻ 새로고침</button>' +
-      '<select class="nrya-rv-status" title="승인된 항목을 보면 되돌릴 수 있습니다">' +
-        ['pending:대기만', 'approved:승인됨', 'all:전체'].map(function (o) {
-          var v = o.split(':')[0];
-          return '<option value="' + v + '"' + (reviewState.status === v ? ' selected' : '') + '>' + o.split(':')[1] + '</option>';
-        }).join('') + '</select>' +
+      // ★보기 칸 고르기 — 옛 기본 <select>(흰 바탕 상자)를 방 버튼과 같은 꼴의 알약 버튼 묶음으로(2026-11-03 사장님 지시).
+      '<span class="nrya-rv-seg" role="group" aria-label="보기" title="승인된 항목을 보면 되돌릴 수 있습니다">' +
+        ['pending:대기', 'approved:승인됨', 'all:전체'].map(function (o) {
+          var v = o.split(':')[0], on = reviewState.status === v;
+          return '<button type="button" class="nrya-rv-segbtn' + (on ? ' nrya-active' : '') + '" data-st="' + v + '" aria-pressed="' + on + '">' + o.split(':')[1] + '</button>';
+        }).join('') + '</span>' +
       '<select class="nrya-rv-law">' + opts + '</select>' +
       '<input class="nrya-rv-q" type="search" placeholder="검색(ID·제목·페이지)" value="' + esc(reviewState.q) + '">' +
       '<span class="nrya-rv-count">' + from + '–' + to + ' / ' + shown.length + '건' +
@@ -1402,13 +1527,15 @@
 
     var refresh = host.querySelector('.nrya-rv-refresh');
     if (refresh) refresh.onclick = function () { renderReviewCards(host); };
-    var st = host.querySelector('.nrya-rv-status');
-    if (st) st.onchange = function () {
-      // 법 필터를 그대로 두면, 새 목록에 그 법이 없을 때 화면엔 '전체 법'로 보이는데 실제로는
-      // 옛 법이 계속 걸려 0건이 뜬다(2026-08-28 독립 검토에서 발견·실측). 그래서 같이 푼다.
-      reviewState.status = st.value; reviewState.law = ''; reviewState.page = 0;
-      renderReviewCards(host);
-    };
+    host.querySelectorAll('.nrya-rv-segbtn').forEach(function (btn) {
+      btn.onclick = function () {
+        if (btn.getAttribute('data-st') === reviewState.status) return;
+        // 법 필터를 그대로 두면, 새 목록에 그 법이 없을 때 화면엔 '전체 법'로 보이는데 실제로는
+        // 옛 법이 계속 걸려 0건이 뜬다(2026-08-28 독립 검토에서 발견·실측). 그래서 같이 푼다.
+        reviewState.status = btn.getAttribute('data-st'); reviewState.law = ''; reviewState.page = 0;
+        renderReviewCards(host);
+      };
+    });
     var sel = host.querySelector('.nrya-rv-law');
     if (sel) sel.onchange = function () { reviewState.law = sel.value; reviewState.page = 0; paintReviews(host); };
     var q = host.querySelector('.nrya-rv-q');
@@ -2170,6 +2297,7 @@
     return partial + '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">' +
       '마지막 점검 ' + esc(shortTs(last.finishedAt)) + ' · ' + (last.checked || 0) + '건 대조 · 낡은 원문 ' + (last.stale || 0) + '건' +
       (last.reopened ? ' · 닫혀 있었지만 아직 낡아 다시 띄운 것 ' + last.reopened + '건' : '') +
+      (last.autoClosed ? ' · 이제 현행으로 확인돼 자동으로 닫은 카드 ' + last.autoClosed + '건' : '') +
       (last.renamed ? '(그중 이름 바뀜 의심 ' + last.renamed + '건)' : '') +
       (last.mismatch ? ' · 이름불일치 ' + last.mismatch + '건' : '') +
       (last.repealed ? ' · 폐지가능 ' + last.repealed + '건' : '') +
@@ -2234,7 +2362,8 @@
       : '<span style="color:var(--nrya-text-sub)">(안내 없음)</span>';
     // ★닫았는데 아직도 낡아서 **다시 뜬 카드**임을 알린다(2026-09-20). 그냥 다시 뜨기만 하면
     //   관리자는 "아까 처리했는데 왜 또?"로 읽고 같은 판단을 반복하게 된다.
-    var reopen = (it.reopen_count || 0) > 0
+    //   (닫힌 카드에는 띄우지 않는다 — 점검이 자동으로 닫은 카드도 옛 재등장 횟수를 기록으로 갖고 있다, 2026-11-03)
+    var reopen = (it.reopen_count || 0) > 0 && (it.status || 'pending') === 'pending'
       ? '<div class="nrya-notice-box nrya-err" style="margin:0 0 8px"><span class="nrya-em">🔁</span>' +
           '<b>다시 뜬 카드입니다(' + it.reopen_count + '번째)</b><br>' +
           '<span style="font-size:11.5px">' + esc(it.reopen_reason || '이번 점검에서도 구버전으로 나왔습니다.') +
@@ -2639,9 +2768,16 @@
     });
     if (!rows) {
       // 폴백: 구조화 필드가 없으면 body 를 잘라 보여줌(장문 방지)
-      var b = String(rv.body || '').trim();
+      // ★2026-11-03: 잘린 앞부분만 보이면 정작 뒤에 적힌 결론이 안 보였다(REVIEW-…-806). 그래서
+      //   「한눈에」·AI 결론이 있으면 미리보기를 빼고, 어느 경우든 **전체 기록은 펼쳐 볼 수 있게** 둔다.
+      var full = String(rv.body || '').trim();
+      var b = full;
       if (b.length > 480) b = b.slice(0, 480) + ' …';
-      rows = '<div class="nrya-rv-field"><div class="nrya-rv-fval nrya-rv-fval-pre">' + esc(b || '(본문 없음)') + '</div></div>';
+      var hasLead = (rv.easy && rv.easy.length) || rv.aiDone;
+      rows = (hasLead ? '' : '<div class="nrya-rv-field"><div class="nrya-rv-fval nrya-rv-fval-pre">' + esc(b || '(본문 없음)') + '</div></div>') +
+        (full && (hasLead || full.length > 480)
+          ? '<details class="nrya-rv-full"><summary>📄 카드 전체 기록 펼치기</summary><div class="nrya-rv-fval nrya-rv-fval-pre">' + esc(full) + '</div></details>'
+          : '');
     }
     var urls = rv.urls || [];
     if (urls.length) {
@@ -2652,6 +2788,41 @@
         }).join('') + '</div>';
     }
     return rows;
+  }
+
+  /** 카드 글의 **굵게**·`코드` 만 살린다(나머지는 그대로 글자). esc 를 먼저 거친 글에만 쓴다. @param {string} t @returns {string} */
+  function rvInline(t) {
+    return esc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+
+  /**
+   * 「한눈에 보기」 칸 — 카드 맨 위에 쉬운 말로 요점(무엇을 판단하나·확인된 것·승인하면·기각하면·추천).
+   * 서버가 review_queue.md 의 `- 한눈에:` 칸을 읽어 rv.easy 로 준다(routes/legal.js parseReviewQueueText).
+   * 예: easyHTML({easy:[{k:'무엇을 판단하나', v:'…'}]}) → '<div class="nrya-rv-easy">…'
+   * @param {object} rv @returns {string} 없으면 ''
+   * [왜 — 2026-11-03 사장님] "내용 자체를 이해하기 쉽게 설명해야 내가 판단이 될 것 같아."
+   */
+  function easyHTML(rv) {
+    var e = rv.easy || [];
+    if (!e.length) return '';
+    return '<div class="nrya-rv-easy"><div class="nrya-rv-easyhead">🧭 한눈에 보기</div>' +
+      e.map(function (x) {
+        var rec = /^추천/.test(x.k);
+        return '<div class="nrya-rv-easyrow' + (rec ? ' nrya-rec' : '') + '"><span class="nrya-rv-easyk">' + esc(x.k) + '</span><span class="nrya-rv-easyv">' + rvInline(x.v) + '</span></div>';
+      }).join('') + '</div>';
+  }
+
+  /**
+   * 「AI 조사 결론」 칸 — AI 조사가 끝나 사람 승인만 남은 카드(rv.aiDone)의 결론을 본문보다 먼저 보인다.
+   * @param {object} rv @returns {string} 없으면 ''
+   */
+  function aiDoneHTML(rv) {
+    var d = rv.aiDone;
+    if (!d) return '';
+    return '<div class="nrya-rv-aidone"><div class="nrya-rv-aidonehead">🔎 AI 조사 결론 — 사람 승인만 남았습니다</div>' +
+      '<div class="nrya-rv-aidonemain">' + rvInline(String(d.head || '').replace(/^\s*/, '')) + '</div>' +
+      (d.detail ? '<details class="nrya-rv-full"><summary>조사 내용 자세히</summary><div class="nrya-rv-fval nrya-rv-fval-pre">' + esc(d.detail) + '</div></details>' : '') +
+      '</div>';
   }
 
   /**
@@ -2674,6 +2845,8 @@
         bodyHTML:
         '<div class="nrya-rv-body">' + reviewFieldsHTML(rv) +
           (pagesA ? '<div class="nrya-src-line">📍 대상 페이지: ' + pagesA + '</div>' : '') +
+          // 원문 보기(2026-11-02) — 눌러야 서버에 묻는다(toggleReviewSources). 승인된 카드도 다시 볼 수 있게 둔다.
+          '<div class="nrya-rv-src"><button type="button" class="nrya-btn-src">📜 원문 보기 (법령 원문·법령정보센터)</button><div class="nrya-rv-srcbox" style="display:none"></div></div>' +
           '<div class="nrya-rv-actions"><button class="nrya-btn-no nrya-btn-undo">↩ 승인 되돌리기 (대기로)</button></div>' +
           '<div class="nrya-inline-err nrya-hidden" style="display:none"></div><div class="nrya-chain"></div>' +
         '</div>',
@@ -2682,7 +2855,9 @@
     var pages = (rv.targetPages || []).map(esc).join(' · ');
     var st = approved
       ? '<span class="nrya-rv-st nrya-done">✓ 승인·canonical</span>'
-      : '<span class="nrya-rv-st nrya-wait">검증 대기</span>';
+      : rv.aiDone
+        ? '<span class="nrya-rv-st nrya-wait nrya-humanonly">AI 조사 끝 · 사람 승인만 남음</span>'
+        : '<span class="nrya-rv-st nrya-wait">검증 대기</span>';
     // 유형 분기(2026-08-06 3갈래로 확장): '확인 체크리스트'가 있으면 §6-D 신형(직접 확인→AI 재검토),
     // 'AI 제안값'이 있으면 값확정형(수치 입력), 나머지는 구형 해석·판단형(승인/기각+선택 메모).
     var hasChecklist = !!((rv.fields || {})['확인 체크리스트']);
@@ -2709,8 +2884,11 @@
     }
     var body =
       '<div class="nrya-rv-body">' +
+        easyHTML(rv) + aiDoneHTML(rv) +
         reviewFieldsHTML(rv) +
         (pages ? '<div class="nrya-src-line">📍 대상 페이지: ' + pages + '</div>' : '') +
+        // 원문 보기(2026-11-02 사용자 요청) — 판단 전에 실제 법령 원문을 이 화면에서 펼쳐 본다(toggleReviewSources).
+        '<div class="nrya-rv-src"><button type="button" class="nrya-btn-src">📜 원문 보기 (법령 원문·법령정보센터)</button><div class="nrya-rv-srcbox" style="display:none"></div></div>' +
         correctBlock +
         actionsHTML +
         '<div class="nrya-inline-err nrya-hidden" style="display:none"></div>' +
@@ -2723,6 +2901,139 @@
       subHTML: '<b>' + esc(rv.law || '') + '</b>' + (pages ? ' · ' + (rv.targetPages || []).length + '개 페이지' : ''),
       statusHTML: st, bodyHTML: body,
     });
+  }
+
+  // ── ⚠수치검증 카드의 「원문 보기」(2026-11-02 사용자 요청) ─────────────────────────────
+  // 사용자 원문: "내가 검증하기 위해서는 해당 실제 원문을 보아야 하는데 원문을 볼 수있는 링크 또는
+  //   원문을 직접 해당 화면에서 볼 수 있도록 해주면 좋겠어."
+  // 새 원문 보기 장치를 짜지 않는다 — 챗봇 답변의 **조문 창(openArtPop)·별표 창**을 그대로 띄운다(L-136).
+  // 어떤 원문을 열지는 서버가 카드의 대상 페이지 「근거 조문」 표에서 골라 준다(services/review_sources.js).
+
+  // 서버가 줄마다 원문을 미리 열어 본 결과(open.reason)를 사람 말로. 없는 이유를 지어내지 않는다 — 모르는 값은 그대로 보인다.
+  var REVIEW_OPEN_WHY = {
+    law_not_found: '우리 원문 모음에 이 법이 없어요',
+    file_not_found: '이 고시·계층의 원문 파일을 찾지 못했어요',
+    article_not_found: '원문에서 이 조를 찾지 못했어요',
+    bad_request: '조문 칸의 표기를 기계가 읽을 수 없어요',
+    no_source: '서버에 원문이 없어요',
+    error: '원문을 여는 중 오류가 났어요'
+  };
+
+  /**
+   * 「원문 보기」를 눌렀을 때 카드 안에 펼칠 목록 HTML 을 만든다(서버 응답 → 화면).
+   * 대상 페이지마다 「근거 조문」 표의 줄을 나열하고, 줄마다 [원문 펼치기](조문 창) · [법령정보센터] 를 단다.
+   * 원문을 못 찾은 줄·페이지는 **못 찾았다고** 적는다 — 빈칸이 「문제 없음」처럼 보이지 않게(L-291).
+   * 카드 글이 가리킨 줄(서버 rows[].pointed — 이미 맨 위로 와 있다)에는 「📌 이 카드가 가리킨 곳」을 달고,
+   * 하나도 없으면 「카드 본문의 조·별표를 보고 골라 주세요」라고 밝힌다. 경로가 적혔지만 못 읽은 칸(d.unread)은
+   * 「안 적혔다」와 구별해 알린다(2026-11-02 독립 검토 반영).
+   * 예: reviewSourcesHTML({pages:[{rel:'wiki/concepts/A__B.md', problem:'', rows:[{law:'선박안전법', article:'제76조', tier:'law', open:{ok:true}, link:{url:'https://www.law.go.kr/…', direct:true}}]}]})
+   *     → '…<button class="nrya-rv-open" data-law="선박안전법" data-article="제76조" … data-files="1">📖 원문 펼치기</button>…'
+   * @param {object} d - GET /api/legal/reviews/:id/sources 응답 {pages, lawSearch}
+   * @returns {string} HTML
+   * [연계] ← toggleReviewSources. 버튼의 data-* 는 openArtPop 이 GET /api/legal/article-text 에 그대로 넘긴다
+   *        (chainStepHTML 과 같은 열쇠 — data-files="1" 만 더해 고시 별표의 원본 HWP·PDF 단추까지 받는다).
+   */
+  function reviewSourcesHTML(d) {
+    var pages = (d && d.pages) || [];
+    function miss(t) { return '<div class="nrya-rv-srcmiss">⚠ ' + esc(t) + '</div>'; }
+    function search(ls) {
+      if (!ls || !ls.url) return '';
+      return '<a class="nrya-rv-lawgo" href="' + esc(ls.url) + '" target="_blank" rel="noopener noreferrer">🔗 국가법령정보센터에서 이 법 찾기</a>';
+    }
+    var html = '<div class="nrya-rv-srchelp">대상 페이지의 「근거 조문」 표입니다. <b>📖 원문 펼치기</b>를 누르면 이 화면에서 조문·별표 원문이 열리고' +
+      '(원본 파일이 있으면 내려받기 단추도 함께), <b>🔗 법령정보센터</b>는 국가법령정보센터 누리집으로 갑니다.</div>';
+    // 경로는 적혔는데 위키 쪽으로 읽지 못한 칸(`draft/concept_X.md → wiki/concepts/` 등) — 「안 적혔다」와 다르게 알린다.
+    var unread = (d && d.unread) || [];
+    var unreadMsg = unread.length
+      ? miss('대상 페이지 칸에 「' + unread.join(' · ') + '」라고 적혀 있지만, 지금 위키 쪽 경로로 읽을 수 없는 형식이에요.')
+      : '';
+    if (!pages.length) {
+      return html + (unreadMsg || miss('이 카드에는 대상 페이지가 적혀 있지 않아 원문을 자동으로 찾지 못했어요.')) + search(d && d.lawSearch);
+    }
+    html += unreadMsg;
+    // 카드 글(제목·본문)이 가리킨 줄 — 서버가 쪽마다 맨 위로 올려 보낸다(review_sources.rowPointedByCard).
+    // 하나도 없으면 「어느 줄이 쟁점인지」를 기계가 고르지 않았다는 것을 밝힌다.
+    var anyRows = pages.some(function (p) { return (p.rows || []).length; });
+    if (anyRows && !d.pointed) {
+      html += '<div class="nrya-rv-srchelp">이 카드 글에 나온 조·별표 번호와 맞는 줄을 찾지 못했어요 — 카드 본문의 조·별표를 보고 골라 주세요.</div>';
+    }
+    pages.forEach(function (p) {
+      html += '<div class="nrya-rv-srcpage"><div class="nrya-rv-flab">📄 ' + esc(p.rel) + '</div>';
+      if (p.problem === 'no_file') html += miss('이 대상 페이지 파일을 찾지 못했어요 — 이름이 바뀌었거나 지워졌을 수 있어요.');
+      else if (p.problem === 'no_table' || !(p.rows || []).length) html += miss('이 페이지에는 「근거 조문」 표가 없어 원문을 자동으로 찾지 못했어요.');
+      else (p.rows || []).forEach(function (row) {
+        var c = row.contact || {};
+        var lawShow = displayLawName(row);
+        var open = row.open || {};
+        var note = [row.step, row.gist].filter(Boolean).join(' · ');
+        if (note.length > 140) note = note.slice(0, 140) + ' …';
+        var btn = (open.ok || open.reason === 'not_checked')
+          ? '<button type="button" class="nrya-rv-open" data-law="' + esc(row.law || '') + '" data-lawshow="' + esc(lawShow) +
+            '" data-article="' + esc(row.article || '') + '" data-tier="' + esc(row.tier || 'law') + '" data-base="' + esc(row.baseLaw || '') +
+            '" data-gist="' + esc(row.gist || '') + '" data-min="' + esc(c.소관부처명 || '') + '" data-dept="' + esc(c.부서명 || '') +
+            '" data-tel="' + esc(c.전화번호 || '') + '" data-files="1">📖 원문 펼치기</button>' +
+            // 줄이 많아 서버가 미리 열어 보지 않은 줄 — 열릴지 모른다는 것을 숨기지 않는다(누르면 조문 창이 결과를 알린다).
+            (open.ok ? '' : '<span class="nrya-rv-srcnote">미리 확인하지 않은 줄</span>')
+          : '<span class="nrya-rv-srcmiss">⚠ 우리 원문에서 못 열어요 — ' + esc(REVIEW_OPEN_WHY[open.reason] || open.reason || '이유 모름') + '</span>';
+        var go = row.link && row.link.url
+          ? '<a class="nrya-rv-lawgo" href="' + esc(row.link.url) + '" target="_blank" rel="noopener noreferrer">🔗 법령정보센터에서 ' + (row.link.direct ? '열기' : '찾기') + '</a>'
+          : '';
+        html += '<div class="nrya-rv-srow' + (row.pointed ? ' nrya-pointed' : '') + '">' +
+          (row.pointed ? '<div class="nrya-rv-spoint">📌 이 카드가 가리킨 곳 — 카드 글에 같은 법·번호가 나와요</div>' : '') +
+          '<div class="nrya-rv-srow-h"><span class="nrya-rv-stier">' + esc(tierLabel(row)) + '</span> <b>' + esc(lawShow) + (row.article ? ' ' + esc(row.article) : '') + '</b></div>' +
+          (note ? '<div class="nrya-rv-srow-n">' + esc(note) + '</div>' : '') +
+          '<div class="nrya-rv-srow-a">' + btn + go + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    });
+    if (pages.every(function (p) { return p.problem || !(p.rows || []).length; })) html += search(d && d.lawSearch);
+    return html;
+  }
+
+  /**
+   * 카드의 「원문 보기」 단추: 처음 누르면 서버에서 원문 목록을 받아 카드 안에 펼치고, 다시 누르면 접는다.
+   * 목록의 [원문 펼치기] 는 챗봇과 같은 조문 창을 연다 — 관리자 창(z-index 10000) 위에 뜨도록
+   * #nrya-overlays 에 `nrya-admin-layer` 를 붙인다(닫을 때 closeArtPop 이 뗀다).
+   * 예: toggleReviewSources('REVIEW-선박안전법-01', 단추, 상자) → GET /api/legal/reviews/REVIEW-선박안전법-01/sources
+   * @param {string} id - 카드 번호 @param {HTMLElement} btn - 「원문 보기」 단추 @param {HTMLElement} box - 펼칠 자리
+   * [연계] ← bindReviewCard. → GET /api/legal/reviews/:id/sources(routes/legal.js) · reviewSourcesHTML · openArtPop.
+   */
+  function toggleReviewSources(id, btn, box) {
+    if (box.getAttribute('data-loaded') === '1') {
+      var shown = box.style.display !== 'none';
+      box.style.display = shown ? 'none' : 'block';
+      btn.classList.toggle('nrya-on', !shown);
+      return;
+    }
+    if (btn.disabled) return;
+    btn.disabled = true;
+    box.style.display = 'block';
+    box.innerHTML = '<div class="nrya-rv-srchelp">원문 목록을 불러오는 중…</div>';
+    legalGet('/api/legal/reviews/' + encodeURIComponent(id) + '/sources')
+      .then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return { ok: false, error: '응답을 읽지 못했습니다.' }; });
+      })
+      .then(function (d) {
+        btn.disabled = false;
+        if (d._denied) { box.innerHTML = '<div class="nrya-rv-srcmiss">⚠ 관리자 로그인이 필요합니다 — 통합관리자 센터에서 로그인한 뒤 다시 눌러 주세요.</div>'; return; }
+        if (!d || !d.ok) { box.innerHTML = '<div class="nrya-rv-srcmiss">⚠ 원문 목록을 불러오지 못했습니다: ' + esc((d && d.error) || '알 수 없는 오류') + '</div>'; return; }
+        box.setAttribute('data-loaded', '1');
+        btn.classList.add('nrya-on');
+        box.innerHTML = reviewSourcesHTML(d);
+        box.querySelectorAll('.nrya-rv-open').forEach(function (b) {
+          b.onclick = function () {
+            var ov = document.getElementById('nrya-overlays');
+            if (ov) ov.classList.add('nrya-admin-layer');
+            openArtPop(b);
+          };
+        });
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        box.innerHTML = '<div class="nrya-rv-srcmiss">⚠ 네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>';
+      });
   }
 
   /**
@@ -2743,6 +3054,9 @@
     var undoBtn = card.querySelector('.nrya-btn-undo');
     var errBox = card.querySelector('.nrya-inline-err');
     var findingsIn = card.querySelector('.nrya-findings-in');
+    var srcBtn = card.querySelector('.nrya-btn-src');
+    var srcBox = card.querySelector('.nrya-rv-srcbox');
+    if (srcBtn && srcBox) srcBtn.onclick = function () { toggleReviewSources(id, srcBtn, srcBox); };
 
     function showErr(msg) { if (!errBox) return; errBox.style.display = 'block'; errBox.classList.remove('nrya-hidden'); errBox.textContent = msg; }
     function clearErr() { if (!errBox) return; errBox.style.display = 'none'; errBox.textContent = ''; }
@@ -4811,7 +5125,9 @@
     legalGet('/api/legal/article-text?law=' + encodeURIComponent(law) +
       '&article=' + encodeURIComponent(article) +
       '&tier=' + encodeURIComponent(tier) +
-      '&baseLaw=' + encodeURIComponent(el.getAttribute('data-base') || ''))
+      '&baseLaw=' + encodeURIComponent(el.getAttribute('data-base') || '') +
+      // data-files="1" — 관리자 ⚠수치검증 카드에서 연 창만(reviewSourcesHTML). 고시 별표의 원본 HWP·PDF 단추까지 받는다.
+      (el.getAttribute('data-files') === '1' ? '&files=1' : ''))
       .then(function (r) { return r.json(); })
       .catch(function () { return { ok: false }; })
       .then(function (d) {
@@ -4865,6 +5181,9 @@
     var pop = document.getElementById('nryaArtPop'), veil = document.getElementById('nryaArtVeil');
     if (pop) pop.classList.remove('nrya-open');
     if (veil) veil.classList.remove('nrya-open');
+    // 관리자 카드에서 띄울 때 붙인 「관리자 창 위로」 표시를 뗀다(toggleReviewSources).
+    var ov = document.getElementById('nrya-overlays');
+    if (ov) ov.classList.remove('nrya-admin-layer');
   }
 
   /**
@@ -6077,6 +6396,11 @@
     // 다른 탭/창에서 관리자 모드가 바뀌면(=admin 노출조건 변동) FAB 재평가
     window.addEventListener('storage', function (e) {
       if (!e || e.key === LS_ADMIN) updateFabVisibility();
+    });
+
+    // [자동 노출 시간] 앱이 백그라운드에 있는 동안 휴대폰이 타이머를 멈췄다가 전환 시각을 넘겨 돌아오면 바로 다시 읽는다.
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && exposureDueAt && Date.now() >= exposureDueAt) fetchConfig();
     });
 
     updateFabVisibility();

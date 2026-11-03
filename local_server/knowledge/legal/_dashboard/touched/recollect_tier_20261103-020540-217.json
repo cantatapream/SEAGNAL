@@ -1,0 +1,9 @@
+{
+ "script": "recollect_tier",
+ "stamp": "20261103-020540-217",
+ "files": [
+  "local_server/knowledge/legal/_legacy/선원법/20261002/법률.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/법률.txt",
+  "local_server/knowledge/legal/raw/06_선원노동/선원법/_meta.json"
+ ]
+}

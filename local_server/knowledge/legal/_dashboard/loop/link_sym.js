@@ -33,16 +33,21 @@ const arg = k => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : ''; 
 const idx = JSON.parse(fs.readFileSync(path.join(LEGAL, '_dashboard', 'index.json'), 'utf8'));
 const pages = idx.pages || idx;
 const flat = s => String(s).replace(/\s+/g, '');
+// ★링크 글자 → 대상 페이지 이름(2026-11-03 · 3-97 · L-419). 위키는 `[[statutes/해운법|해운법]]`·`[[comparisons/X]]`·`[[X#절]]` 처럼
+//   폴더·별칭·절을 붙여 쓴다(이 시각 링크 13,938개 중 폴더 2,412 · 별칭 3,298). 종전에는 글자를 공백만 빼고 파일명과 맞춰
+//   이런 링크를 「없는 대상」으로 건너뛰거나 「역링크 없음」으로 셌다(많게도 적게도 틀렸다). 파일명은 폴더끼리 겹치지 않는다(0건 확인).
+//   ⚠같은 규칙을 lint_index.py 의 link_key() 도 쓴다 — 한쪽만 고치면 두 자가 어긋난다(L-136).
+const linkKey = s => flat(String(s).split('|')[0].split('#')[0].replace(/^(statutes|concepts|comparisons|annexes|activities)\//, ''));
 
 const norm = new Map();                       // 공백 뺀 이름 → 실제 파일명
 for (const p of pages) norm.set(flat(p.file), p.file);
 const linkmap = new Map();                    // 파일 → 그 페이지가 거는 링크(공백 뺀 이름)
-for (const p of pages) linkmap.set(p.file, new Set((p.links || []).map(flat)));
+for (const p of pages) linkmap.set(p.file, new Set((p.links || []).map(linkKey)));
 
 const gaps = [];
 for (const p of pages) {
   for (const l of (p.links || [])) {
-    const tgt = norm.get(flat(l));
+    const tgt = norm.get(linkKey(l));
     if (!tgt) continue;                       // 깨진 링크는 V5-2 소관
     if (tgt === p.file) continue;             // 자기 자신
     const back = linkmap.get(tgt);
