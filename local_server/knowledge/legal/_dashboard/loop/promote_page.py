@@ -95,6 +95,20 @@ def guard_reasons(body):
     return why
 
 
+def has_full_pass(key):
+    """장부에 이 쪽의 「PASS · 범위 전체」 줄이 한 번이라도 있나. 예: has_full_pass('statutes/X.md') → True"""
+    try:
+        for line in open(LEDGER, encoding='utf-8'):
+            line = line.strip()
+            if line:
+                r = json.loads(line)
+                if r.get('쪽') == key and r.get('판정') == 'PASS' and r.get('범위') == '전체':
+                    return True
+    except FileNotFoundError:
+        pass
+    return False
+
+
 def last_row(key):
     last = None
     try:
@@ -117,8 +131,12 @@ def promote(name, rawdir, cmp2, notcmp, rnd, today, dry):
     s = open(p, encoding='utf-8').read()
     r = last_row(key)
     h = body_hash(key)
-    if not r or r.get('판정') != 'PASS' or r.get('범위') != '전체' or r.get('본문해시') != h:
-        why = '장부 기록 없음' if not r else f"마지막 {r.get('판정')}·{r.get('범위')}·해시 {'같음' if r.get('본문해시') == h else '다름'}"
+    # 마지막 줄이 「PASS · 지금 본문해시」여야 한다. 범위는 「전체」이거나, 「변경분」이면 그 앞에 같은 쪽의
+    # 「전체」 PASS 가 있어야 한다(본문 전체를 한 번 읽어 통과한 뒤 문구만 고쳐 바뀐 곳을 다시 읽은 경우 —
+    # make_queue.js 가 「끝난 쪽」으로 보는 규칙과 같다. 2026-11-03 D1-R27 영해법·섬 목록에서 필요해짐).
+    full_before = r is not None and r.get('범위') == '변경분' and has_full_pass(key)
+    if not r or r.get('판정') != 'PASS' or r.get('본문해시') != h or not (r.get('범위') == '전체' or full_before):
+        why = '장부 기록 없음' if not r else f"마지막 {r.get('판정')}·{r.get('범위')}·해시 {'같음' if r.get('본문해시') == h else '다름'}" + ('' if r.get('범위') != '변경분' else '·앞선 전체 PASS 없음')
         return False, f'올리지 않음 — {why}'
     pend = pending_cards(key)
     if pend:

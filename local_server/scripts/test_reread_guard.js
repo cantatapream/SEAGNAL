@@ -113,6 +113,8 @@ else {
   const r6 = pp();
   ok('PASS · 전체 · 해시 일치 → 올림(시험이라 파일은 안 바뀜)', r6.code === 0 && /올림/.test(r6.out), r6.out);
   ok('시험 모드는 파일을 바꾸지 않는다', fs.readFileSync(path.join(__dirname, '../knowledge/legal/wiki', DRAFT), 'utf8') === draftNow);
+  cli(['add', '--page', DRAFT, '--verdict', 'PASS', '--reader', 'b5', '--fixer', 'b1', '--scope', '변경분']);
+  ok('앞선 전체 PASS 뒤의 변경분 PASS(해시 일치) → 올림', /올림/.test(pp().out));
 }
 
 console.log('R6b 승격 도구는 사람 승인 대기 카드가 열린 쪽을 올리지 않는다(쪼갠 카드는 하위 카드로 본다)');
