@@ -313,3 +313,6 @@ SEAGNAL 저장소에서 「위키 다른 눈의 다시 읽기(D1)」 작업을 �
   R35·R37·R39·R41 「진행(B)」(B 브랜치 progress_B.md, 커밋 caa2feb0 · abdf557a 를 A 가 직접 받아 확인).
 - ⚠ **A 는 PR #1434 를 구독하지 못한다** — 한 PR 의 알림은 한 세션에만 가는데 B 세션이 이미 구독했다(subscribe_pr_activity 가 「Could not subscribe」).
   그래서 A 는 **자기 묶음을 처리할 때마다** `git fetch origin ccr-c872b1fb-16y93h` 로 B 의 progress_B.md · 장부를 받아 본다(사장님이 A 에는 예약 작업을 원치 않음 — 10-8).
+- (14:00 KST 추가) B 세션이 PR #1434 구독을 풀었는데도 A 의 구독은 두 번 다 「Could not subscribe」였다(이유는 시스템이 알려 주지 않음 — 확인 못 함).
+  사장님 「건다」 → A 세션에 2시간마다 확인 예약 작업 **`trig_01TH9edGnDTPeFoZcAXydaC1`**(「D1 진행 확인(메인 A · 보조 B 소식)」, 매 짝수 시 54분 UTC = KST 홀수 시 54분):
+  B 브랜치 progress_B.md·장부·PR 댓글을 직접 보고 바뀐 것만 보고 · A 끝난 결과 처리·다음 짝수 묶음 · A·B 다 끝나면 §10-7 후 스스로 끔.
