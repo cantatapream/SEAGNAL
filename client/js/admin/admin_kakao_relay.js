@@ -2,8 +2,8 @@
  * ============================================================================
  * 파일명: client/js/admin/admin_kakao_relay.js
  * 역할  : 관리자 → 특보 관리 → 「카톡 중계」 탭. 카톡 특보중계 앱(태블릿·휴대폰)이 보낸 기록을 본다.
- *         ① 기기별 마지막 신호·상태와 끄기/켜기/지우기 ② 카톡 ↔ 앱 특보현황(MMIS) 대조 기록
- *         ③ 받은 특보 글과 구역별로 나눈 줄(새 특보·놓친 글·이미 봄 표시).
+ *         ① 기기별 마지막 신호·상태와 끄기/켜기/지우기(한 줄에 2개, 이름만 보이는 접힌 아코디언) ② 카톡 ↔ 앱 특보현황(MMIS) 대조 기록
+ *         ③ 받은 특보 글과 구역별로 나눈 줄(새 특보·놓친 글·이미 봄 표시) — 날짜별 접힌 아코디언.
  *         ④ [비교현황] 창 — 카톡판 특보현황 ↔ 앱 특보현황(MMIS) 시간대별 비교(10일 시험, 2026-11-03).
  *         (사용자 확정 2026-11-03: 옛 「특보 예측」 탭 자리에 넣음, 휴대폰을 빼고 태블릿만 남길 수 있게)
  * ----------------------------------------------------------------------------
@@ -71,9 +71,36 @@
         var acts = d.state === 'on'
             ? btn('끄기(받지 않음)', 'window.__krDevice(' + q + ',\'disable\')', '251,191,36') + btn('지우기', 'window.__krDevice(' + q + ',\'remove\')', '248,113,113')
             : btn('다시 받기', 'window.__krDevice(' + q + ',\'enable\')', '52,211,153') + (d.state === 'off' ? btn('지우기', 'window.__krDevice(' + q + ',\'remove\')', '248,113,113') : '');
-        return box('<div style="display:flex;align-items:center;gap:8px"><b style="color:#e6edf3">' + esc(name) + '</b>' + badge(st[0], st[1]) + '</div>'
+        // 접힌 아코디언 — 제목 줄에는 이름만(사용자 확정 2026-11-03 「이름만 나오고 접히도록」).
+        //   단, 켜진 기기의 신호가 끊겼으면 접혀 있어도 보이게 ⚠ 를 붙인다(조용한 것이 정상처럼 보이지 않게).
+        var trouble = d.state === 'on' && (!beat || late);
+        return '<details style="background:#161b22;border:1px solid ' + (trouble ? 'rgba(248,113,113,0.5)' : '#2a3340') + ';border-radius:10px;padding:8px 12px;' + (d.state !== 'on' ? 'opacity:0.6;' : '') + '">'
+            + '<summary style="cursor:pointer"><b style="color:#e6edf3">' + esc(name) + '</b>'
+            + (trouble ? ' <span style="color:#f87171;font-size:0.75rem">⚠ 신호 확인</span>' : '') + '</summary>'
+            + '<div style="margin-top:6px">' + badge(st[0], st[1]) + '</div>'
             + '<div style="font-size:0.8rem;color:#9aa7b4;margin-top:6px;line-height:1.7">'
-            + rows.map(function (r) { return r[0] + ': ' + r[1]; }).join('<br>') + '</div>' + acts, d.state !== 'on');
+            + rows.map(function (r) { return r[0] + ': ' + r[1]; }).join('<br>') + '</div>' + acts + '</details>';
+    }
+
+    /**
+     * 받은 글을 날짜(KST)별 접힌 아코디언으로 묶는다(사용자 확정 2026-11-03 「일자별로 아코디언, 기본 접혀있는 상태」).
+     * 예: [11/03 글 9건] → <details><summary>📅 11/03 (9건)</summary>…</details>
+     * @param {Array} msgs - 최신순 @returns {string} [연계] ← renderKakaoRelayAdminTab
+     */
+    function messagesByDay(msgs) {
+        var order = [], groups = {};
+        msgs.forEach(function (m) {
+            var t = Date.parse(m.receivedAt);
+            var day = Number.isFinite(t) ? new Date(t + 9 * 3600e3).toISOString().slice(0, 10) : '날짜 모름';
+            if (!groups[day]) { groups[day] = []; order.push(day); }
+            groups[day].push(m);
+        });
+        return order.map(function (day) {
+            var label = /^\d{4}-/.test(day) ? day.slice(5).replace('-', '/') : day;
+            return '<details style="background:#11161d;border:1px solid #2a3340;border-radius:10px;padding:8px 10px;margin-bottom:8px">'
+                + '<summary style="cursor:pointer;font-weight:700;color:#cdd6e0;font-size:0.85rem">📅 ' + esc(label) + ' <span style="color:#8b97a3;font-weight:400">(' + groups[day].length + '건)</span></summary>'
+                + '<div style="margin-top:8px">' + groups[day].map(messageCard).join('') + '</div></details>';
+        }).join('');
     }
 
     /** 받은 글 하나 — 출처·이번 알림 여부·구역별 줄 표. @param {Object} m @returns {string} [연계] ← draw */
@@ -150,12 +177,13 @@
             + btn('비교현황', 'window.__krCompare()', '167,139,250') + btn('새로고침', 'window.__krRefresh()', '96,165,250') + '</div>'
             + '<div style="font-size:0.8rem;color:#9aa7b4;margin-top:8px">'
             + '카톡 「기상청 해양기상정보포털」 특보 알림톡을 중계 앱이 읽어 보낸 기록입니다. 지금은 기록·대조만 하고 앱 특보현황은 바꾸지 않습니다.</div>'
-            + section('📱 중계 기기', (active.length ? active.map(function (n) { return deviceCard(n, devs[n]); }).join('') : box('<span style="color:#8b97a3;font-size:0.8rem">아직 신호를 보낸 기기가 없습니다.</span>'))
+            // 한 줄에 2개(사용자 확정 2026-11-03)
+            + section('📱 중계 기기', (active.length ? '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start;margin-bottom:8px">' + active.map(function (n) { return deviceCard(n, devs[n]); }).join('') + '</div>' : box('<span style="color:#8b97a3;font-size:0.8rem">아직 신호를 보낸 기기가 없습니다.</span>'))
                 + (removed.length ? '<div style="font-size:0.74rem;color:#8b97a3;margin:4px 2px">지운 기기: ' + removed.map(function (n) {
                     return esc(n) + ' ' + btn('다시 받기', 'window.__krDevice(' + JSON.stringify(n).replace(/"/g, '&quot;') + ',\'enable\')', '52,211,153');
                 }).join(' ') + '</div>' : ''))
             + section('🔍 앱 특보현황(MMIS)과 대조', checks(data))
-            + section('📨 받은 특보 글 (최근 ' + (data.messages || []).length + '건)', (data.messages || []).map(messageCard).join('') || box('<span style="color:#8b97a3;font-size:0.8rem">받은 글이 없습니다.</span>'))
+            + section('📨 받은 특보 글 (최근 ' + (data.messages || []).length + '건)', messagesByDay(data.messages || []) || box('<span style="color:#8b97a3;font-size:0.8rem">받은 글이 없습니다.</span>'))
             + '</div>';
         container.innerHTML = html;
     }
