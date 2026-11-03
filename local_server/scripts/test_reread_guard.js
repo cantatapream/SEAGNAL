@@ -86,10 +86,26 @@ cli(['add', '--page', WPAGE, '--verdict', 'PASS', '--reader', 'a3', '--fixer', '
 ok('PASS 뒤에는 회차가 0 으로', L.pageState(WPAGE).holdStreak === 0 && L.pageState(WPAGE).last['판정'] === 'PASS');
 
 console.log('R6 승격 도구는 장부의 PASS(전체·해시 일치)가 있어야 올린다(시험 모드 --dry)');
-const DRAFT = 'concepts/내수면어업법__공익어업제한취소.md';
+// 시험 쪽: 지금 draft 이고 draft 배너 머리가 있는 개념 쪽 하나를 고른다(고정 이름을 쓰면 그 쪽이 승격되는 순간
+// 이 절이 조용히 건너뛰어진다 — 2026-11-03 D1-R28 에서 공익어업제한취소가 올라가 실제로 그랬다).
+const CDIR = path.join(__dirname, '../knowledge/legal/wiki/concepts');
+// 승격 사전 검사(guard_reasons)에 걸리는 쪽을 고르면 「올림」 시험이 그 이유로 깨진다(2026-11-03 실측) → 걸리지 않는 첫 쪽.
+const CANDS = fs.readdirSync(CDIR).sort().filter(f => {
+  if (!f.endsWith('.md')) return false;
+  const t = fs.readFileSync(path.join(CDIR, f), 'utf8');
+  return /^status: draft$/m.test(t) && /^> ⚠️? \*\*draft/m.test(t);
+});
+const PICK = (() => {
+  try {
+    return execFileSync('python3', ['-c',
+      `import importlib.util,sys,os;sp=importlib.util.spec_from_file_location('pp',sys.argv[1]);m=importlib.util.module_from_spec(sp);sp.loader.exec_module(m)\nfor f in sys.argv[3:]:\n  s=open(os.path.join(sys.argv[2],f),encoding='utf-8').read()\n  if not m.guard_reasons(s[s.index(chr(10)+'---'+chr(10),4):]) and not m.pending_cards('concepts/'+f):\n    print(f);break`,
+      path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py'), CDIR, ...CANDS], { encoding: 'utf8' }).trim();
+  } catch (_) { return ''; }
+})();
+const DRAFT = 'concepts/' + (PICK || CANDS[0] || '내수면어업법__공익어업제한취소.md');
 const PP = path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py');
 const SPEC = path.join(TMP, 'spec.json');
-fs.writeFileSync(SPEC, JSON.stringify({ '내수면어업법__공익어업제한취소': ['raw/05_수산어업/내수면어업법', '조문', '없음'] }));
+fs.writeFileSync(SPEC, JSON.stringify({ [DRAFT.replace(/^concepts\//, '').replace(/\.md$/, '')]: ['raw/시험', '조문', '없음'] }));
 function pp() {
   try { return { code: 0, out: execFileSync('python3', [PP, SPEC, '--round', 'T', '--dry'], { env, encoding: 'utf8' }) }; }
   catch (e) { return { code: e.status, out: String(e.stdout || '') }; }
@@ -106,6 +122,37 @@ else {
   const r6 = pp();
   ok('PASS · 전체 · 해시 일치 → 올림(시험이라 파일은 안 바뀜)', r6.code === 0 && /올림/.test(r6.out), r6.out);
   ok('시험 모드는 파일을 바꾸지 않는다', fs.readFileSync(path.join(__dirname, '../knowledge/legal/wiki', DRAFT), 'utf8') === draftNow);
+  cli(['add', '--page', DRAFT, '--verdict', 'PASS', '--reader', 'b5', '--fixer', 'b1', '--scope', '변경분']);
+  ok('앞선 전체 PASS 뒤의 변경분 PASS(해시 일치) → 올림', /올림/.test(pp().out));
+}
+
+console.log('R6b 승격 도구는 사람 승인 대기 카드가 열린 쪽을 올리지 않는다(쪼갠 카드는 하위 카드로 본다)');
+{
+  const QF = path.join(TMP, 'queue.md');
+  const PPY = path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py');
+  const run = (q, key) => { fs.writeFileSync(QF, q); return execFileSync('python3', ['-c',
+    `import importlib.util,sys;sp=importlib.util.spec_from_file_location('pp',sys.argv[1]);m=importlib.util.module_from_spec(sp);sp.loader.exec_module(m);print(','.join(m.pending_cards(sys.argv[2])))`,
+    PPY, key], { env: { ...env, REVIEW_QUEUE: QF }, encoding: 'utf8' }).trim(); };
+  const K = 'concepts/가상법__시험쪽.md';
+  ok('대기 카드 → 그 번호를 돌려준다', run(`### REVIEW-가상법-1: 시험\n- 대상 페이지: wiki/${K}\n- 승인: [ ] 대기\n`, K) === 'REVIEW-가상법-1');
+  ok('승인된 카드 → 없음', run(`### REVIEW-가상법-1: 시험\n- 대상 페이지: wiki/${K}\n- 승인: [x] 승인\n`, K) === '');
+  ok('쪼갠 카드는 대기여도 세지 않는다 · 하위 카드가 닫혔으면 없음', run(`### REVIEW-가상법-2: 시험\n- 대상 페이지: wiki/${K}\n- 쪼갬: 하위 카드 1장\n- 승인: [ ] 대기\n\n### REVIEW-가상법-2-1: 하위\n- 대상 페이지: wiki/${K}\n- 승인: [x] 종결\n`, K) === '');
+  ok('「해당 없음」 카드는 세지 않는다', run(`### REVIEW-가상법-3: 시험\n- 대상 페이지: wiki/${K}\n- 승인: [ ] 해당 없음 — 기계 확인\n`, K) === '');
+  ok('콜론 없는 기록 머리는 카드가 아니다', run(`### REVIEW-가상법-4 기록\n- 대상 페이지: wiki/${K}\n- 승인: [ ] 대기\n`, K) === '');
+}
+
+console.log('R6c 승격 도구는 승격 검사(V5-13)가 막을 본문을 미리 막는다');
+{
+  const PPY = path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py');
+  const g = body => execFileSync('python3', ['-c',
+    `import importlib.util,sys,json;sp=importlib.util.spec_from_file_location('pp',sys.argv[1]);m=importlib.util.module_from_spec(sp);sp.loader.exec_module(m);print(json.dumps(m.guard_reasons(sys.stdin.read()),ensure_ascii=False))`,
+    PPY], { env, input: body, encoding: 'utf8' });
+  const ok0 = JSON.parse(g('\n---\n# 쪽\n\n## 정의\n본문.\n\n## 변경 이력\n| 2026 | OCR 판독 기록(이력 칸은 안 본다) |\n'));
+  ok('깨끗한 본문(이력 칸의 낱말은 무시) → 막지 않음', ok0.length === 0, JSON.stringify(ok0));
+  const ocr = JSON.parse(g('\n---\n# 쪽\n\n## 정의\n그림을 OCR 로 옮긴 값.\n\n## 변경 이력\n'));
+  ok('본문에 판독 낱말 → ⓐ-2 로 막음', ocr.some(x => x.startsWith('ⓐ-2')), JSON.stringify(ocr));
+  const rv = JSON.parse(g('\n---\n# 쪽\n\n## 정의\n본문.\n\n## 변경 이력\n| 2026 | §5-D ⓑ 1차 2차 raw/x REVIEW 해소 |\n'));
+  ok('재점검 기록줄로 잡히는 첫 줄에 REVIEW → ⓒ 로 막음', rv.some(x => x.startsWith('ⓒ')), JSON.stringify(rv));
 }
 
 console.log('R5 verify_all 에 걸려 있다');
