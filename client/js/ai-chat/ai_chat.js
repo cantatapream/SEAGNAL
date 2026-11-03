@@ -1164,6 +1164,7 @@
   function renderAdmin(k) {
     var a = ADMIN[k]; var host = document.getElementById('nryaAdminContent'); if (!host) return;
     stopScanGauge();   // 다른 방으로 옮기면 진행률 폴링을 멈춘다(스캔 자체는 서버에서 계속 돈다)
+    stopFreshGauge();  // 원문신선도 게이지도 마찬가지(점검 자체는 서버에서 계속 돈다)
     var intro = '<div class="nrya-intro"><div class="nrya-intro-h"><div class="nrya-intro-ic">🛠</div><div><div class="nrya-intro-name">' + esc(k) + '</div><div class="nrya-intro-tag">관리자 검토 방 · 승인→자동반영</div></div></div><div class="nrya-intro-desc">' + a.desc + '</div></div>';
     if (k === '⚠수치검증') {
       host.innerHTML = intro + '<div class="nrya-panel" id="nryaReviewHost" style="padding:6px 0 4px"></div>';
@@ -2407,9 +2408,14 @@
     var SCAN_LABEL = '🔍 지금 점검 (백그라운드 · 완료까지 30~40분)';
     host.innerHTML = '<div class="nrya-rv-actions" style="margin-bottom:10px"><button class="nrya-btn-ok" id="nryaFreshScanBtn" style="flex:0 0 auto;padding:8px 16px">' + SCAN_LABEL + '</button></div>' +
       '<div class="nrya-inline-err nrya-hidden" id="nryaFreshScanErr" style="display:none"></div>' +
+      '<div class="nrya-gauge nrya-hidden" id="nryaFreshGauge"></div>' +
       '<div id="nryaFreshListHost"></div>';
     var scanBtn = document.getElementById('nryaFreshScanBtn');
     var scanErr = document.getElementById('nryaFreshScanErr');
+    // 점검을 걸어 두고 방을 벗어났다 돌아왔거나, 매주 정기 점검이 도는 중이면 — 게이지를 **이어서** 보여 준다.
+    legalGet('/api/legal/freshness/scan-progress').then(function (res) {
+      return res.ok ? res.json().catch(function () { return null; }) : null;
+    }).then(function (d) { if (d && d.ok && d.running) startFreshGauge(); }).catch(function () {});
     if (scanBtn) scanBtn.onclick = function () {
       if (scanErr) { scanErr.style.display = 'none'; scanErr.textContent = ''; }
       scanBtn.disabled = true; scanBtn.textContent = '점검 시작 중…';
@@ -2419,14 +2425,97 @@
       }).then(function (data) {
         scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL;
         if (data && data._denied) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '관리자 로그인 필요'; } return; }
-        if (!data || !data.ok) { if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '점검 시작 실패'; } return; }
-        var listHost = document.getElementById('nryaFreshListHost');
-        if (listHost) {
-          listHost.insertAdjacentHTML('afterbegin', '<div style="font-size:11.5px;color:var(--nrya-text-sub);margin:2px 0 8px">🔄 백그라운드 점검이 시작됐습니다. 행정규칙 653건 + 법령 222건 + 조례 416건을 하나씩 대조하느라 1시간 가까이 걸립니다 — 나중에 이 방을 다시 열어 확인해 주세요.</div>');
+        if (!data || !data.ok) {
+          if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = (data && data.error) || '점검 시작 실패'; }
+          if (data && data.started === false) startFreshGauge();   // 이미 도는 중(409) — 그 진행률을 보여 준다
+          return;
         }
+        // started:true — 백그라운드에서 계속 진행 중. 게이지를 띄우고 2초마다 진행률을 물어본다(2026-11-03 사장님 요청).
+        startFreshGauge();
       }).catch(function (e) { scanBtn.disabled = false; scanBtn.textContent = SCAN_LABEL; if (scanErr) { scanErr.style.display = 'block'; scanErr.textContent = '네트워크 오류: ' + String(e && e.message || e); } });
     };
     loadFreshList();
+  }
+
+  var freshPollTimer = null;   // 원문신선도 게이지 폴링 타이머(방을 떠나면 멈춘다)
+
+  /**
+   * 원문신선도 「지금 점검」 진행률 게이지를 띄우고 2초마다 서버에 진행 상황을 물어 갱신한다.
+   * 예: 버튼을 누르면 「🔄 점검 중 — 23% · 1/4단계 행정규칙 (150/653건)」 이 차오르고, 끝나면 결과를 적고 목록을 다시 그린다.
+   *
+   * ★왜(2026-11-03 사장님): 「지금은 점검이 되었는지 안 되었는지, 작업이 진행되고 있는 것인지 잘 모르겠다 —
+   *   개정검토의 지금 스캔처럼 게이지가 증가했으면」. 종전에는 「시작됐습니다 — 나중에 다시 열어 확인」 한 줄뿐이었다.
+   * ★막대는 **확인한 건수의 비율**이지 남은 시간이 아니다(개정검토 게이지와 같은 원칙).
+   * [연계] → GET /api/legal/freshness/scan-progress(services/admrul_fresh_scanner.js getScanProgress) · loadFreshList(끝나면 새로 그림)
+   */
+  function startFreshGauge() {
+    var box = document.getElementById('nryaFreshGauge'); if (!box) return;
+    stopFreshGauge();
+    box.classList.remove('nrya-hidden');
+    paintFreshGauge({ running: true, percent: 0, steps: [], step: '', label: '점검을 시작하는 중' });
+    var misses = 0;
+    var fail = function () {
+      if (++misses >= 5) { stopFreshGauge(); paintFreshGauge({ err: '진행률을 받지 못했습니다. 잠시 후 이 방을 다시 열어 확인해 주세요.' }); }
+    };
+    freshPollTimer = setInterval(function () {
+      legalGet('/api/legal/freshness/scan-progress').then(function (res) {
+        if (res.status === 401 || res.status === 403) return null;
+        return res.json().catch(function () { return null; });
+      }).then(function (d) {
+        if (!d || !d.ok) return fail();
+        misses = 0;
+        paintFreshGauge(d);
+        if (!d.running && d.finishedAt) { stopFreshGauge(); loadFreshList(); }   // 끝났다 — 목록을 새로 그린다
+      }).catch(fail);
+    }, 2000);
+  }
+
+  /** 원문신선도 게이지 폴링을 멈춘다(멱등 — 두 번 불러도 안전). */
+  function stopFreshGauge() {
+    if (freshPollTimer) { clearInterval(freshPollTimer); freshPollTimer = null; }
+  }
+
+  /**
+   * 원문신선도 게이지 한 장을 그린다. 점검 중이면 버튼을 잠근다(두 번 눌러도 서버가 막지만, 눌러지는 것처럼 보이면 헷갈린다).
+   * @param {object} d - 서버 진행률({running,percent,steps:[{name,state,done,total}],step,label,result,finishedAt})
+   *                     또는 {err:'…'}(폴링 실패 안내)
+   */
+  function paintFreshGauge(d) {
+    var box = document.getElementById('nryaFreshGauge'); if (!box) return;
+    var btn = document.getElementById('nryaFreshScanBtn');
+    if (d && d.err) {
+      box.innerHTML = '<div class="nrya-gauge-head"><b>⚠ 점검 진행률</b></div><div class="nrya-gauge-sub">' + esc(d.err) + '</div>';
+      return;
+    }
+    var finished = d.running === false && d.finishedAt;
+    if (btn) { btn.disabled = !finished; if (!finished) btn.textContent = '점검 진행 중…'; else btn.textContent = '🔍 지금 점검 (백그라운드 · 완료까지 30~40분)'; }
+    var pct = Math.max(0, Math.min(100, Number(d.percent) || 0));
+    var r = d.result || null;
+    var headTxt = finished
+      ? (r && r.ok
+          ? '✅ 점검 완료 — 낡은 원문 ' + nfmt(r.stale || 0) + '건' +
+            ' · 새 카드 ' + nfmt(r.added || 0) + '건' +
+            (r.reopened ? ' · 다시 뜬 카드 ' + nfmt(r.reopened) + '건' : '') +
+            (r.autoClosed ? ' · 현행 확인돼 자동으로 닫은 카드 ' + nfmt(r.autoClosed) + '건' : '') +
+            (r.partialError ? ' · ⚠ 일부 실패(아래 「마지막 점검」 참고)' : '')
+          : '⚠ 점검 실패 — 아래 「마지막 점검」에 사유가 있습니다')
+      : '🔄 점검 중 — ' + pct + '%';
+    var steps = d.steps || [];
+    var n = 0; steps.forEach(function (s, i) { if (s.name === d.step) n = i + 1; });
+    var mark = { '대기': '·', '진행': '⏳', '끝': '✓', '실패': '✗', '건너뜀': '–' };
+    var stepLine = steps.map(function (s, i) {
+      var cnt = s.total ? ' ' + (s.state === '진행' ? nfmt(s.done) + '/' : '') + nfmt(s.total) + '건' : '';
+      var txt = (mark[s.state] || '') + ' ' + (i + 1) + '. ' + esc(s.name) + cnt;
+      return s.state === '진행' ? '<b>' + txt + '</b>' : txt;
+    }).join(' &nbsp; ');
+    var sub = finished
+      ? '아래 목록을 방금 새로 그렸습니다.'
+      : (n ? n + '/' + steps.length + '단계 ' + esc(d.step) : '준비 중') + (d.label ? ' · ' + esc(String(d.label)) : '');
+    box.innerHTML = '<div class="nrya-gauge-head"><b>' + headTxt + '</b></div>' +
+      '<div class="nrya-gauge-bar"><i style="width:' + (finished ? 100 : pct) + '%"></i></div>' +
+      '<div class="nrya-gauge-sub">' + sub + '</div>' +
+      (stepLine ? '<div class="nrya-gauge-sub">' + stepLine + '</div>' : '') +
+      (finished ? '' : '<div class="nrya-gauge-note">막대는 <b>확인한 건수의 비율</b>입니다(남은 시간이 아닙니다). 한 건씩 국가법령정보센터에 물어보느라 전체 1시간 가까이 걸리고, 숫자가 늘고 있으면 정상입니다. 이 방을 벗어나도 점검은 계속 돕니다.</div>');
   }
 
   /** renderFreshCards 의 목록 부분만 새로고침(점검 버튼은 그대로 둔다). */
