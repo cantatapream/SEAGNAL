@@ -130,6 +130,20 @@ console.log('R6b 승격 도구는 사람 승인 대기 카드가 열린 쪽을 �
   ok('콜론 없는 기록 머리는 카드가 아니다', run(`### REVIEW-가상법-4 기록\n- 대상 페이지: wiki/${K}\n- 승인: [ ] 대기\n`, K) === '');
 }
 
+console.log('R6c 승격 도구는 승격 검사(V5-13)가 막을 본문을 미리 막는다');
+{
+  const PPY = path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py');
+  const g = body => execFileSync('python3', ['-c',
+    `import importlib.util,sys,json;sp=importlib.util.spec_from_file_location('pp',sys.argv[1]);m=importlib.util.module_from_spec(sp);sp.loader.exec_module(m);print(json.dumps(m.guard_reasons(sys.stdin.read()),ensure_ascii=False))`,
+    PPY], { env, input: body, encoding: 'utf8' });
+  const ok0 = JSON.parse(g('\n---\n# 쪽\n\n## 정의\n본문.\n\n## 변경 이력\n| 2026 | OCR 판독 기록(이력 칸은 안 본다) |\n'));
+  ok('깨끗한 본문(이력 칸의 낱말은 무시) → 막지 않음', ok0.length === 0, JSON.stringify(ok0));
+  const ocr = JSON.parse(g('\n---\n# 쪽\n\n## 정의\n그림을 OCR 로 옮긴 값.\n\n## 변경 이력\n'));
+  ok('본문에 판독 낱말 → ⓐ-2 로 막음', ocr.some(x => x.startsWith('ⓐ-2')), JSON.stringify(ocr));
+  const rv = JSON.parse(g('\n---\n# 쪽\n\n## 정의\n본문.\n\n## 변경 이력\n| 2026 | §5-D ⓑ 1차 2차 raw/x REVIEW 해소 |\n'));
+  ok('재점검 기록줄로 잡히는 첫 줄에 REVIEW → ⓒ 로 막음', rv.some(x => x.startsWith('ⓒ')), JSON.stringify(rv));
+}
+
 console.log('R5 verify_all 에 걸려 있다');
 const VA = fs.readFileSync(path.join(__dirname, '../../scripts/refactor/verify_all.sh'), 'utf8');
 ok('V5-57 이 reread_guard.js --gate 를 부른다', /reread_guard\.js --gate[^\n]*V5-57/.test(VA));

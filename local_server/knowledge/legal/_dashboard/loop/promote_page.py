@@ -61,6 +61,40 @@ def pending_cards(key):
     return out
 
 
+OCR_WORDS = json.load(open(os.path.join(LEGAL, '_dashboard', 'ocr_words.json'), encoding='utf-8'))['낱말']
+RETRIEVER = os.path.normpath(os.path.join(LEGAL, '..', '..', 'services', 'legal_retriever.js'))
+GUARD_MARK = '[미확인 — 아래는 사람 검토가 끝나지 않은 내용이다.'
+
+
+def guard_reasons(body):
+    """승격 검사(V5-13 · promote_guard.js)가 막을 이유를 **올리기 전에** 같은 방식으로 센다.
+
+    예: guard_reasons(새 본문) → ['ⓐ-2 판독ㆍOCRㆍ출처미확인 신호(본문): OCR'] · 문제 없으면 []
+    [연계] promote_guard.js 의 masked(ⓐ-1) · OCR_WORDS(ⓐ-2, 변경 이력 칸 제외) · hasB/bLineHasReview(ⓒ) 와 같은 규칙.
+    왜: 기록줄은 이 셋이 없다고 적는데 확인은 안 하고 올려, D1-R26·R25 에서 올린 뒤 V5-13 이 매번 6쪽씩 막았다(L-421).
+    """
+    why = []
+    try:
+        js = ("const R=require(process.argv[1]);const b=require('fs').readFileSync(0,'utf8');"
+              "process.stdout.write('\\nMASKED='+R.markUnresolvedReview(b).split('\\n').filter(l=>l.includes(process.argv[2])).length)")
+        out = subprocess.run(['node', '-e', js, RETRIEVER, GUARD_MARK], input=body, capture_output=True, text=True).stdout
+        m = re.search(r'MASKED=(\d+)', out)
+        if m and int(m.group(1)):
+            why.append(f'ⓐ-1 챗봇이 [미확인]으로 가리는 줄 {m.group(1)}개')
+    except FileNotFoundError:
+        pass
+    no_log = re.sub(r'(^|\n)## 변경 이력[^\n]*\n[\s\S]*?(?=\n## |$)', r'\1', body)
+    hit = sorted({w for w in OCR_WORDS if w in no_log})
+    if hit:
+        why.append('ⓐ-2 판독ㆍOCRㆍ출처미확인 신호(본문): ' + ', '.join(hit))
+    def has_b(l):
+        return '§5-D' in l and 'ⓑ' in l and '1차' in l and '2차' in l and 'raw/' in l
+    b_line = next((l for l in body.split('\n') if has_b(l) and '2차미이행' not in l), '')
+    if 'REVIEW' in b_line:
+        why.append('ⓒ 재점검 기록줄로 잡히는 첫 줄에 REVIEW 낱말: ' + b_line[:60])
+    return why
+
+
 def last_row(key):
     last = None
     try:
@@ -116,6 +150,9 @@ def promote(name, rawdir, cmp2, notcmp, rnd, today, dry):
     last = max(k for k, l in enumerate(lines) if l.startswith('| '))
     lines.insert(last + 1, row)
     body2 = body2[:i] + '\n'.join(lines) + (body2[j:] if j > 0 else '')
+    gw = guard_reasons(body2)
+    if gw:
+        return False, '올리지 않음 — 승격 검사(V5-13)에 걸린다: ' + ' / '.join(gw)
     if not dry:
         open(p, 'w', encoding='utf-8').write(fm + body2)
     return True, '올림' + (' (시험 — 쓰지 않음)' if dry else '')
