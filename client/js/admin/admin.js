@@ -703,6 +703,7 @@ window.switchUnifiedAdminTab = function (tabId) {
 //        관리자 기능에는 접근하지 않는다(서버 측 도구 카탈로그에서 제외됨).
 // ============================================================================
 // 전역 디버그 로그 버퍼 — 앱 내 "테스트" 하위탭에서 열람·JSON 복사 (휴대폰-PC 연결 불요).
+//   ⚠2026-11-03 「테스트」 하위탭 삭제로 지금은 읽는 곳이 없다(AI 비서가 쌓기만 함 — 메모리 300건 한도, 남겨 둠).
 //   네이티브 logcat 대신 voskState 이벤트·엔진 선택·권한·에러를 메모리에 적재해 사장님이
 //   관리자 화면에서 바로 보고 JSON 으로 복사·공유한다. 페이지 새로고침 시 소멸(휘발).
 window.SeagnalDebug = window.SeagnalDebug || (function () {
@@ -714,7 +715,7 @@ window.SeagnalDebug = window.SeagnalDebug || (function () {
     };
 })();
 
-// AI 탭 호스트 — [AI 비서] / [테스트] / [AI 챗봇] / [AI 브리핑] 하위탭. 시연 탭과 동일한 하위탭 패턴.
+// AI 탭 호스트 — [AI 비서] / [AI 챗봇] / [AI 브리핑] 하위탭(「테스트」는 2026-11-03 삭제). 시연 탭과 동일한 하위탭 패턴.
 //   「AI 브리핑」(2026-10-16, 설계서 §11.6 결정 16 — U61 「사고 분석·예측」 이름 대체)은 admin_station_briefing.js 가 그린다.
 //   「AI 사고예측(오류현황)」은 2026-10-15 사용자 결정으로 점검 → 데이터 수집현황 아래로 옮겼다
 //   (원문 「빠져서 점검 탭 아래로 가는게 맞음」) — renderDataCollectionTab(admin_data_status.js).
@@ -729,10 +730,11 @@ async function renderUnifiedAiTab(container) {
     container.innerHTML =
         '<div id="ai-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('test', '테스트') + mkTabBtn('chatbot', 'AI 챗봇') + mkTabBtn('briefing', 'AI 브리핑')
+        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('chatbot', 'AI 챗봇') + mkTabBtn('briefing', 'AI 브리핑')
         + '</div>'
         + '<div id="ai-subtab-body"></div>';
-    switchAiSubTab(['test', 'chatbot', 'briefing'].includes(saved) ? saved : 'assistant');
+    // 「테스트」 하위탭은 2026-11-03 삭제(사용자 「테스트 하위 탭은 이제 더이상 쓰지 않아 삭제 필요」) — 저장값이 'test' 면 AI 비서로.
+    switchAiSubTab(['chatbot', 'briefing'].includes(saved) ? saved : 'assistant');
 }
 
 window.switchAiSubTab = function (which) {
@@ -749,8 +751,7 @@ window.switchAiSubTab = function (which) {
     //   (모달 폭은 style.css 의 `#unified-admin-modal.admin-fullscreen` 이 정한다)
     var _m = document.getElementById('unified-admin-modal');
     if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
-    if (which === 'test') renderAiTestSubtab(sub);
-    else if (which === 'briefing') {
+    if (which === 'briefing') {
         // [AI 브리핑] 연안 안전 브리핑(종전 「활동지점 안전 브리핑」) — 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만·상태·지금 다시 만들기·관할 미리보기
         //   (설계서 §11.6 결정 16·17, js/admin/admin_station_briefing.js — /api/admin/station-briefing/*)
         if (typeof window.renderStationBriefingAdmin === 'function') window.renderStationBriefingAdmin(sub);
@@ -1184,173 +1185,6 @@ async function renderAiAssistantSubtab(container) {
 }
 window.renderUnifiedAiTab = renderUnifiedAiTab;
 
-// ============================================================================
-// 테스트 하위탭 — 디버그 진단 스냅샷 + 이벤트/호출 로그 + JSON 클립보드 복사.
-//   목적: 휴대폰을 PC(adb/logcat)에 연결하지 않고, 관리자 화면에서 음성 엔진·Vosk 모델
-//   상태·권한·이벤트 로그·대화 호출 내역을 한 번에 보고 JSON 으로 복사해 공유한다.
-//   #38 ④ "엔진 로그 확인"을 logcat 없이 이 탭에서 완결할 수 있게 한다.
-// ============================================================================
-async function renderAiTestSubtab(container) {
-    var esc = function (s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]; }); };
-    var fmtTs = function (ms) { try { return new Date(ms).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }); } catch (e) { return String(ms); } };
-
-    container.innerHTML = `
-        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-                <span style="font-size:0.85rem;color:#94a3b8;"><i class="fa-solid fa-stethoscope"></i> 진단 스냅샷 (음성 엔진 · Vosk 모델 · 권한)</span>
-                <span>
-                    <button id="ait-refresh" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">새로고침</button>
-                    <button id="ait-copy" style="padding:5px 10px;background:#22d3ee;color:#04263b;border:none;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">JSON 전체 복사</button>
-                </span>
-            </div>
-            <div id="ait-summary" style="font-size:0.86rem;color:#e2e8f0;line-height:1.7;margin-bottom:10px;">수집 중…</div>
-            <pre id="ait-json" style="max-height:280px;overflow:auto;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;font-size:0.72rem;color:#cbd5e1;white-space:pre-wrap;word-break:break-all;margin:0;">…</pre>
-            <div id="ait-copy-status" style="font-size:0.72rem;color:#64748b;margin-top:6px;"></div>
-        </div>
-
-        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <span style="font-size:0.85rem;color:#94a3b8;"><i class="fa-solid fa-bug"></i> 이벤트/디버그 로그 (이번 세션)</span>
-                <span>
-                    <button id="ait-log-refresh" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">새로고침</button>
-                    <button id="ait-log-clear" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">비우기</button>
-                </span>
-            </div>
-            <div id="ait-log-list" style="max-height:240px;overflow-y:auto;font-size:0.78rem;color:#cbd5e1;line-height:1.5;font-family:ui-monospace,Menlo,Consolas,monospace;">…</div>
-            <div style="font-size:0.7rem;color:#64748b;margin-top:6px;">voskState 이벤트·엔진 선택·권한·에러를 메모리에 기록(새로고침/페이지 이탈 시 소멸).</div>
-        </div>
-
-        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <span style="font-size:0.85rem;color:#94a3b8;"><i class="fa-solid fa-comments"></i> 호출 내역 (나리야 대화)</span>
-                <span>
-                    <button id="ait-call-refresh" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">새로고침</button>
-                    <button id="ait-call-clear" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">비우기</button>
-                </span>
-            </div>
-            <div id="ait-call-list" style="max-height:280px;overflow-y:auto;font-size:0.82rem;color:#cbd5e1;line-height:1.5;">…</div>
-        </div>
-    `;
-
-    var P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
-    var Native = P && P.SeagnalAssistant ? P.SeagnalAssistant : null;
-    var Geo = P && P.Geolocation ? P.Geolocation : null;
-
-    var ENGINE_TXT = { porcupine: 'Porcupine ✅ (저전력 호출어)', vosk: 'Vosk ✅ (오프라인 한국어)', android: '안드로이드 기본 ⚠️ (폴백 — Vosk 모델 미설치)' };
-    var lastSnapshot = null;
-
-    // 진단 스냅샷 수집 — 네이티브 가용성/엔진/Vosk/권한/로그/대화내역을 한 객체로.
-    function collectSnapshot() {
-        var snap = {
-            generatedAt: new Date().toISOString(),
-            environment: {
-                isCapacitor: !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()),
-                platform: (window.Capacitor && window.Capacitor.getPlatform) ? window.Capacitor.getPlatform() : 'web',
-                hasAssistantPlugin: !!Native,
-                origin: location.origin,
-                userAgent: navigator.userAgent
-            },
-            capabilities: null, voiceRunning: null, permissions: {},
-            debugLog: window.SeagnalDebug.all(), assistantLog: null
-        };
-        var jobs = [];
-        if (Native && Native.getCapabilities) jobs.push(Native.getCapabilities().then(function (c) { snap.capabilities = c; }).catch(function (e) { snap.capabilities = { error: String(e && e.message || e) }; }));
-        if (Native && Native.isEnabled) jobs.push(Native.isEnabled().then(function (r) { snap.voiceRunning = !!(r && r.running); }).catch(function () {}));
-        if (Native && Native.checkPermissions) jobs.push(Native.checkPermissions().then(function (r) { snap.permissions.microphone = r && r.microphone; }).catch(function () {}));
-        if (Geo && Geo.checkPermissions) jobs.push(Geo.checkPermissions().then(function (r) { snap.permissions.location = r && r.location; }).catch(function () {}));
-        jobs.push(fetch('/api/admin/assistant-log?n=100').then(function (r) { return r.json(); }).then(function (d) { snap.assistantLog = (d && d.entries) || []; }).catch(function (e) { snap.assistantLog = { error: String(e && e.message || e) }; }));
-        return Promise.all(jobs).then(function () { return snap; });
-    }
-
-    function renderSummary(snap) {
-        var sm = document.getElementById('ait-summary');
-        var jp = document.getElementById('ait-json');
-        if (!sm) return;
-        if (!snap.environment.hasAssistantPlugin) {
-            sm.innerHTML = '<span style="color:#fbbf24;">⚠️ 네이티브 비서 플러그인이 없습니다 — 안드로이드 앱(웹뷰)에서 열어야 음성 엔진/Vosk 진단이 보입니다.</span>';
-        } else {
-            var cap = snap.capabilities || {};
-            var eng = ENGINE_TXT[cap.activeEngine] || (snap.voiceRunning ? '확인 불가' : '미가동(꺼짐)');
-            var vosk = (cap.vosk && cap.vosk.state) || '알수없음';
-            var porc = cap.porcupineAvailable ? '있음' : '없음';
-            sm.innerHTML =
-                '· 음성 비서: <b>' + (snap.voiceRunning ? '켜짐' : '꺼짐') + '</b><br>' +
-                '· 현재 엔진: <b>' + esc(eng) + '</b><br>' +
-                '· Vosk 모델 상태: <b>' + esc(vosk) + '</b>' + (cap.vosk && cap.vosk.progress >= 0 ? ' (' + cap.vosk.progress + '%)' : '') + '<br>' +
-                '· Porcupine assets: ' + porc + ' · 마이크 권한: ' + esc(snap.permissions.microphone || '미상');
-        }
-        if (jp) jp.textContent = JSON.stringify(snap, null, 2);
-    }
-
-    function refreshSnapshot() {
-        var sm = document.getElementById('ait-summary'); if (sm) sm.textContent = '수집 중…';
-        collectSnapshot().then(function (snap) { lastSnapshot = snap; renderSummary(snap); renderEventLog(); });
-    }
-
-    function renderEventLog() {
-        var el = document.getElementById('ait-log-list'); if (!el) return;
-        var rows = window.SeagnalDebug.all();
-        if (!rows.length) { el.textContent = '아직 기록된 이벤트가 없습니다. (음성 토글을 켜거나 다운로드를 시도하면 기록됩니다)'; return; }
-        el.innerHTML = rows.slice().reverse().map(function (r) {
-            var body = '';
-            try { body = typeof r.data === 'object' ? JSON.stringify(r.data) : String(r.data); } catch (e) { body = '[직렬화 실패]'; }
-            return '<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);">' +
-                '<span style="color:#64748b;">' + esc(fmtTs(r.ts)) + '</span> ' +
-                '<span style="color:#67e8f9;">' + esc(r.tag) + '</span> ' +
-                '<span style="color:#e2e8f0;">' + esc(body) + '</span></div>';
-        }).join('');
-    }
-
-    function renderCallLog() {
-        var el = document.getElementById('ait-call-list'); if (!el) return;
-        el.textContent = '불러오는 중…';
-        fetch('/api/admin/assistant-log?n=100').then(function (r) { return r.json(); }).then(function (d) {
-            var es = (d && d.entries) || [];
-            if (!es.length) { el.textContent = '아직 대화 내역이 없습니다.'; return; }
-            el.innerHTML = es.map(function (e) {
-                var t = fmtTs(e.ts);
-                var tools = e.tools && e.tools.length ? ' · 도구:' + esc(e.tools.join(',')) : '';
-                return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);">' +
-                    '<div style="color:#22d3ee;">Q. ' + esc(e.query) + '</div>' +
-                    '<div style="color:#e2e8f0;margin-top:3px;">A. ' + esc(e.answer) + '</div>' +
-                    '<div style="color:#64748b;font-size:0.72rem;margin-top:3px;">' + t + ' · ' + (e.aiUsed ? 'AI두뇌' : '폴백') + ' · ' + esc(e.zone || '-') + ' · ' + esc(e.intent || '-') + tools + '</div>' +
-                    '</div>';
-            }).join('');
-        }).catch(function (e) { el.textContent = '불러오기 실패: ' + e.message; });
-    }
-
-    // 클립보드 복사 — navigator.clipboard 우선, 웹뷰 폴백(textarea+execCommand).
-    function copyText(text) {
-        if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
-        return new Promise(function (resolve, reject) {
-            try {
-                var ta = document.createElement('textarea');
-                ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-9999px';
-                document.body.appendChild(ta); ta.focus(); ta.select();
-                var ok = document.execCommand('copy'); document.body.removeChild(ta);
-                ok ? resolve() : reject(new Error('execCommand 복사 실패'));
-            } catch (e) { reject(e); }
-        });
-    }
-
-    document.getElementById('ait-refresh').addEventListener('click', refreshSnapshot);
-    document.getElementById('ait-copy').addEventListener('click', function () {
-        var status = document.getElementById('ait-copy-status');
-        var payload = lastSnapshot || { note: '스냅샷 미수집 — 새로고침 후 복사하세요', debugLog: window.SeagnalDebug.all() };
-        copyText(JSON.stringify(payload, null, 2))
-            .then(function () { status.textContent = '✅ JSON 을 클립보드에 복사했습니다 (' + (new Date()).toLocaleTimeString('ko-KR') + ')'; status.style.color = '#34d399'; })
-            .catch(function (e) { status.textContent = '복사 실패: ' + (e && e.message ? e.message : e) + ' — 아래 JSON 을 길게 눌러 직접 복사하세요'; status.style.color = '#fbbf24'; });
-    });
-    document.getElementById('ait-log-refresh').addEventListener('click', renderEventLog);
-    document.getElementById('ait-log-clear').addEventListener('click', function () { window.SeagnalDebug.clear(); renderEventLog(); });
-    document.getElementById('ait-call-refresh').addEventListener('click', renderCallLog);
-    document.getElementById('ait-call-clear').addEventListener('click', function () { fetch('/api/admin/assistant-log', { method: 'DELETE' }).then(renderCallLog); });
-
-    refreshSnapshot();
-    renderEventLog();
-    renderCallLog();
-}
-window.renderAiTestSubtab = renderAiTestSubtab;
 
 // ============================================================================
 // (A-0) 오류 목록 / 수동 입력 (특보 알림 탭 내부에서 사용)
@@ -4133,12 +3967,6 @@ function renderLedgerViewTab(container) {
             <div><i class="fa-solid fa-book" style="color:#22d3ee;"></i> 장부 (weather_alerts.json)</div>
             <div style="display:flex;gap:8px;align-items:center;">
                 <span style="font-size:0.75rem;color:#64748b;" id="ledger-updated-at">-</span>
-                <button onclick="resetLedgerWithTestPush()" style="padding:6px 12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:6px;color:#fca5a5;cursor:pointer;font-size:0.8rem;font-weight:600;">
-                    <i class="fa-solid fa-bolt"></i> 장부 초기화 (테스트 푸시)
-                </button>
-                <button onclick="rebroadcastToAllUsers()" style="padding:6px 12px;background:rgba(220,38,38,0.2);border:1px solid rgba(220,38,38,0.5);border-radius:6px;color:#fecaca;cursor:pointer;font-size:0.8rem;font-weight:700;">
-                    <i class="fa-solid fa-tower-broadcast"></i> 전체 사용자 재발송
-                </button>
             </div>
         </div>
         <div style="margin-bottom:8px;color:#94a3b8;font-size:0.78rem;">
@@ -4159,49 +3987,8 @@ function renderLedgerViewTab(container) {
     }, 30000);
 }
 
-window.resetLedgerWithTestPush = async function () {
-    const adminToken = localStorage.getItem('push_token') || '';
-    if (!adminToken) {
-        alert('이 기기의 푸시 토큰을 찾을 수 없습니다. 먼저 푸시 알림을 허용(구독)한 뒤 다시 시도하세요.\n(테스트 푸시는 이 관리자 기기에만 발송됩니다.)');
-        return;
-    }
-    const ok = confirm('장부(diff 기준점)를 초기화하고, 현재 활성 특보를 신규로 감지하여 테스트 푸시를 발송합니다.\n\n※ 이 관리자 기기에만 발송됩니다 (일반 사용자에게는 발송되지 않음). 진행할까요?');
-    if (!ok) return;
-    try {
-        const r = await fetch('/api/admin/marine/reset', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ testPush: true, adminToken })
-        });
-        const data = await r.json();
-        if (!r.ok || !data.success) throw new Error(data.error || ('HTTP ' + r.status));
-        alert(data.message || '초기화 + 테스트 푸시 완료');
-        refreshLedger();
-    } catch (e) {
-        alert('초기화 실패: ' + (e && e.message));
-    }
-};
-
-window.rebroadcastToAllUsers = async function () {
-    const ok1 = confirm('⚠️ 전체 사용자에게 푸시를 발송합니다.\n\n장부를 초기화하고 현재 활성 특보(발효+예비)를 신규로 감지하여 해당 해역 구독자 전원에게 푸시가 발사됩니다.\n\n진행할까요?');
-    if (!ok1) return;
-    const ok2 = confirm('정말로 전체 사용자에게 발송하시겠습니까?\n(되돌릴 수 없습니다)');
-    if (!ok2) return;
-    try {
-        const r = await fetch('/api/admin/marine/reset', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ testPush: true, broadcastAll: true })
-        });
-        const data = await r.json();
-        if (!r.ok || !data.success) throw new Error(data.error || ('HTTP ' + r.status));
-        alert(data.message || '전체 사용자 재발송 완료');
-        refreshLedger();
-    } catch (e) {
-        alert('재발송 실패: ' + (e && e.message));
-    }
-};
-
+// [삭제 2026-11-03] 「장부 초기화(테스트 푸시)」·「전체 사용자 재발송」 버튼 — 사용자 「오래 사용 안 함, 더이상 필요 없음」.
+//   서버 POST /api/admin/marine/reset 도 함께 삭제(routes/admin.js).
 window.refreshLedger = async function () {
     const el = document.getElementById('ledger-content');
     const tsEl = document.getElementById('ledger-updated-at');
