@@ -8008,6 +8008,8 @@ type Change =
 | GET | `/api/admin/custom-push-history` | — | 발송 이력 조회 |
 | POST | `/api/admin/push-custom` | (full payload) | 임의 푸시 (관리자) |
 
+> ⚠**2026-11-03 삭제**: `/api/admin/marine/reset` 과 관리자 장부 탭의 「장부 초기화(테스트 푸시)」·「전체 사용자 재발송」 버튼을 지웠다(사용자 「해당 기능을 사용안한지 너무 오래됨」). 이 문서의 해당 절차(§ 4.S-BASELINE 등)는 이력으로만 남는다. 크롤러 `resetState`·`run({forceBaselinePush})` 는 코드에 남아 있으나 부르는 곳이 없다.
+
 ### § 8.5.1 사용자 푸시 API
 
 | Method | Path | Body | 효과 |

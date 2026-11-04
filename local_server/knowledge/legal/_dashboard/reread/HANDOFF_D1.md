@@ -307,3 +307,12 @@ SEAGNAL 저장소에서 「위키 다른 눈의 다시 읽기(D1)」 작업을 �
   두 쪽이 같은 묶음을 잡은 것을 나중에 알면 **늦게 잡은 쪽이 그 묶음을 멈추고** 손댄 쪽을 `git checkout -- <그 쪽들>` 로 되돌린다(디렉토리째 금지).
 - ⚠ 모르는 것(확인 못 함): 한도에 막힌 동안 예약 작업이 여러 번 실패하면 플랫폼이 그 예약을 스스로 끄는지는 확인하지 못했다.
   A 루틴은 깨어날 때마다 B 진행표를 보므로, B 가 목요일 이후에도 움직이지 않으면 A 보고에 「B 진행 없음」이 나온다.
+
+### 10-9. 실제 연결 상태 (2026-11-03 14:00 KST 확인)
+- B 시작됨: 브랜치 **`ccr-c872b1fb-16y93h`** · PR **[cantatapream/SEAGNAL#1434](https://github.com/cantatapream/SEAGNAL/pull/1434)**(draft, base A 브랜치) · 예약 작업 `trig_01GwMh8XvQd4AUqe8nU3UvBX`(B 계정, 2시간마다 매시 47분) ·
+  R35·R37·R39·R41 「진행(B)」(B 브랜치 progress_B.md, 커밋 caa2feb0 · abdf557a 를 A 가 직접 받아 확인).
+- ⚠ **A 는 PR #1434 를 구독하지 못한다** — 한 PR 의 알림은 한 세션에만 가는데 B 세션이 이미 구독했다(subscribe_pr_activity 가 「Could not subscribe」).
+  그래서 A 는 **자기 묶음을 처리할 때마다** `git fetch origin ccr-c872b1fb-16y93h` 로 B 의 progress_B.md · 장부를 받아 본다(사장님이 A 에는 예약 작업을 원치 않음 — 10-8).
+- (14:00 KST 추가) B 세션이 PR #1434 구독을 풀었는데도 A 의 구독은 두 번 다 「Could not subscribe」였다(이유는 시스템이 알려 주지 않음 — 확인 못 함).
+  사장님 「건다」 → A 세션에 2시간마다 확인 예약 작업 **`trig_01TH9edGnDTPeFoZcAXydaC1`**(「D1 진행 확인(메인 A · 보조 B 소식)」, 매 짝수 시 54분 UTC = KST 홀수 시 54분):
+  B 브랜치 progress_B.md·장부·PR 댓글을 직접 보고 바뀐 것만 보고 · A 끝난 결과 처리·다음 짝수 묶음 · A·B 다 끝나면 §10-7 후 스스로 끔.

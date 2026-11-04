@@ -1234,6 +1234,14 @@ router.post('/api/legal/freshness/:id/decide', adminAuth.requireAdminToken, (req
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// GET /api/legal/freshness/scan-progress (관리자) — 「지금 점검」 진행률(화면 게이지용, 2026-11-03).
+//   점검 스크립트가 stdout 으로 찍는 `[i/n]` 줄을 스캐너가 모아 둔 것을 그대로 준다.
+//   ★막대는 **확인한 건수의 비율**이지 남은 시간이 아니다. 매주 정기 점검이 돌 때도 같은 값이 보인다.
+router.get('/api/legal/freshness/scan-progress', adminAuth.requireAdminToken, (req, res) => {
+  try { res.json(Object.assign({ ok: true }, freshScanner.getScanProgress())); }
+  catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
 // POST /api/legal/freshness/scan-now (관리자) — 정기 점검과 별개로 즉시 1회 점검.
 //   행정규칙 653 · 법령 222 · 조례 416(3-78) 전수 대조라 1시간 가까이 걸린다. 완료를 기다리지 않고 즉시 응답(started:true).
 router.post('/api/legal/freshness/scan-now', adminAuth.requireAdminToken, (req, res) => {
