@@ -1535,6 +1535,16 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-05 13:10 KST] ✅완료 — D1 계정 B — canonical 다시 읽기 홀수 16묶음(D1-R35·R37·…·R65) 끝
+보조 계정 B 세션(브랜치 ccr-c872b1fb-16y93h · PR #1434, base claude/intelligent-bell-b0puy2). HANDOFF_D1 §10-6 기준으로 마침.
+- 합계 478쪽: 통째 읽기 PASS 437 · 나눠 읽기 PASS 22 · CAP 19(draft 로 내리고 human_list) · ERROR 0. 묶음별 숫자·커밋은 _dashboard/reread/plan/progress_B.md.
+- 사람 판단(human_list)으로 간 19쪽: annexes/섬발전촉진법__강화군관공선관리조례시행규칙_별표1_4 · statutes/수산업법 · concepts/선박설비기준 · concepts/알루미늄선의구조기준 · comparisons/폐기물_해양오염 · concepts/어선원및어선재해보상보험법__기준임금 · concepts/공유수면관리및매립에관한법률__매립면허 · concepts/해양사고의조사및심판에관한법률__해양사고심판절차와불복 · statutes/자연유산의보존및활용에관한법률 · concepts/해양생태계의보전및관리에관한법률__해양보호생물포획금지 · concepts/수산업협동조합법__어촌계 · concepts/해양환경관리법__오염물질수거처리와저장시설 · concepts/항로표지법__정의및적용범위 · concepts/해운법__외항화물운송시장질서_운임공표협약및금지행위 · concepts/해상교통안전법__해상교통안전진단 · statutes/해양생태계의보전및관리에관한법률 · concepts/해양환경관리법__해양오염방지선박검사 · concepts/해상교통안전법__정의및적용범위 · concepts/수산업협동조합법__조합사업_신용경제공제사업.
+- 게이트(저장소 루트): V5-13 통과. V5-57 은 ❌52 이나 B 묶음 쪽은 0 — 52건은 A 브랜치 최신(b2d3b5d1)에서도 똑같이 나는 A 진행 중 쪽(R40 9·R42 8·그 밖 35)이다(worktree 에서 같은 명령으로 대조).
+- verify_all(서버 띄움, 11-05 13:00 KST 무렵): 실패 목록이 비지 않았다. B 가 늘린 위키 게이트(V5-2 깨진 링크 2 · V5-5 법령 칸 두 법 1 · V5-8 칸못읽음 +3 · V5-8c +9 · V5-26 +1)는 고쳐 A 최신 이하로 맞췄다(a8ab2670 — 바뀐 canonical 2쪽은 다른 에이전트 변경분 PASS, V5-8c 9건은 원문 보고 오탐 판정). 남은 실패: ①A 최신에서도 같은 것 — V5-8(84) · V5-8c(221, A 222) · V5-55 · V5-56(picture_wiki_lines.json 낡음) · V5-57 · test_picture_text W5 ②이 컨테이너에 모듈이 없어 못 잰 것 — V4 시뮬레이션·화면 스위트 다수(playwright-core 없음), test_silent_catch(acorn 없음), test_harbor_cells·test_notice_markdown(playwright-core) ③B 는 앱 코드를 바꾸지 않았다(A 대비 위키 밖 변경은 _dashboard 기록·색인·_RULES.md 뿐).
+- 진행 중 사고: 11-03 14:05 무렵 주간 사용량 한도로 4묶음 멈춤 → 11-05 07:56 같은 실행 번호로 이어 돌림. 11-05 09:00 무렵 컨테이너 재시작 → 같은 방법으로 이어 돌림. 잃은 쪽 없음.
+- 다음: A 가 B PR(#1434)을 A 브랜치로 합친다(§10-7). B 는 새 일을 시작하지 않는다.
+
+
 ### [2026-11-03 17:29 KST] ✅완료 — 원문신선도 「지금 점검」 진행 게이지(사장님 요청) · D1-R31 정리
 ①게이지: 커밋 735ca18f(작업 브랜치). 서버가 점검 스크립트 stdout 의 [i/n] 줄을 읽어 4단계(행정규칙→2차→법령→조례) 진행률을 만들고, GET /api/legal/freshness/scan-progress 로 화면에 준다. 화면은 2초마다 물어 막대·단계 줄을 그리고 끝나면 결과 한 줄과 목록을 새로 그린다. test_fresh_progress 21/0(SUITES 등록). 가짜 스크립트로 서버 코드 끝까지 돌려 확인, 운영 실제 점검으로는 아직 안 봄. ⚠운영 반영은 main 머지·배포 필요 — 배포하면 서버가 다시 시작돼 그때 돌던 점검이 끊기므로 사장님이 누른 점검이 끝난 뒤(약 1시간) 배포할 것. 작업 브랜치는 canonical 다시 읽기 진행 중이라 V5-57 이 빨강 → main 에 올리려면 반영전용 브랜치로 이 커밋만 옮겨야 한다(사장님 확인 대기). ②D1-R31: PASS 20 · CAP 10(→ draft·human_list), 커밋 7b72dc8a. R40 띄움(w9alcjova). 돌고 있는 것: R29·R30·R36·R38·R40·H21a·H21b.
 
