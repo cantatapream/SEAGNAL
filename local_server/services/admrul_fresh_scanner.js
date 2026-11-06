@@ -49,7 +49,7 @@
  *  - server.js → cron 매주 일요일 KST 03:00 `runFreshnessScan()`
  *    (개정감지는 매일 01:00 이라 시간을 겹치지 않게 뒀다 — 둘 다 law.go.kr 을 두드린다)
  *  - routes/legal.js → GET /api/legal/freshness · POST /api/legal/freshness/:id/decide
- *    · POST /api/legal/freshness/scan-now
+ *    · POST /api/legal/freshness/scan-now · GET /api/legal/freshness/scan-progress(게이지, 2026-11-03)
  *  - client/js/ai-chat/ai_chat.js → 관리자 검토센터 "원문신선도" 방
  *  - services/admin_push.js → sendAdminPush()
  *  - knowledge/legal/_dashboard/loop/admrul_fresh.py → 행정규칙 점검(표준 라이브러리만 씀)
@@ -93,6 +93,107 @@ const SCAN_TIMEOUT_MS = 60 * 60 * 1000;
 
 let _scanning = false; // 중복 실행 락(cron·수동스캔 동시 발동 시 결과 파일 경합 방지)
 
+// ★「지금 점검」 진행 상황(2026-11-03 사장님 요청 — 「점검이 되었는지 안 되었는지, 지금 진행되고 있는지 모르겠다」).
+//   메모리에만 둔다(서버가 다시 시작되면 사라진다 — 결과는 STATUS_FILE 에 따로 남는다).
+//   점검 스크립트가 stdout 으로 찍는 `[i/n] …`·`… i/n` 줄을 parseProgressLine 이 읽어 여기 옮겨 적고,
+//   getScanProgress 가 화면 게이지에 준다. 개정검토 `legal_amendment_scanner.js` 의 `_progress` 와 같은 꼴이다.
+const STEP_NAMES = ['행정규칙', '행정규칙 2차', '법령', '조례'];
+let _progress = newProgress(null);
+
+/**
+ * 진행 상황 한 벌을 새로 만든다.
+ * 예: newProgress({행정규칙:653, 법령:222, 조례:416}) → 단계 4개, 각 단계 total 에 지난 점검 건수
+ * @param {?Object<string,number>} est 단계별 예상 건수(지난 점검 보고서의 checked). 모르면 0 —
+ *   단계가 시작되면 스크립트가 찍는 실제 총수로 바뀐다.
+ * @returns {object}
+ * [연계] runFreshnessScan() 이 점검을 시작할 때 부른다.
+ */
+function newProgress(est) {
+  return {
+    steps: STEP_NAMES.map((name) => ({ name, state: '대기', done: 0, total: (est && est[name]) || 0 })),
+    cur: -1, label: '', startedAt: 0, finishedAt: 0, result: null, maxPct: 0,
+  };
+}
+
+/**
+ * 점검 스크립트 출력 한 줄에서 진행 정보를 뽑는다(순수 함수 — 테스트가 직접 부른다).
+ * 예: '[12/653] 현행 위험물 선박운송 기준' → {done:12, total:653, label:'현행 위험물 선박운송 기준'}
+ *     '   … 50/416'                        → {done:50, total:416}
+ *     '   대상: 222개 계열' · '2차 대조 대상 61건 (…)' · '… · 대상 416건' → {done:0, total:N}
+ *     '■ 두 번째 마디 — 조회실패 3건을 다시 두들긴다' → {label:'조회 실패분 다시 묻는 중'}
+ * @param {string} line
+ * @returns {?{done?:number,total?:number,label?:string}} 진행 줄이 아니면 null
+ * [연계] ← runScript() 의 stdout · 줄 모양은 admrul_fresh.py·admrul_fresh_pass2.py·law_fresh.py(`[i/n]`),
+ *        ordin_fresh.py(`… i/n`)가 찍는다. 그 print 를 바꾸면 여기와 test_fresh_progress.js 를 함께 본다.
+ */
+function parseProgressLine(line) {
+  const t = String(line || '').trim();
+  let m = t.match(/^\[(\d+)\/(\d+)\]\s*(.*)$/);
+  if (m) return { done: +m[1], total: +m[2], label: m[3].slice(0, 80) };
+  m = t.match(/^…\s*(\d+)\/(\d+)$/);
+  if (m) return { done: +m[1], total: +m[2] };
+  if (t.startsWith('■ 두 번째 마디')) return { label: '조회 실패분 다시 묻는 중' };
+  m = t.match(/대상:?\s*(\d+)\s*(?:개 계열|건)/);
+  if (m) return { done: 0, total: +m[1] };
+  return null;
+}
+
+/** 지금 단계에 진행 줄 하나를 반영한다. [연계] ← runScript() 의 stdout 줄마다 */
+function applyProgressLine(line) {
+  const d = parseProgressLine(line);
+  const st = _progress.steps[_progress.cur];
+  if (!d || !st) return;
+  if (d.total !== undefined) { st.total = d.total; st.done = d.done; }
+  if (d.label !== undefined) _progress.label = d.label;
+}
+
+/**
+ * 단계 상태를 바꾼다. 'run' 이면 그 단계를 지금 단계로 삼는다.
+ * @param {string} name STEP_NAMES 중 하나  @param {'run'|'ok'|'fail'|'skip'} what
+ */
+function markStep(name, what) {
+  const i = STEP_NAMES.indexOf(name);
+  const st = _progress.steps[i];
+  if (!st) return;
+  if (what === 'run') { _progress.cur = i; _progress.label = ''; st.state = '진행'; return; }
+  st.state = what === 'ok' ? '끝' : what === 'fail' ? '실패' : '건너뜀';
+  if (what === 'ok' && st.total) st.done = st.total;
+}
+
+/**
+ * 지난 점검 보고서에서 단계별 건수를 읽는다(막대가 처음부터 전체 길이를 알게).
+ * 보고서가 없거나 깨졌으면 0 — 단계가 시작되면 실제 총수로 바뀐다.
+ * @returns {Object<string,number>}
+ */
+function lastCounts() {
+  const read = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')).checked || 0; } catch (_) { return 0; } };
+  return { 행정규칙: read(REPORT_FILE), 법령: read(LAW_REPORT_FILE), 조례: read(ORDIN_REPORT_FILE) };
+}
+
+/**
+ * 「지금 점검」 진행 상황 — 관리자 화면이 2초마다 물어 게이지를 그린다.
+ * ★막대(percent)는 **확인한 건수의 비율**이지 남은 시간이 아니다(건마다 응답 시간이 다르다).
+ *   네 단계 건수를 이어 붙여 하나의 막대로 만든다 — 아직 시작 안 한 단계는 지난 점검 건수로 셈한다.
+ * @returns {{running:boolean, steps:Array<{name,state,done,total}>, step:string, label:string,
+ *            done:number, total:number, percent:number, startedAt:number, finishedAt:number, result:?object}}
+ * [연계] ← routes/legal.js GET /api/legal/freshness/scan-progress
+ */
+function getScanProgress() {
+  const p = _progress;
+  let done = 0, total = 0;
+  for (const s of p.steps) { total += s.total; done += s.state === '진행' ? s.done : (s.state === '대기' ? 0 : s.total); }
+  // ★막대는 뒤로 가지 않는다 — 다음 단계가 시작돼 실제 총수가 예상(지난 점검 건수)보다 크면 비율이 잠깐 줄어드는데,
+  //   막대가 줄면 「뭔가 잘못됐나」로 읽힌다(가짜 스크립트로 돌려 실측: 83% → 75%). 숫자(done/total)는 그대로 준다.
+  const raw = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  if (_scanning) p.maxPct = Math.max(p.maxPct, raw);
+  return {
+    running: _scanning, steps: p.steps.map((s) => Object.assign({}, s)),
+    step: p.cur >= 0 ? STEP_NAMES[p.cur] : '', label: p.label, done, total,
+    percent: _scanning ? p.maxPct : raw,
+    startedAt: p.startedAt, finishedAt: p.finishedAt, result: p.result,
+  };
+}
+
 /**
  * 점검 스크립트를 자식 프로세스로 1회 실행한다. 비동기(spawn) — 실행 중에도 다른 API 요청은
  * 정상 처리된다.
@@ -107,7 +208,15 @@ function runScript(script, args) {
     fs.mkdirSync(DATA, { recursive: true });
     const child = spawn('python3', [script, ...args], {
       cwd: path.dirname(script),
-      stdio: ['ignore', 'ignore', 'pipe'],
+      // stdout 은 진행 줄(`[i/n] …`)을 게이지로 옮기려고 받는다 — **반드시 읽어 비워야 한다**(안 읽으면 파이프가 차 자식이 멈춘다).
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let outBuf = '';
+    child.stdout.on('data', (c) => {
+      outBuf += c;
+      const lines = outBuf.split('\n');
+      outBuf = lines.pop();
+      for (const ln of lines) applyProgressLine(ln);
     });
     let killedByTimeout = false;
     const timer = setTimeout(() => { killedByTimeout = true; child.kill('SIGKILL'); }, SCAN_TIMEOUT_MS);
@@ -382,6 +491,8 @@ async function runFreshnessScan() {
   if (_scanning) return { ok: false, checked: 0, stale: 0, added: 0, error: '점검이 이미 진행 중입니다.' };
   _scanning = true;
   const startedAt = new Date().toISOString();
+  _progress = newProgress(lastCounts());
+  _progress.startedAt = Date.now();
   try {
     // 세 점검을 잇달아 돌린다. 모두 law.go.kr 을 두드리므로 동시에 돌리지 않는다.
     //   ① 행정규칙(고시·훈령) 653건  ② 법률·시행령·시행규칙 222건  ③ 자치법규(조례) 416건(3-78)
@@ -394,11 +505,17 @@ async function runFreshnessScan() {
     let allRows = [];
     let checked = 0, freshCnt = 0, unknown = 0, mismatch = 0, repealed = 0, renamed = 0;
     for (const part of parts) {
+      markStep(part.name, 'run');
       let r = await runScript(part.script, ['--out', part.out]);
+      markStep(part.name, r.ok ? 'ok' : 'fail');
       // 행정규칙은 2차 대조까지 돌린다. 1차가 실패했으면 2차는 의미가 없으니 건너뛴다.
       if (r.ok && part.pass2) {
+        markStep('행정규칙 2차', 'run');
         const r2 = await runScript(part.pass2, ['--report', part.out]);
+        markStep('행정규칙 2차', r2.ok ? 'ok' : 'fail');
         if (!r2.ok) console.error('[AdmrulFresh] 2차 대조 실패(1차 결과는 그대로 쓴다):', r2.error);
+      } else if (part.pass2) {
+        markStep('행정규칙 2차', 'skip');
       }
       let rep = null;
       try { rep = JSON.parse(fs.readFileSync(part.out, 'utf8')); } catch (_) { rep = null; }
@@ -429,6 +546,7 @@ async function runFreshnessScan() {
       const st = { ok: false, startedAt, finishedAt: new Date().toISOString(),
         error: errors.join(' / '), checked, unknown, stale: 0, added: 0 };
       writeStatus(st);
+      _progress.result = st;
       console.error('[AdmrulFresh] 점검 실패:', st.error);
       // ★실패도 알린다(3-80). 종전에는 상태 파일에만 적혀, 관리자가 방을 열어 보기 전에는
       //   **몇 주가 지나도 점검이 안 되고 있다는 것을 아무도 몰랐다**(10.04 판: 848건 전부 응답없음).
@@ -459,6 +577,7 @@ async function runFreshnessScan() {
       // 한쪽만 실패했으면 ok:true 로 두되 **무엇을 못 봤는지 반드시 남긴다.**
       partialError: errors.length ? errors.join(' / ') : null, error: null };
     writeStatus(st);
+    _progress.result = st;
     if (errors.length) console.error('[AdmrulFresh] 일부 점검 실패:', st.partialError);
 
     // 새로 나온 것과 **닫혀 있었지만 아직 낡아 다시 띄운 것**을 함께 알린다.
@@ -486,6 +605,7 @@ async function runFreshnessScan() {
     }
     return st;
   } finally {
+    _progress.finishedAt = Date.now();
     _scanning = false;
   }
 }
@@ -502,4 +622,5 @@ function startFreshnessScan() {
 }
 
 module.exports = { runFreshnessScan, startFreshnessScan, readStatus, QUEUE_FILE, REPORT_FILE, reopenStillStale,
-  closeNowFresh, toQueueEntry, ORDIN_SCRIPT, ORDIN_REPORT_FILE, partFailure };
+  closeNowFresh, toQueueEntry, ORDIN_SCRIPT, ORDIN_REPORT_FILE, partFailure,
+  getScanProgress, parseProgressLine };

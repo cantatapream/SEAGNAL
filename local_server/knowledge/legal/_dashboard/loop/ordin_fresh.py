@@ -235,9 +235,14 @@ def main():
     with cf.ThreadPoolExecutor(6) as ex:
         for i, r in enumerate(ex.map(lambda p: judge_one(p, today), files), 1):
             rows.append(r)
-            if i % 50 == 0 or i == len(files):
+            # 5건마다 찍는다 — 관리자 화면 게이지가 이 줄을 읽는다(admrul_fresh_scanner.js parseProgressLine).
+            #   50건마다이던 때는 막대가 3분씩 멈춰 보였다.
+            if i % 5 == 0 or i == len(files):
                 print('   … %d/%d' % (i, len(files)), flush=True)
     # 두 번째 마디 — 조회실패만 천천히 다시(`law_fresh.py` 와 같은 이유: 그 순간 망이 끊긴 것이 대부분이다).
+    n_retry = sum(1 for r in rows if r['verdict'] == '조회실패' and not r['pending'])
+    if n_retry:
+        print('■ 두 번째 마디 — 조회실패 %d건을 다시 두들긴다' % n_retry, flush=True)
     for i, r in enumerate(rows):
         if r['verdict'] == '조회실패' and not r['pending']:
             r2 = judge_one(os.path.join(ROOT, r['files'][0]), today)
