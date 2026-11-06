@@ -1,0 +1,10 @@
+{
+ "script": "admrul_recollect_wando_manual",
+ "stamp": "20261106-191357-242",
+ "files": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법/행정규칙/(완도해양경찰서)해양레저활동허가필요수역고시.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법/행정규칙/_이미지/171158475.png",
+  "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법/행정규칙/_이미지/171158475.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법/행정규칙/_admrul.json"
+ ]
+}

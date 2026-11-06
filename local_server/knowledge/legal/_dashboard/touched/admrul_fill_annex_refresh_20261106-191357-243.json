@@ -1,0 +1,23 @@
+{
+ "script": "admrul_fill_annex_refresh",
+ "stamp": "20261106-191357-243",
+ "files": [
+  "local_server/knowledge/legal/raw/03_해상교통안전/해상교통안전법/별표/(완도해양경찰서)해양레저활동허가필요수역고시_별표0.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/별표/구조본부구성및운영등에관한규칙_별표1.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/별표/구조본부구성및운영등에관한규칙_별표2.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/별표/구조본부구성및운영등에관한규칙_별표3.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/별표/구조본부구성및운영등에관한규칙_별지1.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/별표/구조본부구성및운영등에관한규칙_별지2.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/별표/구조본부구성및운영등에관한규칙_별지3.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별표1.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별표2.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별지1.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별지2.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별지3.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별지4.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별지5.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별지6.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별지7.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/별표/어업인확인서발급규정_별지8.txt"
+ ]
+}
