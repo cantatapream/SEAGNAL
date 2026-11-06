@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 135 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 137 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -304,6 +304,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_maintenance_tree` | 점검 탭(선택 차단) 회귀 검사 — ①관리자 트리(admin.js featureTree)의 모든 id 가 |
 | `test_overlay_solo` | 해양안전 오버레이가 "한 번에 하나만" 켜지는지 실제로 눌러 본다. |
 | `test_wiki_brief_bulk` | 「위키 반영 지시문」을 만드는 `services/legal_wiki_brief.js` 가 **큐에 있는 것만** 옮겨 |
+| `test_amend_applied` | 개정검토 「위키 반영 완료」 장부가 제대로 읽히고 쓰이는지, 그리고 「📋 승인분 전체 지시문」이 |
 | `test_review_marker_registered` | 위키 본문에 `⚠REVIEW-<식별자>` 마커를 달아 놓고 **승인 대기열 |
 | `test_stale_reopen` | 관리자가 닫아 둔 「원문신선도」 카드라도 **원문이 아직 낡아 있으면 다시 대기로 |
 | `test_review_card_view` | 관리자 「⚠수치검증」 카드를 사람이 **보고 판단할 수 있게** 만든 것들이 살아 있는지 확인한다. |
@@ -342,6 +343,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_picture_text` | ★그림 판독문이 **모델 근거에서 빠지는지**를 고정한다. (3-75 · Q-19) |
 | `test_ordin_fresh` | ★조례(자치법규)도 주간 원문 신선도 점검에 들어가 있는지를 고정한다. (3-78) |
 | `test_scan_fail_honest` | ★점검이 **하나도 확인하지 못했을 때** 「이상 없음」 으로 보이지 않는지를 고정한다. (3-80) |
+| `test_fresh_progress` | 관리자 「원문신선도」 방의 **「지금 점검」 진행 게이지**가 살아 있는지 확인한다. |
 | `test_collect_approved` | ★관리자가 승인한 개정은 **법령이든 행정규칙이든** 한 명령으로 받는다. (3-82) |
 | `test_mok_brief` | ★원문결손 방의 「📋 대기 전체 지시문」 (3-83) |
 | `test_mok_excerpt` | ★원문결손 점검이 **스스로 발췌라고 밝힌 파일**을 결함으로 세지 않는다. (3-85) |

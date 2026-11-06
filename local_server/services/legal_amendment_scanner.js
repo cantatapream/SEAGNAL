@@ -65,6 +65,13 @@ const SEED_QUEUE_FILE = path.join(LEGAL_DIR, '_amendments', 'queue.jsonl');
 const H29_QUEUE_FILE = path.join(DATA, 'law_change_queue.json');
 const SEED_H29_QUEUE_FILE = path.join(LEGAL_DIR, '_dashboard', 'law_change_queue.json');
 const DETECT_SCRIPT = path.join(LEGAL_DIR, '_dashboard', 'loop', 'detect_law_changes.py');
+/**
+ * 「위키 반영 완료」 장부(저장소 안 — 이미지에 실려 배포된다).
+ * 작업 세션은 운영 볼륨의 큐를 못 고친다. 그래서 위키 반영을 끝낸 세션이 **이 파일에 큐 id 를 적어 커밋**하고,
+ * 배포된 서버가 이 파일을 읽어 「승인분 전체 지시문」에서 그 건을 빼고 카드에 「위키 반영 완료」를 붙인다.
+ * 한 줄 = `{"id":"chg_…","at":"YYYY-MM-DD","by":"…","note":"…"}`. 쓰는 자: `_dashboard/loop/amend_applied.py`.
+ */
+const WIKI_APPLIED_FILE = path.join(LEGAL_DIR, '_amendments', 'wiki_applied.jsonl');
 /** 마지막 스캔이 언제·어떻게 끝났는지(볼륨). **실패와 "개정 없음"을 화면에서 가르려고 남긴다**(2026-09-20 사용자 지시). */
 const SCAN_STATUS_FILE = path.join(DATA, 'amendment_last_scan.json');
 const DETECT_DAYS = 7;          // 큐 실행 주기와 맞춤(H-29 주간 Routine과 동일 창)
@@ -476,7 +483,47 @@ function startAmendmentScan(opts) {
   return { ok: true, started: true };
 }
 
+/**
+ * 「위키 반영 완료」 장부를 읽어 id → 기록 Map 으로 돌려준다. 파일이 없거나 줄이 깨졌으면 그 줄만 건너뛴다.
+ * 예: loadWikiApplied().get('chg_20260810_a5f82d') → {id, at:'2026-11-07', by:'…', note:'…'}
+ * @param {string} [file] - 검사용으로 다른 장부를 줄 때만
+ * @returns {Map<string, object>}
+ * [연계] ← routes/legal.js GET /api/legal/amendments(카드 표시)·wiki-brief-all(승인분 지시문에서 빼기)
+ *        ← _dashboard/loop/amend_applied.py 가 쓴다.
+ * ★왜 필요한가(2026-11-07, 사장님 「진행하기로 해」): 「📋 승인분 전체 지시문」 은 **승인한 전 건**을 매번 다시 묶었다.
+ *   승인은 마지막 상태라 닫을 길이 없었고, 그래서 11-02·11-03 에 이미 반영한 162건이 11-06 에 그대로 다시 왔다.
+ *   「개정이 승인됐다」는 사건이고 「위키에 반영됐다」는 그다음 사건인데, 둘째를 적을 자리가 없었다.
+ */
+function loadWikiApplied(file) {
+  const p = file || WIKI_APPLIED_FILE;
+  const m = new Map();
+  let txt = '';
+  try { txt = fs.readFileSync(p, 'utf8'); } catch (_) { return m; }
+  for (const line of txt.split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    try {
+      const o = JSON.parse(t);
+      if (o && o.id) m.set(String(o.id), o);
+    } catch (_) { /* 깨진 줄은 건너뛴다 — 한 줄 때문에 장부 전체를 버리지 않는다 */ }
+  }
+  return m;
+}
+
+/**
+ * 승인분 목록에서 「위키 반영 완료」 장부에 있는 건을 뺀다. 뺀 수를 함께 돌려준다(뺐다고 적어야 한다).
+ * 예: withoutApplied([{id:'a'},{id:'b'}], new Map([['a',{}]])) → {list:[{id:'b'}], skipped:1}
+ * @param {Array<object>} rows @param {Map<string,object>} applied - loadWikiApplied() 결과
+ * @returns {{list:Array<object>, skipped:number}}
+ * [연계] ← routes/legal.js GET /api/legal/amendments/wiki-brief-all · scripts/test_amend_applied.js
+ */
+function withoutApplied(rows, applied) {
+  const list = (rows || []).filter((e) => !(applied && applied.has(String(e && e.id))));
+  return { list, skipped: (rows || []).length - list.length };
+}
+
 module.exports = { runAmendmentScan, startAmendmentScan, getScanProgress,
   // 진행률 한 줄 파서는 검사(test_wiki_brief_bulk.js)가 직접 먹여 보려고 함께 내보낸다.
   applyProgressLine, queueFile, h29QueueFile, mirrorDecisionToH29, readScanStatus, scanWindowDays, lastOkAt,
-  notifyAdmins, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE, CATCHUP_MAX_DAYS };
+  notifyAdmins, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE, CATCHUP_MAX_DAYS,
+  loadWikiApplied, withoutApplied, WIKI_APPLIED_FILE };
