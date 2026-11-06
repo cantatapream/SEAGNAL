@@ -1535,6 +1535,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-06 18:12 KST] 🟢착수 — D1 — A 몫 남은 374쪽을 계정 B 가 이어받음 · 이후 작업 순서 확정
+사장님 지시(2026-11-06): A 계정이 사용량 한도로 11-03 18:05 KST 이후 멈춰 B 세션(브랜치 ccr-c872b1fb-16y93h · PR #1434)이 A 몫 남은 374쪽(R29 19 · R40 9 · R42 16 · R44~R64 330)을 이어 한다. ⚠A 계정은 이 묶음을 돌리지 않고, A 세션 예약 작업 trig_01TH9edGnDTPeFoZcAXydaC1 이 켜져 있으면 끈다. 이후 순서(사장님 「좋아」): ①D1 마무리·main PR ②원문결손 4건 ③승인분 162건(이미 반영분 먼저 가름) ④사람 판단 쪽 정리 ⑤표기 통일(맨 끝). 단계마다 보고 후 「계속」. 자세히는 _dashboard/reread/HANDOFF_D1.md §10-9.
+
+
 ### [2026-11-05 13:10 KST] ✅완료 — D1 계정 B — canonical 다시 읽기 홀수 16묶음(D1-R35·R37·…·R65) 끝
 보조 계정 B 세션(브랜치 ccr-c872b1fb-16y93h · PR #1434, base claude/intelligent-bell-b0puy2). HANDOFF_D1 §10-6 기준으로 마침.
 - 합계 478쪽: 통째 읽기 PASS 437 · 나눠 읽기 PASS 22 · CAP 19(draft 로 내리고 human_list) · ERROR 0. 묶음별 숫자·커밋은 _dashboard/reread/plan/progress_B.md.
