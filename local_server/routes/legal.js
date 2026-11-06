@@ -1078,6 +1078,9 @@ router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
     //   시행일이 이미 지났는데 승인이 안 됐으면(due:true) 지금 챗봇은 **옛 내용**을 내보내는 중이다.
     const byQueue = stageByQueueId();
     list = list.map((e) => (byQueue.has(e.id) ? Object.assign({}, e, { stage: byQueue.get(e.id) }) : e));
+    // ★위키 반영 완료 장부(2026-11-07) — 작업 세션이 저장소에 적은 「이 건은 위키에 반영했다」 기록을 카드에 붙인다.
+    const applied = amendmentScanner.loadWikiApplied();
+    list = list.map((e) => (applied.has(String(e.id)) ? Object.assign({}, e, { wikiApplied: applied.get(String(e.id)) }) : e));
     // ★마지막 스캔이 언제·어떻게 끝났는지 함께 준다. 목록이 비었을 때 **"개정이 없다"와
     //   "확인을 못 했다"를 화면이 구별**해야 한다(2026-09-20 사용자 지시).
     res.json({ ok: true, count: list.length, amendments: list, lastScan: amendmentScanner.readScanStatus() });
@@ -1143,7 +1146,8 @@ router.get('/api/legal/amendments/decide-all/preview', adminAuth.requireAdminTok
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
-// GET /api/legal/amendments/wiki-brief-all?status=approved (관리자) — 승인한 **전 건**을 한 덩어리
+// GET /api/legal/amendments/wiki-brief-all?status=approved[&includeApplied=1] (관리자) — 승인한 건 중
+//   **위키 반영 완료 장부(_amendments/wiki_applied.jsonl)에 없는 것**을 한 덩어리
 //   인계문으로. 개별 지시문(위 :id/wiki-brief)과 별개다(사용자 확정 2026-09-10).
 //   ids 를 콤마로 주면 그 건만 묶는다(방금 일괄 승인한 것만 뽑을 때 쓴다).
 router.get('/api/legal/amendments/wiki-brief-all', adminAuth.requireAdminToken, (req, res) => {
@@ -1151,20 +1155,32 @@ router.get('/api/legal/amendments/wiki-brief-all', adminAuth.requireAdminToken, 
     const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
     const idsQ = String(req.query.ids || '').split(',').map((v) => v.trim()).filter(Boolean);
     let list;
+    let skippedApplied = 0;
     if (idsQ.length) {
+      // id 를 콕 집어 달라면 반영 여부와 상관없이 그대로 묶는다(방금 승인한 것만 뽑을 때 · 다시 보고 싶을 때).
       const want = new Set(idsQ);
       list = rows.filter((e) => want.has(String(e.id)));
     } else {
       const status = req.query.status || 'approved';
       list = status === 'all' ? rows : rows.filter((e) => (e.status || 'pending') === status);
+      // ★이미 위키에 반영했다고 장부에 적힌 건은 뺀다(2026-11-07). 종전에는 승인한 **전 건**을 매번 다시 묶어
+      //   반영을 끝낸 162건이 다음 지시문에 그대로 또 왔다. `includeApplied=1` 이면 예전처럼 다 묶는다.
+      if (String(req.query.includeApplied || '') !== '1') {
+        const w = amendmentScanner.withoutApplied(list, amendmentScanner.loadWikiApplied());
+        list = w.list;
+        skippedApplied = w.skipped;
+      }
     }
     if (!list.length) {
-      // 빈 결과는 오류가 아니라 **아직 승인한 게 없다**는 상태다 — 화면이 그대로 옮겨 적을 문장을 준다.
-      return res.status(404).json({ ok: false, error: idsQ.length ? '그 id 로 묶을 항목을 찾지 못했습니다.' : '아직 승인한 건이 없습니다. 카드에서 승인하거나 「전체 승인」을 먼저 누르세요.' });
+      // 빈 결과는 오류가 아니라 **묶을 것이 없다**는 상태다 — 화면이 그대로 옮겨 적을 문장을 준다.
+      const why = idsQ.length ? '그 id 로 묶을 항목을 찾지 못했습니다.'
+        : skippedApplied ? `승인한 ${skippedApplied}건이 모두 위키 반영 완료로 기록돼 있습니다 — 새로 반영할 건이 없습니다.`
+        : '아직 승인한 건이 없습니다. 카드에서 승인하거나 「전체 승인」을 먼저 누르세요.';
+      return res.status(404).json({ ok: false, error: why, skippedApplied });
     }
-    const r = wikiBrief.buildBulkWikiBrief(list, effectiveDate.todayKST());
+    const r = wikiBrief.buildBulkWikiBrief(list, effectiveDate.todayKST(), { skippedApplied });
     if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
-    res.json({ ok: true, count: r.count, detailed: r.detailed, listed: r.listed, pages: r.pages, text: r.text });
+    res.json({ ok: true, count: r.count, detailed: r.detailed, listed: r.listed, pages: r.pages, skippedApplied, text: r.text });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 

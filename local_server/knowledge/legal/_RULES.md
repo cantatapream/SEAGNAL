@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 136 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 137 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -304,6 +304,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_maintenance_tree` | 점검 탭(선택 차단) 회귀 검사 — ①관리자 트리(admin.js featureTree)의 모든 id 가 |
 | `test_overlay_solo` | 해양안전 오버레이가 "한 번에 하나만" 켜지는지 실제로 눌러 본다. |
 | `test_wiki_brief_bulk` | 「위키 반영 지시문」을 만드는 `services/legal_wiki_brief.js` 가 **큐에 있는 것만** 옮겨 |
+| `test_amend_applied` | 개정검토 「위키 반영 완료」 장부가 제대로 읽히고 쓰이는지, 그리고 「📋 승인분 전체 지시문」이 |
 | `test_review_marker_registered` | 위키 본문에 `⚠REVIEW-<식별자>` 마커를 달아 놓고 **승인 대기열 |
 | `test_stale_reopen` | 관리자가 닫아 둔 「원문신선도」 카드라도 **원문이 아직 낡아 있으면 다시 대기로 |
 | `test_review_card_view` | 관리자 「⚠수치검증」 카드를 사람이 **보고 판단할 수 있게** 만든 것들이 살아 있는지 확인한다. |
