@@ -221,7 +221,10 @@ def fix_paths(apply_):
     return 0
 
 
-NOTE_RE = re.compile(r'⚠|REVIEW|사용자 확인|소유자|이미지판독|옮겨 적|다시 받기\(')
+# ★「소유자」 를 뺐다(2026-11-07). 조례 **본문 낱말**이라 사람 손일이 아닌데도 걸렸다 — 「경상북도 문화유산·자연유산의
+#   보존 및 활용에 관한 조례」 가 「문화유산의 소유자, 관리자 …」 조문 때문에 손일 25·19줄로 막혀 새 판을 못 받았다.
+#   실측: raw/_자치법규 에 「소유자」 가 든 조례 파일 중 위의 다른 표지(⚠·REVIEW·판독 …)가 있는 것은 0개였다.
+NOTE_RE = re.compile(r'⚠|REVIEW|사용자 확인|이미지판독|옮겨 적|다시 받기\(')
 
 
 def refresh_from_report(report_path, apply_, only=None, renamed=False):

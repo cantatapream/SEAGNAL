@@ -1,0 +1,16 @@
+{
+ "script": "ordin_recollect_fresh",
+ "stamp": "20261106-191357-244",
+ "files": [
+  "local_server/knowledge/legal/raw/_자치법규/경기도/시흥시공유수면점용료ㆍ사용료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경기도/시흥시공유수면점용료ㆍ사용료징수조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/경상남도/경상남도지역연안관리심의회구성및운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경상남도/통영시해수욕장관리및운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/경상남도/통영시해수욕장관리및운영조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/부산광역시/부산광역시강서구공유수면점용료·사용료징수조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/부산광역시/부산광역시강서구공유수면점용료·사용료징수조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/울산광역시/울산광역시동구해수욕장관리및운영조례/법률.txt",
+  "local_server/knowledge/legal/raw/_자치법규/울산광역시/울산광역시동구해수욕장관리및운영조례/별표/_links.json",
+  "local_server/knowledge/legal/raw/_자치법규/전북특별자치도/전북특별자치도지역연안관리심의회설치및운영조례/법률.txt"
+ ]
+}

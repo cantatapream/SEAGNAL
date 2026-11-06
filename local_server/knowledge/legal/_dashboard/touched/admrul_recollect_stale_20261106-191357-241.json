@@ -1,0 +1,12 @@
+{
+ "script": "admrul_recollect_stale",
+ "stamp": "20261106-191357-241",
+ "files": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/행정규칙/(완도해양경찰서)유선·도선및유선장·도선장게시사항및게시장소고시에관한고시.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/행정규칙/_admrul.json",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/행정규칙/구조본부구성및운영등에관한규칙.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/행정규칙/_admrul.json",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/행정규칙/어업인확인서발급규정.txt",
+  "local_server/knowledge/legal/raw/12_수산물유통/수산업ㆍ어촌발전기본법/행정규칙/_admrul.json"
+ ]
+}

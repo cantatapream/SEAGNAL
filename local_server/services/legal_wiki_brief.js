@@ -426,10 +426,13 @@ function buildWikiBrief(am, today) {
  *
  * @param {Array<object>} list - 큐 항목들(순서 그대로 쓴다)
  * @param {string} today - `YYYYMMDD`
+ * @param {{skippedApplied?:number}} [opts] - skippedApplied: 위키 반영 완료 장부에 있어 **뺀** 건수(0 이면 안 적는다)
  * @returns {{ok:boolean, text:string, count:number, detailed:number, listed:number, pages:number, error?:string}}
  * [연계] ← routes/legal.js GET /api/legal/amendments/wiki-brief-all.
+ *        → 끝 「해야 할 일」 마지막 단계가 `amend_applied.py` 로 장부에 적게 한다(2026-11-07 — 그래야 다음 지시문에서 빠진다).
  */
-function buildBulkWikiBrief(list, today) {
+function buildBulkWikiBrief(list, today, opts) {
+  const skippedApplied = Number((opts && opts.skippedApplied) || 0);
   const rows = Array.isArray(list) ? list : [];
   if (!rows.length) return { ok: false, text: '', count: 0, detailed: 0, listed: 0, pages: 0, error: '묶을 항목이 없습니다.' };
 
@@ -452,6 +455,8 @@ function buildBulkWikiBrief(list, today) {
   L.push('## 0. 한눈에 보기');
   L.push('');
   L.push(`- 승인 ${rows.length}건 — 그중 **바뀐 조문을 아는 것 ${detail.length}건**(아래 1번에서 건별로 다룬다), 조문 정보가 없는 것 ${brief.length}건(아래 2번 목록).`);
+  // ★뺀 것은 뺐다고 적는다(이 파일 ④ 규칙 — 조용히 줄이면 「다 봤다」고 착각한다).
+  if (skippedApplied) L.push(`- 승인했지만 **이미 위키 반영 완료로 기록된 ${skippedApplied}건은 뺐다**(장부 \`local_server/knowledge/legal/_amendments/wiki_applied.jsonl\`). 그것까지 다시 보려면 관리자 API 에 \`includeApplied=1\` 을 붙인다.`);
   const noText = detail.filter((x) => !x.f.hasText).length;
   if (noText) L.push(`- ⚠ 조문 목록은 있는데 **개정 전/후 본문이 안 담긴 건이 ${noText}건** 있다 — 본문을 받아 오기 전에 감지된 것이다. 관리자 화면에서 「지금 스캔」을 다시 돌린 뒤 이 글을 다시 뽑으면 채워진다.`);
   L.push('');
@@ -521,6 +526,13 @@ function buildBulkWikiBrief(list, today) {
   L.push('   **기준선 대비 나빠진 문항이 0** 이어야 한다. 나빠졌으면 커밋하지 말고 원인을 찾는다.');
   L.push('6. 고친 파일 경로를 **개별 지정해** 커밋한다(`git add -A` 금지). 문서·색인 재생성물을 **같은 커밋**에 담는다.');
   L.push('   건이 많으므로 **법마다 한 커밋**으로 나누는 편이 나중에 되짚기 쉽다.');
+  // ★반영을 끝낸 건을 장부에 적는다(2026-11-07). 작업 세션은 운영 화면의 카드를 못 닫는다 —
+  //   이 장부가 커밋·배포되면 서버가 읽어 다음 「승인분 전체 지시문」에서 그 건을 뺀다.
+  L.push('7. **반영을 끝낸 건을 「위키 반영 완료」 장부에 적고 같은 PR 에 커밋한다.** 이 글을 파일로 저장한 뒤:');
+  L.push('   ```');
+  L.push('   python3 local_server/knowledge/legal/_dashboard/loop/amend_applied.py --from-brief <이 글을 저장한 파일> --note "무엇을 했나 한 줄"');
+  L.push('   ```');
+  L.push('   일부만 끝냈으면 `--ids chg_…,chg_…` 로 **끝낸 건만** 적는다. 적힌 건은 배포 뒤 다음 지시문에서 빠지고, 카드에 「위키 반영 완료」가 붙는다.');
   L.push('');
   L.push(`## ${secDo + 1}. 지키는 규칙`);
   L.push('');
