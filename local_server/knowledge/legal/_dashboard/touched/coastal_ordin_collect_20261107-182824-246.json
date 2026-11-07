@@ -1,0 +1,8 @@
+{
+ "script": "coastal_ordin_collect",
+ "stamp": "20261107-182824-246",
+ "files": [
+  "local_server/knowledge/legal/raw/_자치법규/전북특별자치도/고창군수산업육성및해양수산사업지원에관한조례/법률.txt",
+  "local_server/knowledge/legal/_dashboard/law_raw_paths.json"
+ ]
+}
