@@ -102,6 +102,10 @@ const PICK = (() => {
       path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py'), CDIR, ...CANDS], { encoding: 'utf8' }).trim();
   } catch (_) { return ''; }
 })();
+// ★승격 사전 검사를 넘는 draft 가 **하나도 없으면** 이 절은 건너뛴다고 밝힌다(2026-11-08).
+//   사람 판단 목록 정리로 남은 draft 4쪽이 모두 V5-13 에 걸리는 쪽만 남자, 종전 코드는 CANDS[0] 을 골라
+//   「올림」 문항이 그 쪽의 사전 검사 이유로 깨졌다 — 도구 결함이 아니라 시험 쪽이 없는 것이다.
+const NO_PICK = !PICK;
 const DRAFT = 'concepts/' + (PICK || CANDS[0] || '내수면어업법__공익어업제한취소.md');
 const PP = path.join(__dirname, '../knowledge/legal/_dashboard/loop/promote_page.py');
 const SPEC = path.join(TMP, 'spec.json');
@@ -111,7 +115,8 @@ function pp() {
   catch (e) { return { code: e.status, out: String(e.stdout || '') }; }
 }
 const draftNow = fs.readFileSync(path.join(__dirname, '../knowledge/legal/wiki', DRAFT), 'utf8');
-if (!/^status: draft$/m.test(draftNow)) { console.log('  ⏭️  시험 쪽이 이미 draft 가 아니다 — R6 건너뜀'); }
+if (NO_PICK) { console.log('  ⏭️  승격 사전 검사를 넘는 draft 개념 쪽이 지금 없다 — R6 건너뜀(R6b 는 가상 쪽으로 그대로 잰다)'); }
+else if (!/^status: draft$/m.test(draftNow)) { console.log('  ⏭️  시험 쪽이 이미 draft 가 아니다 — R6 건너뜀'); }
 else {
   ok('장부 기록 없음 → 안 올림', pp().code === 1);
   cli(['add', '--page', DRAFT, '--verdict', 'HOLD', '--reader', 'b2', '--fixer', 'b1']);
