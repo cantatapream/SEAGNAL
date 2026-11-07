@@ -1755,7 +1755,9 @@
    * [연계] ← GET /api/legal/amendments (services/legal_amendment_scanner.js toLegacyEntry 스키마)
    */
   function amendmentCardHTML(am) {
-    var st = am.status === 'approved' ? '<span class="nrya-rv-st nrya-done">✓ 승인·재수집 필요</span>'
+    // ★위키 반영 완료 장부(_amendments/wiki_applied.jsonl, 2026-11-07)에 적힌 건은 그렇게 보인다 — 승인만 된 건과 가른다.
+    var st = (am.status === 'approved' && am.wikiApplied) ? '<span class="nrya-rv-st nrya-done" title="' + esc('위키 반영 완료 ' + (am.wikiApplied.at || '') + ' · ' + (am.wikiApplied.note || '')) + '">✓ 승인·위키 반영 완료</span>'
+      : am.status === 'approved' ? '<span class="nrya-rv-st nrya-done">✓ 승인·재수집 필요</span>'
       : am.status === 'dismissed' ? '<span class="nrya-rv-st nrya-rej">✗ 무시</span>'
       : '<span class="nrya-rv-st nrya-warn">개정 감지</span>';
     var prev = am.이전 || {}; var cur = am.현재 || {};
@@ -2010,6 +2012,7 @@
         if (!d || !d.ok) { fail((d && d.error) || '지시문을 만들지 못했습니다.'); return; }
         renderBriefBox(box, d.text,
           headline +
+          (d.skippedApplied ? ' (이미 <b>위키 반영 완료</b>로 기록된 <b>' + nfmt(d.skippedApplied) + '건</b>은 뺐습니다.)' : '') +
           ' 그중 <b>' + nfmt(d.detailed) + '건</b>은 바뀐 조문까지 적혀 있고, ' +
           '<b>' + nfmt(d.listed) + '건</b>은 비교할 옛 원문이 없어 목록으로만 담았습니다. ' +
           '고칠 위키 후보는 모두 <b>' + nfmt(d.pages) + '쪽</b>입니다. ' +
@@ -2025,7 +2028,7 @@
       if (box && !box.classList.contains('nrya-hidden') && box.dataset.loaded === '1') {
         box.classList.add('nrya-hidden'); return;   // 다시 누르면 접는다
       }
-      loadBulkBrief('?status=approved', '승인된 <b>전 건</b>을 한 덩어리로 묶었습니다.');
+      loadBulkBrief('?status=approved', '승인된 건 중 <b>아직 위키에 반영하지 않은 것</b>을 한 덩어리로 묶었습니다.');
     };
 
     if (allBtn) allBtn.onclick = function () {
