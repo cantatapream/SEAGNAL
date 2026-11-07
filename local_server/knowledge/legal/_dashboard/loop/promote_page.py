@@ -151,7 +151,13 @@ def promote(name, rawdir, cmp2, notcmp, rnd, today, dry):
     head = f'> ✅ **canonical — {today} `_SCHEMA.md` §5-D ⓑ 재점검 1차·2차 통과({rnd}).**'
     body2, n = re.subn(r'^> ⚠️? \*\*draft[^\n]*?\*\*(?:\s*—\s*원문 대조 정정 중\([^)]*\)\.)?', head, body, count=1, flags=re.M)
     if n != 1:
-        return False, '올리지 않음 — draft 배너 머리를 못 찾았다'
+        # ★배너가 **처음부터 없는** draft 도 올린다(2026-11-08). canonical 1,202쪽 중 363쪽이 배너 없이 산다 —
+        #   배너는 필수가 아니다. 거꾸로 배너를 새로 끼우면 본문해시(reread_ledger.js normBody)가 바뀌어
+        #   방금 받은 PASS 와 어긋나 V5-57 이 막는다. 그래서 **본문은 그대로 두고** frontmatter·기록줄만 바꾼다.
+        #   단, 배너 비슷한 줄이 있는데 꼴이 어긋난 경우(「draft」 낱말이 본문 앞쪽 인용줄에 있음)는 예전처럼 막는다.
+        if re.search(r'^>[^\n]*\*\*draft', body, re.M):
+            return False, '올리지 않음 — draft 배너 머리를 못 찾았다'
+        body2 = body
     reader = r.get('읽은이') or '?'
     row = (f'| {today} | {rnd} — draft → canonical 승급(§5-D). ⓐ 챗봇이 확인 안 된 줄로 밀어내는 줄 0개(`markUnresolvedReview()`) · '
            '대기열에서 안 풀린 확인 항목 없음 · 본문에 그림을 글로 옮긴 표시 없음. ⓑ 1차(기계 대조): `_dashboard/loop/draft_verify1.py` 가 본문의 숫자 값을 '
