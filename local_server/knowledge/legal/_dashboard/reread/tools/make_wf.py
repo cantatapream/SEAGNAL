@@ -23,6 +23,7 @@ ap.add_argument('--out', required=True)
 ap.add_argument('--tmp', required=True, help='지적 JSON 을 쓸 임시 폴더(미리 만든다)')
 ap.add_argument('--repo', default=REPO_DEFAULT)
 ap.add_argument('--date', default=None)
+ap.add_argument('--src', default='reread_workflow.js', help='원본 워크플로우(표기 통일은 cfix_workflow.js)')
 a = ap.parse_args()
 
 args = json.load(open(a.plan, encoding='utf-8'))
@@ -30,7 +31,7 @@ args['repo'] = os.path.abspath(a.repo)
 args['tmp'] = os.path.abspath(a.tmp)
 if a.date:
     args['date'] = a.date
-src = open(os.path.join(HERE, 'reread_workflow.js'), encoding='utf-8').read()
+src = open(os.path.join(HERE, a.src), encoding='utf-8').read()
 i = src.index('export const meta')
 j = src.index('\n}\n', i) + 3
 body = re.sub(r'\bargs\.', 'ARGS.', src[j:])
