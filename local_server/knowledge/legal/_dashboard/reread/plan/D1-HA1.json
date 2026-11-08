@@ -1,0 +1,29 @@
+{
+ "repo": "/home/user/SEAGNAL",
+ "round": "D1-HA1",
+ "date": "2026-11-08",
+ "tmp": "/tmp/claude-0/-home-user-SEAGNAL/9842f7fa-de14-5c61-ab72-c3a306a859cc/scratchpad/reread_tmp",
+ "status": "draft",
+ "pages": [
+  {
+   "f": "concepts/항만법__항만시설사용료및감면",
+   "v1": [],
+   "g": [
+    [
+     "정의",
+     "의무 내용 (원문 발췌)"
+    ],
+    [
+     "별표 — 무역항 요트 계류시설",
+     "별표2 — 항만시설사용료별 감"
+    ],
+    [
+     "국가관리항은 규제가 더 센가 ",
+     "관련 개념"
+    ]
+   ]
+  }
+ ],
+ "model": "sonnet",
+ "effort": "medium"
+}

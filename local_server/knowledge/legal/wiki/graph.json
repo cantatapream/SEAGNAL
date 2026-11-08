@@ -9075,7 +9075,7 @@
   {
    "from": "해사안전기본법",
    "to": "선박안전법",
-   "kind": "link"
+   "kind": "cite+link"
   },
   {
    "from": "해사안전기본법",
@@ -9580,7 +9580,7 @@
   {
    "from": "해양경비법",
    "to": "어선법",
-   "kind": "link"
+   "kind": "cite+link"
   },
   {
    "from": "해양경비법",

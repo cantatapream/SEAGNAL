@@ -39,7 +39,8 @@ ok('★꼬리표를 「깨진 것」이라 부르지 않는다', /깨진 건 아
 const none = Number((/❌ 없다\s+(\d+)/.exec(out) || [])[1]);
 const tail = Number((/⚠ 꼬리표\s+(\d+)/.exec(out) || [])[1]);
 ok('두 수가 따로 나온다', Number.isFinite(none) && Number.isFinite(tail), `없다=${none} 꼬리표=${tail}`);
-ok('둘을 더한 값으로 보고하지 않는다(그 값은 89 꼴이 된다)', none !== none + tail);
+// 꼬리표가 0이면(2026-11-08 C1 에서 33쪽을 모두 고쳐 0 이 됐다) 합과 「없다」가 같은 수라 가를 수 없다 — 그때는 이 항목을 따지지 않는다
+ok('둘을 더한 값으로 보고하지 않는다(그 값은 89 꼴이 된다)', tail === 0 || none !== none + tail);
 
 console.log('\n[기준선]');
 const BASE = path.join(LEGAL, '_dashboard', 'loop', 'baseline', 'section_ready.json');

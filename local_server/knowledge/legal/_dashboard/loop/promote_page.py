@@ -61,7 +61,10 @@ def pending_cards(key):
     return out
 
 
-OCR_WORDS = json.load(open(os.path.join(LEGAL, '_dashboard', 'ocr_words.json'), encoding='utf-8'))['낱말']
+_OCR_JSON = json.load(open(os.path.join(LEGAL, '_dashboard', 'ocr_words.json'), encoding='utf-8'))
+OCR_WORDS = _OCR_JSON['낱말']
+# 법령 원문 낱말 예외(2026-11-08 사장님 결정) — 예외 낱말을 지운 뒤에 OCR_WORDS 를 센다(promote_guard.js stripExempt 와 같은 규칙).
+OCR_EXEMPT = _OCR_JSON.get('예외_법령낱말', [])
 RETRIEVER = os.path.normpath(os.path.join(LEGAL, '..', '..', 'services', 'legal_retriever.js'))
 GUARD_MARK = '[미확인 — 아래는 사람 검토가 끝나지 않은 내용이다.'
 
@@ -84,6 +87,8 @@ def guard_reasons(body):
     except FileNotFoundError:
         pass
     no_log = re.sub(r'(^|\n)## 변경 이력[^\n]*\n[\s\S]*?(?=\n## |$)', r'\1', body)
+    for w in OCR_EXEMPT:
+        no_log = no_log.replace(w, '')
     hit = sorted({w for w in OCR_WORDS if w in no_log})
     if hit:
         why.append('ⓐ-2 판독ㆍOCRㆍ출처미확인 신호(본문): ' + ', '.join(hit))

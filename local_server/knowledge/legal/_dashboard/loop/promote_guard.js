@@ -96,9 +96,13 @@ const FIRST_PASS = (() => {
  *  ★2026-10-08(1단계 1-8) — 낱말을 `_dashboard/ocr_words.json` **한 곳**으로 옮겼다. 종전에는 여기와
  *  `draft_verify1.py` 가 다른 낱말로 셌다(여기 「이미지판독·판독 불가」 ↔ 거기 「판독」). 이제 둘이 같은 파일을 읽는다 —
  *  「판독」 이 들면 「이미지판독·판독 불가」 도 든다(넓어진 쪽으로 맞췄다). */
-const OCR_WORDS = new RegExp(JSON.parse(
-  fs.readFileSync(path.join(__dirname, '..', 'ocr_words.json'), 'utf8'))['낱말']
+const OCR_JSON = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'ocr_words.json'), 'utf8'));
+const OCR_WORDS = new RegExp(OCR_JSON['낱말']
   .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'));
+/** 법령 원문 낱말 예외(2026-11-08 사장님 결정) — 「색깔농도비교판독기」 처럼 원문 장비명 안의 「판독」 은 판독 흔적이 아니다.
+ *  예외 낱말을 지운 뒤에 OCR_WORDS 를 센다. 목록은 ocr_words.json 「예외_법령낱말」 (promote_page.py · draft_verify1.py 와 같은 규칙). */
+const OCR_EXEMPT = (OCR_JSON['예외_법령낱말'] || []);
+function stripExempt(t) { return OCR_EXEMPT.reduce((s, w) => s.split(w).join(''), t); }
 
 function sh(cmd) { return execSync(cmd, { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); }
 /**
@@ -163,7 +167,7 @@ for (const p of promoted) {
   //   신호로 잡혀, 원문과 두 번 대조해 맞은 쪽 11쪽이 승급에서 막혔다. 챗봇(`markUnresolvedReview()`
   //   — 이력 표 행은 버린다, §5-D ⓒ-1 G-4)과 1차 자(`draft_verify1.py` body_of)도 이력 칸을 안 본다.
   //   본문·배너에 남은 신호는 그대로 잡는다.
-  const ocr = OCR_WORDS.test(withoutChangelog(body));
+  const ocr = OCR_WORDS.test(stripExempt(withoutChangelog(body)));
   const needsB = NUM_WORDS.test(body);
   // ⓑ 기록줄 — 「변경 이력」 어디든 한 줄에 셋이 다 있으면 된다
   const hasB = l => l.includes('§5-D') && /ⓑ/.test(l) && l.includes('1차')

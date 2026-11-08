@@ -42,7 +42,10 @@ UNITS = ('원', '년', '개월', '월', '일', '시간', '분', '톤', '미터',
 UNIT_ALIAS = {'m': '미터', 'cm': '센티미터', 'mm': '밀리미터', 'km': '킬로미터', 'kg': '킬로그램', '%': '퍼센트',
               '㎡': '제곱미터', 'm²': '제곱미터', '㎥': '세제곱미터', 'kW': '킬로와트', 'ℓ': '리터', 'L': '리터'}
 # ★1-8(2026-10-08) — 판독 신호 낱말은 `_dashboard/ocr_words.json` 한 곳에서 읽는다(promote_guard.js 와 같은 목록).
-SIGNALS = tuple(json.load(open(os.path.join(LEGAL, '_dashboard', 'ocr_words.json'), encoding='utf-8'))['낱말'])
+_OCR_JSON = json.load(open(os.path.join(LEGAL, '_dashboard', 'ocr_words.json'), encoding='utf-8'))
+SIGNALS = tuple(_OCR_JSON['낱말'])
+# 법령 원문 낱말 예외(2026-11-08 사장님 결정, 예: 「색깔농도비교판독기」) — 지운 뒤에 SIGNALS 를 센다(promote_guard.js 와 같은 규칙).
+SIGNAL_EXEMPT = tuple(_OCR_JSON.get('예외_법령낱말', []))
 CONTACTS = os.path.join(LEGAL, '_dashboard', 'contacts_collected.json')
 
 
@@ -237,7 +240,10 @@ def main(argv):
         pend = [r for r in refs if r in open_ids]
         if pend:
             why.append('대기열에서 안 풀린 확인 항목: ' + ', '.join(pend))
-        sig = [s for s in SIGNALS if s in body]
+        body_sig = body
+        for w in SIGNAL_EXEMPT:
+            body_sig = body_sig.replace(w, '')
+        sig = [s for s in SIGNALS if s in body_sig]
         if sig:
             why.append('판독·출처 신호: ' + ', '.join(sig))
         # ★1-8 — 「같은 숫자, 다른 뜻」: 3-92 에서 원문 어디에도 없는 「해양경찰청 ☎ 122」 가 1차를 통과했다
