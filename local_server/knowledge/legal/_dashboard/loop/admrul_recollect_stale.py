@@ -148,6 +148,7 @@ def refresh_file(rel, title, serial, body, info, held_ids, issued_fallback, touc
     #   "ID2100000185240 의 구판"이라는 이름 아래 2100000285128 의 본문이 들어앉는다.
     #   보존본이 보존이 아니게 되고, 나중에 "그때 무엇이 적혀 있었나"를 물을 길이 사라진다.
     #   ⚠이 폴더는 **A-1 이 구버전 판정의 근거로도 읽는다**(held_ids 에 그 ID 가 들어 있다).
+    #   (2026-11-09 부터는 같은 제목에 현행본이 있으면 admrul_fresh.py 가 보존본을 감시에서 빼므로, 그런 제목에서는 held_ids 에 안 들어간다.)
     if os.sep + '_구판' + os.sep in os.sep + rel.replace('/', os.sep):
         return {'title': title, 'file': rel, 'status': '건너뜀(_구판 보존본)'}
     path = rel if os.path.isabs(rel) else os.path.join(ROOT, rel)
