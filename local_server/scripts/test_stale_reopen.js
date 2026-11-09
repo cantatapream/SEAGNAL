@@ -26,6 +26,8 @@
  *     절반만 산다. 새로 나온 카드가 없어도 다시 뜬 것만으로 푸시가 나가야 한다(2026-09-20 보완).
  *  ⑧ 거꾸로 **대기 중인데 이번 점검에서 현행으로 확인된 카드는 자동으로 닫히는지**(2026-11-03 · 3-97,
  *     `closeNowFresh()`). 「확인 못 한 것」(행 없음·응답없음·이름만 같은 문서·사본 중 하나만 새 판)은 닫지 않는다.
+ *  ⑨ 제목이 바뀐 카드(이름바뀜의심)는 **원문 파일 경로**로 짝지어 닫는지, 파일이 없어졌거나 낡은 행에 걸리면 안 닫는지,
+ *     현행본이 따로 있는 보존본은 감시에서 빠지는지(2026-11-09 · 운영 29장 실측).
  *
  * [연계]
  * - services/admrul_fresh_scanner.js → reopenStillStale() · closeNowFresh()
@@ -183,6 +185,54 @@ check('⑧ 자동으로 닫은 카드도 또 낡게 나오면 다시 뜬다', ba
 check('⑧ 점검이 성공한 쪽 행(allRows)으로 자동 닫기를 부르고 그 수를 상태에 적는다',
   /closeNowFresh\(allRows\)/.test(scannerSrc) && /autoClosed: autoClosed\.length/.test(scannerSrc));
 check('⑧ 화면 상태줄이 자동으로 닫은 수를 보여 준다', /last\.autoClosed/.test(clientSrc));
+
+console.log('\n── ⑨ 제목이 바뀐 카드는 원문 파일 경로로 짝지어 닫는가 (2026-11-09) ──');
+// 운영 29장 실측: 이름바뀜의심 카드는 옛 이름으로 적혀 있어, 원문을 새 이름 현행판으로 받아도 제목 열쇠로는 안 닫혔다.
+const P1 = 'raw/15_관련타부처/출입국관리법/행정규칙/외국인자동출입국심사이용대상자등록요건및절차.txt';
+const P2 = 'raw/04_선박해운/항로표지법/행정규칙/항로표지장비및용품의표준화규정.txt';   // 보존본으로 돌려 감시에서 빠진 파일(이번 행에 없다)
+const P3 = 'raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/목포항예선운영세칙.txt';
+const q9 = tmpQueue([
+  { id: 'adf_r1', title: '외국인 자동출입국심사 이용대상자 등록 요건 및 절차', tier: '행정규칙', slug: '', status: 'pending', files: [P1],
+    verdict: '이름바뀜의심', rename_candidates: [{ serial: '2100000286852', title: '외국인의 자동출입국심사 이용대상자 등록 요건 및 절차' }] },
+  { id: 'adf_r2', title: '항로표지 장비 및 용품의 표준화 규정', tier: '행정규칙', slug: '', status: 'pending', files: [P2] },
+  { id: 'adf_r3', title: '옛 이름 두 사본 고시', tier: '행정규칙', slug: '', status: 'pending', files: [P1, P3] },
+  { id: 'adf_r4', title: '파일 칸이 빈 옛 카드', tier: '행정규칙', slug: '', status: 'pending', files: [] },
+]);
+const rows9 = [
+  { title: '외국인의 자동출입국심사 이용대상자 등록 요건 및 절차', verdict: '현행', held_ids: ['2100000286852'],
+    current: { serial: '2100000286852' }, files: [P1] },
+  { title: '목포항 예선운영세칙', verdict: '구버전', held_ids: ['1'], current: { serial: '2' }, files: [P3] },
+];
+const closed9 = fresh.closeNowFresh(rows9, q9);
+const a9 = new Map(queues.readJsonl(q9).map((e) => [e.id, e]));
+check('⑨ 제목이 바뀌었어도 카드 파일이 이번에 현행으로 확인되면 닫는다', (a9.get('adf_r1') || {}).status === 'done',
+  JSON.stringify(closed9));
+check('⑨ 경로로 짝지었다는 사실과 지금 제목이 닫은 이유에 남는다',
+  /원문 파일 경로로 짝지었습니다/.test((a9.get('adf_r1') || {}).auto_close_reason || '')
+  && /외국인의 자동출입국심사/.test((a9.get('adf_r1') || {}).auto_close_reason || ''));
+check('⑨ 카드 파일이 이번 점검에 없으면(대체·삭제) 닫지 않는다 — 수집 누락을 덮지 않는다', (a9.get('adf_r2') || {}).status === 'pending');
+check('⑨ 카드 파일 중 하나라도 아직 낡은 행에 걸리면 닫지 않는다', (a9.get('adf_r3') || {}).status === 'pending');
+check('⑨ 파일 칸이 빈 카드는 경로로 짝짓지 않는다', (a9.get('adf_r4') || {}).status === 'pending');
+// 검토 A-1: 카드 제목의 행이 이번에 「구버전」이면 경로가 현행이어도 닫지 않는다
+const P4 = 'raw/x/행정규칙/새경로.txt', P5 = 'raw/x/행정규칙/옛경로.txt';
+const q9b = tmpQueue([
+  { id: 'adf_r5', title: '제목 T', tier: '행정규칙', slug: '', status: 'pending', files: [P4] },
+  { id: 'adf_r6', title: '옛 제목 A', tier: '행정규칙', slug: '', status: 'pending', files: [P4],
+    verdict: '이름바뀜의심', rename_candidates: [{ serial: '777' }] },
+  { id: 'adf_r7', title: '(부산지방해양수산청) 공유수면 고시', tier: '행정규칙', slug: '', status: 'pending', files: [P5] },
+]);
+fresh.closeNowFresh([
+  { title: "제목 T'", verdict: '현행', held_ids: ['9'], current: { serial: '9' }, files: [P4] },
+  { title: '제목 T', verdict: '구버전', held_ids: ['1'], current: { serial: '2' }, files: [P5 + '.다른'] },
+  { title: '부산지방해양수산청 공유수면 고시', verdict: '현행', held_ids: ['55'], current: { serial: '55' }, files: [P5] },
+], q9b);
+const a9b = new Map(queues.readJsonl(q9b).map((e) => [e.id, e]));
+check('⑨ 카드 제목의 행이 이번에 구버전이면 경로가 현행이어도 닫지 않는다(검토 A-1)', (a9b.get('adf_r5') || {}).status === 'pending');
+check('⑨ 같은 경로에 이름바뀜 후보가 아닌 다른 문서가 들어앉았으면 닫지 않는다(검토 A-2)', (a9b.get('adf_r6') || {}).status === 'pending');
+check('⑨ 제목이 괄호·띄어쓰기만 다르면 후보 번호가 없어도 같은 문서로 보고 닫는다', (a9b.get('adf_r7') || {}).status === 'done');
+const afSrc = fs.readFileSync(path.join(__dirname, '..', 'knowledge', 'legal', '_dashboard', 'loop', 'admrul_fresh.py'), 'utf8');
+check('⑨ 같은 제목에 현행본이 있으면 보존본은 감시에서 뺀다(보존본 옛 번호가 held_ids 에 섞여 영영 안 닫히던 것)',
+  /live = \[f for f in fs_ if not is_archive\(t, f\['path'\]\)\]/.test(afSrc));
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

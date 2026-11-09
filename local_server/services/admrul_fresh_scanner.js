@@ -427,11 +427,19 @@ function reopenStillStale(entries, file = QUEUE_FILE) {
  *   ④ (조례 밖) 우리가 가진 번호 **전부**가 현행 번호와 같지 않다 — 같은 제목 사본이 여러 폴더에 있고
  *      그중 하나만 새 판이면 행 판정은 「현행」이 되지만 나머지 사본은 아직 낡았다.
  *      조례는 번호가 아니라 시행일로 판정하므로(ordin_fresh.py) 판정을 그대로 믿는다.
- * [연계] ← runFreshnessScan · → adminQueues.updateJsonlById(QUEUE_FILE) · 시험 test_stale_reopen.js ⑧
+ *   ⑥ (2026-11-09 덧붙임) ①의 「이름이 바뀌어 다른 제목으로 받은」 경우는 **카드의 raw 파일 경로**로 다시 짝짓는다 —
+ *      카드 파일 전부가 「현행 확인」 행에 들어 있고 확인 못 한 행에는 하나도 안 걸렸을 때만 닫는다.
+ *      파일이 없어졌으면(다른 이름 파일로 대체·삭제) 여전히 닫지 않는다 — 사람이 처리완료로 닫는다.
+ *      카드 제목의 행이 이번에 「현행」이 아니면 경로로도 닫지 않고(A-1), 지금 현행 번호가 카드의 이름바뀜 후보에 없고
+ *      제목도 띄어쓰기·괄호 차이가 아니면 「같은 경로에 다른 문서」일 수 있어 닫지 않는다(A-2, 2026-11-09 독립 검토).
+ *      옛 이름 파일을 「폐지·대체된 구 판본」 보존본으로 돌린 카드는 감시에서 빠져 행도 경로도 없다 — 사람이 처리완료로 닫는다(B-1).
+ * [연계] ← runFreshnessScan · → adminQueues.updateJsonlById(QUEUE_FILE) · 시험 test_stale_reopen.js ⑧·⑨
  */
 function closeNowFresh(rows, file = QUEUE_FILE) {
   const key = (title, tier, slug) => `${tier || '행정규칙'}|${slug || ''}|${title}`;
   const ok = new Map();
+  const okFiles = new Map();   // raw 경로 → 그 파일이 든 「현행 확인」 행 (2026-11-09 — 제목이 바뀐 카드를 경로로 짝짓기)
+  const badFiles = new Set();  // 확인 못 한 행(구버전·응답없음 등)에 걸린 raw 경로
   for (const r of rows || []) {
     if (!r || r.verdict !== '현행' || r.same_name_note) continue;
     const held = r.held_ids || [];
@@ -444,15 +452,45 @@ function closeNowFresh(rows, file = QUEUE_FILE) {
       continue;
     }
     ok.set(key(r.title, r.tier, r.slug), { held, serial });
+    for (const f of r.files || []) okFiles.set(String(f), { held, serial, title: r.title });
   }
+  // ⑥ 이 점검에서 「현행」으로 확인되지 못한 행에 걸린 파일 — 파일 경로로 짝지을 때 하나라도 걸리면 닫지 않는다
+  const seenKeys = new Set();  // 이번 보고서에 행이 있는 열쇠 전부(현행 확인 여부와 무관)
+  for (const r of rows || []) {
+    if (!r) continue;
+    const k = key(r.title, r.tier, r.slug);
+    seenKeys.add(k);
+    if (!ok.has(k)) for (const f of r.files || []) badFiles.add(String(f));
+  }
+  // 제목에서 띄어쓰기·괄호·가운뎃점 등을 걷어 낸 꼴 — 「괄호만 빠진」 이름 바뀜을 같은 문서로 본다(검토 A-2)
+  const norm = (t) => String(t || '').replace(/[\s()（）「」『』\[\]·ㆍ・,.\-–—]/g, '');
   if (!ok.size) return [];
   const closed = [];
   const seen = new Set();   // 같은 id 줄이 둘이면 updateJsonlById 가 한 번에 다 고친다 — 수를 두 번 세지 않는다(검토 C-1)
   for (const e of adminQueues.readJsonl(file)) {
     if (!e || !e.id || seen.has(e.id) || (e.status || 'pending') !== 'pending') continue;
     seen.add(e.id);
-    const hit = ok.get(key(e.title, e.tier, e.slug));
-    if (!hit) continue;
+    let hit = ok.get(key(e.title, e.tier, e.slug));
+    let byPath = null;
+    if (!hit) {
+      // ⑥ 제목으로 짝이 없으면 **카드가 가리키는 raw 파일 경로**로 짝짓는다(2026-11-09 사장님 「추천대로」).
+      //   이름바뀜의심 카드는 옛 이름으로 적혀 있어, 원문을 새 이름 현행판으로 다시 받아도 제목 열쇠로는 영영 안 닫혔다
+      //   (운영 29장 실측: 「외국인 자동출입국심사…」 카드 ↔ 지금 「외국인의 자동출입국심사…」).
+      //   카드의 파일 **전부**가 이번 점검의 「현행 확인」 행에 들어 있고, 확인 못 한 행에는 하나도 안 걸렸을 때만 닫는다.
+      //   파일이 없어졌거나(대체·삭제) 경로가 비면 닫지 않는다 — 수집 누락을 기계가 「고쳐졌다」로 덮지 않게.
+      // 검토 A-1: 카드 제목의 행이 이번 보고서에 있는데 「현행 확인」이 아니면(구버전·응답없음 등) 경로로도 닫지 않는다
+      //   — 카드 files 는 만들 때 값이라, 같은 제목의 낡은 사본이 다른 경로에 생기면 경로만 보고 닫을 수 있었다.
+      if (seenKeys.has(key(e.title, e.tier, e.slug))) continue;
+      const fs_ = (e.files || []).map(String);
+      if (!fs_.length || fs_.some((f) => !okFiles.has(f) || badFiles.has(f))) continue;
+      const first = okFiles.get(fs_[0]);
+      // 검토 A-2: 같은 경로에 **다른 문서**가 들어앉았을 수 있다 — 지금 현행 번호가 카드의 이름바뀜 후보 안에 있거나,
+      //   제목이 띄어쓰기·괄호만 다를 때만 같은 문서로 본다. 아니면 사람이 확인한다(처리완료).
+      const cands = (e.rename_candidates || []).map((c) => String((c || {}).serial || '')).filter(Boolean);
+      if (!cands.includes(String(first.serial)) && norm(first.title) !== norm(e.title)) continue;
+      hit = { held: first.held, serial: first.serial };
+      byPath = first.title;
+    }
     const now = new Date().toISOString();
     adminQueues.updateJsonlById(file, e.id, {
       status: 'done',
@@ -460,7 +498,8 @@ function closeNowFresh(rows, file = QUEUE_FILE) {
       decidedAt: now,
       auto_closed: true,
       auto_close_reason: `이번 점검에서 우리 사본이 현행으로 확인돼 자동으로 닫았습니다`
-        + (hit.serial ? `(보유 ${hit.held.join(',')} = 현행 ${hit.serial})` : '') + '.',
+        + (hit.serial ? `(보유 ${hit.held.join(',')} = 현행 ${hit.serial})` : '')
+        + (byPath ? ` — 카드 제목과 지금 제목(「${byPath}」)이 달라 원문 파일 경로로 짝지었습니다` : '') + '.',
     });
     closed.push(e.id);
   }

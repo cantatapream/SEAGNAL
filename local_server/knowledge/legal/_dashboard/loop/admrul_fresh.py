@@ -317,6 +317,14 @@ def main():
                 if all(is_archive(t, f['path']) for f in fs_)]
     for t in archived:
         by_title.pop(t)
+    # ★같은 제목에 현행본과 보존본이 함께 있으면 **보존본은 감시에서 뺀다**(2026-11-09 사장님 「추천대로」).
+    #   종전에는 「모두 보존본」일 때만 뺐다. 원주청 통합고시처럼 현행본(…통합고시.txt)과 보존본(…_구판전사.txt)이
+    #   같은 제목이면 보존본의 옛 일련번호가 held_ids 에 섞여, 판정은 「현행」인데 카드 자동 닫기(closeNowFresh —
+    #   「가진 번호 전부 = 현행 번호」)가 영영 안 됐다. 보존본은 낡은 것이 정상이므로 현행 판정의 재료가 아니다.
+    for t, fs_ in list(by_title.items()):
+        live = [f for f in fs_ if not is_archive(t, f['path'])]
+        if live and len(live) < len(fs_):
+            by_title[t] = live
     if archived:
         print('보존본이라 제외 %d건 (낡은 것이 정상 — 파일이 스스로 밝힘):' % len(archived))
         for t in archived:
