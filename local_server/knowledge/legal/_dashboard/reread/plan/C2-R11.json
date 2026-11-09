@@ -1,0 +1,17 @@
+{
+ "repo": "/home/user/SEAGNAL",
+ "round": "C2-R11",
+ "date": "2026-11-08",
+ "tmp": "/tmp/claude-0/-home-user-SEAGNAL/9842f7fa-de14-5c61-ab72-c3a306a859cc/scratchpad/reread_tmp",
+ "base": "2e7180eeb846c3f1f356e418a7d0a3396c3b21c5",
+ "model": "sonnet",
+ "effort": "medium",
+ "pages": [
+  {
+   "f": "concepts/선박직원법__자동화선박",
+   "items": [
+    "적용범위 표 첫 행 제외 대상 칸 괄호 「…제3조의2에는 이 문언이 없고, 제④항 인정서 반납 의무와…」 / 원문: raw 선박직원법 시행령.txt 제3조의2 ④(인정서 반납) / 「제④항」은 어느 조의 항인지 없는 표기 — 「제3조의2제4항」으로 적는다"
+   ]
+  }
+ ]
+}
