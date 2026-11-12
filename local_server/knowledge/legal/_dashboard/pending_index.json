@@ -265,20 +265,6 @@
    }
   }
  ],
- "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법": [
-  {
-   "date": "20261113",
-   "files": [
-    "법률.txt"
-   ],
-   "mst": {
-    "법률.txt": "285945"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_568a83"
-   }
-  }
- ],
  "local_server/knowledge/legal/raw/08_섬영토/섬발전촉진법": [
   {
    "date": "20261203",
@@ -377,21 +363,6 @@
  ],
  "local_server/knowledge/legal/raw/10_항만물류/항만법": [
   {
-   "date": "20261113",
-   "files": [
-    "법률.txt",
-    "시행규칙.txt"
-   ],
-   "mst": {
-    "법률.txt": "285879",
-    "시행규칙.txt": "291617"
-   },
-   "queue_id": {
-    "법률.txt": "chg_20260810_5f9b0e",
-    "시행규칙.txt": "chg_20261104_92ef83"
-   }
-  },
-  {
    "date": "20271028",
    "files": [
     "법률.txt"
@@ -481,6 +452,30 @@
   }
  ],
  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법": [
+  {
+   "date": "20261210",
+   "files": [
+    "시행규칙.txt"
+   ],
+   "mst": {
+    "시행규칙.txt": "291947"
+   },
+   "queue_id": {
+    "시행규칙.txt": "chg_20261113_d3ea9f"
+   }
+  },
+  {
+   "date": "20270101",
+   "files": [
+    "시행규칙.txt"
+   ],
+   "mst": {
+    "시행규칙.txt": "291947"
+   },
+   "queue_id": {
+    "시행규칙.txt": "chg_20261113_7db899"
+   }
+  },
   {
    "date": "20270108",
    "files": [

@@ -1,154 +1,81 @@
 {
- "ran_at": "2026-11-12 12:46 KST",
- "source": "인계문 /tmp/claude-0/-home-user-SEAGNAL/9842f7fa-de14-5c61-ab72-c3a306a859cc/scratchpad/brief_1112b.md",
+ "ran_at": "2026-11-13 01:11 KST",
+ "source": "인계문 /tmp/claude-0/-home-user-SEAGNAL/9842f7fa-de14-5c61-ab72-c3a306a859cc/scratchpad/brief_1113.md",
  "summary": {
   "법령": {
-   "수집": 8
+   "수집": 2,
+   "이미 현행": 3
   },
   "행정규칙": {
-   "수집": 4,
-   "이미 현행": 2,
-   "보류": 3
+   "이미 있음": 1,
+   "수집": 2
   }
  },
  "results": [
   {
-   "id": "chg_20261104_92ef83",
+   "id": "chg_20261113_7db899",
    "kind": "law_pending",
    "layer": "시행규칙",
-   "title": "항만법",
-   "status": "수집",
-   "note": "✓ 수집 항만법 시행규칙 시행 20261113 MST 291617 → local_server/knowledge/legal/raw/10_항만물류/항만법/_대기/20261113/시행규칙.txt (19,759자)"
-  },
-  {
-   "id": "chg_20261105_a0ede9",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "서해지방해양경찰청과 그 소속기관 위임전결 규칙",
-   "status": "수집",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/서해지방해양경찰청과그소속기관위임전결규칙.txt · 별표: 새로썼다 3"
-  },
-  {
-   "id": "chg_20261105_6c4f3b",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "서해지방해양경찰청과 그 소속기관 사무분장 규칙",
-   "status": "수집",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/서해지방해양경찰청과그소속기관사무분장규칙.txt · 별표: 새로썼다 2"
-  },
-  {
-   "id": "chg_20261105_c5cd5f",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "(완도해양경찰서)해양레저활동 허가필요수역 고시",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261105_cf88d1",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "(완도해양경찰서)유선ㆍ도선 및 유선장ㆍ도선장 게시사항 및 게시장소 고시에 관한 고시",
-   "status": "보류(여러 고시를 묶은 파일 — 그 고시 칸만 사람이 고친다)",
-   "note": "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/행정규칙/유도선_게시사항_게시장소_고시_15개관할서.txt"
-  },
-  {
-   "id": "chg_20261105_bbd795",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "구조본부 구성 및 운영 등에 관한 규칙",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261106_06fb6e",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "지리적표시품 사후관리 요령",
-   "status": "수집",
-   "note": "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/지리적표시품사후관리요령.txt · 별표: 새로썼다 15"
-  },
-  {
-   "id": "chg_20261111_a8a987",
-   "kind": "law_amended",
-   "layer": "시행령",
-   "title": "마리나항만의 조성 및 관리 등에 관한 법률",
-   "status": "수집",
-   "note": "갱신"
-  },
-  {
-   "id": "chg_20261111_72eef4",
-   "kind": "law_amended",
-   "layer": "시행령",
-   "title": "양식산업발전법",
-   "status": "수집",
-   "note": "갱신"
-  },
-  {
-   "id": "chg_20261111_2861ef",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "자연유산의 보존 및 활용에 관한 법률",
-   "status": "수집",
-   "note": "갱신"
-  },
-  {
-   "id": "chg_20261111_0d572c",
-   "kind": "law_pending",
-   "layer": "시행령",
    "title": "폐기물관리법",
    "status": "수집",
-   "note": "✓ 수집 폐기물관리법 시행령 시행 20270108 MST 291813 → local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20270108/시행령.txt (50,151자)",
+   "note": "✓ 수집 폐기물관리법 시행규칙 시행 20270101 MST 291947 → local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20270101/시행규칙.txt (147,664자)"
+  },
+  {
+   "id": "chg_20261113_d3ea9f",
+   "kind": "law_pending",
+   "layer": "시행규칙",
+   "title": "폐기물관리법",
+   "status": "수집",
+   "note": "✓ 수집 폐기물관리법 시행규칙 시행 20261210 MST 291947 → local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20261210/시행규칙.txt (147,664자)",
    "staged": true
   },
   {
-   "id": "chg_20261111_4b0c59",
-   "kind": "law_pending",
+   "id": "chg_20261113_4bdbc9",
+   "kind": "law_amended",
+   "layer": "시행규칙",
+   "title": "폐기물관리법",
+   "status": "이미 현행",
+   "note": "MST 291947"
+  },
+  {
+   "id": "chg_20261113_ee5fe9",
+   "kind": "law_amended",
    "layer": "시행령",
    "title": "폐기물관리법",
-   "status": "수집",
-   "note": "✓ 수집 폐기물관리법 시행령 시행 20261112 MST 291813 → local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20261112/시행령.txt (50,151자)",
-   "staged": true
+   "status": "이미 현행",
+   "note": "MST 291813"
   },
   {
-   "id": "chg_20261111_0b313a",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "어업의 손실액 조사기관 지정",
-   "status": "보류(본문축소)",
-   "note": "옛 판번호 2100000257202 로 찾은 1파일 — 보류(본문축소) local_server/knowledge/legal/raw/05_수산어업/수산업법/행정규칙/어업의손실액조사기관지정.txt"
+   "id": "chg_20261113_1686be",
+   "kind": "law_amended",
+   "layer": "법률",
+   "title": "폐기물관리법",
+   "status": "이미 현행",
+   "note": "MST 279797"
   },
   {
-   "id": "chg_20261111_0091c9",
+   "id": "chg_20261113_4fe626",
    "kind": "admrul_unknown_new",
    "layer": "행정규칙",
-   "title": "석면해체작업감리인 평가 등에 관한 고시",
-   "status": "수집",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/석면해체작업감리인평가등에관한고시.txt · 별표: 새로썼다 6"
+   "title": "내항화물운송사업자 유가보조금 지급지침",
+   "status": "이미 있음",
+   "note": "local_server/knowledge/legal/raw/04_선박해운/해운법/행정규칙/내항화물운송사업자유류세보조금지급지침.txt"
   },
   {
-   "id": "chg_20261112_77ea7e",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "수상레저안전법",
-   "status": "수집",
-   "note": "갱신"
-  },
-  {
-   "id": "chg_20261112_38fa52",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "수상에서의 수색ㆍ구조 등에 관한 법률",
-   "status": "수집",
-   "note": "갱신"
-  },
-  {
-   "id": "chg_20261112_f9fb2d",
+   "id": "chg_20261113_82f762",
    "kind": "admrul_unknown_new",
    "layer": "행정규칙",
-   "title": "법무부 공무원 행동강령",
-   "status": "보류(같은 제목 파일이 있다 — 그 파일의 새 판인지 사람이 확인)",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/행정규칙/법무부공무원행동강령.txt"
+   "title": "전원개발사업 실시계획 승인(하동복합 발전소 건설사업)",
+   "status": "수집",
+   "note": "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/행정규칙/전원개발사업실시계획승인(하동복합발전소건설사업).txt · 별표: 별표없음 1"
+  },
+  {
+   "id": "chg_20261113_62fc2a",
+   "kind": "admrul_unknown_new",
+   "layer": "행정규칙",
+   "title": "국립환경과학원 배출영향분석 검토 및 처리 등에 관한 규정",
+   "status": "수집",
+   "note": "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/국립환경과학원배출영향분석검토및처리등에관한규정.txt · 별표: 새로썼다 2"
   }
  ]
 }

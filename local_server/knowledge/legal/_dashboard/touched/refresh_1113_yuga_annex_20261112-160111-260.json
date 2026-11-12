@@ -1,0 +1,10 @@
+{
+ "script": "refresh_1113_yuga_annex",
+ "stamp": "20261112-160111-260",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/별표/내항화물운송사업자유가보조금지급지침_별지1.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/별표/내항화물운송사업자유가보조금지급지침_별지2.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/별표/내항화물운송사업자유가보조금지급지침_별지3.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/해운법/별표/내항화물운송사업자유가보조금지급지침_별지4.txt"
+ ]
+}
