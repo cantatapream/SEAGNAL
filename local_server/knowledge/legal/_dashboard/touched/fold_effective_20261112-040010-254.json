@@ -1,0 +1,15 @@
+{
+ "script": "fold_effective",
+ "stamp": "20261112-040010-254",
+ "files": [
+  "local_server/knowledge/legal/_legacy/raw/15_관련타부처/폐기물관리법/법률_시행20260918_MST284397.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/법률.txt",
+  "local_server/knowledge/legal/_legacy/raw/15_관련타부처/폐기물관리법/시행령_시행20260326_MST284591.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/시행령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json",
+  "local_server/knowledge/legal/wiki/concepts/폐기물관리법__수산부산물조개껍데기투기.md",
+  "local_server/knowledge/legal/wiki/concepts/폐기물관리법__폐기물처리업허가와취소.md",
+  "local_server/knowledge/legal/wiki/statutes/폐기물관리법.md"
+ ]
+}
