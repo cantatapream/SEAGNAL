@@ -1,40 +1,4 @@
 {
-  "시행령 별표 1": {
-    "제목": "안전점검의 실시 시기(제26조의2제2항 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445659",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445663",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445665"
-    ],
-    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162761907"
-  },
-  "시행령 별표 1의2": {
-    "제목": "마리나업의 등록기준(제32조의2제1항 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445667",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445671",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445673"
-    ],
-    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162761915"
-  },
-  "시행령 별표 1의3": {
-    "제목": "마리나선박 정비사의 자격취소 및 자격정지처분의 세부기준(제32조의8 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445675",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445679"
-    ],
-    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162761923"
-  },
-  "시행령 별표 2": {
-    "제목": "과태료의 부과기준(제36조 관련)",
-    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445681",
-    "이미지": [
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445685",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445687",
-      "https://www.law.go.kr/LSW/flDownload.do?flSeq=162445689"
-    ],
-    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=162761929"
-  },
   "시행규칙 별표 1": {
     "제목": "마리나업 등록취소 및 영업정지 기준(제28조 관련)",
     "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668675",
@@ -382,5 +346,41 @@
       "https://www.law.go.kr/LSW/flDownload.do?flSeq=150668969"
     ],
     "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=150675173"
+  },
+  "시행령 별표 1": {
+    "제목": "안전점검의 실시 시기(제26조의2제2항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171533",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171535",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171537",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171659"
+    ]
+  },
+  "시행령 별표 1의2": {
+    "제목": "마리나업의 등록기준(제32조의2제1항 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171661",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171663",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171665",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171667"
+    ]
+  },
+  "시행령 별표 1의3": {
+    "제목": "마리나선박 정비사의 자격취소 및 자격정지처분의 세부기준(제32조의8 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171669",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171671",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171673"
+    ]
+  },
+  "시행령 별표 2": {
+    "제목": "과태료의 부과기준(제36조 관련)",
+    "HWP": "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171675",
+    "PDF": "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171677",
+    "이미지": [
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171679",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171681",
+      "https://www.law.go.kr/LSW/flDownload.do?flSeq=171171683"
+    ]
   }
 }

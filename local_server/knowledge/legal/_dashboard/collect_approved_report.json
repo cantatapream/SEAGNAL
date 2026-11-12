@@ -1,1311 +1,154 @@
 {
- "ran_at": "2026-11-07 03:11 KST",
- "source": "인계문 /tmp/claude-0/-home-user-SEAGNAL/59512001-0bf1-56b4-9013-6b79b7c9eb4f/scratchpad/brief162_full.md",
+ "ran_at": "2026-11-12 12:46 KST",
+ "source": "인계문 /tmp/claude-0/-home-user-SEAGNAL/9842f7fa-de14-5c61-ab72-c3a306a859cc/scratchpad/brief_1112b.md",
  "summary": {
   "법령": {
-   "이미 현행": 46,
-   "받을 원문 없음": 4,
-   "이미 있음": 37,
-   "실패": 1
+   "수집": 8
   },
   "행정규칙": {
-   "이미 현행": 20,
-   "보류": 10,
-   "이미 있음": 44
+   "수집": 4,
+   "이미 현행": 2,
+   "보류": 3
   }
  },
  "results": [
   {
-   "id": "chg_20260810_a5f82d",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "공유수면 관리 및 매립에 관한 법률",
-   "status": "이미 현행",
-   "note": "시행일(20260918)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 284343 · 시행 20260918)"
-  },
-  {
-   "id": "chg_20260810_d57609",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "공유수면 관리 및 매립에 관한 법률",
-   "status": "이미 현행",
-   "note": "시행일(20260917)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 284343 · 시행 20260918)"
-  },
-  {
-   "id": "chg_20260810_48b0f6",
-   "kind": "law_dept_changed",
-   "layer": "법률",
-   "title": "농수산물의 원산지 표시 등에 관한 법률",
-   "status": "받을 원문 없음(이름·부처만 바뀜 — 위키·_meta 를 사람이 고친다)"
-  },
-  {
-   "id": "chg_20260810_acbe7f",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "농수산물의 원산지 표시 등에 관한 법률",
-   "status": "이미 현행",
-   "note": "시행일(20261022)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 285491 · 시행 20261022)"
-  },
-  {
-   "id": "chg_20260810_6ffc91",
-   "kind": "law_dept_changed",
-   "layer": "법률",
-   "title": "농수산물 품질관리법",
-   "status": "받을 원문 없음(이름·부처만 바뀜 — 위키·_meta 를 사람이 고친다)"
-  },
-  {
-   "id": "chg_20260810_f5ffc2",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "농수산물 품질관리법",
-   "status": "이미 현행",
-   "note": "시행일(20260827)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 273431 · 시행 20260827)"
-  },
-  {
-   "id": "chg_20260810_eea555",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수산업법",
-   "status": "이미 현행",
-   "note": "시행일(20261022)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 285535 · 시행 20261022)"
-  },
-  {
-   "id": "chg_20260810_3dc6ea",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수산자원관리법",
-   "status": "이미 있음",
-   "note": "= 수산자원관리법 법률 20270401 — 이미 있음(MST 285169)"
-  },
-  {
-   "id": "chg_20260810_7d4459",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수산자원관리법",
-   "status": "이미 현행",
-   "note": "시행일(20260918)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 284375 · 시행 20260918)"
-  },
-  {
-   "id": "chg_20260810_34f3e0",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "양식산업발전법",
-   "status": "이미 있음",
-   "note": "= 양식산업발전법 법률 20261231 — 이미 있음(MST 281971)"
-  },
-  {
-   "id": "chg_20260810_5cedf5",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "양식산업발전법",
-   "status": "이미 현행",
-   "note": "시행일(20261001)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 285151 · 시행 20261001)"
-  },
-  {
-   "id": "chg_20260810_bc2810",
+   "id": "chg_20261104_92ef83",
    "kind": "law_pending",
    "layer": "시행규칙",
-   "title": "어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 어선안전조업및어선원의안전ㆍ보건증진등에관한법률 시행규칙 20270101 — 이미 있음(MST 285749)"
-  },
-  {
-   "id": "chg_20260810_5373b9",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "어선원 및 어선 재해보상보험법",
-   "status": "이미 현행",
-   "note": "시행일(20260911)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 283875 · 시행 20260911)"
-  },
-  {
-   "id": "chg_20260810_1652b0",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "어촌ㆍ어항법",
-   "status": "이미 있음",
-   "note": "= 어촌ㆍ어항법 법률 20270422 — 이미 있음(MST 285483)"
-  },
-  {
-   "id": "chg_20260810_8f2794",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "원양산업발전법",
-   "status": "이미 현행",
-   "note": "시행일(20260918)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 284315 · 시행 20260918)"
-  },
-  {
-   "id": "chg_20260810_5f9b0e",
-   "kind": "law_pending",
-   "layer": "법률",
    "title": "항만법",
-   "status": "이미 있음",
-   "note": "= 항만법 법률 20261113 — 이미 있음(MST 285879)"
+   "status": "수집",
+   "note": "✓ 수집 항만법 시행규칙 시행 20261113 MST 291617 → local_server/knowledge/legal/raw/10_항만물류/항만법/_대기/20261113/시행규칙.txt (19,759자)"
   },
   {
-   "id": "chg_20260810_18e609",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "항만운송사업법",
-   "status": "이미 현행",
-   "note": "시행일(20260813)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 285943 · 시행 20260813)"
+   "id": "chg_20261105_a0ede9",
+   "kind": "admrul_unknown_new",
+   "layer": "행정규칙",
+   "title": "서해지방해양경찰청과 그 소속기관 위임전결 규칙",
+   "status": "수집",
+   "note": "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/서해지방해양경찰청과그소속기관위임전결규칙.txt · 별표: 새로썼다 3"
   },
   {
-   "id": "chg_20260810_568a83",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "해양폐기물 및 해양오염퇴적물 관리법",
-   "status": "이미 있음",
-   "note": "= 해양폐기물및해양오염퇴적물관리법 법률 20261113 — 이미 있음(MST 285945)"
+   "id": "chg_20261105_6c4f3b",
+   "kind": "admrul_unknown_new",
+   "layer": "행정규칙",
+   "title": "서해지방해양경찰청과 그 소속기관 사무분장 규칙",
+   "status": "수집",
+   "note": "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/서해지방해양경찰청과그소속기관사무분장규칙.txt · 별표: 새로썼다 2"
   },
   {
-   "id": "chg_20260810_cbc85e",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "해양환경관리법",
-   "status": "이미 현행",
-   "note": "시행일(20260828)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 283747 · 시행 20260828)"
-  },
-  {
-   "id": "chg_20260810_500a98",
-   "kind": "law_pending",
-   "layer": "시행규칙",
-   "title": "해양환경관리법",
-   "status": "이미 현행",
-   "note": "시행일(20260828)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 291059 · 시행 20261006)"
-  },
-  {
-   "id": "chg_20260810_6e733c",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "폐기물관리법",
-   "status": "이미 있음",
-   "note": "= 폐기물관리법 법률 20270708 — 이미 있음(MST 288005)"
-  },
-  {
-   "id": "chg_20260810_1497a1",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "폐기물관리법",
-   "status": "이미 있음",
-   "note": "= 폐기물관리법 법률 20270108 — 이미 있음(MST 288005)"
-  },
-  {
-   "id": "chg_20260810_a1d108",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "폐기물관리법",
-   "status": "이미 있음",
-   "note": "= 폐기물관리법 법률 20261112 — 이미 있음(MST 279797)"
-  },
-  {
-   "id": "chg_20260810_9a074a",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "폐기물관리법",
-   "status": "이미 현행",
-   "note": "시행일(20260918)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 284397 · 시행 20260918)"
-  },
-  {
-   "id": "chg_20260810_a4fb3d",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "폐기물관리법",
-   "status": "이미 현행",
-   "note": "시행일(20260820)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 284397 · 시행 20260918)"
-  },
-  {
-   "id": "chg_20260810_1d3c3e",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "연안사고 예방에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 연안사고예방에관한법률 법률 20270513 — 이미 있음(MST 285973)"
-  },
-  {
-   "id": "chg_20260810_ab2051",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "섬 발전 촉진법",
-   "status": "이미 있음",
-   "note": "= 섬발전촉진법 법률 20261203 — 이미 있음(MST 286351)"
-  },
-  {
-   "id": "chg_20260810_9ab9b3",
-   "kind": "law_pending",
-   "layer": "시행규칙",
-   "title": "유선 및 도선 사업법",
-   "status": "이미 현행",
-   "note": "시행일(20260830)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 291089 · 시행 20261008)"
-  },
-  {
-   "id": "chg_20260810_da7c81",
+   "id": "chg_20261105_c5cd5f",
    "kind": "admrul_amended",
    "layer": "행정규칙",
-   "title": "포항항선박안전운항관리규정",
+   "title": "(완도해양경찰서)해양레저활동 허가필요수역 고시",
    "status": "이미 현행",
    "note": "1파일"
   },
   {
-   "id": "chg_20260810_e41a7e",
+   "id": "chg_20261105_cf88d1",
    "kind": "admrul_amended",
    "layer": "행정규칙",
-   "title": "(원주지방환경청) 공공폐수처리시설 기본계획 통합고시",
-   "status": "이미 현행",
-   "note": "옛 번호는 구판 보존본에만 있다 — 현행본 local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/(원주지방환경청)공공폐수처리시설기본계획통합고시_2026-147호_구판전사.txt"
+   "title": "(완도해양경찰서)유선ㆍ도선 및 유선장ㆍ도선장 게시사항 및 게시장소 고시에 관한 고시",
+   "status": "보류(여러 고시를 묶은 파일 — 그 고시 칸만 사람이 고친다)",
+   "note": "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/행정규칙/유도선_게시사항_게시장소_고시_15개관할서.txt"
   },
   {
-   "id": "chg_20260810_2cd69d",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "(해양경찰청) 범죄수사규칙",
-   "status": "보류(같은 제목 파일이 있다 — 그 파일의 새 판인지 사람이 확인)",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법/행정규칙/(해양경찰청)범죄수사규칙.txt"
-  },
-  {
-   "id": "chg_20260810_7f9084",
+   "id": "chg_20261105_bbd795",
    "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "임해 중요시설 지정 고시",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20260810_13e58c",
-   "kind": "admrul_unknown_new",
    "layer": "행정규칙",
    "title": "구조본부 구성 및 운영 등에 관한 규칙",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/행정규칙/구조본부구성및운영등에관한규칙.txt"
-  },
-  {
-   "id": "chg_20260810_109006",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "해양경찰 무인비행장치 운용 및 관리에 관한 규칙",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/해양경비법/행정규칙/해양경찰무인비행장치운용및관리에관한규칙.txt"
-  },
-  {
-   "id": "chg_20260810_d68008",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "연안체험활동 안전교육 위탁기관 및 위탁업무의 범위에 관한 고시",
    "status": "이미 현행",
    "note": "1파일"
   },
   {
-   "id": "chg_20260810_554140",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "(태안해양경찰서) 수상레저활동 금지구역 지정 고시",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20260810_8614d9",
+   "id": "chg_20261106_06fb6e",
    "kind": "admrul_unknown_new",
    "layer": "행정규칙",
-   "title": "(동해해양경찰서) 울릉권 방파제 테트라포드 출입통제장소 지정 고시",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/(동해해양경찰서)울릉권방파제_출입통제장소.txt"
+   "title": "지리적표시품 사후관리 요령",
+   "status": "수집",
+   "note": "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/지리적표시품사후관리요령.txt · 별표: 새로썼다 15"
   },
   {
-   "id": "chg_20260824_97d70b",
-   "kind": "law_pending",
-   "layer": "시행령",
-   "title": "신항만건설 촉진법",
-   "status": "이미 현행",
-   "note": "시행일(20260918)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 288895 · 시행 20260918)"
-  },
-  {
-   "id": "chg_20260824_6e8a5a",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "폐기물관리법",
-   "status": "이미 현행(우리 사본이 더 새 판)",
-   "note": "MST 284397 · 시행 20260918 > 큐 20260820"
-  },
-  {
-   "id": "chg_20260824_b89057",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "양식산업발전법",
-   "status": "이미 있음",
-   "note": "= 양식산업발전법 법률 20270212 — 이미 있음(MST 288737)"
-  },
-  {
-   "id": "chg_20260824_48ecc4",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "낚시어선업의 공동영업구역 지정 고시",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/09_레저관광/낚시관리및육성법/행정규칙/낚시어선업의공동영업구역지정고시.txt"
-  },
-  {
-   "id": "chg_20260824_ec2fae",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "해운법 시행규칙에 따라 정하는 내항해운에 관한 고시",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20260824_e1d299",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "유역관리업무지침",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/유역관리업무지침.txt"
-  },
-  {
-   "id": "chg_20260824_422199",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "재난안전의무보험의 관리ㆍ운용 등에 관한 업무기준",
-   "status": "보류(관련 법 12개 — 둘 폴더를 사람이 정한다: --place chg_20260824_422199=<법slug>)",
-   "note": "국제항해선박등에대한해적행위피해예방에관한법률 · 낚시관리및육성법 · 마리나항만의조성및관리등에관한법률 · 선원법 · 수상레저안전법 · 수상에서의수색ㆍ구조등에관한법률 · 어선원및어선재해보상보험법 · 연안사고예방에관한법률 · 유류오염손해배상보장법 · 유선및도선사업법 · 항로표지법 · 해운법"
-  },
-  {
-   "id": "chg_20261007_73b333",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "폐기물관리법",
-   "status": "이미 현행",
-   "note": "MST 290881"
-  },
-  {
-   "id": "chg_20261007_c1635f",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "해양환경관리법",
-   "status": "이미 현행",
-   "note": "MST 291059"
-  },
-  {
-   "id": "chg_20261007_19c3fd",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "선원법",
-   "status": "이미 현행(우리 사본이 더 새 판)",
-   "note": "MST 291275 · 시행 20261027 > 큐 20261002"
-  },
-  {
-   "id": "chg_20261007_85b810",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "양식산업발전법",
-   "status": "이미 현행",
-   "note": "MST 285151"
-  },
-  {
-   "id": "chg_20261007_bcd2bf",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "출입국관리법",
-   "status": "이미 현행",
-   "note": "MST 290729"
-  },
-  {
-   "id": "chg_20261007_ef1475",
+   "id": "chg_20261111_a8a987",
    "kind": "law_amended",
    "layer": "시행령",
-   "title": "출입국관리법",
-   "status": "이미 현행",
-   "note": "MST 290501"
-  },
-  {
-   "id": "chg_20261007_48b720",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "해양경찰법",
-   "status": "이미 현행",
-   "note": "MST 290627"
-  },
-  {
-   "id": "chg_20261007_1bd6de",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "공유수면 관리 및 매립에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 공유수면관리및매립에관한법률 법률 20270323 — 이미 있음(MST 289931)"
-  },
-  {
-   "id": "chg_20261007_13ede5",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "낚시 관리 및 육성법",
-   "status": "이미 있음",
-   "note": "= 낚시관리및육성법 법률 20270323 — 이미 있음(MST 289933)"
-  },
-  {
-   "id": "chg_20261007_c4093e",
-   "kind": "law_dept_changed",
-   "layer": "시행령",
-   "title": "농수산물 품질관리법",
-   "status": "받을 원문 없음(이름·부처만 바뀜 — 위키·_meta 를 사람이 고친다)"
-  },
-  {
-   "id": "chg_20261007_d33f10",
-   "kind": "law_pending",
-   "layer": "법률",
    "title": "마리나항만의 조성 및 관리 등에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 마리나항만의조성및관리등에관한법률 법률 20270909 — 이미 있음(MST 289351)"
+   "status": "수집",
+   "note": "갱신"
   },
   {
-   "id": "chg_20261007_402563",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수산물 유통의 관리 및 지원에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 수산물유통의관리및지원에관한법률 법률 20270323 — 이미 있음(MST 289935)"
+   "id": "chg_20261111_72eef4",
+   "kind": "law_amended",
+   "layer": "시행령",
+   "title": "양식산업발전법",
+   "status": "수집",
+   "note": "갱신"
   },
   {
-   "id": "chg_20261007_dcf08b",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수산업법",
-   "status": "이미 있음",
-   "note": "= 수산업법 법률 20270617 — 이미 있음(MST 289939)"
-  },
-  {
-   "id": "chg_20261007_cdfdb8",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수산자원관리법",
-   "status": "이미 있음",
-   "note": "= 수산자원관리법 법률 20270617 — 이미 있음(MST 289941)"
-  },
-  {
-   "id": "chg_20261007_8308da",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수산종자산업육성법",
-   "status": "이미 있음",
-   "note": "= 수산종자산업육성법 법률 20270323 — 이미 있음(MST 289943)"
-  },
-  {
-   "id": "chg_20261007_965c66",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "어선법",
-   "status": "이미 있음",
-   "note": "= 어선법 법률 20270617 — 이미 있음(MST 289947)"
-  },
-  {
-   "id": "chg_20261007_0ffbf0",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 어선안전조업및어선원의안전ㆍ보건증진등에관한법률 법률 20270923 — 이미 있음(MST 289949)"
-  },
-  {
-   "id": "chg_20261007_da65d5",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "연안관리법",
-   "status": "이미 있음",
-   "note": "= 연안관리법 법률 20270923 — 이미 있음(MST 289951)"
-  },
-  {
-   "id": "chg_20261007_e39763",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "항만 재개발 및 주변지역 발전에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 항만재개발및주변지역발전에관한법률 법률 20270930 — 이미 있음(MST 290219)"
-  },
-  {
-   "id": "chg_20261007_aca9b7",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "해양사고의 조사 및 심판에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 해양사고의조사및심판에관한법률 법률 20261223 — 이미 있음(MST 289925)"
-  },
-  {
-   "id": "chg_20261007_3f768d",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "연안사고 예방에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 연안사고예방에관한법률 법률 20270323 — 이미 있음(MST 289923)"
-  },
-  {
-   "id": "chg_20261007_265fbf",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "인천항·경인항 선박통항규칙",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261007_15924f",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "해양환경ㆍ환경영향조사 및 환경성평가 등에 관한 규정",
-   "status": "보류(관련 법 5개 — 둘 폴더를 사람이 정한다: --place chg_20261007_15924f=<법slug>)",
-   "note": "해양공간계획및관리에관한법률 · 해양생태계의보전및관리에관한법률 · 해양폐기물및해양오염퇴적물관리법 · 해양환경관리법 · 해양환경보전및활용에관한법률"
-  },
-  {
-   "id": "chg_20261007_41a738",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "공소청통계사무규정",
-   "status": "보류(관련 법 16개 — 둘 폴더를 사람이 정한다: --place chg_20261007_41a738=<법slug>)",
-   "note": "공유수면관리및매립에관한법률 · 농수산물품질관리법 · 도선법 · 배타적경제수역에서의외국인어업등에대한주권적권리의행사에관한법률 · 선박법 · 선박안전법 · 선박의입항및출항등에관한법률 · 수산업법 · 수산업협동조합법 · 수산자원관리법 · 영해및접속수역법 · 유선및도선사업법 · 출입국관리법 · 폐기물관리법 · 항만운송사업법 · 해양환경관리법"
-  },
-  {
-   "id": "chg_20261007_b4420c",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "전원개발사업 실시계획 변경 승인(강릉안인 1,2호기 건설사업)",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/행정규칙/전원개발사업실시계획변경승인(강릉안인1,2호기건설사업).txt"
-  },
-  {
-   "id": "chg_20261007_af717d",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "화학사고예방관리계획서 작성 등에 관한 규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/화학사고예방관리계획서작성등에관한규정.txt"
-  },
-  {
-   "id": "chg_20261007_b07559",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "(해양경찰청) 범죄수사규칙",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법/행정규칙/(해양경찰청)범죄수사규칙.txt"
-  },
-  {
-   "id": "chg_20261007_de6252",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "선박교통관제에 관한 규정",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261007_dd22d5",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "지정검역물의 검역방법 및 기준",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/지정검역물의검역방법및기준.txt"
-  },
-  {
-   "id": "chg_20261008_428a2c",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "세계유산영향평가에 관한 운영지침",
-   "status": "보류(관련 법 2개 — 둘 폴더를 사람이 정한다: --place chg_20261008_428a2c=<법slug>)",
-   "note": "자연유산의보존및활용에관한법률 · 항만재개발및주변지역발전에관한법률"
-  },
-  {
-   "id": "chg_20261008_074d30",
+   "id": "chg_20261111_2861ef",
    "kind": "law_amended",
    "layer": "시행규칙",
-   "title": "공유수면 관리 및 매립에 관한 법률",
-   "status": "이미 현행",
-   "note": "MST 290611"
+   "title": "자연유산의 보존 및 활용에 관한 법률",
+   "status": "수집",
+   "note": "갱신"
   },
   {
-   "id": "chg_20261008_a42dbe",
-   "kind": "law_dept_changed",
+   "id": "chg_20261111_0d572c",
+   "kind": "law_pending",
    "layer": "시행령",
-   "title": "농수산물 품질관리법",
-   "status": "받을 원문 없음(이름·부처만 바뀜 — 위키·_meta 를 사람이 고친다)"
+   "title": "폐기물관리법",
+   "status": "수집",
+   "note": "✓ 수집 폐기물관리법 시행령 시행 20270108 MST 291813 → local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20270108/시행령.txt (50,151자)",
+   "staged": true
   },
   {
-   "id": "chg_20261008_4c1947",
+   "id": "chg_20261111_4b0c59",
+   "kind": "law_pending",
+   "layer": "시행령",
+   "title": "폐기물관리법",
+   "status": "수집",
+   "note": "✓ 수집 폐기물관리법 시행령 시행 20261112 MST 291813 → local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20261112/시행령.txt (50,151자)",
+   "staged": true
+  },
+  {
+   "id": "chg_20261111_0b313a",
+   "kind": "admrul_amended",
+   "layer": "행정규칙",
+   "title": "어업의 손실액 조사기관 지정",
+   "status": "보류(본문축소)",
+   "note": "옛 판번호 2100000257202 로 찾은 1파일 — 보류(본문축소) local_server/knowledge/legal/raw/05_수산어업/수산업법/행정규칙/어업의손실액조사기관지정.txt"
+  },
+  {
+   "id": "chg_20261111_0091c9",
+   "kind": "admrul_unknown_new",
+   "layer": "행정규칙",
+   "title": "석면해체작업감리인 평가 등에 관한 고시",
+   "status": "수집",
+   "note": "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/석면해체작업감리인평가등에관한고시.txt · 별표: 새로썼다 6"
+  },
+  {
+   "id": "chg_20261112_77ea7e",
    "kind": "law_amended",
-   "layer": "법률",
+   "layer": "시행규칙",
+   "title": "수상레저안전법",
+   "status": "수집",
+   "note": "갱신"
+  },
+  {
+   "id": "chg_20261112_38fa52",
+   "kind": "law_amended",
+   "layer": "시행규칙",
    "title": "수상에서의 수색ㆍ구조 등에 관한 법률",
-   "status": "이미 현행",
-   "note": "MST 289945"
+   "status": "수집",
+   "note": "갱신"
   },
   {
-   "id": "chg_20261008_b590e7",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "유선 및 도선 사업법",
-   "status": "이미 현행",
-   "note": "MST 291089"
-  },
-  {
-   "id": "chg_20261008_af96fa",
-   "kind": "law_amended",
-   "layer": "시행령",
-   "title": "유선 및 도선 사업법",
-   "status": "이미 현행",
-   "note": "MST 290583"
-  },
-  {
-   "id": "chg_20261008_380924",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "사설항로표지의 설치 및 관리에 관한 규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/04_선박해운/항로표지법/행정규칙/사설항로표지의설치및관리에관한규정.txt"
-  },
-  {
-   "id": "chg_20261008_675ffe",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "항로표지시설 관리지침",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261008_2cce5d",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "항로표지의 고시에 관한 업무취급 요령",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261008_a04f34",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "인공어초시설사업집행 및 관리규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/05_수산어업/수산자원관리법/행정규칙/인공어초시설사업집행및관리규정.txt"
-  },
-  {
-   "id": "chg_20261008_b171a8",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "여수항·광양항 선박교통안전규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/여수·광양항선박교통안전규정.txt"
-  },
-  {
-   "id": "chg_20261008_f59740",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "(해양수산부) 우수물류기업인증요령",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/(해양수산부)우수물류기업인증요령.txt"
-  },
-  {
-   "id": "chg_20261008_cb365d",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "남해어업관리단 종합상황실 운영 규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/14_해양사법/해양사고의조사및심판에관한법률/행정규칙/남해어업관리단종합상황실운영규정.txt"
-  },
-  {
-   "id": "chg_20261008_3271a2",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "국립수산과학원 위임전결규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/05_수산어업/수산종자산업육성법/행정규칙/국립수산과학원위임전결규정.txt"
-  },
-  {
-   "id": "chg_20261008_e92e26",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "해양수산부 국제개발협력사업 운영 규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/01_해양주권정책/해양수산발전기본법/행정규칙/해양수산부국제개발협력사업운영규정.txt"
-  },
-  {
-   "id": "chg_20261008_8d3526",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "평택지방해양수산청 위임전결 및 사무관리 규정",
-   "status": "보류(관련 법 4개 — 둘 폴더를 사람이 정한다: --place chg_20261008_8d3526=<법slug>)",
-   "note": "선박안전법 · 수중레저활동의안전및활성화등에관한법률 · 항로표지법 · 항만법"
-  },
-  {
-   "id": "chg_20261008_dfee5d",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "인천지방해양수산청 위임전결에 관한 규정",
-   "status": "보류(관련 법 3개 — 둘 폴더를 사람이 정한다: --place chg_20261008_dfee5d=<법slug>)",
-   "note": "선박안전법 · 선원법 · 항만법"
-  },
-  {
-   "id": "chg_20261008_d05a85",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "동해어업관리단 전결규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/04_선박해운/어선법/행정규칙/동해어업관리단전결규정.txt"
-  },
-  {
-   "id": "chg_20261008_732c1c",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "해상풍력입지정보망 운영 및 관리에 관한 규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/01_해양주권정책/해양조사와해양정보활용에관한법률/행정규칙/해상풍력입지정보망운영및관리에관한규정.txt"
-  },
-  {
-   "id": "chg_20261008_8f64d6",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "무역항 등의 항만시설 사용 및 사용료에 관한 규정",
-   "status": "이미 현행",
-   "note": "2파일"
-  },
-  {
-   "id": "chg_20261008_1ce50d",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "항만국통제 및 기국통제 실시요령",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261008_015f85",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "선박 미수입 사실신고 절차",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/05_수산어업/원양산업발전법/행정규칙/선박미수입사실신고절차.txt"
-  },
-  {
-   "id": "chg_20261008_ed52aa",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "재외공관보고규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/행정규칙/재외공관보고규정.txt"
-  },
-  {
-   "id": "chg_20261008_a21738",
+   "id": "chg_20261112_f9fb2d",
    "kind": "admrul_unknown_new",
    "layer": "행정규칙",
    "title": "법무부 공무원 행동강령",
-   "status": "이미 있음",
+   "status": "보류(같은 제목 파일이 있다 — 그 파일의 새 판인지 사람이 확인)",
    "note": "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/행정규칙/법무부공무원행동강령.txt"
-  },
-  {
-   "id": "chg_20261008_15127c",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "재생에너지 집적화단지 조성·지원 등에 관한 지침",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/재생에너지개발이용보급촉진법/행정규칙/재생에너지집적화단지조성·지원등에관한지침.txt"
-  },
-  {
-   "id": "chg_20261008_e3cdc7",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "재생에너지 공급의무화제도 및 연료 혼합의무화제도 관리ㆍ운영지침",
-   "status": "보류(관련 법 5개 — 둘 폴더를 사람이 정한다: --place chg_20261008_e3cdc7=<법slug>)",
-   "note": "공유수면관리및매립에관한법률 · 섬발전촉진법 · 폐기물관리법 · 해양조사와해양정보활용에관한법률 · 해양환경관리법"
-  },
-  {
-   "id": "chg_20261008_7dd491",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "도서자가발전시설 관리·운영규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/도서자가발전시설관리·운영규정.txt"
-  },
-  {
-   "id": "chg_20261008_1f390a",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "안전확인대상생활화학제품 지정 및 안전·표시기준",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/04_선박해운/선박안전법/행정규칙/안전확인대상생활화학제품지정및안전·표시기준.txt"
-  },
-  {
-   "id": "chg_20261008_c92a46",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "폐기물매립시설 사후관리 업무처리규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/폐기물매립시설사후관리업무처리규정.txt"
-  },
-  {
-   "id": "chg_20261008_e75716",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "팔당·대청호 상수원 수질보전특별대책지역 지정 및 특별종합대책",
-   "status": "보류(관련 법 7개 — 둘 폴더를 사람이 정한다: --place chg_20261008_e75716=<법slug>)",
-   "note": "낚시관리및육성법 · 내수면어업법 · 물환경보전법 · 수상레저안전법 · 양식산업발전법 · 유선및도선사업법 · 폐기물관리법"
-  },
-  {
-   "id": "chg_20261008_500467",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "유역관리업무지침",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/유역관리업무지침.txt"
-  },
-  {
-   "id": "chg_20261008_006fc9",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "토양지하수정보시스템 구축 및 운영에 관한 규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/토양지하수정보시스템구축및운영에관한규정.txt"
-  },
-  {
-   "id": "chg_20261008_aa71c1",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "해상에서의 항공기 조난 시 수색",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/수상에서의수색ㆍ구조등에관한법률/행정규칙/해상에서의항공기조난시수색.txt"
-  },
-  {
-   "id": "chg_20261008_e35ddd",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "농어촌서비스기준의 서비스 항목과 항목별 목표치 세부 내용",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/04_선박해운/선박안전법/행정규칙/농어촌서비스기준의서비스항목과항목별목표치세부내용.txt"
-  },
-  {
-   "id": "chg_20261008_167848",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "농약피해분쟁조정위원회 운영규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/농약피해분쟁조정위원회운영규정.txt"
-  },
-  {
-   "id": "chg_20261008_bb199d",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "동물보호센터 운영 지침",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/동물보호센터운영지침.txt"
-  },
-  {
-   "id": "chg_20261008_90cf98",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "(국립농산물품질관리원) 검사표시인 취급 및 관리요령",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/(국립농산물품질관리원)검사표시인취급및관리요령.txt"
-  },
-  {
-   "id": "chg_20261008_a9e5a3",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "음식점 등·미용업 영업신고 통합신청 및 처리에 관한 규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/09_레저관광/마리나항만의조성및관리등에관한법률/행정규칙/음식점등·미용업영업신고통합신청및처리에관한규정.txt"
-  },
-  {
-   "id": "chg_20261008_4053eb",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "국가유산청 공무원 행동강령",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/국가유산청공무원행동강령.txt"
-  },
-  {
-   "id": "chg_20261008_196cb6",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "댐 상류의 범위에 관한 고시",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/댐상류의범위에관한고시.txt"
-  },
-  {
-   "id": "chg_20261009_c1cb08",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "(해양경찰청) 범죄수사규칙",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법/행정규칙/(해양경찰청)범죄수사규칙.txt"
-  },
-  {
-   "id": "chg_20261014_a9460f",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "유선 및 도선 사업법",
-   "status": "이미 있음",
-   "note": "= 유선및도선사업법 법률 20270414 — 이미 있음(MST 291157)"
-  },
-  {
-   "id": "chg_20261015_589dd4",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "항만운송사업법",
-   "status": "이미 현행",
-   "note": "MST 291199"
-  },
-  {
-   "id": "chg_20261016_848a26",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "항만시설장비검사기준",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/항만시설장비검사기준.txt"
-  },
-  {
-   "id": "chg_20261016_dcfbf0",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "항만지하시설물의 공간정보 보안 및 운영관리지침",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/10_항만물류/항만법/행정규칙/항만지하시설물의공간정보보안및운영관리지침.txt"
-  },
-  {
-   "id": "chg_20261016_91d70d",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "항만부잔교시설 관리규정",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261016_6bc0c0",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "항만 및 어항건설 정보시스템 운영규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법/행정규칙/항만및어항건설정보시스템운영규정.txt"
-  },
-  {
-   "id": "chg_20261016_6553d4",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "항만건설작업선의 선박시설 등에 관한 기준",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261016_0e1e65",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "사증·체류 정책협의회 규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/행정규칙/사증·체류정책협의회규정.txt"
-  },
-  {
-   "id": "chg_20261016_f56413",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "(원주지방환경청) 공공폐수처리시설 기본계획 통합고시",
-   "status": "이미 현행",
-   "note": "옛 번호는 구판 보존본에만 있다 — 현행본 local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/(원주지방환경청)공공폐수처리시설기본계획통합고시.txt"
-  },
-  {
-   "id": "chg_20261016_11e5da",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "(영산강유역환경청) 공공폐수처리시설 기본계획 통합 고시",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261020_a8ef47",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "(영산강유역환경청)공공폐수처리시설 기본계획 통합 고시",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261021_ec0c16",
-   "kind": "law_pending",
-   "layer": "시행령",
-   "title": "농수산물의 원산지 표시 등에 관한 법률",
-   "status": "이미 현행",
-   "note": "시행일(20261022)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 291357 · 시행 20261022)"
-  },
-  {
-   "id": "chg_20261021_26364b",
-   "kind": "law_amended",
-   "layer": "시행령",
-   "title": "농수산물의 원산지 표시 등에 관한 법률",
-   "status": "이미 현행",
-   "note": "MST 291357"
-  },
-  {
-   "id": "chg_20261021_766a5f",
-   "kind": "law_pending",
-   "layer": "시행규칙",
-   "title": "수산업법",
-   "status": "이미 현행",
-   "note": "시행일(20261022)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 291419 · 시행 20261022)"
-  },
-  {
-   "id": "chg_20261021_c7277c",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "수산업법",
-   "status": "이미 현행",
-   "note": "MST 291419"
-  },
-  {
-   "id": "chg_20261021_3e21f0",
-   "kind": "law_pending",
-   "layer": "시행령",
-   "title": "수산업법",
-   "status": "이미 현행",
-   "note": "시행일(20261022)이 지났고 현행 사본이 그 판이거나 더 새 판(MST 291369 · 시행 20261022)"
-  },
-  {
-   "id": "chg_20261023_77b08e",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "농수산물의 원산지 표시 등에 관한 법률",
-   "status": "이미 현행",
-   "note": "MST 291287"
-  },
-  {
-   "id": "chg_20261023_b23aa2",
-   "kind": "law_amended",
-   "layer": "시행령",
-   "title": "농수산물의 원산지 표시 등에 관한 법률",
-   "status": "이미 현행",
-   "note": "MST 291357"
-  },
-  {
-   "id": "chg_20261023_2e8666",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "수산업법",
-   "status": "이미 현행",
-   "note": "MST 291419"
-  },
-  {
-   "id": "chg_20261023_4c6357",
-   "kind": "law_amended",
-   "layer": "시행령",
-   "title": "수산업법",
-   "status": "이미 현행",
-   "note": "MST 291369"
-  },
-  {
-   "id": "chg_20261023_422875",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "농수산물의 원산지 표시 등에 관한 법률",
-   "status": "이미 현행",
-   "note": "MST 285491"
-  },
-  {
-   "id": "chg_20261023_a361af",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "수산업법",
-   "status": "이미 현행",
-   "note": "MST 285535"
-  },
-  {
-   "id": "chg_20261023_d45052",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "목포항 예선의 대기장소에 관한 기준",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/03_해상교통안전/선박의입항및출항등에관한법률/행정규칙/목포항예선의대기장소에관한기준.txt"
-  },
-  {
-   "id": "chg_20261023_2524bf",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "목포항 예선운영세칙",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261024_80838f",
-   "kind": "law_amended",
-   "layer": "시행규칙",
-   "title": "출입국관리법",
-   "status": "이미 현행",
-   "note": "MST 291289"
-  },
-  {
-   "id": "chg_20261027_042ea0",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "항공수색구조안전감독관 운영 등에 관한 규칙",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261028_f30670",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "도선법",
-   "status": "실패(API 응답 없음(MST 291465) → 저장 안 함)",
-   "note": "❌ 도선법 법률 20270428 — API 응답 없음(MST 291465) → 저장 안 함"
-  },
-  {
-   "id": "chg_20261028_65006d",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "도선법",
-   "status": "이미 있음",
-   "note": "= 도선법 법률 20270428 — 이미 있음(MST 291273)"
-  },
-  {
-   "id": "chg_20261028_accb4d",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "마리나항만의 조성 및 관리 등에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 마리나항만의조성및관리등에관한법률 법률 20270428 — 이미 있음(MST 291449)"
-  },
-  {
-   "id": "chg_20261028_4c7766",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "선원법",
-   "status": "이미 있음",
-   "note": "= 선원법 법률 20271028 — 이미 있음(MST 291275)"
-  },
-  {
-   "id": "chg_20261028_8cefd5",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "선원법",
-   "status": "이미 현행",
-   "note": "MST 291275"
-  },
-  {
-   "id": "chg_20261028_b65028",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수산업협동조합법",
-   "status": "이미 있음",
-   "note": "= 수산업협동조합법 법률 20271028 — 이미 있음(MST 291277)"
-  },
-  {
-   "id": "chg_20261028_a2070b",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "수산업협동조합법",
-   "status": "이미 현행",
-   "note": "MST 291277"
-  },
-  {
-   "id": "chg_20261028_408227",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수산종자산업육성법",
-   "status": "이미 있음",
-   "note": "= 수산종자산업육성법 법률 20270428 — 이미 있음(MST 291279)"
-  },
-  {
-   "id": "chg_20261028_c487a7",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "수상레저안전법",
-   "status": "이미 있음",
-   "note": "= 수상레저안전법 법률 20271028 — 이미 있음(MST 291471)"
-  },
-  {
-   "id": "chg_20261028_754cec",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "어선안전조업 및 어선원의 안전ㆍ보건 증진 등에 관한 법률",
-   "status": "이미 있음",
-   "note": "= 어선안전조업및어선원의안전ㆍ보건증진등에관한법률 법률 20271028 — 이미 있음(MST 291473)"
-  },
-  {
-   "id": "chg_20261028_8c83ce",
-   "kind": "law_amended",
-   "layer": "시행령",
-   "title": "영해 및 접속수역법",
-   "status": "이미 현행",
-   "note": "MST 291489"
-  },
-  {
-   "id": "chg_20261028_225925",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "항만법",
-   "status": "이미 있음",
-   "note": "= 항만법 법률 20271028 — 이미 있음(MST 291459)"
-  },
-  {
-   "id": "chg_20261028_790bfd",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "항만법",
-   "status": "이미 현행",
-   "note": "MST 291459"
-  },
-  {
-   "id": "chg_20261028_eda98b",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "항만운송사업법",
-   "status": "이미 있음",
-   "note": "= 항만운송사업법 법률 20270128 — 이미 있음(MST 291461)"
-  },
-  {
-   "id": "chg_20261028_3b128e",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "해상교통안전법",
-   "status": "이미 있음",
-   "note": "= 해상교통안전법 법률 20280428 — 이미 있음(MST 291463)"
-  },
-  {
-   "id": "chg_20261028_428ad4",
-   "kind": "law_pending",
-   "layer": "법률",
-   "title": "해상교통안전법",
-   "status": "이미 있음",
-   "note": "= 해상교통안전법 법률 20270428 — 이미 있음(MST 291463)"
-  },
-  {
-   "id": "chg_20261028_e6eaba",
-   "kind": "law_amended",
-   "layer": "법률",
-   "title": "해운법",
-   "status": "이미 현행",
-   "note": "MST 291467"
-  },
-  {
-   "id": "chg_20261028_cdc1ae",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "재생에너지 설비의 지원 등에 관한 규정",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/재생에너지개발이용보급촉진법/행정규칙/재생에너지설비의지원등에관한규정.txt"
-  },
-  {
-   "id": "chg_20261028_26e5b2",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "사료검사기준",
-   "status": "보류(관련 법 2개 — 둘 폴더를 사람이 정한다: --place chg_20261028_26e5b2=<법slug>)",
-   "note": "선박법 · 폐기물관리법"
-  },
-  {
-   "id": "chg_20261029_882444",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "수산물의 생산·가공시설 및 해역의 위생관리기준",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261031_206de0",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "항만재개발사업 재정지원지침",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/10_항만물류/항만재개발및주변지역발전에관한법률/행정규칙/항만재개발사업재정지원지침.txt"
-  },
-  {
-   "id": "chg_20261031_8f1c91",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "생활폐기물 선별시설의 설치ㆍ운영에 관한 지침",
-   "status": "이미 있음",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/생활폐기물선별시설의설치ㆍ운영에관한지침.txt"
   }
  ]
 }

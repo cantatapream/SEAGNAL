@@ -1,0 +1,10 @@
+{
+ "script": "refresh_1112",
+ "stamp": "20261109-110123-249",
+ "files": [
+  "local_server/knowledge/legal/raw/04_선박해운/도선법/행정규칙/승선하선구역_마산항.txt",
+  "local_server/knowledge/legal/raw/04_선박해운/도선법/행정규칙/_admrul.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/행정규칙/법무부공무원행동강령.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/출입국관리법/행정규칙/_admrul.json"
+ ]
+}
