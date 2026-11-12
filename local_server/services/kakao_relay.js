@@ -350,6 +350,26 @@ function createStore({ file, backfillFile, logDir } = {}) {
         return db.anchor ? db.anchor.id : null;
     }
 
+    /**
+     * 중계 앱의 진단 기록(0.3) — 알림을 받을 때마다(noti)·대화방을 읽을 때마다(read) 기록장에만 남긴다(저장 파일은 안 건드림).
+     * 받는 칸은 정해 둔 것만, 글자는 200자까지 — 앱이 이상한 값을 보내도 기록장이 커지지 않게.
+     * 예: diag('tablet', {kind:'read', result:'성공 3개', bottomSwipes:2, newer:1, …}) → 기록장 {kind:'diag', sub:'read', …}
+     * [연계] ← routes/kakao_relay POST /api/kakao-relay/diag / → kakao_relay_log.explain(diag)
+     */
+    function diag(device, body, now = new Date()) {
+        const KEYS = ['result', 'bottomSwipes', 'reachedBottom', 'texts', 'newer', 'anchor', 'overlapMiss', 'lateNew', 'locked', 'full', 'len', 'marker', 'big', 'head'];
+        const sub = ['noti', 'read'].includes(body && body.kind) ? body.kind : 'other';
+        const ev = { kind: 'diag', sub, device: String(device || '').slice(0, 40) };
+        for (const k of KEYS) {
+            const v = body ? body[k] : undefined;
+            if (typeof v === 'number' && Number.isFinite(v)) ev[k] = v;
+            else if (typeof v === 'boolean') ev[k] = v;
+            else if (typeof v === 'string') ev[k] = v.slice(0, 200);
+        }
+        log.append(ev, now.getTime());
+        return ev;
+    }
+
     /** 켜진 기기들의 마지막 신호(멈춤 감시는 기기마다 따로 본다). [{device, beat}] */
     function deviceBeats() {
         const db = load();
@@ -465,7 +485,7 @@ function createStore({ file, backfillFile, logDir } = {}) {
         return n;
     }
 
-    return { storeMessages, seed, update, heartbeat, deviceBeats, setDevice, snapshot, lastHeartbeat, storeBackfill, backfillAll, clearBackfill };
+    return { storeMessages, seed, update, heartbeat, diag, deviceBeats, setDevice, snapshot, lastHeartbeat, storeBackfill, backfillAll, clearBackfill };
 }
 
 /**

@@ -73,6 +73,13 @@ public class KakaoNotiService extends NotificationListenerService {
         if (!title.contains(Config.CHANNEL)) return;
 
         Config.status(this, "특보 알림 감지 (" + text.length() + "자)");
+        // 진단(0.3): 이 채널 알림을 받을 때마다 길이·표식 여부·앞부분을 서버 기록장에 남긴다 —
+        //   표식 없는 알림(11/09 04:31)·안 온 알림을 화면 캡처 없이 가려내려고.
+        try {
+            Sender.sendDiag(this, new org.json.JSONObject().put("kind", "noti").put("len", text.length())
+                    .put("marker", text.contains(Config.MARKER)).put("big", big != null)
+                    .put("head", text.substring(0, Math.min(80, text.length()))));
+        } catch (org.json.JSONException ignored) { /* 기록만 */ }
         if (text.contains(Config.MARKER)) {
             rememberNotification(text);
             Sender.sendMessages(this, Collections.singletonList(text), "notification");

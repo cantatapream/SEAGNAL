@@ -75,6 +75,15 @@ function explain(ev) {
         case 'episode': return `${ev.zone}: ${hmK(ev.start)}~${hmK(ev.end)} (${ev.min}분) 카톡판과 앱(MMIS)이 달랐음. 다른 것: ${(ev.diffs || []).map((d) => DIFF_WORD[d] || d).join(', ')}. `
             + `${ev.first}. ${ev.worst === 'diff' ? '10분 넘게 달라 확인 필요' : '10분 안에 같아짐(정상적인 시간차)'}. 달랐을 때 카톡판 「${ev.kakao}」 / 앱 「${ev.mmis}」.`
             + (ev.endedAs === 'typhoon' ? ' 태풍 특보로 바뀌며 비교가 끝남.' : '');
+        case 'diag': {
+            if (ev.sub === 'noti') return `${dev} 기기가 이 채널 카톡 알림을 받음 — ${ev.len}자, 특보 표식 ${ev.marker ? '있음' : '없음(대화방을 읽어야 내용을 앎)'}`
+                + `${ev.big === false ? ', 펼친 글 없이 짧은 글만 옴' : ''}. 앞부분: 「${String(ev.head || '').replace(/\s+/g, ' ')}」.`;
+            if (ev.sub === 'read') return `${dev} 기기 대화방 읽기 — ${ev.result}. 맨 아래로 ${ev.bottomSwipes || 0}번 내림, 특보 글 ${ev.texts}개 읽음`
+                + `(그중 「마지막으로 본 글」 아래의 새 글 ${ev.newer || 0}개), 마지막으로 본 글 ${{ found: '찾음', missing: '못 찾음', none: '없음(처음)' }[ev.anchor] || ev.anchor}`
+                + `${ev.full ? ', 접힌 긴 글 전체보기 성공' : ''}${ev.overlapMiss ? `, ⚠넘긴 화면이 앞 화면과 안 겹친 적 ${ev.overlapMiss}번` : ''}`
+                + `${ev.lateNew ? `, 끝에 맨 아래에서 새 글 ${ev.lateNew}개를 보고 한 번 더 읽음` : ''}, 시작 때 잠금 화면 ${ev.locked ? '있었음' : '없었음'}.`;
+            return `${dev} 기기 진단 기록.`;
+        }
         case 'tick': {
             if (ev.mmisError) return `앱 특보현황(MMIS) 파일을 읽지 못해 이번에는 비교하지 못함(${ev.mmisError}).`;
             const zs = (ev.diffZones || []).map((z) => `${z.zone}(카톡판 「${z.kakao}」 / 앱 「${z.mmis}」)`);

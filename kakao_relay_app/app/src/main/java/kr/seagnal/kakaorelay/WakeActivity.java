@@ -27,8 +27,21 @@ public class WakeActivity extends Activity {
                     | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        KeyguardManager km = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
-        if (km != null && Build.VERSION.SDK_INT >= 26) km.requestDismissKeyguard(this, null);
         new Handler(Looper.getMainLooper()).postDelayed(this::finish, 4_000L);
+    }
+
+    /**
+     * 잠금 풀기 요청은 화면이 실제로 보일 때(onResume) 한다 — 만들어지는 순간(onCreate)에는 무시될 수 있다.
+     * 결과(풀림·실패·취소)를 앱 기록에 남긴다(0.3 — 2026-11-12, 그 전에는 결과를 몰랐다).
+     */
+    @Override protected void onResume() {
+        super.onResume();
+        KeyguardManager km = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        if (km == null || Build.VERSION.SDK_INT < 26 || !km.isKeyguardLocked()) return;
+        km.requestDismissKeyguard(this, new KeyguardManager.KeyguardDismissCallback() {
+            @Override public void onDismissSucceeded() { Config.status(WakeActivity.this, "잠금 화면 넘김"); }
+            @Override public void onDismissError() { Config.status(WakeActivity.this, "잠금 화면 넘기기 실패"); }
+            @Override public void onDismissCancelled() { Config.status(WakeActivity.this, "잠금 화면 넘기기 취소됨(비밀번호 잠금?)"); }
+        });
     }
 }
