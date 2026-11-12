@@ -7,6 +7,7 @@
  * [연계]
  *  - 사용하는 파일 : services/kakao_relay(분해·저장) · services/admin_auth(관리자 조회)
  *  - 서버 API      : POST·GET /api/kakao-relay/messages · POST /api/kakao-relay/heartbeat · POST /api/kakao-relay/seed ·
+ *                    POST /api/kakao-relay/diag(앱 진단 기록 — 0.3) ·
  *                    POST·GET·DELETE /api/kakao-relay/backfill(임시 긁어오기 — 분석용, 같은 열쇠) ·
  *                    GET /api/admin/kakao-relay · POST /api/admin/kakao-relay/device(기기 끄기·켜기·지우기) ·
  *                    GET /api/admin/kakao-relay/compare?day=YYYY-MM-DD(비교현황 — services/kakao_shadow.summarize) ·
@@ -91,6 +92,12 @@ function createRouter({
             console.warn('[kakao_relay] 신호 저장 실패:', e.message);
             res.status(500).json({ ok: false, error: '저장 실패' });
         }
+    });
+
+    // 중계 앱 진단 기록(0.3) — 알림 받음·대화방 읽기 결과. 기록장에만 남는다(services/kakao_relay diag).
+    router.post('/api/kakao-relay/diag', auth, (req, res) => {
+        try { store.diag(req.body && req.body.device, req.body || {}); res.json({ ok: true }); }
+        catch (e) { console.warn('[kakao_relay] 진단 기록 실패:', e.message); res.status(500).json({ ok: false, error: '기록 실패' }); }
     });
 
     // 「이미 봤음」 기억 미리 채우기 — 긁어온 옛 알림톡 글 목록(texts)을 넣는다(services/kakao_relay seed).

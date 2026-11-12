@@ -21,7 +21,8 @@ import java.util.List;
  * ★특보 표식([해양기상기후정보 알림])이 든 글만 보낸다 — 다른 대화 내용은 서버로 가지 않는다.
  */
 public class ReaderService extends AccessibilityService {
-    private static final long TIMEOUT_MS = 45_000L;
+    // 맨 아래로 내리기·위로 거슬러 읽기·끝에 맨 아래 다시 확인까지 하므로 넉넉히(0.3 — 2026-11-12).
+    private static final long TIMEOUT_MS = 120_000L;
     private static final long SETTLE_MS = 1_200L;   // 화면이 다 그려질 때까지 기다리는 시간
     // 동시에 여러 특보 카톡이 오는 경우가 있어(2026-11-01 16:03 예비특보·기상특보 2건 동시) 위로 2페이지까지 넘겨 읽는다
     //   (사용자 확정 2026-11-03 「최소한 스크롤 2페이지는 위로 돌려서 지금 데이터와 변동이 있는지 확인」).
@@ -34,9 +35,17 @@ public class ReaderService extends AccessibilityService {
     //   통신이 끊겼다가 특보가 여러 개 밀려 와도 빠짐없이 읽고, 새 글이 하나면 금방 멈춘다. 최대 15번 끌기.
     private static final int MAX_ANCHOR_SWIPES = 15;
     private static final long STEP_MS = 1_500L;     // 한 페이지 넘긴 뒤 그려질 때까지
+    // ★0.3(사용자 확정 2026-11-12 「좋아」): 카톡은 대화방을 「마지막으로 보던 위치」에서 연다. 앱이 위로 거슬러 읽고
+    //   그대로 나가면 다음 번에는 위쪽에서 열려 새 글(맨 아래)을 못 읽었다 — 태블릿 11/05~11/10 긴 특보 25건 중 19건의
+    //   전문을 그 자리에서 못 받음(서버 기록 대조). 그래서 ① 열자마자 맨 아래로 내린 뒤 읽고 ② 끝나기 전에 맨 아래로
+    //   돌아가 잠깐 기다렸다가 그사이 새로 붙은 글(몇 초 차이로 온 두 번째 카톡 — 방이 열려 있으면 카톡이 알림을 안 띄움)이
+    //   있으면 한 번 더 읽고 ③ 맨 아래에 둔 채 나간다.
+    private static final int MAX_BOTTOM_SWIPES = 20;
+    private static final long BOTTOM_STEP_MS = 900L;
+    private static final long LATE_WAIT_MS = 2_500L;
 
     private static ReaderService instance;
-    private enum State { IDLE, WAIT_CHAT, WAIT_FULL, SCROLL }
+    private enum State { IDLE, WAIT_CHAT, BOTTOM, WAIT_FULL, SCROLL, FINAL }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private State state = State.IDLE;
@@ -50,6 +59,23 @@ public class ReaderService extends AccessibilityService {
     private String scrollNote;   // 위 페이지를 다 못 읽었으면 그 까닭(기록용 — 실패로 치지 않는다)
     private PowerManager.WakeLock wake;
     private PendingIntent again;   // 읽는 도중 새 특보가 오면 끝난 뒤 한 번 더 읽는다
+    private PendingIntent curPi;   // 지금 읽는 알림 — 끝에 맨 아래에서 새 글을 보면 이것으로 한 번 더 읽는다
+    private boolean atBottom;      // 이번 읽기에서 맨 아래까지 내렸나
+    private int bottomSwipes;      // 맨 아래로 내리며 끈 횟수(기록용 — 처음+끝 합계)
+    private int bottomRound;       // 이번 내리기에서 끈 횟수(한도 20 — 처음·끝 따로, 적대검증 #1)
+    private boolean bottomReached; // 화면이 더 안 바뀌어서 맨 아래로 판정했나(한도에 걸린 것과 구별)
+    private boolean anchorOnFirstPage; // 기준점이 맨 아래 첫 화면에 있었나 — 그때만 기준점 아래 글을 방금 온 글로 친다(적대검증 #2)
+    private boolean overlapFixPending; // 겹침 되돌리기 직후 — 「화면 안 움직임」 판정을 한 번 건너뛴다(적대검증 #4)
+    private int lateReruns;        // 끝에 새 글을 보고 다시 읽은 횟수(한 알림에 최대 2번 — 적대검증 #5)
+    private String bottomSig;
+    private Runnable afterBottom;  // 맨 아래에 닿은 뒤 할 일
+    // 「마지막으로 본 글」(기준점)보다 아래에 있던 글 — 알림 글에 표식이 없어도 방금 온 글이다(11/09 04:31 놓친 글로 잘못 분류).
+    private final java.util.LinkedHashSet<String> newer = new java.util.LinkedHashSet<>();
+    private List<String> prevPage; // 직전 페이지의 특보 글 — 넘긴 뒤 하나도 안 겹치면 건너뛴 것
+    private boolean triedOverlapFix;
+    private int overlapMiss;       // 겹침을 못 찾은 횟수(기록용)
+    private int lateNew;           // 끝에 맨 아래에서 새로 본 글 수
+    private boolean lockedAtStart; // 읽기 시작 때 잠금 화면이 있었나(기록용)
 
     private final Runnable readNow = this::readScreen;
     private final Runnable timeout = () -> finish("시간 초과");
@@ -61,7 +87,7 @@ public class ReaderService extends AccessibilityService {
     static void openAndRead(Context c, PendingIntent pi) {
         ReaderService s = instance;
         if (s == null) { Config.status(c, "접근성 꺼짐 — 대화방을 못 읽음(알림 글만 보냄)"); return; }
-        s.handler.post(() -> s.start(pi));
+        s.handler.post(() -> { s.lateReruns = 0; s.start(pi); });
     }
 
     @Override protected void onServiceConnected() {
@@ -80,7 +106,21 @@ public class ReaderService extends AccessibilityService {
         if (state != State.IDLE || Backfill.active()) { again = pi; return; }   // 읽는 중이면 끝난 뒤 다시 읽는다
         if (pi == null) { Config.status(this, "알림에 열기 동작이 없음"); return; }
         found.clear();
+        newer.clear();
         fullOk = false;
+        curPi = pi;
+        atBottom = false;
+        bottomSwipes = 0;
+        bottomSig = null;
+        bottomReached = false;
+        anchorOnFirstPage = false;
+        overlapFixPending = false;
+        prevPage = null;
+        triedOverlapFix = false;
+        overlapMiss = 0;
+        lateNew = 0;
+        android.app.KeyguardManager km = (android.app.KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        lockedAtStart = km != null && km.isKeyguardLocked();
         anchorId = Config.prefs(this).getString("anchor", null);
         anchorFound = false;
         newestText = null;
@@ -116,7 +156,7 @@ public class ReaderService extends AccessibilityService {
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
         if (e.getPackageName() != null && Config.KAKAO.contentEquals(e.getPackageName())) Backfill.onDiagEvent(this);
         if (Backfill.active()) { Backfill.onEvent(this, e); return; }   // 임시 긁어오기 중에는 그쪽이 화면을 다룬다
-        if (state == State.IDLE || state == State.SCROLL || e.getPackageName() == null) return;
+        if (state == State.IDLE || state == State.SCROLL || state == State.BOTTOM || state == State.FINAL || e.getPackageName() == null) return;
         if (!Config.KAKAO.contentEquals(e.getPackageName())) return;
         handler.removeCallbacks(readNow);
         handler.postDelayed(readNow, SETTLE_MS);   // 변화가 멈춘 뒤 한 번만 읽는다
@@ -134,6 +174,13 @@ public class ReaderService extends AccessibilityService {
         if (state == State.WAIT_CHAT) {
             scope = roomNodes(nodes);
             if (scope == null) return;   // 그 채널 대화방이 아니다(목록·다른 방) — 다음 화면 변화 때 다시 본다
+            if (!atBottom) {
+                // 카톡은 마지막으로 보던 위치에서 방을 연다 — 먼저 맨 아래(가장 최근)로 내린 뒤 읽는다.
+                Config.status(this, "맨 아래로 내리는 중");
+                state = State.BOTTOM;
+                goBottom(() -> { state = State.WAIT_CHAT; handler.postDelayed(readNow, SETTLE_MS); });
+                return;
+            }
         }
         List<String> texts = new ArrayList<>();
         AccessibilityNodeInfo more = null;
@@ -148,7 +195,10 @@ public class ReaderService extends AccessibilityService {
         if (state == State.WAIT_CHAT) {
             found.addAll(texts);
             newestText = texts.get(texts.size() - 1);   // 대화창은 아래가 최신 — 화면 순서상 마지막이 맨 아래
+            markNewer(texts);
             checkAnchor(texts);
+            anchorOnFirstPage = anchorFound && bottomReached;
+            prevPage = texts;
             if (more != null && click(more)) {
                 state = State.WAIT_FULL;
                 Config.status(this, "전체보기 누름");
@@ -163,6 +213,10 @@ public class ReaderService extends AccessibilityService {
             // 전문 화면이 아직 안 열렸는데 대화방 화면을 읽은 것일 수 있다 — 이미 모은 글보다 길 때만 전문으로 인정(적대검증 M9).
             if (longest.length() <= had) return;
             found.add(longest);
+            // 전문이 기준점 아래(새 글)의 접힌 글과 같은 글이면 전문도 새 글이다(앞 150자로 맞춘다 — 머리말은 모든 글이 같다).
+            for (String n : new ArrayList<>(newer)) {
+                if (longest.startsWith(n.length() > 150 ? n.substring(0, 150) : n)) { newer.add(longest); break; }
+            }
             fullOk = true;
             performGlobalAction(GLOBAL_ACTION_BACK);   // 전문 화면을 닫고 대화방으로 돌아가 위 페이지를 읽는다
             state = State.SCROLL;
@@ -177,6 +231,59 @@ public class ReaderService extends AccessibilityService {
         if (anchorFound) { finish(null); return; }   // 마지막으로 본 글이 첫 화면에 있다 — 그 아래만 새 글
         pagesLeft = anchorId == null ? PAGES_UP : MAX_ANCHOR_SWIPES;
         scrollUp();
+    }
+
+    /**
+     * 기준점(마지막으로 본 글)보다 아래(=그 뒤에 온) 글을 표시한다. 기준점을 아직 못 봤으면 이 페이지 전부,
+     * 이 페이지에 기준점이 있으면 그 아래 것만. 기준점을 끝내 못 찾으면 쓰지 않는다(finish — 옛 글이 섞일 수 있다).
+     * 예: 페이지 [A, 기준점, B, C] → B·C 가 새 글
+     * @param page 화면 순서(위→아래)의 특보 글
+     */
+    private void markNewer(List<String> page) {
+        if (anchorId == null || anchorFound) return;
+        int at = -1;
+        for (int i = 0; i < page.size(); i++) if (anchorId.equals(idOf(page.get(i)))) { at = i; break; }
+        for (int i = at + 1; i < page.size(); i++) newer.add(page.get(i));
+    }
+
+    /**
+     * 맨 아래(가장 최근 글)까지 내린다 — 화면이 더 안 바뀔 때까지 아래쪽으로 넘긴다(최대 20번). 닿으면 next 를 부른다.
+     * [연계] ← readScreen(처음) · finish(끝에 다시 확인)
+     */
+    private void goBottom(Runnable next) {
+        atBottom = false;
+        bottomSig = null;
+        bottomRound = 0;
+        bottomReached = false;
+        afterBottom = next;
+        handler.post(this::bottomStep);
+    }
+
+    private void bottomStep() {
+        if (state != State.BOTTOM && state != State.FINAL) return;
+        List<AccessibilityNodeInfo> room = currentRoom();
+        if (room == null) { atBottom = true; Runnable n = afterBottom; afterBottom = null; if (n != null) n.run(); return; }
+        String sig = signature(room);
+        if ((bottomSig != null && sig.equals(bottomSig)) || bottomRound >= MAX_BOTTOM_SWIPES) {
+            atBottom = true;
+            bottomReached = bottomSig != null && sig.equals(bottomSig);
+            Runnable n = afterBottom;
+            afterBottom = null;
+            if (n != null) n.run();
+            return;
+        }
+        bottomSig = sig;
+        bottomSwipes++;
+        bottomRound++;
+        AccessibilityNodeInfo sc = roomScroller(room);
+        if (!swipe(this, sc, 0.8f, 0.2f, false) && (sc == null || !sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD))) {
+            atBottom = true;
+            Runnable n = afterBottom;
+            afterBottom = null;
+            if (n != null) n.run();
+            return;
+        }
+        handler.postDelayed(this::bottomStep, BOTTOM_STEP_MS);
     }
 
     /** 이 글들 중에 기준점(마지막으로 본 글)이 있나. */
@@ -215,7 +322,9 @@ public class ReaderService extends AccessibilityService {
         if (state != State.SCROLL) return;
         List<AccessibilityNodeInfo> room = currentRoom();
         if (room == null) { scrollNote = "위 페이지를 읽는 중 대화방을 벗어남"; finish(null); return; }
-        if (signature(room).equals(lastSig)) {
+        boolean justFixed = overlapFixPending;
+        overlapFixPending = false;
+        if (!justFixed && signature(room).equals(lastSig)) {
             AccessibilityNodeInfo sc = roomScroller(room);
             if (!triedFallback && sc != null && sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) {
                 triedFallback = true;
@@ -230,8 +339,21 @@ public class ReaderService extends AccessibilityService {
             String s = textOf(n);
             if (s != null && s.contains(Config.MARKER)) page.add(s);
         }
+        // 겹침 확인(사용자 지적 2026-11-12 「겹쳐서 훑음으로써 누락부분이 없게 하는 게 목적인데 겹침 없이 훑더라」):
+        //   넘긴 화면에 직전 화면의 글이 하나도 없으면 그 사이 글을 건너뛰었을 수 있다 — 한 번은 조금 되돌려 다시 읽는다.
+        if (prevPage != null && !prevPage.isEmpty() && !page.isEmpty() && java.util.Collections.disjoint(prevPage, page)) {
+            overlapMiss++;
+            if (!triedOverlapFix) {
+                triedOverlapFix = true;
+                AccessibilityNodeInfo sc = roomScroller(room);
+                lastSig = signature(room);
+                if (swipe(this, sc, 0.7f, 0.35f, true)) { overlapFixPending = true; handler.postDelayed(this::readPageUp, STEP_MS); return; }
+            }
+        } else triedOverlapFix = false;
         found.addAll(page);
+        markNewer(page);
         checkAnchor(page);
+        prevPage = page;
         if (anchorFound) { finish(null); return; }   // 마지막으로 본 글까지 올라왔다
         scrollUp();
     }
@@ -247,24 +369,47 @@ public class ReaderService extends AccessibilityService {
     }
 
     /**
-     * 대화창 안에서 손가락을 위→아래로 화면 높이의 60%만큼 천천히 끈다(옛 글 쪽으로 넘기기, 직전 화면과 40% 겹침).
-     * 천천히(0.4초) 끌어 휙 넘어가는(관성) 일과 누르기로 잘못 읽히는 일을 피한다.
+     * 대화창 안에서 손가락을 위→아래로 화면 높이의 60%만큼 끈다(옛 글 쪽으로 넘기기, 직전 화면과 40% 겹침).
      * @return 동작을 보냈으면 true(안드로이드 7 미만·영역이 너무 작으면 false — 호출 쪽이 「한 페이지 위로」로 대신한다)
+     * [연계] ← scrollUp(이 파일) · Backfill
      */
     static boolean swipeDown(AccessibilityService s, AccessibilityNodeInfo pane) {
+        return swipe(s, pane, 0.2f, 0.2f + SWIPE_FRACTION, true);
+    }
+
+    /**
+     * 대화창 안에서 손가락을 from→to(영역 높이에 대한 비율, 0=위 1=아래)로 끈다.
+     * hold=true 면 끝에서 손가락을 0.3초 멈췄다가 뗀다 — 그냥 떼면 목록이 관성으로 더 미끄러져 직전 화면과 겹치지 않았다
+     *   (사용자 확인 2026-11-12 휴대폰). 멈춘 뒤 떼면 속도가 0이라 미끄러지지 않는다(안드로이드 8 이상 — 그 아래는 그냥 뗀다).
+     * 예: swipe(s, pane, 0.2f, 0.8f, true) → 옛 글 쪽으로 60% / swipe(s, pane, 0.8f, 0.2f, false) → 최근 쪽으로 빠르게
+     */
+    static boolean swipe(AccessibilityService s, AccessibilityNodeInfo pane, float from, float to, boolean hold) {
         if (Build.VERSION.SDK_INT < 24 || pane == null) return false;
         android.graphics.Rect r = new android.graphics.Rect();
         pane.getBoundsInScreen(r);
         if (r.height() < 200 || r.width() < 100) return false;
         float x = r.centerX();
-        float y1 = r.top + r.height() * 0.2f;
-        float y2 = y1 + r.height() * SWIPE_FRACTION;
+        float y1 = r.top + r.height() * from, y2 = r.top + r.height() * to;
         android.graphics.Path p = new android.graphics.Path();
         p.moveTo(x, y1);
         p.lineTo(x, y2);
-        android.accessibilityservice.GestureDescription g = new android.accessibilityservice.GestureDescription.Builder()
-                .addStroke(new android.accessibilityservice.GestureDescription.StrokeDescription(p, 0, 400)).build();
-        return s.dispatchGesture(g, null, null);
+        if (!hold || Build.VERSION.SDK_INT < 26) {
+            android.accessibilityservice.GestureDescription g = new android.accessibilityservice.GestureDescription.Builder()
+                    .addStroke(new android.accessibilityservice.GestureDescription.StrokeDescription(p, 0, 400)).build();
+            return s.dispatchGesture(g, null, null);
+        }
+        android.accessibilityservice.GestureDescription.StrokeDescription move =
+                new android.accessibilityservice.GestureDescription.StrokeDescription(p, 0, 500, true);
+        android.graphics.Path stay = new android.graphics.Path();
+        stay.moveTo(x, y2);
+        stay.lineTo(x, y2 + 1);   // 길이 0 인 경로는 받지 않는다 — 1픽셀
+        final android.accessibilityservice.GestureDescription.StrokeDescription still = move.continueStroke(stay, 0, 300, false);
+        android.accessibilityservice.GestureDescription g1 = new android.accessibilityservice.GestureDescription.Builder().addStroke(move).build();
+        return s.dispatchGesture(g1, new AccessibilityService.GestureResultCallback() {
+            @Override public void onCompleted(android.accessibilityservice.GestureDescription d) {
+                s.dispatchGesture(new android.accessibilityservice.GestureDescription.Builder().addStroke(still).build(), null, null);
+            }
+        }, null);
     }
 
     private List<AccessibilityNodeInfo> currentRoom() {
@@ -399,7 +544,40 @@ public class ReaderService extends AccessibilityService {
         if (next != null && Config.auto(this)) handler.postDelayed(() -> start(next), 1_500L);
     }
 
+    /**
+     * 읽기를 마친다. 정상으로 끝나면(why == null) 바로 끝내지 않고 맨 아래로 돌아가 잠깐 기다렸다가,
+     * 그사이 새로 붙은 글이 있으면 한 번 더 읽게 걸어 둔다(몇 초 차이로 온 두 번째 카톡 — 방이 열려 있으면 알림이 안 온다).
+     * 맨 아래에 둔 채 나가므로 다음 번에도 맨 아래에서 열린다.
+     */
     private void finish(String why) {
+        if (why == null && state != State.FINAL && state != State.WAIT_FULL && state != State.IDLE && !found.isEmpty()) {
+            handler.removeCallbacks(readNow);
+            state = State.FINAL;
+            goBottom(() -> handler.postDelayed(this::lateCheck, LATE_WAIT_MS));
+            return;
+        }
+        complete(why);
+    }
+
+    /** 끝에 맨 아래에서 처음 보는 특보 글이 있나 — 있으면 끝난 뒤 한 번 더 읽는다(그때는 기준점 아래라 새 글로 잡힌다). */
+    private void lateCheck() {
+        if (state != State.FINAL) return;
+        List<AccessibilityNodeInfo> room = currentRoom();
+        if (room != null) {
+            for (AccessibilityNodeInfo n : room) {
+                String s = textOf(n);
+                if (s != null && s.contains(Config.MARKER) && !found.contains(s)) lateNew++;
+            }
+        }
+        if (lateNew > 0 && lateReruns < 2) {
+            lateReruns++;
+            Config.status(this, "맨 아래에 새 글 " + lateNew + "개 — 한 번 더 읽음");
+            if (again == null) again = curPi;
+        } else if (lateNew > 0) Config.status(this, "맨 아래에 새 글 " + lateNew + "개 — 다시 읽기 한도(2번)라 다음 알림 때 읽음");
+        complete(null);
+    }
+
+    private void complete(String why) {
         handler.removeCallbacks(timeout);
         handler.removeCallbacks(readNow);
         String result;
@@ -411,7 +589,19 @@ public class ReaderService extends AccessibilityService {
             result = "실패: " + (why == null ? "글 없음" : why);
         }
         String anchorStatus = anchorId == null ? "none" : anchorFound ? "found" : "missing";
-        if (!found.isEmpty()) Sender.sendRead(this, new ArrayList<>(found), newestText, anchorStatus);
+        // 기준점이 맨 아래 첫 화면에 있었을 때만(=알림마다 제때 읽는 평소 경우) 그 아래 글을 방금 온 글로 친다.
+        //   위로 한참 거슬러야 찾았거나 못 찾았으면 오래 쌓인 글일 수 있다 — 놓친 글로 두어 옛 특보가 지금 새 특보로
+        //   올라가지 않게 한다(적대검증 #2: 0.2 의 잘못된 기준점에서 0.3 첫 실행 때).
+        java.util.Set<String> fresh = anchorOnFirstPage ? new java.util.HashSet<>(newer) : java.util.Collections.emptySet();
+        if (!found.isEmpty()) Sender.sendRead(this, new ArrayList<>(found), newestText, anchorStatus, fresh);
+        // 진단 기록 — 매번 서버 기록장에 남긴다(어느 읽기가 왜 모자랐는지 화면 캡처 없이 알 수 있게).
+        try {
+            Sender.sendDiag(this, new org.json.JSONObject().put("kind", "read").put("result", result)
+                    .put("bottomSwipes", bottomSwipes).put("reachedBottom", bottomReached)
+                    .put("texts", found.size()).put("newer", fresh.size()).put("anchor", anchorStatus)
+                    .put("overlapMiss", overlapMiss).put("lateNew", lateNew).put("locked", lockedAtStart)
+                    .put("full", fullOk));
+        } catch (org.json.JSONException ignored) { /* 기록만 — 읽기 결과에는 영향 없음 */ }
         Config.status(this, "대화방 읽기 " + result);
         // 서버 신호에 실어 보낼 마지막 결과(화면에만 남기지 않는다)
         Config.prefs(this).edit().putString("lastRead",

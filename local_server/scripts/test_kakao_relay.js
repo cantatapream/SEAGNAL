@@ -352,6 +352,11 @@ const HEAD = '[해양기상기후정보 알림]\n\n해당 해양기상기후정�
     ok('비교현황(관리자) — 날짜를 넘겨 요약을 돌려줌', x.status === 200 && sumArg && sumArg.day === '2026-11-03' && x.body.day === '2026-11-03', x.body);
     x = await new Promise((resolve) => http.get({ port: srv.address().port, path: '/api/admin/kakao-relay/report.md?day=all' }, (r) => { let d = ''; r.on('data', (c) => d += c); r.on('end', () => resolve({ status: r.statusCode, h: r.headers, d })); }));
     ok('보고서 내려받기 — 마크다운·파일 이름', x.status === 200 && /text\/markdown/.test(x.h['content-type']) && /kakao_relay_report_all\.md/.test(x.h['content-disposition']) && x.d === '# 보고서 all', x);
+    // 0.3 진단 기록
+    ok('진단 기록은 열쇠 필요', (await call('POST', '/api/kakao-relay/diag', { kind: 'read' })).status === 401);
+    x = await call('POST', '/api/kakao-relay/diag', { device: 'tablet', kind: 'read', result: '성공 3개', bottomSwipes: 2, texts: 3, newer: 1, anchor: 'found', overlapMiss: 0, lateNew: 1, locked: true, full: false, evil: 'x'.repeat(5000), head: 'y'.repeat(500) }, { 'X-Relay-Token': 'k' });
+    const dg = require('fs').readdirSync(path.join(tmp, 'kakao_relay_log')).flatMap((f) => require('fs').readFileSync(path.join(tmp, 'kakao_relay_log', f), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))).filter((e) => e.kind === 'diag').pop();
+    ok('진단 기록 → 기록장(정해 둔 칸만·글자 200자까지·쉬운 설명)', x.status === 200 && dg && dg.sub === 'read' && dg.lateNew === 1 && !('evil' in dg) && dg.head.length === 200 && /맨 아래로 2번 내림/.test(dg.설명) && /한 번 더 읽음/.test(dg.설명) && /잠금 화면 있었음/.test(dg.설명), dg);
     console.log('F. 임시 긁어오기');
     secret = 'k';
     x = await call('POST', '/api/kakao-relay/backfill', { device: 'p', messages: [{ text: HEAD + '서해남부북쪽안쪽먼바다,\n풍랑주의보 12월 30일 17시 00분 발효', date: '2025년 12월 30일 화요일', time: '오후 5:03' }, { text: 'b2' }] }, { 'X-Relay-Token': 'k' });

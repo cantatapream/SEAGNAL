@@ -46,7 +46,7 @@ final class Sender {
      * 대화방에서 읽은 글을 보낸다. 방금 뜬 알림과 앞부분이 같은 말풍선에는 trigger=true(「이번 알림」),
      * 함께 읽힌 직전 글은 trigger=false — 서버는 이것으로 새 특보와 놓친 글을 가른다(services/kakao_relay storeMessages).
      */
-    static void sendRead(Context ctx, List<String> texts, String newest, String anchorStatus) {
+    static void sendRead(Context ctx, List<String> texts, String newest, String anchorStatus, java.util.Set<String> fresh) {
         final Context c = ctx.getApplicationContext();
         POOL.execute(() -> {
             try {
@@ -54,7 +54,8 @@ final class Sender {
                 boolean first = true;
                 for (String t : texts) {
                     JSONObject o = new JSONObject().put("text", t).put("source", "screen")
-                            .put("trigger", KakaoNotiService.isRecentNotification(t));
+                            // 방금 뜬 알림과 같은 글, 또는 「마지막으로 본 글」보다 아래에 있던 글 = 이번에 온 글(0.3)
+                            .put("trigger", KakaoNotiService.isRecentNotification(t) || fresh.contains(t));
                     // 맨 아래(가장 최근) 말풍선 — 서버가 이것을 다음 기준점(마지막으로 본 글)으로 삼는다.
                     if (t.equals(newest)) o.put("newest", true);
                     // 기준점을 끝까지 못 찾았으면 서버가 관리자에게 알린다(그 사이 글을 놓쳤을 수 있음).
@@ -67,6 +68,18 @@ final class Sender {
             } catch (Exception e) {
                 Config.status(c, "대기열 오류: " + e.getMessage());
             }
+        });
+    }
+
+    /**
+     * 진단 기록 한 건을 서버 기록장으로 보낸다(실패해도 다시 보내지 않는다 — 기록용).
+     * 예: sendDiag(ctx, {"kind":"read","result":"성공 3개",...}) → POST /api/kakao-relay/diag
+     */
+    static void sendDiag(Context ctx, JSONObject o) {
+        final Context c = ctx.getApplicationContext();
+        POOL.execute(() -> {
+            try { post(c, "/api/kakao-relay/diag", o.put("device", Config.device(c))); }
+            catch (Exception e) { Config.status(c, "진단 기록 전송 실패: " + e.getMessage()); }
         });
     }
 

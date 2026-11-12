@@ -562,11 +562,11 @@ function reportMarkdown({ day, now = Date.now(), file = path.join(require('../co
     });
     const dups = by('dup');
     out.push('**중복으로 버린 글**', '', tbl(['시각', '기기', '경로', '방금 온 알림?'], dups.map((e) => [hmK(e.t), e.device, e.source === 'notification' ? '알림 글' : '대화방 전문', e.trigger === false ? '아니오' : '예'])), '');
-    out.push('## 10. 기기 기록(신호·설정·대화방 읽기)', '', tbl(['시각', '설명'], evs.filter((e) => ['beat', 'device', 'anchor', 'ignored'].includes(e.kind)).map((e) => [hmK(e.t), e.설명 || explain(e)])), '');
+    out.push('## 10. 기기 기록(신호·설정·대화방 읽기)', '', tbl(['시각', '설명'], evs.filter((e) => ['beat', 'device', 'anchor', 'ignored', 'diag'].includes(e.kind)).map((e) => [hmK(e.t), e.설명 || explain(e)])), '');
     out.push('## 11. 전체 연대기(시간순, 5분 점검은 다른 구역·문제가 있을 때만)', '', ...evs.filter((e) => e.kind !== 'tick' || e.mmisError || (e.diffZones || []).length || (e.waitZones || []).length || (e.mmisAgeMin != null && e.mmisAgeMin > 15))
         .map((e) => `- ${hmK(e.t)} — ${e.설명 || explain(e) || e.kind}`), '');
     out.push('## 부록. 원자료', '', '- 서버 파일: `data/kakao_relay_log/YYYY-MM-DD.jsonl`(한국 날짜, 30일 보관). 한 줄 = 한 사건(JSON). 모든 줄에 `t`(UTC 시각)·`kind`(종류)·`설명`(한글 설명)이 있다.',
-        '- kind: msg(받은 글 원문·줄 처리) · dup(중복 글) · ignored(끈 기기 글) · beat(기기 신호) · device(관리자 기기 설정) · anchor(마지막으로 본 글 찾기) · baseline(시험 시작 상태) · apply(카톡판 반영) · missedLine(놓친 글 줄) · mmis(앱 특보현황 변화) · line(카톡 줄 판정) · episode(달랐던 구간) · tick(5분 점검).',
+        '- kind: msg(받은 글 원문·줄 처리) · dup(중복 글) · ignored(끈 기기 글) · beat(기기 신호) · device(관리자 기기 설정) · anchor(마지막으로 본 글 찾기) · diag(앱 진단 — noti 알림 받음 · read 대화방 읽기 결과) · baseline(시험 시작 상태) · apply(카톡판 반영) · missedLine(놓친 글 줄) · mmis(앱 특보현황 변화) · line(카톡 줄 판정) · episode(달랐던 구간) · tick(5분 점검).',
         '- 계산 방법: services/kakao_shadow.js(runShadow·summarize·reportMarkdown), 설명 문장: services/kakao_relay_log.js(explain).', '');
     return out.join('\n');
 }
