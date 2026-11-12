@@ -1,0 +1,15 @@
+{
+ "script": "collect_approved",
+ "stamp": "20261112-160111-262",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20270101/시행규칙.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20270101/_meta.json",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20261210/시행규칙.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20261210/_meta.json",
+  "local_server/knowledge/legal/raw/07_해양환경생태/공유수면관리및매립에관한법률/행정규칙/전원개발사업실시계획승인(하동복합발전소건설사업).txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/국립환경과학원배출영향분석검토및처리등에관한규정.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/별표/국립환경과학원배출영향분석검토및처리등에관한규정_별표0.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/별표/국립환경과학원배출영향분석검토및처리등에관한규정_별지0.txt",
+  "local_server/knowledge/legal/_dashboard/pending_index.json"
+ ]
+}
