@@ -75,7 +75,7 @@ function parseItems(t2, unknown) {
             if (cur) { for (const tok of splitTop(im[3])) { const u = expand(tok, unknown); if (u) for (const x of u) cur.units.add(x); } items.push(cur); }
             continue;
         }
-        const sm = l.match(/^[oㅇ*]\s*(.+)$/);
+        const sm = l.match(/^[oOㅇ*]\s*(.+)$/);
         if (sm && cur) {
             // 묶음 아래 세부 줄: 그 부모를 이 표현으로 바꿔 끼운다(예: o 제주도남부앞바다(연안바다 제외))
             for (const tok of splitTop(sm[1])) {
@@ -89,7 +89,7 @@ function parseItems(t2, unknown) {
     return items;
 }
 /**
- * 발효 중 칸(t6) → {cur: Map(단위 → 등급), kidsListed: Set(자식이 따로 적힌 부모)} — 풍랑만.
+ * 발효 중 칸(t6) → {cur: Map(단위 → 종류+등급, 예 '풍랑주의보'), kidsListed: Set(자식이 따로 적힌 부모)} — 풍랑·태풍.
  * ⚠이 칸은 상태가 다른 자식을 「부모(자식, 자식)」로 따로 적고, 부모 이름은 부모 자신만 뜻한다
  *   (2025-01 대전청 1-4호: 「충남북부앞바다(천수만·안면도 서쪽·태안·서산 북쪽 평수구역)」 + 「서해중부앞바다(충남북부앞바다, …)」).
  *   그래서 자식이 따로 적히지 않은 부모의 자식은 이 칸으로 검산할 수 없다(비교에서 뺀다).
@@ -97,15 +97,15 @@ function parseItems(t2, unknown) {
 function parseCurrent(t6, unknown) {
     const cur = new Map(), kidsListed = new Set();
     for (const l of lines(t6)) {
-        const m = l.replace(/^[oㅇ*]\s*/, '').match(/^(풍랑)(주의보|경보)\s*:\s*(.+)$/);
+        const m = l.replace(/^[oOㅇ*]\s*/, '').match(/^(풍랑|태풍)(주의보|경보)\s*:\s*(.+)$/);   // 2025-12-20 무렵 대문자 「O」 머리표가 쓰였다
         if (!m) continue;
         for (const tok of splitTop(m[3])) {
             const u = expand(tok, unknown); if (!u) continue;
             for (const x of u) {
-                if (PARENTS.has(x)) cur.set(x, m[2]);
+                if (PARENTS.has(x)) cur.set(x, m[1] + m[2]);
                 else { const par = Object.keys(PARENT_TO_CHILDREN).find((p) => childrenOf(p).includes(x)); const pm = tok.match(/^([^(]+)/);
                     // 자식이 괄호로 따로 적힌 경우만 자식 상태로 친다(부모 이름만으로 펼쳐진 자식은 뺀다)
-                    if (/\(/.test(tok) && par && norm(pm[1]) === par && !PARENTS.has(norm(tok.replace(/^[^(]+\(|\)$/g, '')))) { cur.set(x, m[2]); kidsListed.add(par); } }
+                    if (/\(/.test(tok) && par && norm(pm[1]) === par && !PARENTS.has(norm(tok.replace(/^[^(]+\(|\)$/g, '')))) { cur.set(x, m[1] + m[2]); kidsListed.add(par); } }
             }
         }
     }
@@ -120,8 +120,8 @@ for (const ym of months) for (const f of fs.readdirSync(path.join(__dirname, 'ra
     for (const it of Object.values(d.items)) if (it.rpt === '6' && it.result) (byOffice[d.officeName] = byOffice[d.officeName] || []).push(it.result);
 }
 for (const [office, list] of Object.entries(byOffice)) {
-    const last = new Map();   // 같은 호는 마지막 판만
-    for (const r of list) { const k = r.t1Title; if (!last.has(k) || last.get(k).tmIn < r.tmIn) last.set(k, r); }
+    const last = new Map();   // 같은 호는 마지막 판만 — 호 번호는 해마다 다시 시작하므로 발표 연도를 붙인다(2025 1-41호 ≠ 2026 1-41호)
+    for (const r of list) { const k = String(r.tmFc).slice(0, 4) + ' ' + r.t1Title; if (!last.has(k) || last.get(k).tmIn < r.tmIn) last.set(k, r); }
     // 입력 시각 순 — 발표시각(tmFc)은 앞뒤가 바뀔 수 있다(2025-07 대전청 7-28호: 발표 11:00·입력 11:17 이 7-26호 발표 11:10·입력 10:50 보다 뒤).
     const seq = [...last.values()].sort((a, b) => (a.tmIn + a.tmFc).localeCompare(b.tmIn + b.tmFc));
     const st = new Map(); let seeded = false;
@@ -133,10 +133,9 @@ for (const [office, list] of Object.entries(byOffice)) {
         const comparable = (k) => PARENTS.has(k) || kidsListed.has(Object.keys(PARENT_TO_CHILDREN).find((p) => childrenOf(p).includes(k)));
         if (!seeded) { for (const [k, v] of truth) st.set(k, v); seeded = true; continue; }   // 첫 통보문의 발효 중 칸으로 시작
         for (const it of items) {
-            if (it.type !== '풍랑') continue;
             for (const u of it.units) {
                 if (it.action === '해제') st.delete(u);
-                else if (it.action === '발표' || it.action === '변경') st.set(u, it.level);
+                else if (it.action === '발표' || it.action === '변경') st.set(u, it.type + it.level);   // 태풍 특보가 풍랑 특보를 대신하므로 종류까지 상태로 든다
             }
         }
         report.checked++; o.checked++;
