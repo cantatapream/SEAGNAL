@@ -5,7 +5,7 @@
  * 규칙(사용자 확정 2026-11-12):
  *   - 부모 해역 이름만 나오면 자식 해역 전부 포함. 일부 포함·제외는 괄호로 명시된다.
  *   - 묶음 이름(제주도전해상·동해남부앞바다 …)은 config/zone_group_map 으로 펼친다. 「묶음(부모, 부모)」면 괄호 안 부모만.
- * 적용: 관서별로 같은 호의 마지막 판만, 발표시각·입력시각 순. 발표·변경 = 그 등급, 해제 = 없음, 해제예고연장 = 그대로.
+ * 적용: 관서별로 같은 호의 마지막 판만, 입력시각 순. 발표·변경 = 그 등급, 해제 = 없음, 해제예고연장 = 그대로.
  *   통보문의 발효 중 칸은 「이 통보문까지 적용한 뒤」 상태(앞으로 발효될 것 포함)라 바로 적용한다.
  * 실행: node lifecycle_check.js 2025-01 2025-02 … [--show=20]
  * [연계] ← 사람이 실행 / → raw/<달>/*.json · config/zone_group_map · marine_warning_crawler PARENT_TO_CHILDREN
@@ -122,7 +122,8 @@ for (const ym of months) for (const f of fs.readdirSync(path.join(__dirname, 'ra
 for (const [office, list] of Object.entries(byOffice)) {
     const last = new Map();   // 같은 호는 마지막 판만
     for (const r of list) { const k = r.t1Title; if (!last.has(k) || last.get(k).tmIn < r.tmIn) last.set(k, r); }
-    const seq = [...last.values()].sort((a, b) => (a.tmFc + a.tmIn).localeCompare(b.tmFc + b.tmIn));
+    // 입력 시각 순 — 발표시각(tmFc)은 앞뒤가 바뀔 수 있다(2025-07 대전청 7-28호: 발표 11:00·입력 11:17 이 7-26호 발표 11:10·입력 10:50 보다 뒤).
+    const seq = [...last.values()].sort((a, b) => (a.tmIn + a.tmFc).localeCompare(b.tmIn + b.tmFc));
     const st = new Map(); let seeded = false;
     const o = report.offices[office] = { bulletins: seq.length, checked: 0, exact: 0 };
     for (const r of seq) {
