@@ -61,7 +61,12 @@ public class ReaderService extends AccessibilityService {
     private PendingIntent again;   // 읽는 도중 새 특보가 오면 끝난 뒤 한 번 더 읽는다
     private PendingIntent curPi;   // 지금 읽는 알림 — 끝에 맨 아래에서 새 글을 보면 이것으로 한 번 더 읽는다
     private boolean atBottom;      // 이번 읽기에서 맨 아래까지 내렸나
-    private int bottomSwipes;      // 맨 아래로 내리며 끈 횟수(기록용)
+    private int bottomSwipes;      // 맨 아래로 내리며 끈 횟수(기록용 — 처음+끝 합계)
+    private int bottomRound;       // 이번 내리기에서 끈 횟수(한도 20 — 처음·끝 따로, 적대검증 #1)
+    private boolean bottomReached; // 화면이 더 안 바뀌어서 맨 아래로 판정했나(한도에 걸린 것과 구별)
+    private boolean anchorOnFirstPage; // 기준점이 맨 아래 첫 화면에 있었나 — 그때만 기준점 아래 글을 방금 온 글로 친다(적대검증 #2)
+    private boolean overlapFixPending; // 겹침 되돌리기 직후 — 「화면 안 움직임」 판정을 한 번 건너뛴다(적대검증 #4)
+    private int lateReruns;        // 끝에 새 글을 보고 다시 읽은 횟수(한 알림에 최대 2번 — 적대검증 #5)
     private String bottomSig;
     private Runnable afterBottom;  // 맨 아래에 닿은 뒤 할 일
     // 「마지막으로 본 글」(기준점)보다 아래에 있던 글 — 알림 글에 표식이 없어도 방금 온 글이다(11/09 04:31 놓친 글로 잘못 분류).
@@ -82,7 +87,7 @@ public class ReaderService extends AccessibilityService {
     static void openAndRead(Context c, PendingIntent pi) {
         ReaderService s = instance;
         if (s == null) { Config.status(c, "접근성 꺼짐 — 대화방을 못 읽음(알림 글만 보냄)"); return; }
-        s.handler.post(() -> s.start(pi));
+        s.handler.post(() -> { s.lateReruns = 0; s.start(pi); });
     }
 
     @Override protected void onServiceConnected() {
@@ -107,6 +112,9 @@ public class ReaderService extends AccessibilityService {
         atBottom = false;
         bottomSwipes = 0;
         bottomSig = null;
+        bottomReached = false;
+        anchorOnFirstPage = false;
+        overlapFixPending = false;
         prevPage = null;
         triedOverlapFix = false;
         overlapMiss = 0;
@@ -189,6 +197,7 @@ public class ReaderService extends AccessibilityService {
             newestText = texts.get(texts.size() - 1);   // 대화창은 아래가 최신 — 화면 순서상 마지막이 맨 아래
             markNewer(texts);
             checkAnchor(texts);
+            anchorOnFirstPage = anchorFound && bottomReached;
             prevPage = texts;
             if (more != null && click(more)) {
                 state = State.WAIT_FULL;
@@ -244,6 +253,8 @@ public class ReaderService extends AccessibilityService {
     private void goBottom(Runnable next) {
         atBottom = false;
         bottomSig = null;
+        bottomRound = 0;
+        bottomReached = false;
         afterBottom = next;
         handler.post(this::bottomStep);
     }
@@ -253,8 +264,9 @@ public class ReaderService extends AccessibilityService {
         List<AccessibilityNodeInfo> room = currentRoom();
         if (room == null) { atBottom = true; Runnable n = afterBottom; afterBottom = null; if (n != null) n.run(); return; }
         String sig = signature(room);
-        if ((bottomSig != null && sig.equals(bottomSig)) || bottomSwipes >= MAX_BOTTOM_SWIPES) {
+        if ((bottomSig != null && sig.equals(bottomSig)) || bottomRound >= MAX_BOTTOM_SWIPES) {
             atBottom = true;
+            bottomReached = bottomSig != null && sig.equals(bottomSig);
             Runnable n = afterBottom;
             afterBottom = null;
             if (n != null) n.run();
@@ -262,6 +274,7 @@ public class ReaderService extends AccessibilityService {
         }
         bottomSig = sig;
         bottomSwipes++;
+        bottomRound++;
         AccessibilityNodeInfo sc = roomScroller(room);
         if (!swipe(this, sc, 0.8f, 0.2f, false) && (sc == null || !sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD))) {
             atBottom = true;
@@ -309,7 +322,9 @@ public class ReaderService extends AccessibilityService {
         if (state != State.SCROLL) return;
         List<AccessibilityNodeInfo> room = currentRoom();
         if (room == null) { scrollNote = "위 페이지를 읽는 중 대화방을 벗어남"; finish(null); return; }
-        if (signature(room).equals(lastSig)) {
+        boolean justFixed = overlapFixPending;
+        overlapFixPending = false;
+        if (!justFixed && signature(room).equals(lastSig)) {
             AccessibilityNodeInfo sc = roomScroller(room);
             if (!triedFallback && sc != null && sc.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) {
                 triedFallback = true;
@@ -332,7 +347,7 @@ public class ReaderService extends AccessibilityService {
                 triedOverlapFix = true;
                 AccessibilityNodeInfo sc = roomScroller(room);
                 lastSig = signature(room);
-                if (swipe(this, sc, 0.7f, 0.35f, true)) { handler.postDelayed(this::readPageUp, STEP_MS); return; }
+                if (swipe(this, sc, 0.7f, 0.35f, true)) { overlapFixPending = true; handler.postDelayed(this::readPageUp, STEP_MS); return; }
             }
         } else triedOverlapFix = false;
         found.addAll(page);
@@ -554,10 +569,11 @@ public class ReaderService extends AccessibilityService {
                 if (s != null && s.contains(Config.MARKER) && !found.contains(s)) lateNew++;
             }
         }
-        if (lateNew > 0) {
+        if (lateNew > 0 && lateReruns < 2) {
+            lateReruns++;
             Config.status(this, "맨 아래에 새 글 " + lateNew + "개 — 한 번 더 읽음");
             if (again == null) again = curPi;
-        }
+        } else if (lateNew > 0) Config.status(this, "맨 아래에 새 글 " + lateNew + "개 — 다시 읽기 한도(2번)라 다음 알림 때 읽음");
         complete(null);
     }
 
@@ -573,13 +589,15 @@ public class ReaderService extends AccessibilityService {
             result = "실패: " + (why == null ? "글 없음" : why);
         }
         String anchorStatus = anchorId == null ? "none" : anchorFound ? "found" : "missing";
-        // 기준점을 찾았을 때만 그 아래 글을 방금 온 글로 친다(못 찾았으면 옛 글이 섞였을 수 있다).
-        java.util.Set<String> fresh = anchorFound ? new java.util.HashSet<>(newer) : java.util.Collections.emptySet();
+        // 기준점이 맨 아래 첫 화면에 있었을 때만(=알림마다 제때 읽는 평소 경우) 그 아래 글을 방금 온 글로 친다.
+        //   위로 한참 거슬러야 찾았거나 못 찾았으면 오래 쌓인 글일 수 있다 — 놓친 글로 두어 옛 특보가 지금 새 특보로
+        //   올라가지 않게 한다(적대검증 #2: 0.2 의 잘못된 기준점에서 0.3 첫 실행 때).
+        java.util.Set<String> fresh = anchorOnFirstPage ? new java.util.HashSet<>(newer) : java.util.Collections.emptySet();
         if (!found.isEmpty()) Sender.sendRead(this, new ArrayList<>(found), newestText, anchorStatus, fresh);
         // 진단 기록 — 매번 서버 기록장에 남긴다(어느 읽기가 왜 모자랐는지 화면 캡처 없이 알 수 있게).
         try {
             Sender.sendDiag(this, new org.json.JSONObject().put("kind", "read").put("result", result)
-                    .put("bottomSwipes", bottomSwipes).put("reachedBottom", atBottom || bottomSwipes > 0)
+                    .put("bottomSwipes", bottomSwipes).put("reachedBottom", bottomReached)
                     .put("texts", found.size()).put("newer", fresh.size()).put("anchor", anchorStatus)
                     .put("overlapMiss", overlapMiss).put("lateNew", lateNew).put("locked", lockedAtStart)
                     .put("full", fullOk));
