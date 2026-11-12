@@ -52,7 +52,17 @@ function req(method, p, body, extra) {
     });
 }
 
+/** 로그인 — 일시적으로 거부되면(응답이 JSON 이 아님 등) 늦춰 가며 5번까지 다시 한다(2026-11-12 한 번 statecode=null 로 멈춤). */
 async function login() {
+    let last;
+    for (let i = 0; i < 5; i++) {
+        try { return await loginOnce(); }
+        catch (e) { last = e; console.warn('[collect] 로그인 실패, 다시 시도:', e.message); await sleep(30000 * (i + 1)); }
+    }
+    throw last;
+}
+
+async function loginOnce() {
     const id = process.env.KMA_DMDW_USER_ID, pw = process.env.KMA_DMDW_USER_PWD;
     if (!id || !pw) throw new Error('KMA_DMDW_USER_ID/PWD 환경변수 없음');
     S.cookies = {};
