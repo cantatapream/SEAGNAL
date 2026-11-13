@@ -112,6 +112,8 @@ function parseCurrent(t6, unknown) {
     return { cur, kidsListed };
 }
 
+module.exports = { norm, lines, splitTop, expand, parseItems, parseCurrent, PARENTS, childrenOf };
+if (require.main === module) {
 const unknown = [];
 const report = { bulletins: 0, checked: 0, exact: 0, offices: {} }, examples = [];
 const byOffice = {};
@@ -154,3 +156,4 @@ for (const [k, v] of Object.entries(report.offices)) console.log(`  ${k}: ${v.ex
 console.log('\n어긋난 예:'); for (const e of examples) console.log('  ' + e);
 const uc = {}; for (const u of unknown) uc[u] = (uc[u] || 0) + 1;
 console.log('\n해석 못 한 바다 표현:'); for (const [k, v] of Object.entries(uc).sort((a, b) => b[1] - a[1]).slice(0, 20)) console.log(`  ${k} ×${v}`);
+}
