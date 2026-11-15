@@ -64,27 +64,54 @@ const norm = (s) => String(s || '').replace(/\s+/g, '');
  *     · '동해중부먼바다' → 안쪽·바깥 두 곳(줄임 이름 규칙) · '동해남부남쪽해상' → null(못 읽음 — 보고서에 그대로 남긴다)
  * [연계] ← checkOne(이 파일) / → lifecycle_check.expand(규칙 — AI 는 펼치지 않는다)
  */
-function resolveZones(expr) {
+function resolveZones(expr, ctx = {}) {
     const { expand, splitTop, PARENTS, childrenOf } = require('../analysis/bulletin_survey/lifecycle_check');
+    const { ZONE_GROUP_MAP } = require('../config/zone_group_map');
     const parentOf = (x) => (PARENTS.has(x) ? x : [...PARENTS].find((p) => childrenOf(p).includes(x)));
-    // 「A 중 B」(띄어 쓴 「중」만 — 「동해중부」의 중은 아니다) → 「A(B)」
-    let s = String(expr || '').replace(/\s+중\s+([^,，와과및]+)/g, '($1)');
+    const allKids = [...PARENTS].flatMap((p) => childrenOf(p));
+    // ③ 「위 구역·위 해역·위 지역」 = 이 통보문 본문의 해역(규칙이 본문에서 읽은 것) — 2026-11-15 AI 시험 7건
+    if (/^위\s*(구역|해역|지역)/.test(String(expr || '').trim()) && ctx.bodyZones) return ctx.bodyZones.length ? [...ctx.bodyZones] : null;
+    // 「A 중 B」(띄어 쓴 「중」만 — 「동해중부」의 중은 아니다) → 「A(B)」 · 끝에 붙은 조사 「의」 떼기(「동해중부해상의」)
+    let s = String(expr || '').replace(/\s+중\s+([^,，와과및]+)/g, '($1)').replace(/의\s*$/, '');
     const out = new Set();
-    for (const tok of splitTop(s.replace(/\s+/g, '').replace(/(바다|해상|구역|\))(와|과|및)/g, '$1,'))) {
+    for (let tok of splitTop(s.replace(/\s+/g, '').replace(/(바다|해상|구역|\))(와|과|및)/g, '$1,'))) {
+        tok = tok.replace(/의$/, '');
         let u = expand(tok, []);
+        // ④ 묶음 이름 + 「(줄인 부모 이름 제외)」 — 「제주도앞바다(북부앞바다 제외)」: expand 는 괄호 안을 못 알아봐 묶음 전체를 준다
+        const ex = tok.match(/^([^(]+)\((.+)제외\)$/);
+        if (ex && ZONE_GROUP_MAP[ex[1]]) {
+            const drop = splitTop(ex[2]).map((t) => t.replace(/\s+/g, ''));
+            u = new Set(ZONE_GROUP_MAP[ex[1]].filter((p) => !drop.some((d) => p === d || p.endsWith(d))));
+        }
         if (!u) {
-            // 줄임 이름(규칙): 「X먼바다」 = X안쪽먼바다+X바깥먼바다, 「X앞바다」 = X북부·중부·남부앞바다 — 목록에 있는 것만
             const base = tok.replace(/\(.*$/, '');
-            const cand = /먼바다$/.test(base) ? ['안쪽먼바다', '바깥먼바다'].map((t) => base.replace(/먼바다$/, t))
-                : /앞바다$/.test(base) ? ['북부앞바다', '중부앞바다', '남부앞바다'].map((t) => base.replace(/앞바다$/, t)) : [];
-            const hit = cand.filter((c) => PARENTS.has(c));
+            let hit = [];
+            // 줄임 이름(규칙): 「X먼바다」 = X안쪽먼바다+X바깥먼바다, 「X앞바다」 = X북부·중부·남부앞바다
+            if (/먼바다$/.test(base)) hit = ['안쪽먼바다', '바깥먼바다'].map((t) => base.replace(/먼바다$/, t));
+            else if (/앞바다$/.test(base)) hit = ['북부앞바다', '중부앞바다', '남부앞바다'].map((t) => base.replace(/앞바다$/, t));
+            // ④ 「X해상」 = X앞바다 묶음 + X…먼바다(목록에서 X 로 시작하는 먼바다) — 「동해중부해상」 「동해남부남쪽해상」
+            else if (/해상$/.test(base)) { const x = base.replace(/해상$/, ''); hit = [...(ZONE_GROUP_MAP[x + '앞바다'] || []), ...[...PARENTS].filter((p) => p.startsWith(x) && /먼바다$/.test(p))]; }
+            // ④ 「제주도북동연안바다」처럼 「앞바다 중」이 빠진 자식 이름 — 끝부분이 하나의 자식 이름과만 맞으면 그 자식
+            else if (/(연안바다|평수구역)$/.test(base)) { for (let k = 0; k < base.length - 3 && !hit.length; k++) { const m = allKids.filter((c) => c.replace(/\s+/g, '').endsWith(base.slice(k)) && c.startsWith(base.slice(0, 2))); if (m.length === 1) hit = m; } }
+            hit = hit.filter((c) => PARENTS.has(c) || allKids.includes(c));
             if (!hit.length) return null;
             u = new Set(hit);
         }
         for (const x of u) { const p = parentOf(x); if (p) out.add(p); }
     }
+    // ① 관서 관할로 좁힌다 — 「서해중부앞바다」를 수도권청 글에서는 인천·경기만(충남은 대전청). 겹치는 게 없으면 좁히지 않는다.
+    if (ctx.office) {
+        const own = officeZones()[ctx.office] || [];
+        const mine = [...out].filter((z) => own.includes(z));
+        if (mine.length) return mine;
+    }
     return out.size ? [...out] : null;
 }
+let _oz = null;
+/** 관서별 관할 부모 해역(analysis/bulletin_survey/office_zones.json — ai_trial_build.js 가 원본에서 만든다). */
+function officeZones() { if (!_oz) { try { _oz = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'office_zones.json'), 'utf8')); } catch (e) { console.warn('[bulletin_ai_trial] 관할 표 없음', e && e.message); _oz = {}; } } return _oz; }
+/** 육상 지역 표현인가 — 「충청남도(…)」 「제주도(추자도)」 「울릉도.독도」 「위 지역」은 바다 특보가 아니다(지시 5번을 AI 가 어긴 4건, 2026-11-15). */
+const isLand = (expr) => /^[가-힣]+도\(|^울릉도\.독도|^(서해5도|흑산도|제주도)$|산지|평지|중산간|^위\s*지역/.test(String(expr || '').trim());
 
 /**
  * AI 답 한 건을 검산한다: ① JSON 꼴 ② 근거 문장이 원문에 있나 ③ 해역 표현을 규칙이 펼치나 ④ 규칙 결과(목록 비교)와 맞나.
@@ -97,13 +124,16 @@ function checkOne(item, parsed) {
     if (!parsed || !Array.isArray(parsed.사건)) return res;
     res.꼴 = true;
     const r = item.rule || {};
-    const gone = new Set([...(r.빠짐 || []).map((x) => x.해역), ...(r.시간지나끝남 || []).filter((x) => !x.다시나옴.length).map((x) => x.해역)]);
+    const gone = new Set([...(r.빠짐 || []).map((x) => x.해역), ...(r.시간지나끝남 || []).filter((x) => !x.다시나옴.length).map((x) => x.해역), ...(r.직전빠짐 || []).map((x) => x.해역)]);   // 직전빠짐: 문장이 한 통보문 늦게 오는 경우
     const moved = new Set([...(r.시간바뀜 || []).map((x) => x.해역), ...(r.시간지나끝남 || []).filter((x) => x.다시나옴.length).map((x) => x.해역)]);
     const added = new Set((r.새로 || []).map((x) => x.해역));
     const told = new Set();
+    // 「위 구역」을 풀 이 통보문 본문 해역(규칙 결과에서)
+    const bodyZones = [...new Set(r.항목 ? r.항목.flatMap((i) => i.해역) : [...(r.지금목록 || []), ...(r.빠짐 || []), ...(r.시간지나끝남 || [])].map((x) => x.해역))];
     for (const e of parsed.사건) {
         if (norm(item.참고사항).includes(norm(e.근거문장)) && norm(e.근거문장)) res.근거있음++; else res.근거없음++;
-        const zones = resolveZones(e.해역표현);
+        if (isLand(e.해역표현)) { res.육상 = (res.육상 || 0) + 1; res.판정.push({ 종류: e.종류, 해역표현: e.해역표현, 판정: '육상(뺌)', 까닭: '바다 특보가 아닌 육상 지역 — 비교에서 뺀다' }); continue; }
+        const zones = resolveZones(e.해역표현, { office: item.office, bodyZones });
         if (!zones) { res.해역못읽음.push(e.해역표현); res.판정.push({ 종류: e.종류, 해역표현: e.해역표현, 판정: '해역 못 읽음', 까닭: '규칙이 이 해역 표현을 펼치지 못했다' }); continue; }
         zones.forEach((z) => told.add(z));
         const base = item.rpt === '7' && (e.종류 === '예비취소' ? gone : (e.종류 === '예비연장' || e.종류 === '예비연기') ? moved : e.종류 === '예비추가' ? added : null);
@@ -113,7 +143,8 @@ function checkOne(item, parsed) {
             까닭: hit.length === zones.length ? '규칙 목록 비교와 같다' : `규칙 목록 비교에 없는 해역: ${zones.filter((z) => !base.has(z)).join(', ')}` });
     }
     // 규칙은 바뀌었다고 하는데 AI 가 말하지 않은 해역(참고사항에 안 적혔을 수도 있다 — 참고로만)
-    for (const z of [...gone, ...moved]) if (!told.has(z)) res.규칙만.push(z);
+    const prevOnly = new Set((r.직전빠짐 || []).map((x) => x.해역));   // 앞 통보문에서 빠진 것은 이 통보문이 말할 의무가 없다
+    for (const z of new Set([...gone, ...moved])) if (!told.has(z) && !(prevOnly.has(z) && !(r.빠짐 || []).some((x) => x.해역 === z))) res.규칙만.push(z);
     return res;
 }
 
@@ -192,7 +223,7 @@ function reportMarkdown(rows, st) {
         if (!r) return '- (규칙 결과 없음)';
         if (r.항목) return r.항목.map((i) => `- ${i.종류} ${i.동작}: ${i.해역.join(', ') || '(바다 해역 없음)'}`).join('\n') || '- (변경 항목 없음)';
         const f = (a, g) => (a || []).map(g).join(' · ') || '없음';
-        return [`- 빠짐(취소로 보임): ${f(r.빠짐, (x) => x.해역 + ' ' + x.시간창)}`, `- 시간 바뀜: ${f(r.시간바뀜, (x) => x.해역 + ' ' + x.전 + ' → ' + x.후.join('/'))}`,
+        return [`- 빠짐(취소로 보임): ${f(r.빠짐, (x) => x.해역 + ' ' + x.시간창)}`, ...(r.직전빠짐 && r.직전빠짐.length ? [`- 바로 앞 예비 통보문(3시간 안)에서 빠짐: ${f(r.직전빠짐, (x) => x.해역 + ' ' + x.시간창)}`] : []), `- 시간 바뀜: ${f(r.시간바뀜, (x) => x.해역 + ' ' + x.전 + ' → ' + x.후.join('/'))}`,
             `- 새로: ${f(r.새로, (x) => x.해역 + ' ' + x.시간창)}`, `- 시간 지나 끝남: ${f(r.시간지나끝남, (x) => x.해역 + ' ' + x.시간창 + (x.다시나옴.length ? ' → 다시 ' + x.다시나옴.join('/') : ''))}`].join('\n');
     };
     const out = [
@@ -203,7 +234,7 @@ function reportMarkdown(rows, st) {
         `- AI 가 뽑은 사건: ${ev}개 · 근거 문장이 원문에 그대로 있음 ${okEv}개 · **원문에 없음 ${badEv}개**(AI 가 문장을 바꾸거나 지어냄)`,
         `- 판정: ${Object.entries(cnt).map(([k, v]) => `${k} ${v}`).join(' · ') || '없음'}`,
         `- 규칙이 못 읽은 해역 표현: ${Object.entries(unread).map(([k, v]) => `「${k}」×${v}`).join(', ') || '없음'}`, '',
-        '판정 뜻 — 일치: 규칙의 목록 비교와 같다 / 불일치·일부 일치: AI 가 말한 해역이 규칙 결과에 없다 / 비교 기준 없음: 목록으로 확인할 수 없는 종류(가능성·해제예고 등) / 해역 못 읽음: 규칙이 그 표현을 펼치지 못함.', '',
+        '판정 뜻 — 일치: 규칙의 목록 비교와 같다 / 불일치·일부 일치: AI 가 말한 해역이 규칙 결과에 없다 / 비교 기준 없음: 목록으로 확인할 수 없는 종류(가능성·해제예고 등) / 해역 못 읽음: 규칙이 그 표현을 펼치지 못함 / 육상(뺌): 바다가 아닌 지역이라 비교에서 뺌.', '',
         '## 건별', '',
     ];
     for (const { item, rec } of rows) {
@@ -228,5 +259,5 @@ const getReal = () => (real = real || createTrial({}));
 module.exports = {
     start: () => getReal().start(), stop: () => getReal().stop(), status: () => getReal().status(),
     report: () => reportMarkdown(getReal().results(), getReal().status()),
-    createTrial, buildPrompt, checkOne, resolveZones, reportMarkdown, KINDS,
+    createTrial, buildPrompt, checkOne, resolveZones, reportMarkdown, isLand, KINDS,
 };

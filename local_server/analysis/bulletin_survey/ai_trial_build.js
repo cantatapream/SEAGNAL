@@ -10,7 +10,7 @@
  * [연계] ← 사람이 실행 / → raw/ · lifecycle_check.js · services/bulletin_ai_trial.js(읽음)
  */
 const fs = require('fs'), path = require('path');
-const { lines, splitTop, expand, parseItems, PARENTS } = require('./lifecycle_check');
+const { lines, splitTop, expand, parseItems, parseCurrent, PARENTS, childrenOf } = require('./lifecycle_check');
 const RAW = path.join(__dirname, 'raw');
 const K = (s) => Date.parse(String(s).slice(0, 19).replace(' ', 'T') + '+09:00');
 const fmt = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(5, 16).replace('T', ' ');
@@ -25,7 +25,8 @@ function parseYebi(text, tmFc) {
         if (!m || !(kind === '풍랑' || kind === '태풍')) continue;
         const mo = +m[1], a = +m[3], b = +m[4]; const yr = mo < m0 - 6 ? y0 + 1 : (mo > m0 + 6 ? y0 - 1 : y0);
         const day = Date.UTC(yr, mo - 1, +m[2]) - 9 * 3600e3;
-        for (const tok of splitTop(m[5])) { const u = expand(tok, []); if (u) for (const x of u) if (PARENTS.has(x)) out.push({ unit: x, start: day + a * 3600e3, end: day + (b <= a ? b + 24 : b) * 3600e3 }); }
+        // 자식만 적힌 줄(「남해서부서쪽먼바다(추자도연안바다)」)도 그 부모 단위로 센다 — 부모 단위 비교에서 연장을 「새로」로 오판하지 않게(2026-11-15 AI 시험 #161)
+        for (const tok of splitTop(m[5])) { const u = expand(tok, []); if (!u) continue; const ps = new Set(); for (const x of u) { const p = PARENTS.has(x) ? x : [...PARENTS].find((q) => childrenOf(q).includes(x)); if (p) ps.add(p); } for (const x of ps) out.push({ unit: x, start: day + a * 3600e3, end: day + (b <= a ? b + 24 : b) * 3600e3 }); }
     }
     return out;
 }
@@ -51,10 +52,12 @@ const bulletins = [...lastMap.values()].sort((a, b) => a.r.tmIn.localeCompare(b.
 const isWave = (x) => /풍랑|태풍|바다|해상/.test((x.r.t1 || '') + (x.r.t2 || '') + (x.r.t4 || '') + (x.r.other || ''));
 
 // 규칙 결과
-const prevYebi = {};
+const prevYebi = {}, prevGone = {};
 for (const x of bulletins) {
     if (x.rpt === '7') {
-        const now = parseYebi(x.r.t4, x.r.tmFc), before = prevYebi[x.office] || [];
+        const t0 = K(x.r.tmIn);
+        // 직전 목록은 시간창이 끝난 지 12시간 안 것만 비교에 쓴다 — 며칠 전 목록과 비교해 「이미 있던 해역」으로 오판하지 않게(2026-11-15 #99)
+        const now = parseYebi(x.r.t4, x.r.tmFc), before = (prevYebi[x.office] || []).filter((e) => e.end > t0 - 12 * 3600e3);
         const key = (e) => e.unit + '|' + e.start + '|' + e.end;
         const ks = new Set(now.map(key)), bs = new Set(before.map(key)), t = K(x.r.tmIn);
         const removed = before.filter((e) => !ks.has(key(e)) && e.end > t);
@@ -67,13 +70,27 @@ for (const x of bulletins) {
             // 직전 목록에 있었지만 이 통보문 전에 시간이 끝난 줄(12시간 안) — 끝난 뒤 나온 취소·연장 문장과 맞춰 보려고
             시간지나끝남: before.filter((e) => e.end <= t && e.end > t - 12 * 3600e3 && !ks.has(key(e))).map((e) => ({ 해역: e.unit, 시간창: win(e), 다시나옴: now.filter((n) => n.unit === e.unit).map(win) })),
             지금목록: now.map((e) => ({ 해역: e.unit, 시간창: win(e) })),
+            // 바로 앞 예비 통보문(3시간 안)에서 빠진 해역 — 취소 문장이 목록 정리보다 한 통보문 늦게 오는 일이 있다(2026-11-15 #158 제주 7-1호 10:02 「o 없음」 → 7-2호 11:02 문장)
+            직전빠짐: (prevGone[x.office] && t - prevGone[x.office].t <= 3 * 3600e3) ? prevGone[x.office].list : [],
         };
+        prevGone[x.office] = { t, list: removed.filter((e) => !now.some((n) => n.unit === e.unit)).map((e) => ({ 해역: e.unit, 시간창: win(e) })) };
         prevYebi[x.office] = now;
     } else {
         const items = parseItems(x.r.t2, []);
-        x.rule = { kind: '특보 변경 칸(t2) 규칙 해석', 항목: items.map((it) => ({ 종류: it.type + it.level, 동작: it.action, 해역: [...it.units].filter((u) => PARENTS.has(u)) })) };
+        // 자식만 적힌 항목(「제주도서부앞바다(북서연안바다, …)」)도 그 부모로 — 「위 구역」을 풀 때 비지 않게(2026-11-15)
+        x.rule = { kind: '특보 변경 칸(t2) 규칙 해석', 항목: items.map((it) => ({ 종류: it.type + it.level, 동작: it.action, 해역: [...new Set([...it.units].map((u) => (PARENTS.has(u) ? u : [...PARENTS].find((q) => childrenOf(q).includes(u)))).filter(Boolean))] })) };
     }
 }
+
+// 관서별 관할 부모 해역 — 묶음 이름을 다른 관서 해역까지 펼치지 않게(2026-11-15 AI 시험 #185 「서해중부앞바다」 등).
+//   이 기간 자료에서 부모 해역 44곳은 모두 한 관서만 다뤘다(README 「관할 중복」).
+const officeZones = {};
+for (const x of bulletins) {
+    const set = officeZones[x.office] = officeZones[x.office] || new Set();
+    if (x.rpt === '7') parseYebi(x.r.t4, x.r.tmFc).forEach((e) => set.add(e.unit));
+    else { parseItems(x.r.t2, []).forEach((it) => it.units.forEach((u) => PARENTS.has(u) && set.add(u))); for (const [u] of parseCurrent(x.r.t6, []).cur) if (PARENTS.has(u)) set.add(u); }
+}
+fs.writeFileSync(path.join(__dirname, 'office_zones.json'), JSON.stringify(Object.fromEntries(Object.entries(officeZones).map(([k, v]) => [k, [...v].sort()])), null, 1));
 
 // 고르기
 const pool = bulletins.filter((x) => isWave(x) && !isNone(x.r.other) && clean(x.r.other));
