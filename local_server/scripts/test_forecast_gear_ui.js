@@ -8,7 +8,7 @@
  *            ①-2 옛 기기 표시(officeLegacyZoneFallback) — 새 설치는 온보딩으로 관심해역을 골라도 안내 칸 · 이 판 전부터 관심해역을
  *            쓰던 기기는 가장 많은 지방청 그대로 · 표시는 처음 한 번만(온보딩 함수가 생기기 전에) 정함.
  *         ② 「해역별 특보현황」 관심해역 ⚙ — 관심해역을 안 골랐을 때만 보임 · 누르면 온보딩 관심해역 화면(안내 → 해역 → 지도)
- *            · 마치면 안내 띠 + ⚙ 가 흐려지며 사라짐 · [건너뛰기]는 닫기만 · 첫 실행 흐름(딱지 있음)은 그대로.
+ *            · 마치면 안내 띠 + ⚙ 가 흐려지며 사라짐 · [건너뛰기]는 닫기만.
  *         ③ 두 ⚙ 모두 머리 안 오른쪽 끝, 「활동지점 안전 브리핑」 ⚙ 와 같은 모양.
  *         380px 스크린샷(안내 칸·설정 팝업·두 머리)을 GEAR_SHOT_DIR(없으면 임시 폴더)에 남긴다.
  * ----------------------------------------------------------------------------
@@ -360,14 +360,6 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.equal(await p.evaluate(() => document.getElementById('alert-zone-settings-btn').classList.contains('is-fading')), true, '바로 사라지지 않고 흐려져야 한다');
             await p.waitForFunction(() => document.getElementById('alert-zone-settings-btn').hidden, null, { timeout: 2000 });
             assert.ok((await p.textContent('#main-accordion-header .section-title')).includes('관심해역별 특보현황'));
-        });
-        await check('특보현황 ⚙ 를 연 첫 실행 흐름(튜토리얼 숨은 진입로 = opts 없이)은 종전 그대로 「시험 모드」 딱지 있음·건너뛰기 → 콜백(true)', async () => {
-            const q = await device();
-            await q.evaluate(() => { window.__zsDone = 'none'; window.openZoneSetup(function (skipped) { window.__zsDone = skipped; }); });
-            assert.ok((await q.evaluate(() => document.getElementById('zone-setup-overlay').innerText)).includes('관심해역 설정 시험 모드'));
-            await q.evaluate(() => [...document.querySelectorAll('#zone-setup-overlay button')].find((b) => b.textContent === '건너뛰기').click());
-            assert.equal(await q.evaluate(() => window.__zsDone), true);
-            await q.context().close();
         });
         await check('움직임 줄이기 설정이면 ⚙ 는 흐려지는 단계 없이 바로 사라진다', async () => {
             const q = await device({ reducedMotion: 'reduce' });

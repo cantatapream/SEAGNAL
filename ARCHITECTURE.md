@@ -27,6 +27,7 @@ SEAGNAL(바다날씨)은 해양 기상특보·해양종합정보·해양생활·
 ```
 client/js/
 ├── admin/  ← ⚡ 관리자 센터
+│   ├── admin_bulletin_watch.js
 │   ├── admin_collect.js
 │   ├── admin_data_status.js
 │   ├── admin_kakao_relay.js
@@ -191,8 +192,6 @@ client/js/
 │       ├── mappings.js
 │       ├── usage_keys.js
 │       └── utils.js
-├── tutorial/
-│   └── tutorial.js
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
     └── ocean_typhoon.js
@@ -207,6 +206,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) |
+| `admin_bulletin_watch.js` | 관리자 → 특보 관리 → 「통보문 관찰」 탭. 방재기상플랫폼 통보문 관련 기능을 한곳에 모은다. |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
 | `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
 | `admin_kakao_relay.js` | 관리자 → 특보 관리 → 「카톡 중계」 탭. 카톡 특보중계 앱(태블릿·휴대폰)이 보낸 기록을 본다. |
@@ -499,12 +499,6 @@ client/js/
 | `mappings.js` | 연안바다/평수구역 매핑, 부이 위치 매핑, 부이 타입 정의 |
 | `usage_keys.js` | 사용량 통계의 "기능 키 → 한글 이름표" 한 장. 앱이 세는 모든 기능 키는 여기에 |
 | `utils.js` | 전역 상태(appState), 유틸리티 함수, 날짜/시간 포맷팅 |
-
-### `client/js/tutorial/`
-
-| 파일 | 역할 |
-|------|------|
-| `tutorial.js` | 첫 사용자 온보딩 튜토리얼 — 지금은 "시험 모드"로만 열린다 |
 
 ### `client/js/typhoon/`
 
