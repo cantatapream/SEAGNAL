@@ -72,6 +72,8 @@ function resolveZones(expr, ctx = {}) {
     const allKids = [...PARENTS].flatMap((p) => childrenOf(p));
     // ③ 「위 구역·위 해역·위 지역」 = 이 통보문 본문의 해역(규칙이 본문에서 읽은 것) — 2026-11-15 AI 시험 7건
     if (/^위\s*(구역|해역|지역)/.test(String(expr || '').trim()) && ctx.bodyZones) return ctx.bodyZones.length ? [...ctx.bodyZones] : null;
+    //   해역 이름이 아예 없는 표현(「풍랑 예비특보」 — 머리줄 「(2) 풍랑 예비특보(03일 새벽)」을 AI 가 해역 칸에 옮김, 2025 광주 3-2호)도 본문 해역으로
+    if (!/(바다|해상|구역|해역|연안|평수)/.test(String(expr || '')) && ctx.bodyZones) return ctx.bodyZones.length ? [...ctx.bodyZones] : null;
     // 「A 중 B」(띄어 쓴 「중」만 — 「동해중부」의 중은 아니다) → 「A(B)」 · 끝에 붙은 조사 「의」 떼기(「동해중부해상의」)
     let s = String(expr || '').replace(/\s+중\s+([^,，와과및]+)/g, '($1)').replace(/의\s*$/, '');
     // ④ 점(.)으로 이어 쓴 이름 — 「제주도동부.남부앞바다」 「북서.남서.가파도연안바다」 「강원중.북부앞바다」: 끝말(앞바다·연안바다…)과 앞머리를 나눠 붙여 하나씩 푼다
@@ -93,6 +95,16 @@ function resolveZones(expr, ctx = {}) {
         }
         return got;
     };
+    // ② 「X바깥(북쪽, 남쪽)먼바다」 「X안쪽(북쪽, 남쪽)먼바다」 → X북쪽바깥먼바다, X남쪽바깥먼바다(2025 광주)
+    s = s.replace(/([가-힣]+?)(안쪽|바깥)\(([^)]+)\)먼바다/g, (m0, x, io, dirs) => dirs.split(/[,，]/).map((d) => x + d.trim() + io + '먼바다').join(', '));
+    // ③ 묶음 이름 + 괄호 안 줄인 부모 이름 「제주도앞바다(남부,서부)」 → 그 묶음에서 끝이 맞는 부모만(2025 제주 5-5호)
+    s = s.replace(/([가-힣·]+앞바다|[가-힣·]+먼바다)\(([^()]+)\)/g, (m0, g, inner) => {
+        const grp = ZONE_GROUP_MAP[g.replace(/\s+/g, '')]; if (!grp) return m0;
+        const shorts = inner.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
+        if (!shorts.length || shorts.some((t) => /바다|구역/.test(t) || /제외/.test(t))) return m0;   // 정식 이름·제외 꼴은 원래 규칙에
+        const picked = grp.filter((p) => shorts.some((t) => p.endsWith(t + '앞바다') || p.endsWith(t + '먼바다') || p.endsWith(t)));
+        return picked.length ? picked.join(', ') : m0;
+    });
     const out = new Set();
     for (let tok of splitTop(s.replace(/\s+/g, '').replace(/(바다|해상|구역|\))(와|과|및)/g, '$1,'))) {
         tok = tok.replace(/의$/, '');
@@ -194,14 +206,20 @@ function checkOne(item, parsed) {
     for (const e of parsed.사건) {
         if (norm(item.참고사항).includes(norm(e.근거문장)) && norm(e.근거문장)) res.근거있음++; else res.근거없음++;
         if (isLand(e.해역표현)) { res.육상 = (res.육상 || 0) + 1; res.판정.push({ 종류: e.종류, 해역표현: e.해역표현, 판정: '육상(뺌)', 까닭: '바다 특보가 아닌 육상 지역 — 비교에서 뺀다' }); continue; }
+        // 해역 이름이 없는 문장(「12일 오후 풍랑예비특보 … 추가발표합니다」)은 해역 단위로 맞출 근거가 없다 — 비교 기준 없음으로(2025 광주 3-2·4-3호)
+        if (!/(바다|해상|구역|해역|연안|평수)/.test(String(e.해역표현 || ''))) { res.판정.push({ 종류: e.종류, 해역표현: e.해역표현, 판정: '비교 기준 없음', 까닭: '문장에 해역 이름이 없다(본문 목록을 가리킴)' }); continue; }
         const zones = resolveZones(e.해역표현, { office: item.office, bodyZones });
         if (!zones) { res.해역못읽음.push(e.해역표현); res.판정.push({ 종류: e.종류, 해역표현: e.해역표현, 판정: '해역 못 읽음', 까닭: '규칙이 이 해역 표현을 펼치지 못했다' }); continue; }
         zones.forEach((z) => told.add(z));
         const base = item.rpt === '7' && (e.종류 === '예비취소' ? gone : (e.종류 === '예비연장' || e.종류 === '예비연기') ? moved : e.종류 === '예비추가' ? added : null);
         if (!base) { res.판정.push({ 종류: e.종류, 해역표현: e.해역표현, 해역: zones, 판정: '비교 기준 없음', 까닭: '목록 비교로 확인할 수 있는 종류가 아니다' }); continue; }
-        const hit = zones.filter((z) => base.has(z));
-        res.판정.push({ 종류: e.종류, 해역표현: e.해역표현, 해역: zones, 판정: hit.length === zones.length ? '일치' : hit.length ? '일부 일치' : '불일치',
-            까닭: hit.length === zones.length ? '규칙 목록 비교와 같다' : `규칙 목록 비교에 없는 해역: ${zones.filter((z) => !base.has(z)).join(', ')}` });
+        // 애초에 예비가 없던 해역(목록 어디에도 없음)은 비교에서 뺀다 — 묶음 이름으로 부분을 가리킨 경우(「남해동부앞바다」 = 부산·거제만 예비였음, 2025 부산 9월)
+        const existed = new Set([...gone, ...moved, ...added, ...(r.지금목록 || []).map((x) => x.해역)]);
+        const relevant = zones.filter((z) => existed.has(z));
+        const zonesC = relevant.length ? relevant : zones;
+        const hit = zonesC.filter((z) => base.has(z));
+        res.판정.push({ 종류: e.종류, 해역표현: e.해역표현, 해역: zones, 판정: hit.length === zonesC.length ? '일치' : hit.length ? '일부 일치' : '불일치',
+            까닭: hit.length === zonesC.length ? '규칙 목록 비교와 같다' + (zonesC.length < zones.length ? `(예비가 없던 ${zones.length - zonesC.length}곳은 뺌)` : '') : `규칙 목록 비교에 없는 해역: ${zonesC.filter((z) => !base.has(z)).join(', ')}` });
     }
     // 규칙은 바뀌었다고 하는데 AI 가 말하지 않은 해역(참고사항에 안 적혔을 수도 있다 — 참고로만)
     const prevOnly = new Set([...(r.직전빠짐 || []), ...(r.타관서빠짐 || [])].map((x) => x.해역));   // 앞 통보문에서 빠진 것은 이 통보문이 말할 의무가 없다
