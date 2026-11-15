@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 03:36 KST] ✅완료 — 해상 기상 전망 색칠 AI — 관리자 순서 설정으로
+services/bulletin_ai 에 기능 forecast(③) 추가, marine_forecast_processor·regional_bulletin_collector 가 그 순서로 AI 호출. 기본 Gemini 만=종전 동작. test_bulletin_ai 29/0, verify_all exit 0(실패 검사 이름 없음). 다음: 별도 에이전트가 만드는 「MMIS와 상이 N개소」 줄·팝업 검토 후 반영.
+
+
 ### [2026-11-16 03:10 KST] 🟢착수 — 해상 기상 전망 색칠 AI — 관리자 순서 설정으로
 marine_forecast_processor·regional_bulletin_collector 의 Gemini 고정 호출을 services/bulletin_ai 의 새 기능 forecast(③ 해상 기상 전망 색칠) 순서로 바꾼다. 기본 = Gemini 만(종전 동작). 관리자 AI 모델 설정 화면에 ③ 카드 추가.
 
