@@ -550,7 +550,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'block', name: '차단 관리', icon: 'fa-ban' },
         { id: 'maintenance', name: '점검', icon: 'fa-wrench' },
         { id: 'version', name: '버전 관리', icon: 'fa-code-branch' },
-        { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' },
+        // [저장소] 서버 디스크(Fly 볼륨)·Cloudinary·Google Cloud Storage — 2026-11-15 「외부 저장소」에서 이름 바꿈(서버 디스크 80% 이상이면 N 뱃지)
+        { id: 'storage', name: '저장소', icon: 'fa-database' },
         { id: 'ai', name: 'AI', icon: 'fa-robot' },
         { id: 'locstatus', name: '위치 기반', icon: 'fa-location-dot' },
         { id: 'zone-editor', name: '구역 편집', icon: 'fa-draw-polygon' }
@@ -626,6 +627,9 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
     // 초기 탭 활성화
     switchUnifiedAdminTab(initialTab);
 
+    // [저장소 N 뱃지] 서버 디스크가 80% 이상이면 「저장소」 탭에 N (admin_collect.js refreshStorageBadge — 2026-11-15)
+    if (typeof refreshStorageBadge === 'function') refreshStorageBadge();
+
     // [v7 정리] 수집 실패 팝업 제거 — 오류 로그 탭에서 의심 사례 결정 UI 로 대체.
     //   (의심 사례 push 가 별도로 발사되므로 별도 팝업 불필요)
 };
@@ -679,7 +683,7 @@ window.switchUnifiedAdminTab = function (tabId) {
         } else if (tabId === 'version') {
             renderUnifiedVersionContent(body);
         } else if (tabId === 'storage') {
-            // 외부 저장소 현황 탭 (Cloudinary, Google Cloud Storage 사용량)
+            // 저장소 탭 (서버 디스크 · Cloudinary · Google Cloud Storage 사용량)
             // → admin_collect.js의 renderUnifiedStorageContent()에서 렌더링
             renderUnifiedStorageContent(body);
         } else if (tabId === 'ai') {

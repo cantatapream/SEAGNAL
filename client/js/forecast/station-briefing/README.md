@@ -48,6 +48,7 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - 틀(AI 없음·AI 실패)이면 해설 칸이 없고 작게 「AI 해설 없음 — 결론·근거·권고는 서버가 계산한 값입니다.」
 - `summary` 가 없는 브리핑(이 바꿈 전에 저장된 파일)은 종전 문단·「근거 ▸」 모양 그대로(`legacyOverview`).
 - 관리자 「AI 브리핑」 탭(`client/js/admin/admin_station_briefing.js`)은 최근 3일 오류를 모두 목록으로 보이고 [복사](마크다운)·[md로 저장](`station_briefing_errors_YYYYMMDD_HHmm.md`)을 준다.
+- **누적 오류(2026-11-15 — 설계서 §11.10.48)**: 오류는 처리 완료 전까지 최대 90일 `data/station_briefing/error_log.json` 에 쌓인다. 관리자 「처리 안 된 오류 — 누적」 칸에서 [누적 md로 저장]·[누적 복사](`station_briefing_open_errors_E…md` — 날짜별·유형별, 유형 번호 G01…) → 그 md 로 고친 PR 에 `local_server/config/station_briefing_resolved.json` 줄을 더해 머지하면 고친 유형이 자동 처리 완료, 또는 「최근 내보내기」 [남은 유형 모두 완료 처리]. 실행별 화면에서는 처리된 오류가 흐리게 「처리 완료」.
 - **같은 날 후속 결정(설계서 §11.10.1)** — 순서가 **결론(육상·해상) → (기상) → (물때) → 육상 근거·권고 → 해상 근거·권고 → AI 해설**로 바뀌었다(`summaryBodyV2`, `[data-sb-part]` = conclusion·weather·tide·land·sea·commentary).
   (기상) = 가장 가까운 앞바다의 지방기상청 단기 해상예보 오전·오후 두 줄 + 출처, (특이사항) = 그 지방청 단기 전망에서 그날 것만 최대 3줄(서버 규칙 — AI 아님). 자료가 없으면 「기상예보 자료를 확인하지 못했습니다」.
   근거 줄의 예보·예측 값에는 「예상」(방문객 평소의 N배(예상) 등). `summary.weather` 가 없는 §11.10 판 브리핑은 `summaryBody`(물때가 육상 덩어리 안) 그대로.
@@ -318,7 +319,7 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 
 - 검사(`station_briefing_ai.validateOverview`): 「평소의 1.1~1.2배」처럼 배수 범위는 양 끝이 **둘 다** 그 문단(연안/해상) 허용 배수에 있고 작은 수~큰 수일 때만 통과. 한쪽 없음·뒤집힘(1.2~1.1)·같은 수(1.2~1.2)·왼쪽에 다른 단위(「1.1m~1.2배」)는 `multiplier:`. 낱개 배수·다른 숫자 범위는 그대로.
 - 보관: 검사 탈락 오류에 검사가 본 AI 글(`text.land`·`text.sea`, 문단마다 1,000자까지)과 그 관할 허용 숫자·배수(`allowed`)를 함께 남긴다 — 오류와 같은 3일, 글 실린 오류는 최근 1,000건만(그 전은 `textDropped`). 관리자 「AI 브리핑」 [복사]·[md로 저장] 표 아래 「탈락한 AI 글」 절. 화면 목록은 그대로.
-- `index2.html` `admin_station_briefing.js` `?v=20261018sb21`.
+- `index2.html` `admin_station_briefing.js` `?v=20261018sb21`.(→ §11.10.48 에서 `20261115sb22`)
 
 ## AI 검사 — 「‧」(U+2027) 가운뎃점 · 「N해역」 보정 (2026-10-18 — 설계서 §11.10.37, 검증 `sb-validate-v15`)
 

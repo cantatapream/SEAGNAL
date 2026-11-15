@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 139 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 140 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -397,6 +397,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_coast_day` | 위험예측 연안 「하루 하나」(T24)의 화면을 실제 index2.html 전체(Chromium)로 검사한다 — |
 | `test_station_briefing` | 「활동지점 안전 브리핑」(파출소 관할) 서버 1단계 시험 — 고정 입력(가짜 자료)으로 규칙·AI 순서·검증·저장·일정·노출을 결정론적으로 확인한다. |
 | `test_station_briefing_ui` | 「활동지점 안전 브리핑」 2단계(화면)를 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다 — |
+| `test_disk_usage` | 서버 디스크(Fly 볼륨) 사용량 점검(services/disk_usage.js)과 관리자 「저장소」 탭 그리기(admin_collect.js _renderDiskCard·_setStorageBad… |
 | `test_risk_goto_frame` | 「연안 안전 브리핑」 카드의 [위험예측에서 보기 ›](RiskForecast.openAt)로 위험예측을 열었을 때, 고른 해상 칸·연안 관광지가 |
 | `test_usage_briefing_risk_ui` | 사용량 통계 「연안 안전 브리핑」·「위험예측」 두 묶음이 실제 클릭 한 번에 정확히 1건씩(키·건수) 서버로 가는지 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다. |
 | `test_location_dispatch_reliability` | 위치기반 깨우기(특보·태풍) 발송 신뢰성 + 스냅샷 축약 회귀검사 |

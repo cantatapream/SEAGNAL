@@ -13,6 +13,8 @@
  *                    GET /api/station-briefing/now(「지금 밀집」만 — 화면이 1분마다, since 가 같으면 unchanged, §11.10.24)
  *                    GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status(?only=progress — 진행 게이지용 가벼운 응답) · POST /api/admin/station-briefing/run
  *                    GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview(관리자 미리보기 — 노출 범위와 무관)
+ *                    POST /api/admin/station-briefing/error-log/export(처리 안 된 오류 전부 + 유형 번호 — 누적 md, 내보내기 기록을 남김 · §11.10.48)
+ *                    POST /api/admin/station-briefing/error-log/exports/:id/resolve(관리자 버튼 — 그 내보내기의 남은 유형을 처리 완료)
  *                    POST /api/admin/station-briefing/download(오류 md 를 잠깐 맡기고 한 번 쓰는 열쇠를 받음) · GET /api/station-briefing/download/:token(그 열쇠로 파일 한 번 받기 — 앱 안 WebView 는
  *                    내려받기를 못 해 시스템 브라우저로 이 주소를 연다, §11.10.7. 관리자 머리글을 못 붙이므로 관리자 경로 밖이고, 열쇠 = 128비트 무작위·5분·한 번)
  *  - 마크업        : 없음(화면: client/js/forecast/station-briefing/ · client/js/admin/admin_station_briefing.js)
@@ -24,7 +26,10 @@
 const express = require('express'), crypto = require('crypto'), R = require('../services/station_briefing_rules');   // R.nextPublishAt(§11.10.9 ⑦)
 // 앱 안(Capacitor WebView)용 md 내려받기 중계(§11.10.7) — admin_collect 의 PNG·CSV 저장(routes/usage.js /api/stats/usage/image)과 같은 원리: 맡기고 → 열쇠 → 시스템 브라우저가 GET.
 // 메모리에만 5분, 한 번 받으면 지운다. 크기 상한: 오류 보관 상한 5,000건 × 한 줄 수백 바이트 ≈ 수 MB 라 5MB(전역 express.json 상한과 같다).
-const DOWNLOAD_TTL_MS = 5 * 60000, DOWNLOAD_MAX = 20;
+// 누적 오류 md(§11.10.48 — 처리 완료 전까지 최대 90일 · 탈락 글 포함)는 5MB 를 넘을 수 있어 글 그대로(Content-Type text/markdown, 이름은 ?name=)도 받는다 —
+//   전역 express.json(5MB)은 JSON 만 읽으므로 이 길은 DOWNLOAD_TEXT_MAX 까지. 누적 기록은 탈락 글을 최근 5,000건만 싣는다(station_briefing_errlog.LOG_TEXT_KEEP — 약 18MB) — md 는 그보다 조금 크다.
+//   맡긴 글 합계 상한 DOWNLOAD_TOTAL_BYTES: 없으면 큰 글 20개(20 × 40MB)가 서버 메모리(2GB — fly.toml)를 넘길 수 있다.
+const DOWNLOAD_TTL_MS = 5 * 60000, DOWNLOAD_MAX = 20, DOWNLOAD_TEXT_MAX = '40mb', DOWNLOAD_TOTAL_BYTES = 80 * 1024 * 1024;
 
 /**
  * 라우터를 만든다(시험은 서비스·기기 판정·토큰 확인·인증 미들웨어를 바꿔 넣는다).
@@ -116,14 +121,30 @@ function createRouter({
     // ?only=progress — 진행 게이지가 실행 중 2.5초마다 부른다(§11.10.7). 전체 status 는 최근 3일 오류 전부를 실어 무거워 진행만 준다.
     router.get(admin + '/status', (req, res) => { try { res.set('Cache-Control', 'no-store').json({ ok: true, ...(req.query.only === 'progress' ? svc().progressNow() : svc().status()) }); } catch (e) { fail(res, e); } });
     // 오류 md 맡기기(§11.10.7) — {name:'station_briefing_errors_20261017_1831.md', text} → {token}. 이름은 영문·숫자·_-. 와 .md 만(머리글에 그대로 넣으므로).
-    router.post(admin + '/download', express.json({ limit: '5mb' }), (req, res) => {
+    //   또는 몸통이 글 그대로(Content-Type text/markdown) + ?name= (§11.10.48 — 5MB 넘는 누적 md).
+    router.post(admin + '/download', express.json({ limit: '5mb' }), express.text({ type: 'text/markdown', limit: DOWNLOAD_TEXT_MAX }), (req, res) => {
         try {
-            const b = req.body || {}, name = typeof b.name === 'string' && /^[A-Za-z0-9_.-]{1,80}\.md$/.test(b.name) ? b.name : 'station_briefing_errors.md';
+            const b = typeof req.body === 'string' ? { name: req.query.name, text: req.body } : req.body || {}, name = typeof b.name === 'string' && /^[A-Za-z0-9_.-]{1,80}\.md$/.test(b.name) ? b.name : 'station_briefing_errors.md';
             if (typeof b.text !== 'string' || !b.text) return res.status(400).json({ ok: false, error: '글(text) 필요' });
-            const now = Date.now(); for (const [k, v] of downloads) if (v.exp < now) downloads.delete(k);
-            while (downloads.size >= DOWNLOAD_MAX) downloads.delete(downloads.keys().next().value);   // 오래된 것부터 — 메모리 안전망
-            const token = crypto.randomBytes(16).toString('hex'); downloads.set(token, { name, text: b.text, exp: now + DOWNLOAD_TTL_MS });
+            const now = Date.now(), bytes = Buffer.byteLength(b.text); for (const [k, v] of downloads) if (v.exp < now) downloads.delete(k);
+            const total = () => [...downloads.values()].reduce((a, v) => a + v.bytes, 0);
+            while (downloads.size && (downloads.size >= DOWNLOAD_MAX || total() + bytes > DOWNLOAD_TOTAL_BYTES)) downloads.delete(downloads.keys().next().value);   // 오래된 것부터 — 메모리 안전망
+            const token = crypto.randomBytes(16).toString('hex'); downloads.set(token, { name, text: b.text, bytes, exp: now + DOWNLOAD_TTL_MS });
             res.set('Cache-Control', 'no-store').json({ ok: true, token, path: '/api/station-briefing/download/' + token, expiresInSec: DOWNLOAD_TTL_MS / 1000 });
+        } catch (e) { fail(res, e); }
+    });
+    // 누적 오류 md 내보내기(§11.10.48) — 처리 안 된 오류 전부(탈락 글 포함이라 수 MB 일 수 있다)와 유형 번호. 처리 안 된 오류가 없으면 404 글.
+    router.post(admin + '/error-log/export', (req, res) => {
+        try { const r = svc().exportErrors(); res.set('Cache-Control', 'no-store'); if (!r) return res.status(404).json({ ok: false, error: '처리 안 된 오류가 없습니다' }); res.json({ ok: true, ...r }); } catch (e) { fail(res, e); }
+    });
+    // 관리자 버튼 처리 완료(§11.10.48) — 몸통 {groups?:['G01',…], note?} · groups 가 없으면 그 내보내기의 남은 유형 전부. 없는 내보내기는 404.
+    router.post(admin + '/error-log/exports/:id/resolve', express.json({ limit: '8kb' }), (req, res) => {
+        try {
+            const b = req.body || {}, groups = Array.isArray(b.groups) ? b.groups.filter((g) => typeof g === 'string').slice(0, 200) : null;
+            const r = svc().resolveExport(String(req.params.id || ''), groups, typeof b.note === 'string' ? b.note : '');
+            res.set('Cache-Control', 'no-store');
+            if (!r.ok) return res.status(404).json({ ok: false, error: '없는 내보내기 번호(보관 기간 90일이 지났거나 이 서버에서 만든 것이 아님)' });
+            res.json({ ok: true, resolved: r.resolved, already: r.already, unknown: r.unknown });
         } catch (e) { fail(res, e); }
     });
     // 실행 중이면 409 + 지금 상태(독립 검토 B11) — 예전에는 202 「시작함」이라고 답하고 실제로는 건너뛰었다.
