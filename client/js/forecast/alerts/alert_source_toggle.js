@@ -54,7 +54,9 @@
                 flattenAlertsData(data);
                 if (typeof renderApp === 'function') renderApp();
                 var t = data.updatedAt ? new Date(new Date(data.updatedAt).getTime() + 9 * 3600e3).toISOString().slice(11, 16) : '';
-                paint('bulletin', '통보문 기준' + (t ? ' · ' + t + ' 계산' : ''));
+                // 쓴 통보문 수를 함께 — 0건이면 경고(실패와 「특보 없음」이 같아 보이지 않게, 2026-11-16 사용자 지적)
+                var n = typeof data.bulletins === 'number' ? data.bulletins : null;
+                paint('bulletin', (n === 0 ? '⚠ 통보문 0건 — 아직 받은 통보문이 없어 계산 못 함' : '통보문 기준' + (n != null ? ' · ' + n + '건' : '')) + (t ? ' · ' + t + ' 계산' : ''));
             } catch (err) {
                 console.warn('[출처 전환] 통보문 기준 불러오기 실패:', err && err.message);
                 window.alert('통보문 기준을 불러오지 못했습니다 — ' + (err && err.message));
