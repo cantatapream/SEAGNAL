@@ -15,6 +15,9 @@ const { reportMarkdown, createRouter } = require('../routes/bulletin_watch');
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { if (c) { pass++; console.log('  ✅ ' + n); } else { fail++; console.log('  ❌ ' + n + (x !== undefined ? ' — ' + JSON.stringify(x) : '')); } };
 const T0 = Date.parse('2026-11-14T03:00:00Z');   // 12:00 KST
+// 실제 꼴 번호(4번째 칸 = 발표시각) — 「사라짐」 판정이 이 시각으로 목록 기간 안쪽인지 본다
+const code = (n, fc = '202611141200', rpt = '6', stn = '184') => `${rpt}|${stn}|${n}|${fc}|4|${fc}00`;
+const C0 = code(10), C1 = code(11), C2 = code(12), C9 = code(19, '202611141200', '6', '109'), Y1 = code(21, '202611141200', '7');
 
 /** 가짜 dmdw: lists['184|6'] = [{code, value}], details[code] = result. 호출 수를 센다. */
 function fakeDmdw() {
@@ -55,8 +58,8 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
     console.log('B. 내용이 있는 새 통보문');
     {
         const s = setup();
-        s.f.lists['184|6'] = [{ code: 'C1', value: '[ 특보 ] 제11-1호 : 2026.11.14.12:00 / 풍랑주의보 발표 (*)' }];
-        s.f.details.C1 = FULL6;
+        s.f.lists['184|6'] = [{ code: C1, value: '[ 특보 ] 제11-1호 : 2026.11.14.12:00 / 풍랑주의보 발표 (*)' }];
+        s.f.details[C1] = FULL6;
         await s.w.run();
         const e = s.events()[0];
         ok('「새 통보문」 1건(첫 회차라 이미 있던 것 표시), 내용 있음, 본문 원본 그대로 저장', e.kind === 'new' && e.baseline === true && e.empty === false && e.result.t2 === FULL6.t2 && /제주청/.test(e.설명));
@@ -73,28 +76,50 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
         ok('바뀐 게 없으면 기록 없음', s.kinds().join() === 'new');
     }
 
+    console.log('B3. 3일 전부터 받기');
+    {
+        const s = setup(); const seen = [];
+        const post0 = s.f.post; s.f.post = async (p, form) => { if (p.endsWith('List.json')) seen.push(form.startDate + '~' + form.endDate); return post0(p, form); };
+        const w = createWatch({ post: s.f.post, login: s.f.login, now: () => T0, dir: s.dir, sleep: async () => {}, gapMs: 0 });
+        await w.run();
+        ok('목록은 3일 전 날짜부터 오늘까지(이미 발표·발효된 특보부터)', seen.length === 16 && seen.every((x) => x === '20261111~20261114'), seen[0]);
+    }
+    {
+        const s = setup();
+        const OLD = code(30, '202611110100');   // 기간 시작(11-11 00시) 바로 안쪽 — 곧 저절로 빠질 것
+        s.f.lists['184|6'] = [{ code: OLD, value: 'old' }, { code: C1, value: 'v1' }]; s.f.details[OLD] = FULL6; s.f.details[C1] = FULL6;
+        await s.w.run();
+        s.f.lists['184|6'] = [{ code: C1, value: 'v1' }];   // 날짜가 넘어가 목록 기간 밖으로 빠짐
+        s.tick(1); await s.w.run();
+        ok('기간 끝자락에서 저절로 빠진 옛 통보문은 「사라짐」으로 안 봄', !s.kinds().includes('gone'));
+        s.tick(4 * 24 * 60); await s.w.run();
+        s.f.lists['184|6'] = [{ code: C1, value: 'v1' }];
+        s.tick(2 * 24 * 60); await s.w.run();
+        ok('목록에 아직 있는 통보문은 오래돼도 「새 통보문」으로 다시 잡지 않음', s.kinds().filter((k) => k === 'new').length === 2);
+    }
+
     console.log('C. 빈 통보문 → 채워질 때까지 매분');
     {
         const s = setup();
-        s.f.lists['184|6'] = [{ code: 'C1', value: '[ 특보 ] 제11-1호 : 2026.11.14.12:00 /  (*)' }];
-        s.f.details.C1 = EMPTY6;
+        s.f.lists['184|6'] = [{ code: C1, value: '[ 특보 ] 제11-1호 : 2026.11.14.12:00 /  (*)' }];
+        s.f.details[C1] = EMPTY6;
         await s.w.run();
         ok('처음 빈 채로 보면 「빈」 표시', s.events()[0].empty === true && /비어 있다/.test(s.events()[0].설명));
         let d = s.f.calls.detail;
         for (let i = 0; i < 4; i++) { s.tick(1); await s.w.run(); }
         ok('비어 있는 동안 매분 다시 받음(4분 → 4번 이상)', s.f.calls.detail - d >= 4);
         ok('그대로 비어 있으면 기록이 늘지 않음', s.kinds().join() === 'new');
-        s.f.details.C1 = { ...EMPTY6, t1: '풍랑주의보 발표' };
+        s.f.details[C1] = { ...EMPTY6, t1: '풍랑주의보 발표' };
         s.tick(1); await s.w.run();
         ok('일부만 채워지면 「내용 바뀜」(아직 빔)', s.events().at(-1).kind === 'detail_changed' && s.events().at(-1).empty === true);
-        s.f.details.C1 = FULL6;
+        s.f.details[C1] = FULL6;
         s.tick(1); await s.w.run();
         const e = s.events().at(-1);
         ok('다 채워지면 「채워짐」 + 걸린 분(처음 빈 채로 본 뒤 6분)', e.kind === 'filled' && e.emptyMinutes === 6 && e.result.t2 === FULL6.t2, e);
         d = s.f.calls.detail;
         s.tick(1); await s.w.run();
         ok('채워진 뒤에는 매분 받지 않음', s.f.calls.detail === d);
-        s.f.details.C1 = { ...FULL6, t6: 'o 풍랑경보 : 제주도남쪽바깥먼바다' };
+        s.f.details[C1] = { ...FULL6, t6: 'o 풍랑경보 : 제주도남쪽바깥먼바다' };
         s.tick(2); await s.w.run();   // 채워진 뒤 3분 → 한 번 다시 확인
         ok('채운 뒤 고친 것도 다시 확인 때 「내용 바뀜」으로 남음', s.events().at(-1).kind === 'detail_changed' && s.events().at(-1).empty === false);
     }
@@ -102,17 +127,17 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
     console.log('D. 번호가 바뀌어 다시 올라옴 · 목록 글자만 바뀜');
     {
         const s = setup();
-        s.f.lists['184|6'] = [{ code: 'C1', value: 'v1' }];
-        s.f.details.C1 = EMPTY6;
+        s.f.lists['184|6'] = [{ code: C1, value: 'v1' }];
+        s.f.details[C1] = EMPTY6;
         await s.w.run();
-        s.f.lists['184|6'] = [{ code: 'C2', value: 'v1' }];
-        s.f.details.C2 = FULL6;
+        s.f.lists['184|6'] = [{ code: C2, value: 'v1' }];
+        s.f.details[C2] = FULL6;
         s.tick(1); await s.w.run();
         const k = s.kinds();
         ok('옛 번호는 「목록에서 사라짐」(빈 채로 있던 것 표시), 새 번호는 「새 통보문」', k.includes('gone') && s.events().find((e) => e.kind === 'gone').wasEmpty === true && k.filter((x) => x === 'new').length === 2);
         s.tick(1); await s.w.run();
         ok('사라짐은 한 번만 기록', s.kinds().filter((x) => x === 'gone').length === 1);
-        s.f.lists['184|6'] = [{ code: 'C2', value: 'v2' }];
+        s.f.lists['184|6'] = [{ code: C2, value: 'v2' }];
         s.tick(1); await s.w.run();
         ok('목록 글자만 바뀌면 「목록 글자 바뀜」(전·후 함께)', s.events().at(-1).kind === 'list_changed' && s.events().at(-1).before === 'v1' && s.events().at(-1).after === 'v2');
     }
@@ -120,9 +145,9 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
     console.log('E. 실패·세션');
     {
         const s = setup();
-        s.f.lists['184|6'] = [{ code: 'C1', value: 'v1' }];
-        s.f.details.C1 = FULL6;
-        s.f.failDetail.add('C1');
+        s.f.lists['184|6'] = [{ code: C1, value: 'v1' }];
+        s.f.details[C1] = FULL6;
+        s.f.failDetail.add(C1);
         await s.w.run();
         ok('새 통보문 본문을 못 받으면 오류 기록 + 빈 것으로 보고 다음 분에 다시', s.kinds().includes('error') && s.events().find((e) => e.kind === 'new').empty === true);
         s.f.failDetail.clear();
@@ -159,10 +184,10 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
     console.log('B2. 관찰 시작 때 이미 있던 통보문');
     {
         const s = setup();
-        s.f.lists['184|6'] = [{ code: 'C0', value: 'v0' }];
-        s.f.details.C0 = FULL6;
+        s.f.lists['184|6'] = [{ code: C0, value: 'v0' }];
+        s.f.details[C0] = FULL6;
         await s.w.run();
-        s.f.lists['184|6'].push({ code: 'C1', value: 'v1' }); s.f.details.C1 = FULL6;
+        s.f.lists['184|6'].push({ code: C1, value: 'v1' }); s.f.details[C1] = FULL6;
         s.tick(1); await s.w.run();
         const ev = s.events();
         ok('첫 회차 것은 「이미 있던」 표시, 그 뒤 것은 진짜 새 통보문', ev[0].baseline === true && /이미 있던/.test(ev[0].설명) && ev[1].baseline === undefined && /새 통보문/.test(ev[1].설명));
@@ -172,7 +197,7 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
         const s = setup();
         s.f.failList = '184|6';
         await s.w.run();
-        s.f.failList = null; s.f.lists['109|6'] = [{ code: 'C9', value: 'v9' }]; s.f.details.C9 = FULL6;
+        s.f.failList = null; s.f.lists['109|6'] = [{ code: C9, value: 'v9' }]; s.f.details[C9] = FULL6;
         s.tick(1); await s.w.run();
         ok('목록을 다 못 받은 첫 회차 뒤에도 기준은 다음 온전한 회차에 선다', s.events().find((e) => e.kind === 'new').baseline === true);
     }
@@ -180,8 +205,8 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
     console.log('F. 하루 넘게 빔 · 겹친 실행');
     {
         const s = setup();
-        s.f.lists['184|7'] = [{ code: 'Y1', value: '< 예비 > 제11-1호' }];
-        s.f.details.Y1 = { t4: '', t5: '' };
+        s.f.lists['184|7'] = [{ code: Y1, value: '< 예비 > 제11-1호' }];
+        s.f.details[Y1] = { t4: '', t5: '' };
         await s.w.run();
         s.tick(24 * 60 + 1);
         const d = s.f.calls.detail; await s.w.run();
@@ -197,10 +222,10 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
     console.log('G. 내려받기 보고서');
     {
         const s = setup();
-        s.f.lists['184|6'] = [{ code: 'C1', value: 'v1' }];
-        s.f.details.C1 = EMPTY6;
+        s.f.lists['184|6'] = [{ code: C1, value: 'v1' }];
+        s.f.details[C1] = EMPTY6;
         await s.w.run();
-        s.f.details.C1 = FULL6; s.tick(2); await s.w.run();
+        s.f.details[C1] = FULL6; s.tick(2); await s.w.run();
         const md = reportMarkdown(s.events(), 'all');
         ok('요약에 빈 통보문 수·채워짐·걸린 분', /처음 볼 때 비어 있던 통보문: 1건 · 그중 채워진 것: 1건 \(채워지기까지 2분\)/.test(md), md.slice(0, 600));
         ok('기록 시각은 한국 시각(+09:00)', s.events()[0].at === '2026-11-14T12:00:00.000+09:00', s.events()[0].at);

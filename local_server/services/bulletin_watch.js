@@ -4,6 +4,7 @@
  * 파일명: local_server/services/bulletin_watch.js
  * 역할  : 방재기상플랫폼(dmdw) 특보·예비특보 통보문을 1분마다 지켜보며 「처음 보인 모습」과 「나중에 바뀐 모습」을
  *         그대로 기록한다(관찰용 — 특보현황·푸시는 건드리지 않는다).
+ *         목록은 3일 전부터 받는다(이미 발표·발효된 특보부터 따라가려고 — 사용자 확정 2026-11-15).
  *         특히 내용 없이 먼저 올라온 통보문은 채워질 때까지 매분 다시 확인한다
  *         (사용자 확정 2026-11-15: 「빈 통보문으로 올라왔을때에는 해당 통보문을 계속 확인하는 로직이 필요… 내용이 채워질때까지」).
  * 왜: 지난 통보문(2025-01~2026-11, 5,768건)은 사이트가 채워진 최종본만 보여 줘 빈 상태가 남지 않는다
@@ -25,6 +26,8 @@ const crypto = require('crypto');
 const OFFICES = { '109': '수도권청', '159': '부산청', '143': '대구청', '156': '광주청', '146': '전주지청', '133': '대전청', '105': '강원청', '184': '제주청' };
 const DIR = path.join(__dirname, '..', 'data', 'bulletin_watch');
 const KEEP_DAYS = 30;
+// 목록은 3일 전부터 받는다 — 이미 발표·발효된 특보부터 따라가려고(사용자 확정 2026-11-15 「통보문은 3일 전꺼부터 수집해서 관찰하도록 해 이미 발효/발표된 특보들이 있거든」)
+const LOOKBACK_DAYS = 3;
 const RECHECK_MIN = [3, 10];            // 내용이 있는 통보문은 내용을 처음 본 뒤 3분·10분에 한 번씩 다시 본다(채운 뒤 고치는지)
 const EMPTY_GIVE_UP_MIN = 24 * 60;      // 하루가 지나도 비어 있으면 그만 보고 기록만 남긴다
 const KST = (ms) => new Date(ms + 9 * 3600e3).toISOString().replace('Z', '+09:00');   // 한국 시각(끝에 +09:00)
@@ -43,6 +46,8 @@ function isEmpty(rpt, r) {
     const blank = (v) => !String(v == null ? '' : v).replace(/<br\s*\/?>/gi, '').trim();
     return rpt === '7' ? (blank(r.t4) || blank(r.t5)) : (blank(r.t1) || blank(r.t2) || blank(r.t6));
 }
+/** 통보문 번호(code)에 든 발표시각 → ms. 예: '7|105|16|202501270400|4|20250127040815' → 2025-01-27 04:00 KST. 못 읽으면 NaN. */
+const codeFcMs = (code) => { const m = String(code).split('|')[3] || ''; return /^\d{12}$/.test(m) ? Date.parse(`${m.slice(0, 4)}-${m.slice(4, 6)}-${m.slice(6, 8)}T${m.slice(8, 10)}:${m.slice(10, 12)}:00+09:00`) : NaN; };
 const hashOf = (r) => crypto.createHash('sha256').update(JSON.stringify(r || null)).digest('hex').slice(0, 16);
 
 /**
@@ -92,7 +97,8 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
             load();
             const baseline = !state.started;   // 맨 처음 한 번: 이미 올라와 있던 통보문은 「관찰 시작 때 이미 있던 것」으로 남긴다
             const t = now();
-            const ed = dayOf(t).replace(/-/g, ''), sd = dayOf(t - 86400e3).replace(/-/g, '');
+            const ed = dayOf(t).replace(/-/g, ''), sdDay = dayOf(t - LOOKBACK_DAYS * 86400e3), sd = sdDay.replace(/-/g, '');
+            const windowStartMs = Date.parse(sdDay + 'T00:00:00+09:00');
             const listed = new Set();
             for (const stn of Object.keys(OFFICES)) {
                 for (const rpt of ['6', '7']) {
@@ -143,13 +149,16 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
             const t2 = now();
             for (const [code, s] of Object.entries(state.seen)) {
                 if (listed.has(code) || s.gone) continue;
-                if (t2 - s.firstMs > 20 * 3600e3) continue;   // 목록 기간(어제~오늘) 끝자락은 빠질 수 있어 20시간 안 것만 본다
+                // 목록 기간(3일 전~오늘) 끝자락은 저절로 빠진다 — 발표시각이 기간 시작에서 12시간 넘게 안쪽인 것만 「사라짐」으로 본다
+                const fc = codeFcMs(code);
+                if (!(fc > windowStartMs + 12 * 3600e3)) continue;
                 if (stat.lists < Object.keys(OFFICES).length * 2) continue;   // 목록을 다 못 받은 회차엔 판단하지 않는다
                 s.gone = true;
                 emit({ atMs: t2, kind: 'gone', stn: s.stn, office: OFFICES[s.stn], rpt: s.rpt, code, listValue: s.listValue, wasEmpty: s.empty,
                     설명: `${OFFICES[s.stn]} 「${String(s.listValue).trim()}」가 목록에서 사라짐${s.empty ? '(빈 채로 있던 것 — 번호가 바뀌어 다시 올라왔는지 확인)' : ''}` });
             }
-            for (const [code, s] of Object.entries(state.seen)) if (t2 - s.firstMs > 3 * 86400e3) delete state.seen[code];
+            // 본 기록 정리: 목록에 더는 없고 처음 본 지 5일 넘은 것만(목록 기간이 날짜 단위라 최대 4일 가까이 남는다 — 그 안에 지우면 「새 통보문」으로 다시 잡힌다)
+            for (const [code, s] of Object.entries(state.seen)) if (!listed.has(code) && t2 - s.firstMs > 5 * 86400e3) delete state.seen[code];
             if (stat.lists === Object.keys(OFFICES).length * 2) state.started = true;   // 목록을 다 받은 회차가 있어야 기준이 선다
             save();
             prune();
