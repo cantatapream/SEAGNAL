@@ -524,6 +524,9 @@ app.listen(PORT, '0.0.0.0', () => {
         // 활동지점 안전 브리핑 — 운영에서만 1분 점검(08:00·17:30·23:00 KST + 특보 변경). 시작 때 계산·외부 호출은 없다(첫 점검 1분 뒤).
         try { require('./services/station_briefing').start(); }
         catch (_) { console.error('[startup] 활동지점 안전 브리핑 시작 실패'); }
+        // 서버 디스크(Fly 볼륨) 사용량 — 운영에서만 10분마다, 80% 넘으면 관리자 푸시 1통(2026-11-15 ENOSPC 뒤 사용자 결정 — services/disk_usage.js)
+        try { require('./services/disk_usage').start(); }
+        catch (_) { console.error('[startup] 디스크 사용량 점검 시작 실패'); }
 
         // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
         try {
