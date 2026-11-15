@@ -143,7 +143,10 @@ function resolveZones(expr, ctx = {}) {
     }
     return out.size ? [...out] : null;
 }
-const ALIAS = { '제주도바깥먼바다': ['제주도남쪽바깥먼바다'] };
+// 공식 목록에 없는 예보관 표기 → 공식 이름(사용자 확정 2026-11-15, 해역표로 확인):
+//   「제주도바깥먼바다」 = 제주도남쪽바깥먼바다(제주 바깥먼바다는 하나) · 「제주도남쪽안쪽먼바다」 = 남서쪽안쪽+남동쪽안쪽(제주 안쪽먼바다는 이 둘)
+//   「서해남부중부앞바다」 = 전남중부서해앞바다(서해남부 쪽 부모 중 「중부」는 이것뿐 — 같은 문장 「중 앞평수구역」도 이 부모의 자식, 광주 2026 10-5호)
+const ALIAS = { '제주도바깥먼바다': ['제주도남쪽바깥먼바다'], '제주도남쪽안쪽먼바다': ['제주도남서쪽안쪽먼바다', '제주도남동쪽안쪽먼바다'], '서해남부중부앞바다': ['전남중부서해앞바다'] };
 let _oz = null;
 /** 관서별 관할 부모 해역(analysis/bulletin_survey/office_zones.json — ai_trial_build.js 가 원본에서 만든다). */
 function officeZones() { if (!_oz) { try { _oz = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'office_zones.json'), 'utf8')); } catch (e) { console.warn('[bulletin_ai_trial] 관할 표 없음', e && e.message); _oz = {}; } } return _oz; }
