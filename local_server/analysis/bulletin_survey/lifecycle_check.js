@@ -133,7 +133,9 @@ for (const [office, list] of Object.entries(byOffice)) {
         const items = parseItems(r.t2, unknown);
         const { cur: truth, kidsListed } = parseCurrent(r.t6, unknown);
         const comparable = (k) => PARENTS.has(k) || kidsListed.has(Object.keys(PARENT_TO_CHILDREN).find((p) => childrenOf(p).includes(k)));
-        if (!seeded) { for (const [k, v] of truth) st.set(k, v); seeded = true; continue; }   // 첫 통보문의 발효 중 칸으로 시작
+        // 첫 통보문: 발효 중 칸으로 시작하되, 그 통보문의 변경 칸(부모 이름 = 자식 포함)도 적용한다
+        //   (발효 중 칸만 쓰면 자식이 빠진다 — 2025-01 대전 1-3호 「서해중부앞바다(충남북부앞바다, 충남남부앞바다) 발표」의 평수구역, 2026-11-15)
+        if (!seeded) { for (const [k, v] of truth) st.set(k, v); for (const it of items) for (const u of it.units) { if (it.action === '해제') st.delete(u); else if (it.action === '발표' || it.action === '변경') st.set(u, it.type + it.level); } seeded = true; continue; }
         for (const it of items) {
             for (const u of it.units) {
                 if (it.action === '해제') st.delete(u);
