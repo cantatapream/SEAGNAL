@@ -349,7 +349,7 @@ async function defaultAdminPush(title, body, data) {
 // ── 실행 진행(§11.10.7) ── 사용자 원문 *"분석이 시작되면 게이지로서 알려줬으면 … 묶음 단위별로 어디 묶음이 완료되었는지 그리고 그 묶음 안에서 어느 파출소 부분이 완료되었는지
 //    게이지에서 표출 … 전체 게이지로서 전체적으로 얼마나 진행됐는지 … 게이지의 가운데에는 텍스트로 어디가 진행되고 있는지"*.
 // 전체 칸 = 위치 확인 1 + 날짜(창)마다 (입력 모으기 1 + 관할 수). AI 앞 단계도 세어 게이지가 0 에 조용히 멈춰 있지 않게 한다. 관할 하나는 AI 통과·재사용·규칙 분석 중 하나로 끝날 때 1칸.
-const PROVIDER_NAME = { chatgpt: 'ChatGPT', gemini: 'Gemini' };
+const PROVIDER_NAME = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: '클로드 키1', claude2: '클로드 키2', upstage: '업스테이지' };   // §11.10.51 — 관리자 게이지 글(사슬 AI)
 /**
  * 실행 하나의 진행 상태를 새로 만든다.
  * 예: newProgress({at:'2026-10-17T18:31:00+09:00', kind:'manual', unit:'office', stations:97, windows:['2026-10-17']}) → {phase:'locate', done:0, total:99, current:'관할 대표 위치 확인 중', batches:[]…}

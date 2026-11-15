@@ -55,7 +55,7 @@ function normFeature(f, v) {
     const removed = L.isValidRemoved(src.removed) ? L.normRemoved(src.removed) : FEATURES[f].removed.slice();
     const models = L.normModels(src.models);
     const r = src.models && src.models.chatgpt && src.models.chatgpt.runner;
-    models.chatgpt.runner = RUNNERS().includes(r) ? r : require('./codex_bridge').DEFAULT_RUNNER;
+    models.chatgpt.runner = RUNNERS().includes(r) ? r : f === 'briefing' && RUNNERS().includes('vm') ? 'vm' : require('./codex_bridge').DEFAULT_RUNNER;   // ③ 기본은 VM — 종전 브리핑 ChatGPT 가 VM 작업자였다(바뀌는 것 최소화)
     if (f !== 'briefing') return { order, removed, models };
     // ③ 브리핑만: Gemini 모델 고름 · 칸별 시도 횟수
     const gm = src.models && src.models.gemini && src.models.gemini.model;
@@ -129,7 +129,7 @@ function choices() {
 
 /**
  * ③ 연안 안전 브리핑이 부를 AI 사슬 — 저장된 순서에서 삭제한 AI 를 빼고, 칸마다 모델·노력·실행 위치·시도 횟수.
- * 예: briefingChain() → [{id:'claude2', model:'claude-sonnet-5-5', effort:'medium', runner:null, attempts:1}, …, {id:'chatgpt', model:'gpt-6-luna', effort:null, runner:'fly', attempts:3}, {id:'gemini', model:'gemini-2.5-flash', effort:null, runner:null, attempts:1}]
+ * 예: briefingChain() → [{id:'claude2', model:'claude-sonnet-5-5', effort:'medium', runner:null, attempts:1}, …, {id:'chatgpt', model:'gpt-6-luna', effort:null, runner:'vm', attempts:3}, {id:'gemini', model:'gemini-2.5-flash', effort:null, runner:null, attempts:1}]
  * @returns {Array<{id:string, model:string, effort:string|null, runner:string|null, attempts:number}>}
  * [연계] ← services/station_briefing.js run(forDefault 가 aiChain 으로 넘김) → station_briefing_ai.generate(config.chain)
  */

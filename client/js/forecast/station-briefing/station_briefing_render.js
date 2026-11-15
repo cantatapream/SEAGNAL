@@ -235,6 +235,10 @@
     /** 「오늘/내일」 — 대상 날짜가 만든 날짜보다 뒤면 내일(서버 rules.dayWordOf 와 같은 규칙, 23시 판). 예: {targetDate:'2026-10-18',generatedAt:'2026-10-17T23:00…'} → '내일'. @param {Object} b @returns {string} [연계] ← 육상 빈 칸 문구(B6) */
     function dayWord(b) { return b && b.generatedAt && b.targetDate > String(b.generatedAt).slice(0, 10) ? '내일' : '오늘'; }
     /** 원천 열쇠들을 이름으로. 예: ['congestion','accident'] → '혼잡 예보·공식 사고예보'. @param {string[]} keys @returns {string} [연계] ← 분석 머리 */
+    /** AI 이름(사용자 화면) — 서버 overview.source → 이름표 글. 규칙 분석('template')·모르는 값은 null(AI 아님). §11.10.51 — 순서가 「AI 모델 설정」 ③ 을 따르면서 클로드·업스테이지도 올 수 있다(키1·키2 는 사용자에게 같은 「Claude」).
+     * 예: aiWho('claude2') → 'Claude' · aiWho('chatgpt') → 'ChatGPT' · aiWho('template') → null. @param {string} src @returns {string|null} [연계] ← summaryBody·summaryBodyV2·summaryBodyV3·총평 출처 글 */
+    var AI_WHO = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: 'Claude', claude2: 'Claude', upstage: 'Upstage' };
+    function aiWho(src) { return Object.prototype.hasOwnProperty.call(AI_WHO, src) ? AI_WHO[src] : null; }
     function sourceNames(keys) { var out = []; (keys || []).forEach(function (k) { var n = SOURCE_LABEL[k] || String(k); if (out.indexOf(n) < 0) out.push(n); }); return out.join('·'); }
 
     /**
@@ -1531,7 +1535,7 @@
      * [연계] ← render / → chip·list
      */
     function summaryBody(body, b, resp, ov, showSea, showLand) {
-        var ai = ov.source === 'chatgpt' || ov.source === 'gemini', who = ov.source === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+        var who = aiWho(ov.source), ai = !!who;
         /** 육상·해상 한 덩어리. */
         var block = function (kind, label, rank, word, sum, commentary) {
             var wrap = el('div', 'sb-sum'); wrap.setAttribute('data-sb-summary', kind);
@@ -1627,7 +1631,7 @@
      * [연계] ← render / → chip·list·basisList·isolationLine
      */
     function summaryBodyV2(body, b, resp, ov, showSea, showLand) {
-        var S = b.summary, ai = ov.source === 'chatgpt' || ov.source === 'gemini', who = ov.source === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+        var S = b.summary, who = aiWho(ov.source), ai = !!who;
         var land = showLand && b.land && S.land, sea = showSea && b.sea && S.sea;
         /** 이름표가 붙은 칸. 예: part('weather','(기상)') → <div class="sb-part" data-sb-part="weather"><p class="sb-sum-k">(기상)</p></div> */
         var part = function (key, label) { var d = el('div', 'sb-part'); d.setAttribute('data-sb-part', key); if (label) d.appendChild(el('p', 'sb-sum-k', label)); body.appendChild(d); return d; };
@@ -1859,7 +1863,7 @@
      * [연계] ← render / → chip·expander·basisList·weatherPart·tidePart
      */
     function summaryBodyV3(body, b, resp, ov, showSea, showLand) {
-        var S = b.summary, A = S.analysis || {}, ai = ov.source === 'chatgpt' || ov.source === 'gemini', who = ov.source === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+        var S = b.summary, A = S.analysis || {}, who = aiWho(ov.source), ai = !!who;
         var land = showLand && b.land && S.land, sea = showSea && b.sea && S.sea, nowText = showSea && resp.now && resp.now.text ? resp.now.text : null, names = highlightNames(b);
         var hg = S.sea && Array.isArray(S.sea.haegu) && S.sea.haegu.length && Array.isArray(S.sea.area) && S.sea.area.length ? { list: S.sea.haegu, area: S.sea.area, station: (b.station && b.station.name) || '' } : null;   // §11.10.9 ⑥ 대해구 링크
         /** 이름표가 붙은 칸. 예: part('weather','(기상)') → <div class="sb-part" data-sb-part="weather"><p class="sb-sum-k">(기상)</p></div> */
@@ -1928,7 +1932,7 @@
         }
         if (showLand && b.land) (b.land.overviewTop || []).forEach(function (c) { basisItems.push('연안 · ' + c.name + ' — ' + (c.sourceLabel || '') + (c.today && c.today.text ? ' (' + c.today.text + ')' : '')); });
         if (basisItems.length) { var d = el('details', 'sb-basis'); d.appendChild(el('summary', '', '근거')); d.appendChild(list(basisItems)); s1.body.appendChild(d); }
-        var srcNote = ov.source === 'template' ? '기본 문장(틀) — AI 총평 대신 서버 규칙으로 만든 문장입니다.' : ov.source === 'chatgpt' || ov.source === 'gemini' ? (ov.source === 'chatgpt' ? 'ChatGPT' : 'Gemini') + '가 쓴 총평 — 숫자·지명·단계는 서버가 계산한 값만 씁니다' + (ov.reused ? '(지난 판과 입력이 같아 재사용)' : '') + '.' : null;
+        var srcNote = ov.source === 'template' ? '기본 문장(틀) — AI 총평 대신 서버 규칙으로 만든 문장입니다.' : aiWho(ov.source) ? aiWho(ov.source) + '가 쓴 총평 — 숫자·지명·단계는 서버가 계산한 값만 씁니다' + (ov.reused ? '(지난 판과 입력이 같아 재사용)' : '') + '.' : null;
         if (srcNote) { var sn = el('p', 'sb-small sb-source'); sn.setAttribute('data-sb-source', ov.source); sn.textContent = srcNote; s1.body.appendChild(sn); }
     }
     // ── 「해상 분석」·「연안 분석」 단계 나누기(2026-10-17 사용자 결정 — 설계서 §11.10.14): 칸 머리 오른쪽 단계별 개수 배지 + 펼친 칸 안 단계 단추(하나만 고름) ──

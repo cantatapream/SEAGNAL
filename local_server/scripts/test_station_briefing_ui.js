@@ -1055,13 +1055,17 @@ function makeBriefings() {
             // AI 이름표 색 — ChatGPT 흰색 · Gemini 파랑 · 규칙 분석 회색(그대로)
             const t = await page.evaluate(({ base, now }) => {
                 const W = window.StationBriefingRender, box = document.createElement('div'), out = {}; box.className = 'sb-wrap'; document.body.appendChild(box);
-                for (const src of ['chatgpt', 'gemini', 'template']) { const b = JSON.parse(JSON.stringify(base)); b.overview = src === 'template' ? { land: null, sea: null, source: 'template', model: null } : { ...b.overview, source: src }; W.render(box, { ok: true, briefing: b }, { now });
+                for (const src of ['chatgpt', 'gemini', 'template', 'claude2', 'upstage', 'mystery']) { const b = JSON.parse(JSON.stringify(base)); b.overview = src === 'template' ? { land: null, sea: null, source: 'template', model: null } : { ...b.overview, source: src }; W.render(box, { ok: true, briefing: b }, { now });
                     out[src] = [...box.querySelectorAll('.sb-an-tag')].map((e) => { const c = getComputedStyle(e); return [e.textContent, c.color, c.borderTopColor, c.backgroundColor].join('|'); }); }
                 box.remove(); return out;
             }, { base: B.h, now: clock.now });
             assert.ok(t.chatgpt.length === 2 && t.chatgpt.every((x) => x === 'AI 분석 · ChatGPT|rgb(255, 255, 255)|rgba(255, 255, 255, 0.55)|rgba(255, 255, 255, 0.08)'), 'ChatGPT 이름표 흰색 ' + JSON.stringify(t.chatgpt));
             assert.ok(t.gemini.length === 2 && t.gemini.every((x) => x === 'AI 분석 · Gemini|rgb(96, 165, 250)|rgba(96, 165, 250, 0.6)|rgba(96, 165, 250, 0.12)'), 'Gemini 이름표 파랑 ' + JSON.stringify(t.gemini));
             assert.ok(t.template.length === 2 && t.template.every((x) => x.startsWith('규칙 분석|rgb(203, 213, 225)|')), '규칙 분석 이름표는 그대로 ' + JSON.stringify(t.template));
+            // §11.10.51 — 순서가 「AI 모델 설정」 ③ 을 따르면서 클로드·업스테이지 글도 온다: 종전엔 'chatgpt'·'gemini' 만 AI 로 보아 「규칙 분석」 이름표로 잘못 나왔다. 모르는 값은 그대로 규칙 분석.
+            assert.ok(t.claude2.length === 2 && t.claude2.every((x) => x.startsWith('AI 분석 · Claude|')), 'Claude 이름표 ' + JSON.stringify(t.claude2));
+            assert.ok(t.upstage.length === 2 && t.upstage.every((x) => x.startsWith('AI 분석 · Upstage|')), 'Upstage 이름표 ' + JSON.stringify(t.upstage));
+            assert.ok(t.mystery.length === 2 && t.mystery.every((x) => x.startsWith('규칙 분석|')), '모르는 출처는 AI 이름표 없이 ' + JSON.stringify(t.mystery));
             await page.setViewportSize({ width: 412, height: 915 });
             await page.evaluate(({ b, now }) => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), { ok: true, briefing: b, now: null }, { now }), { b: B.h, now: clock.now });
         });
