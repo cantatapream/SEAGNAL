@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 126개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 127개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -27,6 +27,7 @@ SEAGNAL(바다날씨)은 해양 기상특보·해양종합정보·해양생활·
 ```
 client/js/
 ├── admin/  ← ⚡ 관리자 센터
+│   ├── admin_bulletin_ai.js
 │   ├── admin_bulletin_watch.js
 │   ├── admin_collect.js
 │   ├── admin_data_status.js
@@ -207,6 +208,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) |
+| `admin_bulletin_ai.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 특보 분석」. 기능마다(① 특보 통보문 읽기 · ② 참고사항 해석) AI 우선순위를 |
 | `admin_bulletin_watch.js` | 관리자 → 특보 관리 → 「통보문 관찰」 탭. 방재기상플랫폼 통보문 관련 기능을 한곳에 모은다. |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
 | `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
