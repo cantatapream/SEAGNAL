@@ -13,7 +13,7 @@ const recs = Object.fromEntries(md.split('```jsonl')[1].split('```')[0].trim().s
 const sample = JSON.parse(fs.readFileSync(path.join(__dirname, process.env.SAMPLE || 'ai_trial_sample.json'), 'utf8'));
 const rows = sample.map((item) => ({ item, rec: recs[item.id] || null }));
 const done = rows.filter((x) => x.rec && x.rec.ok).length;
-const two = /_2\.json$/.test(process.env.SAMPLE || '');
-const out = T.reportMarkdown(rows, { label: two ? T.TRIALS['2'].label : T.TRIALS['1'].label, provider: two ? 'claude2' : 'chatgpt', status: 'done', total: rows.length, done, failed: rows.length - done, stopReason: '다시 채점(같은 AI 답, ' + new Date().toISOString().slice(0, 10) + ')' });
+const which = (/_(2|3)\.json$/.exec(process.env.SAMPLE || '') || [, '1'])[1]; const two = which !== '1';
+const out = T.reportMarkdown(rows, { label: T.TRIALS[which].label, provider: two ? 'claude2' : 'chatgpt', status: 'done', total: rows.length, done, failed: rows.length - done, stopReason: '다시 채점(같은 AI 답, ' + new Date().toISOString().slice(0, 10) + ')' });
 if (dst) fs.writeFileSync(dst, out);
 console.log(out.split('## 건별')[0]);

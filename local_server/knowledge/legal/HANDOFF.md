@@ -1545,6 +1545,17 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 관리자 센터 AI 챗봇 「AI 모델」 탭에 「ChatGPT 실행 위치」 추가(codexRunner fly|vm, 기본 fly). codex_bridge 작업자별 대기·접속시각 분리, 고른 쪽에만 일감, 연결 없는 쪽으로 바꾸면 줄 일감 즉시 실패. 독립 검토 4건 중 3건 수정(5분 멈춤·배지 문구·설정 깨짐 시 fly 복귀), 1건(화면 연결상태 자동 갱신 없음) 남김. test_codex_bridge 46 PASS. 다음: 사용자 요청 「AI 특보 분석」 탭(특보 읽기·참고사항 해석 모델·노력·실행 위치 각각 선택).
 
 
+### [2026-11-16 01:22 KST] ✅완료 — AI 브리핑 누적 오류 E20261116-003253 고치기 — 독립 검토 반영·verify_all
+독립 검토 구멍 3개(셈말 첫머리 너무 넓음·잔잔 해구 예외 문장 전체·서버 문장 대목 다른 대상) 막고 반례 시험 고정, S17 마지막 문장 예외. main(#1458·#1459) 합침 — HANDOFF 충돌만(양쪽 기록 살림). verify_all: 시험 묶음 141 통과, 실패 2개(V4·서버 스모크)는 main 합치기 전에 띄운 검사용 서버가 예전 코드로 돌아 / 가 404 였던 것 — 서버 다시 띄워 두 검사만 다시 돌려 통과(스모크 21/21, V4 회귀 없음). 다음: PR 만들고 머지는 사용자 지시 대기.
+
+
+### [2026-11-16 00:59 KST] ✅완료 — AI 브리핑 누적 오류 E20261116-003253 고치기 — 검사 v18·지시문 v17(1차, 독립 검토 대기)
+분석 3명(G01 지명·G02/G03 숫자·셈말·단계 말/금지 말) + 문장 수 직접 재셈. 검사 오판 고침(줄임 해역 이름 21·지명 후보 8·부엌도 4·종류별 건수 1·셈말 구절 첫머리 10·서버 문장 대목 1) + 사용자 결정 3건(시각 칸 잇기 20·앞 문장 전부 셈말 3·잔잔한 해구 5) + 지시문 S17~S25. 처리 완료 목록 G01~G09·G11·G12·G14. test_station_briefing 236 PASS(새 6건은 고치기 전 실패 확인)·UI 100 PASS. 커밋 e0c230158(브랜치 claude/eager-rubin-aean76). 다음: 독립 검토 반영 → verify_all → PR(머지는 사용자 지시 대기). 설계서 §11.10.49.
+
+
+### [2026-11-16 00:34 KST] 🟢착수 — AI 브리핑 누적 오류 E20261116-003253 고치기(검사기 오판 vs AI 실제 오류)
+사용자 「진행하자」(2026-11-16). 관리자 누적 md(오류 122건·유형 14개, 11-13~15)를 유형별로 코드 확인 → 검사기 오판은 station_briefing_ai 검사 고침, 실제 AI 오류는 지시문 보강 검토 → 고친 유형 번호를 config/station_briefing_resolved.json 에 적어 같은 PR. G10(디스크 꽉 참 실행 실패)은 코드 수정 없음(버튼으로 닫기). 누적 md 의 관할 없는 칸 「(0곳)」 표시도 고침. 분석은 유형 묶음별 병렬 에이전트(읽기만), 수정은 같은 파일이라 직렬. 검사 기준 변경이라 독립 검토 포함. 브랜치 claude/eager-rubin-aean76(main 1772bdcd 에서 다시 세움).
+
 ### [2026-11-15 23:38 KST] ✅완료 — 튜토리얼 삭제(⚙ 관심해역 설정 유지)
 완료 100%. 삭제: client/js/tutorial/(tutorial.js 3,699줄·README), client/assets/tutorial/alert_example.jpg, index2.html 로드줄, ocean_cctv.js window.oceanInfoTabItems 노출(튜토리얼만 사용). 유지: onboarding/zone_setup.js(특보현황 ⚙ 가 쓰는 관심해역 설정 화면) — 튜토리얼 전용 「시험 모드」 딱지·testFlag 만 제거, render.js 의 {testFlag:false} 인자 제거, 캐시 버전 NoTutorial_20261115. test_forecast_gear_ui.js 딱지 검사 1건 제거. ARCHITECTURE.md 재생성·order_snapshot 갱신. 확인: test_forecast_gear_ui 31/0, verify_all(NODE_PATH 지정) 실패는 V4·서버스모크뿐 → 서버 띄워 V4 통과·스모크 21/21. ⚠첫 verify_all 은 NODE_PATH 없이 돌려 화면 스위트 20개가 playwright-core 못 찾아 실패(환경 문제, 코드 무관). 다음: 없음(사용자 지시 완료).
 
