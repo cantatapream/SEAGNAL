@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 142 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 140 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -336,6 +336,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_review_sources` | ★⚠수치검증 카드의 「원문 보기」를 못박는다. (2026-11-02 사용자 요청) |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
+| `test_bulletin_ai` | 「AI 특보 분석」 기능별 AI 순서(services/bulletin_ai.js)와 그 API·일감별 실행 위치를 고정한다. |
 | `test_llm_chain` | 나리야 답변 AI 사슬(services/llm_chain.js)의 순서·자동 전환·크레딧 소진 처리를 고정한다. |
 | `test_legal_ask_stats` | 나리야 질문 수 날짜별 집계(services/legal_ask_stats.js)와 /api/legal/ask 연결을 고정한다. |
 | `test_nariya_exposure_schedule` | 나리야 챗봇 「자동 노출 시간」(08:00 노출 · 19:00 비노출, KST)을 고정한다. |
@@ -406,9 +407,6 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_marine_smallzone_ui` | 실제 Chromium 에서 해구 기상전망 창(client/js/forecast/alerts/marine.js)의 소해구 표시를 검사한다(§11.10.18). |
 | `test_beach_weather` | 기상청 해수욕장 날씨(수집기 services/beach_weather_collector.js · 판단·문구 services/beach_weather.js · |
 | `test_notice_markdown` | 공지 게시판 「마크다운 파일 불러오기」(2026-10-20 사용자 결정 — 파일을 올리면 편집기에 채우고, 눈으로 보고 고친 뒤 저장 · 사진은 파일 안에)를 고정한다. |
-| `test_kakao_relay` | 카톡 특보 알림톡 수신(services/kakao_relay · routes/kakao_relay)을 고정한다. |
-| `test_kakao_relay_admin_ui` | 관리자 「카톡 중계」 탭(client/js/admin/admin_kakao_relay.js)이 서버 기록을 사람이 읽게 그리는지 고정한다. |
-| `test_kakao_shadow` | 카톡판 특보현황(services/kakao_shadow) · 날짜별 기록장(services/kakao_relay_log) 검사. |
 | `test_bulletin_watch` | 통보문 관찰기(services/bulletin_watch) · 내려받기(routes/bulletin_watch) 검사. |
 | `test_bulletin_ai_trial` | 참고사항 AI 시험(services/bulletin_ai_trial) · 관리자 창구(routes/bulletin_watch) · 「통보문 관찰」 탭(client/js/admin/admin_bull… |
 | `test_bulletin_status` | 통보문 기준 특보현황(services/bulletin_status) 검사. |

@@ -2765,25 +2765,6 @@ async function init() {
             require('./services/seaway_refresh').checkAndRefreshSeaway();
         }
 
-        // [카톡 ↔ 특보현황(MMIS) 대조 — 2026-11-03] 매분. 카톡 풍랑 특보가 10분 넘게 특보현황에 안 맞으면 관리자 알림,
-        //   나중에 같아지면 「같아짐」 알림. 모르는 구역·분해 실패도 알림. 기록·알림만 — 특보현황·사용자 푸시는 안 바꾼다.
-        require('./services/kakao_relay').checkMmis().catch(err =>
-            log(`⚠️ [kakao_relay] MMIS 대조 오류: ${err.message}`)
-        );
-
-        // [카톡판 특보현황 10일 시험 — 2026-11-03] 매분. 카톡 줄만으로 만든 특보현황을 앱 특보현황(MMIS)과 구역별로
-        //   맞대어 차이·시간차를 날짜별 기록장(data/kakao_relay_log, 30일)에 남긴다. 기록만 — 특보현황·푸시는 안 바꾼다.
-        //   관리자 「카톡 중계 → 비교현황」이 읽는다(services/kakao_shadow).
-        try { require('./services/kakao_shadow').runShadow(); }
-        catch (err) { log(`⚠️ [kakao_shadow] 카톡판 비교 오류: ${err.message}`); }
-
-        // [카톡 특보중계 태블릿 멈춤 감시 — 2026-11-02] 5분마다 마지막 신호를 보고 끊김·접근성 꺼짐·읽기 실패면
-        //   관리자 푸시(첫 이상 1번·복구 1번 — services/collect_fail_alert 항목 kakaoRelay). 열쇠 미설정이면 아무것도 안 함.
-        if (min % 5 === 2) {
-            require('./services/kakao_relay').checkHealth().catch(err =>
-                log(`⚠️ [kakao_relay] 멈춤 감시 오류: ${err.message}`)
-            );
-        }
 
         // [관리자 반복 푸시] 매 정시(min === 0)에 미확인 항목 체크 후 관리자 푸시 재발송
         // 바다에서 네트워크가 간헐적으로만 되는 해경 관리자를 위해 1시간 간격으로 반복 발송
