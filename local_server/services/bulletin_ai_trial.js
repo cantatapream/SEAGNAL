@@ -120,6 +120,13 @@ function resolveZones(expr, ctx = {}) {
             if (!hit.length && /(앞바다|먼바다)$/.test(base) && base.length >= 4 && ctx.office) { const m = (officeZones()[ctx.office] || []).filter((p) => p.endsWith(base) && p !== base); if (m.length) hit = m; }
             // ④ 별칭(공식 목록에 없는 이름 — 2026 참고사항): 「제주도바깥먼바다」 = 제주도남쪽바깥먼바다(제주 먼바다 중 바깥은 하나뿐)
             if (!hit.length && ALIAS[base]) hit = ALIAS[base];
+            // ④ 큰 묶음 줄임(2025 참고사항): 「동해바깥먼바다」 「동해남부바깥먼바다」 「서해먼바다」 「경기앞바다」 — 관할 안에서 줄기(동해·동해남부·경기…)가 들어 있고
+            //   끝(바깥먼바다·안쪽먼바다·먼바다·앞바다)이 같은 부모 전부. 줄기 2글자 이상만.
+            if (!hit.length && ctx.office) {
+                const suf = ['바깥먼바다', '안쪽먼바다', '먼바다', '앞바다'].find((x) => base.endsWith(x));
+                const stem = suf ? base.slice(0, -suf.length).replace(/[·.]/g, '') : '';
+                if (suf && stem.length >= 2) { const m = (officeZones()[ctx.office] || []).filter((p) => p.endsWith(suf) && stem.split('').every((ch) => p.includes(ch)) && p.includes(stem.slice(0, 2))); if (m.length) hit = m; }
+            }
             // ④ 부모 없이 자식 이름만(「남동연안바다」 「동부평수구역」) — 그 관서 관할 부모의 자식 중 끝이 맞는 것이 **하나**일 때만
             if (!hit.length && /(연안바다|평수구역)$/.test(base) && ctx.office) {
                 const own = officeZones()[ctx.office] || [];
@@ -323,6 +330,9 @@ const TRIALS = {
     '1': { label: '1차 · ChatGPT · 표본 200건', provider: 'chatgpt', sampleFile: SAMPLE_FILE, file: STATE_FILE },
     '2': { label: '2차 · 클로드 키2 · 2026년 새 표현 161건', provider: 'claude2',
         sampleFile: path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample_2.json'), file: path.join(__dirname, '..', 'data', 'bulletin_ai_trial_2.json') },
+    // 3차 = 2025년 중 1·2차에 없던 표현(사용자 2026-11-16 「25년도 내용도 볼 필요가 있지 않을까」)
+    '3': { label: '3차 · 클로드 키2 · 2025년 새 표현 224건', provider: 'claude2',
+        sampleFile: path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample_3.json'), file: path.join(__dirname, '..', 'data', 'bulletin_ai_trial_3.json') },
 };
 const reals = {};
 const getReal = (id) => { const k = TRIALS[id] ? id : '1'; return (reals[k] = reals[k] || createTrial(TRIALS[k])); };

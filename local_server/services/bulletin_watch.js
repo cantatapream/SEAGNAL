@@ -14,7 +14,7 @@
  *  - 사용하는 파일 : 없음(https 직접) — 요청 방식은 analysis/bulletin_survey/collect.js 와 같다
  *  - 서버 API      : dmdw POST /rsw/rest/mfp/wrn/retRswWrnRptList.json · retRswWrnRptDetail.json (로그인 필요)
  *  - 저장          : data/bulletin_watch/<KST 날짜>.jsonl(기록, 30일) · data/bulletin_watch/state.json(본 통보문)
- *  - 나를 쓰는 곳  : scheduler.js(매 1분 run) · routes/bulletin_watch.js(관리자 내려받기) · 검사 test_bulletin_watch
+ *  - 나를 쓰는 곳  : scheduler.js(매 1분 run) · routes/bulletin_watch.js(관리자 내려받기) · services/bulletin_status.js(bulletins — 통보문 기준 특보현황) · 검사 test_bulletin_watch
  *  - 환경변수      : KMA_DMDW_USER_ID / KMA_DMDW_USER_PWD(없으면 꺼짐) · BULLETIN_WATCH_DISABLE=1(강제 끔)
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
@@ -114,7 +114,7 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
                         if (!s) {
                             let r = null; try { r = await detail(stn, e.code); stat.details++; } catch (err) { console.warn('[bulletin_watch] 새 본문 실패', e.code, err && err.message); emit({ atMs: at, kind: 'error', stn, rpt, code: e.code, message: String(err.message || err).slice(0, 200), 설명: '새 통보문 본문을 못 받음 — 다음 분에 다시' }); }
                             const empty = isEmpty(rpt, r);
-                            state.seen[e.code] = { stn, rpt, firstMs: at, fullMs: empty ? null : at, listValue: e.value, hash: hashOf(r), empty, emptySinceMs: empty ? at : null, lastFetchMs: at, rechecked: [] };
+                            state.seen[e.code] = { stn, rpt, firstMs: at, fullMs: empty ? null : at, listValue: e.value, hash: hashOf(r), empty, emptySinceMs: empty ? at : null, lastFetchMs: at, rechecked: [], result: r };   // 본문도 둔다 — 통보문 기준 특보현황(bulletin_status)이 읽는다
                             emit({ atMs: at, kind: 'new', baseline: baseline || undefined, stn, office: OFFICES[stn], rpt, code: e.code, listValue: e.value, empty, result: r,
                                 설명: `${OFFICES[stn]} ${rpt === '7' ? '예비특보' : '특보'} ${baseline ? '관찰 시작 때 이미 있던' : '새'} 통보문 「${String(e.value).trim()}」 ${empty ? '— 내용이 비어 있다(채워질 때까지 매분 다시 본다)' : '— 내용이 있다'}` });
                             continue;
@@ -140,7 +140,7 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
                             emptyMinutes: filled ? Math.round((at - s.emptySinceMs) / 60e3) : undefined, result: r,
                             설명: filled ? `${OFFICES[stn]} 「${String(e.value).trim()}」 내용이 채워짐 — 처음 빈 채로 본 뒤 ${Math.round((at - s.emptySinceMs) / 60e3)}분`
                                 : `${OFFICES[stn]} 「${String(e.value).trim()}」 내용이 바뀜(처음 본 뒤 ${Math.round(ageMin)}분)${empty ? ' — 아직 비어 있음' : ''}` });
-                        s.hash = h; s.empty = empty; if (empty && !s.emptySinceMs) s.emptySinceMs = at; if (!empty) s.emptySinceMs = null;
+                        s.hash = h; s.empty = empty; s.result = r; if (empty && !s.emptySinceMs) s.emptySinceMs = at; if (!empty) s.emptySinceMs = null;
                         if (filled) { s.fullMs = at; s.rechecked = []; }
                     }
                 }
@@ -172,7 +172,17 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
     }
     const days = () => (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((f) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(f)).map((f) => f.slice(0, 10)).sort();
     const readDay = (d) => { try { return fs.readFileSync(path.join(dir, d + '.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch (_) { return []; } };
-    return { run, readDay, days };
+    /**
+     * 지금 보고 있는 통보문(목록 기간 3일 + 남은 기록) — 내용이 찬 것만, 처음 내용을 본 시각과 함께.
+     * 예: [{ code, stn, office:'제주청', rpt:'6', seenMs:…, result:{ t1Title, tmFc, tmIn, t2, t6, … } }]
+     * [연계] → services/bulletin_status.js(통보문 기준 특보현황 계산)
+     */
+    function bulletins() {
+        load();
+        return Object.entries(state.seen).filter(([, s]) => s.result && !s.empty)
+            .map(([code, s]) => ({ code, stn: s.stn, office: OFFICES[s.stn], rpt: s.rpt, seenMs: s.fullMs || s.firstMs, result: s.result }));
+    }
+    return { run, readDay, days, bulletins };
 }
 
 // ── 실제 dmdw 연결(collect.js 와 같은 요청) ────────────────────────────────────────────
@@ -222,6 +232,7 @@ module.exports = {
     run: () => getReal().run(),
     days: () => getReal().days(),
     readDay: (d) => getReal().readDay(d),
+    bulletins: () => getReal().bulletins(),
     createWatch, isEmpty, OFFICES, dayOf, hmOf,
     _real: { post: realPost, login: realLogin },   // 실제 연결 한 번 시험용(저장 위치를 바꿔 끼울 때)
 };

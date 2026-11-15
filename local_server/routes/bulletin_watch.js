@@ -5,10 +5,12 @@
  *         한 파일(마크다운)에 쉬운 설명 줄과 원본(JSON 줄)을 함께 담아 사람·AI 가 모두 읽을 수 있게 한다.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : services/bulletin_watch(기록 읽기) · services/bulletin_ai_trial(참고사항 AI 시험) · services/admin_auth(관리자 확인)
+ *  - 사용하는 파일 : services/bulletin_watch(기록 읽기) · services/bulletin_ai_trial(참고사항 AI 시험) · services/bulletin_status(통보문 기준 특보현황) ·
+ *                   services/bulletin_compare(MMIS ↔ 통보문 비교) · services/admin_auth(관리자 확인)
  *  - 서버 API      : GET /api/admin/bulletin-watch/report.md?day=YYYY-MM-DD|all ·
  *                    GET /api/admin/bulletin-ai-trial(상태) · POST /api/admin/bulletin-ai-trial/start · POST /api/admin/bulletin-ai-trial/stop ·
- *                    GET /api/admin/bulletin-ai-trial/report.md — 모두 ?trial=1(1차 ChatGPT, 기본)|2(2차 클로드 키2)
+ *                    GET /api/admin/bulletin-ai-trial/report.md — 모두 ?trial=1(1차 ChatGPT, 기본)|2(2차 클로드 키2) ·
+ *                    GET /api/admin/bulletin-status(통보문 기준 특보현황 — 메인 화면 [통보문]) · GET /api/admin/bulletin-compare/report.md(MMIS ↔ 통보문 비교)
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : server.js(등록) · client/js/admin/admin_bulletin_watch.js(특보 관리 → 통보문 관찰 탭) · 검사 test_bulletin_watch·test_bulletin_ai_trial
  * [로드 순서] server.js 에서 routes/admin 보다 먼저 등록한다(자체 인증).
@@ -55,7 +57,7 @@ function reportMarkdown(events, day) {
  * @returns {import('express').Router}
  * [연계] ← server.js / → services/bulletin_watch
  */
-function createRouter({ watch = require('../services/bulletin_watch'), trial = require('../services/bulletin_ai_trial'), authorize = adminAuth.requireAdminToken } = {}) {
+function createRouter({ watch = require('../services/bulletin_watch'), trial = require('../services/bulletin_ai_trial'), status = require('../services/bulletin_status'), compare = require('../services/bulletin_compare'), authorize = adminAuth.requireAdminToken } = {}) {
     const router = express.Router();
     router.get('/api/admin/bulletin-watch/report.md', authorize, (req, res) => {
         const day = String(req.query.day || 'all');
@@ -68,7 +70,7 @@ function createRouter({ watch = require('../services/bulletin_watch'), trial = r
     });
     // 참고사항 AI 시험(표본 200건) — 시작은 바로(사용자 확정 2026-11-15 「ㄱ」), 한 건씩 차례로. 특보현황·푸시에는 반영 안 함.
     // ?trial=1(1차 ChatGPT·200건, 기본) | 2(2차 클로드 키2·161건) — 2026-11-15
-    const tid = (req) => (String(req.query && req.query.trial || '1') === '2' ? '2' : '1');
+    const tid = (req) => { const t = String(req.query && req.query.trial || '1'); return ['1', '2', '3'].includes(t) ? t : '1'; };   // 3 = 2025년 새 표현(2026-11-16)
     router.get('/api/admin/bulletin-ai-trial', authorize, (req, res) => res.json({ ok: true, trial: tid(req), ...trial.status(tid(req)) }));
     router.post('/api/admin/bulletin-ai-trial/start', authorize, (req, res) => res.json({ ok: true, trial: tid(req), ...trial.start(tid(req)) }));
     router.post('/api/admin/bulletin-ai-trial/stop', authorize, (req, res) => res.json({ ok: true, trial: tid(req), ...trial.stop(tid(req)) }));
@@ -76,6 +78,22 @@ function createRouter({ watch = require('../services/bulletin_watch'), trial = r
         res.set('Content-Type', 'text/markdown; charset=utf-8');
         res.set('Content-Disposition', `attachment; filename="bulletin_ai_trial_${tid(req)}.md"`);
         res.send(trial.report(tid(req)));
+    });
+    // 통보문 기준 특보현황(관리자 메인 화면 [통보문] 버튼) — /api/weather-alerts 와 같은 모양(current 나무). 2026-11-16
+    router.get('/api/admin/bulletin-status', authorize, (req, res) => {
+        const s = status.read();
+        if (!s) return res.status(503).json({ ok: false, error: '아직 계산 전 — 관찰기가 한 번 돈 뒤 다시' });
+        res.set('Cache-Control', 'no-store');
+        res.json({ ok: true, source: 'BULLETIN', updatedAt: s.updatedAt, bulletins: s.bulletins, waiting: s.waiting, current: s.current });
+    });
+    // MMIS ↔ 통보문 비교 보고서(마크다운) — ?day=YYYY-MM-DD|all
+    router.get('/api/admin/bulletin-compare/report.md', authorize, (req, res) => {
+        const day = String(req.query.day || 'all');
+        if (day !== 'all' && !/^\d{4}-\d{2}-\d{2}$/.test(day)) return res.status(400).json({ ok: false, error: 'day 는 YYYY-MM-DD 또는 all' });
+        const events = (day === 'all' ? compare.days() : [day]).flatMap((d) => compare.readDay(d));
+        res.set('Content-Type', 'text/markdown; charset=utf-8');
+        res.set('Content-Disposition', `attachment; filename="bulletin_compare_${day}.md"`);
+        res.send(compare.reportMarkdown(events, day));
     });
     return router;
 }

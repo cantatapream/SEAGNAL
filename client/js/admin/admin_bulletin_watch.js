@@ -3,13 +3,15 @@
  * 파일명: client/js/admin/admin_bulletin_watch.js
  * 역할  : 관리자 → 특보 관리 → 「통보문 관찰」 탭. 방재기상플랫폼 통보문 관련 기능을 한곳에 모은다.
  *         ① 통보문 관찰기 기록 내려받기(매분 관찰 — 빈 통보문이 채워지는 모습 등)
- *         ② 참고사항 AI 시험 — 2차(클로드 키2·2026년 새 표현 161건)·1차(ChatGPT·표본 200건) 칸마다 [시험 시작] [멈춤] [결과 내려받기]
+ *         ② MMIS ↔ 통보문 특보 비교 보고서 내려받기(services/bulletin_compare)
+ *         ③ 참고사항 AI 시험 — 3차(2025년)·2차(2026년)·1차(ChatGPT·200건) 칸마다 [시험 시작] [멈춤] [결과 내려받기]
  *         (사용자 확정 2026-11-15: 「카톡 중계 탭에 넣지말고 통보문 관찰이라는 탭을 하나 더 두고」 「보내는 시각은 ㄱ(누르면 바로)」)
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : admin/admin.js (window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부 · 탭 등록 switchAlertTopTab)
- *  - 서버 API      : GET /api/admin/bulletin-watch/report.md · GET /api/admin/bulletin-ai-trial?trial=1|2 ·
- *                    POST /api/admin/bulletin-ai-trial/start · POST /api/admin/bulletin-ai-trial/stop · GET /api/admin/bulletin-ai-trial/report.md
+ *  - 서버 API      : GET /api/admin/bulletin-watch/report.md · GET /api/admin/bulletin-ai-trial?trial=1|2|3 ·
+ *                    POST /api/admin/bulletin-ai-trial/start · POST /api/admin/bulletin-ai-trial/stop · GET /api/admin/bulletin-ai-trial/report.md ·
+ *                    GET /api/admin/bulletin-compare/report.md
  *                    (routes/bulletin_watch.js)
  *  - 마크업        : 없음(admin.js 의 #alert-top-content 안에 그린다)
  *  - 나를 쓰는 곳  : admin/admin.js renderUnifiedAlertContent → 「통보문 관찰」 탭 · 검사 test_bulletin_ai_trial(UI 부분)
@@ -80,6 +82,7 @@
 
     var START_ASK = {
         '1': '1차 참고사항 AI 시험(ChatGPT, 200건)을 지금 시작할까요?\n\nChatGPT 줄을 나리야·브리핑 AI 와 함께 써서, 진행 중엔 나리야 답이 늦어질 수 있습니다.\n끝난 건은 건너뛰고 이어서 합니다.',
+        '3': '3차 참고사항 AI 시험(클로드 키2, 2025년 224건)을 지금 시작할까요?\n\n관리자 센터 「클로드 키2」 크레딧을 씁니다(나리야 답변 순서의 같은 키). 크레딧이 다 떨어지면 바로 멈춥니다.\n끝난 건은 건너뛰고 이어서 합니다.',
         '2': '2차 참고사항 AI 시험(클로드 키2, 161건)을 지금 시작할까요?\n\n관리자 센터 「클로드 키2」 크레딧을 씁니다(나리야 답변 순서 1번 칸과 같은 키). 크레딧이 다 떨어지면 바로 멈춥니다.\n끝난 건은 건너뛰고 이어서 합니다.'
     };
     /** [시험 시작]·[멈춤] — 시작은 한 번 더 묻는다. @param {'start'|'stop'} kind @param {'1'|'2'} id [연계] → POST /api/admin/bulletin-ai-trial/start|stop?trial= */
@@ -120,6 +123,12 @@
             + box('📡 통보문 관찰기록',
                 '<div style="font-size:0.8rem;color:#9aa7b4">방재기상플랫폼 특보·예비특보 통보문을 1분마다 보며 처음 보인 모습과 바뀐 모습(빈 통보문이 채워짐·내용 바뀜·번호 바뀜)을 남긴 기록입니다. 관찰만 하고 앱 특보현황·푸시는 바꾸지 않습니다.</div>'
                 + btn('기록 내려받기', "window.__bwDownload('/api/admin/bulletin-watch/report.md?day=all','bulletin_watch_all.md')", '52,211,153'))
+            + box('📊 MMIS ↔ 통보문 특보 비교',
+                '<div style="font-size:0.8rem;color:#9aa7b4">MMIS 기준(실제 앱)과 통보문 기준(관찰·계산만)의 해역별 특보 상태와 푸시를 매분 맞대어 남긴 기록입니다. MMIS 실제 푸시가 몇 분 몇 초에 무엇으로 나갔는지, 통보문 기준이었다면 언제 무엇으로 나갔을지(보내지 않은 가상 푸시)를 나란히 봅니다. 메인 화면 「기상정보」 옆 [통보문] 버튼으로 통보문 기준 목록도 볼 수 있습니다.</div>'
+                + btn('비교 보고서 내려받기', "window.__bwDownload('/api/admin/bulletin-compare/report.md?day=all','bulletin_compare_all.md')", '251,191,36'))
+            + trialBox('3', '🤖 참고사항 AI 시험 3차 — 클로드 키2 · 2025년 새 표현 224건',
+                '2025년 통보문 중 1·2차 표본에 없던 문장 모양(경보→주의보 변경 발표·예비특보 추가 발표·「길게 이어지지 않아」·머리줄만 있는 글 등)이 든 224건을 「클로드 키2」에 한 건씩 읽혀 규칙 결과와 맞춰 봅니다. 실제 특보현황·푸시에는 반영하지 않습니다.',
+                '※ 「클로드 키2」 크레딧을 씁니다. 크레딧이 다 떨어지면 바로 멈춥니다. 멈추면 지금 건만 마치고 서고, 다시 시작하면 이어서 합니다.')
             + trialBox('2', '🤖 참고사항 AI 시험 2차 — 클로드 키2 · 2026년 새 표현 161건',
                 '1차 표본에 없던 2026년 문장 모양(해제예고 앞당김·정확한 해제 시각·바다와 육상이 섞인 문장 등)과 규칙이 못 읽던 해역 표현이 든 통보문 161건을, 관리자 센터 「클로드 키2」(claude-sonnet-5-5 · medium)에 한 건씩 읽혀 규칙 결과와 맞춰 봅니다. 실제 특보현황·푸시에는 반영하지 않습니다.',
                 '※ 「클로드 키2」 크레딧을 씁니다(나리야 답변 순서의 같은 키). 크레딧이 다 떨어지면 바로 멈춥니다. 멈추면 지금 건만 마치고 서고, 다시 시작하면 이어서 합니다.')
@@ -127,6 +136,7 @@
                 '지난 통보문 참고사항 200건을 서버의 ChatGPT 에 읽혀 정해진 칸으로 옮기게 하고, 규칙 결과와 나란히 맞춰 봅니다. 한 건씩 차례로 보내며, 실제 특보현황·푸시에는 반영하지 않습니다.',
                 '※ ChatGPT 줄을 나리야·브리핑 AI 와 함께 씁니다. 진행 중엔 나리야 답이 늦어질 수 있습니다. 멈추면 지금 건만 마치고 서고, 다시 시작하면 이어서 합니다.')
             + '</div>';
+        refreshTrial('3');
         refreshTrial('2');
         refreshTrial('1');
     }

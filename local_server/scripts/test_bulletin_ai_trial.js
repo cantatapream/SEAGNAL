@@ -42,7 +42,9 @@ console.log('B. 해역 펼치기(규칙 — AI 는 안 펼친다)');
     ok('「…와 …」 두 덩어리 다 펼침', z('동해남부북쪽먼바다와 경북남부앞바다').length === 3);
     ok('목록에 없는 표현은 못 읽음(null) — 지어내지 않음', z('가나다해상') === null && z('가나.다라앞바다') === null && z('앞바다', { office: '광주청' }) === null);
     ok('줄인 이름이 관할 안 여럿과 맞으면 전부 — 광주 「서해앞바다」 = 전남북부·중부·남부서해앞바다', JSON.stringify(z('서해앞바다', { office: '광주청' }).sort()) === JSON.stringify(['전남남부서해앞바다', '전남북부서해앞바다', '전남중부서해앞바다']));
-    ok('별칭(사용자 확정): 제주도남쪽안쪽먼바다 = 남서쪽+남동쪽안쪽 · 서해남부중부앞바다 중 앞평수구역 = 전남중부서해앞바다', JSON.stringify(z('제주도남쪽안쪽먼바다', { office: '제주청' })) === JSON.stringify(['제주도남서쪽안쪽먼바다', '제주도남동쪽안쪽먼바다'])
+    ok('큰 묶음 줄임(2025): 「동해바깥먼바다」(강원=중부바깥) 「동해남부바깥먼바다」(대구=북쪽바깥) 「경기앞바다」 — 관할 안에서', JSON.stringify(z('동해바깥먼바다', { office: '강원청' })) === JSON.stringify(['동해중부바깥먼바다'])
+        && JSON.stringify(z('동해남부바깥먼바다', { office: '대구청' })) === JSON.stringify(['동해남부북쪽바깥먼바다']) && z('경기앞바다', { office: '수도권청' }).length === 2 && z('가나먼바다', { office: '광주청' }) === null);
+    ok('별칭(사용자 확정): 제주도남쪽안쪽먼바다 = 남서쪽+남동쪽안쪽 · 서해남부중부앞바다 중 앞평수구역 = 전남중부서해앞바다', JSON.stringify(z('제주도남쪽안쪽먼바다', { office: '제주청' }).sort()) === JSON.stringify(['제주도남동쪽안쪽먼바다', '제주도남서쪽안쪽먼바다'])
         && JSON.stringify(z('서해남부중부앞바다 중 앞평수구역', { office: '광주청' })) === JSON.stringify(['전남중부서해앞바다']));
     ok('통보문에 이름이 나온 부모(관할 안) — 「(1) …:」 없는 예비해제 꼴도', JSON.stringify(T.namedParents('제주도동부앞바다( 남동연안바다 ), 제주도남부앞바다( 연안바다 )', '제주청').sort()) === JSON.stringify(['제주도남부앞바다', '제주도동부앞바다']));
     {
@@ -52,7 +54,7 @@ console.log('B. 해역 펼치기(규칙 — AI 는 안 펼친다)');
     }
     ok('「동부평수구역」은 부모가 셋(부산앞바다·경남서부남해앞바다·전남동부남해앞바다) — 본문 없이 혼자면 못 읽음', z('동부평수구역', { office: '부산청' }) === null && z('동부평수구역', { office: '광주청' }) !== null);
     ok('④ 점(.)으로 이어 쓴 이름: 「제주도동부.남부앞바다」 「강원중.북부앞바다」 「인천.경기앞바다」', JSON.stringify(z('제주도동부.남부앞바다', { office: '제주청' })) === JSON.stringify(['제주도동부앞바다', '제주도남부앞바다'])
-        && JSON.stringify(z('강원중.북부앞바다', { office: '강원청' })) === JSON.stringify(['강원중부앞바다', '강원북부앞바다']) && JSON.stringify(z('인천.경기앞바다', { office: '수도권청' })) === JSON.stringify(['인천·경기북부앞바다', '인천·경기남부앞바다']));
+        && JSON.stringify(z('강원중.북부앞바다', { office: '강원청' })) === JSON.stringify(['강원중부앞바다', '강원북부앞바다']) && JSON.stringify(z('인천.경기앞바다', { office: '수도권청' }).sort()) === JSON.stringify(['인천·경기남부앞바다', '인천·경기북부앞바다']));
     ok('④ 부모 없이 자식 이름만 — 관할 안에서 하나일 때만(「남동연안바다」 제주 = 동부앞바다)', JSON.stringify(z('남동연안바다', { office: '제주청' })) === JSON.stringify(['제주도동부앞바다']) && z('연안바다', { office: '제주청' }) === null);
     ok('④ 둘 이상이면 본문 해역으로 좁히고, 그래도 둘이면 못 읽음(「동부평수구역」 부산)', z('동부평수구역', { office: '부산청' }) === null && JSON.stringify(z('동부평수구역', { office: '부산청', bodyZones: ['부산앞바다'] })) === JSON.stringify(['부산앞바다']));
     ok('④ 별칭 「제주도바깥먼바다」 = 제주도남쪽바깥먼바다', JSON.stringify(z('제주도바깥먼바다', { office: '제주청' })) === JSON.stringify(['제주도남쪽바깥먼바다']));
@@ -144,11 +146,13 @@ console.log('C. 검산');
         t.start(); await t.done();
         const s = t.status();
         ok('크레딧 소진이면 첫 건에서 바로 멈춤(3번 헛돌지 않음)', n === 1 && s.status === 'stopped' && /크레딧 소진/.test(s.stopReason) && s.label === '2차' && s.provider === 'claude2', s);
-        ok('시험 목록: 1차 ChatGPT · 2차 클로드 키2', T.TRIALS['1'].provider === 'chatgpt' && T.TRIALS['2'].provider === 'claude2' && /161건/.test(T.TRIALS['2'].label));
+        ok('시험 목록: 1차 ChatGPT · 2차·3차 클로드 키2', T.TRIALS['1'].provider === 'chatgpt' && T.TRIALS['2'].provider === 'claude2' && /161건/.test(T.TRIALS['2'].label) && T.TRIALS['3'].provider === 'claude2' && /2025년/.test(T.TRIALS['3'].label));
         const sample2 = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample_2.json'), 'utf8'));
         const sample1 = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample.json'), 'utf8'));
         const k1 = new Set(sample1.map((x) => x.office + x.호 + x.발표));
         ok('2차 표본 = 2026년 통보문만, 1차와 안 겹침, 건마다 고른 까닭·규칙 결과', sample2.length === 161 && sample2.every((x) => x.발표.startsWith('2026') && !k1.has(x.office + x.호 + x.발표) && x.분류어림 && x.rule));
+        const sample3 = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample_3.json'), 'utf8'));
+        ok('3차 표본 = 2025년만, 1·2차와 안 겹침', sample3.length > 0 && sample3.every((x) => x.발표.startsWith('2025') && !k1.has(x.office + x.호 + x.발표)));
     }
     {
         const chain = require('../services/llm_chain');
