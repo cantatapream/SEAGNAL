@@ -645,7 +645,7 @@ function resetExhausted(id) {
 
 /**
  * 관리자 화면용 상태 — 키 유무(값은 내보내지 않는다)·삭제 여부·소진 여부·쉼 끝 시각(ChatGPT 만, 안 쉬면 null)·오늘 호출 수
- *   · ChatGPT 칸만 workerAlive(VM 작업자가 최근 90초 안에 왔나 — 아니면 사슬이 건너뛴다, usable 과 같은 판정).
+ *   · ChatGPT 칸만 workerAlive(고른 실행 위치(Fly|VM)의 작업자가 최근 90초 안에 왔나 — 아니면 사슬이 건너뛴다, usable 과 같은 판정).
  * 예: status(['claude1']) → [{ id:'upstage', removed:false, … }, { id:'claude1', removed:true, … }, …]
  * @param {string[]} [removed] - 설정의 providerRemoved(normConfig 결과). 없으면 아무것도 삭제 안 된 것으로.
  * @returns {Array<{id,name,hasKey,removed,exhaustedAt,restUntil,today,workerAlive?}>}

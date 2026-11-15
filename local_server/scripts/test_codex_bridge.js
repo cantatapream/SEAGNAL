@@ -105,6 +105,8 @@ const LUNA = { answerModel: 'gpt-6-luna', codexForUsers: false };
   }
 
   console.log('\n── ③ 왕복(가짜 작업자) ──');
+  // ③·④ 의 가짜 작업자는 헤더 X-Codex-Worker 가 없다 = VM 작업자. 실행 위치를 VM 으로 맞춰 둔다(기본은 fly — ⑥ 에서 따로 고정).
+  bridge.setRunner('vm');
   const secretH = { 'X-Codex-Secret': SECRET };
   /** 작업자가 기다리는 중에 일감을 넣고, 받은 일감에 text 로 답한다. */
   async function roundTrip(callFn, reply) {
@@ -188,6 +190,57 @@ const LUNA = { answerModel: 'gpt-6-luna', codexForUsers: false };
     ok('codex 요청 안 → 그 모델(ChatGPT GPT-6 Sol)', l === '\n\n※ 이 답변은 ChatGPT GPT-6 Sol 모델이 답했습니다.', JSON.stringify(l));
     const g = through({}, {}, () => bridge.answerLabel('gemini-2.5-flash'), LUNA).out;
     ok('일반 사용자(스위치 꺼짐) → Gemini', /Gemini 2\.5 Flash/.test(g), JSON.stringify(g));
+  }
+
+  console.log('\n── ⑥ 실행 위치(fly|vm) 고르기 ──');
+  {
+    const flyH = { 'X-Codex-Secret': SECRET, 'X-Codex-Worker': 'fly' }, vmH = { 'X-Codex-Secret': SECRET };
+    const tick = () => new Promise(r => setImmediate(r));
+    bridge.setRunner('vm');
+    const fr = fakeRes(), vr = fakeRes();
+    bridge.poll(fakeReq({}, flyH), fr);
+    bridge.poll(fakeReq({}, vmH), vr);
+    ok('두 작업자가 함께 기다려도 서로의 대기를 끊지 않는다', fr.done === false && vr.done === false);
+    let p = bridge.callRaw({ contents: 'A', caller: 't' }); await tick();
+    ok('위치=vm → 일감은 VM 작업자에게만', vr.body && vr.body.prompt === 'A' && fr.done === false, JSON.stringify({ vm: vr.body, fly: fr.done }));
+    bridge.result(fakeReq({ id: vr.body.id, ok: true, text: 'a' }, vmH), fakeRes());
+    ok('VM 작업자 답이 돌아온다', (await p).response.text === 'a');
+    // VM 은 지금 자리가 없다(일감을 가져갔으니). 일감을 줄에 세운 채 fly 로 바꾸면 기다리던 fly 가 바로 받는다.
+    p = bridge.callRaw({ contents: 'B', caller: 't' }); await tick();
+    ok('VM 자리가 비면 일감은 줄에서 기다린다(fly 에게 새지 않는다)', fr.done === false);
+    bridge.setRunner('fly'); await tick();
+    ok('위치를 fly 로 바꾸는 순간 줄의 일감이 fly 작업자에게 간다', fr.body && fr.body.prompt === 'B', JSON.stringify(fr.body));
+    bridge.result(fakeReq({ id: fr.body.id, ok: true, text: 'b' }, flyH), fakeRes());
+    ok('fly 작업자 답이 돌아온다', (await p).response.text === 'b');
+    // 바꾼 직후 옛 쪽이 끝낸 답도 받는다.
+    const vr2 = fakeRes(); bridge.setRunner('vm'); bridge.poll(fakeReq({}, vmH), vr2);
+    p = bridge.callRaw({ contents: 'C', caller: 't' }); await tick();
+    bridge.setRunner('fly');
+    bridge.result(fakeReq({ id: vr2.body.id, ok: true, text: 'c' }, vmH), fakeRes());
+    ok('위치를 바꾼 뒤에도 옛 쪽이 이미 가져간 일감의 답은 받는다', (await p).response.text === 'c');
+    const w = bridge.workers();
+    ok('workers(): 고른 위치와 위치별 연결 상태', w.runner === 'fly' && w.fly === true && w.vm === true, JSON.stringify(w));
+    bridge.setRunner('nonsense');
+    ok('틀린 값 → 기본 fly', bridge.workers().runner === 'fly');
+    // 안 고른 쪽만 살아 있으면 연결 없음으로 본다(작업자 없는 쪽에 일감을 세워 두고 5분 기다리지 않게).
+    const realNow = Date.now; Date.now = () => realNow() + 95 * 1000;   // 둘 다 낡게
+    const vr3 = fakeRes(); bridge.poll(fakeReq({}, vmH), vr3);          // VM 만 방금 옴
+    ok('위치=fly 인데 VM 만 살아 있으면 workerAlive 거짓', bridge.workerAlive() === false);
+    const r = await bridge.callRaw({ contents: 'D', caller: 't' });
+    ok('그때 callRaw 는 바로 「Fly 작업자 연결 없음」 실패', r.success === false && /Fly 작업자 연결 없음/.test(r.error || ''), JSON.stringify(r));
+    Date.now = realNow;
+    // 연결 안 된 쪽으로 바꾸면 줄의 일감은 5분 기다리지 않고 바로 실패(독립 검토 지적 1).
+    bridge.setRunner('vm');
+    const vb = fakeRes(); bridge.poll(fakeReq({}, vmH), vb);
+    const pa = bridge.callRaw({ contents: 'E1', caller: 't' }); await tick();        // VM 이 가져감(자리 비움)
+    const pq = bridge.callRaw({ contents: 'E2', caller: 't' }); await tick();        // 줄에 섬
+    Date.now = () => realNow() + 95 * 1000;   // fly 는 낡음(마지막 접속 95초 전)
+    bridge.setRunner('fly');
+    const rq = await pq;
+    ok('연결 없는 쪽으로 바꾸면 줄의 일감은 바로 「작업자 연결 없음」 실패', rq.success === false && /Fly 작업자 연결 없음/.test(rq.error || ''), JSON.stringify(rq));
+    Date.now = realNow;
+    bridge.result(fakeReq({ id: vb.body.id, ok: true, text: 'e1' }, vmH), fakeRes());
+    ok('그때 이미 가져간 일감은 그대로 답을 받는다', (await pa).response.text === 'e1');
   }
 
   console.log(`\n  ${pass} PASS / ${fail} FAIL`);

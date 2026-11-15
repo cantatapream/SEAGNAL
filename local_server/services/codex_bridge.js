@@ -56,8 +56,15 @@ const POLL_HOLD_MS = 25 * 1000;
 const als = new AsyncLocalStorage();
 const jobs = new Map();      // id → { id, prompt, json, caller, state, resolve, timer, createdAt }
 const queue = [];            // 아직 안 가져간 id 순서
-let waiter = null;           // 붙잡아 둔 작업자 요청 { res, timer } — 작업자는 하나라 한 자리만 둔다
-let lastWorkerSeenAt = 0;
+// [실행 위치 · 2026-11-15 사용자 요청 — *"vm을쓸지 fly io를 쓸지 관리자 화면에서 선택하도록"*]
+//   작업자는 둘일 수 있다: Fly 서버 안(services/codex_inproc.js, 헤더 X-Codex-Worker: fly) · VM(헤더 없음 = 'vm').
+//   일감은 관리자 센터에서 고른 쪽(runner)에만 준다. 고르지 않은 쪽도 창구에 붙잡아 두기만 하고(25초 뒤 204) 일은 안 준다.
+//   자리(waiter)·마지막 접속 시각을 작업자마다 따로 둔다 — 한 자리였으면 두 작업자가 서로의 대기를 끊으며 쉴 새 없이 오갔다.
+const RUNNERS = ['fly', 'vm'];
+const DEFAULT_RUNNER = 'fly';
+let runner = DEFAULT_RUNNER;
+const waiters = { fly: null, vm: null };   // 붙잡아 둔 작업자 요청 { res, timer }
+const seenAt = { fly: 0, vm: 0 };
 
 // 관리자 센터에서 고를 수 있는 답변 모델(routes/legal.js normConfig 의 answerModel 과 같은 목록).
 //   'gemini' 는 codex 를 안 쓴다는 뜻. 나머지는 VM 작업자가 `codex exec -m <모델>` 로 쓴다.
@@ -156,9 +163,41 @@ function solarName(id) {
   return m ? `Upstage Solar ${m[1].charAt(0).toUpperCase()}${m[1].slice(1)} ${m[2]}` : `Upstage ${id}`;
 }
 
-/** VM 작업자가 최근(WORKER_STALE_MS 안)에 창구에 왔는가. @returns {boolean} */
+/** 고른 실행 위치(runner)의 작업자가 최근(WORKER_STALE_MS 안)에 창구에 왔는가. @returns {boolean} */
 function workerAlive() {
-  return Date.now() - lastWorkerSeenAt <= WORKER_STALE_MS;
+  return Date.now() - seenAt[runner] <= WORKER_STALE_MS;
+}
+
+/**
+ * 관리자 센터의 실행 위치를 반영한다. 바뀌면 줄에 선 일감을 새 쪽 작업자에게 바로 넘긴다.
+ * 예: setRunner('vm') → 다음 일감부터 VM 작업자만 받는다(이미 가져간 일감은 가져간 쪽이 끝낸다)
+ * @param {string} r - 'fly' | 'vm' (그 밖이면 기본 'fly')
+ * [연계] ← routes/legal.js(시작 시·설정 저장·작업자 poll 때마다 normConfig().codexRunner)
+ */
+function setRunner(r) {
+  const next = RUNNERS.includes(r) ? r : DEFAULT_RUNNER;
+  if (next === runner) return;
+  runner = next;
+  handOut();
+  // 새 쪽 작업자가 연결돼 있지 않으면 줄에 선 일감을 바로 실패로 돌려준다 — 안 그러면 5분 시간초과까지 멈춘다
+  //   (부르는 쪽은 실패를 받아 다음 AI 로 넘어간다: 나리야 사슬·브리핑 Gemini). 이미 가져간 일감은 가져간 쪽이 끝내거나 5분 시간초과.
+  if (!workerAlive()) {
+    while (queue.length) {
+      const job = jobs.get(queue.shift());
+      if (job) job.resolve({ success: false, response: null, error: `${runner === 'vm' ? 'VM' : 'Fly'} 작업자 연결 없음(실행 위치 변경)`, isRateLimited: false, keyLabel: 'codex' });
+    }
+  }
+}
+
+/** 관리자 화면용: 고른 위치와 위치별 연결 상태. 예: { runner:'fly', fly:true, vm:false } */
+function workers() {
+  const now = Date.now();
+  return { runner, fly: now - seenAt.fly <= WORKER_STALE_MS, vm: now - seenAt.vm <= WORKER_STALE_MS };
+}
+
+/** 요청을 보낸 작업자가 어느 쪽인가 — Fly 작업자만 헤더를 붙인다(VM 작업자 코드는 안 고쳐도 되게). */
+function workerOf(req) {
+  return req.get('X-Codex-Worker') === 'fly' ? 'fly' : 'vm';
 }
 
 /**
@@ -178,10 +217,11 @@ function promptText(contents) {
 
 /** 붙잡아 둔 작업자가 있으면 줄 맨 앞 일감을 그 자리에서 넘긴다. */
 function handOut() {
-  if (!waiter || !queue.length) return;
+  const w = waiters[runner];
+  if (!w || !queue.length) return;
   const job = jobs.get(queue.shift());
   if (!job) return handOut();
-  const w = waiter; waiter = null;
+  waiters[runner] = null;
   clearTimeout(w.timer);
   job.state = 'taken';
   w.res.json({ id: job.id, prompt: job.prompt, json: job.json, caller: job.caller, model: job.model });
@@ -199,8 +239,9 @@ function handOut() {
 function callRaw({ contents, config, caller = 'unknown', model }) {
   const fail = (error) => ({ success: false, response: null, error, isRateLimited: false, keyLabel: 'codex' });
   if (!workerAlive()) {
-    console.error(`[Codex] VM 작업자 연결 없음 caller=${caller} (마지막 접속 ${lastWorkerSeenAt ? Math.round((Date.now() - lastWorkerSeenAt) / 1000) + '초 전' : '없음'})`);
-    return Promise.resolve(fail('VM 작업자 연결 없음'));
+    const last = seenAt[runner];
+    console.error(`[Codex] ${runner} 작업자 연결 없음 caller=${caller} (마지막 접속 ${last ? Math.round((Date.now() - last) / 1000) + '초 전' : '없음'})`);
+    return Promise.resolve(fail(`${runner === 'vm' ? 'VM' : 'Fly'} 작업자 연결 없음`));
   }
   const id = crypto.randomUUID();
   const json = !!(config && config.responseMimeType === 'application/json');
@@ -239,13 +280,15 @@ function stripFence(text) {
 function poll(req, res) {
   if (!ENABLED) return res.status(404).end();
   if (!secretOk(req)) return res.status(401).json({ ok: false });
-  lastWorkerSeenAt = Date.now();
-  if (waiter) { clearTimeout(waiter.timer); waiter.res.status(204).end(); waiter = null; }  // 작업자가 다시 왔으면 옛 자리는 비운다
+  const who = workerOf(req);
+  seenAt[who] = Date.now();
+  const old = waiters[who];
+  if (old) { clearTimeout(old.timer); old.res.status(204).end(); waiters[who] = null; }  // 같은 작업자가 다시 왔으면 옛 자리는 비운다
   const w = { res, timer: null };
-  w.timer = setTimeout(() => { if (waiter === w) { waiter = null; res.status(204).end(); } }, POLL_HOLD_MS);
-  res.on('close', () => { if (waiter === w) { clearTimeout(w.timer); waiter = null; } });
-  waiter = w;
-  handOut();
+  w.timer = setTimeout(() => { if (waiters[who] === w) { waiters[who] = null; res.status(204).end(); } }, POLL_HOLD_MS);
+  res.on('close', () => { if (waiters[who] === w) { clearTimeout(w.timer); waiters[who] = null; } });
+  waiters[who] = w;
+  handOut();   // 고른 쪽 자리에만 넘긴다 — 안 고른 쪽은 25초 뒤 204 로 빈손
 }
 
 /**
@@ -255,8 +298,8 @@ function poll(req, res) {
 function result(req, res) {
   if (!ENABLED) return res.status(404).end();
   if (!secretOk(req)) return res.status(401).json({ ok: false });
-  lastWorkerSeenAt = Date.now();
-  const b = req.body || {};
+  seenAt[workerOf(req)] = Date.now();
+  const b = req.body || {};   // 실행 위치를 바꾼 직후 옛 쪽이 끝낸 답도 받는다(일감 id 로 찾으므로 섞이지 않는다)
   const job = jobs.get(String(b.id || ''));
   if (!job) return res.json({ ok: false, error: '없는 일감(시간초과로 이미 끝났을 수 있다)' });
   console.log(`[Codex] 완료 caller=${job.caller} ok=${!!b.ok} ms=${Number(b.ms) || 0} commands=${Number(b.commands) || 0}`);
@@ -268,4 +311,4 @@ function result(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { withRequest, active, store, callRaw, poll, result, stripFence, workerAlive, answerLabel, ENABLED, ANSWER_MODELS, DEFAULT_MODEL };
+module.exports = { withRequest, active, store, callRaw, poll, result, stripFence, workerAlive, workers, setRunner, answerLabel, ENABLED, ANSWER_MODELS, DEFAULT_MODEL, RUNNERS, DEFAULT_RUNNER };

@@ -98,7 +98,8 @@ function runCodex(prompt, json, model) {
 async function post(pathname, body, timeoutMs) {
   return fetch(SERVER + pathname, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Codex-Secret': SECRET },
+    // X-Codex-Worker: Fly 서버 안 작업자만 'fly' 를 붙인다(services/codex_inproc.js 가 NRYA_CODEX_RUNNER=fly 로 띄움). 없으면 서버는 VM 으로 본다.
+    headers: Object.assign({ 'Content-Type': 'application/json', 'X-Codex-Secret': SECRET }, process.env.NRYA_CODEX_RUNNER === 'fly' ? { 'X-Codex-Worker': 'fly' } : {}),
     body: JSON.stringify(body || {}),
     signal: AbortSignal.timeout(timeoutMs),
   });

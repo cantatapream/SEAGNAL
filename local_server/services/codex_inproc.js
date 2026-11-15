@@ -68,7 +68,7 @@ function start(port) {
     return;
   }
   console.log(`[codex 작업자] 시작 (로그인 ${how === 'seeded' ? '시크릿에서 새로 만듦' : '볼륨 파일 사용'})`);
-  const env = { ...process.env, NRYA_SERVER: `http://127.0.0.1:${port}`, CODEX_HOME: CODEX_HOME_DIR };
+  const env = { ...process.env, NRYA_SERVER: `http://127.0.0.1:${port}`, CODEX_HOME: CODEX_HOME_DIR, NRYA_CODEX_RUNNER: 'fly' };   // 'fly' = 서버가 이 작업자를 Fly 쪽으로 알아보게(codex_bridge.workerOf)
   delete env.CODEX_AUTH_JSON; // 작업자·codex 에는 필요 없다(로그인은 파일로 읽는다)
   let delay = 30000;
   const launch = () => {

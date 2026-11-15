@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 01:14 KST] ✅완료 — ChatGPT 실행 위치 선택(Fly/VM)
+관리자 센터 AI 챗봇 「AI 모델」 탭에 「ChatGPT 실행 위치」 추가(codexRunner fly|vm, 기본 fly). codex_bridge 작업자별 대기·접속시각 분리, 고른 쪽에만 일감, 연결 없는 쪽으로 바꾸면 줄 일감 즉시 실패. 독립 검토 4건 중 3건 수정(5분 멈춤·배지 문구·설정 깨짐 시 fly 복귀), 1건(화면 연결상태 자동 갱신 없음) 남김. test_codex_bridge 46 PASS. 다음: 사용자 요청 「AI 특보 분석」 탭(특보 읽기·참고사항 해석 모델·노력·실행 위치 각각 선택).
+
+
 ### [2026-11-15 23:38 KST] ✅완료 — 튜토리얼 삭제(⚙ 관심해역 설정 유지)
 완료 100%. 삭제: client/js/tutorial/(tutorial.js 3,699줄·README), client/assets/tutorial/alert_example.jpg, index2.html 로드줄, ocean_cctv.js window.oceanInfoTabItems 노출(튜토리얼만 사용). 유지: onboarding/zone_setup.js(특보현황 ⚙ 가 쓰는 관심해역 설정 화면) — 튜토리얼 전용 「시험 모드」 딱지·testFlag 만 제거, render.js 의 {testFlag:false} 인자 제거, 캐시 버전 NoTutorial_20261115. test_forecast_gear_ui.js 딱지 검사 1건 제거. ARCHITECTURE.md 재생성·order_snapshot 갱신. 확인: test_forecast_gear_ui 31/0, verify_all(NODE_PATH 지정) 실패는 V4·서버스모크뿐 → 서버 띄워 V4 통과·스모크 21/21. ⚠첫 verify_all 은 NODE_PATH 없이 돌려 화면 스위트 20개가 playwright-core 못 찾아 실패(환경 문제, 코드 무관). 다음: 없음(사용자 지시 완료).
 
