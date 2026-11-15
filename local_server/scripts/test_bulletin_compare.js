@@ -1,5 +1,6 @@
 /**
  * MMIS ↔ 통보문 비교 기록(services/bulletin_compare) · 메인 출처 전환 버튼(client/js/forecast/alerts/alert_source_toggle.js) 검사.
+ * 지금 두 쪽이 다른 곳 표(diffSnapshot — 메인 「MMIS와 상이 N개소」 줄·팝업)도 본다.
  * 실행: node local_server/scripts/test_bulletin_compare.js
  * 사용자 확정 2026-11-15: 「MMIS는 … 몇 분 몇 초에 어떠한 그 푸시 알림이 나갔는데, 통보문을 했을 때는 몇 분 몇 초에 어떠한 내용의 푸시 알림이 나갔을 거다」 비교 문서 ·
  *   가상 푸시엔 MMIS 디바운스 없음 · 메인 「기상정보」 옆 [MMIS][통보문]은 관리자만, 기본 MMIS, 바뀌는 범위는 메인 목록만.
@@ -70,6 +71,86 @@ console.log('B. 매분 기록 — 처음·바뀜·두 쪽 다름·가상 푸시�
     ok('보고서: 요약·두 쪽이 달랐던 동안·시간순 설명·원본 부록', /짝이 맞은 것 1건/.test(md) && /제주도남쪽바깥먼바다: 5분/.test(md) && /## 시간순 기록/.test(md) && /```jsonl/.test(md));
     const cmp2 = C.createCompare({ getBulletin: () => null, getMmis: () => M.current, getPushes: () => [], now: () => t, dir });
     ok('통보문 기준이 아직 없으면 건너뜀', cmp2.run().skipped === true);
+    // 지금 다른 곳 표(diff)도 매번 남는다 — 같아졌으니 0곳, 시각은 그 비교 시각
+    const ld = cmp.latestDiff();
+    ok('매분 비교가 지금 다른 곳 표를 남김(같아진 지금 = 0곳, 비교 시각)', ld && ld.count === 0 && ld.atMs === t && Array.isArray(ld.zones), ld);
+    const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'bc-'));
+    const cmp3 = C.createCompare({ getBulletin: () => ({ zones: { 제주도남쪽바깥먼바다: Z('yebi', '예비') } }), getMmis: () => mtree(null), getMmisAt: () => '2026. 11. 16. 오후 2:31:09', getPushes: () => [], now: () => T0, dir: dir2 });
+    ok('비교 전에는 null', cmp3.latestDiff() === null);
+    cmp3.run();
+    const ld3 = cmp3.latestDiff();
+    ok('처음 비교(기준만 남기는 때)에도 표를 만듦 + MMIS 갱신 시각이 근거 칸에', ld3.count === 1 && ld3.zones[0].parts[0].rows[4].m === 'MMIS 14:31 갱신', ld3);
+    ok('표는 state.json 에 함께 저장(서버를 다시 켜도 남음)', C.createCompare({ dir: dir2 }).latestDiff().count === 1);
+}
+
+console.log('D. 지금 다른 곳 표(diffSnapshot) — 부모별 묶음·칸별 다름·「왜?」 규칙');
+{
+    const P = (parent, kind, level, extra) => Object.assign({ parent, kind, type: '풍랑', level, tmFc: '2026년 11월 15일 10시 00분', tmEf: kind === 'yebi' ? '2026년 11월 16일 오전(06시~12시)' : '2026년 11월 15일 06시 00분', clr: '' }, extra);
+    const KB = '경북북부앞바다', KW = '강원중부앞바다', GN = '경남서부남해앞바다', JJ = '제주도서부앞바다';
+    const M = {
+        [KB]: P(KB, 'yebi', '예비', { tmEf: '2026년 11월 16일 아침(06시~12시)' }),   // 아침 = 오전 → 같음
+        [KB + '중연안바다']: P(KB, 'formal', '주의보', { tmFc: '2026년 11월 15일 13시 00분', tmEf: '2026년 11월 15일 13시 30분' }),
+        [KW]: P(KW, 'yebi', '예비', { tmEf: '2026년 11월 16일 새벽(00시~06시)' }),
+        [GN + '중동부평수구역']: P(GN, 'formal', '주의보', { clr: '15일 오후(12시~15시)' }),
+        [GN + '중서부평수구역']: P(GN, 'formal', '주의보', { clr: '15일 오후(12시~15시)' }),
+        [JJ]: P(JJ, 'formal', '주의보', { clr: '17일 오전(09시~12시)' }),   // 두 쪽 같음 → 안 나옴
+    };
+    const B = {
+        [KB]: P(KB, 'yebi', '예비', { ho: '제11-31호' }),
+        [KB + '중연안바다']: P(KB, 'yebi', '예비', { ho: '제11-31호' }),
+        [KW]: P(KW, 'pending', '주의보', { tmFc: '2026년 11월 15일 14시 00분', tmEf: '2026년 11월 16일 04시 30분', ho: '제11-35호' }),
+        [GN + '중서부평수구역']: P(GN, 'formal', '주의보', { clr: '15일 밤(21시~24시)', ho: '제11-33호' }),
+        [JJ]: P(JJ, 'formal', '주의보', { clr: '17일  오전(09시~12시)' }),
+    };
+    const AT = Date.parse('2026-11-15T05:32:00Z');
+    const d = C.diffSnapshot(M, B, AT, '2026. 11. 15. 오후 2:31:09');
+    ok('부모 해역별로 묶음 — 다른 부모 3곳, MMIS 나무 순서, 같은 곳(제주도서부앞바다·부모 경북북부앞바다)은 빠짐', d.count === 3 && d.zones.map((z) => z.parent).join() === [KB, KW, GN].join() && d.at === '2026-11-15T14:32:00.000+09:00', d.zones.map((z) => z.parent));
+    const [kb, kw, gn] = d.zones;
+    ok('부모마다 다른 구역 수 + 부제(연안바다만 / 해역 전체가 / 평수구역 2곳)', kb.count === 1 && kb.sub === '연안바다만 다름' && kw.count === 1 && kw.sub === '해역 전체가 다름' && gn.count === 2 && gn.sub === '평수구역 2곳 다름', d.zones.map((z) => [z.count, z.sub]));
+    ok('구역 칩(연안바다·해역 전체·평수구역)', kb.parts[0].kind === '연안바다' && kw.parts[0].kind === '해역 전체' && gn.parts.every((p) => p.kind === '평수구역'));
+    const flags = (p) => p.rows.map((r) => (r.diff ? 1 : 0)).join('');
+    ok('칸별 다름: 정식↔예비 = 종류·발효 시각(해제 예고·발표 시각·근거는 아님)', flags(kb.parts[0]) === '11000' && kb.parts[0].rows[0].m === '풍랑주의보' && kb.parts[0].rows[0].b === '풍랑 예비특보' && kb.parts[0].rows[1].b === '16일 오전(06시~12시)', kb.parts[0].rows);
+    const dong = gn.parts.find((p) => /중동부/.test(p.unit)), seo = gn.parts.find((p) => /중서부/.test(p.unit));
+    ok('칸별 다름: 정식↔없음 = 종류·발효 시각·해제 예고, 통보문 칸은 「없음」·「—」', flags(dong) === '11100' && dong.rows[0].b === '없음' && dong.rows[1].b === '—' && dong.rows[4].b === '—', dong.rows);
+    ok('칸별 다름: 같은 정식이면 sig 처럼 해제 예고만(발효 시각은 안 봄)', flags(seo) === '00100' && seo.rows[2].b === '15일 밤(21시~24시)', seo.rows);
+    ok('근거 자료: MMIS = 갱신 시각(KST 글자에서 HH:MM) · 통보문 = 호', kb.parts[0].rows[4].m === 'MMIS 14:31 갱신' && kb.parts[0].rows[4].b === '제11-31호 통보문' && kw.parts[0].rows[4].b === '제11-35호 통보문');
+    ok('근거 자료: MMIS 갱신 시각을 못 읽으면 「—」(지어내지 않음)', C.diffSnapshot(M, B, AT, '').zones[0].parts[0].rows[4].m === '—' && C.mmisHm('2026. 11. 16. AM 12:05:00') === '00:05' && C.mmisHm('2026. 11. 16. 오후 12:05:00') === '12:05' && C.mmisHm('2026. 11. 16. 오후 2:05:09') === '14:05');
+    ok('발표(발효 전): 종류 칸은 등급을 안 봄(MMIS 「발표」 = 통보문 「주의보」), 발효 시각 + 「발효 예정」', (() => {
+        const m = { x: P('x', 'pending', '발표', { tmEf: '2026년 11월 16일 04시 30분' }) }, b = { x: P('x', 'pending', '주의보', { tmEf: '2026년 11월 16일 05시 00분' }) };
+        const p = C.diffSnapshot(m, b, AT, '').zones[0].parts[0];
+        return flags(p) === '01000' && p.rows[1].b === '16일 05시 00분 발효 예정' && p.why.id === 'pending_time' && C.diffSnapshot(m, { x: Object.assign({}, b.x, { tmEf: m.x.tmEf }) }, AT, '').count === 0;
+    })());
+    ok('다른 곳 집합 = sig 가 다르다고 보는 곳 그대로(비교 기록과 같은 기준)', (() => {
+        const units = new Set([...Object.keys(M), ...Object.keys(B)]);
+        const want = [...units].filter((u) => C.sig(M[u]) !== C.sig(B[u])).sort().join();
+        return d.zones.flatMap((z) => z.parts.map((p) => p.unit)).sort().join() === want;
+    })());
+    ok('부모와 자식이 함께 다르면 부모가 맨 위, 부제는 「해역 전체·연안바다 다름」', (() => {
+        const z = C.diffSnapshot({ [KB + '중연안바다']: M[KB + '중연안바다'], [KB]: P(KB, 'formal', '주의보') }, {}, AT, '').zones[0];
+        return z.parts[0].unit === KB && z.count === 2 && z.sub === '해역 전체·연안바다 다름';
+    })());
+    ok('다른 곳이 없으면 0곳 · 빈 목록', (() => { const e = C.diffSnapshot({ [JJ]: M[JJ] }, { [JJ]: B[JJ] }, AT, ''); return e.count === 0 && e.zones.length === 0; })());
+    const W = (m, b) => C.whyOf(m, b);
+    const F = (extra) => P('x', 'formal', '주의보', extra);
+    ok('「왜?」 틀 고르기: MMIS만 · 통보문만', W(F(), null).id === 'mmis_only' && W(F(), null).text === '통보문에는 이 구역에 아무 특보도 없는데 MMIS에는 풍랑주의보 표시가 남아 있습니다.' && W(null, P('x', 'yebi', '예비')).id === 'bulletin_only' && /통보문에는 풍랑 예비특보 표시가 있습니다/.test(W(null, P('x', 'yebi', '예비')).text));
+    ok('「왜?」 틀 고르기: 단계(발효 중 ↔ 예비) — 발표 시각 앞뒤는 사실만 붙임', kb.parts[0].why.id === 'stage' && kb.parts[0].why.text === 'MMIS는 발효 중인 특보, 통보문은 예비특보 상태입니다. MMIS 쪽 발표 시각이 더 나중입니다.' && kw.parts[0].why.text === 'MMIS는 예비특보, 통보문은 발표(발효 전) 상태입니다. 통보문 쪽 발표 시각이 더 나중입니다.');
+    ok('「왜?」 틀 고르기: 종류 · 단계(주의보↔경보)', W(F(), F({ type: '태풍' })).id === 'type' && W(F(), F({ level: '경보' })).id === 'level' && /MMIS 주의보 · 통보문 경보/.test(W(F(), F({ level: '경보' })).text));
+    ok('「왜?」 틀 고르기: 예비 시간대만 · 해제 예고만(발표 시각이 같으면 앞뒤 말 없음)', W(P('x', 'yebi', '예비'), P('x', 'yebi', '예비', { tmEf: '2026년 11월 16일 오후(12시~18시)' })).text === '종류는 같고 예비특보 시간대만 다릅니다(MMIS 16일 오전(06시~12시) · 통보문 16일 오후(12시~18시)).' && seo.why.id === 'clr' && seo.why.text === '특보는 같고 해제 예고 시각만 다릅니다(MMIS 15일 오후(12시~15시) · 통보문 15일 밤(21시~24시)).');
+}
+
+console.log('E. GET /api/admin/bulletin-status 에 diff');
+{
+    const { createRouter } = require('../routes/bulletin_watch');
+    const X = { atMs: 1, count: 2, zones: [] };
+    const call = (latest) => {
+        const router = createRouter({ status: { read: () => ({ updatedAt: 'u', bulletins: 3, waiting: [], current: {} }) }, compare: { latestDiff: () => latest }, authorize: (q, r, n) => n() });
+        const layer = router.stack.find((l) => l.route && l.route.path === '/api/admin/bulletin-status');
+        const res = { h: {}, set(k, v) { this.h[k] = v; }, status(c) { this.code = c; return this; }, json(o) { this.body = o; } };
+        layer.route.stack.at(-1).handle({ query: {} }, res);
+        return res.body;
+    };
+    ok('응답에 diff(마지막 비교의 다른 곳 표) — 기존 칸은 그대로', call(X).diff === X && call(X).bulletins === 3 && call(X).source === 'BULLETIN');
+    ok('비교 전이면 diff: null', call(null).diff === null);
 }
 
 console.log('C. 메인 [MMIS][통보문] 버튼');
@@ -80,32 +161,55 @@ console.log('C. 메인 [MMIS][통보문] 버튼');
     ok('「기상정보」 글자 오른쪽에 버튼 자리(기본 숨김)', /기상정보\s*\n\s*<!-- \[관리자만\][^\n]*\n\s*<span id="alert-source-toggle" style="display:none/.test(html) && /data-src="mmis"/.test(html) && /data-src="bulletin"/.test(html));
     ok('스크립트는 data.js 바로 다음', html.indexOf('js/forecast/alerts/alert_source_toggle.js') > html.indexOf('js/forecast/alerts/data.js'));
     ok('data.js 두 곳이 같은 출처 주소를 씀(평소 MMIS)', (data.match(/window\.__alertSourceUrl \|\| '\/api\/weather-alerts'/g) || []).length === 2);
+    ok('머리 아래 「MMIS와 상이」 줄 자리(기본 숨김) · 옛 버튼 옆 글(.ast-note)은 없앰', /<div id="ast-diff-line" style="display:none/.test(html) && !/ast-note/.test(html));
+    ok('data.js 가 특보 자료를 받을 때마다(두 곳) 상이 줄 갱신을 부름', (data.match(/window\.__alertSourceOnData\(rootData\)/g) || []).length === 2);
     const mk = (admin, resp) => {
-        const box = { style: {}, btns: [{ a: 'mmis', style: {} }, { a: 'bulletin', style: {} }], note: { textContent: '' } };
+        const box = { style: {}, btns: [{ a: 'mmis', style: {} }, { a: 'bulletin', style: {} }] };
         box.querySelectorAll = () => box.btns.map((b) => ({ getAttribute: () => b.a, style: b.style }));
-        box.querySelector = () => box.note;
+        const link = { onclick: null };
+        const line = { style: {}, innerHTML: '', querySelector: () => (/ast-diff-link/.test(line.innerHTML) ? link : null) };
+        const appended = [];
+        const el = () => { const e = { style: {}, innerHTML: '', remove() { e.removed = true; }, querySelector: () => ({}), querySelectorAll: () => [] }; return e; };
+        const els = { 'alert-source-toggle': box, 'ast-diff-line': line };
         const calls = { flatten: [], render: 0, refresh: 0, alerts: [] };
-        const sb = { window: {}, document: { readyState: 'complete', getElementById: () => box, addEventListener: () => {} }, localStorage: { getItem: () => (admin ? 'true' : null) }, console,
+        const sb = { window: {}, document: { readyState: 'complete', getElementById: (id) => els[id] || null, addEventListener: () => {}, createElement: el,
+                head: { appendChild: (e) => { els['ast-pop-css'] = e; } }, body: { appendChild: (e) => appended.push(e) } },
+            localStorage: { getItem: () => (admin ? 'true' : null) }, console,
             fetch: async (u) => resp(u), flattenAlertsData: (d) => calls.flatten.push(d), renderApp: () => calls.render++, refreshAlertData: async () => calls.refresh++ };
         sb.window.alert = (m) => calls.alerts.push(m);
         vm.runInNewContext(fs.readFileSync(path.join(root, 'client/js/forecast/alerts/alert_source_toggle.js'), 'utf8'), sb);
-        return { sb, box, calls };
+        return { sb, box, line, link, appended, calls };
     };
     const u = mk(false, async () => ({}));
     ok('일반 사용자에겐 안 보임', u.box.style.display === 'none');
+    const AT = Date.parse('2026-11-16T03:00:00.000Z');
+    const DIFF = C.diffSnapshot({ 경북북부앞바다중연안바다: { parent: '경북북부앞바다', kind: 'formal', type: '풍랑', level: '주의보', tmFc: '', tmEf: '2026년 11월 15일 13시 30분', clr: '' } }, {}, AT, '');
+    const J = (body) => async () => ({ ok: true, status: 200, json: async () => body });
     (async () => {
-        const a = mk(true, async (u) => ({ ok: true, status: 200, json: async () => ({ updatedAt: '2026-11-16T03:00:00.000Z', current: { 동해: {} } }) }));
-        ok('관리자에겐 보이고 MMIS 가 눌린 채 시작', a.box.style.display === 'inline-flex' && a.box.btns[0].style.fontWeight === '800');
+        const a = mk(true, J({ updatedAt: '2026-11-16T03:00:00.000Z', bulletins: 12, current: { 동해: {} }, diff: DIFF }));
+        ok('관리자에겐 보이고 MMIS 가 눌린 채 시작(상이 줄은 숨김)', a.box.style.display === 'inline-flex' && a.box.btns[0].style.fontWeight === '800' && a.line.style.display !== 'flex');
         await a.sb.window.setAlertSource('bulletin');
-        ok('[통보문]: 관리자 주소로 받아 같은 화면 코드로 그림 + 자동 새로고침도 그 주소', a.sb.window.__alertSourceUrl === '/api/admin/bulletin-status' && a.calls.flatten.length === 1 && a.calls.render === 1 && /통보문 기준 · 12:00 계산/.test(a.box.note.textContent));
-        const z = mk(true, async () => ({ ok: true, status: 200, json: async () => ({ updatedAt: '2026-11-16T03:00:00.000Z', bulletins: 0, current: {} }) }));
+        ok('[통보문]: 관리자 주소로 받아 같은 화면 코드로 그림 + 자동 새로고침도 그 주소', a.sb.window.__alertSourceUrl === '/api/admin/bulletin-status' && a.calls.flatten.length === 1 && a.calls.render === 1);
+        ok('[통보문]: 머리 아래 「12:00 기준 MMIS와 상이 1개소」(개소 = 누르는 글자)', a.line.style.display === 'flex' && /12:00 기준 MMIS와 상이 <a [^>]*class="ast-diff-link"[^>]*>1개소<\/a>/.test(a.line.innerHTML) && typeof a.link.onclick === 'function', a.line.innerHTML);
+        a.link.onclick();
+        const pop = a.appended[0] && a.appended[0].innerHTML || '';
+        ok('「N개소」 누르면 아래 팝업: 제목·부모 아코디언(1곳 다름·부제)·표(다른 칸 노랑)·「왜?」', /MMIS와 다른 해역 1곳/.test(pop) && /12:00 기준/.test(pop) && /경북북부앞바다<small>연안바다만 다름<\/small>/.test(pop) && /1곳 다름/.test(pop) &&
+            /<td class="k">특보 종류·단계<\/td><td class="diff">풍랑주의보<\/td><td class="diff">없음<\/td>/.test(pop) && /<td class="k">발표 시각<\/td><td>—<\/td><td>—<\/td>/.test(pop) && /<b>왜\?<\/b><span>통보문에는 이 구역에 아무 특보도 없는데/.test(pop), pop.slice(0, 400));
+        const z = mk(true, J({ updatedAt: '2026-11-16T03:00:00.000Z', bulletins: 0, current: {}, diff: DIFF }));
         await z.sb.window.setAlertSource('bulletin');
-        ok('쓴 통보문이 0건이면 경고(「특보 없음」과 구분)', /⚠ 통보문 0건/.test(z.box.note.textContent));
-        const c = mk(true, async () => ({ ok: true, status: 200, json: async () => ({ updatedAt: '2026-11-16T03:00:00.000Z', bulletins: 12, current: {} }) }));
+        ok('쓴 통보문이 0건이면 상이 대신 경고(「특보 없음」과 구분 — 옛 버튼 옆 글에서 옮김)', /⚠ 통보문 0건/.test(z.line.innerHTML) && !/개소/.test(z.line.innerHTML));
+        const c = mk(true, J({ updatedAt: '2026-11-16T03:00:00.000Z', bulletins: 12, current: {}, diff: Object.assign({}, DIFF, { count: 0, zones: [] }) }));
         await c.sb.window.setAlertSource('bulletin');
-        ok('쓴 통보문 수 표시(「통보문 기준 · 12건 · 12:00 계산」)', /통보문 기준 · 12건 · 12:00 계산/.test(c.box.note.textContent));
+        ok('다른 곳 0개 = 「12:00 기준 MMIS와 상이 없음」(누를 것 없음)', /12:00 기준 MMIS와 상이 없음/.test(c.line.innerHTML) && !/ast-diff-link/.test(c.line.innerHTML));
+        const nd = mk(true, J({ updatedAt: 'x', bulletins: 12, current: {}, diff: null }));
+        await nd.sb.window.setAlertSource('bulletin');
+        ok('비교 전(diff 없음) = 「MMIS와 비교 전」', /MMIS와 비교 전/.test(nd.line.innerHTML));
+        a.sb.window.__alertSourceOnData({ bulletins: 12, diff: Object.assign({}, DIFF, { atMs: AT + 60e3, count: 0, zones: [] }) });
+        ok('자동 새로고침(data.js) 때 상이 줄도 새로(12:01)', /12:01 기준 MMIS와 상이 없음/.test(a.line.innerHTML));
         await a.sb.window.setAlertSource('mmis');
-        ok('[MMIS]: 주소를 되돌리고 MMIS 로 다시 그림', a.sb.window.__alertSourceUrl === null && a.calls.refresh === 1 && a.calls.render === 2);
+        ok('[MMIS]: 주소를 되돌리고 MMIS 로 다시 그림 + 상이 줄 숨김', a.sb.window.__alertSourceUrl === null && a.calls.refresh === 1 && a.calls.render === 2 && a.line.style.display === 'none');
+        a.sb.window.__alertSourceOnData({ bulletins: 12, diff: DIFF });
+        ok('MMIS 로 돌아간 뒤의 새로고침은 상이 줄을 다시 띄우지 않음', a.line.style.display === 'none');
         const n = mk(true, async () => ({ ok: false, status: 401, json: async () => ({}) }));
         await n.sb.window.setAlertSource('bulletin');
         ok('관리자 로그인이 없으면(401) 안내만, 화면은 그대로', /관리자 로그인이 필요/.test(n.calls.alerts[0] || '') && n.calls.flatten.length === 0 && n.sb.window.__alertSourceUrl === undefined);

@@ -11,7 +11,7 @@
  *                    GET /api/admin/bulletin-ai-trial(상태) · POST /api/admin/bulletin-ai-trial/start · POST /api/admin/bulletin-ai-trial/stop ·
  *                    GET /api/admin/bulletin-ai-trial/report.md — 모두 ?trial=1(1차 ChatGPT, 기본)|2(2차 클로드 키2) ·
  *                    GET·POST /api/admin/bulletin-ai/config(「AI 특보 분석」 순서 — services/bulletin_ai) ·
- *                    GET /api/admin/bulletin-status(통보문 기준 특보현황 — 메인 화면 [통보문]) · GET /api/admin/bulletin-compare/report.md(MMIS ↔ 통보문 비교)
+ *                    GET /api/admin/bulletin-status(통보문 기준 특보현황 + MMIS 와 다른 곳 diff — 메인 화면 [통보문]) · GET /api/admin/bulletin-compare/report.md(MMIS ↔ 통보문 비교)
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : server.js(등록) · client/js/admin/admin_bulletin_watch.js(특보 관리 → 통보문 관찰 탭) · 검사 test_bulletin_watch·test_bulletin_ai_trial
  * [로드 순서] server.js 에서 routes/admin 보다 먼저 등록한다(자체 인증).
@@ -96,7 +96,8 @@ function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch =
         const s = status.read();
         if (!s) return res.status(503).json({ ok: false, error: '아직 계산 전 — 관찰기가 한 번 돈 뒤 다시' });
         res.set('Cache-Control', 'no-store');
-        res.json({ ok: true, source: 'BULLETIN', updatedAt: s.updatedAt, bulletins: s.bulletins, waiting: s.waiting, current: s.current });
+        // diff = 마지막 비교 때 MMIS 와 다른 곳(부모 해역별 — services/bulletin_compare.diffSnapshot, 비교 전이면 null). 메인 「HH:MM 기준 MMIS와 상이 N개소」 팝업이 쓴다. 2026-11-16
+        res.json({ ok: true, source: 'BULLETIN', updatedAt: s.updatedAt, bulletins: s.bulletins, waiting: s.waiting, current: s.current, diff: compare.latestDiff() });
     });
     // MMIS ↔ 통보문 비교 보고서(마크다운) — ?day=YYYY-MM-DD|all
     router.get('/api/admin/bulletin-compare/report.md', authorize, (req, res) => {
