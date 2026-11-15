@@ -192,7 +192,7 @@
   //   providerChoices 가 없으면(조회 전·관리자 아님) 고르는 칸 없이 모델 이름만 보인다.
   var serverProviderModels = {};
   var serverProviderChoices = null;
-  var PROVIDER_NAME = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT(VM)', gemini: 'Gemini' };
+  var PROVIDER_NAME = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT', gemini: 'Gemini' };   // 실행 위치(Fly|VM)는 따로 고른다(2026-11-15)
   var statsCache = null;                       // {total,pending,approved} — 배지용
   var adminStatsCache = null;                  // {draft,feedback,candidates,amendments} — 서브탭 배지용
   var curAdminSubtab = '⚠수치검증';            // renderSubtabs가 마지막으로 그린 활성 탭(재갱신 시 유지용)
@@ -482,26 +482,10 @@
                 '<div class="nrya-seg-help" id="nryaSchedHelp"></div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaSchedErr"></div>' +
               '</div>' +
+              // [2026-11-16 사용자 요청] 답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치는 「AI 탭 → AI 모델 설정 → AI 챗봇 모델」로 옮겼다(renderModelSettingsInto).
               '<div class="nrya-card">' +
-                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서 (크레딧 소진 시 다음으로 자동 전환)</div>' +
-                '<div id="nryaOrderList" class="nrya-prov-list"></div>' +
-                '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
-              '</div>' +
-              '<div class="nrya-card">' +
-                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서를 일반 사용자에게도 적용</div>' +
-                '<div class="nrya-seg" id="nryaUsersSeg">' +
-                  '<button data-users="on">켜기</button>' +
-                  '<button data-users="off">끄기(기본)</button>' +
-                '</div>' +
-                '<div class="nrya-seg-help" id="nryaUsersHelp"></div>' +
-              '</div>' +
-              '<div class="nrya-card">' +
-                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>ChatGPT 실행 위치</div>' +
-                '<div class="nrya-seg" id="nryaRunnerSeg">' +
-                  '<button data-runner="fly">Fly 서버(기본)</button>' +
-                  '<button data-runner="vm">VM</button>' +
-                '</div>' +
-                '<div class="nrya-seg-help" id="nryaRunnerHelp"></div>' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서 · ChatGPT 실행 위치</div>' +
+                '<div class="nrya-seg-help" style="margin-top:0">「통합관리자 센터 → AI 탭 → <b>AI 모델 설정</b> → AI 챗봇 모델」로 옮겼습니다.</div>' +
               '</div>' +
               // [질문 수 · 2026-11-02 사용자 확정] 날짜별 집계(KST·1년 보관·질문 내용은 저장 안 함). 평소 접힘 — 머리를 누르면 펼친다(원문 방 .nrya-acc 모양 재사용).
               '<div class="nrya-acc" id="nryaAskAcc">' +
@@ -533,7 +517,7 @@
 
     // 노출 3-state 토글(서버 전역 설정)
     initSeg(root);
-    // AI 모델 탭 — 답변 AI 순서(칸별 모델·노력) · 일반 사용자 적용 스위치(서버 전역 설정) · 질문 수 아코디언
+    // AI 모델 탭 — 자동 노출 시간 · 질문 수 아코디언(답변 AI 순서·실행 위치는 AI 모델 설정 탭으로 옮김, 2026-11-16)
     initModelSeg(root);
     root.querySelector('#nryaAskHead').addEventListener('click', function () {
       root.querySelector('#nryaAskAcc').classList.toggle('nrya-open');
@@ -549,6 +533,47 @@
     refreshStats();
     refreshAdminStats();
     refreshAskStats();    // 「질문 수」 아코디언(AI 모델 탭)
+  }
+
+  /**
+   * 「AI 챗봇 모델」 카드 세 장(답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치)의 마크업.
+   * [연계] ← renderModelSettingsInto(AI 탭 → AI 모델 설정, 2026-11-16 사용자 요청 — 종전 자리는 이 콘솔의 🤖 AI 모델 탭)
+   */
+  function answerModelCardsHtml() {
+    return '' +
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서 (크레딧 소진 시 다음으로 자동 전환)</div>' +
+                '<div id="nryaOrderList" class="nrya-prov-list"></div>' +
+                '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
+              '</div>' +
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서를 일반 사용자에게도 적용</div>' +
+                '<div class="nrya-seg" id="nryaUsersSeg">' +
+                  '<button data-users="on">켜기</button>' +
+                  '<button data-users="off">끄기(기본)</button>' +
+                '</div>' +
+                '<div class="nrya-seg-help" id="nryaUsersHelp"></div>' +
+              '</div>' +
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>ChatGPT 실행 위치</div>' +
+                '<div class="nrya-seg" id="nryaRunnerSeg">' +
+                  '<button data-runner="fly">Fly 서버(기본)</button>' +
+                  '<button data-runner="vm">VM</button>' +
+                '</div>' +
+                '<div class="nrya-seg-help" id="nryaRunnerHelp"></div>' +
+              '</div>';
+  }
+
+  /**
+   * 주어진 상자에 「AI 챗봇 모델」 카드(답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치)를 그리고 서버 값을 받아 칠한다.
+   * 예: NariyaChat.renderModelSettingsInto(div) — 관리자 센터 AI 탭 「AI 모델 설정」이 부른다.
+   * @param {HTMLElement} el
+   * [연계] ← admin_bulletin_ai.js(AI 모델 설정 탭) → initAnswerModels·fetchConfig(GET /api/legal/config)·setAnswerConfig(POST)
+   */
+  function renderModelSettingsInto(el) {
+    el.innerHTML = '<div class="nrya-console"><div class="nrya-app"><div class="nrya-panel">' + answerModelCardsHtml() + '</div></div></div>';
+    initAnswerModels(el.querySelector('.nrya-console'));
+    fetchConfig();
   }
 
   /**
@@ -711,7 +736,7 @@
   }
 
   /**
-   * AI 모델 탭 — 「일반 사용자에게도」 스위치·답변 AI 순서 목록(▲▼·삭제·다시 추가·소진 해제·모델/노력 고르기)에 이벤트를 잇고 현재 값으로 칠한다.
+   * AI 모델 탭 — 챗봇 자동 노출 시간(켜기/끄기·시각 저장)에 이벤트를 잇는다(답변 AI 순서 등은 initAnswerModels — AI 모델 설정 탭).
    * @param {HTMLElement} root - .nrya-console 루트
    * [연계] → setAnswerConfig(POST /api/legal/config). 서버 적용은 codex_bridge.withRequest·llm_chain(pickOf).
    */
@@ -725,6 +750,14 @@
       var on = root.querySelector('#nryaOnAt').value, off = root.querySelector('#nryaOffAt').value;
       postExposure({ exposureOnAt: on, exposureOffAt: off }, 'nryaSchedErr');
     });
+  }
+
+  /**
+   * 「AI 챗봇 모델」 카드 — 「일반 사용자에게도」 스위치·ChatGPT 실행 위치·답변 AI 순서 목록(▲▼·삭제·다시 추가·소진 해제·모델/노력)에 이벤트를 잇고 칠한다.
+   * @param {HTMLElement} root - 카드를 담은 .nrya-console
+   * [연계] ← renderModelSettingsInto → setAnswerConfig(POST /api/legal/config). 서버 적용은 codex_bridge.withRequest·llm_chain(pickOf).
+   */
+  function initAnswerModels(root) {
     root.querySelector('#nryaUsersSeg').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-users]'); if (!b) return;
       var on = b.dataset.users === 'on';
@@ -6546,6 +6579,8 @@
     __loaded: true,
     /** 통합관리자 센터가 부르는 진입점: 주어진 컨테이너에 관리자 콘솔 전체를 렌더(재호출 안전). */
     renderAdminInto: renderAdminInto,
+    /** AI 탭 「AI 모델 설정」이 부르는 진입점: 「AI 챗봇 모델」 카드(답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치)를 그린다. */
+    renderModelSettingsInto: renderModelSettingsInto,
     /** 채팅 팝업 열기(테스트/외부 트리거용). */
     open: openChat,
     /** ⚠수치검증 목록 새로고침(현재 열려 있을 때). */
