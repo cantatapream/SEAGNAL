@@ -358,7 +358,7 @@ function buildPrompt(batch) {
         'S15 마지막 「따라서」 문장에서 앞 문장에 이미 쓴 방문객 배수(「평소의 1.6배」 등)·바뀐 요소 목록을 다시 나열하지 않는다 — 이유는 한 번만 말한다(단계 말 앞의 장소 이름은 규칙 3) 대로 쓴다).',
         'S16 연안 분석 마지막 「따라서」 문장에서 관광지는 그 장소 자체가 아니라 앞 연안이 대상이므로 「○○ 인근 연안에서는 주의가」 꼴로 쓴다(「○○에는 주의가」 아님 — 예: 「따라서 모충사 인근 연안에서는 주의가, 제주 삼양동 유적과 국립제주박물관 인근 연안에서는 관심이 요구됩니다.」).',
         // §11.10.49(2026-11-13~15 운영 누적 오류 122건 중 AI 가 실제로 어긴 꼴 — 검사는 그대로 막는다): S17~S25
-        'S17 조심하라는 뜻은 「유의해야 합니다」·「살펴야 합니다」로 쓴다. 「주의가 필요/요구」·「경계가 …」는 단계 말이라 대상 이름 없이 쓰면 문단 결론 단계까지만(결론이 「관심」인 문단에서 「연안 활동 시 주의가 필요합니다」·「기상 변화에도 주의가 필요합니다」를 쓰지 않는다).',
+        'S17 조심하라는 뜻은 「유의해야 합니다」·「살펴야 합니다」로 쓴다. 「주의가 필요/요구」·「경계가 …」는 단계 말이라 대상 이름 없이 쓰면 문단 결론 단계까지만(결론이 「관심」인 문단에서 「연안 활동 시 주의가 필요합니다」·「기상 변화에도 주의가 필요합니다」를 쓰지 않는다). 마지막 「따라서 … 요구됩니다.」 문장은 규칙 0)·3) 대로 단계 말로 맺는다.',
         'S18 혼잡 근거의 「충돌·접촉 주의」는 관심 단계 안내의 이름이다 — 「충돌·접촉에 주의가 요구됩니다」·「충돌·접촉 주의가 필요한 시간대」처럼 단계 말로 풀지 않는다(「충돌·접촉 주의 안내가 있는 시간대」처럼 이름으로).',
         'S19 해양사고 위험예보만 위험 단계인 해역(sea.accident_only_phrases)에는 단계 말(관심·주의·경계가 요구됩니다)을 붙이지 않는다 — 결론 단계에 넣지 않은 해역이다.',
         'S20 연안 분석(land)에는 해역 운항 권고(「…해리 해역 운항에는 주의가」)를 쓰지 않는다 — 해상 분석(sea)에만 쓴다.',
@@ -435,12 +435,17 @@ function polishOverview(o) {
 }
 // §11.10.49(사용자 「그 해구가 서버 판정 잔잔일 때만 허용」 — 11-13~15 운영 「…87해구도 잔잔할 것으로 예상됩니다」 forbidden:결론과 다른 단정 5건): 그 문장이 가리키는 해구 예보
 //   (sea.haegu_forecasts — 해구 번호 또는 구역 이름)가 하나 이상 있고 모두 서버 판정 「잔잔」이면 「잔잔할 것으로 예상」은 서버 판정을 줄여 쓴 것이라 단정이 아니다(§11.10.9 표 2a 의 막음을 이 경우만 푼다).
+//   그 문장에 잔잔 해구 말고 다른 대상(levels.sea 의 해역 이름)이나 「전체·전반·관할 해상/해역·모든」이 있으면 적용하지 않는다(독립 검토 2 — 「87해구와 구룡포항 동방 3해리 해역도 잔잔할 것」처럼 같은 문장의 다른 대상까지 풀렸다).
 const calmHaeguOk = (x, si) => { const cx = compact(x), hf = (si.sea && si.sea.haegu_forecasts) || [];
     const hit = hf.filter((f) => (f.haegu && new RegExp('(?<![0-9-])' + compact(f.haegu).replace(/[-]/g, '\\-')).test(cx)) || String(f.where || '').split('·').some((w) => w && cx.includes(compact(w))));
-    return hit.length > 0 && hit.every((f) => /잔잔/.test(f.sea_state || '')); };
+    if (!hit.length || !hit.every((f) => /잔잔/.test(f.sea_state || ''))) return false;
+    if (/전체|전반|모든|관할(?:해상|해역|바다)/.test(cx)) return false;
+    const own = (n) => hit.some((f) => [f.name, f.where, f.haegu].some((v) => v && compact(v).includes(n)));
+    return !Object.keys((si.levels && si.levels.sea) || {}).some((k) => { const n = compact(k); return n && k !== si.name && cx.includes(n) && !own(n); }); };
 // §11.10.49(11-15 운영 추자 「잠기는 바위가 있어 바위 위 낚시·채취 중 고립에도 주의가 요구됩니다」 level-para): 단계 말 바로 앞 12자 + 단계 말이 서버 사실 문장(조석 안내 등 — 단계와 상관없이 서버가 쓰는 문장)에
 //   그대로 있으면(「에도」 → 「에」) 서버 문장 대목을 옮긴 것 — 문장 전체가 서버 문장일 때만 빼던 종전 예외를 대목까지.
-const factClause = (s, h, factS) => { const fr = compact(s.slice(0, h.e)).replace(/에도(?=(?:관심|주의|경계)[가-힣]*$)/, '에').slice(-12); return fr.length === 12 && factS.some((f) => f.includes(fr)); };
+//   그 대목(앞 쉼표·앞 단계 말 끝 ~ 단계 말)에 대상 이름(levels 열쇠)이 있으면 그 이름이 맞은 서버 문장에도 있어야 한다(독립 검토 3 — 「추자해수욕장은 … 낚시·채취 중 고립에도 주의가」처럼 다른 대상에 붙여 단계를 올리는 것이 통과했다).
+const factClause = (s, h, factS, clauseNames) => { const fr = compact(s.slice(0, h.e)).replace(/에도(?=(?:관심|주의|경계)[가-힣]*$)/, '에').slice(-12); return fr.length === 12 && factS.some((f) => f.includes(fr) && clauseNames.every((n) => f.includes(n))); };
 function validateOverview(o, si) {
     const errors = [], allowedN = new Set(si.allowed_number_keys || []), mk = si.allowed_multiplier_keys || { sea: [], land: [] };
     // 허용 지명은 끝말 일치(「한림 협재해수욕장」 같은 앞 낱말 붙은 후보), 기상청 해역 이름은 그 관할 kma_zones 와 정확히 같을 때만(독립 검토 8).
@@ -510,8 +515,8 @@ function validateOverview(o, si) {
             const all = [...s.matchAll(LEVEL_RE)].map((m) => ({ w: m[1], i: m.index, e: m.index + m[0].length })).concat(NEED_RE.test(s) ? [...s.matchAll(LEVEL_LIST_RE)].map((m) => ({ w: m[1], i: m.index, e: m.index + m[0].length })) : []);
             const hits = [...new Map(all.sort((a, b) => a.i - b.i || b.e - a.e).map((h) => [h.i, h])).values()];
             hits.forEach((h, j) => {
-                if (factClause(s, h, factS)) return;   // 서버 사실 문장의 단계 말 대목을 옮긴 것(§11.10.49)
                 const comma = Math.max(s.lastIndexOf(',', h.i), s.lastIndexOf('，', h.i)) + 1, a = Math.max(comma, j ? hits[j - 1].e : 0);
+                if (factClause(s, h, factS, Object.keys(lv).filter((nm) => nm !== si.name && compact(s.slice(a, h.e)).includes(compact(nm))).map(compact))) return;   // 서버 사실 문장의 단계 말 대목을 옮긴 것(§11.10.49)
                 const z0 = s.slice(h.e).search(/[,，]/), z = Math.min(z0 < 0 ? s.length : h.e + z0, hits[j + 1] ? hits[j + 1].i : s.length);
                 const before = namedIn(s.slice(a, h.e)), after = before.length ? [] : namedIn(s.slice(h.e, z)), cn = before.length ? before : after;
                 const c2 = cn.length ? Math.max(1, ...cn) : cap;
@@ -547,8 +552,9 @@ function countWordOk(w, allowedN, para = allowedN) { const m = /^(\S+) ?(곳|개
  */
 function anaphoraCountOk(w, before, prev, names, self, allPrev = '') {
     const m = /^(\S+) ?(곳|군데)$/.exec(w), n = m ? COUNT_WORD[m[1]] : undefined;
-    // 구절 첫머리: 쉼표·「이들」 뒤, 또는 연결 어미 「-며·-고·-어·-서」 뒤(§11.10.49 — 사용자 결정 원문 「문장·구절 첫머리」, 11-13~15 운영 「…예상되며 두 곳 모두」 10건)
-    if (!n || n < 2 || !/(?:^|[,，]|이들|[며고어서])\s*$/.test(before)) return false;
+    // 구절 첫머리: 쉼표·「이들」 뒤, 또는 용언 어간 + 연결 어미 「-며·-고·-어」 뒤(§11.10.49 — 사용자 결정 원문 「문장·구절 첫머리」, 11-13~15 운영 「예상되며·예상되어·높고 두 곳」 10건).
+    //   어간을 늘어놓는다(독립 검토 1 — 끝 글자만 보면 「주변에서」·「창고」·「해양경찰서」 뒤도 첫머리가 되어 「…에서 두 곳의 위험구역」이 이름 수와 우연히 같으면 통과했다. 「-서」는 운영 사례 0건이라 뺌).
+    if (!n || n < 2 || !/(?:^|[,，]|이들|(?:되|하|있|없|높|많|늘|낮|크|작|강하|약하)(?:며|고|어)|돼|해)\s*$/.test(before)) return false;
     const all = [...new Set(names.filter((a) => a !== self).map(compact).filter(Boolean))];
     const hits = (x) => { const cx = compact(x), hit = all.filter((a) => cx.includes(a)); return hit.filter((a) => !hit.some((b) => b !== a && b.includes(a))); };
     // §11.10.49(사용자 「앞 문장 전부까지 넓힘」 — 11-13~15 운영 「세 곳 모두」 3건, 이름이 앞 두 문장에 나뉨): 그 문단 앞 문장 전부의 이름 수가 정확히 n 이어도 통과

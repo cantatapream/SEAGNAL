@@ -3339,23 +3339,35 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(h('안흥항은 방문객이 평소의 2.9배로, 신진도는 1.4배로 예상되며 두 곳 모두 위험구역이 있습니다.'), []);
         assert.deepStrictEqual(h('안흥항은 방문객이 늘고 두 곳 모두 위험구역이 있습니다.'), ['number:hangul:두 곳'], '이름 1개인데 두 곳');
         assert.deepStrictEqual(h('안흥항과 신진도는 늘고 위험구역 두 곳이 있습니다.'), ['number:hangul:두 곳'], '다른 것을 셈(첫머리 아님)');
+        // 독립 검토 1: 끝 글자만 보면 「에서」·「창고」·「해양경찰서」 뒤도 첫머리가 됐다 — 용언 어간 + 어미만
+        for (const t of ['안흥항과 신진도 주변에서 두 곳의 위험구역이 확인됩니다.', '안흥항과 신진도에는 창고 두 곳이 있습니다.', '안흥항과 신진도 사이 해양경찰서 두 곳이 있습니다.']) assert.deepStrictEqual(h(t), ['number:hangul:두 곳'], t);
+        assert.deepStrictEqual(h('안흥항과 신진도는 연안 위험지수가 높고 두 곳 모두 위험구역이 있습니다.'), [], '「높고」 뒤');
         assert.deepStrictEqual(h('안흥항은 주의 수준입니다. 신진도와 국립태안해양유물전시관은 관심 수준입니다. 세 곳 모두 위험구역이 있습니다.'), [], '앞 두 문장에 나뉜 이름 3');
         assert.deepStrictEqual(h('안흥항은 주의 수준입니다. 신진도는 관심 수준입니다. 세 곳 모두 위험구역이 있습니다.'), ['number:hangul:세 곳'], '이름 2개인데 세 곳');
     });
     await check('[§11.10.49-5] 「…해구도 잔잔할 것으로 예상됩니다」 — 가리키는 해구가 모두 서버 판정 잔잔이면 통과(사용자 「잔잔일 때만 허용」 — 5건) · 해구 없음·잔잔 아님·「평온」은 그대로 · 서버 사실 문장 대목의 단계 말(추자 바위 문장) 통과', () => {
-        const hf = (st) => [{ haegu: '87', where: '경북남부앞바다', sea_state: st }];
-        const f = (sea, st) => errs49({ sea }, si49({ sea: { haegu_forecasts: hf(st) } }), /^forbidden:결론과/);
+        const hf = (st) => [{ haegu: '87해구', where: '경북남부앞바다', name: '경북남부앞바다(87해구)', sea_state: st }];   // 실제 입력의 haegu 칸은 「87해구」 꼴(stationInput)
+        const lvSea = { '관할파출소': 2, '구룡포항 동방 3해리 해역': 2 };
+        const f = (sea, st) => errs49({ sea }, si49({ levels: { sea: lvSea, land: {} }, sea: { haegu_forecasts: hf(st) } }), /^forbidden:결론과/);
         const t = '경북남부앞바다(87해구)도 유의파고 0.6m·풍속 4.5m/s로 잔잔할 것으로 예상됩니다.';   // 운영 구룡포 글 꼴
         assert.deepStrictEqual(f(t, '잔잔한 바다일 것으로 예상됩니다'), []);
         assert.deepStrictEqual(f(t, '물결이 다소 높을 것으로 예상됩니다'), ['forbidden:결론과 다른 단정'], '잔잔 아님');
         assert.deepStrictEqual(f('관할 해상은 잔잔할 것으로 예상됩니다.', '잔잔한 바다일 것으로 예상됩니다'), ['forbidden:결론과 다른 단정'], '해구 없음');
         assert.deepStrictEqual(f('87해구도 잔잔할 것으로 예상되어 평온합니다.', '잔잔한 바다일 것으로 예상됩니다'), ['forbidden:결론과 다른 단정'], '「평온」은 그대로');
+        // 독립 검토 2: 같은 문장의 다른 대상·관할 전체까지 풀리면 안 된다 · 해구 번호 경계
+        for (const t of ['경북남부앞바다(87해구)와 구룡포항 동방 3해리 해역도 잔잔할 것으로 예상됩니다.', '87해구를 비롯한 관할 해상 전체가 잔잔할 것으로 예상됩니다.', '87해구는 잔잔할 것으로 예상되고 관할 해역도 잔잔할 것으로 예상됩니다.', '187해구도 잔잔할 것으로 예상됩니다.', '87-1해구도 잔잔할 것으로 예상됩니다.'])
+            assert.deepStrictEqual(f(t, '잔잔한 바다일 것으로 예상됩니다'), ['forbidden:결론과 다른 단정'], t);
         const rock = '추자도 신양항 앞 간출암은 08:10~10:40 물에 잠깁니다. 바위 위 낚시·채취 중 고립에 주의가 요구됩니다.';
         const s = si49({ land: {}, levels: { land: { '관할파출소': 1 }, sea: {} }, fact_sentences: [rock] });
         const l = (land) => errs49({ land, sea: 'x' }, s, /^level(?:-para)?:/);   // 문단 맺음(level-last·max)은 이 한 문장 시험 밖
         assert.deepStrictEqual(l('잠기는 바위가 있어 바위 위 낚시·채취 중 고립에도 주의가 요구됩니다.'), [], '서버 문장 대목(「에도」)');
         assert.ok(l('바위 위 낚시·채취 중 고립에 경계가 요구됩니다.').length > 0, '다른 단계 말은 그대로');
         assert.ok(l('바위 주변 연안 활동에도 주의가 필요합니다.').length > 0, '서버 문장이 아닌 대목은 그대로');
+        // 독립 검토 3: 대목에 다른 대상 이름이 있으면 그 이름이 서버 문장에도 있어야 한다
+        const s3 = si49({ land: {}, levels: { land: { '관할파출소': 1, '추자해수욕장': 1, '신양항': 1 }, sea: {} }, fact_sentences: [rock] });
+        const l3 = (land) => errs49({ land, sea: 'x' }, s3, /^level(?:-para)?:/);
+        assert.deepStrictEqual(l3('추자해수욕장은 방문객이 많아 낚시·채취 중 고립에도 주의가 요구됩니다.'), ['level:주의>1'], '서버 문장에 없는 대상');
+        assert.deepStrictEqual(l3('신양항 갯바위 낚시·채취 중 고립에 주의가 요구됩니다.'), [], '서버 문장에 있는 대상(신양항)');
     });
     await check('[§11.10.49-6] 지시문 S17~S25(AI 가 실제로 어긴 꼴) · S14 예시 「연안 활동에 유의해야 합니다」 · 문장 수 이유 글 · 판 v18/v17', () => {
         const pr = AI.buildPrompt(AI.batchInput([AI.stationInput(stationsFor(1)[0])], null));
