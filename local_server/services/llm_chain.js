@@ -35,7 +35,7 @@ const { writeFileAtomic } = require('./atomic_write');
 
 const PROVIDERS = ['upstage', 'claude1', 'claude2', 'chatgpt', 'gemini'];
 const DEFAULT_ORDER = ['upstage', 'claude2', 'claude1', 'chatgpt', 'gemini'];   // 사용자 확정: ANTHROPIC_API_KEY_2 먼저, _1 나중
-const NAMES = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT(VM)', gemini: 'Gemini' };
+const NAMES = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT', gemini: 'Gemini' };   // 실행 위치(Fly|VM)는 따로 고른다(2026-11-15)
 const CLAUDE_MODEL = 'claude-sonnet-5-5';
 const UPSTAGE_MODEL = 'solar-pro4';
 // 칸마다 고를 수 있는 모델·노력(2026-11-02 사용자 요청 — 관리자 센터 「AI 모델」 탭). 첫 칸이 아니라 model·effort 가 기본값.

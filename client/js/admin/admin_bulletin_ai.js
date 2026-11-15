@@ -1,16 +1,20 @@
 /**
  * ============================================================================
  * 파일명: js/admin/admin_bulletin_ai.js
- * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 특보 분석」. 기능마다(① 특보 통보문 읽기 · ② 참고사항 해석) AI 우선순위를 정한다.
+ * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 모델 설정」(2026-11-16 이름 바꿈 — 종전 「AI 특보 분석」).
+ *         맨 위 「AI 챗봇 모델」 = 나리야 답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치(ai_chat.js renderModelSettingsInto — 종전 자리는 AI 챗봇 → 🤖 AI 모델).
+ *         그 아래 「AI 특보 분석」 = 기능마다(① 특보 통보문 읽기 · ② 참고사항 해석) AI 우선순위.
  *         1순위가 실패하면 2순위 … 순서대로 시도한다. 칸마다 모델·노력, ChatGPT 칸은 모델과 실행 위치(Fly 서버|VM)를 고른다.
  *         Gemini 는 뺄 수 없다(마지막 안전망).
+ * 사용자 요청(2026-11-16): 「ai 챗봇 탭의 ai 모델 탭에 있는 ai 모델 설정기능(답변순서, vm/fly 설정 등)을 ai 특보 분석 탭으로 넣고 ai 챗봇 모델 이라는 내용으로 …
+ *         또한 ai 특보 분석이라는 이름을 ai 모델 설정으로 이름을 바꿔줘」
  * 사용자 확정(2026-11-15): 「특보읽기, 참고사항해석에 지금 반영되어있는 모든 ai 툴을 다 선택할 수 있도록 … 각 기능별 사용 ai의 우선순위를
  *         정해두고 그 우선순위대로 작동」 · 「chat gpt도 fly, vm중 고를 수있도록 하고, gpt의 모델도 선택할 수 있도록」
  * ⚠① 특보 읽기는 운영에서 아직 꺼져 있다(ai_report_parser 의 GEMINI_API_KEY 검사 — 운영에 그 시크릿이 없다, 2026-11-15 확인).
  *   켜는 것은 사용자 결정 후 따로 — 이 화면은 순서만 저장한다. ② 는 「통보문 관찰」 탭 4차 시험(설정한 순서)에 쓰인다.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : admin/admin.js(window.fetch 관리자 토큰 래퍼 · switchAiSubTab 이 나를 부름)
+ *  - 사용하는 파일 : admin/admin.js(window.fetch 관리자 토큰 래퍼 · switchAiSubTab 이 나를 부름) · ai-chat/ai_chat.js(window.NariyaChat.renderModelSettingsInto)
  *  - 서버 API      : GET·POST /api/admin/bulletin-ai/config (routes/bulletin_watch.js → services/bulletin_ai.js)
  *  - 마크업        : 없음(switchAiSubTab 이 준 상자에 그린다)
  *  - 나를 쓰는 곳  : admin.js switchAiSubTab('bulletinAi') → window.renderBulletinAiAdmin
@@ -140,6 +144,13 @@
      */
     w.renderBulletinAiAdmin = function (host) {
         host.innerHTML = '';
+        // 맨 위: 「AI 챗봇 모델」(나리야 답변 순서·일반 사용자 적용·ChatGPT 실행 위치 — ai_chat.js 가 그리고 저장한다)
+        host.appendChild(el('div', 'font-weight:800;color:#e2e8f0;font-size:1rem;margin-bottom:6px', 'AI 챗봇 모델'));
+        var chat = el('div', 'margin-bottom:22px', '');
+        host.appendChild(chat);
+        if (w.NariyaChat && typeof w.NariyaChat.renderModelSettingsInto === 'function') w.NariyaChat.renderModelSettingsInto(chat);
+        else chat.appendChild(el('div', 'color:#fca5a5', '나리야 모듈(js/ai-chat/ai_chat.js)이 로드되지 않았습니다.'));
+        // 그 아래: 「AI 특보 분석」 — draw 는 이 상자만 다시 그린다(위 챗봇 카드를 지우지 않게)
         box = el('div', '', ''); host.appendChild(box);
         box.innerHTML = '<div style="padding:20px;color:#94a3b8">불러오는 중…</div>';
         busy = false;

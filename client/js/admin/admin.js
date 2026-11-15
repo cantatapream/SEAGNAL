@@ -734,7 +734,7 @@ async function renderUnifiedAiTab(container) {
     container.innerHTML =
         '<div id="ai-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('chatbot', 'AI 챗봇') + mkTabBtn('briefing', 'AI 브리핑') + mkTabBtn('bulletinAi', 'AI 특보 분석')
+        + mkTabBtn('assistant', 'AI 비서') + mkTabBtn('chatbot', 'AI 챗봇') + mkTabBtn('briefing', 'AI 브리핑') + mkTabBtn('bulletinAi', 'AI 모델 설정')
         + '</div>'
         + '<div id="ai-subtab-body"></div>';
     // 「테스트」 하위탭은 2026-11-03 삭제(사용자 「테스트 하위 탭은 이제 더이상 쓰지 않아 삭제 필요」) — 저장값이 'test' 면 AI 비서로.
@@ -762,9 +762,9 @@ window.switchAiSubTab = function (which) {
         else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">AI 브리핑 모듈(js/admin/admin_station_briefing.js)이 로드되지 않았습니다.</div>';
     }
     else if (which === 'bulletinAi') {
-        // [AI 특보 분석 · 2026-11-15] 특보 통보문 읽기·참고사항 해석의 AI 우선순위(모델·노력·ChatGPT 실행 위치) — js/admin/admin_bulletin_ai.js
+        // [AI 모델 설정 · 2026-11-16 이름 바꿈(종전 「AI 특보 분석」)] AI 챗봇 모델(답변 순서·실행 위치) + 특보 읽기·참고사항 해석의 AI 우선순위 — js/admin/admin_bulletin_ai.js
         if (typeof window.renderBulletinAiAdmin === 'function') window.renderBulletinAiAdmin(sub);
-        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">AI 특보 분석 모듈(js/admin/admin_bulletin_ai.js)이 로드되지 않았습니다.</div>';
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">AI 모델 설정 모듈(js/admin/admin_bulletin_ai.js)이 로드되지 않았습니다.</div>';
     }
     else if (which === 'chatbot') {
         // [AI 챗봇] 나리야 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)

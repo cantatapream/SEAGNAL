@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 02:17 KST] ✅완료 — AI 모델 설정 탭으로 챗봇 모델 설정 옮김
+AI 탭 「AI 특보 분석」→「AI 모델 설정」 이름 변경. 맨 위 「AI 챗봇 모델」(답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치)을 ai_chat.js renderModelSettingsInto 로 그림, AI 챗봇→AI 모델 탭엔 자동 노출·질문 수만 남김. ChatGPT(VM) 이름표→ChatGPT. 크로미엄 화면 확인.
+
+
 ### [2026-11-16 01:37 KST] ✅완료 — AI 특보 분석 탭(기능별 AI 우선순위)
 관리자 AI 탭에 「AI 특보 분석」 추가: ① 특보 읽기·② 참고사항 해석마다 AI 순서·모델·노력·ChatGPT 모델/실행위치(Fly|VM). services/bulletin_ai.js, API /api/admin/bulletin-ai/config, codex_bridge 일감별 runner, 통보문 관찰 4차 시험(설정 순서). ① 운영은 여전히 꺼짐(GEMINI_API_KEY 운영에 없음 — 사용자 확인, 켜기는 비교 후 결정). 독립 검토 5건 중 4건 수정. test_bulletin_ai 26 PASS.
 
