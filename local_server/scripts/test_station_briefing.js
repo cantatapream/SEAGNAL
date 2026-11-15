@@ -10,6 +10,7 @@
  *         맨 끝 「[§11.10.9-1]…[§11.10.9-8]」 = 2026-10-17 사용자 결정(설계서 §11.10.9 — 「평소보다 위험이 높아진 곳」 표 · 대해구 위치·바다 상태 말(「기준」 없음) · 지금 밀집 두 줄 · 분석 문단 강조 · 마지막 「따라서」 → (권고) · 팝업 지도 재료 · 머리 글).
  *         「[§11.10.19-1]…[§11.10.19-6]」 = 브리핑이 소해구 예보를 쓴다(설계서 §11.10.19 — 시각 맞추기·수집·판정·AI 입력·만들기 직전 준비(가짜 smallZone)·실제 smallzone_forecast(가짜 fetch)). 기상청 호출 없음.
  *         맨 끝 「[§11.10.31-1]…[§11.10.31-4]」 = 2026-10-18 사용자 「진행해줘.」(설계서 §11.10.31 — 배수 범위 「1.1~1.2배」 양 끝 허용 · 탈락한 AI 글·허용 숫자·배수 보관 3일 · 관리자 md 절). 고치기 전 코드(6cf4eb4dd)에서 4건 모두 실패함을 확인했다.
+ *         맨 끝 「[§11.10.48-1]…[§11.10.48-7]」 = 2026-11-15 사용자 결정(설계서 §11.10.48 — AI 오류 누적 보관 90일 · 누적 md · 유형별 처리 완료(관리자 버튼 + 머지된 config/station_briefing_resolved.json)).
  *         「[§11.10.6-1]」 = 2026-10-17 16:16 운영 실행 검사 오판(조사 도·괄호 속 이름·하지만·연도 년) — 설계서 §11.10.6.
  *         맨 끝 「[§11.10.5-1]…[§11.10.5-8]」 = 62048b15c 독립 검토 8건(설계서 §11.10.5 — 단계 아래쪽·입력에 없는 말·이름 없는 대목·다시 시도 순서·캐시·단계 말 꼴·이유 글 자름·대기 표 ⑪·평소처럼 관심) 1:1 — 고치기 전 코드(bde907bdd)에서 8건 모두 실패.
  *         그 앞 「[§11.10.4-1]…[§11.10.4-9]」 = 같은 날 사용자 결정(§11.10.4). 「[§11.10.3-1]…[§11.10.3-5]」 = 2026-10-17 사용자 결정(설계서 §11.10.3 — (고립 주의) 지점 표·육상 권고·해상 근거 칸·해양사고 위험예보·해구 줄은 넘을 때만·지도 재료) 1:1 — 고치기 전 코드(6ec172ffa)에서 5건 모두 실패.
@@ -18,7 +19,7 @@
  *         그 앞 「[§11.10]」 = 2026-10-17 사용자 결정(총평 = 서버 결론·근거·권고 + AI 해설 1~2문장 · 개수 버그 · 너울 · 해역 이름·셈말 허용 · 관리자 오류 3일 보관) 1:1 — 고치기 전 코드에서 4건 모두 실패함을 확인했다.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js · station_briefing.js · routes/station_briefing.js
+ *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js · station_briefing.js · station_briefing_errlog.js · routes/station_briefing.js
  *                    · client/js/forecast/station-briefing/station_briefing_render.js(highlightSegments 등)·client/js/admin/admin_station_briefing.js(errorsMarkdown·codeText·reasonTexts·runGroups·errorsByStation — §11.10.7) — vm 으로 읽어 순수 함수만
  *                    · config/coastal_safety/coastguard_stations.geojson(관할 97곳 — 해상만 19곳 셈)
  *  - 나를 쓰는 곳  : scripts/refactor/verify_all.sh SUITES
@@ -3294,6 +3295,136 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(md.indexOf('| 시각(KST) |') < md.indexOf('## 탈락한 AI 글'), '표가 먼저');
         assert.ok(A.errorsMarkdown([{ ...e1, reason: 'place:가`나' }], ms, { days: 3 }).includes('- 이유: `` place:가`나 ``\n'), '이유 속 백틱 — 더 긴 백틱 코드 칸');
         assert.ok(!A.errorsMarkdown([e3], ms, { days: 3 }).includes('탈락한 AI 글'), '글 실린 오류가 없으면 절 없음(종전 md 그대로)');
+    });
+    // ── §11.10.48 누적 오류(2026-11-15 사용자 결정 — 처리 완료 전까지 최대 90일 · 날짜별·유형별 누적 md · 고친 유형만 머지 시 자동 처리 완료 + 관리자 버튼) ──
+    const EL = require('../services/station_briefing_errlog');
+    const K = (s) => Date.parse(s.length === 16 ? s + ':00+09:00' : s);
+    const ve = (at, st, reason, extra) => ({ at, edition: 'evening', date: at.slice(0, 10), stage: 'validate', provider: 'chatgpt', stations: [st], attempt: 1, reason, ...(extra || {}) });
+    await check('[§11.10.48-1] 유형 열쇠 — 값(지명·숫자·문장 수)을 떼어 묶음 · 한 오류가 여러 유형 · 호출 실패는 단계·공급자·숫자를 # 로 · 실행 실패는 판 열쇠·횟수를 뗌', () => {
+        assert.deepStrictEqual(['shape:sea-sentences-2', 'shape:land-too-long-480', 'number:0.5~1.5m', 'number:hangul:세 곳', 'place:장승포', 'level-para:주의>1', 'level:경계>2', 'multiplier:1.1배', 'word:level-need:주의 필요', 'fact:결빙', 'label:「주의」', 'markup', 'forbidden:출항 지시'].map(EL.codeFamily),
+            ['shape:sea-sentences', 'shape:land-too-long', 'number', 'number:hangul', 'place', 'level-para', 'level', 'multiplier', 'word:level-need', 'fact', 'label', 'markup', 'forbidden:출항 지시']);
+        assert.deepStrictEqual(EL.familiesOf(ve('2026-11-15T16:51:00+09:00', 'a|b', 'shape:sea-sentences-2,number:0.5m,number:4m/s')), ['shape:sea-sentences', 'number']);
+        assert.deepStrictEqual(EL.familiesOf({ stage: 'call', provider: 'vm', reason: 'vm 시간초과(320초)' }), EL.familiesOf({ stage: 'call', provider: 'vm', reason: 'vm 시간초과(310초)' }));
+        assert.deepStrictEqual(EL.familiesOf({ stage: 'run', reason: '2026-11-15|night 실행 실패(2번째): ENOSPC: no space left on device, write' }), ['@run:ENOSPC: no space left on device, write']);
+        assert.deepStrictEqual(EL.familiesOf({ stage: 'deadline', reason: '실행 데드라인 넘음 — 3곳은 규칙 분석' }), ['@deadline']);
+    });
+    await check('[§11.10.48-2] 보관 — 번호(id) 붙임 · 최근 90일(KST 날짜)만 · 안전 상한은 지운 수를 남김', () => {
+        const lg = EL.emptyLog(), now = K('2026-11-15T22:00');
+        const out = EL.append(lg, [ve('2026-08-18T07:00:00+09:00', 'a|b', 'place:x'), ve('2026-08-17T23:59:00+09:00', 'a|b', 'place:y'), ve('2026-11-15T16:51:00+09:00', 'a|b', 'place:z')], now);
+        assert.deepStrictEqual(out.map((e) => e.id), ['e1', 'e2', 'e3']); assert.equal(lg.seq, 3);
+        assert.deepStrictEqual(lg.errors.map((e) => e.id), ['e1', 'e3'], '89일 전(08-18)은 남고 90일 전(08-17)은 지움');
+        assert.equal(EL.append(lg, [out[2]], now)[0].id, 'e3'); assert.equal(lg.errors.length, 2, '번호가 이미 있는 오류는 두 번 넣지 않음');
+        const big = EL.emptyLog(); EL.append(big, Array.from({ length: EL.LOG_HARD_CAP + 2 }, (_, i) => ve('2026-11-15T16:51:00+09:00', 'a|b', 'place:' + i)), now);
+        assert.deepStrictEqual([big.errors.length, big.capped.dropped, big.errors[0].reason], [EL.LOG_HARD_CAP, 2, 'place:2']);
+    });
+    await check('[§11.10.48-3] 내보내기·처리 완료 — 유형 번호는 많은 순 · 그 내보내기에 든 오류만 처리(뒤에 난 같은 유형은 남음) · 유형이 둘인 오류는 둘 다 처리돼야 끝 · 끝난 오류는 탈락 글을 지움 · 이미·없는 번호', () => {
+        const lg = EL.emptyLog(), now = K('2026-11-15T22:10');
+        EL.append(lg, [ve('2026-11-15T16:51:00+09:00', '인천해양경찰서|강화파출소', 'shape:sea-sentences-2', { text: { sea: 'x' }, allowed: {} }),
+            ve('2026-11-15T16:51:00+09:00', '인천해양경찰서|대명파출소', 'shape:sea-sentences-2,number:0.5~1.5m', { text: { sea: 'y' } }),
+            ve('2026-11-15T16:51:00+09:00', '군산해양경찰서|해망파출소', 'shape:sea-sentences-6')], now);
+        const ex = EL.exportOpen(lg, now);
+        assert.equal(ex.exp.id, 'E20261115-221000');
+        assert.deepStrictEqual(ex.exp.groups.map((g) => [g.code, g.family, g.ids.join()]), [['G01', 'shape:sea-sentences', 'e1,e2,e3'], ['G02', 'number', 'e2']]);
+        assert.deepStrictEqual(ex.stats[0].values, [['2', 2], ['6', 1]]); assert.equal(ex.stats[0].stations, 3);
+        assert.equal(EL.exportOpen(lg, now).exp.id, 'E20261115-221000-2', '같은 초 두 번째');
+        EL.append(lg, [ve('2026-11-15T22:20:00+09:00', '인천해양경찰서|강화파출소', 'shape:sea-sentences-1')], now);   // 내보낸 뒤 새 오류
+        const r = EL.resolve(lg, ex.exp.id, ['G01', 'G09'], 'manual', '문장 수 검사 고침', now);
+        assert.deepStrictEqual([r.resolved, r.unknown], [['G01'], ['G09']]);
+        const by = Object.fromEntries(lg.errors.map((e) => [e.id, e]));
+        assert.deepStrictEqual([EL.isOpen(by.e1), EL.isOpen(by.e2), EL.isOpen(by.e3), EL.isOpen(by.e4)], [false, true, false, true], 'e2(숫자 유형 남음)·e4(뒤에 난 것)는 남음');
+        assert.ok(!by.e1.text && !by.e1.allowed && by.e2.text, '끝난 오류만 글을 지움');
+        assert.deepStrictEqual(EL.resolve(lg, ex.exp.id, ['G01'], 'manual', '', now).already, ['G01']);
+        assert.equal(EL.resolve(lg, 'E20990101-000000', null, 'manual', '', now).ok, false);
+        const sm = EL.summary(lg, now, []);
+        assert.deepStrictEqual(sm.families.map((f) => [f.family, f.count]), [['number', 1], ['shape:sea-sentences', 1]]);
+        assert.deepStrictEqual(sm.exports.find((x) => x.id === ex.exp.id).groups.map((g) => [g.code, g.open, !!g.resolved]), [['G01', 0, true], ['G02', 1, false]]);
+    });
+    await check('[§11.10.48-4] 머지된 처리 완료 목록 — 고친 유형만 · 여러 번 적용해도 같음 · 꼴 틀림·이 서버에 없는 번호·없는 유형은 알림 · 90일 지난 번호는 조용히 건너뜀', () => {
+        const lg = EL.emptyLog(), now = K('2026-11-16T09:00');
+        EL.append(lg, [ve('2026-11-15T16:51:00+09:00', 'a|b', 'shape:sea-sentences-2,place:장승포')], now);
+        const ex0 = EL.exportOpen(lg, K('2026-11-15T22:10')), id = ex0.exp.id, shapeCode = ex0.exp.groups.find((g) => g.family === 'shape:sea-sentences').code;
+        const entries = [{ export: id, groups: [shapeCode], note: '문장 수' }, { export: 'E20261114-000000', groups: 'all' }, { export: 'E20250101-000000', groups: 'all' }, { export: id, groups: ['G07'] }, { bad: 1 }, { export: id, groups: [] }];
+        const a = EL.applyRepo(lg, entries, now);
+        assert.equal(a.changed, true);
+        assert.deepStrictEqual(a.issues.map((x) => [x.index, x.problem.slice(0, 8)]), [[1, '이 서버에 없는'], [3, '그 내보내기에 '], [4, '꼴이 틀림 — '], [5, '꼴이 틀림 — ']]);
+        assert.deepStrictEqual(EL.openFamilies(lg.errors[0]), ['place'], '고친 유형(문장 수)만 — 지명 유형은 남음');
+        assert.equal(lg.exports[0].resolved[shapeCode].by, 'merge'); assert.equal(lg.exports[0].resolved[shapeCode].note, '문장 수');
+        assert.equal(EL.applyRepo(lg, entries, now).changed, false, '두 번째는 바뀐 것 없음');
+    });
+    await check('[§11.10.48-5] 서비스 — 처음엔 상태 파일의 최근 3일 오류를 옮김(양쪽 같은 번호) · 실행 오류가 누적 기록에도 · 상태의 실행별 오류에 resolved:true · 저장소 파일은 첫 점검·상태 때 적용 · 깨진 기록은 지우지 않고 옮겨 둠', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'errlog-')); let clock = K('2026-10-17T08:00');
+        I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-17|morning'], errors: [ve('2026-10-17T07:00:00+09:00', '제주해양경찰서|한림파출소', 'place:옛날')] });
+        const resolvedFile = path.join(d, 'resolved.json'); fs.writeFileSync(resolvedFile, JSON.stringify({ resolved: [] }));
+        const mk = () => SB.createService({ dir: d, clock: () => clock, risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: path.join(d, 'none.json'), hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] }, resolvedFile,
+            adapters: { vm: { available: () => true, call: async ({ prompt }) => JSON.stringify({ stations: idsIn(prompt).map((x) => ({ id: x.id, land: null, sea: 'x' })) }) }, gemini: { available: () => false } } });
+        const s2 = mk();
+        let st = s2.status();
+        assert.equal(st.errors[0].id, 'e1', '상태 쪽 오류에도 번호'); assert.equal(I.readJson(path.join(d, 'state.json')).errors[0].id, 'e1', '상태 파일에 저장됨');
+        assert.equal(st.errorLog.open, 1); assert.equal(st.errorLog.keepDays, 90);
+        await s2.run({ kind: 'manual' });
+        const lg = I.readJson(path.join(d, 'error_log.json'));
+        assert.ok(lg.errors.length > 1 && lg.errors.every((e) => /^e\d+$/.test(e.id)), '실행 오류가 번호와 함께 누적 기록에');
+        const stState = I.readJson(path.join(d, 'state.json'));
+        assert.deepStrictEqual(stState.errors.map((e) => e.id), lg.errors.map((e) => e.id), '최근 3일 목록과 같은 번호');
+        const ex = s2.exportErrors(); assert.ok(ex.export.groups[0].count > 0 && ex.export.groups[0].top.length > 0, '응답에는 관할·값 집계');
+        const saved = I.readJson(path.join(d, 'error_log.json')).exports[0]; assert.deepStrictEqual(Object.keys(saved.groups[0]).sort(), ['code', 'family', 'ids'], '기록에는 번호·유형·오류 번호만');
+        const placeCode = ex.export.groups.find((g) => g.family === 'place').code;
+        fs.writeFileSync(resolvedFile, JSON.stringify({ resolved: [{ export: ex.export.id, groups: [placeCode] }, { export: 'E20261016-000000', groups: 'all' }] }));
+        st = s2.status();
+        assert.equal(st.errors.find((e) => e.id === 'e1').resolved, true, '머지로 처리된 유형만 있던 오류 → resolved');
+        assert.deepStrictEqual(st.errorLog.issues.map((x) => x.index), [1], '이 서버에 없는 번호 알림');
+        const left = st.errorLog.open;
+        const r = s2.resolveExport(ex.export.id); assert.equal(r.ok, true); assert.ok(r.already.includes(placeCode));
+        assert.equal(s2.status().errorLog.open, 0, '버튼 — 남은 유형 전부'); assert.ok(left > 0);
+        assert.equal(s2.exportErrors(), null, '처리 안 된 오류가 없으면 null');
+        // 첫 점검(tick) 때 한 번 적용 — 새 서비스(서버가 다시 켜진 것)
+        const s3 = mk(); fs.writeFileSync(resolvedFile, '{'); await s3.tick();
+        assert.ok(/읽지 못함/.test(s3.status().errorLog.issues[0].problem), '깨진 목록 파일은 알림');
+        // 깨진 누적 기록 — 지우지 않고 이름을 바꿔 둔 뒤 새로 시작
+        fs.writeFileSync(path.join(d, 'error_log.json'), '{'); clock = K('2026-10-17T09:00'); const s4 = mk(); s4.status();
+        assert.ok(fs.readdirSync(d).some((f) => /^error_log\.broken-.*\.json$/.test(f)), '깨진 파일을 옮겨 둠');
+    });
+    await check('[§11.10.48-6] 라우터 — POST error-log/export(없으면 404) · resolve(없는 번호 404 · groups 넘김) · 관리자만 · md 맡기기는 글 그대로(text/markdown, 5MB 넘어도)', async () => {
+        const express = require('express'), { createRouter } = require('../routes/station_briefing'); let got = null, has = true;
+        const fake = { readConfig: () => ({ exposure: 'admin' }), stations: () => [], exportErrors: () => (has ? { export: { id: 'E1', groups: [] }, errors: [] } : null), resolveExport: (id, g, n) => { got = [id, g, n]; return id === 'E1' ? { ok: true, resolved: ['G01'], already: [], unknown: [] } : { ok: false }; } };
+        const app = express(); app.use(express.json({ limit: '5mb' })); app.use(createRouter({ service: fake, isAdminDevice: () => false, verifyToken: () => false, authorize: (req, res, next) => req.get('X-Admin-Token') === 'tok-ok' ? next() : res.status(401).json({ ok: false }) }));
+        const server = http.createServer(app); await new Promise((r) => server.listen(0, '127.0.0.1', r)); const base = 'http://127.0.0.1:' + server.address().port + '/api/admin/station-briefing';
+        const H = { 'X-Admin-Token': 'tok-ok' };
+        try {
+            assert.equal((await fetch(base + '/error-log/export', { method: 'POST' })).status, 401);
+            assert.equal((await (await fetch(base + '/error-log/export', { method: 'POST', headers: H })).json()).export.id, 'E1');
+            has = false; assert.equal((await fetch(base + '/error-log/export', { method: 'POST', headers: H })).status, 404);
+            const r = await fetch(base + '/error-log/exports/E1/resolve', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ groups: ['G01', 3], note: 'n' }) });
+            assert.equal(r.status, 200); assert.deepStrictEqual(got, ['E1', ['G01'], 'n']);
+            await fetch(base + '/error-log/exports/E1/resolve', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: '{}' }); assert.equal(got[1], null, 'groups 없으면 전부');
+            assert.equal((await fetch(base + '/error-log/exports/E9/resolve', { method: 'POST', headers: H })).status, 404);
+            const big = '# 누적\n' + 'ㄱ'.repeat(2 * 1024 * 1024);   // 약 6MB(UTF-8) — 전역 JSON 5MB 상한을 넘는다
+            const j = await (await fetch(base + '/download?name=station_briefing_open_errors_E1.md', { method: 'POST', headers: { ...H, 'Content-Type': 'text/markdown; charset=utf-8' }, body: big })).json();
+            const g = await fetch('http://127.0.0.1:' + server.address().port + j.path); assert.equal(g.status, 200);
+            assert.ok(g.headers.get('content-disposition').includes('station_briefing_open_errors_E1.md')); assert.equal((await g.text()).length, big.length);
+        } finally { server.close(); }
+    });
+    await check('[§11.10.48-7] 화면 md — 누적 md(내보내기 번호·처리 완료 기록 방법·저장소 파일 경로·유형별 요약·날짜별·유형 번호 칸·탈락 글) · 서버 유형 열쇠가 모두 한글로 풀림 · 실행별 md 에 「(처리 완료)」', () => {
+        const sandbox = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/admin/admin_station_briefing.js'), 'utf8'), sandbox);
+        const A = sandbox.window.renderStationBriefingAdmin;
+        const e1 = { id: 'e1', ...ve('2026-11-15T16:51:00+09:00', '인천해양경찰서|강화파출소', 'shape:sea-sentences-2', { text: { land: null, sea: '해상 글.' }, allowed: { numbers: ['1.5m'], multipliers: { sea: [], land: [] } } }) };
+        const e2 = { id: 'e2', ...ve('2026-11-14T22:20:00+09:00', '군산해양경찰서|해망파출소', 'number:0.5~1.5m'), edition: 'night' };
+        const data = { export: { id: 'E20261115-221034', at: '2026-11-15T22:10:34+09:00', groups: [{ code: 'G01', family: 'shape:sea-sentences', ids: ['e1'], count: 1, stations: 1, top: [['강화파출소', 1]], values: [['2', 1]], first: e1.at, last: e1.at }, { code: 'G02', family: 'number', ids: ['e2'], count: 1, stations: 1, top: [['해망파출소', 1]], values: [['0.5~1.5m', 1]], first: e2.at, last: e2.at }] }, errors: [e2, e1] };
+        const md = A.cumulativeMarkdown(data, K('2026-11-15T22:10'));
+        assert.ok(md.startsWith('# 연안 안전 브리핑 — AI 브리핑 누적 오류(처리 완료 전 전부)\n'));
+        assert.ok(md.includes('- 내보내기 번호: `E20261115-221034`') && md.includes('- 건수: 오류 2건 · 유형 2개 · 실행 2번') && md.includes('2026-11-14 ~ 2026-11-15'));
+        assert.ok(md.includes('`local_server/config/station_briefing_resolved.json`') && md.includes('{ "export": "E20261115-221034", "groups": ["G01", "G03"]'), '처리 완료 기록 방법');
+        assert.ok(md.includes('| G01 | 해상 분석 문장 수가 3~5문장이 아님 (shape:sea-sentences) | 1 | 강화 1 (1곳) |'), md);
+        assert.ok(md.indexOf('### 2026-11-15 — 오류 1건') < md.indexOf('### 2026-11-14 — 오류 1건'), '최근 날짜부터');
+        assert.ok(md.includes('#### 16:51 시작 · 17:30 판 · 2026-11-15 — 1건') && md.includes('#### 22:20 시작 · 23:00 판 · 2026-11-14 — 1건'));
+        assert.ok(md.includes('| 인천해양경찰서 강화파출소 | 1번째 시도(ChatGPT) | G01 | shape:sea-sentences-2 |'), '유형 번호 칸');
+        assert.ok(md.includes('## 탈락한 AI 글') && md.includes('해상 글.'), '탈락 글 절');
+        // 서버가 만드는 유형 열쇠(검사 열쇠 전부 · 호출·시간 초과·실행 실패)가 모두 한글로 풀리는가 — 열쇠가 그대로 나오면 풀리지 않은 것
+        const codes = ['shape:land-sentences-2', 'shape:sea-too-long-470', 'shape:land-no-conclusion', 'shape:land-missing', 'shape:sea-missing', 'shape:land-not-allowed', 'word:level-need:주의 필요', 'word:기준', 'word:reason-twice', 'word:tag-reason', 'markup', 'missing:station', 'parse', 'number:hangul:세 곳', 'number:3m', 'multiplier:1.2배', 'place:x', 'level:주의>1', 'level-para:주의>1', 'level-last:없음≠2', 'level-max:주의≠1', 'fact:결빙', 'label:「주의」', 'forbidden:안전 단정', 'forbidden:결론과 다른 단정', 'forbidden:출항 지시', 'forbidden:절대', 'required:land'];
+        for (const c of codes) { const f = EL.codeFamily(c); assert.notEqual(A.familyText(f), f, '풀리지 않은 유형 ' + f); }
+        for (const e of [{ stage: 'call', provider: 'vm', reason: 'vm 시간초과(320초)' }, { stage: 'parse', provider: 'gemini', reason: 'bad json' }, { stage: 'deadline' }, { stage: 'run', reason: 'k 실행 실패(1번째): ENOSPC' }]) { const f = EL.familiesOf(e)[0]; assert.notEqual(A.familyText(f), f, f); }
+        assert.equal(A.familyText('@call:vm:vm 시간초과(#초)'), 'AI 호출 실패(ChatGPT) — vm 시간초과(#초)');
+        assert.ok(A.errorsMarkdown([{ ...e1, resolved: true }], K('2026-11-15T22:10'), { days: 3 }).includes('| (처리 완료) 1번째 시도(ChatGPT) — '), '실행별 md 의 처리 완료 표시');
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);

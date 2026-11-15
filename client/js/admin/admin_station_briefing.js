@@ -6,6 +6,8 @@
  *         상태 카드(실행 중·대기 표시 · 마지막 실행 · 판별 AI/다시 시도/규칙 분석/오류 수 · 공개 예정 · 다음 예정)와 실행 중 진행 게이지(전체 막대 + 묶음별·관할별 — §11.10.7),
  *         상태 카드 안 「관광지 자료 확인 불가」(판별 N관할 · 관광지 M곳, 0이면 「없음」, 펼치면 이름)와 정시 판 소요 시간 작은 표(최근 6회 — 시작·분:초·결과·마감, §11.10.21),
  *         최근 3일 오류를 실행마다 드롭다운으로 골라 관할별·시도별 한글 풀이로 보고 [복사]·[md로 저장](고른 실행만 — 앱 안에서는 시스템 브라우저로 내려받기 · 검사에 떨어진 AI 글과 그 관할 허용 숫자·배수도 담는다 §11.10.31)을 하고,
+ *         「처리 안 된 오류 — 누적」 칸(§11.10.48 — 처리 완료 전까지 최대 90일 · 유형별 목록 · [누적 md로 저장]·[누적 복사] = 날짜별·유형별 md(내보내기 번호·유형 번호 G01…) ·
+ *         최근 내보내기의 [남은 유형 모두 완료 처리] · 머지된 처리 완료 목록의 맞지 않는 줄 알림), 실행별 화면의 처리된 오류는 흐리게 「처리 완료」,
  *         [지금 다시 만들기](곧바로 공개 · 실행 중이면 409 안내)와 관할 하나 미리보기(공개 예정 판은 「예정」)를 한다.
  * ----------------------------------------------------------------------------
  * [연계]
@@ -13,7 +15,8 @@
  *                    · forecast/station-briefing/station_briefing_render.js(StationBriefingRender.render — 미리보기는 사용자 화면과 같은 렌더러)
  *                    · @capacitor/browser(window.Capacitor.Plugins.Browser — 앱 안에서 md 를 시스템 브라우저로 내려받기, admin_collect.js CSV·PNG 저장과 같은 방식)
  *  - 서버 API      : GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status(?only=progress — 진행 게이지) · POST /api/admin/station-briefing/run(실행 중 409)
- *                    · GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview · POST /api/admin/station-briefing/download → GET /api/station-briefing/download/:token
+ *                    · GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview · POST /api/admin/station-briefing/download(글 그대로 text/markdown) → GET /api/station-briefing/download/:token
+ *                    · POST /api/admin/station-briefing/error-log/export · POST /api/admin/station-briefing/error-log/exports/:id/resolve(§11.10.48)
  *                    (routes/station_briefing.js)
  *  - 마크업        : 관리자 센터 모달 #ai-subtab-body(admin.js renderUnifiedAiTab 이 만듦) — 이 파일이 안을 통째로 만든다(스타일은 <style id="sb-admin-style"> 를 한 번 심는다)
  *  - 나를 쓰는 곳  : admin.js switchAiSubTab('briefing') → window.renderStationBriefingAdmin
@@ -706,6 +709,169 @@
             saveMarkdown(errorsMarkdown(g.errors, now, keep, g), 'station_briefing_errors_' + kstStamp(Date.parse(g.at) || now, false) + '.md', say, view);
         });
     }
+    /** 실행별 화면에서 모든 유형이 처리 완료된 오류(서버 resolved:true — §11.10.48)를 흐리게 하고 「처리 완료」 표시. @param {HTMLElement} li @param {Object} e @returns {void} [연계] ← drawRunErrors */
+    function doneMark(li, e) { if (!e || !e.resolved) return; li.className = 'done'; li.appendChild(elc('span', 'sba-done', '처리 완료')); }
+    /**
+     * 글을 클립보드에 복사한다 — 안 되면 옛 방식(execCommand), 그것도 안 되면 다른 버튼(altName)을 안내한다.
+     * @param {string} md @param {Function} say - (ok, 글) @param {string} okMsg @param {string} altName - 실패 때 안내할 버튼 이름 @returns {Promise<void>} [연계] ← drawRunErrors [복사] · drawOpenErrors [누적 복사]
+     */
+    async function copyText(md, say, okMsg, altName) {
+        try {
+            if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') throw new Error('이 브라우저(또는 http 주소)에서는 클립보드를 쓸 수 없음');
+            await navigator.clipboard.writeText(md); say(true, okMsg);
+        } catch (e) {
+            console.warn('[AI 브리핑 관리] 오류 목록 클립보드 복사 실패 — 옛 방식으로 다시 시도:', e && e.message);
+            // 옛 방식(execCommand) — 권한이 막힌 기기용. 그것도 안 되면 파일 저장 버튼을 안내한다.
+            var ta = document.createElement('textarea'); ta.value = md; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0;'; document.body.appendChild(ta); ta.select();
+            var ok = false; try { ok = document.execCommand('copy'); } catch (e2) { console.warn('[AI 브리핑 관리] execCommand 복사 실패:', e2 && e2.message); }
+            ta.remove();
+            say(ok, ok ? okMsg : '복사하지 못했습니다(' + ((e && e.message) || '클립보드 사용 불가') + ') — ' + altName + '으로 파일을 받으세요.');
+        }
+    }
+    /**
+     * 누적 오류 유형 열쇠(서버 station_briefing_errlog.codeFamily·familiesOf 가 만드는 것)의 한글 이름(§11.10.48). 모르는 열쇠는 codeText(값 없는 고정 열쇠 — markup·word:기준·forbidden:… 등).
+     * 예: 'shape:sea-sentences' → '해상 분석 문장 수가 3~5문장이 아님' · 'number' → '허용되지 않은 숫자' · '@call:vm:vm 시간초과(#초)' → 'AI 호출 실패(ChatGPT) — vm 시간초과(#초)'
+     * @param {string} f @returns {string} [연계] ← drawOpenErrors·cumulativeMarkdown · 시험(서버 유형 열쇠가 모두 풀리는지)
+     */
+    function familyText(f) {
+        var c = String(f || ''), m;
+        if ((m = /^shape:(land|sea)-sentences$/.exec(c))) return para(m[1]) + ' 문장 수가 ' + SHAPE.minS + '~' + SHAPE.maxS + '문장이 아님';
+        if ((m = /^shape:(land|sea)-too-long$/.exec(c))) return para(m[1]) + '이 ' + SHAPE.maxChars + '자를 넘음';
+        var fixed = { 'word:level-need': '단계 말에 「필요」를 붙임', number: '허용되지 않은 숫자(입력 자료에 없거나 (기상) 칸 숫자)', 'number:hangul': '한글 셈말이 결론·근거 줄의 수와 맞지 않음', multiplier: '입력 자료에 없는 배수', place: '입력 자료에 없는 지명',
+            level: '단계를 대상 단계보다 높여 씀', 'level-para': '대상 이름 없이 단계 말 사용 — 문단 결론 단계와 다름', 'level-last': '마지막 「따라서」 문장의 단계 말이 결론 단계와 다름', 'level-max': '문단에서 가장 높은 단계 말이 결론 단계와 다름',
+            fact: '입력 자료에 없는 말 사용', label: '자료에 없는 따옴표 단계 이름', required: '(옛 검사) 꼭 넣을 말 빠짐', '@deadline': '시간 초과 — 실행 마감에 걸려 규칙 분석으로 넘김', '@validate:': '검사 탈락(이유 없음)' };
+        if (fixed[c]) return fixed[c];
+        if (c.indexOf('@run:') === 0) return '실행 실패 — ' + c.slice(5);
+        if ((m = /^@(call|parse):([^:]*):(.*)$/.exec(c))) return stageName(m[1]) + (PROVIDER[m[2]] ? '(' + PROVIDER[m[2]] + ')' : '') + ' — ' + m[3];
+        return codeText(c);
+    }
+    /**
+     * 누적 오류 md(§11.10.48 — 처리 안 된 오류 전부). 서버 내보내기 응답({export:{id, at, groups:[{code, family, ids, count, stations, top, values, first, last}]}, errors})으로 만든다.
+     * 절: 머리(내보내기 번호·범위·건수) → 처리 완료 기록 방법(AI 작업자용 — 저장소 파일 config/station_briefing_resolved.json 에 고친 유형 번호를 적으면 머지·배포 뒤 자동 처리 완료)
+     *     → 1. 유형별 누적 요약(번호·유형·건수·관할·처음·마지막·많이 나온 값) → 2. 날짜별(날짜 → 실행 → 관할·시도·유형 번호·이유 원문·풀이) → 탈락한 AI 글(rejectedMarkdown).
+     * 예: cumulativeMarkdown({export:{id:'E20261115-221034', at:'…', groups:[{code:'G01', family:'shape:sea-sentences', ids:['e1'], count:1, stations:1, top:[['강화파출소',1]], values:[['2',1]], first, last}]}, errors:[{id:'e1', at, edition:'evening', date, stage:'validate', provider:'chatgpt', stations:['인천해양경찰서|강화파출소'], attempt:1, reason:'shape:sea-sentences-2'}]}, ms)
+     *     → '# 연안 안전 브리핑 — AI 브리핑 누적 오류(처리 완료 전 전부)\n\n- 내보내기 번호: `E20261115-221034`\n…| G01 | 해상 분석 문장 수가 3~5문장이 아님 `shape:sea-sentences` | 1 | …'
+     * @param {Object} data @param {number} nowMs @returns {string} [연계] ← drawOpenErrors [누적 md로 저장]·[누적 복사] · 시험 / → mdCell·familyText·reasonTexts·rejectedMarkdown
+     */
+    function cumulativeMarkdown(data, nowMs) {
+        var exp = (data && data.export) || {}, errs = Array.isArray(data && data.errors) ? data.errors : [], groups = Array.isArray(exp.groups) ? exp.groups : [], cell = mdCell;
+        var codesOf = {}; groups.forEach(function (g) { (g.ids || []).forEach(function (id) { (codesOf[id] = codesOf[id] || []).push(g.code); }); });
+        var ats = errs.map(function (e) { return String(e.at || ''); }).filter(Boolean).sort(), runs = {}; ats.forEach(function (a) { runs[a] = 1; });
+        var d = function (iso) { return String(iso || '').slice(0, 16).replace('T', ' '); };
+        var out = ['# 연안 안전 브리핑 — AI 브리핑 누적 오류(처리 완료 전 전부)', '',
+            '- 내보내기 번호: `' + exp.id + '`', '- 만든 시각: ' + kstStamp(nowMs, true) + ' KST',
+            '- 범위: 처리 완료 전 오류 전부(서버 보관 최대 90일) — ' + (ats.length ? ats[0].slice(0, 10) + ' ~ ' + ats[ats.length - 1].slice(0, 10) : '—'),
+            '- 건수: 오류 ' + errs.length + '건 · 유형 ' + groups.length + '개 · 실행 ' + Object.keys(runs).length + '번', '',
+            '## 처리 완료 기록 방법 — 이 md 로 코드를 고치는 AI 작업자에게', '',
+            '1. 아래 「1. 유형별 누적 요약」의 번호(G01…) 가운데 **실제로 고친 유형만** 고릅니다(고치지 못한 유형은 적지 않습니다).',
+            '2. 저장소 파일 `local_server/config/station_briefing_resolved.json` 의 `resolved` 배열 끝에 한 줄을 더해 **고친 코드와 같은 PR** 에 넣습니다(지난 줄은 지우지 않습니다):', '',
+            '```json', '{ "export": "' + exp.id + '", "groups": ["G01", "G03"], "note": "무엇을 고쳤는지 한 줄" }', '```', '',
+            '3. main 에 머지되어 배포되면 서버가 그 파일을 읽어, **이 md 에 들어 있던** 그 유형 오류를 「처리 완료」로 바꿉니다. 이 md 를 받은 뒤 새로 난 오류와 적지 않은 유형은 그대로 남습니다.',
+            '4. 번호를 잘못 적으면 관리자 → AI → AI 브리핑 「처리 안 된 오류 — 누적」 칸에 알림이 뜹니다.', '',
+            '## 1. 유형별 누적 요약', '', '| 번호 | 유형 | 건수 | 관할 | 처음 | 마지막 | 많이 나온 값 |', '|---|---|---|---|---|---|---|'];
+        groups.forEach(function (g) {
+            var top = (g.top || []).map(function (x) { return String(x[0]).replace(/(파출소|출장소)$/, '') + ' ' + x[1]; }).join(' · ') + ((g.stations || 0) > (g.top || []).length ? ' 외' : '') + ' (' + (g.stations || 0) + '곳)';
+            var vals = (g.values || []).map(function (x) { return '「' + x[0] + '」 ' + x[1]; }).join(' · ');
+            out.push('| ' + [g.code, familyText(g.family) + ' (' + g.family + ')', g.count, top, d(g.first), d(g.last), vals].map(cell).join(' | ') + ' |');
+        });
+        out.push('', '## 2. 날짜별 — 최근 날짜부터', '');
+        var byDay = {}, days = [];
+        errs.forEach(function (e) { var k = String(e.at || '').slice(0, 10) || '—'; if (!byDay[k]) { byDay[k] = {}; days.push(k); } (byDay[k][e.at] = byDay[k][e.at] || []).push(e); });
+        days.sort().reverse().forEach(function (k) {
+            var rs = byDay[k], n = Object.keys(rs).reduce(function (a, r) { return a + rs[r].length; }, 0);
+            out.push('### ' + k + ' — 오류 ' + n + '건', '');
+            Object.keys(rs).sort().reverse().forEach(function (r) {
+                var list = rs[r], e0 = list[0];
+                out.push('#### ' + d(r).slice(11) + ' 시작 · ' + (e0.stage === 'run' ? '실행 실패' : editionText(e0)) + ' — ' + list.length + '건', '', '| 관할 | 시도 | 유형 | 이유(원문) | 풀이 |', '|---|---|---|---|---|');
+                list.forEach(function (e) { out.push('| ' + [stationsText(e.stations), attemptText(e), (codesOf[e.id] || []).join(' '), e.reason, reasonTexts(e).join(' · ')].map(cell).join(' | ') + ' |'); });
+                out.push('');
+            });
+        });
+        return out.join('\n') + '\n' + rejectedMarkdown(errs, cell);
+    }
+    /**
+     * 「처리 안 된 오류 — 누적」 칸(§11.10.48) — 서버 status.errorLog 요약으로 그린다: 처리 완료 목록 알림(번호를 잘못 적음 등)·보관 상한 알림 → 처리 안 된 오류 수·유형별 목록
+     * → [누적 md로 저장]·[누적 복사](누를 때마다 서버에 내보내기를 만들어 번호가 붙는다) → 최근 내보내기(유형마다 남은 수·처리 기록, 남은 유형이 있으면 [남은 유형 모두 완료 처리]).
+     * 2026-11-15 사용자 *"md 다운받은 그 내용에 대해서 모두 완료 처리를 할 수 있도록 하여 내역이 더이상 나타나지 않도록"* · *"머지가 되면 해당 부분이 자동으로 완료 처리"* · 버튼도 「둘 다 둠」.
+     * @param {HTMLElement} body @param {Object} s - status 응답 @param {Function} refresh - 처리 완료 뒤 상태 카드를 다시 그림 @returns {void} [연계] ← drawStatus / → cumulativeMarkdown·saveMarkdown·copyText · POST /error-log/export·/error-log/exports/:id/resolve
+     */
+    function drawOpenErrors(body, s, refresh) {
+        var L = s.errorLog; if (!L) return;
+        var box = el('div', 'margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);'); box.setAttribute('data-sb-open', '');
+        box.appendChild(elc('div', 'sba-h', '처리 안 된 오류 — 누적(처리 완료 전까지 최대 ' + (L.keepDays || 90) + '일)'));
+        (L.issues || []).forEach(function (x) { var d = elc('div', 'sba-warn', '처리 완료 목록 확인 필요 — ' + (x.export ? x.export + ': ' : '') + x.problem + (x.index !== null && x.index !== undefined ? ' (resolved ' + (x.index + 1) + '번째 줄)' : '')); d.setAttribute('data-sb-open-issue', ''); box.appendChild(d); });
+        if (L.capped) box.appendChild(elc('div', 'sba-warn', '보관 상한(' + L.capped.cap + '건)을 넘어 오래된 오류 ' + L.capped.dropped + '건을 지웠습니다(' + at(L.capped.at) + ').'));
+        var head = elc('div', 'sba-sub'); head.setAttribute('data-sb-open-count', ''); box.appendChild(head);
+        var list = el('div', 'margin-top:4px;'); box.appendChild(list);
+        var acts = el('div', 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;');
+        var save = elc('button', 'sba-btn', '누적 md로 저장'); save.type = 'button'; save.setAttribute('data-sb-open-md', '');
+        var copy = elc('button', 'sba-btn', '누적 복사'); copy.type = 'button'; copy.setAttribute('data-sb-open-copy', '');
+        acts.appendChild(save); acts.appendChild(copy); box.appendChild(acts);
+        box.appendChild(el('div', 'color:#94a3b8;font-size:.72rem;margin-top:4px;line-height:1.5;', '누를 때마다 처리 안 된 오류 전부를 담고 내보내기 번호가 새로 붙습니다. 그 md 로 고친 PR 이 머지되면 고친 유형이 자동으로 처리 완료됩니다(md 안 「처리 완료 기록 방법」).'));
+        var msg = el('div', 'font-size:0.76rem;min-height:1.1em;margin-top:4px;line-height:1.5;'); msg.setAttribute('data-sb-open-msg', ''); msg.setAttribute('aria-live', 'polite'); box.appendChild(msg);
+        var view = el('div', 'margin-top:4px;'); box.appendChild(view);
+        var say = function (ok, t) { msg.style.color = ok === null ? '#94a3b8' : ok ? '#34d399' : '#fca5a5'; msg.textContent = t; };
+        if (!L.open) { head.textContent = '처리 안 된 오류가 없습니다.'; head.style.color = '#6ee7b7'; save.disabled = copy.disabled = true; }
+        else {
+            head.textContent = '처리 안 된 오류 ' + L.open + '건 · 유형 ' + (L.families || []).length + '개 · ' + at(L.since) + '부터';
+            (L.families || []).forEach(function (f) {
+                var d = elc('div', 'sba-errst'), h = elc('div', 'sba-errst-h'); d.setAttribute('data-sb-open-family', f.family);
+                h.appendChild(elc('span', 'sba-errst-name', familyText(f.family))); chip(h, f.count + '건', 'bad');
+                d.appendChild(h);
+                var names = (f.top || []).map(function (x) { return shortName(x[0]); }).join('·') + ((f.stations || 0) > (f.top || []).length ? ' 외' : '');
+                var vals = (f.values || []).slice(0, 4).map(function (x) { return '「' + x[0] + '」'; }).join(' ');
+                d.appendChild(elc('div', 'sba-sub', (f.stations || 0) + '곳 — ' + names + (vals ? ' · 값 ' + vals : '') + ' · ' + at(f.first) + ' ~ ' + at(f.last)));
+                list.appendChild(d);
+            });
+        }
+        var exportNow = async function (mode) {
+            save.disabled = copy.disabled = true; say(null, '처리 안 된 오류를 모으는 중…');
+            try {
+                var r = await call('/error-log/export', { method: 'POST' });
+                if (r.status === 404) { say(true, '처리 안 된 오류가 없습니다.'); return; }
+                if (r.status !== 200 || !r.body.export) throw new Error(r.body.error || ('HTTP ' + r.status));
+                var md = cumulativeMarkdown(r.body, Date.now()), id = r.body.export.id;
+                if (mode === 'copy') await copyText(md, say, '복사했습니다 — 내보내기 ' + id + ' · 오류 ' + r.body.errors.length + '건(마크다운). 아래 「최근 내보내기」는 [새로고침] 뒤에 보입니다.', '[누적 md로 저장]');
+                else await saveMarkdown(md, 'station_briefing_open_errors_' + id + '.md', say, view);
+            } catch (e) { console.warn('[AI 브리핑 관리] 누적 오류 내보내기 실패:', e && e.message); say(false, '누적 오류를 내보내지 못했습니다: ' + ((e && e.message) || '알 수 없음')); }
+            finally { save.disabled = copy.disabled = !L.open; }
+        };
+        save.addEventListener('click', function () { exportNow('save'); });
+        copy.addEventListener('click', function () { exportNow('copy'); });
+        // 최근 내보내기
+        var exps = Array.isArray(L.exports) ? L.exports : [];
+        if (exps.length) {
+            box.appendChild(elc('div', 'sba-k', '최근 내보내기'));
+            exps.forEach(function (x) {
+                var left = (x.groups || []).filter(function (g) { return !g.resolved && g.open > 0; });
+                var d = el('details'); d.className = 'sba-exp'; d.setAttribute('data-sb-export', x.id);
+                var sm = el('summary', '', x.id + ' · ' + at(x.at) + ' · 유형 ' + (x.groups || []).length + '개 · ' + (left.length ? '남은 유형 ' + left.length + '개' : '모두 처리 완료'));
+                d.appendChild(sm);
+                var ul = el('ul', 'margin:6px 0 0;padding-left:16px;');
+                (x.groups || []).forEach(function (g) {
+                    var how = g.resolved ? '처리 완료(' + (g.resolved.by === 'merge' ? '머지' : '버튼') + ' ' + at(g.resolved.at) + (g.resolved.note ? ' — ' + g.resolved.note : '') + ')' : g.open > 0 ? '남음 ' + g.open + '건' : '다른 내보내기로 처리 완료';
+                    ul.appendChild(el('li', '', g.code + ' ' + familyText(g.family) + ' — ' + g.count + '건 · ' + how));
+                });
+                d.appendChild(ul);
+                if (left.length) {
+                    var b = elc('button', 'sba-btn', '남은 유형 모두 완료 처리'); b.type = 'button'; b.style.marginTop = '6px'; b.setAttribute('data-sb-export-resolve', x.id);
+                    b.addEventListener('click', async function () {
+                        var n = left.reduce(function (a, g) { return a + g.open; }, 0);
+                        if (!w.confirm(x.id + ' 의 남은 유형 ' + left.length + '개(오류 ' + n + '건)를 처리 완료로 바꿉니다. 처리 안 된 오류 목록·누적 md 에 더 나오지 않습니다(되돌릴 수 없음).')) return;
+                        b.disabled = true; say(null, '처리 완료로 바꾸는 중…');
+                        try {
+                            var r = await call('/error-log/exports/' + encodeURIComponent(x.id) + '/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                            if (r.status !== 200) throw new Error(r.body.error || ('HTTP ' + r.status));
+                            refresh();
+                        } catch (e) { console.warn('[AI 브리핑 관리] 처리 완료 실패:', e && e.message); b.disabled = false; say(false, '처리 완료로 바꾸지 못했습니다: ' + ((e && e.message) || '알 수 없음')); }
+                    });
+                    d.appendChild(b);
+                }
+                box.appendChild(d);
+            });
+        }
+        body.appendChild(box);
+    }
     /** 앱 안(Capacitor 네이티브)인가. 예: 안드로이드 앱 → true · PC 브라우저 → false. @returns {boolean} [연계] ← saveMarkdown */
     function isNativeApp() { return !!(w.Capacitor && typeof w.Capacitor.isNativePlatform === 'function' && w.Capacitor.isNativePlatform()); }
     /**
@@ -783,6 +949,8 @@
     w.renderStationBriefingAdmin = renderStationBriefingAdmin;
     // 시험용(test_station_briefing.js 가 vm 으로 읽어 순수 함수만 본다 — 마크다운 이스케이프·오류 풀이·실행 묶기·관할 묶기)
     renderStationBriefingAdmin.errorsMarkdown = errorsMarkdown;
+    renderStationBriefingAdmin.cumulativeMarkdown = cumulativeMarkdown;   // §11.10.48 누적 오류 md
+    renderStationBriefingAdmin.familyText = familyText;
     renderStationBriefingAdmin.codeText = codeText;
     renderStationBriefingAdmin.reasonTexts = reasonTexts;
     renderStationBriefingAdmin.runGroups = runGroups;

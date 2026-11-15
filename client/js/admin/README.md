@@ -9,8 +9,8 @@
 |------|------|-----------|
 | `admin.js` | 통합 관리자 시스템 (인증, 대시보드, 특보 관리) | `getStoredAdminToken`, `saveAdminToken`, `clearAdminToken`, `setAdminAuthState`, `_getDeviceToken`, `renderUnifiedAiTab`, `renderAiForecastSubtab` |
 | `admin_data_status.js` | 관리자 → 점검 → 데이터 수집현황 화면(수집 목록·현재 원천 상태·오류·복구 이력) | `renderDataCollectionTab`, `renderDataCollectionList` |
-| `admin_station_briefing.js` | 관리자 → AI → 「AI 브리핑」 하위 탭 — 연안 안전 브리핑 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만(칸 이름 흰색·고른 버튼 청록+✓) · 상태 카드(실행 중/대기 알약·통계 칩) · 실행 중 진행 게이지(전체 막대 가운데 = 지금 하는 곳 · 단계 4칸 · 묶음 칩 · 관할 칩, 2.5초마다 `status?only=progress`) · 최근 3일 오류를 실행마다 드롭다운 → 관할별·시도별 한글 풀이 · [복사]·[md로 저장](고른 실행만 — 앱 안에서는 서버에 맡기고 시스템 브라우저로 내려받기 · 표 아래 「탈락한 AI 글」 절 = 검사에 떨어진 AI 글·그 관할 허용 숫자·배수, §11.10.31) · [지금 다시 만들기](409) · 관할 미리보기(`/api/admin/station-briefing/*`, 설계서 §11.10.7) · 상태 안 「관광지 자료 확인 불가」(판별 N관할 · 관광지 M곳, 0이면 「없음」, 펼치면 이름)·정시 판 소요 시간 표(최근 6회 — 분:초·공개 전/뒤·마감, §11.10.21) | `renderStationBriefingAdmin`, `drawConfig`, `drawStatus`, `drawSpotFail`, `drawEditionTimes`, `mmss`, `drawProgress`, `startPoll`, `drawRunErrors`, `runGroups`, `errorsByStation`, `codeText`, `reasonTexts`, `errorsMarkdown`, `rejectedMarkdown`, `saveMarkdown`, `drawPreview`, `nextEdition` |
-| `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 | `isAdminTestMode`, `getAdminToken`, `getTestModeParams`, `renderATMStatus`, `renderATMCollect`, `renderATMForecast` |
+| `admin_station_briefing.js` | 관리자 → AI → 「AI 브리핑」 하위 탭 — 연안 안전 브리핑 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만(칸 이름 흰색·고른 버튼 청록+✓) · 상태 카드(실행 중/대기 알약·통계 칩) · 실행 중 진행 게이지(전체 막대 가운데 = 지금 하는 곳 · 단계 4칸 · 묶음 칩 · 관할 칩, 2.5초마다 `status?only=progress`) · 최근 3일 오류를 실행마다 드롭다운 → 관할별·시도별 한글 풀이 · [복사]·[md로 저장](고른 실행만 — 앱 안에서는 서버에 맡기고 시스템 브라우저로 내려받기 · 표 아래 「탈락한 AI 글」 절 = 검사에 떨어진 AI 글·그 관할 허용 숫자·배수, §11.10.31) · [지금 다시 만들기](409) · 관할 미리보기(`/api/admin/station-briefing/*`, 설계서 §11.10.7) · 상태 안 「관광지 자료 확인 불가」(판별 N관할 · 관광지 M곳, 0이면 「없음」, 펼치면 이름)·정시 판 소요 시간 표(최근 6회 — 분:초·공개 전/뒤·마감, §11.10.21) | `renderStationBriefingAdmin`, `drawConfig`, `drawStatus`, `drawSpotFail`, `drawEditionTimes`, `mmss`, `drawProgress`, `startPoll`, `drawRunErrors`, `runGroups`, `errorsByStation`, `codeText`, `reasonTexts`, `errorsMarkdown`, `rejectedMarkdown`, `saveMarkdown`, `drawPreview`, `nextEdition`, `drawOpenErrors`, `cumulativeMarkdown`, `familyText`, `copyText`, `doneMark`(§11.10.48 누적 오류 — 처리 안 된 오류 칸·누적 md·처리 완료) |
+| `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 · 「저장소」 탭(서버 디스크·Cloudinary·GCS — 아래 「저장소」 절) | `isAdminTestMode`, `getAdminToken`, `getTestModeParams`, `renderATMStatus`, `renderATMCollect`, `renderATMForecast` |
 | `admin_kakao_relay.js` | 관리자 → 특보 관리 → 「카톡 중계」 탭(옛 특보 예측 자리) — 중계 기기별 마지막 신호·끄기/켜기/지우기, 앱 특보현황(MMIS) 대조 기록, 받은 특보 글과 구역별 줄(새 특보·놓친 글·이미 봄) | `renderKakaoRelayAdminTab`, `deviceCard`, `messageCard`, `checks`, `deviceAction` |
 | `admin_location_status.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `readPrefFirst`, `readPos`, `fmtAgo`, `fmtAbs`, `esc`, `seaLandOf` |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI | `escapeHTML`, `_reportDisplayName`, `loadReportList`, `renderReportList`, `_loadCommentReportList`, `_renderCommentReportList` |
@@ -48,6 +48,21 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 원천 상태에 「**상세**」 줄이 붙으면 수집기가 남긴 실패·제외 사유다(2026-10-15, 현재 실시간 선박 교통만). 예: 「API HTTP 503 · 웹 invalid response(접속 페이지에 보안 토큰 없음)」, 「API 2줄: 밀집도 범위 밖(척수는 유지) 1, 격자번호 형식 1」. 고정 문구와 숫자뿐이라 키·주소는 나오지 않는다.
 
 원천 목록에는 2026-10-15부터 **해구별 시정 예측**(`visibility`)이 포함된다. imgList 확인이 3회 연속 실패하면 「수집 실패」, 마지막 래스터 수집이 36시간을 넘으면 「자료 오래됨」으로 보이며, 「마지막 정상 수집」에 마지막 수집 시각이 나온다. 경계와 근거는 `00_docs/operations/risk-forecast-error-history.md`.
+
+## 저장소 탭 (2026-11-15 — 종전 「외부 저장소」)
+
+운영 서버 디스크가 꽉 차(ENOSPC — `df` 974M 중 947M) 23:00 판 브리핑을 저장하지 못한 뒤 사용자 결정(원문): 「통합 관리자 센터에 "외부 저장소"라는 곳이 있는데, 그 탭 이름을 저장소로 바꾸고 그 안에서 종류별로 내용을 나눠서 표출할 수 있도록 하자. 또한 80%가 넘으면 푸시 알림을 보내는 방안은 좋은 것 같아. 그리고 80%가 넘으면 그 저장소라는 곳에 n 뱃지가 붙도록 해줘.」
+
+| 칸 | 무엇 | 그리는 함수 / 서버 |
+|---|---|---|
+| 서버 디스크(Fly 볼륨 `local_server/data`) | 사용량 게이지(df 와 같은 식 — 사용 ÷ (사용 + 남은 양)) · 남은 공간 · 디스크 크기 · 마지막 자동 점검(없음·실패도 그대로) · 80% 넘음 알림 기록 · **종류별 크기**(data/ 바로 아래 이름으로 나눔 — 펼치면 폴더·파일 이름·크기·파일 수) | `admin_collect.js _renderDiskCard` → `GET /api/admin/disk-usage`(`services/disk_usage.js snapshot`) |
+| 클라우드 저장소 | 종전 그대로 Cloudinary · Google Cloud Storage 카드 | `_renderCloudinaryCard`·`_renderGcsCard` → `GET /api/admin/storage-usage` |
+
+- **80% 알림**: 운영 서버(`FLY_ALLOC_ID`)가 10분마다 디스크를 재어(`disk_usage.start` — 첫 점검은 켜진 뒤 1분) 80% 이상이면 관리자 푸시 1통. 사용률은 df 와 같은 식·같은 올림(정수 %). 75% 아래로 내려갔다가 다시 넘을 때만 또 보낸다(79~81% 를 오가며 반복되지 않게). **실제로 1대 이상에 전달됐을 때만** 「보냄」으로 적고(`data/disk_usage_alert.json` — 서버가 다시 켜져도 같은 상태로는 다시 안 보냄), 전달 0건·실패면 화면에 「보내지 못함」을 띄우고 다음 점검 때 다시 보낸다. 스테이징(앱 이름이 `seagnal-server` 가 아님)은 제목 앞에 `[앱 이름]`.
+- **독립 검토(2026-11-15)** 반영: 보내기 전에 「보냄」을 적던 것(한 통도 안 갔는데 화면은 「보냄」) · 반올림(79.x% 에서 df 는 80%) · 못 잴 때 뱃지 꺼짐 · 게이지 분모와 「크기」 칸이 달랐던 것 · 상태 파일 바로 덮어쓰기 · 분류 이름 누락.
+- **N 뱃지**: 관리자 센터를 열 때 `refreshStorageBadge` 가 `GET /api/admin/disk-usage?only=summary`(폴더를 훑지 않는 가벼운 응답)로 80% 이상이면 「저장소」 탭에 공지사항과 같은 `.new-badge` 「N」. 디스크를 재지 못했을 때도 켠다(「80% 미만」과 「못 잼」이 같아 보이지 않게 — 탭 안에 사유). 탭을 열어 다시 재면 그 값으로 다시 맞춘다.
+- **종류 나누기는 이름 기준**(`disk_usage.CATEGORIES`)이라 틀릴 수 있다 — 그래서 종류 아래에 실제 이름을 함께 보인다. 모르는 이름은 「기타」.
+- 검사: `test_disk_usage`(사용률 식 · 알림 규칙 표 행마다 · 재기 실패 · 다시 켜진 서버 · 종류별 크기 · 화면 카드 · N 뱃지 · 탭 이름).
 
 ## 점검 → 데이터 수집현황 (2026-10-15)
 
