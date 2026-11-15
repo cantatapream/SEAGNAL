@@ -368,6 +368,8 @@ function normConfig(c) {
     //   실제 적용은 codexBridge.withRequest 가 한다 — NRYA_CODEX_SECRET 이 없는 서버에서는 둘 다 효과 없음.
     answerModel: codexBridge.ANSWER_MODELS.includes(c.answerModel) ? c.answerModel : codexBridge.DEFAULT_MODEL,
     codexForUsers: c.codexForUsers === true,
+    // [ChatGPT 실행 위치 · 2026-11-15 사용자 요청] 'fly'(Fly 서버 안 작업자, 기본) | 'vm'. 고른 쪽 작업자에만 일감을 준다(codexBridge.setRunner).
+    codexRunner: codexBridge.RUNNERS.includes(c.codexRunner) ? c.codexRunner : codexBridge.DEFAULT_RUNNER,
     // [답변 AI 사슬 · 2026-11-02 사용자 확정] 시도 순서(기본 업스테이지→클로드1→클로드2→ChatGPT→Gemini).
     //   적용 범위는 codexForUsers·관리자 토큰과 같다(codexBridge.withRequest ④).
     providerOrder: llmChain.normOrder(c.providerOrder),
@@ -407,7 +409,7 @@ router.get('/api/legal/config', (req, res) => {
   const isAdmin = adminAuth.verifyToken(req.get('X-Admin-Token') || '');
   const cfg = normConfig(readConfig());
   // exposure 는 저장값이 아니라 **지금 시각의 유효 노출**로 덮는다(자동 노출 시간) — 옛 앱도 이 칸만 읽으면 맞게 보인다.
-  res.json(Object.assign({ ok: true }, cfg, exposureSchedule.describe(cfg, exposureSchedule.now()), isAdmin ? { providerStatus: llmChain.status(cfg.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL) } : {}));
+  res.json(Object.assign({ ok: true }, cfg, exposureSchedule.describe(cfg, exposureSchedule.now()), isAdmin ? { providerStatus: llmChain.status(cfg.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL), codexWorkers: codexBridge.workers() } : {}));
 });
 router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   const b = req.body || {};
@@ -415,6 +417,8 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     return res.status(400).json({ ok: false, error: 'exposure는 off|admin|user' });
   if (b.answerModel !== undefined && !codexBridge.ANSWER_MODELS.includes(b.answerModel))
     return res.status(400).json({ ok: false, error: `answerModel은 ${codexBridge.ANSWER_MODELS.join('|')}` });
+  if (b.codexRunner !== undefined && !codexBridge.RUNNERS.includes(b.codexRunner))
+    return res.status(400).json({ ok: false, error: `codexRunner는 ${codexBridge.RUNNERS.join('|')}` });
   if (b.providerOrder !== undefined && !llmChain.isValidOrder(b.providerOrder))
     return res.status(400).json({ ok: false, error: `providerOrder는 ${llmChain.PROVIDERS.join(',')} 다섯 개를 한 번씩 담은 배열` });
   if (b.providerRemoved !== undefined && !llmChain.isValidRemoved(b.providerRemoved))
@@ -448,6 +452,7 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
     // 자동이 켜져 있을 때 손으로 바꾼 노출은 「다음 경계 시각까지만」 — 바꾼 시각을 남긴다(exposureSchedule.describe 가 판정).
     if (b.exposure !== undefined) { cur.exposure = b.exposure; cur.exposureManualAt = cur.exposureAuto ? new Date(nowMs).toISOString() : null; }
     if (b.answerModel !== undefined) cur.answerModel = b.answerModel;
+    if (b.codexRunner !== undefined) cur.codexRunner = b.codexRunner;
     if (b.providerOrder !== undefined) cur.providerOrder = b.providerOrder.slice();
     if (b.providerRemoved !== undefined) cur.providerRemoved = b.providerRemoved.slice();
     if (b.providerModels !== undefined) cur.providerModels = Object.assign({}, cur.providerModels, b.providerModels);   // 보낸 칸만 바꾼다
@@ -457,7 +462,8 @@ router.post('/api/legal/config', adminAuth.requireAdminToken, (req, res) => {
   }).then(v => {
     if (v && v._bad) return res.status(400).json({ ok: false, error: v._bad });
     const n = normConfig(v);
-    res.json(Object.assign({ ok: true }, n, exposureSchedule.describe(n, exposureSchedule.now()), { providerStatus: llmChain.status(n.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL) }));
+    codexBridge.setRunner(n.codexRunner);
+    res.json(Object.assign({ ok: true }, n, exposureSchedule.describe(n, exposureSchedule.now()), { providerStatus: llmChain.status(n.providerRemoved), providerChoices: llmChain.choices(legalRetriever.ANSWER_MODEL), codexWorkers: codexBridge.workers() }));
   }).catch(e => res.status(500).json({ ok: false, error: String(e.message || e) }));
 });
 
@@ -1810,7 +1816,11 @@ async function synthesizeChainRows(answerText, rows) {
 //   확인 후보 하나를 더 보여주는 데만 쓴다(답을 대신 짓지 않는다).
 // [Codex 개발자 모드] VM 작업자 창구 — NRYA_CODEX_SECRET 이 없으면 404, 열쇠가 틀리면 401.
 //   설계: services/codex_client.design.md · 작업자: scripts/codex_worker.js
-router.post('/api/legal/codex/poll', codexBridge.poll);
+// 서버 시작 때 한 번 — 저장된 실행 위치(codexRunner)를 바로 반영(첫 poll 전에도 workerAlive 가 맞는 쪽을 보게).
+try { codexBridge.setRunner(normConfig(readConfig()).codexRunner); } catch (_) { /* 설정을 못 읽으면 기본 fly */ }
+// 작업자가 올 때마다 실행 위치를 설정 파일에서 다시 읽는다(서버 재시작·다른 경로로 설정이 바뀌어도 25초 안에 따라간다).
+//   ⚠저장값에 codexRunner 가 있을 때만 바꾼다 — 설정 파일이 깨지면 readConfig 가 던지지 않고 빈 값을 주므로, normConfig 기본값(fly)으로 조용히 되돌아가지 않게.
+router.post('/api/legal/codex/poll', (req, res) => { try { const raw = readConfig(); if (raw && raw.codexRunner) codexBridge.setRunner(raw.codexRunner); } catch (_) { /* 설정을 못 읽으면 지금 값 유지 */ } codexBridge.poll(req, res); });
 router.post('/api/legal/codex/result', codexBridge.result);
 
 // codexBridge.withRequest: 서버 스위치·관리자 센터 설정(answerModel·codexForUsers)·관리자 토큰·llm 을 보고

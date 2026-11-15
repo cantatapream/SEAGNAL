@@ -38,7 +38,7 @@
  *                    POST /api/legal/config {exposureAuto|exposureOnAt|exposureOffAt} (자동 노출 시간 켜기/끄기·노출/비노출 시각 KST, 관리자 — 「AI 모델」 탭.
  *                                                               GET 의 exposure 는 서버가 지금 시각으로 계산한 유효값 ·
  *                                                               exposureNext.inMs 뒤에 다시 읽어 경계 시각에 FAB 가 바뀐다)
- *                    POST /api/legal/config {codexForUsers|providerOrder|providerRemoved|providerReset|providerModels} (일반 사용자 적용·AI 순서·AI 삭제/다시 추가·소진 해제·칸별 모델/노력, 관리자 — 「AI 모델」 탭)
+ *                    POST /api/legal/config {codexForUsers|codexRunner|providerOrder|providerRemoved|providerReset|providerModels} (일반 사용자 적용·AI 순서·AI 삭제/다시 추가·소진 해제·칸별 모델/노력, 관리자 — 「AI 모델」 탭)
  *                    GET  /api/legal/reviews?status=pending    (검증 대기 목록)
  *                    GET  /api/legal/reviews/stats             (대기/승인 카운트)
  *                    POST /api/legal/reviews/:id/approve        (승인/반려 + 교정값)
@@ -179,6 +179,9 @@
   // [Codex 모드 · 2026-09-27 사용자 확정] serverCodexForUsers: 답변 AI 순서를 일반 사용자에게도 적용할지(기본 꺼짐, 서버 /api/legal/config 가 진실의 원천).
   //   (옛 「답변 AI 모델」 버튼줄·answerModel 은 2026-11-02 사용자 요청으로 화면에서 뺐다 — ChatGPT 칸 모델은 providerModels.chatgpt 로 고른다.)
   var serverCodexForUsers = false;
+  // [ChatGPT 실행 위치 · 2026-11-15 사용자 요청] 'fly'(Fly 서버 안 작업자, 기본) | 'vm'. serverCodexWorkers = 위치별 연결 상태(서버 codexWorkers, 관리자만).
+  var serverCodexRunner = 'fly';
+  var serverCodexWorkers = null;
   // [답변 AI 사슬 · 2026-11-02 사용자 확정] 시도 순서와 각 AI 상태(키 유무·크레딧 소진·오늘 호출 수).
   //   서버 /api/legal/config 의 providerOrder·providerStatus 가 진실의 원천.
   var serverProviderOrder = ['upstage', 'claude2', 'claude1', 'chatgpt', 'gemini'];
@@ -492,6 +495,14 @@
                 '</div>' +
                 '<div class="nrya-seg-help" id="nryaUsersHelp"></div>' +
               '</div>' +
+              '<div class="nrya-card">' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>ChatGPT 실행 위치</div>' +
+                '<div class="nrya-seg" id="nryaRunnerSeg">' +
+                  '<button data-runner="fly">Fly 서버(기본)</button>' +
+                  '<button data-runner="vm">VM</button>' +
+                '</div>' +
+                '<div class="nrya-seg-help" id="nryaRunnerHelp"></div>' +
+              '</div>' +
               // [질문 수 · 2026-11-02 사용자 확정] 날짜별 집계(KST·1년 보관·질문 내용은 저장 안 함). 평소 접힘 — 머리를 누르면 펼친다(원문 방 .nrya-acc 모양 재사용).
               '<div class="nrya-acc" id="nryaAskAcc">' +
                 '<div class="nrya-acc-head" id="nryaAskHead"><div style="flex:1;min-width:0">' +
@@ -721,6 +732,11 @@
         'ChatGPT 칸은 관리자 정액제 계정이라 OpenAI 약관상 계정 공유에 해당해 계정이 정지될 수 있고, 사용량 한도가 빨리 찰 수 있습니다.\n켜시겠습니까?')) return;
       setAnswerConfig({ codexForUsers: on });
     });
+    // ChatGPT 실행 위치 — 고른 쪽 작업자에만 일감이 간다(서버 codex_bridge.setRunner). 이미 가져간 일감은 그쪽이 끝낸다.
+    root.querySelector('#nryaRunnerSeg').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-runner]'); if (!b || b.dataset.runner === serverCodexRunner) return;
+      setAnswerConfig({ codexRunner: b.dataset.runner });
+    });
     // 모델·노력 고르기 — 그 칸만 보낸다({providerModels:{claude1:{model,effort}}}). ChatGPT 칸은 노력 없이 {model}.
     root.querySelector('#nryaOrderList').addEventListener('change', function (e) {
       var sel = e.target.closest('select[data-pm]'); if (!sel) return;
@@ -774,6 +790,23 @@
     if (uh) uh.innerHTML = pre + (serverCodexForUsers
       ? '<b>켜짐</b> — 일반 사용자 질문도 위 순서(업스테이지·클로드·ChatGPT…)로 답합니다. ⚠ChatGPT 칸은 OpenAI 약관상 계정 공유 위험·사용량 한도 주의.'
       : '<b>꺼짐(기본값)</b> — 일반 사용자 질문은 Gemini 로 답합니다(위 순서는 관리자 기기에만 적용).');
+    paintRunner(pre);
+  }
+
+  /**
+   * 「ChatGPT 실행 위치」 버튼과 위치별 연결 상태를 칠한다.
+   * 예: runner 'vm' · workers {fly:true, vm:false} → VM 버튼 켜짐 + 「⚠VM 작업자 연결 없음 — ChatGPT 칸은 건너뜁니다」
+   * @param {string} pre - 서버 조회 전 표시(paintModelSeg 와 같은 것)
+   * [연계] ← paintModelSeg. 값은 GET/POST /api/legal/config 의 codexRunner·codexWorkers.
+   */
+  function paintRunner(pre) {
+    var seg = document.getElementById('nryaRunnerSeg'); if (!seg) return;
+    seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('nrya-on', x.dataset.runner === serverCodexRunner); });
+    var h = document.getElementById('nryaRunnerHelp'); if (!h) return;
+    var w = serverCodexWorkers, name = { fly: 'Fly 서버', vm: 'VM' };
+    var st = function (k) { return !w ? '?' : (w[k] ? '연결됨' : '연결 없음'); };
+    h.innerHTML = pre + '<b>' + name[serverCodexRunner] + '</b>의 ChatGPT 정액제로 답합니다. 연결 상태 — Fly 서버: ' + st('fly') + ' · VM: ' + st('vm') +
+      (w && !w[serverCodexRunner] ? '<br>⚠고른 쪽 작업자가 연결돼 있지 않아 ChatGPT 칸은 건너뜁니다(다음 AI 로 답함).' : '');
   }
 
   /**
@@ -788,7 +821,7 @@
   /**
    * 답변 AI 순서 목록을 그린다 — 줄마다 둥근 카드: 순위·이름·상태 배지·오늘 호출 수·[소진 해제]·▲▼·[삭제](Gemini 줄 없음)
    *   + 모델·노력 고르기(서버 providerChoices 안에서만. 고를 게 없으면 「선택 불가」).
-   * 상태 배지: 소진 > 쉬는 중 > 키 없음(ChatGPT 는 「건너뜀 · 서버 스위치 없음」) > 「건너뜀 · VM 미연결」(ChatGPT) > 정상
+   * 상태 배지: 소진 > 쉬는 중 > 키 없음(ChatGPT 는 「건너뜀 · 서버 스위치 없음」) > 「건너뜀 · 작업자 미연결」(ChatGPT — 고른 실행 위치의 작업자) > 정상
    *   — 사슬이 실제로 건너뛰는 조건(llm_chain.usable)과 같은 순서로 본다.
    * 목록 아래에 「삭제된 AI: ○○ [다시 추가]」.
    * 예: [1] 업스테이지 (정상) 오늘 3회·성공 3 [▲][▼][삭제] / 모델 [solar-pro4 ▾] 노력 [medium ▾]
@@ -818,7 +851,7 @@
       var badge = st.exhaustedAt ? ['bad', '소진']
         : rest ? ['rest', '쉬는 중 · ' + rest + ' KST까지']
         : st.hasKey === false ? ['off', id === 'chatgpt' ? '건너뜀 · 서버 스위치 없음' : '키 없음']
-        : id === 'chatgpt' && st.workerAlive === false ? ['off', '건너뜀 · VM 미연결']
+        : id === 'chatgpt' && st.workerAlive === false ? ['off', '건너뜀 · ' + (serverCodexRunner === 'vm' ? 'VM' : 'Fly') + ' 작업자 미연결']
         : st.id ? ['ok', '정상'] : ['off', '상태 모름'];
       return '<div class="nrya-prov">' +
         '<div class="nrya-prov-top">' +
@@ -848,7 +881,7 @@
   /**
    * AI 모델 탭의 설정(일반 사용자 스위치·순서·삭제·소진 해제·칸별 모델/노력)을 서버에 저장(관리자 전용)한다.
    * 예: setAnswerConfig({ providerModels: { claude1: { model: 'claude-opus-5-5', effort: 'high' } } }) · setAnswerConfig({ codexForUsers: false })
-   * @param {{codexForUsers?:boolean, providerOrder?:string[], providerRemoved?:string[], providerReset?:string, providerModels?:object}} patch
+   * @param {{codexForUsers?:boolean, codexRunner?:string, providerOrder?:string[], providerRemoved?:string[], providerReset?:string, providerModels?:object}} patch
    * [연계] → POST /api/legal/config. ← initModelSeg 클릭.
    */
   function setAnswerConfig(patch) {
@@ -862,6 +895,8 @@
         : (!data || !data.ok) ? ((data && data.error) || '설정 저장 실패') : '';
       if (msg) { paintModelSeg(); if (err) { err.style.display = 'block'; err.classList.remove('nrya-hidden'); err.textContent = msg; } return; }
       serverCodexForUsers = data.codexForUsers === true;
+      if (data.codexRunner) serverCodexRunner = data.codexRunner;
+      if (data.codexWorkers) serverCodexWorkers = data.codexWorkers;
       if (Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
       if (Array.isArray(data.providerRemoved)) serverProviderRemoved = data.providerRemoved;
       if (Array.isArray(data.providerStatus)) serverProviderStatus = data.providerStatus;
@@ -892,6 +927,8 @@
     }).then(function (data) {
       if (data && data.ok) applyExposure(data);   // 유효 노출 + 다음 전환 시각 재조회 예약(자동 노출 시간)
       if (data && data.ok) serverCodexForUsers = data.codexForUsers === true;
+      if (data && data.ok && data.codexRunner) serverCodexRunner = data.codexRunner;
+      if (data && data.ok && data.codexWorkers) serverCodexWorkers = data.codexWorkers;
       if (data && data.ok && Array.isArray(data.providerOrder)) serverProviderOrder = data.providerOrder;
       if (data && data.ok && Array.isArray(data.providerRemoved)) serverProviderRemoved = data.providerRemoved;
       if (data && data.ok && Array.isArray(data.providerStatus)) serverProviderStatus = data.providerStatus;

@@ -645,7 +645,7 @@ function resetExhausted(id) {
 
 /**
  * 관리자 화면용 상태 — 키 유무(값은 내보내지 않는다)·삭제 여부·소진 여부·쉼 끝 시각(ChatGPT 만, 안 쉬면 null)·오늘 호출 수
- *   · ChatGPT 칸만 workerAlive(VM 작업자가 최근 90초 안에 왔나 — 아니면 사슬이 건너뛴다, usable 과 같은 판정).
+ *   · ChatGPT 칸만 workerAlive(고른 실행 위치(Fly|VM)의 작업자가 최근 90초 안에 왔나 — 아니면 사슬이 건너뛴다, usable 과 같은 판정).
  * 예: status(['claude1']) → [{ id:'upstage', removed:false, … }, { id:'claude1', removed:true, … }, …]
  * @param {string[]} [removed] - 설정의 providerRemoved(normConfig 결과). 없으면 아무것도 삭제 안 된 것으로.
  * @returns {Array<{id,name,hasKey,removed,exhaustedAt,restUntil,today,workerAlive?}>}
@@ -685,4 +685,23 @@ async function callClaudeDirect(id, args, pick) {
   return fail(r.error, r.creditOut);
 }
 
-module.exports = { callClaudeDirect, PROVIDERS, DEFAULT_ORDER, NAMES, CLAUDE_MODEL, UPSTAGE_MODEL, CHOICES, normOrder, isValidOrder, normRemoved, isValidRemoved, isValidModels, normModels, choices, active, callRaw, callStream, isValidReset, resetExhausted, status };
+/**
+ * 사슬을 거치지 않고 업스테이지·클로드 칸 하나를 직접 부른다(키 없음·소진이면 바로 실패). 소진 판정·표시는 사슬과 같다.
+ * 예: callDirect('upstage', { contents: '…', config: { responseMimeType: 'application/json' } }, { model: 'solar-pro4', effort: 'medium' })
+ * @param {'claude1'|'claude2'|'upstage'} id @param {{contents:any, config?:object}} args @param {{model:string, effort:string}} [pick]
+ * @returns {Promise<{success:boolean, response:{text:string}|null, error:string|null, creditOut?:boolean, keyLabel:string}>}
+ * [연계] ← services/bulletin_ai.js(AI 특보 분석 순서) / → callClaudeDirect·callUpstage(이 파일)
+ */
+async function callDirect(id, args, pick) {
+  if (id === 'claude1' || id === 'claude2') return callClaudeDirect(id, args, pick);
+  const fail = (error, creditOut) => ({ success: false, response: null, error, creditOut: !!creditOut, keyLabel: id });
+  if (id !== 'upstage') return fail('직접 부를 수 없는 칸: ' + id);
+  if (!KEYS.upstage) return fail(NAMES.upstage + ' 키 없음');
+  if (exhausted.upstage) return fail(NAMES.upstage + ' 크레딧 소진 상태(관리자 센터에서 소진 해제 필요)', true);
+  const r = await callUpstage(KEYS.upstage, args, pick || { model: CHOICES.upstage.model, effort: CHOICES.upstage.effort });
+  if (r.success) return { success: true, response: { text: r.text }, error: null, keyLabel: 'upstage' };
+  if (r.creditOut) markExhausted('upstage', r.error);
+  return fail(r.error, r.creditOut);
+}
+
+module.exports = { callDirect, isValidPick, callClaudeDirect, PROVIDERS, DEFAULT_ORDER, NAMES, CLAUDE_MODEL, UPSTAGE_MODEL, CHOICES, normOrder, isValidOrder, normRemoved, isValidRemoved, isValidModels, normModels, choices, active, callRaw, callStream, isValidReset, resetExhausted, status };

@@ -449,13 +449,9 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
             : `현재 시각은 ${new Date().getFullYear()}년 ${new Date().getMonth() + 1}월이다. 이를 기준으로 날짜를 유추하라.`;
 
         const prompt = `${SYSTEM_INSTRUCTION}\n\n${referenceDateInfo}\n\n분석할 통보문:\n${textForAI}`;
-        // [공용 클라이언트] 기본 키가 429일 때 자동으로 백업 키로 폴백
-        const callResult = await geminiClient.callGemini({
-            model: 'gemini-2.5-flash-lite',
-            contents: prompt,
-            config: { responseMimeType: 'application/json' },
-            caller: 'AI Parser'
-        });
+        // [AI 특보 분석 · 2026-11-15 사용자 확정] 관리자 센터 AI 탭 「AI 특보 분석」 ① 특보 통보문 읽기 순서대로 시도한다
+        //   (services/bulletin_ai.js). 기본 순서는 Gemini(gemini-2.5-flash-lite) 1순위 = 종전과 같다. 반환 모양은 callGemini 와 같다.
+        const callResult = await require('./services/bulletin_ai').call('read', prompt, { caller: 'AI Parser' });
         if (!callResult.success) {
             // 예외 경로를 catch 블록과 통일하기 위해 throw하여 하단 catch에서 일관 처리
             const err = new Error(callResult.error || 'Gemini 호출 실패');
@@ -463,7 +459,7 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
             throw err;
         }
         const text = callResult.text;
-        console.log(`[AI Parser] Gemini 응답 수신 완료 (${callResult.keyLabel} 키 사용), 길이: ${text.length}`);
+        console.log(`[AI Parser] AI 응답 수신 완료 (${callResult.keyLabel} 사용), 길이: ${text.length}`);
 
         // [AI 응답 파싱] 새 형식(객체 {hasContent, events})과 구 형식(배열 []) 모두 지원
         // - 새 형식: { hasContent: true/false, events: [{...}] }
