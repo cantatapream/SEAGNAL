@@ -771,7 +771,8 @@
             '4. 번호를 잘못 적으면 관리자 → AI → AI 브리핑 「처리 안 된 오류 — 누적」 칸에 알림이 뜹니다.', '',
             '## 1. 유형별 누적 요약', '', '| 번호 | 유형 | 건수 | 관할 | 처음 | 마지막 | 많이 나온 값 |', '|---|---|---|---|---|---|---|'];
         groups.forEach(function (g) {
-            var top = (g.top || []).map(function (x) { return String(x[0]).replace(/(파출소|출장소)$/, '') + ' ' + x[1]; }).join(' · ') + ((g.stations || 0) > (g.top || []).length ? ' 외' : '') + ' (' + (g.stations || 0) + '곳)';
+            // 관할 없는 오류(실행 실패 등)만 든 유형은 「—」(종전 「 (0곳)」 — 2026-11-16 운영 md E20261116-003253 G10)
+            var top = !g.stations ? '—' : (g.top || []).map(function (x) { return String(x[0]).replace(/(파출소|출장소)$/, '') + ' ' + x[1]; }).join(' · ') + ((g.stations || 0) > (g.top || []).length ? ' 외' : '') + ' (' + g.stations + '곳)';
             var vals = (g.values || []).map(function (x) { return '「' + x[0] + '」 ' + x[1]; }).join(' · ');
             out.push('| ' + [g.code, familyText(g.family) + ' (' + g.family + ')', g.count, top, d(g.first), d(g.last), vals].map(cell).join(' | ') + ' |');
         });
