@@ -129,7 +129,7 @@
             '[data-sb-admin] .sba-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;white-space:nowrap;}',
             '[data-sb-admin] .sba-btn:hover{background:rgba(255,255,255,.1);}',
             '[data-sb-admin] .sba-btn.primary{background:linear-gradient(135deg,#3b82f6,#2563eb);border-color:transparent;}',
-            '[data-sb-admin] .sba-btn.icon{padding:4px 11px;font-size:1.05rem;line-height:1.2;}',
+            '[data-sb-admin] .sba-btn.icon{padding:7px 11px;}',
             '[data-sb-admin] .sba-btn:disabled{opacity:.45;cursor:default;}',
             '[data-sb-admin] .sba-btn:focus-visible,[data-sb-admin] .sba-seg>button:focus-visible,[data-sb-admin] .sba-sw:focus-visible,[data-sb-admin] .sba-acc:focus-visible,[data-sb-admin] .sba-link:focus-visible{outline:2px solid #fbbf24;outline-offset:2px;}',
             // 세그먼트(특보 관리 탭 .admin-sub-tabs 꼴) — 설정의 노출 범위·묶음 단위, 오류 카드의 탭 2개
@@ -257,7 +257,7 @@
         var tw = el('div', 'min-width:0;'); tw.appendChild(elc('h2', 'sba-title', '연안 안전 브리핑')); tw.appendChild(elc('div', 'sba-title-sub', '07:30 · 17:30 · 23:00 공개 · 각 40분 전부터 만들기')); head.appendChild(tw);
         var acts = elc('div', 'sba-head-acts'); head.appendChild(acts);
         var pill = elc('span', 'sba-state idle'); pill.setAttribute('data-sb-running', ''); pill.appendChild(elc('span', 'sba-dot')); pill.appendChild(document.createTextNode('불러오는 중')); acts.appendChild(pill);
-        var re = elc('button', 'sba-btn icon', '↻'); re.type = 'button'; re.title = '새로고침'; re.setAttribute('aria-label', '새로고침'); re.setAttribute('data-sb-refresh', ''); acts.appendChild(re);
+        var re = elc('button', 'sba-btn icon'), rei = el('i'); rei.className = 'fa-solid fa-rotate-right'; rei.setAttribute('aria-hidden', 'true'); re.appendChild(rei); re.type = 'button'; re.title = '새로고침'; re.setAttribute('aria-label', '새로고침'); re.setAttribute('data-sb-refresh', ''); acts.appendChild(re);
         var run = elc('button', 'sba-btn primary', '지금 다시 만들기'); run.type = 'button'; run.setAttribute('data-sb-run', ''); acts.appendChild(run);
         var msg = el('div', 'font-size:0.78rem;line-height:1.5;margin:-6px 0 12px;'); msg.setAttribute('data-sb-run-msg', ''); msg.setAttribute('aria-live', 'polite'); msg.hidden = true; host.appendChild(msg);
         // v = 상태가 그리는 칸들(새로고침·진행 끝 때 한꺼번에 다시 그림)
