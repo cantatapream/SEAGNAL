@@ -250,3 +250,7 @@ local_server/data/beach_weather/
 # 앱에서 다운로드할 확정 보고서 두 개는 원고와 함께 배포한다
 !local_server/config/coastal_safety/accident_analysis/v3/public/해상_위험지수_산출근거.pdf
 !local_server/config/coastal_safety/accident_analysis/v3/public/연안_위험지수_산출근거.pdf
+
+# Codex(ChatGPT) 로그인 파일 — Fly 볼륨에만 있어야 한다(services/codex_inproc.js)
+local_server/data/.codex/
+local_server/data/.codex_test/
