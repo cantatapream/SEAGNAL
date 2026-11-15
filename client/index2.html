@@ -3127,6 +3127,12 @@
                         style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
                         <img src="./assets/sun_cloud_icon.png" alt="Weather Icon" style="width: 24px; height: 24px;">
                         기상정보
+                        <!-- [관리자만] 특보현황 출처 전환 [MMIS][통보문] — forecast/alerts/alert_source_toggle.js (2026-11-16, 기본 숨김) -->
+                        <span id="alert-source-toggle" style="display:none;align-items:center;gap:4px;margin-left:6px;font-size:0.72rem;font-weight:500">
+                            <button type="button" data-src="mmis" onclick="window.setAlertSource('mmis')" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(96,165,250,0.6);color:#93c5fd;background:transparent;cursor:pointer">MMIS</button>
+                            <button type="button" data-src="bulletin" onclick="window.setAlertSource('bulletin')" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(52,211,153,0.6);color:#6ee7b7;background:transparent;cursor:pointer">통보문</button>
+                            <span class="ast-note" style="color:#9aa7b4;font-size:0.68rem"></span>
+                        </span>
                     </h2>
 
                     <!-- 기상청 바로가기 위젯 [New] -->
@@ -5593,6 +5599,8 @@
     <script src="js/shared/utils/accident_codes.js?v=Kin001InfoNone_20260831"></script>
     <script src="js/shared/utils/utils.js?v=Usage_20260910"></script>
     <script src="js/forecast/alerts/data.js"></script>
+    <!-- [관리자만] 메인 특보현황 출처 전환 [MMIS][통보문] (data.js 다음 — flattenAlertsData 사용, 2026-11-16) -->
+    <script src="js/forecast/alerts/alert_source_toggle.js"></script>
     <script src="js/forecast/alerts/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
     <script src="js/forecast/alerts/render.js?v=NoTutorial_20261115"></script>
     <script src="js/forecast/alerts/alert_history.js"></script>

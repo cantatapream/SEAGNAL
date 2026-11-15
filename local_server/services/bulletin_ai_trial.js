@@ -116,9 +116,17 @@ function resolveZones(expr, ctx = {}) {
             else if (/(연안바다|평수구역)$/.test(base)) { for (let k = 0; k < base.length - 3 && !hit.length; k++) { const m = allKids.filter((c) => c.replace(/\s+/g, '').endsWith(base.slice(k)) && c.startsWith(base.slice(0, 2))); if (m.length === 1) hit = m; } }
             hit = hit.filter((c) => PARENTS.has(c) || allKids.includes(c));
             // ④ 줄인 부모 이름 「동부앞바다」(= 제주도동부앞바다) — 관할 안에서 끝이 맞는 부모가 하나일 때만
-            if (!hit.length && /(앞바다|먼바다)$/.test(base) && ctx.office) { const m = (officeZones()[ctx.office] || []).filter((p) => p.endsWith(base) && p !== base); if (m.length === 1) hit = m; }
+            //   여럿이면 관할 안 그 이름으로 끝나는 부모 전부 — 광주청 「서해앞바다」 = 전남북부·중부·남부서해앞바다(2026 7-16호, 규칙 목록과 같다). 4글자 미만(「앞바다」)은 너무 넓어 안 한다.
+            if (!hit.length && /(앞바다|먼바다)$/.test(base) && base.length >= 4 && ctx.office) { const m = (officeZones()[ctx.office] || []).filter((p) => p.endsWith(base) && p !== base); if (m.length) hit = m; }
             // ④ 별칭(공식 목록에 없는 이름 — 2026 참고사항): 「제주도바깥먼바다」 = 제주도남쪽바깥먼바다(제주 먼바다 중 바깥은 하나뿐)
             if (!hit.length && ALIAS[base]) hit = ALIAS[base];
+            // ④ 큰 묶음 줄임(2025 참고사항): 「동해바깥먼바다」 「동해남부바깥먼바다」 「서해먼바다」 「경기앞바다」 — 관할 안에서 줄기(동해·동해남부·경기…)가 들어 있고
+            //   끝(바깥먼바다·안쪽먼바다·먼바다·앞바다)이 같은 부모 전부. 줄기 2글자 이상만.
+            if (!hit.length && ctx.office) {
+                const suf = ['바깥먼바다', '안쪽먼바다', '먼바다', '앞바다'].find((x) => base.endsWith(x));
+                const stem = suf ? base.slice(0, -suf.length).replace(/[·.]/g, '') : '';
+                if (suf && stem.length >= 2) { const m = (officeZones()[ctx.office] || []).filter((p) => p.endsWith(suf) && stem.split('').every((ch) => p.includes(ch)) && p.includes(stem.slice(0, 2))); if (m.length) hit = m; }
+            }
             // ④ 부모 없이 자식 이름만(「남동연안바다」 「동부평수구역」) — 그 관서 관할 부모의 자식 중 끝이 맞는 것이 **하나**일 때만
             if (!hit.length && /(연안바다|평수구역)$/.test(base) && ctx.office) {
                 const own = officeZones()[ctx.office] || [];
@@ -175,7 +183,7 @@ function checkOne(item, parsed) {
     if (!parsed || !Array.isArray(parsed.사건)) return res;
     res.꼴 = true;
     const r = item.rule || {};
-    const gone = new Set([...(r.빠짐 || []).map((x) => x.해역), ...(r.시간지나끝남 || []).filter((x) => !x.다시나옴.length).map((x) => x.해역), ...(r.직전빠짐 || []).map((x) => x.해역)]);   // 직전빠짐: 문장이 한 통보문 늦게 오는 경우
+    const gone = new Set([...(r.빠짐 || []).map((x) => x.해역), ...(r.시간지나끝남 || []).filter((x) => !x.다시나옴.length).map((x) => x.해역), ...(r.직전빠짐 || []).map((x) => x.해역), ...(r.타관서빠짐 || []).map((x) => x.해역)]);   // 직전빠짐: 문장이 한 통보문 늦게 옴 · 타관서빠짐: 이웃 관서 해역 취소를 함께 적음
     const moved = new Set([...(r.시간바뀜 || []).map((x) => x.해역), ...(r.시간지나끝남 || []).filter((x) => x.다시나옴.length).map((x) => x.해역)]);
     const added = new Set((r.새로 || []).map((x) => x.해역));
     const told = new Set();
@@ -196,7 +204,7 @@ function checkOne(item, parsed) {
             까닭: hit.length === zones.length ? '규칙 목록 비교와 같다' : `규칙 목록 비교에 없는 해역: ${zones.filter((z) => !base.has(z)).join(', ')}` });
     }
     // 규칙은 바뀌었다고 하는데 AI 가 말하지 않은 해역(참고사항에 안 적혔을 수도 있다 — 참고로만)
-    const prevOnly = new Set((r.직전빠짐 || []).map((x) => x.해역));   // 앞 통보문에서 빠진 것은 이 통보문이 말할 의무가 없다
+    const prevOnly = new Set([...(r.직전빠짐 || []), ...(r.타관서빠짐 || [])].map((x) => x.해역));   // 앞 통보문에서 빠진 것은 이 통보문이 말할 의무가 없다
     for (const z of new Set([...gone, ...moved])) if (!told.has(z) && !(prevOnly.has(z) && !(r.빠짐 || []).some((x) => x.해역 === z))) res.규칙만.push(z);
     return res;
 }
@@ -277,12 +285,12 @@ function reportMarkdown(rows, st) {
         if (!r) return '- (규칙 결과 없음)';
         if (r.항목) return r.항목.map((i) => `- ${i.종류} ${i.동작}: ${i.해역.join(', ') || '(바다 해역 없음)'}`).join('\n') || '- (변경 항목 없음)';
         const f = (a, g) => (a || []).map(g).join(' · ') || '없음';
-        return [`- 빠짐(취소로 보임): ${f(r.빠짐, (x) => x.해역 + ' ' + x.시간창)}`, ...(r.직전빠짐 && r.직전빠짐.length ? [`- 바로 앞 예비 통보문(3시간 안)에서 빠짐: ${f(r.직전빠짐, (x) => x.해역 + ' ' + x.시간창)}`] : []), `- 시간 바뀜: ${f(r.시간바뀜, (x) => x.해역 + ' ' + x.전 + ' → ' + x.후.join('/'))}`,
+        return [`- 빠짐(취소로 보임): ${f(r.빠짐, (x) => x.해역 + ' ' + x.시간창)}`, ...(r.직전빠짐 && r.직전빠짐.length ? [`- 바로 앞 예비 통보문(3시간 안)에서 빠짐: ${f(r.직전빠짐, (x) => x.해역 + ' ' + x.시간창)}`] : []), ...(r.타관서빠짐 && r.타관서빠짐.length ? [`- 같은 무렵(±30분) 다른 관서가 뺀 해역: ${f(r.타관서빠짐, (x) => x.관서 + ' ' + x.해역 + ' ' + x.시간창)}`] : []), `- 시간 바뀜: ${f(r.시간바뀜, (x) => x.해역 + ' ' + x.전 + ' → ' + x.후.join('/'))}`,
             `- 새로: ${f(r.새로, (x) => x.해역 + ' ' + x.시간창)}`, `- 시간 지나 끝남: ${f(r.시간지나끝남, (x) => x.해역 + ' ' + x.시간창 + (x.다시나옴.length ? ' → 다시 ' + x.다시나옴.join('/') : ''))}`].join('\n');
     };
     const out = [
         '# 통보문 참고사항 AI 시험 결과' + (st.label ? ` — ${st.label}` : ''), '',
-        '서버의 ChatGPT 에 지난 통보문 참고사항(표본)을 읽혀 정해진 칸으로 옮기게 하고, 규칙(직전 예비 목록과 비교 등)과 맞춰 본 결과입니다. 실제 특보현황·푸시에는 반영하지 않았습니다.', '',
+        `${st.provider === 'claude2' ? '관리자 센터 「클로드 키2」' : '서버의 ChatGPT'} 에 지난 통보문 참고사항(표본)을 읽혀 정해진 칸으로 옮기게 하고, 규칙(직전 예비 목록과 비교 등)과 맞춰 본 결과입니다. 실제 특보현황·푸시에는 반영하지 않았습니다.`, '',
         '## 요약', '',
         `- 진행: ${st.done}/${st.total}건 끝남 · 실패 ${st.failed}건 · 상태 ${st.status}${st.stopReason ? ' (' + st.stopReason + ')' : ''}`,
         `- AI 가 뽑은 사건: ${ev}개 · 근거 문장이 원문에 그대로 있음 ${okEv}개 · **원문에 없음 ${badEv}개**(AI 가 문장을 바꾸거나 지어냄)`,
@@ -322,6 +330,9 @@ const TRIALS = {
     '1': { label: '1차 · ChatGPT · 표본 200건', provider: 'chatgpt', sampleFile: SAMPLE_FILE, file: STATE_FILE },
     '2': { label: '2차 · 클로드 키2 · 2026년 새 표현 161건', provider: 'claude2',
         sampleFile: path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample_2.json'), file: path.join(__dirname, '..', 'data', 'bulletin_ai_trial_2.json') },
+    // 3차 = 2025년 중 1·2차에 없던 표현(사용자 2026-11-16 「25년도 내용도 볼 필요가 있지 않을까」)
+    '3': { label: '3차 · 클로드 키2 · 2025년 새 표현 224건', provider: 'claude2',
+        sampleFile: path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample_3.json'), file: path.join(__dirname, '..', 'data', 'bulletin_ai_trial_3.json') },
 };
 const reals = {};
 const getReal = (id) => { const k = TRIALS[id] ? id : '1'; return (reals[k] = reals[k] || createTrial(TRIALS[k])); };
