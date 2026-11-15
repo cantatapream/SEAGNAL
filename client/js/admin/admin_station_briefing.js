@@ -143,6 +143,13 @@
             '[data-sb-admin] .sba-errst ol{margin:4px 0 0;padding-left:0;list-style:none;}',
             '[data-sb-admin] .sba-errst li{color:#e2e8f0;font-size:.78rem;line-height:1.5;padding:3px 0 3px 10px;border-left:2px solid rgba(248,113,113,.5);margin-top:3px;word-break:keep-all;overflow-wrap:anywhere;}',
             '[data-sb-admin] .sba-errst li b{color:#fda4af;font-weight:700;}',
+            // §11.10.48 처리 완료된 오류(실행별 화면 — 흐리게 남김) · 누적 칸 알림
+            '[data-sb-admin] .sba-errst li.done{opacity:.55;border-left-color:rgba(16,185,129,.55);}',
+            '[data-sb-admin] .sba-errst li .sba-done{display:inline-block;margin-left:6px;padding:0 6px;border-radius:5px;font-size:.66rem;background:rgba(16,185,129,.18);color:#6ee7b7;}',
+            '[data-sb-admin] .sba-warn{color:#fbbf24;font-size:.76rem;line-height:1.5;margin:4px 0;}',
+            '[data-sb-admin] .sba-exp{border-top:1px solid rgba(255,255,255,.08);padding:8px 0 4px;}',
+            '[data-sb-admin] .sba-exp summary{cursor:pointer;color:#e2e8f0;font-size:.8rem;line-height:1.45;}',
+            '[data-sb-admin] .sba-exp li{color:#cbd5e1;font-size:.74rem;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere;}',
             // §11.10.21 관광지 자료 확인 불가(펼침 목록) · 정시 판 소요 표(360px 에서 넘치지 않게 고정 칸·줄바꿈)
             '[data-sb-admin] .sba-sf summary{cursor:pointer;color:#fcd34d;font-size:.84rem;font-weight:600;line-height:1.45;}',
             '[data-sb-admin] .sba-sf ul{margin:4px 0 0;padding-left:16px;}',
@@ -288,6 +295,7 @@
         if (Array.isArray(s.days) && s.days.length) sec('저장된 날짜').appendChild(elc('div', 'sba-sub', s.days.join(', ')));
         drawEditionTimes(sec('정시 판 소요 시간 — 최근 ' + EDITION_ROWS + '회까지', 'data-sb-edition-times'), s);
         drawRunErrors(body, s);
+        drawOpenErrors(body, s, function () { drawStatus(box); });
     }
     /** 밀리초 → 「분:초」. 예: 754000 → '12:34' · 59000 → '0:59' · 숫자 아님 → '—'. @param {number} ms @returns {string} [연계] ← drawEditionTimes */
     function mmss(ms) { if (!Number.isFinite(ms) || ms < 0) return '—'; var t = Math.round(ms / 1000); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
@@ -556,6 +564,11 @@
     /** 드롭다운 한 줄. 예: {at:'2026-10-17T18:31:00+09:00',kind:'manual',errors:[22]} → '10-17 18:31 · 관리자 즉시 실행 · 오류 22'. @param {Object} g @returns {string} [연계] ← drawRunErrors */
     function runOptionText(g) { return at(g.at) + ' · ' + (KIND[g.kind] || g.kind || '실행') + ' · 오류 ' + g.errors.length; }
     /**
+     * 마크다운 표 칸 하나 — 줄바꿈은 빈칸으로, 「\」「|」「`」「<」「>」는 앞에 역슬래시(글자 그대로 보이게 — 2026-10-17 독립 검토 11). 빈 값은 「—」.
+     * 예: mdCell('a|b') → 'a\\|b' · mdCell(null) → '—'. @param {*} v @returns {string} [연계] ← errorsMarkdown·cumulativeMarkdown·rejectedMarkdown(넘겨받음)
+     */
+    function mdCell(v) { return String(v === undefined || v === null || v === '' ? '—' : v).replace(/\r?\n/g, ' ').replace(/([\\|`<>])/g, '\\$1'); }
+    /**
      * 오류 목록을 마크다운으로(복사·md 저장이 같은 글을 쓴다). 표 칸의 줄바꿈은 빈칸으로, 「\」「|」「`」「<」「>」는 앞에 역슬래시를 붙여 글자 그대로 보이게 한다
      * (2026-10-17 독립 검토 11 — 이유 글의 `·<·> 가 마크다운 미리보기에서 코드·HTML 로 읽히지 않게 — CommonMark 문장부호 이스케이프).
      * run 을 주면(§11.10.7 — 고른 실행 하나) 제목·머리에 그 실행(시작 시각·판·방식·걸린 시간·판별 통계)을 적는다. 마지막 칸 「풀이」 = 화면과 같은 한글 풀이(reasonTexts).
@@ -566,7 +579,7 @@
      * @returns {string} [연계] ← drawRunErrors(복사·md로 저장) · 시험 test_station_briefing.js(vm) / → rejectedMarkdown
      */
     function errorsMarkdown(errs, nowMs, keep, run) {
-        var cell = function (v) { return String(v === undefined || v === null || v === '' ? '—' : v).replace(/\r?\n/g, ' ').replace(/([\\|`<>])/g, '\\$1'); };
+        var cell = mdCell;
         var head = run ? at(run.at) + ' 시작 · ' + (KIND[run.kind] || run.kind || '실행') : '최근 ' + ((keep && keep.days) || 3) + '일';
         var out = ['# 연안 안전 브리핑 — AI 브리핑 오류(' + head + ')', ''];
         if (run && run.run) {
@@ -575,7 +588,7 @@
             (r.results || []).forEach(function (x) { var st = x.stats || {}; out.push('- ' + x.date + ' 판 ' + (x.stations || 0) + '곳: AI ' + (st.ai || 0) + ' · 다시 시도 ' + (st.retried || 0) + '곳 · Gemini ' + (st.gemini || 0) + '회 · 재사용 ' + (st.reused || 0) + ' · 규칙 분석 ' + (st.template || 0) + ' · 오류 ' + (x.errors || 0)); });
         }
         out.push('- 만든 시각: ' + kstStamp(nowMs, true) + ' KST', '- 건수: ' + errs.length + '건', '', '| 시각(KST) | 판 | 단계 | 공급자 | 관할 | 이유 | 풀이 |', '|---|---|---|---|---|---|---|');
-        errs.forEach(function (e) { out.push('| ' + [String(e.at || '').slice(0, 19).replace('T', ' '), editionText(e), stageText(e), e.provider, stationsText(e.stations), e.reason, attemptText(e) + ' — ' + reasonTexts(e).join(' · ')].map(cell).join(' | ') + ' |'); });
+        errs.forEach(function (e) { out.push('| ' + [String(e.at || '').slice(0, 19).replace('T', ' '), editionText(e), stageText(e), e.provider, stationsText(e.stations), e.reason, (e.resolved ? '(처리 완료) ' : '') + attemptText(e) + ' — ' + reasonTexts(e).join(' · ')].map(cell).join(' | ') + ' |'); });
         return out.join('\n') + '\n' + rejectedMarkdown(errs, cell);
     }
     /**
@@ -666,7 +679,7 @@
                 h.appendChild(elc('span', 'sba-errst-name', ks.length ? '여러 관할 ' + ks.length + '곳' : e.stage === 'run' ? '실행 전체' : '관할 없음'));
                 if (ks.length) h.appendChild(elc('span', 'sba-sub', stationsText(ks, 8, true)));
                 d.appendChild(h);
-                var ol = el('ol'), li = el('li'); li.appendChild(el('b', '', attemptText(e))); li.appendChild(document.createTextNode(' — ' + reasonTexts(e).join(' · '))); ol.appendChild(li); d.appendChild(ol);
+                var ol = el('ol'), li = el('li'); li.appendChild(el('b', '', attemptText(e))); li.appendChild(document.createTextNode(' — ' + reasonTexts(e).join(' · '))); doneMark(li, e); ol.appendChild(li); d.appendChild(ol);
                 view.appendChild(d);
             });
             parts.stations.forEach(function (st) {
@@ -677,26 +690,16 @@
                 var ol = el('ol');
                 st.errors.forEach(function (e) {
                     var li = el('li'); li.appendChild(el('b', '', attemptText(e))); li.appendChild(document.createTextNode(' — ' + reasonTexts(e).join(' · '))); li.title = e.reason || '';   // 원래 열쇠는 md·누르고 있기(title)에만
-                    ol.appendChild(li);
+                    doneMark(li, e); ol.appendChild(li);
                 });
                 d.appendChild(ol); view.appendChild(d);
             });
         }
         sel.addEventListener('change', function () { ui.run = cur().at; paint(); });
         paint();
-        copy.addEventListener('click', async function () {
-            var g = cur(), md = errorsMarkdown(g.errors, Date.now(), keep, g);
-            try {
-                if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') throw new Error('이 브라우저(또는 http 주소)에서는 클립보드를 쓸 수 없음');
-                await navigator.clipboard.writeText(md); say(true, '복사했습니다 — ' + at(g.at) + ' 실행 오류 ' + g.errors.length + '건(마크다운).');
-            } catch (e) {
-                console.warn('[AI 브리핑 관리] 오류 목록 클립보드 복사 실패 — 옛 방식으로 다시 시도:', e && e.message);
-                // 옛 방식(execCommand) — 권한이 막힌 기기용. 그것도 안 되면 [md로 저장]을 안내한다.
-                var ta = document.createElement('textarea'); ta.value = md; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0;'; document.body.appendChild(ta); ta.select();
-                var ok = false; try { ok = document.execCommand('copy'); } catch (e2) { console.warn('[AI 브리핑 관리] execCommand 복사 실패:', e2 && e2.message); }
-                ta.remove();
-                say(ok, ok ? '복사했습니다 — ' + at(g.at) + ' 실행 오류 ' + g.errors.length + '건(마크다운).' : '복사하지 못했습니다(' + ((e && e.message) || '클립보드 사용 불가') + ') — [md로 저장]으로 파일을 받으세요.');
-            }
+        copy.addEventListener('click', function () {
+            var g = cur();
+            copyText(errorsMarkdown(g.errors, Date.now(), keep, g), say, '복사했습니다 — ' + at(g.at) + ' 실행 오류 ' + g.errors.length + '건(마크다운).', '[md로 저장]');
         });
         save.addEventListener('click', function () {
             var g = cur(), now = Date.now();
@@ -721,7 +724,8 @@
             if (!Browser || typeof Browser.open !== 'function') { showText(view, text); say(false, '이 앱 화면에서는 파일로 바로 저장할 수 없습니다(앱이 내려받기를 받지 않음) — 아래 글을 길게 눌러 전체 선택 → 복사하거나 [복사]를 쓰세요.'); return; }
             say(null, '파일을 준비하는 중…');
             try {
-                var r = await call('/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, text: text }) });
+                // 글 그대로(text/markdown) 보낸다 — 누적 md(§11.10.48)는 5MB 를 넘을 수 있는데 JSON 은 서버 전역 상한 5MB 에 막힌다
+                var r = await call('/download?name=' + encodeURIComponent(name), { method: 'POST', headers: { 'Content-Type': 'text/markdown; charset=utf-8' }, body: text });
                 if (r.status !== 200 || !r.body.path) throw new Error(r.body.error || ('HTTP ' + r.status));
                 await Browser.open({ url: w.location.origin + r.body.path });
                 say(true, '휴대폰 브라우저를 열어 파일(' + name + ')을 내려받게 했습니다 — 받은 파일은 「다운로드」 폴더(알림창)에 있습니다. 브라우저에서 받지 못했으면 [복사]를 쓰세요(링크는 5분·한 번만 유효).');

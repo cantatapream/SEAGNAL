@@ -6,13 +6,16 @@
  *         연안·해상 분석 문단만 AI 로 쓴 뒤(station_briefing_ai — VM 최대 3번 → Gemini → 규칙 분석) 날짜별 파일에 저장한다. 공개 시각 전의 판은 pending 에 두고 그동안 화면에는 이전 판을 준다(visibleOf).
  *         관리자 설정(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만)과 노출 판정(관리자 기기에만 등)도 여기서 정한다.
  *         관리자 「AI 브리핑」 탭용으로 실행 중 진행(메모리 progress — 단계·묶음·관할, progressNow)과 최근 3일 실행 기록(state.runs — 실행마다 오류 드롭다운)도 준다(§11.10.7). 오류 기록에는 검사에 떨어진 AI 글·그 관할 허용 숫자·배수도 함께 3일 남긴다(§11.10.31 — 글 실린 것은 최근 1,000건, trimRejected).
+ *         오류는 누적 오류 기록(station_briefing_errlog — data/station_briefing/error_log.json)에도 번호를 붙여 처리 완료 전까지 최대 90일 남기고, 관리자가 처리 안 된 오류 전부를 누적 md 로 내보내며(유형 번호 G01…)
+ *         유형별로 처리 완료한다 — 관리자 버튼, 또는 그 md 로 고친 PR 에 함께 넣은 config/station_briefing_resolved.json 이 머지·배포된 뒤 서버가 읽어 자동으로(§11.10.48).
  *         실행 요약에는 관광지 자료 확인 불가(spotFailOf — 실행 기록은 수만, 마지막 실행·마지막 정시 판(lastEdition)은 관할·관광지 이름까지)도 남긴다(§11.10.21 — 관리자 「상태」 상자·정시 판 소요 표).
  *         자동 실행(정시 판·특보 변경 판)이 끝날 때마다 관리자 휴대폰에 결과 푸시 1통(오류가 없어도), 던지면 「분석 실패」 1통(§11.10.8 — 관리자 즉시 실행은 보내지 않음).
  *         해역 기상은 소해구 예보(§11.10.19): 모으기 전에 저장된 소해구 판(smallzone_forecast — 대해구 예보가 새 판을 받을 때 미리 받아 둠)을 찾기 함수로 넘기고,
  *         저장 판이 대해구 예보 판보다 옛것이면 그 실행에서 필요한 대해구만 한 번 받아 본다(실패·시간 초과여도 계속 — 그 해역만 대해구 예보로).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js
+ *  - 사용하는 파일 : services/station_briefing_rules.js · station_briefing_ai.js · station_briefing_inputs.js · station_briefing_errlog.js(누적 오류 기록 — 유형·내보내기·처리 완료, §11.10.48)
+ *                    · config/station_briefing_resolved.json(머지로 들어오는 처리 완료 목록 — 읽기만, forDefault 가 넘김)
  *                    · routes/risk_forecast.js(stores — 위험예측 화면과 같은 risk_store·marine_fusion 저장소를 함께 쓴다, 메모리 중복 방지)
  *                    · services/codex_bridge.js(VM) · services/gemini_client.js(Gemini) — 실제 어댑터는 처음 부를 때 require
  *                    · data/weather_alerts.json(특보 변경 감지 — 크롤러 결과, 읽기만) · data/station_briefing/(설정·상태·날짜별 브리핑·대표 위치 캐시)
@@ -29,7 +32,7 @@
  */
 'use strict';
 const fs = require('fs'), path = require('path');
-const R = require('./station_briefing_rules'), AI = require('./station_briefing_ai'), I = require('./station_briefing_inputs');
+const R = require('./station_briefing_rules'), AI = require('./station_briefing_ai'), I = require('./station_briefing_inputs'), EL = require('./station_briefing_errlog');
 const DATA = path.join(__dirname, '..', 'data');
 // 관리자 「AI 브리핑」 오류 목록 보관 — 2026-10-17 사용자 결정(원문 *"ai탭에서 최근 오류 관련, 모든 최근 3일치의 오류가 다 남아있기를 바라고 이를 복사, md파일로 저장 할 수 있도록 기능도 추가 필요."*).
 // 최근 3일치(KST 오늘·어제·그제 — 오류 `at` 의 KST 날짜)는 모두 남기고 그보다 오래된 것만 지운다. 종전 200개 상한(slice(-200))은 나쁜 실행 몇 번(관할 97곳 × 검증·재시도)만으로 하루 치를 밀어냈다.
@@ -405,11 +408,12 @@ function smallFinder(sz, zb) { return sz && zb ? (major) => { const p = sz.peek(
  *                     ·smallZone(소해구 예보 — peek·getStatus·prefetch, 기본 null = 모든 해역 대해구 예보. forDefault 가 smallzone_forecast 를 넘긴다 — 시험은 가짜. §11.10.19)
  *                     ·smallZoneWaitMs(소해구 다시 받기 기다림 상한 — 기본 SMALLZONE_WAIT_MS)
  *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 기본 null = 「최근 14일 선박 동향」 줄 없음. forDefault 가 forDir() 를 넘긴다 — 시험은 가짜·주입. §11.10.23)
- * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·stationList·stationAreas (+ 시험용 _pushResult)
+ *                     ·resolvedFile(머지로 들어온 처리 완료 목록 config/station_briefing_resolved.json — 기본 null = 읽지 않음, forDefault 가 저장소 파일을 넘긴다. §11.10.48)
+ * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·exportErrors·resolveExport·stationList·stationAreas (+ 시험용 _pushResult·_log)
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
-    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush, smallZone = null, smallZoneWaitMs = SMALLZONE_WAIT_MS, traffic = null } = {}) {
+    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush, smallZone = null, smallZoneWaitMs = SMALLZONE_WAIT_MS, traffic = null, resolvedFile = null } = {}) {
     let timer = null, running = null, stationsCache = null, areasCache = null, ad = adapters;
     // 실행 번호(§11.10.8 — 관리자 푸시는 실행 하나에 1통). run 이 하나씩 늘려 결과에 싣고, pushResult 는 이미 보낸 번호 이하를 다시 보내지 않는다(같은 결과를 두 번 처리해도 1통).
     let runSeq = 0, pushedSeq = 0; const pushedKey = {};
@@ -429,9 +433,52 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     }
     /** 상태 파일(만든 판·특보 서명·관할별 특보구역·마지막 실행·오류·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← run·tick·status */
     function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, lastEdition: s.lastEdition || null, runs: s.runs || [], errors: s.errors || [], errorsCapped: s.errorsCapped || null, alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
-    /** 오류를 보관 규칙(최근 3일·안전 상한)대로 더한다. 상한으로 지운 것이 있으면 errorsCapped 에 시각·수. @param {object} s - state() @param {object[]} add @param {number} now [연계] ← run·reportFailure → keepErrors */
-    function addErrors(s, add, now) { const k = keepErrors(s.errors.concat(add), now); s.errors = k.errors; if (k.dropped) s.errorsCapped = { at: R.isoKst(now), dropped: k.dropped, cap: ERROR_HARD_CAP }; else s.errorsCapped = freshCapped(s.errorsCapped, now); }
+    /**
+     * 오류를 더한다 — 먼저 누적 오류 기록(error_log.json — 처리 완료 전까지 최대 90일, §11.10.48)에 번호를 붙여 넣고, 같은 번호가 붙은 것을
+     * 상태 파일의 최근 3일 목록(실행별 화면 — 보관 규칙 최근 3일·안전 상한)에도 넣는다. 상한으로 지운 것이 있으면 errorsCapped 에 시각·수.
+     * 상태 파일은 1분 점검마다 여러 번 통째로 읽으므로 90일치를 거기 두지 않는다(누적은 관리자 화면·내보내기 때만 읽는 따로 된 파일).
+     * @param {object} s - state()(부르는 쪽이 저장) @param {object[]} add @param {number} now [연계] ← run·reportFailure → EL.append·keepErrors
+     */
+    function addErrors(s, add, now) {
+        const lg = loadLog(s, false), withId = EL.append(lg, add, now); saveLog(lg);
+        const k = keepErrors(s.errors.concat(withId), now); s.errors = k.errors; if (k.dropped) s.errorsCapped = { at: R.isoKst(now), dropped: k.dropped, cap: ERROR_HARD_CAP }; else s.errorsCapped = freshCapped(s.errorsCapped, now);
+    }
     function saveState(s) { I.writeJson(p('state.json'), s); }
+    const LOG_FILE = 'error_log.json';
+    /**
+     * 누적 오류 기록을 읽는다(§11.10.48). 파일이 없으면(이 기능 전 — 처음 한 번) 상태 파일에 남아 있는 최근 3일 오류부터 번호를 붙여 옮기고,
+     * 상태 파일 쪽 오류에도 같은 번호를 단다(실행별 화면이 「처리 완료」를 표시하려고). 파일이 깨져 읽히지 않으면 지우지 않고 이름을 바꿔 두고 새로 시작한다(손으로 되살릴 수 있게).
+     * @param {object} s - state() — 옮길 때 그 오류에 번호를 단다 @param {boolean} save - 옮겼을 때 상태 파일을 여기서 저장할지(addErrors 는 부르는 쪽이 저장)
+     * @returns {object} 기록(EL.normLog) [연계] ← addErrors·status·exportErrors·resolveExport·applyResolvedOnce
+     */
+    function loadLog(s, save) {
+        const f = p(LOG_FILE), raw = I.readJson(f);
+        if (raw) return EL.normLog(raw);
+        if (fs.existsSync(f)) { const bad = p('error_log.broken-' + R.isoKst(clock()).slice(0, 19).replace(/[-:]/g, '') + '.json'); try { fs.renameSync(f, bad); } catch (_) { /* 그 사이 지워짐 */ } console.error('[station_briefing] 누적 오류 기록을 읽지 못해 ' + path.basename(bad) + ' 로 옮기고 새로 시작'); }
+        const lg = EL.emptyLog(), st = s || state(), old = st.errors.filter((e) => e && !e.id);
+        if (old.length) { const ided = EL.append(lg, old, clock()); let i = 0; st.errors = st.errors.map((e) => (e && !e.id ? ided[i++] : e)); if (save) saveState(st); }
+        saveLog(lg); return lg;
+    }
+    function saveLog(lg) { I.writeJson(p(LOG_FILE), lg); }
+    // 머지로 들어온 처리 완료 목록(resolvedFile)을 적용한 마지막 결과 — 맞지 않는 줄(issues)은 관리자 화면이 알린다.
+    let repoIssues = [];
+    /**
+     * 저장소의 처리 완료 목록(config/station_briefing_resolved.json — AI 가 고친 PR 에 함께 넣는 파일)을 누적 기록에 적용한다(§11.10.48 — 사용자 *"머지가 되면 해당 부분이 자동으로 완료 처리"*).
+     * 머지 → main 배포(deploy.yml) → 서버가 다시 켜진 뒤 첫 점검(tick)·관리자 상태·내보내기 때 부른다. 이미 처리한 유형은 건너뛰므로 여러 번 불러도 같다.
+     * 파일이 없거나 깨졌으면 기록은 그대로 두고 issues 에 한 줄(조용히 지나가지 않게).
+     * @param {object} lg - 고친다(바뀌면 저장) @returns {object} lg [연계] ← tick(서버가 켜진 뒤 한 번)·status·exportErrors → EL.applyRepo
+     */
+    function applyResolved(lg) {
+        if (!resolvedFile) return lg;
+        let entries = [];
+        try { const j = JSON.parse(fs.readFileSync(resolvedFile, 'utf8')); entries = j && Array.isArray(j.resolved) ? j.resolved : null; }
+        catch (e) { repoIssues = [{ index: null, export: null, problem: '처리 완료 목록 파일을 읽지 못함 — ' + String((e && e.code) || (e && e.message) || e).slice(0, 80) }]; return lg; }
+        if (!entries) { repoIssues = [{ index: null, export: null, problem: '처리 완료 목록 파일에 resolved 배열이 없음' }]; return lg; }
+        const r = EL.applyRepo(lg, entries, clock()); repoIssues = r.issues;
+        if (r.changed) { saveLog(lg); console.log('[station_briefing] 머지된 처리 완료 목록 적용'); }
+        return lg;
+    }
+    let repoApplied = false;
     /** 관리자 오류현황에 지금 상태를 남긴다(결정 6). 기록 실패는 브리핑 결과를 바꾸지 않는다. @returns {void} [연계] ← run·reportFailure → historyRow·errorHistory.recordCollector */
     function recordHistory() { if (!errorHistory) return; try { errorHistory.recordCollector(HISTORY_SOURCE, historyRow(state(), clock())); } catch (_) { console.warn('[station_briefing] 오류현황 기록 실패'); } }
     /**
@@ -608,6 +655,8 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      */
     async function tick() {
         if (running) return { busy: true };
+        // 서버가 켜진 뒤 첫 점검 — 머지로 들어온 처리 완료 목록 적용(§11.10.48). 실패해도 브리핑 점검은 계속한다.
+        if (!repoApplied) { repoApplied = true; try { applyResolved(loadLog(state(), true)); } catch (e) { console.error('[station_briefing] 처리 완료 목록 적용 실패:', e && e.message); } }
         const now = clock(), out = {};
         const st = state(), due = R.dueEdition(now, st.done);
         if (due) {
@@ -674,16 +723,39 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         return { date: wanted, briefing: null, fallback: false, ...(pd ? { nextExpectedAt: pd.publishAt } : {}) };
     }
     /**
-     * 관리자 상태(설정·마지막 실행·최근 3일 오류 전부(최근 것부터 — 2026-10-17 결정)·보관 규칙·상한으로 지운 기록·있는 날짜·실행 중·실행 실패 백오프·특보 변경 대기).
-     * @returns {object} [연계] ← routes GET status·POST run(실행 중이면 409) · admin_station_briefing.js(오류 목록·복사·md 저장)
+     * 관리자 상태(설정·마지막 실행·최근 3일 오류 전부(최근 것부터 — 2026-10-17 결정)·보관 규칙·상한으로 지운 기록·있는 날짜·실행 중·실행 실패 백오프·특보 변경 대기
+     * · 누적 오류 요약 errorLog(처리 안 된 오류 — 유형별 수·최근 내보내기·처리 완료 목록 알림, §11.10.48)). 최근 3일 오류 중 모든 유형이 처리 완료된 것은 resolved:true.
+     * @returns {object} [연계] ← routes GET status·POST run(실행 중이면 409) · admin_station_briefing.js(오류 목록·복사·md 저장·누적 칸)
      */
     function status() {
-        const s = state(); let days = []; try { days = fs.readdirSync(dir).map((f) => (f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/) || [])[1]).filter(Boolean).sort(); } catch (_) { /* 폴더 없음 */ }
+        const s = state(), lg = applyResolved(loadLog(s, true)), closed = new Set(lg.errors.filter((e) => !EL.isOpen(e)).map((e) => e.id)); let days = []; try { days = fs.readdirSync(dir).map((f) => (f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/) || [])[1]).filter(Boolean).sort(); } catch (_) { /* 폴더 없음 */ }
         // 공개 대기(§11.10.4) — 날짜 파일마다 아직 공개 시각이 안 된 판 수·공개 시각(관리자 상태 「공개 예정」)
         const now = clock(), pending = [];
         for (const d of days) { const dd = readDay(d), at = {}; for (const b of Object.values((dd && dd.pending) || {})) if (Date.parse(b.publishAt) > now) at[b.publishAt] = (at[b.publishAt] || 0) + 1; for (const [pa, n] of Object.entries(at)) pending.push({ date: d, publishAt: pa, stations: n }); }
         // lastEdition = 마지막 정시 판 실행(관광지 확인 불가 이름 목록 — §11.10.21) · runDeadlineMs = 한 실행 AI 마감(정시 판 소요 표의 「마감」 설명)
-        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, lastEdition: s.lastEdition, runDeadlineMs, runs: keepRuns(s.runs, now).reverse(), progress: running ? progress : null, done: s.done, pending, errors: keepErrors(s.errors, clock()).errors.reverse(), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorsCapped: freshCapped(s.errorsCapped, clock()), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
+        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, lastEdition: s.lastEdition, runDeadlineMs, runs: keepRuns(s.runs, now).reverse(), progress: running ? progress : null, done: s.done, pending, errors: keepErrors(s.errors, clock()).errors.reverse().map((e) => (e.id && closed.has(e.id) ? { ...e, resolved: true } : e)), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorLog: EL.summary(lg, now, repoIssues), errorsCapped: freshCapped(s.errorsCapped, clock()), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
+    }
+    /**
+     * 누적 md 내보내기(§11.10.48) — 처리 안 된 오류 전부와 유형 번호(G01…)를 돌려주고, 그 내보내기를 기록에 남긴다(나중에 머지·버튼으로 「이 md 에 들어 있던 것」만 처리 완료하려고).
+     * 처리 안 된 오류가 없으면 null.
+     * 예: exportErrors() → {export:{id:'E20261115-221034', at, groups:[{code:'G01', family, ids, count, stations, top, values, sample, first, last}]}, errors:[오래된 것부터 — text·allowed 포함]}
+     * @returns {object|null} [연계] ← routes POST /error-log/export → 관리자 화면 cumulativeMarkdown
+     */
+    function exportErrors() {
+        const lg = applyResolved(loadLog(state(), true)), r = EL.exportOpen(lg, clock());
+        if (!r) return null;
+        saveLog(lg);
+        return { export: { id: r.exp.id, at: r.exp.at, groups: r.exp.groups.map((g, i) => ({ ...r.stats[i], code: g.code })) }, errors: r.errors };
+    }
+    /**
+     * 관리자 버튼으로 내보내기 하나의 유형을 처리 완료(§11.10.48 — 머지 자동 처리와 별개, 사용자 「둘 다 둠」). codes 를 안 주면 그 내보내기의 남은 유형 전부.
+     * 예: resolveExport('E20261115-221034') → {ok:true, resolved:['G02','G03'], already:['G01'], unknown:[]} · 없는 번호 → {ok:false, reason:'not-found'}
+     * @param {string} id @param {string[]|null} codes @param {string} note @returns {object} [연계] ← routes POST /error-log/exports/:id/resolve → EL.resolve
+     */
+    function resolveExport(id, codes, note) {
+        const lg = loadLog(state(), true), r = EL.resolve(lg, String(id || ''), Array.isArray(codes) ? codes : null, 'manual', note, clock());
+        if (r.resolved.length) saveLog(lg);
+        return r;
     }
     /** 관할 목록(화면 설정용 — 폴리곤 없이). @returns {object[]} [연계] ← routes GET stations */
     function stationList() { const loc = I.readJson(p('locations.json'))?.stations || {}; return stations().map((s) => ({ key: s.key, name: s.name, office: s.office, region: s.region, seaOnly: s.seaOnly, location: loc[s.key]?.status === 'ok' ? { lat: loc[s.key].lat, lon: loc[s.key].lon, estimated: false } : { estimated: true } })); }
@@ -698,7 +770,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * @returns {object} [연계] ← routes GET status?only=progress
      */
     function progressNow() { return { running: !!running, progress: running ? progress : null }; }
-    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
+    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, exportErrors, resolveExport, _log: () => loadLog(state(), true), progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
 }
 let def = null;
 /**
@@ -709,7 +781,7 @@ let def = null;
 function forDefault() {
     if (def) return def;
     const { stores } = require('../routes/risk_forecast');
-    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast'), traffic: require('./sea_traffic_profile').forDir() });
+    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast'), traffic: require('./sea_traffic_profile').forDir(), resolvedFile: path.join(__dirname, '..', 'config', 'station_briefing_resolved.json') });
     return def;
 }
 
