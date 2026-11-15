@@ -295,6 +295,7 @@ function createTrial({ ai, sample, sampleFile = SAMPLE_FILE, file = STATE_FILE, 
  * @returns {string}
  * [연계] ← routes/bulletin_watch GET /api/admin/bulletin-ai-trial/report.md
  */
+const PROVIDER_NAME = { upstage: '업스테이지', claude1: '클로드 키1', claude2: '클로드 키2', chatgpt: 'ChatGPT', gemini: 'Gemini' };
 function reportMarkdown(rows, st) {
     const done = rows.filter((x) => x.rec && x.rec.ok);
     const checks = done.map((x) => Object.assign({ x }, checkOne(x.item, x.rec.parsed)));
@@ -309,8 +310,10 @@ function reportMarkdown(rows, st) {
     };
     const out = [
         '# 통보문 참고사항 AI 시험 결과' + (st.label ? ` — ${st.label}` : ''), '',
-        `${st.provider === 'claude2' ? '관리자 센터 「클로드 키2」' : '서버의 ChatGPT'} 에 지난 통보문 참고사항(표본)을 읽혀 정해진 칸으로 옮기게 하고, 규칙(직전 예비 목록과 비교 등)과 맞춰 본 결과입니다. 실제 특보현황·푸시에는 반영하지 않았습니다.`, '',
+        `${st.provider === 'claude2' ? '관리자 센터 「클로드 키2」' : st.provider === 'config' ? '관리자 센터 「AI 모델 설정」의 ② 참고사항 해석 순서(1순위가 실패하면 다음 순위)' : '서버의 ChatGPT'} 에 지난 통보문 참고사항(표본)을 읽혀 정해진 칸으로 옮기게 하고, 규칙(직전 예비 목록과 비교 등)과 맞춰 본 결과입니다. 실제 특보현황·푸시에는 반영하지 않았습니다.`, '',
         '## 요약', '',
+        // 설정한 순서(4차)면 몇 순위 AI 가 몇 건 답했는지 — 시험 결과 기록(rec.provider)에서 센다
+        ...(st.provider === 'config' ? [`- 답한 AI: ${Object.entries(done.reduce((m, x) => { const k = x.rec.provider || '모름'; m[k] = (m[k] || 0) + 1; return m; }, {})).map(([k, v]) => `${PROVIDER_NAME[k] || k} ${v}건`).join(' · ') || '없음'}`] : []),
         `- 진행: ${st.done}/${st.total}건 끝남 · 실패 ${st.failed}건 · 상태 ${st.status}${st.stopReason ? ' (' + st.stopReason + ')' : ''}`,
         `- AI 가 뽑은 사건: ${ev}개 · 근거 문장이 원문에 그대로 있음 ${okEv}개 · **원문에 없음 ${badEv}개**(AI 가 문장을 바꾸거나 지어냄)`,
         `- 판정: ${Object.entries(cnt).map(([k, v]) => `${k} ${v}`).join(' · ') || '없음'}`,
@@ -325,7 +328,7 @@ function reportMarkdown(rows, st) {
         if (!rec) { out.push('**AI**: 아직 안 함', ''); continue; }
         if (!rec.ok) { out.push(`**AI**: 실패 — ${rec.error}`, ''); continue; }
         const c = checkOne(item, rec.parsed);
-        out.push(`**AI 해석** (${Math.round(rec.ms / 1000)}초) — ${rec.parsed.요약 || ''}`, '');
+        out.push(`**AI 해석** (${Math.round(rec.ms / 1000)}초${rec.provider ? ' · ' + (PROVIDER_NAME[rec.provider] || rec.provider) : ''}) — ${rec.parsed.요약 || ''}`, '');
         if (!rec.parsed.사건.length) out.push('- (사건 없음)');
         rec.parsed.사건.forEach((e, i) => { const p = c.판정[i] || {}; out.push(`- [${e.종류}] 「${e.해역표현}」 ${e.시간_전 || ''}${e.시간_후 ? ' → ' + e.시간_후 : ''} — **${p.판정 || ''}**${p.까닭 ? ' (' + p.까닭 + ')' : ''}${norm(item.참고사항).includes(norm(e.근거문장)) ? '' : ' ⚠근거 문장이 원문에 없음'}`); });
         if (c.규칙만.length) out.push(`- (규칙은 바뀌었는데 AI 가 말하지 않은 해역: ${c.규칙만.join(', ')})`);

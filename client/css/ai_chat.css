@@ -199,6 +199,45 @@
 .nrya-console .nrya-prov-fixed{color:var(--nrya-text-sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .nrya-console .nrya-prov-gone{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:4px 2px 0; font-size:12px; color:var(--nrya-text-sub)}
 .nrya-console .nrya-prov-gone-it{display:inline-flex; align-items:center; gap:5px}
+
+/* 「AI 모델 설정」 탭의 「AI 챗봇 모델」(renderModelSettingsInto 가 .nrya-modelset 을 붙인다, 2026-11-16 사용자 요청)
+   — 바로 아래 「AI 특보 분석」(admin_bulletin_ai.js drawFeature 인라인 스타일)과 같은 모양: 바깥 배경 상자 없음,
+   카드 rgba(15,23,42,.6)·#1e293b·12px, 줄은 한 줄(#0b1220·8px), 순위 청록 숫자, 작은 select·버튼.
+   마크업은 그대로 두고(이벤트 data-* 유지) 2행 줄을 display:contents 로 펴서 order 로 순서만 맞춘다.
+   이 클래스 안으로만 범위를 좁혀 AI 챗봇 콘솔의 다른 화면은 바뀌지 않는다. */
+.nrya-console.nrya-modelset{background:none; font-family:inherit; font-size:inherit; line-height:1.4; border-radius:0}
+.nrya-modelset .nrya-app{max-width:none; padding-bottom:0}
+.nrya-modelset .nrya-panel{padding:0}
+.nrya-modelset .nrya-card{background:rgba(15,23,42,0.6); border:1px solid #1e293b; border-radius:12px; padding:12px; margin-bottom:14px; box-shadow:none}
+.nrya-modelset .nrya-card-lab{font-size:inherit; font-weight:800; color:#e2e8f0; letter-spacing:0; text-transform:none; margin-bottom:10px; display:block}
+.nrya-modelset .nrya-card-lab .nrya-pipe{display:none}
+.nrya-modelset .nrya-prov-list{gap:0}
+.nrya-modelset .nrya-prov{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:7px 8px; border-radius:8px; background:#0b1220; border:none; margin-bottom:6px}
+.nrya-modelset .nrya-prov-top,.nrya-modelset .nrya-prov-sel,.nrya-modelset .nrya-prov-f{display:contents}
+.nrya-modelset .nrya-prov-f > span:first-child{display:none}
+.nrya-modelset .nrya-prov-rank{order:1; width:20px; height:auto; display:inline; background:none; border-radius:0; color:#67e8f9; font-family:inherit; font-size:inherit; font-weight:800}
+.nrya-modelset .nrya-prov-name{order:2; min-width:78px; font-size:inherit; font-weight:700; color:#e2e8f0}
+.nrya-modelset .nrya-prov-f{order:3}
+.nrya-modelset .nrya-prov-f select,.nrya-modelset .nrya-prov-f .nrya-prov-fixed{order:3; flex:0 1 auto; max-width:150px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:3px 6px; font-size:0.8rem; font-weight:400}
+.nrya-modelset .nrya-prov-f .nrya-prov-fixed{background:none; border:none; padding:0; color:#94a3b8}
+.nrya-modelset .nrya-prov-f select option{background:#0f172a}
+.nrya-modelset .nrya-prov-badge{order:4; font-size:0.75rem; font-weight:400; border:none; background:none; padding:0}
+.nrya-modelset .nrya-b-ok{color:#34d399}
+.nrya-modelset .nrya-b-bad{color:#f87171}
+.nrya-modelset .nrya-b-rest,.nrya-modelset .nrya-b-off{color:#fbbf24}
+.nrya-modelset .nrya-prov-today{order:5; font-size:0.75rem; color:#94a3b8; font-family:inherit}
+.nrya-modelset .nrya-prov-acts{order:6; margin-left:auto; gap:4px}
+.nrya-modelset .nrya-prov-btn,.nrya-modelset .nrya-seg button{background:#1e293b; color:#cbd5e1; border:1px solid #334155; border-radius:6px; padding:2px 8px; font-size:0.8rem; font-weight:400; font-family:inherit; cursor:pointer}
+.nrya-modelset .nrya-prov-btn.nrya-del{color:#cbd5e1; border-color:#334155}
+.nrya-modelset .nrya-prov-btn.nrya-reset{color:#fbbf24}
+.nrya-modelset .nrya-prov-gone{color:#94a3b8; font-size:0.8rem; margin-top:6px; padding:0; gap:6px}
+.nrya-modelset .nrya-seg{display:flex; flex-wrap:wrap; gap:4px; background:none; border:none; padding:0}
+.nrya-modelset .nrya-seg button{flex:0 0 auto; transition:none}
+.nrya-modelset .nrya-seg button.nrya-on{background:#0b1220; color:#67e8f9; border-color:#67e8f9; font-weight:700}
+.nrya-modelset .nrya-seg button.nrya-on.nrya-warn{background:#0b1220; color:#fbbf24; border-color:#fbbf24}
+.nrya-modelset .nrya-seg-help{color:#94a3b8; font-size:0.78rem; margin-top:8px}
+.nrya-modelset .nrya-seg-help b{color:#e2e8f0}
+.nrya-modelset .nrya-seg-err{font-size:0.8rem; color:#fca5a5}
 .nrya-console .nrya-panel > .nrya-acc{margin-bottom:12px}
 @media (max-width:400px){
   .nrya-console .nrya-vswitch button{font-size:12px; gap:3px}
