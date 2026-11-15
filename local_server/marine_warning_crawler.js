@@ -4642,7 +4642,7 @@ async function run(opts = {}) {
 // ============================================================================
 module.exports = {
     PARENT_TO_CHILDREN,
-    // 표준 해역명 표(코드→정식명 93개) — services/kakao_relay 가 카톡 구역 이름을 이 표에 맞춘다(2026-11-03).
+    // 표준 해역명 표(코드→정식명 93개) — 통보문 조사(analysis/bulletin_survey)가 해역 이름을 이 표에 맞춘다.
     MMIS_CODE_TO_NAME,
     StateSnapshot,
     DiffMatrix,

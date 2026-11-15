@@ -2,11 +2,13 @@
 /**
  * explore_terms.js — 수집한 통보문 원본에서 해역 표현을 모두 뽑아 우리 해역표·묶음 사전과 맞대어 본다(분석용).
  * 실행: node explore_terms.js 2025-01 [2025-02 …]
- * [연계] ← 사람이 실행 / → raw/<달>/*.json · config/zone_group_map · services/kakao_relay.zoneTable(표준 93해역)
+ * [연계] ← 사람이 실행 / → raw/<달>/*.json · config/zone_group_map · marine_warning_crawler(표준 93해역)
  */
 const fs = require('fs'), path = require('path');
 const { ZONE_GROUP_MAP } = require('../../config/zone_group_map');
-const kr = require('../../services/kakao_relay');
+// 해역표(표준 93해역) — 카톡 중계 삭제(2026-11-16)로 원래 MMIS 표에서 바로 만든다
+const { MMIS_CODE_TO_NAME: _MC, PARENT_TO_CHILDREN: _PC } = require('../../marine_warning_crawler');
+const kr = { zoneTable: () => { const names = new Set(Object.values(_MC || {})); const childToParent = {}; for (const [p, cs] of Object.entries(_PC || {})) for (const c of cs) childToParent[c] = p; return { names, childToParent }; } };
 const zt = kr.zoneTable();
 const months = process.argv.slice(2);
 const strip = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/\r/g, '');

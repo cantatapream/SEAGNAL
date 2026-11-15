@@ -41,7 +41,9 @@ function flattenTree(tree) {
         if (!b || typeof b !== 'object') return null;
         const level = b.wrnLvlNm || b.wrnLvl || '';
         if (!level || level === '해제') return null;
-        return { parent, kind: level === '예비' ? 'yebi' : 'formal', type: b.wrnTpNm || b.wrnTp || '', level, tmFc: b.tmFc || '', tmEf: b.tmEf || '', clr: b.clrNtcTm || b.tmCc || '' };
+        // MMIS 는 「발표됐지만 아직 발효 전」을 등급 「예비」 + 정확한 발효 시각(…04시 30분)으로 적는다(2026-11-16 실측 강원 11-22호) → 「발표(발효 전)」으로 따로 본다
+        const exact = /\d{1,2}시\s*\d{1,2}분\s*$/.test(String(b.tmEf || ''));
+        return { parent, kind: level === '예비' ? (exact ? 'pending' : 'yebi') : 'formal', type: b.wrnTpNm || b.wrnTp || '', level: level === '예비' && exact ? '발표' : level, tmFc: b.tmFc || '', tmEf: b.tmEf || '', clr: b.clrNtcTm || b.tmCc || '' };
     };
     (function walk(o) {
         if (!o || typeof o !== 'object') return;
@@ -55,9 +57,24 @@ function flattenTree(tree) {
     return out;
 }
 
+/**
+ * 통보문 쪽: 정식 특보인데 발효 시각이 아직 안 됐으면 「발표(발효 전)」 — MMIS 표기와 맞춘다.
+ * 예: { 강원북부앞바다: {kind:'formal', level:'주의보', efMs: 04:30} } (지금 01:40) → kind 'pending'
+ * [연계] ← run(이 파일)
+ */
+function pendingOf(zones, nowMs) {
+    const out = {};
+    for (const [u, z] of Object.entries(zones || {})) out[u] = (z.kind === 'formal' && z.efMs && z.efMs > nowMs) ? Object.assign({}, z, { kind: 'pending' }) : z;
+    return out;
+}
+
 /** 상태 비교용 서명 — 종류·등급(예비는 시간창, 정식은 해제 예고까지). */
-const sig = (z) => (z ? `${z.kind}|${z.type}|${z.level}|${z.kind === 'yebi' ? z.tmEf : z.clr}` : '');
-const word = (z) => (z ? (z.kind === 'yebi' ? `${z.type} 예비(${z.tmEf})` : `${z.type}${z.level}${z.clr ? `(해제 예고 ${z.clr})` : ''}`) : '없음');
+/** 예비 시간창을 시각만으로 — MMIS 「아침(06시~12시)」·「저녁(18시~00시)」 = 통보문 「오전(06시~12시)」·「밤(18시~24시)」(2026-11-16 실측). 예: → '2026-11-16|06-12' */
+const winKey = (t) => { const m = String(t || '').match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일[^(]*\((\d{1,2})시\s*~\s*(\d{1,2})시\)/); if (!m) return String(t || '').replace(/\s+/g, ''); const e = +m[5] === 0 ? 24 : +m[5]; return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}|${+m[4]}-${e}`; };
+/** 해제 예고를 시각만으로(「17일 오전(09시~12시)」 → '17|9-12'). */
+const clrKey = (t) => { const m = String(t || '').match(/(\d{1,2})일[^(]*\((\d{1,2})시\s*~\s*(\d{1,2})시\)/); return m ? `${+m[1]}|${+m[2]}-${+m[3] === 0 ? 24 : +m[3]}` : String(t || '').replace(/\s+/g, ''); };
+const sig = (z) => (z ? (z.kind === 'pending' ? `pending|${z.type}|${String(z.tmEf).replace(/\s+/g, '')}` : `${z.kind}|${z.type}|${z.level}|${z.kind === 'yebi' ? winKey(z.tmEf) : clrKey(z.clr)}`) : '');
+const word = (z) => (z ? (z.kind === 'yebi' ? `${z.type} 예비(${z.tmEf})` : z.kind === 'pending' ? `${z.type}${z.level === '발표' ? '' : z.level} 발표(${z.tmEf} 발효 예정)` : `${z.type}${z.level}${z.clr ? `(해제 예고 ${z.clr})` : ''}`) : '없음');
 
 /**
  * 통보문 쪽 상태 바뀜 하나 → 가상 푸시 종류(실제 push_sender 와 같은 templateId).
@@ -69,6 +86,11 @@ const word = (z) => (z ? (z.kind === 'yebi' ? `${z.type} 예비(${z.tmEf})` : `$
  */
 function templateOf(unit, before, after, parentNow) {
     const isChild = !!(after || before) && (after || before).parent !== unit;
+    // 발표(발효 전): 나타나면 publish(📢 발표 — 발효예정 시각), 발효 시각이 되면 active(🚨 발효) — 실제 푸시와 같은 두 걸음(2026-11-16)
+    if (after && after.kind === 'pending' && (!before || before.kind !== 'pending')) return { templateId: 'publish', typeName: after.type, level: after.level === '발표' ? '주의보' : after.level };
+    if (before && before.kind === 'pending' && after && after.kind === 'formal') return { templateId: 'active', typeName: after.type, level: after.level };
+    if (before && before.kind === 'pending' && !after) return { templateId: 'release', typeName: before.type, level: before.level === '발표' ? '주의보' : before.level };
+    if (before && before.kind === 'pending' && after && after.kind === 'pending') return before.tmEf !== after.tmEf ? { templateId: 'time_ef_change', typeName: after.type, level: after.level } : null;
     const LV = { 주의보: 1, 경보: 2 };
     if (!before && after) {
         if (after.kind === 'yebi') return { templateId: isChild && parentNow ? 'child_prelim' : 'publish', typeName: after.type, level: '주의보' };
@@ -80,10 +102,10 @@ function templateOf(unit, before, after, parentNow) {
     }
     if (before.kind === 'yebi' && after.kind === 'formal') return { templateId: 'active', typeName: after.type, level: after.level };
     if (before.kind === 'formal' && after.kind === 'yebi') return { templateId: 'release', typeName: before.type, level: before.level };
-    if (before.kind === 'yebi') return before.tmEf !== after.tmEf ? { templateId: 'time_ef_change', typeName: after.type, level: '주의보' } : null;
+    if (before.kind === 'yebi') return winKey(before.tmEf) !== winKey(after.tmEf) ? { templateId: 'time_ef_change', typeName: after.type, level: '주의보' } : null;
     if (before.type !== after.type) return { templateId: after.type === '태풍' ? 'type_upgrade_active' : 'type_downgrade_active', typeName: after.type, level: after.level, prevTypeName: before.type, prevLevel: before.level };
     if (before.level !== after.level) return { templateId: (LV[after.level] || 0) > (LV[before.level] || 0) ? 'level_upgrade_active' : 'level_downgrade_active', typeName: after.type, level: after.level, prevLevel: before.level };
-    if (before.clr !== after.clr) return { templateId: 'time_yn_change', typeName: after.type, level: after.level };
+    if (clrKey(before.clr) !== clrKey(after.clr)) return { templateId: 'time_yn_change', typeName: after.type, level: after.level };
     return null;
 }
 
@@ -110,7 +132,7 @@ function createCompare({
         const t = now();
         const b = getBulletin(), mTree = getMmis();
         if (!b || !b.zones || !mTree) return { skipped: true, why: !b ? '통보문 기준 없음' : 'MMIS 없음' };
-        const B = b.zones, M = flattenTree(mTree);
+        const B = pendingOf(b.zones, t), M = flattenTree(mTree);
         const pushes = getPushes().filter((p) => p && p.type === 'auto');
         const stat = { events: 0 };
         const emit = (ev) => { log(Object.assign({ atMs: t }, ev)); stat.events++; };
@@ -207,4 +229,4 @@ function reportMarkdown(events, day) {
 
 let real = null;
 const getReal = () => (real = real || createCompare());
-module.exports = { run: () => getReal().run(), days: () => getReal().days(), readDay: (d) => getReal().readDay(d), createCompare, flattenTree, templateOf, reportMarkdown, sig };
+module.exports = { run: () => getReal().run(), days: () => getReal().days(), readDay: (d) => getReal().readDay(d), createCompare, flattenTree, templateOf, reportMarkdown, sig, pendingOf, winKey, clrKey };

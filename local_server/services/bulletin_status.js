@@ -56,10 +56,11 @@ function itemTimes(r) {
         const m = l.match(/^\((\d+)\)[^:]*:\s*(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/);
         if (m) ef[+m[1]] = { ms: Date.parse(`${m[2]}-${pad(m[3])}-${pad(m[4])}T${pad(m[5])}:${pad(m[6])}:00+09:00`), text: `${m[2]}년 ${pad(m[3])}월 ${pad(m[4])}일 ${pad(m[5])}시 ${pad(m[6])}분` };
     }
-    let cur = null;
+    let cur = [];
     for (const l of lines(r.t4)) {
-        const h = l.match(/^\((\d+)\)/); if (h) { cur = +h[1]; }
-        const c = l.match(/해제\s*예고\s*:\s*(.+)$/); if (c && cur != null) clr[cur] = c[1].trim();
+        // 「(1) ,(2) 풍랑주의보 발표 / o 해제 예고: …」처럼 여러 항목이 한 머리를 함께 쓴다(2026-11-15 대구 11-24호) — 머리의 번호를 전부 읽는다
+        const h = l.match(/^((?:\(\d+\)\s*,?\s*)+)/); if (h) cur = [...h[1].matchAll(/\((\d+)\)/g)].map((m) => +m[1]);
+        const c = l.match(/해제\s*예고\s*:\s*(.+)$/); if (c) for (const n of cur) clr[n] = c[1].trim();
     }
     return { ef, clr };
 }
