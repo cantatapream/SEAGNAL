@@ -28,6 +28,22 @@ console.log('A. MMIS 나무 펼치기 · 가상 푸시 종류');
     ok('바뀐 게 없으면 null', C.templateOf('x', Z('formal', '주의보'), Z('formal', '주의보'), null) === null);
 }
 
+console.log('A2. 발표(발효 전) · 표기 차이');
+{
+    const mt = { 동해: { 동해중부해상: { 강원북부앞바다: { current: null, upcoming: { wrnTpNm: '풍랑', wrnLvlNm: '예비', tmEf: '2026년 11월 16일 04시 30분' }, history: [], children: {} } } } };
+    const f = C.flattenTree(mt);
+    ok('MMIS 「예비 + 정확한 시각」 = 발표(발효 전)', f['강원북부앞바다'].kind === 'pending');
+    const now = Date.parse('2026-11-16T01:40:00+09:00');
+    const raw = { 강원북부앞바다: { parent: '강원북부앞바다', kind: 'formal', type: '풍랑', level: '주의보', tmEf: '2026년 11월 16일 04시 30분', efMs: Date.parse('2026-11-16T04:30:00+09:00'), clr: '17일 새벽(03시~06시)' } };
+    const b = C.pendingOf(raw, now);
+    ok('통보문 「주의보, 발효 시각 아직」 = 발표(발효 전) → MMIS 와 같은 상태로 셈', b['강원북부앞바다'].kind === 'pending' && C.sig(b['강원북부앞바다']) === C.sig(f['강원북부앞바다']));
+    ok('발효 시각이 지나면 정식', C.pendingOf(raw, Date.parse('2026-11-16T04:31:00+09:00'))['강원북부앞바다'].kind === 'formal');
+    const P = { parent: 'x', kind: 'pending', type: '풍랑', level: '주의보', tmEf: '04시 30분' }, F = Object.assign({}, P, { kind: 'formal' });
+    ok('가상 푸시 두 걸음: 나타나면 publish(📢 발표) → 발효 시각에 active(🚨 발효)', C.templateOf('x', null, P).templateId === 'publish' && C.templateOf('x', P, F).templateId === 'active' && C.templateOf('x', Z('yebi', '예비'), P).templateId === 'publish');
+    ok('예비 시간창 이름만 다른 건 같음(아침=오전, 저녁 18~00시=밤 18~24시)', C.winKey('2026년 11월 16일 아침(06시~12시)') === C.winKey('2026년 11월 16일 오전(06시~12시)') && C.winKey('2026년 11월 16일 저녁(18시~00시)') === C.winKey('2026년 11월 16일 밤(18시~24시)'));
+    ok('해제 예고도 시각으로', C.clrKey('17일 오전(09시~12시)') === C.clrKey('17일  오전(09시~12시)') && C.clrKey('17일 오전(09시~12시)') !== C.clrKey('17일 오후(12시~18시)'));
+}
+
 console.log('B. 매분 기록 — 처음·바뀜·두 쪽 다름·가상 푸시·실제 푸시');
 {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bc-'));
