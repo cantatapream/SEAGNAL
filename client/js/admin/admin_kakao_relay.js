@@ -5,11 +5,12 @@
  *         ① 기기별 마지막 신호·상태와 끄기/켜기/지우기(한 줄에 2개, 이름만 보이는 접힌 아코디언) ② 카톡 ↔ 앱 특보현황(MMIS) 대조 기록
  *         ③ 받은 특보 글과 구역별로 나눈 줄(새 특보·놓친 글·이미 봄 표시) — 날짜별 접힌 아코디언.
  *         ④ [비교현황] 창 — 카톡판 특보현황 ↔ 앱 특보현황(MMIS) 시간대별 비교(10일 시험, 2026-11-03).
+ *         ⑤ [통보문 관찰기록] 버튼 — 방재기상플랫폼 통보문 관찰기 기록 내려받기(2026-11-15, routes/bulletin_watch).
  *         (사용자 확정 2026-11-03: 옛 「특보 예측」 탭 자리에 넣음, 휴대폰을 빼고 태블릿만 남길 수 있게)
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : admin/admin.js (window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부)
- *  - 서버 API      : GET /api/admin/kakao-relay · POST /api/admin/kakao-relay/device · GET /api/admin/kakao-relay/compare (routes/kakao_relay.js)
+ *  - 서버 API      : GET /api/admin/kakao-relay · POST /api/admin/kakao-relay/device · GET /api/admin/kakao-relay/compare (routes/kakao_relay.js) · GET /api/admin/bulletin-watch/report.md (routes/bulletin_watch.js)
  *  - 마크업        : 관리자 센터 모달 #alert-top-content (admin.js renderUnifiedAlertContent 가 만듦)
  *  - 나를 쓰는 곳  : admin.js switchAlertTopTab('kakao-relay') → window.renderKakaoRelayAdminTab
  * [로드 순서] admin/admin_report.js 다음 · admin/admin_location_status.js 이전 — 순서 변경 금지
@@ -174,7 +175,9 @@
         var html = '<div style="padding:4px 2px">'
             // 버튼 줄(왼쪽 정렬) 아래에 설명 — 사용자 확정 2026-11-03 「[비교현황] [새로고침] (여기에 명시)」
             + '<div style="display:flex;justify-content:flex-start;align-items:center;gap:0">'
-            + btn('비교현황', 'window.__krCompare()', '167,139,250') + btn('새로고침', 'window.__krRefresh()', '96,165,250') + '</div>'
+            + btn('비교현황', 'window.__krCompare()', '167,139,250') + btn('새로고침', 'window.__krRefresh()', '96,165,250')
+            // 통보문 관찰기 기록 내려받기(2026-11-15) — 방재기상플랫폼 통보문의 처음 모습·채워짐·바뀜
+            + btn('통보문 관찰기록', 'window.__bwReport()', '52,211,153') + '</div>'
             + '<div style="font-size:0.8rem;color:#9aa7b4;margin-top:8px">'
             + '카톡 「기상청 해양기상정보포털」 특보 알림톡을 중계 앱이 읽어 보낸 기록입니다. 지금은 기록·대조만 하고 앱 특보현황은 바꾸지 않습니다.</div>'
             // 한 줄에 2개(사용자 확정 2026-11-03)
@@ -405,6 +408,27 @@
         }
     }
 
+    /**
+     * 통보문 관찰 기록(마크다운)을 내려받는다 — 쉬운 설명 줄 + 원본 JSON 줄.
+     * [연계] ← 「통보문 관찰기록」 버튼 / → GET /api/admin/bulletin-watch/report.md (routes/bulletin_watch)
+     */
+    async function downloadWatch() {
+        try {
+            var r = await fetch('/api/admin/bulletin-watch/report.md?day=all', { cache: 'no-store' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(await r.blob());
+            a.download = 'bulletin_watch_all.md';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        } catch (e) {
+            console.warn('[통보문 관찰] 기록 내려받기 실패:', e && e.message);
+            window.alert('통보문 관찰 기록을 내려받지 못했습니다 — ' + e.message);
+        }
+    }
+
+    window.__bwReport = downloadWatch;
     window.__krReport = downloadReport;
     window.__krCompare = openCompare;
     window.__krCompareClose = closeCompare;

@@ -272,6 +272,7 @@ app.use(require('./routes/risk_errors'));  // 기존 관리자 토큰으로 보�
 app.use(require('./routes/data_collection'));  // 관리자 점검 → 데이터 수집현황(수집 목록) — 같은 토큰 인증
 app.use(require('./routes/station_briefing'));  // 활동지점 안전 브리핑(파출소 관할) — 노출 판정·관리자 설정(같은 토큰 인증)
 app.use(require('./routes/kakao_relay'));  // 태블릿 앱이 보내는 카톡 특보 알림톡 수신(자체 열쇠) + 관리자 조회
+app.use(require('./routes/bulletin_watch'));  // 통보문 관찰기 기록 내려받기(관리자 토큰) — 관찰용, 특보현황 안 바꿈
 app.use(require('./routes/admin'));
 app.use(require('./routes/survey'));
 app.use(require('./routes/report'));
