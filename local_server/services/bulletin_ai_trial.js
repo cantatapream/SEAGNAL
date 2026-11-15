@@ -147,6 +147,17 @@ function resolveZones(expr, ctx = {}) {
 //   「제주도바깥먼바다」 = 제주도남쪽바깥먼바다(제주 바깥먼바다는 하나) · 「제주도남쪽안쪽먼바다」 = 남서쪽안쪽+남동쪽안쪽(제주 안쪽먼바다는 이 둘)
 //   「서해남부중부앞바다」 = 전남중부서해앞바다(서해남부 쪽 부모 중 「중부」는 이것뿐 — 같은 문장 「중 앞평수구역」도 이 부모의 자식, 광주 2026 10-5호)
 const ALIAS = { '제주도바깥먼바다': ['제주도남쪽바깥먼바다'], '제주도남쪽안쪽먼바다': ['제주도남서쪽안쪽먼바다', '제주도남동쪽안쪽먼바다'], '서해남부중부앞바다': ['전남중부서해앞바다'] };
+/**
+ * 글 안에 이름이 나온 부모 해역(관할 안) — 「제주도동부앞바다 풍랑주의보는 … 남동연안바다는 …」의 제주도동부앞바다.
+ * 예: namedParents('제주도동부앞바다( 남동연안바다 ), 제주도남부앞바다( 연안바다 )', '제주청') → ['제주도동부앞바다','제주도남부앞바다']
+ * @param {string} text @param {string} office @returns {string[]}
+ * [연계] ← checkOne(이 파일) — 「위 구역」·부모 없는 자식 이름을 풀 범위
+ */
+function namedParents(text, office) {
+    const own = officeZones()[office] || [];
+    const t = String(text || '').replace(/\s+/g, '').replace(/[.]/g, '·');
+    return own.filter((p) => t.includes(p));
+}
 let _oz = null;
 /** 관서별 관할 부모 해역(analysis/bulletin_survey/office_zones.json — ai_trial_build.js 가 원본에서 만든다). */
 function officeZones() { if (!_oz) { try { _oz = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'office_zones.json'), 'utf8')); } catch (e) { console.warn('[bulletin_ai_trial] 관할 표 없음', e && e.message); _oz = {}; } } return _oz; }
@@ -168,8 +179,10 @@ function checkOne(item, parsed) {
     const moved = new Set([...(r.시간바뀜 || []).map((x) => x.해역), ...(r.시간지나끝남 || []).filter((x) => x.다시나옴.length).map((x) => x.해역)]);
     const added = new Set((r.새로 || []).map((x) => x.해역));
     const told = new Set();
-    // 「위 구역」을 풀 이 통보문 본문 해역(규칙 결과에서)
-    const bodyZones = [...new Set(r.항목 ? r.항목.flatMap((i) => i.해역) : [...(r.지금목록 || []), ...(r.빠짐 || []), ...(r.시간지나끝남 || [])].map((x) => x.해역))];
+    // 이 통보문이 다루는 부모 해역 — 「위 구역」과 부모 없이 쓴 자식 이름(「남동연안바다」 「동부평수구역」)을 풀 때 쓴다.
+    //   규칙 결과 + 본문·참고사항 글에 이름이 나온 부모 전부(사용자 2026-11-15 「부모 명칭이 없더라도 해당 통보문이 어떤 부모들에 대해서 논의하고 있고 … 알 수 있지않니」)
+    const bodyZones = [...new Set([...(r.항목 ? r.항목.flatMap((i) => i.해역) : [...(r.지금목록 || []), ...(r.빠짐 || []), ...(r.시간지나끝남 || []), ...(r.직전빠짐 || [])].map((x) => x.해역)),
+        ...namedParents(String(item.본문 || '') + '\n' + String(item.참고사항 || ''), item.office)])];
     for (const e of parsed.사건) {
         if (norm(item.참고사항).includes(norm(e.근거문장)) && norm(e.근거문장)) res.근거있음++; else res.근거없음++;
         if (isLand(e.해역표현)) { res.육상 = (res.육상 || 0) + 1; res.판정.push({ 종류: e.종류, 해역표현: e.해역표현, 판정: '육상(뺌)', 까닭: '바다 특보가 아닌 육상 지역 — 비교에서 뺀다' }); continue; }
@@ -316,5 +329,5 @@ module.exports = {
     TRIALS: Object.fromEntries(Object.entries(TRIALS).map(([k, v]) => [k, { label: v.label, provider: v.provider }])),
     start: (id) => getReal(id).start(), stop: (id) => getReal(id).stop(), status: (id) => getReal(id).status(),
     report: (id) => reportMarkdown(getReal(id).results(), getReal(id).status()),
-    createTrial, buildPrompt, checkOne, resolveZones, reportMarkdown, isLand, KINDS,
+    createTrial, buildPrompt, checkOne, resolveZones, namedParents, reportMarkdown, isLand, KINDS,
 };
