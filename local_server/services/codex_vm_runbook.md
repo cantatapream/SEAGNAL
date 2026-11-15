@@ -180,7 +180,7 @@ echo ${#TOKEN}   # 64 면 성공
 > 사용자 원문: *"특보읽기, 참고사항해석에 지금 반영되어있는 모든 ai 툴을 다 선택할 수 있도록 선택 폭을 넓게 두고자 하는거야. 각 기능별 사용 ai의 우선순위를 정해두고 그 우선순위대로 작동할 수 있도록"* · *"chat gpt도 fly, vm중 고를 수있도록 하고, gpt의 모델도 선택할 수 있도록"*
 
 - **화면**: 관리자 센터 AI 탭 → 「AI 특보 분석」(AI 브리핑 오른쪽, `client/js/admin/admin_bulletin_ai.js`).
-  ① 특보 통보문 읽기 · ② 참고사항 해석마다 순서(▲▼·삭제·다시 추가, Gemini 는 뺄 수 없음)·칸별 모델·노력, ChatGPT 칸은 모델과 실행 위치(Fly/VM).
+  ① 특보 통보문 읽기 · ② 참고사항 해석 · ③ 해상 기상 전망 색칠마다 순서(▲▼·삭제·다시 추가, Gemini 는 뺄 수 없음)·칸별 모델·노력, ChatGPT 칸은 모델과 실행 위치(Fly/VM).
 - **서버**: `services/bulletin_ai.js` — 저장 `data/bulletin_ai_config.json`, `call(feature, prompt)` 이 순서대로 시도(실패·키 없음·소진·작업자 없음 → 다음).
   API `GET·POST /api/admin/bulletin-ai/config`(관리자 토큰). 기본 순서: ① Gemini 1순위(종전), ② 클로드 키2 1순위(최근 시험).
 - **ChatGPT 실행 위치는 일감마다**: `codex_bridge.callRaw({runner})` — 지정한 일감(pinned)은 그 위치 작업자만 가져가고, AI 챗봇 탭의 기본 위치를 바꿔도 따라가지 않는다.
