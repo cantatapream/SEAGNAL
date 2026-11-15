@@ -132,3 +132,52 @@ const out = [...picked.values()].sort((a, b) => a.r.tmIn.localeCompare(b.r.tmIn)
 fs.writeFileSync(path.join(__dirname, 'ai_trial_sample.json'), JSON.stringify(out, null, 1));
 const c = {}; for (const x of out) { c[x.office] = (c[x.office] || 0) + 1; c['#' + x.분류어림] = (c['#' + x.분류어림] || 0) + 1; }
 console.log('표본', out.length, '· 특이', out.filter((x) => x.특이).length, '· 후보 풀', pool.length, c);
+
+// ── 2차 시험 표본: 2026년 참고사항 중 1차 표본에 없던 「문장 모양」 또는 규칙이 못 읽는 해역 표현이 든 통보문 ─────────────
+// 사용자 확정 2026-11-15: 「테스트한 200개 외 유사하게 표현되고 있는 표현문구에 대해서 리스트를 만들어서 또다시 테스트 … 26년도 자료를 기준으로」
+//   → 「좋아 진행하자. 단, 이번에는 테스트를 이미 앱에 반영되어 있는 클로드 키2로 진행」.
+// 문장 모양 = 해역 이름·때(오늘 밤·13일 새벽(00~06시))·숫자를 빈칸으로 바꾼 꼴. 상투 안내문(「본 정보는 …」 「상세한 풍랑경보 시점은 …」)은 뺀다.
+{
+    const { resolveZones } = require('../../services/bulletin_ai_trial');
+    const sents = (t) => clean(t).split(/\n|(?=\s[oㅇ○※]\s)/).map((x) => x.replace(/^[\s\-oOㅇ○※*·]+/, '').replace(/^\(\d+\)(,\s*\(\d+\))*\s*/, '').trim()).filter((x) => x.length > 6);
+    const STATE = /해제|연장|연기|발표|변경|가능성|제외|추가|기해|예비/;
+    const SEA = /바다|해상|구역|해역|풍랑|태풍/;
+    const BOIL = /^(본 정보는|상세한 풍랑경보 시점은|※)/;
+    const ZONE_RE = /[가-힣·.]+(앞바다|먼바다|해상|연안바다|평수구역|구역|해역)(\([^)]*\))?/g;
+    const shape = (x) => x
+        .replace(/[가-힣·.]+(앞바다|먼바다|해상|연안바다|평수구역|구역|해역)(\([^)]*\))?(\s*(와|과|및|,)\s*[가-힣·.]+(앞바다|먼바다|해상|연안바다|평수구역|구역|해역)(\([^)]*\))?)*/g, '⟨해역⟩')
+        .replace(/[가-힣]+도\([^)]*\)/g, '⟨육상⟩')
+        .replace(/(오늘|내일|모레|어제|당초)?\s*\(?\d{1,2}일\)?\s*(새벽|오전|오후|밤|낮|아침|저녁|늦은\s*오후|늦은\s*밤|이른\s*새벽)?(\s*\(\d{1,2}\s*~\s*\d{1,2}시\))?/g, '⟨때⟩')
+        .replace(/(오늘|내일|모레|어제)\s*(새벽|오전|오후|밤|낮|아침|저녁)?/g, '⟨때⟩')
+        .replace(/\d+(\.\d+)?\s*(~\s*\d+(\.\d+)?)?\s*(m\/s|km\/h|m|시|분|%)?/g, '#')
+        .replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').replace(/(⟨때⟩\s*)+/g, '⟨때⟩ ').trim().slice(0, 90);
+    const first = JSON.parse(fs.readFileSync(path.join(__dirname, 'ai_trial_sample.json'), 'utf8'));
+    const seenShapes = new Set(first.flatMap((s) => sents(s.참고사항)).map(shape));
+    const firstKey = new Set(first.map((s) => s.office + s.호 + s.발표));
+    const bodyZonesOf = (rule) => [...new Set(rule.항목 ? rule.항목.flatMap((i) => i.해역) : [...(rule.지금목록 || []), ...(rule.빠짐 || []), ...(rule.시간지나끝남 || [])].map((e) => e.해역))];
+    const picked2 = [];
+    for (const x of bulletins) {
+        if (!String(x.r.tmFc).startsWith('2026') || !isWave(x) || isNone(x.r.other)) continue;
+        if (firstKey.has(x.office + x.r.t1Title + String(x.r.tmFc).slice(0, 16))) continue;
+        const ctx = { office: x.office, bodyZones: bodyZonesOf(x.rule) };
+        const why = new Set(), lines2 = [];
+        for (const s of sents(x.r.other)) {
+            if (BOIL.test(s) || !(STATE.test(s) && SEA.test(s))) continue;
+            const newShape = !seenShapes.has(shape(s));
+            const unread = [...s.matchAll(ZONE_RE)].map((m) => m[0]).filter((e) => !/^(위|이|해당|그)/.test(e) && !/(구역|해역)$/.test(e) && !resolveZones(e, ctx));
+            if (newShape) why.add('새 문장 모양');
+            if (unread.length) why.add('규칙이 못 읽는 해역: ' + [...new Set(unread)].join(', '));
+            if (newShape || unread.length) lines2.push(s.slice(0, 300));
+        }
+        if (why.size) picked2.push(Object.assign(x, { why: [...why], hit: lines2 }));
+    }
+    const out2 = picked2.map((x, i) => ({
+        id: i + 1, office: x.office, stn: x.stn, rpt: x.rpt, 종류: x.rpt === '7' ? '예비특보' : '특보', 호: x.r.t1Title,
+        발표: String(x.r.tmFc).slice(0, 16), 입력: String(x.r.tmIn).slice(0, 16), 제목: x.r.t1 || '',
+        본문: clean(x.rpt === '7' ? x.r.t4 : x.r.t2).slice(0, 1500), 참고사항: clean(x.r.other).slice(0, 2500),
+        분류어림: x.why.join(' · '), 특이: x.why.some((w) => w.startsWith('규칙이')), 고른까닭문장: x.hit, rule: x.rule,
+    }));
+    fs.writeFileSync(path.join(__dirname, 'ai_trial_sample_2.json'), JSON.stringify(out2, null, 1));
+    const c2 = {}; for (const x of out2) c2[x.office] = (c2[x.office] || 0) + 1;
+    console.log('2차 표본', out2.length, '· 못 읽는 해역 포함', out2.filter((x) => x.특이).length, c2);
+}

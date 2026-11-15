@@ -3,12 +3,12 @@
  * 파일명: client/js/admin/admin_bulletin_watch.js
  * 역할  : 관리자 → 특보 관리 → 「통보문 관찰」 탭. 방재기상플랫폼 통보문 관련 기능을 한곳에 모은다.
  *         ① 통보문 관찰기 기록 내려받기(매분 관찰 — 빈 통보문이 채워지는 모습 등)
- *         ② 참고사항 AI 시험(표본 200건) — 서버 ChatGPT 에 읽혀 규칙 결과와 맞춰 본다. [시험 시작] [멈춤] [결과 내려받기]
+ *         ② 참고사항 AI 시험 — 2차(클로드 키2·2026년 새 표현 161건)·1차(ChatGPT·표본 200건) 칸마다 [시험 시작] [멈춤] [결과 내려받기]
  *         (사용자 확정 2026-11-15: 「카톡 중계 탭에 넣지말고 통보문 관찰이라는 탭을 하나 더 두고」 「보내는 시각은 ㄱ(누르면 바로)」)
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : admin/admin.js (window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부 · 탭 등록 switchAlertTopTab)
- *  - 서버 API      : GET /api/admin/bulletin-watch/report.md · GET /api/admin/bulletin-ai-trial ·
+ *  - 서버 API      : GET /api/admin/bulletin-watch/report.md · GET /api/admin/bulletin-ai-trial?trial=1|2 ·
  *                    POST /api/admin/bulletin-ai-trial/start · POST /api/admin/bulletin-ai-trial/stop · GET /api/admin/bulletin-ai-trial/report.md
  *                    (routes/bulletin_watch.js)
  *  - 마크업        : 없음(admin.js 의 #alert-top-content 안에 그린다)
@@ -45,16 +45,16 @@
             + '<div style="font-size:0.76rem;color:#9aa7b4;margin-top:2px">마지막 응답: ' + esc(KST(s.lastAt)) + (s.stopReason ? ' · ' + esc(s.stopReason) : '') + (s.lastError ? ' · 마지막 오류: ' + esc(s.lastError) : '') + '</div>';
     }
 
-    /** 시험 상태를 다시 받아 그린다. 진행 중이면 10초 뒤 또(탭을 떠나 칸이 없어지면 멈춘다). [연계] → GET /api/admin/bulletin-ai-trial */
-    async function refreshTrial() {
-        var el = document.getElementById('bw-trial-status');
+    /** 시험 상태를 다시 받아 그린다. 진행 중이면 10초 뒤 또(탭을 떠나 칸이 없어지면 멈춘다). @param {'1'|'2'} id [연계] → GET /api/admin/bulletin-ai-trial?trial= */
+    async function refreshTrial(id) {
+        var el = document.getElementById('bw-trial-status-' + id);
         if (!el) return;
         try {
-            var r = await fetch('/api/admin/bulletin-ai-trial', { cache: 'no-store' });
+            var r = await fetch('/api/admin/bulletin-ai-trial?trial=' + id, { cache: 'no-store' });
             if (!r.ok) throw new Error('HTTP ' + r.status);
             var s = await r.json();
             el.innerHTML = trialText(s);
-            if (s.status === 'running') setTimeout(refreshTrial, 10000);
+            if (s.status === 'running') setTimeout(function () { refreshTrial(id); }, 10000);
         } catch (e) {
             console.warn('[통보문 관찰] AI 시험 상태 불러오기 실패:', e && e.message);
             el.innerHTML = '<span style="color:#f87171">상태를 불러오지 못했습니다 — ' + esc(e.message) + '</span>';
@@ -78,17 +78,36 @@
         }
     }
 
-    /** [시험 시작]·[멈춤] — 시작은 한 번 더 묻는다(ChatGPT 줄을 나리야와 함께 쓴다). [연계] → POST /api/admin/bulletin-ai-trial/start|stop */
-    async function trialAction(kind) {
-        if (kind === 'start' && !window.confirm('참고사항 AI 시험(200건)을 지금 시작할까요?\n\nChatGPT 줄을 나리야·브리핑 AI 와 함께 써서, 진행 중엔 나리야 답이 늦어질 수 있습니다.\n끝난 건은 건너뛰고 이어서 합니다.')) return;
+    var START_ASK = {
+        '1': '1차 참고사항 AI 시험(ChatGPT, 200건)을 지금 시작할까요?\n\nChatGPT 줄을 나리야·브리핑 AI 와 함께 써서, 진행 중엔 나리야 답이 늦어질 수 있습니다.\n끝난 건은 건너뛰고 이어서 합니다.',
+        '2': '2차 참고사항 AI 시험(클로드 키2, 161건)을 지금 시작할까요?\n\n관리자 센터 「클로드 키2」 크레딧을 씁니다(나리야 답변 순서 1번 칸과 같은 키). 크레딧이 다 떨어지면 바로 멈춥니다.\n끝난 건은 건너뛰고 이어서 합니다.'
+    };
+    /** [시험 시작]·[멈춤] — 시작은 한 번 더 묻는다. @param {'start'|'stop'} kind @param {'1'|'2'} id [연계] → POST /api/admin/bulletin-ai-trial/start|stop?trial= */
+    async function trialAction(kind, id) {
+        if (kind === 'start' && !window.confirm(START_ASK[id])) return;
         try {
-            var r = await fetch('/api/admin/bulletin-ai-trial/' + kind, { method: 'POST', cache: 'no-store' });
+            var r = await fetch('/api/admin/bulletin-ai-trial/' + kind + '?trial=' + id, { method: 'POST', cache: 'no-store' });
             if (!r.ok) throw new Error('HTTP ' + r.status);
         } catch (e) {
             console.warn('[통보문 관찰] AI 시험 ' + kind + ' 실패:', e && e.message);
             window.alert((kind === 'start' ? '시작' : '멈춤') + '하지 못했습니다 — ' + e.message);
         }
-        refreshTrial();
+        refreshTrial(id);
+    }
+
+    /**
+     * 시험 한 칸(상태·버튼).
+     * @param {'1'|'2'} id  @param {string} title  @param {string} desc  @param {string} warn
+     * @returns {string} HTML
+     * [연계] ← renderBulletinWatchAdminTab(이 파일)
+     */
+    function trialBox(id, title, desc, warn) {
+        return box(title,
+            '<div style="font-size:0.8rem;color:#9aa7b4;margin-bottom:6px">' + desc + '</div>'
+            + '<div id="bw-trial-status-' + id + '" style="font-size:0.8rem;color:#9aa7b4">불러오는 중…</div>'
+            + '<div>' + btn('시험 시작', "window.__bwTrial('start','" + id + "')", '96,165,250') + btn('멈춤', "window.__bwTrial('stop','" + id + "')", '248,113,113')
+            + btn('결과 내려받기', "window.__bwDownload('/api/admin/bulletin-ai-trial/report.md?trial=" + id + "','bulletin_ai_trial_" + id + ".md')", '167,139,250') + '</div>'
+            + '<div style="font-size:0.74rem;color:#f0b35a;margin-top:6px">' + warn + '</div>');
     }
 
     /**
@@ -101,14 +120,15 @@
             + box('📡 통보문 관찰기록',
                 '<div style="font-size:0.8rem;color:#9aa7b4">방재기상플랫폼 특보·예비특보 통보문을 1분마다 보며 처음 보인 모습과 바뀐 모습(빈 통보문이 채워짐·내용 바뀜·번호 바뀜)을 남긴 기록입니다. 관찰만 하고 앱 특보현황·푸시는 바꾸지 않습니다.</div>'
                 + btn('기록 내려받기', "window.__bwDownload('/api/admin/bulletin-watch/report.md?day=all','bulletin_watch_all.md')", '52,211,153'))
-            + box('🤖 참고사항 AI 시험 (표본 200건)',
-                '<div style="font-size:0.8rem;color:#9aa7b4;margin-bottom:6px">지난 통보문 참고사항 200건을 서버의 ChatGPT 에 읽혀 정해진 칸으로 옮기게 하고, 규칙 결과와 나란히 맞춰 봅니다. 한 건씩 차례로 보내며, 실제 특보현황·푸시에는 반영하지 않습니다.</div>'
-                + '<div id="bw-trial-status" style="font-size:0.8rem;color:#9aa7b4">불러오는 중…</div>'
-                + '<div>' + btn('시험 시작', "window.__bwTrial('start')", '96,165,250') + btn('멈춤', "window.__bwTrial('stop')", '248,113,113')
-                + btn('결과 내려받기', "window.__bwDownload('/api/admin/bulletin-ai-trial/report.md','bulletin_ai_trial.md')", '167,139,250') + '</div>'
-                + '<div style="font-size:0.74rem;color:#f0b35a;margin-top:6px">※ ChatGPT 줄을 나리야·브리핑 AI 와 함께 씁니다. 진행 중엔 나리야 답이 늦어질 수 있습니다. 멈추면 지금 건만 마치고 서고, 다시 시작하면 이어서 합니다.</div>')
+            + trialBox('2', '🤖 참고사항 AI 시험 2차 — 클로드 키2 · 2026년 새 표현 161건',
+                '1차 표본에 없던 2026년 문장 모양(해제예고 앞당김·정확한 해제 시각·바다와 육상이 섞인 문장 등)과 규칙이 못 읽던 해역 표현이 든 통보문 161건을, 관리자 센터 「클로드 키2」(claude-sonnet-5-5 · medium)에 한 건씩 읽혀 규칙 결과와 맞춰 봅니다. 실제 특보현황·푸시에는 반영하지 않습니다.',
+                '※ 「클로드 키2」 크레딧을 씁니다(나리야 답변 순서의 같은 키). 크레딧이 다 떨어지면 바로 멈춥니다. 멈추면 지금 건만 마치고 서고, 다시 시작하면 이어서 합니다.')
+            + trialBox('1', '🤖 참고사항 AI 시험 1차 — ChatGPT · 표본 200건',
+                '지난 통보문 참고사항 200건을 서버의 ChatGPT 에 읽혀 정해진 칸으로 옮기게 하고, 규칙 결과와 나란히 맞춰 봅니다. 한 건씩 차례로 보내며, 실제 특보현황·푸시에는 반영하지 않습니다.',
+                '※ ChatGPT 줄을 나리야·브리핑 AI 와 함께 씁니다. 진행 중엔 나리야 답이 늦어질 수 있습니다. 멈추면 지금 건만 마치고 서고, 다시 시작하면 이어서 합니다.')
             + '</div>';
-        refreshTrial();
+        refreshTrial('2');
+        refreshTrial('1');
     }
 
     window.renderBulletinWatchAdminTab = renderBulletinWatchAdminTab;

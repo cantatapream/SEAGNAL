@@ -40,7 +40,13 @@ console.log('B. 해역 펼치기(규칙 — AI 는 안 펼친다)');
     ok('줄임 「X먼바다」 = 안쪽+바깥', JSON.stringify(z('동해중부먼바다')) === JSON.stringify(['동해중부안쪽먼바다', '동해중부바깥먼바다']));
     ok('줄임 「경북앞바다」 = 북부+남부', JSON.stringify(z('경북앞바다')) === JSON.stringify(['경북북부앞바다', '경북남부앞바다']));
     ok('「…와 …」 두 덩어리 다 펼침', z('동해남부북쪽먼바다와 경북남부앞바다').length === 3);
-    ok('목록에 없는 표현은 못 읽음(null) — 지어내지 않음', z('가나다해상') === null && z('강원중.북부앞바다') === null);
+    ok('목록에 없는 표현은 못 읽음(null) — 지어내지 않음', z('가나다해상') === null && z('가나.다라앞바다') === null && z('제주도남쪽안쪽먼바다', { office: '제주청' }) === null);
+    ok('④ 점(.)으로 이어 쓴 이름: 「제주도동부.남부앞바다」 「강원중.북부앞바다」 「인천.경기앞바다」', JSON.stringify(z('제주도동부.남부앞바다', { office: '제주청' })) === JSON.stringify(['제주도동부앞바다', '제주도남부앞바다'])
+        && JSON.stringify(z('강원중.북부앞바다', { office: '강원청' })) === JSON.stringify(['강원중부앞바다', '강원북부앞바다']) && JSON.stringify(z('인천.경기앞바다', { office: '수도권청' })) === JSON.stringify(['인천·경기북부앞바다', '인천·경기남부앞바다']));
+    ok('④ 부모 없이 자식 이름만 — 관할 안에서 하나일 때만(「남동연안바다」 제주 = 동부앞바다)', JSON.stringify(z('남동연안바다', { office: '제주청' })) === JSON.stringify(['제주도동부앞바다']) && z('연안바다', { office: '제주청' }) === null);
+    ok('④ 둘 이상이면 본문 해역으로 좁히고, 그래도 둘이면 못 읽음(「동부평수구역」 부산)', z('동부평수구역', { office: '부산청' }) === null && JSON.stringify(z('동부평수구역', { office: '부산청', bodyZones: ['부산앞바다'] })) === JSON.stringify(['부산앞바다']));
+    ok('④ 별칭 「제주도바깥먼바다」 = 제주도남쪽바깥먼바다', JSON.stringify(z('제주도바깥먼바다', { office: '제주청' })) === JSON.stringify(['제주도남쪽바깥먼바다']));
+    ok('새 종류 「해제예고변경」(앞당김·바꿈)이 지시문에 있음', T.KINDS.includes('해제예고변경') && /해제예고변경=해제 예고 시각을 앞당기거나 바꿈/.test(T.buildPrompt(ITEM_CANCEL)));
     ok('① 묶음 이름은 그 관서 관할로 좁힘(수도권 「서해중부앞바다」 = 인천·경기만, 대전이면 충남만)', JSON.stringify(z('서해중부앞바다', { office: '수도권청' })) === JSON.stringify(['인천·경기북부앞바다', '인천·경기남부앞바다']) && JSON.stringify(z('서해중부앞바다', { office: '대전청' })) === JSON.stringify(['충남북부앞바다', '충남남부앞바다']));
     ok('③ 「위 구역」 = 이 통보문 본문 해역', JSON.stringify(z('위 구역', { bodyZones: ['제주도서부앞바다'] })) === JSON.stringify(['제주도서부앞바다']));
     ok('④ 「X해상」 = X앞바다 묶음 + X…먼바다, 끝 조사 「의」 뗌', JSON.stringify(z('동해남부남쪽해상', { office: '부산청' })) === JSON.stringify(['동해남부남쪽안쪽먼바다', '동해남부남쪽바깥먼바다']) && z('동해중부해상의', { office: '강원청' }).length === 5);
@@ -121,6 +127,26 @@ console.log('C. 검산');
         ok('서버가 다시 뜨면 「진행 중」이던 것은 「멈춤」으로(혼자 다시 돌지 않음)', t2.status().status === 'stopped');
     }
 
+    console.log('D2. 2차 — 클로드 키2');
+    {
+        const file = tmpFile(); let n = 0;
+        const t = T.createTrial({ ai: async () => { n++; return { success: false, error: 'Claude 402 billing', creditOut: true }; }, sample: [ITEM_CANCEL, ITEM_EXT, ITEM_WRN], file, label: '2차', provider: 'claude2', sleep: async () => {}, gapMs: 0 });
+        t.start(); await t.done();
+        const s = t.status();
+        ok('크레딧 소진이면 첫 건에서 바로 멈춤(3번 헛돌지 않음)', n === 1 && s.status === 'stopped' && /크레딧 소진/.test(s.stopReason) && s.label === '2차' && s.provider === 'claude2', s);
+        ok('시험 목록: 1차 ChatGPT · 2차 클로드 키2', T.TRIALS['1'].provider === 'chatgpt' && T.TRIALS['2'].provider === 'claude2' && /161건/.test(T.TRIALS['2'].label));
+        const sample2 = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample_2.json'), 'utf8'));
+        const sample1 = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample.json'), 'utf8'));
+        const k1 = new Set(sample1.map((x) => x.office + x.호 + x.발표));
+        ok('2차 표본 = 2026년 통보문만, 1차와 안 겹침, 건마다 고른 까닭·규칙 결과', sample2.length === 161 && sample2.every((x) => x.발표.startsWith('2026') && !k1.has(x.office + x.호 + x.발표) && x.분류어림 && x.rule));
+    }
+    {
+        const chain = require('../services/llm_chain');
+        const r = await chain.callClaudeDirect('upstage', { contents: 'x' });
+        ok('callClaudeDirect: 클로드 칸이 아니면 거절', r.success === false && /클로드 칸이 아님/.test(r.error));
+        if (!process.env.ANTHROPIC_API_KEY_2) { const r2 = await chain.callClaudeDirect('claude2', { contents: 'x' }); ok('callClaudeDirect: 키가 없으면 부르지 않고 실패(키 없음)', r2.success === false && /키 없음/.test(r2.error)); }
+    }
+
     console.log('E. 보고서');
     {
         const rows = [
@@ -162,6 +188,7 @@ console.log('C. 검산');
         const c = { innerHTML: '' };
         sandbox.window.renderBulletinWatchAdminTab(c);
         ok('탭에 관찰기록 내려받기 + AI 시험 [시험 시작][멈춤][결과 내려받기] + 나리야 경고', /기록 내려받기/.test(c.innerHTML) && /시험 시작/.test(c.innerHTML) && /멈춤/.test(c.innerHTML) && /결과 내려받기/.test(c.innerHTML) && /나리야 답이 늦어질 수/.test(c.innerHTML));
+        ok('2차(클로드 키2·161건) 칸과 1차 칸이 따로, 버튼이 각 시험 번호로', /2차 — 클로드 키2/.test(c.innerHTML) && /1차 — ChatGPT/.test(c.innerHTML) && /__bwTrial\('start','2'\)/.test(c.innerHTML) && /report\.md\?trial=1/.test(c.innerHTML) && /클로드 키2」 크레딧/.test(c.innerHTML));
         const txt = sandbox.window.__bwTrialText({ status: 'running', done: 37, total: 200, failed: 1, lastAt: '2026-11-15T13:41:00.000Z', stopReason: null });
         ok('상태 글: 진행 중 · 37/200 · 실패 1 · 마지막 응답 KST', /진행 중/.test(txt) && /37\/200 끝남/.test(txt) && /실패 1/.test(txt) && /11-15 22:41 KST/.test(txt), txt);
     }
