@@ -519,6 +519,9 @@
  "국가어항의공공디자인가이드라인.txt": [
   "local_server/knowledge/legal/raw/10_항만물류/어촌ㆍ어항법"
  ],
+ "국가유산수리설계대가기준.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/자연유산의보존및활용에관한법률"
+ ],
  "국가유산청공무원행동강령.txt": [
   "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법"
  ],
@@ -2102,6 +2105,9 @@
  ],
  "전자정보처리프로그램을이용한음식물류폐기물수수료산정등에관한고시.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "제주지방해양경찰청과그소속기관위임전결규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률"
  ],
  "제주항_승하선구역_Stage-B-2차_확인메모.txt": [
   "local_server/knowledge/legal/raw/04_선박해운/도선법"
