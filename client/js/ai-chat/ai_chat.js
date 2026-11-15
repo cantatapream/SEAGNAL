@@ -571,7 +571,8 @@
    * [연계] ← admin_bulletin_ai.js(AI 모델 설정 탭) → initAnswerModels·fetchConfig(GET /api/legal/config)·setAnswerConfig(POST)
    */
   function renderModelSettingsInto(el) {
-    el.innerHTML = '<div class="nrya-console"><div class="nrya-app"><div class="nrya-panel">' + answerModelCardsHtml() + '</div></div></div>';
+    // nrya-modelset — 이 상자만 「AI 특보 분석」(admin_bulletin_ai.js drawFeature)과 같은 촘촘한 목록 모양으로 바꾼다(ai_chat.css, 2026-11-16 사용자 요청).
+    el.innerHTML = '<div class="nrya-console nrya-modelset"><div class="nrya-app"><div class="nrya-panel">' + answerModelCardsHtml() + '</div></div></div>';
     initAnswerModels(el.querySelector('.nrya-console'));
     fetchConfig();
   }
