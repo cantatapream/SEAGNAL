@@ -5,10 +5,12 @@
  *         한 파일(마크다운)에 쉬운 설명 줄과 원본(JSON 줄)을 함께 담아 사람·AI 가 모두 읽을 수 있게 한다.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : services/bulletin_watch(기록 읽기) · services/admin_auth(관리자 확인)
- *  - 서버 API      : GET /api/admin/bulletin-watch/report.md?day=YYYY-MM-DD|all
+ *  - 사용하는 파일 : services/bulletin_watch(기록 읽기) · services/bulletin_ai_trial(참고사항 AI 시험) · services/admin_auth(관리자 확인)
+ *  - 서버 API      : GET /api/admin/bulletin-watch/report.md?day=YYYY-MM-DD|all ·
+ *                    GET /api/admin/bulletin-ai-trial(상태) · POST /api/admin/bulletin-ai-trial/start · POST /api/admin/bulletin-ai-trial/stop ·
+ *                    GET /api/admin/bulletin-ai-trial/report.md
  *  - 마크업        : 없음
- *  - 나를 쓰는 곳  : server.js(등록) · client/js/admin/admin_kakao_relay.js(「통보문 관찰기록」 버튼) · 검사 test_bulletin_watch
+ *  - 나를 쓰는 곳  : server.js(등록) · client/js/admin/admin_bulletin_watch.js(특보 관리 → 통보문 관찰 탭) · 검사 test_bulletin_watch·test_bulletin_ai_trial
  * [로드 순서] server.js 에서 routes/admin 보다 먼저 등록한다(자체 인증).
  * ============================================================================
  */
@@ -53,7 +55,7 @@ function reportMarkdown(events, day) {
  * @returns {import('express').Router}
  * [연계] ← server.js / → services/bulletin_watch
  */
-function createRouter({ watch = require('../services/bulletin_watch'), authorize = adminAuth.requireAdminToken } = {}) {
+function createRouter({ watch = require('../services/bulletin_watch'), trial = require('../services/bulletin_ai_trial'), authorize = adminAuth.requireAdminToken } = {}) {
     const router = express.Router();
     router.get('/api/admin/bulletin-watch/report.md', authorize, (req, res) => {
         const day = String(req.query.day || 'all');
@@ -63,6 +65,15 @@ function createRouter({ watch = require('../services/bulletin_watch'), authorize
         res.set('Content-Type', 'text/markdown; charset=utf-8');
         res.set('Content-Disposition', `attachment; filename="bulletin_watch_${day}.md"`);
         res.send(reportMarkdown(events, day));
+    });
+    // 참고사항 AI 시험(표본 200건) — 시작은 바로(사용자 확정 2026-11-15 「ㄱ」), 한 건씩 차례로. 특보현황·푸시에는 반영 안 함.
+    router.get('/api/admin/bulletin-ai-trial', authorize, (req, res) => res.json({ ok: true, ...trial.status() }));
+    router.post('/api/admin/bulletin-ai-trial/start', authorize, (req, res) => res.json({ ok: true, ...trial.start() }));
+    router.post('/api/admin/bulletin-ai-trial/stop', authorize, (req, res) => res.json({ ok: true, ...trial.stop() }));
+    router.get('/api/admin/bulletin-ai-trial/report.md', authorize, (req, res) => {
+        res.set('Content-Type', 'text/markdown; charset=utf-8');
+        res.set('Content-Disposition', 'attachment; filename="bulletin_ai_trial.md"');
+        res.send(trial.report());
     });
     return router;
 }

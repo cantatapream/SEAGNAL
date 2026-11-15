@@ -1,0 +1,118 @@
+/**
+ * ============================================================================
+ * 파일명: client/js/admin/admin_bulletin_watch.js
+ * 역할  : 관리자 → 특보 관리 → 「통보문 관찰」 탭. 방재기상플랫폼 통보문 관련 기능을 한곳에 모은다.
+ *         ① 통보문 관찰기 기록 내려받기(매분 관찰 — 빈 통보문이 채워지는 모습 등)
+ *         ② 참고사항 AI 시험(표본 200건) — 서버 ChatGPT 에 읽혀 규칙 결과와 맞춰 본다. [시험 시작] [멈춤] [결과 내려받기]
+ *         (사용자 확정 2026-11-15: 「카톡 중계 탭에 넣지말고 통보문 관찰이라는 탭을 하나 더 두고」 「보내는 시각은 ㄱ(누르면 바로)」)
+ * ----------------------------------------------------------------------------
+ * [연계]
+ *  - 사용하는 파일 : admin/admin.js (window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부 · 탭 등록 switchAlertTopTab)
+ *  - 서버 API      : GET /api/admin/bulletin-watch/report.md · GET /api/admin/bulletin-ai-trial ·
+ *                    POST /api/admin/bulletin-ai-trial/start · POST /api/admin/bulletin-ai-trial/stop · GET /api/admin/bulletin-ai-trial/report.md
+ *                    (routes/bulletin_watch.js)
+ *  - 마크업        : 없음(admin.js 의 #alert-top-content 안에 그린다)
+ *  - 나를 쓰는 곳  : admin/admin.js renderUnifiedAlertContent → 「통보문 관찰」 탭 · 검사 test_bulletin_ai_trial(UI 부분)
+ * [로드 순서] index2.html 에서 admin/admin.js 뒤, admin_kakao_relay.js 다음.
+ * ============================================================================
+ */
+(function () {
+    'use strict';
+
+    function esc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+    }
+    function btn(label, onclick, tone) {
+        return '<button type="button" onclick="' + onclick + '" style="padding:5px 10px;margin:6px 6px 0 0;border-radius:8px;border:1px solid rgba(' + tone + ',0.5);'
+            + 'background:rgba(' + tone + ',0.12);color:rgb(' + tone + ');font-size:0.78rem;cursor:pointer">' + esc(label) + '</button>';
+    }
+    function box(title, inner) {
+        return '<div style="background:#161b22;border:1px solid #2a3340;border-radius:10px;padding:10px 12px;margin:10px 0">'
+            + '<div style="font-weight:700;color:#cdd6e0;font-size:0.9rem;margin-bottom:4px">' + title + '</div>' + inner + '</div>';
+    }
+    var STATUS_WORD = { idle: '대기 중', running: '진행 중', stopped: '멈춤', done: '다 끝남' };
+    var KST = function (iso) { if (!iso) return '—'; var d = new Date(new Date(iso).getTime() + 9 * 3600e3); return d.toISOString().slice(5, 16).replace('T', ' ') + ' KST'; };
+
+    /**
+     * 시험 상태 글을 만든다.
+     * 예: trialText({status:'running', done:37, total:200, failed:1, lastAt:'…'}) → '상태: 진행 중 · 37/200 끝남 · 실패 1 …'
+     * @param {object} s GET /api/admin/bulletin-ai-trial 응답
+     * @returns {string} HTML
+     * [연계] ← refreshTrial(이 파일)
+     */
+    function trialText(s) {
+        return '<div style="font-size:0.82rem;color:#cdd6e0">상태: <b>' + esc(STATUS_WORD[s.status] || s.status) + '</b> · ' + esc(s.done) + '/' + esc(s.total) + ' 끝남 · 실패 ' + esc(s.failed) + '</div>'
+            + '<div style="font-size:0.76rem;color:#9aa7b4;margin-top:2px">마지막 응답: ' + esc(KST(s.lastAt)) + (s.stopReason ? ' · ' + esc(s.stopReason) : '') + (s.lastError ? ' · 마지막 오류: ' + esc(s.lastError) : '') + '</div>';
+    }
+
+    /** 시험 상태를 다시 받아 그린다. 진행 중이면 10초 뒤 또(탭을 떠나 칸이 없어지면 멈춘다). [연계] → GET /api/admin/bulletin-ai-trial */
+    async function refreshTrial() {
+        var el = document.getElementById('bw-trial-status');
+        if (!el) return;
+        try {
+            var r = await fetch('/api/admin/bulletin-ai-trial', { cache: 'no-store' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            var s = await r.json();
+            el.innerHTML = trialText(s);
+            if (s.status === 'running') setTimeout(refreshTrial, 10000);
+        } catch (e) {
+            console.warn('[통보문 관찰] AI 시험 상태 불러오기 실패:', e && e.message);
+            el.innerHTML = '<span style="color:#f87171">상태를 불러오지 못했습니다 — ' + esc(e.message) + '</span>';
+        }
+    }
+
+    /** 관리자 토큰이 붙도록 fetch 로 받아 파일로 저장한다. [연계] ← 내려받기 버튼들 */
+    async function download(url, name) {
+        try {
+            var r = await fetch(url, { cache: 'no-store' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(await r.blob());
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        } catch (e) {
+            console.warn('[통보문 관찰] 내려받기 실패:', e && e.message);
+            window.alert('내려받지 못했습니다 — ' + e.message);
+        }
+    }
+
+    /** [시험 시작]·[멈춤] — 시작은 한 번 더 묻는다(ChatGPT 줄을 나리야와 함께 쓴다). [연계] → POST /api/admin/bulletin-ai-trial/start|stop */
+    async function trialAction(kind) {
+        if (kind === 'start' && !window.confirm('참고사항 AI 시험(200건)을 지금 시작할까요?\n\nChatGPT 줄을 나리야·브리핑 AI 와 함께 써서, 진행 중엔 나리야 답이 늦어질 수 있습니다.\n끝난 건은 건너뛰고 이어서 합니다.')) return;
+        try {
+            var r = await fetch('/api/admin/bulletin-ai-trial/' + kind, { method: 'POST', cache: 'no-store' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+        } catch (e) {
+            console.warn('[통보문 관찰] AI 시험 ' + kind + ' 실패:', e && e.message);
+            window.alert((kind === 'start' ? '시작' : '멈춤') + '하지 못했습니다 — ' + e.message);
+        }
+        refreshTrial();
+    }
+
+    /**
+     * 「통보문 관찰」 탭을 그린다.
+     * @param {HTMLElement} container #alert-top-content
+     * [연계] ← admin.js switchAlertTopTab('bulletin-watch')
+     */
+    function renderBulletinWatchAdminTab(container) {
+        container.innerHTML = '<div style="padding:4px 2px">'
+            + box('📡 통보문 관찰기록',
+                '<div style="font-size:0.8rem;color:#9aa7b4">방재기상플랫폼 특보·예비특보 통보문을 1분마다 보며 처음 보인 모습과 바뀐 모습(빈 통보문이 채워짐·내용 바뀜·번호 바뀜)을 남긴 기록입니다. 관찰만 하고 앱 특보현황·푸시는 바꾸지 않습니다.</div>'
+                + btn('기록 내려받기', "window.__bwDownload('/api/admin/bulletin-watch/report.md?day=all','bulletin_watch_all.md')", '52,211,153'))
+            + box('🤖 참고사항 AI 시험 (표본 200건)',
+                '<div style="font-size:0.8rem;color:#9aa7b4;margin-bottom:6px">지난 통보문 참고사항 200건을 서버의 ChatGPT 에 읽혀 정해진 칸으로 옮기게 하고, 규칙 결과와 나란히 맞춰 봅니다. 한 건씩 차례로 보내며, 실제 특보현황·푸시에는 반영하지 않습니다.</div>'
+                + '<div id="bw-trial-status" style="font-size:0.8rem;color:#9aa7b4">불러오는 중…</div>'
+                + '<div>' + btn('시험 시작', "window.__bwTrial('start')", '96,165,250') + btn('멈춤', "window.__bwTrial('stop')", '248,113,113')
+                + btn('결과 내려받기', "window.__bwDownload('/api/admin/bulletin-ai-trial/report.md','bulletin_ai_trial.md')", '167,139,250') + '</div>'
+                + '<div style="font-size:0.74rem;color:#f0b35a;margin-top:6px">※ ChatGPT 줄을 나리야·브리핑 AI 와 함께 씁니다. 진행 중엔 나리야 답이 늦어질 수 있습니다. 멈추면 지금 건만 마치고 서고, 다시 시작하면 이어서 합니다.</div>')
+            + '</div>';
+        refreshTrial();
+    }
+
+    window.renderBulletinWatchAdminTab = renderBulletinWatchAdminTab;
+    window.__bwTrial = trialAction;
+    window.__bwDownload = download;
+    window.__bwTrialText = trialText;   // 검사용
+})();

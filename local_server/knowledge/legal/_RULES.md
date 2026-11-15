@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 138 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 139 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -409,6 +409,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_kakao_relay_admin_ui` | 관리자 「카톡 중계」 탭(client/js/admin/admin_kakao_relay.js)이 서버 기록을 사람이 읽게 그리는지 고정한다. |
 | `test_kakao_shadow` | 카톡판 특보현황(services/kakao_shadow) · 날짜별 기록장(services/kakao_relay_log) 검사. |
 | `test_bulletin_watch` | 통보문 관찰기(services/bulletin_watch) · 내려받기(routes/bulletin_watch) 검사. |
+| `test_bulletin_ai_trial` | 참고사항 AI 시험(services/bulletin_ai_trial) · 관리자 창구(routes/bulletin_watch) · 「통보문 관찰」 탭(client/js/admin/admin_bull… |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.
