@@ -1229,7 +1229,7 @@ function makeBriefings() {
             const fields = await page.$$eval('[data-sb-config] [data-field]', (e) => e.map((x) => x.dataset.field)); assert.deepEqual(fields, ['method', 'exposure', 'batchUnit', 'onlyChanged'], 'AI 모델(chatgptModel·geminiModel) 칸은 「AI 모델 설정」 탭으로 옮김');
             assert.equal(await page.$eval('[data-field="exposure"] [aria-pressed="true"]', (e) => e.textContent), '관리자에게만');
             assert.deepEqual(await page.$$eval('[data-field="batchUnit"] button', (e) => e.map((x) => [x.textContent, x.getAttribute('aria-pressed')])), [['파출소97회', 'false'], ['해양경찰서21회', 'true'], ['지방청5회', 'false']], '세그먼트 — 고른 칸만 aria-pressed');
-            assert.deepEqual(await page.$eval('[data-sb-switch="method"]', (e) => [e.getAttribute('role'), e.getAttribute('aria-checked')]), ['switch', 'true'], '옛 저장값 chatgpt(이 시험 서버 기본) = AI 분석 켜짐');
+            assert.deepEqual(await page.$eval('[data-sb-switch="method"]', (e) => [e.getAttribute('role'), e.getAttribute('aria-checked')]), ['switch', 'true'], '서버 기본값(§11.10.51 전 chatgpt · 뒤 ai) = AI 분석 켜짐 — 옛 값 gemini 는 [§11.10.50] 검사가 따로 본다');
             assert.deepEqual(await page.$eval('[data-sb-config-toggle]', (e) => [e.getAttribute('aria-expanded'), e.nextElementSibling.hidden]), ['false', true], '설정은 기본 접힘');
             assert.equal(await page.$eval('[data-sb-config-sum]', (e) => e.textContent), 'AI 분석 켜짐 · 관리자에게만 · 해양경찰서 묶음 · 바뀐 곳만 켜짐', '접힌 동안 요약 한 줄');
             assert.deepEqual(await page.$eval('[data-sb-preview-toggle]', (e) => [e.getAttribute('aria-expanded'), e.nextElementSibling.hidden, e.textContent]), ['false', true, '관할 하나 미리보기관할을 골라 사용자 화면 그대로 보기▾'], '미리보기도 기본 접힘');
