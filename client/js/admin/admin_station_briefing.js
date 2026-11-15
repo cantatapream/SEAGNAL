@@ -1,24 +1,22 @@
 /**
  * ============================================================================
  * 파일명: client/js/admin/admin_station_briefing.js
- * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17) — 연안 안전 브리핑(종전 「활동지점 안전 브리핑」 — §11.10.4)의
- *         생성 방식(ChatGPT VM / Gemini / 규칙 분석만)·모델·노출 범위(사용자에게 / 관리자에게만 / 노출 안 함)·묶음 단위·「바뀐 곳만 다시 만들기」를 고르고,
- *         상태 카드(실행 중·대기 표시 · 마지막 실행 · 판별 AI/다시 시도/규칙 분석/오류 수 · 공개 예정 · 다음 예정)와 실행 중 진행 게이지(전체 막대 + 묶음별·관할별 — §11.10.7),
- *         상태 카드 안 「관광지 자료 확인 불가」(판별 N관할 · 관광지 M곳, 0이면 「없음」, 펼치면 이름)와 정시 판 소요 시간 작은 표(최근 6회 — 시작·분:초·결과·마감, §11.10.21),
- *         최근 3일 오류를 실행마다 드롭다운으로 골라 관할별·시도별 한글 풀이로 보고 [복사]·[md로 저장](고른 실행만 — 앱 안에서는 시스템 브라우저로 내려받기 · 검사에 떨어진 AI 글과 그 관할 허용 숫자·배수도 담는다 §11.10.31)을 하고,
- *         「처리 안 된 오류 — 누적」 칸(§11.10.48 — 처리 완료 전까지 최대 90일 · 유형별 목록 · [누적 md로 저장]·[누적 복사] = 날짜별·유형별 md(내보내기 번호·유형 번호 G01…) ·
- *         최근 내보내기의 [남은 유형 모두 완료 처리] · 머지된 처리 완료 목록의 맞지 않는 줄 알림), 실행별 화면의 처리된 오류는 흐리게 「처리 완료」,
- *         [지금 다시 만들기](곧바로 공개 · 실행 중이면 409 안내)와 관할 하나 미리보기(공개 예정 판은 「예정」)를 한다.
+ * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17 · 화면 정리 §11.10.50) — 연안 안전 브리핑(종전 「활동지점 안전 브리핑」 — §11.10.4) 관리 화면.
+ *         위에서부터: 머리(제목 「연안 안전 브리핑」 한 줄 · 상태 알약 · [↻] · [지금 다시 만들기]) → 상태 카드(숫자 3칸 — 다음 판 / 마지막 실행 / 처리 안 된 오류 ·
+ *         통계 칩 한 줄(AI·재사용·규칙 분석·오류 · 쓴 AI · 관광지 자료) · 실행 중 진행 게이지(§11.10.7) · 문제가 있을 때만 「관광지 자료 확인 불가」 펼침(§11.10.21)·공개 예정·특보 변경 대기·실행 실패·건너뛴 AI 줄)
+ *         → 오류 카드(탭 2개 「처리 안 된 오류」(§11.10.48 누적 — 유형 목록·[md로 저장]·[복사]·내보내기의 [남은 N개 완료 처리]·알림 줄) / 「실행별」(최근 3일 실행 드롭다운·관할별 한글 풀이·[복사]·[md로 저장] §11.10.7·§11.10.31))
+ *         → 정시 판 기록 표(판 · 소요 · AI·재사용·규칙 · 오류 — 마감에 걸린 판만 「마감 N곳」, 줄을 누르면 그 실행의 오류) → 설정(접힘 — AI 분석 스위치 · 노출 범위·묶음 단위 세그먼트 · 바뀐 곳만 스위치)
+ *         → 관할 하나 미리보기(접힘 — 공개 예정 판은 「예정」). AI 모델·순서 고르기는 「AI 모델 설정」 탭 ③ 연안 안전 브리핑(admin_bulletin_ai.js)으로 옮겼다(§11.10.50).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : admin/admin.js(window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부 · switchAiSubTab 이 나를 부름)
+ *  - 사용하는 파일 : admin/admin.js(window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부 · switchAiSubTab 이 나를 부름 · 설정 카드의 「AI 모델 설정 → ③」 링크가 switchAiSubTab('bulletinAi') 를 부름)
  *                    · forecast/station-briefing/station_briefing_render.js(StationBriefingRender.render — 미리보기는 사용자 화면과 같은 렌더러)
  *                    · @capacitor/browser(window.Capacitor.Plugins.Browser — 앱 안에서 md 를 시스템 브라우저로 내려받기, admin_collect.js CSV·PNG 저장과 같은 방식)
  *  - 서버 API      : GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status(?only=progress — 진행 게이지) · POST /api/admin/station-briefing/run(실행 중 409)
  *                    · GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview · POST /api/admin/station-briefing/download(글 그대로 text/markdown) → GET /api/station-briefing/download/:token
  *                    · POST /api/admin/station-briefing/error-log/export · POST /api/admin/station-briefing/error-log/exports/:id/resolve(§11.10.48)
  *                    (routes/station_briefing.js)
- *  - 마크업        : 관리자 센터 모달 #ai-subtab-body(admin.js renderUnifiedAiTab 이 만듦) — 이 파일이 안을 통째로 만든다(스타일은 <style id="sb-admin-style"> 를 한 번 심는다)
+ *  - 마크업        : 관리자 센터 모달 #ai-subtab-body(admin.js renderUnifiedAiTab 이 만듦) — 이 파일이 안을 통째로 만든다(카드는 style.css .admin-card, 나머지 스타일은 <style id="sb-admin-style"> 를 한 번 심는다)
  *  - 나를 쓰는 곳  : admin.js switchAiSubTab('briefing') → window.renderStationBriefingAdmin
  * [로드 순서] admin/admin_data_status.js 다음 · admin/admin_collect.js 이전(호출은 사용자가 하위 탭을 누를 때)
  * ============================================================================
@@ -26,20 +24,24 @@
 (function (w) {
     'use strict';
     var API = '/api/admin/station-briefing';
-    // 선택지 이름표 — [큰 글, 작은 설명]. 모델은 AI 챗봇 「답변 AI 모델」 버튼(ai-chat/ai_chat.js)과 같은 이름. 서버 choices 에 없는 값은 그리지 않는다.
-    // 방식 설명은 §11.10.4 다시 시도 순서(VM 최대 3번 → Gemini → 규칙 분석 · 방식 Gemini 는 Gemini 2번 → 규칙 분석)와 같다.
+    // 선택지 이름표 — [큰 글, 작은 글]. 서버 choices 에 없는 값은 그리지 않는다.
+    //   method 는 화면에서 「AI 분석」 스위치(켜짐 = 'ai', 끔 = 'template' — §11.10.50)로만 바꾼다. 옛 저장값 chatgpt·gemini 는 켜짐으로 보이고 마지막 실행 「쓴 AI」 이름표에만 쓴다.
+    //   AI 모델·순서는 「AI 모델 설정」 탭 ③ 연안 안전 브리핑에서 고른다(admin_bulletin_ai.js — 이 탭에서 뺌).
     var LABELS = {
-        method: { chatgpt: ['ChatGPT', 'VM 최대 3번 → Gemini → 규칙 분석'], gemini: ['Gemini', '2번 → 규칙 분석'], template: ['규칙 분석만', 'AI 없음'] },
-        chatgptModel: { 'gpt-6-luna': ['GPT Luna'], 'gpt-6-sol': ['GPT Sol'], 'gpt-6-astra': ['GPT Astra'] },
-        geminiModel: { 'gemini-2.5-flash': ['Gemini 2.5 Flash'], 'gemini-2.5-flash-lite': ['Gemini 2.5 Flash-Lite'] },
+        method: { ai: ['AI 모델 설정 순서', '「AI 모델 설정」 ③ 목록 차례대로 → 규칙 분석'], chatgpt: ['ChatGPT'], gemini: ['Gemini'], template: ['규칙 분석만'] },
         exposure: { user: ['사용자에게'], admin: ['관리자에게만'], off: ['노출 안 함'] },
-        batchUnit: { station: ['파출소', '97회/판'], office: ['해양경찰서', '21회/판'], region: ['지방청', '5회/판'] },
-        onlyChanged: { 'true': ['켜기', '입력이 같으면 지난 분석 재사용'], 'false': ['끄기', '매번 새로'] },
+        batchUnit: { station: ['파출소', '97회'], office: ['해양경찰서', '21회'], region: ['지방청', '5회'] },
     };
-    // 칸 이름 — [이름, 작은 설명]. onlyChanged 단서(2단계 검토 B13): 재사용 해시에 기상청 해상 전망(kma)이 들어 있어(station_briefing_ai.generate), 전망이 바뀌면 모든 관할의 해시가 바뀐다.
-    var TITLES = { method: ['생성 방식'], chatgptModel: ['ChatGPT 모델'], geminiModel: ['Gemini 모델'], exposure: ['노출 범위'], batchUnit: ['묶음 단위', 'AI 호출 한 번에 묶는 관할'], onlyChanged: ['바뀐 곳만 다시 만들기', 'AI 분석을 입력이 바뀐 관할만 새로 씀 · 기상청 해상 전망이 바뀌면 전 관할을 다시 씁니다'] };
+    // 설정 칸 — kind 'switch'(켜기/끄기) · 'seg'(세그먼트). onlyChanged 단서(2단계 검토 B13): 재사용 해시에 기상청 해상 전망(kma)이 들어 있어(station_briefing_ai.generate), 전망이 바뀌면 모든 관할의 해시가 바뀐다.
+    var SETTINGS = [
+        { field: 'method', kind: 'switch', title: 'AI 분석', hint: '끄면 규칙 분석만(AI 안 씀)', on: 'ai', off: 'template', offText: '규칙 분석만' },
+        { field: 'exposure', kind: 'seg', title: '노출 범위' },
+        { field: 'batchUnit', kind: 'seg', title: '묶음 단위', hint: 'AI 한 번에 묶는 관할' },
+        { field: 'onlyChanged', kind: 'switch', title: '바뀐 곳만 다시 만들기', hint: '입력이 같으면 지난 분석 재사용', on: true, off: false, onText: '기상청 해상 전망이 바뀌면 전 관할을 다시 씀', offText: '매번 새로' },
+    ];
     var KIND = { morning: '07:30 판', evening: '17:30 판', night: '23:00 판', warning: '특보 변경 판', manual: '관리자 즉시 실행', failure: '실행 실패' };
-    var PROVIDER = { vm: 'ChatGPT', chatgpt: 'ChatGPT', gemini: 'Gemini' };
+    // AI 공급자 이름표 — 진행 게이지 call 사건·오류 풀이(attemptText·familyText)·「쓴 AI」(lastRun.results[].stats.byProvider)·「건너뜀」(lastRun.skipped) 이 같이 쓴다(§11.10.50).
+    var PROVIDER = { vm: 'ChatGPT', chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: '클로드 키1', claude2: '클로드 키2', upstage: '업스테이지' };
     var LEVEL = ['없음', '관심', '주의', '경계'];
     // 서버 station_briefing_ai 의 MIN_S·MAX_S·MAX_CHARS 와 같은 값(시험 test_station_briefing.js 가 같은지 본다) — 오류 풀이 글에만 쓴다.
     var SHAPE = { minS: 3, maxS: 5, maxChars: 460 };   // 460(2026-10-18 사용자 *"460자로 올리자."* — 설계서 §11.10.22 F, 종전 420)
@@ -48,7 +50,8 @@
     var SLOTS = [{ start: 410, pub: 450 }, { start: 1010, pub: 1050 }, { start: 1340, pub: 1380 }];
     var POLL_MS = 2500;
     // 화면에 남겨 둘 고른 값 — 진행 게이지가 다시 그려도(2.5초마다) 사용자가 고른 묶음·실행을 잃지 않게
-    var ui = { batch: null, run: null, poll: null };
+    // errTab = 오류 카드에서 고른 탭('open' 처리 안 된 오류 · 'run' 실행별 — 상태를 다시 그려도 유지)
+    var ui = { batch: null, run: null, poll: null, errTab: 'open' };
 
     /** 요소 하나(글은 textContent). 예: el('div','', '저장됨'). @returns {HTMLElement} [연계] ← 이 파일 */
     function el(tag, style, text) { var e = document.createElement(tag); if (style) e.style.cssText = style; if (text !== undefined && text !== null) e.textContent = String(text); return e; }
@@ -56,21 +59,19 @@
     function elc(tag, cls, text) { var e = el(tag, '', text); e.className = cls; return e; }
     /** KST 시각 글자. 예: '2026-10-17T08:00:12+09:00' → '10-17 08:00'. @param {string} iso @returns {string} */
     function at(iso) { var m = /^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(iso || '')); return m ? m[1] + '-' + m[2] + ' ' + m[3] + ':' + m[4] : '—'; }
-    /** 이름표 [큰 글, 작은 설명] 중 큰 글. 예: label('batchUnit','office') → '해양경찰서'. @returns {string} [연계] ← drawConfig·drawStatus */
+    /** 이름표 [큰 글, 작은 글] 중 큰 글. 예: label('batchUnit','office') → '해양경찰서' · label('method','ai') → 'AI 순서'. @returns {string} [연계] ← drawConfig·drawStatus·drawProgress */
     function label(field, v) { var x = (LABELS[field] || {})[String(v)]; return x ? x[0] : String(v); }
-    /** 이름표 한 줄 글. 예: fullLabel('onlyChanged','false') → '끄기(매번 새로)'. @returns {string} [연계] ← drawConfig 저장 안내 */
-    function fullLabel(field, v) { var x = (LABELS[field] || {})[String(v)]; return x ? x[0] + (x[1] ? '(' + x[1] + ')' : '') : String(v); }
     /**
      * 다음 정시 판 — 공개 시각과 만들기 시작 시각(KST — SLOTS, 서버 EDITIONS 와 같은 표). 이미 만들기 시작한 판(시작 ≤ 지금 < 공개)이면 그 판.
-     * 예: 10-17 14:05 KST → '10-17 17:30 공개(16:50부터 만들기)' · 17:20 → '10-17 17:30 공개(16:50부터 만들기)' · 23:10 → '10-18 07:30 공개(06:50부터 만들기)'
-     * @param {number} nowMs @returns {string} [연계] ← 상태 칸 「다음 예정」
+     * 예: 10-17 14:05 KST → {date:'10-17', pub:'17:30', start:'16:50', tomorrow:false} · 17:20 → 같은 판 · 23:10 → {date:'10-18', pub:'07:30', start:'06:50', tomorrow:true}
+     * @param {number} nowMs @returns {{date:string, pub:string, start:string, tomorrow:boolean}} [연계] ← 상태 카드 숫자 칸 「다음 판」
      */
     function nextEdition(nowMs) {
         var k = new Date(nowMs + 9 * 3600000), mins = k.getUTCHours() * 60 + k.getUTCMinutes(), day = 0, pick = null;
         for (var i = 0; i < SLOTS.length; i++) if (SLOTS[i].pub > mins) { pick = SLOTS[i]; break; }
         if (pick === null) { pick = SLOTS[0]; day = 1; }
         var d = new Date(Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() + day)), hm = function (x) { return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); };
-        return String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0') + ' ' + hm(pick.pub) + ' 공개(' + hm(pick.start) + '부터 만들기)';
+        return { date: String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0'), pub: hm(pick.pub), start: hm(pick.start), tomorrow: day === 1 };
     }
     /** JSON 요청(관리자 토큰은 admin.js 래퍼가 붙인다). 실패면 {status, error}. @returns {Promise<{status:number, body:Object}>} */
     async function call(path, init) {
@@ -80,44 +81,86 @@
     }
     /**
      * 이 탭의 스타일을 한 번 심는다(관리자 화면은 어두운 바탕만 있다 — style.css 에 밝은 테마 규칙이 없음을 확인함, 2026-10-17).
-     * 2026-10-17 사용자 *"텍스트가 배경 색상이 조금 어둡다 보니까 … 눈에 잘 띄지 않거든 생성 방식, GPT 모델, 제미나이 모델 이런 부분 … 흰색으로"* — 칸 이름은 흰색·굵게, 고른 버튼은 진한 청록 바탕 + 흰 글 + ✓.
+     * 카드는 style.css .admin-card(다른 관리자 탭과 같은 rgba(30,41,59,.5)·둥근 16px)에 .sba-card 로 안쪽 여백만 맞춘다. 세그먼트는 특보 관리 탭 .admin-sub-tabs 꼴(어두운 바탕·고른 칸만 밝게)을
+     * 이 탭 안에서 같은 값으로 쓴다(.admin-sub-tabs 를 그대로 붙이면 600px 이하에서 칸이 2×2 로 접혀 세 칸짜리가 어긋난다). 칸 이름은 흰색·굵게(2026-10-17 사용자 — 어두운 바탕에서 잘 보이게).
      * 예: ensureStyle() → <style id="sb-admin-style"> 가 없으면 head 에 붙인다. @returns {void} [연계] ← renderStationBriefingAdmin
      */
     function ensureStyle() {
         if (document.getElementById('sb-admin-style')) return;
         var s = document.createElement('style'); s.id = 'sb-admin-style';
         s.textContent = [
-            '[data-sb-admin] .sba-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px;margin-bottom:12px;}',
-            '[data-sb-admin] .sba-h{font-size:.92rem;font-weight:700;color:#f8fafc;margin:0 0 10px;}',
-            '[data-sb-admin] .sba-field{margin-bottom:12px;}',
-            '[data-sb-admin] .sba-label{color:#f8fafc;font-size:.82rem;font-weight:600;margin-bottom:6px;line-height:1.35;}',
-            '[data-sb-admin] .sba-hint{display:block;color:#94a3b8;font-weight:400;font-size:.72rem;margin-top:1px;}',
-            '[data-sb-admin] .sba-seg{display:flex;flex-wrap:wrap;gap:6px;}',
-            '[data-sb-admin] .sba-pill{padding:6px 11px;min-height:34px;border-radius:999px;font-size:.8rem;font-weight:600;cursor:pointer;line-height:1.2;text-align:left;border:1px solid rgba(255,255,255,.24);background:rgba(255,255,255,.05);color:#e2e8f0;max-width:100%;}',
-            '[data-sb-admin] .sba-pill small{display:block;font-size:.68rem;font-weight:400;color:#94a3b8;margin-top:1px;}',
-            '[data-sb-admin] .sba-pill[aria-pressed="true"]{background:#0e7490;border-color:#67e8f9;color:#fff;}',
-            '[data-sb-admin] .sba-pill[aria-pressed="true"] small{color:#cffafe;}',
-            '[data-sb-admin] .sba-pill[aria-pressed="true"]::before{content:"✓ ";}',
-            '[data-sb-admin] .sba-pill:focus-visible{outline:2px solid #fbbf24;outline-offset:2px;}',
+            // 머리 — 제목 한 줄 + 오른쪽 상태 알약·[↻]·[지금 다시 만들기]
+            '[data-sb-admin] .sba-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}',
+            '[data-sb-admin] .sba-title{margin:0;font-size:1rem;font-weight:800;color:#f8fafc;}',
+            '[data-sb-admin] .sba-title-sub{font-size:.74rem;color:#94a3b8;margin-top:3px;line-height:1.4;}',
+            '[data-sb-admin] .sba-head-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}',
+            '[data-sb-admin] .sba-card{padding:16px 18px;margin-bottom:14px;}',
+            '[data-sb-admin] .sba-ct{display:flex;align-items:center;justify-content:space-between;gap:8px 10px;flex-wrap:wrap;font-size:.88rem;font-weight:800;color:#f8fafc;margin-bottom:12px;}',
+            '[data-sb-admin] .sba-ct small{font-weight:600;color:#94a3b8;font-size:.72rem;}',
             '[data-sb-admin] .sba-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;}',
-            '[data-sb-admin] .sba-state{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:700;}',
+            '[data-sb-admin] .sba-state{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:.76rem;font-weight:700;white-space:nowrap;}',
             '[data-sb-admin] .sba-state.on{background:rgba(59,130,246,.2);color:#bfdbfe;border:1px solid rgba(96,165,250,.6);}',
-            '[data-sb-admin] .sba-state.idle{background:rgba(148,163,184,.12);color:#cbd5e1;border:1px solid rgba(148,163,184,.35);}',
-            '[data-sb-admin] .sba-dot{width:8px;height:8px;border-radius:50%;background:currentColor;}',
+            '[data-sb-admin] .sba-state.idle{background:rgba(148,163,184,.12);color:#cbd5e1;border:1px solid rgba(255,255,255,.1);}',
+            '[data-sb-admin] .sba-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}',
             '[data-sb-admin] .sba-state.on .sba-dot,[data-sb-admin] .sba-st-running .sba-dot{animation:sbaPulse 1.2s ease-in-out infinite;}',
             '@keyframes sbaPulse{0%,100%{opacity:1}50%{opacity:.25}}',
             '@media (prefers-reduced-motion: reduce){[data-sb-admin] .sba-dot{animation:none !important;}}',
-            '[data-sb-admin] .sba-k{color:#94a3b8;font-size:.74rem;margin-top:10px;margin-bottom:3px;}',
-            '[data-sb-admin] .sba-main{color:#f1f5f9;font-size:.86rem;font-weight:600;}',
+            // 상태 카드 — 숫자 3칸(좁으면 한 줄에 하나 — 이름·값·설명) · 칩 한 줄 · 있을 때만 보이는 줄
+            '[data-sb-admin] .sba-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}',
+            '[data-sb-admin] .sba-kpi{background:rgba(0,0,0,.22);border-radius:12px;padding:11px 12px;min-width:0;}',
+            '[data-sb-admin] .sba-kpi .k{font-size:.7rem;color:#94a3b8;font-weight:700;}',
+            '[data-sb-admin] .sba-kpi .v{font-size:1.25rem;font-weight:800;color:#f8fafc;margin-top:3px;line-height:1.25;}',
+            '[data-sb-admin] .sba-kpi .d{font-size:.7rem;color:#94a3b8;margin-top:2px;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere;}',
+            '[data-sb-admin] .sba-kpi.bad .v{color:#f87171;}',
+            '@media (max-width:520px){[data-sb-admin] .sba-kpis{grid-template-columns:1fr;gap:6px;}[data-sb-admin] .sba-kpi{display:grid;grid-template-columns:96px minmax(0,1fr);column-gap:8px;align-items:baseline;padding:8px 12px;}[data-sb-admin] .sba-kpi .v{font-size:1.05rem;margin:0;}[data-sb-admin] .sba-kpi .d{grid-column:2;}[data-sb-admin] .sba-card{padding:14px 14px;}}',
+            '[data-sb-admin] .sba-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;align-items:center;}',
+            '[data-sb-admin] .sba-chip{display:inline-block;padding:3px 9px;border-radius:7px;font-size:.72rem;font-weight:700;background:rgba(255,255,255,.06);color:#cbd5e1;white-space:nowrap;}',
+            '[data-sb-admin] .sba-chip.ok{background:rgba(16,185,129,.15);color:#6ee7b7;}',
+            '[data-sb-admin] .sba-chip.warn{background:rgba(245,158,11,.16);color:#fcd34d;}',
+            '[data-sb-admin] .sba-chip.bad{background:rgba(239,68,68,.15);color:#fca5a5;}',
+            '[data-sb-admin] .sba-muted{color:#94a3b8;font-size:.72rem;line-height:1.5;}',
+            '[data-sb-admin] .sba-line{font-size:.76rem;line-height:1.5;margin-top:8px;color:#cbd5e1;word-break:keep-all;overflow-wrap:anywhere;}',
+            '[data-sb-admin] .sba-line.warn{color:#fcd34d;}',
+            '[data-sb-admin] .sba-line.bad{color:#fca5a5;}',
             '[data-sb-admin] .sba-sub{color:#94a3b8;font-size:.75rem;line-height:1.5;}',
-            '[data-sb-admin] .sba-chip{display:inline-block;padding:2px 8px;border-radius:7px;font-size:.74rem;font-weight:600;background:rgba(255,255,255,.07);color:#e2e8f0;border:1px solid rgba(255,255,255,.12);}',
-            '[data-sb-admin] .sba-chip.ok{background:rgba(16,185,129,.16);color:#6ee7b7;border-color:rgba(16,185,129,.4);}',
-            '[data-sb-admin] .sba-chip.warn{background:rgba(245,158,11,.16);color:#fcd34d;border-color:rgba(245,158,11,.45);}',
-            '[data-sb-admin] .sba-chip.bad{background:rgba(239,68,68,.16);color:#fca5a5;border-color:rgba(239,68,68,.45);}',
-            '[data-sb-admin] .sba-chip.info{background:rgba(59,130,246,.16);color:#bfdbfe;border-color:rgba(96,165,250,.45);}',
-            '[data-sb-admin] .sba-btn{padding:8px 14px;border-radius:8px;font-size:.8rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#f1f5f9;}',
-            '[data-sb-admin] .sba-btn.primary{background:#2563eb;border-color:#2563eb;color:#fff;}',
+            '[data-sb-admin] .sba-main{color:#f1f5f9;font-size:.86rem;font-weight:600;}',
+            '[data-sb-admin] .sba-k{color:#94a3b8;font-size:.74rem;margin-top:10px;margin-bottom:3px;}',
+            // 버튼 — 다른 관리자 탭(.admin-action-btn·.admin-btn-primary)과 같은 색, 작은 크기
+            '[data-sb-admin] .sba-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;white-space:nowrap;}',
+            '[data-sb-admin] .sba-btn:hover{background:rgba(255,255,255,.1);}',
+            '[data-sb-admin] .sba-btn.primary{background:linear-gradient(135deg,#3b82f6,#2563eb);border-color:transparent;}',
+            '[data-sb-admin] .sba-btn.icon{padding:7px 11px;}',
             '[data-sb-admin] .sba-btn:disabled{opacity:.45;cursor:default;}',
+            '[data-sb-admin] .sba-btn:focus-visible,[data-sb-admin] .sba-seg>button:focus-visible,[data-sb-admin] .sba-sw:focus-visible,[data-sb-admin] .sba-acc:focus-visible,[data-sb-admin] .sba-link:focus-visible{outline:2px solid #fbbf24;outline-offset:2px;}',
+            // 세그먼트(특보 관리 탭 .admin-sub-tabs 꼴) — 설정의 노출 범위·묶음 단위, 오류 카드의 탭 2개
+            '[data-sb-admin] .sba-seg{display:flex;background:rgba(0,0,0,.3);padding:4px;border-radius:12px;gap:4px;min-width:0;}',
+            '[data-sb-admin] .sba-seg>button{flex:1 1 0;min-width:0;padding:7px 8px;border:none;background:transparent;color:#94a3b8;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;line-height:1.3;word-break:keep-all;transition:background .2s,color .2s;}',
+            '[data-sb-admin] .sba-seg>button[aria-pressed="true"],[data-sb-admin] .sba-seg>button[aria-selected="true"]{background:rgba(255,255,255,.1);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2);}',
+            '[data-sb-admin] .sba-seg>button small{font-size:.66rem;opacity:.65;margin-left:3px;white-space:nowrap;}',
+            '[data-sb-admin] .sba-seg .n{display:inline-block;min-width:16px;padding:0 5px;border-radius:8px;background:rgba(239,68,68,.85);color:#fff;font-size:.64rem;font-weight:700;margin-left:5px;line-height:16px;}',
+            '[data-sb-admin] .sba-tabs{flex:0 1 300px;}',
+            '@media (max-width:520px){[data-sb-admin] .sba-seg>button{padding:6px 3px;font-size:.74rem;}[data-sb-admin] .sba-seg>button small{display:block;margin:1px 0 0;}[data-sb-admin] .sba-tabs{flex:1 1 100%;}}',
+            // 스위치(켜기/끄기) · 다른 탭으로 가는 글 링크
+            '[data-sb-admin] .sba-sw{position:relative;flex:0 0 auto;width:42px;height:24px;padding:0;border:none;border-radius:999px;background:rgba(148,163,184,.35);cursor:pointer;transition:background .2s;}',
+            '[data-sb-admin] .sba-sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;}',
+            '[data-sb-admin] .sba-sw[aria-checked="true"]{background:#2563eb;}',
+            '[data-sb-admin] .sba-sw[aria-checked="true"]::after{left:21px;}',
+            '[data-sb-admin] .sba-sw:disabled{opacity:.5;cursor:default;}',
+            '[data-sb-admin] .sba-link{background:none;border:none;padding:0;color:#67e8f9;font-weight:700;font-size:inherit;cursor:pointer;text-align:left;}',
+            // 설정 줄(이름 | 고르기) — 좁으면 위아래
+            '[data-sb-admin] .sba-set{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:center;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.06);}',
+            '[data-sb-admin] .sba-set .l{font-size:.82rem;font-weight:700;color:#f8fafc;line-height:1.35;}',
+            '[data-sb-admin] .sba-set .l small{display:block;color:#94a3b8;font-weight:500;font-size:.68rem;margin-top:2px;}',
+            '[data-sb-admin] .sba-swrow{display:flex;align-items:center;gap:10px;min-width:0;}',
+            '@media (max-width:520px){[data-sb-admin] .sba-set{grid-template-columns:1fr;gap:6px;}}',
+            // 접고 펴는 카드 머리
+            '[data-sb-admin] .sba-acc{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:0;border:none;background:none;color:inherit;cursor:pointer;text-align:left;font:inherit;}',
+            '[data-sb-admin] .sba-acc-t{font-size:.88rem;font-weight:800;color:#f8fafc;}',
+            '[data-sb-admin] .sba-acc-t small{font-size:.7rem;font-weight:600;color:#94a3b8;margin-left:4px;}',
+            '[data-sb-admin] .sba-acc-sum{font-size:.74rem;color:#94a3b8;margin-top:3px;line-height:1.45;}',
+            '[data-sb-admin] .sba-acc[aria-expanded="true"] .sba-acc-sum{display:none;}',
+            '[data-sb-admin] .sba-caret{display:inline-block;color:#94a3b8;font-size:.8rem;transition:transform .2s;}',
+            '[data-sb-admin] .sba-acc[aria-expanded="true"] .sba-caret{transform:rotate(180deg);}',
             // 진행 게이지 — 막대 가운데 글(지금 하는 곳)
             '[data-sb-admin] .sba-gauge{position:relative;min-height:34px;border-radius:9px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(255,255,255,.14);}',
             '[data-sb-admin] .sba-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#0e7490,#2563eb);transition:width .4s ease;}',
@@ -138,262 +181,346 @@
             '[data-sb-admin] .sba-st-running{background:rgba(59,130,246,.22);color:#fff;border-color:#60a5fa;}',
             '[data-sb-admin] .sba-st-retry{background:rgba(245,158,11,.14);color:#fcd34d;border-color:rgba(245,158,11,.4);}',
             '[data-sb-admin] .sba-st-rule{background:rgba(239,68,68,.14);color:#fca5a5;border-color:rgba(239,68,68,.4);}',
-            // 오류 — 실행 고르기·관할별 묶음
-            '[data-sb-admin] .sba-select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#0f1b33;color:#fff;font-size:.8rem;}',
-            '[data-sb-admin] .sba-errst{border-top:1px solid rgba(255,255,255,.08);padding:8px 0 6px;}',
+            // 오류 카드 — 유형 목록(처리 안 된 오류) · 실행 고르기·관할별 묶음(실행별)
+            '[data-sb-admin] .sba-eitem{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.06);}',
+            '[data-sb-admin] .sba-ename{color:#f8fafc;font-weight:700;font-size:.84rem;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere;}',
+            '[data-sb-admin] .sba-emeta{color:#94a3b8;font-size:.72rem;margin-top:2px;line-height:1.45;word-break:keep-all;overflow-wrap:anywhere;}',
+            '[data-sb-admin] .sba-cnt{flex:0 0 auto;font-size:.72rem;font-weight:800;padding:2px 9px;border-radius:7px;background:rgba(239,68,68,.15);color:#fca5a5;white-space:nowrap;}',
+            '[data-sb-admin] .sba-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px;}',
+            '[data-sb-admin] .sba-expbox{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:9px 11px;border-radius:10px;background:rgba(0,0,0,.2);margin-top:10px;}',
+            '[data-sb-admin] .sba-exp{flex:1 1 220px;min-width:0;}',
+            '[data-sb-admin] .sba-exp summary{cursor:pointer;color:#e2e8f0;font-size:.76rem;line-height:1.6;word-break:keep-all;overflow-wrap:anywhere;}',
+            '[data-sb-admin] .sba-exp li{color:#cbd5e1;font-size:.74rem;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere;}',
+            '[data-sb-admin] .sba-select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:#0f1b33;color:#fff;font-size:.8rem;}',
+            '[data-sb-admin] .sba-errst{border-top:1px solid rgba(255,255,255,.06);padding:8px 0 6px;}',
             '[data-sb-admin] .sba-errst-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;}',
             '[data-sb-admin] .sba-errst-name{color:#f8fafc;font-weight:700;font-size:.84rem;}',
             '[data-sb-admin] .sba-errst ol{margin:4px 0 0;padding-left:0;list-style:none;}',
             '[data-sb-admin] .sba-errst li{color:#e2e8f0;font-size:.78rem;line-height:1.5;padding:3px 0 3px 10px;border-left:2px solid rgba(248,113,113,.5);margin-top:3px;word-break:keep-all;overflow-wrap:anywhere;}',
             '[data-sb-admin] .sba-errst li b{color:#fda4af;font-weight:700;}',
-            // §11.10.48 처리 완료된 오류(실행별 화면 — 흐리게 남김) · 누적 칸 알림
+            // §11.10.48 처리 완료된 오류(실행별 — 흐리게 남김) · 알림
             '[data-sb-admin] .sba-errst li.done{opacity:.55;border-left-color:rgba(16,185,129,.55);}',
             '[data-sb-admin] .sba-errst li .sba-done{display:inline-block;margin-left:6px;padding:0 6px;border-radius:5px;font-size:.66rem;background:rgba(16,185,129,.18);color:#6ee7b7;}',
             '[data-sb-admin] .sba-warn{color:#fbbf24;font-size:.76rem;line-height:1.5;margin:4px 0;}',
-            '[data-sb-admin] .sba-exp{border-top:1px solid rgba(255,255,255,.08);padding:8px 0 4px;}',
-            '[data-sb-admin] .sba-exp summary{cursor:pointer;color:#e2e8f0;font-size:.8rem;line-height:1.45;}',
-            '[data-sb-admin] .sba-exp li{color:#cbd5e1;font-size:.74rem;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere;}',
-            // §11.10.21 관광지 자료 확인 불가(펼침 목록) · 정시 판 소요 표(360px 에서 넘치지 않게 고정 칸·줄바꿈)
-            '[data-sb-admin] .sba-sf summary{cursor:pointer;color:#fcd34d;font-size:.84rem;font-weight:600;line-height:1.45;}',
+            // §11.10.21 관광지 자료 확인 불가(문제가 있을 때만 펼침) · 정시 판 기록 표(360px 에서 넘치지 않게 고정 칸·줄바꿈)
+            '[data-sb-admin] .sba-sf{margin-top:8px;}',
+            '[data-sb-admin] .sba-sf summary{cursor:pointer;color:#fcd34d;font-size:.8rem;font-weight:600;line-height:1.45;}',
             '[data-sb-admin] .sba-sf ul{margin:4px 0 0;padding-left:16px;}',
             '[data-sb-admin] .sba-sf li{color:#e2e8f0;font-size:.76rem;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere;}',
-            '[data-sb-admin] .sba-tt{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:4px;font-size:.72rem;}',
-            '[data-sb-admin] .sba-tt th{color:#94a3b8;font-weight:600;text-align:left;padding:4px 3px;border-bottom:1px solid rgba(255,255,255,.14);}',
-            '[data-sb-admin] .sba-tt td{color:#e2e8f0;padding:5px 3px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere;}',
-            '[data-sb-admin] .sba-tt td small{display:block;color:#94a3b8;font-size:.66rem;}',
+            '[data-sb-admin] .sba-tt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.76rem;}',
+            '[data-sb-admin] .sba-tt th{color:#94a3b8;font-weight:700;text-align:left;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,.1);}',
+            '[data-sb-admin] .sba-tt td{color:#e2e8f0;padding:7px 4px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere;}',
+            '[data-sb-admin] .sba-tt td small{color:#94a3b8;font-size:.68rem;margin-left:4px;}',
+            '[data-sb-admin] .sba-tt .r{text-align:right;}',
             '[data-sb-admin] .sba-tt td.bad{color:#fca5a5;font-weight:700;}',
+            '[data-sb-admin] .sba-tt tbody tr{cursor:pointer;}',
+            '[data-sb-admin] .sba-tt tbody tr:hover td{background:rgba(255,255,255,.03);}',
+            '[data-sb-admin] .sba-tt .sba-dl{display:inline-block;margin-left:4px;padding:0 6px;border-radius:5px;font-size:.66rem;font-weight:700;background:rgba(239,68,68,.15);color:#fca5a5;white-space:nowrap;}',
+            '[data-sb-admin] .sba-tt .late{display:block;color:#fca5a5;font-size:.66rem;margin:1px 0 0;}',
+            '@media (max-width:520px){[data-sb-admin] .sba-tt td small{display:block;margin:1px 0 0;}}',
+            '[data-sb-admin] .sba-note{font-size:.7rem;color:#94a3b8;margin-top:8px;line-height:1.5;}',
             '[data-sb-admin] .sba-mdview{width:100%;min-height:180px;margin-top:6px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#0b1426;color:#e2e8f0;font-size:.72rem;font-family:monospace;}',
         ].join('\n');
         document.head.appendChild(s);
     }
+    /**
+     * 카드 하나(style.css .admin-card — 다른 관리자 탭과 같은 꼴). 예: card(host, 'data-sb-status'). @param {HTMLElement} parent @param {string} mark - data-* 표시 @returns {HTMLElement} [연계] ← renderStationBriefingAdmin
+     */
+    function card(parent, mark) { var c = elc('div', 'admin-card sba-card'); c.setAttribute(mark, ''); parent.appendChild(c); return c; }
+    /**
+     * 접고 펴는 카드 머리 — 기본 접힘, 접힌 동안 요약 한 줄(sum)을 보인다. 예: collapsible(box, '설정', '바꾸면 바로 저장', 'data-sb-config-toggle').
+     * @param {HTMLElement} box @param {string} title @param {string} note - 제목 옆 작은 글 @param {string} mark - 머리 단추의 data-* 표시 @returns {{body:HTMLElement, sum:HTMLElement, btn:HTMLElement}} [연계] ← drawConfig·drawPreview
+     */
+    function collapsible(box, title, note, mark) {
+        var btn = elc('button', 'sba-acc'); btn.type = 'button'; btn.setAttribute('aria-expanded', 'false'); btn.setAttribute(mark, '');
+        var left = el('div', 'min-width:0;'), t = elc('div', 'sba-acc-t', title); if (note) t.appendChild(el('small', '', note)); left.appendChild(t);
+        var sum = elc('div', 'sba-acc-sum'); left.appendChild(sum);
+        btn.appendChild(left); btn.appendChild(elc('span', 'sba-caret', '▾'));
+        var body = el('div', 'margin-top:6px;'); body.hidden = true;
+        btn.addEventListener('click', function () { var open = body.hidden; body.hidden = !open; btn.setAttribute('aria-expanded', String(open)); });
+        box.appendChild(btn); box.appendChild(body);
+        return { body: body, sum: sum, btn: btn };
+    }
 
     /**
-     * AI 브리핑 하위 탭을 그린다.
+     * AI 브리핑 하위 탭을 그린다 — 머리(제목·상태 알약·[↻]·[지금 다시 만들기]) → 상태 카드 → 오류 카드 → 정시 판 기록 → 설정(접힘) → 관할 하나 미리보기(접힘)(§11.10.50).
+     * 2026-11-16 사용자 *"이 화면 자체가 너무 지저분하고 보기 좋지 않은데 … 불필요한 내용은 빼고 … 선택 버튼이나 그런게 다른 탭에서 구성하고 있는 부분과 디자인도 다르고"* — 시안 A2 그대로.
      * 예: renderStationBriefingAdmin(document.getElementById('ai-subtab-body'))
      * @param {HTMLElement} container @returns {Promise<void>}
-     * [연계] ← admin.js switchAiSubTab('briefing') / → drawConfig·drawStatus·drawPreview
+     * [연계] ← admin.js switchAiSubTab('briefing') / → drawConfig·drawStatus·drawPreview · POST /run
      */
     async function renderStationBriefingAdmin(container) {
         ensureStyle();
         container.textContent = '';
         var host = el('div'); host.setAttribute('data-sb-admin', ''); container.appendChild(host);
-        var title = el('div'); title.className = 'admin-section-title'; var ts = el('span'); var ic = el('i'); ic.className = 'fa-solid fa-compass'; ic.style.color = '#22d3ee'; ts.appendChild(ic); ts.appendChild(document.createTextNode(' AI 브리핑 — 연안 안전 브리핑')); title.appendChild(ts); host.appendChild(title);
-        host.appendChild(el('div', 'color:#94a3b8;font-size:0.78rem;margin-bottom:10px;line-height:1.5;', '파출소 관할 97곳의 브리핑을 07:30·17:30·23:00 에 보이도록 각 40분 전(06:50·16:50·22:20)부터 만들어 두고, 특보가 바뀌면 그 관할을 곧바로 다시 만듭니다. AI 는 결론 아래 연안·해상 분석 문단(각 3~5문장)만 쓰고(VM 최대 3번 → Gemini → 그래도 안 되면 서버 규칙 분석), 결론·근거·권고·단계·카드는 서버 규칙입니다. 바꾼 값은 누르는 즉시 저장됩니다.'));
-        var cfgBox = elc('div', 'sba-box'); cfgBox.setAttribute('data-sb-config', ''); host.appendChild(cfgBox);
-        var stBox = elc('div', 'sba-box'); stBox.setAttribute('data-sb-status', ''); host.appendChild(stBox);
-        var pvBox = elc('div', 'sba-box'); pvBox.setAttribute('data-sb-preview', ''); host.appendChild(pvBox);
+        var head = elc('div', 'sba-head'); host.appendChild(head);
+        var tw = el('div', 'min-width:0;'); tw.appendChild(elc('h2', 'sba-title', '연안 안전 브리핑')); tw.appendChild(elc('div', 'sba-title-sub', '07:30 · 17:30 · 23:00 공개 · 각 40분 전부터 만들기')); head.appendChild(tw);
+        var acts = elc('div', 'sba-head-acts'); head.appendChild(acts);
+        var pill = elc('span', 'sba-state idle'); pill.setAttribute('data-sb-running', ''); pill.appendChild(elc('span', 'sba-dot')); pill.appendChild(document.createTextNode('불러오는 중')); acts.appendChild(pill);
+        var re = elc('button', 'sba-btn icon'), rei = el('i'); rei.className = 'fa-solid fa-rotate-right'; rei.setAttribute('aria-hidden', 'true'); re.appendChild(rei); re.type = 'button'; re.title = '새로고침'; re.setAttribute('aria-label', '새로고침'); re.setAttribute('data-sb-refresh', ''); acts.appendChild(re);
+        var run = elc('button', 'sba-btn primary', '지금 다시 만들기'); run.type = 'button'; run.setAttribute('data-sb-run', ''); acts.appendChild(run);
+        var msg = el('div', 'font-size:0.78rem;line-height:1.5;margin:-6px 0 12px;'); msg.setAttribute('data-sb-run-msg', ''); msg.setAttribute('aria-live', 'polite'); msg.hidden = true; host.appendChild(msg);
+        // v = 상태가 그리는 칸들(새로고침·진행 끝 때 한꺼번에 다시 그림)
+        var v = { pill: pill, status: card(host, 'data-sb-status'), errors: card(host, 'data-sb-errcard'), times: card(host, 'data-sb-edition-times'), prog: null };
+        var cfgBox = card(host, 'data-sb-config'), pvBox = card(host, 'data-sb-preview');
+        re.addEventListener('click', function () { drawStatus(v); });
+        var say = function (color, t) { msg.hidden = false; msg.style.color = color; msg.textContent = t; };
+        run.addEventListener('click', async function () {
+            run.disabled = true; say('#94a3b8', '요청 중…');
+            try {
+                var r = await call('/run', { method: 'POST' });
+                if (r.status === 202) { say('#34d399', '시작했습니다 — 21시 전이면 오늘 판, 이후면 내일 판을 다시 만들어 끝나는 대로 곧바로 보입니다(공개 시각을 기다리지 않음). 상태 카드의 게이지가 진행을 보여 주고, 끝나면 결과가 저절로 바뀝니다.'); setPill(pill, true); drawStatus(v); }
+                else if (r.status === 409) { say('#fbbf24', '이미 실행 중입니다 — 끝난 뒤 다시 눌러 주세요.'); drawStatus(v); }
+                else say('#fca5a5', '시작하지 못했습니다: ' + (r.body.error || ('HTTP ' + r.status)));
+            } catch (e) { console.warn('[AI 브리핑 관리] 지금 다시 만들기 요청 실패:', e && e.message); say('#fca5a5', '요청 실패: ' + (e && e.message)); }
+            finally { run.disabled = false; }
+        });
         var cfg = await call('/config');
         if (cfg.status !== 200 || !cfg.body.config) { cfgBox.appendChild(el('div', 'color:#fca5a5;font-size:0.82rem;', '설정을 불러오지 못했습니다(' + cfg.status + '). 관리자 로그인이 필요할 수 있습니다.')); return; }
         drawConfig(cfgBox, cfg.body.config, cfg.body.choices || {});
-        drawStatus(stBox);
+        drawStatus(v);
         drawPreview(pvBox);
     }
     /**
-     * 설정 칸(생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만). 버튼을 누르면 PUT 으로 그 칸만 보내고, 성공하면 버튼 상태를 바꾼다(실패면 이유).
-     * 모델 줄은 방식에 따라 흐리게(규칙 분석만이면 둘 다, Gemini 면 ChatGPT 모델). 칸 이름은 흰색·굵게, 고른 버튼은 진한 청록 + ✓(§11.10.7 F).
-     * 예: [관리자에게만] → PUT {exposure:'admin'} → 「저장됨 — 노출 범위: 관리자에게만」
-     * @param {HTMLElement} box @param {Object} config @param {Object} choices @returns {void} [연계] ← renderStationBriefingAdmin
+     * 설정 카드(접힘 — 접힌 동안 요약 한 줄) — AI 분석 스위치(켜짐 = method 'ai' · 끔 = 'template', 옛 저장값 chatgpt·gemini 는 켜짐으로 보임 — §11.10.50)와 「AI 모델 설정 → ③」 링크,
+     * 노출 범위·묶음 단위 세그먼트, 바뀐 곳만 다시 만들기 스위치. 바꾸면 그 칸만 곧바로 PUT 하고, 성공하면 모양을 바꾼다(실패면 이유 — 모양은 그대로).
+     * 2026-11-16 사용자 *"ai 모델 선택 및 설정 부분은 ai 탭의 ai 모델 설정이라는 하위 탭 … 그 탭으로 넣어줘"* — 생성 방식·ChatGPT 모델·Gemini 모델 칸은 이 탭에서 뺐다.
+     * 예: [관리자에게만] → PUT {exposure:'admin'} → 「저장됨 — 노출 범위: 관리자에게만」 · AI 분석 끔 → PUT {method:'template'} → 「저장됨 — AI 분석: 꺼짐(규칙 분석만)」
+     * @param {HTMLElement} box @param {Object} config @param {Object} choices - 서버 선택지(없는 칸은 그리지 않음) @returns {void} [연계] ← renderStationBriefingAdmin / → window.switchAiSubTab('bulletinAi')
      */
     function drawConfig(box, config, choices) {
         box.textContent = '';
-        box.appendChild(elc('div', 'sba-h', '설정'));
-        var msg = el('div', 'font-size:0.78rem;min-height:1.2em;margin-top:2px;color:#94a3b8;'); msg.setAttribute('data-sb-msg', ''); msg.setAttribute('aria-live', 'polite');
-        var rows = {};
-        Object.keys(TITLES).forEach(function (field) {
-            var opts = choices[field]; if (!Array.isArray(opts) || !opts.length) return;
-            var r = elc('div', 'sba-field'); r.setAttribute('data-field', field);
-            var lb = elc('div', 'sba-label', TITLES[field][0]); if (TITLES[field][1]) lb.appendChild(elc('span', 'sba-hint', TITLES[field][1]));
-            r.appendChild(lb);
-            var seg = elc('div', 'sba-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', TITLES[field][0]);
-            opts.forEach(function (v) {
-                var x = (LABELS[field] || {})[String(v)] || [String(v)];
-                var b = elc('button', 'sba-pill', x[0]); b.type = 'button'; b.setAttribute('data-value', String(v));
-                if (x[1]) b.appendChild(el('small', '', x[1]));
-                b.addEventListener('click', async function () {
-                    if (b.disabled) return;
-                    var patch = {}; patch[field] = v; msg.style.color = '#94a3b8'; msg.textContent = '저장 중…';
-                    try {
-                        var res = await call('/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
-                        if (res.status !== 200 || !res.body.config) throw new Error(res.body.error || ('HTTP ' + res.status));
-                        config = res.body.config; paint(); msg.style.color = '#34d399'; msg.textContent = '저장됨 — ' + TITLES[field][0] + ': ' + fullLabel(field, v);
-                    } catch (e) { console.warn('[AI 브리핑 관리] 설정 저장 실패:', field, e && e.message); msg.style.color = '#fca5a5'; msg.textContent = '저장 실패: ' + (e && e.message); }
+        var acc = collapsible(box, '설정', '바꾸면 바로 저장', 'data-sb-config-toggle'); acc.sum.setAttribute('data-sb-config-sum', '');
+        var msg = el('div', 'font-size:0.78rem;min-height:1.2em;margin-top:6px;color:#94a3b8;'); msg.setAttribute('data-sb-msg', ''); msg.setAttribute('aria-live', 'polite');
+        var rows = {}, paints = [];
+        var isOn = function (d) { return d.field === 'method' ? config.method !== 'template' : config[d.field] === d.on; };
+        var save = async function (d, val, okText) {
+            var patch = {}; patch[d.field] = val; msg.style.color = '#94a3b8'; msg.textContent = '저장 중…';
+            try {
+                var res = await call('/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+                if (res.status !== 200 || !res.body.config) throw new Error(res.body.error || ('HTTP ' + res.status));
+                config = res.body.config; paint(); msg.style.color = '#34d399'; msg.textContent = '저장됨 — ' + d.title + ': ' + okText;
+            } catch (e) { console.warn('[AI 브리핑 관리] 설정 저장 실패:', d.field, e && e.message); msg.style.color = '#fca5a5'; msg.textContent = '저장 실패: ' + (e && e.message); }
+        };
+        SETTINGS.forEach(function (d) {
+            var opts = choices[d.field]; if (!Array.isArray(opts) || !opts.length) return;
+            var r = elc('div', 'sba-set'); r.setAttribute('data-field', d.field); rows[d.field] = r;
+            var lb = elc('div', 'l', d.title); if (d.hint) lb.appendChild(el('small', '', d.hint)); r.appendChild(lb);
+            if (d.kind === 'switch') {
+                var wrap = elc('div', 'sba-swrow'), sw = elc('button', 'sba-sw'); sw.type = 'button'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-label', d.title); sw.setAttribute('data-sb-switch', d.field);
+                var side = elc('span', 'sba-muted'); side.setAttribute('data-sb-switch-text', d.field);
+                wrap.appendChild(sw); wrap.appendChild(side); r.appendChild(wrap);
+                sw.addEventListener('click', async function () {
+                    if (sw.disabled) return;
+                    var next = !isOn(d); sw.disabled = true;
+                    try { await save(d, next ? d.on : d.off, next ? '켜짐' : '꺼짐(' + d.offText + ')'); } finally { sw.disabled = false; }
                 });
-                seg.appendChild(b);
-            });
-            r.appendChild(seg); box.appendChild(r); rows[field] = r;
+                paints.push(function () {
+                    var on = isOn(d); sw.setAttribute('aria-checked', String(on)); side.textContent = '';
+                    side.appendChild(document.createTextNode(on ? '켜짐' + (d.onText ? ' · ' + d.onText : '') : '꺼짐 — ' + d.offText));
+                    if (d.field === 'method') {   // AI 순서는 다른 탭 — 누르면 그 하위 탭으로
+                        side.appendChild(document.createTextNode(' · AI 순서는 '));
+                        var a = elc('button', 'sba-link', 'AI 모델 설정 → ③ 연안 안전 브리핑'); a.type = 'button'; a.setAttribute('data-sb-ai-order', '');
+                        a.addEventListener('click', function () { if (typeof w.switchAiSubTab === 'function') w.switchAiSubTab('bulletinAi'); });
+                        side.appendChild(a);
+                    }
+                });
+            } else {
+                var seg = elc('div', 'sba-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', d.title);
+                opts.forEach(function (val) {
+                    var x = (LABELS[d.field] || {})[String(val)] || [String(val)];
+                    var b = el('button', '', x[0]); b.type = 'button'; b.setAttribute('data-value', String(val));
+                    if (x[1]) b.appendChild(el('small', '', x[1]));
+                    b.addEventListener('click', async function () { if (b.disabled || b.getAttribute('aria-pressed') === 'true') return; b.disabled = true; try { await save(d, val, label(d.field, val)); } finally { b.disabled = false; } });
+                    seg.appendChild(b);
+                });
+                r.appendChild(seg);
+                paints.push(function () { seg.querySelectorAll('button[data-value]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-value') === String(config[d.field]))); }); });
+            }
+            acc.body.appendChild(r);
         });
-        box.appendChild(msg);
-        /** 지금 설정값에 맞춰 고른 버튼(aria-pressed)·흐림을 칠한다. */
+        acc.body.appendChild(msg);
+        /** 지금 설정값으로 스위치·세그먼트·접힌 요약을 칠한다. */
         function paint() {
-            Object.keys(rows).forEach(function (field) {
-                var off = (field === 'chatgptModel' && config.method !== 'chatgpt') || (field === 'geminiModel' && config.method === 'template');
-                rows[field].style.opacity = off ? '.45' : '1';
-                rows[field].querySelectorAll('button[data-value]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-value') === String(config[field]))); });
-            });
+            paints.forEach(function (f) { f(); });
+            acc.sum.textContent = SETTINGS.filter(function (d) { return rows[d.field]; }).map(function (d) {
+                if (d.field === 'method') return 'AI 분석 ' + (isOn(d) ? '켜짐' : '꺼짐');
+                if (d.field === 'onlyChanged') return '바뀐 곳만 ' + (isOn(d) ? '켜짐' : '꺼짐');
+                return label(d.field, config[d.field]) + (d.field === 'batchUnit' ? ' 묶음' : '');
+            }).join(' · ');
         }
         paint();
     }
-    /** 통계 칩 하나. 예: chip(box, 'AI 90', 'ok'). @returns {HTMLElement} [연계] ← drawStatus */
+    /** 통계 칩 하나. 예: chip(box, 'AI 90', 'ok'). @returns {HTMLElement} [연계] ← drawStatus·drawOpenErrors */
     function chip(parent, text, tone) { var c = elc('span', 'sba-chip' + (tone ? ' ' + tone : ''), text); parent.appendChild(c); return c; }
     /**
-     * 상태 카드 — 실행 중/대기 표시 · 실행 중이면 진행 게이지(drawProgress, 2.5초마다 다시 받음) · 마지막 실행(시각·판·방식·걸린 시간·공개 시각) · 판별 통계 칩
-     * · 관광지 자료 확인 불가(drawSpotFail) · 공개 예정 · 특보 변경 대기 · 실행 실패 · 다음 예정 · 저장된 날짜 · 정시 판 소요 표(drawEditionTimes) · 최근 3일 오류(drawRunErrors) · [지금 다시 만들기](202 시작 / 409 실행 중)·[새로고침].
-     * 2026-10-17 사용자 *"실행 중 · 마지막 실행 · 몇 판 … 보기 좋게 … 깔끔하게"* — 줄글 대신 상태 알약·통계 칩·흐린 보조 글(정보는 종전 그대로 다).
-     * 예: [● 실행 중] 진행 게이지 … · 마지막 실행 「10-17 07:10 · 07:30 판」 「ChatGPT · 412초 · 공개 10-17 07:30」 · 「10-17 판 97곳」 [AI 90] [다시 시도 5곳] [Gemini 1회] [재사용 3] [규칙 분석 4] [오류 2]
-     * @param {HTMLElement} box @returns {Promise<void>} [연계] ← renderStationBriefingAdmin·버튼·진행이 끝날 때 / → drawProgress·startPoll·drawSpotFail·drawEditionTimes·drawRunErrors
+     * 「쓴 AI」 글 — 마지막 실행의 판마다 AI 분석이 통과한 공급자 수(results[].stats.byProvider — §11.10.50)를 모아 많은 순으로. 그 기록이 없는 옛 실행은 방식 이름표(lastRun.method).
+     * 예: {results:[{stats:{byProvider:{claude2:90,gemini:7}}}]} → '클로드 키2 90 · Gemini 7' · {method:'chatgpt',results:[{stats:{}}]} → 'ChatGPT' · byProvider 가 있는데 모두 0(전부 재사용·규칙) → '없음'
+     * @param {Object} lr - status.lastRun @returns {string|null} [연계] ← drawStatus 칩 줄
      */
-    async function drawStatus(box) {
-        box.textContent = '';
-        var top = elc('div', 'sba-row'); top.style.justifyContent = 'space-between'; box.appendChild(top);
-        top.appendChild(elc('div', 'sba-h', '상태')).style.margin = '0';
-        var pill = elc('span', 'sba-state idle'); pill.setAttribute('data-sb-running', ''); pill.appendChild(elc('span', 'sba-dot')); pill.appendChild(document.createTextNode('불러오는 중')); top.appendChild(pill);
-        var prog = el('div', 'margin-top:10px;'); prog.setAttribute('data-sb-progress', ''); prog.hidden = true; box.appendChild(prog);
-        var body = el('div', 'margin-top:4px;'); body.setAttribute('data-sb-status-body', ''); box.appendChild(body);
-        var acts = el('div', 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;');
-        var run = elc('button', 'sba-btn primary', '지금 다시 만들기'); run.type = 'button'; run.setAttribute('data-sb-run', '');
-        var re = elc('button', 'sba-btn', '새로고침'); re.type = 'button';
-        var msg = el('div', 'font-size:0.78rem;min-height:1.2em;margin-top:6px;line-height:1.5;'); msg.setAttribute('data-sb-run-msg', ''); msg.setAttribute('aria-live', 'polite');
-        acts.appendChild(run); acts.appendChild(re); box.appendChild(acts); box.appendChild(msg);
-        re.addEventListener('click', function () { drawStatus(box); });
-        run.addEventListener('click', async function () {
-            run.disabled = true; msg.style.color = '#94a3b8'; msg.textContent = '요청 중…';
-            try {
-                var r = await call('/run', { method: 'POST' });
-                if (r.status === 202) { msg.style.color = '#34d399'; msg.textContent = '시작했습니다 — 21시 전이면 오늘 판, 이후면 내일 판을 다시 만들어 끝나는 대로 곧바로 보입니다(공개 시각을 기다리지 않음). 위 게이지가 진행을 보여 주고, 끝나면 결과가 저절로 바뀝니다.'; setPill(pill, true); drawProgress(prog, null); startPoll(box, pill, prog); }
-                else if (r.status === 409) { msg.style.color = '#fbbf24'; msg.textContent = '이미 실행 중입니다 — 끝난 뒤 다시 눌러 주세요.'; startPoll(box, pill, prog); }
-                else { msg.style.color = '#fca5a5'; msg.textContent = '시작하지 못했습니다: ' + (r.body.error || ('HTTP ' + r.status)); }
-            } catch (e) { console.warn('[AI 브리핑 관리] 지금 다시 만들기 요청 실패:', e && e.message); msg.style.color = '#fca5a5'; msg.textContent = '요청 실패: ' + (e && e.message); }
-            finally { run.disabled = false; }
+    function providersText(lr) {
+        var sum = {}, seen = false;
+        (lr.results || []).forEach(function (x) {
+            var bp = x && x.stats && x.stats.byProvider; if (!bp || typeof bp !== 'object') return; seen = true;
+            Object.keys(bp).forEach(function (k) { var n = Number(bp[k]) || 0; if (n > 0) sum[k] = (sum[k] || 0) + n; });
         });
+        var ks = Object.keys(sum);
+        if (ks.length) return ks.sort(function (a, b) { return sum[b] - sum[a]; }).map(function (k) { return (PROVIDER[k] || k) + ' ' + sum[k]; }).join(' · ');
+        if (seen) return '없음';
+        return lr.method ? label('method', lr.method) : null;
+    }
+    /** KST 오늘 'MM-DD'. 예: 2026-10-17 10:05 KST → '10-17'. @returns {string} [연계] ← drawStatus(마지막 실행이 오늘이 아니면 날짜를 붙임) */
+    function todayMD() { return kstStamp(Date.now(), true).slice(5, 10); }
+    /**
+     * 상태 카드·오류 카드·정시 판 기록을 상태 응답(GET /status) 하나로 다시 그린다. 실행 중이면 상태 카드 안 진행 게이지(drawProgress)와 2.5초 진행 받기(startPoll).
+     * 상태 카드: 숫자 3칸(다음 판 · 마지막 실행 — 시각·판·관할 수·초 · 처리 안 된 오류 — errorLog.open·유형 수, 0 아니면 빨강 · 읽지 못하면 「알 수 없음」)
+     *   → 통계 칩 한 줄(AI·재사용·규칙 분석·오류 · 마감 · 「쓴 AI」 · 관광지 자료 — drawSpotFail) → 있을 때만: 건너뛴 AI · 참고(AI 끔) · 공개 예정 · 특보 변경 대기 · 실행 실패(조용히 사라지지 않게 — CLAUDE.md L-291).
+     * 「저장된 날짜」는 뺐다(§11.10.50 — 사용자 「불필요한 내용은 빼고」).
+     * 예: [다음 판 17:30 / 16:50부터 만들기] [마지막 실행 09:40 / 관리자 즉시 실행 · 4곳 · 300초] [처리 안 된 오류 3건 / 유형 2개] · [AI 4] [재사용 0] [규칙 분석 0] [오류 0] · 쓴 AI: 클로드 키2 4 · 관광지 자료 이상 없음
+     * @param {Object} v - renderStationBriefingAdmin 의 칸 묶음 {pill, status, errors, times, prog} @returns {Promise<void>}
+     * [연계] ← renderStationBriefingAdmin·[↻]·[지금 다시 만들기]·진행이 끝날 때(startPoll) / → drawProgress·startPoll·drawSpotFail·drawErrorCard·drawEditionTimes
+     */
+    async function drawStatus(v) {
+        var box = v.status;
         var r = await call('/status');
-        if (r.status !== 200) { setPill(pill, null); body.appendChild(el('div', 'color:#fca5a5;font-size:.8rem;', '상태를 불러오지 못했습니다(' + r.status + ').')); return; }
-        var s = r.body, lr = s.lastRun;
-        setPill(pill, !!s.running);
-        if (s.running) { drawProgress(prog, s.progress); startPoll(box, pill, prog); }
-        var sec = function (k, mark) { var d = el('div'); if (mark) d.setAttribute(mark, ''); d.appendChild(elc('div', 'sba-k', k)); body.appendChild(d); return d; };
-        var last = sec('마지막 실행');
+        box.textContent = '';
+        var prog = el('div', 'margin-bottom:12px;'); prog.setAttribute('data-sb-progress', ''); prog.hidden = true; box.appendChild(prog); v.prog = prog;
+        if (r.status !== 200) { setPill(v.pill, null); box.appendChild(el('div', 'color:#fca5a5;font-size:.8rem;', '상태를 불러오지 못했습니다(' + r.status + ').')); return; }
+        var s = r.body, lr = s.lastRun, L = s.errorLog;
+        setPill(v.pill, !!s.running);
+        if (s.running) { drawProgress(prog, s.progress); startPoll(v); }
+        var kpis = elc('div', 'sba-kpis'); box.appendChild(kpis);
+        var kpi = function (k, val, d, mark, bad) { var c = elc('div', 'sba-kpi' + (bad ? ' bad' : '')); c.appendChild(elc('div', 'k', k)); c.appendChild(elc('div', 'v', val)); var dd = elc('div', 'd', d); c.appendChild(dd); if (mark) c.setAttribute(mark, ''); kpis.appendChild(c); return dd; };
+        var nx = nextEdition(Date.now());
+        kpi('다음 판', nx.pub, (nx.tomorrow ? '내일 ' + nx.date + ' · ' : '') + nx.start + '부터 만들기', 'data-sb-next');
+        var sumSt = 0; ((lr && lr.results) || []).forEach(function (x) { sumSt += x.stations || 0; });
+        var lastD = lr ? [at(lr.at).slice(0, 5) !== todayMD() ? at(lr.at).slice(0, 5) : null, KIND[lr.kind] || lr.kind || null, (lr.results || []).length ? sumSt + '곳' : '만든 판 없음', Number.isFinite(lr.ms) ? Math.round(lr.ms / 1000) + '초' : null].filter(Boolean).join(' · ') : '기록 없음';
+        kpi('마지막 실행', lr ? at(lr.at).slice(6) : '—', lastD).setAttribute('data-sb-lastrun', '');
+        if (!L) kpi('처리 안 된 오류', '—', '정보 없음', 'data-sb-open-kpi');
+        else if (L.unavailable) kpi('처리 안 된 오류', '알 수 없음', '누적 기록을 읽지 못함', 'data-sb-open-kpi', true);
+        else kpi('처리 안 된 오류', (L.open || 0) + '건', L.open ? '유형 ' + (L.families || []).length + '개' : '없음', 'data-sb-open-kpi', !!L.open);
         if (lr) {
-            var lm = elc('div', 'sba-main', at(lr.at) + ' · ' + (KIND[lr.kind] || lr.kind || '')); lm.setAttribute('data-sb-lastrun', ''); last.appendChild(lm);
-            last.appendChild(elc('div', 'sba-sub', [label('method', lr.method || '—'), Number.isFinite(lr.ms) ? Math.round(lr.ms / 1000) + '초' : null, lr.publishAt ? '공개 ' + at(lr.publishAt) : null].filter(Boolean).join(' · ')));
-            (lr.results || []).forEach(function (x) {
-                var st = x.stats || {}, row = el('div', 'margin-top:6px;'); row.setAttribute('data-sb-result', '');
-                row.appendChild(elc('div', 'sba-sub', String(x.date || '').slice(5) + ' 판 · ' + (x.stations || 0) + '곳'));
-                var cs = elc('div', 'sba-row'); cs.style.marginTop = '3px'; row.appendChild(cs);
+            var res = lr.results || [], rowsEl = [];
+            res.forEach(function (x) {
+                var st = x.stats || {}, cs = elc('div', 'sba-chips'); cs.setAttribute('data-sb-result', '');
+                if (res.length > 1) cs.appendChild(elc('span', 'sba-muted', String(x.date || '').slice(5) + ' 판'));
                 chip(cs, 'AI ' + (st.ai || 0), 'ok');
-                if (st.retried) chip(cs, '다시 시도 ' + st.retried + '곳', 'info');
-                if (st.gemini) chip(cs, 'Gemini ' + st.gemini + '회', 'info');
                 chip(cs, '재사용 ' + (st.reused || 0));
                 chip(cs, '규칙 분석 ' + (st.template || 0), st.template ? 'warn' : '');
                 chip(cs, '오류 ' + (x.errors || 0), x.errors ? 'bad' : '');
-                if (st.deadline) chip(cs, '시간 초과(데드라인·공개 시각) ' + st.deadline, 'bad');
-                last.appendChild(row);
+                if (st.deadline) chip(cs, '마감 ' + st.deadline + '곳', 'bad');
+                box.appendChild(cs); rowsEl.push(cs);
             });
-            if (lr.aiDisabled) last.appendChild(elc('div', 'sba-sub', '참고: ' + lr.aiDisabled));
-        } else { var lm0 = elc('div', 'sba-sub', '기록 없음'); lm0.setAttribute('data-sb-lastrun', ''); last.appendChild(lm0); }
-        drawSpotFail(sec('관광지 자료 확인 불가', 'data-sb-spotfail'), s);
-        (s.pending || []).forEach(function (x) { var d = sec('공개 예정', 'data-sb-pending-status'); d.appendChild(elc('div', 'sba-main', at(x.publishAt) + ' — ' + x.stations + '곳(그때까지 사용자에게는 이전 판)')); });
-        if (s.pendingWarn) sec('특보 변경 대기').appendChild(elc('div', 'sba-main', (s.pendingWarn.zones || []).join(', ') + ' — 마지막 변경 ' + at(s.pendingWarn.lastChangeAt)));
-        Object.keys(s.failures || {}).forEach(function (k) { var f = s.failures[k], d = sec('실행 실패'); d.appendChild(el('div', 'color:#fca5a5;font-size:.8rem;', k + ' ' + f.count + '번 · 마지막 ' + at(f.lastAt) + ' · ' + (f.reason || ''))); });
-        var nx = sec('다음 예정', 'data-sb-next'); nx.appendChild(elc('div', 'sba-main', nextEdition(Date.now()))); nx.appendChild(elc('div', 'sba-sub', '07:30·17:30·23:00 공개, 각 40분 전부터 만들기 · 특보가 바뀌면 그 관할만 곧바로'));
-        if (Array.isArray(s.days) && s.days.length) sec('저장된 날짜').appendChild(elc('div', 'sba-sub', s.days.join(', ')));
-        drawEditionTimes(sec('정시 판 소요 시간 — 최근 ' + EDITION_ROWS + '회까지', 'data-sb-edition-times'), s);
-        drawRunErrors(body, s);
-        drawOpenErrors(body, s, function () { drawStatus(box); });
+            if (!rowsEl.length) { var c0 = elc('div', 'sba-chips'); box.appendChild(c0); rowsEl.push(c0); }
+            var tail = rowsEl[rowsEl.length - 1], pv = providersText(lr);
+            if (pv) { var pt = elc('span', 'sba-muted', '· 쓴 AI: ' + pv); pt.setAttribute('data-sb-providers', ''); tail.appendChild(pt); }
+            drawSpotFail(box, tail, s);
+            if (Array.isArray(lr.skipped) && lr.skipped.length) {
+                var sk = elc('div', 'sba-line warn', '건너뜀: ' + lr.skipped.map(function (x) { return (PROVIDER[x && x.id] || (x && x.id) || '?') + (x && x.reason ? '(' + x.reason + ')' : ''); }).join(', ')); sk.setAttribute('data-sb-skipped', ''); box.appendChild(sk);
+            }
+            if (lr.aiDisabled) box.appendChild(elc('div', 'sba-line', '참고: ' + lr.aiDisabled));
+        }
+        (s.pending || []).forEach(function (x) { var d = elc('div', 'sba-line', '공개 예정 · ' + at(x.publishAt) + ' — ' + x.stations + '곳(그때까지 사용자에게는 이전 판)'); d.setAttribute('data-sb-pending-status', ''); box.appendChild(d); });
+        if (s.pendingWarn) { var pw = elc('div', 'sba-line warn', '특보 변경 대기 · ' + (s.pendingWarn.zones || []).join(', ') + ' — 마지막 변경 ' + at(s.pendingWarn.lastChangeAt)); pw.setAttribute('data-sb-pending-warn', ''); box.appendChild(pw); }
+        Object.keys(s.failures || {}).forEach(function (k) { var f = s.failures[k], d = elc('div', 'sba-line bad', '실행 실패 · ' + k + ' ' + f.count + '번 · 마지막 ' + at(f.lastAt) + ' · ' + (f.reason || '')); d.setAttribute('data-sb-failure', ''); box.appendChild(d); });
+        var errCard = drawErrorCard(v.errors, s, function () { drawStatus(v); });
+        drawEditionTimes(v.times, s, function (runAt) { errCard.show('run', runAt); });
     }
     /** 밀리초 → 「분:초」. 예: 754000 → '12:34' · 59000 → '0:59' · 숫자 아님 → '—'. @param {number} ms @returns {string} [연계] ← drawEditionTimes */
     function mmss(ms) { if (!Number.isFinite(ms) || ms < 0) return '—'; var t = Math.round(ms / 1000); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
     /**
-     * 「관광지 자료 확인 불가」 줄 — 판별로 「관광지 자료 확인 불가: 2관할 · 관광지 3곳」(누르면 관할·관광지 이름), 0이면 「없음」(§11.10.21 — 사용자 화면에서는 뺐다).
-     * 마지막 실행과, 그것이 특보 변경·관리자 실행이면 마지막 정시 판(lastEdition)도 따로 보인다. 이 기록 전 실행(spotFail 없음)은 「기록 없음」 — 0 으로 보이지 않게(CLAUDE.md L-291).
-     * 예: drawSpotFail(sec, {lastRun:{at,kind:'morning',results:[{date:'2026-10-17',spotFail:{stations:1,spots:2,list:[{office:'제주해양경찰서',station:'한림파출소',spots:['협재해수욕장','한림항']}]}}]}})
-     *     → 「마지막 실행 · 10-17 07:10 · 07:30 판 · 10-17 판」 ▸「관광지 자료 확인 불가: 1관할 · 관광지 2곳」 → 「제주해양경찰서 한림파출소 — 협재해수욕장, 한림항」
-     * @param {HTMLElement} box @param {Object} s - status 응답 @returns {void} [연계] ← drawStatus · 서버 station_briefing.spotFailOf(lastRun·lastEdition results[].spotFail)
+     * 「관광지 자료 확인 불가」(§11.10.21 — 연안 하루 값 상세를 받지 못한 관광지) — 마지막 실행과, 그것이 특보 변경·관리자 실행이면 마지막 정시 판(lastEdition)까지 본다.
+     * 문제가 있는 판(spotFail.stations·spots > 0)만 칩 줄 아래 펼침 칸(누르면 관할·관광지 이름)으로, 없으면 칩 줄 끝에 「관광지 자료 이상 없음」 한 마디(§11.10.50).
+     * 이 기록 전 실행(spotFail 없음)이 섞이면 「관광지 자료: 기록 없음(이 기능 전 실행)」 — 0(이상 없음)으로 보이지 않게(CLAUDE.md L-291).
+     * 예: lastEdition 10-17 07:10 07:30 판 spotFail {stations:2, spots:3, list:[…]} → ▸「관광지 자료 확인 불가: 2관할 · 관광지 3곳 — 마지막 정시 판 10-17 07:10 · 07:30 판」 → 「제주해양경찰서 한림파출소 — 금능해수욕장, 협재해수욕장」
+     * @param {HTMLElement} box - 상태 카드 @param {HTMLElement} tail - 칩 줄(이상 없음 한 마디를 붙일 곳) @param {Object} s - status 응답 @returns {void} [연계] ← drawStatus · 서버 station_briefing.spotFailOf(lastRun·lastEdition results[].spotFail)
      */
-    function drawSpotFail(box, s) {
+    function drawSpotFail(box, tail, s) {
         var runs = [];
         if (s.lastRun) runs.push(['마지막 실행', s.lastRun]);
         if (s.lastEdition && (!s.lastRun || s.lastEdition.at !== s.lastRun.at)) runs.push(['마지막 정시 판', s.lastEdition]);
-        if (!runs.length) { box.appendChild(elc('div', 'sba-sub', '실행 기록 없음')); return; }
-        runs.forEach(function (pair) {
-            var r = pair[1], res = r.results || [];
-            if (!res.length) { box.appendChild(elc('div', 'sba-sub', pair[0] + ' · ' + at(r.at) + ' · 만든 판 없음')); return; }
-            res.forEach(function (x) {
-                var row = el('div', 'margin-top:4px;'); row.setAttribute('data-sb-spotfail-row', '');
-                row.appendChild(elc('div', 'sba-sub', pair[0] + ' · ' + at(r.at) + ' · ' + (KIND[r.kind] || r.kind || '') + ' · ' + String(x.date || '').slice(5) + ' 판'));
-                var f = x.spotFail;
-                if (!f) row.appendChild(elc('div', 'sba-sub', '관광지 자료 확인 불가: 기록 없음(이 기능 전 실행)'));
-                else if (!f.stations) row.appendChild(elc('div', 'sba-main', '관광지 자료 확인 불가: 없음'));
-                else {
-                    var d = elc('details', 'sba-sf'); d.appendChild(el('summary', '', '관광지 자료 확인 불가: ' + f.stations + '관할 · 관광지 ' + f.spots + '곳'));
-                    var ul = el('ul'); (f.list || []).forEach(function (g) { ul.appendChild(el('li', '', [g.office, g.station].filter(Boolean).join(' ') + ' — ' + (g.spots || []).join(', '))); });
-                    if (!(f.list || []).length) ul.appendChild(el('li', '', '이름 목록은 마지막 실행·마지막 정시 판에만 남깁니다'));
-                    d.appendChild(ul); row.appendChild(d);
-                }
-                box.appendChild(row);
-            });
+        var bad = [], unknown = false;
+        runs.forEach(function (pair) { (pair[1].results || []).forEach(function (x) { var f = x.spotFail; if (!f) unknown = true; else if (f.stations > 0 || f.spots > 0) bad.push([pair[0], pair[1], x]); }); });
+        if (!bad.length) {
+            if (!runs.length) return;
+            var t = elc('span', 'sba-muted', unknown ? '· 관광지 자료: 기록 없음(이 기능 전 실행)' : '· 관광지 자료 이상 없음'); t.setAttribute('data-sb-spotfail', ''); tail.appendChild(t); return;
+        }
+        var wrap = el('div'); wrap.setAttribute('data-sb-spotfail', ''); box.appendChild(wrap);
+        bad.forEach(function (b) {
+            var r = b[1], f = b[2].spotFail;
+            var d = elc('details', 'sba-sf'); d.setAttribute('data-sb-spotfail-row', '');
+            d.appendChild(el('summary', '', '관광지 자료 확인 불가: ' + f.stations + '관할 · 관광지 ' + f.spots + '곳 — ' + b[0] + ' ' + at(r.at) + ' · ' + (KIND[r.kind] || r.kind || '') + ' · ' + String(b[2].date || '').slice(5) + ' 판'));
+            var ul = el('ul'); (f.list || []).forEach(function (g) { ul.appendChild(el('li', '', [g.office, g.station].filter(Boolean).join(' ') + ' — ' + (g.spots || []).join(', '))); });
+            if (!(f.list || []).length) ul.appendChild(el('li', '', '이름 목록은 마지막 실행·마지막 정시 판에만 남깁니다'));
+            d.appendChild(ul); d.appendChild(elc('div', 'sba-muted', '그 관광지는 브리핑 연안 판단에서 빠집니다.'));
+            wrap.appendChild(d);
         });
-        box.appendChild(elc('div', 'sba-sub', '연안 하루 값 상세를 받지 못한 관광지 — 그 관광지는 브리핑 연안 판단에서 빠집니다.'));
+        if (unknown) wrap.appendChild(elc('div', 'sba-muted', '관광지 자료: 일부 판은 기록 없음(이 기능 전 실행)'));
     }
     var EDITION_ROWS = 6;
     /**
-     * 정시 판(07:30·17:30·23:00) 소요 시간 작은 표 — 최근 EDITION_ROWS 회(서버 실행 기록 status.runs, 최근 3일). 사용자가 「만들기 시작 시각을 앞당길지」 판단하는 데 쓴다(§11.10.21).
-     * 칸: 판(시작 시각) · 소요(분:초, 공개 몇 분 전/뒤 끝남) · 결과(관할·AI·재사용·규칙 분석·오류) · 마감(실행 마감에 걸려 규칙 분석으로 넘긴 관할 수).
-     * 예: drawEditionTimes(sec, {runs:[{at:'2026-10-17T07:10:00+09:00',kind:'morning',ms:754000,publishAt:'…T07:30:00+09:00',results:[{stations:97,stats:{ai:90,reused:3,template:4,deadline:0},errors:2}]}], runDeadlineMs:1200000})
-     *     → | 07:30 판 / 10-17 07:10 | 12:34 / 공개 7:26 전 끝남 | 97곳 · AI 90 · 재사용 3 · 규칙 4 · 오류 2 | 안 걸림 |
-     * @param {HTMLElement} box @param {Object} s - status 응답 @returns {void} [연계] ← drawStatus · 서버 station_briefing.run(runs[].ms·results[].stats.deadline)·status(runDeadlineMs)
+     * 정시 판(07:30·17:30·23:00) 기록 표 — 최근 EDITION_ROWS 회(서버 실행 기록 status.runs, 최근 3일). 사용자가 「만들기 시작 시각을 앞당길지」 판단하는 데 쓴다(§11.10.21).
+     * 칸(§11.10.50): 판(공개 시각 + 시작 날짜·시각) · 소요(분:초 — 공개 시각 뒤에 끝났으면 「공개 m:ss 뒤」 빨강) · AI·재사용·규칙(실행 마감에 걸린 판만 「마감 N곳」) · 오류(0 아니면 빨강).
+     * 줄을 누르면(Enter 도) 오류 카드가 「실행별」 탭으로 그 실행을 고른다(onPick).
+     * 예: drawEditionTimes(box, {runs:[{at:'2026-10-17T07:10:00+09:00',kind:'morning',ms:754000,publishAt:'…T07:30:00+09:00',results:[{stations:97,stats:{ai:90,reused:3,template:4,deadline:1},errors:2}]}], runDeadlineMs:1200000}, fn)
+     *     → | 07:30 10-17 07:10 | 12:34 | 90 · 3 · 4 [마감 1곳] | 2 |
+     * @param {HTMLElement} box - 카드 @param {Object} s - status 응답 @param {Function} onPick - (실행 시작 시각) @returns {void} [연계] ← drawStatus · 서버 station_briefing.run(runs[].ms·results[].stats.deadline)·status(runDeadlineMs) / → drawErrorCard show
      */
-    function drawEditionTimes(box, s) {
+    function drawEditionTimes(box, s, onPick) {
+        box.textContent = '';
+        var ct = elc('div', 'sba-ct'); ct.appendChild(el('span', '', '정시 판 기록')); ct.appendChild(el('small', '', '최근 ' + EDITION_ROWS + '회')); box.appendChild(ct);
         var rows = (s.runs || []).filter(function (r) { return r && ['morning', 'evening', 'night'].indexOf(r.kind) >= 0; }).slice(0, EDITION_ROWS);
         if (!rows.length) { box.appendChild(elc('div', 'sba-sub', '최근 3일 정시 판 기록 없음')); return; }
         var t = elc('table', 'sba-tt'), cg = el('colgroup');
-        ['24%', '24%', '34%', '18%'].forEach(function (w) { var c = el('col'); c.style.width = w; cg.appendChild(c); }); t.appendChild(cg);
-        var hr = el('tr'); ['판(시작)', '소요(분:초)', '결과', '마감'].forEach(function (h) { hr.appendChild(el('th', '', h)); }); var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+        ['30%', '20%', '34%', '16%'].forEach(function (wd) { var c = el('col'); c.style.width = wd; cg.appendChild(c); }); t.appendChild(cg);
+        var hr = el('tr'); [['판(시작)'], ['소요'], ['AI · 재사용 · 규칙'], ['오류', 'r']].forEach(function (h) { var th = el('th', '', h[0]); if (h[1]) th.className = h[1]; hr.appendChild(th); }); var thd = el('thead'); thd.appendChild(hr); t.appendChild(thd);
         var tb = el('tbody'); t.appendChild(tb);
-        var cell = function (tr, main, sub, cls) { var td = el('td', '', main); if (cls) td.className = cls; if (sub) td.appendChild(el('small', '', sub)); tr.appendChild(td); return td; };
         rows.forEach(function (r) {
-            var n = { stations: 0, ai: 0, reused: 0, template: 0, errors: 0, deadline: 0 };
-            (r.results || []).forEach(function (x) { var st = x.stats || {}; n.stations += x.stations || 0; n.ai += st.ai || 0; n.reused += st.reused || 0; n.template += st.template || 0; n.deadline += st.deadline || 0; n.errors += x.errors || 0; });
+            var n = { ai: 0, reused: 0, template: 0, errors: 0, deadline: 0 };
+            (r.results || []).forEach(function (x) { var st = x.stats || {}; n.ai += st.ai || 0; n.reused += st.reused || 0; n.template += st.template || 0; n.deadline += st.deadline || 0; n.errors += x.errors || 0; });
             var end = Date.parse(r.at) + r.ms, gap = r.publishAt && Number.isFinite(end) ? Date.parse(r.publishAt) - end : NaN;
-            var tr = el('tr'); tr.setAttribute('data-sb-edition-row', '');
-            cell(tr, KIND[r.kind], at(r.at));
-            cell(tr, mmss(r.ms), Number.isFinite(gap) ? '공개 ' + mmss(Math.abs(gap)) + (gap >= 0 ? ' 전 끝남' : ' 뒤 끝남') : null);
-            cell(tr, n.stations + '곳 · AI ' + n.ai + ' · 재사용 ' + n.reused + ' · 규칙 ' + n.template + ' · 오류 ' + n.errors);
-            if (n.deadline) cell(tr, '걸림', '규칙으로 ' + n.deadline + '곳', 'bad'); else cell(tr, '안 걸림');
+            var tr = el('tr'); tr.setAttribute('data-sb-edition-row', r.at); tr.tabIndex = 0; tr.title = '이 실행의 오류 보기';
+            var td1 = el('td', '', String(KIND[r.kind] || '').replace(' 판', '')); td1.appendChild(el('small', '', at(r.at))); tr.appendChild(td1);
+            var td2 = el('td', '', mmss(r.ms)); if (Number.isFinite(gap) && gap < 0) td2.appendChild(elc('small', 'late', '공개 ' + mmss(-gap) + ' 뒤')); tr.appendChild(td2);
+            var td3 = el('td', '', n.ai + ' · ' + n.reused + ' · ' + n.template); if (n.deadline) td3.appendChild(elc('span', 'sba-dl', '마감 ' + n.deadline + '곳')); tr.appendChild(td3);
+            var td4 = el('td', '', String(n.errors)); td4.className = 'r' + (n.errors ? ' bad' : ''); tr.appendChild(td4);
+            var pick = function () { onPick(r.at); };
+            tr.addEventListener('click', pick); tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') pick(); });
             tb.appendChild(tr);
         });
         box.appendChild(t);
         var dl = Number.isFinite(s.runDeadlineMs) ? Math.round(s.runDeadlineMs / 60000) + '분' : '정한 시간';
-        box.appendChild(elc('div', 'sba-sub', '소요 = 위치 확인부터 저장까지 전체. 마감 = 시작 뒤 ' + dl + '과 공개 시각 중 이른 때 — 넘으면 남은 관할은 규칙 분석(AI 없음). 특보 변경·관리자 실행은 이 표에 없습니다.'));
+        box.appendChild(elc('div', 'sba-note', '소요 = 위치 확인부터 저장까지 · 마감 = 시작 뒤 ' + dl + '과 공개 시각 중 이른 때(넘은 관할은 규칙 분석) — 걸린 판만 「마감 N곳」 · 판을 누르면 그 실행의 오류'));
     }
-    /** 상태 알약을 실행 중/대기로. 예: setPill(p, true) → 「● 실행 중」. @param {HTMLElement} pill @param {boolean|null} on - null 이면 「알 수 없음」 @returns {void} [연계] ← drawStatus·startPoll */
+    /** 상태 알약을 실행 중/대기로. 예: setPill(p, true) → 「● 실행 중」. @param {HTMLElement} pill @param {boolean|null} on - null 이면 「알 수 없음」 @returns {void} [연계] ← drawStatus·startPoll·[지금 다시 만들기] */
     function setPill(pill, on) {
         pill.className = 'sba-state ' + (on ? 'on' : 'idle');
         pill.lastChild.textContent = on === null ? '알 수 없음' : on ? '실행 중' : '대기 중';
     }
     /**
-     * 실행 중이면 2.5초마다 진행만(GET status?only=progress) 받아 게이지를 다시 그린다. 끝나면(running false) 멈추고 상태 카드를 통째로 다시 그린다(새 결과·오류).
+     * 실행 중이면 2.5초마다 진행만(GET status?only=progress) 받아 게이지를 다시 그린다. 끝나면(running false) 멈추고 상태를 통째로 다시 그린다(새 결과·오류).
      * 화면이 가려져 있으면(document.hidden) 그 차례는 건너뛰고, 탭을 떠나 상자가 문서에서 떨어지면 멈춘다. 한 번에 하나만 돈다.
-     * 예: startPoll(box, pill, prog) → 2.5초 뒤 진행 41/99 … → running:false → drawStatus(box)
-     * @param {HTMLElement} box @param {HTMLElement} pill @param {HTMLElement} prog @returns {void} [연계] ← drawStatus·[지금 다시 만들기] / → drawProgress
+     * 예: startPoll(v) → 2.5초 뒤 진행 41/99 … → running:false → drawStatus(v)
+     * @param {Object} v - drawStatus 의 칸 묶음 @returns {void} [연계] ← drawStatus / → drawProgress
      */
-    function startPoll(box, pill, prog) {
+    function startPoll(v) {
         if (ui.poll) clearTimeout(ui.poll);
         var busy = false;
         var tick = async function () {
             ui.poll = null;
-            if (!box.isConnected) return;   // 다른 탭·모달 닫힘 — 멈춘다
+            if (!v.status.isConnected) return;   // 다른 탭·모달 닫힘 — 멈춘다
             if (!document.hidden && !busy) {
                 busy = true;
                 try {
                     var r = await call('/status?only=progress');
                     if (r.status === 200) {
-                        if (!r.body.running) { drawStatus(box); return; }
-                        setPill(pill, true); drawProgress(prog, r.body.progress);
+                        if (!r.body.running) { drawStatus(v); return; }
+                        setPill(v.pill, true); if (v.prog) drawProgress(v.prog, r.body.progress);
                     }
                 } catch (e) { console.warn('[AI 브리핑 관리] 진행 받기 실패(다음 차례에 다시):', e && e.message); }
                 finally { busy = false; }
             }
-            if (box.isConnected) ui.poll = setTimeout(tick, POLL_MS);
+            if (v.status.isConnected) ui.poll = setTimeout(tick, POLL_MS);
         };
         ui.poll = setTimeout(tick, POLL_MS);
     }
@@ -514,14 +641,14 @@
      * 오류 한 건의 이유 글을 한글 풀이 목록으로. 검사 탈락(validate)은 쉼표로 이은 열쇠들을 하나씩 풀고, 같은 종류(지명·숫자)는 한 줄로 모은다.
      * 호출·해석·시간 초과·실행 실패는 서버가 쓴 글(대부분 한글)을 짧게 바꿔 쓴다.
      * 예: {stage:'validate',reason:'place:장승포,number:0.5m,number:4~8m/s'} → ['입력 자료에 없는 지명 「장승포」', '허용되지 않은 숫자 「0.5m」·「4~8m/s」 — …']
-     *     {stage:'call',provider:'vm',reason:'vm 시간초과(320초)'} → ['AI 응답 시간 초과(320초)']
+     *     {stage:'call',provider:'vm',reason:'vm 시간초과(320초)'} → ['AI 응답 시간 초과(320초)'] · 사슬 칸(§11.10.51) 'claude2 시간초과(130초)' 도 같게
      * @param {Object} e - 오류 한 건 @returns {string[]} [연계] ← drawRunErrors·errorsMarkdown
      */
     function reasonTexts(e) {
         var r = String(e.reason || '');
         if (e.stage !== 'validate') {
             var m;
-            if ((m = /^(?:vm|gemini) 시간초과\((\d+)초\)$/.exec(r))) return ['AI 응답 시간 초과(' + m[1] + '초)'];
+            if ((m = /^(?:vm|gemini|chatgpt|claude1|claude2|upstage) 시간초과\((\d+)초\)$/.exec(r))) return ['AI 응답 시간 초과(' + m[1] + '초)'];
             if (r === 'invalid response') return ['AI 응답을 읽지 못함(정해진 꼴이 아님)'];
             if (r === 'VM 작업자 연결 없음') return ['ChatGPT(VM) 작업자 연결이 없어 건너뜀'];
             if (r === '사용 불가') return ['이 AI 를 지금 쓸 수 없어 건너뜀'];
@@ -640,38 +767,62 @@
         return { stations: stations, shared: shared };
     }
     /**
-     * 오류 칸 — 최근 3일 오류를 「실행」마다 드롭다운으로 고르고(기본 = 가장 최근 실행), 고른 실행의 오류만 관할별·시도별 한글 풀이로 보인다.
-     * [복사]·[md로 저장]은 고른 실행의 오류만(버튼 아래 작은 글로 밝힌다).
+     * 오류 카드 하나(§11.10.50 — 종전 두 칸) — 오른쪽 세그먼트 탭 2개: 「처리 안 된 오류(빨간 수)」(drawOpenErrors, 기본) / 「실행별」(drawRunErrors).
+     * 고른 탭은 ui.errTab 에 남겨 상태를 다시 그려도(진행 끝·새로고침) 그대로 둔다. 정시 판 기록 줄을 누르면 show('run', 그 실행 시각).
+     * 예: drawErrorCard(box, status, refresh) → [처리 안 된 오류 3][실행별] · .show('run', '2026-10-16T17:31:00+09:00') → 실행별 탭 + 그 실행 고름
+     * @param {HTMLElement} box - 카드 @param {Object} s - status 응답 @param {Function} refresh - 처리 완료 뒤 상태를 다시 그림 @returns {{show:Function}} [연계] ← drawStatus / → drawOpenErrors·drawRunErrors
+     */
+    function drawErrorCard(box, s, refresh) {
+        box.textContent = '';
+        var L = s.errorLog, n = L && !L.unavailable ? (L.open || 0) : 0;
+        var ct = elc('div', 'sba-ct'); ct.appendChild(el('span', '', '오류')); box.appendChild(ct);
+        var seg = elc('div', 'sba-seg sba-tabs'); seg.setAttribute('role', 'tablist'); seg.setAttribute('aria-label', '오류 보기'); ct.appendChild(seg);
+        var panels = {}, tabs = {};
+        [['open', '처리 안 된 오류', 'data-sb-open'], ['run', '실행별', 'data-sb-errors']].forEach(function (t) {
+            var b = el('button', '', t[1]); b.type = 'button'; b.id = 'sba-tab-' + t[0]; b.setAttribute('role', 'tab'); b.setAttribute('data-sb-err-tab', t[0]); b.setAttribute('aria-controls', 'sba-panel-' + t[0]);
+            if (t[0] === 'open' && n) { var nb = elc('span', 'n', String(n)); nb.setAttribute('data-sb-open-badge', ''); b.appendChild(nb); }
+            var p = el('div'); p.id = 'sba-panel-' + t[0]; p.setAttribute('role', 'tabpanel'); p.setAttribute('aria-labelledby', b.id); p.setAttribute(t[2], '');
+            b.addEventListener('click', function () { select(t[0]); });
+            seg.appendChild(b); box.appendChild(p); tabs[t[0]] = b; panels[t[0]] = p;
+        });
+        drawOpenErrors(panels.open, s, refresh);
+        drawRunErrors(panels.run, s);
+        /** 탭 하나를 보인다(aria-selected·hidden). */
+        function select(k) { ui.errTab = k; Object.keys(tabs).forEach(function (x) { tabs[x].setAttribute('aria-selected', String(x === k)); tabs[x].tabIndex = x === k ? 0 : -1; panels[x].hidden = x !== k; }); }
+        select(ui.errTab === 'run' ? 'run' : 'open');
+        return { show: function (k, runAt) { if (runAt) { ui.run = runAt; drawRunErrors(panels.run, s); } select(k); box.scrollIntoView({ block: 'start', behavior: 'smooth' }); } };
+    }
+    /**
+     * 「실행별」 탭 — 최근 3일 오류를 「실행」마다 드롭다운으로 고르고(기본 = 가장 최근 실행), 고른 실행의 오류만 관할별·시도별 한글 풀이로 보인다.
+     * [복사]·[md로 저장]은 고른 실행의 오류만(버튼 아래 작은 글로 밝힌다) — 고른 실행에 오류가 없으면 두 버튼을 숨긴다(§11.10.50 — 종전엔 꺼진 채 보였다).
      * 2026-10-17 사용자 *"최근 3일치에 대해서만 띄우되 … 분석을 돌렸을 때마다 분류 … 드롭다운으로 … 언제 분석이 시작됐고 … 그때 오류 현황을 볼 수 있도록"*
      * 서버 안전 상한으로 지운 것이 있으면(errorsCapped) 그 사실을 한 줄로. 복사가 안 되면(권한·http 등) 보이는 안내로 알린다.
      * 예: 드롭다운 「10-17 18:31 · 관리자 즉시 실행 · 오류 22」 → 「고현파출소 (통영해양경찰서) · 오류 4」 「1번째 시도(ChatGPT) — 입력 자료에 없는 지명 「장승포」」 …
-     * @param {HTMLElement} body @param {Object} s - status 응답 @returns {void} [연계] ← drawStatus / → runGroups·errorsByStation·reasonTexts·errorsMarkdown·saveMarkdown
+     * @param {HTMLElement} box - 탭 칸 @param {Object} s - status 응답 @returns {void} [연계] ← drawErrorCard / → runGroups·errorsByStation·reasonTexts·errorsMarkdown·saveMarkdown
      */
-    function drawRunErrors(body, s) {
+    function drawRunErrors(box, s) {
+        box.textContent = '';
         var errs = Array.isArray(s.errors) ? s.errors : [], keep = s.errorKeep || { days: 3 }, groups = runGroups(errs, s.runs, s.lastRun);
-        var box = el('div', 'margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);'); box.setAttribute('data-sb-errors', '');
-        box.appendChild(elc('div', 'sba-h', '최근 ' + (keep.days || 3) + '일 오류 — 실행마다'));
         if (s.errorsCapped) box.appendChild(el('div', 'color:#fbbf24;font-size:0.76rem;margin-bottom:6px;', '보관 상한(' + (s.errorsCapped.cap || keep.cap || '') + '건)을 넘어 오래된 오류 ' + s.errorsCapped.dropped + '건을 지웠습니다(' + at(s.errorsCapped.at) + ').'));
-        if (!groups.length) { box.appendChild(el('div', 'color:#94a3b8;font-size:.8rem;', '최근 ' + (keep.days || 3) + '일 동안 실행 기록도 오류도 없습니다.')); body.appendChild(box); return; }
-        var sel = elc('select', 'sba-select'); sel.setAttribute('data-sb-err-run', ''); sel.setAttribute('aria-label', '오류를 볼 실행 고르기');
+        if (!groups.length) { box.appendChild(el('div', 'color:#94a3b8;font-size:.8rem;', '최근 ' + (keep.days || 3) + '일 동안 실행 기록도 오류도 없습니다.')); return; }
+        var sel = elc('select', 'sba-select'); sel.setAttribute('data-sb-err-run', ''); sel.setAttribute('aria-label', '오류를 볼 실행 고르기(최근 ' + (keep.days || 3) + '일)');
         groups.forEach(function (g, i) { var op = el('option', '', runOptionText(g)); op.value = g.at; if (g.at === ui.run || (!ui.run && i === 0)) op.selected = true; sel.appendChild(op); });
         if (!groups.some(function (g) { return g.at === ui.run; })) sel.selectedIndex = 0;
         box.appendChild(sel);
-        var head = el('div', 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;');
+        var head = elc('div', 'sba-acts'); head.style.marginTop = '8px';
         var copy = elc('button', 'sba-btn', '복사'); copy.type = 'button'; copy.setAttribute('data-sb-err-copy', '');
         var save = elc('button', 'sba-btn', 'md로 저장'); save.type = 'button'; save.setAttribute('data-sb-err-md', '');
-        head.appendChild(copy); head.appendChild(save); box.appendChild(head);
-        var cap = el('div', 'color:#94a3b8;font-size:.72rem;margin-top:4px;'); cap.setAttribute('data-sb-err-scope', ''); box.appendChild(cap);
+        var cap = elc('span', 'sba-muted'); cap.setAttribute('data-sb-err-scope', '');
+        head.appendChild(save); head.appendChild(copy); head.appendChild(cap); box.appendChild(head);
         var msg = el('div', 'font-size:0.76rem;min-height:1.1em;margin-top:4px;line-height:1.5;'); msg.setAttribute('data-sb-err-msg', ''); msg.setAttribute('aria-live', 'polite'); box.appendChild(msg);
         var view = el('div', 'margin-top:4px;'); view.setAttribute('data-sb-err-list', ''); box.appendChild(view);
-        body.appendChild(box);
         var say = function (ok, t) { msg.style.color = ok === null ? '#94a3b8' : ok ? '#34d399' : '#fca5a5'; msg.textContent = t; };
         var cur = function () { return groups[sel.selectedIndex] || groups[0]; };
         /** 고른 실행의 오류를 그린다. */
         function paint() {
             var g = cur(); view.textContent = ''; say(null, '');
-            cap.textContent = '[복사]·[md로 저장]은 고른 실행(' + at(g.at) + ' · ' + (KIND[g.kind] || g.kind || '실행') + ')의 오류 ' + g.errors.length + '건만 담습니다.';
-            copy.disabled = save.disabled = !g.errors.length;
+            cap.textContent = '고른 실행(' + at(g.at) + ' · ' + (KIND[g.kind] || g.kind || '실행') + ')의 오류 ' + g.errors.length + '건만 담습니다.';
+            head.hidden = !g.errors.length;
             var r = g.run, info = elc('div', 'sba-sub');
             info.textContent = at(g.at) + ' 시작 · ' + (KIND[g.kind] || g.kind || '실행') + (r ? ' · ' + label('method', r.method || '—') + (Number.isFinite(r.ms) ? ' · ' + Math.round(r.ms / 1000) + '초' : '') : '') + ' · 오류 ' + g.errors.length + '건';
             view.appendChild(info);
@@ -768,7 +919,7 @@
             '2. 저장소 파일 `local_server/config/station_briefing_resolved.json` 의 `resolved` 배열 끝에 한 줄을 더해 **고친 코드와 같은 PR** 에 넣습니다(지난 줄은 지우지 않습니다):', '',
             '```json', '{ "export": "' + exp.id + '", "groups": ["G01", "G03"], "note": "무엇을 고쳤는지 한 줄" }', '```', '',
             '3. main 에 머지되어 배포되면 서버가 그 파일을 읽어, **이 md 에 들어 있던** 그 유형 오류를 「처리 완료」로 바꿉니다. 이 md 를 받은 뒤 새로 난 오류와 적지 않은 유형은 그대로 남습니다.',
-            '4. 번호를 잘못 적으면 관리자 → AI → AI 브리핑 「처리 안 된 오류 — 누적」 칸에 알림이 뜹니다.', '',
+            '4. 번호를 잘못 적으면 관리자 → AI → AI 브리핑 「오류」 카드의 「처리 안 된 오류」 탭에 알림이 뜹니다.', '',
             '## 1. 유형별 누적 요약', '', '| 번호 | 유형 | 건수 | 관할 | 처음 | 마지막 | 많이 나온 값 |', '|---|---|---|---|---|---|---|'];
         groups.forEach(function (g) {
             // 관할 없는 오류(실행 실패 등)만 든 유형은 「—」(종전 「 (0곳)」 — 2026-11-16 운영 md E20261116-003253 G10)
@@ -792,42 +943,44 @@
         return out.join('\n') + '\n' + rejectedMarkdown(errs, cell, '누적 기록은 처리 안 된 것 중 최근 5,000건');
     }
     /**
-     * 「처리 안 된 오류 — 누적」 칸(§11.10.48) — 서버 status.errorLog 요약으로 그린다: 처리 완료 목록 알림(번호를 잘못 적음 등)·보관 상한 알림 → 처리 안 된 오류 수·유형별 목록
-     * → [누적 md로 저장]·[누적 복사](누를 때마다 서버에 내보내기를 만들어 번호가 붙는다) → 최근 내보내기(유형마다 남은 수·처리 기록, 남은 유형이 있으면 [남은 유형 모두 완료 처리]).
+     * 「처리 안 된 오류」 탭(§11.10.48 누적 · §11.10.50 모양) — 서버 status.errorLog 요약으로 그린다: 기록 문제(쓰기 실패·읽지 못함·되살림)는 빨간 줄 · 처리 완료 목록 알림·보관 상한 알림
+     * → 처리 안 된 오류 수 → 유형 목록(이름 · 관할(없으면 「관할 없음」)·값·처음~마지막 · 오른쪽 건수) → [md로 저장]·[복사](누를 때마다 서버에 내보내기를 만들어 번호가 붙는다 — 0건이면 숨김)
+     * → 내보내기(유형마다 남은 수·처리 기록, 남은 유형이 있으면 [남은 N개 완료 처리]).
      * 2026-11-15 사용자 *"md 다운받은 그 내용에 대해서 모두 완료 처리를 할 수 있도록 하여 내역이 더이상 나타나지 않도록"* · *"머지가 되면 해당 부분이 자동으로 완료 처리"* · 버튼도 「둘 다 둠」.
-     * @param {HTMLElement} body @param {Object} s - status 응답 @param {Function} refresh - 처리 완료 뒤 상태 카드를 다시 그림 @returns {void} [연계] ← drawStatus / → cumulativeMarkdown·saveMarkdown·copyText · POST /error-log/export·/error-log/exports/:id/resolve
+     * 예: errorLog {open:3, families:[{family:'@run:k 실행 실패(#번째): ENOSPC', count:2, stations:0, …}]} → 「실행 실패 — …」 「관할 없음 · 11-15 22:20 ~ 22:30」 [2건]
+     * @param {HTMLElement} box - 탭 칸 @param {Object} s - status 응답 @param {Function} refresh - 처리 완료 뒤 상태를 다시 그림 @returns {void} [연계] ← drawErrorCard / → cumulativeMarkdown·saveMarkdown·copyText · POST /error-log/export·/error-log/exports/:id/resolve
      */
-    function drawOpenErrors(body, s, refresh) {
-        var L = s.errorLog; if (!L) return;
-        var box = el('div', 'margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);'); box.setAttribute('data-sb-open', '');
-        box.appendChild(elc('div', 'sba-h', '처리 안 된 오류 — 누적(처리 완료 전까지 최대 ' + (L.keepDays || 90) + '일)'));
+    function drawOpenErrors(box, s, refresh) {
+        box.textContent = '';
+        var L = s.errorLog; if (!L) { box.appendChild(elc('div', 'sba-sub', '누적 오류 정보를 받지 못했습니다.')); return; }
         // 기록 문제는 빨간 줄로 — 못 읽은 것이 「처리 안 된 오류가 없습니다」(초록)처럼 보이지 않게(§11.10.48 검토 ② · CLAUDE.md L-291)
         var red = function (t, mark) { var d = el('div', 'color:#fca5a5;font-size:.78rem;line-height:1.5;margin:4px 0;', t); d.setAttribute(mark, ''); box.appendChild(d); };
         if (L.writeIssue) red('누적 기록 문제 — ' + L.writeIssue.what + ' · ' + at(L.writeIssue.at) + ' · ' + L.writeIssue.reason, 'data-sb-open-write');
-        if (L.unavailable) { red('누적 오류 기록을 읽지 못했습니다(' + L.unavailable + ') — 처리 안 된 오류 수를 알 수 없습니다. [새로고침]으로 다시 보세요.', 'data-sb-open-unavailable'); body.appendChild(box); return; }
+        if (L.unavailable) { red('누적 오류 기록을 읽지 못했습니다(' + L.unavailable + ') — 처리 안 된 오류 수를 알 수 없습니다. [↻]로 다시 보세요.', 'data-sb-open-unavailable'); return; }
         if (L.recovered) red('누적 오류 기록 파일이 깨져 ' + at(L.recovered.at) + ' 에 최근 3일 오류로만 되살렸습니다 — 그 전 기록은 서버의 ' + L.recovered.file + ' 에 남아 있습니다(처리 완료 기록도 그 파일에).', 'data-sb-open-recovered');
         (L.issues || []).forEach(function (x) { var d = elc('div', 'sba-warn', '처리 완료 목록 확인 필요 — ' + (x.export ? x.export + ': ' : '') + x.problem + (x.index !== null && x.index !== undefined ? ' (resolved ' + (x.index + 1) + '번째 줄)' : '')); d.setAttribute('data-sb-open-issue', ''); box.appendChild(d); });
         if (L.capped) box.appendChild(elc('div', 'sba-warn', '보관 상한(' + L.capped.cap + '건)을 넘어 오래된 오류 ' + L.capped.dropped + '건을 지웠습니다(' + at(L.capped.at) + ').'));
-        var head = elc('div', 'sba-sub'); head.setAttribute('data-sb-open-count', ''); box.appendChild(head);
-        var list = el('div', 'margin-top:4px;'); box.appendChild(list);
-        var acts = el('div', 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;');
-        var save = elc('button', 'sba-btn', '누적 md로 저장'); save.type = 'button'; save.setAttribute('data-sb-open-md', '');
-        var copy = elc('button', 'sba-btn', '누적 복사'); copy.type = 'button'; copy.setAttribute('data-sb-open-copy', '');
-        acts.appendChild(save); acts.appendChild(copy); box.appendChild(acts);
-        box.appendChild(el('div', 'color:#94a3b8;font-size:.72rem;margin-top:4px;line-height:1.5;', '누를 때마다 처리 안 된 오류 전부를 담고 내보내기 번호가 새로 붙습니다. 그 md 로 고친 PR 이 머지되면 고친 유형이 자동으로 처리 완료됩니다(md 안 「처리 완료 기록 방법」).'));
+        var head = elc('div', 'sba-sub'); head.setAttribute('data-sb-open-count', ''); head.style.marginBottom = '2px'; box.appendChild(head);
+        var list = el('div'); box.appendChild(list);
+        var acts = elc('div', 'sba-acts');
+        var save = elc('button', 'sba-btn', '⬇ md로 저장'); save.type = 'button'; save.setAttribute('data-sb-open-md', '');
+        var copy = elc('button', 'sba-btn', '⧉ 복사'); copy.type = 'button'; copy.setAttribute('data-sb-open-copy', '');
+        acts.appendChild(save); acts.appendChild(copy); acts.appendChild(elc('span', 'sba-muted', '받은 md 로 고쳐 머지하면 고친 유형이 자동으로 처리 완료(md 안 「처리 완료 기록 방법」)')); box.appendChild(acts);
         var msg = el('div', 'font-size:0.76rem;min-height:1.1em;margin-top:4px;line-height:1.5;'); msg.setAttribute('data-sb-open-msg', ''); msg.setAttribute('aria-live', 'polite'); box.appendChild(msg);
         var view = el('div', 'margin-top:4px;'); box.appendChild(view);
         var say = function (ok, t) { msg.style.color = ok === null ? '#94a3b8' : ok ? '#34d399' : '#fca5a5'; msg.textContent = t; };
-        if (!L.open) { head.textContent = '처리 안 된 오류가 없습니다.'; head.style.color = '#6ee7b7'; save.disabled = copy.disabled = true; }
+        if (!L.open) { head.textContent = '처리 안 된 오류가 없습니다.'; head.style.color = '#6ee7b7'; acts.hidden = true; }
         else {
-            head.textContent = '처리 안 된 오류 ' + L.open + '건 · 유형 ' + (L.families || []).length + '개 · ' + at(L.since) + '부터';
+            head.textContent = '처리 안 된 오류 ' + L.open + '건 · 유형 ' + (L.families || []).length + '개 · ' + at(L.since) + '부터(처리 완료 전까지 최대 ' + (L.keepDays || 90) + '일 보관)';
             (L.families || []).forEach(function (f) {
-                var d = elc('div', 'sba-errst'), h = elc('div', 'sba-errst-h'); d.setAttribute('data-sb-open-family', f.family);
-                h.appendChild(elc('span', 'sba-errst-name', familyText(f.family))); chip(h, f.count + '건', 'bad');
-                d.appendChild(h);
-                var names = (f.top || []).map(function (x) { return shortName(x[0]); }).join('·') + ((f.stations || 0) > (f.top || []).length ? ' 외' : '');
+                var d = elc('div', 'sba-eitem'); d.setAttribute('data-sb-open-family', f.family);
+                var left = el('div', 'min-width:0;'); left.appendChild(elc('div', 'sba-ename', familyText(f.family)));
+                var top = f.top || [], more = (f.stations || 0) - top.length;
+                var where = f.stations ? top.map(function (x) { return shortName(x[0]); }).join('·') + (more > 0 ? ' 외 ' + more + '곳' : '') : '관할 없음';
                 var vals = (f.values || []).slice(0, 4).map(function (x) { return '「' + x[0] + '」'; }).join(' ');
-                d.appendChild(elc('div', 'sba-sub', (f.stations || 0) + '곳 — ' + names + (vals ? ' · 값 ' + vals : '') + ' · ' + at(f.first) + ' ~ ' + at(f.last)));
+                var a1 = at(f.first), a2 = at(f.last), when = a1 === a2 ? a1 : a1 + ' ~ ' + (a1.slice(0, 5) === a2.slice(0, 5) ? a2.slice(6) : a2);
+                var meta = elc('div', 'sba-emeta', [where, vals ? '값 ' + vals : null, when].filter(Boolean).join(' · ')); meta.setAttribute('data-sb-open-meta', ''); left.appendChild(meta);
+                d.appendChild(left); d.appendChild(elc('span', 'sba-cnt', f.count + '건'));
                 list.appendChild(d);
             });
         }
@@ -838,48 +991,44 @@
                 if (r.status === 404) { say(true, '처리 안 된 오류가 없습니다.'); return; }
                 if (r.status !== 200 || !r.body.export) throw new Error(r.body.error || ('HTTP ' + r.status));
                 var md = cumulativeMarkdown(r.body, Date.now()), id = r.body.export.id;
-                if (mode === 'copy') await copyText(md, say, '복사했습니다 — 내보내기 ' + id + ' · 오류 ' + r.body.errors.length + '건(마크다운). 아래 「최근 내보내기」는 [새로고침] 뒤에 보입니다.', '[누적 md로 저장]');
+                if (mode === 'copy') await copyText(md, say, '복사했습니다 — 내보내기 ' + id + ' · 오류 ' + r.body.errors.length + '건(마크다운). 아래 내보내기 줄은 [↻] 뒤에 보입니다.', '[md로 저장]');
                 else await saveMarkdown(md, 'station_briefing_open_errors_' + id + '.md', say, view);
             } catch (e) { console.warn('[AI 브리핑 관리] 누적 오류 내보내기 실패:', e && e.message); say(false, '누적 오류를 내보내지 못했습니다: ' + ((e && e.message) || '알 수 없음')); }
-            finally { save.disabled = copy.disabled = !L.open; }
+            finally { save.disabled = copy.disabled = false; }
         };
         save.addEventListener('click', function () { exportNow('save'); });
         copy.addEventListener('click', function () { exportNow('copy'); });
-        // 최근 내보내기
-        var exps = Array.isArray(L.exports) ? L.exports : [];
-        if (exps.length) {
-            box.appendChild(elc('div', 'sba-k', '최근 내보내기'));
-            exps.forEach(function (x) {
-                var left = (x.groups || []).filter(function (g) { return !g.resolved && g.open > 0; }), n = x.openErrors || 0;
-                var d = el('details'); d.className = 'sba-exp'; d.setAttribute('data-sb-export', x.id);
-                var sm = el('summary', '', x.id + ' · ' + at(x.at) + ' · 유형 ' + (x.groups || []).length + '개 · ' + (left.length ? '남은 유형 ' + left.length + '개' : '모두 처리 완료'));
-                d.appendChild(sm);
-                var ul = el('ul', 'margin:6px 0 0;padding-left:16px;');
-                (x.groups || []).forEach(function (g) {
-                    // 지워진 것(보관 90일·상한 — gone)은 「다른 내보내기로 처리」라고 하지 않는다(§11.10.48 검토 ⑥)
-                    var how = g.resolved ? '처리 완료(' + (g.resolved.by === 'merge' ? '머지' : '버튼') + ' ' + at(g.resolved.at) + (g.resolved.note ? ' — ' + g.resolved.note : '') + ')'
-                        : g.open > 0 ? '남음 ' + g.open + '건' + (g.gone ? ' · 보관 기간·상한으로 지워짐 ' + g.gone + '건' : '')
-                        : g.gone >= g.count ? '보관 기간·상한으로 모두 지워짐' : '다른 내보내기로 처리 완료' + (g.gone ? ' · 지워짐 ' + g.gone + '건' : '');
-                    ul.appendChild(el('li', '', g.code + ' ' + familyText(g.family) + ' — ' + g.count + '건 · ' + how));
-                });
-                d.appendChild(ul);
-                if (left.length) {
-                    var b = elc('button', 'sba-btn', '남은 유형 모두 완료 처리'); b.type = 'button'; b.style.marginTop = '6px'; b.setAttribute('data-sb-export-resolve', x.id);
-                    b.addEventListener('click', async function () {
-                        if (!w.confirm(x.id + ' 의 남은 유형 ' + left.length + '개(오류 ' + n + '건)를 처리 완료로 바꿉니다. 처리 안 된 오류 목록·누적 md 에 더 나오지 않습니다(되돌릴 수 없음).')) return;
-                        b.disabled = true; say(null, '처리 완료로 바꾸는 중…');
-                        try {
-                            var r = await call('/error-log/exports/' + encodeURIComponent(x.id) + '/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-                            if (r.status !== 200) throw new Error(r.body.error || ('HTTP ' + r.status));
-                            refresh();
-                        } catch (e) { console.warn('[AI 브리핑 관리] 처리 완료 실패:', e && e.message); b.disabled = false; say(false, '처리 완료로 바꾸지 못했습니다: ' + ((e && e.message) || '알 수 없음')); }
-                    });
-                    d.appendChild(b);
-                }
-                box.appendChild(d);
+        // 내보내기 — 남은 것이 있는 것은 모두, 끝난 것은 최근 5개(서버 summary)
+        (Array.isArray(L.exports) ? L.exports : []).forEach(function (x, i) {
+            var left = (x.groups || []).filter(function (g) { return !g.resolved && g.open > 0; }), n = x.openErrors || 0;
+            var row = elc('div', 'sba-expbox'); row.setAttribute('data-sb-export', x.id);
+            var d = elc('details', 'sba-exp');
+            var sm = el('summary', '', (i === 0 ? '최근 내보내기 ' : '내보내기 ')); sm.appendChild(el('b', '', x.id)); sm.appendChild(document.createTextNode(' · ' + at(x.at) + ' · 유형 ' + (x.groups || []).length + '개 · ' + (left.length ? '남은 유형 ' + left.length : '모두 처리 완료')));
+            d.appendChild(sm);
+            var ul = el('ul', 'margin:6px 0 0;padding-left:16px;');
+            (x.groups || []).forEach(function (g) {
+                // 지워진 것(보관 90일·상한 — gone)은 「다른 내보내기로 처리」라고 하지 않는다(§11.10.48 검토 ⑥)
+                var how = g.resolved ? '처리 완료(' + (g.resolved.by === 'merge' ? '머지' : '버튼') + ' ' + at(g.resolved.at) + (g.resolved.note ? ' — ' + g.resolved.note : '') + ')'
+                    : g.open > 0 ? '남음 ' + g.open + '건' + (g.gone ? ' · 보관 기간·상한으로 지워짐 ' + g.gone + '건' : '')
+                    : g.gone >= g.count ? '보관 기간·상한으로 모두 지워짐' : '다른 내보내기로 처리 완료' + (g.gone ? ' · 지워짐 ' + g.gone + '건' : '');
+                ul.appendChild(el('li', '', g.code + ' ' + familyText(g.family) + ' — ' + g.count + '건 · ' + how));
             });
-        }
-        body.appendChild(box);
+            d.appendChild(ul); row.appendChild(d);
+            if (left.length) {
+                var b = elc('button', 'sba-btn', '남은 ' + left.length + '개 완료 처리'); b.type = 'button'; b.setAttribute('data-sb-export-resolve', x.id);
+                b.addEventListener('click', async function () {
+                    if (!w.confirm(x.id + ' 의 남은 유형 ' + left.length + '개(오류 ' + n + '건)를 처리 완료로 바꿉니다. 처리 안 된 오류 목록·누적 md 에 더 나오지 않습니다(되돌릴 수 없음).')) return;
+                    b.disabled = true; say(null, '처리 완료로 바꾸는 중…');
+                    try {
+                        var r = await call('/error-log/exports/' + encodeURIComponent(x.id) + '/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                        if (r.status !== 200) throw new Error(r.body.error || ('HTTP ' + r.status));
+                        refresh();
+                    } catch (e) { console.warn('[AI 브리핑 관리] 처리 완료 실패:', e && e.message); b.disabled = false; say(false, '처리 완료로 바꾸지 못했습니다: ' + ((e && e.message) || '알 수 없음')); }
+                });
+                row.appendChild(b);
+            }
+            box.appendChild(row);
+        });
     }
     /** 앱 안(Capacitor 네이티브)인가. 예: 안드로이드 앱 → true · PC 브라우저 → false. @returns {boolean} [연계] ← saveMarkdown */
     function isNativeApp() { return !!(w.Capacitor && typeof w.Capacitor.isNativePlatform === 'function' && w.Capacitor.isNativePlatform()); }
@@ -926,21 +1075,21 @@
         view.insertBefore(ta, view.firstChild);
     }
     /**
-     * 관할 하나 미리보기 — 관할 목록(경찰서별 묶음)·날짜(자동·오늘·내일)를 골라 사용자 화면과 같은 렌더러로 그린다. 노출 범위와 무관(관리자 경로).
-     * 공개 시각 전의 판(§11.10.4)이 있으면 그 판을 「예정 — HH:MM 에 공개될 판」 안내와 함께 보인다(서버 preview 가 pending·publishAt 을 준다).
+     * 관할 하나 미리보기(접힘 카드 — 기본 접힘, §11.10.50) — 관할 목록(경찰서별 묶음)·날짜(자동·오늘·내일)를 골라 사용자 화면과 같은 렌더러로 그린다. 노출 범위와 무관(관리자 경로).
+     * 공개 시각 전의 판(§11.10.4)이 있으면 그 판을 보인다(서버 preview 가 pending·publishAt 을 준다). 관할 목록은 접힌 동안에도 미리 받아 둔다.
      * 예: 한림파출소 · 자동 → GET /api/admin/station-briefing/preview?station=…&day=auto → StationBriefingRender.render(…, {links:false})
      * @param {HTMLElement} box @returns {Promise<void>} [연계] ← renderStationBriefingAdmin / → StationBriefingRender.render
      */
     async function drawPreview(box) {
         box.textContent = '';
-        box.appendChild(elc('div', 'sba-h', '관할 하나 미리보기'));
-        var bar = el('div', 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;');
+        var acc = collapsible(box, '관할 하나 미리보기', '', 'data-sb-preview-toggle'); acc.sum.textContent = '관할을 골라 사용자 화면 그대로 보기';
+        var bar = el('div', 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;');
         var sel = el('select', 'flex:1 1 200px;min-width:0;padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.2);background:#0f1b33;color:#fff;font-size:0.8rem;'); sel.setAttribute('data-sb-preview-station', '');
         var day = el('select', 'padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,0.2);background:#0f1b33;color:#fff;font-size:0.8rem;');
         [['auto', '자동(21시부터 내일)'], ['today', '오늘'], ['tomorrow', '내일']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; day.appendChild(op); });
         var go = elc('button', 'sba-btn primary', '보기'); go.type = 'button'; go.setAttribute('data-sb-preview-go', '');
-        bar.appendChild(sel); bar.appendChild(day); bar.appendChild(go); box.appendChild(bar);
-        var out = el('div', 'margin-top:10px;'); out.className = 'sb-wrap'; out.style.marginTop = '10px'; out.setAttribute('data-sb-preview-out', ''); box.appendChild(out);
+        bar.appendChild(sel); bar.appendChild(day); bar.appendChild(go); acc.body.appendChild(bar);
+        var out = el('div', 'margin-top:10px;'); out.className = 'sb-wrap'; out.style.marginTop = '10px'; out.setAttribute('data-sb-preview-out', ''); acc.body.appendChild(out);
         var r = await call('/stations');
         var list = r.status === 200 && Array.isArray(r.body.stations) ? r.body.stations : [];
         var group = null, office = null;
@@ -968,4 +1117,5 @@
     renderStationBriefingAdmin.errorsByStation = errorsByStation;
     renderStationBriefingAdmin.SHAPE = SHAPE;
     renderStationBriefingAdmin.mmss = mmss;   // §11.10.21 정시 판 소요 표
+    renderStationBriefingAdmin.providersText = providersText;   // §11.10.50 「쓴 AI」
 })(window);

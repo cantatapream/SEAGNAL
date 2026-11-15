@@ -9,6 +9,8 @@
  *         관할을 누르면 가운데 확인 창(「○○해양경찰서 ○○파출소 — 이 관할을 선택하셨습니까? 저장하시겠습니까?」 [취소]·[저장] — 취소·Esc·바깥·뒤로가기는 되돌림, 늦은 click 무시, 2026-10-17) ·
  *         아래 단추 줄 없음 · 머리 오른쪽 [건너뛰기]/[취소] · 해상·연안 보기 두 칸 한 줄(360px) ·
  *         [위험예측에서 보기 ›] 로 위험예측 시트 열림 · N 뱃지 · [기준 상세] 창 · 관리자 「AI 브리핑」 탭(설정 저장·노출 범위 전환·지금 다시 만들기 409·미리보기·최근 3일 오류 목록 [복사]·[md로 저장]).
+ *         §11.10.50(2026-11-16): 관리자 「AI 브리핑」 탭 정리(시안 A2) — 머리 한 줄·숫자 3칸·오류 카드 탭 2개(처리 안 된 오류/실행별)·정시 판 표 새 칸·설정·미리보기 접힘·AI 분석 스위치(method 'ai'/'template')·「AI 모델 설정」 링크·쓴 AI(byProvider)·건너뜀(skipped)·0건 버튼 숨김 ·
+ *                                admin_ai_briefing_360.png·admin_ai_briefing_720.png(모달 전체, 설정 펼침).
  *         §11.10.10(2026-10-17): 「관할 내 잠기는 바위(간출암) N곳」 링크 → 팝업 지도(관할 경계 + 바위 마커) → 마커 → 해양안전 「위험지형」과 같은 간출암 조석 곡선 상자(HazardRockTidePanel,
  *                                /api/hazard-rocks/tide-curve 는 시험값으로 가로챔) · 해양안전 위험지형 팝업도 같은 함수로 그대로 뜨는지 · (고립 주의) 「과거 고립 사고(N개소 M건)」 화살표 없음 · 「지점명 | 발생 현황」
  *                                · 「아직 이 관할의 브리핑이 없습니다」·관리자 미리보기 「예정 — …」 안내 없음(briefing_rocks_popup_360.png).
@@ -1225,19 +1227,30 @@ function makeBriefings() {
             { at: '2026-10-17T08:02:00+09:00', stage: 'validate', provider: 'gemini', stations: [AEWOL], reason: 'number:hangul:두 곳|x\n둘째 줄', edition: 'morning', date: '2026-10-17', attempt: 4 }];
         fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ errors: ERRS }));
         page = await device({ admin: true, login: true });
-        await check('관리자 → AI → 「AI 브리핑」 하위 탭 — 설정 칸(방식·모델·노출·묶음·바뀐 곳만)·상태·미리보기', async () => {
+        await check('관리자 → AI → 「AI 브리핑」 하위 탭(§11.10.50 시안 A2) — 머리 한 줄·상태 숫자 3칸·카드 순서(상태→오류→정시 판→설정→미리보기) · 설정 칸(AI 분석 스위치·노출·묶음·바뀐 곳만 — AI 모델 칸 없음)·설정·미리보기는 접힘', async () => {
             await page.evaluate(() => { window.showUnifiedAdminModal('ai'); }); await page.waitForSelector('#ai-subtab-bar button[data-aisub="briefing"]');
-            await tap(page, '#ai-subtab-bar button[data-aisub="briefing"]'); await page.waitForSelector('[data-sb-config] [data-field="exposure"]');
-            const fields = await page.$$eval('[data-sb-config] [data-field]', (e) => e.map((x) => x.dataset.field)); assert.deepEqual(fields, ['method', 'chatgptModel', 'geminiModel', 'exposure', 'batchUnit', 'onlyChanged']);
+            await tap(page, '#ai-subtab-bar button[data-aisub="briefing"]'); await page.waitForSelector('[data-sb-config] [data-field="exposure"]', { state: 'attached' });
+            const fields = await page.$$eval('[data-sb-config] [data-field]', (e) => e.map((x) => x.dataset.field)); assert.deepEqual(fields, ['method', 'exposure', 'batchUnit', 'onlyChanged'], 'AI 모델(chatgptModel·geminiModel) 칸은 「AI 모델 설정」 탭으로 옮김');
             assert.equal(await page.$eval('[data-field="exposure"] [aria-pressed="true"]', (e) => e.textContent), '관리자에게만');
-            assert.deepEqual(await page.$$eval('[data-field="chatgptModel"] button', (e) => e.map((x) => x.textContent)), ['GPT Luna', 'GPT Sol', 'GPT Astra']);
-            await page.waitForSelector('[data-sb-next]'); assert.ok((await page.$eval('[data-sb-next]', (e) => e.textContent)).includes('10-17 17:30 공개(16:50부터 만들기)'), await page.$eval('[data-sb-next]', (e) => e.textContent));
-            assert.ok((await page.$eval('[data-sb-admin] .admin-section-title', (e) => e.textContent)).includes('AI 브리핑 — 연안 안전 브리핑'));
+            assert.deepEqual(await page.$$eval('[data-field="batchUnit"] button', (e) => e.map((x) => [x.textContent, x.getAttribute('aria-pressed')])), [['파출소97회', 'false'], ['해양경찰서21회', 'true'], ['지방청5회', 'false']], '세그먼트 — 고른 칸만 aria-pressed');
+            assert.deepEqual(await page.$eval('[data-sb-switch="method"]', (e) => [e.getAttribute('role'), e.getAttribute('aria-checked')]), ['switch', 'true'], '서버 기본값(§11.10.51 전 chatgpt · 뒤 ai) = AI 분석 켜짐 — 옛 값 gemini 는 [§11.10.50] 검사가 따로 본다');
+            assert.deepEqual(await page.$eval('[data-sb-config-toggle]', (e) => [e.getAttribute('aria-expanded'), e.nextElementSibling.hidden]), ['false', true], '설정은 기본 접힘');
+            assert.equal(await page.$eval('[data-sb-config-sum]', (e) => e.textContent), 'AI 분석 켜짐 · 관리자에게만 · 해양경찰서 묶음 · 바뀐 곳만 켜짐', '접힌 동안 요약 한 줄');
+            assert.deepEqual(await page.$eval('[data-sb-preview-toggle]', (e) => [e.getAttribute('aria-expanded'), e.nextElementSibling.hidden, e.textContent]), ['false', true, '관할 하나 미리보기관할을 골라 사용자 화면 그대로 보기▾'], '미리보기도 기본 접힘');
+            await page.waitForSelector('[data-sb-next]'); assert.equal(await page.$eval('[data-sb-next]', (e) => e.textContent), '다음 판17:3016:50부터 만들기');
+            assert.deepEqual(await page.$eval('[data-sb-admin] .sba-head', (e) => [e.querySelector('h2').textContent, e.querySelector('.sba-title-sub').textContent, [...e.querySelectorAll('.sba-head-acts > *')].map((x) => x.getAttribute('aria-label') || x.textContent)]),
+                ['연안 안전 브리핑', '07:30 · 17:30 · 23:00 공개 · 각 40분 전부터 만들기', ['대기 중', '새로고침', '지금 다시 만들기']], '머리 — 제목 한 줄 · 상태 알약 · [↻] · [지금 다시 만들기](위로 옮김)');
+            assert.deepEqual(await page.$$eval('[data-sb-admin] > .admin-card', (e) => e.map((x) => [...x.attributes].map((a) => a.name).find((n) => n.startsWith('data-sb-')))), ['data-sb-status', 'data-sb-errcard', 'data-sb-edition-times', 'data-sb-config', 'data-sb-preview'], '카드 순서 · 다른 관리자 탭과 같은 .admin-card');
+            assert.deepEqual(await page.$eval('[data-sb-status]', (e) => { const c = getComputedStyle(e); return [c.backgroundColor, c.borderRadius]; }), ['rgba(30, 41, 59, 0.5)', '16px'], '카드 색·둥글기 = 다른 관리자 탭(.admin-card)');
+            assert.ok(!(await page.$eval('[data-sb-admin]', (e) => e.textContent)).includes('저장된 날짜'), '「저장된 날짜」 뺌');
+            assert.deepEqual(await page.$eval('[data-sb-errcard]', (e) => [...e.querySelectorAll('[data-sb-err-tab]')].map((b) => [b.dataset.sbErrTab, b.getAttribute('aria-selected')])), [['open', 'true'], ['run', 'false']], '오류 카드 기본 탭 = 처리 안 된 오류');
             assert.equal(await page.$eval('#ai-subtab-bar button[data-aisub="briefing"]', (e) => e.textContent), 'AI 브리핑', '하위 탭 이름은 그대로(옛 이름을 보이지 않음)');
             assert.equal(await page.evaluate(() => localStorage.getItem('seagnal_ai_subtab')), 'briefing');
         });
         await check('[§11.10.7] 오류 — 실행마다 드롭다운(기본 = 가장 최근 실행, 3일 전 것 없음) · 고른 실행만 관할별·한글 풀이 · [복사]·[md로 저장]은 고른 실행만(실패하면 보이는 안내)', async () => {
-            await page.waitForSelector('[data-sb-errors] [data-sb-err-run]');
+            await page.waitForSelector('[data-sb-errors] [data-sb-err-run]', { state: 'attached' });
+            assert.equal(await page.$eval('[data-sb-errors]', (e) => e.hidden), true, '실행별은 탭을 누르기 전엔 숨김');
+            await tap(page, '[data-sb-err-tab="run"]'); assert.deepEqual(await page.evaluate(() => [document.querySelector('[data-sb-errors]').hidden, document.querySelector('[data-sb-open]').hidden]), [false, true]);
             const opts = await page.$$eval('[data-sb-err-run] option', (e) => e.map((x) => x.textContent));
             assert.deepEqual(opts, ['10-17 08:02 · 07:30 판 · 오류 1', '10-16 17:31 · 17:30 판 · 오류 1', '10-15 08:01 · 07:30 판 · 오류 1'], opts.join(' / '));
             const li = await page.$$eval('[data-sb-err-list] li', (e) => e.map((x) => x.textContent));
@@ -1288,7 +1301,7 @@ function makeBriefings() {
             SB.onAiProgress(pr, { type: 'call', batch: '제주해양경찰서', keys: [HALLIM, AEWOL], provider: 'chatgpt', attempt: 1 });
             SB.onAiProgress(pr, { type: 'station', key: HALLIM, state: 'done', attempt: 1 });
             ctl.progress = pr; ctl.running = true;
-            await page.evaluate(() => [...document.querySelectorAll('[data-sb-status] button')].find((b) => b.textContent === '새로고침').click());
+            await page.evaluate(() => document.querySelector('[data-sb-refresh]').click());
             await page.waitForSelector('[data-sb-progress-now]');
             const r = await page.evaluate(() => ({ now: document.querySelector('[data-sb-progress-now]').textContent, pct: document.querySelector('[data-sb-progress-pct]').textContent, pill: document.querySelector('[data-sb-running]').textContent,
                 batches: [...document.querySelectorAll('[data-sb-progress-batches] button')].map((b) => [b.textContent, b.dataset.state, b.getAttribute('aria-pressed')]),
@@ -1299,13 +1312,14 @@ function makeBriefings() {
             await page.setViewportSize({ width: 360, height: 780 }); await page.waitForTimeout(200);
             assert.ok(await page.evaluate(() => document.querySelector('[data-sb-progress]').scrollWidth <= document.querySelector('[data-sb-progress]').clientWidth + 1), '360px 에서 가로 넘침 없음');
             await page.locator('[data-sb-status]').screenshot({ path: path.join(SHOT, 'admin_ai_briefing_progress_360.png') });
-            assert.equal(await page.$eval('[data-sb-config] [data-field="method"] .sba-label', (e) => getComputedStyle(e).color), 'rgb(248, 250, 252)', '칸 이름 흰색(#f8fafc)');
+            assert.equal(await page.$eval('[data-sb-config] [data-field="method"] .l', (e) => getComputedStyle(e).color), 'rgb(248, 250, 252)', '칸 이름 흰색(#f8fafc)');
+            assert.ok(await page.evaluate(() => document.querySelector('[data-sb-status]').contains(document.querySelector('[data-sb-progress]'))), '진행 게이지는 상태 카드 안');
             ctl.running = false; ctl.progress = null;
             await page.waitForFunction(() => document.querySelector('[data-sb-running]').textContent === '대기 중', null, { timeout: 8000 });
             assert.equal(await page.evaluate(() => document.querySelector('[data-sb-progress]').hidden), true, '끝나면 게이지 숨김');
             await page.setViewportSize({ width: 1280, height: 900 });
         });
-        await check('[§11.10.21] 상태 상자 — 「관광지 자료 확인 불가」 판별(0이면 「없음」 · 펼치면 관할·관광지 이름 · 옛 실행은 「기록 없음」) · 정시 판 소요 표(최근 6회 · 분:초 · 공개 전/뒤 · 마감 · 특보·관리자 실행 뺌) · 360px 넘침 없음', async () => {
+        await check('[§11.10.21 → §11.10.50] 상태 카드 — 「관광지 자료 확인 불가」는 문제 있는 판만 펼침 칸(펼치면 관할·관광지 이름 · 문제 없으면 칩 줄 「관광지 자료 이상 없음」 · 옛 실행은 「기록 없음」) · 정시 판 기록 표(판 | 소요 | AI·재사용·규칙 | 오류 — 마감에 걸린 판만 「마감 N곳」 · 공개 뒤 끝난 판만 「공개 m:ss 뒤」 · 특보·관리자 실행 뺌 · 줄 누르면 실행별 탭) · 360px 넘침 없음', async () => {
             const run = (at0, kind, ms, pub, res) => ({ at: at0, kind, method: 'chatgpt', ms, publishAt: pub, results: res });
             const r1 = (o) => [{ date: '2026-10-17', stations: 4, stats: { ai: 4, reused: 0, template: 0, deadline: 0, ...o.stats }, errors: o.errors || 0, ...(o.spotFail ? { spotFail: o.spotFail } : {}) }];
             const failList = { stations: 2, spots: 3, list: [{ office: '제주해양경찰서', station: '한림파출소', spots: ['금능해수욕장', '협재해수욕장'] }, { office: '부산해양경찰서', station: '남항파출소', spots: ['자갈치'] }] };
@@ -1317,26 +1331,33 @@ function makeBriefings() {
                 run('2026-10-16T17:10:00+09:00', 'evening', 600000, '2026-10-16T17:30:00+09:00', r1({})), run('2026-10-16T18:00:00+09:00', 'warning', 90000, '2026-10-16T18:00:00+09:00', r1({})),
                 run('2026-10-16T22:40:00+09:00', 'night', 700000, '2026-10-16T23:00:00+09:00', r1({})), { ...edition, results: edition.results.map((x) => ({ ...x, spotFail: cnt(x.spotFail) })) }, { ...manual, results: manual.results.map((x) => ({ ...x, spotFail: cnt(x.spotFail) })) }];
             fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ errors: ERRS, lastRun: manual, lastEdition: edition, runs }));
-            const refresh = () => page.evaluate(() => [...document.querySelectorAll('[data-sb-status] button')].find((b) => b.textContent === '새로고침').click());
+            const refresh = () => page.evaluate(() => document.querySelector('[data-sb-refresh]').click());
             await refresh(); await page.waitForSelector('[data-sb-edition-row]');
             const r = await page.evaluate(() => ({
-                sf: [...document.querySelectorAll('[data-sb-spotfail-row]')].map((x) => x.textContent),
-                sum: document.querySelector('[data-sb-spotfail] details summary').textContent, open: document.querySelector('[data-sb-spotfail] details').open,
+                sf: [...document.querySelectorAll('[data-sb-spotfail-row]')].map((x) => x.querySelector('summary').textContent),
+                open: document.querySelector('[data-sb-spotfail] details').open,
+                last: document.querySelector('[data-sb-lastrun]').parentElement.textContent,
                 rows: [...document.querySelectorAll('[data-sb-edition-row]')].map((tr) => [...tr.children].map((td) => td.textContent)),
-                head: [...document.querySelectorAll('[data-sb-edition-times] th')].map((x) => x.textContent), title: document.querySelector('[data-sb-edition-times] .sba-k').textContent,
-                note: document.querySelector('[data-sb-edition-times]').textContent }));
-            assert.equal(r.sf.length, 2, r.sf.join(' / '));
-            assert.equal(r.sf[0], '마지막 실행 · 10-17 09:40 · 관리자 즉시 실행 · 10-17 판관광지 자료 확인 불가: 없음', '0이면 「없음」(조용히 빠지지 않게)');
-            assert.ok(r.sf[1].startsWith('마지막 정시 판 · 10-17 07:10 · 07:30 판 · 10-17 판'), r.sf[1]);
-            assert.deepStrictEqual([r.sum, r.open], ['관광지 자료 확인 불가: 2관할 · 관광지 3곳', false]);
+                bad: [...document.querySelectorAll('[data-sb-edition-row]')].map((tr) => tr.lastElementChild.classList.contains('bad')),
+                head: [...document.querySelectorAll('[data-sb-edition-times] th')].map((x) => x.textContent), title: document.querySelector('[data-sb-edition-times] .sba-ct').textContent,
+                note: document.querySelector('[data-sb-edition-times] .sba-note').textContent }));
+            assert.equal(r.last, '마지막 실행09:40관리자 즉시 실행 · 4곳 · 300초', '숫자 칸 「마지막 실행」 — 시각 · 판 · 관할 수 · 초(오늘이면 날짜 없음)');
+            assert.deepStrictEqual(r.sf, ['관광지 자료 확인 불가: 2관할 · 관광지 3곳 — 마지막 정시 판 10-17 07:10 · 07:30 판 · 10-17 판'], '문제 있는 판만 펼침 칸(마지막 실행은 0곳이라 칸 없음)');
+            assert.equal(r.open, false, '펼침 칸은 접힌 채 시작');
             await tap(page, '[data-sb-spotfail] details summary');
             assert.deepStrictEqual(await page.$$eval('[data-sb-spotfail] details li', (e) => e.map((x) => x.textContent)), ['제주해양경찰서 한림파출소 — 금능해수욕장, 협재해수욕장', '부산해양경찰서 남항파출소 — 자갈치']);
-            assert.deepStrictEqual(r.head, ['판(시작)', '소요(분:초)', '결과', '마감']); assert.equal(r.title, '정시 판 소요 시간 — 최근 6회까지');
+            assert.deepStrictEqual(r.head, ['판(시작)', '소요', 'AI · 재사용 · 규칙', '오류']); assert.equal(r.title, '정시 판 기록최근 6회');
             assert.equal(r.rows.length, 6, '정시 판만 최근 6회(특보 변경·관리자 실행·7번째 옛 판 뺌)');
-            assert.deepStrictEqual(r.rows[0], ['07:30 판10-17 07:10', '12:34공개 7:26 전 끝남', '4곳 · AI 2 · 재사용 1 · 규칙 1 · 오류 2', '걸림규칙으로 1곳']);
-            assert.deepStrictEqual(r.rows[3], ['07:30 판10-16 07:10', '21:00공개 1:00 뒤 끝남', '4곳 · AI 2 · 재사용 0 · 규칙 2 · 오류 0', '걸림규칙으로 2곳']);
+            assert.deepStrictEqual(r.rows[0], ['07:3010-17 07:10', '12:34', '2 · 1 · 1마감 1곳', '2'], '마감에 걸린 판은 「마감 N곳」 · 공개 전 끝난 판은 소요만');
+            assert.deepStrictEqual(r.rows[3], ['07:3010-16 07:10', '21:00공개 1:00 뒤', '2 · 0 · 2마감 2곳', '0'], '공개 뒤 끝난 판만 「공개 m:ss 뒤」');
+            assert.deepStrictEqual(r.rows[1], ['23:0010-16 22:40', '11:40', '4 · 0 · 0', '0'], '마감 안 걸린 판은 표시 없음(종전 「안 걸림」 칸 없앰)');
             assert.deepStrictEqual(r.rows.map((x) => x[0].slice(-11)), ['10-17 07:10', '10-16 22:40', '10-16 17:10', '10-16 07:10', '10-15 22:40', '10-15 17:10'], '최근 것부터');
-            assert.equal(r.rows[1][3], '안 걸림'); assert.ok(r.note.includes('마감 = 시작 뒤 20분과 공개 시각 중 이른 때'), r.note);
+            assert.deepStrictEqual(r.bad, [true, false, false, false, false, false], '오류 0 아닌 칸만 빨강');
+            assert.ok(r.note.includes('마감 = 시작 뒤 20분과 공개 시각 중 이른 때'), r.note);
+            // 줄을 누르면 오류 카드가 「실행별」 탭으로 그 실행을 고른다
+            await tap(page, '[data-sb-err-tab="open"]'); await tap(page, '[data-sb-edition-row="2026-10-16T07:10:00+09:00"]');
+            assert.deepEqual(await page.evaluate(() => [document.querySelector('[data-sb-err-tab="run"]').getAttribute('aria-selected'), document.querySelector('[data-sb-errors]').hidden, document.querySelector('[data-sb-err-run]').value]), ['true', false, '2026-10-16T07:10:00+09:00']);
+            await page.selectOption('[data-sb-err-run]', '2026-10-17T07:10:00+09:00');
             await page.setViewportSize({ width: 360, height: 780 }); await page.waitForTimeout(200);
             const ov = await page.evaluate(() => ['[data-sb-status]', '[data-sb-spotfail]', '[data-sb-edition-times]'].map((q) => { const e = document.querySelector(q); return [q, e.scrollWidth, e.clientWidth]; }).concat([['table', document.querySelector('[data-sb-edition-times] table').getBoundingClientRect().right, document.querySelector('[data-sb-edition-times]').getBoundingClientRect().right], ['page', document.documentElement.scrollWidth, document.documentElement.clientWidth]]));
             for (const [q, a, b] of ov) assert.ok(a <= b + 1, '360px 가로 넘침 없음 ' + q + ' ' + a + '>' + b);
@@ -1345,18 +1366,29 @@ function makeBriefings() {
             // 이 기록 전 실행(spotFail 없음) — 0 으로 보이지 않고 「기록 없음」, 정시 판 기록이 없으면 표 대신 안내
             fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ errors: ERRS, lastRun: { ...manual, results: r1({}) } }));
             await refresh(); await page.waitForFunction(() => !document.querySelector('[data-sb-edition-row]') && document.querySelector('[data-sb-edition-times]'));
-            assert.ok((await page.$eval('[data-sb-spotfail]', (e) => e.textContent)).includes('관광지 자료 확인 불가: 기록 없음(이 기능 전 실행)'));
+            assert.equal(await page.$eval('[data-sb-spotfail]', (e) => e.textContent), '· 관광지 자료: 기록 없음(이 기능 전 실행)', '옛 실행은 「이상 없음」(0)이 아니라 「기록 없음」');
             assert.ok((await page.$eval('[data-sb-edition-times]', (e) => e.textContent)).includes('최근 3일 정시 판 기록 없음'));
             fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ errors: ERRS }));
             await refresh(); await page.waitForFunction(() => (document.querySelector('[data-sb-lastrun]') || {}).textContent === '기록 없음');
         });
-        await check('설정 저장 — 방식 「틀」·묶음 「지방청」·바뀐 곳만 끄기 → 서버 config 에 저장', async () => {
-            await tap(page, '[data-field="method"] [data-value="template"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.startsWith('저장됨'));
-            await tap(page, '[data-field="batchUnit"] [data-value="region"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.includes('지방청'));
-            await tap(page, '[data-field="onlyChanged"] [data-value="false"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.includes('매번 새로'));
+        await check('설정 저장(§11.10.50) — 설정 펼침 → AI 분석 끔(method template)·묶음 「지방청」(세그먼트)·바뀐 곳만 끔(스위치) → 서버 config 에 저장 · AI 분석 켬 = method \'ai\' 를 보냄 · 접힌 요약도 바뀜', async () => {
+            await page.click('[data-sb-config-toggle]'); assert.deepEqual(await page.$eval('[data-sb-config-toggle]', (e) => [e.getAttribute('aria-expanded'), e.nextElementSibling.hidden]), ['true', false], '누르면 펼침');
+            const puts = []; const onReq = (q) => { if (q.method() === 'PUT' && q.url().endsWith('/api/admin/station-briefing/config')) puts.push(JSON.parse(q.postData())); }; page.on('request', onReq);
+            await page.click('[data-sb-switch="method"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.startsWith('저장됨'));
+            assert.equal(await page.$eval('[data-sb-msg]', (e) => e.textContent), '저장됨 — AI 분석: 꺼짐(규칙 분석만)');
+            assert.deepEqual(await page.$eval('[data-sb-switch="method"]', (e) => [e.getAttribute('aria-checked'), document.querySelector('[data-sb-switch-text="method"]').textContent]), ['false', '꺼짐 — 규칙 분석만 · AI 순서는 AI 모델 설정 → ③ 연안 안전 브리핑']);
+            await page.click('[data-field="batchUnit"] [data-value="region"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.includes('지방청'));
+            await page.click('[data-sb-switch="onlyChanged"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.includes('매번 새로'));
             const c = real.readConfig(); assert.deepEqual([c.method, c.batchUnit, c.onlyChanged], ['template', 'region', false]);
-            assert.equal(await page.$eval('[data-field="chatgptModel"]', (e) => e.style.opacity), '0.45', '틀이면 모델 줄이 흐리다');
+            assert.deepEqual(puts, [{ method: 'template' }, { batchUnit: 'region' }, { onlyChanged: false }], '바꾼 칸 하나씩 곧바로 PUT');
+            assert.equal(await page.$eval('[data-sb-config-sum]', (e) => e.textContent), 'AI 분석 꺼짐 · 관리자에게만 · 지방청 묶음 · 바뀐 곳만 꺼짐');
             assert.ok(reqLog.some((r) => r.path === '/api/admin/station-briefing/config' && r.tok === 'admin-login'), '관리자 토큰 자동 첨부');
+            // 켜면 'ai'(서버 선택지에 'ai' 가 생기기 전 서버면 400 → 「저장 실패」가 보이고 스위치는 그대로 꺼짐)
+            await page.click('[data-sb-switch="method"]'); await page.waitForFunction(() => /^저장(됨|\s실패)/.test(document.querySelector('[data-sb-msg]').textContent));
+            assert.deepEqual(puts[3], { method: 'ai' }, '켜짐은 method \'ai\' 만 보낸다(chatgpt·gemini 아님)');
+            if (SB.CHOICES.method.includes('ai')) { assert.equal(real.readConfig().method, 'ai'); assert.equal(await page.$eval('[data-sb-switch="method"]', (e) => e.getAttribute('aria-checked')), 'true'); }
+            else { assert.ok((await page.$eval('[data-sb-msg]', (e) => e.textContent)).startsWith('저장 실패'), '옛 서버는 보이는 실패'); assert.equal(await page.$eval('[data-sb-switch="method"]', (e) => e.getAttribute('aria-checked')), 'false'); }
+            page.off('request', onReq);
         });
         await check('노출 범위 전환 — 「사용자에게」면 일반 기기에도 아코디언, 「노출 안 함」이면 관리자 기기에도 없다', async () => {
             await tap(page, '[data-field="exposure"] [data-value="user"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.includes('사용자에게'));
@@ -1373,7 +1405,7 @@ function makeBriefings() {
         });
         await check('관할 하나 미리보기 — 노출 범위와 무관, 사용자 화면과 같은 렌더러(바로가기 없음)', async () => {
             real.writeConfig({ exposure: 'off' });
-            real.writeConfig({ exposure: 'off' });
+            await page.click('[data-sb-preview-toggle]'); assert.equal(await page.$eval('[data-sb-preview-toggle]', (e) => e.getAttribute('aria-expanded')), 'true');
             await page.selectOption('[data-sb-preview-station]', HALLIM); await tap(page, '[data-sb-preview-go]');
             await page.waitForSelector('[data-sb-preview-out] [data-sb-sec="overview"]');
             const r = await page.evaluate(() => ({ st: document.querySelector('[data-sb-preview-out] .sb-station').textContent, links: document.querySelectorAll('[data-sb-preview-out] .sb-link').length, pending: !!document.querySelector('[data-sb-preview-out] [data-sb-pending]') }));
@@ -1388,11 +1420,91 @@ function makeBriefings() {
             await tap(page, '[data-sb-preview-go]'); await page.waitForFunction(() => { const e = document.querySelector('[data-sb-preview-out] .sb-edition'); return e && e.textContent.startsWith('다음 갱신 '); });
             const r = await page.evaluate(() => ({ note: !!document.querySelector('[data-sb-preview-out] [data-sb-pending]'), text: document.querySelector('[data-sb-preview-out]').textContent, ed: document.querySelector('[data-sb-preview-out] .sb-edition').textContent }));
             assert.ok(!r.note && !r.text.includes('예정 — ') && !r.text.includes('공개될 판입니다'), '§11.10.10 F — 「예정 — …」 안내 없음'); assert.ok(r.ed.startsWith('다음 갱신 ') && !r.ed.includes('기준 브리핑'), r.ed);
-            await page.evaluate(() => [...document.querySelectorAll('[data-sb-status] button')].find((b) => b.textContent === '새로고침').click()); await page.waitForSelector('[data-sb-pending-status]');
-            assert.ok((await page.$eval('[data-sb-pending-status]', (e) => e.textContent)).includes('10-17 17:30 — 1곳(그때까지 사용자에게는 이전 판)'));
+            await page.evaluate(() => document.querySelector('[data-sb-refresh]').click()); await page.waitForSelector('[data-sb-pending-status]');
+            assert.equal(await page.$eval('[data-sb-pending-status]', (e) => e.textContent), '공개 예정 · 10-17 17:30 — 1곳(그때까지 사용자에게는 이전 판)', '공개 예정은 있을 때만 상태 카드 안 한 줄');
             writeDay('2026-10-17', { [HALLIM]: B.h, [BUSAN]: B.b, [MOKPO]: B.m });
         });
-        for (const [w, h] of [[380, 844], [1280, 900]]) { await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(250); await clean(page); await page.locator('#unified-admin-body').screenshot({ path: path.join(SHOT, 'admin_ai_briefing_' + w + '.png') }); }
+        await check('[§11.10.50] 화면 정리 — 오류 카드 탭(처리 안 된 오류 빨간 수 · 유형 「관할 없음」·「대천 · 시각」 · [남은 N개 완료 처리]) · 「쓴 AI」(byProvider) · 「건너뜀」 줄(skipped) · 0건이면 [md로 저장]·[복사] 숨김(두 탭) · 읽지 못하면 「알 수 없음」 · 고른 탭 유지 · 옛 값 gemini = 켜짐 · AI 순서 링크 → 「AI 모델 설정」 · 360·720px 넘침·겹침 없음', async () => {
+            // 서버 상태 응답에 이 화면이 그릴 값만 덧씌운다(서버는 실제 — 받은 응답을 고쳐 돌려줌). 진행 받기(only=progress)는 그대로.
+            let patch = null;
+            await page.route('**/api/admin/station-briefing/status*', async (route) => {
+                if (!patch || route.request().url().includes('only=progress')) return route.continue();
+                const res = await route.fetch(), body = await res.json(); patch(body); await route.fulfill({ response: res, json: body });
+            });
+            const refresh = () => page.evaluate(() => document.querySelector('[data-sb-refresh]').click());
+            const LR = { at: '2026-10-17T09:36:00+09:00', kind: 'warning', method: 'ai', ms: 76000, publishAt: '2026-10-17T09:36:00+09:00', chain: ['claude2', 'gemini'],
+                results: [{ date: '2026-10-17', stations: 9, stats: { ai: 9, reused: 0, template: 0, deadline: 0, byProvider: { gemini: 2, claude2: 7 } }, errors: 0, spotFail: { stations: 0, spots: 0, list: [] } }], skipped: [{ id: 'claude1', reason: '키 없음' }, { id: 'upstage', reason: '크레딧 소진' }] };
+            const RUNF = '@run:k 실행 실패(#번째): ENOSPC';
+            const LOG = { open: 3, since: '2026-10-15T08:01:00+09:00', keepDays: 90, issues: [], families: [
+                { family: RUNF, count: 2, stations: 0, top: [], values: [], first: '2026-10-16T22:20:00+09:00', last: '2026-10-16T22:30:00+09:00' },
+                { family: 'missing:station', count: 1, stations: 1, top: [['대천파출소', 1]], values: [], first: '2026-10-17T06:52:00+09:00', last: '2026-10-17T06:52:00+09:00' }],
+            exports: [{ id: 'E20261017-003253', at: '2026-10-17T00:32:00+09:00', openErrors: 3, groups: [{ code: 'G01', family: RUNF, count: 2, open: 2, gone: 0 }, { code: 'G02', family: 'missing:station', count: 1, open: 1, gone: 0 }] }] };
+            patch = (b) => { b.lastRun = LR; b.lastEdition = null; b.errorLog = LOG; };
+            await refresh(); await page.waitForFunction(() => (document.querySelector('[data-sb-providers]') || {}).textContent === '· 쓴 AI: 클로드 키2 7 · Gemini 2');
+            assert.equal(await page.$eval('[data-sb-err-tab="run"]', (e) => e.getAttribute('aria-selected')), 'true', '고른 탭(실행별)은 상태를 다시 그려도 유지');
+            await page.click('[data-sb-err-tab="open"]');
+            const r = await page.evaluate(() => ({
+                badge: document.querySelector('[data-sb-open-badge]').textContent, kpi: [document.querySelector('[data-sb-open-kpi]').textContent, document.querySelector('[data-sb-open-kpi]').classList.contains('bad')],
+                last: document.querySelector('[data-sb-lastrun]').parentElement.textContent, chips: [...document.querySelector('[data-sb-result]').children].map((x) => x.textContent),
+                skipped: document.querySelector('[data-sb-skipped]').textContent, count: document.querySelector('[data-sb-open-count]').textContent,
+                fam: [...document.querySelectorAll('[data-sb-open-family]')].map((d) => [d.querySelector('.sba-ename').textContent, d.querySelector('[data-sb-open-meta]').textContent, d.querySelector('.sba-cnt').textContent]),
+                acts: document.querySelector('[data-sb-open-md]').parentElement.hidden, btns: [document.querySelector('[data-sb-open-md]').textContent, document.querySelector('[data-sb-open-copy]').textContent],
+                resolve: document.querySelector('[data-sb-export-resolve]').textContent, exp: document.querySelector('[data-sb-export] summary').textContent }));
+            assert.equal(r.badge, '3', '탭의 빨간 수 = errorLog.open'); assert.deepEqual(r.kpi, ['처리 안 된 오류3건유형 2개', true], '숫자 칸 — 0 아니면 빨강');
+            assert.equal(r.last, '마지막 실행09:36특보 변경 판 · 9곳 · 76초');
+            assert.deepEqual(r.chips, ['AI 9', '재사용 0', '규칙 분석 0', '오류 0', '· 쓴 AI: 클로드 키2 7 · Gemini 2', '· 관광지 자료 이상 없음'], '칩 한 줄 — 쓴 AI(많은 순) · 관광지 자료 문제 없으면 한 마디');
+            assert.equal(r.skipped, '건너뜀: 클로드 키1(키 없음), 업스테이지(크레딧 소진)');
+            assert.ok(r.count.startsWith('처리 안 된 오류 3건 · 유형 2개 · 10-15 08:01부터'), r.count);
+            assert.deepEqual(r.fam, [['실행 실패 — k 실행 실패(#번째): ENOSPC', '관할 없음 · 10-16 22:20 ~ 22:30', '2건'], ['AI 응답에 이 관할이 빠짐', '대천 · 10-17 06:52', '1건']], '관할 없는 유형은 「관할 없음」(종전 「0곳 —」)');
+            assert.deepEqual([r.acts, r.btns], [false, ['⬇ md로 저장', '⧉ 복사']]);
+            assert.equal(r.resolve, '남은 2개 완료 처리'); assert.equal(r.exp, '최근 내보내기 E20261017-003253 · 10-17 00:32 · 유형 2개 · 남은 유형 2');
+            // 사람 눈 확인용 화면(시안 A2 와 비교) — 탭을 새로 그려(미리보기 접힘) 정시 판 6회를 넣고 설정만 펼쳐 모달 전체를 찍는다 · 360·720px 넘침·겹침 없음
+            const ed = (d, kind, h, ms, o) => ({ at: d + 'T' + h + ':00+09:00', kind, method: 'ai', ms, publishAt: d + 'T' + { morning: '07:30', evening: '17:30', night: '23:00' }[kind] + ':00+09:00', results: [{ date: d, stations: 97, stats: { ai: o.ai, reused: o.reused || 0, template: o.template || 0, deadline: o.deadline || 0 }, errors: o.errors || 0 }] });
+            const RUNS = [ed('2026-10-16', 'night', '22:20', 5000, { ai: 0, reused: 97 }), ed('2026-10-16', 'evening', '16:50', 660000, { ai: 97, errors: 14 }), ed('2026-10-16', 'morning', '06:50', 2700000, { ai: 90, template: 7, deadline: 7, errors: 9 }),
+                ed('2026-10-15', 'night', '22:20', 680000, { ai: 97, errors: 14 }), ed('2026-10-15', 'evening', '16:50', 580000, { ai: 97, errors: 4 }), ed('2026-10-15', 'morning', '06:50', 655000, { ai: 97, errors: 11 })];
+            patch = (b) => { b.lastRun = LR; b.lastEdition = null; b.errorLog = LOG; b.runs = RUNS.concat(b.runs || []); };
+            await page.evaluate(() => window.switchAiSubTab('briefing')); await page.waitForFunction(() => (document.querySelector('[data-sb-providers]') || {}).textContent === '· 쓴 AI: 클로드 키2 7 · Gemini 2');
+            await page.click('[data-sb-err-tab="open"]'); await page.click('[data-sb-config-toggle]');
+            for (const wd of [720, 360]) {
+                await page.setViewportSize({ width: wd, height: wd < 500 ? 4200 : 2800 }); await page.waitForTimeout(400); await clean(page);
+                const ov = await page.evaluate(() => {
+                    const out = [], host = document.querySelector('[data-sb-admin]');
+                    if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) out.push('page ' + document.documentElement.scrollWidth);
+                    host.querySelectorAll('.admin-card, .sba-seg, .sba-kpis, .sba-chips, .sba-set, .sba-head, .sba-tt').forEach((e) => { if (e.scrollWidth > e.clientWidth + 1) out.push((e.className || e.tagName) + ' ' + e.scrollWidth + '>' + e.clientWidth); });
+                    const hb = host.getBoundingClientRect(); host.querySelectorAll('button, .sba-kpi, .sba-chip, td').forEach((e) => { const b = e.getBoundingClientRect(); if (b.width && (b.right > hb.right + 1 || b.left < hb.left - 1)) out.push('밖 ' + e.textContent.slice(0, 20)); });
+                    host.querySelectorAll('.sba-seg > button').forEach((e) => { if (e.scrollWidth > e.clientWidth + 1) out.push('세그먼트 글 넘침 ' + e.textContent); });
+                    const a = host.querySelector('.sba-head > div').getBoundingClientRect(), c = host.querySelector('.sba-head-acts').getBoundingClientRect();
+                    if (a.right > c.left + 1 && a.bottom > c.top + 1 && c.bottom > a.top + 1) out.push('머리 겹침');
+                    if (host.scrollHeight > document.querySelector('#unified-admin-body').clientHeight) out.push('찍을 높이 모자람 ' + host.scrollHeight);
+                    return out;
+                });
+                assert.deepEqual(ov, [], wd + 'px 넘침·겹침 없음 — ' + JSON.stringify(ov));
+                await page.evaluate(() => { document.querySelector('#unified-admin-body').scrollTop = 0; });
+                await page.locator('.unified-admin-wrapper').screenshot({ path: path.join(SHOT, 'admin_ai_briefing_' + wd + '.png') });
+            }
+            await page.setViewportSize({ width: 1280, height: 900 });
+            // 0건 — 두 탭 모두 [md로 저장]·[복사] 숨김, 빨간 수·빨강 없음 · byProvider 없는 옛 실행은 방식 이름표
+            patch = (b) => { b.lastRun = { ...LR, method: 'chatgpt', skipped: undefined, results: [{ ...LR.results[0], stats: { ai: 9, reused: 0, template: 0 } }] }; b.lastEdition = null; b.errorLog = { open: 0, families: [], exports: [] }; };
+            await refresh(); await page.waitForFunction(() => (document.querySelector('[data-sb-providers]') || {}).textContent === '· 쓴 AI: ChatGPT');
+            const z = await page.evaluate(() => ({ acts: document.querySelector('[data-sb-open-md]').parentElement.hidden, count: document.querySelector('[data-sb-open-count]').textContent, badge: !!document.querySelector('[data-sb-open-badge]'),
+                kpi: [document.querySelector('[data-sb-open-kpi]').textContent, document.querySelector('[data-sb-open-kpi]').classList.contains('bad')], skipped: !!document.querySelector('[data-sb-skipped]') }));
+            assert.deepEqual(z, { acts: true, count: '처리 안 된 오류가 없습니다.', badge: false, kpi: ['처리 안 된 오류0건없음', false], skipped: false });
+            await page.click('[data-sb-err-tab="run"]'); await page.selectOption('[data-sb-err-run]', LR.at);
+            assert.deepEqual(await page.evaluate(() => [document.querySelector('[data-sb-err-copy]').parentElement.hidden, document.querySelector('[data-sb-err-list]').textContent.includes('이 실행에서는 오류가 없었습니다.')]), [true, true], '실행별 — 오류 0건 실행은 버튼 숨김');
+            await page.selectOption('[data-sb-err-run]', '2026-10-17T08:02:00+09:00'); assert.equal(await page.$eval('[data-sb-err-copy]', (e) => e.parentElement.hidden), false, '오류가 있는 실행은 보임');
+            // 누적 기록을 읽지 못함 — 0건(초록)처럼 보이지 않게
+            patch = (b) => { b.errorLog = { unavailable: 'EIO' }; };
+            await refresh(); await page.waitForFunction(() => document.querySelector('[data-sb-open-kpi]').textContent.includes('알 수 없음'));
+            assert.deepEqual(await page.evaluate(() => [document.querySelector('[data-sb-open-kpi]').textContent, document.querySelector('[data-sb-open-kpi]').classList.contains('bad'), !!document.querySelector('[data-sb-open-unavailable]')]), ['처리 안 된 오류알 수 없음누적 기록을 읽지 못함', true, true]);
+            patch = null; await page.unroute('**/api/admin/station-briefing/status*');
+            // 옛 저장값 gemini = AI 분석 켜짐 · AI 순서 링크 → 「AI 모델 설정」 하위 탭
+            const keepMethod = real.readConfig().method; real.writeConfig({ method: 'gemini' });
+            await page.evaluate(() => window.switchAiSubTab('briefing')); await page.waitForFunction(() => document.querySelector('[data-sb-switch="method"]') && document.querySelector('[data-sb-switch="method"]').hasAttribute('aria-checked'));
+            assert.equal(await page.$eval('[data-sb-switch="method"]', (e) => e.getAttribute('aria-checked')), 'true', '옛 값 gemini 는 켜짐으로 보임');
+            await page.click('[data-sb-config-toggle]'); await page.click('[data-sb-ai-order]');
+            assert.deepEqual(await page.evaluate(() => [localStorage.getItem('seagnal_ai_subtab'), getComputedStyle(document.querySelector('#ai-subtab-bar button[data-aisub="bulletinAi"]')).color, !!document.querySelector('[data-sb-admin]')]), ['bulletinAi', 'rgb(103, 232, 249)', false], '링크 = switchAiSubTab(\'bulletinAi\')');
+            real.writeConfig({ method: keepMethod }); await page.evaluate(() => window.switchAiSubTab('briefing')); await page.waitForSelector('[data-sb-config] [data-field="exposure"]', { state: 'attached' });
+        });
         await page.context().close();
 
         // ── 8. 2단계 화면 독립 검토(review_ui1·review_ui2, 2026-10-16) — 결함마다 1:1 ──
