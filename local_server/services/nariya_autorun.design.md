@@ -9,6 +9,7 @@
 - *"a+b로 진행하고 그 개정, 원문신선도 등 변경되었을 때 푸시알림오잖아 ? 그리고 세션에 전달이 정상적으로 되면 또 푸시알림. 완료가 되면 또 푸시알림 오도록도 할 수 있니 ?"*
 - *"3-가, 나로 하고자 해."* — 완료 알림은 ⓐ Claude 앱 알림(예약 작업 설정) ⓑ 우리 앱 관리자 푸시 **둘 다**.
 - (이전부터 유지) 개정검토 **승인**과 **머지·배포**는 사장님이 한다. 자동 세션은 PR 까지만 만들고 멈춘다.
+- (독립 검토 2건 뒤 2026-11-15) *"추천대로"* — ①claim 하는 순간 대기 신호를 넘겨받는다 ②원문신선도 「다시 뜬 카드」만 있어도 깨운다.
 
 ## 1. 흐름
 
@@ -17,7 +18,7 @@
         │
  (개정검토는 사장님 승인 / 원문신선도는 승인 없음)
         ▼
- nariya_autorun.requestRun(kind)  ← 승인 버튼(decide·decide-all approved) · 원문신선도 점검(구버전>0)
+ nariya_autorun.requestRun(kind)  ← 승인 버튼(decide·decide-all 새 승인) · 원문신선도 점검(새 카드 + 다시 뜬 카드 > 0)
         │ 10분 동안 새 요청이 없으면(요청마다 타이머 다시 시작)
         ▼
  fire(): POST 예약 작업 API 트리거  ── 성공: 푸시② 「세션 시작」(세션 링크) / 실패: 푸시② 「세션 전달 실패」
@@ -35,12 +36,18 @@
 |---|---|---|
 | `NARIYA_ROUTINE_FIRE_URL` | 예약 작업 API 트리거 주소 `https://api.anthropic.com/v1/claude_code/routines/<trig_id>/fire` | 깨우지 않는다(콘솔 한 줄, 푸시 없음) |
 | `NARIYA_ROUTINE_TOKEN` | 그 작업 전용 토큰(Bearer) | 위와 같음 |
-| `NARIYA_AUTOMATION_TOKEN` | 세션이 서버를 부를 때 쓰는 **읽기·보고 전용** 열쇠(헤더 `X-Automation-Token`) | 자동화 경로 전부 401 |
+| `NARIYA_AUTOMATION_TOKEN` | 세션이 서버를 부를 때 쓰는 **읽기·보고 전용** 열쇠(헤더 `X-Automation-Token`). **32자 이상** | 자동화 경로 전부 401(32자 미만도 없는 것으로 보고 시작 때 콘솔 경고) |
 
-- 발사(fire)는 **운영(FLY_ALLOC_ID 있음)** 에서만 한다(collect_fail_alert 와 같은 규칙). 개발은 콘솔 한 줄.
+- 발사(fire)·푸시는 **운영 앱(`FLY_APP_NAME === 'seagnal-server'`)** 에서만 한다. 개발·스테이징(`seagnal-staging`)은 콘솔 한 줄.
+  (독립 검토 반영 2026-11-15: 처음엔 `FLY_ALLOC_ID` 로 갈랐는데, 스테이징도 Fly 머신이라 그 값이 있다 — disk_usage.js 와 같은 까닭.)
+- 운영인데 `NARIYA_ROUTINE_*` 둘 중 하나라도 없으면 **프로세스당 첫 requestRun 때 「나리야 자동 반영 미설정」 푸시 1회**
+  (CLAUDE.md L-291 — 조용한 것이 이상 없는 것처럼 보이면 안 된다. 일은 대기에만 쌓인다).
 - fire 요청 헤더: `Authorization: Bearer <토큰>` · `anthropic-version: 2023-06-01` · `anthropic-beta: experimental-cc-routine-2026-04-01` · `Content-Type: application/json`. 본문 `{"text": "<짧은 신호>"}`.
   **지시문 전문은 싣지 않는다** — 크기 한도를 문서에서 확인하지 못했다. 신호에는 run_id·사유(kind별 건수)만 싣고, 세션이 서버에서 꺼내 간다.
-- 응답 `claude_code_session_url` 을 푸시② data 에 싣는다.
+- 응답 `claude_code_session_url` 을 푸시② data(`session_url`)에 싣고 **본문 글에도 넣는다.** 완료 푸시③ 본문에는 PR 링크를 글로 넣는다.
+  `data.url`(푸시를 눌렀을 때 여는 주소)은 건드리지 않는다 — 클라이언트가 바깥 주소를 여는지 확인하지 못했다.
+- fire 요청 시간 상한 60초. 이 상한이 없으면 응답이 안 오는 연결 하나가 「발사 중」 표시를 붙들어 다음 발사가 모두 건너뛰어진다.
+  **시간초과는 실패가 아니라 「전달 여부 불명」이다**(요청은 갔을 수 있다) — §5 #11.
 
 ## 3. 자동화 열쇠로 열리는 경로 (그 밖은 전부 기존대로 관리자 토큰만)
 
@@ -48,20 +55,55 @@
 |---|---|
 | `GET /api/legal/amendments/wiki-brief-all` | 기존 — 미반영 승인분 지시문(자동화 열쇠도 허용) |
 | `GET /api/legal/freshness` | 기존 — 원문신선도 카드(자동화 열쇠도 허용, 읽기만) |
-| `POST /api/legal/autorun/claim` | 신규 — 세션이 일을 시작한다고 알림. 다른 run 이 잡고 있으면 `{busy:true}` |
-| `POST /api/legal/autorun/done` | 신규 — 결과 보고 → 푸시③. 본문 `{run_id, outcome: 'pr'|'nothing'|'failed', pr_url?, needs_decision?: [문장…], summary?}` |
-| `GET /api/legal/autorun/status` | 신규 — 잠금·대기·마지막 실행 상태 |
+| `POST /api/legal/autorun/claim` | 신규 — 세션이 일을 시작한다고 알림. 본문 `{run_id(필수), work?:{amend,fresh}}`. 다른 run 이 잡고 있거나 발사 중이면 `{busy:true}`. 같은 run_id 로 다시 부르면 심장박동 |
+| `POST /api/legal/autorun/done` | 신규 — 결과 보고 → 푸시③. 본문 `{run_id, outcome: 'pr'|'nothing'|'failed', pr_url?, needs_decision?: [문장…], summary?, amend_ids?: [id…], fresh_ids?: [id…]}` |
+| `GET /api/legal/autorun/status` | 신규 — 잠금·대기·진행 중 PR(inFlight)·마지막 실행·파일 오류 |
 
-열쇠 비교는 `crypto.timingSafeEqual`(길이 먼저). 자동화 열쇠로는 **승인(decide)·카드 처리·설정 변경을 못 한다.**
+- 열쇠 비교는 **양쪽 sha256 다이제스트를 `crypto.timingSafeEqual`** 로 한다(길이 정보도 새지 않는다).
+  자동화 열쇠로는 **승인(decide)·카드 처리·설정 변경을 못 한다.**
+- **자동화 열쇠로 부른** `wiki-brief-all`·`freshness` 는 inFlight(§4)의 id 를 빼고 돌려준다(`skippedInFlight`).
+  `wiki-brief-all` 은 장부 반영분을 빼는 기존 자리(withoutApplied) 바로 뒤에서 뺀다. 관리자 토큰으로 부르면 예전처럼 전부 — 관리자 화면 동작 불변.
+- done 본문 검사: `run_id`·`outcome` 필수. `amend_ids`·`fresh_ids` 는 각 id `[A-Za-z0-9._:-]{1,80}`, 최대 300개(어기면 400).
+  `pr_url` 은 `^https://github\.com/cantatapream/SEAGNAL/pull/\d+$` 일 때만 싣는다. `summary`(2000자)·`needs_decision`(20개×300자)은
+  제어문자(줄바꿈 제외)·방향 바꿈 문자(U+200E/200F/202A–202E/2066–2069)를 빼고 자른다.
 
 ## 4. 잠금 (동시에 두 세션이 같은 일을 하지 않게)
 
-- 잠금 `{run_id, since, source:'fire'|'claim'}` 을 `DATA_DIR/nariya_autorun_state.json` 에 둔다(재시작에도 남게).
-- fire 성공 → 잠금(run_id = 신호에 실은 값). claim(run_id 같음) → 통과, claim(run_id 다름·없음) + 잠금 유효 → busy.
-- done(run_id 같음) → 잠금 해제. 잠금 **유효시간 3시간**.
+- 잠금 `{run_id, since, source:'fire'|'claim', taken, workNotified}` 을 `DATA_DIR/nariya_autorun_state.json` 에 둔다(재시작에도 남게).
+- fire 성공 → 잠금(run_id = 신호에 실은 값, taken = 넘긴 몫, 넘긴 만큼 대기에서 뺀다).
+  그새 다른 잠금이 유효하면 **덮어쓰지 않고** lastFire.lockConflict 에 남기고 푸시에 「잠금 충돌」로 적는다.
+- claim 은 run_id 필수. **잠금을 잡는 순간 그때의 대기를 lock.taken 으로 옮기고 대기를 비운다**(10분 타이머도 지운다 — 사용자 확정 ①
+  「claim 하는 순간 대기 신호를 넘겨받는다」. 세션은 claim 뒤에 지시문을 읽으므로 그 전에 들어온 일은 그 세션이 본다).
+  같은 run_id → 심장박동(lock.since 를 지금으로 — 오래 걸리는 회차가 3시간에 잘리지 않게). 다른 run + 잠금 유효 → busy. 발사 중(firing)에 온 다른 run → busy.
+- done(run_id 같음) → 잠금 해제. 잠금 **유효시간 3시간**(심장박동마다 다시 잰다).
   - 이 시간이 없으면: 세션이 done 을 못 보내고 죽었을 때 잠금이 영원히 남아 A·B 가 다시는 안 돈다(→ 상한 필요, CLAUDE.md 「없으면 뭐가 잘못되나」).
   - 3시간 근거: 지금까지 한 회차(수집~PR)가 1~2시간이었다.
 - 잠금 중에 requestRun 이 오면 **대기(pending)로 남기고**, done 이 오면 그때 10분 타이머를 다시 건다.
+- **★실패·만료 때 그 run 이 가져간 몫(taken)은 대기로 되돌리지 않는다.** 되돌리면 같은 원인으로 실패하는 일이
+  「실패 → 10분 뒤 다시 발사 → 또 실패」로 10분마다 반복된다. 버려진 몫은 **매일 정기 세션(B)이 줍는다** —
+  그 세션은 대기 신호가 아니라 `wiki-brief-all`·`freshness` 의 실제 목록을 읽기 때문이다(독립 검토 반영 2026-11-15).
+- **진행 중 PR(inFlight)**: outcome 'pr' 인 done 이 `amend_ids`·`fresh_ids` 를 보내면 `{run_id, pr_url, amend_ids, fresh_ids, since}` 로 남긴다.
+  머지 전에 다음 자동 세션이 같은 일을 또 하지 않게 자동화 열쇠 호출에서 숨긴다(§3). 정리는 읽을 때 한다 —
+  amend id 는 위키 반영 장부(`wiki_applied.jsonl`)에 들어오면 빠진다.
+  fresh id 는 **점검기가 「이제 현행」으로 자동으로 닫은 카드**일 때만 빠진다 — 판정은 `admrul_fresh_scanner.closeNowFresh()` 가
+  카드에 남기는 `auto_closed: true`(+ `status: 'done'`, `decidedBy: '점검(자동 확인)'`)로 한다(코드 확인 2026-11-15).
+  관리자가 손으로 닫은 카드(처리완료·해당없음)로는 풀지 않는다 — 손 닫기는 「PR 이 머지돼 원문이 실제로 현행이 됐다」는 증거가 아니다
+  (PR 이 아직 열려 있는데 카드만 닫으면 다음 세션이 그 일을 또 할 수 있다). 다시 뜬 카드(status pending)는 auto_closed 가 남아 있어도 숨긴다.
+  **항목 전체는 14일 지나면 버린다** — 이 상한이 없으면 PR 이 거절·방치됐을 때 그 일이 자동 세션에서 영원히 숨는다.
+  같은 run_id 의 항목은 두 번 넣지 않는다.
+- **최근 기억 칸**(상태 파일): 3시간 만료로 풀린 run 최근 10개(`expired`) · 시간초과로 전달 여부를 모르는 발사 최근 5개·3시간(`unknownFires`) ·
+  끝난 run 최근 20개(`doneIds`).
+  - 만료로 풀린 run 이 다시 claim 하면 원래 출처(fire/claim)와 「작업 시작」 알림 여부를 이어받아 다시 잠그고 응답에 `relocked:true` 를 싣는다
+    (긴 회차가 심장박동 사이 3시간을 넘겼을 뿐 살아 있는 경우). 그새 대기가 있어 새 run 이 잠갔으면 busy — 세션 쪽 처리는 §6.
+  - done 중복은 `doneIds` 로 판정한다(한 칸이면 두 run 이 번갈아 보낸 재전송을 놓친다).
+  - fire 응답이 시간초과·HTTP 오류여도 그 사이 같은 run 이 claim 해 잠금을 쥐었거나 이미 done 했으면 **전달된 것**으로 친다(「세션 시작(확인됨)」).
+  - fire 응답이 늦게 와서 그 run 이 이미 done 목록에 있으면 잠그지 않고 대기도 깎지 않는다(끝난 run 이 잠금을 다시 쥐면 3시간 동안 아무도 못 돈다).
+- 상태 파일 방어: 미래 시각(since > 지금)의 잠금은 버린다(남은 시간이 엉뚱하게 잡혀 타이머가 폭주하지 않게).
+  run_id 꼴이 틀린 잠금·문자열 건수·터무니없는 건수(10만 초과)는 걸러낸다. 깨진 파일은 `.corrupt-<ms>` 로 옮기고 빈 상태로 시작한다.
+  마지막 읽기·저장 오류는 status 의 `errors` 에 싣는다.
+- 완료 푸시는 **시간당 10통**까지(넘으면 콘솔만) — 세션이 고장 나 done 을 쏟아낼 때 관리자 휴대폰을 덮지 않게.
+- 개정 승인은 **새로 승인된 건만** 센다 — decide 는 이전 상태가 이미 'approved' 면 요청하지 않고, decide-all 은 이전 상태가 'approved' 가 아니었던 건 수만 센다(0이면 안 부름).
+- 원문신선도는 **새로 나온 카드(구버전·이름바뀜의심) + 다시 뜬 카드** 수로 요청한다 — 다시 뜬 카드만 있어도 깨운다(사용자 확정 ②).
 
 ## 5. 대기 중 상태 변화 표 (각 행 = 시험 1개)
 
@@ -73,14 +115,41 @@
 | 4 | 잠금 중(세션 진행 중) 새 승인 | pending 에 쌓고 fire 안 함. done 오면 10분 뒤 fire |
 | 5 | 잠금 3시간 지남(done 안 옴) | 잠금 무효. pending 있으면 fire. 푸시 「이전 세션 응답 없음」 한 줄 |
 | 6 | fire 실패(HTTP 오류·망 오류·환경변수 없음) | 푸시② 실패(운영만, 환경변수 없음은 푸시 안 함). pending 유지 — 다음 요청이나 매일 B 가 줍는다. 자동 재시도 없음 |
-| 7 | done 의 run_id 가 잠금과 다름 | 잠금 유지, 푸시③ 은 보냄(결과는 알린다) + 「잠금과 다른 run」 표시 |
-| 8 | 매일 B 세션이 claim 했는데 A 잠금 유효 | busy → B 세션은 「다른 자동 세션 진행 중」만 남기고 끝 |
-| 9 | 개발 서버(FLY_ALLOC_ID 없음) | fire·푸시 안 함, 콘솔 한 줄 |
+| 6b | 운영인데 `NARIYA_ROUTINE_*` 없음 | 프로세스당 첫 requestRun 때 「나리야 자동 반영 미설정」 푸시 1회 |
+| 7 | done 의 run_id 가 **다른 run 의 유효 잠금**과 다름 | 잠금 유지, 푸시③ 은 보냄(결과는 알린다) + 「잠금과 다른 run」 표시 |
+| 8 | 매일 B 세션이 claim 했는데 A 잠금 유효 | busy → B 세션은 「다른 자동 세션 진행 중」만 남기고 끝. run_id 없거나 꼴 틀린 claim 은 400 |
+| 9 | 개발·스테이징 서버(FLY_APP_NAME ≠ seagnal-server) | fire·푸시 안 함, 콘솔 한 줄 |
+| 10 | 대기 중에 세션이 claim | 그 순간 대기를 lock.taken 으로 넘기고 비운다. 10분 타이머 지움 — 서버가 따로 또 깨우지 않는다 |
+| 11 | fire 시간초과(TimeoutError·AbortError) | 「세션 전달 여부 확인 불가(시간초과)」 푸시, pending 유지, lastFire 에 unknown run_id. 그 run_id 로 claim 이 오면 그때 성공으로 친다(잠금 source fire) + 「세션 시작(늦게 확인됨)」 |
+| 12 | fire 응답을 기다리는 중 claim | 다른 run → busy. 그 run 자신 → 잠금(source fire), 응답 뒤 대기를 다시 빼지 않음. 응답 뒤 다른 잠금이 유효하면 덮어쓰지 않고 「잠금 충돌」 표시 |
+| 13 | 같은 run_id 의 done 이 또 옴 | 상태·푸시 없이 `{duplicate:true}`. done 응답은 푸시를 기다리지 않는다. 완료 푸시 시간당 10통 상한 |
+| 14 | done 경로에서 낡은 잠금이 정리됨 + 대기 있음 / 서버 시작 때 잠금이 이미 만료 | done: 10분 타이머를 다시 건다. 시작: 10분 타이머를 따로 걸지 않는다(만료 처리 한 경로만 발사 — 실패해도 재시도 없음) |
+| 15 | 정기 세션(source claim)의 outcome 'nothing' | 푸시 안 함(매일 소음 방지). 단 그 run 에서 「작업 시작」을 이미 보냈거나(잠금 풀기 전 workNotified) needs_decision 이 1건 이상이면 푸시 — 본문에 결정 필요 건수와 앞 3줄. 서버가 깨운 run 의 'nothing' 은 푸시 |
+| 16 | outcome 'failed' | 가져간 몫은 대기로 되돌리지 않는다 — 10분 뒤 다시 깨우지 않음(§4 반복 발사 고리). 푸시③ 「세션 실패」 |
+| 17 | outcome 'pr' + amend_ids·fresh_ids | inFlight 에 남겨 자동화 열쇠 호출에서 숨김. 장부 반영(amend)·점검기 자동 닫힘(fresh, auto_closed — 손 닫기는 아님)으로 빠지고 14일 뒤 버림. status 에 요약 |
+| 18 | 같은 run_id 의 claim(심장박동) · work 보고 | lock.since 갱신(만료가 밀림). 정기 세션이 그 run 에서 처음 work n+m>0 → 「정기 세션 — 작업 시작(개정 n·원문신선도 m)」 1회 |
+| 19 | 잠금이 없을 때(만료 뒤) done | 「늦은 완료」 표시(「잠금과 다른 run」 아님) |
+| 20 | 상태 화면 | 잠금이 유효하면 fireAt 은 null(잠금 중엔 타이머가 없다) |
+| 21 | 3시간 만료로 풀린 run 이 다시 claim | 원래 source·workNotified 를 이어받아 다시 잠금, 응답 `relocked:true`. 그새 새 run 이 잠갔으면 busy |
+| 22 | (13 보강) 두 run 이 번갈아 done 을 재전송 | 최근 20개 run 으로 중복 판정. 20개 밖으로 밀려 다시 받아도 inFlight 에 같은 run 은 한 번만 |
+| 23 | 시간초과 발사가 둘 이상 | 최근 5개·3시간을 기억 — lastFire 가 뒤의 것으로 덮여도 앞 run 의 claim 을 「늦게 확인됨」으로. 3시간 지나면 잊는다(보통 claim 으로 처리) |
+| 24 | fire 응답이 시간초과·HTTP 오류인데 그 사이 같은 run 이 claim 함 | 실패·불명 푸시 대신 「세션 시작(확인됨)」, lastFire 는 성공(unknown 없음) |
+| 25 | fire 응답 전에 그 run 이 claim·done 까지 끝냄 | 잠그지 않고 대기도 깎지 않는다(콘솔 한 줄) |
 
 ## 6. 세션 쪽 (예약 작업 지침 — 서버 배포 뒤 update_trigger 로 넣는다)
 
-claim → 지시문(`wiki-brief-all`)·원문신선도(`freshness?status=pending`) 꺼냄 → HANDOFF 착수 → 지금까지의 표준 순서
-(collect_approved / recollect / 위키 Workflow + 다른 눈 읽기 / 검사 / amend_applied / PR) → done.
+claim(`{run_id}` — 서버가 깨운 세션은 신호의 run_id, 정기 세션은 스스로 만든 run_id. busy 면 「다른 자동 세션 진행 중」만 남기고 끝)
+→ 지시문(`wiki-brief-all`)·원문신선도(`freshness?status=pending`) 꺼냄(자동화 열쇠 — PR 진행 중인 건은 빠져 온다)
+→ claim 한 번 더(`{run_id, work:{amend:n, fresh:m}}` — 꺼낸 건수 보고. 정기 세션이면 이때 「작업 시작」 푸시)
+→ HANDOFF 착수 → 지금까지의 표준 순서(collect_approved / recollect / 위키 Workflow + 다른 눈 읽기 / 검사 / amend_applied / PR)
+→ **긴 단계 사이마다 같은 run_id 로 claim(심장박동)** — 응답이 `relocked:true` 면 그대로 계속한다.
+  **심장박동에서 busy 를 받으면(잠금을 잃음)**: 새 일을 시작하지 말고, **커밋한 데까지 PR 을 만들고 done(outcome 'pr' 또는 'failed', summary 에 「잠금 잃음」)** 을 보내고 끝낸다
+→ done(`{run_id, outcome, pr_url, amend_ids, fresh_ids, needs_decision, summary}` —
+PR 을 냈으면 그 PR 이 다룬 개정 id·원문신선도 카드 id 를 반드시 싣는다. 안 실으면 머지 전 다음 세션이 같은 일을 또 한다).
+
+- 자동화 열쇠로 부른 `wiki-brief-all` 은 status 쿼리와 상관없이 **승인된 건만** 준다(`ids=` 로 집어도 승인분만 — 승인은 사장님 경계).
+  **대상이 없으면 HTTP 404 `{ok:false, error, skippedApplied, skippedInFlight}`** 다(관리자 화면과 같은 응답) — 세션은 이것을 오류가 아니라
+  **「개정 쪽 할 일 없음」** 으로 읽는다. 원문신선도도 `count:0` 이면 할 일 없음. 둘 다 없으면 done(outcome 'nothing').
 **스스로 정하지 않고 멈출 것**: 관련 법 여럿인 새 고시 폴더 · 이름 바뀐 고시의 동일성 · 사람 판독 블록 · 승격(fold_effective) · 지시문에 없는 별표 개정 — PR 본문과 done 의 needs_decision 에 적는다.
 
 ## 7. 확인 안 한 것
@@ -88,3 +157,7 @@ claim → 지시문(`wiki-brief-all`)·원문신선도(`freshness?status=pending
 - 예약 작업 신호 본문 크기 한도(그래서 전문을 싣지 않는다).
 - fire 응답·오류 코드 전체(API 레퍼런스 페이지 미열람) — 2xx 가 아니면 실패로 본다.
 - 예약 작업 세션의 커넥터(GitHub PR 도구) 유무 — 시험 실행에서 확인.
+- 시간초과 때 요청이 실제로 전달됐는지 — 알 수 없다. 그래서 「불명」으로 두고 claim 이 오면 늦게 확인한다(§5 #11).
+  그 사이 다른 요청으로 새 발사가 나가면 세션이 둘 뜰 수 있다 — 뒤에 claim 한 쪽이 busy 로 끝난다.
+- 푸시 `data.url` 에 바깥 주소(세션·PR)를 넣었을 때 앱이 여는지 — 확인 못 해 본문 글로만 넣었다.
+- 완료 푸시 시간당 상한은 서버 프로세스 메모리에만 센다(재시작하면 0 부터).

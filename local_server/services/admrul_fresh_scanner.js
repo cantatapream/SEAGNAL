@@ -52,6 +52,7 @@
  *    · POST /api/legal/freshness/scan-now · GET /api/legal/freshness/scan-progress(게이지, 2026-11-03)
  *  - client/js/ai-chat/ai_chat.js → 관리자 검토센터 "원문신선도" 방
  *  - services/admin_push.js → sendAdminPush()
+ *  - services/nariya_autorun.js → requestRun('fresh') — 새로 발견·다시 뜬 카드가 있으면 10분 뒤 클라우드 세션 깨우기(2026-11-15)
  *  - knowledge/legal/_dashboard/loop/admrul_fresh.py → 행정규칙 점검(표준 라이브러리만 씀)
  *  - knowledge/legal/_dashboard/loop/law_fresh.py    → 법률·시행령·시행규칙 점검
  *  - knowledge/legal/_dashboard/loop/admrul_fresh_pass2.py → 행정규칙 2차 대조(이름불일치 해소)
@@ -641,6 +642,11 @@ async function runFreshnessScan() {
         await require('./admin_push').sendAdminPush(title, body,
           { type: 'admrul_fresh', count: String(fresh.length), reopened: String(reopened.length) });
       } catch (e) { console.error('[AdmrulFresh] 관리자 푸시 실패:', e && e.message); }
+      // [자동 반영 · 2026-11-15] 새로 나온 카드(구버전·이름바뀜의심)나 다시 뜬 카드가 있으면 10분 뒤 클라우드 세션을
+      //   깨우도록 요청한다(services/nariya_autorun.js · 사용자 확정 「다시 뜬 카드만 있어도 깨운다」).
+      //   이 블록은 fresh.length || reopened.length 일 때만 온다. 실패해도 점검 결과·푸시에는 영향이 없다(콘솔 한 줄).
+      try { require('./nariya_autorun').requestRun('fresh', { count: fresh.length + reopened.length }); }
+      catch (e) { console.error('[AdmrulFresh] 자동 반영 요청 실패:', e && e.message); }
     }
     return st;
   } finally {

@@ -40,6 +40,10 @@
  *                                       (`files=1` + 관리자 토큰이면 고시 별표에도 원본 HWP·PDF 주소를 찾아 붙인다 — 관리자 카드용)
  *  - GET  /api/legal/aliases          → 법령 약칭 → 정식 명칭 대응표(모호하지 않은 것만). 화면이 답변
  *                                       본문의 조문에 링크를 걸 때 법을 특정하는 데 쓴다
+ *  - POST /api/legal/autorun/claim|done · GET /api/legal/autorun/status → 자동 반영 세션 창구(services/nariya_autorun.js —
+ *                                       자동화 열쇠 X-Automation-Token 또는 관리자 토큰). 개정 승인(decide·decide-all)은
+ *                                       새로 승인된 건이 있으면 10분 뒤 세션 깨우기를 요청한다. wiki-brief-all·GET freshness 도
+ *                                       자동화 열쇠를 받고, 그때는 PR 진행 중인 건(inFlight)을 빼고 준다
  *
  * [연계 파일]
  * - knowledge/legal/_dashboard/review_queue.md   → 검증 대기 원장(승인 마킹 대상)
@@ -57,6 +61,7 @@
  * - services/legal_ask_stats.js → /api/legal/ask 질문 수 날짜별 집계(내용 없이 숫자만, data/legal_ask_stats.json)
  * - services/nariya_exposure_schedule.js → GET/POST /api/legal/config 의 「자동 노출 시간」(KST 노출·비노출 시각 → 응답 exposure 를 요청 시점에 계산)
  * - services/firebase_admin_lazy.js → FCM 발송(첫 사용 시 SDK 로딩)
+ * - services/nariya_autorun.js → 자동 반영(승인 → 세션 깨우기 요청 · claim/done/status · 자동화 열쇠 미들웨어)
  *
  * [경합위험] review_queue.md·공유 md는 여러 승인이 동시에 쓰면 손상될 수 있어
  *   승인 쓰기는 반드시 직렬(single-writer)로 처리한다(아래 withLock).
@@ -82,6 +87,8 @@ const adminQueues = require('../services/legal_admin_queues');
 const amendmentScanner = require('../services/legal_amendment_scanner');
 const wikiBrief = require('../services/legal_wiki_brief');
 const freshScanner = require('../services/admrul_fresh_scanner');
+// [자동 반영 · 2026-11-15] 개정 승인·원문 구버전 → 10분 뒤 클라우드 세션 깨우기 + 세션 claim/done/status · 자동화 열쇠(설계안 services/nariya_autorun.design.md)
+const autorun = require('../services/nariya_autorun');
 // 원문 **결손** 점검(조문 목 누락 + 고시 별표 누락). 위 신선도가 "사본이 낡았나"를 본다면
 // 이쪽은 "판은 맞는데 안이 비었나"를 본다. 2026-09-21 신설(C-2 이행).
 const mokScanner = require('../services/mok_audit_scanner');
@@ -1097,6 +1104,9 @@ router.get('/api/legal/amendments', adminAuth.requireAdminToken, (req, res) => {
 router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (req, res) => {
   try {
     const { decision = 'approved', by = '관리자' } = req.body || {};
+    // [자동 반영] 이미 승인된 건을 다시 눌렀는지 알려고 바꾸기 전 상태를 본다(다시 누름은 세션을 깨우지 않는다).
+    const before = adminQueues.readJsonl(amendmentScanner.queueFile()).find((e) => String(e.id) === String(req.params.id));
+    const wasApproved = !!before && (before.status || 'pending') === 'approved';
     const updated = adminQueues.updateJsonlById(amendmentScanner.queueFile(), req.params.id, { status: decision, decidedBy: by, decidedAt: new Date().toISOString() });
     if (!updated) return res.status(404).json({ ok: false, error: 'amendment not found: ' + req.params.id });
     // ★승인을 **탐지 큐에도** 옮겨 적는다(2026-09-10에 찾은 결함). 재수집 도구
@@ -1104,6 +1114,10 @@ router.post('/api/legal/amendments/:id/decide', adminAuth.requireAdminToken, (re
     //   `data/law_change_queue.json` 에서 찾는데, 종전에는 이 버튼이 `queue.jsonl` 에만 써서
     //   **승인해도 재수집 대상이 0건**이었다. 옮겨 적기가 실패해도 승인 자체는 막지 않고 결과만 알려 준다.
     const mirrored = amendmentScanner.mirrorDecisionToH29(req.params.id, decision);
+    // [자동 반영] 새로 승인했으면 10분 뒤 세션을 깨우도록 요청한다. 실패해도 승인 응답은 그대로 간다(콘솔 한 줄).
+    if (decision === 'approved' && !wasApproved) {
+      try { autorun.requestRun('amend', { count: 1 }); } catch (e) { console.error('[autorun] 요청 실패(승인은 정상):', e && e.message); }
+    }
     res.json({ ok: true, amendment: updated, mirrored });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
@@ -1129,12 +1143,18 @@ router.post('/api/legal/amendments/decide-all', adminAuth.requireAdminToken, (re
     const decidedAt = new Date().toISOString();
     const done = [];
     let mirrored = 0;
+    let newlyApproved = 0;   // [자동 반영] 이번에 처음 승인된 건 수(이미 승인돼 있던 건은 세지 않는다)
     for (const t of targets) {
       const u = adminQueues.updateJsonlById(amendmentScanner.queueFile(), t.id, { status: decision, decidedBy: by, decidedAt });
       if (!u) continue;
       done.push(String(t.id));
+      if ((t.status || 'pending') !== 'approved') newlyApproved++;
       // 개별 승인과 같은 처리 — 재수집 도구가 보는 탐지 큐에도 옮겨 적는다.
       if (amendmentScanner.mirrorDecisionToH29(t.id, decision)) mirrored++;
+    }
+    // [자동 반영] 새로 승인된 건이 있으면 10분 뒤 세션을 깨우도록 요청한다. 실패해도 승인 응답은 그대로 간다.
+    if (decision === 'approved' && newlyApproved > 0) {
+      try { autorun.requestRun('amend', { count: newlyApproved }); } catch (e) { console.error('[autorun] 요청 실패(승인은 정상):', e && e.message); }
     }
     res.json({ ok: true, decided: done.length, mirrored, ids: done, staged: countStagedIds(done) });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
@@ -1156,18 +1176,27 @@ router.get('/api/legal/amendments/decide-all/preview', adminAuth.requireAdminTok
 //   **위키 반영 완료 장부(_amendments/wiki_applied.jsonl)에 없는 것**을 한 덩어리
 //   인계문으로. 개별 지시문(위 :id/wiki-brief)과 별개다(사용자 확정 2026-09-10).
 //   ids 를 콤마로 주면 그 건만 묶는다(방금 일괄 승인한 것만 뽑을 때 쓴다).
-router.get('/api/legal/amendments/wiki-brief-all', adminAuth.requireAdminToken, (req, res) => {
+//   [자동 반영 · 2026-11-15] 자동 세션의 열쇠(X-Automation-Token)로도 읽을 수 있다 — 관리자 토큰 동작은 그대로.
+//     자동화 열쇠로 부르면 **PR 은 냈지만 아직 반영되지 않은 건(inFlight)** 도 뺀다(skippedInFlight) — 머지 전에
+//     다음 자동 세션이 같은 일을 또 하지 않게. 관리자 토큰으로 부르면 예전처럼 뺄 것 없이 그대로다.
+//     또 자동화 열쇠로 부르면 status 는 'approved' 로 고정되고 ids= 로 집어도 승인된 건만 나온다(승인은 사장님 경계).
+//     대상이 없으면 관리자와 같은 404 {ok:false} 다 — 세션은 이것을 「할 일 없음」으로 읽는다(설계안 §6).
+router.get('/api/legal/amendments/wiki-brief-all', autorun.requireAdminOrAutomation, (req, res) => {
   try {
     const rows = adminQueues.readJsonl(amendmentScanner.queueFile());
     const idsQ = String(req.query.ids || '').split(',').map((v) => v.trim()).filter(Boolean);
     let list;
     let skippedApplied = 0;
+    let skippedInFlight = 0;
     if (idsQ.length) {
       // id 를 콕 집어 달라면 반영 여부와 상관없이 그대로 묶는다(방금 승인한 것만 뽑을 때 · 다시 보고 싶을 때).
       const want = new Set(idsQ);
       list = rows.filter((e) => want.has(String(e.id)));
+      // [자동 반영] 자동 세션은 승인된 건만 읽는다 — 승인은 사장님의 경계다(미승인 개정을 세션이 반영하지 않게).
+      if (req.viaAutomation) list = list.filter((e) => (e.status || 'pending') === 'approved');
     } else {
-      const status = req.query.status || 'approved';
+      // [자동 반영] 자동화 열쇠로 부르면 status 쿼리를 무시하고 'approved' 로 고정한다(위와 같은 까닭).
+      const status = req.viaAutomation ? 'approved' : (req.query.status || 'approved');
       list = status === 'all' ? rows : rows.filter((e) => (e.status || 'pending') === status);
       // ★이미 위키에 반영했다고 장부에 적힌 건은 뺀다(2026-11-07). 종전에는 승인한 **전 건**을 매번 다시 묶어
       //   반영을 끝낸 162건이 다음 지시문에 그대로 또 왔다. `includeApplied=1` 이면 예전처럼 다 묶는다.
@@ -1176,17 +1205,25 @@ router.get('/api/legal/amendments/wiki-brief-all', adminAuth.requireAdminToken, 
         list = w.list;
         skippedApplied = w.skipped;
       }
+      // [자동 반영] 자동 세션에는 PR 진행 중인 건을 숨긴다. 장부에 들어온 건은 이 자리에서 inFlight 에서도 지운다(읽을 때 정리).
+      if (req.viaAutomation) {
+        const hid = autorun.hiddenIds({ applied: amendmentScanner.loadWikiApplied() });
+        const n0 = list.length;
+        list = list.filter((e) => !hid.amend.has(String(e.id)));
+        skippedInFlight = n0 - list.length;
+      }
     }
     if (!list.length) {
       // 빈 결과는 오류가 아니라 **묶을 것이 없다**는 상태다 — 화면이 그대로 옮겨 적을 문장을 준다.
       const why = idsQ.length ? '그 id 로 묶을 항목을 찾지 못했습니다.'
+        : skippedInFlight ? `남은 ${skippedInFlight}건은 PR 이 나가 머지를 기다리는 중입니다 — 새로 반영할 건이 없습니다.`
         : skippedApplied ? `승인한 ${skippedApplied}건이 모두 위키 반영 완료로 기록돼 있습니다 — 새로 반영할 건이 없습니다.`
         : '아직 승인한 건이 없습니다. 카드에서 승인하거나 「전체 승인」을 먼저 누르세요.';
-      return res.status(404).json({ ok: false, error: why, skippedApplied });
+      return res.status(404).json({ ok: false, error: why, skippedApplied, skippedInFlight });
     }
     const r = wikiBrief.buildBulkWikiBrief(list, effectiveDate.todayKST(), { skippedApplied });
     if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
-    res.json({ ok: true, count: r.count, detailed: r.detailed, listed: r.listed, pages: r.pages, skippedApplied, text: r.text });
+    res.json({ ok: true, count: r.count, detailed: r.detailed, listed: r.listed, pages: r.pages, skippedApplied, skippedInFlight, text: r.text });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -1236,13 +1273,61 @@ router.post('/api/legal/amendments/scan-now', adminAuth.requireAdminToken, (req,
 // GET /api/legal/freshness?status=pending|done|dismissed|all (관리자)
 //   last: 마지막 점검이 언제·어떻게 끝났는지. **"이상 없음"과 "점검 실패"를 반드시 구분해
 //   보여주기 위해** 함께 내려준다(실패를 이상 없음으로 읽으면 낡은 원문을 놓친다).
-router.get('/api/legal/freshness', adminAuth.requireAdminToken, (req, res) => {
+//   [자동 반영 · 2026-11-15] 자동 세션의 열쇠(X-Automation-Token)로도 읽을 수 있다(읽기만 — 처리 버튼은 관리자 토큰만).
+//     자동화 열쇠로 부르면 PR 진행 중인 카드(inFlight)를 빼고 준다(skippedInFlight). 관리자 토큰이면 예전 그대로.
+router.get('/api/legal/freshness', autorun.requireAdminOrAutomation, (req, res) => {
   try {
     const status = req.query.status || 'pending';
-    let list = adminQueues.readJsonl(freshScanner.QUEUE_FILE).reverse();
+    const all = adminQueues.readJsonl(freshScanner.QUEUE_FILE);
+    let list = all.slice().reverse();
     if (status !== 'all') list = list.filter((e) => (e.status || 'pending') === status);
+    let skippedInFlight = 0;
+    if (req.viaAutomation) {
+      // 점검기가 「이제 현행」으로 자동으로 닫은 카드(auto_closed)만 inFlight 에서 풀린다 — 손으로 닫은 것은 풀지 않는다.
+      const hid = autorun.hiddenIds({ freshCards: new Map(all.map((e) => [String(e.id), e])) });
+      const n0 = list.length;
+      list = list.filter((e) => !hid.fresh.has(String(e.id)));
+      skippedInFlight = n0 - list.length;
+      return res.json({ ok: true, count: list.length, items: list, skippedInFlight, last: freshScanner.readStatus() });
+    }
     res.json({ ok: true, count: list.length, items: list, last: freshScanner.readStatus() });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// ============================================================================
+// 자동 반영(autorun) — 클라우드 세션이 부르는 창구 (2026-11-15, 설계안 services/nariya_autorun.design.md §3·§4)
+//   자동화 열쇠(X-Automation-Token) 또는 관리자 토큰. 자동화 열쇠로는 승인·카드 처리·설정 변경을 못 한다
+//   (그 경로들은 여전히 adminAuth.requireAdminToken 만 건다).
+// ============================================================================
+
+// POST /api/legal/autorun/claim — body: { run_id(필수), work?:{amend,fresh} } · 다른 run 이 잠금 중이거나 발사 중이면 { busy:true }
+//   같은 run_id 로 다시 부르면 심장박동(잠금 3시간을 지금부터 다시 잰다). 잠금을 잡는 순간 대기 중인 신호를 넘겨받는다.
+router.post('/api/legal/autorun/claim', autorun.requireAdminOrAutomation, (req, res) => {
+  try {
+    const r = autorun.claim(req.body || {});
+    if (!r.ok) return res.status(r.status || 400).json({ ok: false, error: r.error });
+    res.json(r);
+  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/autorun/done — body: { run_id, outcome:'pr'|'nothing'|'failed', pr_url?, needs_decision?:[…], summary?, amend_ids?:[…], fresh_ids?:[…] } → 푸시③
+//   상한: summary 2000자 · needs_decision 20개×300자(제어·방향 문자 뺌) · id 목록 각 300개 · pr_url 은 이 저장소 PR 주소일 때만 싣는다.
+//   같은 run_id 를 다시 보내면 {duplicate:true}. 응답은 푸시를 기다리지 않는다.
+router.post('/api/legal/autorun/done', autorun.requireAdminOrAutomation, (req, res) => {
+  try {
+    const r = autorun.done(req.body);
+    if (!r.ok) return res.status(r.status || 400).json({ ok: false, error: r.error });
+    res.json(r);
+  } catch (e) {
+    console.error('[autorun] done 처리 실패:', e && e.message);
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
+});
+
+// GET /api/legal/autorun/status — 잠금·대기·마지막 실행(열쇠 값은 싣지 않는다)
+router.get('/api/legal/autorun/status', autorun.requireAdminOrAutomation, (req, res) => {
+  try { res.json(Object.assign({ ok: true }, autorun.status())); }
+  catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
 // POST /api/legal/freshness/:id/decide (관리자) — body: { decision: 'done'|'dismissed', by? }

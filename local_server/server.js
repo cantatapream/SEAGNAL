@@ -527,6 +527,10 @@ app.listen(PORT, '0.0.0.0', () => {
         // 서버 디스크(Fly 볼륨) 사용량 — 운영에서만 10분마다, 80% 넘으면 관리자 푸시 1통(2026-11-15 ENOSPC 뒤 사용자 결정 — services/disk_usage.js)
         try { require('./services/disk_usage').start(); }
         catch (_) { console.error('[startup] 디스크 사용량 점검 시작 실패'); }
+        // 나리야 자동 반영 — 파일에 남은 대기(pending)·잠금을 되살려 10분 타이머·잠금 만료 타이머를 다시 건다(services/nariya_autorun.js, 2026-11-15).
+        //   발사·푸시는 운영 앱(FLY_APP_NAME === 'seagnal-server')에서만 한다 — 스테이징·개발은 콘솔 한 줄.
+        try { require('./services/nariya_autorun').start(); }
+        catch (e) { console.error('[startup] 나리야 자동 반영 복원 실패:', e && e.message); }
 
         // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
         try {
