@@ -163,9 +163,12 @@ function solarName(id) {
   return m ? `Upstage Solar ${m[1].charAt(0).toUpperCase()}${m[1].slice(1)} ${m[2]}` : `Upstage ${id}`;
 }
 
-/** 고른 실행 위치(runner)의 작업자가 최근(WORKER_STALE_MS 안)에 창구에 왔는가. @returns {boolean} */
-function workerAlive() {
-  return Date.now() - seenAt[runner] <= WORKER_STALE_MS;
+/**
+ * 그 실행 위치의 작업자가 최근(WORKER_STALE_MS 안)에 창구에 왔는가. 위치를 안 주면 관리자 센터 「AI 챗봇」 탭에서 고른 위치(runner).
+ * 예: workerAlive() · workerAlive('vm')  @param {string} [r] - 'fly'|'vm' @returns {boolean}
+ */
+function workerAlive(r) {
+  return Date.now() - seenAt[RUNNERS.includes(r) ? r : runner] <= WORKER_STALE_MS;
 }
 
 /**
@@ -178,13 +181,17 @@ function setRunner(r) {
   const next = RUNNERS.includes(r) ? r : DEFAULT_RUNNER;
   if (next === runner) return;
   runner = next;
+  // 위치를 직접 정하지 않은(기본 위치를 따르는) 줄의 일감은 새 위치로 옮긴다. 직접 정한 일감(AI 특보 분석 등)은 그대로.
+  for (const id of queue) { const j = jobs.get(id); if (j && !j.pinned) j.runner = runner; }
   handOut();
-  // 새 쪽 작업자가 연결돼 있지 않으면 줄에 선 일감을 바로 실패로 돌려준다 — 안 그러면 5분 시간초과까지 멈춘다
+  // 새 쪽 작업자가 연결돼 있지 않으면 옮긴 일감을 바로 실패로 돌려준다 — 안 그러면 5분 시간초과까지 멈춘다
   //   (부르는 쪽은 실패를 받아 다음 AI 로 넘어간다: 나리야 사슬·브리핑 Gemini). 이미 가져간 일감은 가져간 쪽이 끝내거나 5분 시간초과.
   if (!workerAlive()) {
-    while (queue.length) {
-      const job = jobs.get(queue.shift());
-      if (job) job.resolve({ success: false, response: null, error: `${runner === 'vm' ? 'VM' : 'Fly'} 작업자 연결 없음(실행 위치 변경)`, isRateLimited: false, keyLabel: 'codex' });
+    for (const id of queue.slice()) {
+      const job = jobs.get(id);
+      if (!job || job.pinned) continue;
+      queue.splice(queue.indexOf(id), 1);
+      job.resolve({ success: false, response: null, error: `${runner === 'vm' ? 'VM' : 'Fly'} 작업자 연결 없음(실행 위치 변경)`, isRateLimited: false, keyLabel: 'codex' });
     }
   }
 }
@@ -217,11 +224,19 @@ function promptText(contents) {
 
 /** 붙잡아 둔 작업자가 있으면 줄 맨 앞 일감을 그 자리에서 넘긴다. */
 function handOut() {
-  const w = waiters[runner];
-  if (!w || !queue.length) return;
-  const job = jobs.get(queue.shift());
-  if (!job) return handOut();
-  waiters[runner] = null;
+  // 줄 앞에서부터, 그 일감의 위치(job.runner) 작업자가 기다리고 있으면 넘긴다(위치마다 한 번에 하나).
+  for (let i = 0; i < queue.length; i++) {
+    const job = jobs.get(queue[i]);
+    if (!job) { queue.splice(i--, 1); continue; }
+    const w = waiters[job.runner];
+    if (!w) continue;
+    queue.splice(i--, 1);
+    waiters[job.runner] = null;
+    giveJob(w, job);
+  }
+}
+/** 기다리던 작업자 응답에 일감을 실어 보낸다. [연계] ← handOut */
+function giveJob(w, job) {
   clearTimeout(w.timer);
   job.state = 'taken';
   w.res.json({ id: job.id, prompt: job.prompt, json: job.json, caller: job.caller, model: job.model });
@@ -231,23 +246,26 @@ function handOut() {
  * gemini_client.callGeminiRaw 와 **같은 반환 모양**으로 codex 답을 받아 온다.
  * 예: callRaw({ contents: '…', config: { responseMimeType: 'application/json' }, caller: 'Legal-Clarify' })
  *     → { success: true, response: { text: '{"needed":false}' }, error: null, isRateLimited: false, keyLabel: 'codex' }
- * @param {{contents:any, config?:object, caller?:string, model?:string}} args
+ * @param {{contents:any, config?:object, caller?:string, model?:string, runner?:string}} args
  *   model: 요청 범위(withRequest) 밖에서 부르는 곳이 모델을 직접 고를 때만(관할 브리핑 — 관리자 「AI 브리핑」 설정). 없으면 종전대로 요청 범위의 모델 → 기본 모델.
+ *   runner: 'fly'|'vm' — 이 일감을 처리할 작업자를 직접 정할 때만(관리자 「AI 특보 분석」 탭). 없으면 「AI 챗봇」 탭에서 고른 위치.
  * @returns {Promise<{success:boolean, response:{text:string}|null, error:string|null, isRateLimited:boolean, keyLabel:string}>}
  * [연계] ← gemini_client.js · station_briefing_ai(관할 브리핑 총평, model 지정). → 작업자(scripts/codex_worker.js)가 poll/result 로 처리.
  */
-function callRaw({ contents, config, caller = 'unknown', model }) {
+function callRaw({ contents, config, caller = 'unknown', model, runner: want }) {
   const fail = (error) => ({ success: false, response: null, error, isRateLimited: false, keyLabel: 'codex' });
-  if (!workerAlive()) {
-    const last = seenAt[runner];
-    console.error(`[Codex] ${runner} 작업자 연결 없음 caller=${caller} (마지막 접속 ${last ? Math.round((Date.now() - last) / 1000) + '초 전' : '없음'})`);
-    return Promise.resolve(fail(`${runner === 'vm' ? 'VM' : 'Fly'} 작업자 연결 없음`));
+  const pinned = RUNNERS.includes(want);
+  const where = pinned ? want : runner;
+  if (!workerAlive(where)) {
+    const last = seenAt[where];
+    console.error(`[Codex] ${where} 작업자 연결 없음 caller=${caller} (마지막 접속 ${last ? Math.round((Date.now() - last) / 1000) + '초 전' : '없음'})`);
+    return Promise.resolve(fail(`${where === 'vm' ? 'VM' : 'Fly'} 작업자 연결 없음`));
   }
   const id = crypto.randomUUID();
   const json = !!(config && config.responseMimeType === 'application/json');
   return new Promise((resolve) => {
     const store = als.getStore() || {};
-    const job = { id, prompt: promptText(contents), json, caller, model: (ANSWER_MODELS.includes(model) && model !== 'gemini' ? model : null) || store.model || DEFAULT_MODEL, state: 'queued', createdAt: Date.now(), resolve: null, timer: null };
+    const job = { id, prompt: promptText(contents), json, caller, model: (ANSWER_MODELS.includes(model) && model !== 'gemini' ? model : null) || store.model || DEFAULT_MODEL, runner: where, pinned, state: 'queued', createdAt: Date.now(), resolve: null, timer: null };
     job.resolve = (r) => { clearTimeout(job.timer); jobs.delete(id); resolve(r); };
     job.timer = setTimeout(() => {
       const i = queue.indexOf(id); if (i >= 0) queue.splice(i, 1);
