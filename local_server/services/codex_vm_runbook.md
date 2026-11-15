@@ -123,3 +123,37 @@ echo ${#TOKEN}   # 64 면 성공
 2. **검색 문제 2건** — 다른 세션에서 진행(인계 프롬프트 사용). 끝나면 20문항을 Luna 로 다시 돌려 「확인 안 됨」이 줄었는지 확인.
 3. (선택) 되묻기 2라운드 시험 — 앱에서 되묻기 버튼을 눌러 이어지는지 관리자 기기로 확인.
 4. (선택) 20문항 이상으로 Luna 정확도 재확인 후, 일반 사용자 적용 여부를 사용자가 결정.
+
+## 10. Fly 서버 안에서 돌리기 (2026-11-15 추가 — VM 대체)
+
+> 사용자 원문: *"플라이아이오에서 vm과 동일하게 작동되도록 만들어주고, 플라이아이오에 secret에 등록하면 되는거 아니니 ? 시험용 로그인정보를 지우고 말이야."*
+> 예전 합의(§0 「앱 서버는 Fly.io 그대로. VM 은 ChatGPT 호출만 한다」)를 바꾼 결정이다. 다른 조건(관리자만·기본 Gemini·공공 전환 전 제거)은 그대로.
+
+**구조**: 작업자 코드(`scripts/codex_worker.js`)는 그대로다. `services/codex_inproc.js` 가 서버 시작 직후 그것을
+자식 프로세스로 띄우고, 서버 주소만 `http://127.0.0.1:<PORT>` 로 바꿔 준다(VM 과 같은 poll/result 왕복). 죽으면 다시 띄운다.
+`Dockerfile` 이 `@openai/codex@0.169.0` 을 설치한다.
+
+**Fly 서버 사전 시험(2026-11-15, 사용자가 `fly ssh console` 로 직접 실행)**
+| 항목 | 결과 |
+|---|---|
+| 설치·로그인(`codex login --device-auth`) | 성공, codex-cli 0.169.0 |
+| 답변 | 성공(EXIT 0) |
+| 메모리 | 답변 중 MemAvailable 1,414,780 → 최저 1,254,288 kB(어림 157MB), 끝난 뒤 1,393,568 kB 로 회복 — 일시 사용 |
+| 읽기 전용 잠금 | `touch` 시도가 「read-only file system」으로 실패, 파일 안 생김. bubblewrap 미설치 경고는 뜨나 내장본으로 작동 |
+| 웹 검색 | 기본은 켜져 있어 스스로 검색함 → `-c web_search="disabled"` 로 꺼짐 확인. 우회 `curl` 도 잠금이 네트워크를 막아 실패(exit 6) |
+| 머신 메모리 | 실제 약 2GB(MemTotal 2,018,280 kB) — `fly.toml` 주석의 1GB 와 다름 |
+
+**로그인 정보 = 시크릿 `CODEX_AUTH_JSON`(씨앗)**
+- 시크릿이 있을 때만 작업자를 띄운다. 끄기: `fly secrets unset CODEX_AUTH_JSON`.
+- ⚠codex 는 토큰을 갱신하며 auth.json 을 다시 쓰고, 갱신용 토큰은 한 번만 쓸 수 있다(실행파일 문구 "refresh token was already used").
+  시크릿은 읽기 전용이라, 볼륨 `local_server/data/.codex/auth.json` 이 **없을 때만** 시크릿으로 만들고 그 뒤로는 볼륨 파일을 codex 가 갱신한다.
+  로그인을 바꾸려면: 볼륨 파일 삭제 → 시크릿 새 값 → 재시작.
+- ⚠같은 로그인을 VM 과 Fly 가 같이 쓰면 한쪽 갱신이 다른 쪽을 끊는다 → **VM 작업자(`nrya-codex-worker`)는 끈다.**
+
+**켜는 순서**
+1. 서버에서 로그인된 auth.json 을 base64 한 줄로 출력: `base64 -w0 /app/local_server/data/.codex_test/auth.json` → 복사
+   (윈도 cmd 에서 JSON 따옴표가 깨지지 않게 base64 로 넣는다 — `codex_inproc.ensureAuth` 가 풀어 쓴다)
+2. 사용자 PC: `fly secrets set CODEX_AUTH_JSON=<복사한 한 줄> -a seagnal-server` (이 코드가 배포된 뒤에 — 시크릿 설정은 재시작을 부른다)
+3. 시험 폴더 `/app/local_server/data/.codex_test` 삭제(같은 로그인을 두 곳이 갖지 않게)
+4. `fly logs` 에서 「[codex 작업자] 시작」·「Codex 작업자 시작 — 서버 http://127.0.0.1:…」 확인
+5. VM: `sudo systemctl disable --now nrya-codex-worker`

@@ -489,6 +489,12 @@ app.listen(PORT, '0.0.0.0', () => {
     // - cctvSeafogRouter.kickoffInitialFetch(): 해무 CCTV 첫 수집 (외부 API 호출)
     // 각 작업의 실패는 console.error 로만 기록하고 다른 작업/응답에 영향 주지 않는다.
     setImmediate(() => {
+        // VM 대신 이 서버 안에서 Codex(ChatGPT) 작업자 띄우기 — 시크릿 CODEX_AUTH_JSON 이 있을 때만 (services/codex_inproc.js)
+        try {
+            require('./services/codex_inproc').start(PORT);
+        } catch (e) {
+            console.error('[startup] codex 작업자 실패:', e && e.message);
+        }
         try {
             subscriberSnapshot.takeSnapshot();
         } catch (e) {
