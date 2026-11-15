@@ -1081,7 +1081,7 @@ function makeBriefings() {
             const r = await page.evaluate(() => ({ title: document.querySelector('.rf-basis-head h3').textContent, body: document.querySelector('.rf-basis-body').innerText, tbl: document.querySelectorAll('.rf-basis-body .rf-tbl').length, close: !!document.querySelector('.rf-basis-head .mclose') }));
             assert.equal(r.title, '연안 안전 브리핑'); assert.ok(r.close); assert.equal(r.tbl, 4, '위험 단계 표(§11.10.33) + 해상·연안 기준 표 + 출처 표');
             for (const k of ['07:30 · 17:30 · 23:00', '40분 전(06:50 · 16:50 · 22:20)', '그때까지는 이전 판', '덮지 않습니다', '21시가 넘으면 다음 날', '오늘 밤~내일', '공단 안내로는 경계 상위 5%·주의 상위 5~15% 구간', '만들기 시작한 시각이 든 3시간 칸부터', '기상청 해제 시각', '해제 예고로만', '사고 확률이 아닙니다', '관심 이상인 곳을 모두', '분석 칸에 목록으로 보이지 않고', '앞 3곳', '이안류를 관측하는 해수욕장만', '8m/s 이상', '다음 정시 판에 반영', '「물때」 줄이 없습니다', '「확인 불가」(회색)', '1.2~1.3배', '저조 뒤부터 물이 차오릅니다',
-                '연안 분석·해상 분석', '3~5문장', '최대 3번', 'Gemini 로 한 번', '규칙 분석', '「AI 분석 · ChatGPT」', '「연안 분석 근거 상세 보기」', '선박이 있는 해역 격자', '관광지 | 평소 | 오늘(예상)', '잔잔한 바다일 것으로 예상됩니다', '14m/s 이상 매우 강함', '07:30 판은 오늘 오전·오후', '참고 정보이며 안전을 보장하지 않습니다']) assert.ok(r.body.includes(k), k);
+                '연안 분석·해상 분석', '3~5문장', '최대 3번', '순서의 다음 AI', '규칙 분석', '「AI 분석 · Claude」', '「AI 분석 · ChatGPT」', '「연안 분석 근거 상세 보기」', '선박이 있는 해역 격자', '관광지 | 평소 | 오늘(예상)', '잔잔한 바다일 것으로 예상됩니다', '14m/s 이상 매우 강함', '07:30 판은 오늘 오전·오후', '참고 정보이며 안전을 보장하지 않습니다']) assert.ok(r.body.includes(k), k);
             for (const no of ['활동지점', '최대 20분', '틀 문장', '해설(육상', '최대 12곳']) assert.ok(!r.body.includes(no), no);
         });
         // §11.10.33(2026-10-18 사용자 *"우리가 아까 기준 상세 수정하지 않았니 ? 왜 수정 지침대로 반영이 되지 않은거지 ?"* → *"수정해"*):

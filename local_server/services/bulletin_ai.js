@@ -69,6 +69,7 @@ function normFeature(f, v) {
 function getConfig() {
     let raw = {};
     try { raw = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[AI 특보 분석] 설정 파일을 못 읽어 기본값을 씀:', e.message); }
+    if (!raw || typeof raw !== 'object') raw = {};   // 파일 내용이 null·숫자 등이면 기본값(독립 검토 7 — AI 브리핑 실행이 이 설정을 읽으므로 던지면 실행이 통째로 실패)
     return { read: normFeature('read', raw.read), interpret: normFeature('interpret', raw.interpret), briefing: normFeature('briefing', raw.briefing) };
 }
 

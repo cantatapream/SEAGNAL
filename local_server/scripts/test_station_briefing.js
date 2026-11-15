@@ -3333,6 +3333,17 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(r2.errors.some((e) => /^클로드 키2 연속 실패 3회 — 이번 실행은 건너뜀$/.test(e.reason)));
         assert.ok(Object.values(r2.overviews).every((o) => o.source === 'gemini'), 'Gemini 는 차단하지 않는다');
     });
+    await check('[§11.10.51-6] 독립 검토 2·3·5 — 앞칸이 응답 없이 시간초과면 그 칸은 한 번에 차단(130초×3번 안 기다림) · 차단은 오류 한 줄 · 게이지 시도 번호는 칸 안에서', async () => {
+        const calls = [], prog = [], many = Array.from({ length: 4 }, (_, i) => { const x = hallim(); x.key = '해경' + i + '|파출소' + i; x.office = '해경' + i; return R.buildBriefing(x, WIN, { generatedAt: R.isoKst(T0) }); });
+        const ad = fake51(calls, { claude2: 'ok', claude1: 'throw', upstage: 'off', chatgpt: 'bad', gemini: 'ok' });
+        ad.claude2.call = async ({ prompt }) => { calls.push(['claude2']); return new Promise(() => {}); };   // 응답 없음
+        const r = await AI.generate({ briefings: many, config: { ...cfg51, chain: C51() }, adapters: ad, now: T0, timeouts: { claude2: 15, claude1: 1000, chatgpt: 1000, gemini: 1000 }, onProgress: (e) => { if (e.type === 'call') prog.push(e.provider + ':' + e.attempt); } });
+        assert.equal(calls.filter((c) => c[0] === 'claude2').length, 1, '클로드 키2 시간초과 한 번에 차단 ' + JSON.stringify(calls.map((c) => c[0])));
+        assert.equal(calls.filter((c) => c[0] === 'claude1').length, 3, '클로드 키1 은 던짐(빠른 실패) — 종전대로 3번 뒤 차단');
+        assert.deepStrictEqual(r.errors.filter((e) => /이번 실행은 건너뜀/.test(e.reason)).map((e) => e.reason), ['클로드 키2 시간초과 — 이번 실행은 건너뜀', '클로드 키1 연속 실패 3회 — 이번 실행은 건너뜀'], '차단은 칸마다 한 줄(묶음 4개여도)');
+        assert.ok(Object.values(r.overviews).every((o) => o.source === 'gemini'), 'ChatGPT(떨어짐) 뒤 Gemini 까지 닿음');
+        assert.ok(prog.includes('claude1:1') && prog.includes('chatgpt:1') && prog.includes('chatgpt:3') && !prog.some((x) => /^chatgpt:[4-9]/.test(x)), '게이지 시도 번호는 칸 안에서 ' + JSON.stringify(prog));
+    });
     await check('[§11.10.51-4] 재사용 — 같은 입력·같은 사슬이고 지난 글이 지금 1순위(쓸 수 있는 첫 칸) 것이면 재사용 · 아래 칸 글이면 위 칸이 살아난 뒤 다시 · 사슬(모델)이 바뀌면 다시', async () => {
         const b1 = stationsFor(1), chain = C51();
         const first = await AI.generate({ briefings: b1, config: { ...cfg51, chain }, adapters: fake51([], { claude2: 'ok' }), now: T0 });

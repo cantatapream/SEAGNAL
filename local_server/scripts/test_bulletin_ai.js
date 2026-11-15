@@ -52,6 +52,9 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     ok('한 기능 저장이 다른 기능을 안 건드린다', bai.getConfig().interpret.order[0] === 'claude2');
     fs.writeFileSync(process.env.BULLETIN_AI_CONFIG_FILE, '{깨진');
     ok('설정 파일이 깨지면 기본값(Gemini 1순위)', bai.getConfig().read.order[0] === 'gemini');
+    fs.writeFileSync(process.env.BULLETIN_AI_CONFIG_FILE, 'null');   // §11.10.51 독립 검토 7 — 종전엔 TypeError(브리핑 실행이 이 설정을 읽으므로 실행이 통째로 실패)
+    let nul = null; try { nul = bai.getConfig(); } catch (e) { nul = e; }
+    ok('설정 파일 내용이 null 이어도 기본값(던지지 않음)', nul && !(nul instanceof Error) && nul.briefing.order[0] === 'claude2', String(nul));
   }
   console.log('\n── ③ 순서대로 시도 ──');
   {

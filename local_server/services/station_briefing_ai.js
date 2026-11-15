@@ -676,7 +676,7 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
      */
     async function callOne(p, group, attempt, pick) {
         const keys = group.map((it) => it.b.key), a = adapters[p];
-        if (broken[p]) { errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: AI_NAMES[p] + ' 연속 실패 ' + fails[p] + '회 — 이번 실행은 건너뜀' }); return { skip: true }; }
+        if (broken[p]) { if (!chain) errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: AI_NAMES[p] + ' 연속 실패 ' + fails[p] + '회 — 이번 실행은 건너뜀' }); return { skip: true }; }   // 사슬은 차단될 때 한 줄만(아래 catch — 독립 검토 3)
         if (!up(a)) { errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: p === 'vm' ? 'VM 작업자 연결 없음' : p === 'chatgpt' ? 'ChatGPT 작업자 연결 없음' : '사용 불가' }); return { skip: true }; }
         const left = deadline - timer();
         if (left <= 0) return { late: true };
@@ -699,6 +699,10 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
             const budgetCut = timedOut && ms < 1000 && left < limit;
             // 차단기: 종전엔 VM 만 — 사슬에서는 Gemini(마지막 안전망)를 뺀 칸마다
             if ((p === 'vm' || (chain && p !== 'gemini')) && !budgetCut && (fails[p] = (fails[p] || 0) + 1) >= vmFailLimit) broken[p] = true;
+            // 사슬: 응답 없이 시간초과면 그 칸은 이번 실행에서 바로 건너뜀(독립 검토 2 — 칸마다 130초×3번을 기다리면 앞칸 셋이 20분 데드라인을 다 써 ChatGPT·Gemini 가 한 번도 못 불림).
+            //   그리고 차단은 묶음마다가 아니라 이 한 줄로만 남긴다(독립 검토 3). 종전 사슬(VM)은 그대로.
+            if (chain && p !== 'gemini' && !budgetCut && !broken[p] && timedOut) broken[p] = true;
+            if (chain && broken[p]) errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: AI_NAMES[p] + (timedOut ? ' 시간초과' : ' 연속 실패 ' + fails[p] + '회') + ' — 이번 실행은 건너뜀' });
             return { res: null };
         } finally { clearTimeout(tid); }
     }
@@ -731,7 +735,7 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
                 g.p = 'done'; for (const it of g.left) tell({ type: 'station', key: it.b.key, state: 'rule' }); return;
             }
             if (past()) { g.late = true; g.p = 'done'; return; }
-            tell({ type: 'call', batch: g.name, keys: g.left.map((it) => it.b.key), provider: g.p === 'vm' ? 'chatgpt' : g.p, attempt: g.attempt + 1 });
+            tell({ type: 'call', batch: g.name, keys: g.left.map((it) => it.b.key), provider: g.p === 'vm' ? 'chatgpt' : g.p, attempt: chain ? plan[g.k].n - g.n + 1 : g.attempt + 1 });   // 사슬 게이지 글은 그 칸 안에서 몇 번째(독립 검토 5 — 「클로드 키1 1번째」). 기록(overview·오류)의 attempt 는 종전처럼 묶음 전체 누적
             const r = await callOne(g.p, g.left, g.attempt + 1, plan[g.k].pick);
             if (r.late) { g.late = true; g.p = 'done'; return; }
             if (r.skip) { g.n = 0; continue; }
