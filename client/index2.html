@@ -3127,6 +3127,12 @@
                         style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
                         <img src="./assets/sun_cloud_icon.png" alt="Weather Icon" style="width: 24px; height: 24px;">
                         기상정보
+                        <!-- [관리자만] 특보현황 출처 전환 [MMIS][통보문] — forecast/alerts/alert_source_toggle.js (2026-11-16, 기본 숨김) -->
+                        <span id="alert-source-toggle" style="display:none;align-items:center;gap:4px;margin-left:6px;font-size:0.72rem;font-weight:500">
+                            <button type="button" data-src="mmis" onclick="window.setAlertSource('mmis')" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(96,165,250,0.6);color:#93c5fd;background:transparent;cursor:pointer">MMIS</button>
+                            <button type="button" data-src="bulletin" onclick="window.setAlertSource('bulletin')" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(52,211,153,0.6);color:#6ee7b7;background:transparent;cursor:pointer">통보문</button>
+                            <span class="ast-note" style="color:#9aa7b4;font-size:0.68rem"></span>
+                        </span>
                     </h2>
 
                     <!-- 기상청 바로가기 위젯 [New] -->
@@ -5593,8 +5599,10 @@
     <script src="js/shared/utils/accident_codes.js?v=Kin001InfoNone_20260831"></script>
     <script src="js/shared/utils/utils.js?v=Usage_20260910"></script>
     <script src="js/forecast/alerts/data.js"></script>
+    <!-- [관리자만] 메인 특보현황 출처 전환 [MMIS][통보문] (data.js 다음 — flattenAlertsData 사용, 2026-11-16) -->
+    <script src="js/forecast/alerts/alert_source_toggle.js"></script>
     <script src="js/forecast/alerts/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
-    <script src="js/forecast/alerts/render.js?v=ZoneGear_20261017"></script>
+    <script src="js/forecast/alerts/render.js?v=NoTutorial_20261115"></script>
     <script src="js/forecast/alerts/alert_history.js"></script>
     <script src="js/forecast/alerts/render_coastal.js"></script>
     <script src="js/forecast/alerts/marine.js?v=20261018sb20"></script>
@@ -5803,15 +5811,10 @@
     <script src="js/forecast/station-briefing/station_briefing_picker.js?v=20261017sb9"></script>
     <script src="js/forecast/station-briefing/station_briefing.js?v=20261018usage"></script>
 
-    <!-- 온보딩 튜토리얼 (공지사항 탭 3초 안에 5회 연타로만 열리는 시험 모드)
-         아직 일반 사용자에게는 보이지 않는다. 앞으로 다른 화면의 아코디언·버튼을
-         직접 조작하므로 조작 대상 스크립트가 모두 올라온 뒤인 맨 끝에 둔다.
-         상세: js/tutorial/README.md
-
-         zone_setup.js(관심해역 설정)는 tutorial.js 가 불러 쓰므로 반드시 그 앞에 둔다 —
-         연타로 열면 「관심해역 설정 → 튜토리얼」 순서로 이어진다. -->
-    <script src="js/onboarding/zone_setup.js?v=ZoneGear_20261017"></script>
-    <script src="js/tutorial/tutorial.js"></script>
+    <!-- 관심해역 설정 화면 — 「해역별 특보현황」 ⚙ (forecast/alerts/render.js openAlertZoneSetup)가 누를 때 연다.
+         상세: js/onboarding/README.md
+         (2026-11-15 온보딩 튜토리얼 js/tutorial/tutorial.js 삭제 — 이 화면은 ⚙ 가 쓰므로 남김) -->
+    <script src="js/onboarding/zone_setup.js?v=NoTutorial_20261115"></script>
 
     <!-- 선택적 차단 표시용 스타일 (버튼 자물쇠 배지 / 해상일기도·바텀시트 점검중) -->
     <style>

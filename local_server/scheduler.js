@@ -2724,7 +2724,11 @@ async function init() {
         //   fire-and-forget(내부 running 락으로 겹침 방지). 자격증명 없거나 BULLETIN_WATCH_DISABLE=1 이면 안 돈다.
         const bulletinWatch = require('./services/bulletin_watch');
         if (!crawlPaused && bulletinWatch.enabled) {
-            bulletinWatch.run().catch(err => log(`⚠️ [bulletin_watch] 오류: ${err.message}`));
+            // 관찰 → 통보문 기준 특보현황 계산(bulletin_status) → MMIS 와 비교 기록(bulletin_compare) — 셋 다 관찰·기록만(2026-11-16)
+            bulletinWatch.run()
+                .then(() => require('./services/bulletin_status').run())
+                .then(() => require('./services/bulletin_compare').run())
+                .catch(err => log(`⚠️ [bulletin_watch/status/compare] 오류: ${err.message}`));
         }
 
         // [New] 해상 기상 전망 수집 (매 10분마다)

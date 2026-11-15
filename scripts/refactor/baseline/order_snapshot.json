@@ -22,6 +22,7 @@
     "accident_codes.js",
     "utils.js",
     "data.js",
+    "alert_source_toggle.js",
     "zone_avg.js",
     "render.js",
     "alert_history.js",
@@ -140,7 +141,6 @@
     "station_briefing_basis.js",
     "station_briefing_picker.js",
     "station_briefing.js",
-    "zone_setup.js",
-    "tutorial.js"
+    "zone_setup.js"
   ]
 }

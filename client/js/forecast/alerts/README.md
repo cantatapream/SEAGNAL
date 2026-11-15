@@ -9,6 +9,7 @@
 |------|------|-----------|
 | `alert_history.js` | 특보 히스토리 팝업 모달 (해역별 통보문 이력 조회) | `createZoneBulletinItem`, `formatBulletinTime`, `createHistoryItem`, `loadBulletinContent`, `renderBulletinContent`, `renderFallbackContent` |
 | `data.js` | 데이터 수집(fetchAllData), 부이 데이터, API 상태 관리 | `fetchAllData`, `loadBackgroundData`, `refreshAlertData`, `flattenAlertsData`, `recursiveFind`, `_isExactSingleTime` |
+| `alert_source_toggle.js` | 메인 「기상정보」 옆 [MMIS][통보문] 버튼(관리자만) — 메인 해역별 특보현황 목록만 MMIS ↔ 방재기상플랫폼 통보문 기준으로 바꿔 그림(data.js `window.__alertSourceUrl`) | `setSource`(window.setAlertSource), `init`, `paint`, `isAdmin` |
 | `marine.js` | 해구별 기상정보 모달, 해양 차트 렌더링 · 소해구(「233-5」)는 소해구 예보 값으로 바꿔 그림 | `parseMarineZoneData`, `_tmKst`, `formatMarineTime`, `trimPastMarineRows`, `_mmisFctTmToUtcKey`, `_kstTmToMs`, `applySmallZoneForecast` |
 | `render.js` | 메인 UI 렌더링 (renderApp, createAlertElement) · 「해역별 특보현황」 관심해역 ⚙ | `renderApp`, `createAlertElement`, `syncAlertZoneGear`, `openAlertZoneSetup` |
 | `render_coastal.js` | 연안 구역 렌더링, 부이 데이터 표시, 로딩/시간 업데이트 | `displayBuoyInfo`, `createDataBox`, `formatBuoyTime`, `createCoastalElement`, `updateLoading`, `toggleSection` |

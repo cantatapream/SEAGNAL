@@ -97,7 +97,7 @@ function showZoneSetupDoneToast() {
  *     [건너뛰기] → 닫기만(⚙ 그대로)
  * @returns {void}
  * [연계] ← index2.html #alert-zone-settings-btn onclick
- *        → onboarding/zone_setup.js window.openZoneSetup(끝나면 부를 함수, {testFlag:false} — 「시험 모드」 딱지 없이)
+ *        → onboarding/zone_setup.js window.openZoneSetup(끝나면 부를 함수)
  *        → showZoneSetupDoneToast() · syncAlertZoneGear()
  */
 function openAlertZoneSetup() {
@@ -107,7 +107,7 @@ function openAlertZoneSetup() {
         if (skipped || typeof UserSettings === 'undefined' || !UserSettings.hasInterestZones()) return;
         showZoneSetupDoneToast();
         syncAlertZoneGear();
-    }, { testFlag: false });
+    });
 }
 window.openAlertZoneSetup = openAlertZoneSetup;
 document.addEventListener('DOMContentLoaded', syncAlertZoneGear);

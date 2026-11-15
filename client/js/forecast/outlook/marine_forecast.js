@@ -511,8 +511,8 @@ var OFFICE_LEGACY_KEY = 'officeLegacyZoneFallback';
  *
  * [순서 — 2026-10-17 코드로 확인] 이 파일 맨 위(스크립트를 읽는 순간)에서 한 번 부른다.
  *   index2.html 에서 settings/settings.js(UserSettings.init() 이 그 자리에서 저장값을 읽음)가 이 파일보다 앞이고,
- *   관심해역을 저장하는 곳(onboarding/zone_setup.js _save · settings.js saveSettingsAndClose ·
- *   tutorial.js 숨은 진입로 → zone_setup)은 모두 이 파일 뒤에 실리거나 사용자가 눌러야 돈다.
+ *   관심해역을 저장하는 곳(onboarding/zone_setup.js _save · settings.js saveSettingsAndClose)은
+ *   모두 이 파일 뒤에 실리거나 사용자가 눌러야 돈다.
  *   그래서 처음 설치한 기기에서 온보딩이 관심해역을 저장하기 전에 판정이 끝난다.
  *
  * 정한 뒤의 경우:

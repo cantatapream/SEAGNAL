@@ -55,7 +55,7 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 
 - **순서(2026-10-17 코드로 확인)**: 판정은 `marine_forecast.js` 를 읽는 순간(맨 위, 동기) 한 번 돈다.
   `index2.html` 에서 `settings/settings.js` 가 이 파일보다 앞이라 `UserSettings.init()` 이 이미 저장값을 읽어 둔 상태다.
-  관심해역을 저장하는 곳 — `onboarding/zone_setup.js _save`(이 파일보다 뒤에 실림, 튜토리얼 숨은 진입로·「해역별 특보현황」 ⚙ 를 **눌러야** 열림) ·
+  관심해역을 저장하는 곳 — `onboarding/zone_setup.js _save`(이 파일보다 뒤에 실림, 「해역별 특보현황」 ⚙ 를 **눌러야** 열림) ·
   `settings.js saveSettingsAndClose`(설정 창 [저장]) — 은 모두 사용자가 눌러야 돈다. 그래서 처음 설치한 기기에서는 온보딩이 관심해역을 저장하기 **전에** `'0'` 으로 정해진다.
   관심해역을 저장하는 `settings/settings.js`·`onboarding/zone_setup.js` 를 싣는 HTML 은 `index2.html` 하나뿐이다(`client` 의 `*.html` grep — 그 페이지에는 이 파일도 실린다). 회귀 시험이 `window.openZoneSetup` 이 달리는 순간의 표시 값을 적어 이 순서를 고정한다.
 

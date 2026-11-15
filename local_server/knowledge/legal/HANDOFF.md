@@ -1544,6 +1544,13 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ### [2026-11-16 00:34 KST] 🟢착수 — AI 브리핑 누적 오류 E20261116-003253 고치기(검사기 오판 vs AI 실제 오류)
 사용자 「진행하자」(2026-11-16). 관리자 누적 md(오류 122건·유형 14개, 11-13~15)를 유형별로 코드 확인 → 검사기 오판은 station_briefing_ai 검사 고침, 실제 AI 오류는 지시문 보강 검토 → 고친 유형 번호를 config/station_briefing_resolved.json 에 적어 같은 PR. G10(디스크 꽉 참 실행 실패)은 코드 수정 없음(버튼으로 닫기). 누적 md 의 관할 없는 칸 「(0곳)」 표시도 고침. 분석은 유형 묶음별 병렬 에이전트(읽기만), 수정은 같은 파일이라 직렬. 검사 기준 변경이라 독립 검토 포함. 브랜치 claude/eager-rubin-aean76(main 1772bdcd 에서 다시 세움).
 
+### [2026-11-15 23:38 KST] ✅완료 — 튜토리얼 삭제(⚙ 관심해역 설정 유지)
+완료 100%. 삭제: client/js/tutorial/(tutorial.js 3,699줄·README), client/assets/tutorial/alert_example.jpg, index2.html 로드줄, ocean_cctv.js window.oceanInfoTabItems 노출(튜토리얼만 사용). 유지: onboarding/zone_setup.js(특보현황 ⚙ 가 쓰는 관심해역 설정 화면) — 튜토리얼 전용 「시험 모드」 딱지·testFlag 만 제거, render.js 의 {testFlag:false} 인자 제거, 캐시 버전 NoTutorial_20261115. test_forecast_gear_ui.js 딱지 검사 1건 제거. ARCHITECTURE.md 재생성·order_snapshot 갱신. 확인: test_forecast_gear_ui 31/0, verify_all(NODE_PATH 지정) 실패는 V4·서버스모크뿐 → 서버 띄워 V4 통과·스모크 21/21. ⚠첫 verify_all 은 NODE_PATH 없이 돌려 화면 스위트 20개가 playwright-core 못 찾아 실패(환경 문제, 코드 무관). 다음: 없음(사용자 지시 완료).
+
+
+### [2026-11-15 23:01 KST] 🟢착수 — 튜토리얼 삭제(⚙ 관심해역 설정 유지)
+사용자 지시: 공지사항 5연타 시험모드 튜토리얼 전부 삭제. tutorial.js·README·assets/tutorial·index2.html 로드줄·ocean_cctv.js oceanInfoTabItems 노출 제거. zone_setup.js 는 특보현황 ⚙ 가 쓰므로 유지하고 튜토리얼 전용인 시험모드 딱지·testFlag 만 제거. test_forecast_gear_ui.js 딱지 검사 1건 제거. ARCHITECTURE·order_snapshot 갱신.
+
 
 ### [2026-11-15 21:30 KST] ✅완료 — Codex 작업자 Fly 서버 내장(VM 대체)
 사용자 지시로 VM 작업자를 Fly 서버 안 자식 프로세스로 옮김. services/codex_inproc.js(시크릿 CODEX_AUTH_JSON 있을 때만 작동·볼륨 .codex/auth.json 씨앗), server.js 시작 시 호출, Dockerfile 에 @openai/codex@0.169.0. 사전 시험(설치·답변·메모리 일시사용·읽기전용 잠금·웹검색 차단) Fly 서버에서 통과 — runbook §10. 남은 일: 배포 후 사용자가 시크릿 등록·시험폴더 삭제·VM 작업자 정지.
