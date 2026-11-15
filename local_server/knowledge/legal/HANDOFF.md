@@ -1537,6 +1537,16 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 04:08 KST] ✅완료 — 관리자 메인 [통보문] — 「MMIS와 상이 N개소」 줄·팝업
+별도 에이전트 구현(worktree) → 오케스트레이터 검토(이스케이프·updatedAt KST 확인) 후 반영. bulletin_compare.diffSnapshot(sig 기준, 부모별·칸별 다름·「왜?」 규칙 문장) → GET /api/admin/bulletin-status 의 diff. 화면: 상이 줄 + 아래 팝업(아코디언·구분|MMIS|통보문 표). test_bulletin_compare 58/0, watch 44/0, status 21/0, verify_all exit 0(실패 검사 이름 없음, 총정리 = 앞 회차와 동일한 법률 위키 표시줄). 미확인: 운영 실자료로 팝업 내용, 데스크톱 폭.
+
+
+### [2026-11-16 03:36 KST] ✅완료 — 해상 기상 전망 색칠 AI — 관리자 순서 설정으로
+services/bulletin_ai 에 기능 forecast(③) 추가, marine_forecast_processor·regional_bulletin_collector 가 그 순서로 AI 호출. 기본 Gemini 만=종전 동작. test_bulletin_ai 29/0, verify_all exit 0(실패 검사 이름 없음). 다음: 별도 에이전트가 만드는 「MMIS와 상이 N개소」 줄·팝업 검토 후 반영.
+
+
+### [2026-11-16 03:10 KST] 🟢착수 — 해상 기상 전망 색칠 AI — 관리자 순서 설정으로
+marine_forecast_processor·regional_bulletin_collector 의 Gemini 고정 호출을 services/bulletin_ai 의 새 기능 forecast(③ 해상 기상 전망 색칠) 순서로 바꾼다. 기본 = Gemini 만(종전 동작). 관리자 AI 모델 설정 화면에 ③ 카드 추가.
 ### [2026-11-16 02:54 KST] 🟢착수 — AI 브리핑 AI 순서를 「AI 모델 설정」 ③ 목록으로 통일 + AI 브리핑 탭 정리
 사용자: 「ai 모델 선택 및 설정 부분은 ai 탭의 ai 모델 설정 … ① 특보 통보문 읽기 리스트와 같이 … 다른 ai로도 돌아가도록 … 모델설정 방식을 통일」 · 다시 시도 (나) 줄마다 횟수 · 처음 순서 클로드 키2 → 클로드 키1 → 업스테이지 → ChatGPT → Gemini. 서버: bulletin_ai 에 briefing 기능(순서·삭제·칸별 모델·노력·실행 위치·시도 횟수), station_briefing_ai.generate 가 그 순서대로(키 없음 등은 건너뛰고 실행 기록에 skipped), realAdapters 에 클로드·업스테이지·ChatGPT(실행 위치). 화면: admin_bulletin_ai ③ 목록, AI 브리핑 탭 정리(시안 A2 — 별도 worktree 에이전트). 브랜치 claude/eager-rubin-aean76.
 

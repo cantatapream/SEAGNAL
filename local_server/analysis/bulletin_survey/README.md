@@ -231,6 +231,11 @@ MMIS 방식은 자식 해역과 예비특보 취소에서 계속 틀렸다(사�
 - ⑥ `services/bulletin_compare.js`: 매분 MMIS(weather_alerts.json) ↔ 통보문 기준 상태 바뀜·두 쪽 다름(시작·끝·길이)·**가상 푸시**(통보문 쪽 바뀜 → push_sender 와 같은 templateId, 문구는 push_helpers.generateMessage — 보내지 않음)·
   **실제 MMIS 푸시**(custom_push_history.json type auto, 보낸 시각 ms) → `data/bulletin_compare/<날짜>.jsonl`(60일). 보고서 `GET /api/admin/bulletin-compare/report.md` — 푸시 짝(같은 해역 6시간 안 가장 가까운 것)과 몇 분 몇 초 차이.
   관리자 「통보문 관찰」 탭 [비교 보고서 내려받기]. 스케줄러: 관찰 → 계산 → 비교(매분 한 줄로).
+- ⑦ 메인 [통보문]일 때 「HH:MM 기준 MMIS와 상이 N개소」 줄 + 팝업(2026-11-16, 사용자 승인 시안). 매분 비교(⑥)가 **지금 다른 곳 표**를 `state.json` 의 `diff` 에 함께 남기고
+  (`bulletin_compare.diffSnapshot` — 「다르다」는 비교 기록과 같은 `sig()`, 예비 시간창 이름 차이·MMIS 「예비 + 정확한 시각」 = 발표(발효 전)도 그대로),
+  `GET /api/admin/bulletin-status` 응답의 `diff` 로 준다: `{ atMs, at, mmisAt, count(다른 부모 해역 수), zones:[{ parent, count(다른 구역 수), sub(「연안바다만 다름」 등), parts:[{ unit, kind(해역 전체·연안바다·평수구역·일부 구역), rows:[{k, m, b, diff}] ×5, why:{id, text} }] }] }` (비교 전 null).
+  표 칸: 특보 종류·단계 / 발효 시각 / 해제 예고 / 발표 시각 / 근거 자료(MMIS = weather_alerts.json updatedAt 의 HH:MM 「갱신」, 통보문 = 그 상태를 만든 통보문 호). 같은 단계끼리는 sig 가 보는 칸만 노랑.
+  「왜?」는 규칙 틀(AI 없음, 원인 단정 안 함): mmis_only · bulletin_only · stage(단계 다름) · type · level · yebi_time · pending_time · clr · other — 두 쪽 발표 시각을 읽을 수 있으면 어느 쪽이 더 나중인지만 덧붙인다.
 - 3차 AI 시험 준비: 2025년 참고사항 중 1·2차에 없던 문장 모양 191가지(238문장) → `ai_trial_sample_3.json` 224건(사용자 「25년도 내용도 볼 필요가 있지 않을까」).
   해역 규칙: 큰 묶음 줄임 「동해바깥먼바다」(강원=중부바깥) 「동해남부바깥먼바다」(대구=북쪽바깥) 「서해먼바다」 「경기앞바다」 — 관할 안 줄기·끝이 맞는 부모 전부.
 

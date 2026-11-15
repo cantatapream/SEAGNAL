@@ -1,5 +1,5 @@
 /**
- * test_bulletin_ai.js — 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·③ 연안 안전 브리핑)와 그 API·일감별 실행 위치를 고정한다.
+ * test_bulletin_ai.js — 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·④ 연안 안전 브리핑)와 그 API·일감별 실행 위치를 고정한다.
  *
  * 왜 있나: ① 특보 읽기는 푸시에 직결된다. 순서대로 시도·실패 시 다음 순위·Gemini 를 뺄 수 없음·틀린 값 거절이
  *   조용히 깨지면 특보가 엉뚱한 AI 로 읽히거나 아예 안 읽힌다. 실제 AI·네트워크는 부르지 않는다(가짜로 바꿔 끼움).
@@ -34,6 +34,7 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     ok('파일 없음 → ① 특보 읽기 기본 1순위는 Gemini(종전 동작)', c.read.order[0] === 'gemini' && c.read.order.length === 5, c.read.order.join(','));
     ok('① 기본은 Gemini 만 쓴다(나머지는 삭제 상태 — 종전 동작, 키가 생겨도 몰래 크레딧 안 씀)', c.read.removed.length === 4 && !c.read.removed.includes('gemini'), JSON.stringify(c.read.removed));
     ok('② 참고사항 해석 기본 1순위는 클로드 키2 · 삭제 없음', c.interpret.order[0] === 'claude2' && c.interpret.removed.length === 0);
+    ok('③ 해상 기상 전망 색칠 기본 = Gemini 만(종전 Gemini 고정 그대로)', c.forecast.order[0] === 'gemini' && c.forecast.removed.length === 4 && !c.forecast.removed.includes('gemini'), JSON.stringify(c.forecast));
     ok('ChatGPT 칸 기본 = Luna · Fly', c.read.models.chatgpt.model === 'gpt-6-luna' && c.read.models.chatgpt.runner === 'fly' && c.read.models.chatgpt.effort === null, JSON.stringify(c.read.models.chatgpt));
   }
   console.log('\n── ② 저장 검사 ──');
@@ -72,6 +73,12 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     const r3 = await bai.call('read', 'P');
     ok('전부 실패 → 실패(마지막 오류)·시도 기록', r3.success === false && r3.tried.length === 4 && r3.error === 'claude2 실패', JSON.stringify(r3));
     ok('도중에 Gemini 가 한도 초과(429)였으면 마지막이 다른 AI 여도 isRateLimited(10분 재시도 분기 유지)', r3.isRateLimited === true);
+    ok('forecast 기본 순서 → Gemini 만 부른다(gemini-2.5-flash-lite)', (await (async () => { behave.gemini = 'ok'; calls.length = 0; const x = await bai.call('forecast', 'P'); return x.provider === 'gemini' && calls.length === 1 && calls[0].model === 'gemini-2.5-flash-lite'; })()));
+    ok('forecast 순서를 바꾸면 그 순서로(클로드 키2 1순위)', (await (async () => {
+      bai.setConfig('forecast', { order: ['claude2', 'gemini', 'claude1', 'upstage', 'chatgpt'], removed: ['claude1', 'upstage', 'chatgpt'] });
+      behave.claude2 = 'ok'; calls.length = 0; const x = await bai.call('forecast', 'P');
+      return x.provider === 'claude2' && calls[0].id === 'claude2' && bai.getConfig().read.order[0] === 'chatgpt';   // read 순서는 그대로
+    })()));
     ok('read 와 interpret 는 각자 순서를 쓴다', (await (async () => { behave.claude2 = 'ok'; calls.length = 0; const x = await bai.call('interpret', 'P'); return x.provider === 'claude2' && calls[0].id === 'claude2'; })()));
   }
   console.log('\n── ④ API ──');
@@ -86,8 +93,8 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     ok('POST 틀린 값 → 400', bad.status === 400);
     const good = await (await fetch(base + '/api/admin/bulletin-ai/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feature: 'interpret', models: { chatgpt: { model: 'gpt-6-luna', runner: 'vm' } } }) })).json();
     ok('POST 맞는 값 → 저장된 상태를 돌려준다', good.ok && good.config.interpret.models.chatgpt.runner === 'vm');
-    // §11.10.51 ③ 연안 안전 브리핑(2026-11-16 사용자 — 순서 「클로드 2번, 클로드 1번, 업스테이지, gpt, gemini」 · 다시 시도 「(나)」 줄마다 횟수)
-    ok('③ briefing 기본: 순서 클로드 키2→키1→업스테이지→ChatGPT→Gemini · 삭제 없음 · 시도 ChatGPT 3 나머지 1 · Gemini 모델 gemini-2.5-flash · ChatGPT 실행 위치 VM(종전 브리핑 그대로 — ①② 기본은 Fly)',
+    // §11.10.51 ④ 연안 안전 브리핑(2026-11-16 사용자 — 순서 「클로드 2번, 클로드 1번, 업스테이지, gpt, gemini」 · 다시 시도 「(나)」 줄마다 횟수)
+    ok('④ briefing 기본: 순서 클로드 키2→키1→업스테이지→ChatGPT→Gemini · 삭제 없음 · 시도 ChatGPT 3 나머지 1 · Gemini 모델 gemini-2.5-flash · ChatGPT 실행 위치 VM(종전 브리핑 그대로 — ①② 기본은 Fly)',
       g.config.briefing && g.config.briefing.order.join() === 'claude2,claude1,upstage,chatgpt,gemini' && g.config.briefing.removed.length === 0
       && JSON.stringify(g.config.briefing.attempts) === JSON.stringify({ upstage: 1, claude1: 1, claude2: 1, chatgpt: 3, gemini: 1 }) && g.config.briefing.models.gemini.model === 'gemini-2.5-flash' && g.config.briefing.models.chatgpt.runner === 'vm', JSON.stringify(g.config.briefing));
     ok('선택지: 브리핑 Gemini 모델 2개·시도 1~3 · 그 Gemini 모델 목록 = 브리핑 설정의 종전 선택지(station_briefing.CHOICES.geminiModel)',

@@ -6,10 +6,10 @@
  *         통계 칩 한 줄(AI·재사용·규칙 분석·오류 · 쓴 AI · 관광지 자료) · 실행 중 진행 게이지(§11.10.7) · 문제가 있을 때만 「관광지 자료 확인 불가」 펼침(§11.10.21)·공개 예정·특보 변경 대기·실행 실패·건너뛴 AI 줄)
  *         → 오류 카드(탭 2개 「처리 안 된 오류」(§11.10.48 누적 — 유형 목록·[md로 저장]·[복사]·내보내기의 [남은 N개 완료 처리]·알림 줄) / 「실행별」(최근 3일 실행 드롭다운·관할별 한글 풀이·[복사]·[md로 저장] §11.10.7·§11.10.31))
  *         → 정시 판 기록 표(판 · 소요 · AI·재사용·규칙 · 오류 — 마감에 걸린 판만 「마감 N곳」, 줄을 누르면 그 실행의 오류) → 설정(접힘 — AI 분석 스위치 · 노출 범위·묶음 단위 세그먼트 · 바뀐 곳만 스위치)
- *         → 관할 하나 미리보기(접힘 — 공개 예정 판은 「예정」). AI 모델·순서 고르기는 「AI 모델 설정」 탭 ③ 연안 안전 브리핑(admin_bulletin_ai.js)으로 옮겼다(§11.10.50).
+ *         → 관할 하나 미리보기(접힘 — 공개 예정 판은 「예정」). AI 모델·순서 고르기는 「AI 모델 설정」 탭 ④ 연안 안전 브리핑(admin_bulletin_ai.js)으로 옮겼다(§11.10.50).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : admin/admin.js(window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부 · switchAiSubTab 이 나를 부름 · 설정 카드의 「AI 모델 설정 → ③」 링크가 switchAiSubTab('bulletinAi') 를 부름)
+ *  - 사용하는 파일 : admin/admin.js(window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부 · switchAiSubTab 이 나를 부름 · 설정 카드의 「AI 모델 설정 → ④」 링크가 switchAiSubTab('bulletinAi') 를 부름)
  *                    · forecast/station-briefing/station_briefing_render.js(StationBriefingRender.render — 미리보기는 사용자 화면과 같은 렌더러)
  *                    · @capacitor/browser(window.Capacitor.Plugins.Browser — 앱 안에서 md 를 시스템 브라우저로 내려받기, admin_collect.js CSV·PNG 저장과 같은 방식)
  *  - 서버 API      : GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status(?only=progress — 진행 게이지) · POST /api/admin/station-briefing/run(실행 중 409)
@@ -26,9 +26,9 @@
     var API = '/api/admin/station-briefing';
     // 선택지 이름표 — [큰 글, 작은 글]. 서버 choices 에 없는 값은 그리지 않는다.
     //   method 는 화면에서 「AI 분석」 스위치(켜짐 = 'ai', 끔 = 'template' — §11.10.50)로만 바꾼다. 옛 저장값 chatgpt·gemini 는 켜짐으로 보이고 마지막 실행 「쓴 AI」 이름표에만 쓴다.
-    //   AI 모델·순서는 「AI 모델 설정」 탭 ③ 연안 안전 브리핑에서 고른다(admin_bulletin_ai.js — 이 탭에서 뺌).
+    //   AI 모델·순서는 「AI 모델 설정」 탭 ④ 연안 안전 브리핑에서 고른다(admin_bulletin_ai.js — 이 탭에서 뺌).
     var LABELS = {
-        method: { ai: ['AI 모델 설정 순서', '「AI 모델 설정」 ③ 목록 차례대로 → 규칙 분석'], chatgpt: ['ChatGPT'], gemini: ['Gemini'], template: ['규칙 분석만'] },
+        method: { ai: ['AI 모델 설정 순서', '「AI 모델 설정」 ④ 목록 차례대로 → 규칙 분석'], chatgpt: ['ChatGPT'], gemini: ['Gemini'], template: ['규칙 분석만'] },
         exposure: { user: ['사용자에게'], admin: ['관리자에게만'], off: ['노출 안 함'] },
         batchUnit: { station: ['파출소', '97회'], office: ['해양경찰서', '21회'], region: ['지방청', '5회'] },
     };
@@ -282,7 +282,7 @@
         drawPreview(pvBox);
     }
     /**
-     * 설정 카드(접힘 — 접힌 동안 요약 한 줄) — AI 분석 스위치(켜짐 = method 'ai' · 끔 = 'template', 옛 저장값 chatgpt·gemini 는 켜짐으로 보임 — §11.10.50)와 「AI 모델 설정 → ③」 링크,
+     * 설정 카드(접힘 — 접힌 동안 요약 한 줄) — AI 분석 스위치(켜짐 = method 'ai' · 끔 = 'template', 옛 저장값 chatgpt·gemini 는 켜짐으로 보임 — §11.10.50)와 「AI 모델 설정 → ④」 링크,
      * 노출 범위·묶음 단위 세그먼트, 바뀐 곳만 다시 만들기 스위치. 바꾸면 그 칸만 곧바로 PUT 하고, 성공하면 모양을 바꾼다(실패면 이유 — 모양은 그대로).
      * 2026-11-16 사용자 *"ai 모델 선택 및 설정 부분은 ai 탭의 ai 모델 설정이라는 하위 탭 … 그 탭으로 넣어줘"* — 생성 방식·ChatGPT 모델·Gemini 모델 칸은 이 탭에서 뺐다.
      * 예: [관리자에게만] → PUT {exposure:'admin'} → 「저장됨 — 노출 범위: 관리자에게만」 · AI 분석 끔 → PUT {method:'template'} → 「저장됨 — AI 분석: 꺼짐(규칙 분석만)」
@@ -320,7 +320,7 @@
                     side.appendChild(document.createTextNode(on ? '켜짐' + (d.onText ? ' · ' + d.onText : '') : '꺼짐 — ' + d.offText));
                     if (d.field === 'method') {   // AI 순서는 다른 탭 — 누르면 그 하위 탭으로
                         side.appendChild(document.createTextNode(' · AI 순서는 '));
-                        var a = elc('button', 'sba-link', 'AI 모델 설정 → ③ 연안 안전 브리핑'); a.type = 'button'; a.setAttribute('data-sb-ai-order', '');
+                        var a = elc('button', 'sba-link', 'AI 모델 설정 → ④ 연안 안전 브리핑'); a.type = 'button'; a.setAttribute('data-sb-ai-order', '');
                         a.addEventListener('click', function () { if (typeof w.switchAiSubTab === 'function') w.switchAiSubTab('bulletinAi'); });
                         side.appendChild(a);
                     }

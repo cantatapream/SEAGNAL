@@ -336,7 +336,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_review_sources` | ★⚠수치검증 카드의 「원문 보기」를 못박는다. (2026-11-02 사용자 요청) |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
-| `test_bulletin_ai` | 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·③ 연안 안전 브리핑)와 그 API·일감별 실행 위치를… |
+| `test_bulletin_ai` | 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·④ 연안 안전 브리핑)와 그 API·일감별 실행 위치를… |
 | `test_bulletin_ai_ui` | 관리자 「AI 모델 설정」 탭(client/js/admin/admin_bulletin_ai.js)의 기능별 AI 순서 목록을 실제 Chromium 으로 그려 본다 — |
 | `test_llm_chain` | 나리야 답변 AI 사슬(services/llm_chain.js)의 순서·자동 전환·크레딧 소진 처리를 고정한다. |
 | `test_legal_ask_stats` | 나리야 질문 수 날짜별 집계(services/legal_ask_stats.js)와 /api/legal/ask 연결을 고정한다. |

@@ -234,7 +234,7 @@
     function dateText(date) { var t = kstText(String(date || '') + 'T00:00'); return t === '—' ? '—' : t.slice(0, -6); }
     /** 「오늘/내일」 — 대상 날짜가 만든 날짜보다 뒤면 내일(서버 rules.dayWordOf 와 같은 규칙, 23시 판). 예: {targetDate:'2026-10-18',generatedAt:'2026-10-17T23:00…'} → '내일'. @param {Object} b @returns {string} [연계] ← 육상 빈 칸 문구(B6) */
     function dayWord(b) { return b && b.generatedAt && b.targetDate > String(b.generatedAt).slice(0, 10) ? '내일' : '오늘'; }
-    /** AI 이름(사용자 화면) — 서버 overview.source → 이름표 글. 규칙 분석('template')·모르는 값은 null(AI 아님). §11.10.51 — 순서가 「AI 모델 설정」 ③ 을 따르면서 클로드·업스테이지도 올 수 있다(키1·키2 는 사용자에게 같은 「Claude」).
+    /** AI 이름(사용자 화면) — 서버 overview.source → 이름표 글. 규칙 분석('template')·모르는 값은 null(AI 아님). §11.10.51 — 순서가 「AI 모델 설정」 ④ 를 따르면서 클로드·업스테이지도 올 수 있다(키1·키2 는 사용자에게 같은 「Claude」).
      * 예: aiWho('claude2') → 'Claude' · aiWho('chatgpt') → 'ChatGPT' · aiWho('template') → null. @param {string} src @returns {string|null} [연계] ← summaryBody·summaryBodyV2·summaryBodyV3·총평 출처 글 */
     var AI_WHO = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: 'Claude', claude2: 'Claude', upstage: 'Upstage' };
     function aiWho(src) { return Object.prototype.hasOwnProperty.call(AI_WHO, src) ? AI_WHO[src] : null; }

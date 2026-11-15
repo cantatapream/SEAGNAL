@@ -478,7 +478,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(p.briefing.summary.sea.headline.startsWith('내일 한림파출소 관할 해상의 단계는'), p.briefing.summary.sea.headline);
     });
     await check('설정: 기본값(관리자에게만·VM·해양경찰서 묶음·바뀐 곳만) · 선택지 밖 값 400 · ChatGPT 모델 목록 = codex_bridge 목록에서 gemini 뺀 것', () => {
-        // §11.10.51: 기본 method 'ai'(관리자 「AI 모델 설정 → ③」 순서 — 종전 'chatgpt')
+        // §11.10.51: 기본 method 'ai'(관리자 「AI 모델 설정 → ④」 순서 — 종전 'chatgpt')
         assert.deepStrictEqual(svc.readConfig(), { method: 'ai', chatgptModel: 'gpt-6-luna', geminiModel: 'gemini-2.5-flash', exposure: 'admin', batchUnit: 'office', onlyChanged: true });
         assert.equal(svc.writeConfig({ exposure: 'user', batchUnit: 'region' }).exposure, 'user');
         assert.throws(() => svc.writeConfig({ method: 'claude' }), /설정값 오류/);
@@ -3297,7 +3297,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(A.errorsMarkdown([{ ...e1, reason: 'place:가`나' }], ms, { days: 3 }).includes('- 이유: `` place:가`나 ``\n'), '이유 속 백틱 — 더 긴 백틱 코드 칸');
         assert.ok(!A.errorsMarkdown([e3], ms, { days: 3 }).includes('탈락한 AI 글'), '글 실린 오류가 없으면 절 없음(종전 md 그대로)');
     });
-    // ── §11.10.51 AI 순서 = 관리자 「AI 모델 설정 → ③ 연안 안전 브리핑」(2026-11-16 사용자 — 다른 AI 로도 · 줄마다 시도 횟수 · 클로드 키2→키1→업스테이지→ChatGPT→Gemini) ──
+    // ── §11.10.51 AI 순서 = 관리자 「AI 모델 설정 → ④ 연안 안전 브리핑」(2026-11-16 사용자 — 다른 AI 로도 · 줄마다 시도 횟수 · 클로드 키2→키1→업스테이지→ChatGPT→Gemini) ──
     const cfg51 = { method: 'ai', batchUnit: 'office', onlyChanged: true };
     const C51 = (over) => [{ id: 'claude2', model: 'claude-sonnet-5-5', effort: 'medium', runner: null, attempts: 1 }, { id: 'claude1', model: 'claude-sonnet-5-5', effort: 'medium', runner: null, attempts: 1 }, { id: 'upstage', model: 'solar-pro4', effort: 'medium', runner: null, attempts: 1 }, { id: 'chatgpt', model: 'gpt-6-luna', effort: null, runner: 'fly', attempts: 3 }, { id: 'gemini', model: 'gemini-2.5-flash', effort: null, runner: null, attempts: 1 }].map((c) => ({ ...c, ...((over || {})[c.id] || {}) }));
     const fake51 = (calls, behave, why) => Object.fromEntries(['claude2', 'claude1', 'upstage', 'chatgpt', 'gemini'].map((id) => [id, {

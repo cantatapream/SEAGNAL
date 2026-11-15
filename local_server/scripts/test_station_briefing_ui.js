@@ -1064,7 +1064,7 @@ function makeBriefings() {
             assert.ok(t.chatgpt.length === 2 && t.chatgpt.every((x) => x === 'AI 분석 · ChatGPT|rgb(255, 255, 255)|rgba(255, 255, 255, 0.55)|rgba(255, 255, 255, 0.08)'), 'ChatGPT 이름표 흰색 ' + JSON.stringify(t.chatgpt));
             assert.ok(t.gemini.length === 2 && t.gemini.every((x) => x === 'AI 분석 · Gemini|rgb(96, 165, 250)|rgba(96, 165, 250, 0.6)|rgba(96, 165, 250, 0.12)'), 'Gemini 이름표 파랑 ' + JSON.stringify(t.gemini));
             assert.ok(t.template.length === 2 && t.template.every((x) => x.startsWith('규칙 분석|rgb(203, 213, 225)|')), '규칙 분석 이름표는 그대로 ' + JSON.stringify(t.template));
-            // §11.10.51 — 순서가 「AI 모델 설정」 ③ 을 따르면서 클로드·업스테이지 글도 온다: 종전엔 'chatgpt'·'gemini' 만 AI 로 보아 「규칙 분석」 이름표로 잘못 나왔다. 모르는 값은 그대로 규칙 분석.
+            // §11.10.51 — 순서가 「AI 모델 설정」 ④ 를 따르면서 클로드·업스테이지 글도 온다: 종전엔 'chatgpt'·'gemini' 만 AI 로 보아 「규칙 분석」 이름표로 잘못 나왔다. 모르는 값은 그대로 규칙 분석.
             assert.ok(t.claude2.length === 2 && t.claude2.every((x) => x.startsWith('AI 분석 · Claude|')), 'Claude 이름표 ' + JSON.stringify(t.claude2));
             assert.ok(t.upstage.length === 2 && t.upstage.every((x) => x.startsWith('AI 분석 · Upstage|')), 'Upstage 이름표 ' + JSON.stringify(t.upstage));
             assert.ok(t.mystery.length === 2 && t.mystery.every((x) => x.startsWith('규칙 분석|')), '모르는 출처는 AI 이름표 없이 ' + JSON.stringify(t.mystery));
@@ -1376,7 +1376,7 @@ function makeBriefings() {
             const puts = []; const onReq = (q) => { if (q.method() === 'PUT' && q.url().endsWith('/api/admin/station-briefing/config')) puts.push(JSON.parse(q.postData())); }; page.on('request', onReq);
             await page.click('[data-sb-switch="method"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.startsWith('저장됨'));
             assert.equal(await page.$eval('[data-sb-msg]', (e) => e.textContent), '저장됨 — AI 분석: 꺼짐(규칙 분석만)');
-            assert.deepEqual(await page.$eval('[data-sb-switch="method"]', (e) => [e.getAttribute('aria-checked'), document.querySelector('[data-sb-switch-text="method"]').textContent]), ['false', '꺼짐 — 규칙 분석만 · AI 순서는 AI 모델 설정 → ③ 연안 안전 브리핑']);
+            assert.deepEqual(await page.$eval('[data-sb-switch="method"]', (e) => [e.getAttribute('aria-checked'), document.querySelector('[data-sb-switch-text="method"]').textContent]), ['false', '꺼짐 — 규칙 분석만 · AI 순서는 AI 모델 설정 → ④ 연안 안전 브리핑']);
             await page.click('[data-field="batchUnit"] [data-value="region"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.includes('지방청'));
             await page.click('[data-sb-switch="onlyChanged"]'); await page.waitForFunction(() => document.querySelector('[data-sb-msg]').textContent.includes('매번 새로'));
             const c = real.readConfig(); assert.deepEqual([c.method, c.batchUnit, c.onlyChanged], ['template', 'region', false]);

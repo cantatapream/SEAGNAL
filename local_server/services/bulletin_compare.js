@@ -4,6 +4,7 @@
  * 파일명: local_server/services/bulletin_compare.js
  * 역할  : MMIS 기준 특보현황(실제 앱)과 통보문 기준 특보현황(bulletin_status)을 매분 맞대어 기록하고,
  *         「통보문 기준이었다면 나갔을 푸시」(가상 — 보내지 않음)를 계산해 실제 MMIS 푸시와 나란히 남긴다.
+ *         지금 두 쪽이 다른 구역 표(부모 해역별·칸별 다름·「왜?」 규칙 문장)도 매분 다시 만들어 관리자 메인 팝업에 준다.
  * 사용자 확정 2026-11-15:
  *   「두 개를 비교해서 … 보고서가 만들어지도록 … MMIS는 어떻게 MMIS 신호가 들어온 뒤 얼마 후에 어떠한 그 푸시 알림이 몇 분 몇 초에 나갔는데,
  *    통보문을 했을 때는 몇 분 몇 초에 어떠한 내용의 푸시 알림이 나갔을 거다라는 것을 비교하는 문서」
@@ -15,8 +16,9 @@
  * [연계]
  *  - 사용하는 파일 : services/bulletin_status(통보문 기준) · data/weather_alerts.json(MMIS 기준 — marine_warning_crawler 가 씀) ·
  *                   data/custom_push_history.json(실제 보낸 푸시 — routes/push.js 가 씀) · services/push_helpers.generateMessage(문구)
- *  - 저장          : data/bulletin_compare/<KST 날짜>.jsonl(기록, 60일) · data/bulletin_compare/state.json(앞 상태)
- *  - 나를 쓰는 곳  : scheduler.js(통보문 기준 계산 다음 매분) · routes/bulletin_watch.js(GET /api/admin/bulletin-compare/report.md) · 검사 test_bulletin_compare
+ *  - 저장          : data/bulletin_compare/<KST 날짜>.jsonl(기록, 60일) · data/bulletin_compare/state.json(앞 상태 + 지금 다른 곳 표 diff)
+ *  - 나를 쓰는 곳  : scheduler.js(통보문 기준 계산 다음 매분) · routes/bulletin_watch.js(GET /api/admin/bulletin-compare/report.md ·
+ *                   GET /api/admin/bulletin-status 의 diff — 관리자 메인 「MMIS와 상이 N개소」 팝업) · 검사 test_bulletin_compare
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
  */
@@ -76,6 +78,101 @@ const clrKey = (t) => { const m = String(t || '').match(/(\d{1,2})일[^(]*\((\d{
 const sig = (z) => (z ? (z.kind === 'pending' ? `pending|${z.type}|${String(z.tmEf).replace(/\s+/g, '')}` : `${z.kind}|${z.type}|${z.level}|${z.kind === 'yebi' ? winKey(z.tmEf) : clrKey(z.clr)}`) : '');
 const word = (z) => (z ? (z.kind === 'yebi' ? `${z.type} 예비(${z.tmEf})` : z.kind === 'pending' ? `${z.type}${z.level === '발표' ? '' : z.level} 발표(${z.tmEf} 발효 예정)` : `${z.type}${z.level}${z.clr ? `(해제 예고 ${z.clr})` : ''}`) : '없음');
 
+// ── 지금 두 쪽이 다른 해역 표(관리자 메인 「HH:MM 기준 MMIS와 상이 N개소」 팝업 — 2026-11-16) ──
+// 「다르다」는 위 sig() 와 같은 기준이라 팝업과 비교 기록(mismatch_start)이 늘 같은 곳을 가리킨다.
+const pad2 = (n) => String(n).padStart(2, '0');
+/** '2026년 11월 16일 04시 30분' → '16일 04시 30분'(연·월을 뗀다). 빈 값은 '—'. */
+const shortT = (s) => String(s || '').replace(/^\d{4}년\s*\d{1,2}월\s*/, '').trim() || '—';
+/** '2026년 11월 15일 16시 00분' → ms(못 읽으면 0). 두 쪽 발표 시각의 앞뒤를 가릴 때만 쓴다. */
+const fcMs = (s) => { const m = String(s || '').match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/); return m ? Date.parse(`${m[1]}-${pad2(m[2])}-${pad2(m[3])}T${pad2(m[4])}:${pad2(m[5])}:00+09:00`) : 0; };
+/** weather_alerts.json updatedAt(ko-KR 지역 시각 글자 — '2026. 11. 16. 오전 3:31:35' 또는 'AM 3:31:35') → '03:31'. 못 읽으면 ''. */
+const mmisHm = (s) => {
+    const m = String(s || '').match(/(오전|오후|AM|PM)?\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*$/);
+    if (!m) return '';
+    let h = +m[2]; if (/오후|PM/.test(m[1] || '') && h < 12) h += 12; if (/오전|AM/.test(m[1] || '') && h === 12) h = 0;
+    return `${pad2(h)}:${m[3]}`;
+};
+const STAGE = { formal: '발효 중인 특보', yebi: '예비특보', pending: '발표(발효 전)' };
+const label = (z) => (!z ? '없음' : z.kind === 'yebi' ? `${z.type} 예비특보` : z.kind === 'pending' ? `${z.type}${z.level === '발표' ? '' : z.level} 발표(발효 전)` : `${z.type}${z.level}`);
+/** 종류·단계 칸 비교값 — sig 처럼 발표(발효 전)은 등급을 안 본다(MMIS 는 등급을 모르고 「발표」로만 적는다). */
+const typeKey = (z) => (!z ? '' : z.kind === 'pending' ? `pending|${z.type}` : `${z.kind}|${z.type}|${z.level}`);
+const efKey = (z) => (!z ? '' : z.kind === 'yebi' ? winKey(z.tmEf) : String(z.tmEf || '').replace(/\s+/g, ''));
+/** 자식 이름 끝말로 칩 글자. 예: '경북북부앞바다중연안바다' → '연안바다' · 부모 자신 → '해역 전체' */
+const partKind = (u, parent) => (u === parent ? '해역 전체' : /연안바다$/.test(u) ? '연안바다' : /평수구역$/.test(u) ? '평수구역' : '일부 구역');
+
+/**
+ * 한 구역의 「왜?」 한 줄을 규칙 틀로 만든다(AI 없음). 원인은 단정하지 않고 두 값에서 보이는 사실만 쓴다.
+ * 예: (MMIS 풍랑주의보, 통보문 없음) → { id:'mmis_only', text:'통보문에는 이 구역에 아무 특보도 없는데 MMIS에는 풍랑주의보 표시가 남아 있습니다.' }
+ * @param {object|null} m MMIS 쪽 상태  @param {object|null} b 통보문 쪽 상태
+ * @returns {{id: string, text: string}} id = mmis_only|bulletin_only|stage|type|level|yebi_time|pending_time|clr|other
+ * [연계] ← diffSnapshot(이 파일) · 검사 test_bulletin_compare
+ */
+function whyOf(m, b) {
+    if (m && !b) return { id: 'mmis_only', text: `통보문에는 이 구역에 아무 특보도 없는데 MMIS에는 ${label(m)} 표시가 남아 있습니다.` };
+    if (!m && b) return { id: 'bulletin_only', text: `MMIS에는 이 구역에 아무 특보도 없는데 통보문에는 ${label(b)} 표시가 있습니다.` };
+    const fm = fcMs(m.tmFc), fb = fcMs(b.tmFc);
+    const later = fm && fb && fb > fm ? ' 통보문 쪽 발표 시각이 더 나중입니다.' : fm && fb && fm > fb ? ' MMIS 쪽 발표 시각이 더 나중입니다.' : '';
+    if (m.kind !== b.kind) return { id: 'stage', text: `MMIS는 ${STAGE[m.kind]}, 통보문은 ${STAGE[b.kind]} 상태입니다.${later}` };
+    if (m.type !== b.type) return { id: 'type', text: `특보 종류가 다릅니다(MMIS ${m.type} · 통보문 ${b.type}).${later}` };
+    if (m.kind === 'formal' && m.level !== b.level) return { id: 'level', text: `특보 단계가 다릅니다(MMIS ${m.level} · 통보문 ${b.level}).${later}` };
+    if (m.kind === 'yebi') return { id: 'yebi_time', text: `종류는 같고 예비특보 시간대만 다릅니다(MMIS ${shortT(m.tmEf)} · 통보문 ${shortT(b.tmEf)}).${later}` };
+    if (m.kind === 'pending') return { id: 'pending_time', text: `종류는 같고 발효 예정 시각만 다릅니다(MMIS ${shortT(m.tmEf)} · 통보문 ${shortT(b.tmEf)}).${later}` };
+    if (clrKey(m.clr) !== clrKey(b.clr)) return { id: 'clr', text: `특보는 같고 해제 예고 시각만 다릅니다(MMIS ${m.clr || '없음'} · 통보문 ${b.clr || '없음'}).${later}` };
+    return { id: 'other', text: '두 자료가 서로 다릅니다.' };
+}
+
+/**
+ * 한 구역의 표(구분 | MMIS | 통보문) — 칸마다 보여 줄 글자와 「다름」 표시.
+ * 같은 단계끼리는 sig 가 보는 칸만 다름으로 친다(예비 = 시간창, 발표(발효 전) = 발효 시각, 정식 = 해제 예고). 단계가 다르거나 한쪽이 없으면 보이는 값끼리 비교.
+ * 예: diffPart('강원중부앞바다', '강원중부앞바다', {kind:'yebi',…}, {kind:'pending',…}, '오전 3:31:35') → { unit, kind:'해역 전체', rows:[{k:'특보 종류·단계', m:'풍랑 예비특보', b:'풍랑주의보 발표(발효 전)', diff:true}, …], why }
+ * @returns {{unit, kind, rows: Array<{k, m, b, diff}>, why: {id, text}}}
+ * [연계] ← diffSnapshot(이 파일)
+ */
+function diffPart(u, parent, m, b, mmisAt) {
+    const same = m && b && m.kind === b.kind;
+    const efDiff = same && m.kind === 'formal' ? false : efKey(m) !== efKey(b);
+    const clrDiff = same && m.kind === 'pending' ? false : clrKey(m ? m.clr : '') !== clrKey(b ? b.clr : '');
+    const ef = (z) => (z && z.tmEf ? shortT(z.tmEf) + (z.kind === 'pending' ? ' 발효 예정' : '') : '—');
+    const hm = mmisHm(mmisAt);
+    return {
+        unit: u, kind: partKind(u, parent),
+        rows: [
+            { k: '특보 종류·단계', m: label(m), b: label(b), diff: typeKey(m) !== typeKey(b) },
+            { k: '발효 시각', m: ef(m), b: ef(b), diff: efDiff },
+            { k: '해제 예고', m: (m && m.clr) || '—', b: (b && b.clr) || '—', diff: clrDiff },
+            { k: '발표 시각', m: m ? shortT(m.tmFc) : '—', b: b ? shortT(b.tmFc) : '—', diff: false },
+            { k: '근거 자료', m: hm ? `MMIS ${hm} 갱신` : '—', b: b && b.ho ? `${b.ho} 통보문` : '—', diff: false },
+        ],
+        why: whyOf(m, b),
+    };
+}
+
+/**
+ * 지금 두 쪽이 다른 구역을 부모 해역별로 묶는다(sig 기준). 순서는 MMIS 나무 순서, 통보문에만 있는 곳은 뒤에.
+ * 예: { 경북북부앞바다중연안바다: MMIS 주의보 / 통보문 예비 } → { count:1, zones:[{ parent:'경북북부앞바다', count:1, sub:'연안바다만 다름', parts:[…] }] }
+ * @param {object} M MMIS 단위별 상태(flattenTree)  @param {object} B 통보문 단위별 상태(pendingOf)
+ * @param {number} atMs 비교한 시각  @param {string} mmisAt weather_alerts.json updatedAt(없으면 '')
+ * @returns {{atMs, at, mmisAt, count, zones: Array<{parent, count, sub, parts}>}} count = 다른 부모 해역 수
+ * [연계] ← run(이 파일) · 검사 test_bulletin_compare / → routes/bulletin_watch GET /api/admin/bulletin-status 의 diff
+ */
+function diffSnapshot(M, B, atMs, mmisAt) {
+    const groups = new Map();
+    for (const u of new Set([...Object.keys(M), ...Object.keys(B)])) {
+        const m = M[u] || null, b = B[u] || null;
+        if (sig(m) === sig(b)) continue;
+        const parent = (m || b).parent || u;
+        if (!groups.has(parent)) groups.set(parent, []);
+        groups.get(parent).push(diffPart(u, parent, m, b, mmisAt));
+    }
+    const zones = [...groups].map(([parent, parts]) => {
+        parts.sort((x, y) => (y.unit === parent) - (x.unit === parent));   // 부모 자신이 맨 위
+        const kinds = [...new Set(parts.map((p) => p.kind))];
+        const sub = kinds.length > 1 ? `${kinds.join('·')} 다름` : kinds[0] === '해역 전체' ? '해역 전체가 다름' : parts.length === 1 ? `${kinds[0]}만 다름` : `${kinds[0]} ${parts.length}곳 다름`;
+        return { parent, count: parts.length, sub, parts };
+    });
+    return { atMs, at: KST(atMs), mmisAt: mmisAt || '', count: zones.length, zones };
+}
+
 /**
  * 통보문 쪽 상태 바뀜 하나 → 가상 푸시 종류(실제 push_sender 와 같은 templateId).
  * 예: 없음 → 예비 = publish · 예비/없음 → 정식 = active · 정식 → 없음 = release · 예비 → 없음 = prelim_cancel ·
@@ -111,13 +208,15 @@ function templateOf(unit, before, after, parentNow) {
 
 /**
  * 비교 기록기를 만든다. 검사에서는 읽는 곳(통보문 기준·MMIS·푸시 기록)·시계·저장 위치를 바꿔 끼운다.
- * @param {{getBulletin?: function(): object|null, getMmis?: function(): object|null, getPushes?: function(): Array, now?: function(): number, dir?: string}} o
- * @returns {{run: function(): object, readDay: function(string): Array, days: function(): string[]}}
+ * @param {{getBulletin?: function(): object|null, getMmis?: function(): object|null, getMmisAt?: function(): string, getPushes?: function(): Array, now?: function(): number, dir?: string}} o
+ *   getMmisAt = MMIS 자료를 마지막으로 쓴 시각(weather_alerts.json updatedAt) — 팝업 「근거 자료」 칸
+ * @returns {{run: function(): object, readDay: function(string): Array, days: function(): string[], latestDiff: function(): object|null}}
  * [연계] ← module.exports · test_bulletin_compare
  */
 function createCompare({
     getBulletin = () => require('./bulletin_status').read(),
     getMmis = () => { try { return JSON.parse(fs.readFileSync(ALERTS_FILE, 'utf8')).current; } catch (_) { return null; } },
+    getMmisAt = () => { try { return String(JSON.parse(fs.readFileSync(ALERTS_FILE, 'utf8')).updatedAt || ''); } catch (_) { return ''; } },
     getPushes = () => { try { const h = JSON.parse(fs.readFileSync(PUSH_FILE, 'utf8')); return Array.isArray(h) ? h : (h.history || []); } catch (_) { return []; } },
     now = () => Date.now(), dir = DIR,
 } = {}) {
@@ -137,7 +236,7 @@ function createCompare({
         const stat = { events: 0 };
         const emit = (ev) => { log(Object.assign({ atMs: t }, ev)); stat.events++; };
         if (!st) {   // 처음: 지금 상태를 기준으로만 남기고 바뀜·푸시는 세지 않는다
-            st = { mmis: M, bulletin: B, lastPushId: Math.max(0, ...pushes.map((p) => +p.id || 0)), mismatch: {} };
+            st = { mmis: M, bulletin: B, lastPushId: Math.max(0, ...pushes.map((p) => +p.id || 0)), mismatch: {}, diff: diffSnapshot(M, B, t, getMmisAt()) };
             emit({ kind: 'baseline', mmis: Object.keys(M).length, bulletin: Object.keys(B).length, 설명: `비교 시작 — MMIS ${Object.keys(M).length}곳 · 통보문 ${Object.keys(B).length}곳에 특보·예비` });
             save(); return stat;
         }
@@ -170,7 +269,7 @@ function createCompare({
             stat.events++;
             st.lastPushId = Math.max(st.lastPushId, +p.id);
         }
-        st.mmis = M; st.bulletin = B;
+        st.mmis = M; st.bulletin = B; st.diff = diffSnapshot(M, B, t, getMmisAt());   // 지금 다른 곳 표(관리자 메인 팝업)
         save(); prune();
         return stat;
     }
@@ -180,7 +279,9 @@ function createCompare({
     }
     const days = () => (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((f) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(f)).map((f) => f.slice(0, 10)).sort();
     const readDay = (d) => { try { return fs.readFileSync(path.join(dir, d + '.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch (_) { return []; } };
-    return { run, readDay, days };
+    /** 마지막 비교 때 두 쪽이 다른 곳 표(diffSnapshot) — 아직 비교 전이면 null. [연계] → routes/bulletin_watch GET /api/admin/bulletin-status */
+    const latestDiff = () => { load(); return (st && st.diff) || null; };
+    return { run, readDay, days, latestDiff };
 }
 
 /**
@@ -229,4 +330,4 @@ function reportMarkdown(events, day) {
 
 let real = null;
 const getReal = () => (real = real || createCompare());
-module.exports = { run: () => getReal().run(), days: () => getReal().days(), readDay: (d) => getReal().readDay(d), createCompare, flattenTree, templateOf, reportMarkdown, sig, pendingOf, winKey, clrKey };
+module.exports = { run: () => getReal().run(), days: () => getReal().days(), readDay: (d) => getReal().readDay(d), latestDiff: () => getReal().latestDiff(), createCompare, flattenTree, templateOf, reportMarkdown, sig, pendingOf, winKey, clrKey, diffSnapshot, whyOf, mmisHm };

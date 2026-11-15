@@ -636,7 +636,7 @@ function rejectedOf(o, si) {
  * @param {object} o - briefings·config·previous(key→지난 브리핑)·adapters{vm,gemini}·kma·now·timer·deadline·timeouts·vmFailLimit·vmAttempts·onProgress(진행 알림, 없어도 됨)
  * @returns {Promise<object>} [연계] ← station_briefing.run / → stationInput·batchInput·buildPrompt·parseResponse·validateOverview·explainError
  * §11.10.51(2026-11-16 사용자 「ai 모델 설정 … ① 특보 통보문 읽기 리스트와 같이 … 다른 ai로도 돌아가도록」): config.method 'ai' + config.chain([{id, model, effort, runner, attempts}] —
- *   관리자 「AI 모델 설정 → ③ 연안 안전 브리핑」 순서, bulletin_ai.briefingChain)이면 그 순서대로 — 칸마다 attempts 번(떨어진 관할만 다시), 다음 칸으로. 어댑터는 adapters[id](chatgpt·claude1·claude2·upstage·gemini).
+ *   관리자 「AI 모델 설정 → ④ 연안 안전 브리핑」 순서, bulletin_ai.briefingChain)이면 그 순서대로 — 칸마다 attempts 번(떨어진 관할만 다시), 다음 칸으로. 어댑터는 adapters[id](chatgpt·claude1·claude2·upstage·gemini).
  *   실행 시작 때 못 쓰는 AI(키 없음·작업자 연결 없음 — adapter.available() 거짓)는 묶음마다 오류를 남기지 않고 건너뛰고 skipped 로 한 번만 돌려준다(키가 없는 AI 가 1순위여도 오류 기록이 불어나지 않게).
  *   하나도 못 쓰면 오류 한 줄(stage call)과 함께 모두 규칙 분석. 연속 실패 차단기는 Gemini 를 뺀 칸마다(종전 VM 과 같은 vmFailLimit). config.chain 이 없으면 종전 사슬(VM vmAttempts 번 → Gemini) 그대로.
  */

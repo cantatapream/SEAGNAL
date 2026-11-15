@@ -3124,14 +3124,13 @@
                 <div class="weather-info-header"
                     style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2 class="section-title"
-                        style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                        style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                         <img src="./assets/sun_cloud_icon.png" alt="Weather Icon" style="width: 24px; height: 24px;">
                         기상정보
-                        <!-- [관리자만] 특보현황 출처 전환 [MMIS][통보문] — forecast/alerts/alert_source_toggle.js (2026-11-16, 기본 숨김) -->
-                        <span id="alert-source-toggle" style="display:none;align-items:center;gap:4px;margin-left:6px;font-size:0.72rem;font-weight:500">
+                        <!-- [관리자만] 특보현황 출처 전환 [MMIS][통보문] — forecast/alerts/alert_source_toggle.js (2026-11-16, 기본 숨김). 좁은 화면(390px)에선 h2 flex-wrap 으로 버튼이 「기상정보」 아래 줄로 내려간다(글자가 세로로 쪼개지지 않게) -->
+                        <span id="alert-source-toggle" style="display:none;align-items:center;gap:4px;margin-left:6px;font-size:0.72rem;font-weight:500;white-space:nowrap">
                             <button type="button" data-src="mmis" onclick="window.setAlertSource('mmis')" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(96,165,250,0.6);color:#93c5fd;background:transparent;cursor:pointer">MMIS</button>
                             <button type="button" data-src="bulletin" onclick="window.setAlertSource('bulletin')" style="padding:3px 8px;border-radius:7px;border:1px solid rgba(52,211,153,0.6);color:#6ee7b7;background:transparent;cursor:pointer">통보문</button>
-                            <span class="ast-note" style="color:#9aa7b4;font-size:0.68rem"></span>
                         </span>
                     </h2>
 
@@ -3149,6 +3148,8 @@
                         </div>
                     </div>
                 </div>
+                <!-- [관리자만·통보문 선택 때] 「HH:MM 기준 MMIS와 상이 N개소」 — alert_source_toggle.js renderDiffLine (2026-11-16, 기본 숨김). 머리 아래 20px 틈을 당겨 붙인다 -->
+                <div id="ast-diff-line" style="display:none;align-items:center;gap:6px;font-size:0.74rem;color:#9aa7b4;margin:-14px 0 18px 2px"></div>
 
 
                 <!-- 기상청 해상 기상 전망 아코디언 -->

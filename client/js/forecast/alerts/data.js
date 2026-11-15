@@ -7,7 +7,8 @@
  *  - 사용하는 파일 : shared/utils/utils.js(appState·trackUsage) ·
  *                   core/config.js(부이 API URL 상수) ·
  *                   shared/utils/mappings.js(BUOY_TYPES) ·
- *                   render.js(renderApp) · outlook/marine_forecast.js(loadMarineForecast)
+ *                   render.js(renderApp) · outlook/marine_forecast.js(loadMarineForecast) ·
+ *                   alert_source_toggle.js(window.__alertSourceOnData — 특보 자료를 받을 때마다 「MMIS와 상이」 줄 갱신)
  *  - 서버 API      : GET /api/weather-alerts(관리자가 [통보문]을 누른 동안은 /api/admin/bulletin-status — alert_source_toggle.js) · /api/buoys · /api/marine-buoys ·
  *                   /api/marine-wh-buoys · /api/marine-lh-buoys ·
  *                   /api/kma-buoys(DEPRECATED, 호출 주석 처리) · /api/marine-vs(캐시만)
@@ -84,6 +85,7 @@ async function fetchAllData() {
         if (alertsResponse.ok) {
             const rootData = await alertsResponse.json();
             flattenAlertsData(rootData);
+            if (typeof window.__alertSourceOnData === 'function') window.__alertSourceOnData(rootData);   // [관리자 출처 전환] 통보문 기준이면 「MMIS와 상이」 줄도 새로
             appState.apiStatus.hub = 'success';
             alertsOk = true; // 특보 호출 성공 (특보 0건이어도 호출 자체는 정상)
         } else {
@@ -175,6 +177,7 @@ async function refreshAlertData() {
         if (resp.ok) {
             const rootData = await resp.json();
             flattenAlertsData(rootData);
+            if (typeof window.__alertSourceOnData === 'function') window.__alertSourceOnData(rootData);   // [관리자 출처 전환] 통보문 기준이면 「MMIS와 상이」 줄도 새로
             appState.lastUpdated = new Date();
         }
     } catch (e) {

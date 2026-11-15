@@ -3,8 +3,8 @@
  * 파일명: js/admin/admin_bulletin_ai.js
  * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 모델 설정」(2026-11-16 이름 바꿈 — 종전 「AI 특보 분석」).
  *         맨 위 「AI 챗봇 모델」 = 나리야 답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치(ai_chat.js renderModelSettingsInto — 종전 자리는 AI 챗봇 → 🤖 AI 모델).
- *         그 아래 「AI 특보 분석」 = 기능마다(① 특보 통보문 읽기 · ② 참고사항 해석 · ③ 연안 안전 브리핑) AI 우선순위.
- *         ③ 연안 안전 브리핑(2026-11-16 사용자 「ai 모델 선택 및 설정 부분은 … ① 특보 통보문 읽기에 해당하는 리스트와 같이 디자인을 수정해줘. 그리고 그 탭으로 넣어줘」 ·
+ *         그 아래 「AI 특보 분석」 = 기능마다(① 특보 통보문 읽기 · ② 참고사항 해석 · ③ 해상 기상 전망 색칠 · ④ 연안 안전 브리핑) AI 우선순위.
+ *         ④ 연안 안전 브리핑(2026-11-16 사용자 「ai 모델 선택 및 설정 부분은 … ① 특보 통보문 읽기에 해당하는 리스트와 같이 디자인을 수정해줘. 그리고 그 탭으로 넣어줘」 ·
  *           다시 시도 「(나)」 · 처음 순서 「클로드 2번, 클로드 1번, 업스테이지, gpt, gemini」): 칸마다 시도 횟수(1~3번)·Gemini 모델(브리핑만)까지 고르고,
  *           맨 아래 「규칙 분석」(고정) 줄. 「AI 분석」 켜기/끄기는 AI 브리핑 탭(설계서 §11.10.51).
  *         1순위가 실패하면 2순위 … 순서대로 시도한다. 칸마다 모델·노력, ChatGPT 칸은 모델과 실행 위치(Fly 서버|VM)를 고른다.
@@ -31,7 +31,9 @@
     var FEAT = {
         read: ['① 특보 통보문 읽기', '기상청 통보문에서 풍랑·태풍 특보와 해역을 뽑습니다. ⚠운영에서는 아직 꺼져 있어 순서만 저장됩니다(켜기는 따로 결정).'],
         interpret: ['② 참고사항 해석', '통보문 「참고사항」의 뜻을 정리합니다. 지금은 「특보 관리 → 통보문 관찰」의 4차 시험(설정한 순서)에서만 쓰입니다.'],
-        briefing: ['③ 연안 안전 브리핑', '파출소 관할 97곳의 연안·해상 분석 문단을 씁니다. 칸마다 정한 횟수만큼 시도하고(검사에 떨어진 관할만 다시), 안 되면 다음 순위로 — 끝까지 안 되면 서버 규칙 분석. 「AI 분석」 켜기·끄기는 AI 브리핑 탭에서.']
+        // 2026-11-16 — 종전 Gemini 고정. 운영에서 바로 쓰인다(새로 들어온 전망부터 — 이미 색칠해 둔 전망은 다시 부르지 않는다).
+        forecast: ['③ 해상 기상 전망 색칠', '메인 화면 「기상청 해상 기상 전망」(초단기·단기·지방청)의 지역·수치·위험 표현에 색을 입힙니다. 운영에서 바로 쓰이며, 새로 들어온 전망부터 적용됩니다.'],
+        briefing: ['④ 연안 안전 브리핑', '파출소 관할 97곳의 연안·해상 분석 문단을 씁니다. 칸마다 정한 횟수만큼 시도하고(검사에 떨어진 관할만 다시), 안 되면 다음 순위로 — 끝까지 안 되면 서버 규칙 분석. 「AI 분석」 켜기·끄기는 AI 브리핑 탭에서.']
     };
     var RUNNER = { fly: 'Fly 서버', vm: 'VM' };
     var state = null;
@@ -94,7 +96,7 @@
                 row.appendChild(sel(ch.chatgpt.runners, m.runner, function (v) { return RUNNER[v] || v; }, function (v) { save(f, { models: { chatgpt: { model: m.model, runner: v } } }, host); }));
                 row.appendChild(el('span', 'font-size:0.75rem;color:' + (workers[m.runner] ? '#34d399' : '#fbbf24'), workers[m.runner] ? '연결됨' : '연결 없음 · 건너뜀'));
             } else if (id === 'gemini' && f === 'briefing') {
-                // ③ 브리핑만 Gemini 모델을 고른다(종전 브리핑 설정의 두 모델)
+                // ④ 브리핑만 Gemini 모델을 고른다(종전 브리핑 설정의 두 모델)
                 row.appendChild(sel(ch.briefing.geminiModels, cfg.models.gemini.model, null, function (v) { save(f, { models: { gemini: { model: v } } }, host); }));
             } else if (id === 'gemini') {
                 row.appendChild(el('span', 'color:#94a3b8;font-size:0.8rem', (ch.gemini.models[0] || '') + ' (고정)'));
@@ -105,7 +107,7 @@
                 if (st && st.hasKey === false) row.appendChild(el('span', 'font-size:0.75rem;color:#fbbf24', '키 없음 · 건너뜀'));
                 else if (st && st.exhaustedAt) row.appendChild(el('span', 'font-size:0.75rem;color:#f87171', '소진 · 건너뜀(AI 챗봇 탭에서 해제)'));
             }
-            if (f === 'briefing') {   // ③ 칸별 시도 횟수(사용자 「(나)」)
+            if (f === 'briefing') {   // ④ 칸별 시도 횟수(사용자 「(나)」)
                 var at = sel(ch.briefing.attempts, cfg.attempts[id], function (v) { return '최대 ' + v + '번'; }, function (v) { var o = {}; o[id] = Number(v); save(f, { attempts: o }, host); });
                 at.setAttribute('data-bai-attempts', id);
                 var sels = row.querySelectorAll('select'), lastSel = sels[sels.length - 1];   // 모델·노력(실행 위치) 고르기 바로 뒤, 상태 글 앞
@@ -157,7 +159,8 @@
         if (!state) return;
         drawFeature(host, 'read');
         drawFeature(host, 'interpret');
-        if (state.config.briefing) drawFeature(host, 'briefing');   // ③ — 옛 서버(briefing 없음)면 그리지 않는다
+        drawFeature(host, 'forecast');
+        if (state.config.briefing) drawFeature(host, 'briefing');   // ④ — 옛 서버(briefing 없음)면 그리지 않는다
     }
 
     /**
