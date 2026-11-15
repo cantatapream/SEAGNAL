@@ -1537,6 +1537,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-15 23:38 KST] ✅완료 — 튜토리얼 삭제(⚙ 관심해역 설정 유지)
+완료 100%. 삭제: client/js/tutorial/(tutorial.js 3,699줄·README), client/assets/tutorial/alert_example.jpg, index2.html 로드줄, ocean_cctv.js window.oceanInfoTabItems 노출(튜토리얼만 사용). 유지: onboarding/zone_setup.js(특보현황 ⚙ 가 쓰는 관심해역 설정 화면) — 튜토리얼 전용 「시험 모드」 딱지·testFlag 만 제거, render.js 의 {testFlag:false} 인자 제거, 캐시 버전 NoTutorial_20261115. test_forecast_gear_ui.js 딱지 검사 1건 제거. ARCHITECTURE.md 재생성·order_snapshot 갱신. 확인: test_forecast_gear_ui 31/0, verify_all(NODE_PATH 지정) 실패는 V4·서버스모크뿐 → 서버 띄워 V4 통과·스모크 21/21. ⚠첫 verify_all 은 NODE_PATH 없이 돌려 화면 스위트 20개가 playwright-core 못 찾아 실패(환경 문제, 코드 무관). 다음: 없음(사용자 지시 완료).
+
+
+### [2026-11-15 23:01 KST] 🟢착수 — 튜토리얼 삭제(⚙ 관심해역 설정 유지)
+사용자 지시: 공지사항 5연타 시험모드 튜토리얼 전부 삭제. tutorial.js·README·assets/tutorial·index2.html 로드줄·ocean_cctv.js oceanInfoTabItems 노출 제거. zone_setup.js 는 특보현황 ⚙ 가 쓰므로 유지하고 튜토리얼 전용인 시험모드 딱지·testFlag 만 제거. test_forecast_gear_ui.js 딱지 검사 1건 제거. ARCHITECTURE·order_snapshot 갱신.
+
+
 ### [2026-11-15 21:30 KST] ✅완료 — Codex 작업자 Fly 서버 내장(VM 대체)
 사용자 지시로 VM 작업자를 Fly 서버 안 자식 프로세스로 옮김. services/codex_inproc.js(시크릿 CODEX_AUTH_JSON 있을 때만 작동·볼륨 .codex/auth.json 씨앗), server.js 시작 시 호출, Dockerfile 에 @openai/codex@0.169.0. 사전 시험(설치·답변·메모리 일시사용·읽기전용 잠금·웹검색 차단) Fly 서버에서 통과 — runbook §10. 남은 일: 배포 후 사용자가 시크릿 등록·시험폴더 삭제·VM 작업자 정지.
 

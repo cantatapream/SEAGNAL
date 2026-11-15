@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 126개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 125개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -191,8 +191,6 @@ client/js/
 │       ├── mappings.js
 │       ├── usage_keys.js
 │       └── utils.js
-├── tutorial/
-│   └── tutorial.js
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
     └── ocean_typhoon.js
@@ -499,12 +497,6 @@ client/js/
 | `mappings.js` | 연안바다/평수구역 매핑, 부이 위치 매핑, 부이 타입 정의 |
 | `usage_keys.js` | 사용량 통계의 "기능 키 → 한글 이름표" 한 장. 앱이 세는 모든 기능 키는 여기에 |
 | `utils.js` | 전역 상태(appState), 유틸리티 함수, 날짜/시간 포맷팅 |
-
-### `client/js/tutorial/`
-
-| 파일 | 역할 |
-|------|------|
-| `tutorial.js` | 첫 사용자 온보딩 튜토리얼 — 지금은 "시험 모드"로만 열린다 |
 
 ### `client/js/typhoon/`
 
