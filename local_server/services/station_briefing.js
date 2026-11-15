@@ -440,23 +440,43 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * @param {object} s - state()(부르는 쪽이 저장) @param {object[]} add @param {number} now [연계] ← run·reportFailure → EL.append·keepErrors
      */
     function addErrors(s, add, now) {
-        const lg = loadLog(s, false), withId = EL.append(lg, add, now); saveLog(lg);
+        // 누적 기록이 실패해도 브리핑 실행·실패 기록(재시도 대기)은 그대로 저장한다(독립 검토 ③ — 종전엔 여기서 던져 상태 파일이 저장되지 않아 매분 다시 실행될 수 있었다).
+        //   그때 넣지 못한 오류는 번호 없이 최근 3일 목록에 남고, 다음에 기록이 될 때 함께 들어간다(아래 missing). 실패는 관리자 누적 칸에 빨간 줄(logIssue).
+        let withId = add;
+        try {
+            const lg = loadLog(s, false), missing = s.errors.filter((e) => e && !e.id), ided = EL.append(lg, missing.concat(add), now); saveLog(lg);
+            const back = new Map(missing.map((e, i) => [e, ided[i]])); s.errors = s.errors.map((e) => back.get(e) || e); withId = ided.slice(missing.length);
+            logIssue = null;
+        } catch (e) { logIssue = { at: R.isoKst(now), what: '누적 오류 기록에 쓰지 못함(' + add.length + '건 — 다음 기록 때 다시 넣음)', reason: String((e && e.code) || (e && e.message) || e).slice(0, 120) }; console.error('[station_briefing] 누적 오류 기록 실패:', logIssue.reason); }
         const k = keepErrors(s.errors.concat(withId), now); s.errors = k.errors; if (k.dropped) s.errorsCapped = { at: R.isoKst(now), dropped: k.dropped, cap: ERROR_HARD_CAP }; else s.errorsCapped = freshCapped(s.errorsCapped, now);
     }
     function saveState(s) { I.writeJson(p('state.json'), s); }
     const LOG_FILE = 'error_log.json';
+    // 누적 기록 문제(쓰기 실패 — addErrors) — 관리자 누적 칸에 빨간 줄. 다음에 쓰기가 되면 지운다.
+    let logIssue = null;
     /**
-     * 누적 오류 기록을 읽는다(§11.10.48). 파일이 없으면(이 기능 전 — 처음 한 번) 상태 파일에 남아 있는 최근 3일 오류부터 번호를 붙여 옮기고,
-     * 상태 파일 쪽 오류에도 같은 번호를 단다(실행별 화면이 「처리 완료」를 표시하려고). 파일이 깨져 읽히지 않으면 지우지 않고 이름을 바꿔 두고 새로 시작한다(손으로 되살릴 수 있게).
+     * 누적 오류 기록을 읽는다(§11.10.48).
+     * - 파일이 없으면(이 기능 전 — 처음 한 번): 상태 파일에 남은 최근 3일 오류부터 옮기고(번호가 없으면 붙이고 상태 파일 쪽에도 같은 번호) 새로 시작.
+     * - 내용이 깨졌으면(JSON 이 아님): 지우지 않고 error_log.broken-<시각>.json 으로 옮긴 뒤, 상태 파일의 최근 3일 오류로 되살려 새로 시작하고 recovered 를 남긴다
+     *   (관리자 누적 칸에 「깨져 최근 3일만 되살림」 빨간 줄 — 독립 검토 ② · 번호는 상태 파일의 가장 큰 번호 다음부터라 겹치지 않는다 — ①).
+     * - 그 밖의 읽기 실패(EIO·EMFILE 등 일시적): 아무것도 바꾸지 않고 던진다(멀쩡한 파일을 깨진 것으로 치우지 않게 — ②). 부르는 쪽이 처리한다.
      * @param {object} s - state() — 옮길 때 그 오류에 번호를 단다 @param {boolean} save - 옮겼을 때 상태 파일을 여기서 저장할지(addErrors 는 부르는 쪽이 저장)
-     * @returns {object} 기록(EL.normLog) [연계] ← addErrors·status·exportErrors·resolveExport·applyResolvedOnce
+     * @returns {object} 기록(EL.normLog) [연계] ← addErrors·status·exportErrors·resolveExport·tick(첫 점검)
      */
     function loadLog(s, save) {
-        const f = p(LOG_FILE), raw = I.readJson(f);
-        if (raw) return EL.normLog(raw);
-        if (fs.existsSync(f)) { const bad = p('error_log.broken-' + R.isoKst(clock()).slice(0, 19).replace(/[-:]/g, '') + '.json'); try { fs.renameSync(f, bad); } catch (_) { /* 그 사이 지워짐 */ } console.error('[station_briefing] 누적 오류 기록을 읽지 못해 ' + path.basename(bad) + ' 로 옮기고 새로 시작'); }
-        const lg = EL.emptyLog(), st = s || state(), old = st.errors.filter((e) => e && !e.id);
-        if (old.length) { const ided = EL.append(lg, old, clock()); let i = 0; st.errors = st.errors.map((e) => (e && !e.id ? ided[i++] : e)); if (save) saveState(st); }
+        const f = p(LOG_FILE); let txt = null, recovered = null;
+        try { txt = fs.readFileSync(f, 'utf8'); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
+        if (txt !== null) {
+            let raw; try { raw = JSON.parse(txt); } catch (_) { raw = undefined; }
+            if (raw && typeof raw === 'object') return EL.normLog(raw);
+            const bad = p('error_log.broken-' + R.isoKst(clock()).slice(0, 19).replace(/[-:]/g, '') + '.json');
+            fs.renameSync(f, bad); recovered = { at: R.isoKst(clock()), file: path.basename(bad) };
+            console.error('[station_briefing] 누적 오류 기록이 깨져 ' + recovered.file + ' 로 옮기고 최근 3일 오류로 되살림');
+        }
+        const lg = EL.emptyLog(), st = s || state();
+        if (recovered) lg.recovered = recovered;
+        const all = st.errors.filter(Boolean);
+        if (all.length) { const ided = EL.append(lg, all, clock()), back = new Map(all.map((e, i) => [e, ided[i]])); st.errors = st.errors.map((e) => back.get(e) || e); if (save) saveState(st); }
         saveLog(lg); return lg;
     }
     function saveLog(lg) { I.writeJson(p(LOG_FILE), lg); }
@@ -728,12 +748,14 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * @returns {object} [연계] ← routes GET status·POST run(실행 중이면 409) · admin_station_briefing.js(오류 목록·복사·md 저장·누적 칸)
      */
     function status() {
-        const s = state(), lg = applyResolved(loadLog(s, true)), closed = new Set(lg.errors.filter((e) => !EL.isOpen(e)).map((e) => e.id)); let days = []; try { days = fs.readdirSync(dir).map((f) => (f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/) || [])[1]).filter(Boolean).sort(); } catch (_) { /* 폴더 없음 */ }
+        // 누적 기록을 못 읽거나 못 써도 상태 응답(설정·즉시 실행·실행별 오류)은 준다 — 누적 칸만 「읽지 못함」(독립 검토 ③ — 종전엔 AI 브리핑 탭 전체·설정·즉시 실행이 함께 500)
+        const s = state(); let lg = null, logError = null; try { lg = applyResolved(loadLog(s, true)); } catch (e) { logError = String((e && e.code) || (e && e.message) || e).slice(0, 120); console.error('[station_briefing] 누적 오류 기록 읽기 실패:', logError); }
+        const closed = new Set(lg ? lg.errors.filter((e) => !EL.isOpen(e)).map((e) => e.id) : []); let days = []; try { days = fs.readdirSync(dir).map((f) => (f.match(/^briefings_(\d{4}-\d{2}-\d{2})\.json$/) || [])[1]).filter(Boolean).sort(); } catch (_) { /* 폴더 없음 */ }
         // 공개 대기(§11.10.4) — 날짜 파일마다 아직 공개 시각이 안 된 판 수·공개 시각(관리자 상태 「공개 예정」)
         const now = clock(), pending = [];
         for (const d of days) { const dd = readDay(d), at = {}; for (const b of Object.values((dd && dd.pending) || {})) if (Date.parse(b.publishAt) > now) at[b.publishAt] = (at[b.publishAt] || 0) + 1; for (const [pa, n] of Object.entries(at)) pending.push({ date: d, publishAt: pa, stations: n }); }
         // lastEdition = 마지막 정시 판 실행(관광지 확인 불가 이름 목록 — §11.10.21) · runDeadlineMs = 한 실행 AI 마감(정시 판 소요 표의 「마감」 설명)
-        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, lastEdition: s.lastEdition, runDeadlineMs, runs: keepRuns(s.runs, now).reverse(), progress: running ? progress : null, done: s.done, pending, errors: keepErrors(s.errors, clock()).errors.reverse().map((e) => (e.id && closed.has(e.id) ? { ...e, resolved: true } : e)), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorLog: EL.summary(lg, now, repoIssues), errorsCapped: freshCapped(s.errorsCapped, clock()), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
+        return { config: readConfig(), choices: CHOICES, lastRun: s.lastRun, lastEdition: s.lastEdition, runDeadlineMs, runs: keepRuns(s.runs, now).reverse(), progress: running ? progress : null, done: s.done, pending, errors: keepErrors(s.errors, clock()).errors.reverse().map((e) => (e.id && closed.has(e.id) ? { ...e, resolved: true } : e)), errorKeep: { days: ERROR_KEEP_DAYS, cap: ERROR_HARD_CAP }, errorLog: lg ? { ...EL.summary(lg, now, repoIssues), recovered: lg.recovered && now - Date.parse(lg.recovered.at) < 7 * 86400000 ? lg.recovered : null, writeIssue: logIssue } : { unavailable: logError, writeIssue: logIssue }, errorsCapped: freshCapped(s.errorsCapped, clock()), days, running: !!running, failures: s.failures, pendingWarn: s.pendingWarn ? { zones: s.pendingWarn.zones, lastChangeAt: s.pendingWarn.lastChangeAt } : null };
     }
     /**
      * 누적 md 내보내기(§11.10.48) — 처리 안 된 오류 전부와 유형 번호(G01…)를 돌려주고, 그 내보내기를 기록에 남긴다(나중에 머지·버튼으로 「이 md 에 들어 있던 것」만 처리 완료하려고).
@@ -781,7 +803,9 @@ let def = null;
 function forDefault() {
     if (def) return def;
     const { stores } = require('../routes/risk_forecast');
-    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast'), traffic: require('./sea_traffic_profile').forDir(), resolvedFile: path.join(__dirname, '..', 'config', 'station_briefing_resolved.json') });
+    def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast'), traffic: require('./sea_traffic_profile').forDir(),
+        // 머지된 처리 완료 목록은 운영 서버(seagnal-server)에서만 읽는다(독립 검토 ⑩ — 내보내기 번호는 서버마다 따로라 스테이징·개발에서는 모든 줄이 「이 서버에 없는 번호」 알림이 된다)
+        resolvedFile: process.env.FLY_APP_NAME === 'seagnal-server' ? path.join(__dirname, '..', 'config', 'station_briefing_resolved.json') : null });
     return def;
 }
 

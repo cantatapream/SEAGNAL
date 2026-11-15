@@ -3343,13 +3343,14 @@ const WIN = R.editionWindow('morning', T0);
         const lg = EL.emptyLog(), now = K('2026-11-16T09:00');
         EL.append(lg, [ve('2026-11-15T16:51:00+09:00', 'a|b', 'shape:sea-sentences-2,place:장승포')], now);
         const ex0 = EL.exportOpen(lg, K('2026-11-15T22:10')), id = ex0.exp.id, shapeCode = ex0.exp.groups.find((g) => g.family === 'shape:sea-sentences').code;
-        const entries = [{ export: id, groups: [shapeCode], note: '문장 수' }, { export: 'E20261114-000000', groups: 'all' }, { export: 'E20250101-000000', groups: 'all' }, { export: id, groups: ['G07'] }, { bad: 1 }, { export: id, groups: [] }];
+        const entries = [{ export: id, groups: [shapeCode], note: '문장 수' }, { export: 'E20261114-000000', groups: ['G01'] }, { export: 'E20250101-000000', groups: ['G01'] }, { export: id, groups: ['G07'] }, { bad: 1 }, { export: id, groups: [] }, { export: id, groups: 'all' }];
         const a = EL.applyRepo(lg, entries, now);
         assert.equal(a.changed, true);
-        assert.deepStrictEqual(a.issues.map((x) => [x.index, x.problem.slice(0, 8)]), [[1, '이 서버에 없는'], [3, '그 내보내기에 '], [4, '꼴이 틀림 — '], [5, '꼴이 틀림 — ']]);
+        assert.deepStrictEqual(a.issues.map((x) => [x.index, x.problem.slice(0, 8)]), [[1, '이 서버에 없는'], [3, '그 내보내기에 '], [4, '꼴이 틀림 — '], [5, '꼴이 틀림 — '], [6, '꼴이 틀림 — ']]);
         assert.deepStrictEqual(EL.openFamilies(lg.errors[0]), ['place'], '고친 유형(문장 수)만 — 지명 유형은 남음');
         assert.equal(lg.exports[0].resolved[shapeCode].by, 'merge'); assert.equal(lg.exports[0].resolved[shapeCode].note, '문장 수');
         assert.equal(EL.applyRepo(lg, entries, now).changed, false, '두 번째는 바뀐 것 없음');
+        assert.deepStrictEqual(EL.openFamilies(lg.errors[0]), ['place'], "'all' 은 받지 않음(「고친 유형만」 — 검토 ⑪)");
     });
     await check('[§11.10.48-5] 서비스 — 처음엔 상태 파일의 최근 3일 오류를 옮김(양쪽 같은 번호) · 실행 오류가 누적 기록에도 · 상태의 실행별 오류에 resolved:true · 저장소 파일은 첫 점검·상태 때 적용 · 깨진 기록은 지우지 않고 옮겨 둠', async () => {
         const d = fs.mkdtempSync(path.join(tmp, 'errlog-')); let clock = K('2026-10-17T08:00');
@@ -3414,7 +3415,8 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(md.startsWith('# 연안 안전 브리핑 — AI 브리핑 누적 오류(처리 완료 전 전부)\n'));
         assert.ok(md.includes('- 내보내기 번호: `E20261115-221034`') && md.includes('- 건수: 오류 2건 · 유형 2개 · 실행 2번') && md.includes('2026-11-14 ~ 2026-11-15'));
         assert.ok(md.includes('`local_server/config/station_briefing_resolved.json`') && md.includes('{ "export": "E20261115-221034", "groups": ["G01", "G03"]'), '처리 완료 기록 방법');
-        assert.ok(md.includes('| G01 | 해상 분석 문장 수가 3~5문장이 아님 (shape:sea-sentences) | 1 | 강화 1 (1곳) |'), md);
+        assert.ok(md.includes('| G01 | 해상 분석 문장 수가 3\\~5문장이 아님 (shape:sea-sentences) | 1 | 강화 1 (1곳) |'), md);
+        assert.ok(md.includes('「0.5\\~1.5m」 1'), '표 칸의 ~ 는 이스케이프(GFM 취소선 방지 — 검토 ⑬)');
         assert.ok(md.indexOf('### 2026-11-15 — 오류 1건') < md.indexOf('### 2026-11-14 — 오류 1건'), '최근 날짜부터');
         assert.ok(md.includes('#### 16:51 시작 · 17:30 판 · 2026-11-15 — 1건') && md.includes('#### 22:20 시작 · 23:00 판 · 2026-11-14 — 1건'));
         assert.ok(md.includes('| 인천해양경찰서 강화파출소 | 1번째 시도(ChatGPT) | G01 | shape:sea-sentences-2 |'), '유형 번호 칸');
@@ -3425,6 +3427,63 @@ const WIN = R.editionWindow('morning', T0);
         for (const e of [{ stage: 'call', provider: 'vm', reason: 'vm 시간초과(320초)' }, { stage: 'parse', provider: 'gemini', reason: 'bad json' }, { stage: 'deadline' }, { stage: 'run', reason: 'k 실행 실패(1번째): ENOSPC' }]) { const f = EL.familiesOf(e)[0]; assert.notEqual(A.familyText(f), f, f); }
         assert.equal(A.familyText('@call:vm:vm 시간초과(#초)'), 'AI 호출 실패(ChatGPT) — vm 시간초과(#초)');
         assert.ok(A.errorsMarkdown([{ ...e1, resolved: true }], K('2026-11-15T22:10'), { days: 3 }).includes('| (처리 완료) 1번째 시도(ChatGPT) — '), '실행별 md 의 처리 완료 표시');
+    });
+    await check('[§11.10.48-8] 독립 검토 반영(순수) — 유형은 넣을 때 정해 둠(규칙이 바뀌어도 처리 완료가 되살아나지 않음) · 상한은 처리 완료된 것부터 · 탈락 글은 처리 안 된 것 최근 5,000건만 · 새 번호는 넘겨받은 번호보다 크게 · 내보내기 목록(남은 것 전부)·지워진 수·남은 오류 수(중복 없이)', () => {
+        const now = K('2026-11-15T22:10');
+        // 규칙이 바뀌어도: 넣을 때 fam 을 정해 둔다 → reason 을 바꿔도(= 규칙이 다르게 읽어도) 처리 완료 그대로
+        const lg = EL.emptyLog(); EL.append(lg, [ve('2026-11-15T16:51:00+09:00', 'a|b', 'shape:sea-sentences-2')], now);
+        assert.deepStrictEqual(lg.errors[0].fam, ['shape:sea-sentences']);
+        const ex = EL.exportOpen(lg, now); EL.resolve(lg, ex.exp.id, null, 'manual', '', now);
+        lg.errors[0] = { ...lg.errors[0], reason: 'shape:sea-sentences-2,새규칙:x' }; assert.equal(EL.isOpen(lg.errors[0]), false, '되살아나지 않음');
+        // 상한 — 처리 완료된 것부터 지움(처리 안 된 오래된 것은 남김)
+        const big = EL.emptyLog(), N = EL.LOG_HARD_CAP;
+        big.errors = [{ id: 'e1', fam: ['place'], at: '2026-11-01T07:00:00+09:00', stage: 'validate', reason: 'place:old-open' }].concat(Array.from({ length: N - 1 }, (_, i) => ({ id: 'e' + (i + 2), fam: ['place'], resolved: { place: 'E1' }, at: '2026-11-02T07:00:00+09:00', stage: 'validate', reason: 'place:x' })));
+        EL.append(big, [ve('2026-11-15T16:51:00+09:00', 'a|b', 'place:new1'), ve('2026-11-15T16:51:00+09:00', 'a|b', 'place:new2')], now);
+        assert.equal(big.errors.length, N); assert.ok(big.errors.some((e) => e.reason === 'place:old-open'), '처리 안 된 오래된 오류는 남음'); assert.equal(big.capped.dropped, 2);
+        // 탈락 글 — 처리 안 된 것 최근 LOG_TEXT_KEEP 건만
+        const t = EL.emptyLog(); EL.append(t, Array.from({ length: EL.LOG_TEXT_KEEP + 2 }, (_, i) => ve('2026-11-15T16:51:00+09:00', 'a|b', 'place:' + i, { text: { sea: 's' } })), now);
+        assert.deepStrictEqual([t.errors.filter((e) => e.text).length, t.errors.filter((e) => e.textDropped).length, !!t.errors[0].textDropped, !!t.errors[t.errors.length - 1].text], [EL.LOG_TEXT_KEEP, 2, true, true]);
+        // 번호 — 넘겨받은 오류에 e7 이 있으면 새 번호는 e8 부터(깨진 기록을 되살릴 때 겹치지 않게 — 검토 ①)
+        const r = EL.emptyLog(); const out = EL.append(r, [{ id: 'e7', ...ve('2026-11-15T16:51:00+09:00', 'a|b', 'place:a') }, ve('2026-11-15T16:51:00+09:00', 'a|b', 'place:b')], now);
+        assert.deepStrictEqual(out.map((e) => e.id), ['e7', 'e8']);
+        // 내보내기 목록 — 남은 것이 있는 내보내기는 10개가 넘어도 모두, 끝난 것은 최근 5개 · 지워진 수 · 남은 오류 수(유형이 둘인 오류는 한 번)
+        const x = EL.emptyLog(); EL.append(x, [ve('2026-11-15T16:51:00+09:00', 'a|b', 'place:p,number:3m'), ve('2026-11-15T16:51:00+09:00', 'a|c', 'place:q')], now);
+        const first = EL.exportOpen(x, now).exp.id; for (let i = 0; i < 12; i++) EL.exportOpen(x, now + (i + 1) * 1000);
+        let sm = EL.summary(x, now, []);
+        assert.equal(sm.exports.length, 13, '남은 것 있는 내보내기 13개 모두'); assert.ok(sm.exports.some((e) => e.id === first)); assert.equal(sm.exports[0].openErrors, 2, '오류 2건(유형 3칸이지만)');
+        x.errors = x.errors.filter((e) => e.reason !== 'place:q');   // 보관 기간으로 지워진 셈
+        sm = EL.summary(x, now, []); const g = sm.exports.find((e) => e.id === first).groups.find((gg) => gg.family === 'place');
+        assert.deepStrictEqual([g.count, g.open, g.gone], [2, 1, 1]);
+    });
+    await check('[§11.10.48-9] 독립 검토 반영(서비스) — 깨진 기록은 최근 3일로 되살리되 번호가 겹치지 않고 「되살림」 알림 · 일시적 읽기 실패는 파일을 치우지 않고 상태는 「읽지 못함」 · 누적 기록 쓰기 실패여도 실행 실패 기록(재시도 대기)은 저장', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'errlog9-')); const clock = K('2026-10-17T08:00');
+        I.writeJson(path.join(d, 'state.json'), { done: [], errors: [{ id: 'e5', fam: ['place'], ...ve('2026-10-17T07:00:00+09:00', '제주해양경찰서|한림파출소', 'place:옛날') }] });
+        fs.writeFileSync(path.join(d, 'error_log.json'), '{');
+        const mk = () => SB.createService({ dir: d, clock: () => clock, risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: path.join(d, 'none.json'), hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] },
+            adapters: { vm: { available: () => true, call: async () => { throw new Error('down'); } }, gemini: { available: () => false } } });
+        const s1 = mk(); let st = s1.status();
+        assert.ok(st.errorLog.recovered && /^error_log\.broken-/.test(st.errorLog.recovered.file), '되살림 알림'); assert.equal(st.errorLog.open, 1, '최근 3일 오류(e5)로 되살림');
+        const lg = I.readJson(path.join(d, 'error_log.json')); assert.deepStrictEqual(lg.errors.map((e) => e.id), ['e5']); assert.equal(lg.seq, 5, '다음 번호는 e6 — 겹치지 않음');
+        // 일시적 읽기 실패(EIO 흉내 — 기록 자리를 폴더로) → 상태는 응답하되 누적 칸만 「읽지 못함」, 아무것도 치우지 않음
+        const d2 = fs.mkdtempSync(path.join(tmp, 'errlog9b-')); I.writeJson(path.join(d2, 'state.json'), { done: [], errors: [] }); fs.mkdirSync(path.join(d2, 'error_log.json'));
+        const s2 = SB.createService({ dir: d2, clock: () => clock, risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: path.join(d2, 'none.json'), hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] }, adapters: { vm: { available: () => false }, gemini: { available: () => false } } });
+        st = s2.status(); assert.ok(st.errorLog.unavailable, '읽지 못함: ' + JSON.stringify(st.errorLog)); assert.ok(Array.isArray(st.errors) && st.config, '상태 응답은 그대로');
+        assert.ok(fs.statSync(path.join(d2, 'error_log.json')).isDirectory() && !fs.readdirSync(d2).some((f) => /broken/.test(f)), '치우지 않음');
+        // 쓰기 실패여도 실행 실패 기록(재시도 대기)은 저장 — 실행이 던지는 경우(어댑터 아님: 관할 목록이 던짐)
+        const d3 = fs.mkdtempSync(path.join(tmp, 'errlog9c-')); I.writeJson(path.join(d3, 'state.json'), { done: ['2026-10-16|night'] }); fs.mkdirSync(path.join(d3, 'error_log.json'));
+        const s3 = SB.createService({ dir: d3, clock: () => K('2026-10-17T06:50'), risk: fakeRisk, marine: fakeMarine, loadStations: () => { throw new Error('관할 목록 실패'); }, alertsFile: path.join(d3, 'none.json'), hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] }, adapters: { vm: { available: () => false }, gemini: { available: () => false } }, adminPush: async () => ({ delivered: true }) });
+        const r = await s3.tick(); assert.ok(r.failed, JSON.stringify(r));
+        const st3 = I.readJson(path.join(d3, 'state.json')); assert.equal(st3.failures[r.failed].count, 1, '재시도 대기 기록이 저장됨(매분 다시 실행 안 함)');
+        assert.ok(st3.errors.some((e) => e.stage === 'run' && !e.id), '오류는 번호 없이 최근 3일 목록에');
+        assert.ok(s3.status().errorLog.writeIssue && /누적 오류 기록에 쓰지 못함/.test(s3.status().errorLog.writeIssue.what), '쓰기 실패 알림');
+        // 기록이 다시 되면 번호 없던 오류도 함께 들어감
+        fs.rmdirSync(path.join(d3, 'error_log.json')); const s3b = SB.createService({ dir: d3, clock: () => K('2026-10-17T07:01'), risk: fakeRisk, marine: fakeMarine, loadStations: () => { throw new Error('관할 목록 실패'); }, alertsFile: path.join(d3, 'none.json'), hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] }, adapters: { vm: { available: () => false }, gemini: { available: () => false } }, adminPush: async () => ({ delivered: true }) });
+        s3b.status(); assert.ok(I.readJson(path.join(d3, 'state.json')).errors.every((e) => e.id), '처음 읽을 때 번호 없던 오류도 옮김');
+    });
+    await check('[§11.10.48-10] 화면 — 누적 칸: 읽지 못함·되살림·쓰기 실패는 빨간 줄(초록 「없습니다」 아님) · 지워진 것은 「다른 내보내기로 처리」가 아님', () => {
+        const src = fs.readFileSync(path.join(__dirname, '../../client/js/admin/admin_station_briefing.js'), 'utf8');
+        assert.ok(/if \(L\.unavailable\) \{ red\(/.test(src) && /data-sb-open-recovered/.test(src) && /data-sb-open-write/.test(src));
+        assert.ok(/g\.gone >= g\.count \? '보관 기간·상한으로 모두 지워짐'/.test(src));
     });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);

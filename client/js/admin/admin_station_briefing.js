@@ -567,10 +567,11 @@
     /** 드롭다운 한 줄. 예: {at:'2026-10-17T18:31:00+09:00',kind:'manual',errors:[22]} → '10-17 18:31 · 관리자 즉시 실행 · 오류 22'. @param {Object} g @returns {string} [연계] ← drawRunErrors */
     function runOptionText(g) { return at(g.at) + ' · ' + (KIND[g.kind] || g.kind || '실행') + ' · 오류 ' + g.errors.length; }
     /**
-     * 마크다운 표 칸 하나 — 줄바꿈은 빈칸으로, 「\」「|」「`」「<」「>」는 앞에 역슬래시(글자 그대로 보이게 — 2026-10-17 독립 검토 11). 빈 값은 「—」.
+     * 마크다운 표 칸 하나 — 줄바꿈은 빈칸으로, 「\」「|」「`」「<」「>」「~」는 앞에 역슬래시(글자 그대로 보이게 — 2026-10-17 독립 검토 11 · 「~」는 §11.10.48 검토 ⑬:
+     * 「0.5~1.5m」·「1~2m」가 한 칸에 둘 들어가면 GFM 미리보기가 취소선으로 읽는다). 빈 값은 「—」.
      * 예: mdCell('a|b') → 'a\\|b' · mdCell(null) → '—'. @param {*} v @returns {string} [연계] ← errorsMarkdown·cumulativeMarkdown·rejectedMarkdown(넘겨받음)
      */
-    function mdCell(v) { return String(v === undefined || v === null || v === '' ? '—' : v).replace(/\r?\n/g, ' ').replace(/([\\|`<>])/g, '\\$1'); }
+    function mdCell(v) { return String(v === undefined || v === null || v === '' ? '—' : v).replace(/\r?\n/g, ' ').replace(/([\\|`<>~])/g, '\\$1'); }
     /**
      * 오류 목록을 마크다운으로(복사·md 저장이 같은 글을 쓴다). 표 칸의 줄바꿈은 빈칸으로, 「\」「|」「`」「<」「>」는 앞에 역슬래시를 붙여 글자 그대로 보이게 한다
      * (2026-10-17 독립 검토 11 — 이유 글의 `·<·> 가 마크다운 미리보기에서 코드·HTML 로 읽히지 않게 — CommonMark 문장부호 이스케이프).
@@ -602,7 +603,7 @@
      *     → '\n## 탈락한 AI 글 …\n\n### 1. 2026-10-18 14:08:00 · 인천해양경찰서 대청파출소 · 1번째 시도(ChatGPT)\n\n- 이유: `multiplier:1.1~1.2배`\n- 허용 배수 — 연안: `1.1배` · `1.2배` / 해상: (없음)\n…'
      * @param {Object[]} errs @param {Function} cell - errorsMarkdown 의 표 칸 이스케이프 @returns {string} [연계] ← errorsMarkdown
      */
-    function rejectedMarkdown(errs, cell) {
+    function rejectedMarkdown(errs, cell, keepText) {
         var list = errs.filter(function (e) { return e && (e.text || e.textDropped); });
         if (!list.length) return '';
         // 숫자·이유는 코드 칸(`…`)으로 — 「12~15시 · 15~18시」의 물결(~)이 GFM 미리보기에서 취소선으로 읽히지 않게. 글 속 백틱보다 긴 백틱으로 감싼다.
@@ -613,7 +614,7 @@
         var out = ['', '## 탈락한 AI 글 — 검사가 본 글과 그 관할의 허용 숫자·배수(' + list.length + '건)', ''];
         list.forEach(function (e, i) {
             out.push('### ' + (i + 1) + '. ' + [String(e.at || '').slice(0, 19).replace('T', ' '), stationsText(e.stations), attemptText(e)].map(cell).join(' · '), '', '- 이유: ' + code(e.reason || '—'));
-            if (!e.text) { out.push('- 글: 보관 상한(최근 1,000건)을 넘어 서버가 지웠습니다', ''); return; }
+            if (!e.text) { out.push('- 글: 보관 상한(' + (keepText || '최근 1,000건') + ')을 넘어 서버가 지웠습니다', ''); return; }
             var a = e.allowed || {}, m = a.multipliers || {};
             out.push('- 허용 배수 — 연안: ' + join(m.land) + ' / 해상: ' + join(m.sea), '- 허용 숫자: ' + join(a.numbers), '');
             [['land', '연안 분석'], ['sea', '해상 분석']].forEach(function (p) { var t = e.text[p[0]]; out.push(p[1] + ':', '', typeof t === 'string' && t ? fence(t) : '(없음)', ''); });
@@ -787,7 +788,7 @@
                 out.push('');
             });
         });
-        return out.join('\n') + '\n' + rejectedMarkdown(errs, cell);
+        return out.join('\n') + '\n' + rejectedMarkdown(errs, cell, '누적 기록은 처리 안 된 것 중 최근 5,000건');
     }
     /**
      * 「처리 안 된 오류 — 누적」 칸(§11.10.48) — 서버 status.errorLog 요약으로 그린다: 처리 완료 목록 알림(번호를 잘못 적음 등)·보관 상한 알림 → 처리 안 된 오류 수·유형별 목록
@@ -799,6 +800,11 @@
         var L = s.errorLog; if (!L) return;
         var box = el('div', 'margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);'); box.setAttribute('data-sb-open', '');
         box.appendChild(elc('div', 'sba-h', '처리 안 된 오류 — 누적(처리 완료 전까지 최대 ' + (L.keepDays || 90) + '일)'));
+        // 기록 문제는 빨간 줄로 — 못 읽은 것이 「처리 안 된 오류가 없습니다」(초록)처럼 보이지 않게(§11.10.48 검토 ② · CLAUDE.md L-291)
+        var red = function (t, mark) { var d = el('div', 'color:#fca5a5;font-size:.78rem;line-height:1.5;margin:4px 0;', t); d.setAttribute(mark, ''); box.appendChild(d); };
+        if (L.writeIssue) red('누적 기록 문제 — ' + L.writeIssue.what + ' · ' + at(L.writeIssue.at) + ' · ' + L.writeIssue.reason, 'data-sb-open-write');
+        if (L.unavailable) { red('누적 오류 기록을 읽지 못했습니다(' + L.unavailable + ') — 처리 안 된 오류 수를 알 수 없습니다. [새로고침]으로 다시 보세요.', 'data-sb-open-unavailable'); body.appendChild(box); return; }
+        if (L.recovered) red('누적 오류 기록 파일이 깨져 ' + at(L.recovered.at) + ' 에 최근 3일 오류로만 되살렸습니다 — 그 전 기록은 서버의 ' + L.recovered.file + ' 에 남아 있습니다(처리 완료 기록도 그 파일에).', 'data-sb-open-recovered');
         (L.issues || []).forEach(function (x) { var d = elc('div', 'sba-warn', '처리 완료 목록 확인 필요 — ' + (x.export ? x.export + ': ' : '') + x.problem + (x.index !== null && x.index !== undefined ? ' (resolved ' + (x.index + 1) + '번째 줄)' : '')); d.setAttribute('data-sb-open-issue', ''); box.appendChild(d); });
         if (L.capped) box.appendChild(elc('div', 'sba-warn', '보관 상한(' + L.capped.cap + '건)을 넘어 오래된 오류 ' + L.capped.dropped + '건을 지웠습니다(' + at(L.capped.at) + ').'));
         var head = elc('div', 'sba-sub'); head.setAttribute('data-sb-open-count', ''); box.appendChild(head);
@@ -843,20 +849,22 @@
         if (exps.length) {
             box.appendChild(elc('div', 'sba-k', '최근 내보내기'));
             exps.forEach(function (x) {
-                var left = (x.groups || []).filter(function (g) { return !g.resolved && g.open > 0; });
+                var left = (x.groups || []).filter(function (g) { return !g.resolved && g.open > 0; }), n = x.openErrors || 0;
                 var d = el('details'); d.className = 'sba-exp'; d.setAttribute('data-sb-export', x.id);
                 var sm = el('summary', '', x.id + ' · ' + at(x.at) + ' · 유형 ' + (x.groups || []).length + '개 · ' + (left.length ? '남은 유형 ' + left.length + '개' : '모두 처리 완료'));
                 d.appendChild(sm);
                 var ul = el('ul', 'margin:6px 0 0;padding-left:16px;');
                 (x.groups || []).forEach(function (g) {
-                    var how = g.resolved ? '처리 완료(' + (g.resolved.by === 'merge' ? '머지' : '버튼') + ' ' + at(g.resolved.at) + (g.resolved.note ? ' — ' + g.resolved.note : '') + ')' : g.open > 0 ? '남음 ' + g.open + '건' : '다른 내보내기로 처리 완료';
+                    // 지워진 것(보관 90일·상한 — gone)은 「다른 내보내기로 처리」라고 하지 않는다(§11.10.48 검토 ⑥)
+                    var how = g.resolved ? '처리 완료(' + (g.resolved.by === 'merge' ? '머지' : '버튼') + ' ' + at(g.resolved.at) + (g.resolved.note ? ' — ' + g.resolved.note : '') + ')'
+                        : g.open > 0 ? '남음 ' + g.open + '건' + (g.gone ? ' · 보관 기간·상한으로 지워짐 ' + g.gone + '건' : '')
+                        : g.gone >= g.count ? '보관 기간·상한으로 모두 지워짐' : '다른 내보내기로 처리 완료' + (g.gone ? ' · 지워짐 ' + g.gone + '건' : '');
                     ul.appendChild(el('li', '', g.code + ' ' + familyText(g.family) + ' — ' + g.count + '건 · ' + how));
                 });
                 d.appendChild(ul);
                 if (left.length) {
                     var b = elc('button', 'sba-btn', '남은 유형 모두 완료 처리'); b.type = 'button'; b.style.marginTop = '6px'; b.setAttribute('data-sb-export-resolve', x.id);
                     b.addEventListener('click', async function () {
-                        var n = left.reduce(function (a, g) { return a + g.open; }, 0);
                         if (!w.confirm(x.id + ' 의 남은 유형 ' + left.length + '개(오류 ' + n + '건)를 처리 완료로 바꿉니다. 처리 안 된 오류 목록·누적 md 에 더 나오지 않습니다(되돌릴 수 없음).')) return;
                         b.disabled = true; say(null, '처리 완료로 바꾸는 중…');
                         try {
@@ -910,6 +918,8 @@
     }
     /** 저장이 안 될 때 md 글을 읽기 전용 글상자로 띄운다(길게 눌러 복사). 예: showText(view, '# …'). @param {HTMLElement} view @param {string} text @returns {void} [연계] ← saveMarkdown */
     function showText(view, text) {
+        // 아주 큰 글(누적 md — 수 MB)은 글상자에 띄우지 않는다(§11.10.48 검토 ⑭ — 휴대폰 WebView 가 감당하기 어렵다). PC 브라우저에서 받게 안내.
+        if (String(text).length > 1000000) { var old0 = view.querySelector('[data-sb-err-text]'); if (old0) old0.remove(); var n0 = el('div', 'color:#fca5a5;font-size:.76rem;margin-top:6px;', '글이 너무 커서(' + Math.round(String(text).length / 1000) + '천 자) 화면에 띄우지 않습니다 — PC 브라우저의 관리자 화면에서 받으세요.'); n0.setAttribute('data-sb-err-text', ''); view.insertBefore(n0, view.firstChild); return; }
         var old = view.querySelector('[data-sb-err-text]'); if (old) old.remove();
         var ta = elc('textarea', 'sba-mdview'); ta.readOnly = true; ta.value = text; ta.setAttribute('data-sb-err-text', ''); ta.setAttribute('aria-label', '오류 마크다운 글');
         view.insertBefore(ta, view.firstChild);

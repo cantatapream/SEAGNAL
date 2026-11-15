@@ -27,8 +27,9 @@ const express = require('express'), crypto = require('crypto'), R = require('../
 // 앱 안(Capacitor WebView)용 md 내려받기 중계(§11.10.7) — admin_collect 의 PNG·CSV 저장(routes/usage.js /api/stats/usage/image)과 같은 원리: 맡기고 → 열쇠 → 시스템 브라우저가 GET.
 // 메모리에만 5분, 한 번 받으면 지운다. 크기 상한: 오류 보관 상한 5,000건 × 한 줄 수백 바이트 ≈ 수 MB 라 5MB(전역 express.json 상한과 같다).
 // 누적 오류 md(§11.10.48 — 처리 완료 전까지 최대 90일 · 탈락 글 포함)는 5MB 를 넘을 수 있어 글 그대로(Content-Type text/markdown, 이름은 ?name=)도 받는다 —
-//   전역 express.json(5MB)은 JSON 만 읽으므로 이 길은 DOWNLOAD_TEXT_MAX 까지. 맡긴 글 합계 상한 DOWNLOAD_TOTAL_BYTES: 없으면 큰 글 20개(20 × 20MB)가 512MB 서버 메모리를 넘길 수 있다.
-const DOWNLOAD_TTL_MS = 5 * 60000, DOWNLOAD_MAX = 20, DOWNLOAD_TEXT_MAX = '20mb', DOWNLOAD_TOTAL_BYTES = 40 * 1024 * 1024;
+//   전역 express.json(5MB)은 JSON 만 읽으므로 이 길은 DOWNLOAD_TEXT_MAX 까지. 누적 기록은 탈락 글을 최근 5,000건만 싣는다(station_briefing_errlog.LOG_TEXT_KEEP — 약 18MB) — md 는 그보다 조금 크다.
+//   맡긴 글 합계 상한 DOWNLOAD_TOTAL_BYTES: 없으면 큰 글 20개(20 × 40MB)가 서버 메모리(2GB — fly.toml)를 넘길 수 있다.
+const DOWNLOAD_TTL_MS = 5 * 60000, DOWNLOAD_MAX = 20, DOWNLOAD_TEXT_MAX = '40mb', DOWNLOAD_TOTAL_BYTES = 80 * 1024 * 1024;
 
 /**
  * 라우터를 만든다(시험은 서비스·기기 판정·토큰 확인·인증 미들웨어를 바꿔 넣는다).

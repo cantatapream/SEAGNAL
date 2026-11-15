@@ -23,14 +23,18 @@ const R = require('./station_briefing_rules');
 // 운영 정시 판 오류는 판마다 4~14건(2026-11-13~15 관리자 화면 6판 — 사용자 스크린샷)이라 하루 수십 건, 90일 수천 건이다. 30,000 은 그 몇 배 여유.
 // 상한으로 지운 것은 capped 로 남겨 관리자 화면이 밝힌다(조용히 사라지지 않게 — CLAUDE.md L-291).
 const LOG_KEEP_DAYS = 90, LOG_HARD_CAP = 30000;
+// 탈락 글(text·allowed) 보관 건수(독립 검토 ④): 글이 실린 오류는 한 건이 수 KB(문단 460자 둘 + 허용 숫자 — 검토 실측 3.7KB 꼴)라, 상한 30,000건을 모두 실으면 이 파일이 약 78MB
+//   (검토 실측 — 실행마다·관리자 화면마다 통째로 읽고 쓴다). 사용자 「파일이 길어져도 관계 없어」는 md 쪽 말이라, 서버 파일은 처리 안 된 것 중 최근 5,000건(약 18MB)만 글을 싣는다.
+//   그보다 오래된 것은 글만 빼고 textDropped:true(오류 줄은 그대로 — md 가 「보관 상한으로 글을 지움」을 밝힌다). 하루 60건 꼴이면 80일 넘게 글이 남는다(어림).
+const LOG_TEXT_KEEP = 5000;
 const DAY = 86400000;
 
-/** 빈 기록. @returns {object} {seq, errors, exports, capped} [연계] ← normLog·station_briefing.loadLog */
+/** 빈 기록. @returns {object} {seq, errors, exports, capped}(+ 깨진 파일에서 되살렸으면 recovered {at, file}) [연계] ← normLog·station_briefing.loadLog */
 function emptyLog() { return { seq: 0, errors: [], exports: [], capped: null }; }
 /** 파일에서 읽은 값을 기록 꼴로 다듬는다(칸이 빠졌거나 배열이 아니면 빈 값). @param {object|null} x @returns {object} [연계] ← station_briefing.loadLog */
 function normLog(x) {
     const o = x && typeof x === 'object' ? x : {};
-    return { seq: Number.isFinite(o.seq) ? o.seq : 0, errors: Array.isArray(o.errors) ? o.errors : [], exports: Array.isArray(o.exports) ? o.exports : [], capped: o.capped || null };
+    return { seq: Number.isFinite(o.seq) ? o.seq : 0, errors: Array.isArray(o.errors) ? o.errors : [], exports: Array.isArray(o.exports) ? o.exports : [], capped: o.capped || null, ...(o.recovered ? { recovered: o.recovered } : {}) };
 }
 
 // 검사 오류 열쇠 → 유형 열쇠. 뒤에 붙는 값(지명·숫자·문장 수·글자 수)을 떼어 같은 종류를 한 유형으로 묶는다.
@@ -67,6 +71,8 @@ function codeFamily(code) {
  */
 function familiesOf(e) {
     if (!e) return [];
+    // 기록에 넣을 때 정해 둔 유형(fam — append 가 단다)을 쓴다(독립 검토 ⑦): 이 규칙(FAMILY_RULES·숫자 → #)을 고쳐도 이미 처리 완료한 오류가 다른 유형 이름으로 바뀌어 되살아나지 않게.
+    if (Array.isArray(e.fam) && e.fam.length) return e.fam;
     const reason = String(e.reason || '');
     if (e.stage === 'validate') { const f = [...new Set(reason.split(',').map((x) => x.trim()).filter(Boolean).map(codeFamily))]; return f.length ? f : ['@validate:']; }
     if (e.stage === 'deadline') return ['@deadline'];
@@ -82,24 +88,33 @@ function isOpen(e) { return openFamilies(e).length > 0; }
 /** 보관 시작 날짜(KST) — 오늘 포함 LOG_KEEP_DAYS 일. 예: now 11-15 → '2026-08-18'. @param {number} now @returns {string} [연계] ← prune·applyRepo */
 function keepFrom(now) { return R.kstDate(now - (LOG_KEEP_DAYS - 1) * DAY); }
 /**
- * 보관 규칙대로 자른다(기록을 고친다) — 오류·내보내기는 최근 90일(KST 날짜)만, 오류가 상한을 넘으면 오래된 것부터 지우고 capped 에 시각·수. 상한 기록도 90일이 지나면 버린다.
+ * 보관 규칙대로 자른다(기록을 고친다) — 오류·내보내기는 최근 90일(KST 날짜)만. 오류가 상한을 넘으면 **처리 완료된 것부터**, 그래도 넘으면 처리 안 된 오래된 것을 지우고
+ * capped 에 시각·수(독립 검토 ⑤ — 종전엔 처리 여부와 관계없이 오래된 것부터라 처리 안 된 오류가 먼저 사라졌다). 상한 기록도 90일이 지나면 버린다.
+ * 처리 안 된 오류 중 최근 LOG_TEXT_KEEP 건만 탈락 글을 남긴다(그 전은 textDropped).
  * @param {object} log @param {number} now @returns {object} log [연계] ← append
  */
 function prune(log, now) {
     const from = keepFrom(now);
     log.errors = log.errors.filter((e) => e && typeof e.at === 'string' && e.at.slice(0, 10) >= from);
-    if (log.errors.length > LOG_HARD_CAP) { const n = log.errors.length - LOG_HARD_CAP; log.errors = log.errors.slice(n); log.capped = { at: R.isoKst(now), dropped: n, cap: LOG_HARD_CAP }; }
-    else if (log.capped && !(typeof log.capped.at === 'string' && log.capped.at.slice(0, 10) >= from)) log.capped = null;
+    if (log.errors.length > LOG_HARD_CAP) {
+        const n = log.errors.length - LOG_HARD_CAP, closed = log.errors.filter((e) => !isOpen(e)), drop = new Set(closed.slice(0, n));
+        if (drop.size < n) for (const e of log.errors) { if (drop.size >= n) break; drop.add(e); }
+        log.errors = log.errors.filter((e) => !drop.has(e)); log.capped = { at: R.isoKst(now), dropped: n, cap: LOG_HARD_CAP };
+    } else if (log.capped && !(typeof log.capped.at === 'string' && log.capped.at.slice(0, 10) >= from)) log.capped = null;
+    for (let i = log.errors.length - 1, n = 0; i >= 0; i--) { const e = log.errors[i]; if (!e.text || ++n <= LOG_TEXT_KEEP) continue; const { text: _t, allowed: _a, ...rest } = e; log.errors[i] = { ...rest, textDropped: true }; }
     log.exports = log.exports.filter((x) => x && typeof x.at === 'string' && x.at.slice(0, 10) >= from);
     return log;
 }
 /**
- * 오류들에 번호(id — 'e' + 늘어나는 수)를 붙여 기록에 더하고 보관 규칙대로 자른다. 이미 번호가 있는 오류는 그대로 둔다(같은 오류를 두 번 더하지 않게 부르는 쪽이 거른다).
- * 예: append(log{seq:4}, [{at,stage,…}]) → [{id:'e5', at, stage, …}] (log.seq 5)
+ * 오류들에 번호(id — 'e' + 늘어나는 수)와 유형(fam — 지금 규칙으로 정해 둠, familiesOf 참고)을 붙여 기록에 더하고 보관 규칙대로 자른다.
+ * 이미 번호가 있는 오류는 번호를 그대로 두고, 기록에 같은 번호가 있으면 다시 넣지 않는다. 새 번호는 기록·넘겨받은 오류의 가장 큰 번호보다 크게(번호가 겹치지 않게 — 독립 검토 ①).
+ * 예: append(log{seq:4}, [{at,stage,…}]) → [{id:'e5', fam:[…], at, stage, …}] (log.seq 5)
  * @param {object} log @param {object[]} add @param {number} now @returns {object[]} 번호가 붙은 오류(상태 파일의 최근 3일 목록에도 같은 것을 넣는다) [연계] ← station_briefing.addErrors·loadLog(처음 옮기기)
  */
 function append(log, add, now) {
-    const out = (add || []).map((e) => (e && e.id ? e : Object.assign({ id: 'e' + (++log.seq) }, e)));
+    const num = (id) => { const m = /^e(\d+)$/.exec(String(id || '')); return m ? Number(m[1]) : 0; };
+    log.seq = Math.max(log.seq, ...log.errors.map((e) => num(e.id)), ...(add || []).map((e) => num(e && e.id)));
+    const out = (add || []).filter(Boolean).map((e) => { const x = e.id ? e : Object.assign({ id: 'e' + (++log.seq) }, e); return Array.isArray(x.fam) ? x : { ...x, fam: familiesOf(x) }; });
     const have = new Set(log.errors.map((x) => x.id));
     log.errors = log.errors.concat(out.filter((e) => !have.has(e.id)));
     prune(log, now);
@@ -158,7 +173,7 @@ function resolve(log, id, codes, by, note, now) {
 }
 /**
  * 머지된 저장소 파일(config/station_briefing_resolved.json 의 resolved 배열)을 기록에 적용한다 — 서버가 켜진 뒤 첫 점검·관리자 상태·내보내기 때 부른다(이미 처리한 유형은 건너뛰어 여러 번 불러도 같다).
- * 줄 꼴: {export:'E20261115-221034', groups:['G01','G03'] 또는 'all', note:'…'}.
+ * 줄 꼴: {export:'E20261115-221034', groups:['G01','G03'], note:'…'}.
  * 맞지 않는 줄은 issues 로 돌려준다(관리자 화면이 알림 — 번호를 잘못 적어 아무 일도 안 일어나는 것이 조용히 지나가지 않게, CLAUDE.md L-291):
  *   꼴이 틀림 · 이 서버에 없는 내보내기(보관 기간 90일이 지난 번호는 문제 아님 — 건너뜀) · 그 내보내기에 없는 유형 번호.
  * 예: applyRepo(log, [{export:'E20261115-221034', groups:['G01']}], now) → {changed:true, issues:[]}
@@ -168,10 +183,11 @@ function applyRepo(log, entries, now) {
     const issues = []; let changed = false;
     const from = keepFrom(now).replace(/-/g, '');
     (Array.isArray(entries) ? entries : []).forEach((x, i) => {
-        const okGroups = x && (x.groups === 'all' || (Array.isArray(x.groups) && x.groups.length && x.groups.every((g) => typeof g === 'string')));
+        // 'all' 은 받지 않는다(독립 검토 ⑪ — 사용자 결정 「고친 유형만」. 남은 유형 전부는 관리자 버튼으로)
+        const okGroups = x && Array.isArray(x.groups) && x.groups.length && x.groups.every((g) => typeof g === 'string');
         if (!x || typeof x.export !== 'string' || !/^E\d{8}-\d{6}(?:-\d+)?$/.test(x.export) || !okGroups) { issues.push({ index: i, export: x && x.export ? String(x.export) : null, problem: '꼴이 틀림 — {"export":"E…","groups":["G01"]} 꼴이어야 함' }); return; }
         if (!log.exports.some((e) => e.id === x.export)) { if (x.export.slice(1, 9) >= from) issues.push({ index: i, export: x.export, problem: '이 서버에 없는 내보내기 번호' }); return; }
-        const r = resolve(log, x.export, x.groups === 'all' ? null : x.groups, 'merge', x.note, now);
+        const r = resolve(log, x.export, x.groups, 'merge', x.note, now);
         if (r.resolved.length) changed = true;
         if (r.unknown.length) issues.push({ index: i, export: x.export, problem: '그 내보내기에 없는 유형 번호 ' + r.unknown.join(', ') });
     });
@@ -213,11 +229,19 @@ function summary(log, now, issues) {
     const open = log.errors.filter(isOpen);
     const families = familyStats(open).map(({ ids: _ids, ...g }) => g);
     const byId = new Map(log.errors.map((e) => [e.id, e]));
-    const exports = log.exports.slice(-10).reverse().map((x) => ({
-        id: x.id, at: x.at,
-        groups: (x.groups || []).map((g) => ({ code: g.code, family: g.family, count: g.ids.length, open: g.ids.filter((id) => { const e = byId.get(id); return e && !(e.resolved || {})[g.family]; }).length, resolved: (x.resolved || {})[g.code] || null })),
-    }));
+    // 내보내기마다 유형별 오류 수·남은 수·지워진 수(보관 기간·상한 — 독립 검토 ⑥: 지워진 것을 「다른 내보내기로 처리」라 하지 않게)·처리 기록, 남은 오류 수(유형이 둘인 오류를 두 번 세지 않음 — ⑫).
+    // 목록: 남은 것이 있는 내보내기는 모두(독립 검토 ⑧ — 누를 때마다 새 내보내기가 생겨 10개 밖으로 밀리면 버튼으로 처리할 수 없었다), 끝난 것은 최근 5개.
+    const rows = log.exports.slice().reverse().map((x) => {
+        const left = new Set();
+        const groups = (x.groups || []).map((g) => {
+            let open = 0, gone = 0;
+            for (const id of g.ids) { const e = byId.get(id); if (!e) gone++; else if (!(e.resolved || {})[g.family]) { open++; if (!(x.resolved || {})[g.code]) left.add(id); } }
+            return { code: g.code, family: g.family, count: g.ids.length, open, gone, resolved: (x.resolved || {})[g.code] || null };
+        });
+        return { id: x.id, at: x.at, openErrors: left.size, groups };
+    });
+    const exports = rows.filter((x) => x.openErrors > 0).concat(rows.filter((x) => x.openErrors === 0).slice(0, 5));
     return { keepDays: LOG_KEEP_DAYS, cap: LOG_HARD_CAP, capped: log.capped, open: open.length, since: open.length ? open.reduce((m, e) => (e.at < m ? e.at : m), open[0].at) : null, families, exports, issues: issues || [] };
 }
 
-module.exports = { LOG_KEEP_DAYS, LOG_HARD_CAP, emptyLog, normLog, codeFamily, familiesOf, openFamilies, isOpen, prune, append, exportId, exportOpen, resolve, applyRepo, familyStats, summary };
+module.exports = { LOG_KEEP_DAYS, LOG_HARD_CAP, LOG_TEXT_KEEP, emptyLog, normLog, codeFamily, familiesOf, openFamilies, isOpen, prune, append, exportId, exportOpen, resolve, applyRepo, familyStats, summary };
