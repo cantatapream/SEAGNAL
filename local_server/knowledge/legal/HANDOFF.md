@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 04:08 KST] ✅완료 — 관리자 메인 [통보문] — 「MMIS와 상이 N개소」 줄·팝업
+별도 에이전트 구현(worktree) → 오케스트레이터 검토(이스케이프·updatedAt KST 확인) 후 반영. bulletin_compare.diffSnapshot(sig 기준, 부모별·칸별 다름·「왜?」 규칙 문장) → GET /api/admin/bulletin-status 의 diff. 화면: 상이 줄 + 아래 팝업(아코디언·구분|MMIS|통보문 표). test_bulletin_compare 58/0, watch 44/0, status 21/0, verify_all exit 0(실패 검사 이름 없음, 총정리 = 앞 회차와 동일한 법률 위키 표시줄). 미확인: 운영 실자료로 팝업 내용, 데스크톱 폭.
+
+
 ### [2026-11-16 03:36 KST] ✅완료 — 해상 기상 전망 색칠 AI — 관리자 순서 설정으로
 services/bulletin_ai 에 기능 forecast(③) 추가, marine_forecast_processor·regional_bulletin_collector 가 그 순서로 AI 호출. 기본 Gemini 만=종전 동작. test_bulletin_ai 29/0, verify_all exit 0(실패 검사 이름 없음). 다음: 별도 에이전트가 만드는 「MMIS와 상이 N개소」 줄·팝업 검토 후 반영.
 
