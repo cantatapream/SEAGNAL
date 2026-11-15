@@ -98,7 +98,6 @@
     "admin_collect.js",
     "admin_survey.js",
     "admin_report.js",
-    "admin_kakao_relay.js",
     "admin_bulletin_watch.js",
     "admin_location_status.js",
     "report_user.js",

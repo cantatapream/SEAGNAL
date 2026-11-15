@@ -15,7 +15,7 @@
  *                    (routes/bulletin_watch.js)
  *  - 마크업        : 없음(admin.js 의 #alert-top-content 안에 그린다)
  *  - 나를 쓰는 곳  : admin/admin.js renderUnifiedAlertContent → 「통보문 관찰」 탭 · 검사 test_bulletin_ai_trial(UI 부분)
- * [로드 순서] index2.html 에서 admin/admin.js 뒤, admin_kakao_relay.js 다음.
+ * [로드 순서] index2.html 에서 admin/admin.js 뒤.
  * ============================================================================
  */
 (function () {
