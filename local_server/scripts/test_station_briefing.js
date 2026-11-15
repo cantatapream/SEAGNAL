@@ -478,7 +478,8 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(p.briefing.summary.sea.headline.startsWith('내일 한림파출소 관할 해상의 단계는'), p.briefing.summary.sea.headline);
     });
     await check('설정: 기본값(관리자에게만·VM·해양경찰서 묶음·바뀐 곳만) · 선택지 밖 값 400 · ChatGPT 모델 목록 = codex_bridge 목록에서 gemini 뺀 것', () => {
-        assert.deepStrictEqual(svc.readConfig(), { method: 'chatgpt', chatgptModel: 'gpt-6-luna', geminiModel: 'gemini-2.5-flash', exposure: 'admin', batchUnit: 'office', onlyChanged: true });
+        // §11.10.51: 기본 method 'ai'(관리자 「AI 모델 설정 → ③」 순서 — 종전 'chatgpt')
+        assert.deepStrictEqual(svc.readConfig(), { method: 'ai', chatgptModel: 'gpt-6-luna', geminiModel: 'gemini-2.5-flash', exposure: 'admin', batchUnit: 'office', onlyChanged: true });
         assert.equal(svc.writeConfig({ exposure: 'user', batchUnit: 'region' }).exposure, 'user');
         assert.throws(() => svc.writeConfig({ method: 'claude' }), /설정값 오류/);
         svc.writeConfig({ exposure: 'admin', batchUnit: 'office' });
@@ -3295,6 +3296,69 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(md.indexOf('| 시각(KST) |') < md.indexOf('## 탈락한 AI 글'), '표가 먼저');
         assert.ok(A.errorsMarkdown([{ ...e1, reason: 'place:가`나' }], ms, { days: 3 }).includes('- 이유: `` place:가`나 ``\n'), '이유 속 백틱 — 더 긴 백틱 코드 칸');
         assert.ok(!A.errorsMarkdown([e3], ms, { days: 3 }).includes('탈락한 AI 글'), '글 실린 오류가 없으면 절 없음(종전 md 그대로)');
+    });
+    // ── §11.10.51 AI 순서 = 관리자 「AI 모델 설정 → ③ 연안 안전 브리핑」(2026-11-16 사용자 — 다른 AI 로도 · 줄마다 시도 횟수 · 클로드 키2→키1→업스테이지→ChatGPT→Gemini) ──
+    const cfg51 = { method: 'ai', batchUnit: 'office', onlyChanged: true };
+    const C51 = (over) => [{ id: 'claude2', model: 'claude-sonnet-5-5', effort: 'medium', runner: null, attempts: 1 }, { id: 'claude1', model: 'claude-sonnet-5-5', effort: 'medium', runner: null, attempts: 1 }, { id: 'upstage', model: 'solar-pro4', effort: 'medium', runner: null, attempts: 1 }, { id: 'chatgpt', model: 'gpt-6-luna', effort: null, runner: 'fly', attempts: 3 }, { id: 'gemini', model: 'gemini-2.5-flash', effort: null, runner: null, attempts: 1 }].map((c) => ({ ...c, ...((over || {})[c.id] || {}) }));
+    const fake51 = (calls, behave, why) => Object.fromEntries(['claude2', 'claude1', 'upstage', 'chatgpt', 'gemini'].map((id) => [id, {
+        available: () => behave[id] !== 'off', why: () => (why || {})[id] || '키 없음',
+        call: async ({ prompt, model, effort, runner }) => { calls.push([id, model, effort || null, runner || null, idsIn(prompt).length]); const b = behave[id]; if (b === 'throw') throw new Error(id + ' HTTP 500'); return b === 'bad' ? respond(idsIn(prompt), () => ({ land: null, sea: '짧은 글.' })) : respond(idsIn(prompt)); },
+    }]));
+    await check('[§11.10.51-1] 사슬 순서대로 — 못 쓰는 AI(키 없음)는 오류 없이 건너뛰고 skipped 한 번 · 검사에 떨어지면 다음 칸 · 칸마다 모델·노력·실행 위치를 어댑터에 · 통과한 공급자 수(byProvider)', async () => {
+        const calls = [];
+        const r = await AI.generate({ briefings: stationsFor(3), config: { ...cfg51, chain: C51() }, adapters: fake51(calls, { claude1: 'off', claude2: 'bad', upstage: 'ok' }), now: T0 });
+        assert.deepStrictEqual(calls.map((c) => c[0]), ['claude2', 'claude2', 'upstage', 'upstage'], '클로드 키2(떨어짐) → 클로드 키1 건너뜀 → 업스테이지 — 묶음 2개');
+        assert.deepStrictEqual(calls[0].slice(1, 4), ['claude-sonnet-5-5', 'medium', null]); assert.deepStrictEqual(calls[2].slice(1, 4), ['solar-pro4', 'medium', null]);
+        assert.ok(Object.values(r.overviews).every((o) => o.source === 'upstage' && o.model === 'solar-pro4'));
+        assert.deepStrictEqual(r.stats.byProvider, { upstage: 3 }); assert.deepStrictEqual(r.skipped, [{ id: 'claude1', reason: '키 없음' }]);
+        assert.ok(!r.errors.some((e) => e.provider === 'claude1'), '건너뛴 AI 는 묶음마다 오류를 남기지 않는다');
+        assert.ok(r.errors.filter((e) => e.stage === 'validate').every((e) => e.provider === 'claude2'), '떨어진 글은 공급자 claude2 로 기록');
+    });
+    await check('[§11.10.51-2] 줄마다 시도 횟수 — ChatGPT 3번(떨어진 관할만 다시, 실행 위치 전달) 뒤 Gemini · 시도 1번 칸은 한 번만', async () => {
+        const calls = [];
+        const r = await AI.generate({ briefings: stationsFor(1), config: { ...cfg51, chain: C51() }, adapters: fake51(calls, { claude2: 'off', claude1: 'off', upstage: 'off', chatgpt: 'bad', gemini: 'ok' }), now: T0 });
+        assert.deepStrictEqual(calls.map((c) => c[0]), ['chatgpt', 'chatgpt', 'chatgpt', 'gemini']);
+        assert.deepStrictEqual(calls[0].slice(1, 4), ['gpt-6-luna', null, 'fly']);
+        assert.equal(Object.values(r.overviews)[0].source, 'gemini'); assert.equal(r.stats.retried, 1);
+        const c2 = []; await AI.generate({ briefings: stationsFor(1), config: { ...cfg51, chain: C51({ claude2: { attempts: 2 } }) }, adapters: fake51(c2, { claude2: 'bad', claude1: 'off', upstage: 'off', chatgpt: 'off', gemini: 'ok' }), now: T0 });
+        assert.deepStrictEqual(c2.map((c) => c[0]), ['claude2', 'claude2', 'gemini'], '클로드 키2 시도 2번');
+    });
+    await check('[§11.10.51-3] 쓸 수 있는 AI 가 하나도 없으면 오류 한 줄 + 모두 규칙 분석 · 연속 실패 차단기는 Gemini 를 뺀 칸마다', async () => {
+        const r = await AI.generate({ briefings: stationsFor(3), config: { ...cfg51, chain: C51() }, adapters: fake51([], { claude2: 'off', claude1: 'off', upstage: 'off', chatgpt: 'off', gemini: 'off' }, { chatgpt: '작업자 연결 없음(Fly 서버)' }), now: T0 });
+        assert.equal(r.stats.template, 3); assert.equal(r.errors.length, 1);
+        assert.ok(/^쓸 수 있는 AI 없음 — 클로드 키2\(키 없음\), .*ChatGPT\(작업자 연결 없음\(Fly 서버\)\)/.test(r.errors[0].reason), r.errors[0].reason);
+        const calls = []; const many = Array.from({ length: 4 }, (_, i) => { const x = hallim(); x.key = '해경' + i + '|파출소' + i; x.office = '해경' + i; return R.buildBriefing(x, WIN, { generatedAt: R.isoKst(T0) }); });
+        const r2 = await AI.generate({ briefings: many, config: { ...cfg51, chain: C51() }, adapters: fake51(calls, { claude2: 'throw', claude1: 'off', upstage: 'off', chatgpt: 'off', gemini: 'ok' }), now: T0 });
+        assert.equal(calls.filter((c) => c[0] === 'claude2').length, 3, '클로드 키2 3번 연속 실패 뒤 차단');
+        assert.ok(r2.errors.some((e) => /^클로드 키2 연속 실패 3회 — 이번 실행은 건너뜀$/.test(e.reason)));
+        assert.ok(Object.values(r2.overviews).every((o) => o.source === 'gemini'), 'Gemini 는 차단하지 않는다');
+    });
+    await check('[§11.10.51-4] 재사용 — 같은 입력·같은 사슬이고 지난 글이 지금 1순위(쓸 수 있는 첫 칸) 것이면 재사용 · 아래 칸 글이면 위 칸이 살아난 뒤 다시 · 사슬(모델)이 바뀌면 다시', async () => {
+        const b1 = stationsFor(1), chain = C51();
+        const first = await AI.generate({ briefings: b1, config: { ...cfg51, chain }, adapters: fake51([], { claude2: 'ok' }), now: T0 });
+        const prev = { [b1[0].key]: { overview: Object.values(first.overviews)[0] } };
+        const c1 = []; const again = await AI.generate({ briefings: b1, config: { ...cfg51, chain }, previous: prev, adapters: fake51(c1, { claude2: 'ok' }), now: T0 });
+        assert.equal(c1.length, 0); assert.equal(again.stats.reused, 1);
+        const low = await AI.generate({ briefings: b1, config: { ...cfg51, chain }, adapters: fake51([], { claude2: 'off', claude1: 'off', upstage: 'off', chatgpt: 'off', gemini: 'ok' }), now: T0 });
+        const c2 = []; await AI.generate({ briefings: b1, config: { ...cfg51, chain }, previous: { [b1[0].key]: { overview: Object.values(low.overviews)[0] } }, adapters: fake51(c2, { claude2: 'ok' }), now: T0 });
+        assert.deepStrictEqual(c2.map((c) => c[0]), ['claude2'], 'Gemini 글 → 클로드 키2 가 살아나면 다시');
+        const c3 = []; await AI.generate({ briefings: b1, config: { ...cfg51, chain: C51({ claude2: { model: 'claude-opus-5-5' } }) }, previous: prev, adapters: fake51(c3, { claude2: 'ok' }), now: T0 });
+        assert.equal(c3.length, 1, '모델이 바뀌면 다시');
+    });
+    await check('[§11.10.51-5] 서비스 — aiChain 이 있으면 그 순서(옛 저장값 chatgpt 도) · 실행 기록에 method ai·사슬·skipped · 「규칙 분석만」이면 AI 안 부름 · aiChain 이 없으면 종전 사슬', async () => {
+        const d = fs.mkdtempSync(path.join(tmp, 'chain51-')); I.writeJson(path.join(d, 'state.json'), { done: ['2026-10-16|night'] });
+        const calls = [], mk = (aiChain) => SB.createService({ dir: d, clock: () => Date.parse(at(8)), risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: path.join(d, 'none.json'), hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] }, aiChain,
+            adapters: { ...fake51(calls, { claude2: 'off', claude1: 'off', upstage: 'ok' }), vm: { available: () => true, call: async ({ prompt }) => { calls.push(['vm']); return respond(idsIn(prompt)); } } } });
+        const s1 = mk(() => C51()); s1.writeConfig({ method: 'chatgpt' }); await s1.run({ kind: 'manual' });
+        let lr = I.readJson(path.join(d, 'state.json')).lastRun;
+        assert.equal(lr.method, 'ai'); assert.deepStrictEqual(lr.chain, ['claude2', 'claude1', 'upstage', 'chatgpt', 'gemini']);
+        assert.deepStrictEqual(lr.skipped.map((x) => x.id), ['claude2', 'claude1']);
+        assert.equal(calls[0][0], 'upstage', '건너뛴 두 칸 다음 업스테이지부터 — ' + JSON.stringify(calls)); assert.ok(!calls.some((c) => c[0] === 'claude2' || c[0] === 'claude1' || c[0] === 'vm'));
+        assert.ok(lr.results.every((x) => x.stats.byProvider && typeof x.stats.byProvider === 'object'), '실행 기록에 공급자별 통과 수');
+        calls.length = 0; s1.writeConfig({ method: 'template' }); await s1.run({ kind: 'manual' }); assert.equal(calls.length, 0, '규칙 분석만 — AI 안 부름');
+        lr = I.readJson(path.join(d, 'state.json')).lastRun; assert.equal(lr.method, 'template'); assert.ok(!('chain' in lr));
+        calls.length = 0; const s2 = mk(null); s2.writeConfig({ method: 'ai' }); await s2.run({ kind: 'manual' });
+        assert.equal(calls[0] && calls[0][0], 'vm', 'aiChain 없음 → 종전 사슬(VM 먼저) — ' + JSON.stringify(calls)); assert.ok(!calls.some((c) => ['claude2', 'claude1', 'upstage', 'chatgpt'].includes(c[0])));
     });
     // ── §11.10.49 운영 누적 오류 E20261116-003253(2026-11-13~15, 122건) — 검사 오판 고침·사용자 결정 3건·지시문 S17~S25. 운영 글은 관리자 누적 md 「탈락한 AI 글」 원문 ──
     const si49 = (o) => ({ name: '관할파출소', allowed_places: [], place_stems: [], kma_zones: [], allowed_number_keys: [], allowed_labels: [], allowed_multiplier_keys: { sea: [], land: [] }, levels: { sea: {}, land: {} }, fact_sentences: [], fact_terms: [], land: null, sea: { haegu_forecasts: [] }, ...o });

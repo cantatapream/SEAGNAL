@@ -1,5 +1,5 @@
 /**
- * test_bulletin_ai.js — 「AI 특보 분석」 기능별 AI 순서(services/bulletin_ai.js)와 그 API·일감별 실행 위치를 고정한다.
+ * test_bulletin_ai.js — 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·③ 연안 안전 브리핑)와 그 API·일감별 실행 위치를 고정한다.
  *
  * 왜 있나: ① 특보 읽기는 푸시에 직결된다. 순서대로 시도·실패 시 다음 순위·Gemini 를 뺄 수 없음·틀린 값 거절이
  *   조용히 깨지면 특보가 엉뚱한 AI 로 읽히거나 아예 안 읽힌다. 실제 AI·네트워크는 부르지 않는다(가짜로 바꿔 끼움).
@@ -83,6 +83,24 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     ok('POST 틀린 값 → 400', bad.status === 400);
     const good = await (await fetch(base + '/api/admin/bulletin-ai/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feature: 'interpret', models: { chatgpt: { model: 'gpt-6-luna', runner: 'vm' } } }) })).json();
     ok('POST 맞는 값 → 저장된 상태를 돌려준다', good.ok && good.config.interpret.models.chatgpt.runner === 'vm');
+    // §11.10.51 ③ 연안 안전 브리핑(2026-11-16 사용자 — 순서 「클로드 2번, 클로드 1번, 업스테이지, gpt, gemini」 · 다시 시도 「(나)」 줄마다 횟수)
+    ok('③ briefing 기본: 순서 클로드 키2→키1→업스테이지→ChatGPT→Gemini · 삭제 없음 · 시도 ChatGPT 3 나머지 1 · Gemini 모델 gemini-2.5-flash',
+      g.config.briefing && g.config.briefing.order.join() === 'claude2,claude1,upstage,chatgpt,gemini' && g.config.briefing.removed.length === 0
+      && JSON.stringify(g.config.briefing.attempts) === JSON.stringify({ upstage: 1, claude1: 1, claude2: 1, chatgpt: 3, gemini: 1 }) && g.config.briefing.models.gemini.model === 'gemini-2.5-flash', JSON.stringify(g.config.briefing));
+    ok('선택지: 브리핑 Gemini 모델 2개·시도 1~3 · 그 Gemini 모델 목록 = 브리핑 설정의 종전 선택지(station_briefing.CHOICES.geminiModel)',
+      g.choices.briefing && g.choices.briefing.attempts.join() === '1,2,3' && g.choices.briefing.geminiModels.join() === require('../services/station_briefing').CHOICES.geminiModel.join());
+    const post = async (body) => fetch(base + '/api/admin/bulletin-ai/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const pb = await (await post({ feature: 'briefing', attempts: { claude2: 2 }, models: { gemini: { model: 'gemini-2.5-flash-lite' }, chatgpt: { model: llm.CHOICES.chatgpt.models[0], runner: 'vm' } } })).json();
+    ok('POST briefing 시도·Gemini 모델·ChatGPT 실행 위치 저장', pb.ok && pb.config.briefing.attempts.claude2 === 2 && pb.config.briefing.attempts.chatgpt === 3 && pb.config.briefing.models.gemini.model === 'gemini-2.5-flash-lite' && pb.config.briefing.models.chatgpt.runner === 'vm', JSON.stringify(pb.config && pb.config.briefing));
+    ok('틀린 값 400: 시도 4 · 시도는 briefing 만 · Gemini 모델은 briefing 만 · 목록 밖 Gemini 모델 · Gemini 삭제',
+      (await post({ feature: 'briefing', attempts: { claude2: 4 } })).status === 400 && (await post({ feature: 'read', attempts: { claude2: 2 } })).status === 400
+      && (await post({ feature: 'interpret', models: { gemini: { model: 'gemini-2.5-flash' } } })).status === 400 && (await post({ feature: 'briefing', models: { gemini: { model: 'gemini-9' } } })).status === 400
+      && (await post({ feature: 'briefing', removed: ['gemini'] })).status === 400);
+    await post({ feature: 'briefing', removed: ['claude1'] });
+    const ch = bai.briefingChain();
+    ok('briefingChain — 삭제한 AI 를 빼고 순서대로, 칸마다 모델·노력·실행 위치·시도', ch.map((c) => c.id).join() === 'claude2,upstage,chatgpt,gemini'
+      && ch[0].attempts === 2 && ch[0].effort === 'medium' && ch[2].runner === 'vm' && ch[2].attempts === 3 && ch[3].model === 'gemini-2.5-flash-lite' && ch[0].runner === null, JSON.stringify(ch));
+    ok('①·② 응답 꼴은 그대로(attempts·gemini 모델 칸 없음)', !('attempts' in bai.getConfig().read) && !('gemini' in bai.getConfig().interpret.models));
     srv.close();
   }
   console.log(`\n  ${pass} PASS / ${fail} FAIL`);

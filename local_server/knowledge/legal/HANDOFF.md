@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 02:54 KST] 🟢착수 — AI 브리핑 AI 순서를 「AI 모델 설정」 ③ 목록으로 통일 + AI 브리핑 탭 정리
+사용자: 「ai 모델 선택 및 설정 부분은 ai 탭의 ai 모델 설정 … ① 특보 통보문 읽기 리스트와 같이 … 다른 ai로도 돌아가도록 … 모델설정 방식을 통일」 · 다시 시도 (나) 줄마다 횟수 · 처음 순서 클로드 키2 → 클로드 키1 → 업스테이지 → ChatGPT → Gemini. 서버: bulletin_ai 에 briefing 기능(순서·삭제·칸별 모델·노력·실행 위치·시도 횟수), station_briefing_ai.generate 가 그 순서대로(키 없음 등은 건너뛰고 실행 기록에 skipped), realAdapters 에 클로드·업스테이지·ChatGPT(실행 위치). 화면: admin_bulletin_ai ③ 목록, AI 브리핑 탭 정리(시안 A2 — 별도 worktree 에이전트). 브랜치 claude/eager-rubin-aean76.
+
+
 ### [2026-11-16 02:17 KST] ✅완료 — AI 모델 설정 탭으로 챗봇 모델 설정 옮김
 AI 탭 「AI 특보 분석」→「AI 모델 설정」 이름 변경. 맨 위 「AI 챗봇 모델」(답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치)을 ai_chat.js renderModelSettingsInto 로 그림, AI 챗봇→AI 모델 탭엔 자동 노출·질문 수만 남김. ChatGPT(VM) 이름표→ChatGPT. 크로미엄 화면 확인.
 
