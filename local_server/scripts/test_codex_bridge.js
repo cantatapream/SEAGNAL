@@ -241,6 +241,22 @@ const LUNA = { answerModel: 'gpt-6-luna', codexForUsers: false };
     Date.now = realNow;
     bridge.result(fakeReq({ id: vb.body.id, ok: true, text: 'e1' }, vmH), fakeRes());
     ok('그때 이미 가져간 일감은 그대로 답을 받는다', (await pa).response.text === 'e1');
+    // 일감마다 위치 지정(runner) — AI 특보 분석. 기본 위치가 fly 여도 vm 으로 지정한 일감은 VM 에게만.
+    const f2 = fakeRes(), v2 = fakeRes();
+    bridge.poll(fakeReq({}, flyH), f2); bridge.poll(fakeReq({}, vmH), v2);
+    const pv = bridge.callRaw({ contents: 'P1', caller: 't', runner: 'vm' }); await tick();
+    ok('runner:vm 으로 지정한 일감은 기본 위치(fly)와 상관없이 VM 에게', v2.body && v2.body.prompt === 'P1' && f2.done === false, JSON.stringify({ v: v2.body, f: f2.done }));
+    const pf = bridge.callRaw({ contents: 'P2', caller: 't' }); await tick();
+    ok('지정 없는 일감은 기본 위치(fly)로', f2.body && f2.body.prompt === 'P2');
+    bridge.result(fakeReq({ id: v2.body.id, ok: true, text: 'p1' }, vmH), fakeRes());
+    bridge.result(fakeReq({ id: f2.body.id, ok: true, text: 'p2' }, flyH), fakeRes());
+    ok('두 위치 답이 각자 돌아온다', (await pv).response.text === 'p1' && (await pf).response.text === 'p2');
+    // 지정한 일감은 기본 위치를 바꿔도 따라가지 않는다(VM 줄에서 기다린다).
+    const pv2 = bridge.callRaw({ contents: 'P3', caller: 't', runner: 'vm' }); await tick();
+    bridge.setRunner('vm'); bridge.setRunner('fly');
+    const v3 = fakeRes(); bridge.poll(fakeReq({}, vmH), v3);
+    ok('지정한 일감은 기본 위치를 바꿔도 지정한 쪽이 가져간다', v3.body && v3.body.prompt === 'P3', JSON.stringify(v3.body));
+    bridge.result(fakeReq({ id: v3.body.id, ok: true, text: 'p3' }, vmH), fakeRes()); await pv2;
   }
 
   console.log(`\n  ${pass} PASS / ${fail} FAIL`);

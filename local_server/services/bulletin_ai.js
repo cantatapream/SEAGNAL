@@ -25,8 +25,9 @@ const { writeFileAtomic } = require('./atomic_write');
 
 const FILE = process.env.BULLETIN_AI_CONFIG_FILE || path.join(__dirname, '..', 'data', 'bulletin_ai_config.json');
 const FEATURES = {
-    read: { name: '특보 통보문 읽기', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'] },          // 종전 = Gemini 만
-    interpret: { name: '참고사항 해석', order: ['claude2', 'claude1', 'chatgpt', 'upstage', 'gemini'] },        // 최근 시험 = 클로드 키2
+    // removed 기본값: ① 은 Gemini 만 남긴다 = 종전 동작 그대로(다른 AI 는 관리자가 「다시 추가」 해야 쓰인다 — 독립 검토: 키가 생기면 몰래 크레딧을 쓰지 않게).
+    read: { name: '특보 통보문 읽기', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] },
+    interpret: { name: '참고사항 해석', order: ['claude2', 'claude1', 'chatgpt', 'upstage', 'gemini'], removed: [] },        // 최근 시험 = 클로드 키2
 };
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';   // ai_report_parser 가 쓰던 모델(표시만 — 고르지 않는다)
 const llm = () => require('./llm_chain');
@@ -42,7 +43,7 @@ function normFeature(f, v) {
     const src = v && typeof v === 'object' ? v : {};
     const L = llm();
     const order = L.isValidOrder(src.order) ? src.order.slice() : FEATURES[f].order.slice();
-    const removed = L.normRemoved(src.removed);
+    const removed = L.isValidRemoved(src.removed) ? L.normRemoved(src.removed) : FEATURES[f].removed.slice();
     const models = L.normModels(src.models);
     const r = src.models && src.models.chatgpt && src.models.chatgpt.runner;
     models.chatgpt.runner = RUNNERS().includes(r) ? r : require('./codex_bridge').DEFAULT_RUNNER;
@@ -52,7 +53,7 @@ function normFeature(f, v) {
 /** 저장된 설정 전체. 파일이 없거나 깨지면 기본값. @returns {{read:object, interpret:object}} */
 function getConfig() {
     let raw = {};
-    try { raw = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (_) { /* 없으면 기본값 */ }
+    try { raw = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[AI 특보 분석] 설정 파일을 못 읽어 기본값을 씀:', e.message); }
     return { read: normFeature('read', raw.read), interpret: normFeature('interpret', raw.interpret) };
 }
 
@@ -64,7 +65,7 @@ function getConfig() {
  * [연계] ← routes/bulletin_watch.js POST /api/admin/bulletin-ai/config
  */
 function setConfig(f, patch) {
-    if (!FEATURES[f]) return { ok: false, error: 'feature 는 read|interpret' };
+    if (!Object.prototype.hasOwnProperty.call(FEATURES, f)) return { ok: false, error: 'feature 는 read|interpret' };   // __proto__·constructor 막기(독립 검토)
     const L = llm(), p = patch || {};
     if (p.order !== undefined && !L.isValidOrder(p.order)) return { ok: false, error: `order 는 ${L.PROVIDERS.join(',')} 다섯 개를 한 번씩` };
     if (p.removed !== undefined && !L.isValidRemoved(p.removed)) return { ok: false, error: 'removed 는 gemini 를 뺀 AI 중 겹치지 않게(gemini 는 뺄 수 없음)' };
@@ -113,7 +114,7 @@ async function call(f, prompt, opt) {
     const config = o.json === false ? {} : { responseMimeType: 'application/json' };
     const cfg = getConfig()[f] || normFeature('read');
     const tried = [];
-    let last = { success: false, error: '시도한 AI 없음' };
+    let last = { success: false, error: '시도한 AI 없음' }, limited = false;
     for (const id of cfg.order) {
         if (cfg.removed.includes(id)) continue;
         let r;
@@ -128,7 +129,8 @@ async function call(f, prompt, opt) {
                 const x = await llm().callDirect(id, { contents: prompt, config }, cfg.models[id]);
                 r = x.success ? { success: true, text: x.response.text, keyLabel: id } : { success: false, error: x.error };
             }
-        } catch (e) { r = { success: false, error: String(e && e.message || e) }; }
+        } catch (e) { console.warn(`[AI 특보 분석] ${id} 호출 중 예외 — 다음 순위로:`, e && e.message); r = { success: false, error: String(e && e.message || e) }; }
+        if (r.isRateLimited) limited = true;
         tried.push({ id, ok: !!r.success, error: r.success ? null : String(r.error || '').slice(0, 200) });
         if (r.success && r.text && String(r.text).trim()) {
             const text = id === 'gemini' || o.json === false ? r.text : require('./codex_bridge').stripFence(r.text);
@@ -137,7 +139,8 @@ async function call(f, prompt, opt) {
         }
         last = r;
     }
-    return { success: false, error: last.error || '모든 AI 실패', isRateLimited: !!last.isRateLimited, tried };
+    // 시도한 AI 중 하나라도 한도 초과(429)였으면 isRateLimited — report_alert_processor 의 「10분 뒤 재시도」 분기가 종전대로 타게(독립 검토).
+    return { success: false, error: last.error || '모든 AI 실패', isRateLimited: limited, tried };
 }
 
 module.exports = { FEATURES, GEMINI_MODEL, getConfig, setConfig, choices, call, normFeature, FILE };

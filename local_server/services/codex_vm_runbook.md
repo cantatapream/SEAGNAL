@@ -174,3 +174,19 @@ echo ${#TOKEN}   # 64 면 성공
 - **두 작업자를 함께 켜 둬도 된다** — VM 과 Fly 는 각각 따로 로그인한 상태라 토큰 갱신이 서로를 끊지 않을 것으로 본다(⚠따로 로그인한 두 세션이
   서로 영향이 없는지는 시험하지 않았다). 정액제 한도는 같은 계정이라 함께 쓴다.
 - 시험: `test_codex_bridge.js` ⑥(실행 위치 11문항).
+
+## 12. AI 특보 분석 — 기능별 AI 우선순위 (2026-11-15 추가)
+
+> 사용자 원문: *"특보읽기, 참고사항해석에 지금 반영되어있는 모든 ai 툴을 다 선택할 수 있도록 선택 폭을 넓게 두고자 하는거야. 각 기능별 사용 ai의 우선순위를 정해두고 그 우선순위대로 작동할 수 있도록"* · *"chat gpt도 fly, vm중 고를 수있도록 하고, gpt의 모델도 선택할 수 있도록"*
+
+- **화면**: 관리자 센터 AI 탭 → 「AI 특보 분석」(AI 브리핑 오른쪽, `client/js/admin/admin_bulletin_ai.js`).
+  ① 특보 통보문 읽기 · ② 참고사항 해석마다 순서(▲▼·삭제·다시 추가, Gemini 는 뺄 수 없음)·칸별 모델·노력, ChatGPT 칸은 모델과 실행 위치(Fly/VM).
+- **서버**: `services/bulletin_ai.js` — 저장 `data/bulletin_ai_config.json`, `call(feature, prompt)` 이 순서대로 시도(실패·키 없음·소진·작업자 없음 → 다음).
+  API `GET·POST /api/admin/bulletin-ai/config`(관리자 토큰). 기본 순서: ① Gemini 1순위(종전), ② 클로드 키2 1순위(최근 시험).
+- **ChatGPT 실행 위치는 일감마다**: `codex_bridge.callRaw({runner})` — 지정한 일감(pinned)은 그 위치 작업자만 가져가고, AI 챗봇 탭의 기본 위치를 바꿔도 따라가지 않는다.
+  지정 없는 일감(나리야·브리핑)은 종전대로 기본 위치(§11).
+- **⚠① 특보 읽기는 운영에서 아직 꺼져 있다** — `ai_report_parser.js` 첫 줄 검사가 `GEMINI_API_KEY` 를 보는데 운영에는 그 시크릿이 없다
+  (2026-11-15 `fly ssh console` 에서 `GEMINI_API_KEY: 없음`, `GEMINI_API_KEY_26_8: 있음` 확인). 그래서 통보문 AI 읽기가 매번 「키 없음」으로 건너뛰어진다.
+  사용자 결정(*"권장대로"*): 탭·순서 저장·② 시험을 먼저 내고, ① 켜기는 지난 통보문으로 비교한 뒤 따로 정한다.
+- **② 사용처**: 「특보 관리 → 통보문 관찰」의 「참고사항 AI 시험 — 설정한 순서 · 표본 200건」(trial=4). 결과에 답한 AI(`provider`)가 남는다.
+- 시험: `test_bulletin_ai.js`(23) · `test_codex_bridge.js` ⑥ 일감별 위치 · `test_bulletin_ai_trial.js`.

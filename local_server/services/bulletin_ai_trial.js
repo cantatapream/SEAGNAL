@@ -228,6 +228,7 @@ function createTrial({ ai, sample, sampleFile = SAMPLE_FILE, file = STATE_FILE, 
         const rec = { at: new Date(t0).toISOString(), ms: now() - t0 };
         if (!r || !r.success) { rec.ok = false; rec.error = (r && r.error) || '응답 없음'; if (r && r.creditOut) rec.creditOut = true; return rec; }
         rec.raw = String(r.response && r.response.text || '').slice(0, 6000);
+        if (r.provider) rec.provider = r.provider;   // 4차(설정한 순서) — 몇 순위 AI 가 답했는지
         try { rec.parsed = JSON.parse(require('./codex_bridge').stripFence(rec.raw)); } catch (_) { rec.parsed = null; }
         rec.ok = !!rec.parsed;
         if (!rec.ok) rec.error = 'JSON 으로 읽을 수 없는 답';
@@ -322,6 +323,11 @@ function reportMarkdown(rows, st) {
  */
 function aiFor(provider) {
     const config = { responseMimeType: 'application/json' };
+    // config = 관리자 센터 「AI 특보 분석」 ② 참고사항 해석 순서대로(services/bulletin_ai). 누가 답했는지 provider 로 남긴다.
+    if (provider === 'config') return async (prompt) => {
+        const r = await require('./bulletin_ai').call('interpret', prompt, { caller: 'Bulletin-AI-Trial' });
+        return r.success ? { success: true, response: { text: r.text }, provider: r.provider } : { success: false, error: r.error };
+    };
     if (provider === 'claude2' || provider === 'claude1') return (prompt) => require('./llm_chain').callClaudeDirect(provider, { contents: prompt, config });
     return (prompt) => require('./codex_bridge').callRaw({ contents: prompt, config, caller: 'Bulletin-AI-Trial' });
 }
@@ -333,6 +339,8 @@ const TRIALS = {
     // 3차 = 2025년 중 1·2차에 없던 표현(사용자 2026-11-16 「25년도 내용도 볼 필요가 있지 않을까」)
     '3': { label: '3차 · 클로드 키2 · 2025년 새 표현 224건', provider: 'claude2',
         sampleFile: path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample_3.json'), file: path.join(__dirname, '..', 'data', 'bulletin_ai_trial_3.json') },
+    // 4차 = 관리자 센터 「AI 특보 분석」 ② 참고사항 해석 순서대로 · 1차와 같은 표본 200건(사용자 2026-11-15 「각 기능별 사용 ai의 우선순위 … 그 우선순위대로 작동」)
+    '4': { label: '설정한 순서 · 「AI 특보 분석」 참고사항 해석 · 표본 200건', provider: 'config', sampleFile: SAMPLE_FILE, file: path.join(__dirname, '..', 'data', 'bulletin_ai_trial_4.json') },
 };
 const reals = {};
 const getReal = (id) => { const k = TRIALS[id] ? id : '1'; return (reals[k] = reals[k] || createTrial(TRIALS[k])); };

@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 01:37 KST] ✅완료 — AI 특보 분석 탭(기능별 AI 우선순위)
+관리자 AI 탭에 「AI 특보 분석」 추가: ① 특보 읽기·② 참고사항 해석마다 AI 순서·모델·노력·ChatGPT 모델/실행위치(Fly|VM). services/bulletin_ai.js, API /api/admin/bulletin-ai/config, codex_bridge 일감별 runner, 통보문 관찰 4차 시험(설정 순서). ① 운영은 여전히 꺼짐(GEMINI_API_KEY 운영에 없음 — 사용자 확인, 켜기는 비교 후 결정). 독립 검토 5건 중 4건 수정. test_bulletin_ai 26 PASS.
+
+
 ### [2026-11-16 01:14 KST] ✅완료 — ChatGPT 실행 위치 선택(Fly/VM)
 관리자 센터 AI 챗봇 「AI 모델」 탭에 「ChatGPT 실행 위치」 추가(codexRunner fly|vm, 기본 fly). codex_bridge 작업자별 대기·접속시각 분리, 고른 쪽에만 일감, 연결 없는 쪽으로 바꾸면 줄 일감 즉시 실패. 독립 검토 4건 중 3건 수정(5분 멈춤·배지 문구·설정 깨짐 시 fly 복귀), 1건(화면 연결상태 자동 갱신 없음) 남김. test_codex_bridge 46 PASS. 다음: 사용자 요청 「AI 특보 분석」 탭(특보 읽기·참고사항 해석 모델·노력·실행 위치 각각 선택).
 
