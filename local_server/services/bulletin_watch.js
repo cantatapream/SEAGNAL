@@ -123,6 +123,12 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
                             emit({ atMs: at, kind: 'list_changed', stn, office: OFFICES[stn], rpt, code: e.code, before: s.listValue, after: e.value, 설명: `${OFFICES[stn]} 목록 글자가 바뀜: 「${String(s.listValue).trim()}」 → 「${String(e.value).trim()}」` });
                             s.listValue = e.value;
                         }
+                        // 본문을 안 갖고 있는 옛 기록(2026-11-16 01:05 이전에 본 것 — 그땐 본문을 저장하지 않았다)은 한 번 다시 받아 채운다.
+                        //   없으면: 그 전에 본 3일 치 통보문이 통보문 기준 특보현황에서 통째로 빠져 「전 해역 특보없음」으로 보인다(2026-11-16 사용자 지적).
+                        if (!('result' in s)) {
+                            try { s.result = await detail(stn, e.code); stat.details++; s.backfilled = true; } catch (err) { console.warn('[bulletin_watch] 옛 기록 본문 채우기 실패', e.code, err && err.message); }
+                            continue;
+                        }
                         const ageMin = (at - s.firstMs) / 60e3;
                         // 다시 보기 시계는 「내용을 처음 본 때」부터 — 빈 동안은 매분 보고 있으니 쓰지 않는다
                         const due = s.fullMs == null ? undefined : RECHECK_MIN.find((m) => (at - s.fullMs) / 60e3 >= m && !s.rechecked.includes(m));

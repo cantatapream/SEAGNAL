@@ -98,6 +98,21 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
         ok('목록에 아직 있는 통보문은 오래돼도 「새 통보문」으로 다시 잡지 않음', s.kinds().filter((k) => k === 'new').length === 2);
     }
 
+    console.log('B4. 본문 없는 옛 기록 채우기');
+    {
+        const s = setup();
+        s.f.lists['184|6'] = [{ code: C1, value: 'v1' }]; s.f.details[C1] = FULL6;
+        await s.w.run();
+        const st = JSON.parse(fs.readFileSync(path.join(s.dir, 'state.json'), 'utf8'));
+        delete st.seen[C1].result; fs.writeFileSync(path.join(s.dir, 'state.json'), JSON.stringify(st));   // 01:05 이전에 본 기록 흉내
+        const w2 = createWatch({ post: s.f.post, login: s.f.login, now: () => T0 + 60e3, dir: s.dir, sleep: async () => {}, gapMs: 0 });
+        ok('옛 기록은 bulletins() 에 안 나옴(본문 없음)', w2.bulletins().length === 0);
+        const d = s.f.calls.detail; await w2.run();
+        ok('다음 회차에 본문을 한 번 다시 받아 채움 → bulletins() 에 나옴', s.f.calls.detail === d + 1 && w2.bulletins().length === 1 && w2.bulletins()[0].result.t2 === FULL6.t2);
+        const d2 = s.f.calls.detail; await w2.run();
+        ok('채운 뒤엔 다시 안 받음', s.f.calls.detail === d2);
+    }
+
     console.log('C. 빈 통보문 → 채워질 때까지 매분');
     {
         const s = setup();
