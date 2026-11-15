@@ -4,7 +4,6 @@
  * 역할: 앱을 처음 켠 사람이 **관심 해역을 고르는 화면**입니다.
  *       ①"설정해보세요" 안내 → ②어느 바다인지 고르기(동해·서해·남해·제주)
  *       → ③고른 바다마다 지도에서 구역을 눌러 고르기 → ④설정에 저장.
- *       고르고 나면 이어서 튜토리얼이 시작됩니다.
  *
  * [연계]
  *  - 사용파일 : js/core/config.js (SEA_REGIONS · SUB_REGION_ZONES — 바다/구역 목록)
@@ -14,21 +13,19 @@
  *               assets/vendor/ol/ol.js (지도)
  *  - 서버API  : GET /api/warn-zones (특보구역 실제 경계 44개, GeoJSON)
  *  - 마크업   : 없음 — 이 파일이 덮개를 통째로 만들어 body 에 붙인다
- *  - 호출처   : js/tutorial/tutorial.js 의 숨은 진입로(공지사항 탭 3초 안에 5연타)
- *               window.openZoneSetup(끝났을때호출할함수) ·
- *               js/forecast/alerts/render.js 의 「해역별 특보현황」 ⚙(관심해역 안 골랐을 때만 보임 —
- *               window.openZoneSetup(함수, {testFlag:false}), 2026-10-17)
+ *  - 호출처   : js/forecast/alerts/render.js 의 「해역별 특보현황」 ⚙(관심해역 안 골랐을 때만 보임 —
+ *               window.openZoneSetup(끝났을때호출할함수), 2026-10-17)
  *
- * [로드 순서] index2.html 맨 끝, tutorial.js **앞**(tutorial.js 가 이 파일을 부른다)
+ * [로드 순서] index2.html 맨 끝(누를 때만 열리므로 앞 스크립트가 모두 올라온 뒤면 된다)
  *
- * ⚠ 첫 실행 흐름(관심해역 → 튜토리얼)은 아직 숨은 진입로로만 열리는 시험 모드입니다.
- *   2026-10-17부터 「해역별 특보현황」 ⚙ 로는 일반 사용자도 이 화면(딱지 없이)을 엽니다.
+ * 2026-11-15: 이 화면을 먼저 띄우던 온보딩 튜토리얼(js/tutorial/)을 지우면서,
+ *   튜토리얼에서 열 때만 붙던 「관심해역 설정 시험 모드」 딱지와 그것을 끄던 testFlag 도 함께 지웠다.
  */
 (function () {
     'use strict';
 
     // ========================================================================
-    // [모양 값] 튜토리얼(js/tutorial/tutorial.js)과 같은 색을 쓴다
+    // [모양 값] 화면 색
     // ========================================================================
     var C_CARD   = '#1c2338';
     var C_ACCENT = '#448aff';
@@ -39,7 +36,7 @@
     var WARN_ZONES_URL = '/api/warn-zones';
 
     var _root = null;      // 덮개
-    var _onDone = null;    // 끝나면 부를 함수(튜토리얼 시작)
+    var _onDone = null;    // 끝나면 부를 함수(⚙ 의 뒷정리)
     var _macroSel = [];    // 고른 바다 이름들 ('동해' …)
     var _queueIdx = 0;     // 지금 몇 번째 바다를 고르는 중인가
     var _picked = {};      // { 구역명: true } — 고른 구역
@@ -104,25 +101,15 @@
 
     /**
      * 덮개를 만들어 화면에 붙인다(터치는 덮개가 모두 받는다).
-     * @param {boolean} withFlag - true 면 왼쪽 위에 「관심해역 설정 시험 모드」 딱지를 붙인다
      * @returns {HTMLElement}
      */
-    function _build(withFlag) {
+    function _build() {
         var root = document.createElement('div');
         root.id = 'zone-setup-overlay';
         root.style.cssText = 'position:fixed;inset:0;z-index:100000;background:' + C_DIM
             + ';display:flex;align-items:center;justify-content:center;'
             + 'padding:calc(16px + env(safe-area-inset-top,0px)) 14px calc(16px + env(safe-area-inset-bottom,0px));'
             + 'box-sizing:border-box;font-family:\'Noto Sans KR\',sans-serif;';
-
-        if (withFlag) {
-            var flag = document.createElement('div');
-            flag.textContent = '관심해역 설정 시험 모드';
-            flag.style.cssText = 'position:absolute;left:12px;top:calc(10px + env(safe-area-inset-top,0px));'
-                + 'padding:4px 10px;border-radius:20px;background:rgba(68,138,255,0.18);border:1px solid '
-                + C_ACCENT + ';color:' + C_ACCENT + ';font-size:0.66rem;font-weight:700;letter-spacing:0.5px;';
-            root.appendChild(flag);
-        }
 
         var card = document.createElement('div');
         card.id = 'zone-setup-card';
@@ -441,20 +428,17 @@
     /**
      * 관심해역 설정 화면을 연다.
      *
-     * @param {Function} [onDone] - 다 고르거나 건너뛰면 부를 함수(튜토리얼 시작에 쓴다). 인자 skipped(건너뛰기면 true)
-     * @param {Object} [opts] - { testFlag:false } 면 「시험 모드」 딱지를 붙이지 않는다(일반 사용자 화면에서 열 때).
-     *                          주지 않으면 종전과 똑같다(딱지 있음).
-     * [연계] tutorial.js 의 숨은 진입로가 부른다(opts 없이 — 종전 그대로) ·
-     *        forecast/alerts/render.js openAlertZoneSetup()(「해역별 특보현황」 ⚙ — {testFlag:false}, 2026-10-17).
+     * @param {Function} [onDone] - 다 고르거나 건너뛰면 부를 함수. 인자 skipped(건너뛰기면 true)
+     * [연계] forecast/alerts/render.js openAlertZoneSetup()(「해역별 특보현황」 ⚙, 2026-10-17).
      *        콘솔에서 window.openZoneSetup() 로도 열린다.
      */
-    function open(onDone, opts) {
+    function open(onDone) {
         if (_root) return;
         _onDone = (typeof onDone === 'function') ? onDone : null;
         _macroSel = [];
         _queueIdx = 0;
         _picked = {};
-        _root = _build(!(opts && opts.testFlag === false));
+        _root = _build();
         document.body.appendChild(_root);
         _stepGate();
     }

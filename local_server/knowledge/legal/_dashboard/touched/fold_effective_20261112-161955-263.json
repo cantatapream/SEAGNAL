@@ -1,0 +1,22 @@
+{
+ "script": "fold_effective",
+ "stamp": "20261112-161955-263",
+ "files": [
+  "local_server/knowledge/legal/_legacy/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/법률_시행20250621_MST267423.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/법률.txt",
+  "local_server/knowledge/legal/raw/07_해양환경생태/해양폐기물및해양오염퇴적물관리법/_meta.json",
+  "local_server/knowledge/legal/_legacy/raw/10_항만물류/항만법/법률_시행20261027_MST291459.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/법률.txt",
+  "local_server/knowledge/legal/_legacy/raw/10_항만물류/항만법/시행규칙_시행20260713_MST288183.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/시행규칙.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/항만법/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json",
+  "local_server/knowledge/legal/wiki/annexes/항만법__시행규칙_별표2_행정처분기준.md",
+  "local_server/knowledge/legal/wiki/concepts/항만법__시설장비검사및행정처분.md",
+  "local_server/knowledge/legal/wiki/concepts/항만법__항만개발사업허가및배후단지입주.md",
+  "local_server/knowledge/legal/wiki/concepts/항만법__항만관리법인및시설관리권.md",
+  "local_server/knowledge/legal/wiki/concepts/항만법__항만시설사용.md",
+  "local_server/knowledge/legal/wiki/concepts/해양폐기물및해양오염퇴적물관리법__해양유입차단및바다환경지킴이.md",
+  "local_server/knowledge/legal/wiki/statutes/항만법.md"
+ ]
+}

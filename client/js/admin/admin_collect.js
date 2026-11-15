@@ -5,7 +5,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : admin.js(관리자 토큰/showUnifiedAdminModal), Chart.js(CDN — 방문자 통계 차트)
- *  - 서버 API      : /api/admin/report-collect·forecast-collect·crawl-status·crawl-toggle·collect-failures·processed-reports·storage-usage, /api/stats/visitors(/csv)·usage(/csv/image), /api/boards, /api/promo, /api/weather-alerts
+ *  - 서버 API      : /api/admin/report-collect·forecast-collect·crawl-status·crawl-toggle·collect-failures·processed-reports·storage-usage·disk-usage(서버 디스크 — 저장소 탭·N 뱃지), /api/stats/visitors(/csv)·usage(/csv/image), /api/boards, /api/promo, /api/weather-alerts
  *  - 마크업        : index2.html #api-management-modal, #atm-content, #alert-test-modal-overlay, #atm-* (수집 테스트 모달 요소)
  *  - 나를 쓰는 곳  : admin.js (관리자 센터에서 showCollectTestModal/renderVisitorChart 호출) — 또한 window.showAlertManagementModal 을 여기서 재정의
  * ============================================================================
@@ -5180,83 +5180,158 @@ function hexToRgb(hex) {
 })();
 
 // ============================================================================
-// (H) 외부 저장소 현황 섹션 렌더링
+// (H) 저장소 현황 섹션 렌더링 — 서버 디스크(Fly 볼륨) · Cloudinary · Google Cloud Storage
+//     2026-11-15 사용자 결정: 「외부 저장소」 → 「저장소」, 종류별로 나눠 보이기, 서버 디스크 80% 넘으면 푸시·탭 N 뱃지
 // ============================================================================
 
 /**
- * 외부 저장소 현황 탭의 전체 화면을 렌더링합니다.
+ * 저장소 탭의 전체 화면을 렌더링합니다.
+ * - 서버 디스크(Fly 볼륨 — local_server/data): 전체·사용·남은 용량 게이지 + 종류별(이름으로 나눔) 크기 — 펼치면 폴더·파일 이름
  * - Cloudinary: 이미지/문서 업로드에 사용하는 클라우드 저장소
  * - Google Cloud Storage: 일일 자동 백업에 사용하는 클라우드 저장소
  *
  * [동작 흐름]
  * 1. 로딩 스피너 표시
- * 2. /api/admin/storage-usage API 호출
- * 3. 응답 데이터로 게이지 바 + 수치 렌더링
+ * 2. /api/admin/disk-usage · /api/admin/storage-usage 를 함께 호출(한쪽이 실패해도 다른 쪽은 그린다)
+ * 3. 응답 데이터로 게이지 바 + 수치 렌더링, 탭 N 뱃지 갱신
  *
  * [연계]
- * - routes/admin.js → GET /api/admin/storage-usage (사용량 데이터 제공)
+ * - routes/admin.js → GET /api/admin/disk-usage(서버 디스크 — services/disk_usage.js) · GET /api/admin/storage-usage(Cloudinary·GCS)
  * - admin.js → switchUnifiedAdminTab('storage')에서 이 함수를 호출
  *
  * @param {HTMLElement} container - 탭 내용이 렌더링될 컨테이너 요소
  */
 async function renderUnifiedStorageContent(container) {
-    // 1단계: 로딩 화면 표시
-    container.innerHTML = `
+    const head = `
         <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <div><i class="fa-solid fa-cloud" style="color:#7dd3fc;"></i> 외부 저장소 현황</div>
+            <div><i class="fa-solid fa-database" style="color:#7dd3fc;"></i> 저장소 현황</div>
             <button onclick="renderUnifiedStorageContent(document.getElementById('unified-admin-body'))"
                     style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; padding:5px 12px; border-radius:8px; font-size:0.75rem; cursor:pointer;">
                 <i class="fa-solid fa-rotate"></i> 새로고침
             </button>
-        </div>
+        </div>`;
+    // 1단계: 로딩 화면 표시
+    container.innerHTML = head + `
         <div style="text-align:center; padding:60px; color:#64748b;">
             <i class="fa-solid fa-circle-notch fa-spin fa-2x"></i>
             <p style="margin-top:12px;">저장소 사용량을 조회하는 중...</p>
         </div>
     `;
 
-    // 2단계: 서버 API 호출
-    try {
-        const res = await fetch(CONFIG.API_BASE + '/api/admin/storage-usage');
-        const data = await res.json();
+    // 2단계: 서버 API 호출 — 서버 디스크와 클라우드는 따로 실패할 수 있다(예: Cloudinary 응답이 늦어도 디스크는 보이게)
+    const getJson = async (url) => { const r = await fetch(CONFIG.API_BASE + url, { cache: 'no-store' }); const j = await r.json(); if (!r.ok) throw new Error(j && j.error || ('HTTP ' + r.status)); return j; };
+    const [disk, cloud] = await Promise.allSettled([getJson('/api/admin/disk-usage'), getJson('/api/admin/storage-usage')]);
 
-        // 3단계: 데이터를 기반으로 화면 구성
-        let html = `
-            <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
-                <div><i class="fa-solid fa-cloud" style="color:#7dd3fc;"></i> 외부 저장소 현황</div>
-                <button onclick="renderUnifiedStorageContent(document.getElementById('unified-admin-body'))"
-                        style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; padding:5px 12px; border-radius:8px; font-size:0.75rem; cursor:pointer;">
-                    <i class="fa-solid fa-rotate"></i> 새로고침
-                </button>
+    // 3단계: 데이터를 기반으로 화면 구성
+    let html = head;
+    html += _renderStorageGroupTitle('서버 디스크', 'Fly.io 서버에 붙은 저장 디스크 — 앱 자료·기록이 여기에 쌓입니다');
+    html += disk.status === 'fulfilled' ? _renderDiskCard(disk.value) : _renderStorageError('서버 디스크', disk.reason);
+    html += _renderStorageGroupTitle('클라우드 저장소', '업로드 이미지·자동 백업');
+    if (cloud.status === 'fulfilled') {
+        html += _renderCloudinaryCard(cloud.value.cloudinary);
+        html += _renderGcsCard(cloud.value.gcs);
+    } else html += _renderStorageError('클라우드 저장소', cloud.reason);
+
+    // ── 안내 문구 ──
+    html += `
+        <div style="margin-top:16px; padding:12px 16px; background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+            <div style="display:flex; align-items:center; gap:8px; color:#64748b; font-size:0.75rem;">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>사용량이 <span style="color:#f59e0b;">80%</span>를 초과하면 경고가 표시됩니다.
+                서버 디스크는 80%를 넘으면 관리자 휴대폰에 알림 1통이 가고 「저장소」 탭에 N 뱃지가 붙습니다(75% 아래로 내려갔다가 다시 넘으면 또 알림).
+                Cloudinary 대역폭은 매월 초에 초기화됩니다.</span>
             </div>
-        `;
+        </div>
+    `;
+    container.innerHTML = html;
+    if (disk.status === 'fulfilled') _setStorageBadge(!!disk.value.warn);
+}
 
-        // ── Cloudinary 카드 ──
-        html += _renderCloudinaryCard(data.cloudinary);
+/** HTML 글자 이스케이프(서버 폴더·파일 이름을 화면에 넣을 때). 예: '<a>' → '&lt;a&gt;'. @param {*} v @returns {string} [연계] ← _renderDiskCard */
+function _storageEsc(v) { return String(v === undefined || v === null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+/** 저장소 탭 묶음 제목. @param {string} t @param {string} sub @returns {string} [연계] ← renderUnifiedStorageContent */
+function _renderStorageGroupTitle(t, sub) { return '<div data-storage-group style="margin:14px 2px 8px;"><div style="color:#e2e8f0;font-weight:800;font-size:0.86rem;">' + _storageEsc(t) + '</div><div style="color:#64748b;font-size:0.7rem;margin-top:2px;">' + _storageEsc(sub) + '</div></div>'; }
+/** 조회 실패 카드. @param {string} what @param {*} err @returns {string} [연계] ← renderUnifiedStorageContent */
+function _renderStorageError(what, err) {
+    console.warn('[관리자 저장소] ' + what + ' 조회 실패:', err && err.message);
+    return '<div class="admin-card" style="padding:18px;margin-bottom:16px;color:#ef4444;text-align:center;"><i class="fa-solid fa-triangle-exclamation"></i> ' + _storageEsc(what) + ' 정보를 불러오지 못했습니다: ' + _storageEsc((err && err.message) || err) + '</div>';
+}
 
-        // ── Google Cloud Storage 카드 ──
-        html += _renderGcsCard(data.gcs);
-
-        // ── 안내 문구 ──
-        html += `
-            <div style="margin-top:16px; padding:12px 16px; background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
-                <div style="display:flex; align-items:center; gap:8px; color:#64748b; font-size:0.75rem;">
-                    <i class="fa-solid fa-circle-info"></i>
-                    <span>사용량이 <span style="color:#f59e0b;">80%</span>를 초과하면 경고가 표시됩니다.
-                    Cloudinary 대역폭은 매월 초에 초기화됩니다.</span>
+/**
+ * 서버 디스크 카드 — 사용량 게이지(전체 대비) · 남은 공간 · 마지막 자동 점검 · 종류별 크기(펼치면 이름·크기·파일 수).
+ * 마지막 자동 점검이 실패했으면 그 사실을, 80% 이상이면 경고 줄을 보인다(조용히 「이상 없음」처럼 보이지 않게 — CLAUDE.md L-291).
+ * 예: _renderDiskCard({disk:{total:2.1e9,used:9.9e8,avail:9.7e8,pct:50.6}, warn:false, lastCheck:{at,ok:true}, categories:[…]})
+ * @param {Object} d - GET /api/admin/disk-usage 응답 @returns {string} HTML [연계] ← renderUnifiedStorageContent / → _renderGaugeBar·_formatBytes
+ */
+function _renderDiskCard(d) {
+    let inner = '';
+    if (!d.disk) {
+        inner = '<div style="text-align:center;padding:20px;color:#ef4444;">디스크를 재지 못했습니다: ' + _storageEsc(d.error || '알 수 없음') + '</div>';
+    } else {
+        const k = d.disk, usable = k.usable || (k.used + k.avail);   // 게이지 분모 = df 와 같은 기준(사용 + 쓸 수 있는 남은 양 — 예약 블록 뺌). 옆 칸도 같은 수(독립 검토 4 — 분모가 둘이면 헷갈림)
+        inner += _renderGaugeBar('사용량', k.used, usable);
+        if (d.warn) inner += '<div data-disk-warn style="margin:-6px 0 12px;padding:8px 10px;border-radius:8px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#fca5a5;font-size:0.76rem;line-height:1.5;"><i class="fa-solid fa-triangle-exclamation"></i> ' + d.warnPct + '% 이상 사용 중 — 가득 차면 브리핑·특보 자료 저장이 실패합니다. 아래 큰 항목을 정리하거나 디스크를 늘리세요.</div>';
+        inner += '<div style="display:flex;gap:10px;margin-bottom:12px;">'
+            + '<div style="flex:1;background:rgba(0,0,0,0.2);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:0.7rem;color:#64748b;margin-bottom:4px;">남은 공간</div><div style="font-size:1.05rem;font-weight:800;color:#fff;">' + _formatBytes(k.avail) + '</div></div>'
+            + '<div style="flex:1;background:rgba(0,0,0,0.2);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:0.7rem;color:#64748b;margin-bottom:4px;">쓸 수 있는 크기</div><div style="font-size:1.05rem;font-weight:800;color:#fff;">' + _formatBytes(usable) + '</div><div style="font-size:0.62rem;color:#64748b;margin-top:2px;">디스크 ' + _formatBytes(k.total) + ' 중 예약분 뺌</div></div>'
+            + '</div>';
+    }
+    // 자동 점검(운영 서버에서 10분마다) — 아직 한 번도 안 돌았으면(서버가 막 켜짐·개발 환경) 그렇게 밝힌다
+    const lc = d.lastCheck, at = (x) => String(x || '').slice(5, 16).replace('T', ' ');
+    const lcText = !lc ? '자동 점검 기록 없음(서버가 켜진 뒤 아직 점검 전이거나 개발 환경)' : lc.ok ? '마지막 자동 점검 ' + at(lc.at) + ' — ' + lc.disk.pct + '%' : '마지막 자동 점검 ' + at(lc.at) + ' 실패 — ' + lc.error;
+    inner += '<div data-disk-lastcheck style="font-size:0.7rem;color:' + (lc && !lc.ok ? '#fca5a5' : '#94a3b8') + ';margin-bottom:4px;">' + _storageEsc(lcText) + '</div>';
+    // 알림 — 보냄(실제로 1대 이상 전달된 것만 서버가 alerted 로 적는다) / 80% 이상인데 아직 전달 안 됨(다음 점검 때 다시 보냄)
+    if (d.alert && d.alert.alerted) inner += '<div style="font-size:0.7rem;color:#fbbf24;margin-bottom:8px;">' + _storageEsc('80% 넘음 알림 보냄 ' + at(d.alert.at) + '(' + d.alert.pct + '%) — 75% 아래로 내려가면 다시 알릴 수 있게 됩니다') + '</div>';
+    else if (lc && lc.ok && lc.pushed === false) inner += '<div data-disk-push-fail style="font-size:0.7rem;color:#fca5a5;margin-bottom:8px;">' + _storageEsc('80% 넘음 알림을 보내지 못했습니다(' + at(lc.at) + ' — 관리자 기기 등록·푸시 설정 확인). 다음 자동 점검 때 다시 보냅니다') + '</div>';
+    // 종류별 크기
+    const cats = Array.isArray(d.categories) ? d.categories : [], sum = cats.reduce((a, c) => a + (c.bytes || 0), 0) || 1;
+    if (cats.length) {
+        inner += '<div style="font-size:0.72rem;color:#64748b;font-weight:700;margin:10px 0 6px;"><i class="fa-solid fa-layer-group" style="margin-right:4px;"></i>종류별 크기 <span style="font-weight:400;">(이름으로 나눔 · 누르면 항목)</span></div>';
+        cats.forEach((c) => {
+            const pct = (c.bytes / sum) * 100;
+            inner += '<details data-disk-cat style="background:rgba(0,0,0,0.2);border-radius:8px;padding:8px 10px;margin-bottom:6px;"><summary style="cursor:pointer;list-style:none;">'
+                + '<div style="display:flex;justify-content:space-between;gap:8px;font-size:0.8rem;color:#e2e8f0;"><span style="font-weight:700;">' + _storageEsc(c.category) + '</span><span>' + _formatBytes(c.bytes) + ' <span style="color:#64748b;">(' + pct.toFixed(1) + '%)</span></span></div>'
+                + '<div style="background:rgba(0,0,0,0.3);border-radius:4px;height:5px;overflow:hidden;margin-top:5px;"><div style="background:#38bdf8;height:100%;width:' + pct.toFixed(1) + '%;"></div></div></summary>'
+                + '<div style="margin-top:6px;">' + (c.items || []).map((it) => '<div style="display:flex;justify-content:space-between;gap:8px;font-size:0.72rem;color:#cbd5e1;padding:3px 0;border-top:1px solid rgba(255,255,255,0.04);"><span style="overflow-wrap:anywhere;">' + (it.dir ? '<i class="fa-regular fa-folder" style="color:#64748b;margin-right:4px;"></i>' : '') + _storageEsc(it.name) + '</span><span style="white-space:nowrap;">' + _formatBytes(it.bytes) + (it.dir ? ' <span style="color:#64748b;">· ' + (it.files || 0).toLocaleString() + '개</span>' : '') + '</span></div>').join('') + '</div></details>';
+        });
+    }
+    return `
+        <div class="admin-card" data-disk-card style="padding:18px; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.05);">
+                <div style="width:36px; height:36px; background:rgba(16,185,129,0.15); border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                    <i class="fa-solid fa-hard-drive" style="color:#34d399; font-size:1rem;"></i>
+                </div>
+                <div>
+                    <div style="font-weight:700; color:#fff; font-size:0.9rem;">서버 디스크 (Fly 볼륨)</div>
+                    <div style="font-size:0.7rem; color:#64748b;">local_server/data — 앱 자료·브리핑·기록</div>
                 </div>
             </div>
-        `;
+            ${inner}
+        </div>
+    `;
+}
 
-        container.innerHTML = html;
-
-    } catch (e) {
-        container.innerHTML += `
-            <div style="color:#ef4444; text-align:center; padding:30px;">
-                <i class="fa-solid fa-triangle-exclamation"></i> 저장소 정보를 불러오지 못했습니다: ${e.message}
-            </div>
-        `;
-    }
+/**
+ * 「저장소」 탭 N 뱃지를 켜고 끈다(서버 디스크 80% 이상 — 2026-11-15 사용자 결정). 공지사항과 같은 .new-badge 모양.
+ * @param {boolean} on @returns {void} [연계] ← refreshStorageBadge·renderUnifiedStorageContent
+ */
+function _setStorageBadge(on) {
+    const btn = document.querySelector('.admin-main-tab[data-tab="storage"]'); if (!btn) return;
+    const cur = btn.querySelector('[data-storage-badge]');
+    if (on && !cur) { const b = document.createElement('span'); b.className = 'new-badge'; b.textContent = 'N'; b.setAttribute('data-storage-badge', ''); b.setAttribute('aria-label', '서버 디스크 80% 이상'); b.style.cssText = 'position:absolute;top:4px;right:6px;'; btn.style.position = 'relative'; btn.appendChild(b); }
+    else if (!on && cur) cur.remove();
+}
+/**
+ * 관리자 센터를 열 때 서버 디스크 사용률만 가볍게 물어 「저장소」 탭 N 뱃지를 맞춘다(GET /api/admin/disk-usage?only=summary — 폴더를 훑지 않음).
+ * 실패하면 뱃지를 건드리지 않고 콘솔에 남긴다(뱃지가 안 뜨는 것이 「이상 없음」과 구분이 안 되므로 — 3-44 관례).
+ * @returns {Promise<void>} [연계] ← admin.js showUnifiedAdminModal(모달을 만든 직후)
+ */
+async function refreshStorageBadge() {
+    try {
+        const r = await fetch(CONFIG.API_BASE + '/api/admin/disk-usage?only=summary', { cache: 'no-store' });
+        const j = await r.json(); if (!r.ok) throw new Error(j && j.error || ('HTTP ' + r.status));
+        _setStorageBadge(!!j.warn);
+    } catch (e) { console.warn('[관리자] 저장소 뱃지 확인 실패 — 디스크 80% 뱃지가 안 뜰 수 있다:', e && e.message); }
 }
 
 /**

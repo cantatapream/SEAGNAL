@@ -78,6 +78,12 @@ COPY local_server/package.json ./local_server/
 # 의존성 설치
 RUN npm install --legacy-peer-deps
 
+# ----------------------------------------------------------------------------
+# codex(ChatGPT 정액제) 명령 — 나리야 답변 AI 작업자가 쓴다(services/codex_inproc.js).
+#   시크릿 CODEX_AUTH_JSON 이 없으면 설치만 돼 있고 쓰이지 않는다. 버전 고정: 2026-11-15 Fly 시험한 판.
+# ----------------------------------------------------------------------------
+RUN npm install -g @openai/codex@0.169.0 && codex --version
+
 # 전체 소스 복사
 COPY . .
 

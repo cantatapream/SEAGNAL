@@ -1,0 +1,9 @@
+{
+ "script": "collect_pending_law",
+ "stamp": "20261109-110123-248",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20261112/법률.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/_대기/20261112/_meta.json",
+  "local_server/knowledge/legal/_dashboard/pending_index.json"
+ ]
+}

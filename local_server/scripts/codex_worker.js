@@ -63,8 +63,10 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function runCodex(prompt, json, model) {
   const outFile = path.join(WORK_DIR, 'last_message.txt');
   try { fs.unlinkSync(outFile); } catch (_) { /* 없으면 그만 */ }
+  // web_search="disabled": codex 는 웹 검색 도구가 기본으로 켜져 있다 — 근거가 우리 자료 밖으로 나가지 않게 끈다
+  //   (2026-11-15 Fly 서버 시험: 끄기 전엔 스스로 검색, 끈 뒤엔 `web search:` 줄 없음. 설계 문서 §0 「인터넷 검색은 쓰지 않는다」).
   const args = ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '-s', 'read-only',
-    '-C', EMPTY_DIR, '-o', outFile];
+    '-c', 'web_search="disabled"', '-C', EMPTY_DIR, '-o', outFile];
   if (model) args.push('-m', model);
   args.push('-');
   return new Promise((resolve) => {

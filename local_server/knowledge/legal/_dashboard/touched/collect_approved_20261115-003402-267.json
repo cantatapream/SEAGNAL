@@ -1,0 +1,10 @@
+{
+ "script": "collect_approved",
+ "stamp": "20261115-003402-267",
+ "files": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/제주지방해양경찰청과그소속기관위임전결규칙.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/별표/제주지방해양경찰청과그소속기관위임전결규칙_별표1.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/별표/제주지방해양경찰청과그소속기관위임전결규칙_별표2.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/별표/제주지방해양경찰청과그소속기관위임전결규칙_별표3.txt"
+ ]
+}

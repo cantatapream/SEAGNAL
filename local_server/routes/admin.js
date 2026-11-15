@@ -15,8 +15,11 @@
  * - POST /api/admin/manual-alert → 수동 특보 등록 (zone tree 직접 주입)
  * - POST /api/admin/manual-alert-release → 수동 특보 해제
  * - POST /api/admin/reports-collect-all → 전체 통보문 일괄 수집
+ * - GET /api/admin/disk-usage → 서버 디스크(Fly 볼륨) 사용량·종류별 크기(?only=summary — 「저장소」 탭 80% 뱃지)
+ * - GET /api/admin/storage-usage → Cloudinary·Google Cloud Storage 사용량
  *
  * [연계 파일]
+ * - services/disk_usage.js → 서버 디스크 재기·80% 푸시
  * - weather_alerts_crawler.js → 장부 구조 생성, 상태 전환, 변경 감지
  * - report_alert_processor.js → 통보문 가져오기, zone tree 업데이트
  * - ai_report_parser.js → 통보문 AI 분석
@@ -1477,6 +1480,26 @@ router.get('/api/block-status', (req, res) => {
         });
     } catch (e) {
         res.json({ maintenance: { active: false, blockedFeatures: [] }, workMode: { active: false } });
+    }
+});
+
+// ============================================================================
+// 서버 디스크(Fly 볼륨) 사용량 — 관리자 「저장소」 탭 · 80% 뱃지 (2026-11-15 사용자 결정, services/disk_usage.js)
+// ============================================================================
+
+/**
+ * GET /api/admin/disk-usage — 서버 저장 디스크(local_server/data) 전체·사용·남은 용량·사용률과 종류별 크기.
+ *   ?only=summary → 폴더를 훑지 않는 가벼운 응답(관리자 센터를 열 때 「저장소」 탭 N 뱃지용 — warn:true 면 80% 이상).
+ * 예: {ok:true, warnPct:80, disk:{total,used,avail,pct:50.6}, warn:false, alert:{alerted:false}, lastCheck:{at,ok,disk}, categories:[{category,bytes,items:[{name,dir,bytes,files}]}]}
+ * [연계] services/disk_usage.js(forDefault) · client/js/admin/admin_collect.js renderUnifiedStorageContent·refreshStorageBadge
+ */
+router.get('/api/admin/disk-usage', (req, res) => {
+    try {
+        const m = require('../services/disk_usage').forDefault();
+        res.set('Cache-Control', 'no-store').json({ ok: true, ...(req.query.only === 'summary' ? m.summary() : m.snapshot()) });
+    } catch (e) {
+        console.error('[admin] 디스크 사용량 조회 실패:', e && e.message);
+        res.status(500).json({ ok: false, error: '디스크 사용량을 재지 못했습니다' });
     }
 });
 
