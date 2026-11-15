@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 03:10 KST] 🟢착수 — 해상 기상 전망 색칠 AI — 관리자 순서 설정으로
+marine_forecast_processor·regional_bulletin_collector 의 Gemini 고정 호출을 services/bulletin_ai 의 새 기능 forecast(③ 해상 기상 전망 색칠) 순서로 바꾼다. 기본 = Gemini 만(종전 동작). 관리자 AI 모델 설정 화면에 ③ 카드 추가.
+
+
 ### [2026-11-16 02:17 KST] ✅완료 — AI 모델 설정 탭으로 챗봇 모델 설정 옮김
 AI 탭 「AI 특보 분석」→「AI 모델 설정」 이름 변경. 맨 위 「AI 챗봇 모델」(답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치)을 ai_chat.js renderModelSettingsInto 로 그림, AI 챗봇→AI 모델 탭엔 자동 노출·질문 수만 남김. ChatGPT(VM) 이름표→ChatGPT. 크로미엄 화면 확인.
 

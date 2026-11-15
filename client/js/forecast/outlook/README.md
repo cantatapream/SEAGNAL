@@ -76,3 +76,10 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 
 `local_server/scripts/test_forecast_gear_ui.js`(verify_all `SUITES`) — 처음 설치 안내·한 곳만·[완료]/[취소]/Esc/뒤로가기·⚙ 다시 열기·옛 설정 옮기기·⚙ 자리와 모양(브리핑 ⚙ 와 같은 계산 스타일) ·
 옛 기기 표시(새 설치 → 온보딩으로 관심해역 저장해도 안내 칸·다시 열어도 그대로 / 옛 기기 → 가장 많은 지방청·다시 열어도 그대로 / 옛 기기 + 관심 기상청 / 옛 기기가 관심해역을 지움 / 한 번만 정함 / 온보딩보다 먼저 정함).
+
+## 색칠 AI 고르기 (2026-11-16)
+- 해상 기상 전망(초단기·단기 — `local_server/marine_forecast_processor.js`)과 지방청 전망(`local_server/regional_bulletin_collector.js`)의
+  `{{loc:}}`·`{{num:}}`·`{{warn:}}` 표시를 붙이는 AI 는 종전 Gemini(`gemini-2.5-flash-lite`) 고정이었다.
+- 이제 관리자 → AI → 「AI 모델 설정」의 **③ 해상 기상 전망 색칠** 순서대로 부른다(`services/bulletin_ai.js` 기능 `forecast`).
+  기본 순서는 Gemini 만 = 종전 동작. 이미 색칠해 캐시에 둔 전망은 다시 부르지 않으므로 바꾼 순서는 **새로 들어온 전망부터** 적용된다.
+- 사용자 확정 원문: *"그렇게 진행하자."* (질문: 해상 기상 전망 색칠 AI 를 어디서 설정하나 → Gemini 고정이라 답하고 관리자 화면에서 고르게 하자고 제안한 것에 대한 답)

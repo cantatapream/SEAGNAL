@@ -48,7 +48,8 @@
  *   - routes/weather.js           : /api/regional-forecast 가 이 JSON 그대로 응답
  *   - js/marine_forecast.js       : renderRegionalForecast() 가 새 필드를 사용해 표출
  *   - regional_forecast_collector : PDF 기반 marine/coastal 수집(별도, 충돌 없음)
- *   - services/gemini_client      : 공용 AI 호출 (키 라운드로빈, 쿨다운 공유)
+ *   - services/bulletin_ai        : AI 호출('forecast' — 관리자 AI 모델 설정 ③ 해상 기상 전망 색칠 순서. 기본 Gemini 만,
+ *                                   Gemini 칸은 공용 gemini_client 의 키 라운드로빈·쿨다운 공유 그대로)
  *   - marine_forecast_processor   : 본청 단기/초단기 전망(별도) — 본 모듈과 무관
  * ============================================================================
  */
@@ -56,7 +57,7 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const geminiClient = require('./services/gemini_client');
+const bulletinAi = require('./services/bulletin_ai');   // ③ 해상 기상 전망 색칠 순서(2026-11-16 — 종전 Gemini 고정)
 
 // ============================================================================
 // 경로 / 상수
@@ -270,27 +271,17 @@ async function fetchBulletinBody(officeCode, reportId) {
 // ============================================================================
 
 /**
- * 본문을 Gemini 에 보내 { summary } 형식으로 정제 반환.
+ * 본문을 AI(관리자 설정 ③ 순서 — 기본 Gemini)에 보내 { summary } 형식으로 정제 반환.
  * 실패(키 없음/쿨다운/JSON 파싱 오류 등) 시 null — 호출측이 캐시 저장 안 하고 다음 사이클에 재시도.
  */
 async function analyzeBulletinWithAI(rawText) {
-    if (!geminiClient.hasAnyKey()) {
-        console.log('[RegionalBulletin] GEMINI_API_KEY 없음, AI 분석 건너뜀');
-        return null;
-    }
-
     const userPrompt = `## 통보문 본문\n${rawText}\n\n위 본문을 분석하여 마크업 적용 본문과 대표 기온을 JSON으로 반환하라.`;
 
-    const callResult = await geminiClient.callGemini({
-        model: 'gemini-2.5-flash-lite',
-        contents: REGIONAL_BULLETIN_AI_PROMPT + '\n\n' + userPrompt,
-        config: { responseMimeType: 'application/json' },
-        caller: 'RegionalBulletin'
-    });
+    const callResult = await bulletinAi.call('forecast', REGIONAL_BULLETIN_AI_PROMPT + '\n\n' + userPrompt, { caller: 'RegionalBulletin' });
 
     if (!callResult.success) {
         if (callResult.isRateLimited) {
-            console.warn('[RegionalBulletin] 모든 Gemini 키 쿨다운 중, 분석 건너뜀');
+            console.warn('[RegionalBulletin] AI 한도 초과(쿨다운) — 분석 건너뜀');
         } else {
             console.error(`[RegionalBulletin] AI 분석 오류: ${callResult.error}`);
         }

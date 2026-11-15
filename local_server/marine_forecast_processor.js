@@ -13,6 +13,7 @@
  * - report_alert_processor.js → fetchHtml, fetchReportDetail 재사용
  * - weather_alerts_crawler.js → run() 시 함께 호출
  * - routes/weather.js → /api/marine-forecast 엔드포인트
+ * - services/bulletin_ai.js → AI 호출('forecast' — 관리자 AI 모델 설정의 ③ 해상 기상 전망 색칠 순서. 기본 Gemini 만)
  * ============================================================================
  */
 
@@ -21,10 +22,9 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-// [공용 Gemini 클라이언트] 기본 키 + 백업 키 라운드로빈/폴백 + 공유 쿨다운
-// → 개별 쿨다운 변수는 gemini_client.js 내부로 이관
-// → 특보 분석과 해상 전망이 쿨다운 상태를 공유하여 중복 시도 방지
-const geminiClient = require('./services/gemini_client');
+// [AI 호출] 관리자 「AI 모델 설정」 ③ 해상 기상 전망 색칠 순서대로(2026-11-16 — 종전 Gemini 고정).
+// 기본 순서는 Gemini 만 = 종전 동작. Gemini 칸은 종전처럼 공용 gemini_client(키 라운드로빈·공유 쿨다운)를 탄다.
+const bulletinAi = require('./services/bulletin_ai');
 
 const DATA_FILE = path.join(__dirname, 'data', 'marine_forecast.json');
 const FORECAST_CACHE_DIR = path.join(__dirname, 'data', 'forecast_cache');
@@ -315,15 +315,10 @@ const FORECAST_AI_PROMPT = `
 
 /**
  * AI 분석으로 전망 텍스트를 정제한다
- * - 공용 geminiClient를 사용하여 기본/백업 키 라운드로빈 + 자동 폴백
+ * - services/bulletin_ai 'forecast' 순서대로 시도(1순위 실패 → 2순위 …, Gemini 칸은 기본/백업 키 라운드로빈 + 자동 폴백)
  * - AI 호출 실패 시 null 반환 → 호출측이 코드 추출 결과를 사용하여 서비스 영향 없음
  */
 async function analyzeWithAI(rawText, codeExtracted) {
-    if (!geminiClient.hasAnyKey()) {
-        console.log('[MarineForecast] GEMINI_API_KEY 없음, AI 분석 건너뜀');
-        return null;
-    }
-
     try {
         const userPrompt = `## 원문 텍스트
 ${rawText}
@@ -333,17 +328,12 @@ ${JSON.stringify(codeExtracted, null, 2)}
 
 위 원문과 코드 추출 결과를 비교 검토하여, 최종 표출용 정제 데이터를 JSON으로 반환하라.`;
 
-        // [공용 클라이언트 호출] 기본 키 429 시 자동으로 백업 키로 폴백됨
-        const callResult = await geminiClient.callGemini({
-            model: 'gemini-2.5-flash-lite',
-            contents: FORECAST_AI_PROMPT + '\n\n' + userPrompt,
-            config: { responseMimeType: 'application/json' },
-            caller: 'MarineForecast'
-        });
+        // 설정한 순서대로 — 키 없음·소진·실패면 다음 순위(전부 실패면 아래 실패 분기)
+        const callResult = await bulletinAi.call('forecast', FORECAST_AI_PROMPT + '\n\n' + userPrompt, { caller: 'MarineForecast' });
 
         if (!callResult.success) {
             if (callResult.isRateLimited) {
-                console.warn('[MarineForecast] 모든 Gemini 키 쿨다운 중, AI 분석 건너뜀 → 코드 추출 결과 사용');
+                console.warn('[MarineForecast] AI 한도 초과(쿨다운) — AI 분석 건너뜀 → 코드 추출 결과 사용');
             } else {
                 console.error(`[MarineForecast] AI 분석 오류: ${callResult.error}`);
             }
