@@ -482,10 +482,14 @@
                 '<div class="nrya-seg-help" id="nryaSchedHelp"></div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaSchedErr"></div>' +
               '</div>' +
-              // [2026-11-16 사용자 요청] 답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치는 「AI 탭 → AI 모델 설정 → AI 챗봇 모델」로 옮겼다(renderModelSettingsInto).
+              // [2026-11-16 사용자 요청] 답변 AI 순서·ChatGPT 실행 위치는 「AI 탭 → AI 모델 설정 → AI 챗봇 모델」(renderModelSettingsInto). 「일반 사용자 적용」은 여기 남긴다.
               '<div class="nrya-card">' +
-                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서 · ChatGPT 실행 위치</div>' +
-                '<div class="nrya-seg-help" style="margin-top:0">「통합관리자 센터 → AI 탭 → <b>AI 모델 설정</b> → AI 챗봇 모델」로 옮겼습니다.</div>' +
+                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서를 일반 사용자에게도 적용</div>' +
+                '<div class="nrya-seg" id="nryaUsersSeg">' +
+                  '<button data-users="on">켜기</button>' +
+                  '<button data-users="off">끄기(기본)</button>' +
+                '</div>' +
+                '<div class="nrya-seg-help" id="nryaUsersHelp"></div>' +
               '</div>' +
               // [질문 수 · 2026-11-02 사용자 확정] 날짜별 집계(KST·1년 보관·질문 내용은 저장 안 함). 평소 접힘 — 머리를 누르면 펼친다(원문 방 .nrya-acc 모양 재사용).
               '<div class="nrya-acc" id="nryaAskAcc">' +
@@ -536,7 +540,8 @@
   }
 
   /**
-   * 「AI 챗봇 모델」 카드 세 장(답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치)의 마크업.
+   * 「AI 챗봇 모델」 카드(답변 AI 순서 — ChatGPT 줄에 실행 위치 Fly/VM 고르기 포함)의 마크업.
+   *   (2026-11-16 사용자 요청: 「일반 사용자 적용」은 AI 챗봇 → 🤖 AI 모델 탭에 남기고, 실행 위치는 별도 버튼 대신 ChatGPT 줄 오른쪽 고르기)
    * [연계] ← renderModelSettingsInto(AI 탭 → AI 모델 설정, 2026-11-16 사용자 요청 — 종전 자리는 이 콘솔의 🤖 AI 모델 탭)
    */
   function answerModelCardsHtml() {
@@ -546,22 +551,7 @@
                 '<div id="nryaOrderList" class="nrya-prov-list"></div>' +
                 '<div class="nrya-seg-err nrya-hidden" id="nryaModelErr"></div>' +
               '</div>' +
-              '<div class="nrya-card">' +
-                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>답변 AI 순서를 일반 사용자에게도 적용</div>' +
-                '<div class="nrya-seg" id="nryaUsersSeg">' +
-                  '<button data-users="on">켜기</button>' +
-                  '<button data-users="off">끄기(기본)</button>' +
-                '</div>' +
-                '<div class="nrya-seg-help" id="nryaUsersHelp"></div>' +
-              '</div>' +
-              '<div class="nrya-card">' +
-                '<div class="nrya-card-lab"><span class="nrya-pipe"></span>ChatGPT 실행 위치</div>' +
-                '<div class="nrya-seg" id="nryaRunnerSeg">' +
-                  '<button data-runner="fly">Fly 서버(기본)</button>' +
-                  '<button data-runner="vm">VM</button>' +
-                '</div>' +
-                '<div class="nrya-seg-help" id="nryaRunnerHelp"></div>' +
-              '</div>';
+              '';
   }
 
   /**
@@ -751,14 +741,7 @@
       var on = root.querySelector('#nryaOnAt').value, off = root.querySelector('#nryaOffAt').value;
       postExposure({ exposureOnAt: on, exposureOffAt: off }, 'nryaSchedErr');
     });
-  }
-
-  /**
-   * 「AI 챗봇 모델」 카드 — 「일반 사용자에게도」 스위치·ChatGPT 실행 위치·답변 AI 순서 목록(▲▼·삭제·다시 추가·소진 해제·모델/노력)에 이벤트를 잇고 칠한다.
-   * @param {HTMLElement} root - 카드를 담은 .nrya-console
-   * [연계] ← renderModelSettingsInto → setAnswerConfig(POST /api/legal/config). 서버 적용은 codex_bridge.withRequest·llm_chain(pickOf).
-   */
-  function initAnswerModels(root) {
+    // 「답변 AI 순서를 일반 사용자에게도 적용」(2026-11-16 사용자 요청으로 이 탭에 남김)
     root.querySelector('#nryaUsersSeg').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-users]'); if (!b) return;
       var on = b.dataset.users === 'on';
@@ -766,14 +749,20 @@
         'ChatGPT 칸은 관리자 정액제 계정이라 OpenAI 약관상 계정 공유에 해당해 계정이 정지될 수 있고, 사용량 한도가 빨리 찰 수 있습니다.\n켜시겠습니까?')) return;
       setAnswerConfig({ codexForUsers: on });
     });
-    // ChatGPT 실행 위치 — 고른 쪽 작업자에만 일감이 간다(서버 codex_bridge.setRunner). 이미 가져간 일감은 그쪽이 끝낸다.
-    root.querySelector('#nryaRunnerSeg').addEventListener('click', function (e) {
-      var b = e.target.closest('button[data-runner]'); if (!b || b.dataset.runner === serverCodexRunner) return;
-      setAnswerConfig({ codexRunner: b.dataset.runner });
-    });
+    paintModelSeg();
+  }
+
+  /**
+   * 「AI 챗봇 모델」 카드 — 답변 AI 순서 목록(▲▼·삭제·다시 추가·소진 해제·모델/노력·ChatGPT 실행 위치)에 이벤트를 잇고 칠한다.
+   * @param {HTMLElement} root - 카드를 담은 .nrya-console
+   * [연계] ← renderModelSettingsInto → setAnswerConfig(POST /api/legal/config). 서버 적용은 codex_bridge.withRequest·llm_chain(pickOf).
+   */
+  function initAnswerModels(root) {
     // 모델·노력 고르기 — 그 칸만 보낸다({providerModels:{claude1:{model,effort}}}). ChatGPT 칸은 노력 없이 {model}.
     root.querySelector('#nryaOrderList').addEventListener('change', function (e) {
       var sel = e.target.closest('select[data-pm]'); if (!sel) return;
+      // ChatGPT 줄의 실행 위치(Fly 서버|VM) — 고른 쪽 작업자에만 일감이 간다(서버 codex_bridge.setRunner). 이미 가져간 일감은 그쪽이 끝낸다.
+      if (sel.dataset.pm === 'runner') return setAnswerConfig({ codexRunner: sel.value });
       var id = sel.dataset.id, cur = serverProviderModels[id] || {}, pick = {};
       pick.model = sel.dataset.pm === 'model' ? sel.value : cur.model;
       if (id !== 'chatgpt') pick.effort = sel.dataset.pm === 'effort' ? sel.value : cur.effort;
@@ -812,6 +801,7 @@
    * 콘솔이 안 떠 있으면 아무 것도 하지 않는다.
    */
   function paintModelSeg() {
+    paintOrderList();   // 「AI 모델 설정」 탭엔 일반 사용자 칸이 없다 — 순서 목록은 따로 칠한다
     var users = document.getElementById('nryaUsersSeg'); if (!users) return;
     users.querySelectorAll('button').forEach(function (x) {
       var on = (x.dataset.users === 'on') === serverCodexForUsers;
@@ -819,28 +809,10 @@
       x.classList.toggle('nrya-warn', on && serverCodexForUsers);
     });
     var pre = configLoaded ? '' : '<span style="color:#94a3b8">(서버 조회 전 · 기본값 표시) </span>';
-    paintOrderList();
     var uh = document.getElementById('nryaUsersHelp');
     if (uh) uh.innerHTML = pre + (serverCodexForUsers
       ? '<b>켜짐</b> — 일반 사용자 질문도 위 순서(업스테이지·클로드·ChatGPT…)로 답합니다. ⚠ChatGPT 칸은 OpenAI 약관상 계정 공유 위험·사용량 한도 주의.'
       : '<b>꺼짐(기본값)</b> — 일반 사용자 질문은 Gemini 로 답합니다(위 순서는 관리자 기기에만 적용).');
-    paintRunner(pre);
-  }
-
-  /**
-   * 「ChatGPT 실행 위치」 버튼과 위치별 연결 상태를 칠한다.
-   * 예: runner 'vm' · workers {fly:true, vm:false} → VM 버튼 켜짐 + 「⚠VM 작업자 연결 없음 — ChatGPT 칸은 건너뜁니다」
-   * @param {string} pre - 서버 조회 전 표시(paintModelSeg 와 같은 것)
-   * [연계] ← paintModelSeg. 값은 GET/POST /api/legal/config 의 codexRunner·codexWorkers.
-   */
-  function paintRunner(pre) {
-    var seg = document.getElementById('nryaRunnerSeg'); if (!seg) return;
-    seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('nrya-on', x.dataset.runner === serverCodexRunner); });
-    var h = document.getElementById('nryaRunnerHelp'); if (!h) return;
-    var w = serverCodexWorkers, name = { fly: 'Fly 서버', vm: 'VM' };
-    var st = function (k) { return !w ? '?' : (w[k] ? '연결됨' : '연결 없음'); };
-    h.innerHTML = pre + '<b>' + name[serverCodexRunner] + '</b>의 ChatGPT 정액제로 답합니다. 연결 상태 — Fly 서버: ' + st('fly') + ' · VM: ' + st('vm') +
-      (w && !w[serverCodexRunner] ? '<br>⚠고른 쪽 작업자가 연결돼 있지 않아 ChatGPT 칸은 건너뜁니다(다음 AI 로 답함).' : '');
   }
 
   /**
@@ -902,7 +874,12 @@
         '</div>' +
         '<div class="nrya-prov-sel">' +
           '<label class="nrya-prov-f"><span>모델</span>' + pickHTML(id, 'model', ch && ch.models, pm.model) + '</label>' +
-          '<label class="nrya-prov-f"><span>노력</span>' + (ch ? pickHTML(id, 'effort', ch.efforts, pm.effort) : '<span class="nrya-prov-fixed">' + esc(pm.effort || '—') + '</span>') + '</label>' +
+          (id === 'chatgpt'
+            // ChatGPT 는 노력 대신 실행 위치(Fly 서버|VM) — 참고사항 해석 줄과 같은 모양(2026-11-16 사용자 요청). 연결 상태는 서버 codexWorkers.
+            ? '<label class="nrya-prov-f"><span>실행 위치</span><select data-pm="runner" data-id="chatgpt" aria-label="ChatGPT 실행 위치">' +
+                ['fly', 'vm'].map(function (v) { return '<option value="' + v + '"' + (v === serverCodexRunner ? ' selected' : '') + '>' + (v === 'fly' ? 'Fly 서버' : 'VM') + '</option>'; }).join('') + '</select></label>' +
+              (serverCodexWorkers ? '<span class="nrya-prov-today" style="color:' + (serverCodexWorkers[serverCodexRunner] ? '#34d399' : '#fbbf24') + '">' + (serverCodexWorkers[serverCodexRunner] ? '연결됨' : '연결 없음') + '</span>' : '')
+            : '<label class="nrya-prov-f"><span>노력</span>' + (ch ? pickHTML(id, 'effort', ch.efforts, pm.effort) : '<span class="nrya-prov-fixed">' + esc(pm.effort || '—') + '</span>') + '</label>') +
         '</div>' +
       '</div>';
     }).join('') + (serverProviderRemoved.length
