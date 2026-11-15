@@ -40,7 +40,8 @@ console.log('B. 해역 펼치기(규칙 — AI 는 안 펼친다)');
     ok('줄임 「X먼바다」 = 안쪽+바깥', JSON.stringify(z('동해중부먼바다')) === JSON.stringify(['동해중부안쪽먼바다', '동해중부바깥먼바다']));
     ok('줄임 「경북앞바다」 = 북부+남부', JSON.stringify(z('경북앞바다')) === JSON.stringify(['경북북부앞바다', '경북남부앞바다']));
     ok('「…와 …」 두 덩어리 다 펼침', z('동해남부북쪽먼바다와 경북남부앞바다').length === 3);
-    ok('목록에 없는 표현은 못 읽음(null) — 지어내지 않음', z('가나다해상') === null && z('가나.다라앞바다') === null && z('서해앞바다', { office: '광주청' }) === null);
+    ok('목록에 없는 표현은 못 읽음(null) — 지어내지 않음', z('가나다해상') === null && z('가나.다라앞바다') === null && z('앞바다', { office: '광주청' }) === null);
+    ok('줄인 이름이 관할 안 여럿과 맞으면 전부 — 광주 「서해앞바다」 = 전남북부·중부·남부서해앞바다', JSON.stringify(z('서해앞바다', { office: '광주청' }).sort()) === JSON.stringify(['전남남부서해앞바다', '전남북부서해앞바다', '전남중부서해앞바다']));
     ok('별칭(사용자 확정): 제주도남쪽안쪽먼바다 = 남서쪽+남동쪽안쪽 · 서해남부중부앞바다 중 앞평수구역 = 전남중부서해앞바다', JSON.stringify(z('제주도남쪽안쪽먼바다', { office: '제주청' })) === JSON.stringify(['제주도남서쪽안쪽먼바다', '제주도남동쪽안쪽먼바다'])
         && JSON.stringify(z('서해남부중부앞바다 중 앞평수구역', { office: '광주청' })) === JSON.stringify(['전남중부서해앞바다']));
     ok('통보문에 이름이 나온 부모(관할 안) — 「(1) …:」 없는 예비해제 꼴도', JSON.stringify(T.namedParents('제주도동부앞바다( 남동연안바다 ), 제주도남부앞바다( 연안바다 )', '제주청').sort()) === JSON.stringify(['제주도남부앞바다', '제주도동부앞바다']));
@@ -154,6 +155,12 @@ console.log('C. 검산');
         const r = await chain.callClaudeDirect('upstage', { contents: 'x' });
         ok('callClaudeDirect: 클로드 칸이 아니면 거절', r.success === false && /클로드 칸이 아님/.test(r.error));
         if (!process.env.ANTHROPIC_API_KEY_2) { const r2 = await chain.callClaudeDirect('claude2', { contents: 'x' }); ok('callClaudeDirect: 키가 없으면 부르지 않고 실패(키 없음)', r2.success === false && /키 없음/.test(r2.error)); }
+    }
+
+    {
+        const ITEM_X = { ...ITEM_CANCEL, id: 12, office: '광주청', 참고사항: '남해서부동쪽먼바다, 제주도남동쪽안쪽먼바다의 풍랑 예비특보는 발표가능성이 낮아져 해제합니다.', rule: { 빠짐: [{ 해역: '남해서부동쪽먼바다', 시간창: '05-22 06:00~12:00' }], 시간바뀜: [], 새로: [], 시간지나끝남: [], 직전빠짐: [], 타관서빠짐: [{ 해역: '제주도남동쪽안쪽먼바다', 시간창: '05-22 06:00~12:00', 관서: '제주청' }] } };
+        const cX = T.checkOne(ITEM_X, { 사건: [{ 종류: '예비취소', 해역표현: '제주도남동쪽안쪽먼바다', 근거문장: '제주도남동쪽안쪽먼바다의 풍랑 예비특보는 발표가능성이 낮아져 해제합니다.' }] });
+        ok('이웃 관서 해역 취소를 함께 적은 문장(광주 글 속 제주 해역) — 그 관서가 같은 무렵 뺐으면 일치', cX.판정[0].판정 === '일치', cX);
     }
 
     console.log('E. 보고서');

@@ -73,12 +73,23 @@ for (const x of bulletins) {
             // 바로 앞 예비 통보문(3시간 안)에서 빠진 해역 — 취소 문장이 목록 정리보다 한 통보문 늦게 오는 일이 있다(2026-11-15 #158 제주 7-1호 10:02 「o 없음」 → 7-2호 11:02 문장)
             직전빠짐: (prevGone[x.office] && t - prevGone[x.office].t <= 3 * 3600e3) ? prevGone[x.office].list : [],
         };
-        prevGone[x.office] = { t, list: removed.filter((e) => !now.some((n) => n.unit === e.unit)).map((e) => ({ 해역: e.unit, 시간창: win(e) })) };
+        // 앞 통보문에서 빠진 것 = 끝나기 전 빠짐 + 시간이 끝나 사라짐(다시 안 나옴) — 시간창 끝난 뒤 목록을 비우고 문장은 다음 통보문에 오는 일(2026-11-15 2차 #140 광주 10-4호 06:04 → 10-5호 06:09)
+        prevGone[x.office] = { t, list: [...removed.filter((e) => !now.some((n) => n.unit === e.unit)), ...before.filter((e) => e.end <= t && !ks.has(key(e)) && !now.some((n) => n.unit === e.unit))].map((e) => ({ 해역: e.unit, 시간창: win(e) })) };
+        x.ruleT = t;
         prevYebi[x.office] = now;
     } else {
         const items = parseItems(x.r.t2, []);
         // 자식만 적힌 항목(「제주도서부앞바다(북서연안바다, …)」)도 그 부모로 — 「위 구역」을 풀 때 비지 않게(2026-11-15)
         x.rule = { kind: '특보 변경 칸(t2) 규칙 해석', 항목: items.map((it) => ({ 종류: it.type + it.level, 동작: it.action, 해역: [...new Set([...it.units].map((u) => (PARENTS.has(u) ? u : [...PARENTS].find((q) => childrenOf(q).includes(u)))).filter(Boolean))] })) };
+    }
+}
+
+// 다른 관서가 같은 무렵(±30분) 자기 예비 목록에서 뺀 해역 — 한 관서 참고사항이 이웃 관서 해역의 취소를 함께 적는 일(2026-11-15 2차 #76 광주 5-9호가 제주 해역 취소를 적음, 제주 5-13호 같은 분)
+{
+    const yebi = bulletins.filter((x) => x.rpt === '7' && x.rule && x.ruleT);
+    for (const x of yebi) {
+        const others = yebi.filter((y) => y.office !== x.office && Math.abs(y.ruleT - x.ruleT) <= 30 * 60e3);
+        x.rule.타관서빠짐 = others.flatMap((y) => [...(y.rule.빠짐 || []), ...(y.rule.시간지나끝남 || []).filter((e) => !e.다시나옴.length), ...(y.rule.직전빠짐 || [])].map((e) => ({ 해역: e.해역, 시간창: e.시간창, 관서: y.office })));
     }
 }
 
