@@ -664,4 +664,25 @@ function status(removed) {
   }));
 }
 
-module.exports = { PROVIDERS, DEFAULT_ORDER, NAMES, CLAUDE_MODEL, UPSTAGE_MODEL, CHOICES, normOrder, isValidOrder, normRemoved, isValidRemoved, isValidModels, normModels, choices, active, callRaw, callStream, isValidReset, resetExhausted, status };
+/**
+ * 사슬을 거치지 않고 클로드 칸 하나를 바로 부른다(통보문 참고사항 AI 시험용 — 사용자 확정 2026-11-15 「이번에는 테스트를 이미 앱에 반영되어 있는 클로드 키2로 진행」).
+ * 키·모델·노력은 사슬과 같은 것을 쓴다(기본 claude-sonnet-5-5 · medium — 관리자 센터 화면과 같다). 다음 AI 로 넘기지 않는다(어느 AI 답인지 섞이지 않게).
+ * 나리야 통계(오늘 N회·성공)에는 세지 않는다. 크레딧 소진이면 그 칸을 소진으로 표시하고(나리야도 건너뛰게) creditOut 을 돌려준다.
+ * 예: callClaudeDirect('claude2', { contents: '…', config: { responseMimeType: 'application/json' } })
+ *     → { success: true, response: { text: '{"사건":[]}' }, error: null, keyLabel: 'claude2' }
+ * @param {'claude1'|'claude2'} id  @param {{contents:any, config?:object}} args  @param {{model:string, effort:string}} [pick]
+ * @returns {Promise<{success:boolean, response:{text:string}|null, error:string|null, creditOut?:boolean, keyLabel:string}>}
+ * [연계] ← services/bulletin_ai_trial.js(2차 시험) / → callClaude(이 파일)
+ */
+async function callClaudeDirect(id, args, pick) {
+  const fail = (error, creditOut) => ({ success: false, response: null, error, creditOut: !!creditOut, keyLabel: id });
+  if (id !== 'claude1' && id !== 'claude2') return fail('클로드 칸이 아님: ' + id);
+  if (!KEYS[id]) return fail(NAMES[id] + ' 키 없음');
+  if (exhausted[id]) return fail(NAMES[id] + ' 크레딧 소진 상태(관리자 센터에서 소진 해제 필요)', true);
+  const r = await callClaude(KEYS[id], args, pick || { model: CHOICES.claude.model, effort: CHOICES.claude.effort });
+  if (r.success) return { success: true, response: { text: r.text }, error: null, keyLabel: id };
+  if (r.creditOut) markExhausted(id, r.error);
+  return fail(r.error, r.creditOut);
+}
+
+module.exports = { callClaudeDirect, PROVIDERS, DEFAULT_ORDER, NAMES, CLAUDE_MODEL, UPSTAGE_MODEL, CHOICES, normOrder, isValidOrder, normRemoved, isValidRemoved, isValidModels, normModels, choices, active, callRaw, callStream, isValidReset, resetExhausted, status };

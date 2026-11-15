@@ -2719,6 +2719,14 @@ async function init() {
         //     dmdwWarnCrawler.run().catch(err => log(`⚠️ [dmdw] 크롤러 오류: ${err.message}`));
         // }
 
+        // [신규 2026-11-15] 통보문 관찰기 — 방재기상플랫폼 특보·예비특보 통보문을 매분 보며 처음 모습·바뀐 모습을 기록.
+        //   빈 통보문은 채워질 때까지 매분 다시 본다(사용자 확정 2026-11-15). 관찰만 — 특보현황·푸시는 안 바꾼다.
+        //   fire-and-forget(내부 running 락으로 겹침 방지). 자격증명 없거나 BULLETIN_WATCH_DISABLE=1 이면 안 돈다.
+        const bulletinWatch = require('./services/bulletin_watch');
+        if (!crawlPaused && bulletinWatch.enabled) {
+            bulletinWatch.run().catch(err => log(`⚠️ [bulletin_watch] 오류: ${err.message}`));
+        }
+
         // [New] 해상 기상 전망 수집 (매 10분마다)
         if (min % 10 === 3) {
             marineForecastProcessor.collectMarineForecasts()
