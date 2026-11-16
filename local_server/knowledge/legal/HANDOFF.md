@@ -1541,12 +1541,27 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 설계안 local_server/services/nariya_autorun.design.md · 구현 services/nariya_autorun.js · 시험 36/0 · 독립 적대검증 3회(F1~F18, D1~D8 반영). 예약 작업 trig_01FVmBRnYnahU3iGZ4byxdyP(지금은 「준비 중」 지침, cron 없음, API 트리거 사장님이 생성). Fly secrets 사장님 등록 완료: NARIYA_ROUTINE_FIRE_URL·NARIYA_ROUTINE_TOKEN·NARIYA_AUTOMATION_TOKEN(+2단계용 GITHUB_MERGE_TOKEN). 다음: PR 머지·배포 → 클라우드 환경 shin 에 네트워크 비밀(host seagnal-server.fly.dev, 헤더 X-Automation-Token) → 시험 fire 1회(세션 시작·완료 푸시 확인) → 예약 작업 지침(scratchpad routine_prompt_v1 을 설계안 §6 기준으로 갱신)·매일 cron. 2단계(사장님 요청): 관리자 화면 「자동 반영」 방 — 결정 필요 카드 선택지 버튼 + PR 카드 머지 버튼(GITHUB_MERGE_TOKEN).
 
 
+### [2026-11-16 04:34 KST] ✅완료 — AI 브리핑 AI 순서 = 「AI 모델 설정」 ④ 목록 + AI 브리핑 관리 화면 정리(시안 A2)
+사용자: 「(나)로 진행하자. 처음순서는 클로드 2번, 클로드 1번, 업스테이지, gpt, gemini 순으로 하자.」 / 시안 A2.
+- 서버: bulletin_ai 에 briefing 기능(④ — ③ 은 다른 세션의 해상 기상 전망 색칠). 기본 순서 클로드 키2→키1→업스테이지→ChatGPT(VM, 3번)→Gemini, 칸별 시도 1~3. station_briefing(_ai) method 'ai' + chain — 쓸 수 없는 AI 는 건너뜀(lastRun.skipped), 시간초과는 한 번에 차단, 차단은 오류 한 줄. 옛 저장값 chatgpt/gemini 도 운영에서는 순서를 따름.
+- 화면: 「AI 모델 설정」 ④ 카드(횟수·Gemini 모델·규칙 분석 고정 줄) · 「AI 브리핑」 탭 시안 A2(별도 에이전트, §11.10.50) · 사용자 카드 이름표 「AI 분석 · Claude/Upstage」 · 기준 상세 문안.
+- 독립 검토: 지적 7건 중 5건 고침, 2건 사용자 판단으로 남김(옛 「Gemini 만」 설정도 클로드부터 · 배포 뒤 첫 실행 전 관할 새로 / 맨 앞 AI 가 늘 실패하면 재사용 안 됨).
+- 검사: verify_all 전체 통과(main 합치기 전, 악화 0) · 합친 뒤 관련 스위트 5개 재실행 통과. 설계서 §11.10.50·§11.10.51.
+- 다음: PR 올림 → 사용자 병합 지시 대기. 미결: 클로드·업스테이지 이름표 색(지금 기본 청록).
+
+
+### [2026-11-16 04:08 KST] ✅완료 — 관리자 메인 [통보문] — 「MMIS와 상이 N개소」 줄·팝업
+별도 에이전트 구현(worktree) → 오케스트레이터 검토(이스케이프·updatedAt KST 확인) 후 반영. bulletin_compare.diffSnapshot(sig 기준, 부모별·칸별 다름·「왜?」 규칙 문장) → GET /api/admin/bulletin-status 의 diff. 화면: 상이 줄 + 아래 팝업(아코디언·구분|MMIS|통보문 표). test_bulletin_compare 58/0, watch 44/0, status 21/0, verify_all exit 0(실패 검사 이름 없음, 총정리 = 앞 회차와 동일한 법률 위키 표시줄). 미확인: 운영 실자료로 팝업 내용, 데스크톱 폭.
+
+
 ### [2026-11-16 03:36 KST] ✅완료 — 해상 기상 전망 색칠 AI — 관리자 순서 설정으로
 services/bulletin_ai 에 기능 forecast(③) 추가, marine_forecast_processor·regional_bulletin_collector 가 그 순서로 AI 호출. 기본 Gemini 만=종전 동작. test_bulletin_ai 29/0, verify_all exit 0(실패 검사 이름 없음). 다음: 별도 에이전트가 만드는 「MMIS와 상이 N개소」 줄·팝업 검토 후 반영.
 
 
 ### [2026-11-16 03:10 KST] 🟢착수 — 해상 기상 전망 색칠 AI — 관리자 순서 설정으로
 marine_forecast_processor·regional_bulletin_collector 의 Gemini 고정 호출을 services/bulletin_ai 의 새 기능 forecast(③ 해상 기상 전망 색칠) 순서로 바꾼다. 기본 = Gemini 만(종전 동작). 관리자 AI 모델 설정 화면에 ③ 카드 추가.
+### [2026-11-16 02:54 KST] 🟢착수 — AI 브리핑 AI 순서를 「AI 모델 설정」 ③ 목록으로 통일 + AI 브리핑 탭 정리
+사용자: 「ai 모델 선택 및 설정 부분은 ai 탭의 ai 모델 설정 … ① 특보 통보문 읽기 리스트와 같이 … 다른 ai로도 돌아가도록 … 모델설정 방식을 통일」 · 다시 시도 (나) 줄마다 횟수 · 처음 순서 클로드 키2 → 클로드 키1 → 업스테이지 → ChatGPT → Gemini. 서버: bulletin_ai 에 briefing 기능(순서·삭제·칸별 모델·노력·실행 위치·시도 횟수), station_briefing_ai.generate 가 그 순서대로(키 없음 등은 건너뛰고 실행 기록에 skipped), realAdapters 에 클로드·업스테이지·ChatGPT(실행 위치). 화면: admin_bulletin_ai ③ 목록, AI 브리핑 탭 정리(시안 A2 — 별도 worktree 에이전트). 브랜치 claude/eager-rubin-aean76.
 
 
 ### [2026-11-16 02:17 KST] ✅완료 — AI 모델 설정 탭으로 챗봇 모델 설정 옮김

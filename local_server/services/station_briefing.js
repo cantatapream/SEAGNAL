@@ -132,15 +132,17 @@ function settle(day, now) {
 const GEMINI_CALL_MS = 90000;
 
 // 관리자 「AI 브리핑」 설정의 선택지와 기본값(§11.6-15·16·17). 기본 노출 = 관리자에게만.
+// method: 'ai' = 관리자 「AI 모델 설정 → ④ 연안 안전 브리핑」 순서대로(§11.10.51, 2026-11-16 — 화면은 「AI 분석」 켜기/끄기만) · 'template' = 규칙 분석만(AI 안 씀).
+//   'chatgpt'·'gemini' 는 옛 저장값(종전 「생성 방식」) — 운영(aiChain 이 있을 때)에서는 'ai' 와 같이 순서를 따른다(시험처럼 aiChain 이 없으면 종전 사슬).
 const CHOICES = Object.freeze({
-    method: ['chatgpt', 'gemini', 'template'],
+    method: ['ai', 'chatgpt', 'gemini', 'template'],
     chatgptModel: ['gpt-6-luna', 'gpt-6-sol', 'gpt-6-astra'],   // codex_bridge.ANSWER_MODELS 에서 'gemini' 를 뺀 것(시험이 같은지 확인)
     geminiModel: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],  // 저장소의 다른 Gemini 호출이 쓰는 두 모델
     exposure: ['user', 'admin', 'off'],
     batchUnit: ['station', 'office', 'region'],
     onlyChanged: [true, false],
 });
-const DEFAULT_CONFIG = Object.freeze({ method: 'chatgpt', chatgptModel: 'gpt-6-luna', geminiModel: 'gemini-2.5-flash', exposure: 'admin', batchUnit: 'office', onlyChanged: true });
+const DEFAULT_CONFIG = Object.freeze({ method: 'ai', chatgptModel: 'gpt-6-luna', geminiModel: 'gemini-2.5-flash', exposure: 'admin', batchUnit: 'office', onlyChanged: true });
 
 /**
  * 설정값을 선택지 안으로 정리한다(모르는 값은 기본값). 예: {method:'x',exposure:'user'} → {method:'chatgpt',exposure:'user',…}
@@ -189,7 +191,22 @@ function changedZones(prev, next) { const ks = new Set([...Object.keys(prev || {
  * @returns {object} {vm:{available,call}, gemini:{available,call}} [연계] ← createService 기본값 / → codex_bridge.callRaw · gemini_client.callGeminiRaw
  */
 function realAdapters() {
+    // §11.10.51 사슬 칸(관리자 「AI 모델 설정 → ④」): ChatGPT 는 고른 실행 위치(Fly 서버|VM)의 Codex 작업자, 클로드·업스테이지는 llm_chain.callDirect(키 없음·소진이면 available 거짓 — 건너뜀).
+    const L = () => require('./llm_chain'), C = () => require('./codex_bridge');
+    const runner = () => { try { return require('./bulletin_ai').getConfig().briefing.models.chatgpt.runner; } catch (_) { return C().DEFAULT_RUNNER; } };
+    const keyState = (id) => (L().status([]).find((x) => x.id === id) || {});
+    const direct = (id) => ({
+        available: () => { const st = keyState(id); return !!st.hasKey && !st.exhaustedAt; },
+        why: () => { const st = keyState(id); return !st.hasKey ? '키 없음' : st.exhaustedAt ? '크레딧 소진' : '사용 불가'; },
+        call: async ({ prompt, model, effort }) => { const r = await L().callDirect(id, { contents: prompt, config: { responseMimeType: 'application/json' } }, { model, effort }); if (!r.success) throw new Error(r.error || (id + ' 실패')); return r.response.text; },
+    });
     return {
+        chatgpt: {
+            available: () => C().ENABLED && C().workerAlive(runner()),
+            why: () => (!C().ENABLED ? '작업자 꺼짐' : '작업자 연결 없음(' + (runner() === 'vm' ? 'VM' : 'Fly 서버') + ')'),
+            call: async ({ prompt, model, runner: r }) => { const x = await C().callRaw({ contents: prompt, config: { responseMimeType: 'application/json' }, caller: 'StationBriefing', model, runner: r || runner() }); if (!x.success) throw new Error(x.error || 'ChatGPT 실패'); return x.response.text; },
+        },
+        claude1: direct('claude1'), claude2: direct('claude2'), upstage: direct('upstage'),
         vm: {
             available: () => { const c = require('./codex_bridge'); return c.ENABLED && c.workerAlive(); },
             call: async ({ prompt, model }) => { const r = await require('./codex_bridge').callRaw({ contents: prompt, config: { responseMimeType: 'application/json' }, caller: 'StationBriefing', model }); if (!r.success) throw new Error(r.error || 'VM 실패'); return r.response.text; },
@@ -332,7 +349,7 @@ async function defaultAdminPush(title, body, data) {
 // ── 실행 진행(§11.10.7) ── 사용자 원문 *"분석이 시작되면 게이지로서 알려줬으면 … 묶음 단위별로 어디 묶음이 완료되었는지 그리고 그 묶음 안에서 어느 파출소 부분이 완료되었는지
 //    게이지에서 표출 … 전체 게이지로서 전체적으로 얼마나 진행됐는지 … 게이지의 가운데에는 텍스트로 어디가 진행되고 있는지"*.
 // 전체 칸 = 위치 확인 1 + 날짜(창)마다 (입력 모으기 1 + 관할 수). AI 앞 단계도 세어 게이지가 0 에 조용히 멈춰 있지 않게 한다. 관할 하나는 AI 통과·재사용·규칙 분석 중 하나로 끝날 때 1칸.
-const PROVIDER_NAME = { chatgpt: 'ChatGPT', gemini: 'Gemini' };
+const PROVIDER_NAME = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: '클로드 키1', claude2: '클로드 키2', upstage: '업스테이지' };   // §11.10.51 — 관리자 게이지 글(사슬 AI)
 /**
  * 실행 하나의 진행 상태를 새로 만든다.
  * 예: newProgress({at:'2026-10-17T18:31:00+09:00', kind:'manual', unit:'office', stations:97, windows:['2026-10-17']}) → {phase:'locate', done:0, total:99, current:'관할 대표 위치 확인 중', batches:[]…}
@@ -409,11 +426,12 @@ function smallFinder(sz, zb) { return sz && zb ? (major) => { const p = sz.peek(
  *                     ·smallZoneWaitMs(소해구 다시 받기 기다림 상한 — 기본 SMALLZONE_WAIT_MS)
  *                     ·traffic(sea_traffic_profile 계산기 {profiles} — 기본 null = 「최근 14일 선박 동향」 줄 없음. forDefault 가 forDir() 를 넘긴다 — 시험은 가짜·주입. §11.10.23)
  *                     ·resolvedFile(머지로 들어온 처리 완료 목록 config/station_briefing_resolved.json — 기본 null = 읽지 않음, forDefault 가 저장소 파일을 넘긴다. §11.10.48)
+ *                     ·aiChain(AI 사슬 () → [{id, model, effort, runner, attempts}] — 관리자 「AI 모델 설정 → ④ 연안 안전 브리핑」, bulletin_ai.briefingChain. 기본 null = 종전 사슬(ChatGPT → Gemini). §11.10.51)
  * @returns {object} run·tick·start·stop·pick·readConfig·writeConfig·status·exportErrors·resolveExport·stationList·stationAreas (+ 시험용 _pushResult·_log)
  * [연계] ← forDefault·시험 / → R·AI·I
  */
 function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date.now, risk, marine, adapters, loadStations = () => I.loadStations(), alertsFile = path.join(DATA, 'weather_alerts.json'), geocoder = null, tideDeps, spotsOf, hazardFeatures, kma = () => I.kmaOutlook(),
-    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush, smallZone = null, smallZoneWaitMs = SMALLZONE_WAIT_MS, traffic = null, resolvedFile = null } = {}) {
+    timer: elapsed = Date.now, runDeadlineMs = RUN_DEADLINE_MS, aiOptions = {}, allowRealAI = () => !!process.env.FLY_ALLOC_ID || process.env.STATION_BRIEFING_DEV_AI === '1', warnHistory = null, errorHistory = null, regional = () => I.regionalForecast(), adminPush = defaultAdminPush, smallZone = null, smallZoneWaitMs = SMALLZONE_WAIT_MS, traffic = null, resolvedFile = null, aiChain = null } = {}) {
     let timer = null, running = null, stationsCache = null, areasCache = null, ad = adapters;
     // 실행 번호(§11.10.8 — 관리자 푸시는 실행 하나에 1통). run 이 하나씩 늘려 결과에 싣고, pushResult 는 이미 보낸 번호 이하를 다시 보내지 않는다(같은 결과를 두 번 처리해도 1통).
     let runSeq = 0, pushedSeq = 0; const pushedKey = {};
@@ -580,7 +598,11 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             const landPoints = Object.fromEntries(all.map((s) => [s.key, (spotsBySt.get(s.key) || []).concat(hz.get(s.key) || [])]));
             const locations = await I.ensureLocations({ stations: all, landPoints, file: p('locations.json'), geocoder, now });
             stepProgress(progress, 'locate-done');
-            const aiOn = !!ad || allowRealAI(), cfg = aiOn ? config : { ...config, method: 'template' }, rg = regional ? regional() : null;
+            const aiOn = !!ad || allowRealAI(), rg = regional ? regional() : null;
+            // §11.10.51: AI 를 쓰면 관리자 「AI 모델 설정 → ④」 순서(aiChain — 운영 forDefault 가 넘김). aiChain 이 없으면(시험) 'ai' 는 종전 사슬(ChatGPT → Gemini)로.
+            let cfg = aiOn ? config : { ...config, method: 'template' };
+            if (cfg.method !== 'template') cfg = aiChain ? { ...cfg, method: 'ai', chain: aiChain() } : cfg.method === 'ai' ? { ...cfg, method: 'chatgpt' } : cfg;
+            const skippedAll = new Map();   // 이번 실행에서 못 써서 건너뛴 AI(날짜 판마다 같음 — 한 번만)
             // 공개 시각(§11.10.4): 정시 판은 EDITIONS 공개 시각(07:30·17:30·23:00) — 그 전에는 pending 에 두고 화면은 이전 판. 특보 변경·관리자 실행은 곧바로(publishAt = 만든 시각).
             //   데드라인 = 20분과 「공개 시각까지」 중 이른 것 — 공개 시각에 된 만큼(AI 분석 + 나머지는 규칙 분석) 보이고 늦추지 않는다. 공개 시각이 이미 지난 늦은 실행은 20분 그대로(곧바로 공개).
             //   §11.10.22 D(2026-10-18 — 공개 40분 전 시작): 제때 시작한 정시 판은 20분 쪽이 걸려, 다 쓰지 못해도 공개 시각보다 20분 앞서 끝난다(데드라인 규칙은 그대로 — 작업 지시서 「여유 20분 생김」).
@@ -602,6 +624,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 const latest = Object.fromEntries([...new Set(Object.keys(day.stations).concat(Object.keys(day.pending)))].map((k) => { const a = day.stations[k], b = day.pending[k]; return [k, !a ? b : !b ? a : Date.parse(b.generatedAt) > Date.parse(a.generatedAt) ? b : a]; }));
                 stepProgress(progress, 'ai', { window: wi, method: cfg.method });
                 const gen = await AI.generate({ briefings, config: cfg, previous: latest, adapters: ad || (aiOn ? (ad = realAdapters()) : {}), kma: kma(), now, timer: elapsed, deadline, onProgress: (ev) => onAiProgress(progress, ev), ...aiOptions });
+                for (const x of gen.skipped || []) skippedAll.set(x.id, x);
                 stepProgress(progress, 'save', { window: wi });
                 const wNow = clock(); settle(day, wNow);
                 for (const b of briefings) {
@@ -618,7 +641,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 rule.push(briefings.filter((b) => b.overview && b.overview.source === 'template').map((b) => b.station.name));   // 관리자 푸시 글(§11.10.8)용 — 상태 파일에는 넣지 않는다
             }
             prune(now);
-            st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, publishAt, results, ms: elapsed() - t0, ...(szInfo ? { smallZone: szInfo } : {}), ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
+            st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, publishAt, results, ms: elapsed() - t0, ...(cfg.chain ? { chain: cfg.chain.map((c) => c.id), skipped: [...skippedAll.values()] } : {}), ...(szInfo ? { smallZone: szInfo } : {}), ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
             if (EDITION_KINDS.includes(kind)) st.lastEdition = st.lastRun;   // §11.10.21 마지막 정시 판(관광지 확인 불가 이름 목록)
             // §11.10.7 실행마다 오류 드롭다운 · §11.10.21 정시 판 소요 표 — 실행 기록에는 관광지 확인 불가 수만(이름 목록 없이 — state.json 크기)
             st.runs = keepRuns(st.runs.concat({ at: st.lastRun.at, kind, method: cfg.method, ms: st.lastRun.ms, publishAt, results: results.map((x) => ({ ...x, spotFail: { stations: x.spotFail.stations, spots: x.spotFail.spots } })) }), now);
@@ -805,7 +828,9 @@ function forDefault() {
     const { stores } = require('../routes/risk_forecast');
     def = createService({ risk: stores.risk, marine: stores.marine, geocoder: process.env.FLY_ALLOC_ID ? (a) => I.geocodeStation(a) : null, warnHistory: require('./sea_warning_history').forDir(), errorHistory: require('./risk_error_history'), smallZone: require('./smallzone_forecast'), traffic: require('./sea_traffic_profile').forDir(),
         // 머지된 처리 완료 목록은 운영 서버(seagnal-server)에서만 읽는다(독립 검토 ⑩ — 내보내기 번호는 서버마다 따로라 스테이징·개발에서는 모든 줄이 「이 서버에 없는 번호」 알림이 된다)
-        resolvedFile: process.env.FLY_APP_NAME === 'seagnal-server' ? path.join(__dirname, '..', 'config', 'station_briefing_resolved.json') : null });
+        resolvedFile: process.env.FLY_APP_NAME === 'seagnal-server' ? path.join(__dirname, '..', 'config', 'station_briefing_resolved.json') : null,
+        // AI 순서 — 관리자 「AI 모델 설정 → ④ 연안 안전 브리핑」(§11.10.51)
+        aiChain: () => require('./bulletin_ai').briefingChain() });
     return def;
 }
 

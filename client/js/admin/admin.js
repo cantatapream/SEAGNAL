@@ -756,7 +756,8 @@ window.switchAiSubTab = function (which) {
     var _m = document.getElementById('unified-admin-modal');
     if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
     if (which === 'briefing') {
-        // [AI 브리핑] 연안 안전 브리핑(종전 「활동지점 안전 브리핑」) — 생성 방식·모델·노출 범위·묶음 단위·바뀐 곳만·상태·지금 다시 만들기·관할 미리보기
+        // [AI 브리핑] 연안 안전 브리핑(종전 「활동지점 안전 브리핑」) — 상태·오류·정시 판 기록·설정(AI 분석 켜기/끄기·노출 범위·묶음 단위·바뀐 곳만)·지금 다시 만들기·관할 미리보기
+        //   (AI 모델·순서는 「AI 모델 설정」 ④ 연안 안전 브리핑 — 설계서 §11.10.50)
         //   (설계서 §11.6 결정 16·17, js/admin/admin_station_briefing.js — /api/admin/station-briefing/*)
         if (typeof window.renderStationBriefingAdmin === 'function') window.renderStationBriefingAdmin(sub);
         else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">AI 브리핑 모듈(js/admin/admin_station_briefing.js)이 로드되지 않았습니다.</div>';
