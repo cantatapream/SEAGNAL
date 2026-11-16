@@ -16,7 +16,7 @@
  *   lock     : {run_id, since, source:'fire'|'claim', taken, workNotified} — 지금 일하는 세션. 3시간 지나면 무효(설계안 §4).
  *              taken = 그 세션이 넘겨받은 대기 몫(실패·만료 때 대기로 되돌리지 않는다 — 설계안 §4).
  *   pending  : {reasons:{amend?, fresh?}, since, lastAt} — 아직 세션에 넘기지 못한 요청(건수 누적).
- *   inFlight : [{run_id, pr_url, amend_ids, fresh_ids, since}] — PR 은 냈지만 아직 머지·반영 안 된 일. 자동 세션에는 숨긴다(14일까지).
+ *   inFlight : [{run_id, pr_url, amend_ids, fresh_ids, mok_ids, since}] — PR 은 냈지만 아직 머지·반영 안 된 일. 자동 세션에는 숨긴다(14일까지).
  *   expired  : 3시간 만료로 풀린 run 최근 10개 — 그 세션이 다시 claim 하면 원래 출처·「작업 시작」 여부를 이어받는다(relocked).
  *   unknownFires : 시간초과로 전달 여부를 모르는 발사 최근 5개(3시간) — 그 run 이 claim 하면 늦게 성공 처리.
  *   doneIds  : 끝난 run 최근 20개 — done 중복 판정 · 늦게 온 발사 응답이 끝난 run 을 다시 잠그지 않게.
@@ -55,7 +55,8 @@ const DONE_PUSH_PER_HOUR = 10;
 // 열쇠 최소 32자: 짧은 열쇠는 맞혀 볼 수 있다 — 그보다 짧으면 없는 것으로 본다(설계안 §2).
 const MIN_TOKEN_LEN = 32;
 const PROD_APP = 'seagnal-server';   // 운영 앱 이름(fly.toml). 스테이징(seagnal-staging)·개발은 발사·푸시 안 함.
-const KINDS = { amend: '개정 승인', fresh: '원문 구버전·이름바뀜·다시 뜬 카드' };
+// mok(원문 결손 — 조문 목·고시 별표 누락)은 2026-11-16 사용자 확정 「자동슈정」으로 더했다.
+const KINDS = { amend: '개정 승인', fresh: '원문 구버전·이름바뀜·다시 뜬 카드', mok: '원문 결손(목·별표 누락)' };
 // 최근 기억 칸 수 — 만료로 풀린 run 10개(다시 claim 하면 이어받기) · 결과 불명 발사 5개(3시간) · 끝난 run 20개(done 중복·늦은 발사 응답 판정).
 const KEEP = { expired: 10, unknown: 5, done: 20, seen: 2000 };
 // 14일: 「세션이 결정 필요로 남긴 일」(deferred) 기억. 이 상한이 없으면 같은 id 가 몇 달 뒤 다시 낡아 돌아와도(같은 카드 id 재사용) 영영 안 깨운다(2026-11-16 남은 일 점검).
@@ -92,7 +93,7 @@ const cleanIds = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string
 function cleanServed(v) {
     const o = isPlain(v) ? v : {};
     const one = (a) => (Array.isArray(a) ? [...new Set(a.filter((x) => typeof x === 'string' && ITEM_ID_RE.test(x)))].slice(0, KEEP.seen) : []);
-    return { amend: one(o.amend), fresh: one(o.fresh) };
+    return { amend: one(o.amend), fresh: one(o.fresh), mok: one(o.mok) };
 }
 
 /**
@@ -136,8 +137,8 @@ function readState(file, nowMs) {
     if (Array.isArray(o.inFlight)) {
         for (const f of o.inFlight) {
             if (!isPlain(f) || typeof f.run_id !== 'string' || !RUN_ID_RE.test(f.run_id) || !Number.isFinite(f.since) || f.since > nowMs) continue;
-            const e = { run_id: f.run_id, pr_url: typeof f.pr_url === 'string' && PR_URL_RE.test(f.pr_url) ? f.pr_url : null, amend_ids: cleanIds(f.amend_ids), fresh_ids: cleanIds(f.fresh_ids), since: f.since };
-            if (e.amend_ids.length || e.fresh_ids.length) s.inFlight.push(e);
+            const e = { run_id: f.run_id, pr_url: typeof f.pr_url === 'string' && PR_URL_RE.test(f.pr_url) ? f.pr_url : null, amend_ids: cleanIds(f.amend_ids), fresh_ids: cleanIds(f.fresh_ids), mok_ids: cleanIds(f.mok_ids), since: f.since };
+            if (e.amend_ids.length || e.fresh_ids.length || e.mok_ids.length) s.inFlight.push(e);
         }
     }
     if (Array.isArray(o.expired)) {
@@ -150,7 +151,7 @@ function readState(file, nowMs) {
     }
     if (Array.isArray(o.doneIds)) s.doneIds = o.doneIds.filter((x) => typeof x === 'string' && RUN_ID_RE.test(x)).slice(-KEEP.done);
     if (Array.isArray(o.seen)) {
-        s.seen = o.seen.filter((x) => isPlain(x) && (x.kind === 'amend' || x.kind === 'fresh') && typeof x.id === 'string' && ITEM_ID_RE.test(x.id) && Number.isFinite(x.at) && x.at <= nowMs)
+        s.seen = o.seen.filter((x) => isPlain(x) && KINDS[x.kind] && typeof x.id === 'string' && ITEM_ID_RE.test(x.id) && Number.isFinite(x.at) && x.at <= nowMs)
             .map((x) => ({ kind: x.kind, id: x.id, at: x.at, ttl: Number.isFinite(x.ttl) && x.ttl > 0 && x.ttl <= SEEN_TTL_MS ? x.ttl : SEEN_TTL_MS })).slice(-KEEP.seen);
     }
     if (isPlain(o.lastFire)) s.lastFire = o.lastFire;
@@ -178,7 +179,7 @@ function validateDone(body) {
     if (typeof body.run_id !== 'string' || !RUN_ID_RE.test(body.run_id)) return { ok: false, error: 'run_id 가 없거나 형식이 틀렸습니다(영문·숫자·._:- 64자 이하).' };
     if (!['pr', 'nothing', 'failed'].includes(body.outcome)) return { ok: false, error: "outcome 은 'pr'|'nothing'|'failed' 중 하나여야 합니다." };
     const ids = {};
-    for (const k of ['amend_ids', 'fresh_ids', 'deferred_amend_ids', 'deferred_fresh_ids']) {
+    for (const k of ['amend_ids', 'fresh_ids', 'mok_ids', 'deferred_amend_ids', 'deferred_fresh_ids', 'deferred_mok_ids']) {
         const a = body[k];
         if (a === undefined || a === null) { ids[k] = []; continue; }
         if (!Array.isArray(a) || a.length > LIMITS.ids || !a.every((x) => typeof x === 'string' && ITEM_ID_RE.test(x))) {
@@ -191,7 +192,7 @@ function validateDone(body) {
     const needs_decision = Array.isArray(body.needs_decision)
         ? body.needs_decision.filter((x) => typeof x === 'string').map((x) => cleanText(x, LIMITS.needsLen)).filter((x) => x.trim()).slice(0, LIMITS.needsCount)
         : [];
-    return { ok: true, value: { run_id: body.run_id, outcome: body.outcome, pr_url, summary, needs_decision, amend_ids: ids.amend_ids, fresh_ids: ids.fresh_ids, deferred_amend_ids: ids.deferred_amend_ids, deferred_fresh_ids: ids.deferred_fresh_ids } };
+    return { ok: true, value: { run_id: body.run_id, outcome: body.outcome, pr_url, summary, needs_decision, amend_ids: ids.amend_ids, fresh_ids: ids.fresh_ids, mok_ids: ids.mok_ids, deferred_amend_ids: ids.deferred_amend_ids, deferred_fresh_ids: ids.deferred_fresh_ids, deferred_mok_ids: ids.deferred_mok_ids } };
 }
 
 /**
@@ -394,7 +395,8 @@ function createAutorun({
         expireIfStale();
         const l = load().lock;
         if (!l || !lockValid()) return false;
-        if (!l.served) l.served = { amend: [], fresh: [] };
+        if (!l.served) l.served = { amend: [], fresh: [], mok: [] };
+        if (!l.served[kind]) l.served[kind] = [];
         l.served[kind] = cleanServed({ [kind]: l.served[kind].concat(ids.map(String)) })[kind];
         save();
         return true;
@@ -435,7 +437,8 @@ function createAutorun({
         expireIfStale();
         const s = load(), o = isPlain(outstanding) ? outstanding : {};
         const errs = Array.isArray(o.errors) ? o.errors.map((e) => cleanText(e, 160)).slice(0, 5) : [];
-        const counts = { amend: Array.isArray(o.amend) ? o.amend.length : 0, fresh: Array.isArray(o.fresh) ? o.fresh.length : 0 };
+        const counts = {};
+        for (const k of Object.keys(KINDS)) counts[k] = Array.isArray(o[k]) ? o[k].length : 0;
         let r;
         if (lockValid()) r = { action: 'locked', run_id: s.lock.run_id };
         else if (s.pending) { if (!debounce) armDebounce(); r = { action: 'pending', reasons: Object.assign({}, s.pending.reasons) }; }
@@ -453,7 +456,7 @@ function createAutorun({
         save();
         // 목록을 못 읽은 것은 「남은 일 없음」이 아니다(L-291) — 알린다.
         if (errs.length) notify('나리야 자동 반영 — 남은 일 점검 실패', '남은 일 목록을 읽지 못했습니다(「남은 일 없음」이 아닙니다): ' + errs.join(' / ').slice(0, 200), { type: 'nariya_autorun_sweep_failed' });
-        console.log(`[nariya_autorun] 남은 일 점검: ${r.action} (개정 ${counts.amend} · 원문신선도 ${counts.fresh})`);
+        console.log(`[nariya_autorun] 남은 일 점검: ${r.action} (개정 ${counts.amend} · 원문신선도 ${counts.fresh} · 원문결손 ${counts.mok})`);
         return r;
     }
 
@@ -589,7 +592,7 @@ function createAutorun({
         if (typeof given !== 'string' || !RUN_ID_RE.test(given)) return { ok: false, status: 400, error: 'run_id 가 없거나 형식이 틀렸습니다(영문·숫자·._:- 64자 이하).' };
         const w = isPlain(body.work) ? body.work : {};
         const num = (x) => (Number.isInteger(x) && x >= 0 && x <= MAX_COUNT ? x : 0);
-        const work = { amend: num(w.amend), fresh: num(w.fresh) };
+        const work = { amend: num(w.amend), fresh: num(w.fresh), mok: num(w.mok) };
         expireIfStale();
         const s = load(), l = s.lock;
         let result;
@@ -621,11 +624,11 @@ function createAutorun({
             result = Object.assign({ ok: true, busy: false, run_id: given, taken }, prev ? { relocked: true } : {});
         }
         const lk = load().lock;
-        if (lk.source === 'claim' && !lk.workNotified && work.amend + work.fresh > 0) {
+        if (lk.source === 'claim' && !lk.workNotified && work.amend + work.fresh + work.mok > 0) {
             lk.workNotified = true;
             save();
-            notify(`나리야 자동 반영 — 작업 시작(직접 실행 · 개정 ${work.amend}·원문신선도 ${work.fresh})`, '서버가 깨우지 않은 세션(예약 작업 「지금 실행」 등)이 반영할 일을 찾아 시작했습니다. 끝나면 다시 알립니다.',
-                { type: 'nariya_autorun_daily_started', run_id: lk.run_id, amend: String(work.amend), fresh: String(work.fresh) });
+            notify(`나리야 자동 반영 — 작업 시작(직접 실행 · 개정 ${work.amend}·원문신선도 ${work.fresh}·원문결손 ${work.mok})`, '서버가 깨우지 않은 세션(예약 작업 「지금 실행」 등)이 반영할 일을 찾아 시작했습니다. 끝나면 다시 알립니다.',
+                { type: 'nariya_autorun_daily_started', run_id: lk.run_id, amend: String(work.amend), fresh: String(work.fresh), mok: String(work.mok) });
         }
         return result;
     }
@@ -677,15 +680,15 @@ function createAutorun({
             if (d.outcome === 'failed') markSeen(servedOf, COOLDOWN_MS);
             else {
                 const inS = (k, a) => a.filter((id) => (servedOf[k] || []).includes(id));
-                markSeen({ amend: inS('amend', d.deferred_amend_ids), fresh: inS('fresh', d.deferred_fresh_ids) }, SEEN_TTL_MS);
+                markSeen({ amend: inS('amend', d.deferred_amend_ids), fresh: inS('fresh', d.deferred_fresh_ids), mok: inS('mok', d.deferred_mok_ids) }, SEEN_TTL_MS);
             }
         }
         s.lastDone = { at: now(), run_id: d.run_id, outcome: d.outcome, pr_url: d.pr_url, summary: d.summary, needs_decision: d.needs_decision,
-            amend: d.amend_ids.length, fresh: d.fresh_ids.length, source, lockMismatch, late };
+            amend: d.amend_ids.length, fresh: d.fresh_ids.length, mok: d.mok_ids.length, source, lockMismatch, late };
         s.doneIds = s.doneIds.concat([d.run_id]).slice(-KEEP.done);
         s.expired = s.expired.filter((x) => x.run_id !== d.run_id);
-        if (d.outcome === 'pr' && (d.amend_ids.length || d.fresh_ids.length) && !s.inFlight.some((f) => f.run_id === d.run_id)) {
-            s.inFlight.push({ run_id: d.run_id, pr_url: d.pr_url, amend_ids: d.amend_ids, fresh_ids: d.fresh_ids, since: now() });
+        if (d.outcome === 'pr' && (d.amend_ids.length || d.fresh_ids.length || d.mok_ids.length) && !s.inFlight.some((f) => f.run_id === d.run_id)) {
+            s.inFlight.push({ run_id: d.run_id, pr_url: d.pr_url, amend_ids: d.amend_ids, fresh_ids: d.fresh_ids, mok_ids: d.mok_ids, since: now() });
         }
         save();
         if (!lockValid() && s.pending && !debounce) armDebounce();
@@ -716,7 +719,8 @@ function createAutorun({
      *  관리자가 손으로 닫은 것(처리완료·해당없음)은 「머지·재수집이 끝났다」는 증거가 아니라서 풀지 않는다(§4 D7). 다시 뜬 카드(pending)도 그대로 숨긴다.
      *  14일 지난 항목은 통째로 버린다. 넘겨준 정보의 갈래만 정리한다(applied 만 주면 amend 만).
      * 예: hiddenIds({freshCards:new Map([['adf_a',{status:'done', auto_closed:true}]])}) → adf_a 는 빠진다
-     * @param {{applied?:Map<string,*>, freshCards?:Map<string,{status?:string, auto_closed?:boolean}>}} [ctx] @returns {{amend:Set<string>, fresh:Set<string>}}
+     *  mok id(2026-11-16)는 **결손 점검기가 「더는 누락 아님」으로 자동으로 닫은 카드**(mok_audit_scanner.autoResolveCleared 의 auto_resolved:true)일 때만 빠진다.
+     * @param {{applied?:Map<string,*>, freshCards?:Map<string,{status?:string, auto_closed?:boolean}>, mokCards?:Map<string,{status?:string, auto_resolved?:boolean}>}} [ctx] @returns {{amend:Set<string>, fresh:Set<string>, mok:Set<string>}}
      * [연계] ← routes/legal.js wiki-brief-all(applied) · GET freshness(freshCards) — 자동화 열쇠로 부를 때만
      */
     function hiddenIds(ctx) {
@@ -726,10 +730,11 @@ function createAutorun({
             ...f,
             amend_ids: c.applied ? f.amend_ids.filter((id) => !c.applied.has(id)) : f.amend_ids,
             fresh_ids: c.freshCards ? f.fresh_ids.filter((id) => { const e = c.freshCards.get(id); return !(e && (e.status || 'pending') !== 'pending' && e.auto_closed === true); }) : f.fresh_ids,
-        })).filter((f) => f.amend_ids.length || f.fresh_ids.length);
+            mok_ids: c.mokCards ? (f.mok_ids || []).filter((id) => { const e = c.mokCards.get(id); return !(e && (e.status || 'pending') !== 'pending' && e.auto_resolved === true); }) : (f.mok_ids || []),
+        })).filter((f) => f.amend_ids.length || f.fresh_ids.length || f.mok_ids.length);
         if (JSON.stringify(s.inFlight) !== before) save();
-        const out = { amend: new Set(), fresh: new Set() };
-        for (const f of s.inFlight) { f.amend_ids.forEach((id) => out.amend.add(id)); f.fresh_ids.forEach((id) => out.fresh.add(id)); }
+        const out = { amend: new Set(), fresh: new Set(), mok: new Set() };
+        for (const f of s.inFlight) { f.amend_ids.forEach((id) => out.amend.add(id)); f.fresh_ids.forEach((id) => out.fresh.add(id)); f.mok_ids.forEach((id) => out.mok.add(id)); }
         return out;
     }
 
@@ -745,7 +750,7 @@ function createAutorun({
             configured: { fireUrl: !!env.NARIYA_ROUTINE_FIRE_URL, routineToken: !!env.NARIYA_ROUTINE_TOKEN, automationToken: (env.NARIYA_AUTOMATION_TOKEN || '').length >= MIN_TOKEN_LEN },
             lock: l ? { run_id: l.run_id, source: l.source, since: iso(l.since), expiresAt: iso(l.since + LOCK_TTL_MS), valid, taken: l.taken } : null,
             pending: s.pending ? { reasons: s.pending.reasons, text: reasonText(s.pending.reasons), since: iso(s.pending.since), lastAt: iso(s.pending.lastAt), fireAt: valid ? null : iso(debounceAt) } : null,
-            inFlight: s.inFlight.map((f) => ({ run_id: f.run_id, pr_url: f.pr_url, amend: f.amend_ids.length, fresh: f.fresh_ids.length, since: iso(f.since) })),
+            inFlight: s.inFlight.map((f) => ({ run_id: f.run_id, pr_url: f.pr_url, amend: f.amend_ids.length, fresh: f.fresh_ids.length, mok: f.mok_ids.length, since: iso(f.since) })),
             firing,
             lastFire: t(s.lastFire),
             lastDone: t(s.lastDone),
@@ -792,14 +797,14 @@ function createAutorun({
 
 /**
  * 새벽 「남은 일 점검」이 넘길 일 목록을 모은다(2026-11-16) — 자동 세션이 wiki-brief-all·freshness 에서 받는 것과 **같은 거름**:
- *  개정 = 승인됐고 · 위키 반영 장부에 없고 · PR 진행 중(inFlight)이 아닌 것 / 원문신선도 = 대기(pending)이고 · PR 진행 중이 아닌 것.
+ *  개정 = 승인됐고 · 위키 반영 장부에 없고 · PR 진행 중(inFlight)이 아닌 것 / 원문신선도·원문결손 = 대기(pending)이고 · PR 진행 중이 아닌 것.
  * 파일을 못 읽으면 그 갈래는 빈 목록 + errors 에 까닭 — 점검이 죽어 다른 갈래까지 잃지 않게, 그리고 sweep 이 「못 읽음」을 알리게(L-291).
- * 예: collectOutstanding() → {amend:['chg_20261116_ab12'], fresh:[], errors:[]}
- * @returns {{amend:string[], fresh:string[], errors:string[]}}
+ * 예: collectOutstanding() → {amend:['chg_20261116_ab12'], fresh:[], mok:[], errors:[]}
+ * @returns {{amend:string[], fresh:string[], mok:string[], errors:string[]}}
  * [연계] ← server.js runNariyaNightly → sweep · legal_amendment_scanner(queueFile·loadWikiApplied) · admrul_fresh_scanner(QUEUE_FILE) · legal_admin_queues.readJsonl
  */
 function collectOutstanding() {
-    const out = { amend: [], fresh: [], errors: [] };
+    const out = { amend: [], fresh: [], mok: [], errors: [] };
     const adminQueues = require('./legal_admin_queues');
     try {
         const sc = require('./legal_amendment_scanner'), applied = sc.loadWikiApplied();
@@ -813,6 +818,11 @@ function collectOutstanding() {
         const hid = forDefault().hiddenIds({ freshCards: new Map(all.map((e) => [String(e.id), e])) });
         out.fresh = all.filter((e) => e && (e.status || 'pending') === 'pending' && !hid.fresh.has(String(e.id))).map((e) => String(e.id));
     } catch (e) { console.error('[nariya_autorun] 남은 일 점검 — 원문신선도 목록을 못 읽음:', e && e.message); out.errors.push('원문신선도: ' + String((e && e.message) || e)); }
+    try {
+        const ms = require('./mok_audit_scanner'), all = adminQueues.readJsonl(ms.QUEUE_FILE);
+        const hid = forDefault().hiddenIds({ mokCards: new Map(all.map((e) => [String(e.id), e])) });
+        out.mok = all.filter((e) => e && (e.status || 'pending') === 'pending' && !hid.mok.has(String(e.id))).map((e) => String(e.id));
+    } catch (e) { console.error('[nariya_autorun] 남은 일 점검 — 원문결손 목록을 못 읽음:', e && e.message); out.errors.push('원문결손: ' + String((e && e.message) || e)); }
     return out;
 }
 

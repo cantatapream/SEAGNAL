@@ -1384,17 +1384,28 @@ router.get('/api/legal/mok-audit', adminAuth.requireAdminToken, (req, res) => {
 // GET /api/legal/mok-audit/brief-all (관리자) — 대기 전 건을 AI 작업 세션에 넘길 한 덩어리 인계문으로(3-83).
 //   개정검토의 「승인분 전체 지시문」 과 같은 자리다(사장님 2026-10-07 「여기에도 … 전체 지시문 복사할 수 있도록」).
 //   이 방에는 승인이 없으므로 **대기(pending) 전 건**을 묶는다. ids 를 콤마로 주면 그 건만.
-router.get('/api/legal/mok-audit/brief-all', adminAuth.requireAdminToken, (req, res) => {
+//   [자동 반영 · 2026-11-16 사용자 「자동슈정」] 자동 세션의 열쇠(X-Automation-Token)로도 읽는다 — 그때는 ids 를 무시하고
+//   **대기 카드만**, PR 진행 중인 카드(inFlight)는 빼고 준다(skippedInFlight). 404 는 「결손 쪽 할 일 없음」. 내준 id 는 noteServed.
+router.get('/api/legal/mok-audit/brief-all', autorun.requireAdminOrAutomation, (req, res) => {
   try {
-    const rows = adminQueues.readJsonl(mokScanner.QUEUE_FILE).reverse();
-    const idsQ = String(req.query.ids || '').split(',').map((v) => v.trim()).filter(Boolean);
-    const list = idsQ.length
+    const all = adminQueues.readJsonl(mokScanner.QUEUE_FILE);
+    const rows = all.slice().reverse();
+    const idsQ = req.viaAutomation ? [] : String(req.query.ids || '').split(',').map((v) => v.trim()).filter(Boolean);
+    let list = idsQ.length
       ? rows.filter((e) => idsQ.indexOf(String(e.id)) >= 0)
       : rows.filter((e) => (e.status || 'pending') === 'pending');
-    if (!list.length) return res.status(404).json({ ok: false, error: idsQ.length ? '그 id 로 묶을 카드를 찾지 못했습니다.' : '대기 중인 결손 카드가 없습니다.' });
+    let skippedInFlight = 0;
+    if (req.viaAutomation) {
+      const hid = autorun.hiddenIds({ mokCards: new Map(all.map((e) => [String(e.id), e])) });
+      const n0 = list.length;
+      list = list.filter((e) => !hid.mok.has(String(e.id)));
+      skippedInFlight = n0 - list.length;
+    }
+    if (!list.length) return res.status(404).json({ ok: false, error: idsQ.length ? '그 id 로 묶을 카드를 찾지 못했습니다.' : skippedInFlight ? `남은 ${skippedInFlight}건은 PR 이 나가 머지를 기다리는 중입니다.` : '대기 중인 결손 카드가 없습니다.', skippedInFlight });
     const r = mokBrief.buildMokBrief(list);
     if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
-    res.json({ ok: true, count: r.count, kinds: r.kinds, excerpt: r.excerpt, text: r.text });
+    if (req.viaAutomation) { try { autorun.noteServed('mok', list.map((e) => String(e.id))); } catch (e) { console.error('[autorun] noteServed 실패(응답은 정상):', e && e.message); } }
+    res.json({ ok: true, count: r.count, kinds: r.kinds, excerpt: r.excerpt, text: r.text, ids: list.map((e) => String(e.id)), skippedInFlight });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -1465,7 +1476,7 @@ router.post('/api/legal/mok-audit/decide-all', adminAuth.requireAdminToken, (req
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
-// POST /api/legal/mok-audit/scan-now (관리자) — 정기 점검(수요일 03:00)과 별개로 즉시 1회.
+// POST /api/legal/mok-audit/scan-now (관리자) — 정기 점검(새벽 03:00 · 3일에 한 번)과 별개로 즉시 1회.
 //   573계열 + 고시 824건 대조라 실측 20~40분. 완료를 기다리지 않고 즉시 응답(started:true).
 router.post('/api/legal/mok-audit/scan-now', adminAuth.requireAdminToken, (req, res) => {
   const r = mokScanner.startMokAuditScan();

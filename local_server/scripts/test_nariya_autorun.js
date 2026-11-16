@@ -410,7 +410,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         await quiet(async () => { ar.done({ run_id: runId, outcome: 'pr', pr_url: PR(5), amend_ids: ['chg_1', 'chg_2', 'chg_1'], fresh_ids: ['adf_a', 'adf_b', 'adf_c', 'adf_d'] }); await flush(); });
         let h = ar.hiddenIds();
         assert.deepEqual([...h.amend].sort(), ['chg_1', 'chg_2']); assert.deepEqual([...h.fresh].sort(), ['adf_a', 'adf_b', 'adf_c', 'adf_d']);
-        assert.deepEqual(ar.status().inFlight, [{ run_id: runId, pr_url: PR(5), amend: 2, fresh: 4, since: ar.status().inFlight[0].since }]);
+        assert.deepEqual(ar.status().inFlight, [{ run_id: runId, pr_url: PR(5), amend: 2, fresh: 4, mok: 0, since: ar.status().inFlight[0].since }]);
         h = ar.hiddenIds({ applied: new Map([['chg_1', {}]]) });
         assert.deepEqual([...h.amend], ['chg_2'], '장부에 들어온 amend id 는 빠진다'); assert.equal(h.fresh.size, 4, 'fresh 는 안 건드림');
         // [D7] 점검기가 자동으로 닫은 카드(auto_closed:true · done)만 풀린다 — 손으로 닫은 것·다시 뜬 것·대기 중인 것은 그대로 숨긴다
@@ -625,7 +625,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const v = V({ run_id: 'ar-1', outcome: 'pr', summary: 'a‮b\u0007c‏d⁦e\nf' + '가'.repeat(5000), needs_decision: [...Array(30)].map(() => '‪' + '나'.repeat(500)).concat([5, null, '\u0001\u0002']) }).value;
         assert.ok(v.summary.startsWith('abcde\nf'), JSON.stringify(v.summary.slice(0, 10))); assert.equal(v.summary.length, 2000);
         assert.equal(v.needs_decision.length, 20); assert.ok(v.needs_decision.every((x) => x.length === 300 && !x.includes('‪')));
-        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], amend_ids: [], fresh_ids: [], deferred_amend_ids: [], deferred_fresh_ids: [] });
+        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], amend_ids: [], fresh_ids: [], mok_ids: [], deferred_amend_ids: [], deferred_fresh_ids: [], deferred_mok_ids: [] });
         const { ar, push } = make();
         ar.claim({ run_id: 'c1' });
         const r = ar.done({ run_id: 'c1', outcome: 'nope' });
@@ -825,6 +825,29 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.deepEqual(seq, ['amend', 'mok', 'fresh', 'amend', 'mok', 'fresh'], '개정 → 결손 → 낡음 순환 · 3일에 한 번씩');
         assert.equal(A.nightlyScanFor(Date.parse('2026-11-18T00:10:00+09:00')), 'amend', 'KST 날짜로 고른다(UTC 로는 전날)');
         assert.equal(A.nightlyScanFor(Date.parse('2026-11-18T23:59:00+09:00')), 'amend');
+    });
+
+    await check('[§8 #7] 원문결손(mok) — 대기·발사 글에 실림 · 내준 일·결정 필요·PR(inFlight) 규칙이 개정·신선도와 같음 · 결손 점검기가 자동으로 닫은 카드만 inFlight 에서 풀림 · 연결(사용자 「자동슈정」)', async () => {
+        const c = make();
+        await quiet(async () => { c.ar.requestRun('mok', { count: 3 }); await c.time.advance(10 * MIN); });
+        assert.ok(/ mok=3$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
+        const id = c.ar.status().lock.run_id;
+        c.ar.noteServed('mok', ['mok_a', 'mok_b', 'mok_c']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(9), mok_ids: ['mok_a'], deferred_mok_ids: ['mok_b'] }); });
+        assert.equal(c.ar.requestRun('mok', { ids: ['mok_b'] }).queued, false, '결정 필요 → 쉼');
+        assert.deepEqual([...c.ar.hiddenIds({}).mok], ['mok_a'], 'PR 에 실린 결손 카드는 숨김');
+        assert.deepEqual([...c.ar.hiddenIds({ mokCards: new Map([['mok_a', { status: 'done', decidedBy: '관리자' }]]) }).mok], ['mok_a'], '손으로 닫은 것은 안 풀림');
+        assert.deepEqual([...c.ar.hiddenIds({ mokCards: new Map([['mok_a', { status: 'done', auto_resolved: true }]]) }).mok], [], '점검기가 자동으로 닫으면 풀림');
+        assert.equal(c.ar.status().inFlight.length, 0);
+        let r; await quiet(async () => { r = c.ar.sweep({ amend: [], fresh: [], mok: ['mok_b', 'mok_c'] }); });
+        assert.equal(r.action, 'requested'); assert.deepEqual(c.ar.status().pending.reasons, { mok: 1 }, '손대지 않은 mok_c 만');
+        assert.equal(A.validateDone({ run_id: 'x', outcome: 'pr', mok_ids: ['bad id'] }).ok, false);
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/router\.get\('\/api\/legal\/mok-audit\/brief-all', autorun\.requireAdminOrAutomation/.test(lj), '결손 지시문을 자동화 열쇠로');
+        assert.ok(/const idsQ = req\.viaAutomation \? \[\] :/.test(lj) && /autorun\.noteServed\('mok'/.test(lj) && /hid\.mok\.has/.test(lj), '자동화는 대기만·inFlight 빼고·내준 id 기록');
+        assert.ok(/router\.post\('\/api\/legal\/mok-audit\/decide-all', adminAuth\.requireAdminToken/.test(lj) && /router\.post\('\/api\/legal\/mok-audit\/:id\/decide', adminAuth\.requireAdminToken/.test(lj), '카드 처리는 여전히 관리자만');
+        const ms = fs.readFileSync(path.join(__dirname, '../services/mok_audit_scanner.js'), 'utf8');
+        assert.ok(/if \(fresh\.length \|\| reopened\.length\) \{[\s\S]*?requestRun\('mok', \{ count: fresh\.length \+ reopened\.length \}\)/.test(ms), '결손 점검이 새로·다시 뜬 카드로 깨움');
     });
 
     fs.rmSync(tmp, { recursive: true, force: true });

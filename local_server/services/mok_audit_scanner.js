@@ -42,7 +42,8 @@
  *     실행시간(실측 20~40분) 동안 멈춰 챗봇 답변까지 막힌다.
  *  ② 결과 JSON 에서 **누락 행만** 뽑아 큐(JSONL)로 옮긴다.
  *  ③ **새로 발견된 것이 있을 때만** 관리자 푸시(같은 알림이 반복되면 사람이 알림을 무시한다).
- *  ④ **raw·위키 자동 수정 절대 금지** — 목록만 남기고 사람이 누른다(환각0 승인게이트).
+ *  ④ 서버는 raw·위키를 직접 고치지 않는다 — 목록만 남긴다. 2026-11-16 부터 새로·다시 뜬 카드는 자동 반영 세션이 받아
+ *     **먼저 정말 빠진 것인지 확인한 뒤** 다시 받아 PR 로 올린다(사용자 「자동슈정」 · services/nariya_autorun.js).
  *  ⑤ 닫아 둔 카드라도 이번 점검에서 또 누락으로 나오면 **다시 대기로 돌린다**.
  *
  * [저장 위치] `local_server/data/` — fly.io 볼륨이라 재배포해도 안 지워진다.
@@ -424,6 +425,10 @@ async function runMokAuditScan() {
         await require('./admin_push').sendAdminPush(title, body,
           { type: 'mok_audit', count: String(fresh.length), reopened: String(reopened.length) });
       } catch (e) { console.error('[MokAudit] 관리자 푸시 실패:', e && e.message); }
+      // [자동 반영 · 2026-11-16 사용자 「자동슈정」] 새 카드나 다시 뜬 카드가 있으면 자동 반영 세션을 깨우도록 요청한다
+      //   (원문신선도와 같은 규칙 — 다시 뜬 카드만 있어도 깨운다, ids 는 안 넘긴다). 실패해도 점검 결과·푸시는 그대로.
+      try { require('./nariya_autorun').requestRun('mok', { count: fresh.length + reopened.length }); }
+      catch (e) { console.error('[MokAudit] 자동 반영 요청 실패:', e && e.message); }
     }
     return st;
   } finally {

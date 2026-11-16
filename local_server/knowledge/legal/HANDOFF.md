@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 20:40 KST] ✅완료 — 나리야 자동 반영 — 원문결손도 자동 수정 대상(사용자 「3- 자동슈정」) · 결정 1·2 정리
+nariya_autorun KINDS.mok(대기·발사·served·deferred·inFlight mok_ids — 결손 점검기 auto_resolved 로만 풀림·sweep·collectOutstanding) · mok_audit_scanner 새로·다시 뜬 카드 → requestRun('mok') · GET /api/legal/mok-audit/brief-all 자동화 열쇠 허용(대기만·inFlight 빼고·noteServed · 카드 처리는 관리자만) · 화면·설계안 §8.8 · 예약 작업 지침에 결손 단계·mok_ids 추가(update_trigger). 시험 test_nariya_autorun 43/0(§8 #7) · test_mok_brief 23/0(M6 기준 변경: 자동화 열쇠 허용) · 관련 0 FAIL. 결정 1(main 보호): legal-index-sync.yml 이 main 에 직접 푸시하므로 「PR 필수」 규칙과 충돌 — 사용자에게 다시 확인(설계안 §8.9). 결정 2(예전 대기 개정 카드 승인): 관리자 토큰이 없어 세션이 못 함 → PR 머지·배포 뒤 개정검토 「전체 승인」 버튼 안내.
+
+
 ### [2026-11-16 19:08 KST] ✅완료 — 나리야 새벽 점검 — 03:00 하루 하나씩 돌려 가기(개정→결손→낡음)
 사용자: 「그럼 격일마다 하도록 하자 하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다 돌아가게」 → 3일 순환으로 읽음(다르면 nightlyScanFor 만 바꿈). server.js runNariyaNightly(cron 0 3 * * * KST): 보류 → nightlyScanFor(KST 날짜 번호 % 3: 개정감지·원문결손·원문신선도) 하나 → 풀기 → sweep. 01:00 사슬 제거. 계산: 11-17 원문신선도 · 11-18 개정감지 · 11-19 원문결손. 개정감지 창은 scanWindowDays(최소 7일)라 3일 걸러도 공포분을 덮음(알림은 최대 3일 늦을 수 있음). 화면 문구·스캐너 주석·설계안 §8.2·_amendments/README 갱신. 시험: test_nariya_autorun 42/0(순환·KST 경계 포함) · test_mok_audit_scanner 31/0 · 관련 7종 0 FAIL · gen_rulebook --check 통과. PR #1475 에 이어서 올림.
 

@@ -230,3 +230,18 @@ setHold(true) → 오늘 차례 점검 하나 → finally { setHold(false) → s
 - law.go.kr DRF 의 하루 호출 한도 — 저장소 기록에서 못 찾았다(하루 하나씩이라 하루 조회량은 종전 일요일 하루보다 적다).
 - 원문결손 점검의 실제 소요 — 재지 않았다.
 - 운영 볼륨에 자동 승인 전부터 대기 중인 개정 카드가 몇 건인지 — 관리자 토큰이 필요해 보지 못했다(git 시드 큐에는 44건).
+
+### 8.8 원문결손도 자동 반영 (2026-11-16 사용자 「3- 자동슈정」)
+- `KINDS.mok` 추가 — 결손 점검(mok_audit_scanner)이 새로·다시 뜬 카드가 있으면 `requestRun('mok', {count})`(ids 없음 — 원문신선도와 같은 「다시 뜬 카드만 있어도 깨운다」).
+- `GET /api/legal/mok-audit/brief-all` 을 자동화 열쇠로도 연다 — 자동화 호출은 ids 를 무시하고 **대기 카드만**, inFlight 는 빼고, 내준 id 는 noteServed('mok'). 404 = 결손 쪽 할 일 없음.
+  카드 처리(decide·decide-all)는 여전히 관리자 토큰만.
+- done 에 `mok_ids`(PR 에 실은 결손 카드)·`deferred_mok_ids`(결정 필요) — 개정·신선도와 같은 쉼·inFlight 규칙.
+- inFlight 의 mok id 는 **결손 점검기가 「더는 누락 아님」으로 자동으로 닫은 카드**(`auto_resolved:true`)일 때만 풀린다 — 손으로 닫은 것은 머지·재수집의 증거가 아니라서(§4 D7 과 같은 까닭).
+- collectOutstanding·sweep 이 mok 도 센다. 세션 지침: 결손 카드는 **먼저 정말 빠진 것인지**(발췌본은 모자란 것이 정상) 확인한 뒤 같은 판을 다시 받는다.
+- 시험: `test_nariya_autorun.js` §8 #7 · `test_mok_brief.js` M6(자동화 열쇠 허용으로 기준 변경).
+
+### 8.9 main 보호 규칙 (사용자 「1- 추천대로」) — 걸기 전에 확인된 충돌
+- `.github/workflows/legal-index-sync.yml` 은 위키가 바뀌었는데 색인이 낡았으면 **main 에 직접 커밋·푸시**한다(GITHUB_TOKEN, 3회 재시도).
+  「PR 을 거쳐야만 main 반영」 규칙을 걸면 이 푸시가 막혀 main 의 색인이 낡을 수 있다. 예외(우회 허용)를 GitHub Actions 에 줄 수 있는지는 확인하지 못했다.
+- 세션 쪽에서는 이 규칙을 걸 도구가 없다(GitHub 설정 화면에서 사장님이 건다).
+
