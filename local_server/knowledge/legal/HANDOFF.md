@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 14:26 KST] 🟢착수 — AI 브리핑 누적 오류 E20261116-142221 고치기
+사용자 첨부 md(오류 3건·유형 2개). G01 「이 세 곳에는」 셈말 — 검사기로 재현해 원인 확인 후 고침, G02 「15~24시」 — 판정 후 처리. 독립 검토·처리 완료 기록 같은 PR.
+
+
 ### [2026-11-16 04:42 KST] ✅완료 — 나리야 자동 반영(autorun) 1단계 — 서버 구현
 설계안 local_server/services/nariya_autorun.design.md · 구현 services/nariya_autorun.js · 시험 36/0 · 독립 적대검증 3회(F1~F18, D1~D8 반영). 예약 작업 trig_01FVmBRnYnahU3iGZ4byxdyP(지금은 「준비 중」 지침, cron 없음, API 트리거 사장님이 생성). Fly secrets 사장님 등록 완료: NARIYA_ROUTINE_FIRE_URL·NARIYA_ROUTINE_TOKEN·NARIYA_AUTOMATION_TOKEN(+2단계용 GITHUB_MERGE_TOKEN). 다음: PR 머지·배포 → 클라우드 환경 shin 에 네트워크 비밀(host seagnal-server.fly.dev, 헤더 X-Automation-Token) → 시험 fire 1회(세션 시작·완료 푸시 확인) → 예약 작업 지침(scratchpad routine_prompt_v1 을 설계안 §6 기준으로 갱신)·매일 cron. 2단계(사장님 요청): 관리자 화면 「자동 반영」 방 — 결정 필요 카드 선택지 버튼 + PR 카드 머지 버튼(GITHUB_MERGE_TOKEN).
 
