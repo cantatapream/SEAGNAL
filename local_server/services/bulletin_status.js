@@ -11,6 +11,8 @@
  *   예비특보 시간창이 끝난 뒤 10분까지 정식 특보·연장·취소 글을 기다린다(「10분까지 기다릴 수 있도록 해줘」), 목록에서 빠질 때는 기다리지 않는다.
  * 규칙(analysis/bulletin_survey/README.md — 2025-01~2026-11 전수 검산 3,711/3,712):
  *   특보 = 관서별 입력시각 순으로 변경 칸(t2) 적용(발표·변경 = 그 종류·등급, 해제 = 지움, 해제예고 연장·변경 = 해제 예고만 바꿈).
+ *          해제는 그 항목의 해제 시각(t3)이 되어야 지운다 — 그 전까지는 특보를 두고 해제 예고 칸에 정확한 시각을 넣는다(2026-11-16 사용자 「해당 시간이 도래해야 지우는거야」).
+ *          해제 예고가 범위(「17일 오전(09시~12시)」)이고 범위가 끝났는데 해제 통보문이 없으면 특보를 그대로 둔다(사용자 확정 「가」 — 대전 2026 10-2호: 범위 끝 4시간 뒤 해제).
  *          부모 이름만 = 자식 전부 포함, 일부 포함·제외는 괄호로. 첫 통보문은 발효 중 칸(t6) + 그 통보문 변경 칸으로 시작.
  *   예비 = 관서별 마지막 예비 통보문 목록(전체 목록이 매번 다시 온다) − 그 뒤 「풍랑예비특보 해제」 통보문 구역 − 정식 특보가 된 구역,
  *          시간창 끝 + 10분이 지나면 뺀다.
@@ -80,11 +82,11 @@ function yebiReleaseUnits(r) {
 }
 
 /**
- * 한 관서의 정식 특보 상태(특보 통보문들 → 단위별 상태).
+ * 한 관서의 정식 특보 상태(특보 통보문들 → 단위별 상태). nowMs = 지금(해제 시각이 아직 안 된 해제는 특보를 두고 해제 예고 칸만 정확한 시각으로).
  * @returns {{state: Map<string, {type, level, tmFc, tmEf, efMs, clr, ho, inMs}>, yebiRelease: Array<{ms, units:Set}>}}  inMs = 그 상태를 만든 통보문 입력시각(AI 덧씌움의 「새 것이 이긴다」 기준)
  * [연계] ← compute(이 파일)
  */
-function computeFormal(list) {
+function computeFormal(list, nowMs = Infinity) {
     const state = new Map(), yebiRelease = [];
     let seeded = false;
     for (const b of latest(list)) {
@@ -98,7 +100,11 @@ function computeFormal(list) {
         for (const it of items) {
             const t = ef[it.n] || {}, c = clr[it.n];
             for (const u of it.units) {
-                if (it.action === '해제') state.delete(u);
+                if (it.action === '해제') {
+                    // 해제 시각(t3)이 아직이면 지우지 않는다 — 해제 예고 칸 = 정확한 해제 시각(앱 「🕐 해제시각 변경」과 같은 걸음), 그 시각이 되면 지운다
+                    if (t.ms && t.ms > nowMs && state.has(u)) Object.assign(state.get(u), { clr: t.text, relMs: t.ms, inMs: base.inMs });
+                    else state.delete(u);
+                }
                 else if (it.action === '발표' || it.action === '변경') state.set(u, Object.assign({ type: it.type, level: it.level, tmEf: t.text || '', efMs: t.ms || 0, clr: c || '' }, base));
                 else if (/해제예고|연장/.test(it.action) && state.has(u) && c) Object.assign(state.get(u), { clr: c, inMs: base.inMs });   // 해제 예고만 바꿈(그 통보문이 새 근거)
             }
@@ -143,7 +149,7 @@ function compute(bulletins, nowMs, cands = []) {
     for (const b of bulletins) if (b && b.result) (byOffice[b.office] = byOffice[b.office] || { w: [], y: [] })[b.rpt === '7' ? 'y' : 'w'].push(b);
     const zones = {}, waiting = [];
     for (const { w, y } of Object.values(byOffice)) {
-        const { state, yebiRelease } = computeFormal(w);
+        const { state, yebiRelease } = computeFormal(w, nowMs);
         for (const [u, s] of state) zones[u] = Object.assign({ parent: parentOf(u), kind: 'formal' }, s);
         const lastY = latest(y).pop();
         if (!lastY) continue;

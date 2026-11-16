@@ -40,7 +40,18 @@ console.log('A2. 발표(발효 전) · 표기 차이');
     ok('통보문 「주의보, 발효 시각 아직」 = 발표(발효 전) → MMIS 와 같은 상태로 셈', b['강원북부앞바다'].kind === 'pending' && C.sig(b['강원북부앞바다']) === C.sig(f['강원북부앞바다']));
     ok('발효 시각이 지나면 정식', C.pendingOf(raw, Date.parse('2026-11-16T04:31:00+09:00'))['강원북부앞바다'].kind === 'formal');
     const P = { parent: 'x', kind: 'pending', type: '풍랑', level: '주의보', tmEf: '04시 30분' }, F = Object.assign({}, P, { kind: 'formal' });
-    ok('가상 푸시 두 걸음: 나타나면 publish(📢 발표) → 발효 시각에 active(🚨 발효)', C.templateOf('x', null, P).templateId === 'publish' && C.templateOf('x', P, F).templateId === 'active' && C.templateOf('x', Z('yebi', '예비'), P).templateId === 'publish');
+    ok('가상 푸시 두 걸음: 예비 없이 나타나면 publish(📢 발표) → 발효 시각에 active(🚨 발효)', C.templateOf('x', null, P).templateId === 'publish' && C.templateOf('x', P, F).templateId === 'active');
+    // 앱 규칙(2026-11-16 사용자 「발효시각 변경이라는 명칭은 맞음 … 범위형 … 확정된 발효시간」 · 「앱과 맞춰」) — push_sender isPreToAdvisory
+    ok('예비(범위) → 발표(정확한 시각) = 🕐 발효시각 변경(time_ef_change)', C.templateOf('x', Z('yebi', '예비', { parent: 'x' }), P).templateId === 'time_ef_change');
+    const Y1 = Z('yebi', '예비', { parent: 'x', tmEf: '2026년 11월 16일 오전(06시~12시)' }), Y2 = Object.assign({}, Y1, { tmEf: '2026년 11월 16일 오후(12시~18시)' });
+    const e1 = C.templateOf('x', Y1, Y2);
+    ok('예비 06~12시 → 12~18시(같은 종류, 더 늦은 범위) = 발효 예정시각 연장(ef_extend, 기존·변경 후)', e1.templateId === 'ef_extend' && e1.oldTime === Y1.tmEf && e1.newTime === Y2.tmEf, e1);
+    ok('예비 12~18시 → 06~12시(앞당김) = 발효시각 변경', C.templateOf('x', Y2, Y1).templateId === 'time_ef_change');
+    const F1 = Z('formal', '주의보', { parent: 'x', clr: '17일 오전(09시~12시)' });
+    ok('해제 예고 오전 → 오후(같은 종류·등급, 더 늦은 범위) = 해제 예정시각 연장(yn_extend)', C.templateOf('x', F1, Object.assign({}, F1, { clr: '17일 오후(12시~18시)' })).templateId === 'yn_extend');
+    ok('해제 예고 범위 → 정확한 해제 시각 = 🕐 해제시각 변경(time_yn_change)', C.templateOf('x', F1, Object.assign({}, F1, { clr: '2026년 11월 17일 11시 00분' })).templateId === 'time_yn_change');
+    const kidY = (b, a, pc) => (C.templateOf('x중연안바다', Object.assign({}, b, { parent: 'x' }), Object.assign({}, a, { parent: 'x' }), Z('formal', '주의보', { parent: 'x' }), pc) || {}).templateId || null;
+    ok('자식만 시각이 바뀌면 child_time_*, 부모도 같이 바뀌면 자식 몫은 안 냄(부모 푸시가 맡음)', kidY(F1, Object.assign({}, F1, { clr: '2026년 11월 17일 11시 00분' }), false) === 'child_time_yn_change' && kidY(F1, Object.assign({}, F1, { clr: '2026년 11월 17일 11시 00분' }), true) === null);
     ok('예비 시간창 이름만 다른 건 같음(아침=오전, 저녁 18~00시=밤 18~24시)', C.winKey('2026년 11월 16일 아침(06시~12시)') === C.winKey('2026년 11월 16일 오전(06시~12시)') && C.winKey('2026년 11월 16일 저녁(18시~00시)') === C.winKey('2026년 11월 16일 밤(18시~24시)'));
     ok('해제 예고도 시각으로', C.clrKey('17일 오전(09시~12시)') === C.clrKey('17일  오전(09시~12시)') && C.clrKey('17일 오전(09시~12시)') !== C.clrKey('17일 오후(12시~18시)'));
 }

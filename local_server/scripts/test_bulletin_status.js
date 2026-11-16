@@ -35,6 +35,20 @@ console.log('A. 정식 특보');
     ok('해제 → 없음(자식 포함)', !Object.keys(S.compute(list, K('2026-11-16 10:00')).zones).length);
 }
 
+console.log('A1. 해제는 해제 시각이 되어야 지움 — 사용자 확정 2026-11-16 「해당 시간이 도래해야 지우는거야」 · 범위 끝 뒤 후속 없으면 유지(「가」)');
+{
+    // 실제 대구 2026 11-24호(발표) → 11-25호(21:57 입력, 해제 시각 23:00)
+    const D = (ho, tmIn, o) => ({ office: '대구청', rpt: '6', result: Object.assign({ t1Title: ho, tmFc: tmIn + ':00.0', tmIn: tmIn + ':30.0', t1: '', t2: '', t3: '', t4: '', t6: 'o 없음', t7: 'o 없음' }, o) });
+    const w24 = D('제11-24호', '2026-11-15 12:31', { t2: '(1) 풍랑주의보 발표 : 동해남부앞바다(경북북부앞바다)', t3: '(1) 풍랑주의보 발표 : 2026년 11월 15일 13시 30분', t4: '(1) 풍랑주의보 발표\n  o 해제 예고: 17일 오전(09시~12시)' });
+    const w25 = D('제11-25호', '2026-11-15 21:57', { t1: '풍랑주의보 해제', t2: '(1) 풍랑주의보 해제 : 동해남부앞바다(경북북부앞바다)', t3: '(1) 풍랑주의보 해제 : 2026년 11월 15일 23시 00분', t6: 'o 풍랑주의보 : 동해남부북쪽안쪽먼바다' });
+    const z1 = S.compute([w24, w25], K('2026-11-15 22:30')).zones;
+    ok('해제 통보문이 와도 해제 시각(23:00) 전이면 특보 유지 · 해제 예고 칸 = 정확한 해제 시각(자식도)', z1['경북북부앞바다'] && z1['경북북부앞바다'].kind === 'formal' && z1['경북북부앞바다'].clr === '2026년 11월 15일 23시 00분' && z1['경북북부앞바다중연안바다'] && z1['경북북부앞바다중연안바다'].clr === '2026년 11월 15일 23시 00분', z1['경북북부앞바다']);
+    ok('해제 시각이 되면 지움', !S.compute([w24, w25], K('2026-11-15 23:00')).zones['경북북부앞바다']);
+    const w25late = Object.assign({}, w25, { result: Object.assign({}, w25.result, { tmIn: '2026-11-15 23:05:30.0' }) });
+    ok('해제 시각이 이미 지난 해제 통보문은 바로 지움', !S.compute([w24, w25late], K('2026-11-15 23:06')).zones['경북북부앞바다']);
+    ok('해제 예고 범위(17일 09~12시)가 끝나고 10분이 지나도 해제 통보문이 없으면 특보 유지(대전 2026 10-2호 — 4시간 뒤 해제)', S.compute([w24], K('2026-11-17 12:20')).zones['경북북부앞바다'].kind === 'formal');
+}
+
 console.log('A2. 여러 항목이 한 머리를 함께 쓰는 해제 예고');
 {
     const t = S.itemTimes({ t3: '(1) 풍랑주의보 발표 : 2026년 11월 15일 13시 30분\n(2) 풍랑주의보 발표 : 2026년 11월 15일 14시 30분', t4: '(1) ,(2) 풍랑주의보 발표\n  o 해제 예고: 17일 오전(09시~12시)' });
@@ -82,15 +96,21 @@ console.log('D. 실제 자료 되풀이 검산(2026-11 제주청·부산청)');
         const d = JSON.parse(fs.readFileSync(path.join(raw, ym, stn + '.json'), 'utf8'));
         for (const it of Object.values(d.items)) if (it.result) all.push({ office: d.officeName, rpt: it.rpt, result: it.result, ms: K(String(it.result.tmIn).slice(0, 16)) });
     }
-    let n = 0, same = 0;
+    let n = 0, same = 0, heldN = 0, heldOk = 0;
     for (const T of all.filter((b) => b.rpt === '6' && String(b.result.tmIn).startsWith('2026-11'))) {
         const win = all.filter((b) => b.office === T.office && b.ms <= T.ms && b.ms > T.ms - 3 * 86400e3);
         const z = S.compute(win, T.ms).zones;
         const truth = new Map([...parseCurrent(T.result.t6, []).cur].filter(([u]) => PARENTS.has(u)));
-        const mine = new Map(Object.entries(z).filter(([u, v]) => PARENTS.has(u) && v.kind === 'formal').map(([u, v]) => [u, v.type + v.level]));
+        // 발효 중 칸(t6)은 해제 통보문을 낸 순간 해제 예정 해역을 이미 뺀다 — 우리는 해제 시각까지 유지하므로(2026-11-16 사용자 확정)
+        //   「해제 시각을 기다리는 단위(relMs)」는 이 대조에서 뺀다. 그 단위가 정말 그 통보문의 해제 항목인지도 함께 센다.
+        const held = Object.entries(z).filter(([u, v]) => PARENTS.has(u) && v.relMs);
+        heldN += held.length;
+        heldOk += held.filter(([u]) => !truth.has(u) && /해제/.test(String(T.result.t2))).length;
+        const mine = new Map(Object.entries(z).filter(([u, v]) => PARENTS.has(u) && v.kind === 'formal' && !v.relMs).map(([u, v]) => [u, v.type + v.level]));
         n++; if (truth.size === mine.size && [...truth].every(([u, v]) => mine.get(u) === v)) same++;
     }
-    ok(`특보 통보문 ${n}건 모두 발효 중 칸(부모)과 같음`, n > 0 && same === n, { n, same });
+    ok(`특보 통보문 ${n}건 모두 발효 중 칸(부모)과 같음(해제 시각을 기다리는 단위는 빼고)`, n > 0 && same === n, { n, same });
+    ok(`해제 시각을 기다리는 단위 ${heldN}곳 모두 그 통보문의 해제 항목이고 발효 중 칸에 없음`, heldN > 0 && heldOk === heldN, { heldN, heldOk });
 }
 
 console.log('E. 저장');
