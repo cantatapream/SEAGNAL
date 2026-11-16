@@ -133,7 +133,7 @@ function createLive({ ai = (p) => require('./bulletin_ai').call('interpret', p, 
         const item = itemOf(b);
         const base = { code: b.code, office: b.office, rpt: b.rpt, ho: b.result.t1Title, tmIn: b.result.tmIn, inMs: KST(b.result.tmIn), tries: (old.tries || 0) + 1, at: new Date(now()).toISOString() };
         let r;
-        try { r = await ai(promptOf(b, all)); } catch (e) { r = { success: false, error: String(e && e.message || e) }; }
+        try { r = await ai(promptOf(b, all)); } catch (e) { console.warn('[참고사항 AI] 호출 중 예외 — 10분 뒤 다시:', b.office, b.result.t1Title, e && e.message); r = { success: false, error: String(e && e.message || e) }; }
         let parsed = null;
         if (r && r.success) { try { parsed = JSON.parse(String(r.text || '').replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (_) { parsed = null; } }
         if (!parsed || !Array.isArray(parsed.사건)) {

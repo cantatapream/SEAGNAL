@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 142 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 143 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -413,6 +413,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_bulletin_ai_trial` | 참고사항 AI 시험(services/bulletin_ai_trial) · 관리자 창구(routes/bulletin_watch) · 「통보문 관찰」 탭(client/js/admin/admin_bull… |
 | `test_bulletin_status` | 통보문 기준 특보현황(services/bulletin_status) 검사. |
 | `test_bulletin_compare` | MMIS ↔ 통보문 비교 기록(services/bulletin_compare) · 메인 출처 전환 버튼(client/js/forecast/alerts/alert_source_toggle.js) 검사… |
+| `test_bulletin_ai_live` | 참고사항 AI 실시간 해석(services/bulletin_ai_live) + 통보문 기준 특보현황 덧씌움(bulletin_status.applyAi) 검사. |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.
