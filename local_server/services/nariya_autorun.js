@@ -16,7 +16,7 @@
  *   lock     : {run_id, since, source:'fire'|'claim', taken, workNotified} — 지금 일하는 세션. 3시간 지나면 무효(설계안 §4).
  *              taken = 그 세션이 넘겨받은 대기 몫(실패·만료 때 대기로 되돌리지 않는다 — 설계안 §4).
  *   pending  : {reasons:{amend?, fresh?}, since, lastAt} — 아직 세션에 넘기지 못한 요청(건수 누적).
- *   inFlight : [{run_id, pr_url, amend_ids, fresh_ids, since}] — PR 은 냈지만 아직 머지·반영 안 된 일. 자동 세션에는 숨긴다(14일까지).
+ *   inFlight : [{run_id, pr_url, amend_ids, fresh_ids, mok_ids, since}] — PR 은 냈지만 아직 머지·반영 안 된 일. 자동 세션에는 숨긴다(14일까지).
  *   expired  : 3시간 만료로 풀린 run 최근 10개 — 그 세션이 다시 claim 하면 원래 출처·「작업 시작」 여부를 이어받는다(relocked).
  *   unknownFires : 시간초과로 전달 여부를 모르는 발사 최근 5개(3시간) — 그 run 이 claim 하면 늦게 성공 처리.
  *   doneIds  : 끝난 run 최근 20개 — done 중복 판정 · 늦게 온 발사 응답이 끝난 run 을 다시 잠그지 않게.
@@ -55,9 +55,16 @@ const DONE_PUSH_PER_HOUR = 10;
 // 열쇠 최소 32자: 짧은 열쇠는 맞혀 볼 수 있다 — 그보다 짧으면 없는 것으로 본다(설계안 §2).
 const MIN_TOKEN_LEN = 32;
 const PROD_APP = 'seagnal-server';   // 운영 앱 이름(fly.toml). 스테이징(seagnal-staging)·개발은 발사·푸시 안 함.
-const KINDS = { amend: '개정 승인', fresh: '원문 구버전·이름바뀜·다시 뜬 카드' };
+// mok(원문 결손 — 조문 목·고시 별표 누락)은 2026-11-16 사용자 확정 「자동슈정」으로 더했다.
+const KINDS = { amend: '개정 승인', fresh: '원문 구버전·이름바뀜·다시 뜬 카드', mok: '원문 결손(목·별표 누락)' };
 // 최근 기억 칸 수 — 만료로 풀린 run 10개(다시 claim 하면 이어받기) · 결과 불명 발사 5개(3시간) · 끝난 run 20개(done 중복·늦은 발사 응답 판정).
-const KEEP = { expired: 10, unknown: 5, done: 20 };
+const KEEP = { expired: 10, unknown: 5, done: 20, seen: 2000 };
+// 14일: 「세션이 결정 필요로 남긴 일」(deferred) 기억. 이 상한이 없으면 같은 id 가 몇 달 뒤 다시 낡아 돌아와도(같은 카드 id 재사용) 영영 안 깨운다(2026-11-16 남은 일 점검).
+const SEEN_TTL_MS = 14 * 24 * 3600000;
+// 3일: 실패·응답 없음으로 끝난 세션이 받았던 일의 쉼. 이 쉼이 없으면 고쳐지지 않는 원인(권한·커넥터)으로 매일 세션 1개·푸시 2통이 끝없이 나간다(적대검증 #3).
+const COOLDOWN_MS = 3 * 24 * 3600000;
+// 6시간: 새벽 점검 사슬이 도는 동안 세션 깨우기를 붙드는 상한. 이 상한이 없으면 사슬이 죽어 풀기를 못 부르면 세션이 영영 안 뜬다.
+const HOLD_MAX_MS = 6 * 3600000;
 const MAX_COUNT = 100000;   // 파일에서 읽은 건수 상한(깨진 값이 1e308 같은 수로 들어와도 글이 망가지지 않게)
 const RUN_ID_RE = /^[A-Za-z0-9._:-]{1,64}$/;
 const ITEM_ID_RE = /^[A-Za-z0-9._:-]{1,80}$/;
@@ -66,13 +73,13 @@ const PR_URL_RE = /^https:\/\/github\.com\/cantatapream\/SEAGNAL\/pull\/\d+$/;
 const UNSAFE_CHARS_RE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F‎‏‪-‮⁦-⁩]/g;
 // done 본문 상한 — 세션이 보낸 글이 푸시·상태 파일을 부풀리지 않게.
 const LIMITS = { summary: 2000, needsCount: 20, needsLen: 300, ids: 300 };
-const SUMMARY_FALLBACK = { pr: 'PR 을 만들었습니다 — 확인한 뒤 머지해 주세요.', nothing: '반영할 것이 없었습니다.', failed: '세션이 실패했습니다 — 세션 기록을 확인해 주세요.' };
+const SUMMARY_FALLBACK = { pr: 'PR 을 만들었습니다.', nothing: '반영할 것이 없었습니다.', failed: '세션이 실패했습니다 — 세션 기록을 확인해 주세요.' };
 
 /** ms → 'YYYY-MM-DDTHH:mm:ss+09:00'(KST). 예: 0 → '1970-01-01T09:00:00+09:00'. @param {number} ms @returns {string|null} */
 function iso(ms) { return Number.isFinite(ms) ? new Date(ms + 9 * 3600000).toISOString().slice(0, 19) + '+09:00' : null; }
 
 /** 빈 상태. [연계] ← readState */
-function blank() { return { v: 1, lock: null, pending: null, inFlight: [], expired: [], unknownFires: [], doneIds: [], lastFire: null, lastDone: null }; }
+function blank() { return { v: 1, lock: null, pending: null, inFlight: [], expired: [], unknownFires: [], doneIds: [], seen: [], lastFire: null, lastDone: null, lastSweep: null }; }
 const isPlain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 /** 사유 객체를 검사한다. 예: {amend:'5', fresh:2} → {fresh:2}. @param {*} r @returns {object} */
 function cleanReasons(r) {
@@ -82,6 +89,12 @@ function cleanReasons(r) {
     return out;
 }
 const cleanIds = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && ITEM_ID_RE.test(x)).slice(0, LIMITS.ids) : []);
+/** 잠금이 자동 세션에 내준 id 목록을 검사한다. 예: {amend:['a',1]} → {amend:['a'], fresh:[]}. @param {*} v @returns {{amend:string[], fresh:string[]}} */
+function cleanServed(v) {
+    const o = isPlain(v) ? v : {};
+    const one = (a) => (Array.isArray(a) ? [...new Set(a.filter((x) => typeof x === 'string' && ITEM_ID_RE.test(x)))].slice(0, KEEP.seen) : []);
+    return { amend: one(o.amend), fresh: one(o.fresh), mok: one(o.mok) };
+}
 
 /**
  * 상태 파일을 읽어 모양을 맞춘다. 없으면 빈 상태. 깨졌으면 `.corrupt-<ms>` 로 옮겨 두고 빈 상태(설계안 §4 F17).
@@ -114,7 +127,7 @@ function readState(file, nowMs) {
     const l = o.lock;
     if (isPlain(l) && typeof l.run_id === 'string' && RUN_ID_RE.test(l.run_id) && Number.isFinite(l.since) && (l.source === 'fire' || l.source === 'claim')) {
         if (l.since > nowMs) { error = '미래 시각의 잠금을 버림(' + l.run_id + ')'; console.error('[nariya_autorun] ' + error); }
-        else s.lock = { run_id: l.run_id, since: l.since, source: l.source, taken: cleanReasons(l.taken), workNotified: l.workNotified === true };
+        else s.lock = { run_id: l.run_id, since: l.since, source: l.source, taken: cleanReasons(l.taken), workNotified: l.workNotified === true, served: cleanServed(l.served), startedAt: Number.isFinite(l.startedAt) && l.startedAt <= l.since ? l.startedAt : l.since };
     }
     const p = o.pending;
     if (isPlain(p)) {
@@ -124,21 +137,26 @@ function readState(file, nowMs) {
     if (Array.isArray(o.inFlight)) {
         for (const f of o.inFlight) {
             if (!isPlain(f) || typeof f.run_id !== 'string' || !RUN_ID_RE.test(f.run_id) || !Number.isFinite(f.since) || f.since > nowMs) continue;
-            const e = { run_id: f.run_id, pr_url: typeof f.pr_url === 'string' && PR_URL_RE.test(f.pr_url) ? f.pr_url : null, amend_ids: cleanIds(f.amend_ids), fresh_ids: cleanIds(f.fresh_ids), since: f.since };
-            if (e.amend_ids.length || e.fresh_ids.length) s.inFlight.push(e);
+            const e = { run_id: f.run_id, pr_url: typeof f.pr_url === 'string' && PR_URL_RE.test(f.pr_url) ? f.pr_url : null, amend_ids: cleanIds(f.amend_ids), fresh_ids: cleanIds(f.fresh_ids), mok_ids: cleanIds(f.mok_ids), since: f.since };
+            if (e.amend_ids.length || e.fresh_ids.length || e.mok_ids.length) s.inFlight.push(e);
         }
     }
     if (Array.isArray(o.expired)) {
         s.expired = o.expired.filter((x) => isPlain(x) && typeof x.run_id === 'string' && RUN_ID_RE.test(x.run_id) && (x.source === 'fire' || x.source === 'claim'))
-            .map((x) => ({ run_id: x.run_id, source: x.source, workNotified: x.workNotified === true, at: Number.isFinite(x.at) ? x.at : null })).slice(-KEEP.expired);
+            .map((x) => ({ run_id: x.run_id, source: x.source, workNotified: x.workNotified === true, at: Number.isFinite(x.at) ? x.at : null, served: cleanServed(x.served), startedAt: Number.isFinite(x.startedAt) ? x.startedAt : null })).slice(-KEEP.expired);
     }
     if (Array.isArray(o.unknownFires)) {
         s.unknownFires = o.unknownFires.filter((x) => isPlain(x) && typeof x.run_id === 'string' && RUN_ID_RE.test(x.run_id) && Number.isFinite(x.at) && x.at <= nowMs)
             .map((x) => ({ run_id: x.run_id, at: x.at, reasons: cleanReasons(x.reasons) })).slice(-KEEP.unknown);
     }
     if (Array.isArray(o.doneIds)) s.doneIds = o.doneIds.filter((x) => typeof x === 'string' && RUN_ID_RE.test(x)).slice(-KEEP.done);
+    if (Array.isArray(o.seen)) {
+        s.seen = o.seen.filter((x) => isPlain(x) && KINDS[x.kind] && typeof x.id === 'string' && ITEM_ID_RE.test(x.id) && Number.isFinite(x.at) && x.at <= nowMs)
+            .map((x) => ({ kind: x.kind, id: x.id, at: x.at, ttl: Number.isFinite(x.ttl) && x.ttl > 0 && x.ttl <= SEEN_TTL_MS ? x.ttl : SEEN_TTL_MS })).slice(-KEEP.seen);
+    }
     if (isPlain(o.lastFire)) s.lastFire = o.lastFire;
     if (isPlain(o.lastDone)) s.lastDone = o.lastDone;
+    if (isPlain(o.lastSweep)) s.lastSweep = o.lastSweep;
     return { state: s, error };
 }
 
@@ -161,7 +179,7 @@ function validateDone(body) {
     if (typeof body.run_id !== 'string' || !RUN_ID_RE.test(body.run_id)) return { ok: false, error: 'run_id 가 없거나 형식이 틀렸습니다(영문·숫자·._:- 64자 이하).' };
     if (!['pr', 'nothing', 'failed'].includes(body.outcome)) return { ok: false, error: "outcome 은 'pr'|'nothing'|'failed' 중 하나여야 합니다." };
     const ids = {};
-    for (const k of ['amend_ids', 'fresh_ids']) {
+    for (const k of ['amend_ids', 'fresh_ids', 'mok_ids', 'deferred_amend_ids', 'deferred_fresh_ids', 'deferred_mok_ids']) {
         const a = body[k];
         if (a === undefined || a === null) { ids[k] = []; continue; }
         if (!Array.isArray(a) || a.length > LIMITS.ids || !a.every((x) => typeof x === 'string' && ITEM_ID_RE.test(x))) {
@@ -169,12 +187,14 @@ function validateDone(body) {
         }
         ids[k] = [...new Set(a)];
     }
-    const pr_url = typeof body.pr_url === 'string' && PR_URL_RE.test(body.pr_url) ? body.pr_url : null;
+    // 앞뒤 공백·끝 '/' 는 떼고 본다(적대검증 C#중-5 — 줄바꿈 하나로 PR 주소를 잃으면 「앱에서 머지 버튼」 푸시가 카드 없는 막다른 길이 된다).
+    const prRaw = typeof body.pr_url === 'string' ? body.pr_url.trim().replace(/\/+$/, '') : '';
+    const pr_url = PR_URL_RE.test(prRaw) ? prRaw : null;
     const summary = typeof body.summary === 'string' ? cleanText(body.summary, LIMITS.summary) : '';
     const needs_decision = Array.isArray(body.needs_decision)
         ? body.needs_decision.filter((x) => typeof x === 'string').map((x) => cleanText(x, LIMITS.needsLen)).filter((x) => x.trim()).slice(0, LIMITS.needsCount)
         : [];
-    return { ok: true, value: { run_id: body.run_id, outcome: body.outcome, pr_url, summary, needs_decision, amend_ids: ids.amend_ids, fresh_ids: ids.fresh_ids } };
+    return { ok: true, value: { run_id: body.run_id, outcome: body.outcome, pr_url, summary, needs_decision, amend_ids: ids.amend_ids, fresh_ids: ids.fresh_ids, mok_ids: ids.mok_ids, deferred_amend_ids: ids.deferred_amend_ids, deferred_fresh_ids: ids.deferred_fresh_ids, deferred_mok_ids: ids.deferred_mok_ids } };
 }
 
 /**
@@ -208,9 +228,10 @@ function createAutorun({
     push = (t, b, d) => require('./admin_push').sendAdminPush(t, b, d),
     env = process.env,
     adminCheck = (req, res, next) => require('./admin_auth').requireAdminToken(req, res, next),
+    prMerger = null,   // 2026-11-16 C(조건부 자동 머지) — 기본은 services/nariya_pr_merge.forDefault()(지연 require). 시험은 가짜를 넣는다.
 } = {}) {
     let state = null, debounce = null, debounceAt = null, lockTimer = null, firing = false, firingRunId = null;
-    let readError = null, saveError = null, warnedUnconfigured = false;
+    let readError = null, saveError = null, warnedUnconfigured = false, holdUntil = null, holdTimer = null;
     const doneSent = [];   // 완료 푸시를 보낸 시각(시간당 상한용, 이 프로세스 안에서만)
 
     function load() {
@@ -270,8 +291,9 @@ function createAutorun({
         lockTimer = setTimer(() => { lockTimer = null; onLockExpired().catch((e) => console.error('[nariya_autorun] 잠금 만료 처리 오류:', e && e.message)); }, left);
     }
     /** 잠그고 파일에 남긴 뒤 3시간 만료 타이머를 건다. taken = 이 세션이 넘겨받은 대기 몫. [연계] ← fire(성공) · claim */
-    function setLock(run_id, source, taken, workNotified) {
-        load().lock = { run_id, since: now(), source, taken: Object.assign({}, taken || {}), workNotified: workNotified === true };
+    function setLock(run_id, source, taken, workNotified, served, startedAt) {
+        // startedAt: 그 run 이 처음 일을 시작한 시각(심장박동으로 바뀌는 since 와 다르다) — 자동 머지가 「그 세션이 만든 PR」인지 볼 때 쓴다(§9).
+        load().lock = { run_id, since: now(), source, taken: Object.assign({}, taken || {}), workNotified: workNotified === true, served: cleanServed(served), startedAt: Number.isFinite(startedAt) ? startedAt : now() };
         save();
         armLockTimer();
     }
@@ -292,10 +314,11 @@ function createAutorun({
         if (!l || now() - l.since < LOCK_TTL_MS) return false;
         // 풀린 run 을 기억한다 — 그 세션이 살아 있다가 심장박동을 보내면 원래 출처·「작업 시작」 여부를 이어받게(§5 #21).
         const st = load();
-        st.expired = st.expired.filter((x) => x.run_id !== l.run_id).concat([{ run_id: l.run_id, source: l.source, workNotified: l.workNotified === true, at: now() }]).slice(-KEEP.expired);
+        st.expired = st.expired.filter((x) => x.run_id !== l.run_id).concat([{ run_id: l.run_id, source: l.source, workNotified: l.workNotified === true, at: now(), served: cleanServed(l.served), startedAt: l.startedAt }]).slice(-KEEP.expired);
+        markSeen(l.served, COOLDOWN_MS);   // 응답 없이 죽은 세션의 일은 3일 쉰다(다시 claim 하면 served 를 이어받는다)
         clearLock();
         console.warn('[nariya_autorun] 잠금 3시간 지남 — 해제: ' + l.run_id);
-        notify('나리야 자동 반영 — 이전 세션 응답 없음', `세션(${l.run_id})이 3시간 동안 완료를 알리지 않아 잠금을 풀었습니다. 그 세션이 가져간 몫은 매일 정기 세션이 줍습니다.`, { type: 'nariya_autorun_stale', run_id: l.run_id });
+        notify('나리야 자동 반영 — 이전 세션 응답 없음', `세션(${l.run_id})이 3시간 동안 완료를 알리지 않아 잠금을 풀었습니다. 그 세션이 받은 일은 3일 쉰 뒤 새벽 「남은 일 점검」이 다시 넘깁니다.`, { type: 'nariya_autorun_stale', run_id: l.run_id });
         return true;
     }
     /** 잠금 만료 타이머가 울렸을 때 — 풀고, 대기가 있으면 발사(설계안 §5 #5). [연계] ← armLockTimer */
@@ -309,16 +332,28 @@ function createAutorun({
      * 자동 반영을 요청한다. 사유를 대기(pending)에 더하고, 잠금이 없으면 10분 타이머를 다시 건다(요청마다 처음부터).
      * 잠금 중이면 타이머를 걸지 않는다 — done 이 오면 그때 건다(설계안 §4·§5 #1 #2 #4).
      * 운영인데 트리거 환경 변수가 없으면 이 프로세스의 첫 요청 때 「미설정」 푸시 1회(설계안 §5 #6b).
+     * ids 를 주면(2026-11-16) **자동 세션이 이미 보고 남긴 id**(seen — 「결정 필요」로 둔 것)는 빼고 센다. 다 본 것이면
+     * 대기에 넣지 않는다 — 사람이 정해야 할 같은 건으로 매일 세션을 다시 깨우지 않게. ids 를 안 주면 예전처럼 늘 넣는다.
      * 예: requestRun('amend', {count:3}) → 대기 {amend:3}, 10분 뒤 fire
-     * @param {'amend'|'fresh'} kind @param {{count?:number}} [detail]
-     * @returns {{queued:boolean, locked:boolean, reasons:object}}
+     *     requestRun('fresh', {ids:['a','b']}) (a 는 본 것) → 대기 {fresh:1}
+     * @param {'amend'|'fresh'} kind @param {{count?:number, ids?:string[]}} [detail]
+     * @returns {{queued:boolean, locked:boolean, reasons:object, seen?:number}}
      * [연계] ← routes/legal.js(개정 승인) · services/admrul_fresh_scanner.js(구버전·다시 뜬 카드)
+     *        · services/legal_amendment_scanner.js(감지 즉시 자동 승인, ids) · sweep(새벽 남은 일 점검, ids)
      */
     function requestRun(kind, detail) {
         if (!KINDS[kind]) throw Error('알 수 없는 kind: ' + kind);
-        const n = detail && Number.isInteger(detail.count) && detail.count > 0 ? Math.min(detail.count, MAX_COUNT) : 1;
+        let n = detail && Number.isInteger(detail.count) && detail.count > 0 ? Math.min(detail.count, MAX_COUNT) : 1;
         const s = load();
         expireIfStale();
+        let seenCount = 0;
+        if (detail && Array.isArray(detail.ids)) {
+            const ids = [...new Set(detail.ids.map(String))];
+            const fresh = ids.filter((id) => !isSeen(kind, id));
+            seenCount = ids.length - fresh.length;
+            if (!fresh.length) return { queued: false, locked: lockValid(), reasons: s.pending ? Object.assign({}, s.pending.reasons) : {}, seen: seenCount };
+            n = Math.min(fresh.length, MAX_COUNT);
+        }
         const t = now();
         if (!s.pending) s.pending = { reasons: {}, since: t, lastAt: t };
         s.pending.reasons[kind] = Math.min(MAX_COUNT, (s.pending.reasons[kind] || 0) + n);
@@ -330,7 +365,103 @@ function createAutorun({
         }
         const locked = lockValid();
         if (!locked) armDebounce();
-        return { queued: true, locked, reasons: Object.assign({}, s.pending.reasons) };
+        return Object.assign({ queued: true, locked, reasons: Object.assign({}, s.pending.reasons) }, seenCount ? { seen: seenCount } : {});
+    }
+
+    /** 이 id 가 쉬는 중인가(seen — 결정 필요로 남김 14일 · 실패/응답 없음 3일). [연계] ← requestRun */
+    function isSeen(kind, id) {
+        const t = now();
+        return load().seen.some((x) => x.kind === kind && x.id === id && t - x.at < x.ttl);
+    }
+    /**
+     * id 묶음을 seen 에 ttl 동안 넣는다(같은 id 는 새 값으로 바꾼다). save 는 부른 쪽이 한다.
+     * 예: markSeen({amend:['a'], fresh:[]}, COOLDOWN_MS)
+     * [연계] ← done(deferred 14일 · failed 3일) · expireIfStale(3일)
+     */
+    function markSeen(ids, ttl) {
+        const st = load(), t = now(), add = [];
+        for (const k of Object.keys(KINDS)) for (const id of (ids && ids[k]) || []) add.push({ kind: k, id, at: t, ttl });
+        if (!add.length) return;
+        const keyOf = (x) => x.kind + '\u0000' + x.id, fresh = new Set(add.map(keyOf));
+        st.seen = st.seen.filter((x) => !fresh.has(keyOf(x)) && t - x.at < x.ttl).concat(add).slice(-KEEP.seen);
+    }
+
+    /**
+     * 자동 세션에 일 목록을 내줬다고 적는다(2026-11-16) — 지금 잠금(그 세션)의 served 에 id 를 더한다. 잠금이 없으면 아무것도 안 한다.
+     * 그 세션이 done 을 보내면: 'pr'·'nothing' 이면 **served 중 deferred_*_ids 에 실은 것만** seen 14일(결정 필요 — 적대검증 #2),
+     * 'failed' 면 served 전부 seen 3일(쉼 — #3). 손대지 않은 나머지는 seen 이 아니다(다음 새벽 점검이 다시 넘긴다).
+     * 예: noteServed('amend', ['chg_1','chg_2'])
+     * @param {'amend'|'fresh'} kind @param {string[]} ids @returns {boolean} 적었나
+     * [연계] ← routes/legal.js wiki-brief-all · GET freshness(자동화 열쇠로 불렀을 때)
+     */
+    function noteServed(kind, ids) {
+        if (!KINDS[kind] || !Array.isArray(ids)) return false;
+        expireIfStale();
+        const l = load().lock;
+        if (!l || !lockValid()) return false;
+        if (!l.served) l.served = { amend: [], fresh: [], mok: [] };
+        if (!l.served[kind]) l.served[kind] = [];
+        l.served[kind] = cleanServed({ [kind]: l.served[kind].concat(ids.map(String)) })[kind];
+        save();
+        return true;
+    }
+
+    /**
+     * 새벽 「남은 일 점검」(2026-11-16 사용자 확정 — 매일 고정 세션 대신). server.js 새벽 점검(runNariyaNightly, 03:00 · 하루 하나씩) 끝에서 부른다.
+     *  · 잠금 중이면 아무것도 안 한다 — 일하는 세션이 남은 일을 전부 꺼내 간다(새로 깨우면 같은 일을 두 세션이 한다).
+     *  · 대기(깨우기 실패로 남은 일)가 있으면 10분 타이머를 건다(이미 걸려 있으면 그대로).
+     *  · 대기가 없으면 outstanding(승인했는데 반영 안 된 개정 · 대기 중인 원문신선도 카드, PR 진행 중인 것 빼고)을
+     *    requestRun 에 ids 로 넘긴다 — 세션이 보고 남긴 것(seen)은 거기서 빠진다.
+     * 이 점검이 없으면: 깨우기 실패·세션 실패로 남은 일이 다음 감지가 올 때까지(며칠~몇 주) 방치된다.
+     * 예: sweep({amend:['chg_1'], fresh:[]}) → {action:'requested', amend:{queued:true,…}}
+     * @param {{amend?:string[], fresh?:string[]}} outstanding @returns {object}
+     * [연계] ← server.js runNariyaNightly(finally) — outstanding 은 collectOutstanding()
+     */
+    /**
+     * 새벽 점검 사슬이 도는 동안 세션 깨우기를 붙든다(2026-11-16 적대검증 #4·#5) — 세션의 law.go.kr 수집이 서버 점검과 겹치지 않게.
+     * 붙든 동안 대기는 쌓이고, 풀면 대기가 있고 잠금이 없을 때 10분 타이머를 건다. 6시간 뒤엔 저절로 푼다.
+     * 예: setHold(true) … 점검 셋 … setHold(false)
+     * @param {boolean} on @returns {{held:boolean}}
+     * [연계] ← server.js runNariyaNightly(03:00)
+     */
+    function setHold(on) {
+        if (holdTimer) clearTimer(holdTimer);
+        holdTimer = null;
+        if (on) {
+            holdUntil = now() + HOLD_MAX_MS;
+            holdTimer = setTimer(() => { holdTimer = null; setHold(false); }, HOLD_MAX_MS);
+            return { held: true };
+        }
+        holdUntil = null;
+        if (load().pending && !lockValid() && !debounce) armDebounce();
+        return { held: false };
+    }
+
+    function sweep(outstanding) {
+        expireIfStale();
+        const s = load(), o = isPlain(outstanding) ? outstanding : {};
+        const errs = Array.isArray(o.errors) ? o.errors.map((e) => cleanText(e, 160)).slice(0, 5) : [];
+        const counts = {};
+        for (const k of Object.keys(KINDS)) counts[k] = Array.isArray(o[k]) ? o[k].length : 0;
+        let r;
+        if (lockValid()) r = { action: 'locked', run_id: s.lock.run_id };
+        else if (s.pending) { if (!debounce) armDebounce(); r = { action: 'pending', reasons: Object.assign({}, s.pending.reasons) }; }
+        else {
+            r = { action: 'none' };
+            for (const k of Object.keys(KINDS)) {
+                if (!counts[k]) continue;
+                const q = requestRun(k, { ids: o[k] });
+                r[k] = q;
+                if (q.queued) r.action = 'requested';
+                else if (r.action === 'none') r.action = 'seen';
+            }
+        }
+        s.lastSweep = Object.assign({ at: now(), action: r.action, outstanding: counts }, errs.length ? { errors: errs } : {});
+        save();
+        // 목록을 못 읽은 것은 「남은 일 없음」이 아니다(L-291) — 알린다.
+        if (errs.length) notify('나리야 자동 반영 — 남은 일 점검 실패', '남은 일 목록을 읽지 못했습니다(「남은 일 없음」이 아닙니다): ' + errs.join(' / ').slice(0, 200), { type: 'nariya_autorun_sweep_failed' });
+        console.log(`[nariya_autorun] 남은 일 점검: ${r.action} (개정 ${counts.amend} · 원문신선도 ${counts.fresh} · 원문결손 ${counts.mok})`);
+        return r;
     }
 
     /** 대기에서 r 만큼 뺀다(0 이하는 지우고, 다 비면 null). [연계] ← fire(성공) */
@@ -357,6 +488,7 @@ function createAutorun({
         if (!isProd()) { console.log('[nariya_autorun] 운영 아님 — 세션 깨우기 생략: ' + reasonText(s.pending.reasons)); return { fired: false, why: 'dev' }; }
         if (lockValid()) return { fired: false, why: 'locked' };
         if (firing) return { fired: false, why: 'firing' };
+        if (holdUntil && now() < holdUntil) { console.log('[nariya_autorun] 새벽 점검 중 — 세션 깨우기 보류(대기 유지): ' + reasonText(s.pending.reasons)); return { fired: false, why: 'held' }; }
         if (!configured()) {
             console.log('[nariya_autorun] NARIYA_ROUTINE_FIRE_URL·NARIYA_ROUTINE_TOKEN 없음 — 세션 깨우기 생략(대기 유지)');
             s.lastFire = { at: now(), ok: false, error: '환경 변수 없음', reasons: Object.assign({}, s.pending.reasons) };
@@ -413,7 +545,7 @@ function createAutorun({
         if (error) {
             s.lastFire = { at: now(), ok: false, run_id, error, reasons: sent };
             save();
-            await notify('나리야 자동 반영 — 세션 전달 실패', `${error}. 대기 중인 일(${reasonText(s.pending ? s.pending.reasons : sent)})은 남겨 둡니다 — 다음 요청이나 매일 정기 세션이 이어받습니다.`,
+            await notify('나리야 자동 반영 — 세션 전달 실패', `${error}. 대기 중인 일(${reasonText(s.pending ? s.pending.reasons : sent)})은 남겨 둡니다 — 다음 요청이나 새벽 「남은 일 점검」이 이어받습니다.`,
                 { type: 'nariya_autorun_fire_failed', run_id });
             return { fired: false, why: 'error', error };
         }
@@ -464,7 +596,7 @@ function createAutorun({
         if (typeof given !== 'string' || !RUN_ID_RE.test(given)) return { ok: false, status: 400, error: 'run_id 가 없거나 형식이 틀렸습니다(영문·숫자·._:- 64자 이하).' };
         const w = isPlain(body.work) ? body.work : {};
         const num = (x) => (Number.isInteger(x) && x >= 0 && x <= MAX_COUNT ? x : 0);
-        const work = { amend: num(w.amend), fresh: num(w.fresh) };
+        const work = { amend: num(w.amend), fresh: num(w.fresh), mok: num(w.mok) };
         expireIfStale();
         const s = load(), l = s.lock;
         let result;
@@ -488,7 +620,7 @@ function createAutorun({
                 s.unknownFires = s.unknownFires.filter((x) => x.run_id !== given);
                 if (s.lastFire && s.lastFire.run_id === given) { s.lastFire.unknown = false; s.lastFire.lateConfirmedAt = now(); }
             }
-            setLock(given, source, taken, prev ? prev.workNotified : false);   // save 포함
+            setLock(given, source, taken, prev ? prev.workNotified : false, prev ? prev.served : null, prev ? prev.startedAt : undefined);   // save 포함 · 만료로 풀렸던 run 은 내준 목록을 이어받는다(적대검증 #6)
             if (late) {
                 notify('나리야 자동 반영 — 세션 시작(늦게 확인됨)', `시간초과로 확인하지 못했던 세션(${given})이 일을 시작했습니다. ${reasonText(taken)}. 끝나면 다시 알립니다.`,
                     { type: 'nariya_autorun_started', run_id: given, late: 'true' });
@@ -496,11 +628,11 @@ function createAutorun({
             result = Object.assign({ ok: true, busy: false, run_id: given, taken }, prev ? { relocked: true } : {});
         }
         const lk = load().lock;
-        if (lk.source === 'claim' && !lk.workNotified && work.amend + work.fresh > 0) {
+        if (lk.source === 'claim' && !lk.workNotified && work.amend + work.fresh + work.mok > 0) {
             lk.workNotified = true;
             save();
-            notify(`나리야 정기 세션 — 작업 시작(개정 ${work.amend}·원문신선도 ${work.fresh})`, '매일 정기 세션이 반영할 일을 찾아 시작했습니다. 끝나면 다시 알립니다.',
-                { type: 'nariya_autorun_daily_started', run_id: lk.run_id, amend: String(work.amend), fresh: String(work.fresh) });
+            notify(`나리야 자동 반영 — 작업 시작(직접 실행 · 개정 ${work.amend}·원문신선도 ${work.fresh}·원문결손 ${work.mok})`, '서버가 깨우지 않은 세션(예약 작업 「지금 실행」 등)이 반영할 일을 찾아 시작했습니다. 끝나면 다시 알립니다.',
+                { type: 'nariya_autorun_daily_started', run_id: lk.run_id, amend: String(work.amend), fresh: String(work.fresh), mok: String(work.mok) });
         }
         return result;
     }
@@ -534,39 +666,75 @@ function createAutorun({
         // 중복 판정은 최근 끝난 run 20개로 한다(§5 #13) — 한 칸(lastDone)이면 두 run 이 번갈아 보낸 재전송을 놓친다.
         if (s.doneIds.includes(d.run_id) || (s.lastDone && s.lastDone.run_id === d.run_id)) return { ok: true, duplicate: true };
         const l = s.lock;
-        let released = false, lockMismatch = false, late = false, source = null, workNotified = false;
+        let released = false, lockMismatch = false, late = false, source = null, workNotified = false, servedOf = null, runSince = null;
         if (l && l.run_id === d.run_id) {
             // 같은 run 이면 3시간을 넘겼어도 그냥 푼다(「응답 없음」 푸시를 보낼 까닭이 없다).
             released = true; source = l.source; workNotified = l.workNotified === true;   // 잠금을 풀기 전 값
+            servedOf = l.served; runSince = l.startedAt;
             clearLock();
         } else {
             expireIfStale();
             if (lockValid()) lockMismatch = true; else late = true;
+            // 3시간 만료 뒤 늦게 온 done — 만료 기록에 남겨 둔 내준 목록을 쓴다(적대검증 #6).
+            const ex = s.expired.find((x) => x.run_id === d.run_id);
+            if (late && ex) { servedOf = ex.served; runSince = ex.startedAt; }
+        }
+        // 내준 일 처리(2026-11-16): 결정 필요(deferred)로 실은 것만 14일 · 실패면 전부 3일 쉼. PR 에 실린 id 는 inFlight 가 따로 숨긴다.
+        if (servedOf) {
+            if (d.outcome === 'failed') markSeen(servedOf, COOLDOWN_MS);
+            else {
+                const inS = (k, a) => a.filter((id) => (servedOf[k] || []).includes(id));
+                markSeen({ amend: inS('amend', d.deferred_amend_ids), fresh: inS('fresh', d.deferred_fresh_ids), mok: inS('mok', d.deferred_mok_ids) }, SEEN_TTL_MS);
+            }
         }
         s.lastDone = { at: now(), run_id: d.run_id, outcome: d.outcome, pr_url: d.pr_url, summary: d.summary, needs_decision: d.needs_decision,
-            amend: d.amend_ids.length, fresh: d.fresh_ids.length, source, lockMismatch, late };
+            amend: d.amend_ids.length, fresh: d.fresh_ids.length, mok: d.mok_ids.length, source, lockMismatch, late };
         s.doneIds = s.doneIds.concat([d.run_id]).slice(-KEEP.done);
         s.expired = s.expired.filter((x) => x.run_id !== d.run_id);
-        if (d.outcome === 'pr' && (d.amend_ids.length || d.fresh_ids.length) && !s.inFlight.some((f) => f.run_id === d.run_id)) {
-            s.inFlight.push({ run_id: d.run_id, pr_url: d.pr_url, amend_ids: d.amend_ids, fresh_ids: d.fresh_ids, since: now() });
+        if (d.outcome === 'pr' && (d.amend_ids.length || d.fresh_ids.length || d.mok_ids.length) && !s.inFlight.some((f) => f.run_id === d.run_id)) {
+            s.inFlight.push({ run_id: d.run_id, pr_url: d.pr_url, amend_ids: d.amend_ids, fresh_ids: d.fresh_ids, mok_ids: d.mok_ids, since: now() });
         }
         save();
         if (!lockValid() && s.pending && !debounce) armDebounce();
+
+        // C(사용자 「C로 하자」): PR 을 냈으면 머지 담당에게 넘긴다 — 결정 필요 0건이면 검사 통과 뒤 서버가 자동 머지, 아니면 앱 머지 버튼 몫.
+        //   잠금 주인(released)이었거나 3시간 만료 뒤 같은 run 의 늦은 완료일 때만 자동 머지 후보다(적대검증 C#상-2 — 아무 run_id 로 남의 PR 을 맡기지 못하게).
+        let prMode = null, prWhy = null, prHow = null;
+        if (d.outcome === 'pr' && d.pr_url) {
+            try {
+                const t = (prMerger || require('./nariya_pr_merge').forDefault()).track({ pr_url: d.pr_url, run_id: d.run_id, needs_decision: d.needs_decision, summary: d.summary },
+                    { owner: servedOf !== null && Number.isFinite(runSince), runSince });
+                prMode = t.tracked ? t.mode : null; prWhy = t.why || null; prHow = t.how || null;
+                if (!t.tracked) prWhy = t.why || 'PR 을 맡지 못함';
+            } catch (e) { console.error('[nariya_autorun] PR 머지 담당에게 넘기기 실패(완료 처리는 정상):', e && e.message); prWhy = '서버가 PR 을 맡지 못함'; }
+        } else if (d.outcome === 'pr') prWhy = 'PR 주소를 읽지 못함';
 
         let pushed = false;
         // 정기 세션의 'nothing' 은 매일 소음이라 생략한다 — 단 그 run 에서 「작업 시작」을 이미 알렸거나(시작만 오고 끝이 안 오면 안 된다)
         // 사람이 정할 것(needs_decision)이 있으면 알린다(§5 #15·#20b).
         const quietNothing = released && source === 'claim' && d.outcome === 'nothing' && !workNotified && !d.needs_decision.length;
         if (!quietNothing) {
-            const head = { pr: '완료 — PR 확인 필요', nothing: '완료 — 반영할 것 없음', failed: '세션 실패' }[d.outcome];
+            // 푸시 문구(사용자: 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시하도록」) — 자동 머지면 누를 것 없음, 사람 몫이면 「앱에서 머지 버튼」을 제목에 적는다.
+            //   맡지 못했으면(주소 못 읽음·맡기 실패) 앱에 카드가 없으므로 「GitHub 에서 확인」으로 쓴다(적대검증 C#중-5). 서버 열쇠 문제면 그렇게 쓴다.
+            const head = d.outcome === 'pr'
+                ? (prMode === 'auto' ? 'PR 올림 · 검사 통과하면 자동 머지(누를 것 없음)'
+                    : prMode === 'human' && prHow === 'secrets' ? 'PR 올림 · 서버 GitHub 열쇠 확인 필요'
+                    : prMode === 'human' ? '앱에서 머지 버튼을 눌러 주세요'
+                    : 'PR 을 맡지 못함 · GitHub 에서 확인해 주세요')
+                : { nothing: '완료 — 반영할 것 없음', failed: '세션 실패' }[d.outcome];
             const needs = d.needs_decision.length ? ` · 결정 필요 ${d.needs_decision.length}건` : '';
             const tag = lockMismatch ? '[잠금과 다른 run] ' : late ? '[늦은 완료] ' : '';
             const needsText = d.needs_decision.length
                 ? ` · 결정 필요 ${d.needs_decision.length}건: ` + d.needs_decision.slice(0, 3).map((x) => x.slice(0, 60)).join(' / ') + (d.needs_decision.length > 3 ? ' 외' : '')
                 : '';
-            const bodyText = (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText + (d.pr_url ? ' PR: ' + d.pr_url : '');
+            const how = d.outcome !== 'pr' ? ''
+                : prMode === 'auto' ? ' · 결정 필요가 없고 위키·원문만 고쳤으면 GitHub 검사(약 20분)가 통과한 뒤 서버가 자동으로 머지·배포합니다(위키·원문 밖 파일을 고쳤으면 다시 「앱에서 머지」로 알립니다).'
+                : prMode === 'human' && prHow === 'secrets' ? ' · 서버의 GitHub 열쇠(Fly secrets GITHUB_MERGE_TOKEN)가 없어 자동 머지·머지 버튼이 동작하지 않습니다.'
+                : prMode === 'human' ? ' · ★앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요' + (prWhy ? '(' + prWhy + ')' : '') + '. 결정 필요는 사장님 판단 — 머지해도 그 건은 손대지 않은 채 남습니다.'
+                : ' · ' + (prWhy || 'PR 을 맡지 못함') + ' — 앱 「자동반영」 방에 카드가 없습니다. GitHub 에서 PR 을 직접 확인해 주세요.';
+            const bodyText = (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText + how + (d.pr_url ? ' PR: ' + d.pr_url : '');
             pushed = notifyDone(tag + '나리야 자동 반영 — ' + head + needs, bodyText,
-                Object.assign({ type: 'nariya_autorun_done', run_id: d.run_id, outcome: d.outcome, needs: String(d.needs_decision.length), lock_mismatch: String(lockMismatch), late: String(late) },
+                Object.assign({ type: 'nariya_autorun_done', run_id: d.run_id, outcome: d.outcome, needs: String(d.needs_decision.length), lock_mismatch: String(lockMismatch), late: String(late), merge: String(prMode || '') },
                     d.pr_url ? { pr_url: d.pr_url } : {}));
         }
         return { ok: true, released, lockMismatch, late, pushQueued: pushed };
@@ -579,7 +747,8 @@ function createAutorun({
      *  관리자가 손으로 닫은 것(처리완료·해당없음)은 「머지·재수집이 끝났다」는 증거가 아니라서 풀지 않는다(§4 D7). 다시 뜬 카드(pending)도 그대로 숨긴다.
      *  14일 지난 항목은 통째로 버린다. 넘겨준 정보의 갈래만 정리한다(applied 만 주면 amend 만).
      * 예: hiddenIds({freshCards:new Map([['adf_a',{status:'done', auto_closed:true}]])}) → adf_a 는 빠진다
-     * @param {{applied?:Map<string,*>, freshCards?:Map<string,{status?:string, auto_closed?:boolean}>}} [ctx] @returns {{amend:Set<string>, fresh:Set<string>}}
+     *  mok id(2026-11-16)는 **결손 점검기가 「더는 누락 아님」으로 자동으로 닫은 카드**(mok_audit_scanner.autoResolveCleared 의 auto_resolved:true)일 때만 빠진다.
+     * @param {{applied?:Map<string,*>, freshCards?:Map<string,{status?:string, auto_closed?:boolean}>, mokCards?:Map<string,{status?:string, auto_resolved?:boolean}>}} [ctx] @returns {{amend:Set<string>, fresh:Set<string>, mok:Set<string>}}
      * [연계] ← routes/legal.js wiki-brief-all(applied) · GET freshness(freshCards) — 자동화 열쇠로 부를 때만
      */
     function hiddenIds(ctx) {
@@ -589,10 +758,11 @@ function createAutorun({
             ...f,
             amend_ids: c.applied ? f.amend_ids.filter((id) => !c.applied.has(id)) : f.amend_ids,
             fresh_ids: c.freshCards ? f.fresh_ids.filter((id) => { const e = c.freshCards.get(id); return !(e && (e.status || 'pending') !== 'pending' && e.auto_closed === true); }) : f.fresh_ids,
-        })).filter((f) => f.amend_ids.length || f.fresh_ids.length);
+            mok_ids: c.mokCards ? (f.mok_ids || []).filter((id) => { const e = c.mokCards.get(id); return !(e && (e.status || 'pending') !== 'pending' && e.auto_resolved === true); }) : (f.mok_ids || []),
+        })).filter((f) => f.amend_ids.length || f.fresh_ids.length || f.mok_ids.length);
         if (JSON.stringify(s.inFlight) !== before) save();
-        const out = { amend: new Set(), fresh: new Set() };
-        for (const f of s.inFlight) { f.amend_ids.forEach((id) => out.amend.add(id)); f.fresh_ids.forEach((id) => out.fresh.add(id)); }
+        const out = { amend: new Set(), fresh: new Set(), mok: new Set() };
+        for (const f of s.inFlight) { f.amend_ids.forEach((id) => out.amend.add(id)); f.fresh_ids.forEach((id) => out.fresh.add(id)); f.mok_ids.forEach((id) => out.mok.add(id)); }
         return out;
     }
 
@@ -608,10 +778,13 @@ function createAutorun({
             configured: { fireUrl: !!env.NARIYA_ROUTINE_FIRE_URL, routineToken: !!env.NARIYA_ROUTINE_TOKEN, automationToken: (env.NARIYA_AUTOMATION_TOKEN || '').length >= MIN_TOKEN_LEN },
             lock: l ? { run_id: l.run_id, source: l.source, since: iso(l.since), expiresAt: iso(l.since + LOCK_TTL_MS), valid, taken: l.taken } : null,
             pending: s.pending ? { reasons: s.pending.reasons, text: reasonText(s.pending.reasons), since: iso(s.pending.since), lastAt: iso(s.pending.lastAt), fireAt: valid ? null : iso(debounceAt) } : null,
-            inFlight: s.inFlight.map((f) => ({ run_id: f.run_id, pr_url: f.pr_url, amend: f.amend_ids.length, fresh: f.fresh_ids.length, since: iso(f.since) })),
+            inFlight: s.inFlight.map((f) => ({ run_id: f.run_id, pr_url: f.pr_url, amend: f.amend_ids.length, fresh: f.fresh_ids.length, mok: f.mok_ids.length, since: iso(f.since) })),
             firing,
             lastFire: t(s.lastFire),
             lastDone: t(s.lastDone),
+            lastSweep: t(s.lastSweep),
+            seen: s.seen.filter((x) => now() - x.at < x.ttl).length,
+            hold: holdUntil && now() < holdUntil ? iso(holdUntil) : null,
             errors: { read: readError && { at: iso(readError.at), error: readError.error }, save: saveError && { at: iso(saveError.at), error: saveError.error } },
         };
     }
@@ -647,7 +820,52 @@ function createAutorun({
         return adminCheck(req, res, next);
     }
 
-    return { requestRun, fire, claim, done, status, start, hiddenIds, requireAutomation, requireAdminOrAutomation, _state: () => load() };
+    return { requestRun, fire, claim, done, status, start, hiddenIds, noteServed, sweep, setHold, requireAutomation, requireAdminOrAutomation, _state: () => load() };
+}
+
+/**
+ * 새벽 「남은 일 점검」이 넘길 일 목록을 모은다(2026-11-16) — 자동 세션이 wiki-brief-all·freshness 에서 받는 것과 **같은 거름**:
+ *  개정 = 승인됐고 · 위키 반영 장부에 없고 · PR 진행 중(inFlight)이 아닌 것 / 원문신선도·원문결손 = 대기(pending)이고 · PR 진행 중이 아닌 것.
+ * 파일을 못 읽으면 그 갈래는 빈 목록 + errors 에 까닭 — 점검이 죽어 다른 갈래까지 잃지 않게, 그리고 sweep 이 「못 읽음」을 알리게(L-291).
+ * 예: collectOutstanding() → {amend:['chg_20261116_ab12'], fresh:[], mok:[], errors:[]}
+ * @returns {{amend:string[], fresh:string[], mok:string[], errors:string[]}}
+ * [연계] ← server.js runNariyaNightly → sweep · legal_amendment_scanner(queueFile·loadWikiApplied) · admrul_fresh_scanner(QUEUE_FILE) · legal_admin_queues.readJsonl
+ */
+function collectOutstanding() {
+    const out = { amend: [], fresh: [], mok: [], errors: [] };
+    const adminQueues = require('./legal_admin_queues');
+    try {
+        const sc = require('./legal_amendment_scanner'), applied = sc.loadWikiApplied();
+        const hid = forDefault().hiddenIds({ applied });
+        out.amend = adminQueues.readJsonl(sc.queueFile())
+            .filter((e) => e && (e.status || 'pending') === 'approved' && !applied.has(String(e.id)) && !hid.amend.has(String(e.id)))
+            .map((e) => String(e.id));
+    } catch (e) { console.error('[nariya_autorun] 남은 일 점검 — 개정 목록을 못 읽음:', e && e.message); out.errors.push('개정: ' + String((e && e.message) || e)); }
+    try {
+        const fs2 = require('./admrul_fresh_scanner'), all = adminQueues.readJsonl(fs2.QUEUE_FILE);
+        const hid = forDefault().hiddenIds({ freshCards: new Map(all.map((e) => [String(e.id), e])) });
+        out.fresh = all.filter((e) => e && (e.status || 'pending') === 'pending' && !hid.fresh.has(String(e.id))).map((e) => String(e.id));
+    } catch (e) { console.error('[nariya_autorun] 남은 일 점검 — 원문신선도 목록을 못 읽음:', e && e.message); out.errors.push('원문신선도: ' + String((e && e.message) || e)); }
+    try {
+        const ms = require('./mok_audit_scanner'), all = adminQueues.readJsonl(ms.QUEUE_FILE);
+        const hid = forDefault().hiddenIds({ mokCards: new Map(all.map((e) => [String(e.id), e])) });
+        out.mok = all.filter((e) => e && (e.status || 'pending') === 'pending' && !hid.mok.has(String(e.id))).map((e) => String(e.id));
+    } catch (e) { console.error('[nariya_autorun] 남은 일 점검 — 원문결손 목록을 못 읽음:', e && e.message); out.errors.push('원문결손: ' + String((e && e.message) || e)); }
+    return out;
+}
+
+/**
+ * 오늘 새벽(03:00 KST) 돌릴 나리야 점검 하나를 고른다(2026-11-16 사용자 확정 — 하루 하나씩 돌려 가며).
+ * 사용자 원문: 「그럼 격일마다 하도록 하자 하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다 돌아가게」
+ * KST 날짜 번호(1970-01-01 부터 센 날 수)를 3으로 나눈 나머지로 고른다 — 서버를 다시 켜도, 하루를 걸러도 순서가 어긋나지 않는다.
+ * 0 → 개정감지 · 1 → 원문결손 · 2 → 원문신선도(낡음). 셋 다 law.go.kr 을 두드려서 한 밤에 하나만 돌리면 겹칠 일이 없다.
+ * 예: nightlyScanFor(Date.parse('2026-11-16T18:00:00Z')) → 2026-11-17 KST 의 몫
+ * @param {number} ms 지금 시각(ms) @returns {'amend'|'mok'|'fresh'}
+ * [연계] ← server.js runNariyaNightly(cron 03:00) · scripts/test_nariya_autorun.js
+ */
+function nightlyScanFor(ms) {
+    const day = Math.floor((ms + 9 * 3600000) / 86400000);
+    return ['amend', 'mok', 'fresh'][((day % 3) + 3) % 3];
 }
 
 let def = null;
@@ -662,6 +880,10 @@ module.exports = {
     status: () => forDefault().status(),
     start: () => forDefault().start(),
     hiddenIds: (c) => forDefault().hiddenIds(c),
+    noteServed: (k, ids) => forDefault().noteServed(k, ids),
+    sweep: (o) => forDefault().sweep(o),
+    setHold: (on) => forDefault().setHold(on),
+    collectOutstanding, nightlyScanFor,
     requireAdminOrAutomation: (req, res, next) => forDefault().requireAdminOrAutomation(req, res, next),
     DEBOUNCE_MS, LOCK_TTL_MS, INFLIGHT_TTL_MS, DONE_PUSH_PER_HOUR, MIN_TOKEN_LEN, LIMITS, KINDS,
 };

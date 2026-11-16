@@ -825,7 +825,9 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
       candidates: adminQueues.countPending(CANDIDATES_FILE),
       amendments: adminQueues.countPending(amendmentScanner.queueFile()),
       freshness: adminQueues.countPending(freshScanner.QUEUE_FILE),
-      mokAudit: adminQueues.countPending(mokScanner.QUEUE_FILE) });
+      mokAudit: adminQueues.countPending(mokScanner.QUEUE_FILE),
+      // 「자동반영」 방 배지 — 사장님이 앱에서 머지 버튼을 눌러야 하는 PR 수(2026-11-16 C). 읽기 실패는 배지만 0.
+      autorunPrs: (() => { try { return require('../services/nariya_pr_merge').list().counts.needs_human; } catch (e) { console.error('[autorun] 자동반영 배지 수를 못 셈(0 으로 표시):', e && e.message); return 0; } })() });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -1223,6 +1225,8 @@ router.get('/api/legal/amendments/wiki-brief-all', autorun.requireAdminOrAutomat
     }
     const r = wikiBrief.buildBulkWikiBrief(list, effectiveDate.todayKST(), { skippedApplied });
     if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
+    // [자동 반영 · 2026-11-16] 자동 세션에 내준 id 를 적는다 — 그 세션이 done('pr'·'nothing')하면 「보고 남긴 일」이 돼 새벽 남은 일 점검이 다시 깨우지 않는다.
+    if (req.viaAutomation) { try { autorun.noteServed('amend', list.map((e) => String(e.id))); } catch (e) { console.error('[autorun] noteServed 실패(응답은 정상):', e && e.message); } }
     res.json({ ok: true, count: r.count, detailed: r.detailed, listed: r.listed, pages: r.pages, skippedApplied, skippedInFlight, text: r.text });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
@@ -1288,6 +1292,8 @@ router.get('/api/legal/freshness', autorun.requireAdminOrAutomation, (req, res) 
       const n0 = list.length;
       list = list.filter((e) => !hid.fresh.has(String(e.id)));
       skippedInFlight = n0 - list.length;
+      // [자동 반영 · 2026-11-16] 대기 카드를 내줄 때만 적는다(status=pending — 세션 지침이 그렇게 부른다).
+      if (status === 'pending' && list.length) { try { autorun.noteServed('fresh', list.map((e) => String(e.id))); } catch (e) { console.error('[autorun] noteServed 실패(응답은 정상):', e && e.message); } }
       return res.json({ ok: true, count: list.length, items: list, skippedInFlight, last: freshScanner.readStatus() });
     }
     res.json({ ok: true, count: list.length, items: list, last: freshScanner.readStatus() });
@@ -1328,6 +1334,33 @@ router.post('/api/legal/autorun/done', autorun.requireAdminOrAutomation, (req, r
 router.get('/api/legal/autorun/status', autorun.requireAdminOrAutomation, (req, res) => {
   try { res.json(Object.assign({ ok: true }, autorun.status())); }
   catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// ── 조건부 자동 머지(C) · 앱 머지 버튼 (2026-11-16 사용자 「C로 하자 … 관련 머지 버튼도 앱 내에 반영하여야 해」) ──
+//   **관리자 토큰만** 받는다 — 자동화 열쇠(세션)로는 목록도 머지도 안 된다(세션은 머지하지 않는다 · 설계안 §9).
+//   [연계] services/nariya_pr_merge.js · client/js/ai-chat/ai_chat.js 「자동반영」 방(renderAutorunCards)
+// GET /api/legal/autorun/prs — 자동 반영이 맡은 PR 목록(사람 몫·검사 대기·실패를 위에) + 지금 자동 반영 상태 요약
+router.get('/api/legal/autorun/prs', adminAuth.requireAdminToken, async (req, res) => {
+  try {
+    const merger = require('../services/nariya_pr_merge');
+    // 방을 열 때 머지 안 된 PR 을 GitHub 에서 다시 읽어 「지금 버튼이 눌리나」를 적는다(적대검증 C#중-2·중-3). 실패해도 목록은 준다.
+    //   15초 넘게 걸리면 기다리지 않고 지금 아는 것을 준다(새로 읽기는 뒤에서 계속 — 다음에 열 때 반영).
+    try {
+      await Promise.race([merger.refresh(), new Promise((r) => { const t = setTimeout(r, 15000); if (t.unref) t.unref(); })]);
+    } catch (e) { console.error('[autorun] PR 새로 읽기 실패(목록은 그대로):', e && e.message); }
+    const l = merger.list();
+    const st = autorun.status();
+    res.json(Object.assign({ ok: true }, l, { autorun: { lock: st.lock, pending: st.pending, lastDone: st.lastDone, lastSweep: st.lastSweep, hold: st.hold } }));
+  } catch (e) { console.error('[autorun] PR 목록 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+// POST /api/legal/autorun/prs/:n/merge — 앱 머지 버튼. 검사 초록·충돌 없음·이 저장소 claude/ 가지일 때만, 확인한 커밋(sha)만 머지.
+//   머지되면 main push → deploy.yml 이 배포한다.
+router.post('/api/legal/autorun/prs/:n/merge', adminAuth.requireAdminToken, async (req, res) => {
+  try {
+    const n = Number(req.params.n);
+    const r = await require('../services/nariya_pr_merge').mergeNow(Number.isInteger(n) ? n : -1, (req.body && req.body.by) || '관리자(앱)');
+    res.status(r.ok ? 200 : (r.status || 500)).json(Object.assign({ ok: r.ok }, r));
+  } catch (e) { console.error('[autorun] 머지 버튼 처리 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
 // POST /api/legal/freshness/:id/decide (관리자) — body: { decision: 'done'|'dismissed', by? }
@@ -1380,17 +1413,28 @@ router.get('/api/legal/mok-audit', adminAuth.requireAdminToken, (req, res) => {
 // GET /api/legal/mok-audit/brief-all (관리자) — 대기 전 건을 AI 작업 세션에 넘길 한 덩어리 인계문으로(3-83).
 //   개정검토의 「승인분 전체 지시문」 과 같은 자리다(사장님 2026-10-07 「여기에도 … 전체 지시문 복사할 수 있도록」).
 //   이 방에는 승인이 없으므로 **대기(pending) 전 건**을 묶는다. ids 를 콤마로 주면 그 건만.
-router.get('/api/legal/mok-audit/brief-all', adminAuth.requireAdminToken, (req, res) => {
+//   [자동 반영 · 2026-11-16 사용자 「자동슈정」] 자동 세션의 열쇠(X-Automation-Token)로도 읽는다 — 그때는 ids 를 무시하고
+//   **대기 카드만**, PR 진행 중인 카드(inFlight)는 빼고 준다(skippedInFlight). 404 는 「결손 쪽 할 일 없음」. 내준 id 는 noteServed.
+router.get('/api/legal/mok-audit/brief-all', autorun.requireAdminOrAutomation, (req, res) => {
   try {
-    const rows = adminQueues.readJsonl(mokScanner.QUEUE_FILE).reverse();
-    const idsQ = String(req.query.ids || '').split(',').map((v) => v.trim()).filter(Boolean);
-    const list = idsQ.length
+    const all = adminQueues.readJsonl(mokScanner.QUEUE_FILE);
+    const rows = all.slice().reverse();
+    const idsQ = req.viaAutomation ? [] : String(req.query.ids || '').split(',').map((v) => v.trim()).filter(Boolean);
+    let list = idsQ.length
       ? rows.filter((e) => idsQ.indexOf(String(e.id)) >= 0)
       : rows.filter((e) => (e.status || 'pending') === 'pending');
-    if (!list.length) return res.status(404).json({ ok: false, error: idsQ.length ? '그 id 로 묶을 카드를 찾지 못했습니다.' : '대기 중인 결손 카드가 없습니다.' });
+    let skippedInFlight = 0;
+    if (req.viaAutomation) {
+      const hid = autorun.hiddenIds({ mokCards: new Map(all.map((e) => [String(e.id), e])) });
+      const n0 = list.length;
+      list = list.filter((e) => !hid.mok.has(String(e.id)));
+      skippedInFlight = n0 - list.length;
+    }
+    if (!list.length) return res.status(404).json({ ok: false, error: idsQ.length ? '그 id 로 묶을 카드를 찾지 못했습니다.' : skippedInFlight ? `남은 ${skippedInFlight}건은 PR 이 나가 머지를 기다리는 중입니다.` : '대기 중인 결손 카드가 없습니다.', skippedInFlight });
     const r = mokBrief.buildMokBrief(list);
     if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
-    res.json({ ok: true, count: r.count, kinds: r.kinds, excerpt: r.excerpt, text: r.text });
+    if (req.viaAutomation) { try { autorun.noteServed('mok', list.map((e) => String(e.id))); } catch (e) { console.error('[autorun] noteServed 실패(응답은 정상):', e && e.message); } }
+    res.json({ ok: true, count: r.count, kinds: r.kinds, excerpt: r.excerpt, text: r.text, ids: list.map((e) => String(e.id)), skippedInFlight });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
@@ -1461,7 +1505,7 @@ router.post('/api/legal/mok-audit/decide-all', adminAuth.requireAdminToken, (req
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
-// POST /api/legal/mok-audit/scan-now (관리자) — 정기 점검(수요일 03:00)과 별개로 즉시 1회.
+// POST /api/legal/mok-audit/scan-now (관리자) — 정기 점검(새벽 03:00 · 3일에 한 번)과 별개로 즉시 1회.
 //   573계열 + 고시 824건 대조라 실측 20~40분. 완료를 기다리지 않고 즉시 응답(started:true).
 router.post('/api/legal/mok-audit/scan-now', adminAuth.requireAdminToken, (req, res) => {
   const r = mokScanner.startMokAuditScan();

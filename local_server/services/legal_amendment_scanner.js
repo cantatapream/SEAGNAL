@@ -39,7 +39,8 @@
  *    우리 74법 인용을 찾아 `related_laws` 를 채우고, 관련 법이 없으면 여기서 관리자 큐에 올리지 않는다
  *    (소급 실측: 기존 신규 고시 39건 중 32건이 무관).
  * [연계]
- *  - server.js → cron.schedule('0 16 * * *', ...) 매일 KST 01:00에 1회 `runAmendmentScan()`
+ *  - server.js → runNariyaNightly 새벽 03:00 KST, 3일에 한 번(개정감지 → 원문결손 → 원문신선도 하루 하나씩) `runAmendmentScan()`
+ *    (2026-11-16 · 종전 매일 01:00. 창은 「마지막 성공 이후」 scanWindowDays — 최소 7일이라 3일 걸러도 그 사이 공포분을 덮는다)
  *    호출(끝까지 기다림 — 사람이 안 보는 새벽 실행이라 몇 분 걸려도 무방).
  *  - routes/legal.js → GET /api/legal/amendments·POST /api/legal/amendments/:id/decide
  *    (기존 그대로) · POST /api/legal/amendments/scan-now는 `startAmendmentScan()`으로
@@ -365,6 +366,55 @@ function isRelevant(item) {
 }
 
 /**
+ * 새로 감지된 카드를 **감지 즉시 승인 상태로** 만든다(2026-11-16 사용자 확정 「승인없이 되도록 진행하자.」).
+ * 종전(2026-09-10)에는 사람이 개정검토 방에서 승인을 눌러야 했다. 이제 사람이 보는 관문은 자동 반영 세션이 올린
+ * **PR 의 머지** 하나다 — 승인이 하던 두 일(재수집 대상 표시 · 시행일에 예고본을 답변에 쓰기)은 그대로 승인 상태로 돈다.
+ * 개정 사실 자체는 law.go.kr 이 공표한 값이라 다투지 않는다(decide-all 주석과 같은 까닭). 사람은 여전히 카드에서 기각할 수 있다.
+ * 예: autoApprove([{id:'chg_1', status:'pending'}], '2026-11-16T00:00:00.000Z') → [{id:'chg_1', status:'approved', decidedBy:'자동(감지 즉시)', decidedAt:'2026-11-16T00:00:00.000Z'}]
+ * @param {object[]} cards toLegacyEntry 결과 @param {string} at ISO 시각 @returns {object[]} 새 배열(원본은 안 바꾼다)
+ * [연계] ← runAmendmentScan · scripts/test_nariya_autorun.js
+ */
+function autoApprove(cards, at) {
+  return (cards || []).map((c) => Object.assign({}, c, { status: 'approved', decidedBy: '자동(감지 즉시)', decidedAt: at }));
+}
+
+/**
+ * 개정검토 큐에서 **대기(pending) 중인 카드를 전부 자동 승인**한다(2026-11-16 사용자 「아예 전체 승인 버튼 누를 필요 없이 자동 진행되어도 좋고」).
+ * 감지 즉시 승인(autoApprove)은 새로 들어오는 카드에만 걸리므로, 그 전부터 대기하던 카드는 이것이 줍는다. 매일 새벽 점검 끝에 부른다
+ * (server.js runNariyaNightly) — 대기가 없으면 아무것도 하지 않는다. 탐지 큐에도 승인을 옮겨 적는다(개별 승인 버튼과 같은 처리).
+ * 세션을 깨우는 것은 바로 뒤의 남은 일 점검(nariya_autorun sweep)이 한다 — 승인됐고 반영 안 된 건을 거기서 센다.
+ * 승인했으면 관리자 푸시 1통(무엇이 자동 승인됐는지 사람이 알게).
+ * 예: await approveAllPending() → {approved:['chg_1','chg_2'], mirrorFailed:0}
+ * @param {{file?:string, at?:string, push?:function}} [o] 검사용(큐 파일·시각·푸시를 바꿔 넣는다)
+ * @returns {Promise<{approved:string[], mirrorFailed:number}>}
+ * [연계] ← server.js runNariyaNightly · → legal_admin_queues.updateJsonlById · mirrorDecisionToH29 · admin_push
+ */
+async function approveAllPending(o) {
+  const opt = o || {};
+  const file = opt.file || QUEUE_FILE;
+  const at = opt.at || new Date().toISOString();
+  const aq = require('./legal_admin_queues');
+  const approved = [];
+  let mirrorFailed = 0;
+  for (const e of aq.readJsonl(file)) {
+    if (!e || !e.id || (e.status || 'pending') !== 'pending') continue;
+    if (!aq.updateJsonlById(file, e.id, { status: 'approved', decidedBy: '자동(대기분 일괄)', decidedAt: at })) continue;
+    approved.push(String(e.id));
+    if (!opt.file) { const m = mirrorDecisionToH29(e.id, 'approved'); if (!m.ok) { mirrorFailed++; console.error('[나리야 개정감지] 탐지 큐 승인 옮겨 적기 실패:', e.id, m.error); } }
+  }
+  if (approved.length) {
+    console.log(`[나리야 개정감지] 대기 중이던 개정 카드 ${approved.length}건 자동 승인`);
+    try {
+      const send = opt.push || ((t, b, d) => require('./admin_push').sendAdminPush(t, b, d));
+      await send(`⚖ 대기 중이던 개정 ${approved.length}건 자동 승인`,
+        '개정검토 방에서 승인을 기다리던 카드를 자동으로 승인했습니다. 자동 반영 세션이 위키를 고쳐 PR 을 올립니다 — PR 을 확인하고 머지해 주세요.',
+        { type: 'legal_amendment_auto_approved', count: String(approved.length) });
+    } catch (e) { console.error('[나리야 개정감지] 자동 승인 푸시 실패(승인은 정상):', e && e.message); }
+  }
+  return { approved, mirrorFailed };
+}
+
+/**
  * queue.jsonl에 신규 항목들을 append한다(원자적이지 않은 단순 append — `_scanning` 락으로
  * 이 파일 안에서는 동시 실행을 막으므로 충분, review_queue.md 같은 사람 동시편집 대상과 다름).
  * @param {Array<object>} entries
@@ -378,7 +428,7 @@ function appendQueue(entries) {
 
 /**
  * 전체 스캔 1회 실행: H-29 탐지엔진 실행 → 결과를 legacy 큐로 mirror. 완료까지 기다린다
- * (실측 3~4분) — cron(새벽 1시, 아무도 안 기다림)이 쓰는 경로. 관리자 버튼(scan-now)은
+ * (실측 3~4분) — cron(새벽 3시 · 3일에 한 번, 아무도 안 기다림)이 쓰는 경로. 관리자 버튼(scan-now)은
  * 이 함수를 기다리지 않는 `startAmendmentScan()`을 대신 쓴다.
  * @returns {Promise<{scanned:number, changed:number, filtered:number, errors:number}>}
  *   scanned: H-29 큐의 pending 전체 · changed: 이번에 관리자 큐에 새로 올린 수 · filtered: 무관 신규 고시로 거른 수
@@ -417,8 +467,19 @@ async function runAmendmentScan(opts) {
     const known = existingLegacyIds();
     const fresh = pending.filter((it) => !known.has(it.id));
     const relevant = fresh.filter(isRelevant);
-    const cards = relevant.map(toLegacyEntry);      // 한 번만 만든다(적재·알림이 같은 것을 본다)
+    // ★감지 즉시 자동 승인(2026-11-16 사용자 확정 「승인없이 되도록 진행하자.」) — 사람이 보는 관문은 PR 머지 하나다.
+    const cards = autoApprove(relevant.map(toLegacyEntry), new Date().toISOString());   // 한 번만 만든다(적재·알림이 같은 것을 본다)
     appendQueue(cards);
+    // 재수집 도구가 보는 탐지 큐에도 승인을 옮겨 적는다(개별 승인 버튼과 같은 처리 — routes/legal.js decide).
+    for (const c of cards) {
+      const m = mirrorDecisionToH29(c.id, 'approved');
+      if (!m.ok) console.error('[나리야 개정감지] 탐지 큐 승인 옮겨 적기 실패:', c.id, m.error);
+    }
+    // 10분 뒤 자동 반영 세션을 깨운다(services/nariya_autorun.js). 실패해도 감지 결과는 그대로 남긴다.
+    if (cards.length) {
+      try { require('./nariya_autorun').requestRun('amend', { count: cards.length, ids: cards.map((c) => String(c.id)) }); }
+      catch (e) { console.error('[나리야 개정감지] 자동 반영 요청 실패(감지는 정상):', e && e.message); }
+    }
     const filtered = fresh.length - relevant.length;
     console.log(`[나리야 개정감지] 탐지 pending ${pending.length}건 · 새 항목 ${fresh.length}건 중 무관 신규 고시로 거른 ${filtered}건 · 관리자 큐 적재 ${relevant.length}건`);
     // ★새로 감지된 것이 있으면 등록된 관리자 기기로 알린다(사용자 확정 2026-09-10).
@@ -447,8 +508,8 @@ async function runAmendmentScan(opts) {
  * @param {Array<object>} entries 이번에 관리자 큐에 새로 올린 카드들
  * @returns {Promise<void>} 실패는 로그만 남기고 삼킨다 — 알림 때문에 스캔이 죽으면 안 된다
  * [연계] → services/admin_push.sendAdminPush(통합관리자센터 '등록' 버튼으로 등록한 기기들).
- *   ★본문에 **"승인 후 위키 수동 갱신이 필요하다"** 를 반드시 넣는다 — 승인만 하면 끝나는 줄 알면
- *     위키가 옛 내용으로 남는다(승인은 답변 전환·재수집 표시까지만 한다, `_amendments/README.md`).
+ *   ★(2026-11-16 바뀜) 감지 즉시 자동 승인 + 자동 반영 세션 → 본문은 「PR 을 확인하고 머지」를 말한다.
+ *     종전 문구 「승인 후 위키를 사람이 갱신해야 한다」는 자동 반영 이전의 것이다(`_amendments/README.md`).
  */
 async function notifyAdmins(entries) {
   try {
@@ -462,7 +523,8 @@ async function notifyAdmins(entries) {
     const arts = entries.reduce((n, e) => n + ((e.changed_articles || []).length), 0);
     const title = `⚖ 법령 개정 ${entries.length}건 감지`;
     // 푸시 본문은 **평문**이다 — 별표(**) 같은 마크다운 표시는 그대로 글자로 보인다.
-    const body = `${head}${arts ? ` · 바뀐 조문 ${arts}개` : ''}\n승인 후 위키를 사람이 갱신해야 합니다. 개정검토 방에서 승인하고 「위키 반영 지시문」을 복사하세요.`;
+    // 2026-11-16: 감지 즉시 자동 승인 → 자동 반영 세션이 위키를 고쳐 PR 을 올린다. 사람은 PR 을 머지(또는 카드에서 기각)한다.
+    const body = `${head}${arts ? ` · 바뀐 조문 ${arts}개` : ''}\n자동 승인했습니다. 새벽 점검이 끝나면 자동 반영 세션이 위키를 고쳐 PR 을 올립니다 — PR 을 확인하고 머지해 주세요.`;
     const r = await sendAdminPush(title, body, { url: 'https://seagnal-server.fly.dev/?tab=admin', kind: 'legal_amendment' });
     console.log(`[나리야 개정감지] 관리자 푸시 — 성공 ${r.sent}건 · 실패 ${r.failed}건`);
   } catch (e) {
@@ -525,5 +587,5 @@ function withoutApplied(rows, applied) {
 module.exports = { runAmendmentScan, startAmendmentScan, getScanProgress,
   // 진행률 한 줄 파서는 검사(test_wiki_brief_bulk.js)가 직접 먹여 보려고 함께 내보낸다.
   applyProgressLine, queueFile, h29QueueFile, mirrorDecisionToH29, readScanStatus, scanWindowDays, lastOkAt,
-  notifyAdmins, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE, CATCHUP_MAX_DAYS,
+  notifyAdmins, toLegacyEntry, isRelevant, autoApprove, approveAllPending, QUEUE_FILE, H29_QUEUE_FILE, CATCHUP_MAX_DAYS,
   loadWikiApplied, withoutApplied, WIKI_APPLIED_FILE };

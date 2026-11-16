@@ -68,10 +68,12 @@ function fakeFetch() {
     return f;
 }
 function fakePush() { const p = async (title, body, data) => { p.sent.push({ title, body, data }); return { sent: 1, failed: 0 }; }; p.sent = []; return p; }
+/** 가짜 머지 담당 — 실제 nariya_pr_merge(볼륨 파일·GitHub)를 건드리지 않게. 결정 필요 0건이면 auto. */
+function fakeMerger() { const m = { tracked: [], opts: [], track(d, o) { m.tracked.push(d); m.opts.push(o || {}); if (m.refuse) return { tracked: false, why: m.refuse }; return { tracked: true, mode: (d.needs_decision || []).length || !(o && o.owner) ? 'human' : 'auto' }; } }; return m; }
 function make(o = {}) {
-    const time = o.time || fakeTime(), f = o.fetch || fakeFetch(), push = o.push || fakePush(), file = o.file || newFile();
-    const ar = A.createAutorun({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: f, push, env: o.env || PROD_ENV(), adminCheck: o.adminCheck });
-    return { ar, time, f, push, file };
+    const time = o.time || fakeTime(), f = o.fetch || fakeFetch(), push = o.push || fakePush(), file = o.file || newFile(), merger = o.merger || fakeMerger();
+    const ar = A.createAutorun({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: f, push, env: o.env || PROD_ENV(), adminCheck: o.adminCheck, prMerger: merger });
+    return { ar, time, f, push, file, merger };
 }
 /** console 를 잠시 가로챈다(log·warn·error). */
 async function capture(fn) {
@@ -385,7 +387,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         // [D1] 예외 ① 그 run 에서 「작업 시작」을 이미 보냈으면 'nothing' 이어도 끝을 알린다
         const c = make();
         await quiet(async () => { c.ar.claim({ run_id: 'daily-2' }); c.ar.claim({ run_id: 'daily-2', work: { amend: 1, fresh: 0 } }); c.ar.done({ run_id: 'daily-2', outcome: 'nothing' }); await flush(); });
-        assert.equal(titles(c.push, /정기 세션 — 작업 시작/).length, 1); assert.equal(titles(c.push, /반영할 것 없음/).length, 1, '시작을 알렸으면 끝도 알린다');
+        assert.equal(titles(c.push, /작업 시작\(직접 실행/).length, 1); assert.equal(titles(c.push, /반영할 것 없음/).length, 1, '시작을 알렸으면 끝도 알린다');
         // [D1] 예외 ② 사람이 정할 것이 있으면 알린다 — 본문에 건수와 앞 몇 줄
         const e = make();
         await quiet(async () => { e.ar.claim({ run_id: 'daily-3' }); e.ar.done({ run_id: 'daily-3', outcome: 'nothing', needs_decision: ['고시 A 동일성', '고시 B 승격', '별표 C', '별표 D'] }); await flush(); });
@@ -410,7 +412,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         await quiet(async () => { ar.done({ run_id: runId, outcome: 'pr', pr_url: PR(5), amend_ids: ['chg_1', 'chg_2', 'chg_1'], fresh_ids: ['adf_a', 'adf_b', 'adf_c', 'adf_d'] }); await flush(); });
         let h = ar.hiddenIds();
         assert.deepEqual([...h.amend].sort(), ['chg_1', 'chg_2']); assert.deepEqual([...h.fresh].sort(), ['adf_a', 'adf_b', 'adf_c', 'adf_d']);
-        assert.deepEqual(ar.status().inFlight, [{ run_id: runId, pr_url: PR(5), amend: 2, fresh: 4, since: ar.status().inFlight[0].since }]);
+        assert.deepEqual(ar.status().inFlight, [{ run_id: runId, pr_url: PR(5), amend: 2, fresh: 4, mok: 0, since: ar.status().inFlight[0].since }]);
         h = ar.hiddenIds({ applied: new Map([['chg_1', {}]]) });
         assert.deepEqual([...h.amend], ['chg_2'], '장부에 들어온 amend id 는 빠진다'); assert.equal(h.fresh.size, 4, 'fresh 는 안 건드림');
         // [D7] 점검기가 자동으로 닫은 카드(auto_closed:true · done)만 풀린다 — 손으로 닫은 것·다시 뜬 것·대기 중인 것은 그대로 숨긴다
@@ -441,14 +443,14 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.equal(ar.status().lock.run_id, 'daily-1', '심장박동 덕에 4시간째에도 잠금 유효');
         assert.equal(push.sent.length, 0, '일감 0 이면 푸시 없음');
         await quiet(async () => { ar.claim({ run_id: 'daily-1', work: { amend: 3, fresh: 1 } }); ar.claim({ run_id: 'daily-1', work: { amend: 5, fresh: 0 } }); await flush(); });
-        const w = titles(push, /정기 세션 — 작업 시작/);
+        const w = titles(push, /작업 시작\(직접 실행/);
         assert.equal(w.length, 1, '1회만'); assert.ok(/개정 3·원문신선도 1/.test(w[0].title), w[0].title);
         await quiet(() => time.advance(3 * HOUR));
         assert.equal(titles(push, /이전 세션 응답 없음/).length, 1, '심장박동이 끊기면 3시간 뒤 만료');
         // 서버가 깨운 run 은 work 푸시를 안 한다(이미 「세션 시작」을 보냈다)
         const b = make(); const runId = await fired(b);
         await quiet(async () => { b.ar.claim({ run_id: runId, work: { amend: 1, fresh: 0 } }); await flush(); });
-        assert.equal(titles(b.push, /정기 세션/).length, 0);
+        assert.equal(titles(b.push, /직접 실행/).length, 0);
     });
 
     await check('[§5 #19] 잠금이 없을 때(만료 뒤) 온 done → 「늦은 완료」(잠금과 다른 run 아님)', async () => {
@@ -469,7 +471,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         let c; await quiet(async () => { c = ar.claim({ run_id: 'daily-9', work: { amend: 2, fresh: 0 } }); await flush(); });
         assert.equal(c.busy, false); assert.equal(c.relocked, true);
         assert.equal(ar.status().lock.source, 'claim');
-        assert.equal(titles(push, /정기 세션 — 작업 시작/).length, 1, '「작업 시작」은 이어받아 다시 안 보낸다');
+        assert.equal(titles(push, /작업 시작\(직접 실행/).length, 1, '「작업 시작」은 이어받아 다시 안 보낸다');
         await quiet(async () => { ar.done({ run_id: 'daily-9', outcome: 'nothing' }); await flush(); });
         assert.equal(titles(push, /반영할 것 없음/).length, 1, 'workNotified 를 이어받아 끝도 알린다(D1)');
         // 서버가 깨운 run 은 source fire 를 이어받는다
@@ -625,14 +627,15 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const v = V({ run_id: 'ar-1', outcome: 'pr', summary: 'a‮b\u0007c‏d⁦e\nf' + '가'.repeat(5000), needs_decision: [...Array(30)].map(() => '‪' + '나'.repeat(500)).concat([5, null, '\u0001\u0002']) }).value;
         assert.ok(v.summary.startsWith('abcde\nf'), JSON.stringify(v.summary.slice(0, 10))); assert.equal(v.summary.length, 2000);
         assert.equal(v.needs_decision.length, 20); assert.ok(v.needs_decision.every((x) => x.length === 300 && !x.includes('‪')));
-        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], amend_ids: [], fresh_ids: [] });
+        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], amend_ids: [], fresh_ids: [], mok_ids: [], deferred_amend_ids: [], deferred_fresh_ids: [], deferred_mok_ids: [] });
         const { ar, push } = make();
         ar.claim({ run_id: 'c1' });
         const r = ar.done({ run_id: 'c1', outcome: 'nope' });
         assert.equal(r.ok, false); assert.equal(r.status, 400);
         assert.equal(ar.status().lock.run_id, 'c1'); assert.equal(push.sent.length, 0);
         await quiet(async () => { ar.done({ run_id: 'c1', outcome: 'pr', pr_url: PR(7), needs_decision: ['이름 바뀐 고시 동일성', '승격 여부'], summary: '개정 3건 반영' }); await flush(); });
-        assert.ok(/PR 확인 필요/.test(push.sent[0].title) && /결정 필요 2건/.test(push.sent[0].title), push.sent[0].title);
+        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(push.sent[0].title) && /결정 필요 2건/.test(push.sent[0].title), push.sent[0].title);
+        assert.ok(/「자동반영」 방에서 내용을 확인하고 \[머지\] 버튼/.test(push.sent[0].body), '본문에 앱 머지 버튼 안내(사용자 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시」)');
         assert.equal(push.sent[0].data.pr_url, PR(7));
         assert.ok(Object.values(push.sent[0].data).every((x) => typeof x === 'string'), 'FCM data 는 전부 문자열');
     });
@@ -684,6 +687,250 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.ok(/require\('\.\/services\/nariya_autorun'\)\.start\(\)/.test(sv), 'server.js 시작 복원');
         const near = sv.slice(sv.indexOf("require('./services/nariya_autorun').start()") - 400, sv.indexOf("require('./services/nariya_autorun').start()"));
         assert.ok(/FLY_APP_NAME === 'seagnal-server'/.test(near) && !/FLY_ALLOC_ID/.test(near), '[D8①] server.js 주석이 실제 판정과 같다');
+    });
+
+    // ── 2026-11-16 남은 일 점검·자동 승인 (설계안 §8) ───────────────────────────
+    await check('[§8 #1] 내준 일 → done pr/nothing 이면 deferred_*_ids 에 실은 것만 seen(14일) — 손대지 않은 나머지는 다시 넘긴다 · 내주지 않은 id 를 deferred 로 실어도 무시 · ids 없으면 늘 넣는다', async () => {
+        const c = make();
+        const id = await fired(c, 'amend', 3);
+        assert.equal(c.ar.noteServed('amend', ['chg_a', 'chg_b', 'chg_c']), true);
+        assert.equal(c.ar.noteServed('fresh', ['adf_1']), true);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(3), amend_ids: ['chg_a'], deferred_amend_ids: ['chg_b', 'chg_zz'], deferred_fresh_ids: ['adf_1'], needs_decision: ['chg_b 폴더 결정'] }); });
+        assert.equal(c.ar.status().seen, 2, 'chg_b·adf_1 만(chg_zz 는 내준 적 없음)');
+        const r1 = c.ar.requestRun('amend', { ids: ['chg_b'] });
+        assert.equal(r1.queued, false); assert.equal(r1.seen, 1);
+        const r2 = c.ar.requestRun('amend', { ids: ['chg_b', 'chg_c'] });
+        assert.equal(r2.queued, true, '손대지 않은 chg_c 는 다시 넘긴다(적대검증 #2)'); assert.deepEqual(c.ar.status().pending.reasons, { amend: 1 });
+        assert.equal(c.ar.requestRun('fresh', { ids: ['adf_1'] }).queued, false, 'fresh 도 같은 규칙');
+        assert.equal(c.ar.requestRun('fresh', { count: 1 }).queued, true, 'ids 없이 부르면 예전처럼 늘 넣는다(사람의 승인 버튼)');
+        // 14일 뒤 잊음
+        await quiet(() => c.time.advance(15 * DAY));
+        assert.equal(c.ar.requestRun('amend', { ids: ['chg_b'] }).queued, true, '14일 지나면 다시 깨운다');
+    });
+    await check('[§8 #2] done failed → 내준 일 전부 3일 쉼(매일 실패 고리 막기, 적대검증 #3) · 3시간 응답 없음도 3일 쉼 · 잠금 없을 때 noteServed 는 아무것도 안 함', async () => {
+        const c = make();
+        assert.equal(c.ar.noteServed('amend', ['chg_x']), false, '잠금 없음');
+        const id = await fired(c);
+        c.ar.noteServed('amend', ['chg_x']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'failed', summary: '수집 실패' }); });
+        assert.equal(c.ar.requestRun('amend', { ids: ['chg_x'] }).queued, false, '실패 직후엔 쉰다');
+        await quiet(() => c.time.advance(3 * DAY + MIN));
+        assert.equal(c.ar.requestRun('amend', { ids: ['chg_x'] }).queued, true, '3일 뒤 다시 넘긴다');
+        // 응답 없음(3시간 만료)
+        const d = make();
+        await fired(d);
+        d.ar.noteServed('fresh', ['adf_q']);
+        await quiet(() => d.time.advance(3 * HOUR + MIN));
+        assert.equal(d.ar.status().lock, null);
+        assert.equal(d.ar.requestRun('fresh', { ids: ['adf_q'] }).queued, false, '죽은 세션의 일도 3일 쉰다');
+    });
+    await check('[§8 #3] sweep — 잠금 중이면 아무것도 안 함 · 대기(깨우기 실패)가 있으면 다시 쏨 · 남은 일이 새것이면 깨움 · 결정 대기뿐이면 안 깨움 · 없으면 none · 목록 못 읽음은 푸시', async () => {
+        const c = make();
+        const id = await fired(c);
+        let r = c.ar.sweep({ amend: ['chg_1'], fresh: [] });
+        assert.equal(r.action, 'locked'); assert.equal(c.ar.status().pending, null, '잠금 중 — 일하는 세션이 다 꺼내 간다');
+        c.ar.noteServed('amend', ['chg_1']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'nothing', deferred_amend_ids: ['chg_1'], needs_decision: ['폴더'] }); });
+        await quiet(async () => { r = c.ar.sweep({ amend: ['chg_1'], fresh: [] }); });
+        assert.equal(r.action, 'seen'); assert.equal(c.ar.status().pending, null);
+        await quiet(async () => { r = c.ar.sweep({ amend: ['chg_1', 'chg_2'], fresh: ['adf_9'] }); });
+        assert.equal(r.action, 'requested'); assert.deepEqual(c.ar.status().pending.reasons, { amend: 1, fresh: 1 });
+        const n0 = c.f.calls.length;
+        await quiet(() => c.time.advance(10 * MIN));
+        assert.equal(c.f.calls.length, n0 + 1, '10분 뒤 깨운다');
+        assert.equal(c.ar.status().lastSweep.action, 'requested');
+        const e = make();
+        e.f.mode = 'http500';
+        await quiet(async () => { e.ar.requestRun('amend', { count: 1 }); await e.time.advance(10 * MIN); });
+        assert.ok(e.ar.status().pending, '실패 — 대기 유지');
+        e.f.mode = 'ok';
+        await quiet(async () => { r = e.ar.sweep({ amend: [], fresh: [] }); await e.time.advance(10 * MIN); });
+        assert.equal(r.action, 'pending'); assert.equal(e.f.calls.length, 2); assert.ok(e.ar.status().lock);
+        const g = make();
+        await quiet(async () => { r = g.ar.sweep({ amend: [], fresh: [], errors: ['개정: ENOENT'] }); await flush(); });
+        assert.equal(r.action, 'none'); assert.deepEqual(g.ar.status().lastSweep.errors, ['개정: ENOENT']);
+        assert.equal(titles(g.push, /남은 일 점검 실패/).length, 1, '못 읽음은 「남은 일 없음」이 아니다(L-291)');
+    });
+    await check('[§8 #4] seen·served 는 파일에 남는다 · 깨진 항목 거름 · 3시간 만료 뒤 같은 run 이 다시 claim 하면 served 를 이어받고, 늦은 done 도 만료 기록의 served 를 쓴다(적대검증 #6)', async () => {
+        const c = make();
+        const id = await fired(c);
+        c.ar.noteServed('fresh', ['adf_k', 'adf_k', 'bad id!']);
+        const raw = JSON.parse(fs.readFileSync(c.file, 'utf8'));
+        assert.deepEqual(raw.lock.served.fresh, ['adf_k'], '중복·꼴 틀린 id 는 빠진다');
+        const c2 = make({ file: c.file, time: c.time });
+        assert.deepEqual(c2.ar._state().lock.served.fresh, ['adf_k'], '재시작 뒤 served 복원');
+        await quiet(async () => { c2.ar.done({ run_id: id, outcome: 'nothing', deferred_fresh_ids: ['adf_k'] }); });
+        const st = JSON.parse(fs.readFileSync(c.file, 'utf8'));
+        st.seen.push({ kind: 'amend', id: 'x', at: 'nope' }, { kind: 'zzz', id: 'y', at: 1 });
+        fs.writeFileSync(c.file, JSON.stringify(st));
+        const c3 = make({ file: c.file, time: c.time });
+        assert.deepEqual(c3.ar._state().seen.map((x) => x.id), ['adf_k']);
+        assert.equal(c3.ar.requestRun('fresh', { ids: ['adf_k'] }).queued, false);
+        // relock
+        const d = make();
+        await quiet(() => { d.ar.claim({ run_id: 'long-1' }); });
+        d.ar.noteServed('amend', ['chg_r']);
+        await quiet(() => d.time.advance(3 * HOUR + MIN));
+        await quiet(() => { assert.equal(d.ar.claim({ run_id: 'long-1' }).relocked, true); });
+        assert.deepEqual(d.ar._state().lock.served.amend, ['chg_r']);
+        await quiet(async () => { d.ar.done({ run_id: 'long-1', outcome: 'nothing', deferred_amend_ids: ['chg_r'] }); });
+        await quiet(() => d.time.advance(4 * DAY));
+        assert.equal(d.ar.requestRun('amend', { ids: ['chg_r'] }).queued, false, 'relock 뒤 결정 필요 → 14일');
+        // late done
+        const e = make();
+        await quiet(() => { e.ar.claim({ run_id: 'late-1' }); });
+        e.ar.noteServed('amend', ['chg_l']);
+        await quiet(() => e.time.advance(3 * HOUR + MIN));
+        await quiet(async () => { assert.equal(e.ar.done({ run_id: 'late-1', outcome: 'nothing', deferred_amend_ids: ['chg_l'] }).late, true); });
+        await quiet(() => e.time.advance(4 * DAY));
+        assert.equal(e.ar.requestRun('amend', { ids: ['chg_l'] }).queued, false, '늦은 done 도 결정 필요 → 14일');
+    });
+    await check('[§8 #6] 새벽 점검 사슬 동안 깨우기 보류(setHold) — 대기는 쌓이고, 풀면 10분 뒤 발사 · 6시간 뒤 저절로 풀림(적대검증 #4·#5)', async () => {
+        const c = make();
+        await quiet(async () => {
+            c.ar.setHold(true);
+            c.ar.requestRun('amend', { count: 2 });
+            await c.time.advance(30 * MIN);
+        });
+        assert.equal(c.f.calls.length, 0, '보류 중엔 안 쏜다'); assert.deepEqual(c.ar.status().pending.reasons, { amend: 2 }); assert.ok(c.ar.status().hold);
+        await quiet(async () => { c.ar.setHold(false); await c.time.advance(10 * MIN); });
+        assert.equal(c.f.calls.length, 1, '풀면 10분 뒤'); assert.equal(c.ar.status().hold, null);
+        const d = make();
+        await quiet(async () => { d.ar.setHold(true); d.ar.requestRun('fresh', { count: 1 }); await d.time.advance(6 * HOUR + 10 * MIN + MIN); });
+        assert.equal(d.f.calls.length, 1, '사슬이 죽어도 6시간 뒤 풀린다');
+    });
+    await check('[§8 #5] 개정 감지 즉시 자동 승인(autoApprove) · 탐지 큐에 옮겨 적고 ids 와 함께 requestRun · 푸시 문구 · 원문신선도는 ids 없음 · 새벽 03:00 하루 하나씩(보류→오늘 차례 점검→풀기→남은 일 점검)', () => {
+        const S = require('../services/legal_amendment_scanner');
+        const src0 = [{ id: 'chg_1', status: 'pending', 법령명: 'x' }];
+        const out = S.autoApprove(src0, '2026-11-16T00:00:00.000Z');
+        assert.deepEqual(out[0], { id: 'chg_1', status: 'approved', 법령명: 'x', decidedBy: '자동(감지 즉시)', decidedAt: '2026-11-16T00:00:00.000Z' });
+        assert.equal(src0[0].status, 'pending', '원본은 안 바꾼다');
+        const src = fs.readFileSync(path.join(__dirname, '../services/legal_amendment_scanner.js'), 'utf8');
+        const body = src.slice(src.indexOf('async function runAmendmentScan'), src.indexOf('async function notifyAdmins'));
+        assert.ok(/const cards = autoApprove\(relevant\.map\(toLegacyEntry\)/.test(body), '적재 전에 승인');
+        assert.ok(/mirrorDecisionToH29\(c\.id, 'approved'\)/.test(body), '탐지 큐에도 승인');
+        assert.ok(/requestRun\('amend', \{ count: cards\.length, ids: cards\.map/.test(body) && /catch \(e\)/.test(body), 'ids 와 함께 · 실패해도 감지는 그대로');
+        assert.ok(/자동 승인했습니다/.test(src) && !/개정검토 방에서 승인하고/.test(src), '푸시가 더는 「승인하세요」라고 하지 않는다');
+        const sc = fs.readFileSync(path.join(__dirname, '../services/admrul_fresh_scanner.js'), 'utf8');
+        assert.ok(/requestRun\('fresh', \{ count: fresh\.length \+ reopened\.length \}\)/.test(sc), '원문신선도는 ids 를 안 넘긴다 — 「다시 뜬 카드만 있어도 깨운다」 그대로(적대검증 #9)');
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/if \(req\.viaAutomation\) \{ try \{ autorun\.noteServed\('amend'/.test(lj), 'wiki-brief-all 이 내준 id 를 적는다');
+        assert.ok(/if \(status === 'pending' && list\.length\) \{ try \{ autorun\.noteServed\('fresh'/.test(lj), 'freshness 가 내준 카드를 적는다');
+        const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+        const chain = sv.slice(sv.indexOf('async function runNariyaNightly'), sv.indexOf("cron.schedule('0 3 * * *'"));
+        assert.ok(/const which = ar\.nightlyScanFor\(Date\.now\(\)\)/.test(chain), '오늘 차례를 nightlyScanFor 로 고른다');
+        assert.ok(chain.indexOf('ar.setHold(true)') >= 0 && chain.indexOf('ar.setHold(true)') < chain.indexOf('runAmendmentScan()'), '점검 전에 깨우기 보류');
+        assert.ok(/\} finally \{[\s\S]*ar\.setHold\(false\)[\s\S]*ar\.sweep\(ar\.collectOutstanding\(\)\)/.test(chain), '끝나면(실패해도) 풀고 남은 일 점검');
+        assert.ok(!/cron\.schedule\('0 3 \* \* 0'/.test(sv) && !/cron\.schedule\('30 4/.test(sv) && !/cron\.schedule\('0 1 \* \* \*'/.test(sv), '옛 일요일·01:00·04:30 cron 없음');
+        // 하루 하나씩 돌려 가며(사용자 「하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다」)
+        const at = (d) => A.nightlyScanFor(Date.parse(d + 'T03:00:00+09:00'));
+        const seq = ['2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23'].map(at);
+        assert.deepEqual(seq, ['amend', 'mok', 'fresh', 'amend', 'mok', 'fresh'], '개정 → 결손 → 낡음 순환 · 3일에 한 번씩');
+        assert.equal(A.nightlyScanFor(Date.parse('2026-11-18T00:10:00+09:00')), 'amend', 'KST 날짜로 고른다(UTC 로는 전날)');
+        assert.equal(A.nightlyScanFor(Date.parse('2026-11-18T23:59:00+09:00')), 'amend');
+    });
+
+    await check('[§8 #7] 원문결손(mok) — 대기·발사 글에 실림 · 내준 일·결정 필요·PR(inFlight) 규칙이 개정·신선도와 같음 · 결손 점검기가 자동으로 닫은 카드만 inFlight 에서 풀림 · 연결(사용자 「자동슈정」)', async () => {
+        const c = make();
+        await quiet(async () => { c.ar.requestRun('mok', { count: 3 }); await c.time.advance(10 * MIN); });
+        assert.ok(/ mok=3$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
+        const id = c.ar.status().lock.run_id;
+        c.ar.noteServed('mok', ['mok_a', 'mok_b', 'mok_c']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(9), mok_ids: ['mok_a'], deferred_mok_ids: ['mok_b'] }); });
+        assert.equal(c.ar.requestRun('mok', { ids: ['mok_b'] }).queued, false, '결정 필요 → 쉼');
+        assert.deepEqual([...c.ar.hiddenIds({}).mok], ['mok_a'], 'PR 에 실린 결손 카드는 숨김');
+        assert.deepEqual([...c.ar.hiddenIds({ mokCards: new Map([['mok_a', { status: 'done', decidedBy: '관리자' }]]) }).mok], ['mok_a'], '손으로 닫은 것은 안 풀림');
+        assert.deepEqual([...c.ar.hiddenIds({ mokCards: new Map([['mok_a', { status: 'done', auto_resolved: true }]]) }).mok], [], '점검기가 자동으로 닫으면 풀림');
+        assert.equal(c.ar.status().inFlight.length, 0);
+        let r; await quiet(async () => { r = c.ar.sweep({ amend: [], fresh: [], mok: ['mok_b', 'mok_c'] }); });
+        assert.equal(r.action, 'requested'); assert.deepEqual(c.ar.status().pending.reasons, { mok: 1 }, '손대지 않은 mok_c 만');
+        assert.equal(A.validateDone({ run_id: 'x', outcome: 'pr', mok_ids: ['bad id'] }).ok, false);
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/router\.get\('\/api\/legal\/mok-audit\/brief-all', autorun\.requireAdminOrAutomation/.test(lj), '결손 지시문을 자동화 열쇠로');
+        assert.ok(/const idsQ = req\.viaAutomation \? \[\] :/.test(lj) && /autorun\.noteServed\('mok'/.test(lj) && /hid\.mok\.has/.test(lj), '자동화는 대기만·inFlight 빼고·내준 id 기록');
+        assert.ok(/router\.post\('\/api\/legal\/mok-audit\/decide-all', adminAuth\.requireAdminToken/.test(lj) && /router\.post\('\/api\/legal\/mok-audit\/:id\/decide', adminAuth\.requireAdminToken/.test(lj), '카드 처리는 여전히 관리자만');
+        const ms = fs.readFileSync(path.join(__dirname, '../services/mok_audit_scanner.js'), 'utf8');
+        assert.ok(/if \(fresh\.length \|\| reopened\.length\) \{[\s\S]*?requestRun\('mok', \{ count: fresh\.length \+ reopened\.length \}\)/.test(ms), '결손 점검이 새로·다시 뜬 카드로 깨움');
+    });
+
+    await check('[§8 #8] 대기 중이던 개정 카드 일괄 자동 승인(approveAllPending) — pending 만 approved · 이미 승인/기각은 그대로 · 푸시 1통 · 대기 없으면 푸시 없음 · 새벽 점검 끝(보류 풀기·남은 일 점검 앞)에서 부름', async () => {
+        const S = require('../services/legal_amendment_scanner');
+        const qf = path.join(tmp, 'amend_queue.jsonl');
+        fs.writeFileSync(qf, [{ id: 'chg_p1' }, { id: 'chg_p2', status: 'pending' }, { id: 'chg_a', status: 'approved' }, { id: 'chg_d', status: 'dismissed' }].map((x) => JSON.stringify(x)).join('\n') + '\n');
+        const sent = [];
+        const push = async (t, b, d) => { sent.push({ t, b, d }); return { sent: 1 }; };
+        const r = await S.approveAllPending({ file: qf, at: '2026-11-17T03:20:00.000Z', push });
+        assert.deepEqual(r.approved, ['chg_p1', 'chg_p2']);
+        const rows = fs.readFileSync(qf, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+        assert.deepEqual(rows.map((x) => x.status), ['approved', 'approved', 'approved', 'dismissed'], '기각은 그대로');
+        assert.equal(rows[0].decidedBy, '자동(대기분 일괄)');
+        assert.equal(sent.length, 1); assert.ok(/대기 중이던 개정 2건 자동 승인/.test(sent[0].t)); assert.ok(Object.values(sent[0].d).every((x) => typeof x === 'string'));
+        const r2 = await S.approveAllPending({ file: qf, push });
+        assert.deepEqual(r2.approved, []); assert.equal(sent.length, 1, '대기 없으면 푸시 없음');
+        const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+        const nightly = sv.slice(sv.indexOf('async function runNariyaNightly'), sv.indexOf("cron.schedule('0 3 * * *'"));
+        const iA = nightly.indexOf('approveAllPending()'), iH = nightly.indexOf('ar.setHold(false)'), iS = nightly.indexOf('ar.sweep(');
+        assert.ok(iA > 0 && iA < iH && iH < iS && /\} finally \{/.test(nightly.slice(0, iA)), 'finally 안에서 승인 → 풀기 → 남은 일 점검');
+    });
+
+    await check('[§9] C(조건부 자동 머지) — done pr 은 머지 담당에게 넘김 · 결정 필요 0건 → 「검사 통과하면 자동 머지(누를 것 없음)」 · 있으면 제목·본문에 「앱에서 머지 버튼」 · pr 아닌 done 은 안 넘김', async () => {
+        const a = make();
+        const id = await fired(a);
+        await quiet(async () => { a.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(21), summary: '개정 2건' }); await flush(); });
+        assert.equal(a.merger.tracked.length, 1); assert.equal(a.merger.tracked[0].pr_url, PR(21));
+        const t = titles(a.push, /나리야 자동 반영 — PR 올림/);
+        assert.equal(t.length, 1); assert.ok(/검사 통과하면 자동 머지\(누를 것 없음\)/.test(t[0].title), t[0].title);
+        assert.ok(/서버가 자동으로 머지·배포/.test(t[0].body)); assert.equal(t[0].data.merge, 'auto');
+        const b = make();
+        const id2 = await fired(b);
+        await quiet(async () => { b.ar.done({ run_id: id2, outcome: 'pr', pr_url: PR(22), needs_decision: ['고시 폴더'], summary: '신선도 1건' }); await flush(); });
+        const h = b.push.sent[b.push.sent.length - 1];
+        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(h.title) && /결정 필요 1건/.test(h.title), h.title);
+        assert.ok(/「자동반영」 방에서 내용을 확인하고 \[머지\] 버튼/.test(h.body)); assert.equal(h.data.merge, 'human');
+        const c = make();
+        const id3 = await fired(c);
+        await quiet(async () => { c.ar.done({ run_id: id3, outcome: 'failed', pr_url: PR(23), summary: 'x' }); c.ar.done({ run_id: 'other', outcome: 'nothing' }); await flush(); });
+        assert.equal(c.merger.tracked.length, 0, 'pr 이 아니면 머지 담당에게 안 넘김');
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/router\.get\('\/api\/legal\/autorun\/prs', adminAuth\.requireAdminToken/.test(lj) && /router\.post\('\/api\/legal\/autorun\/prs\/:n\/merge', adminAuth\.requireAdminToken/.test(lj), '목록·머지는 관리자 토큰만(자동화 열쇠 아님)');
+        const cj = fs.readFileSync(path.join(__dirname, '../../client/js/ai-chat/ai_chat.js'), 'utf8');
+        assert.ok(/ADMIN_ORDER = \['⚠수치검증', '자동반영'/.test(cj) && /renderAutorunCards\(document\.getElementById\('nryaAutorunHost'\)\)/.test(cj), '앱 「자동반영」 방');
+        assert.ok(/legalPost\('\/api\/legal\/autorun\/prs\/' \+ encodeURIComponent\(n\) \+ '\/merge'/.test(cj) && /한 번 더 누르면 실행/.test(cj), '머지 버튼은 두 번 눌러야');
+        const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+        assert.ok(/require\('\.\/services\/nariya_pr_merge'\)\.start\(\)/.test(sv), '시작 때 검사 기다리던 PR 되살림');
+    });
+
+    await check('[§9 적대검증 C] 잠금 주인만 자동 머지 후보(owner·runSince=일 시작 시각 — 심장박동과 무관) · 아무 run_id 로 보낸 done 은 사람 몫 · PR 주소 끝 공백·/ 허용 · 주소를 못 읽거나 맡지 못하면 「GitHub 에서 확인」', async () => {
+        const a = make();
+        const id = await fired(a);
+        const started = a.ar._state().lock.startedAt;
+        await quiet(() => a.time.advance(30 * MIN));
+        await quiet(() => { a.ar.claim({ run_id: id }); });                     // 심장박동 — since 는 바뀌어도 startedAt 은 그대로
+        assert.equal(a.ar._state().lock.startedAt, started);
+        await quiet(async () => { a.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(31) + '/\n' }); await flush(); });
+        assert.equal(a.merger.tracked[0].pr_url, PR(31), '끝 / · 줄바꿈 떼고 받음');
+        assert.deepEqual(a.merger.opts[0], { owner: true, runSince: started });
+        const b = make();
+        await quiet(async () => { b.ar.done({ run_id: 'forged-1', outcome: 'pr', pr_url: PR(32) }); await flush(); });
+        assert.equal(b.merger.opts[0].owner, false, '잠금 기록이 없는 run');
+        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(b.push.sent[0].title), b.push.sent[0].title);
+        const c = make();
+        const id3 = await fired(c);
+        await quiet(async () => { c.ar.done({ run_id: id3, outcome: 'pr', pr_url: 'https://github.com/evil/x/pull/1' }); await flush(); });
+        assert.equal(c.merger.tracked.length, 0);
+        const t = c.push.sent[c.push.sent.length - 1];
+        assert.ok(/PR 을 맡지 못함 · GitHub 에서 확인해 주세요/.test(t.title) && /PR 주소를 읽지 못함/.test(t.body) && /카드가 없습니다/.test(t.body), t.title + ' / ' + t.body);
+        const d = make(); d.merger.refuse = '이미 맡은 PR';
+        const id4 = await fired(d);
+        await quiet(async () => { d.ar.done({ run_id: id4, outcome: 'pr', pr_url: PR(33) }); await flush(); });
+        assert.ok(/GitHub 에서 확인해 주세요/.test(d.push.sent[d.push.sent.length - 1].title));
+        // 3시간 만료 뒤 같은 run 의 늦은 완료 — 만료 기록의 startedAt 으로 주인
+        const e = make();
+        const id5 = await fired(e);
+        const st5 = e.ar._state().lock.startedAt;
+        await quiet(() => e.time.advance(3 * HOUR + MIN));
+        await quiet(async () => { e.ar.done({ run_id: id5, outcome: 'pr', pr_url: PR(34) }); await flush(); });
+        assert.deepEqual(e.merger.opts[0], { owner: true, runSince: st5 });
     });
 
     fs.rmSync(tmp, { recursive: true, force: true });

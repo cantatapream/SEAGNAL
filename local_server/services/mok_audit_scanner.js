@@ -21,10 +21,11 @@
  *  자리에서 돌리면 **항상 빨갛다. 빨간 게이트는 곧 무시되는 게이트다.**
  *  그리고 **무엇도 멈추지 않는다** — 남의 서버 사정으로 우리 배포가 멈추면 안 된다.
  *
- * [왜 수요일인가]
- *  같은 law.go.kr 을 두드리는 작업이 이미 둘 있다 — 개정감지 **매일 01:00**,
- *  원문신선도 **일요일 03:00**. 2026-09-20 에 둘을 겹쳐 돌렸다가 서로 느려져 전수 점검이
- *  45/200 에서 멈춘 것을 실측했다. 그래서 양쪽에서 가장 먼 **수요일 03:00 KST**.
+ * [왜 3일에 한 번(새벽 03:00 하루 하나씩)인가 — 2026-11-16 바뀜(종전 매주 수요일 03:00)]
+ *  같은 law.go.kr 을 두드리는 작업이 둘 더 있다 — 개정감지·원문신선도. 2026-09-20 에 둘을 겹쳐 돌렸다가
+ *  서로 느려져 전수 점검이 45/200 에서 멈춘 것을 실측했다. 종전에는 요일을 나눠 피했고, 사용자가 셋 다 매일로
+ *  정하려다(「원문신선도 원문결손 개정감지 모두 매일하면 안되는 이유가있니?」) 다시 「하루 개정 하루는 결손 하루는 낡음
+ *  이런식으로 새벽 3시마다」로 정했다 — server.js runNariyaNightly 가 **한 밤에 하나만** 돌린다(겹칠 수가 없다).
  *
  * [★이 점검은 판을 못 박은 뒤에야 믿을 수 있다 — 2026-09-21]
  *  `mok_audit.py` 는 원래 `lawService.do?target=law&MST=` 로 원본을 받았는데, 그 호출은
@@ -41,14 +42,15 @@
  *     실행시간(실측 20~40분) 동안 멈춰 챗봇 답변까지 막힌다.
  *  ② 결과 JSON 에서 **누락 행만** 뽑아 큐(JSONL)로 옮긴다.
  *  ③ **새로 발견된 것이 있을 때만** 관리자 푸시(같은 알림이 반복되면 사람이 알림을 무시한다).
- *  ④ **raw·위키 자동 수정 절대 금지** — 목록만 남기고 사람이 누른다(환각0 승인게이트).
+ *  ④ 서버는 raw·위키를 직접 고치지 않는다 — 목록만 남긴다. 2026-11-16 부터 새로·다시 뜬 카드는 자동 반영 세션이 받아
+ *     **먼저 정말 빠진 것인지 확인한 뒤** 다시 받아 PR 로 올린다(사용자 「자동슈정」 · services/nariya_autorun.js).
  *  ⑤ 닫아 둔 카드라도 이번 점검에서 또 누락으로 나오면 **다시 대기로 돌린다**.
  *
  * [저장 위치] `local_server/data/` — fly.io 볼륨이라 재배포해도 안 지워진다.
  *   이미지 안(`knowledge/legal/_dashboard/`)에 쓰면 배포마다 처리 목록이 사라진다.
  *
  * [연계]
- *  - server.js → cron 매주 **수요일 03:00 KST** `runMokAuditScan()`
+ *  - server.js → runNariyaNightly(새벽 03:00 KST · 3일에 한 번 결손 차례) `runMokAuditScan()`(2026-11-16 · 종전 매주 수요일 03:00)
  *  - services/legal_admin_queues.js → 큐 읽기·쓰기(원문신선도와 같은 JSONL 형식)
  *  - services/admin_push.js → sendAdminPush()
  *  - knowledge/legal/_dashboard/loop/mok_audit.py          → 조문 목 누락 대조
@@ -308,7 +310,7 @@ function readStatus() {
  * 주간 점검 1회. 점검 → 누락만 큐에 적재 → **새로 발견된 것이 있을 때만** 관리자 푸시.
  * 예: await runMokAuditScan() → {ok:true, checked:573, missing:5, added:1}
  * @returns {Promise<object>} 상태 객체(STATUS_FILE 에 쓰는 것과 같다)
- * [연계] server.js cron(매주 수요일 03:00 KST)
+ * [연계] server.js runNariyaNightly(03:00 · 3일에 한 번 · 2026-11-16 종전 매주 수요일)
  */
 async function runMokAuditScan() {
   if (_scanning) return { ok: false, checked: 0, missing: 0, added: 0, error: '점검이 이미 진행 중입니다.' };
@@ -423,6 +425,10 @@ async function runMokAuditScan() {
         await require('./admin_push').sendAdminPush(title, body,
           { type: 'mok_audit', count: String(fresh.length), reopened: String(reopened.length) });
       } catch (e) { console.error('[MokAudit] 관리자 푸시 실패:', e && e.message); }
+      // [자동 반영 · 2026-11-16 사용자 「자동슈정」] 새 카드나 다시 뜬 카드가 있으면 자동 반영 세션을 깨우도록 요청한다
+      //   (원문신선도와 같은 규칙 — 다시 뜬 카드만 있어도 깨운다, ids 는 안 넘긴다). 실패해도 점검 결과·푸시는 그대로.
+      try { require('./nariya_autorun').requestRun('mok', { count: fresh.length + reopened.length }); }
+      catch (e) { console.error('[MokAudit] 자동 반영 요청 실패:', e && e.message); }
     }
     return st;
   } finally {

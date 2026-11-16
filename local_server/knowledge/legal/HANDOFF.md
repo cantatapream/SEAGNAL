@@ -1545,6 +1545,38 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 사용자 확정 2026-11-16: ①해제는 해제 시각(본문 t3)이 되어야 지움, 해제 예고 범위 끝+10분에 후속 없어도 특보 유지(가) ②같은 통보문 시각 불일치는 본문 따름(대구 11-25 본문 23시 vs 참고 22시 — 사용자 재확인 예정) ③앱 규칙: 예비→발표 = 발효시각 변경, 범위→더 늦은 범위 = 연장(발효·해제), 그 밖 = 시각 변경 ④「위 해역」 = 그 통보문 본문 해역 → 자동 반영 대상 ⑤위치기반 경보는 짝 맞추기에서 빼고 따로 표시(아직 사용자 미공개 기능).
 
 
+### [2026-11-16 21:23 KST] ✅완료 — 자동 반영 C — 재검토 반영(상1·중4·하1)
+상-신규 stale 이어도 사람 몫 버튼 열림(누르면 update-branch·20분 뒤 다시) / 중-A rename 옛 경로도 판정 / 중-B failed_checks auto 에 결정 필요 → 사람 몫 / 중-C compare behind_by 로 최신 main 판정·stale 3시간 상한 / 중-D PR 본문 nariya-run 표식 필수(예약 작업 지침 update_trigger 반영) / 하-신규1 refresh 병렬·15초 상한. 하-신규2(reread 장부가 허용 경로)는 사용자 판단으로 남김. 시험 test_nariya_pr_merge 12/0 · test_nariya_autorun 46/0 · silent_catch 22/0 · admin_cards 56/0. 설계안 §9.8.
+
+
+### [2026-11-16 21:15 KST] ✅완료 — 자동 반영 C — 독립 적대검증 13건 반영
+상-1 자동 머지는 허용 경로(raw·wiki·reread·touched·HANDOFF·wiki_applied·pending_index·build_index, 코드 확장자 제외)만 · 필수 검사는 github-actions 앱만 / 상-2 잠금 주인 run + PR created_at ≥ lock.startedAt 만 자동 / 중-1 busy 때 재무장 / 중-2 failed_checks 30분 감시 24h / 중-3 how(button·github·secrets) 문구 + 방 열 때 refresh·canMerge 일 때만 버튼 / 중-4 이미 맡은 PR 에 결정 필요 → 사람 몫 / 중-5 PR 주소 정리·못 맡으면 GitHub 확인 문구 / 중-6 stale → update-branch / 하-1~4. 시험 test_nariya_pr_merge 11/0 · test_nariya_autorun 46/0 · silent_catch 22/0 · admin_cards 56/0 · 관련 0 FAIL · 설계안 §9.7.
+
+
+### [2026-11-16 21:02 KST] ✅완료 — 자동 반영 C — 조건부 자동 머지 + 앱 「자동반영」 방 머지 버튼
+사용자: 「C로 하자 … 머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시 … 관련 머지 버튼도 앱 내에 반영」. 신규 services/nariya_pr_merge.js(judge·track·5분 확인·sha 고정 머지·needs_human 넘김·mergeNow·list·start · 상태 data/nariya_pr_state.json) · nariya_autorun.done → track + 푸시 문구(자동/앱 버튼) · routes GET /api/legal/autorun/prs · POST …/prs/:n/merge(관리자만) · admin/stats autorunPrs · server.js start · 앱 ai_chat.js 「자동반영」 방(renderAutorunCards, 두 번 눌러 머지) · verify_all SUITES test_nariya_pr_merge · 규칙집 144 · ARCHITECTURE 재생성 · 설계안 §9. 시험: test_nariya_pr_merge 8/0 · test_nariya_autorun 45/0 · silent_catch 22/0(io 34 기준선 유지 — 새 catch 에 로그) · admin_cards 56/0 · mok_brief 23/0 · mok_bulk 36/0 · scan_fail_honest 25/0. ⚠시험이 실제 data/ 에 PR 상태 파일을 쓴 것을 발견해 지우고 가짜 머지 담당을 넣음(커밋 안 됨). 다음: 독립 적대검증(머지 경로).
+
+
+### [2026-11-16 20:50 KST] ✅완료 — 대기 중이던 개정 카드 일괄 자동 승인(approveAllPending)
+사용자: 「아예 전체 승인 버튼 누를 필요 없이 자동 진행되어도 좋고 승인이 말이야.」 → legal_amendment_scanner.approveAllPending(pending 만 approved·decidedBy 자동(대기분 일괄)·탐지 큐 옮겨 적기·푸시 1통) 을 server.js runNariyaNightly finally 에서 보류 풀기·남은 일 점검 앞에 부름. 배포 뒤 첫 새벽(11-17 03:00)에 처리 → 남은 일 점검이 세션을 깨움. 시험 test_nariya_autorun 44/0(§8 #8). main 보호·세션 머지 여부는 사용자에게 다시 확인 중.
+
+
+### [2026-11-16 20:40 KST] ✅완료 — 나리야 자동 반영 — 원문결손도 자동 수정 대상(사용자 「3- 자동슈정」) · 결정 1·2 정리
+nariya_autorun KINDS.mok(대기·발사·served·deferred·inFlight mok_ids — 결손 점검기 auto_resolved 로만 풀림·sweep·collectOutstanding) · mok_audit_scanner 새로·다시 뜬 카드 → requestRun('mok') · GET /api/legal/mok-audit/brief-all 자동화 열쇠 허용(대기만·inFlight 빼고·noteServed · 카드 처리는 관리자만) · 화면·설계안 §8.8 · 예약 작업 지침에 결손 단계·mok_ids 추가(update_trigger). 시험 test_nariya_autorun 43/0(§8 #7) · test_mok_brief 23/0(M6 기준 변경: 자동화 열쇠 허용) · 관련 0 FAIL. 결정 1(main 보호): legal-index-sync.yml 이 main 에 직접 푸시하므로 「PR 필수」 규칙과 충돌 — 사용자에게 다시 확인(설계안 §8.9). 결정 2(예전 대기 개정 카드 승인): 관리자 토큰이 없어 세션이 못 함 → PR 머지·배포 뒤 개정검토 「전체 승인」 버튼 안내.
+
+
+### [2026-11-16 19:08 KST] ✅완료 — 나리야 새벽 점검 — 03:00 하루 하나씩 돌려 가기(개정→결손→낡음)
+사용자: 「그럼 격일마다 하도록 하자 하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다 돌아가게」 → 3일 순환으로 읽음(다르면 nightlyScanFor 만 바꿈). server.js runNariyaNightly(cron 0 3 * * * KST): 보류 → nightlyScanFor(KST 날짜 번호 % 3: 개정감지·원문결손·원문신선도) 하나 → 풀기 → sweep. 01:00 사슬 제거. 계산: 11-17 원문신선도 · 11-18 개정감지 · 11-19 원문결손. 개정감지 창은 scanWindowDays(최소 7일)라 3일 걸러도 공포분을 덮음(알림은 최대 3일 늦을 수 있음). 화면 문구·스캐너 주석·설계안 §8.2·_amendments/README 갱신. 시험: test_nariya_autorun 42/0(순환·KST 경계 포함) · test_mok_audit_scanner 31/0 · 관련 7종 0 FAIL · gen_rulebook --check 통과. PR #1475 에 이어서 올림.
+
+
+### [2026-11-16 17:59 KST] ✅완료 — 나리야 자동 반영 2단계-가 — 개정 자동 승인·새벽 점검 사슬·남은 일 점검(+적대검증 반영)
+사용자: 「승인없이 되도록 진행하자.」 · 「원문신선도 원문결손 개정감지 모두 매일하면 안되는 이유가있니?」 · 매일 고정 세션 대신 일이 있을 때만. 구현: legal_amendment_scanner autoApprove(감지 즉시 승인+탐지 큐 옮겨 적기+requestRun ids) · server.js runNariyaNightlyChain(매일 01:00: setHold→개정감지→원문신선도→원문결손→풀기→sweep) · nariya_autorun noteServed/deferred 14일·failed/만료 3일 쉼·setHold(상한 6h)·sweep·collectOutstanding(errors→푸시) · routes noteServed · 관리자 화면 문구. 독립 적대검증 13건: 상1(main 보호 없음 — gh api protected:false 직접 확인, 사용자 결정으로 남김)·중 #2~#6 반영·하 #8~#10·#13 반영·#7·#11·#12 기록만(설계안 §8.6). 시험: test_nariya_autorun 42/0 · test_mok_audit_scanner 31/0 · 관련 7종 0 FAIL · gen_rulebook --check 통과 · verify_all(반영 전 커밋 기준) 실패는 브라우저 없는 환경 탓 UI 스위트 20건뿐(playwright-core/chromium 없음 — 위키 게이트 실패 0). 예약 작업 지침에 deferred_*_ids 추가(update_trigger). 다음: 사용자 결정 — ①main 보호 규칙 ②자동 승인 전부터 대기 중인 개정 카드 처리 ③원문결손도 자동 반영할지. PR 머지·배포 뒤 첫 새벽 실행 확인.
+
+
+### [2026-11-16 17:36 KST] 🟢착수 — 나리야 자동 반영 2단계-가 — 개정 자동 승인·검사 3종 매일·남은 일 점검
+사용자 확정(2026-11-16): 「승인없이 되도록 진행하자.」 「원문신선도 원문결손 개정감지 모두 매일하면 안되는 이유가있니?」 → 개정감지 새 건 자동 승인+세션 깨우기, 검사 3종 매일(01:00 개정·01:40 신선도·02:50 결손, 상한 겹침 없음), 04:30 남은 일 점검(대기·승인 미반영 → requestRun). 독립 검토 후 PR.
+
+
 ### [2026-11-16 15:18 KST] ✅완료 — 참고사항 AI 실시간 개입 — 통보문 기준 특보현황
 services/bulletin_ai_live + bulletin_status.applyAi. 적대검증(다른 에이전트) 7건 재현 확인 후 전부 수정(매분 재호출·해역 없는 표현·자식만·옛 판·다른 시간창·관할 밖·약한 검사). test_bulletin_ai_live 43/0, verify_all 통과(총정리 = 앞 통과 회차와 동일). 미확인: 실제 AI 답·운영 자료 — 배포 뒤 통보문 관찰 탭 [해석 기록 내려받기]로 확인. 남은 빈칸: 다음 분 반영, AI 해제예고 글자 꼴 차이로 비교 「상이」 증가 가능, 본문만 바뀌면 재해석 안 함.
 

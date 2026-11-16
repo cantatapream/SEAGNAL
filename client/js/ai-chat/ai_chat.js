@@ -394,20 +394,22 @@
   //   목록을 그리는 짝 (실측 2026-09-24):
   //     ⚠수치검증=renderReviewCards · 초안승인=renderDraftCards · 피드백=renderFeedbackCards
   //     새지식후보=renderCandidateCards · 개정검토=renderAmendCards
-  //     원문신선도=renderFreshCards · 원문결손=renderMokCards
+  //     원문신선도=renderFreshCards · 원문결손=renderMokCards · 자동반영=renderAutorunCards(2026-11-16)
   // ============================================================================
   var ADMIN = {
     초안승인: { n: '…', desc: '사서(AI)가 만든 <b>미승인 초안(draft)</b> 대기실. 순수 정의·절차는 재검증 파이프라인이 자동 승격, 처벌·안전값 포함분은 ⚠수치검증 방에서 사람이 승인해야 canonical이 됩니다.', render: null /* 서버 연동: renderDraftCards */ },
     피드백: { n: '…', desc: '답변 <b>👍/👎 익명 로그</b>를 모아 원인 분류(triage) 후 관리자에게 올리는 방. 👎가 쌓인 주제 → 위키 보강으로 연결.', render: null /* 서버 연동: renderFeedbackCards */ },
     새지식후보: { n: '…', desc: '대화 중 <b>새로 알게 된 지식 후보</b>. 공식 출처와 대조 후 관리자가 승인하면 위키에 편입됩니다(환각 방지 게이트).', render: null /* 서버 연동: renderCandidateCards */ },
-    개정검토: { n: '…', desc: '법률 <b>개정·조문 변경이 감지</b>됐을 때 사람 검토 전까지 모아두는 방. 바뀐 조문마다 <b>개정 전 → 개정 후 본문</b>을 펼쳐 볼 수 있고, 우리 원문에 없는 조는 <b>신설</b>로 표시됩니다.<br><b>승인을 누르면</b> ①미리 받아 둔 새 원문이 있는 건은 <b>시행일부터 챗봇 답변이 새 내용으로 바뀝니다</b>(시행일이 이미 지났으면 즉시) ②재수집 대상으로 표시됩니다. <b>원문 재수집과 위키 수정은 자동으로 되지 않습니다</b> — 서버는 저장소에 글을 쓸 수 없어, 작업 세션이 받아서 반영해야 합니다.<br><b>[✓ 전체 승인]</b> 은 대기 중인 건을 한 번에 승인합니다. <b>두 번 눌러야</b> 실행되며, 첫 번째 클릭에서 <b>몇 건이 승인 즉시(또는 시행일부터) 답변이 바뀌는지</b>를 먼저 알려 줍니다. 승인이 끝나면 <b>방금 승인한 전 건을 한 덩어리로 묶은 위키 반영 지시문</b>이 바로 펼쳐집니다.<br><b>[📋 승인분 전체 지시문]</b> 은 그 글을 나중에 다시 뽑을 때 씁니다(개별 카드의 지시문과 별개).', render: null /* 서버 연동: renderAmendCards */ },
-    원문신선도: { n: '…', desc: '우리가 받아 둔 <b>법령·고시 원문이 낡았는지</b> 매주 자동 대조해 모아두는 방. 대상은 <b>행정규칙(고시·훈령) 653건 + 법률·시행령·시행규칙 222건</b>. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
-    원문결손: { n: '…', desc: '받아 둔 원문이 <b>낡았는지</b>가 아니라 <b>안이 비었는지</b>를 보는 방. 옆의 「원문신선도」가 판번호를 맞춘다면 이쪽은 <b>내용이 다 딸려왔는지</b>를 센다 — ①조문 <b>목(가·나·다) 누락</b> ②고시 <b>별표·별지 누락</b>. 매주 <b>수요일 새벽 3시</b>에 자동으로 돈다(신선도는 일요일, 개정감지는 매일 — 셋 다 law.go.kr 을 두드려서 겹치지 않게 뒀다). ⚠<b>발췌본은 모자란 것이 정상</b>이라, 카드의 첫 할 일이 "정말 빠진 것인지 먼저 확인한다"이다. 여기서도 raw·위키를 자동으로 고치지 않는다.', render: null /* 서버 연동: renderMokCards */ },
+    개정검토: { n: '…', desc: '★<b>2026-11-16부터 감지 즉시 자동 승인</b>됩니다 — 새벽 점검이 끝나면 <b>자동 반영 세션</b>이 원문을 받고 위키를 고쳐 <b>PR</b> 을 올리고, 사장님은 그 PR 을 <b>머지</b>합니다(새벽 03:00, 3일에 한 번 개정감지 차례). 아래 설명(승인 버튼·지시문)은 그 이전 방식이며, 이제 승인 버튼은 기각했던 건이나 그 전부터 대기 중이던 건을 승인할 때 씁니다.<br>법률 <b>개정·조문 변경이 감지</b>됐을 때 모아두는 방. 바뀐 조문마다 <b>개정 전 → 개정 후 본문</b>을 펼쳐 볼 수 있고, 우리 원문에 없는 조는 <b>신설</b>로 표시됩니다.<br><b>승인을 누르면</b> ①미리 받아 둔 새 원문이 있는 건은 <b>시행일부터 챗봇 답변이 새 내용으로 바뀝니다</b>(시행일이 이미 지났으면 즉시) ②재수집 대상으로 표시됩니다. <b>서버는 원문 재수집·위키 수정을 직접 하지 않습니다</b> — 저장소에 글을 쓸 수 없어, 자동 반영 세션이 받아서 반영합니다.<br><b>[✓ 전체 승인]</b> 은 대기 중인 건을 한 번에 승인합니다. <b>두 번 눌러야</b> 실행되며, 첫 번째 클릭에서 <b>몇 건이 승인 즉시(또는 시행일부터) 답변이 바뀌는지</b>를 먼저 알려 줍니다. 승인이 끝나면 <b>방금 승인한 전 건을 한 덩어리로 묶은 위키 반영 지시문</b>이 바로 펼쳐집니다.<br><b>[📋 승인분 전체 지시문]</b> 은 그 글을 나중에 다시 뽑을 때 씁니다(개별 카드의 지시문과 별개).', render: null /* 서버 연동: renderAmendCards */ },
+    원문신선도: { n: '…', desc: '우리가 받아 둔 <b>법령·고시 원문이 낡았는지</b> <b>새벽 03:00, 3일에 한 번</b>(개정감지 → 원문결손 → 원문신선도 순서로 하루 하나씩) 자동 대조해 모아두는 방(새로 낡은 것이 나오면 자동 반영 세션이 받는다). 대상은 <b>행정규칙(고시·훈령) 653건 + 법률·시행령·시행규칙 222건</b>. 원문 머리글의 수집 일련번호와 law.go.kr 현행 일련번호를 기계로 비교한다(2026-08-23에 「위험물 선박운송 기준」이 2016년판으로 남아 있어 <b>이미 삭제된 조문을 현행처럼</b> 설명하던 사고가 있었다). 카드마다 <b>어느 위키를 고쳐야 하는지·무엇을 해야 하는지</b>가 함께 적힌다.', render: null /* 서버 연동: renderFreshCards */ },
+    원문결손: { n: '…', desc: '받아 둔 원문이 <b>낡았는지</b>가 아니라 <b>안이 비었는지</b>를 보는 방. 옆의 「원문신선도」가 판번호를 맞춘다면 이쪽은 <b>내용이 다 딸려왔는지</b>를 센다 — ①조문 <b>목(가·나·다) 누락</b> ②고시 <b>별표·별지 누락</b>. <b>새벽 03:00, 3일에 한 번</b> 자동으로 돈다(개정감지 → 결손 → 신선도 순서로 하루 하나씩 — 셋 다 law.go.kr 을 두드려서 한 밤에 하나만 돌린다). ⚠<b>발췌본은 모자란 것이 정상</b>이라, 카드의 첫 할 일이 "정말 빠진 것인지 먼저 확인한다"이다. ★2026-11-16부터 새로 뜬 카드는 <b>자동 반영 세션</b>이 받아 먼저 확인하고, 정말 빠졌으면 다시 받아 <b>PR</b> 로 올린다(사장님은 머지). 서버가 raw·위키를 직접 고치지는 않는다.', render: null /* 서버 연동: renderMokCards */ },
+    // 「자동반영」(2026-11-16 사용자 「C로 하자 … 관련 머지 버튼도 앱 내에 반영하여야 해」) — 자동 반영 세션이 올린 PR 과 머지 버튼.
+    자동반영: { n: '…', desc: '자동 반영 세션이 위키를 고쳐 올린 <b>PR</b> 을 모아 보는 방입니다. <b>결정 필요가 0건이고 GitHub 검사가 통과하면 서버가 자동으로 머지·배포</b>하고(누를 것 없음), <b>결정 필요가 있거나 자동 머지가 막히면</b> 여기서 내용을 보고 <b>[머지] 버튼</b>을 눌러 주세요(두 번 눌러야 실행). 머지하면 곧바로 배포됩니다. 검사가 실패한 PR 은 버튼이 잠깁니다. 「결정 필요」로 남은 건은 머지해도 손대지 않은 채 남고, 사장님 판단을 기다립니다.' },
     '⚠수치검증': { n: '…', desc: '별표 <b>이미지 판독값(OCR)·조번호 재편</b> 및 처벌·안전수치를 사람이 검증하는 방(가장 급함). 서버 review_queue.md 의 검증 대기 항목을 불러와 승인/반려한다.', render: null /* 서버 연동: renderReviewCards */ }
   };
   // ⚠수치검증을 맨 앞에 둔다 — 기본으로 열리는 방인데 맨 끝에 있어서 서브탭 줄이
   //   가로로 넘칠 때 화면 밖으로 밀려 보이지 않았다(사용자 화면 확인, 2026-08-28).
-  var ADMIN_ORDER = ['⚠수치검증', '초안승인', '피드백', '새지식후보', '개정검토', '원문신선도', '원문결손'];
+  var ADMIN_ORDER = ['⚠수치검증', '자동반영', '초안승인', '피드백', '새지식후보', '개정검토', '원문신선도', '원문결손'];
 
   // ============================================================================
   // 관리자 콘솔 렌더링 — 통합관리자 센터 컨테이너(#unified-admin-body)에 마운트
@@ -1190,7 +1192,7 @@
   }
 
   // 서브탭 배지가 참조할 adminStatsCache 필드명(⚠수치검증은 statsCache.pending을 따로 씀)
-  var ADMIN_STAT_KEY = { 초안승인: 'draft', 피드백: 'feedback', 새지식후보: 'candidates', 개정검토: 'amendments', 원문신선도: 'freshness', 원문결손: 'mokAudit' };
+  var ADMIN_STAT_KEY = { 초안승인: 'draft', 피드백: 'feedback', 새지식후보: 'candidates', 개정검토: 'amendments', 원문신선도: 'freshness', 원문결손: 'mokAudit', 자동반영: 'autorunPrs' };
 
   /** 서브탭(관리자 검토 6개 방)을 그린다. @param {string} active */
   function renderSubtabs(active) {
@@ -1235,6 +1237,9 @@
     } else if (k === '원문결손') {
       host.innerHTML = intro + '<div class="nrya-panel" id="nryaMokHost" style="padding:6px 0 4px"></div>';
       renderMokCards(document.getElementById('nryaMokHost'));
+    } else if (k === '자동반영') {
+      host.innerHTML = intro + '<div class="nrya-panel" id="nryaAutorunHost" style="padding:6px 0 4px"></div>';
+      renderAutorunCards(document.getElementById('nryaAutorunHost'));
     }
   }
 
@@ -2266,7 +2271,7 @@
    */
   function amendLastHTML(last) {
     if (!last) {
-      return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 이 서버에서 스캔 기록이 없습니다. 매일 새벽 1시(KST)에 자동으로 돌고, 위 버튼으로 지금 돌릴 수도 있습니다.</div>';
+      return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 이 서버에서 스캔 기록이 없습니다. 새벽 3시(KST)에 3일에 한 번(개정감지 → 원문결손 → 원문신선도 하루 하나씩) 자동으로 돌고, 위 버튼으로 지금 돌릴 수도 있습니다.</div>';
     }
     if (!last.ok) {
       return '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span><b>마지막 스캔이 실패했습니다</b> (' + esc(shortTs(last.finishedAt)) + ')<br>' +
@@ -2306,7 +2311,7 @@
   }
 
   // ============================================================================
-  // 원문신선도 — 서버 연동. 매주 자동 점검 결과(구버전 행정규칙)를 보여주고,
+  // 원문신선도 — 서버 연동. 새벽 03:00 하루 하나씩 돌려 가는 점검(server.js runNariyaNightly) 결과(구버전 행정규칙)를 보여주고,
   //   관리자가 처리하거나 무시한다. 개정검토와 같은 2택 구조라 bindDecideCard 를 공유한다.
   //
   // ★이 방이 개정검토와 다른 점: 카드에 "무엇이 낡았나"만이 아니라 **무엇을 해야 하는지
@@ -2335,7 +2340,7 @@
         error: last.error || ('law.go.kr 조회가 ' + last.checked + '건 모두 실패했습니다(응답없음 ' + last.unknown + '건). 까닭은 이 점검 판에 기록되지 않았습니다 — 다음 점검부터 까닭이 함께 적힙니다.') });
     }
     if (!last) {
-      return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 한 번도 점검하지 않았습니다. 매주 일요일 새벽 3시(KST)에 자동으로 돌고, 아래 버튼으로 지금 돌릴 수도 있습니다.</div>';
+      return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 한 번도 점검하지 않았습니다. 새벽 03:00(KST)에 3일에 한 번(하루 하나씩 돌려 가며) 자동으로 돌고, 아래 버튼으로 지금 돌릴 수도 있습니다.</div>';
     }
     if (!last.ok) {
       return run + '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span><b>마지막 점검이 실패했습니다</b> (' + esc(shortTs(last.finishedAt)) + ')<br>' +
@@ -2593,8 +2598,8 @@
     }).catch(function (e) { listHost.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
   }
 
-  // ── 원문결손 — 서버 연동. 매주 수요일 점검 결과(조문 목 누락 · 고시 별표 누락)를 보여주고,
-  //    관리자가 "처리완료/해당없음"을 누른다. 여기서도 raw·위키를 자동으로 고치지 않는다.
+  // ── 원문결손 — 서버 연동. 새벽 03:00 하루 하나씩 돌려 가는 점검 결과(조문 목 누락 · 고시 별표 누락)를 보여주고,
+  //    관리자가 "처리완료/해당없음"을 누른다. 서버가 raw·위키를 직접 고치지는 않는다(2026-11-16 부터 새 카드는 자동 반영 세션이 확인·재수집해 PR).
   //    ⚠닫아도 다음 점검에서 또 빠져 있으면 다시 대기로 돌아온다(reopenStillMissing) —
   //      실제로 다시 받았다면 돌아오지 않는다.
   //    [연계] ← GET /api/legal/mok-audit · POST /api/legal/mok-audit/:id/decide
@@ -2619,7 +2624,7 @@
     var run = mokRunningHTML(running);
     if (!last) {
       if (run) return run;
-      return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 한 번도 점검하지 않았습니다. 매주 <b>수요일 새벽 3시</b>(KST)에 자동으로 돌고, 아래 버튼으로 지금 돌릴 수도 있습니다.</div>';
+      return '<div class="nrya-notice-box"><span class="nrya-em">ℹ️</span>아직 한 번도 점검하지 않았습니다. <b>새벽 03:00</b>(KST)에 3일에 한 번(하루 하나씩 돌려 가며) 자동으로 돌고, 아래 버튼으로 지금 돌릴 수도 있습니다.</div>';
     }
     if (!last.ok) {
       return '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span><b>마지막 점검이 실패했습니다</b> (' + esc(shortTs(last.finishedAt)) + ')<br>' +
@@ -2690,6 +2695,102 @@
         '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-act="ok">처리완료</button>' +
         '<button class="nrya-btn-no" data-act="no">해당없음</button></div>',
     });
+  }
+
+  // ── 자동반영 — 서버 연동(2026-11-16 사용자 「C로 하자 … 관련 머지 버튼도 앱 내에 반영하여야 해」) ──
+  //   자동 반영 세션이 올린 PR 목록 + [머지] 버튼(두 번 눌러야 실행). 조건 판정·머지는 전부 서버가 한다(검사 초록·충돌 없음·
+  //   이 저장소 claude/ 가지·확인한 커밋만) — 이 화면은 결과를 보여 주고 버튼만 건넨다.
+  //   [연계] → GET /api/legal/autorun/prs · POST /api/legal/autorun/prs/:n/merge(관리자 토큰) · services/nariya_pr_merge.js
+  var AUTORUN_ST = {
+    needs_human: ['nrya-warn', '🖐 머지 버튼 필요'], waiting: ['', '⏳ 검사 기다림 → 통과하면 자동 머지'],
+    failed_checks: ['nrya-rej', '❌ 검사 실패(머지 잠김)'], merged: ['nrya-done', '✅ 머지됨'], closed: ['nrya-rej', '닫힘'],
+  };
+  /**
+   * PR 카드 한 장. 예: autorunCardHTML({number:9, status:'needs_human', needs:['폴더 결정'], summary:'개정 3건'})
+   * @param {object} p - GET /api/legal/autorun/prs 의 prs[] 한 항목 @returns {string}
+   */
+  function autorunCardHTML(p) {
+    var st = AUTORUN_ST[p.status] || ['', String(p.status || '')];
+    var field = function (lab, html) { return '<div class="nrya-rv-field"><div class="nrya-rv-flab">' + lab + '</div><div class="nrya-rv-fval">' + html + '</div></div>'; };
+    var needs = (p.needs || []).length
+      ? field('🧭 결정 필요 ' + p.needs.length + '건', '<ul style="margin:4px 0 0;padding-left:18px">' + p.needs.map(function (x) { return '<li style="margin:2px 0">' + esc(x) + '</li>'; }).join('') + '</ul>')
+      : '';
+    var why = p.why ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">ℹ️</span>' + esc(p.why) + (p.howText ? '<br><b>' + esc(p.howText) + '</b>' : '') + '</div>' : '';
+    // 위키·원문 밖 파일(서버 코드·검사 도구 등)을 고친 PR — 자동 머지 대상이 아니다. 누르기 전에 알 수 있게 보여 준다(적대검증 C#상-1).
+    var outside = p.outsideCount ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">⚠️</span>위키·원문 밖 파일 ' + esc(String(p.outsideCount)) + '개를 고쳤습니다(서버 코드·검사 도구 등): <code style="font-size:11px">' + (p.outside || []).map(esc).join('</code>, <code style="font-size:11px">') + '</code> — 개발 검토를 권합니다.</div>' : '';
+    var chk = p.check ? field('🔎 마지막 확인', esc(p.check.state) + (p.check.why ? ' — ' + esc(p.check.why) : '') + (p.check.at ? ' <span style="font-size:11.5px;color:var(--nrya-text-sub)">(' + esc(p.check.at.slice(5, 16).replace('T', ' ')) + ')</span>' : '')) : '';
+    var merged = p.status === 'merged' ? field('✅ 머지', esc((p.mergedBy === 'auto' ? '자동' : (p.mergedBy || '')) + (p.mergedAt ? ' · ' + p.mergedAt.slice(5, 16).replace('T', ' ') : ''))) : '';
+    // 버튼은 서버가 방을 열 때 GitHub 에서 다시 읽어 「지금 머지할 수 있다」(canMerge)고 판정한 PR 에만 그린다 —
+    //   눌러도 실패할 버튼을 보여 주지 않는다(적대검증 C#중-3). 그 밖에는 왜 안 되는지 한 줄.
+    var open = p.status === 'needs_human' || p.status === 'waiting' || p.status === 'failed_checks';
+    var stale = p.check && p.check.state === 'stale';   // main 이 바뀜 — 누르면 서버가 최신 main 을 얹고 다시 검사(약 20분 뒤 다시 눌러야 머지)
+    var btn = open && p.canMerge ? (stale ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">🔄</span>검사 뒤 main 이 바뀌었습니다 — 버튼을 누르면 최신 main 으로 다시 검사하고, 약 20분 뒤 다시 누르면 머지됩니다.</div>' : '') +
+        '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">' + (stale ? '🔄 최신 main 으로 다시 검사' : '🔀 머지') + '</button></div>'
+      : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || p.check.state) + '</div>' : '';
+    return cardShell({
+      id: String(p.number), badge: 'PR #' + p.number, title: (p.summary || '(요약 없음)').slice(0, 160),
+      subHTML: esc((p.at || '').slice(5, 16).replace('T', ' ')) + ' · <a href="' + esc(p.pr_url) + '" target="_blank" rel="noopener">GitHub 에서 보기</a>',
+      statusHTML: '<span class="nrya-rv-st ' + st[0] + '">' + esc(st[1]) + '</span>',
+      bodyHTML: why + outside + needs + chk + merged + btn,
+    });
+  }
+  /**
+   * 「자동반영」 방 — 지금 상태 한 줄 + PR 카드 목록 + 머지 버튼.
+   * @param {HTMLElement} host
+   */
+  function renderAutorunCards(host) {
+    if (!host) return;
+    host.innerHTML = '<div class="nrya-inline-err nrya-hidden" id="nryaAutorunErr" style="display:none"></div><div id="nryaAutorunList"></div>';
+    var errEl = document.getElementById('nryaAutorunErr');
+    var listEl = document.getElementById('nryaAutorunList');
+    function showErr(m) { if (errEl) { errEl.classList.remove('nrya-hidden'); errEl.style.display = 'block'; errEl.textContent = m; } }
+    function load() {
+      listEl.innerHTML = '<div class="nrya-notice-box"><span class="nrya-em">⏳</span>목록을 불러오는 중…</div>';
+      legalGet('/api/legal/autorun/prs').then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return { ok: false, error: '응답 파싱 실패' }; });
+      }).then(function (d) {
+        if (d && d._denied) { listEl.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">🔒</span>관리자 로그인 필요</div>'; return; }
+        if (!d || !d.ok) { listEl.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>' + esc((d && d.error) || '목록을 불러오지 못했습니다.') + '</div>'; return; }
+        var a = d.autorun || {}, now = [];
+        if (a.lock) now.push('🔄 자동 반영 세션이 일하는 중(' + esc(a.lock.run_id) + ')');
+        else if (a.hold) now.push('🌙 새벽 점검 중 — 끝나면 세션을 깨웁니다');
+        else if (a.pending) now.push('⏳ 대기: ' + esc(a.pending.text || '') + (a.pending.fireAt ? ' · ' + esc(a.pending.fireAt.slice(11, 16)) + ' 에 세션 시작' : ''));
+        else now.push('💤 지금 맡은 일 없음');
+        if (a.lastSweep && a.lastSweep.at) now.push('마지막 새벽 점검 ' + esc(a.lastSweep.at.slice(5, 16).replace('T', ' ')));
+        var head = '<div class="nrya-notice-box"><span class="nrya-em">📡</span>' + now.join(' · ') + '</div>' +
+          (d.tokenConfigured ? '' : '<div class="nrya-notice-box nrya-err"><span class="nrya-em">🔑</span>서버에 머지 열쇠(GITHUB_MERGE_TOKEN)가 없어 자동 머지·머지 버튼이 동작하지 않습니다. Fly secrets 를 확인해 주세요.</div>');
+        var prs = d.prs || [];
+        listEl.innerHTML = head + (prs.length ? prs.map(autorunCardHTML).join('')
+          : '<div class="nrya-notice-box"><span class="nrya-em">✅</span>자동 반영이 올린 PR 이 아직 없습니다.</div>');
+      }).catch(function (e) { listEl.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
+    }
+    // [머지] — 첫 클릭은 「한 번 더 누르면 머지·배포」 로 바꾸고(8초), 두 번째 클릭에서 POST. 결과는 서버가 판정한 그대로 보여 준다.
+    var armed = null;
+    listEl.addEventListener('click', function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest('button[data-merge]') : null;
+      if (!b) return;
+      var n = b.getAttribute('data-merge');
+      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+      if (armed !== n) {
+        // 다른 카드를 눌러 둔 상태였으면 그 버튼 글자를 먼저 되돌린다(눌러 둔 채 남지 않게).
+        var prev = armed ? listEl.querySelector('button[data-merge="' + armed + '"]') : null;
+        if (prev) { prev.classList.remove('nrya-btn-danger'); prev.textContent = '🔀 머지'; }
+        armed = n; b.classList.add('nrya-btn-danger'); b.textContent = '⚠ PR #' + n + ' 머지·배포 — 한 번 더 누르면 실행';
+        setTimeout(function () { if (armed === n) { armed = null; b.classList.remove('nrya-btn-danger'); b.textContent = '🔀 머지'; } }, 8000);
+        return;
+      }
+      armed = null; b.disabled = true; b.textContent = '머지하는 중…';
+      legalPost('/api/legal/autorun/prs/' + encodeURIComponent(n) + '/merge', {}).then(function (res) {
+        if (res.status === 401 || res.status === 403) return { _denied: true };
+        return res.json().catch(function () { return { ok: false, why: '응답 파싱 실패' }; });
+      }).then(function (d) {
+        if (d && d._denied) { showErr('관리자 로그인 필요'); b.disabled = false; b.textContent = '🔀 머지'; return; }
+        if (!d || !d.ok) { showErr('머지하지 못했습니다 — ' + ((d && (d.why || d.error)) || '알 수 없는 오류')); b.disabled = false; b.textContent = '🔀 머지'; b.classList.remove('nrya-btn-danger'); return; }
+        load(); refreshAdminStats();
+      }).catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); b.disabled = false; b.textContent = '🔀 머지'; });
+    });
+    load();
   }
 
   /**
@@ -3386,7 +3487,8 @@
       //   routes/legal.js:599 에서 정상적으로 보내고 있고 ADMIN_STAT_KEY 도 'freshness' 로
       //   매핑돼 있었다 — 받는 쪽 한 칸만 빠진 것이었다.
       // ★mokAudit 를 빠뜨려 「원문결손」 배지가 늘 `undefined` 로 떴다(2026-10-06 사장님 화면 · 3-80).
-      adminStatsCache = { draft: data.draft, feedback: data.feedback, candidates: data.candidates, amendments: data.amendments, freshness: data.freshness, mokAudit: data.mokAudit };
+      // autorunPrs: 「자동반영」 방 배지 — 앱에서 머지 버튼을 눌러야 하는 PR 수(2026-11-16). 옛 서버면 없으므로 0 으로 둔다(undefined 가 찍히지 않게).
+      adminStatsCache = { draft: data.draft, feedback: data.feedback, candidates: data.candidates, amendments: data.amendments, freshness: data.freshness, mokAudit: data.mokAudit, autorunPrs: data.autorunPrs == null ? 0 : data.autorunPrs };
       renderSubtabs(curAdminSubtab); // 현재 보고 있는 탭을 유지한 채 배지만 최신화
     }).catch(function () { /* 무시 */ });
   }

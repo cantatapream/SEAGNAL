@@ -11,7 +11,7 @@
  *  M3 「어디가 빈가」 는 카드처럼 10개에서 자르지 않는다 · 40개를 넘으면 자르고 **잘랐다고 적는다**
  *  M4 할 일은 종류마다 한 번만 · 닫았다 다시 뜬 까닭을 싣는다
  *  M5 끝에 건마다 판정표(카드 id 전부) · 「해당없음」도 다시 뜰 수 있다는 사실을 적는다 · 빈 목록은 ok:false
- *  M6 라우트 GET /api/legal/mok-audit/brief-all(관리자 · 대기만) · 화면 버튼이 그 글을 renderBriefBox 로 편다
+ *  M6 라우트 GET /api/legal/mok-audit/brief-all(관리자 또는 자동화 열쇠 · 대기만) · 화면 버튼이 그 글을 renderBriefBox 로 편다
  *  M7 고시 별표 점검은 curl 이 없으면 파이썬 내장으로 부른다 · 운영 이미지에 curl
  *
  * [연계] ← scripts/refactor/verify_all.sh SUITES
@@ -76,8 +76,9 @@ ok('M5 빈 목록은 ok:false', B.buildMokBrief([]).ok === false && B.buildMokBr
 
 console.log('\n── M6 라우트 · 화면 ──');
 const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'legal.js'), 'utf8');
-ok('M6 GET /api/legal/mok-audit/brief-all 이 관리자 전용이고 대기만 묶는다',
-  /router\.get\('\/api\/legal\/mok-audit\/brief-all', adminAuth\.requireAdminToken/.test(routes)
+// 2026-11-16 사용자 「자동슈정」: 자동 반영 세션의 열쇠로도 읽는다(requireAdminOrAutomation — 열쇠가 틀리면 관리자 검사로 넘어간다).
+ok('M6 GET /api/legal/mok-audit/brief-all 이 관리자(또는 자동화 열쇠) 전용이고 대기만 묶는다',
+  /router\.get\('\/api\/legal\/mok-audit\/brief-all', autorun\.requireAdminOrAutomation/.test(routes)
   && /\(e\.status \|\| 'pending'\) === 'pending'/.test(routes.slice(routes.indexOf('mok-audit/brief-all'))));
 const ui = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'js', 'ai-chat', 'ai_chat.js'), 'utf8');
 const mok = ui.slice(ui.indexOf('function renderMokCards'), ui.indexOf('function loadMokList'));
