@@ -181,6 +181,21 @@ function diffSnapshot(M, B, atMs, mmisAt) {
  * @returns {{templateId, typeName, level, prevLevel?, prevTypeName?}|null}
  * [연계] ← run(이 파일)
  */
+const nsig = (n) => (n ? `${n.type}|${n.level}|${String(n.tmEf || '').replace(/\s+/g, '')}` : '');
+/**
+ * 발효 중인 특보 위에 「다음 특보(발효 전)」가 나타나거나 바뀔 때의 푸시 종류 — 앱 push_sender UPCOMING_CHANGE 와 같은 규칙:
+ *   다음 특보가 이미 있었고 종류·등급이 같으면 발효시각 변경, 아니면 지금 발효 중인 것과 비교해 종류 바뀜 = 종류 격상/격하 발표, 등급 바뀜 = 격상/격하 발표, 같으면 발표.
+ * 예: (풍랑주의보 발효 중, 없음 → 풍랑경보 10:00) → level_upgrade_publish(📢 풍랑 주의보→경보 격상 발표)
+ * [연계] ← run(이 파일) — 적대검증 2026-11-16 #2(실제 954 단위가 「📢 경보 발표」로 나갔다)
+ */
+function nextTemplate(cur, np, nc, isChild) {
+    if (np && np.type === nc.type && np.level === nc.level) return { templateId: isChild ? 'child_time_ef_change' : 'time_ef_change', typeName: nc.type, level: nc.level };
+    const SC = { 주의보: 1, 경보: 2 }, TS = { 풍랑: 0, 태풍: 10 };
+    if (cur.type !== nc.type) return { templateId: (TS[nc.type] || 0) > (TS[cur.type] || 0) ? 'type_upgrade_publish' : 'type_downgrade_publish', typeName: nc.type, level: nc.level, prevTypeName: cur.type, prevLevel: cur.level };
+    if (cur.level !== nc.level) return { templateId: (SC[nc.level] || 0) > (SC[cur.level] || 0) ? 'level_upgrade_publish' : 'level_downgrade_publish', typeName: nc.type, level: nc.level, prevLevel: cur.level };
+    return { templateId: 'publish', typeName: nc.type, level: nc.level };
+}
+
 // 범위 끝 비교용(연장 판정) — 예비 시간창 「2026년 11월 16일 오전(06시~12시)」 → 날짜·끝 시각 ms, 해제 예고 「17일 오전(09시~12시)」 → 일·끝 시(같은 달로 봄). 범위가 아니면 null.
 const winEnd = (t) => { const k = winKey(t); const m = k.match(/^(\d{4}-\d{2}-\d{2})\|\d+-(\d+)$/); return m ? Date.parse(m[1] + 'T00:00:00+09:00') + (+m[2]) * 3600e3 : null; };
 const clrEnd = (t) => { const k = clrKey(t); const m = k.match(/^(\d+)\|\d+-(\d+)$/); return m ? (+m[1]) * 100 + (+m[2]) : null; };
@@ -222,7 +237,7 @@ function templateOf(unit, before, after, parentNow, parentChanged) {
     if (before.kind === 'yebi') {
         if (winKey(before.tmEf) === winKey(after.tmEf)) return null;
         const o = winEnd(before.tmEf), n = winEnd(after.tmEf);
-        if (before.type === after.type && o != null && n != null && n > o) return { templateId: 'ef_extend', typeName: after.type, level: '주의보', oldTime: before.tmEf, newTime: after.tmEf };
+        if (before.type === after.type && o != null && n != null && n > o) return isChild && parentChanged ? null : { templateId: 'ef_extend', typeName: after.type, level: '주의보', oldTime: before.tmEf, newTime: after.tmEf };   // 부모도 같이 바뀌면 부모 푸시가 맡는다(적대검증 #4)
         return timeTp({ templateId: 'time_ef_change' }, { typeName: after.type, level: '주의보' });
     }
     if (before.type !== after.type) return { templateId: after.type === '태풍' ? 'type_upgrade_active' : 'type_downgrade_active', typeName: after.type, level: after.level, prevTypeName: before.type, prevLevel: before.level };
@@ -282,6 +297,15 @@ function createCompare({
                     if (tp) { const k = [tp.templateId, tp.typeName, tp.level, tp.prevLevel || ''].join('|'); (virtual[k] = virtual[k] || Object.assign({ items: [] }, tp)).items.push({ zones: [u], tmFc: (cur || prev).tmFc, tmEf: (cur || prev).tmEf, tmYn: (cur || prev).clr, oldTime: tp.oldTime, newTime: tp.newTime }); }
                 }
             }
+            // 통보문 쪽 「다음 특보」(발효 중 + 발효 전 변경 — bulletin_status next): 나타나거나 바뀌면 앱처럼 격상/격하 발표(또는 발효시각 변경)
+            const np = st.bulletin[u] && st.bulletin[u].next, nc = B[u] && B[u].next;
+            if (nc && nsig(np) !== nsig(nc)) {
+                const par = B[u].parent, isChild = par !== u;
+                const parNextChanged = isChild && nsig(st.bulletin[par] && st.bulletin[par].next) !== nsig(B[par] && B[par].next);
+                emit({ kind: 'change', side: 'bulletin', unit: u, before: np || null, after: nc, next: true, 설명: `통보문 ${u}: ${word(B[u])} 중 다음 특보 ${nc.type}${nc.level} 발표(${nc.tmEf} 발효 예정)` });
+                const tp = isChild && parNextChanged ? null : nextTemplate(B[u], np, nc, isChild);
+                if (tp) { const k = [tp.templateId, tp.typeName, tp.level, tp.prevLevel || '', tp.prevTypeName || ''].join('|'); (virtual[k] = virtual[k] || Object.assign({ items: [] }, tp)).items.push({ zones: [u], tmFc: nc.tmFc, tmEf: nc.tmEf, tmYn: nc.clr }); }
+            }
             // 두 쪽이 다른 동안(시작·끝)
             const diff = sig(M[u]) !== sig(B[u]);
             if (diff && !st.mismatch[u]) { st.mismatch[u] = t; emit({ kind: 'mismatch_start', unit: u, mmis: M[u] || null, bulletin: B[u] || null, 설명: `${u} 두 쪽이 달라짐 — MMIS ${word(M[u])} / 통보문 ${word(B[u])}` }); }
@@ -297,7 +321,7 @@ function createCompare({
         }
         // ③ 실제 MMIS 푸시(보낸 기록 — id 가 보낸 시각 ms)
         for (const p of pushes.filter((p) => (+p.id || 0) > st.lastPushId).sort((a, b) => a.id - b.id)) {
-            log({ atMs: Math.floor(+p.id), kind: 'mmis_push', title: p.title, content: p.content, target: p.target, count: p.count, 설명: `MMIS 기준 실제 푸시: ${p.title} (${p.target})` });
+            log({ atMs: Math.floor(+p.id), kind: 'mmis_push', title: p.title, content: p.content, target: p.target, count: p.count, tab: p.tab || '', 설명: `MMIS 기준 실제 푸시: ${p.title} (${p.target})` });
             stat.events++;
             st.lastPushId = Math.max(st.lastPushId, +p.id);
         }
@@ -326,8 +350,11 @@ function reportMarkdown(events, day) {
     const hm = (s) => String(s).slice(5, 16).replace('T', ' ');
     // 위치기반 경보(📍 — services/location_alert_dispatch)는 MMIS 특보 현황을 동의 기기에 조용히 보내 기기가 자기 위치로 판정하는 별도 기능이라
     //   통보문 쪽에 대응하는 푸시가 없다 → 짝 맞추기에서 빼고 따로 적는다(2026-11-16 사용자 「따로 표시하자」 — 아직 사용자에게 열지 않은 기능)
-    const isLoc = (e) => /위치기반/.test(String(e.title || ''));
-    const real = events.filter((e) => e.kind === 'mmis_push' && !isLoc(e)), loc = events.filter((e) => e.kind === 'mmis_push' && isLoc(e)), virt = events.filter((e) => e.kind === 'virtual_push');
+    //   구분은 푸시 기록의 탭(tab: location·typhoon)으로 — 옛 기록(탭 없음)만 제목으로(적대검증 #5: 「📍 [위치기반] 태풍 반경」이 해상특보 위치기반 칸에, 「🌀 태풍 발생」이 짝 맞추기에 섞였다).
+    const isTyp = (e) => e.tab === 'typhoon' || (!e.tab && /🌀|태풍 반경/.test(String(e.title || '')));
+    const isLoc = (e) => !isTyp(e) && (e.tab === 'location' || (!e.tab && /\[위치기반\]\s*해상특보/.test(String(e.title || ''))));
+    const mp = events.filter((e) => e.kind === 'mmis_push');
+    const real = mp.filter((e) => !isLoc(e) && !isTyp(e)), loc = mp.filter(isLoc), typ = mp.filter(isTyp), virt = events.filter((e) => e.kind === 'virtual_push');
     const zonesOf = (e) => String(e.target || '').split(/,\s*/).filter(Boolean);
     const used = new Set(), pairs = [];
     for (const r of real) {
@@ -348,7 +375,7 @@ function reportMarkdown(events, day) {
         '## 요약', '',
         `- 상태 바뀜: MMIS ${events.filter((e) => e.kind === 'change' && e.side === 'mmis').length}번 · 통보문 ${events.filter((e) => e.kind === 'change' && e.side === 'bulletin').length}번`,
         `- 푸시: MMIS 실제 ${real.length}건 · 통보문 가상 ${virt.length}건 · 짝이 맞은 것 ${pairs.filter((p) => p.v).length}건 · MMIS 만 ${pairs.filter((p) => !p.v).length}건 · 통보문만 ${lone.length}건`,
-        `- 위치기반 경보(MMIS, 짝 맞추기에서 뺌): ${loc.length}건 — 아래 「위치기반 경보」`,
+        `- 위치기반 경보(MMIS, 짝 맞추기에서 뺌): ${loc.length}건 — 아래 「위치기반 경보」 · 태풍 알림(짝 맞추기에서 뺌): ${typ.length}건`,
         `- 두 쪽 상태가 달랐다가 같아진 일: ${mis.length}번${mis.length ? ` (길이 중앙 ${mis.map((e) => e.minutes).sort((a, b) => a - b)[Math.floor(mis.length / 2)]}분)` : ''} · 지금도 다른 해역: ${Object.keys(open).length}곳`, '',
         '## 푸시 짝 맞추기 (같은 해역 · 6시간 안 가장 가까운 것)', '',
         '| MMIS 실제 | 통보문 가상 | 시간 차이 |', '|---|---|---|',
@@ -357,6 +384,9 @@ function reportMarkdown(events, day) {
         '## 위치기반 경보 (MMIS — 짝 맞추기에서 뺌)', '',
         'MMIS 특보가 바뀔 때 위치기반에 동의한 기기에 지금 특보 현황을 조용한 신호로 보내고, 기기가 자기 위치로 판정해 경고를 띄우는 별도 기능입니다(services/location_alert_dispatch). 통보문 쪽에는 대응하는 푸시가 없고, 아직 사용자에게 열지 않은 기능입니다.', '',
         ...(loc.length ? loc.map((e) => `- ${hm(e.at)} ${e.content || e.title}${e.count != null ? ` (기기 ${e.count}대)` : ''}`) : ['- 없음']), '',
+        '## 태풍 알림 (MMIS — 짝 맞추기에서 뺌)', '',
+        '태풍 발생·소멸, 태풍 반경 위치기반 신호 등 태풍 기능의 알림입니다. 해상 특보 통보문 비교 대상이 아니라 따로 적습니다.', '',
+        ...(typ.length ? typ.map((e) => `- ${hm(e.at)} ${e.title}${e.content ? ' — ' + String(e.content).replace(/\n/g, ' / ').slice(0, 120) : ''}`) : ['- 없음']), '',
         '## 두 쪽이 달랐던 동안', '',
         ...mis.map((e) => `- ${hm(e.at)}까지 ${e.unit}: ${e.minutes}분`),
         ...Object.values(open).map((e) => `- ${hm(e.at)}부터 지금까지 ${e.unit}: MMIS ${word(e.mmis)} / 통보문 ${word(e.bulletin)}`), '',
@@ -369,4 +399,4 @@ function reportMarkdown(events, day) {
 
 let real = null;
 const getReal = () => (real = real || createCompare());
-module.exports = { run: () => getReal().run(), days: () => getReal().days(), readDay: (d) => getReal().readDay(d), latestDiff: () => getReal().latestDiff(), createCompare, flattenTree, templateOf, reportMarkdown, sig, pendingOf, winKey, clrKey, diffSnapshot, whyOf, mmisHm };
+module.exports = { nextTemplate, run: () => getReal().run(), days: () => getReal().days(), readDay: (d) => getReal().readDay(d), latestDiff: () => getReal().latestDiff(), createCompare, flattenTree, templateOf, reportMarkdown, sig, pendingOf, winKey, clrKey, diffSnapshot, whyOf, mmisHm };

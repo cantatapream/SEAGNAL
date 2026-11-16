@@ -51,6 +51,19 @@ console.log('A2. 발표(발효 전) · 표기 차이');
     ok('해제 예고 오전 → 오후(같은 종류·등급, 더 늦은 범위) = 해제 예정시각 연장(yn_extend)', C.templateOf('x', F1, Object.assign({}, F1, { clr: '17일 오후(12시~18시)' })).templateId === 'yn_extend');
     ok('해제 예고 범위 → 정확한 해제 시각 = 🕐 해제시각 변경(time_yn_change)', C.templateOf('x', F1, Object.assign({}, F1, { clr: '2026년 11월 17일 11시 00분' })).templateId === 'time_yn_change');
     const kidY = (b, a, pc) => (C.templateOf('x중연안바다', Object.assign({}, b, { parent: 'x' }), Object.assign({}, a, { parent: 'x' }), Z('formal', '주의보', { parent: 'x' }), pc) || {}).templateId || null;
+    ok('적대검증 #4 예비 연장도 부모가 같이 바뀌면 자식 몫은 안 냄', (C.templateOf('x중연안바다', Object.assign({}, Y1, { parent: 'x' }), Object.assign({}, Y2, { parent: 'x' }), null, true) || null) === null && C.templateOf('x중연안바다', Object.assign({}, Y1, { parent: 'x' }), Object.assign({}, Y2, { parent: 'x' }), null, false).templateId === 'ef_extend');
+    const cur = Z('formal', '주의보', { parent: 'x' }), nxt = { type: '풍랑', level: '경보', tmEf: '2025년 01월 09일 10시 00분' };
+    ok('적대검증 #2 주의보 발효 중 다음 경보 = 격상 발표(level_upgrade_publish) · 경보 중 다음 주의보 = 격하 발표 · 다음 특보 시각만 바뀜 = 발효시각 변경',
+        C.nextTemplate(cur, null, nxt, false).templateId === 'level_upgrade_publish' && C.nextTemplate(Z('formal', '경보', { parent: 'x' }), null, Object.assign({}, nxt, { level: '주의보' }), false).templateId === 'level_downgrade_publish'
+        && C.nextTemplate(cur, nxt, Object.assign({}, nxt, { tmEf: '2025년 01월 09일 11시 00분' }), false).templateId === 'time_ef_change');
+    {   // 보고서 구분 — 탭으로(적대검증 #5)
+        const ev = [{ kind: 'mmis_push', at: '2026-11-16T10:00:00+09:00', title: '🌀 제25호 태풍 발생', tab: 'typhoon', target: '' },
+            { kind: 'mmis_push', at: '2026-11-16T10:05:00+09:00', title: '📍 [위치기반] 태풍 반경 안전 경보 신호 발송', tab: 'typhoon', target: '' },
+            { kind: 'mmis_push', at: '2026-11-16T10:06:00+09:00', title: '📍 [위치기반] 해상특보 안전 경보 발송', tab: 'location', content: '울산앞바다(풍랑주의보)', target: '', count: 7 },
+            { kind: 'mmis_push', at: '2026-11-16T10:07:00+09:00', title: '📍 [위치기반] 해상특보 안전 경보 발송', content: '옛 기록(탭 없음)', target: '' }];
+        const md = C.reportMarkdown(ev, 'all');
+        ok('적대검증 #5 보고서: 태풍 알림은 따로 · 위치기반 칸엔 해상특보 위치기반만(옛 기록은 제목으로) · 짝 맞추기엔 0건', /MMIS 실제 0건/.test(md) && /태풍 알림\(짝 맞추기에서 뺌\): 2건/.test(md) && /위치기반 경보\(MMIS, 짝 맞추기에서 뺌\): 2건/.test(md), md.split('\n').slice(6, 12));
+    }
     ok('자식만 시각이 바뀌면 child_time_*, 부모도 같이 바뀌면 자식 몫은 안 냄(부모 푸시가 맡음)', kidY(F1, Object.assign({}, F1, { clr: '2026년 11월 17일 11시 00분' }), false) === 'child_time_yn_change' && kidY(F1, Object.assign({}, F1, { clr: '2026년 11월 17일 11시 00분' }), true) === null);
     ok('예비 시간창 이름만 다른 건 같음(아침=오전, 저녁 18~00시=밤 18~24시)', C.winKey('2026년 11월 16일 아침(06시~12시)') === C.winKey('2026년 11월 16일 오전(06시~12시)') && C.winKey('2026년 11월 16일 저녁(18시~00시)') === C.winKey('2026년 11월 16일 밤(18시~24시)'));
     ok('해제 예고도 시각으로', C.clrKey('17일 오전(09시~12시)') === C.clrKey('17일  오전(09시~12시)') && C.clrKey('17일 오전(09시~12시)') !== C.clrKey('17일 오후(12시~18시)'));

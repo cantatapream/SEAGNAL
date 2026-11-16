@@ -76,6 +76,17 @@ function contextOf(b, all) {
         (isNone(x.result.other) || !clean(x.result.other) ? '' : `\n  참고사항: ${clean(x.result.other).replace(/\n+/g, ' / ').slice(0, 300)}`)).join('\n');
 }
 
+/**
+ * 통보문 본문 항목의 실제 단위(부모·자식 그대로) — 「위 해역」이 가리키는 곳.
+ * 예: 특보 「(1) 풍랑주의보 해제 : 울산앞바다(평수구역, 연안바다)」 → ['울산앞바다중평수구역','울산앞바다중연안바다'] · 예비 = 목록의 단위
+ * [연계] ← runOne(이 파일) / → lifecycle_check.parseItems · bulletin_status.parseYebiList
+ */
+function bodyUnits(b) {
+    const r = b.result;
+    if (b.rpt === '7') return [...new Set(require('./bulletin_status').parseYebiList(r.t4, r.tmFc).map((e) => e.unit))];
+    return [...new Set(require('../analysis/bulletin_survey/lifecycle_check').parseItems(r.t2, []).flatMap((it) => [...it.units]))];
+}
+
 /** 시험 지시문(buildPrompt — 3차례 검산한 것) + 맥락 덩어리. */
 function promptOf(b, all) {
     return T.buildPrompt(itemOf(b)) + '\n\n[같은 관서 앞선 통보문 흐름 — 맥락 참고용. 사건은 위 「참고사항」에 적힌 것만 옮긴다]\n' + contextOf(b, all);
@@ -98,10 +109,11 @@ function checkEvent(e, item, bodyZones, bodyOnly) {
     // 「위 해역·위 구역」 = 그 통보문 본문(특보 = 변경 칸, 예비 = 목록)에 적힌 해역(2026-11-16 사용자 「본문 전체에 명시된 해역을 위 해역이라고 명시 … 본문 전체를 모두 읽어야 해」).
     //   참고사항에 나온 다른 해역 이름은 넣지 않는다(적대검증 #8 — 「…유지합니다」 문장의 해역까지 걸렸다). 본문에서 못 찾으면 관리자 확인.
     const above = /^위\s*(구역|해역|지역)/.test(String(e.해역표현 || '').trim());
+    //   bodyOnly = 본문 항목의 실제 단위(부모·자식 그대로 — 특보 = 변경 칸 항목, 예비 = 목록). 부모 이름으로 접으면 자식만 해제할 때 남는 부모까지 걸린다(적대검증 2026-11-16).
     if (auto && above) {
         const zs = [...new Set(bodyOnly || [])];
         if (!zs.length) return { 판정: '확인필요', 까닭: '「위 해역」인데 본문에서 해역을 못 찾았다' };
-        return finishAuto(e, item, ev, zs, '「위 해역」 = 본문 해역');
+        return Object.assign(finishAuto(e, item, ev, zs, '「위 해역」 = 본문 항목 구역'), { exact: true });
     }
     // 자동 반영 종류는 해역을 문장에서 직접 읽을 수 있을 때만(적대검증 2026-11-16) — 해역 낱말 없는 표현은 어느 해역인지 못 정한다 → 관리자 확인
     if (auto && !SEA.test(String(e.해역표현 || ''))) return { 판정: '확인필요', 까닭: '해역 이름이 없는 표현 — 어느 해역인지 문장만으로 못 정한다' };
@@ -121,7 +133,9 @@ function checkEvent(e, item, bodyZones, bodyOnly) {
 function finishAuto(e, item, ev, zones, how) {
     //   관할 밖 해역(이웃 관서 해역을 함께 적는 일 — README 광주 5-9호)은 자동으로 안 한다
     const own = officeZones()[item.office] || [];
-    if (zones.some((z) => !own.includes(z))) return { 판정: '확인필요', 까닭: `관할 밖 해역이 들어 있다(${zones.filter((z) => !own.includes(z)).join(', ')})`, zones };
+    const LC = require('../analysis/bulletin_survey/lifecycle_check');
+    const parentOf = (x) => (LC.PARENTS.has(x) ? x : [...LC.PARENTS].find((p) => LC.childrenOf(p).includes(x)) || x);   // 자식 단위는 그 부모로 관할을 본다
+    if (zones.some((z) => !own.includes(parentOf(z)))) return { 판정: '확인필요', 까닭: `관할 밖 해역이 들어 있다(${zones.filter((z) => !own.includes(parentOf(z))).join(', ')})`, zones };
     if (e.종류 === '예비취소') {
         if (!/해제|취소/.test(ev)) return { 판정: '확인필요', 까닭: '근거 문장에 해제·취소 낱말이 없다', zones };
     } else if (!e.시간_후 || !TIMEISH.test(String(e.시간_후)) || !ev.includes(norm(e.시간_후))) {
@@ -156,7 +170,7 @@ function createLive({ ai = (p) => require('./bulletin_ai').call('interpret', p, 
             return;
         }
         const bodyZones = [...new Set(T.namedParents(item.본문 + '\n' + item.참고사항, item.office))];
-        const bodyOnly = [...new Set(T.namedParents(item.본문, item.office))];   // 「위 해역」 = 본문 해역만
+        const bodyOnly = bodyUnits(b);   // 「위 해역」 = 본문 항목의 실제 단위만
         const events = parsed.사건.map((e) => Object.assign({ 종류: e && e.종류, 해역표현: e && e.해역표현, 시간_전: e && e.시간_전, 시간_후: e && e.시간_후, 근거문장: e && e.근거문장 }, checkEvent(e, item, bodyZones, bodyOnly)));
         st.done[k] = Object.assign(base, { ok: true, provider: r.provider || null, 요약: parsed.요약 || '', events });
     }
@@ -208,7 +222,7 @@ function createLive({ ai = (p) => require('./bulletin_ai').call('interpret', p, 
             if (!d.ok || !live.has(k)) continue;
             const b = cur.find((x) => x.code === d.code);
             if (b && lastIn.get(b.office + '|' + String(b.result.tmFc).slice(0, 4) + '|' + b.result.t1Title) > b.result.tmIn) continue;
-            for (const e of d.events) if (e.판정 === '후보') out.push({ 종류: e.종류, zones: e.zones, office: d.office, ho: d.ho, inMs: d.inMs, 시간_전: e.시간_전 || null, 시간_후: e.시간_후 || null, 근거문장: e.근거문장 });
+            for (const e of d.events) if (e.판정 === '후보') out.push({ 종류: e.종류, zones: e.zones, exact: !!e.exact, office: d.office, ho: d.ho, inMs: d.inMs, 시간_전: e.시간_전 || null, 시간_후: e.시간_후 || null, 근거문장: e.근거문장 });
         }
         return out.sort((a, b) => a.inMs - b.inMs);
     }
@@ -248,5 +262,5 @@ const getReal = () => (real = real || createLive());
 module.exports = {
     run: () => getReal().run(), candidates: () => getReal().candidates(), entries: () => getReal().entries(),
     enabled: process.env.BULLETIN_AI_LIVE_DISABLE !== '1',
-    createLive, checkEvent, promptOf, contextOf, itemOf, keyOf, reportMarkdown, AUTO,
+    createLive, checkEvent, bodyUnits, promptOf, contextOf, itemOf, keyOf, reportMarkdown, AUTO,
 };
