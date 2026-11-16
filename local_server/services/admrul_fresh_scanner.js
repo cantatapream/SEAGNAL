@@ -46,8 +46,9 @@
  *  통째로 사라진다.
  *
  * [연계]
- *  - server.js → cron 매주 일요일 KST 03:00 `runFreshnessScan()`
- *    (개정감지는 매일 01:00 이라 시간을 겹치지 않게 뒀다 — 둘 다 law.go.kr 을 두드린다)
+ *  - server.js → cron **매일** KST 01:40 `runFreshnessScan()` (2026-11-16 사용자 확정 — 종전 매주 일요일 03:00)
+ *    (개정감지 01:00·원문결손 02:50 과 시간을 겹치지 않게 뒀다 — 셋 다 law.go.kr 을 두드린다.
+ *     실측 2026-11-15 수동 점검: 1,504건 대조에 약 12분)
  *  - routes/legal.js → GET /api/legal/freshness · POST /api/legal/freshness/:id/decide
  *    · POST /api/legal/freshness/scan-now · GET /api/legal/freshness/scan-progress(게이지, 2026-11-03)
  *  - client/js/ai-chat/ai_chat.js → 관리자 검토센터 "원문신선도" 방
@@ -525,7 +526,7 @@ function readStatus() {
  * 주간 점검 1회. 점검 → 구버전만 큐에 적재 → **새로 발견된 것이 있을 때만** 관리자 푸시.
  * 예: await runFreshnessScan() → {checked:653, stale:61, added:2}
  * @returns {Promise<{ok:boolean, checked:number, stale:number, added:number, error?:string}>}
- * [연계] server.js cron(매주 일요일 03:00 KST) · routes/legal.js scan-now
+ * [연계] server.js cron(매일 01:40 KST · 2026-11-16 종전 매주 일요일 03:00) · routes/legal.js scan-now
  */
 async function runFreshnessScan() {
   if (_scanning) return { ok: false, checked: 0, stale: 0, added: 0, error: '점검이 이미 진행 중입니다.' };
@@ -645,7 +646,8 @@ async function runFreshnessScan() {
       // [자동 반영 · 2026-11-15] 새로 나온 카드(구버전·이름바뀜의심)나 다시 뜬 카드가 있으면 10분 뒤 클라우드 세션을
       //   깨우도록 요청한다(services/nariya_autorun.js · 사용자 확정 「다시 뜬 카드만 있어도 깨운다」).
       //   이 블록은 fresh.length || reopened.length 일 때만 온다. 실패해도 점검 결과·푸시에는 영향이 없다(콘솔 한 줄).
-      try { require('./nariya_autorun').requestRun('fresh', { count: fresh.length + reopened.length }); }
+      //   ids 를 함께 넘긴다(2026-11-16) — 자동 세션이 이미 보고 「결정 필요」로 남긴 카드가 사람 손에 닫혔다 다시 떠도 매일 세션을 또 깨우지 않게.
+      try { require('./nariya_autorun').requestRun('fresh', { count: fresh.length + reopened.length, ids: fresh.map((e) => e.id).concat(reopened) }); }
       catch (e) { console.error('[AdmrulFresh] 자동 반영 요청 실패:', e && e.message); }
     }
     return st;

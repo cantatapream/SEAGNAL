@@ -1223,6 +1223,8 @@ router.get('/api/legal/amendments/wiki-brief-all', autorun.requireAdminOrAutomat
     }
     const r = wikiBrief.buildBulkWikiBrief(list, effectiveDate.todayKST(), { skippedApplied });
     if (!r.ok) return res.status(500).json({ ok: false, error: r.error });
+    // [자동 반영 · 2026-11-16] 자동 세션에 내준 id 를 적는다 — 그 세션이 done('pr'·'nothing')하면 「보고 남긴 일」이 돼 새벽 남은 일 점검이 다시 깨우지 않는다.
+    if (req.viaAutomation) { try { autorun.noteServed('amend', list.map((e) => String(e.id))); } catch (e) { console.error('[autorun] noteServed 실패(응답은 정상):', e && e.message); } }
     res.json({ ok: true, count: r.count, detailed: r.detailed, listed: r.listed, pages: r.pages, skippedApplied, skippedInFlight, text: r.text });
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
@@ -1288,6 +1290,8 @@ router.get('/api/legal/freshness', autorun.requireAdminOrAutomation, (req, res) 
       const n0 = list.length;
       list = list.filter((e) => !hid.fresh.has(String(e.id)));
       skippedInFlight = n0 - list.length;
+      // [자동 반영 · 2026-11-16] 대기 카드를 내줄 때만 적는다(status=pending — 세션 지침이 그렇게 부른다).
+      if (status === 'pending' && list.length) { try { autorun.noteServed('fresh', list.map((e) => String(e.id))); } catch (e) { console.error('[autorun] noteServed 실패(응답은 정상):', e && e.message); } }
       return res.json({ ok: true, count: list.length, items: list, skippedInFlight, last: freshScanner.readStatus() });
     }
     res.json({ ok: true, count: list.length, items: list, last: freshScanner.readStatus() });

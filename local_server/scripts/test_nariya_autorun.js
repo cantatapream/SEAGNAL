@@ -385,7 +385,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         // [D1] 예외 ① 그 run 에서 「작업 시작」을 이미 보냈으면 'nothing' 이어도 끝을 알린다
         const c = make();
         await quiet(async () => { c.ar.claim({ run_id: 'daily-2' }); c.ar.claim({ run_id: 'daily-2', work: { amend: 1, fresh: 0 } }); c.ar.done({ run_id: 'daily-2', outcome: 'nothing' }); await flush(); });
-        assert.equal(titles(c.push, /정기 세션 — 작업 시작/).length, 1); assert.equal(titles(c.push, /반영할 것 없음/).length, 1, '시작을 알렸으면 끝도 알린다');
+        assert.equal(titles(c.push, /작업 시작\(직접 실행/).length, 1); assert.equal(titles(c.push, /반영할 것 없음/).length, 1, '시작을 알렸으면 끝도 알린다');
         // [D1] 예외 ② 사람이 정할 것이 있으면 알린다 — 본문에 건수와 앞 몇 줄
         const e = make();
         await quiet(async () => { e.ar.claim({ run_id: 'daily-3' }); e.ar.done({ run_id: 'daily-3', outcome: 'nothing', needs_decision: ['고시 A 동일성', '고시 B 승격', '별표 C', '별표 D'] }); await flush(); });
@@ -441,14 +441,14 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.equal(ar.status().lock.run_id, 'daily-1', '심장박동 덕에 4시간째에도 잠금 유효');
         assert.equal(push.sent.length, 0, '일감 0 이면 푸시 없음');
         await quiet(async () => { ar.claim({ run_id: 'daily-1', work: { amend: 3, fresh: 1 } }); ar.claim({ run_id: 'daily-1', work: { amend: 5, fresh: 0 } }); await flush(); });
-        const w = titles(push, /정기 세션 — 작업 시작/);
+        const w = titles(push, /작업 시작\(직접 실행/);
         assert.equal(w.length, 1, '1회만'); assert.ok(/개정 3·원문신선도 1/.test(w[0].title), w[0].title);
         await quiet(() => time.advance(3 * HOUR));
         assert.equal(titles(push, /이전 세션 응답 없음/).length, 1, '심장박동이 끊기면 3시간 뒤 만료');
         // 서버가 깨운 run 은 work 푸시를 안 한다(이미 「세션 시작」을 보냈다)
         const b = make(); const runId = await fired(b);
         await quiet(async () => { b.ar.claim({ run_id: runId, work: { amend: 1, fresh: 0 } }); await flush(); });
-        assert.equal(titles(b.push, /정기 세션/).length, 0);
+        assert.equal(titles(b.push, /직접 실행/).length, 0);
     });
 
     await check('[§5 #19] 잠금이 없을 때(만료 뒤) 온 done → 「늦은 완료」(잠금과 다른 run 아님)', async () => {
@@ -469,7 +469,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         let c; await quiet(async () => { c = ar.claim({ run_id: 'daily-9', work: { amend: 2, fresh: 0 } }); await flush(); });
         assert.equal(c.busy, false); assert.equal(c.relocked, true);
         assert.equal(ar.status().lock.source, 'claim');
-        assert.equal(titles(push, /정기 세션 — 작업 시작/).length, 1, '「작업 시작」은 이어받아 다시 안 보낸다');
+        assert.equal(titles(push, /작업 시작\(직접 실행/).length, 1, '「작업 시작」은 이어받아 다시 안 보낸다');
         await quiet(async () => { ar.done({ run_id: 'daily-9', outcome: 'nothing' }); await flush(); });
         assert.equal(titles(push, /반영할 것 없음/).length, 1, 'workNotified 를 이어받아 끝도 알린다(D1)');
         // 서버가 깨운 run 은 source fire 를 이어받는다
@@ -679,11 +679,108 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.ok(/if \(req\.viaAutomation\) list = list\.filter\(\(e\) => \(e\.status \|\| 'pending'\) === 'approved'\);/.test(src), '[D8②] ids= 로 집어도 승인분만');
         assert.ok(/const r = autorun\.done\(req\.body\);/.test(src) && !/await autorun\.done/.test(src), 'done 응답은 푸시를 기다리지 않는다');
         const sc = fs.readFileSync(path.join(__dirname, '../services/admrul_fresh_scanner.js'), 'utf8');
-        assert.ok(/if \(fresh\.length \|\| reopened\.length\) \{[\s\S]*?requestRun\('fresh', \{ count: fresh\.length \+ reopened\.length \}\)/.test(sc), '원문신선도 — 다시 뜬 카드만 있어도');
+        assert.ok(/if \(fresh\.length \|\| reopened\.length\) \{[\s\S]*?requestRun\('fresh', \{ count: fresh\.length \+ reopened\.length, ids: /.test(sc), '원문신선도 — 다시 뜬 카드만 있어도');
         const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
         assert.ok(/require\('\.\/services\/nariya_autorun'\)\.start\(\)/.test(sv), 'server.js 시작 복원');
         const near = sv.slice(sv.indexOf("require('./services/nariya_autorun').start()") - 400, sv.indexOf("require('./services/nariya_autorun').start()"));
         assert.ok(/FLY_APP_NAME === 'seagnal-server'/.test(near) && !/FLY_ALLOC_ID/.test(near), '[D8①] server.js 주석이 실제 판정과 같다');
+    });
+
+    // ── 2026-11-16 남은 일 점검·자동 승인 (설계안 §8) ───────────────────────────
+    await check('[§8 #1] 내준 일(noteServed) → done pr/nothing 이면 「보고 남긴 일」(seen) → 같은 id 로 requestRun 해도 대기에 안 넣음 · 새 id 만 센다', async () => {
+        const c = make();
+        const id = await fired(c, 'amend', 2);
+        assert.equal(c.ar.noteServed('amend', ['chg_a', 'chg_b']), true);
+        assert.equal(c.ar.noteServed('fresh', ['adf_1']), true);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'nothing', needs_decision: ['chg_a 폴더 결정'] }); });
+        assert.equal(c.ar.status().seen, 3);
+        const r1 = c.ar.requestRun('amend', { count: 2, ids: ['chg_a', 'chg_b'] });
+        assert.equal(r1.queued, false); assert.equal(r1.seen, 2); assert.equal(c.ar.status().pending, null);
+        const r2 = c.ar.requestRun('amend', { ids: ['chg_a', 'chg_new'] });
+        assert.equal(r2.queued, true); assert.equal(r2.seen, 1); assert.deepEqual(c.ar.status().pending.reasons, { amend: 1 });
+        assert.equal(c.ar.requestRun('fresh', { ids: ['adf_1'] }).queued, false, 'fresh 도 같은 규칙');
+        assert.equal(c.ar.requestRun('fresh', { count: 1 }).queued, true, 'ids 없이 부르면 예전처럼 늘 넣는다(사람의 승인 버튼)');
+    });
+    await check('[§8 #2] done failed 면 seen 으로 옮기지 않는다(다시 넘겨야 한다) · 잠금 없을 때 noteServed 는 아무것도 안 함 · seen 은 14일 뒤 잊음', async () => {
+        const c = make();
+        assert.equal(c.ar.noteServed('amend', ['chg_x']), false, '잠금 없음');
+        const id = await fired(c);
+        c.ar.noteServed('amend', ['chg_x']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'failed', summary: '수집 실패' }); });
+        assert.equal(c.ar.status().seen, 0);
+        assert.equal(c.ar.requestRun('amend', { ids: ['chg_x'] }).queued, true);
+        // 14일 TTL
+        const d = make();
+        const id2 = await fired(d);
+        d.ar.noteServed('amend', ['chg_y']);
+        await quiet(async () => { d.ar.done({ run_id: id2, outcome: 'pr', pr_url: PR(5), amend_ids: [] }); });
+        assert.equal(d.ar.requestRun('amend', { ids: ['chg_y'] }).queued, false);
+        await quiet(() => d.time.advance(15 * DAY));
+        assert.equal(d.ar.requestRun('amend', { ids: ['chg_y'] }).queued, true, '14일 지나면 다시 깨운다');
+    });
+    await check('[§8 #3] sweep — 잠금 중이면 아무것도 안 함 · 대기(깨우기 실패)가 있으면 그대로 다시 쏨 · 남은 일이 새것이면 깨움 · 다 본 것이면 안 깨움 · 없으면 none', async () => {
+        const c = make();
+        const id = await fired(c);
+        let r = c.ar.sweep({ amend: ['chg_1'], fresh: [] });
+        assert.equal(r.action, 'locked'); assert.equal(c.ar.status().pending, null, '잠금 중 — 일하는 세션이 다 꺼내 간다');
+        c.ar.noteServed('amend', ['chg_1']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'nothing', needs_decision: ['폴더'] }); });
+        r = await quiet(() => {}).then(() => c.ar.sweep({ amend: ['chg_1'], fresh: [] }));
+        assert.equal(r.action, 'seen'); assert.equal(c.ar.status().pending, null);
+        await quiet(async () => { r = c.ar.sweep({ amend: ['chg_1', 'chg_2'], fresh: ['adf_9'] }); });
+        assert.equal(r.action, 'requested'); assert.deepEqual(c.ar.status().pending.reasons, { amend: 1, fresh: 1 });
+        const n0 = c.f.calls.length;
+        await quiet(() => c.time.advance(10 * MIN));
+        assert.equal(c.f.calls.length, n0 + 1, '10분 뒤 깨운다');
+        assert.equal(c.ar.status().lastSweep.action, 'requested');
+        // 깨우기 실패로 남은 대기 → sweep 이 다시 쏜다
+        const e = make();
+        e.f.mode = 'http500';
+        await quiet(async () => { e.ar.requestRun('amend', { count: 1 }); await e.time.advance(10 * MIN); });
+        assert.ok(e.ar.status().pending, '실패 — 대기 유지');
+        e.f.mode = 'ok';
+        await quiet(async () => { r = e.ar.sweep({ amend: [], fresh: [] }); await e.time.advance(10 * MIN); });
+        assert.equal(r.action, 'pending'); assert.equal(e.f.calls.length, 2); assert.ok(e.ar.status().lock);
+        // 남은 일 없음
+        const g = make();
+        assert.equal((await quiet(() => {}), g.ar.sweep({})).action, 'none');
+    });
+    await check('[§8 #4] seen·served 는 파일에 남는다(재시작 뒤에도 같은 판정) · 깨진 seen 항목은 걸러낸다', async () => {
+        const c = make();
+        const id = await fired(c);
+        c.ar.noteServed('fresh', ['adf_k', 'adf_k', 'bad id!']);
+        const raw = JSON.parse(fs.readFileSync(c.file, 'utf8'));
+        assert.deepEqual(raw.lock.served.fresh, ['adf_k'], '중복·꼴 틀린 id 는 빠진다');
+        const c2 = make({ file: c.file, time: c.time });
+        assert.deepEqual(c2.ar._state().lock.served.fresh, ['adf_k'], '재시작 뒤 served 복원');
+        await quiet(async () => { c2.ar.done({ run_id: id, outcome: 'nothing' }); });
+        const st = JSON.parse(fs.readFileSync(c.file, 'utf8'));
+        st.seen.push({ kind: 'amend', id: 'x', at: 'nope' }, { kind: 'zzz', id: 'y', at: 1 });
+        fs.writeFileSync(c.file, JSON.stringify(st));
+        const c3 = make({ file: c.file, time: c.time });
+        assert.deepEqual(c3.ar._state().seen.map((x) => x.id), ['adf_k']);
+        assert.equal(c3.ar.requestRun('fresh', { ids: ['adf_k'] }).queued, false);
+    });
+    await check('[§8 #5] 개정 감지 즉시 자동 승인(autoApprove) · 스캐너가 탐지 큐에 옮겨 적고 ids 와 함께 requestRun · 푸시 문구 · 원문신선도도 ids', () => {
+        const S = require('../services/legal_amendment_scanner');
+        const src0 = [{ id: 'chg_1', status: 'pending', 법령명: 'x' }];
+        const out = S.autoApprove(src0, '2026-11-16T00:00:00.000Z');
+        assert.deepEqual(out[0], { id: 'chg_1', status: 'approved', 법령명: 'x', decidedBy: '자동(감지 즉시)', decidedAt: '2026-11-16T00:00:00.000Z' });
+        assert.equal(src0[0].status, 'pending', '원본은 안 바꾼다');
+        const src = fs.readFileSync(path.join(__dirname, '../services/legal_amendment_scanner.js'), 'utf8');
+        const body = src.slice(src.indexOf('async function runAmendmentScan'), src.indexOf('async function notifyAdmins'));
+        assert.ok(/const cards = autoApprove\(relevant\.map\(toLegacyEntry\)/.test(body), '적재 전에 승인');
+        assert.ok(/mirrorDecisionToH29\(c\.id, 'approved'\)/.test(body), '탐지 큐에도 승인');
+        assert.ok(/requestRun\('amend', \{ count: cards\.length, ids: cards\.map/.test(body) && /catch \(e\)/.test(body), 'ids 와 함께 · 실패해도 감지는 그대로');
+        assert.ok(/자동 승인했습니다/.test(src) && !/개정검토 방에서 승인하고/.test(src), '푸시가 더는 「승인하세요」라고 하지 않는다');
+        const sc = fs.readFileSync(path.join(__dirname, '../services/admrul_fresh_scanner.js'), 'utf8');
+        assert.ok(/requestRun\('fresh', \{ count: fresh\.length \+ reopened\.length, ids: fresh\.map\(\(e\) => e\.id\)\.concat\(reopened\) \}\)/.test(sc));
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/if \(req\.viaAutomation\) \{ try \{ autorun\.noteServed\('amend'/.test(lj), 'wiki-brief-all 이 내준 id 를 적는다');
+        assert.ok(/if \(status === 'pending' && list\.length\) \{ try \{ autorun\.noteServed\('fresh'/.test(lj), 'freshness 가 내준 카드를 적는다');
+        const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+        assert.ok(/cron\.schedule\('30 4 \* \* \*'[\s\S]{0,200}?ar\.sweep\(ar\.collectOutstanding\(\)\)/.test(sv), '04:30 남은 일 점검');
+        assert.ok(/cron\.schedule\('40 1 \* \* \*'[\s\S]{0,200}?runFreshnessScan/.test(sv) && !/cron\.schedule\('0 3 \* \* 0'/.test(sv), '원문신선도 매일 01:40');
     });
 
     fs.rmSync(tmp, { recursive: true, force: true });

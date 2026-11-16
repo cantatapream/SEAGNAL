@@ -20,15 +20,16 @@
  *     이 문구가 없으면 멀쩡한 발췌본을 "재수집"하게 된다(2026-09-21 A-2 무효 사고의 교훈)
  *  ⑤ 서버 라우트 3개와 관리자 통계 칸이 배선돼 있다
  *  ⑥ 화면에 방이 등록돼 있고, **"점검 실패"와 "빠진 것 없음"을 가르는 문구**가 있다
- *  ⑦ 크론이 **수요일**에 걸려 있다 — 같은 law.go.kr 을 두드리는 작업(개정감지 매일 01:00,
- *     신선도 일요일 03:00)과 겹치면 서로 느려져 전수 점검이 중간에 멈춘다(2026-09-20 실측)
+ *  ⑦ 크론이 **매일 02:50** 에 걸려 있다(2026-11-16 · 종전 수요일 03:00) — 같은 law.go.kr 을 두드리는 작업
+ *     (개정감지 매일 01:00 상한 30분 · 신선도 매일 01:40 상한 60분)과 겹치면 서로 느려져 전수 점검이
+ *     중간에 멈춘다(2026-09-20 실측). 그래서 셋의 시각이 줄 세워져 있는지를 함께 본다.
  *  ⑧ 새 카드가 없어도 **다시 뜬 카드만으로** 관리자 푸시가 나간다
  *
  * [연계]
  * - services/mok_audit_scanner.js → reopenStillMissing() · toMokEntry() · toAnnexEntry()
  * - routes/legal.js → GET/POST /api/legal/mok-audit …
  * - client/js/ai-chat/ai_chat.js → 「원문결손」 방(renderMokCards)
- * - server.js → cron 수요일 03:00 KST
+ * - server.js → cron 매일 02:50 KST
  * - scripts/refactor/verify_all.sh → SUITES 에 등록돼 있다
  * [로드 순서] 번들 없음(서버 스크립트). `node local_server/scripts/test_mok_audit_scanner.js`
  * ============================================================================
@@ -115,9 +116,12 @@ check('⑥ 판정불가를 "이상 없음"과 섞지 않는다', /확인하지 �
 
 console.log('\n── 정기작업 ──');
 const serverSrc = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
-check('⑦ 크론이 수요일 03:00 에 걸려 있다', /cron\.schedule\('0 3 \* \* 3'/.test(serverSrc));
+check('⑦ 크론이 매일 02:50 에 걸려 있다', /cron\.schedule\('50 2 \* \* \*'[\s\S]{0,200}?runMokAuditScan/.test(serverSrc));
 check('⑦ 시간대를 KST 로 명시했다',
-  /cron\.schedule\('0 3 \* \* 3'[\s\S]{0,1400}?timezone: 'Asia\/Seoul'/.test(serverSrc));
+  /cron\.schedule\('50 2 \* \* \*'[\s\S]{0,1400}?timezone: 'Asia\/Seoul'/.test(serverSrc));
+check('⑦ law.go.kr 점검 셋이 줄 세워져 있다(01:00 개정감지 → 01:40 원문신선도 → 02:50 원문결손)',
+  /cron\.schedule\('0 1 \* \* \*'[\s\S]{0,300}?runAmendmentScan/.test(serverSrc)
+  && /cron\.schedule\('40 1 \* \* \*'[\s\S]{0,300}?runFreshnessScan/.test(serverSrc));
 check('⑦ 스캐너를 부른다', /mok_audit_scanner'\)\.runMokAuditScan\(\)/.test(serverSrc));
 const scannerSrc = fs.readFileSync(path.join(__dirname, '..', 'services', 'mok_audit_scanner.js'), 'utf8');
 check('⑧ 새 카드가 없어도 다시 뜬 카드만으로 푸시를 보낸다',

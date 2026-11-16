@@ -365,6 +365,19 @@ function isRelevant(item) {
 }
 
 /**
+ * 새로 감지된 카드를 **감지 즉시 승인 상태로** 만든다(2026-11-16 사용자 확정 「승인없이 되도록 진행하자.」).
+ * 종전(2026-09-10)에는 사람이 개정검토 방에서 승인을 눌러야 했다. 이제 사람이 보는 관문은 자동 반영 세션이 올린
+ * **PR 의 머지** 하나다 — 승인이 하던 두 일(재수집 대상 표시 · 시행일에 예고본을 답변에 쓰기)은 그대로 승인 상태로 돈다.
+ * 개정 사실 자체는 law.go.kr 이 공표한 값이라 다투지 않는다(decide-all 주석과 같은 까닭). 사람은 여전히 카드에서 기각할 수 있다.
+ * 예: autoApprove([{id:'chg_1', status:'pending'}], '2026-11-16T00:00:00.000Z') → [{id:'chg_1', status:'approved', decidedBy:'자동(감지 즉시)', decidedAt:'2026-11-16T00:00:00.000Z'}]
+ * @param {object[]} cards toLegacyEntry 결과 @param {string} at ISO 시각 @returns {object[]} 새 배열(원본은 안 바꾼다)
+ * [연계] ← runAmendmentScan · scripts/test_nariya_autorun.js
+ */
+function autoApprove(cards, at) {
+  return (cards || []).map((c) => Object.assign({}, c, { status: 'approved', decidedBy: '자동(감지 즉시)', decidedAt: at }));
+}
+
+/**
  * queue.jsonl에 신규 항목들을 append한다(원자적이지 않은 단순 append — `_scanning` 락으로
  * 이 파일 안에서는 동시 실행을 막으므로 충분, review_queue.md 같은 사람 동시편집 대상과 다름).
  * @param {Array<object>} entries
@@ -417,8 +430,19 @@ async function runAmendmentScan(opts) {
     const known = existingLegacyIds();
     const fresh = pending.filter((it) => !known.has(it.id));
     const relevant = fresh.filter(isRelevant);
-    const cards = relevant.map(toLegacyEntry);      // 한 번만 만든다(적재·알림이 같은 것을 본다)
+    // ★감지 즉시 자동 승인(2026-11-16 사용자 확정 「승인없이 되도록 진행하자.」) — 사람이 보는 관문은 PR 머지 하나다.
+    const cards = autoApprove(relevant.map(toLegacyEntry), new Date().toISOString());   // 한 번만 만든다(적재·알림이 같은 것을 본다)
     appendQueue(cards);
+    // 재수집 도구가 보는 탐지 큐에도 승인을 옮겨 적는다(개별 승인 버튼과 같은 처리 — routes/legal.js decide).
+    for (const c of cards) {
+      const m = mirrorDecisionToH29(c.id, 'approved');
+      if (!m.ok) console.error('[나리야 개정감지] 탐지 큐 승인 옮겨 적기 실패:', c.id, m.error);
+    }
+    // 10분 뒤 자동 반영 세션을 깨운다(services/nariya_autorun.js). 실패해도 감지 결과는 그대로 남긴다.
+    if (cards.length) {
+      try { require('./nariya_autorun').requestRun('amend', { count: cards.length, ids: cards.map((c) => String(c.id)) }); }
+      catch (e) { console.error('[나리야 개정감지] 자동 반영 요청 실패(감지는 정상):', e && e.message); }
+    }
     const filtered = fresh.length - relevant.length;
     console.log(`[나리야 개정감지] 탐지 pending ${pending.length}건 · 새 항목 ${fresh.length}건 중 무관 신규 고시로 거른 ${filtered}건 · 관리자 큐 적재 ${relevant.length}건`);
     // ★새로 감지된 것이 있으면 등록된 관리자 기기로 알린다(사용자 확정 2026-09-10).
@@ -447,8 +471,8 @@ async function runAmendmentScan(opts) {
  * @param {Array<object>} entries 이번에 관리자 큐에 새로 올린 카드들
  * @returns {Promise<void>} 실패는 로그만 남기고 삼킨다 — 알림 때문에 스캔이 죽으면 안 된다
  * [연계] → services/admin_push.sendAdminPush(통합관리자센터 '등록' 버튼으로 등록한 기기들).
- *   ★본문에 **"승인 후 위키 수동 갱신이 필요하다"** 를 반드시 넣는다 — 승인만 하면 끝나는 줄 알면
- *     위키가 옛 내용으로 남는다(승인은 답변 전환·재수집 표시까지만 한다, `_amendments/README.md`).
+ *   ★(2026-11-16 바뀜) 감지 즉시 자동 승인 + 자동 반영 세션 → 본문은 「PR 을 확인하고 머지」를 말한다.
+ *     종전 문구 「승인 후 위키를 사람이 갱신해야 한다」는 자동 반영 이전의 것이다(`_amendments/README.md`).
  */
 async function notifyAdmins(entries) {
   try {
@@ -462,7 +486,8 @@ async function notifyAdmins(entries) {
     const arts = entries.reduce((n, e) => n + ((e.changed_articles || []).length), 0);
     const title = `⚖ 법령 개정 ${entries.length}건 감지`;
     // 푸시 본문은 **평문**이다 — 별표(**) 같은 마크다운 표시는 그대로 글자로 보인다.
-    const body = `${head}${arts ? ` · 바뀐 조문 ${arts}개` : ''}\n승인 후 위키를 사람이 갱신해야 합니다. 개정검토 방에서 승인하고 「위키 반영 지시문」을 복사하세요.`;
+    // 2026-11-16: 감지 즉시 자동 승인 → 자동 반영 세션이 위키를 고쳐 PR 을 올린다. 사람은 PR 을 머지(또는 카드에서 기각)한다.
+    const body = `${head}${arts ? ` · 바뀐 조문 ${arts}개` : ''}\n자동 승인했습니다. 10분 뒤 자동 반영 세션이 위키를 고쳐 PR 을 올립니다 — PR 을 확인하고 머지해 주세요.`;
     const r = await sendAdminPush(title, body, { url: 'https://seagnal-server.fly.dev/?tab=admin', kind: 'legal_amendment' });
     console.log(`[나리야 개정감지] 관리자 푸시 — 성공 ${r.sent}건 · 실패 ${r.failed}건`);
   } catch (e) {
@@ -525,5 +550,5 @@ function withoutApplied(rows, applied) {
 module.exports = { runAmendmentScan, startAmendmentScan, getScanProgress,
   // 진행률 한 줄 파서는 검사(test_wiki_brief_bulk.js)가 직접 먹여 보려고 함께 내보낸다.
   applyProgressLine, queueFile, h29QueueFile, mirrorDecisionToH29, readScanStatus, scanWindowDays, lastOkAt,
-  notifyAdmins, toLegacyEntry, isRelevant, QUEUE_FILE, H29_QUEUE_FILE, CATCHUP_MAX_DAYS,
+  notifyAdmins, toLegacyEntry, isRelevant, autoApprove, QUEUE_FILE, H29_QUEUE_FILE, CATCHUP_MAX_DAYS,
   loadWikiApplied, withoutApplied, WIKI_APPLIED_FILE };
