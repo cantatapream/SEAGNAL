@@ -2726,6 +2726,11 @@ async function init() {
         if (!crawlPaused && bulletinWatch.enabled) {
             // 관찰 → 통보문 기준 특보현황 계산(bulletin_status) → MMIS 와 비교 기록(bulletin_compare) — 셋 다 관찰·기록만(2026-11-16)
             bulletinWatch.run()
+                .then(() => {
+                    // 참고사항 AI 실시간 해석(2026-11-16) — 느리니 기다리지 않고 따로 돈다(내부 running 락). 결과는 다음 분 계산부터 덧씌워진다.
+                    const aiLive = require('./services/bulletin_ai_live');
+                    if (aiLive.enabled) aiLive.run().catch(err => log(`⚠️ [bulletin_ai_live] 오류: ${err.message}`));
+                })
                 .then(() => require('./services/bulletin_status').run())
                 .then(() => require('./services/bulletin_compare').run())
                 .catch(err => log(`⚠️ [bulletin_watch/status/compare] 오류: ${err.message}`));

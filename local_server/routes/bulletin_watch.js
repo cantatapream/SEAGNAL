@@ -6,12 +6,13 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/bulletin_watch(기록 읽기) · services/bulletin_ai_trial(참고사항 AI 시험) · services/bulletin_status(통보문 기준 특보현황) ·
- *                   services/bulletin_compare(MMIS ↔ 통보문 비교) · services/admin_auth(관리자 확인)
+ *                   services/bulletin_compare(MMIS ↔ 통보문 비교) · services/bulletin_ai_live(참고사항 AI 실시간) · services/admin_auth(관리자 확인)
  *  - 서버 API      : GET /api/admin/bulletin-watch/report.md?day=YYYY-MM-DD|all ·
  *                    GET /api/admin/bulletin-ai-trial(상태) · POST /api/admin/bulletin-ai-trial/start · POST /api/admin/bulletin-ai-trial/stop ·
  *                    GET /api/admin/bulletin-ai-trial/report.md — 모두 ?trial=1(1차 ChatGPT, 기본)|2(2차 클로드 키2) ·
  *                    GET·POST /api/admin/bulletin-ai/config(「AI 특보 분석」 순서 — services/bulletin_ai) ·
- *                    GET /api/admin/bulletin-status(통보문 기준 특보현황 + MMIS 와 다른 곳 diff — 메인 화면 [통보문]) · GET /api/admin/bulletin-compare/report.md(MMIS ↔ 통보문 비교)
+ *                    GET /api/admin/bulletin-status(통보문 기준 특보현황 + MMIS 와 다른 곳 diff — 메인 화면 [통보문]) · GET /api/admin/bulletin-compare/report.md(MMIS ↔ 통보문 비교) ·
+ *                    GET /api/admin/bulletin-ai-live/report.md(참고사항 AI 실시간 해석 기록)
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : server.js(등록) · client/js/admin/admin_bulletin_watch.js(특보 관리 → 통보문 관찰 탭) · 검사 test_bulletin_watch·test_bulletin_ai_trial
  * [로드 순서] server.js 에서 routes/admin 보다 먼저 등록한다(자체 인증).
@@ -58,7 +59,7 @@ function reportMarkdown(events, day) {
  * @returns {import('express').Router}
  * [연계] ← server.js / → services/bulletin_watch
  */
-function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch = require('../services/bulletin_watch'), trial = require('../services/bulletin_ai_trial'), status = require('../services/bulletin_status'), compare = require('../services/bulletin_compare'), authorize = adminAuth.requireAdminToken } = {}) {
+function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch = require('../services/bulletin_watch'), trial = require('../services/bulletin_ai_trial'), status = require('../services/bulletin_status'), compare = require('../services/bulletin_compare'), aiLive = require('../services/bulletin_ai_live'), authorize = adminAuth.requireAdminToken } = {}) {
     const router = express.Router();
     router.get('/api/admin/bulletin-watch/report.md', authorize, (req, res) => {
         const day = String(req.query.day || 'all');
@@ -107,6 +108,13 @@ function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch =
         res.set('Content-Type', 'text/markdown; charset=utf-8');
         res.set('Content-Disposition', `attachment; filename="bulletin_compare_${day}.md"`);
         res.send(compare.reportMarkdown(events, day));
+    });
+    // 참고사항 AI 실시간 해석 기록(마크다운) — 통보문별 AI 답·검사 판정·지금 특보현황에 실제로 덧씌운 것. 2026-11-16
+    router.get('/api/admin/bulletin-ai-live/report.md', authorize, (req, res) => {
+        const s = status.read();
+        res.set('Content-Type', 'text/markdown; charset=utf-8');
+        res.set('Content-Disposition', 'attachment; filename="bulletin_ai_live.md"');
+        res.send(aiLive.reportMarkdown(aiLive.entries(), (s && s.aiApplied) || []));
     });
     return router;
 }
