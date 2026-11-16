@@ -401,7 +401,7 @@ function createAutorun({
     }
 
     /**
-     * 새벽 「남은 일 점검」(2026-11-16 사용자 확정 — 매일 고정 세션 대신). server.js 새벽 사슬(runNariyaNightlyChain, 01:00 시작) 끝에서 부른다.
+     * 새벽 「남은 일 점검」(2026-11-16 사용자 확정 — 매일 고정 세션 대신). server.js 새벽 점검(runNariyaNightly, 03:00 · 하루 하나씩) 끝에서 부른다.
      *  · 잠금 중이면 아무것도 안 한다 — 일하는 세션이 남은 일을 전부 꺼내 간다(새로 깨우면 같은 일을 두 세션이 한다).
      *  · 대기(깨우기 실패로 남은 일)가 있으면 10분 타이머를 건다(이미 걸려 있으면 그대로).
      *  · 대기가 없으면 outstanding(승인했는데 반영 안 된 개정 · 대기 중인 원문신선도 카드, PR 진행 중인 것 빼고)을
@@ -409,14 +409,14 @@ function createAutorun({
      * 이 점검이 없으면: 깨우기 실패·세션 실패로 남은 일이 다음 감지가 올 때까지(며칠~몇 주) 방치된다.
      * 예: sweep({amend:['chg_1'], fresh:[]}) → {action:'requested', amend:{queued:true,…}}
      * @param {{amend?:string[], fresh?:string[]}} outstanding @returns {object}
-     * [연계] ← server.js runNariyaNightlyChain(finally) — outstanding 은 collectOutstanding()
+     * [연계] ← server.js runNariyaNightly(finally) — outstanding 은 collectOutstanding()
      */
     /**
      * 새벽 점검 사슬이 도는 동안 세션 깨우기를 붙든다(2026-11-16 적대검증 #4·#5) — 세션의 law.go.kr 수집이 서버 점검과 겹치지 않게.
      * 붙든 동안 대기는 쌓이고, 풀면 대기가 있고 잠금이 없을 때 10분 타이머를 건다. 6시간 뒤엔 저절로 푼다.
      * 예: setHold(true) … 점검 셋 … setHold(false)
      * @param {boolean} on @returns {{held:boolean}}
-     * [연계] ← server.js 새벽 점검 사슬(01:00)
+     * [연계] ← server.js runNariyaNightly(03:00)
      */
     function setHold(on) {
         if (holdTimer) clearTimer(holdTimer);
@@ -796,7 +796,7 @@ function createAutorun({
  * 파일을 못 읽으면 그 갈래는 빈 목록 + errors 에 까닭 — 점검이 죽어 다른 갈래까지 잃지 않게, 그리고 sweep 이 「못 읽음」을 알리게(L-291).
  * 예: collectOutstanding() → {amend:['chg_20261116_ab12'], fresh:[], errors:[]}
  * @returns {{amend:string[], fresh:string[], errors:string[]}}
- * [연계] ← server.js runNariyaNightlyChain → sweep · legal_amendment_scanner(queueFile·loadWikiApplied) · admrul_fresh_scanner(QUEUE_FILE) · legal_admin_queues.readJsonl
+ * [연계] ← server.js runNariyaNightly → sweep · legal_amendment_scanner(queueFile·loadWikiApplied) · admrul_fresh_scanner(QUEUE_FILE) · legal_admin_queues.readJsonl
  */
 function collectOutstanding() {
     const out = { amend: [], fresh: [], errors: [] };
@@ -816,6 +816,20 @@ function collectOutstanding() {
     return out;
 }
 
+/**
+ * 오늘 새벽(03:00 KST) 돌릴 나리야 점검 하나를 고른다(2026-11-16 사용자 확정 — 하루 하나씩 돌려 가며).
+ * 사용자 원문: 「그럼 격일마다 하도록 하자 하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다 돌아가게」
+ * KST 날짜 번호(1970-01-01 부터 센 날 수)를 3으로 나눈 나머지로 고른다 — 서버를 다시 켜도, 하루를 걸러도 순서가 어긋나지 않는다.
+ * 0 → 개정감지 · 1 → 원문결손 · 2 → 원문신선도(낡음). 셋 다 law.go.kr 을 두드려서 한 밤에 하나만 돌리면 겹칠 일이 없다.
+ * 예: nightlyScanFor(Date.parse('2026-11-16T18:00:00Z')) → 2026-11-17 KST 의 몫
+ * @param {number} ms 지금 시각(ms) @returns {'amend'|'mok'|'fresh'}
+ * [연계] ← server.js runNariyaNightly(cron 03:00) · scripts/test_nariya_autorun.js
+ */
+function nightlyScanFor(ms) {
+    const day = Math.floor((ms + 9 * 3600000) / 86400000);
+    return ['amend', 'mok', 'fresh'][((day % 3) + 3) % 3];
+}
+
 let def = null;
 /** 운영 기본 인스턴스(data/nariya_autorun_state.json · 실제 시계·타이머·fetch·푸시). @returns {object} [연계] ← routes/legal.js · admrul_fresh_scanner · server.js */
 function forDefault() { return def || (def = createAutorun()); }
@@ -831,7 +845,7 @@ module.exports = {
     noteServed: (k, ids) => forDefault().noteServed(k, ids),
     sweep: (o) => forDefault().sweep(o),
     setHold: (on) => forDefault().setHold(on),
-    collectOutstanding,
+    collectOutstanding, nightlyScanFor,
     requireAdminOrAutomation: (req, res, next) => forDefault().requireAdminOrAutomation(req, res, next),
     DEBOUNCE_MS, LOCK_TTL_MS, INFLIGHT_TTL_MS, DONE_PUSH_PER_HOUR, MIN_TOKEN_LEN, LIMITS, KINDS,
 };

@@ -46,8 +46,8 @@
  *  통째로 사라진다.
  *
  * [연계]
- *  - server.js → runNariyaNightlyChain **매일** 01:00 KST 사슬의 두 번째(개정감지 다음 · 원문결손 앞) `runFreshnessScan()`
- *    (2026-11-16 사용자 확정 — 종전 매주 일요일 03:00. 셋 다 law.go.kr 을 두드려 차례로 잇는다.
+ *  - server.js → runNariyaNightly 새벽 03:00 KST, **3일에 한 번**(개정감지 → 원문결손 → 원문신선도 하루 하나씩) `runFreshnessScan()`
+ *    (2026-11-16 사용자 확정 — 종전 매주 일요일 03:00. 셋 다 law.go.kr 을 두드려 한 밤에 하나만 돌린다.
  *     실측 2026-11-15 수동 점검: 1,504건 대조에 약 12분)
  *  - routes/legal.js → GET /api/legal/freshness · POST /api/legal/freshness/:id/decide
  *    · POST /api/legal/freshness/scan-now · GET /api/legal/freshness/scan-progress(게이지, 2026-11-03)
@@ -526,7 +526,7 @@ function readStatus() {
  * 주간 점검 1회. 점검 → 구버전만 큐에 적재 → **새로 발견된 것이 있을 때만** 관리자 푸시.
  * 예: await runFreshnessScan() → {checked:653, stale:61, added:2}
  * @returns {Promise<{ok:boolean, checked:number, stale:number, added:number, error?:string}>}
- * [연계] server.js runNariyaNightlyChain(매일 01:00 사슬 · 2026-11-16 종전 매주 일요일 03:00) · routes/legal.js scan-now
+ * [연계] server.js runNariyaNightly(03:00 · 3일에 한 번 · 2026-11-16 종전 매주 일요일 03:00) · routes/legal.js scan-now
  */
 async function runFreshnessScan() {
   if (_scanning) return { ok: false, checked: 0, stale: 0, added: 0, error: '점검이 이미 진행 중입니다.' };

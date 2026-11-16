@@ -20,16 +20,15 @@
  *     이 문구가 없으면 멀쩡한 발췌본을 "재수집"하게 된다(2026-09-21 A-2 무효 사고의 교훈)
  *  ⑤ 서버 라우트 3개와 관리자 통계 칸이 배선돼 있다
  *  ⑥ 화면에 방이 등록돼 있고, **"점검 실패"와 "빠진 것 없음"을 가르는 문구**가 있다
- *  ⑦ 매일 01:00 새벽 사슬에서 개정감지 → 원문신선도 → 원문결손 **차례로** 돈다(2026-11-16 · 종전 수요일 03:00).
- *     같은 law.go.kr 을 두드리는 작업과 겹치면 서로 느려져 전수 점검이 중간에 멈춘다(2026-09-20 실측) —
- *     시각을 줄 세우는 것만으로는 상한이 스크립트당이라 최악에 겹치므로(적대검증 #4) 사슬로 잇는다.
+ *  ⑦ 매일 03:00 새벽 점검이 개정감지 → 원문결손 → 원문신선도를 **하루 하나씩** 돌려 가며 돈다(2026-11-16 · 종전 수요일 03:00).
+ *     같은 law.go.kr 을 두드리는 작업과 겹치면 서로 느려져 전수 점검이 중간에 멈춘다(2026-09-20 실측) — 한 밤에 하나만 돌린다.
  *  ⑧ 새 카드가 없어도 **다시 뜬 카드만으로** 관리자 푸시가 나간다
  *
  * [연계]
  * - services/mok_audit_scanner.js → reopenStillMissing() · toMokEntry() · toAnnexEntry()
  * - routes/legal.js → GET/POST /api/legal/mok-audit …
  * - client/js/ai-chat/ai_chat.js → 「원문결손」 방(renderMokCards)
- * - server.js → runNariyaNightlyChain(매일 01:00 KST 사슬의 세 번째)
+ * - server.js → runNariyaNightly(매일 03:00 KST, 3일에 한 번 결손 차례)
  * - scripts/refactor/verify_all.sh → SUITES 에 등록돼 있다
  * [로드 순서] 번들 없음(서버 스크립트). `node local_server/scripts/test_mok_audit_scanner.js`
  * ============================================================================
@@ -116,16 +115,14 @@ check('⑥ 판정불가를 "이상 없음"과 섞지 않는다', /확인하지 �
 
 console.log('\n── 정기작업 ──');
 const serverSrc = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
-// ⑦(2026-11-16 적대검증 #4): 시각을 따로 걸면 상한이 스크립트당이라 최악에 겹친다 → 한 사슬에서 차례로 await.
-const chain = serverSrc.slice(serverSrc.indexOf('async function runNariyaNightlyChain'), serverSrc.indexOf("cron.schedule('0 1 * * *'"));
-const iA = chain.indexOf('await require(\'./services/legal_amendment_scanner\').runAmendmentScan()');
-const iF = chain.indexOf('await require(\'./services/admrul_fresh_scanner\').runFreshnessScan()');
-const iM = chain.indexOf('await require(\'./services/mok_audit_scanner\').runMokAuditScan()');
-check('⑦ 원문결손은 새벽 사슬 안에서 개정감지 → 원문신선도 다음에 차례로(await) 돈다', iA > 0 && iF > iA && iM > iF);
-check('⑦ 사슬은 매일 01:00 KST 한 번 걸리고 시간대를 명시했다',
-  /cron\.schedule\('0 1 \* \* \*', \(\) => \{\s*runNariyaNightlyChain\(\)[\s\S]{0,200}?timezone: 'Asia\/Seoul'/.test(serverSrc));
+// ⑦(2026-11-16 사용자 「하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다」): 한 밤에 하나만 → 겹칠 수가 없다.
+const nightly = serverSrc.slice(serverSrc.indexOf('async function runNariyaNightly'), serverSrc.indexOf("cron.schedule('0 3 * * *'"));
+check('⑦ 원문결손은 새벽 점검의 「결손 차례」에만 돈다(같은 밤에 다른 점검과 함께 돌지 않는다)',
+  /if \(which === 'amend'\) \{[\s\S]*?runAmendmentScan\(\)[\s\S]*?\} else if \(which === 'mok'\) \{[\s\S]*?runMokAuditScan\(\)[\s\S]*?\} else \{[\s\S]*?runFreshnessScan\(\)/.test(nightly));
+check('⑦ 새벽 점검은 매일 03:00 KST 한 번 걸리고 시간대를 명시했다',
+  /cron\.schedule\('0 3 \* \* \*', \(\) => \{\s*runNariyaNightly\(\)[\s\S]{0,200}?timezone: 'Asia\/Seoul'/.test(serverSrc));
 check('⑦ 세 점검을 따로 거는 cron 이 남아 있지 않다(겹침 재발 방지)',
-  !/cron\.schedule\('[^']*'[^\n]*\n[^\n]*\n?[^\n]*run(MokAuditScan|FreshnessScan|AmendmentScan)\(/.test(serverSrc.replace(chain, '')));
+  (serverSrc.replace(nightly, '').match(/run(MokAuditScan|FreshnessScan|AmendmentScan)\(/g) || []).length === 0);
 check('⑦ 스캐너를 부른다', /mok_audit_scanner'\)\.runMokAuditScan\(\)/.test(serverSrc));
 const scannerSrc = fs.readFileSync(path.join(__dirname, '..', 'services', 'mok_audit_scanner.js'), 'utf8');
 check('⑧ 새 카드가 없어도 다시 뜬 카드만으로 푸시를 보낸다',

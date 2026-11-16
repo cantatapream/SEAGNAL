@@ -39,7 +39,8 @@
  *    우리 74법 인용을 찾아 `related_laws` 를 채우고, 관련 법이 없으면 여기서 관리자 큐에 올리지 않는다
  *    (소급 실측: 기존 신규 고시 39건 중 32건이 무관).
  * [연계]
- *  - server.js → cron.schedule('0 16 * * *', ...) 매일 KST 01:00에 1회 `runAmendmentScan()`
+ *  - server.js → runNariyaNightly 새벽 03:00 KST, 3일에 한 번(개정감지 → 원문결손 → 원문신선도 하루 하나씩) `runAmendmentScan()`
+ *    (2026-11-16 · 종전 매일 01:00. 창은 「마지막 성공 이후」 scanWindowDays — 최소 7일이라 3일 걸러도 그 사이 공포분을 덮는다)
  *    호출(끝까지 기다림 — 사람이 안 보는 새벽 실행이라 몇 분 걸려도 무방).
  *  - routes/legal.js → GET /api/legal/amendments·POST /api/legal/amendments/:id/decide
  *    (기존 그대로) · POST /api/legal/amendments/scan-now는 `startAmendmentScan()`으로
@@ -391,7 +392,7 @@ function appendQueue(entries) {
 
 /**
  * 전체 스캔 1회 실행: H-29 탐지엔진 실행 → 결과를 legacy 큐로 mirror. 완료까지 기다린다
- * (실측 3~4분) — cron(새벽 1시, 아무도 안 기다림)이 쓰는 경로. 관리자 버튼(scan-now)은
+ * (실측 3~4분) — cron(새벽 3시 · 3일에 한 번, 아무도 안 기다림)이 쓰는 경로. 관리자 버튼(scan-now)은
  * 이 함수를 기다리지 않는 `startAmendmentScan()`을 대신 쓴다.
  * @returns {Promise<{scanned:number, changed:number, filtered:number, errors:number}>}
  *   scanned: H-29 큐의 pending 전체 · changed: 이번에 관리자 큐에 새로 올린 수 · filtered: 무관 신규 고시로 거른 수

@@ -796,7 +796,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         await quiet(async () => { d.ar.setHold(true); d.ar.requestRun('fresh', { count: 1 }); await d.time.advance(6 * HOUR + 10 * MIN + MIN); });
         assert.equal(d.f.calls.length, 1, '사슬이 죽어도 6시간 뒤 풀린다');
     });
-    await check('[§8 #5] 개정 감지 즉시 자동 승인(autoApprove) · 탐지 큐에 옮겨 적고 ids 와 함께 requestRun · 푸시 문구 · 원문신선도는 ids 없음 · 새벽 사슬(보류→점검 셋→풀기→남은 일 점검)', () => {
+    await check('[§8 #5] 개정 감지 즉시 자동 승인(autoApprove) · 탐지 큐에 옮겨 적고 ids 와 함께 requestRun · 푸시 문구 · 원문신선도는 ids 없음 · 새벽 03:00 하루 하나씩(보류→오늘 차례 점검→풀기→남은 일 점검)', () => {
         const S = require('../services/legal_amendment_scanner');
         const src0 = [{ id: 'chg_1', status: 'pending', 법령명: 'x' }];
         const out = S.autoApprove(src0, '2026-11-16T00:00:00.000Z');
@@ -814,10 +814,17 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.ok(/if \(req\.viaAutomation\) \{ try \{ autorun\.noteServed\('amend'/.test(lj), 'wiki-brief-all 이 내준 id 를 적는다');
         assert.ok(/if \(status === 'pending' && list\.length\) \{ try \{ autorun\.noteServed\('fresh'/.test(lj), 'freshness 가 내준 카드를 적는다');
         const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
-        const chain = sv.slice(sv.indexOf('async function runNariyaNightlyChain'), sv.indexOf("cron.schedule('0 1 * * *'"));
-        assert.ok(chain.indexOf('ar.setHold(true)') >= 0 && chain.indexOf('ar.setHold(true)') < chain.indexOf('runAmendmentScan()'), '사슬 시작에 깨우기 보류');
+        const chain = sv.slice(sv.indexOf('async function runNariyaNightly'), sv.indexOf("cron.schedule('0 3 * * *'"));
+        assert.ok(/const which = ar\.nightlyScanFor\(Date\.now\(\)\)/.test(chain), '오늘 차례를 nightlyScanFor 로 고른다');
+        assert.ok(chain.indexOf('ar.setHold(true)') >= 0 && chain.indexOf('ar.setHold(true)') < chain.indexOf('runAmendmentScan()'), '점검 전에 깨우기 보류');
         assert.ok(/\} finally \{[\s\S]*ar\.setHold\(false\)[\s\S]*ar\.sweep\(ar\.collectOutstanding\(\)\)/.test(chain), '끝나면(실패해도) 풀고 남은 일 점검');
-        assert.ok(!/cron\.schedule\('0 3 \* \* 0'/.test(sv) && !/cron\.schedule\('30 4/.test(sv), '옛 일요일 cron·04:30 cron 없음');
+        assert.ok(!/cron\.schedule\('0 3 \* \* 0'/.test(sv) && !/cron\.schedule\('30 4/.test(sv) && !/cron\.schedule\('0 1 \* \* \*'/.test(sv), '옛 일요일·01:00·04:30 cron 없음');
+        // 하루 하나씩 돌려 가며(사용자 「하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다」)
+        const at = (d) => A.nightlyScanFor(Date.parse(d + 'T03:00:00+09:00'));
+        const seq = ['2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23'].map(at);
+        assert.deepEqual(seq, ['amend', 'mok', 'fresh', 'amend', 'mok', 'fresh'], '개정 → 결손 → 낡음 순환 · 3일에 한 번씩');
+        assert.equal(A.nightlyScanFor(Date.parse('2026-11-18T00:10:00+09:00')), 'amend', 'KST 날짜로 고른다(UTC 로는 전날)');
+        assert.equal(A.nightlyScanFor(Date.parse('2026-11-18T23:59:00+09:00')), 'amend');
     });
 
     fs.rmSync(tmp, { recursive: true, force: true });

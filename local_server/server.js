@@ -358,57 +358,55 @@ cron.schedule('1 0 * * *', () => {
     } catch (e) { console.error('조석 카운트 리셋 오류:', e.message); }
 }, { timezone: 'Asia/Seoul' });
 
-// ── 나리야(해양법령) 새벽 점검 사슬 — 매일 01:00 KST 시작, 셋을 **차례로** 돌리고 끝나면 자동 반영 남은 일 점검 ──
-// ① 개정 감지(H-29 탐지엔진 detect_law_changes.py — 74법 소관부처 단위 광역질의, 실측 3~11분·상한 30분).
-//    새로 올린 카드는 감지 즉시 자동 승인된다(2026-11-16 사용자 「승인없이 되도록 진행하자.」 — legal_amendment_scanner autoApprove).
-//    (2026-09-10: 스크립트 절대경로·이미지 안 큐 경로 때문에 실서비스에서 결과를 낸 적이 없던 것을 고쳤다 — 상세는 그 파일 머리 주석.)
-// ② 원문 신선도(우리 원문의 판번호를 law.go.kr 현행본과 대조 — 행정규칙·법령·조례, 실측 2026-11-15 수동 1,504건 약 12분,
-//    스크립트 4개를 잇달아, 각 상한 60분). 새로 나왔거나 다시 뜬 카드는 자동 반영 세션이 받는다.
-// ③ 원문 결손(조문 목 누락 + 고시 별표·별지 누락 — 스크립트 2개, 각 상한 90분). 카드만 쌓는다(자동 반영 대상 아님 — 사용자 미결정).
-// ④ 자동 반영 남은 일 점검(services/nariya_autorun.js sweep) — 깨우기 실패·세션 실패로 남은 일을 다시 넘긴다. 우리 볼륨 파일만 읽는다.
-//
-// ★왜 매일인가(2026-11-16 사용자 「원문신선도 원문결손 개정감지 모두 매일하면 안되는 이유가있니?」): 종전 ②는 일요일 03:00,
-//   ③은 수요일 03:00 이었는데 그것은 「매일 하면 안 돼서」가 아니라 **겹치면 안 돼서**였다 — 2026-09-20 에 둘을 겹쳐 돌렸다가
-//   서로 느려져 전수 점검이 45/200 에서 멈춘 것을 실측했다.
-// ★왜 시각을 따로 걸지 않고 **사슬**로 잇나(2026-11-16 적대검증 #4): 각 점검의 상한은 스크립트 하나당이라(②는 4개×60분,
-//   ③은 2개×90분) 시각을 줄 세워도 최악에는 겹친다. 앞 점검이 끝나야 다음이 시작하게 이으면 겹칠 수가 없다.
-// ★왜 사슬 동안 세션 깨우기를 붙드나(적대검증 #5): ①이 자동 승인하면 10분 뒤 세션이 떠서 law.go.kr 수집을 돌린다 —
-//   그게 ②·③과 겹친다(같은 OC 열쇠). 그래서 사슬 동안 setHold(true)로 붙들고, 끝나면 풀어 그때 깨운다(붙듦 상한 6시간).
+// ── 나리야(해양법령) 새벽 점검 — 매일 03:00 KST, **하루 하나씩 돌려 가며** (2026-11-16 사용자 확정) ──
+// 사용자 원문: 「그럼 격일마다 하도록 하자 하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다 돌아가게」
+//   → 날마다 셋 중 하나: 개정감지 → 원문결손 → 원문신선도(낡음) → 다시 개정감지 … 각 점검은 3일에 한 번.
+//   고르는 규칙은 services/nariya_autorun.js nightlyScanFor(KST 날짜 번호 % 3) — 재시작해도 순서가 어긋나지 않는다.
+// ① 개정감지(H-29 detect_law_changes.py, 실측 3~11분·상한 30분). 창은 「마지막 성공 이후」(scanWindowDays)라 3일 걸러 돌아도
+//    그 사이 공포분을 덮는다. 새로 올린 카드는 감지 즉시 자동 승인(사용자 「승인없이 되도록 진행하자.」 — autoApprove).
+// ② 원문결손(조문 목·고시 별표 누락 — 스크립트 2개, 각 상한 90분). 카드만 쌓는다(자동 반영 대상 아님 — 사용자 미결정).
+// ③ 원문신선도(판번호 대조 — 행정규칙·법령·조례, 실측 2026-11-15 수동 1,504건 약 12분). 새로·다시 뜬 카드는 자동 반영 세션이 받는다.
+// 점검이 끝나면(실패해도) 자동 반영 「남은 일 점검」(nariya_autorun sweep — 우리 볼륨 파일만 읽음)을 돌린다.
+// ★한 밤에 하나만 돌리는 까닭: 셋 다 law.go.kr 을 두드린다 — 2026-09-20 에 둘을 겹쳐 돌렸다가 서로 느려져 전수 점검이
+//   45/200 에서 멈춘 것을 실측했다. 하나씩이면 겹칠 수가 없다.
+// ★점검 동안 세션 깨우기를 붙드는 까닭(적대검증 #5): 개정감지가 자동 승인하면 10분 뒤 세션이 떠 law.go.kr 수집을 돌리는데,
+//   그게 점검과 겹치지 않게 setHold(true)로 붙들었다가 끝나면 푼다(붙듦 상한 6시간).
 // ★시간대를 명시한 이유: Dockerfile 이 TZ=Asia/Seoul 을 걸어 두어 node-cron 이 식을 KST 로 읽는다(2026-08-27 확인, 위 배너) —
 //   이 파일의 정기작업은 전부 KST 로 적고 시간대도 명시한다.
-// [무엇도 멈추지 않는다] 한 점검이 실패해도 다음 점검으로 넘어간다(각자 실패 푸시·상태 파일이 있다). 위키·raw 는 서버가 직접 고치지 않는다.
-// [연계] services/legal_amendment_scanner.js · services/admrul_fresh_scanner.js · services/mok_audit_scanner.js
-//        · services/nariya_autorun.js(setHold·sweep·collectOutstanding) · routes/legal.js GET /api/legal/amendments·freshness·mok-audit
-async function runNariyaNightlyChain() {
+// [무엇도 멈추지 않는다] 점검이 실패해도 각자 실패 푸시·상태 파일이 있다. 위키·raw 는 서버가 직접 고치지 않는다.
+// [연계] services/legal_amendment_scanner.js · services/mok_audit_scanner.js · services/admrul_fresh_scanner.js
+//        · services/nariya_autorun.js(nightlyScanFor·setHold·sweep·collectOutstanding) · routes/legal.js GET /api/legal/amendments·freshness·mok-audit
+async function runNariyaNightly() {
     const ar = require('./services/nariya_autorun');
+    const which = ar.nightlyScanFor(Date.now());
     try { ar.setHold(true); } catch (e) { console.error('나리야 새벽 점검 — 세션 깨우기 보류 실패(점검은 계속):', e.message); }
     try {
-        console.log('⏰ [Daily Schedule] 나리야 개정 감지 스캔을 시작합니다.');
-        try {
+        if (which === 'amend') {
+            console.log('⏰ [Nightly · 개정감지 차례] 나리야 개정 감지 스캔을 시작합니다.');
             const r = await require('./services/legal_amendment_scanner').runAmendmentScan();
             console.log(`✅ [나리야 개정감지] 스캔 완료: ${r.scanned}건 조회, ${r.changed}건 변경 발견, ${r.errors}건 오류`);
-        } catch (e) { console.error('나리야 개정감지 스캔 오류:', e.message); }
-        console.log('⏰ [Daily Schedule] 나리야 원문 신선도 점검을 시작합니다.');
-        try {
-            const r = await require('./services/admrul_fresh_scanner').runFreshnessScan();
-            console.log(r.ok
-                ? `✅ [나리야 원문신선도] 점검 완료: ${r.checked}건 대조, 구버전 ${r.stale}건(새로 발견 ${r.added}건), 조회실패 ${r.unknown}건`
-                : `❌ [나리야 원문신선도] 점검 실패: ${r.error}`);
-        } catch (e) { console.error('나리야 원문신선도 점검 오류:', e.message); }
-        console.log('⏰ [Daily Schedule] 나리야 원문 결손 점검을 시작합니다.');
-        try {
+        } else if (which === 'mok') {
+            console.log('⏰ [Nightly · 원문결손 차례] 나리야 원문 결손 점검을 시작합니다.');
             const r = await require('./services/mok_audit_scanner').runMokAuditScan();
             console.log(r.ok
                 ? `✅ [나리야 원문결손] 점검 완료: ${r.checked}계열 대조, 누락 ${r.missing}건(새로 발견 ${r.added}건), 판정불가 ${r.no_answer}건`
                 : `❌ [나리야 원문결손] 점검 실패: ${r.error}`);
-        } catch (e) { console.error('나리야 원문결손 점검 오류:', e.message); }
+        } else {
+            console.log('⏰ [Nightly · 원문신선도 차례] 나리야 원문 신선도 점검을 시작합니다.');
+            const r = await require('./services/admrul_fresh_scanner').runFreshnessScan();
+            console.log(r.ok
+                ? `✅ [나리야 원문신선도] 점검 완료: ${r.checked}건 대조, 구버전 ${r.stale}건(새로 발견 ${r.added}건), 조회실패 ${r.unknown}건`
+                : `❌ [나리야 원문신선도] 점검 실패: ${r.error}`);
+        }
+    } catch (e) {
+        console.error(`나리야 새벽 점검(${which}) 오류:`, e.message);
     } finally {
         try { ar.setHold(false); } catch (e) { console.error('나리야 새벽 점검 — 세션 깨우기 보류 풀기 실패(6시간 뒤 저절로 풀림):', e.message); }
         try { ar.sweep(ar.collectOutstanding()); } catch (e) { console.error('나리야 자동 반영 남은 일 점검 오류:', e.message); }
     }
 }
-cron.schedule('0 1 * * *', () => {
-    runNariyaNightlyChain().catch((e) => console.error('나리야 새벽 점검 사슬 오류:', e.message));
+cron.schedule('0 3 * * *', () => {
+    runNariyaNightly().catch((e) => console.error('나리야 새벽 점검 오류:', e.message));
 }, { timezone: 'Asia/Seoul' });
 
 // ============================================================================

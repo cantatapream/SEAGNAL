@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 19:08 KST] ✅완료 — 나리야 새벽 점검 — 03:00 하루 하나씩 돌려 가기(개정→결손→낡음)
+사용자: 「그럼 격일마다 하도록 하자 하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다 돌아가게」 → 3일 순환으로 읽음(다르면 nightlyScanFor 만 바꿈). server.js runNariyaNightly(cron 0 3 * * * KST): 보류 → nightlyScanFor(KST 날짜 번호 % 3: 개정감지·원문결손·원문신선도) 하나 → 풀기 → sweep. 01:00 사슬 제거. 계산: 11-17 원문신선도 · 11-18 개정감지 · 11-19 원문결손. 개정감지 창은 scanWindowDays(최소 7일)라 3일 걸러도 공포분을 덮음(알림은 최대 3일 늦을 수 있음). 화면 문구·스캐너 주석·설계안 §8.2·_amendments/README 갱신. 시험: test_nariya_autorun 42/0(순환·KST 경계 포함) · test_mok_audit_scanner 31/0 · 관련 7종 0 FAIL · gen_rulebook --check 통과. PR #1475 에 이어서 올림.
+
+
 ### [2026-11-16 17:59 KST] ✅완료 — 나리야 자동 반영 2단계-가 — 개정 자동 승인·새벽 점검 사슬·남은 일 점검(+적대검증 반영)
 사용자: 「승인없이 되도록 진행하자.」 · 「원문신선도 원문결손 개정감지 모두 매일하면 안되는 이유가있니?」 · 매일 고정 세션 대신 일이 있을 때만. 구현: legal_amendment_scanner autoApprove(감지 즉시 승인+탐지 큐 옮겨 적기+requestRun ids) · server.js runNariyaNightlyChain(매일 01:00: setHold→개정감지→원문신선도→원문결손→풀기→sweep) · nariya_autorun noteServed/deferred 14일·failed/만료 3일 쉼·setHold(상한 6h)·sweep·collectOutstanding(errors→푸시) · routes noteServed · 관리자 화면 문구. 독립 적대검증 13건: 상1(main 보호 없음 — gh api protected:false 직접 확인, 사용자 결정으로 남김)·중 #2~#6 반영·하 #8~#10·#13 반영·#7·#11·#12 기록만(설계안 §8.6). 시험: test_nariya_autorun 42/0 · test_mok_audit_scanner 31/0 · 관련 7종 0 FAIL · gen_rulebook --check 통과 · verify_all(반영 전 커밋 기준) 실패는 브라우저 없는 환경 탓 UI 스위트 20건뿐(playwright-core/chromium 없음 — 위키 게이트 실패 0). 예약 작업 지침에 deferred_*_ids 추가(update_trigger). 다음: 사용자 결정 — ①main 보호 규칙 ②자동 승인 전부터 대기 중인 개정 카드 처리 ③원문결손도 자동 반영할지. PR 머지·배포 뒤 첫 새벽 실행 확인.
 

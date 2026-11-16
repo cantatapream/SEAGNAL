@@ -21,11 +21,11 @@
  *  자리에서 돌리면 **항상 빨갛다. 빨간 게이트는 곧 무시되는 게이트다.**
  *  그리고 **무엇도 멈추지 않는다** — 남의 서버 사정으로 우리 배포가 멈추면 안 된다.
  *
- * [왜 매일 새벽 사슬의 세 번째인가 — 2026-11-16 바뀜(종전 매주 수요일 03:00)]
+ * [왜 3일에 한 번(새벽 03:00 하루 하나씩)인가 — 2026-11-16 바뀜(종전 매주 수요일 03:00)]
  *  같은 law.go.kr 을 두드리는 작업이 둘 더 있다 — 개정감지·원문신선도. 2026-09-20 에 둘을 겹쳐 돌렸다가
  *  서로 느려져 전수 점검이 45/200 에서 멈춘 것을 실측했다. 종전에는 요일을 나눠 피했고, 사용자가 셋 다 매일로
- *  정하면서(「원문신선도 원문결손 개정감지 모두 매일하면 안되는 이유가있니?」) server.js runNariyaNightlyChain 이
- *  **앞 점검이 끝나야 다음을 시작**하게 잇는다(시각만 줄 세우면 상한이 스크립트당이라 최악에 겹친다 — 적대검증 #4).
+ *  정하려다(「원문신선도 원문결손 개정감지 모두 매일하면 안되는 이유가있니?」) 다시 「하루 개정 하루는 결손 하루는 낡음
+ *  이런식으로 새벽 3시마다」로 정했다 — server.js runNariyaNightly 가 **한 밤에 하나만** 돌린다(겹칠 수가 없다).
  *
  * [★이 점검은 판을 못 박은 뒤에야 믿을 수 있다 — 2026-09-21]
  *  `mok_audit.py` 는 원래 `lawService.do?target=law&MST=` 로 원본을 받았는데, 그 호출은
@@ -49,7 +49,7 @@
  *   이미지 안(`knowledge/legal/_dashboard/`)에 쓰면 배포마다 처리 목록이 사라진다.
  *
  * [연계]
- *  - server.js → runNariyaNightlyChain(매일 01:00 KST 사슬의 세 번째) `runMokAuditScan()`(2026-11-16 · 종전 매주 수요일 03:00)
+ *  - server.js → runNariyaNightly(새벽 03:00 KST · 3일에 한 번 결손 차례) `runMokAuditScan()`(2026-11-16 · 종전 매주 수요일 03:00)
  *  - services/legal_admin_queues.js → 큐 읽기·쓰기(원문신선도와 같은 JSONL 형식)
  *  - services/admin_push.js → sendAdminPush()
  *  - knowledge/legal/_dashboard/loop/mok_audit.py          → 조문 목 누락 대조
@@ -309,7 +309,7 @@ function readStatus() {
  * 주간 점검 1회. 점검 → 누락만 큐에 적재 → **새로 발견된 것이 있을 때만** 관리자 푸시.
  * 예: await runMokAuditScan() → {ok:true, checked:573, missing:5, added:1}
  * @returns {Promise<object>} 상태 객체(STATUS_FILE 에 쓰는 것과 같다)
- * [연계] server.js runNariyaNightlyChain(매일 01:00 사슬 · 2026-11-16 종전 매주 수요일)
+ * [연계] server.js runNariyaNightly(03:00 · 3일에 한 번 · 2026-11-16 종전 매주 수요일)
  */
 async function runMokAuditScan() {
   if (_scanning) return { ok: false, checked: 0, missing: 0, added: 0, error: '점검이 이미 진행 중입니다.' };
