@@ -81,13 +81,13 @@ function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch =
         res.send(trial.report(tid(req)));
     });
     // 「AI 특보 분석」 설정(관리자 센터 AI 탭) — 기능(read=특보 읽기·interpret=참고사항 해석)마다 AI 순서·칸별 모델·노력·ChatGPT 실행 위치.
-    //   GET → { config:{read,interpret}, choices, workers(Fly·VM 연결) } · POST { feature, order?, removed?, models? } → 저장 후 같은 모양.
+    //   GET → { config:{read,interpret,briefing}, choices, workers(Fly·VM 연결) } · POST { feature, order?, removed?, models?, attempts?(briefing 만) } → 저장 후 같은 모양.
     const aiState = () => ({ ok: true, config: bulletinAi.getConfig(), choices: bulletinAi.choices(), workers: require('../services/codex_bridge').workers(),
         status: require('../services/llm_chain').status([]) });
     router.get('/api/admin/bulletin-ai/config', authorize, (req, res) => { res.set('Cache-Control', 'no-store'); res.json(aiState()); });
     router.post('/api/admin/bulletin-ai/config', authorize, (req, res) => {
         const b = req.body || {};
-        const r = bulletinAi.setConfig(String(b.feature || ''), { order: b.order, removed: b.removed, models: b.models });
+        const r = bulletinAi.setConfig(String(b.feature || ''), { order: b.order, removed: b.removed, models: b.models, attempts: b.attempts });
         if (!r.ok) return res.status(400).json(r);
         res.json(aiState());
     });

@@ -598,7 +598,10 @@ function explainError(code) {
     return shown + ' — ' + why;
 }
 // 호출 시간 제한 기본값(B7) — VM 은 codex_bridge 자체 300초 뒤 조금 더, Gemini 는 어댑터 90초 뒤 조금 더(어댑터가 먼저 끊는다). VM 이 이 횟수만큼 잇달아 실패하면 그 실행 동안 VM 을 건너뛴다.
-const DEFAULT_TIMEOUTS = Object.freeze({ vm: 320000, gemini: 100000 }), VM_FAIL_LIMIT = 3;
+// 호출 시간 제한 — vm·chatgpt(Codex 작업자) 320초 · gemini 100초 · 클로드·업스테이지 130초(llm_chain 자체 제한 120초보다 조금 길게 — 그쪽이 먼저 끊는다, §11.10.51)
+const DEFAULT_TIMEOUTS = Object.freeze({ vm: 320000, chatgpt: 320000, gemini: 100000, claude1: 130000, claude2: 130000, upstage: 130000 }), VM_FAIL_LIMIT = 3;
+// AI 이름표(오류 글·진행 표시 — 관리자 「AI 모델 설정」 탭과 같은 이름)
+const AI_NAMES = Object.freeze({ vm: 'VM', chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: '클로드 키1', claude2: '클로드 키2', upstage: '업스테이지' });
 // 탈락한 글 보관(§11.10.31 — 사용자 「진행해줘.」): 문단 하나를 오류 기록에 남길 때 이 글자 수까지만. AI 응답 길이에는 상한이 없어(parseResponse 는 자르지 않는다)
 //   긴 글(검사 shape:…-too-long 으로 떨어지는 글)이 그대로 남으면, 1분 점검마다 통째로 읽고 쓰는 state.json 이 3일 동안 그만큼 커진다. 검사 상한(MAX_CHARS 460)의 두 배 남짓이라 보통 글은 다 남는다.
 const REJECTED_TEXT_MAX = 1000;
@@ -632,23 +635,32 @@ function rejectedOf(o, si) {
  *     → {overviews:{key:{land,sea,source:'chatgpt'|'gemini'|'template',model,hash,attempts,reused?}}, stats:{calls,reused,ai,template,retried,deadline,gemini}, errors:[{…,attempt}]}
  * @param {object} o - briefings·config·previous(key→지난 브리핑)·adapters{vm,gemini}·kma·now·timer·deadline·timeouts·vmFailLimit·vmAttempts·onProgress(진행 알림, 없어도 됨)
  * @returns {Promise<object>} [연계] ← station_briefing.run / → stationInput·batchInput·buildPrompt·parseResponse·validateOverview·explainError
+ * §11.10.51(2026-11-16 사용자 「ai 모델 설정 … ① 특보 통보문 읽기 리스트와 같이 … 다른 ai로도 돌아가도록」): config.method 'ai' + config.chain([{id, model, effort, runner, attempts}] —
+ *   관리자 「AI 모델 설정 → ④ 연안 안전 브리핑」 순서, bulletin_ai.briefingChain)이면 그 순서대로 — 칸마다 attempts 번(떨어진 관할만 다시), 다음 칸으로. 어댑터는 adapters[id](chatgpt·claude1·claude2·upstage·gemini).
+ *   실행 시작 때 못 쓰는 AI(키 없음·작업자 연결 없음 — adapter.available() 거짓)는 묶음마다 오류를 남기지 않고 건너뛰고 skipped 로 한 번만 돌려준다(키가 없는 AI 가 1순위여도 오류 기록이 불어나지 않게).
+ *   하나도 못 쓰면 오류 한 줄(stage call)과 함께 모두 규칙 분석. 연속 실패 차단기는 Gemini 를 뺀 칸마다(종전 VM 과 같은 vmFailLimit). config.chain 이 없으면 종전 사슬(VM vmAttempts 번 → Gemini) 그대로.
  */
 async function generate({ briefings, config, previous = {}, adapters = {}, kma = null, now = Date.now(), timer = Date.now, deadline = Infinity, timeouts = DEFAULT_TIMEOUTS, vmFailLimit = VM_FAIL_LIMIT, vmAttempts = VM_ATTEMPTS, onProgress = null }) {
     // 진행 알림(§11.10.7) — 받는 쪽(관리자 게이지)이 던져도 생성은 멈추지 않는다
     const tell = (ev) => { if (!onProgress) return; try { onProgress(ev); } catch (e) { console.warn('[station_briefing_ai] 진행 알림 실패(생성은 계속):', e && e.message); } };
-    const method = config.method || 'template', overviews = {}, errors = [], stats = { calls: 0, reused: 0, ai: 0, template: 0, retried: 0, deadline: 0, gemini: 0 };
-    const at = R.isoKst(now), preferred = method === 'chatgpt' ? 'chatgpt' : 'gemini';
+    const method = config.method || 'template', overviews = {}, errors = [], stats = { calls: 0, reused: 0, ai: 0, template: 0, retried: 0, deadline: 0, gemini: 0, byProvider: {} };
     const up = (a) => !!a && (typeof a.available !== 'function' || a.available());
-    let vmFails = 0, vmBroken = false;
+    // §11.10.51 사슬 방식: 시작 때 쓸 수 있는 칸만(못 쓰는 칸은 skipped — 이유는 adapter.why() 가 있으면 그것)
+    const chain = method === 'ai' && Array.isArray(config.chain) ? config.chain.filter((c) => c && typeof c.id === 'string') : null;
+    const chainUp = chain ? chain.filter((c) => up(adapters[c.id])) : null;
+    const skipped = chain ? chain.filter((c) => !up(adapters[c.id])).map((c) => { const a = adapters[c.id]; let why = '사용 불가'; try { if (a && typeof a.why === 'function') why = a.why() || why; } catch (_) { /* 이유 글 실패 — 기본 글 */ } return { id: c.id, reason: a ? why : '어댑터 없음' }; }) : [];
+    const at = R.isoKst(now), preferred = chain ? (chainUp[0] ? chainUp[0].id : null) : method === 'chatgpt' ? 'chatgpt' : 'gemini';
+    const fails = {}, broken = {};   // 공급자마다 연속 실패 수·차단(종전 vmFails·vmBroken 을 칸마다로 — Gemini 는 차단하지 않는다)
     const vmUp = method === 'chatgpt' && up(adapters.vm);
-    const items = briefings.map((b) => { const si = stationInput(b, kma); return { b, si, hash: R.hash({ si, rules: R.RULES_VERSION, validator: VALIDATOR_VERSION, prompt: PROMPT_VERSION, method, chatgptModel: method === 'chatgpt' ? config.chatgptModel : null, geminiModel: method !== 'template' ? config.geminiModel : null, kma: kma ? R.hash(kma) : null }) }; });
+    const chainSig = chain ? chain.map((c) => [c.id, c.model || '', c.effort || '', c.runner || ''].join(':')).join('>') : null;
+    const items = briefings.map((b) => { const si = stationInput(b, kma); return { b, si, hash: R.hash({ si, rules: R.RULES_VERSION, validator: VALIDATOR_VERSION, prompt: PROMPT_VERSION, method, ...(chainSig ? { chain: chainSig } : {}), chatgptModel: method === 'chatgpt' ? config.chatgptModel : null, geminiModel: method !== 'template' ? config.geminiModel : null, kma: kma ? R.hash(kma) : null }) }; });
     // AI 가 못 쓰면(틀 방식·실패·데드라인) AI 분석 없음 — 화면은 서버 규칙 분석 문단(summary.analysis)을 「규칙 분석」으로 보인다(§11.10.4).
     const template = (it) => { overviews[it.b.key] = { land: null, sea: null, source: 'template', model: null, hash: it.hash }; stats.template++; tell({ type: 'station', key: it.b.key, state: 'rule' }); };
     const pending = [];
     for (const it of items) {
         const prev = previous[it.b.key]?.overview;
         if (method === 'template') { template(it); continue; }
-        const sameSource = prev && (prev.source === preferred || (prev.source === 'gemini' && method === 'chatgpt' && !vmUp));
+        const sameSource = prev && (chain ? !!preferred && prev.source === preferred : (prev.source === preferred || (prev.source === 'gemini' && method === 'chatgpt' && !vmUp)));
         if (config.onlyChanged !== false && prev && prev.hash === it.hash && sameSource) { overviews[it.b.key] = { ...prev, reused: true }; stats.reused++; continue; }
         pending.push(it);
     }
@@ -659,31 +671,38 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     const feedback = new Map(), retried = new Set();
     /**
      * 공급자 하나로 한 번 부른다(그 묶음의 남은 관할). 꺼짐·차단이면 {skip}, 데드라인이 지났으면 {late}, 호출·해석 실패면 {res:null}(시도로 셈), 성공이면 {res}.
-     * @param {string} p - vm|gemini @param {object[]} group @param {number} attempt - 몇 번째 시도 @returns {Promise<object>}
+     * @param {string} p - vm|gemini(종전) 또는 사슬 칸 id(chatgpt·claude1·claude2·upstage·gemini) @param {object[]} group @param {number} attempt - 몇 번째 시도
+     * @param {object} [pick] - 사슬 칸 {model, effort, runner} @returns {Promise<object>}
      */
-    async function callOne(p, group, attempt) {
+    async function callOne(p, group, attempt, pick) {
         const keys = group.map((it) => it.b.key), a = adapters[p];
-        if (p === 'vm' && vmBroken) { errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: 'VM 연속 실패 ' + vmFails + '회 — 이번 실행은 건너뜀' }); return { skip: true }; }
-        if (!up(a)) { errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: p === 'vm' ? 'VM 작업자 연결 없음' : '사용 불가' }); return { skip: true }; }
+        if (broken[p]) { if (!chain) errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: AI_NAMES[p] + ' 연속 실패 ' + fails[p] + '회 — 이번 실행은 건너뜀' }); return { skip: true }; }   // 사슬은 차단될 때 한 줄만(아래 catch — 독립 검토 3)
+        if (!up(a)) { errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: p === 'vm' ? 'VM 작업자 연결 없음' : p === 'chatgpt' ? 'ChatGPT 작업자 연결 없음' : '사용 불가' }); return { skip: true }; }
         const left = deadline - timer();
         if (left <= 0) return { late: true };
         const fb = new Map(group.filter((it) => feedback.has(it.b.key)).map((it) => [it.b.key, { attempt, reasons: feedback.get(it.b.key) }]));
         const prompt = buildPrompt(batchInput(group.map((it) => it.si), kma, fb.size ? fb : null));
-        const model = p === 'vm' ? config.chatgptModel : config.geminiModel, ms = Math.max(1, Math.min(timeouts[p] || DEFAULT_TIMEOUTS.gemini, left)), ac = new AbortController();
+        const model = pick ? pick.model : p === 'vm' ? config.chatgptModel : config.geminiModel, limit = timeouts[p] || (p === 'chatgpt' && timeouts.vm) || DEFAULT_TIMEOUTS[p] || DEFAULT_TIMEOUTS.gemini;
+        const ms = Math.max(1, Math.min(limit, left)), ac = new AbortController();
         let tid = null, timedOut = false;
         try {
             stats.calls++; if (p === 'gemini') stats.gemini++;
-            const text = await Promise.race([a.call({ prompt, model, signal: ac.signal }), new Promise((_, rej) => { tid = setTimeout(() => { timedOut = true; ac.abort(); rej(new Error(p + ' 시간초과(' + Math.round(ms / 1000) + '초)')); }, ms); })]);
+            const text = await Promise.race([a.call({ prompt, model, signal: ac.signal, ...(pick ? { effort: pick.effort || null, runner: pick.runner || null } : {}) }), new Promise((_, rej) => { tid = setTimeout(() => { timedOut = true; ac.abort(); rej(new Error(p + ' 시간초과(' + Math.round(ms / 1000) + '초)')); }, ms); })]);
             const map = parseResponse(text);
-            if (p === 'vm') vmFails = 0;
-            return { res: { provider: p === 'vm' ? 'chatgpt' : 'gemini', model, map } };
+            fails[p] = 0;
+            return { res: { provider: p === 'vm' ? 'chatgpt' : p, model, map } };
         } catch (e) {
             const parse = e.message === 'invalid response' || e instanceof SyntaxError;
             errors.push({ at, stage: parse ? 'parse' : 'call', provider: p, stations: keys, attempt, reason: String(e.message || e).slice(0, 120) });
             if (parse) for (const k of keys) feedback.set(k, [explainError('parse')]);
             // 데드라인까지 남은 시간이 1초도 안 돼(설정한 호출 시간 제한보다 짧게) 끊긴 시간초과는 VM 고장이 아니다 — 차단기에 세지 않는다(§11.10.5 독립 검토 7).
-            const budgetCut = timedOut && ms < 1000 && left < (timeouts[p] || DEFAULT_TIMEOUTS.gemini);
-            if (p === 'vm' && !budgetCut && ++vmFails >= vmFailLimit) vmBroken = true;
+            const budgetCut = timedOut && ms < 1000 && left < limit;
+            // 차단기: 종전엔 VM 만 — 사슬에서는 Gemini(마지막 안전망)를 뺀 칸마다
+            if ((p === 'vm' || (chain && p !== 'gemini')) && !budgetCut && (fails[p] = (fails[p] || 0) + 1) >= vmFailLimit) broken[p] = true;
+            // 사슬: 응답 없이 시간초과면 그 칸은 이번 실행에서 바로 건너뜀(독립 검토 2 — 칸마다 130초×3번을 기다리면 앞칸 셋이 20분 데드라인을 다 써 ChatGPT·Gemini 가 한 번도 못 불림).
+            //   그리고 차단은 묶음마다가 아니라 이 한 줄로만 남긴다(독립 검토 3). 종전 사슬(VM)은 그대로.
+            if (chain && p !== 'gemini' && !budgetCut && !broken[p] && timedOut) broken[p] = true;
+            if (chain && broken[p]) errors.push({ at, stage: 'call', provider: p, stations: keys, attempt, reason: AI_NAMES[p] + (timedOut ? ' 시간초과' : ' 연속 실패 ' + fails[p] + '회') + ' — 이번 실행은 건너뜀' });
             return { res: null };
         } finally { clearTimeout(tid); }
     }
@@ -693,7 +712,7 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
         for (const it of group) {
             if (!res) { failed.push(it); tell({ type: 'station', key: it.b.key, state: 'retry', attempt }); continue; }
             const o = polishOverview(res.map.get(it.b.key)), v = o ? validateOverview(o, it.si) : { ok: false, errors: ['missing:station'] };   // §11.10.17 — 고칠 수 있는 것은 먼저 고친다
-            if (v.ok) { overviews[it.b.key] = { land: o.land || null, sea: o.sea, source: res.provider, model: res.model, hash: it.hash, attempts: attempt }; stats.ai++; feedback.delete(it.b.key); tell({ type: 'station', key: it.b.key, state: 'done', attempt }); }
+            if (v.ok) { overviews[it.b.key] = { land: o.land || null, sea: o.sea, source: res.provider, model: res.model, hash: it.hash, attempts: attempt }; stats.ai++; stats.byProvider[res.provider] = (stats.byProvider[res.provider] || 0) + 1; feedback.delete(it.b.key); tell({ type: 'station', key: it.b.key, state: 'done', attempt }); }
             else { errors.push({ at, stage: 'validate', provider: res.provider, stations: [it.b.key], attempt, reason: v.errors.slice(0, 6).join(','), ...rejectedOf(o, it.si) }); feedback.set(it.b.key, v.errors.slice(0, 8).map(explainError)); failed.push(it); tell({ type: 'station', key: it.b.key, state: 'retry', attempt }); }
         }
         return failed;
@@ -702,18 +721,25 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     // 묶음마다 상태 — 시도 사슬(VM 최대 vmAttempts 번 → Gemini 1번, VM 을 한 번도 못 불렀으면 Gemini 2번)은 종전 그대로.
     // 순서만 바꿨다(§11.10.5 독립 검토 3): 종전엔 앞 묶음이 다시 시도를 다 쓴 뒤에야 다음 묶음의 첫 시도를 해, 데드라인에 뒤쪽 해양경찰서들이 첫 시도도 못 하고 규칙 분석이 됐다.
     // 이제 한 바퀴마다 모든 묶음이 한 걸음씩 — ①모든 묶음 첫 시도 ②떨어진 관할 2번째 ③3번째 ④Gemini … (묶음 안의 시도 번호·통계·차단기는 같다).
-    const states = groupBy(pending, unit).map((g) => ({ name: bname(g), left: g, attempt: 0, vmTried: false, late: false, p: method === 'chatgpt' ? 'vm' : 'gemini', n: method === 'chatgpt' ? vmAttempts : 2 }));
+    // 시도 단계: 사슬이면 쓸 수 있는 칸마다 attempts 번(1~3), 종전이면 VM vmAttempts 번 → Gemini 1번(VM 을 한 번도 못 불렀으면 2번 — n2).
+    const plan = chain ? chainUp.map((c) => ({ p: c.id, n: Math.min(3, Math.max(1, Number(c.attempts) || 1)), pick: c }))
+        : method === 'chatgpt' ? [{ p: 'vm', n: vmAttempts }, { p: 'gemini', n: 1, n2: 2 }] : [{ p: 'gemini', n: 2 }];
+    if (chain && !chainUp.length && pending.length) errors.push({ at, stage: 'call', provider: null, stations: pending.map((it) => it.b.key), reason: '쓸 수 있는 AI 없음 — ' + (skipped.map((x) => AI_NAMES[x.id] + '(' + x.reason + ')').join(', ') || '순서에 AI 없음') });
+    const states = groupBy(pending, unit).map((g) => ({ name: bname(g), left: g, attempt: 0, tried: false, late: false, k: 0, p: plan.length ? plan[0].p : 'done', n: plan.length ? plan[0].n : 0 }));
     /** 묶음 g 를 한 걸음(호출 한 번) 진행한다. 공급자를 건너뛰면(꺼짐·차단) 같은 걸음에서 다음 공급자로. @param {object} g @returns {Promise<void>} */
     const step = async (g) => {
         while (g.p !== 'done') {
             if (!g.left.length) { g.p = 'done'; return; }
-            if (g.n <= 0) { if (g.p === 'vm') { g.p = 'gemini'; g.n = g.vmTried ? 1 : 2; continue; } g.p = 'done'; for (const it of g.left) tell({ type: 'station', key: it.b.key, state: 'rule' }); return; }
+            if (g.n <= 0) {
+                if (++g.k < plan.length) { const nx = plan[g.k]; g.p = nx.p; g.n = nx.n2 && !g.tried ? nx.n2 : nx.n; continue; }
+                g.p = 'done'; for (const it of g.left) tell({ type: 'station', key: it.b.key, state: 'rule' }); return;
+            }
             if (past()) { g.late = true; g.p = 'done'; return; }
-            tell({ type: 'call', batch: g.name, keys: g.left.map((it) => it.b.key), provider: g.p === 'vm' ? 'chatgpt' : 'gemini', attempt: g.attempt + 1 });
-            const r = await callOne(g.p, g.left, g.attempt + 1);
+            tell({ type: 'call', batch: g.name, keys: g.left.map((it) => it.b.key), provider: g.p === 'vm' ? 'chatgpt' : g.p, attempt: chain ? plan[g.k].n - g.n + 1 : g.attempt + 1 });   // 사슬 게이지 글은 그 칸 안에서 몇 번째(독립 검토 5 — 「클로드 키1 1번째」). 기록(overview·오류)의 attempt 는 종전처럼 묶음 전체 누적
+            const r = await callOne(g.p, g.left, g.attempt + 1, plan[g.k].pick);
             if (r.late) { g.late = true; g.p = 'done'; return; }
             if (r.skip) { g.n = 0; continue; }
-            g.n--; g.attempt++; if (g.p === 'vm') g.vmTried = true;
+            g.n--; g.attempt++; if (g.p === 'vm') g.tried = true;
             if (g.attempt > 1) for (const it of g.left) retried.add(it.b.key);
             g.left = accept(g.left, r.res, g.attempt);
             return;
@@ -725,7 +751,7 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     if (lateKeys.length) { errors.push({ at, stage: 'deadline', provider: null, stations: lateKeys, reason: '실행 데드라인 넘음 — ' + lateKeys.length + '곳은 규칙 분석(AI 분석 없음)' }); stats.deadline += lateKeys.length; }
     for (const g of states) for (const it of g.left) template(it);
     stats.retried = retried.size;
-    return { overviews, stats, errors };
+    return { overviews, stats, errors, skipped };
 }
 
-module.exports = { SCHEMA, VALIDATOR_VERSION, anaphoraCountOk, PROMPT_VERSION, REJECTED_TEXT_MAX, rejectedOf, polishOverview, LEVEL_NEED_RE, FORBIDDEN, KMA_ZONE_NAMES, KMA_BIG_GROUPS, zoneWord, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
+module.exports = { AI_NAMES, SCHEMA, VALIDATOR_VERSION, anaphoraCountOk, PROMPT_VERSION, REJECTED_TEXT_MAX, rejectedOf, polishOverview, LEVEL_NEED_RE, FORBIDDEN, KMA_ZONE_NAMES, KMA_BIG_GROUPS, zoneWord, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
