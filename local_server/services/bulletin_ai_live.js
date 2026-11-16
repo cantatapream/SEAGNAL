@@ -18,7 +18,7 @@
  * [연계]
  *  - 사용하는 파일 : services/bulletin_watch(bulletins) · services/bulletin_ai(call 'interpret' — 관리자 「AI 모델 설정」 ② 순서) ·
  *                   services/bulletin_ai_trial(buildPrompt·resolveZones·namedParents·isLand·KINDS — 시험 3차례에서 검산한 것 그대로)
- *  - 저장          : data/bulletin_ai_live.json(통보문별 AI 답·검사 결과, 5일)
+ *  - 저장          : data/bulletin_ai_live.json(통보문별 AI 답·검사 결과 — 관찰기가 그 통보문을 들고 있는 동안)
  *  - 나를 쓰는 곳  : scheduler.js(관찰기 다음 매분, 기다리지 않음) · services/bulletin_status.js(candidates) ·
  *                   routes/bulletin_watch.js(GET /api/admin/bulletin-ai-live/report.md) · 검사 test_bulletin_ai_live
  * [로드 순서] 없음(서버 모듈)
@@ -30,11 +30,18 @@ const crypto = require('crypto');
 const T = require('./bulletin_ai_trial');
 
 const FILE = path.join(__dirname, '..', 'data', 'bulletin_ai_live.json');
-const KEEP_MS = 5 * 86400e3;          // 관찰기 정리(5일)와 같게
 const RETRY_MS = 10 * 60e3;           // AI 실패 뒤 다시 시도까지
 const MAX_TRIES = 3;                  // 세 번 실패하면 그 통보문은 「AI 실패」로 두고 더 부르지 않는다
 const CONTEXT_N = 8;                  // 맥락으로 줄 같은 관서 앞선 통보문 수
 const AUTO = new Set(['예비취소', '해제예고변경', '해제예고연장', '정확해제시각']);
+const MIN_EVIDENCE = 10;             // 근거 문장 최소 글자(공백 뺀) — 「해제」 두 글자로 통과하지 않게(적대검증 2026-11-16)
+const SEA = /(바다|해상|구역|해역|연안|평수)/;
+const CHILDISH = /연안바다|평수구역|제외|\s중\s/;
+// 시각 꼴: 「17일」만은 안 된다 — 날+시간대 또는 시각(「17일 오전(09시~12시)」 「17일 06시」 「오늘 밤」)
+const TIMEISH = /(\d+\s*시|새벽|아침|오전|낮|오후|저녁|밤|늦은|이른)/;
+let _oz = null;
+/** 관서 → 관할 부모 해역(analysis/bulletin_survey/office_zones.json — resolveZones 와 같은 표). */
+function officeZones() { if (!_oz) { try { _oz = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'office_zones.json'), 'utf8')); } catch (e) { console.warn('[참고사항 AI] 관할 표 없음 — 자동 반영 안 함', e && e.message); _oz = {}; } } return _oz; }
 const clean = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/\r/g, '').trim();
 const norm = (s) => String(s || '').replace(/\s+/g, '');
 const isNone = (s) => /^o?\s*없\s*음$/i.test(clean(s).replace(/\s+/g, ' '));
@@ -84,13 +91,26 @@ function promptOf(b, all) {
 function checkEvent(e, item, bodyZones) {
     if (!e || typeof e !== 'object') return { 판정: '확인필요', 까닭: '사건 꼴이 아니다' };
     if (!T.KINDS.includes(e.종류)) return { 판정: '확인필요', 까닭: `정해진 종류가 아니다(${e.종류})` };
-    if (!norm(e.근거문장) || !norm(item.참고사항).includes(norm(e.근거문장))) return { 판정: '확인필요', 까닭: '근거 문장이 참고사항 원문에 그대로 없다' };
+    const ev = norm(e.근거문장), ex = norm(e.해역표현);
+    if (ev.length < MIN_EVIDENCE || !norm(item.참고사항).includes(ev)) return { 판정: '확인필요', 까닭: `근거 문장이 참고사항 원문에 그대로 없거나 너무 짧다(${MIN_EVIDENCE}자 미만)` };
     if (T.isLand(e.해역표현)) return { 판정: '참고', 까닭: '육상 지역 — 바다 특보가 아니다' };
-    const zones = T.resolveZones(e.해역표현, { office: item.office, bodyZones });
-    if (!zones || !zones.length) return { 판정: '확인필요', 까닭: '해역 표현을 규칙이 관할 안에서 펼치지 못했다' };
-    if (!AUTO.has(e.종류)) return { 판정: '참고', 까닭: '자동으로 덧씌우지 않는 종류(기록만)', zones };
-    if (e.종류 !== '예비취소') {
-        if (!e.시간_후 || !norm(e.근거문장).includes(norm(e.시간_후))) return { 판정: '확인필요', 까닭: '바뀐 해제 시각(시간_후)이 없거나 근거 문장에 그 글자가 없다', zones };
+    const auto = AUTO.has(e.종류);
+    // 자동 반영 종류는 해역을 문장에서 직접 읽을 수 있을 때만(적대검증 2026-11-16) —
+    //   해역 낱말 없는 표현·「위 구역」은 본문·참고사항에 나온 해역 전부로 펼쳐져 엉뚱한 곳까지 걸린다 → 관리자 확인
+    if (auto && (!SEA.test(String(e.해역표현 || '')) || /^위\s*(구역|해역|지역)/.test(String(e.해역표현 || '').trim()))) return { 판정: '확인필요', 까닭: '해역 이름이 없는 표현(「위 구역」 등) — 어느 해역인지 문장만으로 못 정한다' };
+    if (auto && !ev.includes(ex)) return { 판정: '확인필요', 까닭: '해역 표현이 근거 문장 안에 없다' };
+    //   자식(연안바다·평수구역)·「제외」·「A 중 B」를 말한 표현은 규칙이 부모로 접어 형제 자식까지 걸린다 → 관리자 확인(부모 이름만 = 자식 전부, 확정 규칙)
+    if (auto && CHILDISH.test(String(e.해역표현 || ''))) return { 판정: '확인필요', 까닭: '자식 해역·제외를 말한 표현 — 부모 전체로 덧씌우면 안 된다', zones: T.resolveZones(e.해역표현, { office: item.office }) || undefined };
+    const zones = T.resolveZones(e.해역표현, { office: item.office, bodyZones: auto ? undefined : bodyZones });
+    if (!zones || !zones.length) return { 판정: '확인필요', 까닭: '해역 표현을 규칙이 펼치지 못했다' };
+    if (!auto) return { 판정: '참고', 까닭: '자동으로 덧씌우지 않는 종류(기록만)', zones };
+    //   관할 밖 해역(이웃 관서 해역을 함께 적는 일 — README 광주 5-9호)은 자동으로 안 한다
+    const own = officeZones()[item.office] || [];
+    if (zones.some((z) => !own.includes(z))) return { 판정: '확인필요', 까닭: `관할 밖 해역이 들어 있다(${zones.filter((z) => !own.includes(z)).join(', ')})`, zones };
+    if (e.종류 === '예비취소') {
+        if (!/해제|취소/.test(ev)) return { 판정: '확인필요', 까닭: '근거 문장에 해제·취소 낱말이 없다', zones };
+    } else if (!e.시간_후 || !TIMEISH.test(String(e.시간_후)) || !ev.includes(norm(e.시간_후))) {
+        return { 판정: '확인필요', 까닭: '바뀐 해제 시각(시간_후)이 시각 꼴이 아니거나 근거 문장에 그 글자가 없다', zones };
     }
     return { 판정: '후보', 까닭: '검사 통과', zones };
 }
@@ -142,10 +162,15 @@ function createLive({ ai = (p) => require('./bulletin_ai').call('interpret', p, 
             }).sort((x, y) => x.result.tmIn.localeCompare(y.result.tmIn));
             let n = 0;
             for (const b of todo) { await runOne(b, all); save(); n++; if (gapMs) await sleep(gapMs); }
-            const cut = now() - KEEP_MS;
-            let pruned = false;
-            for (const [k, d] of Object.entries(st.done)) if ((d.inMs || 0) < cut) { delete st.done[k]; pruned = true; }
-            if (pruned) save();
+            // 정리: 관찰기에 더는 없는 통보문(관찰기가 5일 뒤 지움)과 참고사항이 바뀌어 옛 열쇠가 된 기록만 지운다.
+            //   통보문 입력시각으로 자르면 관찰기가 아직 들고 있는 통보문을 매분 다시 AI 에 보낸다(적대검증 2026-11-16 — 재현 5분에 5번).
+            //   관찰기 목록이 비었으면(읽기 실패 등) 지우지 않는다 — 다 지우면 전부 다시 부른다.
+            if (all.length) {
+                const live = new Set(all.map(keyOf));
+                let pruned = false;
+                for (const k of Object.keys(st.done)) if (!live.has(k)) { delete st.done[k]; pruned = true; }
+                if (pruned) save();
+            }
             return { done: n };
         } finally { running = false; }
     }
@@ -157,8 +182,18 @@ function createLive({ ai = (p) => require('./bulletin_ai').call('interpret', p, 
      */
     function candidates() {
         load();
+        // 지금 관찰기가 들고 있는 판만 — 참고사항이 고쳐진 옛 판·같은 호를 다시 낸 앞 판의 해석은 쓰지 않는다(규칙 latest() 와 같은 규칙, 적대검증 2026-11-16)
+        const cur = watch.bulletins().filter((b) => b && b.result && b.result.tmIn);
+        const live = new Set(cur.map(keyOf));
+        const lastIn = new Map();
+        for (const b of cur) { const h = b.office + '|' + String(b.result.tmFc).slice(0, 4) + '|' + b.result.t1Title; if (!(lastIn.get(h) >= b.result.tmIn)) lastIn.set(h, b.result.tmIn); }
         const out = [];
-        for (const d of Object.values(st.done)) if (d.ok) for (const e of d.events) if (e.판정 === '후보') out.push({ 종류: e.종류, zones: e.zones, office: d.office, ho: d.ho, inMs: d.inMs, 시간_후: e.시간_후 || null, 근거문장: e.근거문장 });
+        for (const [k, d] of Object.entries(st.done)) {
+            if (!d.ok || !live.has(k)) continue;
+            const b = cur.find((x) => x.code === d.code);
+            if (b && lastIn.get(b.office + '|' + String(b.result.tmFc).slice(0, 4) + '|' + b.result.t1Title) > b.result.tmIn) continue;
+            for (const e of d.events) if (e.판정 === '후보') out.push({ 종류: e.종류, zones: e.zones, office: d.office, ho: d.ho, inMs: d.inMs, 시간_전: e.시간_전 || null, 시간_후: e.시간_후 || null, 근거문장: e.근거문장 });
+        }
         return out.sort((a, b) => a.inMs - b.inMs);
     }
     /** 저장된 통보문별 기록 전부(입력시각 순) — 보고서용. */

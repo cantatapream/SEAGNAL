@@ -149,11 +149,12 @@ function compute(bulletins, nowMs, cands = []) {
         if (!lastY) continue;
         const tY = KST(lastY.result.tmIn);
         const released = new Set(yebiRelease.filter((x) => x.ms >= tY).flatMap((x) => [...x.units]));
-        for (const e of parseYebiList(lastY.result.t4, lastY.result.tmFc)) {
-            if (e.end + YEBI_WAIT_MS <= nowMs) continue;              // 끝나고 10분 지남
+        const ylist = parseYebiList(lastY.result.t4, lastY.result.tmFc).filter((e) => e.end + YEBI_WAIT_MS > nowMs);   // 끝나고 10분 지난 것은 뺌
+        const wins = {}; for (const e of ylist) wins[e.unit] = (wins[e.unit] || 0) + 1;   // 단위별 남은 시간창 수 — AI 예비취소가 다른 시간창까지 지우지 않게
+        for (const e of ylist) {
             if (released.has(e.unit) || zones[e.unit]) continue;       // 예비 해제 통보문·정식 특보가 이미 있음
             if (e.end <= nowMs) waiting.push(e.unit);
-            zones[e.unit] = { parent: parentOf(e.unit), kind: 'yebi', type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, clr: '', ho: lastY.result.t1Title, endMs: e.end, inMs: tY };
+            zones[e.unit] = { parent: parentOf(e.unit), kind: 'yebi', type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, clr: '', ho: lastY.result.t1Title, endMs: e.end, inMs: tY, yebiWins: wins[e.unit] };
         }
     }
     const aiApplied = applyAi(zones, cands);
@@ -163,6 +164,7 @@ function compute(bulletins, nowMs, cands = []) {
 /**
  * 참고사항 AI 후보를 규칙 결과 위에 덧씌운다 — 그 단위의 규칙 근거 통보문보다 후보 통보문이 더 새것일 때만(새 것이 이긴다).
  *   예비취소 → 예비 단위를 뺀다(예비 목록 통보문이 1~4분 늦게 오는 틈 — 늦게 온 목록이 그 해역을 다시 적으면 그 목록이 더 새것이라 다시 들어온다).
+ *             단, 그 단위에 남은 예비 시간창이 둘 이상이면 어느 시간창인지 못 가려 안 뺀다.
  *   해제예고변경·해제예고연장·정확해제시각 → 발효 중 특보 단위의 해제 예고 칸을 시간_후 글자로.
  * 후보의 해역은 부모 이름(resolveZones) — 그 부모와 그 자식 단위에 건다.
  * 예: zones { 남해동부바깥먼바다: {kind:'yebi', inMs: 10:00} } + 후보 { 종류:'예비취소', zones:['남해동부바깥먼바다'], inMs: 10:02 } → 뺌
@@ -175,7 +177,8 @@ function applyAi(zones, cands) {
         const ps = new Set(c.zones || []);
         for (const [u, z] of Object.entries(zones)) {
             if (!(ps.has(u) || ps.has(z.parent)) || !(c.inMs > (z.inMs || 0))) continue;
-            if (c.종류 === '예비취소' && z.kind === 'yebi') { delete zones[u]; out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '예비 뺌' }); }
+            //   예비 시간창이 둘 이상 남은 단위는 문장이 어느 시간창을 지웠는지 단위만으로 못 가린다 → 안 덧씌움(적대검증 2026-11-16)
+            if (c.종류 === '예비취소' && z.kind === 'yebi' && !(z.yebiWins > 1)) { delete zones[u]; out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '예비 뺌' }); }
             else if (c.종류 !== '예비취소' && z.kind === 'formal' && c.시간_후) {
                 Object.assign(z, { clr: c.시간_후, inMs: c.inMs, ai: { ho: c.ho, 종류: c.종류 } });
                 out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '해제 예고 → ' + c.시간_후 });

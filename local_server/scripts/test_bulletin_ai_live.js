@@ -30,6 +30,20 @@ const tmp = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bai-live-')),
         const c2 = L.checkEvent({ 종류: '해제예고변경', 해역표현: '제주도서부앞바다', 시간_후: '17일 오전(09시~12시)', 근거문장: '제주도서부앞바다 풍랑주의보 해제 예고 시각을 17일 오전(09시~12시)으로 변경합니다.' }, item, []);
         ok('해제예고변경 + 시간_후 글자가 근거 문장에 있음 → 후보', c2.판정 === '후보', c2);
         ok('해제예고변경인데 시간_후 가 근거 문장에 없음(AI 가 지어낸 시각) → 관리자 확인', L.checkEvent({ 종류: '해제예고변경', 해역표현: '제주도서부앞바다', 시간_후: '17일 밤', 근거문장: '제주도서부앞바다 풍랑주의보 해제 예고 시각을 17일 오전(09시~12시)으로 변경합니다.' }, item, []).판정 === '확인필요');
+        // 적대검증 2026-11-16 재현 사례 — 전부 관리자 확인으로 가야 한다
+        const item2 = { office: '제주청', 참고사항: 'o 추자도 부근의 풍랑예비특보는 해제합니다.\no 위 구역의 풍랑예비특보는 해제합니다. 제주도서부앞바다 풍랑주의보는 유지합니다.\no 제주도서부앞바다 중 북서연안바다의 풍랑예비특보는 해제합니다.\no 동해중부앞바다의 풍랑예비특보는 해제합니다.\no 제주도남쪽바깥먼바다 예비특보는 유지합니다.\no 제주도서부앞바다 풍랑주의보 해제 예고는 17일로 바뀝니다.' };
+        const body = ['제주도남쪽바깥먼바다', '제주도동부앞바다', '제주도서부앞바다'];
+        for (const [name, e] of [
+            ['#2 해역표현 null', { 종류: '예비취소', 해역표현: null, 근거문장: '추자도 부근의 풍랑예비특보는 해제합니다.' }],
+            ['#2 해역 낱말 없는 「추자도 부근」', { 종류: '예비취소', 해역표현: '추자도 부근', 근거문장: '추자도 부근의 풍랑예비특보는 해제합니다.' }],
+            ['#8 「위 구역」', { 종류: '예비취소', 해역표현: '위 구역', 근거문장: '위 구역의 풍랑예비특보는 해제합니다.' }],
+            ['#3 자식만 말함(「A 중 북서연안바다」)', { 종류: '예비취소', 해역표현: '제주도서부앞바다 중 북서연안바다', 근거문장: '제주도서부앞바다 중 북서연안바다의 풍랑예비특보는 해제합니다.' }],
+            ['#6 관할 밖(제주청 글의 동해중부앞바다)', { 종류: '예비취소', 해역표현: '동해중부앞바다', 근거문장: '동해중부앞바다의 풍랑예비특보는 해제합니다.' }],
+            ['#7 근거 두 글자 「해제」', { 종류: '예비취소', 해역표현: '제주도남쪽바깥먼바다', 근거문장: '해제' }],
+            ['#7 근거에 없는 해역(동부앞바다)', { 종류: '예비취소', 해역표현: '제주도동부앞바다', 근거문장: '제주도남쪽바깥먼바다 예비특보는 유지합니다.' }],
+            ['#7 근거에 해제·취소 낱말 없음(「유지」)', { 종류: '예비취소', 해역표현: '제주도남쪽바깥먼바다', 근거문장: '제주도남쪽바깥먼바다 예비특보는 유지합니다.' }],
+            ['#7 시간_후 「17일」만(시각 꼴 아님)', { 종류: '해제예고변경', 해역표현: '제주도서부앞바다', 시간_후: '17일', 근거문장: '제주도서부앞바다 풍랑주의보 해제 예고는 17일로 바뀝니다.' }],
+        ]) { const c = L.checkEvent(e, item2, body); ok('적대검증 ' + name + ' → 관리자 확인', c.판정 === '확인필요', c); }
         ok('특보발표가능성 = 자동 반영 안 함(참고)', L.checkEvent({ 종류: '특보발표가능성', 해역표현: '제주도남쪽바깥먼바다', 근거문장: '내일 풍랑특보 발표 가능성이 있습니다.' }, item, ['제주도남쪽바깥먼바다']).판정 === '참고');
     }
 
@@ -63,13 +77,28 @@ const tmp = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bai-live-')),
         list[1].result.other = 'o 제주도남쪽바깥먼바다의 풍랑예비특보는 해제합니다.\no 추가 안내.';
         mode = 'fail';
         await live.run();
+        ok('적대검증 #4 참고사항이 고쳐지면 옛 판 해석은 후보에서 빠짐', live.candidates().length === 0, live.candidates());
         ok('참고사항 글이 바뀌면 다시 읽힘(실패 → 기록)', prompts.length === 3 && live.entries().some((d) => d.code === 'c2' && !d.ok && d.tries === 1));
         await live.run();
         ok('실패 뒤 10분 안에는 다시 안 부름', prompts.length === 3);
         t += 11 * 60e3; await live.run(); t += 11 * 60e3; await live.run(); t += 11 * 60e3; await live.run();
         ok('세 번 실패하면 더 안 부름', prompts.length === 5, prompts.length);
-        t = K('2026-11-22 10:00'); await live.run();
-        ok('5일 지난 기록은 지움', live.entries().length === 0, live.entries().length);
+        const before = prompts.length;
+        t = K('2026-11-22 10:00'); await live.run(); t += 60e3; await live.run();
+        ok('관찰기가 아직 들고 있는 통보문은 입력시각이 5일 지나도 다시 안 부름(적대검증 #1 — 매분 재호출)', prompts.length === before, prompts.length - before);
+        list.length = 0; await live.run();
+        ok('관찰기 목록이 비면(읽기 실패 등) 기록을 안 지움', live.entries().length > 0);
+        list.push(W('c9', '제11-9호', '2026-11-22 09:00', {})); await live.run();
+        ok('관찰기에서 빠진 통보문의 기록은 지움', live.entries().length === 0, live.entries().map((d) => d.code));
+        {   // 같은 호를 새 code 로 다시 낸 판 — 앞 판의 해석은 쓰지 않는다(규칙 latest() 와 같은 규칙)
+            const ai2 = async () => ({ success: true, text: JSON.stringify({ 사건: [{ 종류: '예비취소', 해역표현: '제주도남쪽바깥먼바다', 근거문장: '제주도남쪽바깥먼바다의 풍랑예비특보는 해제합니다.' }] }) });
+            const l2 = [Y('r1', '제11-4호', '2026-11-16 10:02', 'o 없음', 'o 제주도남쪽바깥먼바다의 풍랑예비특보는 해제합니다.')];
+            const lv = L.createLive({ ai: ai2, watch: { bulletins: () => l2 }, file: tmp(), now: () => K('2026-11-16 10:10'), gapMs: 0 });
+            await lv.run();
+            const n1 = lv.candidates().length;
+            l2.push(Y('r2', '제11-4호', '2026-11-16 10:04', 'o 없음', 'o 없음'));
+            ok('적대검증 #4 같은 호를 다시 낸 판이 있으면 앞 판 해석은 후보에서 빠짐', n1 === 1 && lv.candidates().length === 0, [n1, lv.candidates().length]);
+        }
         const md = L.reportMarkdown([{ ok: true, office: '제주청', ho: '제11-2호', tmIn: '2026-11-16 09:00:30', events: [{ 판정: '확인필요', 종류: '예비취소', 해역표현: 'x', 까닭: '근거 없음', 근거문장: 'y' }] }], [{ office: '제주청', ho: '제11-2호', unit: 'a', 종류: '예비취소', what: '예비 뺌' }]);
         ok('보고서: 요약·덧씌운 것·관리자 확인 칸', /## 지금 덧씌운 것[\s\S]*예비 뺌/.test(md) && /## 관리자 확인 필요[\s\S]*근거 없음/.test(md));
     }
@@ -95,6 +124,8 @@ const tmp = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bai-live-')),
         ok('후보 해역이 아닌 곳은 안 건드림', S.compute([formal, yebi], now, [clr(K('2026-11-16 09:20'))]).zones['제주도남쪽바깥먼바다'].kind === 'yebi');
         ok('해제예고변경은 예비를 안 건드리고, 예비취소는 정식을 안 건드림', !S.applyAi({ a: { parent: 'P', kind: 'yebi', inMs: 0 }, b: { parent: 'Q', kind: 'formal', inMs: 0, clr: 'x' } },
             [{ 종류: '해제예고변경', zones: ['P'], inMs: 1, 시간_후: 'y' }, { 종류: '예비취소', zones: ['Q'], inMs: 1 }]).length);
+        const two = Y('y3', '제11-8호', '2026-11-16 09:00', '(1) 풍랑 예비특보\n o 11월 16일 오후(12시~18시) : 제주도남쪽바깥먼바다\n o 11월 17일 새벽(00시~06시) : 제주도남쪽바깥먼바다');
+        ok('적대검증 #5 그 단위에 예비 시간창이 둘 남았으면 예비취소를 안 덧씌움(다른 시간창까지 지우지 않게)', S.compute([two], now, [cancel(K('2026-11-16 09:30'))]).zones['제주도남쪽바깥먼바다']);
         const d = path.dirname(tmp());
         const out = S.run({ watch: { bulletins: () => [yebi] }, ai: { enabled: true, candidates: () => [cancel(K('2026-11-16 09:30'))] }, now: () => now, file: path.join(d, 's.json') });
         ok('run(): 덧씌운 것을 aiApplied 로 저장', out.aiApplied.length === 1 && S.read(path.join(d, 's.json')).aiApplied.length === 1);
