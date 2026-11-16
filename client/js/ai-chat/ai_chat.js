@@ -2723,7 +2723,9 @@
     // 버튼은 서버가 방을 열 때 GitHub 에서 다시 읽어 「지금 머지할 수 있다」(canMerge)고 판정한 PR 에만 그린다 —
     //   눌러도 실패할 버튼을 보여 주지 않는다(적대검증 C#중-3). 그 밖에는 왜 안 되는지 한 줄.
     var open = p.status === 'needs_human' || p.status === 'waiting' || p.status === 'failed_checks';
-    var btn = open && p.canMerge ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">🔀 머지</button></div>'
+    var stale = p.check && p.check.state === 'stale';   // main 이 바뀜 — 누르면 서버가 최신 main 을 얹고 다시 검사(약 20분 뒤 다시 눌러야 머지)
+    var btn = open && p.canMerge ? (stale ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">🔄</span>검사 뒤 main 이 바뀌었습니다 — 버튼을 누르면 최신 main 으로 다시 검사하고, 약 20분 뒤 다시 누르면 머지됩니다.</div>' : '') +
+        '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">' + (stale ? '🔄 최신 main 으로 다시 검사' : '🔀 머지') + '</button></div>'
       : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || p.check.state) + '</div>' : '';
     return cardShell({
       id: String(p.number), badge: 'PR #' + p.number, title: (p.summary || '(요약 없음)').slice(0, 160),

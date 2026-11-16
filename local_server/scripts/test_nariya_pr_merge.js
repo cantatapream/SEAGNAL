@@ -46,11 +46,12 @@ function fakeTime(start = T0) {
     };
 }
 const RUN_SINCE = T0 - HOUR;                         // 그 세션이 일을 시작한 시각
-const prJson = (o = {}) => Object.assign({ number: 9, title: '자동 반영 PR', state: 'open', merged: false, mergeable: true, created_at: new Date(T0 - 10 * MIN).toISOString(),
+const RUN = 'ar-run-1';
+const prJson = (o = {}) => Object.assign({ number: 9, title: '자동 반영 PR', state: 'open', merged: false, mergeable: true, created_at: new Date(T0 - 10 * MIN).toISOString(), body: '자동 반영\n\nnariya-run: ' + RUN,
     base: { ref: 'main' }, head: { ref: 'claude/youthful-gates-x', sha: SHA, repo: { full_name: 'cantatapream/SEAGNAL' } } }, o);
 const run = (conclusion, status = 'completed', name = M.REQUIRED_CHECK, extra = {}) => Object.assign({ name, status, conclusion, app: { slug: 'github-actions' }, started_at: new Date(T0 - 5 * MIN).toISOString() }, extra);
 const WIKI = ['local_server/knowledge/legal/wiki/statutes/항만법.md', 'local_server/knowledge/legal/raw/항만법/법률.md', 'local_server/knowledge/legal/HANDOFF.md'];
-const CTX = (o = {}) => Object.assign({ mainAt: T0 - 30 * MIN, auto: true, files: WIKI, runSince: RUN_SINCE, owner: true }, o);
+const CTX = (o = {}) => Object.assign({ behindBy: 0, auto: true, files: WIKI, runSince: RUN_SINCE, owner: true, runId: RUN }, o);
 /** 가짜 GitHub — gh.pr / gh.runs / gh.files / gh.mainAt / gh.merge / gh.update 를 바꿔 상황을 만든다. */
 function fakeGh() {
     const g = async (url, init) => {
@@ -61,16 +62,16 @@ function fakeGh() {
             const page = Number((/[?&]page=(\d+)/.exec(url) || [])[1] || 1);
             return { ok: true, status: 200, json: async () => ({ total_count: g.runs.length, check_runs: g.runs.slice((page - 1) * 100, page * 100) }) };
         }
-        if (init.method === 'GET' && /\/commits\/main$/.test(url)) return { ok: true, status: 200, json: async () => ({ commit: { committer: { date: new Date(g.mainAt).toISOString() } } }) };
+        if (init.method === 'GET' && /\/compare\/main\.\.\./.test(url)) return { ok: true, status: 200, json: async () => ({ behind_by: g.behind }) };
         if (init.method === 'GET' && /\/files\?/.test(url)) {
             const page = Number((/[?&]page=(\d+)/.exec(url) || [])[1] || 1);
-            return { ok: true, status: 200, json: async () => g.files.slice((page - 1) * 100, page * 100).map((f) => ({ filename: f })) };
+            return { ok: true, status: 200, json: async () => g.files.slice((page - 1) * 100, page * 100).map((f) => (typeof f === 'string' ? { filename: f } : f)) };
         }
         if (init.method === 'PUT' && /\/update-branch$/.test(url)) { const u = g.update(JSON.parse(init.body)); return { ok: u.ok, status: u.status, json: async () => ({}) }; }
         if (init.method === 'PUT' && /\/merge$/.test(url)) { const m = g.merge(JSON.parse(init.body)); if (m.ok) { g.pr = Object.assign({}, g.pr, { merged: true, state: 'closed' }); } return { ok: m.ok, status: m.status, json: async () => m.json }; }
         return { ok: false, status: 404, json: async () => ({}) };
     };
-    g.calls = []; g.pr = prJson(); g.runs = [run(null, 'in_progress')]; g.files = WIKI.slice(); g.mainAt = T0 - 30 * MIN;
+    g.calls = []; g.pr = prJson(); g.runs = [run(null, 'in_progress')]; g.files = WIKI.slice(); g.behind = 0;
     g.merge = () => ({ ok: true, status: 200, json: { merged: true } });
     g.update = () => ({ ok: true, status: 202 });
     return g;
@@ -84,6 +85,7 @@ function make(o = {}) {
 const quiet = async (fn) => { const o = { log: console.log, warn: console.warn, error: console.error }; console.log = console.warn = console.error = () => {}; try { await fn(); } finally { Object.assign(console, o); } };
 const merges = (gh) => gh.calls.filter((c) => c.method === 'PUT' && /\/merge$/.test(c.url));
 const OWN = { owner: true, runSince: RUN_SINCE };
+const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, needs_decision: needs || [] }, extra || {});
 
 (async () => {
     await check('J judge — 공통 조건(열린 PR·main·claude/ 가지·같은 저장소·GitHub Actions 의 필수 검사 success·다른 검사 실패 없음·mergeable·최신 main) · 자동은 결정 필요·범위·주인·시각까지', () => {
@@ -105,7 +107,10 @@ const OWN = { owner: true, runSince: RUN_SINCE };
         assert.equal(ok(prJson({ mergeable: false }), [run('success')]).state, 'conflict');
         assert.equal(ok(prJson({ mergeable: null }), [run('success')]).state, 'pending');
         assert.equal(ok(prJson(), [run('success'), run('skipped', 'completed', '다른 검사')]).state, 'green');
-        assert.equal(ok(prJson(), [run('success')], CTX({ mainAt: T0 })).state, 'stale', '검사 뒤 main 이 바뀌면 stale(적대검증 C#중-6)');
+        assert.equal(ok(prJson(), [run('success')], CTX({ behindBy: 2 })).state, 'stale', 'PR 가지가 main 보다 뒤처지면 stale(재검토 중-C — 커밋 시각이 아니라 compare behind_by)');
+        assert.equal(ok(prJson(), [run('success')], CTX({ behindBy: undefined })).state, 'error', 'main 과의 차이를 모르면 머지 안 함');
+        assert.equal(ok(prJson({ body: '표식 없음' }), [run('success')]).state, 'foreign', 'PR 본문에 그 run 의 표식이 없으면 자동 아님(재검토 중-D)');
+        assert.equal(ok(prJson({ body: 'nariya-run: ar-other' }), [run('success')]).state, 'foreign', '다른 run 의 표식');
         // 자동만
         assert.equal(ok(prJson(), [run('success')], CTX({ files: WIKI.concat(['local_server/routes/legal.js']) })).state, 'scope', '서버 코드');
         assert.equal(ok(prJson(), [run('success')], CTX({ files: ['.github/workflows/verify-all-gate.yml'] })).state, 'scope', '워크플로');
@@ -115,12 +120,12 @@ const OWN = { owner: true, runSince: RUN_SINCE };
         assert.equal(ok(prJson(), [run('success')], CTX({ filesTruncated: true })).state, 'scope');
         assert.equal(ok(prJson(), [run('success')], CTX({ owner: false })).state, 'foreign', '잠금 주인이 아닌 run(적대검증 C#상-2)');
         assert.equal(ok(prJson({ created_at: new Date(RUN_SINCE - MIN).toISOString() }), [run('success')]).state, 'foreign', '세션 시작 전에 있던 PR');
-        assert.equal(ok(prJson(), [run('success')], CTX({ auto: false, files: ['local_server/routes/legal.js'], owner: false })).state, 'green', '버튼(사람)은 범위·주인 조건 없음');
+        assert.equal(ok(prJson({ body: '' }), [run('success')], CTX({ auto: false, files: ['local_server/routes/legal.js'], owner: false, runId: null })).state, 'green', '버튼(사람)은 범위·주인·표식 조건 없음');
     });
 
     await check('T track — 주인·결정 필요 0건·열쇠 → auto · 그 밖은 human(까닭) · 이미 맡은 PR 에 결정 필요가 오면 사람 몫으로 내림 · 다른 저장소 주소 거절', async () => {
         const c = make();
-        assert.deepEqual(c.m.track({ pr_url: URL(9), run_id: 'ar-1', needs_decision: [], summary: '개정 3건' }, OWN), { tracked: true, mode: 'auto', why: undefined, how: undefined });
+        assert.deepEqual(c.m.track(TR(9, [], { summary: '개정 3건' }), OWN), { tracked: true, mode: 'auto', why: undefined, how: undefined });
         assert.equal(c.m.track({ pr_url: URL(10), needs_decision: ['폴더 결정'] }, OWN).mode, 'human');
         const f = c.m.track({ pr_url: URL(11), needs_decision: [] }, {});
         assert.equal(f.mode, 'human'); assert.ok(/잠금 주인/.test(f.why), '주인 아님 → 사람 몫');
@@ -138,7 +143,7 @@ const OWN = { owner: true, runSince: RUN_SINCE };
 
     await check('A1 자동 머지 — 진행 중이면 5분마다 · 초록 → 검사한 sha 로 머지 · 푸시 「자동 머지 완료 · 배포 시작」', async () => {
         const c = make();
-        c.m.track({ pr_url: URL(9), needs_decision: [], summary: '개정 3건 반영' }, OWN);
+        c.m.track(TR(9, [], { summary: '개정 3건 반영' }), OWN);
         await quiet(() => c.time.advance(5 * MIN));
         assert.equal(merges(c.gh).length, 0); assert.equal(c.m.list().prs[0].check.state, 'pending');
         c.gh.runs = [run('success')];
@@ -154,14 +159,14 @@ const OWN = { owner: true, runSince: RUN_SINCE };
 
     await check('A2 범위 밖 파일·주인 아님 → 첫 확인에서 바로 사람 몫 + 「앱에서 머지 버튼」 푸시 · 머지 안 함', async () => {
         const c = make(); c.gh.runs = [run('success')]; c.gh.files = WIKI.concat(['local_server/services/nariya_pr_merge.js']);
-        c.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => c.time.advance(5 * MIN));
+        c.m.track(TR(9), OWN); await quiet(() => c.time.advance(5 * MIN));
         assert.equal(merges(c.gh).length, 0); assert.equal(c.m.list().prs[0].status, 'needs_human'); assert.equal(c.m.list().prs[0].how, 'button');
         assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(c.push.sent[0].t) && /위키·원문 밖 파일/.test(c.push.sent[0].b) && /「자동반영」 방/.test(c.push.sent[0].b));
     });
 
     await check('A3 검사 실패 → failed_checks + 푸시 · 30분마다 계속 보다가 다시 돌려 초록이 되면 자동 머지(적대검증 C#중-2) · 24시간 뒤엔 그만', async () => {
         const c = make(); c.gh.runs = [run('failure')];
-        c.m.track({ pr_url: URL(9), needs_decision: [] }, OWN);
+        c.m.track(TR(9), OWN);
         await quiet(() => c.time.advance(5 * MIN));
         assert.equal(c.m.list().prs[0].status, 'failed_checks'); assert.ok(/검사 실패 · 자동 머지 안 함/.test(c.push.sent[0].t) && /머지 버튼이 잠깁니다/.test(c.push.sent[0].b));
         await quiet(() => c.time.advance(HOUR)); assert.equal(c.push.sent.length, 1, '실패 푸시는 한 번');
@@ -169,48 +174,48 @@ const OWN = { owner: true, runSince: RUN_SINCE };
         await quiet(() => c.time.advance(30 * MIN));
         assert.equal(merges(c.gh).length, 1); assert.equal(c.m.list().prs[0].status, 'merged');
         const d = make(); d.gh.runs = [run('failure')];
-        d.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => d.time.advance(25 * HOUR));
+        d.m.track(TR(9), OWN); await quiet(() => d.time.advance(25 * HOUR));
         const n = d.gh.calls.length; await quiet(() => d.time.advance(5 * HOUR)); assert.equal(d.gh.calls.length, n, '24시간 뒤엔 안 봄');
     });
 
     await check('A4 main 이 바뀜(stale) → update-branch(expected_head_sha) 한 번 → 다시 검사 · 얹기 거절 → GitHub 몫', async () => {
-        const c = make(); c.gh.runs = [run('success')]; c.gh.mainAt = T0;   // 검사(T0-5분)보다 main 이 새것
-        c.m.track({ pr_url: URL(9), needs_decision: [] }, OWN);
+        const c = make(); c.gh.runs = [run('success')]; c.gh.behind = 3;   // main 이 3커밋 앞섬
+        c.m.track(TR(9), OWN);
         await quiet(() => c.time.advance(5 * MIN));
         const up = c.gh.calls.filter((x) => /update-branch$/.test(x.url));
         assert.equal(up.length, 1); assert.deepEqual(up[0].body, { expected_head_sha: SHA }); assert.equal(merges(c.gh).length, 0);
         await quiet(() => c.time.advance(5 * MIN));
         assert.equal(c.gh.calls.filter((x) => /update-branch$/.test(x.url)).length, 1, '같은 head 로는 한 번만');
         c.gh.pr = prJson({ head: { ref: 'claude/youthful-gates-x', sha: SHA2, repo: { full_name: 'cantatapream/SEAGNAL' } } });
-        c.gh.runs = [run('success', 'completed', M.REQUIRED_CHECK, { started_at: new Date(T0 + 11 * MIN).toISOString() })];
+        c.gh.behind = 0; c.gh.runs = [run('success')];
         await quiet(() => c.time.advance(5 * MIN));
         assert.equal(merges(c.gh).length, 1); assert.equal(merges(c.gh)[0].body.sha, SHA2, '새 head(main 을 얹은 커밋)로 머지');
-        const d = make(); d.gh.runs = [run('success')]; d.gh.mainAt = T0; d.gh.update = () => ({ ok: false, status: 422 });
-        d.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => d.time.advance(5 * MIN));
+        const d = make(); d.gh.runs = [run('success')]; d.gh.behind = 1; d.gh.update = () => ({ ok: false, status: 422 });
+        d.m.track(TR(9), OWN); await quiet(() => d.time.advance(5 * MIN));
         assert.equal(d.m.list().prs[0].status, 'needs_human'); assert.equal(d.m.list().prs[0].how, 'github');
     });
 
     await check('A5 충돌·필수 검사 30분 없음·skipped → GitHub 몫 · 3시간 → 버튼 몫 · 401 → 열쇠 몫(바로) · 머지 거절 → 버튼 몫 · GitHub 에서 먼저 머지 → merged(푸시 없음)', async () => {
         const a = make(); a.gh.runs = [run('success')]; a.gh.pr = prJson({ mergeable: false });
-        a.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => a.time.advance(5 * MIN));
+        a.m.track(TR(9), OWN); await quiet(() => a.time.advance(5 * MIN));
         assert.equal(a.m.list().prs[0].how, 'github'); assert.ok(/앱 버튼으로는 풀 수 없습니다/.test(a.push.sent[0].b) && /자동 머지 안 함 · 확인 필요/.test(a.push.sent[0].t));
         const b = make(); b.gh.runs = [];
-        b.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => b.time.advance(35 * MIN));
+        b.m.track(TR(9), OWN); await quiet(() => b.time.advance(35 * MIN));
         assert.equal(b.m.list().prs[0].status, 'needs_human'); assert.ok(/30분/.test(b.m.list().prs[0].why));
         const s2 = make(); s2.gh.runs = [run('skipped')];
-        s2.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => s2.time.advance(5 * MIN));
+        s2.m.track(TR(9), OWN); await quiet(() => s2.time.advance(5 * MIN));
         assert.equal(s2.m.list().prs[0].status, 'needs_human'); assert.ok(/돌지 않음/.test(s2.m.list().prs[0].why));
         const c = make();
-        c.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => c.time.advance(3 * HOUR + 10 * MIN));
+        c.m.track(TR(9), OWN); await quiet(() => c.time.advance(3 * HOUR + 10 * MIN));
         assert.ok(/3시간/.test(c.m.list().prs[0].why)); assert.equal(c.m.list().prs[0].how, 'button');
         const k = make(); k.gh.fail = (url) => /\/pulls\/9$/.test(url); k.gh.failStatus = 401;
-        k.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => k.time.advance(5 * MIN));
+        k.m.track(TR(9), OWN); await quiet(() => k.time.advance(5 * MIN));
         assert.equal(k.m.list().prs[0].how, 'secrets'); assert.ok(/HTTP 401/.test(k.m.list().prs[0].why), '적대검증 C#하-1');
         const d = make(); d.gh.runs = [run('success')]; d.gh.merge = () => ({ ok: false, status: 405, json: { message: 'Base branch was modified' } });
-        d.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => d.time.advance(5 * MIN));
+        d.m.track(TR(9), OWN); await quiet(() => d.time.advance(5 * MIN));
         assert.equal(d.m.list().prs[0].how, 'button'); assert.ok(/405/.test(d.m.list().prs[0].why));
         const e = make(); e.gh.pr = prJson({ merged: true, state: 'closed' });
-        e.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => e.time.advance(5 * MIN));
+        e.m.track(TR(9), OWN); await quiet(() => e.time.advance(5 * MIN));
         assert.equal(e.m.list().prs[0].status, 'merged'); assert.equal(e.push.sent.length, 0);
     });
 
@@ -221,7 +226,7 @@ const OWN = { owner: true, runSince: RUN_SINCE };
         const gh2 = async (url, init) => { if (init.method === 'GET' && /\/pulls\/9$/.test(url) && gh2.hold) { gh2.hold = false; await slow; } return orig(url, init); };
         gh2.hold = true;
         const m = M.createMerger({ file: newFile(), now: c.time.now, setTimer: c.time.setTimer, clearTimer: c.time.clearTimer, fetch: gh2, push: c.push, env: PROD() });
-        m.track({ pr_url: URL(9), needs_decision: [] }, OWN);
+        m.track(TR(9), OWN);
         const pressing = m.mergeNow(9);                      // GitHub 응답이 늦는 버튼
         await quiet(() => c.time.advance(5 * MIN));          // 그 사이 5분 확인이 울림(busy)
         release(); await quiet(async () => { await pressing; });
@@ -240,7 +245,7 @@ const OWN = { owner: true, runSince: RUN_SINCE };
         const d = make(); d.gh.runs = [run('failure')]; d.m.track({ pr_url: URL(11), needs_decision: ['x'] }, OWN);
         r = await d.m.mergeNow(11); assert.equal(r.state, 'failed'); assert.equal(merges(d.gh).length, 0);
         d.gh.runs = [run(null, 'in_progress')]; r = await d.m.mergeNow(11); assert.equal(r.state, 'pending');
-        d.gh.runs = [run('success')]; d.gh.mainAt = T0; r = await d.m.mergeNow(11);
+        d.gh.runs = [run('success')]; d.gh.behind = 2; r = await d.m.mergeNow(11);
         assert.equal(r.state, 'stale'); assert.ok(/20분 뒤 다시/.test(r.why)); assert.equal(d.gh.calls.filter((x) => /update-branch$/.test(x.url)).length, 1);
         assert.equal((await d.m.mergeNow(99)).status, 404);
         assert.equal((await d.m.mergeNow(-1)).status, 400);
@@ -261,18 +266,39 @@ const OWN = { owner: true, runSince: RUN_SINCE };
         assert.equal(c.m.list().prs[0].status, 'merged');
     });
 
+    await check('재검토 — 이름 바꾸기는 옛 경로도 봄(중-A) · failed_checks 인 auto PR 에 결정 필요 → 사람 몫(중-B) · stale 이 3시간 넘으면 넘김(중-C) · 사람 몫 PR 이 stale 이어도 버튼이 열림(상-신규)', async () => {
+        const a = make(); a.gh.runs = [run('success')];
+        a.gh.files = [{ filename: 'local_server/knowledge/legal/wiki/x.md', status: 'renamed', previous_filename: 'local_server/knowledge/legal/_dashboard/loop/pinned/reach_eval_base.json' }];
+        a.m.track(TR(9), OWN); await quiet(() => a.time.advance(5 * MIN));
+        assert.equal(merges(a.gh).length, 0); assert.equal(a.m.list().prs[0].status, 'needs_human'); assert.ok(/_dashboard\/loop/.test(a.m.list().prs[0].why));
+        const b = make(); b.gh.runs = [run('failure')];
+        b.m.track(TR(9), OWN); await quiet(() => b.time.advance(5 * MIN));
+        assert.equal(b.m.list().prs[0].status, 'failed_checks');
+        b.m.track({ pr_url: URL(9), run_id: 'ar-2', needs_decision: ['사장님 판단'] }, {});
+        b.gh.runs = [run('success')]; await quiet(() => b.time.advance(HOUR));
+        assert.equal(merges(b.gh).length, 0, '결정 필요가 붙은 뒤엔 자동 머지 안 함'); assert.equal(b.m.list().prs[0].status, 'needs_human');
+        const c = make(); c.gh.runs = [run('success')]; c.gh.behind = 1;   // update-branch 가 받아들여졌지만 head 가 안 바뀜
+        c.m.track(TR(9), OWN); await quiet(() => c.time.advance(3 * HOUR + 10 * MIN));
+        assert.equal(c.m.list().prs[0].status, 'needs_human'); assert.ok(/3시간/.test(c.m.list().prs[0].why));
+        const n = c.gh.calls.length; await quiet(() => c.time.advance(5 * HOUR)); assert.equal(c.gh.calls.length, n, '넘긴 뒤엔 안 봄');
+        const d = make(); d.gh.runs = [run('success')]; d.gh.behind = 4;
+        d.m.track(TR(10, ['폴더']), OWN); await quiet(() => d.m.refresh());
+        assert.equal(d.m.list().prs[0].canMerge, true); assert.equal(d.m.list().prs[0].check.state, 'stale');
+        const r = await d.m.mergeNow(10); assert.equal(r.state, 'stale'); assert.ok(/20분 뒤 다시/.test(r.why));
+    });
+
     await check('P 운영 아님이면 GitHub 를 안 부름 · 시작 때 기다리던 PR 확인 되살림 · check-runs 100개 넘으면 다음 쪽까지 · 상태가 파일에 남음', async () => {
         const c = make({ env: { FLY_APP_NAME: 'seagnal-staging', GITHUB_MERGE_TOKEN: 'x' } });
-        c.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => c.time.advance(10 * MIN)); await quiet(() => c.m.refresh());
+        c.m.track(TR(9), OWN); await quiet(() => c.time.advance(10 * MIN)); await quiet(() => c.m.refresh());
         assert.equal(c.gh.calls.length, 0);
         const time = fakeTime(), gh = fakeGh(); gh.runs = [run('success')];
-        const a = make({ time, gh }); a.m.track({ pr_url: URL(9), needs_decision: [] }, OWN);
+        const a = make({ time, gh }); a.m.track(TR(9), OWN);
         const b = make({ time, gh, file: a.file });
         assert.equal(b.m.start().waiting, 1);
         await quiet(() => time.advance(MIN));
         assert.equal(merges(gh).length, 1); assert.equal(JSON.parse(fs.readFileSync(a.file, 'utf8')).prs[0].status, 'merged');
         const d = make(); d.gh.runs = [run('success')].concat([...Array(120)].map((_, i) => run('success', 'completed', 'x' + i))).concat([run('failure', 'completed', '맨 끝 실패')]);
-        d.m.track({ pr_url: URL(9), needs_decision: [] }, OWN); await quiet(() => d.time.advance(5 * MIN));
+        d.m.track(TR(9), OWN); await quiet(() => d.time.advance(5 * MIN));
         assert.equal(merges(d.gh).length, 0, '101번째 뒤의 실패도 본다(적대검증 C#하-3)'); assert.equal(d.m.list().prs[0].status, 'failed_checks');
     });
 

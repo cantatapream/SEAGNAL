@@ -84,7 +84,8 @@ function outsideAuto(files) {
 /**
  * PR·검사·(있으면) 파일 목록·main 시각으로 머지할 수 있는지 판정한다(순수 함수 — 시험이 직접 먹인다).
  * @param {object} pr GitHub PR 응답 @param {object[]} runs check_runs
- * @param {{mainAt?:number, auto?:boolean, files?:string[], filesTruncated?:boolean, runSince?:number, owner?:boolean}} [ctx]
+ * @param {{behindBy?:number, auto?:boolean, files?:string[], filesTruncated?:boolean, runSince?:number, owner?:boolean, runId?:string}} [ctx]
+ *   behindBy: main 에는 있고 PR head 에는 없는 커밋 수(GET /compare/main...{head}). 0 이면 head 가 main 을 다 품었다 — 검사한 head 와 머지 결과가 같다.
  * @returns {{ok:boolean, state:string, why?:string, sha?:string, how?:string}}
  *   state: green · pending · failed · conflict · missing · skipped · stale · scope · foreign · merged · closed · invalid
  *   how(사람에게 넘길 때 어떻게 풀리나): button · github
@@ -104,6 +105,8 @@ function judge(pr, runs, ctx) {
         if (!c.owner) return { ok: false, state: 'foreign', why: '이 PR 을 보낸 세션이 잠금 주인인지 확인하지 못함', sha, how: 'button' };
         const created = Date.parse(pr.created_at || '');
         if (!Number.isFinite(created) || !Number.isFinite(c.runSince) || created < c.runSince) return { ok: false, state: 'foreign', why: '이 PR 이 그 세션이 일을 시작한 뒤에 만들어진 것인지 확인하지 못함', sha, how: 'button' };
+        // PR 본문의 표식 「nariya-run: <run_id>」가 done 을 보낸 run 과 같아야 한다(재검토 중-D — 세션이 다른 PR 번호를 잘못 보고해도 자동 머지되지 않게).
+        if (typeof c.runId !== 'string' || !c.runId || String(pr.body || '').indexOf('nariya-run: ' + c.runId) < 0) return { ok: false, state: 'foreign', why: 'PR 본문에 이 세션의 표식(nariya-run: ' + String(c.runId || '?').slice(0, 64) + ')이 없음', sha, how: 'button' };
         if (c.filesTruncated) return { ok: false, state: 'scope', why: '바뀐 파일이 너무 많아 다 보지 못함', sha, how: 'button' };
         const out = outsideAuto(c.files);
         if (!Array.isArray(c.files) || out.length) return { ok: false, state: 'scope', why: '위키·원문 밖 파일을 고침: ' + (out.slice(0, 3).join(', ') || '(목록 없음)') + (out.length > 3 ? ` 외 ${out.length - 3}개` : ''), sha, how: 'button' };
@@ -118,10 +121,10 @@ function judge(pr, runs, ctx) {
     if (!req.every((r) => r.conclusion === 'success')) return { ok: false, state: 'pending', why: '검사 진행 중', sha, how: 'button' };
     if (pr.mergeable === false) return { ok: false, state: 'conflict', why: '충돌 — GitHub 가 머지할 수 없다고 답함', sha, how: 'github' };
     if (pr.mergeable !== true) return { ok: false, state: 'pending', why: 'GitHub 가 머지 가능 여부를 계산 중', sha, how: 'button' };
-    if (Number.isFinite(c.mainAt)) {
-        const started = Math.max(...req.map((r) => Date.parse(r.started_at || '') || 0));
-        if (!(started >= c.mainAt)) return { ok: false, state: 'stale', why: '검사 뒤 main 이 바뀜 — 최신 main 으로 다시 검사해야 함', sha, how: 'button' };
-    }
+    // 검사한 head 가 main 을 다 품지 않았으면(behind_by > 0) 머지 결과가 검사한 것과 달라진다 — 최신 main 을 얹고 다시 검사(재검토 중-C:
+    //   커밋 시각 비교는 늦게 push 된 커밋을 놓쳤다). 모르면(behindBy 없음) 머지하지 않는다.
+    if (!Number.isInteger(c.behindBy) || c.behindBy < 0) return { ok: false, state: 'error', why: 'main 과의 차이를 확인하지 못함', sha, how: 'button' };
+    if (c.behindBy > 0) return { ok: false, state: 'stale', why: 'PR 가지가 최신 main 보다 ' + c.behindBy + '커밋 뒤처짐 — 최신 main 을 얹고 다시 검사해야 함', sha, how: 'button' };
     return { ok: true, state: 'green', sha };
 }
 
@@ -194,7 +197,7 @@ function createMerger({
 
     /**
      * PR 의 지금 상태를 GitHub 에서 읽어 판정한다(머지는 안 한다).
-     * @param {number} n @param {{auto?:boolean, runSince?:number, owner?:boolean, withFiles?:boolean}} [o]
+     * @param {number} n @param {{auto?:boolean, runSince?:number, owner?:boolean, runId?:string, withFiles?:boolean}} [o]
      * @returns {Promise<object>} judge 결과 + title · outside(허용 경로 밖 파일 — 파일을 읽었을 때)
      */
     async function evaluate(n, o) {
@@ -215,9 +218,12 @@ function createMerger({
                 if (page === 5) return { ok: false, state: 'error', why: '검사가 500개를 넘어 다 보지 못함', how: 'github' };
             }
         }
-        const m = await gh('GET', API + '/commits/main');
-        if (!m.ok) return httpFail('main 조회', m);
-        const mainAt = Date.parse((m.json && m.json.commit && m.json.commit.committer && m.json.commit.committer.date) || '');
+        let behindBy = NaN;
+        if (typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha)) {
+            const m = await gh('GET', API + '/compare/main...' + sha);
+            if (!m.ok) return httpFail('main 과 비교', m);
+            behindBy = m.json && Number.isInteger(m.json.behind_by) ? m.json.behind_by : NaN;
+        }
         let files = null, filesTruncated = false;
         if (opt.auto || opt.withFiles) {
             files = [];
@@ -225,12 +231,13 @@ function createMerger({
                 const f = await gh('GET', API + '/pulls/' + n + '/files?per_page=100&page=' + page);
                 if (!f.ok) return httpFail('바뀐 파일 조회', f);
                 const got = Array.isArray(f.json) ? f.json : [];
-                files = files.concat(got.map((x) => x && x.filename));
+                // 이름 바꾸기는 옛 경로도 본다 — 기준선·검사 도구를 wiki/ 로 「옮기는」 것은 그 자리에서 지우는 것과 같다(재검토 중-A).
+                for (const x of got) { if (!x) continue; files.push(x.filename); if (x.previous_filename) files.push(x.previous_filename); }
                 if (got.length < 100) break;
                 if (page === 30) filesTruncated = true;   // GitHub 는 3,000개까지만 준다
             }
         }
-        const r = judge(p.json, runs, { mainAt: Number.isFinite(mainAt) ? mainAt : NaN, auto: !!opt.auto, files, filesTruncated, runSince: opt.runSince, owner: opt.owner });
+        const r = judge(p.json, runs, { behindBy, auto: !!opt.auto, files, filesTruncated, runSince: opt.runSince, owner: opt.owner, runId: opt.runId });
         const outside = files ? outsideAuto(files) : null;
         return Object.assign(r, { title: String((p.json && p.json.title) || '').slice(0, 200) }, outside ? { outside: outside.slice(0, 5), outsideCount: outside.length + (filesTruncated ? '+' : '') } : {});
     }
@@ -282,7 +289,7 @@ function createMerger({
         try {
             const auto = p.mode === 'auto';
             let r;
-            try { r = await evaluate(n, { auto, runSince: p.runSince, owner: p.owner }); }
+            try { r = await evaluate(n, { auto, runSince: p.runSince, owner: p.owner, runId: p.run_id }); }
             catch (e) { console.error('[nariya_pr_merge] PR #' + n + ' 확인 실패(다시 봄):', e && e.message); r = { ok: false, state: 'error', why: '연결 실패: ' + String((e && e.message) || e).slice(0, 80) }; }
             p.check = { state: r.state, why: r.why || null, at: now() }; save();
             if (r.ok && auto) {
@@ -312,6 +319,7 @@ function createMerger({
                 if (now() - (p.failedAt || now()) < FAIL_WATCH_MS) arm(n, POLL_MS);
                 return;
             }
+            if (r.state === 'stale' && now() - p.at >= WAIT_MAX_MS) { await handOver(p, '3시간 동안 최신 main 으로 다시 검사하지 못했습니다 — ' + r.why, 'button'); return; }   // 재검토 중-C — 상한 없이 영원히 돌던 분기
             if (r.state === 'stale') {
                 // 검사 뒤 main 이 바뀌었다 — 최신 main 을 얹어 검사를 다시 돌린다(같은 head 로는 한 번만).
                 if (p.updatedFor !== r.sha) {
@@ -351,7 +359,8 @@ function createMerger({
         if (old) {
             if (needs.length) {
                 old.needs = (old.needs || []).concat(needs.filter((x) => !(old.needs || []).includes(x))).slice(0, 20);
-                if (old.status === 'waiting') { disarm(n); old.status = 'needs_human'; old.mode = 'human'; old.how = 'button'; old.why = '다른 세션이 결정 필요를 더했습니다'; }
+                // 상태와 무관하게 auto 면 내린다(재검토 중-B — failed_checks 인 auto PR 이 재실행 뒤 결정 필요를 안고 자동 머지되던 길).
+                if (old.mode === 'auto' && ['waiting', 'failed_checks'].includes(old.status)) { disarm(n); old.status = 'needs_human'; old.mode = 'human'; old.how = 'button'; old.why = '다른 세션이 결정 필요를 더했습니다'; }
                 save();
             }
             return { tracked: true, updated: true, mode: old.mode, how: old.how };
@@ -418,18 +427,20 @@ function createMerger({
     async function refresh() {
         if (!isProd() || !token()) return;
         const open = load().prs.filter((p) => ['waiting', 'needs_human', 'failed_checks'].includes(p.status)).slice(-10);
-        for (const p of open) {
-            if (busy.has(p.number)) continue;
+        // PR 들을 한꺼번에 읽는다(재검토 하-신규1 — 하나씩이면 방이 오래 「불러오는 중」).
+        await Promise.all(open.map(async (p) => {
+            if (busy.has(p.number)) return;
             busy.add(p.number);
             try {
                 const r = await evaluate(p.number, { withFiles: true });
                 p.check = { state: r.state, why: r.why || null, at: now() };
-                p.canMerge = r.ok;
+                // stale 도 버튼을 연다 — 누르면 서버가 최신 main 을 얹고 「약 20분 뒤 다시」(재검토 상-신규: 안 열면 main 이 한 번만 바뀌어도 버튼이 사라졌다).
+                p.canMerge = r.ok || r.state === 'stale';
                 if (r.outside) { p.outside = r.outside; p.outsideCount = r.outsideCount; }
                 if (r.state === 'merged' || r.state === 'closed') { p.status = r.state; disarm(p.number); }
             } catch (e) { console.error('[nariya_pr_merge] PR #' + p.number + ' 새로 읽기 실패:', e && e.message); }
             finally { busy.delete(p.number); }
-        }
+        }));
         save();
     }
 

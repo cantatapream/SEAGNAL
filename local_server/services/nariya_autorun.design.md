@@ -303,3 +303,16 @@ setHold(true) → 오늘 차례 점검 하나 → finally { setHold(false) → s
   `PUT /pulls/{n}/update-branch {expected_head_sha}` 로 최신 main 을 얹어 검사를 다시 돌린다(같은 head 로는 한 번). 버튼도 같은 처리 후 「약 20분 뒤 다시」.
 - **하-1** 401·403·404 는 바로 열쇠 몫(HTTP 코드 표기) · **하-2** 필수 검사 skipped·neutral 은 바로 GitHub 몫 · **하-3** check-runs 를 여러 쪽(최대 500)까지 ·
   **하-4** 화면의 쓰이지 않던 conflict 분기 제거 · 다른 카드를 누르면 앞 버튼 글자 되돌림.
+
+### 9.8 재검토 반영 — 2026-11-16
+- **상-신규 main 이 한 번만 바뀌어도 사람 몫 PR 의 버튼이 사라짐** → 방을 열 때 stale 도 버튼을 연다(문구 「🔄 최신 main 으로 다시 검사」).
+  누르면 서버가 update-branch 를 걸고 「약 20분 뒤 다시」.
+- **중-A 이름 바꾸기가 허용 경로 판정을 빠져나감** → `previous_filename`(옛 경로)도 판정에 넣는다.
+- **중-B failed_checks 인 auto PR 에 결정 필요가 더해져도 auto 유지** → 상태와 무관하게 auto 면 사람 몫으로 내린다.
+- **중-C 커밋 시각 비교의 놓침·stale 분기 무상한** → `GET /compare/main...{head}` 의 `behind_by === 0`(head 가 main 을 다 품음)일 때만 머지,
+  모르면 머지 안 함. stale 분기에도 3시간 상한.
+- **중-D claim 만 하면 아무 PR 이나 자동 후보** → PR 본문 맨 끝 줄 `nariya-run: <run_id>` 가 done 을 보낸 run 과 같아야 자동. 세션 지침(§6)에 추가(update_trigger 반영).
+- **하-신규1 방을 열 때 GitHub 를 순서대로 40번** → PR 들을 동시에 읽고, 15초가 넘으면 기다리지 않고 지금 아는 것을 준다.
+- **하-신규2(남김 — 사용자 판단)**: `_dashboard/reread/` 는 허용 경로다. 세션이 위키를 고치고 같은 PR 에서 다른 에이전트의 읽기 기록(verdicts)을 남기는 것이
+  본업이라 빼면 자동 머지가 사실상 0건이 된다. 그 기록이 「정말 다른 눈이 읽었는지」는 게이트가 못 본다는 한계는 그대로다.
+- 시험: `test_nariya_pr_merge.js` 12건(재검토 항목 1건 추가 · 가짜 GitHub 에 compare·rename·update-branch 무변화 상황).

@@ -1344,7 +1344,10 @@ router.get('/api/legal/autorun/prs', adminAuth.requireAdminToken, async (req, re
   try {
     const merger = require('../services/nariya_pr_merge');
     // 방을 열 때 머지 안 된 PR 을 GitHub 에서 다시 읽어 「지금 버튼이 눌리나」를 적는다(적대검증 C#중-2·중-3). 실패해도 목록은 준다.
-    try { await merger.refresh(); } catch (e) { console.error('[autorun] PR 새로 읽기 실패(목록은 그대로):', e && e.message); }
+    //   15초 넘게 걸리면 기다리지 않고 지금 아는 것을 준다(새로 읽기는 뒤에서 계속 — 다음에 열 때 반영).
+    try {
+      await Promise.race([merger.refresh(), new Promise((r) => { const t = setTimeout(r, 15000); if (t.unref) t.unref(); })]);
+    } catch (e) { console.error('[autorun] PR 새로 읽기 실패(목록은 그대로):', e && e.message); }
     const l = merger.list();
     const st = autorun.status();
     res.json(Object.assign({ ok: true }, l, { autorun: { lock: st.lock, pending: st.pending, lastDone: st.lastDone, lastSweep: st.lastSweep, hold: st.hold } }));

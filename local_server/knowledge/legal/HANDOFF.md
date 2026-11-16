@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 21:23 KST] ✅완료 — 자동 반영 C — 재검토 반영(상1·중4·하1)
+상-신규 stale 이어도 사람 몫 버튼 열림(누르면 update-branch·20분 뒤 다시) / 중-A rename 옛 경로도 판정 / 중-B failed_checks auto 에 결정 필요 → 사람 몫 / 중-C compare behind_by 로 최신 main 판정·stale 3시간 상한 / 중-D PR 본문 nariya-run 표식 필수(예약 작업 지침 update_trigger 반영) / 하-신규1 refresh 병렬·15초 상한. 하-신규2(reread 장부가 허용 경로)는 사용자 판단으로 남김. 시험 test_nariya_pr_merge 12/0 · test_nariya_autorun 46/0 · silent_catch 22/0 · admin_cards 56/0. 설계안 §9.8.
+
+
 ### [2026-11-16 21:15 KST] ✅완료 — 자동 반영 C — 독립 적대검증 13건 반영
 상-1 자동 머지는 허용 경로(raw·wiki·reread·touched·HANDOFF·wiki_applied·pending_index·build_index, 코드 확장자 제외)만 · 필수 검사는 github-actions 앱만 / 상-2 잠금 주인 run + PR created_at ≥ lock.startedAt 만 자동 / 중-1 busy 때 재무장 / 중-2 failed_checks 30분 감시 24h / 중-3 how(button·github·secrets) 문구 + 방 열 때 refresh·canMerge 일 때만 버튼 / 중-4 이미 맡은 PR 에 결정 필요 → 사람 몫 / 중-5 PR 주소 정리·못 맡으면 GitHub 확인 문구 / 중-6 stale → update-branch / 하-1~4. 시험 test_nariya_pr_merge 11/0 · test_nariya_autorun 46/0 · silent_catch 22/0 · admin_cards 56/0 · 관련 0 FAIL · 설계안 §9.7.
 
