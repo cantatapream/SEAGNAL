@@ -366,7 +366,7 @@ cron.schedule('1 0 * * *', () => {
 //    그 사이 공포분을 덮는다. 새로 올린 카드는 감지 즉시 자동 승인(사용자 「승인없이 되도록 진행하자.」 — autoApprove).
 // ② 원문결손(조문 목·고시 별표 누락 — 스크립트 2개, 각 상한 90분). 새로·다시 뜬 카드는 자동 반영 세션이 받는다(2026-11-16 사용자 「자동슈정」).
 // ③ 원문신선도(판번호 대조 — 행정규칙·법령·조례, 실측 2026-11-15 수동 1,504건 약 12분). 새로·다시 뜬 카드는 자동 반영 세션이 받는다.
-// 점검이 끝나면(실패해도) 자동 반영 「남은 일 점검」(nariya_autorun sweep — 우리 볼륨 파일만 읽음)을 돌린다.
+// 점검이 끝나면(실패해도) 대기 중인 개정 카드를 자동 승인하고(approveAllPending) 자동 반영 「남은 일 점검」(nariya_autorun sweep — 우리 볼륨 파일만 읽음)을 돌린다.
 // ★한 밤에 하나만 돌리는 까닭: 셋 다 law.go.kr 을 두드린다 — 2026-09-20 에 둘을 겹쳐 돌렸다가 서로 느려져 전수 점검이
 //   45/200 에서 멈춘 것을 실측했다. 하나씩이면 겹칠 수가 없다.
 // ★점검 동안 세션 깨우기를 붙드는 까닭(적대검증 #5): 개정감지가 자동 승인하면 10분 뒤 세션이 떠 law.go.kr 수집을 돌리는데,
@@ -401,6 +401,9 @@ async function runNariyaNightly() {
     } catch (e) {
         console.error(`나리야 새벽 점검(${which}) 오류:`, e.message);
     } finally {
+        // 대기 중이던 개정 카드를 전부 자동 승인한다(2026-11-16 사용자 「아예 전체 승인 버튼 누를 필요 없이 자동 진행되어도 좋고」) —
+        //   감지 즉시 승인은 새 카드에만 걸리므로 그 전부터 대기하던 카드는 여기서 줍는다. 세션은 바로 뒤 남은 일 점검이 깨운다.
+        try { await require('./services/legal_amendment_scanner').approveAllPending(); } catch (e) { console.error('나리야 대기 개정 자동 승인 오류:', e.message); }
         try { ar.setHold(false); } catch (e) { console.error('나리야 새벽 점검 — 세션 깨우기 보류 풀기 실패(6시간 뒤 저절로 풀림):', e.message); }
         try { ar.sweep(ar.collectOutstanding()); } catch (e) { console.error('나리야 자동 반영 남은 일 점검 오류:', e.message); }
     }

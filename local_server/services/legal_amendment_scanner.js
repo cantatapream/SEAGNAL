@@ -379,6 +379,42 @@ function autoApprove(cards, at) {
 }
 
 /**
+ * 개정검토 큐에서 **대기(pending) 중인 카드를 전부 자동 승인**한다(2026-11-16 사용자 「아예 전체 승인 버튼 누를 필요 없이 자동 진행되어도 좋고」).
+ * 감지 즉시 승인(autoApprove)은 새로 들어오는 카드에만 걸리므로, 그 전부터 대기하던 카드는 이것이 줍는다. 매일 새벽 점검 끝에 부른다
+ * (server.js runNariyaNightly) — 대기가 없으면 아무것도 하지 않는다. 탐지 큐에도 승인을 옮겨 적는다(개별 승인 버튼과 같은 처리).
+ * 세션을 깨우는 것은 바로 뒤의 남은 일 점검(nariya_autorun sweep)이 한다 — 승인됐고 반영 안 된 건을 거기서 센다.
+ * 승인했으면 관리자 푸시 1통(무엇이 자동 승인됐는지 사람이 알게).
+ * 예: await approveAllPending() → {approved:['chg_1','chg_2'], mirrorFailed:0}
+ * @param {{file?:string, at?:string, push?:function}} [o] 검사용(큐 파일·시각·푸시를 바꿔 넣는다)
+ * @returns {Promise<{approved:string[], mirrorFailed:number}>}
+ * [연계] ← server.js runNariyaNightly · → legal_admin_queues.updateJsonlById · mirrorDecisionToH29 · admin_push
+ */
+async function approveAllPending(o) {
+  const opt = o || {};
+  const file = opt.file || QUEUE_FILE;
+  const at = opt.at || new Date().toISOString();
+  const aq = require('./legal_admin_queues');
+  const approved = [];
+  let mirrorFailed = 0;
+  for (const e of aq.readJsonl(file)) {
+    if (!e || !e.id || (e.status || 'pending') !== 'pending') continue;
+    if (!aq.updateJsonlById(file, e.id, { status: 'approved', decidedBy: '자동(대기분 일괄)', decidedAt: at })) continue;
+    approved.push(String(e.id));
+    if (!opt.file) { const m = mirrorDecisionToH29(e.id, 'approved'); if (!m.ok) { mirrorFailed++; console.error('[나리야 개정감지] 탐지 큐 승인 옮겨 적기 실패:', e.id, m.error); } }
+  }
+  if (approved.length) {
+    console.log(`[나리야 개정감지] 대기 중이던 개정 카드 ${approved.length}건 자동 승인`);
+    try {
+      const send = opt.push || ((t, b, d) => require('./admin_push').sendAdminPush(t, b, d));
+      await send(`⚖ 대기 중이던 개정 ${approved.length}건 자동 승인`,
+        '개정검토 방에서 승인을 기다리던 카드를 자동으로 승인했습니다. 자동 반영 세션이 위키를 고쳐 PR 을 올립니다 — PR 을 확인하고 머지해 주세요.',
+        { type: 'legal_amendment_auto_approved', count: String(approved.length) });
+    } catch (e) { console.error('[나리야 개정감지] 자동 승인 푸시 실패(승인은 정상):', e && e.message); }
+  }
+  return { approved, mirrorFailed };
+}
+
+/**
  * queue.jsonl에 신규 항목들을 append한다(원자적이지 않은 단순 append — `_scanning` 락으로
  * 이 파일 안에서는 동시 실행을 막으므로 충분, review_queue.md 같은 사람 동시편집 대상과 다름).
  * @param {Array<object>} entries
@@ -551,5 +587,5 @@ function withoutApplied(rows, applied) {
 module.exports = { runAmendmentScan, startAmendmentScan, getScanProgress,
   // 진행률 한 줄 파서는 검사(test_wiki_brief_bulk.js)가 직접 먹여 보려고 함께 내보낸다.
   applyProgressLine, queueFile, h29QueueFile, mirrorDecisionToH29, readScanStatus, scanWindowDays, lastOkAt,
-  notifyAdmins, toLegacyEntry, isRelevant, autoApprove, QUEUE_FILE, H29_QUEUE_FILE, CATCHUP_MAX_DAYS,
+  notifyAdmins, toLegacyEntry, isRelevant, autoApprove, approveAllPending, QUEUE_FILE, H29_QUEUE_FILE, CATCHUP_MAX_DAYS,
   loadWikiApplied, withoutApplied, WIKI_APPLIED_FILE };

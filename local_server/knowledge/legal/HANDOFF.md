@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 20:50 KST] ✅완료 — 대기 중이던 개정 카드 일괄 자동 승인(approveAllPending)
+사용자: 「아예 전체 승인 버튼 누를 필요 없이 자동 진행되어도 좋고 승인이 말이야.」 → legal_amendment_scanner.approveAllPending(pending 만 approved·decidedBy 자동(대기분 일괄)·탐지 큐 옮겨 적기·푸시 1통) 을 server.js runNariyaNightly finally 에서 보류 풀기·남은 일 점검 앞에 부름. 배포 뒤 첫 새벽(11-17 03:00)에 처리 → 남은 일 점검이 세션을 깨움. 시험 test_nariya_autorun 44/0(§8 #8). main 보호·세션 머지 여부는 사용자에게 다시 확인 중.
+
+
 ### [2026-11-16 20:40 KST] ✅완료 — 나리야 자동 반영 — 원문결손도 자동 수정 대상(사용자 「3- 자동슈정」) · 결정 1·2 정리
 nariya_autorun KINDS.mok(대기·발사·served·deferred·inFlight mok_ids — 결손 점검기 auto_resolved 로만 풀림·sweep·collectOutstanding) · mok_audit_scanner 새로·다시 뜬 카드 → requestRun('mok') · GET /api/legal/mok-audit/brief-all 자동화 열쇠 허용(대기만·inFlight 빼고·noteServed · 카드 처리는 관리자만) · 화면·설계안 §8.8 · 예약 작업 지침에 결손 단계·mok_ids 추가(update_trigger). 시험 test_nariya_autorun 43/0(§8 #7) · test_mok_brief 23/0(M6 기준 변경: 자동화 열쇠 허용) · 관련 0 FAIL. 결정 1(main 보호): legal-index-sync.yml 이 main 에 직접 푸시하므로 「PR 필수」 규칙과 충돌 — 사용자에게 다시 확인(설계안 §8.9). 결정 2(예전 대기 개정 카드 승인): 관리자 토큰이 없어 세션이 못 함 → PR 머지·배포 뒤 개정검토 「전체 승인」 버튼 안내.
 

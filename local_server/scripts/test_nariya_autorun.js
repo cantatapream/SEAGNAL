@@ -850,6 +850,26 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.ok(/if \(fresh\.length \|\| reopened\.length\) \{[\s\S]*?requestRun\('mok', \{ count: fresh\.length \+ reopened\.length \}\)/.test(ms), '결손 점검이 새로·다시 뜬 카드로 깨움');
     });
 
+    await check('[§8 #8] 대기 중이던 개정 카드 일괄 자동 승인(approveAllPending) — pending 만 approved · 이미 승인/기각은 그대로 · 푸시 1통 · 대기 없으면 푸시 없음 · 새벽 점검 끝(보류 풀기·남은 일 점검 앞)에서 부름', async () => {
+        const S = require('../services/legal_amendment_scanner');
+        const qf = path.join(tmp, 'amend_queue.jsonl');
+        fs.writeFileSync(qf, [{ id: 'chg_p1' }, { id: 'chg_p2', status: 'pending' }, { id: 'chg_a', status: 'approved' }, { id: 'chg_d', status: 'dismissed' }].map((x) => JSON.stringify(x)).join('\n') + '\n');
+        const sent = [];
+        const push = async (t, b, d) => { sent.push({ t, b, d }); return { sent: 1 }; };
+        const r = await S.approveAllPending({ file: qf, at: '2026-11-17T03:20:00.000Z', push });
+        assert.deepEqual(r.approved, ['chg_p1', 'chg_p2']);
+        const rows = fs.readFileSync(qf, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+        assert.deepEqual(rows.map((x) => x.status), ['approved', 'approved', 'approved', 'dismissed'], '기각은 그대로');
+        assert.equal(rows[0].decidedBy, '자동(대기분 일괄)');
+        assert.equal(sent.length, 1); assert.ok(/대기 중이던 개정 2건 자동 승인/.test(sent[0].t)); assert.ok(Object.values(sent[0].d).every((x) => typeof x === 'string'));
+        const r2 = await S.approveAllPending({ file: qf, push });
+        assert.deepEqual(r2.approved, []); assert.equal(sent.length, 1, '대기 없으면 푸시 없음');
+        const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+        const nightly = sv.slice(sv.indexOf('async function runNariyaNightly'), sv.indexOf("cron.schedule('0 3 * * *'"));
+        const iA = nightly.indexOf('approveAllPending()'), iH = nightly.indexOf('ar.setHold(false)'), iS = nightly.indexOf('ar.sweep(');
+        assert.ok(iA > 0 && iA < iH && iH < iS && /\} finally \{/.test(nightly.slice(0, iA)), 'finally 안에서 승인 → 풀기 → 남은 일 점검');
+    });
+
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
     process.exit(fail ? 1 : 0);
