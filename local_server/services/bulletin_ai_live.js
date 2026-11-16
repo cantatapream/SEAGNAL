@@ -76,6 +76,17 @@ function contextOf(b, all) {
         (isNone(x.result.other) || !clean(x.result.other) ? '' : `\n  참고사항: ${clean(x.result.other).replace(/\n+/g, ' / ').slice(0, 300)}`)).join('\n');
 }
 
+/**
+ * 통보문 본문 항목의 실제 단위(부모·자식 그대로) — 「위 해역」이 가리키는 곳.
+ * 예: 특보 「(1) 풍랑주의보 해제 : 울산앞바다(평수구역, 연안바다)」 → ['울산앞바다중평수구역','울산앞바다중연안바다'] · 예비 = 목록의 단위
+ * [연계] ← runOne(이 파일) / → lifecycle_check.parseItems · bulletin_status.parseYebiList
+ */
+function bodyUnits(b) {
+    const r = b.result;
+    if (b.rpt === '7') return [...new Set(require('./bulletin_status').parseYebiList(r.t4, r.tmFc).map((e) => e.unit))];
+    return [...new Set(require('../analysis/bulletin_survey/lifecycle_check').parseItems(r.t2, []).flatMap((it) => [...it.units]))];
+}
+
 /** 시험 지시문(buildPrompt — 3차례 검산한 것) + 맥락 덩어리. */
 function promptOf(b, all) {
     return T.buildPrompt(itemOf(b)) + '\n\n[같은 관서 앞선 통보문 흐름 — 맥락 참고용. 사건은 위 「참고사항」에 적힌 것만 옮긴다]\n' + contextOf(b, all);
@@ -88,31 +99,49 @@ function promptOf(b, all) {
  *   후보 = 검사 통과 + 자동 반영 종류(실제 반영은 bulletin_status 가 「더 새 통보문인가」를 보고 정함) · 확인필요 = 검사 탈락 · 참고 = 자동 반영하지 않는 종류
  * [연계] ← runOne(이 파일)
  */
-function checkEvent(e, item, bodyZones) {
+function checkEvent(e, item, bodyZones, bodyOnly) {
     if (!e || typeof e !== 'object') return { 판정: '확인필요', 까닭: '사건 꼴이 아니다' };
     if (!T.KINDS.includes(e.종류)) return { 판정: '확인필요', 까닭: `정해진 종류가 아니다(${e.종류})` };
     const ev = norm(e.근거문장), ex = norm(e.해역표현);
     if (ev.length < MIN_EVIDENCE || !norm(item.참고사항).includes(ev)) return { 판정: '확인필요', 까닭: `근거 문장이 참고사항 원문에 그대로 없거나 너무 짧다(${MIN_EVIDENCE}자 미만)` };
     if (T.isLand(e.해역표현)) return { 판정: '참고', 까닭: '육상 지역 — 바다 특보가 아니다' };
     const auto = AUTO.has(e.종류);
-    // 자동 반영 종류는 해역을 문장에서 직접 읽을 수 있을 때만(적대검증 2026-11-16) —
-    //   해역 낱말 없는 표현·「위 구역」은 본문·참고사항에 나온 해역 전부로 펼쳐져 엉뚱한 곳까지 걸린다 → 관리자 확인
-    if (auto && (!SEA.test(String(e.해역표현 || '')) || /^위\s*(구역|해역|지역)/.test(String(e.해역표현 || '').trim()))) return { 판정: '확인필요', 까닭: '해역 이름이 없는 표현(「위 구역」 등) — 어느 해역인지 문장만으로 못 정한다' };
+    // 「위 해역·위 구역」 = 그 통보문 본문(특보 = 변경 칸, 예비 = 목록)에 적힌 해역(2026-11-16 사용자 「본문 전체에 명시된 해역을 위 해역이라고 명시 … 본문 전체를 모두 읽어야 해」).
+    //   참고사항에 나온 다른 해역 이름은 넣지 않는다(적대검증 #8 — 「…유지합니다」 문장의 해역까지 걸렸다). 본문에서 못 찾으면 관리자 확인.
+    const above = /^위\s*(구역|해역|지역)/.test(String(e.해역표현 || '').trim());
+    //   bodyOnly = 본문 항목의 실제 단위(부모·자식 그대로 — 특보 = 변경 칸 항목, 예비 = 목록). 부모 이름으로 접으면 자식만 해제할 때 남는 부모까지 걸린다(적대검증 2026-11-16).
+    if (auto && above) {
+        const zs = [...new Set(bodyOnly || [])];
+        if (!zs.length) return { 판정: '확인필요', 까닭: '「위 해역」인데 본문에서 해역을 못 찾았다' };
+        return Object.assign(finishAuto(e, item, ev, zs, '「위 해역」 = 본문 항목 구역'), { exact: true });
+    }
+    // 자동 반영 종류는 해역을 문장에서 직접 읽을 수 있을 때만(적대검증 2026-11-16) — 해역 낱말 없는 표현은 어느 해역인지 못 정한다 → 관리자 확인
+    if (auto && !SEA.test(String(e.해역표현 || ''))) return { 판정: '확인필요', 까닭: '해역 이름이 없는 표현 — 어느 해역인지 문장만으로 못 정한다' };
     if (auto && !ev.includes(ex)) return { 판정: '확인필요', 까닭: '해역 표현이 근거 문장 안에 없다' };
     //   자식(연안바다·평수구역)·「제외」·「A 중 B」를 말한 표현은 규칙이 부모로 접어 형제 자식까지 걸린다 → 관리자 확인(부모 이름만 = 자식 전부, 확정 규칙)
     if (auto && CHILDISH.test(String(e.해역표현 || ''))) return { 판정: '확인필요', 까닭: '자식 해역·제외를 말한 표현 — 부모 전체로 덧씌우면 안 된다', zones: T.resolveZones(e.해역표현, { office: item.office }) || undefined };
     const zones = T.resolveZones(e.해역표현, { office: item.office, bodyZones: auto ? undefined : bodyZones });
     if (!zones || !zones.length) return { 판정: '확인필요', 까닭: '해역 표현을 규칙이 펼치지 못했다' };
     if (!auto) return { 판정: '참고', 까닭: '자동으로 덧씌우지 않는 종류(기록만)', zones };
+    return finishAuto(e, item, ev, zones, '');
+}
+
+/**
+ * 자동 반영 종류의 남은 검사(관할 · 종류별 글자) — 「위 해역」과 해역 이름 표현이 같이 쓴다.
+ * @returns {{판정, 까닭, zones}}  [연계] ← checkEvent(이 파일)
+ */
+function finishAuto(e, item, ev, zones, how) {
     //   관할 밖 해역(이웃 관서 해역을 함께 적는 일 — README 광주 5-9호)은 자동으로 안 한다
     const own = officeZones()[item.office] || [];
-    if (zones.some((z) => !own.includes(z))) return { 판정: '확인필요', 까닭: `관할 밖 해역이 들어 있다(${zones.filter((z) => !own.includes(z)).join(', ')})`, zones };
+    const LC = require('../analysis/bulletin_survey/lifecycle_check');
+    const parentOf = (x) => (LC.PARENTS.has(x) ? x : [...LC.PARENTS].find((p) => LC.childrenOf(p).includes(x)) || x);   // 자식 단위는 그 부모로 관할을 본다
+    if (zones.some((z) => !own.includes(parentOf(z)))) return { 판정: '확인필요', 까닭: `관할 밖 해역이 들어 있다(${zones.filter((z) => !own.includes(parentOf(z))).join(', ')})`, zones };
     if (e.종류 === '예비취소') {
         if (!/해제|취소/.test(ev)) return { 판정: '확인필요', 까닭: '근거 문장에 해제·취소 낱말이 없다', zones };
     } else if (!e.시간_후 || !TIMEISH.test(String(e.시간_후)) || !ev.includes(norm(e.시간_후))) {
         return { 판정: '확인필요', 까닭: '바뀐 해제 시각(시간_후)이 시각 꼴이 아니거나 근거 문장에 그 글자가 없다', zones };
     }
-    return { 판정: '후보', 까닭: '검사 통과', zones };
+    return { 판정: '후보', 까닭: '검사 통과' + (how ? ` (${how})` : ''), zones };
 }
 
 /**
@@ -141,7 +170,8 @@ function createLive({ ai = (p) => require('./bulletin_ai').call('interpret', p, 
             return;
         }
         const bodyZones = [...new Set(T.namedParents(item.본문 + '\n' + item.참고사항, item.office))];
-        const events = parsed.사건.map((e) => Object.assign({ 종류: e && e.종류, 해역표현: e && e.해역표현, 시간_전: e && e.시간_전, 시간_후: e && e.시간_후, 근거문장: e && e.근거문장 }, checkEvent(e, item, bodyZones)));
+        const bodyOnly = bodyUnits(b);   // 「위 해역」 = 본문 항목의 실제 단위만
+        const events = parsed.사건.map((e) => Object.assign({ 종류: e && e.종류, 해역표현: e && e.해역표현, 시간_전: e && e.시간_전, 시간_후: e && e.시간_후, 근거문장: e && e.근거문장 }, checkEvent(e, item, bodyZones, bodyOnly)));
         st.done[k] = Object.assign(base, { ok: true, provider: r.provider || null, 요약: parsed.요약 || '', events });
     }
 
@@ -192,7 +222,7 @@ function createLive({ ai = (p) => require('./bulletin_ai').call('interpret', p, 
             if (!d.ok || !live.has(k)) continue;
             const b = cur.find((x) => x.code === d.code);
             if (b && lastIn.get(b.office + '|' + String(b.result.tmFc).slice(0, 4) + '|' + b.result.t1Title) > b.result.tmIn) continue;
-            for (const e of d.events) if (e.판정 === '후보') out.push({ 종류: e.종류, zones: e.zones, office: d.office, ho: d.ho, inMs: d.inMs, 시간_전: e.시간_전 || null, 시간_후: e.시간_후 || null, 근거문장: e.근거문장 });
+            for (const e of d.events) if (e.판정 === '후보') out.push({ 종류: e.종류, zones: e.zones, exact: !!e.exact, office: d.office, ho: d.ho, inMs: d.inMs, 시간_전: e.시간_전 || null, 시간_후: e.시간_후 || null, 근거문장: e.근거문장 });
         }
         return out.sort((a, b) => a.inMs - b.inMs);
     }
@@ -232,5 +262,5 @@ const getReal = () => (real = real || createLive());
 module.exports = {
     run: () => getReal().run(), candidates: () => getReal().candidates(), entries: () => getReal().entries(),
     enabled: process.env.BULLETIN_AI_LIVE_DISABLE !== '1',
-    createLive, checkEvent, promptOf, contextOf, itemOf, keyOf, reportMarkdown, AUTO,
+    createLive, checkEvent, bodyUnits, promptOf, contextOf, itemOf, keyOf, reportMarkdown, AUTO,
 };
