@@ -10,7 +10,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : admin/admin.js (window.fetch 관리자 토큰 래퍼 — /api/admin/* 에 X-Admin-Token 자동 첨부 · 탭 등록 switchAlertTopTab)
- *  - 서버 API      : GET /api/admin/bulletin-watch/report.md · GET /api/admin/bulletin-ai-trial?trial=1|2|3|4(4 = 「AI 특보 분석」 설정 순서) ·
+ *  - 서버 API      : POST /api/admin/station-briefing/download(앱 안 내려받기 — 글을 잠깐 맡기고 시스템 브라우저로 받음) · GET /api/admin/bulletin-watch/report.md · GET /api/admin/bulletin-ai-trial?trial=1|2|3|4(4 = 「AI 특보 분석」 설정 순서) ·
  *                    POST /api/admin/bulletin-ai-trial/start · POST /api/admin/bulletin-ai-trial/stop · GET /api/admin/bulletin-ai-trial/report.md ·
  *                    GET /api/admin/bulletin-compare/report.md · GET /api/admin/bulletin-ai-live/report.md
  *                    (routes/bulletin_watch.js)
@@ -64,11 +64,30 @@
         }
     }
 
-    /** 관리자 토큰이 붙도록 fetch 로 받아 파일로 저장한다. [연계] ← 내려받기 버튼들 */
+    /** 앱 안(Capacitor 네이티브)인가. 예: 안드로이드 앱 → true · PC 브라우저 → false. [연계] ← download */
+    function isNativeApp() { return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()); }
+
+    /**
+     * 관리자 토큰이 붙도록 fetch 로 받아 파일로 저장한다.
+     * 앱 안(휴대폰 앱 — Capacitor 안드로이드 WebView)은 <a download>(blob 주소)를 처리하지 않아 누름이 아무 일도 안 한다
+     *   (2026-11-16 사용자 「각 버튼이 먹히지 않는데??」 — AI 브리핑 [md로 저장]과 같은 원인, admin_station_briefing.js saveMarkdown 참고).
+     *   그래서 앱 안이면 그 방식 그대로: 받은 글을 서버에 잠깐 맡기고(POST /api/admin/station-briefing/download — 5분·한 번 쓰는 열쇠) → 시스템 브라우저가 내려받는다.
+     * 예: download('/api/admin/bulletin-watch/report.md?day=all', 'bulletin_watch_all.md') → (PC) 다운로드 시작 · (앱) 휴대폰 브라우저가 열리며 내려받기
+     * [연계] ← 내려받기 버튼들 / → window.Capacitor.Plugins.Browser.open
+     */
     async function download(url, name) {
         try {
             var r = await fetch(url, { cache: 'no-store' });
             if (!r.ok) throw new Error('HTTP ' + r.status);
+            if (isNativeApp()) {
+                var Browser = window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+                if (!Browser || typeof Browser.open !== 'function') throw new Error('이 앱 화면에서는 파일로 저장할 수 없습니다 — PC 브라우저의 관리자 화면에서 받으세요');
+                var put = await fetch('/api/admin/station-briefing/download?name=' + encodeURIComponent(name), { method: 'POST', headers: { 'Content-Type': 'text/markdown; charset=utf-8' }, body: await r.text() });
+                var j = await put.json().catch(function () { return {}; });
+                if (!put.ok || !j.path) throw new Error(j.error || ('맡기기 HTTP ' + put.status));
+                await Browser.open({ url: window.location.origin + j.path });
+                return;
+            }
             var a = document.createElement('a');
             a.href = URL.createObjectURL(await r.blob());
             a.download = name;
