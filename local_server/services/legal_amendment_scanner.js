@@ -487,7 +487,7 @@ async function notifyAdmins(entries) {
     const title = `⚖ 법령 개정 ${entries.length}건 감지`;
     // 푸시 본문은 **평문**이다 — 별표(**) 같은 마크다운 표시는 그대로 글자로 보인다.
     // 2026-11-16: 감지 즉시 자동 승인 → 자동 반영 세션이 위키를 고쳐 PR 을 올린다. 사람은 PR 을 머지(또는 카드에서 기각)한다.
-    const body = `${head}${arts ? ` · 바뀐 조문 ${arts}개` : ''}\n자동 승인했습니다. 10분 뒤 자동 반영 세션이 위키를 고쳐 PR 을 올립니다 — PR 을 확인하고 머지해 주세요.`;
+    const body = `${head}${arts ? ` · 바뀐 조문 ${arts}개` : ''}\n자동 승인했습니다. 새벽 점검이 끝나면 자동 반영 세션이 위키를 고쳐 PR 을 올립니다 — PR 을 확인하고 머지해 주세요.`;
     const r = await sendAdminPush(title, body, { url: 'https://seagnal-server.fly.dev/?tab=admin', kind: 'legal_amendment' });
     console.log(`[나리야 개정감지] 관리자 푸시 — 성공 ${r.sent}건 · 실패 ${r.failed}건`);
   } catch (e) {
