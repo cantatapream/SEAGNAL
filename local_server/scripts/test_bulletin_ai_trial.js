@@ -221,6 +221,20 @@ console.log('C. 검산');
         ok('2차(클로드 키2·161건) 칸과 1차 칸이 따로, 버튼이 각 시험 번호로', /2차 — 클로드 키2/.test(c.innerHTML) && /1차 — ChatGPT/.test(c.innerHTML) && /__bwTrial\('start','2'\)/.test(c.innerHTML) && /report\.md\?trial=1/.test(c.innerHTML) && /클로드 키2」 크레딧/.test(c.innerHTML));
         const txt = sandbox.window.__bwTrialText({ status: 'running', done: 37, total: 200, failed: 1, lastAt: '2026-11-15T13:41:00.000Z', stopReason: null });
         ok('상태 글: 진행 중 · 37/200 · 실패 1 · 마지막 응답 KST', /진행 중/.test(txt) && /37\/200 끝남/.test(txt) && /실패 1/.test(txt) && /11-15 22:41 KST/.test(txt), txt);
+        ok('탭에 참고사항 AI 실시간 해석 [해석 기록 내려받기]', /참고사항 AI 실시간 해석/.test(c.innerHTML) && /bulletin-ai-live\/report\.md/.test(c.innerHTML));
+        // 앱 안(Capacitor WebView)은 <a download> 를 처리하지 않는다 — 2026-11-16 사용자 「각 버튼이 먹히지 않는데??」.
+        //   글을 서버에 맡기고 시스템 브라우저로 받게 한다(AI 브리핑 [md로 저장]과 같은 방식).
+        const calls = [], opened = [], alerts = [];
+        const appBox = { window: { alert: (m) => alerts.push(m), location: { origin: 'https://app.example' },
+                Capacitor: { isNativePlatform: () => true, Plugins: { Browser: { open: async (o) => { opened.push(o.url); } } } } },
+            document: { getElementById: () => null, createElement: () => { throw new Error('앱 안에서 <a> 를 만들면 안 된다'); } }, console: { warn() {}, log() {} }, setTimeout, URL: {},
+            fetch: async (u, o) => { calls.push({ u, o }); return u.startsWith('/api/admin/station-briefing/download') ? { ok: true, status: 200, json: async () => ({ ok: true, path: '/api/station-briefing/download/abc' }) } : { ok: true, status: 200, text: async () => '# 보고서' }; } };
+        vm.runInNewContext(fs.readFileSync(path.join(root, 'client/js/admin/admin_bulletin_watch.js'), 'utf8'), appBox);
+        await appBox.window.__bwDownload('/api/admin/bulletin-watch/report.md?day=all', 'bulletin_watch_all.md');
+        ok('앱 안: 보고서를 받아 서버에 맡기고(이름·글 그대로) → 시스템 브라우저로 그 주소를 연다', calls[0].u === '/api/admin/bulletin-watch/report.md?day=all' && /download\?name=bulletin_watch_all\.md$/.test(calls[1].u) && calls[1].o.body === '# 보고서' && opened[0] === 'https://app.example/api/station-briefing/download/abc' && !alerts.length, { calls: calls.map((x) => x.u), opened, alerts });
+        appBox.window.Capacitor.Plugins.Browser = undefined;
+        await appBox.window.__bwDownload('/api/admin/bulletin-watch/report.md?day=all', 'bulletin_watch_all.md');
+        ok('앱 안인데 브라우저 기능이 없으면 조용히 끝나지 않고 알린다', alerts.length === 1 && /PC 브라우저/.test(alerts[0]), alerts);
     }
 
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
