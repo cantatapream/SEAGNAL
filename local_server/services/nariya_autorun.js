@@ -127,7 +127,7 @@ function readState(file, nowMs) {
     const l = o.lock;
     if (isPlain(l) && typeof l.run_id === 'string' && RUN_ID_RE.test(l.run_id) && Number.isFinite(l.since) && (l.source === 'fire' || l.source === 'claim')) {
         if (l.since > nowMs) { error = '미래 시각의 잠금을 버림(' + l.run_id + ')'; console.error('[nariya_autorun] ' + error); }
-        else s.lock = { run_id: l.run_id, since: l.since, source: l.source, taken: cleanReasons(l.taken), workNotified: l.workNotified === true, served: cleanServed(l.served) };
+        else s.lock = { run_id: l.run_id, since: l.since, source: l.source, taken: cleanReasons(l.taken), workNotified: l.workNotified === true, served: cleanServed(l.served), startedAt: Number.isFinite(l.startedAt) && l.startedAt <= l.since ? l.startedAt : l.since };
     }
     const p = o.pending;
     if (isPlain(p)) {
@@ -143,7 +143,7 @@ function readState(file, nowMs) {
     }
     if (Array.isArray(o.expired)) {
         s.expired = o.expired.filter((x) => isPlain(x) && typeof x.run_id === 'string' && RUN_ID_RE.test(x.run_id) && (x.source === 'fire' || x.source === 'claim'))
-            .map((x) => ({ run_id: x.run_id, source: x.source, workNotified: x.workNotified === true, at: Number.isFinite(x.at) ? x.at : null, served: cleanServed(x.served) })).slice(-KEEP.expired);
+            .map((x) => ({ run_id: x.run_id, source: x.source, workNotified: x.workNotified === true, at: Number.isFinite(x.at) ? x.at : null, served: cleanServed(x.served), startedAt: Number.isFinite(x.startedAt) ? x.startedAt : null })).slice(-KEEP.expired);
     }
     if (Array.isArray(o.unknownFires)) {
         s.unknownFires = o.unknownFires.filter((x) => isPlain(x) && typeof x.run_id === 'string' && RUN_ID_RE.test(x.run_id) && Number.isFinite(x.at) && x.at <= nowMs)
@@ -187,7 +187,9 @@ function validateDone(body) {
         }
         ids[k] = [...new Set(a)];
     }
-    const pr_url = typeof body.pr_url === 'string' && PR_URL_RE.test(body.pr_url) ? body.pr_url : null;
+    // 앞뒤 공백·끝 '/' 는 떼고 본다(적대검증 C#중-5 — 줄바꿈 하나로 PR 주소를 잃으면 「앱에서 머지 버튼」 푸시가 카드 없는 막다른 길이 된다).
+    const prRaw = typeof body.pr_url === 'string' ? body.pr_url.trim().replace(/\/+$/, '') : '';
+    const pr_url = PR_URL_RE.test(prRaw) ? prRaw : null;
     const summary = typeof body.summary === 'string' ? cleanText(body.summary, LIMITS.summary) : '';
     const needs_decision = Array.isArray(body.needs_decision)
         ? body.needs_decision.filter((x) => typeof x === 'string').map((x) => cleanText(x, LIMITS.needsLen)).filter((x) => x.trim()).slice(0, LIMITS.needsCount)
@@ -289,8 +291,9 @@ function createAutorun({
         lockTimer = setTimer(() => { lockTimer = null; onLockExpired().catch((e) => console.error('[nariya_autorun] 잠금 만료 처리 오류:', e && e.message)); }, left);
     }
     /** 잠그고 파일에 남긴 뒤 3시간 만료 타이머를 건다. taken = 이 세션이 넘겨받은 대기 몫. [연계] ← fire(성공) · claim */
-    function setLock(run_id, source, taken, workNotified, served) {
-        load().lock = { run_id, since: now(), source, taken: Object.assign({}, taken || {}), workNotified: workNotified === true, served: cleanServed(served) };
+    function setLock(run_id, source, taken, workNotified, served, startedAt) {
+        // startedAt: 그 run 이 처음 일을 시작한 시각(심장박동으로 바뀌는 since 와 다르다) — 자동 머지가 「그 세션이 만든 PR」인지 볼 때 쓴다(§9).
+        load().lock = { run_id, since: now(), source, taken: Object.assign({}, taken || {}), workNotified: workNotified === true, served: cleanServed(served), startedAt: Number.isFinite(startedAt) ? startedAt : now() };
         save();
         armLockTimer();
     }
@@ -311,7 +314,7 @@ function createAutorun({
         if (!l || now() - l.since < LOCK_TTL_MS) return false;
         // 풀린 run 을 기억한다 — 그 세션이 살아 있다가 심장박동을 보내면 원래 출처·「작업 시작」 여부를 이어받게(§5 #21).
         const st = load();
-        st.expired = st.expired.filter((x) => x.run_id !== l.run_id).concat([{ run_id: l.run_id, source: l.source, workNotified: l.workNotified === true, at: now(), served: cleanServed(l.served) }]).slice(-KEEP.expired);
+        st.expired = st.expired.filter((x) => x.run_id !== l.run_id).concat([{ run_id: l.run_id, source: l.source, workNotified: l.workNotified === true, at: now(), served: cleanServed(l.served), startedAt: l.startedAt }]).slice(-KEEP.expired);
         markSeen(l.served, COOLDOWN_MS);   // 응답 없이 죽은 세션의 일은 3일 쉰다(다시 claim 하면 served 를 이어받는다)
         clearLock();
         console.warn('[nariya_autorun] 잠금 3시간 지남 — 해제: ' + l.run_id);
@@ -617,7 +620,7 @@ function createAutorun({
                 s.unknownFires = s.unknownFires.filter((x) => x.run_id !== given);
                 if (s.lastFire && s.lastFire.run_id === given) { s.lastFire.unknown = false; s.lastFire.lateConfirmedAt = now(); }
             }
-            setLock(given, source, taken, prev ? prev.workNotified : false, prev ? prev.served : null);   // save 포함 · 만료로 풀렸던 run 은 내준 목록을 이어받는다(적대검증 #6)
+            setLock(given, source, taken, prev ? prev.workNotified : false, prev ? prev.served : null, prev ? prev.startedAt : undefined);   // save 포함 · 만료로 풀렸던 run 은 내준 목록을 이어받는다(적대검증 #6)
             if (late) {
                 notify('나리야 자동 반영 — 세션 시작(늦게 확인됨)', `시간초과로 확인하지 못했던 세션(${given})이 일을 시작했습니다. ${reasonText(taken)}. 끝나면 다시 알립니다.`,
                     { type: 'nariya_autorun_started', run_id: given, late: 'true' });
@@ -663,18 +666,18 @@ function createAutorun({
         // 중복 판정은 최근 끝난 run 20개로 한다(§5 #13) — 한 칸(lastDone)이면 두 run 이 번갈아 보낸 재전송을 놓친다.
         if (s.doneIds.includes(d.run_id) || (s.lastDone && s.lastDone.run_id === d.run_id)) return { ok: true, duplicate: true };
         const l = s.lock;
-        let released = false, lockMismatch = false, late = false, source = null, workNotified = false, servedOf = null;
+        let released = false, lockMismatch = false, late = false, source = null, workNotified = false, servedOf = null, runSince = null;
         if (l && l.run_id === d.run_id) {
             // 같은 run 이면 3시간을 넘겼어도 그냥 푼다(「응답 없음」 푸시를 보낼 까닭이 없다).
             released = true; source = l.source; workNotified = l.workNotified === true;   // 잠금을 풀기 전 값
-            servedOf = l.served;
+            servedOf = l.served; runSince = l.startedAt;
             clearLock();
         } else {
             expireIfStale();
             if (lockValid()) lockMismatch = true; else late = true;
             // 3시간 만료 뒤 늦게 온 done — 만료 기록에 남겨 둔 내준 목록을 쓴다(적대검증 #6).
             const ex = s.expired.find((x) => x.run_id === d.run_id);
-            if (late && ex) servedOf = ex.served;
+            if (late && ex) { servedOf = ex.served; runSince = ex.startedAt; }
         }
         // 내준 일 처리(2026-11-16): 결정 필요(deferred)로 실은 것만 14일 · 실패면 전부 3일 쉼. PR 에 실린 id 는 inFlight 가 따로 숨긴다.
         if (servedOf) {
@@ -695,11 +698,16 @@ function createAutorun({
         if (!lockValid() && s.pending && !debounce) armDebounce();
 
         // C(사용자 「C로 하자」): PR 을 냈으면 머지 담당에게 넘긴다 — 결정 필요 0건이면 검사 통과 뒤 서버가 자동 머지, 아니면 앱 머지 버튼 몫.
-        let prMode = null;
+        //   잠금 주인(released)이었거나 3시간 만료 뒤 같은 run 의 늦은 완료일 때만 자동 머지 후보다(적대검증 C#상-2 — 아무 run_id 로 남의 PR 을 맡기지 못하게).
+        let prMode = null, prWhy = null, prHow = null;
         if (d.outcome === 'pr' && d.pr_url) {
-            try { const t = (prMerger || require('./nariya_pr_merge').forDefault()).track({ pr_url: d.pr_url, run_id: d.run_id, needs_decision: d.needs_decision, summary: d.summary }); prMode = t.tracked ? t.mode : null; }
-            catch (e) { console.error('[nariya_autorun] PR 머지 담당에게 넘기기 실패(완료 처리는 정상):', e && e.message); }
-        }
+            try {
+                const t = (prMerger || require('./nariya_pr_merge').forDefault()).track({ pr_url: d.pr_url, run_id: d.run_id, needs_decision: d.needs_decision, summary: d.summary },
+                    { owner: servedOf !== null && Number.isFinite(runSince), runSince });
+                prMode = t.tracked ? t.mode : null; prWhy = t.why || null; prHow = t.how || null;
+                if (!t.tracked) prWhy = t.why || 'PR 을 맡지 못함';
+            } catch (e) { console.error('[nariya_autorun] PR 머지 담당에게 넘기기 실패(완료 처리는 정상):', e && e.message); prWhy = '서버가 PR 을 맡지 못함'; }
+        } else if (d.outcome === 'pr') prWhy = 'PR 주소를 읽지 못함';
 
         let pushed = false;
         // 정기 세션의 'nothing' 은 매일 소음이라 생략한다 — 단 그 run 에서 「작업 시작」을 이미 알렸거나(시작만 오고 끝이 안 오면 안 된다)
@@ -707,8 +715,12 @@ function createAutorun({
         const quietNothing = released && source === 'claim' && d.outcome === 'nothing' && !workNotified && !d.needs_decision.length;
         if (!quietNothing) {
             // 푸시 문구(사용자: 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시하도록」) — 자동 머지면 누를 것 없음, 사람 몫이면 「앱에서 머지 버튼」을 제목에 적는다.
+            //   맡지 못했으면(주소 못 읽음·맡기 실패) 앱에 카드가 없으므로 「GitHub 에서 확인」으로 쓴다(적대검증 C#중-5). 서버 열쇠 문제면 그렇게 쓴다.
             const head = d.outcome === 'pr'
-                ? (prMode === 'auto' ? 'PR 올림 · 검사 통과하면 자동 머지(누를 것 없음)' : '앱에서 머지 버튼을 눌러 주세요')
+                ? (prMode === 'auto' ? 'PR 올림 · 검사 통과하면 자동 머지(누를 것 없음)'
+                    : prMode === 'human' && prHow === 'secrets' ? 'PR 올림 · 서버 GitHub 열쇠 확인 필요'
+                    : prMode === 'human' ? '앱에서 머지 버튼을 눌러 주세요'
+                    : 'PR 을 맡지 못함 · GitHub 에서 확인해 주세요')
                 : { nothing: '완료 — 반영할 것 없음', failed: '세션 실패' }[d.outcome];
             const needs = d.needs_decision.length ? ` · 결정 필요 ${d.needs_decision.length}건` : '';
             const tag = lockMismatch ? '[잠금과 다른 run] ' : late ? '[늦은 완료] ' : '';
@@ -716,8 +728,10 @@ function createAutorun({
                 ? ` · 결정 필요 ${d.needs_decision.length}건: ` + d.needs_decision.slice(0, 3).map((x) => x.slice(0, 60)).join(' / ') + (d.needs_decision.length > 3 ? ' 외' : '')
                 : '';
             const how = d.outcome !== 'pr' ? ''
-                : prMode === 'auto' ? ' · 결정 필요가 없어 GitHub 검사(약 20분)가 통과하면 서버가 자동으로 머지·배포합니다.'
-                : ' · ★앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요(결정 필요는 사장님 판단 — 머지해도 그 건은 손대지 않은 채 남습니다).';
+                : prMode === 'auto' ? ' · 결정 필요가 없고 위키·원문만 고쳤으면 GitHub 검사(약 20분)가 통과한 뒤 서버가 자동으로 머지·배포합니다(위키·원문 밖 파일을 고쳤으면 다시 「앱에서 머지」로 알립니다).'
+                : prMode === 'human' && prHow === 'secrets' ? ' · 서버의 GitHub 열쇠(Fly secrets GITHUB_MERGE_TOKEN)가 없어 자동 머지·머지 버튼이 동작하지 않습니다.'
+                : prMode === 'human' ? ' · ★앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요' + (prWhy ? '(' + prWhy + ')' : '') + '. 결정 필요는 사장님 판단 — 머지해도 그 건은 손대지 않은 채 남습니다.'
+                : ' · ' + (prWhy || 'PR 을 맡지 못함') + ' — 앱 「자동반영」 방에 카드가 없습니다. GitHub 에서 PR 을 직접 확인해 주세요.';
             const bodyText = (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText + how + (d.pr_url ? ' PR: ' + d.pr_url : '');
             pushed = notifyDone(tag + '나리야 자동 반영 — ' + head + needs, bodyText,
                 Object.assign({ type: 'nariya_autorun_done', run_id: d.run_id, outcome: d.outcome, needs: String(d.needs_decision.length), lock_mismatch: String(lockMismatch), late: String(late), merge: String(prMode || '') },

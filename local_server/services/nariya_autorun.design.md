@@ -284,3 +284,22 @@ setHold(true) → 오늘 차례 점검 하나 → finally { setHold(false) → s
 ### 9.6 확인 안 한 것
 - GITHUB_MERGE_TOKEN 의 권한(내용 쓰기·PR 쓰기)이 머지에 충분한지 — 첫 머지에서 확인된다. 모자라면 「자동 머지 안 함 — GitHub 머지 거절(HTTP 403…)」 푸시가 온다.
 - 앱(WebView)이 카드의 「GitHub 에서 보기」 링크를 여는지.
+
+### 9.7 독립 적대검증(C) 반영 — 2026-11-16
+지적 13건(상2·중6·하4+화면). 모두 반영했다. 시험: `test_nariya_pr_merge.js` 11건 · `test_nariya_autorun.js` §9 2건.
+- **상-1 PR 이 자기 게이트를 바꿔도 자동 머지됨** → 자동 머지는 **바뀐 파일이 전부 허용 경로**일 때만:
+  `local_server/knowledge/legal/{raw,wiki,_dashboard/reread,_dashboard/touched}/` + `HANDOFF.md`·`_amendments/wiki_applied.jsonl`·`_dashboard/pending_index.json`·`_dashboard/build_index.md`,
+  그 안에서도 코드 확장자(.js·.py·.sh·.yml 등)는 제외. 밖이면 사람 몫(앱 버튼) + 카드에 「위키·원문 밖 파일 N개」 경고.
+  필수 검사는 이름뿐 아니라 만든 앱이 `github-actions` 여야 인정.
+- **상-2 아무 run_id 로 남의 PR 을 맡김** → done 을 보낸 run 이 **잠금 주인**(또는 만료 기록이 있는 같은 run)일 때만 자동 후보.
+  추가로 PR `created_at` ≥ 그 run 이 일을 시작한 시각(`lock.startedAt` — 심장박동으로 바뀌는 since 와 따로 둔다).
+- **중-1 버튼과 5분 확인이 겹치면 영영 멈춤** → 확인이 busy 로 물러날 때도 다시 걸고, 버튼이 끝날 때 waiting 이면 타이머를 보장.
+- **중-2 검사 실패 뒤 다시 초록이 돼도 막힘** → failed_checks 도 30분마다 24시간 동안 다시 본다(자동이면 초록 되면 머지).
+- **중-3 사람 몫 대부분은 버튼이 늘 실패** → 넘길 때 `how`(button·github·secrets)를 정해 푸시·카드 문구를 가른다. 방을 열 때 서버가 GitHub 를
+  다시 읽어(refresh) **지금 머지할 수 있는 PR 에만 버튼**을 그리고, 아니면 「지금은 머지 버튼이 잠겨 있습니다 — 까닭」.
+- **중-4 이미 맡은 auto PR 에 결정 필요가 다시 오면 푸시와 동작이 어긋남** → 결정 필요를 합치고 사람 몫으로 내리며 타이머를 끈다.
+- **중-5 PR 주소 꼴이 조금 달라 카드 없는 「앱 버튼」 푸시** → 앞뒤 공백·끝 `/` 를 떼고 받는다. 그래도 못 읽거나 못 맡으면 「PR 을 맡지 못함 · GitHub 에서 확인」.
+- **중-6 검사한 조합 ≠ 머지되는 조합(그 사이 main 이 바뀜)** → 필수 검사 시작 시각이 main 마지막 커밋보다 앞이면 stale —
+  `PUT /pulls/{n}/update-branch {expected_head_sha}` 로 최신 main 을 얹어 검사를 다시 돌린다(같은 head 로는 한 번). 버튼도 같은 처리 후 「약 20분 뒤 다시」.
+- **하-1** 401·403·404 는 바로 열쇠 몫(HTTP 코드 표기) · **하-2** 필수 검사 skipped·neutral 은 바로 GitHub 몫 · **하-3** check-runs 를 여러 쪽(최대 500)까지 ·
+  **하-4** 화면의 쓰이지 않던 conflict 분기 제거 · 다른 카드를 누르면 앞 버튼 글자 되돌림.

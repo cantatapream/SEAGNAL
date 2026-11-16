@@ -1340,12 +1340,15 @@ router.get('/api/legal/autorun/status', autorun.requireAdminOrAutomation, (req, 
 //   **관리자 토큰만** 받는다 — 자동화 열쇠(세션)로는 목록도 머지도 안 된다(세션은 머지하지 않는다 · 설계안 §9).
 //   [연계] services/nariya_pr_merge.js · client/js/ai-chat/ai_chat.js 「자동반영」 방(renderAutorunCards)
 // GET /api/legal/autorun/prs — 자동 반영이 맡은 PR 목록(사람 몫·검사 대기·실패를 위에) + 지금 자동 반영 상태 요약
-router.get('/api/legal/autorun/prs', adminAuth.requireAdminToken, (req, res) => {
+router.get('/api/legal/autorun/prs', adminAuth.requireAdminToken, async (req, res) => {
   try {
-    const l = require('../services/nariya_pr_merge').list();
+    const merger = require('../services/nariya_pr_merge');
+    // 방을 열 때 머지 안 된 PR 을 GitHub 에서 다시 읽어 「지금 버튼이 눌리나」를 적는다(적대검증 C#중-2·중-3). 실패해도 목록은 준다.
+    try { await merger.refresh(); } catch (e) { console.error('[autorun] PR 새로 읽기 실패(목록은 그대로):', e && e.message); }
+    const l = merger.list();
     const st = autorun.status();
     res.json(Object.assign({ ok: true }, l, { autorun: { lock: st.lock, pending: st.pending, lastDone: st.lastDone, lastSweep: st.lastSweep, hold: st.hold } }));
-  } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+  } catch (e) { console.error('[autorun] PR 목록 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 // POST /api/legal/autorun/prs/:n/merge — 앱 머지 버튼. 검사 초록·충돌 없음·이 저장소 claude/ 가지일 때만, 확인한 커밋(sha)만 머지.
 //   머지되면 main push → deploy.yml 이 배포한다.

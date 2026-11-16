@@ -69,7 +69,7 @@ function fakeFetch() {
 }
 function fakePush() { const p = async (title, body, data) => { p.sent.push({ title, body, data }); return { sent: 1, failed: 0 }; }; p.sent = []; return p; }
 /** 가짜 머지 담당 — 실제 nariya_pr_merge(볼륨 파일·GitHub)를 건드리지 않게. 결정 필요 0건이면 auto. */
-function fakeMerger() { const m = { tracked: [], track(d) { m.tracked.push(d); return { tracked: true, mode: (d.needs_decision || []).length ? 'human' : 'auto' }; } }; return m; }
+function fakeMerger() { const m = { tracked: [], opts: [], track(d, o) { m.tracked.push(d); m.opts.push(o || {}); if (m.refuse) return { tracked: false, why: m.refuse }; return { tracked: true, mode: (d.needs_decision || []).length || !(o && o.owner) ? 'human' : 'auto' }; } }; return m; }
 function make(o = {}) {
     const time = o.time || fakeTime(), f = o.fetch || fakeFetch(), push = o.push || fakePush(), file = o.file || newFile(), merger = o.merger || fakeMerger();
     const ar = A.createAutorun({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: f, push, env: o.env || PROD_ENV(), adminCheck: o.adminCheck, prMerger: merger });
@@ -898,6 +898,39 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.ok(/legalPost\('\/api\/legal\/autorun\/prs\/' \+ encodeURIComponent\(n\) \+ '\/merge'/.test(cj) && /한 번 더 누르면 실행/.test(cj), '머지 버튼은 두 번 눌러야');
         const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
         assert.ok(/require\('\.\/services\/nariya_pr_merge'\)\.start\(\)/.test(sv), '시작 때 검사 기다리던 PR 되살림');
+    });
+
+    await check('[§9 적대검증 C] 잠금 주인만 자동 머지 후보(owner·runSince=일 시작 시각 — 심장박동과 무관) · 아무 run_id 로 보낸 done 은 사람 몫 · PR 주소 끝 공백·/ 허용 · 주소를 못 읽거나 맡지 못하면 「GitHub 에서 확인」', async () => {
+        const a = make();
+        const id = await fired(a);
+        const started = a.ar._state().lock.startedAt;
+        await quiet(() => a.time.advance(30 * MIN));
+        await quiet(() => { a.ar.claim({ run_id: id }); });                     // 심장박동 — since 는 바뀌어도 startedAt 은 그대로
+        assert.equal(a.ar._state().lock.startedAt, started);
+        await quiet(async () => { a.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(31) + '/\n' }); await flush(); });
+        assert.equal(a.merger.tracked[0].pr_url, PR(31), '끝 / · 줄바꿈 떼고 받음');
+        assert.deepEqual(a.merger.opts[0], { owner: true, runSince: started });
+        const b = make();
+        await quiet(async () => { b.ar.done({ run_id: 'forged-1', outcome: 'pr', pr_url: PR(32) }); await flush(); });
+        assert.equal(b.merger.opts[0].owner, false, '잠금 기록이 없는 run');
+        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(b.push.sent[0].title), b.push.sent[0].title);
+        const c = make();
+        const id3 = await fired(c);
+        await quiet(async () => { c.ar.done({ run_id: id3, outcome: 'pr', pr_url: 'https://github.com/evil/x/pull/1' }); await flush(); });
+        assert.equal(c.merger.tracked.length, 0);
+        const t = c.push.sent[c.push.sent.length - 1];
+        assert.ok(/PR 을 맡지 못함 · GitHub 에서 확인해 주세요/.test(t.title) && /PR 주소를 읽지 못함/.test(t.body) && /카드가 없습니다/.test(t.body), t.title + ' / ' + t.body);
+        const d = make(); d.merger.refuse = '이미 맡은 PR';
+        const id4 = await fired(d);
+        await quiet(async () => { d.ar.done({ run_id: id4, outcome: 'pr', pr_url: PR(33) }); await flush(); });
+        assert.ok(/GitHub 에서 확인해 주세요/.test(d.push.sent[d.push.sent.length - 1].title));
+        // 3시간 만료 뒤 같은 run 의 늦은 완료 — 만료 기록의 startedAt 으로 주인
+        const e = make();
+        const id5 = await fired(e);
+        const st5 = e.ar._state().lock.startedAt;
+        await quiet(() => e.time.advance(3 * HOUR + MIN));
+        await quiet(async () => { e.ar.done({ run_id: id5, outcome: 'pr', pr_url: PR(34) }); await flush(); });
+        assert.deepEqual(e.merger.opts[0], { owner: true, runSince: st5 });
     });
 
     fs.rmSync(tmp, { recursive: true, force: true });

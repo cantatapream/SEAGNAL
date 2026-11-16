@@ -2703,7 +2703,7 @@
   //   [연계] → GET /api/legal/autorun/prs · POST /api/legal/autorun/prs/:n/merge(관리자 토큰) · services/nariya_pr_merge.js
   var AUTORUN_ST = {
     needs_human: ['nrya-warn', '🖐 머지 버튼 필요'], waiting: ['', '⏳ 검사 기다림 → 통과하면 자동 머지'],
-    failed_checks: ['nrya-rej', '❌ 검사 실패(머지 잠김)'], conflict: ['nrya-rej', '⚠ 충돌'], merged: ['nrya-done', '✅ 머지됨'], closed: ['nrya-rej', '닫힘'],
+    failed_checks: ['nrya-rej', '❌ 검사 실패(머지 잠김)'], merged: ['nrya-done', '✅ 머지됨'], closed: ['nrya-rej', '닫힘'],
   };
   /**
    * PR 카드 한 장. 예: autorunCardHTML({number:9, status:'needs_human', needs:['폴더 결정'], summary:'개정 3건'})
@@ -2715,16 +2715,21 @@
     var needs = (p.needs || []).length
       ? field('🧭 결정 필요 ' + p.needs.length + '건', '<ul style="margin:4px 0 0;padding-left:18px">' + p.needs.map(function (x) { return '<li style="margin:2px 0">' + esc(x) + '</li>'; }).join('') + '</ul>')
       : '';
-    var why = p.why ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">ℹ️</span>' + esc(p.why) + '</div>' : '';
+    var why = p.why ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">ℹ️</span>' + esc(p.why) + (p.howText ? '<br><b>' + esc(p.howText) + '</b>' : '') + '</div>' : '';
+    // 위키·원문 밖 파일(서버 코드·검사 도구 등)을 고친 PR — 자동 머지 대상이 아니다. 누르기 전에 알 수 있게 보여 준다(적대검증 C#상-1).
+    var outside = p.outsideCount ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">⚠️</span>위키·원문 밖 파일 ' + esc(String(p.outsideCount)) + '개를 고쳤습니다(서버 코드·검사 도구 등): <code style="font-size:11px">' + (p.outside || []).map(esc).join('</code>, <code style="font-size:11px">') + '</code> — 개발 검토를 권합니다.</div>' : '';
     var chk = p.check ? field('🔎 마지막 확인', esc(p.check.state) + (p.check.why ? ' — ' + esc(p.check.why) : '') + (p.check.at ? ' <span style="font-size:11.5px;color:var(--nrya-text-sub)">(' + esc(p.check.at.slice(5, 16).replace('T', ' ')) + ')</span>' : '')) : '';
     var merged = p.status === 'merged' ? field('✅ 머지', esc((p.mergedBy === 'auto' ? '자동' : (p.mergedBy || '')) + (p.mergedAt ? ' · ' + p.mergedAt.slice(5, 16).replace('T', ' ') : ''))) : '';
-    var canMerge = p.status === 'needs_human' || p.status === 'waiting' || p.status === 'conflict';
-    var btn = canMerge ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">🔀 머지</button></div>' : '';
+    // 버튼은 서버가 방을 열 때 GitHub 에서 다시 읽어 「지금 머지할 수 있다」(canMerge)고 판정한 PR 에만 그린다 —
+    //   눌러도 실패할 버튼을 보여 주지 않는다(적대검증 C#중-3). 그 밖에는 왜 안 되는지 한 줄.
+    var open = p.status === 'needs_human' || p.status === 'waiting' || p.status === 'failed_checks';
+    var btn = open && p.canMerge ? '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">🔀 머지</button></div>'
+      : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || p.check.state) + '</div>' : '';
     return cardShell({
       id: String(p.number), badge: 'PR #' + p.number, title: (p.summary || '(요약 없음)').slice(0, 160),
       subHTML: esc((p.at || '').slice(5, 16).replace('T', ' ')) + ' · <a href="' + esc(p.pr_url) + '" target="_blank" rel="noopener">GitHub 에서 보기</a>',
       statusHTML: '<span class="nrya-rv-st ' + st[0] + '">' + esc(st[1]) + '</span>',
-      bodyHTML: why + needs + chk + merged + btn,
+      bodyHTML: why + outside + needs + chk + merged + btn,
     });
   }
   /**
@@ -2766,6 +2771,9 @@
       var n = b.getAttribute('data-merge');
       if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
       if (armed !== n) {
+        // 다른 카드를 눌러 둔 상태였으면 그 버튼 글자를 먼저 되돌린다(눌러 둔 채 남지 않게).
+        var prev = armed ? listEl.querySelector('button[data-merge="' + armed + '"]') : null;
+        if (prev) { prev.classList.remove('nrya-btn-danger'); prev.textContent = '🔀 머지'; }
         armed = n; b.classList.add('nrya-btn-danger'); b.textContent = '⚠ PR #' + n + ' 머지·배포 — 한 번 더 누르면 실행';
         setTimeout(function () { if (armed === n) { armed = null; b.classList.remove('nrya-btn-danger'); b.textContent = '🔀 머지'; } }, 8000);
         return;

@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 21:15 KST] ✅완료 — 자동 반영 C — 독립 적대검증 13건 반영
+상-1 자동 머지는 허용 경로(raw·wiki·reread·touched·HANDOFF·wiki_applied·pending_index·build_index, 코드 확장자 제외)만 · 필수 검사는 github-actions 앱만 / 상-2 잠금 주인 run + PR created_at ≥ lock.startedAt 만 자동 / 중-1 busy 때 재무장 / 중-2 failed_checks 30분 감시 24h / 중-3 how(button·github·secrets) 문구 + 방 열 때 refresh·canMerge 일 때만 버튼 / 중-4 이미 맡은 PR 에 결정 필요 → 사람 몫 / 중-5 PR 주소 정리·못 맡으면 GitHub 확인 문구 / 중-6 stale → update-branch / 하-1~4. 시험 test_nariya_pr_merge 11/0 · test_nariya_autorun 46/0 · silent_catch 22/0 · admin_cards 56/0 · 관련 0 FAIL · 설계안 §9.7.
+
+
 ### [2026-11-16 21:02 KST] ✅완료 — 자동 반영 C — 조건부 자동 머지 + 앱 「자동반영」 방 머지 버튼
 사용자: 「C로 하자 … 머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시 … 관련 머지 버튼도 앱 내에 반영」. 신규 services/nariya_pr_merge.js(judge·track·5분 확인·sha 고정 머지·needs_human 넘김·mergeNow·list·start · 상태 data/nariya_pr_state.json) · nariya_autorun.done → track + 푸시 문구(자동/앱 버튼) · routes GET /api/legal/autorun/prs · POST …/prs/:n/merge(관리자만) · admin/stats autorunPrs · server.js start · 앱 ai_chat.js 「자동반영」 방(renderAutorunCards, 두 번 눌러 머지) · verify_all SUITES test_nariya_pr_merge · 규칙집 144 · ARCHITECTURE 재생성 · 설계안 §9. 시험: test_nariya_pr_merge 8/0 · test_nariya_autorun 45/0 · silent_catch 22/0(io 34 기준선 유지 — 새 catch 에 로그) · admin_cards 56/0 · mok_brief 23/0 · mok_bulk 36/0 · scan_fail_honest 25/0. ⚠시험이 실제 data/ 에 PR 상태 파일을 쓴 것을 발견해 지우고 가짜 머지 담당을 넣음(커밋 안 됨). 다음: 독립 적대검증(머지 경로).
 
