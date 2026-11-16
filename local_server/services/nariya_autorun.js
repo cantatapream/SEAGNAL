@@ -73,7 +73,7 @@ const PR_URL_RE = /^https:\/\/github\.com\/cantatapream\/SEAGNAL\/pull\/\d+$/;
 const UNSAFE_CHARS_RE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F‎‏‪-‮⁦-⁩]/g;
 // done 본문 상한 — 세션이 보낸 글이 푸시·상태 파일을 부풀리지 않게.
 const LIMITS = { summary: 2000, needsCount: 20, needsLen: 300, ids: 300 };
-const SUMMARY_FALLBACK = { pr: 'PR 을 만들었습니다 — 확인한 뒤 머지해 주세요.', nothing: '반영할 것이 없었습니다.', failed: '세션이 실패했습니다 — 세션 기록을 확인해 주세요.' };
+const SUMMARY_FALLBACK = { pr: 'PR 을 만들었습니다.', nothing: '반영할 것이 없었습니다.', failed: '세션이 실패했습니다 — 세션 기록을 확인해 주세요.' };
 
 /** ms → 'YYYY-MM-DDTHH:mm:ss+09:00'(KST). 예: 0 → '1970-01-01T09:00:00+09:00'. @param {number} ms @returns {string|null} */
 function iso(ms) { return Number.isFinite(ms) ? new Date(ms + 9 * 3600000).toISOString().slice(0, 19) + '+09:00' : null; }
@@ -226,6 +226,7 @@ function createAutorun({
     push = (t, b, d) => require('./admin_push').sendAdminPush(t, b, d),
     env = process.env,
     adminCheck = (req, res, next) => require('./admin_auth').requireAdminToken(req, res, next),
+    prMerger = null,   // 2026-11-16 C(조건부 자동 머지) — 기본은 services/nariya_pr_merge.forDefault()(지연 require). 시험은 가짜를 넣는다.
 } = {}) {
     let state = null, debounce = null, debounceAt = null, lockTimer = null, firing = false, firingRunId = null;
     let readError = null, saveError = null, warnedUnconfigured = false, holdUntil = null, holdTimer = null;
@@ -693,20 +694,33 @@ function createAutorun({
         save();
         if (!lockValid() && s.pending && !debounce) armDebounce();
 
+        // C(사용자 「C로 하자」): PR 을 냈으면 머지 담당에게 넘긴다 — 결정 필요 0건이면 검사 통과 뒤 서버가 자동 머지, 아니면 앱 머지 버튼 몫.
+        let prMode = null;
+        if (d.outcome === 'pr' && d.pr_url) {
+            try { const t = (prMerger || require('./nariya_pr_merge').forDefault()).track({ pr_url: d.pr_url, run_id: d.run_id, needs_decision: d.needs_decision, summary: d.summary }); prMode = t.tracked ? t.mode : null; }
+            catch (e) { console.error('[nariya_autorun] PR 머지 담당에게 넘기기 실패(완료 처리는 정상):', e && e.message); }
+        }
+
         let pushed = false;
         // 정기 세션의 'nothing' 은 매일 소음이라 생략한다 — 단 그 run 에서 「작업 시작」을 이미 알렸거나(시작만 오고 끝이 안 오면 안 된다)
         // 사람이 정할 것(needs_decision)이 있으면 알린다(§5 #15·#20b).
         const quietNothing = released && source === 'claim' && d.outcome === 'nothing' && !workNotified && !d.needs_decision.length;
         if (!quietNothing) {
-            const head = { pr: '완료 — PR 확인 필요', nothing: '완료 — 반영할 것 없음', failed: '세션 실패' }[d.outcome];
+            // 푸시 문구(사용자: 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시하도록」) — 자동 머지면 누를 것 없음, 사람 몫이면 「앱에서 머지 버튼」을 제목에 적는다.
+            const head = d.outcome === 'pr'
+                ? (prMode === 'auto' ? 'PR 올림 · 검사 통과하면 자동 머지(누를 것 없음)' : '앱에서 머지 버튼을 눌러 주세요')
+                : { nothing: '완료 — 반영할 것 없음', failed: '세션 실패' }[d.outcome];
             const needs = d.needs_decision.length ? ` · 결정 필요 ${d.needs_decision.length}건` : '';
             const tag = lockMismatch ? '[잠금과 다른 run] ' : late ? '[늦은 완료] ' : '';
             const needsText = d.needs_decision.length
                 ? ` · 결정 필요 ${d.needs_decision.length}건: ` + d.needs_decision.slice(0, 3).map((x) => x.slice(0, 60)).join(' / ') + (d.needs_decision.length > 3 ? ' 외' : '')
                 : '';
-            const bodyText = (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText + (d.pr_url ? ' PR: ' + d.pr_url : '');
+            const how = d.outcome !== 'pr' ? ''
+                : prMode === 'auto' ? ' · 결정 필요가 없어 GitHub 검사(약 20분)가 통과하면 서버가 자동으로 머지·배포합니다.'
+                : ' · ★앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요(결정 필요는 사장님 판단 — 머지해도 그 건은 손대지 않은 채 남습니다).';
+            const bodyText = (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText + how + (d.pr_url ? ' PR: ' + d.pr_url : '');
             pushed = notifyDone(tag + '나리야 자동 반영 — ' + head + needs, bodyText,
-                Object.assign({ type: 'nariya_autorun_done', run_id: d.run_id, outcome: d.outcome, needs: String(d.needs_decision.length), lock_mismatch: String(lockMismatch), late: String(late) },
+                Object.assign({ type: 'nariya_autorun_done', run_id: d.run_id, outcome: d.outcome, needs: String(d.needs_decision.length), lock_mismatch: String(lockMismatch), late: String(late), merge: String(prMode || '') },
                     d.pr_url ? { pr_url: d.pr_url } : {}));
         }
         return { ok: true, released, lockMismatch, late, pushQueued: pushed };

@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-16 21:02 KST] ✅완료 — 자동 반영 C — 조건부 자동 머지 + 앱 「자동반영」 방 머지 버튼
+사용자: 「C로 하자 … 머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시 … 관련 머지 버튼도 앱 내에 반영」. 신규 services/nariya_pr_merge.js(judge·track·5분 확인·sha 고정 머지·needs_human 넘김·mergeNow·list·start · 상태 data/nariya_pr_state.json) · nariya_autorun.done → track + 푸시 문구(자동/앱 버튼) · routes GET /api/legal/autorun/prs · POST …/prs/:n/merge(관리자만) · admin/stats autorunPrs · server.js start · 앱 ai_chat.js 「자동반영」 방(renderAutorunCards, 두 번 눌러 머지) · verify_all SUITES test_nariya_pr_merge · 규칙집 144 · ARCHITECTURE 재생성 · 설계안 §9. 시험: test_nariya_pr_merge 8/0 · test_nariya_autorun 45/0 · silent_catch 22/0(io 34 기준선 유지 — 새 catch 에 로그) · admin_cards 56/0 · mok_brief 23/0 · mok_bulk 36/0 · scan_fail_honest 25/0. ⚠시험이 실제 data/ 에 PR 상태 파일을 쓴 것을 발견해 지우고 가짜 머지 담당을 넣음(커밋 안 됨). 다음: 독립 적대검증(머지 경로).
+
+
 ### [2026-11-16 20:50 KST] ✅완료 — 대기 중이던 개정 카드 일괄 자동 승인(approveAllPending)
 사용자: 「아예 전체 승인 버튼 누를 필요 없이 자동 진행되어도 좋고 승인이 말이야.」 → legal_amendment_scanner.approveAllPending(pending 만 approved·decidedBy 자동(대기분 일괄)·탐지 큐 옮겨 적기·푸시 1통) 을 server.js runNariyaNightly finally 에서 보류 풀기·남은 일 점검 앞에 부름. 배포 뒤 첫 새벽(11-17 03:00)에 처리 → 남은 일 점검이 세션을 깨움. 시험 test_nariya_autorun 44/0(§8 #8). main 보호·세션 머지 여부는 사용자에게 다시 확인 중.
 

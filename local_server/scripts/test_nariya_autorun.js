@@ -68,10 +68,12 @@ function fakeFetch() {
     return f;
 }
 function fakePush() { const p = async (title, body, data) => { p.sent.push({ title, body, data }); return { sent: 1, failed: 0 }; }; p.sent = []; return p; }
+/** 가짜 머지 담당 — 실제 nariya_pr_merge(볼륨 파일·GitHub)를 건드리지 않게. 결정 필요 0건이면 auto. */
+function fakeMerger() { const m = { tracked: [], track(d) { m.tracked.push(d); return { tracked: true, mode: (d.needs_decision || []).length ? 'human' : 'auto' }; } }; return m; }
 function make(o = {}) {
-    const time = o.time || fakeTime(), f = o.fetch || fakeFetch(), push = o.push || fakePush(), file = o.file || newFile();
-    const ar = A.createAutorun({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: f, push, env: o.env || PROD_ENV(), adminCheck: o.adminCheck });
-    return { ar, time, f, push, file };
+    const time = o.time || fakeTime(), f = o.fetch || fakeFetch(), push = o.push || fakePush(), file = o.file || newFile(), merger = o.merger || fakeMerger();
+    const ar = A.createAutorun({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: f, push, env: o.env || PROD_ENV(), adminCheck: o.adminCheck, prMerger: merger });
+    return { ar, time, f, push, file, merger };
 }
 /** console 를 잠시 가로챈다(log·warn·error). */
 async function capture(fn) {
@@ -632,7 +634,8 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.equal(r.ok, false); assert.equal(r.status, 400);
         assert.equal(ar.status().lock.run_id, 'c1'); assert.equal(push.sent.length, 0);
         await quiet(async () => { ar.done({ run_id: 'c1', outcome: 'pr', pr_url: PR(7), needs_decision: ['이름 바뀐 고시 동일성', '승격 여부'], summary: '개정 3건 반영' }); await flush(); });
-        assert.ok(/PR 확인 필요/.test(push.sent[0].title) && /결정 필요 2건/.test(push.sent[0].title), push.sent[0].title);
+        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(push.sent[0].title) && /결정 필요 2건/.test(push.sent[0].title), push.sent[0].title);
+        assert.ok(/「자동반영」 방에서 내용을 확인하고 \[머지\] 버튼/.test(push.sent[0].body), '본문에 앱 머지 버튼 안내(사용자 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시」)');
         assert.equal(push.sent[0].data.pr_url, PR(7));
         assert.ok(Object.values(push.sent[0].data).every((x) => typeof x === 'string'), 'FCM data 는 전부 문자열');
     });
@@ -868,6 +871,33 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const nightly = sv.slice(sv.indexOf('async function runNariyaNightly'), sv.indexOf("cron.schedule('0 3 * * *'"));
         const iA = nightly.indexOf('approveAllPending()'), iH = nightly.indexOf('ar.setHold(false)'), iS = nightly.indexOf('ar.sweep(');
         assert.ok(iA > 0 && iA < iH && iH < iS && /\} finally \{/.test(nightly.slice(0, iA)), 'finally 안에서 승인 → 풀기 → 남은 일 점검');
+    });
+
+    await check('[§9] C(조건부 자동 머지) — done pr 은 머지 담당에게 넘김 · 결정 필요 0건 → 「검사 통과하면 자동 머지(누를 것 없음)」 · 있으면 제목·본문에 「앱에서 머지 버튼」 · pr 아닌 done 은 안 넘김', async () => {
+        const a = make();
+        const id = await fired(a);
+        await quiet(async () => { a.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(21), summary: '개정 2건' }); await flush(); });
+        assert.equal(a.merger.tracked.length, 1); assert.equal(a.merger.tracked[0].pr_url, PR(21));
+        const t = titles(a.push, /나리야 자동 반영 — PR 올림/);
+        assert.equal(t.length, 1); assert.ok(/검사 통과하면 자동 머지\(누를 것 없음\)/.test(t[0].title), t[0].title);
+        assert.ok(/서버가 자동으로 머지·배포/.test(t[0].body)); assert.equal(t[0].data.merge, 'auto');
+        const b = make();
+        const id2 = await fired(b);
+        await quiet(async () => { b.ar.done({ run_id: id2, outcome: 'pr', pr_url: PR(22), needs_decision: ['고시 폴더'], summary: '신선도 1건' }); await flush(); });
+        const h = b.push.sent[b.push.sent.length - 1];
+        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(h.title) && /결정 필요 1건/.test(h.title), h.title);
+        assert.ok(/「자동반영」 방에서 내용을 확인하고 \[머지\] 버튼/.test(h.body)); assert.equal(h.data.merge, 'human');
+        const c = make();
+        const id3 = await fired(c);
+        await quiet(async () => { c.ar.done({ run_id: id3, outcome: 'failed', pr_url: PR(23), summary: 'x' }); c.ar.done({ run_id: 'other', outcome: 'nothing' }); await flush(); });
+        assert.equal(c.merger.tracked.length, 0, 'pr 이 아니면 머지 담당에게 안 넘김');
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/router\.get\('\/api\/legal\/autorun\/prs', adminAuth\.requireAdminToken/.test(lj) && /router\.post\('\/api\/legal\/autorun\/prs\/:n\/merge', adminAuth\.requireAdminToken/.test(lj), '목록·머지는 관리자 토큰만(자동화 열쇠 아님)');
+        const cj = fs.readFileSync(path.join(__dirname, '../../client/js/ai-chat/ai_chat.js'), 'utf8');
+        assert.ok(/ADMIN_ORDER = \['⚠수치검증', '자동반영'/.test(cj) && /renderAutorunCards\(document\.getElementById\('nryaAutorunHost'\)\)/.test(cj), '앱 「자동반영」 방');
+        assert.ok(/legalPost\('\/api\/legal\/autorun\/prs\/' \+ encodeURIComponent\(n\) \+ '\/merge'/.test(cj) && /한 번 더 누르면 실행/.test(cj), '머지 버튼은 두 번 눌러야');
+        const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+        assert.ok(/require\('\.\/services\/nariya_pr_merge'\)\.start\(\)/.test(sv), '시작 때 검사 기다리던 PR 되살림');
     });
 
     fs.rmSync(tmp, { recursive: true, force: true });

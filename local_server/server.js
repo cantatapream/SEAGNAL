@@ -528,6 +528,9 @@ app.listen(PORT, '0.0.0.0', () => {
         //   발사·푸시는 운영 앱(FLY_APP_NAME === 'seagnal-server')에서만 한다 — 스테이징·개발은 콘솔 한 줄.
         try { require('./services/nariya_autorun').start(); }
         catch (e) { console.error('[startup] 나리야 자동 반영 복원 실패:', e && e.message); }
+        // 자동 반영 PR 의 조건부 자동 머지 — 검사를 기다리던 PR 의 확인 타이머를 되살린다(services/nariya_pr_merge.js, 2026-11-16 C).
+        try { require('./services/nariya_pr_merge').start(); }
+        catch (e) { console.error('[startup] 나리야 PR 자동 머지 복원 실패:', e && e.message); }
 
         // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
         try {

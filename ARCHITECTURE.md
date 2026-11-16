@@ -76,6 +76,7 @@ client/js/
 │   │   ├── forecast.js
 │   │   ├── marine_forecast.js
 │   │   ├── windy.js
+│   ├── prediction/
 │   └── station-briefing/
 │       ├── station_briefing_basis.js
 │       ├── station_briefing_picker.js
