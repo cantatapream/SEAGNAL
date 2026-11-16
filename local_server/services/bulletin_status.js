@@ -14,10 +14,12 @@
  *          부모 이름만 = 자식 전부 포함, 일부 포함·제외는 괄호로. 첫 통보문은 발효 중 칸(t6) + 그 통보문 변경 칸으로 시작.
  *   예비 = 관서별 마지막 예비 통보문 목록(전체 목록이 매번 다시 온다) − 그 뒤 「풍랑예비특보 해제」 통보문 구역 − 정식 특보가 된 구역,
  *          시간창 끝 + 10분이 지나면 뺀다.
- *   참고사항 AI 해석은 아직 넣지 않았다(규칙만) — 시험 결과는 bulletin_ai_trial.
+ *   참고사항 AI(2026-11-16 사용자 「좋아 그렇게 진행하자」) = 규칙 계산이 끝난 뒤 services/bulletin_ai_live 의 후보(검사 통과분)를 덧씌운다 —
+ *          그 해역의 규칙 근거(그 상태를 만든 통보문)보다 **더 새 통보문**일 때만(새 것이 이긴다). 예비취소 → 예비 뺌 · 해제예고변경·연장·정확해제시각 → 해제 예고 칸.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/bulletin_watch(bulletins — 관찰기가 받아 둔 본문) · analysis/bulletin_survey/lifecycle_check(해역 해석) ·
+ *                   services/bulletin_ai_live(candidates — 참고사항 AI 후보) ·
  *                   marine_warning_crawler(_buildZoneTreeFromSnapshot — MMIS 와 같은 나무 모양)
  *  - 저장          : data/bulletin_status.json(마지막 계산 결과)
  *  - 나를 쓰는 곳  : scheduler.js(관찰기 다음 매분) · routes/bulletin_watch.js(GET /api/admin/bulletin-status) · services/bulletin_compare.js · 검사 test_bulletin_status
@@ -79,7 +81,7 @@ function yebiReleaseUnits(r) {
 
 /**
  * 한 관서의 정식 특보 상태(특보 통보문들 → 단위별 상태).
- * @returns {{state: Map<string, {type, level, tmFc, tmEf, efMs, clr, ho}>, yebiRelease: Array<{ms, units:Set}>}}
+ * @returns {{state: Map<string, {type, level, tmFc, tmEf, efMs, clr, ho, inMs}>, yebiRelease: Array<{ms, units:Set}>}}  inMs = 그 상태를 만든 통보문 입력시각(AI 덧씌움의 「새 것이 이긴다」 기준)
  * [연계] ← compute(이 파일)
  */
 function computeFormal(list) {
@@ -87,7 +89,7 @@ function computeFormal(list) {
     let seeded = false;
     for (const b of latest(list)) {
         const r = b.result, items = parseItems(r.t2, []), { ef, clr } = itemTimes(r);
-        const base = { tmFc: korTime(r.tmFc), ho: r.t1Title };
+        const base = { tmFc: korTime(r.tmFc), ho: r.t1Title, inMs: KST(r.tmIn) };
         if (!seeded) {
             // 첫 통보문: 발효 중 칸으로 시작(부모 단위) — 3일 전보다 먼저 발효된 특보도 이렇게 잡힌다
             for (const [u, lv] of parseCurrent(r.t6, []).cur) { const m = lv.match(/^(풍랑|태풍)(주의보|경보)$/); if (m) state.set(u, Object.assign({ type: m[1], level: m[2], tmEf: '', efMs: 0, clr: '' }, base)); }
@@ -98,7 +100,7 @@ function computeFormal(list) {
             for (const u of it.units) {
                 if (it.action === '해제') state.delete(u);
                 else if (it.action === '발표' || it.action === '변경') state.set(u, Object.assign({ type: it.type, level: it.level, tmEf: t.text || '', efMs: t.ms || 0, clr: c || '' }, base));
-                else if (/해제예고|연장/.test(it.action) && state.has(u) && c) state.get(u).clr = c;   // 해제 예고만 바꿈
+                else if (/해제예고|연장/.test(it.action) && state.has(u) && c) Object.assign(state.get(u), { clr: c, inMs: base.inMs });   // 해제 예고만 바꿈(그 통보문이 새 근거)
             }
         }
         const yr = yebiReleaseUnits(r);
@@ -131,11 +133,12 @@ function parseYebiList(text, tmFc) {
  * 통보문들 → 통보문 기준 특보현황.
  * @param {Array<{office, rpt, result}>} bulletins  bulletin_watch.bulletins()
  * @param {number} nowMs
- * @returns {{zones: Object<string, {parent, kind:'formal'|'yebi', type, level, tmFc, tmEf, clr, ho}>, tree: object, waiting: string[]}}
- *   zones: 단위(부모·자식) → 상태(정식이 예비보다 앞선다) · waiting: 시간창이 끝나 10분 기다리는 예비 단위
+ * @param {Array<{종류, zones:string[], office, ho, inMs, 시간_후}>} [cands] 참고사항 AI 후보(bulletin_ai_live.candidates — 입력시각 순)
+ * @returns {{zones: Object<string, {parent, kind:'formal'|'yebi', type, level, tmFc, tmEf, clr, ho, inMs, ai?}>, tree: object, waiting: string[], aiApplied: Array}}
+ *   zones: 단위(부모·자식) → 상태(정식이 예비보다 앞선다) · waiting: 시간창이 끝나 10분 기다리는 예비 단위 · aiApplied: 실제로 덧씌운 AI 후보
  * [연계] ← run(이 파일) · bulletin_compare · test_bulletin_status
  */
-function compute(bulletins, nowMs) {
+function compute(bulletins, nowMs, cands = []) {
     const byOffice = {};
     for (const b of bulletins) if (b && b.result) (byOffice[b.office] = byOffice[b.office] || { w: [], y: [] })[b.rpt === '7' ? 'y' : 'w'].push(b);
     const zones = {}, waiting = [];
@@ -150,10 +153,36 @@ function compute(bulletins, nowMs) {
             if (e.end + YEBI_WAIT_MS <= nowMs) continue;              // 끝나고 10분 지남
             if (released.has(e.unit) || zones[e.unit]) continue;       // 예비 해제 통보문·정식 특보가 이미 있음
             if (e.end <= nowMs) waiting.push(e.unit);
-            zones[e.unit] = { parent: parentOf(e.unit), kind: 'yebi', type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, clr: '', ho: lastY.result.t1Title, endMs: e.end };
+            zones[e.unit] = { parent: parentOf(e.unit), kind: 'yebi', type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, clr: '', ho: lastY.result.t1Title, endMs: e.end, inMs: tY };
         }
     }
-    return { zones, tree: toTree(zones), waiting };
+    const aiApplied = applyAi(zones, cands);
+    return { zones, tree: toTree(zones), waiting: waiting.filter((u) => zones[u]), aiApplied };
+}
+
+/**
+ * 참고사항 AI 후보를 규칙 결과 위에 덧씌운다 — 그 단위의 규칙 근거 통보문보다 후보 통보문이 더 새것일 때만(새 것이 이긴다).
+ *   예비취소 → 예비 단위를 뺀다(예비 목록 통보문이 1~4분 늦게 오는 틈 — 늦게 온 목록이 그 해역을 다시 적으면 그 목록이 더 새것이라 다시 들어온다).
+ *   해제예고변경·해제예고연장·정확해제시각 → 발효 중 특보 단위의 해제 예고 칸을 시간_후 글자로.
+ * 후보의 해역은 부모 이름(resolveZones) — 그 부모와 그 자식 단위에 건다.
+ * 예: zones { 남해동부바깥먼바다: {kind:'yebi', inMs: 10:00} } + 후보 { 종류:'예비취소', zones:['남해동부바깥먼바다'], inMs: 10:02 } → 뺌
+ * @returns {Array<{office, ho, unit, 종류, what}>} 실제로 덧씌운 것
+ * [연계] ← compute(이 파일) / 후보 ← services/bulletin_ai_live.candidates
+ */
+function applyAi(zones, cands) {
+    const out = [];
+    for (const c of cands || []) {
+        const ps = new Set(c.zones || []);
+        for (const [u, z] of Object.entries(zones)) {
+            if (!(ps.has(u) || ps.has(z.parent)) || !(c.inMs > (z.inMs || 0))) continue;
+            if (c.종류 === '예비취소' && z.kind === 'yebi') { delete zones[u]; out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '예비 뺌' }); }
+            else if (c.종류 !== '예비취소' && z.kind === 'formal' && c.시간_후) {
+                Object.assign(z, { clr: c.시간_후, inMs: c.inMs, ai: { ho: c.ho, 종류: c.종류 } });
+                out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '해제 예고 → ' + c.시간_후 });
+            }
+        }
+    }
+    return out;
 }
 
 /**
@@ -174,14 +203,16 @@ function toTree(zones) {
 
 /**
  * 한 번 계산해 저장한다(관찰기가 돈 다음 매분).
- * @param {{watch?: object, now?: function(): number, file?: string}} [o]
- * @returns {{updatedAt:string, zones:object, current:object, waiting:string[], bulletins:number}}
+ * @param {{watch?: object, ai?: object, now?: function(): number, file?: string}} [o]  ai = 참고사항 AI 후보 출처(bulletin_ai_live — candidates())
+ * @returns {{updatedAt:string, zones:object, current:object, waiting:string[], bulletins:number, aiApplied:Array}}
  * [연계] ← scheduler.js / → data/bulletin_status.json
  */
-function run({ watch = require('./bulletin_watch'), now = () => Date.now(), file = FILE } = {}) {
+function run({ watch = require('./bulletin_watch'), ai = require('./bulletin_ai_live'), now = () => Date.now(), file = FILE } = {}) {
     const list = watch.bulletins();
-    const r = compute(list, now());
-    const out = { updatedAt: new Date(now()).toISOString(), bulletins: list.length, zones: r.zones, waiting: r.waiting, current: r.tree };
+    let cands = [];
+    try { cands = ai.enabled === false ? [] : ai.candidates(); } catch (e) { console.warn('[통보문 기준] AI 후보를 못 읽어 규칙만:', e && e.message); }
+    const r = compute(list, now(), cands);
+    const out = { updatedAt: new Date(now()).toISOString(), bulletins: list.length, zones: r.zones, waiting: r.waiting, current: r.tree, aiApplied: r.aiApplied };
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file + '.tmp', JSON.stringify(out)); fs.renameSync(file + '.tmp', file);
     return out;
@@ -189,4 +220,4 @@ function run({ watch = require('./bulletin_watch'), now = () => Date.now(), file
 /** 마지막 계산 결과(없으면 null). [연계] → routes/bulletin_watch GET /api/admin/bulletin-status */
 function read(file = FILE) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { return null; } }
 
-module.exports = { compute, run, read, toTree, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS };
+module.exports = { compute, applyAi, run, read, toTree, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS };
