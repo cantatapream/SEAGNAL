@@ -41,6 +41,13 @@ const pad = (n) => String(n).padStart(2, '0');
 /** '2026-11-15 16:00:00.0' → '2026년 11월 15일 16시 00분' (MMIS 나무의 tmFc 꼴) */
 const korTime = (s) => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/); return m ? `${m[1]}년 ${m[2]}월 ${m[3]}일 ${m[4]}시 ${m[5]}분` : ''; };
 const parentOf = (x) => (PARENTS.has(x) ? x : [...PARENTS].find((p) => childrenOf(p).includes(x)));
+/**
+ * 「A(자식)」 = A 와 그 자식 모두 특보 — 자식 단위에 그 부모를 더한다(발표·변경·예비 목록·발효 중 칸용. 해제에는 쓰지 않는다 — 「A(평수구역) 해제」는 평수구역만).
+ *   사용자 확정 2026-11-17: 「경북북부앞바다(연안바다)라고 표현한 것은 경북북부앞바다와 연안바다 모두 발표를 했다는 것」 · 「자식해역이 끝나도 부모는 특보가 살아있을 수 있어」.
+ *   실자료: 대구 2025 1-85호 발효 중 칸에 「동해남부앞바다(경북남부앞바다, 경북북부앞바다)」와 「경북남부앞바다(연안바다), 경북북부앞바다(연안바다)」가 함께 적힘.
+ * 예: Set{'제주도북부앞바다중연안바다'} → Set{'제주도북부앞바다중연안바다','제주도북부앞바다'}
+ */
+const withParents = (units) => { const out = new Set(units); for (const u of units) { const p = parentOf(u); if (p) out.add(p); } return out; };
 
 /** 같은 호는 마지막 판만(호 번호는 해마다 다시 시작 — 연도를 붙인다), 입력시각 순. */
 function latest(list) {
@@ -95,7 +102,7 @@ function computeFormal(list, nowMs = Infinity) {
         const base = { tmFc: korTime(r.tmFc), ho: r.t1Title, inMs: KST(r.tmIn) };
         if (!seeded) {
             // 첫 통보문: 발효 중 칸으로 시작(부모 단위) — 3일 전보다 먼저 발효된 특보도 이렇게 잡힌다
-            for (const [u, lv] of parseCurrent(r.t6, []).cur) { const m = lv.match(/^(풍랑|태풍)(주의보|경보)$/); if (m) state.set(u, Object.assign({ type: m[1], level: m[2], tmEf: '', efMs: 0, clr: '', issueMs: base.inMs }, base)); }
+            for (const [u0, lv] of parseCurrent(r.t6, []).cur) { const m = lv.match(/^(풍랑|태풍)(주의보|경보)$/); if (m) for (const u of withParents([u0])) if (u === u0 || !state.has(u)) state.set(u, Object.assign({ type: m[1], level: m[2], tmEf: '', efMs: 0, clr: '', issueMs: base.inMs, partial: u !== u0 }, base)); }   // 「A(연안바다)」 = A 도(일부 특보 — partial)
             //   발효 중 칸은 해제 통보문을 낸 순간 해제 예정 해역을 이미 뺀다 — 첫 통보문이 해제이고 해제 시각이 아직이면 그 해역도 넣어 둔다(아래 해제 항목이 해제 시각까지 둔다).
             //   적대검증 2026-11-16: 강원 2026 1-97호(앞 통보문이 3일 넘게 전) — 해제 시각까지 3시간 「없음」으로 나왔다.
             for (const it of items) if (it.action === '해제' && /^(풍랑|태풍)$/.test(it.type) && (ef[it.n] || {}).ms) for (const u of it.units) if (!state.has(u)) state.set(u, Object.assign({ type: it.type, level: it.level, tmEf: '', efMs: 0, clr: '' }, base));
@@ -103,7 +110,7 @@ function computeFormal(list, nowMs = Infinity) {
         }
         for (const it of items) {
             const t = ef[it.n] || {}, c = clr[it.n];
-            for (const u of it.units) {
+            for (const u of (it.action === '발표' || it.action === '변경') ? withParents(it.units) : it.units) {   // 발표·변경의 「A(자식)」 = A 도 · 해제의 「A(자식)」 = 그 자식만
                 if (it.action === '해제') {
                     // 해제 시각(t3)이 아직이면 지우지 않는다 — 해제 예고 칸 = 정확한 해제 시각(앱 「🕐 해제시각 변경」과 같은 걸음), 그 시각이 되면 지운다
                     //   시각이 이미 지났어도 여기선 달아만 둔다 — 뒤 통보문(해제예고연장 등)이 이 해제를 물릴 수 있으니, 다 적용한 뒤 시각 지난 것을 지운다(아래)
@@ -111,7 +118,11 @@ function computeFormal(list, nowMs = Infinity) {
                     else state.delete(u);
                 }
                 else if (it.action === '발표' || it.action === '변경') {
-                    const nx = Object.assign({ type: it.type, level: it.level, tmEf: t.text || '', efMs: t.ms || 0, clr: c || '', issueMs: base.inMs }, base), cur = state.get(u);   // issueMs = 이 특보를 낸 통보문(해제예고만 바뀌어도 그대로) — 다가오는 예비가 이 특보보다 새것인지 볼 때
+                    // partial = 부모가 「A(자식)」으로만 특보(통보문이 부모 자신을 적지 않음) — 그 자식이 모두 끝나면 부모도 끝난다(수도권 2025 8-29 → 8-37호: 「인천·경기남부앞바다(먼평수구역)」 해제 뒤 발효 중 칸에서 부모도 사라짐).
+                    //   부모가 이미 부모 자신으로 특보 중이면(partial 아님) 자식만 적은 통보문으로 부모를 덮지 않는다 — 자식이 끝나도 부모는 그대로(사용자 「자식해역이 끝나도 부모는 특보가 살아있을 수 있어」, 대구 2025 1-85호).
+                    const partial = !it.units.has(u);
+                    if (partial && state.has(u) && !state.get(u).partial) continue;
+                    const nx = Object.assign({ type: it.type, level: it.level, tmEf: t.text || '', efMs: t.ms || 0, clr: c || '', issueMs: base.inMs, partial }, base), cur = state.get(u);   // issueMs = 이 특보를 낸 통보문(해제예고만 바뀌어도 그대로) — 다가오는 예비가 이 특보보다 새것인지 볼 때
                     // 지금 발효 중인 특보가 있는데 새 특보의 발효 시각이 아직이면 지금 것을 두고 다음 것(next)으로 — 앱(MMIS)이 current·upcoming 을 함께 드는 것과 같다.
                     //   적대검증 2026-11-16: 주의보→경보 「변경」(발효 10:00)을 09:02 부터 「발표(발효 전)」으로만 들어 지금 주의보가 사라지고 「📢 경보 발표」로 나갔다 — 앱은 「격상 발표」(실제 954 단위).
                     if (cur && cur.inMs !== base.inMs && !(cur.efMs > nowMs) && nx.efMs > nowMs) cur.next = nx;   // 같은 통보문이 만든 상태(첫 통보문의 발효 중 칸 등)는 그대로 바꾼다
@@ -123,8 +134,29 @@ function computeFormal(list, nowMs = Infinity) {
         const yr = yebiReleaseUnits(r);
         if (yr.size) yebiRelease.push({ ms: KST(r.tmIn), units: yr });
     }
-    // 해제 시각이 된 것만 지운다 — 그 사이 같은 단위에 새 특보가 발표돼 다음(next)으로 기다리고 있었으면 그것이 이어받는다(해제 뒤 재발표)
+    const kidsOf = (p) => childrenOf(p).filter((k) => state.has(k));
+    // ① 부모 자신 특보가 해제를 기다리는데 자식이 그보다 오래 남으면(새 「A(자식)」 발표 등) 부모는 끝나지 않는다 — 지금부터 일부 특보(partial)로(해제 예정을 띄우지 않음)
+    //   적대검증 2026-11-17 발견 5: 부모 해제 대기 중 「A(북동연안바다)」 새 발표 → 부모가 「해제 예정」으로 나왔다
+    const outlives = (k, ms) => { const z = state.get(k); return !z.relMs || !!z.next || z.relMs > ms; };
+    for (const [u, z] of state) if (!z.partial && PARENTS.has(u) && z.relMs && !z.next && kidsOf(u).some((k) => outlives(k, z.relMs))) { z.partial = true; delete z.relMs; }
+    // ② 해제 시각이 된 것만 지운다 — 그 사이 같은 단위에 새 특보가 발표돼 다음(next)으로 기다리고 있었으면 그것이 이어받는다(해제 뒤 재발표)
     for (const [u, z] of state) if (z.relMs && z.relMs <= nowMs) { if (z.next) state.set(u, z.next); else state.delete(u); }
+    // ③ 일부 특보 부모(partial)·자식만 남은 부모 = 남은 자식을 그대로 따른다(사용자 「자식해역에 특보가 있는데 부모해역에 특보가 [없는] 경우는 없어」)
+    //   고르는 법: 발효 중 > 발효 전, 경보 > 주의보, 먼저 발효. 남은 자식이 모두 해제를 기다리면 부모도 가장 늦은 해제 시각까지. 자식이 없으면 부모도 끝.
+    //   적대검증 2026-11-17 발견 2·4·6: 종전엔 부모가 가장 나중 통보문의 등급·해제 예고를 들고 있어 남은 자식과 어긋났다(경보 자식이 끝나도 경보, 자식 해제예고 연장이 부모에 안 옴, 자식이 발효 전인데 부모는 발효 중).
+    //   「A(북동연안바다 제외)」 해제처럼 부모만 지워지고 자식이 남아도 같은 규칙으로 부모를 일부 특보로 다시 세운다(발견 5).
+    const rank = (k) => (k.efMs > nowMs ? 0 : 100) + (k.level === '경보' ? 10 : 0);
+    for (const u of PARENTS) {
+        const z = state.get(u);
+        if (z && !z.partial) continue;
+        const ks = kidsOf(u).map((k) => state.get(k));
+        if (!ks.length) { if (z) state.delete(u); continue; }
+        const best = ks.slice().sort((a, b) => rank(b) - rank(a) || (a.efMs || 0) - (b.efMs || 0))[0];
+        const m = Object.assign({}, best, { partial: true }); delete m.relMs; delete m.next;
+        if (z && z.next && !z.next.partial) m.next = z.next;   // 부모 자신으로 곧 발효될 특보는 그대로 기다림
+        if (ks.every((k) => k.relMs)) { const last = ks.slice().sort((a, b) => b.relMs - a.relMs)[0]; Object.assign(m, { relMs: last.relMs, clr: last.clr }); }
+        state.set(u, m);
+    }
     return { state, yebiRelease };
 }
 
@@ -143,7 +175,7 @@ function parseYebiList(text, tmFc) {
         const yr = mo < m0 - 6 ? y0 + 1 : (mo > m0 + 6 ? y0 - 1 : y0);
         const day = Date.UTC(yr, mo - 1, dd) - 9 * 3600e3;
         const tmEf = `${yr}년 ${pad(mo)}월 ${pad(dd)}일 ${m[3].trim()}(${pad(a)}시~${pad(b)}시)`;
-        for (const tok of splitTop(m[6])) { const u = expand(tok, []); if (u) for (const x of u) out.push({ unit: x, type: kind, start: day + a * 3600e3, end: day + (b <= a ? b + 24 : b) * 3600e3, tmEf }); }
+        for (const tok of splitTop(m[6])) { const u = expand(tok, []); if (u) for (const x of withParents(u)) out.push({ unit: x, type: kind, start: day + a * 3600e3, end: day + (b <= a ? b + 24 : b) * 3600e3, tmEf, partial: !u.has(x) }); }   // 예비의 「A(자식)」 = A 도(partial — 부모 자신은 적히지 않음)
     }
     return out;
 }
@@ -178,7 +210,12 @@ function compute(bulletins, nowMs, cands = []) {
                 //   사용자 확정 2026-11-17 「풍랑주의보 발효 중인경우 같은 해역에 예비 특보가 나오는 경우 다가오는 특보로」 — 종전엔 버렸다(실측 155건 전부).
                 //   다음 정식 특보(next)가 이미 기다리면 그쪽이 다가오는 칸을 쓴다. 시간창이 여럿이면 가장 이른 것.
                 //   단, 그 예비 목록이 이 정식 특보보다 나중에 나왔을 때만 — 먼저 나온 목록의 예비는 이 정식 특보로 넘어간 것(실측: 종전 규칙대로면 1,441건이 더 있음)
-                if (z0.kind === 'formal' && !z0.next && !z0.upYebi && tY > (z0.issueMs || z0.inMs || 0)) z0.upYebi = { type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, ho: lastY.result.t1Title, inMs: tY, endMs: e.end, yebiWins: wins[e.unit] };
+                //   부모가 일부 특보(partial — 「A(평수구역)」 주의보)면 부모의 예비는 그 특보로 넘어간 게 아니다 → 목록이 먼저 나왔어도 다가오는 특보로(수도권 2026 2-37호 — 기상청 딸린 현황도 부모 예비를 계속 적음)
+                //   단 그 예비도 「A(자식)」(partial)이면 같은 「A(자식)」 발표로 넘어간 것 — 종전 규칙대로(적대검증 2026-11-17 발견 1)
+                //   부모가 이미 부모 자신으로 정식 특보 중인데 예비가 「A(자식)」(partial)이면 그 예비는 자식 몫 — 부모에 다가오는 특보를 달지 않는다
+                //   (제주 2026 7-16호 「제주도동부앞바다(북동연안바다)」·9-9호 「제주도북부앞바다(연안바다)」: 부모는 이미 주의보(연안바다 제외), 딸린 현황 t7 도 부모를 적지 않음)
+                if (e.partial && z0.kind === 'formal' && !z0.partial) continue;
+                if (z0.kind === 'formal' && !z0.next && !z0.upYebi && (tY > (z0.issueMs || z0.inMs || 0) || (z0.partial && !e.partial))) z0.upYebi = { type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, ho: lastY.result.t1Title, inMs: tY, endMs: e.end, yebiWins: wins[e.unit] };
                 continue;
             }
             if (e.end <= nowMs) waiting.push(e.unit);
@@ -186,7 +223,39 @@ function compute(bulletins, nowMs, cands = []) {
         }
     }
     const aiApplied = applyAi(zones, cands);
+    fillParents(zones);
     return { zones, tree: toTree(zones), waiting: waiting.filter((u) => zones[u]), aiApplied };
+}
+
+/**
+ * 자식 해역(연안바다·평수구역)에 특보·예비가 있는데 부모 칸이 비어 있으면 부모 칸을 채운다 — 「자식에 특보가 있으면 부모에도 있다」.
+ *   통보문의 「A(연안바다)」 = A 해역 특보 중 연안바다만 해당. 종전엔 자식만 두고 부모를 비워 메인 화면(data.js — 부모 칸이 있어야 카드)에 안 나오고
+ *   기상청 요약 칸(부모 이름)과도 어긋났다(실자료 예비 목록 8개·정식 1건). 사용자 확정 2026-11-17 「부모해역에 특보가 있어야 자식해역에도 있는건데 …」.
+ *   2026-11-17 이후 안전망: 통보문의 「A(자식)」은 이제 computeFormal·parseYebiList 가 부모까지 직접 넣는다(일부 특보 partial) — 과거 기록 되풀이(3,706회 계산)에서 이 함수가 채운 칸 0.
+ *   남은 쓰임 = 참고사항 AI 후보(applyAi)가 자식만 바꿨을 때. 매 계산마다 다시 만든다(derived). 고르는 법: 정식 > 예비, 같은 단계면 경보 > 주의보, 그다음 먼저 발효(예비는 이른 시간창).
+ *   부모가 예비뿐인데 자식이 정식이면 부모를 정식으로 올리고, 부모의 예비는 다가오는 특보(upYebi)로 옮긴다.
+ * 예: { 제주도북부앞바다중연안바다: {kind:'yebi', tmEf:'…11일 밤(18시~24시)'} } → 제주도북부앞바다 = 같은 예비(derived:true)
+ * [연계] ← compute(이 파일) / → toTree(부모 current·upcoming)
+ */
+function fillParents(zones) {
+    const rank = (z) => (z.kind === 'formal' ? 100 : 0) + (z.level === '경보' ? 10 : 0) - (z.efMs || z.endMs || 0) / 1e13;
+    const best = new Map();
+    for (const [u, z] of Object.entries(zones)) {
+        if (PARENTS.has(u) || !z.parent) continue;
+        const own = zones[z.parent];
+        // 부모 칸이 비었거나, 부모는 예비뿐인데 자식이 정식 특보일 때(수도권 2026 2-37호: 「인천·경기북부앞바다(평수구역)」만 주의보 — 부모는 앞 목록의 예비로 남았다)
+        if (own && !(own.kind === 'yebi' && z.kind === 'formal')) continue;
+        const b = best.get(z.parent);
+        if (!b || rank(z) > rank(b)) best.set(z.parent, z);
+    }
+    for (const [p, z] of best) {
+        const own = zones[p];
+        const c = Object.assign({}, z, { parent: p, derived: true });
+        delete c.upYebi; delete c.next; delete c.relMs;
+        //   부모가 갖고 있던 예비는 버리지 않고 「다가오는 특보」로 — MMIS current(주의보)·upcoming(예비) 공존과 같은 꼴
+        if (own && own.kind === 'yebi') c.upYebi = { type: own.type, level: '예비', tmFc: own.tmFc, tmEf: own.tmEf, ho: own.ho, inMs: own.inMs, endMs: own.endMs, yebiWins: own.yebiWins };
+        zones[p] = c;
+    }
 }
 
 /**
@@ -256,4 +325,4 @@ function run({ watch = require('./bulletin_watch'), ai = require('./bulletin_ai_
 /** 마지막 계산 결과(없으면 null). [연계] → routes/bulletin_watch GET /api/admin/bulletin-status */
 function read(file = FILE) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { return null; } }
 
-module.exports = { compute, applyAi, run, read, toTree, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS };
+module.exports = { compute, applyAi, fillParents, run, read, toTree, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS };
