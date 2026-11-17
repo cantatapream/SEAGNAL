@@ -1537,6 +1537,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-17 19:07 KST] ✅완료 — 조사 완료: 이안류·항로 빈 응답 원인
+①이안류(망상 RCData.do): 고장 아님 — KHOA 자체 RCServiceEnabled.do 가 false, 사이트 안내문 '이안류 지수는 매년 해수욕장 개장시기에 맞춰 자료를 제공하므로 현재는 정보가 서비스되지 않습니다'(ripcurrent.js showAlertPop). 개장기에 다시 채워짐. 수정 불필요. ②항로(seaway_refresh.js proxyRun.do): 고장 — KHOA 화면 코드(oceanmap olmp-click.js, '맵프라임 업그레이드' 주석)는 GetFeature 루트에 xmlns:mapprime="http://mapprime.all4land.com/" 선언을 붙인다. 우리 WFS_BODY 엔 이 선언이 없어 빈 본문(0B). 선언만 넣으면 219KB·141항목, parseFeatures 그대로 읽힘, 현재 배포본과 추가·삭제·좌표변경 0. 지금 앱 항로는 정상이나 고시 변경 자동 반영이 멈춰 있는 상태(언제부터인지는 미확인). 수정은 WFS_BODY 한 줄 — 사용자 확인 후 진행.
+
+
+### [2026-11-17 19:03 KST] 🟢착수 — 앱: 이안류(망상 RCData.do)·항로(proxyRun.do) 빈 응답 원인 조사
+사용자 지시 '조사해봐도돼'. 두 KHOA 내부 엔드포인트가 200·빈 응답인 원인을 실측으로 가린다(계절 운영인지, 주소·요청 형식 변경인지). 조사만 — 고칠 게 나오면 보고 후 진행.
+
+
 ### [2026-11-17 19:02 KST] ✅완료 — 앱: 항행경보 수정 운영 반영 확인
 PR cantatapream/SEAGNAL#1480 main 병합(사용자 지시 '실제 앱에 반영하자'). Fly 배포 후 19:01 KST 운영 https://seagnal-server.fly.dev/api/navigational-warning/list → 44건(대한해협-욕지도남방근해(D-72) 등) 확인. 배포 직전까지 0건. 이안류·항로는 UA 문제 아님으로 미수정(L-422) — 빈 응답 원인 조사는 사용자 판단 대기.
 
