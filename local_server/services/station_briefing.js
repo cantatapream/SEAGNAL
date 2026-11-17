@@ -583,6 +583,82 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * @param {object} o - kind·keys(대상 관할 열쇠, 없으면 전부)·zones(특보 변경 구역 — 기록용) @returns {Promise<object>}
      * [연계] ← tick·routes POST run / → I.gather·R.buildBriefing·AI.generate
      */
+    // ── 세션 시험(2026-11-17 사용자 「세션을 통해서 테스트를 통해서 실제로 얼마나 걸리는지 여부에 대해서 확인할 필요가 있을 것 같아. 실제로 돌려보면서」) ──
+    //   정시 판을 Claude Code 세션이 쓰면 얼마나 걸리고 몇 곳이 검사를 통과하는지 **재기만** 하는 길이다. 사용자 화면·날짜 파일·오류 기록에는 아무것도 쓰지 않는다.
+    //   trialJob: 정시 판과 같은 재료(I.gather → R.buildBriefing → AI.stationInput)로 묶음별 지시문을 만들어 준다(AI 는 부르지 않는다).
+    //   trialResult: 세션이 쓴 답을 서버의 같은 검사(polishOverview → validateOverview)로 판정하고, 걸린 시간과 함께 session_trials.json 에 남긴다.
+    //   [연계] routes/station_briefing.js GET·POST /api/station-briefing/automation/trial-* (관리자 또는 자동화 열쇠) · 설계서 §11.10.53
+    const trials = new Map();   // job_id → {at, kind, targetDate, si: Map(key→stationInput), batches}
+    const TRIAL_KEEP = 3, TRIAL_TTL_MS = 6 * 3600000, TRIAL_LOG_KEEP = 20;
+    /**
+     * 시험 일감 — 정시 판 재료로 묶음별 지시문을 만든다. 실제 실행 중이면 만들지 않는다(같은 위치 파일을 함께 쓰지 않게).
+     * 예: await trialJob({kind:'evening'}) → {job_id:'t-…', kind:'evening', targetDate:'2026-11-17', stations:97, batches:[{name:'인천해양경찰서', keys:[…], prompt:'…'}], build_ms}
+     * @param {{kind?:'morning'|'evening'|'night'}} [o] @returns {Promise<object>}
+     */
+    async function trialJob({ kind = 'evening' } = {}) {
+        if (!EDITION_KINDS.includes(kind)) { const e = new Error('kind 는 morning·evening·night'); e.status = 400; throw e; }
+        if (running) { const e = new Error('브리핑 실행 중 — 끝난 뒤 다시'); e.status = 409; throw e; }
+        const t0 = Date.now(), now = clock(), config = readConfig(), all = stations();
+        const win = R.editionWindow(kind, now);
+        const spots = spotsOf ? spotsOf() : risk.spots().spots, spotsBySt = I.assignSpots(all, spots);
+        const hz = I.assignHazards(all, hazardFeatures ? hazardFeatures() : (I.readJson(path.join(I.CONFIG, 'coastal_hazard_zones.wgs84.geojson'))?.features || []));
+        const landPoints = Object.fromEntries(all.map((s) => [s.key, (spotsBySt.get(s.key) || []).concat(hz.get(s.key) || [])]));
+        const locations = await I.ensureLocations({ stations: all, landPoints, file: p('locations.json'), geocoder, now });
+        const rg = regional ? regional() : null, zb = smallZone ? zoneBaseOf(risk) : null, szFind = smallFinder(smallZone, zb);
+        const inputs = I.gather({ stations: all, risk, marine, win, now: clock(), locations, hazards: hz, spotsBySt, tideDeps, warnHistory, regional: rg, smallZone: szFind, traffic });
+        if (smallZone) await prepareSmallZone(inputs, win, zb, szFind, new Set());
+        const briefings = inputs.map((x) => R.buildBriefing(x, win, { generatedAt: R.isoKst(now) }));
+        const k = kma(), items = briefings.map((b) => ({ b, si: AI.stationInput(b, k) }));
+        const unit = config.batchUnit || 'office';
+        const batches = AI.groupBy(items, unit).map((g) => ({
+            name: unit === 'station' ? g[0].b.station.name : unit === 'region' ? (g[0].b.station.region || g[0].b.station.office) : g[0].b.station.office,
+            keys: g.map((it) => it.b.key), prompt: AI.buildPrompt(AI.batchInput(g.map((it) => it.si), k, null)),
+        }));
+        const job_id = 't-' + R.isoKst(now).slice(0, 16).replace(/[-T:]/g, '') + '-' + Math.random().toString(16).slice(2, 6);
+        for (const [id, j] of trials) if (now - j.at > TRIAL_TTL_MS) trials.delete(id);
+        trials.set(job_id, { at: now, kind, targetDate: win.targetDate, si: new Map(items.map((it) => [it.b.key, it.si])), batches: batches.map((b) => ({ name: b.name, keys: b.keys })) });
+        while (trials.size > TRIAL_KEEP) trials.delete(trials.keys().next().value);
+        return { job_id, kind, targetDate: win.targetDate, unit, stations: items.length, batches, build_ms: Date.now() - t0, issuedAt: R.isoKst(now) };
+    }
+    /**
+     * 시험 결과 — 세션이 쓴 묶음별 답(지시문이 요구한 JSON 글)을 서버 검사로 판정하고 기록한다. 화면·날짜 파일·오류 기록은 건드리지 않는다.
+     * 예: trialResult({job_id, answers:[{batch:'인천해양경찰서', text:'{"stations":[…]}'}], timings:{session_start:'…'}})
+     *     → {ok:true, stations:97, passed:80, failed:12, missing:5, parseErrors:0, topErrors:[['place:…',3]], elapsed_ms}
+     * @param {object} body @returns {object}
+     */
+    function trialResult(body) {
+        const b = body && typeof body === 'object' ? body : {};
+        const job = trials.get(String(b.job_id || ''));
+        if (!job) { const e = new Error('시험 일감을 찾지 못함(서버가 다시 켜졌거나 6시간이 지남) — 다시 받아 주세요'); e.status = 404; throw e; }
+        const answers = Array.isArray(b.answers) ? b.answers.slice(0, 200) : [];
+        const got = new Map(); let parseErrors = 0;
+        for (const a of answers) {
+            try { for (const [id, o] of AI.parseResponse(String((a && a.text) || '').slice(0, 400000))) if (job.si.has(id) && !got.has(id)) got.set(id, o); }
+            catch (e) { parseErrors++; console.warn('[station_briefing] 세션 시험 답 해석 실패:', e && e.message); }
+        }
+        let passed = 0, failed = 0, missing = 0; const errCount = {}, perStation = [];
+        for (const [key, si] of job.si) {
+            const raw = got.get(key);
+            if (!raw) { missing++; perStation.push({ key, ok: false, errors: ['missing:station'] }); continue; }
+            const o = AI.polishOverview(raw), v = o ? AI.validateOverview(o, si) : { ok: false, errors: ['missing:station'] };
+            if (v.ok) passed++; else { failed++; for (const er of v.errors) errCount[er.split(':').slice(0, 2).join(':')] = (errCount[er.split(':').slice(0, 2).join(':')] || 0) + 1; }
+            perStation.push({ key, ok: v.ok, errors: v.ok ? [] : v.errors.slice(0, 6) });
+        }
+        const now = clock();
+        const t = b.timings && typeof b.timings === 'object' ? b.timings : {};
+        const clean = (x) => (typeof x === 'string' ? x.slice(0, 40) : Number.isFinite(x) ? x : null);
+        const rec = { job_id: String(b.job_id), kind: job.kind, targetDate: job.targetDate, issuedAt: R.isoKst(job.at), resultAt: R.isoKst(now), elapsed_ms: now - job.at,
+            stations: job.si.size, passed, failed, missing, parseErrors, topErrors: Object.entries(errCount).sort((x, y) => y[1] - x[1]).slice(0, 10),
+            timings: Object.fromEntries(Object.entries(t).slice(0, 12).map(([kk, vv]) => [String(kk).slice(0, 40), clean(vv)])), note: typeof b.note === 'string' ? b.note.slice(0, 500) : '' };
+        try {
+            let log = []; try { log = JSON.parse(fs.readFileSync(p('session_trials.json'), 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[station_briefing] 세션 시험 기록을 못 읽어 새로 씀:', e.message); }
+            I.writeJson(p('session_trials.json'), (Array.isArray(log) ? log : []).concat([rec]).slice(-TRIAL_LOG_KEEP));
+        } catch (e) { console.error('[station_briefing] 세션 시험 기록 저장 실패(판정 결과는 그대로 돌려줌):', e.message); }
+        return { ok: true, ...rec, perStation };
+    }
+    /** 세션 시험 기록(최근 20개). @returns {object[]} */
+    function trialLog() { try { const l = JSON.parse(fs.readFileSync(p('session_trials.json'), 'utf8')); return Array.isArray(l) ? l : []; } catch (e) { if (e.code !== 'ENOENT') console.warn('[station_briefing] 세션 시험 기록 읽기 실패:', e.message); return []; } }
+
     async function run({ kind, keys = null, zones = null } = {}) {
         if (running) return { ok: false, skipped: 'busy' };
         running = (async () => {
@@ -815,7 +891,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * @returns {object} [연계] ← routes GET status?only=progress
      */
     function progressNow() { return { running: !!running, progress: running ? progress : null }; }
-    return { run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, exportErrors, resolveExport, _log: () => loadLog(state(), true), progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
+    return { trialJob, trialResult, trialLog, run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, exportErrors, resolveExport, _log: () => loadLog(state(), true), progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
 }
 let def = null;
 /**

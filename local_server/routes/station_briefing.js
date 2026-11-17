@@ -41,6 +41,8 @@ function createRouter({
     isAdminDevice = (id) => require('../services/admin_device').isAdminDevice(id),
     verifyToken = (t) => require('../services/admin_auth').verifyToken(t),
     authorize = (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next),
+    // 세션 시험 경로(2026-11-17 §11.10.53) — 관리자 토큰 또는 자동 반영 열쇠(X-Automation-Token). 시험은 가짜를 넣는다.
+    authorizeTrial = (req, res, next) => require('../services/nariya_autorun').requireAdminOrAutomation(req, res, next),
     nowLine = null,
     clock = () => Date.now(),
     beachLines = (ids, date) => require('../services/beach_weather').forDefault().linesForSpots(ids, date),
@@ -156,6 +158,21 @@ function createRouter({
             p.then((r) => { if (r && r.skipped) console.warn('[station_briefing] 관리자 실행 건너뜀: ' + r.skipped); }, (e) => console.error('[station_briefing] 관리자 실행 실패:', e && e.message));
             res.status(202).json({ ok: true, started: true });
         } catch (e) { fail(res, e); }
+    });
+    // ── 세션 시험(2026-11-17 사용자 「실제로 얼마나 걸리는지 … 실제로 돌려보면서」) — 재기만 한다: 사용자 화면·날짜 파일·오류 기록에 쓰지 않는다.
+    //   GET trial-job?kind=morning|evening|night → 정시 판 재료로 만든 묶음별 지시문 · POST trial-result → 서버 검사로 판정·시간 기록 · GET trials → 기록 20개.
+    const trial = '/api/station-briefing/automation';
+    router.get(trial + '/trial-job', authorizeTrial, async (req, res) => {
+        try { res.set('Cache-Control', 'no-store').json({ ok: true, ...(await svc().trialJob({ kind: String(req.query.kind || 'evening') })) }); }
+        catch (e) { console.error('[station_briefing] 세션 시험 일감 실패:', e && e.message); fail(res, e); }
+    });
+    router.post(trial + '/trial-result', authorizeTrial, express.json({ limit: '5mb' }), (req, res) => {
+        try { res.set('Cache-Control', 'no-store').json(svc().trialResult(req.body)); }
+        catch (e) { console.error('[station_briefing] 세션 시험 결과 실패:', e && e.message); fail(res, e); }
+    });
+    router.get(trial + '/trials', authorizeTrial, (req, res) => {
+        try { res.set('Cache-Control', 'no-store').json({ ok: true, trials: svc().trialLog() }); }
+        catch (e) { console.error('[station_briefing] 세션 시험 기록 실패:', e && e.message); fail(res, e); }
     });
     return router;
 }

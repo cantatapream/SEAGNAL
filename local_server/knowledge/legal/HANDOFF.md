@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-17 20:40 KST] ✅완료 — 연안 브리핑 — 세션 실측용 시험 길(trial-job·trial-result)
+사용자: 「챗GPT에 의존하는 것을 벗어나기 위해서 … 세션을 통한 그 문구」「실제로 얼마나 걸리는지 … 실제로 돌려보면서」. station_briefing.trialJob(정시 판 재료로 묶음별 지시문, AI 안 부름·날짜 파일 안 씀)·trialResult(같은 검사로 판정, session_trials.json 에만)·trialLog + routes GET/POST /api/station-briefing/automation/trial-*(관리자 또는 자동화 열쇠). 시험 test_station_briefing 244/0(§11.10.53) · silent_catch 22/0. 설계서 §11.10.53. 다음: 배포 뒤 시험 전용 예약 작업을 깨워 시간·통과율 실측.
+
+
 ### [2026-11-17 18:19 KST] ✅완료 — 앱 푸시 — 발효 중 특보 위 다른 종류 다가오는 특보 = 종류 격상/격하 발표
 push_sender: 종류 다르면 type_upgrade/downgrade_publish(「📢 풍랑경보→태풍주의보 격상 발표」). 적대검증 4건 수정(수신설정 announce/active 목록·앱 팝업 생략 목록·관리자 탭·type_* 묶음 키). 100 조합 묶음 제목 정확도 0 오류. test_push_upcoming_type 13/0, push 관련 8 스위트 통과, verify_all 통과. 통보문 비교 upTemplate 도 같게. 남은 16건 사례 검토 완료(오류 0).
 
