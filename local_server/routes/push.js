@@ -432,14 +432,14 @@ router.post('/api/push-custom', async (req, res) => {
                     // 발표 관련 (publish, 격상/격하 발표, 발효시각 변경)
                     //   child_time_ef_change(수정 #3 자식 단독 발효시각 변경)도 발표(announce) 계열.
                     if (opts.announce === false &&
-                        ['publish', 'level_upgrade_publish', 'level_downgrade_publish', 'time_ef_change', 'child_time_ef_change'].includes(tid)) {
+                        ['publish', 'level_upgrade_publish', 'level_downgrade_publish', 'type_upgrade_publish', 'type_downgrade_publish', 'time_ef_change', 'child_time_ef_change'].includes(tid)) {   // type_* = 종류 격상/격하(풍랑경보→태풍주의보) — 2026-11-17 적대검증: 빠져 있어 「발표 알림 끔」 사용자에게도 갔다
                         return;
                     }
                     // 발효 관련 (active, 격상/격하 발효, 해제시각 변경)
                     //   child_time_yn_change(수정 #3 자식 단독 해제시각 변경)도 발효(active) 계열.
                     //   time_yn_confirm(§7.7.20 해제예고 확정)도 해제시각 계열 → active 토글 연동.
                     if (opts.active === false &&
-                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change', 'time_yn_confirm', 'child_time_yn_change'].includes(tid)) {
+                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'type_upgrade_active', 'type_downgrade_active', 'time_yn_change', 'time_yn_confirm', 'child_time_yn_change'].includes(tid)) {
                         return;
                     }
                     // 해제 — 예비특보 취소(prelim_cancel)도 ✅ 해제 계열로 묶어 release 토글에 연동.
@@ -644,7 +644,7 @@ router.post('/api/push-custom', async (req, res) => {
             status: 'sent',
             type: req.body.type || 'manual',
             tab: isManualGroupSend
-                ? (payload.templateId && payload.templateId.startsWith('level_')
+                ? (payload.templateId && (payload.templateId.startsWith('level_') || payload.templateId.startsWith('type_'))   // 종류 격상/격하도 관리자 「격상/격하」 탭으로(2026-11-17)
                     ? 'level'
                     : (['time_ef_change', 'time_yn_change', 'child_time_ef_change', 'child_time_yn_change'].includes(payload.templateId)
                         ? 'change-time'

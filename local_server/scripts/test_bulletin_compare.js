@@ -59,6 +59,8 @@ console.log('A2. 발표(발효 전) · 표기 차이');
     // 2026-11-17 사용자 「풍랑주의보 발효 중인경우 같은 해역에 예비 특보가 나오는 경우 다가오는 특보로」 — 앱: 예비 = 주의보 동급(push_sender LVL_RANK)
     const upY = { kind: 'yebi', type: '풍랑', level: '예비', tmEf: '2026년 11월 16일 밤(18시~24시)' };
     ok('주의보 발효 중 + 같은 해역 예비 = 📢 발표(publish) · 경보 발효 중 + 예비 = 격하 발표', C.upTemplate(cur, null, upY, false).templateId === 'publish' && C.upTemplate(Z('formal', '경보', { parent: 'x' }), null, upY, false).templateId === 'level_downgrade_publish');
+    ok('풍랑경보 발효 중 + 태풍 예비(종류 다름) = 「풍랑경보→태풍주의보 격상 발표」(앱과 같음 — 2026-11-17 사용자 확정)', (() => { const t = C.upTemplate(Z('formal', '경보', { parent: 'x' }), null, Object.assign({}, upY, { type: '태풍' }), false); return t.templateId === 'type_upgrade_publish' && t.prevTypeName === '풍랑' && t.prevLevel === '경보'; })());
+    ok('태풍주의보 발효 중 + 다가오는 풍랑 예비 → 태풍 예비(예비끼리 종류만) = 종류 격상 발표(앱 「예비 단계 종류 격상」)', C.upTemplate(Z('formal', '주의보', { parent: 'x', type: '태풍' }), upY, Object.assign({}, upY, { type: '태풍' }), false).templateId === 'type_upgrade_publish');
     ok('다가오는 예비 시간창이 더 늦게 = 발효 예정시각 연장 · 다가오는 예비 → 정확한 발표 = 발효시각 변경',
         C.upTemplate(cur, Object.assign({}, upY, { tmEf: '2026년 11월 16일 오후(12시~18시)' }), upY, false).templateId === 'ef_extend'
         && C.upTemplate(cur, upY, { kind: 'pending', type: '풍랑', level: '주의보', tmEf: '2026년 11월 16일 19시 00분' }, false).templateId === 'time_ef_change');
