@@ -509,7 +509,10 @@ async function retryPendingPushes() {
  * key = 'templateId_typeName_level' 로 중복 검출 → groups[key].items 에 push.
  */
 function addToGroup(groups, templateId, typeName, level, itemData) {
-    const key = `${templateId}_${typeName}_${level}`;
+    // 종류 격상/격하(type_*)는 제목에 「이전 종류+등급」이 들어가 묶음의 첫 해역 값으로 찍힌다 — 이전 값이 다르면 따로 묶는다.
+    //   2026-11-17 적대검증: 「풍랑 예비→태풍 예비」 해역과 「풍랑경보 중 태풍 예비 처음」 해역이 한 묶음이 되어 풍랑경보 해역 사용자가 「풍랑주의보→태풍주의보」를 받았다.
+    //   (등급 격상/격하 level_* 의 같은 묶음 문제는 이전부터 있던 것 — 사용자 판단 대기라 그대로 둔다)
+    const key = `${templateId}_${typeName}_${level}` + (templateId.startsWith('type_') ? `_${itemData.prevTypeName || ''}${itemData.prevLevel || ''}` : '');
 
     if (!groups[key]) {
         groups[key] = {

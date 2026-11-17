@@ -49,6 +49,24 @@ async function run(cur, up, prev) {
     const h = await run({ wrnTp: '태풍', wrnLvl: '주의보' }, { wrnTp: '태풍', wrnLvl: '예비' }, { wrnTp: '풍랑', wrnLvl: '예비', tmEf: '2026년 10월 25일 오전(06시~12시)' });
     ok('다가오는 특보가 이미 있었고 예비끼리 종류만 바뀜(풍랑 예비→태풍 예비) = 종전 종류 격상 발표', h && h.templateId === 'type_upgrade_publish', h);
 
+    console.log('C. 적대검증 2026-11-17 회귀 — 묶음 · 수신 설정 · 앱 팝업 · 관리자 탭');
+    sent.length = 0;
+    await ps.processChanges([
+        { type: 'UPCOMING_CHANGE', zone: 'Z1', prev: null, curr: { wrnTp: '태풍', wrnLvl: '예비', tmFc: '', tmEf: '2026년 10월 25일 오전(06시~12시)', tmYn: '' }, currentActive: { wrnTp: '풍랑', wrnLvl: '경보' }, childState: CS },
+        { type: 'UPCOMING_CHANGE', zone: 'Z2', prev: { wrnTp: '풍랑', wrnLvl: '예비', tmEf: '2026년 10월 25일 오전(06시~12시)' }, curr: { wrnTp: '태풍', wrnLvl: '예비', tmFc: '', tmEf: '2026년 10월 25일 오전(06시~12시)', tmYn: '' }, currentActive: null, childState: CS },
+    ], {});
+    const ts = sent.map((x) => x.payload).map((p) => ({ zones: p.items.map((i) => i.zones[0]).join(','), title: generateMessage(p).title }));
+    ok('「풍랑경보 중 태풍 예비 처음」(Z1)과 「풍랑 예비→태풍 예비」(Z2)는 따로 묶여 각자 맞는 이전 특보로', ts.length === 2 && ts.some((t) => t.zones === 'Z1' && t.title === '📢 풍랑경보→태풍주의보 격상 발표') && ts.some((t) => t.zones === 'Z2' && t.title === '📢 풍랑주의보→태풍주의보 격상 발표'), ts);
+    const fs = require('fs'), path = require('path');
+    const route = fs.readFileSync(path.join(__dirname, '..', 'routes', 'push.js'), 'utf8');
+    const listOf = (re) => { const m = route.match(re); return m ? m[1] : ''; };
+    const ann = listOf(/opts\.announce === false &&\s*\[([^\]]*)\]/), act = listOf(/opts\.active === false &&\s*\[([^\]]*)\]/);
+    ok('「발표 알림 끔」 사용자에겐 종류 격상/격하 발표도 안 감 · 「발효 알림 끔」엔 종류 격상/격하 발효도', /type_upgrade_publish/.test(ann) && /type_downgrade_publish/.test(ann) && /type_upgrade_active/.test(act) && /type_downgrade_active/.test(act), { ann, act });
+    ok('관리자 발송 기록: 종류 격상/격하도 「격상/격하」(level) 탭', /startsWith\('type_'\)/.test(route));
+    const popup = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'fix_popup_logic.js'), 'utf8');
+    const sup = (popup.match(/SUPPRESSED_POPUP_STATUSES = \[([\s\S]*?)\]/) || [])[1] || '';
+    ok('앱에서 푸시를 누를 때 종류 격상/격하도 등급 격상/격하처럼 팝업 생략(「…태풍예비가 발생했습니다」 오문구 방지)', ['type_upgrade_publish', 'type_upgrade_active', 'type_downgrade_publish', 'type_downgrade_active'].every((t) => sup.includes(`'${t}'`)), sup);
+
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);
 })();
