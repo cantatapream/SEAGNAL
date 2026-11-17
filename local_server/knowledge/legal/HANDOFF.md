@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-17 17:50 KST] ✅완료 — 앱: 항행경보 0건 복구 — KHOA 사이트 User-Agent 차단 대응
+증상: 운영 /api/navigational-warning/list 가 success:true, zones:[] (해양안전 생활 항행경보 미표시, 2026-11-17 확인). 원인(재현): 공식 data.go.kr 목록 API 는 정상(resultCode 00). KHOA nwb 사이트가 node-fetch 기본 User-Agent 요청을 503 으로 거부 → JSESSIONID 발급 실패 → 구역 보강 전부 생략 → 0건. 수정: routes/navigational_warning.js 의 mainPage.do GET·_khoaPost POST 에 User-Agent 헤더(KHOA_UA) 추가. 확인: 로컬 서버 기동 후 같은 API 0→44건. verify_all.sh(로컬 서버 기동·NODE_PATH 에 /opt/node-tools/node_modules 추가) exit 0 '전체 검증 통과'. 운영 반영은 main 병합 필요(작업 브랜치 claude/epic-goodall-awy4c2). 같은 503 차단을 받는 다른 경로(미수정·사용자 판단 대기): scheduler.js 망상 이안류 RCData.do(UA 없음, 기본UA 503·UA 200), services/seaway_refresh.js 항로 proxyRun.do(기본UA 503·UA 200). khoa_stream_cache.js 는 이미 UA 있음.
+
+
 ### [2026-11-16 21:41 KST] ✅완료 — 통보문 기준 — 해제 시각까지 유지 · 가상 푸시 이름 앱과 맞춤 · 「위 해역」 본문으로 · 위치기반 따로
 구현 + 적대검증 5건 수정(위 해역 정확 단위·발효 전 변경 = 지금 특보 + next·격상/격하 발표·첫 통보문 해제 시드·연장 자식·보고서 탭). 되풀이 검산 2025-01-04~2026-11 특보 3,706건 100%. 검사 status 34·compare 67·ai_live 47 통과, verify_all 통과(총정리 앞 회차와 동일). 대구 11-25호 23시가 맞음(사용자 확인). 다음: 운영 실자료로 비교 보고서 재확인.
 
