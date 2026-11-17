@@ -448,6 +448,15 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(!fs.readdirSync(td).some((f) => f.startsWith('briefings_') || f === 'error_log.json'), '오류 기록·날짜 파일 그대로');
         assert.throws(() => tsv.trialResult({ job_id: 'nope', answers: [] }), (e) => e.status === 404);
         await assert.rejects(() => tsv.trialJob({ kind: 'warning' }), (e) => e.status === 400, '특보 변경 판은 시험 대상 아님');
+        // 표본 글 · 지금 판과 나란히(trialCompare) — 날짜 파일이 없으면 current 는 null, 있으면 그 관할의 overview
+        assert.ok(Array.isArray(log[0].samples) && log[0].samples.length === 2 && log[0].samples.some((x) => x.key === good && x.sea === '짧음' && x.ok === false), '표본에 세션 글');
+        let cmp = tsv.trialCompare(job.job_id);
+        assert.equal(cmp.pairs.length, 2); assert.ok(cmp.pairs.every((x) => x.current === null), '날짜 파일 없음 → 지금 판 없음');
+        fs.writeFileSync(path.join(td, 'briefings_' + job.targetDate + '.json'), JSON.stringify({ date: job.targetDate, stations: { [good]: { generatedAt: '2026-10-17T06:50:00+09:00', trigger: { kind: 'morning' }, overview: { land: 'L', sea: '지금 AI 글', source: 'claude2' } } } }));
+        cmp = tsv.trialCompare(job.job_id);
+        const pg = cmp.pairs.find((x) => x.key === good);
+        assert.equal(pg.current.sea, '지금 AI 글'); assert.equal(pg.current.source, 'claude2'); assert.equal(pg.session.sea, '짧음');
+        assert.throws(() => SB.createService({ dir: fs.mkdtempSync(path.join(tmp, 'e-')), clock: () => 0, risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations }).trialCompare('x'), (e) => e.status === 404);
     });
     await check('서비스 일정(가짜 시계): 06:49 없음 → 06:50 아침 판(고정 2곳) 만들어 07:30 공개 대기 → 07:30 부터 보임 → 같은 시각 다시 점검해도 한 번만', async () => {
         fs.mkdirSync(path.join(tmp, 'sb'), { recursive: true });

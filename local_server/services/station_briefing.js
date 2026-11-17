@@ -636,11 +636,12 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             try { for (const [id, o] of AI.parseResponse(String((a && a.text) || '').slice(0, 400000))) if (job.si.has(id) && !got.has(id)) got.set(id, o); }
             catch (e) { parseErrors++; console.warn('[station_briefing] 세션 시험 답 해석 실패:', e && e.message); }
         }
-        let passed = 0, failed = 0, missing = 0; const errCount = {}, perStation = [];
+        let passed = 0, failed = 0, missing = 0; const errCount = {}, perStation = [], texts = new Map();
         for (const [key, si] of job.si) {
             const raw = got.get(key);
-            if (!raw) { missing++; perStation.push({ key, ok: false, errors: ['missing:station'] }); continue; }
+            if (!raw) { missing++; texts.set(key, { land: null, sea: null, ok: false, missing: true }); perStation.push({ key, ok: false, errors: ['missing:station'] }); continue; }
             const o = AI.polishOverview(raw), v = o ? AI.validateOverview(o, si) : { ok: false, errors: ['missing:station'] };
+            texts.set(key, { land: o && o.land ? String(o.land).slice(0, 700) : null, sea: o && o.sea ? String(o.sea).slice(0, 700) : null, ok: v.ok });
             if (v.ok) passed++; else { failed++; for (const er of v.errors) errCount[er.split(':').slice(0, 2).join(':')] = (errCount[er.split(':').slice(0, 2).join(':')] || 0) + 1; }
             perStation.push({ key, ok: v.ok, errors: v.ok ? [] : v.errors.slice(0, 6) });
         }
@@ -649,12 +650,26 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         const clean = (x) => (typeof x === 'string' ? x.slice(0, 40) : Number.isFinite(x) ? x : null);
         const rec = { job_id: String(b.job_id), kind: job.kind, targetDate: job.targetDate, issuedAt: R.isoKst(job.at), resultAt: R.isoKst(now), elapsed_ms: now - job.at,
             stations: job.si.size, passed, failed, missing, parseErrors, topErrors: Object.entries(errCount).sort((x, y) => y[1] - x[1]).slice(0, 10),
-            timings: Object.fromEntries(Object.entries(t).slice(0, 12).map(([kk, vv]) => [String(kk).slice(0, 40), clean(vv)])), note: typeof b.note === 'string' ? b.note.slice(0, 500) : '' };
+            timings: Object.fromEntries(Object.entries(t).slice(0, 12).map(([kk, vv]) => [String(kk).slice(0, 40), clean(vv)])), note: typeof b.note === 'string' ? b.note.slice(0, 500) : '',
+            // 표본 글(2026-11-17 사용자 「진행」 — 지금 AI 글과 나란히 보려고): 관할 목록에서 고르게 8곳(글자 수 상한 700).
+            samples: (() => { const ks = [...texts.keys()], n = Math.min(8, ks.length), step = ks.length / Math.max(1, n); return [...Array(n)].map((_, i) => ks[Math.floor(i * step)]).map((key) => ({ key, ...texts.get(key) })); })() };
         try {
             let log = []; try { log = JSON.parse(fs.readFileSync(p('session_trials.json'), 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[station_briefing] 세션 시험 기록을 못 읽어 새로 씀:', e.message); }
             I.writeJson(p('session_trials.json'), (Array.isArray(log) ? log : []).concat([rec]).slice(-TRIAL_LOG_KEEP));
         } catch (e) { console.error('[station_briefing] 세션 시험 기록 저장 실패(판정 결과는 그대로 돌려줌):', e.message); }
         return { ok: true, ...rec, perStation };
+    }
+    /**
+     * 세션 시험 표본과 **같은 관할의 지금 판 AI 글**을 나란히 준다(그 날짜 파일의 공개 대기 판 또는 공개 판). 아무것도 쓰지 않는다.
+     * 예: trialCompare('t-…') → {job_id, kind, targetDate, pairs:[{key, session:{land,sea,ok}, current:{land,sea,source,generatedAt}|null}]}
+     * @param {string} jobId @returns {object}
+     */
+    function trialCompare(jobId) {
+        const rec = trialLog().slice().reverse().find((r) => r.job_id === String(jobId || '')) || trialLog().slice(-1)[0];
+        if (!rec) { const e = new Error('시험 기록이 없음'); e.status = 404; throw e; }
+        const day = readDay(rec.targetDate) || {};
+        const cur = (k) => { const a = (day.pending || {})[k], b = (day.stations || {})[k], x = !a ? b : !b ? a : (Date.parse(a.generatedAt) > Date.parse(b.generatedAt) ? a : b); return x ? { land: (x.overview && x.overview.land) || null, sea: (x.overview && x.overview.sea) || null, source: (x.overview && x.overview.source) || null, generatedAt: x.generatedAt || null, edition: (x.trigger && x.trigger.kind) || null } : null; };
+        return { job_id: rec.job_id, kind: rec.kind, targetDate: rec.targetDate, resultAt: rec.resultAt, pairs: (rec.samples || []).map((sm) => ({ key: sm.key, session: { land: sm.land, sea: sm.sea, ok: sm.ok }, current: cur(sm.key) })) };
     }
     /** 세션 시험 기록(최근 20개). @returns {object[]} */
     function trialLog() { try { const l = JSON.parse(fs.readFileSync(p('session_trials.json'), 'utf8')); return Array.isArray(l) ? l : []; } catch (e) { if (e.code !== 'ENOENT') console.warn('[station_briefing] 세션 시험 기록 읽기 실패:', e.message); return []; } }
@@ -891,7 +906,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * @returns {object} [연계] ← routes GET status?only=progress
      */
     function progressNow() { return { running: !!running, progress: running ? progress : null }; }
-    return { trialJob, trialResult, trialLog, run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, exportErrors, resolveExport, _log: () => loadLog(state(), true), progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
+    return { trialJob, trialResult, trialLog, trialCompare, run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, exportErrors, resolveExport, _log: () => loadLog(state(), true), progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
 }
 let def = null;
 /**
