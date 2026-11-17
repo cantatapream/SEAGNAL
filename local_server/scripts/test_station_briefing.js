@@ -429,6 +429,26 @@ const WIN = R.editionWindow('morning', T0);
     let vmCalls = 0;
     const svc = SB.createService({ dir: path.join(tmp, 'sb'), clock: () => NOW, risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: alerts, hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] },
         adapters: { vm: { available: () => true, call: async ({ prompt }) => { vmCalls++; return JSON.stringify({ stations: idsIn(prompt).map((s) => ({ id: s.id, land: null, sea: 'x' })) }); } }, gemini: { available: () => false } } });
+    await check('[§11.10.53] 세션 시험 — trialJob 은 정시 판 재료로 묶음별 지시문만 만들고(AI 안 부름·날짜 파일 안 씀) · trialResult 는 같은 검사로 판정해 session_trials.json 에만 남김 · 모르는 일감 404 · 잘못된 kind 400', async () => {
+        const td = path.join(tmp, 'trial'); fs.mkdirSync(td, { recursive: true });
+        let calls = 0;
+        const tsv = SB.createService({ dir: td, clock: () => Date.parse('2026-10-17T16:40:00+09:00'), risk: fakeRisk, marine: fakeMarine, loadStations: () => fakeStations, alertsFile: alerts, hazardFeatures: () => [], kma: () => null, tideDeps: { anchors: [] },
+            adapters: { vm: { available: () => true, call: async () => { calls++; return '{}'; } }, gemini: { available: () => false } } });
+        const job = await tsv.trialJob({ kind: 'evening' });
+        assert.equal(job.stations, 2); assert.ok(job.batches.length >= 1 && job.batches.every((b) => typeof b.prompt === 'string' && b.prompt.length > 100 && b.keys.length));
+        assert.equal(calls, 0, 'AI 를 부르지 않는다');
+        assert.ok(!fs.readdirSync(td).some((f) => f.startsWith('briefings_')), '날짜 파일을 쓰지 않는다');
+        const keys = job.batches.flatMap((b) => b.keys);
+        const good = keys[0], text = JSON.stringify({ stations: [{ id: good, land: null, sea: '짧음' }] });
+        const r = tsv.trialResult({ job_id: job.job_id, answers: [{ batch: job.batches[0].name, text }, { batch: 'x', text: '이건 JSON 아님' }], timings: { session_start: '2026-10-17T07:41:00Z', writing_ms: 12345, '이상한 값': { a: 1 } } });
+        assert.equal(r.stations, 2); assert.equal(r.passed + r.failed + r.missing, 2); assert.equal(r.missing, 1, '답이 없는 관할'); assert.equal(r.parseErrors, 1);
+        assert.equal(r.failed, 1, '짧은 글은 검사에서 떨어진다(같은 validateOverview)'); assert.ok(r.topErrors.length);
+        assert.equal(r.timings.writing_ms, 12345); assert.equal(r.timings['이상한 값'], null, '숫자·글 아닌 값은 버림');
+        const log = tsv.trialLog(); assert.equal(log.length, 1); assert.equal(log[0].job_id, job.job_id); assert.ok(!('perStation' in log[0]), '기록에는 관할별 상세를 싣지 않는다');
+        assert.ok(!fs.readdirSync(td).some((f) => f.startsWith('briefings_') || f === 'error_log.json'), '오류 기록·날짜 파일 그대로');
+        assert.throws(() => tsv.trialResult({ job_id: 'nope', answers: [] }), (e) => e.status === 404);
+        await assert.rejects(() => tsv.trialJob({ kind: 'warning' }), (e) => e.status === 400, '특보 변경 판은 시험 대상 아님');
+    });
     await check('서비스 일정(가짜 시계): 06:49 없음 → 06:50 아침 판(고정 2곳) 만들어 07:30 공개 대기 → 07:30 부터 보임 → 같은 시각 다시 점검해도 한 번만', async () => {
         fs.mkdirSync(path.join(tmp, 'sb'), { recursive: true });
         fs.writeFileSync(path.join(tmp, 'sb', 'state.json'), JSON.stringify({ done: ['2026-10-16|night'] }));
