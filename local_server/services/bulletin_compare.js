@@ -218,6 +218,7 @@ const clrEnd = (t) => { const k = clrKey(t); const m = k.match(/^(\d+)\|\d+-(\d+
  *   - 다가오는 특보가 이미 있었고 종류·등급이 같다(예비→발표는 isPreToAdvisory 로 같다고 봄): 시간만 바뀜 → 발효시각 변경(예비 범위가 같은 종류로 더 늦어지면 발효 예정시각 연장)
  *   - 처음 나타나거나 등급이 다르다: 지금 발효 중인 것과 점수 비교(예비 = 주의보 동급 — push_sender LVL_RANK) → 종류 다름 = 종류 격상/격하 발표, 등급 다름 = 격상/격하 발표, 같음 = 발표
  * 예: (풍랑주의보 발효 중, 없음 → 풍랑 예비 18~24시) → publish(📢 풍랑 주의보 발표) · (풍랑경보 발효 중, 없음 → 풍랑 예비) → level_downgrade_publish
+ *   종류가 다르면 종류 격상/격하 발표(「풍랑경보→태풍주의보 격상 발표」 — 2026-11-17 사용자 확정, 앱 push_sender 도 같은 날 같게 고침).
  * [연계] ← run(이 파일) — 2026-11-17 사용자 「같은 해역에 예비 특보가 나오는 경우 다가오는 특보로」 · 적대검증 2026-11-16 #2
  */
 function upTemplate(cur, up0, up1, isChild) {
@@ -231,6 +232,8 @@ function upTemplate(cur, up0, up1, isChild) {
         return { templateId: isChild ? 'child_time_ef_change' : 'time_ef_change', typeName: up1.type, level: lv(up1) };
     }
     const SC = { 주의보: 2, 경보: 5 }, TS = { 풍랑: 10, 태풍: 100 };
+    // 다가오는 특보가 이미 있었고 등급은 같은데 종류만 바뀜(풍랑 예비 → 태풍 예비) = 앞 다가오는 특보와 비교한 종류 격상/격하 발표(앱 push_sender 「예비 단계 종류 격상/격하」 분기)
+    if (up0 && up0.type !== up1.type && lv(up0) === lv(up1)) return { templateId: (TS[up1.type] || 10) > (TS[up0.type] || 10) ? 'type_upgrade_publish' : 'type_downgrade_publish', typeName: up1.type, level: lv(up1), prevTypeName: up0.type, prevLevel: lv(up0) };
     if (cur.type !== up1.type) return { templateId: (TS[up1.type] || 10) > (TS[cur.type] || 10) ? 'type_upgrade_publish' : 'type_downgrade_publish', typeName: up1.type, level: lv(up1), prevTypeName: cur.type, prevLevel: cur.level };
     if (lv(cur) !== lv(up1)) return { templateId: (SC[lv(up1)] || 0) > (SC[lv(cur)] || 0) ? 'level_upgrade_publish' : 'level_downgrade_publish', typeName: up1.type, level: lv(up1), prevLevel: cur.level };
     return { templateId: 'publish', typeName: up1.type, level: lv(up1) };

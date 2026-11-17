@@ -118,7 +118,13 @@ async function processAndSendNotifications(changes, options = {}) {
                     const newScore = getAlertScore(typeName, level);
 
                     if (curScore !== newScore) {
-                        const scenario = curScore < newScore ? 'level_upgrade_publish' : 'level_downgrade_publish';
+                        // 종류가 다르면 종류 격상/격하 발표 — 설계 §4.19(mmis_history.design.md) 「풍랑경보→태풍주의보」 형식.
+                        //   종전엔 종류를 안 보고 등급 격상으로만 판정해 「📢 태풍 경보→주의보 격상 발표」(이전 종류 빠짐·방향 어색)가 나갔다.
+                        //   사용자 확정 2026-11-17: 「📢 풍랑경보→태풍주의보 격상 발표 … 이렇게 되는게 맞아」. 같은 종류면 종전대로 등급 격상/격하.
+                        const typeChanged = !!currentActive.wrnTp && currentActive.wrnTp !== typeName;
+                        const scenario = typeChanged
+                            ? (curScore < newScore ? 'type_upgrade_publish' : 'type_downgrade_publish')
+                            : (curScore < newScore ? 'level_upgrade_publish' : 'level_downgrade_publish');
                         addToGroup(groups, scenario, typeName, level, {
                             zones: [zone],
                     childState,
