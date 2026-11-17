@@ -72,6 +72,26 @@ console.log('A1b. 적대검증 2026-11-16 회귀 — 발효 전 변경 · 첫 �
     ok('#1 「위 해역」(정확 단위) 후보는 그 자식에만 — 남아 있는 부모는 안 덮음', ap.length === 1 && zones['울산앞바다'].clr === '29일 밤(21시~24시)' && zones['울산앞바다중연안바다'].clr === '09시 30분', { ap, zones });
 }
 
+console.log('A1c. 정식 특보 발효 중 같은 해역 예비 = 다가오는 특보 — 사용자 확정 2026-11-17');
+{
+    const G = (ho, tmIn, o) => ({ office: '강원청', rpt: '6', result: Object.assign({ t1Title: ho, tmFc: tmIn + ':00.0', tmIn: tmIn + ':30.0', t1: '', t2: '', t3: '', t4: '', t6: 'o 없음', t7: 'o 없음' }, o) });
+    const GY = (ho, tmIn, t4) => ({ office: '강원청', rpt: '7', result: { t1Title: ho, tmFc: tmIn + ':00.0', tmIn: tmIn + ':30.0', t4, t5: '', other: 'o 없음' } });
+    const w = G('제1-40호', '2025-01-11 10:00', { t2: '(1) 풍랑주의보 발표 : 동해중부안쪽먼바다', t3: '(1) 풍랑주의보 발표 : 2025년 01월 11일 11시 00분', t4: '(1) 풍랑주의보 발표\n  o 해제 예고: 11일 밤(18시~21시)' });
+    const rel = G('제1-41호', '2025-01-11 18:00', { t2: '(1) 풍랑주의보 해제 : 동해중부안쪽먼바다', t3: '(1) 풍랑주의보 해제 : 2025년 01월 11일 20시 00분' });
+    const y = GY('제1-9호', '2025-01-11 16:00', '(1) 풍랑 예비특보\n o 01월 12일 오전(06시~12시) : 동해중부안쪽먼바다');
+    const r = S.compute([w, rel, y], K('2025-01-11 18:30'));
+    const z = r.zones['동해중부안쪽먼바다'];
+    ok('주의보 발효 중(20시 해제 대기) + 같은 해역 예비 → 지금 = 주의보, 다가오는 = 예비(12일 오전)', z.kind === 'formal' && z.upYebi && z.upYebi.tmEf === '2025년 01월 12일 오전(06시~12시)', z);
+    const tr = JSON.stringify(r.tree);
+    ok('나무: current = 주의보 · upcoming = 예비(메인 화면 「[다가오는 특보] 풍랑 주의보 예정」)', /"current":\{[^}]*"wrnLvlNm":"주의보"/.test(tr) && /"upcoming":\{[^}]*"wrnLvlNm":"예비"/.test(tr), tr.slice(0, 400));
+    const z2 = S.compute([w, rel, y], K('2025-01-11 20:00')).zones['동해중부안쪽먼바다'];
+    ok('해제 시각(20:00)이 되면 그 예비가 이어받음(지금 = 예비)', z2 && z2.kind === 'yebi' && z2.tmEf === '2025년 01월 12일 오전(06시~12시)', z2);
+    const ap = S.applyAi(r.zones, [{ 종류: '예비취소', zones: ['동해중부안쪽먼바다'], inMs: K('2025-01-11 18:20'), office: '강원청', ho: '제1-42호' }]);
+    {   const zz = { X: { kind: 'formal', inMs: 1130, upYebi: { inMs: 1000, yebiWins: 1 } } };
+        ok('D4 정식이 그 뒤 더 새로워졌어도, 다가오는 예비보다 새 예비취소면 다가오는 예비를 뺌', S.applyAi(zz, [{ 종류: '예비취소', zones: ['X'], inMs: 1100 }]).length === 1 && !zz.X.upYebi); }
+    ok('AI 예비취소(더 새 통보문)는 다가오는 예비만 뺌(부모 이름 = 자식 포함) — 지금 주의보는 그대로', ap.length >= 1 && ap.every((x) => x.what === '다가오는 예비 뺌') && ap.some((x) => x.unit === '동해중부안쪽먼바다') && r.zones['동해중부안쪽먼바다'].kind === 'formal' && !r.zones['동해중부안쪽먼바다'].upYebi, ap);
+}
+
 console.log('A2. 여러 항목이 한 머리를 함께 쓰는 해제 예고');
 {
     const t = S.itemTimes({ t3: '(1) 풍랑주의보 발표 : 2026년 11월 15일 13시 30분\n(2) 풍랑주의보 발표 : 2026년 11월 15일 14시 30분', t4: '(1) ,(2) 풍랑주의보 발표\n  o 해제 예고: 17일 오전(09시~12시)' });

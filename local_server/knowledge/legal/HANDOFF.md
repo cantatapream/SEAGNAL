@@ -1543,6 +1543,20 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 
 ### [2026-11-17 17:50 KST] ✅완료 — 앱: 항행경보 0건 복구 — KHOA 사이트 User-Agent 차단 대응
 증상: 운영 /api/navigational-warning/list 가 success:true, zones:[] (해양안전 생활 항행경보 미표시, 2026-11-17 확인). 원인(재현): 공식 data.go.kr 목록 API 는 정상(resultCode 00). KHOA nwb 사이트가 node-fetch 기본 User-Agent 요청을 503 으로 거부 → JSESSIONID 발급 실패 → 구역 보강 전부 생략 → 0건. 수정: routes/navigational_warning.js 의 mainPage.do GET·_khoaPost POST 에 User-Agent 헤더(KHOA_UA) 추가. 확인: 로컬 서버 기동 후 같은 API 0→44건. verify_all.sh(로컬 서버 기동·NODE_PATH 에 /opt/node-tools/node_modules 추가) exit 0 '전체 검증 통과'. 운영 반영은 main 병합 필요(작업 브랜치 claude/epic-goodall-awy4c2). 같은 503 차단을 받는 다른 경로(미수정·사용자 판단 대기): scheduler.js 망상 이안류 RCData.do(UA 없음, 기본UA 503·UA 200), services/seaway_refresh.js 항로 proxyRun.do(기본UA 503·UA 200). khoa_stream_cache.js 는 이미 UA 있음.
+### [2026-11-17 18:19 KST] ✅완료 — 앱 푸시 — 발효 중 특보 위 다른 종류 다가오는 특보 = 종류 격상/격하 발표
+push_sender: 종류 다르면 type_upgrade/downgrade_publish(「📢 풍랑경보→태풍주의보 격상 발표」). 적대검증 4건 수정(수신설정 announce/active 목록·앱 팝업 생략 목록·관리자 탭·type_* 묶음 키). 100 조합 묶음 제목 정확도 0 오류. test_push_upcoming_type 13/0, push 관련 8 스위트 통과, verify_all 통과. 통보문 비교 upTemplate 도 같게. 남은 16건 사례 검토 완료(오류 0).
+
+
+### [2026-11-17 17:45 KST] 🟢착수 — 앱 푸시 — 발효 중 특보 위 다른 종류 다가오는 특보 = 종류 격상/격하 발표
+사용자 확정 2026-11-17 「📢 풍랑경보→태풍주의보 격상 발표 … 이렇게 되는게 맞아」 「그렇게 수정하도록 해줘. 그리고 재차 검증(다른 에이전트)」. 원인: push_sender UPCOMING_CHANGE 의 !prev 분기가 지금 특보와 점수만 비교해 level_upgrade_publish → 「태풍 경보→주의보 격상 발표」(설계 §4.19 와 다름). 고침: 종류가 다르면 type_upgrade/downgrade_publish. 실제 사용자 푸시 경로 — 적대검증 필수.
+
+
+### [2026-11-17 17:31 KST] ✅완료 — 통보문 기준 — 정식 특보 발효 중 같은 해역 예비특보 = 다가오는 특보
+upYebi(예비 목록이 정식보다 나중일 때만) → 나무 upcoming, 해제되면 이어받음. compare 다가오는 칸 비교(부모만·MMIS 격상 대기 꼴 맞춤)·가상 푸시 앱 규칙. 적대검증 4건 수정(D3 종류 다른 다가오는 특보 푸시 이름은 사용자 판단 대기 — 지금은 종류 격상 발표). t7 대조 99.57%(새 어긋남 0), t6 100%. 남은 16건 원인 사용자와 하나씩 검토 중(A 5건 중 4건은 대조 스크립트의 끝난 시간창 자르기, 1건 예비 통보문 39초 늦게 입력 — 번복 없음 1분 시뮬 확인). verify_all 통과.
+
+
+### [2026-11-17 16:51 KST] 🟢착수 — 통보문 기준 — 정식 특보 발효 중 같은 해역 예비특보 = 다가오는 특보
+사용자 확정 2026-11-17 「풍랑주의보 발효 중인경우 같은 해역에 예비 특보가 나오는 경우 다가오는 특보로」. 실측: 그 순간 정식 발효 중인 해역의 예비 155건 전부 빠짐(정식 우선 규칙이 버림). 고칠 것: bulletin_status 예비를 upYebi 로 두고 나무 upcoming · 정식 해제되면 이어받음 · AI 예비취소도 · bulletin_compare MMIS·통보문 다가오는 칸까지 비교(sig·팝업 줄·「왜?」) · 가상 푸시 앱 규칙(예비=주의보 동급 → 발표, 경보 중이면 격하 발표) · 되풀이 검산 t7 대조 · 적대검증.
 
 
 ### [2026-11-16 21:41 KST] ✅완료 — 통보문 기준 — 해제 시각까지 유지 · 가상 푸시 이름 앱과 맞춤 · 「위 해역」 본문으로 · 위치기반 따로

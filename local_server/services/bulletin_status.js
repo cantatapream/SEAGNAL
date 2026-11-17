@@ -95,7 +95,7 @@ function computeFormal(list, nowMs = Infinity) {
         const base = { tmFc: korTime(r.tmFc), ho: r.t1Title, inMs: KST(r.tmIn) };
         if (!seeded) {
             // 첫 통보문: 발효 중 칸으로 시작(부모 단위) — 3일 전보다 먼저 발효된 특보도 이렇게 잡힌다
-            for (const [u, lv] of parseCurrent(r.t6, []).cur) { const m = lv.match(/^(풍랑|태풍)(주의보|경보)$/); if (m) state.set(u, Object.assign({ type: m[1], level: m[2], tmEf: '', efMs: 0, clr: '' }, base)); }
+            for (const [u, lv] of parseCurrent(r.t6, []).cur) { const m = lv.match(/^(풍랑|태풍)(주의보|경보)$/); if (m) state.set(u, Object.assign({ type: m[1], level: m[2], tmEf: '', efMs: 0, clr: '', issueMs: base.inMs }, base)); }
             //   발효 중 칸은 해제 통보문을 낸 순간 해제 예정 해역을 이미 뺀다 — 첫 통보문이 해제이고 해제 시각이 아직이면 그 해역도 넣어 둔다(아래 해제 항목이 해제 시각까지 둔다).
             //   적대검증 2026-11-16: 강원 2026 1-97호(앞 통보문이 3일 넘게 전) — 해제 시각까지 3시간 「없음」으로 나왔다.
             for (const it of items) if (it.action === '해제' && /^(풍랑|태풍)$/.test(it.type) && (ef[it.n] || {}).ms) for (const u of it.units) if (!state.has(u)) state.set(u, Object.assign({ type: it.type, level: it.level, tmEf: '', efMs: 0, clr: '' }, base));
@@ -111,7 +111,7 @@ function computeFormal(list, nowMs = Infinity) {
                     else state.delete(u);
                 }
                 else if (it.action === '발표' || it.action === '변경') {
-                    const nx = Object.assign({ type: it.type, level: it.level, tmEf: t.text || '', efMs: t.ms || 0, clr: c || '' }, base), cur = state.get(u);
+                    const nx = Object.assign({ type: it.type, level: it.level, tmEf: t.text || '', efMs: t.ms || 0, clr: c || '', issueMs: base.inMs }, base), cur = state.get(u);   // issueMs = 이 특보를 낸 통보문(해제예고만 바뀌어도 그대로) — 다가오는 예비가 이 특보보다 새것인지 볼 때
                     // 지금 발효 중인 특보가 있는데 새 특보의 발효 시각이 아직이면 지금 것을 두고 다음 것(next)으로 — 앱(MMIS)이 current·upcoming 을 함께 드는 것과 같다.
                     //   적대검증 2026-11-16: 주의보→경보 「변경」(발효 10:00)을 09:02 부터 「발표(발효 전)」으로만 들어 지금 주의보가 사라지고 「📢 경보 발표」로 나갔다 — 앱은 「격상 발표」(실제 954 단위).
                     if (cur && cur.inMs !== base.inMs && !(cur.efMs > nowMs) && nx.efMs > nowMs) cur.next = nx;   // 같은 통보문이 만든 상태(첫 통보문의 발효 중 칸 등)는 그대로 바꾼다
@@ -154,7 +154,7 @@ function parseYebiList(text, tmFc) {
  * @param {number} nowMs
  * @param {Array<{종류, zones:string[], office, ho, inMs, 시간_후}>} [cands] 참고사항 AI 후보(bulletin_ai_live.candidates — 입력시각 순)
  * @returns {{zones: Object<string, {parent, kind:'formal'|'yebi', type, level, tmFc, tmEf, clr, ho, inMs, ai?}>, tree: object, waiting: string[], aiApplied: Array}}
- *   zones: 단위(부모·자식) → 상태(정식이 예비보다 앞선다) · waiting: 시간창이 끝나 10분 기다리는 예비 단위 · aiApplied: 실제로 덧씌운 AI 후보
+ *   zones: 단위(부모·자식) → 상태(정식이 예비보다 앞선다 — 정식 중인 해역의 예비는 그 정식의 upYebi(다가오는 특보)) · waiting: 시간창이 끝나 10분 기다리는 예비 단위 · aiApplied: 실제로 덧씌운 AI 후보
  * [연계] ← run(이 파일) · bulletin_compare · test_bulletin_status
  */
 function compute(bulletins, nowMs, cands = []) {
@@ -171,7 +171,16 @@ function compute(bulletins, nowMs, cands = []) {
         const ylist = parseYebiList(lastY.result.t4, lastY.result.tmFc).filter((e) => e.end + YEBI_WAIT_MS > nowMs);   // 끝나고 10분 지난 것은 뺌
         const wins = {}; for (const e of ylist) wins[e.unit] = (wins[e.unit] || 0) + 1;   // 단위별 남은 시간창 수 — AI 예비취소가 다른 시간창까지 지우지 않게
         for (const e of ylist) {
-            if (released.has(e.unit) || zones[e.unit]) continue;       // 예비 해제 통보문·정식 특보가 이미 있음
+            if (released.has(e.unit)) continue;                         // 예비 해제 통보문
+            const z0 = zones[e.unit];
+            if (z0) {
+                // 정식 특보가 발효 중인 해역의 예비 = 「다가오는 특보」(upYebi — 앱 MMIS 의 current·upcoming 공존과 같다). 정식이 해제되면 이 예비가 이어받는다(정식이 지워진 계산에선 아래 일반 예비로).
+                //   사용자 확정 2026-11-17 「풍랑주의보 발효 중인경우 같은 해역에 예비 특보가 나오는 경우 다가오는 특보로」 — 종전엔 버렸다(실측 155건 전부).
+                //   다음 정식 특보(next)가 이미 기다리면 그쪽이 다가오는 칸을 쓴다. 시간창이 여럿이면 가장 이른 것.
+                //   단, 그 예비 목록이 이 정식 특보보다 나중에 나왔을 때만 — 먼저 나온 목록의 예비는 이 정식 특보로 넘어간 것(실측: 종전 규칙대로면 1,441건이 더 있음)
+                if (z0.kind === 'formal' && !z0.next && !z0.upYebi && tY > (z0.issueMs || z0.inMs || 0)) z0.upYebi = { type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, ho: lastY.result.t1Title, inMs: tY, endMs: e.end, yebiWins: wins[e.unit] };
+                continue;
+            }
             if (e.end <= nowMs) waiting.push(e.unit);
             zones[e.unit] = { parent: parentOf(e.unit), kind: 'yebi', type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, clr: '', ho: lastY.result.t1Title, endMs: e.end, inMs: tY, yebiWins: wins[e.unit] };
         }
@@ -196,8 +205,12 @@ function applyAi(zones, cands) {
         const ps = new Set(c.zones || []);
         for (const [u, z] of Object.entries(zones)) {
             //   exact = 해역이 본문 항목의 실제 단위(「위 해역」) — 그 단위에만(부모로 넓히지 않는다: 자식만 해제할 때 남는 부모를 덮던 일, 적대검증 2026-11-16 부산 2025 1-60호)
-            if (!(ps.has(u) || (!c.exact && ps.has(z.parent))) || !(c.inMs > (z.inMs || 0))) continue;
+            if (!(ps.has(u) || (!c.exact && ps.has(z.parent)))) continue;
+            //   다가오는 예비 취소는 그 예비보다 새것이면 된다(정식이 그 뒤 해제예고 등으로 더 새로워져도 — 적대검증 2026-11-17 D4)
+            if (c.종류 === '예비취소' && z.kind === 'formal' && z.upYebi && !(z.upYebi.yebiWins > 1) && c.inMs > (z.upYebi.inMs || 0)) { delete z.upYebi; out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '다가오는 예비 뺌' }); continue; }
+            if (!(c.inMs > (z.inMs || 0))) continue;
             //   예비 시간창이 둘 이상 남은 단위는 문장이 어느 시간창을 지웠는지 단위만으로 못 가린다 → 안 덧씌움(적대검증 2026-11-16)
+            //   정식 특보 중인 해역의 다가오는 예비(upYebi)도 같은 규칙으로 — 그 예비보다 새 통보문이고 시간창이 하나일 때만
             if (c.종류 === '예비취소' && z.kind === 'yebi' && !(z.yebiWins > 1)) { delete zones[u]; out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '예비 뺌' }); }
             else if (c.종류 !== '예비취소' && z.kind === 'formal' && c.시간_후) {
                 Object.assign(z, { clr: c.시간_후, inMs: c.inMs, ai: { ho: c.ho, 종류: c.종류 } }); delete z.relMs;   // 더 새 통보문의 해제 예고가 이긴다 — 앞 해제 시각 기다림도 그만
@@ -216,7 +229,7 @@ function toTree(zones) {
     const info = (z) => ({ wrnTp: z.type, wrnTpNm: z.type, wrnLvlNm: z.level, tmFc: z.tmFc, tmEf: z.tmEf, tmYn: '', clrNtcTm: z.clr || '' });
     const parents = new Map(), upcomings = new Map(), children = new Map();
     for (const [u, z] of Object.entries(zones)) {
-        if (PARENTS.has(u)) { (z.kind === 'yebi' ? upcomings : parents).set(u, info(z)); if (z.next) upcomings.set(u, info(z.next)); }   // 발효 중 + 다음 특보(발효 전) = MMIS current·upcoming
+        if (PARENTS.has(u)) { (z.kind === 'yebi' ? upcomings : parents).set(u, info(z)); const up = z.next || z.upYebi; if (up) upcomings.set(u, info(up)); }   // 발효 중 + 다가오는 특보(다음 정식 또는 예비) = MMIS current·upcoming
         else if (z.parent) { if (!children.has(z.parent)) children.set(z.parent, new Map()); children.get(z.parent).set(u, info(z)); }
     }
     const tree = require('../marine_warning_crawler')._buildZoneTreeFromSnapshot({ parents, upcomings, children });

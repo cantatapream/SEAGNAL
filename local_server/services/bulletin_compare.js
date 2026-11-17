@@ -51,7 +51,11 @@ function flattenTree(tree) {
         if (!o || typeof o !== 'object') return;
         for (const [k, v] of Object.entries(o)) {
             if (v && typeof v === 'object' && 'current' in v && 'children' in v) {
-                const s = blk(v.current, k) || blk(v.upcoming, k); if (s) out[k] = s;
+                const cur = blk(v.current, k);
+                let upc = blk(v.upcoming, k);
+                //   발효 중 해역의 upcoming 은 정의상 아직 발효 전 — MMIS 는 격상·격하 발표대기를 등급(경보 등)으로 적는다(crawler _tryAddCoexistingUpcoming · toBlock wrnLvlReal) → 발표(발효 전)으로(적대검증 2026-11-17 D2)
+                if (cur && upc && upc.kind === 'formal') upc = Object.assign(upc, { kind: 'pending', level: '발표' });
+                const s = cur || upc; if (s) out[k] = cur && upc ? Object.assign(cur, { up: upc }) : s;   // 발효 중 + 다가오는 특보 = up(2026-11-17 — 종전엔 upcoming 을 버려 다가오는 칸 차이를 못 봤다)
                 for (const [c, cv] of Object.entries(v.children || {})) { const cs = blk(cv, k); if (cs) out[c] = cs; }
             } else walk(v);
         }
@@ -66,7 +70,14 @@ function flattenTree(tree) {
  */
 function pendingOf(zones, nowMs) {
     const out = {};
-    for (const [u, z] of Object.entries(zones || {})) out[u] = (z.kind === 'formal' && z.efMs && z.efMs > nowMs) ? Object.assign({}, z, { kind: 'pending' }) : z;
+    for (const [u, z] of Object.entries(zones || {})) {
+        const o = (z.kind === 'formal' && z.efMs && z.efMs > nowMs) ? Object.assign({}, z, { kind: 'pending' }) : Object.assign({}, z);
+        // 다가오는 특보(다음 정식 = 발표(발효 전) · 예비) — MMIS flattenTree 의 up 과 같은 꼴
+        const up = z.next ? Object.assign({ parent: z.parent, kind: 'pending' }, z.next) : z.upYebi ? Object.assign({ parent: z.parent, kind: 'yebi' }, z.upYebi) : null;
+        //   부모 해역만 — MMIS 나무의 자식은 블록이 하나뿐이라 다가오는 칸이 없다(자식에 붙이면 늘 「다름」 — 적대검증 2026-11-17 D1, 앱 crawler 도 다가오는 특보는 부모에서만 본다)
+        if (up && u === z.parent) o.up = up; else delete o.up;
+        out[u] = o;
+    }
     return out;
 }
 
@@ -75,8 +86,11 @@ function pendingOf(zones, nowMs) {
 const winKey = (t) => { const m = String(t || '').match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일[^(]*\((\d{1,2})시\s*~\s*(\d{1,2})시\)/); if (!m) return String(t || '').replace(/\s+/g, ''); const e = +m[5] === 0 ? 24 : +m[5]; return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}|${+m[4]}-${e}`; };
 /** 해제 예고를 시각만으로(「17일 오전(09시~12시)」 → '17|9-12'). */
 const clrKey = (t) => { const m = String(t || '').match(/(\d{1,2})일[^(]*\((\d{1,2})시\s*~\s*(\d{1,2})시\)/); return m ? `${+m[1]}|${+m[2]}-${+m[3] === 0 ? 24 : +m[3]}` : String(t || '').replace(/\s+/g, ''); };
-const sig = (z) => (z ? (z.kind === 'pending' ? `pending|${z.type}|${String(z.tmEf).replace(/\s+/g, '')}` : `${z.kind}|${z.type}|${z.level}|${z.kind === 'yebi' ? winKey(z.tmEf) : clrKey(z.clr)}`) : '');
-const word = (z) => (z ? (z.kind === 'yebi' ? `${z.type} 예비(${z.tmEf})` : z.kind === 'pending' ? `${z.type}${z.level === '발표' ? '' : z.level} 발표(${z.tmEf} 발효 예정)` : `${z.type}${z.level}${z.clr ? `(해제 예고 ${z.clr})` : ''}`) : '없음');
+const sig1 = (z) => (z ? (z.kind === 'pending' ? `pending|${z.type}|${String(z.tmEf).replace(/\s+/g, '')}` : `${z.kind}|${z.type}|${z.level}|${z.kind === 'yebi' ? winKey(z.tmEf) : clrKey(z.clr)}`) : '');
+/** 상태 서명 = 지금 특보 + 다가오는 특보(up) — 다가오는 칸이 달라도 「두 쪽이 다름」으로 본다(2026-11-17). */
+const sig = (z) => (z ? sig1(z) + (z.up ? ' ^ ' + sig1(z.up) : '') : '');
+const word1 = (z) => (z ? (z.kind === 'yebi' ? `${z.type} 예비(${z.tmEf})` : z.kind === 'pending' ? `${z.type}${z.level === '발표' ? '' : z.level} 발표(${z.tmEf} 발효 예정)` : `${z.type}${z.level}${z.clr ? `(해제 예고 ${z.clr})` : ''}`) : '없음');
+const word = (z) => (z ? word1(z) + (z.up ? ` · 다가오는 특보 ${word1(z.up)}` : '') : '없음');
 
 // ── 지금 두 쪽이 다른 해역 표(관리자 메인 「HH:MM 기준 MMIS와 상이 N개소」 팝업 — 2026-11-16) ──
 // 「다르다」는 위 sig() 와 같은 기준이라 팝업과 비교 기록(mismatch_start)이 늘 같은 곳을 가리킨다.
@@ -93,6 +107,8 @@ const mmisHm = (s) => {
     return `${pad2(h)}:${m[3]}`;
 };
 const STAGE = { formal: '발효 중인 특보', yebi: '예비특보', pending: '발표(발효 전)' };
+/** 다가오는 특보 칸 글자. 예: '풍랑 예비특보 (16일 밤(18시~24시))' · 없으면 '—' */
+const upLabel = (z) => (z && z.up ? `${label(z.up)} (${shortT(z.up.tmEf)})` : '—');
 const label = (z) => (!z ? '없음' : z.kind === 'yebi' ? `${z.type} 예비특보` : z.kind === 'pending' ? `${z.type}${z.level === '발표' ? '' : z.level} 발표(발효 전)` : `${z.type}${z.level}`);
 /** 종류·단계 칸 비교값 — sig 처럼 발표(발효 전)은 등급을 안 본다(MMIS 는 등급을 모르고 「발표」로만 적는다). */
 const typeKey = (z) => (!z ? '' : z.kind === 'pending' ? `pending|${z.type}` : `${z.kind}|${z.type}|${z.level}`);
@@ -104,7 +120,7 @@ const partKind = (u, parent) => (u === parent ? '해역 전체' : /연안바다$
  * 한 구역의 「왜?」 한 줄을 규칙 틀로 만든다(AI 없음). 원인은 단정하지 않고 두 값에서 보이는 사실만 쓴다.
  * 예: (MMIS 풍랑주의보, 통보문 없음) → { id:'mmis_only', text:'통보문에는 이 구역에 아무 특보도 없는데 MMIS에는 풍랑주의보 표시가 남아 있습니다.' }
  * @param {object|null} m MMIS 쪽 상태  @param {object|null} b 통보문 쪽 상태
- * @returns {{id: string, text: string}} id = mmis_only|bulletin_only|stage|type|level|yebi_time|pending_time|clr|other
+ * @returns {{id: string, text: string}} id = mmis_only|bulletin_only|stage|type|level|yebi_time|pending_time|clr|upcoming|other
  * [연계] ← diffSnapshot(이 파일) · 검사 test_bulletin_compare
  */
 function whyOf(m, b) {
@@ -118,6 +134,7 @@ function whyOf(m, b) {
     if (m.kind === 'yebi') return { id: 'yebi_time', text: `종류는 같고 예비특보 시간대만 다릅니다(MMIS ${shortT(m.tmEf)} · 통보문 ${shortT(b.tmEf)}).${later}` };
     if (m.kind === 'pending') return { id: 'pending_time', text: `종류는 같고 발효 예정 시각만 다릅니다(MMIS ${shortT(m.tmEf)} · 통보문 ${shortT(b.tmEf)}).${later}` };
     if (clrKey(m.clr) !== clrKey(b.clr)) return { id: 'clr', text: `특보는 같고 해제 예고 시각만 다릅니다(MMIS ${m.clr || '없음'} · 통보문 ${b.clr || '없음'}).${later}` };
+    if (sig1(m.up) !== sig1(b.up)) return { id: 'upcoming', text: `지금 특보는 같고 다가오는 특보만 다릅니다(MMIS ${upLabel(m)} · 통보문 ${upLabel(b)}).` };
     return { id: 'other', text: '두 자료가 서로 다릅니다.' };
 }
 
@@ -142,6 +159,7 @@ function diffPart(u, parent, m, b, mmisAt) {
             { k: '해제 예고', m: (m && m.clr) || '—', b: (b && b.clr) || '—', diff: clrDiff },
             { k: '발표 시각', m: m ? shortT(m.tmFc) : '—', b: b ? shortT(b.tmFc) : '—', diff: false },
             { k: '근거 자료', m: hm ? `MMIS ${hm} 갱신` : '—', b: b && b.ho ? `${b.ho} 통보문` : '—', diff: false },
+            { k: '다가오는 특보', m: upLabel(m), b: upLabel(b), diff: sig1(m && m.up) !== sig1(b && b.up) },
         ],
         why: whyOf(m, b),
     };
@@ -181,21 +199,6 @@ function diffSnapshot(M, B, atMs, mmisAt) {
  * @returns {{templateId, typeName, level, prevLevel?, prevTypeName?}|null}
  * [연계] ← run(이 파일)
  */
-const nsig = (n) => (n ? `${n.type}|${n.level}|${String(n.tmEf || '').replace(/\s+/g, '')}` : '');
-/**
- * 발효 중인 특보 위에 「다음 특보(발효 전)」가 나타나거나 바뀔 때의 푸시 종류 — 앱 push_sender UPCOMING_CHANGE 와 같은 규칙:
- *   다음 특보가 이미 있었고 종류·등급이 같으면 발효시각 변경, 아니면 지금 발효 중인 것과 비교해 종류 바뀜 = 종류 격상/격하 발표, 등급 바뀜 = 격상/격하 발표, 같으면 발표.
- * 예: (풍랑주의보 발효 중, 없음 → 풍랑경보 10:00) → level_upgrade_publish(📢 풍랑 주의보→경보 격상 발표)
- * [연계] ← run(이 파일) — 적대검증 2026-11-16 #2(실제 954 단위가 「📢 경보 발표」로 나갔다)
- */
-function nextTemplate(cur, np, nc, isChild) {
-    if (np && np.type === nc.type && np.level === nc.level) return { templateId: isChild ? 'child_time_ef_change' : 'time_ef_change', typeName: nc.type, level: nc.level };
-    const SC = { 주의보: 1, 경보: 2 }, TS = { 풍랑: 0, 태풍: 10 };
-    if (cur.type !== nc.type) return { templateId: (TS[nc.type] || 0) > (TS[cur.type] || 0) ? 'type_upgrade_publish' : 'type_downgrade_publish', typeName: nc.type, level: nc.level, prevTypeName: cur.type, prevLevel: cur.level };
-    if (cur.level !== nc.level) return { templateId: (SC[nc.level] || 0) > (SC[cur.level] || 0) ? 'level_upgrade_publish' : 'level_downgrade_publish', typeName: nc.type, level: nc.level, prevLevel: cur.level };
-    return { templateId: 'publish', typeName: nc.type, level: nc.level };
-}
-
 // 범위 끝 비교용(연장 판정) — 예비 시간창 「2026년 11월 16일 오전(06시~12시)」 → 날짜·끝 시각 ms, 해제 예고 「17일 오전(09시~12시)」 → 일·끝 시(같은 달로 봄). 범위가 아니면 null.
 const winEnd = (t) => { const k = winKey(t); const m = k.match(/^(\d{4}-\d{2}-\d{2})\|\d+-(\d+)$/); return m ? Date.parse(m[1] + 'T00:00:00+09:00') + (+m[2]) * 3600e3 : null; };
 const clrEnd = (t) => { const k = clrKey(t); const m = k.match(/^(\d+)\|\d+-(\d+)$/); return m ? (+m[1]) * 100 + (+m[2]) : null; };
@@ -210,6 +213,32 @@ const clrEnd = (t) => { const k = clrKey(t); const m = k.match(/^(\d+)\|\d+-(\d+
  * @returns {{templateId, typeName, level, prevLevel?, prevTypeName?, oldTime?, newTime?}|null}
  * [연계] ← run(이 파일) / → push_helpers.generateMessage
  */
+/**
+ * 발효 중인 특보(cur) 위의 「다가오는 특보」가 나타나거나 바뀔 때의 푸시 종류 — 앱 push_sender UPCOMING_CHANGE 와 같은 규칙:
+ *   - 다가오는 특보가 이미 있었고 종류·등급이 같다(예비→발표는 isPreToAdvisory 로 같다고 봄): 시간만 바뀜 → 발효시각 변경(예비 범위가 같은 종류로 더 늦어지면 발효 예정시각 연장)
+ *   - 처음 나타나거나 등급이 다르다: 지금 발효 중인 것과 점수 비교(예비 = 주의보 동급 — push_sender LVL_RANK) → 종류 다름 = 종류 격상/격하 발표, 등급 다름 = 격상/격하 발표, 같음 = 발표
+ * 예: (풍랑주의보 발효 중, 없음 → 풍랑 예비 18~24시) → publish(📢 풍랑 주의보 발표) · (풍랑경보 발효 중, 없음 → 풍랑 예비) → level_downgrade_publish
+ *   종류가 다르면 종류 격상/격하 발표(「풍랑경보→태풍주의보 격상 발표」 — 2026-11-17 사용자 확정, 앱 push_sender 도 같은 날 같게 고침).
+ * [연계] ← run(이 파일) — 2026-11-17 사용자 「같은 해역에 예비 특보가 나오는 경우 다가오는 특보로」 · 적대검증 2026-11-16 #2
+ */
+function upTemplate(cur, up0, up1, isChild) {
+    const lv = (z) => (z.level === '예비' || z.level === '발표' ? '주의보' : z.level);
+    if (up0 && up0.type === up1.type && (lv(up0) === lv(up1))) {
+        if (up0.kind === 'yebi' && up1.kind === 'yebi') {
+            if (winKey(up0.tmEf) === winKey(up1.tmEf)) return null;
+            const o = winEnd(up0.tmEf), n = winEnd(up1.tmEf);
+            if (o != null && n != null && n > o) return isChild ? null : { templateId: 'ef_extend', typeName: up1.type, level: '주의보', oldTime: up0.tmEf, newTime: up1.tmEf };
+        }
+        return { templateId: isChild ? 'child_time_ef_change' : 'time_ef_change', typeName: up1.type, level: lv(up1) };
+    }
+    const SC = { 주의보: 2, 경보: 5 }, TS = { 풍랑: 10, 태풍: 100 };
+    // 다가오는 특보가 이미 있었고 등급은 같은데 종류만 바뀜(풍랑 예비 → 태풍 예비) = 앞 다가오는 특보와 비교한 종류 격상/격하 발표(앱 push_sender 「예비 단계 종류 격상/격하」 분기)
+    if (up0 && up0.type !== up1.type && lv(up0) === lv(up1)) return { templateId: (TS[up1.type] || 10) > (TS[up0.type] || 10) ? 'type_upgrade_publish' : 'type_downgrade_publish', typeName: up1.type, level: lv(up1), prevTypeName: up0.type, prevLevel: lv(up0) };
+    if (cur.type !== up1.type) return { templateId: (TS[up1.type] || 10) > (TS[cur.type] || 10) ? 'type_upgrade_publish' : 'type_downgrade_publish', typeName: up1.type, level: lv(up1), prevTypeName: cur.type, prevLevel: cur.level };
+    if (lv(cur) !== lv(up1)) return { templateId: (SC[lv(up1)] || 0) > (SC[lv(cur)] || 0) ? 'level_upgrade_publish' : 'level_downgrade_publish', typeName: up1.type, level: lv(up1), prevLevel: cur.level };
+    return { templateId: 'publish', typeName: up1.type, level: lv(up1) };
+}
+
 function templateOf(unit, before, after, parentNow, parentChanged) {
     const isChild = !!(after || before) && (after || before).parent !== unit;
     const timeTp = (base, extra) => (isChild ? (parentChanged ? null : Object.assign({ templateId: 'child_' + base.templateId }, extra)) : Object.assign({}, base, extra));
@@ -280,9 +309,14 @@ function createCompare({
         const stat = { events: 0 };
         const emit = (ev) => { log(Object.assign({ atMs: t }, ev)); stat.events++; };
         if (!st) {   // 처음: 지금 상태를 기준으로만 남기고 바뀜·푸시는 세지 않는다
-            st = { mmis: M, bulletin: B, lastPushId: Math.max(0, ...pushes.map((p) => +p.id || 0)), mismatch: {}, diff: diffSnapshot(M, B, t, getMmisAt()) };
+            st = { ver: 2, mmis: M, bulletin: B, lastPushId: Math.max(0, ...pushes.map((p) => +p.id || 0)), mismatch: {}, diff: diffSnapshot(M, B, t, getMmisAt()) };
             emit({ kind: 'baseline', mmis: Object.keys(M).length, bulletin: Object.keys(B).length, 설명: `비교 시작 — MMIS ${Object.keys(M).length}곳 · 통보문 ${Object.keys(B).length}곳에 특보·예비` });
             save(); return stat;
+        }
+        // 저장본이 「다가오는 특보(up)」를 모르던 판(ver 없음)이면 앞 상태에 지금 up 을 그대로 붙여 둔다 — 배포 순간 up 이 한꺼번에 「새로 나타남」으로 잡혀 가짜 바뀜·푸시가 쏟아지지 않게(2026-11-17)
+        if (st.ver !== 2) {
+            for (const [side, NOW] of [['mmis', M], ['bulletin', B]]) for (const u of Object.keys(st[side] || {})) { if (NOW[u] && NOW[u].up && sig1(st[side][u]) === sig1(NOW[u])) st[side][u].up = NOW[u].up; }
+            st.ver = 2;
         }
         // ① 양쪽 상태 바뀜
         const units = new Set([...Object.keys(st.mmis), ...Object.keys(M), ...Object.keys(st.bulletin), ...Object.keys(B)]);
@@ -290,6 +324,7 @@ function createCompare({
         for (const u of units) {
             for (const [side, prev, cur] of [['mmis', st.mmis[u], M[u]], ['bulletin', st.bulletin[u], B[u]]]) {
                 if (sig(prev) === sig(cur)) continue;
+                if (side === 'bulletin' && sig1(prev) === sig1(cur)) continue;   // 다가오는 특보만 바뀜 — 아래 다가오는 특보 줄이 기록한다(두 번 세지 않게, 적대검증 D5)
                 emit({ kind: 'change', side, unit: u, before: prev || null, after: cur || null, 설명: `${side === 'mmis' ? 'MMIS' : '통보문'} ${u}: ${word(prev)} → ${word(cur)}` });
                 if (side === 'bulletin') {
                     const par = (cur || prev).parent;
@@ -297,14 +332,15 @@ function createCompare({
                     if (tp) { const k = [tp.templateId, tp.typeName, tp.level, tp.prevLevel || ''].join('|'); (virtual[k] = virtual[k] || Object.assign({ items: [] }, tp)).items.push({ zones: [u], tmFc: (cur || prev).tmFc, tmEf: (cur || prev).tmEf, tmYn: (cur || prev).clr, oldTime: tp.oldTime, newTime: tp.newTime }); }
                 }
             }
-            // 통보문 쪽 「다음 특보」(발효 중 + 발효 전 변경 — bulletin_status next): 나타나거나 바뀌면 앱처럼 격상/격하 발표(또는 발효시각 변경)
-            const np = st.bulletin[u] && st.bulletin[u].next, nc = B[u] && B[u].next;
-            if (nc && nsig(np) !== nsig(nc)) {
+            // 통보문 쪽 「다가오는 특보」(up = 다음 정식 · 예비): 나타나거나 바뀌면 앱 UPCOMING_CHANGE 처럼(격상/격하 발표 · 발표 · 발효시각 변경·연장).
+            //   사라질 때(정식으로 넘어감·취소)는 앱도 따로 안 보낸다(현재 특보가 있으면 취소 판정을 안 함 — crawler 2497).
+            const upP = st.bulletin[u] && st.bulletin[u].up, upC = B[u] && B[u].up;
+            if (upC && sig1(upP) !== sig1(upC)) {
                 const par = B[u].parent, isChild = par !== u;
-                const parNextChanged = isChild && nsig(st.bulletin[par] && st.bulletin[par].next) !== nsig(B[par] && B[par].next);
-                emit({ kind: 'change', side: 'bulletin', unit: u, before: np || null, after: nc, next: true, 설명: `통보문 ${u}: ${word(B[u])} 중 다음 특보 ${nc.type}${nc.level} 발표(${nc.tmEf} 발효 예정)` });
-                const tp = isChild && parNextChanged ? null : nextTemplate(B[u], np, nc, isChild);
-                if (tp) { const k = [tp.templateId, tp.typeName, tp.level, tp.prevLevel || '', tp.prevTypeName || ''].join('|'); (virtual[k] = virtual[k] || Object.assign({ items: [] }, tp)).items.push({ zones: [u], tmFc: nc.tmFc, tmEf: nc.tmEf, tmYn: nc.clr }); }
+                const parUpChanged = isChild && sig1(st.bulletin[par] && st.bulletin[par].up) !== sig1(B[par] && B[par].up);
+                emit({ kind: 'change', side: 'bulletin', unit: u, before: upP || null, after: upC, upcoming: true, 설명: `통보문 ${u}: ${word1(B[u])} 중 다가오는 특보 ${word1(upP)} → ${word1(upC)}` });
+                const tp = isChild && parUpChanged ? null : upTemplate(B[u], upP, upC, isChild);
+                if (tp) { const k = [tp.templateId, tp.typeName, tp.level, tp.prevLevel || '', tp.prevTypeName || ''].join('|'); (virtual[k] = virtual[k] || Object.assign({ items: [] }, tp)).items.push({ zones: [u], tmFc: upC.tmFc, tmEf: upC.tmEf, tmYn: upC.clr, oldTime: tp.oldTime, newTime: tp.newTime }); }
             }
             // 두 쪽이 다른 동안(시작·끝)
             const diff = sig(M[u]) !== sig(B[u]);
@@ -399,4 +435,4 @@ function reportMarkdown(events, day) {
 
 let real = null;
 const getReal = () => (real = real || createCompare());
-module.exports = { nextTemplate, run: () => getReal().run(), days: () => getReal().days(), readDay: (d) => getReal().readDay(d), latestDiff: () => getReal().latestDiff(), createCompare, flattenTree, templateOf, reportMarkdown, sig, pendingOf, winKey, clrKey, diffSnapshot, whyOf, mmisHm };
+module.exports = { upTemplate, run: () => getReal().run(), days: () => getReal().days(), readDay: (d) => getReal().readDay(d), latestDiff: () => getReal().latestDiff(), createCompare, flattenTree, templateOf, reportMarkdown, sig, pendingOf, winKey, clrKey, diffSnapshot, whyOf, mmisHm };
