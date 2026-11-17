@@ -72,6 +72,17 @@ console.log('A2. 발표(발효 전) · 표기 차이');
         const d = C.diffSnapshot({ 동해중부안쪽먼바다: f }, { 동해중부안쪽먼바다: noUp }, 0, '');
         ok('다가오는 칸만 다르면 팝업에 「다가오는 특보」 줄이 다름 · 「왜?」= upcoming', d.count === 1 && d.zones[0].parts[0].rows.some((r) => r.k === '다가오는 특보' && r.diff) && d.zones[0].parts[0].why.id === 'upcoming', d.zones[0] && d.zones[0].parts[0]);
     }
+    {   // 적대검증 2026-11-17 회귀
+        // D1 자식 해역에는 다가오는 칸이 없다(MMIS 나무 자식 = 블록 하나) — 통보문 자식에 up 을 붙이면 늘 「다름」
+        const bz = C.pendingOf({ P: { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: 'x', upYebi: { type: '풍랑', level: '예비', tmEf: '2026년 01월 19일 밤(18시~24시)' } },
+            P중연안바다: { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: 'x', upYebi: { type: '풍랑', level: '예비', tmEf: '2026년 01월 19일 밤(18시~24시)' } } }, 0);
+        ok('D1 다가오는 특보는 부모에만(자식엔 up 없음)', bz.P.up && !bz['P중연안바다'].up);
+        // D2 MMIS 는 발효 중 해역의 격상 발표대기를 등급(경보)으로 적는다 → 발표(발효 전)으로 읽어 통보문 next 와 같게
+        const mt = { 동해: { g: { P: { current: { wrnTpNm: '풍랑', wrnLvlNm: '주의보', clrNtcTm: '10일 밤(21시~24시)' }, upcoming: { wrnTpNm: '풍랑', wrnLvlNm: '경보', tmEf: '2025년 01월 09일 10시 00분' }, history: [], children: {} } } } };
+        const m = C.flattenTree(mt).P;
+        const b = C.pendingOf({ P: { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '10일 밤(21시~24시)', next: { type: '풍랑', level: '경보', tmEf: '2025년 01월 09일 10시 00분', efMs: 9e15 } } }, 0).P;
+        ok('D2 MMIS 「주의보 + upcoming 경보(발효 전)」 = 통보문 「주의보 + next 경보」 → 같음', m.up.kind === 'pending' && C.sig(m) === C.sig(b), [C.sig(m), C.sig(b)]);
+    }
     {   // 배포 순간: 옛 저장본(ver 없음 — 다가오는 특보 모름)에 up 이 한꺼번에 「새로 나타남」으로 잡혀 가짜 바뀜·푸시가 쏟아지면 안 된다(2026-11-17)
         const os = require('os'), fs2 = require('fs'), path2 = require('path');
         const dir = fs2.mkdtempSync(path2.join(os.tmpdir(), 'bcmp-up-'));
@@ -87,6 +98,7 @@ console.log('A2. 발표(발효 전) · 표기 차이');
         cmp.run();
         const ev2 = cmp.readDay(cmp.days()[0]);
         ok('그다음 다가오는 예비가 더 늦은 시간창으로 바뀌면 「발효 예정시각 연장」 가상 푸시', ev2.some((e) => e.kind === 'virtual_push' && e.templateId === 'ef_extend'), ev2.map((e) => e.kind + ':' + (e.templateId || '')));
+        ok('D5 다가오는 특보만 바뀐 분에 통보문 바뀜 기록은 한 번', ev2.filter((e) => e.kind === 'change' && e.side === 'bulletin' && e.unit === 'P').length === 1, ev2.filter((e) => e.kind === 'change').map((e) => e.side + ':' + e.unit + ':' + !!e.upcoming));
     }
     {   // 보고서 구분 — 탭으로(적대검증 #5)
         const ev = [{ kind: 'mmis_push', at: '2026-11-16T10:00:00+09:00', title: '🌀 제25호 태풍 발생', tab: 'typhoon', target: '' },

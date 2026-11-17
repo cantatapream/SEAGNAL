@@ -205,10 +205,12 @@ function applyAi(zones, cands) {
         const ps = new Set(c.zones || []);
         for (const [u, z] of Object.entries(zones)) {
             //   exact = 해역이 본문 항목의 실제 단위(「위 해역」) — 그 단위에만(부모로 넓히지 않는다: 자식만 해제할 때 남는 부모를 덮던 일, 적대검증 2026-11-16 부산 2025 1-60호)
-            if (!(ps.has(u) || (!c.exact && ps.has(z.parent))) || !(c.inMs > (z.inMs || 0))) continue;
+            if (!(ps.has(u) || (!c.exact && ps.has(z.parent)))) continue;
+            //   다가오는 예비 취소는 그 예비보다 새것이면 된다(정식이 그 뒤 해제예고 등으로 더 새로워져도 — 적대검증 2026-11-17 D4)
+            if (c.종류 === '예비취소' && z.kind === 'formal' && z.upYebi && !(z.upYebi.yebiWins > 1) && c.inMs > (z.upYebi.inMs || 0)) { delete z.upYebi; out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '다가오는 예비 뺌' }); continue; }
+            if (!(c.inMs > (z.inMs || 0))) continue;
             //   예비 시간창이 둘 이상 남은 단위는 문장이 어느 시간창을 지웠는지 단위만으로 못 가린다 → 안 덧씌움(적대검증 2026-11-16)
             //   정식 특보 중인 해역의 다가오는 예비(upYebi)도 같은 규칙으로 — 그 예비보다 새 통보문이고 시간창이 하나일 때만
-            if (c.종류 === '예비취소' && z.kind === 'formal' && z.upYebi && !(z.upYebi.yebiWins > 1) && c.inMs > (z.upYebi.inMs || 0)) { delete z.upYebi; out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '다가오는 예비 뺌' }); continue; }
             if (c.종류 === '예비취소' && z.kind === 'yebi' && !(z.yebiWins > 1)) { delete zones[u]; out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '예비 뺌' }); }
             else if (c.종류 !== '예비취소' && z.kind === 'formal' && c.시간_후) {
                 Object.assign(z, { clr: c.시간_후, inMs: c.inMs, ai: { ho: c.ho, 종류: c.종류 } }); delete z.relMs;   // 더 새 통보문의 해제 예고가 이긴다 — 앞 해제 시각 기다림도 그만

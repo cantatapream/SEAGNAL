@@ -51,7 +51,10 @@ function flattenTree(tree) {
         if (!o || typeof o !== 'object') return;
         for (const [k, v] of Object.entries(o)) {
             if (v && typeof v === 'object' && 'current' in v && 'children' in v) {
-                const cur = blk(v.current, k), upc = blk(v.upcoming, k);
+                const cur = blk(v.current, k);
+                let upc = blk(v.upcoming, k);
+                //   발효 중 해역의 upcoming 은 정의상 아직 발효 전 — MMIS 는 격상·격하 발표대기를 등급(경보 등)으로 적는다(crawler _tryAddCoexistingUpcoming · toBlock wrnLvlReal) → 발표(발효 전)으로(적대검증 2026-11-17 D2)
+                if (cur && upc && upc.kind === 'formal') upc = Object.assign(upc, { kind: 'pending', level: '발표' });
                 const s = cur || upc; if (s) out[k] = cur && upc ? Object.assign(cur, { up: upc }) : s;   // 발효 중 + 다가오는 특보 = up(2026-11-17 — 종전엔 upcoming 을 버려 다가오는 칸 차이를 못 봤다)
                 for (const [c, cv] of Object.entries(v.children || {})) { const cs = blk(cv, k); if (cs) out[c] = cs; }
             } else walk(v);
@@ -71,7 +74,8 @@ function pendingOf(zones, nowMs) {
         const o = (z.kind === 'formal' && z.efMs && z.efMs > nowMs) ? Object.assign({}, z, { kind: 'pending' }) : Object.assign({}, z);
         // 다가오는 특보(다음 정식 = 발표(발효 전) · 예비) — MMIS flattenTree 의 up 과 같은 꼴
         const up = z.next ? Object.assign({ parent: z.parent, kind: 'pending' }, z.next) : z.upYebi ? Object.assign({ parent: z.parent, kind: 'yebi' }, z.upYebi) : null;
-        if (up) o.up = up; else delete o.up;
+        //   부모 해역만 — MMIS 나무의 자식은 블록이 하나뿐이라 다가오는 칸이 없다(자식에 붙이면 늘 「다름」 — 적대검증 2026-11-17 D1, 앱 crawler 도 다가오는 특보는 부모에서만 본다)
+        if (up && u === z.parent) o.up = up; else delete o.up;
         out[u] = o;
     }
     return out;
@@ -317,6 +321,7 @@ function createCompare({
         for (const u of units) {
             for (const [side, prev, cur] of [['mmis', st.mmis[u], M[u]], ['bulletin', st.bulletin[u], B[u]]]) {
                 if (sig(prev) === sig(cur)) continue;
+                if (side === 'bulletin' && sig1(prev) === sig1(cur)) continue;   // 다가오는 특보만 바뀜 — 아래 다가오는 특보 줄이 기록한다(두 번 세지 않게, 적대검증 D5)
                 emit({ kind: 'change', side, unit: u, before: prev || null, after: cur || null, 설명: `${side === 'mmis' ? 'MMIS' : '통보문'} ${u}: ${word(prev)} → ${word(cur)}` });
                 if (side === 'bulletin') {
                     const par = (cur || prev).parent;

@@ -87,6 +87,8 @@ console.log('A1c. 정식 특보 발효 중 같은 해역 예비 = 다가오는 �
     const z2 = S.compute([w, rel, y], K('2025-01-11 20:00')).zones['동해중부안쪽먼바다'];
     ok('해제 시각(20:00)이 되면 그 예비가 이어받음(지금 = 예비)', z2 && z2.kind === 'yebi' && z2.tmEf === '2025년 01월 12일 오전(06시~12시)', z2);
     const ap = S.applyAi(r.zones, [{ 종류: '예비취소', zones: ['동해중부안쪽먼바다'], inMs: K('2025-01-11 18:20'), office: '강원청', ho: '제1-42호' }]);
+    {   const zz = { X: { kind: 'formal', inMs: 1130, upYebi: { inMs: 1000, yebiWins: 1 } } };
+        ok('D4 정식이 그 뒤 더 새로워졌어도, 다가오는 예비보다 새 예비취소면 다가오는 예비를 뺌', S.applyAi(zz, [{ 종류: '예비취소', zones: ['X'], inMs: 1100 }]).length === 1 && !zz.X.upYebi); }
     ok('AI 예비취소(더 새 통보문)는 다가오는 예비만 뺌(부모 이름 = 자식 포함) — 지금 주의보는 그대로', ap.length >= 1 && ap.every((x) => x.what === '다가오는 예비 뺌') && ap.some((x) => x.unit === '동해중부안쪽먼바다') && r.zones['동해중부안쪽먼바다'].kind === 'formal' && !r.zones['동해중부안쪽먼바다'].upYebi, ap);
 }
 
