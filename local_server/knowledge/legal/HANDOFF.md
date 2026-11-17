@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-17 18:19 KST] ✅완료 — 앱 푸시 — 발효 중 특보 위 다른 종류 다가오는 특보 = 종류 격상/격하 발표
+push_sender: 종류 다르면 type_upgrade/downgrade_publish(「📢 풍랑경보→태풍주의보 격상 발표」). 적대검증 4건 수정(수신설정 announce/active 목록·앱 팝업 생략 목록·관리자 탭·type_* 묶음 키). 100 조합 묶음 제목 정확도 0 오류. test_push_upcoming_type 13/0, push 관련 8 스위트 통과, verify_all 통과. 통보문 비교 upTemplate 도 같게. 남은 16건 사례 검토 완료(오류 0).
+
+
 ### [2026-11-17 17:45 KST] 🟢착수 — 앱 푸시 — 발효 중 특보 위 다른 종류 다가오는 특보 = 종류 격상/격하 발표
 사용자 확정 2026-11-17 「📢 풍랑경보→태풍주의보 격상 발표 … 이렇게 되는게 맞아」 「그렇게 수정하도록 해줘. 그리고 재차 검증(다른 에이전트)」. 원인: push_sender UPCOMING_CHANGE 의 !prev 분기가 지금 특보와 점수만 비교해 level_upgrade_publish → 「태풍 경보→주의보 격상 발표」(설계 §4.19 와 다름). 고침: 종류가 다르면 type_upgrade/downgrade_publish. 실제 사용자 푸시 경로 — 적대검증 필수.
 
