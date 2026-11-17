@@ -264,16 +264,26 @@ function createMerger({
     /** 사람에게 넘길 때 무엇을 해야 하나 — 푸시·카드에 같은 글을 쓴다(적대검증 C#중-3). */
     const HOW_TEXT = {
         button: '앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요(검사가 끝나 초록이면 눌립니다)',
-        github: '앱 버튼으로는 풀 수 없습니다 — GitHub 에서 PR 을 직접 확인해 주세요',
+        github: '앱 버튼으로는 풀 수 없습니다 — GitHub 에서 PR 을 직접 확인해 주세요(앱 「자동반영」 방 카드의 「GitHub 에서 보기」)',
         secrets: '서버의 GitHub 열쇠(Fly secrets GITHUB_MERGE_TOKEN)의 값·권한을 확인해 주세요',
     };
-    /** 사람에게 넘긴다 — needs_human + how + 푸시. */
-    async function handOver(p, why, how) {
+    /**
+     * 사람에게 넘긴다 — needs_human + how + 푸시.
+     * 「머지 버튼을 눌러 주세요」 푸시는 **검사가 초록일 때만**(ready) 보낸다 — 2026-11-18 사용자: 푸시를 받고 가 보니 버튼이 잠겨 있었다(검사 진행 중)
+     *   → *"추천대로 진행"*(= 검사가 초록으로 끝난 뒤에 푸시). 초록이 아닌 채 넘길 때(3시간·머지 거절 등)는 「확인 필요」로 쓴다.
+     * 푸시 글은 쉬운 말만 — 파일 경로·영문·PR 주소는 넣지 않는다(사용자 「어려운 명칭이라던가 영문이라던가 이런 거는 굳이 필요가 없지 않니」). 자세한 것은 앱 카드에 있다.
+     * @param {object} p @param {string} why @param {string} [how] - button|github|secrets @param {boolean} [ready] - 검사 초록(지금 버튼이 눌린다)
+     */
+    async function handOver(p, why, how, ready) {
         disarm(p.number);
         p.status = 'needs_human'; p.why = why; p.how = how || 'button'; p.mode = 'human'; save();
-        await notify((p.how === 'button' ? '나리야 자동 반영 — 앱에서 머지 버튼을 눌러 주세요' : '나리야 자동 반영 — 자동 머지 안 함 · 확인 필요') + '(PR #' + p.number + ')',
-            `${why}. ${HOW_TEXT[p.how]}. PR: ${p.pr_url}`,
-            { type: 'nariya_pr_needs_human', pr: String(p.number), how: p.how });
+        const plain = String(why || '').split(':')[0].trim();   // 「위키·원문 밖 파일을 고침: local_server/…」 → 앞말만
+        const title = p.how !== 'button' ? '나리야 자동 반영 — 자동 머지 안 함 · 확인 필요'
+            : ready ? '나리야 자동 반영 — 앱에서 머지 버튼을 눌러 주세요' : '나리야 자동 반영 — 확인 필요';
+        const body = p.how !== 'button' ? `${plain}. ${HOW_TEXT[p.how]}.`
+            : ready ? `검사를 통과했습니다(자동으로 머지하지 않은 까닭: ${plain}). 앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요.`
+            : `${plain}. 앱 → 관리자 → 「자동반영」 방에서 확인해 주세요.`;
+        await notify(title, body, { type: 'nariya_pr_needs_human', pr: String(p.number), how: p.how, ready: String(!!ready) });
     }
 
     /**
@@ -287,9 +297,17 @@ function createMerger({
         if (!isProd()) { console.log('[nariya_pr_merge] 운영 아님 — PR #' + n + ' 확인 생략'); return; }
         busy.add(n);
         try {
-            const auto = p.mode === 'auto';
+            let auto = p.mode === 'auto';
             let r;
-            try { r = await evaluate(n, { auto, runSince: p.runSince, owner: p.owner, runId: p.run_id }); }
+            try {
+                r = await evaluate(n, { auto, runSince: p.runSince, owner: p.owner, runId: p.run_id });
+                // 자동 조건(주인·표식·범위)에서 떨어지면 사람 몫으로 내리고 **검사는 계속 본다** — 초록이 되면 그때 「머지 버튼」 푸시(2026-11-18).
+                //   종전에는 검사가 아직 도는데도 곧바로 「머지 버튼을 눌러 주세요」를 보내 가 보면 잠겨 있었다.
+                if (auto && (r.state === 'foreign' || r.state === 'scope')) {
+                    p.mode = 'human'; p.how = 'button'; p.why = r.why; save(); auto = false;
+                    r = await evaluate(n, {});
+                }
+            }
             catch (e) { console.error('[nariya_pr_merge] PR #' + n + ' 확인 실패(다시 봄):', e && e.message); r = { ok: false, state: 'error', why: '연결 실패: ' + String((e && e.message) || e).slice(0, 80) }; }
             p.check = { state: r.state, why: r.why || null, at: now() }; save();
             if (r.ok && auto) {
@@ -297,19 +315,20 @@ function createMerger({
                 try { m = await doMerge(n, r.sha); } catch (e) { console.error('[nariya_pr_merge] PR #' + n + ' 자동 머지 요청 실패:', e && e.message); m = { ok: false, why: '연결 실패: ' + String((e && e.message) || e).slice(0, 80) }; }
                 if (m.ok) {
                     p.status = 'merged'; p.mergedAt = now(); p.mergedBy = 'auto'; p.mergedSha = r.sha; save();
-                    await notify('나리야 자동 반영 — 자동 머지 완료 · 배포 시작(PR #' + n + ')',
-                        `결정 필요 없음 · 검사 통과로 자동 머지했습니다. 배포가 이어서 시작됩니다. ${String(p.summary || '').slice(0, 120)}`,
+                    await notify('나리야 자동 반영 — 자동 머지 완료 · 배포 시작',
+                        '검사를 통과해 자동으로 머지했습니다. 배포가 이어서 시작됩니다(누를 것 없음).',
                         { type: 'nariya_pr_merged', pr: String(n), by: 'auto' });
                 } else await handOver(p, '자동 머지가 거절됐습니다 — ' + m.why, 'button');
                 return;
             }
-            if (r.ok) { await handOver(p, '검사를 다시 돌려 이제 초록입니다', 'button'); return; }   // 사람 몫이던 PR 이 실패 뒤 초록이 됨
+            if (r.ok) { await handOver(p, p.why || '사람 확인이 필요한 PR', 'button', true); return; }   // 사람 몫 PR 의 검사가 초록이 됨(처음이든 실패 뒤든) — 이제 버튼이 눌린다
             if (r.state === 'merged' || r.state === 'closed') { p.status = r.state; disarm(n); save(); return; }
             if (r.state === 'failed') {
                 if (p.status !== 'failed_checks') {
-                    p.status = 'failed_checks'; p.why = r.why; p.failedAt = now(); save();
-                    await notify('나리야 자동 반영 — 검사 실패 · 자동 머지 안 함(PR #' + n + ')',
-                        `${r.why}. 검사가 실패한 PR 은 머지 버튼이 잠깁니다(검사를 다시 돌려 초록이 되면 다시 알립니다). 앱 → 관리자 → 「자동반영」 방에서 내용을 확인해 주세요. PR: ${p.pr_url}`,
+                    // 사람 몫 PR 은 처음 까닭(결정 필요 N건 등)을 지운다 — 초록이 되면 그 까닭으로 「머지 버튼」 푸시를 보낸다. 실패 까닭은 check.why 에 있다.
+                    p.status = 'failed_checks'; if (auto) p.why = r.why; p.failedAt = now(); save();
+                    await notify('나리야 자동 반영 — 검사 실패 · 자동 머지 안 함',
+                        '검사가 실패해 머지 버튼이 잠깁니다. 다시 돌려 통과하면 알려 드립니다. 앱 → 관리자 → 「자동반영」 방에서 확인해 주세요.',
                         { type: 'nariya_pr_failed', pr: String(n) });
                 }
                 if (now() - (p.failedAt || now()) < FAIL_WATCH_MS) arm(n, FAIL_POLL_MS);
@@ -341,7 +360,8 @@ function createMerger({
 
     /**
      * 세션이 올린 PR 을 맡는다(done 'pr' 때).
-     * 자동(waiting): 결정 필요 0건 · done 을 보낸 run 이 잠금 주인(owner) · 열쇠 있음. 아니면 사람 몫(needs_human).
+     * 자동(waiting · auto): 결정 필요 0건 · done 을 보낸 run 이 잠금 주인(owner) · 열쇠 있음. 아니면 사람 몫(mode human) — 버튼 몫은 검사를 지켜보다가(waiting)
+     * 초록이 되면 「머지 버튼」 푸시와 함께 needs_human, 열쇠가 없으면 곧바로 needs_human.
      * 이미 맡은 PR 에 결정 필요가 오면 합치고 사람 몫으로 내린다(적대검증 C#중-4 — 안 그러면 푸시는 「앱 버튼」인데 서버는 자동 머지).
      * 예: track({pr_url:'…/pull/9', run_id:'ar-1', needs_decision:[], summary:'…'}, {owner:true, runSince:Date.now()-3600000}) → {tracked:true, mode:'auto'}
      * @param {{pr_url:string, run_id?:string, needs_decision?:string[], summary?:string}} d
@@ -360,7 +380,8 @@ function createMerger({
             if (needs.length) {
                 old.needs = (old.needs || []).concat(needs.filter((x) => !(old.needs || []).includes(x))).slice(0, 20);
                 // 상태와 무관하게 auto 면 내린다(재검토 중-B — failed_checks 인 auto PR 이 재실행 뒤 결정 필요를 안고 자동 머지되던 길).
-                if (old.mode === 'auto' && ['waiting', 'failed_checks'].includes(old.status)) { disarm(n); old.status = 'needs_human'; old.mode = 'human'; old.how = 'button'; old.why = '다른 세션이 결정 필요를 더했습니다'; }
+                //   2026-11-18: 상태(waiting·failed_checks)와 확인은 그대로 둔다 — 검사가 초록이 되면 그때 「머지 버튼」 푸시.
+                if (old.mode === 'auto' && ['waiting', 'failed_checks'].includes(old.status)) { old.mode = 'human'; old.how = 'button'; old.why = '다른 세션이 결정 필요를 더했습니다'; }
                 save();
             }
             return { tracked: true, updated: true, mode: old.mode, how: old.how };
@@ -370,13 +391,16 @@ function createMerger({
         else if (!opt.owner) { why = '이 PR 을 보낸 세션이 잠금 주인인지 확인하지 못함'; how = 'button'; }
         else if (!token()) { why = '서버에 GitHub 열쇠가 없어 자동 머지할 수 없음'; how = 'secrets'; }
         const auto = !why;
+        // 사람 몫(버튼)도 검사를 지켜본다(status waiting · mode human) — 초록이 되면 「머지 버튼을 눌러 주세요」 푸시(2026-11-18 사용자 「추천대로」).
+        //   열쇠가 없으면(secrets) 지켜볼 수 없으니 곧바로 needs_human.
+        const watch = auto || how === 'button';
         const p = { number: n, pr_url: m[0], run_id: typeof d.run_id === 'string' ? d.run_id.slice(0, 64) : null, needs, summary: typeof d.summary === 'string' ? d.summary.slice(0, 500) : '',
             at: now(), runSince: Number.isFinite(opt.runSince) ? opt.runSince : null, owner: !!opt.owner,
-            mode: auto ? 'auto' : 'human', status: auto ? 'waiting' : 'needs_human', why, how };
+            mode: auto ? 'auto' : 'human', status: watch ? 'waiting' : 'needs_human', why, how };
         const st = load();
         st.prs = st.prs.concat([p]).slice(-KEEP);
         save();
-        if (auto) arm(n, POLL_MS);
+        if (watch) arm(n, POLL_MS);
         return { tracked: true, mode: p.mode, why: why || undefined, how: how || undefined };
     }
 

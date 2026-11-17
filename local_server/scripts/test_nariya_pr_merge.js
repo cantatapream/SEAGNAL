@@ -133,7 +133,7 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         const u = c.m.track({ pr_url: URL(9), needs_decision: ['사장님 판단 필요'] }, {});
         assert.equal(u.updated, true); assert.equal(u.mode, 'human');
         const p9 = c.m.list().prs.find((p) => p.number === 9);
-        assert.equal(p9.status, 'needs_human'); assert.deepEqual(p9.needs, ['사장님 판단 필요'], '적대검증 C#중-4');
+        assert.equal(p9.status, 'waiting', '검사는 계속 지켜본다(2026-11-18)'); assert.equal(p9.mode, 'human'); assert.deepEqual(p9.needs, ['사장님 판단 필요'], '적대검증 C#중-4');
         await quiet(() => c.time.advance(10 * MIN));
         assert.equal(merges(c.gh).length, 0, '내린 뒤엔 자동 머지 안 함');
         const e = make({ env: { FLY_APP_NAME: 'seagnal-server' } });
@@ -162,6 +162,35 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         c.m.track(TR(9), OWN); await quiet(() => c.time.advance(5 * MIN));
         assert.equal(merges(c.gh).length, 0); assert.equal(c.m.list().prs[0].status, 'needs_human'); assert.equal(c.m.list().prs[0].how, 'button');
         assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(c.push.sent[0].t) && /위키·원문 밖 파일/.test(c.push.sent[0].b) && /「자동반영」 방/.test(c.push.sent[0].b));
+        assert.ok(!/local_server|http|PR #/.test(c.push.sent[0].t + c.push.sent[0].b), '푸시에는 파일 경로·주소를 안 넣는다: ' + c.push.sent[0].b);
+        // 범위 밖이지만 검사가 아직 도는 중 → 푸시 없이 지켜보다가 초록이 되면 그때 「머지 버튼」
+        const d = make(); d.gh.runs = [run(null, 'in_progress')]; d.gh.files = WIKI.concat(['local_server/server.js']);
+        d.m.track(TR(9), OWN); await quiet(() => d.time.advance(5 * MIN));
+        assert.equal(d.push.sent.length, 0, '검사 중에는 「머지 버튼」 푸시를 안 보낸다(2026-11-18 사용자 — 가 보니 잠겨 있었다)');
+        assert.equal(d.m.list().prs[0].status, 'waiting'); assert.equal(d.m.list().prs[0].mode, 'human');
+        d.gh.runs = [run('success')]; await quiet(() => d.time.advance(5 * MIN));
+        assert.equal(d.push.sent.length, 1); assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(d.push.sent[0].t)); assert.equal(d.push.sent[0].d.ready, 'true');
+        assert.equal(merges(d.gh).length, 0, '사람 몫은 자동 머지 안 함');
+    });
+
+    await check('H 사람 몫(결정 필요) PR — 검사 중엔 푸시 없음 · 초록이면 「머지 버튼」 푸시 1번(까닭 = 결정 필요 N건) · 실패 뒤 다시 초록이어도 같은 까닭 · 3시간 넘으면 「확인 필요」(버튼 안내 아님)', async () => {
+        const c = make(); c.gh.runs = [run(null, 'in_progress')];
+        assert.equal(c.m.track(TR(10, ['고시 폴더', '승격 여부']), OWN).mode, 'human');
+        assert.equal(c.m.list().prs[0].status, 'waiting');
+        await quiet(() => c.time.advance(15 * MIN));
+        assert.equal(c.push.sent.length, 0);
+        c.gh.runs = [run('success')]; await quiet(() => c.time.advance(5 * MIN));
+        assert.equal(c.push.sent.length, 1); assert.equal(c.m.list().prs[0].status, 'needs_human');
+        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(c.push.sent[0].t) && /검사를 통과했습니다/.test(c.push.sent[0].b) && /결정 필요 2건/.test(c.push.sent[0].b), c.push.sent[0].b);
+        await quiet(() => c.time.advance(HOUR)); assert.equal(c.push.sent.length, 1, '한 번만'); assert.equal(merges(c.gh).length, 0);
+        const d = make(); d.gh.runs = [run('failure')];
+        d.m.track(TR(11, ['x']), OWN); await quiet(() => d.time.advance(5 * MIN));
+        assert.equal(d.m.list().prs[0].status, 'failed_checks'); assert.ok(/검사 실패/.test(d.push.sent[0].t));
+        d.gh.runs = [run('success')]; await quiet(() => d.time.advance(30 * MIN));
+        assert.ok(/앱에서 머지 버튼/.test(d.push.sent[1].t) && /결정 필요 1건/.test(d.push.sent[1].b), d.push.sent[1].b);
+        const e = make(); e.gh.runs = [run(null, 'in_progress')];
+        e.m.track(TR(12, ['x']), OWN); await quiet(() => e.time.advance(3 * HOUR + 10 * MIN));
+        assert.equal(e.push.sent.length, 1); assert.ok(/확인 필요/.test(e.push.sent[0].t) && !/머지 버튼을 눌러/.test(e.push.sent[0].t), e.push.sent[0].t);
     });
 
     await check('A3 검사 실패 → failed_checks + 푸시 · 30분마다 계속 보다가 다시 돌려 초록이 되면 자동 머지(적대검증 C#중-2) · 24시간 뒤엔 그만', async () => {
