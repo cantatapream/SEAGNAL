@@ -1537,6 +1537,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-17 21:02 KST] ✅완료 — 연안 브리핑 세션 시험 2차 준비 — 표본 글·지금 AI 글과 나란히 비교
+1차 실측 결과(5분30초·97/97, 해상 분석은 세션이 만든 문장 틀로 찍어 냄)를 설계서 §11.10.53 에 기록. trialResult 가 표본 8곳 글 저장 · trialCompare(GET /api/station-briefing/automation/trial-compare) 가 같은 관할의 지금 판 AI 글과 나란히. 예약 작업(연안 브리핑 세션 시험) 지침에 직접 쓰기·틀 금지·일괄 문장 금지·kind 꼭 따르기·한 번만. 시험 test_station_briefing 244/0 · silent_catch 22/0. 다음: 배포 뒤 재시험·나란히 비교 보고.
+
+
+### [2026-11-17 21:00 KST] 🟢착수 — 연안 브리핑 세션 시험 2차 — 직접 쓰기 지침 + 지금 AI 글과 나란히 비교
+1차 실측(2회): 97/97 통과·5분30초/2분45초 — 그러나 해상 분석을 세션이 만든 문장 틀로 찍어 냄. 사용자 「진행」. trialResult 에 표본 글 저장 + trial-compare(같은 관할의 지금 판 AI 글과 나란히) 추가, 예약 작업 지침에 직접 쓰기·틀 금지 넣고 재시험.
+
+
 ### [2026-11-17 20:40 KST] ✅완료 — 연안 브리핑 — 세션 실측용 시험 길(trial-job·trial-result)
 사용자: 「챗GPT에 의존하는 것을 벗어나기 위해서 … 세션을 통한 그 문구」「실제로 얼마나 걸리는지 … 실제로 돌려보면서」. station_briefing.trialJob(정시 판 재료로 묶음별 지시문, AI 안 부름·날짜 파일 안 씀)·trialResult(같은 검사로 판정, session_trials.json 에만)·trialLog + routes GET/POST /api/station-briefing/automation/trial-*(관리자 또는 자동화 열쇠). 시험 test_station_briefing 244/0(§11.10.53) · silent_catch 22/0. 설계서 §11.10.53. 다음: 배포 뒤 시험 전용 예약 작업을 깨워 시간·통과율 실측.
 

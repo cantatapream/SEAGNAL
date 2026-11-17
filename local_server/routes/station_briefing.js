@@ -170,6 +170,10 @@ function createRouter({
         try { res.set('Cache-Control', 'no-store').json(svc().trialResult(req.body)); }
         catch (e) { console.error('[station_briefing] 세션 시험 결과 실패:', e && e.message); fail(res, e); }
     });
+    router.get(trial + '/trial-compare', authorizeTrial, (req, res) => {
+        try { res.set('Cache-Control', 'no-store').json({ ok: true, ...svc().trialCompare(String(req.query.job_id || '')) }); }
+        catch (e) { console.error('[station_briefing] 세션 시험 비교 실패:', e && e.message); fail(res, e); }
+    });
     router.get(trial + '/trials', authorizeTrial, (req, res) => {
         try { res.set('Cache-Control', 'no-store').json({ ok: true, trials: svc().trialLog() }); }
         catch (e) { console.error('[station_briefing] 세션 시험 기록 실패:', e && e.message); fail(res, e); }
