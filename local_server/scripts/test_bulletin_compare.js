@@ -52,10 +52,54 @@ console.log('A2. 발표(발효 전) · 표기 차이');
     ok('해제 예고 범위 → 정확한 해제 시각 = 🕐 해제시각 변경(time_yn_change)', C.templateOf('x', F1, Object.assign({}, F1, { clr: '2026년 11월 17일 11시 00분' })).templateId === 'time_yn_change');
     const kidY = (b, a, pc) => (C.templateOf('x중연안바다', Object.assign({}, b, { parent: 'x' }), Object.assign({}, a, { parent: 'x' }), Z('formal', '주의보', { parent: 'x' }), pc) || {}).templateId || null;
     ok('적대검증 #4 예비 연장도 부모가 같이 바뀌면 자식 몫은 안 냄', (C.templateOf('x중연안바다', Object.assign({}, Y1, { parent: 'x' }), Object.assign({}, Y2, { parent: 'x' }), null, true) || null) === null && C.templateOf('x중연안바다', Object.assign({}, Y1, { parent: 'x' }), Object.assign({}, Y2, { parent: 'x' }), null, false).templateId === 'ef_extend');
-    const cur = Z('formal', '주의보', { parent: 'x' }), nxt = { type: '풍랑', level: '경보', tmEf: '2025년 01월 09일 10시 00분' };
+    const cur = Z('formal', '주의보', { parent: 'x' }), nxt = { kind: 'pending', type: '풍랑', level: '경보', tmEf: '2025년 01월 09일 10시 00분' };
     ok('적대검증 #2 주의보 발효 중 다음 경보 = 격상 발표(level_upgrade_publish) · 경보 중 다음 주의보 = 격하 발표 · 다음 특보 시각만 바뀜 = 발효시각 변경',
-        C.nextTemplate(cur, null, nxt, false).templateId === 'level_upgrade_publish' && C.nextTemplate(Z('formal', '경보', { parent: 'x' }), null, Object.assign({}, nxt, { level: '주의보' }), false).templateId === 'level_downgrade_publish'
-        && C.nextTemplate(cur, nxt, Object.assign({}, nxt, { tmEf: '2025년 01월 09일 11시 00분' }), false).templateId === 'time_ef_change');
+        C.upTemplate(cur, null, nxt, false).templateId === 'level_upgrade_publish' && C.upTemplate(Z('formal', '경보', { parent: 'x' }), null, Object.assign({}, nxt, { level: '주의보' }), false).templateId === 'level_downgrade_publish'
+        && C.upTemplate(cur, nxt, Object.assign({}, nxt, { tmEf: '2025년 01월 09일 11시 00분' }), false).templateId === 'time_ef_change');
+    // 2026-11-17 사용자 「풍랑주의보 발효 중인경우 같은 해역에 예비 특보가 나오는 경우 다가오는 특보로」 — 앱: 예비 = 주의보 동급(push_sender LVL_RANK)
+    const upY = { kind: 'yebi', type: '풍랑', level: '예비', tmEf: '2026년 11월 16일 밤(18시~24시)' };
+    ok('주의보 발효 중 + 같은 해역 예비 = 📢 발표(publish) · 경보 발효 중 + 예비 = 격하 발표', C.upTemplate(cur, null, upY, false).templateId === 'publish' && C.upTemplate(Z('formal', '경보', { parent: 'x' }), null, upY, false).templateId === 'level_downgrade_publish');
+    ok('다가오는 예비 시간창이 더 늦게 = 발효 예정시각 연장 · 다가오는 예비 → 정확한 발표 = 발효시각 변경',
+        C.upTemplate(cur, Object.assign({}, upY, { tmEf: '2026년 11월 16일 오후(12시~18시)' }), upY, false).templateId === 'ef_extend'
+        && C.upTemplate(cur, upY, { kind: 'pending', type: '풍랑', level: '주의보', tmEf: '2026년 11월 16일 19시 00분' }, false).templateId === 'time_ef_change');
+    {   // MMIS 나무의 current + upcoming → up 으로 같이 보고, 다가오는 칸이 다르면 「다름」
+        const mt = { 동해: { 동해중부해상: { 동해중부안쪽먼바다: { current: { wrnTpNm: '풍랑', wrnLvlNm: '주의보', clrNtcTm: '2025년 01월 11일 20시 00분' }, upcoming: { wrnTpNm: '풍랑', wrnLvlNm: '예비', tmEf: '2025년 01월 12일 오전(06시~12시)' }, history: [], children: {} } } } };
+        const f = C.flattenTree(mt)['동해중부안쪽먼바다'];
+        ok('MMIS 「발효 중 + 다가오는 예비」 = 지금 주의보 + up 예비', f.kind === 'formal' && f.up && f.up.kind === 'yebi');
+        const bz = C.pendingOf({ 동해중부안쪽먼바다: { parent: '동해중부안쪽먼바다', kind: 'formal', type: '풍랑', level: '주의보', clr: '2025년 01월 11일 20시 00분', upYebi: { type: '풍랑', level: '예비', tmEf: '2025년 01월 12일 오전(06시~12시)' } } }, 0)['동해중부안쪽먼바다'];
+        ok('통보문 upYebi 도 같은 꼴 → 두 쪽 같음', C.sig(bz) === C.sig(f), [C.sig(bz), C.sig(f)]);
+        const noUp = Object.assign({}, bz); delete noUp.up;
+        const d = C.diffSnapshot({ 동해중부안쪽먼바다: f }, { 동해중부안쪽먼바다: noUp }, 0, '');
+        ok('다가오는 칸만 다르면 팝업에 「다가오는 특보」 줄이 다름 · 「왜?」= upcoming', d.count === 1 && d.zones[0].parts[0].rows.some((r) => r.k === '다가오는 특보' && r.diff) && d.zones[0].parts[0].why.id === 'upcoming', d.zones[0] && d.zones[0].parts[0]);
+    }
+    {   // 적대검증 2026-11-17 회귀
+        // D1 자식 해역에는 다가오는 칸이 없다(MMIS 나무 자식 = 블록 하나) — 통보문 자식에 up 을 붙이면 늘 「다름」
+        const bz = C.pendingOf({ P: { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: 'x', upYebi: { type: '풍랑', level: '예비', tmEf: '2026년 01월 19일 밤(18시~24시)' } },
+            P중연안바다: { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: 'x', upYebi: { type: '풍랑', level: '예비', tmEf: '2026년 01월 19일 밤(18시~24시)' } } }, 0);
+        ok('D1 다가오는 특보는 부모에만(자식엔 up 없음)', bz.P.up && !bz['P중연안바다'].up);
+        // D2 MMIS 는 발효 중 해역의 격상 발표대기를 등급(경보)으로 적는다 → 발표(발효 전)으로 읽어 통보문 next 와 같게
+        const mt = { 동해: { g: { P: { current: { wrnTpNm: '풍랑', wrnLvlNm: '주의보', clrNtcTm: '10일 밤(21시~24시)' }, upcoming: { wrnTpNm: '풍랑', wrnLvlNm: '경보', tmEf: '2025년 01월 09일 10시 00분' }, history: [], children: {} } } } };
+        const m = C.flattenTree(mt).P;
+        const b = C.pendingOf({ P: { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '10일 밤(21시~24시)', next: { type: '풍랑', level: '경보', tmEf: '2025년 01월 09일 10시 00분', efMs: 9e15 } } }, 0).P;
+        ok('D2 MMIS 「주의보 + upcoming 경보(발효 전)」 = 통보문 「주의보 + next 경보」 → 같음', m.up.kind === 'pending' && C.sig(m) === C.sig(b), [C.sig(m), C.sig(b)]);
+    }
+    {   // 배포 순간: 옛 저장본(ver 없음 — 다가오는 특보 모름)에 up 이 한꺼번에 「새로 나타남」으로 잡혀 가짜 바뀜·푸시가 쏟아지면 안 된다(2026-11-17)
+        const os = require('os'), fs2 = require('fs'), path2 = require('path');
+        const dir = fs2.mkdtempSync(path2.join(os.tmpdir(), 'bcmp-up-'));
+        const zone = { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '17일 오전(09시~12시)', tmFc: '', tmEf: '' };
+        fs2.writeFileSync(path2.join(dir, 'state.json'), JSON.stringify({ mmis: { P: Object.assign({}, zone) }, bulletin: { P: Object.assign({}, zone) }, lastPushId: 0, mismatch: {} }));
+        const mt = { 동해: { g: { P: { current: { wrnTpNm: '풍랑', wrnLvlNm: '주의보', clrNtcTm: '17일 오전(09시~12시)' }, upcoming: { wrnTpNm: '풍랑', wrnLvlNm: '예비', tmEf: '2026년 11월 17일 밤(18시~24시)' }, history: [], children: {} } } } };
+        const bz = { P: Object.assign({}, zone, { upYebi: { type: '풍랑', level: '예비', tmEf: '2026년 11월 17일 밤(18시~24시)' } }) };
+        const cmp = C.createCompare({ getBulletin: () => ({ zones: bz }), getMmis: () => mt, getMmisAt: () => '', getPushes: () => [], now: () => T0, dir });
+        cmp.run();
+        const ev = cmp.readDay(cmp.days()[0] || '');
+        ok('옛 저장본에서 처음 돌 때 다가오는 특보 때문에 가짜 바뀜·가상 푸시·다름이 생기지 않음', !ev.some((e) => e.kind === 'change' || e.kind === 'virtual_push' || e.kind === 'mismatch_start'), ev.map((e) => e.kind));
+        bz.P.upYebi = { type: '풍랑', level: '예비', tmEf: '2026년 11월 18일 새벽(00시~06시)' };
+        cmp.run();
+        const ev2 = cmp.readDay(cmp.days()[0]);
+        ok('그다음 다가오는 예비가 더 늦은 시간창으로 바뀌면 「발효 예정시각 연장」 가상 푸시', ev2.some((e) => e.kind === 'virtual_push' && e.templateId === 'ef_extend'), ev2.map((e) => e.kind + ':' + (e.templateId || '')));
+        ok('D5 다가오는 특보만 바뀐 분에 통보문 바뀜 기록은 한 번', ev2.filter((e) => e.kind === 'change' && e.side === 'bulletin' && e.unit === 'P').length === 1, ev2.filter((e) => e.kind === 'change').map((e) => e.side + ':' + e.unit + ':' + !!e.upcoming));
+    }
     {   // 보고서 구분 — 탭으로(적대검증 #5)
         const ev = [{ kind: 'mmis_push', at: '2026-11-16T10:00:00+09:00', title: '🌀 제25호 태풍 발생', tab: 'typhoon', target: '' },
             { kind: 'mmis_push', at: '2026-11-16T10:05:00+09:00', title: '📍 [위치기반] 태풍 반경 안전 경보 신호 발송', tab: 'typhoon', target: '' },
@@ -133,16 +177,16 @@ console.log('D. 지금 다른 곳 표(diffSnapshot) — 부모별 묶음·칸별
     ok('부모마다 다른 구역 수 + 부제(연안바다만 / 해역 전체가 / 평수구역 2곳)', kb.count === 1 && kb.sub === '연안바다만 다름' && kw.count === 1 && kw.sub === '해역 전체가 다름' && gn.count === 2 && gn.sub === '평수구역 2곳 다름', d.zones.map((z) => [z.count, z.sub]));
     ok('구역 칩(연안바다·해역 전체·평수구역)', kb.parts[0].kind === '연안바다' && kw.parts[0].kind === '해역 전체' && gn.parts.every((p) => p.kind === '평수구역'));
     const flags = (p) => p.rows.map((r) => (r.diff ? 1 : 0)).join('');
-    ok('칸별 다름: 정식↔예비 = 종류·발효 시각(해제 예고·발표 시각·근거는 아님)', flags(kb.parts[0]) === '11000' && kb.parts[0].rows[0].m === '풍랑주의보' && kb.parts[0].rows[0].b === '풍랑 예비특보' && kb.parts[0].rows[1].b === '16일 오전(06시~12시)', kb.parts[0].rows);
+    ok('칸별 다름: 정식↔예비 = 종류·발효 시각(해제 예고·발표 시각·근거는 아님)', flags(kb.parts[0]) === '110000' && kb.parts[0].rows[0].m === '풍랑주의보' && kb.parts[0].rows[0].b === '풍랑 예비특보' && kb.parts[0].rows[1].b === '16일 오전(06시~12시)', kb.parts[0].rows);
     const dong = gn.parts.find((p) => /중동부/.test(p.unit)), seo = gn.parts.find((p) => /중서부/.test(p.unit));
-    ok('칸별 다름: 정식↔없음 = 종류·발효 시각·해제 예고, 통보문 칸은 「없음」·「—」', flags(dong) === '11100' && dong.rows[0].b === '없음' && dong.rows[1].b === '—' && dong.rows[4].b === '—', dong.rows);
-    ok('칸별 다름: 같은 정식이면 sig 처럼 해제 예고만(발효 시각은 안 봄)', flags(seo) === '00100' && seo.rows[2].b === '15일 밤(21시~24시)', seo.rows);
+    ok('칸별 다름: 정식↔없음 = 종류·발효 시각·해제 예고, 통보문 칸은 「없음」·「—」', flags(dong) === '111000' && dong.rows[0].b === '없음' && dong.rows[1].b === '—' && dong.rows[4].b === '—', dong.rows);
+    ok('칸별 다름: 같은 정식이면 sig 처럼 해제 예고만(발효 시각은 안 봄)', flags(seo) === '001000' && seo.rows[2].b === '15일 밤(21시~24시)', seo.rows);
     ok('근거 자료: MMIS = 갱신 시각(KST 글자에서 HH:MM) · 통보문 = 호', kb.parts[0].rows[4].m === 'MMIS 14:31 갱신' && kb.parts[0].rows[4].b === '제11-31호 통보문' && kw.parts[0].rows[4].b === '제11-35호 통보문');
     ok('근거 자료: MMIS 갱신 시각을 못 읽으면 「—」(지어내지 않음)', C.diffSnapshot(M, B, AT, '').zones[0].parts[0].rows[4].m === '—' && C.mmisHm('2026. 11. 16. AM 12:05:00') === '00:05' && C.mmisHm('2026. 11. 16. 오후 12:05:00') === '12:05' && C.mmisHm('2026. 11. 16. 오후 2:05:09') === '14:05');
     ok('발표(발효 전): 종류 칸은 등급을 안 봄(MMIS 「발표」 = 통보문 「주의보」), 발효 시각 + 「발효 예정」', (() => {
         const m = { x: P('x', 'pending', '발표', { tmEf: '2026년 11월 16일 04시 30분' }) }, b = { x: P('x', 'pending', '주의보', { tmEf: '2026년 11월 16일 05시 00분' }) };
         const p = C.diffSnapshot(m, b, AT, '').zones[0].parts[0];
-        return flags(p) === '01000' && p.rows[1].b === '16일 05시 00분 발효 예정' && p.why.id === 'pending_time' && C.diffSnapshot(m, { x: Object.assign({}, b.x, { tmEf: m.x.tmEf }) }, AT, '').count === 0;
+        return flags(p) === '010000' && p.rows[1].b === '16일 05시 00분 발효 예정' && p.why.id === 'pending_time' && C.diffSnapshot(m, { x: Object.assign({}, b.x, { tmEf: m.x.tmEf }) }, AT, '').count === 0;
     })());
     ok('다른 곳 집합 = sig 가 다르다고 보는 곳 그대로(비교 기록과 같은 기준)', (() => {
         const units = new Set([...Object.keys(M), ...Object.keys(B)]);
