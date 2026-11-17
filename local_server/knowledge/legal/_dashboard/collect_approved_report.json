@@ -1,19 +1,36 @@
 {
- "ran_at": "2026-11-15 09:37 KST",
- "source": "인계문 /tmp/claude-0/-home-user-SEAGNAL/9842f7fa-de14-5c61-ab72-c3a306a859cc/scratchpad/brief_1115.md",
+ "ran_at": "2026-11-18 03:13 KST",
+ "source": "인계문 /tmp/claude-0/-home-user-SEAGNAL/56633ef2-8af0-5f7a-b6b2-b81dc07aa178/scratchpad/brief.md",
  "summary": {
-  "행정규칙": {
+  "법령": {
    "수집": 1
+  },
+  "행정규칙": {
+   "보류": 2
   }
  },
  "results": [
   {
-   "id": "chg_20261115_d806f5",
+   "id": "chg_20261118_fa5892",
+   "kind": "law_amended",
+   "layer": "시행령",
+   "title": "선박교통관제에 관한 법률",
+   "status": "수집",
+   "note": "갱신"
+  },
+  {
+   "id": "chg_20261118_829ef9",
    "kind": "admrul_unknown_new",
    "layer": "행정규칙",
-   "title": "제주지방해양경찰청과 그 소속기관 위임전결 규칙",
-   "status": "수집",
-   "note": "local_server/knowledge/legal/raw/02_해양경비구조/연안사고예방에관한법률/행정규칙/제주지방해양경찰청과그소속기관위임전결규칙.txt · 별표: 새로썼다 3"
+   "title": "(군산지방해양수산청) 공유수면 점용·사용허가 면제 대상",
+   "status": "보류(시행 전 20270101 — 그날 뒤에 다시 돌린다)"
+  },
+  {
+   "id": "chg_20261118_bceaf2",
+   "kind": "admrul_unknown_new",
+   "layer": "행정규칙",
+   "title": "재활용가능자원의 분리수거 등에 관한 지침",
+   "status": "보류(시행 전 20270101 — 그날 뒤에 다시 돌린다)"
   }
  ]
 }
