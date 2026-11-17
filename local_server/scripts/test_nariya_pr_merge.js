@@ -125,7 +125,7 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
 
     await check('T track — 주인·결정 필요 0건·열쇠 → auto · 그 밖은 human(까닭) · 이미 맡은 PR 에 결정 필요가 오면 사람 몫으로 내림 · 다른 저장소 주소 거절', async () => {
         const c = make();
-        assert.deepEqual(c.m.track(TR(9, [], { summary: '개정 3건' }), OWN), { tracked: true, mode: 'auto', why: undefined, how: undefined });
+        assert.deepEqual(c.m.track(TR(9, [], { summary: '개정 3건' }), OWN), { tracked: true, mode: 'auto', why: undefined, how: undefined, status: 'waiting' });
         assert.equal(c.m.track({ pr_url: URL(10), needs_decision: ['폴더 결정'] }, OWN).mode, 'human');
         const f = c.m.track({ pr_url: URL(11), needs_decision: [] }, {});
         assert.equal(f.mode, 'human'); assert.ok(/잠금 주인/.test(f.why), '주인 아님 → 사람 몫');
@@ -188,6 +188,21 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         assert.equal(d.m.list().prs[0].status, 'failed_checks'); assert.ok(/검사 실패/.test(d.push.sent[0].t));
         d.gh.runs = [run('success')]; await quiet(() => d.time.advance(30 * MIN));
         assert.ok(/앱에서 머지 버튼/.test(d.push.sent[1].t) && /결정 필요 1건/.test(d.push.sent[1].b), d.push.sent[1].b);
+        // 적대검증 중1 — 초록 뒤(needs_human) 다른 run 이 같은 PR 로 다시 done → 다시 지켜보다 초록이면 한 번 더 알림
+        c.gh.runs = [run(null, 'in_progress')];
+        const re = c.m.track({ pr_url: URL(10), run_id: 'ar-2', needs_decision: ['새 결정'] }, {});
+        assert.equal(re.status, 'waiting'); assert.equal(c.m.list().prs[0].status, 'waiting');
+        await quiet(() => c.time.advance(10 * MIN)); assert.equal(c.push.sent.length, 1, '검사 중엔 조용');
+        c.gh.runs = [run('success')]; await quiet(() => c.time.advance(5 * MIN));
+        assert.equal(c.push.sent.length, 2); assert.ok(/결정 필요 3건/.test(c.push.sent[1].b), c.push.sent[1].b); assert.equal(merges(c.gh).length, 0);
+        // 적대검증 하3 — 괄호 속 영문 표식이 잘려 남지 않는다
+        const f = make(); f.gh.runs = [run('success')]; f.gh.pr = prJson({ body: '표식 없음' });
+        f.m.track(TR(13), OWN); await quiet(() => f.time.advance(5 * MIN));
+        assert.ok(/표식이 없음\)/.test(f.push.sent[0].b) && !/nariya-run/.test(f.push.sent[0].b), f.push.sent[0].b);
+        // 적대검증 하4 — 검사 실패가 24시간 이어지면 조용히 멈추지 않고 「확인 필요」로 넘긴다
+        const g = make(); g.gh.runs = [run('failure')];
+        g.m.track(TR(14, ['x']), OWN); await quiet(() => g.time.advance(25 * HOUR));
+        assert.equal(g.m.list().prs[0].status, 'needs_human'); assert.ok(/24시간/.test(g.push.sent[g.push.sent.length - 1].b) && /확인 필요/.test(g.push.sent[g.push.sent.length - 1].t));
         const e = make(); e.gh.runs = [run(null, 'in_progress')];
         e.m.track(TR(12, ['x']), OWN); await quiet(() => e.time.advance(3 * HOUR + 10 * MIN));
         assert.equal(e.push.sent.length, 1); assert.ok(/확인 필요/.test(e.push.sent[0].t) && !/머지 버튼을 눌러/.test(e.push.sent[0].t), e.push.sent[0].t);

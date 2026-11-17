@@ -2737,7 +2737,7 @@
     var stale = p.check && p.check.state === 'stale';   // main 이 바뀜 — 누르면 서버가 최신 main 을 얹고 다시 검사(약 20분 뒤 다시 눌러야 머지)
     var btn = open && p.canMerge ? (stale ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">🔄</span>검사 뒤 main 이 바뀌었습니다 — 버튼을 누르면 최신 main 으로 다시 검사하고, 약 20분 뒤 다시 누르면 머지됩니다.</div>' : '') +
         '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">' + (stale ? '🔄 최신 main 으로 다시 검사' : '🔀 머지') + '</button></div>'
-      : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || chkName) + (p.check.state === 'pending' || p.check.state === 'missing' ? ' (검사는 보통 20분쯤 걸립니다. 끝나 초록이면 알림이 옵니다)' : '') + '</div>' : '';
+      : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || chkName) + (p.check.state === 'pending' || p.check.state === 'missing' ? (p.status === 'waiting' || p.status === 'failed_checks' ? ' (검사는 보통 20분쯤 걸립니다. 끝나 초록이면 알림이 옵니다)' : ' (검사는 보통 20분쯤 걸립니다. 끝난 뒤 이 방을 다시 열어 주세요)') : '') + '</div>' : '';
     return cardShell({
       id: String(p.number), badge: 'PR #' + p.number, title: (p.summary || '(요약 없음)').slice(0, 160),
       subHTML: esc((p.at || '').slice(5, 16).replace('T', ' ')) + ' · <a href="' + esc(p.pr_url) + '" target="_blank" rel="noopener">GitHub 에서 보기</a>',

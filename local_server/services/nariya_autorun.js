@@ -699,12 +699,12 @@ function createAutorun({
 
         // C(사용자 「C로 하자」): PR 을 냈으면 머지 담당에게 넘긴다 — 결정 필요 0건이면 검사 통과 뒤 서버가 자동 머지, 아니면 앱 머지 버튼 몫.
         //   잠금 주인(released)이었거나 3시간 만료 뒤 같은 run 의 늦은 완료일 때만 자동 머지 후보다(적대검증 C#상-2 — 아무 run_id 로 남의 PR 을 맡기지 못하게).
-        let prMode = null, prWhy = null, prHow = null;
+        let prMode = null, prWhy = null, prHow = null, prStatus = null;
         if (d.outcome === 'pr' && d.pr_url) {
             try {
                 const t = (prMerger || require('./nariya_pr_merge').forDefault()).track({ pr_url: d.pr_url, run_id: d.run_id, needs_decision: d.needs_decision, summary: d.summary },
                     { owner: servedOf !== null && Number.isFinite(runSince), runSince });
-                prMode = t.tracked ? t.mode : null; prWhy = t.why || null; prHow = t.how || null;
+                prMode = t.tracked ? t.mode : null; prWhy = t.why || null; prHow = t.how || null; prStatus = t.status || null;
                 if (!t.tracked) prWhy = t.why || 'PR 을 맡지 못함';
             } catch (e) { console.error('[nariya_autorun] PR 머지 담당에게 넘기기 실패(완료 처리는 정상):', e && e.message); prWhy = '서버가 PR 을 맡지 못함'; }
         } else if (d.outcome === 'pr') prWhy = 'PR 주소를 읽지 못함';
@@ -720,9 +720,12 @@ function createAutorun({
             //   ② 쉬운 말만 — 세션 요약(파일 이름·영문이 섞임)·PR 주소는 PR 을 맡았을 때 넣지 않는다(앱 카드에 있다). 사용자 원문:
             //     *"사용자가 굳이 알 필요가 없는 뭐 어려운 명칭이라던가 영문이라던가 이런 거는 굳이 필요가 없지 않니?"*
             //   맡지 못했으면(주소 못 읽음·맡기 실패) 앱에 카드가 없으므로 PR 주소를 남기고 「GitHub 에서 확인」으로 쓴다(적대검증 C#중-5).
-            const tracked = prMode === 'auto' || (prMode === 'human' && prHow !== 'secrets');
+            // 「검사 중 — 끝나면 알림」은 머지 담당이 **지금 검사를 지켜보는** PR(waiting·failed_checks)에만 쓴다(적대검증 중1 — 이미 머지·닫힘 등이면 오지 않을 알림을 약속했다).
+            const watching = prStatus === 'waiting' || prStatus === 'failed_checks';
+            const tracked = watching && (prMode === 'auto' || (prMode === 'human' && prHow !== 'secrets'));
             const head = d.outcome === 'pr'
                 ? (tracked ? '반영 끝 · 검사 중'
+                    : prMode && prHow !== 'secrets' ? 'PR 올림 · 앱에서 확인해 주세요'
                     : prMode === 'human' ? 'PR 올림 · 서버 GitHub 열쇠 확인 필요'
                     : 'PR 을 맡지 못함 · GitHub 에서 확인해 주세요')
                 : { nothing: '완료 — 반영할 것 없음', failed: '세션 실패' }[d.outcome];
@@ -734,6 +737,8 @@ function createAutorun({
                 bodyText = (cnt ? cnt + ' ' : '') + '반영을 마치고 PR 을 올렸습니다. ' + (prMode === 'auto'
                     ? 'GitHub 검사(약 20분)를 통과하면 서버가 자동으로 머지·배포합니다 — 누를 것 없습니다.'
                     : `GitHub 검사(약 20분)가 끝나면 「앱에서 머지 버튼을 눌러 주세요」 알림을 다시 보냅니다${d.needs_decision.length ? `(결정 필요 ${d.needs_decision.length}건 — 앱 「자동반영」 방에서 볼 수 있습니다)` : ''}.`);
+            } else if (d.outcome === 'pr' && prMode && prHow !== 'secrets') {
+                bodyText = (prStatus === 'merged' ? '이 PR 은 이미 머지됐습니다.' : prStatus === 'closed' ? '이 PR 은 닫혀 있습니다.' : '이 PR 은 이미 사람 확인 차례입니다.') + ' 앱 → 관리자 → 「자동반영」 방에서 확인해 주세요.';
             } else if (d.outcome === 'pr' && prMode === 'human') {
                 bodyText = 'PR 은 올렸지만 서버에 GitHub 머지 열쇠(Fly secrets GITHUB_MERGE_TOKEN)가 없어 자동 머지·머지 버튼이 동작하지 않습니다.';
             } else if (d.outcome === 'pr') {

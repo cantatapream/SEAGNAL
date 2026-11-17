@@ -277,7 +277,9 @@ function createMerger({
     async function handOver(p, why, how, ready) {
         disarm(p.number);
         p.status = 'needs_human'; p.why = why; p.how = how || 'button'; p.mode = 'human'; save();
-        const plain = String(why || '').split(':')[0].trim();   // 「위키·원문 밖 파일을 고침: local_server/…」 → 앞말만
+        // 「위키·원문 밖 파일을 고침: local_server/…」 → 앞말만 · 괄호 속(「표식(nariya-run: …)」)은 뺀다(적대검증 하3 — 괄호가 안 닫힌 채 잘렸다).
+        const plain = (p.needs || []).length && /^결정 필요/.test(String(why)) ? '결정 필요 ' + p.needs.length + '건'
+            : String(why || '').replace(/\([^)]*\)/g, '').split(':')[0].replace(/\s+/g, ' ').trim();
         const title = p.how !== 'button' ? '나리야 자동 반영 — 자동 머지 안 함 · 확인 필요'
             : ready ? '나리야 자동 반영 — 앱에서 머지 버튼을 눌러 주세요' : '나리야 자동 반영 — 확인 필요';
         const body = p.how !== 'button' ? `${plain}. ${HOW_TEXT[p.how]}.`
@@ -310,6 +312,8 @@ function createMerger({
             }
             catch (e) { console.error('[nariya_pr_merge] PR #' + n + ' 확인 실패(다시 봄):', e && e.message); r = { ok: false, state: 'error', why: '연결 실패: ' + String((e && e.message) || e).slice(0, 80) }; }
             p.check = { state: r.state, why: r.why || null, at: now() }; save();
+            // 확인을 기다리는 사이 track 이 사람 몫으로 내렸으면(결정 필요가 더해짐) 머지하지 않는다(적대검증 하5 — p 는 상태 객체 그 자체라 지금 값을 본다).
+            if (r.ok && auto && p.mode !== 'auto') auto = false;
             if (r.ok && auto) {
                 let m;
                 try { m = await doMerge(n, r.sha); } catch (e) { console.error('[nariya_pr_merge] PR #' + n + ' 자동 머지 요청 실패:', e && e.message); m = { ok: false, why: '연결 실패: ' + String((e && e.message) || e).slice(0, 80) }; }
@@ -332,10 +336,12 @@ function createMerger({
                         { type: 'nariya_pr_failed', pr: String(n) });
                 }
                 if (now() - (p.failedAt || now()) < FAIL_WATCH_MS) arm(n, FAIL_POLL_MS);
+                else await handOver(p, '검사 실패가 24시간 이어졌습니다 — 더는 자동으로 지켜보지 않습니다', 'button');   // 적대검증 하4 — 조용히 멈추지 않게
                 return;
             }
             if (p.status === 'failed_checks' && (r.state === 'pending' || r.state === 'missing' || r.state === 'error')) {   // 다시 도는 중
                 if (now() - (p.failedAt || now()) < FAIL_WATCH_MS) arm(n, POLL_MS);
+                else await handOver(p, '검사 실패가 24시간 이어졌습니다 — 더는 자동으로 지켜보지 않습니다', 'button');
                 return;
             }
             if (r.state === 'stale' && now() - p.at >= WAIT_MAX_MS) { await handOver(p, '3시간 동안 최신 main 으로 다시 검사하지 못했습니다 — ' + r.why, 'button'); return; }   // 재검토 중-C — 상한 없이 영원히 돌던 분기
@@ -384,7 +390,13 @@ function createMerger({
                 if (old.mode === 'auto' && ['waiting', 'failed_checks'].includes(old.status)) { old.mode = 'human'; old.how = 'button'; old.why = '다른 세션이 결정 필요를 더했습니다'; }
                 save();
             }
-            return { tracked: true, updated: true, mode: old.mode, how: old.how };
+            // 다른 run 이 같은 PR 로 다시 done 했다 = 새 커밋이 올라왔을 수 있다 → 사람 몫(버튼) PR 은 다시 지켜본다(적대검증 중1 —
+            //   needs_human 은 타이머가 없어 done 이 약속한 「검사가 끝나면 머지 버튼 알림」이 오지 않았다). 실패 뒤 24시간이 지나 멈춘 것도 다시 본다.
+            if (old.mode === 'human' && old.how === 'button' && (old.status === 'needs_human' || (old.status === 'failed_checks' && !timers.has(n)))) {
+                if (old.status === 'failed_checks') old.failedAt = now(); else { old.status = 'waiting'; old.at = now(); }
+                save(); arm(n, POLL_MS);
+            }
+            return { tracked: true, updated: true, mode: old.mode, how: old.how, status: old.status };
         }
         let why = null, how = null;
         if (needs.length) { why = '결정 필요 ' + needs.length + '건'; how = 'button'; }
@@ -401,7 +413,7 @@ function createMerger({
         st.prs = st.prs.concat([p]).slice(-KEEP);
         save();
         if (watch) arm(n, POLL_MS);
-        return { tracked: true, mode: p.mode, why: why || undefined, how: how || undefined };
+        return { tracked: true, mode: p.mode, why: why || undefined, how: how || undefined, status: p.status };
     }
 
     /**
