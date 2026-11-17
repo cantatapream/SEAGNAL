@@ -186,7 +186,38 @@ function compute(bulletins, nowMs, cands = []) {
         }
     }
     const aiApplied = applyAi(zones, cands);
+    fillParents(zones);
     return { zones, tree: toTree(zones), waiting: waiting.filter((u) => zones[u]), aiApplied };
+}
+
+/**
+ * 자식 해역(연안바다·평수구역)에 특보·예비가 있는데 부모 칸이 비어 있으면 부모 칸을 채운다 — 「자식에 특보가 있으면 부모에도 있다」.
+ *   통보문의 「A(연안바다)」 = A 해역 특보 중 연안바다만 해당. 종전엔 자식만 두고 부모를 비워 메인 화면(data.js — 부모 칸이 있어야 카드)에 안 나오고
+ *   기상청 요약 칸(부모 이름)과도 어긋났다(실자료 예비 목록 8개·정식 1건). 사용자 확정 2026-11-17 「부모해역에 특보가 있어야 자식해역에도 있는건데 …」.
+ *   매 계산마다 다시 만든다(derived) — 자식이 해제되면 부모도 함께 사라진다. 고르는 법: 정식 > 예비, 같은 단계면 경보 > 주의보, 그다음 먼저 발효(예비는 이른 시간창).
+ *   부모가 예비뿐인데 자식이 정식이면 부모를 정식으로 올리고, 부모의 예비는 다가오는 특보(upYebi)로 옮긴다.
+ * 예: { 제주도북부앞바다중연안바다: {kind:'yebi', tmEf:'…11일 밤(18시~24시)'} } → 제주도북부앞바다 = 같은 예비(derived:true)
+ * [연계] ← compute(이 파일) / → toTree(부모 current·upcoming)
+ */
+function fillParents(zones) {
+    const rank = (z) => (z.kind === 'formal' ? 100 : 0) + (z.level === '경보' ? 10 : 0) - (z.efMs || z.endMs || 0) / 1e13;
+    const best = new Map();
+    for (const [u, z] of Object.entries(zones)) {
+        if (PARENTS.has(u) || !z.parent) continue;
+        const own = zones[z.parent];
+        // 부모 칸이 비었거나, 부모는 예비뿐인데 자식이 정식 특보일 때(수도권 2026 2-37호: 「인천·경기북부앞바다(평수구역)」만 주의보 — 부모는 앞 목록의 예비로 남았다)
+        if (own && !(own.kind === 'yebi' && z.kind === 'formal')) continue;
+        const b = best.get(z.parent);
+        if (!b || rank(z) > rank(b)) best.set(z.parent, z);
+    }
+    for (const [p, z] of best) {
+        const own = zones[p];
+        const c = Object.assign({}, z, { parent: p, derived: true });
+        delete c.upYebi; delete c.next; delete c.relMs;
+        //   부모가 갖고 있던 예비는 버리지 않고 「다가오는 특보」로 — MMIS current(주의보)·upcoming(예비) 공존과 같은 꼴
+        if (own && own.kind === 'yebi') c.upYebi = { type: own.type, level: '예비', tmFc: own.tmFc, tmEf: own.tmEf, ho: own.ho, inMs: own.inMs, endMs: own.endMs, yebiWins: own.yebiWins };
+        zones[p] = c;
+    }
 }
 
 /**
@@ -256,4 +287,4 @@ function run({ watch = require('./bulletin_watch'), ai = require('./bulletin_ai_
 /** 마지막 계산 결과(없으면 null). [연계] → routes/bulletin_watch GET /api/admin/bulletin-status */
 function read(file = FILE) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { return null; } }
 
-module.exports = { compute, applyAi, run, read, toTree, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS };
+module.exports = { compute, applyAi, fillParents, run, read, toTree, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS };

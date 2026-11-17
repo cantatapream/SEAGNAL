@@ -10,7 +10,7 @@
 'use strict';
 const fs = require('fs'), os = require('os'), path = require('path');
 const S = require('../services/bulletin_status');
-const { parseCurrent, parseItems, PARENTS } = require('../analysis/bulletin_survey/lifecycle_check');
+const { parseCurrent, parseItems, PARENTS, childrenOf } = require('../analysis/bulletin_survey/lifecycle_check');
 
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { if (c) { pass++; console.log('  ✅ ' + n); } else { fail++; console.log('  ❌ ' + n + (x !== undefined ? ' — ' + JSON.stringify(x).slice(0, 300) : '')); } };
@@ -92,6 +92,20 @@ console.log('A1c. 정식 특보 발효 중 같은 해역 예비 = 다가오는 �
     ok('AI 예비취소(더 새 통보문)는 다가오는 예비만 뺌(부모 이름 = 자식 포함) — 지금 주의보는 그대로', ap.length >= 1 && ap.every((x) => x.what === '다가오는 예비 뺌') && ap.some((x) => x.unit === '동해중부안쪽먼바다') && r.zones['동해중부안쪽먼바다'].kind === 'formal' && !r.zones['동해중부안쪽먼바다'].upYebi, ap);
 }
 
+console.log('A1d. 자식 해역에 특보가 있으면 부모 해역에도 — 사용자 확정 2026-11-17 「부모해역에 특보가 있어야 자식해역에도 있는건데」');
+{
+    const JY = (ho, tmIn, t4) => ({ office: '제주청', rpt: '7', result: { t1Title: ho, tmFc: tmIn + ':00.0', tmIn: tmIn + ':30.0', t4, t5: '', other: 'o 없음' } });
+    const y = JY('제7-16호', '2026-07-11 09:44', '(1) 풍랑 예비특보\n o 07월 11일 밤(18시~24시) : 제주도북부앞바다(연안바다), 제주도동부앞바다(북동연안바다)');
+    const r = S.compute([y], K('2026-07-11 10:06'));
+    ok('「제주도북부앞바다(연안바다)」 예비 → 자식 연안바다 예비 + 부모 제주도북부앞바다도 예비(부모 칸 채움)', r.zones['제주도북부앞바다중연안바다'] && r.zones['제주도북부앞바다'] && r.zones['제주도북부앞바다'].kind === 'yebi' && r.zones['제주도북부앞바다'].derived && r.zones['제주도동부앞바다'] && r.zones['제주도동부앞바다'].kind === 'yebi', Object.keys(r.zones));
+    ok('나무: 부모 해역에 upcoming(예비)이 생겨 메인 화면 카드가 나온다', /"제주도북부앞바다":\{"current":null,"upcoming":\{[^}]*"wrnLvlNm":"예비"/.test(JSON.stringify(r.tree)));
+    ok('자식 해역이 끝나면(시간창 끝 + 10분) 부모 칸도 함께 사라짐', !S.compute([y], K('2026-07-12 00:10')).zones['제주도북부앞바다']);
+    const SY = { office: '수도권청', rpt: '7', result: { t1Title: '제2-9호', tmFc: '2026-02-21 05:00:00.0', tmIn: '2026-02-21 05:00:30.0', t4: '(1) 풍랑 예비특보\n o 02월 21일 오후(12시~18시) : 인천·경기북부앞바다', t5: '', other: 'o 없음' } };
+    const SW = { office: '수도권청', rpt: '6', result: { t1Title: '제2-37호', tmFc: '2026-02-21 14:30:00.0', tmIn: '2026-02-21 14:34:59.0', t1: '', t2: '(1) 풍랑주의보 발표 : 인천·경기북부앞바다( 평수구역 )', t3: '(1) 풍랑주의보 발표 : 2026년 02월 21일 14시 00분', t4: '', t6: 'o 없음', t7: 'o 없음' } };
+    const z2 = S.compute([SY, SW], K('2026-02-21 14:36')).zones;
+    ok('부모는 예비뿐인데 자식(평수구역)이 주의보 → 부모 = 주의보(채움) + 남은 예비는 다가오는 특보(수도권 2026 2-37호)', z2['인천·경기북부앞바다'].kind === 'formal' && z2['인천·경기북부앞바다'].level === '주의보' && z2['인천·경기북부앞바다'].upYebi && z2['인천·경기북부앞바다중평수구역'].kind === 'formal', z2['인천·경기북부앞바다']);
+}
+
 console.log('A2. 여러 항목이 한 머리를 함께 쓰는 해제 예고');
 {
     const t = S.itemTimes({ t3: '(1) 풍랑주의보 발표 : 2026년 11월 15일 13시 30분\n(2) 풍랑주의보 발표 : 2026년 11월 15일 14시 30분', t4: '(1) ,(2) 풍랑주의보 발표\n  o 해제 예고: 17일 오전(09시~12시)' });
@@ -143,7 +157,9 @@ console.log('D. 실제 자료 되풀이 검산(2026-11 제주청·부산청)');
     for (const T of all.filter((b) => b.rpt === '6' && String(b.result.tmIn).startsWith('2026-11'))) {
         const win = all.filter((b) => b.office === T.office && b.ms <= T.ms && b.ms > T.ms - 3 * 86400e3);
         const z = S.compute(win, T.ms).zones;
-        const truth = new Map([...parseCurrent(T.result.t6, []).cur].filter(([u]) => PARENTS.has(u)));
+        const cur0 = [...parseCurrent(T.result.t6, []).cur];
+        const truth = new Map(cur0.filter(([u]) => PARENTS.has(u)));
+        for (const [u, v] of cur0) { const p = [...PARENTS].find((x) => childrenOf(x).includes(u)); if (p && !truth.has(p)) truth.set(p, v); }   // 「A(평수구역)」 = A 도 특보(사용자 규칙 2026-11-17)
         // 발효 중 칸(t6)은 해제 통보문을 낸 순간 해제 예정 해역을 이미 뺀다 — 우리는 해제 시각까지 유지하므로(2026-11-16 사용자 확정)
         //   「해제 시각을 기다리는 단위(relMs)」는 이 대조에서 뺀다. 그 단위가 정말 그 통보문의 해제 항목인지도 함께 센다.
         //   같은 까닭으로 발효 중 칸은 변경 통보문을 낸 순간 「새 등급」을 적는다(발효 전이어도) — 우리는 앱처럼 발효 시각까지 지금 등급을 두고 다음(next)을 따로 든다 → 대조는 다음 등급으로.
