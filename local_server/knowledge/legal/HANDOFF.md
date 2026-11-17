@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-17 18:31 KST] ✅완료 — 정정: 이안류·항로 경로는 User-Agent 차단 아님
+직전 기록의 '같은 503 차단을 받는 다른 경로' 판정은 틀렸다(L-422). 두 코드는 Node 내장 fetch 를 쓰고, 그 그대로 보내면 둘 다 HTTP 200. 이안류 RCData.do 는 빈 목록({"selectRCDataList":[]}), 항로 proxyRun.do 는 빈 본문 — 브라우저 UA·Referer 를 붙여도 동일해 UA 추가로는 안 고쳐진다. 그래서 두 파일은 수정하지 않음. 항로는 빈 응답이면 저장하지 않고 넘어가 앱 항로(client/seaway_zones.json 등)는 그대로. 빈 응답의 원인(이안류 비수기 여부, 항로 엔드포인트 변경 여부)은 확인하지 않았다 — 사용자 판단 대기. 항행경보 수정은 사용자 지시로 main 반영 진행.
+
+
 ### [2026-11-17 17:50 KST] ✅완료 — 앱: 항행경보 0건 복구 — KHOA 사이트 User-Agent 차단 대응
 증상: 운영 /api/navigational-warning/list 가 success:true, zones:[] (해양안전 생활 항행경보 미표시, 2026-11-17 확인). 원인(재현): 공식 data.go.kr 목록 API 는 정상(resultCode 00). KHOA nwb 사이트가 node-fetch 기본 User-Agent 요청을 503 으로 거부 → JSESSIONID 발급 실패 → 구역 보강 전부 생략 → 0건. 수정: routes/navigational_warning.js 의 mainPage.do GET·_khoaPost POST 에 User-Agent 헤더(KHOA_UA) 추가. 확인: 로컬 서버 기동 후 같은 API 0→44건. verify_all.sh(로컬 서버 기동·NODE_PATH 에 /opt/node-tools/node_modules 추가) exit 0 '전체 검증 통과'. 운영 반영은 main 병합 필요(작업 브랜치 claude/epic-goodall-awy4c2). 같은 503 차단을 받는 다른 경로(미수정·사용자 판단 대기): scheduler.js 망상 이안류 RCData.do(UA 없음, 기본UA 503·UA 200), services/seaway_refresh.js 항로 proxyRun.do(기본UA 503·UA 200). khoa_stream_cache.js 는 이미 UA 있음.
 
