@@ -2705,20 +2705,31 @@
     needs_human: ['nrya-warn', '🖐 머지 버튼 필요'], waiting: ['', '⏳ 검사 기다림 → 통과하면 자동 머지'],
     failed_checks: ['nrya-rej', '❌ 검사 실패(머지 잠김)'], merged: ['nrya-done', '✅ 머지됨'], closed: ['nrya-rej', '닫힘'],
   };
+  // 사람 몫 PR 도 검사를 지켜본다(서버 nariya_pr_merge — 2026-11-18): 초록이 되면 「머지 버튼」 푸시가 온다.
+  var AUTORUN_ST_HUMAN_WAIT = ['', '⏳ 검사 중 → 끝나면 머지 버튼 알림'];
+  // 마지막 확인의 상태 이름(서버 judge 의 state)을 쉬운 말로 — 영문(pending 등)을 그대로 보이지 않는다(2026-11-18 사용자).
+  var AUTORUN_CHK = {
+    green: '검사 통과', pending: '검사 진행 중', missing: '검사가 아직 시작 안 됨', failed: '검사 실패', skipped: '검사가 돌지 않음',
+    stale: '최신 main 으로 다시 검사 필요', conflict: '충돌', merged: '머지됨', closed: '닫힘', error: 'GitHub 확인 실패',
+    invalid: '확인 필요', foreign: '자동 머지 조건 아님', scope: '위키·원문 밖 파일', no_token: '서버 열쇠 없음', auth: '서버 열쇠 문제',
+  };
   /**
    * PR 카드 한 장. 예: autorunCardHTML({number:9, status:'needs_human', needs:['폴더 결정'], summary:'개정 3건'})
    * @param {object} p - GET /api/legal/autorun/prs 의 prs[] 한 항목 @returns {string}
    */
   function autorunCardHTML(p) {
-    var st = AUTORUN_ST[p.status] || ['', String(p.status || '')];
+    var st = p.status === 'waiting' && p.mode === 'human' ? AUTORUN_ST_HUMAN_WAIT : (AUTORUN_ST[p.status] || ['', String(p.status || '')]);
     var field = function (lab, html) { return '<div class="nrya-rv-field"><div class="nrya-rv-flab">' + lab + '</div><div class="nrya-rv-fval">' + html + '</div></div>'; };
     var needs = (p.needs || []).length
       ? field('🧭 결정 필요 ' + p.needs.length + '건', '<ul style="margin:4px 0 0;padding-left:18px">' + p.needs.map(function (x) { return '<li style="margin:2px 0">' + esc(x) + '</li>'; }).join('') + '</ul>')
       : '';
     var why = p.why ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">ℹ️</span>' + esc(p.why) + (p.howText ? '<br><b>' + esc(p.howText) + '</b>' : '') + '</div>' : '';
     // 위키·원문 밖 파일(서버 코드·검사 도구 등)을 고친 PR — 자동 머지 대상이 아니다. 누르기 전에 알 수 있게 보여 준다(적대검증 C#상-1).
-    var outside = p.outsideCount ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">⚠️</span>위키·원문 밖 파일 ' + esc(String(p.outsideCount)) + '개를 고쳤습니다(서버 코드·검사 도구 등): <code style="font-size:11px">' + (p.outside || []).map(esc).join('</code>, <code style="font-size:11px">') + '</code> — 개발 검토를 권합니다.</div>' : '';
-    var chk = p.check ? field('🔎 마지막 확인', esc(p.check.state) + (p.check.why ? ' — ' + esc(p.check.why) : '') + (p.check.at ? ' <span style="font-size:11.5px;color:var(--nrya-text-sub)">(' + esc(p.check.at.slice(5, 16).replace('T', ' ')) + ')</span>' : '')) : '';
+    //   파일 경로는 접어 둔다(펼치면 보임) — 2026-11-18 사용자: 긴 영문 경로가 화면을 채웠다.
+    var outside = p.outsideCount ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">⚠️</span>위키·원문 밖 파일 ' + esc(String(p.outsideCount)) + '개도 고쳤습니다(서버 코드·검사 도구 등) — 개발 검토를 권합니다.' +
+      '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px">파일 목록 보기</summary><code style="font-size:11px;word-break:break-all">' + (p.outside || []).map(esc).join('<br>') + '</code></details></div>' : '';
+    var chkName = p.check ? (AUTORUN_CHK[p.check.state] || String(p.check.state || '')) : '';
+    var chk = p.check ? field('🔎 마지막 확인', esc(chkName) + (p.check.why && p.check.why !== chkName ? ' — ' + esc(p.check.why) : '') + (p.check.at ? ' <span style="font-size:11.5px;color:var(--nrya-text-sub)">(' + esc(p.check.at.slice(5, 16).replace('T', ' ')) + ')</span>' : '')) : '';
     var merged = p.status === 'merged' ? field('✅ 머지', esc((p.mergedBy === 'auto' ? '자동' : (p.mergedBy || '')) + (p.mergedAt ? ' · ' + p.mergedAt.slice(5, 16).replace('T', ' ') : ''))) : '';
     // 버튼은 서버가 방을 열 때 GitHub 에서 다시 읽어 「지금 머지할 수 있다」(canMerge)고 판정한 PR 에만 그린다 —
     //   눌러도 실패할 버튼을 보여 주지 않는다(적대검증 C#중-3). 그 밖에는 왜 안 되는지 한 줄.
@@ -2726,7 +2737,7 @@
     var stale = p.check && p.check.state === 'stale';   // main 이 바뀜 — 누르면 서버가 최신 main 을 얹고 다시 검사(약 20분 뒤 다시 눌러야 머지)
     var btn = open && p.canMerge ? (stale ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">🔄</span>검사 뒤 main 이 바뀌었습니다 — 버튼을 누르면 최신 main 으로 다시 검사하고, 약 20분 뒤 다시 누르면 머지됩니다.</div>' : '') +
         '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">' + (stale ? '🔄 최신 main 으로 다시 검사' : '🔀 머지') + '</button></div>'
-      : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || p.check.state) + '</div>' : '';
+      : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || chkName) + (p.check.state === 'pending' || p.check.state === 'missing' ? (p.status === 'waiting' || p.status === 'failed_checks' ? ' (검사는 보통 20분쯤 걸립니다. 끝나 초록이면 알림이 옵니다)' : ' (검사는 보통 20분쯤 걸립니다. 끝난 뒤 이 방을 다시 열어 주세요)') : '') + '</div>' : '';
     return cardShell({
       id: String(p.number), badge: 'PR #' + p.number, title: (p.summary || '(요약 없음)').slice(0, 160),
       subHTML: esc((p.at || '').slice(5, 16).replace('T', ' ')) + ' · <a href="' + esc(p.pr_url) + '" target="_blank" rel="noopener">GitHub 에서 보기</a>',

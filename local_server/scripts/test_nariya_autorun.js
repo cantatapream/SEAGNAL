@@ -69,7 +69,7 @@ function fakeFetch() {
 }
 function fakePush() { const p = async (title, body, data) => { p.sent.push({ title, body, data }); return { sent: 1, failed: 0 }; }; p.sent = []; return p; }
 /** 가짜 머지 담당 — 실제 nariya_pr_merge(볼륨 파일·GitHub)를 건드리지 않게. 결정 필요 0건이면 auto. */
-function fakeMerger() { const m = { tracked: [], opts: [], track(d, o) { m.tracked.push(d); m.opts.push(o || {}); if (m.refuse) return { tracked: false, why: m.refuse }; return { tracked: true, mode: (d.needs_decision || []).length || !(o && o.owner) ? 'human' : 'auto' }; } }; return m; }
+function fakeMerger() { const m = { tracked: [], opts: [], track(d, o) { m.tracked.push(d); m.opts.push(o || {}); if (m.refuse) return { tracked: false, why: m.refuse }; if (m.reply) return m.reply; const human = (d.needs_decision || []).length || !(o && o.owner); return human ? { tracked: true, mode: 'human', how: 'button', status: 'waiting' } : { tracked: true, mode: 'auto', status: 'waiting' }; } }; return m; }
 function make(o = {}) {
     const time = o.time || fakeTime(), f = o.fetch || fakeFetch(), push = o.push || fakePush(), file = o.file || newFile(), merger = o.merger || fakeMerger();
     const ar = A.createAutorun({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: f, push, env: o.env || PROD_ENV(), adminCheck: o.adminCheck, prMerger: merger });
@@ -461,7 +461,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.equal(d.late, true); assert.equal(d.lockMismatch, false);
         const last = push.sent[push.sent.length - 1];
         assert.ok(/^\[늦은 완료\]/.test(last.title) && !/잠금과 다른/.test(last.title), last.title);
-        assert.ok(last.body.includes('PR: ' + PR(6)), 'PR 링크를 본문 글로(F11)');
+        assert.ok(!last.body.includes('http'), 'PR 을 맡았으면 주소는 앱 카드에 — 푸시엔 안 넣는다(2026-11-18 사용자 「영문이라던가 … 굳이 필요가 없지 않니」): ' + last.body);
     });
 
     await check('[§5 #21] 3시간 만료로 풀린 run 이 다시 claim → 원래 출처·「작업 시작」 여부를 이어받고 relocked:true · 그새 새 run 이 잠갔으면 busy', async () => {
@@ -634,8 +634,9 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.equal(r.ok, false); assert.equal(r.status, 400);
         assert.equal(ar.status().lock.run_id, 'c1'); assert.equal(push.sent.length, 0);
         await quiet(async () => { ar.done({ run_id: 'c1', outcome: 'pr', pr_url: PR(7), needs_decision: ['이름 바뀐 고시 동일성', '승격 여부'], summary: '개정 3건 반영' }); await flush(); });
-        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(push.sent[0].title) && /결정 필요 2건/.test(push.sent[0].title), push.sent[0].title);
-        assert.ok(/「자동반영」 방에서 내용을 확인하고 \[머지\] 버튼/.test(push.sent[0].body), '본문에 앱 머지 버튼 안내(사용자 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시」)');
+        assert.ok(/반영 끝 · 검사 중/.test(push.sent[0].title) && /결정 필요 2건/.test(push.sent[0].title) && !/머지 버튼을 눌러/.test(push.sent[0].title), push.sent[0].title);
+        assert.ok(/검사\(약 20분\)가 끝나면 「앱에서 머지 버튼을 눌러 주세요」 알림을 다시 보냅니다/.test(push.sent[0].body), '검사 중엔 버튼이 잠겨 있다 — 초록이 되면 머지 담당이 다시 알린다(2026-11-18): ' + push.sent[0].body);
+        assert.ok(!/개정 3건 반영|http/.test(push.sent[0].body), '세션 요약·주소는 푸시에 안 넣는다(앱 카드에 있음)');
         assert.equal(push.sent[0].data.pr_url, PR(7));
         assert.ok(Object.values(push.sent[0].data).every((x) => typeof x === 'string'), 'FCM data 는 전부 문자열');
     });
@@ -878,15 +879,15 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const id = await fired(a);
         await quiet(async () => { a.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(21), summary: '개정 2건' }); await flush(); });
         assert.equal(a.merger.tracked.length, 1); assert.equal(a.merger.tracked[0].pr_url, PR(21));
-        const t = titles(a.push, /나리야 자동 반영 — PR 올림/);
-        assert.equal(t.length, 1); assert.ok(/검사 통과하면 자동 머지\(누를 것 없음\)/.test(t[0].title), t[0].title);
-        assert.ok(/서버가 자동으로 머지·배포/.test(t[0].body)); assert.equal(t[0].data.merge, 'auto');
+        const t = titles(a.push, /나리야 자동 반영 — 반영 끝 · 검사 중/);
+        assert.equal(t.length, 1, a.push.sent.map((x) => x.title).join('|'));
+        assert.ok(/서버가 자동으로 머지·배포합니다 — 누를 것 없습니다/.test(t[0].body), t[0].body); assert.equal(t[0].data.merge, 'auto');
         const b = make();
         const id2 = await fired(b);
         await quiet(async () => { b.ar.done({ run_id: id2, outcome: 'pr', pr_url: PR(22), needs_decision: ['고시 폴더'], summary: '신선도 1건' }); await flush(); });
         const h = b.push.sent[b.push.sent.length - 1];
-        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(h.title) && /결정 필요 1건/.test(h.title), h.title);
-        assert.ok(/「자동반영」 방에서 내용을 확인하고 \[머지\] 버튼/.test(h.body)); assert.equal(h.data.merge, 'human');
+        assert.ok(/반영 끝 · 검사 중/.test(h.title) && /결정 필요 1건/.test(h.title), h.title);
+        assert.ok(/「앱에서 머지 버튼을 눌러 주세요」 알림을 다시 보냅니다/.test(h.body) && /「자동반영」 방에서 볼 수 있습니다/.test(h.body), h.body); assert.equal(h.data.merge, 'human');
         const c = make();
         const id3 = await fired(c);
         await quiet(async () => { c.ar.done({ run_id: id3, outcome: 'failed', pr_url: PR(23), summary: 'x' }); c.ar.done({ run_id: 'other', outcome: 'nothing' }); await flush(); });
@@ -913,13 +914,21 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const b = make();
         await quiet(async () => { b.ar.done({ run_id: 'forged-1', outcome: 'pr', pr_url: PR(32) }); await flush(); });
         assert.equal(b.merger.opts[0].owner, false, '잠금 기록이 없는 run');
-        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(b.push.sent[0].title), b.push.sent[0].title);
+        assert.ok(/반영 끝 · 검사 중/.test(b.push.sent[0].title) && /머지 버튼을 눌러 주세요」 알림을 다시/.test(b.push.sent[0].body), b.push.sent[0].title);
         const c = make();
         const id3 = await fired(c);
         await quiet(async () => { c.ar.done({ run_id: id3, outcome: 'pr', pr_url: 'https://github.com/evil/x/pull/1' }); await flush(); });
         assert.equal(c.merger.tracked.length, 0);
         const t = c.push.sent[c.push.sent.length - 1];
         assert.ok(/PR 을 맡지 못함 · GitHub 에서 확인해 주세요/.test(t.title) && /PR 주소를 읽지 못함/.test(t.body) && /카드가 없습니다/.test(t.body), t.title + ' / ' + t.body);
+        // 적대검증 중1 — 이미 맡은 PR 이 머지됨·사람 차례(지켜보지 않음)면 「검사 끝나면 알림」을 약속하지 않는다
+        for (const [st, re] of [['merged', /이미 머지됐습니다/], ['needs_human', /이미 사람 확인 차례/]]) {
+            const g = make(); g.merger.reply = { tracked: true, updated: true, mode: 'human', how: 'button', status: st };
+            const idg = await fired(g);
+            await quiet(async () => { g.ar.done({ run_id: idg, outcome: 'pr', pr_url: PR(35), needs_decision: ['x'] }); await flush(); });
+            const last = g.push.sent[g.push.sent.length - 1];
+            assert.ok(!/알림을 다시 보냅니다/.test(last.body) && re.test(last.body) && /앱에서 확인해 주세요/.test(last.title), st + ': ' + last.title + ' / ' + last.body);
+        }
         const d = make(); d.merger.refuse = '이미 맡은 PR';
         const id4 = await fired(d);
         await quiet(async () => { d.ar.done({ run_id: id4, outcome: 'pr', pr_url: PR(33) }); await flush(); });

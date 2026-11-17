@@ -699,12 +699,12 @@ function createAutorun({
 
         // C(사용자 「C로 하자」): PR 을 냈으면 머지 담당에게 넘긴다 — 결정 필요 0건이면 검사 통과 뒤 서버가 자동 머지, 아니면 앱 머지 버튼 몫.
         //   잠금 주인(released)이었거나 3시간 만료 뒤 같은 run 의 늦은 완료일 때만 자동 머지 후보다(적대검증 C#상-2 — 아무 run_id 로 남의 PR 을 맡기지 못하게).
-        let prMode = null, prWhy = null, prHow = null;
+        let prMode = null, prWhy = null, prHow = null, prStatus = null;
         if (d.outcome === 'pr' && d.pr_url) {
             try {
                 const t = (prMerger || require('./nariya_pr_merge').forDefault()).track({ pr_url: d.pr_url, run_id: d.run_id, needs_decision: d.needs_decision, summary: d.summary },
                     { owner: servedOf !== null && Number.isFinite(runSince), runSince });
-                prMode = t.tracked ? t.mode : null; prWhy = t.why || null; prHow = t.how || null;
+                prMode = t.tracked ? t.mode : null; prWhy = t.why || null; prHow = t.how || null; prStatus = t.status || null;
                 if (!t.tracked) prWhy = t.why || 'PR 을 맡지 못함';
             } catch (e) { console.error('[nariya_autorun] PR 머지 담당에게 넘기기 실패(완료 처리는 정상):', e && e.message); prWhy = '서버가 PR 을 맡지 못함'; }
         } else if (d.outcome === 'pr') prWhy = 'PR 주소를 읽지 못함';
@@ -714,25 +714,41 @@ function createAutorun({
         // 사람이 정할 것(needs_decision)이 있으면 알린다(§5 #15·#20b).
         const quietNothing = released && source === 'claim' && d.outcome === 'nothing' && !workNotified && !d.needs_decision.length;
         if (!quietNothing) {
-            // 푸시 문구(사용자: 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시하도록」) — 자동 머지면 누를 것 없음, 사람 몫이면 「앱에서 머지 버튼」을 제목에 적는다.
-            //   맡지 못했으면(주소 못 읽음·맡기 실패) 앱에 카드가 없으므로 「GitHub 에서 확인」으로 쓴다(적대검증 C#중-5). 서버 열쇠 문제면 그렇게 쓴다.
+            // 푸시 문구(사용자: 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시하도록」) — 2026-11-18 다시 정리:
+            //   ①「머지 버튼을 눌러 주세요」는 여기서 보내지 않는다 — 이 시점엔 GitHub 검사가 막 시작돼 버튼이 잠겨 있다(사용자가 가 보니 잠김).
+            //     머지 담당이 검사를 지켜보다 초록이 되면 그때 보낸다(nariya_pr_merge.handOver ready). 여기서는 「반영 끝 · 검사 중」만.
+            //   ② 쉬운 말만 — 세션 요약(파일 이름·영문이 섞임)·PR 주소는 PR 을 맡았을 때 넣지 않는다(앱 카드에 있다). 사용자 원문:
+            //     *"사용자가 굳이 알 필요가 없는 뭐 어려운 명칭이라던가 영문이라던가 이런 거는 굳이 필요가 없지 않니?"*
+            //   맡지 못했으면(주소 못 읽음·맡기 실패) 앱에 카드가 없으므로 PR 주소를 남기고 「GitHub 에서 확인」으로 쓴다(적대검증 C#중-5).
+            // 「검사 중 — 끝나면 알림」은 머지 담당이 **지금 검사를 지켜보는** PR(waiting·failed_checks)에만 쓴다(적대검증 중1 — 이미 머지·닫힘 등이면 오지 않을 알림을 약속했다).
+            const watching = prStatus === 'waiting' || prStatus === 'failed_checks';
+            const tracked = watching && (prMode === 'auto' || (prMode === 'human' && prHow !== 'secrets'));
             const head = d.outcome === 'pr'
-                ? (prMode === 'auto' ? 'PR 올림 · 검사 통과하면 자동 머지(누를 것 없음)'
-                    : prMode === 'human' && prHow === 'secrets' ? 'PR 올림 · 서버 GitHub 열쇠 확인 필요'
-                    : prMode === 'human' ? '앱에서 머지 버튼을 눌러 주세요'
+                ? (tracked ? '반영 끝 · 검사 중'
+                    : prMode && prHow !== 'secrets' ? 'PR 올림 · 앱에서 확인해 주세요'
+                    : prMode === 'human' ? 'PR 올림 · 서버 GitHub 열쇠 확인 필요'
                     : 'PR 을 맡지 못함 · GitHub 에서 확인해 주세요')
                 : { nothing: '완료 — 반영할 것 없음', failed: '세션 실패' }[d.outcome];
             const needs = d.needs_decision.length ? ` · 결정 필요 ${d.needs_decision.length}건` : '';
             const tag = lockMismatch ? '[잠금과 다른 run] ' : late ? '[늦은 완료] ' : '';
-            const needsText = d.needs_decision.length
-                ? ` · 결정 필요 ${d.needs_decision.length}건: ` + d.needs_decision.slice(0, 3).map((x) => x.slice(0, 60)).join(' / ') + (d.needs_decision.length > 3 ? ' 외' : '')
-                : '';
-            const how = d.outcome !== 'pr' ? ''
-                : prMode === 'auto' ? ' · 결정 필요가 없고 위키·원문만 고쳤으면 GitHub 검사(약 20분)가 통과한 뒤 서버가 자동으로 머지·배포합니다(위키·원문 밖 파일을 고쳤으면 다시 「앱에서 머지」로 알립니다).'
-                : prMode === 'human' && prHow === 'secrets' ? ' · 서버의 GitHub 열쇠(Fly secrets GITHUB_MERGE_TOKEN)가 없어 자동 머지·머지 버튼이 동작하지 않습니다.'
-                : prMode === 'human' ? ' · ★앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요' + (prWhy ? '(' + prWhy + ')' : '') + '. 결정 필요는 사장님 판단 — 머지해도 그 건은 손대지 않은 채 남습니다.'
-                : ' · ' + (prWhy || 'PR 을 맡지 못함') + ' — 앱 「자동반영」 방에 카드가 없습니다. GitHub 에서 PR 을 직접 확인해 주세요.';
-            const bodyText = (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText + how + (d.pr_url ? ' PR: ' + d.pr_url : '');
+            const cnt = [['개정', d.amend_ids.length], ['원문 새 판', d.fresh_ids.length], ['빠진 원문', d.mok_ids.length]].filter((x) => x[1]).map((x) => `${x[0]} ${x[1]}건`).join('·');
+            let bodyText;
+            if (d.outcome === 'pr' && tracked) {
+                bodyText = (cnt ? cnt + ' ' : '') + '반영을 마치고 PR 을 올렸습니다. ' + (prMode === 'auto'
+                    ? 'GitHub 검사(약 20분)를 통과하면 서버가 자동으로 머지·배포합니다 — 누를 것 없습니다.'
+                    : `GitHub 검사(약 20분)가 끝나면 「앱에서 머지 버튼을 눌러 주세요」 알림을 다시 보냅니다${d.needs_decision.length ? `(결정 필요 ${d.needs_decision.length}건 — 앱 「자동반영」 방에서 볼 수 있습니다)` : ''}.`);
+            } else if (d.outcome === 'pr' && prMode && prHow !== 'secrets') {
+                bodyText = (prStatus === 'merged' ? '이 PR 은 이미 머지됐습니다.' : prStatus === 'closed' ? '이 PR 은 닫혀 있습니다.' : '이 PR 은 이미 사람 확인 차례입니다.') + ' 앱 → 관리자 → 「자동반영」 방에서 확인해 주세요.';
+            } else if (d.outcome === 'pr' && prMode === 'human') {
+                bodyText = 'PR 은 올렸지만 서버에 GitHub 머지 열쇠(Fly secrets GITHUB_MERGE_TOKEN)가 없어 자동 머지·머지 버튼이 동작하지 않습니다.';
+            } else if (d.outcome === 'pr') {
+                bodyText = (prWhy || 'PR 을 맡지 못함') + ' — 앱 「자동반영」 방에 카드가 없습니다. GitHub 에서 PR 을 직접 확인해 주세요.' + (d.pr_url ? ' PR: ' + d.pr_url : '');
+            } else {
+                const needsText = d.needs_decision.length
+                    ? ` · 결정 필요 ${d.needs_decision.length}건: ` + d.needs_decision.slice(0, 3).map((x) => x.slice(0, 60)).join(' / ') + (d.needs_decision.length > 3 ? ' 외' : '')
+                    : '';
+                bodyText = (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText;
+            }
             pushed = notifyDone(tag + '나리야 자동 반영 — ' + head + needs, bodyText,
                 Object.assign({ type: 'nariya_autorun_done', run_id: d.run_id, outcome: d.outcome, needs: String(d.needs_decision.length), lock_mismatch: String(lockMismatch), late: String(late), merge: String(prMode || '') },
                     d.pr_url ? { pr_url: d.pr_url } : {}));
