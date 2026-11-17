@@ -479,6 +479,11 @@ window.checkForPushPopup = async function () {
         'level_upgrade_active',
         'level_downgrade_publish',
         'level_downgrade_active',
+        // 종류 격상/격하(풍랑경보→태풍주의보) — 2026-11-17 적대검증: 빠져 있어 「…에 태풍예비가 발생했습니다」 기본 문구가 떴다
+        'type_upgrade_publish',
+        'type_upgrade_active',
+        'type_downgrade_publish',
+        'type_downgrade_active',
         'prelim_cancel',
         'partial_release',
         'child_prelim_cancel'
