@@ -134,12 +134,29 @@ function computeFormal(list, nowMs = Infinity) {
         const yr = yebiReleaseUnits(r);
         if (yr.size) yebiRelease.push({ ms: KST(r.tmIn), units: yr });
     }
-    // 해제 시각이 된 것만 지운다 — 그 사이 같은 단위에 새 특보가 발표돼 다음(next)으로 기다리고 있었으면 그것이 이어받는다(해제 뒤 재발표)
-    // 일부 특보 부모(partial): 남은 자식이 모두 해제 시각을 기다리면 부모도 같은 시각까지(가장 늦은 것)
     const kidsOf = (p) => childrenOf(p).filter((k) => state.has(k));
-    for (const [u, z] of state) if (z.partial && PARENTS.has(u)) { const ks = kidsOf(u); if (ks.length && ks.every((k) => state.get(k).relMs)) { const last = ks.map((k) => state.get(k)).sort((a, b) => b.relMs - a.relMs)[0]; Object.assign(z, { relMs: last.relMs, clr: last.clr }); } }
+    // ① 부모 자신 특보가 해제를 기다리는데 자식이 그보다 오래 남으면(새 「A(자식)」 발표 등) 부모는 끝나지 않는다 — 지금부터 일부 특보(partial)로(해제 예정을 띄우지 않음)
+    //   적대검증 2026-11-17 발견 5: 부모 해제 대기 중 「A(북동연안바다)」 새 발표 → 부모가 「해제 예정」으로 나왔다
+    const outlives = (k, ms) => { const z = state.get(k); return !z.relMs || !!z.next || z.relMs > ms; };
+    for (const [u, z] of state) if (!z.partial && PARENTS.has(u) && z.relMs && !z.next && kidsOf(u).some((k) => outlives(k, z.relMs))) { z.partial = true; delete z.relMs; }
+    // ② 해제 시각이 된 것만 지운다 — 그 사이 같은 단위에 새 특보가 발표돼 다음(next)으로 기다리고 있었으면 그것이 이어받는다(해제 뒤 재발표)
     for (const [u, z] of state) if (z.relMs && z.relMs <= nowMs) { if (z.next) state.set(u, z.next); else state.delete(u); }
-    for (const [u, z] of state) if (z.partial && PARENTS.has(u) && !kidsOf(u).length) state.delete(u);   // 일부 특보 부모 — 자식이 다 끝나면 부모도
+    // ③ 일부 특보 부모(partial)·자식만 남은 부모 = 남은 자식을 그대로 따른다(사용자 「자식해역에 특보가 있는데 부모해역에 특보가 [없는] 경우는 없어」)
+    //   고르는 법: 발효 중 > 발효 전, 경보 > 주의보, 먼저 발효. 남은 자식이 모두 해제를 기다리면 부모도 가장 늦은 해제 시각까지. 자식이 없으면 부모도 끝.
+    //   적대검증 2026-11-17 발견 2·4·6: 종전엔 부모가 가장 나중 통보문의 등급·해제 예고를 들고 있어 남은 자식과 어긋났다(경보 자식이 끝나도 경보, 자식 해제예고 연장이 부모에 안 옴, 자식이 발효 전인데 부모는 발효 중).
+    //   「A(북동연안바다 제외)」 해제처럼 부모만 지워지고 자식이 남아도 같은 규칙으로 부모를 일부 특보로 다시 세운다(발견 5).
+    const rank = (k) => (k.efMs > nowMs ? 0 : 100) + (k.level === '경보' ? 10 : 0);
+    for (const u of PARENTS) {
+        const z = state.get(u);
+        if (z && !z.partial) continue;
+        const ks = kidsOf(u).map((k) => state.get(k));
+        if (!ks.length) { if (z) state.delete(u); continue; }
+        const best = ks.slice().sort((a, b) => rank(b) - rank(a) || (a.efMs || 0) - (b.efMs || 0))[0];
+        const m = Object.assign({}, best, { partial: true }); delete m.relMs; delete m.next;
+        if (z && z.next && !z.next.partial) m.next = z.next;   // 부모 자신으로 곧 발효될 특보는 그대로 기다림
+        if (ks.every((k) => k.relMs)) { const last = ks.slice().sort((a, b) => b.relMs - a.relMs)[0]; Object.assign(m, { relMs: last.relMs, clr: last.clr }); }
+        state.set(u, m);
+    }
     return { state, yebiRelease };
 }
 
@@ -194,10 +211,11 @@ function compute(bulletins, nowMs, cands = []) {
                 //   다음 정식 특보(next)가 이미 기다리면 그쪽이 다가오는 칸을 쓴다. 시간창이 여럿이면 가장 이른 것.
                 //   단, 그 예비 목록이 이 정식 특보보다 나중에 나왔을 때만 — 먼저 나온 목록의 예비는 이 정식 특보로 넘어간 것(실측: 종전 규칙대로면 1,441건이 더 있음)
                 //   부모가 일부 특보(partial — 「A(평수구역)」 주의보)면 부모의 예비는 그 특보로 넘어간 게 아니다 → 목록이 먼저 나왔어도 다가오는 특보로(수도권 2026 2-37호 — 기상청 딸린 현황도 부모 예비를 계속 적음)
+                //   단 그 예비도 「A(자식)」(partial)이면 같은 「A(자식)」 발표로 넘어간 것 — 종전 규칙대로(적대검증 2026-11-17 발견 1)
                 //   부모가 이미 부모 자신으로 정식 특보 중인데 예비가 「A(자식)」(partial)이면 그 예비는 자식 몫 — 부모에 다가오는 특보를 달지 않는다
                 //   (제주 2026 7-16호 「제주도동부앞바다(북동연안바다)」·9-9호 「제주도북부앞바다(연안바다)」: 부모는 이미 주의보(연안바다 제외), 딸린 현황 t7 도 부모를 적지 않음)
                 if (e.partial && z0.kind === 'formal' && !z0.partial) continue;
-                if (z0.kind === 'formal' && !z0.next && !z0.upYebi && (tY > (z0.issueMs || z0.inMs || 0) || z0.partial)) z0.upYebi = { type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, ho: lastY.result.t1Title, inMs: tY, endMs: e.end, yebiWins: wins[e.unit] };
+                if (z0.kind === 'formal' && !z0.next && !z0.upYebi && (tY > (z0.issueMs || z0.inMs || 0) || (z0.partial && !e.partial))) z0.upYebi = { type: e.type, level: '예비', tmFc: korTime(lastY.result.tmFc), tmEf: e.tmEf, ho: lastY.result.t1Title, inMs: tY, endMs: e.end, yebiWins: wins[e.unit] };
                 continue;
             }
             if (e.end <= nowMs) waiting.push(e.unit);
