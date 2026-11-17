@@ -868,6 +868,58 @@ function nightlyScanFor(ms) {
     return ['amend', 'mok', 'fresh'][((day % 3) + 3) % 3];
 }
 
+/**
+ * 새벽 점검 한 바퀴의 **처리 결과 요약 푸시** 글을 만든다(2026-11-17 사용자 「각 매일마다 모든 사이클이 완료되면 완료되었다는 푸시알림이
+ * 왔으면 좋겠어」·「처리결과에 관한 알림 말이야」). 순수 함수 — 보내기는 server.js runNariyaNightly 가 한다.
+ * 종전에는 점검이 새로 찾은 것이 있거나 실패할 때만 푸시가 가서, 아무것도 없는 밤은 조용했다 — 「이상 없음」과 「점검이 안 돌았음」이
+ * 같아 보였다(L-291). 이제 매일 한 통: 오늘 차례 점검 결과 · 대기 개정 자동 승인 · 자동 반영 세션을 깨웠는지 · 내일 차례.
+ * 세션이 일을 끝낸 결과(PR·자동 머지·앱 버튼 필요)는 그 시각에 따로 푸시된다(done·nariya_pr_merge) — 이 요약은 새벽 점검까지.
+ * 예: nightlySummary({which:'fresh', scan:{ok:true, checked:1504, stale:0, added:0, reopened:0}, approved:0, sweep:{action:'none'}, tomorrow:'amend'})
+ *     → {title:'나리야 새벽 점검 완료 — 원문신선도 · 이상 없음', body:'원문신선도: 1,504건 대조 · 낡은 원문 없음 …'}
+ * @param {{which:'amend'|'mok'|'fresh', scan:?object, scanError?:string, approved?:number, sweep:?object, sweepError?:string, tomorrow?:string}} o
+ * @returns {{title:string, body:string, failed:boolean}}
+ * [연계] ← server.js runNariyaNightly · scripts/test_nariya_autorun.js
+ */
+function nightlySummary(o) {
+    const NAME = { amend: '개정감지', mok: '원문결손', fresh: '원문신선도' };
+    const nf = (n) => Number(n || 0).toLocaleString('ko-KR');
+    const sc = o.scan || null;
+    let line, found = 0, failed = false;
+    if (o.scanError || !sc) { failed = true; line = '점검이 끝나지 못했습니다 — ' + String(o.scanError || '결과 없음').slice(0, 120); }
+    else if (o.which === 'amend') {
+        found = sc.changed || 0;
+        failed = !!sc.errors;
+        line = failed ? '오늘 개정 여부를 확인하지 못했습니다(「개정 없음」이 아닙니다)'
+            : found ? `새 개정 ${nf(found)}건 감지 · 자동 승인` : `새 개정 없음(탐지 대기 ${nf(sc.scanned)}건 확인)`;
+    } else if (sc.ok === false) { failed = true; line = '점검 실패 — ' + String(sc.error || '').slice(0, 120); }
+    else if (o.which === 'mok') {
+        found = (sc.added || 0) + (sc.reopened || 0);
+        line = `${nf(sc.checked)}계열 대조 · ` + (found ? `빠진 곳 새로 ${nf(sc.added)}건${sc.reopened ? ` · 다시 뜬 ${nf(sc.reopened)}건` : ''}` : '새로 빠진 곳 없음')
+            + (sc.resolved ? ` · 해소돼 닫은 ${nf(sc.resolved)}건` : '') + (sc.partialError ? ' · ⚠일부 못 봄' : '');
+    } else {
+        found = (sc.added || 0) + (sc.reopened || 0);
+        line = `${nf(sc.checked)}건 대조 · ` + (found ? `낡은 원문 새로 ${nf(sc.added)}건${sc.reopened ? ` · 다시 뜬 ${nf(sc.reopened)}건` : ''}` : '새로 낡은 원문 없음')
+            + (sc.autoClosed ? ` · 현행 확인돼 닫은 ${nf(sc.autoClosed)}건` : '') + (sc.unknown ? ` · 조회 실패 ${nf(sc.unknown)}건` : '') + (sc.partialError ? ' · ⚠일부 못 봄' : '');
+    }
+    const parts = [NAME[o.which] + ': ' + line];
+    if (o.approved) parts.push(`대기 중이던 개정 ${nf(o.approved)}건 자동 승인`);
+    const sw = o.sweep || null;
+    const SW = {
+        requested: '자동 반영 세션을 곧 깨웁니다(끝나면 결과를 다시 알립니다)',
+        pending: '자동 반영 세션을 곧 깨웁니다(끝나면 결과를 다시 알립니다)',
+        locked: '자동 반영 세션이 이미 일하는 중입니다',
+        seen: '남은 일은 사장님 결정 대기뿐입니다(앱 → 관리자 → 「자동반영」)',
+        none: '자동 반영할 일 없음',
+    };
+    if (o.sweepError) { failed = true; parts.push('⚠남은 일 점검 실패 — ' + String(o.sweepError).slice(0, 100)); }
+    else if (sw && sw.errors) parts.push('⚠남은 일 목록 일부를 못 읽음');
+    else if (sw) parts.push(SW[sw.action] || ('남은 일 점검: ' + sw.action));
+    if (o.tomorrow && NAME[o.tomorrow]) parts.push('내일 차례: ' + NAME[o.tomorrow]);
+    const work = sw && (sw.action === 'requested' || sw.action === 'pending');
+    const head = failed ? '⚠확인 필요' : work ? '처리할 일 있음' : found ? '새로 찾음' : '이상 없음';
+    return { title: `나리야 새벽 점검 완료 — ${NAME[o.which]} · ${head}`, body: parts.join(' · '), failed };
+}
+
 let def = null;
 /** 운영 기본 인스턴스(data/nariya_autorun_state.json · 실제 시계·타이머·fetch·푸시). @returns {object} [연계] ← routes/legal.js · admrul_fresh_scanner · server.js */
 function forDefault() { return def || (def = createAutorun()); }
@@ -883,7 +935,7 @@ module.exports = {
     noteServed: (k, ids) => forDefault().noteServed(k, ids),
     sweep: (o) => forDefault().sweep(o),
     setHold: (on) => forDefault().setHold(on),
-    collectOutstanding, nightlyScanFor,
+    collectOutstanding, nightlyScanFor, nightlySummary,
     requireAdminOrAutomation: (req, res, next) => forDefault().requireAdminOrAutomation(req, res, next),
     DEBOUNCE_MS, LOCK_TTL_MS, INFLIGHT_TTL_MS, DONE_PUSH_PER_HOUR, MIN_TOKEN_LEN, LIMITS, KINDS,
 };

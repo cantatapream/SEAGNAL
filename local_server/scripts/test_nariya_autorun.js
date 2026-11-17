@@ -933,6 +933,28 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.deepEqual(e.merger.opts[0], { owner: true, runSince: st5 });
     });
 
+    await check('[§8.10] 새벽 점검 처리 결과 요약 푸시(nightlySummary) — 아무것도 없어도 「이상 없음」 · 찾음·처리할 일·실패를 제목에 · 자동 승인·세션·내일 차례 · 매일 한 통 보냄(사용자 「매일마다 … 완료되었다는 푸시알림」)', () => {
+        const S = A.nightlySummary;
+        let m = S({ which: 'fresh', scan: { ok: true, checked: 1504, stale: 0, added: 0, reopened: 0 }, approved: 0, sweep: { action: 'none' }, tomorrow: 'amend' });
+        assert.equal(m.title, '나리야 새벽 점검 완료 — 원문신선도 · 이상 없음'); assert.equal(m.failed, false);
+        assert.ok(/원문신선도: 1,504건 대조 · 새로 낡은 원문 없음/.test(m.body) && /자동 반영할 일 없음/.test(m.body) && /내일 차례: 개정감지/.test(m.body), m.body);
+        m = S({ which: 'fresh', scan: { ok: true, checked: 1504, added: 2, reopened: 1, autoClosed: 3 }, approved: 44, sweep: { action: 'requested' }, tomorrow: 'amend' });
+        assert.ok(/처리할 일 있음/.test(m.title)); assert.ok(/낡은 원문 새로 2건 · 다시 뜬 1건/.test(m.body) && /현행 확인돼 닫은 3건/.test(m.body) && /대기 중이던 개정 44건 자동 승인/.test(m.body) && /세션을 곧 깨웁니다/.test(m.body), m.body);
+        m = S({ which: 'amend', scan: { scanned: 12, changed: 0, errors: 1 }, sweep: { action: 'none' } });
+        assert.ok(/⚠확인 필요/.test(m.title) && /확인하지 못했습니다\(「개정 없음」이 아닙니다\)/.test(m.body), '개정감지 실패는 「없음」으로 쓰지 않는다');
+        m = S({ which: 'amend', scan: { scanned: 30, changed: 3, errors: 0 }, sweep: { action: 'locked' } });
+        assert.ok(/새로 찾음/.test(m.title) && /새 개정 3건 감지 · 자동 승인/.test(m.body) && /이미 일하는 중/.test(m.body), m.title + ' / ' + m.body);
+        m = S({ which: 'mok', scan: { ok: false, error: '점검이 이미 진행 중입니다.' }, sweep: { action: 'seen' } });
+        assert.ok(m.failed && /원문결손: 점검 실패 — 점검이 이미 진행 중/.test(m.body) && /결정 대기뿐/.test(m.body));
+        m = S({ which: 'mok', scanError: 'spawn ENOENT', sweepError: 'x' });
+        assert.ok(m.failed && /끝나지 못했습니다 — spawn ENOENT/.test(m.body) && /남은 일 점검 실패/.test(m.body));
+        const sv = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+        const nightly = sv.slice(sv.indexOf('async function runNariyaNightly'), sv.indexOf("cron.schedule('0 3 * * *'"));
+        const iS = nightly.indexOf('sweep = ar.sweep('), iP = nightly.indexOf('ar.nightlySummary(');
+        assert.ok(iS > 0 && iP > iS && /\} finally \{/.test(nightly.slice(0, iS)), 'finally 안에서 남은 일 점검 뒤에 요약');
+        assert.ok(/sendAdminPush\(m\.title, m\.body, \{ type: 'nariya_nightly_done'/.test(nightly), '조건 없이 매일 보낸다');
+    });
+
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
     process.exit(fail ? 1 : 0);

@@ -366,7 +366,8 @@ cron.schedule('1 0 * * *', () => {
 //    그 사이 공포분을 덮는다. 새로 올린 카드는 감지 즉시 자동 승인(사용자 「승인없이 되도록 진행하자.」 — autoApprove).
 // ② 원문결손(조문 목·고시 별표 누락 — 스크립트 2개, 각 상한 90분). 새로·다시 뜬 카드는 자동 반영 세션이 받는다(2026-11-16 사용자 「자동슈정」).
 // ③ 원문신선도(판번호 대조 — 행정규칙·법령·조례, 실측 2026-11-15 수동 1,504건 약 12분). 새로·다시 뜬 카드는 자동 반영 세션이 받는다.
-// 점검이 끝나면(실패해도) 대기 중인 개정 카드를 자동 승인하고(approveAllPending) 자동 반영 「남은 일 점검」(nariya_autorun sweep — 우리 볼륨 파일만 읽음)을 돌린다.
+// 점검이 끝나면(실패해도) 대기 중인 개정 카드를 자동 승인하고(approveAllPending) 자동 반영 「남은 일 점검」(nariya_autorun sweep — 우리 볼륨 파일만 읽음)을 돌린 뒤,
+// 처리 결과를 **매일 한 통** 요약 푸시한다(nightlySummary — 2026-11-17 사용자 「매일마다 모든 사이클이 완료되면 완료되었다는 푸시알림」).
 // ★한 밤에 하나만 돌리는 까닭: 셋 다 law.go.kr 을 두드린다 — 2026-09-20 에 둘을 겹쳐 돌렸다가 서로 느려져 전수 점검이
 //   45/200 에서 멈춘 것을 실측했다. 하나씩이면 겹칠 수가 없다.
 // ★점검 동안 세션 깨우기를 붙드는 까닭(적대검증 #5): 개정감지가 자동 승인하면 10분 뒤 세션이 떠 law.go.kr 수집을 돌리는데,
@@ -379,33 +380,41 @@ cron.schedule('1 0 * * *', () => {
 async function runNariyaNightly() {
     const ar = require('./services/nariya_autorun');
     const which = ar.nightlyScanFor(Date.now());
+    // 처리 결과 요약 푸시(2026-11-17 사용자 「각 매일마다 모든 사이클이 완료되면 완료되었다는 푸시알림」·「처리결과에 관한 알림」)를 위해 결과를 모은다.
+    let scan = null, scanError = null, approved = 0, sweep = null, sweepError = null;
     try { ar.setHold(true); } catch (e) { console.error('나리야 새벽 점검 — 세션 깨우기 보류 실패(점검은 계속):', e.message); }
     try {
         if (which === 'amend') {
             console.log('⏰ [Nightly · 개정감지 차례] 나리야 개정 감지 스캔을 시작합니다.');
-            const r = await require('./services/legal_amendment_scanner').runAmendmentScan();
+            const r = scan = await require('./services/legal_amendment_scanner').runAmendmentScan();
             console.log(`✅ [나리야 개정감지] 스캔 완료: ${r.scanned}건 조회, ${r.changed}건 변경 발견, ${r.errors}건 오류`);
         } else if (which === 'mok') {
             console.log('⏰ [Nightly · 원문결손 차례] 나리야 원문 결손 점검을 시작합니다.');
-            const r = await require('./services/mok_audit_scanner').runMokAuditScan();
+            const r = scan = await require('./services/mok_audit_scanner').runMokAuditScan();
             console.log(r.ok
                 ? `✅ [나리야 원문결손] 점검 완료: ${r.checked}계열 대조, 누락 ${r.missing}건(새로 발견 ${r.added}건), 판정불가 ${r.no_answer}건`
                 : `❌ [나리야 원문결손] 점검 실패: ${r.error}`);
         } else {
             console.log('⏰ [Nightly · 원문신선도 차례] 나리야 원문 신선도 점검을 시작합니다.');
-            const r = await require('./services/admrul_fresh_scanner').runFreshnessScan();
+            const r = scan = await require('./services/admrul_fresh_scanner').runFreshnessScan();
             console.log(r.ok
                 ? `✅ [나리야 원문신선도] 점검 완료: ${r.checked}건 대조, 구버전 ${r.stale}건(새로 발견 ${r.added}건), 조회실패 ${r.unknown}건`
                 : `❌ [나리야 원문신선도] 점검 실패: ${r.error}`);
         }
     } catch (e) {
+        scanError = e.message;
         console.error(`나리야 새벽 점검(${which}) 오류:`, e.message);
     } finally {
         // 대기 중이던 개정 카드를 전부 자동 승인한다(2026-11-16 사용자 「아예 전체 승인 버튼 누를 필요 없이 자동 진행되어도 좋고」) —
         //   감지 즉시 승인은 새 카드에만 걸리므로 그 전부터 대기하던 카드는 여기서 줍는다. 세션은 바로 뒤 남은 일 점검이 깨운다.
-        try { await require('./services/legal_amendment_scanner').approveAllPending(); } catch (e) { console.error('나리야 대기 개정 자동 승인 오류:', e.message); }
+        try { approved = ((await require('./services/legal_amendment_scanner').approveAllPending()).approved || []).length; } catch (e) { console.error('나리야 대기 개정 자동 승인 오류:', e.message); }
         try { ar.setHold(false); } catch (e) { console.error('나리야 새벽 점검 — 세션 깨우기 보류 풀기 실패(6시간 뒤 저절로 풀림):', e.message); }
-        try { ar.sweep(ar.collectOutstanding()); } catch (e) { console.error('나리야 자동 반영 남은 일 점검 오류:', e.message); }
+        try { sweep = ar.sweep(ar.collectOutstanding()); } catch (e) { sweepError = e.message; console.error('나리야 자동 반영 남은 일 점검 오류:', e.message); }
+        // 매일 한 통 — 아무것도 없는 밤에도 「이상 없음」으로 온다(조용한 것과 안 돈 것이 같아 보이지 않게, L-291).
+        try {
+            const m = ar.nightlySummary({ which, scan, scanError, approved, sweep, sweepError, tomorrow: ar.nightlyScanFor(Date.now() + 24 * 3600000) });
+            await require('./services/admin_push').sendAdminPush(m.title, m.body, { type: 'nariya_nightly_done', which, failed: String(m.failed) });
+        } catch (e) { console.error('나리야 새벽 점검 결과 푸시 실패:', e.message); }
     }
 }
 cron.schedule('0 3 * * *', () => {
