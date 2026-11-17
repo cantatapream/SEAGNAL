@@ -51,6 +51,10 @@ const NAVWARN_API_URL = 'https://apis.data.go.kr/1192136/NavigationalWarning/get
 const KHOA_BASE = 'https://www.khoa.go.kr/nwb';
 const CACHE_TTL_MS = 30 * 60 * 1000;      // 30분 — 목록+구역 결합 결과 캐시(날짜별)
 const SESSION_TTL_MS = 20 * 60 * 1000;    // 20분 — JSESSIONID 재발급 주기
+// KHOA 사이트가 node-fetch 기본 User-Agent 요청을 503 으로 막는다(2026-11-17 확인 —
+// 기본 UA 는 503·쿠키 없음, 브라우저 UA 는 200·JSESSIONID 발급). 이게 빠지면 구역 보강이
+// 통째로 실패해 앱 화면의 항행경보가 0건이 된다.
+const KHOA_UA = 'Mozilla/5.0 (Linux; SEAGNAL/navwarn)';
 
 const _cacheByDate = new Map();  // date(YYYYMMDD) → { zones, fetchedAt } — 날짜 내비게이션용
 let _session = null;    // { cookie, obtainedAt }
@@ -119,7 +123,7 @@ async function _fetchOfficialList(dateYmd) {
 
 /** mainPage.do 를 방문해 JSESSIONID 를 새로 받는다 */
 async function _bootstrapSession() {
-    const res = await fetch(`${KHOA_BASE}/mainPage.do?lang=ko`);
+    const res = await fetch(`${KHOA_BASE}/mainPage.do?lang=ko`, { headers: { 'User-Agent': KHOA_UA } });
     const setCookie = res.headers.raw()['set-cookie'] || [];
     const jsessionCookie = setCookie.map(c => c.split(';')[0]).find(c => c.startsWith('JSESSIONID='));
     if (!jsessionCookie) throw new Error('JSESSIONID 발급 실패');
@@ -144,6 +148,7 @@ async function _khoaPost(pathName, formData) {
         const res = await fetch(`${KHOA_BASE}/${pathName}`, {
             method: 'POST',
             headers: {
+                'User-Agent': KHOA_UA,
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-Requested-With': 'XMLHttpRequest',
                 'Referer': `${KHOA_BASE}/mainPage.do?lang=ko`,
