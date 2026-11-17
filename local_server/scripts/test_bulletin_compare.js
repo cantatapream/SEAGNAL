@@ -85,6 +85,22 @@ console.log('A2. 발표(발효 전) · 표기 차이');
         const b = C.pendingOf({ P: { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '10일 밤(21시~24시)', next: { type: '풍랑', level: '경보', tmEf: '2025년 01월 09일 10시 00분', efMs: 9e15 } } }, 0).P;
         ok('D2 MMIS 「주의보 + upcoming 경보(발효 전)」 = 통보문 「주의보 + next 경보」 → 같음', m.up.kind === 'pending' && C.sig(m) === C.sig(b), [C.sig(m), C.sig(b)]);
     }
+    {   // 주의보 해제 → 곧바로 예비: 그 예비를 다가오는 특보로 알린 적이 없으면 해제 + 발표(부산 2025 2-70호 — 같은 1분에 겹쳐 발표가 빠졌다, 2026-11-17)
+        const os = require('os'), fs2 = require('fs'), path2 = require('path');
+        const F = { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '2025년 02월 24일 12시 00분', tmFc: '', tmEf: '' };
+        const Yb = { parent: 'P', kind: 'yebi', type: '풍랑', level: '예비', clr: '', tmFc: '2025년 02월 24일 12시 00분', tmEf: '2025년 02월 25일 오후(12시~18시)' };
+        const mk = (seq) => { const dir = fs2.mkdtempSync(path2.join(os.tmpdir(), 'bcmp-rel-')); let i = 0; const c = C.createCompare({ getBulletin: () => ({ zones: seq[Math.min(i, seq.length - 1)] }), getMmis: () => ({}), getMmisAt: () => '', getPushes: () => [], now: () => T0 + i * 60e3, dir });
+            for (i = 0; i < seq.length; i++) c.run(); return c.days().flatMap((d) => c.readDay(d)).filter((e) => e.kind === 'virtual_push').map((e) => e.templateId + ':' + e.target); };
+        const r1 = mk([{ P: F }, { P: Yb }]);
+        ok('같은 1분에 해제와 새 예비가 겹침(다가오는 특보로 알린 적 없음) → 해제 + 발표', r1.includes('release:P') && r1.includes('publish:P'), r1);
+        const r2 = mk([{ P: F }, { P: Object.assign({}, F, { upYebi: { type: '풍랑', level: '예비', tmEf: Yb.tmEf } }) }, { P: Yb }]);
+        ok('먼저 다가오는 특보로 「발표」를 냈으면, 해제 때는 해제만(발표 중복 없음)', r2.filter((x) => x === 'publish:P').length === 1 && r2[r2.length - 1] === 'release:P', r2);
+        const Fc = Object.assign({}, F, { parent: 'P' }), Ycc = Object.assign({}, Yb, { parent: 'P' });
+        const r3 = mk([{ P: F, P중연안바다: Fc }, { P: Object.assign({}, F, { upYebi: { type: '풍랑', level: '예비', tmEf: Yb.tmEf } }), P중연안바다: Fc }, { P: Yb, P중연안바다: Ycc }]);
+        ok('부모 예비를 이미 알렸으면 자식 해역 몫(추가 발표)도 따로 안 냄', !r3.some((x) => x.startsWith('child_prelim')), r3);
+        const r4 = mk([{ P: F, P중연안바다: Fc }, { P: Yb, P중연안바다: Ycc }]);
+        ok('알린 적 없으면 부모 = 발표, 자식 = 추가 발표', r4.includes('publish:P') && r4.includes('child_prelim:P중연안바다'), r4);
+    }
     {   // 배포 순간: 옛 저장본(ver 없음 — 다가오는 특보 모름)에 up 이 한꺼번에 「새로 나타남」으로 잡혀 가짜 바뀜·푸시가 쏟아지면 안 된다(2026-11-17)
         const os = require('os'), fs2 = require('fs'), path2 = require('path');
         const dir = fs2.mkdtempSync(path2.join(os.tmpdir(), 'bcmp-up-'));

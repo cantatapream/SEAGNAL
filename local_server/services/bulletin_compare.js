@@ -330,6 +330,18 @@ function createCompare({
                     const par = (cur || prev).parent;
                     const tp = templateOf(u, prev, cur, B[par], par !== u && sig(st.bulletin[par]) !== sig(B[par]));
                     if (tp) { const k = [tp.templateId, tp.typeName, tp.level, tp.prevLevel || ''].join('|'); (virtual[k] = virtual[k] || Object.assign({ items: [] }, tp)).items.push({ zones: [u], tmFc: (cur || prev).tmFc, tmEf: (cur || prev).tmEf, tmYn: (cur || prev).clr, oldTime: tp.oldTime, newTime: tp.newTime }); }
+                    // 정식 특보가 끝나고 곧바로 예비로 넘어갔는데, 그 예비를 「다가오는 특보」로 알린 적이 없으면 해제와 함께 발표도 낸다.
+                    //   1분마다 보므로 새 예비 통보문과 해제 시각이 같은 1분 안이면 「주의보 → 예비」가 한 번에 바뀌어 해제만 나가고 예비 발표가 빠졌다
+                    //   (부산 2025 2-70호: 예비 2-11호 11:59:20 · 해제 12:00). 사용자 2026-11-17 「네가 말한 고칠 내용으로 진행」. 알렸는지는 부모의 앞 다가오는 특보로 본다(자식은 다가오는 칸이 없음).
+                    if (prev && prev.kind === 'formal' && cur && cur.kind === 'yebi') {
+                        const upBefore = st.bulletin[par] && st.bulletin[par].up;
+                        const announced = upBefore && upBefore.kind === 'yebi' && upBefore.type === cur.type && winKey(upBefore.tmEf) === winKey(cur.tmEf);
+                        if (!announced) {
+                            const t2 = { templateId: par !== u && B[par] ? 'child_prelim' : 'publish', typeName: cur.type, level: '주의보' };
+                            const k2 = [t2.templateId, t2.typeName, t2.level, ''].join('|');
+                            (virtual[k2] = virtual[k2] || Object.assign({ items: [] }, t2)).items.push({ zones: [u], tmFc: cur.tmFc, tmEf: cur.tmEf, tmYn: cur.clr });
+                        }
+                    }
                 }
             }
             // 통보문 쪽 「다가오는 특보」(up = 다음 정식 · 예비): 나타나거나 바뀌면 앱 UPCOMING_CHANGE 처럼(격상/격하 발표 · 발표 · 발효시각 변경·연장).
