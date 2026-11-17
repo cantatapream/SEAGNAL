@@ -87,8 +87,8 @@ console.log('A2. 발표(발효 전) · 표기 차이');
     }
     {   // 주의보 해제 → 곧바로 예비: 그 예비를 다가오는 특보로 알린 적이 없으면 해제 + 발표(부산 2025 2-70호 — 같은 1분에 겹쳐 발표가 빠졌다, 2026-11-17)
         const os = require('os'), fs2 = require('fs'), path2 = require('path');
-        const F = { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '2025년 02월 24일 12시 00분', tmFc: '', tmEf: '' };
-        const Yb = { parent: 'P', kind: 'yebi', type: '풍랑', level: '예비', clr: '', tmFc: '2025년 02월 24일 12시 00분', tmEf: '2025년 02월 25일 오후(12시~18시)' };
+        const F = { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '2025년 02월 24일 12시 00분', tmFc: '', tmEf: '', issueMs: 1000, inMs: 1000 };   // 주의보를 낸 통보문 = 1000
+        const Yb = { parent: 'P', kind: 'yebi', type: '풍랑', level: '예비', clr: '', tmFc: '2025년 02월 24일 12시 00분', tmEf: '2025년 02월 25일 오후(12시~18시)', inMs: 2000 };   // 예비 목록 = 그보다 나중(2000)
         const mk = (seq) => { const dir = fs2.mkdtempSync(path2.join(os.tmpdir(), 'bcmp-rel-')); let i = 0; const c = C.createCompare({ getBulletin: () => ({ zones: seq[Math.min(i, seq.length - 1)] }), getMmis: () => ({}), getMmisAt: () => '', getPushes: () => [], now: () => T0 + i * 60e3, dir });
             for (i = 0; i < seq.length; i++) c.run(); return c.days().flatMap((d) => c.readDay(d)).filter((e) => e.kind === 'virtual_push').map((e) => e.templateId + ':' + e.target); };
         const r1 = mk([{ P: F }, { P: Yb }]);
@@ -100,6 +100,12 @@ console.log('A2. 발표(발효 전) · 표기 차이');
         ok('부모 예비를 이미 알렸으면 자식 해역 몫(추가 발표)도 따로 안 냄', !r3.some((x) => x.startsWith('child_prelim')), r3);
         const r4 = mk([{ P: F, P중연안바다: Fc }, { P: Yb, P중연안바다: Ycc }]);
         ok('알린 적 없으면 부모 = 발표, 자식 = 추가 발표', r4.includes('publish:P') && r4.includes('child_prelim:P중연안바다'), r4);
+        // 적대검증 2026-11-17 D1 — 정식 특보보다 먼저 나온 목록의 「옛 예비」(그 정식으로 넘어간 것)는 해제 때 다시 알리지 않는다(수도권 2025-10-27 06:00)
+        const r5 = mk([{ P: F }, { P: Object.assign({}, Yb, { inMs: 500 }) }]);
+        ok('D1 정식보다 먼저 나온 옛 예비가 해제 뒤 남아도 「발표」를 안 냄(해제만)', r5.includes('release:P') && !r5.some((x) => /^publish|^child_prelim/.test(x)), r5);
+        // D2 — 알린 다가오는 예비(25일 오후)가 해제와 같은 1분에 25일 밤으로 바뀜 → 발표가 아니라 연장
+        const r6 = mk([{ P: F }, { P: Object.assign({}, F, { upYebi: { type: '풍랑', level: '예비', tmEf: Yb.tmEf, inMs: 2000 } }) }, { P: Object.assign({}, Yb, { tmEf: '2025년 02월 25일 밤(18시~24시)' }) }]);
+        ok('D2 알린 다가오는 예비가 해제와 같은 1분에 더 늦은 시간창으로 → 「발효 예정시각 연장」(발표 아님)', r6.includes('ef_extend:P') && r6.filter((x) => x === 'publish:P').length === 1, r6);
     }
     {   // 배포 순간: 옛 저장본(ver 없음 — 다가오는 특보 모름)에 up 이 한꺼번에 「새로 나타남」으로 잡혀 가짜 바뀜·푸시가 쏟아지면 안 된다(2026-11-17)
         const os = require('os'), fs2 = require('fs'), path2 = require('path');
