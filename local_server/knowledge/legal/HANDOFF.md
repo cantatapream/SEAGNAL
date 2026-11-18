@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 18:52 KST] ✅완료 — 📋 통보문 팝업 — PC 에서 PDF 를 팝업에 바로 띄우기(구글 문서 뷰어 우회)
+브랜치 claude/festive-cerf-9hm8mq 커밋 0f66e74a + 이 기록. [한 일] client/js/forecast/alerts/alert_history.js canShowPdfInline — navigator.pdfViewerEnabled 가 true 이고 휴대폰·태블릿·앱(Capacitor)이 아니면 PDF 주소를 iframe 에 바로(#navpanes=0&view=FitH), 그 밖에는 종전처럼 구글 문서 뷰어. 서버·특보 계산 안 건드림. [원인] 못 잡음 — 실패 주소는 구글 문서 뷰어이고 이 환경에서는 재현 안 됨(처음 여는 PDF 61건 전부 정상). [확인] test_bulletin_status 104/0 · 실제 로컬 앱: PC 조건 → iframe 주소 = PDF, 브라우저 PDF 보기가 뜸(다운로드 없음·화면 확인) / 안드로이드·아이폰 조건 → 구글 뷰어 그대로. [verify_all] ⚠1건 실패: test_silent_catch 「server — io 35 > 기준선 34」. 이번 변경 탓이 아님 — 새로 잡힌 것은 local_server/services/subscriber_audit.js:228 의 messaging.send catch(PR #1503, 다른 세션의 구독자 점검 작업). 그 PR 의 CI(run 1184)와 병합 뒤 main CI(run 1185)가 이미 같은 까닭으로 실패 중이고, 그 앞 main(#1501 병합, run 1181)은 통과였다. 이번 변경은 client JS·검사·문서뿐이라 server 수치를 못 바꾼다. 그 밖의 ❌ 줄은 직전 통과 실행과 같음. 그 catch 는 오류 코드를 세는 의도된 것(죽은 등록표 판정)으로 보이나 다른 세션의 푸시 쪽 코드라 손대지 않음 — 기준선 갱신 여부는 사용자·그 세션 몫. [다음] 사용자 승인 시 PR→main(본선 게이트가 빨간 상태임을 알림). 배포 뒤 PC 에서 처음 여는 통보문이 바로 뜨는지 확인.
+
+
 ### [2026-11-18 18:29 KST] 🟢착수 — 📋 통보문 팝업 — PC 에서 PDF 를 팝업에 바로 띄우기(구글 문서 뷰어 우회)
 배포 뒤 사용자 보고 2026-11-18: PC(엣지)에서 특보구역별로 통보문을 처음 열면 팝업이 비고 「gview — 다운로드 할 수 없음·파일 없음」, 다시 열면 정상. 「휴대폰에서는 정상적으로되는데 pc에서 문제발생」 → 「진행해볼래 ?」. 확인: 실패 주소는 구글 문서 뷰어(docs.google.com/gview)이고 우리 코드에 PC/휴대폰 분기는 없었다. 여기서는 재현 못 함(PC 꼴 브라우저로 처음 여는 PDF 61건 전부 정상) — 원인 미확정. 방법: client/js/forecast/alerts/alert_history.js canShowPdfInline — navigator.pdfViewerEnabled 가 true 이고 휴대폰·태블릿·앱(Capacitor)이 아니면 PDF 주소를 iframe 에 바로(#navpanes=0&view=FitH), 그 밖에는 지금처럼 구글 뷰어. 서버·특보 계산은 안 건드림.
 
