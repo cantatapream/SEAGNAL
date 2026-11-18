@@ -691,15 +691,12 @@
      * - 재클릭 시 이전 마커를 지우고 새 위치에 다시 표시
      */
     function _moveToMyLocation() {
-        if (!navigator.geolocation) {
-            alert('이 기기에서는 위치 서비스를 사용할 수 없습니다.');
-            return;
-        }
-
         var gpsBtn = document.getElementById('fishing-my-location-btn');
         if (gpsBtn) gpsBtn.classList.add('loading');
 
-        navigator.geolocation.getCurrentPosition(
+        // [2026-11-18] 진행 토스트(위치 확인 중 → 초록 체크 / 실패 문구) — js/shared/ui/locate_toast.js
+        //   위치 기능이 없는 기기·권한 거부·시간 초과는 모두 실패 토스트로 알린다(종전 alert 경고창 대신).
+        window.locateWithToast(
             function (pos) {
                 if (gpsBtn) gpsBtn.classList.remove('loading');
                 var coord = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
@@ -764,7 +761,6 @@
             function (err) {
                 if (gpsBtn) gpsBtn.classList.remove('loading');
                 console.warn('🎣 GPS 오류:', err.message);
-                alert('위치를 가져올 수 없습니다.\n위치 권한을 확인해 주세요.');
             },
             { enableHighAccuracy: true, timeout: 10000 }
         );

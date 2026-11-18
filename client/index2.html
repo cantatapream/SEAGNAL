@@ -5720,6 +5720,9 @@
     <script src="js/settings/zone_guide.js"></script>
     <script src="js/push/alert_push.js"></script>
     <script src="js/shared/ui/ui_modal.js"></script>
+    <!-- 내 위치(GPS) 버튼 진행 토스트 — 「위치정보를 확인하고 있어요」 스피너 → 초록 체크 → fade out (2026-11-18)
+         버튼을 누를 때 호출되므로 위치 버튼 처리 파일들보다 늦게 로드돼도 된다. -->
+    <script src="js/shared/ui/locate_toast.js"></script>
     <script src="js/core/app_init.js"></script>
     <script src="js/core/backbutton.js?v=TabKeep3_20261016"></script>
     <!-- AI 비서 바로가기 딥링크(?assistant=ocean&layer=...) → 해양종합정보 레이어 자동 활성화 -->

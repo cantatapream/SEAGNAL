@@ -116,6 +116,9 @@ function judge(pr, runs, ctx) {
         const out = outsideAuto(c.files);
         if (!Array.isArray(c.files) || out.length) return { ok: false, state: 'scope', why: '위키·원문 밖 파일을 고침: ' + (out.slice(0, 3).join(', ') || '(목록 없음)') + (out.length > 3 ? ` 외 ${out.length - 3}개` : ''), sha, how: 'button' };
     }
+    // mergeable 은 GitHub 가 늦게 채워 null 로 오래 남을 수 있다 — mergeable_state 「dirty」(충돌)도 충돌로 본다(2026-11-18 PR #1485: 충돌인데 앱이 「계산 중」으로 보였다).
+    //   충돌을 검사보다 먼저 본다 — 충돌한 PR 에는 GitHub 가 검사를 돌리지 않아(머지 ref 를 못 만듦) 「필수 검사 없음」으로 30분을 헛기다리다 넘겼다(2026-11-18 PR #1497).
+    if (pr.mergeable === false || pr.mergeable_state === 'dirty') return { ok: false, state: 'conflict', why: '충돌 — 이 PR 과 main 이 같은 파일(대개 HANDOFF.md 작업 기록)을 서로 다르게 고쳤습니다', sha, how: 'github' };
     const list = Array.isArray(runs) ? runs : [];
     const bad = list.filter((r) => r && r.status === 'completed' && BAD_CONCLUSIONS.has(r.conclusion));
     if (bad.length) return { ok: false, state: 'failed', why: '검사 실패: ' + bad.map((r) => String(r.name).slice(0, 40)).join(', '), sha };
@@ -124,8 +127,6 @@ function judge(pr, runs, ctx) {
     if (list.some((r) => r && r.status !== 'completed')) return { ok: false, state: 'pending', why: '검사 진행 중', sha, how: 'button' };
     if (req.some((r) => r.conclusion === 'skipped' || r.conclusion === 'neutral')) return { ok: false, state: 'skipped', why: '필수 검사가 돌지 않음(' + req.map((r) => r.conclusion).join(',') + ')', sha, how: 'github' };
     if (!req.every((r) => r.conclusion === 'success')) return { ok: false, state: 'pending', why: '검사 진행 중', sha, how: 'button' };
-    // mergeable 은 GitHub 가 늦게 채워 null 로 오래 남을 수 있다 — mergeable_state 「dirty」(충돌)도 충돌로 본다(2026-11-18 PR #1485: 충돌인데 앱이 「계산 중」으로 보였다).
-    if (pr.mergeable === false || pr.mergeable_state === 'dirty') return { ok: false, state: 'conflict', why: '충돌 — 이 PR 과 main 이 같은 파일(대개 HANDOFF.md 작업 기록)을 서로 다르게 고쳤습니다', sha, how: 'github' };
     if (pr.mergeable !== true) return { ok: false, state: 'pending', why: 'GitHub 가 머지 가능 여부를 계산 중', sha, how: 'button' };
     // 검사한 head 가 main 을 다 품지 않았으면(behind_by > 0) 머지 결과가 검사한 것과 달라진다 — 최신 main 을 얹고 다시 검사(재검토 중-C:
     //   커밋 시각 비교는 늦게 push 된 커밋을 놓쳤다). 모르면(behindBy 없음) 머지하지 않는다.
@@ -537,7 +538,8 @@ function createMerger({
                 if (r.state === 'merged' || r.state === 'closed') { p.status = r.state; disarm(p.number); }
                 // 사람 몫(needs_human) PR 이 충돌이면 자동 반영 세션에 풀기를 맡긴다(지켜보던 PR 은 tick 이 맡는다).
                 //   이미 「GitHub 에서 확인」으로 넘긴 PR(how github — 못 풂·3시간·되풀이)은 다시 맡기지 않는다(적대검증 중2 — 방을 열 때마다 푸시가 갔다).
-                else if (r.state === 'conflict' && p.status === 'needs_human' && p.how === 'button' && conflictHook) await handleConflict(p, r);
+                //   한 번도 충돌 풀기를 맡긴 적 없는 PR 은 「GitHub 에서 확인」 몫이어도 맡긴다(예: 위 순서 고침 전 「필수 검사 30분 없음」으로 넘어간 충돌 PR — #1497).
+                else if (r.state === 'conflict' && p.status === 'needs_human' && (p.how === 'button' || !p.conflictTries) && conflictHook) await handleConflict(p, r);
             } catch (e) { console.error('[nariya_pr_merge] PR #' + p.number + ' 새로 읽기 실패:', e && e.message); }
             finally { busy.delete(p.number); }
         }));

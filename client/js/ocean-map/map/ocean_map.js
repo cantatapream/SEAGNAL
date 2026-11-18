@@ -1579,11 +1579,12 @@
      * [연계]
      *  - index2.html #ocean-myloc-btn 의 click 이벤트에서 호출
      *  - Capacitor 네이티브 권한은 사용자의 geolocation API 가 직접 관리
+     *  - 진행 토스트는 js/shared/ui/locate_toast.js window.locateWithToast 가 띄운다(2026-11-18)
      */
     function goToMyLocation() {
-        if (!navigator.geolocation) return;
-
-        navigator.geolocation.getCurrentPosition(
+        // [2026-11-18] 진행 토스트(위치 확인 중 → 초록 체크 / 실패 문구) — js/shared/ui/locate_toast.js
+        //   위치 기능이 없는 기기도 실패 토스트로 알린다(종전에는 아무 표시 없이 끝났다).
+        window.locateWithToast(
             function (pos) {
                 var lon = pos.coords.longitude;
                 var lat = pos.coords.latitude;

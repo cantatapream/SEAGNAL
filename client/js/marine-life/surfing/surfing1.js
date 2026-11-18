@@ -306,8 +306,9 @@
      * GPS 위치로 지도 이동 + "내 위치" 마커 표시
      */
     function _goToSurfingMyLocation(map) {
-        if (!navigator.geolocation) return;
-        navigator.geolocation.getCurrentPosition(
+        // [2026-11-18] 진행 토스트(위치 확인 중 → 초록 체크 / 실패 문구) — js/shared/ui/locate_toast.js
+        //   위치 기능이 없는 기기도 실패 토스트로 알린다(종전에는 아무 표시 없이 끝났다).
+        window.locateWithToast(
             function (pos) {
                 var lon = pos.coords.longitude;
                 var lat = pos.coords.latitude;
