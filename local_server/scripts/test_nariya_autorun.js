@@ -69,7 +69,7 @@ function fakeFetch() {
 }
 function fakePush() { const p = async (title, body, data) => { p.sent.push({ title, body, data }); return { sent: 1, failed: 0 }; }; p.sent = []; return p; }
 /** 가짜 머지 담당 — 실제 nariya_pr_merge(볼륨 파일·GitHub)를 건드리지 않게. 결정 필요 0건이면 auto. */
-function fakeMerger() { const m = { tracked: [], opts: [], track(d, o) { m.tracked.push(d); m.opts.push(o || {}); if (m.refuse) return { tracked: false, why: m.refuse }; return { tracked: true, mode: (d.needs_decision || []).length || !(o && o.owner) ? 'human' : 'auto' }; } }; return m; }
+function fakeMerger() { const m = { tracked: [], opts: [], conflictCalls: [], answerCalls: [], conflictResult(f, d) { m.conflictCalls.push([f, d]); }, answersResult(h, d) { m.answerCalls.push([h, d]); }, track(d, o) { m.tracked.push(d); m.opts.push(o || {}); if (m.refuse) return { tracked: false, why: m.refuse }; if (m.reply) return m.reply; const human = (d.needs_decision || []).length || !(o && o.owner); return human ? { tracked: true, mode: 'human', how: 'button', status: 'waiting' } : { tracked: true, mode: 'auto', status: 'waiting' }; } }; return m; }
 function make(o = {}) {
     const time = o.time || fakeTime(), f = o.fetch || fakeFetch(), push = o.push || fakePush(), file = o.file || newFile(), merger = o.merger || fakeMerger();
     const ar = A.createAutorun({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: f, push, env: o.env || PROD_ENV(), adminCheck: o.adminCheck, prMerger: merger });
@@ -461,7 +461,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.equal(d.late, true); assert.equal(d.lockMismatch, false);
         const last = push.sent[push.sent.length - 1];
         assert.ok(/^\[늦은 완료\]/.test(last.title) && !/잠금과 다른/.test(last.title), last.title);
-        assert.ok(last.body.includes('PR: ' + PR(6)), 'PR 링크를 본문 글로(F11)');
+        assert.ok(!last.body.includes('http'), 'PR 을 맡았으면 주소는 앱 카드에 — 푸시엔 안 넣는다(2026-11-18 사용자 「영문이라던가 … 굳이 필요가 없지 않니」): ' + last.body);
     });
 
     await check('[§5 #21] 3시간 만료로 풀린 run 이 다시 claim → 원래 출처·「작업 시작」 여부를 이어받고 relocked:true · 그새 새 run 이 잠갔으면 busy', async () => {
@@ -627,17 +627,46 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const v = V({ run_id: 'ar-1', outcome: 'pr', summary: 'a‮b\u0007c‏d⁦e\nf' + '가'.repeat(5000), needs_decision: [...Array(30)].map(() => '‪' + '나'.repeat(500)).concat([5, null, '\u0001\u0002']) }).value;
         assert.ok(v.summary.startsWith('abcde\nf'), JSON.stringify(v.summary.slice(0, 10))); assert.equal(v.summary.length, 2000);
         assert.equal(v.needs_decision.length, 20); assert.ok(v.needs_decision.every((x) => x.length === 300 && !x.includes('‪')));
-        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], amend_ids: [], fresh_ids: [], mok_ids: [], deferred_amend_ids: [], deferred_fresh_ids: [], deferred_mok_ids: [] });
+        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], amend_ids: [], fresh_ids: [], mok_ids: [], deferred_amend_ids: [], deferred_fresh_ids: [], deferred_mok_ids: [], conflict_ids: [], deferred_conflict_ids: [], answer_ids: [], deferred_answer_ids: [] });
         const { ar, push } = make();
         ar.claim({ run_id: 'c1' });
         const r = ar.done({ run_id: 'c1', outcome: 'nope' });
         assert.equal(r.ok, false); assert.equal(r.status, 400);
         assert.equal(ar.status().lock.run_id, 'c1'); assert.equal(push.sent.length, 0);
         await quiet(async () => { ar.done({ run_id: 'c1', outcome: 'pr', pr_url: PR(7), needs_decision: ['이름 바뀐 고시 동일성', '승격 여부'], summary: '개정 3건 반영' }); await flush(); });
-        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(push.sent[0].title) && /결정 필요 2건/.test(push.sent[0].title), push.sent[0].title);
-        assert.ok(/「자동반영」 방에서 내용을 확인하고 \[머지\] 버튼/.test(push.sent[0].body), '본문에 앱 머지 버튼 안내(사용자 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시」)');
+        assert.ok(/반영 끝 · 검사 중/.test(push.sent[0].title) && /결정 필요 2건/.test(push.sent[0].title) && !/머지 버튼을 눌러/.test(push.sent[0].title), push.sent[0].title);
+        assert.ok(/검사\(약 20분\)가 끝나면 「앱에서 머지 버튼을 눌러 주세요」 알림을 다시 보냅니다/.test(push.sent[0].body), '검사 중엔 버튼이 잠겨 있다 — 초록이 되면 머지 담당이 다시 알린다(2026-11-18): ' + push.sent[0].body);
+        assert.ok(!/개정 3건 반영|http/.test(push.sent[0].body), '세션 요약·주소는 푸시에 안 넣는다(앱 카드에 있음)');
         assert.equal(push.sent[0].data.pr_url, PR(7));
         assert.ok(Object.values(push.sent[0].data).every((x) => typeof x === 'string'), 'FCM data 는 전부 문자열');
+    });
+
+    await check('[§9.10] 충돌 — requestRun(conflict) 이 발사 글에 실림 · done 의 conflict_ids/deferred_conflict_ids 는 머지 담당에게 · 「충돌 N건 풀었음 · 검사 중」 푸시 · 못 푼 것은 본문에 · 못 푼 PR 은 14일 쉼 · 경로는 자동화 열쇠', async () => {
+        const c = make();
+        await quiet(async () => { c.ar.requestRun('conflict', { ids: ['1485'] }); await c.time.advance(10 * MIN); });
+        assert.ok(/ conflict=1 answer=0$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
+        const id = c.ar.status().lock.run_id;
+        c.ar.noteServed('conflict', ['1485', '1490']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'nothing', conflict_ids: ['1485'], deferred_conflict_ids: ['1490'] }); await flush(); });
+        assert.deepEqual(c.merger.conflictCalls, [[['1485'], ['1490']]]);
+        const last = c.push.sent[c.push.sent.length - 1];
+        assert.ok(/충돌 1건 풀었음 · 검사 중/.test(last.title) && /PR #1485 의 작업 기록 충돌을 풀어/.test(last.body) && /PR #1490\)은 작업 기록 말고 다른 파일도 겹쳐/.test(last.body), last.title + ' / ' + last.body);
+        assert.equal(c.ar.requestRun('conflict', { ids: ['1490'] }).queued, false, '못 푼 PR 은 14일 쉼(같은 PR 로 다시 깨우지 않음)');
+        assert.equal(A.validateDone({ run_id: 'x', outcome: 'nothing', conflict_ids: ['bad id!'] }).ok, false);
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/router\.get\('\/api\/legal\/autorun\/conflicts', autorun\.requireAdminOrAutomation/.test(lj) && /noteServed\('conflict'/.test(lj), '충돌 목록 경로');
+    });
+    await check('[§9.11] 결정 필요 답 — requestRun(answer) 발사 글 · done 의 answer_ids/deferred_answer_ids 는 머지 담당에게 · 답만 처리한 nothing 도 알림 · 답 경로는 관리자만 저장·자동화 열쇠로 목록', async () => {
+        const c = make();
+        await quiet(async () => { c.ar.requestRun('answer', { ids: ['1485-1'] }); await c.time.advance(10 * MIN); });
+        assert.ok(/ answer=1$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
+        const id = c.ar.status().lock.run_id; c.ar.noteServed('answer', ['1485-1']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'nothing', answer_ids: ['1485-1'], summary: '답대로 도구를 고쳤습니다.' }); await flush(); });
+        assert.deepEqual(c.merger.answerCalls, [[['1485-1'], []]]);
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/router\.post\('\/api\/legal\/autorun\/prs\/:n\/answer', adminAuth\.requireAdminToken/.test(lj) && /router\.get\('\/api\/legal\/autorun\/answers', autorun\.requireAdminOrAutomation/.test(lj));
+        const cj = fs.readFileSync(path.join(__dirname, '../../client/js/ai-chat/ai_chat.js'), 'utf8');
+        assert.ok(/data-ans-send/.test(cj) && /\/answer'/.test(cj), '앱 답 칸');
     });
 
     // ── 상태 파일 방어(F17) ──────────────────────────────────────────────────
@@ -833,7 +862,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
     await check('[§8 #7] 원문결손(mok) — 대기·발사 글에 실림 · 내준 일·결정 필요·PR(inFlight) 규칙이 개정·신선도와 같음 · 결손 점검기가 자동으로 닫은 카드만 inFlight 에서 풀림 · 연결(사용자 「자동슈정」)', async () => {
         const c = make();
         await quiet(async () => { c.ar.requestRun('mok', { count: 3 }); await c.time.advance(10 * MIN); });
-        assert.ok(/ mok=3$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
+        assert.ok(/ mok=3 conflict=0 answer=0$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
         const id = c.ar.status().lock.run_id;
         c.ar.noteServed('mok', ['mok_a', 'mok_b', 'mok_c']);
         await quiet(async () => { c.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(9), mok_ids: ['mok_a'], deferred_mok_ids: ['mok_b'] }); });
@@ -878,15 +907,15 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const id = await fired(a);
         await quiet(async () => { a.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(21), summary: '개정 2건' }); await flush(); });
         assert.equal(a.merger.tracked.length, 1); assert.equal(a.merger.tracked[0].pr_url, PR(21));
-        const t = titles(a.push, /나리야 자동 반영 — PR 올림/);
-        assert.equal(t.length, 1); assert.ok(/검사 통과하면 자동 머지\(누를 것 없음\)/.test(t[0].title), t[0].title);
-        assert.ok(/서버가 자동으로 머지·배포/.test(t[0].body)); assert.equal(t[0].data.merge, 'auto');
+        const t = titles(a.push, /나리야 자동 반영 — 반영 끝 · 검사 중/);
+        assert.equal(t.length, 1, a.push.sent.map((x) => x.title).join('|'));
+        assert.ok(/서버가 자동으로 머지·배포합니다 — 누를 것 없습니다/.test(t[0].body), t[0].body); assert.equal(t[0].data.merge, 'auto');
         const b = make();
         const id2 = await fired(b);
         await quiet(async () => { b.ar.done({ run_id: id2, outcome: 'pr', pr_url: PR(22), needs_decision: ['고시 폴더'], summary: '신선도 1건' }); await flush(); });
         const h = b.push.sent[b.push.sent.length - 1];
-        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(h.title) && /결정 필요 1건/.test(h.title), h.title);
-        assert.ok(/「자동반영」 방에서 내용을 확인하고 \[머지\] 버튼/.test(h.body)); assert.equal(h.data.merge, 'human');
+        assert.ok(/반영 끝 · 검사 중/.test(h.title) && /결정 필요 1건/.test(h.title), h.title);
+        assert.ok(/「앱에서 머지 버튼을 눌러 주세요」 알림을 다시 보냅니다/.test(h.body) && /「자동반영」 방에서 볼 수 있습니다/.test(h.body), h.body); assert.equal(h.data.merge, 'human');
         const c = make();
         const id3 = await fired(c);
         await quiet(async () => { c.ar.done({ run_id: id3, outcome: 'failed', pr_url: PR(23), summary: 'x' }); c.ar.done({ run_id: 'other', outcome: 'nothing' }); await flush(); });
@@ -913,13 +942,21 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const b = make();
         await quiet(async () => { b.ar.done({ run_id: 'forged-1', outcome: 'pr', pr_url: PR(32) }); await flush(); });
         assert.equal(b.merger.opts[0].owner, false, '잠금 기록이 없는 run');
-        assert.ok(/앱에서 머지 버튼을 눌러 주세요/.test(b.push.sent[0].title), b.push.sent[0].title);
+        assert.ok(/반영 끝 · 검사 중/.test(b.push.sent[0].title) && /머지 버튼을 눌러 주세요」 알림을 다시/.test(b.push.sent[0].body), b.push.sent[0].title);
         const c = make();
         const id3 = await fired(c);
         await quiet(async () => { c.ar.done({ run_id: id3, outcome: 'pr', pr_url: 'https://github.com/evil/x/pull/1' }); await flush(); });
         assert.equal(c.merger.tracked.length, 0);
         const t = c.push.sent[c.push.sent.length - 1];
         assert.ok(/PR 을 맡지 못함 · GitHub 에서 확인해 주세요/.test(t.title) && /PR 주소를 읽지 못함/.test(t.body) && /카드가 없습니다/.test(t.body), t.title + ' / ' + t.body);
+        // 적대검증 중1 — 이미 맡은 PR 이 머지됨·사람 차례(지켜보지 않음)면 「검사 끝나면 알림」을 약속하지 않는다
+        for (const [st, re] of [['merged', /이미 머지됐습니다/], ['needs_human', /이미 사람 확인 차례/]]) {
+            const g = make(); g.merger.reply = { tracked: true, updated: true, mode: 'human', how: 'button', status: st };
+            const idg = await fired(g);
+            await quiet(async () => { g.ar.done({ run_id: idg, outcome: 'pr', pr_url: PR(35), needs_decision: ['x'] }); await flush(); });
+            const last = g.push.sent[g.push.sent.length - 1];
+            assert.ok(!/알림을 다시 보냅니다/.test(last.body) && re.test(last.body) && /앱에서 확인해 주세요/.test(last.title), st + ': ' + last.title + ' / ' + last.body);
+        }
         const d = make(); d.merger.refuse = '이미 맡은 PR';
         const id4 = await fired(d);
         await quiet(async () => { d.ar.done({ run_id: id4, outcome: 'pr', pr_url: PR(33) }); await flush(); });

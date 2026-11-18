@@ -9,13 +9,17 @@
  * 해류/바람/파고 데이터를 색상 그라디언트 + 파티클 애니메이션으로 표현합니다.
  * Windy 스타일의 세련된 시각화를 구현합니다.
  *
- * [오버레이 레이어] — 모두 배경 색상(히트맵) + 흰 파티클 트레일
+ * [오버레이 레이어] — 모두 배경 색상(히트맵) + 흰 파티클 트레일 + 수치 라벨(늘 켜짐)
  * - current: 해류 (ROMS 유향·유속) → 청색~빨강 배경 + 흰 파티클 (속도별 굵기)
+ *            + 일정 간격 흰 화살표(검정 테두리)·유속 값 라벨
  * - wind:    바람 (기상청 풍향·풍속) → 보라~빨강 배경 + 흰 파티클 (속도별 굵기)
+ *            + 색 경계 등치선·값 라벨
  * - wave:    파고 (해구 예보)        → 보라~빨강 배경 + 흰 파티클 (파향, 굵기 고정)
+ *            + 색 경계 등치선·값 라벨
  *
  * [연계 파일]
  * - ocean_map.js → oceanOverlayInit(), oceanOverlayRefresh(), oceanOverlayClear()
+ * - ocean_overlay_labels.js → window.OceanOverlayLabels (등치선·라벨 그리기 — 이 파일보다 먼저 로드)
  * - index.html → #ocean-overlay-canvas, .ocean-overlay-btn
  * ============================================================================
  */
@@ -90,6 +94,11 @@
     const BASE_PARTICLES = 1000;   // 줌 7 기준 입자 수 (실제는 줌에 따라 가변)
     let trailCanvas = null;        // 입자 트레일 전용 오프스크린 (페이드 누적)
     let trailCtx = null;
+    let labelCanvas = null;        // 수치 라벨 전용 오프스크린 (데이터·줌·단위 변경 때만 다시 그림)
+    let labelCtx = null;
+    let _contourSegs = [];         // 마지막 renderGridToOffscreen 이 찾은 등치선 조각 (단위 전환 때 재사용)
+    let _seaProbe = null;          // 라벨 자리 바다 판단용 작은 사본 캔버스 (gridCanvas 를 직접 읽지 않기 위해)
+    let _seaProbeCtx = null;
     let streamActive = false;      // 해류 시각화 ON/OFF (사용자 토글)
     let isMoving = false;          // 지도 이동/줌 중 플래그 (잔상 방지)
     let inited = false;            // oceanOverlayInit 1회 가드
@@ -217,6 +226,9 @@
         // 입자 트레일 전용 오프스크린 캔버스
         trailCanvas = document.createElement('canvas');
         trailCtx = trailCanvas.getContext('2d');
+        // 수치 라벨 전용 오프스크린 캔버스 (animate 가 히트맵·트레일 위에 합성)
+        labelCanvas = document.createElement('canvas');
+        labelCtx = labelCanvas.getContext('2d');
         inited = true;
 
         // 지도 이동/줌 시작 → 파티클 캔버스 숨기기 (잔상 방지)
@@ -326,8 +338,9 @@
                 if (!window.OceanSheet) window.OceanSheet = {};
                 if (!window.OceanSheet.state) window.OceanSheet.state = {};
                 window.OceanSheet.state.useKts = !window.OceanSheet.state.useKts;
-                // 1) 범례 라벨 즉시 갱신
+                // 1) 범례 라벨 즉시 갱신 + 지도 위 수치 라벨도 같은 단위로 (사용자 확정 2026-11-18)
                 updateLegend(activeLayer);
+                _renderLabels();
                 // 2) 슬라이더 말풍선은 시각만 표시 (단위 무관) — 갱신 불필요
                 // 3) 바텀시트 카드 — 시트 열려있으면 즉시 갱신
                 if (window.OceanSheet && typeof window.OceanSheet.renderCurrentWindValues === 'function') {
@@ -354,6 +367,7 @@
      */
     window.oceanOverlayUpdateLegend = function () {
         if (activeLayer) updateLegend(activeLayer);
+        _renderLabels();   // 바텀시트에서 단위를 바꿔도 지도 라벨이 같이 바뀌게
     };
 
     window.oceanOverlayRefresh = function (map) {
@@ -437,6 +451,7 @@
             var th = trailCanvas.height / (window.devicePixelRatio || 1);
             trailCtx.clearRect(0, 0, tw, th);
         }
+        _clearLabels();
         particles = [];
         gridData = null;
         lonList = null;
@@ -498,6 +513,13 @@
                 trailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
             }
         }
+        if (labelCanvas) {
+            labelCanvas.width = rect.width * dpr;
+            labelCanvas.height = rect.height * dpr;
+            if (labelCtx) {
+                labelCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
+        }
     }
 
     // ========================================================================
@@ -546,6 +568,7 @@
         if (gridCtx && gridCanvas) {
             gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
         }
+        _clearLabels();
         if (ctx && canvas) {
             var dpr = window.devicePixelRatio || 1;
             ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
@@ -1493,6 +1516,8 @@
         var tctx = tmp.getContext('2d');
         var idata = tctx.createImageData(imgW, imgH);
         var data = idata.data;
+        // 등치선용 값 격자 (색과 같은 값 — 자료 없는 칸은 NaN 이라 선이 거기서 끊긴다)
+        var values = new Float32Array(imgW * imgH).fill(NaN);
 
         for (var py = 0; py < imgH; py++) {
             for (var px = 0; px < imgW; px++) {
@@ -1515,6 +1540,7 @@
                 // crsp는 레이어별 네이티브 단위:
                 // current=cm/s, wind=m/s, wave=m → 각 COLOR_SCALES과 단위 일치
                 var value = samp.crsp;
+                values[py * imgW + px] = value;
 
                 var color = interpolateColor(scale, value);
                 var i = (py * imgW + px) * 4;
@@ -1537,8 +1563,118 @@
         gridCtx.drawImage(tmp, 0, 0, w, h);
         gridCtx.filter = 'none';
 
+        // 풍향·풍속 / 파고·파향: 색 경계 등치선 (사용자 확정 2026-11-18).
+        //   육지 펀치아웃 **전에** 그어야 육지 위 선이 함께 지워진다. 유향·유속은 등치선 없음([]).
+        _contourSegs = (window.OceanOverlayLabels)
+            ? window.OceanOverlayLabels.drawContourLines(gridCtx, values, imgW, imgH, STEP, activeLayer)
+            : [];
+
         // 육지 영역 펀치아웃: 해안선 내측 오버레이 제거
         applyLandMask(gridCtx, w, h);
+
+        // 수치 라벨 (늘 켜짐) — 육지가 지워진 gridCanvas 로 바다 여부를 판단하므로 펀치아웃 뒤에
+        _renderLabels();
+    }
+
+    /** 라벨 캔버스를 비운다. 예: 레이어 전환·오버레이 끄기 때. [연계] ← setActiveLayer, oceanOverlayClear */
+    function _clearLabels() {
+        _contourSegs = [];
+        if (labelCtx && labelCanvas) {
+            var dpr = window.devicePixelRatio || 1;
+            labelCtx.clearRect(0, 0, labelCanvas.width / dpr, labelCanvas.height / dpr);
+        }
+    }
+
+    /**
+     * 지도 위 수치 라벨을 labelCanvas 에 다시 그린다 (animate 가 매 프레임 합성).
+     * 예: 바람 → 등치선 위 "8m/s"·"12m/s" 알약 / 유향·유속 → 흰 화살표 + "0.6m/s"
+     * [연계] ← renderGridToOffscreen (데이터·줌 변경), 범례 클릭·oceanOverlayUpdateLegend (단위 전환)
+     *        → ocean_overlay_labels.js drawContourLabels / drawCurrentLabels
+     *        바다 판단은 육지 펀치아웃이 끝난 gridCanvas 의 투명도로 한다(색이 칠해진 곳 = 자료 있는 바다).
+     *        라벨은 그림일 뿐 누름 처리가 없다(사용자 확정 — "눌러도 반응없어야 해").
+     */
+    function _renderLabels() {
+        if (!labelCtx || !labelCanvas || !gridCanvas || !gridCtx || !mapRef || !window.OceanOverlayLabels) return;
+        var dpr = window.devicePixelRatio || 1;
+        var w = labelCanvas.width / dpr, h = labelCanvas.height / dpr;
+        labelCtx.clearRect(0, 0, w, h);
+        if (!gridData || !activeLayer || gridCanvas.width === 0 || gridCanvas.height === 0) return;
+        // gridCanvas 를 직접 getImageData 하면 브라우저가 그 캔버스를 "자주 읽힘"으로 보고 느린 쪽으로
+        //   돌려 매 프레임 합성이 무거워질 수 있다 → CSS px 크기 사본(_seaProbe)에 옮겨 그 사본만 읽는다.
+        var gw = Math.max(1, Math.round(w)), gh = Math.max(1, Math.round(h));
+        if (!_seaProbe) {
+            _seaProbe = document.createElement('canvas');
+            _seaProbeCtx = _seaProbe.getContext('2d', { willReadFrequently: true });
+        }
+        _seaProbe.width = gw; _seaProbe.height = gh;
+        _seaProbeCtx.drawImage(gridCanvas, 0, 0, gw, gh);
+        var alpha = _seaProbeCtx.getImageData(0, 0, gw, gh).data;
+        var isSea = function (x, y) {
+            var ix = Math.round(x), iy = Math.round(y);
+            if (ix < 0 || iy < 0 || ix >= gw || iy >= gh) return false;
+            return alpha[(iy * gw + ix) * 4 + 3] > 4;
+        };
+        var L = window.OceanOverlayLabels;
+        var avoid = _labelAvoidRects();
+        if (activeLayer !== 'current') {
+            L.drawContourLabels(labelCtx, _contourSegs, { layer: activeLayer, useKts: _useKts(), w: w, h: h, isSea: isSea, avoid: avoid });
+            return;
+        }
+        // 유향·유속: 화면에 보이는 위경도 범위(지도 회전 대비 네 귀퉁이 전부)와 1°의 화면 길이
+        var lons = [], lats = [];
+        [[0, 0], [w, 0], [0, h], [w, h]].forEach(function (pt) {
+            var c = mapRef.getCoordinateFromPixel(pt);
+            if (!c) return;
+            var ll = ol.proj.toLonLat(c);
+            lons.push(ll[0]); lats.push(ll[1]);
+        });
+        if (lons.length < 4) return;
+        var toPixel = function (lon, lat) { return mapRef.getPixelFromCoordinate(ol.proj.fromLonLat([lon, lat])); };
+        var cc = mapRef.getCoordinateFromPixel([w / 2, h / 2]);
+        if (!cc) return;
+        var cll = ol.proj.toLonLat(cc);
+        var p0 = toPixel(cll[0], cll[1]), p1 = toPixel(cll[0] + 1, cll[1]);
+        if (!p0 || !p1) return;
+        L.drawCurrentLabels(labelCtx, {
+            w: w, h: h,
+            lonRange: [Math.min.apply(null, lons), Math.max.apply(null, lons)],
+            latRange: [Math.min.apply(null, lats), Math.max.apply(null, lats)],
+            pxPerDeg: Math.hypot(p1[0] - p0[0], p1[1] - p0[1]),
+            useKts: _useKts(),
+            toPixel: toPixel,
+            sample: sampleAtLenient,   // 색과 같은 값 (crsp=cm/s, crdir=흘러가는 쪽)
+            // 방위(도) → 화면 각: 1km 앞 점을 투영해 잰다 (진북 회전 상태에서도 맞게)
+            screenAngle: function (lon, lat, deg) {
+                var c0 = ol.proj.fromLonLat([lon, lat]), r = deg * Math.PI / 180;
+                var a = mapRef.getPixelFromCoordinate(c0);
+                var b = mapRef.getPixelFromCoordinate([c0[0] + Math.sin(r) * 1000, c0[1] + Math.cos(r) * 1000]);
+                if (!a || !b) return r;
+                return Math.atan2(b[0] - a[0], -(b[1] - a[1]));
+            },
+            isSea: isSea,
+            avoid: avoid
+        });
+    }
+
+    /**
+     * 지도 위에 떠 있는 검색창·버튼의 화면 사각형을 모은다 (라벨이 그 밑에 깔려 안 보이는 일 막기).
+     * 예: [[372,8,416,390], [8,8,330,52], …] — 지도 화면 기준 px, 사방 4px 넉넉히
+     * @returns {number[][]} [x0, y0, x1, y1] 목록
+     * [연계] ← _renderLabels → ocean_overlay_labels.js (o.avoid)
+     *        대상: #ocean-search-container(위치 검색), #ocean-overlay-controls(오른쪽 버튼 줄),
+     *        .ocean-overlay-btn(왼쪽 위 해안도·안내, 진북 등 낱개 버튼), #ocean-legend(색 범례·시간 막대),
+     *        .warn-active-legend(특보 범례). 숨겨진 것(크기 0)은 뺀다.
+     */
+    function _labelAvoidRects() {
+        var vp = mapRef && mapRef.getViewport ? mapRef.getViewport().getBoundingClientRect() : null;
+        if (!vp) return [];
+        var out = [];
+        document.querySelectorAll('#ocean-search-container, #ocean-overlay-controls, #ocean-map-section .ocean-overlay-btn, #ocean-legend, .warn-active-legend').forEach(function (el) {
+            var r = el.getBoundingClientRect();
+            if (!r.width || !r.height) return;
+            out.push([r.left - vp.left - 4, r.top - vp.top - 4, r.right - vp.left + 4, r.bottom - vp.top + 4]);
+        });
+        return out;
     }
 
     /**
@@ -1787,6 +1923,7 @@
         ctx.clearRect(0, 0, w, h);
         if (gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
         if (trailCanvas) ctx.drawImage(trailCanvas, 0, 0, w, h);
+        if (labelCanvas) ctx.drawImage(labelCanvas, 0, 0, w, h);   // 수치 라벨은 맨 위
 
         // OL 에게 재렌더 요청.
         // → 첫 vector layer 의 prerender 이벤트가 발생하고, 그 시점에
