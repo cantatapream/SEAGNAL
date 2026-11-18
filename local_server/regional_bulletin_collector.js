@@ -274,6 +274,15 @@ async function fetchBulletinBody(officeCode, reportId) {
  * 본문을 AI(관리자 설정 ③ 순서 — 기본 Gemini)에 보내 { summary } 형식으로 정제 반환.
  * 실패(키 없음/쿨다운/JSON 파싱 오류 등) 시 null — 호출측이 캐시 저장 안 하고 다음 사이클에 재시도.
  */
+/**
+ * AI 가 닫는 괄호를 띄어 쓴 색칠 마크업을 바로잡는다 — 「{{warn:물결이} }」 → 「{{warn:물결이}}」.
+ * 왜: 2026-11-18 운영 /api/regional-forecast 에 이 꼴이 3곳(제주 2·부산 1) 실제로 있었고, 화면(renderMarineMarkup)과
+ *     브리핑(station_briefing_rules.stripMarkup)이 모두 「}}」만 알아봐 깨진 기호가 글자 그대로 보였다(사용자 「고쳐줘」).
+ * 예: fixMarkup('{{loc:해상}}에는 {{warn:물결이} } 높게') → '{{loc:해상}}에는 {{warn:물결이}} 높게'
+ * @param {string} s @returns {string} [연계] ← processOneOffice(저장 전 summary) · test_station_briefing
+ */
+function fixMarkup(s) { return typeof s === 'string' ? s.replace(/\{\{(loc|num|warn):([^{}]*)\}\s+\}/g, '{{$1:$2}}') : s; }
+
 async function analyzeBulletinWithAI(rawText) {
     const userPrompt = `## 통보문 본문\n${rawText}\n\n위 본문을 분석하여 마크업 적용 본문과 대표 기온을 JSON으로 반환하라.`;
 
@@ -486,12 +495,12 @@ async function processOneOffice(office) {
         const ai = await analyzeBulletinWithAI(rawText);
         let summary, aiColored, marineOutlooks;
         if (ai && ai.summary) {
-            summary = ai.summary;
+            summary = fixMarkup(ai.summary);
             aiColored = true;
             marineOutlooks = Array.isArray(ai.marineOutlooks) ? ai.marineOutlooks : [];
         } else if (cached && cached.summary && (cached.aiColored === true || /\{\{(loc|num|warn):/.test(cached.summary))) {
             // 재색칠 실패했지만 이미 색칠본을 보유 → 원문으로 후퇴하지 않고 기존 색칠본 유지.
-            summary = cached.summary;
+            summary = fixMarkup(cached.summary);
             aiColored = true;
             marineOutlooks = Array.isArray(cached.marineOutlooks) ? cached.marineOutlooks : [];
             console.log(`[RegionalBulletin] ${office.name}: AI 재색칠 실패 → 기존 색칠본 유지`);
@@ -651,6 +660,7 @@ module.exports = {
     findBulletinForOffice,
     fetchBulletinBody,
     analyzeBulletinWithAI,
+    fixMarkup,
     BULLETIN_OFFICES,
     REGIONAL_BULLETIN_AI_PROMPT,
 };
