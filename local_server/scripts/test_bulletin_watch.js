@@ -269,6 +269,19 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
         ok('전체 내려받기 = 마크다운 첨부', /markdown/.test(res2.h['Content-Type']) && /attachment/.test(res2.h['Content-Disposition']) && /# 통보문 관찰 기록/.test(res2.body));
     }
 
+    console.log('목록을 다 받은 마지막 시각(listsOkMs) — 📋 팝업이 통보문이 최신인지 볼 때');
+    {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bw-ok-')), f = fakeDmdw(); let t = T0;
+        const w = createWatch({ post: f.post, login: f.login, now: () => t, dir, sleep: async () => {}, gapMs: 0 });
+        ok('한 번도 못 받았으면 0', w.listsOkMs() === 0);
+        await w.run();
+        ok('목록 16개를 다 받은 회차의 시각', w.listsOkMs() === T0, w.listsOkMs());
+        t = T0 + 60e3; f.failList = '184|6'; await w.run();
+        ok('목록 하나라도 못 받은 회차엔 그대로(옛 시각)', w.listsOkMs() === T0, w.listsOkMs());
+        t = T0 + 120e3; f.failList = null; await w.run();
+        ok('다시 다 받으면 그 시각으로', w.listsOkMs() === T0 + 120e3 && createWatch({ post: f.post, login: f.login, now: () => t, dir }).listsOkMs() === T0 + 120e3);
+    }
+
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
