@@ -194,7 +194,10 @@ function validateDone(body) {
     const needs_decision = Array.isArray(body.needs_decision)
         ? body.needs_decision.filter((x) => typeof x === 'string').map((x) => cleanText(x, LIMITS.needsLen)).filter((x) => x.trim()).slice(0, LIMITS.needsCount)
         : [];
-    return { ok: true, value: { run_id: body.run_id, outcome: body.outcome, pr_url, summary, needs_decision, amend_ids: ids.amend_ids, fresh_ids: ids.fresh_ids, mok_ids: ids.mok_ids, deferred_amend_ids: ids.deferred_amend_ids, deferred_fresh_ids: ids.deferred_fresh_ids, deferred_mok_ids: ids.deferred_mok_ids, conflict_ids: ids.conflict_ids, deferred_conflict_ids: ids.deferred_conflict_ids, answer_ids: ids.answer_ids, deferred_answer_ids: ids.deferred_answer_ids } };
+    // needs_options(2026-11-18 사용자 「추천안을 버튼으로」) — 결정 필요마다 세션이 고른 답 보기 2~4개(첫 칸이 추천). needs_decision 과 같은 순서, 없으면 빈 칸.
+    const needs_options = needs_decision.map((_, i) => (Array.isArray(body.needs_options) && Array.isArray(body.needs_options[i])
+        ? body.needs_options[i].filter((x) => typeof x === 'string').map((x) => cleanText(x, 80)).filter((x) => x.trim()).slice(0, 4) : []));
+    return { ok: true, value: { run_id: body.run_id, outcome: body.outcome, pr_url, summary, needs_decision, needs_options, amend_ids: ids.amend_ids, fresh_ids: ids.fresh_ids, mok_ids: ids.mok_ids, deferred_amend_ids: ids.deferred_amend_ids, deferred_fresh_ids: ids.deferred_fresh_ids, deferred_mok_ids: ids.deferred_mok_ids, conflict_ids: ids.conflict_ids, deferred_conflict_ids: ids.deferred_conflict_ids, answer_ids: ids.answer_ids, deferred_answer_ids: ids.deferred_answer_ids } };
 }
 
 /**
@@ -702,7 +705,7 @@ function createAutorun({
         let prMode = null, prWhy = null, prHow = null, prStatus = null;
         if (d.outcome === 'pr' && d.pr_url) {
             try {
-                const t = (prMerger || require('./nariya_pr_merge').forDefault()).track({ pr_url: d.pr_url, run_id: d.run_id, needs_decision: d.needs_decision, summary: d.summary },
+                const t = (prMerger || require('./nariya_pr_merge').forDefault()).track({ pr_url: d.pr_url, run_id: d.run_id, needs_decision: d.needs_decision, needs_options: d.needs_options, summary: d.summary },
                     { owner: servedOf !== null && Number.isFinite(runSince), runSince });
                 prMode = t.tracked ? t.mode : null; prWhy = t.why || null; prHow = t.how || null; prStatus = t.status || null;
                 if (!t.tracked) prWhy = t.why || 'PR 을 맡지 못함';
