@@ -88,12 +88,14 @@
         //   ★「서버로 보내지 않는다」 근거(2026-11-18 코드 확인): 버튼 처리 함수 7곳(ocean_map.js goToMyLocation,
         //     fishing·swimming·scuba·mudflat·ripcurrent _moveToMyLocation, surfing1 _goToSurfingMyLocation,
         //     swell _bindEvents)은 navigator.geolocation 좌표로 지도 이동 + 내 위치 점 표시만 하고
-        //     fetch·저장 호출이 없다. 단 지도가 옮겨지면 보이는 지역의 지도 그림(해아름 WMS 는 우리 서버
-        //     /api/ocean/khoa-wms 를 거침)·물빠짐 자료를 다시 받으므로, 셋째 문단에 그 사실을 적었다.
+        //     fetch·저장 호출이 없다.
+        //   [뺀 문단 2026-11-18] 「지도가 옮겨지면 보이는 지역의 지도 그림을 새로 받아온다」는 문단을 한때 넣었다가
+        //     사용자 지적(「지도를 보고 있다는 것 까지는 아는것이 gps와는 관계가 없는것 아니니」)으로 뺐다 —
+        //     지도 그림 받기는 GPS 와 무관한 지도 화면의 기본 동작이고(손으로 옮겨도·처음 켜도 같다),
+        //     서버 프록시(routes/ocean1.js /api/ocean/khoa-wms)는 요청 범위를 기록·저장하지 않고 그림만 넘긴다.
         { id: 'myloc', label: '내 위치', bodyHtml:
             '<p><i class="fa-solid fa-circle-check"></i> 누르면 지금 내 위치로 지도를 옮기고, 그 자리를 <strong>파란 점</strong>으로 표시합니다.</p>'
           + '<p><i class="fa-solid fa-circle-check"></i> <strong>내 위치 정보는 폰 안에서만 처리되고 서버로 보내지 않습니다.</strong> 위치는 지도를 옮기고 점을 찍는 데에만 쓰입니다.</p>'
-          + '<p><i class="fa-solid fa-circle-check"></i> 지도가 그 자리로 옮겨지면 화면에 보이는 지역의 지도 그림을 새로 받아옵니다. 손가락으로 지도를 그 자리까지 옮겼을 때와 같은 동작입니다.</p>'
           + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 폰의 위치 기능이 꺼져 있거나 앱에 위치 권한을 허용하지 않으면 동작하지 않습니다.</p>',
           src: '이 기기(폰)의 위치 기능(GPS)' },
         { id: 'search', label: '위치 검색', body:
