@@ -3498,6 +3498,11 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(pl('가짜리 해변은 연안 활동에 유의해야 합니다.'), ['place:가짜리해변']);
         assert.deepStrictEqual(pl('가짜해수욕장은 연안 활동에 유의해야 합니다.'), ['place:가짜해수욕장']);
         assert.deepStrictEqual(pl('함목몽돌해변은 연안 활동에 유의해야 합니다.'), ['place:함목몽돌해변'], '붙여 쓴 이름은 그대로 검사');
+        // 독립 검토 상1 — 모양 말 앞에 이름다운 낱말이 있으면 그대로 검사(다른 관할 이름·지어낸 이름)
+        assert.deepStrictEqual(pl('강동 몽돌 해변과 망치 몽돌 해수욕장은 연안 활동에 유의해야 합니다.'), ['place:강동몽돌해변', 'place:망치몽돌해수욕장']);
+        assert.deepStrictEqual(pl('가짜리 모래 해변은 연안 활동에 유의해야 합니다.'), ['place:가짜리모래해변']);
+        assert.deepStrictEqual(pl('강동 몽돌 해변은 연안 활동에 유의해야 합니다.', ['강동 몽돌 해변']), [], '허용 이름이면 통과');
+        assert.deepStrictEqual(pl('남해 해변은 연안 활동에 유의해야 합니다.'), ['place:남해해변'], '「…해」로 끝나는 이름 앞 낱말은 그대로 검사(어미 목록은 못해·위해 등만)');
         // 위험지수 숫자 · 확인 못 한 자료
         const w = (t) => errs49({ land: t, sea: '해상은 평소 수준입니다.' }, si49({ land: {} }), /^word:(?:riskindex-number|missing-source)$/);
         assert.deepStrictEqual(w("넛출선착장은 연안 위험지수 67로 '높음'이 예상됩니다."), ['word:riskindex-number']);
@@ -3514,6 +3519,14 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(s0.land.top[0].changes, ['사람 평소의 1.4배', '풍랑주의보 예비특보(12~18시 발효 예정)']);
         assert.ok(s0.allowed_multipliers.land.includes('1.4배') && !s0.allowed_multipliers.land.includes('1.3배') && !s0.allowed_multipliers.land.some((x) => x.includes('1.1')), String(s0.allowed_multipliers.land));
         assert.ok(!/\d/.test(String(s0.land.top[0].source || '').replace(/'[^']*'/g, '')), '출처 꼬리표에 위험지수 숫자 없음: ' + s0.land.top[0].source);
+        // 독립 검토 중2·중3 — 서버 근거 줄(shown)·허용 숫자에도 위험지수 숫자·1.4배 미만 배수가 없다(화면 줄은 그대로)
+        const s1 = AI.stationInput(stationsFor(1)[0]), basis = (s1.shown.land && s1.shown.land.basis) || [];
+        assert.ok(basis.length && basis.every((l) => !/위험\s*지수\s*\d/.test(l)), '근거 줄 위험지수 숫자 없음: ' + basis.join(' | '));
+        const rawBasis = (R.buildSummary(stationsFor(1)[0]).land || {}).basis || [];
+        assert.ok(rawBasis.some((l) => /위험\s*지수\s*\d/.test(l)), '화면 줄(서버 summary)은 그대로 숫자가 있다');
+        const idxNums = rawBasis.flatMap((l) => [...l.matchAll(/위험\s*지수\s*(\d+)/g)].map((m) => m[1]));
+        const wR = (t) => AI.validateOverview({ ...good, land: t }, s1).errors.filter((e) => /^(?:number|word:riskindex)/.test(e));
+        if (idxNums.length) for (const t of ["연안 위험지수(" + idxNums[0] + ")는 '높음'입니다. ", "연안 위험지수 '높음'(" + idxNums[0] + ")입니다. "]) assert.ok(wR(t + good.land).length > 0, '다른 꼴의 위험지수 숫자도 실패: ' + t);
         // 지시문
         const pr = AI.buildPrompt(AI.batchInput([AI.stationInput(stationsFor(1)[0])], null));
         for (const k of ['S26 ', 'S27 ', 'S28 ', 'S29 ', 'S30 ']) assert.ok(pr.includes(k), k);
