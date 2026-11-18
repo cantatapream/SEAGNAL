@@ -68,7 +68,8 @@ function needed(trails, bulletins) {
 async function realFetch(url) {
     const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!r.ok || !/pdf/i.test(r.headers.get('content-type') || '')) return null;
-    return Buffer.from(await r.arrayBuffer());
+    const buf = Buffer.from(await r.arrayBuffer());
+    return buf.subarray(0, 5).toString('latin1') === '%PDF-' ? buf : null;
 }
 /** PDF → 쪽 그림(<prefix>-1.png, <prefix>-2.png …). 변환기가 없거나 실패하면 던진다. @returns {Promise<void>} */
 function realConvert(pdfFile, prefix) {
@@ -88,7 +89,9 @@ function createDocs({ dir = DIR, fetchPdf = realFetch, convert = realConvert } =
     const pagesIn = (files, key) => {
         // pdftoppm 은 쪽 수가 10 이상이면 번호를 0 으로 채운다(-01) — 숫자로 읽어 번호순으로
         const ns = files.map((f) => { const m = f.match(/^(.+)-(\d+)\.png$/); return m && m[1] === key ? +m[2] : 0; }).filter(Boolean).sort((a, b) => a - b);
-        return ns;
+        // 1쪽부터 빠짐없이 이어진 만큼만 — 변환이 끝나 이름을 바꾸는 도중(큰 번호부터 바꾼다)에는 1쪽이 아직 없어 「없음」으로 읽힌다
+        let n = 0; while (ns[n] === n + 1) n++;
+        return ns.slice(0, n);
     };
 
     /**
@@ -116,15 +119,31 @@ function createDocs({ dir = DIR, fetchPdf = realFetch, convert = realConvert } =
                         fs.writeFileSync(pdf + '.tmp', buf); fs.renameSync(pdf + '.tmp', pdf);
                         stat.fetched++;
                     }
-                    if (!pagesIn(files, key).length) { await convert(pdf, path.join(dir, key)); stat.converted++; }
+                    if (!pagesIn(files, key).length) {
+                        // 임시 이름(<열쇠>.part-N.png)으로 만든 뒤 제 이름으로 바꾼다 — 만드는 도중의 반쪽 그림이 나가지 않게.
+                        //   없으면: 변환 도중 팝업이 열리면 잘린 그림이 7일 캐시되고, 변환이 중간에 죽으면 1쪽만 남은 채 굳는다(별도 에이전트 검토 2026-11-18).
+                        const part = (f) => f.match(/^(.+)\.part-(\d+)\.png$/);
+                        for (const f of ls()) { const m = part(f); if (m && m[1] === key) fs.unlinkSync(path.join(dir, f)); }
+                        try { await convert(pdf, path.join(dir, key + '.part')); } catch (e) {
+                            // 변환기가 없는 것(ENOENT)이 아니면 PDF 가 깨진 것으로 보고 지운다 — 다음 분에 다시 받는다.
+                            //   없으면: 올라오는 도중의 PDF 를 한 번 받으면 그 통보문은 특보가 끝날 때까지 변환 실패만 되풀이한다.
+                            if (!(e && e.code === 'ENOENT')) fs.unlinkSync(pdf);
+                            throw e;
+                        }
+                        const made = ls().map(part).filter((m) => m && m[1] === key).sort((a, b) => b[2] - a[2]);   // 큰 번호부터 — 1쪽이 맨 나중
+                        for (const m of made) fs.renameSync(path.join(dir, m[0]), path.join(dir, key + '-' + m[2] + '.png'));
+                        if (made.length) stat.converted++;
+                    }
                 } catch (e) {
-                    console.warn('[bulletin_docs] 원문 받기·그림 바꾸기 실패(다음 분에 다시) — ' + key + ':', e && e.message);
+                    console.warn('[bulletin_docs] 원문 받기·그림 바꾸기 실패(다음 분에 다시) — ' + key + ':', String((e && e.message) || e).split('\n')[0]);
                 }
             }
             // 생애주기가 끝난 원문을 지운다 — 발자취에 없는 열쇠의 파일(끝나지 못한 임시 파일 포함)
-            files = ls();
+            //   통보문 자료가 하나도 없으면 지우지 않는다 — 특보가 다 끝난 것이 아니라 자료를 못 읽은 것이다(관찰기는 통보문을 10일 기억한다).
+            //   없으면: 관찰기 상태 파일을 한 번 못 읽으면 보관소를 통째로 비우고 다음 분에 전부 다시 받는다.
+            files = (bulletins || []).length ? ls() : [];
             for (const f of files) {
-                const m = f.match(/^(KTKO5\d_\d{12}_\d+_\d+)(?:\.pdf|\.pdf\.tmp|-\d+\.png)$/);
+                const m = f.match(/^(KTKO5\d_\d{12}_\d+_\d+)(?:\.pdf|\.pdf\.tmp|(?:\.part)?-\d+\.png)$/);
                 if (m && !need.has(m[1])) { try { fs.unlinkSync(path.join(dir, f)); stat.removed++; } catch (_) { /* 이미 없으면 지울 것도 없다 */ } }
             }
         } catch (e) {

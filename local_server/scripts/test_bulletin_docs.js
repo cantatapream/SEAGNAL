@@ -29,9 +29,14 @@ const b36 = Object.assign(B('6', '제11-36호', '2026-11-18 16:00', '202611/18/'
 
 /** 가짜 바깥: ready 에 든 주소만 PDF 를 준다. pages[열쇠] 만큼 쪽 그림을 만든다(기본 1). */
 function fake() {
-    const f = { ready: new Set(), pages: {}, fetched: [], converted: [], noConverter: false, boom: null };
+    const f = { ready: new Set(), pages: {}, fetched: [], converted: [], noConverter: false, boom: null, broken: false, dieAfter: 0 };
     f.fetchPdf = async (url) => { f.fetched.push(url); if (f.boom) throw new Error(f.boom); return f.ready.has(url) ? Buffer.from('%PDF-1.4 ' + url) : null; };
-    f.convert = async (pdf, prefix) => { if (f.noConverter) throw new Error('spawn pdftoppm ENOENT'); const key = path.basename(prefix), n = f.pages[key] || 1; f.converted.push(key); for (let i = 1; i <= n; i++) fs.writeFileSync(prefix + '-' + (n >= 10 ? String(i).padStart(2, '0') : i) + '.png', 'PNG' + i); };
+    f.convert = async (pdf, prefix) => {
+        if (f.noConverter) throw Object.assign(new Error('spawn pdftoppm ENOENT'), { code: 'ENOENT' });
+        if (f.broken) throw new Error('Command failed: pdftoppm\nSyntax Error: Couldn\'t find trailer dictionary');
+        const key = path.basename(prefix).replace(/\.part$/, ''), n = f.pages[key] || 1; f.converted.push(key);
+        for (let i = 1; i <= n; i++) { fs.writeFileSync(prefix + '-' + (n >= 10 ? String(i).padStart(2, '0') : i) + '.png', 'PNG' + i); if (f.dieAfter === i) throw new Error('killed'); }
+    };
     return f;
 }
 const url = (b) => D.docOf(b.result).url;
@@ -90,6 +95,38 @@ const url = (b) => D.docOf(b.result).url;
         await docs.sync({ trails: { x: { list: [ref(b36)] } }, bulletins: [b36] });
         ok('쪽 수가 10 이상이어도 번호순으로 읽고 찾는다', docs.pages(K36).length === 12 && docs.pages(K36)[9] === 10 && docs.file(K36, 3) === path.join(dir, K36 + '-03.png') && docs.file(K36, 12) === path.join(dir, K36 + '-12.png'));
         ok('열쇠·쪽 번호 꼴이 아니면 파일을 찾지 않는다(바깥 글자를 경로에 붙이지 않는다)', docs.file('../' + K36, 'pdf') === null && docs.file(K36 + '/../x', 1) === null && docs.file(K36, '1/../../x') === null && docs.file(K36, 0) === null && docs.pages('constructor').length === 0 && docs.file('', 'pdf') === null);
+    }
+
+    console.log('C2. 별도 에이전트 검토(2026-11-18)에서 나온 것');
+    {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bdoc3-')), f = fake(), docs = D.createDocs({ dir, fetchPdf: f.fetchPdf, convert: f.convert });
+        const trails = { x: { list: [ref(b36)] } }, bulletins = [b36];
+        f.ready.add(url(b36)); f.pages[K36] = 2;
+        // 올라오는 도중의 PDF 를 받았다 → 변환 실패
+        f.broken = true;
+        const s1 = await docs.sync({ trails, bulletins });
+        ok('PDF 가 깨져 변환이 실패하면 그 PDF 를 지운다(다음 분에 다시 받게)', s1.fetched === 1 && s1.converted === 0 && docs.file(K36, 'pdf') === null && docs.pages(K36).length === 0, s1);
+        f.broken = false;
+        const s2 = await docs.sync({ trails, bulletins });
+        ok('다음 분에 다시 받아 그림을 만든다 — 깨진 PDF 에 갇히지 않는다', s2.fetched === 1 && s2.converted === 1 && docs.pages(K36).length === 2 && f.fetched.length === 2, s2);
+        // 변환이 1쪽만 만들고 죽었다(서버 재시작·시간초과)
+        fs.unlinkSync(docs.file(K36, 1)); fs.unlinkSync(docs.file(K36, 2)); f.dieAfter = 1;
+        const s3 = await docs.sync({ trails, bulletins });
+        ok('변환이 도중에 죽으면 반쪽 그림을 내놓지 않는다(1쪽만 있는 통보문으로 굳지 않는다)', s3.converted === 0 && docs.pages(K36).length === 0 && docs.file(K36, 1) === null, [s3, fs.readdirSync(dir)]);
+        f.dieAfter = 0; fs.writeFileSync(docs.file(K36, 'pdf') || path.join(dir, K36 + '.pdf'), '%PDF-1.4');
+        f.ready.add(url(b36));
+        const s4 = await docs.sync({ trails, bulletins });
+        ok('다음 분에 처음부터 다시 만들어 두 쪽이 다 나온다(남은 임시 그림은 치운다)', s4.converted === 1 && JSON.stringify(docs.pages(K36)) === '[1,2]' && !fs.readdirSync(dir).some((x) => /\.part-/.test(x)), [s4, fs.readdirSync(dir)]);
+        // 이름을 바꾸는 도중(2쪽만 제 이름) — 1쪽이 없으면 「없음」
+        fs.renameSync(docs.file(K36, 1), path.join(dir, K36 + '.part-1.png'));
+        ok('쪽 그림은 1쪽부터 빠짐없이 이어진 만큼만 센다(2쪽만 있으면 없음)', docs.pages(K36).length === 0);
+        fs.renameSync(path.join(dir, K36 + '.part-1.png'), path.join(dir, K36 + '-1.png'));
+        // 관찰기 상태를 못 읽어 통보문 자료가 비었다
+        const s5 = await docs.sync({ trails: {}, bulletins: [] });
+        ok('통보문 자료가 하나도 없으면(자료를 못 읽음) 보관소를 비우지 않는다', s5.removed === 0 && docs.pages(K36).length === 2, s5);
+        const s6 = await docs.sync({ trails: {}, bulletins });
+        ok('통보문 자료는 있는데 발자취가 비면(특보가 다 끝남) 비운다', s6.removed === 3 && fs.readdirSync(dir).length === 0, s6);
+        ok('받은 것이 PDF 로 시작하지 않으면 받지 않는다(realFetch 글자 확인)', /buf\.subarray\(0, 5\)\.toString\('latin1'\) === '%PDF-' \? buf : null/.test(fs.readFileSync(path.join(__dirname, '..', 'services', 'bulletin_docs.js'), 'utf8')));
     }
 
     console.log('D. 이어진 곳(글자 확인)');
