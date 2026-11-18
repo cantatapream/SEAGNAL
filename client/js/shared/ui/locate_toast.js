@@ -6,7 +6,7 @@
  *       실패: 주황 느낌표 + 「위치를 확인하지 못했어요」 뒤 서서히 사라짐.
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : core/index2_patch.js 의 _computeBottomToastOffsetPx()(하단 토스트 높이 — 있으면 씀)
+ *  - 사용하는 파일 : core/index2_patch.js 의 _computeBottomToastOffsetPx()(공용 토스트 높이 — 최소 높이로만 씀)
  *  - 서버 API      : 없음 — 위치는 폰 안에서만 쓰고 서버로 보내지 않는다(안내 「내 위치」 탭 문구의 근거.
  *                    local_server/scripts/test_guide_tabs.js [2b] 가 이 파일에 서버 호출이 없음을 확인)
  *  - 마크업        : 동적 생성 #locate-toast (+ <style id="locate-toast-style">)
@@ -111,14 +111,82 @@
             icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation lt-fail"></i>';
             text.textContent = MSG_FAIL;
         }
+        _place();   // 문구가 바뀌면 크기가 달라지므로 자리를 다시 정한다
+    }
+
+    /**
+     * 화면에 떠 있는(absolute·fixed) 버튼·범례 같은 요소들의 위치를 모은다 — 토스트 자리 정하기용.
+     * [빼는 것] 지도 속 그림(OpenLayers 레이어·지도 위 마커/점 — .ol-overlaycontainer)·보이지 않는 것·
+     *   토스트들 자신. 지도 컨트롤(.ol-overlaycontainer-stopevent 안의 저작권 표시·축척)은 센다.
+     * @returns {DOMRect[]}
+     * [연계] ← _place()
+     */
+    function _floatingRects() {
+        var vw = window.innerWidth, vh = window.innerHeight, out = [];
+        var all = document.body.getElementsByTagName('*');
+        for (var i = 0; i < all.length; i++) {
+            var n = all[i];
+            var r = n.getBoundingClientRect();
+            if (r.width <= 0 || r.height <= 0 || r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) continue;
+            var cs = getComputedStyle(n);
+            if (cs.position !== 'absolute' && cs.position !== 'fixed') continue;
+            if (cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) continue;
+            if (n.closest('#' + TOAST_ID + ', #ocean-ui-toast, .ol-overlaycontainer, .ol-layers, .ol-layer')) continue;
+            out.push(r);
+        }
+        return out;
+    }
+
+    /**
+     * 토스트 자리를 정한다 — 화면 아래쪽 버튼·범례, 옆쪽 버튼 줄과 겹치지 않게.
+     * [사용자 2026-11-18] 「토스트 메시지가 좀 더위로 위치했으면 좋겠어. 다른 버튼들이나 인터페이스와 겹치지 않게」
+     *   화면마다 아래쪽·옆쪽에 있는 것이 다르다(범례·「…지수란?」 버튼·저작권 표시·축척·시간 막대·하단 탭·
+     *   해양생활 오른쪽 활동 버튼 줄·해양종합정보 오른쪽 버튼 열). 목록을 손으로 적으면 화면이 바뀔 때마다
+     *   낡으므로, 놓을 때마다 화면에 떠 있는 요소를 재서 정한다(요소 약 2,700개 · 2~8ms, iPhone SE·Pixel 7 측정).
+     *   ① 높이: 화면 아래 절반에서 시작하는 요소(화면 절반보다 큰 판은 제외) 중 가장 위쪽 끝보다 GAP 위.
+     *   ② 가로: 그 높이에 옆쪽 버튼 줄(폭이 화면 40% 이하인 요소)이 걸치면, 남은 가로 공간 가운데에 놓는다
+     *      (작은 화면에서 해양생활 오른쪽 「너울」 버튼과 겹치던 것). 남는 폭이 180px 보다 좁으면 가운데 그대로.
+     * [연계] ← _show() · _setState() 뒤(문구가 바뀌면 크기가 달라지므로 다시 놓는다)
+     */
+    function _place() {
+        var GAP = 12, SIDE_GAP = 8, MIN_W = 180;
+        var el = _el();
+        var vw = window.innerWidth, vh = window.innerHeight;
+        var rects = _floatingRects();
+
+        // ① 높이
+        var base = (typeof _computeBottomToastOffsetPx === 'function') ? _computeBottomToastOffsetPx() : 90;
+        var topMost = vh;
+        for (var i = 0; i < rects.length; i++) {
+            var r = rects[i];
+            if (r.top < vh * 0.5 || r.height > vh * 0.5) continue;
+            if (r.top < topMost) topMost = r.top;
+        }
+        var bottom = Math.max(base, Math.round(vh - topMost + GAP));
+        el.style.bottom = bottom + 'px';
+
+        // ② 가로 — 토스트가 차지할 세로 띠에 걸치는 옆쪽 요소를 피한다
+        el.style.left = '50%';
+        el.style.maxWidth = '';
+        var bandBottom = vh - bottom, bandTop = bandBottom - el.offsetHeight;
+        var L = 0, R = vw;
+        for (var j = 0; j < rects.length; j++) {
+            var q = rects[j];
+            if (q.width > vw * 0.4) continue;                         // 옆 줄이 아니라 넓은 판
+            if (q.bottom <= bandTop || q.top >= bandBottom) continue; // 그 높이에 안 걸침
+            if (q.left >= vw / 2) R = Math.min(R, q.left - SIDE_GAP);
+            else if (q.right <= vw / 2) L = Math.max(L, q.right + SIDE_GAP);
+        }
+        if ((L > 0 || R < vw) && R - L >= MIN_W) {
+            el.style.left = Math.round((L + R) / 2) + 'px';
+            el.style.maxWidth = Math.round(R - L) + 'px';
+        }
     }
 
     /** 하단 토스트를 띄운다(로딩 상태). 이미 떠 있으면 로딩으로 되돌린다. */
     function _show() {
         var el = _el();
         if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
-        var bottom = (typeof _computeBottomToastOffsetPx === 'function') ? _computeBottomToastOffsetPx() : 90;
-        el.style.bottom = bottom + 'px';
         _setState('loading');
         requestAnimationFrame(function () { el.classList.add('visible'); });
     }
