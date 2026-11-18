@@ -10,6 +10,7 @@
  *         ② 「해역별 특보현황」 관심해역 ⚙ — 관심해역을 안 골랐을 때만 보임 · 누르면 온보딩 관심해역 화면(안내 → 해역 → 지도)
  *            · 마치면 안내 띠 + ⚙ 가 흐려지며 사라짐 · [건너뛰기]는 닫기만.
  *         ③ 두 ⚙ 모두 머리 안 오른쪽 끝, 「활동지점 안전 브리핑」 ⚙ 와 같은 모양.
+ *         ④ 해역별 📋 통보문 팝업(alert_history.js showZoneBulletins)이 하드웨어 뒤로가기(core/backbutton.js PopupStack)로 닫힌다(2026-11-18).
  *         380px 스크린샷(안내 칸·설정 팝업·두 머리)을 GEAR_SHOT_DIR(없으면 임시 폴더)에 남긴다.
  * ----------------------------------------------------------------------------
  * [연계]
@@ -165,6 +166,20 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.equal(await p.locator('#office-settings-panel').count(), 0);
             await tap(p, '#regional-office-settings-btn'); await tap(p, '#regional-office-settings-btn');
             assert.equal(await p.locator('#office-settings-panel').count(), 0);
+            assert.equal(await p.evaluate(() => window.PopupStack.popLast()), false, '닫힌 뒤 스택에 남으면 안 된다');
+        });
+        // 2026-11-18 사용자 보고: 해역별 📋 통보문 팝업(showZoneBulletins)이 휴대폰 뒤로가기로 안 닫혔다 —
+        //   backbutton.js 가 옛 showAlertHistoryPopup 만 스택에 올리고 있었다. (/api/zone-bulletins 는 이 서버에서 404 →
+        //   팝업은 「불러오지 못했습니다」로 뜨지만 열림·닫힘을 보기엔 충분하다)
+        await check('📋 통보문 팝업도 하드웨어 뒤로가기(PopupStack)로 닫힌다 · ✕ 로 닫으면 스택에 안 남는다', async () => {
+            await p.evaluate(() => window.showZoneBulletins('경북북부앞바다'));
+            await p.waitForSelector('#alert-history-modal.show');
+            assert.equal(await p.evaluate(() => window.PopupStack.popLast()), true, '스택에 없으면 뒤로가기가 못 닫는다');
+            await p.waitForFunction(() => !document.getElementById('alert-history-modal'), null, { timeout: 2000 });
+            await p.evaluate(() => window.showZoneBulletins('경북북부앞바다'));
+            await p.waitForSelector('#alert-history-modal.show');
+            await tap(p, '#alert-history-modal .alert-history-close');
+            await p.waitForFunction(() => !document.getElementById('alert-history-modal'), null, { timeout: 2000 });
             assert.equal(await p.evaluate(() => window.PopupStack.popLast()), false, '닫힌 뒤 스택에 남으면 안 된다');
         });
         await check('⚙ 를 눌러도 아코디언이 접히지 않는다(머리 클릭으로 번지지 않음)', async () => {

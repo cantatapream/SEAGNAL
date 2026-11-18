@@ -1544,8 +1544,28 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ### [2026-11-18 23:44 KST] 🟢착수 — 통보문 원문 PDF 를 우리 서버에 보관 + 그림으로 변환해 팝업에 바로 표시(구글 문서 뷰어 걷어내기)
 배포 뒤 사용자 보고: PC 는 처음 열 때 빈 화면+「gview 다운로드 할 수 없음」(PR #1504 로 PC 는 PDF 를 바로 띄움), 휴대폰은 통보문이 안 뜨거나 한참 걸림(흰 화면). 흐름: 누르면 휴대폰이 구글 문서 뷰어에 PDF 를 보여 달라고 하고 구글이 기상청 파일 서버에서 가져와 그림으로 바꿔 줌 — 느리고 빈 화면이 나는 곳이 이 구간(이 환경에선 재현 안 됨: 휴대폰 꼴 23건 전부 1~3.5초). 사용자: 「차라리 통보문 원문 pdf 파일 자체를 우리서버에 보관, 요청시 우리서버에서 내려주고 -> 특보가 사라지면 삭제(생애주기 끝나면)하는방식은 어떠니?」 → 내 답: 휴대폰 앱은 PDF 를 스스로 못 그리므로 보관하면서 그림으로도 바꿔 두자 → 「좋아 그렇게 하자.」 방법: services/bulletin_docs(신규) — 통보문 기준 계산 뒤 매분, 발자취(trails)에 든 통보문의 PDF 를 기상청 공개 폴더에서 한 번 받아 data/bulletin_docs 에 두고 pdftoppm 으로 쪽 그림을 만든다. 발자취에서 빠지면(생애주기 끝) 지운다. /api/zone-bulletins 는 그림이 있으면 그 주소를 주고 화면은 우리 서버의 보기 페이지를 팝업에 띄운다(없으면 종전 순서: 바깥 PDF → 본문 글). Dockerfile 에 poppler-utils. 실제 앱 특보현황·푸시는 안 건드림.
 
+### [2026-11-19 00:42 KST] ✅완료 — 재시작 보충 수집은 오늘·내일만 (모레는 02:00 정기 수집에 맡김)
+완료(100%). server.js 기동 보충 묶음의 세 수집기에 dates=windowDatesKST(2) 전달. test_tide_edges 95/0·test_hazard_rocks_tide 41/0·test_tide_field_memory 5/0. tide_collector 를 가짜로 바꿔 끼운 실행: dates 넘기면 17앵커×2일=34건(11-19·11-20만), 안 넘기면 51건(11-21까지). verify_all.sh: 테스트 스위트 실패 0(151 통과), 실패를 세운 검사는 「V4 시뮬레이션」(+HTTP 스모크) — 로컬 서버를 띄우지 않아 접속 거부, 서버를 띄워 다시 재지 않음. ⚠실수 기록: 확인 과정에서 수집기를 그대로 불러 실제 TideBED 를 약 52회 호출했다(저장소 기본 키, 제주 17앵커×2일 — tide_field_collector 머리말 「라이브 수집을 함부로 트리거하지 말 것」 위반). 즉시 중단하고 생긴 파일(무시 대상 곡선 18개·tidebed_config.json)과 건드린 prev_peaks 3개를 개별 원복했다. 이후 확인은 가짜 tide_collector 로 했다. 알고 가는 것: 자정~02:00 모레 공백, 02:00 을 놓친 날은 다음 02:00까지 모레가 빈다. 다음: 배포 재시작 로그에서 「수집 대상 … 날짜 2」 확인, 11-19 02:50 예약 점검에서 02:00 정기 수집 확인. PR cantatapream/SEAGNAL#1512.
+
+
+### [2026-11-19 00:36 KST] ✅완료 — 📋 해역별 통보문 팝업 — 휴대폰 뒤로가기로 안 닫히던 것 수정 (브랜치 claude/festive-tesla-k7ie2s, PR #1506)
+사용자 보고(스크린샷: 경북북부앞바다 통보문 팝업) 「휴대폰 내장 뒤로가기버튼이 안먹힘」. 원인: core/backbutton.js 의 wrapAlertHistoryPopup 이 옛 showAlertHistoryPopup 만 PopupStack 에 올리고, 지금 📋 버튼(forecast/alerts/render.js)이 부르는 showZoneBulletins(alert_history.js)는 같은 #alert-history-modal 을 쓰면서도 스택에 안 올라갔다 → 뒤로가기가 닫을 팝업을 못 찾음. 수정: 같은 래퍼에서 showZoneBulletins 도 감싸 같은 id('alert-history-modal')로 push(닫기는 기존 closeAlertHistoryPopup 래퍼가 remove). index2.html backbutton.js 버전표 갱신(캐시). 시험: test_forecast_gear_ui 에 ④ 1건 추가 — 고치기 전 코드로 되돌려 돌리면 실패(30/2), 고친 뒤 32/0. simulate 회귀 없음, test_life_safety_tab_keep 25/0·test_risk_sheet_ui 35/0·test_station_briefing_ui 101/0·test_accident_sheet 200/0·check_order 통과.
+
+
+### [2026-11-19 00:15 KST] 🟢착수 — 재시작 보충 수집은 오늘·내일만 (모레는 02:00 정기 수집에 맡김)
+사용자 지시(2026-11-19 「그럼 재시작 때는 오늘·내일만 받도록 고쳐줘」). 배경: 11-19 00:02 배포 재시작 때 기동 보충이 새 모레(11-21) 340건을 받기 시작해 00:07 사용자 바텀시트 조석 요청과 겹쳤고 그 요청이 부분 데이터(1138/1440)→error 로 끝났다(운영 로그). server.js 기동 보충 묶음의 세 수집기에 dates=오늘·내일을 넘긴다. 알고 가는 것: 자정~02:00 모레 공백, 02:00 정기 수집을 놓친 날은 다음 02:00까지 모레가 빈다.
+
+
 ### [2026-11-18 23:58 KST] ✅완료 — 해상 기상 전망 깨진 색칠 표시 바로잡기 · 줄 간격 1.4 · 띄어쓰기 자리에서만 줄바꿈 · 안내 문장 줄바꿈
 완료(작업 브랜치, main 머지는 사용자 확인 대기): ①fixMarkup(수집기)·renderMarineMarkup·stripMarkup 이 「{{warn:…} }」 꼴도 처리 ②줄 간격 1.3→1.4(게시판·전망·안내) ③text_fit.js 낱말 안 글자 사이 WORD JOINER — 괄호·가운뎃점 자리 줄바꿈 막음(종전 「괄호 자리 허용」 판단을 사용자 지적으로 정정) ④안내 팝업 문장 끝(~다./~요.) 줄바꿈 ⑤지방청 카드 제목 keep-all. test_text_fit 28/0 · test_station_briefing 247/0 · verify_all(로컬 서버 + NODE_PATH) 「✅ 전체 검증 통과」, 총정리 블록 앞 실행과 같음(법률 위키 측정 줄만).
+
+
+### [2026-11-18 23:39 KST] ✅완료 — PC·모바일 브라우저에서 챗봇 '완료되면 알림 드릴까요?' 배너 숨김
+완료 100%. ai_chat.js: isNativeApp() 신설, doSend 에서 앱이 아니면 6초 동의 배너 타이머를 걸지 않고 notifyOnComplete=false 로 보냄(웹 푸시 미구현·설정창도 웹이면 푸시 탭 숨김이라 받을 길이 없다). 회귀 검사 2건 test_ask_context.js(372 PASS/0 FAIL, 옛 코드에선 실패 확인). MASTER_PLAN 191행대 항목3 아래 사용자 원문 병기. verify_all: 스위트 전부 통과, 실패 = V4 시뮬레이션·서버 스모크 21건(로컬 서버 미기동 ERR_CONNECTION_REFUSED). 다음: 실제 앱·PC 화면 확인은 배포 후 사용자 몫.
+
+
+### [2026-11-18 23:22 KST] 🟢착수 — PC·모바일 브라우저에서 챗봇 '완료되면 알림 드릴까요?' 배너 숨김
+사용자 지적: PC(모바일 브라우저 포함)는 푸시를 못 받는데 6초 넘는 답변에 알림 동의 배너가 뜬다. ai_chat.js doSend 의 배너 타이머·notifyOnComplete 를 Capacitor 네이티브 판정(isNativeApp)으로 거른다.
 
 
 ### [2026-11-18 22:43 KST] ✅완료 — 방재기상플랫폼 로그인이 안 되면 관리자 푸시
