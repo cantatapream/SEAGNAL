@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 23:58 KST] ✅완료 — 해상 기상 전망 깨진 색칠 표시 바로잡기 · 줄 간격 1.4 · 띄어쓰기 자리에서만 줄바꿈 · 안내 문장 줄바꿈
+완료(작업 브랜치, main 머지는 사용자 확인 대기): ①fixMarkup(수집기)·renderMarineMarkup·stripMarkup 이 「{{warn:…} }」 꼴도 처리 ②줄 간격 1.3→1.4(게시판·전망·안내) ③text_fit.js 낱말 안 글자 사이 WORD JOINER — 괄호·가운뎃점 자리 줄바꿈 막음(종전 「괄호 자리 허용」 판단을 사용자 지적으로 정정) ④안내 팝업 문장 끝(~다./~요.) 줄바꿈 ⑤지방청 카드 제목 keep-all. test_text_fit 28/0 · test_station_briefing 247/0 · verify_all(로컬 서버 + NODE_PATH) 「✅ 전체 검증 통과」, 총정리 블록 앞 실행과 같음(법률 위키 측정 줄만).
+
+
 ### [2026-11-18 23:39 KST] ✅완료 — PC·모바일 브라우저에서 챗봇 '완료되면 알림 드릴까요?' 배너 숨김
 완료 100%. ai_chat.js: isNativeApp() 신설, doSend 에서 앱이 아니면 6초 동의 배너 타이머를 걸지 않고 notifyOnComplete=false 로 보냄(웹 푸시 미구현·설정창도 웹이면 푸시 탭 숨김이라 받을 길이 없다). 회귀 검사 2건 test_ask_context.js(372 PASS/0 FAIL, 옛 코드에선 실패 확인). MASTER_PLAN 191행대 항목3 아래 사용자 원문 병기. verify_all: 스위트 전부 통과, 실패 = V4 시뮬레이션·서버 스모크 21건(로컬 서버 미기동 ERR_CONNECTION_REFUSED). 다음: 실제 앱·PC 화면 확인은 배포 후 사용자 몫.
 

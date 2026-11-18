@@ -191,7 +191,7 @@ client/js/
 │   │   ├── locate_toast.js
 │   │   ├── text_fit.js
 │   │   ├── ui_modal.js
-│   │   └── wheel_date_picker.js
+│   │   ├── wheel_date_picker.js
 │   └── utils/
 │       ├── accident_codes.js
 │       ├── mappings.js

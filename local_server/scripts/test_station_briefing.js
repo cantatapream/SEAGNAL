@@ -1160,6 +1160,9 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(tm.includes('내일 새벽부터 제주도산지와 제주시(북부, 중산간) 등에 순간풍속 20m/s 안팎의 매우 강한 바람(강풍특보 가능성)'), tm.join(' / '));
         assert.deepStrictEqual(R.bulletinNotes(BULLETIN, '2026-10-17', '2026-10-21', '오늘'), [], '발표일과 너무 먼 날은 없음');
         assert.equal(R.stripMarkup('{{loc:제주도}}에는 {{num:1.5~3.0m}}'), '제주도에는 1.5~3.0m');
+        // 2026-11-18 운영 원문의 깨진 꼴 — 닫는 괄호를 띄어 씀(「} }」): 브리핑도 벗기고, 수집기는 저장 전에 바로잡는다
+        assert.equal(R.stripMarkup('{{loc:해상}}에는 {{warn:물결이} } 매우 높게'), '해상에는 물결이 매우 높게');
+        assert.equal(require('../regional_bulletin_collector').fixMarkup('{{warn:바람도 강하게 불어} } 체감 {{loc:제주도}}'), '{{warn:바람도 강하게 불어}} 체감 {{loc:제주도}}');
         assert.deepStrictEqual(R.bulletinNotes(BULLETIN.replace('제주도남쪽바깥먼바다,', '{{loc:제주도남쪽바깥먼바다}},'), '2026-10-17', '2026-10-17', '오늘')[1], '풍랑 예비특보: 오늘 밤(18~24시) 제주도남쪽바깥먼바다 — 물결 1.5~3.0m로 높아짐', 'AI 색칠 마크업이 있어도 같게');
         const w = R.buildBriefing({ ...hallim(), zoneWeather: I.collectZoneWeather({ lat: 33.41, lon: 126.26 }, REGIONAL()) }, WIN, { generatedAt: R.isoKst(T0) }).summary.weather;
         assert.deepStrictEqual([w.notes.length, w.notesSource, w.bulletinMissing], [2, '제주지방기상청 단기 전망 (10.17 04:40 발표)', false]);
