@@ -1384,6 +1384,14 @@ router.post('/api/legal/autorun/prs/:n/answer', adminAuth.requireAdminToken, (re
     res.status(r.ok ? 200 : (r.status || 500)).json(Object.assign({ ok: r.ok }, r));
   } catch (e) { console.error('[autorun] 결정 답 저장 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
+// POST /api/legal/autorun/prs/:n/dismiss (관리자만) — 머지·닫힌 PR 카드를 목록에서 치운다(앱 [확인], 2026-11-18 사용자 「확인 버튼을 눌러서 … 더이상 표출할 필요없게」).
+router.post('/api/legal/autorun/prs/:n/dismiss', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const n = Number(req.params.n);
+    const r = require('../services/nariya_pr_merge').dismiss(Number.isInteger(n) ? n : -1);
+    res.status(r.ok ? 200 : (r.status || 500)).json(Object.assign({ ok: r.ok }, r));
+  } catch (e) { console.error('[autorun] 카드 치우기 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
 // GET /api/legal/autorun/answers (자동화 열쇠 또는 관리자) — 세션이 처리할 답 목록. 꺼내 간 답은 그 세션 몫(noteServed — 못 하면 deferred_answer_ids 로 14일 쉼).
 router.get('/api/legal/autorun/answers', autorun.requireAdminOrAutomation, (req, res) => {
   try {
