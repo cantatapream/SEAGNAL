@@ -5,7 +5,7 @@
  * 왜 저장소에 두나: 종전엔 이 대조를 임시 스크립트로 했고, 2026-11-17 에 **대조하는 쪽도 계산기와 같은 가정으로 고쳐서**
  *   (「A(자식)」이 있으면 부모도 특보로 채움) 100% 가 나왔다 — 가정이 틀렸는데도 못 잡았다(README ⑫ 정정).
  *   ⚠이 파일의 「기상청 쪽」은 통보문에 적힌 그대로만 읽는다. 계산기 규칙을 바꿔도 이쪽은 고치지 않는다.
- * 대조 방식(통보문 하나마다, 그 통보문 입력 시각 기준 · 앞 3일 통보문으로 계산):
+ * 대조 방식(통보문 하나마다, 그 통보문 입력 시각 기준 · 앞 5일(운영 관찰기가 들고 있는 기간, --days 로 바꿈) 통보문으로 계산):
  *   ① 부모: t6 에 적힌 부모 해역·등급 = 계산기의 부모 정식 특보(해제 시각을 기다리는 것은 뺌 — t6 은 해제 통보문을 낸 순간 그 해역을 뺀다.
  *      발효 전 다음 특보가 있으면 그 등급 — t6 은 발표한 순간 새 등급을 적는다). 화면용으로 채운 「자식만 특보」 부모(derived)는 뺀다.
  *   ② 자식: 자식 줄기 통보문(wrnFc '02')의 t6 자식 줄 = 계산기의 자식 정식 특보(같은 규칙).
@@ -17,6 +17,9 @@ const fs = require('fs'), path = require('path');
 const S = require('../../services/bulletin_status');
 const { parseCurrent, PARENTS } = require('./lifecycle_check');
 const LIST = process.argv.includes('--list');
+// 창 길이: 운영 관찰기(services/bulletin_watch)는 통보문을 처음 본 뒤 5일까지 들고 있다(목록은 3일 전부터 받지만 본 기록은 5일 뒤에 지운다) → 기본 5일.
+//   --days=3 으로 더 짧게(통보문이 더 적을 때 어떻게 되나) 돌려 볼 수 있다.
+const DAYS = +((process.argv.find((a) => a.startsWith('--days=')) || '--days=5').split('=')[1]);
 const KST = (s) => Date.parse(String(s).slice(0, 19).replace(' ', 'T') + '+09:00');
 
 const by = {};
@@ -31,8 +34,8 @@ const R = { n: 0, parent: 0, kidN: 0, kid: 0, yebi: 0, derived: 0 }, bad = { 부
 for (const list of Object.values(by)) {
     list.sort((a, b) => a.ms - b.ms);
     for (const T of list) {
-        if (T.rpt !== '6' || T.result.tmIn < '2025-01-04') continue;   // 수집 시작 뒤 3일은 앞 통보문이 모자라 뺀다
-        const z = S.compute(list.filter((b) => b.ms <= T.ms && b.ms > T.ms - 3 * 86400e3), T.ms).zones;
+        if (T.rpt !== '6' || T.result.tmIn < '2025-01-06') continue;   // 수집 시작 뒤 며칠은 앞 통보문이 모자라 뺀다
+        const z = S.compute(list.filter((b) => b.ms <= T.ms && b.ms > T.ms - DAYS * 86400e3), T.ms).zones;
         const tag = `${T.office} ${T.result.t1Title} ${T.result.tmIn.slice(0, 16)}`;
         const lv = (v) => (v.next ? v.next.type + v.next.level : v.type + v.level);
         const formal = Object.entries(z).filter(([, v]) => v.kind === 'formal' && !v.relMs && !v.derived);
@@ -55,7 +58,7 @@ for (const list of Object.values(by)) {
     }
 }
 const pct = (a, b) => `${a}/${b} (${(a / b * 100).toFixed(2)}%)`;
-console.log(`특보 통보문 ${R.n}건`);
+console.log(`특보 통보문 ${R.n}건 · 창 ${DAYS}일`);
 console.log(`① 부모 정식 특보 = 발효 중 칸      ${pct(R.parent, R.n)}`);
 console.log(`② 자식 정식 특보 = 발효 중 칸 자식 줄 ${pct(R.kid, R.kidN)}  (자식 줄기 통보문만)`);
 console.log(`③ 부모 예비 = 딸린 예비 현황        ${pct(R.yebi, R.n)}`);

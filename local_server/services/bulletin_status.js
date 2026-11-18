@@ -88,11 +88,16 @@ function yebiReleaseUnits(r) {
 
 /**
  * 한 관서의 정식 특보 상태(특보 통보문들 → 단위별 상태). nowMs = 지금(해제 시각이 아직 안 된 해제는 특보를 두고 해제 예고 칸만 정확한 시각으로).
- * @returns {{state: Map<string, {type, level, tmFc, tmEf, efMs, clr, ho, inMs}>, yebiRelease: Array<{ms, units:Set}>}}  inMs = 그 상태를 만든 통보문 입력시각(AI 덧씌움의 「새 것이 이긴다」 기준)
+ * @returns {{state: Map<string, {type, level, tmFc, tmEf, efMs, clr, ho, inMs}>, yebiRelease: Array<{ms, units:Set}>, ended: Map<string, number>}}  inMs = 그 상태를 만든 통보문 입력시각(AI 덧씌움의 「새 것이 이긴다」 기준)
  * [연계] ← compute(이 파일)
  */
 function computeFormal(list, nowMs = Infinity) {
     const state = new Map(), yebiRelease = [];
+    // ended: 단위 → 해제로 끝난 마지막 정식 특보를 낸 통보문 시각. 그 특보보다 먼저 나온 예비 목록은 그 특보로 넘어간 「옛 예비」라, 특보가 해제된 뒤 다시 예비로 보이면 안 된다.
+    //   전수조사 2026-11-18: 실자료에서 부모 3번(창 끝 시각에 해제 → 10분 대기 동안. 제주 2026-11-02 서부앞바다 18:01~18:09) ·
+    //   자식 22번(부모 발표로 함께 발효됐다가 자식만 먼저 해제 — 최장 제주 2026-03-25 남부 연안바다 10:31~12:09) 되살아났다.
+    //   한 번도 발효하지 않고 빠진 것(「x 제외」 · 발효 전 해제)은 여기 넣지 않는다 — 그 예비는 특보로 넘어간 적이 없어 그대로 남는다(대구 2026 6-3호가 나중에 따로 취소).
+    const ended = new Map(), end = (u, z) => ended.set(u, z.issueMs || z.inMs || 0);
     let seeded = false;
     for (const b of latest(list)) {
         const r = b.result, items = parseItems(r.t2, []), { ef, clr } = itemTimes(r);
@@ -119,8 +124,10 @@ function computeFormal(list, nowMs = Infinity) {
                 // 이 통보문이 들어올 때 이미 해제 시각이 지난 상태는 끝난 것 — 다음 특보(next)가 기다리면 그것이 이어받고, 없으면 지운다.
                 //   2026-11-18 실자료: 대전 2025 12-12 01:00 에 해제된 당진평수구역이 12-14 00:04 부모 재발표(12-23호) 때 「지금 발효 중」으로 잡혀,
                 //   2분 뒤 자식 해제(12-24호, 03:00)의 해제 시각을 넘겨받고 03:00 까지 「주의보 발효 중(11일 10:00~)」으로 되살아났다.
-                //   해제예고·연장은 건드리지 않는다(해제 시각 전에 들어온 연장이 그 해제를 물릴 수 있다).
-                if (it.action === '해제' || it.action === '발표' || it.action === '변경') { const z = state.get(u); if (z && z.relMs && z.relMs <= base.inMs) { if (z.next) state.set(u, z.next); else state.delete(u); } }
+                //   연장(해제 예고 연장)도 같다 — 해제 시각 **전에** 들어온 연장은 그 해제를 물리지만(아래), 해제 시각이 지난 뒤에 온 연장은 이미 끝난 특보를 되살리지 않는다.
+                //   전수조사 2026-11-18: 수도권 2025 2-5호(평수구역 3곳 해제 11:25) 3분 뒤 2-6호 「풍랑주의보 연장 : 서해중부앞바다(…)」(부모 이름 = 자식 포함)가
+                //   그 평수구역을 25분간 주의보로 되살렸다(기상청이 2-7호로 다시 해제). 해제 시각 뒤에 온 연장은 실자료에 이 꼴(부모 연장에 딸려 온 자식 5단위)뿐.
+                { const z = state.get(u); if (z && z.relMs && z.relMs <= base.inMs) { if (z.next) state.set(u, z.next); else { end(u, z); state.delete(u); } } }
                 // 부모를 적은 항목의 「x 제외」 = 그 자식은 이 특보에 들어 있지 않다(해제라면 이미 끝나 있었다 — 자식은 부모보다 오래 살지 않는다, 실자료 0건).
                 //   어림으로 넣어 둔 자식(assumed)이 거기 해당하면 뺀다 — 안 빼면 부모가 끝난 뒤 그 자식만 남아 「자식만 특보」 카드가 생기거나(되풀이 4건: 부산 2025 8-36호 등),
                 //   부모가 「변경」된 뒤 옛 등급으로 남는다(적대검증 2026-11-18 — 실자료 0건).
@@ -134,7 +141,7 @@ function computeFormal(list, nowMs = Infinity) {
                     const z = state.get(u);
                     if (z && t.ms && z.next && z.next.efMs >= t.ms) delete z.next;
                     if (z && t.ms && !(z.efMs && z.efMs >= t.ms)) Object.assign(z, { clr: t.text, relMs: t.ms, inMs: base.inMs });
-                    else state.delete(u);
+                    else { if (z && !t.ms) end(u, z); state.delete(u); }   // 해제 시각을 못 읽은 해제 = 바로 끝(발효 전 해제는 ended 에 넣지 않는다)
                 }
                 else if (it.action === '발표' || it.action === '변경') {
                     const nx = Object.assign({ type: it.type, level: it.level, tmEf: t.text || '', efMs: t.ms || 0, clr: c || '', issueMs: base.inMs }, base), cur = state.get(u);   // issueMs = 이 특보를 낸 통보문(해제예고만 바뀌어도 그대로) — 다가오는 예비가 이 특보보다 새것인지 볼 때
@@ -152,8 +159,8 @@ function computeFormal(list, nowMs = Infinity) {
         if (yr.size) yebiRelease.push({ ms: KST(r.tmIn), units: yr });
     }
     // 해제 시각이 된 것만 지운다 — 그 사이 같은 단위에 새 특보가 발표돼 다음(next)으로 기다리고 있었으면 그것이 이어받는다(해제 뒤 재발표)
-    for (const [u, z] of state) if (z.relMs && z.relMs <= nowMs) { if (z.next) state.set(u, z.next); else state.delete(u); }
-    return { state, yebiRelease };
+    for (const [u, z] of state) if (z.relMs && z.relMs <= nowMs) { if (z.next) state.set(u, z.next); else { end(u, z); state.delete(u); } }
+    return { state, yebiRelease, ended };
 }
 
 /**
@@ -190,7 +197,7 @@ function compute(bulletins, nowMs, cands = []) {
     for (const b of bulletins) if (b && b.result) (byOffice[b.office] = byOffice[b.office] || { w: [], y: [] })[b.rpt === '7' ? 'y' : 'w'].push(b);
     const zones = {}, waiting = [];
     for (const { w, y } of Object.values(byOffice)) {
-        const { state, yebiRelease } = computeFormal(w, nowMs);
+        const { state, yebiRelease, ended } = computeFormal(w, nowMs);
         for (const [u, s] of state) zones[u] = Object.assign({ parent: parentOf(u), kind: 'formal' }, s);
         // 예비 통보문은 두 줄기다(README ⑫): 일반 줄기(부모 이름 — 자식 포함) · 자식 줄기(wrnFc '02' — 「A(자식)」 = 그 자식만, 2026-06-20 부터).
         //   종전엔 가장 최근 예비 통보문 하나만 봐서, 자식 줄기가 최신이면 일반 줄기의 부모 예비가 통째로 빠졌다(딸린 예비 현황과 어긋난 「C 유형」의 원인).
@@ -208,6 +215,7 @@ function compute(bulletins, nowMs, cands = []) {
         for (const e of ylist) {
             if (yebiRelease.some((x) => x.ms >= e.tY && x.units.has(e.unit))) continue;   // 예비 해제 통보문(그 목록보다 나중)
             const z0 = zones[e.unit], tY = e.tY;
+            if (!z0 && ended.has(e.unit) && tY <= ended.get(e.unit)) continue;   // 이미 끝난 정식 특보로 넘어갔던 옛 예비 — 되살리지 않는다(위 ended)
             if (z0) {
                 // 정식 특보가 발효 중인 해역의 예비 = 「다가오는 특보」(upYebi — 앱 MMIS 의 current·upcoming 공존과 같다). 정식이 해제되면 이 예비가 이어받는다(정식이 지워진 계산에선 아래 일반 예비로).
                 //   사용자 확정 2026-11-17 「풍랑주의보 발효 중인경우 같은 해역에 예비 특보가 나오는 경우 다가오는 특보로」 — 종전엔 버렸다(실측 155건 전부).
