@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 23:58 KST] ✅완료 — 해상 기상 전망 깨진 색칠 표시 바로잡기 · 줄 간격 1.4 · 띄어쓰기 자리에서만 줄바꿈 · 안내 문장 줄바꿈
+완료(작업 브랜치, main 머지는 사용자 확인 대기): ①fixMarkup(수집기)·renderMarineMarkup·stripMarkup 이 「{{warn:…} }」 꼴도 처리 ②줄 간격 1.3→1.4(게시판·전망·안내) ③text_fit.js 낱말 안 글자 사이 WORD JOINER — 괄호·가운뎃점 자리 줄바꿈 막음(종전 「괄호 자리 허용」 판단을 사용자 지적으로 정정) ④안내 팝업 문장 끝(~다./~요.) 줄바꿈 ⑤지방청 카드 제목 keep-all. test_text_fit 28/0 · test_station_briefing 247/0 · verify_all(로컬 서버 + NODE_PATH) 「✅ 전체 검증 통과」, 총정리 블록 앞 실행과 같음(법률 위키 측정 줄만).
+
+
 ### [2026-11-18 23:09 KST] ✅완료 — 줄 정렬 규칙을 해상 기상 전망·안내 팝업에도 + 줄 간격 1.3 + 전망 글자 색 밝게
 완료: text_fit.js(shared/ui, md_fit.js 를 옮겨 범용화 — textFit·textFitInfo, ResizeObserver) · marine_forecast.js hangHtml(원문 기호 분리, 둘째 줄 글자 시작점) · 안내 팝업 3곳 textFitInfo · 단계 간격 10/5/3 · 줄 간격 1.3(게시판·전망·안내) · 전망 글자 색 한 단계 밝게 · NOTICE.md 「줄 정렬」 6규칙+다른 화면 표. test_text_fit 24/0(25회 연속). verify_all 두 번(줄 간격 변경 전·후, 로컬 서버 기동 + NODE_PATH) 모두 「✅ 전체 검증 통과」, 총정리 블록 두 번 같음(법률 위키 측정 줄만, 기준선 안). 발견: 운영 /api/regional-forecast 원문 깨진 표시 기호 {{warn:…} } 3곳(제주 2·부산 1) — 미수정, 사용자에게 알림. 다음: main 머지·배포 확인(사용자 「검사 끝나면 메인에 머지해」).
 
