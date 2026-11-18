@@ -1215,7 +1215,7 @@
             overscroll-behavior: contain;
             padding-right: 4px;   /* 스크롤바와 글자 간격 */
         }
-        .ocean-info-panel { display: none; color: #e2e8f0; font-size: 0.9rem; line-height: 1.65; white-space: pre-line; }
+        .ocean-info-panel { display: none; color: #e2e8f0; font-size: 0.9rem; line-height: 1.3; white-space: pre-line; }   /* 줄 간격 1.3 — 2026-11-18 사용자 「130정도로 전체를 통일」(종전 1.65) */
         .ocean-info-panel.active { display: block; }
         .ocean-info-panel ol,
         .ocean-info-panel ul {
@@ -1223,6 +1223,15 @@
             padding: 0;
         }
         .ocean-info-panel li { margin: 4px 0; }
+        /* 줄 정렬(저장소 NOTICE.md 「줄 정렬」, 사용자 2026-11-18) — 해양종합정보·해양안전생활 「안내」 팝업
+           낱말 중간 줄바꿈 금지 · 아이콘(✔·⚠)으로 시작하는 문단(tf-ic)은 둘째 줄을 글자 시작점에 · 문단 사이 5,
+           굵은 제목 문단(tf-h, 예: 「1. 목적」) 앞 10. tf-ic·tf-h 는 shared/ui/text_fit.js textFitInfo 가 단다.
+           줄 끝 2~3글자 넘침도 같은 파일이 그 줄 글자 간격을 좁혀 맞춘다. */
+        .ocean-info-panel p { margin: 0; word-break: keep-all; overflow-wrap: break-word; }
+        .ocean-info-panel p + p { margin-top: 5px; }
+        .ocean-info-panel p.tf-h:not(:first-child) { margin-top: 10px; }
+        .ocean-info-panel p.tf-ic { padding-left: 1.35em; text-indent: -1.35em; }
+        .ocean-info-panel p.tf-ic > i:first-child { display: inline-block; width: 1.35em; text-indent: 0; }
         /* 출처 줄 — 본문 맨 하단에 구분선 + 작은 회색 글씨 (ocean_cctv.js 가 주입).
            .ocean-info-panel 안 어디든 동일하게 적용되도록 조상 제한 없이 클래스만으로 건다. */
         .ocean-info-src {
@@ -2577,7 +2586,7 @@
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=MdFit_20261118">
+    <link rel="stylesheet" href="style.css?v=Lh130_20261118">
     <link rel="stylesheet" href="splash.css?v=Lifevest_20260624">
 
 
@@ -5621,7 +5630,9 @@
     <script src="js/typhoon/location_alert_typhoon_runtime.js"></script>
     <script src="js/forecast/outlook/forecast.js"></script>
     <script src="js/forecast/outlook/windy.js?v=BuoyClip_20260612"></script>
-    <script src="js/forecast/outlook/marine_forecast.js?v=OfficeLegacy_20261017"></script>
+    <!-- 줄 맞춤(줄 끝 2~3글자 넘침은 그 줄 글자 간격을 좁힘) — 해상 기상 전망이 첫 화면에서 바로 쓰므로 그 앞에. 게시판·안내 팝업도 쓴다 (2026-11-18) -->
+    <script src="js/shared/ui/text_fit.js?v=20261118"></script>
+    <script src="js/forecast/outlook/marine_forecast.js?v=TextFit_20261118"></script>
     <!-- 해상일기도 (KMA 날씨누리 GIF 차트) — 5개 파일 분할
          1: 카탈로그/상태/init/드롭다운/즐겨찾기  2: fetch/render/슬라이더/재생
          3: 전체화면 진입/종료/백버튼  4: 컨트롤 페이드  5: 핀치줌·팬·탭 -->
@@ -5686,7 +5697,6 @@
     <script src="js/admin/admin_trigger.js"></script>
     <script src="js/notice/board/image_compress.js"></script>
     <script src="js/notice/board/markdown_import.js"></script>
-    <script src="js/notice/board/md_fit.js?v=20261118"></script>
     <script src="js/notice/board/promo.js"></script>
     <script src="js/notice/comments/promo_comment1.js"></script>
     <script src="js/notice/comments/promo_comment2.js"></script>
@@ -5752,7 +5762,7 @@
          ================================================================ -->
     <script src="js/ocean-map/cctv/cctv1.js"></script>
     <script src="js/ocean-map/cctv/cctv4.js"></script>
-    <script src="js/ocean-map/cctv/ocean_cctv.js?v=ZoneTime_20261018"></script>
+    <script src="js/ocean-map/cctv/ocean_cctv.js?v=TextFit_20261118"></script>
 
     <!-- AI 챗봇(나리야): 관리자 검토센터+법령 챗봇 · ai-chat-section 렌더 (index2_patch 앞) -->
     <script src="js/ai-chat/ai_chat.js"></script>
@@ -5812,7 +5822,7 @@
     <script src="js/marine-life/risk-forecast/risk_basis_content.js?v=20261018basis"></script>
     <script src="js/marine-life/risk-forecast/risk_basis.js?v=20261018basis"></script>
     <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261019all"></script>
-    <script src="js/marine-life/safety/life_safety.js?v=TabKeep3_20261016"></script>
+    <script src="js/marine-life/safety/life_safety.js?v=TextFit_20261118"></script>
     <!-- 활동지점 안전 브리핑(해양예보 탭 아코디언, 설계서 §11) — 바로가기가 위험예측(risk_forecast.js)·탭 전환(life_safety.js)을,
          [기준 상세] 문안이 risk_basis_content.js 의 RiskBasisContent 를 쓰므로 그 뒤. 렌더 → 기준 문안 → 관할 고르기 탭(picker) → 본체 순서. -->
     <!-- 위험예측 배경 지도·바텀시트 부품(설계서 §11.10.24) — risk_*.js(RiskMapLayer·RiskSheet·RiskMarine) 뒤, 렌더 앞 -->

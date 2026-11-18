@@ -1202,13 +1202,12 @@ line-height: 1.1;
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    margin-bottom: 4px;
 }
 
 .marine-forecast-emoji {
     font-size: 1.1rem;
     flex-shrink: 0;
-    line-height: 1.5;
+    line-height: 1.3;   /* 2026-11-18 줄 간격 130% 통일(종전 1.5) */
 }
 
 .marine-forecast-category-name {
@@ -1219,19 +1218,29 @@ line-height: 1.1;
 }
 
 .marine-forecast-category-text {
-    color: #cbd5e1;
+    color: #e2e8f0;   /* 2026-11-18 사용자 「색상이 너무 어두워서 눈에 잘 안띄는데」 — #cbd5e1 → 한 단계 밝게 */
     font-size: 0.83rem;
-    line-height: 1.6;
+    line-height: 1.3;   /* 2026-11-18 사용자 「같은 문장에서도 줄간격이 너무 먼것같은데 … 130정도로 전체를 통일」(종전 1.6) */
 }
 
 /* 하위 항목 (- 특히, - 또한, 등) */
 .marine-forecast-sub-item {
     padding-left: 2em;
-    color: #94a3b8;
+    color: #cbd5e1;   /* 2026-11-18 #94a3b8 → 한 단계 밝게(사용자 「좀더 밝은색상으로」) */
     font-size: 0.8rem;
-    line-height: 1.6;
-    margin-top: 2px;
+    line-height: 1.3;   /* 2026-11-18 줄 간격 130% 통일(종전 1.6) */
+    margin-top: 5px;  /* 단계별 간격(NOTICE.md 「줄 정렬」): 항목 사이 10(.marine-forecast-category) · 하위 줄 5 */
 }
+
+/* 줄 정렬(저장소 NOTICE.md 「줄 정렬」, 사용자 2026-11-18) — 해상 기상 전망(초단기·단기·지방청 단기 전망)
+   ① 낱말 중간에서 줄을 바꾸지 않는다(띄어쓰기 자리에서만 — 한 줄보다 긴 낱말만 어쩔 수 없이 끊음)
+   ② 줄 앞 기호(○ □ ※ - o)는 marine_forecast.js hangHtml 이 따로 떼어 .tf-mark 에 두고, 글(.tf-text)은 그 오른쪽 칸에 —
+      두 줄이 되면 둘째 줄이 기호 밑이 아니라 첫 줄 글자 시작점에서 시작한다. 기호는 원문 그대로.
+   ③ 줄 끝 2~3글자 넘침은 shared/ui/text_fit.js 가 그 줄 글자 간격을 좁혀 맞춘다. */
+.marine-forecast-category-text, .marine-forecast-sub-item, .regional-forecast-line { word-break: keep-all; overflow-wrap: break-word; }
+.tf-hang { display: flex; align-items: baseline; }
+.tf-hang > .tf-mark { flex: none; margin-right: 0.35em; }
+.tf-hang > .tf-text { flex: 1; min-width: 0; }
 
 /* 빈 데이터 메시지 */
 .marine-forecast-empty {
@@ -3568,13 +3577,14 @@ line-height: 1.1;
    [연계] promo.js(상세 #promo-detail-content·편집기 root 에 promo-md) · markdown_import.js · scripts/notice/build_notice.js(미리보기가 이 덩어리를 그대로 읽음) */
 .ql-editor.promo-md > * { margin: 0; }
 .ql-editor.promo-md > * + * { margin-top: 10px; }
-.ql-editor.promo-md p, .ql-editor.promo-md li { font-size: 15px; line-height: 1.6; color: #cbd5e1; }
+/* 줄 간격 1.3(130%) — 같은 문단 안 줄 사이(사용자 2026-11-18 「같은 문장에서도 줄간격이 너무 먼것같은데 … 130정도로 전체를 통일」 — 종전 1.6·1.4) */
+.ql-editor.promo-md p, .ql-editor.promo-md li { font-size: 15px; line-height: 1.3; color: #cbd5e1; }
 /* 낱말 중간에서 줄을 바꾸지 않는다(띄어쓰기 자리에서만 — 2026-11-18 사용자 「텍스트는 어절단위로 끊어져」). 한 줄보다 긴 낱말(주소 등)만 어쩔 수 없이 끊는다(안 끊으면 칸 밖으로 삐져나감).
    줄 끝 2~3글자 넘침은 md_fit.js 가 그 줄 글자 간격을 좁혀 맞춘다(보기 칸만). */
 .ql-editor.promo-md p, .ql-editor.promo-md li, .ql-editor.promo-md h2, .ql-editor.promo-md h3, .ql-editor.promo-md blockquote { word-break: keep-all; overflow-wrap: break-word; }
-.ql-editor.promo-md h2 { font-size: 17px; font-weight: 700; line-height: 1.4; color: #f8fafc; }
+.ql-editor.promo-md h2 { font-size: 17px; font-weight: 700; line-height: 1.3; color: #f8fafc; }
 .ql-editor.promo-md > * + h2 { margin-top: 20px; }
-.ql-editor.promo-md h3 { font-size: 15px; font-weight: 700; line-height: 1.4; color: #7dd3fc; }
+.ql-editor.promo-md h3 { font-size: 15px; font-weight: 700; line-height: 1.3; color: #7dd3fc; }
 .ql-editor.promo-md > * + h3 { margin-top: 14px; }
 .ql-editor.promo-md > h2 + *, .ql-editor.promo-md > h3 + * { margin-top: 8px; }
 .ql-editor.promo-md strong { color: #f8fafc; }
@@ -3589,7 +3599,7 @@ line-height: 1.1;
 .ql-editor.promo-md ul > li.ql-indent-1:not(.ql-direction-rtl)::before { content: '-'; }
 .ql-editor.promo-md ul > li.ql-indent-2:not(.ql-direction-rtl)::before { content: '·'; }
 .ql-editor.promo-md img { margin: 2px 0; }
-.ql-editor.promo-md blockquote { font-size: 13px; line-height: 1.6; color: #94a3b8; border-left: 3px solid #334155; padding-left: 10px; }
+.ql-editor.promo-md blockquote { font-size: 13px; line-height: 1.3; color: #94a3b8; border-left: 3px solid #334155; padding-left: 10px; }
 /* promo-md:end */
 
 /* 관리자 - 게시글 에디터 모달 */
@@ -5477,26 +5487,31 @@ line-height: 1.1;
 
 .regional-forecast-line {
     font-size: 0.82rem;
-    color: #cbd5e1;
-    line-height: 1.7;
+    color: #e2e8f0;   /* 2026-11-18 사용자 「색상이 너무 어두워서」 — #cbd5e1 → 한 단계 밝게 */
+    line-height: 1.3;   /* 2026-11-18 사용자 「… 130정도로 전체를 통일」(종전 1.7) */
 }
 
 .regional-forecast-main {
     font-weight: 600;
-    color: #e2e8f0;
-    margin-bottom: 4px;
+    color: #f1f5f9;
 }
 
 .regional-forecast-day {
     padding-left: 0.5em;
-    color: #94a3b8;
+    color: #cbd5e1;   /* 2026-11-18 #94a3b8 → 한 단계 밝게 */
 }
 
 .regional-forecast-sub {
     padding-left: 1.5em;
-    color: #94a3b8;
+    color: #cbd5e1;   /* 2026-11-18 #94a3b8 → 한 단계 밝게 */
     font-size: 0.8rem;
 }
+
+/* 단계별 간격(NOTICE.md 「줄 정렬」 — 다음 줄의 단계로 정한다, 같은 단계끼리 같다):
+   꺾쇠 제목(<특보 현황> 등)·□·※ 줄 10 · ○ 줄 5 · - 줄 3 */
+.regional-forecast-line + .regional-forecast-line { margin-top: 10px; }
+.regional-forecast-line + .regional-forecast-day { margin-top: 5px; }
+.regional-forecast-line + .regional-forecast-sub { margin-top: 3px; }
 
 /* ============================================================================
  * 기온 박스 — 2단 그리드 레이아웃
