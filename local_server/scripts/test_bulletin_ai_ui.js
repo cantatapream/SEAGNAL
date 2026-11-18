@@ -120,6 +120,21 @@ const state = () => ({ ok: true, config: bai.getConfig(), choices: bai.choices()
         const f = await page.textContent('[data-bai-try-out="forecast"]'), e = await page.textContent('[data-bai-try-out="escalation"]');
         assert.ok(/마지막 Gemma 호출 실패\(.+\) → Gemini 로 대신 답함 — Gemma 답이 JSON 이 아니다/.test(f), f);
         assert.ok(/마지막 Gemma 호출 성공\(.+\) · gemma-4-26b-a4b-it/.test(e), e);
+        assert.ok(/11\. 1[89]\./.test(f), '날짜도 보인다(시각만 보이면 며칠 전 실패가 오늘 일처럼 읽힌다 — 검사 브라우저의 시간대에 따라 18일·19일): ' + f);
+    });
+    await check('[Gemma-UI-4] 누적 횟수 · 기록 없음 안내 · 고른 직후 누르면 「지금 고른 값」을 부른다(별도 에이전트 검토에서 나온 것)', async () => {
+        gemmaState = { forecast: { at: Date.parse('2026-11-19T04:41:00+09:00'), model: 'gemma-4-31b-it', ok: true, error: null, okCount: 3, failCount: 2 } };
+        await draw();
+        const f = await page.textContent('[data-bai-try-out="forecast"]');
+        assert.ok(/서버를 올린 뒤 성공 3 · 실패 2/.test(f), f);
+        gemmaState = {};
+        await page.selectOption('[data-bai-gemma="escalation"]', 'gemma-4-26b-a4b-it'); await settle();
+        assert.ok(/Gemma 를 골랐지만 서버를 올린 뒤 아직 부른 기록이 없습니다/.test(await page.textContent('[data-bai-try-out="escalation"]')), '기록이 없으면 「이상 없음」처럼 비워 두지 않는다');
+        // 저장 응답이 오기 전에(다시 그려지기 전) 시험을 누른다 — 화면에 고른 값을 불러야 한다
+        tryAnswer = (m) => ({ ok: true, model: m, ms: 5, text: '{}' });
+        await page.evaluate(() => { const s = document.querySelector('[data-bai-gemma="escalation"]'); s.value = 'gemma-4-31b-it'; document.querySelector('[data-bai-try="escalation"]').click(); });
+        await page.waitForFunction(() => /시험 성공/.test(document.querySelector('[data-bai-try-out="escalation"]').textContent));
+        assert.deepStrictEqual(tries[tries.length - 1], { model: 'gemma-4-31b-it' });
     });
 
     await browser.close();

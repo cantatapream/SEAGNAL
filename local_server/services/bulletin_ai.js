@@ -13,9 +13,13 @@
  * Gemma(2026-11-19 사용자 「단기, 초단기, 지방청별 기상전망에 대해 색을 입히고, 내용을 분석해서 가능성을 판별하는것은 횟수가 많지 않다면 Gemma ai를 사용해도 될 것 같은데? 무료니까」
  *   「기존 통합관리자센터에서 ai 모델 선택하는데 Gemma 를 추가해야」 · 키는 「그냥 기존키에서 젬마를 부르는방식으로하자」):
  *   ③ forecast · ⑤ escalation 의 Gemini 칸에서 모델을 고른다 — gemini-2.5-flash-lite(기본 = 종전 그대로) | gemma-4-31b-it | gemma-4-26b-a4b-it
- *   (Gemini API 가 제공하는 Gemma 두 모델 — gemma.ai/deployment/gemini-api, 같은 AI Studio 키). Gemma 는 JSON 모드 없이 부른다(지원 여부를 확인하지 못했다 —
- *   Gemma 3 때는 「JSON mode is not enabled」 400 오류였다). 답이 JSON 이 아니거나 호출이 실패하면 **그 자리에서 종전 Gemini 로 대신 답한다**(지금보다 나빠지지 않게) —
- *   대신 답한 사실은 gemmaStatus() 로 관리자 화면에 보인다(조용히 대신하면 고장이 안 보인다). Gemma 호출은 gemini_client.callPlain(키 쿨다운을 건드리지 않음).
+ *   (Gemini API 가 제공하는 Gemma 두 모델 — gemma.ai/deployment/gemini-api, 같은 AI Studio 키).
+ *   실제 키로 불러 본 것(2026-11-19, 사용자가 준 임시 키 — analysis/bulletin_survey/README.md ⑰):
+ *     · JSON 모드를 켜면 답을 배열로 한 겹 더 싸서(`[{"항목":[…]}]`) 내는 일이 많다 → **JSON 모드 없이** 부르고, 답에서 JSON 덩어리를 너그럽게 꺼낸다(울타리·덧붙인 설명·한 겹 배열).
+ *     · 「생각」을 기본으로 두면 글 한 편에 147~203초 → **생각 최소**(thinkingLevel minimal — 짧은 문장 0.9~1.4초, 색칠 16~26초)로 부른다.
+ *     · gemma-4-31b-it 는 「수요 과다」(503)와 38~45초 지연, gemma-4-26b-a4b-it 도 150회쯤 부른 뒤 503·한도 초과(429)가 잦았다(새 무료 키).
+ *   그래서 답이 쓸 수 없거나(JSON 아님·필요한 칸 없음) 호출이 실패하면 **그 자리에서 종전 Gemini 로 대신 답한다**(지금보다 나빠지지 않게) —
+ *   대신 답한 사실은 gemmaStatus() 로 관리자 화면에 보인다(조용히 대신하면 고장이 안 보인다). Gemma 호출은 gemini_client.callPlain(키 쿨다운을 건드리지 않음 · 60초 시간 제한).
  * 안전: Gemini 는 순서에서 뺄 수 없다(마지막 안전망 — 챗봇 순서와 같은 규칙). ① 기본 순서는 Gemini 가 1순위 = 종전 동작 그대로.
  * ④ briefing(2026-11-16 사용자 「ai 모델 선택 및 설정 부분은 ai 탭의 ai 모델 설정이라는 하위 탭에서 … ① 특보 통보문 읽기에 해당하는 리스트와 같이 …
  *   모든 ai및 모델설정하는것과 동일하게 맞춰줘. 즉 다른 ai로도 돌아가도록」 · 다시 시도 「(나)」 = 줄마다 횟수 · 처음 순서 「클로드 2번, 클로드 1번, 업스테이지, gpt, gemini」):
@@ -59,7 +63,27 @@ const GEMINI_MODEL = 'gemini-2.5-flash-lite';   // ai_report_parser 가 쓰던 �
 const GEMMA_MODELS = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
 const GEMMA_FEATURES = ['forecast', 'escalation'];
 const GEMINI_PICKS = [GEMINI_MODEL].concat(GEMMA_MODELS);   // 그 두 기능의 Gemini 칸 선택지(첫 칸 = 기본 = 종전 동작)
-const gemmaLast = {};   // 기능 → 마지막 Gemma 호출 결과 { at, model, ok, error } — 서버가 켜져 있는 동안만(관리자 화면 표시용)
+const gemmaLast = {};   // 기능 → 마지막 Gemma 호출 결과 { at, model, ok, error, okCount, failCount } — 서버가 켜져 있는 동안만(관리자 화면 표시용)
+const GEMMA_CONFIG = { thinkingConfig: { thinkingLevel: 'minimal' } };   // 생각 최소 — 기본(생각 켬)은 글 한 편에 2~3분이 걸렸다(실측)
+// 기능별로 「쓸 수 있는 답」의 모양 — Gemma 답이 JSON 이긴 한데 필요한 칸이 없으면 Gemini 로 대신한다.
+//   없으면: `{}`·`[]` 같은 답이 「성공」으로 캐시에 굳어 그 전망은 색칠 없이 확정된다(별도 에이전트 검토 2026-11-19 — 부르는 쪽은 답이 있으면 다시 부르지 않는다).
+const GEMMA_SHAPE = {
+    forecast: (p) => !!p && typeof p === 'object' && !Array.isArray(p) && ((!!p.categories && typeof p.categories === 'object' && !Array.isArray(p.categories) && Object.keys(p.categories).length > 0) || (typeof p.summary === 'string' && !!p.summary.trim())),
+    escalation: (p) => !!p && typeof p === 'object' && Array.isArray(p.항목),
+};
+/**
+ * 답 글에서 JSON 덩어리를 꺼낸다 — ```json 울타리, 뒤에 덧붙인 설명(「*(참고: …)」), 한 겹 배열(`[{…}]`)을 벗긴다. 못 꺼내면 undefined.
+ * 예: '```json\n{"항목":[]}\n```\n*(참고: …)*' → {항목:[]} · '[{"항목":[]}]' → {항목:[]}
+ * [연계] ← callGemma
+ */
+function looseJson(text) {
+    const t = String(text || '');
+    const tryParse = (s) => { try { return JSON.parse(s); } catch (_) { return undefined; } };
+    let p = tryParse(require('./codex_bridge').stripFence(t));
+    if (p === undefined) { const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a >= 0 && b > a) p = tryParse(t.slice(a, b + 1)); }
+    if (Array.isArray(p) && p.length === 1 && p[0] && typeof p[0] === 'object') p = p[0];
+    return p;
+}
 const llm = () => require('./llm_chain');
 const RUNNERS = () => require('./codex_bridge').RUNNERS;
 
@@ -156,19 +180,22 @@ function choices() {
 }
 
 /**
- * Gemma 를 한 번 부른다(JSON 모드 없이). JSON 답을 바라는 호출이면 답이 JSON 으로 읽히는지도 본다 — 아니면 실패로 친다(부르는 쪽이 종전 Gemini 로 대신한다).
- * 예: await callGemma('gemma-4-31b-it', '…JSON 만 답하라…', { caller:'X' }) → { success:true, text:'{"a":1}' } (울타리 ```json 은 벗긴 글)
+ * Gemma 를 한 번 부른다(JSON 모드 없이 · 생각 최소). JSON 답을 바라는 호출이면 답에서 JSON 을 꺼내 보고, 기능이 바라는 모양(shape)인지도 본다 —
+ * 아니면 실패로 친다(부르는 쪽이 종전 Gemini 로 대신한다).
+ * 예: await callGemma('gemma-4-26b-a4b-it', '…JSON 만 답하라…', { caller:'X', shape: GEMMA_SHAPE.escalation }) → { success:true, text:'{"항목":[…]}' }(꺼낸 JSON 을 다시 글로)
+ * @param {string} model @param {string} prompt @param {{caller?:string, json?:boolean, shape?:function(any): boolean}} [o]
  * @returns {Promise<{success:boolean, text?:string, error?:string, isRateLimited?:boolean}>}
  * [연계] ← call(Gemini 칸) · tryModel / → gemini_client.callPlain
  */
 async function callGemma(model, prompt, o) {
-    const r = await require('./gemini_client').callPlain({ model, contents: prompt, caller: (o && o.caller) || 'Bulletin-Gemma' });
+    const r = await require('./gemini_client').callPlain({ model, contents: prompt, config: GEMMA_CONFIG, caller: (o && o.caller) || 'Bulletin-Gemma' });
     if (!r.success) return { success: false, error: r.error || 'Gemma 호출 실패', isRateLimited: !!r.isRateLimited };
     if (!r.text || !String(r.text).trim()) return { success: false, error: 'Gemma 가 빈 답을 냈다' };
     if (o && o.json === false) return { success: true, text: r.text };
-    const text = require('./codex_bridge').stripFence(r.text);
-    try { JSON.parse(text); } catch (e) { return { success: false, error: 'Gemma 답이 JSON 이 아니다: ' + String(r.text).replace(/\s+/g, ' ').slice(0, 120) }; }
-    return { success: true, text };
+    const p = looseJson(r.text);
+    if (p === undefined) return { success: false, error: 'Gemma 답이 JSON 이 아니다: ' + String(r.text).replace(/\s+/g, ' ').slice(0, 120) };
+    if (o && o.shape && !o.shape(p)) return { success: false, error: 'Gemma 답에 필요한 칸이 없다: ' + JSON.stringify(p).slice(0, 120) };
+    return { success: true, text: JSON.stringify(p) };
 }
 
 /** 기능별 마지막 Gemma 호출 결과(서버가 켜져 있는 동안) — 관리자 화면이 「Gemma 가 실패해 Gemini 로 대신 답함」을 보이게. @returns {object} { forecast?:{at, model, ok, error}, escalation?:… } */
@@ -186,7 +213,7 @@ async function tryModel(model) {
     const t0 = Date.now();
     let r;
     try {
-        r = GEMMA_MODELS.includes(model) ? await callGemma(model, prompt, { caller: 'Bulletin-TryModel' })
+        r = GEMMA_MODELS.includes(model) ? await callGemma(model, prompt, { caller: 'Bulletin-TryModel', shape: (p) => !!p && typeof p === 'object' && !Array.isArray(p) })
             : await require('./gemini_client').callPlain({ model, contents: prompt, config: { responseMimeType: 'application/json' }, caller: 'Bulletin-TryModel' });
     } catch (e) { console.warn('[AI 특보 분석] 시험 호출 중 예외:', model, e && e.message); r = { success: false, error: String((e && e.message) || e) }; }
     const ms = Date.now() - t0;
@@ -227,8 +254,12 @@ async function call(f, prompt, opt) {
                 let gemma = null;
                 if (GEMMA_FEATURES.includes(f) && GEMMA_MODELS.includes(pick)) {
                     // Gemma 를 골랐다 — 먼저 Gemma, 안 되면(오류·빈 답·JSON 아님) 종전 Gemini 로 대신. 없으면: Gemma 가 안 될 때 색칠이 통째로 빠진다.
-                    gemma = await callGemma(pick, prompt, { caller: caller + '-Gemma', json: o.json });
-                    gemmaLast[f] = { at: Date.now(), model: pick, ok: !!gemma.success, error: gemma.success ? null : String(gemma.error || '').slice(0, 200) };
+                    //   Gemma 쪽이 던져도 Gemini 로 대신한다(바깥 catch 로 넘기면 Gemini 를 못 부른다 — 별도 에이전트 검토 2026-11-19).
+                    try { gemma = await callGemma(pick, prompt, { caller: caller + '-Gemma', json: o.json, shape: GEMMA_SHAPE[f] }); }
+                    catch (e) { console.warn('[AI 특보 분석] Gemma 호출 중 예외:', e && e.message); gemma = { success: false, error: String((e && e.message) || e) }; }
+                    const prev = gemmaLast[f] || {};
+                    gemmaLast[f] = { at: Date.now(), model: pick, ok: !!gemma.success, error: gemma.success ? null : String(gemma.error || '').slice(0, 200),
+                        okCount: (prev.okCount || 0) + (gemma.success ? 1 : 0), failCount: (prev.failCount || 0) + (gemma.success ? 0 : 1) };
                     if (!gemma.success) { tried.push({ id: 'gemma', ok: false, error: gemmaLast[f].error }); console.warn(`[AI 특보 분석] ${FEATURES[f].name}: Gemma(${pick}) 실패 — 종전 Gemini 로 대신 답한다:`, gemmaLast[f].error); }
                 }
                 r = gemma && gemma.success ? { success: true, text: gemma.text, keyLabel: 'gemma:' + pick }
@@ -255,4 +286,4 @@ async function call(f, prompt, opt) {
     return { success: false, error: last.error || '모든 AI 실패', isRateLimited: limited, tried };
 }
 
-module.exports = { FEATURES, GEMINI_MODEL, GEMMA_MODELS, GEMMA_FEATURES, ATTEMPT_CHOICES, BRIEFING_ATTEMPTS, BRIEFING_GEMINI_MODELS, getConfig, setConfig, choices, call, callGemma, gemmaStatus, tryModel, normFeature, briefingChain, FILE };
+module.exports = { FEATURES, GEMINI_MODEL, GEMMA_MODELS, GEMMA_FEATURES, ATTEMPT_CHOICES, BRIEFING_ATTEMPTS, BRIEFING_GEMINI_MODELS, getConfig, setConfig, choices, call, callGemma, looseJson, gemmaStatus, tryModel, normFeature, briefingChain, FILE };

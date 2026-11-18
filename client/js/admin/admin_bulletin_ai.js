@@ -126,14 +126,19 @@
                 var gsel = sel(ch.gemma.models, gm, function (v) { return v + (v === ch.gemma.models[0] ? ' (기본)' : ' · Gemma'); }, function (v) { save(f, { models: { gemini: { model: v } } }, host); });
                 gsel.setAttribute('data-bai-gemma', f);
                 row.appendChild(gsel);
-                var tryBtn = btn('시험 호출', function () { tryModel(gm, tryOut); });
+                gsel.style.maxWidth = '230px';
+                var tryBtn = btn('시험 호출', function () { tryModel(gsel.value, tryOut); });   // 지금 화면에 고른 값을 부른다(그릴 때 값이 아니라 — 고른 직후 누르면 앞 값을 부르던 것, 별도 에이전트 검토)
                 tryBtn.setAttribute('data-bai-try', f);
                 row.appendChild(tryBtn);
                 var tryOut = el('div', 'flex-basis:100%;font-size:0.75rem;color:#94a3b8;word-break:break-all', '');
                 tryOut.setAttribute('data-bai-try-out', f);
+                //   마지막 Gemma 결과 — 날짜·시각과 서버를 올린 뒤 누적 횟수를 함께(「마지막 한 번」만 보이면 절반이 실패해도 초록으로 보인다). 기록은 서버 메모리에만 있다.
                 var last = state.gemma && state.gemma[f];
-                if (last && last.ok === false) { tryOut.style.color = '#f87171'; tryOut.textContent = '마지막 Gemma 호출 실패(' + new Date(last.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) + ') → Gemini 로 대신 답함 — ' + (last.error || ''); }
-                else if (last && last.ok) { tryOut.style.color = '#34d399'; tryOut.textContent = '마지막 Gemma 호출 성공(' + new Date(last.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) + ') · ' + last.model; }
+                var when = function (ms) { return new Date(ms).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+                var tally = last ? ' · 서버를 올린 뒤 성공 ' + (last.okCount || 0) + ' · 실패 ' + (last.failCount || 0) : '';
+                if (last && last.ok === false) { tryOut.style.color = '#f87171'; tryOut.textContent = '마지막 Gemma 호출 실패(' + when(last.at) + ') → Gemini 로 대신 답함 — ' + (last.error || '') + tally; }
+                else if (last && last.ok) { tryOut.style.color = (last.failCount || 0) > 0 ? '#fbbf24' : '#34d399'; tryOut.textContent = '마지막 Gemma 호출 성공(' + when(last.at) + ') · ' + last.model + tally; }
+                else if (ch.gemma.gemmaModels && ch.gemma.gemmaModels.indexOf(gm) >= 0) tryOut.textContent = 'Gemma 를 골랐지만 서버를 올린 뒤 아직 부른 기록이 없습니다 — 「시험 호출」로 되는지 먼저 확인하세요.';
                 row.appendChild(tryOut);
             } else if (id === 'gemini') {
                 row.appendChild(el('span', 'color:#94a3b8;font-size:0.8rem', (ch.gemini.models[0] || '') + ' (고정)'));
