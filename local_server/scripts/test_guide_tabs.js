@@ -97,8 +97,17 @@ ok('탭 id·라벨·순서가 화면 버튼 순서와 같다',
 
 ok('「주요지명」 버튼이 화면에 없다(그래서 탭도 없다)',
     INDEX_SRC.indexOf('id="ocean-marker-toggle-btn"') < 0);
-ok('「내 위치」 버튼이 화면에서 빠져 있다(주석 처리)',
-    !/^\s*<button[^>]*id="ocean-myloc-btn"/m.test(INDEX_SRC.replace(/<!--[\s\S]*?-->/g, '')));
+// [2026-11-18] 내 위치 버튼을 되살려 좌측 상단 "기본맵" 바로 아래로 옮겼다(사용자 지시).
+//   종전 항목("버튼이 화면에서 빠져 있다")을 뒤집어, 되살린 버튼이 그 자리에 있는지를 고정한다.
+//   해양생활 화면의 #ls-gps-btn 도 같은 자리(#ls-topleft-controls 의 기본맵 묶음 안)에 있어야 한다.
+//   ⚠안내 「내 위치」 탭은 아직 넣지 않았다(위 "탭이 없다" 항목 그대로) — 넣을지는 사용자 판단 대기.
+{
+    const live = INDEX_SRC.replace(/<!--[\s\S]*?-->/g, '');
+    ok('「내 위치」 버튼이 해양종합정보 좌측 상단 "기본맵" 묶음 안에 있다(2026-11-18 재활성화)',
+        /<div id="ocean-basemap-toggle-wrap"[^>]*>\s*<div class="ocean-basemap-anchor">[\s\S]*?id="ocean-basemap-menu"[\s\S]*?<\/div>\s*<\/div>\s*<button[^>]*id="ocean-myloc-btn"/.test(live));
+    ok('해양생활 「내 위치」(#ls-gps-btn)도 좌측 상단 "기본맵" 묶음 안에 있다',
+        /<div id="ls-topleft-controls">\s*<div class="ocean-basemap-toggle-wrap">\s*<div class="ocean-basemap-anchor">[\s\S]*?id="ls-basemap-menu"[\s\S]*?<\/div>\s*<\/div>\s*<button[^>]*id="ls-gps-btn"/.test(live));
+}
 ok('물빠짐·CCTV 버튼은 해양종합정보에서 숨긴다(해양안전에만 보임)',
     /body:not\(\.ls-safety\) #ocean-cctv-toggle-btn/.test(INDEX_SRC) &&
     /body:not\(\.ls-safety\) #ocean-mudflat-toggle-btn/.test(INDEX_SRC));

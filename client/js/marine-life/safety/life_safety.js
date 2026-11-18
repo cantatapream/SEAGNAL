@@ -1131,7 +1131,7 @@
             });
         }
 
-        // --- 레일 하단: 내 위치 (활동이 원래 갖고 있던 버튼을 대신 누름) ---
+        // --- 좌측 상단(기본맵 아래): 내 위치 (활동이 원래 갖고 있던 버튼을 대신 누름) ---
         var gpsBtn = document.getElementById('ls-gps-btn');
         if (gpsBtn) {
             gpsBtn.addEventListener('click', function () {
