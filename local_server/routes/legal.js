@@ -1343,7 +1343,7 @@ router.get('/api/legal/autorun/status', autorun.requireAdminOrAutomation, (req, 
 router.get('/api/legal/autorun/conflicts', autorun.requireAdminOrAutomation, (req, res) => {
   try {
     const prs = require('../services/nariya_pr_merge').conflicts();
-    if (prs.length) autorun.noteServed('conflict', prs.map((p) => String(p.number)));
+    if (prs.length && req.viaAutomation) autorun.noteServed('conflict', prs.map((p) => String(p.number)));   // 세션이 꺼내 갈 때만 그 run 몫(관리자가 열어 보면 아님)
     res.json({ ok: true, count: prs.length, prs });
   } catch (e) { console.error('[autorun] 충돌 목록 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
@@ -1388,7 +1388,7 @@ router.post('/api/legal/autorun/prs/:n/answer', adminAuth.requireAdminToken, (re
 router.get('/api/legal/autorun/answers', autorun.requireAdminOrAutomation, (req, res) => {
   try {
     const list = require('../services/nariya_pr_merge').answers();
-    if (list.length) autorun.noteServed('answer', list.map((x) => x.id));
+    if (list.length && req.viaAutomation) autorun.noteServed('answer', list.map((x) => x.id));
     res.json({ ok: true, count: list.length, answers: list });
   } catch (e) { console.error('[autorun] 답 목록 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });

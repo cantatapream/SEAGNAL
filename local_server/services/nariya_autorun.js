@@ -596,7 +596,7 @@ function createAutorun({
         if (typeof given !== 'string' || !RUN_ID_RE.test(given)) return { ok: false, status: 400, error: 'run_id 가 없거나 형식이 틀렸습니다(영문·숫자·._:- 64자 이하).' };
         const w = isPlain(body.work) ? body.work : {};
         const num = (x) => (Number.isInteger(x) && x >= 0 && x <= MAX_COUNT ? x : 0);
-        const work = { amend: num(w.amend), fresh: num(w.fresh), mok: num(w.mok) };
+        const work = Object.fromEntries(Object.keys(KINDS).map((k) => [k, num(w[k])]));   // 모든 일감 종류(conflict·answer 포함 — 적대검증 하)
         expireIfStale();
         const s = load(), l = s.lock;
         let result;

@@ -312,7 +312,7 @@ function createMerger({
         p.status = 'conflict_fixing'; p.why = '충돌 — 자동 반영 세션이 푸는 중'; save();
         let q = null;
         try { q = conflictHook(p.number); } catch (e) { console.error('[nariya_pr_merge] PR #' + p.number + ' 충돌 풀기 맡기기 실패:', e && e.message); }
-        if (!q || (q.queued === false && !q.locked)) { await handOver(p, '충돌 풀기를 자동 반영 세션에 맡기지 못했습니다' + (q && q.seen ? '(이 PR 은 세션이 이미 「자동으로 못 푼다」고 남김)' : '') + ' — GitHub 에서 확인해 주세요', 'github'); return; }
+        if (!q || (q.queued === false && !q.locked)) { await handOver(p, '충돌 풀기를 자동 반영 세션에 맡기지 못했습니다' + (q && q.seen ? '(자동 반영 세션이 최근 이 PR 을 다뤘지만 풀지 못함)' : '') + ' — GitHub 에서 확인해 주세요', 'github'); return; }
         arm(p.number, POLL_MS);
     }
     /**
@@ -324,7 +324,9 @@ function createMerger({
         for (const id of deferred || []) { const p = find(Number(id)); if (p && p.status === 'conflict_fixing') await handOver(p, '작업 기록 말고 다른 파일도 겹쳐 자동으로 풀지 않았습니다 — GitHub 에서 확인해 주세요', 'github'); }
     }
     /** 세션이 풀 충돌 PR 목록(GET /api/legal/autorun/conflicts). @returns {{number:number, branch:string|null, pr_url:string}[]} */
-    function conflicts() { return load().prs.filter((p) => p.status === 'conflict_fixing').map((p) => ({ number: p.number, branch: p.branch || null, pr_url: p.pr_url })); }
+    //   가지 이름은 claude/ 로 시작하는 안전한 글자만 준다 — 세션이 셸 명령에 넣는다(적대검증 하 — 「claude/$(id)」도 git 이 허용하는 이름이다). 아니면 branch null(세션은 손대지 않고 deferred).
+    const SAFE_BRANCH = /^claude\/[A-Za-z0-9._\/-]{1,150}$/;
+    function conflicts() { return load().prs.filter((p) => p.status === 'conflict_fixing').map((p) => ({ number: p.number, branch: p.branch && SAFE_BRANCH.test(p.branch) && !/\.\.|\/\//.test(p.branch) ? p.branch : null, pr_url: p.pr_url })); }
 
     /**
      * 자동 머지 대기(waiting)·검사 실패(failed_checks) PR 을 한 번 확인한다.
@@ -352,7 +354,16 @@ function createMerger({
             p.check = { state: r.state, why: r.why || null, at: now() }; save();
             if (r.state === 'conflict') { await handleConflict(p, r); return; }
             // 충돌이 풀렸다(세션이 main 을 합쳐 올림) — 맡기기 전 상태로 돌아가 하던 대로 본다(검사 초록이면 자동 머지·「머지 버튼」 푸시).
-            if (p.status === 'conflict_fixing') { p.status = p.statusBefore === 'failed_checks' ? 'failed_checks' : 'waiting'; p.why = p.whyBefore || null; save(); }
+            //   같은 head 인데 GitHub 가 머지 가능 여부를 아직 계산 중(null)이거나 일시 오류면 풀린 것이 아니다 — 그대로 기다린다(적대검증 중1 — 다시 충돌로 보고 세션을 또 깨웠다).
+            if (p.status === 'conflict_fixing') {
+                const resolved = r.ok || (r.sha && r.sha !== p.conflictFor) || ['failed', 'stale', 'merged', 'closed'].includes(r.state);
+                if (!resolved) {
+                    if (now() - (p.conflictAt || now()) >= WAIT_MAX_MS) await handOver(p, '충돌을 3시간 안에 자동으로 풀지 못했습니다 — GitHub 에서 확인해 주세요', 'github');
+                    else arm(n, POLL_MS);
+                    return;
+                }
+                p.status = p.statusBefore === 'failed_checks' ? 'failed_checks' : 'waiting'; p.why = p.whyBefore || null; p.watchFrom = now(); save();
+            }
             // 확인을 기다리는 사이 track 이 사람 몫으로 내렸으면(결정 필요가 더해짐) 머지하지 않는다(적대검증 하5 — p 는 상태 객체 그 자체라 지금 값을 본다).
             if (r.ok && auto && p.mode !== 'auto') auto = false;
             if (r.ok && auto) {
@@ -385,7 +396,7 @@ function createMerger({
                 else await handOver(p, '검사 실패가 24시간 이어졌습니다 — 더는 자동으로 지켜보지 않습니다', 'button');
                 return;
             }
-            if (r.state === 'stale' && now() - p.at >= WAIT_MAX_MS) { await handOver(p, '3시간 동안 최신 main 으로 다시 검사하지 못했습니다 — ' + r.why, 'button'); return; }   // 재검토 중-C — 상한 없이 영원히 돌던 분기
+            if (r.state === 'stale' && now() - (p.watchFrom || p.at) >= WAIT_MAX_MS) { await handOver(p, '3시간 동안 최신 main 으로 다시 검사하지 못했습니다 — ' + r.why, 'button'); return; }   // 재검토 중-C — 상한 없이 영원히 돌던 분기
             if (r.state === 'stale') {
                 // 검사 뒤 main 이 바뀌었다 — 최신 main 을 얹어 검사를 다시 돌린다(같은 head 로는 한 번만).
                 if (p.updatedFor !== r.sha) {
@@ -398,7 +409,7 @@ function createMerger({
                 return;
             }
             if (['invalid', 'no_token', 'auth', 'scope', 'foreign', 'skipped'].includes(r.state)) { await handOver(p, r.why, r.how || 'github'); return; }
-            const waited = now() - p.at;
+            const waited = now() - (p.watchFrom || p.at);   // 지켜보기 시작 시각부터(충돌을 푼 뒤·다시 done 뒤에는 그때부터 — 적대검증 상1)
             if (r.state === 'missing' && waited >= NO_CHECK_MAX_MS) { await handOver(p, '필수 검사가 30분 동안 붙지 않았습니다', 'github'); return; }
             if (waited >= WAIT_MAX_MS) { await handOver(p, r.state === 'error' ? '3시간 동안 GitHub 를 확인하지 못했습니다 — ' + r.why : '검사가 3시간 안에 끝나지 않았습니다', r.state === 'error' ? 'github' : 'button'); return; }
             arm(n, POLL_MS);   // pending · missing(30분 전) · error — 5분 뒤 다시
@@ -428,13 +439,13 @@ function createMerger({
                 old.needs = (old.needs || []).concat(needs.filter((x) => !(old.needs || []).includes(x))).slice(0, 20);
                 // 상태와 무관하게 auto 면 내린다(재검토 중-B — failed_checks 인 auto PR 이 재실행 뒤 결정 필요를 안고 자동 머지되던 길).
                 //   2026-11-18: 상태(waiting·failed_checks)와 확인은 그대로 둔다 — 검사가 초록이 되면 그때 「머지 버튼」 푸시.
-                if (old.mode === 'auto' && ['waiting', 'failed_checks'].includes(old.status)) { old.mode = 'human'; old.how = 'button'; old.why = '다른 세션이 결정 필요를 더했습니다'; }
+                if (old.mode === 'auto' && ['waiting', 'failed_checks', 'conflict_fixing'].includes(old.status)) { old.mode = 'human'; old.how = 'button'; old.why = '다른 세션이 결정 필요를 더했습니다'; }
                 save();
             }
             // 다른 run 이 같은 PR 로 다시 done 했다 = 새 커밋이 올라왔을 수 있다 → 사람 몫(버튼) PR 은 다시 지켜본다(적대검증 중1 —
             //   needs_human 은 타이머가 없어 done 이 약속한 「검사가 끝나면 머지 버튼 알림」이 오지 않았다). 실패 뒤 24시간이 지나 멈춘 것도 다시 본다.
             if (old.mode === 'human' && old.how === 'button' && (old.status === 'needs_human' || (old.status === 'failed_checks' && !timers.has(n)))) {
-                if (old.status === 'failed_checks') old.failedAt = now(); else { old.status = 'waiting'; old.at = now(); }
+                if (old.status === 'failed_checks') old.failedAt = now(); else { old.status = 'waiting'; old.watchFrom = now(); }
                 save(); arm(n, POLL_MS);
             }
             return { tracked: true, updated: true, mode: old.mode, how: old.how, status: old.status };
@@ -516,7 +527,8 @@ function createMerger({
                 if (r.outside) { p.outside = r.outside; p.outsideCount = r.outsideCount; }
                 if (r.state === 'merged' || r.state === 'closed') { p.status = r.state; disarm(p.number); }
                 // 사람 몫(needs_human) PR 이 충돌이면 자동 반영 세션에 풀기를 맡긴다(지켜보던 PR 은 tick 이 맡는다).
-                else if (r.state === 'conflict' && p.status === 'needs_human' && conflictHook) await handleConflict(p, r);
+                //   이미 「GitHub 에서 확인」으로 넘긴 PR(how github — 못 풂·3시간·되풀이)은 다시 맡기지 않는다(적대검증 중2 — 방을 열 때마다 푸시가 갔다).
+                else if (r.state === 'conflict' && p.status === 'needs_human' && p.how === 'button' && conflictHook) await handleConflict(p, r);
             } catch (e) { console.error('[nariya_pr_merge] PR #' + p.number + ' 새로 읽기 실패:', e && e.message); }
             finally { busy.delete(p.number); }
         }));
@@ -557,6 +569,7 @@ function createMerger({
     function answer(n, index, text, by) {
         const p = find(n);
         if (!p) return { ok: false, status: 404, why: '자동 반영이 맡은 PR 이 아님' };
+        if (p.status === 'merged' || p.status === 'closed') return { ok: false, status: 409, why: '이미 머지되었거나 닫힌 PR 입니다' };
         if (!Number.isInteger(index) || index < 0 || index >= (p.needs || []).length) return { ok: false, status: 400, why: '결정 필요 번호가 틀림' };
         const t = String(text || '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, '').trim().slice(0, 500);
         if (!t) return { ok: false, status: 400, why: '답이 비었음' };
@@ -564,18 +577,19 @@ function createMerger({
         while (p.answers.length < p.needs.length) p.answers.push(null);   // 빈 칸(hole) 없이 — JSON 저장·화면 map 이 줄 번호를 잃지 않게
         p.answers[index] = { text: t, at: now(), by: String(by || '관리자').slice(0, 40), handledAt: null, deferredAt: null };
         save();
-        if (answerHook) { try { answerHook(n + '-' + index); } catch (e) { console.error('[nariya_pr_merge] 답 처리 세션 깨우기 실패(답은 저장됨):', e && e.message); } }
+        // id 에 답 시각을 붙인다 — 고쳐 쓴 답은 새 일감(세션이 옛 답을 처리하고 낸 보고가 새 답을 「처리됨」으로 찍지 않게 · 보류·실패로 쉬는 옛 답에 막히지 않게 — 적대검증 중3).
+        if (answerHook) { try { answerHook(n + '-' + index + '-' + p.answers[index].at); } catch (e) { console.error('[nariya_pr_merge] 답 처리 세션 깨우기 실패(답은 저장됨):', e && e.message); } }
         return { ok: true };
     }
     /** 세션이 처리할 답 목록(GET /api/legal/autorun/answers) — 아직 처리·보류되지 않은 것. @returns {object[]} */
     function answers() {
         const out = [];
-        for (const p of load().prs) (p.answers || []).forEach((a, i) => { if (a && !a.handledAt && !a.deferredAt) out.push({ id: p.number + '-' + i, number: p.number, pr_url: p.pr_url, pr_status: p.status, branch: p.branch || null, question: (p.needs || [])[i] || '', answer: a.text, at: iso(a.at) }); });
+        for (const p of load().prs) (p.answers || []).forEach((a, i) => { if (a && !a.handledAt && !a.deferredAt) out.push({ id: p.number + '-' + i + '-' + a.at, number: p.number, pr_url: p.pr_url, pr_status: p.status, branch: p.branch || null, question: (p.needs || [])[i] || '', answer: a.text, at: iso(a.at) }); });
         return out;
     }
     /** 세션의 답 처리 결과(done 의 answer_ids · deferred_answer_ids — 「번호-줄」). [연계] ← nariya_autorun.done */
     function answersResult(handled, deferred) {
-        const mark = (ids, key) => { for (const id of ids || []) { const m = /^(\d+)-(\d+)$/.exec(String(id)); const p = m && find(Number(m[1])); const a = p && p.answers && p.answers[Number(m[2])]; if (a) a[key] = now(); } };
+        const mark = (ids, key) => { for (const id of ids || []) { const m = /^(\d+)-(\d+)-(\d+)$/.exec(String(id)); const p = m && find(Number(m[1])); const a = p && p.answers && p.answers[Number(m[2])]; if (a && String(a.at) === m[3]) a[key] = now(); } };   // 그 판(시각)의 답일 때만
         mark(handled, 'handledAt'); mark(deferred, 'deferredAt'); save();
     }
     /** 결정 필요 답 담당을 넣는다. @param {Function|null} fn */
