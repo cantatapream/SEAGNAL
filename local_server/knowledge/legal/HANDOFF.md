@@ -1537,6 +1537,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 21:11 KST] ✅완료 — 패치노트 게시판 — 어절 단위 줄바꿈 + 줄 끝 넘침 글자 간격 맞추기 · 11-18 패치노트 완성
+완료: style.css .promo-md word-break:keep-all · md_fit.js(줄 끝 2~3글자 넘침은 그 줄 글자 간격을 좁힘, 한도 0.12em, 보기 칸·미리보기만) · promo.js openPromoDetail 연결 · build_notice.js 미리보기 포함 · test_notice_md_fit 14/0(SUITES 등록) · NOTICE.md 「줄 정렬」 5규칙(원문 병기). verify_all(의존성 설치 + NODE_PATH=/opt/node-tools/node_modules): 실패 목록은 V3·V4 둘뿐 — V3 는 실행 중 기준선 갱신 탓(갱신 후 check_order 단독 통과), V4 는 로컬 서버 미기동 탓(서버 3001 기동 후 simulate.js 단독 「기준선 대비 회귀 없음」 통과). 패치노트 docs/notice/2026-11-18_update-2weeks/ — 제목 「개선·예정·기타사항 안내('26. 11. 8. ~ 18.)」, 사진 10장(4·5·7·8·9 사용자 휴대폰 사진). 다음: 작업 브랜치 → main 머지·배포해야 게시판에 줄 맞춤이 보임(사용자 확인 대기).
+
+
+### [2026-11-18 20:40 KST] 🟢착수 — 패치노트 게시판 — 어절 단위 줄바꿈 + 줄 끝 넘침 글자 간격 좁혀 맞추기
+사용자 2026-11-18: 게시판(.promo-md, 마크다운 글)에만 ①낱말 중간 줄바꿈 금지(word-break keep-all) ②다음 줄로 넘어갈 낱말이 2~3글자 차이면 그 줄 글자 간격을 좁혀 한 줄에 넣기. 새 파일 client/js/notice/board/md_fit.js(보기 칸만 — 편집기 root 에는 안 건다) + style.css promo-md 덩어리 + build_notice.js 미리보기에 같은 스크립트.
+
+
 ### [2026-11-18 18:52 KST] ✅완료 — 📋 통보문 팝업 — PC 에서 PDF 를 팝업에 바로 띄우기(구글 문서 뷰어 우회)
 브랜치 claude/festive-cerf-9hm8mq 커밋 0f66e74a + 이 기록. [한 일] client/js/forecast/alerts/alert_history.js canShowPdfInline — navigator.pdfViewerEnabled 가 true 이고 휴대폰·태블릿·앱(Capacitor)이 아니면 PDF 주소를 iframe 에 바로(#navpanes=0&view=FitH), 그 밖에는 종전처럼 구글 문서 뷰어. 서버·특보 계산 안 건드림. [원인] 못 잡음 — 실패 주소는 구글 문서 뷰어이고 이 환경에서는 재현 안 됨(처음 여는 PDF 61건 전부 정상). [확인] test_bulletin_status 104/0 · 실제 로컬 앱: PC 조건 → iframe 주소 = PDF, 브라우저 PDF 보기가 뜸(다운로드 없음·화면 확인) / 안드로이드·아이폰 조건 → 구글 뷰어 그대로. [verify_all] ⚠1건 실패: test_silent_catch 「server — io 35 > 기준선 34」. 이번 변경 탓이 아님 — 새로 잡힌 것은 local_server/services/subscriber_audit.js:228 의 messaging.send catch(PR #1503, 다른 세션의 구독자 점검 작업). 그 PR 의 CI(run 1184)와 병합 뒤 main CI(run 1185)가 이미 같은 까닭으로 실패 중이고, 그 앞 main(#1501 병합, run 1181)은 통과였다. 이번 변경은 client JS·검사·문서뿐이라 server 수치를 못 바꾼다. 그 밖의 ❌ 줄은 직전 통과 실행과 같음. 그 catch 는 오류 코드를 세는 의도된 것(죽은 등록표 판정)으로 보이나 다른 세션의 푸시 쪽 코드라 손대지 않음 — 기준선 갱신 여부는 사용자·그 세션 몫. [다음] 사용자 승인 시 PR→main(본선 게이트가 빨간 상태임을 알림). 배포 뒤 PC 에서 처음 여는 통보문이 바로 뜨는지 확인.
 
