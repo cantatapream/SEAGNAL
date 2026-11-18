@@ -104,13 +104,23 @@ function resolve(token) {
 const PART = '늦은\\s*오후|늦은\\s*밤|이른\\s*새벽|새벽|아침|오전|낮|오후|저녁|밤';
 const ZONE_RE = '[가-힣·.]+?(?:전해상|먼바다|앞바다)(?:\\([^()]*\\))?';
 //   「내일(24일) 새벽부터」「23일 밤(18시~24시)에」「오늘 오후에」「27일 오후(12~18시)」 | 시간대만 「밤부터」(앞 시간의 날을 잇는다)
-const TIME_RE = `(?:(오늘|내일|모레|글피)\\s*(?:\\((\\d{1,2})일\\))?|(\\d{1,2})일)\\s*(${PART})?\\s*(?:\\(\\s*(\\d{1,2})시?\\s*~\\s*(\\d{1,2})시\\s*\\))?\\s*(부터|에)?|(${PART})\\s*(부터|에)`;
-const REL = { 오늘: 0, 내일: 1, 모레: 2, 글피: 3 };
+const TIME_RE = `(?:(오늘|내일|모레|그글피|글피)\\s*(?:\\((?:\\d{1,2}월\\s*)?(\\d{1,2})일\\))?|(\\d{1,2})일)\\s*(${PART})?\\s*(?:\\(\\s*(\\d{1,2})시?\\s*~\\s*(\\d{1,2})시\\s*\\))?\\s*(부터|에)?|(${PART})\\s*(부터|에)`;
+const REL = { 오늘: 0, 내일: 1, 모레: 2, 글피: 3, 그글피: 4 };
 
-/** 「D일」→ 그 날 0시(KST). 기준일보다 앞선 날짜면 다음 달(2월 28일 통보문의 「2일」= 3월 2일 — 실자료 3줄, 같은 달로 읽으면 뜨자마자 지워진다). */
-function dayOf(D, baseMs) {
-    const b = new Date(baseMs + 9 * H);
-    return Date.UTC(b.getUTCFullYear(), b.getUTCMonth() + (D < b.getUTCDate() ? 1 : 0), D) - 9 * H;
+/**
+ * 「D일」→ 그 날 0시(KST) — 앞 달·이 달·다음 달의 D일 가운데 가늠한 날(targetMs)에 가장 가까운 날.
+ * 예: 2월 28일 통보문의 「2일」 = 3월 2일(같은 달로 읽으면 뜨자마자 지워진다 — 실자료 3줄) ·
+ *     0시 발표 통보문의 「오늘(18일)」 = 바로 전날 18일(「앞서면 다음 달」로 읽으면 한 달 뒤가 되어 한 달 내내 남는다 — 별도 에이전트 검토 2026-11-19)
+ */
+function dayOf(D, targetMs) {
+    const b = new Date(targetMs + 9 * H);
+    let best = null;
+    for (const dm of [-1, 0, 1]) {
+        const t = Date.UTC(b.getUTCFullYear(), b.getUTCMonth() + dm, D) - 9 * H;
+        if (new Date(t + 9 * H).getUTCDate() !== D) continue;   // 그 달에 없는 날(2월 30일)
+        if (best === null || Math.abs(t - targetMs) < Math.abs(best - targetMs)) best = t;
+    }
+    return best === null ? kstDay0(targetMs) : best;
 }
 
 /**
@@ -129,7 +139,7 @@ function scan(text, baseMs) {
         } else {
             const rel = m[2], D = m[3] || m[4], part = (m[5] || m[9] || '').replace(/\s+/g, ' '), hours = m[6] !== undefined && m[7] !== undefined, suf = m[8] || m[10] || '';
             if (!rel && D && !part && !hours) continue;   // 「21일부터 발효 중인」 — 가능 시점이 아니다(나머지 글로 둔다)
-            const day = D ? dayOf(+D, baseMs) : rel ? kstDay0(baseMs) + REL[rel] * DAY : prevDay;
+            const day = D ? dayOf(+D, kstDay0(baseMs) + (rel ? REL[rel] * DAY : 0)) : rel ? kstDay0(baseMs) + REL[rel] * DAY : prevDay;
             prevDay = day;
             const a = hours ? +m[6] : null, b = hours ? +m[7] : null;
             toks.push({ time: { dayMs: day, label: part + (hours ? `(${m[6]}시~${m[7]}시)` : '') + (suf === '부터' ? '부터' : ''),
@@ -179,6 +189,8 @@ function readHead(head, baseMs) {
  */
 function fromAi(sentence, items, baseMs) {
     if (!Array.isArray(items) || !items.length) return null;
+    //   「발효 중인 A는 … B는 경보로」처럼 지금 상태를 함께 적은 글은 AI 가 A 를 골라도 「글에 있는 해역」이라 검사를 통과한다 — 그런 글은 AI 로 읽지 않는다(못 읽은 채 둔다).
+    if (/발효|발표된|발표한|해제/.test(sentence)) return null;
     const S = nz(sentence), out = [];
     for (const it of items) {
         const z = String((it && it.해역) || ''), t = String((it && it.시점) || '');
@@ -193,7 +205,11 @@ function fromAi(sentence, items, baseMs) {
 // ── 통보문 참고사항 ────────────────────────────────────────────────────────
 const HEADER = /풍랑\s*경보\s*(?:재\s*)?변경\s*가능(?:성)?\s*시점\s*$/;
 const WAVE_UP = /풍랑\s*경보로\s*(?:재\s*)?(?:변경|강화)\s*(?:발표\s*)?될\s*가능성/;
-const CANCEL = /풍랑\s*경보[^.\n]*가능성이?\s*낮아/;
+const CANCEL = /풍랑\s*경보[^.\n]*가능성(?:이|은)?\s*(?:낮|없|희박)/;
+//   「가능성」 뒤가 「…이 있(겠)…」일 때만 안내다 — 「가능성은 낮습니다」「가능성이 있었으나 변경하지 않습니다」를 안내로 읽지 않는다(과거 자료에는 0건, 별도 에이전트 검토 2026-11-19).
+const POSITIVE = /^\s*(?:이|도)?\s*있(?!었)/;
+//   통보문 한 줄 안의 토막 경계 — 「…해제하나, 9일 오전부터 A는 … 경보로」에서 앞 토막의 해역(방금 해제한 곳)을 읽지 않게.
+const B_CLAUSE = /(?:니다\.|하나|이나|으나|하며|하고|가운데)\s*,?\s+/g;
 
 /**
  * 통보문 하나의 참고사항 → 안내·취소·못 읽은 줄.
@@ -203,7 +219,8 @@ const CANCEL = /풍랑\s*경보[^.\n]*가능성이?\s*낮아/;
  * [연계] ← compute(이 파일)
  */
 function readBulletin(b, aiRead = () => null) {
-    const r = b.result, baseMs = KST(r.tmFc || r.tmIn);
+    //   날짜 기준 = 발표시각과 입력시각 중 이른 쪽 — 0시 발표 통보문은 전날 밤에 입력되고 글도 전날 기준(「내일 오전」)으로 쓰인 것이 있다(0시 발표 237건 가운데 절반쯤).
+    const r = b.result, baseMs = Math.min(...[r.tmFc, r.tmIn].filter(Boolean).map(KST));
     const L = clean(r.other).split('\n').map((x) => x.trim());
     const out = { notices: [], cancels: [], unread: [] };
     for (let i = 0; i < L.length; i++) {
@@ -229,12 +246,20 @@ function readBulletin(b, aiRead = () => null) {
             if (h) out.cancels.push({ zones: [...new Set(h.flatMap((x) => x.zones))] }); else out.unread.push(line);
             continue;
         }
-        const k = line.search(WAVE_UP);
-        if (k < 0) continue;
-        let head = line.slice(0, k);
+        const um = line.match(WAVE_UP);
+        if (!um) continue;
+        if (!POSITIVE.test(line.slice(um.index + um[0].length))) continue;   // 부정·과거 — 안내가 아니다
+        //   머리 = 그 문구 앞에서, 해역이 적힌 마지막 토막. 뒤 토막에 해역이 없으면 앞 토막까지 넓힌다
+        //   (광주 2025 3-33호 「남해서부동쪽먼바다에 풍랑경보를 풍랑주의보로 변경하나 16일 오후부터 … 풍랑경보로 변경 발표 될 가능성」 — 해역이 앞 토막에 있다).
+        const before = line.slice(0, um.index), cuts = [0];
+        let cm;
+        B_CLAUSE.lastIndex = 0;
+        while ((cm = B_CLAUSE.exec(before))) cuts.push(cm.index + cm[0].length);
+        let head = before;
+        for (let c = cuts.length - 1; c >= 0; c--) { head = before.slice(cuts[c]); if (scan(head, baseMs).toks.some((t) => t.zone)) break; }
         const cut = head.search(/물결이|바람이/);   // 해역·시간은 「물결이·바람이」 앞에 적힌다 — 그 뒤 괄호의 해역(물결 높이 설명)은 쓰지 않는다
         if (cut >= 0) head = head.slice(0, cut);
-        const h = readHead(head, baseMs) || fromAi(line, aiRead(line), baseMs);
+        const h = readHead(head, baseMs) || fromAi(head, aiRead(line), baseMs);
         if (!h) { out.unread.push(line); continue; }
         for (const x of h) out.notices.push(Object.assign(x, { form: 'sentence' }));
     }
@@ -249,7 +274,13 @@ const CLAUSE_END = /(?:있겠고|있겠으며|가운데|겠으나|바라며)\s*,
 function seaPart(rawText) {
     const text = String(rawText || '');
     const i = text.search(/[○o]\s*\(해상\)/);
-    if (i < 0) return '';
+    if (i < 0) {
+        // 「(해상)」 표식 없이 「<해상>」 머리 아래에 바로 쓴 글(31일치 124건 중 1건 — cmt:202610281010:137): 그 머리부터 다음 「<…>」 머리 앞까지
+        const h = text.search(/<[^>\n]*해상[^>\n]*>/);
+        if (h < 0) return '';
+        const e = text.slice(h + 1).search(/\n\s*<[^>\n]+>/);
+        return e >= 0 ? text.slice(h, h + 1 + e) : text.slice(h);
+    }
     const j = text.slice(i + 1).search(/\n\s*[○o]\s*\(|\n\s*<[^>\n]+>/);
     return j >= 0 ? text.slice(i, i + 1 + j) : text.slice(i);
 }
@@ -268,6 +299,7 @@ function readCommentary(rawText, pubMs, aiRead = () => null) {
         CMT_UP.lastIndex = 0;
         let m;
         while ((m = CMT_UP.exec(s))) {
+            if (!POSITIVE.test(s.slice(m.index + m[0].length))) continue;   // 「가능성은 낮겠으나」 — 안내가 아니다
             let start = 0, e;
             CLAUSE_END.lastIndex = 0;
             while ((e = CLAUSE_END.exec(s)) && e.index < m.index) start = e.index + e[0].length;   // 이 토막의 시작 = 앞 토막의 끝(「…가능성이 있겠고,」「…발효된 가운데,」)
@@ -276,7 +308,7 @@ function readCommentary(rawText, pubMs, aiRead = () => null) {
             const cut = head.search(/물결이|바람이/);
             if (cut >= 0) head = head.slice(0, cut);
             head = head.replace(/^[\s\-–·○o]*(?:\(해상\))?\s*(?:특히|또한|한편)?\s*,?/, '').replace(/제\s*\d+호\s*태풍[^,]*?영향으로/, ' ').replace(/의\s*풍랑특보는/g, '는');
-            const h = readHead(head, pubMs) || fromAi(clause, aiRead(clause), pubMs);
+            const h = readHead(head, pubMs) || fromAi(head, aiRead(clause), pubMs);
             if (!h) { out.unread.push(clause); continue; }
             const kind = /태풍/.test(m[0]) ? 'typhoon' : 'wave';
             for (const x of h) out.notices.push({ kind, zones: x.zones, dayMs: x.dayMs, label: x.label });
@@ -292,9 +324,12 @@ function lastVersions(bulletins) {
     for (const b of bulletins || []) {
         if (!b || !b.result || !b.result.tmIn) continue;
         const k = b.office + '|' + b.rpt + '|' + String(b.result.tmFc).slice(0, 4) + '|' + b.result.t1Title;
-        if (!m.has(k) || m.get(k).result.tmIn < b.result.tmIn) m.set(k, b);
+        const o = m.get(k);
+        //   firstIn = 그 호가 처음 나온 시각. 안내의 시각으로 쓴다 — 고친 판의 시각을 쓰면, 경보가 난 뒤에 같은 호를 고쳐 다시 냈을 때 끝난 안내가 되살아난다(별도 에이전트 검토 2026-11-19).
+        const firstIn = o && o.firstIn < b.result.tmIn ? o.firstIn : b.result.tmIn;
+        m.set(k, { b: !o || o.b.result.tmIn < b.result.tmIn ? b : o.b, firstIn });
     }
-    return [...m.values()].sort((a, b) => a.result.tmIn.localeCompare(b.result.tmIn));
+    return [...m.values()].sort((x, y) => x.b.result.tmIn.localeCompare(y.b.result.tmIn));
 }
 const pubOf = (reportId) => { const m = String(reportId || '').match(/^cmt:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2}):/); return m ? Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00+09:00`) : NaN; };
 
@@ -308,7 +343,7 @@ const pubOf = (reportId) => { const m = String(reportId || '').match(/^cmt:(\d{4
  * [연계] ← run(이 파일) · 검사 / → readBulletin · readCommentary
  */
 function compute({ bulletins, zones = {}, forecasts = [], nowMs, aiRead = () => null }) {
-    const B = lastVersions(bulletins), unread = [];
+    const V = lastVersions(bulletins), B = V.map((v) => v.b), unread = [];
     // 해역별 사건(특보 통보문의 해당 구역 칸) — 부모 해역만
     const events = new Map();
     for (const b of B) if (b.rpt === '6') {
@@ -326,8 +361,8 @@ function compute({ bulletins, zones = {}, forecasts = [], nowMs, aiRead = () => 
 
     // 통보문 안내 — 해역마다 가장 새 안내 하나
     const latest = new Map(), cancels = new Map();
-    for (const b of B) {
-        const rd = readBulletin(b, aiRead), inMs = KST(b.result.tmIn);
+    for (const { b, firstIn } of V) {
+        const rd = readBulletin(b, aiRead), inMs = KST(firstIn);
         for (const u of rd.unread) unread.push(`${b.office} ${b.result.t1Title} — ${u}`);
         for (const c of rd.cancels) for (const z of c.zones) { if (!cancels.has(z)) cancels.set(z, []); cancels.get(z).push(inMs); }
         for (const n of rd.notices) for (const z of n.zones) latest.set(z, { n, b, inMs });   // B 는 입력시각 순 — 뒤의 것이 이긴다
@@ -336,7 +371,8 @@ function compute({ bulletins, zones = {}, forecasts = [], nowMs, aiRead = () => 
     const add = (zone, it) => { (items[zone] = items[zone] || []).push(it); };
     for (const [zone, { n, b, inMs }] of latest) {
         const cancelMs = (cancels.get(zone) || []).filter((t) => t >= inMs).sort((x, y) => x - y)[0];
-        const expMs = n.endMs != null ? n.endMs + GRACE_MS : inMs + NOTIME_MS;
+        //   시간창이 있으면 창 끝 + 6시간 · 날짜만 알면(「16일 오후부터」) 그 날 끝 + 6시간 · 아무 때도 없으면 96시간
+        const expMs = n.endMs != null ? n.endMs + GRACE_MS : n.dayMs != null ? Math.max(n.dayMs + DAY, inMs) + GRACE_MS : inMs + NOTIME_MS;
         const endMs = Math.min(expMs, firstAfter(zone, inMs, waveEnd), cancelMs === undefined ? Infinity : cancelMs);
         if (nowMs >= endMs || nowMs < inMs) { bulletinEnd.set(zone, Math.min(endMs, nowMs)); continue; }
         const r = b.result, d = require('./bulletin_docs').docOf(r);
@@ -392,7 +428,8 @@ JSON 만 답한다: {"항목":[{"해역":"글에 적힌 그대로","시점":"글
  */
 function createAi({ ai = (p) => require('./bulletin_ai').call('escalation', p, { caller: 'Bulletin-Escalation' }), file = AI_FILE, now = () => Date.now() } = {}) {
     let st = null, running = false;
-    const load = () => { if (!st) { try { st = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { st = {}; } st.done = st.done || {}; } return st; };
+    const obj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+    const load = () => { if (!st) { try { st = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { st = {}; } if (!obj(st)) st = {}; if (!obj(st.done)) st.done = {}; } return st; };   // 파일 내용이 null·숫자·배열이어도 던지지 않는다
     const save = () => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file + '.tmp', JSON.stringify(st)); fs.renameSync(file + '.tmp', file); };
     /** 그 문장의 AI 답(항목 배열) — 아직 없거나 실패했으면 null. */
     const read = (text) => { const d = load().done[keyOf(text)]; return d && d.ok ? d.items : null; };
@@ -417,7 +454,7 @@ function createAi({ ai = (p) => require('./bulletin_ai').call('escalation', p, {
                 let parsed = null;
                 if (r && r.success) { try { parsed = JSON.parse(String(r.text || '').replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (_) { parsed = null; } }
                 const ok = !!parsed && Array.isArray(parsed.항목);
-                st.done[k] = ok ? { ok: true, items: parsed.항목.slice(0, 20), text: String(text).slice(0, 400), at: now() }
+                st.done[k] = ok ? { ok: true, items: parsed.항목.slice(0, 20).map((x) => ({ 해역: String((x && x.해역) || '').slice(0, 100), 시점: String((x && x.시점) || '').slice(0, 60) })), text: String(text).slice(0, 400), at: now() }
                     : { ok: false, tries: ((d && d.tries) || 0) + 1, nextMs: now() + AI_RETRY_MS, error: String((r && r.error) || 'JSON 으로 읽을 수 없는 답').slice(0, 200), text: String(text).slice(0, 400) };
                 asked++; changed = true;
             }
@@ -448,7 +485,9 @@ function run({ watch = require('./bulletin_watch'), zones, forecasts = readForec
     const res = compute({ bulletins: watch.bulletins(), zones: zones || {}, forecasts, nowMs: now(), aiRead: ai.read });
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file + '.tmp', JSON.stringify(res)); fs.renameSync(file + '.tmp', file);
-    if (res.unread.length) ai.fill(res.unread.map((u) => u.slice(u.indexOf(' — ') + 3))).catch((e) => console.warn('[격상 가능성] AI 묻기 실패:', e && e.message));
+    //   AI 에는 답을 쓸 수 있는 문장(「…로 변경될 가능성」 문장·토막)만 — 표의 이름 빈 줄·취소 줄은 AI 답을 쓸 곳이 없다
+    const ask = res.unread.map((u) => u.slice(u.indexOf(' — ') + 3)).filter((t) => WAVE_UP.test(t) || /태풍\s*특보로\s*변경될\s*가능성/.test(t));
+    if (ask.length) ai.fill(ask).catch((e) => console.warn('[격상 가능성] AI 묻기 실패:', e && e.message));
     return res;
 }
 /** 마지막 계산 결과(없으면 null). */

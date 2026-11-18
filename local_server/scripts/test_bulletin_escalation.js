@@ -84,12 +84,15 @@ console.log('C. 통보문 참고사항 — 문장 꼴');
 console.log('D. 날씨해설 — 토막(절) 단위');
 {
     const pub = T('2026-10-27 10:10');
-    const txt = (sea) => '<중점 사항>\n○ 오늘 전국이 흐리겠습니다.\n\n<해상 및 강풍>\n○ (해상) ' + sea + '\n○ (강풍) 강원산지에 바람이 강하게 불겠습니다.\n\n<예보의 변동성>\n○ (변동성) 내일 내리는 비는 제30호 태풍 참피(CHAMPI)의 이동 경로와 강도 등에 따라 강수 구역과 시점 등이 변경될 가능성이 있겠으니, 최신 예보를 참고하기 바랍니다.';
+    const txt = (sea) => '<중점 사항>\n○ 오늘 전국이 흐리겠습니다.\n\n<해상 및 강풍>\n○ (해상) ' + sea + '\n○ (강풍) 강원산지에 바람이 강하게 불겠습니다.\n\n<예보의 변동성>\n○ (변동성) 내일 내리는 비는 제30호 태풍 참피(CHAMPI)의 이동 경로와 강도 등에 따라 강수 구역과 시점 등이 변경될 가능성이 있겠고, 제주도남쪽바깥먼바다는 태풍특보로 변경될 가능성이 있겠으니, 최신 예보를 참고하기 바랍니다.';
     const a = E.readCommentary(txt('풍랑특보가 발효된 서해상과 제주도남쪽먼바다, 동해중부해상(앞바다 11시 발효)은 바람이 매우 강하게 불고, 물결이 1.5~3.5m(동해중부먼바다와 동해남부북쪽먼바다 5.0m 이상)로 매우 높게 일겠으니, 유의하기 바랍니다.\n- 또한, 동해중부먼바다는 오늘(27일) 오후부터, 동해남부북쪽먼바다는 오늘 밤부터 물결이 5.0m 이상으로 더욱 높게 일면서, 풍랑경보로 변경될 가능성이 있겠고, 오늘 오후부터 그 밖의 대부분 해상에도 차차 바람이 매우 강하게 불고, 물결이 매우 높게 일면서 풍랑특보를 발표할 가능성이 있겠으니, 앞으로 발표하는 기상정보를 참고하기 바랍니다.'), pub);
     ok('한 문장에 섞인 「경보 변경」 토막만 읽는다 — 「그 밖의 대부분 해상 … 풍랑특보를 발표할 가능성」(새 특보)·「발효된 서해상」(지금 상태)·물결 괄호의 해역은 안 쓴다',
         a.notices.length === 2 && a.notices.every((n) => n.kind === 'wave') && same(a.notices[0].zones, ['동해중부안쪽먼바다', '동해중부바깥먼바다']) && a.notices[0].label === '오후부터' && dm(a.notices[0].dayMs) === '10-27 00:00'
         && same(a.notices[1].zones, ['동해남부북쪽안쪽먼바다', '동해남부북쪽바깥먼바다']) && a.notices[1].label === '밤부터' && a.unread.length === 0, a);
-    ok('「<예보의 변동성>」의 「태풍 … 변경될 가능성」(비 예보 이야기)은 해상 문단이 아니라 안 읽는다', !a.notices.some((n) => n.kind === 'typhoon'));
+    ok('해상 문단 밖(「<예보의 변동성>」 문단 — 여기에 「태풍특보로 변경될 가능성」 글자가 있어도)은 안 읽는다 · 강풍 문단도', !a.notices.some((n) => n.kind === 'typhoon') && !E.seaPart(txt('x')).includes('변동성') && !E.seaPart(txt('x')).includes('(강풍)'));
+    const noMark = E.readCommentary('<중점 사항>\n○ 흐리겠습니다.\n\n<해상>\n○ 풍랑특보가 발효된 서해상은 물결이 높겠습니다.\n- 특히, 동해중부먼바다는 오늘 밤부터 물결이 더욱 높게 일면서 풍랑경보로 변경될 가능성이 있겠습니다.\n\n<예보의 변동성>\n○ 제주도남쪽바깥먼바다는 태풍특보로 변경될 가능성이 있겠습니다.', pub);
+    ok('「(해상)」 표식 없이 「<해상>」 머리 아래에 쓴 글도 읽는다(실자료 1건) — 다음 머리 앞까지만', noMark.notices.length === 1 && noMark.notices[0].kind === 'wave' && noMark.notices[0].zones.length === 2, noMark);
+    ok('「가능성은 낮겠으나」「가능성이 있었으나」는 안내가 아니다', E.readCommentary(txt('- 특히, 동해중부먼바다는 오늘 밤부터 물결이 높게 일겠으나 풍랑경보로 변경될 가능성은 낮겠으니 참고하기 바랍니다.\n- 또한, 남해동부바깥먼바다는 태풍특보로 변경될 가능성이 있었으나 태풍이 약해졌습니다.'), pub).notices.length === 0);
     const b = E.readCommentary(txt('풍랑특보가 발효된 제주도해상(북부앞바다 제외)과 남해동부바깥먼바다는 당분간 물결이 매우 높게 일겠으니, 유의하기 바랍니다.\n- 특히, 제주도남쪽먼바다와 남해동부바깥먼바다는 오늘(23일) 밤부터, 제주도앞바다(북부 제외)는 모레(25일) 새벽부터 차차 물결이 최대 5.0m 이상으로 더욱 높게 일면서, 풍랑경보로 강화될 가능성이 있겠으니, 앞으로 발표하는 기상정보를 참고하기 바랍니다.'), T('2026-10-23 16:30'));
     ok('「제주도앞바다(북부 제외)」 — 북부앞바다는 빠진다 · 해역마다 다른 날', b.notices.length === 2 && b.notices[0].zones.length === 4 && dm(b.notices[0].dayMs) === '10-23 00:00' && same(b.notices[1].zones, ['제주도동부앞바다', '제주도남부앞바다', '제주도서부앞바다']) && dm(b.notices[1].dayMs) === '10-25 00:00' && b.notices[1].label === '새벽부터', b);
     const c = E.readCommentary(txt('풍랑특보가 발효된 제주도해상과 남해먼바다는 내일(26일)까지 물결이 매우 높게 일겠으니, 유의하기 바랍니다.\n- 또한, 남해동부안쪽먼바다는 오늘 오전부터 물결이 5.0m 이상으로 더욱 높게 일면서, 풍랑경보로 변경될 가능성이 있겠고, 오늘 오후부터 동해중부먼바다에는 차차 물결이 매우 높게 일면서 풍랑특보를 발표할 가능성이 있겠으며, 모레(27일)부터 대부분 해상에서 물결이 높게 일겠습니다.\n- 특히, 제30호 태풍 ‘참피(CHAMPI)’의 영향으로 제주도남쪽바깥먼바다에 태풍특보가 발효된 가운데, 오늘 오후에 남해동부바깥먼바다도 태풍특보로 변경될 가능성이 있겠으니, 앞으로 발표하는 기상정보를 참고하기 바랍니다.'), T('2026-10-25 04:30'));
@@ -102,6 +105,37 @@ console.log('D. 날씨해설 — 토막(절) 단위');
     const f = E.readCommentary(txt('- 특히, 제주도해상과 그 밖의 남해상에는 오늘 밤부터 물결이 더욱 높게 일면서 풍랑경보로 변경될 가능성이 있겠습니다.'), pub);
     ok('경보 변경 토막이라도 넓은 말(「제주도해상」「그 밖의 남해상」)은 못 푼다 → 아무 해역에도 붙이지 않는다(못 읽은 토막으로 남긴다)', f.notices.length === 0 && f.unread.length === 1, f);
     ok('새 특보 발표 가능성만 있는 글 · 해상 문단이 없는 글 = 없음', E.readCommentary(txt('내일(5일) 새벽부터 서해남부북쪽먼바다, 오전부터 제주도해상에 물결이 매우 높게 일면서 풍랑특보를 발표할 가능성이 있겠으니, 참고하기 바랍니다.'), pub).notices.length === 0 && E.readCommentary('<중점 사항>\n○ 맑겠습니다.', pub).notices.length === 0);
+}
+
+console.log('C2. 별도 에이전트 검토(2026-11-19)에서 나온 것 — 과거 자료에는 0건이지만 재현되는 것');
+{
+    const M = B('광주청', '6', '제11-60호', '2026-11-19 00:00', { tmIn: '2026-11-18 23:59', other: '- 서해남부북쪽바깥먼바다는 오늘(18일) 밤(18~24시)에 풍랑경보로 변경될 가능성이 있습니다.' });
+    ok('0시 발표·전날 밤 입력 통보문의 「오늘(18일)」 = 바로 전날 18일(「앞서면 다음 달」로 읽으면 12월 18일이 되어 한 달 남는다)', (() => { const x = N(M); return x.length === 1 && dm(x[0].startMs) === '11-18 18:00' && dm(x[0].endMs) === '11-19 00:00'; })(), N(M));
+    ok('그 통보문의 「내일 오전」 = 입력한 날(18일)의 다음 날 19일 — 날짜 기준은 발표·입력 시각 중 이른 쪽', (() => { const x = N(B('광주청', '6', '제11-61호', '2026-11-19 00:00', { tmIn: '2026-11-18 23:59', other: '- 서해남부북쪽바깥먼바다는 내일 오전에 풍랑경보로 변경될 가능성이 있습니다.' })); return x.length === 1 && dm(x[0].dayMs) === '11-19 00:00'; })());
+    ok('그 안내는 시간창 끝 + 6시간에 사라진다(한 달 남지 않는다)', (() => { const at = (t) => Object.keys(E.compute({ bulletins: [M], nowMs: T(t) }).items).length; return at('2026-11-19 05:00') === 1 && at('2026-11-19 06:01') === 0 && at('2026-11-25 12:00') === 0; })());
+    ok('연말: 12월 31일 통보문의 「1일」 = 다음 해 1월 1일 · 그 달에 없는 날(「31일」을 2월에)은 가까운 달의 그 날', (() => { const x = N(B('강원청', '6', '제12-90호', '2026-12-31 16:00', { other: '○ 풍랑 경보 변경 가능 시점\n(1) 동해중부안쪽먼바다: 1일 새벽(00시~06시)' })); return x.length === 1 && new Date(x[0].startMs + 9 * H).toISOString().slice(0, 13) === '2027-01-01T00'; })());
+    const neg = E.readBulletin(B('광주청', '6', '제11-62호', '2026-11-18 16:00', { other: '- 서해남부북쪽바깥먼바다는 18일 밤(18~24시)에 풍랑경보로 변경될 가능성은 낮습니다.\n- 서해남부남쪽바깥먼바다는 풍랑경보로 변경될 가능성이 있었으나 변경하지 않습니다.' }));
+    ok('「가능성은 낮습니다」는 안내가 아니라 취소 · 「가능성이 있었으나 변경하지 않습니다」도 안내가 아니다', neg.notices.length === 0 && neg.cancels.length === 1 && neg.cancels[0].zones.join() === '서해남부북쪽바깥먼바다', neg);
+    const cl = N(B('제주청', '6', '제9-23호', '2026-09-08 16:00', { other: '제주도동부앞바다와 제주도남부앞바다의 풍랑주의보는 18시를 기해 해제하나, 9일 오전(06~12시)부터 제주도남쪽바깥먼바다는 물결이 높아져 풍랑경보로 변경될 가능성이 있습니다.' }));
+    ok('한 줄 안의 앞 토막(「…해제하나,」)에 적힌 해역은 안 읽는다 — 방금 해제한 앞바다에 안내가 붙지 않는다', cl.length === 1 && cl[0].zones.join() === '제주도남쪽바깥먼바다' && dm(cl[0].startMs) === '09-09 06:00', cl);
+    const two = N(B('제주청', '6', '제10-70호', '2026-10-23 12:00', { other: '제주도남부앞바다에 풍랑주의보를 발표합니다. 제주도남쪽바깥먼바다는 23일 밤(18시~24시)에 풍랑경보로 변경될 가능성이 있습니다.' }));
+    ok('한 줄에 문장이 둘이면 앞 문장의 해역은 안 읽는다', two.length === 1 && two[0].zones.join() === '제주도남쪽바깥먼바다', two);
+    ok('「그글피(8월 1일) 새벽」 — 글피로 잘못 읽지 않는다', (() => { const x = N(B('제주청', '6', '제7-70호', '2026-07-28 16:00', { other: '- 제주도남쪽바깥먼바다는 그글피(8월 1일) 새벽(00~06시)에 풍랑경보로 변경될 가능성이 있습니다.' })); return x.length === 1 && dm(x[0].startMs) === '08-01 00:00'; })());
+    const sea = (o) => B('광주청', '6', '제11-63호', '2026-11-18 16:00', { other: o });
+    ok('물결 높이 설명(「물결이」 뒤 괄호)의 해역은 안 읽는다', (() => { const x = N(sea('- 서해남부북쪽바깥먼바다는 오늘 밤부터 물결이 3.0~5.0m(서해남부남쪽바깥먼바다 5.0m 이상)로 높게 일면서 풍랑경보로 변경될 가능성이 있습니다.')); return x.length === 1 && x[0].zones.join() === '서해남부북쪽바깥먼바다'; })());
+    // 같은 호를 경보 뒤에 고쳐 다시 냄
+    const b1 = B('강원청', '6', '제11-25호', '2026-11-18 16:00', { t2: '(1) 풍랑주의보 발표 : 동해중부바깥먼바다', other: '○ 풍랑 경보 변경 가능 시점\n(1) 동해중부바깥먼바다: 19일 오전(06시~12시)' });
+    const warn = B('강원청', '6', '제11-27호', '2026-11-18 22:00', { t2: '(1) 풍랑경보 변경 : 동해중부바깥먼바다' });
+    const fix = B('강원청', '6', '제11-25호', '2026-11-18 16:00', { tmIn: '2026-11-18 23:00', t2: b1.result.t2, other: b1.result.other });
+    ok('경보가 난 뒤 같은 호를 고쳐 다시 내도 끝난 안내가 되살아나지 않는다(안내 시각 = 그 호가 처음 나온 때)', Object.keys(E.compute({ bulletins: [b1, warn, fix], nowMs: T('2026-11-18 23:10') }).items).length === 0 && Object.keys(E.compute({ bulletins: [fix, warn, b1], nowMs: T('2026-11-18 23:10') }).items).length === 0);
+    const dayOnly = B('광주청', '6', '제3-33호', '2025-03-16 09:01', { other: '(1) 남해서부동쪽먼바다에 풍랑경보를 풍랑주의보로 변경하나 16일 오후부터 점차 물결이 높아지면서 풍랑경보로 변경 발표 될 가능성이 있으니 최신 정보를 참고하시기 바랍니다.' });
+    ok('날짜만 아는 안내(「16일 오후부터」)는 그 날 끝 + 6시간까지(96시간이 아니다)', (() => { const at = (t) => Object.keys(E.compute({ bulletins: [dayOnly], nowMs: T(t) }).items).length; return at('2025-03-17 05:00') === 1 && at('2025-03-17 06:01') === 0; })());
+    const order = [B('강원청', '6', '제11-25호', '2026-11-18 16:00', { tmIn: '2026-11-18 16:17', t2: '(1) 풍랑주의보 발표 : 동해중부바깥먼바다', other: '○ 풍랑 경보 변경 가능 시점\n(1) 동해중부바깥먼바다: 19일 오전(06시~12시)' }), B('강원청', '6', '제11-26호', '2026-11-18 16:30', { tmIn: '2026-11-18 16:05', t2: '(1) 풍랑주의보 해제 : 동해중부바깥먼바다' })];
+    ok('사건 순서는 입력시각으로 본다(발표시각보다 일찍·늦게 입력되는 통보문 — 실자료 −31분~+17분) · 넣는 순서가 뒤섞여도 같다', Object.keys(E.compute({ bulletins: order, nowMs: T('2026-11-18 17:00') }).items).length === 1 && Object.keys(E.compute({ bulletins: order.slice().reverse(), nowMs: T('2026-11-18 17:00') }).items).length === 1);
+    const ty = { type: '단기전망', reportId: 'cmt:202610241630:119', title: '[해설] 제10-119호', rawText: '○ (해상) - 특히, 제주도남쪽바깥먼바다의 풍랑특보는 내일 오전에 태풍특보로 변경될 가능성이 있겠습니다.\n<끝>' };
+    ok('그 글 뒤에 그 해역이 해제되면 태풍 가능성도 끝', Object.keys(E.compute({ bulletins: [B('제주청', '6', '제10-58호', '2026-10-24 20:00', { t2: '(1) 풍랑경보 해제 : 제주도남쪽바깥먼바다' })], forecasts: [ty], nowMs: T('2026-10-24 21:00') }).items).length === 0);
+    const newer = { type: '초단기전망', reportId: 'cmt:202610242210:120', title: '[해설] 제10-120호', rawText: '○ (해상) - 특히, 제주도남쪽바깥먼바다의 풍랑특보는 내일(25일) 새벽에 태풍특보로 변경될 가능성이 있겠습니다.\n<끝>' };
+    ok('글을 넣는 순서가 뒤섞여도 더 새 글이 이긴다', [[ty, newer], [newer, ty]].every((f) => E.compute({ bulletins: [], forecasts: f, nowMs: T('2026-10-24 23:00') }).items['제주도남쪽바깥먼바다'][0].label === '새벽'));
 }
 
 console.log('E. 지우는 때 — 통보문 안내');
@@ -190,6 +224,8 @@ console.log('G. AI(⑤) — 규칙이 못 읽은 문장만, 지어낸 해역 없
         && E.fromAi('제주도바깥먼바다에는 풍랑경보로 변경될 가능성', [{ 해역: '제주도바깥먼바다', 시점: '' }], base) === null && E.fromAi(S, [{ 해역: '서해남부북쪽바깥먼바다', 시점: '내일 새벽' }], base) === null
         && E.fromAi(S, [], base) === null && E.fromAi(S, null, base) === null && E.fromAi(S, [{}], base) === null);
     const bS = B('광주청', '6', '제11-40호', '2026-11-18 16:00', { other: '- ' + S });
+    ok('지금 상태를 함께 적은 글(「발효 중인 …」「…해제하나」)은 AI 로 읽지 않는다 — AI 가 그 해역을 골라도 「글에 있는 해역」이라 통과해 버리기 때문', E.fromAi('풍랑주의보가 발효 중인 서해남부북쪽바깥먼바다 일대 해역과 서해남부남쪽바깥먼바다 인근 해역에는', [{ 해역: '서해남부북쪽바깥먼바다', 시점: '' }], base) === null);
+    ok('AI 답은 머리 토막(가능성 문구 앞) 안의 글자여야 한다 — 문구 뒤 다른 토막의 해역·시점은 못 쓴다', E.readBulletin(B('광주청', '6', '제11-41호', '2026-11-18 16:00', { other: '- 서해남부북쪽바깥먼바다 일대 해역에는 풍랑경보로 변경될 가능성이 있고, 내일(19일) 새벽부터 서해남부남쪽바깥먼바다에는 물결이 높겠습니다.' }), () => [{ 해역: '서해남부남쪽바깥먼바다', 시점: '내일(19일) 새벽부터' }]).notices.length === 0);
     ok('통보문 문장: AI 답이 없으면 못 읽은 줄 · 있으면 안내', E.readBulletin(bS).unread.length === 1 && E.readBulletin(bS, () => [{ 해역: '서해남부북쪽바깥먼바다', 시점: '오늘 밤부터' }]).notices.length === 1);
     // 보관소
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'esc-ai-')), file = path.join(dir, 'ai.json');
@@ -211,12 +247,19 @@ console.log('G. AI(⑤) — 규칙이 못 읽은 문장만, 지어낸 해역 없
     const S3 = '동해중부먼바다 인근 해역은 풍랑경보로 변경될 가능성이 있겠습니다.';
     await ai.fill([S3]);
     ok('JSON 이 아닌 답은 실패로 친다 · 더는 못 읽은 문장이 아닌 실패 기록은 지운다', ai.read(S3) === null && JSON.parse(fs.readFileSync(file, 'utf8')).done && Object.values(JSON.parse(fs.readFileSync(file, 'utf8')).done).every((d) => d.ok || d.text.startsWith('동해중부먼바다')));
+    ok('보관소 파일 내용이 null·숫자·배열·틀린 모양이어도 던지지 않고 빈 보관소로 본다(던지면 격상 계산이 매분 죽는다)', ['null', '5', '[]', '{"done":"x"}', '{"done":[1]}', '{잘린'].every((c, i) => { const f = path.join(dir, 'bad' + i + '.json'); fs.writeFileSync(f, c); return E.createAi({ ai: async () => answer(), file: f, now: () => clock }).read(S) === null; }));
+    const big = E.createAi({ ai: async () => ({ success: true, text: JSON.stringify({ 항목: [{ 해역: '가'.repeat(5000), 시점: '나'.repeat(5000) }] }) }), file: path.join(dir, 'big.json'), now: () => clock });
+    await big.fill([S]);
+    ok('아주 긴 AI 답은 잘라 둔다', big.read(S)[0].해역.length === 100 && big.read(S)[0].시점.length === 60);
     const boom = E.createAi({ ai: async () => { throw new Error('network'); }, file: path.join(dir, 'ai2.json'), now: () => clock });
     ok('AI 호출이 던져도 보관소는 던지지 않는다', (await boom.fill([S])).asked === 1 && boom.read(S) === null);
     // run: 저장 + AI 걸기
     const out = path.join(dir, 'esc.json'), asked = [];
     const res = E.run({ watch: { bulletins: () => [bS] }, zones: {}, forecasts: [], file: out, now: () => T('2026-11-18 20:00'), ai: { read: () => null, fill: async (t) => { asked.push(...t); return { asked: t.length }; } } });
     ok('run: 계산 결과를 저장하고, 못 읽은 문장만 AI 에 걸어 둔다(기다리지 않는다)', res.unread.length === 1 && asked.length === 1 && asked[0] === '- ' + S && JSON.stringify(E.read(out).items) === '{}' && E.read(path.join(dir, 'none.json')) === null, [res.unread, asked]);
+    const asked2 = [];
+    E.run({ watch: { bulletins: () => [B('강원청', '6', '제6-7호', '2026-06-20 10:01', { other: '○ 풍랑 경보 변경 가능 시점\n(2) : 20일 밤(18시~24시)' }), B('강원청', '7', '제10-8호', '2026-06-20 10:02', { other: '또한, 어느 일대 해역의 풍랑경보는 발표 가능성이 낮아졌음을 알려드립니다.' })] }, zones: {}, forecasts: [], file: out, now: () => T('2026-06-20 12:00'), ai: { read: () => null, fill: async (t) => { asked2.push(...t); return { asked: 0 }; } } });
+    ok('AI 에는 답을 쓸 수 있는 문장만 묻는다 — 표의 이름 빈 줄·취소 줄은 안 묻는다(답을 쓸 곳이 없다)', asked2.length === 0, asked2);
     const res2 = E.run({ watch: { bulletins: () => [bS] }, zones: {}, forecasts: [], file: out, now: () => T('2026-11-18 20:00'), ai: { read: (t) => (t === '- ' + S ? [{ 해역: '서해남부북쪽바깥먼바다', 시점: '오늘 밤부터' }] : null), fill: async () => { asked.push('again'); return { asked: 0 }; } } });
     ok('다음 분: AI 답이 있으면 그 문장이 안내로 읽힌다(더 묻지 않는다)', (res2.items['서해남부북쪽바깥먼바다'] || []).length === 1 && res2.unread.length === 0 && !asked.includes('again'), res2);
 
@@ -228,8 +271,15 @@ console.log('G. AI(⑤) — 규칙이 못 읽은 문장만, 지어낸 해역 없
             const d = JSON.parse(fs.readFileSync(path.join(RAW, ym, f), 'utf8'));
             for (const it of Object.values(d.items || {})) if (it.result && it.result.tmIn) all.push({ office: d.officeName, rpt: it.rpt, result: it.result });
         }
-        let table = 0, sent = 0, cancel = 0; const unread = [];
-        for (const b of all) { if (!/경보/.test(String(b.result.other || ''))) continue; const r = E.readBulletin(b); table += r.notices.filter((x) => x.form === 'table').length; sent += r.notices.filter((x) => x.form === 'sentence').length; cancel += r.cancels.length; unread.push(...r.unread); }
+        let table = 0, sent = 0, cancel = 0; const unread = [], lines = [];
+        for (const b of all) {
+            if (!/경보/.test(String(b.result.other || ''))) continue;
+            const r = E.readBulletin(b); table += r.notices.filter((x) => x.form === 'table').length; sent += r.notices.filter((x) => x.form === 'sentence').length; cancel += r.cancels.length; unread.push(...r.unread);
+            for (const x of r.notices) lines.push([b.office, b.rpt, b.result.t1Title, b.result.tmIn.slice(0, 16), x.form, x.zones.join('+'), x.dayMs, x.label, x.startMs, x.endMs].join('|'));
+            for (const c of r.cancels) lines.push([b.office, b.result.t1Title, 'cancel', c.zones.join('+')].join('|'));
+        }
+        const digest = require('crypto').createHash('sha1').update(lines.join('\n')).digest('hex').slice(0, 12);
+        ok('읽은 내용 전체(통보문·해역·날짜·시간창)의 지문이 그대로다 — 개수는 같고 해역·시각만 달라지는 변화도 잡는다(2차 독립 검토가 원문과 전수 대조해 틀린 것 0 으로 확인한 결과)', digest === 'f9c2c4f57d47', digest);
         ok(`통보문 ${all.length}건: 표 줄 105 · 문장 안내 27 · 취소 1 · 못 읽은 줄 6(서해먼바다·제주도바깥먼바다·서해남부바깥(북쪽, 남쪽)먼바다 등 — 넘겨짚지 않는다)`,
             all.length === 5768 && table === 105 && sent === 27 && cancel === 1 && unread.length === 6 && unread.every((u) => /서해먼바다|제주도바깥먼바다|바깥\(북쪽|안쪽\(북쪽|^\(2\) :/.test(u)), { n: all.length, table, sent, cancel, unread });
     }
