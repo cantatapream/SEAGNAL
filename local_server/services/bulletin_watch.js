@@ -16,6 +16,7 @@
  *  - 저장          : data/bulletin_watch/<KST 날짜>.jsonl(기록, 30일) · data/bulletin_watch/state.json(본 통보문)
  *  - 나를 쓰는 곳  : scheduler.js(매 1분 run) · routes/bulletin_watch.js(관리자 내려받기) · services/bulletin_status.js(bulletins — 통보문 기준 특보현황 · listsOkMs) ·
  *                   routes/weather.js(bulletins — 📋 해역별 통보문 팝업의 본문 글) · 검사 test_bulletin_watch
+ *  - 알림          : 로그인이 안 되면 관리자 푸시 — services/collect_fail_alert('bulletins', 실패 시작 1통·복구 1통). 수집현황 목록표 config/data_collection_manifest.json 의 bulletins
  *  - 환경변수      : KMA_DMDW_USER_ID / KMA_DMDW_USER_PWD(없으면 꺼짐) · BULLETIN_WATCH_DISABLE=1(강제 끔)
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
@@ -63,7 +64,7 @@ const hashOf = (r) => crypto.createHash('sha256').update(JSON.stringify(r || nul
  * @returns {{run: function(): Promise<object>, readDay: function(string): Array, days: function(): string[]}}
  * [연계] ← module.exports.run(실제 dmdw 연결) · test_bulletin_watch
  */
-function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), gapMs = 700 }) {
+function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), gapMs = 700, onLogin = () => {} }) {
     const stateFile = path.join(dir, 'state.json');
     let state = null, loggedIn = false, loginBlockedUntil = 0, running = false;
     const load = () => { if (state) return; try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch (_) { state = { seen: {} }; } };
@@ -75,7 +76,10 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
         for (let i = 0; i < 2; i++) {
             if (!loggedIn) {
                 if (now() < loginBlockedUntil) throw new Error('로그인 쉬는 중');
-                try { await login(); loggedIn = true; } catch (e) { loginBlockedUntil = now() + 30 * 60e3; throw e; }
+                // 로그인을 시도할 때마다 결과를 알린다(onLogin) — 안 되면 관리자 푸시(사용자 2026-11-18 「방재기상플랫폼 로그인이 갑자기 안되면 관리자에게 푸시」).
+                //   쉬는 30분 동안은 시도하지 않으므로 알리지도 않는다(실패 상태는 알림 쪽이 들고 있다). 알림이 던져도 수집은 그대로 간다.
+                try { await login(); loggedIn = true; try { onLogin({ ok: true }); } catch (_) { /* 알림 실패가 수집을 막지 않게 */ } }
+                catch (e) { loginBlockedUntil = now() + 30 * 60e3; try { onLogin({ ok: false, error: e }); } catch (_) { /* 위와 같음 */ } throw e; }
             }
             try { return await post(p, form); }
             catch (e) { if (e && e.sessionLost) { loggedIn = false; continue; } throw e; }
@@ -239,7 +243,28 @@ async function realPost(p, form) {
 
 const enabled = !!(process.env.KMA_DMDW_USER_ID && process.env.KMA_DMDW_USER_PWD) && process.env.BULLETIN_WATCH_DISABLE !== '1';
 let real = null;
-const getReal = () => (real = real || createWatch({ post: realPost, login: realLogin }));
+const getReal = () => (real = real || createWatch({ post: realPost, login: realLogin, onLogin: (r) => { reportLogin(r); } }));   // 로그인이 안 되면 관리자 푸시(reportLogin — 던지지 않는다)
+
+/**
+ * 로그인 실패를 관리자에게 보일 짧은 사유로 바꾼다(푸시·수집현황 카드에 그대로 나간다).
+ * 예: Error('로그인 거부(statecode=11)') → '로그인 거부 — 비밀번호 만료' · Error('timeout') → '로그인 실패 — 시간초과'
+ * @param {*} e 로그인이 던진 오류 @returns {string}
+ * [연계] ← reportLogin(이 파일) / 상태 코드 뜻은 realLogin 주석(00 미등록 · 01 승인대기 · 11 비밀번호 만료 — 11 은 2026-11-15 실제 사례)
+ */
+function loginReason(e) {
+    const m = /statecode=([^)\s]+)/.exec(String((e && e.message) || e || ''));
+    if (m) return '로그인 거부 — ' + ({ '11': '비밀번호 만료', '00': '미등록 계정', '01': '승인 대기' }[m[1]] || '상태 코드 ' + m[1]);
+    return '로그인 실패 — ' + require('./collect_fail_alert').reasonOf(e);
+}
+/**
+ * 로그인 시도 결과를 수집 실패 알림에 보고한다 — 안 되기 시작하면 관리자 푸시 1통, 다시 되면 「복구」 1통(collect_fail_alert 규칙 그대로).
+ * 예: reportLogin({ok:false, error:Error('로그인 거부(statecode=11)')}) → 푸시 「특보·예비특보 통보문 (기상청 방재기상플랫폼) 수집 실패 — 로그인 거부 — 비밀번호 만료, 11/18 22:30부터」
+ * @param {{ok:boolean, error?:*}} r @param {{report:function}} [alerter] 검사용 바꿔 끼우기
+ * [연계] ← createWatch.call(onLogin — 실제 연결에서만) / → services/collect_fail_alert.report('bulletins')
+ */
+function reportLogin(r, alerter = require('./collect_fail_alert')) {
+    return alerter.report('bulletins', r.ok ? { ok: true } : { ok: false, error: Object.assign(new Error(String((r.error && r.error.message) || r.error)), { plainReason: loginReason(r.error) }) });
+}
 
 module.exports = {
     enabled,
@@ -248,6 +273,6 @@ module.exports = {
     readDay: (d) => getReal().readDay(d),
     bulletins: () => getReal().bulletins(),
     listsOkMs: () => getReal().listsOkMs(),
-    createWatch, isEmpty, OFFICES, dayOf, hmOf,
+    createWatch, isEmpty, OFFICES, dayOf, hmOf, loginReason, reportLogin,
     _real: { post: realPost, login: realLogin },   // 실제 연결 한 번 시험용(저장 위치를 바꿔 끼울 때)
 };
