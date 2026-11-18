@@ -22,7 +22,7 @@
  *   빼는 가벼운 연산만 한다.
  *
  * [실행 시점]
- *   scheduler.js 가 KST 23:30 물빠짐→제주 앵커 수집이 끝난 직후 1회 호출한다
+ *   scheduler.js 가 KST 02:00 물빠짐→제주 앵커 수집이 끝난 직후 1회 호출한다
  *   (조위 곡선이 그 시점에 갱신되므로 그 직후 재계산해야 최신 3일 윈도우 반영).
  *
  * [연계]
@@ -31,7 +31,7 @@
  *   - services/hazard_rocks_tide_collector.js → 제주 앵커·곡선 경로
  *   - scripts/build_tide_field.js         → loadTideTable(year) 재사용(동해 표준항)
  *   - routes/hazard_rocks.js              → getUpcomingWarnings() 를 API로 노출
- *   - scheduler.js                        → KST 23:30, 곡선 수집 직후 1회 호출
+ *   - scheduler.js                        → KST 02:00, 곡선 수집 직후 1회 호출
  *   - peak_finder.js                      → findPeaksInSamples(팝업 고조·저조 — 바텀시트와 같은 규칙, 2026-10-18)
  * ============================================================================
  */
@@ -489,8 +489,8 @@ function buildAnchorDayCurve(refs, curvePathFn, yyyymmdd) {
  * @returns {Array<{m:number,cm:number,type:'high'|'low'}>} 그날(0~1439분) 극값
  * [연계] ← getTideCurve → peak_finder.findPeaksInSamples(그날 0~1440 에 가운데가 든 극값만 남긴다)
  *   바텀시트(routes/tide.js analyzeAndSave)가 앞뒤 12시간을 붙여 찾는 것과 같은 뜻이다.
- *   ⚠옆날 곡선은 매일 밤 지워지므로(purgeStaleCurves — 오늘~모레만 남김) 오늘의 전날은 밤 23:30 수집 뒤
- *     자정까지, 모레의 다음날은 늘 없다. 그때는 그 쪽을 붙이지 않는다(종전과 같음).
+ *   ⚠곡선은 어제~모레만 남는다(purgeStaleCurves — 2026-11-18 수집을 02:00 으로 옮기며 어제도 남김). 그래서 내일·모레의 전날은 물론
+ *     오늘의 전날(어제)도 있다. 모레의 다음날은 늘 없다. 그때는 그 쪽을 붙이지 않는다(종전과 같음).
  *   [이음매 단차 막기 — 2026-10-18 독립 검토 C-2·A-F2] 처음엔 옆날을 따로 IDW 해 붙였다. 옆날에 일부 앵커
  *     파일이 없으면 자정에서 섞는 앵커가 바뀌어 곡선이 끊기고(앵커끼리 수 cm~15cm 차이), 그 단차가 진짜 자정
  *     근처 극값을 지우거나(암초 2532 저조 00:20 누락) 가짜 극값을 만들었다(1250 저조 23:50 등).

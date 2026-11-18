@@ -442,7 +442,7 @@ await (async function () {
 })();
 
 // ── [C] 제주 기동 보충 + 줄세우기 ──────────────────────────────────────────
-console.log('\n[C] 제주 「모레」 — 서버 기동 때 제주 두 수집기도 부족분만, 23:30 묶음과 한 줄로');
+console.log('\n[C] 제주 「모레」 — 서버 기동 때 제주 두 수집기도 부족분만, 02:00 묶음과 한 줄로');
 (function () {
     const SERVER = fs.readFileSync(path.join(LS, 'server.js'), 'utf8');
     const SCHED = fs.readFileSync(path.join(LS, 'scheduler.js'), 'utf8');
@@ -450,8 +450,8 @@ console.log('\n[C] 제주 「모레」 — 서버 기동 때 제주 두 수집�
     ok('기동 보충이 물빠짐 → 제주 간출암 → 제주 고립판정 순서로 한 묶음이다',
         /bootstrapTideField\(\)[\s\S]*collectHazardRockTides\(\)[\s\S]*collectJejuIsolationTides\(\)/.test(blk), blk.slice(0, 80));
     ok('기동 보충은 await 로 차례차례(동시 호출 없음)', (blk.match(/await /g) || []).length >= 3);
-    ok('23:30 묶음도 같은 줄(runTideBatchExclusive)에 선다', /hm === '23:30'[\s\S]{0,600}runTideBatchExclusive\(async/.test(SCHED));
-    ok('23:30 묶음 순서 그대로(서해·남해 → 제주 → 고립판정 → 잠김 교차시각)',
+    ok('02:00 묶음도 같은 줄(runTideBatchExclusive)에 선다', /hm === '02:00'[\s\S]{0,600}runTideBatchExclusive\(async/.test(SCHED));
+    ok('02:00 묶음 순서 그대로(서해·남해 → 제주 → 고립판정 → 잠김 교차시각)',
         /collectTideField\(\{ log \}\)[\s\S]*collectHazardRockTides\(\{ log \}\)[\s\S]*collectJejuIsolationTides\(\{ log \}\)[\s\S]*computeAllCrossings\(\{ log \}\)/.test(SCHED));
     for (const f of ['hazard_rocks_tide_collector.js', 'jeju_isolation_tide_collector.js']) {
         const s = fs.readFileSync(path.join(LS, 'services', f), 'utf8');
