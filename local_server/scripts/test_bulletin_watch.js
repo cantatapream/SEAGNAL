@@ -269,6 +269,51 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
         ok('전체 내려받기 = 마크다운 첨부', /markdown/.test(res2.h['Content-Type']) && /attachment/.test(res2.h['Content-Disposition']) && /# 통보문 관찰 기록/.test(res2.body));
     }
 
+    console.log('로그인이 안 되면 관리자 푸시 — 사용자 2026-11-18 「방재기상플랫폼 로그인이 갑자기 안되면 관리자에게 푸시」');
+    {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bw-login-')), f = fakeDmdw(); let t = T0; const seen = [];
+        const mk = () => createWatch({ post: f.post, login: f.login, now: () => t, dir, sleep: async () => {}, gapMs: 0, onLogin: (r) => seen.push(r.ok ? 'ok' : '실패:' + r.error.message) });
+        let w = mk();
+        await w.run();
+        ok('로그인이 되면 「됨」을 한 번 알린다(세션이 살아 있는 동안은 다시 로그인하지 않는다)', seen.join() === 'ok', seen);
+        await w.run();
+        ok('… 다음 회차에는 로그인을 다시 하지 않으므로 알림도 없다', seen.join() === 'ok', seen);
+        // 서버가 다시 뜬 뒤(세션 없음) 로그인 거부
+        w = mk(); f.loginFail = true; seen.length = 0;
+        await w.run();
+        ok('로그인이 거부되면 그 사유와 함께 「안 됨」을 알린다 — 목록 16개가 모두 로그인을 거쳐도 시도는 한 번(나머지는 쉬는 중)', seen.join() === '실패:로그인 거부(statecode=11)', seen);
+        t = T0 + 10 * 60e3; await w.run();
+        ok('쉬는 30분 동안은 시도하지 않으니 알림도 없다', seen.length === 1, seen);
+        t = T0 + 31 * 60e3; await w.run();
+        ok('30분 뒤 다시 시도해 또 거부되면 다시 「안 됨」(푸시를 또 보낼지는 알림 쪽이 정한다)', seen.length === 2 && seen[1] === seen[0], seen);
+        t = T0 + 62 * 60e3; f.loginFail = false; await w.run();
+        ok('다시 되면 「됨」', seen.length === 3 && seen[2] === 'ok', seen);
+        const boom = createWatch({ post: f.post, login: f.login, now: () => t, dir: fs.mkdtempSync(path.join(os.tmpdir(), 'bw-login2-')), sleep: async () => {}, gapMs: 0, onLogin: () => { throw new Error('알림 고장'); } });
+        const st = await boom.run();
+        ok('알림 쪽이 던져도 수집은 그대로 돈다', st.lists === 16, st);
+        // 사유 문장
+        const W = require('../services/bulletin_watch');
+        ok('사유: 상태 코드 11 = 비밀번호 만료 · 00 미등록 · 01 승인 대기 · 모르는 코드는 숫자 그대로', W.loginReason(new Error('로그인 거부(statecode=11)')) === '로그인 거부 — 비밀번호 만료'
+            && W.loginReason(new Error('로그인 거부(statecode=00)')) === '로그인 거부 — 미등록 계정' && W.loginReason(new Error('로그인 거부(statecode=01)')) === '로그인 거부 — 승인 대기'
+            && W.loginReason(new Error('로그인 거부(statecode=null)')) === '로그인 거부 — 상태 코드 null');
+        ok('사유: 연결 문제는 「로그인 실패 — 시간초과」처럼', W.loginReason(new Error('timeout')) === '로그인 실패 — 시간초과' && W.loginReason(new Error('HTTP 503')) === '로그인 실패 — HTTP 503');
+        // 실제 알림기(임시 파일·가짜 발송)에 물려 푸시 문장까지
+        const A = require('../services/collect_fail_alert'); const calls = []; let ct = Date.parse('2026-11-18T13:30:00Z');   // 22:30 KST
+        const al = A.createAlerter({ file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bw-al-')), 'a.json'), clock: () => ct, send: async (title, body, data) => { calls.push({ title, body, data }); return { delivered: true }; } });
+        await W.reportLogin({ ok: true }, al);
+        ok('처음부터 잘 되면 푸시 없음', calls.length === 0);
+        await W.reportLogin({ ok: false, error: new Error('로그인 거부(statecode=11)') }, al);
+        ok('안 되기 시작하면 관리자 푸시 1통 — 무엇이·왜·언제부터', calls.length === 1 && calls[0].title === '자료 수집 실패' && calls[0].body === '특보·예비특보 통보문 (기상청 방재기상플랫폼) 수집 실패 — 로그인 거부 — 비밀번호 만료, 11/18 22:30부터' && calls[0].data.item === 'bulletins', calls);
+        ct += 30 * 60e3; await W.reportLogin({ ok: false, error: new Error('로그인 거부(statecode=11)') }, al);
+        ct += 30 * 60e3; await W.reportLogin({ ok: false, error: new Error('timeout') }, al);
+        ok('안 되는 동안(사유가 바뀌어도)은 다시 보내지 않는다', calls.length === 1, calls);
+        ct += 30 * 60e3; await W.reportLogin({ ok: true }, al);
+        ok('다시 되면 「복구」 1통', calls.length === 2 && calls[1].title === '자료 수집 복구' && calls[1].body === '특보·예비특보 통보문 (기상청 방재기상플랫폼) 수집 복구 — 11/19 00:00', calls);
+        ct += 60e3; await W.reportLogin({ ok: false, error: new Error('로그인 거부(statecode=11)') }, al);
+        ok('복구 뒤 다시 안 되면 다시 1통', calls.length === 3 && /11\/19 00:01부터/.test(calls[2].body), calls);
+        ok('운영 관찰기는 로그인 결과를 알림에 잇는다(getReal 의 onLogin → reportLogin)', /createWatch\(\{ post: realPost, login: realLogin, onLogin: \(r\) => \{ reportLogin\(r\); \} \}\)/.test(fs.readFileSync(path.join(__dirname, '..', 'services', 'bulletin_watch.js'), 'utf8')));
+    }
+
     console.log('목록을 다 받은 마지막 시각(listsOkMs) — 📋 팝업이 통보문이 최신인지 볼 때');
     {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bw-ok-')), f = fakeDmdw(); let t = T0;
