@@ -1537,6 +1537,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 11:35 KST] ✅완료 — 해양종합정보 지도 수치 라벨 앱 반영 완료
+새 파일 client/js/ocean-map/map/ocean_overlay_labels.js(등치선 marching squares·라벨 그리기) + ocean_overlay.js 연결(renderGridToOffscreen 이 등치선을 육지 펀치아웃 전에 긋고, _renderLabels 가 라벨 전용 캔버스에 그림, animate 가 맨 위 합성, 범례·바텀시트 단위 전환 시 라벨 다시 그림, 검색창·버튼·범례 밑은 피함). 확정안: 풍향·풍속/파고·파향=등치선+값(빽빽), 유향·유속=검정 테두리 흰 화살표+값(방위 글자·동그라미 없음, 보통), 늘 켜짐, 누름 처리 없음. 확인: 새 스위트 test_ocean_overlay_labels 30/0, 실제 index2.html 을 가짜 예보 자료로 띄워 세 버튼·kts 전환 화면 확인, verify_all 실패 목록을 원본(HEAD 20d433f2 worktree)과 비교해 새로 생긴 실패 0(V5-47 은 gen_rulebook 재생성으로 해소, 나머지 118개는 컨테이너에 node 패키지가 없어 원본도 똑같이 실패). 다음: 사용자 PR·운영 화면 확인.
+
+
+### [2026-11-18 11:21 KST] 🟢착수 — 해양종합정보 지도 수치 라벨(등치선·유향유속 화살표) 앱 반영
+사용자 확정 시안(2026-11-18, artifact BdhYuqBDtgqr7GcdYmRubt v3)을 ocean_overlay.js 에 넣는다. 풍향·풍속/파고·파향=색 경계 등치선+값 라벨(밀도 빽빽), 유향·유속=검정 테두리 흰 화살표+값(방위 글자 없음, 밀도 보통), 라벨 늘 켜짐, 범례 누르면 단위 전환 시 라벨도 같이. 새 파일 ocean_overlay_labels.js(그리기 함수) + 시험 스위트.
+
+
 ### [2026-11-18 11:10 KST] ✅완료 — 나리야 자동 반영: 충돌 자동 해결·결정 필요 답 칸·누적 오류 처리
 ①브리핑 누적 오류 E20261118-104914: G01·G02·G03 검사기 오판 고침(검사 v21, 독립 검토 반영), resolved.json 기록. ②PR #1485 앱이 충돌을 「계산 중」으로 보이던 것(mergeable_state dirty) 고침. ③충돌은 머지 담당이 자동 반영 세션에 맡김(conflict_fixing → 세션이 기록 파일 충돌만 풀어 PR 가지에 push → 하던 대로). ④결정 필요 답 칸(앱) → 세션이 답대로 처리. 설계서 nariya_autorun.design.md §9.10. 예약 작업 지침 갱신 필요(이번에 반영). 시험 pr_merge 15/0·autorun 49/0·briefing 247/0.
 
