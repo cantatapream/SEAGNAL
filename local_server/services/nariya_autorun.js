@@ -750,7 +750,8 @@ function createAutorun({
             let bodyText;
             if (d.outcome === 'pr' && tracked) {
                 bodyText = (cnt ? cnt + ' ' : '') + '반영을 마치고 PR 을 올렸습니다. ' + (prMode === 'auto'
-                    ? 'GitHub 검사(약 20분)를 통과하면 서버가 자동으로 머지·배포합니다 — 누를 것 없습니다.'
+                    // 이 시점엔 바뀐 파일을 아직 안 봤다 — 프로그램 코드가 섞이면 머지 담당이 사람 몫으로 내린다. 「누를 것 없음」을 약속하지 않는다(2026-11-18 PR #1497 — 사용자 「머지 자동으로 된다는 말이 잘못된거니?」).
+                    ? 'GitHub 검사(약 20분)가 끝나면 결과를 알려 드립니다 — 위키·원문만 바뀌었으면 서버가 자동으로 머지·배포하고, 프로그램 코드처럼 확인이 필요한 파일이 섞였으면 「앱에서 머지 버튼을 눌러 주세요」 알림이 갑니다.'
                     : `GitHub 검사(약 20분)가 끝나면 「앱에서 머지 버튼을 눌러 주세요」 알림을 다시 보냅니다${d.needs_decision.length ? `(결정 필요 ${d.needs_decision.length}건 — 앱 「자동반영」 방에서 볼 수 있습니다)` : ''}.`);
             } else if (d.outcome === 'pr' && prMode && prHow !== 'secrets') {
                 bodyText = (prStatus === 'merged' ? '이 PR 은 이미 머지됐습니다.' : prStatus === 'closed' ? '이 PR 은 닫혀 있습니다.' : '이 PR 은 이미 사람 확인 차례입니다.') + ' 앱 → 관리자 → 「자동반영」 방에서 확인해 주세요.';
