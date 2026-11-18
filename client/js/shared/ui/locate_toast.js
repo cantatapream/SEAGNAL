@@ -2,7 +2,7 @@
  * ============================================================================
  * 파일명: js/shared/ui/locate_toast.js
  * 역할: 「내 위치」(GPS) 버튼을 눌렀을 때 화면 하단에 진행 토스트를 띄우고 현재 위치를 가져온다.
- *       「위치정보를 확인하고 있어요 (스피너)」 → 성공: 스피너가 초록 체크로 바뀐 뒤 서서히 사라짐 /
+ *       「위치정보를 확인하고 있어요 (스피너)」 → 성공: 초록 체크 + 「위치정보를 확인했어요」 뒤 서서히 사라짐 /
  *       실패: 주황 느낌표 + 「위치를 확인하지 못했어요」 뒤 서서히 사라짐.
  * ----------------------------------------------------------------------------
  * [연계]
@@ -29,6 +29,8 @@
 
     var TOAST_ID = 'locate-toast';
     var MSG_LOADING = '위치정보를 확인하고 있어요';
+    // 완료 문구 — 사용자 「초록색 체크로 바뀔때는 위치정보를 확인했어요 라고 표현되어야 할 것 같아」(2026-11-18)
+    var MSG_OK = '위치정보를 확인했어요';
     // 한 줄로는 휴대폰 폭(약 400px)에서 끝이 잘려(2026-11-18 화면 확인) 두 줄로 나눈다
     var MSG_FAIL = '위치를 확인하지 못했어요.\n위치 권한을 확인해 주세요.';
     var HOLD_OK_MS = 1000;     // 초록 체크를 보여 주는 시간 → 그 뒤 fade out
@@ -103,8 +105,8 @@
             icon.innerHTML = '<span class="lt-spinner"></span>';
             text.textContent = MSG_LOADING;
         } else if (state === 'ok') {
-            // 사용자 지시대로 스피너만 초록 체크로 바꾸고 문구는 그대로 둔다
             icon.innerHTML = '<i class="fa-solid fa-circle-check lt-ok"></i>';
+            text.textContent = MSG_OK;
         } else {
             icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation lt-fail"></i>';
             text.textContent = MSG_FAIL;
