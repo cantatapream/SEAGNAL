@@ -1,0 +1,14 @@
+{
+ "script": "collect_approved",
+ "stamp": "20261118-011511-268",
+ "files": [
+  "local_server/knowledge/legal/_legacy/선박교통관제에관한법률/20250621/시행령.txt",
+  "local_server/knowledge/legal/_legacy/선박교통관제에관한법률/20250621/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/_legacy/선박교통관제에관한법률/20250621/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박교통관제에관한법률/시행령.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박교통관제에관한법률/별표/시행령_별표1.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박교통관제에관한법률/별표/시행령_별표2.txt",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박교통관제에관한법률/별표/_links.json",
+  "local_server/knowledge/legal/raw/03_해상교통안전/선박교통관제에관한법률/_meta.json"
+ ]
+}

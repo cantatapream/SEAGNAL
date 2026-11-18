@@ -2739,12 +2739,14 @@
       : '';
     // 충돌을 푸는 중이면 사장님이 하실 일이 없다 — 「머지 버튼을 눌러 주세요」 안내를 같이 띄우면 헷갈린다(2026-11-18 사용자 「무슨 버튼도 없고 아무것도 없는데」).
     var fixing = p.status === 'conflict_fixing';
+    // 사람 몫 PR 이 검사 중(waiting·human)이면 상태 칩(「검사 중 → 끝나면 머지 버튼 알림」)과 결정 필요 칸이 이미 말한다 — 「[머지] 버튼을 눌러 주세요」 상자는 띄우지 않는다(2026-11-18 사용자 화면).
+    var humanWait = p.status === 'waiting' && p.mode === 'human';
     var why = fixing ? '<div class="nrya-card-note"><span class="nrya-em">🔧</span>작업 기록 파일 충돌을 자동 반영 세션이 풀고 있습니다. <b>하실 일은 없습니다</b> — 다 풀리고 검사가 초록이면 「머지 버튼을 눌러 주세요」 알림이 옵니다.</div>'
-      : p.why ? '<div class="nrya-card-note nrya-err"><span class="nrya-em">ℹ️</span>' + esc(p.why) + (p.howText ? '<br><b>' + esc(p.howText) + '</b>' : '') + '</div>' : '';
+      : p.why && !humanWait ? '<div class="nrya-card-note nrya-err"><span class="nrya-em">ℹ️</span>' + esc(p.why) + (p.howText ? '<br><b>' + esc(p.howText) + '</b>' : '') + '</div>' : '';
     // 위키·원문 밖에서 바뀐 파일 — 한 줄로 무엇이 바뀌었는지만(2026-11-18 사용자 「그냥 뭘 고쳤는지에 대해서만 간단히 명시하면 될 것 같은데」).
     //   코드 파일(.js·.py 등)이 섞였을 때만 눈에 띄게(자동 머지 대상이 아니다 — 적대검증 C#상-1). 경로는 펼치면 보인다.
     var outside = '';
-    if (p.outsideCount) {
+    if (parseInt(p.outsideCount, 10) > 0) {   // 서버가 「0」(글자)을 줄 때도 있다 — 0개면 줄을 그리지 않는다
       var kinds = {}, codeN = 0;
       (p.outside || []).forEach(function (f) {
         var k = /\.(js|mjs|cjs|py|sh|ya?ml|ts|html|css)$/i.test(f) ? (codeN++, '프로그램 코드') : /\/_legacy\//.test(f) ? '옛 판 보관' : /\/_dashboard\//.test(f) ? '작업 기록·목록' : '기타 파일';
