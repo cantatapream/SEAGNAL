@@ -11,7 +11,8 @@
  *   ③ 굵은 글씨와 붙은 조각(「[저장]」+「을」)은 한 낱말로 함께 · ④ 폭이 넓어지면 좁힌 것을 푼다
  *   ⑤ 숨은 칸(폭 0)은 보이게 되면 맞춘다(접힌 아코디언·안 보이는 안내 탭)
  *   ⑥ 해상 기상 전망: 줄 앞 기호(○ - o ※)를 떼어 두고 둘째 줄이 글자 시작점에서 시작 · 꺾쇠 제목은 그대로
- *   ⑦ 안내 팝업: 아이콘 문단(tf-ic) 둘째 줄이 글자 시작점에서 시작 · 굵은 제목 문단 tf-h
+ *   ⑦ 안내 팝업: 아이콘 문단(tf-ic) 둘째 줄이 글자 시작점에서 시작 · 굵은 제목 문단 tf-h · 문장이 끝나면 다음 문장은 새 줄 · 괄호 자리에서도 안 끊김
+ *   ⑨ 해상 기상 전망 색칠 표시의 닫는 괄호를 띄어 쓴 꼴(「{{warn:물결이} }」 — 2026-11-18 운영 원문 3곳)도 읽는다
  *   ⑧ 정적: 붙인 자리(게시판 보기 칸만·편집기 ✗ · 해상 기상 전망 두 곳 · 안내 팝업 세 곳 · 로드 순서 · CSS keep-all)
  *
  * [실행] node local_server/scripts/test_text_fit.js
@@ -38,7 +39,7 @@ function ok(cond, name, extra) { if (cond) { pass++; console.log('  PASS ' + nam
 
     console.log('── ⑧ 정적: 붙인 자리 ──');
     ok(/word-break:\s*keep-all/.test(css.slice(a, b)), 'style.css promo-md 덩어리에 word-break:keep-all');
-    ok(/\.regional-forecast-line\s*\{[^}]*\}|\.regional-forecast-line\s*\{\s*word-break/.test(css) && /\.marine-forecast-category-text, \.marine-forecast-sub-item, \.regional-forecast-line \{ word-break: keep-all/.test(css), 'style.css 해상 기상 전망 줄에 keep-all');
+    ok(/\.regional-forecast-line\s*\{[^}]*\}|\.regional-forecast-line\s*\{\s*word-break/.test(css) && /\.marine-forecast-category-text, \.marine-forecast-sub-item, \.regional-forecast-line[^{]*\{ word-break: keep-all/.test(css), 'style.css 해상 기상 전망 줄에 keep-all');
     ok(/\.ocean-info-panel p \{[^}]*word-break: keep-all/.test(html), 'index2.html 안내 팝업 문단에 keep-all');
     const promo = read('client/js/notice/board/promo.js');
     const calls = promo.split('\n').filter((l) => /textFit\(/.test(l));
@@ -50,10 +51,19 @@ function ok(cond, name, extra) { if (cond) { pass++; console.log('  PASS ' + nam
     const iFit = html.indexOf('js/shared/ui/text_fit.js'), iMf = html.indexOf('js/forecast/outlook/marine_forecast.js'), iPromo = html.indexOf('js/notice/board/promo.js');
     ok(iFit > 0 && iFit < iMf && iFit < iPromo, 'index2.html: text_fit.js 가 marine_forecast.js·promo.js 앞에 로드');
 
+    console.log('── ⑨ 해상 기상 전망: 닫는 괄호를 띄어 쓴 색칠 표시(「{{warn:물결이} }」)도 읽는다 ──');
+    {
+        const vm = require('vm'), i0 = mf.indexOf('window.renderMarineMarkup = function'), i1 = mf.indexOf('\n}\n', i0) + 2;
+        const ctx = { window: {} }; vm.createContext(ctx);
+        vm.runInContext((mf.match(/function escapeHtml[\s\S]*?\n\}/) || [''])[0] + '\n' + mf.slice(i0, i1), ctx);
+        const out = ctx.window.renderMarineMarkup('당분간 {{loc:해상}}에는 {{warn:물결이} } 매우 높게');
+        ok(!/\{\{|\}\s*\}/.test(out) && /<span[^>]*>물결이<\/span>/.test(out), '깨진 꼴도 색칠 글자로(괄호 글자 안 남음)', out);
+    }
+
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
-    const infoCss = (html.match(/\.ocean-info-panel p \{[\s\S]*?text-indent: 0; \}/) || [''])[0];
-    const fcCss = (css.match(/\.marine-forecast-category-text, \.marine-forecast-sub-item, \.regional-forecast-line \{[\s\S]*?\.tf-hang > \.tf-text \{[^}]*\}/) || [''])[0];
+    const infoCss = (html.match(/\.ocean-info-panel \{ display: none;[^}]*\}/) || [''])[0] + (html.match(/\.ocean-info-panel p \{[\s\S]*?text-indent: 0; \}/) || [''])[0];
+    const fcCss = (css.match(/\.marine-forecast-category-text, \.marine-forecast-sub-item, \.regional-forecast-line[^{]*\{[\s\S]*?\.tf-hang > \.tf-text \{[^}]*\}/) || [''])[0];
     await page.setContent('<!doctype html><meta charset="utf-8"><style>body{margin:0;font-family:sans-serif}' +
         '.c{width:318px;color:#ccc}.c li{list-style:none}' + css.slice(a, b) + infoCss + fcCss + '.regional-forecast-line{font-size:13px;line-height:1.7}</style>' +
         '<div class="c ql-editor promo-md" id="c"></div><div id="fc" style="width:300px"></div><div id="info" style="width:270px"></div>');
@@ -76,7 +86,9 @@ function ok(cond, name, extra) { if (cond) { pass++; console.log('  PASS ' + nam
     const onFirstLine = (txt) => page.evaluate((txt) => {
         const p = document.querySelector('#c p'), w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
         let first = null, hit = null;
-        while (w.nextNode()) { const t = w.currentNode, i = t.nodeValue.indexOf(txt); if (!first && t.nodeValue.trim()) first = t; if (i >= 0 && !hit) { hit = document.createRange(); hit.setStart(t, i); hit.setEnd(t, i + txt.length); } }
+        // 맞춘 뒤에는 글자 사이에 WJ(\u2060)가 끼므로 그것을 빼고 찾는다
+        const at = (v, n) => { let c = 0; for (let k = 0; k < v.length; k++) { if (v[k] === '\u2060') continue; if (c === n) return k; c++; } return v.length; };
+        while (w.nextNode()) { const t = w.currentNode, i = t.nodeValue.replace(/\u2060/g, '').indexOf(txt); if (!first && t.nodeValue.trim()) first = t; if (i >= 0 && !hit) { hit = document.createRange(); hit.setStart(t, at(t.nodeValue, i)); hit.setEnd(t, at(t.nodeValue, i) + 1); } }
         const r0 = document.createRange(); r0.setStart(first, first.nodeValue.search(/\S/)); r0.setEnd(first, first.nodeValue.search(/\S/) + 1);
         return Math.abs(hit.getClientRects()[0].top - r0.getClientRects()[0].top) < 2;
     }, txt);
@@ -114,7 +126,7 @@ function ok(cond, name, extra) { if (cond) { pass++; console.log('  PASS ' + nam
     await setup(1.4, '<strong>[저장]</strong>을');
     await page.evaluate(FIT);
     const together = await page.evaluate(() => {
-        const sp = [...document.querySelectorAll('#c p span')], a = sp.find((x) => x.textContent === '[저장]'), b = sp.find((x) => x.textContent === '을');
+        const sp = [...document.querySelectorAll('#c p span')], a = sp.find((x) => x.textContent.replace(/\u2060/g, '') === '[저장]'), b = sp.find((x) => x.textContent.replace(/\u2060/g, '') === '을');
         return Math.abs(a.getBoundingClientRect().top - b.getBoundingClientRect().top) < 2 && (parseFloat(a.style.letterSpacing) || 0) === (parseFloat(b.style.letterSpacing) || 0);
     });
     ok(together, '「[저장]」과 「을」이 같은 줄·같은 간격');
@@ -138,19 +150,8 @@ function ok(cond, name, extra) { if (cond) { pass++; console.log('  PASS ' + nam
 
     console.log('── ⑥ 해상 기상 전망: 기호를 떼어 두고 둘째 줄은 글자 시작점 ──');
     const fc = await page.evaluate(() => {
-        // 두 줄에 걸친 조각 중, 줄이 바뀐 자리가 한글 글자 사이인 것(문장부호·괄호 자리는 허용 — 띄어쓰기 없이 긴 묶음)
-        function badSplits(list) {
-            const bad = [];
-            list.forEach((sp) => {
-                if (sp.getClientRects().length < 2) return;
-                const t = sp.firstChild, r = document.createRange(); r.setStart(t, 0); r.setEnd(t, 1); const top0 = r.getClientRects()[0].top;
-                for (let i = 1; i < t.nodeValue.length; i++) {
-                    r.setStart(t, i); r.setEnd(t, i + 1);
-                    if (Math.abs(r.getClientRects()[0].top - top0) > 2) { if (/[가-힣]/.test(t.nodeValue[i - 1]) && /[가-힣]/.test(t.nodeValue[i])) bad.push(t.nodeValue); break; }
-                }
-            });
-            return bad.join('|');
-        }
+        // 두 줄에 걸친 조각(낱말) — 띄어쓰기 자리에서만 줄이 바뀌어야 하므로 없어야 한다(괄호·문장부호 자리도 안 됨 — 사용자 2026-11-18)
+        function badSplits(list) { return list.filter((sp) => sp.getClientRects().length > 1).map((sp) => sp.textContent.replace(/\u2060/g, '')).join('|'); }
         const el = document.getElementById('fc');
         el.innerHTML = '<div class="regional-forecast-summary">' +
             '<div class="regional-forecast-line">&lt;특보 현황&gt;</div>' +
@@ -167,21 +168,30 @@ function ok(cond, name, extra) { if (cond) { pass++; console.log('  PASS ' + nam
     ok(fc.mark === '○' && fc.subMark === '-', '○ · - 기호를 원문 그대로 따로 둠');
     ok(!fc.hdr, '꺾쇠 제목(<특보 현황>)은 기호 없이 그대로');
     ok(fc.lines >= 2 && fc.minLeft >= fc.textLeft && fc.textLeft > fc.markRight, '두 줄 이상일 때 모든 줄이 기호 오른쪽(글자 시작점)에서 시작', JSON.stringify(fc));
-    ok(fc.split === '', '한글 글자 사이에서 안 끊김(괄호 등 문장부호 자리만 허용)', fc.split);
+    ok(fc.split === '', '띄어쓰기 자리에서만 줄바꿈 — 「제주도앞바다(제주도남부앞바다,」 같은 긴 묶음도 괄호 앞에서 안 끊김', fc.split);
 
     console.log('── ⑦ 안내 팝업: 아이콘 문단 둘째 줄은 글자 시작점 · 제목 문단 ──');
     const info = await page.evaluate(() => {
         const el = document.getElementById('info');
         el.innerHTML = '<div class="ocean-info-panel active" style="display:block;font-size:14px;line-height:1.65"><p><strong>1. 목적</strong></p>' +
-            '<p><i style="display:inline-block">✔</i> 누르면 지금 내 위치로 지도를 옮기고, 그 자리를 <strong>파란 점</strong>으로 표시합니다.</p></div>';
+            '<p><i style="display:inline-block">✔</i> 누르면 지금 내 위치로 지도를 옮기고, 그 자리를 <strong>파란 점</strong>으로 표시합니다.</p>' +
+            '<p>바다에 떠 있는 관측장비(부이)의 실시간(매시간) 관측값을 보여줍니다. 수치 1.5m 처럼 소수점은 그대로입니다.</p></div>';
         textFitInfo(el);
         const ps = el.querySelectorAll('p'), p = ps[1];
         const spans = [...p.querySelectorAll('span')].filter((x) => !x.closest('i')), tops = [...new Set(spans.map((x) => Math.round(x.getClientRects()[0].top)))];
         const firstText = spans[0].getClientRects()[0].left, secondLine = spans.find((x) => Math.round(x.getClientRects()[0].top) === tops[1]);
-        return { h: ps[0].classList.contains('tf-h'), ic: p.classList.contains('tf-ic'), lines: tops.length, firstText: Math.round(firstText), second: secondLine ? Math.round(secondLine.getClientRects()[0].left) : null };
+        const q = ps[2], qs = [...q.querySelectorAll('span')], txt = (x) => x.textContent.replace(/\u2060/g, '');
+        const s2 = qs.find((x) => txt(x) === '수치'), s1end = qs.find((x) => txt(x) === '보여줍니다.'), s1 = qs[0];
+        return { h: ps[0].classList.contains('tf-h'), ic: p.classList.contains('tf-ic'), lines: tops.length, firstText: Math.round(firstText), second: secondLine ? Math.round(secondLine.getClientRects()[0].left) : null,
+            newline: /보여줍니다\.\n수치/.test(q.textContent.replace(/\u2060/g, '')), keepNum: /1\.5m/.test(q.textContent.replace(/\u2060/g, '')),
+            s2NewLine: s2.getClientRects()[0].top > s1end.getClientRects()[0].top + 2, s2Left: Math.round(s2.getClientRects()[0].left) === Math.round(s1.getClientRects()[0].left),
+            split: qs.filter((x) => x.getClientRects().length > 1).map(txt).join('|') };
     });
     ok(info.h && info.ic, '제목 문단 tf-h · 아이콘 문단 tf-ic');
     ok(info.lines >= 2 && Math.abs(info.second - info.firstText) <= 1, '둘째 줄이 첫 줄 글자 시작점과 같은 자리', JSON.stringify(info));
+    ok(info.newline && info.keepNum, '문장이 끝나면(「~다.」) 줄바꿈 글자 — 「1.5m」 같은 숫자는 그대로', JSON.stringify(info));
+    ok(info.s2NewLine && info.s2Left, '다음 문장은 새 줄의 맨 앞에서 시작', JSON.stringify(info));
+    ok(info.split === '', '안내 문단도 띄어쓰기 자리에서만 줄바꿈(「실시간(매시간)」 안 끊김)', info.split);
 
     await browser.close();
     console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
