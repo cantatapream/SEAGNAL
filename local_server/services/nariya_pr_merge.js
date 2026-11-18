@@ -370,7 +370,10 @@ function createMerger({
                     else arm(n, POLL_MS);
                     return;
                 }
-                p.status = p.statusBefore === 'failed_checks' ? 'failed_checks' : 'waiting'; p.why = p.whyBefore || null; p.watchFrom = now(); save();
+                p.status = p.statusBefore === 'failed_checks' ? 'failed_checks' : 'waiting'; p.why = p.whyBefore || null; p.watchFrom = now();
+                // 맡기기 전 까닭이 「GitHub 에서 확인」 몫의 까닭(검사 30분 없음 등 — 충돌 탓이었다)이면 버리고 지금 까닭으로 — 그대로 두면 「머지 버튼」 푸시에 옛 까닭이 실린다(2026-11-18 PR #1497).
+                if (p.how === 'github') { p.how = 'button'; p.why = (p.needs || []).length ? '결정 필요 ' + p.needs.length + '건' : parseInt(p.outsideCount, 10) > 0 ? '위키·원문 밖 파일(프로그램 코드 등)을 고침' : null; }
+                save();
             }
             // 확인을 기다리는 사이 track 이 사람 몫으로 내렸으면(결정 필요가 더해짐) 머지하지 않는다(적대검증 하5 — p 는 상태 객체 그 자체라 지금 값을 본다).
             if (r.ok && auto && p.mode !== 'auto') auto = false;

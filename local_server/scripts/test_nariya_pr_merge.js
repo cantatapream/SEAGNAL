@@ -397,9 +397,12 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         // PR #1497 — 고침 전 「필수 검사 30분 없음」으로 GitHub 몫이 된 충돌 PR 도, 충돌 풀기를 맡긴 적이 없으면 방을 열 때 맡긴다
         const h9 = hook(), r6 = make({ onConflict: h9 }); r6.gh.runs = [run('success')];
         r6.m.track(TR(21), OWN); await quiet(() => r6.time.advance(5 * MIN));   // 초록 → 자동 머지 전에 시험용으로 상태를 바꿔 둔다
-        const st6 = r6.m._state().prs.find((x) => x.number === 21); st6.status = 'needs_human'; st6.how = 'github'; st6.why = '필수 검사가 30분 동안 붙지 않았습니다';
+        const st6 = r6.m._state().prs.find((x) => x.number === 21); st6.status = 'needs_human'; st6.mode = 'human'; st6.how = 'github'; st6.why = '필수 검사가 30분 동안 붙지 않았습니다';
         r6.gh.pr = prJson({ mergeable: false, mergeable_state: 'dirty' }); await quiet(() => r6.m.refresh());
         assert.deepEqual(h9.calls, [21]); assert.equal(r6.m.list().prs[0].status, 'conflict_fixing');
+        st6.outsideCount = '2'; r6.gh.pr = prJson({ head: { ref: 'claude/youthful-gates-x', sha: SHA2, repo: { full_name: 'cantatapream/SEAGNAL' } } }); r6.gh.runs = [run('success')];
+        const sent6 = r6.push.sent.length; await quiet(() => r6.time.advance(6 * MIN)); assert.equal(r6.push.sent.length, sent6 + 1); const last6 = r6.push.sent[r6.push.sent.length - 1];
+        assert.ok(/앱에서 머지 버튼/.test(last6.t) && /위키·원문 밖 파일/.test(last6.b) && !/30분/.test(last6.b), '풀린 뒤 「머지 버튼」 푸시에 옛 까닭(검사 30분 없음)을 싣지 않음: ' + last6.b);
         // 가지 이름 — 안전한 글자만
         const r5 = make({ onConflict: hook() }); r5.gh.runs = [run('success')]; r5.gh.pr = prJson({ mergeable: false, head: { ref: 'claude/a;id', sha: SHA, repo: { full_name: 'cantatapream/SEAGNAL' } } });
         r5.m.track(TR(20), OWN); await quiet(() => r5.time.advance(5 * MIN)); assert.equal(r5.m.conflicts()[0].branch, null);
