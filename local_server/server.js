@@ -575,7 +575,7 @@ app.listen(PORT, '0.0.0.0', () => {
         //   - grid_meta/anchors 없으면 Phase 0 전처리(BADA→격자/앵커/Z₀) 1회 실행.
         //   - 이어서 롤링 윈도우(오늘~+2일, KST) 곡선 수집. 곡선 캐시는 Fly 영속
         //     볼륨에 저장되므로, 재배포·머지해도 부족분만 받고 나머지는 스킵.
-        //     (collectTideField 내부 in-progress 락으로 scheduler 23:30 과 중복 방지)
+        //     (collectTideField 내부 in-progress 락으로 scheduler 02:00 과 중복 방지)
         //   - fire-and-forget — 서버 기동/응답을 막지 않음.
         //   - 로컬/개발(FLY_ALLOC_ID 미설정)에서는 자동 실행하지 않는다(라이브
         //     TideBED 호출·쿼터 보호). 로컬은 npm run build-tide-field + 수동 수집.
@@ -595,7 +595,7 @@ app.listen(PORT, '0.0.0.0', () => {
                 //   제주는 23:30 에만 받아서, 자정이 지나면 「모레」 곡선이 다음 23:30 까지 비었다(간출암
                 //   조석 상자 모레 = 이 지역은 아직 지원하지 않아요). 이미 완전한 날짜는 건너뛰므로
                 //   재시작마다 돌아도 새로 받는 것은 빈 날짜뿐이다. 세 수집기는 차례로(동시 호출 금지),
-                //   23:30 묶음과도 같은 줄(runTideBatchExclusive)에 세운다.
+                //   야간 묶음(지금은 02:00 — 2026-11-18 이동)과도 같은 줄(runTideBatchExclusive)에 세운다.
                 require('./services/tide_field_common').runTideBatchExclusive(async () => {
                     // 곡선 파일을 실제로 새로 썼는지(complete·partial 이 하나라도) — 썼을 때만 잠김경고를 다시 계산한다.
                     const wrote = (r) => !!(r && r.byStatus && ((r.byStatus.complete || 0) + (r.byStatus.partial || 0)) > 0);

@@ -451,7 +451,7 @@ function collectLand(spots, hazards, { risk, t, now = Date.parse(t), warnHistory
 /**
  * 조석: 대표 위치가 서해·남해(물빠짐 대상 해역)이면 가장 가까운 물빠짐 앵커(25km 안 — tide_field 보간 반경과 같다)의 대상 날짜 곡선으로,
  * 제주(tide_field_common.JEJU_BBOX — 추자도는 남해 쪽)이면 제주 고립판정 촘촘 격자 앵커(jeju_isolation_tide_collector, data/tide_field/curves_jeju)의 곡선으로
- * (그 격자가 없으면 제주 간출암 잠김경고 앵커 hazard_rocks_tide_collector, data/hazard_rocks/curves — 둘 다 매일 KST 23:30 자동 수집, 같은 꼴 {curve:[{t,h}],peaks:{lowTide1…}})
+ * (그 격자가 없으면 제주 간출암 잠김경고 앵커 hazard_rocks_tide_collector, data/hazard_rocks/curves — 둘 다 매일 KST 02:00 자동 수집, 같은 꼴 {curve:[{t,h}],peaks:{lowTide1…}})
  * 고조·저조와 게이지용 곡선(10분 간격)을 만든다(2026-10-16 결정 5 — 원문 *"나 는 반영하자"*: 제주 관할도 조석·고립 문구). 잠기는 바위(간출암)는 관할 폴리곤 안의 것만, 그날 잠기는 시각.
  * 예: collectTide(태안 위치, '2026-10-17', geometry) → {region:'westsouth',anchorId:'A12',distKm:3.2,date:'2026-10-17',curve:[{t:'00:00',cm:312},…144],peaks:[{type:'low',t:'06:12',cm:-12},…],prevPeak,nextPeak,
  *       rocks:{count:3,first:'05:40',last:'07:10',items:[{id:5,lat:36.66,lon:126.12,v:1.2,times:['05:40']},…]}}

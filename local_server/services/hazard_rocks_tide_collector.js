@@ -13,7 +13,7 @@
  *   - collectTideBedPages(lat,lon,reqDate) 재사용, CONCURRENCY=1(순차 수집).
  *     TideBED 키를 물빠짐 수집과 공유하므로 동시 발사를 피해야 한다 — 이
  *     모듈은 scheduler.js 에서 물빠짐 수집이 끝난 "직후" 이어서 호출된다
- *     (같은 23:30 배치 슬롯, 순차 실행 — 동시 호출 금지).
+ *     (같은 02:00 배치 슬롯, 순차 실행 — 동시 호출 금지).
  *   - 롤링 윈도우 + 부족분만 재수집. getGridHash 로 격자 제공 여부 확인,
  *     미제공이면 no_grid 로 기록만 하고 넘어간다(제주는 앵커가 17개뿐이라
  *     물빠짐처럼 인근 격자로 보정(nudge)하는 복잡한 로직은 두지 않는다).
@@ -22,7 +22,7 @@
  *   - services/tide_collector.js → collectTideBedPages, getGridHash
  *   - services/hazard_rocks_tide_common.js → 경로/설정
  *   - services/hazard_rocks_submersion.js → 저장된 곡선을 읽어 η(t) 보간
- *   - scheduler.js → KST 23:30, 물빠짐 수집 직후 1회 호출(tide_field_common.runTideBatchExclusive 한 줄)
+ *   - scheduler.js → KST 02:00, 물빠짐 수집 직후 1회 호출(tide_field_common.runTideBatchExclusive 한 줄)
  *   - server.js    → 서버 기동 시 물빠짐 부트스트랩 뒤 부족분만 보충(2026-10-18 — 제주 「모레」 빈칸)
  *   - services/tide_curve_edges.js → 새벽·밤 가장자리 메우기·완전 판정(2026-10-18)
  * ============================================================================
@@ -100,12 +100,12 @@ function isComplete(anchorId, yyyymmdd) {
     return !!j && j.status === 'complete' && Edges.isFullDay(j);
 }
 
-/** 윈도우 밖(과거 날짜) 곡선 파일 정리 — 물빠짐과 동일 취지(볼륨 누적 방지). */
+/** 윈도우 밖(과거 날짜) 곡선 파일 정리 — 물빠짐과 동일 취지(볼륨 누적 방지). 어제는 남긴다(tide_field_common.yesterdayKST). */
 function purgeStaleCurves(logFn) {
     const lg = typeof logFn === 'function' ? logFn : ((...a) => console.log('[hazard_rocks_tide]', ...a));
     let removed = 0;
     try {
-        const dateSet = new Set(windowDatesKST(HRC.WINDOW_DAYS).map(String));
+        const dateSet = new Set(windowDatesKST(HRC.WINDOW_DAYS).map(String)).add(String(require('./tide_field_common').yesterdayKST()));
         let files = [];
         try { files = fs.readdirSync(HRC.HR_CURVES_DIR); } catch (e) { return 0; }
         for (const f of files) {

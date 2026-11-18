@@ -107,6 +107,7 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         assert.equal(ok(prJson({ mergeable: false }), [run('success')]).state, 'conflict');
         assert.equal(ok(prJson({ mergeable: null, mergeable_state: 'dirty' }), [run('success')]).state, 'conflict', 'mergeable 이 아직 null 이어도 mergeable_state dirty 면 충돌(PR #1485)');
         assert.equal(ok(prJson({ mergeable: false, mergeable_state: 'dirty' }), []).state, 'conflict', '충돌한 PR 은 검사가 안 붙는다 — 「검사 없음」보다 충돌이 먼저(PR #1497)');
+        assert.equal(ok(prJson({ mergeable: null, mergeable_state: 'unknown' }), []).state, 'pending', '충돌인지 아직 모르면 「검사 없음」 30분을 세지 않음(PR #1497)');
         assert.equal(ok(prJson({ mergeable: null }), [run('success')]).state, 'pending');
         assert.equal(ok(prJson(), [run('success'), run('skipped', 'completed', '다른 검사')]).state, 'green');
         assert.equal(ok(prJson(), [run('success')], CTX({ behindBy: 2 })).state, 'stale', 'PR 가지가 main 보다 뒤처지면 stale(재검토 중-C — 커밋 시각이 아니라 compare behind_by)');
@@ -396,9 +397,12 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         // PR #1497 — 고침 전 「필수 검사 30분 없음」으로 GitHub 몫이 된 충돌 PR 도, 충돌 풀기를 맡긴 적이 없으면 방을 열 때 맡긴다
         const h9 = hook(), r6 = make({ onConflict: h9 }); r6.gh.runs = [run('success')];
         r6.m.track(TR(21), OWN); await quiet(() => r6.time.advance(5 * MIN));   // 초록 → 자동 머지 전에 시험용으로 상태를 바꿔 둔다
-        const st6 = r6.m._state().prs.find((x) => x.number === 21); st6.status = 'needs_human'; st6.how = 'github'; st6.why = '필수 검사가 30분 동안 붙지 않았습니다';
+        const st6 = r6.m._state().prs.find((x) => x.number === 21); st6.status = 'needs_human'; st6.mode = 'human'; st6.how = 'github'; st6.why = '필수 검사가 30분 동안 붙지 않았습니다';
         r6.gh.pr = prJson({ mergeable: false, mergeable_state: 'dirty' }); await quiet(() => r6.m.refresh());
         assert.deepEqual(h9.calls, [21]); assert.equal(r6.m.list().prs[0].status, 'conflict_fixing');
+        st6.outsideCount = '2'; r6.gh.pr = prJson({ head: { ref: 'claude/youthful-gates-x', sha: SHA2, repo: { full_name: 'cantatapream/SEAGNAL' } } }); r6.gh.runs = [run('success')];
+        const sent6 = r6.push.sent.length; await quiet(() => r6.time.advance(6 * MIN)); assert.equal(r6.push.sent.length, sent6 + 1); const last6 = r6.push.sent[r6.push.sent.length - 1];
+        assert.ok(/앱에서 머지 버튼/.test(last6.t) && /위키·원문 밖 파일/.test(last6.b) && !/30분/.test(last6.b), '풀린 뒤 「머지 버튼」 푸시에 옛 까닭(검사 30분 없음)을 싣지 않음: ' + last6.b);
         // 가지 이름 — 안전한 글자만
         const r5 = make({ onConflict: hook() }); r5.gh.runs = [run('success')]; r5.gh.pr = prJson({ mergeable: false, head: { ref: 'claude/a;id', sha: SHA, repo: { full_name: 'cantatapream/SEAGNAL' } } });
         r5.m.track(TR(20), OWN); await quiet(() => r5.time.advance(5 * MIN)); assert.equal(r5.m.conflicts()[0].branch, null);
@@ -425,6 +429,10 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         o.m.track({ pr_url: URL(12), run_id: 'ar-2', needs_decision: ['새 결정'], needs_options: [['예', '아니요']] }, {});
         assert.deepEqual(o.m.list().prs[0].needOptions, [['A 폴더(추천)', 'B 폴더'], [], ['예', '아니요']]);
         const g = make(); g.gh.pr = prJson({ merged: true, state: 'closed' }); g.m.track(TR(11, ['x']), OWN); await quiet(() => g.m.refresh());
+        // 머지된 PR — 머지 시각·「GitHub」 기록 · [확인]으로 목록에서 치움(열린 PR 은 안 됨)
+        const gp = g.m.list().prs.find((x) => x.number === 11); assert.equal(gp.status, 'merged'); assert.equal(gp.mergedBy, 'GitHub'); assert.ok(gp.mergedAt);
+        assert.equal(c.m.dismiss(10).status, 409, '열린 PR 은 치우지 않음'); assert.equal(g.m.dismiss(99).status, 404);
+        assert.deepEqual(g.m.dismiss(11), { ok: true }); assert.equal(g.m.list().prs.some((x) => x.number === 11), false);
         assert.equal(g.m.answer(11, 0, '답').status, 409, '머지·닫힌 PR 에는 답을 받지 않음');
     });
 

@@ -91,7 +91,8 @@ python3 _dashboard/loop/fold_effective.py                        # 시행일이 
 **어떻게 고쳤나.**
 1. 작업 세션이 위키 반영을 끝내면 그 큐 id 를 이 폴더의 `wiki_applied.jsonl` 에 적어 **같은 PR 에 커밋**한다.
    `python3 _dashboard/loop/amend_applied.py --from-brief <지시문 파일> --note "무엇을 했나"`
-   (일부만 끝냈으면 `--ids chg_…,chg_…`). 덧붙이기만 하고, 같은 id 는 두 번 안 적고, 메모 없는 기록은 받지 않는다.
+   (일부만 끝냈으면 `--ids chg_…,chg_…`. `--from-brief` 와 `--ids` 를 함께 주면 **그 지시문 가운데 `--ids` 건만** 적는다 —
+   2026-11-18 까지는 둘을 합쳐 적어 보류한 건까지 장부에 올랐다, PR #1485 결정 답으로 교집합으로 고침). 덧붙이기만 하고, 같은 id 는 두 번 안 적고, 메모 없는 기록은 받지 않는다.
 2. 머지·배포되면 서버(`services/legal_amendment_scanner.js` `loadWikiApplied`)가 이 파일을 읽어
    - 「📋 승인분 전체 지시문」에서 그 건을 **빼고**, 뺐다는 사실과 건수를 지시문 첫머리와 화면에 적는다
      (다 빠지면 「승인한 N건이 모두 위키 반영 완료로 기록돼 있습니다」).

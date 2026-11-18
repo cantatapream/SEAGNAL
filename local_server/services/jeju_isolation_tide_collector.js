@@ -28,7 +28,7 @@
  * [연계]
  *   - scripts/build_jeju_bathy_grid.js → anchors_jeju.json/grid_meta_jeju.json 생성
  *   - services/tide_collector.js → collectTideBedPages, getGridHash
- *   - scheduler.js → KST 23:30, 제주 간출암 앵커 수집 직후 이어서(순차) 호출
+ *   - scheduler.js → KST 02:00, 제주 간출암 앵커 수집 직후 이어서(순차) 호출
  *   - server.js    → 서버 기동 시 제주 간출암 보충 뒤 부족분만 보충(2026-10-18)
  *   - services/tide_curve_edges.js → 새벽·밤 가장자리 메우기·완전 판정(2026-10-18)
  * ============================================================================
@@ -101,12 +101,12 @@ function isComplete(anchorId, yyyymmdd) {
     return !!j && j.status === 'complete' && Edges.isFullDay(j);
 }
 
-/** 윈도우 밖(과거 날짜) 곡선 파일 정리 — 물빠짐/간출암과 동일 취지(볼륨 누적 방지). */
+/** 윈도우 밖(과거 날짜) 곡선 파일 정리 — 물빠짐/간출암과 동일 취지(볼륨 누적 방지). 어제는 남긴다(tide_field_common.yesterdayKST). */
 function purgeStaleCurves(logFn) {
     const lg = typeof logFn === 'function' ? logFn : ((...a) => console.log('[jeju_isolation_tide]', ...a));
     let removed = 0;
     try {
-        const dateSet = new Set(windowDatesKST(WINDOW_DAYS).map(String));
+        const dateSet = new Set(windowDatesKST(WINDOW_DAYS).map(String)).add(String(C.yesterdayKST()));
         let files = [];
         try { files = fs.readdirSync(CURVES_DIR_JEJU); } catch (e) { return 0; }
         for (const f of files) {

@@ -13,6 +13,7 @@ const S = require('../services/bulletin_status');
 const { parseCurrent, parseItems, PARENTS, childrenOf } = require('../analysis/bulletin_survey/lifecycle_check');
 
 let pass = 0, fail = 0;
+const pending = [];   // 비동기 문항(끝에서 기다린다)
 const ok = (n, c, x) => { if (c) { pass++; console.log('  ✅ ' + n); } else { fail++; console.log('  ❌ ' + n + (x !== undefined ? ' — ' + JSON.stringify(x).slice(0, 300) : '')); } };
 const K = (s) => Date.parse(s.replace(' ', 'T') + '+09:00');
 const W = (ho, tmIn, o) => ({ office: '제주청', rpt: '6', result: Object.assign({ t1Title: ho, tmFc: tmIn + ':00.0', tmIn: tmIn + ':30.0', t1: '', t2: '', t3: '', t4: '', t6: 'o 없음', t7: 'o 없음' }, o) });
@@ -316,8 +317,116 @@ console.log('E. 저장');
     const back = S.read(file);
     ok('계산 결과를 파일에 남기고 다시 읽음(current 나무·zones·통보문 수)', back && back.bulletins === 1 && back.current && back.zones['제주도남쪽바깥먼바다'] && out.updatedAt === back.updatedAt);
     ok('없으면 null', S.read(file + '.없음') === null);
+    const out2 = S.run({ watch: { bulletins: () => [Y('제11-1호', '2026-11-15 16:00', '(1) 풍랑 예비특보\n o 11월 16일 오후(12시~18시) : 제주도남쪽바깥먼바다')], listsOkMs: () => 1234 }, ai: { enabled: false }, now: () => K('2026-11-15 17:00'), file });
+    ok('발자취(trails)와 목록을 다 받은 마지막 시각(listsOkMs)도 함께 저장 — 📋 팝업이 읽는다', out2.listsOkMs === 1234 && S.read(file).trails['제주도남쪽바깥먼바다'].list[0].ho === '제11-1호' && out.listsOkMs === 0);
     ok('시각 꼴 바꾸기', S.korTime('2026-11-15 16:00:00.0') === '2026년 11월 15일 16시 00분');
 }
 
-console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
-process.exit(fail ? 1 : 0);
+console.log('F. 통보문 발자취 — 📋 해역별 통보문 팝업(지금 특보의 예비 → 발표 → 변경·연장 → 해제)');
+{
+    // 사용자 2026-11-18 「해당 특보의 시작(발표)부터 종료까지 특보의 생애주기 동안에 대한 통보문이 나오도록」 · 「해제 통보문은 보이되 … 해제되고나서는 통보문 버튼이 보일 필요가 없지」
+    const P = '제주도북부앞바다', KID = '제주도북부앞바다중연안바다';
+    const pop = (list, now, st2) => { const r = S.compute(list, K(now)); return S.zoneBulletins(P, Object.assign({ trails: r.trails, listsOkMs: K(now) }, st2), list, K(now)); };
+    const hos = (x) => (x ? x.bulletins.map((b) => b.reportNo + ' ' + b.title) : null);
+    const y1 = '(1) 풍랑 예비특보\n o 11월 18일 오후(12시~18시) : 제주도앞바다(제주도북부앞바다)';
+    const list = [
+        // 앞 특보(끝난 것): 예비 → 발표 → 해제
+        Y('제11-1호', '2026-11-08 16:00', '(1) 풍랑 예비특보\n o 11월 09일 오후(12시~18시) : 제주도앞바다(제주도북부앞바다)'),
+        W('제11-30호', '2026-11-09 13:00', { t2: '(1) 풍랑주의보 발표 : 제주도앞바다(제주도북부앞바다)', t3: '(1) 풍랑주의보 발표 : 2026년 11월 09일 14시 00분', t4: '(1) 풍랑주의보 발표\n o 해제 예고: 10일 오후(12시~18시)', t6: 'o 풍랑주의보 : 제주도앞바다(제주도북부앞바다)' }),
+        W('제11-35호', '2026-11-10 14:00', { t2: '(1) 풍랑주의보 해제 : 제주도앞바다(제주도북부앞바다)', t3: '(1) 풍랑주의보 해제 : 2026년 11월 10일 15시 00분' }),
+        // 지금 특보: 예비(두 번 — 같은 시간창) → 발표
+        Y('제11-12호', '2026-11-17 04:00', y1),
+        Y('제11-13호', '2026-11-17 16:00', y1),
+    ];
+    const a = pop(list, '2026-11-17 17:00');
+    ok('예비 중: 지금 예비 통보문만 — 끝난 앞 특보(11-30호·11-35호)와 그 예비(11-1호)는 안 섞인다, 같은 시간창으로 다시 온 목록(11-13호)은 되풀이하지 않는다',
+        JSON.stringify(hos(a)) === JSON.stringify(['제11-12호 풍랑 예비특보 — 11월 18일 오후(12시~18시)']) && a.cut === false, hos(a));
+    list.push(Y('제11-14호', '2026-11-18 04:00', '(1) 풍랑 예비특보\n o 11월 18일 밤(18시~24시) : 제주도앞바다(제주도북부앞바다)'));
+    ok('예비 시간창이 바뀐 통보문은 넣는다(최신이 위)', JSON.stringify(hos(pop(list, '2026-11-18 05:00'))) === JSON.stringify(['제11-14호 풍랑 예비특보 — 11월 18일 밤(18시~24시)', '제11-12호 풍랑 예비특보 — 11월 18일 오후(12시~18시)']), hos(pop(list, '2026-11-18 05:00')));
+    list.push(W('제11-51호', '2026-11-18 16:00', { t1: '풍랑주의보 발표', t2: '(1) 풍랑주의보 발표 : 제주도앞바다(제주도북부앞바다)', t3: '(1) 풍랑주의보 발표 : 2026년 11월 18일 17시 00분', t4: '(1) 풍랑주의보 발표 <br> o 해제 예고: 21일 오전(09시~12시)', t6: 'o 풍랑주의보 : 제주도앞바다(제주도북부앞바다)<br>o 강풍주의보 : 제주도', t7: 'o 없음', other: 'o 없음' }));
+    const b = pop(list, '2026-11-18 16:10');
+    ok('발표(발효 전): 예비 → 발표가 한 줄기로(실제 2026-11-18 16:14 화면 — 종전엔 끝난 11-30호·11-33호가 나왔다)', JSON.stringify(hos(b).map((x) => x.split(' ')[0])) === JSON.stringify(['제11-51호', '제11-14호', '제11-12호']) && hos(b)[0] === '제11-51호 풍랑주의보 발표', hos(b));
+    ok('부모 발표 = 자식 포함 — 한 줄로(자식 이름을 따로 붙이지 않는다), 자식만이 아님', b.bulletins[0].childOnly === false && !/연안바다/.test(b.bulletins[0].title));
+    ok('본문 글: 칸 이름과 함께, <br> 은 줄바꿈, 「없음」 칸은 뺌', JSON.stringify(b.bulletins[0].sections.map((x) => x.label)) === JSON.stringify(['해당 구역', '발효 시각', '내용', '특보 발효현황']) && b.bulletins[0].sections[3].text === 'o 풍랑주의보 : 제주도앞바다(제주도북부앞바다)\no 강풍주의보 : 제주도' && b.bulletins[0].time === '2026.11.18 16:00', b.bulletins[0]);
+    ok('예비 통보문 본문 칸', b.bulletins[1].sections.length === 1 && b.bulletins[1].sections[0].label === '예비특보 현황');
+    list.push(W('제11-55호', '2026-11-19 09:00', { t2: '(1) 풍랑경보 변경 : 제주도앞바다(제주도북부앞바다)', t3: '(1) 풍랑경보 변경 : 2026년 11월 19일 10시 00분', t4: '(1) 풍랑경보 변경\n o 해제 예고: 21일 오전(09시~12시)' }));
+    const v1 = hos(pop(list, '2026-11-19 09:10'));
+    list.push(W('제11-58호', '2026-11-20 09:00', { t2: '(1) 풍랑경보 해제예고 연장 : 제주도앞바다(제주도북부앞바다)', t4: '(1) 풍랑경보 해제예고 연장\n o 해제 예고: 22일 오전(09시~12시)' }));
+    ok('변경(발효 전 — 다음 특보로 기다리는 동안에도)·해제예고 연장이 같은 발자취에', JSON.stringify(v1.slice(0, 2)) === JSON.stringify(['제11-55호 풍랑경보 변경', '제11-51호 풍랑주의보 발표'])
+        && hos(pop(list, '2026-11-20 09:10'))[0] === '제11-58호 풍랑경보 해제예고연장' && hos(pop(list, '2026-11-20 09:10')).length === 5, hos(pop(list, '2026-11-20 09:10')));
+    // 자식만 해제(자식 줄기) — 부모는 계속
+    list.push(Object.assign(W('제11-60호', '2026-11-21 08:00', { t2: '(1) 풍랑경보 해제 : 제주도북부앞바다(연안바다)', t3: '(1) 풍랑경보 해제 : 2026년 11월 21일 09시 00분', t6: 'o 풍랑경보 : 제주도북부앞바다(연안바다)' }), {}));
+    list[list.length - 1].result.wrnFc = '02';
+    const c = pop(list, '2026-11-21 08:10');
+    ok('자식만 해제: 부모 팝업에 「… 해제 (연안바다)」 · 자식만 표시', c.bulletins[0].title === '풍랑경보 해제 (연안바다)' && c.bulletins[0].childOnly === true, hos(c));
+    const c2 = pop(list, '2026-11-21 09:10');
+    ok('자식이 해제 시각을 지나 끝나도 부모 특보가 살아 있으면 그 통보문은 부모 줄기에 없다 — 자식의 발자취는 자식과 함께 끝난다', hos(c2)[0] === '제11-58호 풍랑경보 해제예고연장' && !hos(c2).some((x) => /11-60호/.test(x)), hos(c2));
+    // 부모 해제 통보문(해제 시각 전) → 보인다, 해제 시각 뒤 → 발자취 없음(null — 화면에서도 카드·버튼이 사라진다)
+    list.push(W('제11-70호', '2026-11-22 08:00', { t2: '(1) 풍랑경보 해제 : 제주도앞바다(제주도북부앞바다)', t3: '(1) 풍랑경보 해제 : 2026년 11월 22일 10시 00분' }));
+    const d = pop(list, '2026-11-22 08:30');
+    ok('해제 통보문이 나온 뒤 ~ 해제 시각 전: 해제 통보문이 맨 위에 보인다', hos(d)[0] === '제11-70호 풍랑경보 해제' && hos(d).length === 6, hos(d));
+    ok('해제 시각이 지나면 그 해역의 발자취가 없다(null) — 끝난 특보의 통보문을 더는 주지 않는다', pop(list, '2026-11-22 10:01') === null);
+    // 해제 통보문 뒤(해제 시각 전) 재발표 = 새 특보 — 둘 다 보이다가, 앞 특보가 끝나면 새 특보 것만
+    list.push(W('제11-71호', '2026-11-22 09:00', { t2: '(1) 풍랑주의보 발표 : 제주도앞바다(제주도북부앞바다)', t3: '(1) 풍랑주의보 발표 : 2026년 11월 22일 18시 00분', t4: '(1) 풍랑주의보 발표\n o 해제 예고: 23일 오전(09시~12시)' }));
+    const e1 = pop(list, '2026-11-22 09:30'), e2 = pop(list, '2026-11-22 10:30');
+    ok('해제를 기다리는 특보 + 새로 발표된 다음 특보: 두 특보의 통보문이 함께', hos(e1)[0] === '제11-71호 풍랑주의보 발표' && hos(e1)[1] === '제11-70호 풍랑경보 해제' && hos(e1).length === 7, hos(e1));
+    ok('앞 특보가 해제 시각을 지나 끝나면 새 특보의 통보문만', JSON.stringify(hos(e2)) === JSON.stringify(['제11-71호 풍랑주의보 발표']), hos(e2));
+    // 계산 결과(zones)에는 발자취 칸이 남지 않는다(비교 기록에 통째로 적히므로)
+    const rz = S.compute(list, K('2026-11-22 09:30'));
+    ok('zones 에는 발자취 칸(trail·cut)이 없다 — trails 로 따로', !Object.values(rz.zones).some((z) => 'trail' in z || 'cut' in z || (z.next && ('trail' in z.next || 'cut' in z.next))) && rz.trails[P].list.length === 7 && rz.trails[KID]);
+    // 믿을 수 없을 때는 null → 부르는 쪽이 종전 방식(MMIS 목록)
+    ok('방재기상플랫폼 목록을 10분 넘게 못 받았으면 null(종전 방식으로)', pop(list, '2026-11-22 09:30', { listsOkMs: K('2026-11-22 09:19') }) === null && pop(list, '2026-11-22 09:30', { listsOkMs: K('2026-11-22 09:21') }) !== null);
+    ok('계산 결과가 없거나 발자취가 없는 해역은 null', S.zoneBulletins(P, null, list, K('2026-11-22 09:30')) === null && S.zoneBulletins('제주도남부앞바다', { trails: rz.trails, listsOkMs: K('2026-11-22 09:30') }, list, K('2026-11-22 09:30')) === null);
+    // 첫 통보문의 발효 중 칸으로 시작한 특보 = 앞부분(발표)을 모른다
+    const old = [
+        W('제11-80호', '2026-11-25 10:00', { t2: '(1) 풍랑주의보 발표 : 제주도남쪽바깥먼바다', t3: '(1) 풍랑주의보 발표 : 2026년 11월 25일 12시 00분', t6: 'o 풍랑주의보 : 제주도앞바다(제주도북부앞바다), 제주도남쪽바깥먼바다' }),
+    ];
+    ok('보관 기간보다 먼저 시작한 특보: 아는 통보문이 없으면 null(종전 방식)', pop(old, '2026-11-25 10:30') === null);
+    ok('첫 통보문이 스스로 발표한 특보는 앞부분을 안다(cut 아님)', S.compute(old, K('2026-11-25 10:30')).trails['제주도남쪽바깥먼바다'].cut === false && S.compute(old, K('2026-11-25 10:30')).trails[P].cut === true);
+    old.push(W('제11-81호', '2026-11-25 14:00', { t2: '(1) 풍랑주의보 해제예고 연장 : 제주도앞바다(제주도북부앞바다)', t4: '(1) 풍랑주의보 해제예고 연장\n o 해제 예고: 27일 오전(09시~12시)' }));
+    const f = pop(old, '2026-11-25 14:30');
+    ok('… 그 뒤 통보문이 있으면 그것만 주고 「앞부분 없음」(cut)을 알린다', f && f.cut === true && JSON.stringify(hos(f)) === JSON.stringify(['제11-81호 풍랑주의보 해제예고연장']), f && hos(f));
+    // 발효 중 특보 + 다가오는 예비(다음 특보의 예비 통보문)
+    const up = [
+        W('제11-90호', '2026-11-26 10:00', { t2: '(1) 풍랑주의보 발표 : 제주도앞바다(제주도북부앞바다)', t3: '(1) 풍랑주의보 발표 : 2026년 11월 26일 12시 00분', t4: '(1) 풍랑주의보 발표\n o 해제 예고: 27일 오전(09시~12시)' }),
+        Y('제11-20호', '2026-11-26 16:00', '(1) 태풍 예비특보\n o 11월 28일 오후(12시~18시) : 제주도앞바다(제주도북부앞바다)'),
+    ];
+    ok('발효 중 + 다가오는 예비: 그 예비 통보문도 함께', JSON.stringify(hos(pop(up, '2026-11-26 17:00'))) === JSON.stringify(['제11-20호 태풍 예비특보 — 11월 28일 오후(12시~18시)', '제11-90호 풍랑주의보 발표']), hos(pop(up, '2026-11-26 17:00')));
+    // 발자취는 규칙 계산까지만 — 참고사항 AI 덧씌움은 섞지 않는다(발자취는 일반 사용자 앱에 나간다. 적대검증 2026-11-18)
+    const rai = S.compute(up.slice(0, 1), K('2026-11-26 13:00'), [{ 종류: '해제예고변경', zones: [P], office: '제주청', ho: '제11-91호', inMs: K('2026-11-26 12:30'), 시간_후: '28일 오전(09시~12시)' }]);
+    ok('참고사항 AI 가 해제 예고를 바꿔도(관리자 화면용) 발자취에는 AI 줄이 없다', rai.zones[P].clr === '28일 오전(09시~12시)' && rai.aiApplied.length >= 1 && JSON.stringify(rai.trails[P].list.map((e) => e.ho)) === JSON.stringify(['제11-90호']), rai.trails[P]);
+    const rai2 = S.compute(up, K('2026-11-26 17:00'), [{ 종류: '예비취소', zones: [P], exact: true, office: '제주청', ho: '제11-92호', inMs: K('2026-11-26 16:30') }]);
+    ok('AI 가 다가오는 예비를 빼도(관리자 화면용) 발자취는 규칙 그대로 — 그 예비 통보문은 다음 예비 목록이 뺄 때 빠진다', !rai2.zones[P].upYebi && rai2.trails[P].list.some((e) => e.ho === '제11-20호'), rai2.trails[P]);
+    // 특보와 예비는 호 번호를 따로 매긴다 — 같은 관서·같은 호·같은 입력시각이어도 종류로 가린다
+    const same = [
+        Y('제11-5호', '2026-11-27 10:00', '(1) 풍랑 예비특보\n o 11월 28일 오후(12시~18시) : 제주도앞바다(제주도북부앞바다)'),
+        W('제11-5호', '2026-11-27 10:00', { t2: '(1) 풍랑주의보 발표 : 제주도남쪽바깥먼바다', t3: '(1) 풍랑주의보 발표 : 2026년 11월 27일 12시 00분' }),
+    ];
+    const sm = pop(same, '2026-11-27 10:30');
+    ok('호·입력시각이 같은 특보 통보문과 예비 통보문을 섞지 않는다(예비 줄에는 예비 통보문 본문)', sm.bulletins.length === 1 && sm.bulletins[0].sections[0].label === '예비특보 현황', sm);
+    ok('본문을 못 찾은 줄은 빼고, 남는 줄이 없으면 null', S.zoneBulletins(P, { trails: S.compute(same, K('2026-11-27 10:30')).trails, listsOkMs: K('2026-11-27 10:30') }, [], K('2026-11-27 10:30')) === null);
+    ok('부모 해역 이름이 아니면 null(예외 없이)', S.zoneBulletins('constructor', { trails: {}, listsOkMs: K('2026-11-27 10:30') }, [], K('2026-11-27 10:30')) === null && S.zoneBulletins(KID, { trails: rz.trails, listsOkMs: K('2026-11-22 09:30') }, list, K('2026-11-22 09:30')) === null);
+    // 원문 PDF 주소 — 통보문 자료만으로 만든다(MMIS 목록과 엮지 않는다: 사용자 2026-11-18 「눌렀을 때 해당 통보문 pdf가 바로 뜨는 것 … 지금 방식대로」 · 「mmis와 엮이면 안될 것」)
+    const pl = [
+        Y('제11-13호', '2026-11-17 16:00', y1),
+        W('제11-51호', '2026-11-18 16:00', { t2: '(1) 풍랑주의보 발표 : 제주도앞바다(제주도북부앞바다)', t3: '(1) 풍랑주의보 발표 : 2026년 11월 18일 17시 00분', rptImageName1: '202611/18/KTKO50_202611181600_184_51a.png', rptImageName2: '202611/18/KTKO50_202611181600_184_51.png' }),
+    ];
+    pl[0].result.pwnImageName = '202611/17/KTKO52_202611171600_184_13.png';
+    const pp = pop(pl, '2026-11-18 16:10');
+    ok('특보·예비 통보문 모두 그림 파일과 같은 자리·같은 이름의 PDF 주소', pp.bulletins[0].pdfUrl === 'https://marine.kma.go.kr/resources/kmas/C5N_DATA/WRN/PDF/202611/18/KTKO50_202611181600_184_51.pdf'
+        && pp.bulletins[1].pdfUrl === 'https://marine.kma.go.kr/resources/kmas/C5N_DATA/WRN/PDF/202611/17/KTKO52_202611171600_184_13.pdf', pp.bulletins.map((x) => x.pdfUrl));
+    pl[1].result.rptImageName2 = '../../x.png';
+    const pq = pop(pl, '2026-11-18 16:10');
+    ok('그림 이름이 없거나 꼴이 다르면 PDF 주소를 만들지 않는다 → 화면이 본문 글을 펼친다', pq.bulletins[0].pdfUrl === '' && pq.bulletins[0].sections.length > 0 && b.bulletins[0].pdfUrl === '', pq.bulletins[0]);
+    pending.push((async () => {
+        const its = [{ pdfUrl: 'a' }, { pdfUrl: 'b' }, { pdfUrl: 'c' }, { pdfUrl: '' }], asked = [];
+        await S.keepLivePdf(its, async (u) => { asked.push(u); if (u === 'c') throw new Error('시간 초과'); return u === 'a'; });
+        ok('PDF 가 아직 안 올라온 줄(없음·확인 실패)은 주소를 뗀다 → 화면이 본문 글을 펼친다, 주소 없는 줄은 묻지 않는다', JSON.stringify(its.map((x) => x.pdfUrl)) === JSON.stringify(['a', '', '', '']) && asked.sort().join('') === 'abc', its);
+    })());
+    ok('통보문 기준 팝업 계산은 MMIS 코드를 쓰지 않는다(bulletin_status 가 marine_client·ef/list·ntfctn 을 부르지 않음)', !/marine_client|fetchWarn|ntfctn/.test(fs.readFileSync(path.join(__dirname, '..', 'services', 'bulletin_status.js'), 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
+}
+
+Promise.all(pending).then(() => {
+    console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
+    process.exit(fail ? 1 : 0);
+});

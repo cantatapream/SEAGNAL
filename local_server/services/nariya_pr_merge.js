@@ -123,6 +123,8 @@ function judge(pr, runs, ctx) {
     const bad = list.filter((r) => r && r.status === 'completed' && BAD_CONCLUSIONS.has(r.conclusion));
     if (bad.length) return { ok: false, state: 'failed', why: '검사 실패: ' + bad.map((r) => String(r.name).slice(0, 40)).join(', '), sha };
     const req = list.filter((r) => r && r.name === REQUIRED_CHECK && r.app && r.app.slug === REQUIRED_APP);
+    // 충돌인지 아직 모르면(GitHub 가 main 이 바뀐 뒤 머지 가능 여부를 다시 계산 중 — mergeable null) 「검사 없음」으로 30분을 세지 않는다 — 곧 다시 본다(2026-11-18 PR #1497: 계산 중이던 순간에 「검사 없음」으로 남았다).
+    if (!req.length && pr.mergeable == null && pr.mergeable_state !== 'clean') return { ok: false, state: 'pending', why: 'GitHub 가 머지 가능 여부를 계산 중', sha, how: 'button' };
     if (!req.length) return { ok: false, state: 'missing', why: '필수 검사(' + REQUIRED_CHECK + ')가 아직 없음', sha, how: 'github' };
     if (list.some((r) => r && r.status !== 'completed')) return { ok: false, state: 'pending', why: '검사 진행 중', sha, how: 'button' };
     if (req.some((r) => r.conclusion === 'skipped' || r.conclusion === 'neutral')) return { ok: false, state: 'skipped', why: '필수 검사가 돌지 않음(' + req.map((r) => r.conclusion).join(',') + ')', sha, how: 'github' };
@@ -368,7 +370,10 @@ function createMerger({
                     else arm(n, POLL_MS);
                     return;
                 }
-                p.status = p.statusBefore === 'failed_checks' ? 'failed_checks' : 'waiting'; p.why = p.whyBefore || null; p.watchFrom = now(); save();
+                p.status = p.statusBefore === 'failed_checks' ? 'failed_checks' : 'waiting'; p.why = p.whyBefore || null; p.watchFrom = now();
+                // 맡기기 전 까닭이 「GitHub 에서 확인」 몫의 까닭(검사 30분 없음 등 — 충돌 탓이었다)이면 버리고 지금 까닭으로 — 그대로 두면 「머지 버튼」 푸시에 옛 까닭이 실린다(2026-11-18 PR #1497).
+                if (p.how === 'github') { p.how = 'button'; p.why = (p.needs || []).length ? '결정 필요 ' + p.needs.length + '건' : parseInt(p.outsideCount, 10) > 0 ? '위키·원문 밖 파일(프로그램 코드 등)을 고침' : null; }
+                save();
             }
             // 확인을 기다리는 사이 track 이 사람 몫으로 내렸으면(결정 필요가 더해짐) 머지하지 않는다(적대검증 하5 — p 는 상태 객체 그 자체라 지금 값을 본다).
             if (r.ok && auto && p.mode !== 'auto') auto = false;
@@ -384,7 +389,7 @@ function createMerger({
                 return;
             }
             if (r.ok) { await handOver(p, p.why || '사람 확인이 필요한 PR', 'button', true); return; }   // 사람 몫 PR 의 검사가 초록이 됨(처음이든 실패 뒤든) — 이제 버튼이 눌린다
-            if (r.state === 'merged' || r.state === 'closed') { p.status = r.state; disarm(n); save(); return; }
+            if (r.state === 'merged' || r.state === 'closed') { p.status = r.state; if (r.state === 'merged' && !p.mergedAt) { p.mergedAt = now(); p.mergedBy = p.mergedBy || 'GitHub'; } disarm(n); save(); return; }
             if (r.state === 'failed') {
                 if (p.status !== 'failed_checks') {
                     // 사람 몫 PR 은 처음 까닭(결정 필요 N건 등)을 지운다 — 초록이 되면 그 까닭으로 「머지 버튼」 푸시를 보낸다. 실패 까닭은 check.why 에 있다.
@@ -535,7 +540,7 @@ function createMerger({
                 // stale 도 버튼을 연다 — 누르면 서버가 최신 main 을 얹고 「약 20분 뒤 다시」(재검토 상-신규: 안 열면 main 이 한 번만 바뀌어도 버튼이 사라졌다).
                 p.canMerge = r.ok || r.state === 'stale';
                 if (r.outside) { p.outside = r.outside; p.outsideCount = r.outsideCount; }
-                if (r.state === 'merged' || r.state === 'closed') { p.status = r.state; disarm(p.number); }
+                if (r.state === 'merged' || r.state === 'closed') { p.status = r.state; if (r.state === 'merged' && !p.mergedAt) { p.mergedAt = now(); p.mergedBy = p.mergedBy || 'GitHub'; } disarm(p.number); }
                 // 사람 몫(needs_human) PR 이 충돌이면 자동 반영 세션에 풀기를 맡긴다(지켜보던 PR 은 tick 이 맡는다).
                 //   이미 「GitHub 에서 확인」으로 넘긴 PR(how github — 못 풂·3시간·되풀이)은 다시 맡기지 않는다(적대검증 중2 — 방을 열 때마다 푸시가 갔다).
                 //   한 번도 충돌 풀기를 맡긴 적 없는 PR 은 「GitHub 에서 확인」 몫이어도 맡긴다(예: 위 순서 고침 전 「필수 검사 30분 없음」으로 넘어간 충돌 PR — #1497).
@@ -552,7 +557,8 @@ function createMerger({
      */
     function list() {
         const order = { needs_human: 0, failed_checks: 1, conflict_fixing: 2, waiting: 2, merged: 4, closed: 5 };
-        const prs = load().prs.slice().reverse().map((p) => ({
+        // [확인]을 누른 머지·닫힌 PR 은 목록에서 뺀다(2026-11-18 사용자 「확인 버튼을 눌러서 … 더이상 표출할 필요없게」). 기록(상태 파일)은 남는다.
+        const prs = load().prs.slice().reverse().filter((p) => !p.dismissedAt).map((p) => ({
             number: p.number, pr_url: p.pr_url, run_id: p.run_id, needs: p.needs || [], summary: p.summary || '', at: iso(p.at),
             mode: p.mode, status: p.status, why: p.why || null, how: p.how || null, howText: p.how ? HOW_TEXT[p.how] : null,
             canMerge: p.canMerge === true, outside: p.outside || [], outsideCount: p.outsideCount || 0,
@@ -604,11 +610,22 @@ function createMerger({
         const mark = (ids, key) => { for (const id of ids || []) { const m = /^(\d+)-(\d+)-(\d+)$/.exec(String(id)); const p = m && find(Number(m[1])); const a = p && p.answers && p.answers[Number(m[2])]; if (a && String(a.at) === m[3]) a[key] = now(); } };   // 그 판(시각)의 답일 때만
         mark(handled, 'handledAt'); mark(deferred, 'deferredAt'); save();
     }
+    /**
+     * 머지·닫힌 PR 카드를 목록에서 치운다(앱 [확인] — 관리자만). 아직 열린 PR 은 치우지 않는다(사람이 할 일이 남았을 수 있다).
+     * @param {number} n @returns {{ok:boolean, status?:number, why?:string}} [연계] ← routes/legal.js POST /api/legal/autorun/prs/:n/dismiss
+     */
+    function dismiss(n) {
+        const p = find(n);
+        if (!p) return { ok: false, status: 404, why: '자동 반영이 맡은 PR 이 아님' };
+        if (p.status !== 'merged' && p.status !== 'closed') return { ok: false, status: 409, why: '아직 머지되지 않은 PR 은 치울 수 없습니다' };
+        p.dismissedAt = now(); save();
+        return { ok: true };
+    }
     /** 결정 필요 답 담당을 넣는다. @param {Function|null} fn */
     function setAnswerHook(fn) { answerHook = typeof fn === 'function' ? fn : null; }
     /** 충돌 처리 담당을 넣는다(운영 forDefault). @param {Function|null} fn */
     function setConflictHook(fn) { conflictHook = typeof fn === 'function' ? fn : null; }
-    return { track, evaluate, mergeNow, refresh, list, start, tick, conflicts, conflictResult, setConflictHook, answer, answers, answersResult, setAnswerHook, _state: () => load() };
+    return { track, evaluate, mergeNow, refresh, list, start, tick, conflicts, conflictResult, setConflictHook, answer, answers, answersResult, setAnswerHook, dismiss, _state: () => load() };
 }
 
 let def = null;
@@ -629,5 +646,6 @@ module.exports = {
     conflicts: () => forDefault().conflicts(),
     answer: (n, i, t, by) => forDefault().answer(n, i, t, by),
     answers: () => forDefault().answers(),
+    dismiss: (n) => forDefault().dismiss(n),
     start: () => forDefault().start(),
 };

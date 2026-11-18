@@ -84,6 +84,23 @@ ok('도구가 쓴 장부를 서버가 그대로 읽는다', S.loadWikiApplied(le
 const a2 = pyAdd(['chg_20261101_000aaa'], led2);
 ok('다시 돌려도 덧붙지 않는다', a2['적음'].length === 0 && fs.readFileSync(led2, 'utf8').split('\n').filter(Boolean).length === 2);
 
+// ③-2 --from-brief 와 --ids 를 함께 주면 교집합만(2026-11-18 PR #1485 결정 답 — 종전엔 합쳐 적어 보류 건까지 올랐다)
+const brief = path.join(tmp, 'brief.md');
+fs.writeFileSync(brief, '# 시험\n<!-- collect-manifest:start -->\n```json\n' +
+  JSON.stringify({ v: 1, items: [{ id: 'chg_19990101_00000a' }, { id: 'chg_19990101_00000b' }] }) +
+  '\n```\n<!-- collect-manifest:end -->\n');
+/** 도구를 명령줄로 --dry 로 돌린다(장부는 안 쓴다). @returns {{code:number,out:string}} */
+function pyCli(args) {
+  try { return { code: 0, out: execFileSync('python3', [PY, ...args, '--note', '시험', '--dry'], { encoding: 'utf8' }) }; }
+  catch (e) { return { code: e.status, out: String(e.stdout || '') }; }
+}
+const c1 = pyCli(['--from-brief', brief, '--ids', 'chg_19990101_00000a']);
+ok('둘을 함께 주면 --ids 건만 적는다(지시문의 나머지는 안 적는다)', c1.code === 0 && /적음: 1건/.test(c1.out), c1.out);
+const c2 = pyCli(['--from-brief', brief, '--ids', 'chg_19990101_00000a,chg_19990101_00000c']);
+ok('지시문 밖의 --ids 는 적지 않고 「지시문에없음」으로 알리며 실패 코드', c2.code === 1 && /지시문에없음: 1건/.test(c2.out) && /적음: 1건/.test(c2.out), c2.out);
+const c3 = pyCli(['--from-brief', brief]);
+ok('--from-brief 만 주면 그 글의 전 건(옛 동작 그대로)', c3.code === 0 && /적음: 2건/.test(c3.out), c3.out);
+
 // ── ④ 저장소의 장부 자체 ──
 console.log('── ④ 저장소 장부 ──');
 const realTxt = fs.existsSync(S.WIKI_APPLIED_FILE) ? fs.readFileSync(S.WIKI_APPLIED_FILE, 'utf8') : '';

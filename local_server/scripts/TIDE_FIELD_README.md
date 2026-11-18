@@ -35,7 +35,7 @@
    > (`meta.empty=true, reason=no_bathymetry`)를 남긴 뒤 종료한다(크래시 아님).
    > 이 경우 `/api/tide-field*` 는 503(준비중)을 반환한다.
 
-2. **배치 수집** — scheduler 가 **KST 23:30 1일 1회** 자동 실행.
+2. **배치 수집** — scheduler 가 **KST 02:00 1일 1회** 자동 실행(2026-11-18 에 23:30 에서 옮김 — 사용자가 많은 시간에 바텀시트 조석 요청과 키가 겹치지 않게. 이때부터 정리는 어제 곡선도 남긴다).
    - 오늘~+2일(KST) 앵커 1분 조위곡선을 동시성 풀(앵커 5개씩)로 수집.
    - 롤링 윈도우: 없거나 부분수집(loadedPages<5/failedPages)분만 재호출.
    - 저장: `data/tide_field/curves/{anchorId}_{YYYYMMDD}.json` (curves/ 는 .gitignore).
@@ -50,7 +50,7 @@
      세 수집기(물빠짐·제주 간출암·제주 고립판정)가 같은 함수를 쓴다. 곡선을 읽는 쪽은 `curve` 만 읽는다(바뀐 것 없음).
    - **기동 보충**: 서버 기동 시(`FLY_ALLOC_ID`) 물빠짐 부트스트랩이 끝나면 제주 두 수집기도 빈 날짜만 채운다
      (2026-10-18 — 제주 「모레」가 자정~23:30 비던 문제). 세 수집기는 `tide_field_common.runTideBatchExclusive`
-     한 줄에 서고, 23:30 묶음도 같은 줄에 선다(동시 호출 금지).
+     한 줄에 서고, 02:00 묶음도 같은 줄에 선다(동시 호출 금지).
    - 수동 트리거(운영, 소량 권장):
      ```
      node -e "require('./services/tide_field_collector').collectTideField({limitAnchors:3}).then(console.log)"
@@ -82,7 +82,7 @@
   - `scripts/build_hazard_rock_anchors.js` — 전처리. 산출물 `data/hazard_rocks/anchors.json`.
   - `services/hazard_rocks_tide_collector.js` — 배치 수집. `data/hazard_rocks/curves/`.
     TideBED 키를 물빠짐과 공유하므로 **동시 발사 금지** — scheduler 가 물빠짐 수집이
-    끝난 직후 이어서(순차) 호출한다(같은 KST 23:30 슬롯).
+    끝난 직후 이어서(순차) 호출한다(같은 KST 02:00 슬롯).
 - **동해**(위도≥36·경도≥128): TideBED 자체가 이 해역을 제공하지 않는다(사용자 확인,
   2026-08-01). `client/tide_data/tide_data_{year}.js`(연간 조석표, 표준항 만조/간조
   극값)를 표준항 IDW 보간 후 반정현파(half-cosine)로 두 극값 사이를 근사해 교차시각을
