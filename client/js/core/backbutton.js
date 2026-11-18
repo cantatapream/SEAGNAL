@@ -182,6 +182,19 @@
             PopupStack.remove('alert-history-modal');
             origClose.apply(this, arguments);
         };
+
+        // 해역별 📋 통보문 팝업(showZoneBulletins)도 같은 #alert-history-modal 을 쓰고
+        // closeAlertHistoryPopup 으로 닫힌다 — 그런데 여는 함수가 따로라 스택에 안 올라가
+        // 휴대폰 뒤로가기가 이 팝업을 못 닫았다(2026-11-18 사용자 보고). 같은 id 로 올린다.
+        var origZone = window.showZoneBulletins;
+        if (origZone) {
+            window.showZoneBulletins = function () {
+                origZone.apply(this, arguments);
+                PopupStack.push('alert-history-modal', function () {
+                    window.closeAlertHistoryPopup();
+                });
+            };
+        }
     }
 
     /**

@@ -1537,12 +1537,24 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 00:36 KST] ✅완료 — 📋 해역별 통보문 팝업 — 휴대폰 뒤로가기로 안 닫히던 것 수정 (브랜치 claude/festive-tesla-k7ie2s, PR #1506)
+사용자 보고(스크린샷: 경북북부앞바다 통보문 팝업) 「휴대폰 내장 뒤로가기버튼이 안먹힘」. 원인: core/backbutton.js 의 wrapAlertHistoryPopup 이 옛 showAlertHistoryPopup 만 PopupStack 에 올리고, 지금 📋 버튼(forecast/alerts/render.js)이 부르는 showZoneBulletins(alert_history.js)는 같은 #alert-history-modal 을 쓰면서도 스택에 안 올라갔다 → 뒤로가기가 닫을 팝업을 못 찾음. 수정: 같은 래퍼에서 showZoneBulletins 도 감싸 같은 id('alert-history-modal')로 push(닫기는 기존 closeAlertHistoryPopup 래퍼가 remove). index2.html backbutton.js 버전표 갱신(캐시). 시험: test_forecast_gear_ui 에 ④ 1건 추가 — 고치기 전 코드로 되돌려 돌리면 실패(30/2), 고친 뒤 32/0. simulate 회귀 없음, test_life_safety_tab_keep 25/0·test_risk_sheet_ui 35/0·test_station_briefing_ui 101/0·test_accident_sheet 200/0·check_order 통과.
+
+
 ### [2026-11-19 00:15 KST] 🟢착수 — 재시작 보충 수집은 오늘·내일만 (모레는 02:00 정기 수집에 맡김)
 사용자 지시(2026-11-19 「그럼 재시작 때는 오늘·내일만 받도록 고쳐줘」). 배경: 11-19 00:02 배포 재시작 때 기동 보충이 새 모레(11-21) 340건을 받기 시작해 00:07 사용자 바텀시트 조석 요청과 겹쳤고 그 요청이 부분 데이터(1138/1440)→error 로 끝났다(운영 로그). server.js 기동 보충 묶음의 세 수집기에 dates=오늘·내일을 넘긴다. 알고 가는 것: 자정~02:00 모레 공백, 02:00 정기 수집을 놓친 날은 다음 02:00까지 모레가 빈다.
 
 
 ### [2026-11-18 23:58 KST] ✅완료 — 해상 기상 전망 깨진 색칠 표시 바로잡기 · 줄 간격 1.4 · 띄어쓰기 자리에서만 줄바꿈 · 안내 문장 줄바꿈
 완료(작업 브랜치, main 머지는 사용자 확인 대기): ①fixMarkup(수집기)·renderMarineMarkup·stripMarkup 이 「{{warn:…} }」 꼴도 처리 ②줄 간격 1.3→1.4(게시판·전망·안내) ③text_fit.js 낱말 안 글자 사이 WORD JOINER — 괄호·가운뎃점 자리 줄바꿈 막음(종전 「괄호 자리 허용」 판단을 사용자 지적으로 정정) ④안내 팝업 문장 끝(~다./~요.) 줄바꿈 ⑤지방청 카드 제목 keep-all. test_text_fit 28/0 · test_station_briefing 247/0 · verify_all(로컬 서버 + NODE_PATH) 「✅ 전체 검증 통과」, 총정리 블록 앞 실행과 같음(법률 위키 측정 줄만).
+
+
+### [2026-11-18 23:39 KST] ✅완료 — PC·모바일 브라우저에서 챗봇 '완료되면 알림 드릴까요?' 배너 숨김
+완료 100%. ai_chat.js: isNativeApp() 신설, doSend 에서 앱이 아니면 6초 동의 배너 타이머를 걸지 않고 notifyOnComplete=false 로 보냄(웹 푸시 미구현·설정창도 웹이면 푸시 탭 숨김이라 받을 길이 없다). 회귀 검사 2건 test_ask_context.js(372 PASS/0 FAIL, 옛 코드에선 실패 확인). MASTER_PLAN 191행대 항목3 아래 사용자 원문 병기. verify_all: 스위트 전부 통과, 실패 = V4 시뮬레이션·서버 스모크 21건(로컬 서버 미기동 ERR_CONNECTION_REFUSED). 다음: 실제 앱·PC 화면 확인은 배포 후 사용자 몫.
+
+
+### [2026-11-18 23:22 KST] 🟢착수 — PC·모바일 브라우저에서 챗봇 '완료되면 알림 드릴까요?' 배너 숨김
+사용자 지적: PC(모바일 브라우저 포함)는 푸시를 못 받는데 6초 넘는 답변에 알림 동의 배너가 뜬다. ai_chat.js doSend 의 배너 타이머·notifyOnComplete 를 Capacitor 네이티브 판정(isNativeApp)으로 거른다.
 
 
 ### [2026-11-18 22:43 KST] ✅완료 — 방재기상플랫폼 로그인이 안 되면 관리자 푸시
