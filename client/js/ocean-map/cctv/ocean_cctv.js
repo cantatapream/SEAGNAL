@@ -95,7 +95,7 @@
         //     서버 프록시(routes/ocean1.js /api/ocean/khoa-wms)는 요청 범위를 기록·저장하지 않고 그림만 넘긴다.
         { id: 'myloc', label: '내 위치', bodyHtml:
             '<p><i class="fa-solid fa-circle-check"></i> 누르면 지금 내 위치로 지도를 옮기고, 그 자리를 <strong>파란 점</strong>으로 표시합니다.</p>'
-          + '<p><i class="fa-solid fa-circle-check"></i> <strong>내 위치 정보는 폰 안에서만 처리되고 서버로 보내지 않습니다.</strong> 위치는 지도에 점을 찍는데에만 쓰입니다.</p>'
+          + '<p><i class="fa-solid fa-circle-check"></i> <strong>내 위치 정보는 폰 안에서만 처리되고 서버로 보내지 않습니다.</strong> 위치는 지도에 점을 찍는 데에만 쓰입니다.</p>'
           + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 폰의 위치 기능이 꺼져 있거나 앱에 위치 권한을 허용하지 않으면 동작하지 않습니다.</p>',
           src: '이 기기(폰)의 위치 기능(GPS)' },
         { id: 'search', label: '위치 검색', body:
