@@ -122,7 +122,10 @@ const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면
 // §11.10.54(2026-11-18 세션 시험 지명 오판 12건 중 8건 — 「확인하지 못해 해변」·「오후로 갈수록 해변」·「꼽히는 곳이라 갯바위」·「꼽혀 부두」·「몽돌 해변」):
 //   접미사만 있는 일반 낱말(해변·갯바위·부두 …) 앞 낱말이 동사·부사 꼴(어미)이거나 모양을 말하는 일반 낱말이면 그 둘을 이름으로 묶지 않는다(이름 후보가 아니다).
 //   어미 목록은 그 오판에 나온 꼴과 같은 무리만 — 「남해 해변」의 「남해」처럼 「해」로 끝나는 이름 앞 낱말이 빠지는 대가가 있지만, 접미사만 있는 낱말이라 지어낸 고유 이름이 통과할 길은 아니다.
-const BARE_PRE_VERB = /(?:못해|위해|인해|대해|통해|해서|라서|이라|수록|혀|져|워|아서|어서|하여|하며|으며|지만|는데|으니|니까|이나|나)$/;   // 「이나·나」 — 「갯바위나 방파제를」·「백사장이나 방파제를」(누적 오류 E20261118-104914 G01)
+const BARE_PRE_VERB = /(?:못해|위해|인해|대해|통해|해서|라서|이라|수록|혀|져|워|아서|어서|하여|하며|으며|지만|는데|으니|니까)$/;
+// 「갯바위나 방파제를」·「백사장이나 방파제를」(누적 오류 E20261118-104914 G01): 앞 낱말이 **일반 장소 낱말 + 이나·나** 일 때만 나열로 본다
+//   (독립 검토 상1 — 「나」로 끝나는 아무 낱말이나 건너뛰면 「왕산마리나 부두」·「가짜마리나 방파제」가 통과했다).
+const BARE_PRE_LIST = /^(?:갯바위|방파제|해변|해수욕장|포구|부두|등대|백사장|모래사장|해안|바위|절벽|암벽|선착장|항구)(?:이나|나)$/;
 const BARE_PRE_GENERIC = new Set(['몽돌', '모래', '자갈', '바위', '암석', '갯벌', '작은', '넓은']);
 // 방문객 배수는 평소의 1.4배 이상만 AI 입력에 준다(2026-11-18 사용자 *"방문객 배수는 1.4배 이상부터 사용"* · *"방문객이 평소의 1배 처럼 무의미한 내용이 들어가지 않도록"* — §11.10.54).
 //   그보다 작은 배수 줄은 AI 에게 보내지 않고 허용 배수에도 넣지 않는다 — 글에 쓰면 multiplier: 로 막힌다. 화면 「분석 근거」 줄(서버)은 그대로.
@@ -203,7 +206,7 @@ function placeCandidates(t) {
         const any = (j) => { const a = words[j], b = words[j + 1]; return a && b && /^\s+$/.test(src.slice(a.end, b.i)) ? a.w : null; }, q1 = any(k - 1), q2 = q1 ? any(k - 2) : null;
         if (!pre && !p1) return;                           // 「앞바다」·「방파제」만 — 일반 낱말
         // 「확인하지 못해 해변」 — 일반 낱말(§11.10.54). 「몽돌 해변」도 일반 낱말이지만 그 앞에 이름다운 낱말이 있으면(「강동 몽돌 해변」) 그대로 이름 후보로 검사한다(독립 검토 상1 — 다른 관할 이름·지어낸 이름이 빠져나갔다).
-        if (!pre && (BARE_PRE_VERB.test(p1) || (BARE_PRE_GENERIC.has(p1) && !p2))) return;
+        if (!pre && (BARE_PRE_VERB.test(p1) || BARE_PRE_LIST.test(p1) || (BARE_PRE_GENERIC.has(p1) && !p2))) return;
         const cands = [w]; if (p1) cands.push(p1 + w); if (p2) cands.push(p2 + p1 + w);
         // fwd = 이 낱말(조사 포함 원래 꼴) + 띄어 쓴 다음 낱말 — 「신도해안도로 갯바위」처럼 허용 이름이 다음 낱말까지 이어질 때 validateOverview 가 본다(§11.10.54 — 「도로」의 「로」를 조사로 떼어 「신도해안도」가 되던 오판).
         out.push({ text: (p2 ? p2 + ' ' : '') + (p1 ? p1 + ' ' : '') + w, cands: pre ? cands : cands.slice(1), raw: (q2 || '') + (q1 || '') + x.w, word: x.w, fwd: next ? x.w + next : '' });
@@ -521,9 +524,9 @@ function validateOverview(o, si) {
             //   자정을 넘는 「21시~6시」(누적 오류 E20261118-104914 G03 — 밤 판 창은 오늘 21시~내일 24시)는 「a~24시」와 「0~b시」가 각각 빈틈없이 이어질 때만.
             const chainOk = n.range && n.unit === '시' && (() => { const [a, b] = n.key.split('|')[0].split('~').map(Number); const rs = [...allowedN].filter((x) => /^\d+~\d+\|시$/.test(x)).map((x) => x.split('|')[0].split('~').map(Number));
                 const reach = (s0, e0) => { if (!(s0 < e0)) return false; const r = new Set([s0]); let grow = true; while (grow) { grow = false; for (const [x, y] of rs) if (r.has(x) && x < y && y <= e0 && !r.has(y)) { r.add(y); grow = true; } } return r.has(e0); };
-                return a < b ? reach(a, b) : a > b && b > 0 && reach(a, 24) && reach(0, b); })();
+                return a < b ? reach(a, b) : a > b && a >= 21 && b > 0 && reach(a, 24) && reach(0, b); })();   // 자정 너머는 21시 이후 시작만(밤 창 — 독립 검토 중2)
             // 연안 문단의 풍속 범위(「해안 바람이 8~10m/s」 — 여러 관광지 값을 한 범위로, 누적 오류 G03): 양 끝이 둘 다 허용 숫자이고 작은 수~큰 수일 때만. 해상 문단은 S24(해구마다 따로) 그대로 막는다.
-            const windRangeOk = k === 'land' && n.range && n.unit === 'm/s' && n.ends.length === 2 && n.ends.every((e) => allowedN.has(e)) && Number(n.ends[0].split('|')[0]) < Number(n.ends[1].split('|')[0]);
+            const windRangeOk = k === 'land' && n.range && n.unit === 'm/s' && /^\d+(?:\.\d+)?\s*(?:m\/s)?\s*[~∼〜–-]/.test(n.text) && n.ends.length === 2 && n.ends.every((e) => allowedN.has(e)) && Number(n.ends[0].split('|')[0]) < Number(n.ends[1].split('|')[0]);
             if (!allowedN.has(n.key) && !yearOk && !chainOk && !windRangeOk) errors.push('number:' + n.text);
         }
         const paraCount = si.count_keys ? new Set(si.count_keys[k] || []) : allowedN;   // 셈말은 그 문단 결론·근거에 있는 수만(독립 검토 7)
@@ -535,9 +538,10 @@ function validateOverview(o, si) {
         const withParticle = (raw) => names.some((a) => { const i = raw.lastIndexOf(a); return i >= 0 && PARTICLE_ONLY_RE.test(raw.slice(i + a.length)); });
         // 허용 이름이 이 낱말에서 시작해 다음 낱말까지 이어지면 통과(「신도해안도로 갯바위」 — §11.10.54).
         // 「남쪽 먼바다」(누적 오류 G01 성산 — 기상청 전망을 줄여 쓴 꼴): 방위 + (안쪽·바깥) + 먼바다·앞바다 는 그 방위를 품고 같은 꼬리로 끝나는 이 관할 기상청 해역 이름(kma_zones)이 있을 때만 통과.
-        const dirZoneOk = (x) => { const m = /^(동|서|남|북|남동|남서|북동|북서)쪽(안쪽|바깥)?(먼바다|앞바다)$/.exec(x); return !!m && [...kz].some((z) => z.includes(m[1] + '쪽' + (m[2] || '')) && z.endsWith(m[3])); };
+        //   방위는 낱자 경계로(「동쪽」이 「남동쪽」 안에서 맞지 않게) · 앞에 이름다운 낱말이 붙은 후보(「가짜 동쪽 먼바다」)는 이 길로 통과하지 않는다 — 가장 긴 후보가 방위 꼴일 때만(독립 검토 상2·중1).
+        const dirZoneOk = (x) => { const m = /^(동|서|남|북|남동|남서|북동|북서)쪽(안쪽|바깥)?(먼바다|앞바다)$/.exec(x); if (!m) return false; const re = new RegExp('(?<![동서남북])' + m[1] + '쪽' + (m[2] || '')); return [...kz].some((z) => re.test(z) && z.endsWith(m[3])); };
         const continuesName = (pc) => { const w0 = compact(pc.word || ''), fw = compact(pc.fwd || ''); return !!(w0 && fw) && names.some((a) => a.length > w0.length && a.startsWith(w0) && fw.startsWith(a)); };
-        for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || kz.has(x) || names.some((a) => x.endsWith(a)) || dirZoneOk(x)) && !withParticle(compact(pc.raw || '')) && !continuesName(pc)) errors.push('place:' + pc.cands[pc.cands.length - 1]);
+        for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || kz.has(x) || names.some((a) => x.endsWith(a))) && !dirZoneOk(pc.cands[pc.cands.length - 1]) && !withParticle(compact(pc.raw || '')) && !continuesName(pc)) errors.push('place:' + pc.cands[pc.cands.length - 1]);
         for (const w of FORBIDDEN) if (c.includes(compact(w))) errors.push('forbidden:' + w);
         for (const lm of t.matchAll(LABEL_RE)) if (!(si.allowed_labels || []).includes(lm[0])) errors.push('label:' + lm[0]);
         if (SAFE_RE.test(c)) errors.push('forbidden:안전 단정');
@@ -600,7 +604,7 @@ function anaphoraCountOk(w, before, prev, names, self, allPrev = '') {
     if (!n || n < 2 || !/(?:^|[,，]|이들|(?:되|하|있|없|높|많|늘|낮|크|작|강하|약하)(?:며|고|어)|돼|해)\s*$/.test(head)) return false;
     // 이름마다 괄호 꼬리를 뗀 꼴도 본다(누적 오류 E20261118-104914 G02 — 「양남 주상절리군 (경북 동해안 국가지질공원)」을 「양남 주상절리군」으로 쓴 글).
     //   셈은 글에 나온 자리로 한다 — 긴 것부터 겹치지 않게 고르고 이름(열쇠) 수를 센다(「장호항과 장호해수욕장(장호항, 장호해변)」 = 장호항·장호해수욕장 둘 — 괄호 속 「장호항」은 긴 이름에 덮인다).
-    const keys = [...new Set(names.filter((a) => a !== self).filter(Boolean))].map((a) => ({ a, forms: [...new Set([compact(a), compact(String(a).replace(/\s*[(（][^()（）]*[)）]\s*$/, ''))])].filter((f) => f.length >= 2) }));
+    const keys = [...new Set(names.filter((a) => a !== self).filter(Boolean))].map((a) => ({ a, forms: [...new Set([compact(a), compact(String(a).replace(/\s*[(（][^()（）]*[)）]\s*$/, ''))])].filter((f, i) => f.length >= (i ? 3 : 2)) }));   // 괄호 뗀 꼴은 3글자 이상만(「우도(창원 진해)」 → 「우도」가 「경우도」 속에서 잡히지 않게 — 독립 검토 중3)
     const hits = (x) => { const cx = compact(x), occ = [];
         for (const k of keys) for (const f of k.forms) { let i = cx.indexOf(f); while (i >= 0) { occ.push({ a: k.a, s: i, e: i + f.length }); i = cx.indexOf(f, i + 1); } }
         occ.sort((p, q) => (q.e - q.s) - (p.e - p.s) || p.s - q.s); const taken = [], got = new Set();

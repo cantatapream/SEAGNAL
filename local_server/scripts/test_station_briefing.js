@@ -3584,6 +3584,15 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(nn({ land: '해안 바람이 9~10m/s로 예상됩니다.', sea: '해상은 평소 수준입니다.' }, wd), ['number:9~10m/s'], '한쪽 끝이 허용 숫자가 아니면 실패');
         assert.deepStrictEqual(nn({ land: '해안 바람이 10~8m/s로 예상됩니다.', sea: '해상은 평소 수준입니다.' }, wd), ['number:10~8m/s'], '뒤집힌 범위는 실패');
         assert.deepStrictEqual(nn({ land: null, sea: '두 해구는 풍속 8~10m/s로 예상됩니다.' }, wd), ['number:8~10m/s'], '해상 문단은 S24 그대로(해구마다 따로)');
+        // 독립 검토(v21) 반영 — 새 구멍 막힘
+        for (const t of ['왕산마리나 부두는 연안 활동에 유의해야 합니다.', '가짜마리나 방파제는 연안 활동에 유의해야 합니다.', '코나 해변은 연안 활동에 유의해야 합니다.']) assert.equal(pl(t).length, 1, '「나」로 끝나는 이름은 계속 검사: ' + t);
+        assert.deepStrictEqual(sp('가짜 남쪽 먼바다에서 바람이 강해질 수 있습니다.', seongsan), ['place:가짜남쪽먼바다'], '앞에 지어낸 이름이 붙으면 실패');
+        assert.deepStrictEqual(sp('동쪽 먼바다에서 바람이 강해질 수 있습니다.', si49({ kma_zones: ['제주도남동쪽안쪽먼바다'] })), ['place:동쪽먼바다'], '「동쪽」이 「남동쪽」 안에서 맞지 않음');
+        const day = si49({ allowed_number_keys: ['0~3|시', '3~6|시', '6~9|시', '9~12|시', '12~15|시', '15~18|시', '18~21|시', '21~24|시'] });
+        assert.deepStrictEqual(nn({ land: null, sea: '따라서 9시~6시 해역 운항에 주의가 요구됩니다.' }, day), ['number:9시~6시'], '자정 너머는 21시 이후 시작만');
+        assert.deepStrictEqual(nn({ land: '해안 바람이 8시~10m/s로 예상됩니다.', sea: '해상은 평소 수준입니다.' }, wd), ['number:8시~10m/s'], '왼쪽 단위가 다르면 실패');
+        const jh = si49({ name: '진해파출소', levels: { sea: {}, land: { '우도(창원 진해)': 1, '진해루': 1, '속천항': 1 } }, land: {} });
+        assert.deepStrictEqual(h('진해루와 속천항은 관심 수준입니다. 바람이 강해지는 경우도 있어 세 곳 모두 유의해야 합니다. 따라서 진해루 인근 연안에서는 관심이 요구됩니다.', jh), ['number:hangul:세 곳'], '괄호 뗀 짧은 이름(우도)은 흔한 낱말 속에서 세지 않음');
         assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v21');
     });
     await check('[§11.10.49-6] 지시문 S17~S25(AI 가 실제로 어긴 꼴) · S14 예시 「연안 활동에 유의해야 합니다」 · 문장 수 이유 글 · 판 v18/v17', () => {
