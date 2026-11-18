@@ -321,14 +321,21 @@ function createCompare({
         // ① 양쪽 상태 바뀜
         const units = new Set([...Object.keys(st.mmis), ...Object.keys(M), ...Object.keys(st.bulletin), ...Object.keys(B)]);
         const virtual = {};
+        // 가상 푸시는 「부모 자신의 상태」로 판정한다 — 화면용으로 채운 「자식만 특보」 부모(bulletin_status.fillParents, derived)는 부모 자신의 특보가 아니다.
+        //   그 부모 자신의 상태 = 갖고 있던 예비(다가오는 칸으로 옮겨 둔 것)이거나 없음. 안 가리면 평수구역만 발표됐는데 「🚨 풍랑 주의보 발효 | 부모 해역」이 나가고
+        //   (수도권 2025 8-29호), 이미 알린 부모 예비를 「📢 발표」로 또 알린다(2026 2-37호) — 적대검증 2026-11-18.
+        const own = (z) => (!z || !z.derived ? z : z.up ? Object.assign({}, z.up) : undefined);
+        const ownView = (o) => { const r = {}; for (const [k, z] of Object.entries(o || {})) { const v = own(z); if (v) r[k] = v; } return r; };
+        const So = ownView(st.bulletin), Bo = ownView(B);
         for (const u of units) {
             for (const [side, prev, cur] of [['mmis', st.mmis[u], M[u]], ['bulletin', st.bulletin[u], B[u]]]) {
                 if (sig(prev) === sig(cur)) continue;
                 if (side === 'bulletin' && sig1(prev) === sig1(cur)) continue;   // 다가오는 특보만 바뀜 — 아래 다가오는 특보 줄이 기록한다(두 번 세지 않게, 적대검증 D5)
                 emit({ kind: 'change', side, unit: u, before: prev || null, after: cur || null, 설명: `${side === 'mmis' ? 'MMIS' : '통보문'} ${u}: ${word(prev)} → ${word(cur)}` });
-                if (side === 'bulletin') {
+                if (side === 'bulletin' && sig1(So[u]) !== sig1(Bo[u])) {
+                    const prev = So[u], cur = Bo[u];   // 아래는 부모 자신의 상태로(위 own)
                     const par = (cur || prev).parent;
-                    const tp = templateOf(u, prev, cur, B[par], par !== u && sig(st.bulletin[par]) !== sig(B[par]));
+                    const tp = templateOf(u, prev, cur, Bo[par], par !== u && sig(So[par]) !== sig(Bo[par]));
                     if (tp) { const k = [tp.templateId, tp.typeName, tp.level, tp.prevLevel || ''].join('|'); (virtual[k] = virtual[k] || Object.assign({ items: [] }, tp)).items.push({ zones: [u], tmFc: (cur || prev).tmFc, tmEf: (cur || prev).tmEf, tmYn: (cur || prev).clr, oldTime: tp.oldTime, newTime: tp.newTime }); }
                     // 정식 특보가 끝나고 곧바로 예비로 넘어갔는데, 그 예비를 「다가오는 특보」로 알린 적이 없으면 해제와 함께 발표도 낸다.
                     //   1분마다 보므로 새 예비 통보문과 해제 시각이 같은 1분 안이면 「주의보 → 예비」가 한 번에 바뀌어 해제만 나가고 예비 발표가 빠졌다
@@ -336,7 +343,7 @@ function createCompare({
                     //   단, 그 예비 목록이 끝난 정식 특보보다 나중에 나온 것일 때만 — 먼저 나온 목록의 예비는 그 정식 특보로 넘어간 「옛 예비」라 다시 알리면 안 된다
                     //   (bulletin_status upYebi 와 같은 기준 tY > issueMs. 적대검증 2026-11-17: 실자료 26번 옛 예비를 「발표」 → 10분 뒤 「예비 취소」, 예 수도권 2025-10-27 06:00).
                     if (prev && prev.kind === 'formal' && cur && cur.kind === 'yebi' && (cur.inMs || 0) > (prev.issueMs || prev.inMs || 0)) {
-                        const upBefore = st.bulletin[par] && st.bulletin[par].up;
+                        const upBefore = So[par] && So[par].up;
                         const announced = upBefore && upBefore.kind === 'yebi' && upBefore.type === cur.type && winKey(upBefore.tmEf) === winKey(cur.tmEf);
                         // 알린 다가오는 예비가 같은 1분에 시간창만 바뀌었으면 발표가 아니라 연장·발효시각 변경(앱 규칙 — 두 분에 나뉘었을 때와 같게, 적대검증 D2)
                         const moved = !announced && par === u && upBefore && upBefore.kind === 'yebi' && upBefore.type === cur.type;
@@ -344,7 +351,7 @@ function createCompare({
                             const t2 = upTemplate(prev, upBefore, cur, false);
                             if (t2) { const k2 = [t2.templateId, t2.typeName, t2.level, t2.prevLevel || ''].join('|'); (virtual[k2] = virtual[k2] || Object.assign({ items: [] }, t2)).items.push({ zones: [u], tmFc: cur.tmFc, tmEf: cur.tmEf, tmYn: cur.clr, oldTime: t2.oldTime, newTime: t2.newTime }); }
                         } else if (!announced) {
-                            const t2 = { templateId: par !== u && B[par] ? 'child_prelim' : 'publish', typeName: cur.type, level: '주의보' };
+                            const t2 = { templateId: par !== u && Bo[par] ? 'child_prelim' : 'publish', typeName: cur.type, level: '주의보' };
                             const k2 = [t2.templateId, t2.typeName, t2.level, ''].join('|');
                             (virtual[k2] = virtual[k2] || Object.assign({ items: [] }, t2)).items.push({ zones: [u], tmFc: cur.tmFc, tmEf: cur.tmEf, tmYn: cur.clr });
                         }
@@ -353,12 +360,12 @@ function createCompare({
             }
             // 통보문 쪽 「다가오는 특보」(up = 다음 정식 · 예비): 나타나거나 바뀌면 앱 UPCOMING_CHANGE 처럼(격상/격하 발표 · 발표 · 발효시각 변경·연장).
             //   사라질 때(정식으로 넘어감·취소)는 앱도 따로 안 보낸다(현재 특보가 있으면 취소 판정을 안 함 — crawler 2497).
-            const upP = st.bulletin[u] && st.bulletin[u].up, upC = B[u] && B[u].up;
+            const upP = So[u] && So[u].up, upC = Bo[u] && Bo[u].up;   // 「자식만 특보」 부모의 다가오는 칸은 부모 자신의 예비 그대로 — 새로 생긴 것이 아니다
             if (upC && sig1(upP) !== sig1(upC)) {
-                const par = B[u].parent, isChild = par !== u;
-                const parUpChanged = isChild && sig1(st.bulletin[par] && st.bulletin[par].up) !== sig1(B[par] && B[par].up);
-                emit({ kind: 'change', side: 'bulletin', unit: u, before: upP || null, after: upC, upcoming: true, 설명: `통보문 ${u}: ${word1(B[u])} 중 다가오는 특보 ${word1(upP)} → ${word1(upC)}` });
-                const tp = isChild && parUpChanged ? null : upTemplate(B[u], upP, upC, isChild);
+                const par = Bo[u].parent, isChild = par !== u;
+                const parUpChanged = isChild && sig1(So[par] && So[par].up) !== sig1(Bo[par] && Bo[par].up);
+                emit({ kind: 'change', side: 'bulletin', unit: u, before: upP || null, after: upC, upcoming: true, 설명: `통보문 ${u}: ${word1(Bo[u])} 중 다가오는 특보 ${word1(upP)} → ${word1(upC)}` });
+                const tp = isChild && parUpChanged ? null : upTemplate(Bo[u], upP, upC, isChild);
                 if (tp) { const k = [tp.templateId, tp.typeName, tp.level, tp.prevLevel || '', tp.prevTypeName || ''].join('|'); (virtual[k] = virtual[k] || Object.assign({ items: [] }, tp)).items.push({ zones: [u], tmFc: upC.tmFc, tmEf: upC.tmEf, tmYn: upC.clr, oldTime: tp.oldTime, newTime: tp.newTime }); }
             }
             // 두 쪽이 다른 동안(시작·끝)
