@@ -13,11 +13,13 @@
  * subscriber_stats.json 파일에 다음과 같은 형태로 저장됩니다:
  * {
  *   "2026-04-05": { "total": 690, "fcm": 690, "web": 0 },
- *   "2026-04-04": { "total": 678, "fcm": 678, "web": 0 },
+ *   "2026-11-19": { "total": 1350, "fcm": 1350, "web": 0, "active": 1290, "masterOff": 55 },
  *   ...
  * }
+ *   total = 등록 기기 수 · active = 실제 수신자(알림 켬, 같은 기기 1명 — 2026-11-18 부터 기록)
  *
  * [연계 파일]
+ * - services/subscriber_audit.js → countSubscribers() 로 실제 수신자 수를 센다(화면과 같은 기준)
  * - config/server_config.js → FILES.SUBSCRIBER_STATS 경로 참조
  * - config/server_config.js → FILES.SUBSCRIPTIONS 구독자 목록 참조
  * - server.js → cron.schedule()로 이 서비스의 takeSnapshot()을 매일 호출
@@ -80,10 +82,15 @@ function takeSnapshot() {
         }
 
         // 5. 오늘 날짜 스냅샷 기록 (이미 있으면 덮어씀 — 하루에 여러 번 호출되어도 안전)
+        // [2026-11-18] active = 실제 수신자(알림 켬·같은 기기 1명). 이 값이 있는 날부터 화면 증감이 active 기준이다.
+        const counts = require('./subscriber_audit').countSubscribers(subscriptions);
         stats[todayStr] = {
             total: totalCount,
             fcm: fcmCount,
-            web: webCount
+            web: webCount,
+            active: counts.active,
+            masterOff: counts.masterOff,
+            osBlocked: counts.osBlocked
         };
 
         // 6. 파일에 저장

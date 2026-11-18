@@ -152,6 +152,9 @@ const FILES = {
     // [연계] routes/push.js → 구독/해지 발생 시 기록 + /api/subscriber-events API에서 조회
     // [연계] js/admin.js → 구독 현황 탭의 이탈률 카드에서 활용
     SUBSCRIBER_EVENTS: path.join(DATA_DIR, 'subscriber_events.json'),
+    // 구독자 점검 기록: 죽은 등록표 점검이 마지막으로 언제·어떻게 끝났는지
+    // [연계] services/subscriber_audit.js → runAudit() 가 쓰고 getStatus() 가 읽는다
+    SUBSCRIBER_AUDIT: path.join(DATA_DIR, 'subscriber_audit.json'),
     // 법률위키 사람검증 승인 이력: 관리자가 승인/반려한 기록(감사 추적용)
     // ★볼륨(DATA_DIR)에 둔다 — 종전 경로는 knowledge/legal/_dashboard/ 라 컨테이너 이미지 안이었고,
     //   재배포할 때마다 관리자가 승인한 기록이 이미지의 옛 값으로 되돌아가 사라졌다

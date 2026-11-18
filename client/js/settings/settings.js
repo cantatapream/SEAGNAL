@@ -373,6 +373,10 @@ const NotificationSettings = {
     },
     get() { return this.settings; },
     set(newSettings) {
+        // 저장소에서 먼저 다시 읽는다 — capacitor-plugins.js 가 저장소의 master 를 직접 바꾸므로
+        // 메모리 값이 낡아 있을 수 있다(설정 모달을 한 번도 안 연 채 ai_chat 의 set({aiAnswer}) 가
+        // 낡은 master=false 를 서버로 보내던 것 — 독립 검토 2026-11-18).
+        this.init();
         this.settings = { ...this.settings, ...newSettings };
         this.save();
 
@@ -439,7 +443,7 @@ function initNotificationUI() {
                         icon: '<svg viewBox="0 0 24 24" stroke="#ff9800"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
                         iconBg: 'rgba(255, 152, 0, 0.12)',
                         title: '알림 권한이 필요합니다',
-                        message: '현재 알림 권한이 거절되어 있습니다.<br>푸시 알림을 받으시려면 휴대폰 설정에서<br>알림을 허용해 주세요.',
+                        message: '현재 알림 권한이 거절되어 있습니다.<br>푸시 알림을 받으시려면 휴대폰 설정에서<br>알림을 허용해 주세요.<br><br><span style="font-size:0.82rem;color:#94a3b8;">허용한 뒤 이 스위치를 다시 켜고<br>[저장]을 눌러 주세요.</span>',
                         confirmText: '설정으로 이동',
                         cancelText: '취소'
                     }).then((goToSettings) => {
@@ -527,6 +531,23 @@ function updateMasterState(isEnabled) {
 }
 
 /**
+ * 사용자가 "푸시 알림 받기"를 **직접 껐는지**를 폰에 표시해 둔다(push_master_user_off).
+ * 예: 켜져 있던 것을 끄고 저장 → 표시 남김 / 켜고 저장 → 표시 지움 / 원래 꺼져 있던 채 저장 → 그대로
+ * @param {boolean} wasOn - 저장 전 master 값
+ * @param {boolean} nowOn - 지금 저장하려는 master 값
+ * [연계] ← saveNotificationUI(설정 [저장])
+ *        ↔ capacitor-plugins.js autoEnableMasterOnGrant — 앱을 켤 때 이 표시가 있으면 자동으로 켜지 않는다.
+ * [왜] 켜져 있다가 꺼진 경우에만 남긴다 — 한 번도 켠 적 없는 사람(폰 권한 거절 등)이 다른 설정을
+ *      저장했다고 표시가 남으면, 나중에 폰 권한을 허용해도 자동으로 켜지지 않게 된다.
+ */
+function markPushMasterUserOff(wasOn, nowOn) {
+    try {
+        if (nowOn) localStorage.removeItem('push_master_user_off');
+        else if (wasOn) localStorage.setItem('push_master_user_off', '1');
+    } catch (e) { /* 저장이 막힌 환경 — 표시 없이 종전처럼 동작 */ }
+}
+
+/**
  * 알림 설정 UI 의 현재 상태를 NotificationSettings 에 저장.
  * 마스터 토글 + 대상(전체/관심) + 우선순위 + 야간 음소거 등을 모아 1회 set.
  *
@@ -537,6 +558,12 @@ function saveNotificationUI() {
     if (!master) return;
 
     const target = document.querySelector('input[name="push-target"]:checked')?.value || 'interest';
+
+    // set() 이 서버로 보내기 전에 "직접 껐음" 표시부터 맞춘다(저장 전 값과 비교).
+    // ★저장 전 값은 메모리가 아니라 저장소에서 읽는다 — 모달이 열린 뒤 자동 켬이 저장소만 바꾸면 메모리는 낡는다.
+    let wasOn = false;
+    try { wasOn = !!JSON.parse(localStorage.getItem(NotificationSettings.STORAGE_KEY) || '{}').master; } catch (e) { /* 못 읽으면 꺼져 있던 것으로 */ }
+    markPushMasterUserOff(wasOn, master.checked);
 
     NotificationSettings.set({
         master: master.checked,

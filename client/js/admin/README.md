@@ -94,3 +94,28 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 **해구 예보 예**: 00UTC 판(09시 KST)을 가진 채 12UTC 판이 없으면 22:00 KST 부터 노랑(2026-10-16부터 수집은 30분마다 — 다음 기대 21:00 회차 + 여유 60분이라 노랑 시각은 종전과 같다. 기상청 API허브 답변 「생성하는데 6시간 이상이 소요될 수 있습니다」, 사용자 「그냥 아무런 변화 없이 30분에 한번 점검하도록」). 수집기는 「새 판 없음, 기존 판 유지」를 `data/zone_forecasts_status.json` 에 남기고(`services/zone_forecast_guard.js`), 찾은 판이 가진 판보다 오래되면 덮어쓰지 않는다.
 
 검사: `test_data_collection_status`(목록표 규칙·근거 인용 실재·시각 읽기·다음 회차·판정·실제 관리자 인증 401/200·503) · `test_data_collection_ui`(실제 라우터+Chromium 380px — 하위 탭 셋·출처 묶음·배지 색·확인 필요·기록 없음·늦은 응답 무시·AI 탭에서 빠졌는지) · `test_zone_forecast_guard`.
+
+## 종합 통계 → 구독 현황 — 실제 수신자 기준 (2026-11-18)
+
+`admin.js` `renderSubscriberTab()`. 종전의 큰 숫자는 구독자 명단(`data/subscriptions.json`)의 **줄 수(등록표 개수)** 였다 —
+알림을 꺼 둔 사람·앱을 지운 기기·바뀌기 전 옛 등록표가 그대로 세어졌다.
+
+| 화면 | 뜻 | 어디서 오나 |
+|---|---|---|
+| 큰 숫자 「실제 수신자」 | 앱에서 알림 켬(`options.master !== false`) + 폰 권한이 꺼졌다는 보고 없음(`osPermission`) + 같은 기기(`deviceId`)는 1명 | `GET /api/push-subscriber-stats` `activeSubscribers` |
+| 등록 기기 · 알림 끔 · 폰 권한 꺼짐 · 최근 30일 접속 | 명단 줄 수 · 앱에서 끈 줄 수 · 앱에서는 켰지만 폰 권한이 꺼졌다고 알려 온 줄 수 · 실제 수신자 중 30일 안에 앱을 연 사람(`updatedAt`) | 같은 응답 `totalSubscribers`·`masterOffCount`·`osBlockedCount`·`recent30Count` |
+| 증감·그래프·표 | 일별 기록의 `active`(없는 옛 날짜는 `total`) | `GET /api/subscriber-history` |
+| 구독 유지율 | 신규(`subscribe`) 대 이탈(`unsubscribe`+`expired`). `replaced`(같은 기기 등록표 교체)·`backlog`(첫 정리 때 나온 묵은 것)는 세지 않는다. 세 번째 칸은 기준이 바뀐 날 이후만 | `GET /api/subscriber-events` |
+| 죽은 등록표 점검 카드 | 마지막 점검이 언제·어떻게 끝났나 + [검사만]·[검사 후 정리] | `GET/POST /api/admin/subscriber-audit` |
+
+- 서버 본체는 `local_server/services/subscriber_audit.js` — 세기(`countSubscribers`)·사건 구분(`subscribeEventType`)·지우기(`removeDead`)·점검(`runAudit`).
+  발송 뒤 정리(`routes/push.js` 2곳)와 매일 KST 23:40 자동 점검(`server.js`)이 **같은 `removeDead`** 를 쓴다.
+- 점검은 FCM 에 「검사만」(dry-run) 요청이라 **실제 알림이 가지 않는다.** 「영구히 죽음」 코드 둘만 지우고, 그 밖의 오류는 「확인 못 함」으로 세기만 한다.
+- **한 건도 「살아 있다」고 확인되지 않으면 아무것도 지우지 않고 실패로 남긴다** — firebase-admin 이 FCM 의 일반 404 도 「등록표 죽음」과 같은 코드로 돌려줘, 이 확인이 없으면 FCM·인증 오류 한 번에 명단 전체가 지워질 수 있다. 자동 점검이 실패하면 관리자 푸시가 간다.
+- 사건(신규·해지·이탈)은 줄 단위가 아니라 **「실제 수신자 수」가 바뀐 만큼**으로 정한다 — 사건 합계와 숫자가 어긋나지 않게.
+- 카드의 「마지막 정리」가 26시간 넘게 옛것이면 빨갛게 뜬다(밤 자동 점검이 실패했거나 안 돈 것).
+- **독립 검토(2026-11-18)** 반영: 전체 삭제 안전장치 · 전부 「확인 못 함」을 성공으로 적던 것 · 같은 기기 줄이 여럿일 때 사건이 수와 어긋나던 것 · 검사만 누르면 자동 점검 실패가 가려지던 것 · 기준이 다른 날끼리 빼던 전월·전년 대비 · 오류 글 이스케이프.
+- 기준이 바뀐 날(일별 기록에 `active` 가 처음 생긴 날) 앞뒤로 숫자가 한 번 내려간다 — 화면에 그 날짜를 적어 둔다.
+- **폰 권한 꺼짐 보고**: 앱이 서버에 구독 정보를 보낼 때마다 폰의 알림 권한 상태(`osPermission`)를 함께 보낸다(`client/capacitor-plugins.js subscribeUser`). 권한이 꺼진 채 앱을 켜면 등록 이벤트가 없으므로, 토큰을 가진 기기는 그 자리에서 한 번 보낸다. **세는 데만 쓰고 발송에서는 빼지 않는다** — 권한을 다시 켜고 앱을 아직 안 연 사람에게도 푸시가 가야 한다.
+- 알 수 없는 것: 폰 권한을 끄고 **앱을 한 번도 안 연** 경우(앱이 알려 줄 기회가 없다), 옛 화면 코드가 남아 있는 기기(값을 안 보낸다 — 받는 것으로 센다), 앱을 지운 직후(FCM 도 며칠 뒤에 안다).
+- 시험: `local_server/scripts/test_subscriber_audit.js` (`verify_all.sh` SUITES 등록).

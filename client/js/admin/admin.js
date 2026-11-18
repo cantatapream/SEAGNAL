@@ -3274,6 +3274,10 @@ function escapeHtmlAdminAff(s) {
  * [데이터 소스]
  * - GET /api/push-subscriber-stats → 현재 구독자 수 + 해역별 카운트
  * - GET /api/subscriber-history → 일별 구독자 스냅샷 (추이 분석용)
+ * - GET/POST /api/admin/subscriber-audit → 죽은 등록표 점검 기록·지금 점검 (2026-11-18)
+ *
+ * [기준 2026-11-18] 큰 숫자·증감·그래프 = 「실제 수신자」(알림 켬·같은 기기 1명).
+ *   등록 기기 수는 작은 글씨로 따로 보인다. 일별 기록에 active 가 없는 옛 날짜는 등록 기기 수로 그린다.
  *
  * [연계]
  * - renderUnifiedUsersContent() → switchUsersSubTab('subscriber')에서 호출
@@ -3294,6 +3298,16 @@ async function renderSubscriberTab(container) {
         var stats = statsRes.ok ? await statsRes.json() : { totalSubscribers: 0, fcmCount: 0, webCount: 0, zoneCounts: {} };
         var history = historyRes.ok ? await historyRes.json() : {};
         var events = eventsRes.ok ? await eventsRes.json() : {};
+        // 죽은 등록표 점검이 마지막으로 언제·어떻게 끝났나 (services/subscriber_audit.js)
+        var auditRes = await fetch('/api/admin/subscriber-audit').catch(function() { return { ok: false }; });
+        var audit = auditRes.ok ? await auditRes.json() : null;
+
+        // [2026-11-18] 화면의 기준 숫자 = 「실제 수신자」(알림 켬·같은 기기 1명).
+        //   옛 서버 응답·옛 일별 기록에는 이 값이 없어 등록 기기 수(total)로 대신한다.
+        var hasActive = (typeof stats.activeSubscribers === 'number');
+        function snapVal(d) { return (history[d].active != null) ? history[d].active : history[d].total; }
+        // 일별 기록에 active 가 처음 생긴 날 = 기준이 바뀐 날
+        var basisDate = Object.keys(history).sort().filter(function(d) { return history[d].active != null; })[0] || null;
 
         // ── 2. 전일/전월/전년 대비 증감 계산 ──
         // KST 기준 오늘/어제/한달전/1년전 날짜 문자열 생성
@@ -3315,12 +3329,14 @@ async function renderSubscriberTab(container) {
         lastYearDate.setFullYear(lastYearDate.getFullYear() - 1);
         var lastYearStr = lastYearDate.toISOString().split('T')[0];
 
-        var currentTotal = stats.totalSubscribers;
+        var currentTotal = hasActive ? stats.activeSubscribers : stats.totalSubscribers;
 
         // 증감 계산 함수: 과거 데이터가 없으면 null 반환
         function calcDiff(pastDateStr) {
             if (history[pastDateStr]) {
-                return currentTotal - history[pastDateStr].total;
+                // 비교할 날이 기준 변경 전(등록 기기 수)이면 빼지 않는다 — 서로 다른 것을 뺀 숫자가 증감처럼 보인다.
+                if (hasActive && history[pastDateStr].active == null) return 'basis';
+                return currentTotal - snapVal(pastDateStr);
             }
             return null; // 데이터 없음
         }
@@ -3332,10 +3348,10 @@ async function renderSubscriberTab(container) {
         // 증감 표시용 HTML 생성 함수
         // 양수면 초록색 ▲, 음수면 빨간색 ▼, 0이면 회색 ─, 데이터 없으면 N/A
         function diffBadge(diff, label) {
-            if (diff === null) {
+            if (diff === null || diff === 'basis') {
                 return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03);">'
                     + '<span style="color:#94a3b8;font-size:0.78rem;">' + label + '</span>'
-                    + '<span style="color:#475569;font-size:0.8rem;font-weight:600;">N/A</span></div>';
+                    + '<span style="color:#475569;font-size:0.8rem;font-weight:600;">' + (diff === 'basis' ? '기준 변경 전' : 'N/A') + '</span></div>';
             }
             var color = diff > 0 ? '#22c55e' : (diff < 0 ? '#ef4444' : '#64748b');
             var arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '─');
@@ -3352,16 +3368,22 @@ async function renderSubscriberTab(container) {
             // 현재 구독자 수 카드
             + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px;text-align:center;margin-bottom:12px;">'
             + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-bell" style="margin-right:4px;"></i> 푸시 알림 구독자</div>'
-            + '<div style="font-size:2.2rem;font-weight:800;color:#3b82f6;">' + stats.totalSubscribers + '<span style="font-size:0.9rem;font-weight:400;color:#64748b;">명</span></div>'
-            + '<div style="font-size:0.75rem;color:#475569;margin-top:4px;">FCM(앱) ' + stats.fcmCount + '명'
-            + (stats.webCount > 0 ? ' · Web ' + stats.webCount + '명' : '')
-            + '</div></div>'
+            + '<div style="font-size:2.2rem;font-weight:800;color:#3b82f6;">' + currentTotal + '<span style="font-size:0.9rem;font-weight:400;color:#64748b;">명</span></div>'
+            + (hasActive
+                ? '<div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">실제 수신자 (알림 켬·폰 권한 허용)</div>'
+                  + '<div style="font-size:0.72rem;color:#475569;margin-top:4px;line-height:1.6;">등록 기기 ' + stats.totalSubscribers + ' · 알림 끔 ' + stats.masterOffCount
+                  + (typeof stats.osBlockedCount === 'number' ? ' · 폰 권한 꺼짐 ' + stats.osBlockedCount : '')
+                  + '<br>최근 30일 접속 ' + stats.recent30Count + '명</div>'
+                : '<div style="font-size:0.75rem;color:#475569;margin-top:4px;">FCM(앱) ' + stats.fcmCount + '명'
+                  + (stats.webCount > 0 ? ' · Web ' + stats.webCount + '명' : '') + '</div>')
+            + '</div>'
             // 전일/전월/전년 대비 증감 카드
             + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px 16px;">'
             + '<div style="font-size:0.78rem;color:#94a3b8;margin-bottom:8px;font-weight:600;">증감 현황</div>'
             + diffBadge(diffDay, '전일 대비')
             + diffBadge(diffMonth, '전월 대비')
             + diffBadge(diffYear, '전년 대비')
+            + (basisDate ? '<div style="font-size:0.68rem;color:#64748b;margin-top:8px;line-height:1.5;">※ ' + basisDate + ' 부터 실제 수신자 기준. 그 전 숫자는 등록 기기 수라 서로 빼지 않습니다(그래프·표는 그 날 한 번 내려갑니다).</div>' : '')
             + '</div>'
             + '</div>'
             // 오른쪽: 구독자 추이 차트
@@ -3393,6 +3415,8 @@ async function renderSubscriberTab(container) {
             var totalUnsub = 0; // 기간 내 수동 해지 수
             var totalExpired = 0; // 기간 내 만료 정리 수
             var hasData = false;
+            // 기준이 바뀐 날 이전 사건은 「등록표」 기준(교체가 신규·만료로 세어짐)이라 섞지 않는다.
+            if (basisDate && basisDate > startDate) startDate = basisDate;
 
             Object.keys(events).forEach(function(dateStr) {
                 if (dateStr >= startDate && dateStr <= endDate) {
@@ -3487,9 +3511,63 @@ async function renderSubscriberTab(container) {
             + '<div style="display:flex;gap:10px;flex-wrap:wrap;">'
             + retentionCard('이번 주', weekRetention)
             + retentionCard('이번 달', monthRetention)
-            + retentionCard('전체', totalRetention)
+            + retentionCard(basisDate ? basisDate.substring(5) + ' 이후' : '전체', totalRetention)
             + '</div>'
             + '</div>';
+
+        // ── 3.6 죽은 등록표 점검 카드 ──
+        // 앱을 지운 기기의 등록표를 FCM 에 「검사만」 물어 가려낸다(실제 알림은 가지 않음). 매일 23:40 자동.
+        // ★점검이 실패했거나 한 번도 안 돌았으면 그대로 보여 준다 — 조용한 것이 이상 없는 것으로 보이지 않게.
+        function auditLine(r) {
+            if (!r) return '<span style="color:#f59e0b;">아직 점검한 적이 없습니다.</span>';
+            var when = new Date(r.at + 9 * 3600000).toISOString().replace('T', ' ').substring(0, 16) + ' KST';
+            var how = (r.trigger === 'cron' ? '자동' : '수동') + (r.apply ? '·정리' : '·검사만');
+            if (!r.ok) return '<span style="color:#ef4444;">' + when + ' (' + how + ') 점검 실패 — ' + escapeHtmlAdminAff(r.error || '') + '</span>';
+            return when + ' (' + how + ') · ' + r.checked + '건 검사 · 죽은 등록표 ' + r.dead + '건'
+                + (r.apply ? ' 정리(이탈 ' + r.expired + ' · 교체 ' + r.replaced + ' · 알림 끈 기기 ' + r.off + ')' : ' (지우지 않음)')
+                + (r.unknown > 0 ? ' · <span style="color:#f59e0b;">확인 못 함 ' + r.unknown + '건</span>' : '');
+        }
+        var auditHtml = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;margin-bottom:20px;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:8px;font-weight:600;"><i class="fa-solid fa-broom" style="margin-right:4px;color:#38bdf8;"></i> 죽은 등록표 점검 <span style="font-weight:400;color:#64748b;">(매일 23:40 자동 · 알림은 가지 않음)</span></div>'
+            + '<div style="font-size:0.78rem;color:#cbd5e1;line-height:1.6;margin-bottom:10px;">'
+            + '<div><span style="color:#64748b;">마지막 점검</span> <span id="sub-audit-line">' + (audit ? auditLine(audit.lastRun) : '<span style="color:#ef4444;">점검 기록을 불러오지 못했습니다.</span>') + '</span></div>'
+            // 「검사만」을 누르면 위 줄이 바뀌므로, 실제로 정리까지 끝난 마지막 때를 따로 둔다.
+            // 26시간 넘게 정리가 없으면 빨갛게 — 밤 자동 점검이 실패했거나 아예 안 돈 것이다.
+            + (audit ? '<div><span style="color:#64748b;">마지막 정리</span> ' + (function() {
+                var a = audit.lastApplied;
+                if (!a) return '<span style="color:#f59e0b;">아직 정리한 적이 없습니다.</span>';
+                var stale = (Date.now() - a.at) > 26 * 3600000;
+                return (stale ? '<span style="color:#ef4444;">' : '<span>') + auditLine(a)
+                    + (stale ? ' — 26시간 넘게 정리가 돌지 않았습니다(자동 점검 실패 가능).' : '') + '</span>';
+            })() + '</div>' : '')
+            + '</div>'
+            + '<div style="display:flex;gap:8px;">'
+            + '<button onclick="window.runSubscriberAudit(false)" style="padding:7px 14px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#cbd5e1;font-size:0.78rem;font-weight:600;cursor:pointer;">검사만</button>'
+            + '<button onclick="window.runSubscriberAudit(true)" style="padding:7px 14px;border:none;border-radius:8px;background:#3b82f6;color:#fff;font-size:0.78rem;font-weight:600;cursor:pointer;">검사 후 정리</button>'
+            + '</div>'
+            + '</div>';
+
+        /**
+         * 죽은 등록표 점검을 지금 돌린다.
+         * 예: runSubscriberAudit(false) → 몇 건이 죽었는지 세기만 / (true) → 확인 창 뒤 정리하고 화면 새로 그림
+         * @param {boolean} apply - true 면 죽은 등록표를 명단에서 지운다
+         * [연계] → POST /api/admin/subscriber-audit (routes/admin.js → services/subscriber_audit.js runAudit)
+         *          ← 위 점검 카드의 두 버튼
+         */
+        window.runSubscriberAudit = async function(apply) {
+            if (apply && !confirm('죽은 등록표를 구독자 명단에서 지웁니다. 계속할까요?\n(지우기 전 명단 사본을 서버에 남깁니다. 알림은 발송되지 않습니다.)')) return;
+            var line = document.getElementById('sub-audit-line');
+            if (line) line.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 점검 중… (1~2분 걸릴 수 있습니다)';
+            try {
+                var r = await (await fetch('/api/admin/subscriber-audit', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apply: apply })
+                })).json();
+                if (apply && r.ok) { renderSubscriberTab(container); return; }
+                if (line) line.innerHTML = auditLine(r);
+            } catch (e) {
+                if (line) line.innerHTML = '<span style="color:#ef4444;">점검 요청 실패 — ' + e.message + '</span>';
+            }
+        };
 
         // ── 4. 조회 필터 바 (일별/주간/월별) + 상세 증감 내역 테이블 ──
         var filterHtml = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;margin-bottom:20px;">'
@@ -3592,7 +3670,7 @@ async function renderSubscriberTab(container) {
         }
 
         // ── 6. 전체 HTML 조립 후 렌더링 ──
-        container.innerHTML = topHtml + retentionHtml + filterHtml + typhoonHtml + zoneHtml;
+        container.innerHTML = topHtml + retentionHtml + auditHtml + filterHtml + typhoonHtml + zoneHtml;
 
         // ── 7. 차트 및 테이블 렌더링 ──
         // 이력 데이터를 날짜순으로 정렬
@@ -3744,11 +3822,11 @@ async function renderSubscriberTab(container) {
                 var recent = sortedDates.slice(-30);
                 for (var i = 0; i < recent.length; i++) {
                     var d = recent[i];
-                    var val = history[d].total;
+                    var val = snapVal(d);
                     labels.push(d.substring(5)); // "MM-DD" 형태
                     values.push(val);
                     // 전일 대비 증감 계산
-                    var prevVal = (i > 0) ? history[recent[i - 1]].total : null;
+                    var prevVal = (i > 0) ? snapVal(recent[i - 1]) : null;
                     tableData.push({
                         label: d,
                         value: val,
@@ -3767,7 +3845,7 @@ async function renderSubscriberTab(container) {
                     var monday = new Date(dateObj);
                     monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
                     var weekKey = monday.toISOString().split('T')[0]; // 주 시작일을 키로 사용
-                    weekBuckets[weekKey] = { date: d, total: history[d].total };
+                    weekBuckets[weekKey] = { date: d, total: snapVal(d) };
                 });
                 var weekKeys = Object.keys(weekBuckets).sort().slice(-12);
                 for (var w = 0; w < weekKeys.length; w++) {
@@ -3788,7 +3866,7 @@ async function renderSubscriberTab(container) {
                 var monthBuckets = {};
                 sortedDates.forEach(function(d) {
                     var ym = d.substring(0, 7); // "YYYY-MM"
-                    monthBuckets[ym] = { date: d, total: history[d].total };
+                    monthBuckets[ym] = { date: d, total: snapVal(d) };
                 });
                 var monthKeys = Object.keys(monthBuckets).sort().slice(-12);
                 for (var m = 0; m < monthKeys.length; m++) {

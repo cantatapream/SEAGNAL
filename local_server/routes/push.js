@@ -185,64 +185,11 @@ async function _sendWebPushPart(webpush, subscription, pushPayload, ctx) {
 }
 
 // ============================================================================
-// 구독/해지 이벤트 기록 함수
+// 구독 사건 기록·죽은 등록표 정리·구독자 세기 → services/subscriber_audit.js 로 옮김(2026-11-18).
+//   발송 뒤 정리(아래 2곳)와 매일 점검이 **같은 기준**으로 지우고 기록하게 하기 위해서다.
 // ============================================================================
-
-/**
- * 구독 또는 해지 이벤트를 일별로 집계하여 기록합니다.
- *
- * [데이터 구조]
- * subscriber_events.json:
- * {
- *   "2026-04-05": { "subscribe": 3, "unsubscribe": 1, "expired": 2 },
- *   "2026-04-04": { "subscribe": 5, "unsubscribe": 0, "expired": 0 },
- *   ...
- * }
- *
- * [이벤트 유형]
- * - subscribe: 신규 구독 (기존에 없던 사용자가 처음 구독)
- * - unsubscribe: 수동 해지 (사용자가 직접 구독 취소)
- * - expired: 만료 자동 정리 (FCM 토큰 만료 등으로 서버에서 자동 제거)
- *
- * @param {string} eventType - 'subscribe' | 'unsubscribe' | 'expired'
- * @param {number} count - 이벤트 발생 건수 (기본 1)
- *
- * [연계]
- * - config/server_config.js → FILES.SUBSCRIBER_EVENTS 경로
- * - /api/subscribe → 신규 구독 시 'subscribe' 기록
- * - /api/unsubscribe → 수동 해지 시 'unsubscribe' 기록
- * - /api/push-custom → 만료 토큰 정리 시 'expired' 기록
- * - /api/subscriber-events → 이 데이터를 조회하는 API
- * - js/admin.js → 구독 현황 탭의 이탈률 카드에서 활용
- */
-function recordSubscriberEvent(eventType, count) {
-    try {
-        if (!count || count <= 0) return;
-
-        // KST 기준 오늘 날짜
-        var now = new Date();
-        var kstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-        var todayStr = kstDate.toISOString().split('T')[0];
-
-        // 기존 이벤트 로그 읽기
-        var events = {};
-        if (fs.existsSync(FILES.SUBSCRIBER_EVENTS)) {
-            events = JSON.parse(fs.readFileSync(FILES.SUBSCRIBER_EVENTS, 'utf8'));
-        }
-
-        // 오늘 날짜 항목이 없으면 초기화
-        if (!events[todayStr]) {
-            events[todayStr] = { subscribe: 0, unsubscribe: 0, expired: 0 };
-        }
-
-        // 해당 이벤트 카운트 증가
-        events[todayStr][eventType] = (events[todayStr][eventType] || 0) + count;
-
-        writeFileAtomic(FILES.SUBSCRIBER_EVENTS, JSON.stringify(events, null, 2), 'utf8');
-    } catch (e) {
-        console.error('[SubscriberEvent] 이벤트 기록 실패:', e.message);
-    }
-}
+const subscriberAudit = require('../services/subscriber_audit');
+const recordSubscriberEvent = subscriberAudit.recordSubscriberEvent;
 
 // ============================================================================
 // VAPID 설정 — getWebPush() 안으로 이동 (lazy).
@@ -264,7 +211,7 @@ router.get('/api/vapid-public-key', (req, res) => {
 
 // 구독 추가/갱신 (Web Push & FCM)
 router.post('/api/subscribe', (req, res) => {
-    const { subscription, token, zones, options, deviceId } = req.body;
+    const { subscription, token, zones, options, deviceId, osPermission } = req.body;
 
     const isWebPush = subscription && subscription.endpoint;
     const isFcm = !!token;
@@ -293,17 +240,17 @@ router.post('/api/subscribe', (req, res) => {
             zones: Array.isArray(zones) ? zones : [],
             options: options || { alert: true, release: true },
             deviceId: deviceId || undefined,
+            // 폰 자체의 알림 권한 상태(앱이 알려 옴 — 옛 앱은 안 보낸다). 「실제 수신자」를 세는 데만 쓰고 발송에서는 빼지 않는다.
+            osPermission: ['granted', 'denied', 'prompt', 'prompt-with-rationale'].includes(osPermission) ? osPermission : undefined,
             updatedAt: Date.now()
         };
 
-        if (existingIndex !== -1) {
-            // 기존 구독자 설정 갱신 (구독 해역/옵션 변경 등) → 신규 구독이 아니므로 이벤트 미기록
-            subs[existingIndex] = newEntry;
-        } else {
-            // 신규 구독자 추가 → 이벤트 기록
-            subs.push(newEntry);
-            recordSubscriberEvent('subscribe', 1);
-        }
+        // [사건 기록 2026-11-18] 「실제 수신자」 증감과 맞도록 구분한다.
+        //   알림 끔 = 'unsubscribe' · 다시 켬 = 'subscribe' · 같은 기기의 새 등록표 = 'replaced'(사람 수 그대로)
+        //   ※ 예전에는 앱이 해지 창구를 부르지 않아 해지가 늘 0건이었고, 등록표 교체가 신규로 세어졌다.
+        recordSubscriberEvent(subscriberAudit.subscribeEventType(subs, existingIndex, newEntry), 1);
+        if (existingIndex !== -1) subs[existingIndex] = newEntry;
+        else subs.push(newEntry);
 
         writeFileAtomic(SUBS_FILE, JSON.stringify(subs, null, 2));
         res.json({ success: true, message: '알림 구독 완료' });
@@ -595,17 +542,10 @@ router.post('/api/push-custom', async (req, res) => {
 
         // 만료된 구독자 정리 (관리자 테스트 모드에서는 실제 구독 파일 건드리지 않음)
         if (deadSubscriptionsFound && !adminToken) {
-            const allSubs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+            // 지우기·사건 기록은 services/subscriber_audit.js removeDead 가 한다(매일 점검과 같은 기준).
             const deadTokens = new Set(subs.filter(u => u._isDead).map(u => u.type === 'fcm' ? u.token : (u.subscription ? u.subscription.endpoint : null)));
-            const updatedSubs = allSubs.filter(s => {
-                const sId = s.type === 'fcm' ? s.token : (s.subscription ? s.subscription.endpoint : null);
-                return !deadTokens.has(sId);
-            });
-            var expiredCount = allSubs.length - updatedSubs.length;
-            writeFileAtomic(SUBS_FILE, JSON.stringify(updatedSubs, null, 2));
-            console.log(`🧹 [Push/Manual] 만료된 구독 데이터 ${expiredCount}건 정리 완료`);
-            // 만료 자동 정리 이벤트 기록
-            recordSubscriberEvent('expired', expiredCount);
+            const rm = subscriberAudit.removeDead(deadTokens);
+            console.log(`🧹 [Push/Manual] 만료된 구독 데이터 ${rm.removed}건 정리 완료`);
         }
 
         // 관리자 테스트 모드에서는 히스토리 기록 생략
@@ -749,13 +689,10 @@ router.post('/api/push-typhoon', async (req, res) => {
         // 만료 토큰 정리 (push-custom 과 동일 패턴)
         if (deadSubscriptionsFound) {
             const deadIds = new Set(subs.filter(u => u._isDead).map(u => u.type === 'fcm' ? u.token : (u.subscription ? u.subscription.endpoint : null)));
-            const updated = subs.filter(s => !deadIds.has(s.type === 'fcm' ? s.token : (s.subscription ? s.subscription.endpoint : null)));
-            const expiredCount = subs.length - updated.length;
-            if (expiredCount > 0) {
-                writeFileAtomic(SUBS_FILE, JSON.stringify(updated, null, 2));
-                recordSubscriberEvent('expired', expiredCount);
-                console.log(`🧹 [Push/Typhoon] 만료된 구독 ${expiredCount}건 정리`);
-            }
+            // ★종전에는 발송 시작 때 읽은 명단으로 덮어써, 발송 도중 들어온 새 구독이 지워질 수 있었다.
+            //   removeDead 는 명단을 지금 다시 읽어 지운다.
+            const rm = subscriberAudit.removeDead(deadIds);
+            if (rm.removed > 0) console.log(`🧹 [Push/Typhoon] 만료된 구독 ${rm.removed}건 정리`);
         }
 
         // 이력 기록 (관리자 발송 이력 탭에 노출)
@@ -967,8 +904,14 @@ router.get('/api/push-subscriber-stats', (req, res) => {
             }
         });
 
+        // [2026-11-18] 「실제 수신자」 = 알림 켬 + 같은 기기는 1명. 등록 기기 수(totalSubscribers)와 따로 준다.
+        const counts = subscriberAudit.countSubscribers(subs);
         res.json({
             totalSubscribers: subs.length,
+            activeSubscribers: counts.active,   // 실제 수신자(화면의 큰 숫자·증감 기준)
+            masterOffCount: counts.masterOff,   // 앱에서 알림을 끈 기기
+            osBlockedCount: counts.osBlocked,   // 앱에서는 켰지만 폰 권한이 꺼졌다고 알려 온 기기
+            recent30Count: counts.recent30,     // 실제 수신자 중 최근 30일 안에 앱을 연 사람
             fcmCount,
             webCount,
             typhoonOptIn,
