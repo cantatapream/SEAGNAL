@@ -50,7 +50,7 @@ const SCHEMA = 'station-briefing-input-v2';
 //   지시문 예시·S16, polishOverview 가 연안 마지막 「따라서」 문장의 「A에는/A에서는/A에 (관심|주의|경계)가」를 「A 인근 연안에서는 …가」로 고친다(대목에 연안·인근·주변·해상·해역·관할이 이미 있으면 그대로).
 // 검증 v14(2026-10-18 설계서 §11.10.31 — 운영 14:08 「multiplier:1.1~1.2배」, 사용자 「진행해줘.」): 배수 범위 「1.1~1.2배」는 양 끝이 둘 다 그 문단 허용 배수이고 작은 수~큰 수일 때만 통과. 지시문은 그대로(v16).
 // 검증 v19(2026-11-16 설계서 §11.10.52 — 운영 누적 오류 E20261116-142221): 셈말 첫머리 판정에 지시어 「이」(「이 세 곳에는」).
-const VALIDATOR_VERSION = 'sb-validate-v21', PROMPT_VERSION = 'sb-prompt-v18';   // v21(2026-11-18 누적 오류 E20261118-104914): 「그래도」·「갯바위나 방파제」 지명 오판 · 방위+먼바다 줄임 · 자정 넘는 시각 칸 잇기 · 연안 풍속 범위 · 셈말 이름 괄호 꼬리·자리 셈 · v20·지시문 v18(2026-11-18 설계서 §11.10.54 — 사용자 문장 규칙): 장소 이름 본문 1번·같은 구역 해구 묶기 · 연안 위험지수 숫자 금지(word:riskindex-number) · 방문객 배수 1.4배 이상만(입력에서 뺌) · 표류·선박사고 이력 건수 · 확인 못 한 자료 언급 금지(word:missing-source) · 지명 오판 고침(동사·부사 앞 낱말·입출항·「해안도로 갯바위」) · v18·지시문 v17(2026-11-16 설계서 §11.10.49 — 운영 누적 오류 E20261116-003253): 검사 오판 고침(기상청 줄임 해역 이름 · 「다른」·「거나」·「장소」·양보 「-어도」 · 조사 앞 낱말 · 사고 종류별 「N건」 · 「-며·-고」 뒤 셈말 · 앞 문장 전부 셈말 · 시각 칸 잇기 · 잔잔한 해구 「잔잔할 것으로」 · 서버 사실 문장 대목) · 지시문 S17~S25 · v17(2026-10-20 설계서 §11.10.47): 셈말 이름에 상시 위험 장소·앞 문장+그 대목 합침 · 「강원앞바다」 꼴 · 「새벽부터」·「대부분」 앞 낱말 아님 · v16(2026-10-20 설계서 §11.10.46): 바로 앞 이름을 가리키는 「세 곳에」·「두 곳 모두」 통과(anaphoraCountOk) · v15(2026-10-18 설계서 §11.10.37): 허용 이름을 「‧」(U+2027)로도 나눔 · 「N해역」 → 「N해리 해역」 보정 · v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
+const VALIDATOR_VERSION = 'sb-validate-v22', PROMPT_VERSION = 'sb-prompt-v18';   // v22(2026-11-19 설계서 §11.10.56 — 세션 시험 3차): 지명 오판 「동안 해변」·「않아도 방파제」 · v21(2026-11-18 누적 오류 E20261118-104914): 「그래도」·「갯바위나 방파제」 지명 오판 · 방위+먼바다 줄임 · 자정 넘는 시각 칸 잇기 · 연안 풍속 범위 · 셈말 이름 괄호 꼬리·자리 셈 · v20·지시문 v18(2026-11-18 설계서 §11.10.54 — 사용자 문장 규칙): 장소 이름 본문 1번·같은 구역 해구 묶기 · 연안 위험지수 숫자 금지(word:riskindex-number) · 방문객 배수 1.4배 이상만(입력에서 뺌) · 표류·선박사고 이력 건수 · 확인 못 한 자료 언급 금지(word:missing-source) · 지명 오판 고침(동사·부사 앞 낱말·입출항·「해안도로 갯바위」) · v18·지시문 v17(2026-11-16 설계서 §11.10.49 — 운영 누적 오류 E20261116-003253): 검사 오판 고침(기상청 줄임 해역 이름 · 「다른」·「거나」·「장소」·양보 「-어도」 · 조사 앞 낱말 · 사고 종류별 「N건」 · 「-며·-고」 뒤 셈말 · 앞 문장 전부 셈말 · 시각 칸 잇기 · 잔잔한 해구 「잔잔할 것으로」 · 서버 사실 문장 대목) · 지시문 S17~S25 · v17(2026-10-20 설계서 §11.10.47): 셈말 이름에 상시 위험 장소·앞 문장+그 대목 합침 · 「강원앞바다」 꼴 · 「새벽부터」·「대부분」 앞 낱말 아님 · v16(2026-10-20 설계서 §11.10.46): 바로 앞 이름을 가리키는 「세 곳에」·「두 곳 모두」 통과(anaphoraCountOk) · v15(2026-10-18 설계서 §11.10.37): 허용 이름을 「‧」(U+2027)로도 나눔 · 「N해역」 → 「N해리 해역」 보정 · v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -122,7 +122,9 @@ const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면
 // §11.10.54(2026-11-18 세션 시험 지명 오판 12건 중 8건 — 「확인하지 못해 해변」·「오후로 갈수록 해변」·「꼽히는 곳이라 갯바위」·「꼽혀 부두」·「몽돌 해변」):
 //   접미사만 있는 일반 낱말(해변·갯바위·부두 …) 앞 낱말이 동사·부사 꼴(어미)이거나 모양을 말하는 일반 낱말이면 그 둘을 이름으로 묶지 않는다(이름 후보가 아니다).
 //   어미 목록은 그 오판에 나온 꼴과 같은 무리만 — 「남해 해변」의 「남해」처럼 「해」로 끝나는 이름 앞 낱말이 빠지는 대가가 있지만, 접미사만 있는 낱말이라 지어낸 고유 이름이 통과할 길은 아니다.
-const BARE_PRE_VERB = /(?:못해|위해|인해|대해|통해|해서|라서|이라|수록|혀|져|워|아서|어서|하여|하며|으며|지만|는데|으니|니까)$/;
+// §11.10.56(2026-11-19 세션 시험 3차 지명 오판 2건 — 「바람이 부는 동안 해변의」·「바람이 세지 않아도 방파제와」): 「동안」(때를 말하는 일반 낱말)과 양보 어미 「않아도·있어도·없어도·불어도」.
+//   「-어도」를 넓게 잡지 않는다 — 관광지 이름에 「세어도」(인천 섬)가 있다(risk_spots 이름 2,166개 중 「동안·아도·어도」로 끝나는 낱말은 그것 하나).
+const BARE_PRE_VERB = /(?:못해|위해|인해|대해|통해|해서|라서|이라|수록|혀|져|워|아서|어서|하여|하며|으며|지만|는데|으니|니까|동안|않아도|있어도|없어도|불어도)$/;
 // 「갯바위나 방파제를」·「백사장이나 방파제를」(누적 오류 E20261118-104914 G01): 앞 낱말이 **일반 장소 낱말 + 이나·나** 일 때만 나열로 본다
 //   (독립 검토 상1 — 「나」로 끝나는 아무 낱말이나 건너뛰면 「왕산마리나 부두」·「가짜마리나 방파제」가 통과했다).
 const BARE_PRE_LIST = /^(?:갯바위|방파제|해변|해수욕장|포구|부두|등대|백사장|모래사장|해안|바위|절벽|암벽|선착장|항구)(?:이나|나)$/;
@@ -199,7 +201,7 @@ function placeCandidates(t) {
         //   관광지 이름 1,353개 중 「…에도」로 끝나는 낱말 0개(조사 에이전트 확인).
         if (sf === '도' && (/에$/.test(pre) || STOP_WORD.has(pre))) return;
         // 양보 어미 「-어도/-해도」(「상태가 잔잔해도 해상」·「예고가 있어도 해안」 — 11-14·15 운영 place:상태가잔잔해도·해제예고가있어도, §11.10.49). 낱말을 직접 늘어놓는다(넓게 「…해도」로 잡으면 「가짜해도」도 빠진다).
-        if (sf === '도' && /(?:있어|없어|잔잔해|강해|약해|높아|낮아|거세|불어)$/.test(pre)) return;
+        if (sf === '도' && /(?:있어|없어|잔잔해|강해|약해|높아|낮아|거세|불어|않아)$/.test(pre)) return;   // 「않아」 — 「바람이 세지 않아도」(세션 시험 3차 place:바람이세지않아도, §11.10.56)
         const prev = (j) => { const a = words[j], b = words[j + 1]; return a && b && /^\s+$/.test(src.slice(a.end, b.i)) && nameish(a) ? a.w : null; };
         const p1 = prev(k - 1), p2 = p1 ? prev(k - 2) : null;
         // 조사 붙은 허용 이름 대조(raw)에는 이름답지 않은 앞 낱말(「외할머니의」 — 끝이 「의」)도 붙인다 — 「외할머니의 부엌도」(관광지 「외할머니의 부엌」 + 조사 도, 11-15 운영 place:부엌도 4건, §11.10.49). 후보(cands)는 그대로.
@@ -656,7 +658,7 @@ function explainError(code) {
 // 호출 시간 제한 — vm·chatgpt(Codex 작업자) 320초 · gemini 100초 · 클로드·업스테이지 130초(llm_chain 자체 제한 120초보다 조금 길게 — 그쪽이 먼저 끊는다, §11.10.51)
 const DEFAULT_TIMEOUTS = Object.freeze({ vm: 320000, chatgpt: 320000, gemini: 100000, claude1: 130000, claude2: 130000, upstage: 130000 }), VM_FAIL_LIMIT = 3;
 // AI 이름표(오류 글·진행 표시 — 관리자 「AI 모델 설정」 탭과 같은 이름)
-const AI_NAMES = Object.freeze({ vm: 'VM', chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: '클로드 키1', claude2: '클로드 키2', upstage: '업스테이지' });
+const AI_NAMES = Object.freeze({ vm: 'VM', chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: '클로드 키1', claude2: '클로드 키2', upstage: '업스테이지', session: 'Claude 세션' });   // session — §11.10.56 세션 정시 판
 // 탈락한 글 보관(§11.10.31 — 사용자 「진행해줘.」): 문단 하나를 오류 기록에 남길 때 이 글자 수까지만. AI 응답 길이에는 상한이 없어(parseResponse 는 자르지 않는다)
 //   긴 글(검사 shape:…-too-long 으로 떨어지는 글)이 그대로 남으면, 1분 점검마다 통째로 읽고 쓰는 state.json 이 3일 동안 그만큼 커진다. 검사 상한(MAX_CHARS 460)의 두 배 남짓이라 보통 글은 다 남는다.
 const REJECTED_TEXT_MAX = 1000;
@@ -695,10 +697,17 @@ function rejectedOf(o, si) {
  *   실행 시작 때 못 쓰는 AI(키 없음·작업자 연결 없음 — adapter.available() 거짓)는 묶음마다 오류를 남기지 않고 건너뛰고 skipped 로 한 번만 돌려준다(키가 없는 AI 가 1순위여도 오류 기록이 불어나지 않게).
  *   하나도 못 쓰면 오류 한 줄(stage call)과 함께 모두 규칙 분석. 연속 실패 차단기는 Gemini 를 뺀 칸마다(종전 VM 과 같은 vmFailLimit). config.chain 이 없으면 종전 사슬(VM vmAttempts 번 → Gemini) 그대로.
  */
-async function generate({ briefings, config, previous = {}, adapters = {}, kma = null, now = Date.now(), timer = Date.now, deadline = Infinity, timeouts = DEFAULT_TIMEOUTS, vmFailLimit = VM_FAIL_LIMIT, vmAttempts = VM_ATTEMPTS, onProgress = null }) {
+/**
+ * 세션 정시 판(§11.10.56) 관할 입력 지문 — 세션 일감을 만들 때와 정시 판 실행 때 관할 입력이 같은지 본다.
+ * 관할 입력·규칙·검사·지시문 판·기상청 전망만(AI 방식·모델은 넣지 않는다 — 세션 글은 AI 사슬과 상관없다).
+ * 예: sessionHash(si, kma) → '3f2a…' · 관할 입력 한 칸이라도 다르면 다른 값
+ * @param {object} si - stationInput @param {object|null} kma @returns {string} [연계] ← station_briefing.sessionJob(일감 때) · generate(실행 때)
+ */
+function sessionHash(si, kma) { return R.hash({ si, rules: R.RULES_VERSION, validator: VALIDATOR_VERSION, prompt: PROMPT_VERSION, kma: kma ? R.hash(kma) : null }); }
+async function generate({ briefings, config, previous = {}, drafts = null, adapters = {}, kma = null, now = Date.now(), timer = Date.now, deadline = Infinity, timeouts = DEFAULT_TIMEOUTS, vmFailLimit = VM_FAIL_LIMIT, vmAttempts = VM_ATTEMPTS, onProgress = null }) {
     // 진행 알림(§11.10.7) — 받는 쪽(관리자 게이지)이 던져도 생성은 멈추지 않는다
     const tell = (ev) => { if (!onProgress) return; try { onProgress(ev); } catch (e) { console.warn('[station_briefing_ai] 진행 알림 실패(생성은 계속):', e && e.message); } };
-    const method = config.method || 'template', overviews = {}, errors = [], stats = { calls: 0, reused: 0, ai: 0, template: 0, retried: 0, deadline: 0, gemini: 0, byProvider: {} };
+    const method = config.method || 'template', overviews = {}, errors = [], stats = { calls: 0, reused: 0, ai: 0, template: 0, retried: 0, deadline: 0, gemini: 0, byProvider: {}, ...(drafts ? { session: 0, sessionChanged: 0 } : {}) };
     const up = (a) => !!a && (typeof a.available !== 'function' || a.available());
     // §11.10.51 사슬 방식: 시작 때 쓸 수 있는 칸만(못 쓰는 칸은 skipped — 이유는 adapter.why() 가 있으면 그것)
     const chain = method === 'ai' && Array.isArray(config.chain) ? config.chain.filter((c) => c && typeof c.id === 'string') : null;
@@ -715,7 +724,18 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     for (const it of items) {
         const prev = previous[it.b.key]?.overview;
         if (method === 'template') { template(it); continue; }
-        const sameSource = prev && (chain ? !!preferred && prev.source === preferred : (prev.source === preferred || (prev.source === 'gemini' && method === 'chatgpt' && !vmUp)));
+        // §11.10.56 세션 정시 판: 세션 답이 있고 관할 입력이 일감 때와 같으면(sessionHash) 다시 검사해 통과한 글을 쓴다(AI 를 부르지 않는다).
+        //   입력이 바뀐 관할은 세지만(sessionChanged) 오류로 남기지 않고 AI 사슬로 · 일감 때 검사에 떨어진 관할은 오류(provider session — 누적 오류 기록·내보내기에 들어간다)를 남기고 AI 사슬로.
+        const d = drafts ? drafts[it.b.key] : null;
+        if (d) {
+            if (d.hash !== sessionHash(it.si, kma)) stats.sessionChanged++;
+            else if (d.ok) {
+                const v = validateOverview({ land: d.land, sea: d.sea }, it.si);
+                if (v.ok) { overviews[it.b.key] = { land: d.land || null, sea: d.sea, source: 'session', model: null, hash: it.hash, attempts: 1 }; stats.session++; stats.byProvider.session = (stats.byProvider.session || 0) + 1; continue; }
+                errors.push({ at, stage: 'validate', provider: 'session', stations: [it.b.key], attempt: 0, reason: v.errors.slice(0, 6).join(','), ...rejectedOf({ land: d.land, sea: d.sea }, it.si) });
+            } else if (!d.missing) errors.push({ at, stage: 'validate', provider: 'session', stations: [it.b.key], attempt: 0, reason: (d.errors || []).slice(0, 6).join(','), ...rejectedOf({ land: d.land, sea: d.sea }, it.si) });
+        }
+        const sameSource = prev && (prev.source === 'session' || (chain ? !!preferred && prev.source === preferred : (prev.source === preferred || (prev.source === 'gemini' && method === 'chatgpt' && !vmUp))));
         if (config.onlyChanged !== false && prev && prev.hash === it.hash && sameSource) { overviews[it.b.key] = { ...prev, reused: true }; stats.reused++; continue; }
         pending.push(it);
     }
@@ -809,4 +829,4 @@ async function generate({ briefings, config, previous = {}, adapters = {}, kma =
     return { overviews, stats, errors, skipped };
 }
 
-module.exports = { AI_NAMES, SCHEMA, VALIDATOR_VERSION, anaphoraCountOk, PROMPT_VERSION, REJECTED_TEXT_MAX, rejectedOf, polishOverview, LEVEL_NEED_RE, FORBIDDEN, KMA_ZONE_NAMES, KMA_BIG_GROUPS, zoneWord, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };
+module.exports = { AI_NAMES, SCHEMA, VALIDATOR_VERSION, anaphoraCountOk, PROMPT_VERSION, REJECTED_TEXT_MAX, rejectedOf, polishOverview, LEVEL_NEED_RE, FORBIDDEN, KMA_ZONE_NAMES, KMA_BIG_GROUPS, zoneWord, MIN_S, MAX_S, MAX_CHARS, VM_ATTEMPTS, DEFAULT_TIMEOUTS, VM_FAIL_LIMIT, explainError, sessionHash, stationInput, batchInput, buildPrompt, parseResponse, validateOverview, generate, numbers, numTokens, placeCandidates, sentences, groupBy, norm, compact };

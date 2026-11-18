@@ -41,7 +41,7 @@
     ];
     var KIND = { morning: '07:30 판', evening: '17:30 판', night: '23:00 판', warning: '특보 변경 판', manual: '관리자 즉시 실행', failure: '실행 실패' };
     // AI 공급자 이름표 — 진행 게이지 call 사건·오류 풀이(attemptText·familyText)·「쓴 AI」(lastRun.results[].stats.byProvider)·「건너뜀」(lastRun.skipped) 이 같이 쓴다(§11.10.50).
-    var PROVIDER = { vm: 'ChatGPT', chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: '클로드 키1', claude2: '클로드 키2', upstage: '업스테이지' };
+    var PROVIDER = { vm: 'ChatGPT', chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: '클로드 키1', claude2: '클로드 키2', upstage: '업스테이지', session: 'Claude 세션' };   // session — 세션 정시 판(설계서 §11.10.56)
     var LEVEL = ['없음', '관심', '주의', '경계'];
     // 서버 station_briefing_ai 의 MIN_S·MAX_S·MAX_CHARS 와 같은 값(시험 test_station_briefing.js 가 같은지 본다) — 오류 풀이 글에만 쓴다.
     var SHAPE = { minS: 3, maxS: 5, maxChars: 460 };   // 460(2026-10-18 사용자 *"460자로 올리자."* — 설계서 §11.10.22 F, 종전 420)
@@ -671,8 +671,8 @@
     }
     /** 오류 단계 이름(한글). 예: 'validate' → '검사 탈락' · 'call' → 'AI 호출 실패'. @param {string} st @returns {string} [연계] ← attemptText */
     function stageName(st) { return { validate: '검사 탈락', call: 'AI 호출 실패', parse: '응답 해석 실패', deadline: '시간 초과', run: '실행 실패' }[st] || st || ''; }
-    /** 시도 글. 예: {attempt:4,provider:'gemini',stage:'validate'} → '4번째 시도(Gemini)' · {stage:'deadline'} → '시간 초과'. @param {Object} e @returns {string} [연계] ← drawRunErrors·errorsMarkdown */
-    function attemptText(e) { return Number(e.attempt) > 0 ? Number(e.attempt) + '번째 시도' + (PROVIDER[e.provider] ? '(' + PROVIDER[e.provider] + ')' : '') : stageName(e.stage); }
+    /** 시도 글. 예: {attempt:4,provider:'gemini',stage:'validate'} → '4번째 시도(Gemini)' · {stage:'deadline'} → '시간 초과' · {provider:'session'} → 'Claude 세션 글'(§11.10.56). @param {Object} e @returns {string} [연계] ← drawRunErrors·errorsMarkdown */
+    function attemptText(e) { if (e.provider === 'session') return 'Claude 세션 글'; return Number(e.attempt) > 0 ? Number(e.attempt) + '번째 시도' + (PROVIDER[e.provider] ? '(' + PROVIDER[e.provider] + ')' : '') : stageName(e.stage); }
     /**
      * 실행마다 묶는다 — 실행 기록(status.runs · 오류가 0건인 실행도)과 오류(at = 그 실행 시작 시각 — 서버 generate 가 run 의 now 로 찍음)를 시작 시각으로 맞춘다.
      * 실행 기록이 없는 옛 오류(이 바꿈 전)는 오류의 at·판(edition)으로 실행을 만들고, 실행 실패(stage run — 1분 점검의 기록)는 「실행 실패」.

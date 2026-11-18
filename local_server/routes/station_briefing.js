@@ -13,6 +13,7 @@
  *                    GET /api/station-briefing/now(「지금 밀집」만 — 화면이 1분마다, since 가 같으면 unchanged, §11.10.24)
  *                    GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status(?only=progress — 진행 게이지용 가벼운 응답) · POST /api/admin/station-briefing/run
  *                    GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview(관리자 미리보기 — 노출 범위와 무관)
+ *                    GET /api/station-briefing/automation/job · POST …/automation/job-result · GET …/automation/jobs(세션 정시 판 — 관리자 또는 자동화 열쇠, §11.10.56) · …/automation/trial-*(세션 시험, §11.10.53)
  *                    POST /api/admin/station-briefing/error-log/export(처리 안 된 오류 전부 + 유형 번호 — 누적 md, 내보내기 기록을 남김 · §11.10.48)
  *                    POST /api/admin/station-briefing/error-log/exports/:id/resolve(관리자 버튼 — 그 내보내기의 남은 유형을 처리 완료)
  *                    POST /api/admin/station-briefing/download(오류 md 를 잠깐 맡기고 한 번 쓰는 열쇠를 받음) · GET /api/station-briefing/download/:token(그 열쇠로 파일 한 번 받기 — 앱 안 WebView 는
@@ -173,6 +174,20 @@ function createRouter({
     router.get(trial + '/trial-compare', authorizeTrial, (req, res) => {
         try { res.set('Cache-Control', 'no-store').json({ ok: true, ...svc().trialCompare(String(req.query.job_id || '')) }); }
         catch (e) { console.error('[station_briefing] 세션 시험 비교 실패:', e && e.message); fail(res, e); }
+    });
+    // ── 세션 정시 판(2026-11-19 사용자 「나까지 이어서 만들자」 — 설계서 §11.10.56) — 운영. 판 종류는 서버가 시계로 정하고(쿼리 없음), 일감은 파일에 두며, 답은 일감 하나에 한 번.
+    //   GET job → 지금 판 일감(만들기 시작 30분 전~시작 전, 아니면 404 · 답을 낸 뒤면 409) · POST job-result → 검사 판정(늦으면 409) · GET jobs → 최근 30개 요약.
+    router.get(trial + '/job', authorizeTrial, async (req, res) => {
+        try { res.set('Cache-Control', 'no-store').json({ ok: true, ...(await svc().sessionJob()) }); }
+        catch (e) { if (!e.status || e.status >= 500) console.error('[station_briefing] 세션 일감 실패:', e && e.message); fail(res, e); }
+    });
+    router.post(trial + '/job-result', authorizeTrial, express.json({ limit: '5mb' }), (req, res) => {
+        try { res.set('Cache-Control', 'no-store').json(svc().sessionResult(req.body)); }
+        catch (e) { if (!e.status || e.status >= 500) console.error('[station_briefing] 세션 답 받기 실패:', e && e.message); fail(res, e); }
+    });
+    router.get(trial + '/jobs', authorizeTrial, (req, res) => {
+        try { res.set('Cache-Control', 'no-store').json({ ok: true, jobs: svc().jobLog() }); }
+        catch (e) { fail(res, e); }
     });
     router.get(trial + '/trials', authorizeTrial, (req, res) => {
         try { res.set('Cache-Control', 'no-store').json({ ok: true, trials: svc().trialLog() }); }

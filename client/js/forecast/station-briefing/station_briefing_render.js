@@ -236,7 +236,7 @@
     function dayWord(b) { return b && b.generatedAt && b.targetDate > String(b.generatedAt).slice(0, 10) ? '내일' : '오늘'; }
     /** AI 이름(사용자 화면) — 서버 overview.source → 이름표 글. 규칙 분석('template')·모르는 값은 null(AI 아님). §11.10.51 — 순서가 「AI 모델 설정」 ④ 를 따르면서 클로드·업스테이지도 올 수 있다(키1·키2 는 사용자에게 같은 「Claude」).
      * 예: aiWho('claude2') → 'Claude' · aiWho('chatgpt') → 'ChatGPT' · aiWho('template') → null. @param {string} src @returns {string|null} [연계] ← summaryBody·summaryBodyV2·summaryBodyV3·총평 출처 글 */
-    var AI_WHO = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: 'Claude', claude2: 'Claude', upstage: 'Upstage' };
+    var AI_WHO = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude1: 'Claude', claude2: 'Claude', upstage: 'Upstage', session: 'Claude' };   // session — 세션 정시 판(설계서 §11.10.56)
     function aiWho(src) { return Object.prototype.hasOwnProperty.call(AI_WHO, src) ? AI_WHO[src] : null; }
     /** 원천 열쇠들을 이름으로. 예: ['congestion','accident'] → '혼잡 예보·공식 사고예보'. @param {string[]} keys @returns {string} [연계] ← 분석 머리 */
     function sourceNames(keys) { var out = []; (keys || []).forEach(function (k) { var n = SOURCE_LABEL[k] || String(k); if (out.indexOf(n) < 0) out.push(n); }); return out.join('·'); }
