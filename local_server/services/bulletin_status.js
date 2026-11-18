@@ -121,17 +121,20 @@ function computeFormal(list, nowMs = Infinity) {
                 //   2분 뒤 자식 해제(12-24호, 03:00)의 해제 시각을 넘겨받고 03:00 까지 「주의보 발효 중(11일 10:00~)」으로 되살아났다.
                 //   해제예고·연장은 건드리지 않는다(해제 시각 전에 들어온 연장이 그 해제를 물릴 수 있다).
                 if (it.action === '해제' || it.action === '발표' || it.action === '변경') { const z = state.get(u); if (z && z.relMs && z.relMs <= base.inMs) { if (z.next) state.set(u, z.next); else state.delete(u); } }
+                // 부모를 적은 항목의 「x 제외」 = 그 자식은 이 특보에 들어 있지 않다(해제라면 이미 끝나 있었다 — 자식은 부모보다 오래 살지 않는다, 실자료 0건).
+                //   어림으로 넣어 둔 자식(assumed)이 거기 해당하면 뺀다 — 안 빼면 부모가 끝난 뒤 그 자식만 남아 「자식만 특보」 카드가 생기거나(되풀이 4건: 부산 2025 8-36호 등),
+                //   부모가 「변경」된 뒤 옛 등급으로 남는다(적대검증 2026-11-18 — 실자료 0건).
+                if (PARENTS.has(u)) for (const k of childrenOf(u)) { const c = state.get(k); if (c && c.assumed && !it.units.has(k)) state.delete(k); }
                 if (it.action === '해제') {
                     // 해제 시각(t3)이 아직이면 지우지 않는다 — 해제 예고 칸 = 정확한 해제 시각(앱 「🕐 해제시각 변경」과 같은 걸음), 그 시각이 되면 지운다
                     //   시각이 이미 지났어도 여기선 달아만 둔다 — 뒤 통보문(해제예고연장 등)이 이 해제를 물릴 수 있으니, 다 적용한 뒤 시각 지난 것을 지운다(아래)
                     //   아직 발효 전인 특보를 그 발효 시각 전(또는 같은 시각)에 해제 = 한 번도 발효하지 않는다 → 바로 뺀다.
                     //   실자료 45건 전부 「부모 이름만 발표(자식 포함) → 20분 안에 자식 줄기가 그 자식 해제」 — 「x 제외」 줄 대신 쓰는 방법(README ⑫ ③).
+                    //   기다리던 다음 특보(next — 발효 전 「변경」 등)도 같다: 그 발효 시각 전에 해제되면 이어받지 않는다(적대검증 2026-11-18 — 실자료 0건, 종전엔 해제 뒤 그 등급이 되살아났다).
                     const z = state.get(u);
+                    if (z && t.ms && z.next && z.next.efMs >= t.ms) delete z.next;
                     if (z && t.ms && !(z.efMs && z.efMs >= t.ms)) Object.assign(z, { clr: t.text, relMs: t.ms, inMs: base.inMs });
                     else state.delete(u);
-                    //   부모 해제의 「x 제외」 = 그 자식은 이미 끝나 있었다는 뜻(자식은 부모보다 오래 살지 않는다 — 실자료 0건). 어림으로 넣어 둔 자식(assumed)이 거기 해당하면 뺀다
-                    //   (안 빼면 부모가 끝난 뒤 그 자식만 남아 「자식만 특보」 카드가 생긴다 — 되풀이에서 4건: 부산 2025 8-36호 등).
-                    if (PARENTS.has(u)) for (const k of childrenOf(u)) { const c = state.get(k); if (c && c.assumed && !it.units.has(k)) state.delete(k); }
                 }
                 else if (it.action === '발표' || it.action === '변경') {
                     const nx = Object.assign({ type: it.type, level: it.level, tmEf: t.text || '', efMs: t.ms || 0, clr: c || '', issueMs: base.inMs }, base), cur = state.get(u);   // issueMs = 이 특보를 낸 통보문(해제예고만 바뀌어도 그대로) — 다가오는 예비가 이 특보보다 새것인지 볼 때

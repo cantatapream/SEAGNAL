@@ -105,7 +105,9 @@ function parseCurrent(t6, unknown) {
                 if (PARENTS.has(x)) cur.set(x, m[1] + m[2]);
                 else { const par = Object.keys(PARENT_TO_CHILDREN).find((p) => childrenOf(p).includes(x)); const pm = tok.match(/^([^(]+)/);
                     // 자식이 괄호로 따로 적힌 경우만 자식 상태로 친다(부모 이름만으로 펼쳐진 자식은 뺀다)
-                    if (/\(/.test(tok) && par && norm(pm[1]) === par && !PARENTS.has(norm(tok.replace(/^[^(]+\(|\)$/g, '')))) { cur.set(x, m[1] + m[2]); kidsListed.add(par); } }
+                    if (/\(/.test(tok) && par && norm(pm[1]) === par && !PARENTS.has(norm(tok.replace(/^[^(]+\(|\)$/g, '')))) { cur.set(x, m[1] + m[2]); kidsListed.add(par); }
+                    // 자식 이름을 괄호 없이 그대로 적은 꼴 「남해서부서쪽먼바다중 추자도연안바다」「서해남부남쪽안쪽먼바다중 조도부근평수구역」(자식이 하나뿐인 부모 — 적대검증 2026-11-18: 종전엔 안 읽혀 자식 대조에서 빠졌다)
+                    else if (par && !/\(/.test(tok) && norm(tok) === x) { cur.set(x, m[1] + m[2]); kidsListed.add(par); } }
             }
         }
     }

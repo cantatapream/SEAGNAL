@@ -98,6 +98,16 @@ console.log('A2. 발표(발효 전) · 표기 차이');
         const Fc = Object.assign({}, F, { parent: 'P' }), Ycc = Object.assign({}, Yb, { parent: 'P' });
         const r3 = mk([{ P: F, P중연안바다: Fc }, { P: Object.assign({}, F, { upYebi: { type: '풍랑', level: '예비', tmEf: Yb.tmEf } }), P중연안바다: Fc }, { P: Yb, P중연안바다: Ycc }]);
         ok('부모 예비를 이미 알렸으면 자식 해역 몫(추가 발표)도 따로 안 냄', !r3.some((x) => x.startsWith('child_prelim')), r3);
+        // 화면용 「자식만 특보」 부모(bulletin_status.fillParents, derived)는 부모 자신의 특보가 아니다 → 가상 푸시는 자식 몫만(적대검증 2026-11-18)
+        const Kf = { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '14일 새벽(00시~03시)', tmFc: '', tmEf: '2025년 08월 13일 09시 10분', issueMs: 1000, inMs: 1000 };
+        const Pd = Object.assign({}, Kf, { derived: true });
+        const rk4 = mk([{}, { P중먼평수구역: Kf, P: Pd }, {}]);
+        ok('평수구역만 발표·해제(수도권 2025 8-29 → 8-37호 꼴) → 자식 「발효」·「해제」 하나씩, 부모 해역 이름으로는 안 나감', rk4.length === 2 && rk4[0] === 'active:P중먼평수구역' && rk4[1] === 'release:P중먼평수구역', rk4);
+        const Py = { parent: 'P', kind: 'yebi', type: '풍랑', level: '예비', clr: '', tmFc: '', tmEf: '2026년 02월 21일 밤(18시~24시)', inMs: 500 };
+        const Pd2 = Object.assign({}, Pd, { upYebi: { type: '풍랑', level: '예비', tmEf: Py.tmEf, inMs: 500 } });
+        const Pp = { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '23일 새벽(00시~03시)', tmFc: '', tmEf: '2026년 11월 16일 18시 00분', efMs: T0 + 9 * 3600e3, issueMs: 3000, inMs: 3000 };
+        const rk5 = mk([{ P: Py }, { P중먼평수구역: Kf, P: Pd2 }, { P중먼평수구역: Kf, P: Pp }]);
+        ok('부모 예비 중 평수구역만 발표 → 자식 「발효」만(부모 예비를 「발표」로 또 알리지 않음), 뒤에 부모가 발표되면 「발효시각 변경」(2026 2-37 → 2-38호 꼴)', rk5.join(' / ') === 'active:P중먼평수구역 / time_ef_change:P', rk5);
         const r4 = mk([{ P: F, P중연안바다: Fc }, { P: Yb, P중연안바다: Ycc }]);
         ok('알린 적 없으면 부모 = 발표, 자식 = 추가 발표', r4.includes('publish:P') && r4.includes('child_prelim:P중연안바다'), r4);
         // 적대검증 2026-11-17 D1 — 정식 특보보다 먼저 나온 목록의 「옛 예비」(그 정식으로 넘어간 것)는 해제 때 다시 알리지 않는다(수도권 2025-10-27 06:00)
