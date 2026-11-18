@@ -77,28 +77,37 @@ const safetyText = (safetyTabs || []).map(t => t.html || '').join('\n');
 console.log('\n[1] 해양종합정보 안내 — 탭이 곧 그 화면의 버튼인가');
 
 const OCEAN_EXPECT = [
-    ['basemap', '지도 종류'], ['search', '위치 검색'], ['northup', '진북 정렬'],
+    ['basemap', '지도 종류'], ['myloc', '내 위치'], ['search', '위치 검색'], ['northup', '진북 정렬'],
     ['wind', '풍향·풍속'], ['current', '유향·유속'], ['wave', '파고·파향'],
     ['buoy', '기상부이'], ['seagrid', '해구기상'], ['warnzone', '특보구역'],
     ['typhoon', '태풍'], ['otherwx', '천기'], ['depth', '수심'], ['tide', '조석'],
     ['pressure', '기압']
 ];
 ok('탭을 읽어 낼 수 있다', Array.isArray(oceanTabs), String(oceanTabs));
-ok('탭이 14개다', (oceanTabs || []).length === 14, String((oceanTabs || []).length));
+ok('탭이 15개다(2026-11-18 내 위치 되살림)', (oceanTabs || []).length === 15, String((oceanTabs || []).length));
 ok('탭 id·라벨·순서가 화면 버튼 순서와 같다',
     JSON.stringify((oceanTabs || []).map(t => [t.id, t.label])) === JSON.stringify(OCEAN_EXPECT),
     (oceanTabs || []).map(t => t.label).join(' | '));
 
 // 없어진 탭이 되살아나지 않았는가 — 되살리려면 그 버튼부터 화면에 있어야 한다
-[['marker', '주요지명'], ['myloc', '내 위치'], ['mudflat', '물빠짐'], ['cctv', 'CCTV'],
+[['marker', '주요지명'], ['mudflat', '물빠짐'], ['cctv', 'CCTV'],
  ['hazardrock', '노출암·간출암'], ['warnactive', '특보 ON/OFF'], ['vsby', '시정']].forEach(([id, label]) => {
     ok(`「${label}」 탭이 해양종합정보 안내에 없다`, !(oceanTabs || []).some(t => t.id === id));
 });
 
 ok('「주요지명」 버튼이 화면에 없다(그래서 탭도 없다)',
     INDEX_SRC.indexOf('id="ocean-marker-toggle-btn"') < 0);
-ok('「내 위치」 버튼이 화면에서 빠져 있다(주석 처리)',
-    !/^\s*<button[^>]*id="ocean-myloc-btn"/m.test(INDEX_SRC.replace(/<!--[\s\S]*?-->/g, '')));
+// [2026-11-18] 내 위치 버튼을 되살려 좌측 상단 "기본맵" 바로 아래로 옮겼다(사용자 지시).
+//   종전 항목("버튼이 화면에서 빠져 있다")을 뒤집어, 되살린 버튼이 그 자리에 있는지를 고정한다.
+//   해양생활 화면의 #ls-gps-btn 도 같은 자리(#ls-topleft-controls 의 기본맵 묶음 안)에 있어야 한다.
+//   안내 「내 위치」 탭도 되살렸다(2026-11-18 사용자 지시) — 아래 [2b] 에서 본문을 본다.
+{
+    const live = INDEX_SRC.replace(/<!--[\s\S]*?-->/g, '');
+    ok('「내 위치」 버튼이 해양종합정보 좌측 상단 "기본맵" 묶음 안에 있다(2026-11-18 재활성화)',
+        /<div id="ocean-basemap-toggle-wrap"[^>]*>\s*<div class="ocean-basemap-anchor">[\s\S]*?id="ocean-basemap-menu"[\s\S]*?<\/div>\s*<\/div>\s*<button[^>]*id="ocean-myloc-btn"/.test(live));
+    ok('해양생활 「내 위치」(#ls-gps-btn)도 좌측 상단 "기본맵" 묶음 안에 있다',
+        /<div id="ls-topleft-controls">\s*<div class="ocean-basemap-toggle-wrap">\s*<div class="ocean-basemap-anchor">[\s\S]*?id="ls-basemap-menu"[\s\S]*?<\/div>\s*<\/div>\s*<button[^>]*id="ls-gps-btn"/.test(live));
+}
 ok('물빠짐·CCTV 버튼은 해양종합정보에서 숨긴다(해양안전에만 보임)',
     /body:not\(\.ls-safety\) #ocean-cctv-toggle-btn/.test(INDEX_SRC) &&
     /body:not\(\.ls-safety\) #ocean-mudflat-toggle-btn/.test(INDEX_SRC));
@@ -118,18 +127,21 @@ const SAFETY_EXPECT = [
     ['riskforecast', '위험예측'],
     ['hazardrock', '위험지형'], ['accident', '사고정보'], ['banzone', '금지구역'],
     ['navwarn', '항행경보'], ['mudflat', '물빠짐'], ['cctv', 'CCTV'],
-    ['vts', '관제구역'], ['seaway', '항로·해역']
+    ['vts', '관제구역'], ['seaway', '항로·해역'],
+    ['myloc', '내 위치']   // 2026-11-18 — 오버레이 버튼이 아니라 좌측 상단 기본맵 아래 버튼이라 맨 끝
 ];
 ok('탭을 읽어 낼 수 있다', Array.isArray(safetyTabs), String(safetyTabs));
-ok('탭이 9개다(2026-10-16 위험예측 추가)', (safetyTabs || []).length === 9, String((safetyTabs || []).length));
+ok('탭이 10개다(2026-10-16 위험예측 · 2026-11-18 내 위치 추가)', (safetyTabs || []).length === 10, String((safetyTabs || []).length));
 ok('탭 id·라벨·순서가 화면 버튼 순서와 같다',
     JSON.stringify((safetyTabs || []).map(t => [t.id, t.label])) === JSON.stringify(SAFETY_EXPECT),
     (safetyTabs || []).map(t => t.label).join(' | '));
-ok('모든 탭이 자기 본문을 갖는다(해양종합정보에서 빌려 쓰지 않는다)',
-    (safetyTabs || []).every(t => typeof t.html === 'string' && t.html.length > 100));
-ok('모든 탭에 출처 줄이 있다',
-    (safetyTabs || []).every(t => /ocean-info-src/.test(t.html || '')),
-    (safetyTabs || []).filter(t => !/ocean-info-src/.test(t.html || '')).map(t => t.id).join(','));
+// 내 위치 탭만은 세 화면 동작이 같아 해양종합정보 본문(window.oceanInfoTabHtml('myloc'))을 빌려 쓴다 — [2b] 에서 따로 본다.
+const safetyOwn = (safetyTabs || []).filter(t => t.id !== 'myloc');
+ok('내 위치를 뺀 모든 탭이 자기 본문을 갖는다(해양종합정보에서 빌려 쓰지 않는다)',
+    safetyOwn.every(t => typeof t.html === 'string' && t.html.length > 100));
+ok('내 위치를 뺀 모든 탭에 출처 줄이 있다',
+    safetyOwn.every(t => /ocean-info-src/.test(t.html || '')),
+    safetyOwn.filter(t => !/ocean-info-src/.test(t.html || '')).map(t => t.id).join(','));
 
 // 화면 버튼 순서(CSS order)와 실제로 같은지 — 안내 순서의 근거
 (function () {
@@ -150,10 +162,49 @@ ok('모든 탭에 출처 줄이 있다',
     };
     const fromCss = order.filter(Boolean).map(id => BTN_TO_TAB[id]).filter(Boolean);
     ok('화면 버튼 순서(CSS order)를 9개 다 읽었다', fromCss.length === 9, fromCss.join(','));
-    ok('안내 탭 순서 = 화면 버튼 순서',
-        JSON.stringify(fromCss) === JSON.stringify((safetyTabs || []).map(t => t.id)),
-        fromCss.join(',') + ' vs ' + (safetyTabs || []).map(t => t.id).join(','));
+    ok('안내 탭 순서 = 화면 버튼 순서(내 위치는 오버레이 버튼이 아니라 제외)',
+        JSON.stringify(fromCss) === JSON.stringify(safetyOwn.map(t => t.id)),
+        fromCss.join(',') + ' vs ' + safetyOwn.map(t => t.id).join(','));
 })();
+
+// ── [2b] 「내 위치」 안내 — 세 화면이 같은 본문 하나를 쓰는가 · 서버 미전송 문구 ──────
+console.log('\n[2b] 내 위치 안내(2026-11-18)');
+{
+    const myloc = (oceanTabs || []).find(t => t.id === 'myloc') || {};
+    const body = (myloc.bodyHtml || '') + (myloc.src || '');
+    ok('해양종합정보 내 위치 탭에 「폰 안에서만 처리되고 서버로 보내지 않습니다」가 있다',
+        has(body, '폰 안에서만 처리되고 서버로 보내지 않습니다'));
+    ok('내 위치 탭에 출처(기기 위치 기능)가 붙어 있다', /GPS/.test(myloc.src || ''));
+    const BORROW = "window.oceanInfoTabHtml('myloc')";
+    ok('해양안전 안내의 내 위치 탭이 해양종합정보 본문을 빌려 쓴다', safetySeg.indexOf(BORROW) >= 0);
+    const lifeSeg = SAFETY_SRC.slice(SAFETY_SRC.indexOf('function _buildInfoHtml'),
+        SAFETY_SRC.indexOf('var tabsHtml', SAFETY_SRC.indexOf('function _buildInfoHtml')));
+    ok('해양생활 안내에도 내 위치 탭이 있고 같은 본문을 빌려 쓴다',
+        /id: 'myloc', label: '내 위치'/.test(lifeSeg) && lifeSeg.indexOf(BORROW) >= 0);
+    // 「서버로 보내지 않는다」의 근거 — 버튼 처리 함수가 좌표를 밖으로 내보내지 않는가.
+    //   (함수 본문 안에 fetch·XMLHttpRequest·sendBeacon·apiFetch 가 생기면 이 문구가 거짓이 된다)
+    const HANDLERS = [
+        ['js/ocean-map/map/ocean_map.js', 'function goToMyLocation'],
+        ['js/marine-life/fishing/fishing.js', 'function _moveToMyLocation'],
+        ['js/marine-life/swimming/swimming.js', 'function _moveToMyLocation'],
+        ['js/marine-life/scuba/scuba.js', 'function _moveToMyLocation'],
+        ['js/marine-life/mudflat/mudflat.js', 'function _moveToMyLocation'],
+        ['js/marine-life/ripcurrent/ripcurrent.js', 'function _moveToMyLocation'],
+        ['js/marine-life/surfing/surfing1.js', 'function _goToSurfingMyLocation'],
+        ['js/marine-life/swell/swell.js', "getElementById('swell-my-location-btn')"]
+    ];
+    HANDLERS.forEach(([rel, marker]) => {
+        const src = fs.readFileSync(path.join(CLIENT, rel), 'utf8');
+        const i = src.indexOf(marker);
+        // 다음 함수 선언 전까지를 그 함수 본문으로 본다
+        const rest = i < 0 ? '' : src.slice(i + marker.length);
+        const j = rest.search(/\n\s*(?:function \w|window\.\w+\s*=\s*function)/);
+        const fnBody = j < 0 ? rest : rest.slice(0, j);
+        ok(`${rel} 내 위치 처리에 서버 전송 호출이 없다`,
+            i >= 0 && !/fetch\(|XMLHttpRequest|sendBeacon|apiFetch|\.post\(/.test(fnBody),
+            i < 0 ? '함수 못 찾음' : '');
+    });
+}
 
 // ── [3] 본문에 적힌 숫자가 실제 데이터와 같은가 ───────────────────────────
 console.log('\n[3] 안내에 적힌 숫자 ↔ 실제 데이터');

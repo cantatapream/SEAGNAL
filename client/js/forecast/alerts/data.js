@@ -272,6 +272,9 @@ function _isExactSingleTime(s) {
 
 /**
  * 단일 특보 객체를 처리하고 연안바다 정보를 매핑
+ * 예: processSingleAlert('인천·경기남부앞바다', { wrnTp:'풍랑', wrnLvl:'주의보', kidsOnly:true, … }, false, alerts, children, coastalMap, [])
+ *     → alerts 에 부모 카드 한 줄(kidsOnly — 「일부 해역만」), coastalMap 에 특보가 있는 평수구역 줄
+ * [연계] ← flattenAlertsData(이 파일) / → render.js createAlertElement(부모 카드) · render_coastal.js(자식 줄)
  */
 function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenObj, coastalMap, history) {
     // alertObj 구조: { wrnTp, wrnLvl, tmFc, tmEf, tmYn }
@@ -441,6 +444,10 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
             // status === null 또는 그 외 값: 자식 비활성 — 처리 없음.
         }
     }
+    // [통보문 기준 — 관리자가 [통보문]을 누른 동안만] 부모 자신은 특보가 없고 그 아래 연안바다·평수구역만 특보인 칸
+    //   (서버 bulletin_status.fillParents 가 화면에 보이게 채운 것 — 나무의 current/upcoming.kidsOnly). render.js 가 부모 이름 옆에 「일부 해역만」만 단다.
+    //   자식 사본을 다 만든 뒤에 붙인다 — 자식 줄은 이 표시를 물려받지 않는다. MMIS(/api/weather-alerts)에는 이 값이 없어 일반 사용자 화면은 그대로다.
+    if (alertObj.kidsOnly) alertItem.kidsOnly = true;
 }
 
 /**

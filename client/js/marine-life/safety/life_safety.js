@@ -906,6 +906,7 @@
     /**
      * 안내 팝업 본문(탭바 + 패널)을 만든다.
      * 6개 활동 버튼이 위에 있고, 누르면 그 활동의 유의사항이 아래에 표시된다.
+     * 맨 끝 「내 위치」 탭은 좌측 상단 내 위치 버튼 설명이다(2026-11-18, 본문은 ocean_cctv.js 'myloc').
      * @returns {string} 팝업에 넣을 HTML
      * [연계] → index2.html 의 .ocean-info-tabs/.ocean-info-panel CSS 를 그대로 사용
      *          → window.__lsInfoSwitch — 탭 전환
@@ -920,7 +921,9 @@
             { id: 'scuba',    label: '스킨스쿠버', html: _pickHtml('#scuba-disclaimer') },
             { id: 'mudflat',  label: '갯벌체험',   html: _pickHtml('#mudflat-disclaimer') },
             { id: 'parting',  label: '바다갈라짐', html: _pickHtml('#sp-footer-info .sp-disclaimer') ||
-                '<p><i class="fa-solid fa-circle-check"></i> 바다갈라짐 정보를 먼저 열어 보시면 안내 문구가 표시됩니다.</p>' }
+                '<p><i class="fa-solid fa-circle-check"></i> 바다갈라짐 정보를 먼저 열어 보시면 안내 문구가 표시됩니다.</p>' },
+            // 내 위치[2026-11-18] — 좌측 상단 기본맵 아래 버튼. 본문은 해양종합정보 안내(ocean_cctv.js 'myloc')를 그대로 쓴다.
+            { id: 'myloc', label: '내 위치', html: (typeof window !== 'undefined' && typeof window.oceanInfoTabHtml === 'function') ? window.oceanInfoTabHtml('myloc') : '' }
         ];
 
         var tabsHtml = '<div class="ocean-info-tabs">';
@@ -1042,6 +1045,9 @@
               + '<p>항로를 누르면 항로명, 종류(통항분리대/통항분리수역 등), 근거·참고 문서를 확인할 수 있습니다. 한중잠정조치수역·한일중간수역·한중과도수역 등 국제 해양경계 수역을 누르면 정의, 근거, 담당부서·연락처까지 함께 확인할 수 있습니다.</p>'
               + '<p><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 항로·수역 종류에 따라 통항 방법과 적용 근거가 다르니, 실제 항해 전 관련 법령·고시·협정 원문을 반드시 확인하세요.</p>'
               + '<div class="ocean-info-src">최종 갱신일자 · 2026-08-11<br>출처 · 국립해양조사원 개방海(실시간 해양공간정보) · 해양수산부 한중·한일 어업협정</div>' },
+            // 내 위치[2026-11-18] — 오버레이 버튼이 아니라 좌측 상단 기본맵 아래 버튼이라 맨 끝에 둔다.
+            //   본문은 해양종합정보 안내(ocean_cctv.js 'myloc')를 그대로 쓴다(세 화면 동작이 같아서 한 곳만 고친다).
+            { id: 'myloc', label: '내 위치', html: (typeof window !== 'undefined' && typeof window.oceanInfoTabHtml === 'function') ? window.oceanInfoTabHtml('myloc') : '' },
         ];
         var tabsHtml = '<div class="ocean-info-tabs">';
         var panelsHtml = '<div class="ocean-info-panels">';
@@ -1131,7 +1137,7 @@
             });
         }
 
-        // --- 레일 하단: 내 위치 (활동이 원래 갖고 있던 버튼을 대신 누름) ---
+        // --- 좌측 상단(기본맵 아래): 내 위치 (활동이 원래 갖고 있던 버튼을 대신 누름) ---
         var gpsBtn = document.getElementById('ls-gps-btn');
         if (gpsBtn) {
             gpsBtn.addEventListener('click', function () {
