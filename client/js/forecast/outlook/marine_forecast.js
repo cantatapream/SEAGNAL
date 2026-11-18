@@ -146,7 +146,8 @@ window.renderMarineMarkup = function renderMarineMarkup(str) {
     const hasMarkupTags = /\{\{(loc|num|warn):/.test(str);
     if (hasMarkupTags) {
         const tokens = [];
-        let safe = str.replace(/\{\{(loc|num|warn):([^}]*)\}\}/g, (_, type, text) => {
+        // 닫는 괄호를 띄어 쓴 꼴(「{{warn:물결이} }」 — AI 가 가끔 만든다, 2026-11-18 운영에서 3곳)도 같은 표시로 읽는다
+        let safe = str.replace(/\{\{(loc|num|warn):([^}]*)\}\s*\}/g, (_, type, text) => {
             const idx = tokens.length;
             tokens.push({ type, text });
             return `__MK${idx}__`;

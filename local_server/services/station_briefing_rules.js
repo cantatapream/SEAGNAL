@@ -1084,7 +1084,8 @@ function periodText(p) {
     return [has(p.weather) ? String(p.weather).replace(/\s+/g, ' ').trim() : null, has(p.waveHeight) ? '파고 ' + p.waveHeight + 'm' : null, has(w[1]) ? '풍속 ' + w[1] + 'm/s' : null, has(w[0]) ? '풍향 ' + w[0].replace(/~/g, '→') : null].filter(Boolean).join(' · ') || '자료 없음';
 }
 /** 통보문 마크업({{loc:…}}·{{num:…}}·{{warn:…}} — regional_bulletin_collector 의 AI 색칠)을 벗긴다. 예: '{{loc:제주도}}에는' → '제주도에는'. @param {string} t @returns {string} [연계] ← bulletinNotes */
-function stripMarkup(t) { return String(t || '').replace(/\{\{(?:loc|num|warn):([^}]*)\}\}/g, '$1'); }
+// 닫는 괄호를 띄어 쓴 꼴(「{{warn:물결이} }」 — AI 가 가끔 만든다, 2026-11-18 운영에서 3곳)도 벗긴다
+function stripMarkup(t) { return String(t || '').replace(/\{\{(?:loc|num|warn):([^}]*)\}\s*\}/g, '$1'); }
 /** 괄호 밖 쉼표로 나눈다(「제주시(북부, 중산간)」의 쉼표는 나누지 않음). 예: 'A, B(c, d), E' → ['A','B(c, d)','E']. @param {string} s @returns {string[]} [연계] ← shortList·zoneHit */
 function topItems(s) {
     const out = []; let depth = 0, cur = '';

@@ -12,6 +12,7 @@
  *   ⑤ 숨은 칸(폭 0)은 보이게 되면 맞춘다(접힌 아코디언·안 보이는 안내 탭)
  *   ⑥ 해상 기상 전망: 줄 앞 기호(○ - o ※)를 떼어 두고 둘째 줄이 글자 시작점에서 시작 · 꺾쇠 제목은 그대로
  *   ⑦ 안내 팝업: 아이콘 문단(tf-ic) 둘째 줄이 글자 시작점에서 시작 · 굵은 제목 문단 tf-h
+ *   ⑨ 해상 기상 전망 색칠 표시의 닫는 괄호를 띄어 쓴 꼴(「{{warn:물결이} }」 — 2026-11-18 운영 원문 3곳)도 읽는다
  *   ⑧ 정적: 붙인 자리(게시판 보기 칸만·편집기 ✗ · 해상 기상 전망 두 곳 · 안내 팝업 세 곳 · 로드 순서 · CSS keep-all)
  *
  * [실행] node local_server/scripts/test_text_fit.js
@@ -49,6 +50,15 @@ function ok(cond, name, extra) { if (cond) { pass++; console.log('  PASS ' + nam
     ok(infoCalls === 3, '안내 팝업 세 곳(해양종합정보 · 해양생활 · 해양안전)에서 textFitInfo', String(infoCalls));
     const iFit = html.indexOf('js/shared/ui/text_fit.js'), iMf = html.indexOf('js/forecast/outlook/marine_forecast.js'), iPromo = html.indexOf('js/notice/board/promo.js');
     ok(iFit > 0 && iFit < iMf && iFit < iPromo, 'index2.html: text_fit.js 가 marine_forecast.js·promo.js 앞에 로드');
+
+    console.log('── ⑨ 해상 기상 전망: 닫는 괄호를 띄어 쓴 색칠 표시(「{{warn:물결이} }」)도 읽는다 ──');
+    {
+        const vm = require('vm'), i0 = mf.indexOf('window.renderMarineMarkup = function'), i1 = mf.indexOf('\n}\n', i0) + 2;
+        const ctx = { window: {} }; vm.createContext(ctx);
+        vm.runInContext((mf.match(/function escapeHtml[\s\S]*?\n\}/) || [''])[0] + '\n' + mf.slice(i0, i1), ctx);
+        const out = ctx.window.renderMarineMarkup('당분간 {{loc:해상}}에는 {{warn:물결이} } 매우 높게');
+        ok(!/\{\{|\}\s*\}/.test(out) && /<span[^>]*>물결이<\/span>/.test(out), '깨진 꼴도 색칠 글자로(괄호 글자 안 남음)', out);
+    }
 
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
