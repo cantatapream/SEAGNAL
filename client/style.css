@@ -3569,6 +3569,9 @@ line-height: 1.1;
 .ql-editor.promo-md > * { margin: 0; }
 .ql-editor.promo-md > * + * { margin-top: 10px; }
 .ql-editor.promo-md p, .ql-editor.promo-md li { font-size: 15px; line-height: 1.6; color: #cbd5e1; }
+/* 낱말 중간에서 줄을 바꾸지 않는다(띄어쓰기 자리에서만 — 2026-11-18 사용자 「텍스트는 어절단위로 끊어져」). 한 줄보다 긴 낱말(주소 등)만 어쩔 수 없이 끊는다(안 끊으면 칸 밖으로 삐져나감).
+   줄 끝 2~3글자 넘침은 md_fit.js 가 그 줄 글자 간격을 좁혀 맞춘다(보기 칸만). */
+.ql-editor.promo-md p, .ql-editor.promo-md li, .ql-editor.promo-md h2, .ql-editor.promo-md h3, .ql-editor.promo-md blockquote { word-break: keep-all; overflow-wrap: break-word; }
 .ql-editor.promo-md h2 { font-size: 17px; font-weight: 700; line-height: 1.4; color: #f8fafc; }
 .ql-editor.promo-md > * + h2 { margin-top: 20px; }
 .ql-editor.promo-md h3 { font-size: 15px; font-weight: 700; line-height: 1.4; color: #7dd3fc; }

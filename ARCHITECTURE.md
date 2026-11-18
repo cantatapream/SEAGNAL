@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 129개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 131개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -134,6 +134,7 @@ client/js/
 │   ├── board/
 │   │   ├── image_compress.js
 │   │   ├── markdown_import.js
+│   │   ├── md_fit.js
 │   │   └── promo.js
 │   └── comments/
 │       ├── promo_comment1.js
@@ -189,7 +190,8 @@ client/js/
 ├── shared/  ← 공용 재료(유틸·UI·데이터)
 │   ├── ui/
 │   │   ├── locate_toast.js
-│   │   └── ui_modal.js
+│   │   ├── ui_modal.js
+│   │   └── wheel_date_picker.js
 │   └── utils/
 │       ├── accident_codes.js
 │       ├── mappings.js
@@ -396,6 +398,7 @@ client/js/
 |------|------|
 | `image_compress.js` | 관리자 게시글 에디터(Quill) 의 이미지 자동 압축 유틸리티 |
 | `markdown_import.js` | 공지 게시판 관리자 글쓰기 — 마크다운(.md) 파일 내용을 게시글 본문(HTML)으로 바꾼다. |
+| `md_fit.js` | 공지 게시판에서 마크다운으로 올린 글(패치노트)을 읽기 좋게 줄을 맞춘다. |
 | `promo.js` | 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집) |
 
 ### `client/js/notice/comments/`
@@ -496,6 +499,7 @@ client/js/
 |------|------|
 | `locate_toast.js` | 「내 위치」(GPS) 버튼을 눌렀을 때 화면 하단에 진행 토스트를 띄우고 현재 위치를 가져온다. |
 | `ui_modal.js` | 공통 UI 모달 (기상청 iframe, SEAGNAL 시스템 모달) |
+| `wheel_date_picker.js` | 앱의 모든 날짜칸(<input type="date">)·날짜시각칸(<input type="datetime-local">)을 누 |
 
 ### `client/js/shared/utils/`
 
