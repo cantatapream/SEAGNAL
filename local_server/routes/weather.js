@@ -1005,6 +1005,8 @@ router.get('/api/bulletin-cache/:reportId', (req, res) => {
 });
 
 // 6-b. 해역별 통보문 이력 (특보 구역 옆 📋 버튼용)
+//   [2026-11-18] 먼저 방재기상플랫폼 통보문 기준 「지금 특보의 발자취」(services/bulletin_status.zoneBulletins)를 준다.
+//   아래 MMIS 방식은 그것을 못 줄 때의 종전 방식이다(그대로 둠).
 //   MMIS ntfctn/list 는 해역 식별자가 없어 해역별 조회 불가 → ef/list 로 구성한다.
 //   ef/list row 는 해역명(kor_nm)·발표시각(tm_fc)·종류/등급/발표구분(warn_*_nm)·관할청
 //   (prdc_go)·원문 PDF 경로(file_nm)를 부모 해역별로 제공한다(자식=연안/평수 행은 없음).
@@ -1091,9 +1093,37 @@ async function _getZoneBulletinData() {
     return _zoneBulletinCache;
 }
 
+// [통보문 기준 팝업] 원문 PDF 가 실제로 올라와 있는가 — 기상청 공개 파일 서버에 HEAD 한 번(MMIS 로그인·API 아님).
+//   없는 파일에도 200(text/html)으로 답하므로 「PDF 로 답했는가」를 본다. 있다고 확인된 주소는 기억해 다시 묻지 않는다(PDF 는 안 바뀐다).
+//   3초 안에 답이 없으면 없는 것으로 친다 — 없으면: 파일 서버가 느릴 때 팝업이 그만큼 안 뜬다.
+const _pdfSeen = new Set();
+async function _pdfExists(url) {
+    if (_pdfSeen.has(url)) return true;
+    const r = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
+    const ok = r.ok && /pdf/i.test(r.headers.get('content-type') || '');
+    if (ok) _pdfSeen.add(url);
+    return ok;
+}
+
 router.get('/api/zone-bulletins', async (req, res) => {
     const zone = String(req.query.zone || '').trim();
     if (!zone) return res.status(400).json({ error: 'zone 파라미터 필요', bulletins: [] });
+    // [통보문 기준 — 2026-11-18 사용자 「적용범위는 나(모든 사용자)」] 방재기상플랫폼 통보문으로 계산해 둔 「지금 특보의 발자취」
+    //   (예비 → 발표 → 변경·연장 → 해제, 자식 해역 포함, 본문 글과 함께)가 있으면 그것을 준다 — 끝난 특보의 통보문이 섞이지 않는다.
+    //   없으면(null: 계산 전 · 방재기상플랫폼 목록을 10분 넘게 못 받음 · 그 해역 발자취 없음) 아래 종전 방식(MMIS 목록)으로 그린다.
+    //   ★이 길은 MMIS 를 전혀 쓰지 않는다(원문 PDF 주소도 통보문 자료만으로 만든다) — 사용자 2026-11-18 「나중에는 mmis를 코드에서 주석처리하거나 삭제할 예정 …
+    //     mmis와 엮이면 안될 것」. 나중에 MMIS 를 걷어낼 때는 이 try 블록 **아래의** 종전 방식 덩어리만 지우면 된다(이 블록은 그대로).
+    //   종전 방식의 알려진 한계: 자식(연안/평수) 통보문은 기간 없이 전부 나오고, 새 발표/예비 줄이 목록에 없으면 끝난 주기가 샌다.
+    try {
+        const bs = require('../services/bulletin_status');
+        const dm = bs.zoneBulletins(zone, bs.read(), require('../services/bulletin_watch').bulletins());
+        if (dm) {
+            await bs.keepLivePdf(dm.bulletins, _pdfExists);   // PDF 가 아직 안 올라온 줄은 본문 글로
+            return res.json({ zone, count: dm.bulletins.length, bulletins: dm.bulletins, cut: dm.cut, source: 'bulletin' });
+        }
+    } catch (e) {
+        console.warn('[zone-bulletins] 통보문 기준 발자취 실패 — 종전 방식(MMIS 목록)으로 그린다:', e && e.message);
+    }
     try {
         const { rows, homeByZone, reportByFile, readyRows } = await _getZoneBulletinData();
         const z = _zbNorm(zone);

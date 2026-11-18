@@ -14,7 +14,8 @@
  *  - 사용하는 파일 : 없음(https 직접) — 요청 방식은 analysis/bulletin_survey/collect.js 와 같다
  *  - 서버 API      : dmdw POST /rsw/rest/mfp/wrn/retRswWrnRptList.json · retRswWrnRptDetail.json (로그인 필요)
  *  - 저장          : data/bulletin_watch/<KST 날짜>.jsonl(기록, 30일) · data/bulletin_watch/state.json(본 통보문)
- *  - 나를 쓰는 곳  : scheduler.js(매 1분 run) · routes/bulletin_watch.js(관리자 내려받기) · services/bulletin_status.js(bulletins — 통보문 기준 특보현황) · 검사 test_bulletin_watch
+ *  - 나를 쓰는 곳  : scheduler.js(매 1분 run) · routes/bulletin_watch.js(관리자 내려받기) · services/bulletin_status.js(bulletins — 통보문 기준 특보현황 · listsOkMs) ·
+ *                   routes/weather.js(bulletins — 📋 해역별 통보문 팝업의 본문 글) · 검사 test_bulletin_watch
  *  - 환경변수      : KMA_DMDW_USER_ID / KMA_DMDW_USER_PWD(없으면 꺼짐) · BULLETIN_WATCH_DISABLE=1(강제 끔)
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
@@ -170,7 +171,7 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
             }
             // 본 기록 정리: 목록에 더는 없고 처음 본 지 SEEN_KEEP_DAYS(10일) 넘은 것만(목록 기간이 날짜 단위라 최대 4일 가까이 남는다 — 그 안에 지우면 「새 통보문」으로 다시 잡힌다)
             for (const [code, s] of Object.entries(state.seen)) if (!listed.has(code) && t2 - s.firstMs > SEEN_KEEP_DAYS * 86400e3) delete state.seen[code];
-            if (stat.lists === Object.keys(OFFICES).length * 2) state.started = true;   // 목록을 다 받은 회차가 있어야 기준이 선다
+            if (stat.lists === Object.keys(OFFICES).length * 2) { state.started = true; state.listsOkMs = t2; }   // 목록을 다 받은 회차가 있어야 기준이 선다 · listsOkMs = 마지막으로 다 받은 시각(📋 팝업이 통보문이 최신인지 볼 때 — bulletin_status.zoneBulletins)
             save();
             prune();
             return stat;
@@ -193,7 +194,9 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
         return Object.entries(state.seen).filter(([, s]) => s.result && !s.empty)
             .map(([code, s]) => ({ code, stn: s.stn, office: OFFICES[s.stn], rpt: s.rpt, seenMs: s.fullMs || s.firstMs, result: s.result }));
     }
-    return { run, readDay, days, bulletins };
+    /** 목록 16개를 마지막으로 다 받은 시각(ms, 없으면 0). [연계] → services/bulletin_status.run */
+    const listsOkMs = () => { load(); return state.listsOkMs || 0; };
+    return { run, readDay, days, bulletins, listsOkMs };
 }
 
 // ── 실제 dmdw 연결(collect.js 와 같은 요청) ────────────────────────────────────────────
@@ -244,6 +247,7 @@ module.exports = {
     days: () => getReal().days(),
     readDay: (d) => getReal().readDay(d),
     bulletins: () => getReal().bulletins(),
+    listsOkMs: () => getReal().listsOkMs(),
     createWatch, isEmpty, OFFICES, dayOf, hmOf,
     _real: { post: realPost, login: realLogin },   // 실제 연결 한 번 시험용(저장 위치를 바꿔 끼울 때)
 };
