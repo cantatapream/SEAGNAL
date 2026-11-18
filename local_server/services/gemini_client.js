@@ -351,8 +351,34 @@ async function callGemini(args) {
     return { success: false, text: null, error: r.error, isRateLimited: r.isRateLimited, keyLabel: r.keyLabel };
 }
 
+/**
+ * 단발 호출 — 그 모델을 한 번 부르고 끝낸다. 키 쿨다운·키 전환·관리자 알림을 건드리지 않고, AI 사슬·ChatGPT 다리도 타지 않는다.
+ * Gemma(같은 키로 부르는 다른 모델)에 쓴다: Gemma 의 한도 초과(429)가 공용 키를 쿨다운시키면 챗봇·색칠의 Gemini 까지 함께 멈춘다 — 모델마다 한도가 따로다.
+ * 예: await callPlain({ model:'gemma-4-31b-it', contents:'…', caller:'Bulletin-forecast-Gemma' }) → { success:true, text:'…' } | { success:false, error:'…', isRateLimited:true }
+ * @param {{model:string, contents:string|object, config?:object, caller?:string}} a
+ * @returns {Promise<{success:boolean, text:string|null, error:string|null, isRateLimited:boolean}>}
+ * [연계] ← services/bulletin_ai.js(Gemma 칸 · 관리자 「시험 호출」)
+ */
+async function callPlain({ model, contents, config, caller = 'unknown' }) {
+    if (!keys.length) return { success: false, text: null, error: 'GEMINI_API_KEY가 설정되지 않았습니다.', isRateLimited: false };
+    bumpUsage('requests', caller);
+    try {
+        bumpUsage('apiCalls');
+        const result = await new GoogleGenAI({ apiKey: keys[0].apiKey }).models.generateContent({ model, contents, config: config || {} });
+        bumpUsage('success');
+        bumpTokens(caller, result && result.usageMetadata);
+        const text = result.text;   // 읽다가 던지면 아래 catch 가 실패로 돌려준다(조용히 삼키지 않는다)
+        return { success: true, text: typeof text === 'string' ? text : null, error: null, isRateLimited: false };
+    } catch (e) {
+        const msg = String((e && e.message) || e), limited = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+        console.error(`[Gemini] 단발 호출 실패 caller=${caller} model=${model} rateLimited=${limited} err=${msg.slice(0, 250)}`);
+        return { success: false, text: null, error: msg, isRateLimited: limited };
+    }
+}
+
 module.exports = {
     callGemini,
+    callPlain,
     callGeminiRaw,
     callGeminiStream,
     getKeysStatus,

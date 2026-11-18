@@ -21,6 +21,7 @@
  *  - 서버 API      : GET·POST /api/admin/bulletin-ai/config (routes/bulletin_watch.js → services/bulletin_ai.js)
  *  - 마크업        : 없음(switchAiSubTab 이 준 상자에 그린다)
  *  - 나를 쓰는 곳  : admin.js switchAiSubTab('bulletinAi') → window.renderBulletinAiAdmin
+ *  - Gemma(2026-11-19): ③·⑤ 의 Gemini 칸에서 Gemini(기본)|Gemma 모델 고르기 + 「시험 호출」(POST /api/admin/bulletin-ai/try-model) + 마지막 Gemma 결과 표시
  * [로드 순서] admin.js 뒤(index2.html — admin_station_briefing.js 다음)
  * ============================================================================
  */
@@ -56,6 +57,24 @@
         var b = el('button', 'background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;padding:2px 8px;font-size:0.8rem;cursor:pointer', text);
         if (dis) { b.disabled = true; b.style.opacity = '0.35'; b.style.cursor = 'default'; } else b.addEventListener('click', onClick);
         return b;
+    }
+
+    /**
+     * 「시험 호출」 — 그 모델을 짧은 지시문으로 한 번 불러 보고 결과를 그 줄 아래에 적는다(설정은 안 바뀐다).
+     * 예: tryModel('gemma-4-31b-it', outEl) → outEl 에 「성공 812ms — {"해역":"동해중부먼바다",…}」 또는 「실패 — …」
+     * @param {string} model @param {HTMLElement} out 결과를 적을 곳
+     * [연계] ← drawFeature(③·⑤ Gemini 칸) → POST /api/admin/bulletin-ai/try-model
+     */
+    function tryModel(model, out) {
+        out.style.color = '#94a3b8';
+        out.textContent = model + ' 부르는 중…';
+        fetch('/api/admin/bulletin-ai/try-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model }) })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                out.style.color = j && j.ok ? '#34d399' : '#f87171';
+                out.textContent = j && j.ok ? '시험 성공 ' + j.ms + 'ms · ' + j.model + ' — ' + j.text : '시험 실패 · ' + model + ' — ' + ((j && j.error) || '응답 없음');
+            })
+            .catch(function (e) { out.style.color = '#f87171'; out.textContent = '시험 실패 — ' + (e && e.message); });
     }
 
     /**
@@ -100,6 +119,22 @@
             } else if (id === 'gemini' && f === 'briefing') {
                 // ④ 브리핑만 Gemini 모델을 고른다(종전 브리핑 설정의 두 모델)
                 row.appendChild(sel(ch.briefing.geminiModels, cfg.models.gemini.model, null, function (v) { save(f, { models: { gemini: { model: v } } }, host); }));
+            } else if (id === 'gemini' && ch.gemma && ch.gemma.features.indexOf(f) >= 0) {
+                // ③·⑤ 는 Gemini 칸에서 Gemma 도 고른다(2026-11-19 사용자 「Gemma ai를 사용해도 될 것 같은데? 무료니까」 · 같은 Gemini 키로 부른다).
+                //   Gemma 가 안 되면(오류·JSON 아닌 답) 서버가 그 자리에서 종전 Gemini 로 대신 답한다 — 그 사실을 아래에 붉게 보인다.
+                var gm = (cfg.models.gemini && cfg.models.gemini.model) || ch.gemma.models[0];
+                var gsel = sel(ch.gemma.models, gm, function (v) { return v + (v === ch.gemma.models[0] ? ' (기본)' : ' · Gemma'); }, function (v) { save(f, { models: { gemini: { model: v } } }, host); });
+                gsel.setAttribute('data-bai-gemma', f);
+                row.appendChild(gsel);
+                var tryBtn = btn('시험 호출', function () { tryModel(gm, tryOut); });
+                tryBtn.setAttribute('data-bai-try', f);
+                row.appendChild(tryBtn);
+                var tryOut = el('div', 'flex-basis:100%;font-size:0.75rem;color:#94a3b8;word-break:break-all', '');
+                tryOut.setAttribute('data-bai-try-out', f);
+                var last = state.gemma && state.gemma[f];
+                if (last && last.ok === false) { tryOut.style.color = '#f87171'; tryOut.textContent = '마지막 Gemma 호출 실패(' + new Date(last.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) + ') → Gemini 로 대신 답함 — ' + (last.error || ''); }
+                else if (last && last.ok) { tryOut.style.color = '#34d399'; tryOut.textContent = '마지막 Gemma 호출 성공(' + new Date(last.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) + ') · ' + last.model; }
+                row.appendChild(tryOut);
             } else if (id === 'gemini') {
                 row.appendChild(el('span', 'color:#94a3b8;font-size:0.8rem', (ch.gemini.models[0] || '') + ' (고정)'));
             } else {

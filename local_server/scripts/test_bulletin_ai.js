@@ -111,6 +111,73 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     ok('briefingChain — 삭제한 AI 를 빼고 순서대로, 칸마다 모델·노력·실행 위치·시도', ch.map((c) => c.id).join() === 'claude2,upstage,chatgpt,gemini'
       && ch[0].attempts === 2 && ch[0].effort === 'medium' && ch[2].runner === 'vm' && ch[2].attempts === 3 && ch[3].model === 'gemini-2.5-flash-lite' && ch[0].runner === null, JSON.stringify(ch));
     ok('①·② 응답 꼴은 그대로(attempts·gemini 모델 칸 없음)', !('attempts' in bai.getConfig().read) && !('gemini' in bai.getConfig().interpret.models));
+    // ── Gemma(2026-11-19 사용자 「Gemma ai를 사용해도 될 것 같은데? 무료니까」「ai 모델 선택하는데 Gemma 를 추가해야」「그냥 기존키에서 젬마를 부르는방식으로하자」) ──
+    console.log('\n── ⑤ Gemma — ③ 색칠·⑤ 격상의 Gemini 칸에서 고른다 ──');
+    const plain = []; let gemmaAnswer = () => ({ success: true, text: '```json\n{"by":"gemma"}\n```' });
+    gemini.callPlain = async (a) => { plain.push(a); return gemmaAnswer(a); };
+    const g2 = await (await fetch(base + '/api/admin/bulletin-ai/config')).json();
+    ok('선택지: ③·⑤ 의 Gemini 칸 = gemini-2.5-flash-lite(기본) + Gemma 두 모델(Gemini API 가 제공하는 것)', g2.choices.gemma && g2.choices.gemma.features.join() === 'forecast,escalation'
+      && g2.choices.gemma.models.join() === 'gemini-2.5-flash-lite,gemma-4-31b-it,gemma-4-26b-a4b-it', JSON.stringify(g2.choices.gemma));
+    ok('기본은 종전 그대로 — ③·⑤ 의 Gemini 칸 모델 = gemini-2.5-flash-lite', g2.config.forecast.models.gemini.model === 'gemini-2.5-flash-lite' && g2.config.escalation.models.gemini.model === 'gemini-2.5-flash-lite');
+    await post({ feature: 'forecast', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] });
+    behave.gemini = 'ok'; calls.length = 0; plain.length = 0;
+    const d0 = await bai.call('forecast', 'P');
+    ok('고르지 않으면 Gemma 를 부르지 않는다(종전과 같은 호출)', d0.provider === 'gemini' && plain.length === 0 && calls.length === 1 && calls[0].model === 'gemini-2.5-flash-lite' && JSON.parse(d0.text).by === 'gemini');
+    const sv = await (await post({ feature: 'forecast', models: { gemini: { model: 'gemma-4-31b-it' } } })).json();
+    ok('③ 에 Gemma 저장 — 다른 기능(⑤·④·①)은 그대로', sv.ok && sv.config.forecast.models.gemini.model === 'gemma-4-31b-it' && sv.config.escalation.models.gemini.model === 'gemini-2.5-flash-lite'
+      && sv.config.briefing.models.gemini.model === 'gemini-2.5-flash-lite' && !('gemini' in sv.config.read.models));
+    ok('틀린 값 400: ①·② 에는 Gemma 못 고름 · ④ 브리핑에도 못 고름 · 목록 밖 모델', (await post({ feature: 'read', models: { gemini: { model: 'gemma-4-31b-it' } } })).status === 400
+      && (await post({ feature: 'interpret', models: { gemini: { model: 'gemma-4-31b-it' } } })).status === 400 && (await post({ feature: 'briefing', models: { gemini: { model: 'gemma-4-31b-it' } } })).status === 400
+      && (await post({ feature: 'forecast', models: { gemini: { model: 'gemma-3-27b-it' } } })).status === 400);
+    calls.length = 0; plain.length = 0;
+    const d1 = await bai.call('forecast', 'P', { caller: 'MarineForecast' });
+    ok('Gemma 를 골랐으면 Gemma 가 답한다 — JSON 모드 없이 부르고(지원 여부 미확인), 답의 ``` 는 벗긴다 · Gemini 는 안 부른다',
+      d1.success && d1.provider === 'gemini' && d1.keyLabel === 'gemma:gemma-4-31b-it' && d1.text === '{"by":"gemma"}' && plain.length === 1 && plain[0].model === 'gemma-4-31b-it' && plain[0].config === undefined
+      && plain[0].caller === 'MarineForecast-Gemma' && calls.length === 0, JSON.stringify([d1, plain]));
+    ok('마지막 Gemma 결과가 관리자 화면용으로 남는다(성공)', bai.gemmaStatus().forecast && bai.gemmaStatus().forecast.ok === true && bai.gemmaStatus().forecast.model === 'gemma-4-31b-it');
+    gemmaAnswer = () => ({ success: true, text: '네, 색을 입혀 드리겠습니다. 결과는 다음과 같습니다.' }); calls.length = 0; plain.length = 0;
+    const d2 = await bai.call('forecast', 'P');
+    ok('Gemma 답이 JSON 이 아니면 그 자리에서 종전 Gemini 로 대신 답한다(지금보다 나빠지지 않는다) — 시도 기록에 gemma 실패가 남는다',
+      d2.success && JSON.parse(d2.text).by === 'gemini' && plain.length === 1 && calls.length === 1 && calls[0].model === 'gemini-2.5-flash-lite' && d2.tried[0].id === 'gemma' && d2.tried[0].ok === false && d2.tried[1].id === 'gemini', JSON.stringify(d2));
+    ok('대신 답한 사실이 관리자 화면용으로 남는다(조용히 대신하면 고장이 안 보인다)', bai.gemmaStatus().forecast.ok === false && /JSON 이 아니다/.test(bai.gemmaStatus().forecast.error));
+    gemmaAnswer = () => ({ success: false, error: '429 RESOURCE_EXHAUSTED', isRateLimited: true }); calls.length = 0;
+    const d3 = await bai.call('forecast', 'P');
+    ok('Gemma 한도 초과·오류 → Gemini 로 대신 · Gemma 의 한도 초과는 전체 「한도 초과」로 치지 않는다', d3.success && JSON.parse(d3.text).by === 'gemini' && !d3.isRateLimited && /429/.test(bai.gemmaStatus().forecast.error));
+    gemmaAnswer = () => ({ success: true, text: '   ' }); const d4 = await bai.call('forecast', 'P');
+    ok('Gemma 빈 답 → Gemini 로 대신', d4.success && JSON.parse(d4.text).by === 'gemini');
+    gemmaAnswer = () => { throw new Error('network down'); }; behave.gemini = 'fail';
+    const d5 = await bai.call('forecast', 'P');
+    ok('Gemma 가 던지고 Gemini 도 실패 → 실패를 돌려준다(던지지 않는다)', d5.success === false);
+    behave.gemini = 'ok'; gemmaAnswer = () => ({ success: true, text: '글 그대로의 답' });
+    const d6 = await bai.call('forecast', 'P', { json: false });
+    ok('글 답(json:false)을 바라는 호출이면 Gemma 의 글 답을 그대로 쓴다', d6.success && d6.text === '글 그대로의 답' && d6.keyLabel === 'gemma:gemma-4-31b-it');
+    // ⑤ 격상 가능성 읽기
+    await post({ feature: 'escalation', models: { gemini: { model: 'gemma-4-26b-a4b-it' } } });
+    gemmaAnswer = () => ({ success: true, text: '{"항목":[{"해역":"동해중부먼바다","시점":"오늘 밤부터"}]}' }); plain.length = 0; calls.length = 0;
+    const e1 = await bai.call('escalation', 'P', { caller: 'Bulletin-Escalation' });
+    ok('⑤ 에 Gemma 를 고르면 격상 가능성 읽기도 Gemma 로', e1.success && e1.keyLabel === 'gemma:gemma-4-26b-a4b-it' && plain[0].model === 'gemma-4-26b-a4b-it' && JSON.parse(e1.text).항목.length === 1 && calls.length === 0);
+    // 순서에서 Gemini 칸 앞에 다른 AI 가 있으면 그 AI 가 먼저
+    await post({ feature: 'escalation', order: ['claude2', 'gemini', 'claude1', 'upstage', 'chatgpt'], removed: ['claude1', 'upstage', 'chatgpt'] });
+    behave.claude2 = 'ok'; plain.length = 0;
+    ok('순서는 그대로 지킨다 — Gemini 칸 앞의 AI 가 답하면 Gemma 를 부르지 않는다', (await bai.call('escalation', 'P')).provider === 'claude2' && plain.length === 0);
+    // 시험 호출
+    gemmaAnswer = () => ({ success: true, text: '{"해역":"동해중부먼바다","시점":"오늘 밤부터"}' }); plain.length = 0;
+    const tr = async (model) => (await fetch(base + '/api/admin/bulletin-ai/try-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }) })).json();
+    const t1 = await tr('gemma-4-31b-it');
+    ok('「시험 호출」: 고른 모델을 한 번 불러 결과(답 글·걸린 시간)를 돌려준다 — 설정은 안 바뀐다', t1.ok && t1.model === 'gemma-4-31b-it' && typeof t1.ms === 'number' && /동해중부먼바다/.test(t1.text) && plain.length === 1 && plain[0].model === 'gemma-4-31b-it'
+      && bai.getConfig().forecast.models.gemini.model === 'gemma-4-31b-it' && bai.getConfig().escalation.models.gemini.model === 'gemma-4-26b-a4b-it', JSON.stringify(t1));
+    gemmaAnswer = () => ({ success: false, error: 'models/gemma-4-31b-it is not found' });
+    const t2 = await tr('gemma-4-31b-it'), t3 = await tr('gpt-9'), t4 = await tr('');
+    ok('「시험 호출」: 실패하면 오류 글을 그대로 보인다 · 목록 밖 모델은 부르지 않는다', t2.ok === false && /not found/.test(t2.error) && t3.ok === false && t4.ok === false && plain.length === 2);   // 시험 성공 1 + 실패 1 — 목록 밖 두 번은 안 불렀다
+    plain.length = 0; gemmaAnswer = () => ({ success: true, text: '{"a":1}' });
+    const t5 = await tr('gemini-2.5-flash-lite');
+    ok('「시험 호출」: 기본 Gemini 도 같은 버튼으로(JSON 모드로 부른다)', t5.ok && plain.length === 1 && plain[0].model === 'gemini-2.5-flash-lite' && plain[0].config && plain[0].config.responseMimeType === 'application/json');
+    ok('GET 응답에 기능별 마지막 Gemma 결과가 실린다', (await (await fetch(base + '/api/admin/bulletin-ai/config')).json()).gemma.forecast.model === 'gemma-4-31b-it');
+    {
+      const src = fs.readFileSync(require('path').join(__dirname, '..', 'services', 'gemini_client.js'), 'utf8');
+      const body = src.slice(src.indexOf('async function callPlain'), src.indexOf('module.exports'));
+      ok('Gemma 호출(callPlain)은 공용 Gemini 키의 쿨다운·전환·관리자 알림을 건드리지 않는다 — Gemma 한도 초과가 챗봇의 Gemini 까지 멈추지 않게', body.length > 200 && !/markRateLimited|notifyAdmin|pickNextKey|llmChain|codexBridge/.test(body));
+    }
     srv.close();
   }
   console.log(`\n  ${pass} PASS / ${fail} FAIL`);

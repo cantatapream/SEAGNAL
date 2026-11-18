@@ -82,15 +82,22 @@ function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch =
         res.send(trial.report(tid(req)));
     });
     // 「AI 특보 분석」 설정(관리자 센터 AI 탭) — 기능(read=특보 읽기·interpret=참고사항 해석)마다 AI 순서·칸별 모델·노력·ChatGPT 실행 위치.
-    //   GET → { config:{read,interpret,briefing}, choices, workers(Fly·VM 연결) } · POST { feature, order?, removed?, models?, attempts?(briefing 만) } → 저장 후 같은 모양.
+    //   GET → { config:{read,interpret,forecast,briefing,escalation}, choices, workers(Fly·VM 연결), gemma(기능별 마지막 Gemma 호출 결과) } ·
+    //   POST { feature, order?, removed?, models?, attempts?(briefing 만) } → 저장 후 같은 모양.
     const aiState = () => ({ ok: true, config: bulletinAi.getConfig(), choices: bulletinAi.choices(), workers: require('../services/codex_bridge').workers(),
-        status: require('../services/llm_chain').status([]) });
+        status: require('../services/llm_chain').status([]), gemma: bulletinAi.gemmaStatus() });
     router.get('/api/admin/bulletin-ai/config', authorize, (req, res) => { res.set('Cache-Control', 'no-store'); res.json(aiState()); });
     router.post('/api/admin/bulletin-ai/config', authorize, (req, res) => {
         const b = req.body || {};
         const r = bulletinAi.setConfig(String(b.feature || ''), { order: b.order, removed: b.removed, models: b.models, attempts: b.attempts });
         if (!r.ok) return res.status(400).json(r);
         res.json(aiState());
+    });
+    // 「시험 호출」(2026-11-19) — ③·⑤ 의 Gemini 칸에서 고를 수 있는 모델(Gemini|Gemma)을 짧은 지시문으로 한 번 불러 본다. 설정은 바꾸지 않는다.
+    //   Gemma 를 실제 키로 불러 본 적이 없어(작업 환경에 AI 키 없음) 운영에서 이 버튼으로 되는지 본다. POST { model } → { ok, model, ms, text|error }
+    router.post('/api/admin/bulletin-ai/try-model', authorize, async (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        res.json(await bulletinAi.tryModel(String((req.body || {}).model || '')));
     });
     // 통보문 기준 특보현황(관리자 메인 화면 [통보문] 버튼) — /api/weather-alerts 와 같은 모양(current 나무). 2026-11-16
     router.get('/api/admin/bulletin-status', authorize, (req, res) => {
