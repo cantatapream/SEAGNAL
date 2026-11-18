@@ -2731,7 +2731,19 @@ async function init() {
                     const aiLive = require('./services/bulletin_ai_live');
                     if (aiLive.enabled) aiLive.run().catch(err => log(`⚠️ [bulletin_ai_live] 오류: ${err.message}`));
                 })
-                .then(() => require('./services/bulletin_status').run())
+                .then(() => {
+                    const st = require('./services/bulletin_status').run();
+                    // 통보문 원문(PDF)을 우리 서버에 받아 쪽 그림으로 바꿔 둔다 — 발자취에 든 통보문만, 특보가 끝나면 지운다(2026-11-18, 📋 팝업이 구글 문서 뷰어 없이 바로 보이게).
+                    //   기다리지 않는다(내부 running 락) — 받기·변환이 비교 기록을 늦추지 않게.
+                    // 격상 가능성(2026-11-19) — 통보문 참고사항·날씨해설의 「풍랑경보·태풍특보로 변경될 가능성」을 해역별로 계산해 둔다(메인 화면 카드 🔺).
+                    //   여기서 실패해도 원문 보관·비교는 그대로 간다. 안내가 적힌 통보문(refs)은 그 해역 발자취에 없어도 원문을 두게 넘긴다.
+                    //   계산이 실패한 분에는 앞서 계산해 둔 refs 를 그대로 넘긴다 — 빈 목록을 넘기면 안내 통보문 원문이 지워졌다가 다음 분에 다시 받아진다(별도 에이전트 검토 2026-11-19).
+                    const esc = require('./services/bulletin_escalation');
+                    let escRefs = [];
+                    try { escRefs = esc.run({ zones: st.zones }).refs; }
+                    catch (err) { log(`⚠️ [bulletin_escalation] 오류: ${err.message}`); escRefs = (esc.read() || {}).refs || []; }
+                    require('./services/bulletin_docs').sync({ trails: st.trails, bulletins: bulletinWatch.bulletins(), extra: escRefs }).catch(err => log(`⚠️ [bulletin_docs] 오류: ${err.message}`));
+                })
                 .then(() => require('./services/bulletin_compare').run())
                 .catch(err => log(`⚠️ [bulletin_watch/status/compare] 오류: ${err.message}`));
         }

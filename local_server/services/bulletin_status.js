@@ -28,6 +28,7 @@
  *          (zoneBulletins — **일반 사용자 앱에도 나가는 유일한 통보문 기준 자료**. 특보현황·푸시는 계속 MMIS). 해제 시각이 되면 그 단위가 빠지며 발자취도 끝난다.
  *          누르면 종전처럼 원문 PDF 가 열린다 — 주소는 통보문 자료만으로 만든다(pdfOf — MMIS 코드와 엮지 않는다: 사용자 「나중에는 mmis를 … 삭제할 예정 … 엮이면 안될 것」).
  *          그림 이름이 없거나 PDF 가 아직 안 올라온 통보문(keepLivePdf)은 본문 글을 펼친다. 참고사항 AI 는 발자취에 섞지 않는다(규칙 계산까지만 일반 사용자에게 나간다).
+ *          2026-11-18 부터 원문은 우리 서버에 받아 쪽 그림으로 바꿔 두고(services/bulletin_docs — 발자취에 든 동안만) 그것을 먼저 보인다. 구글 문서 뷰어·바깥 PDF 는 그림이 아직 없을 때의 길.
  *          검산: analysis/bulletin_survey/trail_check.js(발효 중 칸에 끊김 없이 적힌 구간의 첫 통보문 = 발자취의 첫 정식 통보문, 10,241/10,241).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -442,6 +443,7 @@ function zoneBulletins(zone, st, bulletins, nowMs = Date.now()) {
         out.push({
             time: m ? `${m[1]}.${m[2]}.${m[3]} ${m[4]}:${m[5]}` : '', reportNo: e.ho, title, office: e.office, childOnly: !mine,
             pdfUrl: pdfOf(r),
+            docKey: (require('./bulletin_docs').docOf(r) || {}).key || '',   // 우리 서버에 받아 둔 원문(그림·PDF)의 열쇠 — routes/weather.js 가 그림이 있으면 보기 주소(viewUrl)를 붙인다
             sections: (SECTIONS[b.rpt] || []).map(([k, label]) => ({ label, text: lines(r[k]).join('\n') })).filter((x) => x.text && !/^o?\s*없음$/.test(x.text)),
         });
     }

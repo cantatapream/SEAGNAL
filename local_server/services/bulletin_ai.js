@@ -2,7 +2,8 @@
 /**
  * ============================================================================
  * 파일명: local_server/services/bulletin_ai.js
- * 역할  : 「AI 모델 설정」(종전 「AI 특보 분석」) — 기능마다(① read = 특보 통보문 읽기, ② interpret = 참고사항 해석, ③ forecast = 해상 기상 전망 색칠, ④ briefing = 연안 안전 브리핑) AI 우선순위를 두고
+ * 역할  : 「AI 모델 설정」(종전 「AI 특보 분석」) — 기능마다(① read = 특보 통보문 읽기, ② interpret = 참고사항 해석, ③ forecast = 해상 기상 전망 색칠, ④ briefing = 연안 안전 브리핑,
+ *         ⑤ escalation = 격상 가능성 읽기) AI 우선순위를 두고
  *         그 순서대로 시도한다(1순위가 실패하면 2순위 …). 칸마다 모델·노력, ChatGPT 칸은 실행 위치(Fly 서버|VM)까지 고른다.
  * 사용자 확정(2026-11-15):
  *   「ai 탭에서 ai 브리핑오른쪽에 특보분석 탭을만들고 기상청 통보문도 읽는 모델을 선택, gpt(vm 또는 fly)를 선택하는 모델을 선택, 통보문을 해석하는 모델 각각을 선택」
@@ -13,6 +14,8 @@
  * ④ briefing(2026-11-16 사용자 「ai 모델 선택 및 설정 부분은 ai 탭의 ai 모델 설정이라는 하위 탭에서 … ① 특보 통보문 읽기에 해당하는 리스트와 같이 …
  *   모든 ai및 모델설정하는것과 동일하게 맞춰줘. 즉 다른 ai로도 돌아가도록」 · 다시 시도 「(나)」 = 줄마다 횟수 · 처음 순서 「클로드 2번, 클로드 1번, 업스테이지, gpt, gemini」):
  *   칸마다 시도 횟수(attempts 1~3)와 Gemini 모델(브리핑만 고름 — 종전 브리핑 설정 geminiModel 두 가지)도 둔다. 부르는 일은 station_briefing_ai.generate 가 한다(briefingChain).
+ * ⑤ escalation(2026-11-19 사용자 「관리자페이지에서 어떤 ai 쓸건지 결정하는 부분도 ui 만들어야」): 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」 문장 가운데
+ *   규칙이 해역·시점을 못 읽은 것만 묻는다(services/bulletin_escalation — AI 답은 그 문장에 글자 그대로 있고 규칙이 풀 수 있는 해역일 때만 쓴다). 기본 = Gemini 만(①③ 과 같은 까닭).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/llm_chain(검사·선택지·callDirect) · services/codex_bridge(ChatGPT 줄, runner 지정) ·
@@ -20,6 +23,7 @@
  *  - 저장          : data/bulletin_ai_config.json (볼륨)
  *  - 나를 쓰는 곳  : ai_report_parser.js(① read) · services/bulletin_ai_trial.js(② interpret — 「설정한 순서로」 시험) ·
  *                   marine_forecast_processor.js·regional_bulletin_collector.js(③ forecast — 해상 기상 전망·지방청 전망 색칠) · services/station_briefing.js(④ briefing — briefingChain) ·
+ *                   services/bulletin_escalation.js(⑤ escalation — 규칙이 못 읽은 격상 가능성 문장) ·
  *                   routes/bulletin_watch.js(GET/POST /api/admin/bulletin-ai/config) · client/js/admin/admin_bulletin_ai.js(화면)
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
@@ -36,6 +40,8 @@ const FEATURES = {
     // ③ 도 기본은 Gemini 만 = 종전 동작(전망 색칠은 종전에 Gemini 고정이었다 — 2026-11-16).
     forecast: { name: '해상 기상 전망 색칠', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] },
     briefing: { name: '연안 안전 브리핑', order: ['claude2', 'claude1', 'upstage', 'chatgpt', 'gemini'], removed: [] },       // 사용자 확정 2026-11-16
+    // ⑤ 도 기본은 Gemini 만(①③ 과 같은 까닭 — 다른 AI 는 관리자가 「다시 추가」 해야 쓰인다). 규칙이 못 읽은 문장만 묻는다 — 지난 31일치 날씨해설에서는 0번.
+    escalation: { name: '격상 가능성 읽기', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] },
 };
 // ④ 브리핑 칸별 시도 횟수(같은 묶음을 그 AI 로 몇 번까지 — 떨어진 관할만 다시). 기본: ChatGPT 3번(종전 브리핑 「VM 최대 3번」 그대로) · 나머지 1번.
 const ATTEMPT_CHOICES = [1, 2, 3];
@@ -49,7 +55,7 @@ const RUNNERS = () => require('./codex_bridge').RUNNERS;
 /**
  * 저장값 한 기능을 정리한다(틀린 칸은 기본값). ChatGPT 칸은 {model, effort:null, runner}.
  * 예: normFeature('read', undefined) → { order:[gemini,…], removed:[], models:{…, chatgpt:{model:'gpt-6-luna', effort:null, runner:'fly'}} }
- * @param {'read'|'interpret'|'forecast'} f @param {any} v @returns {{order:string[], removed:string[], models:object}}
+ * @param {'read'|'interpret'|'forecast'|'briefing'|'escalation'} f @param {any} v @returns {{order:string[], removed:string[], models:object}}
  * [연계] ← getConfig·setConfig
  */
 function normFeature(f, v) {
@@ -69,12 +75,12 @@ function normFeature(f, v) {
     return { order, removed, models, attempts };
 }
 
-/** 저장된 설정 전체. 파일이 없거나 깨지면 기본값. @returns {{read:object, interpret:object, forecast:object}} */
+/** 저장된 설정 전체. 파일이 없거나 깨지면 기본값. @returns {{read:object, interpret:object, forecast:object, briefing:object, escalation:object}} */
 function getConfig() {
     let raw = {};
     try { raw = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[AI 특보 분석] 설정 파일을 못 읽어 기본값을 씀:', e.message); }
     if (!raw || typeof raw !== 'object') raw = {};   // 파일 내용이 null·숫자 등이면 기본값(독립 검토 7 — AI 브리핑 실행이 이 설정을 읽으므로 던지면 실행이 통째로 실패)
-    return { read: normFeature('read', raw.read), interpret: normFeature('interpret', raw.interpret), forecast: normFeature('forecast', raw.forecast), briefing: normFeature('briefing', raw.briefing) };
+    return { read: normFeature('read', raw.read), interpret: normFeature('interpret', raw.interpret), forecast: normFeature('forecast', raw.forecast), briefing: normFeature('briefing', raw.briefing), escalation: normFeature('escalation', raw.escalation) };
 }
 
 /**
@@ -85,7 +91,7 @@ function getConfig() {
  * [연계] ← routes/bulletin_watch.js POST /api/admin/bulletin-ai/config
  */
 function setConfig(f, patch) {
-    if (!Object.prototype.hasOwnProperty.call(FEATURES, f)) return { ok: false, error: 'feature 는 read|interpret|forecast|briefing' };   // __proto__·constructor 막기(독립 검토)
+    if (!Object.prototype.hasOwnProperty.call(FEATURES, f)) return { ok: false, error: 'feature 는 read|interpret|forecast|briefing|escalation' };   // __proto__·constructor 막기(독립 검토)
     const L = llm(), p = patch || {};
     if (p.order !== undefined && !L.isValidOrder(p.order)) return { ok: false, error: `order 는 ${L.PROVIDERS.join(',')} 다섯 개를 한 번씩` };
     if (p.removed !== undefined && !L.isValidRemoved(p.removed)) return { ok: false, error: 'removed 는 gemini 를 뺀 AI 중 겹치지 않게(gemini 는 뺄 수 없음)' };
@@ -147,9 +153,9 @@ function briefingChain() {
  * 그 기능의 순서대로 AI 를 불러 첫 성공을 돌려준다. 전부 실패하면 마지막 오류.
  * 반환 모양은 gemini_client.callGemini 와 같다 + provider(누가 답했나)·tried(시도 기록).
  * 예: await call('read', '통보문…', { caller: 'AI Parser' }) → { success:true, text:'{…}', keyLabel:'claude2', provider:'claude2', tried:[…] }
- * @param {'read'|'interpret'|'forecast'} f @param {string} prompt @param {{caller?:string, json?:boolean}} [opt]
+ * @param {'read'|'interpret'|'forecast'|'escalation'} f @param {string} prompt @param {{caller?:string, json?:boolean}} [opt]
  * @returns {Promise<{success:boolean, text?:string, error?:string, isRateLimited?:boolean, keyLabel?:string, provider?:string, tried:Array}>}
- * [연계] ← ai_report_parser.js · bulletin_ai_trial.js · marine_forecast_processor.js · regional_bulletin_collector.js / → llm_chain.callDirect · codex_bridge.callRaw · gemini_client.callGemini
+ * [연계] ← ai_report_parser.js · bulletin_ai_trial.js · marine_forecast_processor.js · regional_bulletin_collector.js · bulletin_escalation.js / → llm_chain.callDirect · codex_bridge.callRaw · gemini_client.callGemini
  */
 async function call(f, prompt, opt) {
     const o = opt || {}, caller = o.caller || ('Bulletin-' + f);

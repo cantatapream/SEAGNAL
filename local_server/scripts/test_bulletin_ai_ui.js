@@ -44,7 +44,9 @@ const state = () => ({ ok: true, config: bai.getConfig(), choices: bai.choices()
 
     await check('[§11.10.51-UI-1] ④ 연안 안전 브리핑 카드 — ①·②·③ 다음 · 처음 순서 클로드 키2→키1→업스테이지→ChatGPT→Gemini · 맨 아래 「규칙 분석(고정)」 줄은 ③ 에만', async () => {
         const feats = await page.$$eval('[data-bai-feature]', (cs) => cs.map((c) => c.getAttribute('data-bai-feature')));
-        assert.deepStrictEqual(feats, ['read', 'interpret', 'forecast', 'briefing']);
+        assert.deepStrictEqual(feats, ['read', 'interpret', 'forecast', 'briefing', 'escalation']);   // ⑤ 격상 가능성 읽기(2026-11-19) — ④ 다음
+        assert.ok(/⑤ 격상 가능성 읽기/.test(await page.textContent('[data-bai-feature="escalation"]')));
+        assert.deepStrictEqual(await rows('escalation'), ['Gemini'], '⑤ 기본은 Gemini 만(다른 AI 는 「다시 추가」 해야 쓰인다)');
         assert.deepStrictEqual(await rows('briefing'), ['클로드 키2', '클로드 키1', '업스테이지', 'ChatGPT', 'Gemini']);
         assert.ok(await page.$('[data-bai-feature="briefing"] [data-bai-rule]')); assert.equal(await page.$('[data-bai-feature="read"] [data-bai-rule]'), null);
         assert.ok(/④ 연안 안전 브리핑/.test(await page.textContent('[data-bai-feature="briefing"]')));

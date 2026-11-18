@@ -57,12 +57,15 @@ ENV TZ=Asia/Seoul
 #   `FileNotFoundError: 'curl'` 로 죽었다(관리자 화면 「고시 별표: Traceback …」). 그 자는 이제 curl 이 없으면
 #   파이썬 내장으로 부르지만, 운영도 개발 컨테이너와 같은 길(curl)로 가게 한다(L-403).
 # ----------------------------------------------------------------------------
-RUN apt-get update && apt-get install -y --no-install-recommends tzdata python3 ca-certificates curl \
+# poppler-utils(pdftoppm) — 통보문 원문 PDF 를 쪽 그림으로 바꾼다(services/bulletin_docs, 2026-11-18).
+#   📋 해역별 통보문 팝업이 구글 문서 뷰어 없이 우리 서버의 그림으로 통보문을 보이게 하려는 것. 없으면 그 기능만 쉰다(PDF 만 받아 두고 팝업은 종전 길로).
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata python3 ca-certificates curl poppler-utils \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/* \
     && python3 --version \
     && curl --version | head -1 \
+    && command -v pdftoppm \
     && python3 -c "import ssl; n = ssl.create_default_context().cert_store_stats()['x509_ca']; print('python CA', n); assert n > 50, 'python 인증서 저장소가 비었다 — ca-certificates'"
 
 WORKDIR /app

@@ -477,9 +477,10 @@ window.showZoneBulletins = function (zoneName) {
 };
 
 /**
- * 통보문 한 건 DOM — 발표시각 + 제목. 누르면: 원문 PDF(b.pdfUrl)·날씨누리(b.webUrl)가 있으면 그 모달, 없고 본문 글(b.sections — 통보문 기준)이 있으면 그 자리에서 펼친다.
+ * 통보문 한 건 DOM — 발표시각 + 제목. 누르면: 우리 서버에 받아 둔 원문 그림(b.viewUrl)이 있으면 그 페이지를 모달에, 없으면 원문 PDF(b.pdfUrl)·날씨누리(b.webUrl) 모달,
+ *   그것도 없고 본문 글(b.sections — 통보문 기준)이 있으면 그 자리에서 펼친다.
  * 예: { time:'2026.11.18 16:00', reportNo:'제11-51호', title:'풍랑주의보 발표', sections:[{label:'해당 구역', text:'…'}] } → 「제11-51호 풍랑주의보 발표 · 11.18 16:00」
- * @param {{time, title, reportNo?, childOnly?, national?, sections?, pdfUrl?, webUrl?}} b  GET /api/zone-bulletins 의 한 줄
+ * @param {{time, title, reportNo?, childOnly?, national?, sections?, viewUrl?, pdfUrl?, webUrl?}} b  GET /api/zone-bulletins 의 한 줄
  * @returns {HTMLElement}
  * [연계] ← showZoneBulletins(이 파일) / 서버 services/bulletin_status.zoneBulletins(통보문 기준) · routes/weather.js(종전 방식)
  */
@@ -510,7 +511,7 @@ function createZoneBulletinItem(b) {
 
     // [통보문 기준] 원문 PDF 주소가 없는 통보문은 누를 때 그 자리에서 본문 글을 펼친다(글은 textContent 로만 넣는다).
     //   PDF 가 있으면 아래에서 종전처럼 PDF 모달을 연다(사용자 2026-11-18 「눌렀을 때 해당 통보문 pdf가 바로 뜨는 것 … 지금 방식대로」).
-    if (b.sections && b.sections.length && !b.pdfUrl && !b.webUrl) {
+    if (b.sections && b.sections.length && !b.viewUrl && !b.pdfUrl && !b.webUrl) {
         var arrow = document.createElement('i');
         arrow.className = 'fa-solid fa-chevron-right history-item-arrow';
         headerEl.appendChild(arrow);
@@ -538,7 +539,7 @@ function createZoneBulletinItem(b) {
         return item;
     }
 
-    if (b.pdfUrl || b.webUrl) {
+    if (b.viewUrl || b.pdfUrl || b.webUrl) {
         item.style.cursor = 'pointer';
         item.addEventListener('click', function () {
             // 메인 화면 '통보문' 버튼과 동일하게 iframe 모달(openKmaIframeModal)로 표출.
@@ -546,7 +547,9 @@ function createZoneBulletinItem(b) {
             //   - 발효 통보문(pdfUrl): PDF 라 WebView iframe 직접 렌더 불가 → 구글 문서 뷰어로 감싼다.
             var modalTitle = (b.reportNo ? b.reportNo + ' ' : '') + (b.title || '통보문');
             //   - PC 브라우저(스스로 PDF 를 보여줄 수 있는 곳)는 구글 뷰어를 거치지 않고 PDF 를 바로 띄운다(canShowPdfInline).
-            var url = b.webUrl
+            //   - 우리 서버에 받아 둔 원문 그림(viewUrl — 2026-11-18)이 있으면 그것을 먼저: 쪽 그림을 이어 붙인 우리 서버 페이지라 어느 기기에서나 바로 뜬다
+            //     (여러 장이면 그 안에서 아래로 스크롤). 구글 문서 뷰어·바깥 PDF 는 그림이 아직 없을 때만.
+            var url = b.viewUrl ? b.viewUrl : b.webUrl
                 ? b.webUrl
                 : (canShowPdfInline() ? b.pdfUrl + '#navpanes=0&view=FitH' : 'https://docs.google.com/gview?embedded=true&url=' + encodeURIComponent(b.pdfUrl));   // #… = 쪽 미리보기 칸을 접고 폭에 맞춤(브라우저 PDF 보기 옵션)
             if (typeof window.openKmaIframeModal === 'function') {
