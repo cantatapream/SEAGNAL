@@ -647,13 +647,15 @@
         const locBtn = document.getElementById('swell-my-location-btn');
         if (locBtn) {
             locBtn.addEventListener('click', function () {
-                if (!navigator.geolocation) return;
-                navigator.geolocation.getCurrentPosition(function (pos) {
+                // [2026-11-18] 진행 토스트(위치 확인 중 → 초록 체크 / 실패 문구) — js/shared/ui/locate_toast.js
+                //   ★제한시간 10초를 새로 줬다 — 종전엔 옵션이 없어(기본값 무제한) 위치를 못 잡으면
+                //     토스트 스피너가 끝없이 돌 수 있었다. 다른 활동과 같은 값.
+                window.locateWithToast(function (pos) {
                     swellMap.getView().animate({
                         center: ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]),
                         zoom: 11
                     });
-                });
+                }, null, { enableHighAccuracy: true, timeout: 10000 });
             });
         }
         const noticeBtn = document.getElementById('swell-notice-btn');
