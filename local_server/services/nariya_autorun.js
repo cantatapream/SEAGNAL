@@ -56,7 +56,7 @@ const DONE_PUSH_PER_HOUR = 10;
 const MIN_TOKEN_LEN = 32;
 const PROD_APP = 'seagnal-server';   // 운영 앱 이름(fly.toml). 스테이징(seagnal-staging)·개발은 발사·푸시 안 함.
 // mok(원문 결손 — 조문 목·고시 별표 누락)은 2026-11-16 사용자 확정 「자동슈정」으로 더했다.
-const KINDS = { amend: '개정 승인', fresh: '원문 구버전·이름바뀜·다시 뜬 카드', mok: '원문 결손(목·별표 누락)' };
+const KINDS = { amend: '개정 승인', fresh: '원문 구버전·이름바뀜·다시 뜬 카드', mok: '원문 결손(목·별표 누락)', conflict: '충돌 난 자동 반영 PR', answer: '결정 필요에 단 사장님 답' };   // conflict(2026-11-18 사용자 「자동으로 세션이 해결」) — id 는 PR 번호, 머지 담당(nariya_pr_merge.handleConflict)이 맡긴다 · answer(같은 날 「앱에 답 칸 만들기」) — id 「PR번호-줄」
 // 최근 기억 칸 수 — 만료로 풀린 run 10개(다시 claim 하면 이어받기) · 결과 불명 발사 5개(3시간) · 끝난 run 20개(done 중복·늦은 발사 응답 판정).
 const KEEP = { expired: 10, unknown: 5, done: 20, seen: 2000 };
 // 14일: 「세션이 결정 필요로 남긴 일」(deferred) 기억. 이 상한이 없으면 같은 id 가 몇 달 뒤 다시 낡아 돌아와도(같은 카드 id 재사용) 영영 안 깨운다(2026-11-16 남은 일 점검).
@@ -93,7 +93,7 @@ const cleanIds = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string
 function cleanServed(v) {
     const o = isPlain(v) ? v : {};
     const one = (a) => (Array.isArray(a) ? [...new Set(a.filter((x) => typeof x === 'string' && ITEM_ID_RE.test(x)))].slice(0, KEEP.seen) : []);
-    return { amend: one(o.amend), fresh: one(o.fresh), mok: one(o.mok) };
+    return { amend: one(o.amend), fresh: one(o.fresh), mok: one(o.mok), conflict: one(o.conflict), answer: one(o.answer) };   // conflict(2026-11-18) — 세션이 꺼내 간 충돌 PR 번호
 }
 
 /**
@@ -179,7 +179,7 @@ function validateDone(body) {
     if (typeof body.run_id !== 'string' || !RUN_ID_RE.test(body.run_id)) return { ok: false, error: 'run_id 가 없거나 형식이 틀렸습니다(영문·숫자·._:- 64자 이하).' };
     if (!['pr', 'nothing', 'failed'].includes(body.outcome)) return { ok: false, error: "outcome 은 'pr'|'nothing'|'failed' 중 하나여야 합니다." };
     const ids = {};
-    for (const k of ['amend_ids', 'fresh_ids', 'mok_ids', 'deferred_amend_ids', 'deferred_fresh_ids', 'deferred_mok_ids']) {
+    for (const k of ['amend_ids', 'fresh_ids', 'mok_ids', 'conflict_ids', 'answer_ids', 'deferred_amend_ids', 'deferred_fresh_ids', 'deferred_mok_ids', 'deferred_conflict_ids', 'deferred_answer_ids']) {
         const a = body[k];
         if (a === undefined || a === null) { ids[k] = []; continue; }
         if (!Array.isArray(a) || a.length > LIMITS.ids || !a.every((x) => typeof x === 'string' && ITEM_ID_RE.test(x))) {
@@ -194,7 +194,7 @@ function validateDone(body) {
     const needs_decision = Array.isArray(body.needs_decision)
         ? body.needs_decision.filter((x) => typeof x === 'string').map((x) => cleanText(x, LIMITS.needsLen)).filter((x) => x.trim()).slice(0, LIMITS.needsCount)
         : [];
-    return { ok: true, value: { run_id: body.run_id, outcome: body.outcome, pr_url, summary, needs_decision, amend_ids: ids.amend_ids, fresh_ids: ids.fresh_ids, mok_ids: ids.mok_ids, deferred_amend_ids: ids.deferred_amend_ids, deferred_fresh_ids: ids.deferred_fresh_ids, deferred_mok_ids: ids.deferred_mok_ids } };
+    return { ok: true, value: { run_id: body.run_id, outcome: body.outcome, pr_url, summary, needs_decision, amend_ids: ids.amend_ids, fresh_ids: ids.fresh_ids, mok_ids: ids.mok_ids, deferred_amend_ids: ids.deferred_amend_ids, deferred_fresh_ids: ids.deferred_fresh_ids, deferred_mok_ids: ids.deferred_mok_ids, conflict_ids: ids.conflict_ids, deferred_conflict_ids: ids.deferred_conflict_ids, answer_ids: ids.answer_ids, deferred_answer_ids: ids.deferred_answer_ids } };
 }
 
 /**
@@ -399,7 +399,7 @@ function createAutorun({
         expireIfStale();
         const l = load().lock;
         if (!l || !lockValid()) return false;
-        if (!l.served) l.served = { amend: [], fresh: [], mok: [] };
+        if (!l.served) l.served = { amend: [], fresh: [], mok: [], conflict: [], answer: [] };
         if (!l.served[kind]) l.served[kind] = [];
         l.served[kind] = cleanServed({ [kind]: l.served[kind].concat(ids.map(String)) })[kind];
         save();
@@ -684,7 +684,7 @@ function createAutorun({
             if (d.outcome === 'failed') markSeen(servedOf, COOLDOWN_MS);
             else {
                 const inS = (k, a) => a.filter((id) => (servedOf[k] || []).includes(id));
-                markSeen({ amend: inS('amend', d.deferred_amend_ids), fresh: inS('fresh', d.deferred_fresh_ids), mok: inS('mok', d.deferred_mok_ids) }, SEEN_TTL_MS);
+                markSeen({ amend: inS('amend', d.deferred_amend_ids), fresh: inS('fresh', d.deferred_fresh_ids), mok: inS('mok', d.deferred_mok_ids), conflict: inS('conflict', d.deferred_conflict_ids), answer: inS('answer', d.deferred_answer_ids) }, SEEN_TTL_MS);
             }
         }
         s.lastDone = { at: now(), run_id: d.run_id, outcome: d.outcome, pr_url: d.pr_url, summary: d.summary, needs_decision: d.needs_decision,
@@ -712,7 +712,18 @@ function createAutorun({
         let pushed = false;
         // 정기 세션의 'nothing' 은 매일 소음이라 생략한다 — 단 그 run 에서 「작업 시작」을 이미 알렸거나(시작만 오고 끝이 안 오면 안 된다)
         // 사람이 정할 것(needs_decision)이 있으면 알린다(§5 #15·#20b).
-        const quietNothing = released && source === 'claim' && d.outcome === 'nothing' && !workNotified && !d.needs_decision.length;
+        // 충돌 풀기 결과(conflict_ids — 푼 PR, deferred_conflict_ids — 기록 파일 말고 다른 파일도 겹쳐 손대지 않은 PR)는 머지 담당에게 넘긴다(2026-11-18).
+        const cf = d.conflict_ids, cfd = d.deferred_conflict_ids;
+        if (cf.length || cfd.length) {
+            try { const mg = prMerger || require('./nariya_pr_merge').forDefault(); if (typeof mg.conflictResult === 'function') Promise.resolve(mg.conflictResult(cf, cfd)).catch((e) => console.error('[nariya_autorun] 충돌 결과 넘기기 실패:', e && e.message)); }
+            catch (e) { console.error('[nariya_autorun] 충돌 결과 넘기기 실패(완료 처리는 정상):', e && e.message); }
+        }
+        // 결정 필요 답 처리 결과(answer_ids — 끝낸 답, deferred_answer_ids — 답대로 할 수 없어 남긴 답)도 머지 담당에게(앱 카드에 「처리됨·보류」).
+        if (d.answer_ids.length || d.deferred_answer_ids.length) {
+            try { const mg = prMerger || require('./nariya_pr_merge').forDefault(); if (typeof mg.answersResult === 'function') mg.answersResult(d.answer_ids, d.deferred_answer_ids); }
+            catch (e) { console.error('[nariya_autorun] 답 처리 결과 넘기기 실패(완료 처리는 정상):', e && e.message); }
+        }
+        const quietNothing = released && source === 'claim' && d.outcome === 'nothing' && !workNotified && !d.needs_decision.length && !cf.length && !cfd.length && !d.answer_ids.length && !d.deferred_answer_ids.length;
         if (!quietNothing) {
             // 푸시 문구(사용자: 「머지를 앱에서 눌러야한다고 푸시 알림 내용에 명시하도록」) — 2026-11-18 다시 정리:
             //   ①「머지 버튼을 눌러 주세요」는 여기서 보내지 않는다 — 이 시점엔 GitHub 검사가 막 시작돼 버튼이 잠겨 있다(사용자가 가 보니 잠김).
@@ -728,6 +739,7 @@ function createAutorun({
                     : prMode && prHow !== 'secrets' ? 'PR 올림 · 앱에서 확인해 주세요'
                     : prMode === 'human' ? 'PR 올림 · 서버 GitHub 열쇠 확인 필요'
                     : 'PR 을 맡지 못함 · GitHub 에서 확인해 주세요')
+                : d.outcome === 'nothing' && cf.length ? '충돌 ' + cf.length + '건 풀었음 · 검사 중'
                 : { nothing: '완료 — 반영할 것 없음', failed: '세션 실패' }[d.outcome];
             const needs = d.needs_decision.length ? ` · 결정 필요 ${d.needs_decision.length}건` : '';
             const tag = lockMismatch ? '[잠금과 다른 run] ' : late ? '[늦은 완료] ' : '';
@@ -747,8 +759,11 @@ function createAutorun({
                 const needsText = d.needs_decision.length
                     ? ` · 결정 필요 ${d.needs_decision.length}건: ` + d.needs_decision.slice(0, 3).map((x) => x.slice(0, 60)).join(' / ') + (d.needs_decision.length > 3 ? ' 외' : '')
                     : '';
-                bodyText = (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText;
+                bodyText = d.outcome === 'nothing' && cf.length
+                    ? 'PR #' + cf.join('·#') + ' 의 작업 기록 충돌을 풀어 올렸습니다. 검사(약 20분)가 끝나면 다시 알립니다.' + needsText
+                    : (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText;
             }
+            if (cfd.length) bodyText += ' · 충돌 ' + cfd.length + '건(PR #' + cfd.join('·#') + ')은 작업 기록 말고 다른 파일도 겹쳐 자동으로 풀지 않았습니다 — 앱 「자동반영」 방에서 확인해 주세요.';
             pushed = notifyDone(tag + '나리야 자동 반영 — ' + head + needs, bodyText,
                 Object.assign({ type: 'nariya_autorun_done', run_id: d.run_id, outcome: d.outcome, needs: String(d.needs_decision.length), lock_mismatch: String(lockMismatch), late: String(late), merge: String(prMode || '') },
                     d.pr_url ? { pr_url: d.pr_url } : {}));

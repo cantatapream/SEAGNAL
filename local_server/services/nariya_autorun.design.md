@@ -345,6 +345,21 @@ setHold(true) → 오늘 차례 점검 하나 → finally { setHold(false) → s
   - 하5(종전부터) GitHub 확인을 기다리는 사이 결정 필요가 더해져도 처음 읽은 auto 로 머지 → 머지 직전에 지금 mode 를 다시 본다(상태 객체가 같은 것이라 바로 보인다). 이 경합 자체를 재현하는 시험은 넣지 않았다.
   - 하6 사람 몫 PR 도 stale 이면 서버가 update-branch(expected_head_sha 고정)를 건다 — 버튼(mergeNow)이 하던 일을 미리 하는 것이라 그대로 둔다. 거절되면 「GitHub 에서 확인」.
 
+### 9.10 충돌은 자동 반영 세션이 푼다 · 결정 필요에 앱에서 답한다 — 2026-11-18
+- 일어난 일: PR #1485 가 HANDOFF.md 충돌(mergeable_state dirty)인데 GitHub 가 mergeable 을 null 로 줘서 앱이 「GitHub 가 머지 가능 여부를 계산 중」으로 보였고, 「결정 필요」 3건은 목록만 있고 답할 곳이 없었다.
+- 사용자 원문: *"결정 선택은 어디서 할 수 있는 것이고, 머지는 어디서 할 수 있는거야 ? 잠겨있는데 ?"* · *"conflict도 앱에서 처리되도록 할 수 없니 ?"* → 고른 답: 충돌 「자동으로 세션이 해결」 · 결정 「앱에 답 칸 만들기」 · #1485 는 「기다릴게」(이 기능으로 푼다).
+- 충돌
+  - judge: mergeable 이 null 이어도 mergeable_state 「dirty」면 충돌.
+  - 머지 담당(handleConflict): 충돌이면 상태 `conflict_fixing` 으로 두고 자동 반영 세션에 맡긴다(requestRun('conflict', PR 번호) — KINDS 에 conflict). 같은 head 로는 한 번, 서로 다른 head 로 두 번까지. 푸시 없이 계속 지켜보다가 풀리면(새 head) 맡기기 전 상태로 돌아가 하던 대로(자동 머지·초록이면 「머지 버튼」 푸시).
+    3시간 그대로·두 번 넘게 되풀이·세션이 「못 푼다」(deferred_conflict_ids — 14일 쉼)·맡기기 실패면 「GitHub 에서 확인」으로 넘긴다. 사람 몫(needs_human) PR 은 방을 열 때(refresh) 충돌을 보면 맡긴다. 담당이 없으면(시험·개발) 종전대로.
+  - 세션: `GET /api/legal/autorun/conflicts`(자동화 열쇠) → PR 가지에 main 을 합치고, **끝에 덧붙이기만 하는 기록 파일(HANDOFF.md 작업 로그 등)만** 충돌이면 양쪽을 다 남겨 풀고 그 가지에 push(새 PR 없음·force-push 금지). 다른 파일이 겹치면 merge --abort → deferred_conflict_ids. 결과는 done 의 conflict_ids·deferred_conflict_ids.
+  - done 푸시: 「충돌 N건 풀었음 · 검사 중」, 못 푼 것은 본문에 「앱 「자동반영」 방에서 확인」.
+- 결정 필요 답
+  - 앱 카드의 결정 필요마다 답 칸 + [답 보내기](관리자 토큰 — `POST /api/legal/autorun/prs/:n/answer {index,text}`). 저장하면 requestRun('answer', 「번호-줄」)로 세션을 깨운다. 다시 쓰면 새 답·처리 대기로.
+  - 세션: `GET /api/legal/autorun/answers` → 답대로 이번 run 의 새 브랜치·PR 에서 처리(옛 PR 가지는 고치지 않음). 모호하거나 규칙과 어긋나면 deferred_answer_ids. 결과는 done 의 answer_ids·deferred_answer_ids → 카드에 「처리됨·보류」.
+- 예약 작업 지침(저장소 밖): 1번 할 일 꺼내기에 충돌·답 목록, 3-6 충돌 풀기·3-7 답 처리, 5번 푸시는 새 브랜치와 충돌 PR 원래 가지에만, 6번 done 에 네 칸.
+- 시험: `test_nariya_pr_merge.js` C(충돌 7가지)·Q(답)·J(dirty) · `test_nariya_autorun.js` §9.10·§9.11.
+
 ### 8.10 매일 처리 결과 요약 푸시 (2026-11-17)
 - 사용자: 「각 매일마다 모든 사이클이 완료되면 완료되었다는 푸시알림이 왔으면 좋겠어」·「처리결과에 관한 알림 말이야」.
 - 없으면 무엇이 잘못되나: 점검은 새로 찾은 것이 있거나 실패할 때만 푸시해서, 아무것도 없는 밤은 조용했다 — 「이상 없음」과 「점검이 안 돎」이 같아 보였다(L-291).

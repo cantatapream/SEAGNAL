@@ -1336,6 +1336,18 @@ router.get('/api/legal/autorun/status', autorun.requireAdminOrAutomation, (req, 
   catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
+// GET /api/legal/autorun/conflicts — 자동 반영 세션이 풀 충돌 PR 목록(2026-11-18 사용자 「자동으로 세션이 해결」).
+//   머지 담당(nariya_pr_merge.handleConflict)이 충돌을 보면 conflict 일감으로 세션을 깨운다 → 세션이 이 목록을 꺼내 PR 가지에 main 을 합치고,
+//   작업 기록 같은 덧붙이기만 한 파일의 충돌만 풀어 올린다(그 밖의 충돌은 손대지 않고 deferred_conflict_ids). 자동화 열쇠 또는 관리자 토큰.
+//   꺼내 간 PR 번호는 그 세션 몫(noteServed — 실패하면 3일 쉼, 못 풀면 14일 쉼).
+router.get('/api/legal/autorun/conflicts', autorun.requireAdminOrAutomation, (req, res) => {
+  try {
+    const prs = require('../services/nariya_pr_merge').conflicts();
+    if (prs.length) autorun.noteServed('conflict', prs.map((p) => String(p.number)));
+    res.json({ ok: true, count: prs.length, prs });
+  } catch (e) { console.error('[autorun] 충돌 목록 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
 // ── 조건부 자동 머지(C) · 앱 머지 버튼 (2026-11-16 사용자 「C로 하자 … 관련 머지 버튼도 앱 내에 반영하여야 해」) ──
 //   **관리자 토큰만** 받는다 — 자동화 열쇠(세션)로는 목록도 머지도 안 된다(세션은 머지하지 않는다 · 설계안 §9).
 //   [연계] services/nariya_pr_merge.js · client/js/ai-chat/ai_chat.js 「자동반영」 방(renderAutorunCards)
@@ -1361,6 +1373,24 @@ router.post('/api/legal/autorun/prs/:n/merge', adminAuth.requireAdminToken, asyn
     const r = await require('../services/nariya_pr_merge').mergeNow(Number.isInteger(n) ? n : -1, (req.body && req.body.by) || '관리자(앱)');
     res.status(r.ok ? 200 : (r.status || 500)).json(Object.assign({ ok: r.ok }, r));
   } catch (e) { console.error('[autorun] 머지 버튼 처리 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+
+// POST /api/legal/autorun/prs/:n/answer (관리자만) — 결정 필요 한 줄에 사장님 답(2026-11-18 사용자 「앱에 답 칸 만들기」). body: { index, text }
+//   저장하면 자동 반영 세션을 깨워 그 답대로 처리하게 한다(nariya_pr_merge.answer → nariya_autorun.requestRun('answer')).
+router.post('/api/legal/autorun/prs/:n/answer', adminAuth.requireAdminToken, (req, res) => {
+  try {
+    const n = Number(req.params.n), b = req.body || {};
+    const r = require('../services/nariya_pr_merge').answer(Number.isInteger(n) ? n : -1, Number(b.index), b.text, b.by || '관리자(앱)');
+    res.status(r.ok ? 200 : (r.status || 500)).json(Object.assign({ ok: r.ok }, r));
+  } catch (e) { console.error('[autorun] 결정 답 저장 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
+});
+// GET /api/legal/autorun/answers (자동화 열쇠 또는 관리자) — 세션이 처리할 답 목록. 꺼내 간 답은 그 세션 몫(noteServed — 못 하면 deferred_answer_ids 로 14일 쉼).
+router.get('/api/legal/autorun/answers', autorun.requireAdminOrAutomation, (req, res) => {
+  try {
+    const list = require('../services/nariya_pr_merge').answers();
+    if (list.length) autorun.noteServed('answer', list.map((x) => x.id));
+    res.json({ ok: true, count: list.length, answers: list });
+  } catch (e) { console.error('[autorun] 답 목록 실패:', e && e.message); res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
 // POST /api/legal/freshness/:id/decide (관리자) — body: { decision: 'done'|'dismissed', by? }

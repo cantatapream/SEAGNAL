@@ -79,7 +79,7 @@ function fakeGh() {
 function fakePush() { const p = async (t, b, d) => { p.sent.push({ t, b, d }); return { sent: 1 }; }; p.sent = []; return p; }
 function make(o = {}) {
     const time = o.time || fakeTime(), gh = o.gh || fakeGh(), push = o.push || fakePush(), file = o.file || newFile();
-    const m = M.createMerger({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: gh, push, env: o.env || PROD() });
+    const m = M.createMerger({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: gh, push, env: o.env || PROD(), onConflict: o.onConflict || null, onAnswer: o.onAnswer || null });
     return { m, time, gh, push, file };
 }
 const quiet = async (fn) => { const o = { log: console.log, warn: console.warn, error: console.error }; console.log = console.warn = console.error = () => {}; try { await fn(); } finally { Object.assign(console, o); } };
@@ -330,6 +330,56 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         d.m.track(TR(10, ['폴더']), OWN); await quiet(() => d.m.refresh());
         assert.equal(d.m.list().prs[0].canMerge, true); assert.equal(d.m.list().prs[0].check.state, 'stale');
         const r = await d.m.mergeNow(10); assert.equal(r.state, 'stale'); assert.ok(/20분 뒤 다시/.test(r.why));
+    });
+
+    await check('C 충돌 — 자동 반영 세션에 풀기를 맡김(같은 head 로는 한 번) · 푸시 없이 지켜봄 · 풀리면 하던 대로(자동 머지·「머지 버튼」) · 못 풀면·3시간·세션이 거절하면 「GitHub 에서 확인」 · 사람 몫(needs_human)은 방을 열 때 · 담당 없으면 종전대로', async () => {
+        const hook = () => { const f = (n) => { f.calls.push(n); return f.reply || { queued: true, locked: false }; }; f.calls = []; return f; };
+        // ① 자동 PR: 충돌 → 맡김 → 같은 head 로는 다시 안 맡김 → 세션이 main 을 합쳐 올림(새 head) → 초록 → 자동 머지
+        const h1 = hook(), a = make({ onConflict: h1 }); a.gh.runs = [run('success')]; a.gh.pr = prJson({ mergeable: false, mergeable_state: 'dirty' });
+        a.m.track(TR(9), OWN); await quiet(() => a.time.advance(5 * MIN));
+        assert.deepEqual(h1.calls, [9]); assert.equal(a.m.list().prs[0].status, 'conflict_fixing'); assert.equal(a.push.sent.length, 0, '맡길 때는 푸시 없음');
+        assert.deepEqual(a.m.conflicts(), [{ number: 9, branch: 'claude/youthful-gates-x', pr_url: URL(9) }]);
+        await quiet(() => a.time.advance(30 * MIN)); assert.deepEqual(h1.calls, [9], '같은 head 로는 한 번만');
+        a.gh.pr = prJson({ head: { ref: 'claude/youthful-gates-x', sha: SHA2, repo: { full_name: 'cantatapream/SEAGNAL' } } });
+        await quiet(() => a.m.conflictResult(['9'], [])); await quiet(() => a.time.advance(MIN));
+        assert.equal(merges(a.gh).length, 1); assert.equal(merges(a.gh)[0].body.sha, SHA2); assert.equal(a.m.list().prs[0].status, 'merged');
+        // ② 사람 몫(결정 필요): 지켜보던 중 충돌 → 맡김 → 풀린 뒤 초록이면 「머지 버튼」 푸시(결정 필요 까닭 그대로)
+        const h2 = hook(), b = make({ onConflict: h2 }); b.gh.runs = [run('success')]; b.gh.pr = prJson({ mergeable: null, mergeable_state: 'dirty' });
+        b.m.track(TR(10, ['고시 폴더']), OWN); await quiet(() => b.time.advance(5 * MIN));
+        assert.deepEqual(h2.calls, [10]); assert.equal(b.push.sent.length, 0);
+        b.gh.pr = prJson({ number: 10, head: { ref: 'claude/youthful-gates-x', sha: SHA2, repo: { full_name: 'cantatapream/SEAGNAL' } } }); await quiet(() => b.time.advance(5 * MIN));
+        assert.equal(b.push.sent.length, 1); assert.ok(/앱에서 머지 버튼/.test(b.push.sent[0].t) && /결정 필요 1건/.test(b.push.sent[0].b), b.push.sent[0].b); assert.equal(merges(b.gh).length, 0);
+        // ③ 세션이 못 풂(다른 파일도 겹침) → 「GitHub 에서 확인」
+        const h3 = hook(), c = make({ onConflict: h3 }); c.gh.runs = [run('success')]; c.gh.pr = prJson({ mergeable: false });
+        c.m.track(TR(11), OWN); await quiet(() => c.time.advance(5 * MIN)); await quiet(() => c.m.conflictResult([], ['11']));
+        assert.equal(c.m.list().prs[0].status, 'needs_human'); assert.equal(c.m.list().prs[0].how, 'github'); assert.ok(/다른 파일도 겹쳐/.test(c.push.sent[0].b), c.push.sent[0].b);
+        // ④ 3시간 그대로 → 넘김 · ⑤ 세션이 이미 「못 푼다」고 남긴 PR(seen) → 바로 넘김
+        const d = make({ onConflict: hook() }); d.gh.runs = [run('success')]; d.gh.pr = prJson({ mergeable: false });
+        d.m.track(TR(12), OWN); await quiet(() => d.time.advance(3 * HOUR + 10 * MIN));
+        assert.equal(d.m.list().prs[0].status, 'needs_human'); assert.ok(/3시간/.test(d.m.list().prs[0].why));
+        const h5 = hook(); h5.reply = { queued: false, locked: false, seen: 1 }; const e = make({ onConflict: h5 }); e.gh.runs = [run('success')]; e.gh.pr = prJson({ mergeable: false });
+        e.m.track(TR(13), OWN); await quiet(() => e.time.advance(5 * MIN));
+        assert.equal(e.m.list().prs[0].how, 'github'); assert.ok(/못 푼다/.test(e.m.list().prs[0].why), e.m.list().prs[0].why);
+        // ⑥ 사람 몫(needs_human — 이미 「머지 버튼」 차례)이 충돌이면 방을 열 때 맡김
+        const h6 = hook(), g = make({ onConflict: h6 }); g.gh.runs = [run('success')];
+        g.m.track(TR(14, ['x']), OWN); await quiet(() => g.time.advance(5 * MIN)); assert.equal(g.m.list().prs[0].status, 'needs_human');
+        g.gh.pr = prJson({ mergeable: false, mergeable_state: 'dirty' }); await quiet(() => g.m.refresh());
+        assert.deepEqual(h6.calls, [14]); assert.equal(g.m.list().prs[0].status, 'conflict_fixing');
+        // ⑦ 담당이 없으면 종전대로(「GitHub 에서 확인」)
+        const k = make(); k.gh.runs = [run('success')]; k.gh.pr = prJson({ mergeable: false });
+        k.m.track(TR(15), OWN); await quiet(() => k.time.advance(5 * MIN)); assert.equal(k.m.list().prs[0].how, 'github');
+    });
+
+    await check('Q 결정 필요 답 — 저장(번호·빈 답·없는 PR 검사, 제어 문자 제거) · 저장하면 세션 깨우기 · 세션 목록 · 처리됨/보류 표시 · 다시 쓰면 처리됨이 지워짐', async () => {
+        const woke = []; const c = make({ onAnswer: (id) => woke.push(id) });
+        c.m.track(TR(10, ['새 고시 2건 시행 전 보류', '도구를 고칠지']), OWN);
+        assert.equal(c.m.answer(10, 5, 'x').status, 400); assert.equal(c.m.answer(10, 0, '  ').status, 400); assert.equal(c.m.answer(99, 0, 'x').status, 404);
+        assert.deepEqual(c.m.answer(10, 1, '교집합으로 고쳐 주세요\u202e'), { ok: true }); assert.deepEqual(woke, ['10-1']);
+        let l = c.m.answers(); assert.equal(l.length, 1); assert.deepEqual([l[0].id, l[0].question, l[0].answer], ['10-1', '도구를 고칠지', '교집합으로 고쳐 주세요']);
+        assert.deepEqual(c.m.list().prs[0].answers, [null, { text: '교집합으로 고쳐 주세요', at: c.m.list().prs[0].answers[1].at, handled: false, deferred: false }]);
+        c.m.answersResult(['10-1'], []); assert.equal(c.m.answers().length, 0); assert.equal(c.m.list().prs[0].answers[1].handled, true);
+        c.m.answer(10, 1, '아니요, 지침을 고쳐 주세요'); assert.equal(c.m.list().prs[0].answers[1].handled, false, '다시 쓰면 처리 대기'); assert.equal(c.m.answers().length, 1);
+        c.m.answersResult([], ['10-1']); assert.equal(c.m.list().prs[0].answers[1].deferred, true); assert.equal(c.m.answers().length, 0);
     });
 
     await check('P 운영 아님이면 GitHub 를 안 부름 · 시작 때 기다리던 PR 확인 되살림 · check-runs 100개 넘으면 다음 쪽까지 · 상태가 파일에 남음', async () => {

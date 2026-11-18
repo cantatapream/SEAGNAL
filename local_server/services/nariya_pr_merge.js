@@ -143,8 +143,13 @@ function createMerger({
     fetch: doFetch = (url, init) => fetch(url, init),
     push = (t, b, d) => require('./admin_push').sendAdminPush(t, b, d),
     env = process.env,
+    // 충돌 처리 담당(2026-11-18 사용자 「자동으로 세션이 해결」) — PR 번호를 받아 자동 반영 세션에 「충돌 풀기」를 맡긴다(nariya_autorun.requestRun('conflict')).
+    //   없으면(시험·개발) 종전대로 「GitHub 에서 확인」으로 넘긴다. forDefault 가 운영 담당을 넣는다.
+    onConflict = null,
+    // 결정 필요 답 담당(2026-11-18 사용자 「앱에 답 칸 만들기」) — 답을 저장하면 자동 반영 세션을 깨운다(nariya_autorun.requestRun('answer')). 없으면 저장만.
+    onAnswer = null,
 } = {}) {
-    let state = null;
+    let state = null, conflictHook = onConflict, answerHook = onAnswer;
     const timers = new Map();   // number → 타이머
     const busy = new Set();     // number → 판정·머지 중(같은 PR 을 두 번 머지하지 않게)
     const isProd = () => env.FLY_APP_NAME === PROD_APP;
@@ -240,7 +245,7 @@ function createMerger({
         }
         const r = judge(p.json, runs, { behindBy, auto: !!opt.auto, files, filesTruncated, runSince: opt.runSince, owner: opt.owner, runId: opt.runId });
         const outside = files ? outsideAuto(files) : null;
-        return Object.assign(r, { title: String((p.json && p.json.title) || '').slice(0, 200) }, outside ? { outside: outside.slice(0, 5), outsideCount: outside.length + (filesTruncated ? '+' : '') } : {});
+        return Object.assign(r, { title: String((p.json && p.json.title) || '').slice(0, 200), ref: p.json && p.json.head && typeof p.json.head.ref === 'string' ? p.json.head.ref.slice(0, 200) : null }, outside ? { outside: outside.slice(0, 5), outsideCount: outside.length + (filesTruncated ? '+' : '') } : {});
     }
 
     /** 그 sha 만 머지한다. @returns {Promise<{ok:boolean, why?:string}>} */
@@ -290,12 +295,44 @@ function createMerger({
     }
 
     /**
+     * 충돌(conflict) — 자동 반영 세션에 풀기를 맡기고(conflict_fixing) 계속 지켜본다(2026-11-18 사용자 「자동으로 세션이 해결」).
+     *  · 같은 head 로는 한 번만 맡긴다 · 맡긴 뒤 3시간 넘게 그대로면, 또는 서로 다른 head 로 두 번 맡겨도 또 충돌이면 「GitHub 에서 확인」으로 넘긴다.
+     *  · 세션이 「기록 파일 말고 다른 파일도 겹친다」고 보고하면(conflictResult deferred) 바로 넘긴다. 담당이 없으면 종전대로 넘긴다.
+     * [연계] ← tick · refresh / → conflictHook(nariya_autorun.requestRun('conflict'))
+     */
+    async function handleConflict(p, r) {
+        if (!conflictHook) { await handOver(p, r.why, 'github'); return; }
+        if (p.status === 'conflict_fixing' && p.conflictFor === r.sha) {
+            if (now() - (p.conflictAt || now()) >= WAIT_MAX_MS) { await handOver(p, '충돌을 3시간 안에 자동으로 풀지 못했습니다 — GitHub 에서 확인해 주세요', 'github'); return; }
+            arm(p.number, POLL_MS); return;
+        }
+        if ((p.conflictTries || 0) >= 2) { await handOver(p, '충돌이 되풀이돼 자동으로 풀지 않습니다 — GitHub 에서 확인해 주세요', 'github'); return; }
+        if (p.status !== 'conflict_fixing') { p.statusBefore = p.status; p.whyBefore = p.why || null; }
+        p.conflictFor = r.sha || null; p.conflictAt = now(); p.conflictTries = (p.conflictTries || 0) + 1; if (r.ref) p.branch = r.ref;
+        p.status = 'conflict_fixing'; p.why = '충돌 — 자동 반영 세션이 푸는 중'; save();
+        let q = null;
+        try { q = conflictHook(p.number); } catch (e) { console.error('[nariya_pr_merge] PR #' + p.number + ' 충돌 풀기 맡기기 실패:', e && e.message); }
+        if (!q || (q.queued === false && !q.locked)) { await handOver(p, '충돌 풀기를 자동 반영 세션에 맡기지 못했습니다' + (q && q.seen ? '(이 PR 은 세션이 이미 「자동으로 못 푼다」고 남김)' : '') + ' — GitHub 에서 확인해 주세요', 'github'); return; }
+        arm(p.number, POLL_MS);
+    }
+    /**
+     * 자동 반영 세션의 충돌 풀기 결과(done 의 conflict_ids · deferred_conflict_ids). 푼 PR 은 곧바로 다시 확인하고, 못 푼 PR 은 「GitHub 에서 확인」으로 넘긴다.
+     * @param {string[]} fixed @param {string[]} deferred [연계] ← nariya_autorun.done
+     */
+    async function conflictResult(fixed, deferred) {
+        for (const id of fixed || []) { const p = find(Number(id)); if (p && p.status === 'conflict_fixing') arm(p.number, 60000); }
+        for (const id of deferred || []) { const p = find(Number(id)); if (p && p.status === 'conflict_fixing') await handOver(p, '작업 기록 말고 다른 파일도 겹쳐 자동으로 풀지 않았습니다 — GitHub 에서 확인해 주세요', 'github'); }
+    }
+    /** 세션이 풀 충돌 PR 목록(GET /api/legal/autorun/conflicts). @returns {{number:number, branch:string|null, pr_url:string}[]} */
+    function conflicts() { return load().prs.filter((p) => p.status === 'conflict_fixing').map((p) => ({ number: p.number, branch: p.branch || null, pr_url: p.pr_url })); }
+
+    /**
      * 자동 머지 대기(waiting)·검사 실패(failed_checks) PR 을 한 번 확인한다.
      * [연계] ← arm 타이머 · start(되살림)
      */
     async function tick(n) {
         const p = find(n);
-        if (!p || (p.status !== 'waiting' && p.status !== 'failed_checks')) return;
+        if (!p || (p.status !== 'waiting' && p.status !== 'failed_checks' && p.status !== 'conflict_fixing')) return;
         if (busy.has(n)) { arm(n, POLL_MS); return; }   // 버튼이 확인 중이면 물러나되 다시 건다(적대검증 C#중-1 — 안 걸면 영영 멈춘다)
         if (!isProd()) { console.log('[nariya_pr_merge] 운영 아님 — PR #' + n + ' 확인 생략'); return; }
         busy.add(n);
@@ -313,6 +350,9 @@ function createMerger({
             }
             catch (e) { console.error('[nariya_pr_merge] PR #' + n + ' 확인 실패(다시 봄):', e && e.message); r = { ok: false, state: 'error', why: '연결 실패: ' + String((e && e.message) || e).slice(0, 80) }; }
             p.check = { state: r.state, why: r.why || null, at: now() }; save();
+            if (r.state === 'conflict') { await handleConflict(p, r); return; }
+            // 충돌이 풀렸다(세션이 main 을 합쳐 올림) — 맡기기 전 상태로 돌아가 하던 대로 본다(검사 초록이면 자동 머지·「머지 버튼」 푸시).
+            if (p.status === 'conflict_fixing') { p.status = p.statusBefore === 'failed_checks' ? 'failed_checks' : 'waiting'; p.why = p.whyBefore || null; save(); }
             // 확인을 기다리는 사이 track 이 사람 몫으로 내렸으면(결정 필요가 더해짐) 머지하지 않는다(적대검증 하5 — p 는 상태 객체 그 자체라 지금 값을 본다).
             if (r.ok && auto && p.mode !== 'auto') auto = false;
             if (r.ok && auto) {
@@ -357,7 +397,7 @@ function createMerger({
                 arm(n, POLL_MS);
                 return;
             }
-            if (['conflict', 'invalid', 'no_token', 'auth', 'scope', 'foreign', 'skipped'].includes(r.state)) { await handOver(p, r.why, r.how || 'github'); return; }
+            if (['invalid', 'no_token', 'auth', 'scope', 'foreign', 'skipped'].includes(r.state)) { await handOver(p, r.why, r.how || 'github'); return; }
             const waited = now() - p.at;
             if (r.state === 'missing' && waited >= NO_CHECK_MAX_MS) { await handOver(p, '필수 검사가 30분 동안 붙지 않았습니다', 'github'); return; }
             if (waited >= WAIT_MAX_MS) { await handOver(p, r.state === 'error' ? '3시간 동안 GitHub 를 확인하지 못했습니다 — ' + r.why : '검사가 3시간 안에 끝나지 않았습니다', r.state === 'error' ? 'github' : 'button'); return; }
@@ -463,7 +503,7 @@ function createMerger({
      */
     async function refresh() {
         if (!isProd() || !token()) return;
-        const open = load().prs.filter((p) => ['waiting', 'needs_human', 'failed_checks'].includes(p.status)).slice(-10);
+        const open = load().prs.filter((p) => ['waiting', 'needs_human', 'failed_checks', 'conflict_fixing'].includes(p.status)).slice(-10);
         // PR 들을 한꺼번에 읽는다(재검토 하-신규1 — 하나씩이면 방이 오래 「불러오는 중」).
         await Promise.all(open.map(async (p) => {
             if (busy.has(p.number)) return;
@@ -475,6 +515,8 @@ function createMerger({
                 p.canMerge = r.ok || r.state === 'stale';
                 if (r.outside) { p.outside = r.outside; p.outsideCount = r.outsideCount; }
                 if (r.state === 'merged' || r.state === 'closed') { p.status = r.state; disarm(p.number); }
+                // 사람 몫(needs_human) PR 이 충돌이면 자동 반영 세션에 풀기를 맡긴다(지켜보던 PR 은 tick 이 맡는다).
+                else if (r.state === 'conflict' && p.status === 'needs_human' && conflictHook) await handleConflict(p, r);
             } catch (e) { console.error('[nariya_pr_merge] PR #' + p.number + ' 새로 읽기 실패:', e && e.message); }
             finally { busy.delete(p.number); }
         }));
@@ -486,12 +528,13 @@ function createMerger({
      * @returns {{prs:object[], counts:{needs_human:number, waiting:number}, tokenConfigured:boolean}}
      */
     function list() {
-        const order = { needs_human: 0, failed_checks: 1, waiting: 2, merged: 4, closed: 5 };
+        const order = { needs_human: 0, failed_checks: 1, conflict_fixing: 2, waiting: 2, merged: 4, closed: 5 };
         const prs = load().prs.slice().reverse().map((p) => ({
             number: p.number, pr_url: p.pr_url, run_id: p.run_id, needs: p.needs || [], summary: p.summary || '', at: iso(p.at),
             mode: p.mode, status: p.status, why: p.why || null, how: p.how || null, howText: p.how ? HOW_TEXT[p.how] : null,
             canMerge: p.canMerge === true, outside: p.outside || [], outsideCount: p.outsideCount || 0,
             check: p.check ? { state: p.check.state, why: p.check.why, at: iso(p.check.at) } : null,
+            answers: (p.answers || []).map((x) => (x ? { text: x.text, at: iso(x.at), handled: !!x.handledAt, deferred: !!x.deferredAt } : null)),
             mergedAt: iso(p.mergedAt), mergedBy: p.mergedBy || null,
         })).sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
         return { prs, counts: { needs_human: prs.filter((p) => p.status === 'needs_human').length, waiting: prs.filter((p) => p.status === 'waiting').length }, tokenConfigured: !!token() };
@@ -500,16 +543,56 @@ function createMerger({
     /** 서버 시작 때 — 기다리던 PR(자동 대기·실패 뒤 감시)의 확인을 1분 뒤로 되살린다. [연계] ← server.js */
     function start() {
         let k = 0;
-        for (const p of load().prs) if (p.status === 'waiting' || (p.status === 'failed_checks' && now() - (p.failedAt || 0) < FAIL_WATCH_MS)) { arm(p.number, 60000); k++; }
+        for (const p of load().prs) if (p.status === 'waiting' || p.status === 'conflict_fixing' || (p.status === 'failed_checks' && now() - (p.failedAt || 0) < FAIL_WATCH_MS)) { arm(p.number, 60000); k++; }
         return { waiting: k };
     }
 
-    return { track, evaluate, mergeNow, refresh, list, start, tick, _state: () => load() };
+    /**
+     * 결정 필요 한 줄에 사장님 답을 적는다(앱 「자동반영」 방 답 칸 — 관리자만). 같은 줄에 다시 적으면 새 답으로 바꾸고 「처리됨」을 지운다.
+     * 저장하면 자동 반영 세션을 깨워(answerHook) 그 답대로 처리하게 한다 — 세션은 GET /api/legal/autorun/answers 로 꺼내 가고 done 의 answer_ids 로 끝냈다고 알린다.
+     * 예: answer(1485, 1, '도구를 교집합으로 고쳐 주세요', '관리자') → {ok:true}
+     * @param {number} n @param {number} index - needs 의 몇 번째(0부터) @param {string} text @param {string} [by] @returns {{ok:boolean, status?:number, why?:string}}
+     * [연계] ← routes/legal.js POST /api/legal/autorun/prs/:n/answer / → answerHook
+     */
+    function answer(n, index, text, by) {
+        const p = find(n);
+        if (!p) return { ok: false, status: 404, why: '자동 반영이 맡은 PR 이 아님' };
+        if (!Number.isInteger(index) || index < 0 || index >= (p.needs || []).length) return { ok: false, status: 400, why: '결정 필요 번호가 틀림' };
+        const t = String(text || '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, '').trim().slice(0, 500);
+        if (!t) return { ok: false, status: 400, why: '답이 비었음' };
+        if (!Array.isArray(p.answers)) p.answers = [];
+        while (p.answers.length < p.needs.length) p.answers.push(null);   // 빈 칸(hole) 없이 — JSON 저장·화면 map 이 줄 번호를 잃지 않게
+        p.answers[index] = { text: t, at: now(), by: String(by || '관리자').slice(0, 40), handledAt: null, deferredAt: null };
+        save();
+        if (answerHook) { try { answerHook(n + '-' + index); } catch (e) { console.error('[nariya_pr_merge] 답 처리 세션 깨우기 실패(답은 저장됨):', e && e.message); } }
+        return { ok: true };
+    }
+    /** 세션이 처리할 답 목록(GET /api/legal/autorun/answers) — 아직 처리·보류되지 않은 것. @returns {object[]} */
+    function answers() {
+        const out = [];
+        for (const p of load().prs) (p.answers || []).forEach((a, i) => { if (a && !a.handledAt && !a.deferredAt) out.push({ id: p.number + '-' + i, number: p.number, pr_url: p.pr_url, pr_status: p.status, branch: p.branch || null, question: (p.needs || [])[i] || '', answer: a.text, at: iso(a.at) }); });
+        return out;
+    }
+    /** 세션의 답 처리 결과(done 의 answer_ids · deferred_answer_ids — 「번호-줄」). [연계] ← nariya_autorun.done */
+    function answersResult(handled, deferred) {
+        const mark = (ids, key) => { for (const id of ids || []) { const m = /^(\d+)-(\d+)$/.exec(String(id)); const p = m && find(Number(m[1])); const a = p && p.answers && p.answers[Number(m[2])]; if (a) a[key] = now(); } };
+        mark(handled, 'handledAt'); mark(deferred, 'deferredAt'); save();
+    }
+    /** 결정 필요 답 담당을 넣는다. @param {Function|null} fn */
+    function setAnswerHook(fn) { answerHook = typeof fn === 'function' ? fn : null; }
+    /** 충돌 처리 담당을 넣는다(운영 forDefault). @param {Function|null} fn */
+    function setConflictHook(fn) { conflictHook = typeof fn === 'function' ? fn : null; }
+    return { track, evaluate, mergeNow, refresh, list, start, tick, conflicts, conflictResult, setConflictHook, answer, answers, answersResult, setAnswerHook, _state: () => load() };
 }
 
 let def = null;
 /** 운영 기본 인스턴스. [연계] ← nariya_autorun · routes/legal.js · server.js */
-function forDefault() { return def || (def = createMerger()); }
+function forDefault() {
+    return def || (def = createMerger({
+        onConflict: (n) => require('./nariya_autorun').requestRun('conflict', { ids: [String(n)] }),
+        onAnswer: (id) => require('./nariya_autorun').requestRun('answer', { ids: [String(id)] }),
+    }));
+}
 
 module.exports = {
     createMerger, forDefault, judge, outsideAuto, REQUIRED_CHECK, PR_URL_RE, AUTO_ALLOW,
@@ -517,5 +600,8 @@ module.exports = {
     mergeNow: (n, by) => forDefault().mergeNow(n, by),
     refresh: () => forDefault().refresh(),
     list: () => forDefault().list(),
+    conflicts: () => forDefault().conflicts(),
+    answer: (n, i, t, by) => forDefault().answer(n, i, t, by),
+    answers: () => forDefault().answers(),
     start: () => forDefault().start(),
 };
