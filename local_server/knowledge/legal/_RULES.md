@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 149 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 150 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -420,6 +420,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_push_upcoming_type` | 앱 푸시(push_sender) — 발효 중 특보 위에 「다가오는 특보」가 처음 생길 때 제목 검사. |
 | `test_subscriber_audit` | 2026-11-18: 관리자 센터 「푸시 알림 구독자」가 명단 줄 수(등록표 개수)여서 |
 | `test_push_master_keep` | 2026-11-18: 폰 알림 권한이 허용돼 있으면 앱을 켤 때마다 "푸시 알림 받기"(master)를 |
+| `test_wheel_date_picker` | 날짜칸을 누르면 휠 선택기가 뜨고, 고른 값이 칸에 제대로 들어가는지 |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

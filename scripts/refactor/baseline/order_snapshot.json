@@ -109,6 +109,7 @@
     "alert_push.js",
     "ui_modal.js",
     "locate_toast.js",
+    "wheel_date_picker.js",
     "app_init.js",
     "backbutton.js",
     "assistant_deeplink.js",
