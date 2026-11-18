@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 21:22 KST] ✅완료 — 날짜 선택 휠 피커 — 앱 전체 날짜칸 공통 적용 (브랜치 claude/festive-tesla-k7ie2s, PR 전)
+사용자 요청 「날짜 선택하는 부분이 현재 캘린더 방식으로 되어있는데 휠 피커로 년월일을 선택할 수 있도록 해줘」(사고정보 기간선택·통합관리자 통계 등). 한 일: client/js/shared/ui/wheel_date_picker.js 신설 — 문서 전체에서 input[type=date]·datetime-local 누름을 가로채 아래서 올라오는 휠 시트(년·월·일, 날짜시각칸은 시·분까지)를 띄우고, [확인] 시 칸 값·input·change 이벤트를 원래 형식대로 넣는다. 그래서 사고정보 기간(accident_info.js), 관리자 통계·이용현황·CSV·공지만료(admin_collect.js), 설문 기간(admin_survey.js), 특보 발표시각·로그 조회·작업모드 종료(admin.js), 공지 만료(admin_trigger.js) 등 20여 칸은 코드 무수정. 제외는 data-native-picker 속성. 원래 readonly·disabled 칸은 손대지 않음. 시험 test_wheel_date_picker 23 PASS(verify_all SUITES 등록·규칙집 재생성·로드순서 기준선 1줄 추가). 실제 앱(Pixel 7 화면)에서 사고정보 기간·관리자 통계 둘 다 값 반영 확인. verify_all: 실패 다수가 이 컨테이너의 playwright-core 모듈 경로 문제(Cannot find module) — NODE_PATH 에 /opt/node-tools/node_modules 넣고 해당 스위트 재실행해 확인. 참고: 조석 격자 달력 client/tide_calendar.js 는 호출처 0(죽은 코드)이라 손대지 않음. 로컬 서버는 시작 시 .br/.gz 압축본을 만들어 계속 쓰므로 JS 를 고친 뒤엔 서버 재시작해야 새 판이 나간다(로컬 확인 때 헷갈림). 다음: 사용자 확인 후 PR.
+
+
 ### [2026-11-18 21:11 KST] ✅완료 — 패치노트 게시판 — 어절 단위 줄바꿈 + 줄 끝 넘침 글자 간격 맞추기 · 11-18 패치노트 완성
 완료: style.css .promo-md word-break:keep-all · md_fit.js(줄 끝 2~3글자 넘침은 그 줄 글자 간격을 좁힘, 한도 0.12em, 보기 칸·미리보기만) · promo.js openPromoDetail 연결 · build_notice.js 미리보기 포함 · test_notice_md_fit 14/0(SUITES 등록) · NOTICE.md 「줄 정렬」 5규칙(원문 병기). verify_all(의존성 설치 + NODE_PATH=/opt/node-tools/node_modules): 실패 목록은 V3·V4 둘뿐 — V3 는 실행 중 기준선 갱신 탓(갱신 후 check_order 단독 통과), V4 는 로컬 서버 미기동 탓(서버 3001 기동 후 simulate.js 단독 「기준선 대비 회귀 없음」 통과). 패치노트 docs/notice/2026-11-18_update-2weeks/ — 제목 「개선·예정·기타사항 안내('26. 11. 8. ~ 18.)」, 사진 10장(4·5·7·8·9 사용자 휴대폰 사진). 다음: 작업 브랜치 → main 머지·배포해야 게시판에 줄 맞춤이 보임(사용자 확인 대기).
 
