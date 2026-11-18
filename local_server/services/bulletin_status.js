@@ -234,34 +234,30 @@ function compute(bulletins, nowMs, cands = []) {
 }
 
 /**
- * 자식 해역(연안바다·평수구역)에만 특보가 있고 부모 칸이 비어 있으면, 화면에 보이도록 부모 칸을 「자식만 특보」(derived)로 채운다.
+ * 자식 해역(연안바다·평수구역)에만 특보가 있고 부모 칸이 **비어 있으면**, 화면에 보이도록 부모 칸을 「자식만 특보」(derived)로 채운다.
  *   통보문의 「A(평수구역)」 = 그 평수구역만 — 부모 A 는 특보가 아니다(README ⑫: 전 관서 같음, 자식 줄기 통보문).
- *   실자료에서 부모 없이 자식만 특보인 것은 2건(수도권 2025 8-29호 「인천·경기남부앞바다(먼평수구역)」 09:10~15:15 · 2026 2-37호 평수구역 3곳, 부모는 밤 예비).
- *   메인 화면(data.js)은 부모 칸이 있어야 카드가 나오므로 그 2건이 화면에서 빠진다 → 사용자 결정 2026-11-18
- *   「(가) 부모 카드를 "일부 해역(평수구역)만"으로 띄우고, 자식이 끝나면 함께 사라지게」.
- *   매 계산마다 다시 만든다(상태로 들지 않는다) — 자식이 끝나면 부모 칸도 없다. 부모가 부모 자신으로 특보 중이면 건드리지 않는다.
+ *   메인 화면(data.js)은 부모 칸이 있어야 카드가 나오므로, 부모에 아무것도 없으면 그 자식이 화면에서 빠진다
+ *   (실자료 1건: 수도권 2025 8-29호 「인천·경기남부앞바다(먼평수구역)」 09:10~15:15). 사용자 결정 2026-11-18
+ *   「(가) 부모 카드를 "일부 해역(평수구역)만"으로 띄우고, 자식이 끝나면 함께 사라지게」 → 화면은 부모 이름 옆에 「일부 해역만」 배지만 단다.
+ *   부모가 제 상태(예비·정식)를 갖고 있으면 건드리지 않는다 — 부모는 부모 상태, 자식은 자식 상태를 그대로 보인다.
+ *   사용자 2026-11-18(수도권 2026 2-37호 — 부모는 밤 예비, 평수구역만 먼저 주의보): 「부모해역명 옆에 풍랑 예비라고 뱃지를 반영하고 일부해역만은 제외.
+ *   세부를 열어봤을 때 부모해역 풍랑 예비 특보정보가 표시되고 그 아래 자식해역에 대해서는 현재 상태를 표출 … 다가오는으로 할 필요가 없잖아」.
+ *   매 계산마다 다시 만든다(상태로 들지 않는다) — 자식이 끝나면 부모 칸도 없다.
  *   고르는 법: 정식 > 예비, 같은 단계면 경보 > 주의보, 그다음 먼저 발효(예비는 이른 시간창).
- *   부모가 예비뿐인데 자식이 정식이면 부모 칸을 「자식만 특보」로 올리고, 부모의 예비는 다가오는 특보(upYebi)로 옮긴다(2-37호).
  * 예: { 인천·경기남부앞바다중먼평수구역: {kind:'formal', level:'주의보'} } → 인천·경기남부앞바다 = 같은 주의보(derived:true) → 나무에서 current.kidsOnly = true
- * [연계] ← compute(이 파일) / → toTree(부모 current·upcoming, kidsOnly 표시)
+ * [연계] ← compute(이 파일) / → toTree(부모 current·upcoming, kidsOnly 표시) → client data.js·render.js(「일부 해역만」)
  */
 function fillParents(zones) {
     const rank = (z) => (z.kind === 'formal' ? 100 : 0) + (z.level === '경보' ? 10 : 0) - (z.efMs || z.endMs || 0) / 1e13;
     const best = new Map();
     for (const [u, z] of Object.entries(zones)) {
-        if (PARENTS.has(u) || !z.parent) continue;
-        const own = zones[z.parent];
-        // 부모 칸이 비었거나, 부모는 예비뿐인데 자식이 정식 특보일 때(수도권 2026 2-37호: 「인천·경기북부앞바다(평수구역)」만 주의보 — 부모는 앞 목록의 예비로 남았다)
-        if (own && !(own.kind === 'yebi' && z.kind === 'formal')) continue;
+        if (PARENTS.has(u) || !z.parent || zones[z.parent]) continue;   // 부모 칸이 비어 있을 때만
         const b = best.get(z.parent);
         if (!b || rank(z) > rank(b)) best.set(z.parent, z);
     }
     for (const [p, z] of best) {
-        const own = zones[p];
         const c = Object.assign({}, z, { parent: p, derived: true });
-        delete c.upYebi; delete c.next; delete c.relMs;
-        //   부모가 갖고 있던 예비는 버리지 않고 「다가오는 특보」로 — MMIS current(주의보)·upcoming(예비) 공존과 같은 꼴
-        if (own && own.kind === 'yebi') c.upYebi = { type: own.type, level: '예비', tmFc: own.tmFc, tmEf: own.tmEf, ho: own.ho, inMs: own.inMs, endMs: own.endMs, yebiWins: own.yebiWins };
+        delete c.upYebi; delete c.next; delete c.relMs; delete c.assumed;
         zones[p] = c;
     }
 }
@@ -313,7 +309,7 @@ function toTree(zones) {
     (function mark(o) { if (!o || typeof o !== 'object') return; if (o.source === 'MARINE_MMIS') o.source = 'BULLETIN'; for (const v of Object.values(o)) mark(v); })(tree);
     // 「자식만 특보」(fillParents 가 채운 부모) — 화면이 「일부 해역만」으로 적을 수 있게 그 부모 칸에 표시한다
     const derived = new Set(Object.entries(zones).filter(([u, z]) => PARENTS.has(u) && z.derived).map(([u]) => u));
-    if (derived.size) (function tag(o) { if (!o || typeof o !== 'object') return; for (const [k, v] of Object.entries(o)) { if (derived.has(k) && v && typeof v === 'object') { for (const slot of ['current', 'upcoming']) if (v[slot] && !(slot === 'upcoming' && zones[k].upYebi)) v[slot].kidsOnly = true; } else tag(v); } })(tree);
+    if (derived.size) (function tag(o) { if (!o || typeof o !== 'object') return; for (const [k, v] of Object.entries(o)) { if (derived.has(k) && v && typeof v === 'object') { for (const slot of ['current', 'upcoming']) if (v[slot]) v[slot].kidsOnly = true; } else tag(v); } })(tree);
     return tree;
 }
 

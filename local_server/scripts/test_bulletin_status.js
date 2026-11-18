@@ -116,9 +116,11 @@ console.log('A1d. 부모·자식은 따로 — 「A(자식)」 = 그 자식만(�
     const w2 = W('수도권청', '제 2-37호', '2026-02-21 14:35', '2026-02-21 14:34', { t2: '(1) 풍랑주의보 발표 : 인천·경기북부앞바다( 평수구역 ), 인천·경기남부앞바다( 먼평수구역 , 북부앞평수구역 )', t3: '(1) 풍랑주의보 발표 : 2026년 02월 21일 14시 35분', t4: '(1) 풍랑주의보 발표\n o 해제 예고: 23일 새벽(00시~03시)' }, true);
     const w3 = W('수도권청', '제 2-38호', '2026-02-21 16:00', '2026-02-21 15:54', { t2: '(2) 풍랑주의보 발표 : 서해중부앞바다(인천·경기북부앞바다, 인천·경기남부앞바다)', t3: '(2) 풍랑주의보 발표 : 2026년 02월 21일 18시 00분', t4: '(2) 풍랑주의보 발표\n o 해제 예고: 23일 새벽(00시~03시)' });
     const r2 = S.compute([y2, w2], K('2026-02-21 15:00'));
-    ok('부모 예비 중 평수구역만 주의보 → 부모 카드 = 「자식만」 주의보 + 부모 예비는 다가오는 특보', r2.zones[N].derived && r2.zones[N].level === '주의보' && r2.zones[N].upYebi && r2.zones[N].upYebi.level === '예비' && r2.zones[NK].kind === 'formal', r2.zones[N]);
+    ok('부모 예비 중 평수구역만 주의보 → 부모는 제 예비 그대로(「자식만」 카드로 올리지 않음, 다가오는 특보로 돌리지도 않음) · 평수구역은 주의보(사용자 2026-11-18)', r2.zones[N].kind === 'yebi' && !r2.zones[N].derived && !r2.zones[N].upYebi && r2.zones[NK].kind === 'formal' && r2.zones[NK].level === '주의보', r2.zones[N]);
     const n2 = node(r2.tree, N);
-    ok('나무: current 는 kidsOnly, upcoming(부모 자신의 예비)은 kidsOnly 아님', n2.current.kidsOnly === true && n2.upcoming && n2.upcoming.wrnLvlNm === '예비' && !n2.upcoming.kidsOnly, n2);
+    ok('나무: 부모 = upcoming(예비)만, kidsOnly 표시 없음 · 자식 = 주의보', n2.current === null && n2.upcoming && n2.upcoming.wrnLvlNm === '예비' && !n2.upcoming.kidsOnly && n2.children[NK].wrnLvlNm === '주의보', n2);
+    const n2s = node(r2.tree, '인천·경기남부앞바다');
+    ok('나무: 같은 부모 아래 자식이 발효 중(먼평수구역 주의보)인 것과 예비인 것(남부앞평수구역)이 각자 상태로', n2s.upcoming.wrnLvlNm === '예비' && n2s.children['인천·경기남부앞바다중먼평수구역'].wrnLvlNm === '주의보' && n2s.children['인천·경기남부앞바다중남부앞평수구역'].wrnLvlNm === '예비', n2s.children);
     const r3 = S.compute([y2, w2, w3], K('2026-02-21 16:30'));
     ok('부모가 부모 이름으로 발표되면(발효 18:00) 부모는 제 특보(발효 전) · 평수구역은 그대로 발효 중', !r3.zones[N].derived && r3.zones[N].efMs === K('2026-02-21 18:00') && r3.zones[NK].efMs === K('2026-02-21 14:35'), r3.zones[N]);
 

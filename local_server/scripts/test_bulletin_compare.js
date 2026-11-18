@@ -104,10 +104,10 @@ console.log('A2. 발표(발효 전) · 표기 차이');
         const rk4 = mk([{}, { P중먼평수구역: Kf, P: Pd }, {}]);
         ok('평수구역만 발표·해제(수도권 2025 8-29 → 8-37호 꼴) → 자식 「발효」·「해제」 하나씩, 부모 해역 이름으로는 안 나감', rk4.length === 2 && rk4[0] === 'active:P중먼평수구역' && rk4[1] === 'release:P중먼평수구역', rk4);
         const Py = { parent: 'P', kind: 'yebi', type: '풍랑', level: '예비', clr: '', tmFc: '', tmEf: '2026년 02월 21일 밤(18시~24시)', inMs: 500 };
-        const Pd2 = Object.assign({}, Pd, { upYebi: { type: '풍랑', level: '예비', tmEf: Py.tmEf, inMs: 500 } });
         const Pp = { parent: 'P', kind: 'formal', type: '풍랑', level: '주의보', clr: '23일 새벽(00시~03시)', tmFc: '', tmEf: '2026년 11월 16일 18시 00분', efMs: T0 + 9 * 3600e3, issueMs: 3000, inMs: 3000 };
-        const rk5 = mk([{ P: Py }, { P중먼평수구역: Kf, P: Pd2 }, { P중먼평수구역: Kf, P: Pp }]);
-        ok('부모 예비 중 평수구역만 발표 → 자식 「발효」만(부모 예비를 「발표」로 또 알리지 않음), 뒤에 부모가 발표되면 「발효시각 변경」(2026 2-37 → 2-38호 꼴)', rk5.join(' / ') === 'active:P중먼평수구역 / time_ef_change:P', rk5);
+        const rk5 = mk([{ P: Py }, { P중먼평수구역: Kf, P: Py }, { P중먼평수구역: Kf, P: Pp }]);
+        ok('부모 예비 중 평수구역만 발표(부모는 예비 그대로) → 자식 「발효」만, 뒤에 부모가 발표되면 「발효시각 변경」(2026 2-37 → 2-38호 꼴)', rk5.join(' / ') === 'active:P중먼평수구역 / time_ef_change:P', rk5);
+
         const r4 = mk([{ P: F, P중연안바다: Fc }, { P: Yb, P중연안바다: Ycc }]);
         ok('알린 적 없으면 부모 = 발표, 자식 = 추가 발표', r4.includes('publish:P') && r4.includes('child_prelim:P중연안바다'), r4);
         // 적대검증 2026-11-17 D1 — 정식 특보보다 먼저 나온 목록의 「옛 예비」(그 정식으로 넘어간 것)는 해제 때 다시 알리지 않는다(수도권 2025-10-27 06:00)
@@ -265,6 +265,19 @@ console.log('C. 메인 [MMIS][통보문] 버튼');
     ok('data.js 두 곳이 같은 출처 주소를 씀(평소 MMIS)', (data.match(/window\.__alertSourceUrl \|\| '\/api\/weather-alerts'/g) || []).length === 2);
     ok('머리 아래 「MMIS와 상이」 줄 자리(기본 숨김) · 옛 버튼 옆 글(.ast-note)은 없앰', /<div id="ast-diff-line" style="display:none/.test(html) && !/ast-note/.test(html));
     ok('data.js 가 특보 자료를 받을 때마다(두 곳) 상이 줄 갱신을 부름', (data.match(/window\.__alertSourceOnData\(rootData\)/g) || []).length === 2);
+    // 「자식만 특보」 부모 카드(서버 bulletin_status.fillParents → 나무 kidsOnly) — 사용자 2026-11-18 「부모해역명 오른쪽에 풍랑주의보를 빼고 일부해역만 이라고만 뱃지」
+    {
+        const calls = []; const mkEl = () => ({ style: {}, children: [], className: '', textContent: '', innerHTML: '', appendChild(c) { this.children.push(c); } });
+        const sbx = { console, window: {}, document: {}, appState: { alerts: [], coastalAlerts: {} }, getKfTime: () => '202508131200', CONFIG: {} };
+        vm.runInNewContext(data + '\n;this.__p = processSingleAlert;', sbx);
+        const alerts = [], cmap = {};
+        sbx.__p('인천·경기남부앞바다', { wrnTp: '풍랑', wrnLvl: '주의보', tmFc: '2025년 08월 13일 09시 10분', tmEf: '2025년 08월 13일 09시 10분', kidsOnly: true }, false, alerts, { '인천·경기남부앞바다중먼평수구역': { wrnTp: '풍랑', wrnLvlNm: '주의보', tmEf: '2025년 08월 13일 09시 10분' } }, cmap, []);
+        ok('data.js: 나무의 kidsOnly 가 부모 카드 줄로 넘어오고, 자식 줄은 물려받지 않음', alerts.length === 1 && alerts[0].kidsOnly === true && cmap['인천·경기남부앞바다중먼평수구역'].length === 1 && !cmap['인천·경기남부앞바다중먼평수구역'][0].kidsOnly, { a: alerts[0] && alerts[0].kidsOnly, c: cmap });
+        const alerts2 = []; sbx.__p('서해중부안쪽먼바다', { wrnTp: '풍랑', wrnLvl: '주의보', tmFc: '', tmEf: '2025년 08월 13일 07시 00분' }, false, alerts2, null, {}, []);
+        ok('data.js: 보통 카드(MMIS·부모 자신 특보)에는 kidsOnly 가 없음', alerts2.length === 1 && !('kidsOnly' in alerts2[0]));
+        const render = fs.readFileSync(path.join(root, 'client/js/forecast/alerts/render.js'), 'utf8');
+        ok('render.js: kidsOnly 카드는 등급 배지를 비우고 「일부 해역만」만 달며, 부모 시각 줄을 그리지 않음', /const kidsOnly = sortedAlerts\.some\(\(a\) => a && a\.kidsOnly\);\s*if \(kidsOnly\) \{\s*badgeContainer\.innerHTML = '';[\s\S]{0,200}textContent = '일부 해역만'/.test(render) && /if \(alert\.isDummy \|\| kidsOnly\) return;/.test(render));
+    }
     const mk = (admin, resp) => {
         const box = { style: {}, btns: [{ a: 'mmis', style: {} }, { a: 'bulletin', style: {} }] };
         box.querySelectorAll = () => box.btns.map((b) => ({ getAttribute: () => b.a, style: b.style }));
