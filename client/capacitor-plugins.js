@@ -72,6 +72,39 @@ window.subscribeUser = async (token = null) => {
     }
 };
 
+/**
+ * 폰의 알림 권한이 허용돼 있으면 앱 설정의 "푸시 알림 받기"(master)를 자동으로 켠다.
+ * 단, 사용자가 앱 설정에서 **직접 끈 경우**(push_master_user_off === '1')는 건드리지 않는다.
+ * 예: 새로 설치해 권한 허용 → master=true 저장 / 설정에서 끄고 앱을 다시 켬 → 그대로 끔
+ * @returns {boolean} 켰으면 true, 직접 끈 표시가 있어 건드리지 않았으면 false
+ * [연계] ← initPushNotifications(권한 허용 확인 직후, 앱을 켤 때마다)
+ *        ↔ js/settings/settings.js markPushMasterUserOff — 그쪽이 "직접 껐음" 표시를 남기고 지운다.
+ *        → 저장값은 subscribeUser 가 읽어 서버(/api/subscribe)로 보낸다.
+ * [왜] 2026-11-18: 종전에는 표시 없이 매번 켬으로 덮어써, 앱에서 알림을 꺼도 다음 실행 때
+ *      다시 켜져 서버에도 켬으로 전달됐다(끈 사용자에게 푸시가 다시 감 · 구독 통계의 "알림 끔"도 틀어짐).
+ */
+function autoEnableMasterOnGrant() {
+    try {
+        if (localStorage.getItem('push_master_user_off') === '1') return false;
+        const NOTI_KEY = 'notificationSettings_v1';
+        const saved = localStorage.getItem(NOTI_KEY);
+        const notiSettings = saved ? JSON.parse(saved) : {
+            master: false, target: 'interest',
+            announce: true, active: true, release: true, night: true
+        };
+        notiSettings.master = true;
+        localStorage.setItem(NOTI_KEY, JSON.stringify(notiSettings));
+
+        // UI가 이미 로드된 경우 토글 상태도 동기화
+        const masterToggle = document.getElementById('push-master-toggle');
+        if (masterToggle) masterToggle.checked = true;
+        return true;
+    } catch (e) {
+        console.error('[Push] 알림 설정 자동 ON 실패:', e);
+        return false;
+    }
+}
+
 const initPushNotifications = async () => {
     if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return;
 
@@ -220,23 +253,8 @@ const initPushNotifications = async () => {
     if (permStatus.receive === 'granted') {
         await PushNotifications.register();
 
-        // 시스템에서 허용한 경우: 설정의 "푸시 알림 받기" 토글 자동 ON
-        try {
-            const NOTI_KEY = 'notificationSettings_v1';
-            const saved = localStorage.getItem(NOTI_KEY);
-            const notiSettings = saved ? JSON.parse(saved) : {
-                master: false, target: 'interest',
-                announce: true, active: true, release: true, night: true
-            };
-            notiSettings.master = true;
-            localStorage.setItem(NOTI_KEY, JSON.stringify(notiSettings));
-
-            // UI가 이미 로드된 경우 토글 상태도 동기화
-            const masterToggle = document.getElementById('push-master-toggle');
-            if (masterToggle) masterToggle.checked = true;
-        } catch (e) {
-            console.error('[Push] 알림 설정 자동 ON 실패:', e);
-        }
+        // 시스템에서 허용한 경우: 설정의 "푸시 알림 받기" 토글 자동 ON — 단, 사용자가 직접 끈 경우는 그대로 둔다
+        autoEnableMasterOnGrant();
     }
 };
 

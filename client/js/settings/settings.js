@@ -527,6 +527,23 @@ function updateMasterState(isEnabled) {
 }
 
 /**
+ * 사용자가 "푸시 알림 받기"를 **직접 껐는지**를 폰에 표시해 둔다(push_master_user_off).
+ * 예: 켜져 있던 것을 끄고 저장 → 표시 남김 / 켜고 저장 → 표시 지움 / 원래 꺼져 있던 채 저장 → 그대로
+ * @param {boolean} wasOn - 저장 전 master 값
+ * @param {boolean} nowOn - 지금 저장하려는 master 값
+ * [연계] ← saveNotificationUI(설정 [저장])
+ *        ↔ capacitor-plugins.js autoEnableMasterOnGrant — 앱을 켤 때 이 표시가 있으면 자동으로 켜지 않는다.
+ * [왜] 켜져 있다가 꺼진 경우에만 남긴다 — 한 번도 켠 적 없는 사람(폰 권한 거절 등)이 다른 설정을
+ *      저장했다고 표시가 남으면, 나중에 폰 권한을 허용해도 자동으로 켜지지 않게 된다.
+ */
+function markPushMasterUserOff(wasOn, nowOn) {
+    try {
+        if (nowOn) localStorage.removeItem('push_master_user_off');
+        else if (wasOn) localStorage.setItem('push_master_user_off', '1');
+    } catch (e) { /* 저장이 막힌 환경 — 표시 없이 종전처럼 동작 */ }
+}
+
+/**
  * 알림 설정 UI 의 현재 상태를 NotificationSettings 에 저장.
  * 마스터 토글 + 대상(전체/관심) + 우선순위 + 야간 음소거 등을 모아 1회 set.
  *
@@ -537,6 +554,9 @@ function saveNotificationUI() {
     if (!master) return;
 
     const target = document.querySelector('input[name="push-target"]:checked')?.value || 'interest';
+
+    // set() 이 서버로 보내기 전에 "직접 껐음" 표시부터 맞춘다(저장 전 값과 비교).
+    markPushMasterUserOff(!!NotificationSettings.get().master, master.checked);
 
     NotificationSettings.set({
         master: master.checked,
