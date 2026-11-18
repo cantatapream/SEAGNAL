@@ -629,8 +629,8 @@ function createAlertElement(items) {
         flex-wrap: wrap;
     `;
 
-    // [통보문 버튼] 해역명과 뱃지 사이에 삽입. 클릭 시 해역별 통보문 이력(ef/list 기반)을
-    //   팝업으로 보여주고, 제목을 누르면 그 통보문 원문 PDF 가 모달로 열린다.
+    // [통보문 버튼] 해역명과 뱃지 사이에 삽입. 클릭 시 그 해역 「지금 특보」의 통보문(예비 → 발표 → 변경·연장 → 해제)을
+    //   팝업으로 보여주고, 제목을 누르면 원문 PDF 모달이 열린다(PDF 가 없는 통보문은 본문 글이 펼쳐진다. 2026-11-18 통보문 기준 — 서버가 못 주면 종전 ef/list 목록).
     //   (과거엔 data.history(옛 weather.go.kr 크롤러)에 의존했으나 그 파이프라인이 비활성화돼
     //    버튼이 안 뜨던 死기능 → MMIS ef/list 기반 /api/zone-bulletins 로 재배선.)
     if (zoneNameStr && zoneNameStr !== '알 수 없는 구역') {

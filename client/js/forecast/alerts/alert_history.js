@@ -407,9 +407,13 @@ window.closeAlertHistoryPopup = function () {
 };
 
 // ============================================================================
-// [통보문] 해역별 통보문 이력 팝업 (ef/list 기반)
+// [통보문] 해역별 통보문 이력 팝업
 //   특보 구역 옆 📋 버튼 → GET /api/zone-bulletins?zone=해역명 → 발표시각+제목 리스트.
-//   항목 클릭 시 그 통보문 원문 PDF 를 iframe 모달(openKmaIframeModal)로 열람.
+//   [2026-11-18 사용자 「해당 특보의 시작(발표)부터 종료까지 특보의 생애주기 동안에 대한 통보문이 나오도록」]
+//     서버가 방재기상플랫폼 통보문으로 계산한 「지금 특보의 발자취」(예비 → 발표 → 변경·연장 → 해제, 자식 해역 포함)를
+//     준다(source:'bulletin') → 항목을 누르면 종전처럼 원문 PDF 모달이 열리고(주소는 서버가 통보문 자료만으로 만든다), PDF 주소가 없는 줄은 그 자리에서 본문 글(sections)이 펼쳐진다.
+//   서버가 그것을 못 주면(통보문 수집이 끊김 등) 종전 방식(MMIS ef/list) 목록이 온다 → 항목 클릭 시
+//     그 통보문 원문 PDF 를 iframe 모달(openKmaIframeModal)로 열람.
 //   (기존 showAlertHistoryPopup 은 옛 weather.go.kr 크롤러 의존이라 대체.)
 // ============================================================================
 window.showZoneBulletins = function (zoneName) {
@@ -459,13 +463,26 @@ window.showZoneBulletins = function (zoneName) {
             }
             body.innerHTML = '';
             list.forEach(function (b) { body.appendChild(createZoneBulletinItem(b)); });
+            // 이 특보가 통보문 보관 기간보다 먼저 시작했으면 맨 앞(발표) 통보문이 없다 — 목록이 전부인 것처럼 보이지 않게 적어 둔다
+            if (data.cut) {
+                var note = document.createElement('div');
+                note.style.cssText = 'padding:10px 14px;font-size:0.78rem;color:#8b949e;';
+                note.textContent = '이 특보의 앞부분 통보문은 보관 기간이 지나 여기에 없습니다.';
+                body.appendChild(note);
+            }
         })
         .catch(function () {
             body.innerHTML = '<div class="alert-history-empty"><i class="fa-solid fa-triangle-exclamation"></i> 통보문을 불러오지 못했습니다.</div>';
         });
 };
 
-// 통보문 한 건 DOM (발표시각 + 제목, 클릭 시 원문 PDF 모달)
+/**
+ * 통보문 한 건 DOM — 발표시각 + 제목. 누르면: 원문 PDF(b.pdfUrl)·날씨누리(b.webUrl)가 있으면 그 모달, 없고 본문 글(b.sections — 통보문 기준)이 있으면 그 자리에서 펼친다.
+ * 예: { time:'2026.11.18 16:00', reportNo:'제11-51호', title:'풍랑주의보 발표', sections:[{label:'해당 구역', text:'…'}] } → 「제11-51호 풍랑주의보 발표 · 11.18 16:00」
+ * @param {{time, title, reportNo?, childOnly?, national?, sections?, pdfUrl?, webUrl?}} b  GET /api/zone-bulletins 의 한 줄
+ * @returns {HTMLElement}
+ * [연계] ← showZoneBulletins(이 파일) / 서버 services/bulletin_status.zoneBulletins(통보문 기준) · routes/weather.js(종전 방식)
+ */
 function createZoneBulletinItem(b) {
     var item = document.createElement('div');
     item.className = 'history-item';
@@ -490,6 +507,36 @@ function createZoneBulletinItem(b) {
     headerEl.appendChild(titleEl);
     headerEl.appendChild(timeEl);
     item.appendChild(headerEl);
+
+    // [통보문 기준] 원문 PDF 주소가 없는 통보문은 누를 때 그 자리에서 본문 글을 펼친다(글은 textContent 로만 넣는다).
+    //   PDF 가 있으면 아래에서 종전처럼 PDF 모달을 연다(사용자 2026-11-18 「눌렀을 때 해당 통보문 pdf가 바로 뜨는 것 … 지금 방식대로」).
+    if (b.sections && b.sections.length && !b.pdfUrl && !b.webUrl) {
+        var arrow = document.createElement('i');
+        arrow.className = 'fa-solid fa-chevron-right history-item-arrow';
+        headerEl.appendChild(arrow);
+        var bodyEl = document.createElement('div');
+        bodyEl.className = 'history-item-body';
+        var inner = document.createElement('div');
+        inner.className = 'history-item-body-inner';
+        b.sections.forEach(function (s, i) {
+            var lab = document.createElement('div');
+            lab.style.cssText = 'font-weight:700;color:#81d4fa;' + (i ? 'margin-top:10px;' : '');
+            lab.textContent = s.label;
+            var txt = document.createElement('div');
+            txt.style.cssText = 'white-space:pre-wrap;word-break:keep-all;';
+            txt.textContent = s.text;
+            inner.appendChild(lab);
+            inner.appendChild(txt);
+        });
+        bodyEl.appendChild(inner);
+        item.appendChild(bodyEl);
+        headerEl.style.cursor = 'pointer';
+        headerEl.addEventListener('click', function () {
+            var open = item.classList.toggle('expanded');
+            bodyEl.style.maxHeight = open ? 'none' : '';   // 본문 길이가 제각각이라 펼칠 때는 높이 제한(500px)을 푼다
+        });
+        return item;
+    }
 
     if (b.pdfUrl || b.webUrl) {
         item.style.cursor = 'pointer';
