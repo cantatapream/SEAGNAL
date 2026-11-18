@@ -573,7 +573,7 @@ app.listen(PORT, '0.0.0.0', () => {
         // [물빠짐 예측] 배포/기동 시 자동 부트스트랩 (Fly 운영 환경 한정)
         // --------------------------------------------------------------------
         //   - grid_meta/anchors 없으면 Phase 0 전처리(BADA→격자/앵커/Z₀) 1회 실행.
-        //   - 이어서 롤링 윈도우(오늘~+2일, KST) 곡선 수집. 곡선 캐시는 Fly 영속
+        //   - 이어서 오늘·내일(KST) 곡선 수집(「모레」는 02:00 정기 수집 몫 — 2026-11-19). 곡선 캐시는 Fly 영속
         //     볼륨에 저장되므로, 재배포·머지해도 부족분만 받고 나머지는 스킵.
         //     (collectTideField 내부 in-progress 락으로 scheduler 02:00 과 중복 방지)
         //   - fire-and-forget — 서버 기동/응답을 막지 않음.
@@ -600,18 +600,24 @@ app.listen(PORT, '0.0.0.0', () => {
                     // 곡선 파일을 실제로 새로 썼는지(complete·partial 이 하나라도) — 썼을 때만 잠김경고를 다시 계산한다.
                     const wrote = (r) => !!(r && r.byStatus && ((r.byStatus.complete || 0) + (r.byStatus.partial || 0)) > 0);
                     let changed = false;
+                    // [오늘·내일만 — 2026-11-19 사용자 확정 「그럼 재시작 때는 오늘·내일만 받도록 고쳐줘」]
+                    //   「모레」는 02:00 정기 수집(scheduler.js)에 맡긴다. 자정 직후 배포로 재시작되면 새 「모레」가 전부 비어 있어
+                    //   기동 보충이 정기 수집 한 번 분량(11-19 00:02 재시작 — 340건)을 그 시각에 받았고, 00:07 사용자 바텀시트
+                    //   조석 요청과 TideBED 키가 겹쳐 그 요청이 부분 데이터(1138/1440건)로 끝났다(운영 로그).
+                    //   ⚠알고 가는 것: 자정~02:00 은 「모레」가 비고, 02:00 정기 수집을 놓친 날은 다음 02:00 까지 빈다.
+                    const dates = tideFieldCollector.windowDatesKST(2);
                     try {
-                        const r = await tideFieldCollector.bootstrapTideField();
+                        const r = await tideFieldCollector.bootstrapTideField({ dates });
                         console.log(`🌊 [startup] 물빠짐 부트스트랩 결과: ${JSON.stringify(r)}`);
                         changed = changed || wrote(r);
                     } catch (err) { console.error('[startup] 물빠짐 부트스트랩 실패:', err && err.message); }
                     try {
-                        const r = await require('./services/hazard_rocks_tide_collector').collectHazardRockTides();
+                        const r = await require('./services/hazard_rocks_tide_collector').collectHazardRockTides({ dates });
                         console.log(`🌊 [startup] 제주 간출암 앵커 보충 결과: ${JSON.stringify(r)}`);
                         changed = changed || wrote(r);
                     } catch (err) { console.error('[startup] 제주 간출암 앵커 보충 실패:', err && err.message); }
                     try {
-                        const r = await require('./services/jeju_isolation_tide_collector').collectJejuIsolationTides();
+                        const r = await require('./services/jeju_isolation_tide_collector').collectJejuIsolationTides({ dates });
                         console.log(`🌊 [startup] 제주 고립판정 격자 보충 결과: ${JSON.stringify(r)}`);
                         changed = changed || wrote(r);
                     } catch (err) { console.error('[startup] 제주 고립판정 격자 보충 실패:', err && err.message); }
