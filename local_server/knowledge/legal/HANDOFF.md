@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 10:37 KST] ✅완료 — 연안 브리핑 규칙 분석 문단에도 같은 기준(사용자 「적용」)
+station_briefing_rules.js 규칙 판 v26: 위험지수 등급만 · 방문객 1.4배 미만 안 씀(VISITOR_MULT_MIN 한 곳, AI 입력도 공유) · 확인하지 못한 자료 문장 제거(화면 근거 줄은 그대로) · 해상 자료 없을 때 3문장 보충. test_station_briefing 246/0 · test_station_briefing_ui 101/0(playwright 심으로 이 환경에서 실행) · test_silent_catch 22/0 · test_marine_fusion 51/0. PR #1486 에 더함.
+
+
 ### [2026-11-18 09:59 KST] ✅완료 — 연안 브리핑 문장 규칙 4개 + 지명 검사 오판 고침
 지시문 v18·검사 v20(station_briefing_ai.js). S26 이름 본문 1번·같은 구역 해구 묶기, S27 위험지수 등급만(입력·근거 줄·허용 숫자에서 숫자 뺌 + word:riskindex-number), S28 방문객 1.4배 이상만(입력·근거 줄·허용 배수에서 뺌), S30 강풍·특보 때 사고 이력 건수(표류 대상은 입력 그대로), 규칙4·S29 확인 못 한 자료 언급 금지(word:missing-source). 지명 오판 3종 고침(동사·부사 어미/모양 말 앞 낱말, 입출항, 허용 이름 다음 낱말 이어짐). 독립 적대검증 반영(상1 모양 말 구멍 등). test_station_briefing 245/0. 남은 결정: AI 실패 시 규칙 분석 문단에도 같은 기준 적용할지(사용자).
 

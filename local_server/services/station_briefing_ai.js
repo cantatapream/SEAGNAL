@@ -126,7 +126,7 @@ const BARE_PRE_VERB = /(?:못해|위해|인해|대해|통해|해서|라서|이�
 const BARE_PRE_GENERIC = new Set(['몽돌', '모래', '자갈', '바위', '암석', '갯벌', '작은', '넓은']);
 // 방문객 배수는 평소의 1.4배 이상만 AI 입력에 준다(2026-11-18 사용자 *"방문객 배수는 1.4배 이상부터 사용"* · *"방문객이 평소의 1배 처럼 무의미한 내용이 들어가지 않도록"* — §11.10.54).
 //   그보다 작은 배수 줄은 AI 에게 보내지 않고 허용 배수에도 넣지 않는다 — 글에 쓰면 multiplier: 로 막힌다. 화면 「분석 근거」 줄(서버)은 그대로.
-const VISITOR_MULT_MIN = 1.4;
+const VISITOR_MULT_MIN = R.VISITOR_MULT_MIN;   // 값은 station_briefing_rules 한 곳(규칙 분석 문단과 같은 하한)
 const AND_SPLIT_RE = new RegExp('(?<=(?:' + PLACE_SUFFIX.join('|') + '))[과와]\\s+');
 // 분석 문단 문장 수(2026-10-17 사용자 결정 §11.10.4 — 연안·해상 각 3~5문장, 사용자 예시가 4문장·3문장). §11.10 의 해설은 1~2문장이었다.
 const MIN_S = 3, MAX_S = 5;
