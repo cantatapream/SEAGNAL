@@ -28,24 +28,29 @@
         '초단기전망': 'background:rgba(186,104,200,0.16);border:1px solid rgba(186,104,200,0.5);color:#ce93d8;'
     };
 
+    var WAIT_MS = 2500;   // 특보 화면이 이 목록을 기다려 주는 시간 — 없으면: 이 주소가 느릴 때(이동통신망) 특보 카드 전체가 그만큼 늦게 뜬다(별도 에이전트 검토 2026-11-19: 25초 늦추면 카드도 25초)
     /**
      * 서버에서 격상 가능성 목록을 받아 둔다(특보 자료를 받을 때 함께). 실패하면 앞서 받은 것을 그대로 둔다 — 항목마다 만료 시각이 있어 낡은 것은 스스로 빠진다.
+     *   2.5초 안에 못 받으면 기다리지 않고 넘어간다 — 카드는 🔺 없이 먼저 뜨고, 목록이 늦게 오면 그때 카드를 다시 그린다(renderApp).
      * @returns {Promise<void>} 절대 거부하지 않는다(특보 화면을 막지 않게)
-     * [연계] ← data.js loadAllData · refreshAlertData / → GET /api/zone-escalations
+     * [연계] ← data.js fetchAllData · refreshAlertData / → GET /api/zone-escalations
      */
     w.loadZoneEscalations = function () {
-        return fetch('/api/zone-escalations').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        var late = false;
+        var got = fetch('/api/zone-escalations').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
             if (!j || !j.items) return;
             var next = {};
             Object.keys(j.items).forEach(function (z) { next[norm(z)] = j.items[z]; });
             items = next;
+            if (late && typeof w.renderApp === 'function') w.renderApp();
         }).catch(function (e) { console.warn('[격상 가능성] 목록을 못 받음 — 앞서 받은 것으로 그린다:', e && e.message); });
+        return Promise.race([got, new Promise(function (res) { setTimeout(function () { late = true; res(); }, WAIT_MS); })]);
     };
 
     /**
      * 그 카드에 보일 안내만 고른다.
      * 예: zoneEscalations('동해중부안쪽먼바다', { current:{ warnType:'풍랑', level:'주의보' }, upcoming:[] }) → [{ kind:'wave', source:'통보문', … }]
-     *   · 특보도 예비도 없는 카드에는 안 보인다 · 때가 지난 것은 뺀다
+     *   · 풍랑 특보(주의보·예비)가 없는 카드에는 안 보인다 — 격상은 풍랑주의보에서 오르는 것이다 · 때가 지난 것은 뺀다
      *   · 풍랑 가능성: 카드가 (지금이든 다가오는 것이든) 이미 경보·태풍이면 뺀다 — 화면 카드가 통보문보다 몇 분 빠를 수 있다
      *   · 태풍 가능성: 이미 태풍특보일 때만 뺀다(풍랑경보 카드에는 보인다 — 태풍특보는 풍랑경보에서 오른다)
      * @param {string} zoneName 카드의 특보구역 이름 @param {{current?:object, upcoming?:Array}} st 그 카드의 지금 특보·다가오는 특보(warnType·level)
@@ -57,8 +62,10 @@
         var cur = (st && st.current) || null, ups = (st && st.upcoming) || [];
         if (!list.length || (!cur && !ups.length)) return [];
         var any = function (pred) { return (cur && pred(cur)) || ups.some(pred); };
+        var wave = function (a) { return String((a && a.warnType) || '').indexOf('풍랑') >= 0; };
         var typhoon = function (a) { return String((a && a.warnType) || '').indexOf('태풍') >= 0; };
         var warning = function (a) { return String((a && a.level) || '').indexOf('경보') >= 0; };
+        if (!any(wave)) return [];
         return list.filter(function (it) {
             if (!it || !(it.expMs > now) || !TITLE[it.kind]) return false;
             return it.kind === 'typhoon' ? !any(typhoon) : !any(typhoon) && !any(warning);
@@ -67,10 +74,10 @@
 
     /** 「11월 18일(오늘) 밤(18시~24시)」 — 날짜가 없으면 ''(시점 줄을 안 그린다). 날짜는 한국 시각으로 센다. */
     function whenText(it) {
-        if (it.dayMs == null) return '';
+        if (typeof it.dayMs !== 'number' || !isFinite(it.dayMs)) return '';
         var KST = 9 * 3600e3, d = new Date(it.dayMs + KST);
         var diff = Math.round((Math.floor((it.dayMs + KST) / 864e5) - Math.floor((Date.now() + KST) / 864e5)));
-        var rel = diff === 0 ? '(오늘)' : diff === 1 ? '(내일)' : diff === 2 ? '(모레)' : '';
+        var rel = diff === -1 ? '(어제)' : diff === 0 ? '(오늘)' : diff === 1 ? '(내일)' : diff === 2 ? '(모레)' : '';   // 시간창이 지난 뒤 6시간은 남는다 — 자정을 넘기면 「어제」
         return (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일' + rel + (it.label ? ' ' + it.label : '');
     }
 
@@ -97,6 +104,9 @@
         var url = doc.viewUrl || doc.webUrl || (doc.pdfUrl
             ? ((typeof w.canShowPdfInline === 'function' && w.canShowPdfInline()) ? doc.pdfUrl + '#navpanes=0&view=FitH' : 'https://docs.google.com/gview?embedded=true&url=' + encodeURIComponent(doc.pdfUrl))
             : '');
+        // 팝업(openKmaIframeModal)은 제목·주소를 HTML 로 그대로 붙인다 — 우리 서버 그림 주소나 https 주소만, 제목은 꺾쇠·따옴표를 뺀 글자만 넘긴다(기상청 글에서 온 값이다)
+        var safeTitle = String(doc.title || '원문').replace(/[<>&"'`]/g, '');
+        if (!/^(?:\/api\/bulletin-doc\/|https:\/\/)[^"'<>\s]+$/.test(url)) url = '';
         if (url && typeof w.openKmaIframeModal === 'function') {
             var btn = document.createElement('button');
             btn.type = 'button';
@@ -104,7 +114,7 @@
             btn.title = '이 안내가 적힌 원문 보기';
             btn.style.cssText = 'margin-left:auto;background:rgba(129,212,250,0.15);border:1px solid rgba(129,212,250,0.3);width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.78rem;flex-shrink:0;cursor:pointer;padding:0;';
             btn.textContent = '📋';
-            btn.addEventListener('click', function (e) { e.stopPropagation(); w.openKmaIframeModal(url, doc.title || '원문'); });   // 카드 접힘·펼침으로 번지지 않게
+            btn.addEventListener('click', function (e) { e.stopPropagation(); w.openKmaIframeModal(url, safeTitle); });   // 카드 접힘·펼침으로 번지지 않게
             top.appendChild(btn);
         }
         box.appendChild(top);
