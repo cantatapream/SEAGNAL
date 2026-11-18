@@ -149,6 +149,26 @@
         return b;
     }
 
+    /**
+     * [뒤로가기] 와 [확인] 을 한 줄에 나란히 놓는다(뒤로가기 왼쪽 1칸 · 확인 오른쪽 2칸).
+     * 예: c.appendChild(_btnRow(_btn('뒤로가기', false, fn), ok))
+     * @param {HTMLElement} back - 뒤로가기 버튼
+     * @param {HTMLElement} ok - 확인 버튼
+     * @returns {HTMLElement} 두 버튼을 담은 줄
+     * [연계] _stepMacro · _stepZone 의 맨 아래 줄 (2026-11-18 사용자 요청 — 확인 왼쪽에 뒤로가기)
+     */
+    function _btnRow(back, ok) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:10px;';
+        back.style.flex = '1 1 0';
+        back.style.color = C_TEXT;
+        back.style.borderColor = C_BORDER;
+        ok.style.flex = '2 1 0';
+        row.appendChild(back);
+        row.appendChild(ok);
+        return row;
+    }
+
     // ========================================================================
     // [1단계] 안내
     // ========================================================================
@@ -203,12 +223,17 @@
 
         var ok = _btn('확인', true, function () {
             if (!_macroSel.length) return;
+            // [뒤로가기로 돌아와 바다를 뺀 경우] 뺀 바다에서 이미 고른 구역은 지운다 — 안 그러면 저장된다.
+            var keep = {};
+            _macroSel.forEach(function (m) { _zonesOf(m).forEach(function (z) { keep[z] = true; }); });
+            Object.keys(_picked).forEach(function (z) { if (!keep[z]) delete _picked[z]; });
             _queueIdx = 0;
             _stepZone();
         });
         ok.disabled = _macroSel.length === 0;
         ok.style.opacity = ok.disabled ? '0.45' : '1';
-        c.appendChild(ok);
+        // 뒤로가기 → ① 안내 화면(고른 바다는 그대로 기억)
+        c.appendChild(_btnRow(_btn('뒤로가기', false, _stepGate), ok));
     }
 
     /**
@@ -268,7 +293,13 @@
             if (_queueIdx < _macroSel.length) _stepZone();
             else { _save(); _close(false); }
         });
-        c.appendChild(ok);
+        // 뒤로가기 → 앞 바다의 지도(2번째 이후) / 첫 바다면 ② 바다 고르기. 이미 고른 구역은 그대로 기억한다.
+        var back = _btn('뒤로가기', false, function () {
+            _destroyMap();
+            if (_queueIdx > 0) { _queueIdx -= 1; _stepZone(); }
+            else _stepMacro();
+        });
+        c.appendChild(_btnRow(back, ok));
 
         _makeMap(box, macro, count);
     }
