@@ -2731,7 +2731,12 @@ async function init() {
                     const aiLive = require('./services/bulletin_ai_live');
                     if (aiLive.enabled) aiLive.run().catch(err => log(`⚠️ [bulletin_ai_live] 오류: ${err.message}`));
                 })
-                .then(() => require('./services/bulletin_status').run())
+                .then(() => {
+                    const st = require('./services/bulletin_status').run();
+                    // 통보문 원문(PDF)을 우리 서버에 받아 쪽 그림으로 바꿔 둔다 — 발자취에 든 통보문만, 특보가 끝나면 지운다(2026-11-18, 📋 팝업이 구글 문서 뷰어 없이 바로 보이게).
+                    //   기다리지 않는다(내부 running 락) — 받기·변환이 비교 기록을 늦추지 않게.
+                    require('./services/bulletin_docs').sync({ trails: st.trails, bulletins: bulletinWatch.bulletins() }).catch(err => log(`⚠️ [bulletin_docs] 오류: ${err.message}`));
+                })
                 .then(() => require('./services/bulletin_compare').run())
                 .catch(err => log(`⚠️ [bulletin_watch/status/compare] 오류: ${err.message}`));
         }
