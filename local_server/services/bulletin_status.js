@@ -26,7 +26,8 @@
  *   발자취(2026-11-18 사용자 「해당 특보의 시작(발표)부터 종료까지 특보의 생애주기 동안에 대한 통보문이 나오도록」 · 「적용범위는 나(모든 사용자)」) =
  *          단위마다 「지금 특보」에 관여한 통보문(예비 → 발표 → 변경·연장 → 해제)을 함께 적어 둔다(trails) → 메인 화면 📋 해역별 통보문 팝업이 이것을 보인다
  *          (zoneBulletins — **일반 사용자 앱에도 나가는 유일한 통보문 기준 자료**. 특보현황·푸시는 계속 MMIS). 해제 시각이 되면 그 단위가 빠지며 발자취도 끝난다.
- *          누르면 종전처럼 원문 PDF 가 열린다 — 통보문 그림 이름과 같은 이름의 MMIS PDF 를 짝짓고(attachPdf), 짝이 없으면(예비특보 등) 본문 글을 펼친다.
+ *          누르면 종전처럼 원문 PDF 가 열린다 — 주소는 통보문 자료만으로 만든다(pdfOf — MMIS 코드와 엮지 않는다: 사용자 「나중에는 mmis를 … 삭제할 예정 … 엮이면 안될 것」).
+ *          그림 이름이 없는 통보문은 본문 글을 펼친다. 참고사항 AI 는 발자취에 섞지 않는다(규칙 계산까지만 일반 사용자에게 나간다).
  *          검산: analysis/bulletin_survey/trail_check.js(발효 중 칸에 끊김 없이 적힌 구간의 첫 통보문 = 발자취의 첫 정식 통보문, 10,241/10,241).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -111,7 +112,7 @@ function computeFormal(list, nowMs = Infinity) {
         // 발자취(trail) — 그 단위의 지금 특보(생애주기)에 관여한 통보문을 차례로 적어 둔다(📋 해역별 통보문 팝업, 사용자 2026-11-18 「해당 특보의 시작(발표)부터 종료까지」).
         //   발표 = 새 발자취(앞 특보가 해제 통보문을 받은 뒤의 발표도 새 특보) · 발효 중 특보 위의 발표·변경 = 같은 발자취에 잇는다 · 해제·연장 = 덧붙인다.
         //   첫 통보문의 발효 중 칸으로 시작한 특보는 앞부분(발표)을 모른다(cut).
-        const mark = (it) => ({ office: b.office, ho: r.t1Title, inMs: base.inMs, act: `${it.type}${it.level} ${it.action}` });
+        const mark = (it) => ({ rpt: '6', office: b.office, ho: r.t1Title, inMs: base.inMs, act: `${it.type}${it.level} ${it.action}` });
         if (!seeded) {
             // 첫 통보문: 발효 중 칸으로 시작(부모 단위) — 3일 전보다 먼저 발효된 특보도 이렇게 잡힌다
             for (const [u, lv] of parseCurrent(r.t6, []).cur) { const m = lv.match(/^(풍랑|태풍)(주의보|경보)$/); if (m) state.set(u, Object.assign({ type: m[1], level: m[2], tmEf: '', efMs: 0, clr: '', issueMs: base.inMs, cut: true }, base)); }
@@ -215,7 +216,7 @@ function compute(bulletins, nowMs, cands = []) {
         const { state, yebiRelease, ended } = computeFormal(w, nowMs);
         for (const [u, s] of state) zones[u] = Object.assign({ parent: parentOf(u), kind: 'formal' }, s);
         // 발자취용: 이 관서의 예비 목록 전부(두 줄기 각각 같은 호는 마지막 판) · 끝난 특보 시각
-        for (const kid of [false, true]) for (const b of latest(y.filter((x) => (x.result.wrnFc === '02') === kid))) ys.push({ kid, ref: { office, ho: b.result.t1Title, inMs: KST(b.result.tmIn) }, list: parseYebiList(b.result.t4, b.result.tmFc) });
+        for (const kid of [false, true]) for (const b of latest(y.filter((x) => (x.result.wrnFc === '02') === kid))) ys.push({ kid, ref: { rpt: '7', office, ho: b.result.t1Title, inMs: KST(b.result.tmIn) }, list: parseYebiList(b.result.t4, b.result.tmFc) });
         for (const [u, t] of ended) if (!(endedAll.get(u) >= t)) endedAll.set(u, t);
         // 예비 통보문은 두 줄기다(README ⑫): 일반 줄기(부모 이름 — 자식 포함) · 자식 줄기(wrnFc '02' — 「A(자식)」 = 그 자식만, 2026-06-20 부터).
         //   종전엔 가장 최근 예비 통보문 하나만 봐서, 자식 줄기가 최신이면 일반 줄기의 부모 예비가 통째로 빠졌다(딸린 예비 현황과 어긋난 「C 유형」의 원인).
@@ -247,9 +248,9 @@ function compute(bulletins, nowMs, cands = []) {
         }
     }
     const trails = buildTrails(zones, ys.sort((a, b) => a.ref.inMs - b.ref.inMs), endedAll, nowMs);
+    // 발자취는 규칙 계산까지만 본다 — 참고사항 AI 덧씌움(아래)은 발자취에 섞지 않는다. 발자취는 일반 사용자 앱(📋 팝업)에 나가고, AI 해석은 관리자 [통보문] 화면까지만이다
+    //   (적대검증 2026-11-18: 처음엔 AI 가 해제 예고를 바꾼 통보문을 「참고사항 — …」 줄로 넣었다 — AI 가 지어낸 제목이 모든 사용자에게 나가는 길이었다).
     const aiApplied = applyAi(zones, cands);
-    for (const a of aiApplied) if (a.inMs && trails[a.unit] && zones[a.unit]) trails[a.unit].list.push({ office: a.office, ho: a.ho, inMs: a.inMs, act: '참고사항 — ' + a.what });   // 참고사항으로 해제 예고가 바뀐 통보문도 그 특보의 발자취
-    for (const u of Object.keys(trails)) if (!zones[u]) delete trails[u];   // AI 가 뺀 예비
     fillParents(zones);
     return { zones, tree: toTree(zones), waiting: waiting.filter((u) => zones[u]), aiApplied, trails };
 }
@@ -263,7 +264,7 @@ function compute(bulletins, nowMs, cands = []) {
  *   zones 에서는 발자취 칸(trail·cut)을 떼어 낸다 — zones 는 비교 기록(bulletin_compare)에 통째로 적히므로 가볍게 둔다.
  * 예: 제주도북부앞바다(주의보) → { cut:false, list:[{office:'제주청', ho:'제11-13호', act:'풍랑 예비특보', when:'2026년 11월 18일 오후(12시~18시)'}, {ho:'제11-51호', act:'풍랑주의보 발표'}] }
  * @param {Array<{kid:boolean, ref:{office, ho, inMs}, list:Array}>} ys  예비 목록(입력시각 순)
- * @returns {Object<string, {cut:boolean, list:Array<{office, ho, inMs, act, when?}>}>}  cut = 앞부분(발표)이 보관 기간 밖
+ * @returns {Object<string, {cut:boolean, list:Array<{rpt, office, ho, inMs, act, when?}>}>}  cut = 앞부분(발표)이 보관 기간 밖 · rpt '6' 특보 통보문 / '7' 예비 통보문(두 종류는 호 번호를 따로 매긴다)
  * [연계] ← compute(이 파일) / → run(저장) → zoneBulletins(이 파일) → routes/weather.js GET /api/zone-bulletins
  */
 function buildTrails(zones, ys, ended, nowMs) {
@@ -345,7 +346,7 @@ function applyAi(zones, cands) {
             if (c.종류 === '예비취소' && z.kind === 'yebi' && !(z.yebiWins > 1)) { delete zones[u]; out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '예비 뺌' }); }
             else if (c.종류 !== '예비취소' && z.kind === 'formal' && c.시간_후) {
                 Object.assign(z, { clr: c.시간_후, inMs: c.inMs, ai: { ho: c.ho, 종류: c.종류 } }); delete z.relMs;   // 더 새 통보문의 해제 예고가 이긴다 — 앞 해제 시각 기다림도 그만
-                out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '해제 예고 → ' + c.시간_후, inMs: c.inMs });
+                out.push({ office: c.office, ho: c.ho, unit: u, 종류: c.종류, what: '해제 예고 → ' + c.시간_후 });
             }
         }
     }
@@ -391,6 +392,14 @@ function run({ watch = require('./bulletin_watch'), ai = require('./bulletin_ai_
 /** 마지막 계산 결과(없으면 null). [연계] → routes/bulletin_watch GET /api/admin/bulletin-status */
 function read(file = FILE) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { return null; } }
 
+// 통보문 원문 PDF 주소 — 통보문 자료에 적힌 그림 파일 자리(「202611/18/KTKO50_<발표시각>_<관서>_<호>.png」)와 같은 자리·같은 이름의 PDF 가 기상청 공개 파일 서버에 있다.
+//   사용자 2026-11-18 「눌렀을 때 해당 통보문 pdf가 바로 뜨는 것 … 지금 방식대로」 · 「나중에는 mmis를 코드에서 주석처리하거나 삭제할 예정 … mmis와 엮이면 안될 것」
+//   → MMIS 목록(로그인·ef/list·ntfctn/list)에서 찾지 않고 **통보문 자료만으로** 주소를 만든다(처음엔 MMIS 목록과 이름을 짝지었다 — 같은 날 사용자 지적으로 걷어 냄).
+//   실측 2026-11-18 16:48: 그때 들고 있던 통보문 68건(특보 41 · 예비 27) 전부 이 주소에 PDF 가 있었다(200 application/pdf). 그림 이름은 실자료 특보 3,720건·예비 2,048건 전부 이 꼴.
+//   ⚠파일이 놓인 곳은 해양기상정보포털(marine.kma.go.kr)의 공개 폴더다 — 우리 MMIS 코드(marine_client)는 쓰지 않지만 그 사이트가 파일을 치우면 PDF 가 안 열린다.
+//     그때는 이 주소를 비우면 된다(pdfUrl 이 없는 줄은 화면이 본문 글을 펼친다).
+const PDF_BASE = 'https://marine.kma.go.kr/resources/kmas/C5N_DATA/WRN/PDF/';
+const pdfOf = (r) => { const m = String(r.rptImageName2 || r.pwnImageName || '').match(/^(\d{6}\/\d{2}\/KTKO5\d_\d{12}_\d+_\d+)\.png$/); return m ? PDF_BASE + m[1] + '.pdf' : ''; };
 const STALE_MS = 10 * 60e3;   // 방재기상플랫폼 목록을 이만큼 못 받았으면 발자취를 믿지 않는다 — 없으면: 접속이 끊긴 동안 끝나고 새로 난 특보를 모른 채 옛 특보의 통보문을 지금 것처럼 보인다
 const SECTIONS = { 6: [['t2', '해당 구역'], ['t3', '발효 시각'], ['t4', '내용'], ['t6', '특보 발효현황'], ['t7', '예비특보 발효현황'], ['other', '참고사항']], 7: [['t4', '예비특보 현황'], ['other', '참고사항']] };
 /**
@@ -398,7 +407,7 @@ const SECTIONS = { 6: [['t2', '해당 구역'], ['t3', '발효 시각'], ['t4', 
  *   사용자 2026-11-18: 「해당 특보의 시작(발표)부터 종료까지 특보의 생애주기 동안에 대한 통보문이 나오도록」 · 「적용범위는 나(모든 사용자)」 ·
  *   「해제 통보문은 보이되 … 해제되고나서는 통보문 버튼이 보일 필요가 없지」(해제 시각이 되면 그 해역이 계산에서 빠져 발자취도 없다 — 화면 카드·버튼도 함께 사라진다).
  *   null 을 돌려주면 부르는 쪽이 종전 방식(MMIS 목록)으로 그린다: 계산 결과가 없음 · 목록을 10분 넘게 못 받음 · 그 해역의 발자취가 없음(통보문이 아직 모르는 특보 · 보관 기간보다 먼저 시작한 특보).
- * 예: zoneBulletins('제주도북부앞바다', read(), watch.bulletins(), now) → { cut:false, bulletins:[{ time:'2026.11.18 16:00', reportNo:'제11-51호', title:'풍랑주의보 발표', childOnly:false, sections:[{label:'해당 구역', text:'…'}] }, …] }
+ * 예: zoneBulletins('제주도북부앞바다', read(), watch.bulletins(), now) → { cut:false, bulletins:[{ time:'2026.11.18 16:00', reportNo:'제11-51호', title:'풍랑주의보 발표', childOnly:false, pdfUrl:'https://…/KTKO50_202611181600_184_51.pdf', sections:[{label:'해당 구역', text:'…'}] }, …] }
  * @param {string} zone 부모 해역 이름(화면 카드 이름)
  * @param {object|null} st read() 결과
  * @param {Array} bulletins bulletin_watch.bulletins()
@@ -408,53 +417,35 @@ const SECTIONS = { 6: [['t2', '해당 구역'], ['t3', '발효 시각'], ['t4', 
 function zoneBulletins(zone, st, bulletins, nowMs = Date.now()) {
     if (!st || !st.trails || !(nowMs - (st.listsOkMs || 0) < STALE_MS)) return null;
     const P = norm(zone), found = new Map(); let cut = false;
+    if (!PARENTS.has(P)) return null;   // 부모 해역 이름만(그 밖의 글자 — 'constructor' 등 — 는 종전 방식으로)
     for (const u of [P, ...childrenOf(P)]) {
         const t = st.trails[u]; if (!t) continue;
         if (t.cut) cut = true;
         for (const e of t.list) {
-            const k = e.office + '|' + e.ho + '|' + e.inMs;
+            const k = e.rpt + '|' + e.office + '|' + e.ho + '|' + e.inMs;
             if (!found.has(k)) found.set(k, { e, acts: new Map() });
             const a = found.get(k).acts, label = e.act + (e.when ? ` — ${e.when.replace(/^\d{4}년 /, '')}` : '');
             if (!a.has(label)) a.set(label, []);
             a.get(label).push(u);
         }
     }
-    if (!found.size) return null;
     const short = (u) => u.replace(P + '중', '');
     const out = [];
     for (const { e, acts } of [...found.values()].sort((x, y) => y.e.inMs - x.e.inMs)) {
-        const b = bulletins.find((x) => x.office === e.office && x.result.t1Title === e.ho && KST(x.result.tmIn) === e.inMs) || bulletins.find((x) => x.office === e.office && x.result.t1Title === e.ho && Math.abs(KST(x.result.tmIn) - e.inMs) < 86400e3);
-        const r = b ? b.result : {}, mine = [...acts].some(([, us]) => us.includes(P));
+        // 그 통보문 본문 — 종류(특보·예비)·관서·호·입력시각이 다 같은 것만(특보와 예비는 호 번호를 따로 매겨 같은 호가 흔하다 — 적대검증 2026-11-18). 못 찾으면 그 줄은 뺀다(빈 줄을 보이지 않는다).
+        const b = bulletins.find((x) => x.rpt === e.rpt && x.office === e.office && x.result.t1Title === e.ho && KST(x.result.tmIn) === e.inMs);
+        if (!b) continue;
+        const r = b.result, mine = [...acts].some(([, us]) => us.includes(P));
         // 부모가 든 몫은 그대로, 자식만의 몫은 자식 이름을 붙인다
         const title = [...acts].map(([label, us]) => (us.includes(P) ? label : `${label} (${us.map(short).join('·')})`)).join(' · ');
         const m = String(r.tmFc || '').match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
         out.push({
             time: m ? `${m[1]}.${m[2]}.${m[3]} ${m[4]}:${m[5]}` : '', reportNo: e.ho, title, office: e.office, childOnly: !mine,
-            img: String(r.rptImageName2 || r.pwnImageName || '').replace(/^.*\//, '').replace(/\.png$/, ''),   // 통보문 그림 이름(「KTKO50_발표시각_관서_호」) — 같은 이름의 MMIS PDF 를 짝짓는 열쇠(attachPdf)
-            sections: b ? (SECTIONS[b.rpt] || []).map(([k, label]) => ({ label, text: lines(r[k]).join('\n') })).filter((x) => x.text && !/^o?\s*없음$/.test(x.text)) : [],
+            pdfUrl: pdfOf(r),
+            sections: (SECTIONS[b.rpt] || []).map(([k, label]) => ({ label, text: lines(r[k]).join('\n') })).filter((x) => x.text && !/^o?\s*없음$/.test(x.text)),
         });
     }
-    return { cut, bulletins: out };
+    return out.length ? { cut, bulletins: out } : null;
 }
 
-/**
- * 팝업 줄마다 그 통보문의 원문 PDF(MMIS — marine.kma.go.kr 공개 파일)를 짝지어 붙인다 — 누르면 종전처럼 PDF 가 바로 열리게.
- *   사용자 2026-11-18 「아코디언을 눌렀을 때 해당 통보문 pdf가 바로 뜨는 것은 어떠니 ? 지금 방식대로」.
- *   짝짓는 열쇠 = 파일 이름. 방재기상플랫폼 통보문의 그림 이름 「KTKO50_<발표시각 12자리>_<관서>_<호 번호>.png」(실자료 특보 3,720건·예비 2,048건 전부 이 꼴)와
- *   MMIS 의 PDF 이름 「…/KTKO50_<YYYYMMDDHHMM>_<관서>_<번호>.pdf」(mmis_history.design.md)가 같은 것끼리.
- *   못 찾은 줄은 그대로 둔다 → 화면은 PDF 대신 본문 글을 펼친다(다른 통보문의 PDF 가 붙는 일은 없다 — 이름에 시각·관서·번호가 다 들어 있다).
- * 예: attachPdf([{img:'KTKO50_202611181600_184_51'}], ['/x/KTKO50_202611181600_184_51.pdf'], 'https://marine.kma.go.kr') → pdfUrl 'https://marine.kma.go.kr/x/KTKO50_202611181600_184_51.pdf'
- * @param {Array} items zoneBulletins(...).bulletins
- * @param {string[]} fileNames MMIS 목록들의 file_nm
- * @returns {number} PDF 를 붙인 줄 수
- * [연계] ← routes/weather.js GET /api/zone-bulletins
- */
-function attachPdf(items, fileNames, host) {
-    const byName = new Map();
-    for (const f of fileNames) { const m = String(f || '').match(/([^/]+)\.pdf$/i); if (m) byName.set(m[1], f); }
-    let n = 0;
-    for (const it of items) { const f = it.img && byName.get(it.img); if (f) { it.pdfUrl = host + f; it.file_nm = f; n++; } }
-    return n;
-}
-
-module.exports = { compute, applyAi, fillParents, run, read, toTree, zoneBulletins, attachPdf, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS, STALE_MS };
+module.exports = { compute, applyAi, fillParents, run, read, toTree, zoneBulletins, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS, STALE_MS };

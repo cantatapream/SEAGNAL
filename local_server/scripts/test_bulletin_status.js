@@ -391,21 +391,33 @@ console.log('F. 통보문 발자취 — 📋 해역별 통보문 팝업(지금 �
         Y('제11-20호', '2026-11-26 16:00', '(1) 태풍 예비특보\n o 11월 28일 오후(12시~18시) : 제주도앞바다(제주도북부앞바다)'),
     ];
     ok('발효 중 + 다가오는 예비: 그 예비 통보문도 함께', JSON.stringify(hos(pop(up, '2026-11-26 17:00'))) === JSON.stringify(['제11-20호 태풍 예비특보 — 11월 28일 오후(12시~18시)', '제11-90호 풍랑주의보 발표']), hos(pop(up, '2026-11-26 17:00')));
-    // 참고사항 AI 가 해제 예고를 바꾼 통보문도 발자취에
+    // 발자취는 규칙 계산까지만 — 참고사항 AI 덧씌움은 섞지 않는다(발자취는 일반 사용자 앱에 나간다. 적대검증 2026-11-18)
     const rai = S.compute(up.slice(0, 1), K('2026-11-26 13:00'), [{ 종류: '해제예고변경', zones: [P], office: '제주청', ho: '제11-91호', inMs: K('2026-11-26 12:30'), 시간_후: '28일 오전(09시~12시)' }]);
-    ok('참고사항으로 해제 예고가 바뀐 통보문도 발자취에 든다', rai.trails[P].list.some((e) => e.ho === '제11-91호' && /참고사항/.test(e.act)), rai.trails[P]);
-    // 원문 PDF 짝짓기 — 통보문 그림 이름과 MMIS PDF 이름이 같은 것끼리(사용자 2026-11-18 「눌렀을 때 해당 통보문 pdf가 바로 뜨는 것 … 지금 방식대로」)
+    ok('참고사항 AI 가 해제 예고를 바꿔도(관리자 화면용) 발자취에는 AI 줄이 없다', rai.zones[P].clr === '28일 오전(09시~12시)' && rai.aiApplied.length >= 1 && JSON.stringify(rai.trails[P].list.map((e) => e.ho)) === JSON.stringify(['제11-90호']), rai.trails[P]);
+    const rai2 = S.compute(up, K('2026-11-26 17:00'), [{ 종류: '예비취소', zones: [P], exact: true, office: '제주청', ho: '제11-92호', inMs: K('2026-11-26 16:30') }]);
+    ok('AI 가 다가오는 예비를 빼도(관리자 화면용) 발자취는 규칙 그대로 — 그 예비 통보문은 다음 예비 목록이 뺄 때 빠진다', !rai2.zones[P].upYebi && rai2.trails[P].list.some((e) => e.ho === '제11-20호'), rai2.trails[P]);
+    // 특보와 예비는 호 번호를 따로 매긴다 — 같은 관서·같은 호·같은 입력시각이어도 종류로 가린다
+    const same = [
+        Y('제11-5호', '2026-11-27 10:00', '(1) 풍랑 예비특보\n o 11월 28일 오후(12시~18시) : 제주도앞바다(제주도북부앞바다)'),
+        W('제11-5호', '2026-11-27 10:00', { t2: '(1) 풍랑주의보 발표 : 제주도남쪽바깥먼바다', t3: '(1) 풍랑주의보 발표 : 2026년 11월 27일 12시 00분' }),
+    ];
+    const sm = pop(same, '2026-11-27 10:30');
+    ok('호·입력시각이 같은 특보 통보문과 예비 통보문을 섞지 않는다(예비 줄에는 예비 통보문 본문)', sm.bulletins.length === 1 && sm.bulletins[0].sections[0].label === '예비특보 현황', sm);
+    ok('본문을 못 찾은 줄은 빼고, 남는 줄이 없으면 null', S.zoneBulletins(P, { trails: S.compute(same, K('2026-11-27 10:30')).trails, listsOkMs: K('2026-11-27 10:30') }, [], K('2026-11-27 10:30')) === null);
+    ok('부모 해역 이름이 아니면 null(예외 없이)', S.zoneBulletins('constructor', { trails: {}, listsOkMs: K('2026-11-27 10:30') }, [], K('2026-11-27 10:30')) === null && S.zoneBulletins(KID, { trails: rz.trails, listsOkMs: K('2026-11-22 09:30') }, list, K('2026-11-22 09:30')) === null);
+    // 원문 PDF 주소 — 통보문 자료만으로 만든다(MMIS 목록과 엮지 않는다: 사용자 2026-11-18 「눌렀을 때 해당 통보문 pdf가 바로 뜨는 것 … 지금 방식대로」 · 「mmis와 엮이면 안될 것」)
     const pl = [
-        Object.assign(Y('제11-13호', '2026-11-17 16:00', y1), {}),
+        Y('제11-13호', '2026-11-17 16:00', y1),
         W('제11-51호', '2026-11-18 16:00', { t2: '(1) 풍랑주의보 발표 : 제주도앞바다(제주도북부앞바다)', t3: '(1) 풍랑주의보 발표 : 2026년 11월 18일 17시 00분', rptImageName1: '202611/18/KTKO50_202611181600_184_51a.png', rptImageName2: '202611/18/KTKO50_202611181600_184_51.png' }),
     ];
     pl[0].result.pwnImageName = '202611/17/KTKO52_202611171600_184_13.png';
     const pp = pop(pl, '2026-11-18 16:10');
-    ok('줄마다 통보문 그림 이름(관서·발표시각·호가 든 이름)을 싣는다', pp.bulletins[0].img === 'KTKO50_202611181600_184_51' && pp.bulletins[1].img === 'KTKO52_202611171600_184_13', pp.bulletins.map((x) => x.img));
-    const nPdf = S.attachPdf(pp.bulletins, ['/a/b/KTKO50_202611181600_184_50.pdf', '/a/b/KTKO50_202611181600_184_51.pdf', '/a/b/KTKO50_202611181600_108_51.pdf', '', undefined], 'https://marine.kma.go.kr');
-    ok('같은 이름의 PDF 만 붙는다(다른 호·다른 관서 것은 안 붙는다) — 못 찾은 줄(예비)은 PDF 없이 남아 화면이 본문 글을 펼친다',
-        nPdf === 1 && pp.bulletins[0].pdfUrl === 'https://marine.kma.go.kr/a/b/KTKO50_202611181600_184_51.pdf' && pp.bulletins[0].file_nm === '/a/b/KTKO50_202611181600_184_51.pdf' && !pp.bulletins[1].pdfUrl && pp.bulletins[1].sections.length === 1, pp.bulletins);
-    ok('그림 이름이 없는 통보문에는 아무 PDF 도 붙지 않는다', S.attachPdf([{ img: '' }, {}], ['/x/.pdf', '/x/KTKO50_1.pdf'], 'h') === 0);
+    ok('특보·예비 통보문 모두 그림 파일과 같은 자리·같은 이름의 PDF 주소', pp.bulletins[0].pdfUrl === 'https://marine.kma.go.kr/resources/kmas/C5N_DATA/WRN/PDF/202611/18/KTKO50_202611181600_184_51.pdf'
+        && pp.bulletins[1].pdfUrl === 'https://marine.kma.go.kr/resources/kmas/C5N_DATA/WRN/PDF/202611/17/KTKO52_202611171600_184_13.pdf', pp.bulletins.map((x) => x.pdfUrl));
+    pl[1].result.rptImageName2 = '../../x.png';
+    const pq = pop(pl, '2026-11-18 16:10');
+    ok('그림 이름이 없거나 꼴이 다르면 PDF 주소를 만들지 않는다 → 화면이 본문 글을 펼친다', pq.bulletins[0].pdfUrl === '' && pq.bulletins[0].sections.length > 0 && b.bulletins[0].pdfUrl === '', pq.bulletins[0]);
+    ok('통보문 기준 팝업 계산은 MMIS 코드를 쓰지 않는다(bulletin_status 가 marine_client·ef/list·ntfctn 을 부르지 않음)', !/marine_client|fetchWarn|ntfctn/.test(fs.readFileSync(path.join(__dirname, '..', 'services', 'bulletin_status.js'), 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
 }
 
 console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);

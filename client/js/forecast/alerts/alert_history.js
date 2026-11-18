@@ -411,7 +411,7 @@ window.closeAlertHistoryPopup = function () {
 //   특보 구역 옆 📋 버튼 → GET /api/zone-bulletins?zone=해역명 → 발표시각+제목 리스트.
 //   [2026-11-18 사용자 「해당 특보의 시작(발표)부터 종료까지 특보의 생애주기 동안에 대한 통보문이 나오도록」]
 //     서버가 방재기상플랫폼 통보문으로 계산한 「지금 특보의 발자취」(예비 → 발표 → 변경·연장 → 해제, 자식 해역 포함)를
-//     준다(source:'bulletin') → 항목을 누르면 종전처럼 원문 PDF 모달이 열리고, PDF 를 못 짝지은 통보문(예비특보 등)은 그 자리에서 본문 글(sections)이 펼쳐진다.
+//     준다(source:'bulletin') → 항목을 누르면 종전처럼 원문 PDF 모달이 열리고(주소는 서버가 통보문 자료만으로 만든다), PDF 주소가 없는 줄은 그 자리에서 본문 글(sections)이 펼쳐진다.
 //   서버가 그것을 못 주면(통보문 수집이 끊김 등) 종전 방식(MMIS ef/list) 목록이 온다 → 항목 클릭 시
 //     그 통보문 원문 PDF 를 iframe 모달(openKmaIframeModal)로 열람.
 //   (기존 showAlertHistoryPopup 은 옛 weather.go.kr 크롤러 의존이라 대체.)
@@ -508,7 +508,7 @@ function createZoneBulletinItem(b) {
     headerEl.appendChild(timeEl);
     item.appendChild(headerEl);
 
-    // [통보문 기준] 원문 PDF 를 못 짝지은 통보문(예비특보 등)은 누를 때 그 자리에서 본문 글을 펼친다(글은 textContent 로만 넣는다).
+    // [통보문 기준] 원문 PDF 주소가 없는 통보문은 누를 때 그 자리에서 본문 글을 펼친다(글은 textContent 로만 넣는다).
     //   PDF 가 있으면 아래에서 종전처럼 PDF 모달을 연다(사용자 2026-11-18 「눌렀을 때 해당 통보문 pdf가 바로 뜨는 것 … 지금 방식대로」).
     if (b.sections && b.sections.length && !b.pdfUrl && !b.webUrl) {
         var arrow = document.createElement('i');
