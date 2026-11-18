@@ -257,3 +257,8 @@ local_server/data/.codex_test/
 
 # 통보문 원문 보관(PDF·쪽 그림) — 런타임에 받아 두고 특보가 끝나면 지운다(services/bulletin_docs.js). Fly.io 볼륨에 얹힌다.
 local_server/data/bulletin_docs/
+# 격상 가능성 계산 결과·AI 답(런타임 — services/bulletin_escalation.js)
+local_server/data/bulletin_escalation.json
+local_server/data/bulletin_escalation.json.tmp
+local_server/data/bulletin_escalation_ai.json
+local_server/data/bulletin_escalation_ai.json.tmp
