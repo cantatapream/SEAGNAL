@@ -50,7 +50,7 @@ const SCHEMA = 'station-briefing-input-v2';
 //   지시문 예시·S16, polishOverview 가 연안 마지막 「따라서」 문장의 「A에는/A에서는/A에 (관심|주의|경계)가」를 「A 인근 연안에서는 …가」로 고친다(대목에 연안·인근·주변·해상·해역·관할이 이미 있으면 그대로).
 // 검증 v14(2026-10-18 설계서 §11.10.31 — 운영 14:08 「multiplier:1.1~1.2배」, 사용자 「진행해줘.」): 배수 범위 「1.1~1.2배」는 양 끝이 둘 다 그 문단 허용 배수이고 작은 수~큰 수일 때만 통과. 지시문은 그대로(v16).
 // 검증 v19(2026-11-16 설계서 §11.10.52 — 운영 누적 오류 E20261116-142221): 셈말 첫머리 판정에 지시어 「이」(「이 세 곳에는」).
-const VALIDATOR_VERSION = 'sb-validate-v19', PROMPT_VERSION = 'sb-prompt-v17';   // v18·지시문 v17(2026-11-16 설계서 §11.10.49 — 운영 누적 오류 E20261116-003253): 검사 오판 고침(기상청 줄임 해역 이름 · 「다른」·「거나」·「장소」·양보 「-어도」 · 조사 앞 낱말 · 사고 종류별 「N건」 · 「-며·-고」 뒤 셈말 · 앞 문장 전부 셈말 · 시각 칸 잇기 · 잔잔한 해구 「잔잔할 것으로」 · 서버 사실 문장 대목) · 지시문 S17~S25 · v17(2026-10-20 설계서 §11.10.47): 셈말 이름에 상시 위험 장소·앞 문장+그 대목 합침 · 「강원앞바다」 꼴 · 「새벽부터」·「대부분」 앞 낱말 아님 · v16(2026-10-20 설계서 §11.10.46): 바로 앞 이름을 가리키는 「세 곳에」·「두 곳 모두」 통과(anaphoraCountOk) · v15(2026-10-18 설계서 §11.10.37): 허용 이름을 「‧」(U+2027)로도 나눔 · 「N해역」 → 「N해리 해역」 보정 · v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
+const VALIDATOR_VERSION = 'sb-validate-v21', PROMPT_VERSION = 'sb-prompt-v18';   // v21(2026-11-18 누적 오류 E20261118-104914): 「그래도」·「갯바위나 방파제」 지명 오판 · 방위+먼바다 줄임 · 자정 넘는 시각 칸 잇기 · 연안 풍속 범위 · 셈말 이름 괄호 꼬리·자리 셈 · v20·지시문 v18(2026-11-18 설계서 §11.10.54 — 사용자 문장 규칙): 장소 이름 본문 1번·같은 구역 해구 묶기 · 연안 위험지수 숫자 금지(word:riskindex-number) · 방문객 배수 1.4배 이상만(입력에서 뺌) · 표류·선박사고 이력 건수 · 확인 못 한 자료 언급 금지(word:missing-source) · 지명 오판 고침(동사·부사 앞 낱말·입출항·「해안도로 갯바위」) · v18·지시문 v17(2026-11-16 설계서 §11.10.49 — 운영 누적 오류 E20261116-003253): 검사 오판 고침(기상청 줄임 해역 이름 · 「다른」·「거나」·「장소」·양보 「-어도」 · 조사 앞 낱말 · 사고 종류별 「N건」 · 「-며·-고」 뒤 셈말 · 앞 문장 전부 셈말 · 시각 칸 잇기 · 잔잔한 해구 「잔잔할 것으로」 · 서버 사실 문장 대목) · 지시문 S17~S25 · v17(2026-10-20 설계서 §11.10.47): 셈말 이름에 상시 위험 장소·앞 문장+그 대목 합침 · 「강원앞바다」 꼴 · 「새벽부터」·「대부분」 앞 낱말 아님 · v16(2026-10-20 설계서 §11.10.46): 바로 앞 이름을 가리키는 「세 곳에」·「두 곳 모두」 통과(anaphoraCountOk) · v15(2026-10-18 설계서 §11.10.37): 허용 이름을 「‧」(U+2027)로도 나눔 · 「N해역」 → 「N해리 해역」 보정 · v14(2026-10-18 설계서 §11.10.20 — §11.10.17 표 S14·S15): 「물가 접근」 대신 「연안 활동」 · 마지막 문장에서 앞에 쓴 방문객 배수(평소의 N배)를 되풀이하지 않음(검증은 그대로 v11) · v12(2026-10-17 설계서 §11.10.16 소절 E1): 특보는 종류만 짧게(구역·시각 나열 금지) · v13·검증 v11(같은 날 §11.10.17 「AI 문장 규칙(사용자 지적 누적)」 표 — 지시문에 표 전부, 검사 「필요」 단계 말·「기준」·이유 겹침·근거 꼬리표, 고칠 수 있는 것은 polishOverview 로 보정)
 // 기상청 해역 이름(앞바다·먼바다·전해상 묶음) — 저장소에 이미 있는 표(config/zone_group_map.js, 통보문 해석이 쓰는 단일 출처)를 그대로 쓴다.
 // 운영 10-17 08:00 판 검증 실패 「place:오후부터제주도남쪽바깥먼바다」(기상청 전망의 해역 이름) · 「place:제주도」 — 사용자 결정 *"위 추천대로 결정."* 으로 허용.
 // 「인천·경기북부앞바다」처럼 가운뎃점이 든 이름은 지명 후보가 「경기북부앞바다」로 잘리므로 가운뎃점 뒤 조각도 넣는다.
@@ -106,19 +106,30 @@ const HNUM_RE = new RegExp('(?:^|[^가-힣])((?:두서너|한두|두세|서너|�
 const HMULT_RE = /(?:^|[^가-힣])((?:한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|몇|수십|여러)\s*배)(?=$|[^가-힣]|로|나|가량|이상|정도|쯤|씩|만큼|가|는|에)/g;
 // 지명(B5) — 접미사로 지명 후보를 찾는다. 한 글자 접미사(항·섬·곶·만·포·도)는 흔한 낱말(정도·운항·오늘만)과 겹쳐 따로 거른다.
 const PLACE_SUFFIX = ['해양경찰서', '해수욕장', '연안바다', '앞바다', '먼바다', '파출소', '출장소', '방파제', '갯바위', '해변', '포구', '부두', '등대', '해구', '해협', '항', '섬', '곶', '만', '포', '도'];
-const NOT_PLACE = new Set(['운항', '출항', '입항', '귀항', '결항', '회항', '사항', '저항', '항항', '대항', '조항', '반항', '이항', '공항', '어항', '개항', '취항', '기항', '내항', '외항', '본항', '선항', '대해구', '소해구',
+const NOT_PLACE = new Set(['그래도', '입출항', '출입항', '운항', '출항', '입항', '귀항', '결항', '회항', '사항', '저항', '항항', '대항', '조항', '반항', '이항', '공항', '어항', '개항', '취항', '기항', '내항', '외항', '본항', '선항', '대해구', '소해구',
     '어느정도', '위험도', '혼잡도', '난이도', '중요도', '정확도', '신뢰도', '만족도', '민감도', '선명도', '투명도', '집중도', '밀집도', '심각도', '가능도', '숙련도', '관심도', '노출도', '기여도', '영향도', '포화도', '분포도']);
 const PLACE_TAIL_RE = /(?:에서는|에서도|에서|으로는|으로|까지|부터|보다|처럼|에는|에도|에게|이나|이며|이고|이라|라는|와는|과는|의|에|은|는|이|가|을|를|과|와|로|만|앞|쪽|부근|인근|주변|일대|근처|해역|바다|방면)$/;
 const MAN_CONTEXT = /^(?:에서|에서는|에서도|앞|쪽|부근|인근|주변|일대|근처|해역|바다|방면|의|에)$/;
 // 검증 v13(2026-10-18 운영 오판 — 설계서 §11.10.25 덧): 방위는 「북쪽·서해·남부·동방…」처럼 방위 낱말일 때만(종전 북|남|동|서 한 글자는 「서서히」·「남아」·「동반」·「북상」 앞부분도 맞아
 //   「바람도 서서히」가 place:바람도) · 「앞」은 「앞으로」 아닐 때만.
 const NEXT_CONTEXT = /^(?:해역|일대|주변|인근|부근|근처|앞(?!으로)|앞바다|연안|해안|쪽|방면|[동서남북]{1,2}(?:쪽|방|부|측|해|단|면)|갯바위|방파제|포구|해상|바깥|안쪽|입구|부두|등대|섬)/;
-const STOP_WORD = new Set(['관할', '인근', '주변', '부근', '해당', '같은', '모든', '각', '일부', '전체', '오늘', '내일', '따라서', '특히', '다만', '또', '및', '등', '해상', '육상', '연안', '이', '그', '저', '이번', '이곳', '그곳', '평소', '현재', '지금', '오전', '오후', '새벽', '밤', '낮', '앞', '뒤', '옆', '안', '밖', '근처', '여러', '주요', '장소']);   // 「장소」 — 「이들 장소도 연안…」(11-14 운영 place:장소도, §11.10.49)
+const STOP_WORD = new Set(['그래도', '그러나', '그리고', '게다가', '관할', '인근', '주변', '부근', '해당', '같은', '모든', '각', '일부', '전체', '오늘', '내일', '따라서', '특히', '다만', '또', '및', '등', '해상', '육상', '연안', '이', '그', '저', '이번', '이곳', '그곳', '평소', '현재', '지금', '오전', '오후', '새벽', '밤', '낮', '앞', '뒤', '옆', '안', '밖', '근처', '여러', '주요', '장소']);   // 「장소」 — 「이들 장소도 연안…」(11-14 운영 place:장소도, §11.10.49)
 // 지명 뒤에 붙을 수 있는 조사 하나로 된 꼬리(빈 꼬리 포함) — 하나만: 「한림공원도로」(도+로)·「삼양해안도로도로」는 조사가 아니다(§11.10.6 독립 검토) — validateOverview 의 조사 붙은 지명 대조
 const PARTICLE_ONLY_RE = /^(?:에서는|에서도|에서|으로는|으로|까지|부터|보다|처럼|에는|에도|의|에|은|는|이|가|을|를|과|와|로|도|만)?$/;
 const DETERMINER = new Set(['한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열', '몇', '두세', '서너', '이들', '그들', '저', '이런', '그런', '두어', '대부분', '다른']);   // 「다른」 — 「다른 해구에는」(11-15 운영 place:다른해구 4건, §11.10.49) · 「대부분」 — 「…를 비롯해 대부분 해구가」(10-20 16:52 운영 place:비롯해대부분해구, §11.10.47)
 const PARTICLE_END = /(?:은|는|을|를|에|서|로|과|와|의|만|고|며|면|다|요|게|께|죠|에도|돼|어|부터|까지|거나)$/;   // 「거나」 — 「물결이 밀려오거나 갯바위와」(11-15 운영 place:물결이밀려오거나갯바위, §11.10.49)   // 「부터·까지」 — 「내일 새벽부터 먼바다」(10-20 16:52 운영 place:새벽부터먼바다, §11.10.47) · 「에도」 — 「해제 뒤에도 앞바다」의 「뒤에도」를 이름 앞 낱말로 붙이지 않게(v13) · 「돼·어」 — 「바람도 예상돼 해수욕장」·「있어 해수욕장」(10-18 09:08 운영 place:바람도예상돼해수욕장 — 관광지 이름 1,353개의 앞 낱말 중 「돼·어」로 끝나는 것 0개)
 // 관광지 이름 속 「A과 B」(「남해 가천 해변과 암수바위」·「항도몽돌해수욕장과 항도방파제」 — 남해파출소, 10-18 09:08 운영 place:남해가천해변·항도몽돌해수욕장): 지명 접미사 뒤 「과·와 」에서 나눈 앞 조각도 허용 이름(validateOverview)
+// §11.10.54(2026-11-18 세션 시험 지명 오판 12건 중 8건 — 「확인하지 못해 해변」·「오후로 갈수록 해변」·「꼽히는 곳이라 갯바위」·「꼽혀 부두」·「몽돌 해변」):
+//   접미사만 있는 일반 낱말(해변·갯바위·부두 …) 앞 낱말이 동사·부사 꼴(어미)이거나 모양을 말하는 일반 낱말이면 그 둘을 이름으로 묶지 않는다(이름 후보가 아니다).
+//   어미 목록은 그 오판에 나온 꼴과 같은 무리만 — 「남해 해변」의 「남해」처럼 「해」로 끝나는 이름 앞 낱말이 빠지는 대가가 있지만, 접미사만 있는 낱말이라 지어낸 고유 이름이 통과할 길은 아니다.
+const BARE_PRE_VERB = /(?:못해|위해|인해|대해|통해|해서|라서|이라|수록|혀|져|워|아서|어서|하여|하며|으며|지만|는데|으니|니까)$/;
+// 「갯바위나 방파제를」·「백사장이나 방파제를」(누적 오류 E20261118-104914 G01): 앞 낱말이 **일반 장소 낱말 + 이나·나** 일 때만 나열로 본다
+//   (독립 검토 상1 — 「나」로 끝나는 아무 낱말이나 건너뛰면 「왕산마리나 부두」·「가짜마리나 방파제」가 통과했다).
+const BARE_PRE_LIST = /^(?:갯바위|방파제|해변|해수욕장|포구|부두|등대|백사장|모래사장|해안|바위|절벽|암벽|선착장|항구)(?:이나|나)$/;
+const BARE_PRE_GENERIC = new Set(['몽돌', '모래', '자갈', '바위', '암석', '갯벌', '작은', '넓은']);
+// 방문객 배수는 평소의 1.4배 이상만 AI 입력에 준다(2026-11-18 사용자 *"방문객 배수는 1.4배 이상부터 사용"* · *"방문객이 평소의 1배 처럼 무의미한 내용이 들어가지 않도록"* — §11.10.54).
+//   그보다 작은 배수 줄은 AI 에게 보내지 않고 허용 배수에도 넣지 않는다 — 글에 쓰면 multiplier: 로 막힌다. 화면 「분석 근거」 줄(서버)은 그대로.
+const VISITOR_MULT_MIN = R.VISITOR_MULT_MIN;   // 값은 station_briefing_rules 한 곳(규칙 분석 문단과 같은 하한)
 const AND_SPLIT_RE = new RegExp('(?<=(?:' + PLACE_SUFFIX.join('|') + '))[과와]\\s+');
 // 분석 문단 문장 수(2026-10-17 사용자 결정 §11.10.4 — 연안·해상 각 3~5문장, 사용자 예시가 4문장·3문장). §11.10 의 해설은 1~2문장이었다.
 const MIN_S = 3, MAX_S = 5;
@@ -194,8 +205,11 @@ function placeCandidates(t) {
         // 조사 붙은 허용 이름 대조(raw)에는 이름답지 않은 앞 낱말(「외할머니의」 — 끝이 「의」)도 붙인다 — 「외할머니의 부엌도」(관광지 「외할머니의 부엌」 + 조사 도, 11-15 운영 place:부엌도 4건, §11.10.49). 후보(cands)는 그대로.
         const any = (j) => { const a = words[j], b = words[j + 1]; return a && b && /^\s+$/.test(src.slice(a.end, b.i)) ? a.w : null; }, q1 = any(k - 1), q2 = q1 ? any(k - 2) : null;
         if (!pre && !p1) return;                           // 「앞바다」·「방파제」만 — 일반 낱말
+        // 「확인하지 못해 해변」 — 일반 낱말(§11.10.54). 「몽돌 해변」도 일반 낱말이지만 그 앞에 이름다운 낱말이 있으면(「강동 몽돌 해변」) 그대로 이름 후보로 검사한다(독립 검토 상1 — 다른 관할 이름·지어낸 이름이 빠져나갔다).
+        if (!pre && (BARE_PRE_VERB.test(p1) || BARE_PRE_LIST.test(p1) || (BARE_PRE_GENERIC.has(p1) && !p2))) return;
         const cands = [w]; if (p1) cands.push(p1 + w); if (p2) cands.push(p2 + p1 + w);
-        out.push({ text: (p2 ? p2 + ' ' : '') + (p1 ? p1 + ' ' : '') + w, cands: pre ? cands : cands.slice(1), raw: (q2 || '') + (q1 || '') + x.w });
+        // fwd = 이 낱말(조사 포함 원래 꼴) + 띄어 쓴 다음 낱말 — 「신도해안도로 갯바위」처럼 허용 이름이 다음 낱말까지 이어질 때 validateOverview 가 본다(§11.10.54 — 「도로」의 「로」를 조사로 떼어 「신도해안도」가 되던 오판).
+        out.push({ text: (p2 ? p2 + ' ' : '') + (p1 ? p1 + ' ' : '') + w, cands: pre ? cands : cands.slice(1), raw: (q2 || '') + (q1 || '') + x.w, word: x.w, fwd: next ? x.w + next : '' });
     });
     return out;
 }
@@ -270,7 +284,15 @@ function stationInput(b, kma = null) {
     let landPart = null, missLand = [];
     if (land) {
         // source = 단계 출처 꼬리표(결정 2 — 「연안 위험지수 72 '높음'」·「풍랑주의보」): 사실 목록에 넣어 그 숫자·따옴표 단계 이름을 AI 가 옮겨도 통과하게 한다.
-        const top = land.overviewTop.map((c) => { facts.push(c.name, ...c.today.changes, c.traits.text, c.sourceLabel || ''); for (const m of String(c.traits.text || '').matchAll(/연안사고 \d+건\(([^)]*)\)/g)) for (const q of m[1].split('·')) { const x = /\s(\d+)$/.exec(q); if (x) facts.push(x[1] + '건'); } places.add(c.name); levels.land[c.name] = c.rank; for (const t of numTokens(c.today.changes.join(' '))) if (t.unit === '배') mult.land.add(t.key); return { name: c.name, level: c.word, source: c.sourceLabel || null, changes: c.today.changes, traits: c.traits.text }; });
+        // §11.10.54: 방문객 배수가 1.4배 미만인 줄은 AI 에게 보내지 않는다(VISITOR_MULT_MIN) · 단계 출처의 연안 위험지수 숫자는 떼고 등급만(「연안 위험지수 67 '높음'」 → 「연안 위험지수 '높음'」).
+        const multMin = (t) => Math.min(...(t.range ? t.ends : [t.key]).map((k) => Number(k.split('|')[0])));
+        const lowMult = (x) => { const ms = numTokens(x).filter((t) => t.unit === '배'); return ms.length > 0 && ms.every((t) => multMin(t) < VISITOR_MULT_MIN); };
+        const top = land.overviewTop.map((c) => {
+            const changes = c.today.changes.filter((x) => !lowMult(x)), source = c.sourceLabel ? c.sourceLabel.replace(/(연안\s*위험\s*지수)\s*\d+(?:\.\d+)?\s*/, '$1 ') : null;
+            facts.push(c.name, ...changes, c.traits.text, source || ''); for (const m of String(c.traits.text || '').matchAll(/연안사고 \d+건\(([^)]*)\)/g)) for (const q of m[1].split('·')) { const x = /\s(\d+)$/.exec(q); if (x) facts.push(x[1] + '건'); }
+            places.add(c.name); levels.land[c.name] = c.rank; for (const t of numTokens(changes.join(' '))) if (t.unit === '배' && multMin(t) >= VISITOR_MULT_MIN) mult.land.add(t.key);
+            return { name: c.name, level: c.word, source, changes, traits: c.traits.text };
+        });
         const constant = land.constant.slice(0, 5).map((c) => { places.add(c.name); facts.push(c.name, c.text || ''); return c.name; });
         missLand = [...new Set(land.missing.map((k) => R.SOURCE_LABEL[k] || k))];
         // changed_spots = 관심 이상 관광지 전체 수(attentionSpots) — 종전엔 카드 상한(10)으로 잘린 cards.length 였다(2026-10-17 §11.10 버그 수정).
@@ -280,8 +302,10 @@ function stationInput(b, kma = null) {
     facts.push(...tide);
     // 서버 결론·근거·권고 줄(summary — 서버가 서버 값만으로 만든 것)도 사실로 넣는다 — 「관할 해역 52칸」·「해역 3개」·「관광지 30곳」·「12곳」 같은 숫자+단위 꼴이 허용 목록에 들어간다.
     // (종전엔 틀 총평 문단 templateOverview 를 넣었다 — §11.10 으로 없앰.) summary 가 없는 옛 브리핑이면 지금 규칙으로 만든다.
-    facts.push(...R.summaryLines(summary));
-    const shown = (x) => x ? { headline: x.headline, basis: x.basis, advice: x.advice } : null;
+    // §11.10.54(독립 검토 중2·중3): 서버 줄에 든 연안 위험지수 숫자와 1.4배 미만 방문객 배수는 AI 에게 보이지도(shown) 허용 숫자에 넣지도 않는다 — 화면 줄은 그대로.
+    const forAi = (l) => String(l).replace(/(연안\s*위험\s*지수)\s*\d+(?:\.\d+)?/g, '$1').replace(/,?\s*(?:방문객|사람)\s*평소의\s*(\d+(?:\.\d+)?)배(?:\(예상\))?/g, (m, n) => (Number(n) >= VISITOR_MULT_MIN ? m : ''));
+    facts.push(...R.summaryLines(summary).map(forAi));
+    const shown = (x) => x ? { headline: x.headline, basis: (x.basis || []).map(forAi), advice: x.advice } : null;
     facts.push(R.md(b.targetDate)); if (b.generatedAt) facts.push(R.md(b.generatedAt.slice(0, 10)));
     const labels = new Set(); for (const f of facts) for (const m of norm(f).matchAll(LABEL_RE)) labels.add(m[0]);
     const nums = new Set(); for (const f of facts) for (const t of numTokens(f)) { nums.add(t.key); t.ends.forEach((k) => nums.add(k)); }
@@ -335,7 +359,7 @@ function buildPrompt(batch) {
         '아래 JSON 의 stations 마다 연안 분석(land)과 해상 분석(sea)을 쓴다. 각 분석은 3~5문장의 한 문단이다.',
         '내용: 어느 장소(관광지·해역)가 어떤 단계인지, 왜 그런지(원인 — 연안 위험지수·방문객·행사·너울·이안류·바람·파도·특보·혼잡·과거 사고 이력)와 시간 흐름(언제부터 언제까지, 언제 나아지는지)을 쉬운 말로 잇고, 마지막 문장은 「따라서 …에 주의가(관심이·경계가) 요구됩니다.」 꼴로 끝낸다(「필요합니다」가 아니다). 「다만」으로 시작하는 문장은 「다만,」처럼 「다만」 뒤에 쉼표를 찍는다.',
         '예보·예측에서 온 값(방문객 배수·연안 위험지수·해구 유의파고·풍속·너울·해양사고 위험예보·혼잡 예보)은 「방문객이 평소의 2배로 예상」처럼 예상임을 자연스럽게 밝힌다.',
-        '연안 예시: 「돝섬해상유원지는 연안 위험지수 \'높음\'으로 주의 수준이고, 방문객이 평소의 2배로 예상됩니다. 위험구역과 과거 익수·표류 사고 이력이 있어 사람이 늘어나는 오늘은 연안 상황 변화에 유의해야 합니다. 마산로봇랜드와 실리도는 관심 수준이며, 실리도에는 과거 연안사고 이력이 있습니다. 따라서 돝섬해상유원지 인근 연안에서는 주의가, 마산로봇랜드와 실리도 인근 연안에서는 관심이 요구됩니다.」',
+        '연안 예시: 「돝섬해상유원지는 연안 위험지수 \'높음\'으로 주의 수준이고, 방문객이 평소의 2배로 예상됩니다. 위험구역과 과거 익수·표류 사고 이력이 있어 사람이 늘어나는 오늘은 연안 상황 변화에 유의해야 합니다. 마산로봇랜드와, 과거 연안사고 이력이 있는 실리도는 관심 수준입니다. 따라서 돝섬해상유원지 인근 연안에서는 주의가, 마산로봇랜드와 실리도 인근 연안에서는 관심이 요구됩니다.」',
         '해상 예시: 「○○앞바다(5099해구)는 유의파고 0.4m·풍속 6.9m/s로 잔잔한 바다일 것으로 예상됩니다. 다만, 오늘 오후부터 바람이 강해지고 물결이 높아질 수 있다는 기상 전망이 있어 해상 상황의 변화를 살펴야 합니다. 따라서 마산파출소 관할 해상의 바람과 물결 변화에 관심이 요구됩니다.」 (예시의 지명·숫자는 꼴만 보인 것 — 실제로는 그 관할의 입력에 있는 것만 쓴다.)',
         '해구는 「75해구」·「232-5해구」처럼 번호 뒤에 「해구」를 붙여 쓴다(「대해구 75」·「소해구 232-5」라고 쓰지 않는다). 해구 예보를 말할 때는 「75해구」만 쓰지 말고 sea.haegu_forecasts 의 name(「경북북부앞바다(75해구)」처럼 특보구역 이름을 앞에 붙인 꼴)을 그대로 쓴다(where 가 null 이면 해구 번호만). 파고는 「유의파고」라고 쓴다(「최대 파고」라고 쓰지 않는다). 바다 상태는 그 항목의 sea_state(서버가 최대 파고·풍속으로 정한 말 — 「잔잔한 바다일 것으로 예상됩니다」·「물결이 다소 높을 것으로 예상됩니다」 등)를 그대로 쓰고, 스스로 다른 판단(「잔잔한」·「높은」 등)을 만들지 않는다. 「기준」이라는 말(「기준보다 낮다」 등)은 쓰지 않는다. sentence 는 그 꼴의 견본 문장이다.',
         '해양사고 위험예보만 위험 단계인 해역(결론 단계에 넣지 않은 해역 — sea.accident_only_regions)을 말할 때는 sea.accident_only_phrases 의 문구를 그대로 쓴다(예: 「해양사고 위험예보(KOMSA 기준)만 \'주의\'인 해역이 있지만, …」). 그 문구의 「(KOMSA 기준)」은 그대로 둔다(아래 해구 예보의 「기준」 말과 별개).',
@@ -352,7 +376,7 @@ function buildPrompt(batch) {
         'S8 마지막 문장에서 해역 이름 꼬리 「(232-2해구)」와 「15~24시경」의 「경」을 쓰지 않는다(「15~24시 한림항 북방 0.6해리 해역 운항에 주의가 요구됩니다.」).',
         'S9 해양사고 위험예보만 위험 단계인 해역은 sea.accident_only_phrases 의 꼴(「해양사고 위험예보(KOMSA 기준)만 \'주의\'인 해역」) 그대로.',
         'S10 앞 문장에 이미 나열한 긴 해역·관광지 이름 목록을 마지막 문장에서 그대로 되풀이해 문단을 길게 만들지 않는다(셋 이상이면 「A·B 등」).',
-        'S11 해구는 sea.haegu_forecasts 의 name(「경북북부앞바다(75해구)」 꼴)으로, 해구 번호만 쓰지 않는다. 해구 표기는 「75해구」·「232-5해구」(「대해구 75」·「소해구 232-5」 아님).',
+        'S11 해구는 sea.haegu_forecasts 의 name(「경북북부앞바다(75해구)」 꼴)으로, 해구 번호만 쓰지 않는다(같은 구역 해구가 여럿이면 S26 꼴). 해구 표기는 「75해구」·「232-5해구」(「대해구 75」·「소해구 232-5」 아님).',
         'S12 이름은 「해양사고 위험예보」(「공식 사고예보」 아님)·「선박이 있는 해역 격자」(「교통 칸」 아님)로 쓴다.',
         'S13 「물이 차오르기 전에 나오세요」 같은 행동 지시 문구를 쓰지 않는다.',
         'S14 해안·관광지에서의 활동은 「연안 활동」이라고 쓴다(「물가 접근」이라고 쓰지 않는다 — 예: 「연안 활동에 유의해야 합니다」).',
@@ -368,12 +392,18 @@ function buildPrompt(batch) {
         'S23 「따라서」 문장은 새 문장으로 시작한다 — 앞 문장 끝에 「…있어, 따라서 …」로 잇지 않는다.',
         'S24 해구 바다 상태는 sea.haegu_forecasts 의 sea_state 문구를 줄이지 않고 그대로 쓰고, 여러 해구의 값을 「0.1~0.3m」·「4.6~7.8m/s」처럼 한 범위로 묶지 않는다(해구마다 따로).',
         'S25 같은 묶음(stations)의 다른 관할에만 있는 지명·해역 이름을 옮기지 않는다 — 그 관할 자신의 allowed_places·kma_zones 만.',
+        // §11.10.54(2026-11-18 사용자 — 세션·AI 글 나란히 비교 뒤): S26~S30
+        'S26 같은 장소·해역 이름은 본문(마지막 「따라서」 문장 앞)에 한 번만 쓴다 — 그 장소의 단계·원인·사고 이력을 한 문장에 모아 쓰고, 다음 문장에서 같은 이름을 되풀이하지 않는다(다시 말해야 하면 「이곳」·「이들 장소」로 받되 「두 곳 모두」·「세 곳」처럼 수를 세어 받지 않고, 받음말에는 단계 말(관심·주의·경계)을 붙이지 않는다 — 단계 말은 규칙 3) 대로 대상 이름 바로 뒤에만). 마지막 「따라서」 문장은 화면 [권고] 상자에 따로 보이므로 대상 이름을 다시 쓴다(셋 이상이면 S10 대로 「A 등」). 같은 특보구역 이름을 쓰는 해구가 여럿이면 구역 이름을 한 번만 쓰고 해구 번호로 나눈다(「○○앞바다중 동부평수구역의 97해구는 유의파고 0.2m·풍속 8.4m/s로 바람이 다소 강할 것으로, 5214해구는 풍속 9.1m/s로 바람이 다소 강할 것으로 예상됩니다.」 — 해구마다 sea_state 는 S24 대로 따로, 이때는 S11 의 name 꼴 대신 이 꼴. 예시의 지명·숫자는 꼴만 보인 것).',
+        'S27 연안 위험지수는 숫자 없이 등급만 쓴다(「연안 위험지수 \'높음\'이 예상되고」 — 「연안 위험지수 67로」처럼 숫자를 쓰지 않는다).',
+        'S28 방문객 배수는 평소의 1.4배 이상일 때만 입력(changes)에 있고 그때만 쓴다 — 「평소의 1배」·「평소와 비슷」처럼 달라지지 않은 방문객은 말하지 않는다. changes 가 비어 있는 장소도 그 단계(level)·출처(source)는 그대로 쓰고, 그 장소를 「달라진 요소가 확인되지 않았다」고 쓰지 않는다.',
+        'S29 확인하지 못한 자료(missing_sources)는 쓰지 않는다(규칙 4) — 「…자료는 확인하지 못했습니다」·「판단하지 못했습니다」를 쓰지 않는다.',
+        'S30 바람·물결이 강하거나 특보(예비특보 포함)가 있는 날, 그 장소·해역에 사고 이력이 있으면 종류와 건수를 함께 쓴다(연안: 「과거 연안사고 7건 중 6건이 고립 사고였던 곳」 · 해상: 「과거 표류 7건·충돌 4건 등 선박사고가 잦았던 해역」 — traits·[사고현황] 의 숫자 그대로). 해안 바람이 강할 것으로 예상되는 관광지는 changes 에 적힌 표류 대상 그대로(「해안 바람 11m/s(소형 보트·레저기구 표류 주의)」면 「소형 보트·레저기구 표류에 유의해야 합니다」 — 철마다 대상 말이 다르다) 쓰고, 표류 사고가 잦은 해역은 강한 바람 속 표류를 함께 말한다. 바람이 약하고 특보도 없으면 사고 이력을 길게 늘어놓지 않는다.',
         '규칙(어기면 그 관할 글은 버려진다):',
         '0) 각 분석은 ' + MAX_CHARS + '자 이내, 3~5문장, 마지막 문장은 「따라서」로 시작해 「요구됩니다.」로 끝난다.',
         '1) 숫자는 단위까지 그 관할의 allowed_numbers 에 있는 꼴로만 쓴다(예: 「2.4m」·「15~18시」·「06:12」). 새 숫자·비율·범위를 만들지 않는다. 숫자는 아라비아 숫자로 쓴다 — 한글 수사(세 시·두 척·서른 미터)는 쓰지 않는다. 장소·해역 수를 세어 쓰지 않는다(「세 곳」·「3곳」·「두 해수욕장」 — 수는 shown 근거 줄에 이미 있다) — 장소는 이름만 나열한다(「A·B·C에는」).',
         '2) 지명(항·포구·해수욕장·앞바다·해구·섬·갯바위·파출소 등)은 allowed_places 이름(또는 place_stems), 그리고 그 관할의 kma_zones 에 있는 기상청 해역 이름(「제주도남쪽바깥먼바다」 등)만 그대로 쓴다.',
         '3) 단계 말(관심·주의·경계 + 필요·요구·단계·수준·하십시오 등 모든 꼴, 「A에는 주의가, B에는 관심이 요구됩니다」의 「주의가,」도)은 levels.sea(해상 분석)·levels.land(연안 분석)에 적힌 그 대상의 단계보다 높이지 않는다. 단계 말 바로 앞(같은 문장, 쉼표로 나뉜 같은 대목)에 대상 이름을 쓴다 — 이름이 없으면 그 분석의 결론 단계(shown 결론 문장의 단계)까지만. 낮추지도 않는다: 마지막 「따라서」 문장의 단계 말(여럿이면 가장 높은 것)과 문단에서 가장 높은 단계 말은 그 분석의 결론 단계와 같아야 한다(결론이 「평소 수준」이면 「평소처럼 관심이 요구됩니다」). 따옴표로 쓰는 공식 단계 이름(\'주의\'·\'높음\' 등)은 allowed_labels 에 있는 것만.',
-        '4) 확인하지 못한 자료(missing_sources)가 있으면 그 자료가 빠졌는데 「평소 수준」·「없습니다」로 단정하지 않는다.',
+        '4) 확인하지 못한 자료(missing_sources)는 문단에 쓰지 않는다(「이안류 자료는 확인하지 못했습니다」·「그 부분은 판단하지 못했습니다」 금지 — 화면 「분석 근거」에 이미 있다). 다만 그 자료가 빠졌는데 「평소 수준」·「없습니다」로 단정하지 않는다 — 달라진 것이 없다고 할 때는 「확인된 자료에서는 평소와 달라진 요소가 확인되지 않았습니다」로 쓴다.',
         '5) 쓰지 않는 말: 순찰·배치·출동·단속·통제·투입·경비정·검문·근무(직무 지시), 「안전합니다」·「이상 없음」·「문제없음」·「위험 요소가 없습니다」(안전 단정), 「평온합니다」·「위험하지 않습니다」·「위험이 낮습니다」·「안심하고」(화면 결론과 다른 단정 — 시간 흐름의 「오전에는 잔잔하지만 오후부터 …」는 된다), 「출항하지 마십시오」·「출항 금지」(지시), 「사고 확률」. 「두세 곳」「세 군데」 같은 어림 수사도 쓰지 않는다. 배수(N배)는 allowed_multipliers.sea(해상)·land(연안)에 있는 것만 — 해상의 「사고 N배」·「두 배」는 쓰지 않는다. 지시(「~하라」)를 쓰지 않는다.',
         '6) land 가 null 인 관할(해상만 제공)은 land 를 null 로 둔다.',
         '7) kma_outlook 은 기상청 해상 기상 전망 원문 발췌다 — 원인(저기압·바람 방향 등)과 흐름을 이해하는 데 쓰고, 그 안의 숫자는 옮기지 않는다(해역 이름은 2)의 kma_zones 에 있는 것만).',
@@ -476,6 +506,10 @@ function validateOverview(o, si) {
         if (ss.some((x) => { const i = x.indexOf('근거로'); return i >= 0 && /므로|때문에/.test(x.slice(i)); })) errors.push('word:reason-twice');
         if (/\((?:KOMSA|기상청)\)\s*근거로/.test(t)) errors.push('word:tag-reason');
         if (/[<>]|https?:|www\.|javascript:|&[a-z]+;|\]\(/i.test(t)) errors.push('markup');
+        // §11.10.54(2026-11-18 사용자): 연안 위험지수는 등급만(*"위험지수 숫자보다는 등급을 나타냈으면"*) · 확인하지 못한 자료는 쓰지 않는다(*"「이안류 자료는 확인하지 못했습니다」 이런 확인되지 않은 것은 기록할 필요가 없어"*).
+        //   숫자는 입력·허용 숫자에서도 뺐다(stationInput forAi) — 다른 꼴(「위험지수(72)」·「'높음'(72)」)은 number: 로 막히고, 여기서는 흔한 꼴을 알아보기 쉬운 이유로 막는다.
+        if (/위험\s*(?:도\s*)?지수\s*(?:[가는도를이]\s*)?(?:무려\s*|약\s*)?\(?\s*\d/.test(t)) errors.push('word:riskindex-number');
+        if (/(?:확인|판단)(?:하지|되지)\s*못/.test(t)) errors.push('word:missing-source');
         const multSet = new Set(mk[k] || []);
         // 배수 범위(§11.10.31 — 2026-10-18 14:08 운영 「multiplier:1.1~1.2배」, 사용자 「진행해줘.」): 「1.1~1.2배」는 양 끝(1.1배·1.2배)이 둘 다 그 문단 허용 배수에 있고
         //   작은 수~큰 수일 때만 통과. 한쪽이라도 없거나 뒤집힌 것(1.2~1.1)·같은 수(1.2~1.2)는 종전처럼 multiplier:. 범위 열쇠가 그대로 허용 목록에 있으면(해상 해제 칸 '1.2~1.3|배') 종전대로 통과.
@@ -487,8 +521,13 @@ function validateOverview(o, si) {
             const yearOk = n.unit === '년' && /^(?:19|20)\d\d(?:~(?:19|20)\d\d)?$/.test(n.key.split('|')[0]) && allowedN.has(n.key.split('|')[0] + '|');
             // 시각 칸 잇기(§11.10.49 — 사용자 「칸이 정확히 이어지면 허용」, 11-13~15 운영 「06~15시」 등 20건): 「a~b시」는 허용된 「x~y시」 칸들을 빈틈없이 이어 정확히 a→b 가 되면 통과(빈 칸이 있으면 막음).
             //   해역·출처는 가리지 않는다(사용자가 그 위험을 알고 고름 — 설계서 §11.10.49).
-            const chainOk = n.range && n.unit === '시' && (() => { const [a, b] = n.key.split('|')[0].split('~').map(Number); if (!(a < b)) return false; const rs = [...allowedN].filter((x) => /^\d+~\d+\|시$/.test(x)).map((x) => x.split('|')[0].split('~').map(Number)); const reach = new Set([a]); let grow = true; while (grow) { grow = false; for (const [x, y] of rs) if (reach.has(x) && x < y && y <= b && !reach.has(y)) { reach.add(y); grow = true; } } return reach.has(b); })();
-            if (!allowedN.has(n.key) && !yearOk && !chainOk) errors.push('number:' + n.text);
+            //   자정을 넘는 「21시~6시」(누적 오류 E20261118-104914 G03 — 밤 판 창은 오늘 21시~내일 24시)는 「a~24시」와 「0~b시」가 각각 빈틈없이 이어질 때만.
+            const chainOk = n.range && n.unit === '시' && (() => { const [a, b] = n.key.split('|')[0].split('~').map(Number); const rs = [...allowedN].filter((x) => /^\d+~\d+\|시$/.test(x)).map((x) => x.split('|')[0].split('~').map(Number));
+                const reach = (s0, e0) => { if (!(s0 < e0)) return false; const r = new Set([s0]); let grow = true; while (grow) { grow = false; for (const [x, y] of rs) if (r.has(x) && x < y && y <= e0 && !r.has(y)) { r.add(y); grow = true; } } return r.has(e0); };
+                return a < b ? reach(a, b) : a > b && a >= 21 && b > 0 && reach(a, 24) && reach(0, b); })();   // 자정 너머는 21시 이후 시작만(밤 창 — 독립 검토 중2)
+            // 연안 문단의 풍속 범위(「해안 바람이 8~10m/s」 — 여러 관광지 값을 한 범위로, 누적 오류 G03): 양 끝이 둘 다 허용 숫자이고 작은 수~큰 수일 때만. 해상 문단은 S24(해구마다 따로) 그대로 막는다.
+            const windRangeOk = k === 'land' && n.range && n.unit === 'm/s' && /^\d+(?:\.\d+)?\s*(?:m\/s)?\s*[~∼〜–-]/.test(n.text) && n.ends.length === 2 && n.ends.every((e) => allowedN.has(e)) && Number(n.ends[0].split('|')[0]) < Number(n.ends[1].split('|')[0]);
+            if (!allowedN.has(n.key) && !yearOk && !chainOk && !windRangeOk) errors.push('number:' + n.text);
         }
         const paraCount = si.count_keys ? new Set(si.count_keys[k] || []) : allowedN;   // 셈말은 그 문단 결론·근거에 있는 수만(독립 검토 7)
         const countNames = Object.keys((si.levels && si.levels[k]) || {}).concat(k === 'land' && si.land && Array.isArray(si.land.constant) ? si.land.constant : []);   // §11.10.47: 상시 위험 장소 이름도 센다
@@ -497,7 +536,12 @@ function validateOverview(o, si) {
         for (const m of t.matchAll(HMULT_RE)) errors.push('multiplier:' + m[1].replace(/\s+/g, ' '));
         // 조사가 붙은 원래 낱말도 본다 — 허용 이름 뒤에 조사만 남으면 통과(「한림공원도」·「삼양해안도로를」 — 조사 도·로를 지명 끝 「도」로 잘못 자르던 2026-10-17 운영 오판)
         const withParticle = (raw) => names.some((a) => { const i = raw.lastIndexOf(a); return i >= 0 && PARTICLE_ONLY_RE.test(raw.slice(i + a.length)); });
-        for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || kz.has(x) || names.some((a) => x.endsWith(a))) && !withParticle(compact(pc.raw || ''))) errors.push('place:' + pc.cands[pc.cands.length - 1]);
+        // 허용 이름이 이 낱말에서 시작해 다음 낱말까지 이어지면 통과(「신도해안도로 갯바위」 — §11.10.54).
+        // 「남쪽 먼바다」(누적 오류 G01 성산 — 기상청 전망을 줄여 쓴 꼴): 방위 + (안쪽·바깥) + 먼바다·앞바다 는 그 방위를 품고 같은 꼬리로 끝나는 이 관할 기상청 해역 이름(kma_zones)이 있을 때만 통과.
+        //   방위는 낱자 경계로(「동쪽」이 「남동쪽」 안에서 맞지 않게) · 앞에 이름다운 낱말이 붙은 후보(「가짜 동쪽 먼바다」)는 이 길로 통과하지 않는다 — 가장 긴 후보가 방위 꼴일 때만(독립 검토 상2·중1).
+        const dirZoneOk = (x) => { const m = /^(동|서|남|북|남동|남서|북동|북서)쪽(안쪽|바깥)?(먼바다|앞바다)$/.exec(x); if (!m) return false; const re = new RegExp('(?<![동서남북])' + m[1] + '쪽' + (m[2] || '')); return [...kz].some((z) => re.test(z) && z.endsWith(m[3])); };
+        const continuesName = (pc) => { const w0 = compact(pc.word || ''), fw = compact(pc.fwd || ''); return !!(w0 && fw) && names.some((a) => a.length > w0.length && a.startsWith(w0) && fw.startsWith(a)); };
+        for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || kz.has(x) || names.some((a) => x.endsWith(a))) && !dirZoneOk(pc.cands[pc.cands.length - 1]) && !withParticle(compact(pc.raw || '')) && !continuesName(pc)) errors.push('place:' + pc.cands[pc.cands.length - 1]);
         for (const w of FORBIDDEN) if (c.includes(compact(w))) errors.push('forbidden:' + w);
         for (const lm of t.matchAll(LABEL_RE)) if (!(si.allowed_labels || []).includes(lm[0])) errors.push('label:' + lm[0]);
         if (SAFE_RE.test(c)) errors.push('forbidden:안전 단정');
@@ -558,8 +602,14 @@ function anaphoraCountOk(w, before, prev, names, self, allPrev = '') {
     // §11.10.52(운영 누적 오류 E20261116-142221 — 방어진·진하 「…. 이 세 곳에는 …」): 첫머리 바로 뒤 지시어 「이」(띄어 쓴 한 글자)도 「이들」처럼 첫머리로 본다. 「많이 세 곳」 꼴(낱말 끝 「이」)은 앞이 띄어쓰기가 아니라 그대로 실패.
     const head = before.replace(/(^|[\s,，])이\s*$/, '$1');
     if (!n || n < 2 || !/(?:^|[,，]|이들|(?:되|하|있|없|높|많|늘|낮|크|작|강하|약하)(?:며|고|어)|돼|해)\s*$/.test(head)) return false;
-    const all = [...new Set(names.filter((a) => a !== self).map(compact).filter(Boolean))];
-    const hits = (x) => { const cx = compact(x), hit = all.filter((a) => cx.includes(a)); return hit.filter((a) => !hit.some((b) => b !== a && b.includes(a))); };
+    // 이름마다 괄호 꼬리를 뗀 꼴도 본다(누적 오류 E20261118-104914 G02 — 「양남 주상절리군 (경북 동해안 국가지질공원)」을 「양남 주상절리군」으로 쓴 글).
+    //   셈은 글에 나온 자리로 한다 — 긴 것부터 겹치지 않게 고르고 이름(열쇠) 수를 센다(「장호항과 장호해수욕장(장호항, 장호해변)」 = 장호항·장호해수욕장 둘 — 괄호 속 「장호항」은 긴 이름에 덮인다).
+    const keys = [...new Set(names.filter((a) => a !== self).filter(Boolean))].map((a) => ({ a, forms: [...new Set([compact(a), compact(String(a).replace(/\s*[(（][^()（）]*[)）]\s*$/, ''))])].filter((f, i) => f.length >= (i ? 3 : 2)) }));   // 괄호 뗀 꼴은 3글자 이상만(「우도(창원 진해)」 → 「우도」가 「경우도」 속에서 잡히지 않게 — 독립 검토 중3)
+    const hits = (x) => { const cx = compact(x), occ = [];
+        for (const k of keys) for (const f of k.forms) { let i = cx.indexOf(f); while (i >= 0) { occ.push({ a: k.a, s: i, e: i + f.length }); i = cx.indexOf(f, i + 1); } }
+        occ.sort((p, q) => (q.e - q.s) - (p.e - p.s) || p.s - q.s); const taken = [], got = new Set();
+        for (const o of occ) if (!taken.some((t) => o.s < t.e && t.s < o.e)) { taken.push(o); got.add(o.a); }
+        return [...got]; };
     // §11.10.49(사용자 「앞 문장 전부까지 넓힘」 — 11-13~15 운영 「세 곳 모두」 3건, 이름이 앞 두 문장에 나뉨): 그 문단 앞 문장 전부의 이름 수가 정확히 n 이어도 통과
     const own = hits(before), both = hits(before + ' ' + prev), every = allPrev ? hits(before + ' ' + allPrev) : []; return (own.length > 0 && own.length === n) || both.length === n || every.length === n;
 }
@@ -596,6 +646,8 @@ function explainError(code) {
         : c === 'word:reason-twice' ? '한 문장에 「… 근거로」와 「… 이므로」로 이유를 두 번 겹쳐 썼다(S6)'
         : c === 'word:tag-reason' ? '「(기상청) 근거로」·「(KOMSA) 근거로」 같은 근거 꼬리표를 문장 속 이유로 썼다(S6)'
         : c === 'markup' ? 'HTML·링크·마크다운을 썼다'
+        : c === 'word:riskindex-number' ? '연안 위험지수는 숫자 없이 등급만 쓴다 — 「연안 위험지수 \'높음\'」(S27)'
+        : c === 'word:missing-source' ? '확인하지 못한 자료는 쓰지 않는다 — 「…자료는 확인하지 못했습니다」·「판단하지 못했습니다」 대신 그 말을 빼고, 달라진 것이 없다고 할 때는 「확인된 자료에서는 평소와 달라진 요소가 확인되지 않았습니다」(S29)'
         : c === 'missing:station' ? '응답에 이 관할(id)이 없었다'
         : c === 'parse' ? '응답이 정해진 JSON 꼴이 아니었다' : '규칙에 어긋났다';
     return shown + ' — ' + why;

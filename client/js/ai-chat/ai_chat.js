@@ -2704,13 +2704,14 @@
   var AUTORUN_ST = {
     needs_human: ['nrya-warn', '🖐 머지 버튼 필요'], waiting: ['', '⏳ 검사 기다림 → 통과하면 자동 머지'],
     failed_checks: ['nrya-rej', '❌ 검사 실패(머지 잠김)'], merged: ['nrya-done', '✅ 머지됨'], closed: ['nrya-rej', '닫힘'],
+    conflict_fixing: ['nrya-warn', '🔧 충돌 — 자동 반영 세션이 푸는 중'],   // 2026-11-18 사용자 「자동으로 세션이 해결」 — 풀리면 검사 뒤 알림
   };
   // 사람 몫 PR 도 검사를 지켜본다(서버 nariya_pr_merge — 2026-11-18): 초록이 되면 「머지 버튼」 푸시가 온다.
   var AUTORUN_ST_HUMAN_WAIT = ['', '⏳ 검사 중 → 끝나면 머지 버튼 알림'];
   // 마지막 확인의 상태 이름(서버 judge 의 state)을 쉬운 말로 — 영문(pending 등)을 그대로 보이지 않는다(2026-11-18 사용자).
   var AUTORUN_CHK = {
     green: '검사 통과', pending: '검사 진행 중', missing: '검사가 아직 시작 안 됨', failed: '검사 실패', skipped: '검사가 돌지 않음',
-    stale: '최신 main 으로 다시 검사 필요', conflict: '충돌', merged: '머지됨', closed: '닫힘', error: 'GitHub 확인 실패',
+    stale: '최신 main 으로 다시 검사 필요', conflict: '충돌(main 과 같은 파일을 서로 다르게 고침)', merged: '머지됨', closed: '닫힘', error: 'GitHub 확인 실패',
     invalid: '확인 필요', foreign: '자동 머지 조건 아님', scope: '위키·원문 밖 파일', no_token: '서버 열쇠 없음', auth: '서버 열쇠 문제',
   };
   /**
@@ -2720,8 +2721,17 @@
   function autorunCardHTML(p) {
     var st = p.status === 'waiting' && p.mode === 'human' ? AUTORUN_ST_HUMAN_WAIT : (AUTORUN_ST[p.status] || ['', String(p.status || '')]);
     var field = function (lab, html) { return '<div class="nrya-rv-field"><div class="nrya-rv-flab">' + lab + '</div><div class="nrya-rv-fval">' + html + '</div></div>'; };
+    // 결정 필요마다 답 칸(2026-11-18 사용자 「앱에 답 칸 만들기」) — 답을 보내면 다음 자동 반영 세션이 그 답대로 처리한다(서버 nariya_pr_merge.answer).
+    //   이미 단 답은 「처리 대기·처리됨·보류」와 함께 보이고, [고쳐 쓰기]로 다시 보낼 수 있다. 머지·닫힌 PR 은 답 칸 없이 목록만.
+    var canAnswer = p.status !== 'merged' && p.status !== 'closed';
     var needs = (p.needs || []).length
-      ? field('🧭 결정 필요 ' + p.needs.length + '건', '<ul style="margin:4px 0 0;padding-left:18px">' + p.needs.map(function (x) { return '<li style="margin:2px 0">' + esc(x) + '</li>'; }).join('') + '</ul>')
+      ? field('🧭 결정 필요 ' + p.needs.length + '건', '<ul style="margin:4px 0 0;padding-left:18px">' + p.needs.map(function (x, i) {
+          var a = (p.answers || [])[i];
+          var ans = a ? '<div style="margin:3px 0 0;font-size:12.5px">↳ 답: ' + esc(a.text) + ' <span style="color:var(--nrya-text-sub)">(' + (a.handled ? '처리됨' : a.deferred ? '세션이 답대로 하지 못해 보류' : '처리 대기 — 자동 반영 세션이 곧 처리') + ')</span></div>' : '';
+          var box = canAnswer ? '<div class="nrya-ans" style="margin:4px 0 6px;display:flex;gap:6px"><input type="text" maxlength="500" data-ans-input="' + esc(String(p.number)) + '-' + i + '" placeholder="' + (a ? '답 고쳐 쓰기' : '여기에 답을 적어 주세요') + '" style="flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--nrya-border, #334155);background:transparent;color:inherit">' +
+            '<button class="nrya-btn-ok" data-ans-send="' + esc(String(p.number)) + '-' + i + '" style="white-space:nowrap">답 보내기</button></div>' : '';
+          return '<li style="margin:2px 0">' + esc(x) + ans + box + '</li>';
+        }).join('') + '</ul>')
       : '';
     var why = p.why ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">ℹ️</span>' + esc(p.why) + (p.howText ? '<br><b>' + esc(p.howText) + '</b>' : '') + '</div>' : '';
     // 위키·원문 밖 파일(서버 코드·검사 도구 등)을 고친 PR — 자동 머지 대상이 아니다. 누르기 전에 알 수 있게 보여 준다(적대검증 C#상-1).
@@ -2733,11 +2743,11 @@
     var merged = p.status === 'merged' ? field('✅ 머지', esc((p.mergedBy === 'auto' ? '자동' : (p.mergedBy || '')) + (p.mergedAt ? ' · ' + p.mergedAt.slice(5, 16).replace('T', ' ') : ''))) : '';
     // 버튼은 서버가 방을 열 때 GitHub 에서 다시 읽어 「지금 머지할 수 있다」(canMerge)고 판정한 PR 에만 그린다 —
     //   눌러도 실패할 버튼을 보여 주지 않는다(적대검증 C#중-3). 그 밖에는 왜 안 되는지 한 줄.
-    var open = p.status === 'needs_human' || p.status === 'waiting' || p.status === 'failed_checks';
+    var open = p.status === 'needs_human' || p.status === 'waiting' || p.status === 'failed_checks' || p.status === 'conflict_fixing';
     var stale = p.check && p.check.state === 'stale';   // main 이 바뀜 — 누르면 서버가 최신 main 을 얹고 다시 검사(약 20분 뒤 다시 눌러야 머지)
     var btn = open && p.canMerge ? (stale ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">🔄</span>검사 뒤 main 이 바뀌었습니다 — 버튼을 누르면 최신 main 으로 다시 검사하고, 약 20분 뒤 다시 누르면 머지됩니다.</div>' : '') +
         '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">' + (stale ? '🔄 최신 main 으로 다시 검사' : '🔀 머지') + '</button></div>'
-      : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || chkName) + (p.check.state === 'pending' || p.check.state === 'missing' ? (p.status === 'waiting' || p.status === 'failed_checks' ? ' (검사는 보통 20분쯤 걸립니다. 끝나 초록이면 알림이 옵니다)' : ' (검사는 보통 20분쯤 걸립니다. 끝난 뒤 이 방을 다시 열어 주세요)') : '') + '</div>' : '';
+      : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || chkName) + (p.check.state === 'pending' || p.check.state === 'missing' ? (p.status === 'waiting' || p.status === 'failed_checks' || p.status === 'conflict_fixing' ? ' (검사는 보통 20분쯤 걸립니다. 끝나 초록이면 알림이 옵니다)' : ' (검사는 보통 20분쯤 걸립니다. 끝난 뒤 이 방을 다시 열어 주세요)') : '') + '</div>' : '';
     return cardShell({
       id: String(p.number), badge: 'PR #' + p.number, title: (p.summary || '(요약 없음)').slice(0, 160),
       subHTML: esc((p.at || '').slice(5, 16).replace('T', ' ')) + ' · <a href="' + esc(p.pr_url) + '" target="_blank" rel="noopener">GitHub 에서 보기</a>',
@@ -2779,6 +2789,23 @@
     // [머지] — 첫 클릭은 「한 번 더 누르면 머지·배포」 로 바꾸고(8초), 두 번째 클릭에서 POST. 결과는 서버가 판정한 그대로 보여 준다.
     var armed = null;
     listEl.addEventListener('click', function (ev) {
+      // [답 보내기] — 결정 필요 한 줄에 답을 저장(관리자 토큰). 저장되면 목록을 다시 읽어 「처리 대기」로 보인다.
+      var sb = ev.target && ev.target.closest ? ev.target.closest('button[data-ans-send]') : null;
+      if (sb) {
+        var key = sb.getAttribute('data-ans-send'), m = /^(\d+)-(\d+)$/.exec(key || ''), inp = listEl.querySelector('input[data-ans-input="' + key + '"]');
+        var text = inp ? String(inp.value || '').trim() : '';
+        if (!m || !text) { showErr('답을 적어 주세요.'); return; }
+        sb.disabled = true; sb.textContent = '보내는 중…';
+        legalPost('/api/legal/autorun/prs/' + encodeURIComponent(m[1]) + '/answer', { index: Number(m[2]), text: text }).then(function (res) {
+          if (res.status === 401 || res.status === 403) return { _denied: true };
+          return res.json().catch(function () { return { ok: false, why: '응답 파싱 실패' }; });
+        }).then(function (d) {
+          if (d && d._denied) { showErr('관리자 로그인 필요'); sb.disabled = false; sb.textContent = '답 보내기'; return; }
+          if (!d || !d.ok) { showErr('답을 저장하지 못했습니다 — ' + ((d && (d.why || d.error)) || '알 수 없는 오류')); sb.disabled = false; sb.textContent = '답 보내기'; return; }
+          load();
+        }).catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); sb.disabled = false; sb.textContent = '답 보내기'; });
+        return;
+      }
       var b = ev.target && ev.target.closest ? ev.target.closest('button[data-merge]') : null;
       if (!b) return;
       var n = b.getAttribute('data-merge');
