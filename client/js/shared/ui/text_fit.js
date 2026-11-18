@@ -37,25 +37,32 @@
         });
     }) : null;
 
+    // 낱말 안 글자 사이에 넣는 「줄 바꾸지 마」 표시(WORD JOINER, 폭 0) — 괄호·가운뎃점·빗금 자리에서도 줄이 바뀌지 않게
+    //   (사용자 2026-11-18 「일부 우리 규칙에 안맞게 어절단위로 안끊어진 부분도」 — 「실시간 / (매시간)」 「눈) / 가」 같은 것).
+    //   한 줄보다 긴 낱말은 CSS overflow-wrap:break-word 가 어쩔 수 없이 끊는다.
+    var WJ = '\u2060';
+
     /**
      * 글 칸의 글자를 띄어쓰기 단위 조각(span)으로 나눈다 — 줄마다 어느 낱말이 있는지 재기 위해. 한 번만 나눈다.
-     * 띄어쓰기 없이 붙은 조각(예: 굵은 글씨 「[저장]」 + 「을」)은 한 낱말로 묶는다(브라우저도 그 사이에서 줄을 바꾸지 않는다).
+     * 띄어쓰기 없이 붙은 조각(예: 굵은 글씨 「[저장]」 + 「을」)은 한 낱말로 묶는다. 낱말 안 글자 사이에는 WJ 를 넣어
+     * 띄어쓰기 자리에서만 줄이 바뀌게 한다. 줄바꿈 글자(\n)가 든 띄어쓰기 뒤 낱말은 hard=true(그 줄로 당기지 않는다).
      * 예: '<li>기상청이 <strong>11월</strong>부터</li>' → 낱말 [[기상청이], [11월, 부터]]
      * @param {Element} block - 문단·목록 항목 @returns {Array<Array<HTMLSpanElement>>} 낱말(조각 묶음) 목록 [연계] ← fitBlock
      */
     function words(block) {
         if (block.__tfWords) return block.__tfWords;
-        var texts = [], walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT), out = [], gap = true;
+        var texts = [], walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT), out = [], gap = true, hard = false;
         while (walker.nextNode()) texts.push(walker.currentNode);
         texts.forEach(function (t) {
             var frag = document.createDocumentFragment();
             t.nodeValue.split(/(\s+)/).forEach(function (s) {
                 if (!s) return;
-                if (/^\s+$/.test(s)) { frag.appendChild(document.createTextNode(s)); gap = true; return; }
+                if (/^\s+$/.test(s)) { frag.appendChild(document.createTextNode(s)); gap = true; if (s.indexOf('\n') >= 0) hard = true; return; }
                 var sp = document.createElement('span');
-                sp.textContent = s;
+                sp.textContent = Array.from(s).join(WJ);
                 frag.appendChild(sp);
-                if (gap || !out.length) out.push([sp]); else out[out.length - 1].push(sp);
+                if (gap || !out.length) { var w = [sp]; w.hard = hard; out.push(w); hard = false; }
+                else { var last = out[out.length - 1]; last[last.length - 1].textContent += WJ; last.push(sp); }   // 붙은 조각 사이도
                 gap = false;
             });
             t.parentNode.replaceChild(frag, t);
@@ -97,13 +104,14 @@
             if (!ra || !rb) continue;                                    // 낱말이 두 줄에 걸쳤으면(아주 긴 낱말) 건드리지 않는다
             var top = ra.top;
             if (rb.top <= top + 2) continue;                             // 같은 줄
+            if (ws[k].hard) continue;                                    // 줄바꿈 글자로 일부러 바꾼 줄(문장 끝)은 당기지 않는다
             var s = k - 1;                                               // 이 줄의 첫 낱말
             while (s > 0) { var rp = box(ws[s - 1]); if (!rp || Math.abs(rp.top - top) > 2) break; s--; }
             var space = s < k - 1 ? box(ws[s + 1]).left - box(ws[s]).right : parseFloat(cs.fontSize) * 0.27;
             var need = space + rb.width - (right - ra.right);
             if (need <= 0) continue;
             var line = ws.slice(s, k + 1), chars = 0, saved = [];
-            line.forEach(function (w) { w.forEach(function (sp) { chars += sp.textContent.length; saved.push(sp.style.letterSpacing); }); });
+            line.forEach(function (w) { w.forEach(function (sp) { chars += sp.textContent.replace(/\u2060/g, '').length; saved.push(sp.style.letterSpacing); }); });
             // 이 줄이 앞서 이미 좁혀졌으면(낱말을 하나 당긴 뒤 또 당기는 경우) 그만큼에 더한다
             var ls = (-parseFloat(ws[s][0].style.letterSpacing) || 0) + need / chars + 0.05;
             if (ls > cap) continue;
@@ -140,6 +148,15 @@
      */
     function textFitInfo(rootEl) {
         if (!rootEl) return;
+        // 문장이 끝나면(「~다.」「~요.」 + 띄어쓰기) 다음 문장은 새 줄에서(사용자 2026-11-18 「안내에서 문장이 끝나면 다음줄로 줄바꿈」)
+        //   — 안내 본문은 white-space:pre-line 이라 줄바꿈 글자가 그대로 줄을 바꾼다. 「1.5」 같은 숫자는 건드리지 않는다.
+        rootEl.querySelectorAll('.ocean-info-panel p').forEach(function (p) {
+            if (p.__tfSent) return;
+            p.__tfSent = true;
+            var tw = document.createTreeWalker(p, NodeFilter.SHOW_TEXT), list = [];
+            while (tw.nextNode()) list.push(tw.currentNode);
+            list.forEach(function (t) { t.nodeValue = t.nodeValue.replace(/([다요])\.[ \t]+(?=\S)/g, '$1.\n'); });
+        });
         rootEl.querySelectorAll('.ocean-info-panel p').forEach(function (p) {
             var first = p.firstChild;
             if (first && first.nodeType === 1 && first.tagName === 'I') {
