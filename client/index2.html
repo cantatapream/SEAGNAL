@@ -5723,6 +5723,9 @@
     <!-- 내 위치(GPS) 버튼 진행 토스트 — 「위치정보를 확인하고 있어요」 스피너 → 초록 체크 → fade out (2026-11-18)
          버튼을 누를 때 호출되므로 위치 버튼 처리 파일들보다 늦게 로드돼도 된다. -->
     <script src="js/shared/ui/locate_toast.js"></script>
+    <!-- 날짜칸(type=date·datetime-local)을 누르면 기본 달력 대신 휠(년·월·일[·시·분]) 선택기 (2026-11-18)
+         문서 전체에서 누름을 가로채므로 날짜칸을 만드는 파일들보다 늦게 로드돼도 된다. -->
+    <script src="js/shared/ui/wheel_date_picker.js?v=20261118wdp2"></script>
     <script src="js/core/app_init.js"></script>
     <script src="js/core/backbutton.js?v=TabKeep3_20261016"></script>
     <!-- AI 비서 바로가기 딥링크(?assistant=ocean&layer=...) → 해양종합정보 레이어 자동 활성화 -->

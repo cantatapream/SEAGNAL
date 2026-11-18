@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 129개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 130개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -189,7 +189,8 @@ client/js/
 ├── shared/  ← 공용 재료(유틸·UI·데이터)
 │   ├── ui/
 │   │   ├── locate_toast.js
-│   │   └── ui_modal.js
+│   │   ├── ui_modal.js
+│   │   └── wheel_date_picker.js
 │   └── utils/
 │       ├── accident_codes.js
 │       ├── mappings.js
@@ -496,6 +497,7 @@ client/js/
 |------|------|
 | `locate_toast.js` | 「내 위치」(GPS) 버튼을 눌렀을 때 화면 하단에 진행 토스트를 띄우고 현재 위치를 가져온다. |
 | `ui_modal.js` | 공통 UI 모달 (기상청 iframe, SEAGNAL 시스템 모달) |
+| `wheel_date_picker.js` | 앱의 모든 날짜칸(<input type="date">)·날짜시각칸(<input type="datetime-local">)을 누 |
 
 ### `client/js/shared/utils/`
 
