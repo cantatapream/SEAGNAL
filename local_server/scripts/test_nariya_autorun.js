@@ -909,7 +909,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.equal(a.merger.tracked.length, 1); assert.equal(a.merger.tracked[0].pr_url, PR(21));
         const t = titles(a.push, /나리야 자동 반영 — 반영 끝 · 검사 중/);
         assert.equal(t.length, 1, a.push.sent.map((x) => x.title).join('|'));
-        assert.ok(/서버가 자동으로 머지·배포합니다 — 누를 것 없습니다/.test(t[0].body), t[0].body); assert.equal(t[0].data.merge, 'auto');
+        assert.ok(/검사\(약 20분\)가 끝나면 결과를 알려 드립니다/.test(t[0].body) && !/누를 것 없습니다/.test(t[0].body), t[0].body); assert.equal(t[0].data.merge, 'auto');
         const b = make();
         const id2 = await fired(b);
         await quiet(async () => { b.ar.done({ run_id: id2, outcome: 'pr', pr_url: PR(22), needs_decision: ['고시 폴더'], summary: '신선도 1건' }); await flush(); });
