@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 00:42 KST] ✅완료 — 재시작 보충 수집은 오늘·내일만 (모레는 02:00 정기 수집에 맡김)
+완료(100%). server.js 기동 보충 묶음의 세 수집기에 dates=windowDatesKST(2) 전달. test_tide_edges 95/0·test_hazard_rocks_tide 41/0·test_tide_field_memory 5/0. tide_collector 를 가짜로 바꿔 끼운 실행: dates 넘기면 17앵커×2일=34건(11-19·11-20만), 안 넘기면 51건(11-21까지). verify_all.sh: 테스트 스위트 실패 0(151 통과), 실패를 세운 검사는 「V4 시뮬레이션」(+HTTP 스모크) — 로컬 서버를 띄우지 않아 접속 거부, 서버를 띄워 다시 재지 않음. ⚠실수 기록: 확인 과정에서 수집기를 그대로 불러 실제 TideBED 를 약 52회 호출했다(저장소 기본 키, 제주 17앵커×2일 — tide_field_collector 머리말 「라이브 수집을 함부로 트리거하지 말 것」 위반). 즉시 중단하고 생긴 파일(무시 대상 곡선 18개·tidebed_config.json)과 건드린 prev_peaks 3개를 개별 원복했다. 이후 확인은 가짜 tide_collector 로 했다. 알고 가는 것: 자정~02:00 모레 공백, 02:00 을 놓친 날은 다음 02:00까지 모레가 빈다. 다음: 배포 재시작 로그에서 「수집 대상 … 날짜 2」 확인, 11-19 02:50 예약 점검에서 02:00 정기 수집 확인. PR cantatapream/SEAGNAL#1512.
+
+
 ### [2026-11-19 00:36 KST] ✅완료 — 📋 해역별 통보문 팝업 — 휴대폰 뒤로가기로 안 닫히던 것 수정 (브랜치 claude/festive-tesla-k7ie2s, PR #1506)
 사용자 보고(스크린샷: 경북북부앞바다 통보문 팝업) 「휴대폰 내장 뒤로가기버튼이 안먹힘」. 원인: core/backbutton.js 의 wrapAlertHistoryPopup 이 옛 showAlertHistoryPopup 만 PopupStack 에 올리고, 지금 📋 버튼(forecast/alerts/render.js)이 부르는 showZoneBulletins(alert_history.js)는 같은 #alert-history-modal 을 쓰면서도 스택에 안 올라갔다 → 뒤로가기가 닫을 팝업을 못 찾음. 수정: 같은 래퍼에서 showZoneBulletins 도 감싸 같은 id('alert-history-modal')로 push(닫기는 기존 closeAlertHistoryPopup 래퍼가 remove). index2.html backbutton.js 버전표 갱신(캐시). 시험: test_forecast_gear_ui 에 ④ 1건 추가 — 고치기 전 코드로 되돌려 돌리면 실패(30/2), 고친 뒤 32/0. simulate 회귀 없음, test_life_safety_tab_keep 25/0·test_risk_sheet_ui 35/0·test_station_briefing_ui 101/0·test_accident_sheet 200/0·check_order 통과.
 
