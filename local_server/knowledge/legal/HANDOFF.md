@@ -1537,6 +1537,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 23:39 KST] ✅완료 — PC·모바일 브라우저에서 챗봇 '완료되면 알림 드릴까요?' 배너 숨김
+완료 100%. ai_chat.js: isNativeApp() 신설, doSend 에서 앱이 아니면 6초 동의 배너 타이머를 걸지 않고 notifyOnComplete=false 로 보냄(웹 푸시 미구현·설정창도 웹이면 푸시 탭 숨김이라 받을 길이 없다). 회귀 검사 2건 test_ask_context.js(372 PASS/0 FAIL, 옛 코드에선 실패 확인). MASTER_PLAN 191행대 항목3 아래 사용자 원문 병기. verify_all: 스위트 전부 통과, 실패 = V4 시뮬레이션·서버 스모크 21건(로컬 서버 미기동 ERR_CONNECTION_REFUSED). 다음: 실제 앱·PC 화면 확인은 배포 후 사용자 몫.
+
+
+### [2026-11-18 23:22 KST] 🟢착수 — PC·모바일 브라우저에서 챗봇 '완료되면 알림 드릴까요?' 배너 숨김
+사용자 지적: PC(모바일 브라우저 포함)는 푸시를 못 받는데 6초 넘는 답변에 알림 동의 배너가 뜬다. ai_chat.js doSend 의 배너 타이머·notifyOnComplete 를 Capacitor 네이티브 판정(isNativeApp)으로 거른다.
+
+
 ### [2026-11-18 21:22 KST] ✅완료 — 날짜 선택 휠 피커 — 앱 전체 날짜칸 공통 적용 (브랜치 claude/festive-tesla-k7ie2s, PR 전)
 사용자 요청 「날짜 선택하는 부분이 현재 캘린더 방식으로 되어있는데 휠 피커로 년월일을 선택할 수 있도록 해줘」(사고정보 기간선택·통합관리자 통계 등). 한 일: client/js/shared/ui/wheel_date_picker.js 신설 — 문서 전체에서 input[type=date]·datetime-local 누름을 가로채 아래서 올라오는 휠 시트(년·월·일, 날짜시각칸은 시·분까지)를 띄우고, [확인] 시 칸 값·input·change 이벤트를 원래 형식대로 넣는다. 그래서 사고정보 기간(accident_info.js), 관리자 통계·이용현황·CSV·공지만료(admin_collect.js), 설문 기간(admin_survey.js), 특보 발표시각·로그 조회·작업모드 종료(admin.js), 공지 만료(admin_trigger.js) 등 20여 칸은 코드 무수정. 제외는 data-native-picker 속성. 원래 readonly·disabled 칸은 손대지 않음. 시험 test_wheel_date_picker 23 PASS(verify_all SUITES 등록·규칙집 재생성·로드순서 기준선 1줄 추가). 실제 앱(Pixel 7 화면)에서 사고정보 기간·관리자 통계 둘 다 값 반영 확인. verify_all: 실패 다수가 이 컨테이너의 playwright-core 모듈 경로 문제(Cannot find module) — NODE_PATH 에 /opt/node-tools/node_modules 넣고 해당 스위트 재실행해 확인. 참고: 조석 격자 달력 client/tide_calendar.js 는 호출처 0(죽은 코드)이라 손대지 않음. 로컬 서버는 시작 시 .br/.gz 압축본을 만들어 계속 쓰므로 JS 를 고친 뒤엔 서버 재시작해야 새 판이 나간다(로컬 확인 때 헷갈림). 다음: 사용자 확인 후 PR.
 
