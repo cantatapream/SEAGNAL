@@ -647,6 +647,8 @@
     function _openNoticePopup() {
         if (typeof window.showSeagnalModal !== 'function') return;
         window.showSeagnalModal('안내사항', _buildInfoHtml(), 'info');
+        // 줄 정렬(NOTICE.md 「줄 정렬」) — 아이콘 문단 둘째 줄 맞춤·제목 간격 표시 + 줄 끝 넘침 글자 간격 (shared/ui/text_fit.js)
+        if (window.textFitInfo) window.textFitInfo(document.getElementById('seagnal-custom-modal'));
     }
 
     // ──────────────────────────────────────────────────────────────
