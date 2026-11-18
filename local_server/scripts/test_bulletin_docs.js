@@ -138,7 +138,7 @@ const url = (b) => D.docOf(b.result).url;
         ok('보기 페이지는 쪽 그림을 세로로 이어 붙인다(여러 장이면 아래로 스크롤)', /pages\.map\(\(n, i\) =>/.test(route) && /<img src="page\/' \+ n \+ '"/.test(route));
         ok('화면: 보기 주소가 있으면 그것을 먼저 연다(구글 문서 뷰어·바깥 PDF 보다 앞)', /var url = b\.viewUrl \? b\.viewUrl : b\.webUrl/.test(client) && /if \(b\.viewUrl \|\| b\.pdfUrl \|\| b\.webUrl\)/.test(client) && /!b\.viewUrl && !b\.pdfUrl && !b\.webUrl/.test(client));
         ok('운영 서버 이미지에 그림 변환기(poppler-utils)를 깐다', /apt-get install[^\n]*poppler-utils/.test(read('Dockerfile')) && /command -v pdftoppm/.test(read('Dockerfile')));
-        ok('통보문 기준 계산 다음 매분 맞춘다(scheduler)', /require\('\.\/services\/bulletin_docs'\)\.sync\(\{ trails: st\.trails, bulletins: bulletinWatch\.bulletins\(\) \}\)/.test(read('local_server/scheduler.js')));
+        ok('통보문 기준 계산 다음 매분 맞춘다(scheduler)', /require\('\.\/services\/bulletin_docs'\)\.sync\(\{ trails: st\.trails, bulletins: bulletinWatch\.bulletins\(\), extra: escRefs \}\)/.test(read('local_server/scheduler.js')));
         ok('MMIS 코드를 쓰지 않는다', !/marine_client|fetchWarn|ntfctn/.test(read('local_server/services/bulletin_docs.js').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
     }
 

@@ -22,7 +22,7 @@
  * [연계]
  *  - 사용하는 파일 : services/bulletin_status(read — trails) · services/bulletin_watch(bulletins — 그림 이름) · 바깥 프로그램 pdftoppm(Dockerfile 의 poppler-utils)
  *  - 저장          : data/bulletin_docs/<열쇠>.pdf · <열쇠>-<쪽>.png
- *  - 나를 쓰는 곳  : scheduler.js(통보문 기준 계산 다음 매분 sync) · routes/weather.js(GET /api/zone-bulletins 가 그림 주소를 붙임 · GET /api/bulletin-doc/… 가 파일을 내려줌) ·
+ *  - 나를 쓰는 곳  : scheduler.js(통보문 기준 계산·격상 가능성 계산 다음 매분 sync — 안내 통보문도 extra 로) · routes/weather.js(GET /api/zone-bulletins 가 그림 주소를 붙임 · GET /api/bulletin-doc/… 가 파일을 내려줌) ·
  *                   검사 scripts/test_bulletin_docs.js
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
@@ -50,13 +50,15 @@ function docOf(r) {
 
 /**
  * 지금 있어야 할 통보문 원문 — 어느 해역의 발자취에든 든 통보문.
+ *   + extra: 발자취 밖이어도 두어야 하는 통보문(격상 가능성 안내가 적힌 통보문 — 그 해역의 발자취에 없는 일이 있다. 예: 앞바다 주의보를 발표하는 통보문이 먼바다의 경보 가능성을 덧붙임).
  * @param {object} trails bulletin_status 의 trails({단위: {list:[{rpt, office, ho, inMs}]}}) @param {Array} bulletins bulletin_watch.bulletins()
+ * @param {Array<{rpt, office, ho, inMs}>} [extra]
  * @returns {Map<string, string>} 열쇠 → PDF 주소
  * [연계] ← sync(이 파일)
  */
-function needed(trails, bulletins) {
+function needed(trails, bulletins, extra) {
     const out = new Map();
-    for (const t of Object.values(trails || {})) for (const e of (t && t.list) || []) {
+    for (const t of Object.values(trails || {}).concat([{ list: extra || [] }])) for (const e of (t && t.list) || []) {
         const b = bulletins.find((x) => x.rpt === e.rpt && x.office === e.office && x.result.t1Title === e.ho && KST(x.result.tmIn) === e.inMs);
         const d = b && docOf(b.result);
         if (d) out.set(d.key, d.url);
@@ -97,16 +99,16 @@ function createDocs({ dir = DIR, fetchPdf = realFetch, convert = realConvert } =
     /**
      * 한 번 맞춘다: 없는 원문을 받아 그림으로 바꾸고, 생애주기가 끝난 원문을 지운다. 절대 던지지 않는다(수집을 막지 않게).
      * 예: 발자취에 제11-51호·제11-13호 → 두 PDF 를 받아 KTKO50_…_51-1.png 등을 만든다 / 그 해역 특보가 끝나 발자취에서 빠지면 파일을 지운다.
-     * @param {{trails:object, bulletins:Array}} a
+     * @param {{trails:object, bulletins:Array, extra?:Array}} a  extra = 격상 가능성 안내가 적힌 통보문(bulletin_escalation 의 refs)
      * @returns {Promise<{need:number, fetched:number, converted:number, waiting:number, removed:number, skipped?:boolean}>} waiting = PDF 가 아직 안 올라온 것
      * [연계] ← scheduler.js(매분) / → fetchPdf · convert
      */
-    async function sync({ trails, bulletins }) {
+    async function sync({ trails, bulletins, extra }) {
         const stat = { need: 0, fetched: 0, converted: 0, waiting: 0, removed: 0 };
         if (running) return Object.assign(stat, { skipped: true });
         running = true;
         try {
-            const need = needed(trails, bulletins || []);
+            const need = needed(trails, bulletins || [], extra);
             stat.need = need.size;
             fs.mkdirSync(dir, { recursive: true });
             let files = ls();

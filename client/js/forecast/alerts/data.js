@@ -8,7 +8,8 @@
  *                   core/config.js(부이 API URL 상수) ·
  *                   shared/utils/mappings.js(BUOY_TYPES) ·
  *                   render.js(renderApp) · outlook/marine_forecast.js(loadMarineForecast) ·
- *                   alert_source_toggle.js(window.__alertSourceOnData — 특보 자료를 받을 때마다 「MMIS와 상이」 줄 갱신)
+ *                   alert_source_toggle.js(window.__alertSourceOnData — 특보 자료를 받을 때마다 「MMIS와 상이」 줄 갱신) ·
+ *                   escalation.js(loadZoneEscalations — 특보와 나란히 격상 가능성 목록을 받는다 → GET /api/zone-escalations)
  *  - 서버 API      : GET /api/weather-alerts(관리자가 [통보문]을 누른 동안은 /api/admin/bulletin-status — alert_source_toggle.js) · /api/buoys · /api/marine-buoys ·
  *                   /api/marine-wh-buoys · /api/marine-lh-buoys ·
  *                   /api/kma-buoys(DEPRECATED, 호출 주석 처리) · /api/marine-vs(캐시만)
@@ -81,7 +82,10 @@ async function fetchAllData() {
         //        이전엔 ?_t=Date.now() 로 캐시를 강제 우회했으나 max-age 가 짧아 신선도 충분.
         if (sp) sp.set(52, '기상 특보 불러오는 중…'); // fetch 대기 동안 52% 까지 creep
         // [관리자 출처 전환] 메인 「기상정보」 [통보문]을 누른 동안은 통보문 기준 주소(관리자 토큰) — alert_source_toggle.js. 평소·일반 사용자는 null → MMIS.
+        // [격상 가능성] 특보와 나란히 받는다(escalation.js — 실패해도 특보 화면은 그대로). 카드를 그리기 전에 끝나도록 아래에서 기다린다.
+        const escalationsLoading = typeof window.loadZoneEscalations === 'function' ? window.loadZoneEscalations() : null;
         const alertsResponse = await fetch(window.__alertSourceUrl || '/api/weather-alerts');
+        if (escalationsLoading) await escalationsLoading;
         if (alertsResponse.ok) {
             const rootData = await alertsResponse.json();
             flattenAlertsData(rootData);
@@ -173,7 +177,9 @@ async function refreshAlertData() {
         //   `cache: 'no-cache'` 옵션으로 브라우저에 "캐시 사용 말고 서버 검증" 요청.
         //   이전엔 ?_t=Date.now() 로 URL 변형해서 우회했으나, 이 방식이 더 표준적이고 깔끔함.
         //   (서버는 여전히 max-age=30 응답을 보내지만 이 옵션이 우선)
+        const escalationsLoading = typeof window.loadZoneEscalations === 'function' ? window.loadZoneEscalations() : null;   // [격상 가능성] escalation.js
         const resp = await fetch(window.__alertSourceUrl || '/api/weather-alerts', { cache: 'no-cache' });   // [관리자 출처 전환] alert_source_toggle.js
+        if (escalationsLoading) await escalationsLoading;
         if (resp.ok) {
             const rootData = await resp.json();
             flattenAlertsData(rootData);

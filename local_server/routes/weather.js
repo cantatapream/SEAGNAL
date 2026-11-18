@@ -1121,6 +1121,27 @@ router.get('/api/bulletin-doc/:key/pdf', (req, res) => {
     res.set('Cache-Control', 'public, max-age=604800, immutable').type('application/pdf').sendFile(f);
 });
 
+// [격상 가능성] 기상청이 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」을 알린 해역 — 메인 화면 특보구역 카드의 🔺 뱃지·빨강 상자가 읽는다(2026-11-19).
+//   계산은 services/bulletin_escalation 이 매분 해 둔다(통보문 참고사항 + 날씨해설). 여기서는 때가 지난 것을 빼고 📋 로 열 원문 주소를 붙인다.
+//   /api/weather-alerts 에 섞지 않는다 — 그쪽은 지금 MMIS 기준이고, 이 자료는 통보문·날씨해설만으로 만든다(MMIS 코드와 엮지 않음).
+//   계산 결과가 없으면(아직 계산 전) 빈 목록 — 화면은 아무것도 더 그리지 않는다.
+router.get('/api/zone-escalations', (req, res) => {
+    const st = require('../services/bulletin_escalation').read();
+    const docs = require('../services/bulletin_docs'), now = Date.now(), items = {};
+    for (const [zone, list] of Object.entries((st && st.items) || {})) {
+        const live = (Array.isArray(list) ? list : []).filter((it) => it && it.expMs > now).map((it) => {
+            const d = it.doc || {}, doc = { title: d.title || '' };
+            if (d.type === 'web') doc.webUrl = d.webUrl;
+            else if (d.key && docs.pages(d.key).length) doc.viewUrl = '/api/bulletin-doc/' + d.key + '/view';   // 우리 서버에 받아 둔 그림
+            else if (d.pdfUrl) doc.pdfUrl = d.pdfUrl;
+            return { kind: it.kind, source: it.source, dayMs: it.dayMs, label: it.label, caveat: it.caveat, expMs: it.expMs, doc };
+        });
+        if (live.length) items[zone] = live;
+    }
+    res.set('Cache-Control', 'no-store');
+    res.json({ at: (st && st.at) || null, items });
+});
+
 // [통보문 기준 팝업] 원문 PDF 가 실제로 올라와 있는가 — 기상청 공개 파일 서버에 HEAD 한 번(MMIS 로그인·API 아님).
 //   없는 파일에도 200(text/html)으로 답하므로 「PDF 로 답했는가」를 본다. 있다고 확인된 주소는 기억해 다시 묻지 않는다(PDF 는 안 바뀐다).
 //   3초 안에 답이 없으면 없는 것으로 친다 — 없으면: 파일 서버가 느릴 때 팝업이 그만큼 안 뜬다.

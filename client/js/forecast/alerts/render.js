@@ -7,7 +7,8 @@
  *  - 사용하는 파일 : shared/utils/utils.js(appState) · settings/settings.js(UserSettings) ·
  *                   render_coastal.js(createCoastalElement·displayBuoyInfo) ·
  *                   zone_avg.js(ZoneAvg.createBox·onReady) ·
- *                   outlook/windy.js(WINDY_URL_MAPPING) · outlook/forecast.js(showSeaForecastTable)
+ *                   outlook/windy.js(WINDY_URL_MAPPING) · outlook/forecast.js(showSeaForecastTable) ·
+ *                   escalation.js(zoneEscalations·renderZoneEscalation — 격상 가능성 🔺 뱃지·빨강 상자)
  *  - 서버 API      : 없음 (appState 데이터를 렌더만 — 수집은 data.js가 담당)
  *  - 마크업        : #east-sea-list·#west-sea-list·#south-sea-list·#jeju-sea-list ·
  *                   #east-count 등 카운트 · #main-accordion-* · #marine-status-accordion-* ·
@@ -919,6 +920,16 @@ function createAlertElement(items) {
         badgeContainer.appendChild(partBadge);
     }
 
+    // [격상 가능성 — 2026-11-19] 기상청이 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」을 알린 해역이면 첫 뱃지에 🔺를 달고,
+    //   아래 상세 영역(첫 특보의 해제예정 줄 다음)에 빨강 상자를 그린다 — escalation.js. 「일부 해역만」 카드에는 달지 않는다(부모 자신은 특보가 아니다).
+    //   사용자: 「[풍랑주의보] 뱃지 안에 [풍랑주의보(올라가는 느낌의 이모지)]」 · 「태풍가능성때 해역뱃지 그대로 동일하게 유지」
+    const escalations = (!kidsOnly && typeof window.zoneEscalations === 'function')
+        ? window.zoneEscalations(zoneNameStr, { current: currentInView, upcoming: upcomingFromApi }) : [];
+    if (escalations.length) {
+        const firstBadge = badgeContainer.querySelector('.status-badge.warning, .status-badge.preliminary');
+        if (firstBadge) firstBadge.textContent += ' 🔺';
+    }
+
     // 상세 정보 영역 표시용 데이터 리스트 구성
     const detailedAlertList = [];
     const seenDetailTmFc = new Set();
@@ -1021,6 +1032,8 @@ function createAlertElement(items) {
             releaseTime = formatAlertTime(rawRelease);
         }
         details.appendChild(createRow('해제예정', releaseTime, '#69f0ae'));
+        // [격상 가능성] 첫 특보의 해제예정 줄 바로 아래 — 한 번만
+        if (escalations.length && !details.querySelector('.zone-escalation')) escalations.forEach((it) => details.appendChild(window.renderZoneEscalation(it)));
     });
 
     const findCoastalZones = (zName) => {

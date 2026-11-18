@@ -23,6 +23,7 @@
     "utils.js",
     "data.js",
     "alert_source_toggle.js",
+    "escalation.js",
     "zone_avg.js",
     "render.js",
     "alert_history.js",

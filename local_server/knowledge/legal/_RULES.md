@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 151 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 152 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -416,6 +416,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_bulletin_ai_trial` | 참고사항 AI 시험(services/bulletin_ai_trial) · 관리자 창구(routes/bulletin_watch) · 「통보문 관찰」 탭(client/js/admin/admin_bull… |
 | `test_bulletin_status` | 통보문 기준 특보현황(services/bulletin_status) 검사. |
 | `test_bulletin_docs` | 통보문 원문 보관(services/bulletin_docs) 검사 — 발자취에 든 통보문의 PDF 를 받아 쪽 그림으로 바꿔 두고, |
+| `test_bulletin_escalation` | 격상 가능성(services/bulletin_escalation) 검사 — 통보문 참고사항·날씨해설에서 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」의 |
 | `test_bulletin_compare` | MMIS ↔ 통보문 비교 기록(services/bulletin_compare) · 메인 출처 전환 버튼(client/js/forecast/alerts/alert_source_toggle.js) 검사… |
 | `test_bulletin_ai_live` | 참고사항 AI 실시간 해석(services/bulletin_ai_live) + 통보문 기준 특보현황 덧씌움(bulletin_status.applyAi) 검사. |
 | `test_push_upcoming_type` | 앱 푸시(push_sender) — 발효 중 특보 위에 「다가오는 특보」가 처음 생길 때 제목 검사. |
