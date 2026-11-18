@@ -39,24 +39,24 @@ client/js/
 │   ├── admin_zone_editor.js
 │   ├── admin.js
 │   ├── cctv7.js
-│   └── pagination_helper.js
+│   ├── pagination_helper.js
 ├── ai-chat/
-│   └── ai_chat.js
+│   ├── ai_chat.js
 ├── assistant/  ← ⚡ AI 음성비서
 │   ├── memory/
 │   │   ├── user_memory_bridge.js
-│   │   └── user_memory_web.js
+│   │   ├── user_memory_web.js
 │   ├── assistant_deeplink.js
 │   ├── assistant_overlay.js
-│   └── assistant.js
+│   ├── assistant.js
 ├── core/  ← 앱 구동(부트스트랩·설정·네이티브 브리지)
 │   ├── app_init.js
 │   ├── backbutton.js
 │   ├── config.js
-│   └── index2_patch.js
+│   ├── index2_patch.js
 ├── engagement/  ← ⚡ 제보·설문
 │   ├── report_user.js
-│   └── survey_user.js
+│   ├── survey_user.js
 ├── forecast/  ← [탭1] 특보 및 전망
 │   ├── alerts/
 │   │   ├── alert_history.js
@@ -65,35 +65,35 @@ client/js/
 │   │   ├── marine.js
 │   │   ├── render_coastal.js
 │   │   ├── render.js
-│   │   └── zone_avg.js
+│   │   ├── zone_avg.js
 │   ├── marine-chart/
 │   │   ├── marine_chart1.js
 │   │   ├── marine_chart2.js
 │   │   ├── marine_chart3.js
 │   │   ├── marine_chart4.js
-│   │   └── marine_chart5.js
+│   │   ├── marine_chart5.js
 │   ├── outlook/
 │   │   ├── forecast.js
 │   │   ├── marine_forecast.js
-│   │   └── windy.js
+│   │   ├── windy.js
 │   └── station-briefing/
 │       ├── station_briefing_basis.js
 │       ├── station_briefing_picker.js
 │       ├── station_briefing_render.js
 │       ├── station_briefing_riskmap.js
-│       └── station_briefing.js
+│       ├── station_briefing.js
 ├── location-alert/  ← ⚡ 위치기반 경보
 │   ├── location_alert_background.js
 │   ├── location_alert_core.js
 │   ├── location_alert_runtime.js
-│   └── location_alert_ui.js
+│   ├── location_alert_ui.js
 ├── marine-life/  ← [탭3] 해양생활
 │   ├── fishing/
-│   │   └── fishing.js
+│   │   ├── fishing.js
 │   ├── mudflat/
-│   │   └── mudflat.js
+│   │   ├── mudflat.js
 │   ├── ripcurrent/
-│   │   └── ripcurrent.js
+│   │   ├── ripcurrent.js
 │   ├── risk-forecast/
 │   │   ├── risk_api.js
 │   │   ├── risk_basis_content.js
@@ -115,33 +115,32 @@ client/js/
 │   │   ├── life_safety.js
 │   │   ├── navigational_warning.js
 │   │   ├── seaway.js
-│   │   └── vts_zone.js
+│   │   ├── vts_zone.js
 │   ├── scuba/
-│   │   └── scuba.js
+│   │   ├── scuba.js
 │   ├── sea-parting/
-│   │   └── sea_parting.js
+│   │   ├── sea_parting.js
 │   ├── surfing/
 │   │   ├── surfing1.js
 │   │   ├── surfing2.js
 │   │   ├── surfing3.js
 │   │   ├── surfing4.js
-│   │   └── surfing5.js
+│   │   ├── surfing5.js
 │   ├── swell/
-│   │   └── swell.js
+│   │   ├── swell.js
 │   └── swimming/
-│       └── swimming.js
+│       ├── swimming.js
 ├── notice/  ← [탭4] 공지사항
 │   ├── board/
 │   │   ├── image_compress.js
 │   │   ├── markdown_import.js
-│   │   ├── md_fit.js
-│   │   └── promo.js
+│   │   ├── promo.js
 │   └── comments/
 │       ├── promo_comment1.js
 │       ├── promo_comment2.js
 │       ├── promo_comment3.js
 │       ├── promo_comment4.js
-│       └── promo_comment5.js
+│       ├── promo_comment5.js
 ├── ocean-map/  ← [탭2] 해양종합정보
 │   ├── bottom-sheet/
 │   │   ├── ocean_bottom_sheet_vsby.js
@@ -151,27 +150,27 @@ client/js/
 │   │   ├── ocean_bottom_sheet3.js
 │   │   ├── ocean_bottom_sheet4.js
 │   │   ├── ocean_bottom_sheet5.js
-│   │   └── ocean_sheet_timeline.js
+│   │   ├── ocean_sheet_timeline.js
 │   ├── cctv/
 │   │   ├── cctv1.js
 │   │   ├── cctv4.js
-│   │   └── ocean_cctv.js
+│   │   ├── ocean_cctv.js
 │   ├── coastal-risk/
 │   │   ├── mock/
 │   ├── layers/
 │   │   ├── shrt_forecast_layer.js
 │   │   ├── tide_field.js
-│   │   └── vsby_forecast_layer.js
+│   │   ├── vsby_forecast_layer.js
 │   ├── map/
 │   │   ├── ocean_map.js
 │   │   ├── ocean_markers.js
 │   │   ├── ocean_northup.js
 │   │   ├── ocean_overlay_labels.js
-│   │   └── ocean_overlay.js
+│   │   ├── ocean_overlay.js
 │   ├── observation/
-│   │   └── ocean_buoy.js
+│   │   ├── ocean_buoy.js
 │   ├── timeline/
-│   │   └── ocean_timeline.js
+│   │   ├── ocean_timeline.js
 │   └── warnings/
 │       ├── ocean_warn_active1.js
 │       ├── ocean_warn_active2.js
@@ -179,27 +178,28 @@ client/js/
 │       ├── ocean_warn_active4.js
 │       ├── ocean_warn_active5.js
 │       ├── ocean_warn_vsby.js
-│       └── ocean_warn_zone.js
+│       ├── ocean_warn_zone.js
 ├── onboarding/
-│   └── zone_setup.js
+│   ├── zone_setup.js
 ├── push/  ← ⚡ 푸시 알림
-│   └── alert_push.js
+│   ├── alert_push.js
 ├── settings/  ← ⚡ 설정
 │   ├── settings.js
-│   └── zone_guide.js
+│   ├── zone_guide.js
 ├── shared/  ← 공용 재료(유틸·UI·데이터)
 │   ├── ui/
 │   │   ├── locate_toast.js
+│   │   ├── text_fit.js
 │   │   ├── ui_modal.js
-│   │   └── wheel_date_picker.js
+│   │   ├── wheel_date_picker.js
 │   └── utils/
 │       ├── accident_codes.js
 │       ├── mappings.js
 │       ├── usage_keys.js
-│       └── utils.js
+│       ├── utils.js
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
-    └── ocean_typhoon.js
+    ├── ocean_typhoon.js
 ```
 
 ## 4. 전체 파일 인덱스
@@ -398,7 +398,6 @@ client/js/
 |------|------|
 | `image_compress.js` | 관리자 게시글 에디터(Quill) 의 이미지 자동 압축 유틸리티 |
 | `markdown_import.js` | 공지 게시판 관리자 글쓰기 — 마크다운(.md) 파일 내용을 게시글 본문(HTML)으로 바꾼다. |
-| `md_fit.js` | 공지 게시판에서 마크다운으로 올린 글(패치노트)을 읽기 좋게 줄을 맞춘다. |
 | `promo.js` | 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집) |
 
 ### `client/js/notice/comments/`
@@ -498,6 +497,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `locate_toast.js` | 「내 위치」(GPS) 버튼을 눌렀을 때 화면 하단에 진행 토스트를 띄우고 현재 위치를 가져온다. |
+| `text_fit.js` | 긴 안내 글을 읽기 좋게 줄을 맞춘다(여러 화면이 함께 쓰는 도구). |
 | `ui_modal.js` | 공통 UI 모달 (기상청 iframe, SEAGNAL 시스템 모달) |
 | `wheel_date_picker.js` | 앱의 모든 날짜칸(<input type="date">)·날짜시각칸(<input type="datetime-local">)을 누 |
 

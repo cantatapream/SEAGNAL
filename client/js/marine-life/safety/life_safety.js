@@ -1133,6 +1133,8 @@
             infoBtn.addEventListener('click', function () {
                 if (typeof window.showSeagnalModal === 'function') {
                     window.showSeagnalModal('안내사항', _buildInfoHtml(), 'info');
+                    // 줄 정렬(NOTICE.md 「줄 정렬」 — shared/ui/text_fit.js)
+                    if (window.textFitInfo) window.textFitInfo(document.getElementById('seagnal-custom-modal'));
                 }
             });
         }
@@ -1160,6 +1162,8 @@
             e.preventDefault();
             if (typeof window.showSeagnalModal !== 'function') return;
             window.showSeagnalModal('해양안전 안내', _buildSafetyInfoHtml(), 'info');
+            // 줄 정렬(NOTICE.md 「줄 정렬」 — shared/ui/text_fit.js)
+            if (window.textFitInfo) window.textFitInfo(document.getElementById('seagnal-custom-modal'));
         }, true);
 
         // --- 갯바위/선상 팝아웃 (바다낚시 전용) ---

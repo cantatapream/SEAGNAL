@@ -1541,6 +1541,38 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 사용자 보고(스크린샷: 경북북부앞바다 통보문 팝업) 「휴대폰 내장 뒤로가기버튼이 안먹힘」. 원인: core/backbutton.js 의 wrapAlertHistoryPopup 이 옛 showAlertHistoryPopup 만 PopupStack 에 올리고, 지금 📋 버튼(forecast/alerts/render.js)이 부르는 showZoneBulletins(alert_history.js)는 같은 #alert-history-modal 을 쓰면서도 스택에 안 올라갔다 → 뒤로가기가 닫을 팝업을 못 찾음. 수정: 같은 래퍼에서 showZoneBulletins 도 감싸 같은 id('alert-history-modal')로 push(닫기는 기존 closeAlertHistoryPopup 래퍼가 remove). index2.html backbutton.js 버전표 갱신(캐시). 시험: test_forecast_gear_ui 에 ④ 1건 추가 — 고치기 전 코드로 되돌려 돌리면 실패(30/2), 고친 뒤 32/0. simulate 회귀 없음, test_life_safety_tab_keep 25/0·test_risk_sheet_ui 35/0·test_station_briefing_ui 101/0·test_accident_sheet 200/0·check_order 통과.
 
 
+### [2026-11-18 23:58 KST] ✅완료 — 해상 기상 전망 깨진 색칠 표시 바로잡기 · 줄 간격 1.4 · 띄어쓰기 자리에서만 줄바꿈 · 안내 문장 줄바꿈
+완료(작업 브랜치, main 머지는 사용자 확인 대기): ①fixMarkup(수집기)·renderMarineMarkup·stripMarkup 이 「{{warn:…} }」 꼴도 처리 ②줄 간격 1.3→1.4(게시판·전망·안내) ③text_fit.js 낱말 안 글자 사이 WORD JOINER — 괄호·가운뎃점 자리 줄바꿈 막음(종전 「괄호 자리 허용」 판단을 사용자 지적으로 정정) ④안내 팝업 문장 끝(~다./~요.) 줄바꿈 ⑤지방청 카드 제목 keep-all. test_text_fit 28/0 · test_station_briefing 247/0 · verify_all(로컬 서버 + NODE_PATH) 「✅ 전체 검증 통과」, 총정리 블록 앞 실행과 같음(법률 위키 측정 줄만).
+
+
+### [2026-11-18 23:39 KST] ✅완료 — PC·모바일 브라우저에서 챗봇 '완료되면 알림 드릴까요?' 배너 숨김
+완료 100%. ai_chat.js: isNativeApp() 신설, doSend 에서 앱이 아니면 6초 동의 배너 타이머를 걸지 않고 notifyOnComplete=false 로 보냄(웹 푸시 미구현·설정창도 웹이면 푸시 탭 숨김이라 받을 길이 없다). 회귀 검사 2건 test_ask_context.js(372 PASS/0 FAIL, 옛 코드에선 실패 확인). MASTER_PLAN 191행대 항목3 아래 사용자 원문 병기. verify_all: 스위트 전부 통과, 실패 = V4 시뮬레이션·서버 스모크 21건(로컬 서버 미기동 ERR_CONNECTION_REFUSED). 다음: 실제 앱·PC 화면 확인은 배포 후 사용자 몫.
+
+
+### [2026-11-18 23:22 KST] 🟢착수 — PC·모바일 브라우저에서 챗봇 '완료되면 알림 드릴까요?' 배너 숨김
+사용자 지적: PC(모바일 브라우저 포함)는 푸시를 못 받는데 6초 넘는 답변에 알림 동의 배너가 뜬다. ai_chat.js doSend 의 배너 타이머·notifyOnComplete 를 Capacitor 네이티브 판정(isNativeApp)으로 거른다.
+
+
+### [2026-11-18 22:43 KST] ✅완료 — 방재기상플랫폼 로그인이 안 되면 관리자 푸시
+[한 일] services/bulletin_watch: 로그인을 시도할 때마다 결과를 알림(onLogin→reportLogin, 사유는 loginReason — 「로그인 거부 — 비밀번호 만료」「로그인 실패 — 시간초과」). services/collect_fail_alert ITEMS 에 bulletins(첫 실패에 1통·복구 1통·이어지는 동안 안 보냄 — 기존 규칙 그대로). config/data_collection_manifest.json 에 bulletins(마지막 수집 = bulletin_watch/state.json listsOkMs) — 관리자 데이터 수집현황 카드에 「수집 실패 중 … 로그인 거부 — 비밀번호 만료」가 보인다. 00_docs/operations/collect-fail-alert.md 에 결정·정의 기록. [확인] test_bulletin_watch 66/0(로그인 알림 15문항 신설 — 됨/거부/쉬는 30분/재시도/복구/알림이 던져도 수집 계속/실제 알림기에 물려 푸시 문장까지) · test_collect_fail_alert 120/0 · test_data_collection_status 19/0 · verify_all 전체 통과(exit 0, ❌ 줄은 직전 통과 실행과 같음). [범위] 로그인만 — 로그인은 됐는데 목록·본문을 못 받은 것은 알리지 않는다. 태풍 통보문 수집(같은 계정 따로 로그인)은 잇지 않음. 운영(FLY_ALLOC_ID)에서만 실제 발송. [이어서 받은 지시 — 아직 안 함] ①로그인이 안 된 동안 빠진 통보문을 다시 되면 모두 받아 생애주기 자동 갱신(지금도 3일 안은 자동 — 목록을 3일 전부터 받기 때문. 3일 넘는 끊김은 마지막으로 다 받은 날부터 받도록 넓혀야 함, 목록 API 가 10일 범위를 받는 것은 실제 호출로 확인) ②로그인이 안 되는 동안 해역별 특보현황 아코디언 + 해양종합정보 특보구역 자동 잠금(관리자 점검 기능의 blockedFeatures: weather-alert·ov-warn-zone·ov-warn-active 를 쓰면 됨) — ⚠지금 사용자 화면 특보현황은 MMIS 기준이라 지금 잠그면 멀쩡한 정보가 가려진다 → 적용 시점을 사용자에게 확인 중. ③참고사항 「풍랑경보 변경 가능 시점」을 특보구역 카드에 표출 — 전수조사 마침(표 꼴 95건·규칙으로 대부분 읽힘, 안내 뒤 실제 경보 89%), 사용자 추가 지시: 날씨해설(해상 기상 전망)의 태풍 가능성 문구도 재료로 검토.
+
+
+### [2026-11-18 22:19 KST] 🟢착수 — 방재기상플랫폼 로그인이 안 되면 관리자 푸시
+사용자 2026-11-18: 「방재기상플랫폼 로그인이 갑자기 안되면 관리자에게 푸시를 주는 기능을 만들어줘」. 방법: 이미 있는 수집 실패 알림(services/collect_fail_alert — 실패 시작 1통·복구 1통, 상태 파일로 「이미 알렸다」 유지)에 항목 bulletins 를 더하고, services/bulletin_watch 가 로그인을 시도할 때마다 결과를 보고(onLogin). 사유는 「로그인 거부 — 비밀번호 만료」처럼 사람 말로. 수집현황 목록표(config/data_collection_manifest.json)에도 통보문 항목을 넣어 관리자 화면에서 마지막 수집 시각이 보이게(기존 검사가 알림 항목 = 목록표 id 를 요구). 실제 앱 특보·푸시(MMIS)는 안 건드림.
+
+
+### [2026-11-18 21:02 KST] ✅완료 — 운영 기록(11-18 20시 내려받음) 다시 분석 — 고친 코드 7시간 구간 이상 없음 · 오발송 원인 좁힘
+사용자가 관찰·AI·비교 기록 3개를 다시 올림(11-16 01:09~11-18 20:01). 지금 코드로 매분 다시 계산: 새 구간 11-18 13:01~20:01(고친 코드가 돌던 시간) 달랐던 동안 85번·최장 6분(10분 넘음 0), 푸시 해역 낱개 실제 38=가상 38 전부 짝(통보문이 중앙 0.4분 앞섬). 전체 기간의 10분 넘는 차이 2번·실제에만 31·통보문에만 5는 지난번 그대로(새로 생긴 것 없음). 감안할 것 4가지(README ⑭) 적용 — 새 구간에는 자식 겹침·이상한 제목 0건. 관찰 기록 내용 바뀜 3건은 참고사항 칸 안내가 10분 뒤 덧붙은 것(계산 무관). ★새로 좁힌 것: MMIS 오발송 세 묶음(11-16 17:57·11-17 08:56·19:56/19:58) 모두 MMIS 자식 해역 예비가 한꺼번에 사라졌다 2~5분 뒤 같은 상태로 돌아온 직후였고 두 번은 배포가 없었다 → 재시작이 아니라 MMIS 자식 예비 읽는 쪽(코드 미확인). 11-18 배포 10번 뒤에는 그런 일 없음. README ⑭·MEMORY 에 기록. 코드 변경 없음(문서만), 브랜치 claude/festive-cerf-9hm8mq.
+
+
+### [2026-11-18 19:58 KST] ✅완료 — 통보문 전환 방침 기록 — MMIS 오발송 푸시는 고치지 않음(원인 확인은 통보문 기준 푸시 작업 때)
+사용자 2026-11-18: 「잘못 나간 푸시 관련해서는 우리가 나중에 통보문 기반으로 변경하게되면 손 볼 필요가 없는것 아니겠니 ?」 → 「기억문서에 남겨」. .claude/memory/MEMORY.md 핵심 결정에 ★통보문 전환 방침 추가(①통보문 쪽 새 기능은 MMIS 코드에 기대지 않는다 ②MMIS 푸시 코드는 고치지 않는다 — 단 원인 미확정: MMIS 상태 읽기면 전환과 함께 사라지고, 서버 재시작 때 상태 보관·푸시 발송 같은 공통 부분이면 통보문 기준 푸시에도 따라온다 → 그 작업 시작 때 먼저 읽어서 확인 + 「서버가 다시 떠도 오발송 없음」 시험 항목). analysis/bulletin_survey/README.md ⑭ 의 「조사 여부 사용자 답 대기」를 이 방침으로 고침. 문서만 — 코드 변경 없음. 참고: PR #1504(PC 는 PDF 를 팝업에 바로 + 게이트 기준선 server io 35) 머지됨, main verify_all 초록(run 1188), 사용자가 PC 에서 정상 확인(「이제 잘 열려」).
+### [2026-11-18 23:09 KST] ✅완료 — 줄 정렬 규칙을 해상 기상 전망·안내 팝업에도 + 줄 간격 1.3 + 전망 글자 색 밝게
+완료: text_fit.js(shared/ui, md_fit.js 를 옮겨 범용화 — textFit·textFitInfo, ResizeObserver) · marine_forecast.js hangHtml(원문 기호 분리, 둘째 줄 글자 시작점) · 안내 팝업 3곳 textFitInfo · 단계 간격 10/5/3 · 줄 간격 1.3(게시판·전망·안내) · 전망 글자 색 한 단계 밝게 · NOTICE.md 「줄 정렬」 6규칙+다른 화면 표. test_text_fit 24/0(25회 연속). verify_all 두 번(줄 간격 변경 전·후, 로컬 서버 기동 + NODE_PATH) 모두 「✅ 전체 검증 통과」, 총정리 블록 두 번 같음(법률 위키 측정 줄만, 기준선 안). 발견: 운영 /api/regional-forecast 원문 깨진 표시 기호 {{warn:…} } 3곳(제주 2·부산 1) — 미수정, 사용자에게 알림. 다음: main 머지·배포 확인(사용자 「검사 끝나면 메인에 머지해」).
+
+
+### [2026-11-18 22:12 KST] 🟢착수 — 줄 정렬 규칙을 해상 기상 전망·안내 팝업(해양종합정보·해양안전생활)에도
+사용자 2026-11-18 「좋아 그렇게 해」: NOTICE.md 줄 정렬 규칙(어절 줄바꿈·둘째 줄 글자 시작점 맞춤·줄 끝 2~3글자 글자 간격 좁힘·단계별 간격 10/5/3)을 ①기상청 해상 기상 전망(지방청 단기 전망·초단기·단기) ②해양종합정보 안내 팝업 ③해양안전생활 안내 팝업에. 기호는 원래 것(꺾쇠·○·o·-·이모지·✔·⚠)을 그대로 두고 그 기호로 단계를 나눔.
 ### [2026-11-18 21:22 KST] ✅완료 — 날짜 선택 휠 피커 — 앱 전체 날짜칸 공통 적용 (브랜치 claude/festive-tesla-k7ie2s, PR 전)
 사용자 요청 「날짜 선택하는 부분이 현재 캘린더 방식으로 되어있는데 휠 피커로 년월일을 선택할 수 있도록 해줘」(사고정보 기간선택·통합관리자 통계 등). 한 일: client/js/shared/ui/wheel_date_picker.js 신설 — 문서 전체에서 input[type=date]·datetime-local 누름을 가로채 아래서 올라오는 휠 시트(년·월·일, 날짜시각칸은 시·분까지)를 띄우고, [확인] 시 칸 값·input·change 이벤트를 원래 형식대로 넣는다. 그래서 사고정보 기간(accident_info.js), 관리자 통계·이용현황·CSV·공지만료(admin_collect.js), 설문 기간(admin_survey.js), 특보 발표시각·로그 조회·작업모드 종료(admin.js), 공지 만료(admin_trigger.js) 등 20여 칸은 코드 무수정. 제외는 data-native-picker 속성. 원래 readonly·disabled 칸은 손대지 않음. 시험 test_wheel_date_picker 23 PASS(verify_all SUITES 등록·규칙집 재생성·로드순서 기준선 1줄 추가). 실제 앱(Pixel 7 화면)에서 사고정보 기간·관리자 통계 둘 다 값 반영 확인. verify_all: 실패 다수가 이 컨테이너의 playwright-core 모듈 경로 문제(Cannot find module) — NODE_PATH 에 /opt/node-tools/node_modules 넣고 해당 스위트 재실행해 확인. 참고: 조석 격자 달력 client/tide_calendar.js 는 호출처 0(죽은 코드)이라 손대지 않음. 로컬 서버는 시작 시 .br/.gz 압축본을 만들어 계속 쓰므로 JS 를 고친 뒤엔 서버 재시작해야 새 판이 나간다(로컬 확인 때 헷갈림). 다음: 사용자 확인 후 PR.
 

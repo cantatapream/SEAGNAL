@@ -238,6 +238,16 @@
     try { return (typeof NotificationSettings !== 'undefined') ? NotificationSettings : null; } catch (_) { return null; }
   }
 
+  /**
+   * 지금 앱(Capacitor 네이티브)에서 돌고 있나. PC·모바일 브라우저면 false.
+   * 예: 안드로이드 앱 → true, 크롬(PC·폰) → false
+   * @returns {boolean}
+   * [연계] ← doSend 답변완료 알림 배너·notifyOnComplete — 푸시는 앱에만 온다(웹 푸시 없음).
+   */
+  function isNativeApp() {
+    try { return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()); } catch (_) { return false; }
+  }
+
   /** 답변완료 알림을 이미 켠 사용자인지(켰으면 동의 배너를 띄우지 않는다). @returns {boolean} */
   function aiAnswerOptedIn() {
     var ns = notiSettings();
@@ -5818,10 +5828,14 @@
     // [답변완료 알림] 이미 켠 사용자면 서버에 "다 되면 푸시 보내달라"고 알린다(6초 초과 시 서버가 발송).
     //   아직 안 켰다면 6초 뒤에 인라인 동의 배너를 띄운다 — [허용]을 누르면 이 askId로 지금 이
     //   요청에도 뒤늦게 알림이 걸린다(빨리 끝나면 아래 타이머 취소, 배너 자체가 안 뜬다).
-    var optedIn = aiAnswerOptedIn();
+    //   ⚠ 앱(네이티브)에서만 — PC·모바일 브라우저는 푸시를 받을 길이 없어(웹 푸시 미구현, 설정창도
+    //   웹이면 푸시 탭을 숨긴다 settings.js openSettingsModal) 배너를 띄우지도, 서버에 요청하지도 않는다.
+    //   (2026-11-18 사용자: "PC인 경우는 이 문구가 나오면 안됨")
+    var isApp = isNativeApp();
+    var optedIn = isApp && aiAnswerOptedIn();
     var askId = 'ask_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
     if (activeConsentTimer) { clearTimeout(activeConsentTimer); activeConsentTimer = null; } // 이전 질문분 정리
-    if (!optedIn) {
+    if (isApp && !optedIn) {
       activeConsentTimer = setTimeout(function () {
         activeConsentTimer = null; showNotifyConsentBanner(askId);
       }, CONSENT_ASK_MS);

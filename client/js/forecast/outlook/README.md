@@ -83,3 +83,17 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 - 이제 관리자 → AI → 「AI 모델 설정」의 **③ 해상 기상 전망 색칠** 순서대로 부른다(`services/bulletin_ai.js` 기능 `forecast`).
   기본 순서는 Gemini 만 = 종전 동작. 이미 색칠해 캐시에 둔 전망은 다시 부르지 않으므로 바꾼 순서는 **새로 들어온 전망부터** 적용된다.
 - 사용자 확정 원문: *"그렇게 진행하자."* (질문: 해상 기상 전망 색칠 AI 를 어디서 설정하나 → Gemini 고정이라 답하고 관리자 화면에서 고르게 하자고 제안한 것에 대한 답)
+
+## 줄 정렬 (2026-11-18 사용자 확정 — 저장소 NOTICE.md 「줄 정렬」)
+
+- 줄 앞 구분 기호(○ □ ※ * - o)는 `marine_forecast.js` `hangHtml` 이 글과 떼어 `.tf-mark` 에 둔다 — 두 줄이 되면 둘째 줄이 기호 밑이 아니라 첫 줄 글자 시작점에서 시작한다. 기호는 원문 그대로(사용자 「거기에 정렬되어 있는 그 방식 그대로」). 꺾쇠 제목(`<특보 현황>` 등)은 기호가 없어 그대로.
+- 낱말 중간 줄바꿈 금지(`word-break:keep-all`) · 단계별 간격: 지방청 단기 전망 꺾쇠 제목·□·※ 줄 10 · ○ 5 · - 3 / 초단기·단기 전망 항목 사이 10 · 하위 줄 5 (`style.css`).
+- 줄 끝 2~3글자 넘침은 `shared/ui/text_fit.js` `textFit` 이 그 줄 글자 간격을 좁혀 맞춘다(접힌 아코디언은 펼칠 때).
+- 글자 색 한 단계 밝게(사용자 「색상이 너무 어두워서 눈에 잘 안띄는데」): 본문 #cbd5e1 → #e2e8f0 · ○/-/하위 줄 #94a3b8 → #cbd5e1.
+- 시험 `local_server/scripts/test_text_fit.js` ⑥.
+
+## 색칠 표시 깨진 꼴 (2026-11-18)
+
+- AI 가 닫는 괄호를 띄어 쓴 꼴(「{{warn:물결이} }」)이 운영 `/api/regional-forecast` 에 3곳(제주 2·부산 1) 있었고 화면에 글자 그대로 보였다(사용자 「고쳐줘」).
+- 고친 곳 셋: ①`local_server/regional_bulletin_collector.js` `fixMarkup` — 저장 전 summary 를 바로잡음 ②`renderMarineMarkup` 이 「} }」도 읽음(이미 저장된 옛 자료용) ③`local_server/services/station_briefing_rules.js` `stripMarkup` 도 같은 꼴을 벗김(AI 연안 안전 브리핑 입력에 깨진 기호가 섞이던 것).
+- 시험: `test_text_fit` ⑨ · `test_station_briefing`(stripMarkup·fixMarkup).
