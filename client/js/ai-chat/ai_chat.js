@@ -2721,38 +2721,55 @@
   function autorunCardHTML(p) {
     var st = p.status === 'waiting' && p.mode === 'human' ? AUTORUN_ST_HUMAN_WAIT : (AUTORUN_ST[p.status] || ['', String(p.status || '')]);
     var field = function (lab, html) { return '<div class="nrya-rv-field"><div class="nrya-rv-flab">' + lab + '</div><div class="nrya-rv-fval">' + html + '</div></div>'; };
-    // 결정 필요마다 답 칸(2026-11-18 사용자 「앱에 답 칸 만들기」) — 답을 보내면 다음 자동 반영 세션이 그 답대로 처리한다(서버 nariya_pr_merge.answer).
-    //   이미 단 답은 「처리 대기·처리됨·보류」와 함께 보이고, [고쳐 쓰기]로 다시 보낼 수 있다. 머지·닫힌 PR 은 답 칸 없이 목록만.
+    // 결정 필요 — 항목마다 접고 펴는 칸(아코디언). 펴면 세션이 준 추천안 버튼(첫 칸 = 추천) · 「기타」 직접 쓰기 · [보내기].
+    //   2026-11-18 사용자 「각각 결정 필요사항을 아코디언으로 리스트업 하고, 그 아코디언을 누르면 추천안을 버튼으로 제공 … 기타로 직접 적을 수 있도록 하고 보내기 버튼도」.
+    //   보낸 답은 다음 자동 반영 세션이 그 답대로 처리한다(서버 nariya_pr_merge.answer). 세션이 추천안을 주지 않은 옛 PR 은 일반 보기 둘을 보인다.
     var canAnswer = p.status !== 'merged' && p.status !== 'closed';
+    var FALLBACK_OPTS = ['알아서 알맞게 처리해 주세요', '그대로 두세요(할 것 없음)'];
     var needs = (p.needs || []).length
-      ? field('🧭 결정 필요 ' + p.needs.length + '건', '<ul style="margin:4px 0 0;padding-left:18px">' + p.needs.map(function (x, i) {
-          var a = (p.answers || [])[i];
-          var ans = a ? '<div style="margin:3px 0 0;font-size:12.5px">↳ 답: ' + esc(a.text) + ' <span style="color:var(--nrya-text-sub)">(' + (a.handled ? '처리됨' : a.deferred ? '세션이 답대로 하지 못해 보류' : '처리 대기 — 자동 반영 세션이 곧 처리') + ')</span></div>' : '';
-          var box = canAnswer ? '<div class="nrya-ans" style="margin:4px 0 6px;display:flex;gap:6px"><input type="text" maxlength="500" data-ans-input="' + esc(String(p.number)) + '-' + i + '" placeholder="' + (a ? '답 고쳐 쓰기' : '여기에 답을 적어 주세요') + '" style="flex:1;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid var(--nrya-border, #334155);background:transparent;color:inherit">' +
-            '<button class="nrya-btn-ok" data-ans-send="' + esc(String(p.number)) + '-' + i + '" style="white-space:nowrap">답 보내기</button></div>' : '';
-          return '<li style="margin:2px 0">' + esc(x) + ans + box + '</li>';
-        }).join('') + '</ul>')
+      ? field('🧭 결정 필요 ' + p.needs.length + '건', p.needs.map(function (x, i) {
+          var a = (p.answers || [])[i], key = esc(String(p.number)) + '-' + i;
+          var opts = ((p.needOptions || [])[i] || []).length ? p.needOptions[i] : FALLBACK_OPTS;
+          var stateChip = a ? '<span class="nrya-dec-st ' + (a.handled ? 'nrya-done' : a.deferred ? 'nrya-rej' : '') + '">' + (a.handled ? '처리됨' : a.deferred ? '보류' : '답함 · 처리 대기') + '</span>' : '<span class="nrya-dec-st nrya-warn">답 필요</span>';
+          var ans = a ? '<div class="nrya-dec-ans">보낸 답: ' + esc(a.text) + (a.deferred ? ' — 세션이 답대로 하지 못해 보류했습니다. 다시 골라 보내 주세요.' : '') + '</div>' : '';
+          var body = canAnswer ? '<div class="nrya-dec-opts">' + opts.map(function (o, k) { return '<button type="button" class="nrya-dec-opt" data-dec-opt="' + key + '" data-val="' + esc(o) + '">' + (k === 0 && ((p.needOptions || [])[i] || []).length ? '<b>추천</b> ' : '') + esc(o) + '</button>'; }).join('') + '</div>' +
+              '<div class="nrya-dec-etc"><input type="text" maxlength="500" class="nrya-dec-in" data-ans-input="' + key + '" placeholder="기타 — 직접 적기"><button type="button" class="nrya-dec-send" data-ans-send="' + key + '">보내기</button></div>' : '';
+          return '<details class="nrya-dec"' + (!a && i === 0 && canAnswer ? ' open' : '') + '><summary><span class="nrya-dec-q">' + esc(x) + '</span>' + stateChip + '</summary>' + ans + body + '</details>';
+        }).join(''))
       : '';
-    var why = p.why ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">ℹ️</span>' + esc(p.why) + (p.howText ? '<br><b>' + esc(p.howText) + '</b>' : '') + '</div>' : '';
-    // 위키·원문 밖 파일(서버 코드·검사 도구 등)을 고친 PR — 자동 머지 대상이 아니다. 누르기 전에 알 수 있게 보여 준다(적대검증 C#상-1).
-    //   파일 경로는 접어 둔다(펼치면 보임) — 2026-11-18 사용자: 긴 영문 경로가 화면을 채웠다.
-    var outside = p.outsideCount ? '<div class="nrya-notice-box nrya-err" style="margin:6px 0"><span class="nrya-em">⚠️</span>위키·원문 밖 파일 ' + esc(String(p.outsideCount)) + '개도 고쳤습니다(서버 코드·검사 도구 등) — 개발 검토를 권합니다.' +
-      '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px">파일 목록 보기</summary><code style="font-size:11px;word-break:break-all">' + (p.outside || []).map(esc).join('<br>') + '</code></details></div>' : '';
+    // 충돌을 푸는 중이면 사장님이 하실 일이 없다 — 「머지 버튼을 눌러 주세요」 안내를 같이 띄우면 헷갈린다(2026-11-18 사용자 「무슨 버튼도 없고 아무것도 없는데」).
+    var fixing = p.status === 'conflict_fixing';
+    var why = fixing ? '<div class="nrya-card-note"><span class="nrya-em">🔧</span>작업 기록 파일 충돌을 자동 반영 세션이 풀고 있습니다. <b>하실 일은 없습니다</b> — 다 풀리고 검사가 초록이면 「머지 버튼을 눌러 주세요」 알림이 옵니다.</div>'
+      : p.why ? '<div class="nrya-card-note nrya-err"><span class="nrya-em">ℹ️</span>' + esc(p.why) + (p.howText ? '<br><b>' + esc(p.howText) + '</b>' : '') + '</div>' : '';
+    // 위키·원문 밖에서 바뀐 파일 — 한 줄로 무엇이 바뀌었는지만(2026-11-18 사용자 「그냥 뭘 고쳤는지에 대해서만 간단히 명시하면 될 것 같은데」).
+    //   코드 파일(.js·.py 등)이 섞였을 때만 눈에 띄게(자동 머지 대상이 아니다 — 적대검증 C#상-1). 경로는 펼치면 보인다.
+    var outside = '';
+    if (p.outsideCount) {
+      var kinds = {}, codeN = 0;
+      (p.outside || []).forEach(function (f) {
+        var k = /\.(js|mjs|cjs|py|sh|ya?ml|ts|html|css)$/i.test(f) ? (codeN++, '프로그램 코드') : /\/_legacy\//.test(f) ? '옛 판 보관' : /\/_dashboard\//.test(f) ? '작업 기록·목록' : '기타 파일';
+        kinds[k] = (kinds[k] || 0) + 1;
+      });
+      var kindText = Object.keys(kinds).map(function (k) { return k + ' ' + kinds[k]; }).join(' · ');
+      outside = '<details class="nrya-files' + (codeN ? ' nrya-files-code' : '') + '"><summary>함께 바뀐 파일 ' + esc(String(p.outsideCount)) + '개 — ' + esc(kindText) + (codeN ? ' (프로그램 코드가 있어 자동 머지는 하지 않습니다)' : '') + '</summary><code>' + (p.outside || []).map(esc).join('<br>') + '</code></details>';
+    }
     var chkName = p.check ? (AUTORUN_CHK[p.check.state] || String(p.check.state || '')) : '';
-    var chk = p.check ? field('🔎 마지막 확인', esc(chkName) + (p.check.why && p.check.why !== chkName ? ' — ' + esc(p.check.why) : '') + (p.check.at ? ' <span style="font-size:11.5px;color:var(--nrya-text-sub)">(' + esc(p.check.at.slice(5, 16).replace('T', ' ')) + ')</span>' : '')) : '';
+    // 까닭 글이 이름표를 이미 말하면(충돌 등) 까닭만 — 「충돌 — 충돌 — …」처럼 겹치지 않게
+    var chkText = p.check ? (p.check.why ? (p.check.why.indexOf(chkName.split('(')[0]) === 0 ? p.check.why : chkName + ' — ' + p.check.why) : chkName) : '';
+    var chk = p.check ? field('🔎 마지막 확인', esc(chkText) + (p.check.at ? ' <span style="font-size:11.5px;color:var(--nrya-text-sub)">(' + esc(p.check.at.slice(5, 16).replace('T', ' ')) + ')</span>' : '')) : '';
     var merged = p.status === 'merged' ? field('✅ 머지', esc((p.mergedBy === 'auto' ? '자동' : (p.mergedBy || '')) + (p.mergedAt ? ' · ' + p.mergedAt.slice(5, 16).replace('T', ' ') : ''))) : '';
     // 버튼은 서버가 방을 열 때 GitHub 에서 다시 읽어 「지금 머지할 수 있다」(canMerge)고 판정한 PR 에만 그린다 —
     //   눌러도 실패할 버튼을 보여 주지 않는다(적대검증 C#중-3). 그 밖에는 왜 안 되는지 한 줄.
     var open = p.status === 'needs_human' || p.status === 'waiting' || p.status === 'failed_checks' || p.status === 'conflict_fixing';
     var stale = p.check && p.check.state === 'stale';   // main 이 바뀜 — 누르면 서버가 최신 main 을 얹고 다시 검사(약 20분 뒤 다시 눌러야 머지)
-    var btn = open && p.canMerge ? (stale ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">🔄</span>검사 뒤 main 이 바뀌었습니다 — 버튼을 누르면 최신 main 으로 다시 검사하고, 약 20분 뒤 다시 누르면 머지됩니다.</div>' : '') +
+    var btn = open && p.canMerge ? (stale ? '<div class="nrya-card-note"><span class="nrya-em">🔄</span>검사 뒤 main 이 바뀌었습니다 — 버튼을 누르면 최신 main 으로 다시 검사하고, 약 20분 뒤 다시 누르면 머지됩니다.</div>' : '') +
         '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">' + (stale ? '🔄 최신 main 으로 다시 검사' : '🔀 머지') + '</button></div>'
-      : open && p.check ? '<div class="nrya-notice-box" style="margin:6px 0"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || chkName) + (p.check.state === 'pending' || p.check.state === 'missing' ? (p.status === 'waiting' || p.status === 'failed_checks' || p.status === 'conflict_fixing' ? ' (검사는 보통 20분쯤 걸립니다. 끝나 초록이면 알림이 옵니다)' : ' (검사는 보통 20분쯤 걸립니다. 끝난 뒤 이 방을 다시 열어 주세요)') : '') + '</div>' : '';
+      : open && p.check && !fixing ? '<div class="nrya-card-note"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || chkName) + (p.check.state === 'pending' || p.check.state === 'missing' ? (p.status === 'waiting' || p.status === 'failed_checks' || p.status === 'conflict_fixing' ? ' (검사는 보통 20분쯤 걸립니다. 끝나 초록이면 알림이 옵니다)' : ' (검사는 보통 20분쯤 걸립니다. 끝난 뒤 이 방을 다시 열어 주세요)') : '') + '</div>' : '';
     return cardShell({
       id: String(p.number), badge: 'PR #' + p.number, title: (p.summary || '(요약 없음)').slice(0, 160),
       subHTML: esc((p.at || '').slice(5, 16).replace('T', ' ')) + ' · <a href="' + esc(p.pr_url) + '" target="_blank" rel="noopener">GitHub 에서 보기</a>',
       statusHTML: '<span class="nrya-rv-st ' + st[0] + '">' + esc(st[1]) + '</span>',
-      bodyHTML: why + outside + needs + chk + merged + btn,
+      bodyHTML: why + needs + outside + chk + merged + btn,
     });
   }
   /**
@@ -2786,24 +2803,39 @@
           : '<div class="nrya-notice-box"><span class="nrya-em">✅</span>자동 반영이 올린 PR 이 아직 없습니다.</div>');
       }).catch(function (e) { listEl.innerHTML = '<div class="nrya-notice-box nrya-err"><span class="nrya-em">⚠️</span>네트워크 오류: ' + esc(String(e && e.message || e)) + '</div>'; });
     }
+    // 「기타」 칸에 적기 시작하면 고른 추천안을 푼다(둘 중 하나만 보낸다).
+    listEl.addEventListener('input', function (ev) {
+      var t = ev.target; if (!t || !t.getAttribute) return;
+      var k = t.getAttribute('data-ans-input'); if (!k || !String(t.value || '').trim()) return;
+      listEl.querySelectorAll('button[data-dec-opt="' + k + '"].nrya-on').forEach(function (x) { x.classList.remove('nrya-on'); });
+    });
     // [머지] — 첫 클릭은 「한 번 더 누르면 머지·배포」 로 바꾸고(8초), 두 번째 클릭에서 POST. 결과는 서버가 판정한 그대로 보여 준다.
     var armed = null;
     listEl.addEventListener('click', function (ev) {
-      // [답 보내기] — 결정 필요 한 줄에 답을 저장(관리자 토큰). 저장되면 목록을 다시 읽어 「처리 대기」로 보인다.
+      // 추천안 버튼 — 고르기만 한다(색이 바뀜). 「기타」 칸에 적던 글은 지운다. 보내기는 [보내기].
+      var ob = ev.target && ev.target.closest ? ev.target.closest('button[data-dec-opt]') : null;
+      if (ob) {
+        var ok2 = ob.getAttribute('data-dec-opt');
+        listEl.querySelectorAll('button[data-dec-opt="' + ok2 + '"]').forEach(function (x) { x.classList.toggle('nrya-on', x === ob); });
+        var in2 = listEl.querySelector('input[data-ans-input="' + ok2 + '"]'); if (in2) in2.value = '';
+        return;
+      }
+      // [보내기] — 고른 추천안 또는 「기타」에 적은 글을 답으로 저장(관리자 토큰). 저장되면 목록을 다시 읽어 「답함 · 처리 대기」로 보인다.
       var sb = ev.target && ev.target.closest ? ev.target.closest('button[data-ans-send]') : null;
       if (sb) {
         var key = sb.getAttribute('data-ans-send'), m = /^(\d+)-(\d+)$/.exec(key || ''), inp = listEl.querySelector('input[data-ans-input="' + key + '"]');
-        var text = inp ? String(inp.value || '').trim() : '';
-        if (!m || !text) { showErr('답을 적어 주세요.'); return; }
+        var picked = listEl.querySelector('button[data-dec-opt="' + key + '"].nrya-on');
+        var text = (inp ? String(inp.value || '').trim() : '') || (picked ? String(picked.getAttribute('data-val') || '') : '');
+        if (!m || !text) { showErr('추천안을 고르거나 「기타」에 답을 적어 주세요.'); return; }
         sb.disabled = true; sb.textContent = '보내는 중…';
         legalPost('/api/legal/autorun/prs/' + encodeURIComponent(m[1]) + '/answer', { index: Number(m[2]), text: text }).then(function (res) {
           if (res.status === 401 || res.status === 403) return { _denied: true };
           return res.json().catch(function () { return { ok: false, why: '응답 파싱 실패' }; });
         }).then(function (d) {
-          if (d && d._denied) { showErr('관리자 로그인 필요'); sb.disabled = false; sb.textContent = '답 보내기'; return; }
-          if (!d || !d.ok) { showErr('답을 저장하지 못했습니다 — ' + ((d && (d.why || d.error)) || '알 수 없는 오류')); sb.disabled = false; sb.textContent = '답 보내기'; return; }
+          if (d && d._denied) { showErr('관리자 로그인 필요'); sb.disabled = false; sb.textContent = '보내기'; return; }
+          if (!d || !d.ok) { showErr('답을 저장하지 못했습니다 — ' + ((d && (d.why || d.error)) || '알 수 없는 오류')); sb.disabled = false; sb.textContent = '보내기'; return; }
           load();
-        }).catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); sb.disabled = false; sb.textContent = '답 보내기'; });
+        }).catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); sb.disabled = false; sb.textContent = '보내기'; });
         return;
       }
       var b = ev.target && ev.target.closest ? ev.target.closest('button[data-merge]') : null;

@@ -28,6 +28,11 @@ const DIR = path.join(__dirname, '..', 'data', 'bulletin_watch');
 const KEEP_DAYS = 30;
 // 목록은 3일 전부터 받는다 — 이미 발표·발효된 특보부터 따라가려고(사용자 확정 2026-11-15 「통보문은 3일 전꺼부터 수집해서 관찰하도록 해 이미 발효/발표된 특보들이 있거든」)
 const LOOKBACK_DAYS = 3;
+// 본 통보문은 처음 본 뒤 10일까지 들고 있다(목록에서 빠진 뒤에도) — 통보문 기준 특보현황(bulletin_status)은 들고 있는 통보문만으로 계산하므로,
+//   어느 관서에서 특보 통보문이 이 기간 넘게 한 건도 안 나오면 그 관서의 발효 중 특보가 계산에서 빠진다.
+//   사용자 결정 2026-11-18 「10일로 하자」(종전 5일). 실자료(2025-01~2026-11) 최장 공백 3.84일(강원 2026 1-93 → 1-97호) — 5일이면 여유 1.2일뿐이었다.
+//   늘린 값의 비용(실자료 664일 재 봄): 들고 있는 통보문 평균 42 → 84건(최대 224), 계산 평균 0.7 → 0.9ms, 본문 평균 36 → 72KB.
+const SEEN_KEEP_DAYS = 10;
 const RECHECK_MIN = [3, 10];            // 내용이 있는 통보문은 내용을 처음 본 뒤 3분·10분에 한 번씩 다시 본다(채운 뒤 고치는지)
 const EMPTY_GIVE_UP_MIN = 24 * 60;      // 하루가 지나도 비어 있으면 그만 보고 기록만 남긴다
 const KST = (ms) => new Date(ms + 9 * 3600e3).toISOString().replace('Z', '+09:00');   // 한국 시각(끝에 +09:00)
@@ -163,8 +168,8 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
                 emit({ atMs: t2, kind: 'gone', stn: s.stn, office: OFFICES[s.stn], rpt: s.rpt, code, listValue: s.listValue, wasEmpty: s.empty,
                     설명: `${OFFICES[s.stn]} 「${String(s.listValue).trim()}」가 목록에서 사라짐${s.empty ? '(빈 채로 있던 것 — 번호가 바뀌어 다시 올라왔는지 확인)' : ''}` });
             }
-            // 본 기록 정리: 목록에 더는 없고 처음 본 지 5일 넘은 것만(목록 기간이 날짜 단위라 최대 4일 가까이 남는다 — 그 안에 지우면 「새 통보문」으로 다시 잡힌다)
-            for (const [code, s] of Object.entries(state.seen)) if (!listed.has(code) && t2 - s.firstMs > 5 * 86400e3) delete state.seen[code];
+            // 본 기록 정리: 목록에 더는 없고 처음 본 지 SEEN_KEEP_DAYS(10일) 넘은 것만(목록 기간이 날짜 단위라 최대 4일 가까이 남는다 — 그 안에 지우면 「새 통보문」으로 다시 잡힌다)
+            for (const [code, s] of Object.entries(state.seen)) if (!listed.has(code) && t2 - s.firstMs > SEEN_KEEP_DAYS * 86400e3) delete state.seen[code];
             if (stat.lists === Object.keys(OFFICES).length * 2) state.started = true;   // 목록을 다 받은 회차가 있어야 기준이 선다
             save();
             prune();
@@ -179,7 +184,7 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
     const days = () => (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((f) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(f)).map((f) => f.slice(0, 10)).sort();
     const readDay = (d) => { try { return fs.readFileSync(path.join(dir, d + '.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch (_) { return []; } };
     /**
-     * 지금 보고 있는 통보문(목록 기간 3일 + 남은 기록) — 내용이 찬 것만, 처음 내용을 본 시각과 함께.
+     * 지금 들고 있는 통보문(목록 기간 3일 + 처음 본 뒤 10일까지 남겨 둔 기록) — 내용이 찬 것만, 처음 내용을 본 시각과 함께.
      * 예: [{ code, stn, office:'제주청', rpt:'6', seenMs:…, result:{ t1Title, tmFc, tmIn, t2, t6, … } }]
      * [연계] → services/bulletin_status.js(통보문 기준 특보현황 계산)
      */
