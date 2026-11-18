@@ -118,6 +118,8 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         assert.equal(ok(prJson(), [run('success')], CTX({ files: ['scripts/refactor/verify_all.sh'] })).state, 'scope', '검사 본체');
         assert.equal(ok(prJson(), [run('success')], CTX({ files: ['local_server/knowledge/legal/_dashboard/loop/baseline/byl_line_ready.json'] })).state, 'scope', '기준선');
         assert.equal(ok(prJson(), [run('success')], CTX({ files: ['local_server/knowledge/legal/wiki/x.js'] })).state, 'scope', '허용 경로라도 코드 파일은 안 됨');
+        assert.equal(ok(prJson(), [run('success')], CTX({ files: WIKI.concat(['local_server/knowledge/legal/_legacy/선박교통관제에관한법률/20250621/시행령.txt', 'local_server/knowledge/legal/_dashboard/collect_approved_report.json', 'local_server/knowledge/legal/_dashboard/index.json']) })).state, 'green', '옛 판 보관·수집 보고서·위키 목록은 허용(2026-11-18 PR #1485)');
+        assert.equal(ok(prJson(), [run('success')], CTX({ files: ['local_server/knowledge/legal/_legacy/x/run.py'] })).state, 'scope', '옛 판 보관 자리라도 코드 파일은 안 됨');
         assert.equal(ok(prJson(), [run('success')], CTX({ filesTruncated: true })).state, 'scope');
         assert.equal(ok(prJson(), [run('success')], CTX({ owner: false })).state, 'foreign', '잠금 주인이 아닌 run(적대검증 C#상-2)');
         assert.equal(ok(prJson({ created_at: new Date(RUN_SINCE - MIN).toISOString() }), [run('success')]).state, 'foreign', '세션 시작 전에 있던 PR');
@@ -410,6 +412,11 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         const v2 = c.m.answers()[0].id; assert.notEqual(v1, v2, '고쳐 쓴 답은 새 일감'); assert.equal(woke[1], v2);
         c.m.answersResult([v1], []); assert.equal(c.m.answers().length, 1, '옛 판 답 처리 보고는 새 답을 「처리됨」으로 찍지 않음(적대검증 중3)');
         c.m.answersResult([], [v2]); assert.equal(c.m.list().prs[0].answers[1].deferred, true); assert.equal(c.m.answers().length, 0);
+        // 추천안(needs_options) — 결정 필요와 같은 순서로 저장·목록에 실림, 나중에 더해진 결정 필요도 칸을 맞춤
+        const o = make(); o.m.track(Object.assign(TR(12, ['폴더', '도구']), { needs_options: [['A 폴더(추천)', 'B 폴더'], 'bad'] }), OWN);
+        assert.deepEqual(o.m.list().prs[0].needOptions, [['A 폴더(추천)', 'B 폴더'], []]);
+        o.m.track({ pr_url: URL(12), run_id: 'ar-2', needs_decision: ['새 결정'], needs_options: [['예', '아니요']] }, {});
+        assert.deepEqual(o.m.list().prs[0].needOptions, [['A 폴더(추천)', 'B 폴더'], [], ['예', '아니요']]);
         const g = make(); g.gh.pr = prJson({ merged: true, state: 'closed' }); g.m.track(TR(11, ['x']), OWN); await quiet(() => g.m.refresh());
         assert.equal(g.m.answer(11, 0, '답').status, 409, '머지·닫힌 PR 에는 답을 받지 않음');
     });

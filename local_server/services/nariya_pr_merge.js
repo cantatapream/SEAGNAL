@@ -49,12 +49,17 @@ const AUTO_ALLOW = [
     'local_server/knowledge/legal/wiki/',
     'local_server/knowledge/legal/_dashboard/reread/',
     'local_server/knowledge/legal/_dashboard/touched/',
+    // 원문 새 판을 받을 때 옛 판을 옮겨 두는 곳(collect_approved — 원문 글 파일, 코드 아님). 2026-11-18 PR #1485 에서 「위키·원문 밖 파일」 경고가 떴다(사용자 「뭘 개발 검토를 하라는거지」).
+    'local_server/knowledge/legal/_legacy/',
 ];
 const AUTO_ALLOW_FILES = new Set([
     'local_server/knowledge/legal/HANDOFF.md',
     'local_server/knowledge/legal/_amendments/wiki_applied.jsonl',
     'local_server/knowledge/legal/_dashboard/pending_index.json',
     'local_server/knowledge/legal/_dashboard/build_index.md',
+    // 같은 날 같은 까닭으로 더함 — 수집 보고서(collect_approved)와 위키 목록(lint_index 가 다시 만드는 파일). 지시문대로 돌면 늘 바뀌는 파일이다.
+    'local_server/knowledge/legal/_dashboard/collect_approved_report.json',
+    'local_server/knowledge/legal/_dashboard/index.json',
 ]);
 const CODE_EXT_RE = /\.(js|mjs|cjs|py|sh|ya?ml|ts|html|css)$/i;
 // 5분: 검사(실측 약 19분 — PR #1471)를 기다리며 다시 볼 간격. 없으면 검사가 끝나도 아무도 머지하지 않는다.
@@ -433,10 +438,14 @@ function createMerger({
         if (!m) return { tracked: false, why: 'PR 주소가 이 저장소 PR 이 아님' };
         const n = Number(m[1]);
         const needs = Array.isArray(d.needs_decision) ? d.needs_decision.filter((x) => typeof x === 'string').slice(0, 20) : [];
+        // 결정 필요마다 세션이 준 추천안(needs_options — 첫 칸이 추천, 2026-11-18 사용자 「추천안을 버튼으로」). needs 와 같은 순서.
+        const opts = Array.isArray(d.needs_options) ? d.needs_options.slice(0, needs.length).map((a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.slice(0, 80)).slice(0, 4) : [])) : [];
         const old = find(n);
         if (old) {
             if (needs.length) {
-                old.needs = (old.needs || []).concat(needs.filter((x) => !(old.needs || []).includes(x))).slice(0, 20);
+                const before = old.needs || [], add = needs.map((x, i) => [x, opts[i] || []]).filter(([x]) => !before.includes(x));
+                old.needs = before.concat(add.map((a) => a[0])).slice(0, 20);
+                old.needOptions = (old.needOptions || before.map(() => [])).concat(add.map((a) => a[1])).slice(0, old.needs.length);
                 // 상태와 무관하게 auto 면 내린다(재검토 중-B — failed_checks 인 auto PR 이 재실행 뒤 결정 필요를 안고 자동 머지되던 길).
                 //   2026-11-18: 상태(waiting·failed_checks)와 확인은 그대로 둔다 — 검사가 초록이 되면 그때 「머지 버튼」 푸시.
                 if (old.mode === 'auto' && ['waiting', 'failed_checks', 'conflict_fixing'].includes(old.status)) { old.mode = 'human'; old.how = 'button'; old.why = '다른 세션이 결정 필요를 더했습니다'; }
@@ -460,7 +469,7 @@ function createMerger({
         const watch = auto || how === 'button';
         const p = { number: n, pr_url: m[0], run_id: typeof d.run_id === 'string' ? d.run_id.slice(0, 64) : null, needs, summary: typeof d.summary === 'string' ? d.summary.slice(0, 500) : '',
             at: now(), runSince: Number.isFinite(opt.runSince) ? opt.runSince : null, owner: !!opt.owner,
-            mode: auto ? 'auto' : 'human', status: watch ? 'waiting' : 'needs_human', why, how };
+            mode: auto ? 'auto' : 'human', status: watch ? 'waiting' : 'needs_human', why, how, needOptions: needs.map((_, i) => opts[i] || []) };
         const st = load();
         st.prs = st.prs.concat([p]).slice(-KEEP);
         save();
@@ -546,6 +555,7 @@ function createMerger({
             mode: p.mode, status: p.status, why: p.why || null, how: p.how || null, howText: p.how ? HOW_TEXT[p.how] : null,
             canMerge: p.canMerge === true, outside: p.outside || [], outsideCount: p.outsideCount || 0,
             check: p.check ? { state: p.check.state, why: p.check.why, at: iso(p.check.at) } : null,
+            needOptions: (p.needs || []).map((_, i) => ((p.needOptions || [])[i] || [])),
             answers: (p.answers || []).map((x) => (x ? { text: x.text, at: iso(x.at), handled: !!x.handledAt, deferred: !!x.deferredAt } : null)),
             mergedAt: iso(p.mergedAt), mergedBy: p.mergedBy || null,
         })).sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
