@@ -106,6 +106,7 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         assert.equal(ok(prJson(), [run('skipped')]).state, 'skipped', '필수 검사가 skipped 면 사람 몫(30분·3시간 헛기다리지 않게)');
         assert.equal(ok(prJson({ mergeable: false }), [run('success')]).state, 'conflict');
         assert.equal(ok(prJson({ mergeable: null, mergeable_state: 'dirty' }), [run('success')]).state, 'conflict', 'mergeable 이 아직 null 이어도 mergeable_state dirty 면 충돌(PR #1485)');
+        assert.equal(ok(prJson({ mergeable: false, mergeable_state: 'dirty' }), []).state, 'conflict', '충돌한 PR 은 검사가 안 붙는다 — 「검사 없음」보다 충돌이 먼저(PR #1497)');
         assert.equal(ok(prJson({ mergeable: null }), [run('success')]).state, 'pending');
         assert.equal(ok(prJson(), [run('success'), run('skipped', 'completed', '다른 검사')]).state, 'green');
         assert.equal(ok(prJson(), [run('success')], CTX({ behindBy: 2 })).state, 'stale', 'PR 가지가 main 보다 뒤처지면 stale(재검토 중-C — 커밋 시각이 아니라 compare behind_by)');
@@ -392,6 +393,12 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         r4.m.track(TR(19), OWN); await quiet(() => r4.time.advance(5 * MIN)); await quiet(() => r4.m.conflictResult([], ['19']));
         const sent0 = r4.push.sent.length; for (let i = 0; i < 3; i++) await quiet(() => r4.m.refresh());
         assert.equal(r4.push.sent.length, sent0); assert.deepEqual(h8.calls, [19]);
+        // PR #1497 — 고침 전 「필수 검사 30분 없음」으로 GitHub 몫이 된 충돌 PR 도, 충돌 풀기를 맡긴 적이 없으면 방을 열 때 맡긴다
+        const h9 = hook(), r6 = make({ onConflict: h9 }); r6.gh.runs = [run('success')];
+        r6.m.track(TR(21), OWN); await quiet(() => r6.time.advance(5 * MIN));   // 초록 → 자동 머지 전에 시험용으로 상태를 바꿔 둔다
+        const st6 = r6.m._state().prs.find((x) => x.number === 21); st6.status = 'needs_human'; st6.how = 'github'; st6.why = '필수 검사가 30분 동안 붙지 않았습니다';
+        r6.gh.pr = prJson({ mergeable: false, mergeable_state: 'dirty' }); await quiet(() => r6.m.refresh());
+        assert.deepEqual(h9.calls, [21]); assert.equal(r6.m.list().prs[0].status, 'conflict_fixing');
         // 가지 이름 — 안전한 글자만
         const r5 = make({ onConflict: hook() }); r5.gh.runs = [run('success')]; r5.gh.pr = prJson({ mergeable: false, head: { ref: 'claude/a;id', sha: SHA, repo: { full_name: 'cantatapream/SEAGNAL' } } });
         r5.m.track(TR(20), OWN); await quiet(() => r5.time.advance(5 * MIN)); assert.equal(r5.m.conflicts()[0].branch, null);
