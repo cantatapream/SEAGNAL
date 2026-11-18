@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 21:11 KST] ✅완료 — 패치노트 게시판 — 어절 단위 줄바꿈 + 줄 끝 넘침 글자 간격 맞추기 · 11-18 패치노트 완성
+완료: style.css .promo-md word-break:keep-all · md_fit.js(줄 끝 2~3글자 넘침은 그 줄 글자 간격을 좁힘, 한도 0.12em, 보기 칸·미리보기만) · promo.js openPromoDetail 연결 · build_notice.js 미리보기 포함 · test_notice_md_fit 14/0(SUITES 등록) · NOTICE.md 「줄 정렬」 5규칙(원문 병기). verify_all(의존성 설치 + NODE_PATH=/opt/node-tools/node_modules): 실패 목록은 V3·V4 둘뿐 — V3 는 실행 중 기준선 갱신 탓(갱신 후 check_order 단독 통과), V4 는 로컬 서버 미기동 탓(서버 3001 기동 후 simulate.js 단독 「기준선 대비 회귀 없음」 통과). 패치노트 docs/notice/2026-11-18_update-2weeks/ — 제목 「개선·예정·기타사항 안내('26. 11. 8. ~ 18.)」, 사진 10장(4·5·7·8·9 사용자 휴대폰 사진). 다음: 작업 브랜치 → main 머지·배포해야 게시판에 줄 맞춤이 보임(사용자 확인 대기).
+
+
 ### [2026-11-18 20:40 KST] 🟢착수 — 패치노트 게시판 — 어절 단위 줄바꿈 + 줄 끝 넘침 글자 간격 좁혀 맞추기
 사용자 2026-11-18: 게시판(.promo-md, 마크다운 글)에만 ①낱말 중간 줄바꿈 금지(word-break keep-all) ②다음 줄로 넘어갈 낱말이 2~3글자 차이면 그 줄 글자 간격을 좁혀 한 줄에 넣기. 새 파일 client/js/notice/board/md_fit.js(보기 칸만 — 편집기 root 에는 안 건다) + style.css promo-md 덩어리 + build_notice.js 미리보기에 같은 스크립트.
 
