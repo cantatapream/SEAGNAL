@@ -119,7 +119,8 @@ function judge(pr, runs, ctx) {
     if (list.some((r) => r && r.status !== 'completed')) return { ok: false, state: 'pending', why: '검사 진행 중', sha, how: 'button' };
     if (req.some((r) => r.conclusion === 'skipped' || r.conclusion === 'neutral')) return { ok: false, state: 'skipped', why: '필수 검사가 돌지 않음(' + req.map((r) => r.conclusion).join(',') + ')', sha, how: 'github' };
     if (!req.every((r) => r.conclusion === 'success')) return { ok: false, state: 'pending', why: '검사 진행 중', sha, how: 'button' };
-    if (pr.mergeable === false) return { ok: false, state: 'conflict', why: '충돌 — GitHub 가 머지할 수 없다고 답함', sha, how: 'github' };
+    // mergeable 은 GitHub 가 늦게 채워 null 로 오래 남을 수 있다 — mergeable_state 「dirty」(충돌)도 충돌로 본다(2026-11-18 PR #1485: 충돌인데 앱이 「계산 중」으로 보였다).
+    if (pr.mergeable === false || pr.mergeable_state === 'dirty') return { ok: false, state: 'conflict', why: '충돌 — 이 PR 과 main 이 같은 파일(대개 HANDOFF.md 작업 기록)을 서로 다르게 고쳤습니다', sha, how: 'github' };
     if (pr.mergeable !== true) return { ok: false, state: 'pending', why: 'GitHub 가 머지 가능 여부를 계산 중', sha, how: 'button' };
     // 검사한 head 가 main 을 다 품지 않았으면(behind_by > 0) 머지 결과가 검사한 것과 달라진다 — 최신 main 을 얹고 다시 검사(재검토 중-C:
     //   커밋 시각 비교는 늦게 push 된 커밋을 놓쳤다). 모르면(behindBy 없음) 머지하지 않는다.

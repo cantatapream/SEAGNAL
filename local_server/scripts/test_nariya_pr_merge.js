@@ -105,6 +105,7 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         assert.equal(ok(prJson(), [run('success'), run('cancelled', 'completed', '다른 검사')]).state, 'failed');
         assert.equal(ok(prJson(), [run('skipped')]).state, 'skipped', '필수 검사가 skipped 면 사람 몫(30분·3시간 헛기다리지 않게)');
         assert.equal(ok(prJson({ mergeable: false }), [run('success')]).state, 'conflict');
+        assert.equal(ok(prJson({ mergeable: null, mergeable_state: 'dirty' }), [run('success')]).state, 'conflict', 'mergeable 이 아직 null 이어도 mergeable_state dirty 면 충돌(PR #1485)');
         assert.equal(ok(prJson({ mergeable: null }), [run('success')]).state, 'pending');
         assert.equal(ok(prJson(), [run('success'), run('skipped', 'completed', '다른 검사')]).state, 'green');
         assert.equal(ok(prJson(), [run('success')], CTX({ behindBy: 2 })).state, 'stale', 'PR 가지가 main 보다 뒤처지면 stale(재검토 중-C — 커밋 시각이 아니라 compare behind_by)');
