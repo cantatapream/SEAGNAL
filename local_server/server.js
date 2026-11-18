@@ -338,7 +338,13 @@ cron.schedule('55 23 * * *', () => {
 // [연계] services/subscriber_audit.js → runAudit() · 결과는 관리자 「구독 현황」 탭에 뜬다
 cron.schedule('40 23 * * *', () => {
     console.log('⏰ [Daily Schedule] 구독자 등록표 점검을 시작합니다.');
+    // 실패하면 관리자 기기로 푸시 — 화면을 열어야만 보이면 실패가 묻힌다.
     require('./services/subscriber_audit').runAudit({ apply: true, trigger: 'cron' })
+        .then((r) => {
+            if (r.ok) return;
+            return require('./services/admin_push').sendAdminPush('구독자 등록표 자동 점검 실패',
+                (r.error || '원인 미상') + ' — 관리자 센터 > 종합 통계 > 구독 현황에서 확인하세요.', { type: 'subscriber_audit_failed' });
+        })
         .catch((e) => console.error('[SubscriberAudit] 자동 점검 실패:', e && e.message));
 }, { timezone: 'Asia/Seoul' });
 // [이동됨] 서버 시작 시 오늘 스냅샷이 없으면 즉시 기록하던 호출은 require 단계에서

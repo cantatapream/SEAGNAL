@@ -125,24 +125,22 @@ function recordSubscriberEvent(eventType, count) {
  *          ※ 예전에는 앱이 해지 창구를 부르지 않아 해지가 늘 0건이었고, 등록표 교체가 신규로 세어졌다.
  */
 function subscribeEventType(subs, existingIndex, newEntry) {
-    const nowOn = isOn(newEntry);
-    if (existingIndex !== -1) {
-        const wasOn = isOn(subs[existingIndex]);
-        if (wasOn && !nowOn) return 'unsubscribe';
-        if (!wasOn && nowOn) return 'subscribe';
-        return null;
-    }
-    if (!nowOn) return null;
-    const sameDeviceOn = !!newEntry.deviceId && subs.some(function (s) { return s.deviceId === newEntry.deviceId && isOn(s); });
-    return sameDeviceOn ? 'replaced' : 'subscribe';
+    // ★줄 단위로 따지지 않고 「실제 수신자 수가 어떻게 바뀌나」로 정한다 — 그래야 사건 합계와 숫자가 어긋날 수 없다.
+    //   (독립 검토 2026-11-18: 같은 기기의 옛 줄이 남아 있을 때 끄면 수는 그대로인데 해지가 세어졌다.)
+    const next = subs.slice();
+    if (existingIndex !== -1) next[existingIndex] = newEntry; else next.push(newEntry);
+    const diff = countSubscribers(next).active - countSubscribers(subs).active;
+    if (diff > 0) return 'subscribe';
+    if (diff < 0) return 'unsubscribe';
+    return (existingIndex === -1 && isOn(newEntry)) ? 'replaced' : null;
 }
 
 /**
  * 죽은 등록표를 명단에서 지우고, 사건을 알맞게 기록한다.
  * 예: removeDead(new Set(['tokA'])) → { removed:1, expired:1, replaced:0, off:0 }
- *   - 알림을 끈 줄        → 사건 없음(끌 때 이미 '해지'로 셌다)
- *   - 같은 기기의 산 줄이 남음 → 사건 없음(등록표 교체 — 사람은 그대로)
- *   - 그 밖               → 'expired' (opts.backlog 면 'backlog')
+ *   - expired  = 지워서 「실제 수신자 수」가 줄어든 만큼 → 'expired' 로 기록(opts.backlog 면 'backlog')
+ *   - off      = 알림을 끈 줄(끌 때 이미 '해지'로 셌다) → 사건 없음
+ *   - replaced = 같은 기기의 켜진 줄이 따로 남아 사람 수가 그대로인 옛 줄 → 사건 없음
  * @param {Set<string>} deadIds - 죽은 줄의 고유값(subId)
  * @param {{backlog?:boolean, backup?:boolean}} [opts] - backlog=묵은 정리로 기록 · backup=지우기 전 명단 사본 저장
  * @returns {{removed:number,expired:number,replaced:number,off:number}}
@@ -157,13 +155,11 @@ function removeDead(deadIds, opts) {
     const kept = all.filter(function (s) { return !deadIds.has(subId(s)); });
     const dead = all.filter(function (s) { return deadIds.has(subId(s)); });
     if (dead.length === 0) return out;
-    const liveDevices = new Set(kept.filter(isOn).map(function (s) { return s.deviceId; }).filter(Boolean));
-    dead.forEach(function (s) {
-        if (!isOn(s)) out.off++;
-        else if (s.deviceId && liveDevices.has(s.deviceId)) out.replaced++;
-        else out.expired++;
-    });
+    // 이탈 = 「실제 수신자 수」가 줄어든 만큼(같은 기기 줄 둘이 함께 죽어도 1명). 나머지는 끈 줄이거나 교체된 옛 줄.
     out.removed = dead.length;
+    out.expired = countSubscribers(all).active - countSubscribers(kept).active;
+    out.off = dead.filter(function (s) { return !isOn(s); }).length;
+    out.replaced = out.removed - out.off - out.expired;
     if (o.backup) fs.copyFileSync(FILES.SUBSCRIPTIONS, FILES.SUBSCRIPTIONS.replace(/\.json$/, '.before_cleanup.json'));
     writeFileAtomic(FILES.SUBSCRIPTIONS, JSON.stringify(kept, null, 2));
     recordSubscriberEvent(o.backlog ? 'backlog' : 'expired', out.expired);
@@ -221,6 +217,13 @@ async function runAudit(opts) {
             }));
         }
         Object.assign(result, { checked: targets.length, alive: alive, dead: deadIds.size, unknown: unknown, errorCodes: errorCodes });
+        // ★한 건도 「살아 있다」고 확인되지 않으면 실패로 보고 **아무것도 지우지 않는다.**
+        //   firebase-admin 은 FCM 의 일반 404(NOT_FOUND — 등록표가 아니라 프로젝트 쪽 문제일 수 있다)도
+        //   「등록표 죽음」과 같은 코드로 돌려준다(lib/utils/error.js). 이 확인이 없으면 FCM·인증 쪽 오류
+        //   한 번에 매일 자동 정리가 명단 전체를 지운다. (인증 오류로 전부 「확인 못 함」인 경우도 여기서 실패로 남는다.)
+        if (targets.length > 0 && alive === 0) {
+            throw new Error('살아 있는 등록표를 한 건도 확인하지 못했습니다(죽음 ' + deadIds.size + ' · 확인 못 함 ' + unknown + '). FCM 연결·인증 문제일 수 있어 지우지 않았습니다.');
+        }
         const prev = getStatus();
         if (o.apply) {
             // 첫 정리에서 나오는 것은 그날 떠난 사람이 아니라 그동안 쌓인 것 → 'backlog' 로 따로 적는다.

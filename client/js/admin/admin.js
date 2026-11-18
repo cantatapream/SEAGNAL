@@ -3334,6 +3334,8 @@ async function renderSubscriberTab(container) {
         // 증감 계산 함수: 과거 데이터가 없으면 null 반환
         function calcDiff(pastDateStr) {
             if (history[pastDateStr]) {
+                // 비교할 날이 기준 변경 전(등록 기기 수)이면 빼지 않는다 — 서로 다른 것을 뺀 숫자가 증감처럼 보인다.
+                if (hasActive && history[pastDateStr].active == null) return 'basis';
                 return currentTotal - snapVal(pastDateStr);
             }
             return null; // 데이터 없음
@@ -3346,10 +3348,10 @@ async function renderSubscriberTab(container) {
         // 증감 표시용 HTML 생성 함수
         // 양수면 초록색 ▲, 음수면 빨간색 ▼, 0이면 회색 ─, 데이터 없으면 N/A
         function diffBadge(diff, label) {
-            if (diff === null) {
+            if (diff === null || diff === 'basis') {
                 return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03);">'
                     + '<span style="color:#94a3b8;font-size:0.78rem;">' + label + '</span>'
-                    + '<span style="color:#475569;font-size:0.8rem;font-weight:600;">N/A</span></div>';
+                    + '<span style="color:#475569;font-size:0.8rem;font-weight:600;">' + (diff === 'basis' ? '기준 변경 전' : 'N/A') + '</span></div>';
             }
             var color = diff > 0 ? '#22c55e' : (diff < 0 ? '#ef4444' : '#64748b');
             var arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '─');
@@ -3380,7 +3382,7 @@ async function renderSubscriberTab(container) {
             + diffBadge(diffDay, '전일 대비')
             + diffBadge(diffMonth, '전월 대비')
             + diffBadge(diffYear, '전년 대비')
-            + (basisDate ? '<div style="font-size:0.68rem;color:#64748b;margin-top:8px;line-height:1.5;">※ ' + basisDate + ' 부터 실제 수신자 기준. 그 전 숫자는 등록 기기 수라 그 날 앞뒤로 숫자가 한 번 내려갑니다.</div>' : '')
+            + (basisDate ? '<div style="font-size:0.68rem;color:#64748b;margin-top:8px;line-height:1.5;">※ ' + basisDate + ' 부터 실제 수신자 기준. 그 전 숫자는 등록 기기 수라 서로 빼지 않습니다(그래프·표는 그 날 한 번 내려갑니다).</div>' : '')
             + '</div>'
             + '</div>'
             // 오른쪽: 구독자 추이 차트
@@ -3412,6 +3414,8 @@ async function renderSubscriberTab(container) {
             var totalUnsub = 0; // 기간 내 수동 해지 수
             var totalExpired = 0; // 기간 내 만료 정리 수
             var hasData = false;
+            // 기준이 바뀐 날 이전 사건은 「등록표」 기준(교체가 신규·만료로 세어짐)이라 섞지 않는다.
+            if (basisDate && basisDate > startDate) startDate = basisDate;
 
             Object.keys(events).forEach(function(dateStr) {
                 if (dateStr >= startDate && dateStr <= endDate) {
@@ -3456,8 +3460,6 @@ async function renderSubscriberTab(container) {
         // 전체 기간 (이벤트 데이터의 첫 날짜 ~ 오늘)
         var allEventDates = Object.keys(events).sort();
         var firstEventDate = allEventDates.length > 0 ? allEventDates[0] : todayStr;
-        // 기준이 바뀐 날 이전 사건은 「등록표」 기준이라(교체가 신규·만료로 세어짐) 전체 유지율에서 뺀다.
-        if (basisDate && basisDate > firstEventDate) firstEventDate = basisDate;
 
         var weekRetention = calcRetention(thisWeekStartStr, todayStr);
         var monthRetention = calcRetention(thisMonthStartStr, todayStr);
@@ -3517,16 +3519,27 @@ async function renderSubscriberTab(container) {
         // ★점검이 실패했거나 한 번도 안 돌았으면 그대로 보여 준다 — 조용한 것이 이상 없는 것으로 보이지 않게.
         function auditLine(r) {
             if (!r) return '<span style="color:#f59e0b;">아직 점검한 적이 없습니다.</span>';
-            var when = new Date(r.at + 9 * 3600000).toISOString().replace('T', ' ').substring(5, 16) + ' KST';
+            var when = new Date(r.at + 9 * 3600000).toISOString().replace('T', ' ').substring(0, 16) + ' KST';
             var how = (r.trigger === 'cron' ? '자동' : '수동') + (r.apply ? '·정리' : '·검사만');
-            if (!r.ok) return '<span style="color:#ef4444;">' + when + ' (' + how + ') 점검 실패 — ' + (r.error || '') + '</span>';
+            if (!r.ok) return '<span style="color:#ef4444;">' + when + ' (' + how + ') 점검 실패 — ' + escapeHtmlAdminAff(r.error || '') + '</span>';
             return when + ' (' + how + ') · ' + r.checked + '건 검사 · 죽은 등록표 ' + r.dead + '건'
                 + (r.apply ? ' 정리(이탈 ' + r.expired + ' · 교체 ' + r.replaced + ' · 알림 끈 기기 ' + r.off + ')' : ' (지우지 않음)')
                 + (r.unknown > 0 ? ' · <span style="color:#f59e0b;">확인 못 함 ' + r.unknown + '건</span>' : '');
         }
         var auditHtml = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;margin-bottom:20px;">'
             + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:8px;font-weight:600;"><i class="fa-solid fa-broom" style="margin-right:4px;color:#38bdf8;"></i> 죽은 등록표 점검 <span style="font-weight:400;color:#64748b;">(매일 23:40 자동 · 알림은 가지 않음)</span></div>'
-            + '<div id="sub-audit-line" style="font-size:0.78rem;color:#cbd5e1;line-height:1.6;margin-bottom:10px;">' + (audit ? auditLine(audit.lastRun) : '<span style="color:#ef4444;">점검 기록을 불러오지 못했습니다.</span>') + '</div>'
+            + '<div style="font-size:0.78rem;color:#cbd5e1;line-height:1.6;margin-bottom:10px;">'
+            + '<div><span style="color:#64748b;">마지막 점검</span> <span id="sub-audit-line">' + (audit ? auditLine(audit.lastRun) : '<span style="color:#ef4444;">점검 기록을 불러오지 못했습니다.</span>') + '</span></div>'
+            // 「검사만」을 누르면 위 줄이 바뀌므로, 실제로 정리까지 끝난 마지막 때를 따로 둔다.
+            // 26시간 넘게 정리가 없으면 빨갛게 — 밤 자동 점검이 실패했거나 아예 안 돈 것이다.
+            + (audit ? '<div><span style="color:#64748b;">마지막 정리</span> ' + (function() {
+                var a = audit.lastApplied;
+                if (!a) return '<span style="color:#f59e0b;">아직 정리한 적이 없습니다.</span>';
+                var stale = (Date.now() - a.at) > 26 * 3600000;
+                return (stale ? '<span style="color:#ef4444;">' : '<span>') + auditLine(a)
+                    + (stale ? ' — 26시간 넘게 정리가 돌지 않았습니다(자동 점검 실패 가능).' : '') + '</span>';
+            })() + '</div>' : '')
+            + '</div>'
             + '<div style="display:flex;gap:8px;">'
             + '<button onclick="window.runSubscriberAudit(false)" style="padding:7px 14px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#cbd5e1;font-size:0.78rem;font-weight:600;cursor:pointer;">검사만</button>'
             + '<button onclick="window.runSubscriberAudit(true)" style="padding:7px 14px;border:none;border-radius:8px;background:#3b82f6;color:#fff;font-size:0.78rem;font-weight:600;cursor:pointer;">검사 후 정리</button>'

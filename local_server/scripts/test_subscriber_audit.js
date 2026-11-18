@@ -71,7 +71,16 @@ const fakeMessaging = (deadTokens, flakyTokens) => {
     ok('죽은 것이 없으면 아무것도 안 함', A.removeDead(new Set()).removed === 0 && readSubs().length === 1 && events().expired === undefined);
     writeSubs([fcm('a', 'devA'), fcm('b', 'devA')]);
     const r2 = A.removeDead(new Set(['a', 'b']));
-    ok('같은 기기 줄이 전부 죽으면 1건은 이탈 … 둘 다 expired(산 줄 없음)', r2.expired === 2 && r2.replaced === 0, r2);
+    ok('같은 기기 줄 둘이 함께 죽으면 이탈은 1명(사람 수 기준)', r2.expired === 1 && r2.replaced === 1 && r2.removed === 2, r2);
+    // 어떤 조합이든: 기록되는 이탈 = 실제 수신자 수가 줄어든 만큼
+    const mix = [fcm('a', 'd1'), fcm('b', 'd1'), fcm('c', 'd2', { master: false }), fcm('d', 'd2'), fcm('e'), fcm('f', 'd3'), fcm('g', 'd3', { master: false })];
+    [['a'], ['a', 'b'], ['c'], ['d'], ['c', 'd'], ['e', 'f'], ['g'], ['a', 'd', 'e', 'f', 'g']].forEach((ids) => {
+        writeSubs(mix);
+        const before = A.countSubscribers(mix).active;
+        const rr = A.removeDead(new Set(ids));
+        const after = A.countSubscribers(readSubs()).active;
+        ok('지움 [' + ids.join() + '] → 이탈 ' + rr.expired + ' = 수신자 감소 ' + (before - after), rr.expired === before - after && rr.off >= 0 && rr.replaced >= 0, rr);
+    });
 
     console.log('\n[3] runAudit — 검사만 모드');
     resetEvents();
@@ -103,8 +112,13 @@ const fakeMessaging = (deadTokens, flakyTokens) => {
     console.log('\n[5] runAudit — 실패가 조용히 묻히지 않는다');
     const before = readSubs().length;
     const f = await A.runAudit({ apply: true, messaging: { send: async () => { const e = new Error('x'); e.code = 'messaging/mismatched-credential'; throw e; } } });
-    ok('전부 인증 오류여도 한 줄도 안 지움', readSubs().length === before && f.dead === 0 && f.unknown === before, f);
+    ok('전부 인증 오류 → 한 줄도 안 지움 + 실패로 남음(성공으로 위장 안 함)', readSubs().length === before && f.ok === false && f.unknown === before, f);
     ok('오류 코드별 건수가 남는다', f.errorCodes['messaging/mismatched-credential'] === before, f.errorCodes);
+    // ★FCM 이 전 등록표에 「죽음」을 돌려줄 때(프로젝트 쪽 404 도 같은 코드로 온다) 명단 전체를 지우면 안 된다.
+    writeSubs([fcm('x1', 'e1'), fcm('x2', 'e2'), fcm('x3', 'e3')]);
+    const allDead = await A.runAudit({ apply: true, messaging: fakeMessaging(['x1', 'x2', 'x3']) });
+    ok('전부 「죽음」으로 나오면 지우지 않고 실패', readSubs().length === 3 && allDead.ok === false && allDead.dead === 3 && /지우지 않았습니다/.test(allDead.error), allDead);
+    writeSubs([fcm('live1', 'd1')]);
     fs.writeFileSync(FILES.SUBSCRIPTIONS, '{깨진 파일');
     const g = await A.runAudit({ apply: true, messaging: fakeMessaging([]) });
     ok('명단을 못 읽으면 ok:false + 오류 글', g.ok === false && !!g.error, g);
@@ -124,12 +138,17 @@ const fakeMessaging = (deadTokens, flakyTokens) => {
     ok('새 기기 → subscribe', post(fcm('n1', 'devX', { master: true })) === 'subscribe');
     ok('같은 등록표 다시 등록(앱 실행) → 사건 없음', post(fcm('n1', 'devX', { master: true })) === null);
     ok('같은 기기의 새 등록표 → replaced (신규 아님)', post(fcm('n2', 'devX', { master: true })) === 'replaced');
-    ok('알림 끔 → unsubscribe', post(fcm('n2', 'devX', { master: false })) === 'unsubscribe');
-    ok('끈 채로 다시 등록 → 사건 없음', post(fcm('n2', 'devX', { master: false })) === null);
-    ok('다시 켬 → subscribe', post(fcm('n2', 'devX', { master: true })) === 'subscribe');
+    ok('한 줄뿐인 기기가 알림 끔 → unsubscribe', post(fcm('s1', 'devS', {})) === 'subscribe' && post(fcm('s1', 'devS', { master: false })) === 'unsubscribe');
+    ok('끈 채로 다시 등록 → 사건 없음', post(fcm('s1', 'devS', { master: false })) === null);
+    ok('다시 켬 → subscribe', post(fcm('s1', 'devS', { master: true })) === 'subscribe');
     ok('처음부터 끈 채 등록 → 사건 없음', post(fcm('n3', 'devY', { master: false })) === null);
     ok('기기 id 없는 새 등록표 → subscribe', post(fcm('n4', undefined, { master: true })) === 'subscribe');
     ok('옵션이 비어 있으면 켬으로 본다(발송 필터와 같다)', post(fcm('n5', 'devZ', {})) === 'subscribe');
+    // 같은 기기의 옛 줄(켬)이 아직 남아 있을 때 현재 줄을 끄고 켜도 사람 수는 그대로 → 사건 없음
+    list = [fcm('old', 'devQ'), fcm('cur', 'devQ')];
+    ok('옛 줄이 남은 채 현재 줄 끔 → 사건 없음(수신자 수 그대로)', post(fcm('cur', 'devQ', { master: false })) === null);
+    ok('그 상태에서 다시 켬 → 사건 없음', post(fcm('cur', 'devQ', {})) === null);
+    list = [fcm('n1', 'devX'), fcm('n2', 'devX'), fcm('n3', 'devY', { master: false }), fcm('n4'), fcm('n5', 'devZ')];
     const cc = A.countSubscribers(list);
     ok('명단 5줄 · 실제 수신자 3(devX 1명 + n4 + devZ)', cc.total === 5 && cc.active === 3, cc);
     resetEvents();
