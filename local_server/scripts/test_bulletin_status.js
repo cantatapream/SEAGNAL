@@ -423,6 +423,20 @@ console.log('F. 통보문 발자취 — 📋 해역별 통보문 팝업(지금 �
         await S.keepLivePdf(its, async (u) => { asked.push(u); if (u === 'c') throw new Error('시간 초과'); return u === 'a'; });
         ok('PDF 가 아직 안 올라온 줄(없음·확인 실패)은 주소를 뗀다 → 화면이 본문 글을 펼친다, 주소 없는 줄은 묻지 않는다', JSON.stringify(its.map((x) => x.pdfUrl)) === JSON.stringify(['a', '', '', '']) && asked.sort().join('') === 'abc', its);
     })());
+    // 화면: PC 브라우저는 구글 문서 뷰어를 거치지 않고 PDF 를 바로 띄운다(사용자 2026-11-18 「휴대폰에서는 정상적으로되는데 pc에서 문제발생」 — PC 에서 처음 여는 통보문이 비고 「gview 다운로드 할 수 없음」)
+    {
+        const src = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'js', 'forecast', 'alerts', 'alert_history.js'), 'utf8');
+        const fn = (src.match(/function canShowPdfInline\(\) \{[\s\S]*?\n\}/) || [''])[0];
+        const can = (navigator, window = {}) => new Function('navigator', 'window', fn + '\nreturn canShowPdfInline();')(navigator, window);
+        const PC = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0';
+        ok('PC 브라우저(PDF 를 스스로 보여줌) → PDF 를 바로', fn && can({ pdfViewerEnabled: true, userAgent: PC, maxTouchPoints: 0 }) === true && can({ pdfViewerEnabled: true, userAgent: PC, maxTouchPoints: 10 }) === true);
+        ok('안드로이드 크롬·앱 웹뷰(PDF 보기 불가)·옛 브라우저(값 없음) → 지금 방식(구글 뷰어)', can({ pdfViewerEnabled: false, userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile Safari/537.36', maxTouchPoints: 5 }) === false && can({ userAgent: PC, maxTouchPoints: 0 }) === false);
+        ok('아이폰·아이패드(PDF 보기 가능이라고 답해도 휴대폰·태블릿) · 앱(Capacitor) → 지금 방식', can({ pdfViewerEnabled: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Safari/604.1', maxTouchPoints: 5 }) === false
+            && can({ pdfViewerEnabled: true, userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15', maxTouchPoints: 5 }) === false
+            && can({ pdfViewerEnabled: true, userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15', maxTouchPoints: 0 }) === true
+            && can({ pdfViewerEnabled: true, userAgent: PC, maxTouchPoints: 0 }, { Capacitor: { isNativePlatform: () => true } }) === false);
+        ok('누를 때 그 판정으로 주소를 고른다 — 바로 띄울 때는 PDF 주소, 아니면 구글 뷰어로 감싼 주소', /canShowPdfInline\(\) \? b\.pdfUrl \+ '#navpanes=0&view=FitH' : 'https:\/\/docs\.google\.com\/gview\?embedded=true&url=' \+ encodeURIComponent\(b\.pdfUrl\)/.test(src));
+    }
     ok('통보문 기준 팝업 계산은 MMIS 코드를 쓰지 않는다(bulletin_status 가 marine_client·ef/list·ntfctn 을 부르지 않음)', !/marine_client|fetchWarn|ntfctn/.test(fs.readFileSync(path.join(__dirname, '..', 'services', 'bulletin_status.js'), 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
 }
 

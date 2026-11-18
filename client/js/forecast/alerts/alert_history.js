@@ -545,9 +545,10 @@ function createZoneBulletinItem(b) {
             //   - 예비특보(webUrl=날씨누리 HTML): 그 버튼처럼 바로 iframe 렌더.
             //   - 발효 통보문(pdfUrl): PDF 라 WebView iframe 직접 렌더 불가 → 구글 문서 뷰어로 감싼다.
             var modalTitle = (b.reportNo ? b.reportNo + ' ' : '') + (b.title || '통보문');
+            //   - PC 브라우저(스스로 PDF 를 보여줄 수 있는 곳)는 구글 뷰어를 거치지 않고 PDF 를 바로 띄운다(canShowPdfInline).
             var url = b.webUrl
                 ? b.webUrl
-                : 'https://docs.google.com/gview?embedded=true&url=' + encodeURIComponent(b.pdfUrl);
+                : (canShowPdfInline() ? b.pdfUrl + '#navpanes=0&view=FitH' : 'https://docs.google.com/gview?embedded=true&url=' + encodeURIComponent(b.pdfUrl));   // #… = 쪽 미리보기 칸을 접고 폭에 맞춤(브라우저 PDF 보기 옵션)
             if (typeof window.openKmaIframeModal === 'function') {
                 window.openKmaIframeModal(url, modalTitle);
             } else {
@@ -556,6 +557,25 @@ function createZoneBulletinItem(b) {
         });
     }
     return item;
+}
+
+/**
+ * 이 브라우저가 팝업(iframe) 안에 PDF 를 스스로 보여줄 수 있는가 — PC 브라우저만 true.
+ *   왜: 통보문 PDF 를 구글 문서 뷰어로 감싸 띄우는데, PC(엣지)에서 어떤 통보문을 **처음** 열면 팝업이 비고
+ *   「gview — 다운로드 할 수 없음 · 파일 없음」이 뜨는 일이 있었다(두 번째부터는 정상 — 사용자 2026-11-18
+ *   「휴대폰에서는 정상적으로되는데 pc에서 문제발생」). 실패하는 것은 구글 뷰어 쪽 응답이고 우리 쪽에서는 재현하지 못했다
+ *   (처음 여는 PDF 61건 전부 정상). 원인을 못 잡은 채로, PC 는 구글 뷰어를 아예 거치지 않게 한다 —
+ *   PC 브라우저는 PDF 를 스스로 보여주고, 통보문 PDF 는 다른 사이트의 iframe 에 넣는 것을 막지 않는다(응답 머리글 확인).
+ *   휴대폰(앱·모바일 브라우저)은 지금 방식(구글 뷰어)이 정상이므로 그대로 둔다 — 앱 웹뷰는 PDF 를 스스로 못 보여준다.
+ * 예: PC 엣지·크롬 → true / 안드로이드 크롬·앱(navigator.pdfViewerEnabled 가 false) → false / 아이폰·아이패드 → false
+ * @returns {boolean}
+ * [연계] ← createZoneBulletinItem(이 파일)
+ */
+function canShowPdfInline() {
+    if (navigator.pdfViewerEnabled !== true) return false;   // 브라우저가 스스로 알려 주는 값(안드로이드 크롬·웹뷰 = false, 옛 브라우저 = 없음)
+    if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) return false;
+    var ua = navigator.userAgent || '';
+    return !(/Android|iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1));   // 휴대폰·태블릿은 지금 방식 그대로
 }
 
 // "2026.06.02 11:30" → "06.02 11:30"
