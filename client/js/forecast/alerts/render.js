@@ -905,6 +905,20 @@ function createAlertElement(items) {
         badgeContainer.appendChild(safeBadge);
     }
 
+    // [통보문 기준 — 관리자 [통보문]] 「자식만 특보」 부모 카드(data.js kidsOnly): 부모 자신은 특보가 아니다 →
+    //   부모 이름 옆에는 등급 배지 대신 「일부 해역만」만 단다. 등급 배지는 실제로 특보가 내려진 아래 연안바다·평수구역 줄에 붙는다.
+    //   사용자 2026-11-18: 「부모해역명 오른쪽에 풍랑주의보를 빼고 일부해역만 이라고만 뱃지가 달렸으면 좋겠어. 오해하기 좋잖아.」
+    //   실자료 1건(수도권 2025 8-29호 「인천·경기남부앞바다(먼평수구역)」). MMIS 자료에는 kidsOnly 가 없어 일반 화면은 그대로다.
+    const kidsOnly = sortedAlerts.some((a) => a && a.kidsOnly);
+    if (kidsOnly) {
+        badgeContainer.innerHTML = '';
+        const partBadge = document.createElement('span');
+        partBadge.className = 'status-badge kids-only';
+        partBadge.textContent = '일부 해역만';
+        partBadge.style.cssText = 'background: rgba(148,163,184,0.18); color: #e2e8f0; border: 1px dashed rgba(226,232,240,0.55);';
+        badgeContainer.appendChild(partBadge);
+    }
+
     // 상세 정보 영역 표시용 데이터 리스트 구성
     const detailedAlertList = [];
     const seenDetailTmFc = new Set();
@@ -961,8 +975,20 @@ function createAlertElement(items) {
         return row;
     };
 
+    // 「자식만 특보」 부모 카드: 부모 자신의 발표·발효·해제 시각은 없다(자식 것을 부모 줄에 적으면 부모 전체가 특보인 것처럼 읽힌다) → 안내 한 줄만.
+    //   어느 자식인지는 아래 연안바다 목록을 만들면서 채운다. 시각은 그 자식 줄 아래에 펼쳐 보인다.
+    let kidsOnlyNote = null;
+    const kidsOnlyNames = [];
+    if (kidsOnly) {
+        kidsOnlyNote = document.createElement('div');
+        kidsOnlyNote.className = 'kids-only-note';
+        kidsOnlyNote.style.cssText = 'margin: 4px 0 2px; padding: 8px 10px; border-radius: 8px; background: rgba(148,163,184,0.12); border: 1px dashed rgba(226,232,240,0.4); color: #e2e8f0; font-size: 0.85rem; line-height: 1.5;';
+        kidsOnlyNote.textContent = '이 해역 전체가 아니라 아래 일부 해역에만 특보가 내려져 있습니다.';
+        details.appendChild(kidsOnlyNote);
+    }
+
     detailedAlertList.forEach((alert, idx) => {
-        if (alert.isDummy) return;
+        if (alert.isDummy || kidsOnly) return;
 
         // [수정] 다가오는 특보인 경우: 현재 특보가 이미 위에 있을 때만(idx > 0) [다가오는 특보] 타이틀과 구분선 표시
         if (alert._isUpcoming) {
@@ -1043,7 +1069,14 @@ function createAlertElement(items) {
             const coastalAlert = findCoastalAlert(coastal.fullName);
             const coastalItem = createCoastalElement(coastal, coastalAlert, data.zoneName);
             coastalContainer.appendChild(coastalItem);
+            // 「자식만 특보」 부모 카드: 특보가 있는 자식(예비 아님) 이름을 안내에 적고, 그 줄의 시각을 미리 펼친다(부모 줄에 시각이 없으므로)
+            if (kidsOnlyNote && Array.isArray(coastalAlert) && coastalAlert.some((a) => a && a.level && a.level !== '예비')) {
+                kidsOnlyNames.push(coastal.name);
+                const box = coastalItem.querySelector('.coastal-detail-box');
+                if (box) box.style.display = 'block';
+            }
         });
+        if (kidsOnlyNote && kidsOnlyNames.length) kidsOnlyNote.innerHTML = '이 해역 <b>전체가 아니라</b> 아래 <b>' + kidsOnlyNames.join('·') + '</b>에만 특보가 내려져 있습니다.';   // 이름은 mappings.js 고정값
         details.appendChild(coastalContainer);
     }
 
