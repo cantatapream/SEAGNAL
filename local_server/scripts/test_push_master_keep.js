@@ -76,7 +76,22 @@ ok('⑧ 자동 켬이 다른 설정을 지우지 않는다', JSON.parse(p.store[
 console.log('\n[연결] 실제 코드가 두 함수를 그 자리에서 부른다');
 ok('앱 실행: 권한 허용 확인 뒤 autoEnableMasterOnGrant() 호출', /if \(permStatus\.receive === 'granted'\) \{\s*await PushNotifications\.register\(\);\s*(\/\/[^\n]*\n\s*)*autoEnableMasterOnGrant\(\);/.test(capSrc));
 ok('앱 실행 코드에 표시 확인 없는 master=true 덮어쓰기가 따로 남아 있지 않다', (capSrc.match(/\.master = true/g) || []).length === 1);
-ok('설정 저장: NotificationSettings.set 보다 먼저 markPushMasterUserOff 호출', /markPushMasterUserOff\(!!NotificationSettings\.get\(\)\.master, master\.checked\);\s*NotificationSettings\.set\(\{/.test(setSrc));
+ok('설정 저장: NotificationSettings.set 보다 먼저 markPushMasterUserOff 호출', /markPushMasterUserOff\(wasOn, master\.checked\);\s*NotificationSettings\.set\(\{/.test(setSrc));
+ok('저장 전 값(wasOn)은 메모리가 아니라 저장소에서 읽는다', /wasOn = !!JSON\.parse\(localStorage\.getItem\(NotificationSettings\.STORAGE_KEY\)/.test(setSrc) && !/markPushMasterUserOff\(!!NotificationSettings\.get\(\)/.test(setSrc));
+
+console.log('\n[낡은 메모리] 실제 NotificationSettings 로 — 저장소만 바뀐 뒤의 저장');
+{
+    const store = {};
+    const ctx = { console: { error() { } }, document: { getElementById: () => null }, window: {},
+        localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } } };
+    vm.createContext(ctx);
+    const nsSrc = setSrc.match(/^const NotificationSettings = \{[\s\S]*?^\};/m)[0].replace('const NotificationSettings', 'var NotificationSettings');
+    vm.runInContext(nsSrc + '\nNotificationSettings.init();\n' + fnAuto, ctx);          // 앱 로드: 메모리 master=false
+    ctx.autoEnableMasterOnGrant();                                                        // 저장소만 master=true
+    ok('준비: 메모리는 끔, 저장소는 켬(어긋난 상태)', ctx.NotificationSettings.settings.master === false && JSON.parse(store[KEY]).master === true);
+    vm.runInContext('NotificationSettings.set({ aiAnswer: true });', ctx);                // ai_chat [허용] 과 같은 호출
+    ok('다른 설정만 저장해도 master 가 낡은 끔으로 덮이지 않는다', JSON.parse(store[KEY]).master === true && JSON.parse(store[KEY]).aiAnswer === true, store[KEY]);
+}
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
