@@ -107,6 +107,7 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         assert.equal(ok(prJson({ mergeable: false }), [run('success')]).state, 'conflict');
         assert.equal(ok(prJson({ mergeable: null, mergeable_state: 'dirty' }), [run('success')]).state, 'conflict', 'mergeable 이 아직 null 이어도 mergeable_state dirty 면 충돌(PR #1485)');
         assert.equal(ok(prJson({ mergeable: false, mergeable_state: 'dirty' }), []).state, 'conflict', '충돌한 PR 은 검사가 안 붙는다 — 「검사 없음」보다 충돌이 먼저(PR #1497)');
+        assert.equal(ok(prJson({ mergeable: null, mergeable_state: 'unknown' }), []).state, 'pending', '충돌인지 아직 모르면 「검사 없음」 30분을 세지 않음(PR #1497)');
         assert.equal(ok(prJson({ mergeable: null }), [run('success')]).state, 'pending');
         assert.equal(ok(prJson(), [run('success'), run('skipped', 'completed', '다른 검사')]).state, 'green');
         assert.equal(ok(prJson(), [run('success')], CTX({ behindBy: 2 })).state, 'stale', 'PR 가지가 main 보다 뒤처지면 stale(재검토 중-C — 커밋 시각이 아니라 compare behind_by)');
@@ -425,6 +426,10 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         o.m.track({ pr_url: URL(12), run_id: 'ar-2', needs_decision: ['새 결정'], needs_options: [['예', '아니요']] }, {});
         assert.deepEqual(o.m.list().prs[0].needOptions, [['A 폴더(추천)', 'B 폴더'], [], ['예', '아니요']]);
         const g = make(); g.gh.pr = prJson({ merged: true, state: 'closed' }); g.m.track(TR(11, ['x']), OWN); await quiet(() => g.m.refresh());
+        // 머지된 PR — 머지 시각·「GitHub」 기록 · [확인]으로 목록에서 치움(열린 PR 은 안 됨)
+        const gp = g.m.list().prs.find((x) => x.number === 11); assert.equal(gp.status, 'merged'); assert.equal(gp.mergedBy, 'GitHub'); assert.ok(gp.mergedAt);
+        assert.equal(c.m.dismiss(10).status, 409, '열린 PR 은 치우지 않음'); assert.equal(g.m.dismiss(99).status, 404);
+        assert.deepEqual(g.m.dismiss(11), { ok: true }); assert.equal(g.m.list().prs.some((x) => x.number === 11), false);
         assert.equal(g.m.answer(11, 0, '답').status, 409, '머지·닫힌 PR 에는 답을 받지 않음');
     });
 

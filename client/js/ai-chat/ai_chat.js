@@ -2767,11 +2767,18 @@
     var btn = open && p.canMerge ? (stale ? '<div class="nrya-card-note"><span class="nrya-em">🔄</span>검사 뒤 main 이 바뀌었습니다 — 버튼을 누르면 최신 main 으로 다시 검사하고, 약 20분 뒤 다시 누르면 머지됩니다.</div>' : '') +
         '<div class="nrya-rv-actions"><button class="nrya-btn-ok" data-merge="' + esc(String(p.number)) + '">' + (stale ? '🔄 최신 main 으로 다시 검사' : '🔀 머지') + '</button></div>'
       : open && p.check && !fixing ? '<div class="nrya-card-note"><span class="nrya-em">⏸</span>지금은 머지 버튼이 잠겨 있습니다 — ' + esc(p.check.why || chkName) + (p.check.state === 'pending' || p.check.state === 'missing' ? (p.status === 'waiting' || p.status === 'failed_checks' || p.status === 'conflict_fixing' ? ' (검사는 보통 20분쯤 걸립니다. 끝나 초록이면 알림이 옵니다)' : ' (검사는 보통 20분쯤 걸립니다. 끝난 뒤 이 방을 다시 열어 주세요)') : '') + '</div>' : '';
+    // 머지·닫힌 PR 은 한 줄 + [확인] — 누르면 목록에서 사라진다(2026-11-18 사용자 「처리하여 머지된 내역을 남길 필요가 있니 ? 확인 버튼을 눌러서 … 더이상 표출할 필요없게」 ·
+    //   「마지막확인 머지됨 - 이미 머지됨 그리고 그 아래 머지 부분이 필요한 이유는 ?」 — 안내 상자·결정 필요·마지막 확인·머지 칸을 겹쳐 보이지 않는다).
+    var done = p.status === 'merged' || p.status === 'closed';
+    var doneHTML = done ? '<div class="nrya-card-note">' + (p.status === 'merged'
+        ? '<span class="nrya-em">✅</span>머지됐습니다' + (p.mergedAt ? ' · ' + esc(p.mergedAt.slice(5, 16).replace('T', ' ')) : '') + (p.mergedBy ? ' (' + esc(p.mergedBy === 'auto' ? '자동' : p.mergedBy) + ')' : '')
+        : '<span class="nrya-em">🚫</span>닫혔습니다(머지 안 됨)') + ((p.needs || []).length ? ' · 결정 필요 ' + p.needs.length + '건 중 처리됨 ' + (p.answers || []).filter(function (a) { return a && a.handled; }).length + '건' : '') + '</div>' +
+        '<div class="nrya-dec-etc" style="padding:0"><button type="button" class="nrya-dec-send" data-dismiss="' + esc(String(p.number)) + '">확인 — 목록에서 치우기</button></div>' : '';
     return cardShell({
       id: String(p.number), badge: 'PR #' + p.number, title: (p.summary || '(요약 없음)').slice(0, 160),
       subHTML: esc((p.at || '').slice(5, 16).replace('T', ' ')) + ' · <a href="' + esc(p.pr_url) + '" target="_blank" rel="noopener">GitHub 에서 보기</a>',
       statusHTML: '<span class="nrya-rv-st ' + st[0] + '">' + esc(st[1]) + '</span>',
-      bodyHTML: why + needs + outside + chk + merged + btn,
+      bodyHTML: done ? doneHTML : why + needs + outside + chk + merged + btn,
     });
   }
   /**
@@ -2814,6 +2821,20 @@
     // [머지] — 첫 클릭은 「한 번 더 누르면 머지·배포」 로 바꾸고(8초), 두 번째 클릭에서 POST. 결과는 서버가 판정한 그대로 보여 준다.
     var armed = null;
     listEl.addEventListener('click', function (ev) {
+      // [확인 — 목록에서 치우기] — 머지·닫힌 PR 카드를 치운다(관리자 토큰). 상태 기록은 서버에 남는다.
+      var db = ev.target && ev.target.closest ? ev.target.closest('button[data-dismiss]') : null;
+      if (db) {
+        db.disabled = true;
+        legalPost('/api/legal/autorun/prs/' + encodeURIComponent(db.getAttribute('data-dismiss')) + '/dismiss', {}).then(function (res) {
+          if (res.status === 401 || res.status === 403) return { _denied: true };
+          return res.json().catch(function () { return { ok: false, why: '응답 파싱 실패' }; });
+        }).then(function (d) {
+          if (d && d._denied) { showErr('관리자 로그인 필요'); db.disabled = false; return; }
+          if (!d || !d.ok) { showErr('치우지 못했습니다 — ' + ((d && (d.why || d.error)) || '알 수 없는 오류')); db.disabled = false; return; }
+          load();
+        }).catch(function (e) { showErr('네트워크 오류: ' + String(e && e.message || e)); db.disabled = false; });
+        return;
+      }
       // 추천안 버튼 — 고르기만 한다(색이 바뀜). 「기타」 칸에 적던 글은 지운다. 보내기는 [보내기].
       var ob = ev.target && ev.target.closest ? ev.target.closest('button[data-dec-opt]') : null;
       if (ob) {
