@@ -69,7 +69,7 @@ function fakeFetch() {
 }
 function fakePush() { const p = async (title, body, data) => { p.sent.push({ title, body, data }); return { sent: 1, failed: 0 }; }; p.sent = []; return p; }
 /** 가짜 머지 담당 — 실제 nariya_pr_merge(볼륨 파일·GitHub)를 건드리지 않게. 결정 필요 0건이면 auto. */
-function fakeMerger() { const m = { tracked: [], opts: [], track(d, o) { m.tracked.push(d); m.opts.push(o || {}); if (m.refuse) return { tracked: false, why: m.refuse }; if (m.reply) return m.reply; const human = (d.needs_decision || []).length || !(o && o.owner); return human ? { tracked: true, mode: 'human', how: 'button', status: 'waiting' } : { tracked: true, mode: 'auto', status: 'waiting' }; } }; return m; }
+function fakeMerger() { const m = { tracked: [], opts: [], conflictCalls: [], answerCalls: [], conflictResult(f, d) { m.conflictCalls.push([f, d]); }, answersResult(h, d) { m.answerCalls.push([h, d]); }, track(d, o) { m.tracked.push(d); m.opts.push(o || {}); if (m.refuse) return { tracked: false, why: m.refuse }; if (m.reply) return m.reply; const human = (d.needs_decision || []).length || !(o && o.owner); return human ? { tracked: true, mode: 'human', how: 'button', status: 'waiting' } : { tracked: true, mode: 'auto', status: 'waiting' }; } }; return m; }
 function make(o = {}) {
     const time = o.time || fakeTime(), f = o.fetch || fakeFetch(), push = o.push || fakePush(), file = o.file || newFile(), merger = o.merger || fakeMerger();
     const ar = A.createAutorun({ file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: f, push, env: o.env || PROD_ENV(), adminCheck: o.adminCheck, prMerger: merger });
@@ -627,7 +627,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const v = V({ run_id: 'ar-1', outcome: 'pr', summary: 'a‮b\u0007c‏d⁦e\nf' + '가'.repeat(5000), needs_decision: [...Array(30)].map(() => '‪' + '나'.repeat(500)).concat([5, null, '\u0001\u0002']) }).value;
         assert.ok(v.summary.startsWith('abcde\nf'), JSON.stringify(v.summary.slice(0, 10))); assert.equal(v.summary.length, 2000);
         assert.equal(v.needs_decision.length, 20); assert.ok(v.needs_decision.every((x) => x.length === 300 && !x.includes('‪')));
-        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], amend_ids: [], fresh_ids: [], mok_ids: [], deferred_amend_ids: [], deferred_fresh_ids: [], deferred_mok_ids: [] });
+        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], amend_ids: [], fresh_ids: [], mok_ids: [], deferred_amend_ids: [], deferred_fresh_ids: [], deferred_mok_ids: [], conflict_ids: [], deferred_conflict_ids: [], answer_ids: [], deferred_answer_ids: [] });
         const { ar, push } = make();
         ar.claim({ run_id: 'c1' });
         const r = ar.done({ run_id: 'c1', outcome: 'nope' });
@@ -639,6 +639,34 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.ok(!/개정 3건 반영|http/.test(push.sent[0].body), '세션 요약·주소는 푸시에 안 넣는다(앱 카드에 있음)');
         assert.equal(push.sent[0].data.pr_url, PR(7));
         assert.ok(Object.values(push.sent[0].data).every((x) => typeof x === 'string'), 'FCM data 는 전부 문자열');
+    });
+
+    await check('[§9.10] 충돌 — requestRun(conflict) 이 발사 글에 실림 · done 의 conflict_ids/deferred_conflict_ids 는 머지 담당에게 · 「충돌 N건 풀었음 · 검사 중」 푸시 · 못 푼 것은 본문에 · 못 푼 PR 은 14일 쉼 · 경로는 자동화 열쇠', async () => {
+        const c = make();
+        await quiet(async () => { c.ar.requestRun('conflict', { ids: ['1485'] }); await c.time.advance(10 * MIN); });
+        assert.ok(/ conflict=1 answer=0$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
+        const id = c.ar.status().lock.run_id;
+        c.ar.noteServed('conflict', ['1485', '1490']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'nothing', conflict_ids: ['1485'], deferred_conflict_ids: ['1490'] }); await flush(); });
+        assert.deepEqual(c.merger.conflictCalls, [[['1485'], ['1490']]]);
+        const last = c.push.sent[c.push.sent.length - 1];
+        assert.ok(/충돌 1건 풀었음 · 검사 중/.test(last.title) && /PR #1485 의 작업 기록 충돌을 풀어/.test(last.body) && /PR #1490\)은 작업 기록 말고 다른 파일도 겹쳐/.test(last.body), last.title + ' / ' + last.body);
+        assert.equal(c.ar.requestRun('conflict', { ids: ['1490'] }).queued, false, '못 푼 PR 은 14일 쉼(같은 PR 로 다시 깨우지 않음)');
+        assert.equal(A.validateDone({ run_id: 'x', outcome: 'nothing', conflict_ids: ['bad id!'] }).ok, false);
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/router\.get\('\/api\/legal\/autorun\/conflicts', autorun\.requireAdminOrAutomation/.test(lj) && /noteServed\('conflict'/.test(lj), '충돌 목록 경로');
+    });
+    await check('[§9.11] 결정 필요 답 — requestRun(answer) 발사 글 · done 의 answer_ids/deferred_answer_ids 는 머지 담당에게 · 답만 처리한 nothing 도 알림 · 답 경로는 관리자만 저장·자동화 열쇠로 목록', async () => {
+        const c = make();
+        await quiet(async () => { c.ar.requestRun('answer', { ids: ['1485-1'] }); await c.time.advance(10 * MIN); });
+        assert.ok(/ answer=1$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
+        const id = c.ar.status().lock.run_id; c.ar.noteServed('answer', ['1485-1']);
+        await quiet(async () => { c.ar.done({ run_id: id, outcome: 'nothing', answer_ids: ['1485-1'], summary: '답대로 도구를 고쳤습니다.' }); await flush(); });
+        assert.deepEqual(c.merger.answerCalls, [[['1485-1'], []]]);
+        const lj = fs.readFileSync(path.join(__dirname, '../routes/legal.js'), 'utf8');
+        assert.ok(/router\.post\('\/api\/legal\/autorun\/prs\/:n\/answer', adminAuth\.requireAdminToken/.test(lj) && /router\.get\('\/api\/legal\/autorun\/answers', autorun\.requireAdminOrAutomation/.test(lj));
+        const cj = fs.readFileSync(path.join(__dirname, '../../client/js/ai-chat/ai_chat.js'), 'utf8');
+        assert.ok(/data-ans-send/.test(cj) && /\/answer'/.test(cj), '앱 답 칸');
     });
 
     // ── 상태 파일 방어(F17) ──────────────────────────────────────────────────
@@ -834,7 +862,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
     await check('[§8 #7] 원문결손(mok) — 대기·발사 글에 실림 · 내준 일·결정 필요·PR(inFlight) 규칙이 개정·신선도와 같음 · 결손 점검기가 자동으로 닫은 카드만 inFlight 에서 풀림 · 연결(사용자 「자동슈정」)', async () => {
         const c = make();
         await quiet(async () => { c.ar.requestRun('mok', { count: 3 }); await c.time.advance(10 * MIN); });
-        assert.ok(/ mok=3$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
+        assert.ok(/ mok=3 conflict=0 answer=0$/.test(c.f.calls[0].body.text), c.f.calls[0].body.text);
         const id = c.ar.status().lock.run_id;
         c.ar.noteServed('mok', ['mok_a', 'mok_b', 'mok_c']);
         await quiet(async () => { c.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(9), mok_ids: ['mok_a'], deferred_mok_ids: ['mok_b'] }); });
