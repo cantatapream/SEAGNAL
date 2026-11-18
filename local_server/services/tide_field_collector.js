@@ -22,14 +22,14 @@
  *   - getGridHash 로 앵커가 TideBED 격자 제공 해역인지 검증(미제공이면 skip 기록).
  *
  * [개발 중 주의] 대규모 라이브 수집을 함부로 트리거하지 말 것(쿼터/네트워크).
- *   라이브 배치는 운영에서 scheduler 가 KST 23:30 1회 실행한다.
+ *   라이브 배치는 운영에서 scheduler 가 KST 02:00 1회 실행한다.
  *   여기서는 함수 구현 + 소량/드라이런 검증까지만.
  *
  * [연계]
  *   - services/tide_collector.js → collectTideBedPages, getGridHash, getAdjacentDates
  *   - services/tide_field_common.js → 경로/설정
  *   - peak_finder.js → 곡선 요약(피크) 산출
- *   - scheduler.js → KST 23:30 1일 1회 호출
+ *   - scheduler.js → KST 02:00 1일 1회 호출
  *   - routes/tide_field.js → 저장된 곡선을 읽어 η(t) 보간
  *   - services/tide_curve_edges.js → 새벽·밤 가장자리 메우기·완전 판정(2026-10-18)
  * ============================================================================
@@ -136,12 +136,15 @@ function clearCurves() {
  *   - 곡선 파일 형식(`_(\d{8})\.json$`)이 아닌 파일은 건드리지 않는다(보존).
  *   - 삭제는 디스크 공간을 요구하지 않으므로 볼륨이 꽉 차도 동작한다(회복 수단).
  *   - 절대 throw 하지 않는다(파일별 try/catch). 삭제한 파일 수 반환.
+ *   - [어제는 남긴다 — 2026-11-18] 수집을 23:30 → 02:00 으로 옮기면서 넣었다. 어제 곡선을 읽는 쪽이 있다
+ *     (station_briefing_inputs 의 prevDayPeaks · hazard_rocks_submersion.peaksWithNeighborDays). 예전엔 정리가 23:30 에
+ *     돌아 어제 파일이 그날 내내 남았는데, 02:00 에 지우면 하루 대부분 없어진다. 디스크는 종전 최대치(4일치)와 같다.
  */
 function purgeStaleCurves(logFn) {
     const lg = typeof logFn === 'function' ? logFn : ((...a) => console.log('[tide_field]', ...a));
     let removed = 0, kept = 0;
     try {
-        const dateSet = new Set(windowDatesKST(CFG.WINDOW_DAYS).map(String));
+        const dateSet = new Set(windowDatesKST(CFG.WINDOW_DAYS).map(String)).add(String(C.yesterdayKST()));
         let files = [];
         try { files = fs.readdirSync(C.CURVES_DIR); } catch (e) { return 0; } // 폴더 없음
         for (const f of files) {
@@ -450,7 +453,7 @@ async function runPool(tasks, concurrency, worker) {
 // ============================================================================
 // 중복 실행 락 + 부트스트랩 (배포/기동 시 자동 수집)
 // ============================================================================
-// 부팅 부트스트랩과 scheduler(KST 23:30) 가 겹쳐도 같은 곡선을 두 번 받지
+// 부팅 부트스트랩과 scheduler(KST 02:00) 가 겹쳐도 같은 곡선을 두 번 받지
 // 않도록 모듈 단위 in-progress 락으로 직렬화한다. 진행 중이면 즉시 반환.
 let _running = false;
 

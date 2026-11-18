@@ -410,7 +410,7 @@ router.get('/api/tide-field/meta', (req, res) => {
     const dates = TFC.windowDatesKST(CFG.WINDOW_DAYS);
     const startStr = String(dates[0]);
     // [실제 수집 반영] 이론상 마지막 날짜는 자정이 지나 "오늘"만 앞당겨진 것일 뿐,
-    //   그날 23:30 배치가 돌기 전까진 아직 프리컴퓨트(frames.bin)가 없다 — 그대로
+    //   그날 02:00 배치가 돌기 전까진 아직 프리컴퓨트(frames.bin)가 없다 — 그대로
     //   내보내면 슬라이더 끝부분이 빈 화면으로 표출된다. 실제로 커버된 마지막
     //   날짜(frames_meta.window_dates)가 더 이르면 그걸로 끝을 당긴다.
     const theoreticalEnd = dates[dates.length - 1];

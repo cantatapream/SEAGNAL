@@ -168,7 +168,7 @@ smallZoneForecast.configure({ getKey: () => CONFIG.KMA_HUB_KEY });
 // [물빠짐 예측 — Phase 1] 서해·남해 앵커 1분 조위곡선 배치 수집기.
 //   anchors.json(build_tide_field.js 산출) 을 순회하며 오늘~+2일(KST) TideBED
 //   곡선을 동시성 풀로 수집해 data/tide_field/curves/ 에 영속 저장.
-//   롤링 윈도우 + 부족분만 재호출 (다운타임 self-heal). KST 23:30 1일 1회.
+//   롤링 윈도우 + 부족분만 재호출 (다운타임 self-heal). KST 02:00 1일 1회.
 const tideFieldCollector = require('./services/tide_field_collector');
 // [간출암 잠김경고] 제주 앵커 1분 조위곡선 배치 수집기. 물빠짐과 TideBED 키를
 //   공유하므로 물빠짐 수집이 끝난 직후 이어서(순차) 호출한다 — 동시 발사 금지.
@@ -2790,11 +2790,14 @@ async function init() {
             );
         }
 
-        // [물빠짐 예측 곡선 수집 — Phase 1] KST 23:30 1일 1회.
+        // [물빠짐 예측 곡선 수집 — Phase 1] KST 02:00 1일 1회.
+        //   [시각 — 2026-11-18 사용자 확정 「02시로 바꾸자.」] 종전 23:30 은 사용자가 많은 시간이라, 바텀시트 조석 요청과
+        //   같은 TideBED 키 3개를 나눠 쓰는 이 수집이 겹칠 수 있었다. 03:00 나리야 새벽 점검(server.js) 앞에 둔다.
+        //   ⚠어제 곡선을 읽는 쪽(파출소 브리핑·간출암 자정 근처 물때)이 있어, 세 수집기의 정리(purgeStaleCurves)는 어제도 남긴다.
         //   앵커 곡선(오늘~+2일) 중 없거나 부분수집분만 골라 동시성 풀로 수집.
         //   최초 실행=자동 3일, 이후 1일/일. anchors.json 미존재 시 모듈이 안전 skip.
         //   fire-and-forget — 다른 작업/사이클을 막지 않음. 내부 동시성 5앵커 제한.
-        if (hm === '23:30') {
+        if (hm === '02:00') {
             // [줄세우기 — 2026-10-18] 서버 기동 보충(server.js — 물빠짐 → 제주 두 수집기)과 같은 줄에 선다
             //   (tide_field_common.runTideBatchExclusive). 기동 보충이 도는 중이면 끝난 뒤 시작한다 —
             //   예전엔 서해·남해가 「이미 진행 중」으로 건너뛰자마자 제주 수집이 시작돼 키를 동시에 썼다.

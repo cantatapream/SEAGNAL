@@ -19,7 +19,7 @@
  *
  * [계산은 여기서 안 함]
  *   무거운 스캔(분단위×3일×전체 암초)은 services/hazard_rocks_submersion.js 의
- *   computeAllCrossings() 가 야간 배치(scheduler.js, KST 23:30)에서 1회만 하고
+ *   computeAllCrossings() 가 야간 배치(scheduler.js, KST 02:00)에서 1회만 하고
  *   결과를 파일로 저장해 둔다. 이 라우트는 그 파일을 읽어 "지금"과 빼는 가벼운
  *   연산만 하므로 매 요청마다 무겁게 재계산하지 않는다.
  *
