@@ -211,7 +211,7 @@ router.get('/api/vapid-public-key', (req, res) => {
 
 // 구독 추가/갱신 (Web Push & FCM)
 router.post('/api/subscribe', (req, res) => {
-    const { subscription, token, zones, options, deviceId } = req.body;
+    const { subscription, token, zones, options, deviceId, osPermission } = req.body;
 
     const isWebPush = subscription && subscription.endpoint;
     const isFcm = !!token;
@@ -240,6 +240,8 @@ router.post('/api/subscribe', (req, res) => {
             zones: Array.isArray(zones) ? zones : [],
             options: options || { alert: true, release: true },
             deviceId: deviceId || undefined,
+            // 폰 자체의 알림 권한 상태(앱이 알려 옴 — 옛 앱은 안 보낸다). 「실제 수신자」를 세는 데만 쓰고 발송에서는 빼지 않는다.
+            osPermission: ['granted', 'denied', 'prompt', 'prompt-with-rationale'].includes(osPermission) ? osPermission : undefined,
             updatedAt: Date.now()
         };
 
@@ -907,7 +909,8 @@ router.get('/api/push-subscriber-stats', (req, res) => {
         res.json({
             totalSubscribers: subs.length,
             activeSubscribers: counts.active,   // 실제 수신자(화면의 큰 숫자·증감 기준)
-            masterOffCount: counts.masterOff,   // 알림을 끈 기기
+            masterOffCount: counts.masterOff,   // 앱에서 알림을 끈 기기
+            osBlockedCount: counts.osBlocked,   // 앱에서는 켰지만 폰 권한이 꺼졌다고 알려 온 기기
             recent30Count: counts.recent30,     // 실제 수신자 중 최근 30일 안에 앱을 연 사람
             fcmCount,
             webCount,

@@ -89,7 +89,8 @@ function takeSnapshot() {
             fcm: fcmCount,
             web: webCount,
             active: counts.active,
-            masterOff: counts.masterOff
+            masterOff: counts.masterOff,
+            osBlocked: counts.osBlocked
         };
 
         // 6. 파일에 저장

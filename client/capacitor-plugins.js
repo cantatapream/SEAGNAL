@@ -56,6 +56,15 @@ window.subscribeUser = async (token = null) => {
         // deviceId: 제보 답변 푸시 등 기기 식별용
         const deviceId = localStorage.getItem('seagnal_device_id') || '';
 
+        // [폰 권한 보고 2026-11-18] 폰 자체 설정에서 알림 권한이 꺼져 있는지 서버에 알린다.
+        //   FCM 은 폰이 알림을 막아도 "보냈다"고만 답해 서버가 알 길이 없다 — 관리자 「구독 현황」의
+        //   실제 수신자 수에서 빼기 위해서다(발송은 그대로 한다). 확인 실패 시에는 보내지 않는다(모르면 모른다).
+        let osPermission;
+        try {
+            const st = await window.Capacitor.Plugins.PushNotifications.checkPermissions();
+            osPermission = st && st.receive;
+        } catch (_) { /* 웹·플러그인 없음 — 보고하지 않음 */ }
+
         await fetch('/api/subscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -63,7 +72,8 @@ window.subscribeUser = async (token = null) => {
                 token: token,
                 zones: selectedZones,
                 options: pushSettings, // 여기에 master(ON/OFF) 상태가 포함됨
-                deviceId: deviceId
+                deviceId: deviceId,
+                osPermission: osPermission
             })
         });
         console.log('Server subscription updated:', pushSettings.master ? 'ON' : 'OFF', '| Zones:', selectedZones.length);
@@ -255,6 +265,10 @@ const initPushNotifications = async () => {
 
         // 시스템에서 허용한 경우: 설정의 "푸시 알림 받기" 토글 자동 ON — 단, 사용자가 직접 끈 경우는 그대로 둔다
         autoEnableMasterOnGrant();
+    } else if (localStorage.getItem('push_token')) {
+        // 권한이 꺼져 있으면 register() 를 안 부르므로 등록 이벤트(→ subscribeUser)도 안 온다.
+        // 예전에 등록된 적 있는 기기(토큰 보유)만 "지금 권한이 꺼져 있다"를 서버에 알린다.
+        window.subscribeUser();
     }
 };
 

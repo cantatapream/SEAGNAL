@@ -102,8 +102,8 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 
 | 화면 | 뜻 | 어디서 오나 |
 |---|---|---|
-| 큰 숫자 「실제 수신자」 | 알림 켬(`options.master !== false`, 발송 필터와 같은 기준) + 같은 기기(`deviceId`)는 1명 | `GET /api/push-subscriber-stats` `activeSubscribers` |
-| 등록 기기 · 알림 끔 · 최근 30일 접속 | 명단 줄 수 · 끈 줄 수 · 실제 수신자 중 30일 안에 앱을 연 사람(`updatedAt`) | 같은 응답 `totalSubscribers`·`masterOffCount`·`recent30Count` |
+| 큰 숫자 「실제 수신자」 | 앱에서 알림 켬(`options.master !== false`) + 폰 권한이 꺼졌다는 보고 없음(`osPermission`) + 같은 기기(`deviceId`)는 1명 | `GET /api/push-subscriber-stats` `activeSubscribers` |
+| 등록 기기 · 알림 끔 · 폰 권한 꺼짐 · 최근 30일 접속 | 명단 줄 수 · 앱에서 끈 줄 수 · 앱에서는 켰지만 폰 권한이 꺼졌다고 알려 온 줄 수 · 실제 수신자 중 30일 안에 앱을 연 사람(`updatedAt`) | 같은 응답 `totalSubscribers`·`masterOffCount`·`osBlockedCount`·`recent30Count` |
 | 증감·그래프·표 | 일별 기록의 `active`(없는 옛 날짜는 `total`) | `GET /api/subscriber-history` |
 | 구독 유지율 | 신규(`subscribe`) 대 이탈(`unsubscribe`+`expired`). `replaced`(같은 기기 등록표 교체)·`backlog`(첫 정리 때 나온 묵은 것)는 세지 않는다. 세 번째 칸은 기준이 바뀐 날 이후만 | `GET /api/subscriber-events` |
 | 죽은 등록표 점검 카드 | 마지막 점검이 언제·어떻게 끝났나 + [검사만]·[검사 후 정리] | `GET/POST /api/admin/subscriber-audit` |
@@ -116,5 +116,6 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 - 카드의 「마지막 정리」가 26시간 넘게 옛것이면 빨갛게 뜬다(밤 자동 점검이 실패했거나 안 돈 것).
 - **독립 검토(2026-11-18)** 반영: 전체 삭제 안전장치 · 전부 「확인 못 함」을 성공으로 적던 것 · 같은 기기 줄이 여럿일 때 사건이 수와 어긋나던 것 · 검사만 누르면 자동 점검 실패가 가려지던 것 · 기준이 다른 날끼리 빼던 전월·전년 대비 · 오류 글 이스케이프.
 - 기준이 바뀐 날(일별 기록에 `active` 가 처음 생긴 날) 앞뒤로 숫자가 한 번 내려간다 — 화면에 그 날짜를 적어 둔다.
-- 알 수 없는 것: 폰 설정에서 알림 권한만 끈 경우(앱이 알려 주지 않는다), 앱을 지운 직후(FCM 도 며칠 뒤에 안다).
+- **폰 권한 꺼짐 보고**: 앱이 서버에 구독 정보를 보낼 때마다 폰의 알림 권한 상태(`osPermission`)를 함께 보낸다(`client/capacitor-plugins.js subscribeUser`). 권한이 꺼진 채 앱을 켜면 등록 이벤트가 없으므로, 토큰을 가진 기기는 그 자리에서 한 번 보낸다. **세는 데만 쓰고 발송에서는 빼지 않는다** — 권한을 다시 켜고 앱을 아직 안 연 사람에게도 푸시가 가야 한다.
+- 알 수 없는 것: 폰 권한을 끄고 **앱을 한 번도 안 연** 경우(앱이 알려 줄 기회가 없다), 옛 화면 코드가 남아 있는 기기(값을 안 보낸다 — 받는 것으로 센다), 앱을 지운 직후(FCM 도 며칠 뒤에 안다).
 - 시험: `local_server/scripts/test_subscriber_audit.js` (`verify_all.sh` SUITES 등록).

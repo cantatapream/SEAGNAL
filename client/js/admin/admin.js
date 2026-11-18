@@ -3370,8 +3370,9 @@ async function renderSubscriberTab(container) {
             + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-bell" style="margin-right:4px;"></i> 푸시 알림 구독자</div>'
             + '<div style="font-size:2.2rem;font-weight:800;color:#3b82f6;">' + currentTotal + '<span style="font-size:0.9rem;font-weight:400;color:#64748b;">명</span></div>'
             + (hasActive
-                ? '<div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">실제 수신자 (알림 켬)</div>'
+                ? '<div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">실제 수신자 (알림 켬·폰 권한 허용)</div>'
                   + '<div style="font-size:0.72rem;color:#475569;margin-top:4px;line-height:1.6;">등록 기기 ' + stats.totalSubscribers + ' · 알림 끔 ' + stats.masterOffCount
+                  + (typeof stats.osBlockedCount === 'number' ? ' · 폰 권한 꺼짐 ' + stats.osBlockedCount : '')
                   + '<br>최근 30일 접속 ' + stats.recent30Count + '명</div>'
                 : '<div style="font-size:0.75rem;color:#475569;margin-top:4px;">FCM(앱) ' + stats.fcmCount + '명'
                   + (stats.webCount > 0 ? ' · Web ' + stats.webCount + '명' : '') + '</div>')

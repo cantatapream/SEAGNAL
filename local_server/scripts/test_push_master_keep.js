@@ -93,5 +93,32 @@ console.log('\n[낡은 메모리] 실제 NotificationSettings 로 — 저장소�
     ok('다른 설정만 저장해도 master 가 낡은 끔으로 덮이지 않는다', JSON.parse(store[KEY]).master === true && JSON.parse(store[KEY]).aiAnswer === true, store[KEY]);
 }
 
+console.log('\n[폰 권한 보고] subscribeUser 가 서버로 보내는 값 (실제 소스 실행)');
+(async () => {
+    const subSrc = capSrc.match(/^window\.subscribeUser = async[\s\S]*?^};/m)[0];
+    const run = async (perm, opts) => {
+        const store = Object.assign({ push_token: 'tok1', notificationSettings_v1: JSON.stringify({ master: true }) }, (opts && opts.store) || {});
+        const sent = [];
+        const ctx = { console: { log() { }, error() { } }, JSON,
+            localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } },
+            fetch: async (url, init) => { sent.push({ url, body: JSON.parse(init.body) }); return {}; } };
+        ctx.window = { Capacitor: { Plugins: { PushNotifications: { checkPermissions: async () => { if (perm === 'throw') throw new Error('x'); return { receive: perm }; } } } } };
+        vm.createContext(ctx);
+        vm.runInContext(subSrc, ctx);
+        await ctx.window.subscribeUser();
+        return sent;
+    };
+    let s = await run('denied');
+    ok('권한 꺼짐 → osPermission:"denied" 를 함께 보낸다', s.length === 1 && s[0].url === '/api/subscribe' && s[0].body.osPermission === 'denied' && s[0].body.token === 'tok1', s);
+    ok('앱 안 설정(master)은 그대로 보낸다 — 권한 보고가 설정을 바꾸지 않는다', s[0].body.options.master === true);
+    s = await run('granted');
+    ok('권한 허용 → osPermission:"granted"', s[0].body.osPermission === 'granted');
+    s = await run('throw');
+    ok('권한 확인이 실패해도 구독 전송은 한다(권한 값만 비움)', s.length === 1 && s[0].body.osPermission === undefined, s);
+    s = await run('denied', { store: { push_token: undefined } });
+    ok('등록된 적 없는 기기(토큰 없음) → 아무것도 보내지 않는다', s.length === 0, s);
+    ok('앱 실행: 권한이 꺼져 있고 토큰이 있으면 그 자리에서 알린다', /\} else if \(localStorage\.getItem\('push_token'\)\) \{[\s\S]{0,400}?window\.subscribeUser\(\);\s*\}\s*\};/.test(capSrc));
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
+})();

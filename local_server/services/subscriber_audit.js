@@ -11,7 +11,7 @@
  *   ③ 등록표가 바뀌면(같은 기기) "신규 구독"으로 또 세어 유지율이 실제보다 나쁘게 나왔다.
  *
  * [무엇을 하나]
- *   - countSubscribers()  : 등록 기기 수 / 실제 수신자 수(알림 켬, 같은 기기는 1명) / 최근 30일 접속
+ *   - countSubscribers()  : 등록 기기 수 / 실제 수신자 수(앱에서 켬 + 폰 권한 꺼짐 보고 없음, 같은 기기는 1명) / 최근 30일 접속
  *   - recordSubscriberEvent(): 신규·해지·만료·교체·묵은정리 사건을 날짜별로 기록
  *   - removeDead()        : 죽은 등록표를 명단에서 지우고 사건을 알맞게 기록 (발송 경로와 점검이 함께 씀)
  *   - runAudit()          : 전 등록표를 FCM 에 "검사만(dry-run)" 요청 — 실제 알림은 가지 않는다
@@ -56,6 +56,23 @@ function isOn(s) {
     return !(s.options && s.options.master === false);
 }
 
+/** 폰 자체 설정에서 이 앱의 알림 권한이 꺼져 있다고 **앱이 알려 온** 줄인가.
+ * 예: { osPermission:'denied' } → true · 'granted' → false · 값 없음(옛 앱·아직 안 알려 옴) → false(모르면 받는 것으로 센다)
+ * @param {object} s  @returns {boolean}
+ * [연계] ← isReceiving / countSubscribers. 값은 routes/push.js(/api/subscribe)가 저장한다(client/capacitor-plugins.js subscribeUser 가 보냄).
+ * [왜] FCM 은 폰이 알림을 막아도 "보냈다"고만 답해 서버가 알 길이 없다. 앱이 켜질 때 알려 줘야 한다.
+ *      ★발송에서는 빼지 않는다 — 권한을 다시 켜고 앱을 아직 안 연 사람에게도 푸시가 가야 한다. 세는 데만 쓴다. */
+function isOsBlocked(s) {
+    return typeof s.osPermission === 'string' && s.osPermission !== 'granted';
+}
+
+/** 실제로 알림을 받는 줄인가 = 앱에서 켬 + 폰 권한이 꺼졌다는 보고 없음.
+ * @param {object} s  @returns {boolean}
+ * [연계] ← countSubscribers / subscribeEventType / removeDead — 「실제 수신자」의 한 가지 기준 */
+function isReceiving(s) {
+    return isOn(s) && !isOsBlocked(s);
+}
+
 /** 명단을 읽는다(없으면 빈 배열).  @returns {object[]}
  * [연계] ← countSubscribers 호출처 / removeDead / runAudit */
 function readSubs() {
@@ -69,25 +86,27 @@ function readSubs() {
  * 예: 줄 3개(같은 기기 2줄 모두 켬 + 다른 기기 1줄 끔) → { total:3, active:1, masterOff:1, recent30:1 }
  * @param {object[]} subs - 명단
  * @param {number} [now] - 기준 시각(ms)
- * @returns {{total:number,fcm:number,web:number,active:number,masterOff:number,recent30:number}}
- *   total=등록 기기(줄) 수 · active=실제 수신자(알림 켬, 같은 deviceId 는 1명) ·
- *   masterOff=알림 끈 줄 수 · recent30=실제 수신자 중 최근 30일 안에 앱을 연 사람
+ * @returns {{total:number,fcm:number,web:number,active:number,masterOff:number,osBlocked:number,recent30:number}}
+ *   total=등록 기기(줄) 수 · active=실제 수신자(앱에서 켬 + 폰 권한 꺼짐 보고 없음, 같은 deviceId 는 1명) ·
+ *   masterOff=앱에서 알림 끈 줄 수 · osBlocked=앱에서는 켰지만 폰 권한이 꺼졌다고 알려 온 줄 수 ·
+ *   recent30=실제 수신자 중 최근 30일 안에 앱을 연 사람
  * [연계] ← routes/push.js(/api/push-subscriber-stats) · subscriber_snapshot.takeSnapshot — 화면 숫자와 일별 기록이 같은 기준을 쓰게 하기 위해
  */
 function countSubscribers(subs, now) {
     const t = now || Date.now();
-    let fcm = 0, web = 0, masterOff = 0;
+    let fcm = 0, web = 0, masterOff = 0, osBlocked = 0;
     const devices = new Map();   // 기기 → 최근 30일 안에 갱신된 줄이 있는가
     subs.forEach(function (s) {
         if (s.type === 'fcm') fcm++; else web++;
         if (!isOn(s)) { masterOff++; return; }
+        if (isOsBlocked(s)) { osBlocked++; return; }
         const key = s.deviceId ? 'd:' + s.deviceId : 'i:' + subId(s);
         const recent = !!s.updatedAt && (t - s.updatedAt) <= RECENT_MS;
         devices.set(key, devices.get(key) || recent);
     });
     let recent30 = 0;
     devices.forEach(function (r) { if (r) recent30++; });
-    return { total: subs.length, fcm: fcm, web: web, active: devices.size, masterOff: masterOff, recent30: recent30 };
+    return { total: subs.length, fcm: fcm, web: web, active: devices.size, masterOff: masterOff, osBlocked: osBlocked, recent30: recent30 };
 }
 
 /**
@@ -132,14 +151,14 @@ function subscribeEventType(subs, existingIndex, newEntry) {
     const diff = countSubscribers(next).active - countSubscribers(subs).active;
     if (diff > 0) return 'subscribe';
     if (diff < 0) return 'unsubscribe';
-    return (existingIndex === -1 && isOn(newEntry)) ? 'replaced' : null;
+    return (existingIndex === -1 && isReceiving(newEntry)) ? 'replaced' : null;
 }
 
 /**
  * 죽은 등록표를 명단에서 지우고, 사건을 알맞게 기록한다.
  * 예: removeDead(new Set(['tokA'])) → { removed:1, expired:1, replaced:0, off:0 }
  *   - expired  = 지워서 「실제 수신자 수」가 줄어든 만큼 → 'expired' 로 기록(opts.backlog 면 'backlog')
- *   - off      = 알림을 끈 줄(끌 때 이미 '해지'로 셌다) → 사건 없음
+ *   - off      = 이미 받지 않던 줄(앱에서 끔·폰 권한 꺼짐 — 그때 이미 '해지'로 셌다) → 사건 없음
  *   - replaced = 같은 기기의 켜진 줄이 따로 남아 사람 수가 그대로인 옛 줄 → 사건 없음
  * @param {Set<string>} deadIds - 죽은 줄의 고유값(subId)
  * @param {{backlog?:boolean, backup?:boolean}} [opts] - backlog=묵은 정리로 기록 · backup=지우기 전 명단 사본 저장
@@ -158,7 +177,7 @@ function removeDead(deadIds, opts) {
     // 이탈 = 「실제 수신자 수」가 줄어든 만큼(같은 기기 줄 둘이 함께 죽어도 1명). 나머지는 끈 줄이거나 교체된 옛 줄.
     out.removed = dead.length;
     out.expired = countSubscribers(all).active - countSubscribers(kept).active;
-    out.off = dead.filter(function (s) { return !isOn(s); }).length;
+    out.off = dead.filter(function (s) { return !isReceiving(s); }).length;
     out.replaced = out.removed - out.off - out.expired;
     if (o.backup) fs.copyFileSync(FILES.SUBSCRIPTIONS, FILES.SUBSCRIPTIONS.replace(/\.json$/, '.before_cleanup.json'));
     writeFileAtomic(FILES.SUBSCRIPTIONS, JSON.stringify(kept, null, 2));
@@ -248,4 +267,4 @@ async function runAudit(opts) {
     return result;
 }
 
-module.exports = { subId, isOn, readSubs, countSubscribers, subscribeEventType, recordSubscriberEvent, removeDead, getStatus, runAudit, DEAD_CODES };
+module.exports = { subId, isOn, isOsBlocked, isReceiving, readSubs, countSubscribers, subscribeEventType, recordSubscriberEvent, removeDead, getStatus, runAudit, DEAD_CODES };

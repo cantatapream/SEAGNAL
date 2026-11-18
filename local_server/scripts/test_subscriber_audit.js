@@ -57,6 +57,31 @@ const fakeMessaging = (deadTokens, flakyTokens) => {
     ok('최근 30일 접속 = 1', c.recent30 === 1, c);
     ok('빈 명단 = 전부 0', A.countSubscribers([], NOW).active === 0);
 
+    console.log('\n[1b] 폰 권한 꺼짐 보고(osPermission)');
+    const os = (token, dev, perm, opt) => Object.assign(fcm(token, dev, opt || {}, NOW), { osPermission: perm });
+    const c2 = A.countSubscribers([
+        os('p1', 'e1', 'granted'),                       // 받음
+        os('p2', 'e2', 'denied'),                        // 앱에서는 켰지만 폰이 막음
+        os('p3', 'e3', 'prompt'),                        // 아직 허용 안 함 = 못 받음
+        os('p4', 'e4', 'denied', { master: false }),     // 앱에서도 끔 → 「알림 끔」으로만 센다
+        fcm('p5', 'e5', {}, NOW),                        // 옛 앱(보고 없음) → 받는 것으로 센다
+    ], NOW);
+    ok('실제 수신자 2 · 폰 권한 꺼짐 2 · 알림 끔 1', c2.active === 2 && c2.osBlocked === 2 && c2.masterOff === 1, c2);
+    ok('발송 기준(isOn)은 폰 권한과 무관 — 꺼졌다고 알려 와도 발송 대상', A.isOn(os('x', 'e', 'denied')) === true && A.isReceiving(os('x', 'e', 'denied')) === false);
+    let l2 = [os('q1', 'f1', 'granted')];
+    ok('폰 권한을 끄고 앱을 켬 → unsubscribe', A.subscribeEventType(l2, 0, os('q1', 'f1', 'denied')) === 'unsubscribe');
+    l2 = [os('q1', 'f1', 'denied')];
+    ok('다시 허용하고 앱을 켬 → subscribe', A.subscribeEventType(l2, 0, os('q1', 'f1', 'granted')) === 'subscribe');
+    ok('꺼진 채 다시 켬 → 사건 없음', A.subscribeEventType(l2, 0, os('q1', 'f1', 'denied')) === null);
+    ok('옛 앱(보고 없음) → 새 앱이 허용으로 보고 → 사건 없음', A.subscribeEventType([fcm('q2', 'f2')], 0, os('q2', 'f2', 'granted')) === null);
+    resetEvents();
+    writeSubs([os('z1', 'g1', 'denied'), os('z2', 'g2', 'granted')]);
+    const rz = A.removeDead(new Set(['z1']));
+    ok('폰 권한 꺼진 줄이 죽으면 이탈로 안 셈(이미 해지로 셌다)', rz.expired === 0 && rz.off === 1 && rz.replaced === 0 && !events().expired, rz);
+    const pushSrc0 = fs.readFileSync(path.join(__dirname, '..', 'routes', 'push.js'), 'utf8');
+    ok('routes/push.js 가 osPermission 을 정해진 값만 저장한다', /osPermission: \['granted', 'denied', 'prompt', 'prompt-with-rationale'\]\.includes\(osPermission\) \? osPermission : undefined/.test(pushSrc0));
+    ok('routes/push.js 에서 osPermission 은 /api/subscribe 저장 두 줄에만 나온다(발송 필터에 없음)', (pushSrc0.match(/osPermission/g) || []).length === 4, (pushSrc0.match(/osPermission/g) || []).length);
+
     console.log('\n[2] removeDead — 지울 때 사건 구분');
     resetEvents();
     writeSubs([fcm('old', 'devA'), fcm('new', 'devA'), fcm('gone', 'devB'), fcm('off', 'devC', { master: false }), fcm('keep', 'devD')]);
@@ -163,7 +188,7 @@ const fakeMessaging = (deadTokens, flakyTokens) => {
     writeSubs(list);
     require('../services/subscriber_snapshot').takeSnapshot();
     const snap = Object.values(JSON.parse(fs.readFileSync(FILES.SUBSCRIBER_STATS, 'utf8')))[0];
-    ok('total 5 · active 3 · masterOff 1', snap.total === 5 && snap.active === 3 && snap.masterOff === 1, snap);
+    ok('total 5 · active 3 · masterOff 1 · osBlocked 0', snap.total === 5 && snap.active === 3 && snap.masterOff === 1 && snap.osBlocked === 0, snap);
 
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n${pass} PASS / ${fail} FAIL`);
