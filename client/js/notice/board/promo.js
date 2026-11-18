@@ -620,11 +620,9 @@ window.openPromoDetail = async function (postId) {
         });
 
         modal.classList.remove('hidden');
-        // 마크다운 글: 줄 끝 2~3글자 넘침을 그 줄 글자 간격으로 맞춘다(md_fit.js — 칸이 보인 뒤에 재야 해서 여기). 글꼴이 늦게 오면 다시.
-        if (post.format === 'md' && window.promoMdFit) {
-            requestAnimationFrame(() => window.promoMdFit(contentEl));
-            if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => window.promoMdFit(contentEl));
-        }
+        // 마크다운 글: 줄 끝 2~3글자 넘침을 그 줄 글자 간격으로 맞춘다(shared/ui/text_fit.js — 칸이 보인 뒤에 재야 해서 여기,
+        //   글꼴이 늦게 오거나 폭이 바뀌면 그 파일이 다시 맞춘다). 편집기 칸에는 걸지 않는다.
+        if (post.format === 'md' && window.textFit) window.textFit(contentEl, 'p, li, h2, h3, blockquote');
 
         // 댓글 섹션 렌더링: promo_comment.js의 함수 호출
         // allowComments 여부와 관계없이 loadPromoComments가 내부에서 판단하여 표시

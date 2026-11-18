@@ -105,7 +105,7 @@ function renderCategoryHtml(categoryKey, text) {
     html += `</div>`;
 
     for (const sub of subItems) {
-        html += `<div class="marine-forecast-sub-item">${renderText(sub)}</div>`;
+        html += hangHtml(String(sub).trim(), 'marine-forecast-sub-item');   // 「o 간판…」「- 또한…」 — 둘째 줄을 글자 시작점에
     }
 
     html += `</div>`;
@@ -118,6 +118,21 @@ function renderCategoryHtml(categoryKey, text) {
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * 줄 앞 구분 기호(○ □ ※ * - o 등)를 글과 떼어 따로 둔다 — 두 줄이 되면 둘째 줄을 기호 밑이 아니라
+ * 첫 줄 글자 시작점에 맞추기 위해(style.css .tf-hang). 기호는 원문 그대로 쓴다(사용자 2026-11-18 「거기에 정렬되어 있는 그 방식 그대로」).
+ * 예: hangHtml('○ 강풍주의보: 제주도', 'regional-forecast-line regional-forecast-day')
+ *     → '<div class="regional-forecast-line regional-forecast-day tf-hang"><span class="tf-mark">○</span><span class="tf-text">강풍주의보: …</span></div>'
+ *     기호가 없으면 → '<div class="…">…</div>' (그대로)
+ * @param {string} line - 한 줄(앞뒤 공백 제거된 것) @param {string} cls - 줄 div 의 클래스 @returns {string}
+ * [연계] ← renderCategoryHtml(하위 항목) · renderRegionalForecast(지방청 단기 전망 줄) · 줄 맞춤 window.textFit(shared/ui/text_fit.js)
+ */
+function hangHtml(line, cls) {
+    const m = /^([□○●◦※*\-–—]|o(?=\s))\s*/.exec(line);
+    if (!m) return `<div class="${cls}">${renderMarineMarkup(line)}</div>`;
+    return `<div class="${cls} tf-hang"><span class="tf-mark">${escapeHtml(m[1])}</span><span class="tf-text">${renderMarineMarkup(line.slice(m[0].length))}</span></div>`;
 }
 
 /**
@@ -279,6 +294,8 @@ function renderForecastSection(data, titleId, bodyId) {
     }
 
     bodyEl.innerHTML = html;
+    // 줄 끝 2~3글자 넘침은 그 줄 글자 간격으로 맞춘다(접힌 아코디언이면 펼칠 때 맞춘다 — shared/ui/text_fit.js)
+    if (window.textFit) window.textFit(bodyEl, '.marine-forecast-category-text, .tf-text, .marine-forecast-sub-item:not(.tf-hang)');
 }
 
 /**
@@ -917,22 +934,20 @@ function renderRegionalForecast(data) {
         //   - 본문 영역은 CSS max-height + overflow-y 로 카드 안에서 스크롤된다.
         const lines = item.summary.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         html += `<div class="regional-forecast-summary">`;
+        //   - 줄 앞 기호는 hangHtml 이 떼어 둔다(두 줄이 되면 둘째 줄을 글자 시작점에 — 2026-11-18).
         for (const line of lines) {
-            const renderedLine = (typeof renderMarineMarkup === 'function')
-                ? renderMarineMarkup(line)
-                : escapeHtml(line);
             if (line.startsWith('□') || line.startsWith('*') || line.startsWith('※')) {
                 // 종합 제목 또는 참고 사항
-                html += `<div class="regional-forecast-line regional-forecast-main">${renderedLine}</div>`;
+                html += hangHtml(line, 'regional-forecast-line regional-forecast-main');
             } else if (line.startsWith('○')) {
                 // 일별 전망 / 카테고리 (○ (강풍), ○ (해상) 등)
-                html += `<div class="regional-forecast-line regional-forecast-day">${renderedLine}</div>`;
+                html += hangHtml(line, 'regional-forecast-line regional-forecast-day');
             } else if (line.startsWith('-')) {
                 // 하위 항목
-                html += `<div class="regional-forecast-line regional-forecast-sub">${renderedLine}</div>`;
+                html += hangHtml(line, 'regional-forecast-line regional-forecast-sub');
             } else {
-                // 그 외 (섹션 헤더 <중점 사항> 등 포함)
-                html += `<div class="regional-forecast-line">${renderedLine}</div>`;
+                // 그 외 (섹션 헤더 <중점 사항> 등 포함) — 기호가 없으므로 hangHtml 이 그대로 둔다
+                html += `<div class="regional-forecast-line">${renderMarineMarkup(line)}</div>`;
             }
         }
         html += `</div>`;
@@ -942,6 +957,8 @@ function renderRegionalForecast(data) {
     }
 
     bodyEl.innerHTML = html;
+    // 줄 끝 2~3글자 넘침은 그 줄 글자 간격으로 맞춘다 — 지방청 카드마다(접혀 있으면 펼칠 때 맞춘다, shared/ui/text_fit.js)
+    if (window.textFit) bodyEl.querySelectorAll('.regional-forecast-summary').forEach(s => window.textFit(s, '.regional-forecast-line:not(.tf-hang), .tf-text'));
 }
 
 /**
