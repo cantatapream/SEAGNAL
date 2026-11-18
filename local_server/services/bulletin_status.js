@@ -27,7 +27,7 @@
  *          단위마다 「지금 특보」에 관여한 통보문(예비 → 발표 → 변경·연장 → 해제)을 함께 적어 둔다(trails) → 메인 화면 📋 해역별 통보문 팝업이 이것을 보인다
  *          (zoneBulletins — **일반 사용자 앱에도 나가는 유일한 통보문 기준 자료**. 특보현황·푸시는 계속 MMIS). 해제 시각이 되면 그 단위가 빠지며 발자취도 끝난다.
  *          누르면 종전처럼 원문 PDF 가 열린다 — 주소는 통보문 자료만으로 만든다(pdfOf — MMIS 코드와 엮지 않는다: 사용자 「나중에는 mmis를 … 삭제할 예정 … 엮이면 안될 것」).
- *          그림 이름이 없는 통보문은 본문 글을 펼친다. 참고사항 AI 는 발자취에 섞지 않는다(규칙 계산까지만 일반 사용자에게 나간다).
+ *          그림 이름이 없거나 PDF 가 아직 안 올라온 통보문(keepLivePdf)은 본문 글을 펼친다. 참고사항 AI 는 발자취에 섞지 않는다(규칙 계산까지만 일반 사용자에게 나간다).
  *          검산: analysis/bulletin_survey/trail_check.js(발효 중 칸에 끊김 없이 적힌 구간의 첫 통보문 = 발자취의 첫 정식 통보문, 10,241/10,241).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -448,4 +448,18 @@ function zoneBulletins(zone, st, bulletins, nowMs = Date.now()) {
     return out.length ? { cut, bulletins: out } : null;
 }
 
-module.exports = { compute, applyAi, fillParents, run, read, toTree, zoneBulletins, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS, STALE_MS };
+/**
+ * 원문 PDF 가 아직 올라오지 않은 줄은 PDF 주소를 뗀다 → 화면이 그 줄은 본문 글을 펼친다(누르면 빈 화면이 뜨는 일을 막는다).
+ *   갓 나온 통보문은 PDF 가 통보문보다 늦게 올라올 수 있다(얼마나 늦는지는 못 쟀다 — 2026-11-18 실측 때 새 통보문이 없었다).
+ *   파일 서버는 **없는 파일에도 200(text/html)** 으로 답하므로 부르는 쪽 exists 가 「PDF 로 답했는가」를 본다.
+ * 예: keepLivePdf([{pdfUrl:'a'}, {pdfUrl:'b'}], async (u) => u === 'a') → 둘째 줄 pdfUrl ''
+ * @param {Array} items zoneBulletins(...).bulletins
+ * @param {function(string): Promise<boolean>} exists 그 주소에 PDF 가 실제로 있는가(실패·시간 초과 = false)
+ * [연계] ← routes/weather.js GET /api/zone-bulletins(_pdfExists)
+ */
+async function keepLivePdf(items, exists) {
+    await Promise.all(items.map(async (it) => { if (it.pdfUrl && !(await exists(it.pdfUrl).catch(() => false))) it.pdfUrl = ''; }));
+    return items;
+}
+
+module.exports = { compute, applyAi, fillParents, run, read, toTree, zoneBulletins, keepLivePdf, parseYebiList, itemTimes, yebiReleaseUnits, korTime, YEBI_WAIT_MS, STALE_MS };

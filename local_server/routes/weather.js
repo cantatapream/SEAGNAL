@@ -1093,6 +1093,18 @@ async function _getZoneBulletinData() {
     return _zoneBulletinCache;
 }
 
+// [통보문 기준 팝업] 원문 PDF 가 실제로 올라와 있는가 — 기상청 공개 파일 서버에 HEAD 한 번(MMIS 로그인·API 아님).
+//   없는 파일에도 200(text/html)으로 답하므로 「PDF 로 답했는가」를 본다. 있다고 확인된 주소는 기억해 다시 묻지 않는다(PDF 는 안 바뀐다).
+//   3초 안에 답이 없으면 없는 것으로 친다 — 없으면: 파일 서버가 느릴 때 팝업이 그만큼 안 뜬다.
+const _pdfSeen = new Set();
+async function _pdfExists(url) {
+    if (_pdfSeen.has(url)) return true;
+    const r = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
+    const ok = r.ok && /pdf/i.test(r.headers.get('content-type') || '');
+    if (ok) _pdfSeen.add(url);
+    return ok;
+}
+
 router.get('/api/zone-bulletins', async (req, res) => {
     const zone = String(req.query.zone || '').trim();
     if (!zone) return res.status(400).json({ error: 'zone 파라미터 필요', bulletins: [] });
@@ -1105,7 +1117,10 @@ router.get('/api/zone-bulletins', async (req, res) => {
     try {
         const bs = require('../services/bulletin_status');
         const dm = bs.zoneBulletins(zone, bs.read(), require('../services/bulletin_watch').bulletins());
-        if (dm) return res.json({ zone, count: dm.bulletins.length, bulletins: dm.bulletins, cut: dm.cut, source: 'bulletin' });
+        if (dm) {
+            await bs.keepLivePdf(dm.bulletins, _pdfExists);   // PDF 가 아직 안 올라온 줄은 본문 글로
+            return res.json({ zone, count: dm.bulletins.length, bulletins: dm.bulletins, cut: dm.cut, source: 'bulletin' });
+        }
     } catch (e) {
         console.warn('[zone-bulletins] 통보문 기준 발자취 실패 — 종전 방식(MMIS 목록)으로 그린다:', e && e.message);
     }

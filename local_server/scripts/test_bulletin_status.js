@@ -13,6 +13,7 @@ const S = require('../services/bulletin_status');
 const { parseCurrent, parseItems, PARENTS, childrenOf } = require('../analysis/bulletin_survey/lifecycle_check');
 
 let pass = 0, fail = 0;
+const pending = [];   // 비동기 문항(끝에서 기다린다)
 const ok = (n, c, x) => { if (c) { pass++; console.log('  ✅ ' + n); } else { fail++; console.log('  ❌ ' + n + (x !== undefined ? ' — ' + JSON.stringify(x).slice(0, 300) : '')); } };
 const K = (s) => Date.parse(s.replace(' ', 'T') + '+09:00');
 const W = (ho, tmIn, o) => ({ office: '제주청', rpt: '6', result: Object.assign({ t1Title: ho, tmFc: tmIn + ':00.0', tmIn: tmIn + ':30.0', t1: '', t2: '', t3: '', t4: '', t6: 'o 없음', t7: 'o 없음' }, o) });
@@ -417,8 +418,15 @@ console.log('F. 통보문 발자취 — 📋 해역별 통보문 팝업(지금 �
     pl[1].result.rptImageName2 = '../../x.png';
     const pq = pop(pl, '2026-11-18 16:10');
     ok('그림 이름이 없거나 꼴이 다르면 PDF 주소를 만들지 않는다 → 화면이 본문 글을 펼친다', pq.bulletins[0].pdfUrl === '' && pq.bulletins[0].sections.length > 0 && b.bulletins[0].pdfUrl === '', pq.bulletins[0]);
+    pending.push((async () => {
+        const its = [{ pdfUrl: 'a' }, { pdfUrl: 'b' }, { pdfUrl: 'c' }, { pdfUrl: '' }], asked = [];
+        await S.keepLivePdf(its, async (u) => { asked.push(u); if (u === 'c') throw new Error('시간 초과'); return u === 'a'; });
+        ok('PDF 가 아직 안 올라온 줄(없음·확인 실패)은 주소를 뗀다 → 화면이 본문 글을 펼친다, 주소 없는 줄은 묻지 않는다', JSON.stringify(its.map((x) => x.pdfUrl)) === JSON.stringify(['a', '', '', '']) && asked.sort().join('') === 'abc', its);
+    })());
     ok('통보문 기준 팝업 계산은 MMIS 코드를 쓰지 않는다(bulletin_status 가 marine_client·ef/list·ntfctn 을 부르지 않음)', !/marine_client|fetchWarn|ntfctn/.test(fs.readFileSync(path.join(__dirname, '..', 'services', 'bulletin_status.js'), 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
 }
 
-console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
-process.exit(fail ? 1 : 0);
+Promise.all(pending).then(() => {
+    console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
+    process.exit(fail ? 1 : 0);
+});
