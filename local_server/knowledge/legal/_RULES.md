@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 149 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 150 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -411,6 +411,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_marine_smallzone_ui` | 실제 Chromium 에서 해구 기상전망 창(client/js/forecast/alerts/marine.js)의 소해구 표시를 검사한다(§11.10.18). |
 | `test_beach_weather` | 기상청 해수욕장 날씨(수집기 services/beach_weather_collector.js · 판단·문구 services/beach_weather.js · |
 | `test_notice_markdown` | 공지 게시판 「마크다운 파일 불러오기」(2026-10-20 사용자 결정 — 파일을 올리면 편집기에 채우고, 눈으로 보고 고친 뒤 저장 · 사진은 파일 안에)를 고정한다. |
+| `test_notice_md_fit` | 공지 게시판 마크다운 글(패치노트)의 줄 맞춤을 고정한다. |
 | `test_bulletin_watch` | 통보문 관찰기(services/bulletin_watch) · 내려받기(routes/bulletin_watch) 검사. |
 | `test_bulletin_ai_trial` | 참고사항 AI 시험(services/bulletin_ai_trial) · 관리자 창구(routes/bulletin_watch) · 「통보문 관찰」 탭(client/js/admin/admin_bull… |
 | `test_bulletin_status` | 통보문 기준 특보현황(services/bulletin_status) 검사. |
