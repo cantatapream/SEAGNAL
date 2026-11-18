@@ -366,6 +366,41 @@
    (2026-09-10 일괄 승인 신설. 색만 바꾸고 크기·자리는 그대로 둬 화면이 안 튀게 한다.) */
 .nrya-console .nrya-btn-ok.nrya-btn-danger{background:#ffb020; color:#3a2400}
 
+/* 자동반영 방 — 결정 필요 아코디언(2026-11-18 사용자 「아코디언으로 리스트업 … 추천안을 버튼으로 … 기타로 직접 적을 수 있도록 … 보내기 버튼」·「앱에 맞추어서」).
+   방 칩(.nrya-room)·안내 상자와 같은 둥근 모양·파랑 강조. 고른 추천안은 파랑으로 채운다. */
+.nrya-console .nrya-dec{border:1px solid var(--nrya-border); border-radius:12px; background:rgba(255,255,255,.03); margin:6px 0; overflow:hidden}
+.nrya-console .nrya-dec[open]{border-color:rgba(68,138,255,.45); background:rgba(68,138,255,.06)}
+.nrya-console .nrya-dec > summary{list-style:none; cursor:pointer; display:flex; align-items:flex-start; gap:8px; padding:10px 12px; font-size:13px; line-height:1.5; color:#dfe7f5}
+.nrya-console .nrya-dec > summary::-webkit-details-marker{display:none}
+.nrya-console .nrya-dec > summary::before{content:'▸'; color:#8bb6ff; flex:0 0 auto; transition:transform .15s}
+.nrya-console .nrya-dec[open] > summary::before{transform:rotate(90deg)}
+.nrya-console .nrya-dec-q{flex:1; min-width:0}
+.nrya-console .nrya-dec-st{flex:0 0 auto; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:10px; background:rgba(255,255,255,.07); color:var(--nrya-text-sub); white-space:nowrap}
+.nrya-console .nrya-dec-st.nrya-warn{background:rgba(255,215,64,.14); color:#ffd740}
+.nrya-console .nrya-dec-st.nrya-done{background:rgba(105,240,174,.14); color:#69f0ae}
+.nrya-console .nrya-dec-st.nrya-rej{background:rgba(255,82,82,.14); color:#ff8a8a}
+.nrya-console .nrya-dec-ans{margin:0 12px 8px 30px; font-size:12px; color:#c3ccdc; line-height:1.5}
+.nrya-console .nrya-dec-opts{display:flex; flex-wrap:wrap; gap:6px; padding:0 12px 8px 30px}
+.nrya-console .nrya-dec-opt{border:1px solid rgba(68,138,255,.4); background:rgba(68,138,255,.1); color:#a9c6ff; border-radius:18px; padding:7px 13px; font-family:inherit; font-size:12.5px; cursor:pointer; text-align:left; line-height:1.4}
+.nrya-console .nrya-dec-opt b{color:#ffd740; font-weight:700; margin-right:2px}
+.nrya-console .nrya-dec-opt.nrya-on{background:var(--nrya-accent-blue); border-color:var(--nrya-accent-blue); color:#04122e}
+.nrya-console .nrya-dec-opt.nrya-on b{color:#04122e}
+.nrya-console .nrya-dec-etc{display:flex; gap:6px; padding:0 12px 12px 30px}
+.nrya-console .nrya-dec-in{flex:1; min-width:0; background:#0e1524; border:1px solid var(--nrya-border); border-radius:18px; padding:8px 13px; color:#fff; font-family:inherit; font-size:12.5px}
+.nrya-console .nrya-dec-in:focus{outline:none; border-color:var(--nrya-accent-blue); box-shadow:0 0 0 3px rgba(68,138,255,.15)}
+.nrya-console .nrya-dec-in::placeholder{color:#5b6b86}
+.nrya-console .nrya-dec-send{flex:0 0 auto; border:none; border-radius:18px; padding:8px 16px; background:var(--nrya-accent-blue); color:#04122e; font-family:inherit; font-weight:700; font-size:12.5px; cursor:pointer}
+.nrya-console .nrya-dec-send:disabled{opacity:.55; cursor:default}
+/* PR 카드 안의 안내 한 줄 — 방 전체 안내(.nrya-notice-box, 가운데·큰 여백)와 달리 작게 왼쪽 정렬(2026-11-18 사용자 「왜 이렇게 큰 영역을 차지해야하는거지」) */
+.nrya-console .nrya-card-note{display:block; margin:6px 0; padding:8px 11px; border-radius:10px; background:rgba(68,138,255,.08); border:1px solid rgba(68,138,255,.25); font-size:12.5px; line-height:1.55; color:#cdd8ee}
+.nrya-console .nrya-card-note.nrya-err{background:rgba(255,215,64,.07); border-color:rgba(255,215,64,.28)}
+.nrya-console .nrya-card-note .nrya-em{margin-right:6px}
+/* 함께 바뀐 파일 — 한 줄(펼치면 경로). 코드 파일이 섞였을 때만 노랑 */
+.nrya-console .nrya-files{margin:6px 0; font-size:12px; color:var(--nrya-text-sub)}
+.nrya-console .nrya-files > summary{cursor:pointer; line-height:1.5}
+.nrya-console .nrya-files.nrya-files-code > summary{color:#ffd740}
+.nrya-console .nrya-files code{display:block; margin-top:4px; font-size:11px; word-break:break-all; color:#9fb4d6}
+
 /* 「지금 스캔」 진행률 게이지(2026-09-10 사용자 요청 "진행률이 게이지 바로 나오도록").
    ★막대는 **질의 진행도**다 — 남은 시간이 아니다. 부처마다 고시 수가 달라 시간으로 환산하면
    거짓 예측이 되므로, 막대 아래에 지금 하는 일과 살아 있는 숫자를 함께 적는다. */

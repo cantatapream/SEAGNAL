@@ -627,7 +627,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const v = V({ run_id: 'ar-1', outcome: 'pr', summary: 'a‮b\u0007c‏d⁦e\nf' + '가'.repeat(5000), needs_decision: [...Array(30)].map(() => '‪' + '나'.repeat(500)).concat([5, null, '\u0001\u0002']) }).value;
         assert.ok(v.summary.startsWith('abcde\nf'), JSON.stringify(v.summary.slice(0, 10))); assert.equal(v.summary.length, 2000);
         assert.equal(v.needs_decision.length, 20); assert.ok(v.needs_decision.every((x) => x.length === 300 && !x.includes('‪')));
-        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], amend_ids: [], fresh_ids: [], mok_ids: [], deferred_amend_ids: [], deferred_fresh_ids: [], deferred_mok_ids: [], conflict_ids: [], deferred_conflict_ids: [], answer_ids: [], deferred_answer_ids: [] });
+        assert.deepEqual(V({ run_id: 'ar-1', outcome: 'failed', needs_decision: 'x', summary: 7 }).value, { run_id: 'ar-1', outcome: 'failed', pr_url: null, summary: '', needs_decision: [], needs_options: [], amend_ids: [], fresh_ids: [], mok_ids: [], deferred_amend_ids: [], deferred_fresh_ids: [], deferred_mok_ids: [], conflict_ids: [], deferred_conflict_ids: [], answer_ids: [], deferred_answer_ids: [] });
         const { ar, push } = make();
         ar.claim({ run_id: 'c1' });
         const r = ar.done({ run_id: 'c1', outcome: 'nope' });
