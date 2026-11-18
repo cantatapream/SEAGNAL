@@ -94,3 +94,23 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 **해구 예보 예**: 00UTC 판(09시 KST)을 가진 채 12UTC 판이 없으면 22:00 KST 부터 노랑(2026-10-16부터 수집은 30분마다 — 다음 기대 21:00 회차 + 여유 60분이라 노랑 시각은 종전과 같다. 기상청 API허브 답변 「생성하는데 6시간 이상이 소요될 수 있습니다」, 사용자 「그냥 아무런 변화 없이 30분에 한번 점검하도록」). 수집기는 「새 판 없음, 기존 판 유지」를 `data/zone_forecasts_status.json` 에 남기고(`services/zone_forecast_guard.js`), 찾은 판이 가진 판보다 오래되면 덮어쓰지 않는다.
 
 검사: `test_data_collection_status`(목록표 규칙·근거 인용 실재·시각 읽기·다음 회차·판정·실제 관리자 인증 401/200·503) · `test_data_collection_ui`(실제 라우터+Chromium 380px — 하위 탭 셋·출처 묶음·배지 색·확인 필요·기록 없음·늦은 응답 무시·AI 탭에서 빠졌는지) · `test_zone_forecast_guard`.
+
+## 종합 통계 → 구독 현황 — 실제 수신자 기준 (2026-11-18)
+
+`admin.js` `renderSubscriberTab()`. 종전의 큰 숫자는 구독자 명단(`data/subscriptions.json`)의 **줄 수(등록표 개수)** 였다 —
+알림을 꺼 둔 사람·앱을 지운 기기·바뀌기 전 옛 등록표가 그대로 세어졌다.
+
+| 화면 | 뜻 | 어디서 오나 |
+|---|---|---|
+| 큰 숫자 「실제 수신자」 | 알림 켬(`options.master !== false`, 발송 필터와 같은 기준) + 같은 기기(`deviceId`)는 1명 | `GET /api/push-subscriber-stats` `activeSubscribers` |
+| 등록 기기 · 알림 끔 · 최근 30일 접속 | 명단 줄 수 · 끈 줄 수 · 실제 수신자 중 30일 안에 앱을 연 사람(`updatedAt`) | 같은 응답 `totalSubscribers`·`masterOffCount`·`recent30Count` |
+| 증감·그래프·표 | 일별 기록의 `active`(없는 옛 날짜는 `total`) | `GET /api/subscriber-history` |
+| 구독 유지율 | 신규(`subscribe`) 대 이탈(`unsubscribe`+`expired`). `replaced`(같은 기기 등록표 교체)·`backlog`(첫 정리 때 나온 묵은 것)는 세지 않는다. 세 번째 칸은 기준이 바뀐 날 이후만 | `GET /api/subscriber-events` |
+| 죽은 등록표 점검 카드 | 마지막 점검이 언제·어떻게 끝났나 + [검사만]·[검사 후 정리] | `GET/POST /api/admin/subscriber-audit` |
+
+- 서버 본체는 `local_server/services/subscriber_audit.js` — 세기(`countSubscribers`)·사건 구분(`subscribeEventType`)·지우기(`removeDead`)·점검(`runAudit`).
+  발송 뒤 정리(`routes/push.js` 2곳)와 매일 KST 23:40 자동 점검(`server.js`)이 **같은 `removeDead`** 를 쓴다.
+- 점검은 FCM 에 「검사만」(dry-run) 요청이라 **실제 알림이 가지 않는다.** 「영구히 죽음」 코드 둘만 지우고, 그 밖의 오류는 「확인 못 함」으로 세기만 한다.
+- 기준이 바뀐 날(일별 기록에 `active` 가 처음 생긴 날) 앞뒤로 숫자가 한 번 내려간다 — 화면에 그 날짜를 적어 둔다.
+- 알 수 없는 것: 폰 설정에서 알림 권한만 끈 경우(앱이 알려 주지 않는다), 앱을 지운 직후(FCM 도 며칠 뒤에 안다).
+- 시험: `local_server/scripts/test_subscriber_audit.js` (`verify_all.sh` SUITES 등록).

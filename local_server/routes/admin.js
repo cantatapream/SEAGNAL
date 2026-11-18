@@ -1685,6 +1685,22 @@ router.post('/api/admin/cleanup-subscription-zones', (req, res) => {
 });
 
 // ============================================================================
+// 구독자 등록표 점검 (죽은 FCM 토큰 가려내기) — 2026-11-18
+// ============================================================================
+//   GET  /api/admin/subscriber-audit          → 마지막 점검이 언제·어떻게 끝났나
+//   POST /api/admin/subscriber-audit {apply}  → 지금 점검. apply=false 면 세기만, true 면 죽은 것 정리.
+//   실제 알림은 가지 않는다(FCM 검사 전용 요청).
+//   [연계] services/subscriber_audit.js · client/js/admin/admin.js renderSubscriberTab()
+router.get('/api/admin/subscriber-audit', (req, res) => {
+    res.json(require('../services/subscriber_audit').getStatus());
+});
+router.post('/api/admin/subscriber-audit', async (req, res) => {
+    const result = await require('../services/subscriber_audit')
+        .runAudit({ apply: !!(req.body && req.body.apply === true), trigger: 'manual' });
+    res.json(result);
+});
+
+// ============================================================================
 // 관리자 기기 등록/해제 (관리자 전용 푸시 알림 대상 관리)
 // ============================================================================
 // subscriptions.json(일반 사용자 구독)과 완전 별도로 admin_devices.json 사용.
