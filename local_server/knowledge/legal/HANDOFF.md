@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-18 22:43 KST] ✅완료 — 방재기상플랫폼 로그인이 안 되면 관리자 푸시
+[한 일] services/bulletin_watch: 로그인을 시도할 때마다 결과를 알림(onLogin→reportLogin, 사유는 loginReason — 「로그인 거부 — 비밀번호 만료」「로그인 실패 — 시간초과」). services/collect_fail_alert ITEMS 에 bulletins(첫 실패에 1통·복구 1통·이어지는 동안 안 보냄 — 기존 규칙 그대로). config/data_collection_manifest.json 에 bulletins(마지막 수집 = bulletin_watch/state.json listsOkMs) — 관리자 데이터 수집현황 카드에 「수집 실패 중 … 로그인 거부 — 비밀번호 만료」가 보인다. 00_docs/operations/collect-fail-alert.md 에 결정·정의 기록. [확인] test_bulletin_watch 66/0(로그인 알림 15문항 신설 — 됨/거부/쉬는 30분/재시도/복구/알림이 던져도 수집 계속/실제 알림기에 물려 푸시 문장까지) · test_collect_fail_alert 120/0 · test_data_collection_status 19/0 · verify_all 전체 통과(exit 0, ❌ 줄은 직전 통과 실행과 같음). [범위] 로그인만 — 로그인은 됐는데 목록·본문을 못 받은 것은 알리지 않는다. 태풍 통보문 수집(같은 계정 따로 로그인)은 잇지 않음. 운영(FLY_ALLOC_ID)에서만 실제 발송. [이어서 받은 지시 — 아직 안 함] ①로그인이 안 된 동안 빠진 통보문을 다시 되면 모두 받아 생애주기 자동 갱신(지금도 3일 안은 자동 — 목록을 3일 전부터 받기 때문. 3일 넘는 끊김은 마지막으로 다 받은 날부터 받도록 넓혀야 함, 목록 API 가 10일 범위를 받는 것은 실제 호출로 확인) ②로그인이 안 되는 동안 해역별 특보현황 아코디언 + 해양종합정보 특보구역 자동 잠금(관리자 점검 기능의 blockedFeatures: weather-alert·ov-warn-zone·ov-warn-active 를 쓰면 됨) — ⚠지금 사용자 화면 특보현황은 MMIS 기준이라 지금 잠그면 멀쩡한 정보가 가려진다 → 적용 시점을 사용자에게 확인 중. ③참고사항 「풍랑경보 변경 가능 시점」을 특보구역 카드에 표출 — 전수조사 마침(표 꼴 95건·규칙으로 대부분 읽힘, 안내 뒤 실제 경보 89%), 사용자 추가 지시: 날씨해설(해상 기상 전망)의 태풍 가능성 문구도 재료로 검토.
+
+
 ### [2026-11-18 22:19 KST] 🟢착수 — 방재기상플랫폼 로그인이 안 되면 관리자 푸시
 사용자 2026-11-18: 「방재기상플랫폼 로그인이 갑자기 안되면 관리자에게 푸시를 주는 기능을 만들어줘」. 방법: 이미 있는 수집 실패 알림(services/collect_fail_alert — 실패 시작 1통·복구 1통, 상태 파일로 「이미 알렸다」 유지)에 항목 bulletins 를 더하고, services/bulletin_watch 가 로그인을 시도할 때마다 결과를 보고(onLogin). 사유는 「로그인 거부 — 비밀번호 만료」처럼 사람 말로. 수집현황 목록표(config/data_collection_manifest.json)에도 통보문 항목을 넣어 관리자 화면에서 마지막 수집 시각이 보이게(기존 검사가 알림 항목 = 목록표 id 를 요구). 실제 앱 특보·푸시(MMIS)는 안 건드림.
 
