@@ -193,6 +193,14 @@ console.log('\n[2b] 내 위치 안내(2026-11-18)');
         ['js/marine-life/surfing/surfing1.js', 'function _goToSurfingMyLocation'],
         ['js/marine-life/swell/swell.js', "getElementById('swell-my-location-btn')"]
     ];
+    // [2026-11-18] 실제로 위치를 받는 곳은 진행 토스트 모듈이다 — 여기에도 서버 호출이 없어야 문구가 참이다.
+    {
+        const lt = fs.readFileSync(path.join(CLIENT, 'js/shared/ui/locate_toast.js'), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');   // 주석 제외
+        ok('js/shared/ui/locate_toast.js(위치를 실제로 받는 곳)에 서버 전송 호출이 없다',
+            /getCurrentPosition/.test(lt) && !/fetch\(|XMLHttpRequest|sendBeacon|apiFetch|\.post\(|localStorage|WebSocket/.test(lt));
+        ok('index2.html 이 locate_toast.js 를 로드한다', /<script src="js\/shared\/ui\/locate_toast\.js"><\/script>/.test(INDEX_SRC));
+    }
     HANDLERS.forEach(([rel, marker]) => {
         const src = fs.readFileSync(path.join(CLIENT, rel), 'utf8');
         const i = src.indexOf(marker);
@@ -203,6 +211,9 @@ console.log('\n[2b] 내 위치 안내(2026-11-18)');
         ok(`${rel} 내 위치 처리에 서버 전송 호출이 없다`,
             i >= 0 && !/fetch\(|XMLHttpRequest|sendBeacon|apiFetch|\.post\(/.test(fnBody),
             i < 0 ? '함수 못 찾음' : '');
+        // 진행 토스트(사용자 확정 2026-11-18)가 모든 버튼에서 뜨도록 — 직접 getCurrentPosition 을 부르면 토스트가 안 뜬다
+        ok(`${rel} 내 위치 처리가 진행 토스트(locateWithToast)를 쓴다`,
+            /window\.locateWithToast\(/.test(fnBody) && !/navigator\.geolocation\.getCurrentPosition/.test(fnBody));
     });
 }
 
