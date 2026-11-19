@@ -5474,6 +5474,10 @@ line-height: 1.1;
 .regional-forecast-full-btn.open { border-radius: 10px 10px 0 0; border-bottom-color: transparent; }
 .regional-forecast-full-btn:not(.open) + .regional-forecast-summary.rf-full-fold { display: none; }
 .regional-forecast-full-btn.open + .regional-forecast-summary.rf-full-fold { border: 1px solid rgba(100, 181, 246, 0.35); border-top: 0; border-radius: 0 0 10px 10px; padding: 6px 10px 10px; }
+/* 특보 뱃지 안의 오르내림 화살표(2026-11-20) — 두 화살표는 같은 크기·같은 글자꼴, 색과 방향만 다르다. ▲ 빨강 = 더 높은 특보가 오거나 그럴 가능성 · ▼ 초록 = 더 낮은 특보가 온다. */
+.badge-trend { display: inline-block; font-size: 0.8em; line-height: 1; vertical-align: 1px; font-family: Arial, 'Noto Sans KR', sans-serif; }
+.badge-trend-up { color: #ff5252; }
+.badge-trend-down { color: #34d399; }
 .regional-forecast-sea.off { background: rgba(148, 163, 184, 0.06); border-color: rgba(148, 163, 184, 0.22); }
 .rf-sea-ttl { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 0.8rem; font-weight: 700; color: #7dd3fc; }
 .regional-forecast-sea.off .rf-sea-ttl { color: #94a3b8; margin-bottom: 4px; }

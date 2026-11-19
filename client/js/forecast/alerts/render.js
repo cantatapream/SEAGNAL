@@ -960,9 +960,15 @@ function createAlertElement(items) {
     //   사용자: 「[풍랑주의보] 뱃지 안에 [풍랑주의보(올라가는 느낌의 이모지)]」 · 「태풍가능성때 해역뱃지 그대로 동일하게 유지」
     const escalations = (!kidsOnly && typeof window.zoneEscalations === 'function')
         ? window.zoneEscalations(zoneNameStr, { current: currentInView, upcoming: upcomingFromApi }) : [];
-    if (escalations.length) {
+    // [다가오는 특보로 본 오르내림 — 2026-11-20] 글에 적힌 「가능성」이 없어도, 다가오는 특보가 지금보다 높으면 🔺(그 특보가 발효될 때까지),
+    //   낮으면 초록 ▼ 를 단다(escalation.js zoneTrend — 예비특보는 견주지 않는다). 실제 발표가 나와 「가능성」 안내(빨강 상자)가 사라져도 🔺 는 남는다.
+    //   사용자: 「뱃지에는 올라가는 표시가 경보가 될때까지 남아있었으면」 · 「초록색 하단으로 표시되는 삼각형이(격상과는 반대) 뱃지안에」
+    //   둘이 엇갈리면(글은 오른다는데 다가오는 특보는 낮다) 발표된 쪽을 따른다 — 초록 ▼.
+    const trend = (!kidsOnly && typeof window.zoneTrend === 'function') ? window.zoneTrend({ current: currentInView, upcoming: upcomingFromApi }) : '';
+    if (trend === 'down' || trend === 'up' || escalations.length) {
         const firstBadge = badgeContainer.querySelector('.status-badge.warning, .status-badge.preliminary');
-        if (firstBadge) firstBadge.textContent += ' 🔺';
+        // 두 화살표는 같은 꼴(같은 글자 크기·같은 세모 글자, 색과 방향만 다르다 — 사용자 2026-11-20 「화살표 세모가 동일한 스타일로 구성될 수 있도록 통일」). 종전 오르는 쪽은 그림 글자 🔺 였다.
+        if (firstBadge) { const down = trend === 'down', d = document.createElement('span'); d.className = 'badge-trend ' + (down ? 'badge-trend-down' : 'badge-trend-up'); d.textContent = down ? '▼' : '▲'; d.setAttribute('aria-label', down ? '낮은 단계로 내려갈 예정' : '높은 단계로 올라갈 예정·가능성'); firstBadge.appendChild(document.createTextNode(' ')); firstBadge.appendChild(d); }
     }
 
     // 상세 정보 영역 표시용 데이터 리스트 구성

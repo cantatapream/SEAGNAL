@@ -72,6 +72,35 @@
         });
     };
 
+    /**
+     * 지금 발효 중인 특보와 **다가오는 특보**를 견줘, 뱃지에 달 화살표를 정한다 — 'up'(더 높은 특보가 온다) · 'down'(더 낮은 특보가 온다) · ''(없음).
+     * 사용자 2026-11-20: 「아직 풍랑경보로 올라가지 않은 풍랑 주의보 상태기 떄문에 뱃지에는 올라가는 표시가 경보가 될때까지 남아있었으면」
+     *   「다가오는 특보가 격상될 예정이라는 점이 있다면 빨간색으로 올라가는 표시」「다가오는 특보가 기존 등급에서 내려가는 것이라면 초록색 하단으로 표시되는 삼각형」
+     *   「경보급에서 주의보급, 태풍급에서 풍랑급으로 내려갈때」 · (종류와 등급이 엇갈리면) 「올라감임 태풍이 풍랑보다 높은 단계」 ·
+     *   「다가오는 예비특보는 해당 없음 지금 발효중인 특보가 올라갈것이냐가 중요」 · (해제예정만 있으면) 「표시 없음이 맞음」
+     * 높낮이 = 종류 먼저(태풍 > 풍랑), 같으면 등급(경보 > 주의보). 예비특보·그 밖의 종류는 견주지 않는다. 지금 발효 중인 특보가 없으면 ''.
+     *   높은 것과 낮은 것이 함께 다가오면 'up'(먼저 알려야 하는 쪽).
+     * 예: zoneTrend({ current:{ warnType:'풍랑', level:'주의보' }, upcoming:[{ warnType:'풍랑', level:'경보' }] }) → 'up'
+     *     zoneTrend({ current:{ warnType:'태풍', level:'경보' }, upcoming:[{ warnType:'풍랑', level:'경보' }] }) → 'down'
+     *     zoneTrend({ current:{ warnType:'풍랑', level:'경보' }, upcoming:[{ warnType:'풍랑', level:'예비' }] }) → ''
+     * ⚠지금은 앱이 들고 있는 다가오는 특보(MMIS)를 기준으로 한다 — 특보현황을 통보문 기준으로 바꿀 때는 통보문 자료로 바꾼다(사용자 「추후 통보문 기반으로 변경할 때에는 통보문 데이터를 기반으로」).
+     * @param {{current?:object, upcoming?:Array}} st 그 카드의 지금 특보·다가오는 특보(warnType·level) @returns {'up'|'down'|''}
+     * [연계] ← render.js createAlertElement(뱃지 🔺·초록 ▼)
+     */
+    w.zoneTrend = function (st) {
+        var rank = function (a) {
+            if (!a) return 0;   // isPreliminary 는 보지 않는다 — 앱 자료에서 그 표시는 「아직 발효 전」(발표된 정식 특보 포함)이다. 예비특보는 등급이 「예비」라 아래에서 0 이 된다
+            var t = String(a.warnType || ''), l = String(a.level || '');
+            var ts = t.indexOf('태풍') >= 0 ? 2 : t.indexOf('풍랑') >= 0 ? 1 : 0, ls = l.indexOf('경보') >= 0 ? 2 : l.indexOf('주의') >= 0 ? 1 : 0;
+            return ts && ls ? ts * 10 + ls : 0;
+        };
+        var cur = rank(st && st.current);
+        if (!cur) return '';
+        var ups = ((st && st.upcoming) || []).map(rank).filter(function (r) { return r > 0 && r !== cur; });
+        if (ups.some(function (r) { return r > cur; })) return 'up';
+        return ups.length ? 'down' : '';
+    };
+
     /** 「11월 18일(오늘) 밤(18시~24시)」 — 날짜가 없으면 ''(시점 줄을 안 그린다). 날짜는 한국 시각으로 센다. */
     function whenText(it) {
         if (typeof it.dayMs !== 'number' || !isFinite(it.dayMs)) return '';
