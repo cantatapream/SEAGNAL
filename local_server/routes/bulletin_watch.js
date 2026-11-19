@@ -22,7 +22,8 @@
 const express = require('express');
 const adminAuth = require('../services/admin_auth');
 
-const KIND_WORD = { new: '새 통보문', filled: '빈 통보문이 채워짐', detail_changed: '내용 바뀜', list_changed: '목록 글자 바뀜', gone: '목록에서 사라짐', error: '오류' };
+const KIND_WORD = { new: '새 통보문', filled: '빈 통보문이 채워짐', detail_changed: '내용 바뀜', list_changed: '목록 글자 바뀜', gone: '목록에서 사라짐', error: '오류',
+    catch_up: '끊긴 동안 보충 시작', catch_up_done: '보충 마침', catch_up_gave_up: '보충을 못 마치고 그만둠' };
 
 /**
  * 기록(사건 배열)을 마크다운 보고서로 만든다.
@@ -36,12 +37,14 @@ function reportMarkdown(events, day) {
     const filled = events.filter((e) => e.kind === 'filled');
     const emptyNew = events.filter((e) => e.kind === 'new' && e.empty);   // 관찰 시작 때 이미 빈 채로 있던 것도 센다(채워짐과 짝이 맞게)
     const base = events.filter((e) => e.baseline).length;
+    const caught = events.filter((e) => e.kind === 'new' && e.catchUp && !e.baseline).length;   // 끊긴 동안의 것을 나중에 한꺼번에 받은 것 — 「새 통보문」 수에서 뺀다(그날 나온 것이 아니다)
     const out = [
         `# 통보문 관찰 기록 (${day === 'all' ? '전체' : day})`, '',
         '방재기상플랫폼 특보·예비특보 통보문을 1분마다 보며 처음 보인 모습과 바뀐 모습을 남긴 기록입니다(시각은 KST). 관찰만 하고 앱 특보현황·푸시는 바꾸지 않습니다.', '',
         '## 요약', '',
-        ...Object.keys(KIND_WORD).map((k) => `- ${KIND_WORD[k]}: ${k === 'new' ? (count[k] || 0) - base : (count[k] || 0)}건`),
+        ...Object.keys(KIND_WORD).map((k) => `- ${KIND_WORD[k]}: ${k === 'new' ? (count[k] || 0) - base - caught : (count[k] || 0)}건`),
         `- (관찰 시작 때 이미 있던 통보문: ${base}건 — 새 통보문에서 뺐다)`,
+        ...(caught ? [`- (끊긴 동안 나온 것을 나중에 받은 통보문: ${caught}건 — 새 통보문에서 뺐다)`] : []),
         `- 처음 볼 때 비어 있던 통보문: ${emptyNew.length}건 · 그중 채워진 것: ${filled.length}건` +
             (filled.length ? ` (채워지기까지 ${filled.map((e) => e.emptyMinutes + '분').join(', ')})` : ''), '',
         '## 사건 (쉬운 설명)', '',
