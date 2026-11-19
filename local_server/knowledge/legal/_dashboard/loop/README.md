@@ -53,7 +53,7 @@
 | `apply_shrink_guard_verified.py` | 글만 | shrink_guard_inspect.json에서 genuine_fulltext_shorter/ambiguous(사람이 실물 확인 후 |
 | `article_block.js` | 코드 | raw 파일 글 안에서 **조문 한 덩이**를 집고 갈아 끼운다. |
 | `article_range_parse.py` | 코드 | 꼬리표의 **사람 말 `조문범위`** 를 기계가 읽는 조문 번호 목록으로 편다. (3-3 = ⓐ) |
-| `ask_live.js` | 코드 | 프로덕션 나리야 챗봇에 **실제 앱과 똑같은 방식으로** 질문하는 감사용 도구. |
+| `ask_live.js` | 코드 | 프로덕션 AI 챗봇에 **실제 앱과 똑같은 방식으로** 질문하는 감사용 도구. |
 | `assign_scan.py` | 코드 | 배정용 스캐너 — 백로그의 "실작업 N건"이 진짜 실작업인지 줄 단위로 세어 준다. |
 | `audit_backlog_gap.py` | 코드 | 감사 파일에는 **결함으로 적혀 있는데 백로그에 안 올라온 줄**을 전수로 찾는다. |
 | `audit_fix_cell.js` | 코드 | 직전 감사 gap으로 법별 위키 content+lint 동시수정(H-7). 자기 법 파일만=병렬안전. |
@@ -102,7 +102,7 @@
 | `byl_rewrite_hwp.py` | 코드 | 별표 raw 를 **원본 `.hwp` 에서 다시 쓴다 — 표는 행 단위로.** 선언: `_dashboard/hwp_byl_rewrite.json` |
 | `byl_tier_fill.py` | 코드 | 3-46 — V5-32 가 「파일이 없다」고 짚은 **계층 별표 빈자리**를 골라서 메운다. |
 | `char_split_join.py` | 글만 | 글자 하나씩 한 줄로 쪼개져 저장된 raw** 를 다시 잇는다. (3-36 · 확인판 B4 ⓐ · 2026-09-29) |
-| `chatbot_proto.py` | 글만 | 나리야 법률 챗봇 검색+답변 프로토타입 (순수 코드, 임베딩 키 불필요). |
+| `chatbot_proto.py` | 글만 | AI 법률 챗봇 검색+답변 프로토타입 (순수 코드, 임베딩 키 불필요). |
 | `check_budchik.py` | 글만 | 73법 raw(법률/시행령/시행규칙)에 부칙 섹션이 빠져있는지 전수 점검한다(H-26 후속). |
 | `cite_link_check.js` | 글만 | **답변 속 조문 표기에 화면이 실제로 링크를 거나** (2026-09-26 신설, L-8b) |
 | `cite_number_check.py` | 코드 | 본문 인용 목록(3-41)에서 **숫자·금액 인용만 골라 원문과 기계로 맞대어 본다. |

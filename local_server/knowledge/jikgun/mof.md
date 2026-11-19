@@ -8,7 +8,7 @@ source_review: required
 
 # 해양수산부 (Ministry of Oceans and Fisheries)
 
-> RAG 지식베이스 v2 | SEAGNAL 음성비서 "나리야" | 최초작성: 2026-05-28 | 2차보강: 2026-05-28
+> RAG 지식베이스 v2 | SEAGNAL AI 챗봇 | 최초작성: 2026-05-28 | 2차보강: 2026-05-28
 
 ---
 
@@ -224,7 +224,7 @@ source_review: required
 
 ---
 
-## 나리야 선제 제안·개인화 규칙
+## AI 챗봇 선제 제안·개인화 규칙
 
 > 행정 관점 트리거 기반 — SEAGNAL 앱 보유 데이터로 근거 제시 가능한 항목만 설정
 
