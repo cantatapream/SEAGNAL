@@ -272,6 +272,16 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 - `.sb-notice`: 글자 1.03rem(약 16.5px)·굵기 400·줄높이 1.27(약 21px) · 앞 「※」 칸(`.sb-notice-k`, aria-hidden) + 글 칸(`.sb-notice-t`) flex — 둘째 줄이 ※ 뒤 글자 시작에. 어절 단위 줄바꿈·노란색 그대로.
 - `index2.html` `station_briefing.css`·`station_briefing_render.js` `?v=20261018sb28`.
 
+### 2026-11-19 — 흰색 · 한 줄 · 폭에 맞춰 글자 크기
+
+> 사용자 원문: *"노란색 글씨를 한줄에 들어가도록 화면의 크기에 맞춰 자동으로 텍스트 크기가 동적으로 바뀌도록 하고 싶고 또한 텍스트가 흰색이기를 바래."*
+
+- 위의 「어절 단위 줄바꿈·노란색」을 바꿨다: 색 `#fff`, 글 칸(`.sb-notice-t`)은 줄을 바꾸지 않는다(`white-space:nowrap`).
+- `station_briefing_render.js` `fitNotice`: 글이 넘치면 넘친 비율만큼 `.sb-notice` 의 글자 크기를 줄인다. 최대는 CSS 의 1.03rem(약 16.5px)이고 넓다고 더 키우지 않는다.
+  칸 폭이 바뀌면(아코디언 펼침·화면 회전) `ResizeObserver` 로 다시 맞추고, 글꼴이 늦게 받아지면(`document.fonts.ready`) 한 번 더 맞춘다.
+- 실측(시험 `test_station_briefing_ui` UI3, 헤드리스 Chromium 글꼴): 360px 화면 약 8.9px · 320px 약 7.8px · 1000px 약 15.6px(브리핑 칸에 최대 폭이 있어 16.5px 까지 안 큼). 실제 기기 글꼴에 따라 조금 다르다.
+- `index2.html` `station_briefing.css`·`station_briefing_render.js` `?v=20261119notice`.
+
 ## 「해상 분석」 해구 흐름 줄에 「기준」 없음 · 「표류」 통일 (2026-10-18 — 설계서 §11.10.30, 규칙 v23)
 
 > 사용자 원문: *"기준관련된 내용은 뺴기로 했잖니 ? 그냥 11.9m/s입니다.로 끝내"*
