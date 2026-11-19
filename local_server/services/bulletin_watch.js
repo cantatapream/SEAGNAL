@@ -5,6 +5,7 @@
  * 역할  : 방재기상플랫폼(dmdw) 특보·예비특보 통보문을 1분마다 지켜보며 「처음 보인 모습」과 「나중에 바뀐 모습」을
  *         그대로 기록한다(관찰용 — 특보현황·푸시는 건드리지 않는다).
  *         목록은 3일 전부터 받는다(이미 발표·발효된 특보부터 따라가려고 — 사용자 확정 2026-11-15).
+ *         3일 넘게 끊겼다 돌아오면 마지막으로 다 받은 날의 하루 전부터(최대 10일) 받아 빠진 통보문을 채운다(CATCH_UP_MAX_DAYS — 2026-11-19).
  *         특히 내용 없이 먼저 올라온 통보문은 채워질 때까지 매분 다시 확인한다
  *         (사용자 확정 2026-11-15: 「빈 통보문으로 올라왔을때에는 해당 통보문을 계속 확인하는 로직이 필요… 내용이 채워질때까지」).
  * 왜: 지난 통보문(2025-01~2026-11, 5,768건)은 사이트가 채워진 최종본만 보여 줘 빈 상태가 남지 않는다
@@ -35,6 +36,14 @@ const LOOKBACK_DAYS = 3;
 //   사용자 결정 2026-11-18 「10일로 하자」(종전 5일). 실자료(2025-01~2026-11) 최장 공백 3.84일(강원 2026 1-93 → 1-97호) — 5일이면 여유 1.2일뿐이었다.
 //   늘린 값의 비용(실자료 664일 재 봄): 들고 있는 통보문 평균 42 → 84건(최대 224), 계산 평균 0.7 → 0.9ms, 본문 평균 36 → 72KB.
 const SEEN_KEEP_DAYS = 10;
+// [끊긴 동안 보충] 로그인 장애 등으로 목록을 한동안 못 받았으면, 다시 될 때 「마지막으로 목록을 다 받은 날의 하루 전」부터 받는다(최대 CATCH_UP_MAX_DAYS).
+//   사용자 2026-11-18: 로그인이 안 된 동안 빠진 통보문을 다시 되면 모두 받아 생애주기가 저절로 맞게.
+//   없으면: 3일 넘게 끊겼다 돌아오면 그 사이(3일 전보다 앞)에 나온 발표·변경·해제 통보문을 영영 못 본다 — 통보문 기준 특보현황·📋 발자취에서 그 특보가 빠지거나 해제가 안 된 채 남는다.
+//   10일 = 통보문을 기억하는 기간(SEEN_KEEP_DAYS)과 같다 — 그보다 앞의 것은 받아도 곧 지운다. 목록 API 가 10일 범위를 받는 것은 2026-11-18 실제 호출로 확인.
+const CATCH_UP_MAX_DAYS = 10;
+// 보충은 시작한 지 하루가 지나면 다 못 받았어도 그만둔다(빈 통보문을 그만 보는 EMPTY_GIVE_UP_MIN 과 같은 하루).
+//   없으면: 목록 16개 가운데 하나나 본문 하나가 계속 안 받아지는 동안 매분 10일 치 범위를 끝없이 묻는다(검토에서 12일을 돌려 확인 — 평소의 3배쯤 되는 응답을 계속 받는다).
+const CATCH_UP_GIVE_UP_MS = 24 * 3600e3;
 const RECHECK_MIN = [3, 10];            // 내용이 있는 통보문은 내용을 처음 본 뒤 3분·10분에 한 번씩 다시 본다(채운 뒤 고치는지)
 const EMPTY_GIVE_UP_MIN = 24 * 60;      // 하루가 지나도 비어 있으면 그만 보고 기록만 남긴다
 const KST = (ms) => new Date(ms + 9 * 3600e3).toISOString().replace('Z', '+09:00');   // 한국 시각(끝에 +09:00)
@@ -107,7 +116,19 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
             load();
             const baseline = !state.started;   // 맨 처음 한 번: 이미 올라와 있던 통보문은 「관찰 시작 때 이미 있던 것」으로 남긴다
             const t = now();
-            const ed = dayOf(t).replace(/-/g, ''), sdDay = dayOf(t - LOOKBACK_DAYS * 86400e3), sd = sdDay.replace(/-/g, '');
+            // 보충 중인가: 마지막으로 목록을 다 받은 때가 평소 기간(3일 전 0시)보다 앞이면 그 하루 전부터 받는다. 한 번 넓히면 그 범위의 목록·새 본문을 빠짐없이 받은 회차까지 유지한다(state.catchUpFromMs)
+            //   — 넓힌 첫 회차에 본문 하나를 못 받았는데 다음 분에 기간이 3일로 돌아가면 그 통보문은 목록에 다시 안 나와 영영 빈 채로 남는다.
+            const normalStartMs = Date.parse(dayOf(t - LOOKBACK_DAYS * 86400e3) + 'T00:00:00+09:00');
+            //   그만둔 뒤 하루는 다시 시작하지 않는다(catchUpPausedUntilMs) — 목록이 계속 안 받아지는 동안에는 listsOkMs 가 옛 값 그대로라, 쉬지 않으면 그만둔 다음 분에 곧바로 다시 시작한다.
+            if (state.started && state.listsOkMs && state.listsOkMs < normalStartMs && !state.catchUpFromMs && !(t < (state.catchUpPausedUntilMs || 0))) {
+                state.catchUpFromMs = state.listsOkMs - 86400e3;
+                state.catchUpStartedMs = t;
+                emit({ atMs: t, kind: 'catch_up', fromDay: dayOf(Math.max(state.catchUpFromMs, t - CATCH_UP_MAX_DAYS * 86400e3)), lastOk: KST(state.listsOkMs), 설명: `목록을 마지막으로 다 받은 때(${KST(state.listsOkMs).slice(0, 16).replace('T', ' ')})가 3일보다 앞 — 그 하루 전부터(최대 ${CATCH_UP_MAX_DAYS}일) 다시 받아 빠진 통보문을 채운다` });
+            }
+            const catchUp = !!state.catchUpFromMs;
+            let missed = 0;   // 이번 회차에 못 받은 본문 수 — 새 통보문·빈 통보문 다시 보기 모두(보충을 끝내도 되는지 볼 때. 첫 회차에 못 받은 본문은 다음 분엔 「다시 보기」 길로 온다)
+            const fromMs = catchUp ? Math.min(t - LOOKBACK_DAYS * 86400e3, Math.max(state.catchUpFromMs, t - CATCH_UP_MAX_DAYS * 86400e3)) : t - LOOKBACK_DAYS * 86400e3;
+            const ed = dayOf(t).replace(/-/g, ''), sdDay = dayOf(fromMs), sd = sdDay.replace(/-/g, '');
             const windowStartMs = Date.parse(sdDay + 'T00:00:00+09:00');
             const listed = new Set();
             for (const stn of Object.keys(OFFICES)) {
@@ -122,10 +143,12 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
                         const s = state.seen[e.code];
                         const at = now();
                         if (!s) {
-                            let r = null; try { r = await detail(stn, e.code); stat.details++; } catch (err) { console.warn('[bulletin_watch] 새 본문 실패', e.code, err && err.message); emit({ atMs: at, kind: 'error', stn, rpt, code: e.code, message: String(err.message || err).slice(0, 200), 설명: '새 통보문 본문을 못 받음 — 다음 분에 다시' }); }
+                            let r = null; try { r = await detail(stn, e.code); stat.details++; } catch (err) { missed++; console.warn('[bulletin_watch] 새 본문 실패', e.code, err && err.message); emit({ atMs: at, kind: 'error', stn, rpt, code: e.code, message: String(err.message || err).slice(0, 200), 설명: '새 통보문 본문을 못 받음 — 다음 분에 다시' }); }
                             const empty = isEmpty(rpt, r);
-                            state.seen[e.code] = { stn, rpt, firstMs: at, fullMs: empty ? null : at, listValue: e.value, hash: hashOf(r), empty, emptySinceMs: empty ? at : null, lastFetchMs: at, rechecked: [], result: r };   // 본문도 둔다 — 통보문 기준 특보현황(bulletin_status)이 읽는다
-                            emit({ atMs: at, kind: 'new', baseline: baseline || undefined, stn, office: OFFICES[stn], rpt, code: e.code, listValue: e.value, empty, result: r,
+                            // 보충으로 받은 통보문은 「처음 본 때」를 회차 시작 시각 하나로 맞춘다 — 10일 뒤 지울 때 한 회차에 함께 지워지게
+                            //   (하나씩 받은 시각대로 두면 지워지는 몇 분 동안 묶음에 구멍이 생겨, 끝난 특보가 통보문 기준 현황에 잠깐 되살아날 수 있다 — 검토)
+                            state.seen[e.code] = { stn, rpt, firstMs: catchUp ? t : at, fullMs: empty ? null : at, listValue: e.value, hash: hashOf(r), empty, emptySinceMs: empty ? at : null, lastFetchMs: at, rechecked: [], result: r };   // 본문도 둔다 — 통보문 기준 특보현황(bulletin_status)이 읽는다
+                            emit({ atMs: at, kind: 'new', baseline: baseline || undefined, catchUp: catchUp || undefined, stn, office: OFFICES[stn], rpt, code: e.code, listValue: e.value, empty, result: r,
                                 설명: `${OFFICES[stn]} ${rpt === '7' ? '예비특보' : '특보'} ${baseline ? '관찰 시작 때 이미 있던' : '새'} 통보문 「${String(e.value).trim()}」 ${empty ? '— 내용이 비어 있다(채워질 때까지 매분 다시 본다)' : '— 내용이 있다'}` });
                             continue;
                         }
@@ -136,7 +159,7 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
                         // 본문을 안 갖고 있는 옛 기록(2026-11-16 01:05 이전에 본 것 — 그땐 본문을 저장하지 않았다)은 한 번 다시 받아 채운다.
                         //   없으면: 그 전에 본 3일 치 통보문이 통보문 기준 특보현황에서 통째로 빠져 「전 해역 특보없음」으로 보인다(2026-11-16 사용자 지적).
                         if (!('result' in s)) {
-                            try { s.result = await detail(stn, e.code); stat.details++; s.backfilled = true; } catch (err) { console.warn('[bulletin_watch] 옛 기록 본문 채우기 실패', e.code, err && err.message); }
+                            try { s.result = await detail(stn, e.code); stat.details++; s.backfilled = true; } catch (err) { missed++; console.warn('[bulletin_watch] 옛 기록 본문 채우기 실패', e.code, err && err.message); }
                             continue;
                         }
                         const ageMin = (at - s.firstMs) / 60e3;
@@ -146,7 +169,7 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
                         if (!watchEmpty && due == null) continue;
                         if (due != null) s.rechecked.push(due);
                         // 다시 보기 실패는 다음 분에 또 본다(빈 통보문) — 서버 기록에만 남긴다
-                        let r; try { r = await detail(stn, e.code); stat.details++; } catch (err) { console.warn('[bulletin_watch] 다시 보기 실패', e.code, err && err.message); continue; }
+                        let r; try { r = await detail(stn, e.code); stat.details++; } catch (err) { missed++; console.warn('[bulletin_watch] 다시 보기 실패', e.code, err && err.message); continue; }
                         s.lastFetchMs = at;
                         const h = hashOf(r);
                         if (h === s.hash) continue;
@@ -175,6 +198,14 @@ function createWatch({ post, login, now = () => Date.now(), dir = DIR, sleep = (
             }
             // 본 기록 정리: 목록에 더는 없고 처음 본 지 SEEN_KEEP_DAYS(10일) 넘은 것만(목록 기간이 날짜 단위라 최대 4일 가까이 남는다 — 그 안에 지우면 「새 통보문」으로 다시 잡힌다)
             for (const [code, s] of Object.entries(state.seen)) if (!listed.has(code) && t2 - s.firstMs > SEEN_KEEP_DAYS * 86400e3) delete state.seen[code];
+            // 보충 끝: 넓힌 범위의 목록 16개를 다 받고 새 본문도 하나도 안 놓친 회차 — 다음 분부터 평소 기간(3일)으로 돌아간다
+            if (catchUp && stat.lists === Object.keys(OFFICES).length * 2 && missed === 0) {
+                emit({ atMs: t2, kind: 'catch_up_done', fromDay: sdDay, 설명: `끊긴 동안의 통보문 보충을 마침(${sdDay} 부터 받음) — 다음부터 평소대로 3일 전부터` });
+                delete state.catchUpFromMs; delete state.catchUpStartedMs; delete state.catchUpPausedUntilMs;
+            } else if (catchUp && t2 - (state.catchUpStartedMs || t2) >= CATCH_UP_GIVE_UP_MS) {
+                emit({ atMs: t2, kind: 'catch_up_gave_up', fromDay: sdDay, lists: stat.lists, missed, 설명: `끊긴 동안의 통보문 보충을 하루 동안 마치지 못해 그만둠(목록 ${stat.lists}/16 · 못 받은 본문 ${missed}건) — 하루 쉬고 다시 해 본다(그동안은 평소대로 3일 전부터). 빠진 통보문이 있을 수 있다` });
+                delete state.catchUpFromMs; delete state.catchUpStartedMs; state.catchUpPausedUntilMs = t2 + CATCH_UP_GIVE_UP_MS;
+            }
             if (stat.lists === Object.keys(OFFICES).length * 2) { state.started = true; state.listsOkMs = t2; }   // 목록을 다 받은 회차가 있어야 기준이 선다 · listsOkMs = 마지막으로 다 받은 시각(📋 팝업이 통보문이 최신인지 볼 때 — bulletin_status.zoneBulletins)
             save();
             prune();
