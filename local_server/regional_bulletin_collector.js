@@ -283,10 +283,27 @@ async function fetchBulletinBody(officeCode, reportId) {
  */
 function fixMarkup(s) { return typeof s === 'string' ? s.replace(/\{\{(loc|num|warn):([^{}]*)\}\s+\}/g, '{{$1:$2}}') : s; }
 
+/** 색 표시·공백을 걷어 낸 글자 수. 예: bareLen('{{loc:서해상}}에 바람') → 6  [연계] ← gemmaKeptSummary */
+const bareLen = (s) => String(s || '').replace(/\{\{(?:loc|num|warn):([^{}]*)\}\}/g, '$1').replace(/\s+/g, '').length;
+/**
+ * Gemma 의 색칠 답이 원문 줄을 빼먹지 않았는가 — 색 표시·공백을 걷은 글자 수가 원문의 97% 이상 남았는지 본다(「먼저 Gemma」를 고른 때만 불린다).
+ * 실측 2026-11-19(지방청 7곳, 운영 색칠본 vs 원문): 온전한 답 100.0~103.7% · (해상) 항목을 통째로 뺀 답 75.8~94.3% ·
+ *   유의사항 「o …」 줄을 뺀 답 88.8~98.7%(4줄만 뺀 부산 98.7% 한 곳은 이 선으로 못 잡는다).
+ * 없으면: 줄이 빠진 색칠본이 「성공」으로 캐시에 굳어 그 전망은 다음 발표까지 그대로 보인다. 걸리면 관리자가 정한 순서의 다음 AI 가 색칠한다.
+ * 예: gemmaKeptSummary({ summary: '{{loc:서해상}}에 바람' }, '서해상에 바람') → true
+ * @param {object} parsed Gemma 답(JSON) @param {string} rawText 통보문 본문 @returns {boolean}
+ * [연계] ← analyzeBulletinWithAI → services/bulletin_ai.call 의 gemmaAccept / 본청 전망의 같은 검사는 marine_forecast_processor.gemmaKeptText
+ */
+function gemmaKeptSummary(parsed, rawText) {
+    const want = bareLen(rawText);
+    return !want || bareLen(parsed && parsed.summary) >= want * 0.97;
+}
+
 async function analyzeBulletinWithAI(rawText) {
     const userPrompt = `## 통보문 본문\n${rawText}\n\n위 본문을 분석하여 마크업 적용 본문과 대표 기온을 JSON으로 반환하라.`;
 
-    const callResult = await bulletinAi.call('forecast', REGIONAL_BULLETIN_AI_PROMPT + '\n\n' + userPrompt, { caller: 'RegionalBulletin' });
+    //   「먼저 Gemma」를 골랐으면 Gemma 답이 원문 줄을 빼먹지 않았는지도 본다(gemmaKeptSummary) — 빼먹었으면 순서의 다음 AI 로.
+    const callResult = await bulletinAi.call('forecast', REGIONAL_BULLETIN_AI_PROMPT + '\n\n' + userPrompt, { caller: 'RegionalBulletin', gemmaAccept: (p) => gemmaKeptSummary(p, rawText) });
 
     if (!callResult.success) {
         if (callResult.isRateLimited) {
@@ -661,6 +678,7 @@ module.exports = {
     fetchBulletinBody,
     analyzeBulletinWithAI,
     fixMarkup,
+    gemmaKeptSummary,
     BULLETIN_OFFICES,
     REGIONAL_BULLETIN_AI_PROMPT,
 };

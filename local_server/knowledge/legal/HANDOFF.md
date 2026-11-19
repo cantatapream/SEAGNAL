@@ -1537,6 +1537,25 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 09:54 KST] 🟢착수 — 지방청 날씨해설 「해상 기상 요약」 표현 안 만들기 — 계절별 8개월 조사
+사용자 2026-11-19: 「지방청 기상 전망에만 해당 … 아예 강수지역분포도 그 부분이 표출되지 않도록 텍스트도 삭제하여 표출하고자 해. 또한 … 기온 박스 아래에 해상 기상 요약이라고 해서 해상과 관련된 내용만 요약해서 표출하는 기능 … 이 작업은 젬마가 진행하도록 하고 젬마가 안되면 아까 지정했던 5번 ai 모델 … 순서로서 ai api 호출 … 어떻게 표현하면 좋을지 안을 제공해봐.」 · 「날씨누리에서 확인할 필요 없이 그냥 방재기상플랫폼에서 확인가능해」 · 「작년 올해 여름철, 가을철, 겨울철, 봄철 각 한달씩 데이터를 수집하여 어떤식으로 전망했는지 조사하여 안을 만들어야 할 것이야.」
+[지금까지 확인] 방재기상플랫폼 통보문 화면의 날씨해설 = rpt 10(부제 11 초단기·12 단기·13 중기). 목록·본문은 특보 통보문과 같은 요청(retRswWrnRptList/Detail.json)으로 온다. 본문은 t1·t3 칸 글자 + contents(JSON: key_point·main_point·caution_point·other_point), 그림 설명(「오늘~모레 예상 강수지역 분포도」)은 본문이 아니라 attachedFiles[].fileDesc 에 따로 온다 → 플랫폼에서 받으면 그 줄이 본문에 안 섞인다. PDF 원문은 특보 PDF 와 같은 공개 주소(…/C5N_DATA/WRN/PDF/YYYYMM/DD/fax_wcmt_<발표시각>_<관서>_<호>.pdf)에서 받아진다(제주 11-37호 202,072바이트). 같은 호가 고쳐져 두 번 올라오기도 한다(11-37호 04:52·05:20).
+[하는 중] 2025·2026 × 1월(겨울)·4월(봄)·8월(여름)·10월(가을) 8개월 × 관서 8곳 날씨해설을 세션 임시 폴더로 수집(요청 간격 1.2초, 저장소에는 아직 안 넣음). 끝나면 계절·관서별로 바다 얘기가 어느 자리에·어떤 이름으로·얼마나 길게 적히는지, 바다 얘기가 없는 날이 얼마나 되는지 세고 표현 안을 낸다. 구현은 사용자가 안을 고른 뒤.
+
+
+### [2026-11-19 09:54 KST] ✅완료 — 📋 통보문 목록 제목에서 예비 시간창 빼기 · 원문 PDF 받기 버튼을 팝업 머리줄로 · 앱에서도 받기(PR #1516)
+[한 일] services/bulletin_status.js zoneBulletins 제목 = 「11-12호 풍랑 예비특보」(뒤의 「— 11월 18일 오전(06시~12시)」 뺌). 팝업(shared/ui/ui_modal.js openKmaIframeModal)에 opt.download 가 오면 머리줄 ✕ 왼쪽에 「⬇ PDF」 버튼, window.downloadKmaFile(앱이면 Capacitor Browser 로 시스템 브라우저에 넘김 — 앱 WebView 는 <a download> 를 무시한다 · 그 밖에는 내려받기). routes/weather.js: zone-bulletins·zone-escalations 가 downloadUrl 을 주고 /api/bulletin-doc/:key/pdf 는 첨부로 내려 준다 · 그림 보기 쪽의 아래 띠와 스크립트는 뺐다. alerts/alert_history.js · alerts/escalation.js 가 그 주소를 팝업에 넘긴다.
+[확인] 로컬 서버 + 실제 브라우저 3경우: PC·휴대폰 브라우저 = PDF 가 실제로 내려받아짐, 앱 흉내(Capacitor 를 끼움) = 시스템 브라우저로 넘길 주소가 맞게 나감. test_bulletin_status 104 통과.
+[안 한 것] 실제 안드로이드·아이폰 앱에서 눌러 보지 못했다(이 환경에 기기 없음) — 머지 뒤 앱에서 「⬇ PDF」를 눌러 시스템 브라우저가 열리는지 확인 필요. 상세 = local_server/analysis/bulletin_survey/README.md ⑱.
+
+
+### [2026-11-19 09:54 KST] ✅완료 — Gemma 를 ③ 해상 기상 전망 색칠의 「먼저 Gemma」로 추가(PR #1516)
+사용자 최종 결정 2026-11-19: 「지방청별 전망은 규칙으로 읽지 말고, 젬마가 색칠하는 기능을 넣자 격상읽기는 하지말고. 단, 젬마가 색칠할 수 없는 문제, 한도 초과, 서버 붐빔 등 문제가 있다면 그때 내가 선택한 api가 호출하여 색칠하도록 하자.」 · 「이미 플라이아이오 시크릿으로 반영된 gemini키인 "GEMINI_API_KEY_26_8"로 젬마를 호출하도록 하자.」
+[한 일] services/bulletin_ai.js — ③(forecast)에만 「먼저 Gemma」 칸(gemma: '' 또는 gemma-4-26b-a4b-it / gemma-4-31b-it, 기본 '쓰지 않음'). 고르면 Gemma 를 먼저 부르고, 못 쓰는 답(오류·429·503·60초 시간 초과·빈 답·JSON 못 꺼냄·필요한 칸 없음·색 표시 꼴 깨짐·원문 줄 빼먹음)이면 관리자가 정한 순서의 AI 로 넘어간다. ⑤ 격상 가능성 읽기에는 Gemma 를 넣지 않았다(사용자 결정). services/gemini_client.js callPlain(키 한 개로 한 번 호출 — 공용 Gemini 키의 쿨다운·전환·관리자 알림을 건드리지 않는다). 「원문 줄 빼먹음」 검사: 본청 전망 = marine_forecast_processor.gemmaKeptText(칸마다 85%), 지방청 전망 = regional_bulletin_collector.gemmaKeptSummary(글 전체 97% — 운영 색칠본 7편과 원문을 견준 실측: 온전 100.0~103.7% · 해상 항목 뺀 꼴 75.8~94.3% · o 줄 뺀 꼴 88.8~98.7%). 관리자 화면 ③ 카드 맨 위에 「먼저 Gemma」 고르기 + 「시험 호출」 + 마지막 결과(날짜·성공/실패 수). routes/bulletin_watch.js POST /api/admin/bulletin-ai/try-model.
+[확인] 임시 키로 한 실측(키는 사용자가 삭제): 26b 는 생각 최소(thinkingLevel minimal)로 색칠 16~26초, 31b 는 503 잦음·38~45초, JSON 모드는 답을 배열로 감싸 일반 모드+느슨한 꺼내기로. test_bulletin_ai 66 · test_bulletin_ai_ui 7 · test_silent_catch 22 통과. 전체 점검 결과는 PR 본문.
+[안 한 것·남은 것] ①「먼저 Gemma」 최종 경로를 실제 키로 불러 보지 못했다(임시 키 삭제 뒤 완성) — 머지 뒤 관리자 화면 ③ 카드의 「시험 호출」부터 눌러 볼 것. ②지방청 글로 Gemma 를 실제로 불러 본 적 없다. ③운영 키가 gemini-2.5-flash-lite 를 아직 주는지 확인 안 함(새 키는 404 였다). ④기본값이 「쓰지 않음」이라 머지만으로는 아무것도 안 바뀐다 — 관리자 화면에서 골라야 켜진다. 상세 = local_server/analysis/bulletin_survey/README.md ⑰.
+
+
 ### [2026-11-19 09:26 KST] 🟢착수 — 📋 통보문 목록 제목에서 예비 시간창 빼기 · 원문 PDF 받기 버튼을 팝업 머리줄로 · 앱에서도 받기
 사용자 2026-11-19(이미지 2장): 「11-12호 풍랑 예비특보 - 11월 18일 오전(06시~12시) … 그 부분 텍스트는 표출하지 않도록 하고 통보문 제목만 표시될 수 있도록 수정하고자 하고, 또한 pdf 원문 다운로드 관련, 버튼을 이미지 2에서 표시한 부분(팝업 머리줄 ✕ 왼쪽)에 버튼을 반영하고자 해. 또한 휴대폰에서도 원문을 다운로드 할 수 있도록 해줘.」 할 일: bulletin_status.zoneBulletins 제목에서 when 빼기 · ui_modal.openKmaIframeModal 에 opt.download(머리줄 「⬇ PDF」) + downloadKmaFile(앱 = @capacitor/browser 로 시스템 브라우저에 넘김 — 앱 웹뷰는 a[download] 를 처리하지 않는다) · /api/zone-bulletins 에 downloadUrl · PDF 는 Content-Disposition attachment · 보기 페이지 아래 옛 버튼 제거 · 격상 📋 팝업에도 같은 버튼. Gemma 작업과 같은 브랜치·같은 PR 로 올린다.
 

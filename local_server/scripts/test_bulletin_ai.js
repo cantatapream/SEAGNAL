@@ -191,6 +191,13 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
       const noCat = JSON.parse(JSON.stringify(full)); delete noCat.categories.해상;
       ok('날씨해설 색칠: 원문 줄을 다 지닌 답은 통과 · 유의사항 세 줄을 뺀 답(실제 Gemma 가 낸 꼴)·칸을 통째로 뺀 답은 못 쓰는 답', M.gemmaKeptText(full, code) === true && M.gemmaKeptText(dropped, code) === false && M.gemmaKeptText(noCat, code) === false && M.gemmaKeptText({}, code) === false && M.gemmaKeptText(full, {}) === true);
       ok('날씨해설 색칠은 그 검사를 Gemma 답에 건다(글자 확인)', /gemmaAccept: \(p\) => gemmaKeptText\(p, codeExtracted\)/.test(fs.readFileSync(require('path').join(__dirname, '..', 'marine_forecast_processor.js'), 'utf8')));
+      // 지방청 전망 — 글 전체 글자 수가 원문의 97% 이상 남아야 한다
+      const R = require('../regional_bulletin_collector');
+      const rawR = '<중점 사항>\n○ 당분간 서해중부해상에 바람이 매우 강하게 불고 물결이 매우 높게 일겠습니다.\n<강풍 및 풍랑>\n○ (강풍) 서해5도는 바람이 순간풍속 70km/h(20m/s) 이상으로 매우 강하게 불겠습니다.\n○ (풍랑) 풍랑특보가 발효 중인 서해중부해상은 바람이 25~60km/h(7~16m/s)로 매우 강하게 불고 물결이 1.0~3.5m로 매우 높게 일겠습니다.';
+      const fullR = { summary: rawR.replace('서해중부해상에', '{{loc:서해중부해상}}에').replace('25~60km/h(7~16m/s)', '{{num:25~60km/h(7~16m/s)}}') };
+      const droppedR = { summary: fullR.summary.split('\n').filter((l) => !/^○ \(풍랑\)/.test(l)).join('\n') };
+      ok('지방청 전망 색칠: 원문 줄을 다 지닌 답은 통과 · (풍랑) 항목을 뺀 답·summary 없는 답은 못 쓰는 답 · 원문이 비면 안 따진다', R.gemmaKeptSummary(fullR, rawR) === true && R.gemmaKeptSummary(droppedR, rawR) === false && R.gemmaKeptSummary({}, rawR) === false && R.gemmaKeptSummary(null, rawR) === false && R.gemmaKeptSummary({}, '') === true);
+      ok('지방청 전망 색칠도 그 검사를 Gemma 답에 건다(글자 확인)', /gemmaAccept: \(p\) => gemmaKeptSummary\(p, rawText\)/.test(fs.readFileSync(require('path').join(__dirname, '..', 'regional_bulletin_collector.js'), 'utf8')));
     }
     gemmaAnswer = () => ({ success: true, text: '글 그대로의 답' }); calls.length = 0;
     const d6 = await bai.call('forecast', 'P', { json: false });

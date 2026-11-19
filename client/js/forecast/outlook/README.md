@@ -88,7 +88,7 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
   *"이미 플라이아이오 시크릿으로 반영된 gemini키인 GEMINI_API_KEY_26_8 로 젬마를 호출하도록 하자."*
   - ③ 색칠 칸 맨 위 **「먼저 Gemma」** 줄 — 쓰지 않음(기본 = 종전 그대로) | `gemma-4-26b-a4b-it` | `gemma-4-31b-it`(Gemini API 가 제공하는 Gemma 두 모델, 같은 키).
   - 고르면 Gemma 가 먼저 색칠하고, **못 하면 아래에 정해 둔 순서대로** 이어서 부른다. 못 함 = 오류·한도 초과(429)·수요 과다(503)·60초 시간 초과·빈 답·JSON 을 못 꺼냄·`categories`/`summary` 없음·
-    색 표시 꼴이 깨짐(`{{num:…}for}`)·원문 줄을 빼먹음(날씨해설: 칸마다 글 길이 85% 미만 — `marine_forecast_processor.gemmaKeptText`. 지방청 전망에는 이 검사가 없다).
+    색 표시 꼴이 깨짐(`{{num:…}for}`)·원문 줄을 빼먹음(날씨해설: 칸마다 글 길이 85% 미만 — `marine_forecast_processor.gemmaKeptText` / 지방청 전망: 글 전체 글자 수가 원문의 97% 미만 — `regional_bulletin_collector.gemmaKeptSummary`).
   - Gemma 는 JSON 모드 없이·「생각 최소」로 부른다(실제 키로 확인 — JSON 모드는 답을 배열로 싸고, 생각 기본은 글 한 편에 2~3분). 공용 Gemini 키의 쿨다운을 건드리지 않는다(`gemini_client.callPlain`).
   - 관리자 화면: 「시험 호출」 버튼 · 마지막 Gemma 결과(날짜·시각, 서버를 올린 뒤 성공·실패 횟수 — 못 해서 다음 AI 가 대신 색칠했으면 붉게).
   - 실측(2026-11-19 날씨해설 4편): 답 꼴은 맞았으나 유의사항 줄을 빼거나 표시 꼴이 깨진 답이 있었고(위 검사로 거른다), Gemini 2~7초에 견줘 16~26초, 연달아 부르면 「수요 과다·한도 초과」가 났다.
