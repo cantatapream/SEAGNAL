@@ -1537,6 +1537,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 17:45 KST] ✅완료 — 본선에 걸린 시험 고침 — test_life_safety_tab_keep
+[원인 — 코드로 확인] 커밋 90fe67e5(PR #1519, 세션 session_01S4bd5NckAkm24CxsRaBBcs)가 risk_forecast.js 의 selected.location 에 acc 칸을 넣었다(브리핑 해역 카드에서 왔을 때 시트 제목을 카드와 같은 칸으로 — 서버 marine_fusion.analysis acc). 의도한 설계다. test_life_safety_tab_keep 의 「열려 있던 해상 시트(해역)는 같은 좌표로 다시 연다」가 location 을 {lon,lat} 와 통째로 견줘 acc:null 때문에 걸렸다. [고친 것] 시험만: 좌표(lon·lat)를 견주고, 지도에서 고른 곳은 acc 가 null 임을 따로 확인. 코드는 안 건드림. 탭을 오갈 때 되살리는 길(risk_forecast.js:484 select(target.kind,target.id,target.location))은 location 을 통째로 넘겨 acc 도 그대로 간다. [확인] test_life_safety_tab_keep 25/0. 직전 전체 점검(머리줄 리스너 변경 포함)에서 걸린 것은 이 1건뿐이었고 그 뒤 바꾼 것은 이 시험 파일 한 줄 — 전체 점검을 다시 돌리지는 않았다(GitHub 자동 점검이 전체를 돈다). [다음] PR → 사용자 머지.
+
+
+### [2026-11-19 17:43 KST] 🟢착수 — 본선에 걸린 시험 고치기 — test_life_safety_tab_keep 「해상 시트는 같은 좌표로 다시 연다」
+사용자 2026-11-19 「아니야 지금 네가 시작해줘 그냥」. 실제 {acc:null, lat, lon} ↔ 기대 {lat, lon}. 유력 원인 커밋 90fe67e5(PR #1519, risk_forecast.js 295행 location). 먼저 그 커밋의 변경과 설계 문서를 끝까지 읽어 acc 칸이 의도인지 확인한 뒤, 의도면 시험 기대값을, 아니면 코드를 고친다.
+
+
 ### [2026-11-19 17:15 KST] ✅완료 — 지방청 카드 머리줄 — onclick 글자 대신 리스너로 · ⚠본선에 걸린 시험 1건 발견(내 변경과 무관)
 [한 것] marine_forecast.js: 머리줄의 onclick="toggleRegionalOffice('번호')" 를 없애고 리스너로(눌린 머리줄이 든 카드를 바로 접고 편다). window.toggleRegionalOffice 는 남김. 꼬리표 …f. test_regional_sea_ui 20(머리줄 누르기·📋 눌러도 안 접힘·onclick 속성 없음). 같은 파일에 값을 끼운 onclick 은 더 없음(0곳). [⚠verify_all 실패 1건] test_life_safety_tab_keep 24 PASS / 1 FAIL — 「열려 있던 해상 시트(해역)는 같은 좌표로 다시 연다」: 실제 {acc:null, lat, lon} ↔ 기대 {lat, lon}. origin/main(16c78a2e 뒤)만 따로 꺼내(git worktree) 돌려도 똑같이 실패 → 이 변경 때문이 아님. 본선의 다른 세션 변경(위험예측 해상 시트 쪽 — 90fe67e5 가 유력하나 원인을 끝까지 읽지는 않았다)과 그 시험이 어긋난 것으로 보임. 고치지 않았다(다른 세션의 설계 — acc 칸이 의도인지 모름). 끝의 실패 모음 나머지 19줄은 직전 점검과 같음. [본선에 아직 없는 문서] 결정 기록 3건(통보문 기준 전환 때 함께 넣을 것 셋 · 잠금은 보충 완료까지 · none 은 전문 바로)이 이 가지에만 있다 — PR 필요. [다음] 사용자에게 보고 → PR 여부.
 

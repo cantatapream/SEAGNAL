@@ -169,7 +169,8 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
   assert.equal((await S()).sheetOpen,false,'해양종합정보에는 해상 시트가 따라가지 않는다');
   await tab('ocean-life-group');await page.waitForFunction(()=>{const a=window._riskForecastApp.getState();return a.selected&&a.selected.kind==='marine';},null,{timeout:8000});
   await page.waitForFunction(()=>document.getElementById('risk-forecast-sheet').classList.contains('open')&&!document.getElementById('risk-forecast-sheet').hasAttribute('aria-busy'),null,{timeout:8000});
-  const s=await S();assert.deepEqual(s.app.selected.location,{lon:126.5375,lat:33.5625});assert.equal(s.sheetOpen,true);assert.ok(s.title.length>0,'해상 시트 제목이 채워졌다');
+  // 좌표만 견준다 — location 에는 acc(브리핑 해역 카드에서 왔을 때 시트 제목을 카드와 맞추는 칸, 90fe67e5 · PR #1519)도 실린다. 지도에서 고른 곳은 acc 가 null 이다.
+  const s=await S();assert.deepEqual({lon:s.app.selected.location.lon,lat:s.app.selected.location.lat},{lon:126.5375,lat:33.5625});assert.equal(s.app.selected.location.acc,null,'지도에서 고른 곳에는 카드 이름 칸(acc)이 없다');assert.equal(s.sheetOpen,true);assert.ok(s.title.length>0,'해상 시트 제목이 채워졌다');
   assert.ok(log.analysis.every(q=>q.lon===126.5375&&q.lat===33.5625)&&log.analysis.length>=1,'해상 분석은 같은 좌표로만 요청');
   await page.evaluate(()=>document.querySelector('#risk-forecast-sheet .rf-close').click());
  });
