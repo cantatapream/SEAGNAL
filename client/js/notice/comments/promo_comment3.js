@@ -6,7 +6,7 @@
  * [연계]
  *  - 사용하는 파일 : promo_comment1.js(isAdminMode·getCommentDeviceId·_currentCommentPostId), promo_comment5.js(refreshComments)
  *  - 서버 API      : /api/comments, /api/comments/* (등록·수정·삭제), /api/comment-reports (신고)
- *  - 마크업        : index2.html #comment-input-textarea, #comment-char-count, #comment-secret-check, #comment-report-modal
+ *  - 마크업        : index2.html #comment-input-area(게시글 팝업 아래 고정 칸 — 그 안에 #comment-input-textarea, #comment-char-count, #comment-secret-check), #promo-detail-scroll, #comment-report-modal
  *  - 나를 쓰는 곳  : promo_comment5.js(renderCommentInput 호출), promo_comment2.js(수정/삭제 버튼)
  * ============================================================================
  *
@@ -34,7 +34,7 @@
 
 /**
  * 게시글 댓글 섹션 하단에 댓글 입력 UI를 그린다.
- * 댓글 허용 여부에 따라 입력창을 보여주거나 "댓글 기능이 비활성화" 안내를 표시.
+ * 댓글이 꺼진 글이면 사용자·관리자 모두 아무것도 그리지 않는다(비면 CSS 가 칸을 숨긴다).
  *
  * @param {HTMLElement} inputWrapEl - 입력창을 담을 DOM 요소
  * @param {boolean} allowComments - 댓글 허용 여부
@@ -43,8 +43,8 @@ function renderCommentInput(inputWrapEl, allowComments) {
     if (!inputWrapEl) return;
     var isAdmin = isAdminMode();
 
-    if (!allowComments && !isAdmin) {
-        // 일반 사용자에게는 입력창 자체를 숨김 (댓글 비활성화)
+    if (!allowComments) {
+        // 댓글이 꺼진 글은 사용자·관리자 모두 입력창 자체를 숨김(2026-11-19 사용자 — 종전에는 관리자에게 안내와 막힌 입력칸을 보였다)
         inputWrapEl.innerHTML = '';
         return;
     }
@@ -54,43 +54,61 @@ function renderCommentInput(inputWrapEl, allowComments) {
         ? 'background:linear-gradient(135deg,#4fc3f7,#0277BD);color:#fff;'
         : 'background:linear-gradient(135deg,#80cbc4,#00695c);color:#fff;';
 
-    // 관리자이지만 댓글 비활성화 상태인 경우 안내 표시
-    var disabledNotice = (!allowComments && isAdmin)
-        ? '<div class="comment-disabled-notice"><i class="fa-solid fa-ban"></i> 댓글 기능이 비활성화된 게시글입니다. (관리자는 댓글 확인 가능)</div>'
-        : '';
-
-    inputWrapEl.innerHTML = disabledNotice
-        + '<div class="comment-input-wrap">'
+    // [2026-11-19 사용자 확정 시안] 게시글 팝업 맨 아래 고정 칸에 들어가는 입력칸(index2.html #comment-input-area).
+    //   「댓글 입력창의 영역 상하를 1/3로 줄이고 등록버튼도 댓글입력창의 오른쪽에 배치 / 관리자 오른쪽 끝에 비밀댓글 체크박스와 텍스트를 붙이고」
+    //   → [닉네임 ……… ☐🔒비밀댓글] / [입력창(한 줄 높이, 오른쪽 아래 0/500) | 등록]. 모양은 style.css .promo-detail-comment-footer
+    inputWrapEl.innerHTML = '<div class="comment-input-wrap">'
         + '<div class="comment-input-header">'
         + '<span class="comment-nickname-badge" style="' + badgeStyle + '">' + escapeCommentHtml(myNickname) + '</span>'
-        + '</div>'
-        + '<textarea id="comment-input-textarea" class="comment-textarea" '
-        + 'placeholder="댓글을 입력하세요... (최대 500자)" maxlength="500" rows="3"'
-        + ((!allowComments && isAdmin) ? ' disabled' : '')
-        + '></textarea>'
-        + '<div class="comment-input-footer">'
-        // 비밀 댓글 체크박스
+        // 비밀 댓글 체크박스 — 닉네임 줄 오른쪽 끝
         + '<label class="comment-secret-label">'
         + '<input type="checkbox" id="comment-secret-check"> '
-        + '<i class="fa-solid fa-lock" style="color:#f59e0b;margin-right:3px;"></i>비밀 댓글'
+        + '<i class="fa-solid fa-lock" style="color:#f59e0b;margin-right:3px;"></i>비밀댓글'
         + '</label>'
-        + '<div style="display:flex;gap:6px;">'
-        + '<span id="comment-char-count" class="comment-char-count">0/500</span>'
-        + '<button class="comment-submit-btn" onclick="submitComment()" '
-        + ((!allowComments && isAdmin) ? 'disabled' : '')
-        + '><i class="fa-solid fa-paper-plane"></i> 등록</button>'
         + '</div>'
+        + '<div class="comment-input-row">'
+        + '<div class="comment-textarea-box">'
+        + '<textarea id="comment-input-textarea" class="comment-textarea" aria-label="댓글 입력" '
+        + 'placeholder="댓글을 입력하세요... (최대 500자)" maxlength="500" rows="1"'
+        + '></textarea>'
+        + '<span id="comment-char-count" class="comment-char-count">0/500</span>'
+        + '</div>'
+        + '<button class="comment-submit-btn" onclick="submitComment()"'
+        + '><i class="fa-solid fa-paper-plane"></i> 등록</button>'
         + '</div>'
         + '</div>';
 
-    // 글자 수 카운터 이벤트 등록
+    // 글자 수 카운터 + 입력창 높이 맞춤 이벤트 등록
+    //   [2026-11-19 사용자] 「글자수가 칸을 벗어나면 줄바꿈 자동으로 되고 그 댓글을 입력하는 창이 동적으로 높아지는 기능도 넣어줘」
+    //   → 칸 폭을 넘으면 저절로 다음 줄(textarea 기본), 줄이 늘면 입력창도 그만큼 높아진다(최대 높이는 style.css max-height — 넘으면 안에서 스크롤).
+    //     글을 지우면 다시 낮아진다. 등록하면 입력칸을 다시 그리므로 처음 높이로 돌아간다.
     var textarea = document.getElementById('comment-input-textarea');
     var charCount = document.getElementById('comment-char-count');
-    if (textarea && charCount) {
+    if (textarea) {
         textarea.addEventListener('input', function() {
-            charCount.textContent = textarea.value.length + '/500';
+            if (charCount) charCount.textContent = textarea.value.length + '/500';
+            autoGrowCommentTextarea(textarea);
         });
     }
+}
+
+/**
+ * 댓글 입력창 높이를 글 줄 수에 맞춘다 — 한 줄이면 처음 높이(style.css min-height), 줄이 늘면 늘어나고 최대 높이(max-height)를 넘으면 안에서 스크롤.
+ * 예: 입력창 폭을 넘는 긴 글 → 두 줄로 바뀌며 입력창이 한 줄만큼 높아짐 · 글을 지우면 다시 한 줄 높이
+ * @param {HTMLTextAreaElement} ta - 게시글 팝업 아래 고정 칸의 입력창(#comment-input-textarea)
+ * [연계] ← renderCommentInput(입력할 때마다) / 모양: style.css .promo-detail-comment-footer .comment-textarea(min/max-height)
+ *        입력칸이 팝업 맨 아래 고정 칸이라 높아지면 그만큼 위 몸통(본문·댓글)이 줄어든다.
+ */
+function autoGrowCommentTextarea(ta) {
+    if (!ta) return;
+    // 비었으면 처음 높이(style.css)로 — 빈 칸의 scrollHeight 는 안내 글(placeholder) 줄 수까지 쳐서 한 줄보다 높게 나올 수 있다
+    if (!ta.value) { ta.style.height = ''; ta.style.overflowY = ''; return; }
+    ta.style.height = 'auto';   // 먼저 줄여야 글을 지웠을 때도 다시 낮아진다
+    var cs = getComputedStyle(ta);
+    var max = parseFloat(cs.maxHeight) || Infinity;
+    var h = ta.scrollHeight + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    ta.style.height = Math.min(h, max) + 'px';
+    ta.style.overflowY = h > max ? 'auto' : 'hidden';
 }
 
 // ============================================================================
@@ -141,6 +159,9 @@ window.submitComment = async function() {
             if (isSecretCheck) isSecretCheck.checked = false;
             // 댓글 목록 새로고침
             await refreshComments();
+            // 입력칸이 팝업 아래에 고정이라 목록은 위에 있다 — 방금 단 댓글이 보이게 몸통을 끝까지 내린다(2026-11-19)
+            var scrollEl = document.getElementById('promo-detail-scroll');
+            if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         } else {
             alert('댓글 등록 실패: ' + (result.error || '알 수 없는 오류'));
         }

@@ -244,7 +244,7 @@
     /**
      * 접히는 칸 하나(종합 예보의 하위 아코디언과 같은 모양 .marine-forecast-sub-accordion). 머리를 누르면 펼침/접힘.
      * 처음 상태(2026-10-17 사용자 *"기본적으로 총평과 권고만 아코디언이 펼쳐진 상태로 시작하고, 나머지는 접힌 상태로 시작하도록 해."* — 설계서 §11.10.16 소절):
-     *   「총평과 권고」만 펼침(open true), 해상 분석·연안 분석은 접힘(「조석」 칸은 §11.10.34 에 뺐다). 펼친 상태를 기억하는 곳은 없다 — 본문을 다시 그리면(판이 바뀌면) 다시 이 처음 상태다(종전에도 다시 그리면 모두 펼침으로 돌아왔다).
+     *   「총평과 권고」만 펼침(open true), 해상 분석·연안 분석은 접힘(「조석」 칸은 §11.10.34 에 뺐다). 머리를 누르면 그 칸만 펼치고 다른 칸은 접는다(2026-11-19 사용자 「한개씩만」). 펼친 상태를 기억하는 곳은 없다 — 본문을 다시 그리면(판이 바뀌면) 다시 이 처음 상태다(종전에도 다시 그리면 모두 펼침으로 돌아왔다).
      * 예: section('총평과 권고', 'overview', true) → {root, body} — body 에 내용을 붙인다 · section('해상 분석', 'sea') → 접힌 칸(aria-expanded="false")
      * @param {string} title @param {string} key - data-sb-sec(시험·스크린샷이 찾는 이름) @param {boolean} [open] - 처음 펼침(없으면 접힘)
      * @returns {{root:HTMLElement, body:HTMLElement, head:HTMLElement}}
@@ -256,7 +256,17 @@
         head.setAttribute('role', 'button'); head.tabIndex = 0;
         head.appendChild(el('span', 'marine-forecast-sub-title', title));
         var icon = el('i', 'fa-solid fa-chevron-down marine-forecast-sub-icon'); icon.setAttribute('aria-hidden', 'true'); head.appendChild(icon);
-        var flip = function () { root.classList.toggle('open'); head.setAttribute('aria-expanded', String(root.classList.contains('open'))); };
+        // 한 번에 한 칸만 펼친다 — 펼칠 때 같은 브리핑의 다른 칸(총평과 권고·연안 분석·해상 분석)을 접는다.
+        //   [2026-11-19 사용자] 「브리핑에 총평, 연안, 해상이 있는데 각각 아코디언 모두 다 펼쳐볼 수 있는 상태인데, 한개씩만 열릴 수 있도록」
+        var flip = function () {
+            var willOpen = !root.classList.contains('open');
+            if (willOpen && root.parentElement) Array.prototype.forEach.call(root.parentElement.children, function (sib) {
+                if (sib === root || !sib.classList.contains('sb-sec') || !sib.classList.contains('open')) return;
+                sib.classList.remove('open');
+                var h = sib.querySelector('.marine-forecast-sub-header'); if (h) h.setAttribute('aria-expanded', 'false');
+            });
+            root.classList.toggle('open', willOpen); head.setAttribute('aria-expanded', String(willOpen));
+        };
         head.setAttribute('aria-expanded', String(!!open));
         head.addEventListener('click', flip);
         head.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
@@ -1581,6 +1591,54 @@
         marks.forEach(function (k) { appendText(node, t.slice(at, k.a)); var b = el('b', 'sb-hl sb-fv', t.slice(k.a, k.b)); b.setAttribute('data-sb-wx-k', k.k); if (k.k === 'warn') { if (k.r === 3) b.classList.add('sb-hl-red'); else b.style.color = colorOf(k.r); b.setAttribute('data-rank', String(k.r)); } else b.classList.add('sb-hl-b'); node.appendChild(b); at = k.b; });
         appendText(node, t.slice(at)); return node;
     }
+    // 「기상 현황」·「특이사항」·「물때」 머리 아이콘(선 아이콘 — 구름 · 경고 삼각형 · 물결) — B안(2026-11-19 사용자 「b안이 좋겠어」, 시안 artifact 1ie8YztA16qs46cxeFGJyj)
+    var WX_HEAD_ICON = {
+        weather: ['M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z'],
+        notes: ['M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', 'M12 9v4', 'M12 17h.01'],
+        tide: ['M2 12c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2', 'M2 18c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2']
+    };
+    /**
+     * (기상)·(물때) 칸의 머리 한 줄 — 색 아이콘 상자 + 굵은 제목 + 오른쪽으로 이어지는 옅은 선(B안). 글자 모양(크기·굵기·색)은 결론 줄(.sb-headline)과 같다(§11.10.9 — 그대로).
+     * 예: wxHead('제주도서부앞바다 기상 현황', 'weather') → <p class="sb-headline sb-wx-head sb-wx-head-weather"><span class="sb-wx-ico"><svg…/></span><span class="sb-wx-title">제주도서부앞바다 기상 현황</span><span class="sb-wx-rule"></span></p>
+     *     textContent 는 제목 글 그대로(아이콘·선은 글이 없다 — 시험·읽어 주기 그대로).
+     * [2026-11-19 사용자] 「00앞바다 기상현황, 특이사항, 물때 이 부분이 어떻게 보면 헤더잖아 ? 뱃지라던지 아니면 유사한 방식으로 구분이 잘 지어지도록」 → 시안 셋 중 「b안이 좋겠어」.
+     * @param {string} text @param {'weather'|'notes'|'tide'} kind @returns {HTMLElement} [연계] ← weatherPart·tidePart / 모양: station_briefing.css .sb-wx-head·.sb-wx-ico·.sb-wx-rule
+     */
+    function wxHead(text, kind) {
+        var h = el('p', 'sb-headline sb-wx-head sb-wx-head-' + kind), ico = el('span', 'sb-wx-ico'), NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+        ico.setAttribute('aria-hidden', 'true');
+        [['width', '15'], ['height', '15'], ['viewBox', '0 0 24 24'], ['fill', 'none'], ['stroke', 'currentColor'], ['stroke-width', '2'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']].forEach(function (a) { svg.setAttribute(a[0], a[1]); });
+        (WX_HEAD_ICON[kind] || []).forEach(function (d) { var pth = document.createElementNS(NS, 'path'); pth.setAttribute('d', d); svg.appendChild(pth); });
+        ico.appendChild(svg); h.appendChild(ico); h.appendChild(el('span', 'sb-wx-title', text)); h.appendChild(el('span', 'sb-wx-rule'));
+        return h;
+    }
+    /**
+     * 「○○앞바다 기상 현황」 표 — 때(내일 오전 …) | 천기 | 파고 | 풍향·풍속. 풍향과 풍속은 한 칸에 두 줄(풍속 흰 굵게), 파고 흰 굵게.
+     * [2026-11-19 사용자] 「여기서는 한줄로 잘 나오는데 휴대폰에서는 두줄로 나오거든 ? 글자 크기를 크게 설정하면 두줄로 나오거든 ? 차라리 표로 천기 | 파고 | 풍향·속」
+     *   — 칸마다 자리가 정해져 글자를 키워도 낱말이 엉뚱한 데서 끊기지 않는다(천기는 어절 단위로 칸 안에서 줄바꿈).
+     * 자료: 서버 summary.weather.rows[].cells({sky, wave, dir, speed} — station_briefing_rules.js periodCells). 칸이 없는 줄(그 때 자료 없음)은 「자료 없음」.
+     * 예: wxTable([{label:'내일 오전', cells:{sky:'흐리고 가끔 비', wave:'2.0~4.0m', dir:'북서→북', speed:'10~16m/s'}}]) → <table class="sb-wx-table" data-sb-wx-table>…
+     * @param {Object[]} rows @returns {HTMLElement} [연계] ← weatherPart / 모양: station_briefing.css .sb-wx-table
+     */
+    function wxTable(rows) {
+        var t = el('table', 'sb-wx-table'), hd = el('thead'), hr = el('tr'), tb = el('tbody');
+        t.setAttribute('data-sb-wx-table', '');
+        ['', '천기', '파고', '풍향·풍속'].forEach(function (x, i) { var th = el('th', i ? 'sb-wx-c' + i : 'sb-wx-c0', x); th.setAttribute('scope', 'col'); hr.appendChild(th); });
+        hd.appendChild(hr); t.appendChild(hd);
+        rows.forEach(function (r) {
+            var tr = el('tr'), c = r.cells, lab = el('th', 'sb-wx-when'); lab.setAttribute('scope', 'row');
+            // 「내일 오전」 → 「내일」 / 「오전」 두 줄(때 칸을 좁게)
+            String(r.label || '').split(' ').forEach(function (w, i) { if (i) lab.appendChild(document.createElement('br')); lab.appendChild(document.createTextNode(w)); });
+            tr.appendChild(lab);
+            if (!c) { var no = el('td', 'sb-wx-none', '자료 없음'); no.colSpan = 3; tr.appendChild(no); tb.appendChild(tr); return; }
+            tr.appendChild(el('td', 'sb-wx-sky', c.sky || '—'));
+            tr.appendChild(el('td', 'sb-wx-num', c.wave || '—'));
+            var wd = el('td', 'sb-wx-wind'); wd.appendChild(document.createTextNode(c.dir || '—')); wd.appendChild(document.createElement('br')); wd.appendChild(el('b', 'sb-wx-num', c.speed || '—')); tr.appendChild(wd);
+            tb.appendChild(tr);
+        });
+        t.appendChild(tb);
+        return t;
+    }
     /**
      * (기상) 칸 — 가장 가까운 앞바다 단기 해상예보 오전·오후 두 줄 + 출처 + 특이사항(§11.10.1·§11.10.2). summaryBodyV2(§11.10.1)·summaryBodyV3(§11.10.4) 공용.
      * 2026-10-17 사용자 결정(§11.10.9): 머리 「{구역} 기상 현황」을 결론 줄(.sb-headline 「… 해상의 단계는 "평소 수준"입니다」)과 같은 모양으로 — 원문 *"그 텍스트 크기와 스타일과 동일한 크기로 그 헤더 … 경북북부앞바다 기상 현황"*.
@@ -1593,10 +1651,12 @@
      * @param {function(string,string):HTMLElement} part - 이름표 칸 만들기 @param {Object} S - summary @returns {void} [연계] ← summaryBodyV2·summaryBodyV3 / → wxNodes(줄·특이사항 칠하기 — §11.10.27)
      */
     function weatherPart(part, S) {
-        var W = S.weather || {}, wp = part('weather', null), head = function (text, key) { var h = el('p', 'sb-headline sb-wx-head', text); h.setAttribute('data-sb-wx-head', key); wp.appendChild(h); };
+        var W = S.weather || {}, wp = part('weather', null), head = function (text, key) { var h = wxHead(text, key === 'notes' ? 'notes' : 'weather'); h.setAttribute('data-sb-wx-head', key); wp.appendChild(h); };
         head((W.zone ? W.zone + ' ' : '') + '기상 현황', 'weather');
         if (!W.missing && Array.isArray(W.rows) && W.rows.length) {
-            var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); li.appendChild(document.createElement('br')); wxNodes(li, r.text); wl.appendChild(li); }); wp.appendChild(wl);   // 수치 흰 굵게(§11.10.27) · 머리말 다음 줄에서 날씨 내용(§11.10.32 — 빈칸은 <br> 앞에 남아 textContent 그대로)
+            // 서버가 칸별 값(cells — 2026-11-19)을 주면 표, 옛 판(cells 없음)은 종전 「•」 줄
+            if (W.rows.some(function (r) { return r.cells; })) wp.appendChild(wxTable(W.rows));
+            else { var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); li.appendChild(document.createElement('br')); wxNodes(li, r.text); wl.appendChild(li); }); wp.appendChild(wl); }   // 수치 흰 굵게(§11.10.27) · 머리말 다음 줄에서 날씨 내용(§11.10.32 — 빈칸은 <br> 앞에 남아 textContent 그대로)
             if (W.source) wp.appendChild(el('p', 'sb-small', W.source));
         } else { var wm = el('p', 'sb-miss', '기상예보 자료를 확인하지 못했습니다.'); wm.setAttribute('data-sb-wx-missing', ''); wp.appendChild(wm); }
         if (!W.bulletinMissing && Array.isArray(W.notes) && W.notes.length) {
@@ -1618,7 +1678,7 @@
         // (고립 주의) 줄(§11.10.3)은 물때 줄 아래 — 「과거 고립 사고(N개소 M건)」를 누르면 지점 표(§11.10.10). 「잠기는 바위(간출암) N곳」은 팝업 지도 링크(rocksLine)
         var iso = land && S.isolation && Array.isArray(S.isolation.rows) && S.isolation.rows.length ? S.isolation : null;
         if (!((Array.isArray(S.tide) && S.tide.length) || iso)) return;
-        var tp = part('tide', null), h = el('p', 'sb-headline sb-wx-head', '물때'), ul = el('ul', 'sb-list sb-tide-rows'), item = function (node) { var li = el('li'); li.appendChild(node); ul.appendChild(li); };   /* §11.10.20 덧붙임 10 — 사용자 *"물때에서 괄호는 빼자."*(「(고립 주의)」 머리는 그대로) */
+        var tp = part('tide', null), h = wxHead('물때', 'tide'), ul = el('ul', 'sb-list sb-tide-rows'), item = function (node) { var li = el('li'); li.appendChild(node); ul.appendChild(li); };   /* §11.10.20 덧붙임 10 — 사용자 *"물때에서 괄호는 빼자."*(「(고립 주의)」 머리는 그대로) */
         h.setAttribute('data-sb-tide-head', ''); tp.appendChild(h); tp.appendChild(ul);
         (S.tide || []).forEach(function (t) { item(rocksLine('sb-sum-tide', t, b)); }); if (iso) item(isolationLine(iso));
     }
@@ -2055,10 +2115,46 @@
         // §11.10.28 사용자 *"텍스트 크기 3포인트정도 크게 해줘. 그리고 볼드는 빼고 텍스트 맨앞에 당구장 표시 처럼 뭔가 나와있으면 좋겠어."* — 「※」 칸 + 글 칸(.sb-notice flex — 둘째 줄이 ※ 뒤 글자 시작에)
         var nk = el('span', 'sb-notice-k', '※'); nk.setAttribute('aria-hidden', 'true'); nt.appendChild(nk);
         var nx = el('span', 'sb-notice-t'); nt.appendChild(nx);
-        nx.textContent = '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.';   // 2026-10-18 *"한줄로 표출해주되, 어절단위로 줄바꿔줘"* — 강제 줄바꿈(br) 없이 한 문장, 넘치면 어절에서(.sb-notice keep-all)
+        nx.textContent = 'AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.';   // 2026-10-18 *"한줄로 표출해주되, 어절단위로 줄바꿔줘"* → 2026-11-19 줄바꿈 없이 한 줄 · 글자 크기를 폭에 맞춤(fitNotice) · 같은 날 *"문장을 줄이고"* — 종전 「각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, …」
         foot.appendChild(nt);
         box.appendChild(foot);
+        watchNotice(nt);   // 2026-11-19 한 줄 · 폭에 맞춰 글자 크기(fitNotice)
     }
+
+    // ── 맨 아래 안내 한 줄 맞춤 (2026-11-19 사용자 결정, 설계서 §11.10.28 의 줄바꿈 결정을 바꿈) ──
+    //   사용자 원문: *"노란색 글씨를 한줄에 들어가도록 화면의 크기에 맞춰 자동으로 텍스트 크기가 동적으로 바뀌도록 하고 싶고 또한 텍스트가 흰색이기를 바래."*
+    //   글 칸은 줄을 바꾸지 않고(.sb-notice-t nowrap), 넘치면 그만큼 글자 크기를 줄인다. 넓은 화면에서 키우지는 않는다(CSS 1.03rem 이 최대).
+    var noticeWatched = new Set();
+    var noticeRO = typeof ResizeObserver === 'function' ? new ResizeObserver(function (es) {
+        es.forEach(function (e) { if (e.target.isConnected) fitNotice(e.target); });
+    }) : null;
+
+    /**
+     * 안내 한 줄이 칸 폭에 들어가도록 글자 크기를 줄인다. 칸이 안 보이면(폭 0 — 아코디언 접힘) 아무것도 안 한다.
+     * 예: 360px 화면 — 16.5px 이면 글이 넘침 → 넘친 비율만큼 줄인 크기를 style.fontSize 에 넣는다
+     * @param {HTMLElement} nt - .sb-notice @returns {void}
+     * [연계] ← watchNotice(처음) · noticeRO(폭이 바뀔 때 — 펼침·화면 회전) · document.fonts.ready(글꼴이 늦게 오면 글자 폭이 바뀜)
+     */
+    function fitNotice(nt) {
+        nt.style.fontSize = '';
+        var tx = nt.querySelector('.sb-notice-t');
+        if (!tx || !nt.clientWidth) return;
+        // 「※」 와 사이 간격(4px — 글자 크기와 무관)이 있어 한 번에 딱 맞지 않을 수 있으니 몇 번 더 잰다
+        for (var i = 0; i < 4 && tx.scrollWidth > tx.clientWidth; i++) {
+            var fs = parseFloat(getComputedStyle(nt).fontSize), used = nt.clientWidth - tx.clientWidth + tx.scrollWidth;
+            nt.style.fontSize = (fs * nt.clientWidth / used - 0.05).toFixed(2) + 'px';
+        }
+    }
+
+    /** 안내 칸을 맞추고 폭 변화를 지켜본다. 다시 그려 떨어져 나간 칸은 놓아준다. @param {HTMLElement} nt @returns {void} [연계] ← render ⑦ */
+    function watchNotice(nt) {
+        noticeWatched.forEach(function (x) { if (!x.isConnected) { noticeWatched.delete(x); if (noticeRO) noticeRO.unobserve(x); } });
+        noticeWatched.add(nt);
+        if (noticeRO) noticeRO.observe(nt);
+        fitNotice(nt);
+    }
+    // node 안(vm)에서 이 파일의 글 만드는 함수만 불러 쓰는 검사가 있어 document 가 없을 수 있다
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(function () { noticeWatched.forEach(function (x) { if (x.isConnected) fitNotice(x); }); });
     // blinking() = 지금 깜빡이는 지도 수(시험이 접기·다시 그리기 뒤 0 인지 본다 — §11.10.3)
     w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, subtitleText: subtitleText, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, highlightSegments: highlightSegments, highlightNames: highlightNames, splitAdvice: splitAdvice, closeMapPopup: closeMapPopup, WORDS: WORDS, levelWord: levelWord, appendText: appendText, SOURCES: SOURCES, blinking: function () { return blinking; }, updateNow: updateNow, nowPopupOpen: nowPopupOpen, popupOpen: popupOpen, riskAt: riskAt, coastAt: coastAt };
 })(window);

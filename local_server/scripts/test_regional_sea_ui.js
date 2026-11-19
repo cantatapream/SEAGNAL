@@ -1,7 +1,8 @@
 /**
  * ============================================================================
  * 파일명: local_server/scripts/test_regional_sea_ui.js
- * 역할  : 지방청 단기 전망 카드의 새 모양을 실제 Chromium 으로 index2.html 전체를 띄워 본다(2026-11-19 사용자 확정).
+ * 역할  : 「지방기상청 단기 전망」 칸(2026-11-19 종전 「종합 예보」 칸 + 지방청 카드를 한 단계로)의 모양을 실제 Chromium 으로 index2.html 전체를 띄워 본다(2026-11-19 사용자 확정).
+ *         ⓪ 「AI 해상 기상 요약」 머리 = 아코디언, 「전문 보기」와 둘 중 하나만 펼침(2026-11-19 사용자 「서로 하나만」).
  *         ① 머리줄 — 이름 한 줄 + 그 아래 발표 정보, 📋 는 그 묶음의 세로 가운데·오른쪽(접기 화살표 왼쪽), 원문을 받아 둔 관서에만.
  *         ② 📋 — 누르면 원문 팝업(보기 주소·제목·「⬇ PDF」)이 열리고 카드는 접히지 않는다.
  *         ③ 「해상 기상 요약」 상자 — 기온 박스 아래. 해역별 줄(같은 해역은 이름 한 번 + 기간별 줄) + 종류별 한 줄(딱지 뒤에 글이 흐르고 둘째 줄은 들여쓰기 없이 왼쪽 끝부터,
@@ -87,13 +88,14 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             await page.waitForFunction(() => typeof window.toggleOfficeSettingsPanel === 'function' && typeof UserSettings !== 'undefined');
             await page.waitForTimeout(1500);   // marine_forecast.js 가 1.2초 뒤 종합 예보를 그린다
             await clean(page);
-            await page.waitForSelector('.regional-forecast-office', { state: 'attached' });
-            // 「기상청 해상 기상 전망」 아코디언을 실제 함수로 펼친다(한 곳이면 지방청 카드는 처음부터 펼쳐져 있다)
+            await page.waitForSelector('#regional-forecast-title .regional-forecast-office-name', { state: 'attached' });
+            // 「기상청 해상 기상 전망」 아코디언을 실제 함수로 펼친다(관심 기상청이 있으면 「지방기상청 단기 전망」 칸이 처음부터 펼쳐진다 — 2026-11-19)
             await page.evaluate(() => { const b = document.getElementById('marine-forecast-accordion-body'); if (b.classList.contains('collapsed')) window.toggleMarineForecastAccordion(); });
             await page.waitForTimeout(500);   // 펼침 + 자간 줄이기(text_fit — 보일 때 맞춘다)
-            await page.evaluate(() => document.querySelector('.regional-forecast-office').scrollIntoView({ block: 'center' }));
+            await page.evaluate(() => document.getElementById('regional-forecast-section').scrollIntoView({ block: 'center' }));
             return page;
         };
+        const SEC = '#regional-forecast-section', ICON = '#regional-forecast-section > .marine-forecast-sub-header > .marine-forecast-sub-icon';   // 「지방기상청 단기 전망」 칸(2026-11-19 — 종전 지방청 카드가 칸으로 올라왔다)
         const T = (s) => String(s).replace(/\u2060/g, '');   // 자간 줄이기(text_fit)가 낱말 안에 넣는 「줄 바꾸지 마」 표시(폭 0)를 걷는다
         const rect = (page, sel) => page.$eval(sel, (e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, h: r.height, w: r.width }; });
 
@@ -108,19 +110,19 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.equal(T(await jeju.textContent('.regional-forecast-publish-time')), '(2026.11.19 04:50 발표)');
         });
         await check('머리줄: 📋 는 이름·발표 정보 묶음의 세로 가운데·오른쪽, 접기 화살표는 그 오른쪽 끝', async () => {
-            const head = await rect(jeju, '.regional-forecast-office-head'), doc = await rect(jeju, '.regional-forecast-doc'), ic = await rect(jeju, '.regional-forecast-office-icon');
+            const head = await rect(jeju, '.regional-forecast-office-head'), doc = await rect(jeju, '.regional-forecast-doc'), ic = await rect(jeju, ICON);
             assert.ok(doc.l >= head.r - 1, '📋 가 묶음 오른쪽이 아니다');
             assert.ok(ic.l >= doc.r - 1, '화살표가 📋 오른쪽이 아니다');
             assert.ok(Math.abs((doc.t + doc.b) / 2 - (head.t + head.b) / 2) <= 2, '📋 가 묶음의 세로 가운데가 아니다: ' + JSON.stringify({ head, doc }));
             assert.equal(await jeju.textContent('.regional-forecast-doc'), '📋');
         });
-        await check('📋 를 누르면 원문 팝업(보기 주소·제목·「⬇ PDF」)이 열리고 카드는 접히지 않는다', async () => {
+        await check('📋 를 누르면 원문 팝업(보기 주소·제목·「⬇ PDF」)이 열리고 칸은 접히지 않는다', async () => {
             await jeju.click('.regional-forecast-doc');
             await jeju.waitForSelector('#kma-iframe-modal iframe');
             assert.equal(await jeju.$eval('#kma-iframe-modal iframe', (f) => new URL(f.src).pathname), '/api/bulletin-doc/fax_wcmt_202611190450_184_37/view');
             assert.ok(/제주지방기상청 날씨해설 제11-37호/.test(T(await jeju.textContent('#kma-iframe-modal .kma-iframe-header'))));
             assert.ok(await jeju.$('#kma-iframe-modal .kma-iframe-download'), '「⬇ PDF」 버튼이 없다');
-            assert.ok(await jeju.$eval('.regional-forecast-office', (o) => o.classList.contains('open')), '카드가 접혔다');
+            assert.ok(await jeju.$eval(SEC, (o) => o.classList.contains('open')), '칸이 접혔다');
             await jeju.screenshot({ path: path.join(SHOT, 'sea_412_modal.png') });
             await jeju.evaluate(() => { const m = document.getElementById('kma-iframe-modal'); if (m) m.remove(); });
         });
@@ -166,66 +168,82 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.equal(await jeju.$('.regional-forecast-sea img'), null);
             assert.ok(/<img src=x/.test(T(await jeju.$$eval('.regional-forecast-sea .rf-sea-ln', (els) => els[els.length - 1].textContent))));   // 너울 줄(맨 끝)
         });
-        await jeju.$eval('.regional-forecast-office', (e) => e.scrollIntoView());
+        await jeju.$eval(SEC, (e) => e.scrollIntoView());
         // 「전문 보기」 접는 줄(사용자 2026-11-19 오후 「1안」) — 요약이 있는 지방청은 전문을 접어 두고, 누르면 아래로 펼친다
         await check('전문 접기: 요약이 있으면 전문은 접힌 채 시작하고 「제주지방기상청 단기 전망 전문 보기」 줄이 요약 상자 아래에 있다', async () => {
             const st = await jeju.evaluate(() => { const b = document.querySelector('.regional-forecast-full-btn'), f = document.querySelector('.regional-forecast-summary'); return { text: b.textContent.replace(/⁠/g, '').replace(/\s+/g, ' ').trim(), exp: b.getAttribute('aria-expanded'), shown: getComputedStyle(f).display, next: b.nextElementSibling === f, prev: b.previousElementSibling.className, w: b.getBoundingClientRect().width, cw: document.querySelector('.regional-forecast-sea').getBoundingClientRect().width }; });
             assert.equal(st.text, '📄 제주지방기상청 단기 전망 전문 보기'); assert.equal(st.exp, 'false'); assert.equal(st.shown, 'none');
             assert.ok(st.next && /regional-forecast-sea/.test(st.prev) && Math.abs(st.w - st.cw) < 2, JSON.stringify(st));
         });
-        await check('전문 접기: 누르면 펼쳐지고 글자가 「전문 접기」로 바뀐다 · 카드는 접히지 않는다 · 다시 누르면 접힌다 · 화면을 다시 그려도 펼친 채로', async () => {
+        await check('전문 접기: 누르면 펼쳐지고 글자가 「전문 접기」로 바뀐다 · 칸은 접히지 않는다 · 「AI 해상 기상 요약」은 접힌다 · 다시 누르면 접힌다 · 화면을 다시 그려도 펼친 채로', async () => {
             await jeju.click('.regional-forecast-full-btn');
-            const a = await jeju.evaluate(() => { const b = document.querySelector('.regional-forecast-full-btn'), f = document.querySelector('.regional-forecast-summary'); return { text: b.textContent.replace(/⁠/g, '').replace(/\s+/g, ' ').trim(), exp: b.getAttribute('aria-expanded'), shown: getComputedStyle(f).display, lines: f.querySelectorAll('.regional-forecast-line').length, card: document.querySelector('.regional-forecast-office').classList.contains('open'), over: [...f.querySelectorAll('.regional-forecast-line')].filter((l) => l.scrollWidth > l.clientWidth + 1).length }; });
+            const a = await jeju.evaluate(() => { const b = document.querySelector('.regional-forecast-full-btn'), f = document.querySelector('.regional-forecast-summary'); return { text: b.textContent.replace(/⁠/g, '').replace(/\s+/g, ' ').trim(), exp: b.getAttribute('aria-expanded'), shown: getComputedStyle(f).display, lines: f.querySelectorAll('.regional-forecast-line').length, card: document.getElementById('regional-forecast-section').classList.contains('open'), seaClosed: document.querySelector('.regional-forecast-sea').classList.contains('rf-sea-closed'), over: [...f.querySelectorAll('.regional-forecast-line')].filter((l) => l.scrollWidth > l.clientWidth + 1).length }; });
             assert.equal(a.text, '📄 제주지방기상청 단기 전망 전문 접기'); assert.equal(a.exp, 'true'); assert.notEqual(a.shown, 'none');
             assert.ok(a.lines > 3 && a.card && a.over === 0, JSON.stringify(a));
+            assert.equal(a.seaClosed, true, '전문을 펴면 요약이 접혀야 한다(2026-11-19 사용자): ' + JSON.stringify(a));
             await jeju.evaluate(() => loadRegionalForecast()); await jeju.waitForTimeout(600);
             assert.equal(await jeju.$eval('.regional-forecast-full-btn', (b) => b.classList.contains('open') + ':' + getComputedStyle(b.nextElementSibling).display !== 'true:none' && b.classList.contains('open')), true);
-            await (await jeju.$('.regional-forecast-office')).screenshot({ path: path.join(SHOT, 'sea_412_full_open.png') });
+            assert.equal(await jeju.$eval('.regional-forecast-sea', (e) => e.classList.contains('rf-sea-closed')), true, '다시 그린 뒤 요약이 다시 펼쳐졌다');
+            await (await jeju.$(SEC)).screenshot({ path: path.join(SHOT, 'sea_412_full_open.png') });
             await jeju.click('.regional-forecast-full-btn');
             assert.equal(await jeju.$eval('.regional-forecast-summary', (f) => getComputedStyle(f).display), 'none');
             assert.equal(T(await jeju.textContent('.regional-forecast-full-btn .rf-full-verb')), '보기');
         });
-        await check('머리줄: 누르면 카드가 접히고 다시 누르면 펴진다 — 명령 글자(onclick)를 달지 않고 리스너로(관서 번호를 글자에 끼우지 않는다) · 📋 를 눌러도 접히지 않는다', async () => {
-            assert.equal(await jeju.$$eval('.regional-forecast-office-header', (hs) => hs.filter((h) => h.hasAttribute('onclick')).length), 0);
-            const open = () => jeju.$eval('.regional-forecast-office', (c) => c.classList.contains('open'));
-            const hit = () => jeju.$eval('.regional-forecast-office-name', (e) => e.click());   // 머리줄 안의 이름을 누른다(위에 붙은 머리띠에 가리지 않게 DOM 으로)
+        await check('AI 해상 기상 요약 ↔ 전문: 요약 머리를 누르면 요약이 펴지고 전문은 접힌다 · 펼친 쪽을 누르면 그쪽만 접힌다(2026-11-19 사용자 「서로 하나만」)', async () => {
+            const st = () => jeju.evaluate(() => ({ sea: !document.querySelector('.regional-forecast-sea').classList.contains('rf-sea-closed'), full: document.querySelector('.regional-forecast-full-btn').classList.contains('open'),
+                exp: document.querySelector('.rf-sea-ttl').getAttribute('aria-expanded'), body: getComputedStyle(document.querySelector('.rf-sea-body')).display }));
+            assert.deepStrictEqual(await st(), { sea: false, full: false, exp: 'false', body: 'none' });   // 앞 시험이 전문을 접은 뒤 — 둘 다 접힘
+            await jeju.$eval('.rf-sea-ttl', (e) => e.click());
+            assert.deepStrictEqual(await st(), { sea: true, full: false, exp: 'true', body: 'block' });
+            await jeju.click('.regional-forecast-full-btn');
+            assert.deepStrictEqual(await st(), { sea: false, full: true, exp: 'false', body: 'none' });
+            await jeju.$eval('.rf-sea-ttl', (e) => e.click());
+            assert.deepStrictEqual(await st(), { sea: true, full: false, exp: 'true', body: 'block' });
+            await jeju.$eval('.rf-sea-ttl', (e) => e.click());
+            assert.deepStrictEqual(await st(), { sea: false, full: false, exp: 'false', body: 'none' });
+            await jeju.$eval('.rf-sea-ttl', (e) => e.click());   // 다음 시험을 위해 요약을 펴 둔다
+        });
+        await check('칸 머리: 누르면 「지방기상청 단기 전망」 칸이 접히고 다시 누르면 펴진다 — 명령 글자에 관서 번호를 끼우지 않는다 · 📋 를 눌러도 접히지 않는다', async () => {
+            assert.equal(await jeju.$eval('#regional-forecast-section > .marine-forecast-sub-header', (h) => /\d{3}/.test(h.getAttribute('onclick') || '')), false);
+            const open = () => jeju.$eval(SEC, (c) => c.classList.contains('open'));
+            const hit = () => jeju.$eval('#regional-forecast-title .regional-forecast-office-name', (e) => e.click());   // 머리 안의 이름을 누른다(위에 붙은 머리띠에 가리지 않게 DOM 으로)
             assert.equal(await open(), true);
             await hit(); assert.equal(await open(), false);
-            assert.equal(await jeju.$eval('.regional-forecast-office-body', (b) => getComputedStyle(b).display), 'none');
             await hit(); assert.equal(await open(), true);
             await jeju.$eval('.regional-forecast-doc', (b) => b.click()); assert.equal(await open(), true);
             await jeju.evaluate(() => { const m = document.querySelector('.kma-iframe-modal, #kma-iframe-modal'); if (m) m.remove(); });
         });
-        await (await jeju.$('.regional-forecast-office')).screenshot({ path: path.join(SHOT, 'sea_412_ok.png') });
+        await (await jeju.$(SEC)).screenshot({ path: path.join(SHOT, 'sea_412_ok.png') });
 
         const narrow = await device('184', 360);
-        await check('좁은 폭(360px)에서도 이름은 한 줄 · 📋·화살표가 밀려나지 않는다 · 상자가 카드 밖으로 안 나간다', async () => {
-            const nm = await rect(narrow, '.regional-forecast-office-name'), card = await rect(narrow, '.regional-forecast-office'), doc = await rect(narrow, '.regional-forecast-doc'), ic = await rect(narrow, '.regional-forecast-office-icon'), sea = await rect(narrow, '.regional-forecast-sea');
+        await check('좁은 폭(360px)에서도 이름은 한 줄 · 📋·화살표가 밀려나지 않는다 · 상자가 칸 밖으로 안 나간다', async () => {
+            const nm = await rect(narrow, '.regional-forecast-office-name'), card = await rect(narrow, SEC), doc = await rect(narrow, '.regional-forecast-doc'), ic = await rect(narrow, ICON), sea = await rect(narrow, '.regional-forecast-sea');
             const lh = await narrow.$eval('.regional-forecast-office-name', (e) => parseFloat(getComputedStyle(e).fontSize) * 1.5);
             assert.ok(nm.h <= lh * 1.3, '이름이 두 줄');
             assert.ok(doc.r <= ic.l + 1 && ic.r <= card.r + 1, JSON.stringify({ doc, ic, card }));
             assert.ok(sea.l >= card.l && sea.r <= card.r + 1, JSON.stringify({ sea, card }));
             assert.ok(await narrow.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), '가로로 넘친다');
         });
-        await (await narrow.$('.regional-forecast-office')).screenshot({ path: path.join(SHOT, 'sea_360_ok.png') });
+        await (await narrow.$(SEC)).screenshot({ path: path.join(SHOT, 'sea_360_ok.png') });
 
         const none = await device('143');
         await check('바다 얘기가 없는 날: 상자는 그대로 두고 「해상 기상 내용이 포함되어 있지 않습니다.」 · 원문이 없는 관서는 📋 가 없다', async () => {
+            assert.equal(await none.$eval('.regional-forecast-sea', (e) => e.classList.contains('rf-sea-closed')), false, '처음엔 요약이 펼쳐져 있어야 한다');
             assert.equal(T(await none.textContent('.regional-forecast-sea .rf-sea-none')), '해상 기상 내용이 포함되어 있지 않습니다.');
             assert.ok(await none.$eval('.regional-forecast-sea', (e) => e.classList.contains('off')));
             assert.equal(await none.$('.regional-forecast-sea .rf-sea-zone'), null);
             assert.equal(await none.$('.regional-forecast-doc'), null);
-            const head = await rect(none, '.regional-forecast-office-head'), ic = await rect(none, '.regional-forecast-office-icon');
+            const head = await rect(none, '.regional-forecast-office-head'), ic = await rect(none, ICON);
             assert.ok(ic.l >= head.r - 1, '화살표가 묶음 오른쪽이 아니다');
         });
-        await (await none.$('.regional-forecast-office')).screenshot({ path: path.join(SHOT, 'sea_412_none.png') });
+        await (await none.$(SEC)).screenshot({ path: path.join(SHOT, 'sea_412_none.png') });
 
         const raw = await device('159');
         await check('요약을 못 만든 날(raw): 상자를 아예 그리지 않는다(사용자 2026-11-19 오후) — 카드의 나머지(본문)는 그대로', async () => {
             assert.equal(await raw.$('.regional-forecast-sea'), null);
-            assert.ok((await raw.$$('.regional-forecast-office .regional-forecast-line')).length > 0);
+            assert.ok((await raw.$$('#regional-forecast-body .regional-forecast-line')).length > 0);
         });
-        await (await raw.$('.regional-forecast-office')).screenshot({ path: path.join(SHOT, 'sea_412_raw.png') });
+        await (await raw.$(SEC)).screenshot({ path: path.join(SHOT, 'sea_412_raw.png') });
 
         await check('전문 접기: 요약이 없는 때(바다 내용 없음·요약 못 만듦·옛 자료)는 접는 줄이 없고 전문이 바로 보인다', async () => {
             for (const [nm, pg] of [['없음', none], ['못 만듦', raw]]) {

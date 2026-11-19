@@ -8,8 +8,8 @@
 | 파일 | 역할 | 주요 함수 |
 |------|------|-----------|
 | `forecast.js` | 해상예보 테이블, 정보 팝업(해구별/특보/조석) | `degreeToWindDir`, `tmToKstDate`, `formatWaveHeight`, `getMidTermDisplayName`, `getMidTermRegId`, `midTermWeatherToEmoji` |
-| `marine_forecast.js` | 기상청 해상 기상 전망 데이터 로드 및 렌더링 | `renderCategoryHtml`, `escapeHtml`, `renderForecastSection`, `_isMeaningfulText`, `loadMarineForecast`, `applyMarineForecastDefaultExpansion` |
-| `windy.js` | Windy 팝업, 상태 카드 시스템 | `showWindyPopup`, `getSeaRegion`, `renderBuoyButtonsForStatus`, `renderOtherButtonsForStatus`, `renderMarineWeatherStatus`, `createStatusCard` |
+| `marine_forecast.js` | 기상청 해상 기상 전망 데이터 로드 및 렌더링 | `renderCategoryHtml`, `escapeHtml`, `renderForecastSection`, `_isMeaningfulText`, `loadMarineForecast`, `applyMarineForecastDefaultExpansion`, `openOnlyMarineForecastSub`, `setRegionalHeader`, `renderRegionalForecast`, `bindRegionalFold` |
+| `windy.js` | Windy 팝업, 상태 카드 시스템 | `showWindyPopup`, `getSeaRegion`, `renderBuoyButtonsForStatus`, `renderOtherButtonsForStatus`, `renderMarineWeatherStatus`, `createStatusCard` — 펼쳐 둔 중분류는 다시 그려도 펼친 채로(`_openStatusSubRegion`, 2026-11-19) |
 
 ## 로드 순서
 
@@ -115,7 +115,7 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
   줄 규칙은 본문과 같다(어절 단위 `word-break:keep-all` · `textFit` 자간 줄이기). 딱지 색 = `SEA_CHIP`(특보 가능성·이안류·해일 빨강 · 천둥·번개 노랑 · 너울 보라 · 조고·**해제 예고** 초록 · 바다 안개 회색).
   「해제 예고」 딱지(2026-11-19 오후 추가): 바다 글에 「충남앞바다(해제예고: 19일 밤(21~24시))」가 있으면 서버가 요약에 꼭 싣게 한다 — 운영 「시험 요약」에서 그 말이 빠진 요약이 통과한 것을 사용자가 보고 「둘다 진행」. 상세 = ⑲ 「해제 예고」 절.
 - **「분포도」 줄**: 서버가 뺀다(`regional_bulletin_collector.dropFigureCaption` — 새로 받는 글은 수집 때, 이미 저장된 글은 `/api/regional-forecast` 가 내려줄 때).
-- **머리줄 누르기**(2026-11-19 오후): 카드를 접고 펴는 연결을 `onclick="toggleRegionalOffice('번호')"` 글자에서 리스너로 바꿨다(눌린 머리줄이 든 카드를 바로 찾는다 — 관서 번호를 명령 글자에 끼우지 않는다). 사용자 *"지금 해봐 그럼 4번에 대해서"*. 보이는 변화 없음. `window.toggleRegionalOffice` 는 남겨 둔다(다른 데서 부를 수 있게).
+- **머리줄 누르기**(2026-11-19 오후): 카드를 접고 펴는 연결을 `onclick="toggleRegionalOffice('번호')"` 글자에서 리스너로 바꿨다(눌린 머리줄이 든 카드를 바로 찾는다 — 관서 번호를 명령 글자에 끼우지 않는다). 사용자 *"지금 해봐 그럼 4번에 대해서"*. 보이는 변화 없음. `window.toggleRegionalOffice` 는 남겨 두었다가 — 2026-11-19 「종합 예보」 칸을 없애며 카드가 사라져 지웠다(아래 「해상 기상 전망 안쪽 칸」).
 - **「전문 보기」 접는 줄**(`.regional-forecast-full-btn`, 2026-11-19 오후): 요약이 있는(`state:'ok'`) 지방청은 전문(본문)을 접어 두고 「📄 ○○지방기상청 단기 전망 전문 보기 ⌄」 줄을 누르면 아래로 펼친다(「전문 접기 ⌃」).
   사용자: *"요약 아래 전문이 나오는데 그 전문은 닫아놓은 상태로 … [00지방기상청 단기 전망 전문 보기] 누르면 아래로 펼쳐지면서 내용이 나왔으면 좋겠는데 버튼은 아코디언 형식으로"* · *"요약을 만들지 못했을때는 지금처럼 그냥 전문이 바로 표출되도록"* · (시안 셋 가운데) *"1안이 좋겠어"*(머리줄 같은 접는 줄).
   요약이 없는 때(못 만듦 `raw` · 아직 전 · 「바다 내용 없음」 `none`)는 줄 없이 전문이 바로 보인다 — `none` 도 전문 바로(사용자 확정 2026-11-19: *"3-전문으로바로보이고"*). 펼친 지방청은 주기 갱신으로 다시 그려도 펼친 채(`regionalFullOpen`). 시험 = `test_regional_sea_ui`(접힌 채 시작·누르기·다시 그리기·요약 없는 세 경우).
@@ -126,6 +126,20 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 - 실제 Gemma 로 불러 봄(2026-11-19, 임시 키 — ⑲): 5~15초 · 걸러 낸 답은 모두 실제로 틀린 답(해역 빼먹음·숫자 빼먹음·이름 틀림). 「수요 과다」가 잦다.
 - ⚠확인 못 한 것: 실제 휴대폰 앱 · Gemini 등 순서 쪽 AI 가 요약하는 길(임시 키로는 그 모델이 안 불렸다). 운영에서는 관리자 ⑥ 칸 「시험 요약」으로 본다.
 - `index2.html` 의 `style.css`·`marine_forecast.js` 버전 꼬리표를 `SeaSum_20261119` 로 올렸다(옛 CSS 에 새 화면이 얹히지 않게). 해제 예고 딱지를 넣으며 `marine_forecast.js` 만 `SeaSum_20261119b`.
+
+## 해상 기상 전망 안쪽 칸 — 「종합 예보」 칸 없앰 · 하나만 펼침 · 기본값 · 요약↔전문 (2026-11-19 사용자 확정)
+
+> *"굳이 종합예보라고 되어있을 필요가 없잖아 ? 어차피 지방기상청은 1개만 선택가능한 것이니. 따라서 종합예보 는 없애고 제주지방기상청 단기전망을 종합 예보 수준으로 올려야해."*
+> *"기상청 해상기상전망 아코디언 안에서도 마찬가지로 아코디언이 한개 이상 켜지지 않도록 해주고 또한 기본적으로 지방기상청 단기전망부터 켜지도록 하되, 지방기상청을 선택하지 않은 사람은 초단기전망과 단기전망 중 발표가 최신인것을 먼저 켜지도록 해줘."*
+> *"지방기상청 전망에서 전문 보기로 켰을 떄에는 AI 해상기상요약은 접히도록 해줘. … "AI 해상 기상 요약" 부분 헤더는 아코디언으로 만들어야 할 것이야."*
+> 질문 답: 기본값은 *"앱을 껏다켰을 때도 기본값부터. 단, 앱을 끄지 않았을 떄에는 마지막으로 펼쳐둔칸 기준"* · 요약↔전문은 「서로 하나만」 · 미설정자 칸 제목 「지방기상청 단기 전망」.
+
+- **한 단계로**: 종전 「종합 예보 (1개 지방청)」 칸 안에 지방청 카드(머리줄 + 본문)가 또 있었다. 이제 `#regional-forecast-section` 칸 머리가 곧 「○○지방기상청 단기 전망 / (발표 시각)」 + 📋 다(`setRegionalHeader` — 종전 카드 머리줄 모양 그대로, 글자 색만 옆 칸과 같게). 본문(기온 · AI 해상 기상 요약 · 전문)은 칸 몸통에 바로 그린다(`renderRegionalForecast`). 관심 기상청이 없거나 자료가 없으면 제목은 「지방기상청 단기 전망」. 지방청 카드용 `window.toggleRegionalOffice` 와 카드 CSS 는 쓸 곳이 없어 지웠다.
+- **하나만 펼침**(`toggleMarineForecastSub` → `openOnlyMarineForecastSub`): 지방청 · 초단기 · 단기 중 하나를 펴면 나머지가 접힌다. 펼친 칸을 다시 누르면 그 칸만 접힌다.
+- **기본값**(`applyMarineForecastDefaultExpansion`): 앱을 켜고 처음 한 번 — 관심 기상청이 있으면(직접 고름·옛 기기 관심해역 자동 대응 포함, `getRelevantOfficeCodes`) 지방청 칸, 없으면 초단기·단기 중 `reportId` 발표 시각이 최신인 칸(둘 다 모르면 지방청 칸 — 그 안에 [설정하기]). 사용자가 안쪽 칸을 직접 누른 뒤에는 다시 정하지 않는다(그래서 다른 큰 아코디언을 펼쳤다가 돌아와도 마지막 칸 그대로). 값은 메모리에만 있어 앱을 다시 켜면 기본값부터. 관심 기상청 [완료] 뒤에는 지방청 칸을 펼친다. `index2.html` 의 세 칸은 모두 접힌 채 시작한다.
+- **AI 해상 기상 요약 ↔ 전문**(`bindRegionalFold`, 상태 `regionalFold`): 「🌊 AI 해상 기상 요약」 머리가 아코디언(⌄)이다. 처음엔 요약 펼침 · 전문 접힘. 「전문 보기」를 펴면 요약이 접히고, 요약을 다시 펴면 전문이 접힌다(펼친 쪽을 누르면 그쪽만 접힘). 다시 그려도(주기 갱신) 그대로 — 앱을 다시 켜면 요약 펼침으로. 「바다 내용 없음」 상자도 머리를 눌러 접을 수 있다(전문 접는 줄은 없다).
+- 큰 아코디언 4개 「하나만 펼침」은 `../main-accordion/README.md`.
+- 회귀 시험: `test_regional_sea_ui`(칸 머리·📋·요약↔전문) · `test_forecast_gear_ui` ⑥(하나만·기본값·다시 켜면 기본값).
 
 ## 줄 정렬 (2026-11-18 사용자 확정 — 저장소 NOTICE.md 「줄 정렬」)
 

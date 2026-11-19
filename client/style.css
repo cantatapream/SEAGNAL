@@ -3531,13 +3531,58 @@ line-height: 1.1;
     font-size: 1rem;
 }
 
-/* 게시글 상세 보기 모달 */
+/* 게시글 상세 보기 모달
+   [2026-11-19 사용자 확정 시안 — artifact 6qqYwX14Hotmb3zz7JAi3i] 머리(제목·날짜, 고정) · 몸통(본문·반응·댓글 목록, 이 칸만 스크롤) ·
+   발(댓글 입력, 고정) 세 칸. 바깥 상자는 스크롤하지 않는다(종전: 상자 전체 + 본문 안 칸이 따로 스크롤 — 좌우 여백이 이중으로 생겼다). */
 .promo-modal-content {
     max-width: 800px;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
+.promo-detail-head {
+    flex: none;
+    padding: 12px 6px 8px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.promo-detail-head-row { display: flex; align-items: flex-start; gap: 6px; }
+.promo-detail-title { margin: 0; flex: 1; min-width: 0; font-size: 1.2rem; font-weight: 700; color: #fff; line-height: 1.35; word-break: keep-all; overflow-wrap: break-word; text-align: left; }
+.promo-detail-close { flex: none; width: 40px; height: 40px; margin-top: -6px; padding: 0; background: none; border: none; font-size: 1.8rem; line-height: 1; color: #94a3b8; cursor: pointer; }
+.promo-detail-head .promo-meta-info { padding: 2px 10px 0 0; }
+.promo-detail-views { display: inline-flex; align-items: center; gap: 4px; }
+.promo-detail-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 14px 16px 14px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+/* 반응 줄 — 「댓글 0개」가 있던 자리: ❤️👍😮 + 오른쪽 끝 작은 「작성 가이드라인」 */
+.promo-detail-reaction-row { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.promo-detail-reaction-row .promo-reactions-wrap { margin-bottom: 0; }
+.comment-guideline-slot { margin-left: auto; flex: none; }
+.comment-guideline-mini { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 2px; background: none; border: none; color: #4fc3f7; font-size: 0.72rem; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.comment-guideline-mini .comment-guideline-arrow { margin-left: 2px; }
+#promo-detail-comments .comment-section { margin-top: 6px; border-top: 0; padding-top: 0; }
+/* 발 — 댓글 입력(늘 아래 고정). 댓글을 못 쓰는 글이면 비어 숨는다 */
+.promo-detail-comment-footer { flex: none; padding: 8px 10px 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0, 0, 0, 0.18); }
+.promo-detail-comment-footer:empty { display: none; }
+.promo-detail-comment-footer .comment-input-wrap { background: none; border: 0; border-radius: 0; padding: 0; }
+.promo-detail-comment-footer .comment-input-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.promo-detail-comment-footer .comment-secret-label { margin-left: auto; min-height: 32px; font-size: 0.8rem; color: #cbd5e1; }
+.promo-detail-comment-footer .comment-secret-label input[type="checkbox"] { width: 16px; height: 16px; }
+.comment-input-row { display: flex; align-items: stretch; gap: 8px; }
+.comment-textarea-box { position: relative; flex: 1; min-width: 0; }
+/* 입력창 높이 = 종전(약 3줄)의 1/3 — 「댓글 입력창의 영역 상하를 1/3로」. 글자 수는 입력창 안 오른쪽 아래 */
+.promo-detail-comment-footer .comment-textarea { display: block; height: 42px; min-height: 42px; max-height: 132px; overflow-y: hidden; resize: none; padding: 10px 46px 10px 10px; box-sizing: border-box; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere; }
+/* 글이 칸을 넘으면 줄바꿈되고 입력창이 줄 수만큼 높아진다(최대 132px ≈ 6줄, 넘으면 안에서 스크롤 — promo_comment3.js autoGrowCommentTextarea, 2026-11-19 사용자).
+   오른쪽 여백 46px 은 오른쪽 아래 글자 수(0/500)와 글이 겹치지 않게. 등록 단추는 입력창 아래쪽에 붙어 있게 한다 */
+.promo-detail-comment-footer .comment-input-row { align-items: flex-end; }
+.promo-detail-comment-footer .comment-submit-btn { height: 42px; }
+.promo-detail-comment-footer .comment-char-count { position: absolute; right: 8px; bottom: 4px; font-size: 0.66rem; pointer-events: none; }
+.promo-detail-comment-footer .comment-submit-btn { flex: none; justify-content: center; min-width: 68px; padding: 0 14px; border-radius: 10px; }
 
 .promo-meta-info {
     display: flex;
@@ -3554,8 +3599,7 @@ line-height: 1.1;
 }
 
 .promo-content-view {
-    overflow-y: auto;
-    max-height: 60vh;
+    /* 본문 안에서 따로 스크롤하지 않는다 — 몸통(.promo-detail-scroll)이 통째로 스크롤(2026-11-19) */
     color: #cbd5e1;
     line-height: 1.8;
 }
@@ -3565,6 +3609,18 @@ line-height: 1.1;
 .ql-editor img {
     max-width: 100%;
     height: auto;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+/* 게시글 화면의 유튜브(편집기 「동영상」 버튼으로 넣은 iframe.ql-video) — 화면 좌우 너비를 꽉 채우고 16:9 비율로 (2026-11-19 사용자 요청)
+   크기를 정하지 않으면 iframe 기본값(300×150)으로 작게 보였다. [연계] promo.js openPromoDetail(#promo-detail-content.promo-content-view) */
+.promo-content-view iframe.ql-video {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    border: 0;
     border-radius: 8px;
     margin: 10px 0;
 }
@@ -3819,14 +3875,26 @@ line-height: 1.1;
     }
 
     .promo-modal-content {
-        width: calc(100% - 32px);
-        max-width: 500px;
-        margin: 16px auto;
+        /* 좌우를 거의 다 쓴다 — 「좌우 영역까지 게시글이 꽉 차서」(2026-11-19, 종전 양옆 16px·최대 500px) */
+        width: calc(100% - 12px);
+        max-width: 800px;
+        margin: 6px auto;
         border-radius: 16px;
         max-height: calc(100vh - 80px);
         height: auto;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     }
+
+    /* 키보드 대응(2026-11-19 사용자 지적 — 댓글 입력 때 머리가 밀려 올라가 상태표시줄 밑까지 넘어감):
+       promo.js fitPromoDetailToViewport 가 바깥 칸(#promo-detail-modal)을 「보이는 화면」(키보드 뺀 나머지)에 맞추고,
+       창 높이는 vh(전체 화면 — 키보드가 떠도 그대로) 대신 바깥 칸 기준으로 잡는다.
+       위 여백은 상태표시줄 높이(safe-area) 이상 — 종전 위아래 40px 그대로를 기본으로. */
+    #promo-detail-modal {
+        box-sizing: border-box;
+        padding: max(40px, env(safe-area-inset-top, 0px)) 0 40px;
+    }
+    #promo-detail-modal .promo-modal-content { max-height: 100%; }
+    #promo-detail-modal.promo-kb-open { padding-bottom: 6px; }
 
     .promo-editor-modal-content {
         width: 100%;
@@ -3835,11 +3903,12 @@ line-height: 1.1;
         border-radius: 0;
         max-height: 100vh;
         height: 100%;
+        /* 화면을 꽉 채우므로 머리(「글 수정」·댓글 허용·닫기)가 휴대폰 상태표시줄 밑으로 들어가지 않게 그 높이만큼 띄운다
+           (2026-11-19 사용자 — 앱 머리말 .main-header 와 같은 env(safe-area-inset-top)). */
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top, 0px);
     }
 
-    .promo-content-view {
-        max-height: calc(100vh - 200px);
-    }
 }
 
 /* =========================================
@@ -5417,18 +5486,6 @@ line-height: 1.1;
  * 종합 예보 (지방기상청 단기예보)
  * ============================================================================ */
 
-.regional-forecast-office {
-    margin-bottom: 16px;
-    padding: 12px 14px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 10px;
-}
-
-.regional-forecast-office:last-child {
-    margin-bottom: 0;
-}
-
 .regional-forecast-office-name {
     font-size: 0.88rem;
     font-weight: 700;
@@ -5450,13 +5507,12 @@ line-height: 1.1;
  *   본문이 닫혀있어도 그 자리에 빈 공간이 남는 시각적 문제 발생.
  *   하단 separator 류는 .open 상태에서만 적용해 닫힘 상태가 깔끔하게 보이도록 한다.
  * ============================================================================ */
-.regional-forecast-office-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    user-select: none;
-}
+/* [2026-11-19 사용자 「종합예보 는 없애고 제주지방기상청 단기전망을 종합 예보 수준으로」] 지방청 카드 머리줄이 곧
+   「지방기상청 단기 전망」 칸(.marine-forecast-sub-header) 머리다 — 제목 묶음은 남은 폭을 다 쓰고, 📋·접기 화살표는 오른쪽 가운데.
+   글자 색·크기는 옆 칸(초단기·단기 전망) 제목과 같게(종전 카드 안에서는 파란 글씨였다). */
+#regional-forecast-section > .marine-forecast-sub-header { gap: 8px; }
+#regional-forecast-title { flex: 1; min-width: 0; }
+#regional-forecast-title .regional-forecast-office-name { color: inherit; font-size: inherit; font-weight: inherit; }
 /* 머리줄 왼쪽 묶음(2026-11-19 사용자): 이름 한 줄 + 그 아래 발표 정보. 📋 와 접기 화살표는 이 묶음의 세로 가운데·오른쪽 */
 .regional-forecast-office-head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .regional-forecast-office-head .regional-forecast-office-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -5480,11 +5536,18 @@ line-height: 1.1;
 .badge-trend-down { color: #34d399; }
 .regional-forecast-sea.off { background: rgba(148, 163, 184, 0.06); border-color: rgba(148, 163, 184, 0.22); }
 .rf-sea-ttl { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 0.8rem; font-weight: 700; color: #7dd3fc; }
+/* 「AI 해상 기상 요약」 머리 = 아코디언(2026-11-19 사용자) — 누르면 아래 .rf-sea-body 를 접고 편다. 「전문 보기」와 둘 중 하나만 펼침(marine_forecast.js bindRegionalFold) */
+.rf-sea-ttl { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.rf-sea-icon { margin-left: auto; font-size: 0.7rem; color: inherit; transition: transform 0.2s; flex: 0 0 auto; }
+.rf-sea-by + .rf-sea-icon { margin-left: 6px; }
+.regional-forecast-sea:not(.rf-sea-closed) .rf-sea-icon { transform: rotate(180deg); }
+.regional-forecast-sea.rf-sea-closed .rf-sea-body { display: none; }
+.regional-forecast-sea.rf-sea-closed .rf-sea-ttl { margin-bottom: 0; }
 .regional-forecast-sea.off .rf-sea-ttl { color: #94a3b8; margin-bottom: 4px; }
 .rf-sea-by { margin-left: auto; font-size: 0.64rem; font-weight: 500; color: #64748b; white-space: nowrap; }
 .rf-sea-none { font-size: 0.78rem; color: #94a3b8; word-break: keep-all; }
 .rf-sea-zone { padding: 7px 0; border-top: 1px solid rgba(148, 163, 184, 0.12); }
-.rf-sea-ttl + .rf-sea-zone { border-top: 0; padding-top: 0; }   /* 제목 바로 밑 첫 해역에는 구분선을 긋지 않는다 */
+.rf-sea-body > .rf-sea-zone:first-child { border-top: 0; padding-top: 0; }   /* 제목 바로 밑 첫 해역에는 구분선을 긋지 않는다 */
 .rf-sea-zn { font-size: 0.8rem; font-weight: 700; color: #93c5fd; line-height: 1.35; word-break: keep-all; overflow-wrap: break-word; }
 .rf-sea-zv { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 3px; font-size: 0.78rem; color: #cbd5e1; }
 .rf-sea-zv .per { color: #e2e8f0; }
@@ -5498,26 +5561,6 @@ line-height: 1.1;
 .rf-sea-chip.purple { background: rgba(167, 139, 250, 0.15); border: 1px solid rgba(167, 139, 250, 0.5); color: #c4b5fd; }
 .rf-sea-chip.green { background: rgba(52, 211, 153, 0.13); border: 1px solid rgba(52, 211, 153, 0.45); color: #6ee7b7; }
 .rf-sea-chip.grey { background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.5); color: #cbd5e1; }
-.regional-forecast-office.open .regional-forecast-office-header {
-    margin-bottom: 10px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-}
-.regional-forecast-office-icon {
-    margin-left: auto;
-    font-size: 0.75rem;
-    color: #94a3b8;
-    transition: transform 0.2s ease;
-}
-.regional-forecast-office.open .regional-forecast-office-icon {
-    transform: rotate(180deg);
-}
-.regional-forecast-office-body {
-    display: none;
-}
-.regional-forecast-office.open .regional-forecast-office-body {
-    display: block;
-}
 
 .regional-forecast-summary {
     margin-bottom: 8px;
@@ -7712,20 +7755,6 @@ line-height: 1.1;
     cursor: not-allowed;
 }
 
-/* ── 댓글 비활성화 안내 (관리자에게만 보이는 안내) */
-.comment-disabled-notice {
-    font-size: 0.78rem;
-    color: #f59e0b;
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    border-radius: 8px;
-    padding: 6px 12px;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
 /* ── 에디터 댓글 허용 토글 슬라이더 */
 .comment-toggle-switch {
     display: inline-flex;
@@ -8826,6 +8855,12 @@ html[data-font-size="large"] .ocean-overlay-label[data-line1]::before {
 }
 html[data-font-size="large"] .ocean-overlay-label[data-line2]::after {
     content: attr(data-line2);
+}
+/* 「내 위치」(#ocean-myloc-btn·#ls-gps-btn) — 큰 텍스트 모드에서도 한 줄(2026-11-19 사용자 「항상 한줄로. 필요시 텍스트 크기를 들어갈정도로 조정」).
+   0.7rem 이면 「내 위치」(띄어쓰기 포함 4칸)가 기본맵 버튼 폭(48px)을 조금 넘어 버튼이 넓어진다 → 이 버튼만 글자를 줄여 폭을 맞춘다. */
+html[data-font-size="large"] .ocean-myloc-btn .ocean-overlay-label[data-line1]::before {
+    font-size: 0.6rem;
+    white-space: nowrap;
 }
 /* 버튼 자체의 padding/gap 도 큰 모드에서는 좀 더 압축 — 텍스트 영역 확보 */
 html[data-font-size="large"] .ocean-overlay-btn {

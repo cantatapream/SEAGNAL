@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 156 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 159 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -419,7 +419,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_bulletin_docs` | 통보문 원문 보관(services/bulletin_docs) 검사 — 발자취에 든 통보문의 PDF 를 받아 쪽 그림으로 바꿔 두고, |
 | `test_bulletin_escalation` | 격상 가능성(services/bulletin_escalation) 검사 — 통보문 참고사항·날씨해설에서 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」의 |
 | `test_regional_sea_summary` | 지방청 단기 전망 「해상 기상 요약」 검사 — 바다 항목 뽑기(규칙) · AI 답의 원문 대조(check) · 요약 흐름(없음/요약됨/원문 그대로) · |
-| `test_regional_sea_ui` | 지방청 단기 전망 카드의 새 모양을 실제 Chromium 으로 index2.html 전체를 띄워 본다(2026-11-19 사용자 확정). |
+| `test_regional_sea_ui` | 「지방기상청 단기 전망」 칸(2026-11-19 종전 「종합 예보」 칸 + 지방청 카드를 한 단계로)의 모양을 실제 Chromium 으로 index2.html 전체를 띄워 본다(2026-11-19 … |
 | `test_zone_trend_ui` | 특보 카드 뱃지의 오르내림 화살표를 실제 화면(Chromium)으로 본다. |
 | `test_bulletin_compare` | MMIS ↔ 통보문 비교 기록(services/bulletin_compare) · 메인 출처 전환 버튼(client/js/forecast/alerts/alert_source_toggle.js) 검사… |
 | `test_bulletin_ai_live` | 참고사항 AI 실시간 해석(services/bulletin_ai_live) + 통보문 기준 특보현황 덧씌움(bulletin_status.applyAi) 검사. |
@@ -427,6 +427,9 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_subscriber_audit` | 2026-11-18: 관리자 센터 「푸시 알림 구독자」가 명단 줄 수(등록표 개수)여서 |
 | `test_push_master_keep` | 2026-11-18: 폰 알림 권한이 허용돼 있으면 앱을 켤 때마다 "푸시 알림 받기"(master)를 |
 | `test_wheel_date_picker` | 날짜칸을 누르면 휠 선택기가 뜨고, 고른 값이 칸에 제대로 들어가는지 |
+| `test_promo_youtube_shorts` | 2026-11-19: 게시글 편집기 「동영상」(필름 모양) 버튼에 쇼츠 주소를 넣으면 Quill 1.3.6 이 |
+| `test_promo_detail_ui` | 공지사항 게시글 상세 팝업의 새 모양(2026-11-19 사용자 확정 시안)을 실제 Chromium 으로 index2.html 전체를 띄워 본다. |
+| `test_promo_detail_keyboard` | 2026-11-19 사용자 지적: 게시글 상세에서 댓글 입력창을 누르면 머리(제목)가 위로 밀려 올라가고 본문이 |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.
