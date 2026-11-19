@@ -17,13 +17,17 @@
  *   ② 없는 것은 기상청 공개 폴더에서 PDF 를 받아 둔다(PDF 로 답했을 때만 — 그 서버는 없는 파일에도 200 text/html 로 답한다. 못 받으면 다음 분에 다시).
  *   ③ pdftoppm 으로 쪽마다 PNG 를 만든다(여러 장이면 1.png, 2.png …). 변환기가 없으면 PDF 만 둔다 — 팝업은 종전 길(바깥 PDF·본문 글)로 보인다.
  *   ④ 있어야 할 것에 없는 열쇠의 파일은 지운다(생애주기 끝).
+ * 지방청 날씨해설 원문(2026-11-19 사용자 「4.원문보기 반영」 — 지방청 단기 전망 카드의 📋): 같은 공개 폴더의 「fax_wcmt_<발표시각>_<관서>_<호>.pdf」.
+ *   통보문 발자취와 따로 맞춘다(syncExtra) — 있어야 할 것 = 지방청 7곳의 지금 통보문(regional_bulletin_collector.docKeyOf). 새 발표가 나오면 앞의 것을 지운다.
+ *   방재기상플랫폼 로그인과 무관하다(특보 통보문 쪽 sync 는 관찰기가 켜져 있을 때만 돈다 — 이쪽은 지방청 수집이 끝날 때마다).
  * MMIS 코드와 엮지 않는다(사용자 「mmis와 엮이면 안될 것」) — 공개 파일을 한 번 받을 뿐 로그인·API 는 쓰지 않는다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/bulletin_status(read — trails) · services/bulletin_watch(bulletins — 그림 이름) · 바깥 프로그램 pdftoppm(Dockerfile 의 poppler-utils)
  *  - 저장          : data/bulletin_docs/<열쇠>.pdf · <열쇠>-<쪽>.png
  *  - 나를 쓰는 곳  : scheduler.js(통보문 기준 계산·격상 가능성 계산 다음 매분 sync — 안내 통보문도 extra 로) · routes/weather.js(GET /api/zone-bulletins 가 그림 주소를 붙임 · GET /api/bulletin-doc/… 가 파일을 내려줌) ·
- *                   검사 scripts/test_bulletin_docs.js
+ *                   regional_bulletin_collector.js(syncDocs → syncExtra — 지방청 날씨해설 원문) · routes/weather.js(GET /api/regional-forecast 가 doc 주소를 붙임)
+ *                   검사 scripts/test_bulletin_docs.js · scripts/test_regional_sea_summary.js(날씨해설 쪽)
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
  */
@@ -33,7 +37,9 @@ const { execFile } = require('child_process');
 
 const DIR = path.join(__dirname, '..', 'data', 'bulletin_docs');
 const PDF_BASE = 'https://marine.kma.go.kr/resources/kmas/C5N_DATA/WRN/PDF/';
-const KEY_RE = /^KTKO5\d_\d{12}_\d+_\d+$/;
+const KEY_RE = /^(?:KTKO5\d|fax_wcmt)_\d{12}_\d+_\d+$/;   // 특보·예비특보 통보문(KTKO5x) · 지방청 날씨해설(fax_wcmt)
+// 보관소 파일 이름에서 그 집안(family)의 열쇠를 꺼내는 식 — 생애주기가 끝난 것을 지울 때, 자기 집안 파일만 본다(특보 통보문 쪽이 날씨해설을, 날씨해설 쪽이 통보문을 지우지 않게)
+const FILE_RE = { bulletin: /^(KTKO5\d_\d{12}_\d+_\d+)(?:\.pdf|\.pdf\.tmp|(?:\.part)?-\d+\.png)$/, wcmt: /^(fax_wcmt_\d{12}_\d+_\d+)(?:\.pdf|\.pdf\.tmp|(?:\.part)?-\d+\.png)$/ };
 const DPI = 130;   // 휴대폰 화면 폭(약 1,080점)에 A4 한 쪽이 꽉 차는 크기(1,075×1,520쯤). 실측 2026-11-18: 한 쪽 0.3초·30만 바이트 안팎
 const KST = (s) => Date.parse(String(s).slice(0, 19).replace(' ', 'T') + '+09:00');
 
@@ -81,11 +87,11 @@ function realConvert(pdfFile, prefix) {
 /**
  * 원문 보관소를 만든다. 검사에서는 받기(fetchPdf)·바꾸기(convert)·저장 위치(dir)를 바꿔 끼운다.
  * @param {{dir?:string, fetchPdf?:function, convert?:function}} [o]
- * @returns {{sync:function, pages:function, file:function}}
+ * @returns {{sync:function, syncExtra:function, pages:function, file:function}}
  * [연계] ← 모듈 기본(운영) / 검사 test_bulletin_docs
  */
 function createDocs({ dir = DIR, fetchPdf = realFetch, convert = realConvert } = {}) {
-    let running = false;
+    const running = {};   // 집안 → 도는 중
     const ls = () => { try { return fs.readdirSync(dir); } catch (_) { return []; } };
     /** 그 열쇠의 쪽 그림 번호들(1부터, 빠짐없이 이어진 만큼). 예: ['K-1.png','K-2.png'] → [1,2] */
     const pagesIn = (files, key) => {
@@ -103,12 +109,30 @@ function createDocs({ dir = DIR, fetchPdf = realFetch, convert = realConvert } =
      * @returns {Promise<{need:number, fetched:number, converted:number, waiting:number, removed:number, skipped?:boolean}>} waiting = PDF 가 아직 안 올라온 것
      * [연계] ← scheduler.js(매분) / → fetchPdf · convert
      */
-    async function sync({ trails, bulletins, extra }) {
+    function sync(a) {
+        const { trails, bulletins, extra } = a || {};
+        // 통보문 자료가 하나도 없으면 지우지 않는다 — 특보가 다 끝난 것이 아니라 자료를 못 읽은 것이다(관찰기는 통보문을 10일 기억한다).
+        //   없으면: 관찰기 상태 파일을 한 번 못 읽으면 보관소를 통째로 비우고 다음 분에 전부 다시 받는다.
+        return apply('bulletin', () => needed(trails, bulletins || [], extra), !!(bulletins || []).length);
+    }
+    /**
+     * 지방청 날씨해설 원문을 맞춘다 — 넘겨받은 목록(지방청마다 지금 통보문 하나)을 받아 그림으로 바꾸고, 목록에 없는 앞선 날씨해설을 지운다. 절대 던지지 않는다.
+     * 예: await syncExtra([{ key:'fax_wcmt_202611190450_184_37', url:'https://marine.kma.go.kr/…/fax_wcmt_202611190450_184_37.pdf' }, …])
+     *   목록이 비면 지우지 않는다(지방청 자료를 못 읽은 것 — 통보문 쪽과 같은 까닭).
+     * @param {Array<{key:string, url:string}>} docs @returns {Promise<object>} sync 와 같은 모양
+     * [연계] ← scheduler.js(지방청 단기 전망 수집이 끝날 때마다) / 열쇠·주소는 regional_bulletin_collector.docKeyOf
+     */
+    function syncExtra(docs) {
+        const list = (docs || []).filter((d) => d && FILE_RE.wcmt.test(String(d.key) + '.pdf') && typeof d.url === 'string');
+        return apply('wcmt', () => new Map(list.map((d) => [d.key, d.url])), !!list.length);
+    }
+    /** 한 집안(family)을 맞춘다 — 받기·바꾸기·지우기. 집안마다 따로 잠근다(통보문 쪽이 도는 동안 날씨해설 쪽이 건너뛰지 않게). */
+    async function apply(family, getNeed, prune) {
         const stat = { need: 0, fetched: 0, converted: 0, waiting: 0, removed: 0 };
-        if (running) return Object.assign(stat, { skipped: true });
-        running = true;
+        if (running[family]) return Object.assign(stat, { skipped: true });
+        running[family] = true;
         try {
-            const need = needed(trails, bulletins || [], extra);
+            const need = getNeed();
             stat.need = need.size;
             fs.mkdirSync(dir, { recursive: true });
             let files = ls();
@@ -140,17 +164,15 @@ function createDocs({ dir = DIR, fetchPdf = realFetch, convert = realConvert } =
                     console.warn('[bulletin_docs] 원문 받기·그림 바꾸기 실패(다음 분에 다시) — ' + key + ':', String((e && e.message) || e).split('\n')[0]);
                 }
             }
-            // 생애주기가 끝난 원문을 지운다 — 발자취에 없는 열쇠의 파일(끝나지 못한 임시 파일 포함)
-            //   통보문 자료가 하나도 없으면 지우지 않는다 — 특보가 다 끝난 것이 아니라 자료를 못 읽은 것이다(관찰기는 통보문을 10일 기억한다).
-            //   없으면: 관찰기 상태 파일을 한 번 못 읽으면 보관소를 통째로 비우고 다음 분에 전부 다시 받는다.
-            files = (bulletins || []).length ? ls() : [];
+            // 생애주기가 끝난 원문을 지운다 — 있어야 할 것에 없는 열쇠의 파일(끝나지 못한 임시 파일 포함). 자기 집안 파일만.
+            files = prune ? ls() : [];
             for (const f of files) {
-                const m = f.match(/^(KTKO5\d_\d{12}_\d+_\d+)(?:\.pdf|\.pdf\.tmp|(?:\.part)?-\d+\.png)$/);
+                const m = f.match(FILE_RE[family]);
                 if (m && !need.has(m[1])) { try { fs.unlinkSync(path.join(dir, f)); stat.removed++; } catch (_) { /* 이미 없으면 지울 것도 없다 */ } }
             }
         } catch (e) {
             console.warn('[bulletin_docs] 맞추기 실패:', e && e.message);
-        } finally { running = false; }
+        } finally { running[family] = false; }
         return stat;
     }
 
@@ -168,7 +190,7 @@ function createDocs({ dir = DIR, fetchPdf = realFetch, convert = realConvert } =
         const f = files.find((x) => { const m = x.match(/^(.+)-(\d+)\.png$/); return m && m[1] === key && +m[2] === n; });
         return f ? path.join(dir, f) : null;
     }
-    return { sync, pages, file };
+    return { sync, syncExtra, pages, file };
 }
 
 let real = null;
@@ -176,6 +198,7 @@ const getReal = () => (real = real || createDocs());
 
 module.exports = {
     sync: (a) => getReal().sync(a),
+    syncExtra: (d) => getReal().syncExtra(d),
     pages: (k) => getReal().pages(k),
     file: (k, w) => getReal().file(k, w),
     createDocs, docOf, needed, KEY_RE, DPI,

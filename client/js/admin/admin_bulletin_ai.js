@@ -21,6 +21,9 @@
  *  - 서버 API      : GET·POST /api/admin/bulletin-ai/config (routes/bulletin_watch.js → services/bulletin_ai.js)
  *  - 마크업        : 없음(switchAiSubTab 이 준 상자에 그린다)
  *  - 나를 쓰는 곳  : admin.js switchAiSubTab('bulletinAi') → window.renderBulletinAiAdmin
+ *  - ⑥ 해상 기상 요약(2026-11-19): 지방청 단기 전망의 바다 얘기를 줄인다 — 「먼저 Gemma」 줄(처음부터 켜짐) + 순서 + 「시험 요약」(POST /api/admin/bulletin-ai/try-sea-summary — 지금 설정대로 그 지방청 글을 요약해 보고
+ *    누가 답했는지·원문 대조에 걸린 까닭·걸린 시간을 보인다. 저장하지 않는다. 사용자 「젬마로 요약을 실제 해봐야 하겠는걸 ?」)
+ *  - Gemma(2026-11-19): ③ 색칠 칸 맨 위 「먼저 Gemma」 줄(쓰지 않음|Gemma 두 모델 — 못 하면 아래 순서대로) + 「시험 호출」(POST /api/admin/bulletin-ai/try-model) + 마지막 Gemma 결과 표시
  * [로드 순서] admin.js 뒤(index2.html — admin_station_briefing.js 다음)
  * ============================================================================
  */
@@ -35,11 +38,14 @@
         forecast: ['③ 해상 기상 전망 색칠', '메인 화면 「기상청 해상 기상 전망」(초단기·단기·지방청)의 지역·수치·위험 표현에 색을 입힙니다. 운영에서 바로 쓰이며, 새로 들어온 전망부터 적용됩니다.'],
         briefing: ['④ 연안 안전 브리핑', '파출소 관할 97곳의 연안·해상 분석 문단을 씁니다. 칸마다 정한 횟수만큼 시도하고(검사에 떨어진 관할만 다시), 안 되면 다음 순위로 — 끝까지 안 되면 서버 규칙 분석. 「AI 분석」 켜기·끄기는 AI 브리핑 탭에서.'],
         // 2026-11-19 사용자 「관리자페이지에서 어떤 ai 쓸건지 결정하는 부분도 ui 만들어야」 — 서버 services/bulletin_escalation.js
-        escalation: ['⑤ 격상 가능성 읽기', '통보문 참고사항·기상청 날씨해설의 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」 문장 가운데 규칙이 해역·시점을 읽지 못한 것만 묻습니다(메인 화면 특보구역 카드의 🔺 표시). AI 답은 그 문장에 글자 그대로 있는 해역일 때만 쓰입니다.']
+        escalation: ['⑤ 격상 가능성 읽기', '통보문 참고사항·기상청 날씨해설(본청 단기·초단기 전망)의 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」 문장 가운데 규칙이 해역·시점을 읽지 못한 것만 묻습니다(메인 화면 특보구역 카드의 🔺 표시). AI 답은 그 문장에 글자 그대로 있는 해역일 때만 쓰입니다.'],
+        // 2026-11-19 사용자 「2.순서 - 전용칸 6」 — 서버 services/regional_sea_summary.js
+        seasummary: ['⑥ 해상 기상 요약', '메인 화면 지방청 단기 전망 카드의 「해상 기상 요약」 상자를 만듭니다(바다 얘기만 — 해역별 바람·물결과 너울·안개·조고·특보 가능성 등). 답의 숫자·해역 이름이 원문에 없으면 그 답은 버리고 다음 순위로 넘어가며, 끝까지 안 되면 원문의 바다 항목을 그대로 보입니다. 바다 얘기가 없는 글에는 AI 를 부르지 않습니다.'],
     };
     var RUNNER = { fly: 'Fly 서버', vm: 'VM' };
     var state = null;
     var busy = false;   // 저장 요청 중 — 낡은 순서로 겹쳐 보내 앞 저장을 덮지 않게 다른 누름을 막는다(독립 검토)
+    var seaTrial = { office: '', text: '', color: '', busy: false };   // ⑥ 「시험 요약」 — 고른 지방청·마지막 결과·도는 중(다른 칸을 만져 다시 그려도 남게 — 별도 에이전트 검토 2026-11-19)
     var box = null;     // 지금 그리는 상자 — 다른 하위 탭으로 바뀌어 상자가 빠졌으면 늦은 응답이 그 탭을 덮지 않게
 
     /** 요소 하나(글은 textContent). 예: el('div','color:red','저장됨'). @returns {HTMLElement} [연계] ← 이 파일 */
@@ -56,6 +62,58 @@
         var b = el('button', 'background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;padding:2px 8px;font-size:0.8rem;cursor:pointer', text);
         if (dis) { b.disabled = true; b.style.opacity = '0.35'; b.style.cursor = 'default'; } else b.addEventListener('click', onClick);
         return b;
+    }
+
+    /**
+     * ③ 해상 기상 전망 색칠 · ⑥ 해상 기상 요약의 「먼저 Gemma」 줄 — 고르면 Gemma 를 먼저 부르고, Gemma 가 색칠하지 못하면 아래 순서(관리자가 정한 AI)대로 이어서 부른다.
+     *   사용자 2026-11-19: 「젬마가 색칠하는 기능을 넣자 … 젬마가 색칠할 수 없는 문제, 한도 초과, 서버 붐빔 등 문제가 있다면 그때 내가 선택한 api가 호출하여 색칠하도록 하자.」
+     *   고르기(쓰지 않음|Gemma 두 모델) · 「시험 호출」(지금 고른 Gemma, 안 골랐으면 기본 Gemini 모델) · 마지막 Gemma 결과(날짜·시각, 서버를 올린 뒤 성공·실패 횟수).
+     * @returns {HTMLElement} [연계] ← drawFeature / → save(gemma) · tryModel
+     */
+    function gemmaRow(f, cfg, ch, host) {
+        var row = el('div', 'display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:7px 8px;border-radius:8px;background:#0b1220;margin-bottom:6px;border:1px dashed #334155');
+        row.setAttribute('data-bai-gemma-row', f);
+        row.appendChild(el('span', 'color:#fbbf24;font-weight:800;min-width:20px', '먼저'));
+        row.appendChild(el('span', 'color:#e2e8f0;font-weight:700;min-width:60px', 'Gemma'));
+        var opts = [''].concat(ch.gemma.models);
+        var gsel = sel(opts, cfg.gemma || '', function (v) { return v || '쓰지 않음'; }, function (v) { save(f, { gemma: v }, host); });
+        gsel.style.maxWidth = '230px';
+        gsel.setAttribute('data-bai-gemma', f);
+        row.appendChild(gsel);
+        var out = el('div', 'flex-basis:100%;font-size:0.75rem;color:#94a3b8;word-break:break-all', '');
+        out.setAttribute('data-bai-try-out', f);
+        var tryBtn = btn('시험 호출', function () { tryModel(gsel.value || (ch.gemma.tryModels && ch.gemma.tryModels[0]) || '', out); });   // 지금 화면에 고른 값(안 골랐으면 기본 Gemini 모델 — 그 모델이 아직 불리는지 볼 때)
+        tryBtn.setAttribute('data-bai-try', f);
+        row.appendChild(tryBtn);
+        var act = f === 'seasummary' ? '요약' : '색칠';   // ③ 은 색칠, ⑥ 은 요약
+        row.appendChild(el('div', 'flex-basis:100%;font-size:0.75rem;color:#94a3b8', 'Gemma 가 ' + act + '하지 못하면(오류·한도 초과·수요 과다·못 쓰는 답) 아래 순서대로 이어서 부릅니다.'));
+        // 마지막 Gemma 결과 — 날짜·시각과 서버를 올린 뒤 누적 횟수를 함께(「마지막 한 번」만 보이면 절반이 실패해도 초록으로 보인다). 기록은 서버 메모리에만 있다.
+        var last = state.gemma && state.gemma[f];
+        var when = function (ms) { return new Date(ms).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+        var tally = last ? ' · 서버를 올린 뒤 성공 ' + (last.okCount || 0) + ' · 실패 ' + (last.failCount || 0) : '';
+        if (last && last.ok === false) { out.style.color = '#f87171'; out.textContent = '마지막 Gemma ' + act + ' 실패(' + when(last.at) + ') → 아래 순서의 AI 가 대신 ' + act + '함 — ' + (last.error || '') + tally; }
+        else if (last && last.ok) { out.style.color = (last.failCount || 0) > 0 ? '#fbbf24' : '#34d399'; out.textContent = '마지막 Gemma ' + act + ' 성공(' + when(last.at) + ') · ' + last.model + tally; }
+        else if (cfg.gemma) out.textContent = 'Gemma 를 골랐지만 서버를 올린 뒤 아직 부른 기록이 없습니다 — 「시험 호출」로 되는지 먼저 확인하세요.';
+        row.appendChild(out);
+        return row;
+    }
+
+    /**
+     * 「시험 호출」 — 그 모델을 짧은 지시문으로 한 번 불러 보고 결과를 그 줄 아래에 적는다(설정은 안 바뀐다).
+     * 예: tryModel('gemma-4-31b-it', outEl) → outEl 에 「성공 812ms — {"해역":"동해중부먼바다",…}」 또는 「실패 — …」
+     * @param {string} model @param {HTMLElement} out 결과를 적을 곳
+     * [연계] ← gemmaRow(③ 「먼저 Gemma」 줄) → POST /api/admin/bulletin-ai/try-model
+     */
+    function tryModel(model, out) {
+        out.style.color = '#94a3b8';
+        out.textContent = model + ' 부르는 중…';
+        fetch('/api/admin/bulletin-ai/try-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model }) })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                out.style.color = j && j.ok ? '#34d399' : '#f87171';
+                out.textContent = j && j.ok ? '시험 성공 ' + j.ms + 'ms · ' + j.model + ' — ' + j.text : '시험 실패 · ' + model + ' — ' + ((j && j.error) || '응답 없음');
+            })
+            .catch(function (e) { out.style.color = '#f87171'; out.textContent = '시험 실패 — ' + (e && e.message); });
     }
 
     /**
@@ -77,6 +135,63 @@
             .catch(function (e) { busy = false; host.style.opacity = ''; draw(host, '네트워크 오류: ' + (e && e.message)); });
     }
 
+    /**
+     * ⑥ 해상 기상 요약의 「시험 요약」 줄 — 지방청을 골라 누르면 그 지방청의 지금 통보문을 지금 설정(먼저 Gemma → 순서)대로 요약해 본다(저장하지 않는다).
+     *   결과: 누가 답했나 · 걸린 시간 · 요약(해역별 줄·종류별 한 줄) 또는 못 만든 까닭(원문 대조에 걸린 까닭 포함) · AI 에게 준 바다 글.
+     *   사용자 2026-11-19: 「젬마로 요약을 실제 해봐야 하겠는걸 ?」 — 작업 환경에는 AI 키가 없어 운영 키로 여기서 본다.
+     * @returns {HTMLElement} [연계] ← drawFeature / → POST /api/admin/bulletin-ai/try-sea-summary
+     */
+    function seaTrialRow() {
+        var row = el('div', 'display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:7px 8px;border-radius:8px;background:#0b1220;margin-bottom:6px;border:1px dashed #334155');
+        row.setAttribute('data-bai-sea-row', '1');
+        var offices = state.seaOffices || [];
+        var osel = sel(offices.map(function (o) { return o.code; }), seaTrial.office || (offices[0] && offices[0].code), function (v) { var o = offices.filter(function (x) { return x.code === v; })[0]; return o ? o.name : v; }, function (v) { seaTrial.office = v; });
+        osel.setAttribute('data-bai-sea-office', '1');
+        row.appendChild(osel);
+        var out = el('pre', 'flex-basis:100%;margin:0;font-size:0.74rem;color:#94a3b8;white-space:pre-wrap;word-break:break-all;font-family:inherit',
+            !offices.length ? '서버가 지방청 목록을 주지 않았습니다(서버가 옛 판) — 서버를 새로 올린 뒤 다시 여세요.' : seaTrial.text || '지방청을 골라 「시험 요약」을 누르면 지금 설정대로 요약해 봅니다(저장하지 않음 · 수십 초 걸릴 수 있음).');
+        out.setAttribute('data-bai-sea-out', '1');
+        if (offices.length && seaTrial.text) out.style.color = seaTrial.color;
+        // 결과는 seaTrial 에 두고, 그때 화면에 있는 결과 칸에 적는다(누른 뒤 다른 칸을 만져 다시 그려졌어도 새 칸에 나온다)
+        var show = function (color, text) { seaTrial.color = color; seaTrial.text = text; var o = document.querySelector('[data-bai-sea-out]'); if (o) { o.style.color = color; o.textContent = text; } };
+        var done = function () { seaTrial.busy = false; var t = document.querySelector('[data-bai-sea-try]'); if (t) t.disabled = false; };
+        var b = btn('시험 요약', function () {
+            if (seaTrial.busy) return;   // 도는 중에는 다시 부르지 않는다(운영 키로 나가는 AI 호출이다)
+            seaTrial.busy = true; seaTrial.office = osel.value; b.disabled = true;
+            show('#94a3b8', '요약하는 중 … (수십 초 걸릴 수 있습니다)');
+            fetch('/api/admin/bulletin-ai/try-sea-summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ office: osel.value }) })
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                    done();
+                    if (!j || !j.ok) { show('#f87171', '시험 실패 — ' + ((j && j.error) || '응답 없음')); return; }
+                    var r = j.result || {}, L = [], color = '#94a3b8';
+                    var tried = (r.tried || []).map(function (t) { return t.id + (t.ok ? ' 성공' : ' 실패(' + (t.error || '') + ')'); }).join(' → ');
+                    if (r.state === 'ok') {
+                        color = '#34d399';
+                        L.push('요약됨 · 답한 AI: ' + r.by + ' · ' + j.ms + 'ms' + (tried ? ' · 시도: ' + tried : ''));
+                        (r.zones || []).forEach(function (z) { L.push('  [해역] ' + z.zone + ' | ' + z.period + ' | 바람 ' + (z.wind || '-') + ' m/s | 물결 ' + (z.wave || '-') + ' m'); });
+                        (r.notes || []).forEach(function (n) { L.push('  [' + n.kind + '] ' + n.text); });
+                    } else if (r.state === 'none') {
+                        L.push('이 글에는 바다 항목이 없습니다 — AI 를 부르지 않았습니다(화면에는 「해상 기상 내용이 포함되어 있지 않습니다.」).');
+                    } else {
+                        color = '#f87171';
+                        L.push('요약하지 못함(화면에는 원문의 바다 항목이 그대로 나갑니다) · ' + j.ms + 'ms — ' + (r.error || '') + (tried ? ' · 시도: ' + tried : ''));
+                    }
+                    if ((r.reasons || []).length) L.push('원문 대조에 걸린 까닭: ' + r.reasons.join(' / '));
+                    if ((r.dropped || []).length) L.push('쓰인 답에서 버리거나 고친 것: ' + r.dropped.join(' / '));
+                    // 답은 왔는데 못 쓴 AI 는 그 답 전체를 보인다(오류 문구는 앞 120자뿐이라 까닭을 알 수 없었다 — 2026-11-19 운영 시험)
+                    (r.tried || []).forEach(function (t) { if (!t.ok && t.raw) L.push('', '── ' + t.id + ' 가 낸 답(못 쓴 답 · 앞 4,000자까지) ──', t.raw); });
+                    if (j.seaText) L.push('', '── AI 에게 준 바다 글 ──', j.seaText);
+                    show(color, L.join('\n'));
+                })
+                .catch(function (e) { done(); show('#f87171', '시험 실패 — ' + (e && e.message)); });
+        }, !offices.length || seaTrial.busy);
+        b.setAttribute('data-bai-sea-try', '1');
+        row.appendChild(b);
+        row.appendChild(out);
+        return row;
+    }
+
     /** 한 기능의 순서 목록 카드. [연계] ← draw */
     function drawFeature(host, f) {
         var cfg = state.config[f], ch = state.choices, workers = state.workers || {};
@@ -84,6 +199,8 @@
         card.setAttribute('data-bai-feature', f);
         card.appendChild(el('div', 'font-weight:800;color:#e2e8f0;margin-bottom:2px', FEAT[f][0]));
         card.appendChild(el('div', 'color:#94a3b8;font-size:0.78rem;margin-bottom:10px', FEAT[f][1]));
+        if (ch.gemma && ch.gemma.features.indexOf(f) >= 0) card.appendChild(gemmaRow(f, cfg, ch, host));   // ③⑥: 먼저 Gemma
+        if (f === 'seasummary') card.appendChild(seaTrialRow());   // ⑥: 시험 요약
         var vis = cfg.order.filter(function (id) { return cfg.removed.indexOf(id) < 0; });
         var hid = cfg.order.filter(function (id) { return cfg.removed.indexOf(id) >= 0; });
         var stOf = {}; (state.status || []).forEach(function (s) { stOf[s.id] = s; });
@@ -164,6 +281,7 @@
         drawFeature(host, 'forecast');
         if (state.config.briefing) drawFeature(host, 'briefing');   // ④ — 옛 서버(briefing 없음)면 그리지 않는다
         if (state.config.escalation) drawFeature(host, 'escalation');   // ⑤ — 옛 서버면 그리지 않는다
+        if (state.config.seasummary) drawFeature(host, 'seasummary');   // ⑥ — 옛 서버면 그리지 않는다
     }
 
     /**

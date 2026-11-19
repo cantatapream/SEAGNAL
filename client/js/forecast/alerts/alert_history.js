@@ -480,7 +480,7 @@ window.showZoneBulletins = function (zoneName) {
  * 통보문 한 건 DOM — 발표시각 + 제목. 누르면: 우리 서버에 받아 둔 원문 그림(b.viewUrl)이 있으면 그 페이지를 모달에, 없으면 원문 PDF(b.pdfUrl)·날씨누리(b.webUrl) 모달,
  *   그것도 없고 본문 글(b.sections — 통보문 기준)이 있으면 그 자리에서 펼친다.
  * 예: { time:'2026.11.18 16:00', reportNo:'제11-51호', title:'풍랑주의보 발표', sections:[{label:'해당 구역', text:'…'}] } → 「제11-51호 풍랑주의보 발표 · 11.18 16:00」
- * @param {{time, title, reportNo?, childOnly?, national?, sections?, viewUrl?, pdfUrl?, webUrl?}} b  GET /api/zone-bulletins 의 한 줄
+ * @param {{time, title, reportNo?, childOnly?, national?, sections?, viewUrl?, downloadUrl?, pdfUrl?, webUrl?}} b  GET /api/zone-bulletins 의 한 줄
  * @returns {HTMLElement}
  * [연계] ← showZoneBulletins(이 파일) / 서버 services/bulletin_status.zoneBulletins(통보문 기준) · routes/weather.js(종전 방식)
  */
@@ -552,8 +552,10 @@ function createZoneBulletinItem(b) {
             var url = b.viewUrl ? b.viewUrl : b.webUrl
                 ? b.webUrl
                 : (canShowPdfInline() ? b.pdfUrl + '#navpanes=0&view=FitH' : 'https://docs.google.com/gview?embedded=true&url=' + encodeURIComponent(b.pdfUrl));   // #… = 쪽 미리보기 칸을 접고 폭에 맞춤(브라우저 PDF 보기 옵션)
+            //   머리줄 「PDF」 버튼(사용자 2026-11-19) — 우리 서버에 받아 둔 원문(downloadUrl)이 있으면 그것, 없으면 기상청 원문 주소. 예비특보 웹 페이지(webUrl)만 있는 줄에는 없다.
+            var dlUrl = b.downloadUrl || b.pdfUrl;
             if (typeof window.openKmaIframeModal === 'function') {
-                window.openKmaIframeModal(url, modalTitle);
+                window.openKmaIframeModal(url, modalTitle, dlUrl ? { download: { url: dlUrl, name: modalTitle.replace(/[\\/:*?"<>|]/g, ' ') + '.pdf' } } : undefined);
             } else {
                 window.open(b.webUrl || b.pdfUrl, '_blank');
             }

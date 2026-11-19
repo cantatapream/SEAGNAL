@@ -6,7 +6,8 @@
  * [연계]
  *  - 사용하는 파일 : shared/utils/utils.js(trackUsage) · settings/settings.js(UserSettings.hasInterestZones — 관심해역 골랐나) ·
  *                   core/config.js(getTopOffice) · core/backbutton.js(PopupStack — 설정 팝업 뒤로가기)
- *  - 서버 API      : GET /api/marine-forecast · /api/regional-forecast
+ *  - 서버 API      : GET /api/marine-forecast · /api/regional-forecast(지방청마다 summary · temperature · seaSummary{state:'ok'|'none'|'raw', zones, notes, lines} ·
+ *                   doc{title, viewUrl, downloadUrl} — 원문을 받아 둔 관서만. 2026-11-19 「해상 기상 요약」 상자 · 머리줄 📋)
  *  - 마크업        : #marine-forecast-accordion-header/body · #regional-office-settings-btn(머리 오른쪽 ⚙) ·
  *                   #ultra-short-forecast-body · #short-term-forecast-body · #regional-forecast-title/body ·
  *                   #office-settings-panel(관심 기상청 설정 팝업 — 이 파일이 만든다)
@@ -886,10 +887,17 @@ function renderRegionalForecast(data) {
         const openClass = openCodes.has(item.officeCode) ? ' open' : '';
         html += `<div class="regional-forecast-office${openClass}" data-office-code="${escapeHtml(item.officeCode || '')}">`;
         html += `<div class="regional-forecast-office-header" onclick="toggleRegionalOffice('${escapeHtml(item.officeCode || '')}')">`;
+        // [머리줄 — 2026-11-19 사용자 「제주지방기상청 단기 전망을 한줄로 표현하고 그 아래줄에 발표정보를 줄바꿈하여 기록. 통보문 버튼을 그 오른쪽(… 헤더 박스의 중앙 오른쪽에 배치」]
+        //   왼쪽 = 이름 한 줄 + 그 아래 발표 정보 / 오른쪽 가운데 = 📋(원문을 받아 둔 관서만) · 접기 화살표
         // [헤더 라벨] "단기예보" → "단기 전망" — list.do [해설] 통보문 본문 기반으로 변경되었음을 반영
+        html += `<div class="regional-forecast-office-head">`;
         html += `<span class="regional-forecast-office-name">${escapeHtml(item.officeName)} 단기 전망</span>`;
         if (publishLabel) {
             html += `<span class="regional-forecast-publish-time">(${escapeHtml(publishLabel)} 발표)</span>`;
+        }
+        html += `</div>`;
+        if (regionalDocOf(item)) {
+            html += `<button type="button" class="regional-forecast-doc" data-doc-office="${escapeHtml(item.officeCode || '')}" title="기상청 원문 보기(그림 포함)">📋</button>`;
         }
         html += `<i class="fa-solid fa-chevron-down regional-forecast-office-icon"></i>`;
         html += `</div>`;
@@ -927,6 +935,22 @@ function renderRegionalForecast(data) {
             html += `</div>`;
         }
 
+        // [해상 기상 요약] 기온 박스 아래 — 바다 얘기만(서버 services/regional_sea_summary 가 만들어 둔 것)
+        //   상자를 그리다 실패해도(자료 꼴이 어긋남) 카드의 나머지는 그린다 — 없으면: 요약 자료 한 칸이 어긋났을 때 본문·기온·다른 지방청까지 전부 「불러오지 못했습니다」로 바뀐다(별도 에이전트 검토 2026-11-19)
+        let seaHtml = '';
+        try { seaHtml = seaSummaryHtml(item.seaSummary); } catch (e) { console.warn('[해상 기상 요약] 상자를 그리지 못함:', e && e.message); }
+        html += seaHtml;
+        // [전문 접기] 요약이 있는 지방청은 전문(아래 본문)을 접어 두고 「○○지방기상청 단기 전망 전문 보기」 줄을 누르면 펼친다.
+        //   사용자 2026-11-19 오후: 「요약 아래 전문이 나오는데 그 전문은 닫아놓은 상태로 … [00지방기상청 단기 전망 전문 보기] 누르면 아래로 펼쳐지면서 내용이 나왔으면 … 버튼은 아코디언 형식」
+        //     「요약을 만들지 못했을때는 지금처럼 그냥 전문이 바로 표출되도록」 「1안이 좋겠어」(머리줄 같은 접는 줄).
+        //   요약이 없는 때(못 만듦·아직 전·「바다 내용 없음」)는 버튼 없이 전문이 바로 보인다. 펼친 지방청은 다시 그려도 펼친 채로 둔다(regionalFullOpen).
+        const fold = !!seaHtml && !!item.seaSummary && item.seaSummary.state === 'ok';
+        const fullOpen = fold && regionalFullOpen.has(String(item.officeCode));
+        if (fold) {
+            html += `<button type="button" class="regional-forecast-full-btn${fullOpen ? ' open' : ''}" data-full-office="${escapeHtml(item.officeCode || '')}" aria-expanded="${fullOpen ? 'true' : 'false'}">`;
+            html += `<span>📄 ${escapeHtml(item.officeName || '')} 단기 전망 전문 <span class="rf-full-verb">${fullOpen ? '접기' : '보기'}</span></span><i class="fa-solid fa-chevron-down"></i></button>`;
+        }
+
         // [종합 전망 본문]
         //   - AI 마크업 태그({{loc:}}/{{num:}}/{{warn:}})가 들어와 있으면
         //     renderMarineMarkup() 이 색상 span 으로 변환 (escape 도 내부 처리).
@@ -934,7 +958,7 @@ function renderRegionalForecast(data) {
         //   - 라인 prefix(□/○/-/*) 별 스타일 클래스는 그대로 유지.
         //   - 본문 영역은 CSS max-height + overflow-y 로 카드 안에서 스크롤된다.
         const lines = item.summary.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        html += `<div class="regional-forecast-summary">`;
+        html += `<div class="regional-forecast-summary${fold ? ' rf-full-fold' : ''}">`;
         //   - 줄 앞 기호는 hangHtml 이 떼어 둔다(두 줄이 되면 둘째 줄을 글자 시작점에 — 2026-11-18).
         for (const line of lines) {
             if (line.startsWith('□') || line.startsWith('*') || line.startsWith('※')) {
@@ -960,6 +984,82 @@ function renderRegionalForecast(data) {
     bodyEl.innerHTML = html;
     // 줄 끝 2~3글자 넘침은 그 줄 글자 간격으로 맞춘다 — 지방청 카드마다(접혀 있으면 펼칠 때 맞춘다, shared/ui/text_fit.js)
     if (window.textFit) bodyEl.querySelectorAll('.regional-forecast-summary').forEach(s => window.textFit(s, '.regional-forecast-line:not(.tf-hang), .tf-text'));
+    //   「해상 기상 요약」 상자도 같은 규칙(어절 단위·자간 줄이기) — 해역 이름 줄·딱지 줄·원문 줄
+    if (window.textFit) bodyEl.querySelectorAll('.regional-forecast-sea').forEach(s => window.textFit(s, '.rf-sea-zn, .rf-sea-ln, .regional-forecast-line:not(.tf-hang), .tf-text'));
+    // 「전문 보기」 줄 — 누르면 바로 아래 본문을 펼치고 접는다(글자도 「보기」↔「접기」). 펼친 지방청을 기억해 두어 다시 그려도 그대로.
+    bodyEl.querySelectorAll('.regional-forecast-full-btn').forEach(btn => btn.addEventListener('click', () => {
+        const open = btn.classList.toggle('open'), code = btn.getAttribute('data-full-office');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        const verb = btn.querySelector('.rf-full-verb'); if (verb) verb.textContent = open ? '접기' : '보기';
+        if (open) regionalFullOpen.add(code); else regionalFullOpen.delete(code);
+    }));
+    // 📋 — 기상청 원문(분포도 그림 포함)을 팝업으로. 카드 접힘·펼침으로 번지지 않게 막는다.
+    bodyEl.querySelectorAll('.regional-forecast-doc').forEach(btn => btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = relevantData.find(x => String(x.officeCode) === btn.getAttribute('data-doc-office'));
+        const doc = item && regionalDocOf(item);
+        if (doc && typeof window.openKmaIframeModal === 'function') window.openKmaIframeModal(doc.url, doc.title, doc.download ? { download: doc.download } : undefined);
+    }));
+}
+
+/**
+ * 그 지방청 카드의 📋 가 열 원문 — 서버가 PDF 를 받아 쪽 그림으로 바꿔 둔 관서에만 있다(GET /api/regional-forecast 의 doc).
+ * 예: regionalDocOf({ doc:{ title:'제주지방기상청 날씨해설 제11-37호', viewUrl:'/api/bulletin-doc/fax_wcmt_202611190450_184_37/view', downloadUrl:'…/pdf' } })
+ *     → { url:'/api/bulletin-doc/…/view', title:'제주지방기상청 날씨해설 제11-37호', download:{ url:'…/pdf', name:'제주지방기상청 날씨해설 제11-37호.pdf' } }
+ *   팝업(openKmaIframeModal)은 제목·주소를 HTML 로 그대로 붙인다 — 우리 서버 원문 주소 꼴일 때만, 제목은 꺾쇠·따옴표를 뺀 글자만 넘긴다(alerts/escalation.js 와 같은 까닭).
+ * @param {object} item 지방청 한 곳 @returns {{url:string, title:string, download?:{url:string, name:string}}|null}
+ * [연계] ← renderRegionalForecast(📋 그리기·누르기) / → shared/ui/ui_modal.js openKmaIframeModal
+ */
+function regionalDocOf(item) {
+    const d = item && item.doc;
+    if (!d || !/^\/api\/bulletin-doc\/[A-Za-z0-9_]+\/view$/.test(d.viewUrl || '')) return null;
+    const title = String(d.title || '날씨해설 원문').replace(/[<>&"'`]/g, '');
+    const out = { url: d.viewUrl, title };
+    if (/^\/api\/bulletin-doc\/[A-Za-z0-9_]+\/pdf$/.test(d.downloadUrl || '')) out.download = { url: d.downloadUrl, name: title.replace(/[\\/:*?|]/g, ' ') + '.pdf' };
+    return out;
+}
+
+// 「전문 보기」로 펼쳐 둔 지방청(관서 번호) — 화면을 다시 그려도(주기 갱신) 펼친 채로 두려고. [연계] ← renderRegionalForecast
+const regionalFullOpen = new Set();
+
+// 「해상 기상 요약」 딱지 색 — 종류별(서버 regional_sea_summary.KINDS 의 종류). 모르는 종류는 회색.
+const SEA_CHIP = { '특보 가능성': 'red', '해제 예고': 'green', '이안류': 'red', '기상해일': 'red', '폭풍해일': 'red', '천둥·번개': 'yellow', '너울': 'purple', '조고': 'green', '바다 안개': 'grey' };
+
+/**
+ * 「해상 기상 요약」 상자의 HTML — 기온 박스 아래. 서버가 만든 seaSummary 의 상태대로 그린다.
+ *   ok   : 해역별 줄(이름 / 기간 · 바람 · 물결) + 종류별 한 줄(딱지 뒤에 글이 이어지고, 둘째 줄은 들여쓰기 없이 왼쪽 끝부터)
+ *   none : 「해상 기상 내용이 포함되어 있지 않습니다.」
+ *   raw  : AI 가 요약하지 못한 것 — 뽑아 둔 원문 줄 그대로(「요약을 만들지 못해 원문 그대로」라고 적는다. 「없음」과 다르게 보여야 한다)
+ *   없음(옛 자료·아직 만드는 중) : 상자를 그리지 않는다
+ * 제목은 「AI 해상 기상 요약」(사용자 2026-11-19 오후: 「여기서 AI 해상 기상 요약 이라고 표현되었으면 좋겠어」) — 「없음」 상자도 같은 제목, 「원문 그대로」 상자는 AI 글이 아니라 종전 제목.
+ * 사용자 2026-11-19: 「1.모양 - 2번안」 「3.해상 기상 내용이 포함되어있지 않습니다. 라는 식으로 상자 표출」
+ *   「[특보가능성] ㅇㅇㅇ… 처럼 들여쓰기 없이 기록되도록. 단, 어절단위 및 자간 줄이기는 동일하게 적용」
+ * 예: seaSummaryHtml({ state:'ok', zones:[{ zone:'동해중부먼바다', period:'~글피(22일) 오전', wind:'8~20', wave:'1.5~4.0' }], notes:[{ kind:'천둥·번개', text:'모레(21일)까지 {{loc:동해중부해상}}' }] })
+ * @param {object|null} s @returns {string}
+ * [연계] ← renderRegionalForecast / 자료 = 서버 services/regional_sea_summary.js(GET /api/regional-forecast 의 seaSummary)
+ */
+function seaSummaryHtml(s) {
+    if (!s || !s.state) return '';
+    const head = (title, note) => `<div class="rf-sea-ttl"><span>🌊 ${title}</span>${note ? `<span class="rf-sea-by">${note}</span>` : ''}</div>`;
+    if (s.state === 'none') return `<div class="regional-forecast-sea off">${head('AI 해상 기상 요약')}<div class="rf-sea-none">해상 기상 내용이 포함되어 있지 않습니다.</div></div>`;
+    // 요약을 만들지 못한 때(raw)는 상자를 그리지 않는다 — 사용자 2026-11-19 오후: 「요약을 만들지 못한 경우는 아예 상자를 표시하지 말자.」
+    //   (종전: 「해상 기상 — 요약을 만들지 못해 원문 그대로」 + 뽑아 둔 원문 줄. 그 글은 아래 본문에 그대로 있다.)
+    if (s.state !== 'ok') return '';
+    //   꼴이 어긋난 줄(객체가 아님·이름이나 글이 빔)은 그리지 않는다
+    const zones = (Array.isArray(s.zones) ? s.zones : []).filter(z => z && typeof z === 'object' && String(z.zone || '').trim() && (z.wind || z.wave));
+    const notes = (Array.isArray(s.notes) ? s.notes : []).filter(n => n && typeof n === 'object' && String(n.kind || '').trim() && String(n.text || '').trim());
+    let html = '';
+    // 같은 해역이 이어지면 이름은 한 번만, 기간별 줄을 그 아래에
+    for (let i = 0; i < zones.length; i++) {
+        const z = zones[i], first = i === 0 || zones[i - 1].zone !== z.zone, last = i === zones.length - 1 || zones[i + 1].zone !== z.zone;
+        if (first) html += `<div class="rf-sea-zone"><div class="rf-sea-zn">${escapeHtml(z.zone)}</div>`;
+        html += `<div class="rf-sea-zv"><span class="per">${escapeHtml(z.period || '')}</span>`
+            + (z.wind ? `<span>바람 <b>${escapeHtml(z.wind)}</b>m/s</span>` : '') + (z.wave ? `<span>물결 <b>${escapeHtml(z.wave)}</b>m</span>` : '') + `</div>`;
+        if (last) html += `</div>`;
+    }
+    if (zones.length && notes.length) html += `<div class="rf-sea-sep"></div>`;
+    for (const n of notes) html += `<div class="rf-sea-ln"><span class="rf-sea-chip ${Object.prototype.hasOwnProperty.call(SEA_CHIP, n.kind) ? SEA_CHIP[n.kind] : 'grey'}">${escapeHtml(n.kind)}</span>${renderMarineMarkup(n.text)}</div>`;
+    return html ? `<div class="regional-forecast-sea">${head('AI 해상 기상 요약')}${html}</div>` : '';
 }
 
 /**

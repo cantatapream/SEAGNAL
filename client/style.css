@@ -5002,6 +5002,26 @@ line-height: 1.1;
     background: rgba(255, 255, 255, 0.2);
 }
 
+/* 통보문 팝업 머리줄의 원문 「PDF」 받기 버튼 — ✕ 왼쪽 (ui_modal.js openKmaIframeModal opt.download, 2026-11-19) */
+.kma-iframe-download {
+    margin-left: auto;
+    margin-right: 10px;
+    flex-shrink: 0;
+    background: rgba(129, 212, 250, 0.15);
+    border: 1px solid rgba(129, 212, 250, 0.4);
+    color: #b3e5fc;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.kma-iframe-download:hover {
+    background: rgba(129, 212, 250, 0.28);
+}
+
 .kma-iframe-body {
     flex: 1;
     width: 100%;
@@ -5437,6 +5457,43 @@ line-height: 1.1;
     cursor: pointer;
     user-select: none;
 }
+/* 머리줄 왼쪽 묶음(2026-11-19 사용자): 이름 한 줄 + 그 아래 발표 정보. 📋 와 접기 화살표는 이 묶음의 세로 가운데·오른쪽 */
+.regional-forecast-office-head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.regional-forecast-office-head .regional-forecast-office-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.regional-forecast-doc {
+    flex-shrink: 0; width: 26px; height: 26px; padding: 0; border-radius: 6px; cursor: pointer;
+    background: rgba(129, 212, 250, 0.15); border: 1px solid rgba(129, 212, 250, 0.3);
+    display: flex; align-items: center; justify-content: center; font-size: 0.78rem;
+}
+/* 「해상 기상 요약」 상자(2026-11-19) — 기온 박스 아래. 해역별 줄 + 종류별 한 줄(딱지 줄은 들여쓰기 없이 흐른다) */
+.regional-forecast-sea { padding: 10px 12px; margin: 8px 0; border-radius: 8px; background: rgba(56, 189, 248, 0.07); border: 1px solid rgba(56, 189, 248, 0.28); }
+/* 「○○지방기상청 단기 전망 전문 보기」 줄 — 요약이 있는 지방청에서 전문을 접어 두는 아코디언(2026-11-19 사용자 「1안」: 머리줄 같은 접는 줄). 펼치면 본문이 같은 테두리 안에 이어진다. */
+.regional-forecast-full-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(100, 181, 246, 0.35); background: rgba(100, 181, 246, 0.08); color: #e3f2fd; font-size: 0.86rem; font-weight: 700; font-family: inherit; text-align: left; cursor: pointer; word-break: keep-all; }
+.regional-forecast-full-btn i { color: #90caf9; transition: transform 0.2s; flex: 0 0 auto; }
+.regional-forecast-full-btn.open i { transform: rotate(180deg); }
+.regional-forecast-full-btn.open { border-radius: 10px 10px 0 0; border-bottom-color: transparent; }
+.regional-forecast-full-btn:not(.open) + .regional-forecast-summary.rf-full-fold { display: none; }
+.regional-forecast-full-btn.open + .regional-forecast-summary.rf-full-fold { border: 1px solid rgba(100, 181, 246, 0.35); border-top: 0; border-radius: 0 0 10px 10px; padding: 6px 10px 10px; }
+.regional-forecast-sea.off { background: rgba(148, 163, 184, 0.06); border-color: rgba(148, 163, 184, 0.22); }
+.rf-sea-ttl { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 0.8rem; font-weight: 700; color: #7dd3fc; }
+.regional-forecast-sea.off .rf-sea-ttl { color: #94a3b8; margin-bottom: 4px; }
+.rf-sea-by { margin-left: auto; font-size: 0.64rem; font-weight: 500; color: #64748b; white-space: nowrap; }
+.rf-sea-none { font-size: 0.78rem; color: #94a3b8; word-break: keep-all; }
+.rf-sea-zone { padding: 7px 0; border-top: 1px solid rgba(148, 163, 184, 0.12); }
+.rf-sea-ttl + .rf-sea-zone { border-top: 0; padding-top: 0; }   /* 제목 바로 밑 첫 해역에는 구분선을 긋지 않는다 */
+.rf-sea-zn { font-size: 0.8rem; font-weight: 700; color: #93c5fd; line-height: 1.35; word-break: keep-all; overflow-wrap: break-word; }
+.rf-sea-zv { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 3px; font-size: 0.78rem; color: #cbd5e1; }
+.rf-sea-zv .per { color: #e2e8f0; }
+.rf-sea-zv b { color: #f87171; font-weight: 700; }
+.rf-sea-sep { height: 1px; margin: 9px 0; background: rgba(56, 189, 248, 0.2); }
+.rf-sea-ln { font-size: 0.8rem; line-height: 1.5; color: #e2e8f0; word-break: keep-all; overflow-wrap: break-word; }
+.rf-sea-ln + .rf-sea-ln { margin-top: 7px; }
+.rf-sea-chip { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 5px; font-size: 0.68rem; font-weight: 700; line-height: 1.45; white-space: nowrap; vertical-align: 1px; letter-spacing: 0; }
+.rf-sea-chip.red { background: rgba(239, 83, 80, 0.14); border: 1px solid rgba(239, 83, 80, 0.5); color: #ff8a80; }
+.rf-sea-chip.yellow { background: rgba(250, 204, 21, 0.13); border: 1px solid rgba(250, 204, 21, 0.45); color: #fde047; }
+.rf-sea-chip.purple { background: rgba(167, 139, 250, 0.15); border: 1px solid rgba(167, 139, 250, 0.5); color: #c4b5fd; }
+.rf-sea-chip.green { background: rgba(52, 211, 153, 0.13); border: 1px solid rgba(52, 211, 153, 0.45); color: #6ee7b7; }
+.rf-sea-chip.grey { background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.5); color: #cbd5e1; }
 .regional-forecast-office.open .regional-forecast-office-header {
     margin-bottom: 10px;
     padding-bottom: 8px;

@@ -45,7 +45,8 @@ function ok(cond, name, extra) { if (cond) { pass++; console.log('  PASS ' + nam
     const calls = promo.split('\n').filter((l) => /textFit\(/.test(l));
     ok(calls.length === 1 && /contentEl/.test(calls[0]) && /format === 'md'/.test(calls[0]), 'promo.js 는 마크다운 글 보기 칸(contentEl)에만 textFit', calls.join(' / '));
     ok(!/promoQuillEditor[^\n]*textFit|textFit[^\n]*promoQuillEditor/.test(promo), '편집기(promoQuillEditor)에는 걸지 않는다');
-    ok((mf.match(/if \(window\.textFit\)/g) || []).length === 2, 'marine_forecast.js 두 곳(초단기·단기 / 지방청 단기 전망)에서 textFit');
+    // 2026-11-19: 지방청 카드의 「해상 기상 요약」 상자에도 같은 줄 맞춤을 건다(사용자 「어절단위 및 자간 줄이기는 동일하게 적용」) — 두 곳 → 세 곳
+    ok((mf.match(/if \(window\.textFit\)/g) || []).length === 3 && /querySelectorAll\('\.regional-forecast-sea'\)\.forEach\(s => window\.textFit\(s, '\.rf-sea-zn, \.rf-sea-ln,/.test(mf), 'marine_forecast.js 세 곳(초단기·단기 / 지방청 단기 전망 본문 / 지방청 「해상 기상 요약」 상자)에서 textFit');
     const infoCalls = (read('client/js/ocean-map/cctv/ocean_cctv.js').match(/textFitInfo\(/g) || []).length + (read('client/js/marine-life/safety/life_safety.js').match(/textFitInfo\(/g) || []).length;
     ok(infoCalls === 3, '안내 팝업 세 곳(해양종합정보 · 해양생활 · 해양안전)에서 textFitInfo', String(infoCalls));
     const iFit = html.indexOf('js/shared/ui/text_fit.js'), iMf = html.indexOf('js/forecast/outlook/marine_forecast.js'), iPromo = html.indexOf('js/notice/board/promo.js');

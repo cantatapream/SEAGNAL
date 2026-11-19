@@ -136,6 +136,15 @@ const url = (b) => D.docOf(b.result).url;
         ok('팝업 목록: 쪽 그림이 있는 줄에 보기 주소(viewUrl)를 붙이고, 없는 줄만 바깥 PDF 확인', /it\.viewUrl = '\/api\/bulletin-doc\/' \+ it\.docKey \+ '\/view'/.test(route) && /keepLivePdf\(dm\.bulletins\.filter\(\(it\) => !it\.viewUrl\), _pdfExists\)/.test(route));
         ok('보기 페이지·쪽 그림·PDF 를 내려주는 주소 셋', ["router.get('/api/bulletin-doc/:key/view'", "router.get('/api/bulletin-doc/:key/page/:n'", "router.get('/api/bulletin-doc/:key/pdf'"].every((x) => route.includes(x)));
         ok('보기 페이지는 쪽 그림을 세로로 이어 붙인다(여러 장이면 아래로 스크롤)', /pages\.map\(\(n, i\) =>/.test(route) && /<img src="page\/' \+ n \+ '"/.test(route));
+        // 원문 PDF 받기 — 팝업 머리줄 버튼(사용자 2026-11-19 「pdf 원문 다운로드 관련, 버튼을 이미지 2에서 표시한 부분에 … 휴대폰에서도 원문을 다운로드 할 수 있도록」)
+        const modal = read('client/js/shared/ui/ui_modal.js');
+        ok('목록 줄에 받을 원문 주소(downloadUrl)를 붙이고, PDF 는 첨부로 내려준다(시스템 브라우저가 받게) · 보기 페이지 아래의 옛 버튼은 없다',
+            /it\.downloadUrl = '\/api\/bulletin-doc\/' \+ it\.docKey \+ '\/pdf'/.test(route) && /Content-Disposition', 'attachment; filename="' \+ path\.basename\(f\) \+ '"'/.test(route) && !/원문 PDF 받기<\/a>/.test(route) && !/class="bar"/.test(route));
+        ok('팝업 머리줄 ✕ 왼쪽에 「PDF」 버튼(받을 원문이 있을 때만) — 글은 textContent 로', /btn\.className = 'kma-iframe-download'/.test(modal) && /btn\.textContent = '⬇ PDF'/.test(modal) && /closeBtn\.parentNode\.insertBefore\(btn, closeBtn\)/.test(modal) && /if \(dl && dl\.url\)/.test(modal)
+            && /\.kma-iframe-download \{/.test(read('client/style.css')));
+        ok('휴대폰 앱에서는 시스템 브라우저로 넘겨 받는다(앱 웹뷰는 <a download> 를 처리하지 않는다) · 그 밖에는 내려받기', /cap\.isNativePlatform\(\)/.test(modal) && /Browser\.open\(\{ url: abs \}\)/.test(modal) && /a\.download = name \|\| ''/.test(modal));
+        ok('📋 해역별 통보문: 받아 둔 원문(없으면 기상청 원문 주소)을 버튼에 넘긴다 · 뒤로가기 감싸기가 셋째 인자를 그대로 넘긴다', /var dlUrl = b\.downloadUrl \|\| b\.pdfUrl;/.test(client) && /openKmaIframeModal\(url, modalTitle, dlUrl \? \{ download:/.test(client)
+            && /origOpen\.apply\(this, arguments\)/.test(read('client/js/core/backbutton.js')));
         ok('화면: 보기 주소가 있으면 그것을 먼저 연다(구글 문서 뷰어·바깥 PDF 보다 앞)', /var url = b\.viewUrl \? b\.viewUrl : b\.webUrl/.test(client) && /if \(b\.viewUrl \|\| b\.pdfUrl \|\| b\.webUrl\)/.test(client) && /!b\.viewUrl && !b\.pdfUrl && !b\.webUrl/.test(client));
         ok('운영 서버 이미지에 그림 변환기(poppler-utils)를 깐다', /apt-get install[^\n]*poppler-utils/.test(read('Dockerfile')) && /command -v pdftoppm/.test(read('Dockerfile')));
         ok('통보문 기준 계산 다음 매분 맞춘다(scheduler)', /require\('\.\/services\/bulletin_docs'\)\.sync\(\{ trails: st\.trails, bulletins: bulletinWatch\.bulletins\(\), extra: escRefs \}\)/.test(read('local_server/scheduler.js')));

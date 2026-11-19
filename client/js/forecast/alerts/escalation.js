@@ -10,7 +10,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 서버 API      : GET /api/zone-escalations → { at, items: { 해역: [{ kind:'wave'|'typhoon', source:'통보문'|'단기전망'|'초단기전망', dayMs, label, caveat, expMs,
- *                    doc:{ title, viewUrl?|pdfUrl?|webUrl? } }] } } (서버 services/bulletin_escalation.js 가 매분 계산)
+ *                    doc:{ title, viewUrl?|pdfUrl?|webUrl?, downloadUrl? } }] } } (서버 services/bulletin_escalation.js 가 매분 계산)
  *  - 호출처        : data.js loadAllData·refreshAlertData(loadZoneEscalations) · render.js createAlertElement(zoneEscalations · renderZoneEscalation)
  *  - 사용하는 함수 : shared/ui/ui_modal.js openKmaIframeModal(📋 원문 팝업) · alert_history.js canShowPdfInline(PC 는 PDF 를 바로)
  *  - 마크업        : 없음(카드 안에 직접 만든다)
@@ -114,7 +114,9 @@
             btn.title = '이 안내가 적힌 원문 보기';
             btn.style.cssText = 'margin-left:auto;background:rgba(129,212,250,0.15);border:1px solid rgba(129,212,250,0.3);width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.78rem;flex-shrink:0;cursor:pointer;padding:0;';
             btn.textContent = '📋';
-            btn.addEventListener('click', function (e) { e.stopPropagation(); w.openKmaIframeModal(url, safeTitle); });   // 카드 접힘·펼침으로 번지지 않게
+            // 통보문이면 팝업 머리줄에 「PDF」 받기 버튼도(우리 서버에 받아 둔 원문 — ui_modal.js). 주소는 우리 서버 원문 경로일 때만 넘긴다.
+            var dl = /^\/api\/bulletin-doc\/[A-Za-z0-9_]+\/pdf$/.test(doc.downloadUrl || '') ? { download: { url: doc.downloadUrl, name: safeTitle.replace(/[\\/:*?|]/g, ' ') + '.pdf' } } : undefined;
+            btn.addEventListener('click', function (e) { e.stopPropagation(); w.openKmaIframeModal(url, safeTitle, dl); });   // 카드 접힘·펼침으로 번지지 않게
             top.appendChild(btn);
         }
         box.appendChild(top);
