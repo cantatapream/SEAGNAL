@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 22:57 KST] ✅완료 — 댓글 입력창 — 글이 칸을 넘으면 줄바꿈·입력창이 줄 수만큼 높아짐 (브랜치 claude/festive-tesla-k7ie2s)
+사용자 2026-11-19 「글자수가 칸을 벗어나면 줄바꿈 자동으로 되고 그 댓글을 입력하는 창이 동적으로 높아지는 기능도 넣어줘」. promo_comment3.js autoGrowCommentTextarea 신설 — 입력할 때마다 높이를 scrollHeight 에 맞춤(빈 칸은 처음 높이로 — 빈 칸 scrollHeight 는 안내 글 줄 수까지 쳐서 높게 나옴), style.css 게시글 팝업 아래 칸 입력창 min 42px·max 132px(약 6줄, 넘으면 안에서 스크롤)·어절 단위 줄바꿈(keep-all), 등록 단추는 입력창 아래쪽에 붙음. 버전표 갱신. test_promo_detail_ui 10/0(줄바꿈·높아짐·최대에서 스크롤·지우면 낮아짐·입력칸 맨 아래·등록 아래쪽 정렬 시험 추가).
+
+
 ### [2026-11-19 22:53 KST] ✅완료 — 공지 게시글 상세 팝업 새 모양 — 제목 고정·좌우 꽉 채움·댓글 입력 하단 고정·반응 버튼을 댓글 자리로 (브랜치 claude/festive-tesla-k7ie2s)
 사용자 2026-11-19 요청 → 시안(artifact 6qqYwX14Hotmb3zz7JAi3i, 디자인 캔버스 2장) 확인 후 「이대로 반영해보자」. index2.html #promo-detail-modal 을 머리(.promo-detail-head — 제목·날짜·조회수, 고정)·몸통(#promo-detail-scroll — 본문·첨부·반응 줄·댓글 목록, 이 칸만 스크롤)·발(#comment-input-area — 댓글 입력, 고정, 비면 숨김) 세 칸으로. style.css: 팝업 양옆 6px·최대 800px, 본문(.promo-content-view) 안 따로 스크롤 없앰, 발 안 입력칸만 새 모양(높이 42px·글자 수 입력창 안·등록 오른쪽·비밀댓글 닉네임 줄 오른쪽 끝 — 답글 입력칸은 그대로). promo_comment5.js: 「댓글 N개」 줄 삭제, 「작성 가이드라인」 단추를 반응 줄 오른쪽 끝(#comment-guideline-slot)에 작게, 댓글 못 쓰는 글은 입력칸·단추 비움. promo_comment3.js 입력칸 새 꼴 + 등록 뒤 몸통 끝까지. promo.js 열 때 몸통 맨 위로·닫을 때 입력칸/단추 비움. 버전표 갱신. 시험 test_promo_detail_ui 신설 9/0(verify_all SUITES 등록·규칙집 재생성). 실제 휴대폰은 미확인.
 

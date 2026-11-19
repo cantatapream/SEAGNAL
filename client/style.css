@@ -3577,7 +3577,11 @@ line-height: 1.1;
 .comment-input-row { display: flex; align-items: stretch; gap: 8px; }
 .comment-textarea-box { position: relative; flex: 1; min-width: 0; }
 /* 입력창 높이 = 종전(약 3줄)의 1/3 — 「댓글 입력창의 영역 상하를 1/3로」. 글자 수는 입력창 안 오른쪽 아래 */
-.promo-detail-comment-footer .comment-textarea { display: block; height: 42px; min-height: 42px; resize: none; padding: 10px 46px 4px 10px; }
+.promo-detail-comment-footer .comment-textarea { display: block; height: 42px; min-height: 42px; max-height: 132px; overflow-y: hidden; resize: none; padding: 10px 46px 10px 10px; box-sizing: border-box; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere; }
+/* 글이 칸을 넘으면 줄바꿈되고 입력창이 줄 수만큼 높아진다(최대 132px ≈ 6줄, 넘으면 안에서 스크롤 — promo_comment3.js autoGrowCommentTextarea, 2026-11-19 사용자).
+   오른쪽 여백 46px 은 오른쪽 아래 글자 수(0/500)와 글이 겹치지 않게. 등록 단추는 입력창 아래쪽에 붙어 있게 한다 */
+.promo-detail-comment-footer .comment-input-row { align-items: flex-end; }
+.promo-detail-comment-footer .comment-submit-btn { height: 42px; }
 .promo-detail-comment-footer .comment-char-count { position: absolute; right: 8px; bottom: 4px; font-size: 0.66rem; pointer-events: none; }
 .promo-detail-comment-footer .comment-submit-btn { flex: none; justify-content: center; min-width: 68px; padding: 0 14px; border-radius: 10px; }
 

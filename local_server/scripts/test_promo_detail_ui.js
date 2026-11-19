@@ -4,7 +4,8 @@
  * 역할  : 공지사항 게시글 상세 팝업의 새 모양(2026-11-19 사용자 확정 시안)을 실제 Chromium 으로 index2.html 전체를 띄워 본다.
  *         ① 좌우를 거의 다 쓴다(팝업 양옆 여백 6px · 본문 안 따로 스크롤 없음)
  *         ② 제목 머리는 스크롤해도 제자리 · 몸통만 스크롤
- *         ③ 댓글 입력은 팝업 맨 아래에 고정 — 스크롤하지 않아도 보인다 · 입력창 높이는 종전의 1/3 수준 · 「등록」은 입력창 오른쪽
+ *         ③ 댓글 입력은 팝업 맨 아래에 고정 — 스크롤하지 않아도 보인다 · 입력창 높이는 종전의 1/3 수준 · 「등록」은 입력창 오른쪽 ·
+ *            글이 칸을 넘으면 줄바꿈되고 입력창이 줄 수만큼 높아짐(최대 높이 넘으면 안에서 스크롤, 지우면 다시 낮아짐)
  *         ④ 「관리자」 줄 오른쪽 끝에 비밀댓글 체크박스
  *         ⑤ 「댓글 N개」 줄은 없고, 그 자리에 ❤️👍😮 + 오른쪽 끝 작은 「작성 가이드라인」(누르면 펼침) · 제목 아래에는 반응 버튼이 없다
  *         ⑥ 댓글을 못 쓰는 글(일반 사용자)은 입력칸·가이드라인 단추가 없고 반응 줄은 남는다
@@ -108,6 +109,26 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.ok(Math.abs((lab.t + lab.b) / 2 - (badge.t + badge.b) / 2) <= 4 && lab.r >= foot.r - 14, JSON.stringify({ badge, lab, foot }));
             assert.ok((await p.textContent('#comment-input-area .comment-secret-label')).includes('비밀댓글'));
             await p.click('#comment-secret-check'); assert.equal(await p.$eval('#comment-secret-check', (e) => e.checked), true);
+        });
+        await check('③ 글이 칸을 넘으면 줄바꿈되고 입력창이 줄 수만큼 높아진다 — 최대 높이를 넘으면 안에서 스크롤 · 지우면 다시 낮아진다 · 입력칸은 계속 맨 아래', async () => {
+            const h = () => p.$eval('#comment-input-textarea', (t) => t.getBoundingClientRect().height);
+            const h0 = await h();
+            await p.fill('#comment-input-textarea', '');
+            await p.type('#comment-input-textarea', '가나다라마바사 아자차카타파하 '.repeat(3), { delay: 0 });
+            const h1 = await h();
+            assert.ok(h1 > h0 + 10, '두세 줄인데 높아지지 않았다: ' + JSON.stringify({ h0, h1 }));
+            const st1 = await p.$eval('#comment-input-textarea', (t) => ({ sh: t.scrollHeight, ch: t.clientHeight, oy: t.style.overflowY }));
+            assert.ok(st1.sh <= st1.ch + 1 && st1.oy === 'hidden', '줄이 다 보이지 않는다: ' + JSON.stringify(st1));
+            await p.type('#comment-input-textarea', '아주 긴 댓글을 계속 이어서 씁니다 '.repeat(12), { delay: 0 });
+            const st2 = await p.$eval('#comment-input-textarea', (t) => ({ h: t.getBoundingClientRect().height, max: parseFloat(getComputedStyle(t).maxHeight), oy: t.style.overflowY }));
+            assert.ok(Math.abs(st2.h - st2.max) < 1 && st2.oy === 'auto', '최대 높이에서 멈추고 안에서 스크롤해야 한다: ' + JSON.stringify(st2));
+            const box = await R(p, '#promo-detail-modal .promo-modal-content'), foot = await R(p, '#comment-input-area'), ta = await R(p, '#comment-input-textarea'), btn = await R(p, '#comment-input-area .comment-submit-btn');
+            assert.ok(Math.abs(foot.b - box.b) <= 2, '입력칸이 맨 아래에서 떨어졌다');
+            assert.ok(Math.abs(btn.b - ta.b) <= 1, '등록 단추가 입력창 아래쪽에 붙어 있지 않다: ' + JSON.stringify({ ta, btn }));
+            await p.screenshot({ path: path.join(SHOT, 'promo_412_grow.png') });
+            await p.fill('#comment-input-textarea', '');
+            await p.$eval('#comment-input-textarea', (t) => t.dispatchEvent(new Event('input', { bubbles: true })));
+            assert.ok(Math.abs((await h()) - h0) < 1, '글을 지웠는데 다시 낮아지지 않았다');
         });
         await check('⑤ 「댓글 N개」 줄이 없고, 그 자리에 ❤️👍😮 + 오른쪽 끝 「작성 가이드라인」 · 제목 아래에는 반응 버튼이 없다', async () => {
             assert.equal(await p.$('#comment-count-label'), null);

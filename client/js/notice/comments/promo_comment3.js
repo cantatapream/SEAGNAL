@@ -85,14 +85,37 @@ function renderCommentInput(inputWrapEl, allowComments) {
         + '</div>'
         + '</div>';
 
-    // 글자 수 카운터 이벤트 등록
+    // 글자 수 카운터 + 입력창 높이 맞춤 이벤트 등록
+    //   [2026-11-19 사용자] 「글자수가 칸을 벗어나면 줄바꿈 자동으로 되고 그 댓글을 입력하는 창이 동적으로 높아지는 기능도 넣어줘」
+    //   → 칸 폭을 넘으면 저절로 다음 줄(textarea 기본), 줄이 늘면 입력창도 그만큼 높아진다(최대 높이는 style.css max-height — 넘으면 안에서 스크롤).
+    //     글을 지우면 다시 낮아진다. 등록하면 입력칸을 다시 그리므로 처음 높이로 돌아간다.
     var textarea = document.getElementById('comment-input-textarea');
     var charCount = document.getElementById('comment-char-count');
-    if (textarea && charCount) {
+    if (textarea) {
         textarea.addEventListener('input', function() {
-            charCount.textContent = textarea.value.length + '/500';
+            if (charCount) charCount.textContent = textarea.value.length + '/500';
+            autoGrowCommentTextarea(textarea);
         });
     }
+}
+
+/**
+ * 댓글 입력창 높이를 글 줄 수에 맞춘다 — 한 줄이면 처음 높이(style.css min-height), 줄이 늘면 늘어나고 최대 높이(max-height)를 넘으면 안에서 스크롤.
+ * 예: 입력창 폭을 넘는 긴 글 → 두 줄로 바뀌며 입력창이 한 줄만큼 높아짐 · 글을 지우면 다시 한 줄 높이
+ * @param {HTMLTextAreaElement} ta - 게시글 팝업 아래 고정 칸의 입력창(#comment-input-textarea)
+ * [연계] ← renderCommentInput(입력할 때마다) / 모양: style.css .promo-detail-comment-footer .comment-textarea(min/max-height)
+ *        입력칸이 팝업 맨 아래 고정 칸이라 높아지면 그만큼 위 몸통(본문·댓글)이 줄어든다.
+ */
+function autoGrowCommentTextarea(ta) {
+    if (!ta) return;
+    // 비었으면 처음 높이(style.css)로 — 빈 칸의 scrollHeight 는 안내 글(placeholder) 줄 수까지 쳐서 한 줄보다 높게 나올 수 있다
+    if (!ta.value) { ta.style.height = ''; ta.style.overflowY = ''; return; }
+    ta.style.height = 'auto';   // 먼저 줄여야 글을 지웠을 때도 다시 낮아진다
+    var cs = getComputedStyle(ta);
+    var max = parseFloat(cs.maxHeight) || Infinity;
+    var h = ta.scrollHeight + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    ta.style.height = Math.min(h, max) + 'px';
+    ta.style.overflowY = h > max ? 'auto' : 'hidden';
 }
 
 // ============================================================================
