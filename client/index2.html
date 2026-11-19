@@ -4701,7 +4701,8 @@
                        ② 몸통(.promo-detail-scroll) — 본문·첨부·반응 줄·댓글 목록. 이 칸만 스크롤(본문 안의 따로 스크롤을 없앴다), 좌우 여백 최소(「좌우 영역까지 꽉 차서」)
                        ③ 발(#comment-input-area) — 댓글 입력. 늘 아래에 고정(「아예 게시글 하단에 고정」), 비면 숨김
                      반응 버튼(❤️👍😮)은 제목 아래에서 「댓글 0개」 자리로 옮겼고, 같은 줄 오른쪽 끝에 작은 「작성 가이드라인」(「댓글 0개 부분은 삭제」).
-                     [연계] js/notice/board/promo.js openPromoDetail·closePromoDetail · js/notice/comments/promo_comment3.js renderCommentInput · promo_comment5.js loadPromoComments -->
+                     [연계] notice/board/promo.js openPromoDetail·closePromoDetail · notice/comments/promo_comment3.js renderCommentInput · promo_comment5.js loadPromoComments
+                     (경로 앞의 js/ 를 일부러 뺐다 — 시험 test_notice_markdown·test_text_fit 이 그 글자가 처음 나오는 자리로 script 로드 순서를 잰다) -->
                 <div id="promo-detail-modal" class="modal hidden">
                     <div class="modal-content promo-modal-content">
                         <!-- ① 머리 (고정): 제목 + 닫기 / 날짜 + 조회수 -->
