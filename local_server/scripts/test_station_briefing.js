@@ -1200,7 +1200,7 @@ const WIN = R.editionWindow('morning', T0);
         const batch = AI.batchInput([siK], null); assert.deepStrictEqual(batch.rules.sentences_per_paragraph, [3, 5]); assert.ok(batch.stations[0].kma_zones.includes('제주도남쪽바깥먼바다'), '해역 이름 목록은 관할마다(독립 검토 8)');
         assert.ok(batch.stations[0].shown.land.headline.startsWith('오늘 한림파출소 관할 연안의 단계는'), '이미 보이는 결론을 AI 에 알려 되풀이하지 않게');
         const pr = AI.buildPrompt(batch); assert.ok(pr.includes('3~5문장') && !pr.includes('1~2문장') && !pr.includes('required.'), '지시문도 분석 3~5문장(§11.10.4)');
-        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v22', 'sb-prompt-v18']);
+        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v23', 'sb-prompt-v18']);
     });
     await check('[§11.10] 관리자 오류 목록: 최근 3일(KST 날짜) 오류는 모두 남기고(종전 200개 상한 없음) 더 오래된 것만 지운다 · 안전 상한 5,000 은 지운 수를 남긴다 · status 가 전부(최근 것부터)', async () => {
         const mk = (iso, i) => ({ at: iso, stage: 'validate', provider: 'chatgpt', stations: ['k|' + i], reason: 'r' + i });
@@ -1410,7 +1410,7 @@ const WIN = R.editionWindow('morning', T0);
         const landH = '군산 내항 일대(옥도면사무소~혁신선외기)와 소룡포구 일대는 오늘 평소 수준입니다. 관광지 변화 요인은 확인되지 않았으며, 두 곳 모두 상시 위험 장소로 분류되어 있습니다. 따라서 군산 내항 일대와 소룡포구 일대 인근 연안에서는 관심이 요구됩니다.';
         assert.ok(!vo({ ...good, land: landH }, siH).errors.some((e) => e.startsWith('number:hangul')), '해망 3번째 시도 글: ' + vo({ ...good, land: landH }, siH).errors.join(','));
         assert.ok(vo({ ...good, land: landH.replace('두 곳 모두', '다섯 곳 모두') }, siH).errors.includes('number:hangul:다섯 곳'));
-        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v22');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23');
     });
     await check('[§11.10.47] 지명 오판(10-20 16:52 운영): 「내일 새벽부터 강원앞바다에」(기상청 16:30 해상 전망 원문 그대로)·「새벽부터 먼바다를」·「…를 비롯해 대부분 해구가」 — 시각 말·「대부분」은 이름 앞 낱말이 아니고, 도 단위 앞바다 묶음은 기상청 이름', () => {
         assert.ok(['강원앞바다', '경북앞바다', '제주도앞바다'].every((n) => AI.KMA_ZONE_NAMES.includes(n)), '도 단위 앞바다 묶음');
@@ -2624,7 +2624,7 @@ const WIN = R.editionWindow('morning', T0);
             'S6 권고에서 이유를 두 번 겹쳐 말하지 않는다', 'S7 특보 해제 직후를 말할 때는 「…가 풀린 직후로 출항이 몰려 사고가 늘어날 수 있는 시간대」', 'S8 마지막 문장에서 해역 이름 꼬리', 'S9 해양사고 위험예보만 위험 단계인 해역',
             'S10 앞 문장에 이미 나열한 긴 해역·관광지 이름 목록', 'S11 해구는 sea.haegu_forecasts 의 name', 'S12 이름은 「해양사고 위험예보」', 'S13 「물이 차오르기 전에 나오세요」'];
         for (const w of want) assert.ok(head.includes(w), w);
-        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION], ['sb-prompt-v18', 'sb-validate-v22']);
+        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION], ['sb-prompt-v18', 'sb-validate-v23']);
         assert.ok(!/(?:관심|주의|경계) 필요/.test(head), '지시문 자체에 「주의 필요」 꼴 없음');
     });
     await check('[§11.10.17-2] 보정(polishOverview — 버리지 않고 고침): S1 「주의 필요 수준」 → 「주의 수준」 · S2 마지막 「…필요합니다.」 → 「…요구됩니다.」 · S4 「다만 」 → 「다만, 」 · 가운데 문장의 「주의가 필요합니다」·「필요성」은 그대로', () => {
@@ -2648,7 +2648,7 @@ const WIN = R.editionWindow('morning', T0);
             assert.equal(pl(keep).land, keep.replace(/필요합니다\.$/, '요구됩니다.'), '이미 연안·인근·주변이 있거나 마지막 문장이 아니면 그대로 — ' + keep);
         // 보정한 글도 검증 통과(이름 대목 판정 그대로)
         assert.ok(AI.validateOverview(AI.polishOverview(good), si).ok, AI.validateOverview(AI.polishOverview(good), si).errors.join(','));
-        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION, R.RULES_VERSION], ['sb-prompt-v18', 'sb-validate-v22', 'station-briefing-rules-v26']);
+        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION, R.RULES_VERSION], ['sb-prompt-v18', 'sb-validate-v23', 'station-briefing-rules-v26']);
     });
     await check('[§11.10.25 덧] 지명 오판 고침(검증 v13 — 2026-10-18 08:03 운영 place:해제뒤에도·특보해제전후에도·예고돼있어이후에도) — 「…에도」·「오늘도」·방위 한 글자 앞부분(서서히·남아)은 지명 아님 · 가짜 섬 이름(「가짜도 앞바다」·「가짜도 북쪽 해상」·「가짜도 서해상」·「흑산도는」)은 계속 후보', () => {
         const names = (s) => AI.placeCandidates(s).map((x) => x.text);
@@ -2678,7 +2678,7 @@ const WIN = R.editionWindow('morning', T0);
         // 한글 셈말(number:hangul:두 곳·세 곳): 그 문단 결론·근거 줄(count_keys)에 같은 수가 있을 때만(독립 검토 7) — 허용 숫자에 2곳이 있어도 문단 줄에 없으면 실패
         assert.deepStrictEqual(errs('두 곳에 사람이 많습니다.'), ['number:hangul:두 곳']);
         assert.deepStrictEqual(AI.validateOverview({ land: null, sea: '두 곳에 사람이 많습니다.' }, { ...si, count_keys: { sea: ['2|곳'], land: [] } }).errors.filter((e) => e.startsWith('number')), []);
-        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v22', '이 사례는 v13(§11.10.25) 때 더함 — 지금 판은 §11.10.31 배수 범위로 올린 v14');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23', '이 사례는 v13(§11.10.25) 때 더함 — 지금 판은 §11.10.31 배수 범위로 올린 v14');
     });
     await check('[§11.10.17-3] 검사기(sb-validate-v11) — S1 「경계 필요」(보정 안 거친 글) · S3 「기준」(「(KOMSA 기준)」·「10:00 기준」은 허용) · S6 「근거로, … 이므로」 겹침 · 근거 꼬리표 「(기상청) 근거로」 · 이유 글(서버·관리자)', () => {
         const e = (sea) => AI.validateOverview({ ...good, sea }, si).errors;
@@ -2965,7 +2965,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(b.notice, '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.');
         assert.equal(R.RULES_VERSION, 'station-briefing-rules-v26');
         for (const x of [b, h]) { const j = JSON.stringify(x); assert.ok(!j.includes('물가 접근') && !j.includes('참고 정보이며') && !j.includes('필요합니다'), '「물가 접근」·옛 안내·「필요합니다」 없음'); }
-        assert.equal(AI.PROMPT_VERSION, 'sb-prompt-v18'); assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v22', '§11.10.22 에서 v12 · §11.10.25 에서 v13 · §11.10.31 에서 v14(이 사례 때는 그대로 v11)');
+        assert.equal(AI.PROMPT_VERSION, 'sb-prompt-v18'); assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23', '§11.10.22 에서 v12 · §11.10.25 에서 v13 · §11.10.31 에서 v14(이 사례 때는 그대로 v11)');
         const pr = AI.buildPrompt(AI.batchInput([AI.stationInput(h, null)], null));
         assert.ok(pr.includes('S14 해안·관광지에서의 활동은 「연안 활동」이라고 쓴다') && pr.includes('S15 마지막 「따라서」 문장에서 앞 문장에 이미 쓴 방문객 배수'), 'S14·S15');
         assert.ok(h.summary.tide.some((t) => t.endsWith('바위 위 낚시·채취 중 고립에 주의가 요구됩니다.')) || !h.summary.tide.length, h.summary.tide.join(' / '));
@@ -3072,7 +3072,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.ok(placeErr(para('가짜해변'), '대청도 농여해변').includes('place:가짜해변'), '가짜 이름은 막힘');
         assert.ok(placeErr(para('농여항'), '대청도 농여해변').includes('place:농여항'), '비슷한 다른 이름도 막힘');
         assert.ok(placeErr(para('무인등대'), '하조대 등대').includes('place:무인등대'), '접미사만인 낱말(「등대」)은 허용 이름에 넣지 않음 — 그랬다면 「…등대」가 모두 통과');
-        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v22');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23');
     });
     await check('[§11.10.22-E2] 기상청 큰 묶음 해역 이름 9개(사용자 「진행해보자.」) — 그 관할 입력 글에 낱말로 있을 때만 허용 · 「전남북부서해앞바다」 안의 「서해앞바다」는 아님(낱말 경계) · config/zone_group_map.js 는 그대로(통보문 해석 영향 없음)', () => {
         const nine = ['서해앞바다', '남해앞바다', '동해앞바다', '서해먼바다', '남해먼바다', '동해먼바다', '서해전해상', '남해전해상', '동해전해상'];
@@ -3302,7 +3302,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(p, '말도 남동방 2.4해리 해역과 향화도항 북서방 3.4해리 해역은 주의 수준입니다.', '해리를 빠뜨린 것만 고침(이미 「해리 해역」인 것은 그대로)');
         assert.deepStrictEqual(AI.numTokens(AI.norm(p)).map((x) => x.key), AI.numTokens(AI.norm('2.4해리 3.4해리')).map((x) => x.key), '고친 글의 숫자는 「N해리」로 읽힘 → 허용 목록과 대조');
         assert.equal(AI.polishOverview({ land: null, sea: '184해구와 1.3m 해역, 5곳 해역' }).sea, '184해구와 1.3m 해역, 5곳 해역', '숫자 바로 뒤 「해역」이 아니면 그대로');
-        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v22');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23');
     });
     // ── §11.10.41(2026-10-19 사용자 *"비양도 그러면 화순항 북북서방 11.3해리라고 나오는 게 아니라 비양도를 기준으로 나와야 되잖아"*) ──
     // 2026-10-19 사용자 결정 「위험예측까지 넓힘」 — 해역 이름을 짓는 marine_fusion(위험예측 해상 시트 제목·관할 브리핑 목록·브리핑 팝업 속 시트·「지금 밀집」)이 같은 규칙
@@ -3359,7 +3359,7 @@ const WIN = R.editionWindow('morning', T0);
         const sea = good.sea.replace(/비양도 주변 해역/g, '한림항 주변 해역');
         assert.deepStrictEqual(vo({ land: good.land, sea }, s2).errors, [], '항구 이름을 쓴 해설 통과');
         assert.ok(vo({ land: good.land, sea: sea.replace(/한림항/g, '가짜항') }, s2).errors.some((e) => e.startsWith('place:')), '입력에 없는 항 이름은 계속 막음');
-        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION, R.RULES_VERSION], ['sb-prompt-v18', 'sb-validate-v22', 'station-briefing-rules-v26'], '규칙 판만 올림(카드 이름이 바뀜) — 허용 지명은 종전 길(카드 이름·nameBase)로 들어가 검증·지시문은 그대로');
+        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION, R.RULES_VERSION], ['sb-prompt-v18', 'sb-validate-v23', 'station-briefing-rules-v26'], '규칙 판만 올림(카드 이름이 바뀜) — 허용 지명은 종전 길(카드 이름·nameBase)로 들어가 검증·지시문은 그대로');
         assert.ok(/ports = require\('\.\/official_ports'\)\.forNaming\(\)/.test(fs.readFileSync(path.join(__dirname, '../services/station_briefing_inputs.js'), 'utf8')), 'gather 기본값');
     });
     await check('[§11.10.41-2] placesByStation — 실행(gather)이 해역 카드 이름에 넘기는 input.places 와 같은 목록(관광지, 없으면 위험구역 장소명) · 관할 순번(idx) 열쇠', () => {
@@ -3381,7 +3381,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual([mErr('1.2배'), mErr('1.1배'), mErr('1.3배')], [[], [], ['multiplier:1.3배']], '낱개는 종전 그대로');
         assert.ok(AI.validateOverview({ ...good, land: land('1.2배'), sea: good.sea.replace('15시부터', '평소의 1.1~1.2배 사고와 15시부터') }, s1).errors.includes('multiplier:1.1~1.2배'), '연안 배수 범위를 해상 문단에 쓰면 막는다(문단별)');
         assert.deepStrictEqual(vErr(sea0('해제 뒤 이틀 동안 사고가 약 1.2~1.3배 많았습니다.')), [], '해상 해제 칸 범위(허용 목록에 범위 열쇠 그대로)는 종전처럼 통과');
-        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v22', '검사 규칙이 바뀌어 판을 올림(재사용 해시) — 지시문은 그대로');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23', '검사 규칙이 바뀌어 판을 올림(재사용 해시) — 지시문은 그대로');
         assert.equal(AI.PROMPT_VERSION, 'sb-prompt-v18');
     });
     await check('[§11.10.31-2] 탈락한 글 보관 — 검사 탈락 오류에 검사가 본 글(연안·해상)·그 관할 허용 숫자·배수 · 응답에 관할이 없으면 글 없음 · 호출 실패엔 없음 · 문단 1,000자까지', async () => {
@@ -3599,7 +3599,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(h(L1.replace('이 세 곳에는', '이 네 곳에는')), ['number:hangul:네 곳'], '수가 다르면 실패');
         assert.deepStrictEqual(h(L1.replace('이 세 곳에는', '주변에서 이 세 곳에는')), ['number:hangul:세 곳'], '문장 가운데(「주변에서 이」)는 첫머리 아님 — 실패');
         assert.deepStrictEqual(h(L1.replace('이 세 곳에는', '사람이 많이 세 곳에')), ['number:hangul:세 곳'], '낱말 끝 「이」(「많이」)는 지시어 아님 — 실패');
-        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v22');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23');
     });
     await check('[§11.10.54] 세션 시험 지명 오판 12건(동사·부사 앞 낱말·몽돌·입출항·「신도해안도로 갯바위」) 통과 · 지어낸 이름은 그대로 실패 · 위험지수 숫자·확인 못 한 자료 언급은 실패 · 방문객 1.4배 미만은 입력·허용 배수에서 빠짐 · 지시문 S26~S30', () => {
         const pl = (t, places) => errs49({ land: t, sea: '해상은 평소 수준입니다.' }, si49({ allowed_places: places || [], land: {} }), /^place:/);
@@ -3647,7 +3647,7 @@ const WIN = R.editionWindow('morning', T0);
         const pr = AI.buildPrompt(AI.batchInput([AI.stationInput(stationsFor(1)[0])], null));
         for (const k of ['S26 ', 'S27 ', 'S28 ', 'S29 ', 'S30 ']) assert.ok(pr.includes(k), k);
         assert.ok(pr.includes('확인하지 못한 자료(missing_sources)는 문단에 쓰지 않는다') && pr.includes('평소의 1.4배 이상') && pr.includes('소형 보트·레저기구 표류'));
-        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION], ['sb-prompt-v18', 'sb-validate-v22']);
+        assert.deepStrictEqual([AI.PROMPT_VERSION, AI.VALIDATOR_VERSION], ['sb-prompt-v18', 'sb-validate-v23']);
     });
     await check('[§11.10.54 덧] 규칙 분석 문단(AI 가 다 실패했을 때)도 같은 기준 — 위험지수 등급만 · 1.4배 미만 방문객 배수 없음(그것뿐이면 단계까지만) · 「확인하지 못한 자료」 문장 없음 · 그래도 3문장 이상 · 화면 근거 줄은 그대로', () => {
         const b = stationsFor(1)[0], A = R.ruleAnalysis(b, R.buildSummary(b));
@@ -3709,7 +3709,15 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(nn({ land: '해안 바람이 8시~10m/s로 예상됩니다.', sea: '해상은 평소 수준입니다.' }, wd), ['number:8시~10m/s'], '왼쪽 단위가 다르면 실패');
         const jh = si49({ name: '진해파출소', levels: { sea: {}, land: { '우도(창원 진해)': 1, '진해루': 1, '속천항': 1 } }, land: {} });
         assert.deepStrictEqual(h('진해루와 속천항은 관심 수준입니다. 바람이 강해지는 경우도 있어 세 곳 모두 유의해야 합니다. 따라서 진해루 인근 연안에서는 관심이 요구됩니다.', jh), ['number:hangul:세 곳'], '괄호 뗀 짧은 이름(우도)은 흔한 낱말 속에서 세지 않음');
-        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v22');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23');
+    });
+    await check('[§11.10.57] 세션 정시 판 첫 운영(11-19 17:30 판) 지명 오판 4건 — 「상시 위험 장소에서도 연안 활동」·「장소 주변에서도 연안 활동」 통과(원문 문장) · 지어낸 섬 이름은 계속 실패', () => {
+        const pl = (t) => errs49({ land: t, sea: '해상은 평소 수준입니다.' }, si49({ land: {} }), /^place:/);
+        assert.deepStrictEqual(pl('이들 해변에서는 소형 보트·레저기구 표류에 유의해야 하며, 등 상시 위험 장소에서도 연안 활동에 유의해야 합니다.'), [], '속초 「상시위험장소에서도」');
+        assert.deepStrictEqual(pl('등 상시 위험 장소에서도 연안 활동에 유의해야 합니다.'), [], '호미곶·구룡포');
+        assert.deepStrictEqual(pl('등 상시 위험 장소 주변에서도 연안 활동에 유의해야 합니다.'), [], '남항 「주변에서도」');
+        assert.deepStrictEqual(pl('가짜섬도 연안 활동에 유의해야 합니다.').length, 1, '「…도」 섬 이름 꼴은 계속 검사');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23');
     });
     await check('[§11.10.56] 세션 시험 3차 지명 오판 2건 — 「부는 동안 해변의」·「세지 않아도 방파제와」 통과 · 지어낸 이름은 계속 실패', () => {
         const pl = (t) => errs49({ land: t, sea: '해상은 평소 수준입니다.' }, si49({ land: {} }), /^place:/);
@@ -3718,14 +3726,14 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(pl('물결이 높지 않아도 해변에서는 유의해야 합니다.'), [], '「않아도 해변」');
         assert.deepStrictEqual(pl('가짜리 해변은 연안 활동에 유의해야 합니다.'), ['place:가짜리해변'], '이름다운 앞 낱말은 계속 검사');
         assert.deepStrictEqual(pl('가짜어도 해변은 연안 활동에 유의해야 합니다.'), ['place:가짜어도해변'], '「-어도」로 끝나는 낱말을 넓게 빼지 않음(세어도 같은 섬 이름)');
-        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v22');
+        assert.equal(AI.VALIDATOR_VERSION, 'sb-validate-v23');
     });
     await check('[§11.10.49-6] 지시문 S17~S25(AI 가 실제로 어긴 꼴) · S14 예시 「연안 활동에 유의해야 합니다」 · 문장 수 이유 글 · 판 v18/v17', () => {
         const pr = AI.buildPrompt(AI.batchInput([AI.stationInput(stationsFor(1)[0])], null));
         for (const k of ['S17 ', 'S18 ', 'S19 ', 'S20 ', 'S21 ', 'S22 ', 'S23 ', 'S24 ', 'S25 ']) assert.ok(pr.includes(k), k);
         assert.ok(pr.includes('예: 「연안 활동에 유의해야 합니다」') && !pr.includes('연안 활동 시 주의가 요구됩니다」).'), 'S14 예시');
         assert.ok(/늘릴 때 shown\.weather 숫자는 옮기지 말고/.test(AI.explainError('shape:sea-sentences-2')) && !/늘릴 때/.test(AI.explainError('shape:sea-sentences-6')));
-        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v22', 'sb-prompt-v18']);
+        assert.deepStrictEqual([AI.VALIDATOR_VERSION, AI.PROMPT_VERSION], ['sb-validate-v23', 'sb-prompt-v18']);
     });
     // ── §11.10.48 누적 오류(2026-11-15 사용자 결정 — 처리 완료 전까지 최대 90일 · 날짜별·유형별 누적 md · 고친 유형만 머지 시 자동 처리 완료 + 관리자 버튼) ──
     const EL = require('../services/station_briefing_errlog');
