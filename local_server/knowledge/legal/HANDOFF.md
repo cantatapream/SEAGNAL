@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 00:45 KST] ✅완료 — 관리자 검토 센터 승인이 배포 뒤 사라지던 문제 — 서버 시작 시 승인 이력으로 다시 맞춤(내용 지문 방식)
+원인(코드 확인): 승인은 review_queue.md·위키 페이지(둘 다 앱 이미지 안)와 승인 이력(local_server/data/review_approvals.json, 볼륨)에 쓴다. 배포마다 이미지가 저장소 옛 내용으로 돌아가 승인 줄·canonical 각인이 사라지고 이력만 남았다(최근 3일 main 머지 58건=배포 58번). 조치: routes/legal.js — ①승인할 때 대상 위키 페이지의 내용 지문(status 줄·확정 각인 줄을 뺀 글의 sha256 앞 16자리)을 이력에 pageHashes 로 남김 ②replayApprovalsLog(): 항목별 마지막 결정만 보고, 승인은 지문이 지금 글과 모두 같을 때만 다시 확정(사람이 누른 날짜·이름 그대로, 이력은 더 안 쌓음). 지문 없는 옛 승인은 손대지 않음(사용자 결정 「다」 — 한 번만 다시 누르면 그 뒤로 유지). 글이 바뀌었거나 페이지가 없어졌으면 대기로 둠. 대상 페이지 표기가 달라졌거나 같은 번호 중복이면 건너뜀. 되돌림·반려도 반영 ③server.js listen 뒤 replayApprovalsOnStart() 호출(모듈 require 만으로는 안 돎, LEGAL_REPLAY_APPROVALS=off 로 끔). 시험: local_server/scripts/test_review_replay.js 28/0(실제 카드 REVIEW-선박평형수…-806 으로 승인→배포 흉내→복원, 옛 승인·글 변경·페이지 삭제·되돌림, 끝나면 실제 파일 바이트 복원 확인) — verify_all SUITES 등록·gen_rulebook 갱신. 알려 둘 것(기존 동작, 이번에 안 고침): 승인 전부터 canonical 이던 페이지를 되돌림하면 draft 로 내려간다(undoWikiPages). 다음: 사용자에게 옛 승인 카드는 한 번씩 다시 눌러 달라고 안내. 저장소 영구 반영은 여전히 apply_approvals.py.
+
+
 ### [2026-11-20 00:17 KST] ✅완료 — AI 연안 안전 브리핑 (기상)·(물때) — 기상 현황 표 · 머리 B안(아이콘+제목+선) (브랜치 claude/festive-tesla-k7ie2s)
 사용자 2026-11-19 「휴대폰·글자 크게에서 두 줄 … 차라리 표로 천기|파고|풍향·속」 + 머리 구분 시안 셋(artifact 1ie8YztA16qs46cxeFGJyj) 중 「b안이 좋겠어」. 서버 station_briefing_rules.js periodCells 신설 — weatherSummary rows 에 cells{sky,wave,dir,speed}(text 그대로). 화면 station_briefing_render.js wxHead(아이콘 SVG+제목+선, 글자 모양 .sb-headline 그대로)·wxTable(때|천기|파고|풍향·풍속, 풍향/풍속 두 줄), cells 없는 옛 판은 「•」 줄. station_briefing.css 머리·표 모양(칸 폭 em). 버전표 갱신. 시험: test_station_briefing 252/0(cells 확인 추가) · test_station_briefing_ui 102/0(본문 시험을 표 기대로 고침 + 360px·글자 크게 표 시험 신설). 새로 만들어지는 브리핑부터 표로 보이고 이미 만든 판은 줄 모양.
 

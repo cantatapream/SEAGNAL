@@ -509,6 +509,12 @@ app.listen(PORT, '0.0.0.0', () => {
     // - cctvSeafogRouter.kickoffInitialFetch(): 해무 CCTV 첫 수집 (외부 API 호출)
     // 각 작업의 실패는 console.error 로만 기록하고 다른 작업/응답에 영향 주지 않는다.
     setImmediate(() => {
+        // 배포로 이미지 안 대기 목록·위키가 옛 내용으로 돌아간 것을, 볼륨의 승인 이력으로 다시 맞춘다(routes/legal.js · 2026-11-19)
+        try {
+            require('./routes/legal').replayApprovalsOnStart();
+        } catch (e) {
+            console.error('[startup] 승인 이력 다시 맞추기 실패:', e && e.message);
+        }
         // VM 대신 이 서버 안에서 Codex(ChatGPT) 작업자 띄우기 — 시크릿 CODEX_AUTH_JSON 이 있을 때만 (services/codex_inproc.js)
         try {
             require('./services/codex_inproc').start(PORT);
