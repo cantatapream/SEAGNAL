@@ -269,6 +269,51 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
         ok('전체 내려받기 = 마크다운 첨부', /markdown/.test(res2.h['Content-Type']) && /attachment/.test(res2.h['Content-Disposition']) && /# 통보문 관찰 기록/.test(res2.body));
     }
 
+    console.log('로그인이 안 되면 관리자 푸시 — 사용자 2026-11-18 「방재기상플랫폼 로그인이 갑자기 안되면 관리자에게 푸시」');
+    {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bw-login-')), f = fakeDmdw(); let t = T0; const seen = [];
+        const mk = () => createWatch({ post: f.post, login: f.login, now: () => t, dir, sleep: async () => {}, gapMs: 0, onLogin: (r) => seen.push(r.ok ? 'ok' : '실패:' + r.error.message) });
+        let w = mk();
+        await w.run();
+        ok('로그인이 되면 「됨」을 한 번 알린다(세션이 살아 있는 동안은 다시 로그인하지 않는다)', seen.join() === 'ok', seen);
+        await w.run();
+        ok('… 다음 회차에는 로그인을 다시 하지 않으므로 알림도 없다', seen.join() === 'ok', seen);
+        // 서버가 다시 뜬 뒤(세션 없음) 로그인 거부
+        w = mk(); f.loginFail = true; seen.length = 0;
+        await w.run();
+        ok('로그인이 거부되면 그 사유와 함께 「안 됨」을 알린다 — 목록 16개가 모두 로그인을 거쳐도 시도는 한 번(나머지는 쉬는 중)', seen.join() === '실패:로그인 거부(statecode=11)', seen);
+        t = T0 + 10 * 60e3; await w.run();
+        ok('쉬는 30분 동안은 시도하지 않으니 알림도 없다', seen.length === 1, seen);
+        t = T0 + 31 * 60e3; await w.run();
+        ok('30분 뒤 다시 시도해 또 거부되면 다시 「안 됨」(푸시를 또 보낼지는 알림 쪽이 정한다)', seen.length === 2 && seen[1] === seen[0], seen);
+        t = T0 + 62 * 60e3; f.loginFail = false; await w.run();
+        ok('다시 되면 「됨」', seen.length === 3 && seen[2] === 'ok', seen);
+        const boom = createWatch({ post: f.post, login: f.login, now: () => t, dir: fs.mkdtempSync(path.join(os.tmpdir(), 'bw-login2-')), sleep: async () => {}, gapMs: 0, onLogin: () => { throw new Error('알림 고장'); } });
+        const st = await boom.run();
+        ok('알림 쪽이 던져도 수집은 그대로 돈다', st.lists === 16, st);
+        // 사유 문장
+        const W = require('../services/bulletin_watch');
+        ok('사유: 상태 코드 11 = 비밀번호 만료 · 00 미등록 · 01 승인 대기 · 모르는 코드는 숫자 그대로', W.loginReason(new Error('로그인 거부(statecode=11)')) === '로그인 거부 — 비밀번호 만료'
+            && W.loginReason(new Error('로그인 거부(statecode=00)')) === '로그인 거부 — 미등록 계정' && W.loginReason(new Error('로그인 거부(statecode=01)')) === '로그인 거부 — 승인 대기'
+            && W.loginReason(new Error('로그인 거부(statecode=null)')) === '로그인 거부 — 상태 코드 null');
+        ok('사유: 연결 문제는 「로그인 실패 — 시간초과」처럼', W.loginReason(new Error('timeout')) === '로그인 실패 — 시간초과' && W.loginReason(new Error('HTTP 503')) === '로그인 실패 — HTTP 503');
+        // 실제 알림기(임시 파일·가짜 발송)에 물려 푸시 문장까지
+        const A = require('../services/collect_fail_alert'); const calls = []; let ct = Date.parse('2026-11-18T13:30:00Z');   // 22:30 KST
+        const al = A.createAlerter({ file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bw-al-')), 'a.json'), clock: () => ct, send: async (title, body, data) => { calls.push({ title, body, data }); return { delivered: true }; } });
+        await W.reportLogin({ ok: true }, al);
+        ok('처음부터 잘 되면 푸시 없음', calls.length === 0);
+        await W.reportLogin({ ok: false, error: new Error('로그인 거부(statecode=11)') }, al);
+        ok('안 되기 시작하면 관리자 푸시 1통 — 무엇이·왜·언제부터', calls.length === 1 && calls[0].title === '자료 수집 실패' && calls[0].body === '특보·예비특보 통보문 (기상청 방재기상플랫폼) 수집 실패 — 로그인 거부 — 비밀번호 만료, 11/18 22:30부터' && calls[0].data.item === 'bulletins', calls);
+        ct += 30 * 60e3; await W.reportLogin({ ok: false, error: new Error('로그인 거부(statecode=11)') }, al);
+        ct += 30 * 60e3; await W.reportLogin({ ok: false, error: new Error('timeout') }, al);
+        ok('안 되는 동안(사유가 바뀌어도)은 다시 보내지 않는다', calls.length === 1, calls);
+        ct += 30 * 60e3; await W.reportLogin({ ok: true }, al);
+        ok('다시 되면 「복구」 1통', calls.length === 2 && calls[1].title === '자료 수집 복구' && calls[1].body === '특보·예비특보 통보문 (기상청 방재기상플랫폼) 수집 복구 — 11/19 00:00', calls);
+        ct += 60e3; await W.reportLogin({ ok: false, error: new Error('로그인 거부(statecode=11)') }, al);
+        ok('복구 뒤 다시 안 되면 다시 1통', calls.length === 3 && /11\/19 00:01부터/.test(calls[2].body), calls);
+        ok('운영 관찰기는 로그인 결과를 알림에 잇는다(getReal 의 onLogin → reportLogin)', /createWatch\(\{ post: realPost, login: realLogin, onLogin: \(r\) => \{ reportLogin\(r\); \} \}\)/.test(fs.readFileSync(path.join(__dirname, '..', 'services', 'bulletin_watch.js'), 'utf8')));
+    }
+
     console.log('목록을 다 받은 마지막 시각(listsOkMs) — 📋 팝업이 통보문이 최신인지 볼 때');
     {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bw-ok-')), f = fakeDmdw(); let t = T0;
@@ -280,6 +325,57 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
         ok('목록 하나라도 못 받은 회차엔 그대로(옛 시각)', w.listsOkMs() === T0, w.listsOkMs());
         t = T0 + 120e3; f.failList = null; await w.run();
         ok('다시 다 받으면 그 시각으로', w.listsOkMs() === T0 + 120e3 && createWatch({ post: f.post, login: f.login, now: () => t, dir }).listsOkMs() === T0 + 120e3);
+    }
+
+    console.log('끊긴 동안 보충 — 3일 넘게 목록을 못 받다 돌아오면 마지막으로 다 받은 날의 하루 전부터(최대 10일)');
+    {
+        const D = 86400e3, ymd = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '');
+        const mk = () => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bw-cu-')), f = fakeDmdw(), asked = []; const post = f.post; f.post = async (p, form) => { if (p.endsWith('List.json')) asked.push(form.startDate + '~' + form.endDate); return post(p, form); };
+            const c = { dir, f, asked, t: T0 }; c.w = () => createWatch({ post: f.post, login: f.login, now: () => c.t, dir, sleep: async () => {}, gapMs: 0 }); c.ev = () => { const w = c.w(); return w.days().flatMap((d) => w.readDay(d)); }; return c; };
+        const full = { t1: '풍랑주의보 발표', t2: 'o 풍랑주의보 : 제주도남쪽먼바다', t6: 'o 풍랑주의보 : 제주도남쪽먼바다' };
+        // ① 3일 안의 끊김 — 종전 그대로(3일 전부터), 보충 표시 없음
+        { const c = mk(); let w = c.w(); await w.run(); c.asked.length = 0; c.t = T0 + 2 * D; c.f.loginFail = false; w = c.w(); await w.run();
+          ok('2일 끊겼다 돌아오면 종전대로 3일 전부터 받는다(보충 아님)', new Set(c.asked).size === 1 && c.asked[0] === ymd(c.t - 3 * D) + '~' + ymd(c.t) && !c.ev().some((e) => /^catch_up/.test(e.kind)), c.asked[0]); }
+        // ② 5일 끊김 — 마지막으로 다 받은 날의 하루 전부터 · 받은 통보문에 보충 표시 · 끝나면 평소 기간으로
+        { const c = mk(); let w = c.w(); await w.run(); const lastOk = T0;
+          c.t = T0 + 5 * D; c.asked.length = 0; const code = '6|184|40|' + ymd(T0 + 1 * D) + '0400|4|x'; c.f.lists['184|6'] = [{ code, value: ' 풍랑주의보 발표 ' }]; c.f.details[code] = full;
+          w = c.w(); await w.run();
+          const ev = c.ev(), nw = ev.find((e) => e.kind === 'new' && e.code === code);
+          ok('5일 끊겼다 돌아오면 「마지막으로 다 받은 날의 하루 전」부터 받는다(16개 목록 모두)', c.asked.length === 16 && new Set(c.asked).size === 1 && c.asked[0] === ymd(lastOk - D) + '~' + ymd(c.t), c.asked[0]);
+          ok('그때 받은 통보문은 보충 표시(catchUp)가 붙고 들고 있는 통보문에 들어간다 · 시작·끝 기록이 남는다', !!nw && nw.catchUp === true && w.bulletins().some((b) => b.code === code) && ev.some((e) => e.kind === 'catch_up' && /다시 받아 빠진 통보문을 채운다/.test(e.설명)) && ev.some((e) => e.kind === 'catch_up_done'), ev.map((e) => e.kind));
+          c.asked.length = 0; c.t += 60e3; w = c.w(); await w.run();
+          ok('보충을 마친 다음 분부터는 평소대로 3일 전부터 · 보충 기록은 한 번만', c.asked[0] === ymd(c.t - 3 * D) + '~' + ymd(c.t) && c.ev().filter((e) => e.kind === 'catch_up').length === 1 && c.ev().filter((e) => e.kind === 'catch_up_done').length === 1, c.asked[0]); }
+        // ③ 보충 회차에 새 본문 하나를 못 받음 → 다음 분에도 넓힌 기간 그대로(서버가 다시 떠도) → 받으면 끝
+        { const c = mk(); let w = c.w(); await w.run();
+          c.t = T0 + 6 * D; const code = '6|184|41|' + ymd(T0 + 1 * D) + '0400|4|y'; c.f.lists['184|6'] = [{ code, value: ' 풍랑주의보 발표 ' }]; c.f.details[code] = full; c.f.failDetail.add(code);
+          w = c.w(); await w.run(); const wide = ymd(T0 - D) + '~';
+          c.asked.length = 0; c.t += 60e3; w = c.w(); await w.run();   // 새 관찰기(서버 다시 뜸) · 아직 본문 실패
+          ok('보충 중 새 본문을 못 받으면 보충을 끝내지 않는다 — 다음 분에도(서버가 다시 떠도) 넓힌 기간으로 받는다', c.asked[0].startsWith(wide) && !c.ev().some((e) => e.kind === 'catch_up_done') && !w.bulletins().some((b) => b.code === code), c.asked[0]);
+          c.f.failDetail.clear(); c.asked.length = 0; c.t += 60e3; w = c.w(); await w.run();
+          ok('본문이 받아지면 그 통보문이 채워지고 보충을 마친다', c.asked[0].startsWith(wide) && w.bulletins().some((b) => b.code === code) && c.ev().filter((e) => e.kind === 'catch_up_done').length === 1, c.ev().map((e) => e.kind));
+          // 목록 하나를 못 받은 보충 회차도 끝내지 않는다
+          const c2 = mk(); let w2 = c2.w(); await w2.run(); c2.t = T0 + 6 * D; c2.f.failList = '105|7'; w2 = c2.w(); await w2.run(); c2.asked.length = 0; c2.t += 60e3; c2.f.failList = null; w2 = c2.w(); await w2.run();
+          ok('보충 중 목록 하나를 못 받은 회차에도 끝내지 않는다(다음 분에 넓힌 기간으로 다시)', c2.asked[0].startsWith(ymd(T0 - D) + '~') && c2.ev().filter((e) => e.kind === 'catch_up_done').length === 1, c2.asked[0]); }
+        // 검토에서 나온 것: 목록 하나가 계속 안 받아지면 보충이 끝없이 이어졌다 → 하루 뒤 그만둔다 · 보충으로 받은 통보문의 「처음 본 때」는 회차 시작 시각 하나
+        { const c = mk(); let w = c.w(); await w.run(); c.t = T0 + 6 * D; const start = c.t; c.f.failList = '105|7';
+          const c1 = '6|184|50|' + ymd(T0 + 1 * D) + '0400|4|a', c2 = '6|105|51|' + ymd(T0 + 2 * D) + '0400|4|b'; c.f.lists['184|6'] = [{ code: c1, value: ' a ' }]; c.f.lists['105|6'] = [{ code: c2, value: ' b ' }]; c.f.details[c1] = full; c.f.details[c2] = full;
+          let tick = 0; const w0 = createWatch({ post: c.f.post, login: c.f.login, now: () => c.t + (tick++) * 1000, dir: c.dir, sleep: async () => {}, gapMs: 0 }); await w0.run();   // 받는 동안 시계가 흐른다
+          const st = JSON.parse(fs.readFileSync(path.join(c.dir, 'state.json'), 'utf8'));
+          ok('보충으로 받은 통보문들은 「처음 본 때」가 회차 시작 시각 하나다(10일 뒤 한 회차에 함께 지워지게)', st.seen[c1].firstMs === start && st.seen[c2].firstMs === start && st.seen[c1].fullMs !== st.seen[c2].fullMs, [st.seen[c1].firstMs - start, st.seen[c2].firstMs - start]);
+          c.t = start + 23 * 3600e3; c.asked.length = 0; w = c.w(); await w.run();
+          const still = c.asked[0].startsWith(ymd(T0 - D) + '~') && !c.ev().some((e) => e.kind === 'catch_up_gave_up');
+          c.t = start + 24 * 3600e3 + 60e3; w = c.w(); await w.run(); c.asked.length = 0; c.t += 60e3; w = c.w(); await w.run();
+          ok('목록 하나가 계속 안 받아지면 보충은 하루 뒤 그만둔다(끝없이 넓은 범위를 묻지 않는다) — 그 전까지는 넓힌 범위 · 그만둔 기록이 남고 평소 3일로 돌아간다', still && c.ev().filter((e) => e.kind === 'catch_up_gave_up').length === 1 && !c.ev().some((e) => e.kind === 'catch_up_done') && c.asked[0] === ymd(c.t - 3 * D) + '~' + ymd(c.t), [still, c.asked[0]]);
+          // 그만둔 뒤: 하루는 다시 시작하지 않고, 하루가 지나 목록이 다 받아지면 그때 보충을 마친다
+          const before = c.ev().filter((e) => e.kind === 'catch_up').length;
+          c.t += 24 * 3600e3 + 120e3; c.f.failList = null; c.asked.length = 0; w = c.w(); await w.run();
+          ok('그만둔 뒤 하루는 다시 시작하지 않는다 · 하루 뒤 다시 해 보아 목록이 다 받아지면 보충을 마친다', before === 1 && c.ev().filter((e) => e.kind === 'catch_up').length === 2 && c.ev().filter((e) => e.kind === 'catch_up_done').length === 1 && c.asked[0].startsWith(ymd(T0 - D) + '~'), [before, c.asked[0], c.ev().map((e) => e.kind).filter((k) => /catch/.test(k))]);
+          const md = require('../routes/bulletin_watch').reportMarkdown ? require('../routes/bulletin_watch').reportMarkdown(c.ev(), 'all') : null;
+          ok('관리자 보고서: 보충 사건이 사람 말로 적히고, 나중에 받은 통보문은 「새 통보문」 수에서 뺀다', md === null || (/끊긴 동안 보충 시작: 2건/.test(md) && /보충 마침: 1건/.test(md) && /보충을 못 마치고 그만둠: 1건/.test(md) && /끊긴 동안 나온 것을 나중에 받은 통보문: 2건/.test(md) && /- 새 통보문: 0건/.test(md)), md && md.split('\n').slice(4, 16).join(' | ')); }
+        // ④ 아주 오래 끊김 — 10일까지만 · 처음 켠 때(기준 없음)는 종전대로 3일
+        { const c = mk(); let w = c.w(); await w.run(); c.t = T0 + 25 * D; c.asked.length = 0; w = c.w(); await w.run();
+          const first = mk(); await first.w().run();
+          ok('25일 끊겼다 돌아오면 10일 전부터만(통보문을 기억하는 기간) · 처음 켠 때는 3일 전부터', c.asked[0] === ymd(c.t - 10 * D) + '~' + ymd(c.t) && first.asked[0] === ymd(T0 - 3 * D) + '~' + ymd(T0) && !first.ev().some((e) => /^catch_up/.test(e.kind)), [c.asked[0], first.asked[0]]); }
     }
 
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);

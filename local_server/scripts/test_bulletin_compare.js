@@ -27,6 +27,10 @@ console.log('A. MMIS 나무 펼치기 · 가상 푸시 종류');
     const kid = (b, a) => (C.templateOf('제주도서부앞바다중북서연안바다', b && Object.assign({}, b, { parent: '제주도서부앞바다' }), a && Object.assign({}, a, { parent: '제주도서부앞바다' }), Z('formal', '주의보', { parent: '제주도서부앞바다' })) || {}).templateId;
     ok('부모가 정식 중인 자식: 추가 = additional_active, 빠짐 = partial_release', kid(null, Z('formal', '주의보')) === 'additional_active' && kid(Z('formal', '주의보'), null) === 'partial_release');
     ok('바뀐 게 없으면 null', C.templateOf('x', Z('formal', '주의보'), Z('formal', '주의보'), null) === null);
+    // 2026-11-19 운영 기록(제주 제11-49호 → 제11-50호): 발표(발효 전)가 취소되고 옛 예비가 남는 경우 = 「해제」 한 통(종전: 「주의보→주의보 격하 발효」)
+    { const pend = { parent: '제주도동부앞바다', kind: 'pending', type: '풍랑', level: '주의보', tmEf: '2026년 11월 18일 13시 00분' }, yb = { parent: '제주도동부앞바다', kind: 'yebi', type: '풍랑', level: '예비', tmEf: '2026년 11월 18일 오후(12시~18시)' };
+      const u = '제주도동부앞바다중남동연안바다', a1 = C.templateOf(u, pend, yb, pend, false), a2 = C.templateOf(u, pend, null, pend, false);
+      ok('발표(발효 전) → 옛 예비로 = 해제 한 통(격하 발효가 아니다) · 발표 → 없음 도 해제', a1 && a1.templateId === 'release' && a1.level === '주의보' && a2 && a2.templateId === 'release', JSON.stringify([a1, a2])); }
 }
 
 console.log('A2. 발표(발효 전) · 표기 차이');

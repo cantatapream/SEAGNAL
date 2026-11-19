@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 154 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 164 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -336,6 +336,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_score_body` | ★「변경 이력」이 **검색 점수에서 빠졌는지**를 고정한다. (결심 4-5ⓐ) |
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_review_sources` | ★⚠수치검증 카드의 「원문 보기」를 못박는다. (2026-11-02 사용자 요청) |
+| `test_review_replay` | 관리자 검토 센터에서 누른 「승인」이 **배포 뒤에도 남는지** 확인한다. |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
 | `test_bulletin_ai` | 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·④ 연안 안전 브리핑)와 그 API·일감별 실행 위치를… |
 | `test_bulletin_ai_ui` | 관리자 「AI 모델 설정」 탭(client/js/admin/admin_bulletin_ai.js)의 기능별 AI 순서 목록을 실제 Chromium 으로 그려 본다 — |
@@ -396,6 +397,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_slow_request_log` | 느린 요청 기록(services/slow_request_log.js)이 3초 넘는 요청만, 쿼리 없이, 붙잡는 요청은 빼고 남기는지 실제 HTTP 로 확인한다. |
 | `test_risk_map_wait` | 위험예측 지도의 「기다림 표시」(지도 가운데 스피너·이전 색 흐림·실패 안내 2초)가 켜지고 꺼지는 때를 고정한다(2026-10-16 T4). |
 | `test_life_safety_tab_keep` | 하단 「해양안전생활」 탭이 다른 메인탭에 다녀와도 마지막 화면을 유지하고 새로고침이면 처음 상태인지 실제 화면으로 검사한다. |
+| `test_safety_late_overlay` | 앱을 켜고 처음 여는 지도가 「해양안전생활」이어도, 해양종합정보에서 지난번에 켜 둔 오버레이 |
 | `test_risk_select_motion` | 위험예측 지도에서 해상 GR4 칸·연안 관광지를 누르면 ①선택 테두리가 해구기상 해구 칸 선택과 같은 모양(시안 #4fc3f7·2.5px)으로 바로 보이고 |
 | `test_risk_coast_day` | 위험예측 연안 「하루 하나」(T24)의 화면을 실제 index2.html 전체(Chromium)로 검사한다 — |
 | `test_station_briefing` | 「활동지점 안전 브리핑」(파출소 관할) 서버 1단계 시험 — 고정 입력(가짜 자료)으로 규칙·AI 순서·검증·저장·일정·노출을 결정론적으로 확인한다. |
@@ -411,16 +413,24 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_marine_smallzone_ui` | 실제 Chromium 에서 해구 기상전망 창(client/js/forecast/alerts/marine.js)의 소해구 표시를 검사한다(§11.10.18). |
 | `test_beach_weather` | 기상청 해수욕장 날씨(수집기 services/beach_weather_collector.js · 판단·문구 services/beach_weather.js · |
 | `test_notice_markdown` | 공지 게시판 「마크다운 파일 불러오기」(2026-10-20 사용자 결정 — 파일을 올리면 편집기에 채우고, 눈으로 보고 고친 뒤 저장 · 사진은 파일 안에)를 고정한다. |
-| `test_notice_md_fit` | 공지 게시판 마크다운 글(패치노트)의 줄 맞춤을 고정한다. |
+| `test_text_fit` | 긴 안내 글의 줄 정렬(저장소 NOTICE.md 「줄 정렬」)을 고정한다. |
 | `test_bulletin_watch` | 통보문 관찰기(services/bulletin_watch) · 내려받기(routes/bulletin_watch) 검사. |
 | `test_bulletin_ai_trial` | 참고사항 AI 시험(services/bulletin_ai_trial) · 관리자 창구(routes/bulletin_watch) · 「통보문 관찰」 탭(client/js/admin/admin_bull… |
 | `test_bulletin_status` | 통보문 기준 특보현황(services/bulletin_status) 검사. |
+| `test_bulletin_docs` | 통보문 원문 보관(services/bulletin_docs) 검사 — 발자취에 든 통보문의 PDF 를 받아 쪽 그림으로 바꿔 두고, |
+| `test_bulletin_escalation` | 격상 가능성(services/bulletin_escalation) 검사 — 통보문 참고사항·날씨해설에서 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」의 |
+| `test_regional_sea_summary` | 지방청 단기 전망 「해상 기상 요약」 검사 — 바다 항목 뽑기(규칙) · AI 답의 원문 대조(check) · 요약 흐름(없음/요약됨/원문 그대로) · |
+| `test_regional_sea_ui` | 「지방기상청 단기 전망」 칸(2026-11-19 종전 「종합 예보」 칸 + 지방청 카드를 한 단계로)의 모양을 실제 Chromium 으로 index2.html 전체를 띄워 본다(2026-11-19 … |
+| `test_zone_trend_ui` | 특보 카드 뱃지의 오르내림 화살표를 실제 화면(Chromium)으로 본다. |
 | `test_bulletin_compare` | MMIS ↔ 통보문 비교 기록(services/bulletin_compare) · 메인 출처 전환 버튼(client/js/forecast/alerts/alert_source_toggle.js) 검사… |
 | `test_bulletin_ai_live` | 참고사항 AI 실시간 해석(services/bulletin_ai_live) + 통보문 기준 특보현황 덧씌움(bulletin_status.applyAi) 검사. |
 | `test_push_upcoming_type` | 앱 푸시(push_sender) — 발효 중 특보 위에 「다가오는 특보」가 처음 생길 때 제목 검사. |
 | `test_subscriber_audit` | 2026-11-18: 관리자 센터 「푸시 알림 구독자」가 명단 줄 수(등록표 개수)여서 |
 | `test_push_master_keep` | 2026-11-18: 폰 알림 권한이 허용돼 있으면 앱을 켤 때마다 "푸시 알림 받기"(master)를 |
 | `test_wheel_date_picker` | 날짜칸을 누르면 휠 선택기가 뜨고, 고른 값이 칸에 제대로 들어가는지 |
+| `test_promo_youtube_shorts` | 2026-11-19: 게시글 편집기 「동영상」(필름 모양) 버튼에 쇼츠 주소를 넣으면 Quill 1.3.6 이 |
+| `test_promo_detail_ui` | 공지사항 게시글 상세 팝업의 새 모양(2026-11-19 사용자 확정 시안)을 실제 Chromium 으로 index2.html 전체를 띄워 본다. |
+| `test_promo_detail_keyboard` | 2026-11-19 사용자 지적: 게시글 상세에서 댓글 입력창을 누르면 머리(제목)가 위로 밀려 올라가고 본문이 |
 | `test_location_alert_exposure` | 위치기반 「노출 범위」(일반 공개/관리자만/모두 비노출) 검증 |
 | `test_inapp_update_flow` | 앱 안 업데이트(유연형) 화면 흐름 검증 |
 | `test_push_device_test` | 「직접 발송」의 "이 휴대폰에만 보내기(시험)" 검증 |

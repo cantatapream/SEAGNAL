@@ -32,6 +32,93 @@ let promoEditorFormat = null; // 'md' = 마크다운으로 불러온 글 — 저
 
 /** 마크다운 글이면 단계별 간격·글자 크기(style.css .promo-md)를 켠다. 예: setPromoMd(el, 'md') @param {Element} el @param {string|null} format @returns {void} [연계] ← openPromoDetail·openPromoEditor·importPromoMarkdown */
 function setPromoMd(el, format) { if (el) el.classList.toggle('promo-md', format === 'md'); }
+/**
+ * 유튜브 쇼츠 주소를 게시글 안에서 재생되는 주소(embed)로 바꾼다. 쇼츠가 아니면 그대로 돌려준다.
+ * 예: 'https://www.youtube.com/shorts/abcDEF12345?si=x' → 'https://www.youtube.com/embed/abcDEF12345?showinfo=0'
+ *     'https://www.youtube.com/watch?v=…' → 그대로(이 주소는 Quill 이 이미 embed 로 바꿔 준다)
+ * @param {string} url - 편집기 「동영상」 버튼에 넣은 주소
+ * @returns {string}
+ * [연계] ← registerPromoVideoFormat(PromoVideo.sanitize) — 「동영상」 버튼으로 넣는 iframe 주소를 정할 때
+ * [왜] 2026-11-19: Quill 1.3.6 은 watch·youtu.be 주소만 embed 로 바꾸고 쇼츠 주소는 그대로 넣는다.
+ *      유튜브는 쇼츠 주소를 다른 사이트 안에서 띄우는 것을 막아(x-frame-options: SAMEORIGIN) 빈 칸이 됐다.
+ */
+function promoYoutubeEmbedUrl(url) {
+    const m = String(url || '').trim().match(/^(?:https?:\/\/)?(?:(?:www|m)\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
+    return m ? 'https://www.youtube.com/embed/' + m[1] + '?showinfo=0' : url;
+}
+
+/**
+ * 편집기 「동영상」(필름 모양) 버튼이 쓰는 형식을 쇼츠 주소도 재생되게 바꿔 등록한다(한 번만).
+ * 예: openPromoEditor 가 new Quill 직전에 부른다 → 이후 쇼츠 주소를 넣어도 재생 화면이 들어간다
+ * @returns {void}
+ * [연계] ← openPromoEditor(Quill 초기화 직전) / → promoYoutubeEmbedUrl · Quill.import('formats/video')
+ *        Quill 의 Video.create 가 src 를 정할 때 sanitize 를 부르므로 그 자리에서 바꾼다.
+ */
+function registerPromoVideoFormat() {
+    if (registerPromoVideoFormat.done || typeof Quill === 'undefined') return;
+    const BaseVideo = Quill.import('formats/video');
+    class PromoVideo extends BaseVideo {
+        static sanitize(url) { return super.sanitize(promoYoutubeEmbedUrl(url)); }
+    }
+    Quill.register(PromoVideo, true);
+    registerPromoVideoFormat.done = true;
+}
+/**
+ * 링크 주소를 고친다 — 앞뒤 공백을 지우고, 「naver.com」처럼 주소 형식(https:// 등)이 없으면 https:// 를 붙인다.
+ * 예: ' naver.com ' → 'https://naver.com' · 'https://a.kr/x' → 그대로 · 'mailto:a@b.kr' → 그대로 · '' → ''
+ * @param {string} url  @returns {string}
+ * [연계] ← enablePromoLinkWithoutSelection(선택 없이 넣는 링크)
+ * [왜] 형식이 없으면 브라우저가 우리 서버 안의 주소(seagnal-server.fly.dev/naver.com)로 읽는다.
+ */
+function promoNormalizeLinkUrl(url) {
+    const u = String(url || '').trim();
+    if (!u) return '';
+    return /^[a-z][a-z0-9+.-]*:/i.test(u) ? u : 'https://' + u;
+}
+
+/**
+ * 사슬 모양 「링크」 버튼을 **글자를 선택하지 않고 눌러도** 주소 입력 팝업이 뜨게 한다.
+ * 예: 커서만 둔 채 링크 버튼 → 팝업에 'naver.com' 입력 → 저장 → 본문에 「https://naver.com」 링크 글자가 들어간다
+ *     글자를 선택하고 누르면 → 종전과 같이 그 글자에 링크를 건다(Quill 원본 동작)
+ * @param {object} quill - 게시글 편집기(Quill) 객체
+ * @returns {void}
+ * [연계] ← openPromoEditor(편집기를 처음 만들 때 한 번) / → promoNormalizeLinkUrl · quill.theme.tooltip(Quill snow 의 주소 팝업)
+ * [왜] 2026-11-19 사용자 지적: Quill 1.3.6 snow 의 링크 버튼은 선택이 없으면 아무 반응도 하지 않아 고장처럼 보였다.
+ *      팝업은 원본 것을 그대로 쓰고(edit('link')), 「저장」 때 선택이 없던 경우만 주소를 링크 글자로 넣는다.
+ */
+function enablePromoLinkWithoutSelection(quill) {
+    const tooltip = quill.theme && quill.theme.tooltip;
+    if (!tooltip) return;
+    let insertAt = null;   // 선택 없이 링크 버튼을 눌렀을 때의 커서 자리(이 값이 있을 때만 아래 save 가 끼어든다)
+    const originalHandler = quill.getModule('toolbar').handlers.link;
+    quill.getModule('toolbar').addHandler('link', function (value) {
+        const range = quill.getSelection(true);
+        if (value && range && range.length === 0) {
+            insertAt = range.index;
+            tooltip.edit('link', '');
+            return;
+        }
+        insertAt = null;
+        originalHandler.call(this, value);   // 선택이 있으면 원본 그대로
+    });
+    const originalSave = tooltip.save.bind(tooltip);
+    tooltip.save = function () {
+        if (insertAt !== null && !this.linkRange && this.root.getAttribute('data-mode') === 'link') {
+            const at = insertAt, url = promoNormalizeLinkUrl(this.textbox.value);
+            insertAt = null;
+            if (url) {
+                quill.insertText(at, url, 'link', url, 'user');
+                quill.setSelection(at + url.length, 0, 'user');
+            }
+            this.textbox.value = '';
+            this.hide();
+            return;
+        }
+        insertAt = null;
+        originalSave();
+    };
+}
+
 let _boardsCache = []; // 게시판 목록 캐시
 let _commentCounts = {}; // 게시글별 댓글 수 캐시 { "postId": count }
 let _reactionCounts = {}; // 게시글별 리액션 수 캐시 { "postId": { heartCount, thumbsCount, wowCount } }
@@ -620,11 +707,13 @@ window.openPromoDetail = async function (postId) {
         });
 
         modal.classList.remove('hidden');
-        // 마크다운 글: 줄 끝 2~3글자 넘침을 그 줄 글자 간격으로 맞춘다(md_fit.js — 칸이 보인 뒤에 재야 해서 여기). 글꼴이 늦게 오면 다시.
-        if (post.format === 'md' && window.promoMdFit) {
-            requestAnimationFrame(() => window.promoMdFit(contentEl));
-            if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => window.promoMdFit(contentEl));
-        }
+        bindPromoDetailKeyboardFit();   // 댓글 입력 때 키보드가 떠도 창이 보이는 화면 안에 들어오게(2026-11-19)
+        // 몸통(본문·댓글)만 스크롤된다 — 다른 글을 열면 맨 위부터(2026-11-19, 제목 머리·댓글 입력칸은 고정)
+        const scrollEl = document.getElementById('promo-detail-scroll');
+        if (scrollEl) scrollEl.scrollTop = 0;
+        // 마크다운 글: 줄 끝 2~3글자 넘침을 그 줄 글자 간격으로 맞춘다(shared/ui/text_fit.js — 칸이 보인 뒤에 재야 해서 여기,
+        //   글꼴이 늦게 오거나 폭이 바뀌면 그 파일이 다시 맞춘다). 편집기 칸에는 걸지 않는다.
+        if (post.format === 'md' && window.textFit) window.textFit(contentEl, 'p, li, h2, h3, blockquote');
 
         // 댓글 섹션 렌더링: promo_comment.js의 함수 호출
         // allowComments 여부와 관계없이 loadPromoComments가 내부에서 판단하여 표시
@@ -637,9 +726,58 @@ window.openPromoDetail = async function (postId) {
     }
 };
 
+/**
+ * 게시글 상세 창을 **지금 실제로 보이는 화면**(visualViewport — 키보드를 뺀 나머지) 안에 맞춘다.
+ * 예: 댓글 입력창을 눌러 키보드가 화면 아래 절반을 덮으면 → 창이 위 절반 안에 들어가고, 제목(머리)·댓글 입력(발)은
+ *     그대로 보이며 가운데 본문 칸만 줄어든다. 키보드가 내려가면 원래대로.
+ * @returns {void}
+ * [연계] ← bindPromoDetailKeyboardFit(visualViewport resize·scroll) / style.css #promo-detail-modal.promo-kb-open
+ * [왜] 2026-11-19 사용자 지적: 댓글 입력창을 누르면 머리가 위로 밀려 올라가고 본문이 휴대폰 상태표시줄 밑까지 넘어갔다.
+ *      키보드가 뜨면 이 앱의 웹 화면은 「보이는 화면」만 줄고 전체 화면 크기는 그대로라, 화면 전체 기준으로 가운데 놓인 창이
+ *      키보드 뒤로 들어가고 브라우저가 입력창을 보이려고 화면을 위로 밀었다. AI 챗봇 채팅 창(ai_chat.js fitChat)과 같은 방식.
+ */
+function fitPromoDetailToViewport() {
+    const modal = document.getElementById('promo-detail-modal');
+    const vv = window.visualViewport;
+    if (!modal || !vv) return;
+    modal.style.top = vv.offsetTop + 'px';
+    modal.style.height = vv.height + 'px';
+    // 키보드가 떠 있으면(보이는 높이가 전체보다 100px 넘게 작음) 아래 여백을 줄여 댓글 입력이 키보드 바로 위에 붙게 한다
+    modal.classList.toggle('promo-kb-open', window.innerHeight - vv.height > 100);
+}
+
+/** 상세 창이 열려 있는 동안 키보드(보이는 화면 크기·위치 변화)를 따라가게 한다. 두 번 불러도 한 번만 건다.
+ * 예: openPromoDetail 끝에서 부른다 → 댓글 입력창을 누르면 fitPromoDetailToViewport 가 돈다
+ * @returns {void}
+ * [연계] ← openPromoDetail / → fitPromoDetailToViewport · 해제는 unbindPromoDetailKeyboardFit(closePromoDetail) */
+function bindPromoDetailKeyboardFit() {
+    const vv = window.visualViewport;
+    if (!vv || bindPromoDetailKeyboardFit.on) return;
+    bindPromoDetailKeyboardFit.on = true;
+    vv.addEventListener('resize', fitPromoDetailToViewport);
+    vv.addEventListener('scroll', fitPromoDetailToViewport);
+    fitPromoDetailToViewport();
+}
+
+/** 키보드 따라가기를 끄고 창 위치를 원래(style.css 의 .modal — 화면 전체)로 되돌린다.
+ * 예: closePromoDetail 이 부른다
+ * @returns {void}
+ * [연계] ← closePromoDetail / ↔ bindPromoDetailKeyboardFit */
+function unbindPromoDetailKeyboardFit() {
+    const vv = window.visualViewport;
+    if (vv && bindPromoDetailKeyboardFit.on) {
+        vv.removeEventListener('resize', fitPromoDetailToViewport);
+        vv.removeEventListener('scroll', fitPromoDetailToViewport);
+    }
+    bindPromoDetailKeyboardFit.on = false;
+    const modal = document.getElementById('promo-detail-modal');
+    if (modal) { modal.style.top = ''; modal.style.height = ''; modal.classList.remove('promo-kb-open'); }
+}
+
 // 4. 게시글 상세 보기 닫기 (YouTube 영상 정지 포함)
 window.closePromoDetail = function () {
     const modal = document.getElementById('promo-detail-modal');
+    unbindPromoDetailKeyboardFit();
     if (modal) {
         // YouTube iframe 정지 (src 초기화로 영상 중단)
         const iframes = modal.querySelectorAll('iframe');
@@ -658,6 +796,8 @@ window.closePromoDetail = function () {
         // 리액션 영역 초기화
         const reactionsWrap = document.getElementById('promo-detail-reactions');
         if (reactionsWrap) reactionsWrap.innerHTML = '';
+        // 아래 고정 댓글 입력칸·가이드라인 단추도 비운다(다음 글에서 다시 그린다 — 2026-11-19 index2.html 로 옮김)
+        ['comment-input-area', 'comment-guideline-slot'].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
     }
 };
 
@@ -788,6 +928,7 @@ window.openPromoEditor = async function (editData = null) {
 
     // Quill 에디터 초기화 (한 번만)
     if (!promoQuillEditor) {
+        registerPromoVideoFormat();   // 「동영상」 버튼에 쇼츠 주소를 넣어도 재생되게(2026-11-19)
         promoQuillEditor = new Quill('#promo-quill-editor', {
             theme: 'snow',
             placeholder: '내용을 입력하세요...',
@@ -887,6 +1028,9 @@ window.openPromoEditor = async function (editData = null) {
                 await _insertCompressedImage(file);
             };
         });
+
+        // 링크 버튼: 글자를 선택하지 않고 눌러도 주소 입력 팝업이 뜨게(2026-11-19)
+        enablePromoLinkWithoutSelection(promoQuillEditor);
 
         // [참고] 아래는 이전 /api/upload 경로 (미사용).
         //        향후 이미지를 URL 참조 방식으로 재전환할 때 복원.

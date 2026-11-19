@@ -568,6 +568,9 @@
             pendingMarineZoneVisible = null;
             if (visible !== want) btn.click();   // 토스트/스토리지까지 같이 동기화
         }
+        // ── ⑥ 해양안전 화면에서 지도가 처음 만들어졌으면 되살린 켜짐을 잠시 끈다 ──
+        //   (안 하면 해구기상 격자가 해양안전 지도에 남는다 — life_safety.js _lsSuspendLateOverlay)
+        if (typeof window._lsSuspendLateOverlay === 'function') window._lsSuspendLateOverlay(btn);
     }
 
     /**

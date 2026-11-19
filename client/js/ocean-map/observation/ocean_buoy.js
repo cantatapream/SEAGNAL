@@ -569,6 +569,8 @@ if (window.__SEAGNAL_PAGE === 'index2') {
             window.OceanGridSampler.refresh();
             try { localStorage.setItem('seagnal_buoys_visible', String(_buoysVisible)); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
         });
+        // 해양안전 화면에서 지도가 처음 만들어졌으면 되살린 켜짐을 잠시 끈다(life_safety.js _lsSuspendLateOverlay)
+        if (typeof window._lsSuspendLateOverlay === 'function') window._lsSuspendLateOverlay(btn);
     }
 
     // ========================================================================

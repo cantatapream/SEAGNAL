@@ -7,7 +7,8 @@
  *  - 사용하는 파일 : shared/utils/utils.js(appState) · settings/settings.js(UserSettings) ·
  *                   render_coastal.js(createCoastalElement·displayBuoyInfo) ·
  *                   zone_avg.js(ZoneAvg.createBox·onReady) ·
- *                   outlook/windy.js(WINDY_URL_MAPPING) · outlook/forecast.js(showSeaForecastTable)
+ *                   outlook/windy.js(WINDY_URL_MAPPING) · outlook/forecast.js(showSeaForecastTable) ·
+ *                   escalation.js(zoneEscalations·renderZoneEscalation — 격상 가능성 🔺 뱃지·빨강 상자)
  *  - 서버 API      : 없음 (appState 데이터를 렌더만 — 수집은 data.js가 담당)
  *  - 마크업        : #east-sea-list·#west-sea-list·#south-sea-list·#jeju-sea-list ·
  *                   #east-count 등 카운트 · #main-accordion-* · #marine-status-accordion-* ·
@@ -111,6 +112,11 @@ function openAlertZoneSetup() {
 }
 window.openAlertZoneSetup = openAlertZoneSetup;
 document.addEventListener('DOMContentLoaded', syncAlertZoneGear);
+
+// 앱을 켠 뒤 특보현황/기상현황 자동 펼침을 이미 했는가(renderApp — 처음 한 번만). [연계] ← renderApp
+let _alertAccordionAutoDone = false;
+// 대분류(동해·서해·남해)마다 펼쳐 둔 중분류 이름 — renderApp 이 목록을 새로 만들어도 그 칸을 펼친 채로 그리려고. [연계] ← renderApp
+const _openAlertSubRegion = {};
 
 function renderApp() {
     const seaSections = {
@@ -294,9 +300,11 @@ function renderApp() {
                     if (isCurrentlyHidden) {
                         slideDown(listContainer);
                         subHeader.style.marginLeft = '4px';
+                        _openAlertSubRegion[mainRegion] = subRegion;   // 다시 그려도 펼친 채로(아래 설명)
                         // [사용량] 특보현황 중분류(동해남부해상 등) "부모 해역" 펼침 → 1건
                         if (window.trackUsage) window.trackUsage('main.warn_region_open');
                     } else {
+                        if (_openAlertSubRegion[mainRegion] === subRegion) delete _openAlertSubRegion[mainRegion];
                         slideUp(listContainer);
                         const icon = subHeader.querySelector('.fa-chevron-right');
                         if (icon) icon.style.transform = 'rotate(0deg)';
@@ -310,6 +318,13 @@ function renderApp() {
                     counts[mainRegion]++;
                     listContainer.appendChild(createAlertElement(item));
                 });
+
+                // 직전에 펼쳐 두었던 중분류면 펼친 채로 그린다 — 5분마다 다시 그려도(자료 새로고침) 접히지 않게.
+                //   [2026-11-19 사용자] 큰 아코디언을 다시 펼쳤을 때 「그 아코디언 안에 직전에 펼쳐놨던 아코디언이 펼쳐져있게」.
+                if (_openAlertSubRegion[mainRegion] === subRegion) {
+                    listContainer.style.display = 'block';
+                    subHeader.style.marginLeft = '4px';
+                }
 
                 subSection.appendChild(subHeader);
                 subSection.appendChild(listContainer);
@@ -402,6 +417,12 @@ function renderApp() {
     }
 
     // --- Global Badge & Accordion State Logic ---
+    // [자동 펼침은 앱을 처음 켤 때만 — 2026-11-19 사용자] 큰 아코디언이 한 번에 하나만 펼쳐지게 되면서(main-accordion/main_accordion_solo.js),
+    //   자료를 새로 받을 때마다(5분마다·탭 이동·앱 복귀) 특보현황/기상현황을 다시 펼치면 사용자가 보던 아코디언이 갑자기 접힌다.
+    //   질문 「앱 처음 켤 때만 자동」에 사용자가 「1-가」로 답함 → 서버 자료를 처음 받은 뒤 그리는 한 번만 펼치고 접는다.
+    //   appState.lastUpdated 는 fetchAllData 가 자료를 받은 뒤에만 채운다 — 그 전에 다른 곳(settings.js)이 부른 renderApp 은 세지 않는다.
+    const autoOpen = !_alertAccordionAutoDone && !!appState.lastUpdated;
+    if (autoOpen) _alertAccordionAutoDone = true;
     const globalStatusContainer = document.querySelector('#main-accordion-header .header-status'); // 해역별 특보현황 헤더의 상태 배지 영역
     const mainHeader = document.getElementById('main-accordion-header');
     const mainBody = document.getElementById('main-accordion-body');
@@ -498,8 +519,8 @@ function renderApp() {
                 globalStatusContainer.appendChild(prelimBadge);
             }
 
-            // Start Expanded (필터링된 상태에서도 알림이 있으면 펼쳐짐)
-            if (mainBody && mainBody.classList.contains('collapsed')) {
+            // Start Expanded (필터링된 상태에서도 알림이 있으면 펼쳐짐) — 앱을 처음 켤 때만(아래 autoOpen 설명)
+            if (autoOpen && mainBody && mainBody.classList.contains('collapsed')) {
                 mainBody.classList.remove('collapsed');
                 if (mainHeader) mainHeader.classList.remove('collapsed-state');
             }
@@ -524,8 +545,8 @@ function renderApp() {
             safeBadge.style.marginRight = '6px';
             globalStatusContainer.appendChild(safeBadge);
 
-            // Start Collapsed
-            if (mainBody && !mainBody.classList.contains('collapsed')) {
+            // Start Collapsed — 앱을 처음 켤 때만
+            if (autoOpen && mainBody && !mainBody.classList.contains('collapsed')) {
                 mainBody.classList.add('collapsed');
                 if (mainHeader) mainHeader.classList.add('collapsed-state');
             }
@@ -546,7 +567,7 @@ function renderApp() {
     const statusBody = document.getElementById('marine-status-accordion-body');
     const statusHeader = document.getElementById('marine-status-accordion-header');
 
-    if (statusBody) {
+    if (statusBody && autoOpen) {
         if (totalCount > 0) {
             // 특보 있음 -> 기상현황 닫기 (특보에 집중)
             if (!statusBody.classList.contains('collapsed')) {
@@ -564,6 +585,35 @@ function renderApp() {
     // 전체 현황 업데이트 로그
     // console.log('Total alerts displayed:', totalAlerts);
 }
+
+/**
+ * 특보 카드 머리줄의 [📋 + 뱃지] 묶음이 해역명 아래 둘째 줄로 내려갔는지 보고, 내려갔을 때만 📋 를 뱃지 바로 왼쪽으로 붙인다.
+ * 예: 「동해남부북쪽안쪽먼바다」(글자 크게) → 둘째 줄 오른쪽에 「📋 [풍랑 경보]」 / 「경북북부앞바다」 → 한 줄 「경북북부앞바다 📋 …… [풍랑 주의보]」 그대로
+ * @param {HTMLElement} header - .alert-header
+ * [연계] ← alertHeaderWrapObserver(크기가 바뀔 때마다 — 화면 폭·글자 크기·접힌 목록이 펼쳐질 때) / createAlertElement 가 등록.
+ *        [2026-11-19 사용자] 「통보문 버튼이 오른쪽으로 정렬되어야 … 뱃지 바로 왼쪽에」 + 한 줄 카드는 종전처럼(「두 줄일 때만 뱃지 옆」).
+ *        CSS 만으로는 「줄이 넘어갔는지」를 알 수 없어 위치를 재서 정한다. 묶음 안 배치만 바꾸므로 줄바꿈 여부는 흔들리지 않는다.
+ */
+function markAlertHeaderWrap(header) {
+    const name = header.querySelector('.zone-name');
+    const actions = header.querySelector('.alert-header-actions');
+    const btn = actions && actions.querySelector('.alert-history-btn');
+    if (!name || !btn) return;
+    const badges = actions.querySelector('.alert-badges');
+    const wrapped = actions.getBoundingClientRect().top >= name.getBoundingClientRect().bottom - 2;
+    if (wrapped === (actions.dataset.wrapped === '1')) return;
+    actions.dataset.wrapped = wrapped ? '1' : '';
+    btn.style.marginLeft = wrapped ? 'auto' : '4px';
+    if (badges) {
+        badges.style.flex = wrapped ? '0 0 auto' : '';
+        // settings.js 가 .alert-badges 에 margin-left:auto !important 를 건다 — 그대로 두면 📋 와 나눠 가져 가운데로 뜬다
+        if (wrapped) badges.style.setProperty('margin-left', '0', 'important');
+        else badges.style.removeProperty('margin-left');
+    }
+}
+const alertHeaderWrapObserver = (typeof ResizeObserver === 'function')
+    ? new ResizeObserver((entries) => entries.forEach((e) => markAlertHeaderWrap(e.target)))
+    : null;
 
 function createAlertElement(items) {
     if (!Array.isArray(items)) items = [items];
@@ -667,14 +717,20 @@ function createAlertElement(items) {
                 window.showZoneBulletins(zoneNameStr);
             }
         });
-        // 해역명(.zone-name) 뒤, 뱃지 컨테이너(.alert-badges) 앞에 삽입
+        // 해역명(.zone-name) 뒤에 [📋 + 뱃지] 묶음(.alert-header-actions)으로 넣는다.
+        //   [2026-11-19 사용자] 글자 크기를 키우거나 해역명이 길어 한 줄에 다 안 들어가면, 종전엔 📋 만 윗줄에
+        //   남고 뱃지만 아랫줄로 내려갔다 → 「통보문 버튼과 뱃지 둘다 다음줄로」. 둘을 한 칸으로 묶어 같이 넘어가게 한다.
+        //   한 줄에 들어갈 때 모양은 그대로(📋 는 해역명 바로 뒤, 뱃지는 오른쪽 끝).
         if (header) {
             const badgeEl = header.querySelector('.alert-badges');
-            if (badgeEl) {
-                header.insertBefore(historyBtn, badgeEl);
-            } else {
-                header.appendChild(historyBtn);
-            }
+            const actions = document.createElement('div');
+            actions.className = 'alert-header-actions';
+            actions.style.cssText = 'display:flex; align-items:center; gap:8px; flex:1 1 auto;';
+            header.insertBefore(actions, badgeEl);   // badgeEl 이 없으면 끝에 붙는다
+            actions.appendChild(historyBtn);
+            if (badgeEl) actions.appendChild(badgeEl);
+            // 둘째 줄로 내려갔을 때만 📋 를 뱃지 바로 왼쪽으로(아래 markAlertHeaderWrap) — 크기가 바뀔 때마다 다시 잰다
+            if (alertHeaderWrapObserver) alertHeaderWrapObserver.observe(header);
         }
     }
 
@@ -919,6 +975,22 @@ function createAlertElement(items) {
         badgeContainer.appendChild(partBadge);
     }
 
+    // [격상 가능성 — 2026-11-19] 기상청이 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」을 알린 해역이면 첫 뱃지에 🔺를 달고,
+    //   아래 상세 영역(첫 특보의 해제예정 줄 다음)에 빨강 상자를 그린다 — escalation.js. 「일부 해역만」 카드에는 달지 않는다(부모 자신은 특보가 아니다).
+    //   사용자: 「[풍랑주의보] 뱃지 안에 [풍랑주의보(올라가는 느낌의 이모지)]」 · 「태풍가능성때 해역뱃지 그대로 동일하게 유지」
+    const escalations = (!kidsOnly && typeof window.zoneEscalations === 'function')
+        ? window.zoneEscalations(zoneNameStr, { current: currentInView, upcoming: upcomingFromApi }) : [];
+    // [다가오는 특보로 본 오르내림 — 2026-11-20] 글에 적힌 「가능성」이 없어도, 다가오는 특보가 지금보다 높으면 🔺(그 특보가 발효될 때까지),
+    //   낮으면 초록 ▼ 를 단다(escalation.js zoneTrend — 예비특보는 견주지 않는다). 실제 발표가 나와 「가능성」 안내(빨강 상자)가 사라져도 🔺 는 남는다.
+    //   사용자: 「뱃지에는 올라가는 표시가 경보가 될때까지 남아있었으면」 · 「초록색 하단으로 표시되는 삼각형이(격상과는 반대) 뱃지안에」
+    //   둘이 엇갈리면(글은 오른다는데 다가오는 특보는 낮다) 발표된 쪽을 따른다 — 초록 ▼.
+    const trend = (!kidsOnly && typeof window.zoneTrend === 'function') ? window.zoneTrend({ current: currentInView, upcoming: upcomingFromApi }) : '';
+    if (trend === 'down' || trend === 'up' || escalations.length) {
+        const firstBadge = badgeContainer.querySelector('.status-badge.warning, .status-badge.preliminary');
+        // 두 화살표는 같은 꼴(같은 글자 크기·같은 세모 글자, 색과 방향만 다르다 — 사용자 2026-11-20 「화살표 세모가 동일한 스타일로 구성될 수 있도록 통일」). 종전 오르는 쪽은 그림 글자 🔺 였다.
+        if (firstBadge) { const down = trend === 'down', d = document.createElement('span'); d.className = 'badge-trend ' + (down ? 'badge-trend-down' : 'badge-trend-up'); d.textContent = down ? '▼' : '▲'; d.setAttribute('aria-label', down ? '낮은 단계로 내려갈 예정' : '높은 단계로 올라갈 예정·가능성'); firstBadge.appendChild(document.createTextNode(' ')); firstBadge.appendChild(d); }
+    }
+
     // 상세 정보 영역 표시용 데이터 리스트 구성
     const detailedAlertList = [];
     const seenDetailTmFc = new Set();
@@ -1021,6 +1093,8 @@ function createAlertElement(items) {
             releaseTime = formatAlertTime(rawRelease);
         }
         details.appendChild(createRow('해제예정', releaseTime, '#69f0ae'));
+        // [격상 가능성] 첫 특보의 해제예정 줄 바로 아래 — 한 번만
+        if (escalations.length && !details.querySelector('.zone-escalation')) escalations.forEach((it) => details.appendChild(window.renderZoneEscalation(it)));
     });
 
     const findCoastalZones = (zName) => {

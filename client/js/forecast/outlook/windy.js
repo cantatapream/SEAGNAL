@@ -404,6 +404,9 @@ function renderOtherButtonsForStatus(zoneName, container) {
  *   - renderBuoyButtonsForStatus, renderOtherButtonsForStatus
  *   - 데이터: appState.marineForecast / 부이 fetch 결과
  */
+// 대분류마다 펼쳐 둔 중분류 이름 — renderMarineWeatherStatus 가 목록을 새로 만들어도 그 칸을 펼친 채로 그리려고. [연계] ← renderMarineWeatherStatus
+const _openStatusSubRegion = {};
+
 async function renderMarineWeatherStatus() {
     const containers = {
         '동해': document.getElementById('status-east-sea-list'),
@@ -508,9 +511,11 @@ async function renderMarineWeatherStatus() {
                     // 클릭한 것이 닫혀있었다면 열기 (애니메이션)
                     if (isCurrentlyHidden) {
                         slideDown(listContainer);
+                        _openStatusSubRegion[mainRegion] = subRegion;   // 다시 그려도 펼친 채로(아래 설명)
                         // [사용량] 기상현황 중분류(동해남부해상 등) 펼침 → 1건
                         if (window.trackUsage) window.trackUsage('main.weather_region_open');
                     } else {
+                        if (_openStatusSubRegion[mainRegion] === subRegion) delete _openStatusSubRegion[mainRegion];
                         slideUp(listContainer);
 
                     }
@@ -531,6 +536,8 @@ async function renderMarineWeatherStatus() {
                     const countSpan = subHeader.querySelector('span:last-child');
                     if (countSpan) countSpan.textContent = `${visibleZoneCount}개 해역`;
 
+                    // 직전에 펼쳐 두었던 중분류면 펼친 채로 그린다(설정 저장 뒤 다시 그려도 그대로 — 2026-11-19, alerts/render.js 와 같은 규칙)
+                    if (_openStatusSubRegion[mainRegion] === subRegion) listContainer.style.display = 'block';
                     subSection.appendChild(subHeader);
                     subSection.appendChild(listContainer);
                     container.appendChild(subSection);

@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 130개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 132개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -61,10 +61,13 @@ client/js/
 │   │   ├── alert_history.js
 │   │   ├── alert_source_toggle.js
 │   │   ├── data.js
+│   │   ├── escalation.js
 │   │   ├── marine.js
 │   │   ├── render_coastal.js
 │   │   ├── render.js
 │   │   ├── zone_avg.js
+│   ├── main-accordion/
+│   │   └── main_accordion_solo.js
 │   ├── marine-chart/
 │   │   ├── marine_chart1.js
 │   │   ├── marine_chart2.js
@@ -133,7 +136,6 @@ client/js/
 │   ├── board/
 │   │   ├── image_compress.js
 │   │   ├── markdown_import.js
-│   │   ├── md_fit.js
 │   │   ├── promo.js
 │   └── comments/
 │       ├── promo_comment1.js
@@ -189,6 +191,7 @@ client/js/
 ├── shared/  ← 공용 재료(유틸·UI·데이터)
 │   ├── ui/
 │   │   ├── locate_toast.js
+│   │   ├── text_fit.js
 │   │   ├── ui_modal.js
 │   │   ├── wheel_date_picker.js
 │   └── utils/
@@ -266,10 +269,17 @@ client/js/
 | `alert_history.js` | 특보 히스토리 팝업 모달 (해역별 통보문 이력 조회) |
 | `alert_source_toggle.js` | 메인 「기상정보」 글자 오른쪽의 [MMIS] [통보문] 버튼(관리자만). 누르면 메인 「해역별 특보현황」 목록만 |
 | `data.js` | 데이터 수집(fetchAllData), 부이 데이터, API 상태 관리 |
+| `escalation.js` | 「격상 가능성」 표시 — 기상청이 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」이 있다고 알린 특보구역의 카드에 |
 | `marine.js` | 해구별 기상정보 모달, 해양 차트 렌더링 |
 | `render.js` | 메인 UI 렌더링 (renderApp, createAlertElement) |
 | `render_coastal.js` | 연안 구역 렌더링, 부이 데이터 표시, 로딩/시간 업데이트 |
 | `zone_avg.js` | 특보구역별로 매핑된 대해구의 3시간 예보 wh/ws 평균을 계산해 노란 점선 박스 생성 |
+
+### `client/js/forecast/main-accordion/`
+
+| 파일 | 역할 |
+|------|------|
+| `main_accordion_solo.js` | 특보정보 탭의 큰 아코디언 4개(기상청 해상 기상 전망 · AI 연안 안전 브리핑 · 해역별 특보현황 · 해역별 기상현황)가 |
 
 ### `client/js/forecast/marine-chart/`
 
@@ -396,7 +406,6 @@ client/js/
 |------|------|
 | `image_compress.js` | 관리자 게시글 에디터(Quill) 의 이미지 자동 압축 유틸리티 |
 | `markdown_import.js` | 공지 게시판 관리자 글쓰기 — 마크다운(.md) 파일 내용을 게시글 본문(HTML)으로 바꾼다. |
-| `md_fit.js` | 공지 게시판에서 마크다운으로 올린 글(패치노트)을 읽기 좋게 줄을 맞춘다. |
 | `promo.js` | 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집) |
 
 ### `client/js/notice/comments/`
@@ -496,6 +505,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `locate_toast.js` | 「내 위치」(GPS) 버튼을 눌렀을 때 화면 하단에 진행 토스트를 띄우고 현재 위치를 가져온다. |
+| `text_fit.js` | 긴 안내 글을 읽기 좋게 줄을 맞춘다(여러 화면이 함께 쓰는 도구). |
 | `ui_modal.js` | 공통 UI 모달 (기상청 iframe, SEAGNAL 시스템 모달) |
 | `wheel_date_picker.js` | 앱의 모든 날짜칸(<input type="date">)·날짜시각칸(<input type="datetime-local">)을 누 |
 

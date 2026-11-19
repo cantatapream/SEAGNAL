@@ -4,7 +4,7 @@
  * 역할  : 패치노트 원본(.md + 옆 폴더 사진)을 게시판에 올릴 파일 하나로 묶고, 게시판 칸 모양 미리보기를 만든다.
  *         사진(![설명](shots/a.jpg))을 파일 안(data:image/jpeg;base64)으로 넣어 → <이름>.upload.md
  *         같은 변환기(client/js/notice/board/markdown_import.js)로 그린 미리보기 → <이름>.preview.html (게시글 칸 폭·색 + style.css .promo-md 단계 규칙 그대로
- *         + 줄 끝 넘침 글자 간격 맞추기 client/js/notice/board/md_fit.js 를 그대로 넣음)
+ *         + 줄 끝 넘침 글자 간격 맞추기 client/js/shared/ui/text_fit.js 를 그대로 넣음)
  *         한 꼭지(문단·목록 항목) 3줄 넘으면 실패(사용자 2026-10-20 — 휴대폰 본문 폭 약 318px 에서 글자 너비로 어림, threeLines)
  * [연계] NOTICE.md(작성 규칙) · client/js/notice/board/markdown_import.js(toHtml — 앱 [마크다운 파일 불러오기]와 같은 변환) · docs/notice/<날짜_이름>/
  * [실행] node scripts/notice/build_notice.js docs/notice/2026-10-20_ai-briefing-risk/patchnote.md [출력폴더]
@@ -16,7 +16,7 @@ const MD = require('../../client/js/notice/board/markdown_import.js');
 const MIME = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' };
 const ONE_MAX = 600 * 1024, ALL_MAX = 4 * 1024 * 1024, MAX_LINES = 3;
 const STYLE = path.join(__dirname, '../../client/style.css');
-const FIT = path.join(__dirname, '../../client/js/notice/board/md_fit.js');   // 줄 끝 넘침 글자 간격 맞추기 — 앱 보기 칸과 같은 스크립트를 미리보기에도
+const FIT = path.join(__dirname, '../../client/js/shared/ui/text_fit.js');   // 줄 끝 넘침 글자 간격 맞추기 — 앱 보기 칸과 같은 스크립트를 미리보기에도
 // 단계별 글자 크기·들여쓰기(px) — style.css .promo-md 와 같은 값. 본문 칸 폭 318px = 휴대폰 390px 화면에서 창 358 − 좌우 여백 20×2.
 const BOX = 318, LEVEL = { p: { font: 15, pad: 0 }, 0: { font: 15, pad: 18 }, 1: { font: 14, pad: 36 }, 2: { font: 13, pad: 54 } };
 
@@ -72,7 +72,7 @@ function preview(r) {
         'h1.t{margin:0 0 4px;font-size:1.3rem;font-weight:700;color:#fff;line-height:1.3}.meta{font-size:.8rem;color:#64748b;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px}' +
         '.c{color:#cbd5e1}.c img{max-width:100%;height:auto;border-radius:8px}.c a{color:#06c}.c li{list-style:none;position:relative}.c li::before{display:inline-block}' + mdCss() +
         '</style></head><body><div class="card"><h1 class="t">' + (r.title || '(제목 없음)') + '</h1><div class="meta">미리보기 — 실제 게시판 칸 폭(휴대폰)·색·단계 규칙에 맞춤</div><div class="c ql-editor promo-md" id="c">' + r.html + '</div></div>' +
-        '<script>' + fs.readFileSync(FIT, 'utf8') + '\nfunction go(){promoMdFit(document.getElementById("c"))}go();if(document.fonts)document.fonts.ready.then(go);</script></body></html>';
+        '<script>' + fs.readFileSync(FIT, 'utf8') + '\ntextFit(document.getElementById("c"),"p, li, h2, h3, blockquote");</script></body></html>';
 }
 
 /** style.css 의 .promo-md 덩어리(promo-md:start~end)를 그대로 꺼낸다 — 미리보기가 앱과 같은 단계 규칙을 쓰게. @returns {string} [연계] ← preview */

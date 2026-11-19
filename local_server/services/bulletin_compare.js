@@ -251,6 +251,9 @@ function templateOf(unit, before, after, parentNow, parentChanged) {
     if (after && after.kind === 'pending' && (!before || before.kind !== 'pending')) return { templateId: 'publish', typeName: after.type, level: lv(after) };
     if (before && before.kind === 'pending' && after && after.kind === 'formal') return { templateId: 'active', typeName: after.type, level: after.level };
     if (before && before.kind === 'pending' && !after) return { templateId: 'release', typeName: before.type, level: lv(before) };
+    // 발표(발효 전)가 취소되고 그 자리에 옛 예비가 남는 경우(예비 시간창이 아직 안 끝남) = 발표한 특보의 해제 한 통. 예비는 원래 있던 것이라 새로 알리지 않는다.
+    //   종전엔 아래 등급 비교로 흘러 「풍랑 주의보→주의보 격하 발효」가 됐다(2026-11-19 운영 기록 — 제주 제11-49호 → 제11-50호, 사용자 「12:01에 남동연안바다는 해제된다는 푸시가 나갔어야」).
+    if (before && before.kind === 'pending' && after && after.kind === 'yebi') return { templateId: 'release', typeName: before.type, level: lv(before) };
     if (before && before.kind === 'pending' && after && after.kind === 'pending') return before.tmEf !== after.tmEf ? timeTp({ templateId: 'time_ef_change' }, { typeName: after.type, level: lv(after) }) : null;
     const LV = { 주의보: 1, 경보: 2 };
     if (!before && after) {

@@ -152,9 +152,9 @@
 .sb-link { margin-top:4px; padding:5px 10px; border-radius:999px; border:1px solid rgba(103,232,249,.45); background:rgba(103,232,249,.1); color:#a5f3fc; font-size:.76rem; font-weight:700; cursor:pointer; }
 .sb-foot { border-top:1px solid rgba(148,163,184,.18); padding-top:8px; color:#94a3b8; font-size:.72rem; }
 .sb-foot p { margin:3px 0; }
-.sb-notice { display:flex; gap:4px; color:#ffd23f; font-weight:400; font-size:1.03rem; line-height:1.27; margin:8px 2px 0; word-break:keep-all; overflow-wrap:anywhere; }   /* §11.10.20 — 노란 안내(종전 분홍 「참고 정보이며 …」) · 2026-10-18 한 문장, 줄바꿈은 어절 단위 · §11.10.28 약 3pt 크게(.78rem → 1.03rem ≈ 16.5px)·굵게 뺌(종전 700)·줄높이 약 21px(시안 25px 의 줄 사이 여백 절반)·「※」 칸 + 글 칸(둘째 줄이 ※ 뒤 글자 시작에) */
+.sb-notice { display:flex; gap:4px; color:#fff; font-weight:400; font-size:1.03rem; line-height:1.27; margin:8px 2px 0; word-break:keep-all; overflow-wrap:anywhere; }   /* §11.10.20 — 노란 안내(종전 분홍 「참고 정보이며 …」) · 2026-10-18 한 문장, 줄바꿈은 어절 단위 · §11.10.28 약 3pt 크게(.78rem → 1.03rem ≈ 16.5px)·굵게 뺌(종전 700)·줄높이 약 21px(시안 25px 의 줄 사이 여백 절반)·「※」 칸 + 글 칸(둘째 줄이 ※ 뒤 글자 시작에) */
 .sb-notice-k { flex:none; }
-.sb-notice-t { min-width:0; }
+.sb-notice-t { min-width:0; white-space:nowrap; overflow:hidden; }   /* 2026-11-19 사용자 *"한줄에 들어가도록 … 텍스트 크기가 동적으로 … 흰색"* — 줄바꿈 없이 한 줄, 넘치면 글자 크기를 줄인다(station_briefing_render.js fitNotice). 색 노랑 #ffd23f → 흰색 */
 /* 설정 흐름(설정 전 안내·관할 고르기·둘 다 건너뛸 때 묻기) */
 .sb-setup, .sb-unset, .sb-confirm { background:rgba(15,23,42,.6); border:1px solid rgba(148,163,184,.2); border-radius:12px; padding:14px; }
 .sb-setup h4, .sb-unset h4, .sb-confirm h4 { margin:0 0 6px; color:#f1f5f9; font-size:.92rem; }
@@ -275,6 +275,27 @@
 .sb-raised-table .sb-raised-lv { font-weight:800; }
 .sb-wx-head { margin:4px 0 4px; }
 .sb-wx-head + .sb-list { margin-top:2px; }
+/* B안 머리(2026-11-19 사용자 「b안이 좋겠어」 — 시안 artifact 1ie8YztA16qs46cxeFGJyj): 색 아이콘 상자 + 굵은 제목 + 오른쪽으로 이어지는 옅은 선.
+   글자 크기·굵기·색은 .sb-headline 그대로(§11.10.9 — 결론 줄과 같은 모양). 색: 기상 현황 하늘 · 특이사항 주황 · 물때 청록 */
+.sb-wx-head { display:flex; align-items:center; gap:8px; }
+.sb-wx-ico { flex:none; width:24px; height:24px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; }
+.sb-wx-title { flex:0 1 auto; min-width:0; }
+.sb-wx-rule { flex:1 1 12px; min-width:12px; height:1px; }
+.sb-wx-head-weather .sb-wx-ico { background:rgba(56,189,248,.16); color:#7dd3fc; } .sb-wx-head-weather .sb-wx-rule { background:rgba(125,211,252,.3); }
+.sb-wx-head-notes .sb-wx-ico { background:rgba(251,146,60,.15); color:#fdba74; } .sb-wx-head-notes .sb-wx-rule { background:rgba(253,186,116,.3); }
+.sb-wx-head-tide .sb-wx-ico { background:rgba(45,212,191,.14); color:#5eead4; } .sb-wx-head-tide .sb-wx-rule { background:rgba(94,234,212,.3); }
+/* 「○○앞바다 기상 현황」 표 — 때 | 천기 | 파고 | 풍향·풍속(2026-11-19 사용자 「차라리 표로」). 칸 폭은 em 이라 글자 크기를 키우면 같이 넓어진다.
+   천기는 어절 단위로 칸 안에서 줄바꿈(브리핑 전체 규칙 keep-all·anywhere 를 그대로 물려받는다), 수치(파고·풍속)는 흰 굵게·한 줄. 첫 줄(오전)은 옅은 바탕, 칸마다 옅은 회색 줄 */
+.sb-wx-table { width:100%; border-collapse:collapse; table-layout:fixed; margin:4px 0; font-size:.8rem; }
+.sb-wx-table thead th { padding:3px 4px; color:#94a3b8; font-size:.72rem; font-weight:500; text-align:left; }
+.sb-wx-table .sb-wx-c0 { width:3.2em; } .sb-wx-table .sb-wx-c2 { width:6em; } .sb-wx-table .sb-wx-c3 { width:6.4em; }
+.sb-wx-table tbody th, .sb-wx-table tbody td { padding:6px 5px; text-align:left; vertical-align:top; line-height:1.4; }
+.sb-wx-table tbody tr:nth-child(odd) > * { background:rgba(255,255,255,.03); }
+/* 옅은 회색 가로·세로 줄(2026-11-19 사용자 「옅은 가로세로줄 회색 ? 으로 강한 티가 안나게」) — 머리 줄 포함 모든 칸 */
+.sb-wx-table th, .sb-wx-table td { border:1px solid rgba(148,163,184,.18); }
+.sb-wx-when { color:#f8fafc; font-weight:700; }
+.sb-wx-num { color:#f8fafc; font-weight:700; white-space:nowrap; }
+.sb-wx-none { color:#94a3b8; }
 .sb-now { white-space:pre-line; }
 /* 분석 문단 강조(§11.10.9 ④) — 굵게만 여기서, 색은 station_briefing_render.js analysisNodes 가 위험예측 4색(colorOf)으로 넣는다. 문단 끝 (권고) 줄(⑤)은 근거 칸 (권고)와 같은 .sb-sum-advice */
 .sb-hl { font-weight:800; }

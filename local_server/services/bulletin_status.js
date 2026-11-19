@@ -28,6 +28,7 @@
  *          (zoneBulletins — **일반 사용자 앱에도 나가는 유일한 통보문 기준 자료**. 특보현황·푸시는 계속 MMIS). 해제 시각이 되면 그 단위가 빠지며 발자취도 끝난다.
  *          누르면 종전처럼 원문 PDF 가 열린다 — 주소는 통보문 자료만으로 만든다(pdfOf — MMIS 코드와 엮지 않는다: 사용자 「나중에는 mmis를 … 삭제할 예정 … 엮이면 안될 것」).
  *          그림 이름이 없거나 PDF 가 아직 안 올라온 통보문(keepLivePdf)은 본문 글을 펼친다. 참고사항 AI 는 발자취에 섞지 않는다(규칙 계산까지만 일반 사용자에게 나간다).
+ *          2026-11-18 부터 원문은 우리 서버에 받아 쪽 그림으로 바꿔 두고(services/bulletin_docs — 발자취에 든 동안만) 그것을 먼저 보인다. 구글 문서 뷰어·바깥 PDF 는 그림이 아직 없을 때의 길.
  *          검산: analysis/bulletin_survey/trail_check.js(발효 중 칸에 끊김 없이 적힌 구간의 첫 통보문 = 발자취의 첫 정식 통보문, 10,241/10,241).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -95,7 +96,7 @@ function yebiReleaseUnits(r) {
 
 /**
  * 한 관서의 정식 특보 상태(특보 통보문들 → 단위별 상태). nowMs = 지금(해제 시각이 아직 안 된 해제는 특보를 두고 해제 예고 칸만 정확한 시각으로).
- * @returns {{state: Map<string, {type, level, tmFc, tmEf, efMs, clr, ho, inMs}>, yebiRelease: Array<{ms, units:Set}>, ended: Map<string, number>}}  inMs = 그 상태를 만든 통보문 입력시각(AI 덧씌움의 「새 것이 이긴다」 기준)
+ * @returns {{state: Map<string, {type, level, tmFc, tmEf, efMs, clr, ho, inMs}>, yebiRelease: Array<{ms, units:Set}>, ended: Map<string, number>, dropped: Map<string, {ms:number, type:string}>}}  inMs = 그 상태를 만든 통보문 입력시각(AI 덧씌움의 「새 것이 이긴다」 기준)
  * [연계] ← compute(이 파일)
  */
 function computeFormal(list, nowMs = Infinity) {
@@ -105,6 +106,12 @@ function computeFormal(list, nowMs = Infinity) {
     //   자식 22번(부모 발표로 함께 발효됐다가 자식만 먼저 해제 — 최장 제주 2026-03-25 남부 연안바다 10:31~12:09) 되살아났다.
     //   한 번도 발효하지 않고 빠진 것(「x 제외」 · 발효 전 해제)은 여기 넣지 않는다 — 그 예비는 특보로 넘어간 적이 없어 그대로 남는다(대구 2026 6-3호가 나중에 따로 취소).
     const ended = new Map(), end = (u, z) => ended.set(u, z.issueMs || z.inMs || 0);
+    // dropped: 단위 → 발효 전에 해제(취소)된 정식 특보를 낸 통보문 시각과 종류(풍랑·태풍 — 다른 종류의 예비는 건드리지 않는다, 검토). 그 특보보다 먼저 나온 같은 종류의 예비는 그 특보가 한 번 마무리한 것이라,
+    //   **시간창이 끝난 뒤에는** 10분 대기(YEBI_WAIT_MS) 없이 바로 뺀다. 시간창이 남아 있는 동안은 종전대로 예비로 둔다(위 「한 번도 발효하지 않고 빠진 것」).
+    //   2026-11-19 운영 기록: 제주 제11-49호(12:00 「제주도동부앞바다 발표, 13시」) 1분 뒤 제11-50호(「남동연안바다 해제」) —
+    //   이미 끝난 예비(18일 오전 06~12시)가 12:10 까지 되살아나고 가상 푸시 「주의보→주의보 격하 발효」「예비특보 취소」가 나갔다.
+    //   사용자: 「10분간 본다는 개념은 … 그 어중간한 해역을 마무리지어주는 통보문 나올때까지 대기하는개념인데, 갑자기 전 통보문을 가져온거야 ?」
+    const dropped = new Map();
     let seeded = false;
     for (const b of latest(list)) {
         const r = b.result, items = parseItems(r.t2, []), { ef, clr } = itemTimes(r);
@@ -152,7 +159,7 @@ function computeFormal(list, nowMs = Infinity) {
                     const z = state.get(u);
                     if (z && t.ms && z.next && z.next.efMs >= t.ms) delete z.next;
                     if (z && t.ms && !(z.efMs && z.efMs >= t.ms)) { Object.assign(z, { clr: t.text, relMs: t.ms, inMs: base.inMs }); (z.trail = z.trail || []).push(mark(it)); }
-                    else { if (z && !t.ms) end(u, z); state.delete(u); }   // 해제 시각을 못 읽은 해제 = 바로 끝(발효 전 해제는 ended 에 넣지 않는다)
+                    else { if (z && !t.ms) end(u, z); else if (z) dropped.set(u, { ms: z.issueMs || z.inMs || 0, type: z.type }); state.delete(u); }   // 해제 시각을 못 읽은 해제 = 바로 끝(발효 전 해제는 ended 에 넣지 않는다 — dropped 에 적어 둔다)
                 }
                 else if (it.action === '발표' || it.action === '변경') {
                     const nx = Object.assign({ type: it.type, level: it.level, tmEf: t.text || '', efMs: t.ms || 0, clr: c || '', issueMs: base.inMs }, base), cur = state.get(u);   // issueMs = 이 특보를 낸 통보문(해제예고만 바뀌어도 그대로) — 다가오는 예비가 이 특보보다 새것인지 볼 때
@@ -176,7 +183,7 @@ function computeFormal(list, nowMs = Infinity) {
     }
     // 해제 시각이 된 것만 지운다 — 그 사이 같은 단위에 새 특보가 발표돼 다음(next)으로 기다리고 있었으면 그것이 이어받는다(해제 뒤 재발표)
     for (const [u, z] of state) if (z.relMs && z.relMs <= nowMs) { if (z.next) state.set(u, z.next); else { end(u, z); state.delete(u); } }
-    return { state, yebiRelease, ended };
+    return { state, yebiRelease, ended, dropped };
 }
 
 /**
@@ -213,7 +220,7 @@ function compute(bulletins, nowMs, cands = []) {
     for (const b of bulletins) if (b && b.result) (byOffice[b.office] = byOffice[b.office] || { w: [], y: [] })[b.rpt === '7' ? 'y' : 'w'].push(b);
     const zones = {}, waiting = [], ys = [], endedAll = new Map();
     for (const [office, { w, y }] of Object.entries(byOffice)) {
-        const { state, yebiRelease, ended } = computeFormal(w, nowMs);
+        const { state, yebiRelease, ended, dropped } = computeFormal(w, nowMs);
         for (const [u, s] of state) zones[u] = Object.assign({ parent: parentOf(u), kind: 'formal' }, s);
         // 발자취용: 이 관서의 예비 목록 전부(두 줄기 각각 같은 호는 마지막 판) · 끝난 특보 시각
         for (const kid of [false, true]) for (const b of latest(y.filter((x) => (x.result.wrnFc === '02') === kid))) ys.push({ kid, ref: { rpt: '7', office, ho: b.result.t1Title, inMs: KST(b.result.tmIn) }, list: parseYebiList(b.result.t4, b.result.tmFc) });
@@ -235,6 +242,7 @@ function compute(bulletins, nowMs, cands = []) {
             if (yebiRelease.some((x) => x.ms >= e.tY && x.units.has(e.unit))) continue;   // 예비 해제 통보문(그 목록보다 나중)
             const z0 = zones[e.unit], tY = e.tY;
             if (!z0 && ended.has(e.unit) && tY <= ended.get(e.unit)) continue;   // 이미 끝난 정식 특보로 넘어갔던 옛 예비 — 되살리지 않는다(위 ended)
+            if (!z0 && dropped.has(e.unit) && dropped.get(e.unit).type === e.type && tY <= dropped.get(e.unit).ms && e.end <= nowMs) continue;   // 발효 전에 취소된 특보가 한 번 마무리한 옛 예비 — 시간창이 끝났으면 10분 대기 없이 뺀다(위 dropped)
             if (z0) {
                 // 정식 특보가 발효 중인 해역의 예비 = 「다가오는 특보」(upYebi — 앱 MMIS 의 current·upcoming 공존과 같다). 정식이 해제되면 이 예비가 이어받는다(정식이 지워진 계산에선 아래 일반 예비로).
                 //   사용자 확정 2026-11-17 「풍랑주의보 발효 중인경우 같은 해역에 예비 특보가 나오는 경우 다가오는 특보로」 — 종전엔 버렸다(실측 155건 전부).
@@ -424,7 +432,8 @@ function zoneBulletins(zone, st, bulletins, nowMs = Date.now()) {
         for (const e of t.list) {
             const k = e.rpt + '|' + e.office + '|' + e.ho + '|' + e.inMs;
             if (!found.has(k)) found.set(k, { e, acts: new Map() });
-            const a = found.get(k).acts, label = e.act + (e.when ? ` — ${e.when.replace(/^\d{4}년 /, '')}` : '');
+            //   제목은 통보문 이름만 — 예비특보의 시간창(「— 11월 18일 오전(06시~12시)」)은 붙이지 않는다(사용자 2026-11-19 「그 부분 텍스트는 표출하지 않도록 하고 통보문 제목만」).
+            const a = found.get(k).acts, label = e.act;
             if (!a.has(label)) a.set(label, []);
             a.get(label).push(u);
         }
@@ -442,6 +451,7 @@ function zoneBulletins(zone, st, bulletins, nowMs = Date.now()) {
         out.push({
             time: m ? `${m[1]}.${m[2]}.${m[3]} ${m[4]}:${m[5]}` : '', reportNo: e.ho, title, office: e.office, childOnly: !mine,
             pdfUrl: pdfOf(r),
+            docKey: (require('./bulletin_docs').docOf(r) || {}).key || '',   // 우리 서버에 받아 둔 원문(그림·PDF)의 열쇠 — routes/weather.js 가 그림이 있으면 보기 주소(viewUrl)를 붙인다
             sections: (SECTIONS[b.rpt] || []).map(([k, label]) => ({ label, text: lines(r[k]).join('\n') })).filter((x) => x.text && !/^o?\s*없음$/.test(x.text)),
         });
     }

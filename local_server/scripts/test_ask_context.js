@@ -1166,6 +1166,17 @@ console.log('\n[T25] 이해확인 재진술 품질 — 정보 이득이 없으�
     ok('보관은 넓히고 푸시는 그대로 — 동의 없이 알림이 가지 않는다',
       /if \(answer && slow\) \{/.test(ROUTES_SRC) &&
       /if \(\(notifyOnComplete \|\| askedMidway\) && deviceId\) \{/.test(ROUTES_SRC));
+    // 2026-11-18 사용자: "PC인 경우는 이 문구가 나오면 안됨" — 푸시는 앱에만 온다(웹 푸시 없음).
+    ok('★PC·모바일 브라우저에는 "완료되면 알림 드릴까요?" 배너를 띄우지 않는다(앱에서만)',
+      /var isApp = isNativeApp\(\);\s*\n\s*var optedIn = isApp && aiAnswerOptedIn\(\);/.test(CLIENT_SRC) &&
+      /if \(isApp && !optedIn\) \{\s*\n\s*activeConsentTimer = setTimeout/.test(CLIENT_SRC));
+    {
+      var nf = /function isNativeApp\(\) \{[^\n]*\n[^\n]*\n\s*\}/.exec(CLIENT_SRC);
+      var run = function (cap) { return new Function('window', (nf ? nf[0] : '') + '; return isNativeApp();')({ Capacitor: cap }); };
+      ok('isNativeApp: 앱 → true · 브라우저(Capacitor 없음·웹 판정) → false',
+        !!nf && run({ isNativePlatform: function () { return true; } }) === true &&
+        run(undefined) === false && run({ isNativePlatform: function () { return false; } }) === false);
+    }
 
     // ②·③ 계층 표기 — 동작 검증은 test_chat_render.js 가 실제로 돌려서 한다(여기선 배선만).
     ok('★답변 본문의 계층 표기(같은 법 시행령)를 읽는 갈래가 있다',
