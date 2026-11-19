@@ -1158,7 +1158,8 @@ function makeBriefings() {
             await page.waitForFunction((id) => { const a = window._riskForecastApp; const s = a && a.getState(); return s && s.enabled && s.sea && s.selected && s.selected.id === id; }, CELL.id, { timeout: 15000 });
             await page.waitForFunction(() => document.getElementById('risk-forecast-sheet').classList.contains('open'), null, { timeout: 5000 });
             const s = await page.evaluate(() => window._riskForecastApp.getState());
-            assert.deepEqual([s.selected.kind, s.selected.location, s.t], ['marine', { lon: CELL.lon, lat: CELL.lat }, at(15)]);
+            // acc = 카드가 묶인 공식 사고예보 칸(시트 제목을 카드 이름과 같은 칸으로 — 2026-11-19 「두 문제도 고치고」)
+            assert.deepEqual([s.selected.kind, s.selected.location, s.t], ['marine', { lon: CELL.lon, lat: CELL.lat, acc: '1001' }, at(15)]);
         });
         await clean(page); await page.screenshot({ path: path.join(SHOT, 'shortcut_sea_412.png') });
         await page.context().close();

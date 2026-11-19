@@ -382,7 +382,8 @@
      */
     function seaCardLink(card, c, opts) {
         var lk = c.link || {}, lon = Number(lk.lon), lat = Number(lk.lat);
-        var b = linkBtn(Number.isFinite(lon) && Number.isFinite(lat) ? { kind: 'marine', id: lk.gridId || 'point', location: { lon: lon, lat: lat }, t: lk.t || null } : null, opts);
+        // location.acc = 카드가 묶인 공식 사고예보 칸 — 위험예측 시트 제목을 이 카드 이름과 같은 칸으로 짓게 서버에 넘긴다(2026-11-19 「두 문제도 고치고」)
+        var b = linkBtn(Number.isFinite(lon) && Number.isFinite(lat) ? { kind: 'marine', id: lk.gridId || 'point', location: { lon: lon, lat: lat, acc: lk.accidentGridId || null }, t: lk.t || null } : null, opts);
         if (b) card.appendChild(b);
         return card;
     }

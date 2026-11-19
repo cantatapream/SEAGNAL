@@ -292,7 +292,7 @@
             if(Array.isArray(id)){var choices=table.coast.spots.filter(function(p){return id.includes(p.id);});clearSelection();choosing=true;if(sheet.hold)sheet.hold(OPEN_DELAY_MS);sheet.choose(choices);registerSheet();return;}
             var item=kind==='marine'?{id:id,lon:location&&location.lon,lat:location&&location.lat}:kind==='briefing'?{id:id}:(kind==='coast'?table.coast.spots:table[kind].cells).find(function(p){return p.id===id;});if(!item)return;
             if(!selected||selected.id!==id||selected.kind!==kind)layer.setSelection(kind==='briefing'?null:kind,id);
-            choosing=false;selected={kind:kind,id:id,item:item,at:t,location:seaKind(kind)==='sea'&&location&&Number.isFinite(location.lon)&&Number.isFinite(location.lat)?{lon:location.lon,lat:location.lat}:null};
+            choosing=false;selected={kind:kind,id:id,item:item,at:t,location:seaKind(kind)==='sea'&&location&&Number.isFinite(location.lon)&&Number.isFinite(location.lat)?{lon:location.lon,lat:location.lat,acc:typeof location.acc==='string'&&location.acc?location.acc:null}:null};
             // 누르는 즉시 회색 틀을 채우고 상세를 요청한다. 이전 지점의 제목은 남기지 않고 이 지점의 이름(연안만 알고 있음)만 쓴다.
             // 시트가 닫혀 있으면 지도 선택 테두리(위 setSelection, 즉시)를 먼저 보이고 약 0.2초 뒤에 시트가 올라온다(사용자 2026-10-16
             // 「선택이후 약간의 딜레이(0.2초?) 정도 후 바텀시트가 나오도록」). 그 안에 다른 곳을 누르면 마지막 것만, 닫기·토글 끔·탭 떠남이면 올리지 않는다(RiskSheet.hold·clear).
@@ -363,7 +363,7 @@
         function framed(s){if(framing&&framing.s===s){framing.rendered=true;if(sheetEl.classList.contains('rf-shown'))fitFrame(false);}}
         async function detail(){
             if(!selected||!enabled)return;var n=++detailSeq,s=selected,at=detailAt(s);
-            try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;}var d=await api.get(s.kind==='briefing'?'sea/briefing':w.RiskMarine&&seaKind(s.kind)==='sea'?'sea/analysis':s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||detailAt(s)!==at)return;sheet.show(d,s.kind,s.item,meta?{now:meta.now}:undefined);registerSheet();framed(s);
+            try{var params={id:s.id,t:at};if(s.location){params.lon=s.location.lon;params.lat=s.location.lat;if(s.location.acc)params.acc=s.location.acc;/* 브리핑 해역 카드에서 왔으면 시트 제목을 카드와 같은 칸으로(서버 marine_fusion.analysis acc) */}var d=await api.get(s.kind==='briefing'?'sea/briefing':w.RiskMarine&&seaKind(s.kind)==='sea'?'sea/analysis':s.kind==='accident'?'sea/accident-cell':s.kind+'/'+(s.kind==='coast'?'spot':'cell'),params);if(n!==detailSeq||!enabled||selected!==s||detailAt(s)!==at)return;sheet.show(d,s.kind,s.item,meta?{now:meta.now}:undefined);registerSheet();framed(s);
                 var out=d&&d.marine&&d.marine.outlook&&d.marine.outlook.accident;if(out&&out.length){s.levels=s.levels||{};out.forEach(function(r){if(r&&r.forecastAt)s.levels[r.forecastAt]=r;});if(s.slider&&s.slider.levels)s.slider.levels(out);}if(d&&d.marine)trafficHistory(n,s,at,d.marine);}   // 시각 막대 칸 색: 해상 outlook.accident(연안 시각 막대는 T24 로 없앰)
             catch(e){console.warn('[위험예측] 상세 요청 실패',failureInfo(e));if(n===detailSeq&&enabled&&selected===s&&detailAt(s)===at){sheet.error(e.message);registerSheet();framed(s);}}
         }

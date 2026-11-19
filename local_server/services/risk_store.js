@@ -10,6 +10,8 @@
 const fs=require('fs'),path=require('path');
 const io=require('./risk_collector_io'),T=require('./risk_time'),S=require('./risk_score'),G=require('./risk_geo'),A=require('./sea_accident_collector');
 const ROOT=path.join(__dirname,'..'),CLIENT=path.join(ROOT,'..','client');
+// 공식 사고예보 낡음 판정 여유 — 수집기가 정시 10분에 돌고(sea_accident_collector.tick) 응답·저장에 몇 분 걸린다. 없으면 매일 정시~10분 「-」(sources 참고).
+const ACCIDENT_GRACE_MS=20*60000;
 /** 구역의 공백·점표기를 통일한다. 예: 인천.경기→인천·경기. @param {string} s @returns {string} [연계] ← flattenWarnings */
 function zoneName(s){return String(s||'').replace(/\./g,'·').replace(/\s/g,'');}
 /** 기존 파일 갱신시간을 해석한다. 예: 오전/오후 한국어 날짜도 KST로.
@@ -158,12 +160,16 @@ function createStore({dir=io.DEFAULT_DIR,dataDir=path.join(ROOT,'data'),configDi
         for(const key of ['congestion','accident','tourConcentration'])out[key].callsToday=io.read(path.join(dir,key+'_quota.json'))?.date===date?io.read(path.join(dir,key+'_quota.json')).calls:0;
         out.zoneForecasts.base=cache.zoneForecasts.data?.baseTmUtf||cache.zoneForecasts.data?.baseTm||null;
         out.swell.baseTm=cache.swell.data?.baseTm||null;out.swell.frames=cache.swell.data?.fctTimes?.length||0;
-        const accident=cache.accident.data,attempt=cache.accident.attempt,local=new Date(now+9*T.HOUR),hour=local.getUTCHours(),base=Date.parse(date+'T00:00:00+09:00');
+        // 판정 시계는 ACCIDENT_GRACE_MS 만큼 늦게 본다 — 수집기는 정시 10분(03:10·15:10, sea_accident_collector.tick)에 도는데
+        //   정시(03:00·15:00)부터 새 확인을 요구하면 매일 03:00~03:10·15:00~15:10 멀쩡한 판이 낡음 → 해상 시트 「위험 예측」이 「-」가 됐다
+        //   (2026-11-19 운영 실측: 15:04 stale · 15:12 같은 값 ok. 사용자 「두 문제도 고치고」). 수집이 실제로 실패하면 정시+20분부터 종전처럼 낡음.
+        const accClock=now-ACCIDENT_GRACE_MS,accDate=io.day(accClock);
+        const accident=cache.accident.data,attempt=cache.accident.attempt,local=new Date(accClock+9*T.HOUR),hour=local.getUTCHours(),base=Date.parse(accDate+'T00:00:00+09:00');
         const latestWindow=base+(hour>=15?15:hour>=3?3:-9)*T.HOUR,checked=timestamp(attempt?.checkedAt);
         // 03시 전에는 가장 새 판이 전날 15시 판(latestWindow 도 전날 15시)이라 그 판의 날짜는 어제다 — 오늘 날짜와만 비교하면
         //   그 판이 오늘 00~21시 칸을 다 담고 있는데도 매일 00:00~03:10 낡음이 되어 위험 예측 지도 칸이 사라졌다
         //   (사용자 2026-10-18 01:12 「지금 시간 기준으로 위험예측을 눌러도 격자가 안나오는데」). 03시 이후는 종전대로 오늘 판만.
-        const expectedDate=hour>=3?date:io.day(base-T.HOUR);
+        const expectedDate=hour>=3?accDate:io.day(base-T.HOUR);
         if(accident&&out.accident.status==='ok'&&(accident.date!==expectedDate||!checked||checked<latestWindow))out.accident.status='stale';
         Object.assign(out.accident,{createdAt:accident?.createdAt||null,checkedAt:attempt?.checkedAt||null,frames:Object.keys(accident?.frames||{}).length,date:accident?.date||null,source:'한국해양교통안전공단 MTIS 선박사고 위험예보',callCap:attempt?.callCap??90});
         const tour=cache.tourConcentration.data;out.tourConcentration.date=tour?.date||null;out.tourConcentration.spotsMatched=Object.keys(tour?.values||{}).length;out.tourConcentration.spotsTotal=staticTable?.spots?.length||0;

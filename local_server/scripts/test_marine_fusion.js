@@ -72,6 +72,14 @@ const risk={marineInputs:()=>inputs,sources:()=>inputs.sources};
         assert.equal(m.analysis({id:trafficCell.id,t:at}).title,M.location(trafficCell),'관할을 주입한 시험의 기본 = 기준점 없음 → 종전');
         const out=M.createStore({risk,dir,clock:()=>now,stations,accidents,describe,placesOf:()=>{throw new Error('관광지 표 준비 전');}});assert.equal(out.analysis({id:trafficCell.id,t:at}).title,M.location(trafficCell),'기준점 실패 → 종전 이름');
         assert.equal(s.analysis({lon:127.5,lat:34.0,t:at}).title,M.location(describe({gridId:'point',latitude:34.0,longitude:127.5})),'관할 밖 → 종전 이름(주요지명만)');});
+    // 2026-11-19 운영(「한림항 동북동방 0.7해리」 카드 → 시트 「용운동항 서방 0.4해리」, 사용자 「두 문제도 고치고」): 브리핑 해역 카드는 공식 사고예보
+    //   칸 중심으로 이름을 짓고, 「위험예측에서 보기」는 그 칸 id 를 acc 로 넘긴다 → 시트 제목도 같은 칸 이름. acc 없거나 모르는 id 면 종전(누른 점의 칸).
+    await check('acc(사고예보 칸 id)가 오면 시트 제목 = 그 칸 이름(브리핑 카드와 같음) · 값은 누른 점 그대로 · 모르는 acc 는 종전',()=>{const R=require('../services/station_briefing_rules'),at='2026-10-12T13:00:00+09:00',near=[{name:'가까운곳',lat:33.56,lon:126.54}];
+        const accCell={...describe({gridId:'A2',latitude:33.52,longitude:126.58}),id:'A2',geometry:accGeometry},local={...inputs,accident:{...inputs.accident,cells:[...inputs.accident.cells,accCell]}};
+        const s=M.createStore({risk:{marineInputs:()=>local,sources:()=>local.sources},dir,clock:()=>now,stations,accidents,describe,placesOf:()=>near});
+        const p={lon:trafficCell.lon,lat:trafficCell.lat,t:at},plain=s.analysis(p),withAcc=s.analysis({...p,acc:'A2'}),want=R.regionName(accCell,near).name;
+        assert.notEqual(plain.title,want,'시험 전제: 두 칸 이름이 달라야 한다');assert.equal(withAcc.title,want);assert.equal(withAcc.marine.location,want);
+        assert.deepEqual(withAcc.marine.congestion,plain.marine.congestion,'값은 누른 점 기준 그대로');assert.equal(s.analysis({...p,acc:'없는칸'}).title,plain.title);});
     // 연안 안전 브리핑 설계서 §11.10.43(2026-10-19 사용자 「항구 우선」·「마을공동어항만 제외 (추천)」 · 관할 밖은 *"관할 밖 바다에 대해서는 논외로 남기는게 좋을 것 같은데 관할 내 주요지명을 기준으로 설명토록 하는게 좋겠는걸"*):
     //   관할 안 칸만 10km 안 공식 항이 관할 기준점·주요지명보다 먼저. 관할 밖 칸은 항이 가까워도 종전 location(주요지명만).
     await check('해역 이름 — 관할 안 칸은 공식 항(ports)이 10km 안이면 그 항이 먼저(관할 기준점이 더 가까워도) · 관할 밖 칸은 항이 10km 안이어도 종전 이름(주요지명만) · 10km 밖 항은 무시 · 관할을 주입한 시험의 기본은 항 없음',()=>{const R=require('../services/station_briefing_rules'),at='2026-10-12T13:00:00+09:00',near=[{name:'가까운곳',lat:33.56,lon:126.54}],port={name:'가짜항',kind:'지방어항',lat:33.58,lon:126.53};
