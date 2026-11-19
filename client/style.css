@@ -3886,6 +3886,17 @@ line-height: 1.1;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     }
 
+    /* 키보드 대응(2026-11-19 사용자 지적 — 댓글 입력 때 머리가 밀려 올라가 상태표시줄 밑까지 넘어감):
+       promo.js fitPromoDetailToViewport 가 바깥 칸(#promo-detail-modal)을 「보이는 화면」(키보드 뺀 나머지)에 맞추고,
+       창 높이는 vh(전체 화면 — 키보드가 떠도 그대로) 대신 바깥 칸 기준으로 잡는다.
+       위 여백은 상태표시줄 높이(safe-area) 이상 — 종전 위아래 40px 그대로를 기본으로. */
+    #promo-detail-modal {
+        box-sizing: border-box;
+        padding: max(40px, env(safe-area-inset-top, 0px)) 0 40px;
+    }
+    #promo-detail-modal .promo-modal-content { max-height: 100%; }
+    #promo-detail-modal.promo-kb-open { padding-bottom: 6px; }
+
     .promo-editor-modal-content {
         width: 100%;
         max-width: 100%;
