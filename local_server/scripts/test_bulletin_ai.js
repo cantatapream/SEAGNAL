@@ -190,14 +190,54 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
       const dropped = JSON.parse(JSON.stringify(full)); dropped.categories.강풍.sub = [];
       const noCat = JSON.parse(JSON.stringify(full)); delete noCat.categories.해상;
       ok('날씨해설 색칠: 원문 줄을 다 지닌 답은 통과 · 유의사항 세 줄을 뺀 답(실제 Gemma 가 낸 꼴)·칸을 통째로 뺀 답은 못 쓰는 답', M.gemmaKeptText(full, code) === true && M.gemmaKeptText(dropped, code) === false && M.gemmaKeptText(noCat, code) === false && M.gemmaKeptText({}, code) === false && M.gemmaKeptText(full, {}) === true);
-      ok('날씨해설 색칠은 그 검사를 Gemma 답에 건다(글자 확인)', /gemmaAccept: \(p\) => gemmaKeptText\(p, codeExtracted\)/.test(fs.readFileSync(require('path').join(__dirname, '..', 'marine_forecast_processor.js'), 'utf8')));
+      ok('날씨해설 색칠은 그 검사를 어느 AI 답에든 건다(accept — 2026-11-19 오후, 종전 Gemma 답에만. 글자 확인)', !/gemmaAccept:/.test(fs.readFileSync(require('path').join(__dirname, '..', 'marine_forecast_processor.js'), 'utf8')) && /[^a-zA-Z]accept: \(p\) => gemmaKeptText\(p, codeExtracted\)/.test(fs.readFileSync(require('path').join(__dirname, '..', 'marine_forecast_processor.js'), 'utf8')));
       // 지방청 전망 — 글 전체 글자 수가 원문의 97% 이상 남아야 한다
       const R = require('../regional_bulletin_collector');
       const rawR = '<중점 사항>\n○ 당분간 서해중부해상에 바람이 매우 강하게 불고 물결이 매우 높게 일겠습니다.\n<강풍 및 풍랑>\n○ (강풍) 서해5도는 바람이 순간풍속 70km/h(20m/s) 이상으로 매우 강하게 불겠습니다.\n○ (풍랑) 풍랑특보가 발효 중인 서해중부해상은 바람이 25~60km/h(7~16m/s)로 매우 강하게 불고 물결이 1.0~3.5m로 매우 높게 일겠습니다.';
       const fullR = { summary: rawR.replace('서해중부해상에', '{{loc:서해중부해상}}에').replace('25~60km/h(7~16m/s)', '{{num:25~60km/h(7~16m/s)}}') };
       const droppedR = { summary: fullR.summary.split('\n').filter((l) => !/^○ \(풍랑\)/.test(l)).join('\n') };
       ok('지방청 전망 색칠: 원문 줄을 다 지닌 답은 통과 · (풍랑) 항목을 뺀 답·summary 없는 답은 못 쓰는 답 · 원문이 비면 안 따진다', R.gemmaKeptSummary(fullR, rawR) === true && R.gemmaKeptSummary(droppedR, rawR) === false && R.gemmaKeptSummary({}, rawR) === false && R.gemmaKeptSummary(null, rawR) === false && R.gemmaKeptSummary({}, '') === true);
-      ok('지방청 전망 색칠도 그 검사를 Gemma 답에 건다(글자 확인)', /gemmaAccept: \(p\) => gemmaKeptSummary\(p, rawText\)/.test(fs.readFileSync(require('path').join(__dirname, '..', 'regional_bulletin_collector.js'), 'utf8')));
+      {
+        // 실제 검사 함수를 accept 로 걸어 불러 본다: Gemma 가 줄을 뺀 답 → 순서의 AI(클로드 키2, 시험 대역은 GOOD 을 낸다 — summary 가 없어 역시 걸림) → 전부 실패로 돌려준다(부르는 쪽이 기존 색칠본·원문으로 물러난다)
+        gemmaAnswer = () => ({ success: true, text: JSON.stringify(droppedR) }); calls.length = 0;
+        const rj = await bai.call('forecast', 'P', { accept: (p) => R.gemmaKeptSummary(p, rawR) });
+        gemmaAnswer = () => ({ success: true, text: JSON.stringify(fullR) });
+        const okj = await bai.call('forecast', 'P', { accept: (p) => R.gemmaKeptSummary(p, rawR) });
+        ok('색칠: 줄 빠짐 검사를 accept 로 걸면 Gemma 답도 순서 쪽 AI 답도 같은 검사를 거친다 — 줄을 뺀 답은 어느 AI 것이든 실패, 온전한 답은 통과', rj.success === false && rj.tried.length >= 2 && rj.tried.every((t) => !t.ok) && calls.length >= 1 && okj.success === true && okj.provider === 'gemma', JSON.stringify([rj.tried, okj.provider]).slice(0, 300));
+      }
+      {
+        // 검사에 걸린 답이 거듭 나오는 통보문은 3번 뒤 더 부르지 않는다(주기마다 돈 드는 호출이 되풀이되지 않게) — 호출 자체가 실패한 것은 세지 않는다
+        const realCall = bai.call;
+        bai.call = async () => ({ success: false, error: '검사에 걸림', tried: [{ id: 'claude2', ok: false, error: 'x', raw: '{"categories":{}}' }] });
+        const a1 = await M.analyzeWithAI('원문', code), rej = M.analyzeWithAI.lastRejected;
+        bai.call = async () => ({ success: false, error: '503', tried: [{ id: 'gemma', ok: false, error: 'JSON 아님', raw: '깨진 답' }, { id: 'claude2', ok: false, error: '503' }] });
+        const a2 = await M.analyzeWithAI('원문', code), down = M.analyzeWithAI.lastRejected;   // Gemma(무료)만 답하고 나머지는 호출 실패 → 세지 않는다
+        // 검사와 같은 방법으로 읽는다: 한 겹 배열·뒤에 설명이 붙은 답도 쓴다 · 필요한 칸이 없는 「성공」은 못 쓰는 답으로 센다
+        bai.call = async () => ({ success: true, text: '[' + JSON.stringify(full) + ']\n*(참고: …)*', keyLabel: 'claude2', tried: [] });
+        const a3 = await M.analyzeWithAI('원문', code);
+        bai.call = async () => ({ success: true, text: '{"issues":[]}', keyLabel: 'claude2', tried: [] });
+        const a4 = await M.analyzeWithAI('원문', code), a4rej = M.analyzeWithAI.lastRejected;
+        bai.call = async () => ({ success: true, text: '[' + JSON.stringify(fullR) + ']', keyLabel: 'claude2', tried: [] });
+        const r3 = await R.analyzeBulletinWithAI(rawR);
+        bai.call = async () => ({ success: true, text: '{"marineOutlooks":[]}', keyLabel: 'claude2', tried: [] });
+        const r4 = await R.analyzeBulletinWithAI(rawR), r4rej = R.analyzeBulletinWithAI.lastRejected;
+        bai.call = realCall;
+        ok('색칠: 답을 검사와 같은 방법으로 읽는다(한 겹 배열·뒤 설명) · 필요한 칸(categories·summary)이 없는 「성공」은 못 쓰는 답으로 센다 — 검토', !!(a3 && a3.categories && a3.categories.강풍) && a4 === null && a4rej === true && !!(r3 && r3.summary === fullR.summary) && r4 === null && r4rej === true, JSON.stringify([!!a3, a4, a4rej, !!r3, r4, r4rej]));
+        // 순서 쪽 AI 가 줄을 뺀 답을 내면 걸러지는가(대역이 낸 답을 줄 뺀 색칠본으로 바꿔서) — 97% 선에 실제로 걸리는지
+        { const keep = llm.callDirect; let n = 0;
+          llm.callDirect = async (id) => { n++; return { success: true, response: { text: JSON.stringify(id === 'claude2' ? droppedR : fullR) }, keyLabel: id }; };
+          await post({ feature: 'forecast', gemma: '' });
+          const viaOrder = await bai.call('forecast', 'P', { accept: (p) => R.gemmaKeptSummary(p, rawR) });
+          llm.callDirect = async (id) => ({ success: true, response: { text: JSON.stringify(fullR) }, keyLabel: id });
+          const viaOk = await bai.call('forecast', 'P', { accept: (p) => R.gemmaKeptSummary(p, rawR) });
+          llm.callDirect = keep; await post({ feature: 'forecast', gemma: bai.GEMMA_MODELS[0] });
+          ok('색칠: 순서 1순위(클로드 키2)가 줄을 뺀 답을 내면 그 답은 버린다(종전에는 그대로 나갔다 — 다음 순위로 넘어간다) · 온전한 답이면 그대로 쓴다', viaOrder.provider !== 'claude2' && n >= 1 && viaOrder.tried[0].id === 'claude2' && viaOrder.tried[0].ok === false && !!viaOrder.tried[0].raw && viaOk.success && viaOk.provider === 'claude2', JSON.stringify([viaOrder.provider, n, viaOrder.tried]).slice(0, 300)); }
+        const mf = fs.readFileSync(require('path').join(__dirname, '..', 'marine_forecast_processor.js'), 'utf8'), rb = fs.readFileSync(require('path').join(__dirname, '..', 'regional_bulletin_collector.js'), 'utf8');
+        ok('색칠: 「답은 왔는데 검사에 걸림」과 「호출 실패」를 가른다(앞의 것만 센다) · 같은 통보문에서 3번 쌓이면 본청·지방청 모두 더 부르지 않는다(글자 확인)', a1 === null && rej === true && a2 === null && down === false
+          && /COLOR_REJECT_MAX = 3/.test(mf) && /\(cached\.colorRejects \|\| 0\) >= COLOR_REJECT_MAX/.test(mf) && /asked && !aiResult && analyzeWithAI\.lastRejected \? 1 : 0/.test(mf)
+          && /COLOR_REJECT_MAX = 3/.test(rb) && /\(cached\.colorRejects \|\| 0\) >= COLOR_REJECT_MAX/.test(rb) && /analyzeBulletinWithAI\.lastRejected \? 1 : 0/.test(rb), [rej, down]);
+      }
+      ok('지방청 전망 색칠도 그 검사를 어느 AI 답에든 건다(accept — 글자 확인)', !/gemmaAccept:/.test(fs.readFileSync(require('path').join(__dirname, '..', 'regional_bulletin_collector.js'), 'utf8')) && /[^a-zA-Z]accept: \(p\) => gemmaKeptSummary\(p, rawText\)/.test(fs.readFileSync(require('path').join(__dirname, '..', 'regional_bulletin_collector.js'), 'utf8')));
     }
     gemmaAnswer = () => ({ success: true, text: '글 그대로의 답' }); calls.length = 0;
     const d6 = await bai.call('forecast', 'P', { json: false });

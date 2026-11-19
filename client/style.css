@@ -5467,6 +5467,13 @@ line-height: 1.1;
 }
 /* 「해상 기상 요약」 상자(2026-11-19) — 기온 박스 아래. 해역별 줄 + 종류별 한 줄(딱지 줄은 들여쓰기 없이 흐른다) */
 .regional-forecast-sea { padding: 10px 12px; margin: 8px 0; border-radius: 8px; background: rgba(56, 189, 248, 0.07); border: 1px solid rgba(56, 189, 248, 0.28); }
+/* 「○○지방기상청 단기 전망 전문 보기」 줄 — 요약이 있는 지방청에서 전문을 접어 두는 아코디언(2026-11-19 사용자 「1안」: 머리줄 같은 접는 줄). 펼치면 본문이 같은 테두리 안에 이어진다. */
+.regional-forecast-full-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(100, 181, 246, 0.35); background: rgba(100, 181, 246, 0.08); color: #e3f2fd; font-size: 0.86rem; font-weight: 700; font-family: inherit; text-align: left; cursor: pointer; word-break: keep-all; }
+.regional-forecast-full-btn i { color: #90caf9; transition: transform 0.2s; flex: 0 0 auto; }
+.regional-forecast-full-btn.open i { transform: rotate(180deg); }
+.regional-forecast-full-btn.open { border-radius: 10px 10px 0 0; border-bottom-color: transparent; }
+.regional-forecast-full-btn:not(.open) + .regional-forecast-summary.rf-full-fold { display: none; }
+.regional-forecast-full-btn.open + .regional-forecast-summary.rf-full-fold { border: 1px solid rgba(100, 181, 246, 0.35); border-top: 0; border-radius: 0 0 10px 10px; padding: 6px 10px 10px; }
 .regional-forecast-sea.off { background: rgba(148, 163, 184, 0.06); border-color: rgba(148, 163, 184, 0.22); }
 .rf-sea-ttl { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 0.8rem; font-weight: 700; color: #7dd3fc; }
 .regional-forecast-sea.off .rf-sea-ttl { color: #94a3b8; margin-bottom: 4px; }

@@ -937,7 +937,19 @@ function renderRegionalForecast(data) {
 
         // [해상 기상 요약] 기온 박스 아래 — 바다 얘기만(서버 services/regional_sea_summary 가 만들어 둔 것)
         //   상자를 그리다 실패해도(자료 꼴이 어긋남) 카드의 나머지는 그린다 — 없으면: 요약 자료 한 칸이 어긋났을 때 본문·기온·다른 지방청까지 전부 「불러오지 못했습니다」로 바뀐다(별도 에이전트 검토 2026-11-19)
-        try { html += seaSummaryHtml(item.seaSummary); } catch (e) { console.warn('[해상 기상 요약] 상자를 그리지 못함:', e && e.message); }
+        let seaHtml = '';
+        try { seaHtml = seaSummaryHtml(item.seaSummary); } catch (e) { console.warn('[해상 기상 요약] 상자를 그리지 못함:', e && e.message); }
+        html += seaHtml;
+        // [전문 접기] 요약이 있는 지방청은 전문(아래 본문)을 접어 두고 「○○지방기상청 단기 전망 전문 보기」 줄을 누르면 펼친다.
+        //   사용자 2026-11-19 오후: 「요약 아래 전문이 나오는데 그 전문은 닫아놓은 상태로 … [00지방기상청 단기 전망 전문 보기] 누르면 아래로 펼쳐지면서 내용이 나왔으면 … 버튼은 아코디언 형식」
+        //     「요약을 만들지 못했을때는 지금처럼 그냥 전문이 바로 표출되도록」 「1안이 좋겠어」(머리줄 같은 접는 줄).
+        //   요약이 없는 때(못 만듦·아직 전·「바다 내용 없음」)는 버튼 없이 전문이 바로 보인다. 펼친 지방청은 다시 그려도 펼친 채로 둔다(regionalFullOpen).
+        const fold = !!seaHtml && !!item.seaSummary && item.seaSummary.state === 'ok';
+        const fullOpen = fold && regionalFullOpen.has(String(item.officeCode));
+        if (fold) {
+            html += `<button type="button" class="regional-forecast-full-btn${fullOpen ? ' open' : ''}" data-full-office="${escapeHtml(item.officeCode || '')}" aria-expanded="${fullOpen ? 'true' : 'false'}">`;
+            html += `<span>📄 ${escapeHtml(item.officeName || '')} 단기 전망 전문 <span class="rf-full-verb">${fullOpen ? '접기' : '보기'}</span></span><i class="fa-solid fa-chevron-down"></i></button>`;
+        }
 
         // [종합 전망 본문]
         //   - AI 마크업 태그({{loc:}}/{{num:}}/{{warn:}})가 들어와 있으면
@@ -946,7 +958,7 @@ function renderRegionalForecast(data) {
         //   - 라인 prefix(□/○/-/*) 별 스타일 클래스는 그대로 유지.
         //   - 본문 영역은 CSS max-height + overflow-y 로 카드 안에서 스크롤된다.
         const lines = item.summary.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        html += `<div class="regional-forecast-summary">`;
+        html += `<div class="regional-forecast-summary${fold ? ' rf-full-fold' : ''}">`;
         //   - 줄 앞 기호는 hangHtml 이 떼어 둔다(두 줄이 되면 둘째 줄을 글자 시작점에 — 2026-11-18).
         for (const line of lines) {
             if (line.startsWith('□') || line.startsWith('*') || line.startsWith('※')) {
@@ -974,6 +986,13 @@ function renderRegionalForecast(data) {
     if (window.textFit) bodyEl.querySelectorAll('.regional-forecast-summary').forEach(s => window.textFit(s, '.regional-forecast-line:not(.tf-hang), .tf-text'));
     //   「해상 기상 요약」 상자도 같은 규칙(어절 단위·자간 줄이기) — 해역 이름 줄·딱지 줄·원문 줄
     if (window.textFit) bodyEl.querySelectorAll('.regional-forecast-sea').forEach(s => window.textFit(s, '.rf-sea-zn, .rf-sea-ln, .regional-forecast-line:not(.tf-hang), .tf-text'));
+    // 「전문 보기」 줄 — 누르면 바로 아래 본문을 펼치고 접는다(글자도 「보기」↔「접기」). 펼친 지방청을 기억해 두어 다시 그려도 그대로.
+    bodyEl.querySelectorAll('.regional-forecast-full-btn').forEach(btn => btn.addEventListener('click', () => {
+        const open = btn.classList.toggle('open'), code = btn.getAttribute('data-full-office');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        const verb = btn.querySelector('.rf-full-verb'); if (verb) verb.textContent = open ? '접기' : '보기';
+        if (open) regionalFullOpen.add(code); else regionalFullOpen.delete(code);
+    }));
     // 📋 — 기상청 원문(분포도 그림 포함)을 팝업으로. 카드 접힘·펼침으로 번지지 않게 막는다.
     bodyEl.querySelectorAll('.regional-forecast-doc').forEach(btn => btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1000,6 +1019,9 @@ function regionalDocOf(item) {
     return out;
 }
 
+// 「전문 보기」로 펼쳐 둔 지방청(관서 번호) — 화면을 다시 그려도(주기 갱신) 펼친 채로 두려고. [연계] ← renderRegionalForecast
+const regionalFullOpen = new Set();
+
 // 「해상 기상 요약」 딱지 색 — 종류별(서버 regional_sea_summary.KINDS 의 종류). 모르는 종류는 회색.
 const SEA_CHIP = { '특보 가능성': 'red', '해제 예고': 'green', '이안류': 'red', '기상해일': 'red', '폭풍해일': 'red', '천둥·번개': 'yellow', '너울': 'purple', '조고': 'green', '바다 안개': 'grey' };
 
@@ -1009,6 +1031,7 @@ const SEA_CHIP = { '특보 가능성': 'red', '해제 예고': 'green', '이안�
  *   none : 「해상 기상 내용이 포함되어 있지 않습니다.」
  *   raw  : AI 가 요약하지 못한 것 — 뽑아 둔 원문 줄 그대로(「요약을 만들지 못해 원문 그대로」라고 적는다. 「없음」과 다르게 보여야 한다)
  *   없음(옛 자료·아직 만드는 중) : 상자를 그리지 않는다
+ * 제목은 「AI 해상 기상 요약」(사용자 2026-11-19 오후: 「여기서 AI 해상 기상 요약 이라고 표현되었으면 좋겠어」) — 「없음」 상자도 같은 제목, 「원문 그대로」 상자는 AI 글이 아니라 종전 제목.
  * 사용자 2026-11-19: 「1.모양 - 2번안」 「3.해상 기상 내용이 포함되어있지 않습니다. 라는 식으로 상자 표출」
  *   「[특보가능성] ㅇㅇㅇ… 처럼 들여쓰기 없이 기록되도록. 단, 어절단위 및 자간 줄이기는 동일하게 적용」
  * 예: seaSummaryHtml({ state:'ok', zones:[{ zone:'동해중부먼바다', period:'~글피(22일) 오전', wind:'8~20', wave:'1.5~4.0' }], notes:[{ kind:'천둥·번개', text:'모레(21일)까지 {{loc:동해중부해상}}' }] })
@@ -1018,13 +1041,9 @@ const SEA_CHIP = { '특보 가능성': 'red', '해제 예고': 'green', '이안�
 function seaSummaryHtml(s) {
     if (!s || !s.state) return '';
     const head = (title, note) => `<div class="rf-sea-ttl"><span>🌊 ${title}</span>${note ? `<span class="rf-sea-by">${note}</span>` : ''}</div>`;
-    if (s.state === 'none') return `<div class="regional-forecast-sea off">${head('해상 기상 요약')}<div class="rf-sea-none">해상 기상 내용이 포함되어 있지 않습니다.</div></div>`;
-    if (s.state === 'raw') {
-        const lines = (Array.isArray(s.lines) ? s.lines : []).map(l => String(l).trim()).filter(Boolean);
-        if (!lines.length) return '';
-        const body = lines.map(l => hangHtml(l, 'regional-forecast-line ' + (l.startsWith('○') ? 'regional-forecast-day' : 'regional-forecast-sub'))).join('');
-        return `<div class="regional-forecast-sea">${head('해상 기상', '요약을 만들지 못해 원문 그대로')}${body}</div>`;
-    }
+    if (s.state === 'none') return `<div class="regional-forecast-sea off">${head('AI 해상 기상 요약')}<div class="rf-sea-none">해상 기상 내용이 포함되어 있지 않습니다.</div></div>`;
+    // 요약을 만들지 못한 때(raw)는 상자를 그리지 않는다 — 사용자 2026-11-19 오후: 「요약을 만들지 못한 경우는 아예 상자를 표시하지 말자.」
+    //   (종전: 「해상 기상 — 요약을 만들지 못해 원문 그대로」 + 뽑아 둔 원문 줄. 그 글은 아래 본문에 그대로 있다.)
     if (s.state !== 'ok') return '';
     //   꼴이 어긋난 줄(객체가 아님·이름이나 글이 빔)은 그리지 않는다
     const zones = (Array.isArray(s.zones) ? s.zones : []).filter(z => z && typeof z === 'object' && String(z.zone || '').trim() && (z.wind || z.wave));
@@ -1040,7 +1059,7 @@ function seaSummaryHtml(s) {
     }
     if (zones.length && notes.length) html += `<div class="rf-sea-sep"></div>`;
     for (const n of notes) html += `<div class="rf-sea-ln"><span class="rf-sea-chip ${Object.prototype.hasOwnProperty.call(SEA_CHIP, n.kind) ? SEA_CHIP[n.kind] : 'grey'}">${escapeHtml(n.kind)}</span>${renderMarineMarkup(n.text)}</div>`;
-    return html ? `<div class="regional-forecast-sea">${head('해상 기상 요약')}${html}</div>` : '';
+    return html ? `<div class="regional-forecast-sea">${head('AI 해상 기상 요약')}${html}</div>` : '';
 }
 
 /**
