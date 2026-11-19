@@ -1537,8 +1537,28 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 17:45 KST] ✅완료 — 본선에 걸린 시험 고침 — test_life_safety_tab_keep
+[원인 — 코드로 확인] 커밋 90fe67e5(PR #1519, 세션 session_01S4bd5NckAkm24CxsRaBBcs)가 risk_forecast.js 의 selected.location 에 acc 칸을 넣었다(브리핑 해역 카드에서 왔을 때 시트 제목을 카드와 같은 칸으로 — 서버 marine_fusion.analysis acc). 의도한 설계다. test_life_safety_tab_keep 의 「열려 있던 해상 시트(해역)는 같은 좌표로 다시 연다」가 location 을 {lon,lat} 와 통째로 견줘 acc:null 때문에 걸렸다. [고친 것] 시험만: 좌표(lon·lat)를 견주고, 지도에서 고른 곳은 acc 가 null 임을 따로 확인. 코드는 안 건드림. 탭을 오갈 때 되살리는 길(risk_forecast.js:484 select(target.kind,target.id,target.location))은 location 을 통째로 넘겨 acc 도 그대로 간다. [확인] test_life_safety_tab_keep 25/0. 직전 전체 점검(머리줄 리스너 변경 포함)에서 걸린 것은 이 1건뿐이었고 그 뒤 바꾼 것은 이 시험 파일 한 줄 — 전체 점검을 다시 돌리지는 않았다(GitHub 자동 점검이 전체를 돈다). [다음] PR → 사용자 머지.
+
+
+### [2026-11-19 17:43 KST] 🟢착수 — 본선에 걸린 시험 고치기 — test_life_safety_tab_keep 「해상 시트는 같은 좌표로 다시 연다」
+사용자 2026-11-19 「아니야 지금 네가 시작해줘 그냥」. 실제 {acc:null, lat, lon} ↔ 기대 {lat, lon}. 유력 원인 커밋 90fe67e5(PR #1519, risk_forecast.js 295행 location). 먼저 그 커밋의 변경과 설계 문서를 끝까지 읽어 acc 칸이 의도인지 확인한 뒤, 의도면 시험 기대값을, 아니면 코드를 고친다.
+
+
 ### [2026-11-19 17:25 KST] ✅완료 — 앱: 해양안전생활 지도에 해구기상 격자가 남던 결함 수정
 증상(사용자 보고): 해구기상이 꺼져 있는데 해양안전생활 탭에 해구기상 격자가 남고, 격자를 누르면 해구기상 정보가 뜸. 원인(Chromium 재현): 앱을 켜고 처음 여는 지도가 해양안전이면 진입 때 켜진 오버레이를 끄는 _suspendOceanOverlays 가 지도 생성 전에 돌아 아무것도 못 끄고, 지도가 만들어진 뒤 해구기상·특보구역·부이 3종이 localStorage 저장값(켜짐)을 되살림. 그 켜짐은 해양종합정보로 가면 '해양안전에서 켠 것'으로 꺼지며 저장값까지 지워졌고, 해양안전 화면 기억(_parkSafety)에 섞여 재진입 때 다시 켜짐. 수정: life_safety.js 에 window._lsSuspendLateOverlay(btn) 신설 — 세 버튼이 저장값 복원 직후 호출, 해양안전 화면이면 _suspended 에 넣고 조용히 끔(해양종합정보로 가면 되살아남). 검사: local_server/scripts/test_safety_late_overlay.js 신설(6건, 수정 전 코드에서 4 FAIL 확인) + verify_all SUITES 등록 + gen_rulebook 재생성. verify_all 실패 목록은 수정 전과 같음(규칙집 낡음 1건은 재생성으로 해소). test_life_safety_tab_keep 은 express 임시설치로 돌려 24/1 — 남은 1건(해상 시트 좌표 복원)은 수정 전에도 같은 실패. 다음: 없음(사용자 확인 대기).
+
+
+### [2026-11-19 17:15 KST] ✅완료 — 지방청 카드 머리줄 — onclick 글자 대신 리스너로 · ⚠본선에 걸린 시험 1건 발견(내 변경과 무관)
+[한 것] marine_forecast.js: 머리줄의 onclick="toggleRegionalOffice('번호')" 를 없애고 리스너로(눌린 머리줄이 든 카드를 바로 접고 편다). window.toggleRegionalOffice 는 남김. 꼬리표 …f. test_regional_sea_ui 20(머리줄 누르기·📋 눌러도 안 접힘·onclick 속성 없음). 같은 파일에 값을 끼운 onclick 은 더 없음(0곳). [⚠verify_all 실패 1건] test_life_safety_tab_keep 24 PASS / 1 FAIL — 「열려 있던 해상 시트(해역)는 같은 좌표로 다시 연다」: 실제 {acc:null, lat, lon} ↔ 기대 {lat, lon}. origin/main(16c78a2e 뒤)만 따로 꺼내(git worktree) 돌려도 똑같이 실패 → 이 변경 때문이 아님. 본선의 다른 세션 변경(위험예측 해상 시트 쪽 — 90fe67e5 가 유력하나 원인을 끝까지 읽지는 않았다)과 그 시험이 어긋난 것으로 보임. 고치지 않았다(다른 세션의 설계 — acc 칸이 의도인지 모름). 끝의 실패 모음 나머지 19줄은 직전 점검과 같음. [본선에 아직 없는 문서] 결정 기록 3건(통보문 기준 전환 때 함께 넣을 것 셋 · 잠금은 보충 완료까지 · none 은 전문 바로)이 이 가지에만 있다 — PR 필요. [다음] 사용자에게 보고 → PR 여부.
+
+
+### [2026-11-19 16:47 KST] 🟢착수 — 지방청 카드 머리줄 — onclick 글자 대신 리스너로
+사용자 2026-11-19 「지금 해봐 그럼 4번에 대해서」. client/js/forecast/outlook/marine_forecast.js:889 가 관서 번호를 onclick="toggleRegionalOffice('…')" 글자 속에 끼워 넣는다(HTML 이스케이프는 이 자리에서 온전히 듣지 않는다 — 번호는 서버가 정한 일곱 값이라 실제 위험은 낮음). data 속성 + addEventListener 로 바꾼다(📋·전문 보기 줄과 같은 방식). 보이는 변화 없음. 시험: test_regional_sea_ui 에 머리줄 누르기·이상한 번호 사례 추가.
+
+
+### [2026-11-19 16:28 KST] ✅완료 — 결정 기록 — 통보문 기준으로 바꿀 때 함께 넣을 것 셋
+사용자 2026-11-19: 「실제로 푸시를 보내는것은 통보문으로 바꿨을 때 적용하는거잖아 지금은 그렇게 보내고 있지 않잖니. 따라서 나중에 그렇게 반영해야한다는거야. 또한 2번에서도 나중에 함께 반영할 수 있도록 해야함.」 — 특보현황·푸시를 통보문 기준으로 바꾸는 작업 착수 시 설계에 넣을 것: ①보충으로 한꺼번에 들어온 옛 통보문으로는 푸시를 내지 않는다(catchUp:true 로 가림) ②로그인 실패 중 화면 자동 잠금 — 보충이 끝날 때까지 유지 ③격상 가능성 카드에도 「목록을 10분 넘게 못 받았거나 보충 중이면 숨김」 막이(지금은 📋 팝업에만). 지금은 셋 다 넣지 않는다. MEMORY.md 핵심 결정 · analysis/bulletin_survey/README.md ⑳ 「아직 안 한 것」 맨 위에 기록. MMIS 오발송 원인 조사는 하지 않는다(같은 날 결정).
 
 
 ### [2026-11-19 16:23 KST] ✅완료 — 결정 기록 — MMIS 오발송 원인 조사는 하지 않는다
