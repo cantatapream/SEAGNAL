@@ -8,7 +8,7 @@ source_review: required
 
 # 기타(낚시객)
 
-> RAG 친화적 지식베이스 | SEAGNAL 음성비서 "나리야" | 작성일: 2026-05-28 | 버전: 2차 보강
+> RAG 친화적 지식베이스 | SEAGNAL AI 챗봇 | 작성일: 2026-05-28 | 버전: 2차 보강
 
 ---
 
@@ -250,7 +250,7 @@ source_review: required
 
 ---
 
-## 나리야 선제 제안·개인화 규칙
+## AI 챗봇 선제 제안·개인화 규칙
 
 ### TR-ANGL-01: 사리 물때 + 적정 파고 — 출조 적극 추천
 - 트리거(조건식): {metric: "tide_phase", op: "==", threshold: "사리", unit: ""} AND {metric: "wave_height", op: "<", threshold: 1.0, unit: "m"} AND {metric: "wind_speed", op: "<", threshold: 7, unit: "m/s"} AND {metric: "warning", op: "==", threshold: "없음", unit: ""}

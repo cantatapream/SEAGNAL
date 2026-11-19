@@ -41,7 +41,7 @@ const CATEGORIES = [
     ['AI 브리핑', /^station_briefing$/],
     ['위험예측', /^risk_forecast$/],
     ['특보·기상·해양', /^(weather_alerts|warnings|zone_forecasts|forecast_cache|gale_warnings|alert_|khoa|regional_forecast|tide_field|hazard_rocks|marine|mmis|kma|beach_weather|sea_|typhoon|smallzone)|_index\b/],
-    ['법령·챗봇(나리야)', /^(law_|legal_|admrul_|ordin_|amendment_|nariya|nrya|\.codex)/],
+    ['법령·챗봇', /^(law_|legal_|admrul_|ordin_|amendment_|nariya|nrya|\.codex)/],
     ['카톡 중계', /^kakao/],
     ['서버 기록(로그)', /^server_logs$|\.log$/],
     ['사용자·운영', /^(subscriptions|usage_stats|visitors|uploads|promo|notices?|survey|custom_push|boards|comment|report|admin_|api_config|active_lifecycle|collect_cache)/],

@@ -5,7 +5,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : admin.js(관리자 인증/토큰·showUnifiedAdminModal), admin/pagination_helper.js
- *  - 서버 API      : /api/push-custom, /api/push-history(/*), /api/push-subscriber-stats
+ *  - 서버 API      : /api/push-custom, /api/admin/push-test-device(이 휴대폰에만 시험 발송), /api/push-history(/*), /api/push-subscriber-stats
  *  - 마크업        : index2.html #alert-management-modal, #alert-admin-inner-content, #custom-push-confirm-overlay, #zone-selection-area 등
  *  - 나를 쓰는 곳  : admin.js·admin_collect.js (관리자 센터 '특보 관리' 진입 시 window.showAlertManagementModal 호출)
  * ============================================================================
@@ -501,7 +501,10 @@ window.renderCustomPushTab = async function (container) {
         mainIdx++;
     });
 
-    container.innerHTML = '<div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.08);"><div style="font-weight:600;color:#fff;margin-bottom:15px;font-size:1rem;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-envelope"></i> 커스텀 알림 발송</div><div style="margin-bottom:15px;padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;"><div style="display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-send-all-subscribers" onchange="window.toggleSendAllSubscribers(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#ef4444;"><label for="check-send-all-subscribers" style="cursor:pointer;font-size:0.95rem;color:#fca5a5;font-weight:700;"><i class="fa-solid fa-users" style="margin-right:6px;"></i>구독자 전원에게 발송</label><span style="font-size:0.75rem;color:#94a3b8;margin-left:auto;">(푸시 알림 허용 사용자 전체)</span></div></div><div id="zone-selection-area" style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:10px;">발송 대상 해역 선택 (Hierarchy)</label><div style="background:rgba(0,0,0,0.3);padding:15px;border-radius:12px;max-height:350px;overflow-y:auto;border:1px solid rgba(255,255,255,0.05);"><div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-all-zones" onchange="window.toggleAllZones(this.checked)" style="width:18px;height:18px;cursor:pointer;"><label for="check-all-zones" style="cursor:pointer;font-size:0.9rem;color:#fff;font-weight:700;">전체 해역 선택</label></div>' + accordionHtml + '</div></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 제목</label><input type="text" id="custom-push-title" placeholder="예: 🌊 긴급 해양 안전 안내" oninput="window.updateCustomPushPreview()" style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;box-sizing:border-box;outline:none;"></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 내용</label><textarea id="custom-push-content" placeholder="직접 작성하실 알림 내용을 입력해주세요." oninput="window.updateCustomPushPreview()" style="width:100%;height:100px;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;resize:none;box-sizing:border-box;outline:none;line-height:1.4;"></textarea><div style="text-align:right;font-size:0.75rem;color:#64748b;margin-top:4px;" id="custom-push-char-count">0 / 500자</div></div><div style="background:rgba(0,0,0,0.3);padding:20px;border-radius:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);"><div style="font-size:0.8rem;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Smartphone Preview</div><div style="background:#fff;border-radius:20px;padding:16px;box-shadow:0 10px 25px rgba(0,0,0,0.3);position:relative;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:28px;height:28px;background:#1e293b;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;">🌊</div><div style="font-weight:800;color:#1e293b;font-size:0.95rem;flex:1;">SEA:GNAL</div><div style="font-size:0.75rem;color:#94a3b8;">지금</div></div><div id="preview-title" style="font-weight:800;margin-bottom:4px;color:#000;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">(제목 미리보기)</div><div id="preview-content" style="color:#475569;font-size:1rem;line-height:1.4;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:10;-webkit-box-orient:vertical;overflow:hidden;">(내용 미리보기)</div></div></div><div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:0.95rem;color:#cbd5e1;">발송 대상: <span style="font-weight:800;color:#3b82f6;" id="target-zone-count">0</span>개 구역 <span id="target-recipient-count" style="color:#818cf8;font-size:0.85rem;"></span></div><div style="display:flex;gap:12px;"><button onclick="window.switchAlertAdminTab(\'custom\')" style="padding:12px 20px;background:rgba(255,255,255,0.08);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">초기화</button><button onclick="window.confirmCustomPush()" style="padding:12px 28px;background:linear-gradient(135deg,#ef4444,#b91c1c);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;box-shadow:0 10px 20px rgba(239,68,68,0.3);">푸시 발송하기</button></div></div><div id="custom-push-confirm-overlay" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:100;border-radius:16px;backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;"><div style="background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:30px;width:100%;max-width:320px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);"><div style="font-size:3rem;margin-bottom:20px;">📢</div><div style="color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:12px;">푸시 발송 최종 확인</div><div style="color:#94a3b8;font-size:0.9rem;line-height:1.6;margin-bottom:25px;">정말 <span id="confirm-target-text" style="color:#3b82f6;font-weight:700;"></span>으로<br>알림을 발송하시겠습니까?</div><div style="display:flex;gap:10px;"><button onclick="document.getElementById(\'custom-push-confirm-overlay\').style.display=\'none\'" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">취소</button><button id="final-send-btn" onclick="window.executeCustomPush()" style="flex:1;padding:12px;background:#ef4444;border:none;border-radius:10px;color:#fff;cursor:pointer;font-weight:700;">지금 발송</button></div></div></div></div>';
+    container.innerHTML = '<div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.08);"><div style="font-weight:600;color:#fff;margin-bottom:15px;font-size:1rem;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-envelope"></i> 커스텀 알림 발송</div><div style="margin-bottom:15px;padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;"><div style="display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-send-all-subscribers" onchange="window.toggleSendAllSubscribers(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#ef4444;"><label for="check-send-all-subscribers" style="cursor:pointer;font-size:0.95rem;color:#fca5a5;font-weight:700;"><i class="fa-solid fa-users" style="margin-right:6px;"></i>구독자 전원에게 발송</label><span style="font-size:0.75rem;color:#94a3b8;margin-left:auto;">(푸시 알림 허용 사용자 전체)</span></div></div>' +
+        // [시험 발송 2026-11-20] 이 화면을 연 휴대폰 한 대에만 보낸다 — 새 앱의 헤드업 알림 확인용. 켜면 해역·전원 선택은 잠근다.
+        '<div style="margin-bottom:15px;padding:12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:10px;"><div style="display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-send-this-device" onchange="window.toggleSendThisDevice(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#3b82f6;"><label for="check-send-this-device" style="cursor:pointer;font-size:0.95rem;color:#93c5fd;font-weight:700;"><i class="fa-solid fa-mobile-screen" style="margin-right:6px;"></i>이 휴대폰에만 보내기 (시험)</label></div><div id="this-device-options" style="display:none;margin-top:10px;padding-left:28px;"><div style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="check-this-device-delay" checked style="width:16px;height:16px;cursor:pointer;"><label for="check-this-device-delay" style="cursor:pointer;font-size:0.85rem;color:#cbd5e1;">10초 뒤에 보내기 — 그 사이 앱을 끄면 꺼진 상태를 시험할 수 있어요</label></div><div style="font-size:0.75rem;color:#94a3b8;margin-top:6px;line-height:1.5;">지금 이 화면을 연 휴대폰 한 대에만 갑니다. 다른 구독자에게는 가지 않고, 발송 이력에도 남지 않습니다.</div></div></div>' +
+        '<div id="zone-selection-area" style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:10px;">발송 대상 해역 선택 (Hierarchy)</label><div style="background:rgba(0,0,0,0.3);padding:15px;border-radius:12px;max-height:350px;overflow-y:auto;border:1px solid rgba(255,255,255,0.05);"><div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-all-zones" onchange="window.toggleAllZones(this.checked)" style="width:18px;height:18px;cursor:pointer;"><label for="check-all-zones" style="cursor:pointer;font-size:0.9rem;color:#fff;font-weight:700;">전체 해역 선택</label></div>' + accordionHtml + '</div></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 제목</label><input type="text" id="custom-push-title" placeholder="예: 🌊 긴급 해양 안전 안내" oninput="window.updateCustomPushPreview()" style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;box-sizing:border-box;outline:none;"></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 내용</label><textarea id="custom-push-content" placeholder="직접 작성하실 알림 내용을 입력해주세요." oninput="window.updateCustomPushPreview()" style="width:100%;height:100px;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;resize:none;box-sizing:border-box;outline:none;line-height:1.4;"></textarea><div style="text-align:right;font-size:0.75rem;color:#64748b;margin-top:4px;" id="custom-push-char-count">0 / 500자</div></div><div style="background:rgba(0,0,0,0.3);padding:20px;border-radius:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);"><div style="font-size:0.8rem;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Smartphone Preview</div><div style="background:#fff;border-radius:20px;padding:16px;box-shadow:0 10px 25px rgba(0,0,0,0.3);position:relative;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:28px;height:28px;background:#1e293b;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;">🌊</div><div style="font-weight:800;color:#1e293b;font-size:0.95rem;flex:1;">SEA:GNAL</div><div style="font-size:0.75rem;color:#94a3b8;">지금</div></div><div id="preview-title" style="font-weight:800;margin-bottom:4px;color:#000;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">(제목 미리보기)</div><div id="preview-content" style="color:#475569;font-size:1rem;line-height:1.4;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:10;-webkit-box-orient:vertical;overflow:hidden;">(내용 미리보기)</div></div></div><div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:0.95rem;color:#cbd5e1;">발송 대상: <span style="font-weight:800;color:#3b82f6;" id="target-zone-count">0</span>개 구역 <span id="target-recipient-count" style="color:#818cf8;font-size:0.85rem;"></span></div><div style="display:flex;gap:12px;"><button onclick="window.switchAlertAdminTab(\'custom\')" style="padding:12px 20px;background:rgba(255,255,255,0.08);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">초기화</button><button onclick="window.confirmCustomPush()" style="padding:12px 28px;background:linear-gradient(135deg,#ef4444,#b91c1c);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;box-shadow:0 10px 20px rgba(239,68,68,0.3);">푸시 발송하기</button></div></div><div id="custom-push-confirm-overlay" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:100;border-radius:16px;backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;"><div style="background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:30px;width:100%;max-width:320px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);"><div style="font-size:3rem;margin-bottom:20px;">📢</div><div style="color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:12px;">푸시 발송 최종 확인</div><div style="color:#94a3b8;font-size:0.9rem;line-height:1.6;margin-bottom:25px;">정말 <span id="confirm-target-text" style="color:#3b82f6;font-weight:700;"></span>으로<br>알림을 발송하시겠습니까?</div><div style="display:flex;gap:10px;"><button onclick="document.getElementById(\'custom-push-confirm-overlay\').style.display=\'none\'" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">취소</button><button id="final-send-btn" onclick="window.executeCustomPush()" style="flex:1;padding:12px;background:#ef4444;border:none;border-radius:10px;color:#fff;cursor:pointer;font-weight:700;">지금 발송</button></div></div></div></div>';
 };
 
 // ============================================================================
@@ -791,6 +794,76 @@ window.toggleAdminAccordion = function (id) {
 };
 
 /**
+ * "이 휴대폰에만 보내기(시험)" 체크칸을 켜고 끌 때 — 켜면 해역·「구독자 전원」 선택을 잠그고 지연 선택을 보여 준다.
+ * 예: toggleSendThisDevice(true) → 해역 영역 흐림·잠금, 「구독자 전원」 체크 해제·비활성, 「10초 뒤에 보내기」 표시
+ * @param {boolean} checked
+ * [연계] ← 직접 발송 탭의 #check-send-this-device / → confirmCustomPush·executeCustomPush 가 isThisDeviceMode 로 읽는다
+ */
+window.toggleSendThisDevice = function (checked) {
+    var opts = document.getElementById('this-device-options');
+    if (opts) opts.style.display = checked ? 'block' : 'none';
+    var allSubs = document.getElementById('check-send-all-subscribers');
+    if (allSubs) {
+        if (checked && allSubs.checked) { allSubs.checked = false; window.toggleSendAllSubscribers(false); }
+        allSubs.disabled = !!checked;
+    }
+    var zoneArea = document.getElementById('zone-selection-area');
+    if (zoneArea) {
+        zoneArea.style.opacity = checked ? '0.3' : '1';
+        zoneArea.style.pointerEvents = checked ? 'none' : 'auto';
+    }
+};
+
+/** "이 휴대폰에만 보내기(시험)" 가 켜져 있나. [연계] ← confirmCustomPush·executeCustomPush */
+function isThisDeviceMode() {
+    var cb = document.getElementById('check-send-this-device');
+    return !!(cb && cb.checked);
+}
+
+// 확인 창을 띄운 순간의 발송 모드('device' = 이 휴대폰 1대 · 'normal' = 해역/전원 · null = 확인 창을 거치지 않음).
+//   확인 창이 떠 있는 동안 체크칸이 바뀌면(키보드로는 닿는다) 창에는 「이 휴대폰 1대(시험)」이라고 적혀 있는데
+//   구독자에게 나갈 수 있었다(독립 검토 E). → 일반 발송은 "확인도 일반이었고 지금도 시험이 꺼져 있을 때"만 나간다.
+var _customPushConfirmedMode = null;
+
+/** 이 휴대폰의 푸시 주소(FCM 토큰 — capacitor-plugins.js 가 push_token 으로 저장). 없으면 null. */
+function thisDevicePushToken() {
+    try { return localStorage.getItem('push_token') || null; } catch (e) { return null; }
+}
+
+/**
+ * 이 휴대폰 한 대에만 시험 푸시를 보낸다(서버 POST /api/admin/push-test-device).
+ * 예: 「10초 뒤에 보내기」 켬 → 서버가 예약하고 바로 답한다 → "10초 뒤에 이 휴대폰으로 보냅니다" 안내
+ * ★어떤 경우에도 일반 발송(/api/push-custom)으로 넘어가지 않는다 — 실패하면 실패라고 알리고 끝낸다.
+ * @param {string} title @param {string} content @param {HTMLElement} btn - 최종 발송 버튼
+ * [연계] ← executeCustomPush / → 서버 routes/push.js → services/push_device_test.js (admin.js fetch 래퍼가 관리자 토큰을 붙인다)
+ */
+async function executeThisDevicePush(title, content, btn) {
+    var restore = function () {
+        btn.disabled = false; btn.innerHTML = '지금 발송';
+        document.getElementById('custom-push-confirm-overlay').style.display = 'none';
+    };
+    var token = thisDevicePushToken();
+    if (!token) { alert('이 기기에는 푸시 주소가 없습니다.\n앱(안드로이드)에서 알림을 허용한 뒤 다시 시도하세요.'); restore(); return; }
+    var delayCb = document.getElementById('check-this-device-delay');
+    var delaySec = (delayCb && delayCb.checked) ? 10 : 0;
+    try {
+        var response = await fetch('/api/admin/push-test-device', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: token, title: title, content: content, delaySec: delaySec })
+        });
+        var result = await response.json();
+        if (result && result.success) {
+            alert(result.scheduled
+                ? '✅ ' + result.delaySec + '초 뒤에 이 휴대폰으로 보냅니다.\n꺼진 상태를 시험하려면 지금 앱을 끄세요(최근 앱 목록에서 밀어서).\n\n※ 예약 발송은 실패해도 여기에 표시되지 않습니다. 알림이 안 오면 「10초 뒤에 보내기」를 끄고 다시 보내 보세요 — 실패 이유가 화면에 나옵니다.'
+                : '✅ 이 휴대폰으로 보냈습니다.');
+        } else {
+            alert('❌ 시험 발송 실패: ' + ((result && result.error) || ('HTTP ' + response.status)));
+        }
+    } catch (e) { alert('❌ 서버 통신 오류: ' + e.message); }
+    restore();
+}
+
+/**
  * "구독자 전원에게 발송" 체크박스 토글 처리
  *
  * [동작]
@@ -878,9 +951,12 @@ window.confirmCustomPush = function () {
     var checked = document.querySelectorAll('.zone-checkbox:checked');
     var allChecked = document.getElementById('check-all-zones').checked;
     var sendAllSubs = document.getElementById('check-send-all-subscribers').checked;
-    if (!sendAllSubs && checked.length === 0 && !allChecked) { alert('발송 대상 해역을 선택해주세요.'); return; }
+    var thisDevice = isThisDeviceMode();   // 시험: 이 휴대폰 한 대에만 — 해역 선택을 보지 않는다
+    if (!thisDevice && !sendAllSubs && checked.length === 0 && !allChecked) { alert('발송 대상 해역을 선택해주세요.'); return; }
     if (!title || !content) { alert('제목과 내용을 입력해주세요.'); return; }
-    document.getElementById('confirm-target-text').textContent = sendAllSubs ? '구독자 전원' : (allChecked ? '전체 해역' : (checked.length + '개 해역'));
+    if (thisDevice && !thisDevicePushToken()) { alert('이 기기에는 푸시 주소가 없습니다.\n앱(안드로이드)에서 알림을 허용한 뒤 다시 시도하세요.'); return; }
+    document.getElementById('confirm-target-text').textContent = thisDevice ? '이 휴대폰 1대(시험)' : (sendAllSubs ? '구독자 전원' : (allChecked ? '전체 해역' : (checked.length + '개 해역')));
+    _customPushConfirmedMode = thisDevice ? 'device' : 'normal';   // 확인 창에 적은 대상을 붙잡아 둔다
     document.getElementById('custom-push-confirm-overlay').style.display = 'flex';
 };
 
@@ -895,6 +971,19 @@ window.executeCustomPush = async function () {
     var btn = document.getElementById('final-send-btn');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 발송 중...';
+
+    // [시험 발송] 이 휴대폰 한 대에만 — 여기서 끝낸다(아래 일반 발송으로 내려가지 않는다).
+    //   확인 창에 「이 휴대폰 1대(시험)」이라고 적었거나, 지금 시험 체크칸이 켜져 있으면 시험이다.
+    //   일반 발송은 둘 다 아닐 때만 — 확인 창을 거치지 않았거나(null) 그 사이 무엇이 바뀌었으면 보내지 않는다.
+    var confirmedMode = _customPushConfirmedMode;
+    _customPushConfirmedMode = null;
+    if (confirmedMode === 'device' || isThisDeviceMode()) { await executeThisDevicePush(title, content, btn); return; }
+    if (confirmedMode !== 'normal') {
+        alert('발송 대상을 다시 확인해 주세요. (확인 창을 다시 열어 주세요)');
+        btn.disabled = false; btn.innerHTML = '지금 발송';
+        document.getElementById('custom-push-confirm-overlay').style.display = 'none';
+        return;
+    }
 
     try {
         var response = await fetch('/api/push-custom', {

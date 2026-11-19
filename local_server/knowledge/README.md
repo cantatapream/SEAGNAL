@@ -1,6 +1,6 @@
-# SEAGNAL 나리야 — 지식·계획 추적 루트(Route)
+# SEAGNAL AI 챗봇 — 지식·계획 추적 루트(Route)
 
-이 폴더는 음성비서 **나리야**의 AI 고도화 작업을 **채팅이 아니라 파일로** 추적하기 위한 단일 출처(single source of truth)입니다.
+이 폴더는 **AI 챗봇** 고도화 작업을 **채팅이 아니라 파일로** 추적하기 위한 단일 출처(single source of truth)입니다.
 대화는 휘발되지만 이 폴더는 남습니다. 모든 계획·진행·산출물은 여기에서 시작해 찾을 수 있어야 합니다.
 
 > **현재 초점 = 법률 챗봇.** 전체 총괄은 → [`legal/README.md`](./legal/README.md) (구조·작동·현황·계획·요구사항). 위키 목차는 [`legal/index.md`](./legal/index.md).
@@ -72,7 +72,7 @@ local_server/knowledge/
 | 직군 공통 스키마 | 8종 형식·규칙ID·트리거 규약 | `local_server/knowledge/jikgun/_SCHEMA.md` |
 | 해양법률 위키 스키마 | 사서(ingest) 절차·페이지 형식·REVIEW 플래그 규칙 (= 사서 프롬프트) | `local_server/knowledge/legal/_SCHEMA.md` |
 | 해양법률 위키 인덱스 | 승인된 법률·개념·비교표·별표 카탈로그 | `local_server/knowledge/legal/index.md` |
-| Phase 0 진단 | 나리야 데이터 적재 진단 결과 | `local_server/knowledge/phases/phase0_diagnostics.md` |
+| Phase 0 진단 | AI 챗봇 데이터 적재 진단 결과 | `local_server/knowledge/phases/phase0_diagnostics.md` |
 | 직군: 해양경찰 | 관심사·매핑·선제규칙·GAP | `local_server/knowledge/jikgun/coast_guard.md` |
 | 직군: 어업종사자 | 〃 | `local_server/knowledge/jikgun/fishery.md` |
 | 직군: 레저스포츠 | 〃 | `local_server/knowledge/jikgun/marine_leisure.md` |

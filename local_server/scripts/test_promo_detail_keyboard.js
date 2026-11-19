@@ -4,7 +4,7 @@
 //   2026-11-19 사용자 지적: 게시글 상세에서 댓글 입력창을 누르면 머리(제목)가 위로 밀려 올라가고 본문이
 //   휴대폰 상태표시줄 밑까지 넘어갔다. 키보드가 뜨면 「보이는 화면」(visualViewport)만 줄고 전체 화면 크기는
 //   그대로라, 전체 화면 기준으로 놓인 창이 키보드 뒤로 들어가고 브라우저가 입력창을 보이려고 화면을 밀었다.
-//   고침: promo.js fitPromoDetailToViewport 가 바깥 칸을 보이는 화면에 맞추고(나리야 채팅 ai_chat.js fitChat 과
+//   고침: promo.js fitPromoDetailToViewport 가 바깥 칸을 보이는 화면에 맞추고(AI 챗봇 채팅 ai_chat.js fitChat 과
 //   같은 방식), style.css 가 창 높이를 vh 대신 바깥 칸 기준으로 잡는다.
 //   실제 소스의 세 함수를 가짜 화면(visualViewport·DOM)으로 돌린다 — 브라우저·시각 의존 없음.
 //   (실제 Chromium 으로 index2.html 전체를 띄우는 모양 시험은 test_promo_detail_ui.)

@@ -193,9 +193,9 @@ source_review: required
 
 ---
 
-## 나리야 선제 제안·개인화 규칙
+## AI 챗봇 선제 제안·개인화 규칙
 
-> 트리거 조건이 충족되면 나리야가 사용자(지자체 담당자)에게 먼저 제안하는 규칙 목록.
+> 트리거 조건이 충족되면 AI 챗봇이 사용자(지자체 담당자)에게 먼저 제안하는 규칙 목록.
 
 ### TR-GOV-01: 유의파고 1.5m 이상 예보 → 입욕통제 사전 검토 알림
 - 트리거(조건식): {metric: "wave_height", op: ">=", threshold: 1.5, unit: "m"} AND {metric: "time_window", op: "<=", threshold: 12, unit: "h"}

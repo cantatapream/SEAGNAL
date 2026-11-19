@@ -1,5 +1,5 @@
 /**
- * test_llm_chain.js — 나리야 답변 AI 사슬(services/llm_chain.js)의 순서·자동 전환·크레딧 소진 처리를 고정한다.
+ * test_llm_chain.js — AI 챗봇 답변 AI 사슬(services/llm_chain.js)의 순서·자동 전환·크레딧 소진 처리를 고정한다.
  *
  * 왜 있나: 사용자 확정(2026-11-02) — 「업스테이지가 끝나면 클로드1, 클로드1이 끝나면 클로드2 … Gemini」.
  *   크레딧 소진이면 그 AI 를 계속 건너뛰고, 일시 오류면 그 호출만 다음 AI 가 답해야 한다.

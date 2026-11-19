@@ -734,7 +734,7 @@ window.openPromoDetail = async function (postId) {
  * [연계] ← bindPromoDetailKeyboardFit(visualViewport resize·scroll) / style.css #promo-detail-modal.promo-kb-open
  * [왜] 2026-11-19 사용자 지적: 댓글 입력창을 누르면 머리가 위로 밀려 올라가고 본문이 휴대폰 상태표시줄 밑까지 넘어갔다.
  *      키보드가 뜨면 이 앱의 웹 화면은 「보이는 화면」만 줄고 전체 화면 크기는 그대로라, 화면 전체 기준으로 가운데 놓인 창이
- *      키보드 뒤로 들어가고 브라우저가 입력창을 보이려고 화면을 위로 밀었다. 나리야 채팅 창(ai_chat.js fitChat)과 같은 방식.
+ *      키보드 뒤로 들어가고 브라우저가 입력창을 보이려고 화면을 위로 밀었다. AI 챗봇 채팅 창(ai_chat.js fitChat)과 같은 방식.
  */
 function fitPromoDetailToViewport() {
     const modal = document.getElementById('promo-detail-modal');

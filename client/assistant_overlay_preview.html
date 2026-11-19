@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>나리야 오버레이 — 최종 동작 미리보기 (A안)</title>
+<title>AI 챗봇 오버레이 — 최종 동작 미리보기 (A안)</title>
 <style>
   :root { --bg:#04121f; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -54,7 +54,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>🎙️ 나리야 오버레이 — 최종 동작 (A안: Gemini 그라데이션 오브)</h1>
+  <h1>🎙️ AI 챗봇 오버레이 — 최종 동작 (A안: Gemini 그라데이션 오브)</h1>
   <p class="sub">대기 땐 아무것도 없고, <b>듣는중·생각중</b>엔 작게, <b>답변중</b>엔 넓게 펼쳐집니다.
   답변 길이에 따라 패널 크기가 <b>동적으로</b> 변합니다(짧은/긴 답변 버튼으로 확인).</p>
 
@@ -79,7 +79,7 @@
     <div class="hintmap">— 지도 화면(앱 배경) —</div>
     <div id="nariya-overlay">
       <div class="nv-head"><div class="orb"></div>
-        <div style="flex:1;min-width:0;"><div class="nv-st">나리야</div><div class="nv-q"></div></div>
+        <div style="flex:1;min-width:0;"><div class="nv-st">AI 챗봇</div><div class="nv-q"></div></div>
         <button class="nv-close" type="button" aria-label="닫기">✕</button></div>
       <div class="nv-a"></div>
       <div class="nv-hint">길면 패널 안에서 스크롤하세요 · ✕ 로 닫기</div>
@@ -90,7 +90,7 @@
 <script>
   var box = document.getElementById('nariya-overlay');
   var stEl = box.querySelector('.nv-st'), qEl = box.querySelector('.nv-q'), aEl = box.querySelector('.nv-a');
-  var LABEL = { listening:'🎙️ 듣고 있어요', thinking:'💭 생각 중', speaking:'🔊 나리야' };
+  var LABEL = { listening:'🎙️ 듣고 있어요', thinking:'💭 생각 중', speaking:'🔊 AI 챗봇' };
   var SHORT = '거문도는 지금 파고 0.5미터, 바람 초속 4미터로 잔잔합니다.';
   var LONG  = '거문도는 지금 파고 0.5미터로 잔잔하고, 바람은 북동풍 초속 4미터 정도입니다. '
     + '오전까지는 비슷하게 유지되겠지만 오후 들어 남서풍이 초속 8미터까지 강해지면서 파고도 1.5미터로 높아질 전망입니다. '
@@ -108,7 +108,7 @@
     if (s === 'off') { box.style.display = 'none'; return; }
     box.className = 'nv-' + s;
     box.style.display = 'block';
-    stEl.textContent = LABEL[s] || '나리야';
+    stEl.textContent = LABEL[s] || 'AI 챗봇';
     qEl.textContent = (s === 'listening') ? '' : 'Q. 거문도 날씨 어때?';
     aEl.textContent = (s === 'speaking') ? (TEXT[curLen] || SHORT) : '';
     aEl.scrollTop = 0;

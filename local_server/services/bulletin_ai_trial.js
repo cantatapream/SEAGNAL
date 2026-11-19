@@ -15,7 +15,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : analysis/bulletin_survey/ai_trial_sample.json·ai_trial_sample_2.json(표본·규칙 결과 — ai_trial_build.js 가 만든다) · services/llm_chain(클로드 키2) ·
- *                   analysis/bulletin_survey/lifecycle_check.js(해역 펼치기) · services/codex_bridge(ChatGPT 줄 — 나리야·브리핑 AI 와 같은 줄)
+ *                   analysis/bulletin_survey/lifecycle_check.js(해역 펼치기) · services/codex_bridge(ChatGPT 줄 — AI 챗봇·브리핑 AI 와 같은 줄)
  *  - 저장          : data/bulletin_ai_trial.json(1차)·bulletin_ai_trial_2.json(2차) — 진행·결과, 서버가 다시 떠도 이어서
  *  - 나를 쓰는 곳  : routes/bulletin_watch.js(관리자 시작·멈춤·상태·보고서) · 검사 test_bulletin_ai_trial
  * [로드 순서] 없음(서버 모듈)
@@ -27,7 +27,7 @@ const path = require('path');
 const SAMPLE_FILE = path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_trial_sample.json');
 const STATE_FILE = path.join(__dirname, '..', 'data', 'bulletin_ai_trial.json');
 const KINDS = ['예비취소', '예비연장', '예비연기', '예비추가', '해제예고연장', '해제예고변경', '등급변경가능성', '특보발표가능성', '일부해제', '정확해제시각', '안내'];
-const GAP_MS = 2000;               // 한 건 끝나고 다음 건까지 쉼(같은 줄을 쓰는 나리야가 끼어들 틈)
+const GAP_MS = 2000;               // 한 건 끝나고 다음 건까지 쉼(같은 줄을 쓰는 AI 챗봇이 끼어들 틈)
 const MAX_FAIL_IN_ROW = 3;         // 연달아 3번 실패하면 멈춘다(작업자 끊김 등 — 200번 헛돌지 않게)
 
 /**

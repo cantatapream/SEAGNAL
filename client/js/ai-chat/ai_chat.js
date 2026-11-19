@@ -1,8 +1,8 @@
 /**
  * ============================================================================
  * 파일명: client/js/ai-chat/ai_chat.js
- * 역할  : 해양법령 챗봇(나리야) 인앱 모듈. 두 갈래로 나뉜다.
- *         (A) 관리자 콘솔 — 통합관리자 센터의 "나리야 법령" 탭이 부르는
+ * 역할  : 해양법령 챗봇 인앱 모듈. 두 갈래로 나뉜다.
+ *         (A) 관리자 콘솔 — 통합관리자 센터의 "AI 챗봇 법령" 탭이 부르는
  *             window.NariyaChat.renderAdminInto(container) 로, 지식 방 브라우저
  *             (원문/위키개념/법령/비교허브/별표/지식그래프 + 역할설명 인트로카드 —
  *              2026-09-09부터 숫자·목록·시행일이 전부 서버 실데이터이고 목록은 한 쪽 10개씩
@@ -19,7 +19,7 @@
  *             ⚙·🕘 아이콘이었으나 무엇인지 알 수 없다는 지적으로 글자 버튼이 됐다).
  *             #nrya-overlays(body) 에 산다.
  *         FAB 는 (1) 앱 메인 특보 탭일 때만, (2) 서버 노출설정이 허용할 때만 보인다.
- *         (초보자용: 이 파일이 관리자용 나리야 콘솔과 사용자용 챗봇 버튼/창을 만든다)
+ *         (초보자용: 이 파일이 관리자용 AI 챗봇 콘솔과 사용자용 챗봇 버튼/창을 만든다)
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : css/ai_chat.css (스타일), js/admin/admin.js
@@ -298,10 +298,10 @@
     return ap + ' ' + hh + ':' + (m < 10 ? '0' + m : m);
   }
 
-  // 나리야 캐릭터(투명 PNG). 예전 conic-gradient orb 를 이 캐릭터 아바타로 전면 교체.
+  // AI 챗봇 캐릭터(투명 PNG). 예전 conic-gradient orb 를 이 캐릭터 아바타로 전면 교체.
   var NARIYA_IMG = 'images/nariya_character.png';
-  /** 나리야 캐릭터 원형 아바타 HTML. @param {string} [extra] 추가 클래스 @returns {string} */
-  function avatarHTML(extra) { return '<div class="nrya-ava' + (extra ? ' ' + extra : '') + '"><img src="' + NARIYA_IMG + '" alt="나리야"></div>'; }
+  /** AI 챗봇 캐릭터 원형 아바타 HTML. @param {string} [extra] 추가 클래스 @returns {string} */
+  function avatarHTML(extra) { return '<div class="nrya-ava' + (extra ? ' ' + extra : '') + '"><img src="' + NARIYA_IMG + '" alt="AI 챗봇"></div>'; }
 
   // ============================================================================
   // 지식 방 데이터 모델 (nrya- 접두어)
@@ -426,7 +426,7 @@
   // ============================================================================
 
   /**
-   * 통합관리자 센터의 "나리야 법령" 탭이 부르는 진입점. 주어진 컨테이너에 나리야
+   * 통합관리자 센터의 "AI 챗봇 법령" 탭이 부르는 진입점. 주어진 컨테이너에 AI 챗봇
    * 관리자 콘솔 전체(지식 방 브라우저 + 관리자 검토센터 + 노출 토글 + AI 모델 탭)를 렌더한다.
    * 탭을 열 때마다 새로 불려도 안전하도록 매번 innerHTML 을 재구성한다.
    * @param {HTMLElement} container - 콘솔을 담을 컨테이너(예: #unified-admin-body)
@@ -438,9 +438,9 @@
     container.innerHTML =
       '<div class="nrya-console">' +
         '<div class="nrya-app">' +
-          '<div class="nrya-env-ribbon"><span class="nrya-dot"></span>나리야 법령 콘솔 · 챗봇 노출은 서버 전역 설정(기본: 비노출)</div>' +
+          '<div class="nrya-env-ribbon"><span class="nrya-dot"></span>AI 챗봇 법령 콘솔 · 챗봇 노출은 서버 전역 설정(기본: 비노출)</div>' +
           '<div class="nrya-header">' +
-            '<div class="nrya-h-row"><div class="nrya-h-mark">나</div><div><div class="nrya-h-title">AI 챗봇 · 나리야</div><div class="nrya-h-sub">해양법령 지식베이스 관리</div></div></div>' +
+            '<div class="nrya-h-row"><div class="nrya-h-mark">AI</div><div><div class="nrya-h-title">AI 챗봇</div><div class="nrya-h-sub">해양법령 지식베이스 관리</div></div></div>' +
             '<div class="nrya-vswitch" id="nryaVswitch">' +
               '<button class="nrya-active" data-view="rooms">💬 지식 방</button>' +
               '<button data-view="admin">🛠 관리자 검토 <span class="nrya-vb-badge" id="nryaVbBadge">…</span></button>' +
@@ -1973,7 +1973,7 @@
    */
   function downloadBriefMd(text, name) {
     var d = new Date(), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
-    var fname = (name || '나리야_지시문') + '_' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + '.md';
+    var fname = (name || 'AI챗봇_지시문') + '_' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + '.md';
     var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
     if (!isNative && typeof Blob !== 'undefined' && window.URL && URL.createObjectURL) {
       try {
@@ -3615,12 +3615,12 @@
     var wrap = document.createElement('div');
     wrap.id = 'nrya-overlays';
     wrap.innerHTML =
-      '<button class="nrya-fab" id="nryaFab" title="나리야에게 물어보기" style="display:none"><span class="nrya-fab-inner"><img src="' + NARIYA_IMG + '" alt="나리야"><span class="nrya-fab-label">AI 챗봇</span></span><span class="nrya-fab-badge" style="display:none"></span></button>' +
+      '<button class="nrya-fab" id="nryaFab" title="AI 챗봇에게 물어보기" style="display:none"><span class="nrya-fab-inner"><img src="' + NARIYA_IMG + '" alt="AI 챗봇"><span class="nrya-fab-label">AI 챗봇</span></span><span class="nrya-fab-badge" style="display:none"></span></button>' +
       // 채팅 팝업
       '<div class="nrya-chat-wrap" id="nryaChatWrap">' +
         '<div class="nrya-chat">' +
           '<div class="nrya-chat-top">' +
-            '<div class="nrya-ava" id="nryaChatOrb"><img src="' + NARIYA_IMG + '" alt="나리야"></div>' +
+            '<div class="nrya-ava" id="nryaChatOrb"><img src="' + NARIYA_IMG + '" alt="AI 챗봇"></div>' +
             '<div class="nrya-chat-titles"><div class="nrya-chat-name">해양법령 도우미</div></div>' +
             '<div class="nrya-chat-acts">' +
               '<button class="nrya-chat-x nrya-chat-txt nrya-chat-back" id="nryaChatBack" title="채팅창으로 돌아가기" style="display:none">채팅창으로</button>' +
@@ -4210,7 +4210,7 @@
     var p = loadProfile();
     var h = '<div class="nrya-hist-day">나에 대해서 설명하기</div>' +
       '<div class="nrya-disc">여기 적은 내용은 <b>이 기기에만</b> 저장돼요. 답이 조건에 따라 갈릴 때 ' +
-      '나리야가 "저장된 정보로 답할까요?"라고 먼저 확인해요.</div>';
+      'AI 챗봇이 "저장된 정보로 답할까요?"라고 먼저 확인해요.</div>';
     PROFILE_MENU.forEach(function (m, mi) {
       if (m.pair) { h += profPairHTML(m, p); return; }          // ④ 톤수·길이(한 줄·숫자만)
       var cur = p.fields[m.k];
@@ -5576,7 +5576,7 @@
   // ── 답변완료 알림 동의 배너(6초 넘게 걸릴 때만) ────────────────────────
 
   /**
-   * 나리야 말풍선 한 줄을 만들어 채팅창 맨 아래에 붙이고 그 말풍선 요소를 돌려준다.
+   * AI 챗봇 말풍선 한 줄을 만들어 채팅창 맨 아래에 붙이고 그 말풍선 요소를 돌려준다.
    * 예: appendAiRow('<b>안녕</b>') → 아바타+이름+말풍선 행이 추가되고 .nrya-kbub 반환
    * @param {string} innerHTML - 말풍선 안에 넣을 HTML(호출자가 이스케이프 책임)
    * @param {string} [rowId] - 나중에 찾아 지우려면 붙일 행 id
@@ -6668,7 +6668,7 @@
   }
 
   /**
-   * 서버가 보관하고 있던 질문/답변을 평소의 말풍선 쌍(내 질문 → 나리야 답변)으로 그린다.
+   * 서버가 보관하고 있던 질문/답변을 평소의 말풍선 쌍(내 질문 → AI 챗봇 답변)으로 그린다.
    * @param {object} data - {ok:true, query, answer, sources, citationChain, note}
    * [연계] ← checkAnswerDeepLink. → answerHTML(평소 답변과 똑같이 근거 아코디언까지 렌더).
    */

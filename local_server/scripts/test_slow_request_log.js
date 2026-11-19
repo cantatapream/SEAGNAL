@@ -34,7 +34,7 @@ const assert = require('assert');
             lines.length = 0; await call('GET', '/slow?serviceKey=SECRET&lat=35');
             assert.equal(lines.length, 1); assert.match(lines[0], /^\[slow\] 0\.\ds GET \/slow 201$/); assert.equal(lines[0].includes('SECRET'), false);
         });
-        await test('나리야 VM 작업자 대기·SSE 진행 스트림은 느려도 남기지 않는다', async () => {
+        await test('AI 챗봇 VM 작업자 대기·SSE 진행 스트림은 느려도 남기지 않는다', async () => {
             lines.length = 0; await call('POST', '/api/legal/codex/poll'); await call('GET', '/api/force-update/buoys/stream'); assert.deepEqual(lines, []);
         });
         await test('응답 전에 끊긴 느린 요청은 「끊김」으로 남는다', async () => {

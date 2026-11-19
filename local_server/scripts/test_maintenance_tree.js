@@ -71,7 +71,7 @@ buttonMap.forEach(([, id, sel]) => {
     // '#id' 또는 '#id .cls[...]' / '.cls' / '.cls[data-x="v"]' 형태만 쓴다 — 첫 토큰만 실존 확인
     const first = sel.trim().split(/\s+/)[0];
     let ok = false;
-    // 나리야 FAB(#nryaFab)처럼 자바스크립트가 만드는 요소는 그 파일의 문자열에서 확인한다
+    // AI 챗봇 FAB(#nryaFab)처럼 자바스크립트가 만드는 요소는 그 파일의 문자열에서 확인한다
     const idAttr = 'id="' + first.slice(1).replace(/\[.*$/, '') + '"';
     if (first[0] === '#') ok = html.indexOf(idAttr) !== -1 || read('client/js/ai-chat/ai_chat.js').indexOf(idAttr) !== -1;
     else if (first[0] === '.') {

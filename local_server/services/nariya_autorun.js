@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: local_server/services/nariya_autorun.js
- * 역할  : 나리야(해양법령 챗봇) 「자동 반영」 — 개정검토 승인·원문신선도 변경이 오면 10분 기다렸다가
+ * 역할  : AI 챗봇(해양법령 챗봇) 「자동 반영」 — 개정검토 승인·원문신선도 변경이 오면 10분 기다렸다가
  *         클라우드 Claude 세션(예약 작업)을 깨우고, 그 세션의 시작·완료를 관리자 휴대폰에 푸시로 알린다.
  *         (초보자용: 사장님이 md 파일을 세션에 직접 붙여 넣던 일을, 서버가 「일이 생겼다」고 세션에 알려 주는 것으로 바꾼다.
  *          서버는 일감 목록을 들고 있고, 세션이 와서 꺼내 간다. 승인과 머지·배포는 여전히 사장님이 한다.)
@@ -321,7 +321,7 @@ function createAutorun({
         markSeen(l.served, COOLDOWN_MS);   // 응답 없이 죽은 세션의 일은 3일 쉰다(다시 claim 하면 served 를 이어받는다)
         clearLock();
         console.warn('[nariya_autorun] 잠금 3시간 지남 — 해제: ' + l.run_id);
-        notify('나리야 자동 반영 — 이전 세션 응답 없음', `세션(${l.run_id})이 3시간 동안 완료를 알리지 않아 잠금을 풀었습니다. 그 세션이 받은 일은 3일 쉰 뒤 새벽 「남은 일 점검」이 다시 넘깁니다.`, { type: 'nariya_autorun_stale', run_id: l.run_id });
+        notify('AI 챗봇 자동 반영 — 이전 세션 응답 없음', `세션(${l.run_id})이 3시간 동안 완료를 알리지 않아 잠금을 풀었습니다. 그 세션이 받은 일은 3일 쉰 뒤 새벽 「남은 일 점검」이 다시 넘깁니다.`, { type: 'nariya_autorun_stale', run_id: l.run_id });
         return true;
     }
     /** 잠금 만료 타이머가 울렸을 때 — 풀고, 대기가 있으면 발사(설계안 §5 #5). [연계] ← armLockTimer */
@@ -364,7 +364,7 @@ function createAutorun({
         save();
         if (isProd() && !configured() && !warnedUnconfigured) {
             warnedUnconfigured = true;
-            notify('나리야 자동 반영 미설정', 'NARIYA_ROUTINE_FIRE_URL·NARIYA_ROUTINE_TOKEN 이 없어 세션을 깨울 수 없습니다 — 일은 대기에만 쌓입니다. Fly secrets 를 확인해 주세요.', { type: 'nariya_autorun_unconfigured' });
+            notify('AI 챗봇 자동 반영 미설정', 'NARIYA_ROUTINE_FIRE_URL·NARIYA_ROUTINE_TOKEN 이 없어 세션을 깨울 수 없습니다 — 일은 대기에만 쌓입니다. Fly secrets 를 확인해 주세요.', { type: 'nariya_autorun_unconfigured' });
         }
         const locked = lockValid();
         if (!locked) armDebounce();
@@ -462,7 +462,7 @@ function createAutorun({
         s.lastSweep = Object.assign({ at: now(), action: r.action, outstanding: counts }, errs.length ? { errors: errs } : {});
         save();
         // 목록을 못 읽은 것은 「남은 일 없음」이 아니다(L-291) — 알린다.
-        if (errs.length) notify('나리야 자동 반영 — 남은 일 점검 실패', '남은 일 목록을 읽지 못했습니다(「남은 일 없음」이 아닙니다): ' + errs.join(' / ').slice(0, 200), { type: 'nariya_autorun_sweep_failed' });
+        if (errs.length) notify('AI 챗봇 자동 반영 — 남은 일 점검 실패', '남은 일 목록을 읽지 못했습니다(「남은 일 없음」이 아닙니다): ' + errs.join(' / ').slice(0, 200), { type: 'nariya_autorun_sweep_failed' });
         console.log(`[nariya_autorun] 남은 일 점검: ${r.action} (개정 ${counts.amend} · 원문신선도 ${counts.fresh} · 원문결손 ${counts.mok})`);
         return r;
     }
@@ -531,7 +531,7 @@ function createAutorun({
         if (error && confirmed) {
             s.lastFire = { at: now(), ok: true, run_id, session_url: null, reasons: sent, confirmedByClaim: true, responseError: error };
             save();
-            await notify('나리야 자동 반영 — 세션 시작(확인됨)', `예약 작업 API 응답은 ${error}였지만 세션(${run_id})이 이미 일을 시작해 전달된 것으로 확인했습니다. ${reasonText(sent)}.`,
+            await notify('AI 챗봇 자동 반영 — 세션 시작(확인됨)', `예약 작업 API 응답은 ${error}였지만 세션(${run_id})이 이미 일을 시작해 전달된 것으로 확인했습니다. ${reasonText(sent)}.`,
                 { type: 'nariya_autorun_started', run_id, confirmed: 'true' });
             return { fired: true, run_id, confirmedByClaim: true };
         }
@@ -540,7 +540,7 @@ function createAutorun({
             // 불명 run 은 최근 5개·3시간까지 기억한다 — 그 사이 다른 발사가 lastFire 를 덮어써도 늦은 claim 을 알아보게(§5 #23).
             s.unknownFires = s.unknownFires.filter((x) => now() - x.at < LOCK_TTL_MS).concat([{ run_id, at: now(), reasons: sent }]).slice(-KEEP.unknown);
             save();
-            await notify('나리야 자동 반영 — 세션 전달 여부 확인 불가(시간초과)',
+            await notify('AI 챗봇 자동 반영 — 세션 전달 여부 확인 불가(시간초과)',
                 `예약 작업 API 가 ${FIRE_TIMEOUT_MS / 1000}초 안에 답하지 않았습니다. 세션이 떴다면 일을 시작할 때 「늦게 확인됨」으로 다시 알립니다. 대기 중인 일(${reasonText(s.pending ? s.pending.reasons : sent)})은 남겨 둡니다.`,
                 { type: 'nariya_autorun_fire_unknown', run_id });
             return { fired: false, why: 'timeout', run_id };
@@ -548,7 +548,7 @@ function createAutorun({
         if (error) {
             s.lastFire = { at: now(), ok: false, run_id, error, reasons: sent };
             save();
-            await notify('나리야 자동 반영 — 세션 전달 실패', `${error}. 대기 중인 일(${reasonText(s.pending ? s.pending.reasons : sent)})은 남겨 둡니다 — 다음 요청이나 새벽 「남은 일 점검」이 이어받습니다.`,
+            await notify('AI 챗봇 자동 반영 — 세션 전달 실패', `${error}. 대기 중인 일(${reasonText(s.pending ? s.pending.reasons : sent)})은 남겨 둡니다 — 다음 요청이나 새벽 「남은 일 점검」이 이어받습니다.`,
                 { type: 'nariya_autorun_fire_failed', run_id });
             return { fired: false, why: 'error', error };
         }
@@ -565,7 +565,7 @@ function createAutorun({
             // 발사하는 사이 다른 잠금이 생겼다 — 덮어쓰지 않는다. 대기도 그대로(그 잠금의 done 뒤 다시 돈다).
             s.lastFire = { at: now(), ok: true, run_id, session_url, reasons: sent, lockConflict: l.run_id };
             save();
-            await notify('나리야 자동 반영 — 세션 시작(잠금 충돌)', `${reasonText(sent)}을 세션에 맡겼지만 다른 세션(${l.run_id})이 이미 잠금 중이라 잠금은 그대로 둡니다. 새 세션은 「진행 중」으로 끝날 수 있습니다.${link}`,
+            await notify('AI 챗봇 자동 반영 — 세션 시작(잠금 충돌)', `${reasonText(sent)}을 세션에 맡겼지만 다른 세션(${l.run_id})이 이미 잠금 중이라 잠금은 그대로 둡니다. 새 세션은 「진행 중」으로 끝날 수 있습니다.${link}`,
                 Object.assign({ type: 'nariya_autorun_started', run_id, lock_conflict: l.run_id }, session_url ? { session_url } : {}));
             return { fired: true, run_id, session_url, lockConflict: l.run_id };
         }
@@ -578,7 +578,7 @@ function createAutorun({
             subtractPending(sent);
             setLock(run_id, 'fire', sent);   // save 포함
         }
-        await notify('나리야 자동 반영 — 세션 시작', `${reasonText(sent)}을 클라우드 세션에 맡겼습니다. 끝나면 다시 알립니다.${link}`,
+        await notify('AI 챗봇 자동 반영 — 세션 시작', `${reasonText(sent)}을 클라우드 세션에 맡겼습니다. 끝나면 다시 알립니다.${link}`,
             Object.assign({ type: 'nariya_autorun_started', run_id }, session_url ? { session_url } : {}));
         return { fired: true, run_id, session_url };
     }
@@ -625,7 +625,7 @@ function createAutorun({
             }
             setLock(given, source, taken, prev ? prev.workNotified : false, prev ? prev.served : null, prev ? prev.startedAt : undefined);   // save 포함 · 만료로 풀렸던 run 은 내준 목록을 이어받는다(적대검증 #6)
             if (late) {
-                notify('나리야 자동 반영 — 세션 시작(늦게 확인됨)', `시간초과로 확인하지 못했던 세션(${given})이 일을 시작했습니다. ${reasonText(taken)}. 끝나면 다시 알립니다.`,
+                notify('AI 챗봇 자동 반영 — 세션 시작(늦게 확인됨)', `시간초과로 확인하지 못했던 세션(${given})이 일을 시작했습니다. ${reasonText(taken)}. 끝나면 다시 알립니다.`,
                     { type: 'nariya_autorun_started', run_id: given, late: 'true' });
             }
             result = Object.assign({ ok: true, busy: false, run_id: given, taken }, prev ? { relocked: true } : {});
@@ -634,7 +634,7 @@ function createAutorun({
         if (lk.source === 'claim' && !lk.workNotified && work.amend + work.fresh + work.mok > 0) {
             lk.workNotified = true;
             save();
-            notify(`나리야 자동 반영 — 작업 시작(직접 실행 · 개정 ${work.amend}·원문신선도 ${work.fresh}·원문결손 ${work.mok})`, '서버가 깨우지 않은 세션(예약 작업 「지금 실행」 등)이 반영할 일을 찾아 시작했습니다. 끝나면 다시 알립니다.',
+            notify(`AI 챗봇 자동 반영 — 작업 시작(직접 실행 · 개정 ${work.amend}·원문신선도 ${work.fresh}·원문결손 ${work.mok})`, '서버가 깨우지 않은 세션(예약 작업 「지금 실행」 등)이 반영할 일을 찾아 시작했습니다. 끝나면 다시 알립니다.',
                 { type: 'nariya_autorun_daily_started', run_id: lk.run_id, amend: String(work.amend), fresh: String(work.fresh), mok: String(work.mok) });
         }
         return result;
@@ -768,7 +768,7 @@ function createAutorun({
                     : (d.summary || SUMMARY_FALLBACK[d.outcome]).slice(0, 180) + needsText;
             }
             if (cfd.length) bodyText += ' · 충돌 ' + cfd.length + '건(PR #' + cfd.join('·#') + ')은 작업 기록 말고 다른 파일도 겹쳐 자동으로 풀지 않았습니다 — 앱 「자동반영」 방에서 확인해 주세요.';
-            pushed = notifyDone(tag + '나리야 자동 반영 — ' + head + needs, bodyText,
+            pushed = notifyDone(tag + 'AI 챗봇 자동 반영 — ' + head + needs, bodyText,
                 Object.assign({ type: 'nariya_autorun_done', run_id: d.run_id, outcome: d.outcome, needs: String(d.needs_decision.length), lock_mismatch: String(lockMismatch), late: String(late), merge: String(prMode || '') },
                     d.pr_url ? { pr_url: d.pr_url } : {}));
         }
@@ -890,7 +890,7 @@ function collectOutstanding() {
 }
 
 /**
- * 오늘 새벽(03:00 KST) 돌릴 나리야 점검 하나를 고른다(2026-11-16 사용자 확정 — 하루 하나씩 돌려 가며).
+ * 오늘 새벽(03:00 KST) 돌릴 AI 챗봇 점검 하나를 고른다(2026-11-16 사용자 확정 — 하루 하나씩 돌려 가며).
  * 사용자 원문: 「그럼 격일마다 하도록 하자 하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다 돌아가게」
  * KST 날짜 번호(1970-01-01 부터 센 날 수)를 3으로 나눈 나머지로 고른다 — 서버를 다시 켜도, 하루를 걸러도 순서가 어긋나지 않는다.
  * 0 → 개정감지 · 1 → 원문결손 · 2 → 원문신선도(낡음). 셋 다 law.go.kr 을 두드려서 한 밤에 하나만 돌리면 겹칠 일이 없다.
@@ -910,7 +910,7 @@ function nightlyScanFor(ms) {
  * 같아 보였다(L-291). 이제 매일 한 통: 오늘 차례 점검 결과 · 대기 개정 자동 승인 · 자동 반영 세션을 깨웠는지 · 내일 차례.
  * 세션이 일을 끝낸 결과(PR·자동 머지·앱 버튼 필요)는 그 시각에 따로 푸시된다(done·nariya_pr_merge) — 이 요약은 새벽 점검까지.
  * 예: nightlySummary({which:'fresh', scan:{ok:true, checked:1504, stale:0, added:0, reopened:0}, approved:0, sweep:{action:'none'}, tomorrow:'amend'})
- *     → {title:'나리야 새벽 점검 완료 — 원문신선도 · 이상 없음', body:'원문신선도: 1,504건 대조 · 낡은 원문 없음 …'}
+ *     → {title:'AI 챗봇 새벽 점검 완료 — 원문신선도 · 이상 없음', body:'원문신선도: 1,504건 대조 · 낡은 원문 없음 …'}
  * @param {{which:'amend'|'mok'|'fresh', scan:?object, scanError?:string, approved?:number, sweep:?object, sweepError?:string, tomorrow?:string}} o
  * @returns {{title:string, body:string, failed:boolean}}
  * [연계] ← server.js runNariyaNightly · scripts/test_nariya_autorun.js
@@ -952,7 +952,7 @@ function nightlySummary(o) {
     if (o.tomorrow && NAME[o.tomorrow]) parts.push('내일 차례: ' + NAME[o.tomorrow]);
     const work = sw && (sw.action === 'requested' || sw.action === 'pending');
     const head = failed ? '⚠확인 필요' : work ? '처리할 일 있음' : found ? '새로 찾음' : '이상 없음';
-    return { title: `나리야 새벽 점검 완료 — ${NAME[o.which]} · ${head}`, body: parts.join(' · '), failed };
+    return { title: `AI 챗봇 새벽 점검 완료 — ${NAME[o.which]} · ${head}`, body: parts.join(' · '), failed };
 }
 
 let def = null;

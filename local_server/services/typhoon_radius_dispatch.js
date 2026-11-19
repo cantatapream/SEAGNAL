@@ -6,6 +6,7 @@
  *
  * 태풍 통보문이 "하루 2회 트리거 윈도(KST 오전 [10,11) / 야간 [22,23))" 안에 발표되면,
  * 동의(활성)한 단말 전체에 **데이터 전용(조용한) FCM "깨우는 신호"** 를 1회 방송한다.
+ *   (2026-11-19: 대상 = location_alert_store.getTargetConsents() — 노출 범위로 거른 동의 기기)
  * 단말은 이 신호를 받아 그 순간 위치 1회 수집 + /api/typhoon 재조회 + 내장 비대칭 반경
  * 수식(typhoon_radius.radiusEntry)으로 직접 판정해, 강풍/폭풍반경에 드는 **각 태풍마다**
  * 별도 로컬 알림을 띄운다. (좌표는 서버로 오지 않음 — 서버는 신호 sig 만 방송)
@@ -196,7 +197,7 @@ async function dispatchTyphoon(typhoonJson, opts = {}) {
         return { sent: 0, slot: triggerSlot, dedupKey: triggerKey, reason: 'already_sent' };
     }
 
-    const getConsents = opts.getConsents || (() => require('./location_alert_store').getActiveConsents());
+    const getConsents = opts.getConsents || (() => require('./location_alert_store').getTargetConsents()); // 노출 범위로 거른 대상(2026-11-19)
     const tokens = selectTargetTokens(getConsents());
     if (tokens.length === 0) {
         // 동의자 없음 → 상태(dedupKey) 갱신하지 않음 → 동의자 생기면 같은 슬롯에서 다음 주기에 방송.
