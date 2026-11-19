@@ -10,7 +10,7 @@
  *         ② 「해역별 특보현황」 관심해역 ⚙ — 관심해역을 안 골랐을 때만 보임 · 누르면 온보딩 관심해역 화면(안내 → 해역 → 지도)
  *            · 마치면 안내 띠 + ⚙ 가 흐려지며 사라짐 · [건너뛰기]는 닫기만.
  *         ③ 두 ⚙ 모두 머리 안 오른쪽 끝, 「활동지점 안전 브리핑」 ⚙ 와 같은 모양.
- *         ⑤ 특보 카드 머리줄 — 큰 글자·좁은 폭에서 📋 와 뱃지가 갈라지지 않고 함께 다음 줄로(2026-11-19).
+ *         ⑤ 특보 카드 머리줄 — 큰 글자·좁은 폭에서 📋 와 뱃지가 갈라지지 않고 함께 다음 줄로, 그때 📋 는 뱃지 바로 왼쪽(2026-11-19).
  *         ④ 해역별 📋 통보문 팝업(alert_history.js showZoneBulletins)이 하드웨어 뒤로가기(core/backbutton.js PopupStack)로 닫힌다(2026-11-18).
  *         380px 스크린샷(안내 칸·설정 팝업·두 머리)을 GEAR_SHOT_DIR(없으면 임시 폴더)에 남긴다.
  * ----------------------------------------------------------------------------
@@ -390,7 +390,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         });
         // 2026-11-19 사용자: 글자 크기 「크게」 + 좁은 폭에서 해역명이 길면 📋 만 윗줄에 남고 뱃지만 아랫줄로 갈라졌다
         //   → 「통보문 버튼과 뱃지 둘다 다음줄로」(render.js createAlertElement 의 .alert-header-actions 묶음).
-        await check('⑤ 큰 글자·412px: 긴 해역명은 📋+뱃지가 함께 다음 줄 · 짧은 해역명은 한 줄 그대로 · 둘이 갈라지지 않는다', async () => {
+        await check('⑤ 큰 글자·412px: 긴 해역명은 📋+뱃지가 함께 다음 줄(📋 는 뱃지 바로 왼쪽) · 짧은 해역명은 한 줄 그대로(📋 는 해역명 뒤) · 둘이 갈라지지 않는다', async () => {
             const q = await device({ width: 412, store: { user_font_size: 'large' } });
             const rows = await q.evaluate(() => {
                 UserSettings.settings = {}; UserSettings.isVisible = () => true;
@@ -403,7 +403,9 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
                 return new Promise((res) => setTimeout(() => res([...document.querySelectorAll('#east-sea-list .alert-card')].map((c) => {
                     const y = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
                     const n = c.querySelector('.zone-name'), b = c.querySelector('.alert-history-btn'), g = c.querySelector('.alert-badges > *');
-                    return { name: n.textContent.trim(), down: y(b) > y(n) + 8, apart: Math.abs(y(b) - y(g)) > 8 };
+                    const nr = n.querySelector('span').getBoundingClientRect(), br = b.getBoundingClientRect(), gr = g.getBoundingClientRect();
+                    return { name: n.textContent.trim(), down: y(b) > y(n) + 8, apart: Math.abs(y(b) - y(g)) > 8,
+                             btnToBadge: Math.round(gr.left - br.right), btnToName: Math.round(br.left - nr.right) };
                 })), 1200));
             });
             await q.screenshot({ path: path.join(SHOT, 'alert_header_large_412.png') });
@@ -413,6 +415,9 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.deepEqual(rows.filter((r) => r.apart), [], '📋 와 뱃지가 다른 줄에 있으면 안 된다');
             assert.equal(long.down, true, '긴 이름은 📋+뱃지가 다음 줄로');
             assert.equal(short.down, false, '짧은 이름은 한 줄 그대로');
+            // 2026-11-19 사용자 「통보문 버튼이 … 뱃지 바로 왼쪽에」 + 「두 줄일 때만 뱃지 옆」
+            assert.ok(long.btnToBadge >= 0 && long.btnToBadge <= 16, '둘째 줄이면 📋 는 뱃지 바로 왼쪽: ' + JSON.stringify(long));
+            assert.ok(short.btnToName >= 0 && short.btnToName <= 30 && short.btnToBadge > 30, '한 줄이면 📋 는 해역명 바로 뒤: ' + JSON.stringify(short));
         });
         await check('화면 오류 없음', () => assert.deepEqual(errors.filter((m) => !/Failed to fetch|NetworkError|Load failed/.test(m)), []));
         console.log('스크린샷:', SHOT);

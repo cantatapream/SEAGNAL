@@ -566,6 +566,35 @@ function renderApp() {
     // console.log('Total alerts displayed:', totalAlerts);
 }
 
+/**
+ * 특보 카드 머리줄의 [📋 + 뱃지] 묶음이 해역명 아래 둘째 줄로 내려갔는지 보고, 내려갔을 때만 📋 를 뱃지 바로 왼쪽으로 붙인다.
+ * 예: 「동해남부북쪽안쪽먼바다」(글자 크게) → 둘째 줄 오른쪽에 「📋 [풍랑 경보]」 / 「경북북부앞바다」 → 한 줄 「경북북부앞바다 📋 …… [풍랑 주의보]」 그대로
+ * @param {HTMLElement} header - .alert-header
+ * [연계] ← alertHeaderWrapObserver(크기가 바뀔 때마다 — 화면 폭·글자 크기·접힌 목록이 펼쳐질 때) / createAlertElement 가 등록.
+ *        [2026-11-19 사용자] 「통보문 버튼이 오른쪽으로 정렬되어야 … 뱃지 바로 왼쪽에」 + 한 줄 카드는 종전처럼(「두 줄일 때만 뱃지 옆」).
+ *        CSS 만으로는 「줄이 넘어갔는지」를 알 수 없어 위치를 재서 정한다. 묶음 안 배치만 바꾸므로 줄바꿈 여부는 흔들리지 않는다.
+ */
+function markAlertHeaderWrap(header) {
+    const name = header.querySelector('.zone-name');
+    const actions = header.querySelector('.alert-header-actions');
+    const btn = actions && actions.querySelector('.alert-history-btn');
+    if (!name || !btn) return;
+    const badges = actions.querySelector('.alert-badges');
+    const wrapped = actions.getBoundingClientRect().top >= name.getBoundingClientRect().bottom - 2;
+    if (wrapped === (actions.dataset.wrapped === '1')) return;
+    actions.dataset.wrapped = wrapped ? '1' : '';
+    btn.style.marginLeft = wrapped ? 'auto' : '4px';
+    if (badges) {
+        badges.style.flex = wrapped ? '0 0 auto' : '';
+        // settings.js 가 .alert-badges 에 margin-left:auto !important 를 건다 — 그대로 두면 📋 와 나눠 가져 가운데로 뜬다
+        if (wrapped) badges.style.setProperty('margin-left', '0', 'important');
+        else badges.style.removeProperty('margin-left');
+    }
+}
+const alertHeaderWrapObserver = (typeof ResizeObserver === 'function')
+    ? new ResizeObserver((entries) => entries.forEach((e) => markAlertHeaderWrap(e.target)))
+    : null;
+
 function createAlertElement(items) {
     if (!Array.isArray(items)) items = [items];
 
@@ -680,6 +709,8 @@ function createAlertElement(items) {
             header.insertBefore(actions, badgeEl);   // badgeEl 이 없으면 끝에 붙는다
             actions.appendChild(historyBtn);
             if (badgeEl) actions.appendChild(badgeEl);
+            // 둘째 줄로 내려갔을 때만 📋 를 뱃지 바로 왼쪽으로(아래 markAlertHeaderWrap) — 크기가 바뀔 때마다 다시 잰다
+            if (alertHeaderWrapObserver) alertHeaderWrapObserver.observe(header);
         }
     }
 
