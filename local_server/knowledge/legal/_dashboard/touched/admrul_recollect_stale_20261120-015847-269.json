@@ -1,0 +1,9 @@
+{
+ "script": "admrul_recollect_stale",
+ "stamp": "20261120-015847-269",
+ "files": [
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/행정규칙/(평택해양경찰서)유선·도선및유선장·도선장게시사항및게시장소에관한고시.txt",
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/행정규칙/_admrul.json",
+  "local_server/knowledge/legal/raw/10_항만물류/유선및도선사업법/행정규칙/(울산해양경찰서)유선및유선장의게시사항및게시장소에관한고시.txt"
+ ]
+}
