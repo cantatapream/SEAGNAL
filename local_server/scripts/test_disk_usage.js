@@ -98,7 +98,7 @@ const fakeFs = (box) => () => { const bs = 4096; return { bsize: bs, blocks: Mat
         assert.equal(name('AI 브리핑').items[0].name, 'station_briefing'); assert.equal(name('특보·기상·해양').items[0].name, 'zone_forecasts.json'); assert.equal(name('기타').items[0].name, 'mystery.bin');
         assert.ok(name('카톡 중계').bytes < 100 * 1024, '바로 가기를 따라가 수심 자료를 두 번 세지 않음 — ' + name('카톡 중계').bytes);
         for (let i = 1; i < cats.length; i++) assert.ok(cats[i - 1].bytes >= cats[i].bytes, '큰 종류부터');
-        assert.deepStrictEqual([D.categoryOf('.codex'), D.categoryOf('server_logs'), D.categoryOf('risk_forecast'), D.categoryOf('subscriptions.json'), D.categoryOf('x.log')], ['법령·챗봇(나리야)', '서버 기록(로그)', '위험예측', '사용자·운영', '서버 기록(로그)']);
+        assert.deepStrictEqual([D.categoryOf('.codex'), D.categoryOf('server_logs'), D.categoryOf('risk_forecast'), D.categoryOf('subscriptions.json'), D.categoryOf('x.log')], ['법령·챗봇', '서버 기록(로그)', '위험예측', '사용자·운영', '서버 기록(로그)']);
         const m = D.createMonitor({ dir: d, statfs: fakeFs({ used: 10, avail: 90 }), push: async () => ({}), stateFile: path.join(tmp, 'h.json') });
         assert.ok(Array.isArray(m.snapshot().categories) && m.snapshot().categories.length === cats.length, 'snapshot = summary + 종류별');
     });

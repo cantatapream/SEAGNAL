@@ -131,7 +131,7 @@ footer{margin-top:40px;color:var(--faint);font-size:12px;text-align:center;line-
 
 <div class="wrap">
 <header class="top">
-  <p class="eyebrow">SEAGNAL · 나리야 법률 위키 품질감사 (2라운드)</p>
+  <p class="eyebrow">SEAGNAL · AI 챗봇 법률 위키 품질감사 (2라운드)</p>
   <h1>어선안전조업 및 어선원의 안전·보건 증진 등에 관한 법률</h1>
   <p class="sub">실제 사용자(어민·낚시인·전문가)가 물을 법한 <b>160개 질문</b>을 던지고, <b>위키만으로</b> 답할 수 있는지 판정했습니다. 감사일 2026-07-16.</p>
   <div class="tiles" id="tiles"></div>

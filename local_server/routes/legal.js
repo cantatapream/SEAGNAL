@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: routes/legal.js
- * 역할: 해양법령 챗봇(나리야) — 관리자 리뷰 검증 API + 현 DB 기반 답변 API
+ * 역할: 해양법령 챗봇 — 관리자 리뷰 검증 API + 현 DB 기반 답변 API
  * ============================================================================
  *
  * [설명]
@@ -19,7 +19,7 @@
  *                                       match면 자동 승인(위 approve와 동일 반영), 아니면 이유를
  *                                       담아 대기 유지 + review_queue.md에 시도 이력 append
  *  - GET  /api/legal/admin/stats      → 관리자 검토센터 서브탭(초안·피드백·새지식후보·개정검토) 실카운트
- *  - GET  /api/legal/admin/ask-stats  → 나리야 질문 수(날짜별·1년 보관, 숫자만 — services/legal_ask_stats.js · sums.all = 보관 중 전체 합)
+ *  - GET  /api/legal/admin/ask-stats  → AI 챗봇 질문 수(날짜별·1년 보관, 숫자만 — services/legal_ask_stats.js · sums.all = 보관 중 전체 합)
  *  - GET  /api/legal/drafts           → 초안승인 탭 목록(index.json status=draft)
  *  - GET  /api/legal/rooms/stats      → 지식 방 갈래 버튼 6개 숫자 + 인트로 칩(개념 status·그래프 엣지)
  *  - GET  /api/legal/rooms/list       → 지식 방 6개 목록(room=raw|concept|statute|comparison|annex|graph,
@@ -930,7 +930,7 @@ router.get('/api/legal/admin/stats', adminAuth.requireAdminToken, (req, res) => 
   } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
 });
 
-// GET /api/legal/admin/ask-stats — 나리야 질문 수(날짜별 KST, 1년 보관, 질문 내용 없이 숫자만).
+// GET /api/legal/admin/ask-stats — AI 챗봇 질문 수(날짜별 KST, 1년 보관, 질문 내용 없이 숫자만).
 //   일별 목록 + 오늘·어제·최근7일·최근30일 합계. 「질문 1건」 기준은 services/legal_ask_stats.js 머리말.
 //   [연계] ← ai_chat.js 관리자 콘솔 「질문 수」 카드(refreshAskStats).
 router.get('/api/legal/admin/ask-stats', adminAuth.requireAdminToken, (req, res) => {
@@ -1028,7 +1028,7 @@ router.post('/api/legal/feedback', (req, res) => {
 /** 👎 피드백 1건을 Gemini로 재검토해 triage 필드를 채운다(비동기, 응답과 무관). @param {object} entry */
 async function triageFeedback(entry) {
   const prompt = [
-    '너는 한국 해양법령 챗봇(나리야)의 답변 품질 재검토 AI다. 사용자가 아래 답변에 👎(불만족)를 눌렀다.',
+    '너는 한국 해양법령 챗봇의 답변 품질 재검토 AI다. 사용자가 아래 답변에 👎(불만족)를 눌렀다.',
     `질문: ${entry.question}`,
     `답변 요지: ${entry.answerGist}`,
     entry.reason ? `사용자가 적은 불만족 사유: ${entry.reason}` : '(사유 미기재)',

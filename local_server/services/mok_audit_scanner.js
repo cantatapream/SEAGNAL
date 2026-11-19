@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: services/mok_audit_scanner.js
- * 역할  : 나리야(해양법령 챗봇) **원문 결손 점검** — "가진 파일에 내용이 다 들어 있나"를
+ * 역할  : AI 챗봇(해양법령 챗봇) **원문 결손 점검** — "가진 파일에 내용이 다 들어 있나"를
  *         주마다 국가법령정보센터와 대조하고, 빠진 것이 있으면 관리자 큐에 목록만 남긴다.
  *         (초보자용: 옆방의 "원문신선도"가 *"우리 사본이 낡았나"* 를 본다면, 이쪽은
  *          *"판은 맞는데 안이 비었나"* 를 본다. 둘 다 위키를 자동으로 고치지는 않는다.)
@@ -372,7 +372,7 @@ async function runMokAuditScan() {
       writeStatus(st);
       console.error('[MokAudit] 점검 실패:', st.error);
       try {
-        await require('./admin_push').sendAdminPush('나리야 원문결손 — 점검 실패',
+        await require('./admin_push').sendAdminPush('AI 챗봇 원문결손 — 점검 실패',
           `이번 점검은 아무것도 확인하지 못했습니다. ${String(st.error).slice(0, 180)}`, { type: 'mok_audit_failed' });
       } catch (e) { console.error('[MokAudit] 관리자 푸시 실패:', e && e.message); }
       return st;
@@ -404,7 +404,7 @@ async function runMokAuditScan() {
 
     if (resolved.length && !fresh.length && !reopened.length) {
       try {
-        await require('./admin_push').sendAdminPush(`나리야 원문 결손 — 해소된 카드 ${resolved.length}건 자동 정리`,
+        await require('./admin_push').sendAdminPush(`AI 챗봇 원문 결손 — 해소된 카드 ${resolved.length}건 자동 정리`,
           `이번 점검에서 더는 누락으로 나오지 않은 대기 카드 ${resolved.length}건을 자동으로 닫았습니다.`, { type: 'mok_audit_resolved', count: String(resolved.length) });
       } catch (e) { console.error('[MokAudit] 관리자 푸시 실패:', e && e.message); }
     }
@@ -412,9 +412,9 @@ async function runMokAuditScan() {
       const names = fresh.slice(0, 3).map((e) => e.title);
       const more = fresh.length > 3 ? ` 외 ${fresh.length - 3}건` : '';
       const title = fresh.length
-        ? `나리야 원문 결손 — 누락 ${fresh.length}건 발견`
+        ? `AI 챗봇 원문 결손 — 누락 ${fresh.length}건 발견`
           + (reopened.length ? ` (+ 다시 뜬 ${reopened.length}건)` : '')
-        : `나리야 원문 결손 — 닫은 카드 ${reopened.length}건이 아직 빠져 있습니다`;
+        : `AI 챗봇 원문 결손 — 닫은 카드 ${reopened.length}건이 아직 빠져 있습니다`;
       const body = fresh.length
         ? `${names.join(', ')}${more}.`
           + (reopened.length ? ` 닫혀 있었지만 아직 빠져 ${reopened.length}건을 다시 띄웠습니다.` : '')
@@ -449,7 +449,7 @@ function scanState() {
  */
 function startMokAuditScan() {
   if (_scanning) return { ok: false, started: false, error: '점검이 이미 진행 중입니다. 20~40분 걸립니다.' };
-  runMokAuditScan().catch((e) => console.error('나리야 원문 결손 점검 오류:', e && e.message));
+  runMokAuditScan().catch((e) => console.error('AI 챗봇 원문 결손 점검 오류:', e && e.message));
   return { ok: true, started: true };
 }
 

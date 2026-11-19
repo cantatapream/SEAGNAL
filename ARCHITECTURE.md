@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 133개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 132개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -47,7 +47,6 @@ client/js/
 │   │   ├── user_memory_bridge.js
 │   │   ├── user_memory_web.js
 │   ├── assistant_deeplink.js
-│   ├── assistant_overlay.js
 │   ├── assistant.js
 ├── core/  ← 앱 구동(부트스트랩·설정·네이티브 브리지)
 │   ├── app_init.js
@@ -68,7 +67,7 @@ client/js/
 │   │   ├── render.js
 │   │   ├── zone_avg.js
 │   ├── main-accordion/
-│   │   ├── main_accordion_solo.js
+│   │   └── main_accordion_solo.js
 │   ├── marine-chart/
 │   │   ├── marine_chart1.js
 │   │   ├── marine_chart2.js
@@ -218,7 +217,7 @@ client/js/
 | `admin_bulletin_watch.js` | 관리자 → 특보 관리 → 「통보문 관찰」 탭. 방재기상플랫폼 통보문 관련 기능을 한곳에 모은다. |
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
 | `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
-| `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시 |
+| `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — ①설정 화면 「위치 기반 기상 정보 제공」을 누구에게 보일지 고르는 버튼 3개 |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_station_briefing.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17 · 화면 정리 §11.10.50) — 연 |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
@@ -231,15 +230,14 @@ client/js/
 
 | 파일 | 역할 |
 |------|------|
-| `ai_chat.js` | 해양법령 챗봇(나리야) 인앱 모듈. 두 갈래로 나뉜다. |
+| `ai_chat.js` | 해양법령 챗봇 인앱 모듈. 두 갈래로 나뉜다. |
 
 ### `client/js/assistant/`
 
 | 파일 | 역할 |
 |------|------|
-| `assistant.js` | SEAGNAL 음성 비서 프론트엔드 (호출어 "누구야" + STT + TTS + 텍스트 폴백) |
+| `assistant.js` | SEAGNAL AI 비서 프론트엔드 (글자 입력 질문 + 답변 표시 + TTS 읽어 주기) |
 | `assistant_deeplink.js` | AI 비서 답변의 "바로가기" 버튼 → 해양종합정보 페이지의 해당 레이어를 |
-| `assistant_overlay.js` | 백그라운드 "나리야" 음성 비서의 상태/대화를 앱 화면에 동적 오버레이로 표시. |
 
 ### `client/js/assistant/memory/`
 

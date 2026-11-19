@@ -44,7 +44,7 @@ const SCHEMA = {
 
 phase('보강');
 const out = await parallel(LAWS.map(L => () => agent(
-  '당신은 나리야(해양수산 법률 챗봇) 위키의 사서다. 담당 법: **' + L.name + '**\n' +
+  '당신은 해양수산 법률 챗봇 위키의 사서다. 담당 법: **' + L.name + '**\n' +
   '\n# 배경 — 먼저 읽어라\n' +
   '- <저장소뿌리>/CLAUDE.md\n' +
   '- <저장소뿌리>/local_server/knowledge/legal/_SCHEMA.md 의 §6-E 와 §8-A (근거 조문 표 규격)\n' +

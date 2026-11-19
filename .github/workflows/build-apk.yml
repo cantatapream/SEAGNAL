@@ -36,6 +36,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        # ★2026-11-19 `packages` 를 명시한다. 이 액션의 기본값은 'tools platform-tools' 인데, 러너의 cmdline-tools 16.0 에는
+        #   'tools' 꾸러미가 더 이상 없어 `sdkmanager tools` 가 "Failed to find package 'tools'" 로 죽는다(run #39 — 컴파일까지 가지 못했다).
+        #   필요한 것은 아래 단계가 따로 설치한다.
+        with:
+          packages: 'platform-tools'
 
       - name: Install Android SDK packages
         run: |
@@ -64,6 +69,48 @@ jobs:
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      # ★2026-11-19 만든 APK 의 "병합 매니페스트"(우리 것 + 모든 플러그인·라이브러리 것을 합친 최종본)를 검사한다.
+      #   소스 매니페스트만 봐서는 플러그인이 끼워 넣는 권한을 못 본다(독립 검토 D). 여기서 틀리면 빌드를 실패시킨다.
+      #   ①마이크·음성 모델 권한이 없어야 한다(사용자 지시 "마이크가 들어가는 부분은 모두 제거")
+      #   ②헤드업용 기본 알림 채널 meta-data 와 Application 클래스가 있어야 한다
+      - name: Check merged manifest (마이크 권한 없음 · 헤드업 기본 채널 있음)
+        working-directory: android
+        run: |
+          M=$(find app/build/intermediates/merged_manifests/debug -name AndroidManifest.xml | head -1)
+          echo "merged manifest: $M"
+          test -n "$M" || { echo "::error::병합 매니페스트를 못 찾았다"; exit 1; }
+          echo "── 버전 ──"
+          grep -o 'android:version\(Name\|Code\)="[^"]*"' "$M" | sort -u
+          echo "── 권한(uses-permission) 전체 ──"
+          # 태그가 여러 줄에 걸쳐 있어도 잡히게 한 줄로 편 뒤 uses-permission 태그만 본다(주석 속 낱말에 속지 않게).
+          PERMS=$(tr '\n' ' ' < "$M" | grep -o '<uses-permission[^>]*>' | grep -o 'android:name="[^"]*"' | sed 's/android:name=//' | sort -u)
+          echo "$PERMS"
+          test -n "$PERMS" || { echo "::error::권한 목록을 못 읽었다(검사가 아무것도 안 본 것이다)"; exit 1; }
+          if echo "$PERMS" | grep -E 'RECORD_AUDIO|FOREGROUND_SERVICE_MICROPHONE|FOREGROUND_SERVICE_DATA_SYNC'; then
+            echo "::error::마이크·음성 모델 권한이 병합 매니페스트에 남아 있다"; exit 1
+          fi
+          echo "✅ 마이크·음성 모델 권한 없음"
+          grep -A2 'com.google.firebase.messaging.default_notification_channel_id' "$M" | grep -q 'seagnal_push_high' \
+            || { echo "::error::헤드업 기본 채널 meta-data(seagnal_push_high)가 없다"; exit 1; }
+          echo "✅ 헤드업 기본 채널 meta-data 있음"
+          grep -q 'android:name="com.seagnal.app.SeagnalApplication"' "$M" \
+            || { echo "::error::Application 클래스(SeagnalApplication) 지정이 없다"; exit 1; }
+          echo "✅ SeagnalApplication 지정 있음"
+          echo "── 서비스 ──"
+          # 태그가 여러 줄에 걸쳐 있다(run #41 에서 이 목록이 비어 나왔다) → 한 줄로 편 뒤 읽는다.
+          SERVICES=$(tr '\n' ' ' < "$M" | grep -o '<service[^>]*>' | grep -o 'android:name="[^"]*"' | sed 's/android:name=//' | sort -u)
+          echo "$SERVICES"
+          echo "$SERVICES" | grep -q 'com.seagnal.app.locationalert.LocationAlertMessagingService' \
+            || { echo "::error::푸시 수신 서비스(LocationAlertMessagingService)가 병합 매니페스트에 없다"; exit 1; }
+          if echo "$SERVICES" | grep -E 'VoiceAssistantService|VoskDownloadService'; then
+            echo "::error::지운 음성 서비스가 병합 매니페스트에 남아 있다"; exit 1
+          fi
+          echo "✅ 푸시 수신 서비스 있음 · 음성 서비스 없음"
+          C=app/src/main/assets/capacitor.config.json
+          grep -q '"alert"' "$C" || { echo "::error::capacitor.config.json 에 presentationOptions alert 가 없다(cap sync 누락?)"; exit 1; }
+          grep -q 'seagnal-server.fly.dev' "$C" || { echo "::error::capacitor.config.json 에 서버 주소가 없다(cap sync 누락?)"; exit 1; }
+          echo "✅ capacitor.config.json(서버 주소·알림 표시 설정) 있음"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

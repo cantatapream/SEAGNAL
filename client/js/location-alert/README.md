@@ -15,3 +15,11 @@
 ## 로드 순서
 
 index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없음).
+
+## 노출 범위 (2026-11-19)
+
+설정 화면의 「위치 기반 기상 정보 제공」 카드는 **숨긴 채 시작**하고, 서버(`GET /api/location-alert/exposure`)가
+허락한 기기에서만 나타난다. 범위는 관리자 센터 「위치 기반」 탭의 버튼 3개 — 일반 공개 / 관리자만 노출(기본) / 모두 비노출 —
+로 바꾼다(`js/admin/admin_location_status.js`). 숨겨진 대상에게는 서버가 알림도 보내지 않는다.
+상세·사용자 확정 원문·상태 변화 표: `location_alert.design.md` §19. 검사: `local_server/scripts/test_location_alert_exposure.js`.
+

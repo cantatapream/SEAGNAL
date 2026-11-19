@@ -9,16 +9,15 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.webkit.PermissionRequest;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
-import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
 import com.seagnal.app.voice.SeagnalAssistantPlugin;
 import com.seagnal.app.locationalert.LocationPermPlugin;
+import com.seagnal.app.update.AppUpdatePlugin;
 
 /**
  * SEAGNAL Android 앱의 메인 Activity (Capacitor BridgeActivity 확장).
@@ -83,6 +82,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SeagnalAssistantPlugin.class);
         registerPlugin(LocationPermPlugin.class);   // 위치 '항상 허용' 네이티브 권한 요청
+        registerPlugin(AppUpdatePlugin.class);      // 앱 안 업데이트(Play 유연형) — JS: Capacitor.Plugins.SeagnalAppUpdate
         super.onCreate(savedInstanceState);
     }
 
@@ -139,24 +139,8 @@ public class MainActivity extends BridgeActivity {
                 }
             });
 
-            // [음성] WebView 안의 웹 음성인식(getUserMedia/SpeechRecognition)이 마이크를
-            //   쓸 수 있도록 권한 요청을 허용한다. (앱에 RECORD_AUDIO 가 있어야 실제 동작)
-            //   Capacitor 기본 동작/파일 선택 등은 BridgeWebChromeClient 를 그대로 상속해 보존.
-            webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
-                @Override
-                public void onPermissionRequest(final PermissionRequest request) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                request.grant(new String[]{ PermissionRequest.RESOURCE_AUDIO_CAPTURE });
-                            } catch (Exception e) {
-                                request.deny();
-                            }
-                        }
-                    });
-                }
-            });
+            // [음성 비서 삭제 2026-11-19, 사용자 지시] WebView 의 마이크 권한 요청을 허용하던 WebChromeClient 를 지웠다.
+            //   Capacitor 기본 BridgeWebChromeClient 가 그대로 쓰인다(파일 선택 등 기본 동작 유지).
 
             // [Phase 2b] 알림 탭 딥링크 — cold-start 시 런치 인텐트에 url 이 있으면 그 화면으로 이동.
             //   (위 WebView 설정/캐시버스트 로직과 독립. url 이 없으면 아무것도 하지 않아 기본 홈 로드 유지.)

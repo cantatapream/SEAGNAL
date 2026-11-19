@@ -5616,9 +5616,9 @@
     <script src="buoyLocations.js"></script>
     <script src="seaZoneCoordinates.js"></script>
     <script src="seaZones.js?v=TimeFormatUpdate_20260204"></script>
-    <script type="module" src="capacitor-plugins.js?v=PermReport_20261118"></script>
+    <script type="module" src="capacitor-plugins.js?v=InAppUpdate_20261119"></script>
     <link rel="stylesheet" href="kma_widget.css">
-    <link rel="stylesheet" href="css/ai_chat.css"><!-- AI 챗봇(나리야) 탭 스타일 -->
+    <link rel="stylesheet" href="css/ai_chat.css"><!-- AI 챗봇 탭 스타일 -->
     <!-- [리팩토링] app.js를 15개 모듈로 분할 -->
     <script src="js/core/config.js"></script>
     <script src="js/shared/utils/mappings.js"></script>
@@ -5638,7 +5638,7 @@
     <script src="js/location-alert/location_alert_core.js"></script>
     <script src="js/location-alert/location_alert_background.js"></script>
     <script src="js/location-alert/location_alert_runtime.js"></script>
-    <script src="js/location-alert/location_alert_ui.js"></script>
+    <script src="js/location-alert/location_alert_ui.js?v=Exposure_20261119"></script>
     <!-- [위치기반 태풍 반경 알림 — Phase 2a] 서버 순수 모듈(typhoon_radius/typhoon_message)을
          UMD 표출(window.TyphoonRadius/TyphoonMessage)로 단말에서 그대로 재사용 + 태풍 반경 런타임.
          두 서비스 파일은 런타임보다 먼저 로드돼야 한다(전역이 먼저 정의되어야 함). 특보 런타임과 별 파일 공존. -->
@@ -5741,7 +5741,7 @@
     <!-- [통보문 관찰] 관리자 센터 특보 관리 → 통보문 관찰 탭(관찰기록·참고사항 AI 시험, 2026-11-15) -->
     <script src="js/admin/admin_bulletin_watch.js"></script>
     <!-- [위치 기반] 관리자 센터 위치 기반 탭: 이 기기 수집 GPS 위치 + 해상/육상 + 지도 팝업 -->
-    <script src="js/admin/admin_location_status.js"></script>
+    <script src="js/admin/admin_location_status.js?v=Exposure_20261119"></script>
     <!-- [구역 편집] 이제 모달 탭이 아니라 /admin_zone_editor.html 독립 페이지로 분리(admin.js 의
          "구역 편집" 버튼이 새 창으로 엶) — admin_zone_editor.js 는 그 페이지가 직접 로드하므로
          여기서는 더 이상 스크립트를 얹지 않는다 -->
@@ -5760,8 +5760,6 @@
     <script src="js/core/backbutton.js?v=ZoneBulletinBack_20261118"></script>
     <!-- AI 비서 바로가기 딥링크(?assistant=ocean&layer=...) → 해양종합정보 레이어 자동 활성화 -->
     <script src="js/assistant/assistant_deeplink.js?v=Patch_20260706_01"></script>
-    <!-- 백그라운드 "나리야" 음성 비서 상태/대화를 화면 하단 오버레이로 표시 -->
-    <script src="js/assistant/assistant_overlay.js"></script>
     <!-- HLS.js: 거제시 등 HLS 스트림 재생 (cctv4.js _initCctvHlsPlayer에서 사용) — 자체 호스팅 -->
     <script src="/assets/vendor/hls.js/hls.min.js"></script>
     <!-- ================================================================
@@ -5783,7 +5781,7 @@
     <script src="js/ocean-map/cctv/cctv4.js"></script>
     <script src="js/ocean-map/cctv/ocean_cctv.js?v=TextFit_20261118"></script>
 
-    <!-- AI 챗봇(나리야): 관리자 검토센터+법령 챗봇 · ai-chat-section 렌더 (index2_patch 앞) -->
+    <!-- AI 챗봇: 관리자 검토센터+법령 챗봇 · ai-chat-section 렌더 (index2_patch 앞) -->
     <script src="js/ai-chat/ai_chat.js"></script>
 
     <!-- index2 전용 패치: 종합기상 탭 + 헤더 유지 -->
@@ -6089,7 +6087,7 @@
 
         // ── 3. 정적 버튼 차단 (자물쇠 배지) ──
         // [대상] 오류제보 / 해양종합 배경지도 5종 / 해양종합 우측 토글 / 해양안전 전용 버튼 6종 /
-        //        해양생활(활동) 레일 / 탭 밖(나리야 챗봇·앱 설정·위치기반 알림)
+        //        해양생활(활동) 레일 / 탭 밖(AI 챗봇·앱 설정·위치기반 알림)
         // [연계] admin.js featureTree 의 id 와 1:1 — 트리에 id 를 더하면 여기에도 선택자를 더한다
         //        (local_server/scripts/test_maintenance_tree.js 가 빠진 것을 잡는다)
         // [주의] 배경지도 항목은 #ocean-basemap-menu 로 한정 — 해양생활 레일의 배경지도 피커(#ls-basemap-menu)도
@@ -6621,14 +6619,15 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
-                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">나리야 답변이 늦어질 때 완료되면 알림</div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">AI 챗봇 답변이 늦어질 때 완료되면 알림</div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 위치 기반 기상 정보 제공 (관리자 전용) -->
+                    <!-- 위치 기반 기상 정보 제공 — 숨긴 채 시작하고, 서버 노출 판정(/api/location-alert/exposure)이
+                         "보여도 된다"고 답한 기기에서만 location_alert_ui.js 가 나타낸다(관리자 센터 「위치 기반」 탭에서 범위 설정) -->
                     <div id="location-alert-card" class="notification-settings-card"
-                        style="margin: 0 15px 15px; background: rgba(30, 41, 59, 0.4); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden; backdrop-filter: blur(10px);">
+                        style="display: none; margin: 0 15px 15px; background: rgba(30, 41, 59, 0.4); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden; backdrop-filter: blur(10px);">
                         <div
                             style="padding: 18px 15px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
                             <div style="flex: 1;">

@@ -21,6 +21,9 @@
  *
  * 순수 부분(buildSnapshot/selectTargetTokens/buildDataMessage)은 테스트로 검증.
  * 실제 전송 sendFn / 동의자 getConsents 는 주입 가능(테스트 시 mock).
+ * 노출 범위(2026-11-19): 보낼 대상은 location_alert_store.getTargetConsents() — 관리자 센터 「위치 기반」 탭의
+ *   노출 범위(일반 공개/관리자만/모두 비노출)로 거른 동의 기기. 숨겨진 대상에게는 보내지 않는다.
+ *   검사: scripts/test_location_alert_exposure.js
  * 점검 모드(2026-09-10): push_sender.isPushBlocked() 가 true(점검 중 + 푸시 차단)면 보내지 않는다
  *   — opts.isPushBlocked 로 주입 가능. 검사: scripts/test_maintenance_tree.js
  * ============================================================================
@@ -190,7 +193,7 @@ async function dispatchWake(activeWarnings, opts = {}) {
     if (!snapshot.zones || Object.keys(snapshot.zones).length === 0) {
         return { sent: 0, targets: 0, reason: 'no_active_zones' };
     }
-    const getConsents = opts.getConsents || (() => require('./location_alert_store').getActiveConsents());
+    const getConsents = opts.getConsents || (() => require('./location_alert_store').getTargetConsents()); // 노출 범위로 거른 대상(2026-11-19)
     const tokens = selectTargetTokens(getConsents());
     if (tokens.length === 0) return { sent: 0, targets: 0, reason: 'no_targets' };
 

@@ -217,7 +217,7 @@ console.log('C. 검산');
         vm.runInNewContext(fs.readFileSync(path.join(root, 'client/js/admin/admin_bulletin_watch.js'), 'utf8'), sandbox);
         const c = { innerHTML: '' };
         sandbox.window.renderBulletinWatchAdminTab(c);
-        ok('탭에 관찰기록 내려받기 + AI 시험 [시험 시작][멈춤][결과 내려받기] + 나리야 경고', /기록 내려받기/.test(c.innerHTML) && /시험 시작/.test(c.innerHTML) && /멈춤/.test(c.innerHTML) && /결과 내려받기/.test(c.innerHTML) && /나리야 답이 늦어질 수/.test(c.innerHTML));
+        ok('탭에 관찰기록 내려받기 + AI 시험 [시험 시작][멈춤][결과 내려받기] + AI 챗봇 경고', /기록 내려받기/.test(c.innerHTML) && /시험 시작/.test(c.innerHTML) && /멈춤/.test(c.innerHTML) && /결과 내려받기/.test(c.innerHTML) && /AI 챗봇 답이 늦어질 수/.test(c.innerHTML));
         ok('2차(클로드 키2·161건) 칸과 1차 칸이 따로, 버튼이 각 시험 번호로', /2차 — 클로드 키2/.test(c.innerHTML) && /1차 — ChatGPT/.test(c.innerHTML) && /__bwTrial\('start','2'\)/.test(c.innerHTML) && /report\.md\?trial=1/.test(c.innerHTML) && /클로드 키2」 크레딧/.test(c.innerHTML));
         const txt = sandbox.window.__bwTrialText({ status: 'running', done: 37, total: 200, failed: 1, lastAt: '2026-11-15T13:41:00.000Z', stopReason: null });
         ok('상태 글: 진행 중 · 37/200 · 실패 1 · 마지막 응답 KST', /진행 중/.test(txt) && /37\/200 끝남/.test(txt) && /실패 1/.test(txt) && /11-15 22:41 KST/.test(txt), txt);

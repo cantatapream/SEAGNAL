@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: services/llm_chain.js
- * 역할: 나리야 답변 AI 를 관리자 센터에서 정한 순서대로 시도하는 「자동 전환 사슬」.
+ * 역할: AI 챗봇 답변 AI 를 관리자 센터에서 정한 순서대로 시도하는 「자동 전환 사슬」.
  *       기본 순서: 업스테이지 → 클로드 키2 → 클로드 키1 → ChatGPT(VM) → Gemini (클로드는 키2 먼저 — 2026-11-02 사용자 확정).
  *       앞의 AI 가 **크레딧 소진**이면 그 AI 를 계속 건너뛴다(관리자가 「소진 해제」를 누를 때까지 — 서버를 다시 켜도 유지).
  *       그 밖의 일시 오류(시간초과·서버 오류)는 **그 호출 하나만** 다음 AI 가 대신 답한다.
@@ -616,7 +616,7 @@ function markExhausted(id, error) {
   saveState();
   try {
     const { sendAdminPush } = require('./admin_push');
-    sendAdminPush(`⛔ ${NAMES[id]} 크레딧 소진`, `나리야 답변이 다음 순서 AI 로 넘어갑니다. 충전 후 관리자 센터에서 「소진 해제」를 눌러 주세요.`)
+    sendAdminPush(`⛔ ${NAMES[id]} 크레딧 소진`, `AI 챗봇 답변이 다음 순서 AI 로 넘어갑니다. 충전 후 관리자 센터에서 「소진 해제」를 눌러 주세요.`)
       .catch(e => console.error('[LLM 사슬] 관리자 푸시 오류:', e.message));
   } catch (_) { /* 푸시 모듈 없음 — 로그만 */ }
 }
@@ -667,7 +667,7 @@ function status(removed) {
 /**
  * 사슬을 거치지 않고 클로드 칸 하나를 바로 부른다(통보문 참고사항 AI 시험용 — 사용자 확정 2026-11-15 「이번에는 테스트를 이미 앱에 반영되어 있는 클로드 키2로 진행」).
  * 키·모델·노력은 사슬과 같은 것을 쓴다(기본 claude-sonnet-5-5 · medium — 관리자 센터 화면과 같다). 다음 AI 로 넘기지 않는다(어느 AI 답인지 섞이지 않게).
- * 나리야 통계(오늘 N회·성공)에는 세지 않는다. 크레딧 소진이면 그 칸을 소진으로 표시하고(나리야도 건너뛰게) creditOut 을 돌려준다.
+ * AI 챗봇 통계(오늘 N회·성공)에는 세지 않는다. 크레딧 소진이면 그 칸을 소진으로 표시하고(AI 챗봇도 건너뛰게) creditOut 을 돌려준다.
  * 예: callClaudeDirect('claude2', { contents: '…', config: { responseMimeType: 'application/json' } })
  *     → { success: true, response: { text: '{"사건":[]}' }, error: null, keyLabel: 'claude2' }
  * @param {'claude1'|'claude2'} id  @param {{contents:any, config?:object}} args  @param {{model:string, effort:string}} [pick]

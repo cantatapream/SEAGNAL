@@ -10,6 +10,7 @@
  * - POST /api/subscribe → 알림 구독 추가/갱신 (Web Push + FCM 이중 지원)
  * - POST /api/unsubscribe → 알림 구독 취소
  * - POST /api/push-custom → 커스텀/개인화 푸시 발송 (Broadcast + Personalized)
+ * - POST /api/admin/push-test-device → [관리자] 이 휴대폰 한 대에만 시험 발송(services/push_device_test.js)
  * - GET /api/push-history → 발송 이력 조회
  * - DELETE /api/push-history/:id → 개별 이력 삭제
  * - DELETE /api/push-history → 전체/선택 이력 삭제
@@ -610,6 +611,40 @@ router.post('/api/push-custom', async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+
+// ============================================================================
+// 시험 발송 — 이 휴대폰 한 대에만 (관리자 전용, 2026-11-20 사용자 확정)
+// ============================================================================
+//   관리자 센터 「직접 발송」의 "이 휴대폰에만 보내기(시험)" 가 부른다.
+//   - 구독자 목록을 읽지 않는다. 요청에 실린 푸시 주소(token) **한 개**에만 한 통을 보낸다
+//     (services/push_device_test.js — 여러 사람에게 나갈 길이 없다).
+//   - 푸시 모양은 위 `/api/push-custom` 의 일반 발송과 같다(채널 지정 없음 → 새 앱의 기본 채널=헤드업).
+//   - delaySec(0~60): 서버가 그만큼 기다렸다 보낸다 — 누른 뒤 앱을 끄고 "꺼진 상태"를 시험하려는 것.
+//   - 이 라우터는 routes/admin.js 보다 먼저 붙으므로(server.js) 그쪽 일괄 인증을 지나지 않는다 → 여기서 직접 건다.
+//   - 발송 이력·누적 집계에는 남기지 않는다(시험).
+router.post('/api/admin/push-test-device',
+    (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next),
+    async (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+            const deviceTest = require('../services/push_device_test');
+            const v = deviceTest.validate(req.body);
+            if (!v.ok) return res.status(400).json({ success: false, error: v.error });
+            const admin = getAdmin();
+            if (!admin || !admin.apps || admin.apps.length === 0) {
+                return res.status(503).json({ success: false, error: '푸시 서비스(Firebase)가 준비되지 않았습니다.' });
+            }
+            const tok = _maskTok(v.token);
+            const out = await deviceTest.sendToDevice(v, {
+                send: (msg) => _sendFcmPart(admin, msg, { tok, tid: 'test_device', part: '1/1' }),
+            });
+            console.log(`[Push/test-device] tok=${tok} delay=${v.delaySec}s → ${out.scheduled ? '예약' : (out.success ? '성공' : '실패')}`);
+            return res.status(out.success ? 200 : 502).json(out);
+        } catch (e) {
+            console.error('[Push/test-device] 오류:', e && e.message);
+            return res.status(500).json({ success: false, error: e.message });
+        }
+    });
 
 // ============================================================================
 // 태풍 발생/소멸 푸시 발송 API (전국 단위 브로드캐스트)

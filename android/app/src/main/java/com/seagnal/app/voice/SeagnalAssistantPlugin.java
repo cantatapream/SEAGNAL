@@ -1,20 +1,13 @@
 package com.seagnal.app.voice;
 
-import android.Manifest;
-import android.content.Intent;
 import android.util.Log;
-
-import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
-import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.getcapacitor.annotation.Permission;
-import com.getcapacitor.annotation.PermissionCallback;
 
 // [N2] 사용자 기억 v2 — 같은 프로세스의 Room DAO 직결.
 //   설계: local_server/knowledge/phases/n2_user_memory_client_integration.md §1.1
@@ -31,30 +24,24 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 웹(WebView) ↔ 네이티브 음성 비서 서비스 브릿지 Capacitor 플러그인.
+ * 웹(WebView) ↔ 네이티브 사용자 기억(Room SQLite) 브릿지 Capacitor 플러그인.
  *
- * [JS 에서 사용]
+ * [JS 에서 사용] client/js/assistant/memory/user_memory_bridge.js
  *   const { SeagnalAssistant } = Capacitor.Plugins;
- *   await SeagnalAssistant.enable({ serverUrl });  // 마이크 권한 요청 후 상시 청취 시작
- *   await SeagnalAssistant.disable();              // 청취 중지(서비스 종료)
- *   const { running } = await SeagnalAssistant.isEnabled();
+ *   await SeagnalAssistant.readUserProfile();  …  appendEpisode / readRelevantEpisodes 등
  *
- * [권한]
- *   RECORD_AUDIO 는 런타임 권한이라 enable() 시점에 요청한다.
- *   (POST_NOTIFICATIONS 는 매니페스트에 이미 선언됨 — Android 13+ 알림 표시용)
+ * [음성 비서 삭제 — 2026-11-19, 사용자 지시]
+ *   원문: "마이크가 들어가는 부분은 모두 제거해줘. 사용하지 않을거야." · "음성모델 ? 그것도 제거해줘."
+ *   이 플러그인에 있던 마이크 권한(RECORD_AUDIO)·상시 청취 서비스 켜기/끄기(enable·disable·isEnabled)·
+ *   호출어 엔진 조회(getCapabilities)·Vosk 음성 모델 내려받기(requestVoskDownload·cancelVoskDownload)·
+ *   audioBusy 와, 같은 패키지의 VoiceAssistantService·Vosk*·Porcupine*·AndroidSpeech* 를 전부 지웠다.
+ *   사용자 기억 메서드는 그대로다. 패키지 이름(voice)과 플러그인 이름(SeagnalAssistant)은
+ *   JS 와의 약속이라 바꾸지 않았다.
  */
-@CapacitorPlugin(
-        name = "SeagnalAssistant",
-        permissions = {
-                @Permission(alias = "microphone", strings = { Manifest.permission.RECORD_AUDIO })
-        }
-)
+@CapacitorPlugin(name = "SeagnalAssistant")
 public class SeagnalAssistantPlugin extends Plugin {
 
     private static final String TAG = "SeagnalAssistant";
-
-    // 서비스 → WebView 로 상태/대화를 전달하기 위한 정적 참조.
-    private static SeagnalAssistantPlugin instance;
 
     // [N2] 사용자 기억 v2 — Room 의 write-lock 과 정합하는 단일 IO 풀.
     //   설계 §1.1: ExecutorService memoryIo = Executors.newSingleThreadExecutor() — race 가드.
@@ -67,152 +54,15 @@ public class SeagnalAssistantPlugin extends Plugin {
     // [N2] 마지막 적재 episode id — 디버깅·이벤트 페이로드 검증용.
     private volatile long lastEpisodeId = 0L;
 
-    // Vosk 모델 상태 변경을 webview('voskState' 이벤트)로 중계하는 리스너.
-    private final VoskModelManager.Listener voskListener = (state, progress, message) -> {
-        if (instance == null) return;
-        try {
-            JSObject o = new JSObject();
-            o.put("state", state.name());
-            o.put("progress", progress);
-            if (message != null) o.put("message", message);
-            instance.notifyListeners("voskState", o);
-        } catch (Exception ignored) {}
-    };
-
     @Override
     public void load() {
-        instance = this;
-        VoskModelManager.get().addListener(voskListener);
         // [N2] DAO lazy init — UserMemoryDatabase.getInstance 는 double-checked locking 으로 안전.
-        //   실패해도 음성 비서 메인 흐름은 보존(throw 금지) — Plugin 메서드 호출 시 재시도.
+        //   실패해도 throw 하지 않는다 — Plugin 메서드 호출 시 재시도.
         try {
             this.memoryDao = UserMemoryDatabase.getInstance(getContext()).userMemoryDao();
         } catch (Exception e) {
             Log.w(TAG, "[N2] UserMemoryDao init 지연: " + e.getMessage());
         }
-    }
-
-    @Override
-    protected void handleOnDestroy() {
-        VoskModelManager.get().removeListener(voskListener);
-        super.handleOnDestroy();
-    }
-
-    /**
-     * 음성 비서 상태/대화를 WebView(JS)로 통지. 화면 오버레이가 'assistantState' 이벤트를 구독.
-     * @param state 'wake'|'listening'|'thinking'|'speaking'
-     */
-    public static void emitState(String state, String query, String answer) {
-        if (instance == null) return;
-        try {
-            JSObject o = new JSObject();
-            o.put("state", state);
-            if (query != null) o.put("query", query);
-            if (answer != null) o.put("answer", answer);
-            instance.notifyListeners("assistantState", o);
-        } catch (Exception ignored) {}
-    }
-
-    @PluginMethod
-    public void enable(PluginCall call) {
-        if (getPermissionState("microphone") != PermissionState.GRANTED) {
-            requestPermissionForAlias("microphone", call, "micPermissionCallback");
-        } else {
-            startVoiceService(call);
-        }
-    }
-
-    @PermissionCallback
-    private void micPermissionCallback(PluginCall call) {
-        if (getPermissionState("microphone") == PermissionState.GRANTED) {
-            startVoiceService(call);
-        } else {
-            call.reject("마이크 권한이 필요합니다. 설정에서 허용해 주세요.");
-        }
-    }
-
-    private void startVoiceService(PluginCall call) {
-        Intent intent = new Intent(getContext(), VoiceAssistantService.class);
-        String serverUrl = call.getString("serverUrl");
-        if (serverUrl != null && !serverUrl.isEmpty()) {
-            intent.putExtra(VoiceAssistantService.EXTRA_SERVER_URL, serverUrl);
-        }
-        // 개인화용 프로필(JSON 문자열) — 음성 답변도 사용자 맞춤이 되도록 서비스로 전달
-        String profile = call.getString("profile");
-        if (profile != null && !profile.isEmpty()) {
-            intent.putExtra(VoiceAssistantService.EXTRA_PROFILE, profile);
-        }
-        ContextCompat.startForegroundService(getContext(), intent);
-
-        JSObject ret = new JSObject();
-        ret.put("running", true);
-        call.resolve(ret);
-    }
-
-    @PluginMethod
-    public void disable(PluginCall call) {
-        Intent intent = new Intent(getContext(), VoiceAssistantService.class);
-        intent.setAction(VoiceAssistantService.ACTION_STOP);
-        getContext().startService(intent);
-
-        JSObject ret = new JSObject();
-        ret.put("running", false);
-        call.resolve(ret);
-    }
-
-    @PluginMethod
-    public void isEnabled(PluginCall call) {
-        JSObject ret = new JSObject();
-        ret.put("running", VoiceAssistantService.isRunning);
-        call.resolve(ret);
-    }
-
-    /**
-     * 호출어 엔진의 가용성 + Vosk 모델 상태 조회.
-     * JS 가 enable() 호출 전에 이걸로 분기해 다운로드 다이얼로그를 띄운다.
-     */
-    @PluginMethod
-    public void getCapabilities(PluginCall call) {
-        JSObject ret = new JSObject();
-        ret.put("porcupineAvailable", PorcupineWakeEngine.isAvailable(getContext()));
-        VoskModelManager mgr = VoskModelManager.get();
-        VoskModelManager.State st = mgr.currentState(getContext());
-        JSObject vosk = new JSObject();
-        vosk.put("state", st.name());
-        vosk.put("progress", st == VoskModelManager.State.DOWNLOADING ? mgr.currentProgress() : -1);
-        if (mgr.currentMessage() != null) vosk.put("message", mgr.currentMessage());
-        ret.put("vosk", vosk);
-        // [#39] 가동 중 서비스가 실제로 고른 엔진 — 관리자 패널 폴백 표시용. 미가동 시 null.
-        ret.put("running", VoiceAssistantService.isRunning);
-        ret.put("activeEngine", VoiceAssistantService.activeEngine == null
-                ? JSObject.NULL : VoiceAssistantService.activeEngine);
-        call.resolve(ret);
-    }
-
-    /**
-     * Vosk 한국어 모델 다운로드 시작. allowMobile=false(기본) 면 Wi-Fi 가 아닐 때 WIFI_REQUIRED 로 거절.
-     * 진행률·결과는 'voskState' 이벤트로 전달된다.
-     */
-    @PluginMethod
-    public void requestVoskDownload(PluginCall call) {
-        Boolean allow = call.getBoolean("allowMobile", false);
-        Intent intent = new Intent(getContext(), VoskDownloadService.class);
-        intent.putExtra(VoskDownloadService.EXTRA_ALLOW_MOBILE, allow != null && allow);
-        ContextCompat.startForegroundService(getContext(), intent);
-        JSObject ret = new JSObject();
-        ret.put("started", true);
-        call.resolve(ret);
-    }
-
-    /** 진행 중인 Vosk 모델 다운로드 취소. */
-    @PluginMethod
-    public void cancelVoskDownload(PluginCall call) {
-        Intent intent = new Intent(getContext(), VoskDownloadService.class);
-        intent.setAction(VoskDownloadService.ACTION_CANCEL);
-        getContext().startService(intent);
-        JSObject ret = new JSObject();
-        ret.put("canceled", true);
-        call.resolve(ret);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -497,33 +347,5 @@ public class SeagnalAssistantPlugin extends Plugin {
                 call.reject("migrate_failed", e);
             }
         });
-    }
-
-    /**
-     * [N2 §1.8] audioBusy — VoiceAssistantService 실행 상태 노출.
-     *   JS: await SeagnalAssistant.audioBusy() → { busy: boolean }
-     *   채팅이 TTS 호출 직전 폴링 → 음성 발화 충돌 가드.
-     */
-    @PluginMethod
-    public void audioBusy(PluginCall call) {
-        JSObject ret = new JSObject();
-        ret.put("busy", VoiceAssistantService.isRunning);
-        call.resolve(ret);
-    }
-
-    /**
-     * [N2 §3.3] 음성 측(VoiceAssistantService) DAO 직결 후 채팅 WebView 캐시 무효화.
-     *   같은 SeagnalAssistant 플러그인 인스턴스의 notifyListeners 를 정적으로 노출.
-     *   instance == null 시(플러그인 아직 load 전) 무동작 — 무해.
-     */
-    public static void notifyEpisodesChanged(long id, String channel, long ts) {
-        if (instance == null) return;
-        try {
-            JSObject o = new JSObject();
-            o.put("id", id);
-            o.put("channel", channel);
-            o.put("ts", ts);
-            instance.notifyListeners("episodesChanged", o);
-        } catch (Exception ignored) {}
     }
 }

@@ -212,9 +212,9 @@ source_review: required
 
 ---
 
-## 나리야 선제 제안·개인화 규칙
+## AI 챗봇 선제 제안·개인화 규칙
 
-> 아래 트리거 조건이 감지될 때 나리야가 먼저 관련 정보를 제안하거나 경고를 선행 제공하는 규칙.
+> 아래 트리거 조건이 감지될 때 AI 챗봇이 먼저 관련 정보를 제안하거나 경고를 선행 제공하는 규칙.
 
 ### TR-NAVY-01: 태풍 접근 72시간 내 피항 선제 알림
 - 트리거(조건식): {metric: "typhoon_eta", op: "<=", threshold: 72, unit: "h"} AND {metric: "wave_height", op: ">=", threshold: 5, unit: "m"}

@@ -6,7 +6,7 @@
  * [연계]
  *  - 사용하는 파일 : js/location-alert/location_alert_background.js(Mirror/start/stop),
  *                    js/admin/admin.js(seagnal_admin_token 키 공유)
- *  - 서버 API      : /api/location-alert/consent (동의 기록)
+ *  - 서버 API      : /api/location-alert/consent (동의 기록) · /api/location-alert/exposure (이 기기에 카드를 보여 줄지)
  *  - 마크업        : 푸시 설정 탭 #location-alert-toggle, #location-alert-card,
  *                    #location-alert-status, #location-alert-sub-alert,
  *                    #location-alert-sub-typhoon, #location-alert-admin-badge 등
@@ -16,7 +16,10 @@
  * 설계 문서: location_alert.design.md (같은 폴더) (§10)
  *
  * 푸시 설정 탭의 "위치 기반 기상 정보 제공" 토글을 담당.
- *  - 기본 비활성. **관리자 등록(로그인) 단말에서만 활성 가능** (seagnal_admin_token 보유).
+ *  - 기본 비활성. **누구에게 보일지는 서버가 정한다**(노출 범위 — 2026-11-19, 사용자 확정):
+ *      관리자 센터 「위치 기반」 탭의 [일반 공개][관리자만 노출][모두 비노출] → /api/location-alert/exposure.
+ *      카드는 숨긴 채로 시작하고, 서버가 "보여도 된다"고 답한 기기에서만 나타난다(못 물으면 숨김 유지).
+ *      숨겨진 대상에게는 서버가 알림(깨우는 신호)도 보내지 않는다 — services/location_alert_store.getTargetConsents.
  *  - 토글 ON 시 순서: 동의 팝업 → 전경 위치 권한 → 백그라운드("항상 허용") 안내 → 활성.
  *  - 동의 기록은 단말 저장(+서버 최소 기록 hook). 위치 좌표는 서버로 보내지 않음.
  *
@@ -119,11 +122,41 @@
         },
     };
 
-    /** 관리자 등록 단말 여부 = 관리자 토큰 보유. (활성 권한 게이트) */
-    function isAdminDevice() {
+    /** 저장된 관리자 로그인 토큰(없으면 null) — 서버에 "관리자 기기"임을 보일 때 X-Admin-Token 헤더로 싣는다. */
+    function getAdminToken() {
         try {
-            return !!((ls() && ls().getItem(ADMIN_TOKEN_KEY)) || (ss() && ss().getItem(ADMIN_TOKEN_KEY)));
-        } catch (_) { return false; }
+            return (ls() && ls().getItem(ADMIN_TOKEN_KEY)) || (ss() && ss().getItem(ADMIN_TOKEN_KEY)) || null;
+        } catch (_) { return null; }
+    }
+    /** 관리자 등록 단말 여부 = 관리자 토큰 보유. (토큰이 아직 유효한지는 서버가 확인한다 — fetchExposure) */
+    function isAdminDevice() { return !!getAdminToken(); }
+
+    // ── 노출 범위 (2026-11-19) ────────────────────────────────────────────────
+    //   서버 판정 전·판정 실패 시 = 숨김(보수적). initLocationAlertUI 가 설정 화면을 열 때마다 새로 받는다.
+    let _exposure = { audience: 'off', display: false };
+    let _exposureSeq = 0; // 설정을 연달아 열 때 늦게 도착한 옛 판정이 새 판정을 덮지 않게(독립 검토 C)
+    /**
+     * 서버에 "이 기기에 카드를 보여도 되나"를 묻는다.
+     * 예: 노출 '관리자만' + 관리자 기기 → {audience:'admin', display:true} · 일반 기기 → {audience:'admin', display:false}
+     * @returns {Promise<{audience:string, display:boolean}>} 못 물으면 {audience:'off', display:false}
+     * [연계] ← initLocationAlertUI / → 서버 routes/location_alert.js GET /api/location-alert/exposure
+     *        기기 FCM 토큰(X-Admin-Device)·관리자 토큰(X-Admin-Token)을 실어 관리자 기기인지 판정받는다.
+     */
+    async function fetchExposure() {
+        try {
+            const headers = {};
+            const push = getPushToken();
+            if (push) headers['X-Admin-Device'] = push;
+            const adminToken = getAdminToken();
+            if (adminToken) headers['X-Admin-Token'] = adminToken;
+            const res = await root.fetch('/api/location-alert/exposure', { headers, cache: 'no-store' });
+            const j = await res.json();
+            if (res.ok && j && j.ok) return { audience: j.audience, display: j.display === true };
+            console.warn('[위치기반] 노출 판정 응답 이상 — 카드를 숨긴다:', res.status);
+        } catch (e) {
+            console.warn('[위치기반] 노출 판정 실패 — 카드를 숨긴다:', e && e.message);
+        }
+        return { audience: 'off', display: false };
     }
 
     // ── 버전 게이팅 (네이티브 종료상태 지원 = 최신 APK 여부) ──────────────────
@@ -238,9 +271,13 @@
             if (!token) return; // 토큰 없으면 기록 불가(조용히 무시)
             const fetchFn = root.fetch;
             if (!fetchFn) return;
+            // 관리자 토큰이 있으면 함께 보낸다 — 서버가 이 동의를 "관리자 기기"로 기록(노출 '관리자만'일 때 알림 대상).
+            const headers = { 'Content-Type': 'application/json' };
+            const adminToken = getAdminToken();
+            if (adminToken) headers['X-Admin-Token'] = adminToken;
             fetchFn('/api/location-alert/consent', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ token, agreed: !!agreed, version: CONSENT_VERSION, at: new Date().toISOString() }),
             }).catch(() => { });
         } catch (_) { /* fail-soft (서버 라우트는 ④에서 추가) */ }
@@ -331,13 +368,13 @@
             return;
         }
 
-        // 켜기 — 관리자 단말만
-        if (!isAdminDevice()) {
+        // 켜기 — 서버가 이 기기에 노출을 허락했을 때만(카드가 숨겨져 있으면 여기까지 오지 않는다 — 방어)
+        if (!_exposure.display) {
             checkbox.checked = false;
             if (typeof root.showCustomPopup === 'function') {
                 root.showCustomPopup({
                     icon: PIN_ICON, iconBg: 'rgba(127,209,255,0.12)',
-                    title: '관리자 전용 기능', message: '이 기능은 현재 관리자 등록 단말에서만 활성할 수 있습니다.',
+                    title: '지금은 사용할 수 없습니다', message: '이 기능은 현재 이 기기에서 켤 수 없습니다.',
                     confirmText: '확인',
                 });
             }
@@ -403,23 +440,40 @@
         }
     }
 
-    /** 설정 모달이 열릴 때 호출 — 토글 상태/관리자 게이트 + 버전 게이트 반영 + 이벤트 바인딩. */
+    /**
+     * 설정 모달이 열릴 때 호출 — 카드를 숨긴 채 서버에 노출 판정을 묻고, 허락된 기기에서만 카드를 그린다.
+     * 예: 노출 '관리자만' + 일반 기기 → 카드가 안 보인다 · 관리자 기기 → 카드 + 「관리자 전용」 딱지
+     * @returns {Promise<void>|undefined} 판정·그리기가 끝나면 풀린다(부르는 쪽은 기다리지 않아도 된다)
+     * [연계] ← settings/settings.js openSettingsModal / → fetchExposure(서버 판정) · applyExposure(그리기)
+     */
     function initLocationAlertUI() {
         if (!root.document) return;
+        const card = root.document.getElementById('location-alert-card');
+        if (card) card.style.display = 'none'; // 판정이 오기 전에는 숨긴다(index2.html 기본값도 숨김)
+        const seq = ++_exposureSeq;
+        return fetchExposure().then(function (ex) {
+            if (seq !== _exposureSeq) return; // 그 사이 더 새 판정을 요청했다 — 이 응답은 버린다
+            _exposure = ex;
+            applyExposure();
+        });
+    }
+
+    /** 노출 판정(_exposure)대로 카드를 그린다 — 토글 상태 + 버전 게이트 반영 + 이벤트 바인딩. */
+    function applyExposure() {
+        const card = root.document.getElementById('location-alert-card');
+        if (card) card.style.display = _exposure.display ? 'block' : 'none';
+        if (!_exposure.display) return; // 숨김 — 토글을 묶지 않는다
         LocationAlertSettings.init();
         const toggle = root.document.getElementById('location-alert-toggle');
         const badge = root.document.getElementById('location-alert-admin-badge');
         const updateNote = root.document.getElementById('location-alert-update-note');
         if (!toggle) return;
 
-        const admin = isAdminDevice();
-        // 비관리자: 항상 OFF + 잠금. 관리자: 저장된 활성값 반영.
-        toggle.checked = !!(admin && LocationAlertSettings.get().enabled);
-        toggle.disabled = !admin;
-        if (badge) badge.style.display = admin ? 'none' : 'inline-block';
+        // 저장된 활성값 반영. 「관리자 전용」 딱지 = 지금 일반 사용자에게는 안 보이는 상태임을 관리자에게 알린다.
+        toggle.checked = !!LocationAlertSettings.get().enabled;
+        toggle.disabled = false;
+        if (badge) badge.style.display = _exposure.audience === 'admin' ? 'inline-block' : 'none';
         if (updateNote) updateNote.style.display = 'none';
-        const card = root.document.getElementById('location-alert-card');
-        if (card) card.style.opacity = admin ? '1' : '0.6';
 
         toggle.onchange = function () { onToggle(toggle); };
         updateVisual(toggle.checked);
@@ -436,27 +490,26 @@
         // 하위 토글 활성 조건 = 상위 토글이 조작 가능(미잠금)하고 켜져 있음.
         syncSubToggles(!!toggle.checked && !toggle.disabled);
 
-        // 버전 게이트(비동기): 관리자라도 네이티브 미지원(구버전 앱)이면 토글 비활성 + 빨간 안내.
-        if (admin) {
-            isNativeCapable().then(function (capable) {
-                _nativeCapable = capable;
-                if (!capable) {
-                    toggle.checked = false;
-                    toggle.disabled = true;
-                    if (updateNote) updateNote.style.display = 'block';
-                    updateVisual(false);
-                } else {
-                    toggle.disabled = false;
-                    if (updateNote) updateNote.style.display = 'none';
-                }
-                // 게이트 판정 반영 후 하위 토글 잠금 재계산.
-                syncSubToggles(!!toggle.checked && !toggle.disabled);
-            });
-        }
+        // 버전 게이트(비동기): 네이티브 미지원(구버전 앱)이면 토글 비활성 + 빨간 안내.
+        isNativeCapable().then(function (capable) {
+            _nativeCapable = capable;
+            if (!capable) {
+                toggle.checked = false;
+                toggle.disabled = true;
+                if (updateNote) updateNote.style.display = 'block';
+                updateVisual(false);
+            } else {
+                toggle.disabled = false;
+                if (updateNote) updateNote.style.display = 'none';
+            }
+            // 게이트 판정 반영 후 하위 토글 잠금 재계산.
+            syncSubToggles(!!toggle.checked && !toggle.disabled);
+        });
     }
 
     const api = {
-        CONSENT_VERSION, NATIVE_MIN_VERSION, LocationAlertSettings, isAdminDevice, getPushToken,
+        CONSENT_VERSION, NATIVE_MIN_VERSION, LocationAlertSettings, isAdminDevice, getAdminToken, getPushToken,
+        fetchExposure,
         consentMessageHtml, initLocationAlertUI, onToggle, cmpVersion, isNativeCapable,
         syncSubToggles, reflectSubToggleValues,
         resyncNativeFlags, resyncConsentToServer,
