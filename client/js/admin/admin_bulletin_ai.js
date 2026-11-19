@@ -21,7 +21,7 @@
  *  - 서버 API      : GET·POST /api/admin/bulletin-ai/config (routes/bulletin_watch.js → services/bulletin_ai.js)
  *  - 마크업        : 없음(switchAiSubTab 이 준 상자에 그린다)
  *  - 나를 쓰는 곳  : admin.js switchAiSubTab('bulletinAi') → window.renderBulletinAiAdmin
- *  - Gemma(2026-11-19): ③·⑤ 의 Gemini 칸에서 Gemini(기본)|Gemma 모델 고르기 + 「시험 호출」(POST /api/admin/bulletin-ai/try-model) + 마지막 Gemma 결과 표시
+ *  - Gemma(2026-11-19): ③ 색칠 칸 맨 위 「먼저 Gemma」 줄(쓰지 않음|Gemma 두 모델 — 못 하면 아래 순서대로) + 「시험 호출」(POST /api/admin/bulletin-ai/try-model) + 마지막 Gemma 결과 표시
  * [로드 순서] admin.js 뒤(index2.html — admin_station_briefing.js 다음)
  * ============================================================================
  */
@@ -36,7 +36,7 @@
         forecast: ['③ 해상 기상 전망 색칠', '메인 화면 「기상청 해상 기상 전망」(초단기·단기·지방청)의 지역·수치·위험 표현에 색을 입힙니다. 운영에서 바로 쓰이며, 새로 들어온 전망부터 적용됩니다.'],
         briefing: ['④ 연안 안전 브리핑', '파출소 관할 97곳의 연안·해상 분석 문단을 씁니다. 칸마다 정한 횟수만큼 시도하고(검사에 떨어진 관할만 다시), 안 되면 다음 순위로 — 끝까지 안 되면 서버 규칙 분석. 「AI 분석」 켜기·끄기는 AI 브리핑 탭에서.'],
         // 2026-11-19 사용자 「관리자페이지에서 어떤 ai 쓸건지 결정하는 부분도 ui 만들어야」 — 서버 services/bulletin_escalation.js
-        escalation: ['⑤ 격상 가능성 읽기', '통보문 참고사항·기상청 날씨해설의 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」 문장 가운데 규칙이 해역·시점을 읽지 못한 것만 묻습니다(메인 화면 특보구역 카드의 🔺 표시). AI 답은 그 문장에 글자 그대로 있는 해역일 때만 쓰입니다.']
+        escalation: ['⑤ 격상 가능성 읽기', '통보문 참고사항·기상청 날씨해설(본청 단기·초단기 전망)의 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」 문장 가운데 규칙이 해역·시점을 읽지 못한 것만 묻습니다(메인 화면 특보구역 카드의 🔺 표시). AI 답은 그 문장에 글자 그대로 있는 해역일 때만 쓰입니다.']
     };
     var RUNNER = { fly: 'Fly 서버', vm: 'VM' };
     var state = null;
@@ -60,10 +60,43 @@
     }
 
     /**
+     * ③ 해상 기상 전망 색칠의 「먼저 Gemma」 줄 — 고르면 Gemma 를 먼저 부르고, Gemma 가 색칠하지 못하면 아래 순서(관리자가 정한 AI)대로 이어서 부른다.
+     *   사용자 2026-11-19: 「젬마가 색칠하는 기능을 넣자 … 젬마가 색칠할 수 없는 문제, 한도 초과, 서버 붐빔 등 문제가 있다면 그때 내가 선택한 api가 호출하여 색칠하도록 하자.」
+     *   고르기(쓰지 않음|Gemma 두 모델) · 「시험 호출」(지금 고른 Gemma, 안 골랐으면 기본 Gemini 모델) · 마지막 Gemma 결과(날짜·시각, 서버를 올린 뒤 성공·실패 횟수).
+     * @returns {HTMLElement} [연계] ← drawFeature / → save(gemma) · tryModel
+     */
+    function gemmaRow(f, cfg, ch, host) {
+        var row = el('div', 'display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:7px 8px;border-radius:8px;background:#0b1220;margin-bottom:6px;border:1px dashed #334155');
+        row.setAttribute('data-bai-gemma-row', f);
+        row.appendChild(el('span', 'color:#fbbf24;font-weight:800;min-width:20px', '먼저'));
+        row.appendChild(el('span', 'color:#e2e8f0;font-weight:700;min-width:60px', 'Gemma'));
+        var opts = [''].concat(ch.gemma.models);
+        var gsel = sel(opts, cfg.gemma || '', function (v) { return v || '쓰지 않음'; }, function (v) { save(f, { gemma: v }, host); });
+        gsel.style.maxWidth = '230px';
+        gsel.setAttribute('data-bai-gemma', f);
+        row.appendChild(gsel);
+        var out = el('div', 'flex-basis:100%;font-size:0.75rem;color:#94a3b8;word-break:break-all', '');
+        out.setAttribute('data-bai-try-out', f);
+        var tryBtn = btn('시험 호출', function () { tryModel(gsel.value || (ch.gemma.tryModels && ch.gemma.tryModels[0]) || '', out); });   // 지금 화면에 고른 값(안 골랐으면 기본 Gemini 모델 — 그 모델이 아직 불리는지 볼 때)
+        tryBtn.setAttribute('data-bai-try', f);
+        row.appendChild(tryBtn);
+        row.appendChild(el('div', 'flex-basis:100%;font-size:0.75rem;color:#94a3b8', 'Gemma 가 색칠하지 못하면(오류·한도 초과·수요 과다·못 쓰는 답) 아래 순서대로 이어서 부릅니다.'));
+        // 마지막 Gemma 결과 — 날짜·시각과 서버를 올린 뒤 누적 횟수를 함께(「마지막 한 번」만 보이면 절반이 실패해도 초록으로 보인다). 기록은 서버 메모리에만 있다.
+        var last = state.gemma && state.gemma[f];
+        var when = function (ms) { return new Date(ms).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+        var tally = last ? ' · 서버를 올린 뒤 성공 ' + (last.okCount || 0) + ' · 실패 ' + (last.failCount || 0) : '';
+        if (last && last.ok === false) { out.style.color = '#f87171'; out.textContent = '마지막 Gemma 색칠 실패(' + when(last.at) + ') → 아래 순서의 AI 가 대신 색칠함 — ' + (last.error || '') + tally; }
+        else if (last && last.ok) { out.style.color = (last.failCount || 0) > 0 ? '#fbbf24' : '#34d399'; out.textContent = '마지막 Gemma 색칠 성공(' + when(last.at) + ') · ' + last.model + tally; }
+        else if (cfg.gemma) out.textContent = 'Gemma 를 골랐지만 서버를 올린 뒤 아직 부른 기록이 없습니다 — 「시험 호출」로 되는지 먼저 확인하세요.';
+        row.appendChild(out);
+        return row;
+    }
+
+    /**
      * 「시험 호출」 — 그 모델을 짧은 지시문으로 한 번 불러 보고 결과를 그 줄 아래에 적는다(설정은 안 바뀐다).
      * 예: tryModel('gemma-4-31b-it', outEl) → outEl 에 「성공 812ms — {"해역":"동해중부먼바다",…}」 또는 「실패 — …」
      * @param {string} model @param {HTMLElement} out 결과를 적을 곳
-     * [연계] ← drawFeature(③·⑤ Gemini 칸) → POST /api/admin/bulletin-ai/try-model
+     * [연계] ← gemmaRow(③ 「먼저 Gemma」 줄) → POST /api/admin/bulletin-ai/try-model
      */
     function tryModel(model, out) {
         out.style.color = '#94a3b8';
@@ -103,6 +136,7 @@
         card.setAttribute('data-bai-feature', f);
         card.appendChild(el('div', 'font-weight:800;color:#e2e8f0;margin-bottom:2px', FEAT[f][0]));
         card.appendChild(el('div', 'color:#94a3b8;font-size:0.78rem;margin-bottom:10px', FEAT[f][1]));
+        if (ch.gemma && ch.gemma.features.indexOf(f) >= 0) card.appendChild(gemmaRow(f, cfg, ch, host));   // ③: 먼저 Gemma
         var vis = cfg.order.filter(function (id) { return cfg.removed.indexOf(id) < 0; });
         var hid = cfg.order.filter(function (id) { return cfg.removed.indexOf(id) >= 0; });
         var stOf = {}; (state.status || []).forEach(function (s) { stOf[s.id] = s; });
@@ -119,27 +153,6 @@
             } else if (id === 'gemini' && f === 'briefing') {
                 // ④ 브리핑만 Gemini 모델을 고른다(종전 브리핑 설정의 두 모델)
                 row.appendChild(sel(ch.briefing.geminiModels, cfg.models.gemini.model, null, function (v) { save(f, { models: { gemini: { model: v } } }, host); }));
-            } else if (id === 'gemini' && ch.gemma && ch.gemma.features.indexOf(f) >= 0) {
-                // ③·⑤ 는 Gemini 칸에서 Gemma 도 고른다(2026-11-19 사용자 「Gemma ai를 사용해도 될 것 같은데? 무료니까」 · 같은 Gemini 키로 부른다).
-                //   Gemma 가 안 되면(오류·JSON 아닌 답) 서버가 그 자리에서 종전 Gemini 로 대신 답한다 — 그 사실을 아래에 붉게 보인다.
-                var gm = (cfg.models.gemini && cfg.models.gemini.model) || ch.gemma.models[0];
-                var gsel = sel(ch.gemma.models, gm, function (v) { return v + (v === ch.gemma.models[0] ? ' (기본)' : ' · Gemma'); }, function (v) { save(f, { models: { gemini: { model: v } } }, host); });
-                gsel.setAttribute('data-bai-gemma', f);
-                row.appendChild(gsel);
-                gsel.style.maxWidth = '230px';
-                var tryBtn = btn('시험 호출', function () { tryModel(gsel.value, tryOut); });   // 지금 화면에 고른 값을 부른다(그릴 때 값이 아니라 — 고른 직후 누르면 앞 값을 부르던 것, 별도 에이전트 검토)
-                tryBtn.setAttribute('data-bai-try', f);
-                row.appendChild(tryBtn);
-                var tryOut = el('div', 'flex-basis:100%;font-size:0.75rem;color:#94a3b8;word-break:break-all', '');
-                tryOut.setAttribute('data-bai-try-out', f);
-                //   마지막 Gemma 결과 — 날짜·시각과 서버를 올린 뒤 누적 횟수를 함께(「마지막 한 번」만 보이면 절반이 실패해도 초록으로 보인다). 기록은 서버 메모리에만 있다.
-                var last = state.gemma && state.gemma[f];
-                var when = function (ms) { return new Date(ms).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
-                var tally = last ? ' · 서버를 올린 뒤 성공 ' + (last.okCount || 0) + ' · 실패 ' + (last.failCount || 0) : '';
-                if (last && last.ok === false) { tryOut.style.color = '#f87171'; tryOut.textContent = '마지막 Gemma 호출 실패(' + when(last.at) + ') → Gemini 로 대신 답함 — ' + (last.error || '') + tally; }
-                else if (last && last.ok) { tryOut.style.color = (last.failCount || 0) > 0 ? '#fbbf24' : '#34d399'; tryOut.textContent = '마지막 Gemma 호출 성공(' + when(last.at) + ') · ' + last.model + tally; }
-                else if (ch.gemma.gemmaModels && ch.gemma.gemmaModels.indexOf(gm) >= 0) tryOut.textContent = 'Gemma 를 골랐지만 서버를 올린 뒤 아직 부른 기록이 없습니다 — 「시험 호출」로 되는지 먼저 확인하세요.';
-                row.appendChild(tryOut);
             } else if (id === 'gemini') {
                 row.appendChild(el('span', 'color:#94a3b8;font-size:0.8rem', (ch.gemini.models[0] || '') + ' (고정)'));
             } else {

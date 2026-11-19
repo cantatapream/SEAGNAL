@@ -215,11 +215,10 @@ const B_CLAUSE = /(?:니다\.|하나|이나|으나|하며|하고|가운데)\s*,?
  * 통보문 하나의 참고사항 → 안내·취소·못 읽은 줄.
  * 예: 「○ 풍랑 경보 변경 가능 시점 / (3) 동해남부북쪽안쪽먼바다: 19일 새벽(00시~06시)」 → notices [{zones:[동해남부북쪽안쪽먼바다], label:'새벽(00시~06시)', startMs, endMs, form:'table'}]
  * @param {{result:object}} b 관찰기 통보문 @param {function(string): Array|null} [aiRead] 못 읽은 문장의 AI 답(없으면 null)
- * @param {{aiOnly?:boolean}} [opt] aiOnly = 문장 꼴을 규칙으로 읽지 않고 AI 답으로만 읽는다(판독 시험용 — AI 가 규칙과 같은 답을 내는지 견줄 때)
  * @returns {{notices:Array, cancels:Array<{zones:string[]}>, unread:string[]}}
- * [연계] ← compute · readTest(이 파일)
+ * [연계] ← compute(이 파일)
  */
-function readBulletin(b, aiRead = () => null, opt = {}) {
+function readBulletin(b, aiRead = () => null) {
     //   날짜 기준 = 발표시각과 입력시각 중 이른 쪽 — 0시 발표 통보문은 전날 밤에 입력되고 글도 전날 기준(「내일 오전」)으로 쓰인 것이 있다(0시 발표 237건 가운데 절반쯤).
     const r = b.result, baseMs = Math.min(...[r.tmFc, r.tmIn].filter(Boolean).map(KST));
     const L = clean(r.other).split('\n').map((x) => x.trim());
@@ -260,7 +259,7 @@ function readBulletin(b, aiRead = () => null, opt = {}) {
         for (let c = cuts.length - 1; c >= 0; c--) { head = before.slice(cuts[c]); if (scan(head, baseMs).toks.some((t) => t.zone)) break; }
         const cut = head.search(/물결이|바람이/);   // 해역·시간은 「물결이·바람이」 앞에 적힌다 — 그 뒤 괄호의 해역(물결 높이 설명)은 쓰지 않는다
         if (cut >= 0) head = head.slice(0, cut);
-        const h = (!opt.aiOnly && readHead(head, baseMs)) || fromAi(head, aiRead(line), baseMs);
+        const h = readHead(head, baseMs) || fromAi(head, aiRead(line), baseMs);
         if (!h) { out.unread.push(line); continue; }
         for (const x of h) out.notices.push(Object.assign(x, { form: 'sentence' }));
     }
@@ -291,11 +290,10 @@ function seaPart(rawText) {
  * 예: 「- 또한, 동해중부먼바다는 오늘(27일) 오후부터, 동해남부북쪽먼바다는 오늘 밤부터 … 풍랑경보로 변경될 가능성이 있겠고, 오늘 오후부터 그 밖의 대부분 해상에도 … 풍랑특보를 발표할 가능성」
  *     → wave [동해중부 안쪽·바깥 / 27일 오후부터] · wave [동해남부북쪽 안쪽·바깥 / 27일 밤부터] (뒤 토막 「그 밖의 대부분 해상」은 새 특보 이야기라 안 읽는다)
  * @param {string} rawText 글 전체 @param {number} pubMs 발표 시각 @param {function(string): Array|null} [aiRead]
- * @param {{aiOnly?:boolean}} [opt] aiOnly = 규칙으로 읽지 않고 AI 답으로만(판독 시험용)
  * @returns {{notices:Array<{kind:'wave'|'typhoon', zones:string[], dayMs:number|null, label:string}>, unread:string[]}}
- * [연계] ← compute · readTest(이 파일)
+ * [연계] ← compute(이 파일)
  */
-function readCommentary(rawText, pubMs, aiRead = () => null, opt = {}) {
+function readCommentary(rawText, pubMs, aiRead = () => null) {
     const out = { notices: [], unread: [] };
     for (const s of seaPart(rawText).replace(/\n+/g, ' ').split(/(?<=니다\.)\s*/)) {
         CMT_UP.lastIndex = 0;
@@ -310,7 +308,7 @@ function readCommentary(rawText, pubMs, aiRead = () => null, opt = {}) {
             const cut = head.search(/물결이|바람이/);
             if (cut >= 0) head = head.slice(0, cut);
             head = head.replace(/^[\s\-–·○o]*(?:\(해상\))?\s*(?:특히|또한|한편)?\s*,?/, '').replace(/제\s*\d+호\s*태풍[^,]*?영향으로/, ' ').replace(/의\s*풍랑특보는/g, '는');
-            const h = (!opt.aiOnly && readHead(head, pubMs)) || fromAi(head, aiRead(clause), pubMs);
+            const h = readHead(head, pubMs) || fromAi(head, aiRead(clause), pubMs);
             if (!h) { out.unread.push(clause); continue; }
             const kind = /태풍/.test(m[0]) ? 'typhoon' : 'wave';
             for (const x of h) out.notices.push({ kind, zones: x.zones, dayMs: x.dayMs, label: x.label });

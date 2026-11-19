@@ -83,13 +83,13 @@ function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch =
     });
     // 「AI 특보 분석」 설정(관리자 센터 AI 탭) — 기능(read=특보 읽기·interpret=참고사항 해석)마다 AI 순서·칸별 모델·노력·ChatGPT 실행 위치.
     //   GET → { config:{read,interpret,forecast,briefing,escalation}, choices, workers(Fly·VM 연결), gemma(기능별 마지막 Gemma 호출 결과) } ·
-    //   POST { feature, order?, removed?, models?, attempts?(briefing 만) } → 저장 후 같은 모양.
+    //   POST { feature, order?, removed?, models?, attempts?(briefing 만), gemma?(forecast 만 — 먼저 부를 Gemma 모델) } → 저장 후 같은 모양.
     const aiState = () => ({ ok: true, config: bulletinAi.getConfig(), choices: bulletinAi.choices(), workers: require('../services/codex_bridge').workers(),
         status: require('../services/llm_chain').status([]), gemma: bulletinAi.gemmaStatus() });
     router.get('/api/admin/bulletin-ai/config', authorize, (req, res) => { res.set('Cache-Control', 'no-store'); res.json(aiState()); });
     router.post('/api/admin/bulletin-ai/config', authorize, (req, res) => {
         const b = req.body || {};
-        const r = bulletinAi.setConfig(String(b.feature || ''), { order: b.order, removed: b.removed, models: b.models, attempts: b.attempts });
+        const r = bulletinAi.setConfig(String(b.feature || ''), { order: b.order, removed: b.removed, models: b.models, attempts: b.attempts, gemma: b.gemma });   // gemma = ③ 「먼저 Gemma」 모델(''=쓰지 않음)
         if (!r.ok) return res.status(400).json(r);
         res.json(aiState());
     });

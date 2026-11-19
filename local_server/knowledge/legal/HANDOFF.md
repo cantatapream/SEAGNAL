@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 09:26 KST] 🟢착수 — 📋 통보문 목록 제목에서 예비 시간창 빼기 · 원문 PDF 받기 버튼을 팝업 머리줄로 · 앱에서도 받기
+사용자 2026-11-19(이미지 2장): 「11-12호 풍랑 예비특보 - 11월 18일 오전(06시~12시) … 그 부분 텍스트는 표출하지 않도록 하고 통보문 제목만 표시될 수 있도록 수정하고자 하고, 또한 pdf 원문 다운로드 관련, 버튼을 이미지 2에서 표시한 부분(팝업 머리줄 ✕ 왼쪽)에 버튼을 반영하고자 해. 또한 휴대폰에서도 원문을 다운로드 할 수 있도록 해줘.」 할 일: bulletin_status.zoneBulletins 제목에서 when 빼기 · ui_modal.openKmaIframeModal 에 opt.download(머리줄 「⬇ PDF」) + downloadKmaFile(앱 = @capacitor/browser 로 시스템 브라우저에 넘김 — 앱 웹뷰는 a[download] 를 처리하지 않는다) · /api/zone-bulletins 에 downloadUrl · PDF 는 Content-Disposition attachment · 보기 페이지 아래 옛 버튼 제거 · 격상 📋 팝업에도 같은 버튼. Gemma 작업과 같은 브랜치·같은 PR 로 올린다.
+
+
 ### [2026-11-19 08:05 KST] 🟢착수 — Gemma 를 AI 모델 선택지에 추가(③ 해상 기상 전망 색칠 · ⑤ 격상 가능성 읽기)
 사용자 2026-11-19: 「단기, 초단기, 지방청별 기상전망에 대해 색을 입히고, 내용을 분석해서 가능성을 판별하는것은 횟수가 많지 않다면 Gemma ai를 사용해도 될 것 같은데? 무료니까」 · 「기존 통합관리자센터에서 ai 모델 선택하는데 Gemma 를 추가해야」 · (키는) 「그냥 기존키에서 젬마를 부르는방식으로하자」. 확인한 것: 코드에 Gemma 없음(grep 0건). 공식 문서(ai.google.dev/gemma/docs/core/gemma_on_gemini_api → gemma.ai/deployment/gemini-api 로 넘어감): Gemini API 가 Gemma 4 두 모델(gemma-4-31b-it · gemma-4-26b-a4b-it)을 제공, AI Studio 키 그대로. JSON 형식 답(responseMimeType) 지원 여부는 그 페이지에 없음(Gemma 3 때는 「JSON mode is not enabled」 400 오류 보고가 있었다 — 2025년 글). 무료 여부·한도는 공식 페이지에 없음(제3자 글: Gemma 3 무료 30회/분·14,400회/일 — Gemma 4 는 미확인). 하루 횟수: 본청 단기 2·초단기 2 + 지방청 7곳 단기 2씩 = 18번(날씨누리에서 직접 셈). 할 일: ①gemini_client 에 키 쿨다운을 건드리지 않는 단발 호출(callPlain) — Gemma 한도 초과(429)가 공용 Gemini 키를 쿨다운시켜 챗봇까지 멈추지 않게 ②bulletin_ai: ③·⑤ 의 Gemini 칸에서 모델 고르기(기본 = 지금 그대로 gemini-2.5-flash-lite), Gemma 는 JSON 모드 없이 부르고 답이 JSON 이 아니거나 실패하면 종전 Gemini 로 대신(지금보다 나빠지지 않게) + 마지막 Gemma 결과를 관리자 화면에 보임(조용히 대신 답하면 고장이 안 보인다) ③관리자 화면: 모델 고르기 + 「시험 호출」 버튼(이 작업 환경에는 AI 키가 없어 실제 호출을 못 해 본다 — 운영에서 눌러 확인) ④검사·문서.
 

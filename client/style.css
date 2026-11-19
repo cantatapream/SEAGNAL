@@ -5002,6 +5002,26 @@ line-height: 1.1;
     background: rgba(255, 255, 255, 0.2);
 }
 
+/* 통보문 팝업 머리줄의 원문 「PDF」 받기 버튼 — ✕ 왼쪽 (ui_modal.js openKmaIframeModal opt.download, 2026-11-19) */
+.kma-iframe-download {
+    margin-left: auto;
+    margin-right: 10px;
+    flex-shrink: 0;
+    background: rgba(129, 212, 250, 0.15);
+    border: 1px solid rgba(129, 212, 250, 0.4);
+    color: #b3e5fc;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.kma-iframe-download:hover {
+    background: rgba(129, 212, 250, 0.28);
+}
+
 .kma-iframe-body {
     flex: 1;
     width: 100%;

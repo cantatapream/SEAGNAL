@@ -318,6 +318,23 @@ const FORECAST_AI_PROMPT = `
  * - services/bulletin_ai 'forecast' 순서대로 시도(1순위 실패 → 2순위 …, Gemini 칸은 기본/백업 키 라운드로빈 + 자동 폴백)
  * - AI 호출 실패 시 null 반환 → 호출측이 코드 추출 결과를 사용하여 서비스 영향 없음
  */
+/** 색 표시·줄 머리 기호·공백을 걷어 낸 글 길이 — Gemma 답이 원문 줄을 빼먹었는지 견줄 때 쓴다. [연계] ← gemmaKeptText */
+function bareLength(x) {
+    const flat = !x ? '' : typeof x === 'string' ? x : [x.main || ''].concat(Array.isArray(x.sub) ? x.sub : []).join('\n');
+    return String(flat).replace(/\{\{(?:loc|num|warn):([^{}]*)\}\}/g, '$1').replace(/^[\s\-–—o○·]+/gm, '').replace(/\s+/g, '').length;
+}
+/**
+ * Gemma 의 색칠 답이 원문 줄을 빼먹지 않았는가 — 코드가 뽑은 칸마다 글 길이가 85% 이상 남았는지 본다(「먼저 Gemma」를 고른 때만 불린다).
+ * 실측 2026-11-19(날씨해설 2편): Gemma 가 「강풍」 칸의 유의사항 세 줄을 빼고 낸 답은 70%·72%, 온전한 답은 100~108%(Gemini 99~102%).
+ * 없으면: 줄이 빠진 색칠본이 「성공」으로 캐시에 굳어 그 전망은 다음 발표까지 그대로 보인다. 걸리면 관리자가 정한 순서의 다음 AI 가 색칠한다.
+ * @param {object} parsed Gemma 답(JSON) @param {object} codeExtracted extractCategories 결과 @returns {boolean}
+ * [연계] ← analyzeWithAI → services/bulletin_ai.call 의 gemmaAccept
+ */
+function gemmaKeptText(parsed, codeExtracted) {
+    const cats = (parsed && parsed.categories) || {};
+    return Object.keys(codeExtracted || {}).every((k) => { const want = bareLength(codeExtracted[k]); return !want || bareLength(cats[k]) >= want * 0.85; });
+}
+
 async function analyzeWithAI(rawText, codeExtracted) {
     try {
         const userPrompt = `## 원문 텍스트
@@ -329,7 +346,8 @@ ${JSON.stringify(codeExtracted, null, 2)}
 위 원문과 코드 추출 결과를 비교 검토하여, 최종 표출용 정제 데이터를 JSON으로 반환하라.`;
 
         // 설정한 순서대로 — 키 없음·소진·실패면 다음 순위(전부 실패면 아래 실패 분기)
-        const callResult = await bulletinAi.call('forecast', FORECAST_AI_PROMPT + '\n\n' + userPrompt, { caller: 'MarineForecast' });
+        //   「먼저 Gemma」를 골랐으면 Gemma 답이 원문 줄을 빼먹지 않았는지도 본다(gemmaKeptText) — 빼먹었으면 순서의 다음 AI 로.
+        const callResult = await bulletinAi.call('forecast', FORECAST_AI_PROMPT + '\n\n' + userPrompt, { caller: 'MarineForecast', gemmaAccept: (p) => gemmaKeptText(p, codeExtracted) });
 
         if (!callResult.success) {
             if (callResult.isRateLimited) {
@@ -516,5 +534,6 @@ module.exports = {
     loadForecastCache,
     listForecastCaches,
     analyzeWithAI,
+    gemmaKeptText,
     saveForecastCache
 };

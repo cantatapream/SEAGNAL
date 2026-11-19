@@ -425,7 +425,8 @@ function zoneBulletins(zone, st, bulletins, nowMs = Date.now()) {
         for (const e of t.list) {
             const k = e.rpt + '|' + e.office + '|' + e.ho + '|' + e.inMs;
             if (!found.has(k)) found.set(k, { e, acts: new Map() });
-            const a = found.get(k).acts, label = e.act + (e.when ? ` — ${e.when.replace(/^\d{4}년 /, '')}` : '');
+            //   제목은 통보문 이름만 — 예비특보의 시간창(「— 11월 18일 오전(06시~12시)」)은 붙이지 않는다(사용자 2026-11-19 「그 부분 텍스트는 표출하지 않도록 하고 통보문 제목만」).
+            const a = found.get(k).acts, label = e.act;
             if (!a.has(label)) a.set(label, []);
             a.get(label).push(u);
         }

@@ -1094,8 +1094,8 @@ async function _getZoneBulletinData() {
 }
 
 // [통보문 원문 — 우리 서버에 받아 둔 것] 📋 팝업이 여는 보기 페이지와 그 파일들(services/bulletin_docs 가 발자취에 든 동안만 보관).
-//   /view      : 쪽 그림을 세로로 이어 붙인 페이지(여러 장이면 아래로 스크롤 — 사용자 「2장인경우 해당창에서 아래로 스크롤해서 내려본다던가」) + 「원문 PDF 받기」(앱에서는 감춤)
-//   /page/:n   : n 쪽 그림(PNG)   /pdf : 원문 PDF
+//   /view      : 쪽 그림을 세로로 이어 붙인 페이지(여러 장이면 아래로 스크롤 — 사용자 「2장인경우 해당창에서 아래로 스크롤해서 내려본다던가」)
+//   /page/:n   : n 쪽 그림(PNG)   /pdf : 원문 PDF(첨부로 내려준다 — 팝업 머리줄의 「PDF」 버튼이 받는다. 사용자 2026-11-19 「pdf 원문 다운로드 … 휴대폰에서도 원문을 다운로드 할 수 있도록」)
 //   열쇠·쪽 번호는 꼴을 확인한 뒤에만 파일을 찾는다(bulletin_docs.file — 바깥 글자를 경로에 붙이지 않는다). 원문은 안 바뀌므로 오래 캐시한다.
 router.get('/api/bulletin-doc/:key/view', (req, res) => {
     const docs = require('../services/bulletin_docs');
@@ -1105,10 +1105,8 @@ router.get('/api/bulletin-doc/:key/view', (req, res) => {
     res.set('Cache-Control', 'no-cache').type('text/html; charset=utf-8').send('<!doctype html><html lang="ko"><head><meta charset="utf-8">'
         + '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">'
         + '<title>통보문 원문</title><style>html,body{margin:0;background:#fff}img{display:block;width:100%;height:auto}.gap{height:10px;background:#d7dbe0}'
-        + '.bar{padding:14px;text-align:center;font:14px/1.4 sans-serif;border-top:1px solid #d7dbe0}.bar a{color:#1565c0;text-decoration:none;border:1px solid #90caf9;border-radius:8px;padding:6px 14px;display:inline-block}</style></head>'
-        + '<body>' + imgs + (docs.file(key, 'pdf') ? '<div class="bar"><a href="pdf" download="' + key + '.pdf">원문 PDF 받기</a></div>'
-            // 휴대폰 앱(웹뷰)에서는 파일 받기가 되는지 확인하지 못했다 — 눌러도 반응 없는 버튼을 두지 않으려고 앱에서는 감춘다(PC·휴대폰 브라우저에서만 보인다).
-            + '<script>var c=parent.Capacitor;if(c&&c.isNativePlatform&&c.isNativePlatform())document.querySelector(".bar").style.display="none";</script>' : '') + '</body></html>');
+        + '</style></head>'
+        + '<body>' + imgs + '</body></html>');   // 원문 PDF 받기는 팝업 머리줄의 버튼으로 옮겼다(2026-11-19)
 });
 router.get('/api/bulletin-doc/:key/page/:n', (req, res) => {
     const f = require('../services/bulletin_docs').file(String(req.params.key || ''), +req.params.n);
@@ -1118,7 +1116,7 @@ router.get('/api/bulletin-doc/:key/page/:n', (req, res) => {
 router.get('/api/bulletin-doc/:key/pdf', (req, res) => {
     const f = require('../services/bulletin_docs').file(String(req.params.key || ''), 'pdf');
     if (!f) return res.status(404).end();
-    res.set('Cache-Control', 'public, max-age=604800, immutable').type('application/pdf').sendFile(f);
+    res.set('Cache-Control', 'public, max-age=604800, immutable').set('Content-Disposition', 'attachment; filename="' + path.basename(f) + '"').type('application/pdf').sendFile(f);
 });
 
 // [격상 가능성] 기상청이 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」을 알린 해역 — 메인 화면 특보구역 카드의 🔺 뱃지·빨강 상자가 읽는다(2026-11-19).
@@ -1134,6 +1132,7 @@ router.get('/api/zone-escalations', (req, res) => {
             if (d.type === 'web') doc.webUrl = d.webUrl;
             else if (d.key && docs.pages(d.key).length) doc.viewUrl = '/api/bulletin-doc/' + d.key + '/view';   // 우리 서버에 받아 둔 그림
             else if (d.pdfUrl) doc.pdfUrl = d.pdfUrl;
+            if (d.type !== 'web' && d.key && docs.file(d.key, 'pdf')) doc.downloadUrl = '/api/bulletin-doc/' + d.key + '/pdf';   // 팝업 머리줄 「PDF」 버튼
             return { kind: it.kind, source: it.source, dayMs: it.dayMs, label: it.label, caveat: it.caveat, expMs: it.expMs, doc };
         });
         if (live.length) items[zone] = live;
@@ -1171,7 +1170,11 @@ router.get('/api/zone-bulletins', async (req, res) => {
             //   사용자 2026-11-18 「통보문 원문 pdf 파일 자체를 우리서버에 보관, 요청시 우리서버에서 내려주고 -> 특보가 사라지면 삭제」.
             //   아직 없는 줄(갓 나온 통보문 · 그림 변환기가 없는 서버)만 종전 순서: 바깥 PDF 가 실제로 있으면 그것, 없으면 본문 글.
             const docs = require('../services/bulletin_docs');
-            for (const it of dm.bulletins) { const n = it.docKey ? docs.pages(it.docKey).length : 0; if (n) { it.viewUrl = '/api/bulletin-doc/' + it.docKey + '/view'; it.pages = n; } }
+            for (const it of dm.bulletins) {
+                const n = it.docKey ? docs.pages(it.docKey).length : 0;
+                if (n) { it.viewUrl = '/api/bulletin-doc/' + it.docKey + '/view'; it.pages = n; }
+                if (it.docKey && docs.file(it.docKey, 'pdf')) it.downloadUrl = '/api/bulletin-doc/' + it.docKey + '/pdf';   // 팝업 머리줄 「PDF」 버튼이 받을 원문(우리 서버에 둔 것)
+            }
             await bs.keepLivePdf(dm.bulletins.filter((it) => !it.viewUrl), _pdfExists);   // PDF 가 아직 안 올라온 줄은 본문 글로
             return res.json({ zone, count: dm.bulletins.length, bulletins: dm.bulletins, cut: dm.cut, source: 'bulletin' });
         }

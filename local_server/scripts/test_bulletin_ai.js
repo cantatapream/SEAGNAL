@@ -111,96 +111,116 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     ok('briefingChain — 삭제한 AI 를 빼고 순서대로, 칸마다 모델·노력·실행 위치·시도', ch.map((c) => c.id).join() === 'claude2,upstage,chatgpt,gemini'
       && ch[0].attempts === 2 && ch[0].effort === 'medium' && ch[2].runner === 'vm' && ch[2].attempts === 3 && ch[3].model === 'gemini-2.5-flash-lite' && ch[0].runner === null, JSON.stringify(ch));
     ok('①·② 응답 꼴은 그대로(attempts·gemini 모델 칸 없음)', !('attempts' in bai.getConfig().read) && !('gemini' in bai.getConfig().interpret.models));
-    // ── Gemma(2026-11-19 사용자 「Gemma ai를 사용해도 될 것 같은데? 무료니까」「ai 모델 선택하는데 Gemma 를 추가해야」「그냥 기존키에서 젬마를 부르는방식으로하자」) ──
-    console.log('\n── ⑤ Gemma — ③ 색칠·⑤ 격상의 Gemini 칸에서 고른다 ──');
-    const GOOD = '{"categories":{"해상":{"main":"{{loc:서해상}}","sub":[]}},"by":"gemma"}';   // ③ 색칠이 쓸 수 있는 모양(categories 가 있다)
+    // ── Gemma(2026-11-19 사용자 「젬마가 색칠하는 기능을 넣자 격상읽기는 하지말고. 단, 젬마가 색칠할 수 없는 문제, 한도 초과, 서버 붐빔 등 문제가 있다면
+    //    그때 내가 선택한 api가 호출하여 색칠하도록 하자」 · 키는 「이미 플라이아이오 시크릿으로 반영된 gemini키인 GEMINI_API_KEY_26_8 로 젬마를 호출」) ──
+    console.log('\n── ⑤ Gemma — ③ 색칠에서만, 순서 맨 앞 「먼저 Gemma」 ──');
+    const GOOD = '{"categories":{"해상":{"main":"{{loc:서해상}}에는 {{num:1.5~3.5m}}","sub":[]}},"by":"gemma"}';   // ③ 색칠이 쓸 수 있는 모양
     const plain = []; let gemmaAnswer = () => ({ success: true, text: '```json\n' + GOOD + '\n```' });
     gemini.callPlain = async (a) => { plain.push(a); return gemmaAnswer(a); };
     const g2 = await (await fetch(base + '/api/admin/bulletin-ai/config')).json();
-    ok('선택지: ③·⑤ 의 Gemini 칸 = gemini-2.5-flash-lite(기본) + Gemma 두 모델(Gemini API 가 제공하는 것)', g2.choices.gemma && g2.choices.gemma.features.join() === 'forecast,escalation'
-      && g2.choices.gemma.models.join() === 'gemini-2.5-flash-lite,gemma-4-31b-it,gemma-4-26b-a4b-it', JSON.stringify(g2.choices.gemma));
-    ok('기본은 종전 그대로 — ③·⑤ 의 Gemini 칸 모델 = gemini-2.5-flash-lite', g2.config.forecast.models.gemini.model === 'gemini-2.5-flash-lite' && g2.config.escalation.models.gemini.model === 'gemini-2.5-flash-lite');
-    await post({ feature: 'forecast', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] });
-    behave.gemini = 'ok'; calls.length = 0; plain.length = 0;
+    ok('선택지: ③ 에서만 · Gemma 두 모델(Gemini API 가 제공하는 것 — 실제로 불린 26b 가 앞) · 「시험 호출」은 기본 Gemini 모델도', g2.choices.gemma && g2.choices.gemma.features.join() === 'forecast'
+      && g2.choices.gemma.models.join() === 'gemma-4-26b-a4b-it,gemma-4-31b-it' && g2.choices.gemma.tryModels.join() === 'gemini-2.5-flash-lite,gemma-4-26b-a4b-it,gemma-4-31b-it', JSON.stringify(g2.choices.gemma));
+    ok('기본은 종전 그대로 — ③ 의 gemma 칸은 비어 있다(쓰지 않음) · 다른 기능에는 그 칸이 없다', g2.config.forecast.gemma === '' && !('gemma' in g2.config.escalation) && !('gemma' in g2.config.read) && !('gemma' in g2.config.briefing) && !('gemini' in g2.config.forecast.models));
+    // 관리자가 정한 순서: 클로드 키2 → Gemini (나머지는 삭제)
+    await post({ feature: 'forecast', order: ['claude2', 'gemini', 'claude1', 'upstage', 'chatgpt'], removed: ['claude1', 'upstage', 'chatgpt'] });
+    Object.assign(behave, { claude2: 'ok', gemini: 'ok' }); calls.length = 0; plain.length = 0;
     const d0 = await bai.call('forecast', 'P');
-    ok('고르지 않으면 Gemma 를 부르지 않는다(종전과 같은 호출)', d0.provider === 'gemini' && plain.length === 0 && calls.length === 1 && calls[0].model === 'gemini-2.5-flash-lite' && JSON.parse(d0.text).by === 'gemini');
-    const sv = await (await post({ feature: 'forecast', models: { gemini: { model: 'gemma-4-31b-it' } } })).json();
-    ok('③ 에 Gemma 저장 — 다른 기능(⑤·④·①)은 그대로', sv.ok && sv.config.forecast.models.gemini.model === 'gemma-4-31b-it' && sv.config.escalation.models.gemini.model === 'gemini-2.5-flash-lite'
-      && sv.config.briefing.models.gemini.model === 'gemini-2.5-flash-lite' && !('gemini' in sv.config.read.models));
-    ok('틀린 값 400: ①·② 에는 Gemma 못 고름 · ④ 브리핑에도 못 고름 · 목록 밖 모델', (await post({ feature: 'read', models: { gemini: { model: 'gemma-4-31b-it' } } })).status === 400
-      && (await post({ feature: 'interpret', models: { gemini: { model: 'gemma-4-31b-it' } } })).status === 400 && (await post({ feature: 'briefing', models: { gemini: { model: 'gemma-4-31b-it' } } })).status === 400
-      && (await post({ feature: 'forecast', models: { gemini: { model: 'gemma-3-27b-it' } } })).status === 400);
+    ok('고르지 않으면 Gemma 를 부르지 않는다(종전과 같은 호출 — 정한 순서의 1순위가 답한다)', d0.provider === 'claude2' && plain.length === 0 && calls.length === 1 && calls[0].id === 'claude2');
+    const sv = await (await post({ feature: 'forecast', gemma: 'gemma-4-26b-a4b-it' })).json();
+    ok('③ 에 「먼저 Gemma」 저장 — 순서·다른 기능은 그대로', sv.ok && sv.config.forecast.gemma === 'gemma-4-26b-a4b-it' && sv.config.forecast.order[0] === 'claude2' && sv.config.forecast.removed.length === 3
+      && sv.config.briefing.models.gemini.model === 'gemini-2.5-flash-lite' && bai.getConfig().read.order[0] === 'chatgpt');
+    ok('틀린 값 400: 다른 기능(①②④⑤)에는 Gemma 못 고름 · 목록 밖 모델 · Gemini 칸 모델로는 못 고름', (await post({ feature: 'read', gemma: 'gemma-4-26b-a4b-it' })).status === 400
+      && (await post({ feature: 'interpret', gemma: 'gemma-4-26b-a4b-it' })).status === 400 && (await post({ feature: 'briefing', gemma: 'gemma-4-26b-a4b-it' })).status === 400
+      && (await post({ feature: 'escalation', gemma: 'gemma-4-26b-a4b-it' })).status === 400 && (await post({ feature: 'forecast', gemma: 'gemma-3-27b-it' })).status === 400
+      && (await post({ feature: 'forecast', models: { gemini: { model: 'gemma-4-26b-a4b-it' } } })).status === 400 && bai.getConfig().forecast.gemma === 'gemma-4-26b-a4b-it');
     calls.length = 0; plain.length = 0;
     const d1 = await bai.call('forecast', 'P', { caller: 'MarineForecast' });
-    ok('Gemma 를 골랐으면 Gemma 가 답한다 — JSON 모드 없이·생각 최소로 부르고(실제 키로 확인: JSON 모드는 답을 배열로 싸고, 생각 기본은 글 한 편에 2~3분), 답의 ``` 는 벗긴다 · Gemini 는 안 부른다',
-      d1.success && d1.provider === 'gemini' && d1.keyLabel === 'gemma:gemma-4-31b-it' && JSON.parse(d1.text).by === 'gemma' && plain.length === 1 && plain[0].model === 'gemma-4-31b-it'
+    ok('골랐으면 Gemma 가 먼저 색칠한다 — JSON 모드 없이·생각 최소로(실제 키로 확인: JSON 모드는 답을 배열로 싸고, 생각 기본은 글 한 편에 2~3분) · 답의 ``` 는 벗긴다 · 다른 AI 는 안 부른다',
+      d1.success && d1.provider === 'gemma' && d1.keyLabel === 'gemma:gemma-4-26b-a4b-it' && JSON.parse(d1.text).by === 'gemma' && plain.length === 1 && plain[0].model === 'gemma-4-26b-a4b-it'
       && JSON.stringify(plain[0].config) === '{"thinkingConfig":{"thinkingLevel":"minimal"}}' && plain[0].caller === 'MarineForecast-Gemma' && calls.length === 0, JSON.stringify([d1, plain]));
-    ok('마지막 Gemma 결과가 관리자 화면용으로 남는다(성공)', bai.gemmaStatus().forecast && bai.gemmaStatus().forecast.ok === true && bai.gemmaStatus().forecast.model === 'gemma-4-31b-it');
-    gemmaAnswer = () => ({ success: true, text: '네, 색을 입혀 드리겠습니다. 결과는 다음과 같습니다.' }); calls.length = 0; plain.length = 0;
+    ok('마지막 Gemma 결과가 관리자 화면용으로 남는다(성공)', bai.gemmaStatus().forecast && bai.gemmaStatus().forecast.ok === true && bai.gemmaStatus().forecast.model === 'gemma-4-26b-a4b-it');
+    // Gemma 가 색칠하지 못하는 경우들 → 관리자가 정한 순서(클로드 키2 → Gemini)로
+    const falls = [
+      ['한도 초과(429)', () => ({ success: false, error: '429 RESOURCE_EXHAUSTED You exceeded your current quota', isRateLimited: true })],
+      ['서버 붐빔(503 수요 과다)', () => ({ success: false, error: '503 UNAVAILABLE This model is currently experiencing high demand' })],
+      ['시간 초과', () => ({ success: false, error: '60초 안에 답이 없다(시간 초과)' })],
+      ['빈 답', () => ({ success: true, text: '   ' })],
+      ['JSON 이 아닌 답', () => ({ success: true, text: '네, 색을 입혀 드리겠습니다.' })],
+      ['필요한 칸이 없는 JSON({})', () => ({ success: true, text: '{}' })],
+      ['필요한 칸이 없는 JSON([])', () => ({ success: true, text: '[]' })],
+      ['categories 가 글', () => ({ success: true, text: '{"categories":"x"}' })],
+      ['categories 가 빈 객체', () => ({ success: true, text: '{"categories":{}}' })],
+      ['색 표시 꼴이 깨짐(실제 Gemma 답 꼴 — }for})', () => ({ success: true, text: '{"categories":{"해상":{"main":"{{num:30~60km/h(8~16m/s)}for}로 불고","sub":[]}}}' })],
+      ['색 표시가 안 닫힘', () => ({ success: true, text: '{"categories":{"해상":{"main":"{{loc:서해상 에는","sub":[]}}}' })],
+      ['Gemma 호출이 던짐', () => { throw new Error('network down'); }],
+    ];
+    let allFell = true; const fellNote = [];
+    for (const [name, fn] of falls) {
+      gemmaAnswer = fn; calls.length = 0;
+      const x = await bai.call('forecast', 'P');
+      const good = x.success && x.provider === 'claude2' && JSON.parse(x.text).by === 'claude2' && calls.length === 1 && calls[0].id === 'claude2' && x.tried[0].id === 'gemma' && x.tried[0].ok === false && !x.isRateLimited && bai.gemmaStatus().forecast.ok === false;
+      if (!good) { allFell = false; fellNote.push(name + ' → ' + JSON.stringify(x).slice(0, 200)); }
+    }
+    ok('Gemma 가 색칠하지 못하면(한도 초과·서버 붐빔·시간 초과·빈 답·JSON 아님·필요한 칸 없음·색 표시 깨짐·예외 — ' + falls.length + '가지) 관리자가 정한 순서의 1순위(클로드 키2)가 대신 색칠한다', allFell, fellNote.join(' | '));
+    ok('대신 색칠한 사실이 관리자 화면용으로 남는다(조용히 대신하면 고장이 안 보인다) — 서버를 올린 뒤 성공·실패 횟수도', bai.gemmaStatus().forecast.ok === false && /network down/.test(bai.gemmaStatus().forecast.error)
+      && bai.gemmaStatus().forecast.okCount === 1 && bai.gemmaStatus().forecast.failCount === falls.length, JSON.stringify(bai.gemmaStatus()));
+    gemmaAnswer = () => ({ success: false, error: '503 UNAVAILABLE' }); behave.claude2 = 'fail'; calls.length = 0;
     const d2 = await bai.call('forecast', 'P');
-    ok('Gemma 답이 JSON 이 아니면 그 자리에서 종전 Gemini 로 대신 답한다(지금보다 나빠지지 않는다) — 시도 기록에 gemma 실패가 남는다',
-      d2.success && JSON.parse(d2.text).by === 'gemini' && plain.length === 1 && calls.length === 1 && calls[0].model === 'gemini-2.5-flash-lite' && d2.tried[0].id === 'gemma' && d2.tried[0].ok === false && d2.tried[1].id === 'gemini', JSON.stringify(d2));
-    ok('대신 답한 사실이 관리자 화면용으로 남는다(조용히 대신하면 고장이 안 보인다) — 서버를 올린 뒤 성공·실패 횟수도', bai.gemmaStatus().forecast.ok === false && /JSON 이 아니다/.test(bai.gemmaStatus().forecast.error)
-      && bai.gemmaStatus().forecast.okCount === 1 && bai.gemmaStatus().forecast.failCount === 1, JSON.stringify(bai.gemmaStatus()));
+    ok('Gemma 도 1순위도 안 되면 순서의 다음(Gemini)이 — 순서를 끝까지 탄다', d2.success && d2.provider === 'gemini' && calls.map((c) => c.id).join() === 'claude2,gemini' && d2.tried.map((t) => t.id).join() === 'gemma,claude2,gemini');
+    behave.gemini = 'fail'; const d3 = await bai.call('forecast', 'P');
+    ok('전부 안 되면 실패를 돌려준다(던지지 않는다) — 한도 초과 표시는 순서 쪽 AI 기준 그대로', d3.success === false && d3.isRateLimited === true && d3.tried.length === 3);
+    Object.assign(behave, { claude2: 'ok', gemini: 'ok' });
     // 실제 키로 본 답 꼴 — 울타리 뒤에 설명을 덧붙임 · 한 겹 배열로 쌈
     gemmaAnswer = () => ({ success: true, text: '```json\n' + GOOD + '\n```\n*(참고: 원문에서 해역이 두 곳이며 …)*' }); calls.length = 0;
     const dA = await bai.call('forecast', 'P');
-    ok('답 뒤에 설명을 덧붙여도 JSON 덩어리를 꺼내 쓴다(실제 Gemma 답 꼴)', dA.success && dA.keyLabel === 'gemma:gemma-4-31b-it' && JSON.parse(dA.text).by === 'gemma' && calls.length === 0, JSON.stringify(dA));
+    ok('답 뒤에 설명을 덧붙여도 JSON 덩어리를 꺼내 쓴다(실제 Gemma 답 꼴)', dA.success && dA.provider === 'gemma' && JSON.parse(dA.text).by === 'gemma' && calls.length === 0, JSON.stringify(dA));
     gemmaAnswer = () => ({ success: true, text: '[' + GOOD + ']' }); calls.length = 0;
-    const dB = await bai.call('forecast', 'P');
-    ok('한 겹 배열로 싼 답(`[{…}]`)도 벗겨 쓴다(실제 Gemma 답 꼴)', dB.success && JSON.parse(dB.text).by === 'gemma' && calls.length === 0);
-    for (const bad of ['{}', '[]', '123', '"hi"', 'true', 'null', '{"categories":"x"}', '{"categories":{}}', '{"summary":""}', '[{"a":1},{"b":2}]']) {
-      gemmaAnswer = () => ({ success: true, text: bad }); calls.length = 0;
-      const x = await bai.call('forecast', 'P');
-      if (!(x.success && JSON.parse(x.text).by === 'gemini' && calls.length === 1)) { ok('JSON 이지만 색칠에 필요한 칸이 없는 답 ' + bad + ' → Gemini 로 대신', false, JSON.stringify(x)); }
-    }
-    ok('JSON 이지만 색칠에 필요한 칸이 없는 답({}·[]·123·"hi"·null·categories 가 글·빈 칸 …)은 Gemini 로 대신한다 — 「성공」으로 캐시에 굳지 않게', true);
+    ok('한 겹 배열로 싼 답(`[{…}]`)도 벗겨 쓴다(실제 Gemma 답 꼴)', JSON.parse((await bai.call('forecast', 'P')).text).by === 'gemma' && calls.length === 0);
     gemmaAnswer = () => ({ success: true, text: '{"summary":"{{loc:서해상}}에 바람","by":"gemma"}' }); calls.length = 0;
     ok('지방청 전망 꼴(summary 글)도 쓸 수 있는 답이다', JSON.parse((await bai.call('forecast', 'P')).text).by === 'gemma' && calls.length === 0);
-    gemmaAnswer = () => { throw new Error('boom'); }; calls.length = 0; behave.gemini = 'ok';
-    const dC = await bai.call('forecast', 'P');
-    ok('Gemma 쪽이 던져도 Gemini 로 대신 답한다(종전에는 Gemini 를 부르지 못했다)', dC.success && JSON.parse(dC.text).by === 'gemini' && calls.length === 1 && dC.tried[0].id === 'gemma' && /boom/.test(bai.gemmaStatus().forecast.error), JSON.stringify(dC));
-    ok('looseJson: 못 꺼내면 undefined', bai.looseJson('그냥 글') === undefined && bai.looseJson('') === undefined && bai.looseJson('{"a":1} 뒤 글').a === 1);
-    gemmaAnswer = () => ({ success: false, error: '429 RESOURCE_EXHAUSTED', isRateLimited: true }); calls.length = 0;
-    const d3 = await bai.call('forecast', 'P');
-    ok('Gemma 한도 초과·오류 → Gemini 로 대신 · Gemma 의 한도 초과는 전체 「한도 초과」로 치지 않는다', d3.success && JSON.parse(d3.text).by === 'gemini' && !d3.isRateLimited && /429/.test(bai.gemmaStatus().forecast.error));
-    gemmaAnswer = () => ({ success: true, text: '   ' }); const d4 = await bai.call('forecast', 'P');
-    ok('Gemma 빈 답 → Gemini 로 대신', d4.success && JSON.parse(d4.text).by === 'gemini');
-    gemmaAnswer = () => { throw new Error('network down'); }; behave.gemini = 'fail';
-    const d5 = await bai.call('forecast', 'P');
-    ok('Gemma 가 던지고 Gemini 도 실패 → 실패를 돌려준다(던지지 않는다)', d5.success === false);
-    behave.gemini = 'ok'; gemmaAnswer = () => ({ success: true, text: '글 그대로의 답' });
+    // 부르는 쪽 검사(gemmaAccept) — 원문 줄을 빼먹은 답
+    gemmaAnswer = () => ({ success: true, text: GOOD }); calls.length = 0;
+    const seen = [];
+    const dK = await bai.call('forecast', 'P', { gemmaAccept: (p) => { seen.push(p.by); return false; } });
+    ok('부르는 쪽이 「못 쓰는 답」이라 하면(원문 줄을 빼먹음) 순서의 다음 AI 로 — 그 검사는 Gemma 답에만 걸린다', dK.provider === 'claude2' && seen.join() === 'gemma' && calls.length === 1);
+    {
+      const M = require('../marine_forecast_processor');
+      const code = { 강풍: '강풍특보가 발효된 충남서해안은 바람이 순간풍속 70km/h(20m/s) 이상으로 매우 강하게 불겠습니다.\no 간판, 비닐하우스 등 실외 설치 시설물 점검 및 농작물 관리 철저\no 현수막, 나뭇가지 등 낙하물과 쓰러지거나 부러진 나무에 의한 피해가 우려되니, 보행자와 교통 안전 각별히 유의\no 매우 강한 바람으로 인해 항공기 운항에 차질이 있을 수 있으니 공항 이용객들은 사전에 운항정보 확인', 해상: '풍랑특보가 발효된 서해상은 물결이 1.5~3.5m로 매우 높게 일겠습니다.' };
+      const full = { categories: { 강풍: { main: '{{warn:강풍특보}}가 발효된 {{loc:충남서해안}}은 바람이 {{num:순간풍속 70km/h(20m/s) 이상}}으로 매우 강하게 불겠습니다.', sub: ['- 간판, 비닐하우스 등 실외 설치 시설물 점검 및 농작물 관리 철저', '- 현수막, 나뭇가지 등 낙하물과 쓰러지거나 부러진 나무에 의한 피해가 우려되니, 보행자와 교통 안전 각별히 유의', '- 매우 강한 바람으로 인해 항공기 운항에 차질이 있을 수 있으니 공항 이용객들은 사전에 운항정보 확인'] }, 해상: { main: '{{warn:풍랑특보}}가 발효된 {{loc:서해상}}은 물결이 {{num:1.5~3.5m}}로 매우 높게 일겠습니다.', sub: [] } } };
+      const dropped = JSON.parse(JSON.stringify(full)); dropped.categories.강풍.sub = [];
+      const noCat = JSON.parse(JSON.stringify(full)); delete noCat.categories.해상;
+      ok('날씨해설 색칠: 원문 줄을 다 지닌 답은 통과 · 유의사항 세 줄을 뺀 답(실제 Gemma 가 낸 꼴)·칸을 통째로 뺀 답은 못 쓰는 답', M.gemmaKeptText(full, code) === true && M.gemmaKeptText(dropped, code) === false && M.gemmaKeptText(noCat, code) === false && M.gemmaKeptText({}, code) === false && M.gemmaKeptText(full, {}) === true);
+      ok('날씨해설 색칠은 그 검사를 Gemma 답에 건다(글자 확인)', /gemmaAccept: \(p\) => gemmaKeptText\(p, codeExtracted\)/.test(fs.readFileSync(require('path').join(__dirname, '..', 'marine_forecast_processor.js'), 'utf8')));
+    }
+    gemmaAnswer = () => ({ success: true, text: '글 그대로의 답' }); calls.length = 0;
     const d6 = await bai.call('forecast', 'P', { json: false });
-    ok('글 답(json:false)을 바라는 호출이면 Gemma 의 글 답을 그대로 쓴다', d6.success && d6.text === '글 그대로의 답' && d6.keyLabel === 'gemma:gemma-4-31b-it');
-    // ⑤ 격상 가능성 읽기
-    await post({ feature: 'escalation', models: { gemini: { model: 'gemma-4-26b-a4b-it' } } });
-    gemmaAnswer = () => ({ success: true, text: '{"해역":"동해중부먼바다"}' }); calls.length = 0;
-    ok('⑤: 「항목」 배열이 없는 답은 Gemini 로 대신', JSON.parse((await bai.call('escalation', 'P')).text).by === 'gemini' && calls.length === 1);
-    gemmaAnswer = () => ({ success: true, text: '{"항목":[{"해역":"동해중부먼바다","시점":"오늘 밤부터"}]}' }); plain.length = 0; calls.length = 0;
-    const e1 = await bai.call('escalation', 'P', { caller: 'Bulletin-Escalation' });
-    ok('⑤ 에 Gemma 를 고르면 격상 가능성 읽기도 Gemma 로', e1.success && e1.keyLabel === 'gemma:gemma-4-26b-a4b-it' && plain[0].model === 'gemma-4-26b-a4b-it' && JSON.parse(e1.text).항목.length === 1 && calls.length === 0);
-    // 순서에서 Gemini 칸 앞에 다른 AI 가 있으면 그 AI 가 먼저
-    await post({ feature: 'escalation', order: ['claude2', 'gemini', 'claude1', 'upstage', 'chatgpt'], removed: ['claude1', 'upstage', 'chatgpt'] });
-    behave.claude2 = 'ok'; plain.length = 0;
-    ok('순서는 그대로 지킨다 — Gemini 칸 앞의 AI 가 답하면 Gemma 를 부르지 않는다', (await bai.call('escalation', 'P')).provider === 'claude2' && plain.length === 0);
+    ok('글 답(json:false)을 바라는 호출이면 Gemma 의 글 답을 그대로 쓴다', d6.success && d6.text === '글 그대로의 답' && d6.provider === 'gemma');
+    ok('looseJson: 못 꺼내면 undefined', bai.looseJson('그냥 글') === undefined && bai.looseJson('') === undefined && bai.looseJson('{"a":1} 뒤 글').a === 1);
+    // ⑤ 격상 가능성 읽기에는 Gemma 를 쓰지 않는다(사용자 「격상읽기는 하지말고」)
+    gemmaAnswer = () => ({ success: true, text: '{"항목":[]}' }); plain.length = 0; calls.length = 0;
+    const e1 = await bai.call('escalation', 'P');
+    ok('⑤ 격상 가능성 읽기는 Gemma 를 부르지 않는다 — 정해 둔 순서(기본 Gemini)만', e1.provider === 'gemini' && plain.length === 0 && calls.length === 1 && calls[0].model === 'gemini-2.5-flash-lite' && !bai.gemmaStatus().escalation);
+    // 끄기
+    const off = await (await post({ feature: 'forecast', gemma: '' })).json(); plain.length = 0; calls.length = 0;
+    ok('「쓰지 않음」으로 되돌리면 Gemma 를 더 부르지 않는다', off.ok && off.config.forecast.gemma === '' && (await bai.call('forecast', 'P')).provider === 'claude2' && plain.length === 0);
     // 시험 호출
     gemmaAnswer = () => ({ success: true, text: '{"해역":"동해중부먼바다","시점":"오늘 밤부터"}' }); plain.length = 0;
-    await post({ feature: 'forecast', models: { gemini: { model: 'gemma-4-31b-it' } } });
     const tr = async (model) => (await fetch(base + '/api/admin/bulletin-ai/try-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }) })).json();
-    const t1 = await tr('gemma-4-31b-it');
-    ok('「시험 호출」: 고른 모델을 한 번 불러 결과(답 글·걸린 시간)를 돌려준다 — 설정은 안 바뀐다', t1.ok && t1.model === 'gemma-4-31b-it' && typeof t1.ms === 'number' && /동해중부먼바다/.test(t1.text) && plain.length === 1 && plain[0].model === 'gemma-4-31b-it'
-      && bai.getConfig().forecast.models.gemini.model === 'gemma-4-31b-it' && bai.getConfig().escalation.models.gemini.model === 'gemma-4-26b-a4b-it', JSON.stringify(t1));
+    const t1 = await tr('gemma-4-26b-a4b-it');
+    ok('「시험 호출」: 고른 모델을 한 번 불러 결과(답 글·걸린 시간)를 돌려준다 — 설정은 안 바뀐다', t1.ok && t1.model === 'gemma-4-26b-a4b-it' && typeof t1.ms === 'number' && /동해중부먼바다/.test(t1.text) && plain.length === 1 && plain[0].model === 'gemma-4-26b-a4b-it'
+      && bai.getConfig().forecast.gemma === '', JSON.stringify(t1));
     gemmaAnswer = () => ({ success: false, error: 'models/gemma-4-31b-it is not found' });
     const t2 = await tr('gemma-4-31b-it'), t3 = await tr('gpt-9'), t4 = await tr('');
-    ok('「시험 호출」: 실패하면 오류 글을 그대로 보인다 · 목록 밖 모델은 부르지 않는다', t2.ok === false && /not found/.test(t2.error) && t3.ok === false && t4.ok === false && plain.length === 2);   // 시험 성공 1 + 실패 1 — 목록 밖 두 번은 안 불렀다
+    ok('「시험 호출」: 실패하면 오류 글을 그대로 보인다 · 목록 밖 모델은 부르지 않는다', t2.ok === false && /not found/.test(t2.error) && t3.ok === false && t4.ok === false && plain.length === 2);   // 성공 1 + 실패 1 — 목록 밖 두 번은 안 불렀다
     plain.length = 0; gemmaAnswer = () => ({ success: true, text: '{"a":1}' });
     const t5 = await tr('gemini-2.5-flash-lite');
-    ok('「시험 호출」: 기본 Gemini 도 같은 버튼으로(JSON 모드로 부른다)', t5.ok && plain.length === 1 && plain[0].model === 'gemini-2.5-flash-lite' && plain[0].config && plain[0].config.responseMimeType === 'application/json');
-    ok('GET 응답에 기능별 마지막 Gemma 결과가 실린다', (await (await fetch(base + '/api/admin/bulletin-ai/config')).json()).gemma.forecast.model === 'gemma-4-31b-it');
+    ok('「시험 호출」: 기본 Gemini 모델도 같은 버튼으로(JSON 모드로 부른다) — 그 모델이 아직 불리는지 볼 때', t5.ok && plain.length === 1 && plain[0].model === 'gemini-2.5-flash-lite' && plain[0].config && plain[0].config.responseMimeType === 'application/json');
+    ok('GET 응답에 마지막 Gemma 결과가 실린다', (await (await fetch(base + '/api/admin/bulletin-ai/config')).json()).gemma.forecast.model === 'gemma-4-26b-a4b-it');
     {
       const src = fs.readFileSync(require('path').join(__dirname, '..', 'services', 'gemini_client.js'), 'utf8');
       const body = src.slice(src.indexOf('async function callPlain'), src.indexOf('module.exports'));
-      ok('callPlain 은 60초(기본) 안에 답이 없으면 실패로 돌려준다(Gemma 가 답이 없을 때 색칠·격상 AI 가 멈추지 않게)', /timeoutMs = 60000/.test(body) && /Promise\.race/.test(body) && /clearTimeout\(timer\)/.test(body));
+      ok('Gemma 는 이미 등록된 Gemini 키(GEMINI_API_KEY_26_8)로 부른다 — 새 시크릿이 필요 없다(사용자 「GEMINI_API_KEY_26_8 로 젬마를 호출」)', /const KEY_ENV = 'GEMINI_API_KEY_26_8'/.test(src) && /keys\[0\]\.apiKey/.test(body) && !/GEMMA_API_KEY/.test(src) && !/GEMMA_API_KEY/.test(fs.readFileSync(require('path').join(__dirname, '..', 'services', 'bulletin_ai.js'), 'utf8')));
+      ok('callPlain 은 60초(기본) 안에 답이 없으면 실패로 돌려준다(Gemma 가 답이 없을 때 색칠이 멈추지 않게)', /timeoutMs = 60000/.test(body) && /Promise\.race/.test(body) && /clearTimeout\(timer\)/.test(body));
       ok('Gemma 호출(callPlain)은 공용 Gemini 키의 쿨다운·전환·관리자 알림을 건드리지 않는다 — Gemma 한도 초과가 챗봇의 Gemini 까지 멈추지 않게', body.length > 200 && !/markRateLimited|notifyAdmin|pickNextKey|llmChain|codexBridge/.test(body));
     }
     srv.close();

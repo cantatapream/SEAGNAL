@@ -30,7 +30,7 @@ const state = () => ({ ok: true, config: bai.getConfig(), choices: bai.choices()
     await page.route('**/api/admin/bulletin-ai/config', async (r) => {
         if (r.request().method() === 'POST') {
             const b = JSON.parse(r.request().postData() || '{}'); posts.push(b);
-            const x = bai.setConfig(b.feature, { order: b.order, removed: b.removed, models: b.models, attempts: b.attempts });
+            const x = bai.setConfig(b.feature, { order: b.order, removed: b.removed, models: b.models, attempts: b.attempts, gemma: b.gemma });
             return r.fulfill({ status: x.ok ? 200 : 400, contentType: 'application/json', body: JSON.stringify(x.ok ? state() : x) });
         }
         return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state()) });
@@ -83,58 +83,56 @@ const state = () => ({ ok: true, config: bai.getConfig(), choices: bai.choices()
         assert.deepStrictEqual(await rows('briefing'), ['클로드 키2', 'ChatGPT', '업스테이지', '클로드 키1', 'Gemini'], 'Gemini 바로 앞에 다시');
     });
 
-    // Gemma(2026-11-19 사용자 「ai 모델 선택하는데 Gemma 를 추가해야」) — ③ 색칠·⑤ 격상의 Gemini 칸
+    // Gemma(2026-11-19 사용자 「젬마가 색칠하는 기능을 넣자 격상읽기는 하지말고 … 문제가 있다면 그때 내가 선택한 api가 호출하여 색칠하도록 하자」) — ③ 색칠 칸 맨 위 「먼저 Gemma」 줄
     const tries = []; let tryAnswer = (m) => ({ ok: true, model: m, ms: 812, text: '{"해역":"동해중부먼바다","시점":"오늘 밤부터"}' });
     await page.route('**/api/admin/bulletin-ai/try-model', async (r) => { const b = JSON.parse(r.request().postData() || '{}'); tries.push(b); return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(tryAnswer(b.model)) }); });
-    await check('[Gemma-UI-1] ③·⑤ 의 Gemini 칸에서 Gemini(기본)·Gemma 두 모델을 고른다 — ①·②는 그대로 「(고정)」 · 고르면 그 기능만 저장', async () => {
-        for (const f of ['forecast', 'escalation']) {
-            const opts = await page.$eval('[data-bai-gemma="' + f + '"]', (x) => [...x.options].map((o) => o.value + '|' + o.textContent + '|' + o.selected));
-            assert.deepStrictEqual(opts, ['gemini-2.5-flash-lite|gemini-2.5-flash-lite (기본)|true', 'gemma-4-31b-it|gemma-4-31b-it · Gemma|false', 'gemma-4-26b-a4b-it|gemma-4-26b-a4b-it · Gemma|false'], f);
-        }
-        assert.equal(await page.$('[data-bai-feature="read"] [data-bai-gemma]'), null); assert.equal(await page.$('[data-bai-feature="interpret"] [data-bai-gemma]'), null); assert.equal(await page.$('[data-bai-feature="briefing"] [data-bai-gemma]'), null);
-        assert.ok(/\(고정\)/.test(await page.textContent('[data-bai-feature="read"]')));
-        await page.selectOption('[data-bai-gemma="forecast"]', 'gemma-4-31b-it'); await settle();
-        assert.deepStrictEqual(posts[posts.length - 1], { feature: 'forecast', models: { gemini: { model: 'gemma-4-31b-it' } } });
-        assert.equal(await page.$eval('[data-bai-gemma="forecast"]', (x) => x.value), 'gemma-4-31b-it');
-        assert.equal(await page.$eval('[data-bai-gemma="escalation"]', (x) => x.value), 'gemini-2.5-flash-lite', '⑤ 는 그대로');
-        assert.equal(bai.getConfig().forecast.models.gemini.model, 'gemma-4-31b-it');
+    await check('[Gemma-UI-1] ③ 색칠 칸 맨 위에만 「먼저 Gemma」 줄 — 쓰지 않음(기본)·Gemma 두 모델 · 순서 목록은 그대로 · 고르면 그 칸만 저장 · ①②④⑤ 에는 없다', async () => {
+        const opts = await page.$eval('[data-bai-gemma="forecast"]', (x) => [...x.options].map((o) => o.value + '|' + o.textContent + '|' + o.selected));
+        assert.deepStrictEqual(opts, ['|쓰지 않음|true', 'gemma-4-26b-a4b-it|gemma-4-26b-a4b-it|false', 'gemma-4-31b-it|gemma-4-31b-it|false']);
+        for (const f of ['read', 'interpret', 'briefing', 'escalation']) assert.equal(await page.$('[data-bai-feature="' + f + '"] [data-bai-gemma]'), null, f);
+        assert.ok(/\(고정\)/.test(await page.textContent('[data-bai-feature="escalation"]')), '⑤ 의 Gemini 칸은 종전처럼 고정 표시');
+        assert.ok(/\(고정\)/.test(await page.textContent('[data-bai-feature="forecast"]')), '③ 의 Gemini 칸도 고정 표시(Gemma 는 따로 맨 위 줄)');
+        assert.ok(/Gemma 가 색칠하지 못하면\(오류·한도 초과·수요 과다·못 쓰는 답\) 아래 순서대로 이어서 부릅니다/.test(await page.textContent('[data-bai-gemma-row="forecast"]')));
+        const first = await page.$eval('[data-bai-feature="forecast"]', (c) => [...c.children].findIndex((d) => d.hasAttribute('data-bai-gemma-row')) < [...c.children].findIndex((d) => /^\d+$/.test((d.firstChild && d.firstChild.textContent) || '')));
+        assert.ok(first, '「먼저 Gemma」 줄이 순서 목록보다 위');
+        const before = await rows('forecast');
+        await page.selectOption('[data-bai-gemma="forecast"]', 'gemma-4-26b-a4b-it'); await settle();
+        assert.deepStrictEqual(posts[posts.length - 1], { feature: 'forecast', gemma: 'gemma-4-26b-a4b-it' });
+        assert.equal(await page.$eval('[data-bai-gemma="forecast"]', (x) => x.value), 'gemma-4-26b-a4b-it');
+        assert.equal(bai.getConfig().forecast.gemma, 'gemma-4-26b-a4b-it');
+        assert.deepStrictEqual(await rows('forecast'), before, '순서 목록은 그대로');
     });
-    await check('[Gemma-UI-2] 「시험 호출」 — 지금 고른 모델을 불러 결과를 그 줄 아래에 보인다(성공 초록·실패 붉게) · 설정은 안 바뀐다', async () => {
+    await check('[Gemma-UI-2] 「시험 호출」 — 지금 화면에 고른 모델을 불러 결과를 그 줄 아래에 보인다(성공 초록·실패 붉게) · 설정은 안 바뀐다 · 고른 직후에도 지금 값', async () => {
         const n = posts.length;
         await page.click('[data-bai-try="forecast"]');
         await page.waitForFunction(() => /시험 성공/.test(document.querySelector('[data-bai-try-out="forecast"]').textContent));
-        assert.deepStrictEqual(tries[tries.length - 1], { model: 'gemma-4-31b-it' });
-        assert.ok(/시험 성공 812ms · gemma-4-31b-it — \{"해역":"동해중부먼바다"/.test(await page.textContent('[data-bai-try-out="forecast"]')));
-        tryAnswer = (m) => ({ ok: false, model: m, ms: 90, error: 'models/gemma-4-31b-it is not found for API version v1beta' });
-        await page.click('[data-bai-try="forecast"]');
+        assert.deepStrictEqual(tries[tries.length - 1], { model: 'gemma-4-26b-a4b-it' });
+        assert.ok(/시험 성공 812ms · gemma-4-26b-a4b-it — \{"해역":"동해중부먼바다"/.test(await page.textContent('[data-bai-try-out="forecast"]')));
+        tryAnswer = (m) => ({ ok: false, model: m, ms: 90, error: '503 This model is currently experiencing high demand' });
+        // 저장 응답이 오기 전에(다시 그려지기 전) 다른 모델로 바꾸고 바로 누른다 — 화면에 고른 값을 불러야 한다(별도 에이전트 검토)
+        await page.evaluate(() => { const s = document.querySelector('[data-bai-gemma="forecast"]'); s.value = 'gemma-4-31b-it'; document.querySelector('[data-bai-try="forecast"]').click(); });
         await page.waitForFunction(() => /시험 실패/.test(document.querySelector('[data-bai-try-out="forecast"]').textContent));
-        assert.ok(/시험 실패 · gemma-4-31b-it — models\/gemma-4-31b-it is not found/.test(await page.textContent('[data-bai-try-out="forecast"]')));
-        await page.click('[data-bai-try="escalation"]');
-        await page.waitForFunction(() => /시험 실패/.test(document.querySelector('[data-bai-try-out="escalation"]').textContent));
-        assert.deepStrictEqual(tries[tries.length - 1], { model: 'gemini-2.5-flash-lite' }, '⑤ 는 지금 고른 기본 Gemini 를 부른다');
+        assert.deepStrictEqual(tries[tries.length - 1], { model: 'gemma-4-31b-it' });
+        assert.ok(/시험 실패 · gemma-4-31b-it — 503 This model is currently experiencing high demand/.test(await page.textContent('[data-bai-try-out="forecast"]')));
         assert.equal(posts.length, n, '시험 호출은 설정을 저장하지 않는다');
+        await page.selectOption('[data-bai-gemma="forecast"]', ''); await settle();
+        tryAnswer = (m) => ({ ok: true, model: m, ms: 5, text: '{}' });
+        await page.click('[data-bai-try="forecast"]');
+        await page.waitForFunction(() => /시험 성공/.test(document.querySelector('[data-bai-try-out="forecast"]').textContent));
+        assert.deepStrictEqual(tries[tries.length - 1], { model: 'gemini-2.5-flash-lite' }, '「쓰지 않음」이면 기본 Gemini 모델을 부른다(그 모델이 아직 불리는지 볼 때)');
     });
-    await check('[Gemma-UI-3] 운영 중 Gemma 가 실패해 Gemini 로 대신 답했으면 그 줄 아래에 붉게 보인다(조용히 대신하면 고장이 안 보인다) · 성공이면 초록', async () => {
-        gemmaState = { forecast: { at: Date.parse('2026-11-19T04:41:00+09:00'), model: 'gemma-4-31b-it', ok: false, error: 'Gemma 답이 JSON 이 아니다: 네, 색을 입혀' }, escalation: { at: Date.parse('2026-11-19T05:00:00+09:00'), model: 'gemma-4-26b-a4b-it', ok: true, error: null } };
-        await draw();
-        const f = await page.textContent('[data-bai-try-out="forecast"]'), e = await page.textContent('[data-bai-try-out="escalation"]');
-        assert.ok(/마지막 Gemma 호출 실패\(.+\) → Gemini 로 대신 답함 — Gemma 답이 JSON 이 아니다/.test(f), f);
-        assert.ok(/마지막 Gemma 호출 성공\(.+\) · gemma-4-26b-a4b-it/.test(e), e);
-        assert.ok(/11\. 1[89]\./.test(f), '날짜도 보인다(시각만 보이면 며칠 전 실패가 오늘 일처럼 읽힌다 — 검사 브라우저의 시간대에 따라 18일·19일): ' + f);
-    });
-    await check('[Gemma-UI-4] 누적 횟수 · 기록 없음 안내 · 고른 직후 누르면 「지금 고른 값」을 부른다(별도 에이전트 검토에서 나온 것)', async () => {
-        gemmaState = { forecast: { at: Date.parse('2026-11-19T04:41:00+09:00'), model: 'gemma-4-31b-it', ok: true, error: null, okCount: 3, failCount: 2 } };
+    await check('[Gemma-UI-3] 운영 중 Gemma 가 색칠하지 못해 다음 AI 가 대신했으면 그 줄에 붉게 보인다(조용히 대신하면 고장이 안 보인다) · 날짜와 누적 횟수 · 성공이면 초록(실패가 섞였으면 노랑) · 기록 없음 안내', async () => {
+        await page.selectOption('[data-bai-gemma="forecast"]', 'gemma-4-26b-a4b-it'); await settle();
+        assert.ok(/Gemma 를 골랐지만 서버를 올린 뒤 아직 부른 기록이 없습니다/.test(await page.textContent('[data-bai-try-out="forecast"]')), '기록이 없으면 「이상 없음」처럼 비워 두지 않는다');
+        gemmaState = { forecast: { at: Date.parse('2026-11-19T04:41:00+09:00'), model: 'gemma-4-26b-a4b-it', ok: false, error: '503 This model is currently experiencing high demand', okCount: 3, failCount: 2 } };
         await draw();
         const f = await page.textContent('[data-bai-try-out="forecast"]');
+        assert.ok(/마지막 Gemma 색칠 실패\(.+\) → 아래 순서의 AI 가 대신 색칠함 — 503 This model/.test(f), f);
+        assert.ok(/11\. 1[89]\./.test(f), '날짜도 보인다(시각만 보이면 며칠 전 실패가 오늘 일처럼 읽힌다 — 검사 브라우저의 시간대에 따라 18일·19일): ' + f);
         assert.ok(/서버를 올린 뒤 성공 3 · 실패 2/.test(f), f);
-        gemmaState = {};
-        await page.selectOption('[data-bai-gemma="escalation"]', 'gemma-4-26b-a4b-it'); await settle();
-        assert.ok(/Gemma 를 골랐지만 서버를 올린 뒤 아직 부른 기록이 없습니다/.test(await page.textContent('[data-bai-try-out="escalation"]')), '기록이 없으면 「이상 없음」처럼 비워 두지 않는다');
-        // 저장 응답이 오기 전에(다시 그려지기 전) 시험을 누른다 — 화면에 고른 값을 불러야 한다
-        tryAnswer = (m) => ({ ok: true, model: m, ms: 5, text: '{}' });
-        await page.evaluate(() => { const s = document.querySelector('[data-bai-gemma="escalation"]'); s.value = 'gemma-4-31b-it'; document.querySelector('[data-bai-try="escalation"]').click(); });
-        await page.waitForFunction(() => /시험 성공/.test(document.querySelector('[data-bai-try-out="escalation"]').textContent));
-        assert.deepStrictEqual(tries[tries.length - 1], { model: 'gemma-4-31b-it' });
+        gemmaState = { forecast: { at: Date.parse('2026-11-19T05:00:00+09:00'), model: 'gemma-4-26b-a4b-it', ok: true, error: null, okCount: 4, failCount: 2 } };
+        await draw();
+        assert.ok(/마지막 Gemma 색칠 성공\(.+\) · gemma-4-26b-a4b-it · 서버를 올린 뒤 성공 4 · 실패 2/.test(await page.textContent('[data-bai-try-out="forecast"]')));
     });
 
     await browser.close();
