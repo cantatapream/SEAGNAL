@@ -32,6 +32,37 @@ let promoEditorFormat = null; // 'md' = 마크다운으로 불러온 글 — 저
 
 /** 마크다운 글이면 단계별 간격·글자 크기(style.css .promo-md)를 켠다. 예: setPromoMd(el, 'md') @param {Element} el @param {string|null} format @returns {void} [연계] ← openPromoDetail·openPromoEditor·importPromoMarkdown */
 function setPromoMd(el, format) { if (el) el.classList.toggle('promo-md', format === 'md'); }
+/**
+ * 유튜브 쇼츠 주소를 게시글 안에서 재생되는 주소(embed)로 바꾼다. 쇼츠가 아니면 그대로 돌려준다.
+ * 예: 'https://www.youtube.com/shorts/abcDEF12345?si=x' → 'https://www.youtube.com/embed/abcDEF12345?showinfo=0'
+ *     'https://www.youtube.com/watch?v=…' → 그대로(이 주소는 Quill 이 이미 embed 로 바꿔 준다)
+ * @param {string} url - 편집기 「동영상」 버튼에 넣은 주소
+ * @returns {string}
+ * [연계] ← registerPromoVideoFormat(PromoVideo.sanitize) — 「동영상」 버튼으로 넣는 iframe 주소를 정할 때
+ * [왜] 2026-11-19: Quill 1.3.6 은 watch·youtu.be 주소만 embed 로 바꾸고 쇼츠 주소는 그대로 넣는다.
+ *      유튜브는 쇼츠 주소를 다른 사이트 안에서 띄우는 것을 막아(x-frame-options: SAMEORIGIN) 빈 칸이 됐다.
+ */
+function promoYoutubeEmbedUrl(url) {
+    const m = String(url || '').trim().match(/^(?:https?:\/\/)?(?:(?:www|m)\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
+    return m ? 'https://www.youtube.com/embed/' + m[1] + '?showinfo=0' : url;
+}
+
+/**
+ * 편집기 「동영상」(필름 모양) 버튼이 쓰는 형식을 쇼츠 주소도 재생되게 바꿔 등록한다(한 번만).
+ * 예: openPromoEditor 가 new Quill 직전에 부른다 → 이후 쇼츠 주소를 넣어도 재생 화면이 들어간다
+ * @returns {void}
+ * [연계] ← openPromoEditor(Quill 초기화 직전) / → promoYoutubeEmbedUrl · Quill.import('formats/video')
+ *        Quill 의 Video.create 가 src 를 정할 때 sanitize 를 부르므로 그 자리에서 바꾼다.
+ */
+function registerPromoVideoFormat() {
+    if (registerPromoVideoFormat.done || typeof Quill === 'undefined') return;
+    const BaseVideo = Quill.import('formats/video');
+    class PromoVideo extends BaseVideo {
+        static sanitize(url) { return super.sanitize(promoYoutubeEmbedUrl(url)); }
+    }
+    Quill.register(PromoVideo, true);
+    registerPromoVideoFormat.done = true;
+}
 let _boardsCache = []; // 게시판 목록 캐시
 let _commentCounts = {}; // 게시글별 댓글 수 캐시 { "postId": count }
 let _reactionCounts = {}; // 게시글별 리액션 수 캐시 { "postId": { heartCount, thumbsCount, wowCount } }
@@ -786,6 +817,7 @@ window.openPromoEditor = async function (editData = null) {
 
     // Quill 에디터 초기화 (한 번만)
     if (!promoQuillEditor) {
+        registerPromoVideoFormat();   // 「동영상」 버튼에 쇼츠 주소를 넣어도 재생되게(2026-11-19)
         promoQuillEditor = new Quill('#promo-quill-editor', {
             theme: 'snow',
             placeholder: '내용을 입력하세요...',
