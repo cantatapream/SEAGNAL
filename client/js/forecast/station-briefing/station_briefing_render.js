@@ -2055,10 +2055,46 @@
         // §11.10.28 사용자 *"텍스트 크기 3포인트정도 크게 해줘. 그리고 볼드는 빼고 텍스트 맨앞에 당구장 표시 처럼 뭔가 나와있으면 좋겠어."* — 「※」 칸 + 글 칸(.sb-notice flex — 둘째 줄이 ※ 뒤 글자 시작에)
         var nk = el('span', 'sb-notice-k', '※'); nk.setAttribute('aria-hidden', 'true'); nt.appendChild(nk);
         var nx = el('span', 'sb-notice-t'); nt.appendChild(nx);
-        nx.textContent = '각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.';   // 2026-10-18 *"한줄로 표출해주되, 어절단위로 줄바꿔줘"* — 강제 줄바꿈(br) 없이 한 문장, 넘치면 어절에서(.sb-notice keep-all)
+        nx.textContent = 'AI 분석 결과로, 실제 현장상황과 다를 수 있습니다.';   // 2026-10-18 *"한줄로 표출해주되, 어절단위로 줄바꿔줘"* → 2026-11-19 줄바꿈 없이 한 줄 · 글자 크기를 폭에 맞춤(fitNotice) · 같은 날 *"문장을 줄이고"* — 종전 「각종 정보(API, 기상정보 등) 기반 AI 분석 결과로, …」
         foot.appendChild(nt);
         box.appendChild(foot);
+        watchNotice(nt);   // 2026-11-19 한 줄 · 폭에 맞춰 글자 크기(fitNotice)
     }
+
+    // ── 맨 아래 안내 한 줄 맞춤 (2026-11-19 사용자 결정, 설계서 §11.10.28 의 줄바꿈 결정을 바꿈) ──
+    //   사용자 원문: *"노란색 글씨를 한줄에 들어가도록 화면의 크기에 맞춰 자동으로 텍스트 크기가 동적으로 바뀌도록 하고 싶고 또한 텍스트가 흰색이기를 바래."*
+    //   글 칸은 줄을 바꾸지 않고(.sb-notice-t nowrap), 넘치면 그만큼 글자 크기를 줄인다. 넓은 화면에서 키우지는 않는다(CSS 1.03rem 이 최대).
+    var noticeWatched = new Set();
+    var noticeRO = typeof ResizeObserver === 'function' ? new ResizeObserver(function (es) {
+        es.forEach(function (e) { if (e.target.isConnected) fitNotice(e.target); });
+    }) : null;
+
+    /**
+     * 안내 한 줄이 칸 폭에 들어가도록 글자 크기를 줄인다. 칸이 안 보이면(폭 0 — 아코디언 접힘) 아무것도 안 한다.
+     * 예: 360px 화면 — 16.5px 이면 글이 넘침 → 넘친 비율만큼 줄인 크기를 style.fontSize 에 넣는다
+     * @param {HTMLElement} nt - .sb-notice @returns {void}
+     * [연계] ← watchNotice(처음) · noticeRO(폭이 바뀔 때 — 펼침·화면 회전) · document.fonts.ready(글꼴이 늦게 오면 글자 폭이 바뀜)
+     */
+    function fitNotice(nt) {
+        nt.style.fontSize = '';
+        var tx = nt.querySelector('.sb-notice-t');
+        if (!tx || !nt.clientWidth) return;
+        // 「※」 와 사이 간격(4px — 글자 크기와 무관)이 있어 한 번에 딱 맞지 않을 수 있으니 몇 번 더 잰다
+        for (var i = 0; i < 4 && tx.scrollWidth > tx.clientWidth; i++) {
+            var fs = parseFloat(getComputedStyle(nt).fontSize), used = nt.clientWidth - tx.clientWidth + tx.scrollWidth;
+            nt.style.fontSize = (fs * nt.clientWidth / used - 0.05).toFixed(2) + 'px';
+        }
+    }
+
+    /** 안내 칸을 맞추고 폭 변화를 지켜본다. 다시 그려 떨어져 나간 칸은 놓아준다. @param {HTMLElement} nt @returns {void} [연계] ← render ⑦ */
+    function watchNotice(nt) {
+        noticeWatched.forEach(function (x) { if (!x.isConnected) { noticeWatched.delete(x); if (noticeRO) noticeRO.unobserve(x); } });
+        noticeWatched.add(nt);
+        if (noticeRO) noticeRO.observe(nt);
+        fitNotice(nt);
+    }
+    // node 안(vm)에서 이 파일의 글 만드는 함수만 불러 쓰는 검사가 있어 document 가 없을 수 있다
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(function () { noticeWatched.forEach(function (x) { if (x.isConnected) fitNotice(x); }); });
     // blinking() = 지금 깜빡이는 지도 수(시험이 접기·다시 그리기 뒤 0 인지 본다 — §11.10.3)
     w.StationBriefingRender = { render: render, titleText: titleText, editionTime: editionTime, subtitleText: subtitleText, colorOf: colorOf, kstText: kstText, dateText: dateText, sourceNames: sourceNames, dayWord: dayWord, highlightSegments: highlightSegments, highlightNames: highlightNames, splitAdvice: splitAdvice, closeMapPopup: closeMapPopup, WORDS: WORDS, levelWord: levelWord, appendText: appendText, SOURCES: SOURCES, blinking: function () { return blinking; }, updateNow: updateNow, nowPopupOpen: nowPopupOpen, popupOpen: popupOpen, riskAt: riskAt, coastAt: coastAt };
 })(window);
