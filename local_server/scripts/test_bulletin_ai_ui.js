@@ -163,11 +163,14 @@ const state = () => ({ ok: true, config: bai.getConfig(), choices: bai.choices()
         assert.ok(/요약됨 · 답한 AI: gemma · 5210ms · 시도: gemma 성공/.test(t) && /\[해역\] 제주도남쪽안쪽먼바다 \| ~모레\(21일\) 밤 \| 바람 9~18 m\/s \| 물결 1\.5~4\.0 m/.test(t) && /\[천둥·번개\] 내일/.test(t) && /── AI 에게 준 바다 글 ──/.test(t), t);
     });
     await check('[Sea-UI-3] 「시험 요약」 — 요약을 못 만들면 붉게, 걸린 까닭(원문 대조)과 시도 기록을 보인다 · 바다 항목이 없는 글·본문이 없는 지방청도 뜻이 보인다', async () => {
-        seaAnswer = () => ({ ok: true, office: '184', ms: 31000, seaText: '○ (해상) …', result: { state: 'raw', error: '답을 쓸 수 없다(부르는 쪽 검사에 걸림)', lines: ['○ (해상) …'], tried: [{ id: 'gemma', ok: false, error: '답을 쓸 수 없다' }, { id: 'gemini', ok: false, error: '429' }], reasons: ['물결 숫자가 글에 없다: 제주도앞바다 1.5~9.0'] } });
+        seaAnswer = () => ({ ok: true, office: '184', ms: 31000, seaText: '○ (해상) …', result: { state: 'raw', error: '답을 쓸 수 없다(부르는 쪽 검사에 걸림)', lines: ['○ (해상) …'], tried: [{ id: 'gemma', ok: false, error: '답을 쓸 수 없다', raw: '```json\n{ "zones": [ 깨진 답 <b>전체</b>' }, { id: 'gemini', ok: false, error: '429' }], reasons: ['물결 숫자가 글에 없다: 제주도앞바다 1.5~9.0'] } });
         await page.click('[data-bai-sea-try]');
         await page.waitForFunction(() => /요약하지 못함/.test(document.querySelector('[data-bai-sea-out]').textContent));
         const t = await page.textContent('[data-bai-sea-out]');
         assert.ok(/요약하지 못함\(화면에는 원문의 바다 항목이 그대로 나갑니다\) · 31000ms/.test(t) && /시도: gemma 실패\(답을 쓸 수 없다\) → gemini 실패\(429\)/.test(t) && /원문 대조에 걸린 까닭: 물결 숫자가 글에 없다/.test(t), t);
+        // 못 쓴 답 전체(raw)를 그 AI 이름 아래 보인다 — 글자 그대로(태그로 풀리지 않는다) · raw 가 없는 AI(호출 실패)는 칸을 만들지 않는다
+        assert.ok(t.includes('── gemma 가 낸 답(못 쓴 답 · 앞 4,000자까지) ──\n```json\n{ "zones": [ 깨진 답 <b>전체</b>') && !/── gemini 가 낸 답/.test(t) && t.indexOf('gemma 가 낸 답') < t.indexOf('AI 에게 준 바다 글'), t);
+        assert.equal(await page.$eval('[data-bai-sea-out]', (e) => e.querySelectorAll('b').length), 0);
         assert.equal(await page.$eval('[data-bai-sea-out]', (e) => e.style.color), 'rgb(248, 113, 113)');
         seaAnswer = () => ({ ok: true, office: '184', ms: 3, seaText: '', result: { state: 'none' } });
         await page.click('[data-bai-sea-try]');

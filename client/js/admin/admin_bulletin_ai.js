@@ -179,6 +179,8 @@
                     }
                     if ((r.reasons || []).length) L.push('원문 대조에 걸린 까닭: ' + r.reasons.join(' / '));
                     if ((r.dropped || []).length) L.push('쓰인 답에서 버리거나 고친 것: ' + r.dropped.join(' / '));
+                    // 답은 왔는데 못 쓴 AI 는 그 답 전체를 보인다(오류 문구는 앞 120자뿐이라 까닭을 알 수 없었다 — 2026-11-19 운영 시험)
+                    (r.tried || []).forEach(function (t) { if (!t.ok && t.raw) L.push('', '── ' + t.id + ' 가 낸 답(못 쓴 답 · 앞 4,000자까지) ──', t.raw); });
                     if (j.seaText) L.push('', '── AI 에게 준 바다 글 ──', j.seaText);
                     show(color, L.join('\n'));
                 })

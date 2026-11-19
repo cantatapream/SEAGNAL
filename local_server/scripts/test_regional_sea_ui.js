@@ -37,6 +37,7 @@ const REGIONAL = {
             { zone: '제주도남부앞바다', period: '내일(20일) 새벽~', wind: '9~15', wave: null },
         ], notes: [
             { kind: '특보 가능성', text: '내일(20일) 새벽부터 {{loc:제주도남서쪽안쪽먼바다·제주도남쪽바깥먼바다}} {{warn:풍랑경보 변경 가능성}}(물결 {{num:최대 5.0m 이상}}) · {{loc:제주도남부앞바다}} {{warn:풍랑특보 발표 가능성}}' },
+            { kind: '해제 예고', text: '{{loc:제주도남부앞바다}} 19일 밤(21~24시)' },
             { kind: '천둥·번개', text: '내일(20일)~모레(21일) {{loc:제주도해상}}' },
             { kind: '너울', text: '<img src=x onerror="window.__xss=1"> 꺾쇠가 든 글' },
         ] },
@@ -154,7 +155,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         await check('딱지 줄: 낱말 중간에서 줄을 바꾸지 않는다 · 딱지 안은 한 줄 · 종류별 색', async () => {
             const st = await jeju.$$eval('.regional-forecast-sea .rf-sea-ln', (els) => els.map((ln) => ({ wb: getComputedStyle(ln).wordBreak, chipWs: getComputedStyle(ln.querySelector('.rf-sea-chip')).whiteSpace, cls: ln.querySelector('.rf-sea-chip').className, kind: ln.querySelector('.rf-sea-chip').textContent })));
             assert.ok(st.every((s) => s.wb === 'keep-all' && s.chipWs === 'nowrap'), JSON.stringify(st));
-            assert.deepStrictEqual(st.map((s) => T(s.kind) + ':' + s.cls.replace('rf-sea-chip ', '')), ['특보 가능성:red', '천둥·번개:yellow', '너울:purple']);
+            assert.deepStrictEqual(st.map((s) => T(s.kind) + ':' + s.cls.replace('rf-sea-chip ', '')), ['특보 가능성:red', '해제 예고:green', '천둥·번개:yellow', '너울:purple']);
             assert.equal(await jeju.$eval('.regional-forecast-sea .rf-sea-zn', (e) => getComputedStyle(e).wordBreak), 'keep-all');
             // 색 표시(지역 파랑·수치 빨강·위험 주황)가 딱지 줄에도 들어간다
             const colors = await jeju.$eval('.regional-forecast-sea .rf-sea-ln', (ln) => [...new Set([...ln.querySelectorAll('span[style*="color"]')].map((x) => x.style.color))]);
@@ -163,7 +164,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         await check('꺾쇠가 든 글은 글자로만 보인다(실행되지 않는다)', async () => {
             assert.equal(await jeju.evaluate(() => window.__xss), undefined);
             assert.equal(await jeju.$('.regional-forecast-sea img'), null);
-            assert.ok(/<img src=x/.test(T(await jeju.$$eval('.regional-forecast-sea .rf-sea-ln', (els) => els[2].textContent))));
+            assert.ok(/<img src=x/.test(T(await jeju.$$eval('.regional-forecast-sea .rf-sea-ln', (els) => els[els.length - 1].textContent))));   // 너울 줄(맨 끝)
         });
         await jeju.$eval('.regional-forecast-office', (e) => e.scrollIntoView());
         await (await jeju.$('.regional-forecast-office')).screenshot({ path: path.join(SHOT, 'sea_412_ok.png') });

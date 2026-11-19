@@ -1537,6 +1537,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 14:42 KST] ✅완료 — 해상 기상 요약 — 「해제 예고」 딱지 + 못 쓴 답 전체 보기
+[까닭] 운영 「시험 요약」(대전청)에서 원문 「충남앞바다(해제예고: 19일 밤(21~24시))」가 요약에서 빠졌고 검사가 못 잡음 · Gemma 실패 문구가 앞 120자뿐이라 까닭을 알 수 없음. 사용자 「둘다 진행」. [한 것] (가) regional_sea_summary.js: 종류 「해제 예고」(KINDS·지시문) · liftNotices(원문에서 해역·시점 짝) · 그 줄에는 「해역+시점 글자 그대로」 짝과 군말만(남는 글 있으면 거절) · 못 읽은 해제 예고가 있으면 요약하지 않음(원문 줄 그대로) · 해역·기간 칸의 해제예고 괄호는 trim 이 뺌 · 화면 초록 딱지(marine_forecast.js SEA_CHIP, 꼬리표 SeaSum_20261119b). (나) bulletin_ai.js: 답은 냈는데 못 쓴 AI 의 답 앞 4,000자를 tried[].raw 로 남기고 관리자 「시험 요약」이 보임(공개 자료에는 안 나감 — publicSea). [정정] 조사 3,282편 바다 항목에 해제예고 0편은 맞으나, 오늘 새벽 수도권·대전 글엔 이미 있었고 그때 「곁말이라 빠져도 됨」으로 정해 통과 시험까지 뒀었다 — 그 시험 2건을 반대로 고침. [검토] sonnet 셋(각도 셋): A 틀린 답 통과 4건(시점 꼴에 따라 검사 꺼짐·뜻 뒤집는 곁말·지어낸 짝·줄 갈림) 전부 재현·수정·회귀 시험 / B 군말 끼면 거절→허용, 지시문 보강, 옛·새 판 3,954편 동일(검토자 실행) / C 결함 없음. [확인] test_regional_sea_summary 80 · test_bulletin_ai 75 · test_bulletin_ai_ui 11 · test_regional_sea_ui 16 · verify_all EXIT 0(끝의 실패 모음 19줄은 머지 전 점검과 글자까지 같음 — 법률 자료 쪽 기존 계수). [못 한 것] 실제 AI 가 새 지시문으로 해제 예고 줄을 검사에 맞게 내는지(키 없음) — 배포 뒤 대전·수도권 「시험 요약」으로 확인. PR 은 사용자 요청 대기. 상세 = analysis/bulletin_survey/README.md ⑲ 끝 절. [다음] 사용자: PR 여부 · 운영 확인. 보류 3건(dmdw 장애분 보충·로그인 실패 시 화면 잠금·MMIS 오발송 원인)은 사용자 「정상작동 확인하면 진행」.
+
+
+### [2026-11-19 14:07 KST] 🟢착수 — 해상 기상 요약 — 해제예고 살리기 + Gemma 실패 답 전체 보기
+사용자 운영 시험(대전 풍랑 글)에서 ①원문 「충남앞바다(해제예고: 19일 밤(21~24시))」가 요약에서 빠졌고 검사가 못 잡음(조사 3,282편 중 해제예고 0편 — 설계 때 못 본 꼴) ②Gemma 실패 문구가 답 앞 120자만 남겨 까닭을 알 수 없음. 사용자 승인 「둘다 진행」. 할 일: (가) 바다 글에 해제예고가 있으면 요약 notes 에 「해제 예고」 종류로 싣게 하고 빠지면 거절 — regional_sea_summary.js KINDS·PROMPT·trim·check + 화면 칩 색 (나) 「시험 요약」 결과에 Gemma 답 전체를 보여 줌 — bulletin_ai.callGemma 가 실패 때 원답을 따로 돌려주고 trial 이 그것을 싣는다. 시험 추가 → sonnet 독립 검토 → verify_all.
+
+
 ### [2026-11-19 13:11 KST] ✅완료 — 지방청 「해상 기상 요약」 상자 · 「분포도」 줄 빼기 · 📋 원문 보기 · AI 칸 ⑥ — 구현·실제 Gemma 시험·검토 반영
 [한 일] services/regional_sea_summary.js(신규 — 바다 항목 뽑기·AI 요약·원문 대조) · bulletin_ai ⑥ seasummary(먼저 Gemma 기본 켬·순서 기본 Gemini·어느 AI 답에든 accept) · regional_bulletin_collector(「< … 분포도 >」 줄 빼기 · summarizePending — 수집 뒤 따로, 기다리지 않음, 통보문마다 4번까지, 공개 파일에는 화면이 쓰는 칸만 · docKeyOf·syncDocs) · bulletin_docs.syncExtra(날씨해설 원문 fax_wcmt_… — 특보 통보문과 집안을 나눠 보관) · routes(/api/regional-forecast 가 doc 주소를 붙임 · POST /api/admin/bulletin-ai/try-sea-summary) · 화면(지방청 카드 머리줄 두 줄·📋·요약 상자 네 상태) · 관리자 ⑥ 칸+「시험 요약」 · index2 의 style.css·marine_forecast.js 버전 꼬리표 SeaSum_20261119.
 [실제 Gemma — 사용자가 준 임시 키(시험 뒤 사용자가 삭제), gemma-4-26b-a4b-it] 오늘 새벽 지방청 7곳 + 계절별 6편을 세 차례: 답 5~15초 · 답한 것 가운데 대조 통과 1차 1/4 → 2차 9/12 → 3차 4/8(+1) · 걸러 낸 답은 본 것 모두 실제로 틀린 답(해역·바람 빼먹음, 이름 틀림) · 「수요 과다」(503) 차례마다 1~5편. 실제 답 9건을 검사에 넣었다. 로컬 서버에서 실제 흐름으로 7곳 중 4곳이 Gemma 요약으로 화면에 뜨는 것 확인. ⚠임시 키로는 순서의 Gemini(gemini-2.5-flash-lite)가 404 — Gemini 가 대신 요약하는 길은 못 봤다.

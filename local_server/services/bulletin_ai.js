@@ -202,17 +202,19 @@ function choices() {
  * 아니면 실패로 친다(부르는 쪽이 종전 Gemini 로 대신한다).
  * 예: await callGemma('gemma-4-26b-a4b-it', '…JSON 만 답하라…', { caller:'X', shape: GEMMA_OK }) → { success:true, text:'{"categories":{…}}' }(꺼낸 JSON 을 다시 글로)
  * @param {string} model @param {string} prompt @param {{caller?:string, json?:boolean, shape?:function(any): boolean}} [o]
- * @returns {Promise<{success:boolean, text?:string, error?:string, isRateLimited?:boolean}>}
+ * @returns {Promise<{success:boolean, text?:string, error?:string, isRateLimited?:boolean, raw?:string}>} raw = 답은 왔는데 못 쓴 경우의 답 전체(앞 4,000자)
  * [연계] ← call(Gemini 칸) · tryModel / → gemini_client.callPlain
  */
+const RAW_MAX = 4000;   // 시도 기록에 남기는 「못 쓴 답」 길이(관리자 「시험 요약」이 그대로 보인다)
 async function callGemma(model, prompt, o) {
     const r = await require('./gemini_client').callPlain({ model, contents: prompt, config: GEMMA_CONFIG, caller: (o && o.caller) || 'Bulletin-Gemma' });
     if (!r.success) return { success: false, error: r.error || 'Gemma 호출 실패', isRateLimited: !!r.isRateLimited };
     if (!r.text || !String(r.text).trim()) return { success: false, error: 'Gemma 가 빈 답을 냈다' };
     if (o && o.json === false) return { success: true, text: r.text };
     const p = looseJson(r.text);
-    if (p === undefined) return { success: false, error: 'Gemma 답이 JSON 이 아니다: ' + String(r.text).replace(/\s+/g, ' ').slice(0, 120) };
-    if (o && o.shape && !o.shape(p)) return { success: false, error: 'Gemma 답을 쓸 수 없다(필요한 칸이 없거나 색 표시 꼴이 깨졌거나 원문 줄이 빠졌다): ' + JSON.stringify(p).slice(0, 120) };
+    // raw = 못 쓴 답 전체(앞 RAW_MAX 자) — 오류 문구는 앞 120자뿐이라 까닭을 알 수 없었다(운영 「시험 요약」 2026-11-19: 답이 JSON 이 아니라는데 뒤가 안 보임)
+    if (p === undefined) return { success: false, error: 'Gemma 답이 JSON 이 아니다: ' + String(r.text).replace(/\s+/g, ' ').slice(0, 120), raw: String(r.text).slice(0, RAW_MAX) };
+    if (o && o.shape && !o.shape(p)) return { success: false, error: 'Gemma 답을 쓸 수 없다(필요한 칸이 없거나 색 표시 꼴이 깨졌거나 원문 줄이 빠졌다): ' + JSON.stringify(p).slice(0, 120), raw: String(r.text).slice(0, RAW_MAX) };
     return { success: true, text: JSON.stringify(p) };
 }
 
@@ -259,6 +261,7 @@ function briefingChain() {
  *   accept = 어느 AI 의 답이든(Gemma 포함) 꺼낸 JSON 을 받아 쓸 만한지 본다(⑥ — 숫자·해역 이름이 원문에 있는가). false 면 그 AI 는 실패로 치고 다음 AI 로 넘긴다.
  *     없으면: 지어낸 숫자가 든 답이 「성공」으로 굳어 화면에 나간다.
  * @returns {Promise<{success:boolean, text?:string, error?:string, isRateLimited?:boolean, keyLabel?:string, provider?:string, tried:Array}>}
+ *   tried = [{ id, ok, error, raw? }] — raw 는 답은 왔는데 못 쓴 경우(JSON 이 아님·검사에 걸림)의 답 전체(앞 4,000자). 호출 자체가 실패하면 없다.
  * [연계] ← ai_report_parser.js · bulletin_ai_trial.js · marine_forecast_processor.js · regional_bulletin_collector.js · bulletin_escalation.js / → llm_chain.callDirect · codex_bridge.callRaw · gemini_client.callGemini
  */
 async function call(f, prompt, opt) {
@@ -276,7 +279,7 @@ async function call(f, prompt, opt) {
         const prev = gemmaLast[f] || {};
         gemmaLast[f] = { at: Date.now(), model: cfg.gemma, ok: !!g.success, error: g.success ? null : String(g.error || '').slice(0, 200),
             okCount: (prev.okCount || 0) + (g.success ? 1 : 0), failCount: (prev.failCount || 0) + (g.success ? 0 : 1) };
-        tried.push({ id: 'gemma', ok: !!g.success, error: gemmaLast[f].error });
+        tried.push(Object.assign({ id: 'gemma', ok: !!g.success, error: gemmaLast[f].error }, g.raw ? { raw: g.raw } : {}));
         if (g.success) return { success: true, text: g.text, keyLabel: 'gemma:' + cfg.gemma, provider: 'gemma', tried };
         console.warn(`[AI 특보 분석] ${FEATURES[f].name}: Gemma(${cfg.gemma}) 가 해내지 못함 — 정해 둔 순서대로 이어서 부른다:`, gemmaLast[f].error);
     }
@@ -300,9 +303,9 @@ async function call(f, prompt, opt) {
         if (r.success && o.accept && o.json !== false) {
             let fine = false;
             try { fine = !!o.accept(looseJson(r.text)); } catch (e) { console.warn(`[AI 특보 분석] ${id} 답 검사 중 예외 — 못 쓰는 답으로 친다:`, e && e.message); }   // 검사가 던져도 순서의 다음 AI 는 해 본다
-            if (!fine) r = { success: false, error: '답을 쓸 수 없다(부르는 쪽 검사에 걸림): ' + String(r.text).replace(/\s+/g, ' ').slice(0, 120) };
+            if (!fine) r = { success: false, error: '답을 쓸 수 없다(부르는 쪽 검사에 걸림): ' + String(r.text).replace(/\s+/g, ' ').slice(0, 120), raw: String(r.text).slice(0, RAW_MAX) };
         }
-        tried.push({ id, ok: !!r.success, error: r.success ? null : String(r.error || '').slice(0, 200) });
+        tried.push(Object.assign({ id, ok: !!r.success, error: r.success ? null : String(r.error || '').slice(0, 200) }, r.raw ? { raw: r.raw } : {}));
         if (r.success && r.text && String(r.text).trim()) {
             const text = id === 'gemini' || o.json === false ? r.text : require('./codex_bridge').stripFence(r.text);
             if (tried.length > 1) console.warn(`[AI 특보 분석] ${FEATURES[f].name}: ${id} 로 답함(앞 순위 실패 — ${tried.slice(0, -1).map(t => t.id + ':' + t.error).join(' / ')})`);
