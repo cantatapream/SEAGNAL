@@ -9,6 +9,8 @@
  *         ④ 「관리자」 줄 오른쪽 끝에 비밀댓글 체크박스
  *         ⑤ 「댓글 N개」 줄은 없고, 그 자리에 ❤️👍😮 + 오른쪽 끝 작은 「작성 가이드라인」(누르면 펼침) · 제목 아래에는 반응 버튼이 없다
  *         ⑥ 댓글을 못 쓰는 글(일반 사용자)은 입력칸·가이드라인 단추가 없고 반응 줄은 남는다
+ *         ⑦ 같은 글을 관리자가 열어도 댓글 영역(목록·안내·입력칸·가이드라인)이 없다(2026-11-19 사용자)
+ *         ⑧ 폰 글쓰기·수정 창은 위를 상태표시줄 높이만큼 띄운다(2026-11-19 사용자)
  *         412px 스크린샷을 PROMO_SHOT_DIR(없으면 임시 폴더)에 남긴다.
  * 사용자 2026-11-19: 「좌우 영역까지 게시글이 꽉 차서 표현」 「댓글 쓰는 부분이 … 아예 게시글 하단에 고정되도록 하되, 댓글 입력창의 영역 상하를
  *   1/3로 줄이고 등록버튼도 댓글입력창의 오른쪽에 배치 / 관리자 오른쪽 끝에 비밀댓글 체크박스와 텍스트」 「댓글작성 가이드라인은 댓글 0개 오른쪽 끝에
@@ -172,6 +174,23 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         });
         await u.screenshot({ path: path.join(SHOT, 'promo_412_nocomment.png') });
         await u.context().close();
+
+        // [2026-11-19 사용자] 「댓글 허용하지 않은 게시물에는 댓글 영역이 사용자 및 관리자 입장에서 … 표출되지 않도록」
+        const ad = await open(2, true);
+        await check('⑦ 댓글을 막아 둔 글(관리자): 댓글 목록·안내·입력칸·가이드라인 단추가 모두 없다 · 반응 줄은 남는다', async () => {
+            assert.equal(await ad.$eval('#comment-input-area', (e) => e.innerHTML === '' && getComputedStyle(e).display === 'none'), true);
+            assert.equal(await ad.$eval('#promo-detail-comments', (e) => e.innerHTML), '');
+            assert.equal(await ad.$eval('#comment-guideline-slot', (e) => e.innerHTML), '');
+            assert.equal(await ad.evaluate(() => document.body.innerText.includes('댓글 기능이 비활성화')), false);
+            assert.equal((await ad.$$('#promo-detail-reactions .reaction-btn')).length, 3);
+        });
+        await ad.context().close();
+
+        await check('⑧ 폰에서 화면을 꽉 채우는 글쓰기·수정 창은 위를 상태표시줄 높이(safe-area)만큼 띄운다', async () => {
+            const css = fs.readFileSync(path.join(root, 'client/style.css'), 'utf8');
+            const m = css.match(/@media \(max-width: 600px\)[\s\S]*?\.promo-editor-modal-content \{([^}]*)\}/);
+            assert.ok(m && /padding-top: env\(safe-area-inset-top, 0px\);/.test(m[1]) && /box-sizing: border-box;/.test(m[1]), m && m[1]);
+        });
 
         await check('페이지 오류가 없다', async () => { assert.deepStrictEqual(errors.filter((m) => !/Failed to fetch|NetworkError|Load failed/.test(m)), []); });
         console.log('스크린샷:', SHOT);

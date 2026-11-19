@@ -34,7 +34,7 @@
 
 /**
  * 게시글 댓글 섹션 하단에 댓글 입력 UI를 그린다.
- * 댓글 허용 여부에 따라 입력창을 보여주거나 "댓글 기능이 비활성화" 안내를 표시.
+ * 댓글이 꺼진 글이면 사용자·관리자 모두 아무것도 그리지 않는다(비면 CSS 가 칸을 숨긴다).
  *
  * @param {HTMLElement} inputWrapEl - 입력창을 담을 DOM 요소
  * @param {boolean} allowComments - 댓글 허용 여부
@@ -43,8 +43,8 @@ function renderCommentInput(inputWrapEl, allowComments) {
     if (!inputWrapEl) return;
     var isAdmin = isAdminMode();
 
-    if (!allowComments && !isAdmin) {
-        // 일반 사용자에게는 입력창 자체를 숨김 (댓글 비활성화)
+    if (!allowComments) {
+        // 댓글이 꺼진 글은 사용자·관리자 모두 입력창 자체를 숨김(2026-11-19 사용자 — 종전에는 관리자에게 안내와 막힌 입력칸을 보였다)
         inputWrapEl.innerHTML = '';
         return;
     }
@@ -54,17 +54,10 @@ function renderCommentInput(inputWrapEl, allowComments) {
         ? 'background:linear-gradient(135deg,#4fc3f7,#0277BD);color:#fff;'
         : 'background:linear-gradient(135deg,#80cbc4,#00695c);color:#fff;';
 
-    // 관리자이지만 댓글 비활성화 상태인 경우 안내 표시
-    var disabledNotice = (!allowComments && isAdmin)
-        ? '<div class="comment-disabled-notice"><i class="fa-solid fa-ban"></i> 댓글 기능이 비활성화된 게시글입니다. (관리자는 댓글 확인 가능)</div>'
-        : '';
-
     // [2026-11-19 사용자 확정 시안] 게시글 팝업 맨 아래 고정 칸에 들어가는 입력칸(index2.html #comment-input-area).
     //   「댓글 입력창의 영역 상하를 1/3로 줄이고 등록버튼도 댓글입력창의 오른쪽에 배치 / 관리자 오른쪽 끝에 비밀댓글 체크박스와 텍스트를 붙이고」
     //   → [닉네임 ……… ☐🔒비밀댓글] / [입력창(한 줄 높이, 오른쪽 아래 0/500) | 등록]. 모양은 style.css .promo-detail-comment-footer
-    var off = (!allowComments && isAdmin) ? ' disabled' : '';
-    inputWrapEl.innerHTML = disabledNotice
-        + '<div class="comment-input-wrap">'
+    inputWrapEl.innerHTML = '<div class="comment-input-wrap">'
         + '<div class="comment-input-header">'
         + '<span class="comment-nickname-badge" style="' + badgeStyle + '">' + escapeCommentHtml(myNickname) + '</span>'
         // 비밀 댓글 체크박스 — 닉네임 줄 오른쪽 끝
@@ -76,11 +69,11 @@ function renderCommentInput(inputWrapEl, allowComments) {
         + '<div class="comment-input-row">'
         + '<div class="comment-textarea-box">'
         + '<textarea id="comment-input-textarea" class="comment-textarea" aria-label="댓글 입력" '
-        + 'placeholder="댓글을 입력하세요... (최대 500자)" maxlength="500" rows="1"' + off
+        + 'placeholder="댓글을 입력하세요... (최대 500자)" maxlength="500" rows="1"'
         + '></textarea>'
         + '<span id="comment-char-count" class="comment-char-count">0/500</span>'
         + '</div>'
-        + '<button class="comment-submit-btn" onclick="submitComment()"' + off
+        + '<button class="comment-submit-btn" onclick="submitComment()"'
         + '><i class="fa-solid fa-paper-plane"></i> 등록</button>'
         + '</div>'
         + '</div>';
