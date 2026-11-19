@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 09:03 KST] ✅완료 — 연안 브리핑 세션 예약 작업 생성(하루 3번)
+PR #1514 머지(08:57 KST)·배포 확인(GET /api/station-briefing/automation/job → JSON 404 「지금 받을 일감 없음」). 사용자 「좋아 그렇게 반영하자」(만들기 시작 20분 전 추천) → 정각·30분 회피로 06:29·16:29·21:59 KST. 예약 작업 2개: 「연안 브리핑 세션 정시 판 — 아침·저녁」(CRON_TZ=Asia/Seoul 29 6,16 * * *, trig_014Svz7mGTuoyYYfeyECVNge)·「— 밤」(59 21, trig_01PsvSJrxHBAaup1DVvcBByR). 새 세션마다·푸시 없음(결과는 서버 관리자 푸시). 첫 실행 11-19 16:29 KST. 다음: 첫 운영 판(17:30 판) 관리자 푸시의 세션 몫·「입력 바뀜 N」 확인, GET …/automation/jobs 로 기록 확인.
+
+
 ### [2026-11-19 08:52 KST] ✅완료 — 연안 브리핑 정시 판을 세션이 쓰는 운영 연결
 완료(코드·시험·독립검토 반영 — main 머지·배포는 사용자, 예약 작업 2개 생성). ①지명 검사 오판 2건(「부는 동안 해변의」·「세지 않아도 방파제와」 — 세션 글 원문으로 시험) 검사 v22 ②GET /api/station-briefing/automation/job(판 종류는 서버가 시계로 — 만들기 시작 30분 전~시작 전) · POST …/job-result(일감 하나에 한 번) · GET …/jobs(최근 30개) ③일감 파일 data/station_briefing/session_job.json(배포 재시작에도 유지) ④1분 점검이 답 없으면 시작을 10분까지 미룸(그동안 특보 변경도 미룸) ⑤정시 판이 입력 지문 같고 재검사 통과한 관할만 세션 글(source session), 나머지 AI 사슬 ⑥관리자 푸시 「세션 N」+안 옴·늦음·일부 한 줄. 독립 적대검증 지적 중4·하4 모두 반영(실패 재시도 때 답 유지, late/none 오표시, 대기 중 특보 변경, none 기한, template, 늦은 밤 판, 일감 만드는 중 경합). 시험 test_station_briefing 251/0 · test_station_briefing_ui 101/0(3회 중 첫 회 1건 실패 — 항목 이름 못 봄, 뒤 2회 101/0) · test_silent_catch 22/0 · verify_all: 서버 스모크 42·V4 시뮬레이션(서버 미기동)과 test_bulletin_ai_ui·test_text_fit(이 환경 playwright 모듈 없음 — 붙여 다시 돌리니 4/0·28/0) 밖에 실패 없음. 설계서 §11.10.56. 다음: 사용자 머지·배포 뒤 첫 운영 판 푸시의 「입력 바뀜 N」·세션 몫 확인.
 
