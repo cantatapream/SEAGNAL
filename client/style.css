@@ -3569,7 +3569,6 @@ line-height: 1.1;
 /* 발 — 댓글 입력(늘 아래 고정). 댓글을 못 쓰는 글이면 비어 숨는다 */
 .promo-detail-comment-footer { flex: none; padding: 8px 10px 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0, 0, 0, 0.18); }
 .promo-detail-comment-footer:empty { display: none; }
-.promo-detail-comment-footer .comment-disabled-notice { margin-bottom: 6px; }
 .promo-detail-comment-footer .comment-input-wrap { background: none; border: 0; border-radius: 0; padding: 0; }
 .promo-detail-comment-footer .comment-input-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .promo-detail-comment-footer .comment-secret-label { margin-left: auto; min-height: 32px; font-size: 0.8rem; color: #cbd5e1; }
@@ -3904,6 +3903,10 @@ line-height: 1.1;
         border-radius: 0;
         max-height: 100vh;
         height: 100%;
+        /* 화면을 꽉 채우므로 머리(「글 수정」·댓글 허용·닫기)가 휴대폰 상태표시줄 밑으로 들어가지 않게 그 높이만큼 띄운다
+           (2026-11-19 사용자 — 앱 머리말 .main-header 와 같은 env(safe-area-inset-top)). */
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top, 0px);
     }
 
 }
@@ -7746,20 +7749,6 @@ line-height: 1.1;
 .comment-submit-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
-}
-
-/* ── 댓글 비활성화 안내 (관리자에게만 보이는 안내) */
-.comment-disabled-notice {
-    font-size: 0.78rem;
-    color: #f59e0b;
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    border-radius: 8px;
-    padding: 6px 12px;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
 }
 
 /* ── 에디터 댓글 허용 토글 슬라이더 */

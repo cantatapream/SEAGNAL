@@ -53,14 +53,14 @@ async function loadPromoComments(postId, allowComments) {
     var container = document.getElementById('promo-detail-comments');
     if (!container) return;
 
-    var isAdmin = isAdminMode();
-
     // 댓글 입력칸(팝업 아래 고정 칸)과 「작성 가이드라인」 자리(반응 줄 오른쪽 끝)는 index2.html 에 고정으로 있다 — 2026-11-19
     var inputArea = document.getElementById('comment-input-area');
     var guideSlot = document.getElementById('comment-guideline-slot');
 
-    // 댓글 기능이 꺼져있고 일반 사용자인 경우: 섹션 자체를 숨김(입력칸·가이드라인도 비운다 — 비면 CSS 가 숨긴다)
-    if (!allowComments && !isAdmin) {
+    // 댓글 기능이 꺼진 글: 사용자·관리자 모두 댓글 영역 자체를 숨김(목록·입력칸·가이드라인을 비운다 — 비면 CSS 가 숨긴다).
+    //   [2026-11-19 사용자] 「댓글 허용하지 않은 게시물에는 댓글 영역이 사용자 및 관리자 입장에서 그 게시글을 눌렀을 때 표출되지 않도록」
+    //   — 종전에는 관리자에게 목록과 「댓글 기능이 비활성화된 게시글입니다(관리자는 댓글 확인 가능)」 안내·막힌 입력칸을 보였다.
+    if (!allowComments) {
         container.innerHTML = '';
         if (inputArea) inputArea.innerHTML = '';
         if (guideSlot) guideSlot.innerHTML = '';

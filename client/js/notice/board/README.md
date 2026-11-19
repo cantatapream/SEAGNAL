@@ -36,3 +36,9 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
   → 키보드가 뜨면 제목·댓글 입력은 그대로 보이고 가운데 본문 칸만 줄어든다. 키보드가 없을 때 모양은 종전과 같다(위아래 40px).
 - 켜고 끄기: `openPromoDetail` → `bindPromoDetailKeyboardFit`, `closePromoDetail` → `unbindPromoDetailKeyboardFit`(뒤로가기 버튼으로 닫아도 `closePromoDetail` 을 거친다).
 - 시험: `local_server/scripts/test_promo_detail_keyboard.js`. 실기기에서 키보드를 띄워 본 것은 아니다 — 브라우저에서 보이는 화면 크기를 바꿔 재 봤다.
+
+## 글쓰기·수정 창 — 폰에서 머리가 상태표시줄 밑으로 들어가지 않게 (2026-11-19)
+
+- 폰(600px 이하)에서 글쓰기·수정 창(`.promo-editor-modal-content`)은 화면을 꽉 채운다(`height:100%`·`margin:0`). 위 여백이 없어 머리(「글 수정」·댓글 허용·닫기)가 휴대폰 상태표시줄 밑으로 들어갔다(사용자 지적).
+- `style.css` 에서 그 창의 위를 `env(safe-area-inset-top)` 만큼 띄운다 — 앱 머리말 `.main-header` 가 쓰는 것과 같은 값.
+- 시험: `local_server/scripts/test_promo_detail_ui.js` ⑧(글자 확인 — 시험용 브라우저는 상태표시줄 높이가 0 이라 화면으로는 못 잰다).
