@@ -668,14 +668,18 @@ function createAlertElement(items) {
                 window.showZoneBulletins(zoneNameStr);
             }
         });
-        // 해역명(.zone-name) 뒤, 뱃지 컨테이너(.alert-badges) 앞에 삽입
+        // 해역명(.zone-name) 뒤에 [📋 + 뱃지] 묶음(.alert-header-actions)으로 넣는다.
+        //   [2026-11-19 사용자] 글자 크기를 키우거나 해역명이 길어 한 줄에 다 안 들어가면, 종전엔 📋 만 윗줄에
+        //   남고 뱃지만 아랫줄로 내려갔다 → 「통보문 버튼과 뱃지 둘다 다음줄로」. 둘을 한 칸으로 묶어 같이 넘어가게 한다.
+        //   한 줄에 들어갈 때 모양은 그대로(📋 는 해역명 바로 뒤, 뱃지는 오른쪽 끝).
         if (header) {
             const badgeEl = header.querySelector('.alert-badges');
-            if (badgeEl) {
-                header.insertBefore(historyBtn, badgeEl);
-            } else {
-                header.appendChild(historyBtn);
-            }
+            const actions = document.createElement('div');
+            actions.className = 'alert-header-actions';
+            actions.style.cssText = 'display:flex; align-items:center; gap:8px; flex:1 1 auto;';
+            header.insertBefore(actions, badgeEl);   // badgeEl 이 없으면 끝에 붙는다
+            actions.appendChild(historyBtn);
+            if (badgeEl) actions.appendChild(badgeEl);
         }
     }
 

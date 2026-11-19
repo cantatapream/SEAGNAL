@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 09:40 KST] ✅완료 — 특보 카드 머리줄 — 큰 글자·좁은 폭에서 📋 통보문 버튼과 뱃지가 함께 다음 줄로 (브랜치 claude/festive-tesla-k7ie2s)
+사용자 2026-11-19(스크린샷: 글자 크기 최대, 동해남부해상 카드들): 해역명이 길어 한 줄에 안 들어가면 종전엔 📋 는 윗줄 오른쪽, 뱃지만 아랫줄로 갈라졌다 → 「통보문 버튼과 뱃지 둘다 다음줄로」. 수정: forecast/alerts/render.js createAlertElement 에서 📋 와 .alert-badges 를 .alert-header-actions(display:flex; flex:1 1 auto) 한 묶음으로 감쌌다 → 줄바꿈이 묶음 단위로 일어남. 한 줄에 들어갈 땐 모양 그대로(📋 는 해역명 바로 뒤, 뱃지는 오른쪽 끝). 둘째 줄로 가면 📋 왼쪽·뱃지 오른쪽. index2.html render.js 버전표 갱신. 확인: 가짜 특보 5건으로 실제 renderApp 을 그려 잼 — 큰 글자 360px 5/5·412px 4/5 둘째 줄, 갈라짐 0 · 기본(412)·작게(430) 전부 한 줄. test_forecast_gear_ui ⑤ 추가(고치기 전 코드로 돌리면 「다른 줄」 실패, 고친 뒤 33/0). simulate 회귀 없음, test_marine_smallzone_ui·test_marine_ui·test_station_briefing_ui·test_zone_tree_wiring·test_guide_tabs·test_tab_structure 통과, check_order 통과.
+
+
 ### [2026-11-19 09:03 KST] ✅완료 — 연안 브리핑 세션 예약 작업 생성(하루 3번)
 PR #1514 머지(08:57 KST)·배포 확인(GET /api/station-briefing/automation/job → JSON 404 「지금 받을 일감 없음」). 사용자 「좋아 그렇게 반영하자」(만들기 시작 20분 전 추천) → 정각·30분 회피로 06:29·16:29·21:59 KST. 예약 작업 2개: 「연안 브리핑 세션 정시 판 — 아침·저녁」(CRON_TZ=Asia/Seoul 29 6,16 * * *, trig_014Svz7mGTuoyYYfeyECVNge)·「— 밤」(59 21, trig_01PsvSJrxHBAaup1DVvcBByR). 새 세션마다·푸시 없음(결과는 서버 관리자 푸시). 첫 실행 11-19 16:29 KST. 다음: 첫 운영 판(17:30 판) 관리자 푸시의 세션 몫·「입력 바뀜 N」 확인, GET …/automation/jobs 로 기록 확인.
 
