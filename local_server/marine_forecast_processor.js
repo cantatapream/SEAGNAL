@@ -324,18 +324,23 @@ function bareLength(x) {
     return String(flat).replace(/\{\{(?:loc|num|warn):([^{}]*)\}\}/g, '$1').replace(/^[\s\-–—o○·]+/gm, '').replace(/\s+/g, '').length;
 }
 /**
- * Gemma 의 색칠 답이 원문 줄을 빼먹지 않았는가 — 코드가 뽑은 칸마다 글 길이가 85% 이상 남았는지 본다(「먼저 Gemma」를 고른 때만 불린다).
+ * 색칠 답이 원문 줄을 빼먹지 않았는가 — 코드가 뽑은 칸마다 글 길이가 85% 이상 남았는지 본다. 어느 AI 의 답에든 건다(2026-11-19 오후부터 — 이름의 gemma 는 처음 Gemma 답에만 걸던 때의 것).
  * 실측 2026-11-19(날씨해설 2편): Gemma 가 「강풍」 칸의 유의사항 세 줄을 빼고 낸 답은 70%·72%, 온전한 답은 100~108%(Gemini 99~102%).
  * 없으면: 줄이 빠진 색칠본이 「성공」으로 캐시에 굳어 그 전망은 다음 발표까지 그대로 보인다. 걸리면 관리자가 정한 순서의 다음 AI 가 색칠한다.
- * @param {object} parsed Gemma 답(JSON) @param {object} codeExtracted extractCategories 결과 @returns {boolean}
- * [연계] ← analyzeWithAI → services/bulletin_ai.call 의 gemmaAccept
+ * @param {object} parsed AI 답(JSON) @param {object} codeExtracted extractCategories 결과 @returns {boolean}
+ * [연계] ← analyzeWithAI → services/bulletin_ai.call 의 accept
  */
 function gemmaKeptText(parsed, codeExtracted) {
     const cats = (parsed && parsed.categories) || {};
     return Object.keys(codeExtracted || {}).every((k) => { const want = bareLength(codeExtracted[k]); return !want || bareLength(cats[k]) >= want * 0.85; });
 }
 
+// 줄 빠짐 검사에 걸린 답이 나온 수집이 같은 통보문에서 이만큼 쌓이면 그 통보문은 더 색칠을 시도하지 않는다.
+//   없으면: 어느 AI 답이든 그 선을 못 넘는 글이 하나 생기면, 수집 주기마다(본청 10분) 순서의 AI 를 전부 다시 불러 답 값을 계속 치른다(호출 실패와 달리 답이 온 호출은 돈이 든다).
+//   호출 자체가 실패한 것(키 없음·한도·서버 붐빔)은 세지 않는다 — 그건 종전대로 다음 주기에 다시 해 본다.
+const COLOR_REJECT_MAX = 3;
 async function analyzeWithAI(rawText, codeExtracted) {
+    analyzeWithAI.lastRejected = false;   // 이번 호출에서 「답은 왔는데 검사에 걸린」 AI 가 있었나(→ processForecast 가 센다)
     try {
         const userPrompt = `## 원문 텍스트
 ${rawText}
@@ -346,10 +351,13 @@ ${JSON.stringify(codeExtracted, null, 2)}
 위 원문과 코드 추출 결과를 비교 검토하여, 최종 표출용 정제 데이터를 JSON으로 반환하라.`;
 
         // 설정한 순서대로 — 키 없음·소진·실패면 다음 순위(전부 실패면 아래 실패 분기)
-        //   「먼저 Gemma」를 골랐으면 Gemma 답이 원문 줄을 빼먹지 않았는지도 본다(gemmaKeptText) — 빼먹었으면 순서의 다음 AI 로.
-        const callResult = await bulletinAi.call('forecast', FORECAST_AI_PROMPT + '\n\n' + userPrompt, { caller: 'MarineForecast', gemmaAccept: (p) => gemmaKeptText(p, codeExtracted) });
+        //   어느 AI 의 답이든(Gemma·순서 쪽 모두) 원문 줄을 빼먹지 않았는지 본다(gemmaKeptText) — 빼먹었으면 순서의 다음 AI 로, 전부 걸리면 아래 실패 분기(코드 추출 결과 사용).
+        //   (2026-11-19 오후 사용자 「2번은 하자」 — 종전에는 Gemma 답에만 걸려 클로드·업스테이지·ChatGPT·Gemini 답은 검사 없이 나갔다. 그날 운영 색칠본 9건(지방청 7 · 본청 2)은 모두 이 선을 넘는다 — 100.0~103.8%)
+        const callResult = await bulletinAi.call('forecast', FORECAST_AI_PROMPT + '\n\n' + userPrompt, { caller: 'MarineForecast', accept: (p) => gemmaKeptText(p, codeExtracted) });
 
         if (!callResult.success) {
+            // 순서 쪽 AI(돈 드는 호출)의 답이 검사에 걸렸을 때만 센다 — Gemma(무료)가 깨진 답을 내고 나머지는 한도·키 문제로 못 불린 것은 호출 실패다(검토: 그것까지 세면 잠깐의 장애로 그 통보문 색칠이 멈춘다)
+            analyzeWithAI.lastRejected = (callResult.tried || []).some((t) => t.id !== 'gemma' && t.raw);
             if (callResult.isRateLimited) {
                 console.warn('[MarineForecast] AI 한도 초과(쿨다운) — AI 분석 건너뜀 → 코드 추출 결과 사용');
             } else {
@@ -358,7 +366,9 @@ ${JSON.stringify(codeExtracted, null, 2)}
             return null;
         }
 
-        const parsed = JSON.parse(callResult.text);
+        // 검사(accept)가 읽은 것과 같은 방법으로 읽는다(looseJson — 한 겹 배열·뒤에 붙은 설명). 달리 읽으면 검사는 통과했는데 여기서 못 쓰는 답이 된다(검토).
+        const parsed = bulletinAi.looseJson(callResult.text);
+        if (!parsed || typeof parsed !== 'object' || !parsed.categories || typeof parsed.categories !== 'object') { analyzeWithAI.lastRejected = true; console.error('[MarineForecast] AI 답에 categories 가 없다 — 코드 추출 결과 사용'); return null; }
         console.log(`[MarineForecast] AI 분석 완료 (${callResult.keyLabel} 키 사용)`);
         if (parsed.issues && parsed.issues.length > 0) {
             console.log('[MarineForecast] AI 발견 이슈:', parsed.issues);
@@ -454,6 +464,11 @@ async function collectMarineForecasts() {
                 console.log(`[MarineForecast] ${typeLabel} 캐시 사용 (AI 재호출 불필요): ${report.title}`);
                 return cached;
             }
+            // 줄 빠짐 검사에 걸린 답만 거듭 나온 통보문은 더 부르지 않는다(코드가 뽑은 글 그대로 보인다) — COLOR_REJECT_MAX
+            if (cached && (cached.colorRejects || 0) >= COLOR_REJECT_MAX) {
+                console.log(`[MarineForecast] ${typeLabel} 색칠을 더 시도하지 않음(검사에 걸린 답 ${cached.colorRejects}번): ${report.title}`);
+                return cached;
+            }
 
             console.log(`[MarineForecast] ${typeLabel} 수집: ${report.title}`);
             const detail = await fetchForecastDetail(report.id);
@@ -463,9 +478,12 @@ async function collectMarineForecasts() {
             // AI 분석 실행 (원문에 해상 관련 키워드가 있을 때만)
             let aiResult = null;
             const hasMarineKeywords = /강풍|바다\s*안개|해상|너울/.test(detail.rawText);
+            let asked = false;   // 이번 수집에서 AI 를 불렀나 — 안 불렀으면 앞 호출의 lastRejected 를 읽지 않는다(검토: 낡은 값이 샜다)
             if (hasContent && hasMarineKeywords) {
+                asked = true;
                 aiResult = await analyzeWithAI(detail.rawText, codeCategories);
             }
+            const colorRejects = ((cached && cached.colorRejects) || 0) + (asked && !aiResult && analyzeWithAI.lastRejected ? 1 : 0);
 
             // AI 결과가 있으면 AI 카테고리를 최종 사용, 없으면 코드 추출 결과 사용
             const finalCategories = (aiResult && aiResult.categories) ? aiResult.categories : (hasContent ? codeCategories : null);
@@ -479,6 +497,7 @@ async function collectMarineForecasts() {
                 rawText: detail.rawText,
                 codeCategories: hasContent ? codeCategories : null,
                 aiResult: aiResult,
+                colorRejects,
                 categories: finalCategories,
                 hasContent: hasContent || !!(aiResult && aiResult.categories && Object.keys(aiResult.categories).length > 0)
             };

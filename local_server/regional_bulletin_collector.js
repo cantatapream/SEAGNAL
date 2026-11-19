@@ -308,26 +308,34 @@ function fixMarkup(s) { return typeof s === 'string' ? s.replace(/\{\{(loc|num|w
 /** 색 표시·공백을 걷어 낸 글자 수. 예: bareLen('{{loc:서해상}}에 바람') → 6  [연계] ← gemmaKeptSummary */
 const bareLen = (s) => String(s || '').replace(/\{\{(?:loc|num|warn):([^{}]*)\}\}/g, '$1').replace(/\s+/g, '').length;
 /**
- * Gemma 의 색칠 답이 원문 줄을 빼먹지 않았는가 — 색 표시·공백을 걷은 글자 수가 원문의 97% 이상 남았는지 본다(「먼저 Gemma」를 고른 때만 불린다).
+ * 색칠 답이 원문 줄을 빼먹지 않았는가 — 색 표시·공백을 걷은 글자 수가 원문의 97% 이상 남았는지 본다. 어느 AI 의 답에든 건다(2026-11-19 오후부터 — 이름의 gemma 는 처음 Gemma 답에만 걸던 때의 것).
  * 실측 2026-11-19(지방청 7곳, 운영 색칠본 vs 원문): 온전한 답 100.0~103.7% · (해상) 항목을 통째로 뺀 답 75.8~94.3% ·
  *   유의사항 「o …」 줄을 뺀 답 88.8~98.7%(4줄만 뺀 부산 98.7% 한 곳은 이 선으로 못 잡는다).
  * 없으면: 줄이 빠진 색칠본이 「성공」으로 캐시에 굳어 그 전망은 다음 발표까지 그대로 보인다. 걸리면 관리자가 정한 순서의 다음 AI 가 색칠한다.
  * 예: gemmaKeptSummary({ summary: '{{loc:서해상}}에 바람' }, '서해상에 바람') → true
- * @param {object} parsed Gemma 답(JSON) @param {string} rawText 통보문 본문 @returns {boolean}
- * [연계] ← analyzeBulletinWithAI → services/bulletin_ai.call 의 gemmaAccept / 본청 전망의 같은 검사는 marine_forecast_processor.gemmaKeptText
+ * @param {object} parsed AI 답(JSON) @param {string} rawText 통보문 본문 @returns {boolean}
+ * [연계] ← analyzeBulletinWithAI → services/bulletin_ai.call 의 accept / 본청 전망의 같은 검사는 marine_forecast_processor.gemmaKeptText
  */
 function gemmaKeptSummary(parsed, rawText) {
     const want = bareLen(rawText);
     return !want || bareLen(parsed && parsed.summary) >= want * 0.97;
 }
 
+// 줄 빠짐 검사에 걸린 답이 나온 수집이 같은 통보문에서 이만큼 쌓이면 그 통보문은 더 색칠을 시도하지 않는다.
+//   없으면: 어느 AI 답이든 그 선을 못 넘는 글이 하나 생기면, 수집 주기마다(본청 10분) 순서의 AI 를 전부 다시 불러 답 값을 계속 치른다(호출 실패와 달리 답이 온 호출은 돈이 든다).
+//   호출 자체가 실패한 것(키 없음·한도·서버 붐빔)은 세지 않는다 — 그건 종전대로 다음 주기에 다시 해 본다.
+const COLOR_REJECT_MAX = 3;
 async function analyzeBulletinWithAI(rawText) {
+    analyzeBulletinWithAI.lastRejected = false;   // 이번 호출에서 「답은 왔는데 검사에 걸린」 AI 가 있었나(→ processOneOffice 가 센다)
     const userPrompt = `## 통보문 본문\n${rawText}\n\n위 본문을 분석하여 마크업 적용 본문과 대표 기온을 JSON으로 반환하라.`;
 
-    //   「먼저 Gemma」를 골랐으면 Gemma 답이 원문 줄을 빼먹지 않았는지도 본다(gemmaKeptSummary) — 빼먹었으면 순서의 다음 AI 로.
-    const callResult = await bulletinAi.call('forecast', REGIONAL_BULLETIN_AI_PROMPT + '\n\n' + userPrompt, { caller: 'RegionalBulletin', gemmaAccept: (p) => gemmaKeptSummary(p, rawText) });
+    //   어느 AI 의 답이든(Gemma·순서 쪽 모두) 원문 줄을 빼먹지 않았는지 본다(gemmaKeptSummary) — 빼먹었으면 순서의 다음 AI 로, 전부 걸리면 아래 실패 분기(기존 색칠본 유지 · 없으면 원문 그대로).
+    //   (2026-11-19 오후 사용자 「2번은 하자」 — 종전에는 Gemma 답에만 걸려 클로드·업스테이지·ChatGPT·Gemini 답은 검사 없이 나갔다. 그날 운영 색칠본 9건(지방청 7 · 본청 2)은 모두 이 선을 넘는다 — 100.0~103.8%)
+    const callResult = await bulletinAi.call('forecast', REGIONAL_BULLETIN_AI_PROMPT + '\n\n' + userPrompt, { caller: 'RegionalBulletin', accept: (p) => gemmaKeptSummary(p, rawText) });
 
     if (!callResult.success) {
+        // 순서 쪽 AI(돈 드는 호출)의 답이 검사에 걸렸을 때만 센다 — Gemma(무료)만 깨진 답을 내고 나머지는 한도·키 문제로 못 불린 것은 호출 실패다(검토)
+        analyzeBulletinWithAI.lastRejected = (callResult.tried || []).some((t) => t.id !== 'gemma' && t.raw);
         if (callResult.isRateLimited) {
             console.warn('[RegionalBulletin] AI 한도 초과(쿨다운) — 분석 건너뜀');
         } else {
@@ -336,12 +344,14 @@ async function analyzeBulletinWithAI(rawText) {
         return null;
     }
 
-    try {
-        return JSON.parse(callResult.text);
-    } catch (e) {
-        console.error(`[RegionalBulletin] AI 응답 JSON 파싱 실패: ${e.message}`);
+    // 검사(accept)가 읽은 것과 같은 방법으로 읽는다(looseJson — 한 겹 배열·뒤에 붙은 설명). 달리 읽으면 검사는 통과했는데 여기서 못 쓰는 답이 된다(검토).
+    const parsed = bulletinAi.looseJson(callResult.text);
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.summary !== 'string' || !parsed.summary) {
+        analyzeBulletinWithAI.lastRejected = true;
+        console.error('[RegionalBulletin] AI 답에 summary 가 없다');
         return null;
     }
+    return parsed;
 }
 
 // ============================================================================
@@ -560,6 +570,11 @@ async function processOneOffice(office) {
             console.log(`[RegionalBulletin] ${office.name}: 캐시 hit (색칠 완료) (${found.title})`);
             return { ...cached, fromCache: true };
         }
+        // 줄 빠짐 검사에 걸린 답만 거듭 나온 통보문은 더 부르지 않는다(원문 글 그대로 보인다) — COLOR_REJECT_MAX
+        if (cached && cached.summary !== undefined && (cached.colorRejects || 0) >= COLOR_REJECT_MAX) {
+            console.log(`[RegionalBulletin] ${office.name}: 색칠을 더 시도하지 않음(검사에 걸린 답 ${cached.colorRejects}번) (${found.title})`);
+            return { ...cached, fromCache: true };
+        }
 
         let rawText = (cached && cached.rawText) ? cached.rawText : null;
         if (!rawText) {
@@ -609,6 +624,8 @@ async function processOneOffice(office) {
             marineOutlooks,
             collectedAt: new Date().toISOString()
         };
+        const colorRejects = ((cached && cached.colorRejects) || 0) + (!(ai && ai.summary) && analyzeBulletinWithAI.lastRejected ? 1 : 0);
+        if (colorRejects) result.colorRejects = colorRejects;
         // 같은 통보문을 다시 색칠하는 길이면 앞서 해 둔 요약과 시도 횟수를 캐시에 이어 둔다(지우면 요약을 처음부터 다시 부른다)
         if (cached && cached.seaSummary) result.seaSummary = cached.seaSummary;
         if (cached && cached.seaTries) result.seaTries = cached.seaTries;
