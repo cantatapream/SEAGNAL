@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 15:50 KST] ✅완료 — 위험예측 해상 시트 「-」·해역 이름 불일치 수정
+①사고예보 낡음 판정 정시~정시+20분 여유(risk_store ACCIDENT_GRACE_MS — 수집기 03:10·15:10과 판정 03:00·15:00 어긋남으로 매일 20분 「위험 예측 -」, 운영 15:04 stale→15:12 ok 실측) ②브리핑 해역 카드 「위험예측에서 보기」가 사고예보 칸 id(acc)를 넘기고 서버 marine_fusion.analysis 가 그 칸으로 시트 제목만 지음(종전 다른 0.025도 칸 중심이라 「한림항 동북동방 0.7해리」→「용운동항 서방 0.4해리」). 시험: test_risk_accident 27/0(새 항목은 수정 전 실패 확인)·test_marine_fusion 52/0·test_station_briefing_ui 101/0(기대값에 acc)·test_risk_goto_frame 6/0·test_risk_sea_sheet_ui 54/0·test_risk_sheet_ui 35/0·test_usage_briefing_risk_ui 18/0·test_station_briefing 251/0. 화면 시험은 NODE_PATH=/opt/node-tools/node_modules 로 실행. 다음: 배포 뒤 15:00~15:20 운영에서 「위험 예측」 값 표시 확인.
+
+
 ### [2026-11-19 09:54 KST] ✅완료 — 특보 카드 머리줄 — 둘째 줄로 내려가면 📋 를 뱃지 바로 왼쪽(오른쪽 정렬)으로 (브랜치 claude/festive-tesla-k7ie2s, #1517 후속)
 사용자 2026-11-19 「통보문 버튼이 오른쪽으로 정렬되어야 … 뱃지 바로 왼쪽에」 + 질문 답 「두 줄일 때만 뱃지 옆」(한 줄 카드는 종전처럼 📋 가 해역명 바로 뒤). CSS 만으로는 줄이 넘어갔는지 알 수 없어 forecast/alerts/render.js 에 markAlertHeaderWrap + ResizeObserver(alertHeaderWrapObserver) 추가 — 머리줄 크기가 바뀔 때마다(폭·글자 크기·접힌 목록 펼침) [📋+뱃지] 묶음 위치를 재서 둘째 줄이면 📋 margin-left:auto·뱃지 flex 0(settings.js 의 margin-left:auto !important 를 inline important 로 0). 묶음 안 배치만 바꾸므로 줄바꿈 여부는 흔들리지 않음. index2.html render.js 버전표 갱신. 확인: 글자 크게 412px 4/5 둘째 줄·📋~뱃지 간격 8px, 경북북부앞바다 한 줄(📋 해역명 뒤) · 앱 켠 채 글자 크기 기본↔크게 바꿔도 즉시 따라감 · test_forecast_gear_ui ⑤ 보강(main 판 render.js 로는 실패, 고친 뒤 33/0) · simulate 회귀 없음 · 관련 스위트 7종·check_order 통과.
 
