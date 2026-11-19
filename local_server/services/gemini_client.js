@@ -351,8 +351,40 @@ async function callGemini(args) {
     return { success: false, text: null, error: r.error, isRateLimited: r.isRateLimited, keyLabel: r.keyLabel };
 }
 
+/**
+ * 단발 호출 — 그 모델을 한 번 부르고 끝낸다. 키 쿨다운·키 전환·관리자 알림을 건드리지 않고, AI 사슬·ChatGPT 다리도 타지 않는다.
+ * Gemma(같은 키로 부르는 다른 모델)에 쓴다: Gemma 의 한도 초과(429)가 공용 키를 쿨다운시키면 챗봇·색칠의 Gemini 까지 함께 멈춘다 — 모델마다 한도가 따로다.
+ * 예: await callPlain({ model:'gemma-4-31b-it', contents:'…', caller:'Bulletin-forecast-Gemma' }) → { success:true, text:'…' } | { success:false, error:'…', isRateLimited:true }
+ * @param {{model:string, contents:string|object, config?:object, caller?:string, timeoutMs?:number}} a
+ *   timeoutMs = 이만큼 답이 없으면 실패로 돌려준다(기본 60초). 없으면: Gemma 가 답이 없을 때 색칠·격상 AI 가 거기서 멈춘다
+ *   (실측 2026-11-19: gemma-4-26b 는 「생각」을 기본으로 두면 글 한 편에 147~203초, gemma-4-31b 는 짧은 글에도 38~45초·「수요 과다」 503).
+ * @returns {Promise<{success:boolean, text:string|null, error:string|null, isRateLimited:boolean}>}
+ * [연계] ← services/bulletin_ai.js(Gemma 칸 · 관리자 「시험 호출」)
+ */
+async function callPlain({ model, contents, config, caller = 'unknown', timeoutMs = 60000 }) {
+    if (!keys.length) return { success: false, text: null, error: 'GEMINI_API_KEY가 설정되지 않았습니다.', isRateLimited: false };
+    bumpUsage('requests', caller);
+    let timer = null;
+    try {
+        bumpUsage('apiCalls');
+        const result = await Promise.race([
+            new GoogleGenAI({ apiKey: keys[0].apiKey }).models.generateContent({ model, contents, config: config || {} }),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${Math.round(timeoutMs / 1000)}초 안에 답이 없다(시간 초과)`)), timeoutMs); }),
+        ]);
+        bumpUsage('success');
+        bumpTokens(caller, result && result.usageMetadata);
+        const text = result.text;   // 읽다가 던지면 아래 catch 가 실패로 돌려준다(조용히 삼키지 않는다)
+        return { success: true, text: typeof text === 'string' ? text : null, error: null, isRateLimited: false };
+    } catch (e) {
+        const msg = String((e && e.message) || e), limited = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+        console.error(`[Gemini] 단발 호출 실패 caller=${caller} model=${model} rateLimited=${limited} err=${msg.slice(0, 250)}`);
+        return { success: false, text: null, error: msg, isRateLimited: limited };
+    } finally { clearTimeout(timer); }
+}
+
 module.exports = {
     callGemini,
+    callPlain,
     callGeminiRaw,
     callGeminiStream,
     getKeysStatus,
