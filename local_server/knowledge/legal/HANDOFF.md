@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 20:22 KST] ✅완료 — 공유 미리보기 그림(og:image)·설명 지정 (브랜치 claude/festive-tesla-k7ie2s)
+사용자 2026-11-19: 웹 링크 공유 시 미리보기 그림이 어디서 오는지 질문 → index2.html 에 og:title 만 있고 og:image·og:description 이 없어 메신저(카카오톡)가 페이지 첫 그림(점검 화면 로고 client/images/splash_icon_transparent.png — 모양 일치 확인)을 골라 쓰고, 설명은 카카오 기본 문구 「여기를 눌러 링크를 확인하세요.」였다. 사용자가 준 그림(1731x909 webp)을 1200x630 JPG(197KB)로 줄여 client/images/og_share.jpg 로 넣고, index2.html head 에 og:type·og:url·og:description·og:image(전체 주소 https://seagnal-server.fly.dev/images/og_share.jpg)·og:image:width/height/alt·meta description 추가. 설명 문구는 그림 속 글귀로(바꿀 수 있음). 확인: 로컬 서버에서 /images/og_share.jpg 200 image/jpeg, 페이지에 태그 7줄, simulate 회귀 없음, test_guide_tabs 77/0·test_tab_structure 42/0·check_order 통과. 남은 일: 배포 후 카카오는 미리보기를 저장해 두므로 카카오 개발자 「공유 디버거」에서 저장본 초기화 필요(사용자 계정 필요).
+
+
 ### [2026-11-19 19:52 KST] ✅완료 — 세션 정시 판 첫 운영 결과 · 입력 바뀜 원인 · 검사 오판 4건
 첫 운영(11-19 17:30 판, job s-202611191629-97b3): 세션 16:29:52 시작 → 16:39:58 답(약 10분) → 16:50 만들기. 97곳 중 세션 63·AI 34·오류 1. ①검사 탈락 4건 = 검사기 오판(「상시 위험 장소에서도 연안」·「장소 주변에서도 연안」 — 「…에서도」 조사 규칙 빠짐) → 검사 v23. ②입력 바뀜 33곳 원인: risk_store.forecast 가 가장 가까운 3시간 예보 칸(T.nearest)을 고르고 같은 날 판의 연안 첫 칸이 「지금」이라 16:30·19:30 같은 칸 정가운데에서 바뀜(저녁 일감 16:29:53=15시 칸, 만들기 16:50=18시 칸). 시험 일감 5분 간격 비교로 재현(19:27→19:32 31곳, 그 밖 0곳, 해구 예보 파일 재수집 19:49 은 변화 0). → 예약 작업 「— 아침·저녁」을 31 6,16(06:31·16:31)으로 바꿈. 설계서 §11.10.57. 시험 test_station_briefing 252/0 · test_silent_catch 22/0. 다음: 내일 06:31·16:31 판 푸시의 「입력 바뀜 N」이 0 근처인지 확인.
 
