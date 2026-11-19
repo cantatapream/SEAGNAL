@@ -646,7 +646,7 @@ window.switchUnifiedAdminTab = function (tabId) {
     const body = document.getElementById('unified-admin-body');
     if (!body) return;
 
-    // [나리야 전체화면] 메인 탭을 옮기면 일단 해제한다 — AI 탭이면 switchAiSubTab 이 곧바로 다시 붙인다.
+    // [AI 챗봇 전체화면] 메인 탭을 옮기면 일단 해제한다 — AI 탭이면 switchAiSubTab 이 곧바로 다시 붙인다.
     const _modal = document.getElementById('unified-admin-modal');
     if (_modal) _modal.classList.remove('admin-fullscreen');
 
@@ -738,7 +738,7 @@ window.switchAiSubTab = function (which) {
     });
     var sub = document.getElementById('ai-subtab-body');
     if (!sub) return;
-    // [나리야 전체화면] 챗봇 콘솔만 화면 가득. 다른 하위탭으로 돌아가면 종전 크기로 되돌린다.
+    // [AI 챗봇 전체화면] 챗봇 콘솔만 화면 가득. 다른 하위탭으로 돌아가면 종전 크기로 되돌린다.
     //   (모달 폭은 style.css 의 `#unified-admin-modal.admin-fullscreen` 이 정한다)
     var _m = document.getElementById('unified-admin-modal');
     if (_m) _m.classList.toggle('admin-fullscreen', which === 'chatbot');
@@ -755,9 +755,9 @@ window.switchAiSubTab = function (which) {
         else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">AI 모델 설정 모듈(js/admin/admin_bulletin_ai.js)이 로드되지 않았습니다.</div>';
     }
     else if (which === 'chatbot') {
-        // [AI 챗봇] 나리야 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)
+        // [AI 챗봇] AI 법령 챗봇 관리 콘솔 — 지식 방 브라우저 + 리뷰 검토센터(승인/교정) + 노출토글 (js/ai-chat/ai_chat.js)
         if (window.NariyaChat && window.NariyaChat.renderAdminInto) window.NariyaChat.renderAdminInto(sub);
-        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">나리야 모듈(js/ai-chat/ai_chat.js)이 로드되지 않았습니다.</div>';
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">AI 챗봇 모듈(js/ai-chat/ai_chat.js)이 로드되지 않았습니다.</div>';
     }
     else renderAiAssistantSubtab(sub);
 };
@@ -932,7 +932,7 @@ async function renderAiAssistantSubtab(container) {
         const d = await r.json();
         const u = d.usage || {};
         const keyTxt = (d.keys || []).map(k => `${k.label}${k.onCooldown ? '(쿨다운)' : ''}`).join(', ') || '없음';
-        // 나리야 법률봇(Legal-Ask)은 모델이 gemini-2.5-flash로 고정돼 있어 실측 토큰으로
+        // AI 법률봇(Legal-Ask)은 모델이 gemini-2.5-flash로 고정돼 있어 실측 토큰으로
         // 오늘자 비용을 바로 환산할 수 있다(단가는 legal_retriever.js 상단 주석과 동일 출처).
         const lt = u.byCallerTokens && u.byCallerTokens['Legal-Ask'];
         const legalCostTxt = lt
@@ -947,7 +947,7 @@ async function renderAiAssistantSubtab(container) {
     }
 
     // 2) 권한 관리 — 위치 권한 상태·요청·설정열기 (거부해도 재요청 가능)
-    //    (마이크 권한·음성 비서(나리야) 켜기는 2026-11-19 사용자 지시로 삭제 — 앱에서 마이크를 쓰지 않는다)
+    //    (마이크 권한·음성 비서 켜기는 2026-11-19 사용자 지시로 삭제 — 앱에서 마이크를 쓰지 않는다)
     (function () {
         const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
         const Geo = P && P.Geolocation ? P.Geolocation : null;               // 위치
@@ -4539,7 +4539,7 @@ async function renderMaintenanceFullTab(container) {
             ]},
         ]},
         { id: 'main-etc', label: '탭 밖 기능', children: [
-            { id: 'nariya-chat', label: '나리야 법령 챗봇 (우측 하단 버튼)' },
+            { id: 'nariya-chat', label: 'AI 법령 챗봇 (우측 하단 버튼)' },
             { id: 'settings-btn', label: '앱 설정 (헤더 톱니바퀴)', children: [
                 { id: 'settings-interest', label: '관심 해역 설정' },
                 { id: 'settings-notify', label: '알림 설정' },

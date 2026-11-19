@@ -1,5 +1,5 @@
 /**
- * test_legal_ask_stats.js — 나리야 질문 수 날짜별 집계(services/legal_ask_stats.js)와 /api/legal/ask 연결을 고정한다.
+ * test_legal_ask_stats.js — AI 챗봇 질문 수 날짜별 집계(services/legal_ask_stats.js)와 /api/legal/ask 연결을 고정한다.
  *
  * 왜 있나: 사용자 확정(2026-11-02) — 「질문 수를 날짜(KST)별로, 1년 보관, 관리자 센터에서. 내용은 저장 안 하고 숫자만」.
  *   ① 집계 칸(전체·관리자/일반·AI별·실패·되묻기) ② KST 자정 경계 ③ 365일 정리 ④ 다시 불러와도 유지

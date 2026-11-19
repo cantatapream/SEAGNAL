@@ -299,7 +299,7 @@ app.use(require('./routes/tide_field'));    // 서해·남해 물빠짐(갯벌 �
 app.use(require('./routes/hazard_rocks'));  // 간출암 잠김경고 API (3시간 이내 잠기는 암초)
 app.use(require('./routes/navigational_warning'));  // 항행경보 현황 API (국립해양조사원)
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
-app.use(require('./routes/legal'));          // 해양법령 챗봇(나리야) — 관리자 리뷰 검증 API + 현 DB 답변
+app.use(require('./routes/legal'));          // 해양법령 챗봇 — 관리자 리뷰 검증 API + 현 DB 답변
 
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)
@@ -372,7 +372,7 @@ cron.schedule('1 0 * * *', () => {
     } catch (e) { console.error('조석 카운트 리셋 오류:', e.message); }
 }, { timezone: 'Asia/Seoul' });
 
-// ── 나리야(해양법령) 새벽 점검 — 매일 03:00 KST, **하루 하나씩 돌려 가며** (2026-11-16 사용자 확정) ──
+// ── AI 챗봇(해양법령) 새벽 점검 — 매일 03:00 KST, **하루 하나씩 돌려 가며** (2026-11-16 사용자 확정) ──
 // 사용자 원문: 「그럼 격일마다 하도록 하자 하루 개정 하루는 결손 하루는 낡음 이런식으로 새벽 3시마다 돌아가게」
 //   → 날마다 셋 중 하나: 개정감지 → 원문결손 → 원문신선도(낡음) → 다시 개정감지 … 각 점검은 3일에 한 번.
 //   고르는 규칙은 services/nariya_autorun.js nightlyScanFor(KST 날짜 번호 % 3) — 재시작해도 순서가 어긋나지 않는다.
@@ -396,43 +396,43 @@ async function runNariyaNightly() {
     const which = ar.nightlyScanFor(Date.now());
     // 처리 결과 요약 푸시(2026-11-17 사용자 「각 매일마다 모든 사이클이 완료되면 완료되었다는 푸시알림」·「처리결과에 관한 알림」)를 위해 결과를 모은다.
     let scan = null, scanError = null, approved = 0, sweep = null, sweepError = null;
-    try { ar.setHold(true); } catch (e) { console.error('나리야 새벽 점검 — 세션 깨우기 보류 실패(점검은 계속):', e.message); }
+    try { ar.setHold(true); } catch (e) { console.error('AI 챗봇 새벽 점검 — 세션 깨우기 보류 실패(점검은 계속):', e.message); }
     try {
         if (which === 'amend') {
-            console.log('⏰ [Nightly · 개정감지 차례] 나리야 개정 감지 스캔을 시작합니다.');
+            console.log('⏰ [Nightly · 개정감지 차례] AI 챗봇 개정 감지 스캔을 시작합니다.');
             const r = scan = await require('./services/legal_amendment_scanner').runAmendmentScan();
-            console.log(`✅ [나리야 개정감지] 스캔 완료: ${r.scanned}건 조회, ${r.changed}건 변경 발견, ${r.errors}건 오류`);
+            console.log(`✅ [AI 챗봇 개정감지] 스캔 완료: ${r.scanned}건 조회, ${r.changed}건 변경 발견, ${r.errors}건 오류`);
         } else if (which === 'mok') {
-            console.log('⏰ [Nightly · 원문결손 차례] 나리야 원문 결손 점검을 시작합니다.');
+            console.log('⏰ [Nightly · 원문결손 차례] AI 챗봇 원문 결손 점검을 시작합니다.');
             const r = scan = await require('./services/mok_audit_scanner').runMokAuditScan();
             console.log(r.ok
-                ? `✅ [나리야 원문결손] 점검 완료: ${r.checked}계열 대조, 누락 ${r.missing}건(새로 발견 ${r.added}건), 판정불가 ${r.no_answer}건`
-                : `❌ [나리야 원문결손] 점검 실패: ${r.error}`);
+                ? `✅ [AI 챗봇 원문결손] 점검 완료: ${r.checked}계열 대조, 누락 ${r.missing}건(새로 발견 ${r.added}건), 판정불가 ${r.no_answer}건`
+                : `❌ [AI 챗봇 원문결손] 점검 실패: ${r.error}`);
         } else {
-            console.log('⏰ [Nightly · 원문신선도 차례] 나리야 원문 신선도 점검을 시작합니다.');
+            console.log('⏰ [Nightly · 원문신선도 차례] AI 챗봇 원문 신선도 점검을 시작합니다.');
             const r = scan = await require('./services/admrul_fresh_scanner').runFreshnessScan();
             console.log(r.ok
-                ? `✅ [나리야 원문신선도] 점검 완료: ${r.checked}건 대조, 구버전 ${r.stale}건(새로 발견 ${r.added}건), 조회실패 ${r.unknown}건`
-                : `❌ [나리야 원문신선도] 점검 실패: ${r.error}`);
+                ? `✅ [AI 챗봇 원문신선도] 점검 완료: ${r.checked}건 대조, 구버전 ${r.stale}건(새로 발견 ${r.added}건), 조회실패 ${r.unknown}건`
+                : `❌ [AI 챗봇 원문신선도] 점검 실패: ${r.error}`);
         }
     } catch (e) {
         scanError = e.message;
-        console.error(`나리야 새벽 점검(${which}) 오류:`, e.message);
+        console.error(`AI 챗봇 새벽 점검(${which}) 오류:`, e.message);
     } finally {
         // 대기 중이던 개정 카드를 전부 자동 승인한다(2026-11-16 사용자 「아예 전체 승인 버튼 누를 필요 없이 자동 진행되어도 좋고」) —
         //   감지 즉시 승인은 새 카드에만 걸리므로 그 전부터 대기하던 카드는 여기서 줍는다. 세션은 바로 뒤 남은 일 점검이 깨운다.
-        try { approved = ((await require('./services/legal_amendment_scanner').approveAllPending()).approved || []).length; } catch (e) { console.error('나리야 대기 개정 자동 승인 오류:', e.message); }
-        try { ar.setHold(false); } catch (e) { console.error('나리야 새벽 점검 — 세션 깨우기 보류 풀기 실패(6시간 뒤 저절로 풀림):', e.message); }
-        try { sweep = ar.sweep(ar.collectOutstanding()); } catch (e) { sweepError = e.message; console.error('나리야 자동 반영 남은 일 점검 오류:', e.message); }
+        try { approved = ((await require('./services/legal_amendment_scanner').approveAllPending()).approved || []).length; } catch (e) { console.error('AI 챗봇 대기 개정 자동 승인 오류:', e.message); }
+        try { ar.setHold(false); } catch (e) { console.error('AI 챗봇 새벽 점검 — 세션 깨우기 보류 풀기 실패(6시간 뒤 저절로 풀림):', e.message); }
+        try { sweep = ar.sweep(ar.collectOutstanding()); } catch (e) { sweepError = e.message; console.error('AI 챗봇 자동 반영 남은 일 점검 오류:', e.message); }
         // 매일 한 통 — 아무것도 없는 밤에도 「이상 없음」으로 온다(조용한 것과 안 돈 것이 같아 보이지 않게, L-291).
         try {
             const m = ar.nightlySummary({ which, scan, scanError, approved, sweep, sweepError, tomorrow: ar.nightlyScanFor(Date.now() + 24 * 3600000) });
             await require('./services/admin_push').sendAdminPush(m.title, m.body, { type: 'nariya_nightly_done', which, failed: String(m.failed) });
-        } catch (e) { console.error('나리야 새벽 점검 결과 푸시 실패:', e.message); }
+        } catch (e) { console.error('AI 챗봇 새벽 점검 결과 푸시 실패:', e.message); }
     }
 }
 cron.schedule('0 3 * * *', () => {
-    runNariyaNightly().catch((e) => console.error('나리야 새벽 점검 오류:', e.message));
+    runNariyaNightly().catch((e) => console.error('AI 챗봇 새벽 점검 오류:', e.message));
 }, { timezone: 'Asia/Seoul' });
 
 // ============================================================================
@@ -547,13 +547,13 @@ app.listen(PORT, '0.0.0.0', () => {
         // 서버 디스크(Fly 볼륨) 사용량 — 운영에서만 10분마다, 80% 넘으면 관리자 푸시 1통(2026-11-15 ENOSPC 뒤 사용자 결정 — services/disk_usage.js)
         try { require('./services/disk_usage').start(); }
         catch (_) { console.error('[startup] 디스크 사용량 점검 시작 실패'); }
-        // 나리야 자동 반영 — 파일에 남은 대기(pending)·잠금을 되살려 10분 타이머·잠금 만료 타이머를 다시 건다(services/nariya_autorun.js, 2026-11-15).
+        // AI 챗봇 자동 반영 — 파일에 남은 대기(pending)·잠금을 되살려 10분 타이머·잠금 만료 타이머를 다시 건다(services/nariya_autorun.js, 2026-11-15).
         //   발사·푸시는 운영 앱(FLY_APP_NAME === 'seagnal-server')에서만 한다 — 스테이징·개발은 콘솔 한 줄.
         try { require('./services/nariya_autorun').start(); }
-        catch (e) { console.error('[startup] 나리야 자동 반영 복원 실패:', e && e.message); }
+        catch (e) { console.error('[startup] AI 챗봇 자동 반영 복원 실패:', e && e.message); }
         // 자동 반영 PR 의 조건부 자동 머지 — 검사를 기다리던 PR 의 확인 타이머를 되살린다(services/nariya_pr_merge.js, 2026-11-16 C).
         try { require('./services/nariya_pr_merge').start(); }
-        catch (e) { console.error('[startup] 나리야 PR 자동 머지 복원 실패:', e && e.message); }
+        catch (e) { console.error('[startup] AI 챗봇 PR 자동 머지 복원 실패:', e && e.message); }
 
         // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
         try {

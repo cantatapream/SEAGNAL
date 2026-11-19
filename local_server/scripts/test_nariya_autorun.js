@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: local_server/scripts/test_nariya_autorun.js
- * 역할  : 나리야 자동 반영(services/nariya_autorun.js)을 고정한다 — 설계안(services/nariya_autorun.design.md) §5
+ * 역할  : AI 챗봇 자동 반영(services/nariya_autorun.js)을 고정한다 — 설계안(services/nariya_autorun.design.md) §5
  *         「대기 중 상태 변화 표」를 행마다 시험 1개 이상으로 1:1 고정하고, 자동화 열쇠 미들웨어·done 입력 검증·
  *         예약 작업 트리거 요청 모양·상태 파일 방어·라우트 연결(소스 확인)을 함께 본다.
  *         실제 시계·실제 네트워크·실제 푸시 없이(주입한 시계·타이머·fetch·push, 임시 폴더의 상태 파일).
@@ -234,11 +234,11 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         assert.equal(lines.filter((l) => /NARIYA_ROUTINE_FIRE_URL·NARIYA_ROUTINE_TOKEN 없음/.test(l)).length, 1, lines.join(' | '));
     });
 
-    await check('[§5 #6b] 운영인데 트리거 환경 변수 없음 → 프로세스당 첫 requestRun 때 「나리야 자동 반영 미설정」 푸시 1회', async () => {
+    await check('[§5 #6b] 운영인데 트리거 환경 변수 없음 → 프로세스당 첫 requestRun 때 「AI 챗봇 자동 반영 미설정」 푸시 1회', async () => {
         const env = PROD_ENV(); delete env.NARIYA_ROUTINE_TOKEN;
         const { ar, time, push } = make({ env });
         await quiet(async () => { ar.requestRun('amend'); ar.requestRun('fresh'); await time.advance(DAY); ar.requestRun('amend'); await flush(); });
-        assert.equal(titles(push, /^나리야 자동 반영 미설정$/).length, 1, push.sent.map((p) => p.title).join(' | '));
+        assert.equal(titles(push, /^AI 챗봇 자동 반영 미설정$/).length, 1, push.sent.map((p) => p.title).join(' | '));
         assert.equal(push.sent.length, 1, '그 밖의 푸시 없음');
         const ok = make();
         await quiet(async () => { ok.ar.requestRun('amend'); await flush(); });
@@ -907,7 +907,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
         const id = await fired(a);
         await quiet(async () => { a.ar.done({ run_id: id, outcome: 'pr', pr_url: PR(21), summary: '개정 2건' }); await flush(); });
         assert.equal(a.merger.tracked.length, 1); assert.equal(a.merger.tracked[0].pr_url, PR(21));
-        const t = titles(a.push, /나리야 자동 반영 — 반영 끝 · 검사 중/);
+        const t = titles(a.push, /AI 챗봇 자동 반영 — 반영 끝 · 검사 중/);
         assert.equal(t.length, 1, a.push.sent.map((x) => x.title).join('|'));
         assert.ok(/검사\(약 20분\)가 끝나면 결과를 알려 드립니다/.test(t[0].body) && !/누를 것 없습니다/.test(t[0].body), t[0].body); assert.equal(t[0].data.merge, 'auto');
         const b = make();
@@ -973,7 +973,7 @@ const titles = (push, re) => push.sent.filter((p) => re.test(p.title));
     await check('[§8.10] 새벽 점검 처리 결과 요약 푸시(nightlySummary) — 아무것도 없어도 「이상 없음」 · 찾음·처리할 일·실패를 제목에 · 자동 승인·세션·내일 차례 · 매일 한 통 보냄(사용자 「매일마다 … 완료되었다는 푸시알림」)', () => {
         const S = A.nightlySummary;
         let m = S({ which: 'fresh', scan: { ok: true, checked: 1504, stale: 0, added: 0, reopened: 0 }, approved: 0, sweep: { action: 'none' }, tomorrow: 'amend' });
-        assert.equal(m.title, '나리야 새벽 점검 완료 — 원문신선도 · 이상 없음'); assert.equal(m.failed, false);
+        assert.equal(m.title, 'AI 챗봇 새벽 점검 완료 — 원문신선도 · 이상 없음'); assert.equal(m.failed, false);
         assert.ok(/원문신선도: 1,504건 대조 · 새로 낡은 원문 없음/.test(m.body) && /자동 반영할 일 없음/.test(m.body) && /내일 차례: 개정감지/.test(m.body), m.body);
         m = S({ which: 'fresh', scan: { ok: true, checked: 1504, added: 2, reopened: 1, autoClosed: 3 }, approved: 44, sweep: { action: 'requested' }, tomorrow: 'amend' });
         assert.ok(/처리할 일 있음/.test(m.title)); assert.ok(/낡은 원문 새로 2건 · 다시 뜬 1건/.test(m.body) && /현행 확인돼 닫은 3건/.test(m.body) && /대기 중이던 개정 44건 자동 승인/.test(m.body) && /세션을 곧 깨웁니다/.test(m.body), m.body);

@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: services/admrul_fresh_scanner.js
- * 역할  : 나리야(해양법령 챗봇) **원문 신선도 점검** — 관리자 UI "원문신선도" 방이 보는
+ * 역할  : AI 챗봇(해양법령 챗봇) **원문 신선도 점검** — 관리자 UI "원문신선도" 방이 보는
  *         큐를 채운다.
  *         (초보자용: 우리가 예전에 받아 둔 법령·고시 원문이 그새 개정돼 낡은 것이
  *          아닌지 주마다 국가법령정보센터에 물어보고, 낡은 것이 있으면 관리자가 볼 수
@@ -592,7 +592,7 @@ async function runFreshnessScan() {
       // ★실패도 알린다(3-80). 종전에는 상태 파일에만 적혀, 관리자가 방을 열어 보기 전에는
       //   **몇 주가 지나도 점검이 안 되고 있다는 것을 아무도 몰랐다**(10.04 판: 848건 전부 응답없음).
       try {
-        await require('./admin_push').sendAdminPush('나리야 원문 신선도 — 점검 실패',
+        await require('./admin_push').sendAdminPush('AI 챗봇 원문 신선도 — 점검 실패',
           `이번 점검은 아무것도 확인하지 못했습니다. ${String(st.error).slice(0, 180)}`,
           { type: 'admrul_fresh_failed' });
       } catch (e) { console.error('[AdmrulFresh] 관리자 푸시 실패:', e && e.message); }
@@ -630,9 +630,9 @@ async function runFreshnessScan() {
       const head = names.join(', ');
       const more = fresh.length > 3 ? ` 외 ${fresh.length - 3}건` : '';
       const title = fresh.length
-        ? `나리야 원문 신선도 — 구버전 ${fresh.length}건 발견`
+        ? `AI 챗봇 원문 신선도 — 구버전 ${fresh.length}건 발견`
         + (reopened.length ? ` (+ 다시 뜬 ${reopened.length}건)` : '')
-        : `나리야 원문 신선도 — 닫은 카드 ${reopened.length}건이 아직 낡았습니다`;
+        : `AI 챗봇 원문 신선도 — 닫은 카드 ${reopened.length}건이 아직 낡았습니다`;
       const body = fresh.length
         ? `${head}${more}.`
           + (reopened.length ? ` 닫혀 있었지만 아직 낡아 ${reopened.length}건을 다시 띄웠습니다.` : '')
@@ -665,7 +665,7 @@ async function runFreshnessScan() {
  */
 function startFreshnessScan() {
   if (_scanning) return { ok: false, started: false, error: '점검이 이미 진행 중입니다. 모두 마치는 데 1시간 가까이 걸립니다.' };
-  runFreshnessScan().catch((e) => console.error('나리야 원문 신선도 점검 오류:', e && e.message));
+  runFreshnessScan().catch((e) => console.error('AI 챗봇 원문 신선도 점검 오류:', e && e.message));
   return { ok: true, started: true };
 }
 

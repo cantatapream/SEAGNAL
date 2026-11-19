@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * 파일명: services/legal_amendment_scanner.js
- * 역할  : 나리야(해양법령 챗봇) 개정 감지 — 관리자 UI "개정검토" 방이 보는 큐를 채운다.
+ * 역할  : AI 챗봇(해양법령 챗봇) 개정 감지 — 관리자 UI "개정검토" 방이 보는 큐를 채운다.
  *         (초보자용: "이 법 바뀌었나?"를 밤마다 국가법령정보센터에 물어보고,
  *          바뀐 게 있으면 관리자가 볼 수 있게 메모만 남겨두는 역할. 위키를
  *          자동으로 고치지는 않는다 — 그건 사람이 승인해야 하는 별도 단계.)
@@ -254,7 +254,7 @@ function writeScanStatus(st) {
   try {
     fs.mkdirSync(DATA, { recursive: true });
     fs.writeFileSync(SCAN_STATUS_FILE, JSON.stringify(st, null, 1));
-  } catch (e) { console.error('[나리야 개정감지] 상태 기록 실패:', e && e.message); }
+  } catch (e) { console.error('[AI 챗봇 개정감지] 상태 기록 실패:', e && e.message); }
 }
 
 /**
@@ -400,16 +400,16 @@ async function approveAllPending(o) {
     if (!e || !e.id || (e.status || 'pending') !== 'pending') continue;
     if (!aq.updateJsonlById(file, e.id, { status: 'approved', decidedBy: '자동(대기분 일괄)', decidedAt: at })) continue;
     approved.push(String(e.id));
-    if (!opt.file) { const m = mirrorDecisionToH29(e.id, 'approved'); if (!m.ok) { mirrorFailed++; console.error('[나리야 개정감지] 탐지 큐 승인 옮겨 적기 실패:', e.id, m.error); } }
+    if (!opt.file) { const m = mirrorDecisionToH29(e.id, 'approved'); if (!m.ok) { mirrorFailed++; console.error('[AI 챗봇 개정감지] 탐지 큐 승인 옮겨 적기 실패:', e.id, m.error); } }
   }
   if (approved.length) {
-    console.log(`[나리야 개정감지] 대기 중이던 개정 카드 ${approved.length}건 자동 승인`);
+    console.log(`[AI 챗봇 개정감지] 대기 중이던 개정 카드 ${approved.length}건 자동 승인`);
     try {
       const send = opt.push || ((t, b, d) => require('./admin_push').sendAdminPush(t, b, d));
       await send(`⚖ 대기 중이던 개정 ${approved.length}건 자동 승인`,
         '개정검토 방에서 승인을 기다리던 카드를 자동으로 승인했습니다. 자동 반영 세션이 위키를 고쳐 PR 을 올립니다 — PR 을 확인하고 머지해 주세요.',
         { type: 'legal_amendment_auto_approved', count: String(approved.length) });
-    } catch (e) { console.error('[나리야 개정감지] 자동 승인 푸시 실패(승인은 정상):', e && e.message); }
+    } catch (e) { console.error('[AI 챗봇 개정감지] 자동 승인 푸시 실패(승인은 정상):', e && e.message); }
   }
   return { approved, mirrorFailed };
 }
@@ -450,18 +450,18 @@ async function runAmendmentScan(opts) {
     const prevStatus = readScanStatus();
     const asked = Math.floor(Number(opts && opts.days));
     const days = asked >= 1 ? Math.min(CATCHUP_MAX_DAYS, asked) : scanWindowDays(prevStatus);
-    if (days > DETECT_DAYS) console.log(`[나리야 개정감지] 마지막 성공 스캔(${lastOkAt(prevStatus)}) 이후를 덮으려 창을 ${days}일로 넓힌다`);
+    if (days > DETECT_DAYS) console.log(`[AI 챗봇 개정감지] 마지막 성공 스캔(${lastOkAt(prevStatus)}) 이후를 덮으려 창을 ${days}일로 넓힌다`);
     const r = await runDetectScript(days);
     if (!r.ok) {
-      console.error('나리야 개정감지 탐지 스크립트 실패:', r.error);
+      console.error('AI 챗봇 개정감지 탐지 스크립트 실패:', r.error);
       // ★실패도 알린다(3-80). law.go.kr 이 한 번도 답하지 않으면 탐지 자가 이제 실패로 죽는다 —
       //   종전에는 빈 결과를 「개정 없음」 으로 남겨, 매일 아무것도 안 보고 있어도 아무도 몰랐다.
       try {
-        await require('./admin_push').sendAdminPush('나리야 개정감지 — 오늘 확인 실패',
+        await require('./admin_push').sendAdminPush('AI 챗봇 개정감지 — 오늘 확인 실패',
           // 탐지 자의 오류 줄에서 「까닭:」 뒤만 싣는다(같은 문장이 두 번 찍히던 것 — 2026-10-07 사장님 화면).
           `오늘 개정 여부를 확인하지 못했습니다(「개정 없음」 이 아닙니다). 까닭: ${(String(r.error || '').split('까닭:').pop() || '').trim().slice(-160)}`,
           { type: 'amendment_scan_failed' });
-      } catch (e) { console.error('[나리야 개정감지] 관리자 푸시 실패:', e && e.message); }
+      } catch (e) { console.error('[AI 챗봇 개정감지] 관리자 푸시 실패:', e && e.message); }
     }
     const pending = loadH29PendingItems();
     const known = existingLegacyIds();
@@ -473,15 +473,15 @@ async function runAmendmentScan(opts) {
     // 재수집 도구가 보는 탐지 큐에도 승인을 옮겨 적는다(개별 승인 버튼과 같은 처리 — routes/legal.js decide).
     for (const c of cards) {
       const m = mirrorDecisionToH29(c.id, 'approved');
-      if (!m.ok) console.error('[나리야 개정감지] 탐지 큐 승인 옮겨 적기 실패:', c.id, m.error);
+      if (!m.ok) console.error('[AI 챗봇 개정감지] 탐지 큐 승인 옮겨 적기 실패:', c.id, m.error);
     }
     // 10분 뒤 자동 반영 세션을 깨운다(services/nariya_autorun.js). 실패해도 감지 결과는 그대로 남긴다.
     if (cards.length) {
       try { require('./nariya_autorun').requestRun('amend', { count: cards.length, ids: cards.map((c) => String(c.id)) }); }
-      catch (e) { console.error('[나리야 개정감지] 자동 반영 요청 실패(감지는 정상):', e && e.message); }
+      catch (e) { console.error('[AI 챗봇 개정감지] 자동 반영 요청 실패(감지는 정상):', e && e.message); }
     }
     const filtered = fresh.length - relevant.length;
-    console.log(`[나리야 개정감지] 탐지 pending ${pending.length}건 · 새 항목 ${fresh.length}건 중 무관 신규 고시로 거른 ${filtered}건 · 관리자 큐 적재 ${relevant.length}건`);
+    console.log(`[AI 챗봇 개정감지] 탐지 pending ${pending.length}건 · 새 항목 ${fresh.length}건 중 무관 신규 고시로 거른 ${filtered}건 · 관리자 큐 적재 ${relevant.length}건`);
     // ★새로 감지된 것이 있으면 등록된 관리자 기기로 알린다(사용자 확정 2026-09-10).
     //   푸시가 실패해도 스캔 결과는 그대로 돌려준다 — 알림 때문에 감지를 잃으면 안 된다.
     if (cards.length) await notifyAdmins(cards);
@@ -526,9 +526,9 @@ async function notifyAdmins(entries) {
     // 2026-11-16: 감지 즉시 자동 승인 → 자동 반영 세션이 위키를 고쳐 PR 을 올린다. 사람은 PR 을 머지(또는 카드에서 기각)한다.
     const body = `${head}${arts ? ` · 바뀐 조문 ${arts}개` : ''}\n자동 승인했습니다. 새벽 점검이 끝나면 자동 반영 세션이 위키를 고쳐 PR 을 올립니다 — PR 을 확인하고 머지해 주세요.`;
     const r = await sendAdminPush(title, body, { url: 'https://seagnal-server.fly.dev/?tab=admin', kind: 'legal_amendment' });
-    console.log(`[나리야 개정감지] 관리자 푸시 — 성공 ${r.sent}건 · 실패 ${r.failed}건`);
+    console.log(`[AI 챗봇 개정감지] 관리자 푸시 — 성공 ${r.sent}건 · 실패 ${r.failed}건`);
   } catch (e) {
-    console.error('[나리야 개정감지] 관리자 푸시 실패(스캔은 정상):', e && e.message);
+    console.error('[AI 챗봇 개정감지] 관리자 푸시 실패(스캔은 정상):', e && e.message);
   }
 }
 
@@ -541,7 +541,7 @@ async function notifyAdmins(entries) {
  */
 function startAmendmentScan(opts) {
   if (_scanning) return { ok: false, started: false, error: '스캔이 이미 진행 중입니다. 잠시 후 다시 시도하세요.' };
-  runAmendmentScan(opts).catch((e) => console.error('나리야 개정감지 스캔 오류:', e && e.message));
+  runAmendmentScan(opts).catch((e) => console.error('AI 챗봇 개정감지 스캔 오류:', e && e.message));
   return { ok: true, started: true };
 }
 

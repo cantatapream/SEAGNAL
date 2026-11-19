@@ -294,8 +294,8 @@ function createMerger({
         // 「위키·원문 밖 파일을 고침: local_server/…」 → 앞말만 · 괄호 속(「표식(nariya-run: …)」)은 뺀다(적대검증 하3 — 괄호가 안 닫힌 채 잘렸다).
         const plain = (p.needs || []).length && /^결정 필요/.test(String(why)) ? '결정 필요 ' + p.needs.length + '건'
             : String(why || '').replace(/\([^)]*\)/g, '').split(':')[0].replace(/\s+/g, ' ').trim();
-        const title = p.how !== 'button' ? '나리야 자동 반영 — 자동 머지 안 함 · 확인 필요'
-            : ready ? '나리야 자동 반영 — 앱에서 머지 버튼을 눌러 주세요' : '나리야 자동 반영 — 확인 필요';
+        const title = p.how !== 'button' ? 'AI 챗봇 자동 반영 — 자동 머지 안 함 · 확인 필요'
+            : ready ? 'AI 챗봇 자동 반영 — 앱에서 머지 버튼을 눌러 주세요' : 'AI 챗봇 자동 반영 — 확인 필요';
         const body = p.how !== 'button' ? `${plain}. ${HOW_TEXT[p.how]}.`
             : ready ? `검사를 통과했습니다(자동으로 머지하지 않은 까닭: ${plain}). 앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요.`
             : `${plain}. 앱 → 관리자 → 「자동반영」 방에서 확인해 주세요.`;
@@ -382,7 +382,7 @@ function createMerger({
                 try { m = await doMerge(n, r.sha); } catch (e) { console.error('[nariya_pr_merge] PR #' + n + ' 자동 머지 요청 실패:', e && e.message); m = { ok: false, why: '연결 실패: ' + String((e && e.message) || e).slice(0, 80) }; }
                 if (m.ok) {
                     p.status = 'merged'; p.mergedAt = now(); p.mergedBy = 'auto'; p.mergedSha = r.sha; save();
-                    await notify('나리야 자동 반영 — 자동 머지 완료 · 배포 시작',
+                    await notify('AI 챗봇 자동 반영 — 자동 머지 완료 · 배포 시작',
                         '검사를 통과해 자동으로 머지했습니다. 배포가 이어서 시작됩니다(누를 것 없음).',
                         { type: 'nariya_pr_merged', pr: String(n), by: 'auto' });
                 } else await handOver(p, '자동 머지가 거절됐습니다 — ' + m.why, 'button');
@@ -394,7 +394,7 @@ function createMerger({
                 if (p.status !== 'failed_checks') {
                     // 사람 몫 PR 은 처음 까닭(결정 필요 N건 등)을 지운다 — 초록이 되면 그 까닭으로 「머지 버튼」 푸시를 보낸다. 실패 까닭은 check.why 에 있다.
                     p.status = 'failed_checks'; if (auto) p.why = r.why; p.failedAt = now(); save();
-                    await notify('나리야 자동 반영 — 검사 실패 · 자동 머지 안 함',
+                    await notify('AI 챗봇 자동 반영 — 검사 실패 · 자동 머지 안 함',
                         '검사가 실패해 머지 버튼이 잠깁니다. 다시 돌려 통과하면 알려 드립니다. 앱 → 관리자 → 「자동반영」 방에서 확인해 주세요.',
                         { type: 'nariya_pr_failed', pr: String(n) });
                 }

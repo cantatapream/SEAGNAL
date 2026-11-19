@@ -2,7 +2,7 @@
  * ============================================================================
  * 파일명: js/admin/admin_bulletin_ai.js
  * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 모델 설정」(2026-11-16 이름 바꿈 — 종전 「AI 특보 분석」).
- *         맨 위 「AI 챗봇 모델」 = 나리야 답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치(ai_chat.js renderModelSettingsInto — 종전 자리는 AI 챗봇 → 🤖 AI 모델).
+ *         맨 위 「AI 챗봇 모델」 = AI 챗봇 답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치(ai_chat.js renderModelSettingsInto — 종전 자리는 AI 챗봇 → 🤖 AI 모델).
  *         그 아래 「AI 특보 분석」 = 기능마다(① 특보 통보문 읽기 · ② 참고사항 해석 · ③ 해상 기상 전망 색칠 · ④ 연안 안전 브리핑) AI 우선순위.
  *         ④ 연안 안전 브리핑(2026-11-16 사용자 「ai 모델 선택 및 설정 부분은 … ① 특보 통보문 읽기에 해당하는 리스트와 같이 디자인을 수정해줘. 그리고 그 탭으로 넣어줘」 ·
  *           다시 시도 「(나)」 · 처음 순서 「클로드 2번, 클로드 1번, 업스테이지, gpt, gemini」): 칸마다 시도 횟수(1~3번)·Gemini 모델(브리핑만)까지 고르고,
@@ -170,12 +170,12 @@
      */
     w.renderBulletinAiAdmin = function (host) {
         host.innerHTML = '';
-        // 맨 위: 「AI 챗봇 모델」(나리야 답변 순서·일반 사용자 적용·ChatGPT 실행 위치 — ai_chat.js 가 그리고 저장한다)
+        // 맨 위: 「AI 챗봇 모델」(AI 챗봇 답변 순서·일반 사용자 적용·ChatGPT 실행 위치 — ai_chat.js 가 그리고 저장한다)
         host.appendChild(el('div', 'font-weight:800;color:#e2e8f0;font-size:1rem;margin-bottom:6px', 'AI 챗봇 모델'));
         var chat = el('div', 'margin-bottom:22px', '');
         host.appendChild(chat);
         if (w.NariyaChat && typeof w.NariyaChat.renderModelSettingsInto === 'function') w.NariyaChat.renderModelSettingsInto(chat);
-        else chat.appendChild(el('div', 'color:#fca5a5', '나리야 모듈(js/ai-chat/ai_chat.js)이 로드되지 않았습니다.'));
+        else chat.appendChild(el('div', 'color:#fca5a5', 'AI 챗봇 모듈(js/ai-chat/ai_chat.js)이 로드되지 않았습니다.'));
         // 그 아래: 「AI 특보 분석」 — draw 는 이 상자만 다시 그린다(위 챗봇 카드를 지우지 않게)
         box = el('div', '', ''); host.appendChild(box);
         box.innerHTML = '<div style="padding:20px;color:#94a3b8">불러오는 중…</div>';

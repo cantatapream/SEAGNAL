@@ -5594,7 +5594,7 @@
     <script src="seaZones.js?v=TimeFormatUpdate_20260204"></script>
     <script type="module" src="capacitor-plugins.js?v=InAppUpdate_20261119"></script>
     <link rel="stylesheet" href="kma_widget.css">
-    <link rel="stylesheet" href="css/ai_chat.css"><!-- AI 챗봇(나리야) 탭 스타일 -->
+    <link rel="stylesheet" href="css/ai_chat.css"><!-- AI 챗봇 탭 스타일 -->
     <!-- [리팩토링] app.js를 15개 모듈로 분할 -->
     <script src="js/core/config.js"></script>
     <script src="js/shared/utils/mappings.js"></script>
@@ -5752,7 +5752,7 @@
     <script src="js/ocean-map/cctv/cctv4.js"></script>
     <script src="js/ocean-map/cctv/ocean_cctv.js?v=ZoneTime_20261018"></script>
 
-    <!-- AI 챗봇(나리야): 관리자 검토센터+법령 챗봇 · ai-chat-section 렌더 (index2_patch 앞) -->
+    <!-- AI 챗봇: 관리자 검토센터+법령 챗봇 · ai-chat-section 렌더 (index2_patch 앞) -->
     <script src="js/ai-chat/ai_chat.js"></script>
 
     <!-- index2 전용 패치: 종합기상 탭 + 헤더 유지 -->
@@ -6058,7 +6058,7 @@
 
         // ── 3. 정적 버튼 차단 (자물쇠 배지) ──
         // [대상] 오류제보 / 해양종합 배경지도 5종 / 해양종합 우측 토글 / 해양안전 전용 버튼 6종 /
-        //        해양생활(활동) 레일 / 탭 밖(나리야 챗봇·앱 설정·위치기반 알림)
+        //        해양생활(활동) 레일 / 탭 밖(AI 챗봇·앱 설정·위치기반 알림)
         // [연계] admin.js featureTree 의 id 와 1:1 — 트리에 id 를 더하면 여기에도 선택자를 더한다
         //        (local_server/scripts/test_maintenance_tree.js 가 빠진 것을 잡는다)
         // [주의] 배경지도 항목은 #ocean-basemap-menu 로 한정 — 해양생활 레일의 배경지도 피커(#ls-basemap-menu)도
@@ -6590,7 +6590,7 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
-                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">나리야 답변이 늦어질 때 완료되면 알림</div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">AI 챗봇 답변이 늦어질 때 완료되면 알림</div>
                             </div>
                         </div>
                     </div>

@@ -361,7 +361,7 @@ function buildWikiBrief(am, today) {
   const L = [];
   L.push(`# 위키 반영 요청 — ${lawName} ${layer} (시행 ${ymd(eff) || '미상'})`);
   L.push('');
-  L.push('SEAGNAL 해양법령 위키(나리야)의 개정 반영 작업이다. 아래 개정은 **관리자가 이미 승인**했다.');
+  L.push('SEAGNAL 해양법령 위키의 개정 반영 작업이다. 아래 개정은 **관리자가 이미 승인**했다.');
   L.push('작업 규칙은 저장소의 `local_server/knowledge/legal/_SCHEMA.md` 를 따른다(특히 원문 발췌는 복붙, 근거 조문 표 규약, §10 시행일 마커).');
   L.push('');
   L.push('## 1. 무엇이 바뀌었나');
@@ -445,7 +445,7 @@ function buildBulkWikiBrief(list, today, opts) {
   const L = [];
   L.push(`# 위키 반영 요청 — 일괄 승인분 ${rows.length}건`);
   L.push('');
-  L.push('SEAGNAL 해양법령 위키(나리야)의 개정 반영 작업이다. 아래 개정은 **관리자가 한 번에 승인**했다.');
+  L.push('SEAGNAL 해양법령 위키의 개정 반영 작업이다. 아래 개정은 **관리자가 한 번에 승인**했다.');
   L.push('작업 규칙은 저장소의 `local_server/knowledge/legal/_SCHEMA.md` 를 따른다(특히 원문 발췌는 복붙, 근거 조문 표 규약, §10 시행일 마커).');
   L.push('');
   L.push('> ⚠ **이 글은 길다. 건별로 나눠서 처리해도 된다** — 아래 「한눈에 보기」의 순서대로 하나씩 끝내고 다음으로 넘어가면 된다.');

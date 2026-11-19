@@ -360,7 +360,7 @@ const NotificationSettings = {
         night: true,
         childZones: true,  // [작업2a] 특정관리해역(연안바다/평수구역) 자식 정보 푸시 표시 (기본 ON)
         typhoon: false,    // 태풍 발생/소멸 알림 수신 (기본 OFF — 옵트인: 켠 사람에게만 전국 단위 발송)
-        aiAnswer: false    // 나리야 AI 챗봇 답변완료 알림 (기본 OFF — 옵트인: 6초 넘게 걸린 답변만 본인 기기로)
+        aiAnswer: false    // AI 챗봇 답변완료 알림 (기본 OFF — 옵트인: 6초 넘게 걸린 답변만 본인 기기로)
     },
     init() {
         try {

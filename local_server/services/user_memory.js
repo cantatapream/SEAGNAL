@@ -337,7 +337,7 @@ function _buildConsolidatePrompt(newEpisode, existing, opts, preferredMergeId) {
         ? `(서버 힌트: id=${preferredMergeId} 항목과 zone·tags 가 일치합니다. merge 후보)`
         : '';
 
-    return `당신은 SEAGNAL "나리야" 의 사용자 장기기억 관리자입니다.
+    return `당신은 SEAGNAL AI 챗봇의 사용자 장기기억 관리자입니다.
 방금 신규 episode 가 발생했습니다. 기존 consolidated_memory (사용자 장기기억) 와 비교해,
 신규 episode 가 *어디로 흡수되어야 하는지* 결정하세요. ${hint}
 

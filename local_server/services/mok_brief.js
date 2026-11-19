@@ -76,7 +76,7 @@ function buildMokBrief(list) {
   const L = [];
   L.push(`# 원문결손 처리 요청 — 대기 ${rows.length}건`);
   L.push('');
-  L.push('SEAGNAL 해양법령 위키(나리야)의 **원문결손 점검** 결과다. 받아 둔 원문이 **낡았는지가 아니라 안이 비었는지**를 센 것이다 —');
+  L.push('SEAGNAL 해양법령 위키의 **원문결손 점검** 결과다. 받아 둔 원문이 **낡았는지가 아니라 안이 비었는지**를 센 것이다 —');
   L.push('①조문의 목(가·나·다)이 원본보다 적다 ②고시의 별표·별지가 원본보다 적다. 관리자가 아직 판정하지 않은 **대기 전 건**이다.');
   L.push('작업 규칙은 저장소의 `local_server/knowledge/legal/_SCHEMA.md` 를 따른다.');
   L.push('');
